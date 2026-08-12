@@ -61,8 +61,13 @@ export async function initOcctWasm(): Promise<OcctKernel> {
     if (typeof process !== 'undefined' && process.versions?.node) {
       const { OcctKernel: Ctor } = await import('occt-wasm')
       const { readFileSync } = await import('node:fs')
-      const { resolve } = await import('node:path')
-      const wasmPath = resolve(__dirname, '..', '..', '..', '..', 'node_modules', 'occt-wasm', 'dist', 'occt-wasm.wasm')
+      const { resolve, dirname } = await import('node:path')
+      const { fileURLToPath } = await import('node:url')
+      // ESM 兼容：用 import.meta.url 替代 __dirname
+      const moduleDir = typeof __dirname !== 'undefined'
+        ? __dirname
+        : dirname(fileURLToPath(import.meta.url))
+      const wasmPath = resolve(moduleDir, '..', '..', '..', '..', 'node_modules', 'occt-wasm', 'dist', 'occt-wasm.wasm')
       let wasmBinary: ArrayBuffer | null = null
       const candidates = [
         wasmPath,
