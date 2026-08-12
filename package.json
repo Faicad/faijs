@@ -1,0 +1,16 @@
+{
+  "name": "@faicad/faijs",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.js",
+  "types": "src/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.js",
+      "types": "./src/index.d.ts"
+    }
+  },
+  "files": ["src/"],
+  "description": "Faijs is a CAD modeling language"
+}
