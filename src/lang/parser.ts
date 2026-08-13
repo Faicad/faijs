@@ -749,16 +749,70 @@ export function parseScript(code: string, options?: ParseOptions): ParseResult {
     }
   }
 
-  // ── 4. 构建 PartScript ──
+  // ── 4. 自动推导 terminal shapes ──
+  // 不被任何其他语句引用的输出即终端
+  const derivedTerminals = computeTerminalShapes(statements)
+
+  // 如果 return 语句提供了 terminalShapes/meta，则优先使用 return 的信息
+  // 否则使用自动推导的终端
+  const finalTerminalShapes = terminalShapes ?? derivedTerminals
+
+  // ── 5. 构建 PartScript ──
   const script: PartScript = {
     partId,
     params,
     statements,
     meta,
-    terminalShapes,
+    terminalShapes: finalTerminalShapes,
   }
 
   return { script, varToId }
+}
+
+// ── terminal shapes 自动推导 ──
+
+/**
+ * 从语句列表自动推导 terminal shapes。
+ * 规则：不被任何其他语句引用的输出即终端。
+ *
+ * - 普通语句的 id 如果不被其他语句的 inputs 引用 → 终端
+ * - split 解构的 outputs 中不被引用的 → 终端
+ * - marker 语句不作为终端
+ */
+export function computeTerminalShapes(statements: CadStatement[]): TerminalShape[] | undefined {
+  // 收集所有被引用的 id
+  const referencedIds = new Set<string>()
+  for (const stmt of statements) {
+    for (const inputId of stmt.inputs) {
+      referencedIds.add(inputId)
+    }
+  }
+
+  // 收集所有输出 id（语句 id + split outputs）
+  const outputIds: string[] = []
+  for (const stmt of statements) {
+    if (stmt.isMarker) continue
+    outputIds.push(stmt.id)
+    if (stmt.outputs) {
+      for (const outId of stmt.outputs) {
+        outputIds.push(outId)
+      }
+    }
+  }
+
+  // 终端 = 不被引用的输出
+  const terminals: TerminalShape[] = []
+  const seen = new Set<string>()
+  for (const id of outputIds) {
+    if (referencedIds.has(id)) continue
+    if (seen.has(id)) continue
+    seen.add(id)
+    terminals.push({ id })
+  }
+
+  // 如果只有一个终端，不返回数组（等价为单终端，meta 在 return 中处理）
+  if (terminals.length <= 1) return undefined
+  return terminals
 }
 
 // ── 字面量解析（仅允许字面量，不允许标识符/调用） ──

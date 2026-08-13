@@ -1,10 +1,4 @@
-// apiVersion: 1
-// Tests engrave with SVG (simple placeholder)
-// Note: In real tests, SVG would be loaded via asset() function
-export default async (cad) => {
-  const part0_v0 = cad.box({ size: 50 })
-  // SVG engrave would be tested with actual SVG data
-  // For now, test text engrave as a proxy
-  const part0_v1 = cad.engrave({ text: 'TEST', depth: 2, textSize: 8 }, part0_v0)
-  return { shape: part0_v1, name: 'engrave-test' }
-}
+const part0_v0 = cad.box({ size: 50 })
+// SVG engrave would be tested with actual SVG data
+// For now, test text engrave as a proxy
+const part0_v1 = cad.engrave({ text: 'TEST', depth: 2, textSize: 8 }, part0_v0)

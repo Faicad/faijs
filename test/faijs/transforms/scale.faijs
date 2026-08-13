@@ -1,8 +1,3 @@
-// apiVersion: 1
-// Tests scale with uniform and non-uniform factors
-export default async (cad) => {
-  const part0_v0 = cad.box({ size: 10 })
-  const part0_v1 = cad.scale({ factor: 2 }, part0_v0)
-  const part0_v2 = cad.scale({ factor: [1, 2, 3] }, part0_v0)
-  return { shape: part0_v1, name: 'scale-test' }
-}
+const part0_v0 = cad.box({ size: 10 })
+const part0_v1 = cad.scale({ factor: 2 }, part0_v0)
+const part0_v2 = cad.scale({ factor: [1, 2, 3] }, part0_v0)

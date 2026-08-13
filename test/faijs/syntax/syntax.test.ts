@@ -12,7 +12,7 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import { parseScript } from '../../../src/lang/parser'
-import { scriptToCode } from '../../../src/lang/codegen'
+import { scriptToFlatCode } from '../../../src/lang/codegen'
 
 const SYNTAX_DIR = resolve(process.cwd(), 'test/faijs/syntax')
 
@@ -35,16 +35,17 @@ describe('syntax .faijs tests', () => {
       expect(script.partId).toBe('test_part')
     })
 
-    it(`${file}: codegen produces valid code`, () => {
+    it(`${file}: codegen produces valid flat code`, () => {
       const { script } = parseScript(code, { partId: 'test_part' })
-      const generatedCode = scriptToCode(script)
-      expect(generatedCode).toContain('export default async')
+      const generatedCode = scriptToFlatCode(script)
       expect(generatedCode).toContain('cad.')
+      // Should NOT contain export default
+      expect(generatedCode).not.toContain('export default')
     })
 
     it(`${file}: round-trip is stable`, () => {
       const { script: script1 } = parseScript(code, { partId: 'test_part' })
-      const generatedCode = scriptToCode(script1)
+      const generatedCode = scriptToFlatCode(script1)
       const { script: script2 } = parseScript(generatedCode, { partId: 'test_part' })
 
       // Check that statements are preserved
@@ -53,40 +54,19 @@ describe('syntax .faijs tests', () => {
     })
   }
 
-  it('single mesh return: uses meta.name', () => {
-    const code = `// apiVersion: 1
-export default async (cad) => {
-  const part0_v0 = cad.box({ size: 20 })
-  return { shape: part0_v0, name: 'my-box' }
-}`
+  it('single mesh flat code: no terminalShapes', () => {
+    const code = `const part0_v0 = cad.box({ size: 20 })`
     const { script } = parseScript(code, { partId: 'test' })
-    const name = script.meta?.name ?? script.terminalShapes?.[0]?.name
-    expect(name).toBe('my-box')
+    expect(script.statements).toHaveLength(1)
+    expect(script.terminalShapes).toBeUndefined()
   })
 
-  it('multi mesh return: parses and executes correctly', async () => {
-    const code = `// apiVersion: 1
-export default async (cad) => {
-  const part0_v0 = cad.box({ size: 20 })
-  const part1_v0 = cad.sphere({ radius: 10, center: [30, 0, 0] })
-  return [
-    { shape: part0_v0, name: 'box' },
-    { shape: part1_v0, name: 'sphere' },
-  ]
-}`
+  it('multi mesh flat code: auto-derives terminalShapes', () => {
+    const code = `const part0_v0 = cad.box({ size: 20 })
+const part1_v0 = cad.sphere({ radius: 10, center: [30, 0, 0] })`
     const { script } = parseScript(code, { partId: 'test' })
-    // Verify the script has multiple statements
     expect(script.statements.length).toBeGreaterThan(1)
-  })
-
-  it('apiVersion comment is preserved in codegen', () => {
-    const code = `// apiVersion: 1
-export default async (cad) => {
-  const part0_v0 = cad.box({ size: 20 })
-  return { shape: part0_v0 }
-}`
-    const { script } = parseScript(code, { partId: 'test' })
-    const regenerated = scriptToCode(script)
-    expect(regenerated).toContain('apiVersion: 1')
+    expect(script.terminalShapes).toBeDefined()
+    expect(script.terminalShapes).toHaveLength(2)
   })
 })

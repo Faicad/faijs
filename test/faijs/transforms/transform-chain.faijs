@@ -1,9 +1,4 @@
-// apiVersion: 1
-// Tests transforms: translate → rotate → scale
-export default async (cad) => {
-  const part0_v0 = cad.box({ size: 20 })
-  const part0_v1 = cad.translate({ offset: [5, 0, 0] }, part0_v0)
-  const part0_v2 = cad.rotate({ anglesDeg: [0, 0, 45] }, part0_v1)
-  const part0_v3 = cad.scale({ factor: 1.5 }, part0_v2)
-  return { shape: part0_v3, name: 'transform-chain' }
-}
+const part0_v0 = cad.box({ size: 20 })
+const part0_v1 = cad.translate({ offset: [5, 0, 0] }, part0_v0)
+const part0_v2 = cad.rotate({ anglesDeg: [0, 0, 45] }, part0_v1)
+const part0_v3 = cad.scale({ factor: 1.5 }, part0_v2)

@@ -1,7 +1,2 @@
-// apiVersion: 1
-// Tests cylinder with different parameters
-export default async (cad) => {
-  const part0_v0 = cad.cylinder({ radius: 5, height: 20 })
-  const part0_v1 = cad.cylinder({ radius: 8, height: 15, center: [0, 0, 10] })
-  return { shape: part0_v1, name: 'cylinder-variants' }
-}
+const part0_v0 = cad.cylinder({ radius: 5, height: 20 })
+const part0_v1 = cad.cylinder({ radius: 8, height: 15, center: [0, 0, 10] })

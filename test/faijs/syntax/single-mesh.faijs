@@ -1,6 +1,1 @@
-// apiVersion: 1
-// Tests single mesh return shorthand
-export default async (cad) => {
-  const part0_v0 = cad.box({ size: 20 })
-  return { shape: part0_v0 }
-}
+const part0_v0 = cad.box({ size: 20 })

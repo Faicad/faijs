@@ -1,4 +1,5 @@
 # brep/mesh 双链路代码执行引擎实现分析
+已过时。
 
 > **性质**：现状分析文档（`docs/analysis/`），不是开发计划。描述当前代码的真实实现，附 file:line 引用。
 > **关联**：契约文档 [`docs/code-engine-api-contract.md`](../code-engine-api-contract.md)；演进计划 [`docs/plans/2026-08-10-baked-execution-engine-design.md`](../plans/2026-08-10-baked-execution-engine-design.md)。

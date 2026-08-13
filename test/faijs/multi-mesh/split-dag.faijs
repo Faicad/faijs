@@ -1,14 +1,6 @@
-// apiVersion: 1
-// Tests multi-mesh DAG: split → two parts → each processed → union
-export default async (cad) => {
-  const part0_v0 = cad.box({ size: [50, 50, 20] })
-  const { front, back } = await cad.split({ cutMode: 'plane', normal: [0, 0, 1], offset: 0 }, part0_v0)
-  const part1_v1 = cad.box({ size: 20 })
-  const part0_v2 = cad.union(front, part1_v1)
-  const part2_v1 = cad.cylinder({ radius: 10, height: 20 })
-  const part2_v2 = cad.union(back, part2_v1)
-  return [
-    { shape: part0_v2, name: 'front-processed' },
-    { shape: part2_v2, name: 'back-processed' },
-  ]
-}
+const part0_v0 = cad.box({ size: [50, 50, 20] })
+const { front, back } = await cad.split({ cutMode: 'plane', normal: [0, 0, 1], offset: 0 }, part0_v0)
+const part1_v1 = cad.box({ size: 20 })
+const part0_v2 = cad.union(front, part1_v1)
+const part2_v1 = cad.cylinder({ radius: 10, height: 20 })
+const part2_v2 = cad.union(back, part2_v1)

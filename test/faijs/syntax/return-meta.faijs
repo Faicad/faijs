@@ -1,6 +1,1 @@
-// apiVersion: 1
-// Tests return with metadata (name, color, etc.)
-export default async (cad) => {
-  const part0_v0 = cad.box({ size: 20 })
-  return { shape: part0_v0, name: 'my-box', appearance: { color: '#ff0000' } }
-}
+const part0_v0 = cad.box({ size: 20 })

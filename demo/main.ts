@@ -13,8 +13,8 @@
 
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { parseScript, ParseError, createRuntime, createBrowserPorts, setOcctWasmInitFn, initOcctWasm, buildStlBufferFromMesh, exportStepFromSolid } from '@faicad/faijs/browser'
-import type { ExecutionMode, ExecutionResult } from '@faicad/faijs/browser'
+import { parseScript, ParseError, createRuntime, createBrowserPorts, setOcctWasmInitFn, initOcctWasm } from '@faicad/faijs/browser'
+import type { ExecutionMode } from '@faicad/faijs/browser'
 import { OcctKernel } from 'occt-wasm'
 import { setWasmUrl as setManifoldWasmUrl } from 'manifold-3d/lib/wasm.js'
 import fontUrl from './assets/fonts/OpenSans-Regular.ttf?url'
@@ -22,36 +22,20 @@ import fontUrl from './assets/fonts/OpenSans-Regular.ttf?url'
 // ── Example .faijs files ──
 
 const EXAMPLES: Record<string, string> = {
-  'box-boolean': `// apiVersion: 1
-export default async (cad) => {
-  const part0_v0 = cad.box({ size: 20 })
-  const part0_v1 = cad.sphere({ radius: 8, center: [5, 0, 0] })
-  const part0_v2 = cad.subtract(part0_v0, part0_v1)
-  return { shape: part0_v2, name: 'box-boolean' }
-}`,
-  'drill-test': `// apiVersion: 1
-export default async (cad) => {
-  const part0_v0 = cad.box({ size: [30, 20, 15] })
-  const part0_v1 = cad.cylinder({ radius: 5, height: 20, center: [0, 0, 0] })
-  const part0_v2 = cad.subtract(part0_v0, part0_v1)
-  const part0_v3 = cad.translate({ offset: [10, 0, 0] }, part0_v2)
-  return { shape: part0_v3, name: 'drill-test' }
-}`,
-  'text-engrave': `// apiVersion: 1
-export default async (cad) => {
-  const part0_v0 = cad.box({ size: 30 })
-  const part0_v1 = cad.translate({ offset: [0, 0, 14] }, part0_v0)
-  const part0_v2 = cad.text({ text: 'HELLO', size: 8, depth: 2 }, part0_v1)
-  return { shape: part0_v2, name: 'text-engrave' }
-}`,
-  'transform-chain': `// apiVersion: 1
-export default async (cad) => {
-  const part0_v0 = cad.box({ size: [20, 10, 5] })
-  const part0_v1 = cad.rotate({ angles: [0, 0, 30] }, part0_v0)
-  const part0_v2 = cad.translate({ offset: [5, 0, 0] }, part0_v1)
-  const part0_v3 = cad.scale({ factor: [1, 1, 2] }, part0_v2)
-  return { shape: part0_v3, name: 'transform-chain' }
-}`,
+  'box-boolean': `const part0_v0 = cad.box({ size: 20 })
+const part0_v1 = cad.sphere({ radius: 8, center: [5, 0, 0] })
+const part0_v2 = cad.subtract(part0_v0, part0_v1)`,
+  'drill-test': `const part0_v0 = cad.box({ size: [30, 20, 15] })
+const part0_v1 = cad.cylinder({ radius: 5, height: 20, center: [0, 0, 0] })
+const part0_v2 = cad.subtract(part0_v0, part0_v1)
+const part0_v3 = cad.translate({ offset: [10, 0, 0] }, part0_v2)`,
+  'text-engrave': `const part0_v0 = cad.box({ size: 30 })
+const part0_v1 = cad.translate({ offset: [0, 0, 14] }, part0_v0)
+const part0_v2 = cad.text({ text: 'HELLO', size: 8, depth: 2 }, part0_v1)`,
+  'transform-chain': `const part0_v0 = cad.box({ size: [20, 10, 5] })
+const part0_v1 = cad.rotate({ angles: [0, 0, 30] }, part0_v0)
+const part0_v2 = cad.translate({ offset: [5, 0, 0] }, part0_v1)
+const part0_v3 = cad.scale({ factor: [1, 1, 2] }, part0_v2)`,
 }
 
 // ── DOM elements ──
@@ -210,74 +194,6 @@ function renderShapes(view: Viewer3D, shapes: Array<{ id: string; positions: Flo
   }
 }
 
-// ── Download STEP / STL ──
-
-const stepBtn = document.getElementById('btn-step') as HTMLButtonElement
-const stlBtn = document.getElementById('btn-stl') as HTMLButtonElement
-
-let lastBrepSolid: ExecutionResult['brepSolid'] | null = null
-let lastMeshShapes: ShapeSummary[] = []
-
-function updateDownloadButtons() {
-  stepBtn.disabled = !lastBrepSolid
-  stlBtn.disabled = lastMeshShapes.length === 0
-}
-
-function downloadBuffer(buffer: ArrayBuffer, filename: string, mime: string) {
-  const blob = new Blob([buffer], { type: mime })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
-}
-
-function mergeShapes(shapes: ShapeSummary[]): { positions: Float32Array; indices: Uint32Array } {
-  let totalVerts = 0
-  let totalIdx = 0
-  for (const s of shapes) {
-    totalVerts += s.positions.length / 3
-    totalIdx += s.indices.length
-  }
-  const positions = new Float32Array(totalVerts * 3)
-  const indices = new Uint32Array(totalIdx)
-  let vOffset = 0
-  let iOffset = 0
-  for (const s of shapes) {
-    positions.set(s.positions, vOffset * 3)
-    for (let i = 0; i < s.indices.length; i++) indices[iOffset + i] = s.indices[i]! + vOffset
-    vOffset += s.positions.length / 3
-    iOffset += s.indices.length
-  }
-  return { positions, indices }
-}
-
-stepBtn.addEventListener('click', () => {
-  if (!lastBrepSolid) return
-  try {
-    const buffer = exportStepFromSolid(lastBrepSolid.solid, lastBrepSolid.kernel)
-    downloadBuffer(buffer, 'model.step', 'model/step')
-    setStatus(`Downloaded STEP (${(buffer.byteLength / 1024).toFixed(1)} KB)`, 'success')
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    setStatus(`STEP export failed: ${msg}`, 'error')
-  }
-})
-
-stlBtn.addEventListener('click', () => {
-  if (lastMeshShapes.length === 0) return
-  try {
-    const merged = mergeShapes(lastMeshShapes)
-    const buffer = buildStlBufferFromMesh(merged.positions, merged.indices, 'Faicad STL')
-    downloadBuffer(buffer, 'model.stl', 'model/stl')
-    setStatus(`Downloaded STL (${(buffer.byteLength / 1024).toFixed(1)} KB)`, 'success')
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    setStatus(`STL export failed: ${msg}`, 'error')
-  }
-})
-
 // ── Run faijs code ──
 
 // OCCT kernel 首次初始化需从 CDN 下载 ~22MB wasm，耗时较长。
@@ -327,13 +243,10 @@ async function runMode(
   ports: ReturnType<typeof createBrowserPorts>,
 ): Promise<string> {
   const runtime = createRuntime(ports, view.mode)
-  const result: ExecutionResult = await runtime.replay(script)
+  const result = await runtime.replay(script)
 
   if (result.failedAt) {
     clearMeshes(view)
-    if (view.mode === 'brep') lastBrepSolid = null
-    else lastMeshShapes = []
-    updateDownloadButtons()
     return `Failed at op "${result.failedAt.op}": ${result.failedAt.message}`
   }
 
@@ -341,17 +254,10 @@ async function runMode(
 
   if (shapes.length === 0) {
     clearMeshes(view)
-    if (view.mode === 'brep') lastBrepSolid = null
-    else lastMeshShapes = []
-    updateDownloadButtons()
     return 'No geometry produced.'
   }
 
   renderShapes(view, shapes)
-
-  if (view.mode === 'brep') lastBrepSolid = result.brepSolid ?? null
-  else lastMeshShapes = shapes
-  updateDownloadButtons()
 
   const totalVerts = shapes.reduce((s, sh) => s + sh.positions.length / 3, 0)
   const totalTris = shapes.reduce((s, sh) => s + sh.indices.length / 3, 0)
@@ -434,8 +340,8 @@ setOcctWasmInitFn(initOcct)
 // faijs 的运行时动态 import）
 setManifoldWasmUrl(
   import.meta.env.DEV
-    ? '/node_modules/manifold-3d/manifold.wasm'
-    : 'https://cdn.jsdelivr.net/npm/manifold-3d@3.5.1/manifold.wasm',
+    ? '/node_modules/manifold-3d/lib/manifold.wasm'
+    : 'https://cdn.jsdelivr.net/npm/manifold-3d@3.5.1/lib/manifold.wasm',
 )
 
 codeEditor.value = EXAMPLES['box-boolean']

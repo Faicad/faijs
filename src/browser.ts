@@ -22,9 +22,9 @@ export {
   isPartVmId, getModelNum, getVersionNum,
 } from './lang/allocate-id'
 export type { AllocateIdContext } from './lang/allocate-id'
-export { parseScript, ParseError, getApiVersion } from './lang/parser'
+export { parseScript, ParseError, getApiVersion, computeTerminalShapes } from './lang/parser'
 export type { ParseOptions, ParseResult } from './lang/parser'
-export { sceneToCode, sceneToFlatCode, statementToCode, statementToFlatLine, scriptToCode, scriptToFlatCode, fmtNum, buildArgsParts } from './lang/codegen'
+export { sceneToFlatCode, statementToLine, scriptToFlatCode, fmtNum, buildArgsParts } from './lang/codegen'
 export { validateStatementArgs, validateScriptArgs, getOpSchema, hasOpSchema } from './lang/args-schema'
 export type { OpSchema, ArgFieldSchema, ArgType, ValidationError } from './lang/args-schema'
 

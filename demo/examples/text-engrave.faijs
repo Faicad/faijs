@@ -1,7 +1,3 @@
-// apiVersion: 1
-export default async (cad) => {
-  const part0_v0 = cad.box({ size: 30 })
-  const part0_v1 = cad.translate({ offset: [0, 0, 14] }, part0_v0)
-  const part0_v2 = cad.text({ text: 'HELLO', size: 8, depth: 2 }, part0_v1)
-  return { shape: part0_v2, name: 'text-engrave' }
-}
+const part0_v0 = cad.box({ size: 30 })
+const part0_v1 = cad.translate({ offset: [0, 0, 14] }, part0_v0)
+const part0_v2 = cad.text({ text: 'HELLO', size: 8, depth: 2 }, part0_v1)

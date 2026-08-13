@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿/**
  * 布尔操作分派器（union/subtract/intersect）
  *
  * BREP 路径：用 OCCT fuse/cut/common（通过 *WithHistory 封装，同时收集面演化映射）
@@ -25,7 +25,7 @@ import { canUseBrep } from './types'
  * 执行布尔操作
  */
 export async function executeBoolean(ctx: OpContext): Promise<Shape> {
-  const { inputGeometries, args } = ctx
+  const { inputGeometries, args, brepChain, stmt } = ctx
   const operation = args.operation as 'union' | 'subtract' | 'intersect'
 
   if (inputGeometries.length < 2) {
@@ -33,12 +33,22 @@ export async function executeBoolean(ctx: OpContext): Promise<Shape> {
     throw new Error(`[ReplayValidator] boolean needs at least 1 input`)
   }
 
+  // 多模型静态判定：检查所有输入是否都有 BREP solid
+  // 如果任何一个输入缺少 solid（说明该输入走的是 mesh 路径），则静态切换到 mesh 路径
+  if (brepChain && stmt) {
+    const allInputsHaveSolid = stmt.inputs.every(inputId => brepChain.solidCache.has(inputId))
+    if (!allInputsHaveSolid) {
+      // 静态切换到 mesh 路径（不是回退，是多模型混合判定）
+      return executeBooleanMesh(operation, inputGeometries)
+    }
+  }
+
   // 链不活跃 → mesh 路径（链已在前面静态断掉，正常继续）
   if (!canUseBrep(ctx)) {
     return executeBooleanMesh(operation, inputGeometries)
   }
 
-  // 链活跃 → BREP 路径（直接执行，不包 try-catch！异常 = 未预期错误，冒泡上报）
+  // 链活跃且所有输入都有 solid → BREP 路径（直接执行，不包 try-catch！异常 = 未预期错误，冒泡上报）
   return executeBooleanBrep(ctx)
 }
 

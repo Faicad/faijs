@@ -1,10 +1,5 @@
-// apiVersion: 1
-// Tests parameter declaration and usage
-export default async (cad) => {
-  const size = 20
-  const radius = 10
-  const part0_v0 = cad.box({ size: size })
-  const part0_v1 = cad.sphere({ radius: radius, center: [30, 0, 0] })
-  const part0_v2 = cad.union(part0_v0, part0_v1)
-  return { shape: part0_v2, name: 'params-test' }
-}
+const size = 20
+const radius = 10
+const part0_v0 = cad.box({ size: size })
+const part0_v1 = cad.sphere({ radius: radius, center: [30, 0, 0] })
+const part0_v2 = cad.union(part0_v0, part0_v1)
