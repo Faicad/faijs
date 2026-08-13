@@ -10,10 +10,9 @@
 
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { parseScript, ParseError, createRuntime, createBrowserPorts, setOcctWasmInitFn } from '@faicad/faijs/browser'
+import { parseScript, ParseError, createRuntime, createBrowserPorts, setOcctWasmInitFn, initOcctWasm } from '@faicad/faijs/browser'
 import type { ExecutionMode } from '@faicad/faijs/browser'
 import { OcctKernel } from 'occt-wasm'
-import occtWasmUrl from 'occt-wasm/dist/occt-wasm.wasm?url'
 import fontUrl from './assets/fonts/OpenSans-Regular.ttf?url'
 
 // ── Example .faijs files ──
@@ -65,8 +64,14 @@ const canvas = document.getElementById('three-canvas') as HTMLCanvasElement
 const scene = new THREE.Scene()
 scene.background = new THREE.Color(0x0d0d1a)
 
+// faijs 产出的 CAD 数据是 Z-up（与 3d_editor 一致），
+// three.js 场景同步为 Z-up：不转数据，只设 up 轴
+scene.up.set(0, 0, 1)
+
 const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000)
-camera.position.set(30, 25, 35)
+// Y-up 视角 (30, 25, 35) → Z-up：绕 X +90°（(x,y,z) → (x,-z,y)）
+camera.position.set(30, -35, 25)
+camera.up.set(0, 0, 1)
 camera.lookAt(0, 0, 0)
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true })
@@ -88,8 +93,9 @@ const dirLight2 = new THREE.DirectionalLight(0x8899ff, 0.5)
 dirLight2.position.set(-15, 10, -15)
 scene.add(dirLight2)
 
-// Grid helper
+// Grid helper（Z-up 地面为 XY 平面，GridHelper 默认在 XZ 平面需旋转）
 const grid = new THREE.GridHelper(100, 20, 0x333355, 0x222244)
+grid.rotation.x = Math.PI / 2
 scene.add(grid)
 
 // Axes helper
@@ -173,7 +179,8 @@ function renderShapes(shapes: Array<{ id: string; positions: Float32Array; indic
     const center = box.getCenter(new THREE.Vector3())
     const maxDim = Math.max(size.x, size.y, size.z)
     const dist = maxDim * 2.2 + 5
-    camera.position.set(dist, dist * 0.7, dist)
+    // Z-up：高度分量放在 Z 轴，俯视 45°
+    camera.position.set(dist, -dist, dist * 0.7)
     controls.target.copy(center)
     controls.update()
   }
@@ -181,7 +188,21 @@ function renderShapes(shapes: Array<{ id: string; positions: Float32Array; indic
 
 // ── Run faijs code ──
 
-let occtInitialized = false
+// OCCT kernel 首次初始化需从 CDN 下载 ~22MB wasm，耗时较长。
+// 页面加载即后台预热，runCode 等待同一个 promise，避免状态卡在 "Executing..."
+let occtReady: Promise<void> | null = null
+
+function preloadOcct() {
+  if (occtReady) return
+  setStatus('Loading OCCT kernel (~22MB, first run only)...', 'info')
+  occtReady = initOcctWasm().catch((err) => {
+    occtReady = null // 失败后允许下次重试
+    const msg = err instanceof Error ? err.message : String(err)
+    setStatus(`OCCT kernel failed: ${msg}`, 'error')
+    throw err
+  })
+}
+
 let runtime: ReturnType<typeof createRuntime> | null = null
 
 async function runCode() {
@@ -198,6 +219,12 @@ async function runCode() {
     // Create runtime (recreate if mode changed)
     const ports = createBrowserPorts({ fontUrl })
     runtime = createRuntime(ports, mode)
+
+    // OCCT kernel is shared across executions — wait for the preload
+    if (occtReady) {
+      setStatus('Waiting for OCCT kernel...', 'info')
+      await occtReady
+    }
 
     setStatus('Executing...', 'info')
 
@@ -262,6 +289,7 @@ exampleSelect.addEventListener('change', () => {
   const key = exampleSelect.value
   if (EXAMPLES[key]) {
     codeEditor.value = EXAMPLES[key]
+    runCode()
   }
 })
 
@@ -281,8 +309,12 @@ codeEditor.addEventListener('keydown', (e) => {
 // ── Initialize ──
 
 // OCCT kernel is required by BREP ops — let faijs use occt-wasm's browser init,
-// with the WASM binary served as a Vite asset (dev server & build)
-setOcctWasmInitFn(() => OcctKernel.init({ wasm: occtWasmUrl }))
+// with the WASM binary loaded from CDN (jsdelivr, same version as faijs dependency)
+setOcctWasmInitFn(() => OcctKernel.init({ wasm: 'https://cdn.jsdelivr.net/npm/occt-wasm@3.7.0/dist/occt-wasm.wasm' }))
 
 codeEditor.value = EXAMPLES['box-boolean']
-setStatus('Ready. Click Run or press Ctrl+Enter.', 'info')
+
+// 预热 OCCT kernel（首次 ~22MB 下载），然后自动执行；
+// 切换示例时也会自动执行，仅手动编辑代码时才需要点击 Run
+preloadOcct()
+void runCode()

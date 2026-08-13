@@ -7,9 +7,8 @@
     "build": "vite build",
     "preview": "vite preview"
   },
-  "dependencies": {
-    "@faicad/faijs": "file:..",
-    "occt-wasm": "^3.7.0"
+"dependencies": {
+    "@faicad/faijs": "file:.."
   },
   "devDependencies": {
     "@types/three": "^0.184.1",
