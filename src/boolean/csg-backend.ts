@@ -8,8 +8,8 @@
  * 浏览器环境：通过 setCsgBackend() 注入 WorkerCsgBackend。
  */
 
-import type { CsgBackend, MeshData, PlaneParams, SplitResult as PortSplitResult } from '../cad-runtime/ports'
-import { InlineCsgBackend } from '../node-host/inline-csg-backend'
+import type { CsgBackend } from '../cad-runtime/ports'
+import { InlineCsgBackend } from '../browser-host/inline-csg-backend'
 import type {
   ManifoldMeshData,
   BooleanOperation,

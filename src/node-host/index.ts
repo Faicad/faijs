@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿/**
  * node-host — L3 Node host 公开 API
  *
  * 设计文档：docs/faijs-engine-refactor-design.md §4.1, §5.1
@@ -9,8 +9,8 @@
  * - CLI 入口
  */
 
-export { InlineCsgBackend } from './inline-csg-backend'
-export { InlineSdfBackend } from './inline-sdf-backend'
+export { InlineCsgBackend } from '../browser-host/inline-csg-backend'
+export { InlineSdfBackend } from '../browser-host/inline-sdf-backend'
 export { NodeFontProvider } from './node-font-provider'
 export type { NodeFontProviderOptions } from './node-font-provider'
 export { FsAssetResolver } from './fs-asset-resolver'
@@ -18,8 +18,8 @@ export type { FsAssetResolverOptions } from './fs-asset-resolver'
 export { CliEventSink } from './cli-event-sink'
 
 import type { HostPorts } from '../cad-runtime/ports'
-import { InlineCsgBackend } from './inline-csg-backend'
-import { InlineSdfBackend } from './inline-sdf-backend'
+import { InlineCsgBackend } from '../browser-host/inline-csg-backend'
+import { InlineSdfBackend } from '../browser-host/inline-sdf-backend'
 import { NodeFontProvider } from './node-font-provider'
 import { FsAssetResolver } from './fs-asset-resolver'
 import { CliEventSink } from './cli-event-sink'

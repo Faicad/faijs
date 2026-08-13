@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿/**
  * @vitest-environment node
  *
  * InlineCsgBackend 测试 (P3-1)
@@ -9,7 +9,7 @@
  * 3. splitPlane: 立方体水平分割 → 两个非空 mesh
  * 4. InlineCsgBackend 结果与 csg.test.ts inline 模式一致
  *
- * Run: npx vitest run src/node-host/inline-csg-backend.test.ts
+ * Run: npx vitest run src/browser-host/inline-csg-backend.test.ts
  */
 
 import { describe, it, expect } from 'vitest'

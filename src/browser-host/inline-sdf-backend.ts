@@ -1,7 +1,7 @@
 ﻿/**
- * InlineSdfBackend — Node 端 SDF 后端实现（主线程直跑）
+ * InlineSdfBackend — 主线程直跑 SDF 后端（manifold-3d）
  *
- * 设计文档：docs/faijs-engine-refactor-design.md §5.1
+ * 浏览器和 Node 环境均可使用（manifold-3d 在两个环境都可用）。
  *
  * 与 browser 端 WorkerSdfBackend 的区别：
  * - 不使用 Web Worker

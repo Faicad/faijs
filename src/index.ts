@@ -186,14 +186,9 @@ export { setFontLoader, getFontLoader, loadFont, ensureDefaultFont, getFont, cle
 export type { FontLoader } from './brep/text/fontRegistry'
 
 // ── L3 Node Host ──
-export { createNodePorts } from './node-host'
-export { InlineCsgBackend } from './node-host/inline-csg-backend'
-export { InlineSdfBackend } from './node-host/inline-sdf-backend'
-export { NodeFontProvider } from './node-host/node-font-provider'
-export { FsAssetResolver } from './node-host/fs-asset-resolver'
-export { CliEventSink } from './node-host/cli-event-sink'
-export { cliCheck, cliRun, cliMain, parseArgs } from './node-host/cli'
-export type { CliCheckResult, CliRunResult, CliRunOptions } from './node-host/cli'
+// node-host 模块已移至 @faicad/faijs/node 入口，避免浏览器环境静态 import
+// node-host 模块（含 Node.js 专用代码如 fs/path）导致生产构建 404。
+// 在 Node.js 环境中：import { createNodePorts } from '@faicad/faijs/node'
 
 // ── L3 Browser Host ──
 export { createBrowserPorts } from './browser-host'

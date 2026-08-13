@@ -5,7 +5,7 @@
  * 直接使用 InlineSdfBackend 在主线程执行 SDF。
  */
 
-import { InlineSdfBackend } from '../node-host/inline-sdf-backend'
+import { InlineSdfBackend } from '../browser-host/inline-sdf-backend'
 
 export interface SdfMeshData {
   positions: Float32Array

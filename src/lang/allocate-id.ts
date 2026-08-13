@@ -99,13 +99,6 @@ function isBooleanOp(op: string): boolean {
   return op === 'boolean'
 }
 
-/**
- * 判断 op 是否为分割操作（产生两个新模型）。
- */
-function isSplitOp(op: string): boolean {
-  return op === 'split'
-}
-
 /** 分配器上下文 */
 export interface AllocateIdContext {
   /** 当前 sceneScript 中所有已有语句 */

@@ -1,4 +1,4 @@
-﻿﻿﻿﻿/**
+/**
  * CJK (Chinese/Japanese/Korean) text geometry generation.
  *
  * Uses the Local Font Access API (window.queryLocalFonts) to load system CJK

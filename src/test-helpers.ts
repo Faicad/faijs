@@ -5,7 +5,7 @@
  * 从 script-engine/replay-validator.ts 迁移。
  */
 
-import type { PartScript, ShapeRef } from './lang/types'
+import type { PartScript } from './lang/types'
 import type { Shape } from './brep/ops/types'
 import type { BrepChainState } from './brep/brep-chain'
 import { initBrepChainState } from './brep/brep-chain'

@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿/**
  * @vitest-environment node
  *
  * InlineSdfBackend 测试 (P3-2)
@@ -9,7 +9,7 @@
  * 3. 球体 SDF：验证 mesh 大致形状（顶点数 > 0，bbox 在预期范围内）
  * 4. 带 bounds() 的脚本
  *
- * Run: npx vitest run src/node-host/inline-sdf-backend.test.ts
+ * Run: npx vitest run src/browser-host/inline-sdf-backend.test.ts
  */
 
 import { describe, it, expect } from 'vitest'

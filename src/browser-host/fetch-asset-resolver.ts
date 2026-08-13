@@ -50,7 +50,7 @@ export class FetchAssetResolver implements AssetResolver {
     return { bytes, format: undefined }
   }
 
-  async resolveFile(path: string): Promise<ArrayBuffer> {
+  async resolveFile(_path: string): Promise<ArrayBuffer> {
     throw new Error('[FetchAssetResolver] resolveFile is not available in browser environment. Use resolveUrl or resolveByKey instead.')
   }
 

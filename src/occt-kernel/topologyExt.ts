@@ -3,7 +3,6 @@ import { getKernel, type ShapeHandle, type Mesh as WasmMesh, type BoundingBox, t
 // GlbBuilder is browser-only; functions that use it (addStepTopology, addAssemblyStepTopology)
 // are not available in headless mode. Only buildSelectorManifest / buildAssemblySelectorManifest
 // are used by the headless engine.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type GlbBuilder = any
 
 /**

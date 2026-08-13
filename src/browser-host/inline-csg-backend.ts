@@ -1,7 +1,7 @@
 ﻿/**
- * InlineCsgBackend — Node 端 CSG 后端实现（主线程直跑 manifold-3d）
+ * InlineCsgBackend — 主线程直跑 CSG 后端（manifold-3d）
  *
- * 设计文档：docs/faijs-engine-refactor-design.md §5.1
+ * 浏览器和 Node 环境均可使用（manifold-3d 在两个环境都可用）。
  *
  * 与 browser 端 WorkerCsgBackend 的区别：
  * - 不使用 Web Worker（?worker 语法在 Node 环境不可用）

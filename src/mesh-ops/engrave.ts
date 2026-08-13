@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿/**
+/**
  * cad-core 雕刻 API
  *
  * 提取来源：engine/components/engraving/EngravingCore.ts

@@ -17,8 +17,8 @@ import { createBrowserPorts } from './index'
 import { BrowserEventSink } from './browser-event-sink'
 import { BrowserFontProvider } from './browser-font-provider'
 import { FetchAssetResolver } from './fetch-asset-resolver'
-import { InlineCsgBackend } from '../node-host/inline-csg-backend'
-import { InlineSdfBackend } from '../node-host/inline-sdf-backend'
+import { InlineCsgBackend } from './inline-csg-backend'
+import { InlineSdfBackend } from './inline-sdf-backend'
 import { getFontLoader, clearFonts } from '../brep/text/fontRegistry'
 import type { CsgBackend, SdfBackend, AssetResolver, EventSink } from '../cad-runtime/ports'
 
@@ -27,8 +27,8 @@ describe('createBrowserPorts', () => {
     clearFonts()
   })
 
-  it('returns HostPorts with all fields populated', () => {
-    const ports = createBrowserPorts()
+  it('returns HostPorts with all fields populated', async () => {
+    const ports = await createBrowserPorts()
     expect(ports.csg).toBeDefined()
     expect(ports.sdf).toBeDefined()
     expect(ports.fonts).toBeDefined()
@@ -36,32 +36,32 @@ describe('createBrowserPorts', () => {
     expect(ports.events).toBeDefined()
   })
 
-  it('defaults to InlineCsgBackend', () => {
-    const ports = createBrowserPorts()
+  it('defaults to InlineCsgBackend', async () => {
+    const ports = await createBrowserPorts()
     expect(ports.csg).toBeInstanceOf(InlineCsgBackend)
   })
 
-  it('defaults to InlineSdfBackend', () => {
-    const ports = createBrowserPorts()
+  it('defaults to InlineSdfBackend', async () => {
+    const ports = await createBrowserPorts()
     expect(ports.sdf).toBeInstanceOf(InlineSdfBackend)
   })
 
-  it('defaults to BrowserEventSink', () => {
-    const ports = createBrowserPorts()
+  it('defaults to BrowserEventSink', async () => {
+    const ports = await createBrowserPorts()
     expect(ports.events).toBeInstanceOf(BrowserEventSink)
   })
 
-  it('defaults to BrowserFontProvider', () => {
-    const ports = createBrowserPorts({ fontUrl: 'http://localhost/font.ttf' })
+  it('defaults to BrowserFontProvider', async () => {
+    const ports = await createBrowserPorts({ fontUrl: 'http://localhost/font.ttf' })
     expect(ports.fonts).toBeInstanceOf(BrowserFontProvider)
   })
 
-  it('defaults to FetchAssetResolver', () => {
-    const ports = createBrowserPorts()
+  it('defaults to FetchAssetResolver', async () => {
+    const ports = await createBrowserPorts()
     expect(ports.assets).toBeInstanceOf(FetchAssetResolver)
   })
 
-  it('allows injecting custom csg backend', () => {
+  it('allows injecting custom csg backend', async () => {
     const customCsg: CsgBackend = {
       boolean: vi.fn(),
       splitPlane: vi.fn(),
@@ -69,38 +69,38 @@ describe('createBrowserPorts', () => {
       splitDowel: vi.fn(),
       splitStraightTenon: vi.fn(),
     }
-    const ports = createBrowserPorts({ csg: customCsg })
+    const ports = await createBrowserPorts({ csg: customCsg })
     expect(ports.csg).toBe(customCsg)
   })
 
-  it('allows injecting custom sdf backend', () => {
+  it('allows injecting custom sdf backend', async () => {
     const customSdf: SdfBackend = {
       runSdf: vi.fn(),
     }
-    const ports = createBrowserPorts({ sdf: customSdf })
+    const ports = await createBrowserPorts({ sdf: customSdf })
     expect(ports.sdf).toBe(customSdf)
   })
 
-  it('allows injecting custom asset resolver', () => {
+  it('allows injecting custom asset resolver', async () => {
     const customAssets: AssetResolver = {
       resolveByKey: vi.fn(),
       resolveFile: vi.fn(),
       resolveUrl: vi.fn(),
     }
-    const ports = createBrowserPorts({ assets: customAssets })
+    const ports = await createBrowserPorts({ assets: customAssets })
     expect(ports.assets).toBe(customAssets)
   })
 
-  it('allows injecting custom event sink', () => {
+  it('allows injecting custom event sink', async () => {
     const customEvents: EventSink = {
       emit: vi.fn(),
     }
-    const ports = createBrowserPorts({ events: customEvents })
+    const ports = await createBrowserPorts({ events: customEvents })
     expect(ports.events).toBe(customEvents)
   })
 
-  it('connects BrowserFontProvider to fontRegistry', () => {
-    const ports = createBrowserPorts({ fontUrl: 'http://localhost/font.ttf' })
+  it('connects BrowserFontProvider to fontRegistry', async () => {
+    const ports = await createBrowserPorts({ fontUrl: 'http://localhost/font.ttf' })
     // fontRegistry's active loader should be the BrowserFontProvider
     const loader = getFontLoader()
     expect(loader).toBe(ports.fonts)
