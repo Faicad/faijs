@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import type { ScrewParams } from './screw-db'
-import { getScrewSpec, threadToPitchMm } from './screw-db'
+import { getScrewSpec, threadToPitchMm, SCREW_HEAD_DIMS } from './screw-db'
 
 /** Max axial rings */
 const N_AX_MAX = 3200
@@ -63,13 +63,22 @@ export function makeScrew(params: ScrewParams): THREE.BufferGeometry {
   const headRings = hasHead ? Math.max(4, Math.floor(nRad / 4)) : 0
   const totalRings = nAxialClamped + headRings
 
+  // Head dimensions (shared with BREP path via SCREW_HEAD_DIMS)
+  const headHeight = hasHead
+    ? spec.dia * (head === 'hex' ? SCREW_HEAD_DIMS.hex.heightFactor : SCREW_HEAD_DIMS.chc.heightFactor)
+    : 0
+  const headRadius = hasHead
+    ? spec.dia * (head === 'hex' ? SCREW_HEAD_DIMS.hex.radiusFactor : SCREW_HEAD_DIMS.chc.radiusFactor)
+    : 0
+
   const vPos: number[] = []
   const tris: number[] = []
 
   // ---- Generate body rings ----
+  // Shank is centered: Y from -length/2 to +length/2 (head at +length/2 end)
   for (let i = 0; i < nAxialClamped; i++) {
     const t = nAxialClamped > 1 ? i / (nAxialClamped - 1) : 0
-    const axialPos = t * length  // Y position
+    const axialPos = t * length - length / 2  // Y position (centered)
 
     // Thread helix phase at this axial position
     const threadPhase = pitch > 0 ? (axialPos / pitch) * 2 * Math.PI : 0
@@ -104,16 +113,15 @@ export function makeScrew(params: ScrewParams): THREE.BufferGeometry {
 
   // ---- Generate head rings ----
   if (hasHead) {
-    const headHeight = rCrest * 2
     for (let i = 0; i < headRings; i++) {
       const t = headRings > 1 ? i / (headRings - 1) : 0
-      const axialPos = length + t * headHeight
+      const axialPos = length / 2 + t * headHeight
 
       for (let j = 0; j < nRad; j++) {
         const phi = (j / nRad) * 2 * Math.PI
 
         // Head blends from body-top radius to larger head radius
-        const headR = head === 'hex' ? rCrest * 1.6 : rCrest * 1.4
+        const headR = headRadius
         const blend = Math.min(1, t * 2)
         const r = rCrest + (headR - rCrest) * blend
 
@@ -164,7 +172,7 @@ export function makeScrew(params: ScrewParams): THREE.BufferGeometry {
   if (!hasHead && nAxialClamped > 1) {
     const topRing = nAxialClamped - 1
     const centerIdx = vPos.length / 3
-    vPos.push(0, length, 0)
+    vPos.push(0, length / 2, 0)  // centered: top is at +length/2
     for (let j = 0; j < nRad; j++) {
       const jNext = (j + 1) % nRad
       tris.push(ringVertex(topRing, j), centerIdx, ringVertex(topRing, jNext))
@@ -174,7 +182,7 @@ export function makeScrew(params: ScrewParams): THREE.BufferGeometry {
   // Close bottom (always cap)
   if (nAxialClamped > 1) {
     const centerIdx = vPos.length / 3
-    vPos.push(0, 0, 0)
+    vPos.push(0, -length / 2, 0)  // centered: bottom is at -length/2
     for (let j = 0; j < nRad; j++) {
       const jNext = (j + 1) % nRad
       tris.push(ringVertex(0, jNext), centerIdx, ringVertex(0, j))
@@ -185,7 +193,7 @@ export function makeScrew(params: ScrewParams): THREE.BufferGeometry {
   if (hasHead) {
     const topRing = totalRings - 1
     const centerIdx = vPos.length / 3
-    vPos.push(0, length + rCrest * 2, 0)
+    vPos.push(0, length / 2 + headHeight, 0)  // centered: head top at length/2 + headHeight
     for (let j = 0; j < nRad; j++) {
       const jNext = (j + 1) % nRad
       tris.push(ringVertex(topRing, j), centerIdx, ringVertex(topRing, jNext))

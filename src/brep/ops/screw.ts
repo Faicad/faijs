@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿/**
  * 螺丝操作分派器
  *
  * BREP 路径：用 threadBrep + fuse 构造精确螺纹螺钉
@@ -10,7 +10,7 @@ import type { ShapeHandle } from 'occt-wasm'
 import { cad } from '../../cad-core'
 import { threadBrep } from '../operations/threadFns'
 import { solidToShape } from '../brep-ops'
-import { getScrewSpec, threadToPitchMm } from '../../primitives/screw/screw-db'
+import { getScrewSpec, threadToPitchMm, SCREW_HEAD_DIMS } from '../../primitives/screw/screw-db'
 import type { OpContext } from './types'
 import { canUseBrep } from './types'
 
@@ -79,8 +79,8 @@ async function executeScrewBrep(ctx: OpContext): Promise<Shape> {
   // 3. 螺钉头
   if (head === 'hex') {
     // 六棱柱头
-    const headHeight = spec.dia * 0.6
-    const headRadius = spec.dia * 0.9
+    const headHeight = spec.dia * SCREW_HEAD_DIMS.hex.heightFactor
+    const headRadius = spec.dia * SCREW_HEAD_DIMS.hex.radiusFactor
     const head = makeHexPrismBrep(kernel, headRadius, headHeight, length / 2)
     const fused = kernel.fuse(result, head)
     kernel.release(result)
@@ -88,8 +88,9 @@ async function executeScrewBrep(ctx: OpContext): Promise<Shape> {
     result = fused
   } else if (head === 'chc') {
     // 沉头（圆锥）
-    const headHeight = spec.dia * 0.5
-    const cone = kernel.makeCone(spec.dia, 0, headHeight)
+    const headHeight = spec.dia * SCREW_HEAD_DIMS.chc.heightFactor
+    const headRadius = spec.dia * SCREW_HEAD_DIMS.chc.radiusFactor
+    const cone = kernel.makeCone(headRadius, 0, headHeight)
     const positioned = kernel.translate(cone, 0, 0, length / 2)
     kernel.release(cone)
     const fused = kernel.fuse(result, positioned)

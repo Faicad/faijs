@@ -87,7 +87,7 @@ export type {
 // ── L1 Primitives ──
 export { mergeBufferGeometries, makePrimitiveGeo, DEFAULT_SIZE, applyPrimitiveOffset } from './primitives/geometry'
 export { makeScrew } from './primitives/screw/screw'
-export { getScrewSpec, getScrewSpecs, threadToPitchMm } from './primitives/screw/screw-db'
+export { getScrewSpec, getScrewSpecs, threadToPitchMm, SCREW_HEAD_DIMS } from './primitives/screw/screw-db'
 export type { ScrewParams, ScrewSpec, ScrewSystem } from './primitives/screw/screw-db'
 export { svgToExtrudedGeometry } from './primitives/svg-extrude'
 export {
@@ -187,6 +187,15 @@ export { FsAssetResolver } from './node-host/fs-asset-resolver'
 export { CliEventSink } from './node-host/cli-event-sink'
 export { cliCheck, cliRun, cliMain, parseArgs } from './node-host/cli'
 export type { CliCheckResult, CliRunResult, CliRunOptions } from './node-host/cli'
+
+// ── L3 Browser Host ──
+export { createBrowserPorts } from './browser-host'
+export type { CreateBrowserPortsOptions } from './browser-host'
+export { BrowserEventSink } from './browser-host/browser-event-sink'
+export { BrowserFontProvider } from './browser-host/browser-font-provider'
+export type { BrowserFontProviderOptions } from './browser-host/browser-font-provider'
+export { FetchAssetResolver } from './browser-host/fetch-asset-resolver'
+export type { FetchAssetResolverOptions } from './browser-host/fetch-asset-resolver'
 
 // ── Test helpers ──
 export { replayScript, type ReplayOutput } from './test-helpers'

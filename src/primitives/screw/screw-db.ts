@@ -21,6 +21,23 @@ export interface ScrewSpec {
 
 export type ScrewSystem = 'metric' | 'imperial'
 
+/**
+ * 螺钉头部尺寸共享常量 — BREP 和 Mesh 路径的唯一真源。
+ *
+ * 因子均相对于公称直径 dia。
+ * 统一到标准螺丝规格（与 BREP 现有实现一致）。
+ */
+export const SCREW_HEAD_DIMS = {
+  hex: {
+    radiusFactor: 0.9,     // hex 头半径 = 0.9 × dia
+    heightFactor: 0.6,     // hex 头高 = 0.6 × dia
+  },
+  chc: {
+    radiusFactor: 1.0,     // chc 圆锥底半径 = 1.0 × dia
+    heightFactor: 0.5,     // chc 头高 = 0.5 × dia
+  },
+} as const
+
 /** Metric screw specifications (M2–M24) */
 const METRIC_SPECS: ScrewSpec[] = [
   { dia: 2.0,   coarse: 0.40, fine: 0.25, label: 'M2' },

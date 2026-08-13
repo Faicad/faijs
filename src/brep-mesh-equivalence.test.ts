@@ -7,8 +7,8 @@
  * 3. 指标包括：包围盒、体积、表面积
  *
  * 已知差异（不纳入等价性测试）：
- * - text/engrave：mesh 用 Helvetiker Bold，BREP 用 OpenSans Regular（字体不同）
- * - screw：mesh 用正弦近似齿形，BREP 用 ISO 60° V 型齿（齿形不同）
+ * - text/engrave：mesh 用 Helvetiker Bold，BREP 用 OpenSans Regular（字体不同）— R2 修复中
+ * - screw：mesh 用正弦近似齿形，BREP 用 ISO 60° V 型齿（齿形不同）— 尺寸已统一，齿形差异允许
  * - knurl/sdf：mesh-only op，无 BREP 实现
  *
  * 运行：npx vitest run src/brep-mesh-equivalence.test.ts
@@ -437,5 +437,91 @@ describe('BREP/Mesh equivalence: end-to-end scripts', () => {
       makeStmt('s5', 'sphere', { radius: 8, center: [0, 0, 15] }),
       makeStmt('s6', 'boolean', { operation: 'subtract' }, ['s4', 's5']),
     ], 'cyl∩box-sphere')
+  })
+})
+
+// ── 螺丝（screw）：尺寸一致性测试 ──
+//
+// 齿形差异（mesh 正弦近似 vs BREP ISO 60° V 型）允许，但其他维度必须一致：
+// - 螺杆居中：bbox Z 从 -length/2 到 +length/2（+ headHeight if head != 'none'）
+// - 头部尺寸：hex 半径 0.9×dia, hex 高 0.6×dia, chc 半径 1.0×dia, chc 高 0.5×dia
+// - 螺纹峰半径 = dia/2（两路径一致）
+//
+// 测试方法：比较 bbox 各维度，不比较体积/表面积（齿形差异导致体积不同）。
+
+describe('BREP/Mesh equivalence: screw (dimensions only, tooth shape differs)', () => {
+  it('screw with hex head, coarse thread', async () => {
+    const script = makePartScript([
+      makeStmt('s1', 'screw', {
+        system: 'metric', specIdx: 5, thread: 'coarse',
+        length: 30, head: 'hex', nRad: 32,
+      }),
+    ])
+    const brepShape = await runMode(script, 'brep')
+    const meshShape = await runMode(script, 'mesh')
+    const brepM = computeMetrics(brepShape)
+    const meshM = computeMetrics(meshShape)
+
+    // Both should produce valid geometry
+    expect(brepM.triangleCount).toBeGreaterThan(0)
+    expect(meshM.triangleCount).toBeGreaterThan(0)
+
+    // Bbox Z: shank centered from -15 to +15, head extends to +15 + 0.6*6 = +18.6
+    // BREP and mesh should have very close bbox Z extents
+    const zTol = 1.0 // 1mm tolerance for thread lead-in/out differences
+    expect(Math.abs(brepM.bboxMin[2] - meshM.bboxMin[2])).toBeLessThan(zTol)
+    expect(Math.abs(brepM.bboxMax[2] - meshM.bboxMax[2])).toBeLessThan(zTol)
+
+    // Bbox X/Y: thread peaks at rCrest = dia/2 = 3.0, head radius = 0.9*6 = 5.4
+    // Both paths should have very close X/Y extents
+    const xyTol = 1.0 // 1mm tolerance for hex head shape differences
+    expect(Math.abs(brepM.bboxMax[0] - meshM.bboxMax[0])).toBeLessThan(xyTol)
+    expect(Math.abs(brepM.bboxMax[1] - meshM.bboxMax[1])).toBeLessThan(xyTol)
+  })
+
+  it('screw with chc head, no thread', async () => {
+    const script = makePartScript([
+      makeStmt('s1', 'screw', {
+        system: 'metric', specIdx: 5, thread: 'none',
+        length: 20, head: 'chc', nRad: 32,
+      }),
+    ])
+    const brepShape = await runMode(script, 'brep')
+    const meshShape = await runMode(script, 'mesh')
+    const brepM = computeMetrics(brepShape)
+    const meshM = computeMetrics(meshShape)
+
+    expect(brepM.triangleCount).toBeGreaterThan(0)
+    expect(meshM.triangleCount).toBeGreaterThan(0)
+
+    // No thread → shank is smooth cylinder, should be very close
+    const tol = 0.5
+    expect(Math.abs(brepM.bboxMin[2] - meshM.bboxMin[2])).toBeLessThan(tol)
+    expect(Math.abs(brepM.bboxMax[2] - meshM.bboxMax[2])).toBeLessThan(tol)
+    expect(Math.abs(brepM.bboxMax[0] - meshM.bboxMax[0])).toBeLessThan(tol)
+    expect(Math.abs(brepM.bboxMax[1] - meshM.bboxMax[1])).toBeLessThan(tol)
+  })
+
+  it('screw with no head, no thread (plain cylinder)', async () => {
+    const script = makePartScript([
+      makeStmt('s1', 'screw', {
+        system: 'metric', specIdx: 5, thread: 'none',
+        length: 25, head: 'none', nRad: 32,
+      }),
+    ])
+    const brepShape = await runMode(script, 'brep')
+    const meshShape = await runMode(script, 'mesh')
+    const brepM = computeMetrics(brepShape)
+    const meshM = computeMetrics(meshShape)
+
+    expect(brepM.triangleCount).toBeGreaterThan(0)
+    expect(meshM.triangleCount).toBeGreaterThan(0)
+
+    // Plain cylinder, no thread, no head → should be nearly identical
+    const tol = 0.1
+    expect(Math.abs(brepM.bboxMin[2] - meshM.bboxMin[2])).toBeLessThan(tol)
+    expect(Math.abs(brepM.bboxMax[2] - meshM.bboxMax[2])).toBeLessThan(tol)
+    expect(Math.abs(brepM.bboxMax[0] - meshM.bboxMax[0])).toBeLessThan(tol)
+    expect(Math.abs(brepM.bboxMax[1] - meshM.bboxMax[1])).toBeLessThan(tol)
   })
 })

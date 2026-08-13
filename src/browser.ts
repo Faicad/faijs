@@ -75,7 +75,7 @@ export type {
 // ── L1 Primitives ──
 export { mergeBufferGeometries, makePrimitiveGeo, DEFAULT_SIZE, applyPrimitiveOffset } from './primitives/geometry'
 export { makeScrew } from './primitives/screw/screw'
-export { getScrewSpec, getScrewSpecs, threadToPitchMm } from './primitives/screw/screw-db'
+export { getScrewSpec, getScrewSpecs, threadToPitchMm, SCREW_HEAD_DIMS } from './primitives/screw/screw-db'
 export type { ScrewParams, ScrewSpec, ScrewSystem } from './primitives/screw/screw-db'
 export { svgToExtrudedGeometry } from './primitives/svg-extrude'
 export {
@@ -126,6 +126,8 @@ export { CadRuntime, createRuntime, computeContentKey } from './cad-runtime/runt
 export type { ExecutionResult, ReplayOptions, CheckResult, CheckError } from './cad-runtime/runtime'
 export type {
   HostPorts,
+  CsgBackend, SdfBackend, FontProvider, TextureSampler,
+  AssetResolver, EventSink, ExecutionMode,
   MeshData, PlaneParams, SplitResult as CsgSplitResult,
   DovetailGrooveParams as PortDovetailGrooveParams,
   DowelSplitParams as PortDowelSplitParams,
@@ -162,3 +164,12 @@ export { executeEngrave } from './brep/ops/engrave'
 // ── Font Registry (for browser host injection) ──
 export { setFontLoader, getFontLoader, loadFont, ensureDefaultFont, getFont, clearFonts } from './brep/text/fontRegistry'
 export type { FontLoader } from './brep/text/fontRegistry'
+
+// ── L3 Browser Host ──
+export { createBrowserPorts } from './browser-host'
+export type { CreateBrowserPortsOptions } from './browser-host'
+export { BrowserEventSink } from './browser-host/browser-event-sink'
+export { BrowserFontProvider } from './browser-host/browser-font-provider'
+export type { BrowserFontProviderOptions } from './browser-host/browser-font-provider'
+export { FetchAssetResolver } from './browser-host/fetch-asset-resolver'
+export type { FetchAssetResolverOptions } from './browser-host/fetch-asset-resolver'
