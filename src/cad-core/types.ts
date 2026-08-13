@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿/**
  * cad-core 类型定义 — 纯数据几何 API 的类型契约
  *
  * 设计原则（§5.1）：
@@ -165,7 +165,7 @@ export interface TenonSplitParams {
 export interface SplitResult {
   front: Shape
   back: Shape
-  wedge?: Shape | null
+  wedge: Shape | null
 }
 
 // ── 钻孔参数 ──

@@ -1,19 +1,10 @@
 /**
- * @faicad/faijs — Faicad CAD execution engine
+ * @faicad/faijs/browser — Browser-safe exports
  *
- * 公开 API 统一入口。所有导出按层组织：
- * - L0 文本层：parser / codegen / args-schema / types
- * - L1 几何执行层：BREP ops / Shape / 导出
- * - L1 Mesh 执行层：cad API
- * - L1 Boolean/CSG 辅助：cross-section / deriveNormals / extrude-helpers / joinery-shapes
- * - L1 Primitives：geometry / screw / svg-extrude / text / types
- * - L1 SDF：sdf-runner / templates / types
- * - L1 Knurl：KnurlGenerator / subdivision / textureLoader
- * - L1 Topology：build-face-ids / build-selector-runtime / types
- * - L2 编排层：CadRuntime / HostPorts
- * - L3 Node Host：createNodePorts / CLI
- * - OCCT Kernel：initOcctWasm / getKernel / setOcctWasmInitFn / ...
- * - CSG Backend：setCsgBackend / geoToManifoldMesh / ...
+ * Excludes L3 Node Host modules (node-host/*) that depend on node:fs/node:path.
+ * Use this entry point in browser/worker contexts to avoid pulling in Node.js code.
+ *
+ * For full exports (including Node.js), use @faicad/faijs instead.
  */
 
 // ── L0 文本层 ──
@@ -53,9 +44,8 @@ export {
 export type { DrillBrepParams, SplitBrepParams, SplitBrepResult, ExtrudeBrepParams } from './cad-core/brep-ops'
 export { buildStlBufferFromMesh } from './brep/export/stl'
 export { exportStepFromSolid } from './brep/export/step'
-
-// ── L1 Mesh 执行层 ──
 export { cad } from './cad-core'
+export { faceAt } from './cad-core/query'
 export type {
   BoundingBox, FaceDescriptor,
   BoxParams, SphereParams, CylinderParams, ConeParams, WedgeParams,
@@ -63,7 +53,6 @@ export type {
   DrillParams, ExtrudeParams, EngraveParams, KnurlParams,
   SplitPlane, SplitResult,
 } from './cad-core/types'
-export { faceAt } from './cad-core/query'
 
 // ── L1 Boolean/CSG 辅助 ──
 export { computeSection, buildExtrudedProfile } from './boolean/cross-section'
@@ -77,7 +66,6 @@ export {
 export type { JoineryMeshData } from './boolean/joinery-shapes'
 
 // ── CSG Backend ──
-export { setCsgBackend } from './boolean/csg-backend'
 export { geoToManifoldMesh, manifoldMeshToGeo } from './boolean/geo-convert'
 export type {
   ManifoldMeshData, BooleanOperation,
@@ -103,9 +91,7 @@ export type {
 export { nextPrimitiveColor } from './primitives/types'
 
 // ── L1 SDF ──
-export { runSdf } from './sdf/sdf-runner'
 export type { SdfMeshData } from './sdf/sdf-runner'
-export { runSdfInline } from './sdf/sdf-core'
 export { SDF_TEMPLATES, DEFAULT_SDF_TEMPLATE } from './sdf/templates'
 export type {
   SdfMeta, SdfBox, SdfParamDef, SdfTemplateCategory,
@@ -139,8 +125,7 @@ export type {
 export { CadRuntime, createRuntime, computeContentKey } from './cad-runtime/runtime'
 export type { ExecutionResult, ReplayOptions, CheckResult, CheckError } from './cad-runtime/runtime'
 export type {
-  HostPorts, CsgBackend, SdfBackend, FontProvider, TextureSampler,
-  AssetResolver, EventSink, ExecutionMode,
+  HostPorts,
   MeshData, PlaneParams, SplitResult as CsgSplitResult,
   DovetailGrooveParams as PortDovetailGrooveParams,
   DowelSplitParams as PortDowelSplitParams,
@@ -177,16 +162,3 @@ export { executeEngrave } from './brep/ops/engrave'
 // ── Font Registry (for browser host injection) ──
 export { setFontLoader, getFontLoader, loadFont, ensureDefaultFont, getFont, clearFonts } from './brep/text/fontRegistry'
 export type { FontLoader } from './brep/text/fontRegistry'
-
-// ── L3 Node Host ──
-export { createNodePorts } from './node-host'
-export { InlineCsgBackend } from './node-host/inline-csg-backend'
-export { InlineSdfBackend } from './node-host/inline-sdf-backend'
-export { NodeFontProvider } from './node-host/node-font-provider'
-export { FsAssetResolver } from './node-host/fs-asset-resolver'
-export { CliEventSink } from './node-host/cli-event-sink'
-export { cliCheck, cliRun, cliMain, parseArgs } from './node-host/cli'
-export type { CliCheckResult, CliRunResult, CliRunOptions } from './node-host/cli'
-
-// ── Test helpers ──
-export { replayScript, type ReplayOutput } from './test-helpers'

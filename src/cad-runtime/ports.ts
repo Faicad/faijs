@@ -25,30 +25,18 @@ export interface PlaneParams {
   offset: number
 }
 
-/** 燕尾槽参数 */
-export interface DovetailGrooveParams {
-  depth: number
-  depthTolerance: number
-  width: number
-  widthTolerance: number
-  flapsAngle: number
-}
-
-/** 定位销参数 */
-export interface DowelSplitParams {
-  diameter: number
-  diameterTolerance: number
-  height: number
-  heightTolerance: number
-}
-
-/** 直榫参数 */
-export interface StraightTenonSplitParams {
-  sideLength: number
-  sideLengthTolerance: number
-  height: number
-  heightTolerance: number
-}
+// Re-export joinery param types from boolean/geo-convert to ensure
+// structural identity across CsgBackend interface and implementations.
+export type {
+  DovetailGrooveParams,
+  DowelSplitParams,
+  StraightTenonSplitParams,
+} from '../boolean/geo-convert'
+import type {
+  DovetailGrooveParams,
+  DowelSplitParams,
+  StraightTenonSplitParams,
+} from '../boolean/geo-convert'
 
 /** 分割结果 */
 export interface SplitResult {
