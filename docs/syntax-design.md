@@ -327,9 +327,3 @@ firstChange = min(
 > 注意：`part0_v0`/`part0_v1`/`part0_v2`/`part0_v3` 始终是**同一个模型（part0）的版本链**——这正是旧契约"`vN` 是一个模型的不同版本"的语义（现为 `part0_vN`），多模型语法不得破坏它。
 
 每一步提交后，未被变更的前缀（`part0_v0` 在步骤 2/4；`part0_v0/part0_v1` 在步骤 4）都**命中持久缓存、不重算**。
-
----
-
-## 7. 未来演进方向
-- **应用外执行**：`cad-runtime` facade 实现 `CadAPI`，与 `replay-validator.resolveGeomRef` 同源（R-1）；供 Node/AI 直接 `import()` 跑出几何。
-- **AI dryRun 校验通道**：acorn 解析 + J-2 保真比对，作为 AI 提交前的预检。

@@ -1,4 +1,4 @@
-﻿﻿/**
+﻿﻿﻿﻿/**
  * cad-core 类型定义 — 纯数据几何 API 的类型契约
  *
  * 设计原则（§5.1）：
@@ -37,15 +37,28 @@ export type { Shape }
 
 // ── 创建参数 ──
 
+/** nRad 默认值及约束 */
+export const NRAD_DEFAULT = 32
+export const NRAD_MIN = 3
+export const NRAD_MAX = 128
+
+/** 将 nRad 钳位到合法范围 */
+export function clampNRad(n: number | undefined): number {
+  if (n === undefined) return NRAD_DEFAULT
+  return Math.max(NRAD_MIN, Math.min(NRAD_MAX, Math.round(n)))
+}
+
 export interface BoxParams {
   size: Vec3 | number
   center?: Vec3
+  nRad?: number
 }
 
 export interface SphereParams {
   radius: number
   segments?: number
   center?: Vec3
+  nRad?: number
 }
 
 export interface CylinderParams {
@@ -53,6 +66,7 @@ export interface CylinderParams {
   height: number
   segments?: number
   center?: Vec3
+  nRad?: number
 }
 
 export interface ConeParams {
@@ -61,6 +75,7 @@ export interface ConeParams {
   height: number
   segments?: number
   center?: Vec3
+  nRad?: number
 }
 
 export interface WedgeParams {
@@ -73,6 +88,7 @@ export interface WedgeParams {
   /** 拉伸总长 (mm)，沿 X 轴 */
   length: number
   center?: Vec3
+  nRad?: number
 }
 
 export interface TextParams {

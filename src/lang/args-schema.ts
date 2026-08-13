@@ -36,6 +36,7 @@ export const SCHEMAS: Record<string, OpSchema> = {
     fields: [
       { name: 'size', type: 'numberOrVec3', required: true },
       { name: 'center', type: 'vec3', required: false },
+      { name: 'nRad', type: 'number', required: false },
     ],
   },
   sphere: {
@@ -44,6 +45,7 @@ export const SCHEMAS: Record<string, OpSchema> = {
       { name: 'radius', type: 'number', required: true },
       { name: 'segments', type: 'number', required: false },
       { name: 'center', type: 'vec3', required: false },
+      { name: 'nRad', type: 'number', required: false },
     ],
   },
   cylinder: {
@@ -53,6 +55,7 @@ export const SCHEMAS: Record<string, OpSchema> = {
       { name: 'height', type: 'number', required: true },
       { name: 'segments', type: 'number', required: false },
       { name: 'center', type: 'vec3', required: false },
+      { name: 'nRad', type: 'number', required: false },
     ],
   },
   cone: {
@@ -63,6 +66,7 @@ export const SCHEMAS: Record<string, OpSchema> = {
       { name: 'height', type: 'number', required: true },
       { name: 'segments', type: 'number', required: false },
       { name: 'center', type: 'vec3', required: false },
+      { name: 'nRad', type: 'number', required: false },
     ],
   },
   wedge: {
@@ -73,6 +77,7 @@ export const SCHEMAS: Record<string, OpSchema> = {
       { name: 'angle', type: 'number', required: true },
       { name: 'length', type: 'number', required: true },
       { name: 'center', type: 'vec3', required: false },
+      { name: 'nRad', type: 'number', required: false },
     ],
   },
   text: {

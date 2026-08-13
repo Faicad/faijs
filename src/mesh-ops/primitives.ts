@@ -1,4 +1,4 @@
-﻿﻿﻿﻿/**
+﻿﻿﻿﻿﻿﻿/**
  * cad-core 基本体 API — 从现有纯函数提取的统一接口
  *
  * 提取来源（§5.7）：
@@ -16,6 +16,7 @@ import { makePrimitiveGeo } from '../primitives/geometry'
 import { geoToManifoldMesh } from '../boolean/csg-backend'
 import { svgToExtrudedGeometry } from '../primitives/svg-extrude'
 import type { Shape, BoxParams, SphereParams, CylinderParams, ConeParams, WedgeParams, TextParams, SvgExtrudeParams, SdfParams } from './types'
+import { clampNRad } from './types'
 
 // ── 内部工具 ──
 
@@ -45,7 +46,8 @@ export function box(params: BoxParams): Shape {
 
 /** 创建球体 */
 export function sphere(params: SphereParams): Shape {
-  const geo = makePrimitiveGeo('sphere', params.radius * 2, params.segments)
+  const segs = clampNRad(params.nRad ?? params.segments)
+  const geo = makePrimitiveGeo('sphere', params.radius * 2, segs)
   if (params.center) {
     geo.translate(params.center[0], params.center[1], params.center[2])
   }
@@ -56,7 +58,7 @@ export function sphere(params: SphereParams): Shape {
 export function cylinder(params: CylinderParams): Shape {
   // makePrimitiveGeo('cylinder', size) 使用 size 作为直径和高度
   // cad-core API 分离 radius 和 height，需要直接构建
-  const segs = params.segments ?? 32
+  const segs = clampNRad(params.nRad ?? params.segments)
   const geo = new THREE.CylinderGeometry(params.radius, params.radius, params.height, segs)
   geo.applyMatrix4(new THREE.Matrix4().makeRotationX(Math.PI / 2))
   if (params.center) {
@@ -67,7 +69,7 @@ export function cylinder(params: CylinderParams): Shape {
 
 /** 创建圆锥体 */
 export function cone(params: ConeParams): Shape {
-  const segs = params.segments ?? 32
+  const segs = clampNRad(params.nRad ?? params.segments)
   const geo = new THREE.ConeGeometry(
     Math.max(params.radiusBottom, params.radiusTop),
     params.height,
@@ -182,7 +184,7 @@ export async function screw(params: {
     pitchCustom: params.pitchCustom ?? 0,
     length: params.length,
     head: params.head,
-    nRad: params.nRad ?? 32,
+    nRad: clampNRad(params.nRad),
   })
   return geoToShape(geo)
 }

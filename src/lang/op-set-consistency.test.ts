@@ -79,11 +79,11 @@ const criticalOps = [
  * 值的选择原则：不命中 codegen 中任何 skip 函数的默认值条件。
  */
 const NON_DEFAULT_ARGS: Record<string, Record<string, unknown>> = {
-  box: { size: [10, 20, 30], center: [1, 2, 3] },
-  sphere: { radius: 5, segments: 32, center: [1, 2, 3] },
-  cylinder: { radius: 5, height: 10, segments: 32, center: [1, 2, 3] },
-  cone: { radiusBottom: 5, radiusTop: 1, height: 10, segments: 32, center: [1, 2, 3] },
-  wedge: { width: 10, height: 20, angle: 60, length: 50, center: [1, 2, 3] },
+  box: { size: [10, 20, 30], center: [1, 2, 3], nRad: 64 },
+  sphere: { radius: 5, segments: 32, center: [1, 2, 3], nRad: 64 },
+  cylinder: { radius: 5, height: 10, segments: 32, center: [1, 2, 3], nRad: 64 },
+  cone: { radiusBottom: 5, radiusTop: 1, height: 10, segments: 32, center: [1, 2, 3], nRad: 64 },
+  wedge: { width: 10, height: 20, angle: 60, length: 50, center: [1, 2, 3], nRad: 64 },
   text: { text: 'hello', size: 10, depth: 2 },
   screw: { system: 'metric', specIdx: 0, thread: 'coarse', pitchCustom: 1.5, length: 10, head: 'none', nRad: 64 },
   svgExtrude: { svg: '<svg></svg>', depth: 5, targetLongSide: 20 },

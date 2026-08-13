@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿/**
  * cad-core BREP 基本体 API — 使用 OCCT 精确实体构造
  *
  * 设计文档：docs/plans/2026-08-08-primitive-brep-mode-plan.md §4.1
@@ -30,6 +30,7 @@ import type {
   ConeParams,
   WedgeParams,
 } from './types'
+import { clampNRad } from './types'
 
 // ─── 内部工具 ───
 
@@ -92,17 +93,17 @@ export async function boxBrep(params: BoxParams): Promise<Shape> {
 
 /** 用 OCCT 精确实体创建球体，三角化为 Shape */
 export async function sphereBrep(params: SphereParams): Promise<Shape> {
-  return brepToShape('sphere', params, params.segments)
+return brepToShape('sphere', params, clampNRad(params.nRad ?? params.segments))
 }
 
 /** 用 OCCT 精确实体创建圆柱体，三角化为 Shape */
 export async function cylinderBrep(params: CylinderParams): Promise<Shape> {
-  return brepToShape('cylinder', params, params.segments)
+return brepToShape('cylinder', params, clampNRad(params.nRad ?? params.segments))
 }
 
 /** 用 OCCT 精确实体创建圆锥体，三角化为 Shape */
 export async function coneBrep(params: ConeParams): Promise<Shape> {
-  return brepToShape('cone', params, params.segments)
+return brepToShape('cone', params, clampNRad(params.nRad ?? params.segments))
 }
 
 /** 用 OCCT 精确实体创建楔形体，三角化为 Shape */

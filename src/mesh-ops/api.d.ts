@@ -9,11 +9,11 @@ import type { Shape } from './types'
 
 export interface CadAPI {
   // ── 创建 ──
-  box(params: { size: number | [number, number, number]; center?: [number, number, number] }): Shape
-  sphere(params: { radius: number; segments?: number; center?: [number, number, number] }): Shape
-  cylinder(params: { radius: number; height: number; segments?: number; center?: [number, number, number] }): Shape
-  cone(params: { radiusBottom: number; radiusTop: number; height: number; segments?: number; center?: [number, number, number] }): Shape
-  wedge(params: { width: number; height: number; angle: number; length: number; center?: [number, number, number] }): Shape
+  box(params: { size: number | [number, number, number]; center?: [number, number, number]; nRad?: number }): Shape
+  sphere(params: { radius: number; segments?: number; center?: [number, number, number]; nRad?: number }): Shape
+  cylinder(params: { radius: number; height: number; segments?: number; center?: [number, number, number]; nRad?: number }): Shape
+  cone(params: { radiusBottom: number; radiusTop: number; height: number; segments?: number; center?: [number, number, number]; nRad?: number }): Shape
+  wedge(params: { width: number; height: number; angle: number; length: number; center?: [number, number, number]; nRad?: number }): Shape
   text(params: { text: string; size: number; depth: number }): Promise<Shape>
   screw(params: { system: string; specIdx: number; thread: string; pitchCustom?: number; length: number; head: string; nRad?: number }): Promise<Shape>
   svgExtrude(params: { svg: any; depth: number; targetLongSide: number }): Promise<Shape>

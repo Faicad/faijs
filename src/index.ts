@@ -63,6 +63,7 @@ export type {
   DrillParams, ExtrudeParams, EngraveParams, KnurlParams,
   SplitPlane, SplitResult,
 } from './mesh-ops/types'
+export { NRAD_DEFAULT, NRAD_MIN, NRAD_MAX, clampNRad } from './mesh-ops/types'
 export { faceAt } from './mesh-ops/query'
 
 // ── L1 Boolean/CSG 辅助 ──

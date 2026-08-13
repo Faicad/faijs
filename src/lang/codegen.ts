@@ -109,12 +109,14 @@ export function buildArgsParts(stmt: CadStatement, varNames?: Map<string, string
     case 'box': {
       push('size', args.size)
       push('center', args.center)
+      push('nRad', args.nRad, (v) => v === 32)
       break
     }
     case 'sphere': {
       push('radius', args.radius)
       push('segments', args.segments)
       push('center', args.center)
+      push('nRad', args.nRad, (v) => v === 32)
       break
     }
     case 'cylinder': {
@@ -122,6 +124,7 @@ export function buildArgsParts(stmt: CadStatement, varNames?: Map<string, string
       push('height', args.height)
       push('segments', args.segments)
       push('center', args.center)
+      push('nRad', args.nRad, (v) => v === 32)
       break
     }
     case 'cone': {
@@ -130,6 +133,7 @@ export function buildArgsParts(stmt: CadStatement, varNames?: Map<string, string
       push('height', args.height)
       push('segments', args.segments)
       push('center', args.center)
+      push('nRad', args.nRad, (v) => v === 32)
       break
     }
     case 'wedge': {
@@ -138,6 +142,7 @@ export function buildArgsParts(stmt: CadStatement, varNames?: Map<string, string
       push('angle', args.angle)
       push('length', args.length)
       push('center', args.center)
+      push('nRad', args.nRad, (v) => v === 32)
       break
     }
 
