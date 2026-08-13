@@ -1,0 +1,14 @@
+// apiVersion: 1
+// Tests boolean operations: union, subtract, intersect
+export default async (cad) => {
+  const part0_v0 = cad.box({ size: 20 })
+  const part0_v1 = cad.box({ size: 20, center: [10, 0, 0] })
+  const part0_v2 = cad.union(part0_v0, part0_v1)
+  const part0_v3 = cad.box({ size: 20 })
+  const part0_v4 = cad.sphere({ radius: 10 })
+  const part0_v5 = cad.subtract(part0_v3, part0_v4)
+  const part0_v6 = cad.box({ size: 20 })
+  const part0_v7 = cad.sphere({ radius: 12 })
+  const part0_v8 = cad.intersect(part0_v6, part0_v7)
+  return { shape: part0_v5, name: 'boolean-ops' }
+}

@@ -1,0 +1,7 @@
+// apiVersion: 1
+// Tests translate operation
+export default async (cad) => {
+  const part0_v0 = cad.box({ size: 20 })
+  const part0_v1 = cad.translate({ offset: [10, 5, 0] }, part0_v0)
+  return { shape: part0_v1, name: 'translate-test' }
+}

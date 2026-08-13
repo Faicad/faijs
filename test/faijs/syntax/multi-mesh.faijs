@@ -1,0 +1,10 @@
+// apiVersion: 1
+// Tests multi-mesh DAG with multiple returns
+export default async (cad) => {
+  const part0_v0 = cad.box({ size: 20 })
+  const part1_v0 = cad.sphere({ radius: 10, center: [30, 0, 0] })
+  return [
+    { shape: part0_v0, name: 'box' },
+    { shape: part1_v0, name: 'sphere' },
+  ]
+}

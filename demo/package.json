@@ -8,7 +8,10 @@
     "preview": "vite preview"
   },
 "dependencies": {
-    "@faicad/faijs": "file:.."
+    "@faicad/faijs": "file:..",
+    "manifold-3d": "^3.5.1",
+    "occt-wasm": "^3.7.0",
+    "three": "^0.184.0"
   },
   "devDependencies": {
     "@types/three": "^0.184.1",

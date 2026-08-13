@@ -1,0 +1,13 @@
+// apiVersion: 1
+// Tests all primitive types: box, sphere, cylinder, cone, wedge
+export default async (cad) => {
+  const part0_v0 = cad.box({ size: 20 })
+  const part0_v1 = cad.box({ size: [30, 20, 10] })
+  const part0_v2 = cad.box({ size: 15, center: [10, 0, 0] })
+  const part0_v3 = cad.sphere({ radius: 10 })
+  const part0_v4 = cad.cylinder({ radius: 5, height: 20 })
+  const part0_v5 = cad.cone({ radiusBottom: 8, radiusTop: 0, height: 15 })
+  const part0_v6 = cad.cone({ radiusBottom: 8, radiusTop: 4, height: 15 })
+  const part0_v7 = cad.wedge({ width: 20, height: 15, angle: 45, length: 30 })
+  return { shape: part0_v0, name: 'primitives' }
+}

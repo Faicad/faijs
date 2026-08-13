@@ -1,0 +1,12 @@
+// apiVersion: 1
+// Tests multiple terminal shapes return
+export default async (cad) => {
+  const part0_v0 = cad.box({ size: 20 })
+  const part1_v0 = cad.sphere({ radius: 10, center: [30, 0, 0] })
+  const part2_v0 = cad.cylinder({ radius: 8, height: 25, center: [60, 0, 0] })
+  return [
+    { shape: part0_v0, name: 'box' },
+    { shape: part1_v0, name: 'sphere' },
+    { shape: part2_v0, name: 'cylinder' },
+  ]
+}

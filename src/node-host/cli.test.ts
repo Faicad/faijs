@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿/**
  * @vitest-environment node
  *
  * faijs-cli 测试 (P3-7)
@@ -47,7 +47,7 @@ import { afterAll } from 'vitest'
 
 describe('cliCheck: dryRun validation', () => {
   it('valid .faijs file → ok=true', () => {
-    const filePath = resolve(FIXTURES_DIR, 'box-boolean.faijs')
+    const filePath = resolve(FIXTURES_DIR, 'boolean/box-boolean.faijs')
     const result = cliCheck(filePath)
     expect(result.ok).toBe(true)
     expect(result.errors).toHaveLength(0)
@@ -85,7 +85,7 @@ describe('cliCheck: dryRun validation', () => {
 
 describe('cliRun: execute and export', () => {
   it('box-boolean.faijs → STL output', async () => {
-    const filePath = resolve(FIXTURES_DIR, 'box-boolean.faijs')
+    const filePath = resolve(FIXTURES_DIR, 'boolean/box-boolean.faijs')
     const outPath = resolve(TMP_DIR, 'box-boolean.stl')
 
     const result = await cliRun(filePath, outPath, { mode: 'auto' })
@@ -103,7 +103,7 @@ describe('cliRun: execute and export', () => {
   }, 60000)
 
   it('box-boolean.faijs → STEP output (brep mode)', async () => {
-    const filePath = resolve(FIXTURES_DIR, 'box-boolean.faijs')
+    const filePath = resolve(FIXTURES_DIR, 'boolean/box-boolean.faijs')
     const outPath = resolve(TMP_DIR, 'box-boolean.step')
 
     const result = await cliRun(filePath, outPath, { mode: 'brep' })
@@ -119,7 +119,7 @@ describe('cliRun: execute and export', () => {
   }, 60000)
 
   it('text-engrave.faijs → STL output', async () => {
-    const filePath = resolve(FIXTURES_DIR, 'text-engrave.faijs')
+    const filePath = resolve(FIXTURES_DIR, 'features/text-engrave.faijs')
     const outPath = resolve(TMP_DIR, 'text-engrave.stl')
 
     const result = await cliRun(filePath, outPath, { mode: 'auto' })

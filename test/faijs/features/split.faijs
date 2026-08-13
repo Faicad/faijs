@@ -1,0 +1,7 @@
+// apiVersion: 1
+// Tests split with plane mode
+export default async (cad) => {
+  const part0_v0 = cad.box({ size: 30 })
+  const part0_v1 = cad.split({ cutMode: 'plane', normal: [0, 0, 1], offset: 0 }, part0_v0)
+  return { shape: part0_v1, name: 'split-plane' }
+}

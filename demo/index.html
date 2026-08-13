@@ -23,41 +23,34 @@
 </head>
 <body>
   <div id="app">
-    <!-- Header -->
-    <header class="header">
-      <h1>faijs <span class="subtitle">CAD Scripting Demo</span></h1>
-      <div class="header-controls">
-        <select id="example-select" class="select">
-          <option value="box-boolean">Box + Sphere Subtract</option>
-          <option value="drill-test">Box + Cylinder Drill</option>
-          <option value="text-engrave">Text Engrave</option>
-          <option value="transform-chain">Transform Chain</option>
-        </select>
-        <select id="mode-select" class="select" title="Execution mode">
-          <option value="auto">auto</option>
-          <option value="brep">brep</option>
-          <option value="mesh">mesh</option>
-        </select>
-        <button id="run-btn" class="btn btn-primary">Run ▶</button>
-      </div>
-    </header>
-
-    <!-- Main content: two-column layout -->
-    <main class="main">
-      <!-- Left: code editor -->
-      <section class="editor-panel">
-        <div class="panel-header">faijs source code</div>
-        <textarea id="code-editor" class="code-editor" spellcheck="false"></textarea>
-      </section>
-
-      <!-- Right: 3D viewer -->
-      <section class="viewer-panel">
-        <div class="panel-header">3D model</div>
-        <div id="viewer-container" class="viewer-container">
-          <canvas id="three-canvas"></canvas>
-          <div id="status-bar" class="status-bar"></div>
+    <!-- Left: banner + status + code editor -->
+    <aside class="editor-panel">
+      <header class="panel-banner">
+        <h1>faijs <span class="subtitle">CAD Scripting Demo</span></h1>
+        <div class="banner-controls">
+          <select id="example-select" class="select">
+            <option value="box-boolean">Box + Sphere Subtract</option>
+            <option value="drill-test">Box + Cylinder Drill</option>
+            <option value="text-engrave">Text Engrave</option>
+            <option value="transform-chain">Transform Chain</option>
+          </select>
+          <button id="run-btn" class="btn btn-primary">Run ▶</button>
         </div>
-      </section>
+      </header>
+      <div id="status-bar" class="status-bar info">Ready</div>
+      <textarea id="code-editor" class="code-editor" spellcheck="false" placeholder="// faijs source code"></textarea>
+    </aside>
+
+    <!-- Right: two stacked 3D viewers (top: brep, bottom: mesh) -->
+    <main class="viewer-panel">
+      <div class="view-cell">
+        <span class="view-label">BREP</span>
+        <canvas id="canvas-brep"></canvas>
+      </div>
+      <div class="view-cell">
+        <span class="view-label">MESH</span>
+        <canvas id="canvas-mesh"></canvas>
+      </div>
     </main>
   </div>
 

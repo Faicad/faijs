@@ -1,0 +1,7 @@
+// apiVersion: 1
+// Tests cone (full and truncated)
+export default async (cad) => {
+  const part0_v0 = cad.cone({ radiusBottom: 10, radiusTop: 0, height: 20 })
+  const part0_v1 = cad.cone({ radiusBottom: 10, radiusTop: 5, height: 20 })
+  return { shape: part0_v1, name: 'cone-variants' }
+}

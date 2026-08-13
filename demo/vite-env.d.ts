@@ -1,3 +1,5 @@
+/// <reference types="vite/client" />
+
 /**
  * Vite ?url module declarations
  */
@@ -12,11 +14,6 @@ declare module '*.woff?url' {
 }
 
 declare module '*.woff2?url' {
-  const url: string
-  export default url
-}
-
-declare module '*.wasm?url' {
   const url: string
   export default url
 }

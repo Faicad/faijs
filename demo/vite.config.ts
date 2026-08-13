@@ -1,13 +1,13 @@
 import { defineConfig, type Plugin } from 'vite'
 
-// ── CDN externalization ──
+// ── CDN externalization (build only) ──
 //
-// three.js、manifold-3d 与 occt-wasm 由浏览器直接从 CDN 加载（不打包进产物）：
-// - dev：插件将裸导入解析为 CDN URL（external），浏览器直接请求 CDN
-// - build：rollup 将上述包及其子路径保持为裸导入，
-//   运行时由 index.html 中的 <script type="importmap"> 解析到 CDN
+// 开发（dev）走本地 node_modules：three.js、manifold-3d 与 occt-wasm
+// 由 vite 正常解析/预打包，不经过本插件。
+// 发布（build）走 CDN：rollup 将上述包及其子路径保持为裸导入，
+// 运行时由 index.html 中的 <script type="importmap"> 解析到 jsdelivr。
 //
-// 版本必须与 faijs 根依赖（node_modules）中的实际版本一致。
+// 版本必须与 package.json 中的实际依赖版本一致。
 const CDN_BASE = 'https://cdn.jsdelivr.net/npm'
 
 const THREE_VERSION = '0.184.0'
@@ -32,6 +32,8 @@ const PREFIX_CDN = new Map<string, string>([
 function cdnExternalPlugin(): Plugin {
   return {
     name: 'cdn-external',
+    // 仅 build 生效；dev 走本地依赖（vite 预打包）
+    apply: 'build',
     // vite 6 内置 vite:resolve 在用户插件之前执行，
     // 必须 enforce: 'pre' 才能先于它拦截裸导入
     enforce: 'pre',
@@ -49,17 +51,23 @@ function cdnExternalPlugin(): Plugin {
 }
 
 export default defineConfig({
+  resolve: {
+    // faijs（junction 链接到仓库根）与 demo 各声明了一份 occt-wasm，
+    // 强制解析到同一实例，避免产物中出现两份 wasm
+    dedupe: ['occt-wasm'],
+  },
   plugins: [cdnExternalPlugin()],
+  optimizeDeps: {
+    // manifold-3d 的 manifoldCAD.js 使用 Top-level await，
+    // esbuild 预打包需 esnext target
+    esbuildOptions: {
+      target: 'esnext',
+    },
+  },
   build: {
     target: 'esnext',
     rollupOptions: {
       external: [/^three(\/|$)/, /^manifold-3d(\/|$)/, /^occt-wasm(\/|$)/],
-    },
-  },
-  optimizeDeps: {
-    exclude: ['three', 'manifold-3d', 'occt-wasm'],
-    esbuildOptions: {
-      target: 'esnext',
     },
   },
   server: {

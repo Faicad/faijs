@@ -1,0 +1,9 @@
+// apiVersion: 1
+// Tests screw with hex head, coarse thread
+export default async (cad) => {
+  const part0_v0 = cad.screw({
+    system: 'metric', specIdx: 5, thread: 'coarse',
+    length: 30, head: 'hex', nRad: 32,
+  })
+  return { shape: part0_v0, name: 'screw-hex' }
+}
