@@ -97,6 +97,7 @@ export {
 export type { PrimitiveToCadResult, PrimitiveParams } from './primitives/primitiveToCad'
 export { loadSystemCjkFont, containsCjk, isCjkChar, createMixedTextGeometry } from './primitives/text/cjk'
 export type { CjkFontResult } from './primitives/text/cjk'
+export { createTextGeometry, getOpentypeFont, opentypePathToGeometry } from './primitives/text-geometry'
 export type {
   PrimitiveType, PrimitiveParamsRecord, PrimitiveArgsRecord, PrimitiveMeta,
 } from './primitives/types'

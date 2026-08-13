@@ -1,25 +1,19 @@
-﻿﻿/**
+﻿﻿﻿﻿/**
  * CJK (Chinese/Japanese/Korean) text geometry generation.
  *
  * Uses the Local Font Access API (window.queryLocalFonts) to load system CJK
- * fonts, then parses glyph paths with opentype.js to create THREE.ShapePath →
+ * fonts, then parses glyph paths with opentype.js to create THREE.Shape →
  * ExtrudeGeometry.
  *
- * Latin characters fall back to Helvetiker (loaded via FontLoader).
+ * When a CJK font is available, it is used for ALL characters (including Latin).
+ * When no CJK font is available, the default OpenSans Regular font (from
+ * fontRegistry) is used for all characters via opentype.js.
  */
 import * as THREE from 'three'
 import * as opentype from 'opentype.js'
-import type { Font } from 'three/examples/jsm/loaders/FontLoader.js'
-import { FontLoader } from 'three/examples/jsm/loaders/FontLoader.js'
-import helvBoldJson from 'three/examples/fonts/helvetiker_bold.typeface.json'
+import type { Font } from 'opentype.js'
 import { mergeBufferGeometries } from '../../primitives/geometry'
-
-let _helvFont: Font | null = null
-async function getHelvetiker(): Promise<Font> {
-  if (_helvFont) return _helvFont
-  _helvFont = new FontLoader().parse(helvBoldJson)
-  return _helvFont
-}
+import { getOpentypeFont } from '../text-geometry'
 
 /** Check if a character is CJK (CJK Unified Ideographs + extensions). */
 export function isCjkChar(ch: string): boolean {
@@ -94,51 +88,61 @@ export async function loadSystemCjkFont(): Promise<CjkFontResult | null> {
 }
 
 /**
- * Convert an opentype.js PathCommand array to a THREE.ShapePath.
+ * Generate geometry for a single character using opentype.js.
+ * Uses the shared opentypePathToGeometry() from text-geometry.ts.
  */
-function opentypePathToShapePath(commands: opentype.PathCommand[]): THREE.ShapePath {
-  const shapePath = new THREE.ShapePath()
-
-  for (const cmd of commands) {
-    switch (cmd.type) {
-      case 'M':
-        shapePath.moveTo(cmd.x!, cmd.y!)
-        break
-      case 'L':
-        shapePath.lineTo(cmd.x!, cmd.y!)
-        break
-      case 'Q':
-        shapePath.quadraticCurveTo(cmd.x1!, cmd.y1!, cmd.x!, cmd.y!)
-        break
-      case 'C':
-        shapePath.bezierCurveTo(cmd.x1!, cmd.y1!, cmd.x2!, cmd.y2!, cmd.x!, cmd.y!)
-        break
-      case 'Z':
-        // ShapePath auto-closes when converting to shapes via toShapes()
-        break
-    }
-  }
-
-  return shapePath
-}
-
-/**
- * Generate geometry for a single CJK character using opentype.js.
- */
-function cjkCharGeometry(
+function charGeometry(
   char: string,
   size: number,
   depth: number,
-  font: opentype.Font,
+  font: Font,
+  xOffset: number,
 ): THREE.BufferGeometry | null {
   const glyph = font.charToGlyph(char)
   if (!glyph || !glyph.path) return null
 
-  const path = glyph.getPath(0, 0, size)
+  const path = glyph.getPath(xOffset, 0, size)
   if (!path || !path.commands || path.commands.length === 0) return null
 
-  const shapePath = opentypePathToShapePath(path.commands)
-  const shapes = shapePath.toShapes(true)
+  // Use the shared opentypePathToGeometry, but without centering (we handle offset manually)
+  const commands = path.commands as opentype.PathCommand[]
+  if (commands.length === 0) return null
+
+  const shapes: THREE.Shape[] = []
+  let currentShape: THREE.Shape | null = null
+
+  for (const cmd of commands) {
+    switch (cmd.type) {
+      case 'M':
+        // Implicit closure: opentype.js doesn't always emit 'Z' before a new 'M'.
+        if (currentShape) {
+          shapes.push(currentShape)
+        }
+        currentShape = new THREE.Shape()
+        currentShape.moveTo(cmd.x!, cmd.y!)
+        break
+      case 'L':
+        currentShape?.lineTo(cmd.x!, cmd.y!)
+        break
+      case 'C':
+        currentShape?.bezierCurveTo(cmd.x1!, cmd.y1!, cmd.x2!, cmd.y2!, cmd.x!, cmd.y!)
+        break
+      case 'Q':
+        currentShape?.quadraticCurveTo(cmd.x1!, cmd.y1!, cmd.x!, cmd.y!)
+        break
+      case 'Z':
+        if (currentShape) {
+          shapes.push(currentShape)
+          currentShape = null
+        }
+        break
+    }
+  }
+
+  // Handle final unclosed subpath (opentype.js doesn't always emit 'Z')
+  if (currentShape) {
+    shapes.push(currentShape)
+  }
 
   if (shapes.length === 0) return null
 
@@ -147,69 +151,74 @@ function cjkCharGeometry(
     bevelEnabled: false,
     curveSegments: 6,
   })
-
-  // Rotate 180° around X so the front face normal points in -Z (project convention)
-  geo.rotateX(Math.PI)
-
   return geo
 }
 
+
 /**
  * Generate geometry for mixed text (CJK + Latin).
- * CJK characters use opentype.js + ExtrudeGeometry.
- * Latin characters fall back to TextGeometry via Helvetiker.
+ *
+ * When cjkFont is available, it is used for ALL characters (including Latin),
+ * since CJK fonts typically contain Latin glyphs.
+ *
+ * When cjkFont is null, the default OpenSans Regular font (from fontRegistry)
+ * is used for all characters via opentype.js — this is the same font used by
+ * the BREP path, ensuring glyph consistency.
+ *
+ * @param text     Text string to render
+ * @param size     Font size in mm
+ * @param depth    Extrusion depth in mm
+ * @param cjkFont  CJK font from system (null = use default font only)
+ * @param defaultFont  Default opentype.js Font (OpenSans Regular from fontRegistry).
+ *                     If not provided, will be loaded via getOpentypeFont().
  */
 export async function createMixedTextGeometry(
   text: string,
   size: number,
   depth: number,
-  cjkFont: opentype.Font | null,
+  cjkFont: Font | null,
+  defaultFont?: Font,
 ): Promise<THREE.BufferGeometry> {
-  const helvFont = await getHelvetiker()
+  // Use CJK font for all chars if available, otherwise use default font
+  const font = cjkFont ?? defaultFont ?? (await getOpentypeFont())
 
   // All characters individually
   const charGeos: { geo: THREE.BufferGeometry; advance: number }[] = []
   let cursorX = 0
 
   for (const char of text) {
-    if (cjkFont) {
-      // Use CJK font for ALL characters (it contains Latin glyphs too)
-      const geo = cjkCharGeometry(char, size, depth, cjkFont)
-      if (geo) {
-        geo.computeBoundingBox()
-        const bb = geo.boundingBox!
-        const charWidth = bb.max.x - bb.min.x
-        geo.translate(cursorX - bb.min.x, 0, 0)
-        charGeos.push({ geo, advance: charWidth + size * 0.15 })
-        cursorX += charWidth + size * 0.15
-      }
-    } else {
-      // Latin character via TextGeometry
-      const { TextGeometry } = await import('three/examples/jsm/geometries/TextGeometry.js')
-      const charGeo = new TextGeometry(char, {
-        font: helvFont,
-        size,
-        depth,
-        curveSegments: 6,
-        bevelEnabled: false,
-      })
-      if (charGeo) {
-        charGeo.computeBoundingBox()
-        const bb = charGeo.boundingBox!
-        const charWidth = bb.max.x - bb.min.x
-        const adv = charWidth > 0 ? charWidth + size * 0.1 : size * 0.5
-        charGeo.translate(cursorX, 0, 0)
-        charGeos.push({ geo: charGeo, advance: adv })
-        cursorX += adv
-      }
+    if (char === ' ' || char === '\t' || char === '\n' || char === '\r') {
+      // Space: advance by approximate width
+      const spaceAdv = font.charToGlyph(' ').advanceWidth ?? size / 3
+      cursorX += spaceAdv * (size / font.unitsPerEm)
+      continue
+    }
+
+    const glyph = font.charToGlyph(char)
+    if (glyph.index === 0) {
+      // Skip notdef glyphs (should not happen if font check was done upstream)
+      continue
+    }
+
+    const geo = charGeometry(char, size, depth, font, cursorX)
+    if (geo) {
+      geo.computeBoundingBox()
+      const bb = geo.boundingBox!
+      const charWidth = bb.max.x - bb.min.x
+      const adv = (glyph.advanceWidth ?? 0) * (size / font.unitsPerEm)
+      // Use advance width for cursor, but ensure minimum advance
+      const effectiveAdv = adv > 0 ? adv : charWidth + size * 0.1
+      charGeos.push({ geo, advance: effectiveAdv })
+      cursorX += effectiveAdv
     }
   }
 
   // Merge all character geometries into one
   if (charGeos.length === 0) {
-    // Fallback: create a minimal geometry
-    const { TextGeometry } = await import('three/examples/jsm/geometries/TextGeometry.js')
-    return new TextGeometry('?', { font: helvFont, size, depth, bevelEnabled: false })
+    // Fallback: create a minimal geometry from a question mark
+    const geo = charGeometry('?', size, depth, font, 0)
+    if (geo) return geo
+    return new THREE.BufferGeometry()
   }
 
   // Merge via BufferGeometryUtils or manual merge

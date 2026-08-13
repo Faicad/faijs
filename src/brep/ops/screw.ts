@@ -69,9 +69,12 @@ async function executeScrewBrep(ctx: OpContext): Promise<Shape> {
         pitch,
         height: length,
       })
-      const fused = kernel.fuse(result, threadSolid)
-      kernel.release(result)
+      // threadBrep creates thread from Z=0 to Z=height; center it to match shank
+      const centeredThread = kernel.translate(threadSolid, 0, 0, -length / 2)
       kernel.release(threadSolid)
+      const fused = kernel.fuse(result, centeredThread)
+      kernel.release(result)
+      kernel.release(centeredThread)
       result = fused
     }
   }

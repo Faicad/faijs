@@ -27,8 +27,8 @@ interface Pt { x: number; y: number; z: number }
 
 /** 将 opentype.js 坐标转为 OCCT 点（XY 平面，Z=0） */
 function toPt(x: number, y: number): Pt {
-  // brepjs 用 [-x, y] 翻转 X（文字方向镜像），本项目保持一致
-  return { x: -x, y, z: 0 }
+  // 与 mesh 路径一致：不翻转 X 轴，文字从左到右
+  return { x, y, z: 0 }
 }
 
 /**
@@ -94,8 +94,20 @@ export function textBlueprints(
     throw new Error('[textBlueprints] No fonts loaded. Call loadFont() before using text functions.')
   }
 
+  // 检查缺字形（CJK 字符在 OpenSans Regular 中没有对应字形）
+  for (const ch of text) {
+    if (ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r') continue
+    const glyph = font.charToGlyph(ch)
+    if (glyph.index === 0) {
+      throw new Error(
+        `[textBlueprints] Character "${ch}" (U+${ch.codePointAt(0)!.toString(16).toUpperCase()}) ` +
+        `not found in font. If it is a CJK character, a CJK font must be loaded.`,
+      )
+    }
+  }
+
   // 获取文字路径
-  const path = font.getPath(text, -startX, -startY, fontSize)
+  const path = font.getPath(text, startX, startY, fontSize)
   const commands = path.commands as PathCommand[]
 
   const wires: ShapeHandle[] = []

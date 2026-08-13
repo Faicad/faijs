@@ -7,7 +7,6 @@
  * 3. 指标包括：包围盒、体积、表面积
  *
  * 已知差异（不纳入等价性测试）：
- * - text/engrave：mesh 用 Helvetiker Bold，BREP 用 OpenSans Regular（字体不同）— R2 修复中
  * - screw：mesh 用正弦近似齿形，BREP 用 ISO 60° V 型齿（齿形不同）— 尺寸已统一，齿形差异允许
  * - knurl/sdf：mesh-only op，无 BREP 实现
  *
@@ -523,5 +522,96 @@ describe('BREP/Mesh equivalence: screw (dimensions only, tooth shape differs)', 
     expect(Math.abs(brepM.bboxMax[2] - meshM.bboxMax[2])).toBeLessThan(tol)
     expect(Math.abs(brepM.bboxMax[0] - meshM.bboxMax[0])).toBeLessThan(tol)
     expect(Math.abs(brepM.bboxMax[1] - meshM.bboxMax[1])).toBeLessThan(tol)
+  })
+})
+
+// ── 文字（text）：bbox 一致性测试 ──
+//
+// R2 修复后，BREP 和 mesh 路径都使用 opentype.js + OpenSans Regular 字体。
+// 字体来源已统一，但曲面向三角化的算法不同：
+// - BREP：opentype 路径 → OCCT bezier/line edges → makeFace → extrude → OCCT tessellate
+// - mesh：opentype 路径 → THREE.Shape → ExtrudeGeometry
+//
+// 因此 bbox 应高度一致（同一字体同一尺寸），但体积/表面积因曲线细分
+// 算法不同会有差异（与基本体 parity 同理）。这里只比较 bbox。
+
+describe('BREP/Mesh equivalence: text (bbox only, curve tessellation differs)', () => {
+  it('text "ABC" with size=20, depth=5', async () => {
+    const script = makePartScript([
+      makeStmt('s1', 'text', {
+        text: 'ABC',
+        size: 20,
+        depth: 5,
+      }),
+    ])
+    const brepShape = await runMode(script, 'brep')
+    const meshShape = await runMode(script, 'mesh')
+    const brepM = computeMetrics(brepShape)
+    const meshM = computeMetrics(meshShape)
+
+    expect(brepM.triangleCount).toBeGreaterThan(0)
+    expect(meshM.triangleCount).toBeGreaterThan(0)
+
+    // bbox should be very close (same font, same size, same depth)
+    // Use 1mm absolute tolerance for text (bezier tessellation differences)
+    const tol = 1.0
+    for (let i = 0; i < 3; i++) {
+      expect(Math.abs(brepM.bboxMin[i] - meshM.bboxMin[i]),
+        `text bboxMin[${i}]`).toBeLessThan(tol)
+      expect(Math.abs(brepM.bboxMax[i] - meshM.bboxMax[i]),
+        `text bboxMax[${i}]`).toBeLessThan(tol)
+    }
+  })
+
+  it('text "Hello" with size=15, depth=3', async () => {
+    const script = makePartScript([
+      makeStmt('s1', 'text', {
+        text: 'Hello',
+        size: 15,
+        depth: 3,
+      }),
+    ])
+    const brepShape = await runMode(script, 'brep')
+    const meshShape = await runMode(script, 'mesh')
+    const brepM = computeMetrics(brepShape)
+    const meshM = computeMetrics(meshShape)
+
+    expect(brepM.triangleCount).toBeGreaterThan(0)
+    expect(meshM.triangleCount).toBeGreaterThan(0)
+
+    const tol = 1.0
+    for (let i = 0; i < 3; i++) {
+      expect(Math.abs(brepM.bboxMin[i] - meshM.bboxMin[i]),
+        `text bboxMin[${i}]`).toBeLessThan(tol)
+      expect(Math.abs(brepM.bboxMax[i] - meshM.bboxMax[i]),
+        `text bboxMax[${i}]`).toBeLessThan(tol)
+    }
+  })
+
+  it('text "X" with depth=1.5 (thin extrusion)', async () => {
+    const script = makePartScript([
+      makeStmt('s1', 'text', {
+        text: 'X',
+        size: 25,
+        depth: 1.5,
+      }),
+    ])
+    const brepShape = await runMode(script, 'brep')
+    const meshShape = await runMode(script, 'mesh')
+    const brepM = computeMetrics(brepShape)
+    const meshM = computeMetrics(meshShape)
+
+    expect(brepM.triangleCount).toBeGreaterThan(0)
+    expect(meshM.triangleCount).toBeGreaterThan(0)
+
+    // Depth (Z axis) should be very close
+    const depthTol = 0.5
+    expect(Math.abs(brepM.bboxMax[2] - brepM.bboxMin[2] - (meshM.bboxMax[2] - meshM.bboxMin[2])),
+      'text depth (Z range)').toBeLessThan(depthTol)
+
+    // X/Y bbox should be close (same font, same size)
+    const xyTol = 1.0
+    expect(Math.abs(brepM.bboxMax[0] - meshM.bboxMax[0]), 'text bboxMax[0]').toBeLessThan(xyTol)
+    expect(Math.abs(brepM.bboxMax[1] - meshM.bboxMax[1]), 'text bboxMax[1]').toBeLessThan(xyTol)
   })
 })

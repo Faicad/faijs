@@ -1,4 +1,4 @@
-﻿﻿/**
+﻿﻿﻿﻿/**
  * cad-core 基本体 API — 从现有纯函数提取的统一接口
  *
  * 提取来源（§5.7）：
@@ -143,18 +143,18 @@ export function wedge(params: WedgeParams): Shape {
  * P3+ 迁移到 worker 后，字体通过 bufferKey 加载。
  */
 export async function text(params: TextParams): Promise<Shape> {
-  const { getFont, createTextGeometry } = await import(
+  const { getOpentypeFont, createTextGeometry } = await import(
     '../primitives/text-geometry'
   )
   const { containsCjk, loadSystemCjkFont, createMixedTextGeometry } = await import(
     '../primitives/text/cjk'
   )
-  const font = await getFont()
+  const font = await getOpentypeFont()
   let geo: THREE.BufferGeometry
   if (containsCjk(params.text)) {
     const cjkFont = await loadSystemCjkFont()
     if (cjkFont) {
-      geo = await createMixedTextGeometry(params.text, params.size, params.depth, cjkFont.font)
+      geo = await createMixedTextGeometry(params.text, params.size, params.depth, cjkFont.font, font)
     } else {
       geo = await createTextGeometry(params.text, params.size, params.depth, font)
     }

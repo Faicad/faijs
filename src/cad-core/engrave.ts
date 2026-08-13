@@ -1,4 +1,4 @@
-﻿﻿/**
+﻿﻿﻿﻿/**
  * cad-core 雕刻 API
  *
  * 提取来源：engine/components/engraving/EngravingCore.ts
@@ -29,18 +29,18 @@ export async function engrave(shape: Shape, params: EngraveParams): Promise<Shap
 
   if (params.text) {
     if (!params.text) throw new Error('Text is empty')
-    const { getFont, createTextGeometry } = await import(
+    const { getOpentypeFont, createTextGeometry } = await import(
       '../primitives/text-geometry'
     )
     const { containsCjk, loadSystemCjkFont, createMixedTextGeometry } = await import(
       '../primitives/text/cjk'
     )
-    const font = await getFont()
+    const font = await getOpentypeFont()
     if (containsCjk(params.text)) {
       const cjkFont = await loadSystemCjkFont()
       if (cjkFont) {
         decorationGeo = await createMixedTextGeometry(
-          params.text, params.textSize ?? 10, params.depth, cjkFont.font,
+          params.text, params.textSize ?? 10, params.depth, cjkFont.font, font,
         )
       } else {
         decorationGeo = await createTextGeometry(

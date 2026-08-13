@@ -1,8 +1,11 @@
-﻿/**
+﻿﻿/**
  * 文字操作分派器
  *
- * BREP 路径：用 opentype.js → OCCT wire/face → extrude
- * Mesh 路径：用 THREE.js TextGeometry
+ * BREP 路径：用 opentype.js → OCCT wire/face → extrude → center
+ * Mesh 路径：用 opentype.js → THREE.Shape → ExtrudeGeometry → center
+ *
+ * 两条路径使用同一字体（OpenSans Regular via fontRegistry），
+ * 且都做相同的居中处理（X/Z 居中，Y 底部对齐到 0）。
  */
 
 import type { Shape } from '../../cad-core/types'
@@ -10,6 +13,7 @@ import { cad } from '../../cad-core'
 import { textToSolid } from '../text/textBlueprints'
 import { ensureDefaultFont } from '../text/fontRegistry'
 import { solidToShape } from '../brep-ops'
+import { getSolidBoundingBox } from '../brep-utils'
 import type { OpContext } from './types'
 import { canUseBrep } from './types'
 
@@ -47,11 +51,19 @@ async function executeTextBrep(ctx: OpContext): Promise<Shape> {
   const depth = args.depth as number
 
   // 将文字转换为 OCCT solid
-  const solid = textToSolid(kernel, text, {
+  const rawSolid = textToSolid(kernel, text, {
     fontSize: size,
     depth,
   })
 
-  brepChain.solidCache.set(stmt.id, solid)
-  return solidToShape(kernel, solid)
+  // Center the solid to match mesh path behavior:
+  // X/Z centered at origin, Y bottom aligned to 0
+  const bbox = getSolidBoundingBox(kernel, rawSolid)
+  const cx = (bbox.min[0] + bbox.max[0]) / 2
+  const cz = (bbox.min[2] + bbox.max[2]) / 2
+  const centeredSolid = kernel.translate(rawSolid, -cx, -bbox.min[1], -cz)
+  kernel.release(rawSolid)
+
+  brepChain.solidCache.set(stmt.id, centeredSolid)
+  return solidToShape(kernel, centeredSolid)
 }
