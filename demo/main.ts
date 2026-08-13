@@ -10,8 +10,10 @@
 
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { parseScript, ParseError, createRuntime, createBrowserPorts, initOcctWasm } from '@faicad/faijs/browser'
+import { parseScript, ParseError, createRuntime, createBrowserPorts, setOcctWasmInitFn } from '@faicad/faijs/browser'
 import type { ExecutionMode } from '@faicad/faijs/browser'
+import { OcctKernel } from 'occt-wasm'
+import occtWasmUrl from 'occt-wasm/dist/occt-wasm.wasm?url'
 import fontUrl from '../src/assets/fonts/OpenSans-Regular.ttf?url'
 
 // ── Example .faijs files ──
@@ -277,6 +279,10 @@ codeEditor.addEventListener('keydown', (e) => {
 })
 
 // ── Initialize ──
+
+// OCCT kernel is required by BREP ops — let faijs use occt-wasm's browser init,
+// with the WASM binary served as a Vite asset (dev server & build)
+setOcctWasmInitFn(() => OcctKernel.init({ wasm: occtWasmUrl }))
 
 codeEditor.value = EXAMPLES['box-boolean']
 setStatus('Ready. Click Run or press Ctrl+Enter.', 'info')
