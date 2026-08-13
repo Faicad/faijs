@@ -176,6 +176,33 @@ body {
   pointer-events: none;
 }
 
+.view-label-btn {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  z-index: 1;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--text-primary);
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.view-label-btn:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+  border-color: var(--accent);
+}
+
+.view-label-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 /* Status bar (between banner and editor) */
 .status-bar {
   padding: 6px 16px;

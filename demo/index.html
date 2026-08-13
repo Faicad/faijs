@@ -41,14 +41,14 @@
       <textarea id="code-editor" class="code-editor" spellcheck="false" placeholder="// faijs source code"></textarea>
     </aside>
 
-    <!-- Right: two stacked 3D viewers (top: brep, bottom: mesh) -->
+    <!-- Right: two stacked 3D viewers (top: brep/STEP, bottom: mesh/STL) -->
     <main class="viewer-panel">
       <div class="view-cell">
-        <span class="view-label">BREP</span>
+        <button id="btn-step" class="view-label-btn" disabled title="Download BREP model as STEP">STEP ⬇</button>
         <canvas id="canvas-brep"></canvas>
       </div>
       <div class="view-cell">
-        <span class="view-label">MESH</span>
+        <button id="btn-stl" class="view-label-btn" disabled title="Download mesh model as STL">STL ⬇</button>
         <canvas id="canvas-mesh"></canvas>
       </div>
     </main>
