@@ -7,9 +7,9 @@
  * Mesh 路径：用纹理位移
  */
 
-import type { Shape, Vec3 } from '../../cad-core/types'
+import type { Shape, Vec3 } from '../../mesh-ops/types'
 import type { ShapeHandle } from 'occt-wasm'
-import { cad } from '../../cad-core'
+import { cad } from '../../mesh-ops'
 import { parseSvgNaturalSize } from '../../primitives/parse-svg-size'
 import { textToSolid } from '../text/textBlueprints'
 import { svgToSolid } from '../svg/svgBlueprints'

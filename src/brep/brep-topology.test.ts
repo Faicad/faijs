@@ -27,10 +27,10 @@ console.log = (...args: unknown[]) => {
 }
 
 import { describe, it, expect, beforeAll } from 'vitest'
-import { initOcctWasm, getKernel } from '../occt/occtKernel'
+import { initOcctWasm, getKernel } from '../occt-kernel/occtKernel'
 import { primitiveToCadSolid } from '../primitives/primitiveToCad'
 import { buildSolidTopologyRuntime } from './brep-topology'
-import { buildAssemblySelectorManifest } from '../occt/topologyExt'
+import { buildAssemblySelectorManifest } from '../occt-kernel/topologyExt'
 import { buildSelectorRuntime } from '../topology/build-selector-runtime'
 import type { OcctKernel, ShapeHandle } from 'occt-wasm'
 import type { SelectorRuntime } from '../topology/types'

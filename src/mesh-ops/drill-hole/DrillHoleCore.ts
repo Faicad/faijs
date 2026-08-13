@@ -8,7 +8,7 @@ import {
 } from '../../boolean/csg-backend'
 import { deriveNormals } from '../../boolean/deriveNormals'
 import type { ManifoldMeshData } from '../../boolean/csg-backend'
-import type { DrillDirection, DrillHoleParams } from '../../components/drill-hole/drill-types'
+import type { DrillDirection, DrillHoleParams } from './drill-types'
 
 /** Rotation matrix: +90° around X — converts Y-up vertex data to Z-up. */
 const ROT_Y_TO_Z = new THREE.Matrix4().makeRotationX(Math.PI / 2)

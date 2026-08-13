@@ -29,7 +29,7 @@ console.log = (...args: unknown[]) => {
 }
 
 import { describe, it, expect, beforeAll } from 'vitest'
-import { initOcctWasm, getKernel } from '../../occt/occtKernel'
+import { initOcctWasm, getKernel } from '../../occt-kernel/occtKernel'
 import type { OcctKernel } from 'occt-wasm'
 import { setupTestFont } from './fontTestHelper'
 import { textBlueprints, textToSolid } from './textBlueprints'

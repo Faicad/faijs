@@ -14,7 +14,7 @@
  */
 
 import { describe, it, expect, beforeAll } from 'vitest'
-import { initOcctWasm, getKernel } from '../../occt/occtKernel'
+import { initOcctWasm, getKernel } from '../../occt-kernel/occtKernel'
 import type { OcctKernel, ShapeHandle } from 'occt-wasm'
 import { resolveGeomRef } from './geom-ref'
 import {
@@ -23,7 +23,7 @@ import {
   getFaceHashes,
   getUnionFaceHashes,
 } from './face-evolution'
-import type { GeomRef } from '../../faijs/types'
+import type { GeomRef } from '../../lang/types'
 import type { Shape } from './types'
 
 let kernel: OcctKernel

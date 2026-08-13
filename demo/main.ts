@@ -14,7 +14,7 @@ import { parseScript, ParseError, createRuntime, createBrowserPorts, setOcctWasm
 import type { ExecutionMode } from '@faicad/faijs/browser'
 import { OcctKernel } from 'occt-wasm'
 import occtWasmUrl from 'occt-wasm/dist/occt-wasm.wasm?url'
-import fontUrl from '../src/assets/fonts/OpenSans-Regular.ttf?url'
+import fontUrl from './assets/fonts/OpenSans-Regular.ttf?url'
 
 // ── Example .faijs files ──
 

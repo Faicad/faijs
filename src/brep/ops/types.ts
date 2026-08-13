@@ -12,7 +12,7 @@
  * BREP 链活跃时走 OCCT 路径；断链后（auto 模式）或 mesh 模式下走 manifold-3d。
  */
 
-import type { CadStatement, Vec3 } from '../../faijs/types'
+import type { CadStatement, Vec3 } from '../../lang/types'
 import type { BrepChainState } from '../brep-chain'
 import type { HostPorts, ExecutionMode } from '../../cad-runtime/ports'
 

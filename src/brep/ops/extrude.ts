@@ -7,8 +7,8 @@
  * 静态分派：链活跃时必走 BREP 路径（开发期写死），异常冒泡上报。
  */
 
-import type { Shape } from '../../cad-core/types'
-import { cad } from '../../cad-core'
+import type { Shape } from '../../mesh-ops/types'
+import { cad } from '../../mesh-ops'
 import {
   extrudeBrep,
   solidToShape,

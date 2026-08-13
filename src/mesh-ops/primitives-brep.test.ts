@@ -30,7 +30,7 @@ console.log = (...args: unknown[]) => {
 }
 
 import { describe, it, expect, beforeAll } from 'vitest'
-import { initOcctWasm, getKernel } from '../occt/occtKernel'
+import { initOcctWasm, getKernel } from '../occt-kernel/occtKernel'
 import { cad } from './index'
 import type { Shape } from './types'
 import { primitiveToCadSolid, cadSolidToStep } from '../primitives/primitiveToCad'

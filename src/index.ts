@@ -21,16 +21,16 @@ export type {
   PartScript, CadStatement, Arg, Vec3, JsonValue, ShapeRef,
   ParamRef, GeomRef, AssetRef, FeatureKind, FeatureMeta,
   TerminalShape, ParamDef, PartScriptMeta,
-} from './faijs/types'
+} from './lang/types'
 export {
   isGeomRef, isParamRef, isAssetRef, createStatementId,
   createStatement, createPartScript,
-} from './faijs/types'
-export { parseScript, ParseError, getApiVersion } from './faijs/parser'
-export type { ParseOptions, ParseResult } from './faijs/parser'
-export { sceneToCode, statementToCode, scriptToCode, fmtNum, buildArgsParts } from './faijs/codegen'
-export { validateStatementArgs, validateScriptArgs, getOpSchema, hasOpSchema } from './faijs/args-schema'
-export type { OpSchema, ArgFieldSchema, ArgType, ValidationError } from './faijs/args-schema'
+} from './lang/types'
+export { parseScript, ParseError, getApiVersion } from './lang/parser'
+export type { ParseOptions, ParseResult } from './lang/parser'
+export { sceneToCode, statementToCode, scriptToCode, fmtNum, buildArgsParts } from './lang/codegen'
+export { validateStatementArgs, validateScriptArgs, getOpSchema, hasOpSchema } from './lang/args-schema'
+export type { OpSchema, ArgFieldSchema, ArgType, ValidationError } from './lang/args-schema'
 
 // ── L1 几何执行层 ──
 export type { Shape, OpContext } from './brep/ops/types'
@@ -49,21 +49,21 @@ export {
   fuseBrep, cutBrep, commonBrep,
   drillBrep, splitBrep, extrudeBrep,
   loadBrep, matrixToArray,
-} from './cad-core/brep-ops'
-export type { DrillBrepParams, SplitBrepParams, SplitBrepResult, ExtrudeBrepParams } from './cad-core/brep-ops'
+} from './mesh-ops/brep-ops'
+export type { DrillBrepParams, SplitBrepParams, SplitBrepResult, ExtrudeBrepParams } from './mesh-ops/brep-ops'
 export { buildStlBufferFromMesh } from './brep/export/stl'
 export { exportStepFromSolid } from './brep/export/step'
 
 // ── L1 Mesh 执行层 ──
-export { cad } from './cad-core'
+export { cad } from './mesh-ops'
 export type {
   BoundingBox, FaceDescriptor,
   BoxParams, SphereParams, CylinderParams, ConeParams, WedgeParams,
   TextParams, SvgExtrudeParams, SdfParams,
   DrillParams, ExtrudeParams, EngraveParams, KnurlParams,
   SplitPlane, SplitResult,
-} from './cad-core/types'
-export { faceAt } from './cad-core/query'
+} from './mesh-ops/types'
+export { faceAt } from './mesh-ops/query'
 
 // ── L1 Boolean/CSG 辅助 ──
 export { computeSection, buildExtrudedProfile } from './boolean/cross-section'
@@ -115,14 +115,14 @@ export type {
 export { boxToTuple, parseParamDefs, defaultParamValues } from './sdf/types'
 
 // ── L1 Knurl ──
-export { applyKnurlDisplacement, KNURL_DEFAULTS } from './components/engraving/knurl/KnurlGenerator'
-export type { KnurlBounds } from './components/engraving/knurl/KnurlGenerator'
-export { subdivide } from './components/engraving/knurl/subdivision'
-export { loadKnurlingTexture } from './components/engraving/knurl/textureLoader'
-export type { TextureData } from './components/engraving/knurl/textureLoader'
-export { QuantizedPointMap, weldVertices } from './components/engraving/knurl/meshIndex'
-export { computeUV, MODE_TRIPLANAR, getCubicBlendWeights, type MappingSettings } from './components/engraving/knurl/mapping'
-export { applyDisplacement, type DisplacementSettings } from './components/engraving/knurl/displacement'
+export { applyKnurlDisplacement, KNURL_DEFAULTS } from './mesh-ops/knurl/KnurlGenerator'
+export type { KnurlBounds } from './mesh-ops/knurl/KnurlGenerator'
+export { subdivide } from './mesh-ops/knurl/subdivision'
+export { loadKnurlingTexture } from './mesh-ops/knurl/textureLoader'
+export type { TextureData } from './mesh-ops/knurl/textureLoader'
+export { QuantizedPointMap, weldVertices } from './mesh-ops/knurl/meshIndex'
+export { computeUV, MODE_TRIPLANAR, getCubicBlendWeights, type MappingSettings } from './mesh-ops/knurl/mapping'
+export { applyDisplacement, type DisplacementSettings } from './mesh-ops/knurl/displacement'
 
 // ── L1 Topology ──
 export { TOPOLOGY_FACE_ID_NONE, buildFaceIdsForPart } from './topology/build-face-ids'
@@ -154,19 +154,19 @@ export {
   computeEffectiveDeflection, importStepToMesh, importBrepToMesh,
   meshesToStep, releaseShape,
   importAssemblyFromStep, releaseAssemblyTree, collectLeafParts,
-} from './occt/occtKernel'
+} from './occt-kernel/occtKernel'
 export type {
   WasmTessellatedMesh, WasmImportResult, AssemblyPartNode,
   MeshDeflectionOptions, ShapeHandle, OcctKernel,
   Mesh, EdgeData, SurfaceKind, CurveKind,
-} from './occt/occtKernel'
+} from './occt-kernel/occtKernel'
 
 // ── OCCT Mesh Reconstruct ──
-export { reconstructSolidFromMesh, meshToAsciiStl, cadShapeIsValid, meshToStepBrep } from './occt/meshReconstruct'
+export { reconstructSolidFromMesh, meshToAsciiStl, cadShapeIsValid, meshToStepBrep } from './occt-kernel/meshReconstruct'
 
 // ── OCCT Topology Extension ──
-export { addStepTopology, addAssemblyStepTopology, buildAssemblySelectorManifest } from './occt/topologyExt'
-export type { GlbFromResultInput, PartTopologyInput, AssemblyTopologyResult } from './occt/topologyExt'
+export { addStepTopology, addAssemblyStepTopology, buildAssemblySelectorManifest } from './occt-kernel/topologyExt'
+export type { GlbFromResultInput, PartTopologyInput, AssemblyTopologyResult } from './occt-kernel/topologyExt'
 
 // ── BREP Topology ──
 export { buildSolidTopologyRuntime } from './brep/brep-topology'

@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, beforeAll } from 'vitest'
-import { initOcctWasm, getKernel } from '../occt/occtKernel'
+import { initOcctWasm, getKernel } from '../occt-kernel/occtKernel'
 import type { OcctKernel } from 'occt-wasm'
 import {
   translateBrep, rotateBrep, scaleBrep,

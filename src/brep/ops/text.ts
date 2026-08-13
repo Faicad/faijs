@@ -8,8 +8,8 @@
  * 且都做相同的居中处理（X/Z 居中，Y 底部对齐到 0）。
  */
 
-import type { Shape } from '../../cad-core/types'
-import { cad } from '../../cad-core'
+import type { Shape } from '../../mesh-ops/types'
+import { cad } from '../../mesh-ops'
 import { textToSolid } from '../text/textBlueprints'
 import { ensureDefaultFont } from '../text/fontRegistry'
 import { solidToShape } from '../brep-ops'

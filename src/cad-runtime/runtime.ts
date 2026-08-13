@@ -17,7 +17,7 @@
  * - window.dispatchEvent / toast
  */
 
-import type { PartScript, CadStatement, TerminalShape, Arg } from '../faijs/types'
+import type { PartScript, CadStatement, TerminalShape, Arg } from '../lang/types'
 import type { Shape } from '../brep/ops/types'
 import type { BrepChainState } from '../brep/brep-chain'
 import type { ShapeHandle, OcctKernel } from 'occt-wasm'
@@ -28,8 +28,8 @@ import {
   MESH_ONLY_OPS,
 } from '../brep/brep-chain'
 import { executeStatement as dispatchStatement } from '../brep/ops/dispatcher'
-import { parseScript, ParseError } from '../faijs/parser'
-import { validateStatementArgs } from '../faijs/args-schema'
+import { parseScript, ParseError } from '../lang/parser'
+import { validateStatementArgs } from '../lang/args-schema'
 import type { HostPorts, ExecutionMode } from './ports'
 
 // ── 类型定义 ──

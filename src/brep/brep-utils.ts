@@ -3,7 +3,7 @@
  */
 
 import type { OcctKernel, ShapeHandle } from 'occt-wasm'
-import type { Vec3 } from '../cad-core/types'
+import type { Vec3 } from '../mesh-ops/types'
 
 /**
  * 获取 solid 的包围盒。

@@ -9,9 +9,9 @@
  * P5-2: BREP 路径改用 *WithHistory 封装，执行后将面演化映射存入 brepChain.faceEvolutionCache。
  */
 
-import type { Shape } from '../../cad-core/types'
+import type { Shape } from '../../mesh-ops/types'
 import type { ShapeHandle } from 'occt-wasm'
-import { cad } from '../../cad-core'
+import { cad } from '../../mesh-ops'
 import { solidToShape } from '../brep-ops'
 import {
   cutWithHistoryBrep,

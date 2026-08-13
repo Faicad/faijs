@@ -19,7 +19,7 @@
  * 坐标系：Z-up、毫米，与 mesh 路径一致。
  */
 
-import { initOcctWasm } from '../occt/occtKernel'
+import { initOcctWasm } from '../occt-kernel/occtKernel'
 import { primitiveToCadSolid } from '../primitives/primitiveToCad'
 import type { OcctKernel, ShapeHandle } from 'occt-wasm'
 import type {

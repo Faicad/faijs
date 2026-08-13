@@ -5,8 +5,8 @@
  * 链活跃时由 runtime 静态断链后走 mesh 路径（合法分支，非回退）
  */
 
-import type { Shape } from '../../cad-core/types'
-import { cad } from '../../cad-core'
+import type { Shape } from '../../mesh-ops/types'
+import { cad } from '../../mesh-ops'
 import type { OpContext } from './types'
 
 /**

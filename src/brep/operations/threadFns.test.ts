@@ -29,7 +29,7 @@ console.log = (...args: unknown[]) => {
 }
 
 import { describe, it, expect, beforeAll } from 'vitest'
-import { initOcctWasm, getKernel } from '../../occt/occtKernel'
+import { initOcctWasm, getKernel } from '../../occt-kernel/occtKernel'
 import type { OcctKernel } from 'occt-wasm'
 import { threadBrep } from './threadFns'
 import { solidToShape } from '../brep-ops'

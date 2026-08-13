@@ -5,9 +5,9 @@
  * Mesh 路径：用 makeScrew 网格
  */
 
-import type { Shape } from '../../cad-core/types'
+import type { Shape } from '../../mesh-ops/types'
 import type { ShapeHandle } from 'occt-wasm'
-import { cad } from '../../cad-core'
+import { cad } from '../../mesh-ops'
 import { threadBrep } from '../operations/threadFns'
 import { solidToShape } from '../brep-ops'
 import { getScrewSpec, threadToPitchMm, SCREW_HEAD_DIMS } from '../../primitives/screw/screw-db'

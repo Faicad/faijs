@@ -14,7 +14,7 @@ console.log = (...args: unknown[]) => {
 
 import { describe, it, expect, beforeAll } from 'vitest'
 import { readFileSync } from 'fs'
-import { initOcctWasm, getKernel } from '../../occt/occtKernel'
+import { initOcctWasm, getKernel } from '../../occt-kernel/occtKernel'
 import type { OcctKernel } from 'occt-wasm'
 import { svgToSolid } from './svgBlueprints'
 import { buildSolidTopologyRuntime } from '../brep-topology'

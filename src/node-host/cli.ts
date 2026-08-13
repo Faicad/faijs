@@ -15,13 +15,13 @@
 
 import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve, extname } from 'node:path'
-import { parseScript } from '../faijs/parser'
+import { parseScript } from '../lang/parser'
 import { createRuntime } from '../cad-runtime/runtime'
 import type { ExecutionMode } from '../cad-runtime/ports'
 import { createNodePorts } from './index'
 import { buildStlBufferFromMesh } from '../brep/export/stl'
 import { exportStepFromSolid } from '../brep/export/step'
-import { initOcctWasm } from '../occt/occtKernel'
+import { initOcctWasm } from '../occt-kernel/occtKernel'
 
 export interface CliCheckOptions {
   assetsDir?: string

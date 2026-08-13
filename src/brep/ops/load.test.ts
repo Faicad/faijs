@@ -14,10 +14,10 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { initOcctWasm, getKernel } from '../../occt/occtKernel'
+import { initOcctWasm, getKernel } from '../../occt-kernel/occtKernel'
 import type { OcctKernel } from 'occt-wasm'
 import type { Shape } from './types'
-import type { CadStatement, FeatureKind, PartScript } from '../../faijs/types'
+import type { CadStatement, FeatureKind, PartScript } from '../../lang/types'
 import { loadBrep } from '../brep-ops'
 import { createRuntime, type ExecutionResult } from '../../cad-runtime/runtime'
 import type { HostPorts, EventSink, AssetResolver } from '../../cad-runtime/ports'
@@ -56,7 +56,7 @@ class TestEventSink implements EventSink {
 function createTestAssets(): AssetResolver {
   return {
     resolveByKey: async (key: string) => {
-      const { fileBlobStore } = await import('../../lib/blob-store')
+      const { fileBlobStore } = await import('../../runtime/blob-store')
       const bytes = fileBlobStore.get(key)
       if (!bytes) throw new Error(`test: asset key not found: ${key}`)
       return { bytes, format: undefined }
@@ -172,7 +172,7 @@ describe('loadBrep: box_boss.step (single solid)', () => {
 
 describe('executeLoad: BREP mode (via CadRuntime)', () => {
   it('should import STEP and cache solid in brepChain.solidCache', async () => {
-    const { fileBlobStore } = await import('../../lib/blob-store')
+    const { fileBlobStore } = await import('../../runtime/blob-store')
     const bufferKey = fileBlobStore.put(stepBuffer)
     const stmt = makeStmt('s1', 'load', { key: bufferKey, format: 'step' })
 
@@ -200,7 +200,7 @@ describe('executeLoad: BREP mode (via CadRuntime)', () => {
   })
 
   it('should throw when STEP data is invalid (no mesh fallback)', async () => {
-    const { fileBlobStore } = await import('../../lib/blob-store')
+    const { fileBlobStore } = await import('../../runtime/blob-store')
     const invalidBuffer = new TextEncoder().encode('invalid step data').buffer as ArrayBuffer
     const bufferKey = fileBlobStore.put(invalidBuffer)
 
@@ -219,7 +219,7 @@ describe('executeLoad: BREP mode (via CadRuntime)', () => {
 
 describe('executeLoad → drill: BREP chain propagation (via CadRuntime)', () => {
   it('should allow drilling on an imported STEP solid', async () => {
-    const { fileBlobStore } = await import('../../lib/blob-store')
+    const { fileBlobStore } = await import('../../runtime/blob-store')
     const bufferKey = fileBlobStore.put(stepBuffer)
 
     // Get bounding box from loaded solid to determine drill position
@@ -257,7 +257,7 @@ describe('executeLoad → drill: BREP chain propagation (via CadRuntime)', () =>
   })
 
   it('box_boss.step: load + drill should keep BREP chain active and export ADVANCED_FACE', async () => {
-    const { fileBlobStore } = await import('../../lib/blob-store')
+    const { fileBlobStore } = await import('../../runtime/blob-store')
     const bufferKey = fileBlobStore.put(boxBossBuffer)
 
     // Get bounding box from loaded solid

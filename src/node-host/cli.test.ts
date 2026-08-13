@@ -17,7 +17,7 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import { readFileSync, existsSync, rmSync, mkdirSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { cliCheck, cliRun, parseArgs } from './cli'
-import { initOcctWasm } from '../occt/occtKernel'
+import { initOcctWasm } from '../occt-kernel/occtKernel'
 import { ensureTestFontLoader } from '../brep/text/fontTestHelper'
 
 beforeAll(async () => {

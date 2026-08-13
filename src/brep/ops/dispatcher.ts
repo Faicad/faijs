@@ -6,7 +6,7 @@
  */
 
 import type { Shape } from './types'
-import type { CadStatement, Arg } from '../../faijs/types'
+import type { CadStatement, Arg } from '../../lang/types'
 import type { BrepChainState } from '../brep-chain'
 import type { HostPorts, ExecutionMode } from '../../cad-runtime/ports'
 import { isAssetRef, isGeomRef, isParamRef, resolveGeomRef } from './geom-ref'

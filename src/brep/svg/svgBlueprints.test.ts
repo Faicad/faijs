@@ -32,7 +32,7 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import { readFileSync, mkdirSync, writeFileSync } from 'fs'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
-import { initOcctWasm, getKernel } from '../../occt/occtKernel'
+import { initOcctWasm, getKernel } from '../../occt-kernel/occtKernel'
 import type { OcctKernel } from 'occt-wasm'
 import {
   extractSvgPaths,

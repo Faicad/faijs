@@ -12,10 +12,10 @@
  */
 
 import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest'
-import { initOcctWasm, getKernel } from '../../occt/occtKernel'
+import { initOcctWasm, getKernel } from '../../occt-kernel/occtKernel'
 import type { OcctKernel } from 'occt-wasm'
 import type { Shape } from './types'
-import type { CadStatement, FeatureKind, PartScript } from '../../faijs/types'
+import type { CadStatement, FeatureKind, PartScript } from '../../lang/types'
 import { createRuntime, type ExecutionResult } from '../../cad-runtime/runtime'
 import type { HostPorts, EventSink } from '../../cad-runtime/ports'
 import { lastSolidOfChain, MESH_ONLY_OPS } from '../brep-chain'

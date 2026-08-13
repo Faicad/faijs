@@ -11,7 +11,7 @@
  */
 
 import type { OcctKernel, ShapeHandle } from 'occt-wasm'
-import { initOcctWasm } from '../occt/occtKernel'
+import { initOcctWasm } from '../occt-kernel/occtKernel'
 
 // ─── BREP 能力分类 ───
 

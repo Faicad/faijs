@@ -7,9 +7,9 @@
  * 静态分派：链活跃时必走 BREP 路径（开发期写死），异常冒泡上报。
  */
 
-import type { Shape, Vec3 } from '../../cad-core/types'
+import type { Shape, Vec3 } from '../../mesh-ops/types'
 import type { ShapeHandle } from 'occt-wasm'
-import { cad } from '../../cad-core'
+import { cad } from '../../mesh-ops'
 import {
   splitBrep,
   solidToShape,
@@ -21,7 +21,7 @@ import {
   type GrooveParams,
   type DowelOrTenonParams,
 } from '../operations/joinery-brep'
-import { computeBasisFromNormal } from '../../cad-core/split'
+import { computeBasisFromNormal } from '../../mesh-ops/split'
 import type { OpContext } from './types'
 import { canUseBrep } from './types'
 

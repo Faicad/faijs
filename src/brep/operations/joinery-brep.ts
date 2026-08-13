@@ -18,7 +18,7 @@
 
 import * as THREE from 'three'
 import type { OcctKernel, ShapeHandle } from 'occt-wasm'
-import type { Vec3 } from '../../cad-core/types'
+import type { Vec3 } from '../../mesh-ops/types'
 import { getSolidBoundingBox } from '../brep-utils'
 import { splitBrep, matrixToArray } from '../brep-ops'
 

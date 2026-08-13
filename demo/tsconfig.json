@@ -12,11 +12,7 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "noEmit": true,
-    "paths": {
-      "@faicad/faijs": ["../src/index.ts"],
-      "@faicad/faijs/browser": ["../src/browser.ts"]
-    }
+    "noEmit": true
   },
   "include": ["**/*.ts"]
 }

@@ -32,7 +32,7 @@ console.log = (...args: unknown[]) => {
 }
 
 import { describe, it, expect, beforeAll } from 'vitest'
-import { initOcctWasm, getKernel } from '../occt/occtKernel'
+import { initOcctWasm, getKernel } from '../occt-kernel/occtKernel'
 import { primitiveToCadSolid, cadSolidToStep } from '../primitives/primitiveToCad'
 import type { OcctKernel, ShapeHandle } from 'occt-wasm'
 import {
@@ -46,7 +46,7 @@ import {
   isCadFormat,
 } from './brep-ops'
 import type { Shape } from './types'
-import type { PartScript, CadStatement, FeatureKind } from '../faijs/types'
+import type { PartScript, CadStatement, FeatureKind } from '../lang/types'
 import { replayScript, executeStatement } from '../test-helpers'
 import { ensureTestFontLoader } from '../brep/text/fontTestHelper'
 

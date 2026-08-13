@@ -11,10 +11,10 @@
  * 4. 仍异常给 UI 警告（此处返回 bboxCenter，不 throw）
  */
 
-import type { Shape, Vec3 } from '../../cad-core/types'
-import { cad } from '../../cad-core'
-import type { GeomRef } from '../../faijs/types'
-import { isAssetRef, isGeomRef, isParamRef } from '../../faijs/types'
+import type { Shape, Vec3 } from '../../mesh-ops/types'
+import { cad } from '../../mesh-ops'
+import type { GeomRef } from '../../lang/types'
+import { isAssetRef, isGeomRef, isParamRef } from '../../lang/types'
 import type { OcctKernel, ShapeHandle } from 'occt-wasm'
 
 // re-export for backward compat（dispatcher 等仍从 geom-ref 导入）

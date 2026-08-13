@@ -7,8 +7,8 @@
  * P5-2: BREP 路径执行后存储恒等面演化映射（变换不改变拓扑，面 ordinal 不变）。
  */
 
-import type { Shape, Vec3 } from '../../cad-core/types'
-import { cad } from '../../cad-core'
+import type { Shape, Vec3 } from '../../mesh-ops/types'
+import { cad } from '../../mesh-ops'
 import {
   translateBrep, rotateBrep, scaleBrep,
   solidToShape,

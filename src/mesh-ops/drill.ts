@@ -15,7 +15,7 @@ import {
   computeThroughHoleDimensions,
   computeBlindHoleCenter,
   positionHoleGeometry,
-} from '../components/drill-hole/DrillHoleCore'
+} from './drill-hole/DrillHoleCore'
 import {
   computeBoolean,
   geoToManifoldMesh,

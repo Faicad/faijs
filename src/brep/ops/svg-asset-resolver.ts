@@ -9,8 +9,8 @@
  * 2. SvgAssetStore（browser 回退）→ 直接字符串
  */
 
-import type { AssetRef } from '../../faijs/types'
-import { isAssetRef } from '../../faijs/types'
+import type { AssetRef } from '../../lang/types'
+import { isAssetRef } from '../../lang/types'
 import type { HostPorts } from '../../cad-runtime/ports'
 
 /**

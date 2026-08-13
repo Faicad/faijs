@@ -15,7 +15,7 @@ import {
   BREP_NATIVE_OPS, MESH_ONLY_OPS,
   isCadFormat,
 } from './brep-chain'
-import { initOcctWasm } from '../occt/occtKernel'
+import { initOcctWasm } from '../occt-kernel/occtKernel'
 
 beforeAll(async () => {
   await initOcctWasm()

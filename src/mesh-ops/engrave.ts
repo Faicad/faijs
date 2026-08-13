@@ -1,4 +1,4 @@
-﻿﻿﻿﻿/**
+﻿﻿﻿﻿﻿﻿/**
  * cad-core 雕刻 API
  *
  * 提取来源：engine/components/engraving/EngravingCore.ts
@@ -115,7 +115,7 @@ export async function engrave(shape: Shape, params: EngraveParams): Promise<Shap
  */
 export async function knurl(shape: Shape, params: KnurlParams): Promise<Shape> {
   const { applyKnurlDisplacement, KNURL_DEFAULTS } = await import(
-    '../components/engraving/knurl/KnurlGenerator'
+    './knurl/KnurlGenerator'
   )
 
   // 1. Shape → THREE.BufferGeometry

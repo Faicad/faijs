@@ -12,8 +12,8 @@
  * key/path/url 三键互斥（由 args-schema 校验）。
  */
 
-import type { Shape } from '../../cad-core/types'
-import { cad } from '../../cad-core'
+import type { Shape } from '../../mesh-ops/types'
+import { cad } from '../../mesh-ops'
 import { breakBrepChain, isCadFormat } from '../brep-chain'
 import { loadBrep } from '../brep-ops'
 import type { OpContext } from './types'

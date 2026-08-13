@@ -13,9 +13,9 @@
  */
 
 import { describe, it, expect, beforeAll } from 'vitest'
-import { initOcctWasm, getKernel } from '../occt/occtKernel'
+import { initOcctWasm, getKernel } from '../occt-kernel/occtKernel'
 import type { OcctKernel } from 'occt-wasm'
-import type { CadStatement, PartScript } from '../faijs/types'
+import type { CadStatement, PartScript } from '../lang/types'
 import { CadRuntime, createRuntime, computeContentKey } from './runtime'
 import type { HostPorts, EventSink, ExecutionMode } from './ports'
 import { ensureTestFontLoader } from '../brep/text/fontTestHelper'

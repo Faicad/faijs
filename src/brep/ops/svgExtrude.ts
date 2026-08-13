@@ -7,8 +7,8 @@
  * 分派模式与 text.ts 一致：canUseBrep 时走 BREP，否则走 mesh（静态判定，非运行时回退）。
  */
 
-import type { Shape } from '../../cad-core/types'
-import { cad } from '../../cad-core'
+import type { Shape } from '../../mesh-ops/types'
+import { cad } from '../../mesh-ops'
 import { parseSvgNaturalSize } from '../../primitives/parse-svg-size'
 import { svgToSolid } from '../svg/svgBlueprints'
 import { solidToShape } from '../brep-ops'

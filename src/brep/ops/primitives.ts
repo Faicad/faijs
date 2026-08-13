@@ -5,11 +5,11 @@
  * Mesh 路径（断链后）：用 THREE.js 参数网格
  */
 
-import type { Shape } from '../../cad-core/types'
-import { cad } from '../../cad-core'
+import type { Shape } from '../../mesh-ops/types'
+import { cad } from '../../mesh-ops'
 import { primitiveToCadSolid } from '../../primitives/primitiveToCad'
 import { solidToShape } from '../brep-ops'
-import { initOcctWasm } from '../../occt/occtKernel'
+import { initOcctWasm } from '../../occt-kernel/occtKernel'
 import type { OpContext } from './types'
 import { canUseBrep } from './types'
 

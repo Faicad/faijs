@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect, beforeAll } from 'vitest'
-import { initOcctWasm, getKernel } from '../../occt/occtKernel'
+import { initOcctWasm, getKernel } from '../../occt-kernel/occtKernel'
 import type { OcctKernel, ShapeHandle } from 'occt-wasm'
 
 const HASH_UPPER_BOUND = 2147483647

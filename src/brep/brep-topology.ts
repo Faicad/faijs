@@ -13,8 +13,8 @@
 
 import type { OcctKernel, ShapeHandle, Mesh as WasmMesh } from 'occt-wasm'
 import type { SelectorRuntime, SelectorBundle, SelectorManifest } from '../topology/types'
-import { computeEffectiveDeflection } from '../occt/occtKernel'
-import { buildAssemblySelectorManifest } from '../occt/topologyExt'
+import { computeEffectiveDeflection } from '../occt-kernel/occtKernel'
+import { buildAssemblySelectorManifest } from '../occt-kernel/topologyExt'
 import { buildSelectorRuntime } from '../topology/build-selector-runtime'
 
 export interface SolidTopologyResult {

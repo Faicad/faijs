@@ -24,14 +24,14 @@
 import type * as THREE from 'three'
 import type { OcctKernel, ShapeHandle } from 'occt-wasm'
 import type { PrimitiveType } from './types'
-import { reconstructSolidFromMesh } from '../occt/meshReconstruct'
+import { reconstructSolidFromMesh } from '../occt-kernel/meshReconstruct'
 import type {
   BoxParams,
   SphereParams,
   CylinderParams,
   ConeParams,
   WedgeParams,
-} from '../cad-core/types'
+} from '../mesh-ops/types'
 
 // ─── 辅助：从 BufferGeometry 提取网格数据 ───
 
