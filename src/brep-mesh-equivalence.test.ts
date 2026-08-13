@@ -59,9 +59,8 @@ function makeStmt(
   }
 }
 
-function makePartScript(statements: CadStatement[], partId = 'eq_part'): PartScript {
+function makePartScript(statements: CadStatement[]): PartScript {
   return {
-    partId,
     source: { kind: 'load' },
     params: [],
     statements,

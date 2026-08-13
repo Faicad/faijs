@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿/**
  * @vitest-environment node
  *
  * CadRuntime 三模式契约测试 + 单元测试 (P2-8)
@@ -56,8 +56,8 @@ function makeStmt(
   }
 }
 
-function makePartScript(statements: CadStatement[], partId = 'test_part'): PartScript {
-  return { partId, source: { kind: 'load' }, params: [], statements }
+function makePartScript(statements: CadStatement[]): PartScript {
+  return { source: { kind: 'load' }, params: [], statements }
 }
 
 function makeRuntime(mode?: ExecutionMode): CadRuntime {

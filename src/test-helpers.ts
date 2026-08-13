@@ -50,7 +50,7 @@ export async function replayScript(
 
   const nonMarkerStmts = script.statements.filter(s => !s.isMarker)
   if (nonMarkerStmts.length === 0) {
-    throw new Error(`[replayScript] empty script for part "${script.partId}"`)
+    throw new Error(`[replayScript] empty script — no non-marker statements`)
   }
   const lastStmt = nonMarkerStmts[nonMarkerStmts.length - 1]
   const finalShape = outputCache.get(lastStmt.id)!

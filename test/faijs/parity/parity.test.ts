@@ -68,12 +68,12 @@ describe('parity .faijs tests (BREP vs mesh)', () => {
     const code = readFileSync(filePath, 'utf-8')
 
     it(`${file}: parses successfully`, () => {
-      const { script } = parseScript(code, { partId: 'test_part' })
+      const { script } = parseScript(code)
       expect(script.statements.length).toBeGreaterThan(0)
     })
 
     it(`${file}: BREP and mesh modes produce equivalent bbox (1% tolerance)`, async () => {
-      const { script } = parseScript(code, { partId: 'test_part' })
+      const { script } = parseScript(code)
 
       // Execute in BREP mode
       const brepRuntime = createRuntime(createNodePorts(), 'brep')

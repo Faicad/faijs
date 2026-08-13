@@ -152,15 +152,12 @@ export interface TerminalShape {
 }
 
 export interface PartScript {
-  partId: string
   source?:
     | { kind: 'load' }
     | { kind: 'sdf' }
   params: ParamDef[]
   statements: CadStatement[]
-  /** 零件级模型属性（C-4/C-7）。
-   *  codegen 写出实际值到 `export default ... with { ... }`；
-   *  parser 从 `with { ... }` 读回；
+  /** 场景级模型属性（C-4/C-7）。
    *  缺省时由 SceneMutator 按 op 兜底派生（默认名 + nextPrimitiveColor()）。 */
   meta?: PartScriptMeta
   /** 多 mesh 终端集合（设计文档 §2.2：return [ { shape, meta }, ... ]）。
@@ -202,9 +199,8 @@ export function createStatement(
 /**
  * 创建一个空 PartScript。
  */
-export function createPartScript(partId: string): PartScript {
+export function createPartScript(): PartScript {
   return {
-    partId,
     params: [],
     statements: [],
   }

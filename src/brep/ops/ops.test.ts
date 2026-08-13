@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿/**
  * @vitest-environment node
  *
  * Operation dispatcher unit tests — driven by CadRuntime (P2).
@@ -65,9 +65,8 @@ function makeStmt(
   }
 }
 
-function makePartScript(statements: CadStatement[], partId = 'test_part'): PartScript {
+function makePartScript(statements: CadStatement[]): PartScript {
   return {
-    partId,
     source: { kind: 'load' },
     params: [],
     statements,

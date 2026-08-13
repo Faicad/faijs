@@ -1,15 +1,14 @@
 /**
- * codegen 单元测试 — statementToLine / scriptToFlatCode / sceneToFlatCode
+ * codegen 单元测试 — statementToLine / scriptToCode
  *
  * 覆盖：
  * - 全部 op 的语句 → 文本生成（与 parser 的 switch 对齐）
- * - scriptToFlatCode 的扁平代码格式（无 export/return 封装）
+ * - scriptToCode 的扁平代码格式（无 export/return 封装）
  * - 值格式化（vec3/字符串/GeomRef/ParamRef/数字）
- * - 多 PartScript 合并为单一 DAG（sceneToFlatCode）
  */
 
 import { describe, it, expect } from 'vitest'
-import { statementToLine, scriptToFlatCode, sceneToFlatCode, fmtNum } from './codegen'
+import { statementToLine, scriptToCode, fmtNum } from './codegen'
 import { parseScript } from './parser'
 import type { CadStatement, PartScript } from './types'
 
@@ -26,13 +25,13 @@ function makeStmt(partial: Partial<CadStatement>): CadStatement {
   }
 }
 
-function makeScript(statements: CadStatement[], partId = 'part1'): PartScript {
-  return { partId, params: [], statements }
+function makeScript(statements: CadStatement[]): PartScript {
+  return { params: [], statements }
 }
 
 // ── statementToLine ──
 
-describe('codegen: statementToLine 基础体', () => {
+describe('codegen: statementToLine 基本体', () => {
   it('box：size 为 vec3 输出数组', () => {
     const stmt = makeStmt({ id: 'part0_v0', op: 'box', args: { size: [10, 10, 10] } })
     expect(statementToLine(stmt)).toBe('const part0_v0 = cad.box({ size:[10,10,10] })')
@@ -108,14 +107,14 @@ describe('codegen: statementToLine 雕刻', () => {
   })
 })
 
-// ── scriptToFlatCode ──
+// ── scriptToCode ──
 
-describe('codegen: scriptToFlatCode', () => {
+describe('codegen: scriptToCode', () => {
   it('单条 box 语句', () => {
     const script = makeScript([
       makeStmt({ id: 'part0_v0', op: 'box', args: { size: 20 } }),
     ])
-    const code = scriptToFlatCode(script)
+    const code = scriptToCode(script)
     expect(code).toBe('const part0_v0 = cad.box({ size:20 })')
   })
 
@@ -125,7 +124,7 @@ describe('codegen: scriptToFlatCode', () => {
       makeStmt({ id: 'part0_v1', op: 'translate', args: { offset: [0, 0, 5] }, inputs: ['part0_v0'] }),
       makeStmt({ id: 'part0_v2', op: 'drill', args: { diameter: 5, depth: 0 }, inputs: ['part0_v1'], feature: { kind: 'drill', label: '钻孔', createdBy: 'user' } }),
     ])
-    const code = scriptToFlatCode(script)
+    const code = scriptToCode(script)
     expect(code).toBe(
       'const part0_v0 = cad.box({ size:20 })\n' +
       'const part0_v1 = cad.translate(part0_v0, { offset:[0,0,5] })\n' +
@@ -134,7 +133,7 @@ describe('codegen: scriptToFlatCode', () => {
   })
 
   it('空脚本：输出空字符串', () => {
-    expect(scriptToFlatCode(makeScript([]))).toBe('')
+    expect(scriptToCode(makeScript([]))).toBe('')
   })
 
   it('boolean op 输出 cad.union(inputs)', () => {
@@ -143,17 +142,16 @@ describe('codegen: scriptToFlatCode', () => {
       makeStmt({ id: 'part0_v1', op: 'sphere', args: { radius: 10 } }),
       makeStmt({ id: 'part0_v2', op: 'boolean', args: { operation: 'union', sourcePartIds: ['s0', 's1'] }, inputs: ['part0_v0', 'part0_v1'], feature: { kind: 'boolean', label: '合并', createdBy: 'user' } }),
     ])
-    const code = scriptToFlatCode(script)
+    const code = scriptToCode(script)
     expect(code).toContain('cad.union(part0_v0, part0_v1)')
   })
 })
 
-// ── 多 mesh：split 解构 / sceneToFlatCode ──
+// ── 多 mesh：split 解构 ──
 
 describe('codegen: split 解构输出', () => {
   it('多输出 split 输出 const { front: part1_v0, back: part2_v0 } = cad.split(...)', () => {
     const script: PartScript = {
-      partId: 'p1',
       params: [],
       statements: [
         makeStmt({ id: 'part0_v0', op: 'box', args: { size: 20 } }),
@@ -168,61 +166,8 @@ describe('codegen: split 解构输出', () => {
         }),
       ],
     }
-    const code = scriptToFlatCode(script)
+    const code = scriptToCode(script)
     expect(code).toContain('const { front: part1_v0, back: part2_v0 } = cad.split(part0_v1)')
-  })
-})
-
-describe('codegen: sceneToFlatCode 多 PartScript 合并', () => {
-  it('两个独立 PartScript 合并为单一 DAG', () => {
-    const scriptA: PartScript = {
-      partId: 'partA',
-      params: [],
-      statements: [makeStmt({ id: 'st_partA_0', op: 'box', args: { size: 20 } })],
-    }
-    const scriptB: PartScript = {
-      partId: 'partB',
-      params: [],
-      statements: [makeStmt({ id: 'st_partB_0', op: 'sphere', args: { radius: 10 } })],
-    }
-    const code = sceneToFlatCode([scriptA, scriptB])
-    expect(code).toContain('cad.box({ size:20 })')
-    expect(code).toContain('cad.sphere({ radius:10 })')
-  })
-
-  it('空数组返回空字符串', () => {
-    expect(sceneToFlatCode([])).toBe('')
-  })
-
-  it('单个 PartScript 退化为 scriptToFlatCode', () => {
-    const script: PartScript = {
-      partId: 'partA',
-      params: [],
-      statements: [makeStmt({ id: 'st_partA_0', op: 'box', args: { size: 20 } })],
-    }
-    const code = sceneToFlatCode([script])
-    expect(code).toContain('cad.box({ size:20 })')
-  })
-
-  it('跨 Part 引用：scriptB 引用 scriptA 的输出', () => {
-    const scriptA: PartScript = {
-      partId: 'partA',
-      params: [],
-      statements: [makeStmt({ id: 'st_partA_0', op: 'box', args: { size: 20 } })],
-    }
-    const scriptB: PartScript = {
-      partId: 'partB',
-      params: [],
-      statements: [
-        makeStmt({ id: 'st_partB_0', op: 'translate', args: { offset: [5, 0, 0] }, inputs: ['st_partA_0'], feature: { kind: 'transform', label: '移动', createdBy: 'user' } }),
-      ],
-    }
-    const code = sceneToFlatCode([scriptA, scriptB])
-    const boxIdx = code.indexOf('cad.box')
-    const translateIdx = code.indexOf('cad.translate')
-    expect(boxIdx).toBeGreaterThan(-1)
-    expect(translateIdx).toBeGreaterThan(boxIdx)
-    expect(code).toContain('cad.translate(part0_v0')
   })
 })
 
@@ -231,7 +176,6 @@ describe('codegen: sceneToFlatCode 多 PartScript 合并', () => {
 describe('codegen: 外部 st_ id 含冒号时报错', () => {
   it('split 引用无法解析的外部 id 时抛错', () => {
     const script: PartScript = {
-      partId: 'front_part',
       params: [],
       statements: [
         makeStmt({
@@ -243,7 +187,7 @@ describe('codegen: 外部 st_ id 含冒号时报错', () => {
         }),
       ],
     }
-    expect(() => scriptToFlatCode(script)).toThrow(/unresolved input reference/)
+    expect(() => scriptToCode(script)).toThrow(/unresolved input reference/)
   })
 })
 
@@ -284,13 +228,12 @@ describe('codegen: 值格式化', () => {
 describe('codegen: center 参数往返 (codegen → parser)', () => {
   it('sphere 含 center 往返', () => {
     const script: PartScript = {
-      partId: 'p1',
       params: [],
       statements: [makeStmt({ id: 'part0_v0', op: 'sphere', args: { radius: 5, segments: 32, center: [3, 4, 0] } })],
     }
-    const code = scriptToFlatCode(script)
+    const code = scriptToCode(script)
     expect(code).toContain('center:[3,4,0]')
-    const { script: parsed } = parseScript(code, { partId: 'p1' })
+    const { script: parsed } = parseScript(code)
     expect(parsed.statements[0].args.center).toEqual([3, 4, 0])
   })
 })
@@ -314,7 +257,7 @@ describe('codegen: GeomRef with faceOrdinal round-trip', () => {
         feature: { kind: 'engrave', label: '雕刻 "test"', createdBy: 'user' },
       },
     ])
-    const fullCode = scriptToFlatCode(script)
+    const fullCode = scriptToCode(script)
     const parsed = parseScript(fullCode)
     const parsedStmt = parsed.script.statements[1]
     expect(parsedStmt.args.faceCenter).toEqual({
@@ -333,7 +276,7 @@ describe('codegen: transform 语句', () => {
       makeStmt({ id: 's2', op: 'rotate', args: { anglesDeg: [0, 0, 90] }, inputs: ['s1'], feature: { kind: 'transform', label: '旋转', createdBy: 'user' } }),
       makeStmt({ id: 's3', op: 'scale', args: { factor: 2 }, inputs: ['s2'], feature: { kind: 'transform', label: '缩放', createdBy: 'user' } }),
     ])
-    const code = scriptToFlatCode(script)
+    const code = scriptToCode(script)
     expect(code).toContain('cad.translate(part0_v0, { offset:[10,0,0] })')
     expect(code).toContain('cad.rotate(part0_v1, { anglesDeg:[0,0,90] })')
     expect(code).toContain('cad.scale(part0_v2, { factor:2 })')

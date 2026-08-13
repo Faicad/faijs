@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿/**
  * @vitest-environment node
  *
  * loadBrep + executeLoad unit tests.
@@ -95,8 +95,8 @@ function makeStmt(
 function shapeVertexCount(s: Shape): number { return s.positions.length / 3 }
 function shapeTriangleCount(s: Shape): number { return s.indices.length / 3 }
 
-function makePartScript(statements: CadStatement[], partId = 'test_part'): PartScript {
-  return { partId, source: { kind: 'load' }, params: [], statements }
+function makePartScript(statements: CadStatement[]): PartScript {
+  return { source: { kind: 'load' }, params: [], statements }
 }
 
 async function runScript(statements: CadStatement[]): Promise<ExecutionResult> {

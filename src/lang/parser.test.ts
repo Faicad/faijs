@@ -13,7 +13,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { parseScript, ParseError, getApiVersion, computeTerminalShapes } from './parser'
-import { scriptToFlatCode } from './codegen'
+import { scriptToCode } from './codegen'
 import type { PartScript, CadStatement } from './types'
 
 // ── 测试辅助 ──
@@ -47,8 +47,7 @@ describe('parser: apiVersion', () => {
 describe('parser: 基本语句', () => {
   it('解析单条 box 语句（扁平格式）', () => {
     const code = `const part0_v0 = cad.box({ size: 20 })`
-    const { script } = parseScript(code, { partId: 'test' })
-    expect(script.partId).toBe('test')
+    const { script } = parseScript(code)
     expect(script.statements).toHaveLength(1)
     expect(script.statements[0].op).toBe('box')
     expect(script.statements[0].args.size).toBe(20)
@@ -313,12 +312,11 @@ describe('computeTerminalShapes', () => {
 describe('parser: 往返 codegen → parser', () => {
   it('单条 box 往返', () => {
     const script: PartScript = {
-      partId: 'p1',
       params: [],
       statements: [makeStmt({ id: 'part0_v0', op: 'box', args: { size: 20 } })],
     }
-    const code = scriptToFlatCode(script)
-    const { script: parsed } = parseScript(code, { partId: 'p1' })
+    const code = scriptToCode(script)
+    const { script: parsed } = parseScript(code)
     expect(parsed.statements).toHaveLength(1)
     expect(parsed.statements[0].op).toBe('box')
     expect(parsed.statements[0].args.size).toBe(20)
@@ -326,15 +324,14 @@ describe('parser: 往返 codegen → parser', () => {
 
   it('带依赖链往返', () => {
     const script: PartScript = {
-      partId: 'p1',
       params: [],
       statements: [
         makeStmt({ id: 'part0_v0', op: 'box', args: { size: 20 } }),
         makeStmt({ id: 'part0_v1', op: 'translate', args: { offset: [10, 0, 0] }, inputs: ['part0_v0'], feature: { kind: 'transform', label: '移动', createdBy: 'user' } }),
       ],
     }
-    const code = scriptToFlatCode(script)
-    const { script: parsed } = parseScript(code, { partId: 'p1' })
+    const code = scriptToCode(script)
+    const { script: parsed } = parseScript(code)
     expect(parsed.statements).toHaveLength(2)
     expect(parsed.statements[1].op).toBe('translate')
     expect(parsed.statements[1].inputs).toEqual([parsed.statements[0].id])
@@ -343,7 +340,6 @@ describe('parser: 往返 codegen → parser', () => {
 
   it('带 boolean op 往返', () => {
     const script: PartScript = {
-      partId: 'p1',
       params: [],
       statements: [
         makeStmt({ id: 'part0_v0', op: 'box', args: { size: 20 } }),
@@ -351,8 +347,8 @@ describe('parser: 往返 codegen → parser', () => {
         makeStmt({ id: 'part0_v2', op: 'boolean', args: { operation: 'union', sourcePartIds: ['s0', 's1'] }, inputs: ['part0_v0', 'part0_v1'], feature: { kind: 'boolean', label: '合并', createdBy: 'user' } }),
       ],
     }
-    const code = scriptToFlatCode(script)
-    const { script: parsed } = parseScript(code, { partId: 'p1' })
+    const code = scriptToCode(script)
+    const { script: parsed } = parseScript(code)
     expect(parsed.statements).toHaveLength(3)
     expect(parsed.statements[2].op).toBe('boolean')
     expect(parsed.statements[2].args.operation).toBe('union')

@@ -1,4 +1,4 @@
-﻿﻿/**
+/**
  * @vitest-environment node
  *
  * BREP 特征操作单元测试 (Phase 2)
@@ -597,7 +597,6 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
   // 辅助：构造最小 PartScript
   function makeScript(statements: CadStatement[]): PartScript {
     return {
-      partId: 'test-part',
       params: [],
       source: { kind: 'load' },
       statements,

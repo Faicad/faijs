@@ -14,7 +14,7 @@ import { validateScriptArgs } from '../../src/lang/args-schema'
 describe('faijs source code: parse error handling', () => {
   it('rejects JavaScript syntax errors', () => {
     const code = `const part0_v0 = cad.box({ size: 20`
-    expect(() => parseScript(code, { partId: 'test' })).toThrow()
+    expect(() => parseScript(code)).toThrow()
   })
 
   it('rejects non-arrow-function export (old format)', () => {
@@ -22,27 +22,27 @@ describe('faijs source code: parse error handling', () => {
   const part0_v0 = cad.box({ size: 20 })
   return { shape: part0_v0 }
 }`
-    expect(() => parseScript(code, { partId: 'test' })).toThrow(ParseError)
+    expect(() => parseScript(code)).toThrow(ParseError)
   })
 
   it('rejects non-cad expression statements', () => {
     const code = `const part0_v0 = cad.box({ size: 20 })
 console.log(part0_v0)`
-    expect(() => parseScript(code, { partId: 'test' })).toThrow(ParseError)
+    expect(() => parseScript(code)).toThrow(ParseError)
   })
 })
 
 describe('faijs source code: args-schema validation', () => {
   it('rejects missing required args via args validation', () => {
     const code = `const part0_v0 = cad.box({})`
-    const { script } = parseScript(code, { partId: 'test' })
+    const { script } = parseScript(code)
     const errors = validateScriptArgs(script.statements)
     expect(errors.length).toBeGreaterThan(0)
   })
 
   it('accepts unknown op (validation is done at execution time)', () => {
     const code = `const part0_v0 = cad.bogusOp({ size: 20 })`
-    const { script } = parseScript(code, { partId: 'test' })
+    const { script } = parseScript(code)
     const errors = validateScriptArgs(script.statements)
     expect(errors.length).toBe(0)  // No schema = no validation errors
   })

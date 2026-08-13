@@ -541,9 +541,9 @@ function parseReturnObject(
 
 // ── 主解析函数 ──
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface ParseOptions {
-  /** 目标 partId（默认 'parsed'） */
-  partId?: string
+  // 保留类型空位，未来可扩展（如 apiVersion 等）
 }
 
 export interface ParseResult {
@@ -562,8 +562,7 @@ export interface ParseResult {
  *
  * @throws ParseError — 含行号
  */
-export function parseScript(code: string, options?: ParseOptions): ParseResult {
-  const partId = options?.partId ?? 'parsed'
+export function parseScript(code: string, _options?: ParseOptions): ParseResult {
 
   // ── 0. 扁平代码检测与封装 ──
   // 如果代码不含 `export default`，则自动封装为合法容器
@@ -759,7 +758,6 @@ export function parseScript(code: string, options?: ParseOptions): ParseResult {
 
   // ── 5. 构建 PartScript ──
   const script: PartScript = {
-    partId,
     params,
     statements,
     meta,

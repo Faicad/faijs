@@ -51,13 +51,12 @@ describe('multi-mesh .faijs tests', () => {
     const code = readFileSync(filePath, 'utf-8')
 
     it(`${file}: parses successfully`, () => {
-      const { script } = parseScript(code, { partId: 'test_part' })
+      const { script } = parseScript(code)
       expect(script.statements.length).toBeGreaterThan(0)
-      expect(script.partId).toBe('test_part')
     })
 
     it(`${file}: executes in mesh mode → multiple terminal shapes`, async () => {
-      const { script } = parseScript(code, { partId: 'test_part' })
+      const { script } = parseScript(code)
       const runtime = createRuntime(createNodePorts(), 'mesh')
       const result = await runtime.replay(script)
 
