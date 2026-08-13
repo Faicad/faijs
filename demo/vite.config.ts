@@ -52,9 +52,12 @@ function cdnExternalPlugin(): Plugin {
 
 export default defineConfig({
   resolve: {
-    // faijs（junction 链接到仓库根）与 demo 各声明了一份 occt-wasm，
-    // 强制解析到同一实例，避免产物中出现两份 wasm
-    dedupe: ['occt-wasm'],
+    // faijs（junction 链接到仓库根）与 demo 各声明了一份 occt-wasm / manifold-3d，
+    // 强制解析到同一实例：
+    // - occt-wasm：避免产物中出现两份 wasm
+    // - manifold-3d：demo 调用 setWasmUrl 必须作用于 faijs 加载的同一模块实例，
+    //   否则 manifoldCAD 仍用 import.meta.url 定位 wasm（.vite/deps → 404 HTML）
+    dedupe: ['occt-wasm', 'manifold-3d'],
   },
   plugins: [cdnExternalPlugin()],
   optimizeDeps: {
@@ -71,7 +74,11 @@ export default defineConfig({
     },
   },
   server: {
-    port: 3000,
+    // 避免占用常见端口（3000/5173 等）
+    port: 8899,
     open: true,
+    // manifold-3d 由 @faicad/faijs（junction → faijs 根）解析，
+    // 源文件位于 faijs/node_modules，需允许访问上一级
+    fs: { allow: ['..'] },
   },
 })

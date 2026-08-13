@@ -16,6 +16,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { parseScript, ParseError, createRuntime, createBrowserPorts, setOcctWasmInitFn, initOcctWasm } from '@faicad/faijs/browser'
 import type { ExecutionMode } from '@faicad/faijs/browser'
 import { OcctKernel } from 'occt-wasm'
+import { setWasmUrl as setManifoldWasmUrl } from 'manifold-3d/lib/wasm.js'
 import fontUrl from './assets/fonts/OpenSans-Regular.ttf?url'
 
 // ── Example .faijs files ──
@@ -349,6 +350,15 @@ const initOcct = (() =>
       : 'https://cdn.jsdelivr.net/npm/occt-wasm@3.7.0/dist/occt-wasm.wasm',
   })) as unknown as () => Promise<never>
 setOcctWasmInitFn(initOcct)
+
+// Manifold WASM：预打包会破坏 manifold-3d 内部的 import.meta.url 定位，
+// 用官方 setWasmUrl 显式指定（须在 manifoldCAD 模块求值前调用，本模块顶层即早于
+// faijs 的运行时动态 import）
+setManifoldWasmUrl(
+  import.meta.env.DEV
+    ? '/node_modules/manifold-3d/lib/manifold.wasm'
+    : 'https://cdn.jsdelivr.net/npm/manifold-3d@3.5.1/lib/manifold.wasm',
+)
 
 codeEditor.value = EXAMPLES['box-boolean']
 
