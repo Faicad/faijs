@@ -6,6 +6,59 @@
 
 ---
 
+## 0. 用户原始需求（对话轨迹，2026-08-13）
+
+需求链路从一条「命名语义检查」问题开始，逐步收敛为本次 UI 引擎统一改造：
+
+1. **命名检测**：运行时能否检查出下列代码的错误——按语法规范，`part` 前缀相同的变量是同一个模型的一系列处理版本；这里 `part0_v1` 明显是另一个模型（独立 sphere），应命名为 `part1_v0`。能否在 parse 时刻检测出类似错误？
+
+   ```js
+   // apiVersion: 1
+   export default async (cad) => {
+     const part0_v0 = cad.box({ size: 20 })
+     const part0_v1 = cad.sphere({ radius: 8, center: [5, 0, 0] })  // ← 错误：独立模型占用 part0 版本链
+     const part0_v2 = cad.subtract(part0_v0, part0_v1)
+     return { shape: part0_v2, name: 'box-boolean' }
+   }
+   ```
+
+   → 产出 docs/plans/2026-08-13-naming-validator-design.md。
+
+2. **调研澄清**：调研 3d_editor 后发现 UI 路径提交权威几何来自工具自算（manifold CSG），faijs 语句只是账本。**用户纠正：「UI 层的操作是预览。实际执行必须走代码引擎」**。
+
+3. **本方案**：写一份方案，如何实现 UI 层点击时生成 faijs 语句；如何通过 faijs 引擎进行真正的几何计算；整个架构要做哪些调整。
+
+4. **补充约束**：UI 展示的代码（timeline「查看代码」等）必须对应 faijs 里实际执行的代码（本文 R-0）。
+
+总之，只有一份权威的代码。实际几何计算通过执行这份代码完成。
+
+比如代码：
+   export default async (cad) => {
+     const part0_v0 = cad.box({ size: 20 })
+     const part0_v1 = cad.sphere({ radius: 8, center: [5, 0, 0] })  // ← 错误：独立模型占用 part0 版本链
+     const part0_v2 = cad.subtract(part0_v0, part0_v1)
+     return { shape: part0_v2, name: 'box-boolean' }
+   }
+应该如此修正：
+1. 当用户点击创建立方体，生成const part0_v0 = cad.box({ size: 20 })
+2. 当用户点击生成球体，生成const part1_v0 = cad.sphere({ radius: 8, center: [5, 0, 0] })
+3. 当用户先后选择这两个模型，执行布尔减，生成const part2_v0 = cad.subtract(part0_v0, part0_v1)
+4. 用户对布尔结果进行钻孔， 生成const part2_v1 = cad.drill({...})
+
+最终用户导出的时候，faijs代码就是：
+```
+     const part0_v0 = cad.box({ size: 20 })
+     const part1_v0 = cad.sphere({ radius: 8, center: [5, 0, 0] })
+     const part2_v0 = cad.subtract(part0_v0, part0_v1)
+     const part2_v1 = cad.drill({...})
+```
+取消export这套外层的封装。timeline节点查看的代码直接对应faijs对应的代码。每次新增操作，直接执行新增的代码。
+如果用户通过timeline回溯修改历史代码，则只修改对应代码行的参数。
+
+faijs本身不处理UI层的状态。比如执行cad.subtract后，原来的两个模型自动隐藏，只显示布尔后的结果, 这由UI层处理。
+
+---
+
 ## 1. 背景与问题
 
 **R-1 契约（docs/api-contract.md）**：语句 op 与几何核心函数一一映射，存在唯一分派入口（faijs dispatcher），严禁「UI 一份、重放一份」两份实现。
@@ -28,6 +81,8 @@ DrillHolePanel 提交
 
 **目标**：UI 点击 = 产生意图（预览 + 录制 faijs 语句）；实际几何计算一律由 faijs 引擎执行语句产出；预览与提交、UI 与 AI 共用同一份几何实现。
 
+**R-0 显示即执行（硬约束）**：任何向用户展示的代码（timeline「查看代码」、导出 `.faijs`、Alt+E 基线）必须对应 **faijs 引擎实际执行的那条语句**——同一 id、同一 op、同一 args。展示层只做格式化（`statementToCode`），不做参数改写或语义重排；禁止「显示一份、执行一份」。落地手段：A5 的代码-语句等价断言（§4）。
+
 ## 2. 目标架构
 
 ```
@@ -39,6 +94,7 @@ UI 事件（点击面/拖 gizmo/面板参数）
              → 引擎执行（CadRuntime.replay / executeStatement，唯一几何实现）
              → 引擎产物 commitGeometry → VersionStore → 场景
              → undo/redo 恢复 VersionStore 快照；兜底重放 replayVersion 走同一引擎
+             → 展示（timeline/导出/Alt+E）= statementToCode(同一语句)  ── R-0
 ```
 
 改造后 `commitAndRecord` 不再接收工具几何：
@@ -101,6 +157,20 @@ commitAndRecord(type, partId, fileId, params)     // 签名变化：删掉 posit
 
 对策：为每个 op 写一个「参数映射 + 结果对照」的 parity 测试（同一输入跑工具实现与引擎实现，断言形状级一致，见 §8）。
 
+### A5. 展示代码 = 引擎执行代码（R-0 落地）
+
+现状缺口：timeline「查看代码」显示的是 `statementToCode` 片段（codegen.ts:343，无 const 前缀），且 UI 语句 id 为 `st_*`——显示的变量名与导出文本（partN_vM）不一致；更隐蔽的风险是片段里的 args 与 `dispatchStatement` 实际收到的 args 出现漂移（buildArgsParts 改写/遗漏键）。
+
+约束与做法：
+
+- **A5-1 等价断言（代码 ↔ 语句，双向）**：
+  - `语句 → 代码`：`statementToCode(stmt)` 输出的片段，包上 `const part0_v0 = <片段>` + `return { shape: part0_v0 }` 后必须能被 `parseScript` 无错解析
+  - `代码 → 语句`：解析出的语句与原始 `stmt` 在 `op / args（键集合与值）/ inputs` 上**完全相等**（id 与变量名允许不同——那是命名层，由 B 阶段统一）；GeomRef 的 `of/feature/anchor/faceOrdinal` 逐字段相等
+  - 该断言覆盖全部 UI op，作为 `buildArgsParts`/`statementToCode` 的回归测试，任何显示层改写都会在这里暴露
+- **A5-2 显示与执行同源**：timeline「查看代码」/`ViewCodeDialog`/`FaijsCodeEditorDialog` 基线一律从**引擎持有的同一份 CadStatement** 生成（不缓存展示用副本、不走第二条序列化路径）；`statementToCode` 是唯一格式化入口
+- **A5-3 片段完整性**：`statementToCode` 允许输出单条片段（不含 const/await），但必须满足 A5-1 的可解析性；若某 op 的片段无法包裹成合法语句（如参数缺失），该 op 禁止展示，直接报错而不是显示残缺代码
+- **A5-4 变量名一致**：阶段 B 完成后（UI 直接分配 partN_vM），timeline 显示代码的变量名 = 导出 `.faijs` 的变量名 = 引擎语句 id，三者恒等；`st_*` 兼容期内的不一致视为临时态，由 A5-1 断言兜底（断言只比较语义，不比较 id）
+
 ## 5. 阶段 B：id 与命名统一（与 naming-validator 联动）
 
 现状：UI 录制 id = `st_<partId>_<n>`（createStatementId，types.ts:181），`partN_vM` 只在 codegen 导出时分配——同一份脚本在 UI 态与文本态有**两套 id**，这是「两套 statement」的根。
@@ -136,6 +206,7 @@ commitAndRecord(type, partId, fileId, params)     // 签名变化：删掉 posit
 - **parity 测试**（faijs 或 3d_editor test/faijs/）：同一 params 分别走工具实现（manifold）与引擎实现（dispatcher），断言体积/包围盒/面数形状级一致——drill / split / boolean / transform 各一
 - **ScriptEngine 集成**（3d_editor）：`commitAndRecord` 后 `VersionStore` 几何的 contentKey == `CadRuntime.replay` 输出
 - **round-trip**：UI 操作 → 导出 `.faijs` → 重新导入 → 场景几何 contentKey 一致
+- **R-0 代码-语句等价**：对全部 UI op——`statementToCode(stmt)` 包裹解析后与原语句 `op/args/inputs` 逐字段相等（A5-1，含 GeomRef 展开对比）；timeline 显示代码与导出文本的变量名一致性断言（阶段 B 后恒等）
 - **undo/redo**：操作后 undo → redo，几何与操作前一致（现有 undo e2e 覆盖 + 断言 contentKey）
 - **naming**：UI 录制生成的 partN_vM 全部通过 naming-validator（新增断言）
 

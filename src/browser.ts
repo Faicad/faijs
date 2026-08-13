@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @faicad/faijs/browser — Browser-safe exports
  *
  * Excludes L3 Node Host modules (node-host/*) that depend on node:fs/node:path.
@@ -17,9 +17,14 @@ export {
   isGeomRef, isParamRef, isAssetRef, createStatementId,
   createStatement, createPartScript,
 } from './lang/types'
+export {
+  allocateStatementId, allocateSplitIds,
+  isPartVmId, getModelNum, getVersionNum,
+} from './lang/allocate-id'
+export type { AllocateIdContext } from './lang/allocate-id'
 export { parseScript, ParseError, getApiVersion } from './lang/parser'
 export type { ParseOptions, ParseResult } from './lang/parser'
-export { sceneToCode, statementToCode, scriptToCode, fmtNum, buildArgsParts } from './lang/codegen'
+export { sceneToCode, sceneToFlatCode, statementToCode, statementToFlatLine, scriptToCode, scriptToFlatCode, fmtNum, buildArgsParts } from './lang/codegen'
 export { validateStatementArgs, validateScriptArgs, getOpSchema, hasOpSchema } from './lang/args-schema'
 export type { OpSchema, ArgFieldSchema, ArgType, ValidationError } from './lang/args-schema'
 
@@ -53,6 +58,7 @@ export type {
   DrillParams, ExtrudeParams, EngraveParams, KnurlParams,
   SplitPlane, SplitResult,
 } from './mesh-ops/types'
+export { NRAD_DEFAULT, NRAD_MIN, NRAD_MAX, clampNRad } from './mesh-ops/types'
 
 // ── L1 Boolean/CSG 辅助 ──
 export { computeSection, buildExtrudedProfile } from './boolean/cross-section'

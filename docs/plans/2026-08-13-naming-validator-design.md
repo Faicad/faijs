@@ -29,7 +29,7 @@ export default async (cad) => {
 |---|---|---|
 | 无输入 op（box/sphere/cylinder/… / load / sdf） | **新模型** | `partN_v0`，N 必须未用过 |
 | split 输出（front/back） | **两个新模型** | `partN_v0` / `partM_v0`，N、M 均未用过 |
-| 布尔 op（union/subtract/intersect，多输入） | **跟随第一个输入（主体）模型** | `partN_v{M+1}`，N = inputs[0] 的模型号 |
+| 布尔 op（union/subtract/intersect，多输入） | **一个新模型** | `partN_v0 |
 | 加工类 op（translate/rotate/scale/drill/extrude/chamfer/engrave/knurl…，单输入） | 跟随输入模型 | `partN_v{M+1}`，N = inputs[0] 的模型号 |
 
 > 注意：这是对 docs/syntax-design.md §2.2「布尔合并产出新 partN」的**修订**（§7 列出文档更新项）。

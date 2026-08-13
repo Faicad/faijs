@@ -352,6 +352,68 @@ export function statementToCode(stmt: CadStatement): string {
   return `cad.${stmt.op}({ ${parts.join(', ')} })`
 }
 
+/**
+ * 将单条语句转为 flat code 行（用于 TimelinePanel 显示）。
+ *
+ * 输出格式：`const partN_vM = cad.op(inputs, { key: value, ... })`
+ * - 含 const 前缀和变量名（使用 stmt.id）
+ * - 含输入变量引用（stmt.inputs 作为位置参数）
+ * - boolean op 输出 `const partN_vM = cad.operation(input0, input1)`
+ * - 多输出 split 输出 `const { front: out0, back: out1 } = cad.split(input, { ... })`
+ */
+export function statementToFlatLine(stmt: CadStatement): string {
+  // 跳过 marker 语句（非 group/assembly）
+  if (stmt.isMarker && stmt.op !== 'group' && stmt.op !== 'assembly') {
+    return `// ${stmt.op}`
+  }
+
+  // Group/Assembly markers: bare calls
+  if (stmt.isMarker && (stmt.op === 'group' || stmt.op === 'assembly')) {
+    const parts = buildArgsParts(stmt)
+    return `cad.${stmt.op}({ ${parts.join(', ')} })`
+  }
+
+  // 变量名：使用 stmt.id（如果已是 partN_vM 格式），否则用 op_index
+  const varName = PART_VM_RE.test(stmt.id) ? stmt.id : stmt.id.replace(/[^a-zA-Z0-9_]/g, '_')
+
+  // 输入变量引用
+  const inputVars = stmt.inputs.map((id) => {
+    if (PART_VM_RE.test(id)) return id
+    return id.replace(/[^a-zA-Z0-9_]/g, '_')
+  }).join(', ')
+
+  // 参数
+  const argsParts = buildArgsParts(stmt)
+
+  // 多输出 split → 解构语法
+  const isMultiOutputSplit = stmt.outputs && stmt.outputs.length >= 2 && stmt.op === 'split'
+  if (isMultiOutputSplit) {
+    const filteredArgs = argsParts.filter((p) => !p.startsWith('side:'))
+    const destructureParts = stmt.outputs!.map((outId, idx) => {
+      const key = idx === 0 ? 'front' : 'back'
+      return `${key}: ${outId}`
+    }).join(', ')
+    const argsStr = filteredArgs.length > 0 ? `, { ${filteredArgs.join(', ')} }` : ''
+    return `const { ${destructureParts} } = cad.${stmt.op}(${inputVars}${argsStr})`
+  }
+
+  // 构建操作调用
+  let opCall: string
+  if (stmt.op === 'boolean') {
+    const operation = (stmt.args.operation as string | undefined) ?? 'union'
+    opCall = `cad.${operation}(${inputVars})`
+  } else if (argsParts.length === 0 && inputVars) {
+    opCall = `cad.${stmt.op}(${inputVars})`
+  } else if (inputVars) {
+    opCall = `cad.${stmt.op}(${inputVars}, { ${argsParts.join(', ')} })`
+  } else {
+    const argsStr = argsParts.length > 0 ? ` ${argsParts.join(', ')} ` : ''
+    opCall = `cad.${stmt.op}({${argsStr}})`
+  }
+
+  return `const ${varName} = ${opCall}`
+}
+
 // ── meta 格式化 ──
 
 /**
@@ -536,6 +598,99 @@ bodyLines.push(`cad.${stmt.op}({ ${argsParts.join(', ')} })`)
   }
 
   return `// apiVersion: 1\nexport default async (cad) => {\n${bodyLines.map((l) => '  ' + l).join('\n')}\n}`
+}
+
+// ── Flat code（无封装导出格式） ──
+
+/**
+ * 将整个 PartScript 拼接为扁平代码（无 export/async/return 封装）。
+ *
+ * 输出格式：
+ * ```js
+ * const part0_v0 = cad.box({ size: 20 })
+ * const part0_v1 = cad.drill(part0_v0, { diameter: 5, depth: 0 })
+ * ```
+ *
+ * - 不含 export default / async / await / return
+ * - 不含 apiVersion 注释
+ * - 用于用户导出和 Timeline 代码查看
+ */
+export function scriptToFlatCode(script: PartScript): string {
+  const bodyLines: string[] = []
+
+  // 参数声明
+  for (const p of script.params) {
+    bodyLines.push(`const ${p.name} = ${fmtValue(p.value as Arg)}`)
+  }
+
+  // 语句 → 变量名映射
+  const varNames = new Map<string, string>()
+  let vIdx = 0
+  for (const stmt of script.statements) {
+    if (stmt.isMarker && stmt.op !== 'group' && stmt.op !== 'assembly') continue
+
+    // Group/Assembly markers: emit as bare calls (no const, no variable)
+    if (stmt.isMarker && (stmt.op === 'group' || stmt.op === 'assembly')) {
+      const argsParts = buildArgsParts(stmt, varNames)
+      bodyLines.push(`cad.${stmt.op}({ ${argsParts.join(', ')} })`)
+      continue
+    }
+
+    // load 源标注注释
+    if (stmt.op === 'load') {
+      const ref = (stmt.args.key as string | undefined) ?? (stmt.args.path as string | undefined) ?? (stmt.args.url as string | undefined) ?? ''
+      bodyLines.push(`// source: load ${ref}`)
+    }
+
+    // 变量名
+    const v = PART_VM_RE.test(stmt.id) ? stmt.id : `part0_v${vIdx++}`
+    varNames.set(stmt.id, v)
+
+    // 多输出 split
+    if (stmt.outputs && stmt.outputs.length > 1) {
+      for (const outId of stmt.outputs) {
+        varNames.set(outId, outId)
+      }
+    }
+
+    const isMultiOutputSplit = stmt.outputs && stmt.outputs.length >= 2 && stmt.op === 'split'
+
+    let argsParts = buildArgsParts(stmt, varNames)
+    if (isMultiOutputSplit) {
+      argsParts = argsParts.filter((p) => !p.startsWith('side:'))
+    }
+    const inputVars = stmt.inputs.map((id) => {
+      const mapped = varNames.get(id)
+      if (!mapped) throw new Error(`[codegen] unresolved input reference "${id}" — PartScript is not self-contained`)
+      return mapped
+    }).join(', ')
+
+    let opCall: string
+    if (stmt.op === 'boolean') {
+      const operation = (stmt.args.operation as string | undefined) ?? 'union'
+      opCall = `cad.${operation}(${inputVars})`
+    } else if (argsParts.length === 0 && inputVars) {
+      opCall = `cad.${stmt.op}(${inputVars})`
+    } else if (inputVars) {
+      opCall = `cad.${stmt.op}(${inputVars}, { ${argsParts.join(', ')} })`
+    } else {
+      const argsStr = argsParts.length > 0 ? ` ${argsParts.join(', ')} ` : ''
+      opCall = `cad.${stmt.op}({${argsStr}})`
+    }
+
+    // 多输出 split → 解构语法
+    if (isMultiOutputSplit) {
+      const destructureParts = stmt.outputs!.map((outId, idx) => {
+        const key = idx === 0 ? 'front' : 'back'
+        return `${key}: ${outId}`
+      }).join(', ')
+      bodyLines.push(`const { ${destructureParts} } = ${opCall}`)
+    } else {
+      bodyLines.push(`const ${v} = ${opCall}`)
+    }
+  }
+
+  return bodyLines.join('\n')
 }
 
 // ── 场景级 codegen：多 PartScript → 单一 DAG ──
@@ -846,4 +1001,222 @@ export function sceneToCode(
   }
 
   return scriptToCode(mergedScript)
+}
+
+/**
+ * 将场景中所有 PartScript 合并为扁平代码（无封装导出格式）。
+ *
+ * 与 sceneToCode 相同的 DAG 合并逻辑，但使用 scriptToFlatCode 输出。
+ *
+ * @param scripts 场景中所有 PartScript
+ * @param getPartMeta 可选：按 partId 获取 meta（name/appearance）
+ */
+export function sceneToFlatCode(
+  scripts: PartScript[],
+  getPartMeta?: (partId: string) => PartScriptMeta | undefined,
+): string {
+  if (scripts.length === 0) {
+    return ''
+  }
+  if (scripts.length === 1) {
+    const script = scripts[0]
+    if (!script.meta && getPartMeta) {
+      const meta = getPartMeta(script.partId)
+      if (meta) return scriptToFlatCode({ ...script, meta })
+    }
+    return scriptToFlatCode(script)
+  }
+
+  // 复用 sceneToCode 的 DAG 合并逻辑，但最终用 scriptToFlatCode 输出
+  // 通过构造 mergedScript 并调用 scriptToFlatCode 实现
+  // 这里直接调用 sceneToCode 的内部逻辑，只是最后用 scriptToFlatCode
+  // 为了避免重复代码，我们提取 mergedScript 然后调用 scriptToFlatCode
+
+  // 构建 partId → PartScript 映射
+  const partMap = new Map(scripts.map((s) => [s.partId, s]))
+  const stmtToPart = new Map<string, string>()
+  for (const script of scripts) {
+    for (const stmt of script.statements) {
+      stmtToPart.set(stmt.id, script.partId)
+    }
+  }
+
+  const processedSplitParts = new Set<string>()
+  for (const script of scripts) {
+    for (const stmt of script.statements) {
+      if (stmt.isMarker && stmt.op === 'split' && stmt.args.frontPartId && stmt.args.backPartId) {
+        processedSplitParts.add(stmt.args.frontPartId as string)
+        processedSplitParts.add(stmt.args.backPartId as string)
+      }
+    }
+  }
+
+  type IndexedStmt = { stmt: CadStatement; partId: string; seq: number }
+  const allStmts: IndexedStmt[] = []
+  for (let si = 0; si < scripts.length; si++) {
+    for (let ii = 0; ii < scripts[si].statements.length; ii++) {
+      const stmt = scripts[si].statements[ii]
+      const seq = stmt.seq ?? (si * 1_000_000 + ii)
+      allStmts.push({ stmt, partId: scripts[si].partId, seq })
+    }
+  }
+  allStmts.sort((a, b) => a.seq - b.seq)
+
+  const mergedStatements: CadStatement[] = []
+  const oldToNew = new Map<string, string>()
+  const partToModel = new Map<string, string>()
+  const partToVersion = new Map<string, number>()
+  let nextModelNum = 0
+  const processedIds = new Set<string>()
+
+  for (const { stmt, partId } of allStmts) {
+    if (processedIds.has(stmt.id)) continue
+    processedIds.add(stmt.id)
+    if (stmt.isMarker && stmt.op === 'split' && stmt.args.frontPartId && stmt.args.backPartId) {
+      const frontPartId = stmt.args.frontPartId as string
+      const backPartId = stmt.args.backPartId as string
+      const frontScript = partMap.get(frontPartId)
+      const backScript = partMap.get(backPartId)
+
+      if (frontScript && backScript) {
+        const frontSplit = frontScript.statements.find((s) => s.op === 'split' && !s.isMarker)
+        const backSplit = backScript.statements.find((s) => s.op === 'split' && !s.isMarker)
+
+        if (frontSplit && backSplit) {
+          const frontModel = `part${nextModelNum++}`
+          const backModel = `part${nextModelNum++}`
+          partToModel.set(frontPartId, frontModel)
+          partToModel.set(backPartId, backModel)
+          partToVersion.set(frontPartId, 0)
+          partToVersion.set(backPartId, 0)
+
+          const frontVar = `${frontModel}_v0`
+          const backVar = `${backModel}_v0`
+
+          const remappedInputs = frontSplit.inputs.map((id) => {
+            const mapped = oldToNew.get(id)
+            if (!mapped) throw new Error(`[sceneToFlatCode] unresolved input reference "${id}" during DAG merge`)
+            return mapped
+          })
+
+          const { side: _s, frontPartId: _f, backPartId: _b, ...splitArgs } = frontSplit.args as Record<string, Arg>
+
+          const mergedStmt: CadStatement = {
+            id: frontVar,
+            op: 'split',
+            args: splitArgs,
+            inputs: remappedInputs,
+            feature: { ...frontSplit.feature },
+            outputs: [frontVar, backVar],
+          }
+          mergedStatements.push(mergedStmt)
+          oldToNew.set(frontSplit.id, frontVar)
+          oldToNew.set(backSplit.id, backVar)
+        }
+      }
+      continue
+    }
+
+    if (stmt.isMarker && (stmt.op === 'group' || stmt.op === 'assembly')) {
+      mergedStatements.push({ ...stmt })
+      continue
+    }
+
+    if (stmt.isMarker) continue
+    if (processedSplitParts.has(partId) && stmt.op === 'split') continue
+
+    const modelPrefix = partToModel.get(partId) ?? `part${nextModelNum++}`
+    partToModel.set(partId, modelPrefix)
+    if (!partToVersion.has(partId)) partToVersion.set(partId, 0)
+    const version = partToVersion.get(partId) ?? 0
+    const newVar = `${modelPrefix}_v${version}`
+    partToVersion.set(partId, version + 1)
+    oldToNew.set(stmt.id, newVar)
+
+    const remappedInputs = stmt.inputs.map((id) => {
+      const mapped = oldToNew.get(id)
+      if (!mapped) throw new Error(`[sceneToFlatCode] unresolved input reference "${id}" during DAG merge`)
+      return mapped
+    })
+
+    const remappedArgs: Record<string, Arg> = {}
+    for (const [k, v] of Object.entries(stmt.args)) {
+      if (isGeomRef(v) && v.$geom.of) {
+        const mappedOf = oldToNew.get(v.$geom.of)
+        remappedArgs[k] = mappedOf ? { ...v, $geom: { ...v.$geom, of: mappedOf } } : v
+      } else {
+        remappedArgs[k] = v
+      }
+    }
+
+    mergedStatements.push({
+      ...stmt,
+      id: newVar,
+      args: remappedArgs,
+      inputs: remappedInputs,
+      model: modelPrefix,
+    })
+  }
+
+  // Post-process group/assembly markers (same as sceneToCode)
+  const partIdToLastVar = new Map<string, string>()
+  for (const script of scripts) {
+    const partId = script.partId
+    const lastStmt = [...script.statements].reverse().find((s) => {
+      if (s.isMarker) return false
+      if (s.op === 'split' && processedSplitParts.has(partId)) return false
+      return true
+    })
+    if (lastStmt) {
+      const newVar = oldToNew.get(lastStmt.id)
+      if (newVar) partIdToLastVar.set(partId, newVar)
+    }
+  }
+  for (const [oldId, newId] of oldToNew) {
+    const partId = stmtToPart.get(oldId)
+    if (partId && !partIdToLastVar.has(partId)) {
+      partIdToLastVar.set(partId, newId)
+    }
+  }
+
+  for (let i = 0; i < mergedStatements.length; i++) {
+    const stmt = mergedStatements[i]
+    if (!stmt.isMarker || (stmt.op !== 'group' && stmt.op !== 'assembly')) continue
+    const mappedArgs: Record<string, Arg> = { ...stmt.args }
+    const members = stmt.args.members as string[] | undefined
+    if (members) {
+      mappedArgs.members = members.map((refId) => partIdToLastVar.get(refId) ?? refId)
+    }
+    if (stmt.op === 'assembly' && stmt.args.constraints) {
+      const constraints = (stmt.args.constraints as unknown[]).map((c) => {
+        const constraint = c as Record<string, unknown>
+        const mapped: Record<string, unknown> = {}
+        if (typeof constraint.fixedPartId === 'string') {
+          mapped.fixedPartId = partIdToLastVar.get(constraint.fixedPartId as string) ?? constraint.fixedPartId
+        }
+        if (typeof constraint.movingPartId === 'string') {
+          mapped.movingPartId = partIdToLastVar.get(constraint.movingPartId as string) ?? constraint.movingPartId
+        }
+        if (constraint.fixedFace) {
+          const fixedFace = constraint.fixedFace as Record<string, unknown>
+          mapped.fixedFace = { faceId: fixedFace.faceId, surfaceType: fixedFace.surfaceType }
+        }
+        if (constraint.movingFace) {
+          const movingFace = constraint.movingFace as Record<string, unknown>
+          mapped.movingFace = { faceId: movingFace.faceId, surfaceType: movingFace.surfaceType }
+        }
+        return mapped
+      })
+      mappedArgs.constraints = constraints as Arg
+    }
+    mergedStatements[i] = { ...stmt, args: mappedArgs }
+  }
+
+  const mergedScript: PartScript = {
+    partId: 'scene',
+    params: [],
+    statements: mergedStatements,
+  }
+
+  return scriptToFlatCode(mergedScript)
 }

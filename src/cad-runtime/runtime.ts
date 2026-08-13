@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿/**
  * CadRuntime — 执行核心（L2 编排层）
  *
  * 设计文档：docs/faijs-engine-refactor-design.md §4.3
@@ -320,7 +320,10 @@ export class CadRuntime {
     // 从 sceneScript 的开头重放到该语句（简化实现：重放整个 DAG 直到目标语句）
     resolvingStack.add(statementId)
     const subOutputCache = new Map<string, Shape>()
-    const brepChain = await initBrepChainState()
+    // mesh 模式不初始化 OCCT（避免 initOcctWasm 失败）
+    const brepChain = this.mode === 'mesh'
+      ? createEmptyBrepChain()
+      : await initBrepChainState()
 
     try {
       for (const s of sceneScript.statements) {

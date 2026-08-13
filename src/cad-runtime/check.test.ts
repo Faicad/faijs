@@ -78,8 +78,10 @@ export default async (cad) => {
     expect(result.errors[0].stage).toBe('parse')
   })
 
-  it('parse error: not a default export → ok=false, stage=parse', () => {
-    const code = `const x = 42`
+  it('parse error: not a default export and not valid flat code → ok=false, stage=parse', () => {
+    // flat code 支持：`const x = 42` 现在是合法的扁平代码
+    // 真正无效的输入：语法错误
+    const code = `export default {`
     const result = makeRuntime().check(code)
     expect(result.ok).toBe(false)
     expect(result.errors[0].stage).toBe('parse')

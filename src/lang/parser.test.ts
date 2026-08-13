@@ -254,8 +254,11 @@ describe('parser: 错误处理', () => {
     expect(() => parseScript('export default v0 with { name: "test" }')).toThrow(ParseError)
   })
 
-  it('缺少 export default → ParseError', () => {
-    expect(() => parseScript('const x = 1')).toThrow(ParseError)
+  it('扁平代码（无 export default）自动封装后解析成功', () => {
+    // 扁平代码（无 export default）现在会被自动封装为合法容器
+    const result = parseScript('const part0_v0 = cad.box({ size: 20 })')
+    expect(result.script.statements).toHaveLength(1)
+    expect(result.script.statements[0].op).toBe('box')
   })
 
   it('非 async 箭头函数 → ParseError', () => {

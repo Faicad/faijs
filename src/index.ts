@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @faicad/faijs — Faicad CAD execution engine
  *
  * 公开 API 统一入口。所有导出按层组织：
@@ -26,9 +26,14 @@ export {
   isGeomRef, isParamRef, isAssetRef, createStatementId,
   createStatement, createPartScript,
 } from './lang/types'
+export {
+  allocateStatementId, allocateSplitIds,
+  isPartVmId, getModelNum, getVersionNum,
+} from './lang/allocate-id'
+export type { AllocateIdContext } from './lang/allocate-id'
 export { parseScript, ParseError, getApiVersion } from './lang/parser'
 export type { ParseOptions, ParseResult } from './lang/parser'
-export { sceneToCode, statementToCode, scriptToCode, fmtNum, buildArgsParts } from './lang/codegen'
+export { sceneToCode, sceneToFlatCode, statementToCode, statementToFlatLine, scriptToCode, scriptToFlatCode, fmtNum, buildArgsParts } from './lang/codegen'
 export { validateStatementArgs, validateScriptArgs, getOpSchema, hasOpSchema } from './lang/args-schema'
 export type { OpSchema, ArgFieldSchema, ArgType, ValidationError } from './lang/args-schema'
 

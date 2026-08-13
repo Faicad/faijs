@@ -565,10 +565,18 @@ export interface ParseResult {
 export function parseScript(code: string, options?: ParseOptions): ParseResult {
   const partId = options?.partId ?? 'parsed'
 
+  // ── 0. 扁平代码检测与封装 ──
+  // 如果代码不含 `export default`，则自动封装为合法容器
+  let parseCode = code
+  if (!code.includes('export default')) {
+    // 扁平格式：自动封装
+    parseCode = `export default async (cad) => {\n${code}\n}`
+  }
+
   // ── 1. acorn 解析（合法性闸门） ──
   let ast: ASTNode
   try {
-    ast = acornParse(code, {
+    ast = acornParse(parseCode, {
       ecmaVersion: 'latest',
       sourceType: 'module',
       locations: true,
