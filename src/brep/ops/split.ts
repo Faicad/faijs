@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿/**
  * 分割操作分派器
  *
  * BREP 路径：用 OCCT cut + common（平面分割 + 榫卯布尔序列）
@@ -205,10 +205,19 @@ async function executeSplitBrep(
   const secondarySolid = side === 'back' ? frontSolid : backSolid
 
   brepChain.solidCache.set(stmt.id, primarySolid)
-  // 多输出：存入 outputCache 的 solid 对应（供下游使用）
-  if (stmt.outputs && stmt.outputs.length >= 2) {
+  // 多输出：存入 solidCache 和 outputCache 的 mesh shape 对应（供下游使用）
+  if (stmt.outputs && stmt.outputs.length >= 2 && ctx.outputCache) {
     brepChain.solidCache.set(stmt.outputs[0], frontSolid)
     brepChain.solidCache.set(stmt.outputs[1], backSolid)
+    // 同时把 front/back 的 mesh shape 存入 outputCache
+    //（runtime.replay 只会把返回值存入 stmt.id == outputs[0]，
+    //  所以 outputs[1] (back) 必须在此显式存入）
+    const frontShape = solidToShape(kernel, frontSolid)
+    const backShape = solidToShape(kernel, backSolid)
+    ctx.outputCache.set(stmt.outputs[0], frontShape)
+    ctx.outputCache.set(stmt.outputs[1], backShape)
+    // 返回 front（== stmt.id == outputs[0]）
+    return side === 'back' ? backShape : frontShape
   } else {
     // 没有声明 outputs，释放非主 solid
     kernel.release(secondarySolid)
