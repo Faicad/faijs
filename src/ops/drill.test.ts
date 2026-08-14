@@ -33,8 +33,8 @@ let stlBuffer: ArrayBuffer
 beforeAll(async () => {
   await initOcctWasm()
 
-  // Load tmp-box.stl (mesh file, from test/ directory)
-  const stlPath = resolve(__dirname, '..', '..', 'test', 'tmp-box.stl')
+  // Load cube-10x5x5.stl (mesh fixture, from test/faijs/fixtures/)
+  const stlPath = resolve(__dirname, '..', '..', 'test', 'faijs', 'fixtures', 'cube-10x5x5.stl')
   const stlData = readFileSync(stlPath)
   stlBuffer = stlData.buffer.slice(stlData.byteOffset, stlData.byteOffset + stlData.byteLength) as ArrayBuffer
 }, 120000)
@@ -328,7 +328,7 @@ describe('drill: replay (load STL → drill) with partTransform', () => {
   it('load STL → drill with partTransform → geometry changes', async () => {
     const bufferKey = fileBlobStore.put(stlBuffer)
 
-    // tmp-box.stl is a 10×5×5 box. Let's find its bbox first.
+    // cube-10x5x5.stl is a 10×5×5 box. Let's find its bbox first.
     const box = await cad.load(stlBuffer, 'stl')
     const bb = computeBBox(box.positions)
     const center: [number, number, number] = [
