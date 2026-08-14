@@ -1,5 +1,5 @@
 const part0_v0 = cad.box({ size: [50, 50, 20] })
-const { front, back } = await cad.split({ cutMode: 'plane', normal: [0, 0, 1], offset: 0 }, part0_v0)
+const { front, back } = cad.split(part0_v0)
 const part1_v1 = cad.box({ size: 20 })
 const part0_v2 = cad.union(front, part1_v1)
 const part2_v1 = cad.cylinder({ radius: 10, height: 20 })

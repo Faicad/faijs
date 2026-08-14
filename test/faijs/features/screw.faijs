@@ -1,4 +1,4 @@
 const part0_v0 = cad.screw({
   system: 'metric', specIdx: 5, thread: 'coarse',
-  length: 30, head: 'hex', nRad: 32,
+  length: 30, head: 'hex',
 })

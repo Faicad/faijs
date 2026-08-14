@@ -62,10 +62,10 @@ describe('parser: 基本语句', () => {
   })
 
   it('解析字符串参数', () => {
-    const code = `const part0_v0 = cad.load({ key: 'model.glb' })`
+    const code = `const part0_v0 = cad.load({ key: 'model.3mf' })`
     const { script } = parseScript(code)
     expect(script.statements[0].op).toBe('load')
-    expect(script.statements[0].args.key).toBe('model.glb')
+    expect(script.statements[0].args.key).toBe('model.3mf')
   })
 
   it('解析多参数语句', () => {

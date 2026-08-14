@@ -1,2 +1,2 @@
 const part0_v0 = cad.box({ size: 30 })
-const part0_v1 = cad.split({ cutMode: 'plane', normal: [0, 0, 1], offset: 0 }, part0_v0)
+const part0_v1 = cad.split(part0_v0)

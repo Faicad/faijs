@@ -860,8 +860,9 @@ export function svgToSolid(
   if (groupTransform) {
     const matrix = svgTransformToOcctMatrix(groupTransform)
     for (const sp of allSubpaths) {
-      // 变换 wire
-      const newWire = kernel.transform(sp.wire, matrix)
+      // 变换 wire — use generalTransform because group transform may have non-uniform scale (e.g. d=-0.1 vs a=0.1)
+      // kernel.transform only supports uniform scale (gp_Trsf), generalTransform supports non-uniform (gp_GTrsf)
+      const newWire = kernel.generalTransform(sp.wire, matrix)
       kernel.release(sp.wire)
       sp.wire = newWire
       // 变换 points（用于 bbox/area 计算）

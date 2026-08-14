@@ -13,11 +13,11 @@
  *   toNonIndexed(verts, indices) → 输出 non-indexed BufferGeometry
  *
  * Bug 修复记录 (2026-07-22):
- *   问题：E2E 测试 knurl-no-cracks.spec.ts 检测到 knurl 后的 mesh 出现 NaN 值和错误 bounds
+ *   问题： 检测到 knurl 后的 mesh 出现 NaN 值和错误 bounds
  *         (bounds 从 [-0.5, 0.5] 变成 [-17, 17]，且 hasNaN: true)
  *
  *   根因分析：
- *     1. box_boss.glb 是 indexed geometry (530 vertices, 1548 indices)
+ *     1. box_boss.3mf 是 indexed geometry (530 vertices, 1548 indices)
  *     2. toIndexed() 函数假设输入是 non-indexed (flat triangles)
  *     3. 当传入 indexed geometry 时，toIndexed() 错误处理顶点数据：
  *        - n = posAttr.count = 530 (顶点数)

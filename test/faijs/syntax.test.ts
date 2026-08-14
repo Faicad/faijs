@@ -35,11 +35,8 @@ function listFaijsFiles(dir: string = FAIJS_DIR): string[] {
   return files.sort()
 }
 
-/** Files with known codegen round-trip issues */
-const KNOWN_CODEGEN_ISSUES = new Set(['screw.faijs', 'split.faijs', 'split-dag.faijs', 'parity-screw.faijs'])
-
-/** Compare statement ops and ids (less strict than full args comparison) */
-function scriptsStructurallyEqual(a: PartScript, b: PartScript): boolean {
+/** Full deep comparison of args and structure */
+function scriptsEqual(a: PartScript, b: PartScript): boolean {
   if (a.statements.length !== b.statements.length) return false
   for (let i = 0; i < a.statements.length; i++) {
     const sa = a.statements[i]
@@ -47,15 +44,7 @@ function scriptsStructurallyEqual(a: PartScript, b: PartScript): boolean {
     if (sa.id !== sb.id) return false
     if (sa.op !== sb.op) return false
     if (JSON.stringify(sa.inputs) !== JSON.stringify(sb.inputs)) return false
-  }
-  return true
-}
-
-/** Full deep comparison of args (for files without known codegen issues) */
-function scriptsEqual(a: PartScript, b: PartScript): boolean {
-  if (!scriptsStructurallyEqual(a, b)) return false
-  for (let i = 0; i < a.statements.length; i++) {
-    if (JSON.stringify(a.statements[i].args) !== JSON.stringify(b.statements[i].args)) return false
+    if (JSON.stringify(sa.args) !== JSON.stringify(sb.args)) return false
   }
   return true
 }
@@ -66,18 +55,12 @@ describe('syntax round-trip: parse → codegen → parse', () => {
   for (const filePath of files) {
     const fileName = filePath.replace(FAIJS_DIR + '/', '').replace(/\\/g, '/')
     const code = readFileSync(filePath, 'utf-8')
-    const hasKnownIssue = KNOWN_CODEGEN_ISSUES.has(fileName.split('/').pop()!)
-
     it(`${fileName}: round-trip preserves script structure`, () => {
       const { script: script1 } = parseScript(code)
       const generatedCode = scriptToCode(script1)
       const { script: script2 } = parseScript(generatedCode)
 
-      if (hasKnownIssue) {
-        expect(scriptsStructurallyEqual(script1, script2)).toBe(true)
-      } else {
-        expect(scriptsEqual(script1, script2)).toBe(true)
-      }
+      expect(scriptsEqual(script1, script2)).toBe(true)
     })
 
     it(`${fileName}: codegen is deterministic`, () => {
