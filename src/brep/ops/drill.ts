@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿/**
  * 钻孔操作分派器
  *
  * BREP 路径：用 OCCT cut（简单孔）或 threadBrep + cut（螺丝孔）
@@ -49,7 +49,7 @@ export async function executeDrill(ctx: OpContext): Promise<Shape> {
 
   // 链不活跃 → mesh 路径（链已在前面静态断掉，正常继续）
   if (!canUseBrep(ctx)) {
-    return executeDrillMesh(shape, args, direction, faceNormal)
+    return executeDrillMesh(shape, args, direction, faceNormal, ctx.brepChain?.partTransform)
   }
 
   // 链活跃 → BREP 路径（直接执行，不包 try-catch！异常 = 未预期错误，冒泡上报）
@@ -199,12 +199,23 @@ async function executeDrillMesh(
   args: Record<string, unknown>,
   direction: Vec3,
   faceNormal: Vec3,
+  partTransform?: { position: [number, number, number] },
 ): Promise<Shape> {
+  // Mesh 路径：shape 是局部坐标（原始文件坐标），
+  // 而 position 是世界坐标（用户点击位置）。
+  // 需要将 position 从世界坐标转换为局部坐标，与 shape 对齐。
+  // 这与 BREP 路径的 worldToLocalPosition 逻辑一致。
+  const worldPos = args.position as [number, number, number]
+  const offset = partTransform?.position
+  const localPos: Vec3 = offset
+    ? [worldPos[0] - offset[0], worldPos[1] - offset[1], worldPos[2] - offset[2]]
+    : worldPos
+
   return cad.drill(shape, {
     diameter: args.diameter as number,
     depth: args.depth as number,
     type: (args.depth as number) > 0 ? 'blind' : 'through',
-    position: args.position as [number, number, number],
+    position: localPos,
     direction,
     faceNormal,
     tolerance: args.tolerance as number | undefined,
