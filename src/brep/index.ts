@@ -16,7 +16,7 @@ export {
   translateBrep, rotateBrep, scaleBrep,
   fuseBrep, cutBrep, commonBrep,
   drillBrep, splitBrep, extrudeBrep,
-  matrixToArray,
+  loadBrep, matrixToArray,
   type DrillBrepParams, type SplitBrepParams, type SplitBrepResult, type ExtrudeBrepParams,
 } from './brep-ops'
 

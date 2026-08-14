@@ -15,8 +15,7 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { initOcctWasm, getKernel } from '../../occt-kernel/occtKernel'
-import type { OcctKernel } from 'occt-wasm'
+import { initOcctWasm } from '../../occt-kernel/occtKernel'
 import { createRuntime } from '../../cad-runtime/runtime'
 import type { ExecutionResult } from '../../cad-runtime/runtime'
 import type { HostPorts, EventSink, AssetResolver } from '../../cad-runtime/ports'
@@ -25,17 +24,14 @@ import { cad } from '../../mesh-ops'
 import type { Shape } from '../../mesh-ops/types'
 import type { CadStatement, PartScript } from '../../lang/types'
 import { executeStatement } from './dispatcher'
-import type { OpContext } from './types'
 import type { BrepChainState } from '../brep-chain'
 
 // ── Test fixtures ──
 
-let kernel: OcctKernel
 let stlBuffer: ArrayBuffer
 
 beforeAll(async () => {
   await initOcctWasm()
-  kernel = getKernel()
 
   // Load tmp-box.stl (mesh file, from test/ directory)
   const stlPath = resolve(__dirname, '..', '..', '..', 'test', 'tmp-box.stl')
@@ -110,7 +106,6 @@ async function runScript(
 }
 
 function shapeVertexCount(s: Shape): number { return s.positions.length / 3 }
-function shapeTriangleCount(s: Shape): number { return s.indices.length / 3 }
 
 function computeBBox(positions: Float32Array): { min: [number, number, number]; max: [number, number, number] } {
   const min: [number, number, number] = [Infinity, Infinity, Infinity]

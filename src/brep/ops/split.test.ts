@@ -16,8 +16,7 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { initOcctWasm, getKernel } from '../../occt-kernel/occtKernel'
-import type { OcctKernel } from 'occt-wasm'
+import { initOcctWasm } from '../../occt-kernel/occtKernel'
 import { createRuntime } from '../../cad-runtime/runtime'
 import type { ExecutionResult } from '../../cad-runtime/runtime'
 import type { HostPorts, EventSink, AssetResolver } from '../../cad-runtime/ports'
@@ -28,13 +27,11 @@ import { computeTerminalShapes } from '../../lang/parser'
 
 // ── Test fixtures ──
 
-let kernel: OcctKernel
 let stlBuffer: ArrayBuffer
 let stepBuffer: ArrayBuffer
 
 beforeAll(async () => {
   await initOcctWasm()
-  kernel = getKernel()
 
   // Load tmp-box.stl (mesh file, from test/ directory)
   const stlPath = resolve(__dirname, '..', '..', '..', 'test', 'tmp-box.stl')

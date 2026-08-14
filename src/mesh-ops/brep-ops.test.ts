@@ -44,7 +44,7 @@ import {
   breakBrepChain, releaseBrepChainState,
   BREP_NATIVE_OPS, MESH_ONLY_OPS,
   isCadFormat,
-} from './brep-ops'
+} from '../brep'
 import type { Shape } from './types'
 import type { PartScript, CadStatement, FeatureKind } from '../lang/types'
 import { replayScript, executeStatement } from '../test-helpers'

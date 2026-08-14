@@ -45,8 +45,8 @@ export {
   fuseBrep, cutBrep, commonBrep,
   drillBrep, splitBrep, extrudeBrep,
   loadBrep, matrixToArray,
-} from './mesh-ops/brep-ops'
-export type { DrillBrepParams, SplitBrepParams, SplitBrepResult, ExtrudeBrepParams } from './mesh-ops/brep-ops'
+} from './brep'
+export type { DrillBrepParams, SplitBrepParams, SplitBrepResult, ExtrudeBrepParams } from './brep'
 export { buildStlBufferFromMesh } from './brep/export/stl'
 export { exportStepFromSolid } from './brep/export/step'
 export { cad } from './mesh-ops'

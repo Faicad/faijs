@@ -15,7 +15,7 @@
 
 import * as primitives from './primitives'
 import * as brepPrimitives from './primitives-brep'
-import * as brepOps from './brep-ops'
+import * as brepOps from '../brep'
 import * as booleanOps from './boolean'
 import * as splitOps from './split'
 import * as drillOps from './drill'
@@ -111,10 +111,10 @@ export type {
 export type {
   BrepChainState, DrillBrepParams, SplitBrepParams, SplitBrepResult,
   ExtrudeBrepParams,
-} from './brep-ops'
+} from '../brep'
 export {
   createBrepChainState, initBrepChainState, releaseBrepChainState,
   breakBrepChain, lastSolidOfChain, solidToShape,
   BREP_NATIVE_OPS, MESH_ONLY_OPS,
   isCadFormat,
-} from './brep-ops'
+} from '../brep'
