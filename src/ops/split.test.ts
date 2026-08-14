@@ -33,13 +33,13 @@ let stepBuffer: ArrayBuffer
 beforeAll(async () => {
   await initOcctWasm()
 
-  // Load cube-10x5x5.stl (mesh fixture, from test/faijs/fixtures/)
-  const stlPath = resolve(__dirname, '..', '..', 'test', 'faijs', 'fixtures', 'cube-10x5x5.stl')
+  // Load cube-10x5x5.stl (mesh fixture, from test/fixtures/)
+  const stlPath = resolve(__dirname, '..', '..', 'test', 'fixtures', 'cube-10x5x5.stl')
   const stlData = readFileSync(stlPath)
   stlBuffer = stlData.buffer.slice(stlData.byteOffset, stlData.byteOffset + stlData.byteLength) as ArrayBuffer
 
   // Load a STEP file for BREP path tests
-  const stepPath = resolve(__dirname, '..', '..', 'test', 'faijs', 'fixtures', 'box_boss.step')
+  const stepPath = resolve(__dirname, '..', '..', 'test', 'fixtures', 'box_boss.step')
   const stepData = readFileSync(stepPath)
   stepBuffer = stepData.buffer.slice(stepData.byteOffset, stepData.byteOffset + stepData.byteLength) as ArrayBuffer
 }, 120000)

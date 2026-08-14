@@ -30,11 +30,11 @@ beforeAll(async () => {
   await initOcctWasm()
   kernel = getKernel()
   // Load test-model.step (2 solids) for multi-solid tests
-  const stepPath = resolve(__dirname, '..', '..', 'test', 'faijs', 'fixtures', 'test-model.step')
+  const stepPath = resolve(__dirname, '..', '..', 'test', 'fixtures', 'test-model.step')
   const data = readFileSync(stepPath)
   stepBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer
   // Load box_boss.step (1 solid) for single-solid regression tests (§8)
-  const boxBossPath = resolve(__dirname, '..', '..', 'test', 'faijs', 'fixtures', 'box_boss.step')
+  const boxBossPath = resolve(__dirname, '..', '..', 'test', 'fixtures', 'box_boss.step')
   const boxBossData = readFileSync(boxBossPath)
   boxBossBuffer = boxBossData.buffer.slice(boxBossData.byteOffset, boxBossData.byteOffset + boxBossData.byteLength) as ArrayBuffer
 }, 120000)

@@ -27,7 +27,7 @@ beforeAll(async () => {
 }, 120000)
 
 describe('buildSolidTopologyRuntime with SVG-derived solid', () => {
-  const logoSvg = readFileSync('test/faijs/fixtures/svg/logo111.svg', 'utf-8')
+  const logoSvg = readFileSync('test/fixtures/svg/logo111.svg', 'utf-8')
 
   it('should build topology from logo111.svg solid without errors', () => {
     const solid = svgToSolid(kernel, logoSvg, { depth: 5, targetLongSide: 20 })

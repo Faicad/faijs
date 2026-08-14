@@ -407,7 +407,7 @@ describe('svgToSolid', () => {
 describe('svgToSolid with logo111.svg fixture', () => {
   // 读取真实 SVG 文件作为端到端验证
   // logo111.svg 包含: <g transform> + 复杂 <path> + 多个 <rect transform>
-  const logoSvg = readFileSync('test/faijs/fixtures/svg/logo111.svg', 'utf-8')
+  const logoSvg = readFileSync('test/fixtures/svg/logo111.svg', 'utf-8')
 
   it('should produce a valid solid from logo111.svg', () => {
     const solid = svgToSolid(kernel, logoSvg, { depth: 5, targetLongSide: 20 })
