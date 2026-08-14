@@ -1,7 +1,6 @@
-﻿/**
+/**
  * CliEventSink — CLI 环境事件通知
  *
- * 设计文档：docs/faijs-engine-refactor-design.md §4.3, §5.2
  *
  * 继承 NodeEventSink 的收集行为，同时将事件写入 stderr，
  * 使 CLI 用户能看到断链通知。

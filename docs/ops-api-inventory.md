@@ -7,7 +7,7 @@
 > - ⚠️ = 可用，但参数有已知缺陷
 > - ❌ = 接口错误，**禁止使用**，等重做（见 §7）
 >
-> 相关文档：`docs/faijs-syntax-design.md`（语法与执行契约）、`docs/code-engine-api-contract.md`（语句层内部契约）。
+> 相关文档：`docs/syntax-design.md`（语法与执行契约）、`docs/api-contract.md`（语句层内部契约）。
 
 ---
 

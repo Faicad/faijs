@@ -1,6 +1,6 @@
-﻿import * as THREE from 'three'
+import * as THREE from 'three'
 import { SVGLoader, type SVGResult } from 'three/examples/jsm/loaders/SVGLoader.js'
-import { mergeBufferGeometries } from '../primitives/geometry'
+import { mergeBufferGeometries } from '../primitives/mesh-primitives'
 
 export interface SvgExtrudeOptions {
   depth: number

@@ -1,7 +1,6 @@
-﻿﻿/**
+/**
  * CadRuntime — 执行核心（L2 编排层）
  *
- * 设计文档：docs/faijs-engine-refactor-design.md §4.3
  *
  * 职责：
  * - 执行 PartScript 语句序列，产出 ExecutionResult（纯计算，不碰 store/DOM）
@@ -18,7 +17,7 @@
  */
 
 import type { PartScript, CadStatement, TerminalShape, Arg } from '../lang/types'
-import type { Shape } from '../brep/ops/types'
+import type { Shape } from '../ops/types'
 import type { BrepChainState } from '../brep/brep-chain'
 import type { ShapeHandle, OcctKernel } from 'occt-wasm'
 import {
@@ -27,7 +26,7 @@ import {
   breakBrepChain,
   MESH_ONLY_OPS,
 } from '../brep/brep-chain'
-import { executeStatement as dispatchStatement } from '../brep/ops/dispatcher'
+import { executeStatement as dispatchStatement } from '../ops/dispatcher'
 import { parseScript, ParseError } from '../lang/parser'
 import { validateStatementArgs } from '../lang/args-schema'
 import type { HostPorts, ExecutionMode } from './ports'

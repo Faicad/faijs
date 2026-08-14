@@ -33,7 +33,7 @@ import { initOcctWasm } from './occt-kernel/occtKernel'
 import { createRuntime, type ExecutionResult } from './cad-runtime/runtime'
 import { createNodePorts } from './node-host'
 import type { ExecutionMode } from './cad-runtime/ports'
-import type { Shape } from './brep/ops/types'
+import type { Shape } from './ops/types'
 import type { PartScript, CadStatement, FeatureKind } from './lang/types'
 import { ensureTestFontLoader } from './brep/text/fontTestHelper'
 

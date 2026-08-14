@@ -1,7 +1,7 @@
 /**
  * faijs 文本层类型定义 — 语句形式（L0 零依赖）
  *
- * 设计文档：docs/faijs-syntax-design.md §3.1
+ * 设计文档：docs/syntax-design.md §3.1
  *
  * 语句形式是唯一事实源，文本由语句序列确定性生成（pretty-print）。
  *
@@ -46,7 +46,7 @@ export interface GeomRef {
 export type Arg = JsonValue | ParamRef | GeomRef | AssetRef
 export type ShapeRef = string
 
-// ── 类型守卫（从 brep/ops/geom-ref.ts 上提，斩断 codegen → occt 传递依赖） ──
+// ── 类型守卫（从 ops/geom-ref.ts 上提，斩断 codegen → occt 传递依赖） ──
 
 /**
  * 检测 Arg 是否为 AssetRef

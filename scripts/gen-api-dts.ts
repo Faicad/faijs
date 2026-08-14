@@ -4,7 +4,7 @@
  * 消除 api.d.ts 手写漂移。schema 改了，重新跑此脚本即可同步。
  *
  * 用法：npx tsx scripts/gen-api-dts.ts
- * 输出：src/mesh-ops/api.d.ts
+ * 输出：src/mesh/api.d.ts
  *
  * 生成策略：
  * - 简单 op（box/sphere/.../drill/engrave/knurl/sdf/translate/rotate/scale）→ 从 SCHEMAS 直接生成
@@ -20,7 +20,7 @@ import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const outputPath = resolve(__dirname, '..', 'src', 'mesh-ops', 'api.d.ts')
+const outputPath = resolve(__dirname, '..', 'src', 'mesh', 'api.d.ts')
 
 // ── 类型映射 ──
 

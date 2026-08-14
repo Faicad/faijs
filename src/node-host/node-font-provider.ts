@@ -1,7 +1,6 @@
-﻿/**
+/**
  * NodeFontProvider — Node 端字体加载（fs 读取）
  *
- * 设计文档：docs/faijs-engine-refactor-design.md §5.2
  *
  * 实现 FontProvider 接口（ports.ts）+ FontLoader 接口（fontRegistry.ts）。
  *

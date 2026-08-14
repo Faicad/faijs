@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @vitest-environment node
  *
  * BREP 拓扑与 STEP_T 一致性测试 — 圆柱钻孔案例
@@ -28,7 +28,7 @@ console.log = (...args: unknown[]) => {
 
 import { describe, it, expect, beforeAll } from 'vitest'
 import { initOcctWasm, getKernel } from '../occt-kernel/occtKernel'
-import { primitiveToCadSolid } from '../primitives/primitiveToCad'
+import { primitiveToBrepSolid } from '../primitives/brep-primitives'
 import { buildSolidTopologyRuntime } from './brep-topology'
 import { buildAssemblySelectorManifest } from '../occt-kernel/topologyExt'
 import { buildSelectorRuntime } from '../topology/build-selector-runtime'
@@ -87,10 +87,10 @@ manifest: result.manifest as unknown as import('../topology/types').SelectorMani
 describe('BREP 拓扑与 STEP_T 一致性: 圆柱钻孔', () => {
   it('buildSolidTopologyRuntime 与 STEP_T 拓扑数据一致', () => {
     // 创建圆柱体 → 钻孔
-    const cylResult = primitiveToCadSolid(kernel, 'cylinder', { radius: 10, height: 20 })
+    const cylResult = primitiveToBrepSolid(kernel, 'cylinder', { radius: 10, height: 20 })
     const cylSolid = cylResult.solid
     try {
-      const drillResult = primitiveToCadSolid(kernel, 'cylinder', { radius: 3, height: 30 })
+      const drillResult = primitiveToBrepSolid(kernel, 'cylinder', { radius: 3, height: 30 })
       const drillSolid = drillResult.solid
       try {
         const positionedDrill = kernel.translate(drillSolid, 0, 0, -5)

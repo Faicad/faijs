@@ -1,7 +1,6 @@
 /**
  * Ports 接口定义 — Host 注入的环境能力
  *
- * 设计文档：docs/faijs-engine-refactor-design.md §4.3
  *
  * L2 CadRuntime 通过这些接口获取所有环境能力（CSG 计算、SDF 求值、字体、纹理、资产、事件）。
  * 不直接 import 任何 ?worker、window、document、zustand store——这些由 Host 实现。

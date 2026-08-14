@@ -1,7 +1,6 @@
 /**
  * exportStepFromSolid — L1 STEP 导出（从 OCCT solid 句柄）
  *
- * 设计文档：docs/faijs-engine-refactor-design.md §5.3
  *
  * 从 BREP 链终端 solid 句柄导出 STEP 文件。
  * 这是 exporters/index.ts 中 exportBrepSolidToStep() 的 L1 等价物，

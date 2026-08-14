@@ -1,7 +1,6 @@
-﻿/**
+/**
  * FsAssetResolver — Node 端资产解析（fs 目录/manifest）
  *
- * 设计文档：docs/faijs-engine-refactor-design.md §5.3
  *
  * 实现 AssetResolver 接口：
  * - resolveByKey(key): 从 --assets 目录/manifest 解析 key → 文件路径 → ArrayBuffer

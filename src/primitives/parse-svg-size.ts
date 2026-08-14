@@ -1,7 +1,7 @@
 /**
  * SVG 自然尺寸解析（单一真源）
  *
- * BREP（svgBlueprints.svgToSolid）与 mesh（svgToExtrudedGeometry）
+ * BREP（svg-to-solid.svgToSolid）与 mesh（svgToExtrudedGeometry）
  * 双路径共用此函数，保证同一 SVG 的双路径缩放一致。
  *
  * viewBox 优先，回退到 width/height，都没有则返回 0（不缩放）。

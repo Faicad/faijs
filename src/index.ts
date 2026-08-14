@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @faicad/faijs — Faicad CAD execution engine
  *
  * 公开 API 统一入口。所有导出按层组织：
@@ -38,10 +38,10 @@ export { validateStatementArgs, validateScriptArgs, getOpSchema, hasOpSchema } f
 export type { OpSchema, ArgFieldSchema, ArgType, ValidationError } from './lang/args-schema'
 
 // ── L1 几何执行层 ──
-export type { Shape, OpContext } from './brep/ops/types'
-export { executeStatement } from './brep/ops/dispatcher'
-export { canUseBrep } from './brep/ops/types'
-export { resolveGeomRef } from './brep/ops/geom-ref'
+export type { Shape, OpContext } from './ops/types'
+export { executeStatement } from './ops/dispatcher'
+export { canUseBrep } from './ops/types'
+export { resolveGeomRef } from './ops/geom-ref'
 export type { BrepChainState } from './brep/brep-chain'
 export {
   createBrepChainState, initBrepChainState, releaseBrepChainState,
@@ -60,16 +60,16 @@ export { buildStlBufferFromMesh } from './brep/export/stl'
 export { exportStepFromSolid } from './brep/export/step'
 
 // ── L1 Mesh 执行层 ──
-export { cad } from './mesh-ops'
+export { cad } from './mesh'
 export type {
   BoundingBox, FaceDescriptor,
   BoxParams, SphereParams, CylinderParams, ConeParams, WedgeParams,
   TextParams, SvgExtrudeParams, SdfParams,
   DrillParams, ExtrudeParams, EngraveParams, KnurlParams,
   SplitPlane, SplitResult,
-} from './mesh-ops/types'
-export { NRAD_DEFAULT, NRAD_MIN, NRAD_MAX, clampNRad } from './mesh-ops/types'
-export { faceAt } from './mesh-ops/query'
+} from './mesh/types'
+export { NRAD_DEFAULT, NRAD_MIN, NRAD_MAX, clampNRad } from './mesh/types'
+export { faceAt } from './mesh/query'
 
 // ── L1 Boolean/CSG 辅助 ──
 export { computeSection, buildExtrudedProfile } from './boolean/cross-section'
@@ -91,16 +91,16 @@ export type {
 } from './boolean/geo-convert'
 
 // ── L1 Primitives ──
-export { mergeBufferGeometries, makePrimitiveGeo, DEFAULT_SIZE, applyPrimitiveOffset } from './primitives/geometry'
+export { mergeBufferGeometries, makePrimitiveGeo, DEFAULT_SIZE, applyPrimitiveOffset } from './primitives/mesh-primitives'
 export { makeScrew } from './primitives/screw/screw'
 export { getScrewSpec, getScrewSpecs, threadToPitchMm, SCREW_HEAD_DIMS } from './primitives/screw/screw-db'
 export type { ScrewParams, ScrewSpec, ScrewSystem } from './primitives/screw/screw-db'
 export { svgToExtrudedGeometry } from './primitives/svg-extrude'
 export {
-  extractMeshData, primitiveToCadSolid, geometryToCadSolid,
-  cadSolidToStep, primitiveToStep,
-} from './primitives/primitiveToCad'
-export type { PrimitiveToCadResult, PrimitiveParams } from './primitives/primitiveToCad'
+  extractMeshData, primitiveToBrepSolid, geometryToBrepSolid,
+  brepSolidToStep, primitiveToBrepStep,
+} from './primitives/brep-primitives'
+export type { PrimitiveToBrepResult, PrimitiveParams } from './primitives/brep-primitives'
 export { loadSystemCjkFont, containsCjk, isCjkChar, createMixedTextGeometry } from './primitives/text/cjk'
 export type { CjkFontResult } from './primitives/text/cjk'
 export { createTextGeometry, getOpentypeFont, opentypePathToGeometry } from './primitives/text-geometry'
@@ -121,14 +121,14 @@ export type {
 export { boxToTuple, parseParamDefs, defaultParamValues } from './sdf/types'
 
 // ── L1 Knurl ──
-export { applyKnurlDisplacement, KNURL_DEFAULTS } from './mesh-ops/knurl/KnurlGenerator'
-export type { KnurlBounds } from './mesh-ops/knurl/KnurlGenerator'
-export { subdivide } from './mesh-ops/knurl/subdivision'
-export { loadKnurlingTexture } from './mesh-ops/knurl/textureLoader'
-export type { TextureData } from './mesh-ops/knurl/textureLoader'
-export { QuantizedPointMap, weldVertices } from './mesh-ops/knurl/meshIndex'
-export { computeUV, MODE_TRIPLANAR, getCubicBlendWeights, type MappingSettings } from './mesh-ops/knurl/mapping'
-export { applyDisplacement, type DisplacementSettings } from './mesh-ops/knurl/displacement'
+export { applyKnurlDisplacement, KNURL_DEFAULTS } from './mesh/knurl/KnurlGenerator'
+export type { KnurlBounds } from './mesh/knurl/KnurlGenerator'
+export { subdivide } from './mesh/knurl/subdivision'
+export { loadKnurlingTexture } from './mesh/knurl/textureLoader'
+export type { TextureData } from './mesh/knurl/textureLoader'
+export { QuantizedPointMap, weldVertices } from './mesh/knurl/meshIndex'
+export { computeUV, MODE_TRIPLANAR, getCubicBlendWeights, type MappingSettings } from './mesh/knurl/mapping'
+export { applyDisplacement, type DisplacementSettings } from './mesh/knurl/displacement'
 
 // ── L1 Topology ──
 export { TOPOLOGY_FACE_ID_NONE, buildFaceIdsForPart } from './topology/build-face-ids'
@@ -179,7 +179,7 @@ export { buildSolidTopologyRuntime } from './brep/brep-topology'
 export type { SolidTopologyResult } from './brep/brep-topology'
 
 // ── BREP ops (engrave etc.) ──
-export { executeEngrave } from './brep/ops/engrave'
+export { executeEngrave } from './ops/engrave'
 
 // ── Font Registry (for browser host injection) ──
 export { setFontLoader, getFontLoader, loadFont, ensureDefaultFont, getFont, clearFonts } from './brep/text/fontRegistry'

@@ -400,7 +400,7 @@ export const SceneMutator = {
 
 ## 11. 不变量与版本化
 
-### 11.1 文本语法（合法 JS 子集，设计文档 `faijs-syntax-design.md` §2）
+### 11.1 文本语法（合法 JS 子集，设计文档 `syntax-design.md` §2）
 
 `.faijs` 文本必须是 **JavaScript 的合法子集**——任意 JS 解析器都能无错解析。加载时 **先 parse 再执行**，绝不 `eval` / `import()` 真跑。
 

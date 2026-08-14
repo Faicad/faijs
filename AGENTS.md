@@ -19,15 +19,15 @@ Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadR
 ## 架构（L0–L3 分层）
 
 - **L0 文本层** `src/lang/`：parser（acorn，**先解析后执行，绝不 eval**）、codegen、args-schema。`.faijs` 是合法 JS 子集，语句 id 用 `partN_vM`（N=模型号，M=版本号）。
-- **L1 几何层**：`src/brep/`（OCCT brep 链）、`src/mesh-ops/`（manifold-3d mesh 路径 + `cad` API）、`src/boolean/`、`src/primitives/`、`src/sdf/`、`src/topology/`。
+- **L1 几何层**：`src/brep/`（OCCT brep 链）、`src/mesh/`（manifold-3d mesh 路径 + `cad` API）、`src/ops/`（每 op 的 BREP/Mesh 双链路分派器）、`src/boolean/`、`src/primitives/`、`src/sdf/`、`src/topology/`。
 - **L2 编排** `src/cad-runtime/`：`CadRuntime` + `HostPorts`（csg/sdf/fonts/assets/events 注入接口）。
 - **L3 Host**：`src/node-host/`（fs）+ `src/browser-host/`（worker）。
-- **双链路执行**：每个 op 有 BREP（occt-wasm）与 mesh（manifold-3d）两条路径，`src/brep/ops/dispatcher.ts` 按 op 白名单静态分派；BREP 链状态在 `src/brep/brep-chain.ts`。单位 mm、+Z 向上、角度用度（契约见 `docs/api-contract.md`）。
+- **双链路执行**：每个 op 有 BREP（occt-wasm）与 mesh（manifold-3d）两条路径，`src/ops/dispatcher.ts` 按 op 白名单静态分派；BREP 链状态在 `src/brep/brep-chain.ts`。单位 mm、+Z 向上、角度用度（契约见 `docs/api-contract.md`）。
 - 入口文件：`src/index.ts`（全量）、`src/browser.ts`（浏览器安全版，**不含 node-host**）、`src/node.ts`（node-host 专用）、`src/csg.ts` / `src/sdf.ts`。浏览器构建里静态 import node-host 会 404——Node 专用代码一律从 `@faicad/faijs/node` 导入。
 
 ## 必须知道的约定
 
-- **`src/mesh-ops/api.d.ts` 是生成文件**：由 `src/lang/args-schema.ts` 经 `npx tsx scripts/gen-api-dts.ts` 生成，禁止手改；改 schema 后必须重跑该脚本。
+- **`src/mesh/api.d.ts` 是生成文件**：由 `src/lang/args-schema.ts` 经 `npx tsx scripts/gen-api-dts.ts` 生成，禁止手改；改 schema 后必须重跑该脚本。
 - **测试 stderr 零容忍**（CI 强制）：任何测试输出 `stderr |` 行即判失败。测试若故意触发错误，必须在测试内 spy `console.warn/error` 并断言；禁止全局静默 stderr。
 - **typecheck/lint 不覆盖测试与 demo**：`test/` 目录的 TS 错误不会被 `npm run typecheck` 发现，改动后手动跑 vitest 验证。
 - 测试分布在 `src/**/*.test.ts`（与源码同目录）和 `test/faijs/`（按功能分目录，含 `.faijs` fixture）。parity 测试（BREP vs mesh 一致性）在 `beforeAll` 里 `initOcctWasm()`。
@@ -39,7 +39,6 @@ Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadR
 ## 文档地图
 
 - `docs/api-contract.md`、`docs/syntax-design.md`、`docs/ops-api-inventory.md`（写 `.faijs` 的 API 手册）：有效契约，改行为前必读。
-- `docs/architecture.md`：**空占位文件**。
 - `docs/plans/YYYY-MM-DD-*.md`：按日期命名的设计/计划文档。
 
 

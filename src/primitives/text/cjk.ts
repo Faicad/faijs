@@ -12,7 +12,7 @@
 import * as THREE from 'three'
 import * as opentype from 'opentype.js'
 import type { Font } from 'opentype.js'
-import { mergeBufferGeometries } from '../../primitives/geometry'
+import { mergeBufferGeometries } from '../../primitives/mesh-primitives'
 import { getOpentypeFont } from '../text-geometry'
 
 /** Check if a character is CJK (CJK Unified Ideographs + extensions). */

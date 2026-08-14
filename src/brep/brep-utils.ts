@@ -1,9 +1,9 @@
-﻿/**
+/**
  * BREP 通用工具函数
  */
 
 import type { OcctKernel, ShapeHandle } from 'occt-wasm'
-import type { Vec3 } from '../mesh-ops/types'
+import type { Vec3 } from '../mesh/types'
 
 /**
  * 获取 solid 的包围盒。

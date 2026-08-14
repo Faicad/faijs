@@ -1,7 +1,6 @@
 /**
  * buildStlBufferFromMesh — L1 纯数据 STL 导出（无 THREE 依赖）
  *
- * 设计文档：docs/faijs-engine-refactor-design.md §5.3
  *
  * 从原始 positions + indices 构建 binary STL buffer。
  * 与 src/renderer/lib/build-stl.ts 的 buildStlBuffer() 功能相同，

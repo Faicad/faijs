@@ -16,7 +16,7 @@ import { ensureDefaultFont, getFont as getRegisteredFont } from '../brep/text/fo
 /**
  * 获取默认 opentype.js 字体（OpenSans Regular）。
  *
- * 从 fontRegistry 获取，与 BREP 路径（textBlueprints）使用同一字体。
+ * 从 fontRegistry 获取，与 BREP 路径（text-to-solid）使用同一字体。
  * 首次调用会触发 ensureDefaultFont() 惰性加载。
  */
 export async function getOpentypeFont(): Promise<Font> {
@@ -37,7 +37,7 @@ export async function getOpentypeFont(): Promise<Font> {
  * Create text geometry centered in X/Z, extruded along +Z.
  *
  * Uses opentype.js font.getPath() → THREE.Shape → ExtrudeGeometry.
- * This is the same font source as the BREP path (textBlueprints),
+ * This is the same font source as the BREP path (text-to-solid),
  * ensuring glyph consistency between mesh and BREP paths.
  *
  * @param text  Text string to render

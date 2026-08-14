@@ -1,7 +1,6 @@
-﻿﻿/**
+/**
  * node-host — L3 Node host 公开 API
  *
- * 设计文档：docs/faijs-engine-refactor-design.md §4.1, §5.1
  *
  * Node host 负责：
  * - 创建 CadRuntime 实例（注入 node Ports：InlineCsgBackend / InlineSdfBackend / ...）

@@ -1,7 +1,7 @@
 /**
  * codegen — 语句 → 文本 确定性生成器（S-5 不变式）（L0，仅依赖 ./types）
  *
- * 设计文档：docs/faijs-syntax-design.md §2（扁平代码格式）
+ * 设计文档：docs/syntax-design.md §2（扁平代码格式）
  *
  * 职责：
  * - statementToLine(stmt)：按 op 输出可读单行语句（如 `const part0_v0 = cad.box({ size:20 })`）

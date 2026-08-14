@@ -6,10 +6,10 @@
  */
 
 import type { PartScript } from './lang/types'
-import type { Shape } from './brep/ops/types'
+import type { Shape } from './ops/types'
 import type { BrepChainState } from './brep/brep-chain'
 import { initBrepChainState } from './brep/brep-chain'
-import { executeStatement } from './brep/ops/dispatcher'
+import { executeStatement } from './ops/dispatcher'
 import { computeContentKey } from './cad-runtime/runtime'
 import type { HostPorts, ExecutionMode } from './cad-runtime/ports'
 

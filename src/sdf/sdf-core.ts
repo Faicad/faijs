@@ -1,7 +1,6 @@
-﻿/**
+/**
  * sdf-core — SDF 纯计算函数（从 sdf-worker.ts 提取）
  *
- * 设计文档：docs/faijs-engine-refactor-design.md §5.1
  *
  * 这些函数不依赖 Worker 环境（无 self.onmessage / postMessage），
  * 可被 WorkerSdfBackend（经 sdf-worker.ts）和 InlineSdfBackend（主线程直跑）共用。

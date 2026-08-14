@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @vitest-environment node
  *
  * 验证 buildSolidTopologyRuntime 能在 svgToSolid 产出的 solid 上正常运行。
@@ -16,7 +16,7 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import { readFileSync } from 'fs'
 import { initOcctWasm, getKernel } from '../../occt-kernel/occtKernel'
 import type { OcctKernel } from 'occt-wasm'
-import { svgToSolid } from './svgBlueprints'
+import { svgToSolid } from './svg-to-solid'
 import { buildSolidTopologyRuntime } from '../brep-topology'
 
 let kernel: OcctKernel
@@ -27,7 +27,7 @@ beforeAll(async () => {
 }, 120000)
 
 describe('buildSolidTopologyRuntime with SVG-derived solid', () => {
-  const logoSvg = readFileSync('src/test/fixtures/svg/logo111.svg', 'utf-8')
+  const logoSvg = readFileSync('test/faijs/fixtures/svg/logo111.svg', 'utf-8')
 
   it('should build topology from logo111.svg solid without errors', () => {
     const solid = svgToSolid(kernel, logoSvg, { depth: 5, targetLongSide: 20 })

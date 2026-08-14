@@ -5,7 +5,7 @@
  * L0 部分仅依赖 @faijs/* 模块，不依赖 replay-validator / brep-chain。
  *
  * L1 部分（replay-validator case 集合、BREP 能力集合）留在
- * src/renderer/engine/script-engine/op-set-consistency.test.ts
+ * src/lang/op-set-consistency.test.ts
  */
 
 import { describe, it, expect } from 'vitest'

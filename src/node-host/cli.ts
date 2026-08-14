@@ -1,7 +1,6 @@
-﻿/**
+/**
  * faijs-cli — CLI 逻辑（可导入、可测试）
  *
- * 设计文档：docs/faijs-engine-refactor-design.md §5.3
  *
  * 命令：
  *   check <file.faijs>                  — dryRun：parse + schema + 引用预检

@@ -1,4 +1,4 @@
-﻿﻿/**
+/**
  * 核心 BREP 操作 — 使用 OCCT 精确实体运算
  *
  * 设计文档：docs/plans/2026-08-08-primitive-brep-mode-plan.md §4.7 (Phase 2)
@@ -16,7 +16,7 @@
 
 import * as THREE from 'three'
 import type { OcctKernel, ShapeHandle } from 'occt-wasm'
-import type { Shape, Vec3 } from '../mesh-ops/types'
+import type { Shape, Vec3 } from '../mesh/types'
 import { getSolidBoundingBox } from './brep-utils'
 
 // ─── 通用工具 ───
@@ -268,7 +268,7 @@ export function drillBrep(
       holeCenter = pos.clone().add(direction.clone().normalize().multiplyScalar((tNear + tFar) / 2))
     }
   } else {
-    // 盲孔：深度钳制到 bboxMax（与 mesh cad-core/drill.ts 一致）
+    // 盲孔：深度钳制到 bboxMax（与 mesh mesh/drill.ts 一致）
     const safeDepth = Math.max(0, Math.min(params.depth, bboxMax))
     holeHeight = safeDepth
     holeCenter = pos.clone().add(direction.clone().normalize().multiplyScalar(safeDepth / 2))
@@ -579,7 +579,7 @@ export function extrudeBrep(
 /**
  * BREP-native STEP 导入：使用 OCCT kernel.importStep 导入 STEP 文件为精确实体。
  *
- * 与 mesh 路径（cad-core/io.ts importFile → loadFormat → meshes）对照：
+ * 与 mesh 路径（mesh/io.ts importFile → loadFormat → meshes）对照：
  * - mesh 路径：STEP → GLB 转换 → 三角网格，丢弃 OCCT ShapeHandle
  * - BREP 路径：STEP → kernel.importStep → 保留 ShapeHandle，同时三角化为显示 mesh
  *

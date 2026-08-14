@@ -48,8 +48,8 @@ export function ensureTestFontLoader(): void {
 /**
  * 设置 fs 字体加载器并立即加载字体。
  *
- * 适用于直接调用 textBlueprints（不经 executeText）的测试：
- * textBlueprints 内部调用 getFont()，需要字体已注册。
+ * 适用于直接调用 text-to-solid（不经 executeText）的测试：
+ * text-to-solid 内部调用 getFont()，需要字体已注册。
  *
  * 对于经 executeText 的测试，只需 ensureTestFontLoader() 即可，
  * 因为 executeTextBrep 会调用 ensureDefaultFont() 惰性加载。

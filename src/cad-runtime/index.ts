@@ -1,7 +1,6 @@
 /**
  * cad-runtime — L2 编排层公开 API
  *
- * 设计文档：docs/faijs-engine-refactor-design.md §4.1, §4.3
  */
 
 export { CadRuntime, createRuntime, computeContentKey } from './runtime'

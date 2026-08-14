@@ -5,9 +5,9 @@
  * - brep-ops.ts: 核心 BREP 操作（变换、布尔、钻孔、分割、拉伸）
  * - brep-chain.ts: BREP 链状态管理
  * - brep-utils.ts: 通用工具
- * - operations/: 从 brepjs 参考的操作实现（镜像 brepjs src/operations/）
+ * - brepjs-mirror/: 从 brepjs 参考的操作实现（镜像 brepjs src/operations/，勿手改核心算法）
  * - text/: 文字 BREP 实现（镜像 brepjs src/text/）
- * - ops/: 每个操作的 BREP + Mesh 分派器
+ * - ops/: 每个操作的 BREP + Mesh 分派器（src/ops/）
  */
 
 // 核心 BREP 操作
@@ -34,4 +34,4 @@ export {
 export { getSolidBoundingBox } from './brep-utils'
 
 // 操作分派器
-export { executeStatement } from './ops/dispatcher'
+export { executeStatement } from '../ops/dispatcher'
