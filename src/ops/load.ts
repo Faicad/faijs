@@ -2,7 +2,7 @@
  * 加载操作分派器（P4-1: 统一 load op）
  *
  * BREP 模式下用 OCCT kernel.importStep 导入为精确实体；
- * 非 CAD 格式（GLB/STL 等）时静态断链后走 mesh 路径。
+ * 非 CAD 格式（3MF/STL 等）时静态断链后走 mesh 路径。
  *
  * 支持的 op：cad.load({ key/path/url, format? })
  * - key：资产 manifest 引用（通过 ports.assets 解析）

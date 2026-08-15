@@ -184,7 +184,7 @@ const p = await cad.loadByKey({ key: 'file_abc123' })
 // 非 web 环境（本地文件）：
 const p = await cad.loadFile({ path: 'D:/models/box.step', format: 'step' })
 // 网络：
-const p = await cad.loadUrl({ url: 'https://…/box.glb' })
+const p = await cad.loadUrl({ url: 'https://…/box.3mf' })
 ```
 
 | op | 参数 | 类型 | 必填 | 说明 |
@@ -192,7 +192,7 @@ const p = await cad.loadUrl({ url: 'https://…/box.glb' })
 | `loadByKey` | `key` | string | ✅ | faicad 缓存中的资产 key（内容按 key 取，**引用而非拷贝** ✔） |
 | `loadFile` | `path` | string | ✅ | 本地绝对路径（非 web 环境） |
 | `loadUrl` | `url` | string | ✅ | 网络地址 |
-| 共用 | `format` | string | | 格式提示（step/glb/stl/obj/…） |
+| 共用 | `format` | string | | 格式提示（step/3mf/stl/obj/…） |
 
 > ⚠️ 旧 `load`（参数 `fileRef`）与 `loadByKey` 语义重叠，四 op 待收敛为一个；`load`/`fileRef` **暂不要用**，用 `loadByKey`。
 

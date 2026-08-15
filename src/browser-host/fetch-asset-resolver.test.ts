@@ -48,12 +48,12 @@ describe('FetchAssetResolver', () => {
     })
 
     const resolver = new FetchAssetResolver({
-      keyResolver: (key) => `http://localhost/assets/${key}.glb`,
+      keyResolver: (key) => `http://localhost/assets/${key}.3mf`,
     })
 
     const result = await resolver.resolveByKey('logo')
     expect(result.bytes).toBe(bytes)
-    expect(mockFetch).toHaveBeenCalledWith('http://localhost/assets/logo.glb')
+    expect(mockFetch).toHaveBeenCalledWith('http://localhost/assets/logo.3mf')
   })
 
   it('keyToUrl takes precedence over keyResolver', async () => {
@@ -64,12 +64,12 @@ describe('FetchAssetResolver', () => {
     })
 
     const resolver = new FetchAssetResolver({
-      keyToUrl: { 'asset': 'http://localhost/explicit.glb' },
-      keyResolver: (key) => `http://localhost/fallback/${key}.glb`,
+      keyToUrl: { 'asset': 'http://localhost/explicit.3mf' },
+      keyResolver: (key) => `http://localhost/fallback/${key}.3mf`,
     })
 
     await resolver.resolveByKey('asset')
-    expect(mockFetch).toHaveBeenCalledWith('http://localhost/explicit.glb')
+    expect(mockFetch).toHaveBeenCalledWith('http://localhost/explicit.3mf')
   })
 
   it('resolveUrl fetches directly', async () => {
@@ -102,7 +102,7 @@ describe('FetchAssetResolver', () => {
     })
 
     const resolver = new FetchAssetResolver({
-      keyToUrl: { 'broken': 'http://localhost/broken.glb' },
+      keyToUrl: { 'broken': 'http://localhost/broken.3mf' },
     })
 
     await expect(resolver.resolveByKey('broken')).rejects.toThrow(/fetch failed/)
@@ -116,7 +116,7 @@ describe('FetchAssetResolver', () => {
     })
 
     const resolver = new FetchAssetResolver({
-      keyToUrl: { 'cached': 'http://localhost/cached.glb' },
+      keyToUrl: { 'cached': 'http://localhost/cached.3mf' },
     })
 
     // First call fetches

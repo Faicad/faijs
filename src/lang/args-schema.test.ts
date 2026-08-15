@@ -107,7 +107,7 @@ describe('args-schema: 创建类', () => {
   })
 
 it('load：合法参数通过', () => {
-const stmt = makeStmt({ op: 'load', args: { key: 'model.glb' } })
+const stmt = makeStmt({ op: 'load', args: { key: 'model.3mf' } })
 expect(validateStatementArgs(stmt)).toEqual([])
 })
 })

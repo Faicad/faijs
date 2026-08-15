@@ -61,7 +61,7 @@ export function isCadFormat(
   args: Record<string, unknown>,
   isSource: boolean,
 ): boolean {
-  // 非 source buffer 一定是经过 GLB 转换的 → 非 CAD 源
+  // 非 source buffer 是转换后的网格数据 → 非 CAD 源
   if (!isSource) return false
 
   // 优先用显式 format 参数

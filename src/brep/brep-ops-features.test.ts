@@ -427,8 +427,8 @@ expect(MESH_ONLY_OPS.size).toBe(2)
     expect(isCadFormat({ format: 'brep' }, true)).toBe(true)
   })
 
-  it('isCadFormat: glb/stl format → false', () => {
-    expect(isCadFormat({ format: 'glb' }, true)).toBe(false)
+  it('isCadFormat: 3mf/stl format → false', () => {
+    expect(isCadFormat({ format: '3mf' }, true)).toBe(false)
     expect(isCadFormat({ format: 'stl' }, true)).toBe(false)
     expect(isCadFormat({ format: 'obj' }, true)).toBe(false)
   })
@@ -440,10 +440,10 @@ expect(MESH_ONLY_OPS.size).toBe(2)
   it('isCadFormat: no format, infer from path/url extension', () => {
     expect(isCadFormat({ path: 'model.step' }, true)).toBe(true)
     expect(isCadFormat({ path: 'model.stp' }, true)).toBe(true)
-    expect(isCadFormat({ path: 'model.glb' }, true)).toBe(false)
+    expect(isCadFormat({ path: 'model.3mf' }, true)).toBe(false)
     expect(isCadFormat({ path: 'model' }, true)).toBe(false)
     expect(isCadFormat({ url: 'https://example.com/model.step' }, true)).toBe(true)
-    expect(isCadFormat({ url: 'https://example.com/model.glb' }, true)).toBe(false)
+    expect(isCadFormat({ url: 'https://example.com/model.3mf' }, true)).toBe(false)
   })
 })
 

@@ -372,10 +372,10 @@ describe('parser: load 旧 op 名兼容', () => {
   })
 
   it('旧 cad.load({ fileRef }) → fileRef 转为 key', () => {
-    const code = `const part0_v0 = await cad.load({ fileRef: 'box_boss.glb' })`
+    const code = `const part0_v0 = await cad.load({ fileRef: 'box_boss.3mf' })`
     const { script } = parseScript(code)
     expect(script.statements[0].op).toBe('load')
-    expect(script.statements[0].args.key).toBe('box_boss.glb')
+    expect(script.statements[0].args.key).toBe('box_boss.3mf')
     expect(script.statements[0].args.fileRef).toBeUndefined()
   })
 })

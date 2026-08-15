@@ -584,7 +584,7 @@ export function extrudeBrep(
  * BREP-native STEP 导入：使用 OCCT kernel.importStep 导入 STEP 文件为精确实体。
  *
  * 与 mesh 路径（cad-core/io.ts importFile → loadFormat → meshes）对照：
- * - mesh 路径：STEP → GLB 转换 → 三角网格，丢弃 OCCT ShapeHandle
+ * - mesh 路径：STEP → 三角网格，丢弃 OCCT ShapeHandle
  * - BREP 路径：STEP → kernel.importStep → 保留 ShapeHandle，同时三角化为显示 mesh
  *
  * 导入的 solid 存入 brepChain.solidCache，后续操作（drillBrep/splitBrep 等）

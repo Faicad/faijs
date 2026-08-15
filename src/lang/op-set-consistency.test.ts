@@ -87,7 +87,7 @@ const NON_DEFAULT_ARGS: Record<string, Record<string, unknown>> = {
   text: { text: 'hello', size: 10, depth: 2 },
   screw: { system: 'metric', specIdx: 0, thread: 'coarse', pitchCustom: 1.5, length: 10, head: 'none', nRad: 64 },
   svgExtrude: { svg: '<svg></svg>', depth: 5, targetLongSide: 20 },
-  load: { key: 'model.glb', path: '/path/to/file.step', url: 'https://example.com/model.glb', format: 'glb' },
+  load: { key: 'model.3mf', path: '/path/to/file.step', url: 'https://example.com/model.3mf', format: '3mf' },
   translate: { offset: [1, 2, 3] },
   rotate: { anglesDeg: [10, 20, 30], pivot: [1, 2, 3] },
   scale: { factor: [1, 2, 3] },

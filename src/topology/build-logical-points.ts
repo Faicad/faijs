@@ -53,7 +53,7 @@ export function computeEdgeMidpoints(
  * to a face identified by `faceRow`.
  *
  * Multiple runs may reference the same faceRow (e.g. when a face's triangles
- * are split across multiple GLB primitives). This function collects all
+ * are split across multiple 3MF primitives). This function collects all
  * triangle vertices per face and averages their unique positions.
  */
 export function computeFaceCenters(

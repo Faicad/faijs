@@ -160,7 +160,7 @@ describe('isCadFormat', () => {
   })
 
   it('should return false for non-CAD formats', () => {
-    expect(isCadFormat({ format: 'glb' }, true)).toBe(false)
+    expect(isCadFormat({ format: '3mf' }, true)).toBe(false)
     expect(isCadFormat({ format: 'stl' }, true)).toBe(false)
     expect(isCadFormat({ format: 'obj' }, true)).toBe(false)
   })
@@ -172,9 +172,9 @@ describe('isCadFormat', () => {
   it('should infer from path/url extension when format is not specified', () => {
     expect(isCadFormat({ path: 'model.step' }, true)).toBe(true)
     expect(isCadFormat({ path: 'model.stp' }, true)).toBe(true)
-    expect(isCadFormat({ path: 'model.glb' }, true)).toBe(false)
+    expect(isCadFormat({ path: 'model.3mf' }, true)).toBe(false)
     expect(isCadFormat({ path: 'model' }, true)).toBe(false)
     expect(isCadFormat({ url: 'https://example.com/model.step' }, true)).toBe(true)
-    expect(isCadFormat({ url: 'https://example.com/model.glb' }, true)).toBe(false)
+    expect(isCadFormat({ url: 'https://example.com/model.3mf' }, true)).toBe(false)
   })
 })

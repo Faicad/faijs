@@ -33,8 +33,7 @@ function inferFormat(filePath: string): string | undefined {
   const formatMap: Record<string, string> = {
     step: 'step',
     stp: 'step',
-    glb: 'glb',
-    gltf: 'gltf',
+    '3mf': '3mf',
     stl: 'stl',
     obj: 'obj',
     svg: 'svg',
