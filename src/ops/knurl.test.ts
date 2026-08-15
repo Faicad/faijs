@@ -16,7 +16,7 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import { initOcctWasm } from '../occt-kernel/occtKernel'
 import { createRuntime } from '../cad-runtime/runtime'
 import type { ExecutionResult } from '../cad-runtime/runtime'
-import type { HostPorts, EventSink } from '../cad-runtime/ports'
+import type { EventSink } from '../cad-runtime/ports'
 import { createNodePorts } from '../node-host'
 import { MESH_ONLY_OPS } from '../brep/brep-chain'
 import { ensureTestFontLoader } from '../brep/text/fontTestHelper'
@@ -68,7 +68,6 @@ async function runScript(
 }
 
 function shapeVertexCount(s: Shape): number { return s.positions.length / 3 }
-function shapeTriangleCount(s: Shape): number { return s.indices.length / 3 }
 
 function getFinalOutput(result: ExecutionResult, statements: CadStatement[]): Shape {
   const nonMarker = statements.filter(s => !s.isMarker)
