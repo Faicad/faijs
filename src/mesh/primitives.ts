@@ -158,7 +158,11 @@ export async function text(params: TextParams): Promise<Shape> {
     if (cjkFont) {
       geo = await createMixedTextGeometry(params.text, params.size, params.depth, cjkFont.font, font)
     } else {
-      geo = await createTextGeometry(params.text, params.size, params.depth, font)
+      // No CJK font available: replace CJK chars with '?' so geometry still
+      // can be created (graceful degradation). Without this, createTextGeometry
+      // would throw because CJK glyphs are .notdef in OpenSans Regular.
+      const fallback = params.text.replace(/[\u4E00-\u9FFF\u3400-\u4DBF\u2F800-\u2FA1F\u3000-\u303F\uFF00-\uFFEF]/g, '?')
+      geo = await createTextGeometry(fallback, params.size, params.depth, font)
     }
   } else {
     geo = await createTextGeometry(params.text, params.size, params.depth, font)

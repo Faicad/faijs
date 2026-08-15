@@ -175,7 +175,7 @@ export async function applyKnurlDisplacement(
 
   const result = applyDisplacement(
     subdivided,
-    texData.data as any,
+    texData,
     texData.width,
     texData.height,
     settings,
