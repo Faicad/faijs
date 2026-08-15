@@ -32,3 +32,15 @@ jobs:
       - run: npm run typecheck
 
       - run: npx vitest run
+
+      - name: Install demo dependencies
+        working-directory: demo
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: demo
+        run: npx playwright install --with-deps chromium
+
+      - name: Run demo e2e tests
+        working-directory: demo
+        run: npm run test:e2e

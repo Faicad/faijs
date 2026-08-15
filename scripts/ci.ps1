@@ -50,17 +50,17 @@ function Step {
 }
 
 $ciMain = {
-Step -Label '1/3  npm run lint' -Block { npm run lint }
+Step -Label '1/4  npm run lint' -Block { npm run lint }
 
-Step -Label '2/3  npm run typecheck' -Block { npm run typecheck }
+Step -Label '2/4  npm run typecheck' -Block { npm run typecheck }
 
-Write-Host "==> 3/3  npx vitest run"
+Write-Host "==> 3/4  npx vitest run"
 $start3 = Get-Date
 $tmpVitest = [System.IO.Path]::GetTempFileName()
 npx vitest run 2>&1 | Tee-Object -FilePath $tmpVitest
 if ($LASTEXITCODE -ne 0) {
     if ($allMode) {
-        $script:failures.Add('3/3  npx vitest run')
+        $script:failures.Add('3/4  npx vitest run')
     } else {
         exit $LASTEXITCODE
     }
@@ -87,7 +87,7 @@ if ($stderrLines.Count -gt 0) {
     Write-Host "`nERROR: Tests produced stderr output — all test stderr must be resolved." -ForegroundColor Red
     $stderrLines | ForEach-Object { Write-Host $_ }
     if ($allMode) {
-        $script:failures.Add('3/3  npx vitest run (stderr)')
+        $script:failures.Add('3/4  npx vitest run (stderr)')
     } else {
         exit 1
     }
@@ -96,6 +96,24 @@ Remove-Item $tmpVitest -ErrorAction SilentlyContinue
 $elapsed3 = (Get-Date) - $start3
 $total3 = (Get-Date) - $script:globalStart
 Write-Host "    ($($elapsed3.TotalSeconds.ToString('0.0'))s / 累计 $($total3.TotalSeconds.ToString('0.0'))s)" -ForegroundColor DarkGray
+
+Step -Label '4/4  demo e2e (playwright)' -Block {
+    $demoDir = Join-Path $ROOT 'demo'
+    Push-Location $demoDir
+    try {
+        # demo has its own package.json/lockfile; install first in a clean environment (no node_modules)
+        if (-not (Test-Path node_modules)) {
+            npm ci
+            if ($LASTEXITCODE -ne 0) { return }
+        }
+        # Playwright browsers (idempotent: skips if already downloaded)
+        npx playwright install chromium
+        if ($LASTEXITCODE -ne 0) { return }
+        npm run test:e2e
+    } finally {
+        Pop-Location
+    }
+}
 }
 
 # Execute — pipe all streams (6=&1) to Tee-Object in allMode for log capture

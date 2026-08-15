@@ -13,13 +13,13 @@ esac
 
 cd "$ROOT"
 
-echo "==> 1/3  npm run lint"
+echo "==> 1/4  npm run lint"
 npm run lint
 
-echo "==> 2/3  npm run typecheck"
+echo "==> 2/4  npm run typecheck"
 npm run typecheck
 
-echo "==> 3/3  npx vitest run"
+echo "==> 3/4  npx vitest run"
 set +o pipefail
 npx vitest run --no-color 2>&1 | tee /tmp/vitest-out.txt
 exit_code=${PIPESTATUS[0]}
@@ -40,5 +40,16 @@ if [ -n "$unexpected_stderr" ]; then
   echo "$unexpected_stderr" >&2
   exit 1
 fi
+
+echo "==> 4/4  demo e2e (playwright)"
+cd "$ROOT/demo"
+# demo has its own package.json/lockfile; install first in a clean environment (no node_modules)
+if [ ! -d node_modules ]; then
+  npm ci
+fi
+# Playwright browsers (idempotent: skips if already downloaded)
+npx playwright install chromium
+npm run test:e2e
+cd "$ROOT"
 
 echo "==> All CI checks passed"
