@@ -30,7 +30,15 @@ export default defineConfig({
     // process; point Chromium at /tmp instead. WebGL still works via
     // SwiftShader software rendering.
     launchOptions: {
-      args: ['--disable-dev-shm-usage'],
+      args: [
+        '--disable-dev-shm-usage',
+        // CI has no GPU: enable software WebGL (SwiftShader). Newer Chromium
+        // builds block SwiftShader unless --enable-unsafe-swiftshader is set,
+        // and the demo creates two WebGL contexts on page load — without this
+        // the renderer process crashes with "session closed".
+        '--enable-unsafe-swiftshader',
+        '--use-angle=swiftshader',
+      ],
     },
   },
   webServer: {
