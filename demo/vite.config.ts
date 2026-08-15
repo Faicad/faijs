@@ -48,8 +48,9 @@ function cdnExternalPlugin(): Plugin {
 
 export default defineConfig({
   resolve: {
-    // faijs（junction 链接到仓库根）与 demo 各声明了一份 occt-wasm，
-    // 强制解析到同一实例：避免产物中出现两份 wasm。
+    // faijs 以 npm pack tarball 安装（demo/node_modules/@faicad/faijs），
+    // 其 dist 与 demo 各声明了一份 occt-wasm，强制解析到同一实例：
+    // 避免产物中出现两份 wasm。
     // （manifold-3d 不再需要 dedupe：demo 不再直接 import 它，
     //  仅 faijs 经 loader 根裸导入，Workder/Inline 后端共用。）
     dedupe: ['occt-wasm'],
@@ -81,8 +82,5 @@ export default defineConfig({
     // 避免占用常见端口（3000/5173 等）
     port: 8899,
     open: true,
-    // manifold-3d 由 @faicad/faijs（junction → faijs 根）解析，
-    // 源文件位于 faijs/node_modules，需允许访问上一级
-    fs: { allow: ['..'] },
   },
 })

@@ -1,5 +1,5 @@
-/**
- * @faicad/faijs/browser �?Browser-safe exports
+﻿/**
+ * @faicad/faijs/browser — Browser-safe exports
  *
  * Excludes L3 Node Host modules (node-host/*) that depend on node:fs/node:path.
  * Use this entry point in browser/worker contexts to avoid pulling in Node.js code.
@@ -7,7 +7,7 @@
  * For full exports (including Node.js), use @faicad/faijs instead.
  */
 
-// ── L0 文本�?──
+// ── L0 文本层 ──
 export type {
   PartScript, CadStatement, Arg, Vec3, JsonValue, ShapeRef,
   ParamRef, GeomRef, AssetRef, FeatureKind, FeatureMeta,
@@ -28,7 +28,7 @@ export { statementToLine, scriptToCode, fmtNum, buildArgsParts } from './lang/co
 export { validateStatementArgs, validateScriptArgs, getOpSchema, hasOpSchema } from './lang/args-schema'
 export type { OpSchema, ArgFieldSchema, ArgType, ValidationError } from './lang/args-schema'
 
-// ── L1 几何执行�?──
+// ── L1 几何执行层 ──
 export type { Shape, OpContext } from './ops/types'
 export { executeStatement } from './ops/dispatcher'
 export { canUseBrep } from './ops/types'
@@ -40,17 +40,17 @@ export {
   BREP_NATIVE_OPS, MESH_ONLY_OPS, isCadFormat,
 } from './brep/brep-chain'
 export {
-  solidToShape, getSolidBoundingBox,
+  solidToShape,
   translateBrep, rotateBrep, scaleBrep,
   fuseBrep, cutBrep, commonBrep,
   drillBrep, splitBrep, extrudeBrep,
   loadBrep, matrixToArray,
-} from './brep'
-export type { DrillBrepParams, SplitBrepParams, SplitBrepResult, ExtrudeBrepParams } from './brep'
+} from './brep/brep-ops'
+export { getSolidBoundingBox } from './brep/brep-utils'
+export type { DrillBrepParams, SplitBrepParams, SplitBrepResult, ExtrudeBrepParams } from './brep/brep-ops'
 export { buildStlBufferFromMesh } from './brep/export/stl'
 export { exportStepFromSolid } from './brep/export/step'
 export { cad } from './mesh'
-export { setManifoldWasmUrl, getManifoldWasmUrl, getManifoldModule } from './mesh/manifold-loader'
 export { faceAt } from './mesh/query'
 export type {
   BoundingBox, FaceDescriptor,
@@ -63,7 +63,7 @@ export { NRAD_DEFAULT, NRAD_MIN, NRAD_MAX, clampNRad } from './mesh/types'
 
 // ── L1 Boolean/CSG 辅助 ──
 export { computeSection, buildExtrudedProfile } from './boolean/cross-section'
-export { manifoldToMeshData, weldPositionsWorker, dovetailBooleanSplit, dowelOrTenonBooleanSplit } from './boolean/csg-core'
+export { manifoldToMeshData, weldPositionsWorker, dovetailBooleanSplit, dowelOrTenonBooleanSplit, chainBoolean, meshToManifold } from './boolean/csg-core'
 export { deriveNormals } from './boolean/deriveNormals'
 export { buildExtrudeParts, makeWorldPlane } from './boolean/extrude-helpers'
 export type { ExtrudeParts, ExtrudeOffsetMode } from './boolean/extrude-helpers'
@@ -106,12 +106,13 @@ export type {
   SdfWorkerInput, SdfWorkerMessage,
 } from './sdf/types'
 export { boxToTuple, parseParamDefs, defaultParamValues } from './sdf/types'
+export { runSdfInline } from './sdf/sdf-core'
 
 // ── L1 Knurl ──
 export { applyKnurlDisplacement, KNURL_DEFAULTS } from './mesh/knurl/KnurlGenerator'
 export type { KnurlBounds } from './mesh/knurl/KnurlGenerator'
 export { subdivide } from './mesh/knurl/subdivision'
-export { loadKnurlingTexture, setKnurlTextureLoader } from './mesh/knurl/textureLoader'
+export { loadKnurlingTexture } from './mesh/knurl/textureLoader'
 export type { TextureData } from './mesh/knurl/textureLoader'
 export { QuantizedPointMap, weldVertices } from './mesh/knurl/meshIndex'
 export { computeUV, MODE_TRIPLANAR, getCubicBlendWeights, type MappingSettings } from './mesh/knurl/mapping'
@@ -129,7 +130,7 @@ export type {
   GlbContainer, BufferViewDescriptor, SelectorProxy,
 } from './topology/types'
 
-// ── L2 编排�?──
+// ── L2 编排层 ──
 export { CadRuntime, createRuntime, computeContentKey } from './cad-runtime/runtime'
 export type { ExecutionResult, ReplayOptions, CheckResult, CheckError } from './cad-runtime/runtime'
 export type {
@@ -181,3 +182,13 @@ export { BrowserFontProvider } from './browser-host/browser-font-provider'
 export type { BrowserFontProviderOptions } from './browser-host/browser-font-provider'
 export { FetchAssetResolver } from './browser-host/fetch-asset-resolver'
 export type { FetchAssetResolverOptions } from './browser-host/fetch-asset-resolver'
+
+// ── Manifold Loader (WASM URL injection) ──
+export { setManifoldWasmUrl, getManifoldWasmUrl, getManifoldModule } from './mesh/manifold-loader'
+
+// ── Knurl Texture Loader (browser host injection) ──
+export { setKnurlTextureLoader } from './mesh/knurl/textureLoader'
+
+// ── Worker Backends (for consumers that want Worker-based CSG/SDF) ──
+export { WorkerCsgBackend } from './browser-host/worker-csg-backend'
+export { WorkerSdfBackend } from './browser-host/worker-sdf-backend'

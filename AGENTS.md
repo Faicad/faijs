@@ -1,17 +1,19 @@
 # AGENTS.md
 
-Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadRuntime。**无构建步骤**——包以 TS 源码直接消费（`main: src/index.ts`），没有 dist。
+Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadRuntime。**构建产物为 `dist/`**（`npm run build`：tsc 编译 src → dist JS + `.d.ts`），包经 `exports` 指向 `dist/*.js`；**测试/CLI 仍直接消费 `src/`**（vitest、tsx）。
 
 ## 常用命令
 
 | 命令 | 说明 |
 |---|---|
+| `npm run build` | `tsc -p tsconfig.build.json`：src → `dist/`（JS + .d.ts + sourcemap；排除 `*.test.ts` 与 `src/test/`） |
+| `npm run pack` | build + `npm pack` → 根目录 `faicad-faijs-0.1.0.tgz`（`prepack` 会自动 build） |
 | `npm test` | 全量测试（vitest run；testTimeout 120s，几何运算慢） |
 | `npx vitest run <path>` | 跑单个测试文件，如 `npx vitest run test/faijs/syntax.test.ts` |
 | `npx vitest run --coverage` | v8 覆盖率（text + html → `coverage/`） |
 | `npm run typecheck` | `tsc --noEmit`，**只覆盖 `src/**/*.ts`**——`test/`、`demo/`、`vitest.config.ts` 不在检查范围 |
 | `npm run lint` | `eslint src`（`scripts/`、`docs/`、`demo/` 被 ignore） |
-| `pwsh -NoProfile scripts/ci.ps1` | Windows 全量 CI：lint → typecheck → vitest + stderr 检查 |
+| `pwsh -NoProfile scripts/ci.ps1` | Windows 全量 CI：lint → typecheck → build → vitest + stderr 检查 → pack + demo e2e |
 | `scripts/ci.sh` | Linux/macOS 版；Windows 下会报错提示改用 ps1 |
 | `npx tsx scripts/faijs-cli.ts check <f.faijs>` | 干跑校验（parse + schema + 引用预检） |
 | `npx tsx scripts/faijs-cli.ts run <f.faijs> --out x.stl\|step [--mode auto\|brep\|mesh]` | 执行并导出；STEP 需要 BREP 链存活 |
@@ -31,7 +33,7 @@ Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadR
 - **测试 stderr 零容忍**（CI 强制）：任何测试输出 `stderr |` 行即判失败。测试若故意触发错误，必须在测试内 spy `console.warn/error` 并断言；禁止全局静默 stderr。
 - **typecheck/lint 不覆盖测试与 demo**：`test/` 目录的 TS 错误不会被 `npm run typecheck` 发现，改动后手动跑 vitest 验证。
 - 测试分布在 `src/**/*.test.ts`（与源码同目录）和 `test/faijs/`（按功能分目录，含 `.faijs` fixture）。parity 测试（BREP vs mesh 一致性）在 `beforeAll` 里 `initOcctWasm()`。
-- `demo/` 是独立 vite 应用（dev 端口 8899；build 时 three/manifold-3d/occt-wasm 外链 jsdelivr CDN importmap，版本号与 package.json 手写同步）。
+- `demo/` 是独立 vite 应用（dev 端口 8899；build 时 three/manifold-3d/occt-wasm 外链 jsdelivr CDN importmap，版本号与 package.json 手写同步）。demo 依赖 **npm pack 的 tarball**（`demo/package.json` → `file:../faicad-faijs-0.1.0.tgz`，非 junction）：改 faijs 源码后必须 `npm run pack`（根目录）再在 `demo/` 里 `npm install`，否则 demo 跑的是旧产物。
 - 仓库文档与代码注释用英文；commit message 用 conventional commits（如 `feat(brep): ...`）。
 
 ## 文档地图

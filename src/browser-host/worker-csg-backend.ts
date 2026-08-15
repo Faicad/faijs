@@ -27,7 +27,7 @@ export class WorkerCsgBackend implements CsgBackend {
   private initPromise: Promise<void>
 
   constructor() {
-    this.worker = new Worker(new URL('./csg-worker.ts', import.meta.url), { type: 'module' })
+    this.worker = new Worker(new URL('./csg-worker.js', import.meta.url), { type: 'module' })
     this.worker.onmessage = (ev: MessageEvent<CsgWorkerResponse>) => {
       this.handleMessage(ev.data)
     }

@@ -24,7 +24,7 @@ export class WorkerSdfBackend implements SdfBackend {
   private initPromise: Promise<void>
 
   constructor() {
-    this.worker = new Worker(new URL('./sdf-worker.ts', import.meta.url), { type: 'module' })
+    this.worker = new Worker(new URL('./sdf-worker.js', import.meta.url), { type: 'module' })
     this.worker.onmessage = (ev: MessageEvent<SdfWorkerResponse>) => {
       const res = ev.data
       const pending = this.pending.get(res.id)

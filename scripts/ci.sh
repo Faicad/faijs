@@ -13,13 +13,16 @@ esac
 
 cd "$ROOT"
 
-echo "==> 1/4  npm run lint"
+echo "==> 1/5  npm run lint"
 npm run lint
 
-echo "==> 2/4  npm run typecheck"
+echo "==> 2/5  npm run typecheck"
 npm run typecheck
 
-echo "==> 3/4  npx vitest run"
+echo "==> 3/5  npm run build (tsc → dist)"
+npm run build
+
+echo "==> 4/5  npx vitest run"
 set +o pipefail
 npx vitest run --no-color 2>&1 | tee /tmp/vitest-out.txt
 exit_code=${PIPESTATUS[0]}
@@ -41,7 +44,11 @@ if [ -n "$unexpected_stderr" ]; then
   exit 1
 fi
 
-echo "==> 4/4  demo e2e (playwright)"
+echo "==> 5/5  npm pack + demo e2e (playwright)"
+cd "$ROOT"
+# demo 依赖 npm pack 的 tarball（demo/package.json → file:../faicad-faijs-0.1.0.tgz），
+# 必须先打包，npm ci 才能解析 file: 依赖
+npm pack
 cd "$ROOT/demo"
 # demo has its own package.json/lockfile; install first in a clean environment (no node_modules)
 if [ ! -d node_modules ]; then
