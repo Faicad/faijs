@@ -26,6 +26,7 @@ const EXACT_CDN = new Map<string, string>([
 
 const PREFIX_CDN = new Map<string, string>([
   ['three/', `${CDN_BASE}/three@${THREE_VERSION}/`],
+  ['manifold-3d/', `${CDN_BASE}/manifold-3d@${MANIFOLD_VERSION}/`],
   ['occt-wasm/', `${CDN_BASE}/occt-wasm@${OCCT_VERSION}/`],
 ])
 

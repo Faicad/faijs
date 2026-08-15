@@ -295,23 +295,33 @@ async function runCode() {
     // Parse (parseScript throws ParseError on failure)
     const parseResult = parseScript(code)
 
-    // OCCT kernel is shared across executions — wait for the preload
-    if (occtReady) {
-      setStatus('Waiting for OCCT kernel...', 'info')
-      await occtReady
-    }
-
-    // Run both modes in parallel; each mode gets its own ports + runtime
+    // Each mode gets its own ports + runtime
     const [portsBrep, portsMesh] = await Promise.all([
       createBrowserPorts({ fontUrl }),
       createBrowserPorts({ fontUrl }),
     ])
 
     setStatus('Executing (brep + mesh)...', 'info')
-    const [brepReport, meshReport] = await Promise.all([
-      runMode(brepView, parseResult.script, portsBrep),
-      runMode(meshView, parseResult.script, portsMesh),
-    ])
+
+    // 两条链路解耦，各自等各自的 wasm 后端，互不阻塞：
+    // - mesh 只依赖 manifold（首用时异步加载，较快）→ 下方 STL 视图先出模型
+    // - brep 依赖 OCCT kernel（~22MB 下载，较慢）→ 上方 STEP/BREP 视图后出模型
+    const brepTask = (async () => {
+      try {
+        if (occtReady) {
+          setStatus('Waiting for OCCT kernel (~22MB)...', 'info')
+          await occtReady
+        }
+        return await runMode(brepView, parseResult.script, portsBrep)
+      } catch (err) {
+        // OCCT 失败只影响 brep 链路，不拖累 mesh 结果
+        const msg = err instanceof Error ? err.message : String(err)
+        return `BREP unavailable: ${msg}`
+      }
+    })()
+    const meshTask = runMode(meshView, parseResult.script, portsMesh)
+
+    const [brepReport, meshReport] = await Promise.all([brepTask, meshTask])
 
     setStatus(`OK — brep: ${brepReport} | mesh: ${meshReport}`, 'success')
 
