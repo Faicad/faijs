@@ -13,9 +13,9 @@
 
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { parseScript, ParseError, createRuntime, createBrowserPorts, setOcctWasmInitFn, initOcctWasm } from '@faicad/faijs/browser'
-import type { ExecutionMode } from '@faicad/faijs/browser'
-import { OcctKernel } from 'occt-wasm'
+import { parseScript, ParseError, createRuntime, createBrowserPorts, setOcctWasmInitFn, initOcctWasm, exportStepFromSolid, buildStlBufferFromMesh } from '@faicad/faijs/browser'
+import type { ExecutionMode, HostPorts, ShapeHandle, OcctKernel } from '@faicad/faijs/browser'
+import { OcctKernel as OcctKernelValue } from 'occt-wasm'
 import { setWasmUrl as setManifoldWasmUrl } from 'manifold-3d/lib/wasm.js'
 import fontUrl from './assets/fonts/OpenSans-Regular.ttf?url'
 
@@ -33,7 +33,7 @@ const part0_v3 = cad.translate({ offset: [10, 0, 0] }, part0_v2)`,
 const part0_v1 = cad.translate({ offset: [0, 0, 14] }, part0_v0)
 const part0_v2 = cad.text({ text: 'HELLO', size: 8, depth: 2 }, part0_v1)`,
   'transform-chain': `const part0_v0 = cad.box({ size: [20, 10, 5] })
-const part0_v1 = cad.rotate({ angles: [0, 0, 30] }, part0_v0)
+const part0_v1 = cad.rotate({ anglesDeg: [0, 0, 30] }, part0_v0)
 const part0_v2 = cad.translate({ offset: [5, 0, 0] }, part0_v1)
 const part0_v3 = cad.scale({ factor: [1, 1, 2] }, part0_v2)`,
 }
@@ -44,6 +44,8 @@ const codeEditor = document.getElementById('code-editor') as HTMLTextAreaElement
 const runBtn = document.getElementById('run-btn') as HTMLButtonElement
 const exampleSelect = document.getElementById('example-select') as HTMLSelectElement
 const statusBar = document.getElementById('status-bar') as HTMLDivElement
+const btnStep = document.getElementById('btn-step') as HTMLButtonElement
+const btnStl = document.getElementById('btn-stl') as HTMLButtonElement
 
 // ── 3D viewer factory ──
 
@@ -55,6 +57,9 @@ interface Viewer3D {
   renderer: THREE.WebGLRenderer
   controls: OrbitControls
   meshGroup: THREE.Group
+  // 最近一次成功运行的结果（供导出按钮使用）
+  lastShapes?: Array<{ id: string; positions: Float32Array; indices: Uint32Array }>
+  lastBrepSolid?: { solid: ShapeHandle; kernel: OcctKernel }
 }
 
 function createViewer(canvas: HTMLCanvasElement, mode: ExecutionMode): Viewer3D {
@@ -240,13 +245,15 @@ function extractShapes(result: Awaited<ReturnType<ReturnType<typeof createRuntim
 async function runMode(
   view: Viewer3D,
   script: ReturnType<typeof parseScript>['script'],
-  ports: ReturnType<typeof createBrowserPorts>,
+  ports: HostPorts,
 ): Promise<string> {
   const runtime = createRuntime(ports, view.mode)
   const result = await runtime.replay(script)
 
   if (result.failedAt) {
     clearMeshes(view)
+    view.lastShapes = undefined
+    view.lastBrepSolid = undefined
     return `Failed at op "${result.failedAt.op}": ${result.failedAt.message}`
   }
 
@@ -254,10 +261,14 @@ async function runMode(
 
   if (shapes.length === 0) {
     clearMeshes(view)
+    view.lastShapes = undefined
+    view.lastBrepSolid = undefined
     return 'No geometry produced.'
   }
 
   renderShapes(view, shapes)
+  view.lastShapes = shapes
+  view.lastBrepSolid = result.brepSolid
 
   const totalVerts = shapes.reduce((s, sh) => s + sh.positions.length / 3, 0)
   const totalTris = shapes.reduce((s, sh) => s + sh.indices.length / 3, 0)
@@ -268,6 +279,9 @@ async function runCode() {
   const code = codeEditor.value
 
   runBtn.disabled = true
+  // 新一次运行开始前禁用导出按钮，成功产出后再启用
+  btnStep.disabled = true
+  btnStl.disabled = true
   setStatus('Parsing...', 'info')
 
   try {
@@ -281,8 +295,10 @@ async function runCode() {
     }
 
     // Run both modes in parallel; each mode gets its own ports + runtime
-    const portsBrep = createBrowserPorts({ fontUrl })
-    const portsMesh = createBrowserPorts({ fontUrl })
+    const [portsBrep, portsMesh] = await Promise.all([
+      createBrowserPorts({ fontUrl }),
+      createBrowserPorts({ fontUrl }),
+    ])
 
     setStatus('Executing (brep + mesh)...', 'info')
     const [brepReport, meshReport] = await Promise.all([
@@ -291,6 +307,12 @@ async function runCode() {
     ])
 
     setStatus(`OK — brep: ${brepReport} | mesh: ${meshReport}`, 'success')
+
+    // 成功且产出几何时才开放对应导出：
+    // - STEP 需要 BREP solid（BREP 链存活）
+    // - STL 需要 mesh 三角化数据
+    btnStep.disabled = !brepView.lastBrepSolid
+    btnStl.disabled = !(meshView.lastShapes && meshView.lastShapes.length > 0)
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     setStatus(`Error: ${msg}`, 'error')
@@ -299,6 +321,52 @@ async function runCode() {
     runBtn.disabled = false
   }
 }
+
+// ── Export downloads ──
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
+// STEP：从最近一次 BREP 运行结果导出
+btnStep.addEventListener('click', () => {
+  const solid = brepView.lastBrepSolid
+  if (!solid) return
+  const buffer = exportStepFromSolid(solid.solid, solid.kernel)
+  downloadBlob(new Blob([buffer], { type: 'model/step' }), 'faijs-model.step')
+})
+
+// STL：合并所有终端 shape 的三角化数据导出 binary STL
+btnStl.addEventListener('click', () => {
+  const shapes = meshView.lastShapes
+  if (!shapes || shapes.length === 0) return
+
+  const vertCount = shapes.reduce((n, s) => n + s.positions.length / 3, 0)
+  const triCount = shapes.reduce((n, s) => n + s.indices.length / 3, 0)
+  const positions = new Float32Array(vertCount * 3)
+  const indices = new Uint32Array(triCount * 3)
+
+  let vo = 0
+  let io = 0
+  for (const shape of shapes) {
+    positions.set(shape.positions, vo * 3)
+    for (let i = 0; i < shape.indices.length; i++) {
+      indices[io + i] = shape.indices[i] + vo
+    }
+    vo += shape.positions.length / 3
+    io += shape.indices.length
+  }
+
+  const buffer = buildStlBufferFromMesh(positions, indices)
+  downloadBlob(new Blob([buffer], { type: 'model/stl' }), 'faijs-model.stl')
+})
 
 // ── Event handlers ──
 
@@ -328,7 +396,7 @@ codeEditor.addEventListener('keydown', (e) => {
 // 注意：demo 与 faijs 各有一份 occt-wasm（#private 成员导致名义类型不兼容），
 // 运行时两副本同版本同 API，此处以 faijs 期望的签名断言
 const initOcct = (() =>
-  OcctKernel.init({
+  OcctKernelValue.init({
     wasm: import.meta.env.DEV
       ? '/node_modules/occt-wasm/dist/occt-wasm.wasm'
       : 'https://cdn.jsdelivr.net/npm/occt-wasm@3.7.0/dist/occt-wasm.wasm',
@@ -337,11 +405,12 @@ setOcctWasmInitFn(initOcct)
 
 // Manifold WASM：预打包会破坏 manifold-3d 内部的 import.meta.url 定位，
 // 用官方 setWasmUrl 显式指定（须在 manifoldCAD 模块求值前调用，本模块顶层即早于
-// faijs 的运行时动态 import）
+// faijs 的运行时动态 import）。
+// 注意：manifold.wasm 位于包根（lib/ 下没有该文件），dev 与 CDN 路径均指向包根。
 setManifoldWasmUrl(
   import.meta.env.DEV
-    ? '/node_modules/manifold-3d/lib/manifold.wasm'
-    : 'https://cdn.jsdelivr.net/npm/manifold-3d@3.5.1/lib/manifold.wasm',
+    ? '/node_modules/manifold-3d/manifold.wasm'
+    : 'https://cdn.jsdelivr.net/npm/manifold-3d@3.5.1/manifold.wasm',
 )
 
 codeEditor.value = EXAMPLES['box-boolean']

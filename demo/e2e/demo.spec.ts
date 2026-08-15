@@ -1,0 +1,156 @@
+import { readFile } from 'node:fs/promises'
+import { test, expect, type Page } from '@playwright/test'
+
+/**
+ * E2E tests for the faijs CAD demo.
+ *
+ * The dev server is started by playwright.config.ts (vite on :8899).
+ * On page load the demo auto-runs the default "box-boolean" example, so
+ * every test first waits for the initial run to complete ("OK — brep: ...").
+ */
+
+const SELECTOR = {
+  editor: '#code-editor',
+  runBtn: '#run-btn',
+  exampleSelect: '#example-select',
+  statusBar: '#status-bar',
+  btnStep: '#btn-step',
+  btnStl: '#btn-stl',
+  canvasBrep: '#canvas-brep',
+  canvasMesh: '#canvas-mesh',
+}
+
+const EXAMPLE_SNIPPETS: Record<string, string> = {
+  'box-boolean': 'cad.box({ size: 20 })',
+  'drill-test': 'cad.cylinder({ radius: 5, height: 20',
+  'text-engrave': "cad.text({ text: 'HELLO'",
+  'transform-chain': 'cad.rotate({ anglesDeg: [0, 0, 30] }',
+}
+
+async function waitForStatusOk(page: Page, timeout = 120_000) {
+  await expect(page.locator(SELECTOR.statusBar)).toContainText('OK — brep:', { timeout })
+  await expect(page.locator(SELECTOR.statusBar)).toContainText('| mesh:')
+}
+
+async function runCode(page: Page) {
+  await page.locator(SELECTOR.runBtn).click()
+  await waitForStatusOk(page)
+}
+
+test.describe('faijs demo', () => {
+  test('页面加载：标题、默认示例代码、初始状态栏', async ({ page }) => {
+    await page.goto('/')
+    await expect(page).toHaveTitle('faijs — CAD Scripting Demo')
+    await expect(page.locator(SELECTOR.editor)).toHaveValue(/cad\.box\(\{ size: 20 \}\)/)
+    await expect(page.locator(SELECTOR.exampleSelect)).toHaveValue('box-boolean')
+    // 下载按钮初始为 disabled（尚无成功运行结果）
+    await expect(page.locator(SELECTOR.btnStep)).toBeDisabled()
+    await expect(page.locator(SELECTOR.btnStl)).toBeDisabled()
+  })
+
+  test('加载后自动运行默认示例，状态栏显示 OK 与形状统计', async ({ page }) => {
+    await page.goto('/')
+    await waitForStatusOk(page)
+    const status = await page.locator(SELECTOR.statusBar).textContent()
+    expect(status).toMatch(/OK — brep: 1 shape\(s\), \d+ verts, \d+ triangles \| mesh: 1 shape\(s\)/)
+    expect(page.locator(SELECTOR.statusBar)).toHaveClass(/success/)
+  })
+
+  test('切换示例：编辑器内容更新并自动运行', async ({ page }) => {
+    await page.goto('/')
+    await waitForStatusOk(page)
+
+    for (const [value, snippet] of Object.entries(EXAMPLE_SNIPPETS)) {
+      await page.locator(SELECTOR.exampleSelect).selectOption(value)
+      await expect(page.locator(SELECTOR.editor)).toHaveValue(new RegExp(snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+      await waitForStatusOk(page)
+    }
+  })
+
+  test('Run 按钮：编辑代码后运行并显示新统计', async ({ page }) => {
+    await page.goto('/')
+    await waitForStatusOk(page)
+
+    await page.locator(SELECTOR.editor).fill(`const part0_v0 = cad.box({ size: 10 })
+const part0_v1 = cad.sphere({ radius: 4, center: [2, 0, 0] })
+const part0_v2 = cad.subtract(part0_v0, part0_v1)`)
+    await page.locator(SELECTOR.runBtn).click()
+    await waitForStatusOk(page)
+
+    const status = await page.locator(SELECTOR.statusBar).textContent()
+    expect(status).toMatch(/OK — brep: 1 shape\(s\)/)
+    // 运行期间按钮短暂禁用，完成后恢复可用
+    await expect(page.locator(SELECTOR.runBtn)).toBeEnabled()
+  })
+
+  test('Ctrl+Enter 快捷键运行编辑器代码', async ({ page }) => {
+    await page.goto('/')
+    await waitForStatusOk(page)
+
+    await page.locator(SELECTOR.editor).fill(`const part0_v0 = cad.box({ size: 6 })`)
+    await page.locator(SELECTOR.editor).press('Control+Enter')
+    await waitForStatusOk(page)
+
+    const status = await page.locator(SELECTOR.statusBar).textContent()
+    expect(status).toMatch(/1 shape\(s\)/)
+  })
+
+  test('无效代码：状态栏显示 Error，不产出几何', async ({ page }) => {
+    await page.goto('/')
+    await waitForStatusOk(page)
+
+    await page.locator(SELECTOR.editor).fill(`const part0_v0 = cad.box({`)
+    await page.locator(SELECTOR.runBtn).click()
+
+    await expect(page.locator(SELECTOR.statusBar)).toContainText('Error', { timeout: 30_000 })
+    await expect(page.locator(SELECTOR.statusBar)).toHaveClass(/error/)
+    await expect(page.locator(SELECTOR.runBtn)).toBeEnabled()
+  })
+
+  test('成功运行后 STEP/STL 下载按钮可用并产出有效文件', async ({ page }) => {
+    await page.goto('/')
+    await waitForStatusOk(page)
+
+    // 成功运行后两个下载按钮应被启用
+    await expect(page.locator(SELECTOR.btnStep)).toBeEnabled()
+    await expect(page.locator(SELECTOR.btnStl)).toBeEnabled()
+
+    // STEP：文本格式，以 ISO-10303-21 头开始，包含 ADVANCED_FACE
+    const stepDownload = page.waitForEvent('download')
+    await page.locator(SELECTOR.btnStep).click()
+    const step = await stepDownload
+    expect(step.suggestedFilename()).toMatch(/\.step$/i)
+    const stepText = new TextDecoder().decode(await readFile(await step.path()))
+    expect(stepText.startsWith('ISO-10303-21')).toBe(true)
+    expect(stepText).toContain('ADVANCED_FACE')
+
+    // STL：binary 格式，头部 + 三角形数量一致
+    const stlDownload = page.waitForEvent('download')
+    await page.locator(SELECTOR.btnStl).click()
+    const stl = await stlDownload
+    expect(stl.suggestedFilename()).toMatch(/\.stl$/i)
+    const stlBuf = await readFile(await stl.path())
+    const triCount = stlBuf.readUInt32LE(80)
+    expect(stlBuf.length).toBe(84 + triCount * 50)
+    expect(triCount).toBeGreaterThan(0)
+  })
+
+  test('两个 3D 视图实际渲染了不同几何内容', async ({ page }) => {
+    await page.goto('/')
+    await waitForStatusOk(page)
+
+    const shot = async (sel: string) => (await page.locator(sel).screenshot()).length
+
+    // box-boolean 渲染后，两个 canvas 都有实质内容（非纯背景）
+    const brepBox = await shot(SELECTOR.canvasBrep)
+    const meshBox = await shot(SELECTOR.canvasMesh)
+    expect(brepBox).toBeGreaterThan(1_000)
+    expect(meshBox).toBeGreaterThan(1_000)
+
+    // 切换示例后渲染内容应发生变化（证明 canvas 真正随运行结果更新）
+    await page.locator(SELECTOR.exampleSelect).selectOption('drill-test')
+    await waitForStatusOk(page)
+    const brepDrill = await shot(SELECTOR.canvasBrep)
+    expect(brepDrill).not.toBe(brepBox)
+  })
+})
