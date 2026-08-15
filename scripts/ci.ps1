@@ -110,6 +110,9 @@ Step -Label '4/4  demo e2e (playwright)' -Block {
         npx playwright install chromium
         if ($LASTEXITCODE -ne 0) { return }
         npm run test:e2e
+        if ($LASTEXITCODE -ne 0) { return }
+        # build 产物的 CDN 加载验证（vite preview + jsdelivr importmap）
+        npm run test:e2e:preview
     } finally {
         Pop-Location
     }

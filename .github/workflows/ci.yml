@@ -44,3 +44,7 @@ jobs:
       - name: Run demo e2e tests
         working-directory: demo
         run: npm run test:e2e
+
+      - name: Run demo preview e2e tests (CDN importmap)
+        working-directory: demo
+        run: npm run test:e2e:preview

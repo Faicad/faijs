@@ -50,6 +50,8 @@ fi
 # Playwright browsers (idempotent: skips if already downloaded)
 npx playwright install chromium
 npm run test:e2e
+# build 产物的 CDN 加载验证（vite preview + jsdelivr importmap）
+npm run test:e2e:preview
 cd "$ROOT"
 
 echo "==> All CI checks passed"
