@@ -106,9 +106,6 @@ export interface CadStatement {
    *  例如 split 在源 part 上记录的语句——执行它会把源几何替换成后半块（A-7 bug）。
    *  codegen 输出时也跳过标记语句（不写进 .faijs 文本）。 */
   isMarker?: boolean
-  /** 所属模型号（设计文档 §3：id 前缀 partN，如 'part0'/'part1'）。
-   *  多 mesh DAG 中，split/独立图元/布尔派生各拿独立模型号。 */
-  model?: string
   /** 多输出 op 的输出 id 列表（设计文档 §3）。
    *  默认 [id]（普通 op）；split 多输出写入 ['part1_v0','part2_v0']。
    *  outputCache 按 output id 索引，下游用具体 output id 引用。 */

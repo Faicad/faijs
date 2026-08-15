@@ -54,22 +54,15 @@ function parseVersionNum(id: string): number | null {
 
 /**
  * 获取指定模型号在已有语句中的最大版本号。
- * 同时检查语句的 model 字段（多 mesh DAG 中可能设置）。
  */
 function getMaxVersionForModel(statements: CadStatement[], modelNum: number): number {
   let max = -1
-  const modelStr = `part${modelNum}`
   for (const stmt of statements) {
     // 检查 id 格式
     const idMatch = PART_VM_RE.exec(stmt.id)
     if (idMatch && parseInt(idMatch[1], 10) === modelNum) {
       const v = parseInt(idMatch[2], 10)
       if (v > max) max = v
-    }
-    // 也检查 model 字段（可能为 'part0' 等）
-    if (stmt.model === modelStr) {
-      // 如果 model 字段匹配但 id 不是 partN_vM 格式，无法确定版本
-      // 这种情况只出现在旧 st_* 格式，不影响新分配
     }
     // 检查 outputs
     if (stmt.outputs) {
