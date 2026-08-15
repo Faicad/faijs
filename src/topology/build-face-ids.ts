@@ -27,7 +27,7 @@ export function faceRunColumnIndexes(runtime: SelectorRuntime): FaceRunColumns {
   }
 }
 
-export interface GlbPartMeshInfo {
+export interface PartMeshInfo {
   occurrenceId: string
   primitiveIndex: number
   triangleCount: number
@@ -38,7 +38,7 @@ export interface GlbPartMeshInfo {
  * Each entry is either a face table row index or TOPOLOGY_FACE_ID_NONE.
  */
 export function buildFaceIdsForPart(
-  part: GlbPartMeshInfo,
+  part: PartMeshInfo,
   runtime: SelectorRuntime,
 ): Uint32Array | null {
   const runs = runtime.proxy.faceRuns

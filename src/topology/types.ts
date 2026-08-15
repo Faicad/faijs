@@ -1,14 +1,3 @@
-// ---- GLB binary container ----
-
-export interface GlbContainer {
-  json: Record<string, unknown>
-  bin: {
-    buffer: ArrayBuffer
-    byteOffset: number
-    byteLength: number
-  }
-}
-
 // ---- Buffer view descriptor (as it appears in manifest.buffers.views) ----
 
 export interface BufferViewDescriptor {

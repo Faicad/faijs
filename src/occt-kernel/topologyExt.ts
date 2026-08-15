@@ -1,10 +1,5 @@
 import { getKernel, type ShapeHandle, type Mesh as WasmMesh, type BoundingBox, type Vec3 } from './occtKernel'
 
-// GlbBuilder is browser-only; functions that use it (addStepTopology, addAssemblyStepTopology)
-// are not available in headless mode. Only buildSelectorManifest / buildAssemblySelectorManifest
-// are used by the headless engine.
-type GlbBuilder = any
-
 /**
  * Safe getBoundingBox wrapper: tries useTriangulation=false first,
  * falls back to true, then finally computes from mesh positions.
@@ -81,9 +76,7 @@ const EDGE_COLUMNS = [
 
 const IDENTITY_16 = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
 
-interface AddStepTopologyOptions {
-  includeSelectorTopology?: boolean
-  entryKind?: string
+interface SelectorManifestOptions {
   stepHash?: string
   cadPath?: string
 }
@@ -93,7 +86,7 @@ interface BBox {
   max: number[]
 }
 
-export interface GlbFromResultInput {
+export interface SelectorManifestInput {
   shapeHandle: ShapeHandle
   meshWithGroups: WasmMesh
 }
@@ -570,9 +563,9 @@ function findOrdinal(
   return undefined
 }
 
-function buildSelectorManifest(
-  input: GlbFromResultInput,
-  { stepHash, cadPath }: AddStepTopologyOptions,
+export function buildSelectorManifest(
+  input: SelectorManifestInput,
+  { stepHash, cadPath }: SelectorManifestOptions,
   occurrenceId: string = 'o1',
 ): { manifest: Record<string, unknown>; buffers: Record<string, Float32Array | Uint32Array> } {
   const kernel = getKernel()
@@ -1007,7 +1000,7 @@ function buildSelectorManifest(
     faces: faceRows,
     edges: edgeRows,
     faceProxy: {
-      source: cadPath ? `.${cadPath.split(/[/\\]/).pop()!}.step.glb` : undefined,
+      source: cadPath ? `.${cadPath.split(/[/\\]/).pop()!}.step.3mf` : undefined,
       runsView: 'faceRuns',
       runColumns: ['occurrenceRow', 'primitiveIndex', 'triangleStart', 'triangleCount', 'faceRow'],
     },
@@ -1034,77 +1027,6 @@ function buildSelectorManifest(
   return { manifest, buffers }
 }
 
-export function addStepTopology(
-  builder: GlbBuilder,
-  input: GlbFromResultInput,
-  opts: AddStepTopologyOptions = {},
-): void {
-  if (opts.includeSelectorTopology === false) return
-
-  const { manifest, buffers } = buildSelectorManifest(input, opts)
-
-  // Write typed buffer views into the GLB
-  const bufferViewDefs: Record<string, { dtype: string; bufferView: number; byteOffset: number; byteLength: number; count: number; itemSize: number }> = {}
-  for (const [name, arr] of Object.entries(buffers)) {
-    if (arr.length === 0) {
-      bufferViewDefs[name] = { dtype: arr instanceof Float32Array ? 'float32' : 'uint32', bufferView: -1, byteOffset: 0, byteLength: 0, count: 0, itemSize: 4 }
-      continue
-    }
-    const bufViewIdx = builder.addBufferView(arr)
-    bufferViewDefs[name] = { dtype: arr instanceof Float32Array ? 'float32' : 'uint32', bufferView: bufViewIdx, byteOffset: 0, byteLength: arr.byteLength, count: arr.length, itemSize: 4 }
-  }
-
-  ;(manifest as Record<string, unknown>).buffers = { littleEndian: true, views: bufferViewDefs }
-
-  const selectorPayload = new TextEncoder().encode(JSON.stringify(manifest))
-  const selectorView = builder.addBufferView(selectorPayload)
-
-  if (!(builder.json.extensionsUsed as string[] | undefined)) (builder.json as Record<string, unknown>).extensionsUsed = []
-  const extUsed = builder.json.extensionsUsed as string[]
-  if (!extUsed.includes('STEP_T')) extUsed.push('STEP_T')
-  if (!(builder.json as Record<string, unknown>).extensions) (builder.json as Record<string, unknown>).extensions = {}
-  ;(builder.json.extensions as Record<string, unknown>).STEP_T = { schemaVersion: 2, entryKind: opts.entryKind ?? 'part', encoding: 'utf-8', selectorView }
-}
-
-/**
- * Embed assembly-level topology (STEP_T) into a GLB builder.
- *
- * Uses buildAssemblySelectorManifest to generate a merged manifest for all
- * parts, then writes it into the GLB as a STEP_T extension (same format as
- * addStepTopology, but with multi-occurrence data).
- */
-export function addAssemblyStepTopology(
-  builder: GlbBuilder,
-  parts: PartTopologyInput[],
-  opts: AddStepTopologyOptions = {},
-): void {
-  if (opts.includeSelectorTopology === false) return
-
-  const { manifest, buffers } = buildAssemblySelectorManifest(parts, opts)
-
-  // Write typed buffer views into the GLB
-  const bufferViewDefs: Record<string, { dtype: string; bufferView: number; byteOffset: number; byteLength: number; count: number; itemSize: number }> = {}
-  for (const [name, arr] of Object.entries(buffers)) {
-    if (arr.length === 0) {
-      bufferViewDefs[name] = { dtype: arr instanceof Float32Array ? 'float32' : 'uint32', bufferView: -1, byteOffset: 0, byteLength: 0, count: 0, itemSize: 4 }
-      continue
-    }
-    const bufViewIdx = builder.addBufferView(arr)
-    bufferViewDefs[name] = { dtype: arr instanceof Float32Array ? 'float32' : 'uint32', bufferView: bufViewIdx, byteOffset: 0, byteLength: arr.byteLength, count: arr.length, itemSize: 4 }
-  }
-
-  ;(manifest as Record<string, unknown>).buffers = { littleEndian: true, views: bufferViewDefs }
-
-  const selectorPayload = new TextEncoder().encode(JSON.stringify(manifest))
-  const selectorView = builder.addBufferView(selectorPayload)
-
-  if (!(builder.json.extensionsUsed as string[] | undefined)) (builder.json as Record<string, unknown>).extensionsUsed = []
-  const extUsed = builder.json.extensionsUsed as string[]
-  if (!extUsed.includes('STEP_T')) extUsed.push('STEP_T')
-  if (!(builder.json as Record<string, unknown>).extensions) (builder.json as Record<string, unknown>).extensions = {}
-  ;(builder.json.extensions as Record<string, unknown>).STEP_T = { schemaVersion: 2, entryKind: opts.entryKind ?? 'assembly', encoding: 'utf-8', selectorView }
-}
-
 // ── Assembly-level topology ──
 
 /** Input for per-part topology identification in an assembly. */
@@ -1121,20 +1043,19 @@ export interface AssemblyTopologyResult {
 }
 
 /**
- * Build a STEP_T selector manifest for an assembly (multi-part) GLB.
+ * Build a selector manifest for an assembly (multi-part) topology.
  *
  * For each part, runs the per-part topology identification (face/edge enumeration,
  * wireframe, relations) and merges into a single assembly manifest.
  *
- * Occurrence IDs use the part's labelPath (e.g., "o0", "o0.o1"), matching
- * the GLB node's cadOccurrenceId.
+ * Occurrence IDs use the part's labelPath (e.g., "o0", "o0.o1").
  *
- * Face/edge triangle ranges are per-mesh (each part has its own mesh in the GLB),
+ * Face/edge triangle ranges are per-mesh (each part has its own mesh),
  * identified by the occurrenceRow index in faceRuns.
  */
 export function buildAssemblySelectorManifest(
   parts: PartTopologyInput[],
-  opts: AddStepTopologyOptions = {},
+  opts: SelectorManifestOptions = {},
 ): AssemblyTopologyResult {
   const { stepHash, cadPath } = opts
 
@@ -1385,7 +1306,7 @@ export function buildAssemblySelectorManifest(
     faces: allFaces,
     edges: allEdges,
     faceProxy: {
-      source: cadPath ? `.${cadPath.split(/[/\\]/).pop()!}.step.glb` : undefined,
+      source: cadPath ? `.${cadPath.split(/[/\\]/).pop()!}.step.3mf` : undefined,
       runsView: 'faceRuns',
       runColumns: ['occurrenceRow', 'primitiveIndex', 'triangleStart', 'triangleCount', 'faceRow'],
     },

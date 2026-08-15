@@ -218,7 +218,7 @@ function transformParams(transform: number[], params: Record<string, unknown> | 
 
 function transformRows<T extends Record<string, unknown>>(rows: T[], transform: number[] | null): T[] {
   // bbox 必须统一为 { min, max } 对象格式（OccurrenceRow.bbox 类型契约），
-  // 无论是否有 transform。GLB/STEP 生产者在 manifest 中写的就是对象，
+  // STEP 生产者在 manifest 中写的就是对象，
   // 而 primitive / mesh 拓扑生产者写的是扁平数组 [xmin,ymin,zmin,xmax,ymax,zmax]。
   // 不 normalize 的话，DebugTopologyOverlay 等消费者读 occ.bbox.min[0] 会崩
   // （回归 commit 6288b8c6 改为用 occ.bbox 做线框偏移补偿）。
@@ -439,8 +439,8 @@ function buildLeafOccurrenceIds(shapes: ShapeRow[]): string[] {
 
 /**
  * Extract unique vertices from edge line-segment endpoint positions.
- * No producer (Python step2glb or WASM) emits a dedicated vertexPositions
- * buffer, so vertices are always extracted from edge data.
+ * No producer emits a dedicated vertexPositions buffer, so vertices are
+ * always extracted from edge data.
  *
  * Each edge is defined by 2 endpoint indices into edgePositions, so we
  * walk edgeIndices and collect the referenced positions, deduplicating
@@ -487,8 +487,8 @@ export function buildSelectorRuntimeData(
     partId?: string
     transform?: number[] | null
     /** Scale factor for topology positions (default 0.001 = mm→m for STEP).
-     *  STEP data is authored in mm; GLB callers should pass scale: 1 since
-     *  scene base unit is now mm (see ViewportContainer). */
+     *  STEP data is authored in mm; callers with mm scene units should
+     *  pass scale: 1. */
     scale?: number
   } = {},
 ): SelectorRuntimeData {
@@ -496,7 +496,7 @@ export function buildSelectorRuntimeData(
   const { partId = '', transform = null, scale = 0.001 } = options
 
   // Build a combined transform that includes the mm→m scale factor.
-  // STEP topology data is authored in mm; GLB mesh data is in meters.
+  // STEP topology data is authored in mm.
   const effectiveTransform = (() => {
     if (scale === 1 && !transform) return null
     const m = Array.isArray(transform) && transform.length >= 16
@@ -534,7 +534,7 @@ export function buildSelectorRuntimeData(
   const edgeIds = typedBufferView(manifest, buffers, 'edgeProxy', 'edgeIdsView')
 
   // Extract unique vertices from edge endpoint data.
-  // Python step2glb never produces a dedicated vertexPositions buffer.
+  // No producer emits a dedicated vertexPositions buffer.
   let vertexPositions: Float32Array = new Float32Array(0)
   let vertexIds: Uint32Array = new Uint32Array(0)
   if (edgePositions.length > 0 && edgeIndices.length > 0) {
@@ -570,7 +570,7 @@ export function buildSelectorRuntimeData(
   )
 
   // Face centers — always from face row center fields (already transformed by transformRows).
-  // Python step2glb never produces facePositions/faceIndices buffers.
+  // No producer emits facePositions/faceIndices buffers.
   let effectiveFaceCenters = new Float32Array(0)
   if (faceCount > 0) {
     const rowCenters = new Float32Array(faceCount * 3)

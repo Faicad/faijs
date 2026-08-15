@@ -127,7 +127,7 @@ export type { SelectorRuntimeData } from './topology/build-selector-runtime'
 export type {
   SelectorRuntime, SelectorBundle, SelectorManifest, SelectorBuffers,
   FaceRow, EdgeRow, Reference,
-  GlbContainer, BufferViewDescriptor, SelectorProxy,
+  BufferViewDescriptor, SelectorProxy,
 } from './topology/types'
 
 // ── L2 编排层 ──
@@ -160,8 +160,8 @@ export type {
 export { reconstructSolidFromMesh, meshToAsciiStl, cadShapeIsValid, meshToStepBrep } from './occt-kernel/meshReconstruct'
 
 // ── OCCT Topology Extension ──
-export { addStepTopology, addAssemblyStepTopology, buildAssemblySelectorManifest } from './occt-kernel/topologyExt'
-export type { GlbFromResultInput, PartTopologyInput, AssemblyTopologyResult } from './occt-kernel/topologyExt'
+export { buildSelectorManifest, buildAssemblySelectorManifest } from './occt-kernel/topologyExt'
+export type { SelectorManifestInput, PartTopologyInput, AssemblyTopologyResult } from './occt-kernel/topologyExt'
 
 // ── BREP Topology ──
 export { buildSolidTopologyRuntime } from './brep/brep-topology'
