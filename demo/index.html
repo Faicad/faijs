@@ -29,12 +29,17 @@
             <option value="drill-test">Box + Cylinder Drill</option>
             <option value="text-engrave">Text Engrave</option>
             <option value="transform-chain">Transform Chain</option>
+            <option value="__file__">Opened File</option>
           </select>
-          <button id="run-btn" class="btn btn-primary">Run ▶</button>
+          <button id="open-btn" class="btn btn-secondary">Open File</button>
+          <input type="file" id="file-input" accept=".faijs" hidden />
         </div>
       </header>
       <div id="status-bar" class="status-bar info">Ready</div>
       <textarea id="code-editor" class="code-editor" spellcheck="false" placeholder="// faijs source code"></textarea>
+      <footer class="run-bar">
+        <button id="run-btn" class="btn btn-primary">Run ▶</button>
+      </footer>
     </aside>
 
     <!-- Right: two stacked 3D viewers (top: brep/STEP, bottom: mesh/STL) -->

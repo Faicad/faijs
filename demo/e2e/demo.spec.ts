@@ -12,6 +12,8 @@ import { test, expect, type Page } from '@playwright/test'
 const SELECTOR = {
   editor: '#code-editor',
   runBtn: '#run-btn',
+  openBtn: '#open-btn',
+  fileInput: '#file-input',
   exampleSelect: '#example-select',
   statusBar: '#status-bar',
   btnStep: '#btn-step',
@@ -87,6 +89,64 @@ test.describe('faijs demo', () => {
     }
   })
 
+  test('打开本地 .faijs 文件：编辑器载入文件内容并立即执行', async ({ page }) => {
+    await page.goto('/')
+    await waitForStatusOk(page)
+
+    const snippet = `const part0_v0 = cad.box({ size: 7 })\nconst part0_v1 = cad.cylinder({ radius: 2, height: 12, center: [0, 0, 0] })\nconst part0_v2 = cad.subtract(part0_v0, part0_v1)`
+    await page.locator(SELECTOR.fileInput).setInputFiles({
+      name: 'custom-part.faijs',
+      mimeType: 'text/plain',
+      buffer: Buffer.from(snippet),
+    })
+
+    await waitForStatusOk(page)
+    // 文件内容已载入编辑器，且示例下拉切到文件名
+    await expect(page.locator(SELECTOR.editor)).toHaveValue(/cad\.cylinder\(/)
+    await expect(page.locator(SELECTOR.exampleSelect)).toHaveValue('__file__')
+    await expect(page.locator(`${SELECTOR.exampleSelect} option[value="__file__"]`)).toHaveText('custom-part.faijs')
+    const status = await page.locator(SELECTOR.statusBar).textContent()
+    expect(status).toMatch(/OK — brep: 1 shape\(s\)/)
+  })
+
+  test('切到内置示例后，可切回已打开的文件（内容与文件名保留）', async ({ page }) => {
+    await page.goto('/')
+    await waitForStatusOk(page)
+
+    const snippet = `const part0_v0 = cad.box({ size: 7 })\nconst part0_v1 = cad.cylinder({ radius: 2, height: 12, center: [0, 0, 0] })\nconst part0_v2 = cad.subtract(part0_v0, part0_v1)`
+    await page.locator(SELECTOR.fileInput).setInputFiles({
+      name: 'custom-part.faijs',
+      mimeType: 'text/plain',
+      buffer: Buffer.from(snippet),
+    })
+    await waitForStatusOk(page)
+
+    // 切到内置示例：编辑器变为示例内容
+    await page.locator(SELECTOR.exampleSelect).selectOption('drill-test')
+    await waitForStatusOk(page)
+    await expect(page.locator(SELECTOR.editor)).toHaveValue(/cad\.cylinder\(\{ radius: 5, height: 20/)
+
+    // 切回 __file__：恢复文件内容，下拉仍显示文件名
+    await page.locator(SELECTOR.exampleSelect).selectOption('__file__')
+    await waitForStatusOk(page)
+    await expect(page.locator(SELECTOR.editor)).toHaveValue(/cad\.cylinder\(\{ radius: 2, height: 12/)
+    await expect(page.locator(SELECTOR.exampleSelect)).toHaveValue('__file__')
+    await expect(page.locator(`${SELECTOR.exampleSelect} option[value="__file__"]`)).toHaveText('custom-part.faijs')
+  })
+
+  test('打开非 .faijs 文件：状态栏显示错误', async ({ page }) => {
+    await page.goto('/')
+    await waitForStatusOk(page)
+
+    await page.locator(SELECTOR.fileInput).setInputFiles({
+      name: 'notes.txt',
+      mimeType: 'text/plain',
+      buffer: Buffer.from('hello'),
+    })
+    await expect(page.locator(SELECTOR.statusBar)).toContainText('is not a .faijs file', { timeout: 30_000 })
+    await expect(page.locator(SELECTOR.statusBar)).toHaveClass(/error/)
+  })
+
   test('Run 按钮：编辑代码后运行并显示新统计', async ({ page }) => {
     await page.goto('/')
     await waitForStatusOk(page)
@@ -99,8 +159,30 @@ const part0_v2 = cad.subtract(part0_v0, part0_v1)`)
 
     const status = await page.locator(SELECTOR.statusBar).textContent()
     expect(status).toMatch(/OK — brep: 1 shape\(s\)/)
-    // 运行期间按钮短暂禁用，完成后恢复可用
+    // 运行完成后内容无变化 → Run 按钮自动置灰
+    await expect(page.locator(SELECTOR.runBtn)).toBeDisabled()
+  })
+
+  test('Run 按钮状态：加载后置灰、手动修改后可用、运行后再次置灰', async ({ page }) => {
+    await page.goto('/')
+    await waitForStatusOk(page)
+
+    // 页面加载即自动运行 → 内容无变化 → 按钮置灰
+    await expect(page.locator(SELECTOR.runBtn)).toBeDisabled()
+
+    // 手动修改代码 → 按钮恢复可用
+    await page.locator(SELECTOR.editor).fill(`const part0_v0 = cad.box({ size: 3 })`)
     await expect(page.locator(SELECTOR.runBtn)).toBeEnabled()
+
+    // 点击运行 → 完成后内容无变化 → 再次置灰
+    await page.locator(SELECTOR.runBtn).click()
+    await waitForStatusOk(page)
+    await expect(page.locator(SELECTOR.runBtn)).toBeDisabled()
+
+    // 切换内置示例 → 自动运行 → 保持置灰
+    await page.locator(SELECTOR.exampleSelect).selectOption('drill-test')
+    await waitForStatusOk(page)
+    await expect(page.locator(SELECTOR.runBtn)).toBeDisabled()
   })
 
   test('Ctrl+Enter 快捷键运行编辑器代码', async ({ page }) => {
@@ -124,7 +206,8 @@ const part0_v2 = cad.subtract(part0_v0, part0_v1)`)
 
     await expect(page.locator(SELECTOR.statusBar)).toContainText('Error', { timeout: 30_000 })
     await expect(page.locator(SELECTOR.statusBar)).toHaveClass(/error/)
-    await expect(page.locator(SELECTOR.runBtn)).toBeEnabled()
+    // 运行（失败）后内容无变化 → Run 按钮同样置灰
+    await expect(page.locator(SELECTOR.runBtn)).toBeDisabled()
   })
 
   test('成功运行后 STEP/STL 下载按钮可用并产出有效文件', async ({ page }) => {

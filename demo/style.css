@@ -103,6 +103,16 @@ body {
   color: white;
 }
 
+.btn-secondary {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+}
+
+.btn-secondary:hover {
+  background: #143d6b;
+}
+
 .btn-primary:hover {
   background: var(--accent-hover);
 }
@@ -133,6 +143,18 @@ body {
 
 .code-editor::placeholder {
   color: var(--text-muted);
+}
+
+/* Bottom run bar */
+.run-bar {
+  flex-shrink: 0;
+  padding: 12px 16px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border);
+}
+
+.run-bar .btn {
+  width: 100%;
 }
 
 /* Right panel: two stacked viewers, no header */

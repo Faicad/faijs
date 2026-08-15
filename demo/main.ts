@@ -41,6 +41,8 @@ const part0_v3 = cad.scale({ factor: [1, 1, 2] }, part0_v2)`,
 
 const codeEditor = document.getElementById('code-editor') as HTMLTextAreaElement
 const runBtn = document.getElementById('run-btn') as HTMLButtonElement
+const openBtn = document.getElementById('open-btn') as HTMLButtonElement
+const fileInput = document.getElementById('file-input') as HTMLInputElement
 const exampleSelect = document.getElementById('example-select') as HTMLSelectElement
 const statusBar = document.getElementById('status-bar') as HTMLDivElement
 const btnStep = document.getElementById('btn-step') as HTMLButtonElement
@@ -334,7 +336,9 @@ async function runCode() {
     setStatus(`Error: ${msg}`, 'error')
     console.error(err)
   } finally {
-    runBtn.disabled = false
+    // 记录本次运行内容；Run 按钮置灰状态由 syncRunBtnState 按内容是否变化决定
+    lastRunCode = code
+    syncRunBtnState()
   }
 }
 
@@ -386,21 +390,70 @@ btnStl.addEventListener('click', () => {
 
 // ── Event handlers ──
 
+// 最近一次打开的本地文件（内容+文件名），下拉框切回 __file__ 时恢复
+let loadedFile: { name: string; content: string } | null = null
+
+// 最近一次运行（或加载后自动运行）的代码内容；
+// Run 按钮仅在编辑器内容与它不同（即用户手动修改过）时可用
+let lastRunCode: string | null = null
+
+// Run 按钮状态：代码加载后无变化 → 置灰；用户手动修改 → 恢复可用
+function syncRunBtnState() {
+  runBtn.disabled = lastRunCode === codeEditor.value
+}
+
 runBtn.addEventListener('click', runCode)
 
 exampleSelect.addEventListener('change', () => {
   const key = exampleSelect.value
+  if (key === '__file__') {
+    if (loadedFile) {
+      codeEditor.value = loadedFile.content
+      runCode()
+    }
+    return
+  }
   if (EXAMPLES[key]) {
     codeEditor.value = EXAMPLES[key]
     runCode()
   }
 })
 
-// Ctrl+Enter to run
+// Open a local .faijs file → load its source and run immediately
+openBtn.addEventListener('click', () => fileInput.click())
+
+fileInput.addEventListener('change', async () => {
+  const file = fileInput.files?.[0]
+  fileInput.value = '' // allow re-selecting the same file later
+  if (!file) return
+
+  if (!file.name.toLowerCase().endsWith('.faijs')) {
+    setStatus(`Error: "${file.name}" is not a .faijs file`, 'error')
+    return
+  }
+
+  try {
+    const text = await file.text()
+    loadedFile = { name: file.name, content: text }
+    codeEditor.value = text
+    const fileOption = exampleSelect.querySelector<HTMLOptionElement>('option[value="__file__"]')
+    if (fileOption) fileOption.textContent = file.name
+    exampleSelect.value = '__file__'
+    await runCode()
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    setStatus(`Error reading file: ${msg}`, 'error')
+  }
+})
+
+// 用户手动修改代码 → 与最近一次运行内容不同 → Run 按钮恢复可用
+codeEditor.addEventListener('input', syncRunBtnState)
+
+// Ctrl+Enter to run（仅当 Run 按钮可用，即代码被手动修改过）
 codeEditor.addEventListener('keydown', (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
     e.preventDefault()
-    runCode()
+    if (!runBtn.disabled) runCode()
   }
 })
 
