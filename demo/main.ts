@@ -13,7 +13,7 @@
 
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { parseScript, ParseError, createRuntime, createBrowserPorts, setOcctWasmInitFn, initOcctWasm, exportStepFromSolid, buildStlBufferFromMesh } from '@faicad/faijs/browser'
+import { parseScript, ParseError, createRuntime, createBrowserPorts, setOcctWasmInitFn, initOcctWasm, exportStepFromSolid, buildStlBufferFromMesh, deriveNormals } from '@faicad/faijs/browser'
 import type { ExecutionMode, HostPorts, ShapeHandle, OcctKernel } from '@faicad/faijs/browser'
 import { OcctKernel as OcctKernelValue } from 'occt-wasm'
 import { setWasmUrl as setManifoldWasmUrl } from 'manifold-3d/lib/wasm.js'
@@ -170,7 +170,14 @@ function renderShapes(view: Viewer3D, shapes: Array<{ id: string; positions: Flo
     const geo = new THREE.BufferGeometry()
     geo.setAttribute('position', new THREE.BufferAttribute(shape.positions, 3))
     geo.setIndex(new THREE.BufferAttribute(shape.indices, 1))
-    geo.computeVertexNormals()
+    // Derive creased normals so sharp edges stay sharp. The old
+    // computeVertexNormals() averaged normals on the welded shared-vertex
+    // topology of manifold (mesh chain) results and rounded edges off — the
+    // same root cause fixed in 3d_editor (ba5e6441). deriveNormals uses
+    // toCreasedNormals: only faces meeting at more than the crease angle get
+    // per-face normals, so curved surfaces stay smooth.
+    const finalGeo = deriveNormals(geo)
+    geo.dispose()
 
     const material = new THREE.MeshStandardMaterial({
       color: 0x4a90d9,
@@ -179,7 +186,7 @@ function renderShapes(view: Viewer3D, shapes: Array<{ id: string; positions: Flo
       flatShading: false,
     })
 
-    const mesh = new THREE.Mesh(geo, material)
+    const mesh = new THREE.Mesh(finalGeo, material)
     mesh.castShadow = true
     mesh.receiveShadow = true
     view.meshGroup.add(mesh)
