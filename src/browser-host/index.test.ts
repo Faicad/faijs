@@ -3,7 +3,7 @@
  *
  * 测试内容：
  * 1. 返回完整的 HostPorts（csg, sdf, fonts, assets, events）
- * 2. 默认使用 InlineCsgBackend / InlineSdfBackend
+ * 2. Node 环境无 Web Worker → 自动回退 InlineCsgBackend / InlineSdfBackend
  * 3. 默认使用 BrowserEventSink
  * 4. 默认使用 BrowserFontProvider + FetchAssetResolver
  * 5. 可注入自定义 csg/sdf/assets/events
@@ -36,14 +36,24 @@ describe('createBrowserPorts', () => {
     expect(ports.events).toBeDefined()
   })
 
-  it('defaults to InlineCsgBackend', async () => {
+  it('defaults to InlineCsgBackend in environments without Worker (Node)', async () => {
     const ports = await createBrowserPorts()
     expect(ports.csg).toBeInstanceOf(InlineCsgBackend)
   })
 
-  it('defaults to InlineSdfBackend', async () => {
+  it('defaults to InlineSdfBackend in environments without Worker (Node)', async () => {
     const ports = await createBrowserPorts()
     expect(ports.sdf).toBeInstanceOf(InlineSdfBackend)
+  })
+
+  it('useWorker:false forces InlineCsgBackend/InlineSdfBackend', async () => {
+    const ports = await createBrowserPorts({ useWorker: false })
+    expect(ports.csg).toBeInstanceOf(InlineCsgBackend)
+    expect(ports.sdf).toBeInstanceOf(InlineSdfBackend)
+  })
+
+  it('useWorker:true without Worker environment throws', async () => {
+    await expect(createBrowserPorts({ useWorker: true })).rejects.toThrow(/Web Worker/)
   })
 
   it('defaults to BrowserEventSink', async () => {

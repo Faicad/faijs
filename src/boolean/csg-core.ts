@@ -5,7 +5,7 @@
  * 这些函数不依赖 Worker 环境（无 self.onmessage / postMessage），
  * 可被 WorkerCsgBackend（经 csg-worker.ts）和 InlineCsgBackend（主线程直跑）共用。
  *
- * 依赖：manifold-3d/manifoldCAD（Manifold / Mesh 构造器）、dovetail-math、joinery-shapes
+ * 依赖：manifold-3d 核心模块（Manifold / Mesh 构造器）、dovetail-math、joinery-shapes
  */
 
 import type { Manifold as ManifoldInstance } from 'manifold-3d/manifold'
@@ -21,8 +21,8 @@ import {
 
 // ── 类型别名 ──
 
-type ManifoldCtor = typeof import('manifold-3d/manifoldCAD').Manifold
-type MeshCtor = typeof import('manifold-3d/manifoldCAD').Mesh
+type ManifoldCtor = typeof import('manifold-3d/manifold').Manifold
+type MeshCtor = typeof import('manifold-3d/manifold').Mesh
 
 // ── Manifold → MeshData 转换 ──
 
@@ -47,6 +47,62 @@ export function manifoldToMeshData(manifold: ManifoldInstance): {
   const triVerts = resultMesh.triVerts
   const indices = triVerts ? new Uint32Array(triVerts) : new Uint32Array(0)
   return { positions, indices }
+}
+
+// ── MeshData → Manifold ──
+
+/**
+ * 从 MeshData 构建 Manifold：顶点密度过高（接近每个三角形 3 个独立顶点）时
+ * 先焊接重复顶点，再 Manifold.ofMesh。
+ *
+ * Inline 后端与 Worker 后端共用本函数，保证双后端输入转换一致。
+ */
+export function meshToManifold(
+  Manifold: ManifoldCtor,
+  Mesh: MeshCtor,
+  mesh: { positions: Float32Array; indices: Uint32Array },
+): ManifoldInstance {
+  const triCount = mesh.indices.length / 3
+  const vertCount = mesh.positions.length / 3
+  let positions = mesh.positions
+  let indices = mesh.indices
+
+  if (vertCount >= triCount * 3 * 0.9) {
+    const welded = weldPositionsWorker(mesh.positions, mesh.indices, mesh.indices.length)
+    positions = welded.positions
+    indices = welded.indices
+  }
+
+  return Manifold.ofMesh(new Mesh({
+    numProp: 3,
+    vertProperties: positions,
+    triVerts: indices,
+  }))
+}
+
+/**
+ * 对一组 Manifold 依次做布尔运算（union/subtract/intersect）。
+ * 调用方负责 delete 传入的 manifolds 与返回的 result。
+ */
+export function chainBoolean(
+  op: 'union' | 'subtract' | 'intersect',
+  manifolds: ManifoldInstance[],
+): ManifoldInstance {
+  let result = manifolds[0]
+  for (let i = 1; i < manifolds.length; i++) {
+    switch (op) {
+      case 'union':
+        result = result.add(manifolds[i])
+        break
+      case 'subtract':
+        result = result.subtract(manifolds[i])
+        break
+      case 'intersect':
+        result = result.intersect(manifolds[i])
+        break
+    }
+  }
+  return result
 }
 
 // ── 顶点焊接 ──

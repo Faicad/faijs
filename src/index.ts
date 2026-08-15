@@ -1,5 +1,5 @@
 /**
- * @faicad/faijs �?Faicad CAD execution engine
+ * @faicad/faijs �?Faicad CAD execution engine
  *
  * 公开 API 统一入口。所有导出按层组织：
  * - L0 文本层：parser / codegen / args-schema / types
@@ -16,7 +16,7 @@
  * - CSG Backend：setCsgBackend / geoToManifoldMesh / ...
  */
 
-// ── L0 文本�?──
+// ── L0 文本�?──
 export type {
   PartScript, CadStatement, Arg, Vec3, JsonValue, ShapeRef,
   ParamRef, GeomRef, AssetRef, FeatureKind, FeatureMeta,
@@ -37,7 +37,7 @@ export { statementToLine, scriptToCode, fmtNum, buildArgsParts } from './lang/co
 export { validateStatementArgs, validateScriptArgs, getOpSchema, hasOpSchema } from './lang/args-schema'
 export type { OpSchema, ArgFieldSchema, ArgType, ValidationError } from './lang/args-schema'
 
-// ── L1 几何执行�?──
+// ── L1 几何执行�?──
 export type { Shape, OpContext } from './ops/types'
 export { executeStatement } from './ops/dispatcher'
 export { canUseBrep } from './ops/types'
@@ -59,8 +59,9 @@ export type { DrillBrepParams, SplitBrepParams, SplitBrepResult, ExtrudeBrepPara
 export { buildStlBufferFromMesh } from './brep/export/stl'
 export { exportStepFromSolid } from './brep/export/step'
 
-// ── L1 Mesh 执行�?──
+// ── L1 Mesh 执行�?──
 export { cad } from './mesh'
+export { setManifoldWasmUrl, getManifoldWasmUrl, getManifoldModule } from './mesh/manifold-loader'
 export type {
   BoundingBox, FaceDescriptor,
   BoxParams, SphereParams, CylinderParams, ConeParams, WedgeParams,
@@ -142,7 +143,7 @@ export type {
   GlbContainer, BufferViewDescriptor, SelectorProxy,
 } from './topology/types'
 
-// ── L2 编排�?──
+// ── L2 编排�?──
 export { CadRuntime, createRuntime, computeContentKey } from './cad-runtime/runtime'
 export type { ExecutionResult, ReplayOptions, CheckResult, CheckError } from './cad-runtime/runtime'
 export type {
@@ -186,9 +187,9 @@ export { setFontLoader, getFontLoader, loadFont, ensureDefaultFont, getFont, cle
 export type { FontLoader } from './brep/text/fontRegistry'
 
 // ── L3 Node Host ──
-// node-host 模块已移�?@faicad/faijs/node 入口，避免浏览器环境静�?import
-// node-host 模块（含 Node.js 专用代码�?fs/path）导致生产构�?404�?
-// �?Node.js 环境中：import { createNodePorts } from '@faicad/faijs/node'
+// node-host 模块已移�?@faicad/faijs/node 入口，避免浏览器环境静�?import
+// node-host 模块（含 Node.js 专用代码�?fs/path）导致生产构�?404�?
+// �?Node.js 环境中：import { createNodePorts } from '@faicad/faijs/node'
 
 // ── L3 Browser Host ──
 export { createBrowserPorts } from './browser-host'

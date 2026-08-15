@@ -13,10 +13,9 @@
 
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { parseScript, ParseError, createRuntime, createBrowserPorts, setOcctWasmInitFn, initOcctWasm, exportStepFromSolid, buildStlBufferFromMesh, deriveNormals } from '@faicad/faijs/browser'
+import { parseScript, ParseError, createRuntime, createBrowserPorts, setOcctWasmInitFn, initOcctWasm, exportStepFromSolid, buildStlBufferFromMesh, deriveNormals, setManifoldWasmUrl } from '@faicad/faijs/browser'
 import type { ExecutionMode, HostPorts, ShapeHandle, OcctKernel } from '@faicad/faijs/browser'
 import { OcctKernel as OcctKernelValue } from 'occt-wasm'
-import { setWasmUrl as setManifoldWasmUrl } from 'manifold-3d/lib/wasm.js'
 import fontUrl from './assets/fonts/OpenSans-Regular.ttf?url'
 
 // ── Example .faijs files ──
@@ -420,10 +419,9 @@ const initOcct = (() =>
   })) as unknown as () => Promise<never>
 setOcctWasmInitFn(initOcct)
 
-// Manifold WASM：预打包会破坏 manifold-3d 内部的 import.meta.url 定位，
-// 用官方 setWasmUrl 显式指定（须在 manifoldCAD 模块求值前调用，本模块顶层即早于
-// faijs 的运行时动态 import）。
+// Manifold WASM：经 faijs 的 manifold-loader 单一挂点指定（Worker/Inline 后端共用）。
 // 注意：manifold.wasm 位于包根（lib/ 下没有该文件），dev 与 CDN 路径均指向包根。
+// 必须在 faijs 首次加载 manifold 模块前调用（本模块顶层即早于运行时动态 import）。
 setManifoldWasmUrl(
   import.meta.env.DEV
     ? '/node_modules/manifold-3d/manifold.wasm'

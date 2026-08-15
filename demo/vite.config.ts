@@ -17,16 +17,11 @@ const OCCT_VERSION = '3.7.0'
 const EXACT_CDN = new Map<string, string>([
   ['three', `${CDN_BASE}/three@${THREE_VERSION}/build/three.module.js`],
   ['manifold-3d', `${CDN_BASE}/manifold-3d@${MANIFOLD_VERSION}/manifold.js`],
-  ['manifold-3d/manifold', `${CDN_BASE}/manifold-3d@${MANIFOLD_VERSION}/manifold.js`],
-  ['manifold-3d/manifold.js', `${CDN_BASE}/manifold-3d@${MANIFOLD_VERSION}/manifold.js`],
-  ['manifold-3d/manifoldCAD', `${CDN_BASE}/manifold-3d@${MANIFOLD_VERSION}/lib/manifoldCAD.js`],
-  ['manifold-3d/manifoldCAD.js', `${CDN_BASE}/manifold-3d@${MANIFOLD_VERSION}/lib/manifoldCAD.js`],
   ['occt-wasm', `${CDN_BASE}/occt-wasm@${OCCT_VERSION}/dist/index.js`],
 ])
 
 const PREFIX_CDN = new Map<string, string>([
   ['three/', `${CDN_BASE}/three@${THREE_VERSION}/`],
-  ['manifold-3d/', `${CDN_BASE}/manifold-3d@${MANIFOLD_VERSION}/`],
   ['occt-wasm/', `${CDN_BASE}/occt-wasm@${OCCT_VERSION}/`],
 ])
 
@@ -53,17 +48,25 @@ function cdnExternalPlugin(): Plugin {
 
 export default defineConfig({
   resolve: {
-    // faijs（junction 链接到仓库根）与 demo 各声明了一份 occt-wasm / manifold-3d，
-    // 强制解析到同一实例：
-    // - occt-wasm：避免产物中出现两份 wasm
-    // - manifold-3d：demo 调用 setWasmUrl 必须作用于 faijs 加载的同一模块实例，
-    //   否则 manifoldCAD 仍用 import.meta.url 定位 wasm（.vite/deps → 404 HTML）
-    dedupe: ['occt-wasm', 'manifold-3d'],
+    // faijs（junction 链接到仓库根）与 demo 各声明了一份 occt-wasm，
+    // 强制解析到同一实例：避免产物中出现两份 wasm。
+    // （manifold-3d 不再需要 dedupe：demo 不再直接 import 它，
+    //  仅 faijs 经 loader 根裸导入，Workder/Inline 后端共用。）
+    dedupe: ['occt-wasm'],
   },
   plugins: [cdnExternalPlugin()],
+  // Worker 后端（csg-worker/sdf-worker）打包为 ES module worker。
+  // 实测：vite 将 manifold-3d（loader 的根裸导入）内联进 worker 图
+  // （zero 静态导入，内联安全），worker chunk 内无裸 specifier，
+  // 不依赖 module worker 是否继承文档 importmap；主 bundle 的
+  // inline 回退路径保留裸 import("manifold-3d")，仍走 importmap → CDN。
+  worker: {
+    format: 'es',
+  },
   optimizeDeps: {
-    // manifold-3d 的 manifoldCAD.js 使用 Top-level await，
-    // esbuild 预打包需 esnext target
+    // dev 预打包 target 沿用 esnext：此前的 manifoldCAD.js 有顶层 await，
+    // esbuild 默认 target 会报错；如今已不加载 manifoldCAD，保留无害
+    //（build target 同为 esnext，不构成差异）。
     esbuildOptions: {
       target: 'esnext',
     },

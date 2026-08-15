@@ -1,5 +1,5 @@
 /**
- * @faicad/faijs/browser �?Browser-safe exports
+ * @faicad/faijs/browser �?Browser-safe exports
  *
  * Excludes L3 Node Host modules (node-host/*) that depend on node:fs/node:path.
  * Use this entry point in browser/worker contexts to avoid pulling in Node.js code.
@@ -7,7 +7,7 @@
  * For full exports (including Node.js), use @faicad/faijs instead.
  */
 
-// ── L0 文本�?──
+// ── L0 文本�?──
 export type {
   PartScript, CadStatement, Arg, Vec3, JsonValue, ShapeRef,
   ParamRef, GeomRef, AssetRef, FeatureKind, FeatureMeta,
@@ -28,7 +28,7 @@ export { statementToLine, scriptToCode, fmtNum, buildArgsParts } from './lang/co
 export { validateStatementArgs, validateScriptArgs, getOpSchema, hasOpSchema } from './lang/args-schema'
 export type { OpSchema, ArgFieldSchema, ArgType, ValidationError } from './lang/args-schema'
 
-// ── L1 几何执行�?──
+// ── L1 几何执行�?──
 export type { Shape, OpContext } from './ops/types'
 export { executeStatement } from './ops/dispatcher'
 export { canUseBrep } from './ops/types'
@@ -50,6 +50,7 @@ export type { DrillBrepParams, SplitBrepParams, SplitBrepResult, ExtrudeBrepPara
 export { buildStlBufferFromMesh } from './brep/export/stl'
 export { exportStepFromSolid } from './brep/export/step'
 export { cad } from './mesh'
+export { setManifoldWasmUrl, getManifoldWasmUrl, getManifoldModule } from './mesh/manifold-loader'
 export { faceAt } from './mesh/query'
 export type {
   BoundingBox, FaceDescriptor,
@@ -128,7 +129,7 @@ export type {
   GlbContainer, BufferViewDescriptor, SelectorProxy,
 } from './topology/types'
 
-// ── L2 编排�?──
+// ── L2 编排�?──
 export { CadRuntime, createRuntime, computeContentKey } from './cad-runtime/runtime'
 export type { ExecutionResult, ReplayOptions, CheckResult, CheckError } from './cad-runtime/runtime'
 export type {

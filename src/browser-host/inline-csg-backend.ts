@@ -4,79 +4,41 @@
  * 浏览器和 Node 环境均可使用（manifold-3d 在两个环境都可用）。
  *
  * 与 browser 端 WorkerCsgBackend 的区别：
- * - 不使用 Web Worker（?worker 语法在 Node 环境不可用）
- * - 直接在主线程调用 manifold-3d/manifoldCAD
+ * - 不使用 Web Worker（Node 环境没有浏览器 Worker API）
+ * - 直接在主线程调用 manifold-3d 核心模块（经 manifold-loader）
  * - 性能权衡：阻塞主线程——CLI/CI 场景无 UI，可接受
  *
- * 正确性由"双后端一致性测试"保证：
- * 同一组 op 输入，Worker 后端与 Inline 后端的输出几何指纹必须一致。
+ * 正确性由"双后端一致性"保证：Inline 与 Worker 后端共用 csg-core 的
+ * 同一套纯函数（构造器注入），两边调用路径一致。
  */
 
 import type { CsgBackend, MeshData, PlaneParams, SplitResult } from '../cad-runtime/ports'
 import {
   manifoldToMeshData,
-  weldPositionsWorker,
+  meshToManifold,
+  chainBoolean,
   dovetailBooleanSplit,
   dowelOrTenonBooleanSplit,
 } from '../boolean/csg-core'
-
-type ManifoldMod = typeof import('manifold-3d/manifoldCAD')
-
-let manifoldPromise: Promise<ManifoldMod> | null = null
-
-async function getManifold(): Promise<ManifoldMod> {
-  if (!manifoldPromise) {
-    manifoldPromise = import('manifold-3d/manifoldCAD')
-  }
-  return manifoldPromise
-}
+import { getManifoldModule } from '../mesh/manifold-loader'
 
 /**
  * Build a Manifold from raw mesh data: weld → ofMesh.
- * Mirrors the logic in csg-worker.ts self.onmessage handler.
+ * 与 WorkerCsgBackend 走同一实现（csg-core.meshToManifold）。
  */
-async function meshToManifold(mesh: MeshData): Promise<import('manifold-3d/manifold').Manifold> {
-  const { Manifold, Mesh } = await getManifold()
-  const triCount = mesh.indices.length / 3
-  const vertCount = mesh.positions.length / 3
-  let positions = mesh.positions
-  let indices = mesh.indices
-
-  if (vertCount >= triCount * 3 * 0.9) {
-    const welded = weldPositionsWorker(mesh.positions, mesh.indices, mesh.indices.length)
-    positions = welded.positions
-    indices = welded.indices
-  }
-
-  const m = new Mesh({
-    numProp: 3,
-    vertProperties: positions,
-    triVerts: indices,
-  })
-  return Manifold.ofMesh(m)
+async function toManifold(mesh: MeshData): Promise<import('manifold-3d/manifold').Manifold> {
+  const { Manifold, Mesh } = await getManifoldModule()
+  return meshToManifold(Manifold, Mesh, mesh)
 }
 
 export class InlineCsgBackend implements CsgBackend {
   async boolean(op: 'union' | 'subtract' | 'intersect', meshes: MeshData[]): Promise<MeshData> {
     const manifolds: import('manifold-3d/manifold').Manifold[] = []
     for (const m of meshes) {
-      manifolds.push(await meshToManifold(m))
+      manifolds.push(await toManifold(m))
     }
 
-    let result = manifolds[0]
-    for (let i = 1; i < manifolds.length; i++) {
-      switch (op) {
-        case 'union':
-          result = result.add(manifolds[i])
-          break
-        case 'subtract':
-          result = result.subtract(manifolds[i])
-          break
-        case 'intersect':
-          result = result.intersect(manifolds[i])
-          break
-      }
-    }
+    const result = chainBoolean(op, manifolds)
 
     for (let i = 1; i < manifolds.length; i++) manifolds[i].delete()
 
@@ -86,7 +48,7 @@ export class InlineCsgBackend implements CsgBackend {
   }
 
   async splitPlane(mesh: MeshData, plane: PlaneParams): Promise<{ front: MeshData; back: MeshData }> {
-    const manifold = await meshToManifold(mesh)
+    const manifold = await toManifold(mesh)
 
     const [frontM, backM] = manifold.splitByPlane(plane.normal, plane.offset)
     manifold.delete()
@@ -110,8 +72,8 @@ export class InlineCsgBackend implements CsgBackend {
       groove: import('../cad-runtime/ports').DovetailGrooveParams
     },
   ): Promise<SplitResult> {
-    const { Manifold, Mesh } = await getManifold()
-    const original = await meshToManifold(mesh)
+    const { Manifold, Mesh } = await getManifoldModule()
+    const original = await toManifold(mesh)
 
     const [upperManifold, lowerManifold, wedgeMeshData] = dovetailBooleanSplit(
       Manifold, Mesh,
@@ -147,8 +109,8 @@ export class InlineCsgBackend implements CsgBackend {
       selectedSections?: number[] | null
     },
   ): Promise<SplitResult> {
-    const { Manifold, Mesh } = await getManifold()
-    const original = await meshToManifold(mesh)
+    const { Manifold, Mesh } = await getManifoldModule()
+    const original = await toManifold(mesh)
 
     const [upperManifold, lowerManifold, shapeMeshData] = dowelOrTenonBooleanSplit(
       Manifold, Mesh,
@@ -191,8 +153,8 @@ export class InlineCsgBackend implements CsgBackend {
       selectedSections?: number[] | null
     },
   ): Promise<SplitResult> {
-    const { Manifold, Mesh } = await getManifold()
-    const original = await meshToManifold(mesh)
+    const { Manifold, Mesh } = await getManifoldModule()
+    const original = await toManifold(mesh)
 
     const [upperManifold, lowerManifold, shapeMeshData] = dowelOrTenonBooleanSplit(
       Manifold, Mesh,

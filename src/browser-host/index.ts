@@ -9,8 +9,9 @@
  * - BrowserFontProvider（fetch 字体 URL）
  * - FetchAssetResolver（fetch URL 资产）
  *
- * CSG/SDF 后端默认使用 InlineCsgBackend/InlineSdfBackend（manifold-3d 在浏览器也可用），
- * 消费者可注入自定义后端（如 3d_editor 的 Worker 后端）。
+ * CSG/SDF 后端默认使用 Worker 后端（WorkerCsgBackend/WorkerSdfBackend，manifold
+ * 计算在独立线程，不阻塞 UI）；无 Web Worker 的环境（如 Node 测试）自动回退到
+ * Inline 后端。消费者可注入自定义后端（如第三方实现）。
  *
  * 注意：InlineCsgBackend/InlineSdfBackend 现在位于 browser-host 目录内，
  * 因为它们不依赖任何 Node.js API（仅使用 manifold-3d，浏览器可用）。
@@ -39,9 +40,15 @@ export interface CreateBrowserPortsOptions {
   fontUrl?: string
   /** 额外字体注册表 */
   fontUrls?: BrowserFontProviderOptions['fontUrls']
-  /** 消费者可注入自定义 CSG 后端（如 Worker 后端） */
+  /**
+   * 是否使用 Worker 后端（CSG/SDF 计算移出主线程）。
+   * 默认：有 Web Worker 环境用 Worker，否则回退 Inline。
+   * 显式传 false 强制 Inline；显式传 true 但环境无 Worker 时抛错。
+   */
+  useWorker?: boolean
+  /** 消费者可注入自定义 CSG 后端 */
   csg?: HostPorts['csg']
-  /** 消费者可注入自定义 SDF 后端（如 Worker 后端） */
+  /** 消费者可注入自定义 SDF 后端 */
   sdf?: HostPorts['sdf']
   /** 消费者可注入自定义资产解析器 */
   assets?: HostPorts['assets']
@@ -53,14 +60,14 @@ export interface CreateBrowserPortsOptions {
  * 创建 Browser 端 HostPorts（注入 CadRuntime 用）。
  *
  * 默认使用：
- * - csg: InlineCsgBackend（主线程直跑 manifold-3d）— 延迟加载
- * - sdf: InlineSdfBackend（主线程直跑）— 延迟加载
+ * - csg: WorkerCsgBackend（经 csg-worker postMessage）— 延迟加载
+ * - sdf: WorkerSdfBackend（经 sdf-worker postMessage）— 延迟加载
  * - fonts: BrowserFontProvider（fetch 字体 URL）
  * - assets: FetchAssetResolver（fetch URL）
  * - events: BrowserEventSink（window.dispatchEvent）
  *
- * 消费者可通过 opts 注入自定义后端（如 3d_editor 的 Worker 后端）。
- * 当注入自定义后端时，不会加载 InlineCsgBackend/InlineSdfBackend。
+ * 无 Worker 的环境（Node/测试）自动回退 InlineCsgBackend/InlineSdfBackend。
+ * 消费者可通过 opts 注入自定义后端；注入时不会加载默认后端。
  *
  * 同时将 BrowserFontProvider 连接到 fontRegistry（setFontLoader），
  * 使 brep/text 的 ensureDefaultFont() 能通过 fetch 加载字体。
@@ -74,17 +81,35 @@ export async function createBrowserPorts(opts?: CreateBrowserPortsOptions): Prom
   // 连接 BrowserFontProvider 到 fontRegistry
   setFontLoader(fontProvider)
 
-  // CSG/SDF 后端：优先使用注入的后端，否则动态加载 Inline 后端
+  // CSG/SDF 后端：优先注入，否则按 useWorker 选择 Worker/Inline 后端
   let csg = opts?.csg
   if (!csg) {
-    const { InlineCsgBackend } = await import('./inline-csg-backend')
-    csg = new InlineCsgBackend()
+    const useWorker = opts?.useWorker ?? typeof Worker !== 'undefined'
+    if (useWorker) {
+      if (typeof Worker === 'undefined') {
+        throw new Error('createBrowserPorts: useWorker=true 但当前环境无 Web Worker')
+      }
+      const { WorkerCsgBackend } = await import('./worker-csg-backend')
+      csg = new WorkerCsgBackend()
+    } else {
+      const { InlineCsgBackend } = await import('./inline-csg-backend')
+      csg = new InlineCsgBackend()
+    }
   }
 
   let sdf = opts?.sdf
   if (!sdf) {
-    const { InlineSdfBackend } = await import('./inline-sdf-backend')
-    sdf = new InlineSdfBackend()
+    const useWorker = opts?.useWorker ?? typeof Worker !== 'undefined'
+    if (useWorker) {
+      if (typeof Worker === 'undefined') {
+        throw new Error('createBrowserPorts: useWorker=true 但当前环境无 Web Worker')
+      }
+      const { WorkerSdfBackend } = await import('./worker-sdf-backend')
+      sdf = new WorkerSdfBackend()
+    } else {
+      const { InlineSdfBackend } = await import('./inline-sdf-backend')
+      sdf = new InlineSdfBackend()
+    }
   }
 
   return {

@@ -5,7 +5,7 @@
  * 这些函数不依赖 Worker 环境（无 self.onmessage / postMessage），
  * 可被 WorkerSdfBackend（经 sdf-worker.ts）和 InlineSdfBackend（主线程直跑）共用。
  *
- * 依赖：manifold-3d/manifoldCAD（Manifold.levelSet）
+ * 依赖：manifold-3d 核心模块（Manifold.levelSet）
  */
 
 import type { Manifold as ManifoldInstance } from 'manifold-3d/manifold'
@@ -80,7 +80,7 @@ export { manifoldToMeshData }
  * @returns {positions, indices} mesh 数据
  */
 export async function runSdfInline(
-  Manifold: typeof import('manifold-3d/manifoldCAD').Manifold,
+  Manifold: typeof import('manifold-3d/manifold').Manifold,
   code: string,
   params: Record<string, number>,
   bounds: [number, number, number, number, number, number],

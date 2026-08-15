@@ -1,10 +1,11 @@
 /**
  * Unit tests for the dovetail curved-surface trimming algorithm.
  *
- * Since csg-worker.ts runs in a Web Worker context (uses `self.onmessage`),
- * it cannot be imported directly in Node.js tests. These tests replicate the
- * core algorithm functions (detectCurvedSurface, createWedge, etc.) using
- * manifold-3d directly, following the same pattern as csg.test.ts.
+ * The worker backend (csg-worker.ts) runs in a Web Worker context and cannot
+ * be imported directly in Node.js tests. These tests replicate the core
+ * algorithm functions (detectCurvedSurface, createWedge, etc.) using
+ * manifold-3d directly (via the shared manifold-loader), following the same
+ * pattern as csg.test.ts.
  *
  * The algorithm logic is copied verbatim from csg-worker.ts to ensure the
  * tests validate the actual algorithm correctness.
@@ -12,6 +13,7 @@
 import { describe, it, expect } from 'vitest'
 import * as THREE from 'three'
 import { geoToManifoldMesh } from './geo-convert'
+import { getManifoldModule } from '../mesh/manifold-loader'
 import {
   vec3Cross, vec3Normalize, vec3Scale, vec3Add, vec3Sub,
   type Vec3,
@@ -49,7 +51,7 @@ function hasNaN(positions: Float32Array): boolean {
 // ---- inline manifold helpers ----
 
 async function getManifold() {
-  return await import('manifold-3d/manifoldCAD')
+  return await getManifoldModule()
 }
 
 function meshToData(manifold: import('manifold-3d/manifold').Manifold) {
@@ -133,8 +135,8 @@ function detectCurvedSurface(
 }
 
 function createWedge(
-  Manifold: typeof import('manifold-3d/manifoldCAD').Manifold,
-  Mesh: typeof import('manifold-3d/manifoldCAD').Mesh,
+  Manifold: typeof import('manifold-3d/manifold').Manifold,
+  Mesh: typeof import('manifold-3d/manifold').Mesh,
   planeCenter: Vec3,
   normal: Vec3,
   widthDir: Vec3,
