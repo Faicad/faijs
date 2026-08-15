@@ -71,6 +71,12 @@ export default defineConfig({
     esbuildOptions: {
       target: 'esnext',
     },
+    // faijs 的 worker 后端以相对 URL 建 Worker（new URL('./sdf-worker.js', import.meta.url)），
+    // esbuild 预打包不会把包内相对 worker 文件发射到 .vite/deps/，dev 下会报
+    // "The file does not exist at .../sdf-worker.js?worker_file&type=module"。
+    // exclude 后 faijs 按源码模块直接 serve，worker URL 解析到真实文件；
+    // build（Rollup）不读 optimizeDeps，产物不受影响。
+    exclude: ['@faicad/faijs/browser'],
   },
   build: {
     target: 'esnext',
