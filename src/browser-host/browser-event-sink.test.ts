@@ -3,7 +3,7 @@
  *
  * 测试内容：
  * 1. emit 'brep-chain-broken' 触发 window.dispatchEvent + CustomEvent
- * 2. 事件 detail 包含正确的 op / partId / reason
+ * 2. 事件 detail 包含正确的 op / partName / reason
  * 3. window 未定义时不抛错（SSR 安全）
  *
  * Run: npx vitest run src/browser-host/browser-event-sink.test.ts
@@ -57,7 +57,7 @@ describe('BrowserEventSink', () => {
 
   it('dispatches "brep-chain-broken" CustomEvent on window', () => {
     eventSink.emit('brep-chain-broken', {
-      partId: 'part0_v1',
+      partName: 'part0_v1',
       op: 'drill',
       reason: 'no brep solid in chain',
     })
@@ -66,8 +66,8 @@ describe('BrowserEventSink', () => {
     const event = mockWindow.dispatchEvent.mock.calls[0][0] as MockCustomEvent
     expect(event.type).toBe('brep-chain-broken')
     expect(event.detail.op).toBe('drill')
-    expect(event.detail.partId).toBe('part0_v1')
-    expect(event.detail.stmtId).toBe('part0_v1')
+    expect(event.detail.partName).toBe('part0_v1')
+    expect(event.detail.stmtName).toBe('part0_v1')
     expect(event.detail.reason).toBe('no brep solid in chain')
   })
 
@@ -77,7 +77,7 @@ describe('BrowserEventSink', () => {
 
     expect(() => {
       eventSink.emit('brep-chain-broken', {
-        partId: 'part0_v1',
+        partName: 'part0_v1',
         op: 'drill',
         reason: 'test',
       })

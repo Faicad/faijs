@@ -166,7 +166,7 @@ export interface AssetResolver {
  * node 实现 (P3)：NodeEventSink（写入 result.infos / stderr）
  */
 export interface EventSink {
-  emit(event: 'brep-chain-broken', detail: { partId: string; op: string; reason: string }): void
+  emit(event: 'brep-chain-broken', detail: { partName: string; op: string; reason: string }): void
 }
 
 // ── HostPorts 汇总 ──

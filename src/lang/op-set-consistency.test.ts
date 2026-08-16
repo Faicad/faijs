@@ -106,9 +106,9 @@ const NON_DEFAULT_ARGS: Record<string, Record<string, unknown>> = {
     tenonSideLength: 5, tenonSideLengthTolerance: 0.1, tenonHeight: 3, tenonHeightTolerance: 0.1,
     bbCenter: [0, 0, 0], bboxSize: [20, 20, 20],
     selectedSections: [0], applyExplode: true,
-    frontPartId: 'p1', backPartId: 'p2',
+    frontPartName: 'p1', backPartName: 'p2',
   },
-  boolean: { operation: 'subtract', sourcePartIds: ['p1', 'p2'] },
+  boolean: { operation: 'subtract', sourcePartNames: ['p1', 'p2'] },
   engrave: {
     text: 'hello', depth: 2, textSize: 10, svg: { $asset: 'svgkey' }, svgSize: 100,
     mode: 'convex',

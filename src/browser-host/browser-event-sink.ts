@@ -12,13 +12,13 @@
 import type { EventSink } from '../cad-runtime/ports'
 
 export class BrowserEventSink implements EventSink {
-  emit(event: 'brep-chain-broken', detail: { partId: string; op: string; reason: string }): void {
+  emit(event: 'brep-chain-broken', detail: { partName: string; op: string; reason: string }): void {
     if (event === 'brep-chain-broken' && typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('brep-chain-broken', {
         detail: {
           op: detail.op,
-          stmtId: detail.partId,  // 兼容现有 UI 监听器字段名
-          partId: detail.partId,
+          stmtName: detail.partName,
+          partName: detail.partName,
           reason: detail.reason,
         },
       }))

@@ -2,15 +2,15 @@
  * 装配约束求解器 — E15.1
  *
  * 当 `do_assemble()` 脚本语句被执行时，从 `assemble` 定义和 `add_constraint` 约束
- * 中计算变换矩阵，应用到 movingPartId 对应的几何上。
+ * 中计算变换矩阵，应用到 movingPartName 对应的几何上。
  *
  * 现阶段只支持 face_mate 约束（面贴合），求解器可简化为直接计算。
  * 未来支持多约束联合求解（face_mate/coaxial/parallel/distance/angle 等）。
  *
  * 约束数据结构：
  * - type: 'face_mate'（现阶段唯一支持的类型）
- * - fixedPartId: 固定件 partId
- * - movingPartId: 活动件 partId
+ * - fixedPartName: 固定件 partName
+ * - movingPartName: 活动件 partName
  * - fixedFace: { faceId, surfaceType, center, normal } — center/normal 从拓扑数据派生
  * - movingFace: { faceId, surfaceType, center, normal } — center/normal 从拓扑数据派生
  *
@@ -26,8 +26,8 @@ import type { OpContext } from './types'
 
 export interface FaceMateConstraint {
   type: 'face_mate'
-  fixedPartId: string
-  movingPartId: string
+  fixedPartName: string
+  movingPartName: string
   fixedFace: {
     faceId: string
     surfaceType: string
@@ -218,7 +218,7 @@ export function applyTransform(
  * 变换在引擎内部完成，不绕过脚本引擎。
  *
  * @param assemblyDef 装配定义（name/members/constraints）
- * @param outputCache 当前重放的输出缓存，用于查找 partId → Shape
+ * @param outputCache 当前重放的输出缓存，用于查找 partName → Shape
  * @returns 变换后的 Shape（如果无约束则返回原 Shape）
  */
 export function executeDoAssemble(
@@ -235,9 +235,9 @@ export function executeDoAssemble(
       throw new Error(`[assemble] unsupported constraint type: ${constraint.type}`)
     }
 
-    const movingShape = outputCache.get(constraint.movingPartId)
+    const movingShape = outputCache.get(constraint.movingPartName)
     if (!movingShape) {
-      throw new Error(`[assemble] moving part not found in outputCache: ${constraint.movingPartId}`)
+      throw new Error(`[assemble] moving part not found in outputCache: ${constraint.movingPartName}`)
     }
 
     const { quaternion, pivot, translation, rotationMatrix } = solveFaceMate(
@@ -256,8 +256,8 @@ export function executeDoAssemble(
     )
 
     // 写回 outputCache（变换后的几何替换原始几何）
-    outputCache.set(constraint.movingPartId, transformed)
-    results.set(constraint.movingPartId, transformed)
+    outputCache.set(constraint.movingPartName, transformed)
+    results.set(constraint.movingPartName, transformed)
   }
 
   return results
@@ -266,7 +266,7 @@ export function executeDoAssemble(
 /**
  * 装配预览：给定约束，计算变换但不修改 outputCache。
  *
- * 返回每个 movingPartId 对应的变换矩阵，
+ * 返回每个 movingPartName 对应的变换矩阵，
  * 宿主可以用它来设置 mesh 矩阵（只改 mesh 矩阵，不烘焙顶点）。
  *
  * D 类预览 API。
@@ -298,7 +298,7 @@ export function previewAssembly(
       constraint.movingFace.normal,
     )
 
-    results.set(constraint.movingPartId, { quaternion, pivot, translation, rotationMatrix })
+    results.set(constraint.movingPartName, { quaternion, pivot, translation, rotationMatrix })
   }
 
   return results

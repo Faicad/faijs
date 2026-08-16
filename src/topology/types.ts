@@ -153,7 +153,7 @@ export interface Reference {
   summary: string
   shortSummary: string
   copyText: string
-  partId?: string
+  scopedId?: string
   occurrenceId: string
   shapeId: string
   rowIndex: number

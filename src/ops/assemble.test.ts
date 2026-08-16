@@ -86,11 +86,11 @@ describe('E15.1: 装配约束求解器', () => {
   })
 
   describe('previewAssembly', () => {
-    it('返回每个 movingPartId 的变换', () => {
+    it('返回每个 movingPartName 的变换', () => {
       const constraints: FaceMateConstraint[] = [{
         type: 'face_mate',
-        fixedPartId: 'part0_v0',
-        movingPartId: 'part1_v0',
+        fixedPartName: 'part0_v0',
+        movingPartName: 'part1_v0',
         fixedFace: { faceId: 'f0', surfaceType: 'plane', center: [0, 0, 5], normal: [0, 0, 1] },
         movingFace: { faceId: 'f1', surfaceType: 'plane', center: [0, 0, 3], normal: [0, 0, 1] },
       }]

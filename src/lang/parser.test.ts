@@ -344,7 +344,7 @@ describe('parser: 往返 codegen → parser', () => {
       statements: [
         makeStmt({ id: 'part0_v0', op: 'box', args: { size: 20 } }),
         makeStmt({ id: 'part0_v1', op: 'sphere', args: { radius: 10 } }),
-        makeStmt({ id: 'part0_v2', op: 'boolean', args: { operation: 'union', sourcePartIds: ['s0', 's1'] }, inputs: ['part0_v0', 'part0_v1'], feature: { kind: 'boolean', label: '合并', createdBy: 'user' } }),
+        makeStmt({ id: 'part0_v2', op: 'boolean', args: { operation: 'union', sourcePartNames: ['s0', 's1'] }, inputs: ['part0_v0', 'part0_v1'], feature: { kind: 'boolean', label: '合并', createdBy: 'user' } }),
       ],
     }
     const code = scriptToCode(script)

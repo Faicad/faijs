@@ -36,7 +36,7 @@ beforeAll(async () => {
 /** Simple EventSink for Node test environment */
 class TestEventSink implements EventSink {
   readonly events: Array<{ event: string; detail: Record<string, unknown> }> = []
-  emit(event: 'brep-chain-broken', detail: { partId: string; op: string; reason: string }): void {
+  emit(event: 'brep-chain-broken', detail: { partName: string; op: string; reason: string }): void {
     this.events.push({ event, detail: { ...detail } })
   }
   clear(): void { this.events.length = 0 }

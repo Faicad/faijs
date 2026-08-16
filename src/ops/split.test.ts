@@ -52,7 +52,7 @@ beforeEach(() => {
 
 class TestEventSink implements EventSink {
   readonly events: Array<{ event: string; detail: Record<string, unknown> }> = []
-  emit(event: 'brep-chain-broken', detail: { partId: string; op: string; reason: string }): void {
+  emit(event: 'brep-chain-broken', detail: { partName: string; op: string; reason: string }): void {
     this.events.push({ event, detail: { ...detail } })
   }
   clear(): void { this.events.length = 0 }
@@ -161,12 +161,12 @@ describe('split: ID format invariants', () => {
     expect(stmt.outputs![0]).not.toBe(stmt.outputs![1])
   })
 
-  it('faijs variable names (partN_vM) are NOT the same as 3d_editor scopedId (fileId:partId)', () => {
+  it('faijs variable names (partN_vM) are NOT the same as 3d_editor scopedId (fileId:innerId)', () => {
     // faijs variable names: "part0_v0", "part1_v0" — no colon, model_version format
-    // 3d_editor scopedId: "fileId:partId" — has colon, identity contract
+    // 3d_editor scopedId: "fileId:innerId" — has colon, identity contract
     // These are different concepts:
     //   - faijs variable names are DAG statement identifiers within a PartScript
-    //   - 3d_editor scopedIds are scene-tree node identifiers (fileId:partId)
+    //   - 3d_editor scopedIds are scene-tree node identifiers (fileId:innerId)
     const faijsVarName = 'part1_v0'
     const scopedId = 'file1:part1'
 

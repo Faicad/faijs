@@ -205,8 +205,8 @@ export function buildArgsParts(stmt: CadStatement, varNames?: Map<string, string
       push('tenonHeightTolerance', args.tenonHeightTolerance)
       push('selectedSections', args.selectedSections)
       push('applyExplode', args.applyExplode)
-      push('frontPartId', args.frontPartId)
-      push('backPartId', args.backPartId)
+      push('frontPartName', args.frontPartName)
+      push('backPartName', args.backPartName)
       break
     }
 
@@ -320,8 +320,8 @@ export function buildArgsParts(stmt: CadStatement, varNames?: Map<string, string
     }
     case 'add_constraint': {
       push('type', args.type, (v) => v === 'face_mate')
-      push('fixedPartId', args.fixedPartId)
-      push('movingPartId', args.movingPartId)
+      push('fixedPartName', args.fixedPartName)
+      push('movingPartName', args.movingPartName)
       push('fixedFace', args.fixedFace)
       push('movingFace', args.movingFace)
       break

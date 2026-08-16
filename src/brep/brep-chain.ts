@@ -97,7 +97,7 @@ export interface BrepChainState {
    * 产生的 position（如钻孔 clickPosition）是世界坐标。使用此偏移
    * 将世界坐标转换为局部坐标，确保 BREP 操作在正确的坐标系中执行。
    *
-   * 由 replayPart 从 useEngineStore.partTransforms[partId].position 填充。
+   * 由 replayPart 从 useEngineStore.partTransforms[scopedId].position 填充。
    */
   partTransform?: { position: [number, number, number] }
   /**

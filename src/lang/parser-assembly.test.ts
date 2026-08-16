@@ -35,8 +35,8 @@ describe('E15.1: 装配链式调用解析', () => {
       let assem1 = cad.assemble({ name: 'A', members: ['part0_v0', 'part1_v0'], constraints: [] })
       assem1.add_constraint({
         type: 'face_mate',
-        fixedPartId: 'part0_v0',
-        movingPartId: 'part1_v0',
+        fixedPartName: 'part0_v0',
+        movingPartName: 'part1_v0',
         fixedFace: { faceId: 'face_0', surfaceType: 'plane' },
         movingFace: { faceId: 'face_2', surfaceType: 'plane' }
       })
@@ -49,8 +49,8 @@ describe('E15.1: 装配链式调用解析', () => {
     expect(addConstraintStmt.isMarker).toBe(true)
     expect(addConstraintStmt.assemblyTarget).toBe('assem1')
     expect(addConstraintStmt.args.type).toBe('face_mate')
-    expect(addConstraintStmt.args.fixedPartId).toBe('part0_v0')
-    expect(addConstraintStmt.args.movingPartId).toBe('part1_v0')
+    expect(addConstraintStmt.args.fixedPartName).toBe('part0_v0')
+    expect(addConstraintStmt.args.movingPartName).toBe('part1_v0')
   })
 
   it('解析 assem1.do_assemble()', () => {
@@ -58,7 +58,7 @@ describe('E15.1: 装配链式调用解析', () => {
       const part0_v0 = cad.box({ size: 20 })
       const part1_v0 = cad.box({ size: 10 })
       let assem1 = cad.assemble({ name: 'A', members: ['part0_v0', 'part1_v0'], constraints: [] })
-      assem1.add_constraint({ type: 'face_mate', fixedPartId: 'part0_v0', movingPartId: 'part1_v0', fixedFace: { faceId: 'face_0', surfaceType: 'plane' }, movingFace: { faceId: 'face_2', surfaceType: 'plane' } })
+      assem1.add_constraint({ type: 'face_mate', fixedPartName: 'part0_v0', movingPartName: 'part1_v0', fixedFace: { faceId: 'face_0', surfaceType: 'plane' }, movingFace: { faceId: 'face_2', surfaceType: 'plane' } })
       assem1.do_assemble()
     `
     const { script } = parseScript(code)
@@ -90,7 +90,7 @@ describe('E15.1: 装配链式调用解析', () => {
       const part0_v0 = cad.box({ size: 20 })
       const part1_v0 = cad.box({ size: 10 })
       let assem1 = cad.assemble({ name: 'A', members: ['part0_v0', 'part1_v0'], constraints: [] })
-      assem1.add_constraint({ type: 'face_mate', fixedPartId: 'part0_v0', movingPartId: 'part1_v0', fixedFace: { faceId: 'face_0', surfaceType: 'plane' }, movingFace: { faceId: 'face_2', surfaceType: 'plane' } })
+      assem1.add_constraint({ type: 'face_mate', fixedPartName: 'part0_v0', movingPartName: 'part1_v0', fixedFace: { faceId: 'face_0', surfaceType: 'plane' }, movingFace: { faceId: 'face_2', surfaceType: 'plane' } })
       assem1.do_assemble()
     `
     const { script } = parseScript(code)

@@ -176,20 +176,6 @@ export interface PartScript {
 
 // ── 语句工厂 ──
 
-let _statementCounter = 0
-
-/**
- * 生成稳定的语句 id。
- * 格式：st_<partId>_<n>，其中 n 是全局递增计数器。
- * 编辑参数/变更类型时 id 不变（S-2）。
- *
- * @deprecated 新代码请使用 `allocateStatementId`（partN_vM 格式）。
- *             此函数仅保留用于旧场景兼容。
- */
-export function createStatementId(partId: string): string {
-  return `st_${partId}_${++_statementCounter}`
-}
-
 /**
  * 创建一条新语句。
  */

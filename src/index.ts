@@ -23,7 +23,7 @@ export type {
   TerminalShape, ParamDef, PartScriptMeta,
 } from './lang/types'
 export {
-  isGeomRef, isParamRef, isAssetRef, createStatementId,
+  isGeomRef, isParamRef, isAssetRef,
   createStatement, createPartScript,
 } from './lang/types'
 export {

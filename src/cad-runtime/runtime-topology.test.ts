@@ -45,7 +45,7 @@ describe('E13: ExecutionResult 携带拓扑数据', () => {
     const topo = runtime.getTopology('part0_v0')
     expect(topo).toBeDefined()
     expect(topo!.source).toBe('brep')
-    expect(topo!.partId).toBe('part0_v0')
+    expect(topo!.partName).toBe('part0_v0')
     expect(topo!.data).toBe(mockData)
   })
 

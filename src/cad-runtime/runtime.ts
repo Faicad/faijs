@@ -65,8 +65,8 @@ export type TopologySource = 'brep' | 'primitive' | 'mesh'
  * 而是从 ExecutionResult.topology 中读取。
  */
 export interface PartTopology {
-  /** partId（终端语句 id） */
-  partId: string
+  /** partName（终端语句 id，faijs 变量名） */
+  partName: string
   /** 拓扑来源（静态判定） */
   source: TopologySource
   /** 序列化的拓扑数据（可跨 Worker 传输） */
@@ -157,11 +157,11 @@ export class CadRuntime {
     output: Shape
   }>()
 
-  /** BREP solid 缓存：partId → { solid, kernel }（实例级，公开供外部只读访问） */
+  /** BREP solid 缓存：scopedId → { solid, kernel }（实例级，公开供外部只读访问） */
   readonly brepSolidCache = new Map<string, { solid: ShapeHandle; kernel: OcctKernel }>()
 
   /**
-   * 拓扑数据缓存：partId → PartTopology（实例级）
+   * 拓扑数据缓存：partName → PartTopology（实例级）
    * E13：宿主不再直接 import faijs 拓扑构建函数，而是从 ExecutionResult.topology 消费。
    * 拓扑构建由宿主在 replay 后调用 setTopology 注入（BREP 路径）或由加载时注入（mesh/primitive 路径）。
    */
@@ -295,7 +295,7 @@ export class CadRuntime {
     infos.push(`brep-chain-broken: ${reason} (op: ${op}, stmt: ${stmtId})`)
     // 经 EventSink 通知（替代 window.dispatchEvent）
     this.ports.events.emit('brep-chain-broken', {
-      partId: '', // 由调用方填充
+      partName: '', // 由调用方填充
       op,
       reason,
     })
@@ -459,27 +459,27 @@ export class CadRuntime {
   // ── 公开：BREP solid 缓存 ──
 
   /** 获取终端 BREP solid（供 STEP 导出） */
-  getBrepSolid(partId: string): { solid: ShapeHandle; kernel: OcctKernel } | undefined {
-    return this.brepSolidCache.get(partId)
+  getBrepSolid(scopedId: string): { solid: ShapeHandle; kernel: OcctKernel } | undefined {
+    return this.brepSolidCache.get(scopedId)
   }
 
   /** 写入 BREP solid 缓存 */
-  setBrepSolid(partId: string, solid: ShapeHandle, kernel: OcctKernel): void {
+  setBrepSolid(scopedId: string, solid: ShapeHandle, kernel: OcctKernel): void {
     // 释放旧 solid
-    const old = this.brepSolidCache.get(partId)
+    const old = this.brepSolidCache.get(scopedId)
     if (old) {
       try { old.kernel.release(old.solid) } catch { /* 已释放 */ }
     }
-    this.brepSolidCache.set(partId, { solid, kernel })
+    this.brepSolidCache.set(scopedId, { solid, kernel })
   }
 
   /** 删除 BREP solid 缓存 */
-  deleteBrepSolid(partId: string): void {
-    const entry = this.brepSolidCache.get(partId)
+  deleteBrepSolid(scopedId: string): void {
+    const entry = this.brepSolidCache.get(scopedId)
     if (entry) {
       try { entry.kernel.release(entry.solid) } catch { /* 已释放 */ }
     }
-    this.brepSolidCache.delete(partId)
+    this.brepSolidCache.delete(scopedId)
   }
 
   // ── 公开：拓扑数据缓存 ──
@@ -494,18 +494,18 @@ export class CadRuntime {
    *
    * replay() 返回的 ExecutionResult.topology 会包含这些缓存数据。
    */
-  setTopology(partId: string, source: TopologySource, data: SelectorRuntimeData): void {
-    this.topologyCache.set(partId, { partId, source, data })
+  setTopology(partName: string, source: TopologySource, data: SelectorRuntimeData): void {
+    this.topologyCache.set(partName, { partName, source, data })
   }
 
   /** 获取拓扑数据 */
-  getTopology(partId: string): PartTopology | undefined {
-    return this.topologyCache.get(partId)
+  getTopology(partName: string): PartTopology | undefined {
+    return this.topologyCache.get(partName)
   }
 
   /** 删除拓扑数据 */
-  deleteTopology(partId: string): void {
-    this.topologyCache.delete(partId)
+  deleteTopology(partName: string): void {
+    this.topologyCache.delete(partName)
   }
 
   // ── 公开：终端几何提取 ──
@@ -517,16 +517,16 @@ export class CadRuntime {
    * 否则返回 mesh Shape（供 STL 导出）。
    */
   getTerminalGeometry(
-    partId: string,
+    scopedId: string,
     result: ExecutionResult,
   ): { shape: Shape; solid?: ShapeHandle; kernel?: OcctKernel } | null {
-    const solid = this.brepSolidCache.get(partId)
+    const solid = this.brepSolidCache.get(scopedId)
     if (solid) {
       // 简化：直接返回 solid 信息，shape 由调用方从 outputs 取
-      return { shape: result.outputs.get(partId) ?? null as unknown as Shape, solid: solid.solid, kernel: solid.kernel }
+      return { shape: result.outputs.get(scopedId) ?? null as unknown as Shape, solid: solid.solid, kernel: solid.kernel }
     }
     // 无 solid → mesh 路径
-    const shape = result.outputs.get(partId)
+    const shape = result.outputs.get(scopedId)
     if (!shape) return null
     return { shape }
   }

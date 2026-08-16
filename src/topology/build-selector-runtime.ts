@@ -331,7 +331,7 @@ function buildReference({
   rowIndex,
   singleOccurrenceId,
   selectorTransform,
-  partId,
+  scopedId,
   relationRows,
   targetRows,
   targetKey,
@@ -343,7 +343,7 @@ function buildReference({
   rowIndex: number
   singleOccurrenceId: string
   selectorTransform: number[] | null
-  partId?: string
+  scopedId?: string
   relationRows?: Uint32Array | number[]
   targetRows?: Record<string, unknown>[]
   targetKey?: string
@@ -354,7 +354,7 @@ function buildReference({
   const displaySelector = normalizedSelector
   const label = `${selectorTypeLabel(selectorType)} ${displaySelector}`
   const summary = referenceSummary(selectorType, row)
-  const id = `topology|${partId || ''}|${selectorType}|${displaySelector}`
+  const id = `topology|${scopedId || ''}|${selectorType}|${displaySelector}`
 
   const adjacentSelectors =
     relationRows && targetRows && startKey && countKey && targetKey
@@ -378,7 +378,7 @@ function buildReference({
     summary,
     shortSummary: summary,
     copyText: summary ? `${displaySelector} ${summary}` : displaySelector,
-    partId,
+    scopedId,
     occurrenceId: row.occurrenceId ? selectorPrefix(singleOccurrenceId, String(row.occurrenceId)) : '',
     shapeId: row.shapeId ? selectorPrefix(singleOccurrenceId, String(row.shapeId)) : '',
     rowIndex,
@@ -484,7 +484,7 @@ export function extractVerticesFromEdges(
 export function buildSelectorRuntimeData(
   bundle: SelectorBundle,
   options: {
-    partId?: string
+    scopedId?: string
     transform?: number[] | null
     /** Scale factor for topology positions (default 0.001 = mm→m for STEP).
      *  STEP data is authored in mm; callers with mm scene units should
@@ -493,7 +493,7 @@ export function buildSelectorRuntimeData(
   } = {},
 ): SelectorRuntimeData {
   const { manifest, buffers } = bundle
-  const { partId = '', transform = null, scale = 0.001 } = options
+  const { scopedId = '', transform = null, scale = 0.001 } = options
 
   // Build a combined transform that includes the mm→m scale factor.
   // STEP topology data is authored in mm.
@@ -610,13 +610,13 @@ export function buildSelectorRuntimeData(
 
   references.push(
     ...occurrences.map((row, i) =>
-      buildReference({ selectorType: 'occurrence', row, rowIndex: i, singleOccurrenceId, selectorTransform: effectiveTransform, partId }),
+      buildReference({ selectorType: 'occurrence', row, rowIndex: i, singleOccurrenceId, selectorTransform: effectiveTransform, scopedId }),
     ),
   )
 
   references.push(
     ...shapes.map((row, i) =>
-      buildReference({ selectorType: 'shape', row, rowIndex: i, singleOccurrenceId, selectorTransform: effectiveTransform, partId }),
+      buildReference({ selectorType: 'shape', row, rowIndex: i, singleOccurrenceId, selectorTransform: effectiveTransform, scopedId }),
     ),
   )
 
@@ -628,7 +628,7 @@ export function buildSelectorRuntimeData(
         rowIndex: i,
         singleOccurrenceId,
         selectorTransform: effectiveTransform,
-        partId,
+        scopedId,
         relationRows: faceRelations,
         targetRows: edges as unknown as Record<string, unknown>[],
         targetKey: 'id',
@@ -646,7 +646,7 @@ export function buildSelectorRuntimeData(
         rowIndex: i,
         singleOccurrenceId,
         selectorTransform: effectiveTransform,
-        partId,
+        scopedId,
         relationRows: edgeRelations,
         targetRows: faces as unknown as Record<string, unknown>[],
         targetKey: 'id',
@@ -676,7 +676,7 @@ export function buildSelectorRuntimeData(
         rowIndex: i,
         singleOccurrenceId,
         selectorTransform: effectiveTransform,
-        partId,
+        scopedId,
       }),
     ),
   )
@@ -697,7 +697,7 @@ export function buildSelectorRuntimeData(
         rowIndex,
         singleOccurrenceId,
         selectorTransform: effectiveTransform,
-        partId,
+        scopedId,
       }),
     )
   }
@@ -719,7 +719,7 @@ export function buildSelectorRuntimeData(
         rowIndex,
         singleOccurrenceId,
         selectorTransform: effectiveTransform,
-        partId,
+        scopedId,
       }),
     )
   }
@@ -800,7 +800,7 @@ export function buildSelectorRuntimeMaps(data: SelectorRuntimeData): SelectorRun
 export function buildSelectorRuntime(
   bundle: SelectorBundle,
   options: {
-    partId?: string
+    scopedId?: string
     transform?: number[] | null
     scale?: number
   } = {},
