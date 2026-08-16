@@ -43,3 +43,4 @@ diag*.png
 coverage/
 docs/patents
 docs/analysis
+.atomcode

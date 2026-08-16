@@ -74,7 +74,7 @@ export type ShapeRef = string                 // 即语句 id
 
 ```ts
 export interface CadStatement {
-  id: string                 // 形如 st_<partLocalSeq> 或 partN_vM（见 §9.2）
+  id: string                 // 语句 id = 文本变量名（UI 层自动生成时为 partN_vM，见 §9.2）
   op: string                 // 见 §5 目录，必须命中白名单
   args: Record<string, Arg>  // 该 op 的完备参数集（见 §5 逐 op 契约）
   inputs: ShapeRef[]         // 上游语句 id（顺序敏感，见各 op）
@@ -82,8 +82,8 @@ export interface CadStatement {
   feature: FeatureMeta
   isMarker?: boolean         // 标记型语句：不进 replay 执行序列，仅供 Timeline 展示
                               //   与 codegen 跳过（如 split 源 part marker、group/assembly marker）
-  model?: string             // 所属模型号（partN），多 mesh DAG 区分不同模型
-  outputs?: string[]         // 多输出 op 的输出 id 列表（split 写 ['partN_vM','partN_vK']）
+  model?: string             // 所属模型号（UI 层自动生成代码为 partN），多 mesh DAG 区分不同模型
+  outputs?: string[]         // 多输出 op 的输出 id 列表（split 写两个输出 id）
   seq?: number               // 全局序列号，timeline 跨 part 线性排序用
   groupScopedId?: string     // group/assembly marker 关联的场景 scopedId
 }
@@ -256,8 +256,8 @@ async function replayScript(
 
 - 平铺语句序列（无 `export default` 包裹、无 `return`、无 `apiVersion` 头——`scriptToCode` 产出格式）
 - `const <name> = <literal>` → `ParamDef`（参数声明，右侧仅字面量）
-- `const part<N>_v<M> = [await] cad.<op>(<inputVar>?, { ...args })` → `CadStatement`（模型 N 的第 M 版；`partN_vM` 既是变量名也是语句 id）
-- `const { front: part<N>_v<M>, back: part<O>_v<M> } = [await] cad.split(<inputVar>, { ...args })` → 多输出语句（front/back 各占新模型号）
+- `const <id> = [await] cad.<op>(<inputVar>?, { ...args })` → `CadStatement`（`<id>` 即语句 id = 变量名；UI 层自动生成代码采用 `partN_vM`）
+- `const { front: <id>, back: <id> } = [await] cad.split(<inputVar>, { ...args })` → 多输出语句（front/back 各为一个输出 id）
 - `cad.faceCenter(part0_v0)` / `cad.faceNormal(...)` / `cad.bboxCenter(...)` / `cad.bboxMin(...)` / `cad.bboxMax(...)` → `GeomRef`（派生位置引用）
 - `cad.group({ ... })` / `cad.assembly({ ... })` 裸调用 → marker 语句（`grp_N`，`isMarker`，不参与执行）
 - 终端 = 自动推导（不被引用的输出即终端 → `PartScript.terminalShapes`）；`meta`（name/color 等）由宿主层管理，不进文本
@@ -274,8 +274,8 @@ const part0_v1 = await cad.drill(part0_v0, { diameter: 5, depth: 0, position: ca
 
 ### 9.2 语句 id 稳定性
 
-- 采用 `partN_vM` 命名（模型 N 的版本 M），既是变量名也是语句 id；`part0` 是主模型，`partN`(N≥1) 为 split/独立图元/布尔派生的其它模型。`st_<partLocalSeq>` 命名仅保留给 load/sdf 等非可编辑来源（以及自动生成的 marker 语句）。
-- parser 加载文本：与既有 PartScript 按 id 对齐（`scriptToCode → parseScript` 往返保 id 稳定），文本新 id 分配遵循 `allocateStatementId`。
+- UI 层自动生成的代码采用 `partN_vM` 命名（模型 N 的版本 M），既是变量名也是语句 id；`part0` 是主模型，`partN`(N≥1) 为 split/独立图元/布尔派生的其它模型。**AI / 手写代码的 id 不受此约束**，可用任意合法 JS 标识符。`st_<partLocalSeq>` 命名仅保留给 load/sdf 等非可编辑来源（以及自动生成的 marker 语句）。
+- parser 加载文本：与既有 PartScript 按 id 对齐（`scriptToCode → parseScript` 往返保 id 稳定）；UI 层自动生成的新 id 遵循 `allocateStatementId`，AI / 手写代码的新 id 由作者自定（不得与既有 id 重复）。
 - 文本导出用变量名而非裸 id，降低跨会话耦合。
 
 ### 9.3 args schema 校验

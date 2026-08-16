@@ -3,7 +3,7 @@
  *
  * 设计文档：docs/plans/2026-08-13-ui-record-faijs-engine.md §B1
  *
- * 命名规则（与 naming-validator 一致）：
+ * 命名规则（partN_vM 格式）：
  * - 无输入（primitive/load/sdf/text/screw/svgExtrude）→ 新模型 partN_v0
  * - 有输入（drill/extrude/engrave/knurl/transform）→ 跟随 inputs[0] 的模型号，版本 +1
  * - 布尔（boolean）→ 新模型 partN_v0（布尔结果是一个新模型）
