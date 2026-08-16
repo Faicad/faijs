@@ -10,7 +10,7 @@
  * - 简单 op（box/sphere/.../drill/engrave/knurl/sdf/translate/rotate/scale）→ 从 SCHEMAS 直接生成
  * - 特殊 op（boolean→3方法、split→4方法、load→3键互斥）→ 硬编码模板
  * - 查询方法（boundingBox/bboxCenter/volume/faceAt）→ 硬编码
- * - GeomRef helper（cad.faceCenter/cad.faceNormal）→ 硬编码
+ * - GeomRef helper（cad.bboxCenter/cad.bboxMin/cad.bboxMax/cad.faceCenter/cad.faceNormal）→ 硬编码
  */
 
 import { SCHEMAS } from '../src/lang/args-schema'
@@ -199,11 +199,20 @@ function generate(): string {
   lines.push(``)
   lines.push(`// ── GeomRef helpers ──`)
   lines.push(``)
-  lines.push(`/** 面心引用：重算时自动跟随面位置 */`)
-  lines.push(`export function faceCenter(of: string, anchor?: [number, number, number]): { $geom: { of: string; feature: 'faceCenter'; anchor?: { point: [number, number, number] } } }`)
+  lines.push(`/** 包围盒中心引用：重算时自动跟随包围盒中心 */`)
+  lines.push(`export function bboxCenter(of: string): { $geom: { of: string; feature: 'bboxCenter' } }`)
   lines.push(``)
-  lines.push(`/** 面法向引用：重算时自动跟随面法向 */`)
-  lines.push(`export function faceNormal(of: string, anchor?: [number, number, number]): { $geom: { of: string; feature: 'faceNormal'; anchor?: { point: [number, number, number] } } }`)
+  lines.push(`/** 包围盒最小角引用 */`)
+  lines.push(`export function bboxMin(of: string): { $geom: { of: string; feature: 'bboxMin' } }`)
+  lines.push(``)
+  lines.push(`/** 包围盒最大角引用 */`)
+  lines.push(`export function bboxMax(of: string): { $geom: { of: string; feature: 'bboxMax' } }`)
+  lines.push(``)
+  lines.push(`/** 面心引用：重算时自动跟随面位置。faceOrdinal 为拓扑面序号（getSubShapes(shape,'face') 中的索引），优先于 anchor 定位 */`)
+  lines.push(`export function faceCenter(of: string, anchor?: [number, number, number] | null, faceOrdinal?: number): { $geom: { of: string; feature: 'faceCenter'; faceOrdinal?: number; anchor?: { point: [number, number, number] } } }`)
+  lines.push(``)
+  lines.push(`/** 面法向引用：重算时自动跟随面法向。faceOrdinal 为拓扑面序号（getSubShapes(shape,'face') 中的索引），优先于 anchor 定位 */`)
+  lines.push(`export function faceNormal(of: string, anchor?: [number, number, number] | null, faceOrdinal?: number): { $geom: { of: string; feature: 'faceNormal'; faceOrdinal?: number; anchor?: { point: [number, number, number] } } }`)
   lines.push(``)
   lines.push(`/** 资产引用：SVG/XML 等大段文本由 AssetResolver 按 key 解析 */`)
   lines.push(`export function asset(key: string): { $asset: string }`)

@@ -68,6 +68,33 @@ export default async (cad) => {
     expect(result.script!.statements).toBe(1)
   })
 
+  it('split destructure: referencing an output id later → ok', () => {
+    // 文档标准形态：split 解构后引用 back 输出 part2_v0（issue: check() 误报 undefined input）
+    const code = `// apiVersion: 1
+export default async (cad) => {
+  const part0_v0 = cad.box({ size: 20 })
+  const { front: part1_v0, back: part2_v0 } = await cad.split(part0_v0, { normal: [0, 0, 1], offset: 0 })
+  const part0_v1 = cad.translate({ offset: [5, 0, 0] }, part2_v0)
+  return { shape: part0_v1 }
+}`
+    const result = makeRuntime().check(code)
+    expect(result.ok).toBe(true)
+    expect(result.errors).toHaveLength(0)
+    expect(result.script!.ops).toEqual(['box', 'split', 'translate'])
+  })
+
+  it('reference precheck: undefined split output id → ok=false', () => {
+    const code = `// apiVersion: 1
+export default async (cad) => {
+  const part0_v0 = cad.box({ size: 20 })
+  const { front: part1_v0, back: part2_v0 } = await cad.split(part0_v0, { normal: [0, 0, 1], offset: 0 })
+  const part0_v1 = cad.translate({ offset: [5, 0, 0] }, part2_v999)
+  return { shape: part0_v1 }
+}`
+    const result = makeRuntime().check(code)
+    expect(result.ok).toBe(false)
+  })
+
   it('parse error: invalid JS → ok=false, stage=parse', () => {
     const code = `export default async (cad) => {
   const part0_v0 = cad.box({ size: 20

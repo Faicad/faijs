@@ -33,11 +33,6 @@
 - `chamfer` 仅在旧设计稿（2026-08-13 命名规则设计）§2 中作为「加工类 op」举例（规划）。
 - 处理：syntax-design 示例改用真实 op（`extrude` / `engrave` 等）；chamfer 实现后另行补契约。
 
-### 2.4 已知代码缺陷（文档描述的是设计意图，代码未实现；非文档修订范畴，但影响示例可运行性）
-
-1. **`CadRuntime.check()` 引用预检不认 split 的 outputs**：`src/cad-runtime/runtime.ts` ③ 只注册 `stmt.id`，不注册 `stmt.outputs` → 文档标准形态 `const { front: part1_v0, back: part2_v0 } = cad.split(...)` 后引用 `part2_v0`，`check()` 误报 `references undefined input "part2_v0"`（实测确认，唯一报错）。执行路径（replay）不受影响。建议修复：预检时把 `stmt.outputs` 一并注册，并补 `check.test.ts` 用例。
-2. **`gen-api-dts` 生成的 AI 素材不全**：`src/mesh/api.d.ts` 的 `faceCenter/faceNormal` 缺 `faceOrdinal` 第三参签名；缺 `bboxMin` / `bboxMax` helper（parser / codegen 均已支持，仅生成素材缺失）。
-
 ---
 
 ## 3. 3d_editor 侧进行中的计划（仅记录，不影响 .faijs 语法契约）

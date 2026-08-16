@@ -558,6 +558,10 @@ export class CadRuntime {
         }
       }
       definedIds.add(stmt.id)
+      // 多输出 op（split）：outputs 也是可引用 id（设计文档 §3）
+      for (const outId of stmt.outputs ?? []) {
+        definedIds.add(outId)
+      }
     }
 
     // ④ 终端引用预检

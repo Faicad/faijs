@@ -1,5 +1,5 @@
 /**
- * mesh API 类型定义 — AI 建模时的提示词素材
+ * cad-core API 类型定义 — AI 建模时的提示词素材
  *
  * ⚠️ 此文件由 scripts/gen-api-dts.ts 从 args-schema 自动生成，禁止手改。
  * 修改 args-schema.ts 后运行：npx tsx scripts/gen-api-dts.ts
@@ -79,11 +79,20 @@ export interface CadAPI {
 
 // ── GeomRef helpers ──
 
-/** 面心引用：重算时自动跟随面位置 */
-export function faceCenter(of: string, anchor?: [number, number, number]): { $geom: { of: string; feature: 'faceCenter'; anchor?: { point: [number, number, number] } } }
+/** 包围盒中心引用：重算时自动跟随包围盒中心 */
+export function bboxCenter(of: string): { $geom: { of: string; feature: 'bboxCenter' } }
 
-/** 面法向引用：重算时自动跟随面法向 */
-export function faceNormal(of: string, anchor?: [number, number, number]): { $geom: { of: string; feature: 'faceNormal'; anchor?: { point: [number, number, number] } } }
+/** 包围盒最小角引用 */
+export function bboxMin(of: string): { $geom: { of: string; feature: 'bboxMin' } }
+
+/** 包围盒最大角引用 */
+export function bboxMax(of: string): { $geom: { of: string; feature: 'bboxMax' } }
+
+/** 面心引用：重算时自动跟随面位置。faceOrdinal 为拓扑面序号（getSubShapes(shape,'face') 中的索引），优先于 anchor 定位 */
+export function faceCenter(of: string, anchor?: [number, number, number] | null, faceOrdinal?: number): { $geom: { of: string; feature: 'faceCenter'; faceOrdinal?: number; anchor?: { point: [number, number, number] } } }
+
+/** 面法向引用：重算时自动跟随面法向。faceOrdinal 为拓扑面序号（getSubShapes(shape,'face') 中的索引），优先于 anchor 定位 */
+export function faceNormal(of: string, anchor?: [number, number, number] | null, faceOrdinal?: number): { $geom: { of: string; feature: 'faceNormal'; faceOrdinal?: number; anchor?: { point: [number, number, number] } } }
 
 /** 资产引用：SVG/XML 等大段文本由 AssetResolver 按 key 解析 */
 export function asset(key: string): { $asset: string }
