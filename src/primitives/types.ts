@@ -1,5 +1,9 @@
-/** 标准 primitive 类型 */
-export type PrimitiveType = 'cube' | 'sphere' | 'cylinder' | 'cone' | 'wedge'
+/**
+ * 标准 primitive 类型。
+ * 注意：'box' 和 'cube' 是同义词——parser 用 'box'（cad.box()），
+ * 内部 BREP 代码用 'cube'。两者都合法。
+ */
+export type PrimitiveType = 'cube' | 'box' | 'sphere' | 'cylinder' | 'cone' | 'wedge'
 
 /** Generator 类型 */
 export type GeneratorType = 'screw' | 'text'

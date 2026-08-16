@@ -82,6 +82,7 @@ function opToFeatureKind(op: string): FeatureMeta['kind'] {
   if (op === 'screwHole') return 'screwHole'
   if (op === 'group') return 'group'
   if (op === 'assembly') return 'assembly'
+  if (op === 'assemble' || op === 'add_constraint' || op === 'do_assemble') return 'assemble'
   return 'primitive'
 }
 
@@ -621,6 +622,7 @@ export function parseScript(code: string, _options?: ParseOptions): ParseResult 
   const statements: CadStatement[] = []
   const paramNames = new Set<string>()
   const varToId = new Map<string, string>()
+  const assemblyVars = new Set<string>()
   let meta: PartScriptMeta | undefined
   let terminalShapes: TerminalShape[] | undefined
 
@@ -629,18 +631,21 @@ export function parseScript(code: string, _options?: ParseOptions): ParseResult 
 
     switch (stmtNode.type) {
       case 'VariableDeclaration': {
-        // 必须是 const
-        if (stmtNode.kind !== 'const') {
-          throw new ParseError(`only 'const' declarations allowed, got '${stmtNode.kind}'`, line)
+        // 允许 const 和 let（let 仅用于装配变量）
+        if (stmtNode.kind !== 'const' && stmtNode.kind !== 'let') {
+          throw new ParseError(`only 'const' or 'let' declarations allowed, got '${stmtNode.kind}'`, line)
         }
         // 单声明器
         if (stmtNode.declarations.length !== 1) {
-          throw new ParseError('only single declarator per const allowed', line)
+          throw new ParseError('only single declarator per const/let allowed', line)
         }
         const decl = stmtNode.declarations[0]
 
         // split 解构：const { front: part1_v0, back: part2_v0 } = await cad.split(...)
         if (decl.id?.type === 'ObjectPattern') {
+          if (stmtNode.kind !== 'const') {
+            throw new ParseError('split destructuring requires const', line)
+          }
           const { stmt, frontVarName, backVarName } = parseSplitDestructuring(decl, paramNames, varToId)
           statements.push(stmt)
           // 注册两个输出变量名 → id
@@ -653,6 +658,53 @@ export function parseScript(code: string, _options?: ParseOptions): ParseResult 
         let init = decl.init
         const isAwait = init?.type === 'AwaitExpression'
         if (isAwait) init = init.argument
+
+        // ── E15.1: let assem1 = cad.assemble({...}) ──
+        if (
+          stmtNode.kind === 'let' &&
+          init?.type === 'CallExpression' &&
+          init.callee?.type === 'MemberExpression' &&
+          init.callee.object?.type === 'Identifier' &&
+          init.callee.object.name === 'cad' &&
+          init.callee.property?.type === 'Identifier' &&
+          init.callee.property.name === 'assemble'
+        ) {
+          if (decl.id?.type !== 'Identifier') {
+            throw new ParseError('let assemble must have identifier name', line)
+          }
+          const varName = decl.id.name
+          const args: Record<string, Arg> = {}
+          for (const argNode of init.arguments) {
+            if (argNode.type === 'ObjectExpression') {
+              const parsed = parseValueExpr(argNode, paramNames, varToId, line)
+              if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+                Object.assign(args, parsed as Record<string, Arg>)
+              } else {
+                throw new ParseError('assemble args must be an object', line)
+              }
+            } else {
+              throw new ParseError(`unexpected argument type in assemble: ${argNode.type}`, line)
+            }
+          }
+          const grpCounter = ++_grpCounter
+          const stmt: CadStatement = {
+            id: `grp_${grpCounter}`,
+            op: 'assemble',
+            args,
+            inputs: [],
+            feature: { kind: 'assemble', label: 'assemble', createdBy: 'script' },
+            isMarker: true,
+            assemblyVar: varName,
+          }
+          statements.push(stmt)
+          assemblyVars.add(varName)
+          break
+        }
+
+        // let 不允许用于其他场景
+        if (stmtNode.kind === 'let') {
+          throw new ParseError("'let' is only allowed for cad.assemble() declarations", line)
+        }
 
         if (
           init?.type === 'CallExpression' &&
@@ -722,26 +774,69 @@ export function parseScript(code: string, _options?: ParseOptions): ParseResult 
               }
             } else {
               throw new ParseError(`unexpected argument type in ${opName}: ${argNode.type}`, line)
+              }
             }
+            const grpCounter = ++_grpCounter
+            const markerStmt: CadStatement = {
+              id: `grp_${grpCounter}`,
+              op: opName,
+              args,
+              inputs: [],
+              feature: { kind: opName as 'group' | 'assembly', label: opName, createdBy: 'script' },
+              isMarker: true,
+            }
+            statements.push(markerStmt)
+            break
           }
-          const grpCounter = ++_grpCounter
-          const markerStmt: CadStatement = {
-            id: `grp_${grpCounter}`,
-            op: opName,
-            args,
-            inputs: [],
-            feature: { kind: opName as 'group' | 'assembly', label: opName, createdBy: 'script' },
-            isMarker: true,
+
+          // ── E15.1: 装配链式调用成员方法 ──
+          // assem1.add_constraint({ ... }) / assem1.do_assemble()
+          if (
+            expr?.type === 'CallExpression' &&
+            expr.callee?.type === 'MemberExpression' &&
+            expr.callee.object?.type === 'Identifier' &&
+            expr.callee.property?.type === 'Identifier' &&
+            (expr.callee.property.name === 'add_constraint' || expr.callee.property.name === 'do_assemble')
+          ) {
+            const targetVar = expr.callee.object.name
+            const methodName = expr.callee.property.name
+            // 验证 targetVar 是已声明的装配变量
+            if (!varToId.has(targetVar) && !assemblyVars.has(targetVar)) {
+              throw new ParseError(`unknown assembly variable "${targetVar}" in .${methodName}() call`, line)
+            }
+            const grpCounter = ++_grpCounter
+            const args: Record<string, Arg> = {}
+            for (const argNode of expr.arguments) {
+              if (argNode.type === 'ObjectExpression') {
+                const parsed = parseValueExpr(argNode, paramNames, varToId, line)
+                if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+                  Object.assign(args, parsed as Record<string, Arg>)
+                } else {
+                  throw new ParseError(`${methodName} args must be an object`, line)
+                }
+              } else if (argNode.type !== 'undefined') {
+                throw new ParseError(`unexpected argument type in ${methodName}: ${argNode.type}`, line)
+              }
+            }
+            const memberStmt: CadStatement = {
+              id: `grp_${grpCounter}`,
+              op: methodName,
+              args,
+              inputs: [],
+              feature: { kind: 'assemble', label: methodName, createdBy: 'script' },
+              isMarker: true,
+              assemblyTarget: targetVar,
+            }
+            statements.push(memberStmt)
+            break
           }
-          statements.push(markerStmt)
-          break
+
+          // All other bare expression statements are not allowed
+          throw new ParseError(
+            `bare expression statements not allowed; use 'const part0_vN = cad.op(...)' instead`,
+            line,
+          )
         }
-        // All other bare expression statements are not allowed
-        throw new ParseError(
-          `bare expression statements not allowed; use 'const part0_vN = cad.op(...)' instead`,
-          line,
-        )
-      }
 
       default:
         throw new ParseError(`unsupported statement: ${stmtNode.type}`, line)

@@ -23,6 +23,11 @@ export interface WasmImportResult {
 let kernelInstance: OcctKernel | null = null
 let initPromise: Promise<OcctKernel> | null = null
 
+// F5 设计意图说明：
+// kernelInstance / initPromise 是环境级单例，不是实例级。
+// 在整个浏览器页面/Node 进程中，OCCT WASM 只应初始化一次。
+// 多个 CadRuntime 实例共享同一个 kernel 是正确的行为。
+
 /** 浏览器 host 注入的 OCCT 初始化函数 */
 let customInitFn: (() => Promise<OcctKernel>) | null = null
 

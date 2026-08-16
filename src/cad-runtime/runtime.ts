@@ -30,6 +30,8 @@ import { executeStatement as dispatchStatement } from '../ops/dispatcher'
 import { parseScript, ParseError } from '../lang/parser'
 import { validateStatementArgs } from '../lang/args-schema'
 import type { HostPorts, ExecutionMode } from './ports'
+import type { SelectorRuntimeData } from '../topology/build-selector-runtime'
+import type { SelectorRuntime } from '../topology/types'
 
 // ── 类型定义 ──
 
@@ -48,6 +50,29 @@ export interface CheckResult {
   script?: { statements: number; ops: string[] }
 }
 
+/**
+ * 拓扑来源类型 — 静态判定，不混用。
+ * - `brep`：BREP 真拓扑（stepRuntimes），由 OCCT solid 构建
+ * - `primitive`：primitive 假拓扑（primitiveRuntimes），创建时刻快照
+ * - `mesh`：mesh 假拓扑（meshRuntimes），加载时刻快照
+ */
+export type TopologySource = 'brep' | 'primitive' | 'mesh'
+
+/**
+ * 单个 part 的拓扑数据 — 由 ExecutionResult 携带，宿主从结果消费。
+ *
+ * 宿主不应再直接 import faijs 的拓扑构建函数（buildSelectorRuntime 等），
+ * 而是从 ExecutionResult.topology 中读取。
+ */
+export interface PartTopology {
+  /** partId（终端语句 id） */
+  partId: string
+  /** 拓扑来源（静态判定） */
+  source: TopologySource
+  /** 序列化的拓扑数据（可跨 Worker 传输） */
+  data: SelectorRuntimeData
+}
+
 export interface ExecutionResult {
   /** 语句输出缓存（stmtId → Shape） */
   outputs: Map<string, Shape>
@@ -61,6 +86,12 @@ export interface ExecutionResult {
   failedAt?: { index: number; op: string; message: string }
   /** 终端 BREP solid（如果链未断裂） */
   brepSolid?: { solid: ShapeHandle; kernel: OcctKernel }
+  /**
+   * 拓扑数据 — 每个 part 的拓扑运行时。
+   * E13：由 ExecutionResult 携带，宿主从结果消费。
+   * 拓扑来源静态判定：BREP 成功时 source='brep'，否则根据 part 类型判定。
+   */
+  topology?: Map<string, PartTopology>
 }
 
 export interface ReplayOptions {
@@ -128,6 +159,13 @@ export class CadRuntime {
 
   /** BREP solid 缓存：partId → { solid, kernel }（实例级，公开供外部只读访问） */
   readonly brepSolidCache = new Map<string, { solid: ShapeHandle; kernel: OcctKernel }>()
+
+  /**
+   * 拓扑数据缓存：partId → PartTopology（实例级）
+   * E13：宿主不再直接 import faijs 拓扑构建函数，而是从 ExecutionResult.topology 消费。
+   * 拓扑构建由宿主在 replay 后调用 setTopology 注入（BREP 路径）或由加载时注入（mesh/primitive 路径）。
+   */
+  private topologyCache = new Map<string, PartTopology>()
 
   constructor(ports: HostPorts, mode: ExecutionMode = 'auto') {
     this.ports = ports
@@ -240,6 +278,7 @@ export class CadRuntime {
       terminals,
       infos,
       brepSolid,
+      topology: this.topologyCache.size > 0 ? new Map(this.topologyCache) : undefined,
     }
   }
 
@@ -443,6 +482,32 @@ export class CadRuntime {
     this.brepSolidCache.delete(partId)
   }
 
+  // ── 公开：拓扑数据缓存 ──
+
+  /**
+   * 写入拓扑数据缓存（E13）。
+   *
+   * 宿主在以下时机调用：
+   * - BREP 执行成功后：用 buildSolidTopologyRuntime 构建 source='brep' 的拓扑
+   * - 文件加载时：用 buildSelectorRuntime 构建 source='mesh' 的拓扑
+   * - primitive 创建时：用 primitive 拓扑构建函数构建 source='primitive' 的拓扑
+   *
+   * replay() 返回的 ExecutionResult.topology 会包含这些缓存数据。
+   */
+  setTopology(partId: string, source: TopologySource, data: SelectorRuntimeData): void {
+    this.topologyCache.set(partId, { partId, source, data })
+  }
+
+  /** 获取拓扑数据 */
+  getTopology(partId: string): PartTopology | undefined {
+    return this.topologyCache.get(partId)
+  }
+
+  /** 删除拓扑数据 */
+  deleteTopology(partId: string): void {
+    this.topologyCache.delete(partId)
+  }
+
   // ── 公开：终端几何提取 ──
 
   /**
@@ -595,6 +660,7 @@ export class CadRuntime {
     }
     this.brepSolidCache.clear()
     this.statementCache.clear()
+    this.topologyCache.clear()
   }
 }
 

@@ -230,6 +230,7 @@ export type PrimitiveParams = BoxParams | SphereParams | CylinderParams | ConePa
 function sizeToParams(type: PrimitiveType | 'screw' | 'text', size: number): PrimitiveParams {
   switch (type) {
     case 'cube':
+    case 'box':
       return { size }
     case 'sphere':
       return { radius: size / 2 }
@@ -266,6 +267,7 @@ export function primitiveToBrepSolid(
 
   switch (type) {
     case 'cube':
+    case 'box':
       return { solid: cubeToCadSolid(kernel, fullParams as BoxParams), path: 'primitive', type }
 
     case 'sphere':

@@ -1,5 +1,10 @@
 /**
- * manifold-loader — 单例加载 manifold-3d 核心模块（manifold.js，非 manifoldCAD）
+ * manifold-loader — 环境级单例加载 manifold-3d 核心模块
+ *
+ * F5 设计意图说明：
+ * manifoldPromise 是环境级单例，不是实例级。
+ * 在整个浏览器页面/Node 进程中，manifold-3d WASM 只应初始化一次。
+ * 多个 CadRuntime 实例共享同一个 manifold 模块是正确的行为。
  *
  * 浏览器与 Node 共用（node-host 的 Inline 后端与浏览器 Worker 后端都走这里）。
  * 加载逻辑复刻 manifold-3d lib/wasm.js 的 instantiateManifold：

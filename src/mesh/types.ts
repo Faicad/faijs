@@ -29,11 +29,13 @@ export type JsonValue =
 /**
  * 几何形状 — mesh 的核心数据类型。
  *
- * 定义已移至 L1 层（@/ops/types.ts），此处重新导出以保持向后兼容。
- * L3 代码可继续从 @/mesh/types 导入 Shape。
+ * F3 修复：Shape 在 mesh/types.ts 中直接定义，不再从 ops/types.ts re-export。
+ * ops/types.ts 反向从此处 import，消除类型环。
  */
-import type { Shape } from '../ops/types'
-export type { Shape }
+export interface Shape {
+  positions: Float32Array
+  indices: Uint32Array
+}
 
 // ── 创建参数 ──
 

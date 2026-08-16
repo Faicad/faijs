@@ -18,6 +18,7 @@ export function makePrimitiveGeo(
   let geo: THREE.BufferGeometry
   switch (type) {
     case 'cube':
+    case 'box':
       geo = new THREE.BoxGeometry(s, s, s)
       geo.applyMatrix4(ROT_Y_TO_Z)
       break

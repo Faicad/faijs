@@ -1,13 +1,27 @@
 ﻿/**
- * @faicad/faijs/browser — Browser-safe exports
+ * @faicad/faijs/browser — Browser-safe exports (F6: A/B/C/D 四类收敛)
  *
  * Excludes L3 Node Host modules (node-host/*) that depend on node:fs/node:path.
  * Use this entry point in browser/worker contexts to avoid pulling in Node.js code.
  *
  * For full exports (including Node.js), use @faicad/faijs instead.
+ *
+ * 导出分类（契约 §11 白名单四类）：
+ * - A 类 = lang/ 全部导出（脚本类型 + 构建辅助 + 接口约定类型 + 常量）
+ * - B 类 = cad-runtime/ + createBrowserPorts + 外部资源注入点 + 执行位置选项
+ * - C 类 = 执行产物类型（Shape + 拓扑数据类型 + buildSelectorRuntimeMaps）
+ * - D 类 = 辅助函数 + 预览 API（明确导出后使用）
+ *
+ * ⚠️ deprecated 区：以下符号已标记为 deprecated，3d_editor 侧 E12 迁移完成后移除：
+ *   - L1 内部执行引擎 API（executeStatement / BREP chain / OCCT kernel 底层函数）
+ *   - 底层拓扑构建函数（已被 ExecutionResult.topology 替代）
+ *   - getManifoldModule（已交由 CsgBackend）
  */
 
-// ── L0 文本层 ──
+// ═══════════════════════════════════════════════════════════
+// A 类：lang/ 全部导出（脚本类型 + 构建辅助 + 接口约定类型 + 常量）
+// ═══════════════════════════════════════════════════════════
+
 export type {
   PartScript, CadStatement, Arg, Vec3, JsonValue, ShapeRef,
   ParamRef, GeomRef, AssetRef, FeatureKind, FeatureMeta,
@@ -28,111 +42,12 @@ export { statementToLine, scriptToCode, fmtNum, buildArgsParts } from './lang/co
 export { validateStatementArgs, validateScriptArgs, getOpSchema, hasOpSchema } from './lang/args-schema'
 export type { OpSchema, ArgFieldSchema, ArgType, ValidationError } from './lang/args-schema'
 
-// ── L1 几何执行层 ──
-export type { Shape, OpContext } from './ops/types'
-export { executeStatement } from './ops/dispatcher'
-export { canUseBrep } from './ops/types'
-export { resolveGeomRef } from './ops/geom-ref'
-export type { BrepChainState } from './brep/brep-chain'
-export {
-  createBrepChainState, initBrepChainState, releaseBrepChainState,
-  breakBrepChain, lastSolidOfChain,
-  BREP_NATIVE_OPS, MESH_ONLY_OPS, isCadFormat,
-} from './brep/brep-chain'
-export {
-  solidToShape,
-  translateBrep, rotateBrep, scaleBrep,
-  fuseBrep, cutBrep, commonBrep,
-  drillBrep, splitBrep, extrudeBrep,
-  loadBrep, matrixToArray,
-} from './brep/brep-ops'
-export { getSolidBoundingBox } from './brep/brep-utils'
-export type { DrillBrepParams, SplitBrepParams, SplitBrepResult, ExtrudeBrepParams } from './brep/brep-ops'
-export { buildStlBufferFromMesh } from './brep/export/stl'
-export { exportStepFromSolid } from './brep/export/step'
-export { cad } from './mesh'
-export { faceAt } from './mesh/query'
-export type {
-  BoundingBox, FaceDescriptor,
-  BoxParams, SphereParams, CylinderParams, ConeParams, WedgeParams,
-  TextParams, SvgExtrudeParams, SdfParams,
-  DrillParams, ExtrudeParams, EngraveParams, KnurlParams,
-  SplitPlane, SplitResult,
-} from './mesh/types'
-export { NRAD_DEFAULT, NRAD_MIN, NRAD_MAX, clampNRad } from './mesh/types'
+// ═══════════════════════════════════════════════════════════
+// B 类：cad-runtime/ + createBrowserPorts + 外部资源注入点
+// ═══════════════════════════════════════════════════════════
 
-// ── L1 Boolean/CSG 辅助 ──
-export { computeSection, buildExtrudedProfile } from './boolean/cross-section'
-export { manifoldToMeshData, weldPositionsWorker, dovetailBooleanSplit, dowelOrTenonBooleanSplit, chainBoolean, meshToManifold } from './boolean/csg-core'
-export { deriveNormals } from './boolean/deriveNormals'
-export { buildExtrudeParts, makeWorldPlane } from './boolean/extrude-helpers'
-export type { ExtrudeParts, ExtrudeOffsetMode } from './boolean/extrude-helpers'
-export {
-  buildWedgeGeometry, buildDowelGeometry, buildStraightTenonGeometry,
-} from './boolean/joinery-shapes'
-export type { JoineryMeshData } from './boolean/joinery-shapes'
-
-// ── CSG Backend ──
-export { geoToManifoldMesh, manifoldMeshToGeo } from './boolean/geo-convert'
-export type {
-  ManifoldMeshData, BooleanOperation,
-  DovetailGrooveParams, DowelSplitParams, StraightTenonSplitParams,
-} from './boolean/geo-convert'
-
-// ── L1 Primitives ──
-export { mergeBufferGeometries, makePrimitiveGeo, DEFAULT_SIZE, applyPrimitiveOffset } from './primitives/mesh-primitives'
-export { makeScrew } from './primitives/screw/screw'
-export { getScrewSpec, getScrewSpecs, threadToPitchMm, SCREW_HEAD_DIMS } from './primitives/screw/screw-db'
-export type { ScrewParams, ScrewSpec, ScrewSystem } from './primitives/screw/screw-db'
-export { svgToExtrudedGeometry } from './primitives/svg-extrude'
-export {
-  extractMeshData, primitiveToBrepSolid, geometryToBrepSolid,
-  brepSolidToStep, primitiveToBrepStep,
-} from './primitives/brep-primitives'
-export type { PrimitiveToBrepResult, PrimitiveParams } from './primitives/brep-primitives'
-export { loadSystemCjkFont, containsCjk, isCjkChar, createMixedTextGeometry } from './primitives/text/cjk'
-export type { CjkFontResult } from './primitives/text/cjk'
-export { createTextGeometry, getOpentypeFont, opentypePathToGeometry } from './primitives/text-geometry'
-export type {
-  PrimitiveType, PrimitiveParamsRecord, PrimitiveArgsRecord, PrimitiveMeta,
-} from './primitives/types'
-export { nextPrimitiveColor } from './primitives/types'
-
-// ── L1 SDF ──
-export type { SdfMeshData } from './sdf/sdf-runner'
-export { SDF_TEMPLATES, DEFAULT_SDF_TEMPLATE } from './sdf/templates'
-export type {
-  SdfMeta, SdfBox, SdfParamDef, SdfTemplateCategory,
-  SdfWorkerInput, SdfWorkerMessage,
-} from './sdf/types'
-export { boxToTuple, parseParamDefs, defaultParamValues } from './sdf/types'
-export { runSdfInline } from './sdf/sdf-core'
-
-// ── L1 Knurl ──
-export { applyKnurlDisplacement, KNURL_DEFAULTS } from './mesh/knurl/KnurlGenerator'
-export type { KnurlBounds } from './mesh/knurl/KnurlGenerator'
-export { subdivide } from './mesh/knurl/subdivision'
-export { loadKnurlingTexture } from './mesh/knurl/textureLoader'
-export type { TextureData } from './mesh/knurl/textureLoader'
-export { QuantizedPointMap, weldVertices } from './mesh/knurl/meshIndex'
-export { computeUV, MODE_TRIPLANAR, getCubicBlendWeights, type MappingSettings } from './mesh/knurl/mapping'
-export { applyDisplacement, type DisplacementSettings } from './mesh/knurl/displacement'
-
-// ── L1 Topology ──
-export { TOPOLOGY_FACE_ID_NONE, buildFaceIdsForPart } from './topology/build-face-ids'
-export {
-  buildSelectorRuntime, buildSelectorRuntimeData, buildSelectorRuntimeMaps,
-} from './topology/build-selector-runtime'
-export type { SelectorRuntimeData } from './topology/build-selector-runtime'
-export type {
-  SelectorRuntime, SelectorBundle, SelectorManifest, SelectorBuffers,
-  FaceRow, EdgeRow, Reference,
-  BufferViewDescriptor, SelectorProxy,
-} from './topology/types'
-
-// ── L2 编排层 ──
-export { CadRuntime, createRuntime, computeContentKey } from './cad-runtime/runtime'
-export type { ExecutionResult, ReplayOptions, CheckResult, CheckError } from './cad-runtime/runtime'
+export { CadRuntime, createRuntime } from './cad-runtime/runtime'
+export type { ExecutionResult, ReplayOptions, CheckResult, CheckError, PartTopology, TopologySource } from './cad-runtime/runtime'
 export type {
   HostPorts,
   CsgBackend, SdfBackend, FontProvider, TextureSampler,
@@ -143,38 +58,14 @@ export type {
   StraightTenonSplitParams as PortStraightTenonSplitParams,
 } from './cad-runtime/ports'
 
-// ── OCCT Kernel ──
-export {
-  initOcctWasm, getKernel, disposeOcctWasm, setOcctWasmInitFn,
-  computeEffectiveDeflection, importStepToMesh, importBrepToMesh,
-  meshesToStep, releaseShape,
-  importAssemblyFromStep, releaseAssemblyTree, collectLeafParts,
-} from './occt-kernel/occtKernel'
-export type {
-  WasmTessellatedMesh, WasmImportResult, AssemblyPartNode,
-  MeshDeflectionOptions, ShapeHandle, OcctKernel,
-  Mesh, EdgeData, SurfaceKind, CurveKind,
-} from './occt-kernel/occtKernel'
-
-// ── OCCT Mesh Reconstruct ──
-export { reconstructSolidFromMesh, meshToAsciiStl, cadShapeIsValid, meshToStepBrep } from './occt-kernel/meshReconstruct'
-
-// ── OCCT Topology Extension ──
-export { buildSelectorManifest, buildAssemblySelectorManifest } from './occt-kernel/topologyExt'
-export type { SelectorManifestInput, PartTopologyInput, AssemblyTopologyResult } from './occt-kernel/topologyExt'
-
-// ── BREP Topology ──
-export { buildSolidTopologyRuntime } from './brep/brep-topology'
-export type { SolidTopologyResult } from './brep/brep-topology'
-
-// ── BREP ops (engrave etc.) ──
-export { executeEngrave } from './ops/engrave'
-
-// ── Font Registry (for browser host injection) ──
+// 外部资源注入点
+export { setManifoldWasmUrl, getManifoldWasmUrl } from './mesh/manifold-loader'
+export { setOcctWasmInitFn } from './occt-kernel/occtKernel'
 export { setFontLoader, getFontLoader, loadFont, ensureDefaultFont, getFont, clearFonts } from './brep/text/fontRegistry'
 export type { FontLoader } from './brep/text/fontRegistry'
+export { setKnurlTextureLoader } from './mesh/knurl/textureLoader'
 
-// ── L3 Browser Host ──
+// L3 Browser Host 工厂
 export { createBrowserPorts } from './browser-host'
 export type { CreateBrowserPortsOptions } from './browser-host'
 export { BrowserEventSink } from './browser-host/browser-event-sink'
@@ -182,13 +73,176 @@ export { BrowserFontProvider } from './browser-host/browser-font-provider'
 export type { BrowserFontProviderOptions } from './browser-host/browser-font-provider'
 export { FetchAssetResolver } from './browser-host/fetch-asset-resolver'
 export type { FetchAssetResolverOptions } from './browser-host/fetch-asset-resolver'
-
-// ── Manifold Loader (WASM URL injection) ──
-export { setManifoldWasmUrl, getManifoldWasmUrl, getManifoldModule } from './mesh/manifold-loader'
-
-// ── Knurl Texture Loader (browser host injection) ──
-export { setKnurlTextureLoader } from './mesh/knurl/textureLoader'
-
-// ── Worker Backends (for consumers that want Worker-based CSG/SDF) ──
 export { WorkerCsgBackend } from './browser-host/worker-csg-backend'
 export { WorkerSdfBackend } from './browser-host/worker-sdf-backend'
+
+// E12.2: OCCT 高层 API（B 类——宿主用这些替代底层 kernel 函数）
+export { importStep, exportStep, releaseSolid, ensureOcctKernel, disposeOcct } from './occt-kernel/highLevelApi'
+export type { ImportStepResult, ExportStepOptions } from './occt-kernel/highLevelApi'
+
+// E15.1: 装配约束求解器（D 类预览 API + B 类执行 API）
+export {
+  solveFaceMate, applyTransform, executeDoAssemble, previewAssembly,
+} from './ops/assemble'
+export type {
+  FaceMateConstraint, AssemblyConstraint, AssemblyDefinition,
+} from './ops/assemble'
+
+// ═══════════════════════════════════════════════════════════
+// C 类：执行产物类型（Shape + 拓扑数据类型 + buildSelectorRuntimeMaps）
+// ═══════════════════════════════════════════════════════════
+
+export type { Shape } from './ops/types'
+export type { OpContext } from './ops/types'
+
+// 拓扑数据类型
+export type { SelectorRuntimeData } from './topology/build-selector-runtime'
+export type {
+  SelectorRuntime, SelectorBundle, SelectorManifest, SelectorBuffers,
+  FaceRow, EdgeRow, Reference,
+  BufferViewDescriptor, SelectorProxy,
+} from './topology/types'
+
+// buildSelectorRuntimeMaps: C 类（从 SelectorRuntimeData 构建 SelectorRuntime Maps）
+export { buildSelectorRuntimeMaps } from './topology/build-selector-runtime'
+
+// 拓扑常量
+export { TOPOLOGY_FACE_ID_NONE } from './topology/build-face-ids'
+
+// D 类辅助：拓扑构建函数（宿主在加载时刻调用，构建 mesh/primitive 假拓扑）
+// 注意：这些只在加载/创建时刻合法，变更后不重新生成
+export { buildSelectorRuntime, buildSelectorRuntimeData } from './topology/build-selector-runtime'
+export { buildFaceIdsForPart } from './topology/build-face-ids'
+export { buildSolidTopologyRuntime } from './brep/brep-topology'
+export type { SolidTopologyResult } from './brep/brep-topology'
+export { buildSelectorManifest, buildAssemblySelectorManifest } from './occt-kernel/topologyExt'
+export type { SelectorManifestInput, PartTopologyInput, AssemblyTopologyResult } from './occt-kernel/topologyExt'
+
+// C 类辅助：面查询
+export { faceAt } from './mesh/query'
+export type {
+  BoundingBox, FaceDescriptor,
+  BoxParams, SphereParams, CylinderParams, ConeParams, WedgeParams,
+  TextParams, SvgExtrudeParams, SdfParams,
+  DrillParams, ExtrudeParams, EngraveParams, KnurlParams,
+  SplitPlane, SplitResult,
+} from './mesh/types'
+export { NRAD_DEFAULT, NRAD_MIN, NRAD_MAX, clampNRad } from './mesh/types'
+
+// SDF 类型
+export type { SdfMeshData } from './sdf/sdf-runner'
+export { SDF_TEMPLATES, DEFAULT_SDF_TEMPLATE } from './sdf/templates'
+export type {
+  SdfMeta, SdfBox, SdfParamDef, SdfTemplateCategory,
+  SdfWorkerInput, SdfWorkerMessage,
+} from './sdf/types'
+export { boxToTuple, parseParamDefs, defaultParamValues } from './sdf/types'
+
+// Primitive 类型
+export type {
+  PrimitiveType, PrimitiveParamsRecord, PrimitiveArgsRecord, PrimitiveMeta,
+} from './primitives/types'
+export { nextPrimitiveColor } from './primitives/types'
+export type { ScrewParams, ScrewSpec, ScrewSystem } from './primitives/screw/screw-db'
+export { getScrewSpec, getScrewSpecs, threadToPitchMm, SCREW_HEAD_DIMS } from './primitives/screw/screw-db'
+export type { CjkFontResult } from './primitives/text/cjk'
+export { loadSystemCjkFont, containsCjk, isCjkChar } from './primitives/text/cjk'
+export { getOpentypeFont } from './primitives/text-geometry'
+
+// Boolean/CSG 辅助类型
+export type { ExtrudeParts, ExtrudeOffsetMode } from './boolean/extrude-helpers'
+export type { JoineryMeshData } from './boolean/joinery-shapes'
+export type {
+  ManifoldMeshData, BooleanOperation,
+  DovetailGrooveParams, DowelSplitParams, StraightTenonSplitParams,
+} from './boolean/geo-convert'
+export type { TextureData } from './mesh/knurl/textureLoader'
+export type { KnurlBounds } from './mesh/knurl/KnurlGenerator'
+export type { DrillBrepParams, SplitBrepParams, SplitBrepResult, ExtrudeBrepParams } from './brep/brep-ops'
+export type { PrimitiveToBrepResult, PrimitiveParams } from './primitives/brep-primitives'
+
+// ═══════════════════════════════════════════════════════════
+// D 类：辅助函数 + 预览 API
+// ═══════════════════════════════════════════════════════════
+
+// 预览 API（D 类——宿主用这些做交互预览，不提交几何）
+export { cad } from './mesh'
+export { deriveNormals } from './boolean/deriveNormals'
+export { computeSection, buildExtrudedProfile } from './boolean/cross-section'
+export { buildExtrudeParts, makeWorldPlane } from './boolean/extrude-helpers'
+export {
+  buildWedgeGeometry, buildDowelGeometry, buildStraightTenonGeometry,
+} from './boolean/joinery-shapes'
+export { geoToManifoldMesh, manifoldMeshToGeo } from './boolean/geo-convert'
+export { manifoldToMeshData, weldPositionsWorker, dovetailBooleanSplit, dowelOrTenonBooleanSplit, chainBoolean, meshToManifold } from './boolean/csg-core'
+export { svgToExtrudedGeometry } from './primitives/svg-extrude'
+export { createTextGeometry, opentypePathToGeometry } from './primitives/text-geometry'
+export { runSdfInline } from './sdf/sdf-core'
+export { createMixedTextGeometry } from './primitives/text/cjk'
+
+// Knurl D 类
+export { applyKnurlDisplacement, KNURL_DEFAULTS } from './mesh/knurl/KnurlGenerator'
+export { subdivide } from './mesh/knurl/subdivision'
+export { loadKnurlingTexture } from './mesh/knurl/textureLoader'
+export { QuantizedPointMap, weldVertices } from './mesh/knurl/meshIndex'
+export { computeUV, MODE_TRIPLANAR, getCubicBlendWeights, type MappingSettings } from './mesh/knurl/mapping'
+export { applyDisplacement, type DisplacementSettings } from './mesh/knurl/displacement'
+
+// Primitive D 类（预览用）
+export { mergeBufferGeometries, makePrimitiveGeo, DEFAULT_SIZE, applyPrimitiveOffset } from './primitives/mesh-primitives'
+export { makeScrew } from './primitives/screw/screw'
+export {
+  extractMeshData, primitiveToBrepSolid, geometryToBrepSolid,
+  brepSolidToStep, primitiveToBrepStep,
+} from './primitives/brep-primitives'
+
+// BREP 辅助（D 类）
+export {
+  solidToShape,
+  translateBrep, rotateBrep, scaleBrep,
+  fuseBrep, cutBrep, commonBrep,
+  drillBrep, splitBrep, extrudeBrep,
+  loadBrep, matrixToArray,
+} from './brep/brep-ops'
+export { getSolidBoundingBox } from './brep/brep-utils'
+export { buildStlBufferFromMesh } from './brep/export/stl'
+export { exportStepFromSolid } from './brep/export/step'
+export { executeEngrave } from './ops/engrave'
+export { reconstructSolidFromMesh, meshToAsciiStl, cadShapeIsValid, meshToStepBrep } from './occt-kernel/meshReconstruct'
+
+// ═══════════════════════════════════════════════════════════
+// ⚠️ deprecated 区：L1 内部执行引擎 API（3d_editor E12 迁移后移除）
+// 红线 6：宿主不应 import 这些符号。以下保留仅为兼容过渡。
+// ═══════════════════════════════════════════════════════════
+
+/** @deprecated 用 CadRuntime.replay() 替代手动逐语句执行 */
+export { executeStatement } from './ops/dispatcher'
+/** @deprecated 用 CadRuntime.replay() 替代 */
+export { computeContentKey } from './cad-runtime/runtime'
+/** @deprecated BREP 链是执行内部状态，宿主不应触碰；用 CadRuntime.replay() */
+export { canUseBrep } from './ops/types'
+/** @deprecated BREP 链是执行内部状态，宿主不应触碰；用 CadRuntime.replay() */
+export { resolveGeomRef } from './ops/geom-ref'
+/** @deprecated BREP 链是执行内部状态，宿主不应触碰；用 CadRuntime.replay() */
+export type { BrepChainState } from './brep/brep-chain'
+/** @deprecated BREP 链是执行内部状态，宿主不应触碰；用 CadRuntime.replay() */
+export {
+  createBrepChainState, initBrepChainState, releaseBrepChainState,
+  breakBrepChain, lastSolidOfChain,
+  BREP_NATIVE_OPS, MESH_ONLY_OPS, isCadFormat,
+} from './brep/brep-chain'
+/** @deprecated 用高层 API importStep/exportStep 替代 */
+export {
+  initOcctWasm, getKernel, disposeOcctWasm,
+  computeEffectiveDeflection, importStepToMesh, importBrepToMesh,
+  meshesToStep, releaseShape,
+  importAssemblyFromStep, releaseAssemblyTree, collectLeafParts,
+} from './occt-kernel/occtKernel'
+/** @deprecated 用高层 API 类型替代 */
+export type {
+  WasmTessellatedMesh, WasmImportResult, AssemblyPartNode,
+  MeshDeflectionOptions, ShapeHandle, OcctKernel,
+  Mesh, EdgeData, SurfaceKind, CurveKind,
+} from './occt-kernel/occtKernel'
+/** @deprecated 交由 faijs CsgBackend */
+export { getManifoldModule } from './mesh/manifold-loader'

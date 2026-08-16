@@ -6,10 +6,12 @@
  *
  * Node 环境：默认使用 InlineCsgBackend（主线程直跑 manifold-3d）。
  * 浏览器环境：通过 setCsgBackend() 注入 WorkerCsgBackend。
+ *
+ * F1 修复：不静态 import browser-host/inline-csg-backend（L1 不依赖 L3）。
+ * 改为延迟动态 import，仅在未注入后端时按需加载。
  */
 
 import type { CsgBackend } from '../cad-runtime/ports'
-import { InlineCsgBackend } from '../browser-host/inline-csg-backend'
 import type {
   ManifoldMeshData,
   BooleanOperation,
@@ -27,11 +29,15 @@ export function setCsgBackend(backend: CsgBackend): void {
   _backend = backend
 }
 
-/** 获取当前 CSG 后端（默认 InlineCsgBackend） */
-function getBackend(): CsgBackend {
-  if (!_backend) {
-    _backend = new InlineCsgBackend()
-  }
+/**
+ * 获取当前 CSG 后端。
+ * F1 修复：延迟动态 import InlineCsgBackend，避免 L1 静态依赖 L3。
+ */
+async function getBackend(): Promise<CsgBackend> {
+  if (_backend) return _backend
+  // 延迟加载——仅在实际需要时才拉入 L3 代码
+  const { InlineCsgBackend } = await import('../browser-host/inline-csg-backend')
+  _backend = new InlineCsgBackend()
   return _backend
 }
 
@@ -41,7 +47,7 @@ export async function computeBoolean(
   meshes: ManifoldMeshData[],
   operation: BooleanOperation,
 ): Promise<ManifoldMeshData> {
-  const backend = getBackend()
+  const backend = await getBackend()
   return backend.boolean(operation, meshes)
 }
 
@@ -50,7 +56,7 @@ export async function computeSplit(
   normal: [number, number, number],
   offset: number,
 ): Promise<{ front: ManifoldMeshData; back: ManifoldMeshData }> {
-  const backend = getBackend()
+  const backend = await getBackend()
   const result = await backend.splitPlane(mesh, { normal, offset })
   return { front: result.front, back: result.back }
 }
@@ -64,7 +70,7 @@ export async function computeDovetailSplit(
   bboxWidthOnWidthDir: number,
   groove: DovetailGrooveParams,
 ): Promise<{ front: ManifoldMeshData; back: ManifoldMeshData; wedge: ManifoldMeshData | null }> {
-  const backend = getBackend()
+  const backend = await getBackend()
   const result = await backend.splitDovetail(mesh, {
     planeNormal,
     planeOriginOffset,
@@ -85,7 +91,7 @@ export async function computeDowelSplit(
   dowel: DowelSplitParams,
   selectedSections?: number[] | null,
 ): Promise<{ front: ManifoldMeshData; back: ManifoldMeshData; wedge: ManifoldMeshData | null }> {
-  const backend = getBackend()
+  const backend = await getBackend()
   const result = await backend.splitDowel(mesh, {
     planeNormal,
     planeOriginOffset,
@@ -106,7 +112,7 @@ export async function computeStraightTenonSplit(
   tenon: StraightTenonSplitParams,
   selectedSections?: number[] | null,
 ): Promise<{ front: ManifoldMeshData; back: ManifoldMeshData; wedge: ManifoldMeshData | null }> {
-  const backend = getBackend()
+  const backend = await getBackend()
   const result = await backend.splitStraightTenon(mesh, {
     planeNormal,
     planeOriginOffset,

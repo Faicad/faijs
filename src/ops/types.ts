@@ -25,12 +25,10 @@ import type { HostPorts, ExecutionMode } from '../cad-runtime/ports'
  * - indices: Uint32Array — 三角形索引
  *
  * 所有 ops 的输入输出都使用这个类型。
- * 定义在 L1 层（@/brep）供 L2（cad-runtime）和 L3（renderer）共享。
+ * F3 修复：Shape 定义在 mesh/types.ts（更底层），ops/types.ts 从此处 import。
  */
-export interface Shape {
-  positions: Float32Array
-  indices: Uint32Array
-}
+import type { Shape } from '../mesh/types'
+export type { Shape }
 
 /** 操作执行上下文 */
 export interface OpContext {

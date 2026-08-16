@@ -3,6 +3,11 @@
  *
  * 浏览器环境：由 host 通过 setKnurlTextureLoader() 注入纹理加载器。
  * Node 环境：返回 null（由 TextureSampler port 提供纹理）。
+ *
+ * F5 设计意图说明：
+ * _textureLoaderOverride 是环境级单例，不是实例级。
+ * 在整个浏览器页面中，滚花纹理只应加载一次。
+ * 多个 CadRuntime 实例共享同一个纹理加载器是正确的行为。
  */
 
 import * as THREE from 'three'

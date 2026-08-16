@@ -33,5 +33,5 @@ export {
 // 通用工具
 export { getSolidBoundingBox } from './brep-utils'
 
-// 操作分派器
-export { executeStatement } from '../ops/dispatcher'
+// F4 修复：不再反向 re-export executeStatement（ops/dispatcher）。
+// brep/ 不应 re-export ops/ 的符号。宿主从 @faicad/faijs/browser 直接 import executeStatement。

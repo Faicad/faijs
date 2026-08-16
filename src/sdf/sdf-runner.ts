@@ -3,21 +3,34 @@
  *
  * 替代浏览器版的 sdf-runner.ts（使用 Worker）。
  * 直接使用 InlineSdfBackend 在主线程执行 SDF。
+ *
+ * F2 修复：不静态 import browser-host/inline-sdf-backend（L1 不依赖 L3）。
+ * 改为延迟动态 import，仅在未注入后端时按需加载。
  */
 
-import { InlineSdfBackend } from '../browser-host/inline-sdf-backend'
+import type { SdfBackend } from '../cad-runtime/ports'
 
 export interface SdfMeshData {
   positions: Float32Array
   indices: Uint32Array
 }
 
-let _backend: InlineSdfBackend | null = null
+let _backend: SdfBackend | null = null
 
-function getBackend(): InlineSdfBackend {
-  if (!_backend) {
-    _backend = new InlineSdfBackend()
-  }
+/** 浏览器 host 注入 SDF 后端（WorkerSdfBackend） */
+export function setSdfBackend(backend: SdfBackend): void {
+  _backend = backend
+}
+
+/**
+ * 获取当前 SDF 后端。
+ * F2 修复：延迟动态 import InlineSdfBackend，避免 L1 静态依赖 L3。
+ */
+async function getBackend(): Promise<SdfBackend> {
+  if (_backend) return _backend
+  // 延迟加载——仅在实际需要时才拉入 L3 代码
+  const { InlineSdfBackend } = await import('../browser-host/inline-sdf-backend')
+  _backend = new InlineSdfBackend()
   return _backend
 }
 
@@ -38,6 +51,6 @@ export async function runSdf(
   level: number = 0,
   tolerance: number = -1,
 ): Promise<SdfMeshData> {
-  const backend = getBackend()
+  const backend = await getBackend()
   return backend.runSdf(code, params, bounds, edgeLength, level, tolerance)
 }
