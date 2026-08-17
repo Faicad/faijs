@@ -61,7 +61,7 @@ export async function executeDrill(ctx: OpContext): Promise<Shape> {
  *
  * cad.load 返回的几何体在原始文件坐标系中（无居中偏移、无单位缩放），
  * 而用户交互产生的 clickPosition 是世界坐标（含 mesh.position 居中偏移
- * 和单位缩放，如系统猜测 STL 单位为米时缩放 1000x）。
+ * 和单位缩放，如系统猜测 STL 单位为非 mm 时会缩放）。
  *
  * localPos = (worldPos - position) / scale
  */
@@ -221,7 +221,7 @@ async function executeDrillMesh(
   )
 
   // UI 参数（diameter, depth, tolerance）使用世界空间单位（mm），
-  // 但 cad.load 返回的 shape 在原始文件坐标系中（系统猜测 STL 单位为米）。
+  // 但 cad.load 返回的 shape 在原始文件坐标系中（系统可能猜测 STL 单位为非 mm）。
   // 需要将这些参数除以缩放因子，转换为局部坐标系的单位。
   const scale = partTransform?.scale
   const unitScale = scale && (scale[0] !== 1 || scale[1] !== 1 || scale[2] !== 1)
