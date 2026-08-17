@@ -16,7 +16,7 @@ describe('E15.1: 装配链式调用解析', () => {
         constraints: []
       })
     `
-    const { script, varToId } = parseScript(code)
+    const { script } = parseScript(code)
     expect(script.statements).toHaveLength(3)
 
     // 第三条语句应该是 assemble marker

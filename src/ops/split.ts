@@ -54,6 +54,36 @@ export async function executeSplit(ctx: OpContext): Promise<Shape> {
 }
 
 /**
+ * 将世界坐标的点转换为几何体局部坐标（含单位缩放）。
+ *
+ * cad.load 返回的几何体在原始文件坐标系中（无居中偏移、无单位缩放），
+ * 而 UI 记录的 bbCenter / bboxSize 是世界坐标（含 mesh.position 居中偏移
+ * 和单位缩放）。
+ *
+ * localPos = (worldPos - position) / scale
+ */
+function worldToLocalVec3(
+  worldPos: [number, number, number],
+  partTransform: { position: [number, number, number]; scale?: [number, number, number] } | undefined,
+): [number, number, number] {
+  const offset = partTransform?.position
+  if (!offset) return worldPos
+  const scale = partTransform?.scale
+  if (scale && (scale[0] !== 1 || scale[1] !== 1 || scale[2] !== 1)) {
+    return [
+      (worldPos[0] - offset[0]) / scale[0],
+      (worldPos[1] - offset[1]) / scale[1],
+      (worldPos[2] - offset[2]) / scale[2],
+    ]
+  }
+  return [
+    worldPos[0] - offset[0],
+    worldPos[1] - offset[1],
+    worldPos[2] - offset[2],
+  ]
+}
+
+/**
  * Mesh 路径：用 manifold-3d mesh-CSG
  */
 async function executeSplitMesh(
@@ -66,7 +96,16 @@ async function executeSplitMesh(
   bbCenter: Vec3,
   bboxSize: Vec3,
 ): Promise<Shape> {
-  const { stmt, args, outputCache } = ctx
+  const { stmt, args, outputCache, brepChain } = ctx
+
+  // 将 UI 记录的世界坐标 bbCenter / bboxSize 转换为局部坐标
+  // （cad.load 返回的几何体在原始文件坐标系中，无单位缩放）
+  const localBbCenter = worldToLocalVec3(bbCenter, brepChain?.partTransform)
+  const scale = brepChain?.partTransform?.scale
+  const hasScale = scale && (scale[0] !== 1 || scale[1] !== 1 || scale[2] !== 1)
+  const localBboxSize: Vec3 = hasScale
+    ? [bboxSize[0] / scale![0], bboxSize[1] / scale![1], bboxSize[2] / scale![2]]
+    : bboxSize
 
   const result = await cad.splitWithParams({
     shape,
@@ -74,8 +113,8 @@ async function executeSplitMesh(
     normal,
     offset,
     inPlaneAngleDeg,
-    bbCenter,
-    bboxSize,
+    bbCenter: localBbCenter,
+    bboxSize: localBboxSize,
     groove: args.grooveDepth !== undefined ? {
       depth: args.grooveDepth as number,
       depthTolerance: (args.grooveDepthTolerance as number) ?? 0,

@@ -10,13 +10,11 @@
 
 import {
   initOcctWasm,
-  getKernel,
   disposeOcctWasm,
   importStepToMesh,
   importBrepToMesh,
   meshesToStep,
   releaseShape,
-  computeEffectiveDeflection,
 } from './occtKernel'
 import type { Shape } from '../ops/types'
 import type {

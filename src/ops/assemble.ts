@@ -20,7 +20,6 @@
  */
 
 import type { Shape } from './types'
-import type { OpContext } from './types'
 
 // ── 约束类型 ──
 

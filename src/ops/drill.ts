@@ -57,18 +57,29 @@ export async function executeDrill(ctx: OpContext): Promise<Shape> {
 }
 
 /**
- * 将世界坐标的 position 转换为 BREP solid 的局部坐标。
+ * 将世界坐标的 position 转换为几何体局部坐标。
  *
- * BREP solid 在 STEP 文件原始坐标系中（无居中偏移），
- * 而用户交互产生的 clickPosition 是世界坐标（含 mesh.position 居中偏移）。
- * localPos = worldPos - mesh.position
+ * cad.load 返回的几何体在原始文件坐标系中（无居中偏移、无单位缩放），
+ * 而用户交互产生的 clickPosition 是世界坐标（含 mesh.position 居中偏移
+ * 和单位缩放，如 STL 从 meter 缩放到 mm 的 1000x）。
+ *
+ * localPos = (worldPos - position) / scale
  */
 function worldToLocalPosition(
   worldPos: [number, number, number],
-  brepChain: { partTransform?: { position: [number, number, number] } } | undefined,
+  partTransform: { position: [number, number, number]; scale?: [number, number, number] } | undefined,
 ): [number, number, number] {
-  const offset = brepChain?.partTransform?.position
+  const offset = partTransform?.position
   if (!offset) return worldPos
+  const scale = partTransform?.scale
+  // 如果有单位缩放，需要除以缩放因子
+  if (scale && (scale[0] !== 1 || scale[1] !== 1 || scale[2] !== 1)) {
+    return [
+      (worldPos[0] - offset[0]) / scale[0],
+      (worldPos[1] - offset[1]) / scale[1],
+      (worldPos[2] - offset[2]) / scale[2],
+    ]
+  }
   return [
     worldPos[0] - offset[0],
     worldPos[1] - offset[1],
@@ -96,10 +107,10 @@ async function executeDrillBrep(
 
   const holeType = args.holeType as 'simple' | 'screw' | undefined
 
-  // 世界坐标 → 局部坐标（BREP solid 在原始 STEP 坐标系中，无居中偏移）
+  // 世界坐标 → 局部坐标（cad.load 返回的几何体在原始文件坐标系中）
   const localPosition = worldToLocalPosition(
     args.position as [number, number, number],
-    brepChain,
+    brepChain?.partTransform,
   )
 
   if (holeType === 'screw') {
@@ -199,26 +210,32 @@ async function executeDrillMesh(
   args: Record<string, unknown>,
   direction: Vec3,
   faceNormal: Vec3,
-  partTransform?: { position: [number, number, number] },
+  partTransform?: { position: [number, number, number]; scale?: [number, number, number] },
 ): Promise<Shape> {
-  // Mesh 路径：shape 是局部坐标（原始文件坐标），
-  // 而 position 是世界坐标（用户点击位置）。
+  // Mesh 路径：cad.load 返回的 shape 在原始文件坐标系中（无居中偏移、无单位缩放），
+  // 而 position 是世界坐标（用户点击位置，含 mesh.position 居中偏移和单位缩放）。
   // 需要将 position 从世界坐标转换为局部坐标，与 shape 对齐。
-  // 这与 BREP 路径的 worldToLocalPosition 逻辑一致。
-  const worldPos = args.position as [number, number, number]
-  const offset = partTransform?.position
-  const localPos: Vec3 = offset
-    ? [worldPos[0] - offset[0], worldPos[1] - offset[1], worldPos[2] - offset[2]]
-    : worldPos
+  const localPos = worldToLocalPosition(
+    args.position as [number, number, number],
+    partTransform,
+  )
+
+  // UI 参数（diameter, depth, tolerance）使用世界空间单位（mm），
+  // 但 cad.load 返回的 shape 在原始文件坐标系中（可能是 meter）。
+  // 需要将这些参数除以缩放因子，转换为局部坐标系的单位。
+  const scale = partTransform?.scale
+  const unitScale = scale && (scale[0] !== 1 || scale[1] !== 1 || scale[2] !== 1)
+    ? scale[0]  // 均匀缩放，取 x 分量
+    : 1
 
   return cad.drill(shape, {
-    diameter: args.diameter as number,
-    depth: args.depth as number,
+    diameter: (args.diameter as number) / unitScale,
+    depth: (args.depth as number) / unitScale,
     type: (args.depth as number) > 0 ? 'blind' : 'through',
     position: localPos,
     direction,
     faceNormal,
-    tolerance: args.tolerance as number | undefined,
+    tolerance: (args.tolerance as number | undefined) !== undefined ? (args.tolerance as number) / unitScale : undefined,
     holeType: args.holeType as 'simple' | 'screw' | undefined,
     screwSystem: args.screwSystem as string | undefined,
     screwSpecIdx: args.screwSpecIdx as number | undefined,

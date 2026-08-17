@@ -31,7 +31,7 @@ import { parseScript, ParseError } from '../lang/parser'
 import { validateStatementArgs } from '../lang/args-schema'
 import type { HostPorts, ExecutionMode } from './ports'
 import type { SelectorRuntimeData } from '../topology/build-selector-runtime'
-import type { SelectorRuntime } from '../topology/types'
+
 
 // ── 类型定义 ──
 
@@ -101,8 +101,8 @@ export interface ReplayOptions {
   inputGeometryMap?: Map<string, Shape>
   /** 整场景 DAG（用于跨 part 引用解析） */
   sceneScript?: PartScript
-  /** partTransform（世界→局部坐标偏移） */
-  partTransform?: { position: [number, number, number] }
+  /** partTransform（世界→局部坐标偏移 + 单位缩放） */
+  partTransform?: { position: [number, number, number]; scale?: [number, number, number] }
   /** 语句前钩子（用于 undo 逐语句快照） */
   beforeStatement?: (stmt: CadStatement, index: number) => void
 }
@@ -193,7 +193,10 @@ export class CadRuntime {
       : await initBrepChainState()
 
     if (opts?.partTransform?.position) {
-      brepChain.partTransform = { position: opts.partTransform.position }
+      brepChain.partTransform = {
+        position: opts.partTransform.position,
+        scale: opts.partTransform.scale,
+      }
     }
 
     const paramsMap: Record<string, unknown> = {}

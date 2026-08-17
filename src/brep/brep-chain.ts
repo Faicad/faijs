@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿/**
  * BREP 链状态管理
  *
  * 在语句重放过程中跟踪 OCCT 精确实体句柄。
@@ -99,7 +99,7 @@ export interface BrepChainState {
    *
    * 由 replayPart 从 useEngineStore.partTransforms[scopedId].position 填充。
    */
-  partTransform?: { position: [number, number, number] }
+  partTransform?: { position: [number, number, number]; scale?: [number, number, number] }
   /**
    * P5-2: 面演化映射缓存（statementId → FaceEvolution）。
    *
