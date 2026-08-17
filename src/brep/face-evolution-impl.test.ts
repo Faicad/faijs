@@ -207,6 +207,57 @@ describe('resolveGeomRef with faceOrdinal (BREP path)', () => {
 
     kernel.release(box)
   })
+
+  it('throws when faceCenter has no anchor and no faceOrdinal', () => {
+    const box = kernel.makeBoxFromCorners({ x: 0, y: 0, z: 0 }, { x: 10, y: 10, z: 10 })
+    const shape = solidToShape(box)
+
+    const ref: GeomRef = {
+      $geom: {
+        of: 'test_box',
+        feature: 'faceCenter',
+        // 无 faceOrdinal, 无 anchor
+      },
+    }
+
+    // 无 anchor 且无 faceOrdinal → 应 throw（不再降级到 bboxCenter）
+    expect(() => resolveGeomRef(ref, () => shape)).toThrow(/requires anchor or faceOrdinal/)
+
+    kernel.release(box)
+  })
+
+  it('throws when faceNormal has no anchor and no faceOrdinal', () => {
+    const box = kernel.makeBoxFromCorners({ x: 0, y: 0, z: 0 }, { x: 10, y: 10, z: 10 })
+    const shape = solidToShape(box)
+
+    const ref: GeomRef = {
+      $geom: {
+        of: 'test_box',
+        feature: 'faceNormal',
+        // 无 faceOrdinal, 无 anchor
+      },
+    }
+
+    expect(() => resolveGeomRef(ref, () => shape)).toThrow(/requires anchor or faceOrdinal/)
+
+    kernel.release(box)
+  })
+
+  it('throws for unknown feature', () => {
+    const box = kernel.makeBoxFromCorners({ x: 0, y: 0, z: 0 }, { x: 10, y: 10, z: 10 })
+    const shape = solidToShape(box)
+
+    const ref: GeomRef = {
+      $geom: {
+        of: 'test_box',
+        feature: 'unknownFeature' as 'bboxCenter',
+      },
+    }
+
+    expect(() => resolveGeomRef(ref, () => shape)).toThrow(/unknown feature/)
+
+    kernel.release(box)
+  })
 })
 
 // ─── face-evolution 工具函数测试 ───

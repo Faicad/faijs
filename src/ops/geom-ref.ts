@@ -7,8 +7,7 @@
  * 面找回优先级链：
  * 1. faceOrdinal → BREP getSubShapes(solid,'face')[ordinal] → 面心/法向（拓扑引用）
  * 2. anchor 最近面 + 法向相似度匹配 → 面心/法向（几何反查，兜底）
- * 3. 失败降级 bboxCenter
- * 4. 仍异常给 UI 警告（此处返回 bboxCenter，不 throw）
+ * 3. 无 anchor 或 faceAt 失败 → throw（不降级到 bboxCenter）
  */
 
 import type { Shape, Vec3 } from '../mesh/types'
@@ -98,22 +97,17 @@ export function resolveGeomRef(
 
       // 兜底路径：anchor 几何反查
       if (!anchor) {
-        // 无 anchor 时降级到 bboxCenter
-        const center = cad.bboxCenter(shape)
-        return center
+        throw new Error(`[GeomRef] ${feature} requires anchor or faceOrdinal`)
       }
       // 面找回：用 anchor.point + anchor.normal 在几何上找最近面
       const face = cad.faceAt(shape, anchor)
       if (!face) {
-        // 降级 bboxCenter
-        const center = cad.bboxCenter(shape)
-        return center
+        throw new Error(`[GeomRef] faceAt failed for anchor at ${anchor.point}`)
       }
       return feature === 'faceCenter' ? face.center : face.normal
     }
     default: {
-      // 未知 feature 降级 bboxCenter
-      return cad.bboxCenter(shape)
+      throw new Error(`[GeomRef] unknown feature "${feature}"`)
     }
   }
 }
