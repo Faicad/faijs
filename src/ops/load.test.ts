@@ -89,6 +89,8 @@ function makeStmt(
     args: args as any,
     inputs,
     feature: { kind: featureKind ?? 'load', label: op, createdBy: 'user' },
+    hasAssignment: true,
+    returnType: 'new_shape',
   }
 }
 

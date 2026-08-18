@@ -88,6 +88,8 @@ function makeStmt(
     args: args as never,
     inputs,
     feature: { kind: 'drill', label: op, createdBy: 'user' },
+    hasAssignment: true,
+    returnType: 'new_shape',
     ...extra,
   }
 }

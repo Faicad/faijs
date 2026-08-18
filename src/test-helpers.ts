@@ -32,7 +32,9 @@ export async function replayScript(
   const brepChain = await initBrepChainState()
 
   for (const stmt of script.statements) {
-    if (stmt.isMarker) continue
+    // void / same_shape 语句不产出新几何，跳过执行
+    const rt = stmt.returnType ?? 'new_shape'
+    if (rt === 'void' || rt === 'same_shape') continue
     const inputGeometries: Shape[] = []
     for (const inputRef of stmt.inputs) {
       const geo = outputCache.get(inputRef) ?? inputGeometryMap?.get(inputRef)
@@ -46,11 +48,13 @@ export async function replayScript(
     outputCache.set(stmt.id, result)
   }
 
-  const nonMarkerStmts = script.statements.filter(s => !s.isMarker)
-  if (nonMarkerStmts.length === 0) {
-    throw new Error(`[replayScript] empty script — no non-marker statements`)
+  const newShapeStmts = script.statements.filter(
+    s => s.hasAssignment && (s.returnType ?? 'new_shape') === 'new_shape',
+  )
+  if (newShapeStmts.length === 0) {
+    throw new Error(`[replayScript] empty script — no geometry statements`)
   }
-  const lastStmt = nonMarkerStmts[nonMarkerStmts.length - 1]
+  const lastStmt = newShapeStmts[newShapeStmts.length - 1]
   const finalShape = outputCache.get(lastStmt.id)!
   const contentKey = computeContentKey(finalShape.positions, finalShape.indices)
 

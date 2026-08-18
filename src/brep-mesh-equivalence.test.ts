@@ -56,6 +56,8 @@ function makeStmt(
     args: args as any,
     inputs,
     feature: { kind: featureKind ?? 'primitive', label: op, createdBy: 'user' },
+    hasAssignment: true,
+    returnType: 'new_shape',
   }
 }
 
@@ -77,8 +79,8 @@ async function runMode(script: PartScript, mode: ExecutionMode): Promise<Shape> 
     throw new Error(`Execution failed at ${result.failedAt.op}: ${result.failedAt.message}`)
   }
 
-  const nonMarker = script.statements.filter(s => !s.isMarker)
-  const last = nonMarker[nonMarker.length - 1]
+  const geoStmts = script.statements.filter(s => s.hasAssignment && (s.returnType ?? 'new_shape') === 'new_shape')
+  const last = geoStmts[geoStmts.length - 1]
   const shape = result.outputs.get(last.id)
   if (!shape) throw new Error(`No output for terminal statement "${last.id}"`)
   return shape

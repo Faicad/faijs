@@ -20,7 +20,7 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { initOcctWasm, getKernel } from '../occt-kernel/occtKernel'
 import type { OcctKernel } from 'occt-wasm'
-import type { CadStatement, PartScript, TerminalShape } from '../lang/types'
+import type { CadStatement, PartScript } from '../lang/types'
 import { createRuntime, type ExecutionResult } from '../cad-runtime/runtime'
 import type { HostPorts, EventSink } from '../cad-runtime/ports'
 import { computeTerminalShapes } from '../lang/parser'
@@ -58,6 +58,8 @@ function makeStmt(
     args: args as never,
     inputs,
     feature: { kind: 'primitive', label: op, createdBy: 'user' },
+    hasAssignment: true,
+    returnType: 'new_shape',
     ...extra,
   }
 }

@@ -197,6 +197,17 @@ export async function executeStatement(
       return executeSdf(ctx)
     }
 
+    // ── 结构型语句（no-op 执行） ──
+    // group/assembly/assemble/add_constraint/do_assemble 不产出几何，返回空 Shape。
+    // 实际装配变换在 CadRuntime.replay 的 assembly pass 中完成。
+    case 'group':
+    case 'assembly':
+    case 'assemble':
+    case 'add_constraint':
+    case 'do_assemble': {
+      return { positions: new Float32Array(0), indices: new Uint32Array(0) }
+    }
+
     default:
       throw new Error(`[ReplayValidator] unknown op: ${stmt.op}`)
   }

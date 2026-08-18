@@ -96,17 +96,20 @@ export interface FeatureMeta {
 
 // ── 语句 ──
 
+/** 语句返回值类型（四类）。
+ *  - new_shape：返回新几何，必须赋值
+ *  - same_shape：返回自身/上下文，可赋值可不赋值（用于链式调用）
+ *  - scalar：返回非 shape 值，必须赋值
+ *  - void：无返回值，不准赋值 */
+export type ReturnType = 'new_shape' | 'same_shape' | 'scalar' | 'void'
+
 export interface CadStatement {
   id: string
   op: string
   args: Record<string, Arg>
   inputs: ShapeRef[]
   name?: string
-  feature: FeatureMeta
-  /** 标记型语句不参与 replayPart 的执行序列，仅用于 Timeline 展示。
-   *  例如 split 在源 part 上记录的语句——执行它会把源几何替换成后半块（A-7 bug）。
-   *  codegen 输出时也跳过标记语句（不写进 .faijs 文本）。 */
-  isMarker?: boolean
+  feature?: FeatureMeta
   /** 多输出 op 的输出 id 列表（设计文档 §3）。
    *  默认 [id]（普通 op）；split 多输出写入 ['part1_v0','part2_v0']。
    *  outputCache 按 output id 索引，下游用具体 output id 引用。 */
@@ -115,9 +118,9 @@ export interface CadStatement {
    *  在 appendStatement / insertStatementAt 时由 script-store 自动赋值。
    *  undo/redo 后随 partScripts 快照恢复，保持时间线顺序一致。 */
   seq?: number
-  /** 组/装配 marker 专属：记录该 marker 对应的组/装配 scopedId。
-   *  用于 sceneScript 单一 DAG 中关联 marker 与 model-store.groups。
-   *  非 marker 语句不需要此字段。 */
+  /** 组/装配结构型语句专属：记录该语句对应的组/装配 scopedId。
+   *  用于 sceneScript 单一 DAG 中关联结构型语句与 model-store.groups。
+   *  普通几何语句不需要此字段。 */
   groupScopedId?: string
 
   /** 装配链式调用专属：记录 `let assem1 = cad.assemble(...)` 中的变量名。
@@ -129,6 +132,15 @@ export interface CadStatement {
    *  与 `assemblyVar` 配合使用——`assemblyVar` 在 `cad.assemble` 语句上，
    *  `assemblyTarget` 在成员方法调用语句上。 */
   assemblyTarget?: string
+
+  /** 该语句是否有赋值（`const x = ...` 或 `let x = ...`）。
+   *  parser 根据 AST 节点类型设置：VariableDeclaration → true，ExpressionStatement → false。
+   *  用于 terminal shape 计算：有赋值的语句参与终端计算。 */
+  hasAssignment?: boolean
+
+  /** 该 op 的返回值类型。从 schema 查得，parser 设置。
+   *  用于赋值校验和 terminal shape 计算。 */
+  returnType?: ReturnType
 }
 
 // ── 参数表 ──
@@ -184,7 +196,7 @@ export function createStatement(
   op: string,
   args: Record<string, Arg>,
   inputs: ShapeRef[],
-  feature: FeatureMeta,
+  feature?: FeatureMeta,
   name?: string,
 ): CadStatement {
   return { id, op, args, inputs, feature, name }

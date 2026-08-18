@@ -93,6 +93,8 @@ function makeStmt(
     args: args as never,
     inputs,
     feature: { kind: 'split', label: op, createdBy: 'user' },
+    hasAssignment: true,
+    returnType: 'new_shape',
     ...extra,
   }
 }
@@ -182,14 +184,13 @@ describe('split: ID format invariants', () => {
 
   it('split statement has no side args (single-statement model)', () => {
     // The new single-statement model: one split statement with outputs.
-    // No side='front'/'back' args, no isMarker flag.
+    // No side='front'/'back' args, no structural flag.
     const stmt = makeStmt('part1_v0', 'split',
       { cutMode: 'plane', normal: [0, 0, 1], offset: 0 },
       ['part0_v0'],
       { outputs: ['part1_v0', 'part2_v0'] },
     )
     expect(stmt.args.side).toBeUndefined()
-    expect(stmt.isMarker).toBeUndefined()
   })
 })
 

@@ -351,34 +351,31 @@ const PART_VM_RE = /^part\d+_v\d+$/
  * 输出格式：`const partN_vM = cad.op(inputs, { key: value, ... })`
  * - boolean op 输出 `const partN_vM = cad.operation(input0, input1)`
  * - 多输出 split 输出 `const { front: out0, back: out1 } = cad.split(input, { ... })`
- * - marker 语句（非 group/assembly/assemble/add_constraint/do_assemble）输出 `// op`
- * - group/assembly marker 输出 `cad.group({ ... })` / `cad.assembly({ ... })`
- * - assemble marker 输出 `let assem1 = cad.assemble({ ... })`
- * - add_constraint marker 输出 `assem1.add_constraint({ ... })`
- * - do_assemble marker 输出 `assem1.do_assemble()`
+ * - group/assembly 输出 `const grpN = cad.group({ ... })` / `const grpN = cad.assembly({ ... })`
+ * - assemble 输出 `const assem1 = cad.assemble({ ... })`
+ * - add_constraint 输出 `assem1.add_constraint({ ... })`
+ * - do_assemble 输出 `assem1.do_assemble()`
  */
 export function statementToLine(stmt: CadStatement): string {
-  if (stmt.isMarker && stmt.op !== 'group' && stmt.op !== 'assembly' && stmt.op !== 'assemble' && stmt.op !== 'add_constraint' && stmt.op !== 'do_assemble') {
-    return `// ${stmt.op}`
-  }
-
-  if (stmt.isMarker && (stmt.op === 'group' || stmt.op === 'assembly')) {
+  // 结构型语句按 op 输出（group/assembly 需赋值）
+  if (stmt.op === 'group' || stmt.op === 'assembly') {
     const parts = buildArgsParts(stmt)
-    return `cad.${stmt.op}({ ${parts.join(', ')} })`
+    const varName = stmt.assemblyVar ?? stmt.id
+    return `const ${varName} = cad.${stmt.op}({ ${parts.join(', ')} })`
   }
 
   // E15.1: 装配链式调用
-  if (stmt.isMarker && stmt.op === 'assemble') {
+  if (stmt.op === 'assemble') {
     const parts = buildArgsParts(stmt)
     const varName = stmt.assemblyVar ?? 'assem1'
-    return `let ${varName} = cad.assemble({ ${parts.join(', ')} })`
+    return `const ${varName} = cad.assemble({ ${parts.join(', ')} })`
   }
-  if (stmt.isMarker && stmt.op === 'add_constraint') {
+  if (stmt.op === 'add_constraint') {
     const parts = buildArgsParts(stmt)
     const target = stmt.assemblyTarget ?? 'assem1'
     return `${target}.add_constraint({ ${parts.join(', ')} })`
   }
-  if (stmt.isMarker && stmt.op === 'do_assemble') {
+  if (stmt.op === 'do_assemble') {
     const target = stmt.assemblyTarget ?? 'assem1'
     return `${target}.do_assemble()`
   }
@@ -438,28 +435,27 @@ export function scriptToCode(script: PartScript): string {
   }
 
   for (const stmt of script.statements) {
-    if (stmt.isMarker && stmt.op !== 'group' && stmt.op !== 'assembly' && stmt.op !== 'assemble' && stmt.op !== 'add_constraint' && stmt.op !== 'do_assemble') continue
-
-    if (stmt.isMarker && (stmt.op === 'group' || stmt.op === 'assembly')) {
+    if (stmt.op === 'group' || stmt.op === 'assembly') {
       const argsParts = buildArgsParts(stmt, varNames)
-      bodyLines.push(`cad.${stmt.op}({ ${argsParts.join(', ')} })`)
+      const varName = stmt.assemblyVar ?? stmt.id
+      bodyLines.push(`const ${varName} = cad.${stmt.op}({ ${argsParts.join(', ')} })`)
       continue
     }
 
     // E15.1: 装配链式调用
-    if (stmt.isMarker && stmt.op === 'assemble') {
+    if (stmt.op === 'assemble') {
       const argsParts = buildArgsParts(stmt, varNames)
       const varName = stmt.assemblyVar ?? 'assem1'
-      bodyLines.push(`let ${varName} = cad.assemble({ ${argsParts.join(', ')} })`)
+      bodyLines.push(`const ${varName} = cad.assemble({ ${argsParts.join(', ')} })`)
       continue
     }
-    if (stmt.isMarker && stmt.op === 'add_constraint') {
+    if (stmt.op === 'add_constraint') {
       const argsParts = buildArgsParts(stmt, varNames)
       const target = stmt.assemblyTarget ?? 'assem1'
       bodyLines.push(`${target}.add_constraint({ ${argsParts.join(', ')} })`)
       continue
     }
-    if (stmt.isMarker && stmt.op === 'do_assemble') {
+    if (stmt.op === 'do_assemble') {
       const target = stmt.assemblyTarget ?? 'assem1'
       bodyLines.push(`${target}.do_assemble()`)
       continue

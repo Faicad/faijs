@@ -80,8 +80,8 @@ describe('parity .faijs tests (BREP vs mesh)', () => {
       const brepResult = await brepRuntime.replay(script)
       expect(brepResult.failedAt).toBeUndefined()
 
-      const nonMarker = script.statements.filter(s => !s.isMarker)
-      const lastStmt = nonMarker[nonMarker.length - 1]
+      const geoStmts = script.statements.filter(s => s.hasAssignment && (s.returnType ?? 'new_shape') === 'new_shape')
+      const lastStmt = geoStmts[geoStmts.length - 1]
 
       const brepShape = brepResult.outputs.get(lastStmt.id)
       expect(brepShape).toBeDefined()

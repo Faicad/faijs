@@ -29,6 +29,8 @@ function makeStmt(partial: Partial<CadStatement>): CadStatement {
     args: {},
     inputs: [],
     feature: { kind: 'primitive', label: 'box', createdBy: 'user' },
+    hasAssignment: true,
+    returnType: 'new_shape',
     ...partial,
   }
 }

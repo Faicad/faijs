@@ -1,4 +1,4 @@
-﻿﻿﻿﻿/**
+﻿/**
  * @vitest-environment node
  *
  * CadRuntime 三模式契约测试 + 单元测试 (P2-8)
@@ -48,11 +48,20 @@ function makeStmt(
   args: Record<string, unknown>,
   inputs: string[] = [],
 ): CadStatement {
+  // Determine returnType based on op
+  let returnType: CadStatement['returnType'] = 'new_shape'
+  if (op === 'do_assemble') returnType = 'void'
+  else if (op === 'add_constraint') returnType = 'same_shape'
+  // group/assembly/assemble have returnType new_shape, hasAssignment true
+  // add_constraint/do_assemble have hasAssignment false
+  const noAssignment = op === 'add_constraint' || op === 'do_assemble'
   return {
     id, op,
     args: args as any,
     inputs,
     feature: { kind: 'primitive', label: op, createdBy: 'user' },
+    hasAssignment: !noAssignment,
+    returnType,
   }
 }
 
@@ -357,18 +366,19 @@ describe('CadRuntime: instance management', () => {
     expect(runtime.getBrepSolid('part1')).toBeUndefined()
   })
 
-  it('isMarker statements are skipped during replay', async () => {
+  it('void/same_shape statements are skipped during replay', async () => {
     const runtime = makeRuntime()
     const script = makePartScript([
       makeStmt('s1', 'box', { size: 20 }),
-      { ...makeStmt('s2', 'split', { side: 'front' }, ['s1']), isMarker: true },
-      makeStmt('s3', 'translate', { offset: [5, 0, 0] }, ['s1']), // depends on s1, not s2
+      makeStmt('grp_1', 'group', { name: 'G', members: ['s1'] }, []),
+      makeStmt('s3', 'translate', { offset: [5, 0, 0] }, ['s1']), // depends on s1, not grp_1
     ])
     const result = await runtime.replay(script)
 
-    // s2 (marker) should be skipped, s1 and s3 should have outputs
+    // s1 and s3 should have outputs; grp_1 is new_shape but a no-op dispatcher (empty shape)
     expect(result.outputs.get('s1')).toBeDefined()
-    expect(result.outputs.get('s2')).toBeUndefined() // marker skipped
+    // grp_1 has returnType new_shape (default) so it goes through dispatcher, returns empty shape
+    expect(result.outputs.get('grp_1')).toBeDefined() // no-op dispatcher returns empty shape
     expect(result.outputs.get('s3')).toBeDefined()
   })
 })

@@ -126,7 +126,7 @@ export async function cliRun(
 
   if (terminals.length === 0) {
     // No terminals — use last statement output
-    const lastStmt = script.statements.filter((s) => !s.isMarker).pop()
+    const lastStmt = script.statements.filter((s) => s.hasAssignment && (s.returnType ?? 'new_shape') === 'new_shape').pop()
     if (!lastStmt) {
       return { ok: false, error: 'No statements to export' }
     }

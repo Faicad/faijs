@@ -8,7 +8,7 @@
  * 校验不通过的 args 会在录制/解析/执行时被拒绝。
  */
 
-import type { CadStatement } from './types'
+import type { CadStatement, ReturnType } from './types'
 
 // ── 类型定义 ──
 
@@ -25,6 +25,12 @@ export interface OpSchema {
   fields: ArgFieldSchema[]
   /** 需要 inputs 的最小数量 */
   minInputs?: number
+  /** 返回值类型。缺省 = 'new_shape'。
+   *  - new_shape：返回新几何，必须赋值
+   *  - same_shape：返回自身/上下文，可赋值可不赋值（用于链式调用）
+   *  - scalar：返回非 shape 值，必须赋值
+   *  - void：无返回值，不准赋值 */
+  returnType?: ReturnType
 }
 
 // ── op 目录的 args schema ──
@@ -242,6 +248,50 @@ export const SCHEMAS: Record<string, OpSchema> = {
       { name: 'params', type: 'any', required: false },
     ],
   },
+
+  // ── 结构型语句 ──
+  // group/assembly/assemble/add_constraint/do_assemble
+  // 这些 op 不产出几何，但需要 schema 校验其参数结构。
+  group: {
+    op: 'group',
+    fields: [
+      { name: 'name', type: 'string', required: false },
+      { name: 'members', type: 'any', required: false },
+    ],
+  },
+  assembly: {
+    op: 'assembly',
+    fields: [
+      { name: 'name', type: 'string', required: false },
+      { name: 'members', type: 'any', required: false },
+      { name: 'constraints', type: 'any', required: false },
+      { name: 'transform', type: 'any', required: false },
+    ],
+  },
+  assemble: {
+    op: 'assemble',
+    fields: [
+      { name: 'name', type: 'string', required: false },
+      { name: 'members', type: 'any', required: false },
+      { name: 'constraints', type: 'any', required: false },
+    ],
+  },
+  add_constraint: {
+    op: 'add_constraint',
+    returnType: 'same_shape',
+    fields: [
+      { name: 'type', type: 'string', required: false },
+      { name: 'fixedPartName', type: 'string', required: false },
+      { name: 'movingPartName', type: 'string', required: false },
+      { name: 'fixedFace', type: 'any', required: false },
+      { name: 'movingFace', type: 'any', required: false },
+    ],
+  },
+  do_assemble: {
+    op: 'do_assemble',
+    returnType: 'void',
+    fields: [],
+  },
 }
 
 // ── 校验逻辑 ──
@@ -332,6 +382,21 @@ export function validateStatementArgs(stmt: CadStatement): ValidationError[] {
     }
   }
 
+  // 赋值校验（与 parser 层双重保障）
+  const rt = stmt.returnType ?? schema.returnType ?? 'new_shape'
+  if (rt === 'void' && stmt.hasAssignment) {
+    errors.push({
+      field: 'assignment',
+      message: `op "${stmt.op}" is void, cannot assign to a variable`,
+    })
+  }
+  if ((rt === 'new_shape' || rt === 'scalar') && !stmt.hasAssignment) {
+    errors.push({
+      field: 'assignment',
+      message: `op "${stmt.op}" returns ${rt}, must assign to a variable`,
+    })
+  }
+
   return errors
 }
 
@@ -356,6 +421,11 @@ export function validateScriptArgs(
 /** 获取 op 的 schema（供外部查询） */
 export function getOpSchema(op: string): OpSchema | undefined {
   return SCHEMAS[op]
+}
+
+/** 获取 op 的返回值类型 */
+export function getOpReturnType(op: string): ReturnType {
+  return SCHEMAS[op]?.returnType ?? 'new_shape'
 }
 
 /** 判断 op 是否有 schema */

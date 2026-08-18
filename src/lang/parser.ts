@@ -35,6 +35,7 @@ import type {
   TerminalShape,
   Vec3,
 } from './types'
+import { getOpReturnType } from './args-schema'
 
 // ── 解析错误 ──
 
@@ -308,7 +309,12 @@ function parseCadStatement(
     createdBy: 'script',
   }
 
-  const stmt: CadStatement = { id, op, args, inputs, feature }
+  const rt = getOpReturnType(op)
+  const stmt: CadStatement = {
+    id, op, args, inputs, feature,
+    hasAssignment: true,
+    returnType: rt,
+  }
 
   return { stmt, varName }
 }
@@ -427,7 +433,11 @@ function parseSplitDestructuring(
     createdBy: 'script',
   }
 
-  const stmt: CadStatement = { id, op: 'split', args, inputs, feature, outputs }
+  const stmt: CadStatement = {
+    id, op: 'split', args, inputs, feature, outputs,
+    hasAssignment: true,
+    returnType: getOpReturnType('split'),
+  }
 
   return { stmt, frontVarName, backVarName }
 }
@@ -659,20 +669,23 @@ export function parseScript(code: string, _options?: ParseOptions): ParseResult 
         const isAwait = init?.type === 'AwaitExpression'
         if (isAwait) init = init.argument
 
-        // ── E15.1: let assem1 = cad.assemble({...}) ──
+        // ── E15.1: const/let assem1 = cad.assemble({...}) ──
         if (
-          stmtNode.kind === 'let' &&
+          (stmtNode.kind === 'const' || stmtNode.kind === 'let') &&
           init?.type === 'CallExpression' &&
           init.callee?.type === 'MemberExpression' &&
           init.callee.object?.type === 'Identifier' &&
           init.callee.object.name === 'cad' &&
           init.callee.property?.type === 'Identifier' &&
-          init.callee.property.name === 'assemble'
+          (init.callee.property.name === 'assemble' ||
+           init.callee.property.name === 'group' ||
+           init.callee.property.name === 'assembly')
         ) {
           if (decl.id?.type !== 'Identifier') {
             throw new ParseError('let assemble must have identifier name', line)
           }
           const varName = decl.id.name
+          const opName = init.callee.property.name
           const args: Record<string, Arg> = {}
           for (const argNode of init.arguments) {
             if (argNode.type === 'ObjectExpression') {
@@ -680,30 +693,34 @@ export function parseScript(code: string, _options?: ParseOptions): ParseResult 
               if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
                 Object.assign(args, parsed as Record<string, Arg>)
               } else {
-                throw new ParseError('assemble args must be an object', line)
+                throw new ParseError(`${opName} args must be an object`, line)
               }
             } else {
-              throw new ParseError(`unexpected argument type in assemble: ${argNode.type}`, line)
+              throw new ParseError(`unexpected argument type in ${opName}: ${argNode.type}`, line)
             }
           }
           const grpCounter = ++_grpCounter
           const stmt: CadStatement = {
             id: `grp_${grpCounter}`,
-            op: 'assemble',
+            op: opName,
             args,
             inputs: [],
-            feature: { kind: 'assemble', label: 'assemble', createdBy: 'script' },
-            isMarker: true,
+            feature: { kind: opName as 'assemble' | 'group' | 'assembly', label: opName, createdBy: 'script' },
             assemblyVar: varName,
+            hasAssignment: true,
+            returnType: getOpReturnType(opName),
           }
           statements.push(stmt)
-          assemblyVars.add(varName)
+          if (opName === 'assemble') {
+            assemblyVars.add(varName)
+          }
+          varToId.set(varName, `grp_${grpCounter}`)
           break
         }
 
-        // let 不允许用于其他场景
+        // let 不允许用于其他场景（const 已覆盖 group/assembly/assemble，let 也已覆盖）
         if (stmtNode.kind === 'let') {
-          throw new ParseError("'let' is only allowed for cad.assemble() declarations", line)
+          throw new ParseError("'let' is only allowed for cad.assemble()/cad.group()/cad.assembly() declarations", line)
         }
 
         if (
@@ -714,6 +731,12 @@ export function parseScript(code: string, _options?: ParseOptions): ParseResult 
         ) {
           // 语句：const partN_vM = [await] cad.op(...)
           const { stmt, varName } = parseCadStatement(decl, paramNames, varToId)
+          // 赋值校验：void 不准赋值
+          if (stmt.returnType === 'void') {
+            throw new ParseError(
+              `cad.${stmt.op}() is void, cannot assign to a variable`, line,
+            )
+          }
           statements.push(stmt)
           varToId.set(varName, stmt.id)
         } else if (
@@ -752,45 +775,9 @@ export function parseScript(code: string, _options?: ParseOptions): ParseResult 
       }
 
       case 'ExpressionStatement': {
-        // Allow bare cad.group(...)/cad.assembly(...) calls as structural markers
+        // ── E15.1: 装配链式调用成员方法 ──
+        // assem1.add_constraint({ ... }) / assem1.do_assemble()
         const expr = stmtNode.expression
-        if (
-          expr?.type === 'CallExpression' &&
-          expr.callee?.type === 'MemberExpression' &&
-          expr.callee.object?.type === 'Identifier' &&
-          expr.callee.object.name === 'cad' &&
-          expr.callee.property?.type === 'Identifier' &&
-          (expr.callee.property.name === 'group' || expr.callee.property.name === 'assembly')
-        ) {
-          const opName = expr.callee.property.name
-          const args: Record<string, Arg> = {}
-          for (const argNode of expr.arguments) {
-            if (argNode.type === 'ObjectExpression') {
-              const parsed = parseValueExpr(argNode, paramNames, varToId, line)
-              if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-                Object.assign(args, parsed as Record<string, Arg>)
-              } else {
-                throw new ParseError(`${opName} args must be an object`, line)
-              }
-            } else {
-              throw new ParseError(`unexpected argument type in ${opName}: ${argNode.type}`, line)
-              }
-            }
-            const grpCounter = ++_grpCounter
-            const markerStmt: CadStatement = {
-              id: `grp_${grpCounter}`,
-              op: opName,
-              args,
-              inputs: [],
-              feature: { kind: opName as 'group' | 'assembly', label: opName, createdBy: 'script' },
-              isMarker: true,
-            }
-            statements.push(markerStmt)
-            break
-          }
-
-          // ── E15.1: 装配链式调用成员方法 ──
-          // assem1.add_constraint({ ... }) / assem1.do_assemble()
           if (
             expr?.type === 'CallExpression' &&
             expr.callee?.type === 'MemberExpression' &&
@@ -824,8 +811,9 @@ export function parseScript(code: string, _options?: ParseOptions): ParseResult 
               args,
               inputs: [],
               feature: { kind: 'assemble', label: methodName, createdBy: 'script' },
-              isMarker: true,
               assemblyTarget: targetVar,
+              hasAssignment: false,
+              returnType: getOpReturnType(methodName),
             }
             statements.push(memberStmt)
             break
@@ -868,9 +856,10 @@ export function parseScript(code: string, _options?: ParseOptions): ParseResult 
  * 从语句列表自动推导 terminal shapes。
  * 规则：不被任何其他语句引用的输出即终端。
  *
- * - 普通语句的 id 如果不被其他语句的 inputs 引用 → 终端
+ * 终端计算基于 hasAssignment 和 returnType：
+ * - 有赋值（hasAssignment=true）且 returnType 为 new_shape 的语句才参与终端计算
+ * - void / same_shape / scalar 不产出几何，不作为终端
  * - split 解构的 outputs 中不被引用的 → 终端
- * - marker 语句不作为终端
  */
 export function computeTerminalShapes(statements: CadStatement[]): TerminalShape[] | undefined {
   // 收集所有被引用的 id
@@ -881,10 +870,13 @@ export function computeTerminalShapes(statements: CadStatement[]): TerminalShape
     }
   }
 
-  // 收集所有输出 id（语句 id + split outputs）
+  // 收集所有输出 id（语句 id + split outputs），跳过无赋值/非 new_shape 语句
   const outputIds: string[] = []
   for (const stmt of statements) {
-    if (stmt.isMarker) continue
+    const rt = stmt.returnType ?? 'new_shape'
+    // 只有有赋值且返回 new_shape 的语句才产出几何终端
+    if (!stmt.hasAssignment && rt !== 'new_shape') continue
+    if (rt !== 'new_shape') continue
     outputIds.push(stmt.id)
     if (stmt.outputs) {
       for (const outId of stmt.outputs) {

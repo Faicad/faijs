@@ -62,6 +62,8 @@ function makeStmt(
     args: args as any,
     inputs,
     feature: { kind: featureKind ?? 'primitive', label: op, createdBy: 'user' },
+    hasAssignment: true,
+    returnType: 'new_shape',
   }
 }
 
@@ -83,10 +85,10 @@ async function runScript(statements: CadStatement[]): Promise<ExecutionResult> {
 function shapeVertexCount(s: Shape): number { return s.positions.length / 3 }
 function shapeTriangleCount(s: Shape): number { return s.indices.length / 3 }
 
-/** Get the last non-marker statement's output from ExecutionResult */
+/** Get the last geometry statement's output from ExecutionResult */
 function getFinalOutput(result: ExecutionResult, statements: CadStatement[]): Shape {
-  const nonMarker = statements.filter(s => !s.isMarker)
-  const last = nonMarker[nonMarker.length - 1]
+  const geoStmts = statements.filter(s => s.hasAssignment && (s.returnType ?? 'new_shape') === 'new_shape')
+  const last = geoStmts[geoStmts.length - 1]
   const shape = result.outputs.get(last.id)
   if (!shape) throw new Error(`No output for terminal statement "${last.id}"`)
   return shape

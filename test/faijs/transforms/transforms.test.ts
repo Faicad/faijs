@@ -62,8 +62,8 @@ describe('transforms .faijs tests', () => {
 
       expect(result.failedAt).toBeUndefined()
 
-      const nonMarker = script.statements.filter(s => !s.isMarker)
-      const lastStmt = nonMarker[nonMarker.length - 1]
+      const geoStmts = script.statements.filter(s => s.hasAssignment && (s.returnType ?? 'new_shape') === 'new_shape')
+      const lastStmt = geoStmts[geoStmts.length - 1]
       const shape = result.outputs.get(lastStmt.id)
       expect(shape).toBeDefined()
       expect(shape!.positions.length).toBeGreaterThan(0)

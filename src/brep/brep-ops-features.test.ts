@@ -581,6 +581,8 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
       args: args as any,
       inputs,
       feature: { kind: featureKind ?? ('primitive' as FeatureKind), label: op, createdBy: 'user' },
+      hasAssignment: true,
+      returnType: 'new_shape',
     }
   }
 

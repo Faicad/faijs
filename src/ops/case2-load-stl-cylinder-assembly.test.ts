@@ -20,8 +20,7 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { initOcctWasm, getKernel } from '../occt-kernel/occtKernel'
-import type { OcctKernel } from 'occt-wasm'
+import { initOcctWasm } from '../occt-kernel/occtKernel'
 import type { CadStatement, PartScript } from '../lang/types'
 import { createRuntime, type ExecutionResult } from '../cad-runtime/runtime'
 import type { HostPorts, EventSink, AssetResolver } from '../cad-runtime/ports'
@@ -30,12 +29,10 @@ import { computeTerminalShapes } from '../lang/parser'
 import { exportStepFromSolid } from '../brep/export/step'
 import { exportStep } from '../occt-kernel/highLevelApi'
 
-let kernel: OcctKernel
 let stlBuffer: ArrayBuffer
 
 beforeAll(async () => {
   await initOcctWasm()
-  kernel = getKernel()
 
   // Load cube-10x5x5.stl fixture
   const stlPath = resolve(__dirname, '..', '..', 'test', 'fixtures', 'cube-10x5x5.stl')
@@ -92,6 +89,8 @@ function makeStmt(
     args: args as never,
     inputs,
     feature: { kind: 'primitive', label: op, createdBy: 'user' },
+    hasAssignment: true,
+    returnType: 'new_shape',
     ...extra,
   }
 }
@@ -129,7 +128,7 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
         position: [0, 0, 10], direction: 'normal',
         faceNormal: [0, 0, 1],
       }, ['cyl_v0']),
-      // S3: assembly marker (isMarker, replay skips)
+      // S3: assembly structural statement (replay skips)
       makeStmt('grp_asm0', 'assembly', {
         name: 'CubeOnCylinder',
         members: ['cube_v0', 'drilled_v0'],
@@ -138,7 +137,7 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
           fixedFace: { faceId: 'cube_top', surfaceType: 'plane' },
           movingFace: { faceId: 'cyl_top', surfaceType: 'plane' },
         }],
-      }, [], { isMarker: true, feature: { kind: 'assembly', label: 'assembly', createdBy: 'user' } }),
+      }, [], { feature: { kind: 'assembly', label: 'assembly', createdBy: 'user' } }),
       // S4: rotate with pivot — BREP-native transform
       makeStmt('rot_v0', 'rotate', { anglesDeg: [180, 0, 0], pivot: [0, 0, 20] }, ['drilled_v0'],
         { feature: { kind: 'transform', label: 'rotate', createdBy: 'user' } }),
@@ -160,9 +159,9 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
     expect(solidCache.has('rot_v0')).toBe(true)       // rotate → BREP ✅
     expect(solidCache.has('mated_v0')).toBe(true)     // translate → BREP ✅
 
-    // Assembly marker is skipped during replay
+    // Assembly structural statement is skipped during replay
     const asmStmt = stmts.find(s => s.op === 'assembly')
-    expect(asmStmt?.isMarker).toBe(true)
+    expect(asmStmt).toBeDefined()
 
     fileBlobStore.release(bufferKey)
   })
@@ -182,7 +181,7 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
         name: 'CubeOnCylinder',
         members: ['cube_v0', 'drilled_v0'],
         constraints: [],
-      }, [], { isMarker: true, feature: { kind: 'assembly', label: 'assembly', createdBy: 'user' } }),
+      }, [], { feature: { kind: 'assembly', label: 'assembly', createdBy: 'user' } }),
       makeStmt('rot_v0', 'rotate', { anglesDeg: [180, 0, 0], pivot: [0, 0, 20] }, ['drilled_v0'],
         { feature: { kind: 'transform', label: 'rotate', createdBy: 'user' } }),
       makeStmt('mated_v0', 'translate', { offset: [0, 0, 5] }, ['rot_v0'],
@@ -259,7 +258,7 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
           fixedFace: { faceId: 'cube_top', surfaceType: 'plane' },
           movingFace: { faceId: 'cyl_top', surfaceType: 'plane' },
         }],
-      }, [], { isMarker: true, feature: { kind: 'assembly', label: 'assembly', createdBy: 'user' } }),
+      }, [], { feature: { kind: 'assembly', label: 'assembly', createdBy: 'user' } }),
       makeStmt('rot_v0', 'rotate', { anglesDeg: [180, 0, 0], pivot: [0, 0, 20] }, ['drilled_v0'],
         { feature: { kind: 'transform', label: 'rotate', createdBy: 'user' } }),
       makeStmt('mated_v0', 'translate', { offset: [0, 0, 5] }, ['rot_v0'],
@@ -272,11 +271,13 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
     // Verify assembly marker metadata
     const asmStmt = stmts.find(s => s.op === 'assembly')
     expect(asmStmt).toBeDefined()
-    expect(asmStmt!.isMarker).toBe(true)
     expect(asmStmt!.args.members).toEqual(['cube_v0', 'drilled_v0'])
 
-    // Assembly marker should not produce any output geometry
-    expect(result.outputs.has('grp_asm0')).toBe(false)
+    // Assembly statement goes through dispatcher (new_shape) but returns empty shape (no-op)
+    // The output exists but is empty (positions and indices are zero-length)
+    const asmOutput = result.outputs.get('grp_asm0')
+    expect(asmOutput).toBeDefined()
+    expect(asmOutput!.positions.length).toBe(0)
 
     fileBlobStore.release(bufferKey)
   })

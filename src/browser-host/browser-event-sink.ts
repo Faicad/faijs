@@ -16,6 +16,7 @@ export class BrowserEventSink implements EventSink {
     if (event === 'part-brep-lost' && typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('part-brep-lost', {
         detail: {
+          partId: detail.partId,
           op: detail.op,
           stmtName: detail.partId,
           partName: detail.partId,
