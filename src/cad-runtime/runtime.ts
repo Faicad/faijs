@@ -23,12 +23,12 @@ import type { ShapeHandle, OcctKernel } from 'occt-wasm'
 import {
   initBrepChainState,
   releaseBrepChainState,
-  breakBrepChain,
   MESH_ONLY_OPS,
 } from '../brep/brep-chain'
 import { executeStatement as dispatchStatement } from '../ops/dispatcher'
 import { parseScript, ParseError } from '../lang/parser'
 import { validateStatementArgs } from '../lang/args-schema'
+import { canUseBrep } from '../ops/types'
 import type { HostPorts, ExecutionMode } from './ports'
 import type { SelectorRuntimeData } from '../topology/build-selector-runtime'
 
@@ -76,7 +76,7 @@ export interface PartTopology {
 export interface ExecutionResult {
   /** 语句输出缓存（stmtId → Shape） */
   outputs: Map<string, Shape>
-  /** BREP 链状态（含终端 solid 句柄） */
+  /** BREP 链状态（含逐 part solid 句柄） */
   brepChain: BrepChainState
   /** 终端几何列表 */
   terminals: TerminalShape[]
@@ -84,8 +84,8 @@ export interface ExecutionResult {
   infos: string[]
   /** 失败信息（如果执行中途出错） */
   failedAt?: { index: number; op: string; message: string }
-  /** 终端 BREP solid（如果链未断裂） */
-  brepSolid?: { solid: ShapeHandle; kernel: OcctKernel }
+  /** 逐终端的 BREP 实体（仅持有 solid 的终端出现在此表）。 */
+  brepSolids?: Map<string, { solid: ShapeHandle; kernel: OcctKernel }>
   /**
    * 拓扑数据 — 每个 part 的拓扑运行时。
    * E13：由 ExecutionResult 携带，宿主从结果消费。
@@ -230,11 +230,11 @@ export class CadRuntime {
         inputGeometries.push(geo)
       }
 
-      // 检查是否需要断链（mesh-only op）—— 静态判定，不是运行时 try-catch
-      if (this.mode !== 'mesh' && brepChain.brepActive && MESH_ONLY_OPS.has(stmt.op)) {
-        this.handleBrepBreak(brepChain, stmt.id, stmt.op, `mesh-only op: ${stmt.op}`, infos)
+      // 检查 mesh-only op（逐 part 设计：不翻转全局状态，只发事件）
+      if (MESH_ONLY_OPS.has(stmt.op)) {
+        // mesh-only op 永远走 mesh，不写 solidCache → 输出 part 自动失去 BREP
+        // brep 模式：报错，不自动切换
         if (this.mode === 'brep') {
-          // brep 模式：断链即报错，不自动切换
           return {
             outputs: outputCache,
             brepChain,
@@ -242,6 +242,23 @@ export class CadRuntime {
             infos,
             failedAt: { index: i, op: stmt.op, message: `E_BREP_UNSUPPORTED: op "${stmt.op}" has no BREP implementation` },
           }
+        }
+        // auto 模式：发逐 part 事件（mesh 模式不发——kernel 从未存在，无 BREP 可丢失）
+        if (this.mode === 'auto') {
+          this.ports.events.emit('part-brep-lost', {
+            partId: stmt.id,
+            op: stmt.op,
+            reason: 'mesh-only op output',
+          })
+        }
+      } else if (this.mode === 'brep' && !canUseBrep({ stmt, inputGeometries, args: stmt.args as Record<string, unknown>, brepChain, mode: this.mode })) {
+        // brep 模式：任一引用了无 solid 输入的 BREP op 也必须报错（逐 part 强制）
+        return {
+          outputs: outputCache,
+          brepChain,
+          terminals: [],
+          infos,
+          failedAt: { index: i, op: stmt.op, message: `E_BREP_UNSUPPORTED: input of "${stmt.op}" is not BREP` },
         }
       }
 
@@ -263,15 +280,28 @@ export class CadRuntime {
 
     // 提取终端几何
     const terminals = script.terminalShapes ?? []
-    const nonMarkerStmts = script.statements.filter((s) => !s.isMarker)
 
-    // 提取终端 BREP solid
-    let brepSolid: { solid: ShapeHandle; kernel: OcctKernel } | undefined
-    if (brepChain.brepActive && brepChain.kernel && nonMarkerStmts.length > 0) {
-      const lastStmt = nonMarkerStmts[nonMarkerStmts.length - 1]
-      const finalSolid = brepChain.solidCache.get(lastStmt.id)
-      if (finalSolid && brepChain.kernel) {
-        brepSolid = { solid: finalSolid, kernel: brepChain.kernel }
+    // 逐终端提取 BREP solid（逐 part 设计）
+    const brepSolids = new Map<string, { solid: ShapeHandle; kernel: OcctKernel }>()
+    if (brepChain.kernel) {
+      if (terminals.length > 0) {
+        // 有终端声明：逐终端检查 solidCache
+        for (const t of terminals) {
+          const s = brepChain.solidCache.get(t.id)
+          if (s && brepChain.kernel) {
+            brepSolids.set(t.id, { solid: s, kernel: brepChain.kernel })
+          }
+        }
+      } else {
+        // 无终端声明：取最后一条非 marker 语句
+        const nonMarkerStmts = script.statements.filter((s) => !s.isMarker)
+        if (nonMarkerStmts.length > 0) {
+          const lastStmt = nonMarkerStmts[nonMarkerStmts.length - 1]
+          const finalSolid = brepChain.solidCache.get(lastStmt.id)
+          if (finalSolid && brepChain.kernel) {
+            brepSolids.set(lastStmt.id, { solid: finalSolid, kernel: brepChain.kernel })
+          }
+        }
       }
     }
 
@@ -280,28 +310,9 @@ export class CadRuntime {
       brepChain,
       terminals,
       infos,
-      brepSolid,
+      brepSolids: brepSolids.size > 0 ? brepSolids : undefined,
       topology: this.topologyCache.size > 0 ? new Map(this.topologyCache) : undefined,
     }
-  }
-
-  // ── 内部：断链处理 ──
-
-  private handleBrepBreak(
-    brepChain: BrepChainState,
-    stmtId: string,
-    op: string,
-    reason: string,
-    infos: string[],
-  ): void {
-    breakBrepChain(brepChain, stmtId, op)
-    infos.push(`brep-chain-broken: ${reason} (op: ${op}, stmt: ${stmtId})`)
-    // 经 EventSink 通知（替代 window.dispatchEvent）
-    this.ports.events.emit('brep-chain-broken', {
-      partName: '', // 由调用方填充
-      op,
-      reason,
-    })
   }
 
   // ── 内部：跨 part 引用解析 ──
@@ -685,8 +696,6 @@ export function createRuntime(ports: HostPorts, mode?: ExecutionMode): CadRuntim
 function createEmptyBrepChain(): BrepChainState {
   return {
     solidCache: new Map(),
-    brepActive: false,  // mesh 模式不激活 BREP
-    kernel: null,
-    breakReason: { stmtId: '__mesh_mode__', op: '__mode__' },
+    kernel: null,  // mesh 模式无 BREP 能力
   }
 }

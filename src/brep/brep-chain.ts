@@ -3,8 +3,10 @@
  *
  * 在语句重放过程中跟踪 OCCT 精确实体句柄。
  * - solidCache: statementId → ShapeHandle（OCCT 实体句柄）
- * - brepActive: BREP 链是否未断裂
- * - breakReason: 断裂原因（如果链已断裂）
+ *
+ * BREP 状态是「逐 part」的：一个 part 是否仍为 BREP，
+ * 由 solidCache 里是否有它的句柄唯一决定。
+ * 不存在全局 brepActive 标志——兄弟 part 互不污染。
  *
  * 生命周期：由 replayScript / replayPart 创建，重放结束后释放所有中间句柄。
  * 终端句柄（如果有）由调用方保留用于导出。
@@ -30,10 +32,13 @@ export const BREP_NATIVE_OPS = new Set([
 ])
 
 /**
- * mesh-only 操作集合：这些 op 没有 OCCT 实现，遇到时 BREP 链断裂。
+ * mesh-only 操作集合：这些 op 没有 OCCT 实现。
  *
  * - sdf — 纯网格 SDF 求值
  * - knurl — 位移纹理操作，无参数化滚花 BREP 实现
+ *
+ * 这些 op 永远走 mesh 路径，不写 solidCache → 输出 part 自动失去 BREP。
+ * 不再翻转任何全局状态（逐 part 设计）。
  */
 export const MESH_ONLY_OPS = new Set<string>([
   'sdf',
@@ -80,15 +85,21 @@ export function isCadFormat(
 
 /**
  * BREP 链状态：在语句重放过程中跟踪 OCCT 实体句柄。
+ *
+ * BREP 状态是「逐 part」的：
+ * - solidCache 中存在该 part 的句柄 → 该 part 仍为 BREP
+ * - solidCache 中不存在该 part 的句柄 → 该 part 已降级为 mesh
+ *
+ * 不再有全局 brepActive / breakReason 字段。
+ * 一个 part 失去 BREP 状态，当且仅当：
+ *   - 它被 knurl/sdf（mesh-only op）产生（不写 solidCache），或
+ *   - 它的上游输入中至少有一个没有 BREP 实体。
+ * 兄弟 part 之间互不污染。
  */
 export interface BrepChainState {
-  /** OCCT 实体句柄缓存（statementId → ShapeHandle） */
+  /** OCCT 实体句柄缓存（statementId → ShapeHandle）。存在即该 part 仍为 BREP；缺失即已降级为 mesh。 */
   solidCache: Map<string, ShapeHandle>
-  /** BREP 链是否未断裂 */
-  brepActive: boolean
-  /** 断裂原因（如果链已断裂） */
-  breakReason?: { stmtId: string; op: string }
-  /** OCCT 内核实例（重放期间复用） */
+  /** OCCT 内核实例（mesh 模式为 null —— 等价于「无 BREP 能力」）。 */
   kernel: OcctKernel | null
   /**
    * 零件在世界空间中的平移偏移（来自 mesh.position / partTransforms）。
@@ -117,7 +128,6 @@ export interface BrepChainState {
 export function createBrepChainState(): BrepChainState {
   return {
     solidCache: new Map(),
-    brepActive: true,
     kernel: null,
     faceEvolutionCache: new Map(),
   }
@@ -130,7 +140,6 @@ export async function initBrepChainState(): Promise<BrepChainState> {
   const kernel = await initOcctWasm()
   return {
     solidCache: new Map(),
-    brepActive: true,
     kernel,
     faceEvolutionCache: new Map(),
   }
@@ -159,26 +168,4 @@ export function releaseBrepChainState(state: BrepChainState, keepIds?: Set<strin
   } else {
     state.solidCache.clear()
   }
-}
-
-/**
- * 标记 BREP 链断裂。
- */
-export function breakBrepChain(state: BrepChainState, stmtId: string, op: string): void {
-  state.brepActive = false
-  state.breakReason = { stmtId, op }
-}
-
-/**
- * 获取断链前最后一个有效 BREP solid（solidCache 最后一个条目）。
- *
- * 用于断链后保留拓扑：最后一个有效 solid 的拓扑作为 mesh 的假拓扑。
- *
- * @param state BREP 链状态
- * @returns 最后一个 solid 句柄，或 undefined（solidCache 为空时）
- */
-export function lastSolidOfChain(state: BrepChainState): ShapeHandle | undefined {
-  const entries = [...state.solidCache.entries()]
-  if (entries.length === 0) return undefined
-  return entries[entries.length - 1][1]
 }

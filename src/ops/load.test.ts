@@ -43,7 +43,7 @@ beforeAll(async () => {
 
 class TestEventSink implements EventSink {
   readonly events: Array<{ event: string; detail: Record<string, unknown> }> = []
-  emit(event: 'brep-chain-broken', detail: { partName: string; op: string; reason: string }): void {
+  emit(event: string, detail: Record<string, unknown>): void {
     this.events.push({ event, detail: { ...detail } })
   }
   clear(): void { this.events.length = 0 }
@@ -183,10 +183,7 @@ describe('executeLoad: BREP mode (via CadRuntime)', () => {
     expect(shape).toBeDefined()
     expect(shapeTriangleCount(shape)).toBeGreaterThan(0)
 
-    // BREP chain should stay active
-    expect(result.brepChain.brepActive).toBe(true)
-
-    // Solid should be cached
+    // BREP solid should be cached
     expect(result.brepChain.solidCache.has('s1')).toBe(true)
     const solid = result.brepChain.solidCache.get('s1')!
     const solidCount = kernel.getSubShapes(solid, 'solid').length
@@ -240,8 +237,7 @@ describe('executeLoad → drill: BREP chain propagation (via CadRuntime)', () =>
     ]
     const result = await runScript(stmts)
 
-    // BREP chain should stay active
-    expect(result.brepChain.brepActive).toBe(true)
+    // BREP solid should be cached
     expect(result.brepChain.solidCache.has('s2')).toBe(true)
 
     // Output mesh should be valid
@@ -278,8 +274,7 @@ describe('executeLoad → drill: BREP chain propagation (via CadRuntime)', () =>
     ]
     const result = await runScript(stmts)
 
-    // BREP chain should stay active (box_boss is a valid single solid)
-    expect(result.brepChain.brepActive).toBe(true)
+    // BREP chain should have solid cached (box_boss is a valid single solid)
     expect(result.brepChain.solidCache.has('s2')).toBe(true)
 
     // The loaded solid should be a real Solid (unwrapped), isValid=true

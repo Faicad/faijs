@@ -45,7 +45,6 @@ export { resolveGeomRef } from './ops/geom-ref'
 export type { BrepChainState } from './brep/brep-chain'
 export {
   createBrepChainState, initBrepChainState, releaseBrepChainState,
-  breakBrepChain, lastSolidOfChain,
   BREP_NATIVE_OPS, MESH_ONLY_OPS, isCadFormat,
 } from './brep/brep-chain'
 export {

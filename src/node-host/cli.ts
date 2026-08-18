@@ -20,7 +20,10 @@ import type { ExecutionMode } from '../cad-runtime/ports'
 import { createNodePorts } from './index'
 import { buildStlBufferFromMesh } from '../brep/export/stl'
 import { exportStepFromSolid } from '../brep/export/step'
+import { exportStep } from '../occt-kernel/highLevelApi'
 import { initOcctWasm } from '../occt-kernel/occtKernel'
+import type { Shape } from '../mesh/types'
+import type { ShapeHandle, OcctKernel } from 'occt-wasm'
 
 export interface CliCheckOptions {
   assetsDir?: string
@@ -131,7 +134,8 @@ export async function cliRun(
     if (!shape) {
       return { ok: false, error: `No output for statement "${lastStmt.id}"` }
     }
-    return writeOutput(outPath, ext, shape.positions, shape.indices, execResult.brepSolid)
+    const solidEntry = execResult.brepSolids?.get(lastStmt.id)
+    return writeOutput(outPath, ext, shape, solidEntry ? { solid: solidEntry.solid, kernel: solidEntry.kernel } : undefined)
   }
 
   // Single terminal
@@ -141,12 +145,11 @@ export async function cliRun(
     if (!shape) {
       return { ok: false, error: `No output for terminal "${terminal.id}"` }
     }
-    return writeOutput(outPath, ext, shape.positions, shape.indices, execResult.brepSolid)
+    const solidEntry = execResult.brepSolids?.get(terminal.id)
+    return writeOutput(outPath, ext, shape, solidEntry ? { solid: solidEntry.solid, kernel: solidEntry.kernel } : undefined)
   }
 
   // Multiple terminals — write each to a separate file
-  // If outPath is a directory, write each terminal as <name>.<ext>
-  // Otherwise, prefix with terminal index
   for (let i = 0; i < terminals.length; i++) {
     const terminal = terminals[i]
     const shape = execResult.outputs.get(terminal.id)
@@ -155,37 +158,44 @@ export async function cliRun(
     const name = terminal.meta?.name ?? terminal.id
     const sep = outPath.endsWith('/') || outPath.endsWith('\\') ? '' : '_'
     const terminalOutPath = `${outPath}${sep}${i}_${name}.${ext}`
-    const result = writeOutput(terminalOutPath, ext, shape.positions, shape.indices, undefined)
+    const solidEntry = execResult.brepSolids?.get(terminal.id)
+    const result = writeOutput(terminalOutPath, ext, shape, solidEntry ? { solid: solidEntry.solid, kernel: solidEntry.kernel } : undefined)
     if (!result.ok) return result
   }
 
   return { ok: true, outputFormat: ext }
 }
 
+/**
+ * 写出输出文件。
+ *
+ * 按零件类型分别处理 STEP 导出：
+ * - 有 BREP solid → 精确 STEP（exportStepFromSolid，ADVANCED_FACE）
+ * - 无 BREP solid → 三角化 STEP（exportStep/meshesToStep，faceted）
+ * - STL：无论是否 BREP，都取 mesh Shape 导出
+ */
 function writeOutput(
   outPath: string,
   ext: string,
-  positions: Float32Array,
-  indices: Uint32Array,
-  brepSolid?: { solid: import('occt-wasm').ShapeHandle; kernel: import('occt-wasm').OcctKernel },
+  shape: Shape,
+  brepSolid?: { solid: ShapeHandle; kernel: OcctKernel },
 ): CliRunResult {
   if (ext === 'stl') {
-    const buffer = buildStlBufferFromMesh(positions, indices)
+    const buffer = buildStlBufferFromMesh(shape.positions, shape.indices)
     writeFileSync(outPath, Buffer.from(buffer))
     return { ok: true, outputFile: outPath, outputFormat: 'stl' }
   }
 
   if (ext === 'step' || ext === 'stp') {
-    if (!brepSolid) {
-      // No BREP solid — fallback to STL mesh reconstruction
-      // For now, write STL with .step extension is wrong — report error
-      return {
-        ok: false,
-        error: 'No BREP solid available (chain was broken). Use --mode brep or fix the script to maintain BREP chain. Falling back to STL output.',
-      }
+    if (brepSolid) {
+      // 有 BREP solid → 精确 STEP
+      const buffer = exportStepFromSolid(brepSolid.solid, brepSolid.kernel)
+      writeFileSync(outPath, Buffer.from(buffer))
+      return { ok: true, outputFile: outPath, outputFormat: 'step' }
     }
-    const buffer = exportStepFromSolid(brepSolid.solid, brepSolid.kernel)
-    writeFileSync(outPath, Buffer.from(buffer))
+    // 无 BREP solid → 三角化 STEP（mesh 也可以导出 STEP，只是三角化的）
+    const stepContent = exportStep(shape)
+    writeFileSync(outPath, Buffer.from(stepContent, 'utf-8'))
     return { ok: true, outputFile: outPath, outputFormat: 'step' }
   }
 

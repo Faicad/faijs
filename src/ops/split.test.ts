@@ -52,7 +52,7 @@ beforeEach(() => {
 
 class TestEventSink implements EventSink {
   readonly events: Array<{ event: string; detail: Record<string, unknown> }> = []
-  emit(event: 'brep-chain-broken', detail: { partName: string; op: string; reason: string }): void {
+  emit(event: string, detail: Record<string, unknown>): void {
     this.events.push({ event, detail: { ...detail } })
   }
   clear(): void { this.events.length = 0 }
@@ -396,8 +396,8 @@ describe('split: geometric correctness (mesh path — STL source)', () => {
 
     const result = await runScript(stmts, 'auto')
 
-    // STL is mesh format → BREP chain should break at load
-    expect(result.brepChain.brepActive).toBe(false)
+    // STL is mesh format → no solid in cache for STL-loaded part
+    expect(result.brepChain.solidCache.has('part0_v0')).toBe(false)
     expect(result.failedAt).toBeUndefined()
   })
 })
@@ -420,8 +420,8 @@ describe('split: geometric correctness (BREP path — STEP source)', () => {
 
     expect(result.failedAt, `Execution failed: ${JSON.stringify(result.failedAt)}`).toBeUndefined()
 
-    // STEP is CAD format → BREP chain should stay active
-    expect(result.brepChain.brepActive).toBe(true)
+    // STEP is CAD format → BREP solids in cache
+    expect(result.brepChain.solidCache.has('part0_v0')).toBe(true)
 
     // Both outputs should have geometry
     const frontShape = result.outputs.get('part1_v0')
@@ -566,8 +566,8 @@ describe('split: mesh vs auto mode consistency', () => {
     const meshResult = await runScript(stmts, 'mesh')
     expect(meshResult.failedAt).toBeUndefined()
 
-    // In mesh mode, BREP chain is not active
-    expect(meshResult.brepChain.brepActive).toBe(false)
+    // In mesh mode, no solids in cache
+    expect(meshResult.brepChain.kernel).toBeNull()
 
     // But geometry should still be valid
     const front = meshResult.outputs.get('part1_v0')!
@@ -587,8 +587,8 @@ describe('split: mesh vs auto mode consistency', () => {
     const autoResult = await runScript(stmts, 'auto')
     expect(autoResult.failedAt, `auto mode failed: ${JSON.stringify(autoResult.failedAt)}`).toBeUndefined()
 
-    // In auto mode with box primitive, BREP chain should be active
-    expect(autoResult.brepChain.brepActive).toBe(true)
+    // In auto mode with box primitive, BREP solids in cache
+    expect(autoResult.brepChain.solidCache.has('part1_v0')).toBe(true)
 
     const front = autoResult.outputs.get('part1_v0')!
     const back = autoResult.outputs.get('part2_v0')!

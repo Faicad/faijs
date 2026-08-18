@@ -16,8 +16,6 @@ import type { HostPorts, ExecutionMode } from './cad-runtime/ports'
 export interface ReplayOutput {
   contentKey: string
   shape: Shape
-  brepActive?: boolean
-  breakReason?: { stmtId: string; op: string } | null
   brepChain: BrepChainState
 }
 
@@ -59,8 +57,6 @@ export async function replayScript(
   return {
     contentKey,
     shape: finalShape,
-    brepActive: brepChain?.brepActive,
-    breakReason: brepChain?.breakReason,
     brepChain,
   }
 }

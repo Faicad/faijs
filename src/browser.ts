@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿/**
  * @faicad/faijs/browser — Browser-safe exports (F6: A/B/C/D 四类收敛)
  *
  * Excludes L3 Node Host modules (node-host/*) that depend on node:fs/node:path.
@@ -228,7 +228,6 @@ export type { BrepChainState } from './brep/brep-chain'
 /** @deprecated BREP 链是执行内部状态，宿主不应触碰；用 CadRuntime.replay() */
 export {
   createBrepChainState, initBrepChainState, releaseBrepChainState,
-  breakBrepChain, lastSolidOfChain,
   BREP_NATIVE_OPS, MESH_ONLY_OPS, isCadFormat,
 } from './brep/brep-chain'
 /** @deprecated 用高层 API importStep/exportStep 替代 */

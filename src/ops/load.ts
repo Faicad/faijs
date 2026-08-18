@@ -14,7 +14,7 @@
 
 import type { Shape } from '../mesh/types'
 import { cad } from '../mesh'
-import { breakBrepChain, isCadFormat } from '../brep/brep-chain'
+import { isCadFormat } from '../brep/brep-chain'
 import { loadBrep } from '../brep/brep-ops'
 import type { OpContext } from './types'
 import { canUseBrep } from './types'
@@ -24,10 +24,10 @@ import { canUseBrep } from './types'
 /**
  * 用解析到的 buffer 执行加载。
  *
- * 静态分派：
- * - 链活跃 && isCadFormat → BREP 路径（loadBrep 异常 = 未预期错误，冒泡上报）
- * - 链活跃 && !isCadFormat → 静态断链 → mesh 路径（合法分支，非回退）
- * - 链不活跃 → mesh 路径
+ * 静态分派（逐 part）：
+ * - CAD 源 → BREP 路径（loadBrep 异常 = 未预期错误，冒泡上报）
+ * - 非 CAD 源 → mesh 路径（合法分支，不写 solidCache → 该 part 自动为 mesh）
+ * - mesh 模式 / kernel 不存在 → mesh 路径
  */
 async function executeWithBuffer(
   ctx: OpContext,
@@ -36,16 +36,16 @@ async function executeWithBuffer(
 ): Promise<Shape> {
   const { stmt, brepChain } = ctx
 
-  // 链不活跃 → mesh 路径（链已在前面静态断掉，正常继续）
+  // mesh 模式或无 kernel → mesh 路径
   if (!canUseBrep(ctx) || !brepChain?.kernel) {
     const format = ctx.args.format as string | undefined
     return cad.load(buffer, format)
   }
 
-  // 链活跃：静态判定是否为 CAD 格式
+  // 静态判定是否为 CAD 格式
   if (!isCadFormat(ctx.args, isSource)) {
-    // 非 CAD 源 → 静态断链 → mesh 路径（合法分支，非回退）
-    breakBrepChain(brepChain, stmt.id, stmt.op)
+    // 非 CAD 源 → mesh 路径（不写 solidCache，该 part 自动为 mesh）
+    // 不再翻转全局状态——兄弟 part 不受影响
     const format = ctx.args.format as string | undefined
     return cad.load(buffer, format)
   }

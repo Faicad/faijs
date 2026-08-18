@@ -1,8 +1,9 @@
 /**
  * 滚花操作分派器
  *
- * mesh-only（MESH_ONLY_OPS 包含 knurl）— 静态断链点
- * 链活跃时由 runtime 静态断链后走 mesh 路径（合法分支，非回退）
+ * mesh-only（MESH_ONLY_OPS 包含 knurl）— 永远走 mesh 路径
+ * 不写 solidCache → 输出 part 自动失去 BREP（逐 part 设计）
+ * 不再翻转任何全局状态
  *
  * Mesh 路径：应用纹理位移
  */
@@ -15,14 +16,18 @@ import type { OpContext } from './types'
  * 执行滚花操作
  */
 export async function executeKnurl(ctx: OpContext): Promise<Shape> {
-  const { stmt, inputGeometries, args } = ctx
+  const { stmt, inputGeometries, args, brepChain } = ctx
 
   if (inputGeometries.length === 0) {
     throw new Error(`[ReplayValidator] knurl statement "${stmt.id}" has no input geometry`)
   }
   const shape = inputGeometries[0]
 
-  // mesh 路径：应用纹理位移（BREP 链已由 runtime 静态断链）
+  // 防御性：确保输出 part 不在 solidCache 中（明确「本 part 失去 BREP」）
+  // 输出是新 id，正常情况下不会残留，但显性删除更稳健、语义更清楚
+  brepChain?.solidCache.delete(stmt.id)
+
+  // mesh 路径：应用纹理位移
   return cad.knurl(shape, {
     face: {
       center: (args.faceCenter as Vec3) ?? cad.bboxCenter(shape),

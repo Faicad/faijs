@@ -9,7 +9,7 @@
  * 3. BREP 钻孔操作（drillBrep — 圆柱通孔/盲孔）
  * 4. BREP 平面分割操作（splitBrep）
  * 5. BREP 拉伸操作（extrudeBrep）
- * 6. BREP 链状态管理（createBrepChainState/breakBrepChain/releaseBrepChainState）
+ * 6. BREP 链状态管理（createBrepChainState/releaseBrepChainState）
  * 7. BREP 特征链的 STEP 导出精确曲面验证
  * 8. BREP 链断裂逻辑（isDrillBrepCapable/isSplitBrepCapable）
  *
@@ -41,7 +41,7 @@ import {
   drillBrep, splitBrep,
   solidToShape, getSolidBoundingBox,
   createBrepChainState, initBrepChainState,
-  breakBrepChain, releaseBrepChainState,
+  releaseBrepChainState,
   BREP_NATIVE_OPS, MESH_ONLY_OPS,
   isCadFormat,
 } from '../brep'
@@ -355,26 +355,16 @@ describe('BREP split op', () => {
 // ── BREP 链状态管理 ──
 
 describe('BREP chain state management', () => {
-  it('createBrepChainState: creates empty state with brepActive=true', () => {
+  it('createBrepChainState: creates empty state with kernel=null', () => {
     const state = createBrepChainState()
-    expect(state.brepActive).toBe(true)
-    expect(state.breakReason).toBeUndefined()
     expect(state.solidCache.size).toBe(0)
     expect(state.kernel).toBeNull()
   })
 
   it('initBrepChainState: creates state with initialized kernel', async () => {
     const state = await initBrepChainState()
-    expect(state.brepActive).toBe(true)
     expect(state.kernel).not.toBeNull()
     state.solidCache.clear()
-  })
-
-  it('breakBrepChain: sets brepActive=false and records breakReason', () => {
-    const state = createBrepChainState()
-    breakBrepChain(state, 'stmt-3', 'engrave')
-    expect(state.brepActive).toBe(false)
-    expect(state.breakReason).toEqual({ stmtId: 'stmt-3', op: 'engrave' })
   })
 
   it('releaseBrepChainState: releases all handles except keepIds', () => {
@@ -603,7 +593,7 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
     }
   }
 
-  it('replayScript(box → drill, brep) → brepActive=true, terminal solid in cache', async () => {
+  it('replayScript(box → drill, brep) → solid in cache', async () => {
     const script = makeScript([
       makeStmt('s1', 'box', { size: 20 }, [], 'primitive'),
       makeStmt('s2', 'drill', {
@@ -614,10 +604,8 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
     ])
 
     const result = await replayScript(script)
-    expect(result.brepActive).toBe(true)
-    expect(result.breakReason).toBeUndefined()
-    expect(result.brepChain?.solidCache.has('s2')).toBe(true)
-    expect(result.brepChain?.kernel).not.toBeNull()
+    expect(result.brepChain.solidCache.has('s2')).toBe(true)
+    expect(result.brepChain.kernel).not.toBeNull()
 
     // Clean up solid handles
     if (result.brepChain) {
@@ -635,7 +623,6 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
     const boxStmt = makeStmt('s1', 'box', { size: 20 }, [], 'primitive')
     const boxShape = await executeStatement(boxStmt, [], outputCache, undefined, brepChain)
     outputCache.set('s1', boxShape)
-    expect(brepChain.brepActive).toBe(true)
     expect(brepChain.solidCache.has('s1')).toBe(true)
 
     // 2. 执行 drill 语句（BREP 路径）
@@ -646,7 +633,6 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
     }, ['s1'], 'drill')
     const drilledShape = await executeStatement(drillStmt, [boxShape], outputCache, undefined, brepChain)
     outputCache.set('s2', drilledShape)
-    expect(brepChain.brepActive).toBe(true)
     expect(brepChain.solidCache.has('s2')).toBe(true)
 
     // 3. 执行 engrave 语句（BREP 路径 — textToSolid + boolean）
@@ -658,16 +644,15 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
     outputCache.set('s3', engraveShape)
 
     // 验证链未断裂
-    expect(brepChain.brepActive).toBe(true)
     expect(brepChain.solidCache.has('s3')).toBe(true)
 
     // Clean up
     releaseBrepChainState(brepChain)
   })
 
-  it('replayScript without engrave → brepActive=true (chain healed, not persistent)', async () => {
-    // 核心测试：断裂不是持久状态。每次 replayScript 创建新的 BrepChainState，
-    // 删除 engrave 语句后重放 → 链自动愈合（brepActive=true）
+  it('replayScript without engrave → solid still in cache (chain healed, not persistent)', async () => {
+    // 核心测试：BREP 状态不是持久状态。每次 replayScript 创建新的 BrepChainState，
+    // 删除 engrave 语句后重放 → solidCache 仍有 drill solid
     const script = makeScript([
       makeStmt('s1', 'box', { size: 20 }, [], 'primitive'),
       makeStmt('s2', 'drill', {
@@ -679,9 +664,7 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
     ])
 
     const result = await replayScript(script)
-    expect(result.brepActive).toBe(true)
-    expect(result.breakReason).toBeUndefined()
-    expect(result.brepChain?.solidCache.has('s2')).toBe(true)
+    expect(result.brepChain.solidCache.has('s2')).toBe(true)
 
     // Clean up
     if (result.brepChain) {
@@ -701,7 +684,7 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
     ])
 
     const result = await replayScript(script)
-    expect(result.brepActive).toBe(true)
+    expect(result.brepChain.solidCache.has('s2')).toBe(true)
 
     // 获取终端 solid 并导出 STEP
     if (result.brepChain?.kernel && result.brepChain.solidCache.has('s2')) {

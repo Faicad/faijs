@@ -43,10 +43,11 @@ function resolveArg(
         throw new Error(`[ReplayValidator] GeomRef requires outputCache for resolution`)
       }
       // P5-2: 传入 BREP solidCache 和 kernel，使 resolveGeomRef 能按 faceOrdinal 取面
+      // 逐 part 设计：只要 kernel 存在就传入 solidCache 查询函数，按具体 part id 查各自的实体
       return resolveGeomRef(
         arg,
         (id) => outputCache.get(id),
-        brepChain?.brepActive ? (id) => brepChain.solidCache.get(id) : undefined,
+        brepChain?.kernel ? (id) => brepChain.solidCache.get(id) : undefined,
         brepChain?.kernel ?? undefined,
       )
     }

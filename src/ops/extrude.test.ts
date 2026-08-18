@@ -32,7 +32,7 @@ beforeAll(async () => {
 
 class TestEventSink implements EventSink {
   readonly events: Array<{ event: string; detail: Record<string, unknown> }> = []
-  emit(event: 'brep-chain-broken', detail: { partName: string; op: string; reason: string }): void {
+  emit(event: string, detail: Record<string, unknown>): void {
     this.events.push({ event, detail: { ...detail } })
   }
   clear(): void { this.events.length = 0 }
@@ -104,7 +104,7 @@ describe('extrude: basic modes (BREP + mesh)', () => {
     expect(brepResult.failedAt).toBeUndefined()
     const brepShape = getFinalOutput(brepResult, stmts)
     expect(shapeVertexCount(brepShape)).toBeGreaterThan(0)
-    expect(brepResult.brepChain.brepActive).toBe(true)
+    expect(brepResult.brepChain.solidCache.size).toBeGreaterThan(0)
 
     const meshResult = await runScript(stmts, 'mesh')
     expect(meshResult.failedAt).toBeUndefined()

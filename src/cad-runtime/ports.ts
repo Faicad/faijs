@@ -160,13 +160,13 @@ export interface AssetResolver {
 // ── EventSink ──
 
 /**
- * 事件通知接口 — 断链等事件。
+ * 事件通知接口 — BREP 丢失等事件。
  *
  * browser 实现：BrowserEventSink（window.dispatchEvent → toast）
- * node 实现 (P3)：NodeEventSink（写入 result.infos / stderr）
+ * node 实现 (P3)：CliEventSink（写入 stderr + 收集到 events 数组）
  */
 export interface EventSink {
-  emit(event: 'brep-chain-broken', detail: { partName: string; op: string; reason: string }): void
+  emit(event: 'part-brep-lost', detail: { partId: string; op: string; reason: string }): void
 }
 
 // ── HostPorts 汇总 ──

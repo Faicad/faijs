@@ -114,7 +114,7 @@ export type {
 } from '../brep'
 export {
   createBrepChainState, initBrepChainState, releaseBrepChainState,
-  breakBrepChain, lastSolidOfChain, solidToShape,
+  solidToShape,
   BREP_NATIVE_OPS, MESH_ONLY_OPS,
   isCadFormat,
 } from '../brep'

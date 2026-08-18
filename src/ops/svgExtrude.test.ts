@@ -46,7 +46,7 @@ beforeAll(async () => {
 
 class TestEventSink implements EventSink {
   readonly events: Array<{ event: string; detail: Record<string, unknown> }> = []
-  emit(event: 'brep-chain-broken', detail: { partName: string; op: string; reason: string }): void {
+  emit(event: string, detail: Record<string, unknown>): void {
     this.events.push({ event, detail: { ...detail } })
   }
   clear(): void { this.events.length = 0 }
@@ -148,7 +148,7 @@ describe('svgExtrude: BREP path', () => {
 
     const result = await runScript(stmts, 'brep', SVG_ASSET_KEY)
     expect(result.failedAt).toBeUndefined()
-    expect(result.brepChain.brepActive).toBe(true)
+    expect(result.brepChain.solidCache.size).toBeGreaterThan(0)
 
     const shape = getFinalOutput(result, stmts)
     expect(shapeVertexCount(shape)).toBeGreaterThan(0)
@@ -253,9 +253,10 @@ describe('svgExtrude: STEP export verification (BREP)', () => {
     ]
 
     const result = await runScript(stmts, 'brep', SVG_ASSET_KEY)
-    expect(result.brepSolid).toBeDefined()
+    expect(result.brepSolids).toBeDefined()
 
-    const step = kernel.exportStep(result.brepSolid!.solid)
+    const solidEntry = result.brepSolids!.get('s1')!
+    const step = kernel.exportStep(solidEntry.solid)
     expect(step).toContain('ADVANCED_FACE')
   })
 })

@@ -1,11 +1,11 @@
-﻿﻿/**
+﻿﻿﻿﻿/**
  * @vitest-environment node
  *
  * CadRuntime 三模式契约测试 + 单元测试 (P2-8)
  *
  * 测试内容：
- * 1. auto 模式：BREP 优先，断链后自动切 mesh
- * 2. brep 模式：强制 BREP，断链即报错 E_BREP_UNSUPPORTED
+ * 1. auto 模式：BREP 优先，逐 part 判定
+ * 2. brep 模式：强制 BREP，不支持即报错 E_BREP_UNSUPPORTED
  * 3. mesh 模式：全部走 mesh 路径
  * 4. CadRuntime 实例管理：statementCache, brepSolidCache, plan, dispose
  *
@@ -32,7 +32,7 @@ beforeAll(async () => {
 
 class TestEventSink implements EventSink {
   readonly events: Array<{ event: string; detail: Record<string, unknown> }> = []
-  emit(event: 'brep-chain-broken', detail: { partName: string; op: string; reason: string }): void {
+  emit(event: string, detail: Record<string, unknown>): void {
     this.events.push({ event, detail: { ...detail } })
   }
   clear(): void { this.events.length = 0 }
@@ -70,20 +70,26 @@ async function run(statements: CadStatement[], mode?: ExecutionMode) {
   return { runtime, result: await runtime.replay(script) }
 }
 
+// Helper: get first brepSolid from result
+function getFirstBrepSolid(result: { brepSolids?: Map<string, { solid: import('occt-wasm').ShapeHandle; kernel: import('occt-wasm').OcctKernel }> }) {
+  if (!result.brepSolids) return undefined
+  for (const [, entry] of result.brepSolids) return entry
+  return undefined
+}
+
 // ─── auto 模式契约 ───
 
-describe('CadRuntime: auto mode (BREP-first, static chain break)', () => {
-  it('BREP-native op (box): chain stays active, brepSolid is set', async () => {
+describe('CadRuntime: auto mode (BREP-first, per-part)', () => {
+  it('BREP-native op (box): solid in cache, brepSolids is set', async () => {
     const { result } = await run([makeStmt('s1', 'box', { size: 20 })])
 
-    expect(result.brepChain.brepActive).toBe(true)
-    expect(result.brepSolid).toBeDefined()
+    expect(result.brepChain.solidCache.has('s1')).toBe(true)
+    expect(result.brepSolids).toBeDefined()
     expect(result.failedAt).toBeUndefined()
   })
 
-  it('mesh-only op (sdf): chain breaks statically, mesh path throws in node', async () => {
-    // sdf is in MESH_ONLY_OPS → chain breaks statically before execution
-    // Then sdf tries mesh path → fails in node (no Worker)
+  it('mesh-only op (sdf): mesh path throws in node', async () => {
+    // sdf is mesh-only → mesh path → fails in node (no Worker)
     // Error propagates directly (no try-catch fallback)
     await expect(run([
       makeStmt('s1', 'box', { size: 20 }),
@@ -91,9 +97,9 @@ describe('CadRuntime: auto mode (BREP-first, static chain break)', () => {
     ])).rejects.toThrow()
   })
 
-  it('BREP exception → error propagates directly (no mesh retry, no breakBrepChain)', async () => {
+  it('BREP exception → error propagates directly (no mesh retry)', async () => {
     // BREP path exception = bug, must propagate directly.
-    // No try-catch, no breakBrepChain, no mesh retry.
+    // No try-catch, no mesh retry.
     const { clearFonts, setFontLoader, getFontLoader } = await import('../brep/text/fontRegistry')
     const savedLoader = getFontLoader()
     clearFonts()
@@ -110,7 +116,7 @@ describe('CadRuntime: auto mode (BREP-first, static chain break)', () => {
     setFontLoader(savedLoader)
   })
 
-  it('EventSink receives brep-chain-broken event on static chain break', async () => {
+  it('EventSink receives part-brep-lost event on mesh-only op', async () => {
     const ports = createNodePorts()
     const sink = ports.events as TestEventSink
     const runtime = createRuntime(ports)
@@ -118,8 +124,8 @@ describe('CadRuntime: auto mode (BREP-first, static chain break)', () => {
       makeStmt('s1', 'box', { size: 20 }),
       makeStmt('s2', 'sdf', { code: '0', box: [[-5,-5,-5],[5,5,5]], resolution: 8 }, ['s1']),
     ])
-    // sdf mesh path throws in node, but the brep-chain-broken event
-    // is emitted during static break BEFORE execution
+    // sdf mesh path throws in node, but the part-brep-lost event
+    // is emitted during mesh-only op execution
     try {
       await runtime.replay(script)
     } catch {
@@ -127,7 +133,7 @@ describe('CadRuntime: auto mode (BREP-first, static chain break)', () => {
     }
 
     expect(sink.events.length).toBeGreaterThan(0)
-    expect(sink.events[0].event).toBe('brep-chain-broken')
+    expect(sink.events[0].event).toBe('part-brep-lost')
     expect(sink.events[0].detail.op).toBe('sdf')
   })
 })
@@ -135,11 +141,11 @@ describe('CadRuntime: auto mode (BREP-first, static chain break)', () => {
 // ─── brep 模式契约 ───
 
 describe('CadRuntime: brep mode (strict BREP, no fallback)', () => {
-  it('BREP-native op (box): chain stays active', async () => {
+  it('BREP-native op (box): solid in cache', async () => {
     const { result } = await run([makeStmt('s1', 'box', { size: 20 })], 'brep')
 
-    expect(result.brepChain.brepActive).toBe(true)
-    expect(result.brepSolid).toBeDefined()
+    expect(result.brepChain.solidCache.has('s1')).toBe(true)
+    expect(result.brepSolids).toBeDefined()
     expect(result.failedAt).toBeUndefined()
   })
 
@@ -152,10 +158,9 @@ describe('CadRuntime: brep mode (strict BREP, no fallback)', () => {
     // brep mode: sdf is mesh-only → immediate E_BREP_UNSUPPORTED
     expect(result.failedAt).toBeDefined()
     expect(result.failedAt!.message).toContain('E_BREP_UNSUPPORTED')
-    expect(result.brepChain.brepActive).toBe(false)
   })
 
-  it('BREP exception → error propagates directly (no mesh retry, no breakBrepChain)', async () => {
+  it('BREP exception → error propagates directly (no mesh retry)', async () => {
     // BREP path exception = bug, must propagate directly in all modes.
     const { clearFonts, setFontLoader, getFontLoader } = await import('../brep/text/fontRegistry')
     const savedLoader = getFontLoader()
@@ -176,12 +181,12 @@ describe('CadRuntime: brep mode (strict BREP, no fallback)', () => {
 // ─── mesh 模式契约 ───
 
 describe('CadRuntime: mesh mode (all mesh, no BREP)', () => {
-  it('brepActive is false from start', async () => {
+  it('kernel is null from start', async () => {
     const { result } = await run([makeStmt('s1', 'box', { size: 20 })], 'mesh')
 
-    expect(result.brepChain.brepActive).toBe(false)
-    // No brepSolid in mesh mode
-    expect(result.brepSolid).toBeUndefined()
+    expect(result.brepChain.kernel).toBeNull()
+    // No brepSolids in mesh mode
+    expect(result.brepSolids).toBeUndefined()
   })
 
   it('box executes via mesh path (output is set)', async () => {
@@ -194,9 +199,9 @@ describe('CadRuntime: mesh mode (all mesh, no BREP)', () => {
   })
 
   it('sdf throws in mesh mode (no worker in node)', async () => {
-    // In mesh mode, sdf doesn't trigger BREP break
+    // In mesh mode, sdf doesn't trigger BREP events
     // But sdf still needs a worker in node → throws
-    // The key assertion: no E_BREP_UNSUPPORTED, no brep-chain-broken event
+    // The key assertion: no E_BREP_UNSUPPORTED, no part-brep-lost event
     const ports = createNodePorts()
     const sink = ports.events as TestEventSink
     const runtime = createRuntime(ports, 'mesh')
@@ -207,7 +212,7 @@ describe('CadRuntime: mesh mode (all mesh, no BREP)', () => {
     // sdf mesh path throws in node (no Worker)
     await expect(runtime.replay(script)).rejects.toThrow()
 
-    // No brep-chain-broken events (chain was never active)
+    // No part-brep-lost events (mesh mode, kernel was never active)
     expect(sink.events.length).toBe(0)
   })
 })
@@ -234,8 +239,9 @@ describe('CadRuntime: instance management', () => {
     const result = await runtime.replay(script)
 
     // Set brepSolid (normally done by ScriptEngine.replayPart)
-    if (result.brepSolid) {
-      runtime.setBrepSolid('test_part', result.brepSolid.solid, result.brepSolid.kernel)
+    const solid = getFirstBrepSolid(result)
+    if (solid) {
+      runtime.setBrepSolid('test_part', solid.solid, solid.kernel)
     }
 
     expect(runtime.getBrepSolid('test_part')).toBeDefined()
@@ -245,15 +251,17 @@ describe('CadRuntime: instance management', () => {
     const runtime = makeRuntime()
     const script1 = makePartScript([makeStmt('s1', 'box', { size: 20 })])
     const result1 = await runtime.replay(script1)
-    if (result1.brepSolid) {
-      runtime.setBrepSolid('part1', result1.brepSolid.solid, result1.brepSolid.kernel)
+    const solid1 = getFirstBrepSolid(result1)
+    if (solid1) {
+      runtime.setBrepSolid('part1', solid1.solid, solid1.kernel)
     }
 
     // Create a second solid and overwrite
     const script2 = makePartScript([makeStmt('s2', 'sphere', { radius: 10 })])
     const result2 = await runtime.replay(script2)
-    if (result2.brepSolid) {
-      runtime.setBrepSolid('part1', result2.brepSolid.solid, result2.brepSolid.kernel)
+    const solid2 = getFirstBrepSolid(result2)
+    if (solid2) {
+      runtime.setBrepSolid('part1', solid2.solid, solid2.kernel)
     }
 
     // The new solid should be there
@@ -268,8 +276,9 @@ describe('CadRuntime: instance management', () => {
     const runtime = makeRuntime()
     const script = makePartScript([makeStmt('s1', 'box', { size: 20 })])
     const result = await runtime.replay(script)
-    if (result.brepSolid) {
-      runtime.setBrepSolid('part1', result.brepSolid.solid, result.brepSolid.kernel)
+    const solid = getFirstBrepSolid(result)
+    if (solid) {
+      runtime.setBrepSolid('part1', solid.solid, solid.kernel)
     }
 
     runtime.deleteBrepSolid('part1')
@@ -338,8 +347,9 @@ describe('CadRuntime: instance management', () => {
     const runtime = makeRuntime()
     const script = makePartScript([makeStmt('s1', 'box', { size: 20 })])
     const result = await runtime.replay(script)
-    if (result.brepSolid) {
-      runtime.setBrepSolid('part1', result.brepSolid.solid, result.brepSolid.kernel)
+    const solid = getFirstBrepSolid(result)
+    if (solid) {
+      runtime.setBrepSolid('part1', solid.solid, solid.kernel)
     }
 
     runtime.dispose()

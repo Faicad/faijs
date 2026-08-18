@@ -32,7 +32,7 @@ beforeAll(async () => {
 
 class TestEventSink implements EventSink {
   readonly events: Array<{ event: string; detail: Record<string, unknown> }> = []
-  emit(event: 'brep-chain-broken', detail: { partName: string; op: string; reason: string }): void {
+  emit(event: string, detail: Record<string, unknown>): void {
     this.events.push({ event, detail: { ...detail } })
   }
   clear(): void { this.events.length = 0 }
@@ -132,7 +132,7 @@ describe('sdf: static chain break', () => {
 
     // Chain break event should have been emitted
     expect(sink.events.length).toBeGreaterThan(0)
-    expect(sink.events[0].event).toBe('brep-chain-broken')
+    expect(sink.events[0].event).toBe('part-brep-lost')
     expect(sink.events[0].detail.op).toBe('sdf')
   })
 })

@@ -2,8 +2,11 @@
  * BREP chain state management unit tests.
  *
  * Tests: createBrepChainState, initBrepChainState, releaseBrepChainState,
- * breakBrepChain, lastSolidOfChain,
  * BREP_NATIVE_OPS, MESH_ONLY_OPS, isCadFormat.
+ *
+ * Note: breakBrepChain / lastSolidOfChain / brepActive / breakReason
+ * have been removed in the per-part BREP redesign.
+ * BREP status is now determined per-part by solidCache presence.
  *
  * Run: npx vitest run src/brep/brep-chain.test.ts
  */
@@ -11,7 +14,6 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import {
   createBrepChainState, initBrepChainState, releaseBrepChainState,
-  breakBrepChain, lastSolidOfChain,
   BREP_NATIVE_OPS, MESH_ONLY_OPS,
   isCadFormat,
 } from './brep-chain'
@@ -22,31 +24,19 @@ beforeAll(async () => {
 }, 120000)
 
 describe('createBrepChainState', () => {
-  it('should create an empty chain state with brepActive=true', () => {
+  it('should create an empty chain state with kernel=null', () => {
     const state = createBrepChainState()
-    expect(state.brepActive).toBe(true)
     expect(state.solidCache.size).toBe(0)
     expect(state.kernel).toBeNull()
-    expect(state.breakReason).toBeUndefined()
   })
 })
 
 describe('initBrepChainState', () => {
   it('should initialize with an OCCT kernel instance', async () => {
     const state = await initBrepChainState()
-    expect(state.brepActive).toBe(true)
     expect(state.kernel).toBeDefined()
     expect(state.solidCache.size).toBe(0)
     releaseBrepChainState(state)
-  })
-})
-
-describe('breakBrepChain', () => {
-  it('should set brepActive=false and record break reason', () => {
-    const state = createBrepChainState()
-    breakBrepChain(state, 's1', 'engrave')
-    expect(state.brepActive).toBe(false)
-    expect(state.breakReason).toEqual({ stmtId: 's1', op: 'engrave' })
   })
 })
 
@@ -85,30 +75,6 @@ describe('releaseBrepChainState', () => {
     releaseBrepChainState(state)
 
     expect(state.solidCache.size).toBe(0)
-  })
-})
-
-// ─── lastSolidOfChain ───
-
-describe('lastSolidOfChain', () => {
-  it('should return undefined for empty solidCache', () => {
-    const state = createBrepChainState()
-    expect(lastSolidOfChain(state)).toBeUndefined()
-  })
-
-  it('should return the last inserted solid', async () => {
-    const state = await initBrepChainState()
-    const kernel = state.kernel!
-
-    const box1 = kernel.makeBoxFromCorners({ x: 0, y: 0, z: 0 }, { x: 10, y: 10, z: 10 })
-    const box2 = kernel.makeBoxFromCorners({ x: 0, y: 0, z: 0 }, { x: 5, y: 5, z: 5 })
-    state.solidCache.set('s1', box1)
-    state.solidCache.set('s2', box2)
-
-    const last = lastSolidOfChain(state)
-    expect(last).toBe(box2)
-
-    releaseBrepChainState(state)
   })
 })
 

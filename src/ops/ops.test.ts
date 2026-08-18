@@ -18,7 +18,7 @@ import type { Shape } from './types'
 import type { CadStatement, FeatureKind, PartScript } from '../lang/types'
 import { createRuntime, type ExecutionResult } from '../cad-runtime/runtime'
 import type { HostPorts, EventSink } from '../cad-runtime/ports'
-import { lastSolidOfChain, MESH_ONLY_OPS } from '../brep/brep-chain'
+import { MESH_ONLY_OPS } from '../brep/brep-chain'
 import { ensureTestFontLoader } from '../brep/text/fontTestHelper'
 import { clearFonts, setFontLoader, getFontLoader, ensureDefaultFont, getFont, type FontLoader } from '../brep/text/fontRegistry'
 
@@ -36,7 +36,7 @@ beforeAll(async () => {
 /** Simple EventSink for Node test environment */
 class TestEventSink implements EventSink {
   readonly events: Array<{ event: string; detail: Record<string, unknown> }> = []
-  emit(event: 'brep-chain-broken', detail: { partName: string; op: string; reason: string }): void {
+  emit(event: string, detail: Record<string, unknown>): void {
     this.events.push({ event, detail: { ...detail } })
   }
   clear(): void { this.events.length = 0 }
@@ -102,7 +102,7 @@ describe('CadRuntime.replay: primitives (BREP)', () => {
     const shape = getFinalOutput(result, [stmt])
     expect(shapeVertexCount(shape)).toBeGreaterThan(0)
     expect(shapeTriangleCount(shape)).toBeGreaterThan(0)
-    expect(result.brepChain.brepActive).toBe(true)
+
     expect(result.brepChain.solidCache.has('s1')).toBe(true)
   })
 
@@ -144,7 +144,7 @@ describe('CadRuntime.replay: transform (BREP)', () => {
 
     const shape = getFinalOutput(result, [s1, s2])
     expect(shapeVertexCount(shape)).toBeGreaterThan(0)
-    expect(result.brepChain.brepActive).toBe(true)
+
     expect(result.brepChain.solidCache.has('s2')).toBe(true)
   })
 
@@ -155,7 +155,7 @@ describe('CadRuntime.replay: transform (BREP)', () => {
 
     const shape = getFinalOutput(result, [s1, s2])
     expect(shapeVertexCount(shape)).toBeGreaterThan(0)
-    expect(result.brepChain.brepActive).toBe(true)
+
   })
 
   it('scale: should scale the solid and keep chain active', async () => {
@@ -165,7 +165,7 @@ describe('CadRuntime.replay: transform (BREP)', () => {
 
     const shape = getFinalOutput(result, [s1, s2])
     expect(shapeVertexCount(shape)).toBeGreaterThan(0)
-    expect(result.brepChain.brepActive).toBe(true)
+
   })
 })
 
@@ -180,7 +180,7 @@ describe('CadRuntime.replay: boolean (BREP)', () => {
 
     const shape = getFinalOutput(result, [s1, s2, s3])
     expect(shapeVertexCount(shape)).toBeGreaterThan(0)
-    expect(result.brepChain.brepActive).toBe(true)
+
     expect(result.brepChain.solidCache.has('s3')).toBe(true)
   })
 
@@ -192,7 +192,7 @@ describe('CadRuntime.replay: boolean (BREP)', () => {
 
     const shape = getFinalOutput(result, [s1, s2, s3])
     expect(shapeVertexCount(shape)).toBeGreaterThan(0)
-    expect(result.brepChain.brepActive).toBe(true)
+
   })
 })
 
@@ -210,7 +210,7 @@ describe('CadRuntime.replay: drill (BREP)', () => {
 
     const shape = getFinalOutput(result, [s1, s2])
     expect(shapeVertexCount(shape)).toBeGreaterThan(0)
-    expect(result.brepChain.brepActive).toBe(true)
+
     expect(result.brepChain.solidCache.has('s2')).toBe(true)
   })
 })
@@ -242,9 +242,9 @@ describe('CadRuntime.replay: knurl (mesh-only, static chain break)', () => {
       // Expected: knurl mesh path fails in node
     }
 
-    // brep-chain-broken event emitted during static break BEFORE execution
+    // part-brep-lost event emitted during mesh-only op execution
     expect(sink.events.length).toBeGreaterThan(0)
-    expect(sink.events[0].event).toBe('brep-chain-broken')
+    expect(sink.events[0].event).toBe('part-brep-lost')
     expect(sink.events[0].detail.op).toBe('knurl')
   })
 })
@@ -258,7 +258,7 @@ describe('CadRuntime.replay: text (BREP)', () => {
 
     const shape = getFinalOutput(result, [stmt])
     expect(shapeVertexCount(shape)).toBeGreaterThan(0)
-    expect(result.brepChain.brepActive).toBe(true)
+
     expect(result.brepChain.solidCache.has('s1')).toBe(true)
   })
 
@@ -266,8 +266,9 @@ describe('CadRuntime.replay: text (BREP)', () => {
     const stmt = makeStmt('s1', 'text', { text: 'B', size: 20, depth: 3 })
     const result = await runScript([stmt])
 
-    expect(result.brepSolid).toBeDefined()
-    const step = kernel.exportStep(result.brepSolid!.solid)
+    expect(result.brepSolids).toBeDefined()
+    const solidEntry = result.brepSolids!.get('s1')!
+    const step = kernel.exportStep(solidEntry.solid)
     expect(step).toContain('ADVANCED_FACE')
   })
 })
@@ -285,7 +286,7 @@ describe('CadRuntime.replay: engrave (BREP)', () => {
 
     const shape = getFinalOutput(result, [s1, s2])
     expect(shapeVertexCount(shape)).toBeGreaterThan(0)
-    expect(result.brepChain.brepActive).toBe(true)
+
     expect(result.brepChain.solidCache.has('s2')).toBe(true)
   })
 
@@ -299,7 +300,7 @@ describe('CadRuntime.replay: engrave (BREP)', () => {
 
     const shape = getFinalOutput(result, [s1, s2])
     expect(shapeVertexCount(shape)).toBeGreaterThan(0)
-    expect(result.brepChain.brepActive).toBe(true)
+
   })
 })
 
@@ -318,11 +319,11 @@ describe('BREP chain integrity', () => {
     ]
     const result = await runScript(stmts)
 
-    expect(result.brepChain.brepActive).toBe(true)
 
     // Final STEP should contain ADVANCED_FACE
-    expect(result.brepSolid).toBeDefined()
-    const step = kernel.exportStep(result.brepSolid!.solid)
+    expect(result.brepSolids).toBeDefined()
+    const solidEntry = result.brepSolids!.get('s3')!
+    const step = kernel.exportStep(solidEntry.solid)
     expect(step).toContain('ADVANCED_FACE')
   })
 })
@@ -401,8 +402,7 @@ describe('BREP chain break: topology preservation (fake topology)', () => {
     const s1 = makeStmt('s1', 'box', { size: 20 }, [])
     const result = await runScript([s1])
 
-    // Chain should be active (no mesh-only op encountered)
-    expect(result.brepChain.brepActive).toBe(true)
+        // Chain should have box solid (no mesh-only op encountered)
     expect(result.brepChain.solidCache.has('s1')).toBe(true)
 
     // The box solid should be exportable as ADVANCED_FACE
@@ -410,7 +410,7 @@ describe('BREP chain break: topology preservation (fake topology)', () => {
     const step = kernel.exportStep(boxSolid)
     expect(step).toContain('ADVANCED_FACE')
 
-    // sdf 是 mesh-only op：遇到时链会静态断裂
+    // sdf 是 mesh-only op：不写 solidCache，输出 part 自动失去 BREP
     expect(MESH_ONLY_OPS.has('sdf')).toBe(true)
   })
 
@@ -424,24 +424,16 @@ describe('BREP chain break: topology preservation (fake topology)', () => {
     }, ['s1'])
     const result = await runScript([s1, s2])
 
-    // Chain should be active (drill is BREP-native)
-    expect(result.brepChain.brepActive).toBe(true)
+    // drill is BREP-native → solid should be in cache
+    expect(result.brepChain.solidCache.has('s2')).toBe(true)
 
-    // lastSolidOfChain should return the drill solid (not the box solid)
-    const lastSolid = lastSolidOfChain(result.brepChain)
-    expect(lastSolid).toBeDefined()
     // The drill solid should have a hole (CYLINDRICAL_SURFACE)
-    const step = kernel.exportStep(lastSolid!)
+    const drillSolid = result.brepChain.solidCache.get('s2')!
+    const step = kernel.exportStep(drillSolid)
     expect(step).toContain('ADVANCED_FACE')
     expect(step).toContain('CYLINDRICAL_SURFACE')
 
-    // sdf 是 mesh-only op：遇到时链会静态断裂，lastSolidOfChain 返回 drill solid
+    // sdf 是 mesh-only op：不写 solidCache
     expect(MESH_ONLY_OPS.has('sdf')).toBe(true)
-  })
-
-  it('lastSolidOfChain returns undefined for empty solidCache', () => {
-    // Direct test with empty chain state (not via runtime)
-    const emptyChain = { solidCache: new Map(), brepActive: true, kernel: null }
-    expect(lastSolidOfChain(emptyChain as any)).toBeUndefined()
   })
 })

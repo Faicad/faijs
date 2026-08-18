@@ -51,7 +51,7 @@ async function executeTransformBrep(ctx: OpContext): Promise<Shape> {
   if (stmt.op === 'translate') {
     resultSolid = translateBrep(brepChain.kernel, upstreamSolid, args.offset as Vec3)
   } else if (stmt.op === 'rotate') {
-    resultSolid = rotateBrep(brepChain.kernel, upstreamSolid, args.anglesDeg as Vec3)
+    resultSolid = rotateBrep(brepChain.kernel, upstreamSolid, args.anglesDeg as Vec3, args.pivot as Vec3 | undefined)
   } else {
     resultSolid = scaleBrep(brepChain.kernel, upstreamSolid, args.factor as number | Vec3)
   }

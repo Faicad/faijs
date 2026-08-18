@@ -47,7 +47,7 @@ beforeEach(() => {
 
 class TestEventSink implements EventSink {
   readonly events: Array<{ event: string; detail: Record<string, unknown> }> = []
-  emit(event: 'brep-chain-broken', detail: { partName: string; op: string; reason: string }): void {
+  emit(event: string, detail: Record<string, unknown>): void {
     this.events.push({ event, detail: { ...detail } })
   }
   clear(): void { this.events.length = 0 }
@@ -217,12 +217,10 @@ describe('drill: executeDrill coordinate transform with partTransform', () => {
       tolerance: 0.3,
     }, ['part0_v0'])
 
-    // Mesh mode: brepChain is inactive (brepActive=false, kernel=null)
+    // Mesh mode: brepChain has no kernel (mesh mode)
     const brepChain: BrepChainState = {
       solidCache: new Map(),
-      brepActive: false,
       kernel: null,
-      breakReason: { stmtId: '__mesh_mode__', op: '__mode__' },
       partTransform,
     }
 
@@ -255,12 +253,10 @@ describe('drill: executeDrill coordinate transform with partTransform', () => {
       tolerance: 0.3,
     }, ['part0_v0'])
 
-    // Mesh mode: brepChain inactive, no partTransform
+    // Mesh mode: brepChain has no kernel
     const brepChain: BrepChainState = {
       solidCache: new Map(),
-      brepActive: false,
       kernel: null,
-      breakReason: { stmtId: '__mesh_mode__', op: '__mode__' },
     }
 
     const result = await executeStatement(
@@ -298,9 +294,7 @@ describe('drill: executeDrill coordinate transform with partTransform', () => {
 
     const brepChain: BrepChainState = {
       solidCache: new Map(),
-      brepActive: false,
       kernel: null,
-      breakReason: { stmtId: '__mesh_mode__', op: '__mode__' },
       partTransform,
     }
 
