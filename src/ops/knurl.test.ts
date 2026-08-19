@@ -66,7 +66,7 @@ async function runScript(
   const ports = createNodePorts()
   ports.events = new TestEventSink()
   const runtime = createRuntime(ports, mode)
-  return runtime.replay(makePartScript(statements))
+  return runtime.execute(makePartScript(statements))
 }
 
 function shapeVertexCount(s: Shape): number { return s.positions.length / 3 }
@@ -106,7 +106,7 @@ describe('knurl: static chain break', () => {
     const runtime = createRuntime(ports, 'auto')
 
     try {
-      await runtime.replay(makePartScript(stmts))
+      await runtime.execute(makePartScript(stmts))
     } catch {
       // Expected: knurl mesh path fails in node (Image not defined)
     }

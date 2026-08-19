@@ -77,7 +77,7 @@ function makePartScript(statements: CadStatement[]): PartScript {
 async function runScript(statements: CadStatement[]): Promise<ExecutionResult> {
   const runtime = createRuntime(createNodePorts(), 'auto')
   const script = makePartScript(statements)
-  return runtime.replay(script)
+  return runtime.execute(script)
 }
 
 // ─── Case 1: split → knurl(front) → drill(back) ───
@@ -217,7 +217,7 @@ describe('Case 1: split → knurl(front) → drill(back) — per-part BREP indep
 
     // knurl will throw in node, but event is emitted before dispatch
     try {
-      await runtime.replay(script)
+      await runtime.execute(script)
     } catch {
       // Expected: knurl mesh path fails in node
     }

@@ -58,7 +58,7 @@ describe('boolean .faijs tests', () => {
     it(`${file}: executes in mesh mode → non-empty mesh`, async () => {
       const { script } = parseScript(code)
       const runtime = createRuntime(createNodePorts(), 'mesh')
-      const result = await runtime.replay(script)
+      const result = await runtime.execute(script)
 
       expect(result.failedAt).toBeUndefined()
 

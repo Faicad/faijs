@@ -41,7 +41,7 @@ describe('initBrepChainState', () => {
 })
 
 describe('releaseBrepChainState', () => {
-  it('should release all solid handles except keepIds', async () => {
+  it('should release all solid handles and clear solidCache', async () => {
     const state = await initBrepChainState()
     const kernel = state.kernel!
 
@@ -51,18 +51,11 @@ describe('releaseBrepChainState', () => {
     state.solidCache.set('s1', box1)
     state.solidCache.set('s2', box2)
 
-    // Release all except s2
-    releaseBrepChainState(state, new Set(['s2']))
+    // Persistent SolidCache 方案：releaseBrepChainState 语义收窄为全量释放 + 清空
+    // （keepIds 参数已删除，见 docs/plans/2026-08-18-brepchain-persistent-solid-cache.md §9 决策 1）
+    releaseBrepChainState(state)
 
-    expect(state.solidCache.size).toBe(1)
-    expect(state.solidCache.has('s2')).toBe(true)
-
-    // s2 should still be valid (can export STEP)
-    const step = kernel.exportStep(box2)
-    expect(step).toContain('ADVANCED_FACE')
-
-    // Clean up
-    state.solidCache.clear()
+    expect(state.solidCache.size).toBe(0)
   })
 
   it('should release all handles when no keepIds', async () => {

@@ -367,19 +367,14 @@ describe('BREP chain state management', () => {
     state.solidCache.clear()
   })
 
-  it('releaseBrepChainState: releases all handles except keepIds', () => {
+  it('releaseBrepChainState: releases all handles and clears solidCache', () => {
     const state = createBrepChainState()
     const solid1 = makeBox(20)
     const solid2 = makeBox(10)
     state.solidCache.set('stmt-1', solid1)
     state.solidCache.set('stmt-2', solid2)
 
-    // Release all except stmt-2
-    releaseBrepChainState(state, new Set(['stmt-2']))
-    expect(state.solidCache.has('stmt-1')).toBe(false)
-    expect(state.solidCache.has('stmt-2')).toBe(true)
-
-    // Clean up remaining
+    // Persistent SolidCache 方案：keepIds 已删除，release 语义为全量释放 + 清空
     releaseBrepChainState(state)
     expect(state.solidCache.size).toBe(0)
   })

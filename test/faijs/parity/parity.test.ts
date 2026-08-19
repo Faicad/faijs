@@ -77,7 +77,7 @@ describe('parity .faijs tests (BREP vs mesh)', () => {
 
       // Execute in BREP mode
       const brepRuntime = createRuntime(createNodePorts(), 'brep')
-      const brepResult = await brepRuntime.replay(script)
+      const brepResult = await brepRuntime.execute(script)
       expect(brepResult.failedAt).toBeUndefined()
 
       const geoStmts = script.statements.filter(s => s.hasAssignment && (s.returnType ?? 'new_shape') === 'new_shape')
@@ -90,7 +90,7 @@ describe('parity .faijs tests (BREP vs mesh)', () => {
 
       // Execute in mesh mode
       const meshRuntime = createRuntime(createNodePorts(), 'mesh')
-      const meshResult = await meshRuntime.replay(script)
+      const meshResult = await meshRuntime.execute(script)
       expect(meshResult.failedAt).toBeUndefined()
 
       const meshShape = meshResult.outputs.get(lastStmt.id)

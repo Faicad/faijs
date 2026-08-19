@@ -213,7 +213,7 @@ export function applyTransform(
 /**
  * 执行 do_assemble：从 assemble 定义和约束中计算变换，应用到活动件几何。
  *
- * 此函数在 CadRuntime.replay() 中被调用（通过 dispatcher），
+ * 此函数在 CadRuntime.execute() 中被调用（通过 dispatcher），
  * 变换在引擎内部完成，不绕过脚本引擎。
  *
  * @param assemblyDef 装配定义（name/members/constraints）

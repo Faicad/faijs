@@ -146,26 +146,21 @@ export async function initBrepChainState(): Promise<BrepChainState> {
 }
 
 /**
- * 释放 BREP 链状态中的所有句柄（保留指定的 exceptionIds）。
+ * 释放 BREP 链状态中的所有句柄并清空 solidCache。
+ *
+ * Persistent SolidCache 方案（docs/plans/2026-08-18-brepchain-persistent-solid-cache.md）：
+ * 释放只发生在「重算顶替 / dispose」，不再需要"保留终端、释放中间"的选择性语义，
+ * 因此 keepIds 参数已删除——调用方想保留任何 solid 时，不应再调用本函数。
  *
  * @param state BREP 链状态
- * @param keepIds 要保留的 statementId 集合（通常是终端语句）
  */
-export function releaseBrepChainState(state: BrepChainState, keepIds?: Set<string>): void {
-  for (const [id, handle] of state.solidCache) {
-    if (keepIds?.has(id)) continue
+export function releaseBrepChainState(state: BrepChainState): void {
+  for (const [, handle] of state.solidCache) {
     try {
       state.kernel?.release(handle)
     } catch {
       // 句柄可能已释放，忽略
     }
   }
-  // 移除已释放的句柄
-  if (keepIds) {
-    for (const id of [...state.solidCache.keys()]) {
-      if (!keepIds.has(id)) state.solidCache.delete(id)
-    }
-  } else {
-    state.solidCache.clear()
-  }
+  state.solidCache.clear()
 }

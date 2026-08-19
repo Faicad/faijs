@@ -66,7 +66,7 @@ async function runScript(
   const ports = createNodePorts()
   ports.events = new TestEventSink()
   const runtime = createRuntime(ports, mode)
-  return runtime.replay(makePartScript(statements))
+  return runtime.execute(makePartScript(statements))
 }
 
 function shapeVertexCount(s: Shape): number { return s.positions.length / 3 }
@@ -127,7 +127,7 @@ describe('sdf: static chain break', () => {
     const runtime = createRuntime(ports, 'auto')
 
     try {
-      await runtime.replay(makePartScript(stmts))
+      await runtime.execute(makePartScript(stmts))
     } catch {
       // May throw in node if SDF backend unavailable
     }

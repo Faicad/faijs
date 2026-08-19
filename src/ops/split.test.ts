@@ -105,7 +105,7 @@ function makePartScript(statements: CadStatement[]): PartScript {
 
 async function runScript(statements: CadStatement[], mode: 'mesh' | 'auto' = 'auto'): Promise<ExecutionResult> {
   const runtime = createRuntime(createTestPorts(), mode)
-  return runtime.replay(makePartScript(statements))
+  return runtime.execute(makePartScript(statements))
 }
 
 function shapeVertexCount(s: Shape): number { return s.positions.length / 3 }
@@ -472,7 +472,7 @@ describe('split: outputCache invariants', () => {
     const result = await runScript(stmts, 'mesh')
 
     // stmt.id is 'part1_v0', which is also outputs[0]
-    // CadRuntime.replay() does: outputCache.set(stmt.id, result)
+    // CadRuntime.execute() does: outputCache.set(stmt.id, result)
     // executeSplitMesh does: outputCache.set(outputs[0], front); outputCache.set(outputs[1], back)
     // So outputCache should have:
     //   'part0_v0' → box shape

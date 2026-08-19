@@ -27,9 +27,12 @@ export async function replayScript(
   params?: Record<string, unknown>,
   ports?: HostPorts,
   mode?: ExecutionMode,
+  brepChain?: BrepChainState,
 ): Promise<ReplayOutput> {
   const outputCache = new Map<string, Shape>()
-  const brepChain = await initBrepChainState()
+  // Persistent SolidCache 方案：可传入外部持久链（增量场景测试复用同一链）；
+  // 不传时仍内部创建（一次脚本一次链，进程回收，不释放）。
+  const chain = brepChain ?? await initBrepChainState()
 
   for (const stmt of script.statements) {
     // void / same_shape 语句不产出新几何，跳过执行
@@ -44,7 +47,7 @@ export async function replayScript(
       inputGeometries.push(geo)
     }
 
-    const result = await executeStatement(stmt, inputGeometries, outputCache, params, brepChain, ports, mode)
+    const result = await executeStatement(stmt, inputGeometries, outputCache, params, chain, ports, mode)
     outputCache.set(stmt.id, result)
   }
 
@@ -61,6 +64,6 @@ export async function replayScript(
   return {
     contentKey,
     shape: finalShape,
-    brepChain,
+    brepChain: chain,
   }
 }

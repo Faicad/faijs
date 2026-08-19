@@ -103,7 +103,7 @@ function makePartScript(statements: CadStatement[]): PartScript {
 
 async function runScript(statements: CadStatement[]): Promise<ExecutionResult> {
   const runtime = createRuntime(createNodePorts())
-  return runtime.replay(makePartScript(statements))
+  return runtime.execute(makePartScript(statements))
 }
 
 // ─── loadBrep ───

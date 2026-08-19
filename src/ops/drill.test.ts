@@ -104,7 +104,7 @@ async function runScript(
   opts?: { partTransform?: { position: [number, number, number] } },
 ): Promise<ExecutionResult> {
   const runtime = createRuntime(createTestPorts(), mode)
-  return runtime.replay(makePartScript(statements), opts)
+  return runtime.execute(makePartScript(statements), opts)
 }
 
 function shapeVertexCount(s: Shape): number { return s.positions.length / 3 }

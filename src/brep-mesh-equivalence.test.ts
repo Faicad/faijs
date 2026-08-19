@@ -73,7 +73,7 @@ function makePartScript(statements: CadStatement[]): PartScript {
 async function runMode(script: PartScript, mode: ExecutionMode): Promise<Shape> {
   const ports = createNodePorts()
   const runtime = createRuntime(ports, mode)
-  const result: ExecutionResult = await runtime.replay(script)
+  const result: ExecutionResult = await runtime.execute(script)
 
   if (result.failedAt) {
     throw new Error(`Execution failed at ${result.failedAt.op}: ${result.failedAt.message}`)

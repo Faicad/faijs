@@ -66,7 +66,7 @@ async function runScript(
   const ports = createNodePorts()
   ports.events = new TestEventSink()
   const runtime = createRuntime(ports, mode)
-  return runtime.replay(makePartScript(statements))
+  return runtime.execute(makePartScript(statements))
 }
 
 function shapeVertexCount(s: Shape): number { return s.positions.length / 3 }

@@ -110,7 +110,7 @@ export async function cliRun(
   const runtime = createRuntime(ports, opts?.mode ?? 'auto')
 
   // Execute
-  const execResult = await runtime.replay(script)
+  const execResult = await runtime.execute(script)
 
   if (execResult.failedAt) {
     return {

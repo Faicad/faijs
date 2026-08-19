@@ -12,7 +12,7 @@
  * Run: npx vitest run src/cad-runtime/runtime.test.ts
  */
 
-import { describe, it, expect, beforeAll } from 'vitest'
+import { describe, it, expect, beforeAll, vi } from 'vitest'
 import { initOcctWasm, getKernel } from '../occt-kernel/occtKernel'
 import type { OcctKernel } from 'occt-wasm'
 import type { CadStatement, PartScript } from '../lang/types'
@@ -76,7 +76,7 @@ function makeRuntime(mode?: ExecutionMode): CadRuntime {
 async function run(statements: CadStatement[], mode?: ExecutionMode) {
   const runtime = makeRuntime(mode)
   const script = makePartScript(statements)
-  return { runtime, result: await runtime.replay(script) }
+  return { runtime, result: await runtime.execute(script) }
 }
 
 // Helper: get first brepSolid from result
@@ -136,7 +136,7 @@ describe('CadRuntime: auto mode (BREP-first, per-part)', () => {
     // sdf mesh path throws in node, but the part-brep-lost event
     // is emitted during mesh-only op execution
     try {
-      await runtime.replay(script)
+      await runtime.execute(script)
     } catch {
       // Expected: sdf mesh path fails in node
     }
@@ -219,7 +219,7 @@ describe('CadRuntime: mesh mode (all mesh, no BREP)', () => {
       makeStmt('s2', 'sdf', { code: '0', box: [[-5,-5,-5],[5,5,5]], resolution: 8 }, ['s1']),
     ])
     // sdf mesh path throws in node (no Worker)
-    await expect(runtime.replay(script)).rejects.toThrow()
+    await expect(runtime.execute(script)).rejects.toThrow()
 
     // No part-brep-lost events (mesh mode, kernel was never active)
     expect(sink.events.length).toBe(0)
@@ -235,7 +235,7 @@ describe('CadRuntime: instance management', () => {
       makeStmt('s1', 'box', { size: 20 }),
       makeStmt('s2', 'translate', { offset: [5, 0, 0] }, ['s1']),
     ])
-    await runtime.replay(script)
+    await runtime.execute(script)
 
     // statementCache should have entries for both statements
     expect(runtime.getCachedOutput('s1')).toBeDefined()
@@ -245,7 +245,7 @@ describe('CadRuntime: instance management', () => {
   it('brepSolidCache is populated after BREP replay', async () => {
     const runtime = makeRuntime()
     const script = makePartScript([makeStmt('s1', 'box', { size: 20 })])
-    const result = await runtime.replay(script)
+    const result = await runtime.execute(script)
 
     // Set brepSolid (normally done by ScriptEngine.replayPart)
     const solid = getFirstBrepSolid(result)
@@ -256,10 +256,10 @@ describe('CadRuntime: instance management', () => {
     expect(runtime.getBrepSolid('test_part')).toBeDefined()
   })
 
-  it('setBrepSolid releases old solid when overwriting', async () => {
+  it('setBrepSolid overwrites mapping (non-owning view, §9 决策 2)', async () => {
     const runtime = makeRuntime()
     const script1 = makePartScript([makeStmt('s1', 'box', { size: 20 })])
-    const result1 = await runtime.replay(script1)
+    const result1 = await runtime.execute(script1)
     const solid1 = getFirstBrepSolid(result1)
     if (solid1) {
       runtime.setBrepSolid('part1', solid1.solid, solid1.kernel)
@@ -267,13 +267,13 @@ describe('CadRuntime: instance management', () => {
 
     // Create a second solid and overwrite
     const script2 = makePartScript([makeStmt('s2', 'sphere', { radius: 10 })])
-    const result2 = await runtime.replay(script2)
+    const result2 = await runtime.execute(script2)
     const solid2 = getFirstBrepSolid(result2)
     if (solid2) {
       runtime.setBrepSolid('part1', solid2.solid, solid2.kernel)
     }
 
-    // The new solid should be there
+    // The new solid should be there (brepSolidCache 仅记录引用，不 release 旧值)
     const solid = runtime.getBrepSolid('part1')
     expect(solid).toBeDefined()
     // Verify it's a valid solid (sphere, not box)
@@ -284,7 +284,7 @@ describe('CadRuntime: instance management', () => {
   it('deleteBrepSolid removes entry', async () => {
     const runtime = makeRuntime()
     const script = makePartScript([makeStmt('s1', 'box', { size: 20 })])
-    const result = await runtime.replay(script)
+    const result = await runtime.execute(script)
     const solid = getFirstBrepSolid(result)
     if (solid) {
       runtime.setBrepSolid('part1', solid.solid, solid.kernel)
@@ -301,7 +301,7 @@ describe('CadRuntime: instance management', () => {
       makeStmt('s2', 'translate', { offset: [5, 0, 0] }, ['s1']),
     ]
     const script = makePartScript(stmts)
-    await runtime.replay(script)
+    await runtime.execute(script)
 
     // Modify s1's args → plan should identify s1 and s2 (dependent) as stale
     const modifiedScript = makePartScript([
@@ -323,7 +323,7 @@ describe('CadRuntime: instance management', () => {
       makeStmt('s2', 'translate', { offset: [5, 0, 0] }, ['s1']),
     ]
     const script = makePartScript(stmts)
-    await runtime.replay(script)
+    await runtime.execute(script)
 
     // Same script → plan should reuse everything
     const { stale, reused } = runtime.plan(script)
@@ -334,7 +334,7 @@ describe('CadRuntime: instance management', () => {
   it('clearStatementCache clears all entries', async () => {
     const runtime = makeRuntime()
     const script = makePartScript([makeStmt('s1', 'box', { size: 20 })])
-    await runtime.replay(script)
+    await runtime.execute(script)
 
     expect(runtime.getCachedOutput('s1')).toBeDefined()
     runtime.clearStatementCache()
@@ -355,7 +355,7 @@ describe('CadRuntime: instance management', () => {
   it('dispose() clears all caches', async () => {
     const runtime = makeRuntime()
     const script = makePartScript([makeStmt('s1', 'box', { size: 20 })])
-    const result = await runtime.replay(script)
+    const result = await runtime.execute(script)
     const solid = getFirstBrepSolid(result)
     if (solid) {
       runtime.setBrepSolid('part1', solid.solid, solid.kernel)
@@ -373,7 +373,7 @@ describe('CadRuntime: instance management', () => {
       makeStmt('grp_1', 'group', { name: 'G', members: ['s1'] }, []),
       makeStmt('s3', 'translate', { offset: [5, 0, 0] }, ['s1']), // depends on s1, not grp_1
     ])
-    const result = await runtime.replay(script)
+    const result = await runtime.execute(script)
 
     // s1 and s3 should have outputs; grp_1 is new_shape but a no-op dispatcher (empty shape)
     expect(result.outputs.get('s1')).toBeDefined()
@@ -402,5 +402,196 @@ describe('computeContentKey', () => {
     const key1 = computeContentKey(pos1, idx1)
     const key2 = computeContentKey(pos2, idx2)
     expect(key1).not.toBe(key2)
+  })
+})
+
+// ─── Persistent SolidCache 增量执行（§7.1） ───
+
+describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)', () => {
+  it('append: 只执行新增语句，前缀语句不进循环（beforeStatement 只对新增语句触发）', async () => {
+    const runtime = makeRuntime()
+    const s1 = makeStmt('s1', 'box', { size: 20 })
+    const s2 = makeStmt('s2', 'translate', { offset: [5, 0, 0] }, ['s1'])
+    const script = makePartScript([s1, s2])
+    await runtime.execute(script)
+
+    // 追加 s3（依赖 s2）
+    const s3 = makeStmt('s3', 'translate', { offset: [0, 5, 0] }, ['s2'])
+    const fullScript = makePartScript([s1, s2, s3])
+    const beforeCalls: string[] = []
+    const result = await runtime.append(fullScript, ['s3'], {
+      beforeStatement: (stmt) => beforeCalls.push(stmt.id),
+    })
+
+    // 只执行 s3；s1/s2 前缀语句完全不进循环
+    expect(beforeCalls).toEqual(['s3'])
+    // outputs 覆盖全部语句（前缀从持久缓存组装）
+    expect(result.outputs.get('s1')).toBeDefined()
+    expect(result.outputs.get('s2')).toBeDefined()
+    expect(result.outputs.get('s3')).toBeDefined()
+    // solidCache 含全部语句 solid
+    expect(result.brepChain.solidCache.has('s1')).toBe(true)
+    expect(result.brepChain.solidCache.has('s2')).toBe(true)
+    expect(result.brepChain.solidCache.has('s3')).toBe(true)
+  })
+
+  it('update: 参数变更只重算变更点及下游（变更点之前语句不进循环）', async () => {
+    const runtime = makeRuntime()
+    const s1 = makeStmt('s1', 'box', { size: 20 })
+    const s2 = makeStmt('s2', 'translate', { offset: [5, 0, 0] }, ['s1'])
+    const script = makePartScript([s1, s2])
+    await runtime.execute(script)
+
+    // 改 s1 args → s1 与下游 s2 都是 stale
+    const modified = makePartScript([
+      makeStmt('s1', 'box', { size: 30 }),
+      makeStmt('s2', 'translate', { offset: [5, 0, 0] }, ['s1']),
+    ])
+    const beforeCalls: string[] = []
+    await runtime.update(modified, { beforeStatement: (stmt) => beforeCalls.push(stmt.id) })
+
+    expect(beforeCalls).toEqual(['s1', 's2'])
+    // 重算后 s1 的几何更新（bbox 翻倍）
+    const s1Out = runtime.getCachedOutput('s1')
+    expect(s1Out).toBeDefined()
+  })
+
+  it('update: 无变化 → 直接返回缓存结果，零执行（beforeStatement 不触发）', async () => {
+    const runtime = makeRuntime()
+    const s1 = makeStmt('s1', 'box', { size: 20 })
+    const script = makePartScript([s1])
+    await runtime.execute(script)
+
+    const beforeCalls: string[] = []
+    const result = await runtime.update(script, {
+      beforeStatement: () => beforeCalls.push('should-not-run'),
+    })
+
+    expect(beforeCalls).toEqual([])
+    expect(result.outputs.get('s1')).toBeDefined()
+    expect(result.brepChain.solidCache.has('s1')).toBe(true)
+  })
+
+  it('append: 传入已存在缓存中的 id → 重执行该语句（幂等，输出替换）', async () => {
+    const runtime = makeRuntime()
+    const s1 = makeStmt('s1', 'box', { size: 20 })
+    const script = makePartScript([s1])
+    const result1 = await runtime.execute(script)
+
+    // 再 append 同一 id → 重执行（顶替）
+    const result2 = await runtime.append(script, ['s1'])
+    expect(result2.outputs.get('s1')).toBeDefined()
+    expect(result2.brepChain.solidCache.has('s1')).toBe(true)
+    // 顶替释放后 handle 仍是新值
+    expect(result2.brepChain.solidCache.get('s1')).toBeDefined()
+    expect(result1.brepChain.solidCache.get('s1')).toBeDefined()
+  })
+
+  it('顶替释放: 同 id 重算后旧 solid 句柄被 release（kernel spy）', async () => {
+    const runtime = makeRuntime()
+    const s1 = makeStmt('s1', 'box', { size: 20 })
+    const script = makePartScript([s1])
+    await runtime.execute(script)
+
+    const releaseSpy = vi.spyOn(kernel, 'release')
+    try {
+      // 用不同 args 重算同一 id → 旧 handle 应被 release
+      const modified = makePartScript([makeStmt('s1', 'box', { size: 30 })])
+      await runtime.execute(modified)
+      expect(releaseSpy).toHaveBeenCalled()
+    } finally {
+      releaseSpy.mockRestore()
+    }
+  })
+
+  it('失败回滚: 执行失败语句不写缓存，已成功语句 solid 保留', async () => {
+    const runtime = makeRuntime()
+    const s1 = makeStmt('s1', 'box', { size: 20 })
+    await runtime.execute(makePartScript([s1]))
+
+    // sdf 是 mesh-only，node 下抛错 → 整次执行失败
+    const script = makePartScript([
+      s1,
+      makeStmt('s2', 'sdf', { code: '0', box: [[-5,-5,-5],[5,5,5]], resolution: 8 }, ['s1']),
+    ])
+    await expect(runtime.execute(script)).rejects.toThrow()
+
+    // s1 的 solid 保留（失败语句 s2 未写入）——通过后续 append 引用 s1 验证
+    const s3 = makeStmt('s3', 'translate', { offset: [1, 0, 0] }, ['s1'])
+    const result = await runtime.append(makePartScript([s1, s3]), ['s3'])
+    expect(result.outputs.get('s3')).toBeDefined()
+    expect(result.brepChain.solidCache.has('s1')).toBe(true)
+    expect(result.brepChain.solidCache.has('s2')).toBe(false)
+  })
+
+  it('断链增量 (mesh 模式): append 新语句走 mesh 路径（无 solid，静态判定）', async () => {
+    const runtime = makeRuntime('mesh')
+    const s1 = makeStmt('s1', 'box', { size: 20 })
+    await runtime.execute(makePartScript([s1]))
+
+    const s2 = makeStmt('s2', 'translate', { offset: [5, 0, 0] }, ['s1'])
+    const result = await runtime.append(makePartScript([s1, s2]), ['s2'])
+
+    expect(result.outputs.get('s2')).toBeDefined()
+    // mesh 路径不写 solidCache
+    expect(result.brepChain.solidCache.has('s2')).toBe(false)
+  })
+
+  it('brep 强制模式: append mesh-only op → E_BREP_UNSUPPORTED（不静默回退 mesh）', async () => {
+    const runtime = makeRuntime('brep')
+    const s1 = makeStmt('s1', 'box', { size: 20 })
+    await runtime.execute(makePartScript([s1]))
+
+    // knurl 是 mesh-only：brep 强制模式下 append 应立即 E_BREP_UNSUPPORTED
+    const s2 = makeStmt('s2', 'knurl', { knurlTextureHeight: 0.5, faceCenter: [0, 0, 5], faceNormal: [0, 0, 1], pattern: 'diagonal' }, ['s1'])
+    const result = await runtime.append(makePartScript([s1, s2]), ['s2'])
+
+    expect(result.failedAt).toBeDefined()
+    expect(result.failedAt!.message).toContain('E_BREP_UNSUPPORTED')
+  })
+
+  it('statementCache 持久化多输出 outputs[]（split backId 可直接命中，§3.5）', async () => {
+    const runtime = makeRuntime()
+    const s0 = makeStmt('s0', 'box', { size: 20 })
+    const splitStmt: CadStatement = {
+      id: 's1', op: 'split',
+      args: { cutMode: 'plane', normal: [0, 0, 1], offset: 0 } as never,
+      inputs: ['s0'],
+      outputs: ['s1', 's1b'], // stmt.id === outputs[0]；outputs[1] (back) 需显式持久化
+      feature: { kind: 'split', label: 'split', createdBy: 'user' },
+      hasAssignment: true,
+      returnType: 'new_shape',
+    }
+    const script = makePartScript([s0, splitStmt])
+    const result = await runtime.execute(script)
+    expect(result.failedAt).toBeUndefined()
+
+    // front（== stmt.id）与 back（outputs[1]）都应在持久 statementCache 中
+    expect(runtime.getCachedOutput('s1')).toBeDefined()
+    expect(runtime.getCachedOutput('s1b')).toBeDefined()
+    // solidCache 同样按 outputs 键写入
+    expect(result.brepChain.solidCache.has('s1')).toBe(true)
+    expect(result.brepChain.solidCache.has('s1b')).toBe(true)
+  })
+
+  it('append 引用 split back 输出 → 直接命中持久缓存（不触发子重放）', async () => {
+    const runtime = makeRuntime()
+    const s0 = makeStmt('s0', 'box', { size: 20 })
+    const splitStmt: CadStatement = {
+      id: 's1', op: 'split',
+      args: { cutMode: 'plane', normal: [0, 0, 1], offset: 0 } as never,
+      inputs: ['s0'],
+      outputs: ['s1', 's1b'],
+      feature: { kind: 'split', label: 'split', createdBy: 'user' },
+      hasAssignment: true,
+      returnType: 'new_shape',
+    }
+    await runtime.execute(makePartScript([s0, splitStmt]))
+
+    // 追加一条引用 split back（outputs[1]）的语句
+    const s3 = makeStmt('s3', 'translate', { offset: [5, 0, 0] }, ['s1b'])
+    const result = await runtime.append(makePartScript([s0, splitStmt, s3]), ['s3'])
+    expect(result.failedAt).toBeUndefined()
+    expect(result.outputs.get('s3')).toBeDefined()
   })
 })

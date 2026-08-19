@@ -108,7 +108,7 @@ function makePartScript(statements: CadStatement[]): PartScript {
 async function runScript(statements: CadStatement[]): Promise<ExecutionResult> {
   const runtime = createRuntime(createTestPorts(), 'auto')
   const script = makePartScript(statements)
-  return runtime.replay(script)
+  return runtime.execute(script)
 }
 
 // ─── Case 2: load STL + cylinder + drill + assembly transforms ───
@@ -298,7 +298,7 @@ describe('Pivot parity: rotate(anglesDeg, pivot) — BREP vs mesh path consisten
     // Run in auto mode (BREP path)
     const brepRuntime = createRuntime(createTestPorts(), 'auto')
     const brepScript = makePartScript(stmts)
-    const brepResult = await brepRuntime.replay(brepScript)
+    const brepResult = await brepRuntime.execute(brepScript)
 
     expect(brepResult.failedAt).toBeUndefined()
     expect(brepResult.brepChain.solidCache.has('s2')).toBe(true)
@@ -306,7 +306,7 @@ describe('Pivot parity: rotate(anglesDeg, pivot) — BREP vs mesh path consisten
     // Run in mesh mode
     const meshRuntime = createRuntime(createTestPorts(), 'mesh')
     const meshScript = makePartScript(stmts)
-    const meshResult = await meshRuntime.replay(meshScript)
+    const meshResult = await meshRuntime.execute(meshScript)
 
     expect(meshResult.failedAt).toBeUndefined()
 
@@ -355,12 +355,12 @@ describe('Pivot parity: rotate(anglesDeg, pivot) — BREP vs mesh path consisten
 
     // BREP path
     const brepRuntime = createRuntime(createTestPorts(), 'auto')
-    const brepResult = await brepRuntime.replay(makePartScript(stmts))
+    const brepResult = await brepRuntime.execute(makePartScript(stmts))
     expect(brepResult.failedAt).toBeUndefined()
 
     // Mesh path
     const meshRuntime = createRuntime(createTestPorts(), 'mesh')
-    const meshResult = await meshRuntime.replay(makePartScript(stmts))
+    const meshResult = await meshRuntime.execute(makePartScript(stmts))
     expect(meshResult.failedAt).toBeUndefined()
 
     function bbox(positions: Float32Array) {

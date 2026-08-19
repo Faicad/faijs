@@ -4,7 +4,7 @@
  * Operation dispatcher unit tests — driven by CadRuntime (P2).
  *
  * Tests each operation's BREP path by constructing PartScript,
- * running through CadRuntime.replay(), and verifying ExecutionResult.
+ * running through CadRuntime.execute(), and verifying ExecutionResult.
  *
  * Covers: primitives, transform, boolean, drill, knurl, screw, text, engrave.
  *
@@ -75,11 +75,11 @@ function makePartScript(statements: CadStatement[]): PartScript {
   }
 }
 
-/** Run statements through CadRuntime.replay() — the P2 execution path */
+/** Run statements through CadRuntime.execute() — the P2 execution path */
 async function runScript(statements: CadStatement[]): Promise<ExecutionResult> {
   const runtime = createRuntime(createNodePorts())
   const script = makePartScript(statements)
-  return runtime.replay(script)
+  return runtime.execute(script)
 }
 
 function shapeVertexCount(s: Shape): number { return s.positions.length / 3 }
@@ -239,7 +239,7 @@ describe('CadRuntime.replay: knurl (mesh-only, static chain break)', () => {
 
     // knurl is mesh-only: chain breaks statically, then mesh path throws in node (Image not defined)
     try {
-      await runtime.replay(script)
+      await runtime.execute(script)
     } catch {
       // Expected: knurl mesh path fails in node
     }
