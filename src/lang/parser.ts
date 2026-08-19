@@ -862,11 +862,20 @@ export function parseScript(code: string, _options?: ParseOptions): ParseResult 
  * - split 解构的 outputs 中不被引用的 → 终端
  */
 export function computeTerminalShapes(statements: CadStatement[]): TerminalShape[] | undefined {
-  // 收集所有被引用的 id
+  // 收集所有被引用的 id（inputs + group/assembly/assemble 的 members）
   const referencedIds = new Set<string>()
   for (const stmt of statements) {
     for (const inputId of stmt.inputs) {
       referencedIds.add(inputId)
+    }
+    // group/assembly/assemble 的 args.members 引用了其他语句的 id
+    if (stmt.op === 'group' || stmt.op === 'assembly' || stmt.op === 'assemble') {
+      const members = stmt.args?.members
+      if (Array.isArray(members)) {
+        for (const m of members) {
+          if (typeof m === 'string') referencedIds.add(m)
+        }
+      }
     }
   }
 
