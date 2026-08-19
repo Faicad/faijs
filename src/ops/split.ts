@@ -13,6 +13,7 @@ import { cad } from '../mesh'
 import {
   splitBrep,
   solidToShape,
+  translateBrep,
 } from '../brep/brep-ops'
 import {
   dovetailBooleanSplitBrep,
@@ -157,7 +158,7 @@ async function executeSplitBrep(
   offset: number,
   inPlaneAngleDeg: number,
   bbCenter: Vec3,
-  _bboxSize: Vec3,
+  bboxSize: Vec3,
 ): Promise<Shape> {
   const { stmt, args, brepChain } = ctx
   if (!brepChain?.kernel) throw new Error('[executeSplit] no kernel')
@@ -237,6 +238,40 @@ async function executeSplitBrep(
     })
     frontSolid = splitResult.front
     backSolid = splitResult.back
+  }
+
+  // ── 分离位移：与 mesh 路径 finalizeExplode 同公式（bbox 对角线 2% + joinery 深度一半）──
+  // 平移的是 solid 而非 mesh，BREP 链不中断，后续可继续延伸。
+  const applyExplode = (args.applyExplode as boolean | undefined) ?? true
+  if (applyExplode) {
+    const bboxDiagonal = Math.sqrt(
+      bboxSize[0] * bboxSize[0] + bboxSize[1] * bboxSize[1] + bboxSize[2] * bboxSize[2],
+    )
+    const baseOffset = bboxDiagonal * 0.02
+    let joineryOffset = 0
+    if (cutMode === 'dovetail') {
+      joineryOffset = ((args.grooveDepth as number) ?? 0) / 2
+    } else if (cutMode === 'dowel') {
+      joineryOffset = ((args.dowelHeight as number) ?? 0) / 2
+    } else if (cutMode === 'straight-tenon' || cutMode === 'tenon') {
+      joineryOffset = ((args.tenonHeight as number) ?? 0) / 2
+    }
+    const frontOffset = baseOffset + joineryOffset
+    const backOffset = -(baseOffset + joineryOffset)
+    const frontTranslated = translateBrep(kernel, frontSolid, [
+      normal[0] * frontOffset,
+      normal[1] * frontOffset,
+      normal[2] * frontOffset,
+    ])
+    const backTranslated = translateBrep(kernel, backSolid, [
+      normal[0] * backOffset,
+      normal[1] * backOffset,
+      normal[2] * backOffset,
+    ])
+    kernel.release(frontSolid)
+    kernel.release(backSolid)
+    frontSolid = frontTranslated
+    backSolid = backTranslated
   }
 
   const side = args.side as string | undefined

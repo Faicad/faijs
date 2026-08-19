@@ -454,6 +454,31 @@ describe('split: geometric correctness (BREP path — STEP source)', () => {
     expect(result.brepChain.solidCache.has('part1_v0'), 'front solid in solidCache').toBe(true)
     expect(result.brepChain.solidCache.has('part2_v0'), 'back solid in solidCache').toBe(true)
   })
+
+  it('load STEP → split → front/back are separated along normal (BREP explode)', async () => {
+    const bufferKey = fileBlobStore.put(stepBuffer)
+    const stmts: CadStatement[] = [
+      makeStmt('part0_v0', 'load', { key: bufferKey, format: 'step' }, [],
+        { feature: { kind: 'load', label: 'load', createdBy: 'user' } }),
+      makeStmt('part1_v0', 'split', { cutMode: 'plane', normal: [0, 0, 1], offset: 0 }, ['part0_v0'],
+        { outputs: ['part1_v0', 'part2_v0'] }),
+    ]
+
+    const result = await runScript(stmts, 'auto')
+
+    expect(result.failedAt, `Execution failed: ${JSON.stringify(result.failedAt)}`).toBeUndefined()
+
+    const frontShape = result.outputs.get('part1_v0')!
+    const backShape = result.outputs.get('part2_v0')!
+
+    const frontBBox = computeBBox(frontShape.positions)
+    const backBBox = computeBBox(backShape.positions)
+
+    // Explode applies on the BREP path too: front shifts in +Z, back in -Z,
+    // so there must be a gap between back.max[2] and front.min[2] (before the
+    // fix they stayed flush at the cut plane, i.e. front.min[2] <= back.max[2]).
+    expect(frontBBox.min[2]).toBeGreaterThan(backBBox.max[2])
+  })
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
