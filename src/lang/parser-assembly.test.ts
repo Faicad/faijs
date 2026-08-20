@@ -6,11 +6,11 @@ import { parseScript } from './parser'
 import { scriptToCode, statementToLine } from './codegen'
 
 describe('E15.1: 装配链式调用解析', () => {
-  it('解析 const/let assem1 = cad.assemble({...})', () => {
+  it('解析 const/let assem1 = cad.assembly({...})', () => {
     const code = `
       const part0_v0 = cad.box({ size: 20 })
       const part1_v0 = cad.box({ size: 10 })
-      let assem1 = cad.assemble({
+      let assem1 = cad.assembly({
         name: 'MyAssembly',
         members: ['part0_v0', 'part1_v0'],
         constraints: []
@@ -19,19 +19,18 @@ describe('E15.1: 装配链式调用解析', () => {
     const { script } = parseScript(code)
     expect(script.statements).toHaveLength(3)
 
-    // 第三条语句应该是 assemble 结构型语句
-    const assembleStmt = script.statements[2]
-    expect(assembleStmt.op).toBe('assemble')
-    expect(assembleStmt.assemblyVar).toBe('assem1')
-    expect(assembleStmt.args.name).toBe('MyAssembly')
-    expect(assembleStmt.args.members).toEqual(['part0_v0', 'part1_v0'])
+    // 第三条语句应该是 assembly 结构型语句
+    const assemblyStmt = script.statements[2]
+    expect(assemblyStmt.op).toBe('assembly')
+    expect(assemblyStmt.args.name).toBe('MyAssembly')
+    expect(assemblyStmt.args.members).toEqual(['part0_v0', 'part1_v0'])
   })
 
   it('解析 assem1.add_constraint({...})', () => {
     const code = `
       const part0_v0 = cad.box({ size: 20 })
       const part1_v0 = cad.box({ size: 10 })
-      let assem1 = cad.assemble({ name: 'A', members: ['part0_v0', 'part1_v0'], constraints: [] })
+      let assem1 = cad.assembly({ name: 'A', members: ['part0_v0', 'part1_v0'], constraints: [] })
       assem1.add_constraint({
         type: 'face_mate',
         fixedPartName: 'part0_v0',
@@ -55,7 +54,7 @@ describe('E15.1: 装配链式调用解析', () => {
     const code = `
       const part0_v0 = cad.box({ size: 20 })
       const part1_v0 = cad.box({ size: 10 })
-      let assem1 = cad.assemble({ name: 'A', members: ['part0_v0', 'part1_v0'], constraints: [] })
+      let assem1 = cad.assembly({ name: 'A', members: ['part0_v0', 'part1_v0'], constraints: [] })
       assem1.add_constraint({ type: 'face_mate', fixedPartName: 'part0_v0', movingPartName: 'part1_v0', fixedFace: { faceId: 'face_0', surfaceType: 'plane' }, movingFace: { faceId: 'face_2', surfaceType: 'plane' } })
       assem1.do_assemble()
     `
@@ -75,18 +74,18 @@ describe('E15.1: 装配链式调用解析', () => {
     expect(() => parseScript(code)).toThrow(/unknown assembly variable/)
   })
 
-  it('拒绝 let 用于非 assemble/group/assembly 场景', () => {
+  it('拒绝 let 用于非 assembly/group 场景', () => {
     const code = `
       let foo = cad.box({ size: 20 })
     `
-    expect(() => parseScript(code)).toThrow(/let.*only.*cad\.assemble|let.*only.*cad\.group|let.*only.*cad\.assembly/)
+    expect(() => parseScript(code)).toThrow(/let.*only.*cad\.assembly|let.*only.*cad\.group/)
   })
 
   it('完整链式调用 roundtrip', () => {
     const code = `
       const part0_v0 = cad.box({ size: 20 })
       const part1_v0 = cad.box({ size: 10 })
-      let assem1 = cad.assemble({ name: 'A', members: ['part0_v0', 'part1_v0'], constraints: [] })
+      let assem1 = cad.assembly({ name: 'A', members: ['part0_v0', 'part1_v0'], constraints: [] })
       assem1.add_constraint({ type: 'face_mate', fixedPartName: 'part0_v0', movingPartName: 'part1_v0', fixedFace: { faceId: 'face_0', surfaceType: 'plane' }, movingFace: { faceId: 'face_2', surfaceType: 'plane' } })
       assem1.do_assemble()
     `
@@ -96,7 +95,7 @@ describe('E15.1: 装配链式调用解析', () => {
     const regenerated = scriptToCode(script)
 
     // 验证再生成包含链式调用语法
-    expect(regenerated).toContain('const assem1 = cad.assemble(')
+    expect(regenerated).toContain('cad.assembly(')
     expect(regenerated).toContain('assem1.add_constraint(')
     expect(regenerated).toContain('assem1.do_assemble()')
   })
@@ -104,13 +103,13 @@ describe('E15.1: 装配链式调用解析', () => {
   it('statementToLine 正确生成链式调用', () => {
     const code = `
       const part0_v0 = cad.box({ size: 20 })
-      let assem1 = cad.assemble({ name: 'A', members: ['part0_v0'] })
+      let assem1 = cad.assembly({ name: 'A', members: ['part0_v0'] })
       assem1.do_assemble()
     `
     const { script } = parseScript(code)
 
-    const assembleLine = statementToLine(script.statements[1])
-    expect(assembleLine).toContain('const assem1 = cad.assemble(')
+    const assemblyLine = statementToLine(script.statements[1])
+    expect(assemblyLine).toContain('cad.assembly(')
 
     const doAssembleLine = statementToLine(script.statements[2])
     expect(doAssembleLine).toBe('assem1.do_assemble()')

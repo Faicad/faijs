@@ -1,5 +1,7 @@
 # 装配执行方案 v7（全新，基于当前代码状态）
 
+> **命名更正（2026-08-20）：本文档中的 `cad.assemble`（动词）为错误命名。定义装配用名词 `assembly`（`const x = cad.assembly({...})`），执行装配用 `do_assemble`。权威文档见 `C:\my\Faicad\3d_editor\docs\plans\2026-08-20-assembly-execution-v8-delete-marker.md`，本文档正文不再修改。**
+
 - 日期：2026-08-18
 - 类型：功能设计 + 实施方案
 - 依赖：Step 1（BREP 逐 part 链，`docs/plans/2026-08-18-brep-per-part-chain.md`）

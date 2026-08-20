@@ -36,6 +36,7 @@ import type {
   Vec3,
 } from './types'
 import { getOpReturnType } from './args-schema'
+import { allocateStatementId } from './allocate-id'
 
 // ── 解析错误 ──
 
@@ -65,9 +66,6 @@ const BOOLEAN_OP_NAMES = new Set(['union', 'subtract', 'intersect'])
 const GEOMREF_FEATURES = new Set(['bboxCenter', 'bboxMin', 'bboxMax', 'faceCenter', 'faceNormal'])
 const ASSET_FEATURES = new Set(['asset'])
 
-/** Counter for group/assembly marker statement ids (module-level) */
-let _grpCounter = 0
-
 function opToFeatureKind(op: string): FeatureMeta['kind'] {
   if (PRIMITIVE_OPS.has(op)) return 'primitive'
   if (TRANSFORM_OPS.has(op)) return 'transform'
@@ -83,7 +81,7 @@ function opToFeatureKind(op: string): FeatureMeta['kind'] {
   if (op === 'screwHole') return 'screwHole'
   if (op === 'group') return 'group'
   if (op === 'assembly') return 'assembly'
-  if (op === 'assemble' || op === 'add_constraint' || op === 'do_assemble') return 'assemble'
+  if (op === 'add_constraint' || op === 'do_assemble') return 'do_assemble'
   return 'primitive'
 }
 
@@ -669,7 +667,7 @@ export function parseScript(code: string, _options?: ParseOptions): ParseResult 
         const isAwait = init?.type === 'AwaitExpression'
         if (isAwait) init = init.argument
 
-        // ── E15.1: const/let assem1 = cad.assemble({...}) ──
+        // ── E15.1: const/let assem1 = cad.assembly({...}) ──
         if (
           (stmtNode.kind === 'const' || stmtNode.kind === 'let') &&
           init?.type === 'CallExpression' &&
@@ -677,12 +675,11 @@ export function parseScript(code: string, _options?: ParseOptions): ParseResult 
           init.callee.object?.type === 'Identifier' &&
           init.callee.object.name === 'cad' &&
           init.callee.property?.type === 'Identifier' &&
-          (init.callee.property.name === 'assemble' ||
-           init.callee.property.name === 'group' ||
+          (init.callee.property.name === 'group' ||
            init.callee.property.name === 'assembly')
         ) {
           if (decl.id?.type !== 'Identifier') {
-            throw new ParseError('let assemble must have identifier name', line)
+            throw new ParseError('assembly/group must have identifier name', line)
           }
           const varName = decl.id.name
           const opName = init.callee.property.name
@@ -699,28 +696,29 @@ export function parseScript(code: string, _options?: ParseOptions): ParseResult 
               throw new ParseError(`unexpected argument type in ${opName}: ${argNode.type}`, line)
             }
           }
-          const grpCounter = ++_grpCounter
+          const grpId = allocateStatementId(opName, [], { statements })
           const stmt: CadStatement = {
-            id: `grp_${grpCounter}`,
+            id: grpId,
             op: opName,
             args,
             inputs: [],
-            feature: { kind: opName as 'assemble' | 'group' | 'assembly', label: opName, createdBy: 'script' },
-            assemblyVar: varName,
+            feature: { kind: opName as 'group' | 'assembly', label: opName, createdBy: 'script' },
             hasAssignment: true,
             returnType: getOpReturnType(opName),
           }
           statements.push(stmt)
-          if (opName === 'assemble') {
+          if (opName === 'assembly') {
             assemblyVars.add(varName)
+            varToId.set(varName, grpId)
+          } else {
+            varToId.set(varName, grpId)
           }
-          varToId.set(varName, `grp_${grpCounter}`)
           break
         }
 
-        // let 不允许用于其他场景（const 已覆盖 group/assembly/assemble，let 也已覆盖）
+        // let 不允许用于其他场景（const 已覆盖 group/assembly，let 也已覆盖）
         if (stmtNode.kind === 'let') {
-          throw new ParseError("'let' is only allowed for cad.assemble()/cad.group()/cad.assembly() declarations", line)
+          throw new ParseError("'let' is only allowed for cad.assembly()/cad.group() declarations", line)
         }
 
         if (
@@ -791,7 +789,6 @@ export function parseScript(code: string, _options?: ParseOptions): ParseResult 
             if (!varToId.has(targetVar) && !assemblyVars.has(targetVar)) {
               throw new ParseError(`unknown assembly variable "${targetVar}" in .${methodName}() call`, line)
             }
-            const grpCounter = ++_grpCounter
             const args: Record<string, Arg> = {}
             for (const argNode of expr.arguments) {
               if (argNode.type === 'ObjectExpression') {
@@ -806,11 +803,11 @@ export function parseScript(code: string, _options?: ParseOptions): ParseResult 
               }
             }
             const memberStmt: CadStatement = {
-              id: `grp_${grpCounter}`,
+              id: allocateStatementId(methodName, [], { statements }),
               op: methodName,
               args,
               inputs: [],
-              feature: { kind: 'assemble', label: methodName, createdBy: 'script' },
+              feature: { kind: 'do_assemble', label: methodName, createdBy: 'script' },
               assemblyTarget: targetVar,
               hasAssignment: false,
               returnType: getOpReturnType(methodName),
@@ -868,8 +865,8 @@ export function computeTerminalShapes(statements: CadStatement[]): TerminalShape
     for (const inputId of stmt.inputs) {
       referencedIds.add(inputId)
     }
-    // group/assembly/assemble 的 args.members 引用了其他语句的 id
-    if (stmt.op === 'group' || stmt.op === 'assembly' || stmt.op === 'assemble') {
+    // group/assembly 的 args.members 引用了其他语句的 id
+    if (stmt.op === 'group' || stmt.op === 'assembly') {
       const members = stmt.args?.members
       if (Array.isArray(members)) {
         for (const m of members) {

@@ -16,6 +16,7 @@ import { solidToShape } from '../brep/brep-ops'
 import { getSolidBoundingBox } from '../brep/brep-utils'
 import type { OpContext } from './types'
 import { canUseBrep } from './types'
+import { containsCjk, loadSystemCjkFont } from '../primitives/text/cjk'
 
 /**
  * 执行文字操作
@@ -38,6 +39,9 @@ export async function executeText(ctx: OpContext): Promise<Shape> {
 
 /**
  * BREP 路径：用 opentype.js → OCCT wire/face → extrude
+ *
+ * 与 mesh 路径一样，当文本包含 CJK 字符但没有 CJK 字体时，
+ * 将 CJK 字符替换为 '?' 以实现优雅降级。
  */
 async function executeTextBrep(ctx: OpContext): Promise<Shape> {
   const { stmt, args, brepChain } = ctx
@@ -50,8 +54,18 @@ async function executeTextBrep(ctx: OpContext): Promise<Shape> {
   const size = args.size as number
   const depth = args.depth as number
 
+  // 如果文本包含 CJK 字符，检查是否有 CJK 字体
+  let renderText = text
+  if (containsCjk(text)) {
+    const cjkResult = await loadSystemCjkFont()
+    if (!cjkResult) {
+      // 无 CJK 字体：将 CJK 字符替换为 '?' 以实现优雅降级
+      renderText = text.replace(/[\u4E00-\u9FFF\u3400-\u4DBF\u2F800-\u2FA1F\u3000-\u303F\uFF00-\uFFEF]/g, '?')
+    }
+  }
+
   // 将文字转换为 OCCT solid
-  const rawSolid = textToSolid(kernel, text, {
+  const rawSolid = textToSolid(kernel, renderText, {
     fontSize: size,
     depth,
   })

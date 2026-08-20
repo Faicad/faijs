@@ -101,6 +101,65 @@ describe('allocateStatementId', () => {
   })
 })
 
+describe('allocateStatementId: grp_N 格式（结构型 op）', () => {
+  it('group op → grp_1（空场景）', () => {
+    expect(allocateStatementId('group', [], ctx())).toBe('grp_1')
+  })
+
+  it('assembly op → grp_1（空场景）', () => {
+    expect(allocateStatementId('assembly', [], ctx())).toBe('grp_1')
+  })
+
+  it('assembly op → grp_1（空场景）', () => {
+    expect(allocateStatementId('assembly', [], ctx())).toBe('grp_1')
+  })
+
+  it('do_assemble op → grp_N', () => {
+    expect(allocateStatementId('do_assemble', [], ctx())).toBe('grp_1')
+  })
+
+  it('add_constraint op → grp_N', () => {
+    expect(allocateStatementId('add_constraint', [], ctx())).toBe('grp_1')
+  })
+
+  it('已有 grp_N 语句时 → 递增', () => {
+    const stmts = [
+      makeStmt('part0_v0', 'box'),
+      makeStmt('grp_1', 'group'),
+    ]
+    expect(allocateStatementId('assembly', [], ctx(stmts))).toBe('grp_2')
+  })
+
+  it('多次分配 grp_N → 连续递增', () => {
+    const stmts: CadStatement[] = [
+      makeStmt('part0_v0', 'box'),
+      makeStmt('part1_v0', 'cylinder'),
+    ]
+    // assembly
+    const asmId = allocateStatementId('assembly', [], ctx(stmts))
+    expect(asmId).toBe('grp_1')
+    stmts.push(makeStmt(asmId, 'assembly'))
+
+    // do_assemble
+    const doId = allocateStatementId('do_assemble', [], ctx(stmts))
+    expect(doId).toBe('grp_2')
+    stmts.push(makeStmt(doId, 'do_assemble'))
+  })
+
+  it('grp_N 与 partN_vM 独立编号（不冲突）', () => {
+    const stmts = [
+      makeStmt('part0_v0', 'box'),
+      makeStmt('part1_v0', 'sphere'),
+      makeStmt('grp_3', 'group'),  // 已有 grp_3
+      makeStmt('part2_v0', 'boolean', ['part0_v0', 'part1_v0']),
+    ]
+    // 新 group 应该是 grp_4（不受 part 编号影响）
+    expect(allocateStatementId('group', [], ctx(stmts))).toBe('grp_4')
+    // 新 part 应该是 part3_v0（不受 grp 编号影响）
+    expect(allocateStatementId('box', [], ctx(stmts))).toBe('part3_v0')
+  })
+})
+
 describe('allocateSplitIds', () => {
   it('分割 → 两个新模型', () => {
     const stmts = [makeStmt('part0_v0', 'box')]

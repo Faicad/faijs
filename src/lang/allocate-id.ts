@@ -1,21 +1,30 @@
 /**
- * allocate-id — 语句 id 分配器（partN_vM 格式）
+ * allocate-id — 语句 id 分配器（partN_vM + grp_N 格式）
  *
  * 设计文档：docs/plans/2026-08-13-ui-record-faijs-engine.md §B1
+ * 装配执行 v7：docs/plans/2026-08-20-assembly-execution-v7-3d-editor-completion.md §4.1
  *
- * 命名规则（partN_vM 格式）：
- * - 无输入（primitive/load/sdf/text/screw/svgExtrude）→ 新模型 partN_v0
- * - 有输入（drill/extrude/engrave/knurl/transform）→ 跟随 inputs[0] 的模型号，版本 +1
- * - 布尔（boolean）→ 新模型 partN_v0（布尔结果是一个新模型）
- * - 分割（split）→ 两个新模型 partN_v0, part(N+1)_v0
+ * 命名规则：
+ * - 几何 op（partN_vM 格式）：
+ *   - 无输入（primitive/load/sdf/text/screw/svgExtrude）→ 新模型 partN_v0
+ *   - 有输入（drill/extrude/engrave/knurl/transform）→ 跟随 inputs[0] 的模型号，版本 +1
+ *   - 布尔（boolean）→ 新模型 partN_v0
+ *   - 分割（split）→ 两个新模型 partN_v0, part(N+1)_v0
+ * - 结构型 op（grp_N 格式）：
+ *   - group/assembly/add_constraint/do_assemble → grp_N
+ *   - N = 当前 statements 中 grp_(\d+) 的最大值 + 1
+ *   - 与 parser 的 grp_N 同格式、同一序列；无模块级状态
  *
- * id 格式：part<N>_v<M>，其中 N ≥ 0, M ≥ 0
+ * id 格式：part<N>_v<M> 或 grp_<N>，N ≥ 0, M ≥ 0
  */
 
 import type { CadStatement } from './types'
 
 /** partN_vM 格式正则 */
 const PART_VM_RE = /^part(\d+)_v(\d+)$/
+
+/** grp_N 格式正则 */
+const GRP_RE = /^grp_(\d+)$/
 
 /** 从语句 id 列表中提取最大模型号 */
 function getMaxModelNum(statements: CadStatement[]): number {
@@ -35,6 +44,19 @@ function getMaxModelNum(statements: CadStatement[]): number {
           if (n > max) max = n
         }
       }
+    }
+  }
+  return max
+}
+
+/** 从语句 id 列表中提取最大 group 号（grp_N 中的 N） */
+function getMaxGroupNum(statements: CadStatement[]): number {
+  let max = 0
+  for (const stmt of statements) {
+    const m = GRP_RE.exec(stmt.id)
+    if (m) {
+      const n = parseInt(m[1], 10)
+      if (n > max) max = n
     }
   }
   return max
@@ -92,6 +114,9 @@ function isBooleanOp(op: string): boolean {
   return op === 'boolean'
 }
 
+/** 结构型 op 集合：group/assembly/add_constraint/do_assemble → grp_N 格式 */
+const GROUP_OPS = new Set(['group', 'assembly', 'add_constraint', 'do_assemble'])
+
 /** 分配器上下文 */
 export interface AllocateIdContext {
   /** 当前 sceneScript 中所有已有语句 */
@@ -117,6 +142,11 @@ export function allocateStatementId(
   ctx: AllocateIdContext,
 ): string {
   const { statements } = ctx
+
+  // 结构型 op（group/assembly/add_constraint/do_assemble）→ grp_N 格式
+  if (GROUP_OPS.has(op)) {
+    return `grp_${getMaxGroupNum(statements) + 1}`
+  }
 
   // 创建型 / 布尔 → 新模型
   if (isCreatorOp(op) || isBooleanOp(op) || inputs.length === 0) {
@@ -178,4 +208,19 @@ export function getModelNum(id: string): number | null {
  */
 export function getVersionNum(id: string): number | null {
   return parseVersionNum(id)
+}
+
+/**
+ * 判断 id 是否为 grp_N 格式。
+ */
+export function isGrpId(id: string): boolean {
+  return GRP_RE.test(id)
+}
+
+/**
+ * 从 id 中提取 group 号（grp_N 中的 N）。
+ */
+export function getGroupNum(id: string): number | null {
+  const m = GRP_RE.exec(id)
+  return m ? parseInt(m[1], 10) : null
 }

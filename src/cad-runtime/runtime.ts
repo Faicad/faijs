@@ -28,9 +28,82 @@ import { executeStatement as dispatchStatement } from '../ops/dispatcher'
 import { parseScript, ParseError } from '../lang/parser'
 import { validateStatementArgs } from '../lang/args-schema'
 import { canUseBrep } from '../ops/types'
+import { solveFaceMate, applyTransform } from '../ops/assemble'
 import type { HostPorts, ExecutionMode } from './ports'
 import type { SelectorRuntimeData } from '../topology/build-selector-runtime'
 
+
+// ── 装配变换辅助函数 ──
+
+/**
+ * 将欧拉角（度，XYZ 顺序）转换为旋转矩阵 (3x3, row-major)。
+ * 与 cad.rotate 内部使用 THREE.Euler(x, y, z, 'XYZ') 一致。
+ */
+function eulerDegToMatrix3(anglesDeg: [number, number, number]): number[] {
+  const x = anglesDeg[0] * Math.PI / 180
+  const y = anglesDeg[1] * Math.PI / 180
+  const z = anglesDeg[2] * Math.PI / 180
+  const cx = Math.cos(x), sx = Math.sin(x)
+  const cy = Math.cos(y), sy = Math.sin(y)
+  const cz = Math.cos(z), sz = Math.sin(z)
+  // R = Rz * Ry * Rx (XYZ 顺序)
+  return [
+    cy * cz, sx * sy * cz - cx * sz, cx * sy * cz + sx * sz,
+    cy * sz, sx * sy * sz + cx * cz, cx * sy * sz - sx * cz,
+    -sy,     sx * cy,                cx * cy,
+  ]
+}
+
+/**
+ * 应用预计算变换（anglesDeg + pivot + offset）到 Shape。
+ *
+ * 与 3d_editor 的 cad.rotate(shape, anglesDeg, pivot) + cad.translate(shape, offset) 一致：
+ * 1. 绕 pivot 旋转
+ * 2. 平移 offset
+ *
+ * 用于 do_assemble pass 从约束的 transform 字段读取预计算变换。
+ */
+function applyPrecomputedTransform(
+  shape: Shape,
+  transform: {
+    anglesDeg?: [number, number, number]
+    pivot?: [number, number, number]
+    offset?: [number, number, number]
+  },
+): Shape {
+  const positions = shape.positions
+  const newPositions = new Float32Array(positions.length)
+
+  const hasRotation = transform.anglesDeg !== undefined
+  const hasTranslation = transform.offset !== undefined
+
+  if (!hasRotation && !hasTranslation) {
+    return shape // 无变换
+  }
+
+  const rotationMatrix = hasRotation
+    ? eulerDegToMatrix3(transform.anglesDeg!)
+    : [1, 0, 0, 0, 1, 0, 0, 0, 1] // identity
+
+  const pivot: [number, number, number] = transform.pivot ?? [0, 0, 0]
+  const offset: [number, number, number] = transform.offset ?? [0, 0, 0]
+
+  for (let i = 0; i < positions.length; i += 3) {
+    // p' = R * (p - pivot) + pivot + offset
+    const px = positions[i] - pivot[0]
+    const py = positions[i + 1] - pivot[1]
+    const pz = positions[i + 2] - pivot[2]
+
+    newPositions[i] = rotationMatrix[0] * px + rotationMatrix[1] * py + rotationMatrix[2] * pz + pivot[0] + offset[0]
+    newPositions[i + 1] = rotationMatrix[3] * px + rotationMatrix[4] * py + rotationMatrix[5] * pz + pivot[1] + offset[1]
+    newPositions[i + 2] = rotationMatrix[6] * px + rotationMatrix[7] * py + rotationMatrix[8] * pz + pivot[2] + offset[2]
+  }
+
+  return {
+    positions: newPositions,
+    indices: shape.indices,
+  }
+}
 
 // ── 类型定义 ──
 
@@ -264,7 +337,7 @@ export class CadRuntime {
       if (rt === 'void' || rt === 'same_shape') {
         // do_assemble: 执行装配变换 pass
         if (stmt.op === 'do_assemble') {
-          await this.executeAssemblyPass(stmt, outputCache)
+          await this.executeAssemblyPass(stmt, outputCache, script)
         }
         // add_constraint: 约束已收集，不产出几何
         continue
@@ -747,41 +820,95 @@ export class CadRuntime {
 
   /**
    * 执行装配变换 pass。
-   * 从 outputCache 中的活动件几何，根据约束信息变换。
    *
-   * 当前实现：遍历 statements 收集同一 assemblyTarget 下的 assemble 定义和
-   * add_constraint 约束，对 moving part 的 mesh 应用平移变换。
-   * BREP 同步变换通过 brepChain 完成（如果有）。
+   * 从 do_assemble 语句的 assemblyTarget 找到对应的 assemble 语句，
+   * 从 assemble 语句的 args.constraints 中读取约束数据。
+   *
+   * 优先使用约束中的 transform 字段（预计算变换，由 3d_editor confirmAssemble 存入），
+   * 直接对 outputCache 中的 moving part 几何应用变换。
+   *
+   * 如果 transform 字段不存在（如从 faijs 文本导入时只有 face center/normal），
+   * 则使用 solveFaceMate 从 face 几何计算变换。
    */
   private async executeAssemblyPass(
-    _doAssembleStmt: CadStatement,
+    doAssembleStmt: CadStatement,
     outputCache: Map<string, Shape>,
+    script: PartScript,
   ): Promise<void> {
-    const target = _doAssembleStmt.assemblyTarget
+    const target = doAssembleStmt.assemblyTarget
     if (!target) return
 
-    // 收集该 assembly target 下的所有约束
-    // 从 do_assemble 之前的语句中查找 add_constraint 语句
-    // (约束信息在 stmt.args 中)
-    const constraints: Array<{
-      type?: string
-      fixedPartName?: string
-      movingPartName?: string
-    }> = []
+    // 找到 assemblyTarget 指向的 assembly 语句
+    const assembleStmt = script.statements.find(s => s.id === target)
+    if (!assembleStmt || assembleStmt.op !== 'assembly') return
 
-    // 从 do_assemble 语句自身 args 中提取约束（如果有）
-    // 约束来自之前的 add_constraint 语句，这里简化处理：
-    // 遍历 outputCache，对每个有几何的 part 查找对应的约束
-    // 当前实现：对 outputCache 中所有 shape 按约束做平移
+    // 从 assembly 语句的 args.constraints 中读取约束
+    const constraints = (assembleStmt.args?.constraints as Array<Record<string, unknown>>) ?? []
+    if (!Array.isArray(constraints) || constraints.length === 0) return
 
-    // 简化实现：如果有约束，对 moving part 做平移
-    // 完整实现需要 resolveFace 等拓扑操作，这里先做骨架
-    for (const c of constraints) {
-      if (c.movingPartName && c.fixedPartName) {
-        const movingShape = outputCache.get(c.movingPartName)
-        if (movingShape && movingShape.positions) {
-          // 简化：将 moving part 平移到 fixed part 附近
-          // 完整实现需要计算 face 接触点变换矩阵
+    for (const constraint of constraints) {
+      const movingPartName = constraint.movingScopedId as string
+        ?? constraint.movingPartName as string
+      if (!movingPartName) continue
+
+      const movingShape = outputCache.get(movingPartName)
+      if (!movingShape || !movingShape.positions) continue
+
+      // 优先使用预计算变换（由 3d_editor confirmAssemble 存入）
+      const transform = constraint.transform as {
+        anglesDeg?: [number, number, number]
+        pivot?: [number, number, number]
+        offset?: [number, number, number]
+      } | undefined
+
+      if (transform) {
+        const transformed = applyPrecomputedTransform(movingShape, transform)
+        outputCache.set(movingPartName, transformed)
+        // 传播到所有下游 shape（如 translate(part1_v0) → part1_v1）
+        this.propagateTransform(outputCache, script, movingPartName, transform)
+        continue
+      }
+
+      // 回退：从 face center/normal 计算变换（faijs 纯文本导入路径）
+      const fixedCenter = (constraint.fixedFace as any)?.center as [number, number, number] | undefined
+      const fixedNormal = (constraint.fixedFace as any)?.normal as [number, number, number] | undefined
+      const movingCenter = (constraint.movingFace as any)?.center as [number, number, number] | undefined
+      const movingNormal = (constraint.movingFace as any)?.normal as [number, number, number] | undefined
+
+      if (fixedCenter && fixedNormal && movingCenter && movingNormal) {
+        const { quaternion, pivot, translation, rotationMatrix } = solveFaceMate(
+          fixedCenter, fixedNormal, movingCenter, movingNormal,
+        )
+        const transformed = applyTransform(
+          movingShape, quaternion, pivot, translation, rotationMatrix,
+        )
+        outputCache.set(movingPartName, transformed)
+      }
+    }
+  }
+
+  /**
+   * 将 transform 变换传播到所有依赖于 sourceId 的下游 shape。
+   * 例如：part1_v1 = translate(part1_v0, offset) 中，
+   * 如果 part1_v0 被 do_assemble 变换了，part1_v1 也需要应用同样的变换。
+   */
+  private propagateTransform(
+    outputCache: Map<string, Shape>,
+    script: PartScript,
+    sourceId: string,
+    transform: {
+      anglesDeg?: [number, number, number]
+      pivot?: [number, number, number]
+      offset?: [number, number, number]
+    },
+  ): void {
+    for (const stmt of script.statements) {
+      if (stmt.inputs.includes(sourceId)) {
+        const downstreamShape = outputCache.get(stmt.id)
+        if (downstreamShape && downstreamShape.positions) {
+          const transformed = applyPrecomputedTransform(downstreamShape, transform)
+          outputCache.set(stmt.id, transformed)
+          this.propagateTransform(outputCache, script, stmt.id, transform)
         }
       }
     }

@@ -34,6 +34,7 @@ export {
 export {
   allocateStatementId, allocateSplitIds,
   isPartVmId, getModelNum, getVersionNum,
+  isGrpId, getGroupNum,
 } from './lang/allocate-id'
 export type { AllocateIdContext } from './lang/allocate-id'
 export { parseScript, ParseError, getApiVersion, computeTerminalShapes } from './lang/parser'

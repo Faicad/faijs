@@ -85,7 +85,7 @@ export type FeatureKind =
   | 'sdf'
   | 'group'
   | 'assembly'
-  | 'assemble'
+  | 'do_assemble'
 
 export interface FeatureMeta {
   kind: FeatureKind
@@ -123,14 +123,8 @@ export interface CadStatement {
    *  普通几何语句不需要此字段。 */
   groupScopedId?: string
 
-  /** 装配链式调用专属：记录 `let assem1 = cad.assemble(...)` 中的变量名。
-   *  用于 `assem1.add_constraint(...)` / `assem1.do_assemble()` 关联回定义语句。
-   *  非装配链式调用语句不需要此字段。 */
-  assemblyVar?: string
-
   /** 装配链式调用专属：标记 `assem1.add_constraint(...)` / `assem1.do_assemble()` 的目标变量。
-   *  与 `assemblyVar` 配合使用——`assemblyVar` 在 `cad.assemble` 语句上，
-   *  `assemblyTarget` 在成员方法调用语句上。 */
+   *  指向 assembly 语句的变量名（= 语句 id）。 */
   assemblyTarget?: string
 
   /** 该语句是否有赋值（`const x = ...` 或 `let x = ...`）。

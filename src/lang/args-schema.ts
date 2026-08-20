@@ -250,8 +250,10 @@ export const SCHEMAS: Record<string, OpSchema> = {
   },
 
   // ── 结构型语句 ──
-  // group/assembly/assemble/add_constraint/do_assemble
+  // group/assembly/add_constraint/do_assemble
   // 这些 op 不产出几何，但需要 schema 校验其参数结构。
+  // assembly 是定义装配的名词（const x = cad.assembly({...})），
+  // do_assemble 是执行装配的动词（x.do_assemble()）。
   group: {
     op: 'group',
     fields: [
@@ -261,15 +263,6 @@ export const SCHEMAS: Record<string, OpSchema> = {
   },
   assembly: {
     op: 'assembly',
-    fields: [
-      { name: 'name', type: 'string', required: false },
-      { name: 'members', type: 'any', required: false },
-      { name: 'constraints', type: 'any', required: false },
-      { name: 'transform', type: 'any', required: false },
-    ],
-  },
-  assemble: {
-    op: 'assemble',
     fields: [
       { name: 'name', type: 'string', required: false },
       { name: 'members', type: 'any', required: false },

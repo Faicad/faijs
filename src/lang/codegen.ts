@@ -307,15 +307,6 @@ export function buildArgsParts(stmt: CadStatement, varNames?: Map<string, string
       push('name', args.name)
       push('members', args.members)
       push('constraints', args.constraints)
-      push('transform', args.transform)
-      break
-    }
-
-    // ── E15.1: 装配链式调用 ──
-    case 'assemble': {
-      push('name', args.name)
-      push('members', args.members)
-      push('constraints', args.constraints)
       break
     }
     case 'add_constraint': {
@@ -352,7 +343,6 @@ const PART_VM_RE = /^part\d+_v\d+$/
  * - boolean op 输出 `const partN_vM = cad.operation(input0, input1)`
  * - 多输出 split 输出 `const { front: out0, back: out1 } = cad.split(input, { ... })`
  * - group/assembly 输出 `const grpN = cad.group({ ... })` / `const grpN = cad.assembly({ ... })`
- * - assemble 输出 `const assem1 = cad.assemble({ ... })`
  * - add_constraint 输出 `assem1.add_constraint({ ... })`
  * - do_assemble 输出 `assem1.do_assemble()`
  */
@@ -360,25 +350,18 @@ export function statementToLine(stmt: CadStatement): string {
   // 结构型语句按 op 输出（group/assembly 需赋值）
   if (stmt.op === 'group' || stmt.op === 'assembly') {
     const parts = buildArgsParts(stmt)
-    const varName = stmt.assemblyVar ?? stmt.id
-    return `const ${varName} = cad.${stmt.op}({ ${parts.join(', ')} })`
+    return `const ${stmt.id} = cad.${stmt.op}({ ${parts.join(', ')} })`
   }
 
-  // E15.1: 装配链式调用
-  if (stmt.op === 'assemble') {
-    const parts = buildArgsParts(stmt)
-    const varName = stmt.assemblyVar ?? 'assem1'
-    return `const ${varName} = cad.assemble({ ${parts.join(', ')} })`
-  }
-  if (stmt.op === 'add_constraint') {
-    const parts = buildArgsParts(stmt)
-    const target = stmt.assemblyTarget ?? 'assem1'
-    return `${target}.add_constraint({ ${parts.join(', ')} })`
-  }
-  if (stmt.op === 'do_assemble') {
-    const target = stmt.assemblyTarget ?? 'assem1'
-    return `${target}.do_assemble()`
-  }
+if (stmt.op === 'add_constraint') {
+const parts = buildArgsParts(stmt)
+const target = stmt.assemblyTarget ?? stmt.id
+return `${target}.add_constraint({ ${parts.join(', ')} })`
+}
+if (stmt.op === 'do_assemble') {
+const target = stmt.assemblyTarget ?? stmt.id
+return `${target}.do_assemble()`
+}
 
   const varName = PART_VM_RE.test(stmt.id) ? stmt.id : stmt.id.replace(/[^a-zA-Z0-9_]/g, '_')
 
@@ -437,26 +420,18 @@ export function scriptToCode(script: PartScript): string {
   for (const stmt of script.statements) {
     if (stmt.op === 'group' || stmt.op === 'assembly') {
       const argsParts = buildArgsParts(stmt, varNames)
-      const varName = stmt.assemblyVar ?? stmt.id
-      bodyLines.push(`const ${varName} = cad.${stmt.op}({ ${argsParts.join(', ')} })`)
-      continue
-    }
-
-    // E15.1: 装配链式调用
-    if (stmt.op === 'assemble') {
-      const argsParts = buildArgsParts(stmt, varNames)
-      const varName = stmt.assemblyVar ?? 'assem1'
-      bodyLines.push(`const ${varName} = cad.assemble({ ${argsParts.join(', ')} })`)
+      bodyLines.push(`const ${stmt.id} = cad.${stmt.op}({ ${argsParts.join(', ')} })`)
+      varNames.set(stmt.id, stmt.id)
       continue
     }
     if (stmt.op === 'add_constraint') {
       const argsParts = buildArgsParts(stmt, varNames)
-      const target = stmt.assemblyTarget ?? 'assem1'
+      const target = stmt.assemblyTarget ?? stmt.id
       bodyLines.push(`${target}.add_constraint({ ${argsParts.join(', ')} })`)
       continue
     }
     if (stmt.op === 'do_assemble') {
-      const target = stmt.assemblyTarget ?? 'assem1'
+      const target = stmt.assemblyTarget ?? stmt.id
       bodyLines.push(`${target}.do_assemble()`)
       continue
     }
