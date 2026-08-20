@@ -2,6 +2,14 @@
 
 Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadRuntime。**构建产物为 `dist/`**（`npm run build`：tsc 编译 src → dist JS + `.d.ts`），包经 `exports` 指向 `dist/*.js`；**测试/CLI 仍直接消费 `src/`**（vitest、tsx）。
 
+## 开发完成后的测试步骤
+
+1. 每次开发完功能，一定先跑自己写的测试
+
+2. 单独跑其它可能有被影响到的测试
+
+3. 全部通过后才准跑ci， `scripts/ci.ps1`。**严禁通过跑 CI 找 bug**。跑完一次 CI 后记住哪些测试失败了，之后只跑失败的测试，不要重复跑 CI。
+
 ## 常用命令
 
 | 命令 | 说明 |
