@@ -17,6 +17,8 @@ import {
   releaseShape,
 } from './occtKernel'
 import type { Shape } from '../ops/types'
+import { exportStepFromSolids } from '../brep/export/step'
+import type { StepExportEntry } from '../brep/export/step'
 import type {
   ShapeHandle,
   OcctKernel,
@@ -126,6 +128,25 @@ export function exportStep(
  */
 export function releaseSolid(solid: ShapeHandle): void {
   releaseShape(solid)
+}
+
+/**
+ * 高层：多实体 STEP 导出（零 fuse）。
+ *
+ * 每个 entry 作为 STEP 中独立实体（独立 XCAF label / PRODUCT）导出，
+ * 保留名称与颜色。多实体之间绝不 fuse。
+ *
+ * 封装了 ensureOcctKernel + exportStepFromSolids 的完整流程。
+ * 宿主不需要再直接操作 OCCT kernel。
+ *
+ * @param entries parts to export; each becomes its own independent entity
+ * @returns STEP file content as ArrayBuffer
+ */
+export async function exportStepFromSolidsHighLevel(
+  entries: StepExportEntry[],
+): Promise<ArrayBuffer> {
+  const kernel = await ensureOcctKernel()
+  return exportStepFromSolids(kernel, entries)
 }
 
 // ── 管理函数 ──

@@ -56,7 +56,8 @@ export {
 } from './brep'
 export type { DrillBrepParams, SplitBrepParams, SplitBrepResult, ExtrudeBrepParams } from './brep'
 export { buildStlBufferFromMesh } from './brep/export/stl'
-export { exportStepFromSolid } from './brep/export/step'
+export { exportStepFromSolid, exportStepFromSolids } from './brep/export/step'
+export type { StepExportEntry } from './brep/export/step'
 
 // ── L1 Mesh 执行�?──
 export { cad } from './mesh'
@@ -169,6 +170,9 @@ export type {
 
 // ── OCCT Mesh Reconstruct ──
 export { reconstructSolidFromMesh, meshToAsciiStl, cadShapeIsValid, meshToStepBrep } from './occt-kernel/meshReconstruct'
+
+// ── OCCT 高层导出（多实体、零 fuse） ──
+export { exportStepFromSolidsHighLevel } from './occt-kernel/highLevelApi'
 
 // ── OCCT Topology Extension ──
 export { buildSelectorManifest, buildAssemblySelectorManifest } from './occt-kernel/topologyExt'

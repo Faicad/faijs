@@ -1,4 +1,4 @@
-﻿﻿/**
+﻿/**
  * @faicad/faijs/browser — Browser-safe exports (F6: A/B/C/D 四类收敛)
  *
  * Excludes L3 Node Host modules (node-host/*) that depend on node:fs/node:path.
@@ -77,7 +77,7 @@ export { WorkerCsgBackend } from './browser-host/worker-csg-backend'
 export { WorkerSdfBackend } from './browser-host/worker-sdf-backend'
 
 // E12.2: OCCT 高层 API（B 类——宿主用这些替代底层 kernel 函数）
-export { importStep, exportStep, releaseSolid, ensureOcctKernel, disposeOcct } from './occt-kernel/highLevelApi'
+export { importStep, exportStep, releaseSolid, ensureOcctKernel, disposeOcct, exportStepFromSolidsHighLevel } from './occt-kernel/highLevelApi'
 export type { ImportStepResult, ExportStepOptions } from './occt-kernel/highLevelApi'
 
 // E15.1: 装配约束求解器（D 类预览 API + B 类执行 API）
@@ -206,7 +206,8 @@ export {
 } from './brep/brep-ops'
 export { getSolidBoundingBox } from './brep/brep-utils'
 export { buildStlBufferFromMesh } from './brep/export/stl'
-export { exportStepFromSolid } from './brep/export/step'
+export { exportStepFromSolid, exportStepFromSolids } from './brep/export/step'
+export type { StepExportEntry } from './brep/export/step'
 export { executeEngrave } from './ops/engrave'
 export { reconstructSolidFromMesh, meshToAsciiStl, cadShapeIsValid, meshToStepBrep } from './occt-kernel/meshReconstruct'
 
