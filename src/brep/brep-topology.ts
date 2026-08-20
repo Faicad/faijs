@@ -29,6 +29,35 @@ export interface SolidTopologyResult {
 }
 
 /**
+ * 从已有的三角化结果（meshWithGroups）构建拓扑，不强制重新 meshShape。
+ *
+ * 用于 BREP 路径在场景已有三角化时复用——三角化属于几何数据生成，
+ * 拓扑构建应接收已有结果而非内部重新生成（需求 §2.0/§2.2、验收 3）。
+ *
+ * @param solid  OCCT solid 句柄（用于 buildAssemblySelectorManifest 的 shapeHandle）
+ * @param meshWithGroups 已有的三角化结果（来自 kernel.meshShape）
+ * @returns SelectorRuntime
+ */
+export function buildTopologyFromMesh(
+  solid: ShapeHandle,
+  meshWithGroups: WasmMesh,
+): SelectorRuntime {
+  // 生成拓扑清单（与 STEP_T 同源：buildAssemblySelectorManifest）
+  const result = buildAssemblySelectorManifest([{
+    labelPath: 'o1',
+    shapeHandle: solid,
+    meshWithGroups,
+  }])
+
+  // 构建 SelectorRuntime
+  const bundle: SelectorBundle = {
+    manifest: result.manifest as unknown as SelectorManifest,
+    buffers: result.buffers as unknown as import('../topology/types').SelectorBuffers,
+  }
+  return buildSelectorRuntime(bundle, { scale: 1 })
+}
+
+/**
  * 从 OCCT solid 句柄生成 SelectorRuntime + mesh 数据。
  *
  * 算法与 STEP 文件导入路径（step-worker.ts → importStepToMesh →
@@ -37,6 +66,9 @@ export interface SolidTopologyResult {
  *
  * 三角化参数使用与 STEP 导入相同的默认值
  * （linearDeflection=0.1, angularDeflection=0.5, relative=false）。
+ *
+ * 便捷入口：内部执行 meshShape 三角化 + buildTopologyFromMesh。
+ * 如果已有三角化结果，应直接调 buildTopologyFromMesh 以复用。
  *
  * @param kernel OCCT 内核实例
  * @param solid  OCCT solid 句柄（不会被释放或修改）
@@ -55,21 +87,11 @@ export function buildSolidTopologyRuntime(
     linearDeflection: eff.linearDeflection,
     angularDeflection: eff.angularDeflection,
   })
-  // 2. 生成拓扑清单（与 STEP_T 同源：buildAssemblySelectorManifest）
-  const result = buildAssemblySelectorManifest([{
-    labelPath: 'o1',
-    shapeHandle: solid,
-    meshWithGroups: mesh,
-  }])
 
-  // 3. 构建 SelectorRuntime
-  const bundle: SelectorBundle = {
-    manifest: result.manifest as unknown as SelectorManifest,
-    buffers: result.buffers as unknown as import('../topology/types').SelectorBuffers,
-  }
-  const runtime = buildSelectorRuntime(bundle, { scale: 1 })
+  // 2. 从已有三角化结果构建拓扑（复用 buildTopologyFromMesh）
+  const runtime = buildTopologyFromMesh(solid, mesh)
 
-  // 4. 返回 runtime + mesh（同一个 meshShape 输出）
+  // 3. 返回 runtime + mesh（同一个 meshShape 输出）
   return {
     runtime,
     mesh: {
@@ -79,4 +101,3 @@ export function buildSolidTopologyRuntime(
     },
   }
 }
-

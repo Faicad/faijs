@@ -110,14 +110,12 @@ export { buildSelectorRuntimeMaps } from './topology/build-selector-runtime'
 // 拓扑常量
 export { TOPOLOGY_FACE_ID_NONE } from './topology/build-face-ids'
 
-// D 类辅助：拓扑构建函数（宿主在加载时刻调用，构建 mesh/primitive 假拓扑）
+// D 类辅助：拓扑构建函数（宿主在加载时刻调用，构建 mesh/primitive 近似拓扑）
 // 注意：这些只在加载/创建时刻合法，变更后不重新生成
+// BREP 真拓扑通过 CadRuntime.buildBrepTopology() 获取，不再直接导出 buildSolidTopologyRuntime
 export { buildSelectorRuntime, buildSelectorRuntimeData } from './topology/build-selector-runtime'
 export { buildFaceIdsForPart } from './topology/build-face-ids'
-export { buildSolidTopologyRuntime } from './brep/brep-topology'
 export type { SolidTopologyResult } from './brep/brep-topology'
-export { buildSelectorManifest, buildAssemblySelectorManifest } from './occt-kernel/topologyExt'
-export type { SelectorManifestInput, PartTopologyInput, AssemblyTopologyResult } from './occt-kernel/topologyExt'
 
 // C 类辅助：面查询
 export { faceAt } from './mesh/query'

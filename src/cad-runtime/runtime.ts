@@ -31,6 +31,10 @@ import { canUseBrep } from '../ops/types'
 import { solveFaceMate, applyTransform } from '../ops/assemble'
 import type { HostPorts, ExecutionMode } from './ports'
 import type { SelectorRuntimeData } from '../topology/build-selector-runtime'
+import type { SelectorRuntime } from '../topology/types'
+import { buildSolidTopologyRuntime } from '../brep/brep-topology'
+import type { SolidTopologyResult } from '../brep/brep-topology'
+import { buildTopologyFromMesh } from '../brep/brep-topology'
 
 
 // ── 装配变换辅助函数 ──
@@ -255,6 +259,12 @@ export class CadRuntime {
 
   /** BREP solid 缓存：scopedId → { solid, kernel }（实例级，公开供外部只读访问） */
   readonly brepSolidCache = new Map<string, { solid: ShapeHandle; kernel: OcctKernel }>()
+
+  /**
+   * 三角化缓存：scopedId → WasmMesh（含 faceGroups）。
+   * 执行链产出 WasmMesh 时写入，buildBrepTopology 复用避免重新 meshShape（Phase 3）。
+   */
+  private meshShapeCache = new Map<string, import('occt-wasm').Mesh>()
 
   /**
    * 拓扑数据缓存：partName → PartTopology（实例级）
@@ -970,6 +980,7 @@ export class CadRuntime {
   /** 删除 BREP solid 缓存（仅移除引用，不 release——所有权在 solidCache）。 */
   deleteBrepSolid(scopedId: string): void {
     this.brepSolidCache.delete(scopedId)
+    this.meshShapeCache.delete(scopedId)
   }
 
   // ── 公开：拓扑数据缓存 ──
@@ -996,6 +1007,46 @@ export class CadRuntime {
   /** 删除拓扑数据 */
   deleteTopology(partName: string): void {
     this.topologyCache.delete(partName)
+  }
+
+  /**
+   * 从 BREP solid 构建拓扑数据（接口分离 P0）。
+   *
+   * 宿主不再直接 import faijs 内部构建函数（buildSolidTopologyRuntime），
+   * 而是通过此方法从 runtime 获取 BREP 拓扑。
+   *
+   * 内部调用 buildSolidTopologyRuntime（L1 内部函数），返回完整的 SelectorRuntime。
+   *
+   * @param scopedId 零件的 scopedId（fileId:innerId），在 brepSolidCache 中查找
+   * @returns SelectorRuntime，或 null（无可用 BREP solid）
+   */
+  buildBrepTopology(scopedId: string): SelectorRuntime | null {
+    const solidEntry = this.brepSolidCache.get(scopedId)
+    if (!solidEntry) return null
+
+    // Phase 3: 复用已有三角化结果，不强制重新 meshShape
+    const cachedMesh = this.meshShapeCache.get(scopedId)
+    if (cachedMesh) {
+      return buildTopologyFromMesh(solidEntry.solid, cachedMesh)
+    }
+
+    // 无缓存 → 执行完整构建（含 meshShape 三角化）
+    const result: SolidTopologyResult = buildSolidTopologyRuntime(solidEntry.kernel, solidEntry.solid)
+    return result.runtime
+  }
+
+  /**
+   * 缓存三角化结果（Phase 3）。
+   * 执行链在 meshShape 后调用此方法缓存 WasmMesh（含 faceGroups），
+   * 供 buildBrepTopology 复用，避免二次三角化。
+   */
+  setMeshShape(scopedId: string, mesh: import('occt-wasm').Mesh): void {
+    this.meshShapeCache.set(scopedId, mesh)
+  }
+
+  /** 删除三角化缓存（与 deleteBrepSolid 配对） */
+  deleteMeshShape(scopedId: string): void {
+    this.meshShapeCache.delete(scopedId)
   }
 
   // ── 公开：终端几何提取 ──
