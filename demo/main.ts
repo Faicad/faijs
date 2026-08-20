@@ -13,8 +13,8 @@
 
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { parseScript, ParseError, createRuntime, createBrowserPorts, setOcctWasmInitFn, initOcctWasm, exportStepFromSolid, buildStlBufferFromMesh, deriveNormals, setManifoldWasmUrl } from '@faicad/faijs/browser'
-import type { ExecutionMode, HostPorts, ShapeHandle, OcctKernel } from '@faicad/faijs/browser'
+import { parseScript, ParseError, createRuntime, createBrowserPorts, setOcctWasmInitFn, initOcctWasm, exportStepFromSolid, exportStep, buildStlBufferFromMesh, deriveNormals, setManifoldWasmUrl } from '@faicad/faijs/browser'
+import type { ExecutionMode, HostPorts, ShapeHandle, OcctKernel, ExecutionResult } from '@faicad/faijs/browser'
 import { OcctKernel as OcctKernelValue } from 'occt-wasm'
 import fontUrl from './assets/fonts/OpenSans-Regular.ttf?url'
 
@@ -226,7 +226,7 @@ function preloadOcct() {
 
 type ShapeSummary = { id: string; positions: Float32Array; indices: Uint32Array }
 
-function extractShapes(result: Awaited<ReturnType<ReturnType<typeof createRuntime>['replay']>>): ShapeSummary[] {
+function extractShapes(result: ExecutionResult): ShapeSummary[] {
   const shapes: ShapeSummary[] = []
 
   if (result.terminals.length > 0) {
@@ -256,7 +256,7 @@ async function runMode(
   ports: HostPorts,
 ): Promise<string> {
   const runtime = createRuntime(ports, view.mode)
-  const result = await runtime.replay(script)
+  const result = await runtime.execute(script)
 
   if (result.failedAt) {
     clearMeshes(view)
@@ -276,7 +276,9 @@ async function runMode(
 
   renderShapes(view, shapes)
   view.lastShapes = shapes
-  view.lastBrepSolid = result.brepSolid
+  // brepSolids 是逐终端的 Map（E13 起由 ExecutionResult 携带）；
+  // demo 的 STEP 导出只需任一终端 solid，取第一个即可
+  view.lastBrepSolid = result.brepSolids?.values().next().value
 
   const totalVerts = shapes.reduce((s, sh) => s + sh.positions.length / 3, 0)
   const totalTris = shapes.reduce((s, sh) => s + sh.indices.length / 3, 0)
@@ -326,10 +328,10 @@ async function runCode() {
 
     setStatus(`OK — brep: ${brepReport} | mesh: ${meshReport}`, 'success')
 
-    // 成功且产出几何时才开放对应导出：
-    // - STEP 需要 BREP solid（BREP 链存活）
-    // - STL 需要 mesh 三角化数据
-    btnStep.disabled = !brepView.lastBrepSolid
+    // 成功且产出几何时才开放导出（导出格式由用户主动选择）：
+    // - STEP：有 BREP solid → 精确 STEP；无 solid → 三角化 STEP
+    // - STL：mesh 三角化数据
+    btnStep.disabled = !(brepView.lastShapes && brepView.lastShapes.length > 0)
     btnStl.disabled = !(meshView.lastShapes && meshView.lastShapes.length > 0)
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
@@ -355,19 +357,8 @@ function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url)
 }
 
-// STEP：从最近一次 BREP 运行结果导出
-btnStep.addEventListener('click', () => {
-  const solid = brepView.lastBrepSolid
-  if (!solid) return
-  const buffer = exportStepFromSolid(solid.solid, solid.kernel)
-  downloadBlob(new Blob([buffer], { type: 'model/step' }), 'faijs-model.step')
-})
-
-// STL：合并所有终端 shape 的三角化数据导出 binary STL
-btnStl.addEventListener('click', () => {
-  const shapes = meshView.lastShapes
-  if (!shapes || shapes.length === 0) return
-
+// 合并多个终端 shape 的三角化数据为单一 mesh（顶点去重不做，直接拼接）
+function mergeShapes(shapes: Array<{ positions: Float32Array; indices: Uint32Array }>): { positions: Float32Array; indices: Uint32Array } {
   const vertCount = shapes.reduce((n, s) => n + s.positions.length / 3, 0)
   const triCount = shapes.reduce((n, s) => n + s.indices.length / 3, 0)
   const positions = new Float32Array(vertCount * 3)
@@ -384,7 +375,33 @@ btnStl.addEventListener('click', () => {
     io += shape.indices.length
   }
 
-  const buffer = buildStlBufferFromMesh(positions, indices)
+  return { positions, indices }
+}
+
+// STEP：导出格式由用户主动选择（不因 BREP 链状态禁用）。
+// 有 BREP solid → 精确 STEP（ADVANCED_FACE）；无 solid → 三角化 STEP。
+btnStep.addEventListener('click', () => {
+  const shapes = brepView.lastShapes
+  if (!shapes || shapes.length === 0) return
+
+  const solid = brepView.lastBrepSolid
+  if (solid) {
+    const buffer = exportStepFromSolid(solid.solid, solid.kernel)
+    downloadBlob(new Blob([buffer], { type: 'model/step' }), 'faijs-model.step')
+  } else {
+    const merged = mergeShapes(shapes)
+    const stepText = exportStep(merged)
+    downloadBlob(new Blob([stepText], { type: 'model/step' }), 'faijs-model.step')
+  }
+})
+
+// STL：合并所有终端 shape 的三角化数据导出 binary STL
+btnStl.addEventListener('click', () => {
+  const shapes = meshView.lastShapes
+  if (!shapes || shapes.length === 0) return
+
+  const merged = mergeShapes(shapes)
+  const buffer = buildStlBufferFromMesh(merged.positions, merged.indices)
   downloadBlob(new Blob([buffer], { type: 'model/stl' }), 'faijs-model.stl')
 })
 
