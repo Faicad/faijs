@@ -590,4 +590,81 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     expect(result.failedAt).toBeUndefined()
     expect(result.outputs.get('s3')).toBeDefined()
   })
+
+  it('append: do_assemble 语句触发 executeAssemblyPass（变换 moving part 几何）', async () => {
+    const runtime = makeRuntime()
+    // 两个 box：s1（固定件）和 s2（活动件）
+    const s1 = makeStmt('s1', 'box', { size: 10 })
+    const s2 = makeStmt('s2', 'box', { size: 10 })
+    const script = makePartScript([s1, s2])
+    await runtime.execute(script)
+
+    // 验证 s2 的初始位置（box 中心在原点）
+    const s2Initial = runtime.getCachedOutput('s2')!
+    expect(s2Initial).toBeDefined()
+
+    // 创建 assembly + do_assemble 语句
+    const assemblyStmt: CadStatement = {
+      id: 'asm1',
+      op: 'assembly',
+      args: {
+        name: 'testAssembly',
+        members: ['s1', 's2'],
+        constraints: [{
+          type: 'face_mate' as const,
+          fixedPartName: 's1',
+          movingPartName: 's2',
+          // s1 顶面：center=[0,5,0], normal=[0,1,0]
+          fixedFace: { faceId: 'f1', surfaceType: 'plane', center: [0, 5, 0], normal: [0, 1, 0] },
+          // s2 底面：center=[0,-5,0], normal=[0,-1,0]
+          movingFace: { faceId: 'f2', surfaceType: 'plane', center: [0, -5, 0], normal: [0, -1, 0] },
+        }],
+      },
+      inputs: [],
+      feature: { kind: 'assembly', label: 'testAssembly', createdBy: 'user' },
+      hasAssignment: true,
+      returnType: 'new_shape',
+    }
+    const doAssembleStmt: CadStatement = {
+      id: 'do_asm1',
+      op: 'do_assemble',
+      args: {},
+      inputs: [],
+      assemblyTarget: 'asm1',
+      returnType: 'void',
+    }
+
+    // append 两条新语句
+    const fullScript = makePartScript([s1, s2, assemblyStmt, doAssembleStmt])
+    const result = await runtime.append(fullScript, ['asm1', 'do_asm1'])
+
+    expect(result.failedAt).toBeUndefined()
+
+    // do_assemble 应该执行了装配变换：s2 的几何被变换
+    // face_mate: s2 底面法线 [0,-1,0] → -s1 顶面法线 [0,-1,0]，已反向平行
+    // 平移 = fixedFace.center - movingFace.center = [0,5,0] - [0,-5,0] = [0,10,0]
+    // 所以 s2 应该被平移 [0,10,0]
+    const s2After = result.outputs.get('s2')
+    expect(s2After).toBeDefined()
+    expect(s2After).not.toBe(s2Initial) // 几何确实变了
+
+    // 验证变换正确：s2 原来中心在 [0,0,0]，平移 [0,10,0] 后中心在 [0,10,0]
+    // box(size=10) 顶点范围 [-5,5]×[-5,5]×[-5,5]，平移后 [−5,5]×[5,15]×[-5,5]
+    // 检查 s2 的某个顶点是否被正确平移
+    const s2InitialPos = s2Initial.positions
+    const s2AfterPos = s2After!.positions
+    // 至少有变化（不是完全相同的 Float32Array）
+    let hasChange = false
+    for (let i = 0; i < s2AfterPos.length; i++) {
+      if (Math.abs(s2AfterPos[i] - s2InitialPos[i]) > 0.001) {
+        hasChange = true
+        break
+      }
+    }
+    expect(hasChange).toBe(true)
+
+    // 验证平移量 = [0,10,0]（Y 轴方向偏移 10）
+    const deltaY = s2AfterPos[1] - s2InitialPos[1] // 第一个顶点的 Y 分量差
+    expect(deltaY).toBeCloseTo(10, 1)
+  })
 })

@@ -497,7 +497,26 @@ export class CadRuntime {
       if (!stmt) throw new Error(`[CadRuntime] append: unknown statement "${id}"`)
       // 与 execute 主循环一致的防护：void/same_shape 语句不产出几何（do_assemble / add_constraint 等）
       const rt = stmt.returnType ?? 'new_shape'
-      if (rt === 'void' || rt === 'same_shape') continue
+      if (rt === 'void' || rt === 'same_shape') {
+        // do_assemble: 执行装配变换 pass（与 execute 主循环一致）
+        if (stmt.op === 'do_assemble') {
+          const transformedIds = await this.executeAssemblyPass(stmt, outputCache, script)
+          // 把变换后的几何同步到 statementCache，使 collectFromCache 能正确返回
+          // 变换后的几何（append 走 collectFromCache 组装结果，与 execute 直接返回 outputCache 不同）
+          for (const partId of transformedIds) {
+            const transformed = outputCache.get(partId)
+            if (transformed) {
+              const contentKey = computeContentKey(transformed.positions, transformed.indices)
+              this.statementCache.set(partId, {
+                statementKey: (this.statementCache.get(partId)?.statementKey ?? '') + '|asm-transform',
+                outputContentKey: contentKey,
+                output: transformed,
+              })
+            }
+          }
+        }
+        continue
+      }
       const index = script.statements.indexOf(stmt)
       opts?.beforeStatement?.(stmt, index)
 
@@ -802,22 +821,24 @@ export class CadRuntime {
    *
    * 约束只存 face 数据（center/normal），不存 transform（v8 红线 R7）。
    * 每次重放从 face 数据实时 solveFaceMate 求解，结果确定、可重复。
+   *
+   * @returns 被变换的 part name 集合（moving parts + 下游传播的 parts）
    */
   private async executeAssemblyPass(
     doAssembleStmt: CadStatement,
     outputCache: Map<string, Shape>,
     script: PartScript,
-  ): Promise<void> {
+  ): Promise<Set<string>> {
     const target = doAssembleStmt.assemblyTarget
-    if (!target) return
+    if (!target) return new Set()
 
     // 找到 assemblyTarget 指向的 assembly 语句
     const assemblyStmt = script.statements.find(s => s.id === target)
-    if (!assemblyStmt || assemblyStmt.op !== 'assembly') return
+    if (!assemblyStmt || assemblyStmt.op !== 'assembly') return new Set()
 
     // 从 assembly 语句的 args.constraints 中读取约束
     const constraints = (assemblyStmt.args?.constraints as unknown as AssemblyConstraint[]) ?? []
-    if (!Array.isArray(constraints) || constraints.length === 0) return
+    if (!Array.isArray(constraints) || constraints.length === 0) return new Set()
 
     // 构造 AssemblyDefinition，委托 executeDoAssemble 执行
     const assemblyDef: AssemblyDefinition = {
@@ -828,10 +849,34 @@ export class CadRuntime {
 
     // 传入 brepChain（含 solidCache / kernel）使 BREP 路径同步变换；
     // 传入 script 使下游 mesh 传播生效。
-    executeDoAssemble(assemblyDef, outputCache, {
+    const results = executeDoAssemble(assemblyDef, outputCache, {
       brepChain: this.brepChain ?? undefined,
       script,
     })
+
+    // 收集被变换的 part names（executeDoAssemble 返回的直接变换结果）
+    const transformedIds = new Set<string>(results.keys())
+    // 下游传播的 part 也需要同步（propagateTransformDownstream 修改了 outputCache 但不返回哪些被改了）
+    // 简单策略：assembly members + 其所有下游语句 id
+    const members = (assemblyStmt.args?.members as string[]) ?? []
+    for (const m of members) {
+      transformedIds.add(m)
+      // 沿 inputs 链找下游
+      const visited = new Set<string>()
+      const queue = [m]
+      while (queue.length > 0) {
+        const cur = queue.shift()!
+        if (visited.has(cur)) continue
+        visited.add(cur)
+        for (const s of script.statements) {
+          if (s.inputs.includes(cur) && !transformedIds.has(s.id)) {
+            transformedIds.add(s.id)
+            queue.push(s.id)
+          }
+        }
+      }
+    }
+    return transformedIds
   }
 
   /** plan() — 依赖分析，得出需要重算的语句集合 */
