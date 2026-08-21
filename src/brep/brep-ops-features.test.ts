@@ -408,14 +408,14 @@ expect(MESH_ONLY_OPS.size).toBe(2)
   it('isCadFormat: step format → true', () => {
     expect(isCadFormat({ format: 'step' }, true)).toBe(true)
     expect(isCadFormat({ format: 'stp' }, true)).toBe(true)
-    expect(isCadFormat({ format: 'iges' }, true)).toBe(true)
     expect(isCadFormat({ format: 'brep' }, true)).toBe(true)
   })
 
-  it('isCadFormat: 3mf/stl format → false', () => {
+  it('isCadFormat: 3mf/stl/iges format → false', () => {
     expect(isCadFormat({ format: '3mf' }, true)).toBe(false)
     expect(isCadFormat({ format: 'stl' }, true)).toBe(false)
     expect(isCadFormat({ format: 'obj' }, true)).toBe(false)
+    expect(isCadFormat({ format: 'iges' }, true)).toBe(false)
   })
 
   it('isCadFormat: non-source buffer → false', () => {

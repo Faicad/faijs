@@ -48,9 +48,11 @@ export const MESH_ONLY_OPS = new Set<string>([
 // ─── CAD 格式静态判定 ───
 
 /**
- * CAD 格式集合：这些格式的文件可以用 OCCT kernel.importStep 导入为精确实体。
+ * CAD formats: files in these formats can be imported by the OCCT kernel as
+ * exact solids (STEP/STP via importStep, BREP via fromBREP).
+ * IGES is intentionally absent — occt-wasm does not link TKDEIGES.
  */
-const CAD_FORMATS = new Set(['step', 'iges', 'brep', 'stp'])
+const CAD_FORMATS = new Set(['step', 'brep', 'stp'])
 
 /**
  * 静态判定 load 语句的源文件是否为 CAD 格式。

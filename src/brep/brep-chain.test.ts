@@ -114,7 +114,6 @@ describe('isCadFormat', () => {
   it('should return true for CAD formats with isSource=true', () => {
     expect(isCadFormat({ format: 'step' }, true)).toBe(true)
     expect(isCadFormat({ format: 'stp' }, true)).toBe(true)
-    expect(isCadFormat({ format: 'iges' }, true)).toBe(true)
     expect(isCadFormat({ format: 'brep' }, true)).toBe(true)
   })
 
@@ -122,6 +121,7 @@ describe('isCadFormat', () => {
     expect(isCadFormat({ format: '3mf' }, true)).toBe(false)
     expect(isCadFormat({ format: 'stl' }, true)).toBe(false)
     expect(isCadFormat({ format: 'obj' }, true)).toBe(false)
+    expect(isCadFormat({ format: 'iges' }, true)).toBe(false)
   })
 
   it('should return false when isSource=false', () => {

@@ -1,7 +1,7 @@
 /**
  * occt-wasm 封装层 — 替代 occt-import-js
  *
- * 提供 STEP/IGES/BREP → Mesh 转换和 Mesh → STEP 导出能力。
+ * 提供 STEP/BREP → Mesh 转换和 Mesh → STEP 导出能力。
  * 利用 occt-wasm 的 meshShape() 获取 faceGroups（面→三角形映射），
  * 利用 wireframe() 获取边折线数据，利用 edgeToFaceMap() 获取边→面关联。
  */
