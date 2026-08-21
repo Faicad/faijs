@@ -663,7 +663,13 @@ export function loadBrep(
   brepChain?: BrepChainState,
   stmtId?: string,
 ): { solid: ShapeHandle; shape: Shape } {
-  const top = kernel.importStep(buffer)
+  // BREP 文件（CASCADE Topology 文本格式）必须用 kernel.fromBREP 解析；
+  // 误用 STEP 解析器（importStep）读 BREP 会抛 "failed to read STEP data"。
+  const decoder = new TextDecoder('utf-8')
+  const head = decoder.decode(buffer.slice(0, 64))
+  const top = head.includes('CASCADE Topology')
+    ? kernel.fromBREP(decoder.decode(buffer))
+    : kernel.importStep(buffer)
 
   // 校验：含至少一个 solid 子形即合法（不调用 isValid，见上文设计决策）
   const solids = kernel.getSubShapes(top, 'solid')
