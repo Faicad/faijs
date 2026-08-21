@@ -128,7 +128,7 @@ async function executeDrillBrep(
     holeType: 'simple',
   })
   brepChain.solidCache.set(stmt.id, resultSolid)
-  return solidToShape(kernel, resultSolid)
+  return solidToShape(kernel, resultSolid, undefined, brepChain, stmt.id)
 }
 
 /**
@@ -194,12 +194,12 @@ async function executeScrewHoleBrep(
     kernel.release(positionedThread)
 
     brepChain.solidCache.set(stmt.id, finalResult)
-    return solidToShape(kernel, finalResult)
+    return solidToShape(kernel, finalResult, undefined, brepChain, stmt.id)
   }
 
   // 无螺纹，只有底孔
   brepChain.solidCache.set(stmt.id, result)
-  return solidToShape(kernel, result)
+  return solidToShape(kernel, result, undefined, brepChain, stmt.id)
 }
 
 /**

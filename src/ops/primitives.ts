@@ -43,7 +43,7 @@ async function executePrimitiveBrep(ctx: OpContext): Promise<Shape> {
   const type = stmt.op === 'box' ? 'cube' : stmt.op
   const result = primitiveToBrepSolid(brepChain!.kernel, type as 'cube' | 'sphere' | 'cylinder' | 'cone' | 'wedge', args as any)
   brepChain!.solidCache.set(stmt.id, result.solid)
-  return solidToShape(brepChain!.kernel, result.solid, args.segments as number | undefined)
+  return solidToShape(brepChain!.kernel, result.solid, args.segments as number | undefined, brepChain, stmt.id)
 }
 
 /**

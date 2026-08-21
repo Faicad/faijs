@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿/**
  * @faicad/faijs/browser — Browser-safe exports (F6: A/B/C/D 四类收敛)
  *
  * Excludes L3 Node Host modules (node-host/*) that depend on node:fs/node:path.
@@ -86,7 +86,7 @@ export {
   solveFaceMate, applyTransform, executeDoAssemble, previewAssembly,
 } from './ops/assemble'
 export type {
-  FaceMateConstraint, AssemblyConstraint, AssemblyDefinition,
+  FaceMateConstraint, AssemblyConstraint, AssemblyDefinition, DoAssembleContext,
 } from './ops/assemble'
 
 // ═══════════════════════════════════════════════════════════
@@ -198,7 +198,7 @@ export {
 // BREP 辅助（D 类）
 export {
   solidToShape,
-  translateBrep, rotateBrep, scaleBrep,
+  translateBrep, rotateBrep, scaleBrep, applyTransformBrep,
   fuseBrep, cutBrep, commonBrep,
   drillBrep, splitBrep, extrudeBrep,
   loadBrep, matrixToArray,

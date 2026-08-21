@@ -62,7 +62,7 @@ async function executeTransformBrep(ctx: OpContext): Promise<Shape> {
     brepChain.faceEvolutionCache.set(stmt.id, identityEvolution(brepChain.kernel, resultSolid))
   }
 
-  return solidToShape(brepChain.kernel, resultSolid)
+  return solidToShape(brepChain.kernel, resultSolid, undefined, brepChain, stmt.id)
 }
 
 /**

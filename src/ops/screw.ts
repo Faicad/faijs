@@ -103,7 +103,7 @@ async function executeScrewBrep(ctx: OpContext): Promise<Shape> {
   }
 
   brepChain.solidCache.set(stmt.id, result)
-  return solidToShape(kernel, result)
+  return solidToShape(kernel, result, undefined, brepChain, stmt.id)
 }
 
 /**

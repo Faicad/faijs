@@ -259,5 +259,5 @@ async function executeEngraveBrep(ctx: OpContext, svgText?: string): Promise<Sha
   }
 
   brepChain.solidCache.set(stmt.id, result)
-  return solidToShape(kernel, result)
+  return solidToShape(kernel, result, undefined, brepChain, stmt.id)
 }

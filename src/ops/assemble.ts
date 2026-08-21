@@ -20,6 +20,9 @@
  */
 
 import type { Shape } from './types'
+import type { PartScript } from '../lang/types'
+import type { BrepChainState } from '../brep/brep-chain'
+import { applyTransformBrep } from '../brep/brep-ops'
 
 // ── 约束类型 ──
 
@@ -211,20 +214,43 @@ export function applyTransform(
 // ── 执行函数 ──
 
 /**
+ * executeDoAssemble 的可选上下文：BREP 链与脚本 DAG。
+ *
+ * 传入后，装配变换会同时施加到 BREP solidCache 中的 OCCT 实体（BREP 路径），
+ * 并沿 inputs 链传播到下游 mesh shape。不传则只做 mesh 变换，不传播、不碰 BREP。
+ */
+export interface DoAssembleContext {
+  /** BREP 链状态（含 solidCache / kernel）。传入则施加 BREP 刚体变换。 */
+  brepChain?: BrepChainState
+  /** 整场景 DAG，用于下游 mesh 传播。传入则沿 inputs 链传播变换到下游 shape。 */
+  script?: PartScript
+}
+
+/**
  * 执行 do_assemble：从 assemble 定义和约束中计算变换，应用到活动件几何。
  *
- * 此函数在 CadRuntime.execute() 中被调用（通过 dispatcher），
- * 变换在引擎内部完成，不绕过脚本引擎。
+ * 此函数是**装配执行的唯一真源**——runtime.executeAssemblyPass 与
+ * executeScript.ts 的脚本导入路径都调用它，保证两入口行为一致。
+ *
+ * Mesh 路径：对 outputCache 中的 moving part 几何应用变换（顶点烘焙）。
+ * BREP 路径（可选）：对 solidCache 中的 OCCT 实体施加 kernel.transform 刚体变换。
+ * 下游传播（可选）：沿 inputs 链把同一变换传播到所有依赖 moving part 的下游 mesh shape。
  *
  * @param assemblyDef 装配定义（name/members/constraints）
  * @param outputCache 当前重放的输出缓存，用于查找 partName → Shape
- * @returns 变换后的 Shape（如果无约束则返回原 Shape）
+ * @param ctx   可选上下文（brepChain + script），控制 BREP 变换与下游传播
+ * @returns 变换后的 Shape Map（movingPartName → transformed Shape）
  */
 export function executeDoAssemble(
   assemblyDef: AssemblyDefinition,
   outputCache: Map<string, Shape>,
+  ctx?: DoAssembleContext,
 ): Map<string, Shape> {
   const results = new Map<string, Shape>()
+  const script = ctx?.script
+  const brepChain = ctx?.brepChain
+  const kernel = brepChain?.kernel ?? null
+  const solidCache = brepChain?.solidCache
 
   // 按约束逐个求解并应用变换
   // 现阶段每个约束独立处理（face_mate）
@@ -234,9 +260,10 @@ export function executeDoAssemble(
       throw new Error(`[assemble] unsupported constraint type: ${constraint.type}`)
     }
 
-    const movingShape = outputCache.get(constraint.movingPartName)
+    const movingPartName = constraint.movingPartName
+    const movingShape = outputCache.get(movingPartName)
     if (!movingShape) {
-      throw new Error(`[assemble] moving part not found in outputCache: ${constraint.movingPartName}`)
+      throw new Error(`[assemble] moving part not found in outputCache: ${movingPartName}`)
     }
 
     const { quaternion, pivot, translation, rotationMatrix } = solveFaceMate(
@@ -246,6 +273,7 @@ export function executeDoAssemble(
       constraint.movingFace.normal,
     )
 
+    // 1. Mesh 变换
     const transformed = applyTransform(
       movingShape,
       quaternion,
@@ -253,13 +281,73 @@ export function executeDoAssemble(
       translation,
       rotationMatrix,
     )
+    outputCache.set(movingPartName, transformed)
+    results.set(movingPartName, transformed)
 
-    // 写回 outputCache（变换后的几何替换原始几何）
-    outputCache.set(constraint.movingPartName, transformed)
-    results.set(constraint.movingPartName, transformed)
+    // 2. BREP 变换（可选）：对 OCCT solid 施加同一刚体变换
+    if (kernel && solidCache) {
+      const movingSolid = solidCache.get(movingPartName)
+      if (movingSolid) {
+        const transformedSolid = applyTransformBrep(
+          kernel, movingSolid, quaternion, pivot, translation,
+        )
+        // 顶替释放：释放旧 handle，替换 solidCache 条目（与 runtime 既有协议一致）
+        try { kernel.release(movingSolid) } catch { /* 已释放 */ }
+        solidCache.set(movingPartName, transformedSolid)
+      }
+    }
+
+    // 3. 下游 mesh 传播（可选）：沿 inputs 链把变换传播到依赖该 moving part 的下游 shape
+    if (script) {
+      propagateTransformDownstream(
+        outputCache, script, movingPartName,
+        quaternion, pivot, translation, rotationMatrix,
+      )
+    }
   }
 
   return results
+}
+
+/**
+ * 将装配变换沿 inputs 链传播到所有依赖于 sourceId 的下游 mesh shape。
+ *
+ * 例如：part1_v1 = translate(part1_v0, offset) 中，
+ * 如果 part1_v0 被 do_assemble 变换了，part1_v1 也需要应用同样的变换。
+ *
+ * 只传播 mesh（outputCache 中的 Shape），不传播 BREP solid——
+ * 下游 BREP 消费者（如布尔合并后的结果）是已固化 solid，简单再变换会重复叠加。
+ * 在常见装配场景下 moving part 是终端、不被其它几何 op 消费，故只变换其自身 solid 即正确。
+ */
+function propagateTransformDownstream(
+  outputCache: Map<string, Shape>,
+  script: PartScript,
+  sourceId: string,
+  quaternion: [number, number, number, number],
+  pivot: [number, number, number],
+  translation: [number, number, number],
+  rotationMatrix: number[],
+  visited: Set<string> = new Set(),
+): void {
+  if (visited.has(sourceId)) return
+  visited.add(sourceId)
+
+  for (const stmt of script.statements) {
+    if (stmt.inputs.includes(sourceId)) {
+      const downstreamShape = outputCache.get(stmt.id)
+      if (downstreamShape && downstreamShape.positions) {
+        const transformed = applyTransform(
+          downstreamShape, quaternion, pivot, translation, rotationMatrix,
+        )
+        outputCache.set(stmt.id, transformed)
+        // 递归传播到更下游
+        propagateTransformDownstream(
+          outputCache, script, stmt.id,
+          quaternion, pivot, translation, rotationMatrix, visited,
+        )
+      }
+    }
+  }
 }
 
 /**

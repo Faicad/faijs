@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿/**
  * BREP 拓扑运行时构建 — 从 OCCT solid 句柄生成 SelectorRuntime + mesh 数据
  *
  * 与 STEP 文件导入的拓扑提取使用**同源算法**：
@@ -64,11 +64,14 @@ export function buildTopologyFromMesh(
  * buildAssemblySelectorManifest → buildSelectorRuntime）完全同源，
  * 区别仅在于 solid 来源是 OCCT 运算而非 STEP 文件导入。
  *
- * 三角化参数使用与 STEP 导入相同的默认值
- * （linearDeflection=0.1, angularDeflection=0.5, relative=false）。
+ * 三角化参数与显示 mesh 完全一致
+ * （linearDeflection=0.1, angularDeflection=2π/32≈0.196, relative=false）。
+ * 这与 solidToShape 的默认值一致，保证拓扑 faceRuns 与显示 mesh 三角形一一对应。
  *
- * 便捷入口：内部执行 meshShape 三角化 + buildTopologyFromMesh。
- * 如果已有三角化结果，应直接调 buildTopologyFromMesh 以复用。
+ * 规则 1：拓扑数据生成所使用的 mesh，必须是当前用户看到的 mesh。
+ * 由于 OCCT meshShape 对同一 solid + 同一参数是确定性的，
+ * 此处重新三角化的结果与显示 mesh 完全相同。
+ * 如果已有三角化结果（meshShapeCache），应直接调 buildTopologyFromMesh 以复用。
  *
  * @param kernel OCCT 内核实例
  * @param solid  OCCT solid 句柄（不会被释放或修改）
@@ -77,10 +80,12 @@ export function buildSolidTopologyRuntime(
   kernel: OcctKernel,
   solid: ShapeHandle,
 ): SolidTopologyResult {
-  // 1. 三角化（含 faceGroups）——与 STEP 导入路径使用相同的 deflection 参数
+  // 1. 三角化（含 faceGroups）——与显示 mesh 使用相同的 deflection 参数
+  //    solidToShape 默认 angularDeflection = 2π/32 ≈ 0.196
+  const DISPLAY_ANGULAR_DEFLECTION = (2 * Math.PI) / 32
   const eff = computeEffectiveDeflection(kernel, solid, {
     linearDeflection: 0.1,
-    angularDeflection: 0.5,
+    angularDeflection: DISPLAY_ANGULAR_DEFLECTION,
     relative: false,
   })
   const mesh: WasmMesh = kernel.meshShape(solid, {

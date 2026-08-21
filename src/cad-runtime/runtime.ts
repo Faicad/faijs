@@ -28,86 +28,20 @@ import { executeStatement as dispatchStatement } from '../ops/dispatcher'
 import { parseScript, ParseError } from '../lang/parser'
 import { validateStatementArgs } from '../lang/args-schema'
 import { canUseBrep } from '../ops/types'
-import { solveFaceMate, applyTransform } from '../ops/assemble'
+import { executeDoAssemble } from '../ops/assemble'
+import type { AssemblyDefinition, AssemblyConstraint } from '../ops/assemble'
 import type { HostPorts, ExecutionMode } from './ports'
 import type { SelectorRuntimeData } from '../topology/build-selector-runtime'
 import type { SelectorRuntime } from '../topology/types'
 import { buildSolidTopologyRuntime } from '../brep/brep-topology'
 import type { SolidTopologyResult } from '../brep/brep-topology'
 import { buildTopologyFromMesh } from '../brep/brep-topology'
+import type { Mesh as WasmMesh } from 'occt-wasm'
 
 
-// ── 装配变换辅助函数 ──
-
-/**
- * 将欧拉角（度，XYZ 顺序）转换为旋转矩阵 (3x3, row-major)。
- * 与 cad.rotate 内部使用 THREE.Euler(x, y, z, 'XYZ') 一致。
- */
-function eulerDegToMatrix3(anglesDeg: [number, number, number]): number[] {
-  const x = anglesDeg[0] * Math.PI / 180
-  const y = anglesDeg[1] * Math.PI / 180
-  const z = anglesDeg[2] * Math.PI / 180
-  const cx = Math.cos(x), sx = Math.sin(x)
-  const cy = Math.cos(y), sy = Math.sin(y)
-  const cz = Math.cos(z), sz = Math.sin(z)
-  // R = Rz * Ry * Rx (XYZ 顺序)
-  return [
-    cy * cz, sx * sy * cz - cx * sz, cx * sy * cz + sx * sz,
-    cy * sz, sx * sy * sz + cx * cz, cx * sy * sz - sx * cz,
-    -sy,     sx * cy,                cx * cy,
-  ]
-}
-
-/**
- * 应用预计算变换（anglesDeg + pivot + offset）到 Shape。
- *
- * 与 3d_editor 的 cad.rotate(shape, anglesDeg, pivot) + cad.translate(shape, offset) 一致：
- * 1. 绕 pivot 旋转
- * 2. 平移 offset
- *
- * 用于 do_assemble pass 从约束的 transform 字段读取预计算变换。
- */
-function applyPrecomputedTransform(
-  shape: Shape,
-  transform: {
-    anglesDeg?: [number, number, number]
-    pivot?: [number, number, number]
-    offset?: [number, number, number]
-  },
-): Shape {
-  const positions = shape.positions
-  const newPositions = new Float32Array(positions.length)
-
-  const hasRotation = transform.anglesDeg !== undefined
-  const hasTranslation = transform.offset !== undefined
-
-  if (!hasRotation && !hasTranslation) {
-    return shape // 无变换
-  }
-
-  const rotationMatrix = hasRotation
-    ? eulerDegToMatrix3(transform.anglesDeg!)
-    : [1, 0, 0, 0, 1, 0, 0, 0, 1] // identity
-
-  const pivot: [number, number, number] = transform.pivot ?? [0, 0, 0]
-  const offset: [number, number, number] = transform.offset ?? [0, 0, 0]
-
-  for (let i = 0; i < positions.length; i += 3) {
-    // p' = R * (p - pivot) + pivot + offset
-    const px = positions[i] - pivot[0]
-    const py = positions[i + 1] - pivot[1]
-    const pz = positions[i + 2] - pivot[2]
-
-    newPositions[i] = rotationMatrix[0] * px + rotationMatrix[1] * py + rotationMatrix[2] * pz + pivot[0] + offset[0]
-    newPositions[i + 1] = rotationMatrix[3] * px + rotationMatrix[4] * py + rotationMatrix[5] * pz + pivot[1] + offset[1]
-    newPositions[i + 2] = rotationMatrix[6] * px + rotationMatrix[7] * py + rotationMatrix[8] * pz + pivot[2] + offset[2]
-  }
-
-  return {
-    positions: newPositions,
-    indices: shape.indices,
-  }
-}
+// ── 装配变换死代码已删除 ──
+// v8: applyPrecomputedTransform / eulerDegToMatrix3 / propagateTransform 已删除。
+// 装配 pass 委托 executeDoAssemble（唯一真源），约束只存 face 数据、实时 solveFaceMate 求解。
 
 // ── 类型定义 ──
 
@@ -262,9 +196,12 @@ export class CadRuntime {
 
   /**
    * 三角化缓存：scopedId → WasmMesh（含 faceGroups）。
-   * 执行链产出 WasmMesh 时写入，buildBrepTopology 复用避免重新 meshShape（Phase 3）。
+   *
+   * 与 brepChain.meshShapeCache 共享引用——ensureBrepChain 时把 Map 传给 brepChain，
+   * 执行链 op 调 solidToShape 时写入，buildBrepTopology 复用。
+   * 规则 1：拓扑数据生成所使用的 mesh，必须是当前用户看到的 mesh。
    */
-  private meshShapeCache = new Map<string, import('occt-wasm').Mesh>()
+  private _meshShapeCache = new Map<string, WasmMesh>()
 
   /**
    * 拓扑数据缓存：partName → PartTopology（实例级）
@@ -287,6 +224,7 @@ export class CadRuntime {
       solidCache: this.solidCache,
       kernel,
       faceEvolutionCache: this.faceEvolutionCache,
+      meshShapeCache: this._meshShapeCache,
     }
     return this.brepChain
   }
@@ -831,14 +769,17 @@ export class CadRuntime {
   /**
    * 执行装配变换 pass。
    *
-   * 从 do_assemble 语句的 assemblyTarget 找到对应的 assemble 语句，
-   * 从 assemble 语句的 args.constraints 中读取约束数据。
+   * 从 do_assemble 语句的 assemblyTarget 找到对应的 assembly 语句，
+   * 从 assembly 语句的 args.constraints 中读取约束数据，
+   * 委托 executeDoAssemble 执行变换（唯一真源）。
    *
-   * 优先使用约束中的 transform 字段（预计算变换，由 3d_editor confirmAssemble 存入），
-   * 直接对 outputCache 中的 moving part 几何应用变换。
+   * executeDoAssemble 同时处理：
+   * - Mesh 变换（outputCache 顶点烘焙）
+   * - BREP 变换（solidCache 刚体变换，通过传入 brepChain）
+   * - 下游 mesh 传播（通过传入 script）
    *
-   * 如果 transform 字段不存在（如从 faijs 文本导入时只有 face center/normal），
-   * 则使用 solveFaceMate 从 face 几何计算变换。
+   * 约束只存 face 数据（center/normal），不存 transform（v8 红线 R7）。
+   * 每次重放从 face 数据实时 solveFaceMate 求解，结果确定、可重复。
    */
   private async executeAssemblyPass(
     doAssembleStmt: CadStatement,
@@ -849,79 +790,26 @@ export class CadRuntime {
     if (!target) return
 
     // 找到 assemblyTarget 指向的 assembly 语句
-    const assembleStmt = script.statements.find(s => s.id === target)
-    if (!assembleStmt || assembleStmt.op !== 'assembly') return
+    const assemblyStmt = script.statements.find(s => s.id === target)
+    if (!assemblyStmt || assemblyStmt.op !== 'assembly') return
 
     // 从 assembly 语句的 args.constraints 中读取约束
-    const constraints = (assembleStmt.args?.constraints as Array<Record<string, unknown>>) ?? []
+    const constraints = (assemblyStmt.args?.constraints as unknown as AssemblyConstraint[]) ?? []
     if (!Array.isArray(constraints) || constraints.length === 0) return
 
-    for (const constraint of constraints) {
-      const movingPartName = constraint.movingScopedId as string
-        ?? constraint.movingPartName as string
-      if (!movingPartName) continue
-
-      const movingShape = outputCache.get(movingPartName)
-      if (!movingShape || !movingShape.positions) continue
-
-      // 优先使用预计算变换（由 3d_editor confirmAssemble 存入）
-      const transform = constraint.transform as {
-        anglesDeg?: [number, number, number]
-        pivot?: [number, number, number]
-        offset?: [number, number, number]
-      } | undefined
-
-      if (transform) {
-        const transformed = applyPrecomputedTransform(movingShape, transform)
-        outputCache.set(movingPartName, transformed)
-        // 传播到所有下游 shape（如 translate(part1_v0) → part1_v1）
-        this.propagateTransform(outputCache, script, movingPartName, transform)
-        continue
-      }
-
-      // 回退：从 face center/normal 计算变换（faijs 纯文本导入路径）
-      const fixedCenter = (constraint.fixedFace as any)?.center as [number, number, number] | undefined
-      const fixedNormal = (constraint.fixedFace as any)?.normal as [number, number, number] | undefined
-      const movingCenter = (constraint.movingFace as any)?.center as [number, number, number] | undefined
-      const movingNormal = (constraint.movingFace as any)?.normal as [number, number, number] | undefined
-
-      if (fixedCenter && fixedNormal && movingCenter && movingNormal) {
-        const { quaternion, pivot, translation, rotationMatrix } = solveFaceMate(
-          fixedCenter, fixedNormal, movingCenter, movingNormal,
-        )
-        const transformed = applyTransform(
-          movingShape, quaternion, pivot, translation, rotationMatrix,
-        )
-        outputCache.set(movingPartName, transformed)
-      }
+    // 构造 AssemblyDefinition，委托 executeDoAssemble 执行
+    const assemblyDef: AssemblyDefinition = {
+      name: assemblyStmt.args?.name as string | undefined,
+      members: (assemblyStmt.args?.members as string[]) ?? [],
+      constraints,
     }
-  }
 
-  /**
-   * 将 transform 变换传播到所有依赖于 sourceId 的下游 shape。
-   * 例如：part1_v1 = translate(part1_v0, offset) 中，
-   * 如果 part1_v0 被 do_assemble 变换了，part1_v1 也需要应用同样的变换。
-   */
-  private propagateTransform(
-    outputCache: Map<string, Shape>,
-    script: PartScript,
-    sourceId: string,
-    transform: {
-      anglesDeg?: [number, number, number]
-      pivot?: [number, number, number]
-      offset?: [number, number, number]
-    },
-  ): void {
-    for (const stmt of script.statements) {
-      if (stmt.inputs.includes(sourceId)) {
-        const downstreamShape = outputCache.get(stmt.id)
-        if (downstreamShape && downstreamShape.positions) {
-          const transformed = applyPrecomputedTransform(downstreamShape, transform)
-          outputCache.set(stmt.id, transformed)
-          this.propagateTransform(outputCache, script, stmt.id, transform)
-        }
-      }
-    }
+    // 传入 brepChain（含 solidCache / kernel）使 BREP 路径同步变换；
+    // 传入 script 使下游 mesh 传播生效。
+    executeDoAssemble(assemblyDef, outputCache, {
+      brepChain: this.brepChain ?? undefined,
+      script,
+    })
   }
 
   /** plan() — 依赖分析，得出需要重算的语句集合 */
@@ -972,15 +860,34 @@ export class CadRuntime {
    * solidCache 持有并负责顶替释放/删除/dispose。此处仅记录 scopedId → handle
    * 的映射供 3d_editor 导出消费，**不 release 旧值**（旧 handle 的生命周期由
    * solidCache 的预捕获释放协议管理，重复 release 会造成双释放）。
+   *
+   * 规则 1：如果传入 brepChain + stmtId，从 brepChain.meshShapeCache 中取出
+   * 执行链产出的 WasmMesh（含 faceGroups），以 scopedId 为 key 存入 _meshShapeCache。
+   * 这样 buildBrepTopology 可以复用与显示 mesh 完全同一份的 mesh，
+   * 而不是重新 meshShape 生成不同的三角化。
    */
-  setBrepSolid(scopedId: string, solid: ShapeHandle, kernel: OcctKernel): void {
+  setBrepSolid(
+    scopedId: string,
+    solid: ShapeHandle,
+    kernel: OcctKernel,
+    brepChain?: BrepChainState,
+    stmtId?: string,
+  ): void {
     this.brepSolidCache.set(scopedId, { solid, kernel })
+
+    // 规则 1：同步 meshShapeCache —— 把 stmtId key 的 WasmMesh 映射到 scopedId key
+    if (brepChain?.meshShapeCache && stmtId) {
+      const mesh = brepChain.meshShapeCache.get(stmtId)
+      if (mesh) {
+        this._meshShapeCache.set(scopedId, mesh)
+      }
+    }
   }
 
   /** 删除 BREP solid 缓存（仅移除引用，不 release——所有权在 solidCache）。 */
   deleteBrepSolid(scopedId: string): void {
     this.brepSolidCache.delete(scopedId)
-    this.meshShapeCache.delete(scopedId)
+    this._meshShapeCache.delete(scopedId)
   }
 
   // ── 公开：拓扑数据缓存 ──
@@ -1024,29 +931,16 @@ export class CadRuntime {
     const solidEntry = this.brepSolidCache.get(scopedId)
     if (!solidEntry) return null
 
-    // Phase 3: 复用已有三角化结果，不强制重新 meshShape
-    const cachedMesh = this.meshShapeCache.get(scopedId)
+    // 规则 1：优先从 brepChain.meshShapeCache 复用执行链产出的三角化结果
+    // （与显示 mesh 完全同一份 mesh，不二次 meshShape）
+    const cachedMesh = this._meshShapeCache.get(scopedId)
     if (cachedMesh) {
       return buildTopologyFromMesh(solidEntry.solid, cachedMesh)
     }
 
-    // 无缓存 → 执行完整构建（含 meshShape 三角化）
+    // 无缓存（非执行链路径，如 STEP 导入后直接构建拓扑）→ 执行完整构建（含 meshShape 三角化）
     const result: SolidTopologyResult = buildSolidTopologyRuntime(solidEntry.kernel, solidEntry.solid)
     return result.runtime
-  }
-
-  /**
-   * 缓存三角化结果（Phase 3）。
-   * 执行链在 meshShape 后调用此方法缓存 WasmMesh（含 faceGroups），
-   * 供 buildBrepTopology 复用，避免二次三角化。
-   */
-  setMeshShape(scopedId: string, mesh: import('occt-wasm').Mesh): void {
-    this.meshShapeCache.set(scopedId, mesh)
-  }
-
-  /** 删除三角化缓存（与 deleteBrepSolid 配对） */
-  deleteMeshShape(scopedId: string): void {
-    this.meshShapeCache.delete(scopedId)
   }
 
   // ── 公开：终端几何提取 ──

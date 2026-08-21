@@ -79,5 +79,5 @@ async function executeTextBrep(ctx: OpContext): Promise<Shape> {
   kernel.release(rawSolid)
 
   brepChain.solidCache.set(stmt.id, centeredSolid)
-  return solidToShape(kernel, centeredSolid)
+  return solidToShape(kernel, centeredSolid, undefined, brepChain, stmt.id)
 }

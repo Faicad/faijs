@@ -1,4 +1,4 @@
-﻿﻿/**
+﻿﻿﻿﻿/**
  * BREP 链状态管理
  *
  * 在语句重放过程中跟踪 OCCT 精确实体句柄。
@@ -12,7 +12,7 @@
  * 终端句柄（如果有）由调用方保留用于导出。
  */
 
-import type { OcctKernel, ShapeHandle } from 'occt-wasm'
+import type { OcctKernel, ShapeHandle, Mesh as WasmMesh } from 'occt-wasm'
 import { initOcctWasm } from '../occt-kernel/occtKernel'
 
 // ─── BREP 能力分类 ───
@@ -120,6 +120,16 @@ export interface BrepChainState {
    * FaceEvolution = Map<number, number[]>（inOrdinal → outOrdinal[]）
    */
   faceEvolutionCache?: Map<string, Map<number, number[]>>
+  /**
+   * 三角化缓存：statementId → WasmMesh（含 faceGroups）。
+   *
+   * BREP op 调用 solidToShape 三角化后，把完整 WasmMesh 缓存到此 Map。
+   * buildBrepTopology 复用此缓存，避免二次 meshShape 导致拓扑 mesh ≠ 显示 mesh。
+   *
+   * 规则 1：拓扑数据生成所使用的 mesh，必须是当前用户看到的 mesh。
+   * 三角化和拓扑生成都是 faijs 的职责，宿主不参与。
+   */
+  meshShapeCache?: Map<string, WasmMesh>
 }
 
 /**
@@ -130,6 +140,7 @@ export function createBrepChainState(): BrepChainState {
     solidCache: new Map(),
     kernel: null,
     faceEvolutionCache: new Map(),
+    meshShapeCache: new Map(),
   }
 }
 
@@ -142,6 +153,7 @@ export async function initBrepChainState(): Promise<BrepChainState> {
     solidCache: new Map(),
     kernel,
     faceEvolutionCache: new Map(),
+    meshShapeCache: new Map(),
   }
 }
 
@@ -163,4 +175,5 @@ export function releaseBrepChainState(state: BrepChainState): void {
     }
   }
   state.solidCache.clear()
+  state.meshShapeCache?.clear()
 }

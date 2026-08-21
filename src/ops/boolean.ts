@@ -114,7 +114,7 @@ async function executeBooleanBrep(ctx: OpContext): Promise<Shape> {
     brepChain.faceEvolutionCache.set(stmt.id, lastEvolution)
   }
 
-  return solidToShape(brepChain.kernel, resultSolid)
+  return solidToShape(brepChain.kernel, resultSolid, undefined, brepChain, stmt.id)
 }
 
 /**

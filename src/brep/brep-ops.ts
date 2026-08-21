@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿﻿﻿/**
  * 核心 BREP 操作 — 使用 OCCT 精确实体运算
  *
  * 设计文档：docs/plans/2026-08-08-primitive-brep-mode-plan.md §4.7 (Phase 2)
@@ -15,8 +15,9 @@
  */
 
 import * as THREE from 'three'
-import type { OcctKernel, ShapeHandle } from 'occt-wasm'
+import type { OcctKernel, ShapeHandle, Mesh as WasmMesh } from 'occt-wasm'
 import type { Shape, Vec3 } from '../mesh/types'
+import type { BrepChainState } from './brep-chain'
 import { getSolidBoundingBox } from './brep-utils'
 
 // ─── 通用工具 ───
@@ -24,23 +25,37 @@ import { getSolidBoundingBox } from './brep-utils'
 /**
  * 将 OCCT solid 三角化为 Shape（供显示用）。
  *
- * @param kernel  已初始化的 OCCT 内核
- * @param solid   CAD 实体句柄
- * @param segments 可选分段数（影响三角化精度）
+ * 如果传入 brepChain + stmtId，同时把完整 WasmMesh（含 faceGroups）缓存到
+ * brepChain.meshShapeCache，供 buildBrepTopology 复用——确保拓扑 mesh 与显示 mesh
+ * 完全一致（规则 1：拓扑数据生成所使用的 mesh，必须是当前用户看到的 mesh）。
+ *
+ * @param kernel     已初始化的 OCCT 内核
+ * @param solid      CAD 实体句柄
+ * @param segments   可选分段数（影响三角化精度）
+ * @param brepChain  可选——传入则缓存 WasmMesh
+ * @param stmtId     可选——与 brepChain 配对，缓存 key
  * @returns Shape（三角化 mesh）
  */
 export function solidToShape(
   kernel: OcctKernel,
   solid: ShapeHandle,
   segments?: number,
+  brepChain?: BrepChainState,
+  stmtId?: string,
 ): Shape {
   const angularDeflection = segments
     ? (2 * Math.PI) / Math.max(3, segments)
     : (2 * Math.PI) / 32 // 默认 32 段精度（与 primitives-brep.ts 一致）
-  const mesh = kernel.meshShape(solid, {
+  const mesh: WasmMesh = kernel.meshShape(solid, {
     linearDeflection: 0.1,
     angularDeflection,
   })
+
+  // 规则 1：缓存完整 WasmMesh（含 faceGroups），供 buildBrepTopology 复用
+  if (brepChain?.meshShapeCache && stmtId) {
+    brepChain.meshShapeCache.set(stmtId, mesh)
+  }
+
   return {
     positions: new Float32Array(mesh.positions),
     indices: new Uint32Array(mesh.indices),
@@ -122,6 +137,43 @@ export function scaleBrep(
     return kernel.transform(solid, matrixToArray(matrix))
   }
   return kernel.generalTransform(solid, matrixToArray(matrix))
+}
+
+// ─── 装配变换 ───
+
+/**
+ * BREP 版 applyTransform：与 mesh ops/assemble.ts 的 applyTransform 同语义（绕 pivot 旋转 + 平移）。
+ *
+ * 数学公式：p' = R·(p − pivot) + pivot + translation
+ * 等价 Matrix4 = T(pivot) · R · T(−pivot) · T(translation)
+ *
+ * 用四元数而非欧拉角，是因为装配变换源是 solveFaceMate 的四元数；
+ * 转欧拉会引入顺序/万向锁歧义。与 mesh applyTransform 顶点公式完全等价。
+ *
+ * @param kernel      OCCT 内核
+ * @param solid       输入实体
+ * @param quaternion  旋转四元数 [x, y, z, w]
+ * @param pivot       旋转中心
+ * @param translation 平移量
+ * @returns 新实体（调用方负责释放输入实体）
+ */
+export function applyTransformBrep(
+  kernel: OcctKernel,
+  solid: ShapeHandle,
+  quaternion: [number, number, number, number],
+  pivot: [number, number, number],
+  translation: [number, number, number],
+): ShapeHandle {
+  const rotation = new THREE.Matrix4().makeRotationFromQuaternion(
+    new THREE.Quaternion(quaternion[0], quaternion[1], quaternion[2], quaternion[3]),
+  )
+  // T(pivot) · R · T(-pivot) · T(translation)
+  const matrix = new THREE.Matrix4()
+    .makeTranslation(pivot[0], pivot[1], pivot[2])
+    .multiply(rotation)
+    .multiply(new THREE.Matrix4().makeTranslation(-pivot[0], -pivot[1], -pivot[2]))
+    .multiply(new THREE.Matrix4().makeTranslation(translation[0], translation[1], translation[2]))
+  return kernel.transform(solid, matrixToArray(matrix))
 }
 
 // ─── 布尔操作 ───
@@ -608,6 +660,8 @@ export function extrudeBrep(
 export function loadBrep(
   kernel: OcctKernel,
   buffer: ArrayBuffer,
+  brepChain?: BrepChainState,
+  stmtId?: string,
 ): { solid: ShapeHandle; shape: Shape } {
   const top = kernel.importStep(buffer)
 
@@ -625,7 +679,7 @@ export function loadBrep(
   if (solids.length === 1) {
     const realSolid = solids[0]
     kernel.release(top) // 释放 Compound 包裹，realSolid 独立持有
-    const shape = solidToShape(kernel, realSolid)
+    const shape = solidToShape(kernel, realSolid, undefined, brepChain, stmtId)
     return { solid: realSolid, shape }
   }
 
@@ -634,7 +688,7 @@ export function loadBrep(
   for (const s of solids) {
     try { kernel.release(s) } catch { /* already released */ }
   }
-  const shape = solidToShape(kernel, top)
+  const shape = solidToShape(kernel, top, undefined, brepChain, stmtId)
   return { solid: top, shape }
 }
 

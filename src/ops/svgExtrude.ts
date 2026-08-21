@@ -56,5 +56,5 @@ async function executeSvgExtrudeBrep(ctx: OpContext, svgText: string): Promise<S
   const solid = svgToSolid(kernel, svgText, { depth, targetLongSide })
 
   brepChain.solidCache.set(stmt.id, solid)
-  return solidToShape(kernel, solid)
+  return solidToShape(kernel, solid, undefined, brepChain, stmt.id)
 }

@@ -51,7 +51,7 @@ async function executeWithBuffer(
   }
 
   // CAD 源 → BREP 路径（直接执行，不包 try-catch！异常 = 未预期错误，冒泡上报）
-  const { solid, shape } = loadBrep(brepChain.kernel, buffer)
+  const { solid, shape } = loadBrep(brepChain.kernel, buffer, brepChain, stmt.id)
   brepChain.solidCache.set(stmt.id, solid)
   return shape
 }

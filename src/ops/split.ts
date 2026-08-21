@@ -286,8 +286,8 @@ async function executeSplitBrep(
     // 同时把 front/back 的 mesh shape 存入 outputCache
     //（runtime.replay 只会把返回值存入 stmt.id == outputs[0]，
     //  所以 outputs[1] (back) 必须在此显式存入）
-    const frontShape = solidToShape(kernel, frontSolid)
-    const backShape = solidToShape(kernel, backSolid)
+    const frontShape = solidToShape(kernel, frontSolid, undefined, brepChain, stmt.outputs[0])
+    const backShape = solidToShape(kernel, backSolid, undefined, brepChain, stmt.outputs[1])
     ctx.outputCache.set(stmt.outputs[0], frontShape)
     ctx.outputCache.set(stmt.outputs[1], backShape)
     // 返回 front（== stmt.id == outputs[0]）
@@ -296,5 +296,5 @@ async function executeSplitBrep(
     // 没有声明 outputs，释放非主 solid
     kernel.release(secondarySolid)
   }
-  return solidToShape(kernel, primarySolid)
+  return solidToShape(kernel, primarySolid, undefined, brepChain, stmt.id)
 }

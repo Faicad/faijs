@@ -67,5 +67,5 @@ async function executeExtrudeBrep(
     mode: args.mode as 'centered' | 'forward' | 'backward' | undefined,
   })
   brepChain.solidCache.set(stmt.id, resultSolid)
-  return solidToShape(brepChain.kernel, resultSolid)
+  return solidToShape(brepChain.kernel, resultSolid, undefined, brepChain, stmt.id)
 }
