@@ -1,4 +1,4 @@
-﻿﻿﻿﻿/**
+/**
  * 核心 BREP 操作 — 使用 OCCT 精确实体运算
  *
  * 设计文档：docs/plans/2026-08-08-primitive-brep-mode-plan.md §4.7 (Phase 2)

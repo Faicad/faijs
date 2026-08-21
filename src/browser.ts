@@ -1,4 +1,4 @@
-﻿﻿/**
+/**
  * @faicad/faijs/browser — Browser-safe exports (F6: A/B/C/D 四类收敛)
  *
  * Excludes L3 Node Host modules (node-host/*) that depend on node:fs/node:path.
@@ -78,8 +78,8 @@ export { WorkerCsgBackend } from './browser-host/worker-csg-backend'
 export { WorkerSdfBackend } from './browser-host/worker-sdf-backend'
 
 // E12.2: OCCT 高层 API（B 类——宿主用这些替代底层 kernel 函数）
-export { importStep, exportStep, releaseSolid, ensureOcctKernel, disposeOcct, exportStepFromSolidsHighLevel } from './occt-kernel/highLevelApi'
-export type { ImportStepResult, ExportStepOptions } from './occt-kernel/highLevelApi'
+export { importStep, importStepMultiPart, exportStep, releaseSolid, ensureOcctKernel, disposeOcct, exportStepFromSolidsHighLevel } from './occt-kernel/highLevelApi'
+export type { ImportStepResult, ImportStepPartResult, ExportStepOptions } from './occt-kernel/highLevelApi'
 
 // E15.1: 装配约束求解器（D 类预览 API + B 类执行 API）
 export {

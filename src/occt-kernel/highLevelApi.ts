@@ -15,6 +15,10 @@ import {
   importBrepToMesh,
   meshesToStep,
   releaseShape,
+  importAssemblyFromStep,
+  collectLeafParts,
+  releaseAssemblyTree,
+  computeEffectiveDeflection,
 } from './occtKernel'
 import type { Shape } from '../ops/types'
 import { exportStepFromSolids } from '../brep/export/step'
@@ -29,6 +33,64 @@ import type {
 } from './occtKernel'
 
 // ── 导入 API ──
+
+/** 单个 part 的导入结果（多 part STEP 导入时每个 part 一份） */
+export interface ImportStepPartResult {
+  /** 该 part 的 mesh（positions + indices） */
+  shape: Shape
+  /** OCCT solid 句柄（带 location，用于后续 BREP 操作或 STEP 导出） */
+  solid: ShapeHandle
+  /** part 名称（来自 XCAF label） */
+  name: string
+  /** part 颜色 [r,g,b] 0..1，无颜色为 null */
+  color: [number, number, number] | null
+}
+
+/**
+ * 高层：从 STEP 文件字节流导入多 part mesh + solid。
+ *
+ * 使用 XCAF 解析装配树，保留每个 part 的独立 mesh 和 solid。
+ * 与 importStep 不同，不合并所有 mesh——每个 part 返回独立的 shape。
+ *
+ * @param bytes STEP 文件字节流
+ * @returns 每个 part 的导入结果数组
+ */
+export async function importStepMultiPart(
+  bytes: ArrayBuffer | Uint8Array,
+): Promise<ImportStepPartResult[]> {
+  const kernel = await initOcctWasm()
+
+  // XCAF 解析 → 装配树
+  const nodes = await importAssemblyFromStep(bytes)
+  const leaves = collectLeafParts(nodes)
+
+  const results: ImportStepPartResult[] = []
+  for (const leaf of leaves) {
+    if (!leaf.shapeHandle) continue
+
+    const eff = computeEffectiveDeflection(kernel, leaf.shapeHandle)
+    const mesh = kernel.meshShape(leaf.shapeHandle, {
+      linearDeflection: eff.linearDeflection,
+      angularDeflection: eff.angularDeflection,
+    })
+
+    results.push({
+      shape: {
+        positions: mesh.positions,
+        indices: mesh.indices,
+      },
+      solid: leaf.shapeHandle,
+      name: leaf.name,
+      color: leaf.color,
+    })
+  }
+
+  // 释放装配树中非 leaf 的 shapeHandle（assembly 节点的已由 walkLabel 释放）
+  // leaf 的 shapeHandle 由返回结果持有，调用方负责释放
+  releaseAssemblyTree(kernel, nodes.filter(n => n.isAssembly))
+
+  return results
+}
 
 export interface ImportStepResult {
   /** 合并后的 mesh（所有 part 的 positions/indices 合并） */

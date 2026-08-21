@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿/**
  * @vitest-environment node
  *
  * CadRuntime 三模式契约测试 + 单元测试 (P2-8)
@@ -7,7 +7,7 @@
  * 1. auto 模式：BREP 优先，逐 part 判定
  * 2. brep 模式：强制 BREP，不支持即报错 E_BREP_UNSUPPORTED
  * 3. mesh 模式：全部走 mesh 路径
- * 4. CadRuntime 实例管理：statementCache, brepSolidCache, plan, dispose
+ * 4. CadRuntime 实例管理：statementCache, plan, dispose
  *
  * Run: npx vitest run src/cad-runtime/runtime.test.ts
  */
@@ -242,56 +242,57 @@ describe('CadRuntime: instance management', () => {
     expect(runtime.getCachedOutput('s2')).toBeDefined()
   })
 
-  it('brepSolidCache is populated after BREP replay', async () => {
+  it('brepSolids is populated after BREP replay', async () => {
     const runtime = makeRuntime()
     const script = makePartScript([makeStmt('s1', 'box', { size: 20 })])
     const result = await runtime.execute(script)
 
-    // Set brepSolid (normally done by ScriptEngine.replayPart)
-    const solid = getFirstBrepSolid(result)
-    if (solid) {
-      runtime.setBrepSolid('test_part', solid.solid, solid.kernel)
-    }
-
-    expect(runtime.getBrepSolid('test_part')).toBeDefined()
+    // brepSolids is the single source of truth for terminal solids
+    expect(result.brepSolids).toBeDefined()
+    expect(result.brepSolids!.has('s1')).toBe(true)
   })
 
-  it('setBrepSolid overwrites mapping (non-owning view, §9 决策 2)', async () => {
+  it('brepSolids updates after re-execute (overwrite)', async () => {
     const runtime = makeRuntime()
     const script1 = makePartScript([makeStmt('s1', 'box', { size: 20 })])
     const result1 = await runtime.execute(script1)
     const solid1 = getFirstBrepSolid(result1)
-    if (solid1) {
-      runtime.setBrepSolid('part1', solid1.solid, solid1.kernel)
-    }
+    expect(solid1).toBeDefined()
 
-    // Create a second solid and overwrite
-    const script2 = makePartScript([makeStmt('s2', 'sphere', { radius: 10 })])
+    // Re-execute with different args → solidCache overwrites s1
+    const script2 = makePartScript([makeStmt('s1', 'sphere', { radius: 10 })])
     const result2 = await runtime.execute(script2)
     const solid2 = getFirstBrepSolid(result2)
-    if (solid2) {
-      runtime.setBrepSolid('part1', solid2.solid, solid2.kernel)
-    }
-
-    // The new solid should be there (brepSolidCache 仅记录引用，不 release 旧值)
-    const solid = runtime.getBrepSolid('part1')
-    expect(solid).toBeDefined()
+    expect(solid2).toBeDefined()
     // Verify it's a valid solid (sphere, not box)
-    const step = kernel.exportStep(solid!.solid)
+    const step = kernel.exportStep(solid2!.solid)
     expect(step).toContain('ADVANCED_FACE')
   })
 
-  it('deleteBrepSolid removes entry', async () => {
+  it('dispose() clears all caches', async () => {
     const runtime = makeRuntime()
     const script = makePartScript([makeStmt('s1', 'box', { size: 20 })])
-    const result = await runtime.execute(script)
-    const solid = getFirstBrepSolid(result)
-    if (solid) {
-      runtime.setBrepSolid('part1', solid.solid, solid.kernel)
-    }
+    await runtime.execute(script)
 
-    runtime.deleteBrepSolid('part1')
-    expect(runtime.getBrepSolid('part1')).toBeUndefined()
+    runtime.dispose()
+    expect(runtime.getCachedOutput('s1')).toBeUndefined()
+  })
+
+  it('buildBrepTopology(stmtId) returns SelectorRuntime from solidCache', async () => {
+    const runtime = makeRuntime()
+    const script = makePartScript([makeStmt('s1', 'box', { size: 20 })])
+    await runtime.execute(script)
+
+    // buildBrepTopology takes stmtId (not scopedId), queries solidCache directly
+    const topo = runtime.buildBrepTopology('s1')
+    expect(topo).not.toBeNull()
+  })
+
+  it('buildBrepTopology returns null for unknown stmtId', async () => {
+    const runtime = makeRuntime()
+    await runtime.execute(makePartScript([makeStmt('s1', 'box', { size: 20 })]))
+
+    expect(runtime.buildBrepTopology('nonexistent')).toBeNull()
   })
 
   it('plan() identifies stale statements after args change', async () => {
@@ -355,15 +356,10 @@ describe('CadRuntime: instance management', () => {
   it('dispose() clears all caches', async () => {
     const runtime = makeRuntime()
     const script = makePartScript([makeStmt('s1', 'box', { size: 20 })])
-    const result = await runtime.execute(script)
-    const solid = getFirstBrepSolid(result)
-    if (solid) {
-      runtime.setBrepSolid('part1', solid.solid, solid.kernel)
-    }
+    await runtime.execute(script)
 
     runtime.dispose()
     expect(runtime.getCachedOutput('s1')).toBeUndefined()
-    expect(runtime.getBrepSolid('part1')).toBeUndefined()
   })
 
   it('void/same_shape statements are skipped during replay', async () => {

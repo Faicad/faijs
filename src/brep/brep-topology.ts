@@ -1,11 +1,11 @@
-﻿﻿/**
+/**
  * BREP 拓扑运行时构建 — 从 OCCT solid 句柄生成 SelectorRuntime + mesh 数据
  *
  * 与 STEP 文件导入的拓扑提取使用**同源算法**：
  *   meshShape + buildAssemblySelectorManifest + buildSelectorRuntime
  *
  * 不执行 STEP round-trip（export→import），直接在原始 solid 上运行。
- * solid 句柄不被释放或修改——由调用方（_brepSolidCache）管理生命周期。
+ * solid 句柄不被释放或修改——由调用方（宿主导出缓存）管理生命周期。
  *
  * 同时返回 mesh 数据（positions/normals/indices），用于更新场景几何，
  * 保证 mesh 三角形与 topology faceRuns 一一对应。

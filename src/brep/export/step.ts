@@ -15,7 +15,7 @@ import { reconstructSolidFromMesh } from '../../occt-kernel/meshReconstruct'
 
 /** STEP 导出条目：一个 part（精确 solid 或三角网格，二选一）。 */
 export interface StepExportEntry {
-  /** 精确 BREP solid（来自 brepSolidCache）。与 mesh 二选一，solid 优先。 */
+  /** 精确 BREP solid（来自宿主导出缓存）。与 mesh 二选一，solid 优先。 */
   solid?: ShapeHandle
   /** 三角网格（世界坐标、已按单位缩放），经 reconstructSolidFromMesh 重建为实体。 */
   mesh?: { positions: Float32Array; indices: Uint32Array }

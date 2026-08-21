@@ -4,7 +4,7 @@
  *
  * 职责：
  * - 执行 PartScript 语句序列，产出 ExecutionResult（纯计算，不碰 store/DOM）
- * - 管理 statementCache / brepSolidCache 作为实例成员（不再是模块级单例）
+ * - 管理 statementCache 作为实例成员（不再是模块级单例）
  * - 内部 resolveShapeRef（不再反向 import ScriptEngine / useScriptStore）
  * - 执行模式感知（auto / brep / mesh）
  *
@@ -191,18 +191,6 @@ export class CadRuntime {
    */
   private brepChain: BrepChainState | null = null
 
-  /** BREP solid 缓存：scopedId → { solid, kernel }（实例级，公开供外部只读访问） */
-  readonly brepSolidCache = new Map<string, { solid: ShapeHandle; kernel: OcctKernel }>()
-
-  /**
-   * 三角化缓存：scopedId → WasmMesh（含 faceGroups）。
-   *
-   * 与 brepChain.meshShapeCache 共享引用——ensureBrepChain 时把 Map 传给 brepChain，
-   * 执行链 op 调 solidToShape 时写入，buildBrepTopology 复用。
-   * 规则 1：拓扑数据生成所使用的 mesh，必须是当前用户看到的 mesh。
-   */
-  private _meshShapeCache = new Map<string, WasmMesh>()
-
   /**
    * 拓扑数据缓存：partName → PartTopology（实例级）
    * E13：宿主不再直接 import faijs 拓扑构建函数，而是从 ExecutionResult.topology 消费。
@@ -224,7 +212,7 @@ export class CadRuntime {
       solidCache: this.solidCache,
       kernel,
       faceEvolutionCache: this.faceEvolutionCache,
-      meshShapeCache: this._meshShapeCache,
+      meshShapeCache: new Map<string, WasmMesh>(),
     }
     return this.brepChain
   }
@@ -401,6 +389,25 @@ export class CadRuntime {
           const finalSolid = brepChain.solidCache.get(lastStmt.id)
           if (finalSolid && brepChain.kernel) {
             brepSolids.set(lastStmt.id, { solid: finalSolid, kernel: brepChain.kernel })
+          }
+        }
+      }
+
+      // 装配成员 solid 提取：assembly 终端本身不持有 solid，但其 members
+      // （被 do_assemble 变换过的 part）在 solidCache 中有更新后的 solid。
+      // 遍历所有 assembly 语句，把其 members 的 solid 也提取到 brepSolids，
+      // 使下游（3d_editor 导出缓存）能拿到装配后位置的 BREP solid。
+      for (const stmt of script.statements) {
+        if (stmt.op !== 'assembly') continue
+        const members = stmt.args?.members
+        if (!Array.isArray(members)) continue
+        for (const m of members) {
+          if (typeof m !== 'string') continue
+          // 只添加尚未在 brepSolids 中的 member（避免覆盖终端提取的结果）
+          if (brepSolids.has(m)) continue
+          const s = brepChain.solidCache.get(m)
+          if (s && brepChain.kernel) {
+            brepSolids.set(m, { solid: s, kernel: brepChain.kernel })
           }
         }
       }
@@ -606,6 +613,21 @@ export class CadRuntime {
           const lastStmt = newShapeStmts[newShapeStmts.length - 1]
           const finalSolid = this.solidCache.get(lastStmt.id)
           if (finalSolid && this.kernel) brepSolids.set(lastStmt.id, { solid: finalSolid, kernel: this.kernel })
+        }
+      }
+
+      // 装配成员 solid 提取（与 execute 中一致）
+      for (const stmt of script.statements) {
+        if (stmt.op !== 'assembly') continue
+        const members = stmt.args?.members
+        if (!Array.isArray(members)) continue
+        for (const m of members) {
+          if (typeof m !== 'string') continue
+          if (brepSolids.has(m)) continue
+          const s = this.solidCache.get(m)
+          if (s && this.kernel) {
+            brepSolids.set(m, { solid: s, kernel: this.kernel })
+          }
         }
       }
     }
@@ -846,50 +868,6 @@ export class CadRuntime {
     return { stale, reused }
   }
 
-  // ── 公开：BREP solid 缓存 ──
-
-  /** 获取终端 BREP solid（供 STEP 导出） */
-  getBrepSolid(scopedId: string): { solid: ShapeHandle; kernel: OcctKernel } | undefined {
-    return this.brepSolidCache.get(scopedId)
-  }
-
-  /**
-   * 写入 BREP solid 缓存（scopedId → 引用，§9 决策 2：非持有的派生视图）。
-   *
-   * 所有权在持久 solidCache（stmtId → ShapeHandle）——同一批 OCCT handle 由
-   * solidCache 持有并负责顶替释放/删除/dispose。此处仅记录 scopedId → handle
-   * 的映射供 3d_editor 导出消费，**不 release 旧值**（旧 handle 的生命周期由
-   * solidCache 的预捕获释放协议管理，重复 release 会造成双释放）。
-   *
-   * 规则 1：如果传入 brepChain + stmtId，从 brepChain.meshShapeCache 中取出
-   * 执行链产出的 WasmMesh（含 faceGroups），以 scopedId 为 key 存入 _meshShapeCache。
-   * 这样 buildBrepTopology 可以复用与显示 mesh 完全同一份的 mesh，
-   * 而不是重新 meshShape 生成不同的三角化。
-   */
-  setBrepSolid(
-    scopedId: string,
-    solid: ShapeHandle,
-    kernel: OcctKernel,
-    brepChain?: BrepChainState,
-    stmtId?: string,
-  ): void {
-    this.brepSolidCache.set(scopedId, { solid, kernel })
-
-    // 规则 1：同步 meshShapeCache —— 把 stmtId key 的 WasmMesh 映射到 scopedId key
-    if (brepChain?.meshShapeCache && stmtId) {
-      const mesh = brepChain.meshShapeCache.get(stmtId)
-      if (mesh) {
-        this._meshShapeCache.set(scopedId, mesh)
-      }
-    }
-  }
-
-  /** 删除 BREP solid 缓存（仅移除引用，不 release——所有权在 solidCache）。 */
-  deleteBrepSolid(scopedId: string): void {
-    this.brepSolidCache.delete(scopedId)
-    this._meshShapeCache.delete(scopedId)
-  }
-
   // ── 公开：拓扑数据缓存 ──
 
   /**
@@ -922,48 +900,29 @@ export class CadRuntime {
    * 宿主不再直接 import faijs 内部构建函数（buildSolidTopologyRuntime），
    * 而是通过此方法从 runtime 获取 BREP 拓扑。
    *
-   * 内部调用 buildSolidTopologyRuntime（L1 内部函数），返回完整的 SelectorRuntime。
+   * 按 stmtId 直接查持久 solidCache + brepChain.meshShapeCache（均为 stmtId key），
+   * 不再需要 scopedId 投影。单一真源：solidCache（stmtId → ShapeHandle）。
    *
-   * @param scopedId 零件的 scopedId（fileId:innerId），在 brepSolidCache 中查找
+   * @param stmtId 终端语句 id（在 brepChain.solidCache 中查找）
    * @returns SelectorRuntime，或 null（无可用 BREP solid）
    */
-  buildBrepTopology(scopedId: string): SelectorRuntime | null {
-    const solidEntry = this.brepSolidCache.get(scopedId)
-    if (!solidEntry) return null
+  buildBrepTopology(stmtId: string): SelectorRuntime | null {
+    const brepChain = this.brepChain
+    if (!brepChain?.kernel) return null
+
+    const solid = brepChain.solidCache.get(stmtId)
+    if (!solid) return null
 
     // 规则 1：优先从 brepChain.meshShapeCache 复用执行链产出的三角化结果
     // （与显示 mesh 完全同一份 mesh，不二次 meshShape）
-    const cachedMesh = this._meshShapeCache.get(scopedId)
+    const cachedMesh = brepChain.meshShapeCache?.get(stmtId)
     if (cachedMesh) {
-      return buildTopologyFromMesh(solidEntry.solid, cachedMesh)
+      return buildTopologyFromMesh(solid, cachedMesh)
     }
 
     // 无缓存（非执行链路径，如 STEP 导入后直接构建拓扑）→ 执行完整构建（含 meshShape 三角化）
-    const result: SolidTopologyResult = buildSolidTopologyRuntime(solidEntry.kernel, solidEntry.solid)
+    const result: SolidTopologyResult = buildSolidTopologyRuntime(brepChain.kernel, solid)
     return result.runtime
-  }
-
-  // ── 公开：终端几何提取 ──
-
-  /**
-   * 取终端几何用于导出。
-   *
-   * BREP 链活跃时返回 solid 句柄（供 STEP 导出）；
-   * 否则返回 mesh Shape（供 STL 导出）。
-   */
-  getTerminalGeometry(
-    scopedId: string,
-    result: ExecutionResult,
-  ): { shape: Shape; solid?: ShapeHandle; kernel?: OcctKernel } | null {
-    const solid = this.brepSolidCache.get(scopedId)
-    if (solid) {
-      // 简化：直接返回 solid 信息，shape 由调用方从 outputs 取
-      return { shape: result.outputs.get(scopedId) ?? null as unknown as Shape, solid: solid.solid, kernel: solid.kernel }
-    }
-    // 无 solid → mesh 路径
-    const shape = result.outputs.get(scopedId)
-    if (!shape) return null
-    return { shape }
   }
 
   // ── 公开：dryRun 校验 ──
@@ -1093,8 +1052,6 @@ export class CadRuntime {
     }
     this.solidCache.clear()
     this.faceEvolutionCache.clear()
-    // brepSolidCache 是非持有派生视图：仅清空引用，不 release（避免双释放）
-    this.brepSolidCache.clear()
     this.statementCache.clear()
     this.topologyCache.clear()
     this.brepChain = null
