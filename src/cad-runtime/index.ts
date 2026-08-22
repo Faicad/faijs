@@ -6,7 +6,7 @@
 export { CadRuntime, createRuntime, computeContentKey } from './runtime'
 export type {
   ExecutionResult,
-  ReplayOptions,
+  ExecuteOptions,
   CheckResult,
   CheckError,
 } from './runtime'

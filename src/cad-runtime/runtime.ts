@@ -103,7 +103,7 @@ export interface ExecutionResult {
   topology?: Map<string, PartTopology>
 }
 
-export interface ReplayOptions {
+export interface ExecuteOptions {
   /** 参数表 */
   params?: Record<string, unknown>
   /** 跨 part 输入几何（ShapeRef → Shape） */
@@ -136,7 +136,7 @@ function computeStatementKey(
   return parts.join('|')
 }
 
-// ── contentKey 计算（从 replay-validator.ts 移出，逻辑不变） ──
+// ── contentKey 计算（从 execute-validator 迁移，逻辑不变） ──
 
 function hashTypedArray(arr: Float32Array | Uint32Array): string {
   let hash = 0x811c9dc5
@@ -193,7 +193,7 @@ export class CadRuntime {
   /**
    * 拓扑数据缓存：partName → PartTopology（实例级）
    * E13：宿主不再直接 import faijs 拓扑构建函数，而是从 ExecutionResult.topology 消费。
-   * 拓扑构建由宿主在 replay 后调用 setTopology 注入（BREP 路径）或由加载时注入（mesh/primitive 路径）。
+   * 拓扑构建由宿主在 execute 后调用 setTopology 注入（BREP 路径）或由加载时注入（mesh/primitive 路径）。
    */
   private topologyCache = new Map<string, PartTopology>()
 
@@ -218,6 +218,7 @@ export class CadRuntime {
 
   // ── 核心方法：execute（原 replay，改名对齐 roadmap §3.6） ──
 
+
   /**
    * 执行 PartScript，返回 ExecutionResult。
    *
@@ -227,11 +228,11 @@ export class CadRuntime {
    * Persistent SolidCache（docs/plans/2026-08-18-brepchain-persistent-solid-cache.md）：
    * - 复用实例持久 BREP 链（solidCache 跨 execute 存活），不再每次新建；
    * - `opts.startIndex`：从指定位置开始顺序执行，之前的语句不进执行循环
-   *   （缺省 0 = 全量执行，行为与旧 replay 一致）。
+   *   （缺省 0 = 全量执行，行为与旧 execute 一致）。
    */
   async execute(
     script: PartScript,
-    opts?: ReplayOptions,
+    opts?: ExecuteOptions,
   ): Promise<ExecutionResult> {
     const infos: string[] = []
     const outputCache = new Map<string, Shape>()
@@ -423,7 +424,7 @@ export class CadRuntime {
   }
 
   /** 构建参数表：opts.params 优先，脚本 params 兜底（execute / append 复用）。 */
-  private buildParamsMap(script: PartScript, opts?: ReplayOptions): Record<string, unknown> {
+  private buildParamsMap(script: PartScript, opts?: ExecuteOptions): Record<string, unknown> {
     const paramsMap: Record<string, unknown> = {}
     if (opts?.params) {
       for (const [k, v] of Object.entries(opts.params)) {
@@ -449,7 +450,7 @@ export class CadRuntime {
    * 注意：受影响的语句不一定是「从变更点开始的连续段」（独立 part 并存时会连带重执行无关语句），
    * 这是刻意的保守选择——顺序执行天然保证拓扑序，结果正确；后续可用 stale 集合精确化执行范围。
    */
-  async update(script: PartScript, opts?: ReplayOptions): Promise<ExecutionResult> {
+  async update(script: PartScript, opts?: ExecuteOptions): Promise<ExecutionResult> {
     const { stale } = this.plan(script)
     if (stale.length === 0) return this.collectFromCache(script)
     const changeIndex = script.statements.indexOf(stale[0])
@@ -466,7 +467,7 @@ export class CadRuntime {
    * 契约前提：新增语句的输入必然是此前已执行成功的活跃语句的输出，持久缓存保证其存在；
    * 若输入真缺失（dispose/删除后未同步），是调用方应先 execute 全量的信号——append 不做前缀完整性验证。
    */
-  async append(script: PartScript, newIds: string[], opts?: ReplayOptions): Promise<ExecutionResult> {
+  async append(script: PartScript, newIds: string[], opts?: ExecuteOptions): Promise<ExecutionResult> {
     const infos: string[] = []
     const brepChain = await this.ensureBrepChain()
     // 与 execute 一致：partTransform 随执行期上下文写入链（世界→局部坐标偏移）。
@@ -774,7 +775,7 @@ export class CadRuntime {
     }
 
     throw new Error(
-      `[CadRuntime.resolveShapeRef] statement "${statementId}" not reached during sceneScript replay`,
+      `[CadRuntime.resolveShapeRef] statement "${statementId}" not reached during sceneScript execution`,
     )
   }
 
@@ -878,7 +879,7 @@ export class CadRuntime {
    * - 文件加载时：用 buildSelectorRuntime 构建 source='mesh' 的拓扑
    * - primitive 创建时：用 primitive 拓扑构建函数构建 source='primitive' 的拓扑
    *
-   * replay() 返回的 ExecutionResult.topology 会包含这些缓存数据。
+   * execute() 返回的 ExecutionResult.topology 会包含这些缓存数据。
    */
   setTopology(partName: string, source: TopologySource, data: SelectorRuntimeData): void {
     this.topologyCache.set(partName, { partName, source, data })

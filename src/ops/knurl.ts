@@ -19,7 +19,7 @@ export async function executeKnurl(ctx: OpContext): Promise<Shape> {
   const { stmt, inputGeometries, args, brepChain } = ctx
 
   if (inputGeometries.length === 0) {
-    throw new Error(`[ReplayValidator] knurl statement "${stmt.id}" has no input geometry`)
+    throw new Error(`[ExecutionValidator] knurl statement "${stmt.id}" has no input geometry`)
   }
   const shape = inputGeometries[0]
 

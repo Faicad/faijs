@@ -96,7 +96,7 @@ function getFinalOutput(result: ExecutionResult, statements: CadStatement[]): Sh
 
 // ─── Primitives ───
 
-describe('CadRuntime.replay: primitives (BREP)', () => {
+describe('CadRuntime.execute: primitives (BREP)', () => {
   it('box: should produce a valid Shape + cache solid', async () => {
     const stmt = makeStmt('s1', 'box', { size: 20 }, [])
     const result = await runScript([stmt])
@@ -138,7 +138,7 @@ describe('CadRuntime.replay: primitives (BREP)', () => {
 
 // ─── Transform ───
 
-describe('CadRuntime.replay: transform (BREP)', () => {
+describe('CadRuntime.execute: transform (BREP)', () => {
   it('translate: should translate the solid and keep chain active', async () => {
     const s1 = makeStmt('s1', 'box', { size: 20 }, [])
     const s2 = makeStmt('s2', 'translate', { offset: [10, 0, 0] }, ['s1'])
@@ -173,7 +173,7 @@ describe('CadRuntime.replay: transform (BREP)', () => {
 
 // ─── Boolean ───
 
-describe('CadRuntime.replay: boolean (BREP)', () => {
+describe('CadRuntime.execute: boolean (BREP)', () => {
   it('union: should fuse two boxes and keep chain active', async () => {
     const s1 = makeStmt('s1', 'box', { size: 20 }, [])
     const s2 = makeStmt('s2', 'box', { size: 20, center: [20, 0, 0] }, [])
@@ -200,7 +200,7 @@ describe('CadRuntime.replay: boolean (BREP)', () => {
 
 // ─── Drill ───
 
-describe('CadRuntime.replay: drill (BREP)', () => {
+describe('CadRuntime.execute: drill (BREP)', () => {
   it('simple hole: should drill a through hole and keep chain active', async () => {
     const s1 = makeStmt('s1', 'box', { size: 20 }, [])
     const s2 = makeStmt('s2', 'drill', {
@@ -219,7 +219,7 @@ describe('CadRuntime.replay: drill (BREP)', () => {
 
 // ─── Knurl ───
 
-describe('CadRuntime.replay: knurl (mesh-only, static chain break)', () => {
+describe('CadRuntime.execute: knurl (mesh-only, static chain break)', () => {
   it('knurl is in MESH_ONLY_OPS (static determination)', () => {
     // 静态判定：knurl 没有 BREP 实现，属于 mesh-only 操作
     expect(MESH_ONLY_OPS.has('knurl')).toBe(true)
@@ -253,7 +253,7 @@ describe('CadRuntime.replay: knurl (mesh-only, static chain break)', () => {
 
 // ─── Text ───
 
-describe('CadRuntime.replay: text (BREP)', () => {
+describe('CadRuntime.execute: text (BREP)', () => {
   it('should produce a valid Shape + cache solid + keep chain active', async () => {
     const stmt = makeStmt('s1', 'text', { text: 'A', size: 16, depth: 2 })
     const result = await runScript([stmt])
@@ -277,7 +277,7 @@ describe('CadRuntime.replay: text (BREP)', () => {
 
 // ─── Engrave ───
 
-describe('CadRuntime.replay: engrave (BREP)', () => {
+describe('CadRuntime.execute: engrave (BREP)', () => {
   it('concave: should cut text from box and keep chain active', async () => {
     const s1 = makeStmt('s1', 'box', { size: 30 }, [])
     const s2 = makeStmt('s2', 'engrave', {
@@ -332,7 +332,7 @@ describe('BREP chain integrity', () => {
 
 // ─── Font loading failure ───
 
-describe('CadRuntime.replay: text font loading failure', () => {
+describe('CadRuntime.execute: text font loading failure', () => {
   let savedLoader: FontLoader | null
 
   beforeAll(() => {

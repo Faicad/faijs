@@ -6,8 +6,8 @@
  * Tests:
  * 1. cad.drill basic: drill a box → result has more vertices than original
  * 2. executeDrill coordinate transform: world-space position with partTransform → correct local position
- * 3. replay (load + drill) with partTransform → geometry actually changes
- * 4. replay (load + drill) without partTransform → geometry changes (position already in local)
+ * 3. execute (load + drill) with partTransform → geometry actually changes
+ * 4. execute (load + drill) without partTransform → geometry changes (position already in local)
  *
  * Run: npx vitest run src/ops/drill.test.ts
  */
@@ -317,10 +317,10 @@ describe('drill: executeDrill coordinate transform with partTransform', () => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 3. REPLAY (load + drill) WITH partTransform — end-to-end mesh path
+// 3. EXECUTE (load + drill) WITH partTransform — end-to-end mesh path
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('drill: replay (load STL → drill) with partTransform', () => {
+describe('drill: execute (load STL → drill) with partTransform', () => {
   it('load STL → drill with partTransform → geometry changes', async () => {
     const bufferKey = fileBlobStore.put(stlBuffer)
 

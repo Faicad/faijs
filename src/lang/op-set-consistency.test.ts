@@ -2,9 +2,9 @@
  * op-set-consistency L0 — schema ↔ codegen ↔ parser 一致性守卫（L0 零依赖）
  *
  * 从 script-engine/op-set-consistency.test.ts 拆分而来。
- * L0 部分仅依赖 @faijs/* 模块，不依赖 replay-validator / brep-chain。
+ * L0 部分仅依赖 @faijs/* 模块，不依赖 execute-validator / brep-chain。
  *
- * L1 部分（replay-validator case 集合、BREP 能力集合）留在
+ * L1 部分（execute-validator case 集合、BREP 能力集合）留在
  * src/lang/op-set-consistency.test.ts
  */
 

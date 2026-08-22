@@ -145,7 +145,7 @@ export type {
 
 // ── L2 编排�?──
 export { CadRuntime, createRuntime, computeContentKey } from './cad-runtime/runtime'
-export type { ExecutionResult, ReplayOptions, CheckResult, CheckError } from './cad-runtime/runtime'
+export type { ExecutionResult, ExecuteOptions, CheckResult, CheckError } from './cad-runtime/runtime'
 export type {
   HostPorts, CsgBackend, SdfBackend, FontProvider, TextureSampler,
   AssetResolver, EventSink, ExecutionMode,
@@ -204,4 +204,4 @@ export { FetchAssetResolver } from './browser-host/fetch-asset-resolver'
 export type { FetchAssetResolverOptions } from './browser-host/fetch-asset-resolver'
 
 // ── Test helpers ──
-export { replayScript, type ReplayOutput } from './test-helpers'
+export { executeScript, type ExecuteOutput } from './test-helpers'

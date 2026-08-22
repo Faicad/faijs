@@ -24,7 +24,7 @@ export async function executeTransform(ctx: OpContext): Promise<Shape> {
   const { stmt, inputGeometries, args, brepChain } = ctx
 
   if (inputGeometries.length === 0) {
-    throw new Error(`[ReplayValidator] ${stmt.op} statement "${stmt.id}" has no input geometry`)
+    throw new Error(`[ExecutionValidator] ${stmt.op} statement "${stmt.id}" has no input geometry`)
   }
   const shape = inputGeometries[0]
 

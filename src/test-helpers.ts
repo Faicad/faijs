@@ -1,8 +1,8 @@
 /**
  * test-helpers — 测试辅助函数
  *
- * 提供 replayScript 等便利函数，供测试使用。
- * 从 script-engine/replay-validator.ts 迁移。
+ * 提供 executeScript 等便利函数，供测试使用。
+ * 从 script-engine/replay-validator.ts 迁移（原名 replayScript，已改名对齐 roadmap §3.6）。
  */
 
 import type { PartScript } from './lang/types'
@@ -13,7 +13,7 @@ import { executeStatement } from './ops/dispatcher'
 import { computeContentKey } from './cad-runtime/runtime'
 import type { HostPorts, ExecutionMode } from './cad-runtime/ports'
 
-export interface ReplayOutput {
+export interface ExecuteOutput {
   contentKey: string
   shape: Shape
   brepChain: BrepChainState
@@ -21,14 +21,14 @@ export interface ReplayOutput {
 
 export { executeStatement }
 
-export async function replayScript(
+export async function executeScript(
   script: PartScript,
   inputGeometryMap?: Map<string, Shape>,
   params?: Record<string, unknown>,
   ports?: HostPorts,
   mode?: ExecutionMode,
   brepChain?: BrepChainState,
-): Promise<ReplayOutput> {
+): Promise<ExecuteOutput> {
   const outputCache = new Map<string, Shape>()
   // Persistent SolidCache 方案：可传入外部持久链（增量场景测试复用同一链）；
   // 不传时仍内部创建（一次脚本一次链，进程回收，不释放）。
@@ -42,7 +42,7 @@ export async function replayScript(
     for (const inputRef of stmt.inputs) {
       const geo = outputCache.get(inputRef) ?? inputGeometryMap?.get(inputRef)
       if (!geo) {
-        throw new Error(`[replayScript] missing input geometry for ref "${inputRef}" in statement "${stmt.id}"`)
+        throw new Error(`[executeScript] missing input geometry for ref "${inputRef}" in statement "${stmt.id}"`)
       }
       inputGeometries.push(geo)
     }
@@ -55,7 +55,7 @@ export async function replayScript(
     s => s.hasAssignment && (s.returnType ?? 'new_shape') === 'new_shape',
   )
   if (newShapeStmts.length === 0) {
-    throw new Error(`[replayScript] empty script — no geometry statements`)
+    throw new Error(`[executeScript] empty script — no geometry statements`)
   }
   const lastStmt = newShapeStmts[newShapeStmts.length - 1]
   const finalShape = outputCache.get(lastStmt.id)!

@@ -1,7 +1,7 @@
 /**
  * 操作分派器 — 将语句路由到对应的操作实现
  *
- * 这是 replay-validator.ts 的核心分派逻辑。
+ * 这是 dispatcher（executeStatement）的核心分派逻辑。
  * 每个操作有独立的文件，包含 BREP 和 Mesh 两条路径。
  */
 
@@ -40,7 +40,7 @@ function resolveArg(
     // GeomRef: { $geom: {...} }
     if (isGeomRef(arg)) {
       if (!outputCache) {
-        throw new Error(`[ReplayValidator] GeomRef requires outputCache for resolution`)
+        throw new Error(`[ExecutionValidator] GeomRef requires outputCache for resolution`)
       }
       // P5-2: 传入 BREP solidCache 和 kernel，使 resolveGeomRef 能按 faceOrdinal 取面
       // 逐 part 设计：只要 kernel 存在就传入 solidCache 查询函数，按具体 part id 查各自的实体
@@ -197,9 +197,13 @@ export async function executeStatement(
       return executeSdf(ctx)
     }
 
-    // ── 结构型语句（no-op 执行） ──
-    // group/assembly/add_constraint/do_assemble 不产出几何，返回空 Shape。
-    // 实际装配变换在 CadRuntime.replay 的 assembly pass 中完成。
+    // ── 结构型语句（死分支，runtime 已拦截） ──
+    // group/assembly/add_constraint/do_assemble 不产出几何。
+    // 注意：这些 case 在 runtime.execute 主循环中被 returnType==='void'/'same_shape'
+    // 的 continue 分支提前拦截，正常执行流不会进入本 dispatcher（见 runtime.ts:271-279）。
+    // 装配的真实变换在 runtime.execute 的 assembly pass 中完成
+    // （runtime.executeAssemblyPass → executeAssemblyPassForStmt → executeDoAssemble）。
+    // 此空 Shape 返回仅为防御性兜底。
     case 'group':
     case 'assembly':
     case 'add_constraint':
@@ -208,6 +212,6 @@ export async function executeStatement(
     }
 
     default:
-      throw new Error(`[ReplayValidator] unknown op: ${stmt.op}`)
+      throw new Error(`[dispatcher] unknown op: ${stmt.op}`)
   }
 }

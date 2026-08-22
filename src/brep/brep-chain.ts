@@ -1,4 +1,4 @@
-/**
+﻿/**
  * BREP 链状态管理
  *
  * 在语句重放过程中跟踪 OCCT 精确实体句柄。
@@ -8,7 +8,7 @@
  * 由 solidCache 里是否有它的句柄唯一决定。
  * 不存在全局 brepActive 标志——兄弟 part 互不污染。
  *
- * 生命周期：由 replayScript / replayPart 创建，重放结束后释放所有中间句柄。
+ * 生命周期：由 executeScript / executePart 创建，执行结束后释放所有中间句柄。
  * 终端句柄（如果有）由调用方保留用于导出。
  */
 
@@ -110,7 +110,7 @@ export interface BrepChainState {
    * 产生的 position（如钻孔 clickPosition）是世界坐标。使用此偏移
    * 将世界坐标转换为局部坐标，确保 BREP 操作在正确的坐标系中执行。
    *
-   * 由 replayPart 从 useEngineStore.partTransforms[scopedId].position 填充。
+   * 由 executePart 从 useEngineStore.partTransforms[scopedId].position 填充。
    */
   partTransform?: { position: [number, number, number]; scale?: [number, number, number] }
   /**

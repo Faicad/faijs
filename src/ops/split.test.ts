@@ -501,7 +501,7 @@ describe('split: outputCache invariants', () => {
     // executeSplitMesh does: outputCache.set(outputs[0], front); outputCache.set(outputs[1], back)
     // So outputCache should have:
     //   'part0_v0' → box shape
-    //   'part1_v0' → front shape (set by both replay loop and executeSplitMesh)
+    //   'part1_v0' → front shape (set by both execute loop and executeSplitMesh)
     //   'part2_v0' → back shape
 
     expect(result.outputs.has('part0_v0')).toBe(true) // source
@@ -684,7 +684,7 @@ describe('split: negative tests', () => {
 
     expect(result.failedAt).toBeUndefined()
 
-    // stmt.id should have the front shape (set by replay loop)
+    // stmt.id should have the front shape (set by execute loop)
     const front = result.outputs.get('part1_v0')
     expect(front).toBeDefined()
     expect(shapeVertexCount(front!)).toBeGreaterThan(0)

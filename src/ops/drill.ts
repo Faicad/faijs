@@ -28,7 +28,7 @@ export async function executeDrill(ctx: OpContext): Promise<Shape> {
   const { stmt, inputGeometries, args } = ctx
 
   if (inputGeometries.length === 0) {
-    throw new Error(`[ReplayValidator] drill statement "${stmt.id}" has no input geometry`)
+    throw new Error(`[ExecutionValidator] drill statement "${stmt.id}" has no input geometry`)
   }
   const shape = inputGeometries[0]
 

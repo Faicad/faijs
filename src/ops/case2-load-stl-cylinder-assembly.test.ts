@@ -7,7 +7,7 @@
  * - load STL → 非 CAD 源，cube_v0 无 solid（mesh）
  * - cylinder → BREP-native，cyl_v0 持有 solid
  * - drill(cyl) → 上游有 solid → 走 BREP 精确路径
- * - assembly marker → replay 跳过（零几何影响）
+ * - assembly marker → execution skips (zero geometry impact)
  * - rotate(drilled, {anglesDeg, pivot}) → BREP 精确变换（需 pivot 正确传递）
  * - translate(rotated, {offset}) → BREP 精确变换
  *
@@ -128,7 +128,7 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
         position: [0, 0, 10], direction: 'normal',
         faceNormal: [0, 0, 1],
       }, ['cyl_v0']),
-      // S3: assembly structural statement (replay skips)
+      // S3: assembly structural statement (execution skips)
       makeStmt('grp_asm0', 'assembly', {
         name: 'CubeOnCylinder',
         members: ['cube_v0', 'drilled_v0'],
@@ -159,7 +159,7 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
     expect(solidCache.has('rot_v0')).toBe(true)       // rotate → BREP ✅
     expect(solidCache.has('mated_v0')).toBe(true)     // translate → BREP ✅
 
-    // Assembly structural statement is skipped during replay
+    // Assembly structural statement is skipped during execution
     const asmStmt = stmts.find(s => s.op === 'assembly')
     expect(asmStmt).toBeDefined()
 
@@ -239,7 +239,7 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
     fileBlobStore.release(bufferKey)
   })
 
-  it('assembly marker has correct members and is skipped during replay', async () => {
+  it('assembly marker has correct members and is skipped during execution', async () => {
     const bufferKey = fileBlobStore.put(stlBuffer)
     const stmts: CadStatement[] = [
       makeStmt('cube_v0', 'load', { key: bufferKey, format: 'stl' }, [],

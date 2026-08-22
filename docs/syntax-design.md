@@ -40,7 +40,7 @@
         └──────────────────────────────────────────────┘
                             │
                             ▼
-                CadRuntime.replay（BREP 优先 + 静态切换 mesh）
+                CadRuntime.execute（BREP 优先 + 静态切换 mesh）
                             │
                             ▼
                          Scene（单/多 mesh）
@@ -61,7 +61,7 @@
 ## 2. 语法规范（合法 JS 子集）
 
 > **语句 id 可以是任意合法 JS 标识符**（`const <id> = cad.op(...)`）。
-> `partN_vM` 只是 **UI 层自动生成代码**时采用的 id 形态（`partN`=模型号、`vM`=版本号）。引擎以 `stmt.id` 为不透明 key 执行与 replay，不解析其结构。
+> `partN_vM` 只是 **UI 层自动生成代码**时采用的 id 形态（`partN`=模型号、`vM`=版本号）。引擎以 `stmt.id` 为不透明 key 执行与 execute，不解析其结构。
 
 ### 2.2 单一 PartScript DAG
 
@@ -210,7 +210,7 @@ firstChange = min(
    - **UNCHANGED** → 不重算，直接复用 `outputCache[id]` 中的几何（供下游引用）。
    - **PARAM / STRUCT / ADD** → 从 `firstChange` 起执行 `executeStatement`；其结果写入 `outputCache`；其下游因读取到新结果而自动失效、随 suffix 重放。
    - **DELETE** → 该 id 的 `outputCache` 失效；其下游（旧链中引用它的语句）在本次重放中已被 STRUCT/ADD 覆盖或一并失效。
-3. 重放沿用宿主 `ScriptEngine.replayPart` 逻辑；失败沿用现有 statement 模式：保留前 k-1 条成功语句。
+3. 执行沿用宿主 `ScriptEngine.executePart` 逻辑；失败沿用现有 statement 模式：保留前 k-1 条成功语句。
 4. 重放成功 → 新 `PartScript` 写回 store 作为下一次提交的 `committedPartScript`；`feature.createdBy` 按提交上下文标注（UI 提交='user'，AI 提交='ai'，行内来源由 parser 从既有 PartScript 继承——见 §4.4）。
 
 **DAG 相关补充**：
@@ -241,7 +241,7 @@ firstChange = min(
 **人类钻孔（UI）**：
 1. 用户点击面 → 引擎根据交互派生 args（position/normal/direction…）。
 2. `useScriptStore.appendStatement(scopedId, stmt)`，`stmt.id = 'part0_vN'`（主模型版本链）、`feature.createdBy = 'user'`。
-3. `replayPart` 增量重算，`outputCache` 更新。
+3. `executePart` 增量重算，`outputCache` 更新。
 4. `scriptToCode(sceneScript)` 回写 `.faijs` 全文（代码视图同步）。
 
 **AI 倒角（代码）**：

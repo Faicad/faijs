@@ -1,7 +1,7 @@
 /**
  * GeomRef 解析辅助函数
  *
- * 从 replay-validator.ts 提取，供多个操作分派器共享。
+ * 从分派逻辑（dispatcher）提取，供多个操作分派器共享。
  *
  * P5-2：增加 faceOrdinal 拓扑引用支持。
  * 面找回优先级链：

@@ -47,7 +47,7 @@ import {
 } from '../brep'
 import type { Shape } from '../mesh/types'
 import type { PartScript, CadStatement, FeatureKind } from '../lang/types'
-import { replayScript, executeStatement } from '../test-helpers'
+import { executeScript, executeStatement } from '../test-helpers'
 import { ensureTestFontLoader } from '../brep/text/fontTestHelper'
 
 let kernel: OcctKernel
@@ -557,7 +557,7 @@ describe('getSolidBoundingBox', () => {
 
 // ── BREP 链断裂可逆性（§1.6: 删/改 mesh-only op → 链自动愈合）──
 //
-// 核心概念：BREP 链的断裂状态不是持久化在零件上的，而是每次 replayScript 时
+// 核心概念：BREP 链的断裂状态不是持久化在零件上的，而是每次 executeScript 时
 // 由语句链重新推导。遇到 mesh-only op（engrave）→ 链断裂；删除该 op → 链自动愈合。
 // 严禁把"已断裂"作为脱离链的零件状态单独持久化（那会造成"无法回退"）。
 
@@ -590,7 +590,7 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
     }
   }
 
-  it('replayScript(box → drill, brep) → solid in cache', async () => {
+  it('executeScript(box → drill, brep) → solid in cache', async () => {
     const script = makeScript([
       makeStmt('s1', 'box', { size: 20 }, [], 'primitive'),
       makeStmt('s2', 'drill', {
@@ -600,7 +600,7 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
       }, ['s1'], 'drill'),
     ])
 
-    const result = await replayScript(script)
+    const result = await executeScript(script)
     expect(result.brepChain.solidCache.has('s2')).toBe(true)
     expect(result.brepChain.kernel).not.toBeNull()
 
@@ -647,8 +647,8 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
     releaseBrepChainState(brepChain)
   })
 
-  it('replayScript without engrave → solid still in cache (chain healed, not persistent)', async () => {
-    // 核心测试：BREP 状态不是持久状态。每次 replayScript 创建新的 BrepChainState，
+  it('executeScript without engrave → solid still in cache (chain healed, not persistent)', async () => {
+    // 核心测试：BREP 状态不是持久状态。每次 executeScript 创建新的 BrepChainState，
     // 删除 engrave 语句后重放 → solidCache 仍有 drill solid
     const script = makeScript([
       makeStmt('s1', 'box', { size: 20 }, [], 'primitive'),
@@ -660,7 +660,7 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
       // 没有 engrave — 链应保持活跃
     ])
 
-    const result = await replayScript(script)
+    const result = await executeScript(script)
     expect(result.brepChain.solidCache.has('s2')).toBe(true)
 
     // Clean up
@@ -680,7 +680,7 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
       }, ['s1'], 'drill'),
     ])
 
-    const result = await replayScript(script)
+    const result = await executeScript(script)
     expect(result.brepChain.solidCache.has('s2')).toBe(true)
 
     // 获取终端 solid 并导出 STEP

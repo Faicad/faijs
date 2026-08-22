@@ -48,7 +48,7 @@ export type { OpSchema, ArgFieldSchema, ArgType, ValidationError } from './lang/
 // ═══════════════════════════════════════════════════════════
 
 export { CadRuntime, createRuntime } from './cad-runtime/runtime'
-export type { ExecutionResult, ReplayOptions, CheckResult, CheckError, PartTopology, TopologySource } from './cad-runtime/runtime'
+export type { ExecutionResult, ExecuteOptions, CheckResult, CheckError, PartTopology, TopologySource } from './cad-runtime/runtime'
 export type {
   HostPorts,
   CsgBackend, SdfBackend, FontProvider, TextureSampler,

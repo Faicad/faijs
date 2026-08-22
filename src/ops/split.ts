@@ -33,7 +33,7 @@ export async function executeSplit(ctx: OpContext): Promise<Shape> {
   const { stmt, inputGeometries, args } = ctx
 
   if (inputGeometries.length === 0) {
-    throw new Error(`[ReplayValidator] split statement "${stmt.id}" has no input geometry`)
+    throw new Error(`[ExecutionValidator] split statement "${stmt.id}" has no input geometry`)
   }
   const shape = inputGeometries[0]
   const cutMode = (args.cutMode as string) ?? 'plane'
@@ -284,7 +284,7 @@ async function executeSplitBrep(
     brepChain.solidCache.set(stmt.outputs[0], frontSolid)
     brepChain.solidCache.set(stmt.outputs[1], backSolid)
     // 同时把 front/back 的 mesh shape 存入 outputCache
-    //（runtime.replay 只会把返回值存入 stmt.id == outputs[0]，
+    //（runtime.execute 只会把返回值存入 stmt.id == outputs[0]，
     //  所以 outputs[1] (back) 必须在此显式存入）
     const frontShape = solidToShape(kernel, frontSolid, undefined, brepChain, stmt.outputs[0])
     const backShape = solidToShape(kernel, backSolid, undefined, brepChain, stmt.outputs[1])

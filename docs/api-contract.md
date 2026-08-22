@@ -80,7 +80,7 @@ export interface CadStatement {
   inputs: ShapeRef[]         // 上游语句 id（顺序敏感，见各 op）
   name?: string              // 语句显示名（Timeline 用），不进 args
   feature: FeatureMeta
-  isMarker?: boolean         // 标记型语句：不进 replay 执行序列，仅供 Timeline 展示
+  isMarker?: boolean         // 标记型语句：不进 execution 执行序列，仅供 Timeline 展示
                               //   与 codegen 跳过（如 split 源 part marker、group/assembly marker）
   model?: string             // 所属模型号（UI 层自动生成代码为 partN），多 mesh DAG 区分不同模型
   outputs?: string[]         // 多输出 op 的输出 id 列表（split 写两个输出 id）
@@ -205,7 +205,7 @@ tenonSideLength, tenonSideLengthTolerance, tenonHeight, tenonHeightTolerance, se
 
 ---
 
-## 6. 执行契约（replay / load 共用的计算核心）
+## 6. 执行契约（execute / load 共用的计算核心）
 
 ### 6.1 单条执行
 
@@ -223,14 +223,14 @@ async function executeStatement(
 - `op` 命中 §5 白名单；未命中 → 拒绝执行。
 - **输入约束**：特征/变换类 op 要求 `inputs[0]` 存在，缺失则拒绝执行。
 
-### 6.2 整段重放
+### 6.2 整段执行
 
 ```ts
-async function replayScript(
+async function executeScript(
   script: PartScript,
   inputGeometryMap?: Map<ShapeRef, Shape>,
   params?: Record<string, unknown>,
-): Promise<ReplayOutput>   // { contentKey, shape, brepActive?, breakReason?, brepChain? }
+): Promise<ExecuteOutput>   // { contentKey, shape, brepActive?, breakReason?, brepChain? }
 ```
 
 - 按 `statements` **拓扑序**逐条执行；`isMarker` 语句跳过（不执行、不写缓存）。
@@ -244,7 +244,7 @@ async function replayScript(
 
 - **GeomRef**：用 `of`（上游语句 id）取几何 → 按 `feature` 求位置；`faceCenter/faceNormal` **优先按 `faceOrdinal`**（拓扑面序号，`getSubShapes(shape,'face')[ordinal]`）直接取面，失败或无 ordinal 时用 `anchor`（point+normal）找回最近面，最终降级 `bboxCenter`。`faceOrdinal` 由录制时从 `SelectorRuntime.faces` 获取，在确定性重放下稳定；上游参数编辑导致 ordinal 失效时自动降级 anchor。
 - **ParamRef**：`params[paramName]`，缺则 `null`。参数表真实流转——调用方将 `script.params` 与外部 `params` 合并贯穿执行；编辑参数通过改 `script.params` 驱动增量重算。
-- **跨 part 解析**：`replayScript` 收 `inputGeometryMap` 参数；跨 part 引用通过场景级单一 DAG 的 `inputs` 同图解析。
+- **跨 part 解析**：`executeScript` 收 `inputGeometryMap` 参数；跨 part 引用通过场景级单一 DAG 的 `inputs` 同图解析。
 
 ---
 

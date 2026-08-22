@@ -229,7 +229,7 @@ describe('CadRuntime: mesh mode (all mesh, no BREP)', () => {
 // ─── CadRuntime 实例管理 ───
 
 describe('CadRuntime: instance management', () => {
-  it('statementCache is populated after replay', async () => {
+  it('statementCache is populated after execution', async () => {
     const runtime = makeRuntime()
     const script = makePartScript([
       makeStmt('s1', 'box', { size: 20 }),
@@ -242,7 +242,7 @@ describe('CadRuntime: instance management', () => {
     expect(runtime.getCachedOutput('s2')).toBeDefined()
   })
 
-  it('brepSolids is populated after BREP replay', async () => {
+  it('brepSolids is populated after BREP execution', async () => {
     const runtime = makeRuntime()
     const script = makePartScript([makeStmt('s1', 'box', { size: 20 })])
     const result = await runtime.execute(script)
@@ -362,7 +362,7 @@ describe('CadRuntime: instance management', () => {
     expect(runtime.getCachedOutput('s1')).toBeUndefined()
   })
 
-  it('void/same_shape statements are skipped during replay', async () => {
+  it('void/same_shape statements are skipped during execution', async () => {
     const runtime = makeRuntime()
     const script = makePartScript([
       makeStmt('s1', 'box', { size: 20 }),

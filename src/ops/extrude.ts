@@ -23,7 +23,7 @@ export async function executeExtrude(ctx: OpContext): Promise<Shape> {
   const { stmt, inputGeometries, args } = ctx
 
   if (inputGeometries.length === 0) {
-    throw new Error(`[ReplayValidator] extrude statement "${stmt.id}" has no input geometry`)
+    throw new Error(`[ExecutionValidator] extrude statement "${stmt.id}" has no input geometry`)
   }
   const shape = inputGeometries[0]
   const normal = (args.normal as [number, number, number] | undefined) ?? [0, 0, 1]

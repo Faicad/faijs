@@ -124,7 +124,7 @@ export async function executeEngrave(ctx: OpContext): Promise<Shape> {
   // 链不活跃 → mesh 路径（链已在前面静态断掉，正常继续）
   if (!canUseBrep(ctx)) {
     if (inputGeometries.length === 0) {
-      throw new Error(`[ReplayValidator] engrave statement "${stmt.id}" has no input geometry`)
+      throw new Error(`[ExecutionValidator] engrave statement "${stmt.id}" has no input geometry`)
     }
     const shape = inputGeometries[0]
 

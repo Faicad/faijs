@@ -2,7 +2,7 @@
  * @vitest-environment node
  *
  * 验证 buildSolidTopologyRuntime 能在 svgToSolid 产出的 solid 上正常运行。
- * 这是浏览器端 BREP replay 的关键步骤——如果这里失败，浏览器端拓扑重建也会失败。
+ * 这是浏览器端 BREP execution 的关键步骤——如果这里失败，浏览器端拓扑重建也会失败。
  */
 
 const occtOrigLog = console.log

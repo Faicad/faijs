@@ -30,7 +30,7 @@ export async function executeBoolean(ctx: OpContext): Promise<Shape> {
 
   if (inputGeometries.length < 2) {
     if (inputGeometries.length === 1) return inputGeometries[0]
-    throw new Error(`[ReplayValidator] boolean needs at least 1 input`)
+    throw new Error(`[ExecutionValidator] boolean needs at least 1 input`)
   }
 
   // 多模型静态判定：检查所有输入是否都有 BREP solid
@@ -139,5 +139,5 @@ async function executeBooleanMesh(
     }
     return result
   }
-  throw new Error(`[ReplayValidator] unknown boolean operation: ${operation}`)
+  throw new Error(`[ExecutionValidator] unknown boolean operation: ${operation}`)
 }

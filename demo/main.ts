@@ -7,7 +7,7 @@
  *
  * Flow:
  * 1. User edits faijs source code in the textarea
- * 2. Click "Run" → parseScript(code) → createRuntime ×2 (brep + mesh) → replay both
+ * 2. Click "Run" → parseScript(code) → createRuntime ×2 (brep + mesh) → execute both
  * 3. Extract terminal shapes from each result, render into the matching viewer
  */
 
