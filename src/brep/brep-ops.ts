@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 核心 BREP 操作 — 使用 OCCT 精确实体运算
  *
  * 设计文档：docs/plans/2026-08-08-primitive-brep-mode-plan.md §4.7 (Phase 2)
@@ -167,12 +167,12 @@ export function applyTransformBrep(
   const rotation = new THREE.Matrix4().makeRotationFromQuaternion(
     new THREE.Quaternion(quaternion[0], quaternion[1], quaternion[2], quaternion[3]),
   )
-  // T(pivot) · R · T(-pivot) · T(translation)
+  // T(translation) · T(pivot) · R · T(-pivot) = T(pivot+translation) · R · T(-pivot)
+  // 先绕 pivot 旋转，再平移 translation（与 mesh 路径 applyTransform 一致）
   const matrix = new THREE.Matrix4()
-    .makeTranslation(pivot[0], pivot[1], pivot[2])
+    .makeTranslation(pivot[0] + translation[0], pivot[1] + translation[1], pivot[2] + translation[2])
     .multiply(rotation)
     .multiply(new THREE.Matrix4().makeTranslation(-pivot[0], -pivot[1], -pivot[2]))
-    .multiply(new THREE.Matrix4().makeTranslation(translation[0], translation[1], translation[2]))
   return kernel.transform(solid, matrixToArray(matrix))
 }
 
