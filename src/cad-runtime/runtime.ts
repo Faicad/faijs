@@ -28,8 +28,7 @@ import { executeStatement as dispatchStatement } from '../ops/dispatcher'
 import { parseScript, ParseError } from '../lang/parser'
 import { validateStatementArgs } from '../lang/args-schema'
 import { canUseBrep } from '../ops/types'
-import { executeDoAssemble } from '../ops/assemble'
-import type { AssemblyDefinition, AssemblyConstraint } from '../ops/assemble'
+import { executeAssemblyPassForStmt } from '../ops/assemble'
 import type { HostPorts, ExecutionMode } from './ports'
 import type { SelectorRuntimeData } from '../topology/build-selector-runtime'
 import type { SelectorRuntime } from '../topology/types'
@@ -829,54 +828,10 @@ export class CadRuntime {
     outputCache: Map<string, Shape>,
     script: PartScript,
   ): Promise<Set<string>> {
-    const target = doAssembleStmt.assemblyTarget
-    if (!target) return new Set()
-
-    // 找到 assemblyTarget 指向的 assembly 语句
-    const assemblyStmt = script.statements.find(s => s.id === target)
-    if (!assemblyStmt || assemblyStmt.op !== 'assembly') return new Set()
-
-    // 从 assembly 语句的 args.constraints 中读取约束
-    const constraints = (assemblyStmt.args?.constraints as unknown as AssemblyConstraint[]) ?? []
-    if (!Array.isArray(constraints) || constraints.length === 0) return new Set()
-
-    // 构造 AssemblyDefinition，委托 executeDoAssemble 执行
-    const assemblyDef: AssemblyDefinition = {
-      name: assemblyStmt.args?.name as string | undefined,
-      members: (assemblyStmt.args?.members as string[]) ?? [],
-      constraints,
-    }
-
-    // 传入 brepChain（含 solidCache / kernel）使 BREP 路径同步变换；
-    // 传入 script 使下游 mesh 传播生效。
-    const results = executeDoAssemble(assemblyDef, outputCache, {
-      brepChain: this.brepChain ?? undefined,
-      script,
-    })
-
-    // 收集被变换的 part names（executeDoAssemble 返回的直接变换结果）
-    const transformedIds = new Set<string>(results.keys())
-    // 下游传播的 part 也需要同步（propagateTransformDownstream 修改了 outputCache 但不返回哪些被改了）
-    // 简单策略：assembly members + 其所有下游语句 id
-    const members = (assemblyStmt.args?.members as string[]) ?? []
-    for (const m of members) {
-      transformedIds.add(m)
-      // 沿 inputs 链找下游
-      const visited = new Set<string>()
-      const queue = [m]
-      while (queue.length > 0) {
-        const cur = queue.shift()!
-        if (visited.has(cur)) continue
-        visited.add(cur)
-        for (const s of script.statements) {
-          if (s.inputs.includes(cur) && !transformedIds.has(s.id)) {
-            transformedIds.add(s.id)
-            queue.push(s.id)
-          }
-        }
-      }
-    }
-    return transformedIds
+    // 委托独立函数 executeAssemblyPassForStmt（与 3d_editor executeScript 共用同一入口）
+    return Promise.resolve(
+      executeAssemblyPassForStmt(doAssembleStmt, outputCache, script, this.brepChain ?? undefined)
+    )
   }
 
   /** plan() — 依赖分析，得出需要重算的语句集合 */

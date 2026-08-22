@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @faicad/faijs/browser — Browser-safe exports (F6: A/B/C/D 四类收敛)
  *
  * Excludes L3 Node Host modules (node-host/*) that depend on node:fs/node:path.
@@ -83,7 +83,7 @@ export type { ImportStepResult, ImportStepPartResult, ExportStepOptions } from '
 
 // E15.1: 装配约束求解器（D 类预览 API + B 类执行 API）
 export {
-  solveFaceMate, applyTransform, executeDoAssemble, previewAssembly,
+  solveFaceMate, applyTransform, executeDoAssemble, previewAssembly, executeAssemblyPassForStmt,
 } from './ops/assemble'
 export type {
   FaceMateConstraint, AssemblyConstraint, AssemblyDefinition, DoAssembleContext,
@@ -174,7 +174,8 @@ export {
 } from './boolean/joinery-shapes'
 export { geoToManifoldMesh, manifoldMeshToGeo } from './boolean/geo-convert'
 export { manifoldToMeshData, weldPositionsWorker, dovetailBooleanSplit, dowelOrTenonBooleanSplit, chainBoolean, meshToManifold } from './boolean/csg-core'
-export { svgToExtrudedGeometry } from './primitives/svg-extrude'
+export { svgToExtrudedGeometry, parseSvgShapes } from './primitives/svg-extrude'
+export type { SvgExtrudeOptions } from './primitives/svg-extrude'
 export { createTextGeometry, opentypePathToGeometry } from './primitives/text-geometry'
 export { runSdfInline } from './sdf/sdf-core'
 export { createMixedTextGeometry } from './primitives/text/cjk'

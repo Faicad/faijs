@@ -20,7 +20,7 @@
  */
 
 import type { Shape } from './types'
-import type { PartScript } from '../lang/types'
+import type { PartScript, CadStatement } from '../lang/types'
 import type { BrepChainState } from '../brep/brep-chain'
 import { applyTransformBrep } from '../brep/brep-ops'
 
@@ -389,4 +389,80 @@ export function previewAssembly(
   }
 
   return results
+}
+
+/**
+ * 从 do_assemble 语句执行装配变换 pass（独立函数，不依赖 CadRuntime 实例）。
+ *
+ * 这是 `CadRuntime.executeAssemblyPass` 的核心逻辑提取，供不经过 CadRuntime
+ * 的执行路径（如 3d_editor 的 executeScript 循环）直接调用。
+ *
+ * 逻辑：
+ * 1. 从 `doAssembleStmt.assemblyTarget` 找到对应的 `assembly` 语句
+ * 2. 从 `assembly.args.constraints` 读取约束
+ * 3. 构造 `AssemblyDefinition`
+ * 4. 委托 `executeDoAssemble` 执行变换（mesh + BREP + 下游传播）
+ *
+ * @param doAssembleStmt do_assemble 语句（returnType='void'）
+ * @param outputCache 输出缓存（被变换直接修改）
+ * @param script 整场景 DAG（用于查找 assembly 语句 + 下游传播）
+ * @param brepChain BREP 链状态（可选，传入则施加 BREP 刚体变换）
+ * @returns 被变换的 part name 集合（moving parts + 下游传播的 parts）
+ */
+export function executeAssemblyPassForStmt(
+  doAssembleStmt: CadStatement,
+  outputCache: Map<string, Shape>,
+  script: PartScript,
+  brepChain?: BrepChainState,
+): Set<string> {
+  const target = doAssembleStmt.assemblyTarget
+  if (!target) return new Set()
+
+  // 找到 assemblyTarget 指向的 assembly 语句
+  const assemblyStmt = script.statements.find(s => s.id === target)
+  if (!assemblyStmt || assemblyStmt.op !== 'assembly') return new Set()
+
+  // 从 assembly 语句的 args.constraints 中读取约束
+  const constraints = (assemblyStmt.args?.constraints as unknown as AssemblyConstraint[]) ?? []
+  if (!Array.isArray(constraints) || constraints.length === 0) return new Set()
+
+  // 构造 AssemblyDefinition，委托 executeDoAssemble 执行
+  const assemblyDef: AssemblyDefinition = {
+    name: assemblyStmt.args?.name as string | undefined,
+    members: (assemblyStmt.args?.members as string[]) ?? [],
+    constraints,
+  }
+
+  // 传入 brepChain（含 solidCache / kernel）使 BREP 路径同步变换；
+  // 传入 script 使下游 mesh 传播生效。
+  const results = executeDoAssemble(assemblyDef, outputCache, {
+    brepChain: brepChain ?? undefined,
+    script,
+  })
+
+  // 收集被变换的 part names（executeDoAssemble 返回的直接变换结果）
+  const transformedIds = new Set<string>(results.keys())
+  // 下游传播的 part 也需要同步（propagateTransformDownstream 修改了 outputCache 但不返回哪些被改了）
+  // 简单策略：assembly members + 其所有下游语句 id
+  const members = (assemblyStmt.args?.members as string[]) ?? []
+  for (const m of members) {
+    transformedIds.add(m)
+    // 沿 inputs 链找下游
+    const visited = new Set<string>()
+    const queue = [m]
+    while (queue.length > 0) {
+      const cur = queue.shift()!
+      if (visited.has(cur)) continue
+      visited.add(cur)
+      // 找以 cur 为 input 的语句
+      for (const s of script.statements) {
+        if (s.inputs?.includes(cur) && !visited.has(s.id)) {
+          transformedIds.add(s.id)
+          queue.push(s.id)
+        }
+      }
+    }
+  }
+
+  return transformedIds
 }

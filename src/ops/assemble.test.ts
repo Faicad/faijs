@@ -8,7 +8,7 @@
  * - executeDoAssemble（执行装配，含 mesh 变换 + 下游传播 + BREP 路径）
  */
 import { describe, it, expect } from 'vitest'
-import { solveFaceMate, applyTransform, previewAssembly, executeDoAssemble } from './assemble'
+import { solveFaceMate, applyTransform, previewAssembly, executeDoAssemble, executeAssemblyPassForStmt } from './assemble'
 import type { Shape } from '../ops/types'
 import type { FaceMateConstraint, AssemblyDefinition } from './assemble'
 import type { PartScript, CadStatement } from '../lang/types'
@@ -330,6 +330,204 @@ describe('E15.1: 装配约束求解器', () => {
       const r2 = cache2.get('part1_v0')!.positions
       for (let i = 0; i < r1.length; i++) {
         expect(r1[i]).toBeCloseTo(r2[i], 5)
+      }
+    })
+  })
+
+  // ── executeAssemblyPassForStmt 测试（从 do_assemble 语句执行装配 pass） ──
+
+  describe('executeAssemblyPassForStmt', () => {
+    /** 构造标准测试场景：两个 part + assembly 语句 + do_assemble 语句 */
+    function makeScene() {
+      const movingShape: Shape = {
+        positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+        indices: new Uint32Array([0, 1, 2]),
+      }
+      const fixedShape: Shape = {
+        positions: new Float32Array([0, 0, 5, 1, 0, 5, 0, 1, 5]),
+        indices: new Uint32Array([0, 1, 2]),
+      }
+      const outputCache = new Map<string, Shape>([
+        ['part0_v0', fixedShape],
+        ['part1_v0', movingShape],
+      ])
+
+      const constraints: FaceMateConstraint[] = [{
+        type: 'face_mate',
+        fixedPartName: 'part0_v0',
+        movingPartName: 'part1_v0',
+        fixedFace: { faceId: 'f0', surfaceType: 'plane', center: [0, 0, 5], normal: [0, 0, 1] },
+        movingFace: { faceId: 'f1', surfaceType: 'plane', center: [0, 0, 3], normal: [0, 0, 1] },
+      }]
+
+      const statements: CadStatement[] = [
+        { id: 'part0_v0', op: 'box', args: {}, inputs: [] },
+        { id: 'part1_v0', op: 'box', args: {}, inputs: [] },
+        { id: 'grp_1', op: 'assembly', args: { members: ['part0_v0', 'part1_v0'], constraints } as unknown as Record<string, import('../lang/types').Arg>, inputs: [] },
+        { id: 'grp_2', op: 'do_assemble', args: {}, inputs: [], assemblyTarget: 'grp_1' },
+      ]
+      const script: PartScript = { statements, params: [] }
+
+      return { outputCache, script, movingShape, fixedShape }
+    }
+
+    it('从 do_assemble 语句找到 assembly 语句并执行变换', () => {
+      const { outputCache, script } = makeScene()
+      const doAssembleStmt = script.statements.find(s => s.op === 'do_assemble')!
+
+      const transformedIds = executeAssemblyPassForStmt(doAssembleStmt, outputCache, script)
+
+      // moving part 应被变换（part1_v0）
+      expect(transformedIds.has('part1_v0')).toBe(true)
+      // assembly 的所有 members 都在 transformedIds 中（包括 fixed part）
+      // 因为 executeAssemblyPassForStmt 收集 members + 下游传播的 parts
+      expect(transformedIds.has('part0_v0')).toBe(true)
+
+      // outputCache 中 moving shape 应被变换
+      // 顶点 [0,0,0]: solveFaceMate(movingCenter=[0,0,3], movingNormal=[0,0,1], fixedCenter=[0,0,5], fixedNormal=[0,0,1])
+      // 旋转180°绕Y轴, pivot=[0,0,3], translation=[0,0,2]
+      // R*(-3)+3+2 = 3+5 = 8
+      const transformed = outputCache.get('part1_v0')!
+      expect(transformed.positions[2]).toBeCloseTo(8, 5)
+    })
+
+    it('do_assemble 没有 assemblyTarget 时返回空集合', () => {
+      const { outputCache, script } = makeScene()
+      const doAssembleStmt: CadStatement = {
+        id: 'grp_2',
+        op: 'do_assemble',
+        args: {},
+        inputs: [],
+        // 没有 assemblyTarget
+      }
+
+      const result = executeAssemblyPassForStmt(doAssembleStmt, outputCache, script)
+      expect(result.size).toBe(0)
+    })
+
+    it('assemblyTarget 指向不存在的语句时返回空集合', () => {
+      const { outputCache, script } = makeScene()
+      const doAssembleStmt: CadStatement = {
+        id: 'grp_2',
+        op: 'do_assemble',
+        args: {},
+        inputs: [],
+        assemblyTarget: 'nonexistent_stmt',
+      }
+
+      const result = executeAssemblyPassForStmt(doAssembleStmt, outputCache, script)
+      expect(result.size).toBe(0)
+    })
+
+    it('assemblyTarget 指向非 assembly 语句时返回空集合', () => {
+      const { outputCache, script } = makeScene()
+      const doAssembleStmt: CadStatement = {
+        id: 'grp_2',
+        op: 'do_assemble',
+        args: {},
+        inputs: [],
+        assemblyTarget: 'part0_v0', // part0_v0 是 box 语句，不是 assembly
+      }
+
+      const result = executeAssemblyPassForStmt(doAssembleStmt, outputCache, script)
+      expect(result.size).toBe(0)
+    })
+
+    it('assembly 语句没有 constraints 时返回空集合', () => {
+      const { outputCache, script } = makeScene()
+      // 修改 assembly 语句，去掉 constraints
+      const assemblyStmt = script.statements.find(s => s.op === 'assembly')!
+      assemblyStmt.args = { members: ['part0_v0', 'part1_v0'] } // 没有 constraints
+
+      const doAssembleStmt = script.statements.find(s => s.op === 'do_assemble')!
+      const result = executeAssemblyPassForStmt(doAssembleStmt, outputCache, script)
+      expect(result.size).toBe(0)
+    })
+
+    it('assembly 语句 constraints 为空数组时返回空集合', () => {
+      const { outputCache, script } = makeScene()
+      const assemblyStmt = script.statements.find(s => s.op === 'assembly')!
+      assemblyStmt.args = { members: ['part0_v0', 'part1_v0'], constraints: [] }
+
+      const doAssembleStmt = script.statements.find(s => s.op === 'do_assemble')!
+      const result = executeAssemblyPassForStmt(doAssembleStmt, outputCache, script)
+      expect(result.size).toBe(0)
+    })
+
+    it('下游 part 也包含在 transformedIds 中（沿 inputs 链传播）', () => {
+      const movingShape: Shape = {
+        positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+        indices: new Uint32Array([0, 1, 2]),
+      }
+      const downstreamShape: Shape = {
+        positions: new Float32Array([0, 0, 10, 1, 0, 10, 0, 1, 10]),
+        indices: new Uint32Array([0, 1, 2]),
+      }
+      const outputCache = new Map<string, Shape>([
+        ['part0_v0', { positions: new Float32Array([0, 0, 5]), indices: new Uint32Array([0]) }],
+        ['part1_v0', movingShape],
+        ['part1_v1', downstreamShape],
+      ])
+
+      const constraints: FaceMateConstraint[] = [{
+        type: 'face_mate',
+        fixedPartName: 'part0_v0',
+        movingPartName: 'part1_v0',
+        fixedFace: { faceId: 'f0', surfaceType: 'plane', center: [0, 0, 5], normal: [0, 0, 1] },
+        movingFace: { faceId: 'f1', surfaceType: 'plane', center: [0, 0, 3], normal: [0, 0, 1] },
+      }]
+
+      const statements: CadStatement[] = [
+        { id: 'part0_v0', op: 'box', args: {}, inputs: [] },
+        { id: 'part1_v0', op: 'box', args: {}, inputs: [] },
+        { id: 'part1_v1', op: 'translate', args: { offset: [0, 0, 10] }, inputs: ['part1_v0'] },
+        { id: 'grp_1', op: 'assembly', args: { members: ['part0_v0', 'part1_v0'], constraints } as unknown as Record<string, import('../lang/types').Arg>, inputs: [] },
+        { id: 'grp_2', op: 'do_assemble', args: {}, inputs: [], assemblyTarget: 'grp_1' },
+      ]
+      const script: PartScript = { statements, params: [] }
+
+      const doAssembleStmt = statements.find(s => s.op === 'do_assemble')!
+      const transformedIds = executeAssemblyPassForStmt(doAssembleStmt, outputCache, script)
+
+      // moving part + 下游 part 都应在集合中
+      expect(transformedIds.has('part1_v0')).toBe(true)
+      expect(transformedIds.has('part1_v1')).toBe(true)
+
+      // 下游 shape 也应被变换
+      // 原始下游 z = 10, 变换后: R*(10-3)+3+2 = R*7+5 → 旋转180°绕Y轴 [0,0,7]→[0,0,-7], -7+5 = -2
+      const transformedDownstream = outputCache.get('part1_v1')!
+      expect(transformedDownstream.positions[2]).toBeCloseTo(-2, 5)
+    })
+
+    it('与 executeDoAssemble 结果一致（同一变换）', () => {
+      const { outputCache, script, movingShape } = makeScene()
+
+      // 直接调 executeDoAssemble
+      const directCache = new Map<string, Shape>([
+        ['part0_v0', { positions: new Float32Array([0, 0, 5]), indices: new Uint32Array([0]) }],
+        ['part1_v0', { positions: new Float32Array([...movingShape.positions]), indices: new Uint32Array([...movingShape.indices]) }],
+      ])
+      const assemblyDef: AssemblyDefinition = {
+        members: ['part0_v0', 'part1_v0'],
+        constraints: [{
+          type: 'face_mate',
+          fixedPartName: 'part0_v0',
+          movingPartName: 'part1_v0',
+          fixedFace: { faceId: 'f0', surfaceType: 'plane', center: [0, 0, 5], normal: [0, 0, 1] },
+          movingFace: { faceId: 'f1', surfaceType: 'plane', center: [0, 0, 3], normal: [0, 0, 1] },
+        }],
+      }
+      executeDoAssemble(assemblyDef, directCache, { script })
+
+      // 调 executeAssemblyPassForStmt
+      const doAssembleStmt = script.statements.find(s => s.op === 'do_assemble')!
+      executeAssemblyPassForStmt(doAssembleStmt, outputCache, script)
+
+      // 两个路径的结果应一致
+      const directResult = directCache.get('part1_v0')!.positions
+      const stmtResult = outputCache.get('part1_v0')!.positions
+      for (let i = 0; i < directResult.length; i++) {
+        expect(stmtResult[i]).toBeCloseTo(directResult[i], 5)
       }
     })
   })
