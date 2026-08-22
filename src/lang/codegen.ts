@@ -297,7 +297,7 @@ export function buildArgsParts(stmt: CadStatement, varNames?: Map<string, string
       break
     }
 
-    // ── 分组 / 装配（结构型 marker） ──
+    // ── 分组 / 装配（结构型语句） ──
     case 'group': {
       push('name', args.name)
       push('members', args.members)

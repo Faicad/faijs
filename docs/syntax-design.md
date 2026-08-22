@@ -50,7 +50,7 @@
 - **双向转换**：
   - UI → PartScript → `scriptToCode` → `.faijs` 文本（代码视图）。
   - AI → `.faijs` 文本 → `parseScript`（acorn）→ PartScript。
-  - 序列化是**可逆投影**：statement 对象的 `id`=变量名、`inputs`=参数引用、`op`=函数名；parser 能原样解析回来（部分宿主字段如 `seq`/`groupScopedId`/`createdBy` 不进入文本，属宿主层信息）。
+  - 序列化是**可逆投影**：statement 对象的 `id`=变量名、`inputs`=参数引用、`op`=函数名；parser 能原样解析回来（部分宿主字段如 `seq`/`createdBy` 不进入文本，属宿主层信息）。
 - **终端自动推导**：不被任何语句引用为输入的输出即终端（叶子节点）。
 - **meta（name/color/metalness/roughness）不进代码文本**：由宿主（3d_editor）store 管理；`.faijs` 文本中不存在 `return { shape, name, color }`。
 - **执行永远走 CadRuntime**：`cad.*` 在文本里只是**约定**（合法 JS 子集），应用内执行时 parser 还原为结构化语句。几何由引擎双链路执行（BREP 优先，`MESH_ONLY_OPS = {sdf, knurl}`、mesh 源文件、多输入布尔含 mesh 输入时静态切换 mesh；**禁止运行时回退**）。
@@ -95,13 +95,13 @@ const part4_v0 = await cad.union(part1_v1, part3_v0)
 ### 2.3 形态清单（缺一不可、多一不可）
 
 ```
-script   = ( <comment> | <param> | <stmt> | <marker> )*
+script   = ( <comment> | <param> | <stmt> | <structural> )*
 comment  = // 单行注释（不占操作行）
 param    = const <name> = <literal>                                              // 参数：字面量（数/串/布尔/数组/对象/负数）
 stmt     = const <id> = [await] cad.<op>(<inputVar>?, { <key>:<val>, … })                       // 版本链语句
          | const <id> = [await] cad.<union|subtract|intersect>(<inputVar>, <inputVar>, …)        // 布尔（多输入）
          | const { front: <id>, back: <id> } = [await] cad.split(<inputVar>, { … })              // 多输出
-marker   = cad.group(<obj>) | cad.assembly(<obj>)                                                 // 裸调用，不赋值
+structural = cad.group(<obj>) | cad.assembly(<obj>)                                              // 裸调用，不赋值，不产出几何
 ```
 
 - `// apiVersion: N` 注释**可选**（缺省 1）。
@@ -123,7 +123,7 @@ marker   = cad.group(<obj>) | cad.assembly(<obj>)                               
 
 ## 3. 语句模型 ↔ `CadStatement` 映射
 
-现有 `CadStatement = { id, op, args, inputs, name?, feature, isMarker?, model?, outputs?, seq?, groupScopedId? }`（`types.ts`）。**parser 只填充 `id`/`op`/`args`/`inputs`/`feature`（`createdBy:'script'`）/`outputs`（split）**；`model`/`seq`/`groupScopedId` 由宿主层（3d_editor）填充。映射规则（表中示例 id 为 UI 层自动生成的 partN_vM 形态；AI / 手写代码的 id 可为任意合法 JS 标识符）：
+现有 `CadStatement = { id, op, args, inputs, name?, feature, model?, outputs?, seq? }`（`types.ts`）。**parser 只填充 `id`/`op`/`args`/`inputs`/`feature`（`createdBy:'script'`）/`outputs`（split）**；`model`/`seq` 由宿主层（3d_editor）填充。映射规则（表中示例 id 为 UI 层自动生成的 partN_vM 形态；AI / 手写代码的 id 可为任意合法 JS 标识符）：
 
 | 文本（平铺） | PartScript |
 |------|-----------|
@@ -133,14 +133,14 @@ marker   = cad.group(<obj>) | cad.assembly(<obj>)                               
 | `cad.faceCenter(part0_v0)` | `args.position = GeomRef { $geom: { of: 'part0_v0', feature: 'faceCenter', faceOrdinal?: <n>, anchor?: { point } } }`（`faceOrdinal` 为拓扑面序号引用，优先于 `anchor` 几何反查；`anchor.normal` 类型存在但文本无法表达） |
 | `const { front: part1_v0, back: part2_v0 } = await cad.split(part0_v2, {…})` | `{ id: 'part1_v0', op: 'split', args: {…}, inputs: ['part0_v2'], outputs: ['part1_v0','part2_v0'] }`（一个语句、两个输出 id；`front`→`part1` 模型、`back`→`part2` 模型） |
 | `const part4_v0 = await cad.union(part1_v1, part3_v0)` | `{ id: 'part4_v0', op: 'boolean', args: { operation: 'union' }, inputs: ['part1_v1','part3_v0'] }`（多输入；codegen 渲染回 `cad.union(...)`；subtract/intersect 同构） |
-| `cad.group({ name, members })` | `{ id: 'grp_N', op: 'group', args: {…}, inputs: [], feature: { kind: 'group', …, createdBy: 'script' }, isMarker: true }`（marker 不参与执行、不写终端；assembly 同构） |
+| `cad.group({ name, members })` | `{ id: 'grp_N', op: 'group', args: {…}, inputs: [], feature: { kind: 'group', …, createdBy: 'script' } }`（结构型语句，不产出几何、不写终端；assembly 同构） |
 | 终端（自动推导，无 return） | `PartScript.terminalShapes = [ { id: 'part2_v1' }, { id: 'part4_v0' } ]`（未被引用的输出；单终端时等价单 mesh，meta 由宿主提供） |
 | 提交来源（UI / AI） | `feature.createdBy = 'user' \| 'ai'`（parser 统一产 `'script'`；宿主按提交上下文 / diff 继承重标，非语法） |
 
 **`id` 全局唯一 + 模型/版本分离（partName 体系，关键决策）**：
 - 每个模型 `partN` 拥有独立版本链 `partN_v0, partN_v1, …`。`part0` 是主模型；`part1`/`part2`/… 是 split / 独立图元 / 布尔派生的其它模型。
 - 所有语句 `id`（`part0_v0`、`part1_v0`、`part2_v1`…）在整场景中**全局唯一**——模型号不同天然不冲突（`part0_vN` 与 `part1_vM` 永不撞）。
-- 人类 UI 路径记录语句时即按上述规则分配 id（主模型 append `part0_vN`、split 产出 `partN_v0`/`part(N+1)_v0`、独立新图元 `partN_v0`）。**AI / 手写代码的 id 不受此命名约束**（任意合法 JS 标识符），引擎按 id 对齐（见 §4），`partN_vM` 仅是 UI 层的形态约定。`st_*` 仅用于 load/sdf 等非可编辑来源；`grp_N` 仅用于 group/assembly marker。
+- 人类 UI 路径记录语句时即按上述规则分配 id（主模型 append `part0_vN`、split 产出 `partN_v0`/`part(N+1)_v0`、独立新图元 `partN_v0`）。**AI / 手写代码的 id 不受此命名约束**（任意合法 JS 标识符），引擎按 id 对齐（见 §4），`partN_vM` 仅是 UI 层的形态约定。`st_*` 仅用于 load/sdf 等非可编辑来源；`grp_N` 仅用于 group/assembly 结构型语句。
 - `model?: string`（= id 中的模型号，如 `'part0'`/`'part1'`，供时间轴/代码视图按模型分组）与 `outputs?: string[]`（默认 `[id]`：普通 op `outputs=[id]`，split 多输出写入 `['part1_v0','part2_v0']`）。`outputCache` 按 **output id** 索引，下游用具体输出 id（`part1_v0`/`part2_v0`）引用。`model` 当前由宿主填充（parser 不产出，见 reconciliation §2.3）。
 
 > 理由：引擎用 `stmt.id` 作 `outputCache` 键、用 `inputs` 引用其它语句。把"模型"与"版本"拆成 `partN_vM` 两个命名维度后，split / 新图元 / 布尔产物各自拿到不冲突的模型号 `partN`——diff 只需按 id 对齐，不看编号池。

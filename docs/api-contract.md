@@ -80,12 +80,9 @@ export interface CadStatement {
   inputs: ShapeRef[]         // 上游语句 id（顺序敏感，见各 op）
   name?: string              // 语句显示名（Timeline 用），不进 args
   feature: FeatureMeta
-  isMarker?: boolean         // 标记型语句：不进 execution 执行序列，仅供 Timeline 展示
-                              //   与 codegen 跳过（如 split 源 part marker、group/assembly marker）
   model?: string             // 所属模型号（UI 层自动生成代码为 partN），多 mesh DAG 区分不同模型
   outputs?: string[]         // 多输出 op 的输出 id 列表（split 写两个输出 id）
   seq?: number               // 全局序列号，timeline 跨 part 线性排序用
-  groupScopedId?: string     // group/assembly marker 关联的场景 scopedId
 }
 
 export type FeatureKind =
@@ -233,10 +230,10 @@ async function executeScript(
 ): Promise<ExecuteOutput>   // { contentKey, shape, brepActive?, breakReason?, brepChain? }
 ```
 
-- 按 `statements` **拓扑序**逐条执行；`isMarker` 语句跳过（不执行、不写缓存）。
+- 按 `statements` **拓扑序**逐条执行；结构型语句（group/assembly）空执行（不产出几何、不写缓存）。
 - 每条输出按 `stmt.id` 写入 `outputCache`；多输出 op 还会写入 `stmt.outputs` 各 id。
 - 输入解析：先查本 part `outputCache`，再查 `inputGeometryMap`（跨 part 上游）。
-- 最终输出 = **最后一条非 marker 语句**的输出；空脚本（无非 marker 语句）拒绝执行。
+- 最终输出 = **最后一条非结构型语句**的输出；空脚本（无非结构型语句）拒绝执行。
 - 始终贯穿一条 `BrepChainState`，终端 solid 句柄保留在返回的 `brepChain` 中供导出。
 - `contentKey` 为几何等价度量手段（见 §9.4），用于判定 T-1 自包含。
 
@@ -259,7 +256,7 @@ async function executeScript(
 - `const <id> = [await] cad.<op>(<inputVar>?, { ...args })` → `CadStatement`（`<id>` 即语句 id = 变量名；UI 层自动生成代码采用 `partN_vM`）
 - `const { front: <id>, back: <id> } = [await] cad.split(<inputVar>, { ...args })` → 多输出语句（front/back 各为一个输出 id）
 - `cad.faceCenter(part0_v0)` / `cad.faceNormal(...)` / `cad.bboxCenter(...)` / `cad.bboxMin(...)` / `cad.bboxMax(...)` → `GeomRef`（派生位置引用）
-- `cad.group({ ... })` / `cad.assembly({ ... })` 裸调用 → marker 语句（`grp_N`，`isMarker`，不参与执行）
+- `cad.group({ ... })` / `cad.assembly({ ... })` 裸调用 → 结构型语句（`grp_N`，不产出几何）
 - 终端 = 自动推导（不被引用的输出即终端 → `PartScript.terminalShapes`）；`meta`（name/color 等）由宿主层管理，不进文本
 - **禁止**：`param`/`with` 关键字、对象字面量用 `=`、循环/条件/IIFE/try-catch/模板字符串、`eval`/`new Function`/动态 `import()`、除 split 外的解构、跨语句重名 const、函数定义
 - 越界一律 `ParseError`
@@ -274,7 +271,7 @@ const part0_v1 = await cad.drill(part0_v0, { diameter: 5, depth: 0, position: ca
 
 ### 9.2 语句 id 稳定性
 
-- UI 层自动生成的代码采用 `partN_vM` 命名（模型 N 的版本 M），既是变量名也是语句 id；`part0` 是主模型，`partN`(N≥1) 为 split/独立图元/布尔派生的其它模型。**AI / 手写代码的 id 不受此约束**，可用任意合法 JS 标识符。`st_<partLocalSeq>` 命名仅保留给 load/sdf 等非可编辑来源（以及自动生成的 marker 语句）。
+- UI 层自动生成的代码采用 `partN_vM` 命名（模型 N 的版本 M），既是变量名也是语句 id；`part0` 是主模型，`partN`(N≥1) 为 split/独立图元/布尔派生的其它模型。**AI / 手写代码的 id 不受此约束**，可用任意合法 JS 标识符。`st_<partLocalSeq>` 命名仅保留给 load/sdf 等非可编辑来源（以及自动生成的结构型语句）。
 - parser 加载文本：与既有 PartScript 按 id 对齐（`scriptToCode → parseScript` 往返保 id 稳定）；UI 层自动生成的新 id 遵循 `allocateStatementId`，AI / 手写代码的新 id 由作者自定（不得与既有 id 重复）。
 - 文本导出用变量名而非裸 id，降低跨会话耦合。
 

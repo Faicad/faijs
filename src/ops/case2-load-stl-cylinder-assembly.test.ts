@@ -7,7 +7,7 @@
  * - load STL → 非 CAD 源，cube_v0 无 solid（mesh）
  * - cylinder → BREP-native，cyl_v0 持有 solid
  * - drill(cyl) → 上游有 solid → 走 BREP 精确路径
- * - assembly marker → execution skips (zero geometry impact)
+ * - assembly statement → execution skips (zero geometry impact)
  * - rotate(drilled, {anglesDeg, pivot}) → BREP 精确变换（需 pivot 正确传递）
  * - translate(rotated, {offset}) → BREP 精确变换
  *
@@ -239,7 +239,7 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
     fileBlobStore.release(bufferKey)
   })
 
-  it('assembly marker has correct members and is skipped during execution', async () => {
+  it('assembly statement has correct members and is skipped during execution', async () => {
     const bufferKey = fileBlobStore.put(stlBuffer)
     const stmts: CadStatement[] = [
       makeStmt('cube_v0', 'load', { key: bufferKey, format: 'stl' }, [],
@@ -268,7 +268,7 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
     const result = await runScript(stmts)
     expect(result.failedAt).toBeUndefined()
 
-    // Verify assembly marker metadata
+    // Verify assembly statement metadata
     const asmStmt = stmts.find(s => s.op === 'assembly')
     expect(asmStmt).toBeDefined()
     expect(asmStmt!.args.members).toEqual(['cube_v0', 'drilled_v0'])

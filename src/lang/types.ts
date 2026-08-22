@@ -118,11 +118,6 @@ export interface CadStatement {
    *  在 appendStatement / insertStatementAt 时由 script-store 自动赋值。
    *  undo/redo 后随 partScripts 快照恢复，保持时间线顺序一致。 */
   seq?: number
-  /** 组/装配结构型语句专属：记录该语句对应的组/装配 scopedId。
-   *  用于 sceneScript 单一 DAG 中关联结构型语句与 model-store.groups。
-   *  普通几何语句不需要此字段。 */
-  groupScopedId?: string
-
   /** 装配链式调用专属：标记 `assem1.add_constraint(...)` / `assem1.do_assemble()` 的目标变量。
    *  指向 assembly 语句的变量名（= 语句 id）。 */
   assemblyTarget?: string
