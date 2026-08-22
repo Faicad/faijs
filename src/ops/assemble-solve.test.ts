@@ -36,10 +36,6 @@ function vec3Dist(a: number[], b: number[]): number {
   return vec3Len(vec3Sub(a, b))
 }
 
-function vec3Dot(a: number[], b: number[]): number {
-  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
-}
-
 // ── 核心：验证 solveFaceMate 的变换结果 ──
 
 /**

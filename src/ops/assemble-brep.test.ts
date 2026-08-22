@@ -12,7 +12,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { initOcctWasm, getKernel, disposeOcctWasm } from '../occt-kernel/occtKernel'
-import type { OcctKernel, ShapeHandle } from 'occt-wasm'
+import type { OcctKernel } from 'occt-wasm'
 import { solveFaceMate, applyTransform } from './assemble'
 import { applyTransformBrep } from '../brep/brep-ops'
 import { getSolidBoundingBox } from '../brep/brep-utils'
@@ -39,32 +39,6 @@ function vec3Len(v: number[]): number {
 function vec3Dist(a: number[], b: number[]): number {
   return vec3Len(vec3Sub(a, b))
 }
-function vec3Normalize(v: number[]): number[] {
-  const len = vec3Len(v)
-  if (len < 1e-12) return [0, 0, 0]
-  return [v[0] / len, v[1] / len, v[2] / len]
-}
-
-// ── 从 solid 提取面中心和法线 ──
-
-/**
- * 从 OCCT solid 提取面的中心和法线。
- * 使用 meshShape 三角化后从顶点推导。
- */
-function getFaceCenterAndNormal(
-  kernel: OcctKernel,
-  solid: ShapeHandle,
-  faceFilter: (bbox: { min: number[]; max: number[] }) => boolean,
-): { center: [number, number, number]; normal: [number, number, number] } {
-  const bbox = getSolidBoundingBox(kernel, solid)
-  if (!faceFilter(bbox)) {
-    throw new Error('Face filter did not match')
-  }
-  // 根据 bbox 确定面中心和法线
-  // 这里的逻辑和 FaceOverlayRenderer 中从拓扑数据获取 center/normal 一致
-  throw new Error('Not implemented — use topology data instead')
-}
-
 // ── 测试 ──
 
 describe('solveFaceMate + applyTransformBrep: BREP solid face coincidence', () => {
@@ -72,7 +46,7 @@ describe('solveFaceMate + applyTransformBrep: BREP solid face coincidence', () =
     // 1. 创建圆柱体（半径 10，高 20，中心在原点 [0,0,0]）
     //    底部在 z=-10，顶部在 z=10
     //    顶面中心: [0, 0, 10], 法线: [0, 0, 1]
-    const cylinder = kernel.makeCylinder(10, 20, { x: 0, y: 0, z: -10 })
+    const cylinder = kernel.makeCylinder(10, 20)
 
     // 2. 创建方块（大小 20，中心在 [100, 0, 0]）
     //    底面中心: [100, 0, -10], 法线: [0, 0, -1]
@@ -187,7 +161,7 @@ describe('solveFaceMate + applyTransformBrep: BREP solid face coincidence', () =
     const movingCenter: [number, number, number] = [200, 300, 390]
     const movingNormal: [number, number, number] = [0, 0, -1]
 
-    const { quaternion, pivot, translation, rotationMatrix } = solveFaceMate(
+    const { quaternion, pivot, translation } = solveFaceMate(
       fixedCenter, fixedNormal,
       movingCenter, movingNormal,
     )
@@ -238,7 +212,6 @@ describe('solveFaceMate + applyTransformBrep: BREP solid face coincidence', () =
     const boxBTransformed = applyTransformBrep(kernel, boxB, quaternion, pivot, translation)
 
     // 验证变换后方块 B 的面中心 == 方块 A 顶面中心
-    const bboxAfter = getSolidBoundingBox(kernel, boxBTransformed)
     // 由于旋转 180°，方块 B 的顶面(原来 z=20)变成底面
     // 变换后的底面 z 应该 = 10 (与方块 A 顶面重合)
     // 但旋转 180° 会使 z 轴翻转，所以原来 z=0 的面变成 z=20 的面

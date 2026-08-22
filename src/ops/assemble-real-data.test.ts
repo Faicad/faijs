@@ -19,7 +19,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { initOcctWasm, getKernel, disposeOcctWasm } from '../occt-kernel/occtKernel'
-import type { OcctKernel, ShapeHandle } from 'occt-wasm'
+import type { OcctKernel } from 'occt-wasm'
 import { solveFaceMate, applyTransform } from './assemble'
 import { applyTransformBrep } from '../brep/brep-ops'
 import { getSolidBoundingBox } from '../brep/brep-utils'
@@ -63,7 +63,7 @@ const MOVING_NORMAL: [number, number, number] = [0, 0, 1]
 
 describe('solveFaceMate: real data from user faijs file', () => {
   it('invariant 1: transformed movingFace.center == fixedFace.center', () => {
-    const { quaternion, pivot, translation, rotationMatrix } = solveFaceMate(
+    const { pivot, translation, rotationMatrix } = solveFaceMate(
       FIXED_CENTER, FIXED_NORMAL,
       MOVING_CENTER, MOVING_NORMAL,
     )
@@ -87,7 +87,7 @@ describe('solveFaceMate: real data from user faijs file', () => {
   })
 
   it('invariant 2: transformed movingFace.normal == -fixedFace.normal', () => {
-    const { quaternion, pivot, translation, rotationMatrix } = solveFaceMate(
+    const { rotationMatrix } = solveFaceMate(
       FIXED_CENTER, FIXED_NORMAL,
       MOVING_CENTER, MOVING_NORMAL,
     )
@@ -106,7 +106,7 @@ describe('solveFaceMate: real data from user faijs file', () => {
   })
 
   it('invariant: both center and normal hold simultaneously', () => {
-    const { quaternion, pivot, translation, rotationMatrix } = solveFaceMate(
+    const { pivot, translation, rotationMatrix } = solveFaceMate(
       FIXED_CENTER, FIXED_NORMAL,
       MOVING_CENTER, MOVING_NORMAL,
     )
@@ -141,7 +141,7 @@ describe('solveFaceMate: real data from user faijs file', () => {
 describe('solveFaceMate + applyTransformBrep: BREP solid with real data', () => {
   it('cylinder + box from faijs: box solid moves so face coincides', () => {
     // 1. 创建 cylinder: radius=10, height=20, center=[0,0,0]
-    const cylinder = kernel.makeCylinder(10, 20, { x: 0, y: 0, z: -10 })
+    const cylinder = kernel.makeCylinder(10, 20)
 
     // 2. 创建 box: size=20, center=[10,0,0]
     //    box 角点: [10-10, 0-10, 0-10] = [0, -10, -10] 到 [10+10, 0+10, 0+10] = [20, 10, 10]
@@ -151,7 +151,7 @@ describe('solveFaceMate + applyTransformBrep: BREP solid with real data', () => 
     )
 
     // 3. 使用真实约束数据
-    const { quaternion, pivot, translation, rotationMatrix } = solveFaceMate(
+    const { quaternion, pivot, translation } = solveFaceMate(
       FIXED_CENTER, FIXED_NORMAL,
       MOVING_CENTER, MOVING_NORMAL,
     )
