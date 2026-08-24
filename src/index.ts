@@ -19,7 +19,7 @@
 // ── L0 文本�?──
 export type {
   PartScript, CadStatement, Arg, Vec3, JsonValue, ShapeRef,
-  ParamRef, GeomRef, AssetRef, FeatureKind, FeatureMeta,
+  ParamRef, GeomRef, AssetRef,
   TerminalShape, ParamDef, PartScriptMeta,
 } from './lang/types'
 export {

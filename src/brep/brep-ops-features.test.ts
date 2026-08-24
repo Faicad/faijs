@@ -46,9 +46,9 @@ import {
   isCadFormat,
 } from '../brep'
 import type { Shape } from '../mesh/types'
-import type { PartScript, CadStatement, FeatureKind } from '../lang/types'
 import { executeScript, executeStatement } from '../test-helpers'
 import { ensureTestFontLoader } from '../brep/text/fontTestHelper'
+import type { CadStatement, PartScript } from '../lang/types'
 
 let kernel: OcctKernel
 
@@ -568,14 +568,12 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
     op: string,
     args: Record<string, unknown>,
     inputs: string[] = [],
-    featureKind?: FeatureKind,
   ): CadStatement {
     return {
       id,
       op,
       args: args as any,
       inputs,
-      feature: { kind: featureKind ?? ('primitive' as FeatureKind), label: op, createdBy: 'user' },
       hasAssignment: true,
       returnType: 'new_shape',
     }
@@ -592,12 +590,12 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
 
   it('executeScript(box → drill, brep) → solid in cache', async () => {
     const script = makeScript([
-      makeStmt('s1', 'box', { size: 20 }, [], 'primitive'),
+      makeStmt('s1', 'box', { size: 20 }, []),
       makeStmt('s2', 'drill', {
         diameter: 6, depth: 0,
         position: [0, 0, 10], direction: 'normal',
         faceNormal: [0, 0, 1], holeType: 'simple',
-      }, ['s1'], 'drill'),
+      }, ['s1']),
     ])
 
     const result = await executeScript(script)
@@ -617,7 +615,7 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
     const outputCache = new Map<string, Shape>()
 
     // 1. 执行 box 语句（BREP 路径）
-    const boxStmt = makeStmt('s1', 'box', { size: 20 }, [], 'primitive')
+    const boxStmt = makeStmt('s1', 'box', { size: 20 }, [])
     const boxShape = await executeStatement(boxStmt, [], outputCache, undefined, brepChain)
     outputCache.set('s1', boxShape)
     expect(brepChain.solidCache.has('s1')).toBe(true)
@@ -627,7 +625,7 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
       diameter: 6, depth: 0,
       position: [0, 0, 10], direction: 'normal',
       faceNormal: [0, 0, 1], holeType: 'simple',
-    }, ['s1'], 'drill')
+    }, ['s1'])
     const drilledShape = await executeStatement(drillStmt, [boxShape], outputCache, undefined, brepChain)
     outputCache.set('s2', drilledShape)
     expect(brepChain.solidCache.has('s2')).toBe(true)
@@ -636,7 +634,7 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
     const engraveStmt = makeStmt('s3', 'engrave', {
       engravingType: 'text', mode: 'concave', depth: 1,
       text: 'A', textSize: 10,
-    }, ['s2'], 'engrave')
+    }, ['s2'])
     const engraveShape = await executeStatement(engraveStmt, [drilledShape], outputCache, undefined, brepChain)
     outputCache.set('s3', engraveShape)
 
@@ -651,12 +649,12 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
     // 核心测试：BREP 状态不是持久状态。每次 executeScript 创建新的 BrepChainState，
     // 删除 engrave 语句后重放 → solidCache 仍有 drill solid
     const script = makeScript([
-      makeStmt('s1', 'box', { size: 20 }, [], 'primitive'),
+      makeStmt('s1', 'box', { size: 20 }, []),
       makeStmt('s2', 'drill', {
         diameter: 6, depth: 0,
         position: [0, 0, 10], direction: 'normal',
         faceNormal: [0, 0, 1], holeType: 'simple',
-      }, ['s1'], 'drill'),
+      }, ['s1']),
       // 没有 engrave — 链应保持活跃
     ])
 
@@ -672,12 +670,12 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
   it('STEP export from unbroken BREP chain contains ADVANCED_FACE (not POLYGONAL_FACE)', async () => {
     // 验证未断裂的 BREP 链终端 solid 导出为原生 STEP（精确曲面）
     const script = makeScript([
-      makeStmt('s1', 'box', { size: 20 }, [], 'primitive'),
+      makeStmt('s1', 'box', { size: 20 }, []),
       makeStmt('s2', 'drill', {
         diameter: 6, depth: 0,
         position: [0, 0, 10], direction: 'normal',
         faceNormal: [0, 0, 1], holeType: 'simple',
-      }, ['s1'], 'drill'),
+      }, ['s1']),
     ])
 
     const result = await executeScript(script)

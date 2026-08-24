@@ -18,7 +18,6 @@ function makeStmt(id: string, op: string, inputs: string[] = [], outputs?: strin
     op,
     args: {},
     inputs,
-    feature: { kind: 'primitive', label: op, createdBy: 'user' },
     outputs,
   }
 }

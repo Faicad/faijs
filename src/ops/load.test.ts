@@ -17,7 +17,7 @@ import { resolve } from 'node:path'
 import { initOcctWasm, getKernel } from '../occt-kernel/occtKernel'
 import type { OcctKernel } from 'occt-wasm'
 import type { Shape } from './types'
-import type { CadStatement, FeatureKind, PartScript } from '../lang/types'
+import type { CadStatement, PartScript } from '../lang/types'
 import { loadBrep } from '../brep/brep-ops'
 import { createRuntime, type ExecutionResult } from '../cad-runtime/runtime'
 import type { HostPorts, EventSink, AssetResolver } from '../cad-runtime/ports'
@@ -82,13 +82,11 @@ function makeStmt(
   op: string,
   args: Record<string, unknown>,
   inputs: string[] = [],
-  featureKind?: FeatureKind,
 ): CadStatement {
   return {
     id, op,
     args: args as any,
     inputs,
-    feature: { kind: featureKind ?? 'load', label: op, createdBy: 'user' },
     hasAssignment: true,
     returnType: 'new_shape',
   }

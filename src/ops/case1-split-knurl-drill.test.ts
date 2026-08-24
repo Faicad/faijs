@@ -57,7 +57,6 @@ function makeStmt(
     id, op,
     args: args as never,
     inputs,
-    feature: { kind: 'primitive', label: op, createdBy: 'user' },
     hasAssignment: true,
     returnType: 'new_shape',
     ...extra,

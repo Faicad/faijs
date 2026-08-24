@@ -21,7 +21,7 @@ import { createNodePorts } from '../node-host'
 import { MESH_ONLY_OPS } from '../brep/brep-chain'
 import { ensureTestFontLoader } from '../brep/text/fontTestHelper'
 import type { Shape } from './types'
-import type { CadStatement, FeatureKind, PartScript } from '../lang/types'
+import type { CadStatement, PartScript } from '../lang/types'
 
 beforeAll(async () => {
   await initOcctWasm()
@@ -43,13 +43,11 @@ function makeStmt(
   op: string,
   args: Record<string, unknown>,
   inputs: string[] = [],
-  featureKind?: FeatureKind,
 ): CadStatement {
   return {
     id, op,
     args: args as any,
     inputs,
-    feature: { kind: featureKind ?? 'sdf', label: op, createdBy: 'user' },
     hasAssignment: true,
     returnType: 'new_shape',
   }
@@ -114,7 +112,7 @@ describe('sdf: static chain break', () => {
 
   it('sdf breaks BREP chain in auto mode', async () => {
     const stmts = [
-      makeStmt('s1', 'box', { size: 20 }, [], 'primitive'),
+      makeStmt('s1', 'box', { size: 20 }, []),
       makeStmt('s2', 'sdf', {
         code: SPHERE_SDF,
         box: [[-15, -15, -15], [15, 15, 15]],

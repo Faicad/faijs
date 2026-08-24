@@ -69,31 +69,6 @@ export function isParamRef(arg: Arg): arg is ParamRef {
   return arg !== null && typeof arg === 'object' && !Array.isArray(arg) && '$param' in arg
 }
 
-// ── 特征元数据 ──
-
-export type FeatureKind =
-  | 'load'
-  | 'primitive'
-  | 'transform'
-  | 'drill'
-  | 'screwHole'
-  | 'split'
-  | 'extrude'
-  | 'boolean'
-  | 'engrave'
-  | 'knurl'
-  | 'sdf'
-  | 'group'
-  | 'assembly'
-  | 'do_assemble'
-
-export interface FeatureMeta {
-  kind: FeatureKind
-  label: string
-  createdBy: 'user' | 'ai' | 'script'
-  alternateParams?: Partial<Record<FeatureKind, Record<string, Arg>>>
-}
-
 // ── 语句 ──
 
 /** 语句返回值类型（四类）。
@@ -109,7 +84,6 @@ export interface CadStatement {
   args: Record<string, Arg>
   inputs: ShapeRef[]
   name?: string
-  feature?: FeatureMeta
   /** 多输出 op 的输出 id 列表（设计文档 §3）。
    *  默认 [id]（普通 op）；split 多输出写入 ['part1_v0','part2_v0']。
    *  outputCache 按 output id 索引，下游用具体 output id 引用。 */
@@ -185,10 +159,9 @@ export function createStatement(
   op: string,
   args: Record<string, Arg>,
   inputs: ShapeRef[],
-  feature?: FeatureMeta,
   name?: string,
 ): CadStatement {
-  return { id, op, args, inputs, feature, name }
+  return { id, op, args, inputs, name }
 }
 
 /**

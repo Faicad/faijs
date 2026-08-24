@@ -160,7 +160,6 @@ describe('op-set-consistency: schema ↔ codegen 参数键集', () => {
         op,
         args: args as never,
         inputs: [],
-        feature: { kind: 'primitive', label: op, createdBy: 'user' },
       }
 
       const parts = buildArgsParts(stmt)
@@ -195,7 +194,6 @@ describe('op-set-consistency: schema ↔ codegen 参数键集', () => {
         op,
         args: args as never,
         inputs: [],
-        feature: { kind: 'primitive', label: op, createdBy: 'user' },
       }
 
       const parts = buildArgsParts(stmt)

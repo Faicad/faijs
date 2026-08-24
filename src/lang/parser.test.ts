@@ -24,7 +24,6 @@ function makeStmt(partial: Partial<CadStatement>): CadStatement {
     op: 'box',
     args: {},
     inputs: [],
-    feature: { kind: 'primitive', label: 'box', createdBy: 'user' },
     ...partial,
   }
 }
@@ -327,7 +326,7 @@ describe('parser: 往返 codegen → parser', () => {
       params: [],
       statements: [
         makeStmt({ id: 'part0_v0', op: 'box', args: { size: 20 } }),
-        makeStmt({ id: 'part0_v1', op: 'translate', args: { offset: [10, 0, 0] }, inputs: ['part0_v0'], feature: { kind: 'transform', label: '移动', createdBy: 'user' } }),
+        makeStmt({ id: 'part0_v1', op: 'translate', args: { offset: [10, 0, 0] }, inputs: ['part0_v0'] }),
       ],
     }
     const code = scriptToCode(script)
@@ -344,7 +343,7 @@ describe('parser: 往返 codegen → parser', () => {
       statements: [
         makeStmt({ id: 'part0_v0', op: 'box', args: { size: 20 } }),
         makeStmt({ id: 'part0_v1', op: 'sphere', args: { radius: 10 } }),
-        makeStmt({ id: 'part0_v2', op: 'boolean', args: { operation: 'union', sourcePartNames: ['s0', 's1'] }, inputs: ['part0_v0', 'part0_v1'], feature: { kind: 'boolean', label: '合并', createdBy: 'user' } }),
+        makeStmt({ id: 'part0_v2', op: 'boolean', args: { operation: 'union', sourcePartNames: ['s0', 's1'] }, inputs: ['part0_v0', 'part0_v1'] }),
       ],
     }
     const code = scriptToCode(script)

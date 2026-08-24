@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿/**
  * @faicad/faijs/browser — Browser-safe exports (F6: A/B/C/D 四类收敛)
  *
  * Excludes L3 Node Host modules (node-host/*) that depend on node:fs/node:path.
@@ -24,7 +24,7 @@
 
 export type {
   PartScript, CadStatement, Arg, Vec3, JsonValue, ShapeRef,
-  ParamRef, GeomRef, AssetRef, FeatureKind, FeatureMeta,
+  ParamRef, GeomRef, AssetRef,
   TerminalShape, ParamDef, PartScriptMeta,
 } from './lang/types'
 export {

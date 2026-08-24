@@ -21,7 +21,7 @@ import type { EventSink } from '../cad-runtime/ports'
 import { createNodePorts } from '../node-host'
 import { ensureTestFontLoader } from '../brep/text/fontTestHelper'
 import type { Shape } from './types'
-import type { CadStatement, FeatureKind, PartScript } from '../lang/types'
+import type { CadStatement, PartScript } from '../lang/types'
 
 beforeAll(async () => {
   await initOcctWasm()
@@ -43,13 +43,11 @@ function makeStmt(
   op: string,
   args: Record<string, unknown>,
   inputs: string[] = [],
-  featureKind?: FeatureKind,
 ): CadStatement {
   return {
     id, op,
     args: args as any,
     inputs,
-    feature: { kind: featureKind ?? 'extrude', label: op, createdBy: 'user' },
     hasAssignment: true,
     returnType: 'new_shape',
   }
@@ -98,7 +96,7 @@ function computeBBox(positions: Float32Array): { min: [number, number, number]; 
 describe('extrude: basic modes (BREP + mesh)', () => {
   it('centered mode: box → extrude → result has more vertices', async () => {
     const stmts = [
-      makeStmt('s1', 'box', { size: 20 }, [], 'primitive'),
+      makeStmt('s1', 'box', { size: 20 }, []),
       makeStmt('s2', 'extrude', { length: 10, mode: 'centered' }, ['s1']),
     ]
 
@@ -116,7 +114,7 @@ describe('extrude: basic modes (BREP + mesh)', () => {
 
   it('forward mode: box → extrude → result extends in +normal direction', async () => {
     const stmts = [
-      makeStmt('s1', 'box', { size: 20 }, [], 'primitive'),
+      makeStmt('s1', 'box', { size: 20 }, []),
       makeStmt('s2', 'extrude', { length: 10, mode: 'forward', normal: [0, 0, 1] }, ['s1']),
     ]
 
@@ -132,7 +130,7 @@ describe('extrude: basic modes (BREP + mesh)', () => {
 
   it('backward mode: box → extrude → result extends in -normal direction', async () => {
     const stmts = [
-      makeStmt('s1', 'box', { size: 20 }, [], 'primitive'),
+      makeStmt('s1', 'box', { size: 20 }, []),
       makeStmt('s2', 'extrude', { length: 10, mode: 'backward', normal: [0, 0, 1] }, ['s1']),
     ]
 
@@ -150,7 +148,7 @@ describe('extrude: basic modes (BREP + mesh)', () => {
 describe('extrude: custom normal and originOffset', () => {
   it('custom normal [1,0,0]: box → extrude → extends in X direction', async () => {
     const stmts = [
-      makeStmt('s1', 'box', { size: 20 }, [], 'primitive'),
+      makeStmt('s1', 'box', { size: 20 }, []),
       makeStmt('s2', 'extrude', { length: 10, mode: 'centered', normal: [1, 0, 0] }, ['s1']),
     ]
 
@@ -162,7 +160,7 @@ describe('extrude: custom normal and originOffset', () => {
 
   it('with originOffset: box → extrude → extrude plane offset', async () => {
     const stmts = [
-      makeStmt('s1', 'box', { size: 20 }, [], 'primitive'),
+      makeStmt('s1', 'box', { size: 20 }, []),
       makeStmt('s2', 'extrude', { length: 10, mode: 'centered', normal: [0, 0, 1], originOffset: 5 }, ['s1']),
     ]
 
@@ -176,7 +174,7 @@ describe('extrude: custom normal and originOffset', () => {
 describe('extrude: cylinder source', () => {
   it('cylinder → extrude centered → valid result', async () => {
     const stmts = [
-      makeStmt('s1', 'cylinder', { radius: 10, height: 20 }, [], 'primitive'),
+      makeStmt('s1', 'cylinder', { radius: 10, height: 20 }, []),
       makeStmt('s2', 'extrude', { length: 15, mode: 'centered' }, ['s1']),
     ]
 
@@ -205,7 +203,7 @@ describe('extrude: error cases', () => {
 describe('extrude: BREP/mesh equivalence', () => {
   it('box → extrude centered: BREP and mesh produce equivalent bbox', async () => {
     const stmts = [
-      makeStmt('s1', 'box', { size: 20 }, [], 'primitive'),
+      makeStmt('s1', 'box', { size: 20 }, []),
       makeStmt('s2', 'extrude', { length: 10, mode: 'centered' }, ['s1']),
     ]
 

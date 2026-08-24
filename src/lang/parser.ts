@@ -25,7 +25,6 @@ import type {
   Arg,
   AssetRef,
   CadStatement,
-  FeatureMeta,
   GeomRef,
   JsonValue,
   ParamDef,
@@ -58,32 +57,11 @@ function getLine(node: ASTNode): number {
   return node?.loc?.start?.line ?? 0
 }
 
-// ── FeatureKind 推导 ──
+// ── AST 辅助常量 ──
 
-const PRIMITIVE_OPS = new Set(['box', 'sphere', 'cylinder', 'cone', 'wedge', 'text', 'screw', 'svgExtrude'])
-const TRANSFORM_OPS = new Set(['translate', 'rotate', 'scale'])
 const BOOLEAN_OP_NAMES = new Set(['union', 'subtract', 'intersect'])
 const GEOMREF_FEATURES = new Set(['bboxCenter', 'bboxMin', 'bboxMax', 'faceCenter', 'faceNormal'])
 const ASSET_FEATURES = new Set(['asset'])
-
-function opToFeatureKind(op: string): FeatureMeta['kind'] {
-  if (PRIMITIVE_OPS.has(op)) return 'primitive'
-  if (TRANSFORM_OPS.has(op)) return 'transform'
-  if (op === 'drill') return 'drill'
-  if (op === 'split') return 'split'
-  if (op === 'extrude') return 'extrude'
-  if (op === 'boolean') return 'boolean'
-  if (op === 'engrave') return 'engrave'
-  if (op === 'knurl') return 'knurl'
-  if (op === 'load') return 'load'
-  if (op === 'loadFile' || op === 'loadUrl' || op === 'loadByKey') return 'load'
-  if (op === 'sdf') return 'sdf'
-  if (op === 'screwHole') return 'screwHole'
-  if (op === 'group') return 'group'
-  if (op === 'assembly') return 'assembly'
-  if (op === 'add_constraint' || op === 'do_assemble') return 'do_assemble'
-  return 'primitive'
-}
 
 // ── AST 值解析 ──
 
@@ -301,15 +279,9 @@ function parseCadStatement(
   // 语句 id = 变量名（partN_vM 体系，设计文档 §3）
   const id = varName
 
-  const feature: FeatureMeta = {
-    kind: opToFeatureKind(op),
-    label: op,
-    createdBy: 'script',
-  }
-
   const rt = getOpReturnType(op)
   const stmt: CadStatement = {
-    id, op, args, inputs, feature,
+    id, op, args, inputs,
     hasAssignment: true,
     returnType: rt,
   }
@@ -425,14 +397,8 @@ function parseSplitDestructuring(
   // outputs 包含两个输出 id
   const outputs = [frontVarName, backVarName]
 
-  const feature: FeatureMeta = {
-    kind: 'split',
-    label: 'split',
-    createdBy: 'script',
-  }
-
   const stmt: CadStatement = {
-    id, op: 'split', args, inputs, feature, outputs,
+    id, op: 'split', args, inputs, outputs,
     hasAssignment: true,
     returnType: getOpReturnType('split'),
   }
@@ -702,7 +668,6 @@ export function parseScript(code: string, _options?: ParseOptions): ParseResult 
             op: opName,
             args,
             inputs: [],
-            feature: { kind: opName as 'group' | 'assembly', label: opName, createdBy: 'script' },
             hasAssignment: true,
             returnType: getOpReturnType(opName),
           }
@@ -807,7 +772,6 @@ export function parseScript(code: string, _options?: ParseOptions): ParseResult 
               op: methodName,
               args,
               inputs: [],
-              feature: { kind: 'do_assemble', label: methodName, createdBy: 'script' },
               assemblyTarget: targetVar,
               hasAssignment: false,
               returnType: getOpReturnType(methodName),

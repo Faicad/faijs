@@ -34,8 +34,8 @@ import { createRuntime, type ExecutionResult } from './cad-runtime/runtime'
 import { createNodePorts } from './node-host'
 import type { ExecutionMode } from './cad-runtime/ports'
 import type { Shape } from './ops/types'
-import type { PartScript, CadStatement, FeatureKind } from './lang/types'
 import { ensureTestFontLoader } from './brep/text/fontTestHelper'
+import type { CadStatement, PartScript } from './lang/types'
 
 beforeAll(async () => {
   await initOcctWasm()
@@ -49,13 +49,11 @@ function makeStmt(
   op: string,
   args: Record<string, unknown>,
   inputs: string[] = [],
-  featureKind?: FeatureKind,
 ): CadStatement {
   return {
     id, op,
     args: args as any,
     inputs,
-    feature: { kind: featureKind ?? 'primitive', label: op, createdBy: 'user' },
     hasAssignment: true,
     returnType: 'new_shape',
   }

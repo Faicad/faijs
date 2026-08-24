@@ -21,7 +21,7 @@ import { createNodePorts } from '../node-host'
 import { MESH_ONLY_OPS } from '../brep/brep-chain'
 import { ensureTestFontLoader } from '../brep/text/fontTestHelper'
 import type { Shape } from './types'
-import type { CadStatement, FeatureKind, PartScript } from '../lang/types'
+import type { CadStatement, PartScript } from '../lang/types'
 
 beforeAll(async () => {
   await initOcctWasm()
@@ -43,13 +43,11 @@ function makeStmt(
   op: string,
   args: Record<string, unknown>,
   inputs: string[] = [],
-  featureKind?: FeatureKind,
 ): CadStatement {
   return {
     id, op,
     args: args as any,
     inputs,
-    feature: { kind: featureKind ?? 'knurl', label: op, createdBy: 'user' },
     hasAssignment: true,
     returnType: 'new_shape',
   }
@@ -88,7 +86,7 @@ describe('knurl: static chain break', () => {
 
   it('knurl breaks BREP chain in auto mode', async () => {
     const stmts = [
-      makeStmt('s1', 'box', { size: 20 }, [], 'primitive'),
+      makeStmt('s1', 'box', { size: 20 }, []),
       makeStmt('s2', 'knurl', {
         faceCenter: [0, 0, 10],
         faceNormal: [0, 0, 1],
@@ -127,7 +125,7 @@ describe('knurl: static chain break', () => {
 describe('knurl: mesh path (node limitations)', () => {
   it('knurl in mesh mode: box → knurl → chain already broken, mesh path attempted', async () => {
     const stmts = [
-      makeStmt('s1', 'box', { size: 20 }, [], 'primitive'),
+      makeStmt('s1', 'box', { size: 20 }, []),
       makeStmt('s2', 'knurl', {
         faceCenter: [0, 0, 10],
         faceNormal: [0, 0, 1],
@@ -156,7 +154,7 @@ describe('knurl: mesh path (node limitations)', () => {
 describe('knurl: parameter variations', () => {
   it('knurl with default parameters (all optional)', async () => {
     const stmts = [
-      makeStmt('s1', 'box', { size: 20 }, [], 'primitive'),
+      makeStmt('s1', 'box', { size: 20 }, []),
       makeStmt('s2', 'knurl', {
         faceCenter: [0, 0, 10],
         faceNormal: [0, 0, 1],
@@ -173,7 +171,7 @@ describe('knurl: parameter variations', () => {
 
   it('knurl with custom parameters', async () => {
     const stmts = [
-      makeStmt('s1', 'box', { size: 30 }, [], 'primitive'),
+      makeStmt('s1', 'box', { size: 30 }, []),
       makeStmt('s2', 'knurl', {
         faceCenter: [0, 0, 15],
         faceNormal: [0, 0, 1],

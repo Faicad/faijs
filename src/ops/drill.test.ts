@@ -87,7 +87,6 @@ function makeStmt(
     id, op,
     args: args as never,
     inputs,
-    feature: { kind: 'drill', label: op, createdBy: 'user' },
     hasAssignment: true,
     returnType: 'new_shape',
     ...extra,
@@ -344,7 +343,7 @@ describe('drill: execute (load STL → drill) with partTransform', () => {
 
     const stmts: CadStatement[] = [
       makeStmt('part0_v0', 'load', { key: bufferKey, format: 'stl' }, [],
-        { feature: { kind: 'load', label: 'load', createdBy: 'user' } }),
+        { }),
       makeStmt('part1_v0', 'drill', {
         diameter: 2,
         depth: 0,               // through hole
@@ -385,7 +384,7 @@ describe('drill: execute (load STL → drill) with partTransform', () => {
 
     const stmts: CadStatement[] = [
       makeStmt('part0_v0', 'load', { key: bufferKey, format: 'stl' }, [],
-        { feature: { kind: 'load', label: 'load', createdBy: 'user' } }),
+        { }),
       makeStmt('part1_v0', 'drill', {
         diameter: 2,
         depth: 0,

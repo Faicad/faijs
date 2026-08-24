@@ -23,7 +23,7 @@ import type { HostPorts, EventSink, AssetResolver } from '../cad-runtime/ports'
 import { ensureTestFontLoader } from '../brep/text/fontTestHelper'
 import { fileBlobStore } from '../test/blob-store'
 import type { Shape } from './types'
-import type { CadStatement, FeatureKind, PartScript } from '../lang/types'
+import type { CadStatement, PartScript } from '../lang/types'
 
 // Polyfill DOMParser for Node.js — SVGLoader.parse needs it
 import { DOMParser as NodeDOMParser } from '@xmldom/xmldom'
@@ -80,13 +80,11 @@ function makeStmt(
   op: string,
   args: Record<string, unknown>,
   inputs: string[] = [],
-  featureKind?: FeatureKind,
 ): CadStatement {
   return {
     id, op,
     args: args as any,
     inputs,
-    feature: { kind: featureKind ?? 'primitive', label: op, createdBy: 'user' },
     hasAssignment: true,
     returnType: 'new_shape',
   }

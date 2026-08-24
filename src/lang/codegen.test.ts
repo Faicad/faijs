@@ -20,7 +20,6 @@ function makeStmt(partial: Partial<CadStatement>): CadStatement {
     op: 'box',
     args: {},
     inputs: [],
-    feature: { kind: 'primitive', label: 'box', createdBy: 'user' },
     ...partial,
   }
 }
@@ -88,7 +87,6 @@ describe('codegen: statementToLine 布尔', () => {
       op: 'boolean',
       args: { operation: 'subtract', sourcePartNames: ['p1', 'p2'] },
       inputs: ['part0_v0', 'part0_v1'],
-      feature: { kind: 'boolean', label: 'boolean', createdBy: 'user' },
     })
     expect(statementToLine(stmt)).toBe('const part0_v2 = cad.subtract(part0_v0, part0_v1)')
   })
@@ -101,7 +99,6 @@ describe('codegen: statementToLine 雕刻', () => {
       op: 'engrave',
       args: { text: 'Hello', depth: 2, textSize: 10 },
       inputs: ['part0_v0'],
-      feature: { kind: 'engrave', label: 'engrave', createdBy: 'user' },
     })
     expect(statementToLine(stmt)).toBe("const part0_v1 = cad.engrave(part0_v0, { text:'Hello', depth:2, textSize:10 })")
   })
@@ -122,7 +119,7 @@ describe('codegen: scriptToCode', () => {
     const script = makeScript([
       makeStmt({ id: 'part0_v0', op: 'box', args: { size: 20 } }),
       makeStmt({ id: 'part0_v1', op: 'translate', args: { offset: [0, 0, 5] }, inputs: ['part0_v0'] }),
-      makeStmt({ id: 'part0_v2', op: 'drill', args: { diameter: 5, depth: 0 }, inputs: ['part0_v1'], feature: { kind: 'drill', label: '钻孔', createdBy: 'user' } }),
+      makeStmt({ id: 'part0_v2', op: 'drill', args: { diameter: 5, depth: 0 }, inputs: ['part0_v1'] }),
     ])
     const code = scriptToCode(script)
     expect(code).toBe(
@@ -140,7 +137,7 @@ describe('codegen: scriptToCode', () => {
     const script = makeScript([
       makeStmt({ id: 'part0_v0', op: 'box', args: { size: 20 } }),
       makeStmt({ id: 'part0_v1', op: 'sphere', args: { radius: 10 } }),
-      makeStmt({ id: 'part0_v2', op: 'boolean', args: { operation: 'union', sourcePartNames: ['s0', 's1'] }, inputs: ['part0_v0', 'part0_v1'], feature: { kind: 'boolean', label: '合并', createdBy: 'user' } }),
+      makeStmt({ id: 'part0_v2', op: 'boolean', args: { operation: 'union', sourcePartNames: ['s0', 's1'] }, inputs: ['part0_v0', 'part0_v1'] }),
     ])
     const code = scriptToCode(script)
     expect(code).toContain('cad.union(part0_v0, part0_v1)')
@@ -155,13 +152,12 @@ describe('codegen: split 解构输出', () => {
       params: [],
       statements: [
         makeStmt({ id: 'part0_v0', op: 'box', args: { size: 20 } }),
-        makeStmt({ id: 'part0_v1', op: 'translate', args: { offset: [0, 0, 5] }, inputs: ['part0_v0'], feature: { kind: 'transform', label: '移动', createdBy: 'user' } }),
+        makeStmt({ id: 'part0_v1', op: 'translate', args: { offset: [0, 0, 5] }, inputs: ['part0_v0'] }),
         makeStmt({
           id: 'part1_v0',
           op: 'split',
           args: { cutMode: 'plane', normal: [0, 0, 1], offset: 0, inPlaneAngleDeg: 0, side: 'front' },
           inputs: ['part0_v1'],
-          feature: { kind: 'split', label: 'split', createdBy: 'user' },
           outputs: ['part1_v0', 'part2_v0'],
         }),
       ],
@@ -183,7 +179,6 @@ describe('codegen: 外部 st_ id 含冒号时报错', () => {
           op: 'split',
           inputs: ['st_prim_panel_1:o1_1'],
           args: { normal: [0, 0, 1], offset: 0, inPlaneAngleDeg: 0, side: 'front', bbCenter: [0, 0, 0], bboxSize: [20, 20, 20] },
-          feature: { kind: 'split', label: '分割', createdBy: 'user' },
         }),
       ],
     }
@@ -243,7 +238,7 @@ describe('codegen: center 参数往返 (codegen → parser)', () => {
 describe('codegen: GeomRef with faceOrdinal round-trip', () => {
   it('GeomRef with faceOrdinal round-trip: codegen → parse → same args', () => {
     const script = makeScript([
-      { id: 'part1_v0', op: 'box', args: { size: [10, 10, 10] }, inputs: [], feature: { kind: 'primitive', label: 'box', createdBy: 'user' } },
+      { id: 'part1_v0', op: 'box', args: { size: [10, 10, 10] }, inputs: [] },
       {
         id: 'part1_v1',
         op: 'engrave',
@@ -254,7 +249,6 @@ describe('codegen: GeomRef with faceOrdinal round-trip', () => {
           faceNormal: { $geom: { of: 'part1_v0', feature: 'faceNormal', faceOrdinal: 4, anchor: { point: [5, 5, 10] } } },
         },
         inputs: ['part1_v0'],
-        feature: { kind: 'engrave', label: '雕刻 "test"', createdBy: 'user' },
       },
     ])
     const fullCode = scriptToCode(script)
@@ -272,9 +266,9 @@ describe('codegen: transform 语句', () => {
   it('box + translate + rotate + scale', () => {
     const script = makeScript([
       makeStmt({ id: 's0', op: 'box', args: { size: 20 } }),
-      makeStmt({ id: 's1', op: 'translate', args: { offset: [10, 0, 0] }, inputs: ['s0'], feature: { kind: 'transform', label: '移动', createdBy: 'user' } }),
-      makeStmt({ id: 's2', op: 'rotate', args: { anglesDeg: [0, 0, 90] }, inputs: ['s1'], feature: { kind: 'transform', label: '旋转', createdBy: 'user' } }),
-      makeStmt({ id: 's3', op: 'scale', args: { factor: 2 }, inputs: ['s2'], feature: { kind: 'transform', label: '缩放', createdBy: 'user' } }),
+      makeStmt({ id: 's1', op: 'translate', args: { offset: [10, 0, 0] }, inputs: ['s0'] }),
+      makeStmt({ id: 's2', op: 'rotate', args: { anglesDeg: [0, 0, 90] }, inputs: ['s1'] }),
+      makeStmt({ id: 's3', op: 'scale', args: { factor: 2 }, inputs: ['s2'] }),
     ])
     const code = scriptToCode(script)
     expect(code).toContain('cad.translate(part0_v0, { offset:[10,0,0] })')

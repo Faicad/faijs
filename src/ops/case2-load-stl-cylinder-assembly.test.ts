@@ -88,7 +88,6 @@ function makeStmt(
     id, op,
     args: args as never,
     inputs,
-    feature: { kind: 'primitive', label: op, createdBy: 'user' },
     hasAssignment: true,
     returnType: 'new_shape',
     ...extra,
@@ -119,7 +118,7 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
     const stmts: CadStatement[] = [
       // S0: load STL → non-CAD source → mesh only, no solid
       makeStmt('cube_v0', 'load', { key: bufferKey, format: 'stl' }, [],
-        { feature: { kind: 'load', label: 'load', createdBy: 'user' } }),
+        { }),
       // S1: cylinder → BREP-native → should stay BREP
       makeStmt('cyl_v0', 'cylinder', { radius: 5, height: 20 }, []),
       // S2: drill on cylinder → upstream has solid → should stay BREP
@@ -137,13 +136,13 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
           fixedFace: { faceId: 'cube_top', surfaceType: 'plane' },
           movingFace: { faceId: 'cyl_top', surfaceType: 'plane' },
         }],
-      }, [], { feature: { kind: 'assembly', label: 'assembly', createdBy: 'user' } }),
+      }, [], { }),
       // S4: rotate with pivot — BREP-native transform
       makeStmt('rot_v0', 'rotate', { anglesDeg: [180, 0, 0], pivot: [0, 0, 20] }, ['drilled_v0'],
-        { feature: { kind: 'transform', label: 'rotate', createdBy: 'user' } }),
+        { }),
       // S5: translate — BREP-native transform
       makeStmt('mated_v0', 'translate', { offset: [0, 0, 5] }, ['rot_v0'],
-        { feature: { kind: 'transform', label: 'translate', createdBy: 'user' } }),
+        { }),
     ]
 
     const result = await runScript(stmts)
@@ -170,7 +169,7 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
     const bufferKey = fileBlobStore.put(stlBuffer)
     const stmts: CadStatement[] = [
       makeStmt('cube_v0', 'load', { key: bufferKey, format: 'stl' }, [],
-        { feature: { kind: 'load', label: 'load', createdBy: 'user' } }),
+        { }),
       makeStmt('cyl_v0', 'cylinder', { radius: 5, height: 20 }, []),
       makeStmt('drilled_v0', 'drill', {
         diameter: 6, depth: 20, holeType: 'simple',
@@ -181,11 +180,11 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
         name: 'CubeOnCylinder',
         members: ['cube_v0', 'drilled_v0'],
         constraints: [],
-      }, [], { feature: { kind: 'assembly', label: 'assembly', createdBy: 'user' } }),
+      }, [], { }),
       makeStmt('rot_v0', 'rotate', { anglesDeg: [180, 0, 0], pivot: [0, 0, 20] }, ['drilled_v0'],
-        { feature: { kind: 'transform', label: 'rotate', createdBy: 'user' } }),
+        { }),
       makeStmt('mated_v0', 'translate', { offset: [0, 0, 5] }, ['rot_v0'],
-        { feature: { kind: 'transform', label: 'translate', createdBy: 'user' } }),
+        { }),
     ]
 
     const result = await runScript(stmts)
@@ -204,7 +203,7 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
     const bufferKey = fileBlobStore.put(stlBuffer)
     const stmts: CadStatement[] = [
       makeStmt('cube_v0', 'load', { key: bufferKey, format: 'stl' }, [],
-        { feature: { kind: 'load', label: 'load', createdBy: 'user' } }),
+        { }),
       makeStmt('cyl_v0', 'cylinder', { radius: 5, height: 20 }, []),
       makeStmt('drilled_v0', 'drill', {
         diameter: 6, depth: 20, holeType: 'simple',
@@ -212,9 +211,9 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
         faceNormal: [0, 0, 1],
       }, ['cyl_v0']),
       makeStmt('rot_v0', 'rotate', { anglesDeg: [180, 0, 0], pivot: [0, 0, 20] }, ['drilled_v0'],
-        { feature: { kind: 'transform', label: 'rotate', createdBy: 'user' } }),
+        { }),
       makeStmt('mated_v0', 'translate', { offset: [0, 0, 5] }, ['rot_v0'],
-        { feature: { kind: 'transform', label: 'translate', createdBy: 'user' } }),
+        { }),
     ]
 
     const result = await runScript(stmts)
@@ -243,7 +242,7 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
     const bufferKey = fileBlobStore.put(stlBuffer)
     const stmts: CadStatement[] = [
       makeStmt('cube_v0', 'load', { key: bufferKey, format: 'stl' }, [],
-        { feature: { kind: 'load', label: 'load', createdBy: 'user' } }),
+        { }),
       makeStmt('cyl_v0', 'cylinder', { radius: 5, height: 20 }, []),
       makeStmt('drilled_v0', 'drill', {
         diameter: 6, depth: 20, holeType: 'simple',
@@ -258,11 +257,11 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
           fixedFace: { faceId: 'cube_top', surfaceType: 'plane' },
           movingFace: { faceId: 'cyl_top', surfaceType: 'plane' },
         }],
-      }, [], { feature: { kind: 'assembly', label: 'assembly', createdBy: 'user' } }),
+      }, [], { }),
       makeStmt('rot_v0', 'rotate', { anglesDeg: [180, 0, 0], pivot: [0, 0, 20] }, ['drilled_v0'],
-        { feature: { kind: 'transform', label: 'rotate', createdBy: 'user' } }),
+        { }),
       makeStmt('mated_v0', 'translate', { offset: [0, 0, 5] }, ['rot_v0'],
-        { feature: { kind: 'transform', label: 'translate', createdBy: 'user' } }),
+        { }),
     ]
 
     const result = await runScript(stmts)
@@ -292,7 +291,7 @@ describe('Pivot parity: rotate(anglesDeg, pivot) — BREP vs mesh path consisten
     const stmts: CadStatement[] = [
       makeStmt('s1', 'box', { size: 10, center: [20, 0, 0] }, []),
       makeStmt('s2', 'rotate', { anglesDeg: [0, 0, 90], pivot: [20, 0, 0] }, ['s1'],
-        { feature: { kind: 'transform', label: 'rotate', createdBy: 'user' } }),
+        { }),
     ]
 
     // Run in auto mode (BREP path)
@@ -350,7 +349,7 @@ describe('Pivot parity: rotate(anglesDeg, pivot) — BREP vs mesh path consisten
     const stmts: CadStatement[] = [
       makeStmt('s1', 'box', { size: 10, center: [20, 0, 0] }, []),
       makeStmt('s2', 'rotate', { anglesDeg: [0, 0, 90] }, ['s1'],
-        { feature: { kind: 'transform', label: 'rotate', createdBy: 'user' } }),
+        { }),
     ]
 
     // BREP path

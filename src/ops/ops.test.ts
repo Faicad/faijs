@@ -15,7 +15,7 @@ import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest'
 import { initOcctWasm, getKernel } from '../occt-kernel/occtKernel'
 import type { OcctKernel } from 'occt-wasm'
 import type { Shape } from './types'
-import type { CadStatement, FeatureKind, PartScript } from '../lang/types'
+import type { CadStatement, PartScript } from '../lang/types'
 import { createRuntime, type ExecutionResult } from '../cad-runtime/runtime'
 import type { HostPorts, EventSink } from '../cad-runtime/ports'
 import { MESH_ONLY_OPS } from '../brep/brep-chain'
@@ -55,13 +55,11 @@ function makeStmt(
   op: string,
   args: Record<string, unknown>,
   inputs: string[] = [],
-  featureKind?: FeatureKind,
 ): CadStatement {
   return {
     id, op,
     args: args as any,
     inputs,
-    feature: { kind: featureKind ?? 'primitive', label: op, createdBy: 'user' },
     hasAssignment: true,
     returnType: 'new_shape',
   }

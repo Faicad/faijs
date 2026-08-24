@@ -59,7 +59,6 @@ function makeStmt(
     id, op,
     args: args as any,
     inputs,
-    feature: { kind: 'primitive', label: op, createdBy: 'user' },
     hasAssignment: !noAssignment,
     returnType,
   }
@@ -554,7 +553,6 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
       args: { cutMode: 'plane', normal: [0, 0, 1], offset: 0 } as never,
       inputs: ['s0'],
       outputs: ['s1', 's1b'], // stmt.id === outputs[0]；outputs[1] (back) 需显式持久化
-      feature: { kind: 'split', label: 'split', createdBy: 'user' },
       hasAssignment: true,
       returnType: 'new_shape',
     }
@@ -578,7 +576,6 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
       args: { cutMode: 'plane', normal: [0, 0, 1], offset: 0 } as never,
       inputs: ['s0'],
       outputs: ['s1', 's1b'],
-      feature: { kind: 'split', label: 'split', createdBy: 'user' },
       hasAssignment: true,
       returnType: 'new_shape',
     }
@@ -621,7 +618,6 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
         }],
       },
       inputs: [],
-      feature: { kind: 'assembly', label: 'testAssembly', createdBy: 'user' },
       hasAssignment: true,
       returnType: 'new_shape',
     }
