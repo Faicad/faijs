@@ -354,7 +354,12 @@ function buildReference({
   const displaySelector = normalizedSelector
   const label = `${selectorTypeLabel(selectorType)} ${displaySelector}`
   const summary = referenceSummary(selectorType, row)
-  const id = `topology|${scopedId || ''}|${selectorType}|${displaySelector}`
+  // referenceId format: `topology|<selectorType>|<displaySelector>`
+  // The scopedId segment was removed (2026-08-24): it was always empty because
+  // no caller passes the scopedId option to buildSelectorRuntime. The
+  // selectorRuntime is already resolved per-file by the consumer
+  // (getSelectorRuntime(fileId)), so the key does not need to carry fileId.
+  const id = `topology|${selectorType}|${displaySelector}`
 
   const adjacentSelectors =
     relationRows && targetRows && startKey && countKey && targetKey
