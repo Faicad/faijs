@@ -14,6 +14,7 @@
 import type { CompiledStatementMeta } from '../lang/compile'
 import type { CadStatement, PartScript } from '../lang/types'
 import type { Shape } from '../mesh/types'
+import type { ShapeHandle } from 'occt-wasm'
 import type { PartName, StmtId } from '../identity'
 import { asPartName } from '../identity'
 import { computeContentKey } from './content-key'
@@ -49,6 +50,10 @@ async function importModule(code: string): Promise<{ statements: CompiledStateme
 export interface ModuleExecutorOptions {
   /** 释放某 PartName 的 OCCT 句柄（reconcileCtx 删除变量时调用；无句柄则 no-op） */
   releaseSolid?: (partName: PartName) => void
+  /** 读取某 PartName 当前持有的 OCCT 句柄（顶替释放预捕获用） */
+  getSolid?: (partName: PartName) => ShapeHandle | undefined
+  /** 释放一个已捕获的 OCCT 句柄（顶替释放：同 id 重算成功后释放旧 handle） */
+  releaseHandle?: (handle: ShapeHandle) => void
 }
 
 export class ModuleExecutor {
@@ -64,10 +69,14 @@ export class ModuleExecutor {
   private lastCode = ''
   private readonly cad: StdlibNamespace
   private readonly releaseSolid?: (partName: PartName) => void
+  private readonly getSolid?: (partName: PartName) => ShapeHandle | undefined
+  private readonly releaseHandle?: (handle: ShapeHandle) => void
 
   constructor(cad: StdlibNamespace, options?: ModuleExecutorOptions) {
     this.cad = cad
     this.releaseSolid = options?.releaseSolid
+    this.getSolid = options?.getSolid
+    this.releaseHandle = options?.releaseHandle
   }
 
   /** 更新脚本 + 编译元数据（ctx 保持存活）。 */
@@ -106,6 +115,12 @@ export class ModuleExecutor {
       const compiled = this.stmts.get(id)
       if (!compiled) throw new Error(`[ModuleExecutor] unknown statement "${id}"`)
       const source = this.sourceById.get(id)
+      const meta = this.metaById.get(id)
+      // 顶替释放预捕获：fn 前捕获本语句写键（{id} ∪ outputs）的旧 handle；
+      // 必须在 fn 之前捕获——op 执行时已用 solidCache.set 覆盖条目，事后拿不到旧引用。
+      const oldHandles = (meta?.writes ?? [])
+        .map((w) => this.getSolid?.(asPartName(w)))
+        .filter((h): h is ShapeHandle => !!h)
       exec.currentStmt = source
       if (source) {
         const rt = source.returnType ?? 'new_shape'
@@ -115,6 +130,10 @@ export class ModuleExecutor {
       }
       await compiled.fn(this.ctx, this.cad, exec)
       this.afterStatement(compiled, exec)
+      // 顶替释放：执行成功后才释放旧 handle（失败时缓存保持执行前状态，天然回滚）
+      for (const old of oldHandles) {
+        this.releaseHandle?.(old)
+      }
     }
   }
 
@@ -181,12 +200,21 @@ export class ModuleExecutor {
     return [...this.metaById.values()]
   }
 
+  /** 清空 ctx 与 statementKey 缓存（CadRuntime.dispose 用）。 */
+  clear(): void {
+    for (const key of Object.keys(this.ctx)) delete this.ctx[key]
+    this.cache.clear()
+    this.stmts.clear()
+    this.lastCode = ''
+  }
+
   // ── 内部 ──
 
   /** 语句执行后：ctx → outputCache 同步 + statementKey 缓存。 */
   private afterStatement(compiled: CompiledStatement, exec: ExecContextImpl): void {
     const source = this.sourceById.get(compiled.id)
-    const writes = this.metaById.get(compiled.id)?.writes ?? []
+    const meta = this.metaById.get(compiled.id)
+    const writes = meta?.writes ?? []
     for (const w of writes) {
       const v = this.ctx[w]
       if (v !== undefined) {
@@ -194,21 +222,24 @@ export class ModuleExecutor {
         exec.outputCache.set(asPartName(w), v as Shape)
       }
     }
-    const key = this.computeStatementKey(compiled, source)
+    const key = meta ? this.computeKey(meta, source) : ''
     const outputContentKey = this.computeOutputContentKey(compiled)
     this.cache.set(compiled.id, { key, outputContentKey })
   }
 
-  /** statementKey = op | JSON(args) | 各依赖的 outputContentKey（参数语句 = 参数值）。 */
-  private computeStatementKey(compiled: CompiledStatement, source: CadStatement | undefined): string {
-    const primary = this.metaById.get(compiled.id)?.writes[0]
+  /**
+   * statementKey = op | JSON(args) | 各依赖的 outputContentKey（参数语句 = 参数值）。
+   * 供 plan() 在重算前用当前 cache 计算预期 key 做增量判定。
+   */
+  computeKey(meta: CompiledStatementMeta, source: CadStatement | undefined): string {
+    const primary = meta.writes[0]
     if (!source) {
       const p = this.script.params.find((pp) => pp.name === primary)
       return `param|${JSON.stringify(p?.value)}`
     }
     const parts = [source.op]
     parts.push(JSON.stringify(source.args))
-    for (const dep of compiled.deps) {
+    for (const dep of meta.deps) {
       const ck = this.cache.get(dep)?.outputContentKey
       parts.push(ck ?? 'missing')
     }

@@ -19,7 +19,10 @@
 import type { Shape, Vec3 } from '../mesh/types'
 import type { GeomRef } from '../lang/types'
 import type { PartName } from '../identity'
+import { asPartName } from '../identity'
 import type { OpContext } from '../ops/types'
+import { canUseBrep } from '../ops/types'
+import { MESH_ONLY_OPS } from '../brep/brep-chain'
 import { executePrimitive } from '../ops/primitives'
 import { executeTransform } from '../ops/transform'
 import { executeDrill } from '../ops/drill'
@@ -35,6 +38,7 @@ import { executeLoad } from '../ops/load'
 import { executeSdf } from '../ops/sdf'
 import { resolveGeomRef } from '../ops/geom-ref'
 import type { ExecContextImpl, StdlibNamespace } from './exec-context'
+import { BrepUnsupportedError } from './exec-context'
 
 // ── 空 Shape（group/assembly 结构型语句的 Phase 1 产物） ──
 
@@ -48,6 +52,11 @@ function emptyShape(): Shape {
  * 用 exec.currentStmt + 位置参数构建 OpContext 并调用 op 实现。
  *
  * args 是编译产物已解析的值（$param/$geom/$asset 已翻译），直接作为 ctx.args。
+ *
+ * brep 强制模式防护（与旧 runtime 主循环一致，静态判定、禁止运行时回退）：
+ * - mesh-only op（sdf/knurl）→ 抛 BrepUnsupportedError（E_BREP_UNSUPPORTED）
+ * - BREP op 但输入不在链 → 抛 BrepUnsupportedError（E_BREP_UNSUPPORTED）
+ * auto 模式 mesh-only op → 发 part-brep-lost 事件（与旧 runtime 一致）。
  */
 async function runOp(
   op: string,
@@ -58,6 +67,34 @@ async function runOp(
 ): Promise<Shape> {
   const stmt = exec.currentStmt
   if (!stmt) throw new Error(`[internal-stdlib] ${op}: no current statement`)
+
+  // brep 模式：mesh-only op 立即报错，不静默回退 mesh
+  if (exec.mode === 'brep' && MESH_ONLY_OPS.has(op)) {
+    throw new BrepUnsupportedError(`E_BREP_UNSUPPORTED: op "${op}" has no BREP implementation`, stmt)
+  }
+  // brep 模式：BREP op 但任一输入不在 BREP 链 → 报错（逐 part 强制）
+  if (exec.mode === 'brep' && !MESH_ONLY_OPS.has(op)) {
+    const canUse = canUseBrep({
+      stmt,
+      inputGeometries: inputs,
+      args,
+      brepChain: exec.brepChain,
+      ports: exec.ports,
+      mode: exec.mode,
+    })
+    if (!canUse) {
+      throw new BrepUnsupportedError(`E_BREP_UNSUPPORTED: input of "${op}" is not BREP`, stmt)
+    }
+  }
+  // auto 模式 mesh-only：发逐 part 事件（mesh 模式不发——kernel 从未存在，无 BREP 可丢失）
+  if (exec.mode === 'auto' && MESH_ONLY_OPS.has(op)) {
+    exec.ports.events.emit('part-brep-lost', {
+      partName: asPartName(stmt.id),
+      op,
+      reason: 'mesh-only op output',
+    })
+  }
+
   const ctx: OpContext = {
     stmt,
     inputGeometries: inputs,
@@ -120,47 +157,57 @@ async function assetQuery(key: string, exec: ExecContextImpl): Promise<string> {
 
 /**
  * 创建内部适配命名空间（Phase 1 临时；Phase 2 由 src/stdlib 正式库函数替代）。
+ *
+ * 统一形态 `(...rest)`：末参 exec，倒数第二参 args，其余为 inputs。
+ * 对编译产物的任意输入数量健壮——手工构造的 PartScript（测试等）可能给创建类 op
+ * 传多余输入，op 实现会忽略多余 inputGeometries（与旧 dispatcher 行为一致）。
  */
 export function createInternalStdlib(): StdlibNamespace {
-  return {
-    // ── 创建（无输入） ──
-    box: (args, e) => runOp('box', [], asArgs(args), e as ExecContextImpl, executePrimitive),
-    sphere: (args, e) => runOp('sphere', [], asArgs(args), e as ExecContextImpl, executePrimitive),
-    cylinder: (args, e) => runOp('cylinder', [], asArgs(args), e as ExecContextImpl, executePrimitive),
-    cone: (args, e) => runOp('cone', [], asArgs(args), e as ExecContextImpl, executePrimitive),
-    wedge: (args, e) => runOp('wedge', [], asArgs(args), e as ExecContextImpl, executePrimitive),
-    text: (args, e) => runOp('text', [], asArgs(args), e as ExecContextImpl, executeText),
-    screw: (args, e) => runOp('screw', [], asArgs(args), e as ExecContextImpl, executeScrew),
-    svgExtrude: (args, e) => runOp('svgExtrude', [], asArgs(args), e as ExecContextImpl, executeSvgExtrude),
-    sdf: (args, e) => runOp('sdf', [], asArgs(args), e as ExecContextImpl, executeSdf),
-    load: (args, e) => runOp('load', [], asArgs(args), e as ExecContextImpl, executeLoad),
-
-    // ── 变换（1 输入） ──
-    translate: (input, args, e) => runOp('translate', [input as Shape], asArgs(args), e as ExecContextImpl, executeTransform),
-    rotate: (input, args, e) => runOp('rotate', [input as Shape], asArgs(args), e as ExecContextImpl, executeTransform),
-    scale: (input, args, e) => runOp('scale', [input as Shape], asArgs(args), e as ExecContextImpl, executeTransform),
-
-    // ── 特征（1 输入） ──
-    drill: (input, args, e) => runOp('drill', [input as Shape], asArgs(args), e as ExecContextImpl, executeDrill),
-    extrude: (input, args, e) => runOp('extrude', [input as Shape], asArgs(args), e as ExecContextImpl, executeExtrude),
-    engrave: (input, args, e) => runOp('engrave', [input as Shape], asArgs(args), e as ExecContextImpl, executeEngrave),
-    knurl: (input, args, e) => runOp('knurl', [input as Shape], asArgs(args), e as ExecContextImpl, executeKnurl),
-
-    // ── 布尔（多输入，末两参为 args + exec） ──
-    boolean: async (...rest: unknown[]) => {
+  const op = (name: string, impl: (ctx: OpContext) => Promise<Shape>) => {
+    return async (...rest: unknown[]): Promise<Shape> => {
       const exec = rest.pop() as ExecContextImpl
       const args = asArgs(rest.pop())
       const inputs = rest as Shape[]
-      return runOp('boolean', inputs, args, exec, executeBoolean)
-    },
+      return runOp(name, inputs, args, exec, impl)
+    }
+  }
 
-    // ── split（1 输入，返回 { front, back }） ──
-    split: async (input, args, e) => {
-      const exec = e as ExecContextImpl
+  return {
+    // ── 创建 ──
+    box: op('box', executePrimitive),
+    sphere: op('sphere', executePrimitive),
+    cylinder: op('cylinder', executePrimitive),
+    cone: op('cone', executePrimitive),
+    wedge: op('wedge', executePrimitive),
+    text: op('text', executeText),
+    screw: op('screw', executeScrew),
+    svgExtrude: op('svgExtrude', executeSvgExtrude),
+    sdf: op('sdf', executeSdf),
+    load: op('load', executeLoad),
+
+    // ── 变换 ──
+    translate: op('translate', executeTransform),
+    rotate: op('rotate', executeTransform),
+    scale: op('scale', executeTransform),
+
+    // ── 特征 ──
+    drill: op('drill', executeDrill),
+    extrude: op('extrude', executeExtrude),
+    engrave: op('engrave', executeEngrave),
+    knurl: op('knurl', executeKnurl),
+
+    // ── 布尔（多输入） ──
+    boolean: op('boolean', executeBoolean),
+
+    // ── split（返回 { front, back }） ──
+    split: async (...rest: unknown[]) => {
+      const exec = rest.pop() as ExecContextImpl
+      const args = asArgs(rest.pop())
+      const inputs = rest as Shape[]
       const stmt = exec.currentStmt
       if (!stmt) throw new Error('[internal-stdlib] split: no current statement')
       const outputs = stmt.outputs ?? []
-      const primary = await runOp('split', [input as Shape], asArgs(args), exec, executeSplit)
+      const primary = await runOp('split', inputs, args, exec, executeSplit)
       const front = outputs[0] ? (exec.outputCache.get(outputs[0]) ?? primary) : primary
       const back = outputs[1] ? (exec.outputCache.get(outputs[1]) ?? primary) : primary
       return { front, back }

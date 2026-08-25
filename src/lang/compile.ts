@@ -125,6 +125,42 @@ function translateArgs(args: Record<string, Arg>): string {
 
 // ── 语句 fn 体生成 ──
 
+/**
+ * 获取语句引用的变量名集合。
+ *
+ * 优先用 parser 填充的 stmt.refs（inputs + $param + $geom.of + members）；
+ * 手工构造的 PartScript（测试等）无 refs 时，从 inputs + args 扫描兜底计算。
+ */
+function getStatementRefs(stmt: CadStatement): string[] {
+  if (stmt.refs) return stmt.refs
+  const refs = new Set<string>(stmt.inputs)
+  const scan = (value: Arg): void => {
+    if (value === null || typeof value !== 'object') return
+    if (isParamRef(value)) {
+      refs.add(value.$param)
+      return
+    }
+    if (isGeomRef(value)) {
+      refs.add(value.$geom.of)
+      return
+    }
+    if (isAssetRef(value)) return
+    if (Array.isArray(value)) {
+      for (const v of value) scan(v)
+      return
+    }
+    for (const v of Object.values(value)) scan(v)
+  }
+  for (const arg of Object.values(stmt.args)) scan(arg)
+  if (stmt.op === 'group' || stmt.op === 'assembly') {
+    const members = stmt.args?.members
+    if (Array.isArray(members)) {
+      for (const m of members) if (typeof m === 'string') refs.add(m)
+    }
+  }
+  return [...refs]
+}
+
 /** 生成单条语句的 fn 体（缩进 6 空格，嵌入模块文本）。 */
 function buildStatementFnBody(stmt: CadStatement): string {
   // 结构型无赋值语句
@@ -140,20 +176,20 @@ function buildStatementFnBody(stmt: CadStatement): string {
   const inputs = stmt.inputs.map((inp) => `ctx.${inp}`).join(', ')
   const argsStr = translateArgs(stmt.args)
 
-  // split：多输出解构
+  // split：多输出解构（无输入时省略 inputs 槽；无 outputs 时退化为单输出取 front）
   if (stmt.op === 'split') {
+    const callArgs = inputs ? `${inputs}, ${argsStr}` : argsStr
     const out0 = stmt.outputs?.[0]
     const out1 = stmt.outputs?.[1]
-    const lines: string[] = []
     if (out0 && out1) {
-      lines.push(`      const { front, back } = await cad.split(${inputs}, ${argsStr}, exec)`)
-      lines.push(`      ctx.${out0} = front`)
-      lines.push(`      ctx.${out1} = back`)
-    } else {
-      // 防御：无 outputs 时退化为单输出
-      lines.push(`      ctx.${stmt.id} = await cad.split(${inputs}, ${argsStr}, exec)`)
+      return [
+        `      const { front, back } = await cad.split(${callArgs}, exec)`,
+        `      ctx.${out0} = front`,
+        `      ctx.${out1} = back`,
+      ].join('\n')
     }
-    return lines.join('\n')
+    // 无 outputs：退化为单输出（取 front，与旧 executeSplit 返回 front/back 的语义一致）
+    return `      ctx.${stmt.id} = (await cad.split(${callArgs}, exec)).front`
   }
 
   // boolean：多输入 + operation 参数（cad.boolean(input1, input2, { operation }, exec)）
@@ -207,7 +243,7 @@ export function compileToModule(script: PartScript): CompiledModule {
     if (meta.sourceIndex === undefined) continue
     const stmt = script.statements[meta.sourceIndex]
     const deps = new Set<StmtId>()
-    for (const ref of stmt.refs ?? []) {
+    for (const ref of getStatementRefs(stmt)) {
       const depId = varToStmtId.get(ref)
       if (depId) deps.add(depId)
     }

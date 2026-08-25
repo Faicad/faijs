@@ -1,6 +1,9 @@
 /**
  * CadRuntime — 执行核心（L2 编排层）
  *
+ * Phase 1（VM 执行方案）：内部从"解释器主循环 + dispatcher switch"换成
+ * compileToModule + ModuleExecutor。对外签名、ExecutionResult、PartScript、
+ * partN_vM 命名、returnType 全部不变。
  *
  * 职责：
  * - 执行 PartScript 语句序列，产出 ExecutionResult（纯计算，不碰 store/DOM）
@@ -20,15 +23,10 @@ import type { PartScript, CadStatement, TerminalShape, Arg } from '../lang/types
 import type { Shape } from '../ops/types'
 import type { BrepChainState } from '../brep/brep-chain'
 import type { ShapeHandle, OcctKernel } from 'occt-wasm'
-import {
-  MESH_ONLY_OPS,
-} from '../brep/brep-chain'
 import { initOcctWasm } from '../occt-kernel/occtKernel'
 import { executeStatement as dispatchStatement } from '../ops/dispatcher'
 import { parseScript, ParseError } from '../lang/parser'
 import { validateStatementArgs } from '../lang/args-schema'
-import { canUseBrep } from '../ops/types'
-import { executeAssemblyPassForStmt } from '../ops/assemble'
 import type { HostPorts, ExecutionMode } from './ports'
 import type { SelectorRuntimeData } from '../topology/build-selector-runtime'
 import type { SelectorRuntime } from '../topology/types'
@@ -37,6 +35,12 @@ import type { SolidTopologyResult } from '../brep/brep-topology'
 import { buildTopologyFromMesh } from '../brep/brep-topology'
 import type { Mesh as WasmMesh } from 'occt-wasm'
 import { asPartName, type PartName, type StmtId } from '../identity'
+import { compileToModule, type CompiledStatementMeta } from '../lang/compile'
+import { ModuleExecutor } from './module-executor'
+import { ExecContextImpl, BrepUnsupportedError } from './exec-context'
+import { createInternalStdlib } from './internal-stdlib-adapter'
+import { computeContentKey } from './content-key'
+export { computeContentKey } from './content-key'
 
 
 // ── 装配变换死代码已删除 ──
@@ -117,50 +121,20 @@ export interface ExecuteOptions {
   /** 语句前钩子（用于 undo 逐语句快照） */
   beforeStatement?: (stmt: CadStatement, index: number) => void
   /**
-   * 增量执行起点（Persistent SolidCache 方案）：从指定位置开始顺序执行，
+   * 增量执行起点（兼容旧签名）：从指定位置开始顺序执行，
    * 之前的语句不进执行循环（缺省 0 = 全量执行）。
    */
   startIndex?: number
 }
 
-// ── statementKey 计算（从 ScriptEngine.ts 移出，逻辑不变） ──
-
-function computeStatementKey(
-  stmt: CadStatement,
-  getInputContentKey: (id: PartName) => string | undefined,
-): string {
-  const parts: string[] = [stmt.op]
-  parts.push(JSON.stringify(stmt.args))
-  for (const inputId of stmt.inputs) {
-    const ck = getInputContentKey(inputId)
-    parts.push(ck ?? 'missing')
-  }
-  return parts.join('|')
-}
-
-// ── contentKey 计算（从 execute-validator 迁移，逻辑不变） ──
-
-function hashTypedArray(arr: Float32Array | Uint32Array): string {
-  let hash = 0x811c9dc5
-  const len = arr.length
-  for (let i = 0; i < len; i++) {
-    hash ^= arr[i]
-    hash = Math.imul(hash, 0x01000193)
-  }
-  hash ^= len
-  hash = Math.imul(hash, 0x01000193)
-  return (hash >>> 0).toString(16).padStart(8, '0')
-}
-
-export function computeContentKey(positions: Float32Array, indices: Uint32Array): string {
-  const posHash = hashTypedArray(positions)
-  const idxHash = hashTypedArray(indices)
-  return `${posHash}_${idxHash}_${positions.length}_${indices.length}`
-}
-
 // ── CadRuntime ──
 
 const MAX_RECURSION_DEPTH = 50
+
+/** Shape 形状守卫（positions/indices 结构） */
+function isShapeLike(v: unknown): v is Shape {
+  return !!v && typeof v === 'object' && 'positions' in v && 'indices' in v
+}
 
 export class CadRuntime {
   readonly ports: HostPorts
@@ -199,9 +173,28 @@ export class CadRuntime {
    */
   private topologyCache = new Map<PartName, PartTopology>()
 
+  /** VM 执行器（持久 ctx + 编译产物缓存） */
+  private executor: ModuleExecutor
+
+  /** 内部适配命名空间（Phase 1 临时，Phase 2 由 src/stdlib 正式库函数替代） */
+  private readonly stdlib = createInternalStdlib()
+
   constructor(ports: HostPorts, mode: ExecutionMode = 'auto') {
     this.ports = ports
     this.mode = mode
+    this.executor = new ModuleExecutor(this.stdlib, {
+      releaseSolid: (partName) => {
+        const handle = this.solidCache.get(partName)
+        if (handle) {
+          try { this.kernel?.release(handle) } catch { /* 已释放 */ }
+          this.solidCache.delete(partName)
+        }
+      },
+      getSolid: (partName) => this.solidCache.get(partName),
+      releaseHandle: (handle) => {
+        try { this.kernel?.release(handle) } catch { /* 已释放 */ }
+      },
+    })
   }
 
   /** 确保持久 BREP 链存在（惰性初始化）。mesh 模式 kernel 为 null（无 BREP 能力）。 */
@@ -218,8 +211,7 @@ export class CadRuntime {
     return this.brepChain
   }
 
-  // ── 核心方法：execute（原 replay，改名对齐 roadmap §3.6） ──
-
+  // ── 核心方法：execute（全量执行） ──
 
   /**
    * 执行 PartScript，返回 ExecutionResult。
@@ -227,207 +219,35 @@ export class CadRuntime {
    * 纯计算：只产出几何，不碰场景树/store/DOM。
    * browser host 负责消费 ExecutionResult 并落地。
    *
-   * Persistent SolidCache（docs/plans/2026-08-18-brepchain-persistent-solid-cache.md）：
-   * - 复用实例持久 BREP 链（solidCache 跨 execute 存活），不再每次新建；
-   * - `opts.startIndex`：从指定位置开始顺序执行，之前的语句不进执行循环
-   *   （缺省 0 = 全量执行，行为与旧 execute 一致）。
+   * VM 路径：compileToModule → executor.load → reconcileCtx → prepareCtx →
+   * executeAll（startIndex > 0 时从该语句起）→ collectResult。
    */
   async execute(
     script: PartScript,
     opts?: ExecuteOptions,
   ): Promise<ExecutionResult> {
-    const infos: string[] = []
-    const outputCache = new Map<PartName, Shape>()
-    const start = opts?.startIndex ?? 0
-
-    // 复用持久 BREP 链（mesh 模式 kernel 为 null）
+    const { code, statements } = compileToModule(script)
+    this.executor.setCompiled(script, statements)
+    await this.executor.load(code)
     const brepChain = await this.ensureBrepChain()
-
     if (opts?.partTransform?.position) {
       brepChain.partTransform = {
         position: opts.partTransform.position,
         scale: opts.partTransform.scale,
       }
     }
-
-    const paramsMap = this.buildParamsMap(script, opts)
-
-    // 增量执行（startIndex > 0）：把前缀语句的输出从持久 statementCache 补进 outputCache，
-    // 使 ExecutionResult.outputs 覆盖全部语句（3d_editor 提交链消费完整结果的前提），
-    // 并让后续语句的输入解析直接命中持久缓存。
-    if (start > 0) {
-      for (let i = 0; i < start; i++) {
-        const s = script.statements[i]
-        const key = asPartName(s.id)
-        const cached = this.statementCache.get(key)
-        if (cached) outputCache.set(key, cached.output)
-        for (const outId of s.outputs ?? []) {
-          const oc = this.statementCache.get(outId)
-          if (oc) outputCache.set(outId, oc.output)
-        }
-      }
-    }
-
-    for (let i = start; i < script.statements.length; i++) {
-      const stmt = script.statements[i]
-      // void / same_shape 语句不产出新几何，不进入 dispatcher
-      // do_assemble 在这里执行装配变换 pass
-      const rt = stmt.returnType ?? 'new_shape'
-      if (rt === 'void' || rt === 'same_shape') {
-        // do_assemble: 执行装配变换 pass
-        if (stmt.op === 'do_assemble') {
-          await this.executeAssemblyPass(stmt, outputCache, script)
-        }
-        // add_constraint: 约束已收集，不产出几何
-        continue
-      }
-
-      // beforeStatement 钩子（undo 逐语句快照用）
-      opts?.beforeStatement?.(stmt, i)
-
-      // 解析输入
-      const inputGeometries: Shape[] = []
-      for (const inputRef of stmt.inputs) {
-        let geo = outputCache.get(inputRef) ?? opts?.inputGeometryMap?.get(inputRef)
-        if (!geo) {
-          geo = await this.resolveShapeRef(inputRef, outputCache, opts?.sceneScript)
-          // 缓存跨 part 解析结果，供后续语句复用
-          outputCache.set(inputRef, geo)
-        }
-        inputGeometries.push(geo)
-      }
-
-      // 检查 mesh-only op（逐 part 设计：不翻转全局状态，只发事件）
-      if (MESH_ONLY_OPS.has(stmt.op)) {
-        // mesh-only op 永远走 mesh，不写 solidCache → 输出 part 自动失去 BREP
-        // brep 模式：报错，不自动切换
-        if (this.mode === 'brep') {
-          return {
-            outputs: outputCache,
-            brepChain,
-            terminals: [],
-            infos,
-            failedAt: { index: i, op: stmt.op, message: `E_BREP_UNSUPPORTED: op "${stmt.op}" has no BREP implementation` },
-          }
-        }
-        // auto 模式：发逐 part 事件（mesh 模式不发——kernel 从未存在，无 BREP 可丢失）
-        if (this.mode === 'auto') {
-          this.ports.events.emit('part-brep-lost', {
-            partName: asPartName(stmt.id),
-            op: stmt.op,
-            reason: 'mesh-only op output',
-          })
-        }
-      } else if (this.mode === 'brep' && !canUseBrep({ stmt, inputGeometries, args: stmt.args as Record<string, unknown>, brepChain, mode: this.mode })) {
-        // brep 模式：任一引用了无 solid 输入的 BREP op 也必须报错（逐 part 强制）
-        return {
-          outputs: outputCache,
-          brepChain,
-          terminals: [],
-          infos,
-          failedAt: { index: i, op: stmt.op, message: `E_BREP_UNSUPPORTED: input of "${stmt.op}" is not BREP` },
-        }
-      }
-
-      // 顶替释放预捕获：dispatch 前捕获本语句将要写入的 key 集合（{id} ∪ outputs）的旧 handle。
-      // 必须在 dispatch 之前捕获——op 执行时已用 solidCache.set 覆盖 map 条目，事后拿不到旧引用。
-      const primaryOutputName = asPartName(stmt.id)
-      const writeKeys: PartName[] = [primaryOutputName, ...(stmt.outputs ?? [])]
-      const oldHandles = writeKeys
-        .map((k) => this.solidCache.get(k))
-        .filter((h): h is ShapeHandle => !!h)
-
-      // 执行语句
-      // BREP 路径异常 = bug，直接冒泡报错，禁止 try-catch 回退 mesh
-      const result = await dispatchStatement(stmt, inputGeometries, outputCache, paramsMap, brepChain, this.ports, this.mode)
-      outputCache.set(primaryOutputName, result)
-
-      // 写入 statementCache（含 outputs[] 持久化——split 的 front/back 均可直接命中，见 §3.5）
-      const contentKey = computeContentKey(result.positions, result.indices)
-      const getInputContentKey = (id: PartName) => this.statementCache.get(id)?.outputContentKey
-      const stmtKey = computeStatementKey(stmt, getInputContentKey)
-      this.statementCache.set(primaryOutputName, {
-        statementKey: stmtKey,
-        outputContentKey: contentKey,
-        output: result,
-      })
-      for (const outId of stmt.outputs ?? []) {
-        if (outId === primaryOutputName) continue // stmt.id 已写入（split 的 stmt.id === outputs[0]）
-        const outShape = outputCache.get(outId)
-        if (outShape) {
-          this.statementCache.set(outId, {
-            statementKey: stmtKey + `|out:${outId}`,
-            outputContentKey: computeContentKey(outShape.positions, outShape.indices),
-            output: outShape,
-          })
-        }
-      }
-
-      // 顶替释放：执行成功后才释放预捕获的旧 handle（失败时缓存保持执行前状态，天然回滚）
-      for (const old of oldHandles) {
-        try { this.kernel?.release(old) } catch { /* 已释放 */ }
-      }
-    }
-
-    // 提取终端几何
-    const terminals = script.terminalShapes ?? []
-
-    // 逐终端提取 BREP solid（逐 part 设计）
-    const brepSolids = new Map<PartName, { solid: ShapeHandle; kernel: OcctKernel }>()
-    if (brepChain.kernel) {
-      if (terminals.length > 0) {
-        // 有终端声明：逐终端检查 solidCache
-        for (const t of terminals) {
-          const tKey = asPartName(t.id)
-          const s = brepChain.solidCache.get(tKey)
-          if (s && brepChain.kernel) {
-            brepSolids.set(tKey, { solid: s, kernel: brepChain.kernel })
-          }
-        }
+    this.reconcile(script, statements)
+    await this.prepareCtx(script, opts)
+    const exec = this.createExecContext(script, opts, brepChain)
+    const start = opts?.startIndex ?? 0
+    return this.runWithFailureHandling(script, exec, async () => {
+      if (start > 0) {
+        const ids = statements.slice(script.params.length + start).map((s) => s.id)
+        await this.executor.executeIds(ids, exec)
       } else {
-        // 无终端声明：取最后一条有赋值且 returnType=new_shape 的语句
-        const newShapeStmts = script.statements.filter(
-          (s) => s.hasAssignment && (s.returnType ?? 'new_shape') === 'new_shape',
-        )
-        if (newShapeStmts.length > 0) {
-          const lastStmt = newShapeStmts[newShapeStmts.length - 1]
-          const finalSolid = brepChain.solidCache.get(asPartName(lastStmt.id))
-          if (finalSolid && brepChain.kernel) {
-            brepSolids.set(asPartName(lastStmt.id), { solid: finalSolid, kernel: brepChain.kernel })
-          }
-        }
+        await this.executor.executeAll(exec)
       }
-
-      // 装配成员 solid 提取：assembly 终端本身不持有 solid，但其 members
-      // （被 do_assemble 变换过的 part）在 solidCache 中有更新后的 solid。
-      // 遍历所有 assembly 语句，把其 members 的 solid 也提取到 brepSolids，
-      // 使下游（3d_editor 导出缓存）能拿到装配后位置的 BREP solid。
-      for (const stmt of script.statements) {
-        if (stmt.op !== 'assembly') continue
-        const members = stmt.args?.members
-        if (!Array.isArray(members)) continue
-        for (const m of members) {
-          if (typeof m !== 'string') continue
-          // 成员引用即为 PartName（品牌型）
-          const mId = asPartName(m)
-          // 只添加尚未在 brepSolids 中的 member（避免覆盖终端提取的结果）
-          if (brepSolids.has(mId)) continue
-          const s = brepChain.solidCache.get(mId)
-          if (s && brepChain.kernel) {
-            brepSolids.set(mId, { solid: s, kernel: brepChain.kernel })
-          }
-        }
-      }
-    }
-
-    return {
-      outputs: outputCache,
-      brepChain,
-      terminals,
-      infos,
-      brepSolids: brepSolids.size > 0 ? brepSolids : undefined,
-      topology: this.topologyCache.size > 0 ? new Map(this.topologyCache) : undefined,
-    }
+    })
   }
 
   /** 构建参数表：opts.params 优先，脚本 params 兜底（execute / append 复用）。 */
@@ -446,230 +266,291 @@ export class CadRuntime {
     return paramsMap
   }
 
-  // ── 语义入口：update / append（Persistent SolidCache 增量执行） ──
+  // ── 语义入口：update / append（增量执行） ──
 
   /**
-   * 更新参数：plan() 算变更语句 → 从第一个受影响语句开始顺序执行到末尾。
+   * 更新参数：plan() 算变更语句 → reconcileCtx → executeFrom 重算 stale 集。
    *
-   * - stale 为空（无变化）→ 从持久缓存组装结果直接返回，零执行；
-   * - 否则 `execute(script, { startIndex: 第一个 stale 语句的 index })`——startIndex 之前的语句不进执行循环。
-   *
-   * 注意：受影响的语句不一定是「从变更点开始的连续段」（独立 part 并存时会连带重执行无关语句），
-   * 这是刻意的保守选择——顺序执行天然保证拓扑序，结果正确；后续可用 stale 集合精确化执行范围。
+   * - stale 为空（无变化）→ 从持久 ctx 组装结果直接返回，零执行；
+   * - 否则 executeFrom(staleIds)（stale 集对 deps 封闭，按拓扑序执行）。
    */
   async update(script: PartScript, opts?: ExecuteOptions): Promise<ExecutionResult> {
-    const { stale } = this.plan(script)
-    if (stale.length === 0) return this.collectFromCache(script)
-    const changeIndex = script.statements.indexOf(stale[0])
-    return this.execute(script, { ...opts, startIndex: changeIndex })
-  }
-
-  /**
-   * 追加语句：只执行新增语句（不遍历脚本前缀，不关心前缀状态）。
-   *
-   * 对每条新语句应用与 execute 相同的防护：returnType 过滤 / beforeStatement 钩子 /
-   * 输入解析（持久缓存命中）/ mesh-only 检查 / 顶替释放预捕获。返回完整 ExecutionResult
-   * （未执行语句从持久缓存组装，见 collectFromCache）。
-   *
-   * 契约前提：新增语句的输入必然是此前已执行成功的活跃语句的输出，持久缓存保证其存在；
-   * 若输入真缺失（dispose/删除后未同步），是调用方应先 execute 全量的信号——append 不做前缀完整性验证。
-   */
-  async append(script: PartScript, newIds: StmtId[], opts?: ExecuteOptions): Promise<ExecutionResult> {
-    const infos: string[] = []
+    const { code, statements } = compileToModule(script)
+    this.executor.setCompiled(script, statements)
+    await this.executor.load(code)
     const brepChain = await this.ensureBrepChain()
-    // 与 execute 一致：partTransform 随执行期上下文写入链（世界→局部坐标偏移）。
-    // 含世界坐标 args 的 op（drill clickPosition / split bbCenter）依赖它做坐标转换。
     if (opts?.partTransform?.position) {
       brepChain.partTransform = {
         position: opts.partTransform.position,
         scale: opts.partTransform.scale,
       }
     }
-    // 从持久 statementCache 预填所有既有语句的 mesh 输出（含 outputs[]），
-    // 使新增语句的输入解析直接命中持久缓存，无需子重放。
-    const outputCache = new Map<PartName, Shape>()
-    for (const s of script.statements) {
-      const cached = this.statementCache.get(asPartName(s.id))
-      if (cached) outputCache.set(asPartName(s.id), cached.output)
-      for (const outId of s.outputs ?? []) {
-        const oc = this.statementCache.get(outId)
-        if (oc) outputCache.set(outId, oc.output)
-      }
+    this.reconcile(script, statements)
+    await this.prepareCtx(script, opts)
+    const exec = this.createExecContext(script, opts, brepChain)
+    const { staleCompiledIds } = this.planCompiled(script, statements)
+    if (staleCompiledIds.size === 0) {
+      return this.collectResult(script, exec)
     }
-    const paramsMap = this.buildParamsMap(script, opts)
-
-    const byId = new Map<StmtId, CadStatement>(script.statements.map((s) => [s.id, s]))
-    for (const id of newIds) {
-      const stmt = byId.get(id)
-      if (!stmt) throw new Error(`[CadRuntime] append: unknown statement "${id}"`)
-      // 与 execute 主循环一致的防护：void/same_shape 语句不产出几何（do_assemble / add_constraint 等）
-      const rt = stmt.returnType ?? 'new_shape'
-      if (rt === 'void' || rt === 'same_shape') {
-        // do_assemble: 执行装配变换 pass（与 execute 主循环一致）
-        if (stmt.op === 'do_assemble') {
-          const transformedIds = await this.executeAssemblyPass(stmt, outputCache, script)
-          // 把变换后的几何同步到 statementCache，使 collectFromCache 能正确返回
-          // 变换后的几何（append 走 collectFromCache 组装结果，与 execute 直接返回 outputCache 不同）
-          for (const partName of transformedIds) {
-            const transformed = outputCache.get(partName)
-            if (transformed) {
-              const contentKey = computeContentKey(transformed.positions, transformed.indices)
-              this.statementCache.set(partName, {
-                statementKey: (this.statementCache.get(partName)?.statementKey ?? '') + '|asm-transform',
-                outputContentKey: contentKey,
-                output: transformed,
-              })
-            }
-          }
-        }
-        continue
-      }
-      const index = script.statements.indexOf(stmt)
-      opts?.beforeStatement?.(stmt, index)
-
-      // 解析输入：outputCache（含持久缓存预填）→ resolveShapeRef（跨 part 兜底）
-      const inputGeometries: Shape[] = []
-      for (const inputRef of stmt.inputs) {
-        let geo = outputCache.get(inputRef) ?? opts?.inputGeometryMap?.get(inputRef)
-        if (!geo) {
-          geo = await this.resolveShapeRef(inputRef, outputCache, script)
-          outputCache.set(inputRef, geo)
-        }
-        inputGeometries.push(geo)
-      }
-
-      // mesh-only / brep 模式检查（与 execute 一致）
-      if (MESH_ONLY_OPS.has(stmt.op)) {
-        if (this.mode === 'brep') {
-          return {
-            outputs: outputCache,
-            brepChain,
-            terminals: [],
-            infos,
-            failedAt: { index, op: stmt.op, message: `E_BREP_UNSUPPORTED: op "${stmt.op}" has no BREP implementation` },
-          }
-        }
-        if (this.mode === 'auto') {
-          this.ports.events.emit('part-brep-lost', {
-            partName: asPartName(stmt.id),
-            op: stmt.op,
-            reason: 'mesh-only op output',
-          })
-        }
-      } else if (this.mode === 'brep' && !canUseBrep({ stmt, inputGeometries, args: stmt.args as Record<string, unknown>, brepChain, mode: this.mode })) {
-        return {
-          outputs: outputCache,
-          brepChain,
-          terminals: [],
-          infos,
-          failedAt: { index, op: stmt.op, message: `E_BREP_UNSUPPORTED: input of "${stmt.op}" is not BREP` },
-        }
-      }
-
-      // 顶替释放预捕获（与 execute 相同，见 §3.3）：dispatch 前捕获 {id} ∪ outputs 旧 handle
-      const writeKeys: PartName[] = [asPartName(stmt.id), ...(stmt.outputs ?? [])]
-      const oldHandles = writeKeys
-        .map((k) => this.solidCache.get(k))
-        .filter((h): h is ShapeHandle => !!h)
-
-      const result = await dispatchStatement(stmt, inputGeometries, outputCache, paramsMap, brepChain, this.ports, this.mode)
-      const primaryOutputName = asPartName(stmt.id)
-      outputCache.set(primaryOutputName, result)
-
-      // 写入 statementCache（含 outputs[] 持久化，见 §3.5）
-      const contentKey = computeContentKey(result.positions, result.indices)
-      const getInputContentKey = (id: PartName) => this.statementCache.get(id)?.outputContentKey
-      const stmtKey = computeStatementKey(stmt, getInputContentKey)
-      this.statementCache.set(primaryOutputName, {
-        statementKey: stmtKey,
-        outputContentKey: contentKey,
-        output: result,
-      })
-      for (const outId of stmt.outputs ?? []) {
-        if (outId === primaryOutputName) continue
-        const outShape = outputCache.get(outId)
-        if (outShape) {
-          this.statementCache.set(outId, {
-            statementKey: stmtKey + `|out:${outId}`,
-            outputContentKey: computeContentKey(outShape.positions, outShape.indices),
-            output: outShape,
-          })
-        }
-      }
-
-      // 顶替释放：执行成功后才释放旧 handle（失败时缓存保持执行前状态）
-      for (const old of oldHandles) {
-        try { this.kernel?.release(old) } catch { /* 已释放 */ }
-      }
-    }
-
-    return this.collectFromCache(script)
+    return this.runWithFailureHandling(script, exec, async () => {
+      await this.executor.executeFrom(staleCompiledIds, exec)
+    })
   }
 
   /**
-   * 从持久缓存组装完整 ExecutionResult（update 无变化短路与 append 复用，§9 决策 7）。
+   * 追加语句：只执行新增语句（前缀已在持久 ctx）。
    *
-   * outputs 覆盖所有语句（含 outputs[]），brepSolids 从持久 solidCache 查终端，
-   * 不依赖本次执行——这是 3d_editor 提交链（terminalToScopedId → commitGeometry）消费完整结果的前提。
+   * 对每条新语句应用与 execute 相同的防护：returnType 过滤 / beforeStatement 钩子 /
+   * brep 模式防护 / 顶替释放预捕获。返回完整 ExecutionResult（未执行语句从 ctx 组装）。
+   *
+   * 契约前提：新增语句的输入必然是此前已执行成功的活跃语句的输出，持久 ctx 保证其存在；
+   * 若输入真缺失（dispose/删除后未同步），是调用方应先 execute 全量的信号——append 不做前缀完整性验证。
    */
-  private collectFromCache(script: PartScript): ExecutionResult {
+  async append(script: PartScript, newIds: StmtId[], opts?: ExecuteOptions): Promise<ExecutionResult> {
+    const { code, statements } = compileToModule(script)
+    this.executor.setCompiled(script, statements)
+    await this.executor.load(code)
+    const brepChain = await this.ensureBrepChain()
+    if (opts?.partTransform?.position) {
+      brepChain.partTransform = {
+        position: opts.partTransform.position,
+        scale: opts.partTransform.scale,
+      }
+    }
+    this.reconcile(script, statements)
+    await this.prepareCtx(script, opts)
+    const exec = this.createExecContext(script, opts, brepChain)
+    // 调用方传入的 newIds 是源语句 id（varName）→ 翻译为编译产物 id（s1..sN）
+    const sourceIdToCompiled = new Map<string, StmtId>()
+    for (const meta of statements) {
+      if (meta.sourceIndex === undefined) continue
+      const stmt = script.statements[meta.sourceIndex]
+      sourceIdToCompiled.set(stmt.id, meta.id)
+      for (const outId of stmt.outputs ?? []) sourceIdToCompiled.set(outId, meta.id)
+    }
+    const compiledIds = newIds.map((id) => sourceIdToCompiled.get(String(id)) ?? (id as StmtId))
+    return this.runWithFailureHandling(script, exec, async () => {
+      await this.executor.executeIds(compiledIds, exec)
+    })
+  }
+
+  /** plan() — 依赖分析，得出需要重算的语句集合（对外签名不变）。 */
+  plan(script: PartScript): { stale: CadStatement[]; reused: Map<PartName, string> } {
+    const { statements } = compileToModule(script)
+    const { staleCompiledIds, reused } = this.planCompiled(script, statements)
+    const stale: CadStatement[] = []
+    for (const id of staleCompiledIds) {
+      const meta = statements.find((m) => m.id === id)
+      if (meta?.sourceIndex !== undefined) stale.push(script.statements[meta.sourceIndex])
+    }
+    return { stale, reused }
+  }
+
+  /**
+   * plan 的编译产物形态：按 deps 级联 + statementKey 判定 stale。
+   * 参数语句（改参数 = 参数语句 key 变化）经 deps 级联使全部引用语句 stale（根治 plan 不感知 params）。
+   */
+  private planCompiled(
+    script: PartScript,
+    statements: CompiledStatementMeta[],
+  ): { staleCompiledIds: Set<StmtId>; reused: Map<PartName, string> } {
+    const staleCompiledIds = new Set<StmtId>()
+    const reused = new Map<PartName, string>()
+
+    for (const meta of statements) {
+      const source = meta.sourceIndex !== undefined ? script.statements[meta.sourceIndex] : undefined
+      // void / same_shape 语句不产出几何，不参与增量分析
+      if (source) {
+        const rt = source.returnType ?? 'new_shape'
+        if (rt === 'void' || rt === 'same_shape') continue
+      }
+      // deps 级联：任一依赖 stale → 本语句 stale
+      const depStale = meta.deps.some((d) => staleCompiledIds.has(d))
+      if (depStale) {
+        staleCompiledIds.add(meta.id)
+        continue
+      }
+      const newKey = this.executor.computeKey(meta, source)
+      const cached = this.executor.getCachedKey(meta.id)
+      if (cached && cached.key === newKey) {
+        const primary = meta.writes[0]
+        if (primary !== undefined) reused.set(asPartName(primary), cached.outputContentKey)
+      } else {
+        staleCompiledIds.add(meta.id)
+      }
+    }
+
+    return { staleCompiledIds, reused }
+  }
+
+  // ── 内部：VM 执行编排 ──
+
+  /** reconcileCtx：删除"定义语句已不在脚本中"的 ctx 变量并释放其内核资源。 */
+  private reconcile(script: PartScript, statements: CompiledStatementMeta[]): void {
+    const activeIds = new Set(statements.map((s) => s.id))
+    const writeSets = new Map(statements.map((s) => [s.id, s.writes.map(asPartName)]))
+    this.executor.reconcileCtx(activeIds, writeSets)
+  }
+
+  /** 创建 ExecContextImpl（当前重放输出缓存从持久 ctx 预填）。 */
+  private createExecContext(
+    script: PartScript,
+    opts: ExecuteOptions | undefined,
+    brepChain: BrepChainState,
+  ): ExecContextImpl {
+    const outputCache = new Map<PartName, Shape>()
+    for (const meta of this.executor.getMetas()) {
+      for (const w of meta.writes) {
+        const v = this.executor.getCtxVar(w)
+        if (isShapeLike(v)) outputCache.set(asPartName(w), v as Shape)
+      }
+    }
+    const paramsMap = this.buildParamsMap(script, opts)
+    return new ExecContextImpl({
+      mode: this.mode,
+      brepChain,
+      ports: this.ports,
+      script,
+      outputCache,
+      params: paramsMap,
+      beforeStatement: opts?.beforeStatement,
+      setCtxVar: (name, value) => this.executor.setCtxVar(name, value),
+    })
+  }
+
+  /**
+   * 跨 part 引用准备：把 inputGeometryMap 与 sceneScript 解析出的外部 Shape 注入持久 ctx，
+   * 使编译产物 fn 的 `ctx.<var>` 直接命中（旧解释器经 resolveShapeRef 兜底）。
+   * 必须在 reconcileCtx 之后调用（否则被当作非活跃变量回收）。
+   */
+  private async prepareCtx(script: PartScript, opts?: ExecuteOptions): Promise<void> {
+    if (opts?.inputGeometryMap) {
+      for (const [name, shape] of opts.inputGeometryMap) {
+        if (this.executor.getCtxVar(name) === undefined) this.executor.setCtxVar(name, shape)
+      }
+    }
+    const sceneScript = opts?.sceneScript
+    if (!sceneScript) return
+    const localDefs = new Set<string>()
+    for (const p of script.params) localDefs.add(p.name)
+    for (const meta of this.executor.getMetas()) for (const w of meta.writes) localDefs.add(w)
+    for (const meta of this.executor.getMetas()) {
+      if (meta.sourceIndex === undefined) continue
+      const stmt = script.statements[meta.sourceIndex]
+      for (const ref of stmt.refs ?? []) {
+        if (localDefs.has(ref)) continue
+        if (this.executor.getCtxVar(ref) !== undefined) continue
+        const shape = await this.resolveShapeRef(asPartName(ref), new Map(), sceneScript)
+        this.executor.setCtxVar(ref, shape)
+      }
+    }
+  }
+
+  /** 执行并捕获 brep 强制模式失败（BrepUnsupportedError → ExecutionResult.failedAt）。 */
+  private async runWithFailureHandling(
+    script: PartScript,
+    exec: ExecContextImpl,
+    run: () => Promise<void>,
+  ): Promise<ExecutionResult> {
+    try {
+      await run()
+    } catch (err) {
+      if (err instanceof BrepUnsupportedError) {
+        const index = err.stmt ? script.statements.indexOf(err.stmt) : -1
+        return {
+          outputs: exec.outputCache,
+          brepChain: exec.brepChain,
+          terminals: [],
+          infos: [],
+          failedAt: { index, op: err.stmt?.op ?? '', message: err.message },
+        }
+      }
+      throw err
+    }
+    return this.collectResult(script, exec)
+  }
+
+  /** 从持久 ctx 组装完整 ExecutionResult（outputs / statementCache / brepSolids / topology）。 */
+  private collectResult(script: PartScript, exec: ExecContextImpl): ExecutionResult {
     const outputs = new Map<PartName, Shape>()
-    for (const s of script.statements) {
-      const primaryName = asPartName(s.id)
-      const cached = this.statementCache.get(primaryName)
-      if (cached) outputs.set(primaryName, cached.output)
-      for (const outId of s.outputs ?? []) {
-        const oc = this.statementCache.get(outId)
-        if (oc) outputs.set(outId, oc.output)
+    for (const meta of this.executor.getMetas()) {
+      for (const w of meta.writes) {
+        const v = this.executor.getCtxVar(w)
+        if (isShapeLike(v)) outputs.set(asPartName(w), v as Shape)
+      }
+    }
+
+    // 同步 statementCache（getCachedOutput / writeToStatementCache 公开 API 依赖）
+    for (const meta of this.executor.getMetas()) {
+      const cached = this.executor.getCachedKey(meta.id)
+      for (const w of meta.writes) {
+        const v = this.executor.getCtxVar(w)
+        if (isShapeLike(v)) {
+          const shape = v as Shape
+          this.statementCache.set(asPartName(w), {
+            statementKey: cached?.key ?? '',
+            outputContentKey: computeContentKey(shape.positions, shape.indices),
+            output: shape,
+          })
+        }
       }
     }
 
     const terminals = script.terminalShapes ?? []
-    const brepSolids = new Map<PartName, { solid: ShapeHandle; kernel: OcctKernel }>()
-    if (this.kernel) {
-      if (terminals.length > 0) {
-        for (const t of terminals) {
-          const tKey = asPartName(t.id)
-          const s = this.solidCache.get(tKey)
-          if (s && this.kernel) brepSolids.set(tKey, { solid: s, kernel: this.kernel })
-        }
-      } else {
-        // 无终端声明：取最后一条有赋值且 returnType=new_shape 的语句
-        const newShapeStmts = script.statements.filter(
-          (s) => s.hasAssignment && (s.returnType ?? 'new_shape') === 'new_shape',
-        )
-        if (newShapeStmts.length > 0) {
-          const lastStmt = newShapeStmts[newShapeStmts.length - 1]
-          const finalSolid = this.solidCache.get(asPartName(lastStmt.id))
-          if (finalSolid && this.kernel) brepSolids.set(asPartName(lastStmt.id), { solid: finalSolid, kernel: this.kernel })
-        }
-      }
-
-      // 装配成员 solid 提取（与 execute 中一致）
-      for (const stmt of script.statements) {
-        if (stmt.op !== 'assembly') continue
-        const members = stmt.args?.members
-        if (!Array.isArray(members)) continue
-        for (const m of members) {
-          if (typeof m !== 'string') continue
-          const mId = asPartName(m)
-          if (brepSolids.has(mId)) continue
-          const s = this.solidCache.get(mId)
-          if (s && this.kernel) {
-            brepSolids.set(mId, { solid: s, kernel: this.kernel })
-          }
-        }
-      }
-    }
+    const brepSolids = this.extractBrepSolids(script, terminals)
 
     return {
       outputs,
-      brepChain: this.brepChain ?? createEmptyBrepChain(),
+      brepChain: exec.brepChain,
       terminals,
       infos: [],
       brepSolids: brepSolids.size > 0 ? brepSolids : undefined,
       topology: this.topologyCache.size > 0 ? new Map(this.topologyCache) : undefined,
     }
+  }
+
+  /** 逐终端提取 BREP solid（含装配成员 solid）。 */
+  private extractBrepSolids(
+    script: PartScript,
+    terminals: TerminalShape[],
+  ): Map<PartName, { solid: ShapeHandle; kernel: OcctKernel }> {
+    const brepSolids = new Map<PartName, { solid: ShapeHandle; kernel: OcctKernel }>()
+    if (!this.kernel) return brepSolids
+
+    if (terminals.length > 0) {
+      for (const t of terminals) {
+        const tKey = asPartName(t.id)
+        const s = this.solidCache.get(tKey)
+        if (s && this.kernel) brepSolids.set(tKey, { solid: s, kernel: this.kernel })
+      }
+    } else {
+      const newShapeStmts = script.statements.filter(
+        (s) => s.hasAssignment && (s.returnType ?? 'new_shape') === 'new_shape',
+      )
+      if (newShapeStmts.length > 0) {
+        const lastStmt = newShapeStmts[newShapeStmts.length - 1]
+        const finalSolid = this.solidCache.get(asPartName(lastStmt.id))
+        if (finalSolid && this.kernel) {
+          brepSolids.set(asPartName(lastStmt.id), { solid: finalSolid, kernel: this.kernel })
+        }
+      }
+    }
+
+    // 装配成员 solid 提取：assembly 终端本身不持有 solid，但其 members 在 solidCache 中有更新后的 solid
+    for (const stmt of script.statements) {
+      if (stmt.op !== 'assembly') continue
+      const members = stmt.args?.members
+      if (!Array.isArray(members)) continue
+      for (const m of members) {
+        if (typeof m !== 'string') continue
+        const mId = asPartName(m)
+        if (brepSolids.has(mId)) continue
+        const s = this.solidCache.get(mId)
+        if (s && this.kernel) brepSolids.set(mId, { solid: s, kernel: this.kernel })
+      }
+    }
+
+    return brepSolids
   }
 
   // ── 内部：跨 part 引用解析 ──
@@ -755,7 +636,7 @@ export class CadRuntime {
         // 写入持久 statementCache（含 outputs[]），使后续引用直接命中、不再子重放
         const contentKey = computeContentKey(result.positions, result.indices)
         const getInputContentKey = (id: PartName) => this.statementCache.get(id)?.outputContentKey
-        const stmtKey = computeStatementKey(s, getInputContentKey)
+        const stmtKey = this.computeLegacyStatementKey(s, getInputContentKey)
         this.statementCache.set(subPrimaryName, {
           statementKey: stmtKey,
           outputContentKey: contentKey,
@@ -791,6 +672,20 @@ export class CadRuntime {
     )
   }
 
+  /** 旧 statementKey 计算（跨 part 子重放用，逻辑与旧解释器一致）。 */
+  private computeLegacyStatementKey(
+    stmt: CadStatement,
+    getInputContentKey: (id: PartName) => string | undefined,
+  ): string {
+    const parts: string[] = [stmt.op]
+    parts.push(JSON.stringify(stmt.args))
+    for (const inputId of stmt.inputs) {
+      const ck = getInputContentKey(inputId)
+      parts.push(ck ?? 'missing')
+    }
+    return parts.join('|')
+  }
+
   // ── 公开：缓存访问 ──
 
   /** 获取语句缓存中的输出几何（key 为语句 id；内部查 PartName 键） */
@@ -807,7 +702,7 @@ export class CadRuntime {
   ): void {
     const primaryKey = asPartName(statementId)
     const getInputContentKey = (id: PartName) => this.statementCache.get(id)?.outputContentKey
-    const stmtKey = computeStatementKey(stmt, getInputContentKey)
+    const stmtKey = this.computeLegacyStatementKey(stmt, getInputContentKey)
     this.statementCache.set(primaryKey, {
       statementKey: stmtKey,
       outputContentKey,
@@ -818,68 +713,6 @@ export class CadRuntime {
   /** 清除语句缓存 */
   clearStatementCache(): void {
     this.statementCache.clear()
-  }
-
-  /**
-   * 执行装配变换 pass。
-   *
-   * 从 do_assemble 语句的 assemblyTarget 找到对应的 assembly 语句，
-   * 从 assembly 语句的 args.constraints 中读取约束数据，
-   * 委托 executeDoAssemble 执行变换（唯一真源）。
-   *
-   * executeDoAssemble 同时处理：
-   * - Mesh 变换（outputCache 顶点烘焙）
-   * - BREP 变换（solidCache 刚体变换，通过传入 brepChain）
-   * - 下游 mesh 传播（通过传入 script）
-   *
-   * 约束只存 face 数据（center/normal），不存 transform（v8 红线 R7）。
-   * 每次重放从 face 数据实时 solveFaceMate 求解，结果确定、可重复。
-   *
-   * @returns 被变换的 part name 集合（moving parts + 下游传播的 parts）
-   */
-  private async executeAssemblyPass(
-    doAssembleStmt: CadStatement,
-    outputCache: Map<PartName, Shape>,
-    script: PartScript,
-  ): Promise<Set<PartName>> {
-    // 委托独立函数 executeAssemblyPassForStmt（与 3d_editor executeScript 共用同一入口）
-    return Promise.resolve(
-      executeAssemblyPassForStmt(doAssembleStmt, outputCache, script, this.brepChain ?? undefined)
-    )
-  }
-
-  /** plan() — 依赖分析，得出需要重算的语句集合 */
-  plan(script: PartScript): { stale: CadStatement[]; reused: Map<PartName, string> } {
-    const stale: CadStatement[] = []
-    const staleIds = new Set<PartName>()
-    const reused = new Map<PartName, string>()
-
-    for (const stmt of script.statements) {
-      // void / same_shape 语句不产出几何，不参与增量分析
-      const rt = stmt.returnType ?? 'new_shape'
-      if (rt === 'void' || rt === 'same_shape') continue
-
-      const inputStale = stmt.inputs.some((id) => staleIds.has(id))
-      if (inputStale) {
-        stale.push(stmt)
-        staleIds.add(asPartName(stmt.id))
-        continue
-      }
-
-      const getInputContentKey = (id: PartName) =>
-        reused.get(id) ?? this.statementCache.get(id)?.outputContentKey
-      const newKey = computeStatementKey(stmt, getInputContentKey)
-      const cached = this.statementCache.get(asPartName(stmt.id))
-
-      if (cached && cached.statementKey === newKey) {
-        reused.set(asPartName(stmt.id), cached.outputContentKey)
-      } else {
-        stale.push(stmt)
-        staleIds.add(asPartName(stmt.id))
-      }
-    }
-
-    return { stale, reused }
   }
 
   // ── 公开：拓扑数据缓存 ──
@@ -1072,6 +905,7 @@ export class CadRuntime {
     this.topologyCache.clear()
     this.brepChain = null
     this.kernel = null
+    this.executor.clear()
   }
 }
 
@@ -1085,14 +919,4 @@ export class CadRuntime {
  */
 export function createRuntime(ports: HostPorts, mode?: ExecutionMode): CadRuntime {
   return new CadRuntime(ports, mode)
-}
-
-// ── 辅助 ──
-
-/** 创建空的 BREP 链（mesh 模式用） */
-function createEmptyBrepChain(): BrepChainState {
-  return {
-    solidCache: new Map(),
-    kernel: null,  // mesh 模式无 BREP 能力
-  }
 }

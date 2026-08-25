@@ -80,6 +80,21 @@ export interface ExecContext {
 
 // ── ExecContextImpl（Phase 1 实现） ──
 
+/**
+ * brep 强制模式下的不支持错误（mesh-only op / 输入不在 BREP 链）。
+ *
+ * 由 adapter 的 runOp 抛出，CadRuntime 捕获后转换为 ExecutionResult.failedAt
+ * （与旧解释器"brep 模式立即返回 E_BREP_UNSUPPORTED，不静默回退 mesh"的语义一致）。
+ */
+export class BrepUnsupportedError extends Error {
+  readonly stmt?: CadStatement
+  constructor(message: string, stmt?: CadStatement) {
+    super(message)
+    this.name = 'BrepUnsupportedError'
+    this.stmt = stmt
+  }
+}
+
 /** ExecContextImpl 构造选项。 */
 export interface ExecContextImplOptions {
   mode: ExecutionMode
