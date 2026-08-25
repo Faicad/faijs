@@ -16,6 +16,7 @@ import type { Shape } from '../mesh/types'
 import type { BrepChainState } from '../brep/brep-chain'
 import type { ShapeHandle, OcctKernel } from 'occt-wasm'
 import { executeAssemblyPassForStmt } from '../ops/assemble'
+import { getSlot, ensureSlot } from '../stdlib/shape'
 import type { PartName } from '../identity'
 import { asPartName } from '../identity'
 import type {
@@ -165,25 +166,19 @@ export class ExecContextImpl implements ExecContext {
   }
 
   getSolid(shape: Shape): ShapeHandle | undefined {
-    const name = this.shapeToName.get(shape)
-    if (!name) return undefined
-    return this.brepChain.solidCache.get(name)
+    return getSlot(shape)?.solid
   }
 
   setSolid(shape: Shape, solid: ShapeHandle): void {
-    const name = this.shapeToName.get(shape)
-    if (name) this.brepChain.solidCache.set(name, solid)
+    ensureSlot(shape).solid = solid
   }
 
   getFaceEvolution(shape: Shape): Map<number, number[]> | undefined {
-    const name = this.shapeToName.get(shape)
-    if (!name) return undefined
-    return this.brepChain.faceEvolutionCache?.get(name)
+    return getSlot(shape)?.faceEvolution
   }
 
   setFaceEvolution(shape: Shape, evo: Map<number, number[]>): void {
-    const name = this.shapeToName.get(shape)
-    if (name) this.brepChain.faceEvolutionCache?.set(name, evo)
+    ensureSlot(shape).faceEvolution = evo
   }
 
   /**

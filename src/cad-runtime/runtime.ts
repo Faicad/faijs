@@ -194,6 +194,12 @@ export class CadRuntime {
       releaseHandle: (handle) => {
         try { this.kernel?.release(handle) } catch { /* 已释放 */ }
       },
+      setSolid: (partName, solid) => {
+        this.solidCache.set(partName, solid)
+      },
+      setFaceEvolution: (partName, evo) => {
+        this.faceEvolutionCache.set(partName, evo)
+      },
     })
   }
 

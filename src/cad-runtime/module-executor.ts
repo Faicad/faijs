@@ -18,6 +18,7 @@ import type { ShapeHandle } from 'occt-wasm'
 import type { PartName, StmtId } from '../identity'
 import { asPartName } from '../identity'
 import { computeContentKey } from './content-key'
+import { getSlot } from '../stdlib/shape'
 import type { ExecContextImpl, StdlibNamespace } from './exec-context'
 
 // ── 编译产物语句（从模块文本 import 得到） ──
@@ -54,6 +55,10 @@ export interface ModuleExecutorOptions {
   getSolid?: (partName: PartName) => ShapeHandle | undefined
   /** 释放一个已捕获的 OCCT 句柄（顶替释放：同 id 重算成功后释放旧 handle） */
   releaseHandle?: (handle: ShapeHandle) => void
+  /** 同步身份槽 solid → PartName 键控 solidCache（runtime 既有逻辑依赖） */
+  setSolid?: (partName: PartName, solid: ShapeHandle) => void
+  /** 同步身份槽 faceEvolution → PartName 键控 faceEvolutionCache */
+  setFaceEvolution?: (partName: PartName, evo: Map<number, number[]>) => void
 }
 
 export class ModuleExecutor {
@@ -71,12 +76,16 @@ export class ModuleExecutor {
   private readonly releaseSolid?: (partName: PartName) => void
   private readonly getSolid?: (partName: PartName) => ShapeHandle | undefined
   private readonly releaseHandle?: (handle: ShapeHandle) => void
+  private readonly setSolid?: (partName: PartName, solid: ShapeHandle) => void
+  private readonly setFaceEvolution?: (partName: PartName, evo: Map<number, number[]>) => void
 
   constructor(cad: StdlibNamespace, options?: ModuleExecutorOptions) {
     this.cad = cad
     this.releaseSolid = options?.releaseSolid
     this.getSolid = options?.getSolid
     this.releaseHandle = options?.releaseHandle
+    this.setSolid = options?.setSolid
+    this.setFaceEvolution = options?.setFaceEvolution
   }
 
   /** 更新脚本 + 编译元数据（ctx 保持存活）。 */
@@ -210,7 +219,7 @@ export class ModuleExecutor {
 
   // ── 内部 ──
 
-  /** 语句执行后：ctx → outputCache 同步 + statementKey 缓存。 */
+  /** 语句执行后：ctx → outputCache 同步 + 身份槽 → solidCache/faceEvolutionCache 同步 + statementKey 缓存。 */
   private afterStatement(compiled: CompiledStatement, exec: ExecContextImpl): void {
     const source = this.sourceById.get(compiled.id)
     const meta = this.metaById.get(compiled.id)
@@ -218,7 +227,13 @@ export class ModuleExecutor {
     for (const w of writes) {
       const v = this.ctx[w]
       if (v !== undefined) {
-        if (typeof v === 'object' && v !== null) exec.shapeToName.set(v, asPartName(w))
+        if (typeof v === 'object' && v !== null) {
+          exec.shapeToName.set(v, asPartName(w))
+          // 身份槽 → PartName 键控缓存同步（runtime 的 brepSolids/顶替释放/buildBrepTopology 依赖）
+          const slot = getSlot(v)
+          if (slot?.solid) this.setSolid?.(asPartName(w), slot.solid)
+          if (slot?.faceEvolution) this.setFaceEvolution?.(asPartName(w), slot.faceEvolution)
+        }
         exec.outputCache.set(asPartName(w), v as Shape)
       }
     }
