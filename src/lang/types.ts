@@ -84,12 +84,19 @@ export type ReturnType = 'new_shape' | 'same_shape' | 'scalar' | 'void'
 
 export interface CadStatement {
   /** 语句 id（StmtId）——每条语句都有，无赋值语句（add_constraint/do_assemble）也有。
-   *  fai 语句名空间；与 3d_editor 的 ScopedId（fileId:innerId）是两套命名空间。 */
+   *  fai 语句名空间；与 3d_editor 的 ScopedId（fileId:innerId）是两套命名空间。
+   *  Phase 1 兼容期：id = 变量名（partN_vM）；独立 StmtId 见 `stmtId` 字段。 */
   id: StmtId
   op: string
   args: Record<string, Arg>
   inputs: ShapeRef[]
   name?: string
+  /** 独立 StmtId（VM 执行方案 Phase 1 起分配，格式 s1..sN，参数语句占前段）。
+   *  与 id=变量名 的兼容填充并存；Phase 3 把 StmtId 写回 CadStatement.id 后本字段退役。 */
+  stmtId?: StmtId
+  /** 本语句引用的变量名集合（inputs + args 中的 $param + $geom.of + group/assembly members）。
+   *  parser 收集，编译期（compileToModule）据此翻译为 deps（定义这些变量的语句 id）。 */
+  refs?: string[]
   /** 多输出 op 的输出 id 列表（设计文档 §3）。
    *  默认 [id]（普通 op）；split 多输出写入 ['part1_v0','part2_v0']。
    *  outputCache 按 output id 索引，下游用具体 output id 引用。 */

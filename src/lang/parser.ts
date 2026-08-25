@@ -36,6 +36,7 @@ import type {
 } from './types'
 import { getOpReturnType } from './args-schema'
 import { allocateStatementId } from './allocate-id'
+import { isAssetRef, isGeomRef, isParamRef } from './types'
 import {
   asStmtId, asPartName, asGroupName,
   type StmtId, type PartName,
@@ -518,6 +519,48 @@ function parseReturnObject(
   return { id, meta: Object.keys(meta).length > 0 ? meta : undefined }
 }
 
+// ── 引用收集（Phase 1: VM 执行 deps 计算） ──
+
+/** 递归收集 Arg 中的变量引用：$param → 参数名；$geom.of → 上游变量名；$asset 无引用。 */
+function collectRefsFromArg(value: Arg, out: Set<string>): void {
+  if (value === null || value === undefined) return
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return
+  if (isParamRef(value)) {
+    out.add(value.$param)
+    return
+  }
+  if (isGeomRef(value)) {
+    out.add(value.$geom.of)
+    return
+  }
+  if (isAssetRef(value)) return
+  if (Array.isArray(value)) {
+    for (const v of value) collectRefsFromArg(v as Arg, out)
+    return
+  }
+  if (typeof value === 'object') {
+    for (const v of Object.values(value)) collectRefsFromArg(v as Arg, out)
+  }
+}
+
+/**
+ * 收集单条语句引用的全部变量名（inputs + args 中 $param / $geom.of + group/assembly members）。
+ * 存入 stmt.refs，编译期据此翻译为 deps（定义这些变量的语句 id）。
+ */
+function collectStatementRefs(stmt: CadStatement): string[] {
+  const refs = new Set<string>(stmt.inputs)
+  for (const arg of Object.values(stmt.args)) {
+    collectRefsFromArg(arg, refs)
+  }
+  if (stmt.op === 'group' || stmt.op === 'assembly') {
+    const members = stmt.args?.members
+    if (Array.isArray(members)) {
+      for (const m of members) if (typeof m === 'string') refs.add(m)
+    }
+  }
+  return [...refs]
+}
+
 // ── 主解析函数 ──
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
@@ -794,6 +837,16 @@ export function parseScript(code: string, _options?: ParseOptions): ParseResult 
       default:
         throw new ParseError(`unsupported statement: ${stmtNode.type}`, line)
     }
+  }
+
+  // ── 3.5 独立 StmtId 分配 + 引用收集（Phase 1: VM 执行） ──
+  // StmtId 按语句顺序分配 s(K+1)..s(K+N)，K = params.length——参数在编译产物中占 s1..sK，
+  // 使 parser 分配的 stmtId 与 compileToModule 生成的模块语句 id 一致。
+  const stmtIdBase = params.length
+  let stmtIdx = 0
+  for (const stmt of statements) {
+    stmt.stmtId = asStmtId(`s${stmtIdBase + (++stmtIdx)}`)
+    stmt.refs = collectStatementRefs(stmt)
   }
 
   // ── 4. 自动推导 terminal shapes ──
