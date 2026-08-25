@@ -30,6 +30,7 @@ import { drill } from '../stdlib/drill'
 import { split } from '../stdlib/split'
 import { boolean as booleanOp } from '../stdlib/boolean'
 import { engrave } from '../stdlib/engrave'
+import { group as stdlibGroup, assembly as stdlibAssembly } from '../stdlib/compound'
 import {
   faceCenter as stdlibFaceCenter,
   faceNormal as stdlibFaceNormal,
@@ -38,12 +39,6 @@ import {
   bboxMax as stdlibBboxMax,
 } from '../stdlib/geom'
 import type { ExecContextImpl, StdlibNamespace } from './exec-context'
-
-// ── 空 Shape（group/assembly 结构型语句的 Phase 2.1 产物；Phase 2.4 迁 compound） ──
-
-function emptyShape(): Shape {
-  return { positions: new Float32Array(0), indices: new Uint32Array(0) }
-}
 
 /** 解析编译产物调用：末参 exec，倒数第二参 args，其余为 inputs。 */
 function parseCall(rest: unknown[]): { exec: ExecContextImpl; args: Record<string, unknown>; inputs: Shape[] } {
@@ -118,9 +113,9 @@ export function createInternalStdlib(): StdlibNamespace {
     // ── split（1 输入，返回 { front, back }） ──
     split: (...rest) => { const { exec, args, inputs } = parseCall(rest); return split(inputs[0], args, exec) },
 
-    // ── 结构型（Phase 2.1：空 Shape；装配 pass 走旧路径） ──
-    group: (_args, _e) => emptyShape(),
-    assembly: (_args, _e) => emptyShape(),
+    // ── 结构型（Phase 2.4：compound Shape + AssemblyBehavior） ──
+    group: (...rest) => { const { exec, args } = parseCall(rest); return stdlibGroup(args, exec) },
+    assembly: (...rest) => { const { exec, args } = parseCall(rest); return stdlibAssembly(args, exec) },
 
     // ── $geom 查询（末参 exec，转发 stdlib/geom） ──
     faceCenter: (...rest) => stdlibFaceCenter(...rest),

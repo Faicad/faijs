@@ -371,10 +371,10 @@ describe('CadRuntime: instance management', () => {
     ])
     const result = await runtime.execute(script)
 
-    // s1 and s3 should have outputs; grp_1 is new_shape but a no-op dispatcher (empty shape)
+    // s1 and s3 should have outputs; grp_1 is a compound (group product) → compounds 而非 outputs
     expect(result.outputs.get(asPartName('s1'))).toBeDefined()
-    // grp_1 has returnType new_shape (default) so it goes through dispatcher, returns empty shape
-    expect(result.outputs.get(asPartName('grp_1'))).toBeDefined() // no-op dispatcher returns empty shape
+    // grp_1 是 compound（group 产物），出现在 ExecutionResult.compounds 而非 outputs
+    expect(result.compounds?.get(asPartName('grp_1'))).toEqual([asPartName('s1')])
     expect(result.outputs.get(asPartName('s3'))).toBeDefined()
   })
 })

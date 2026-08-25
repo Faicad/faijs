@@ -1,0 +1,301 @@
+/**
+ * stdlib compound — group/assembly 库函数（compound Shape + AssemblyBehavior）
+ *
+ * 设计文档：docs/plans/2026-08-25-faijs-vm-execution-implementation-plan.md §3.10 / §2.4
+ *
+ * 从 src/ops/assemble.ts 迁出并改写为 stdlib 形态：
+ * - `group(params, exec)` → compound Shape（kind='compound'，children 为成员 Shape 引用）
+ * - `assembly(params, exec)` → compound Shape + AssemblyBehavior（约束列表 + solve 方法）
+ * - 装配三件套（solveFaceMate / executeDoAssemble / previewAssembly）迁移并挂到 AssemblyBehavior
+ *
+ * compound 自身无独立 mesh——几何由 children 承载，意义是结构（层级）。
+ * do_assemble 编译为 `ctx.<asm>.do_assemble(exec)`：调用 compound 的 solve 方法，
+ * 对 moving 成员施加 face_mate 变换（mesh 顶点烘焙 + BREP 刚体变换 + 下游传播）。
+ */
+
+import type { Shape } from '../mesh/types'
+import { compound as makeCompound, ensureSlot, type CompoundShape } from './shape'
+import { applyTransformBrep } from '../brep/brep-ops'
+import type { ExecContext, ExecContextImpl } from '../cad-runtime/exec-context'
+import type { PartName } from '../identity'
+import { asPartName } from '../identity'
+import type { PartScript } from '../lang/types'
+
+// ── 约束类型 ──
+
+export interface FaceMateConstraint {
+  type: 'face_mate'
+  fixedPartName: PartName
+  movingPartName: PartName
+  fixedFace: {
+    surfaceType: string
+    center: [number, number, number]
+    normal: [number, number, number]
+  }
+  movingFace: {
+    surfaceType: string
+    center: [number, number, number]
+    normal: [number, number, number]
+  }
+}
+
+export type AssemblyConstraint = FaceMateConstraint
+
+// ── 向量数学（无 three.js 依赖，纯计算） ──
+
+function vec3Normalize(v: [number, number, number]): [number, number, number] {
+  const len = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])
+  if (len < 1e-12) return [0, 0, 0]
+  return [v[0] / len, v[1] / len, v[2] / len]
+}
+
+function vec3Sub(a: [number, number, number], b: [number, number, number]): [number, number, number] {
+  return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
+}
+
+function vec3Cross(a: [number, number, number], b: [number, number, number]): [number, number, number] {
+  return [
+    a[1] * b[2] - a[2] * b[1],
+    a[2] * b[0] - a[0] * b[2],
+    a[0] * b[1] - a[1] * b[0],
+  ]
+}
+
+function vec3Dot(a: [number, number, number], b: [number, number, number]): number {
+  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+}
+
+/** 从两个单位向量计算旋转四元数 (a → b)，Rodrigues 公式。 */
+function quaternionFromUnitVectors(
+  a: [number, number, number],
+  b: [number, number, number],
+): [number, number, number, number] {
+  const cross = vec3Cross(a, b)
+  const dot = vec3Dot(a, b)
+
+  if (dot > 1 - 1e-9) {
+    return [0, 0, 0, 1]
+  }
+  if (dot < -1 + 1e-9) {
+    const axis = Math.abs(a[0]) < 0.9 ? [1, 0, 0] as [number, number, number] : [0, 1, 0] as [number, number, number]
+    const perp = vec3Normalize(vec3Cross(a, axis))
+    return [perp[0], perp[1], perp[2], 0]
+  }
+
+  const w = 1 + dot
+  const len = Math.sqrt(cross[0] * cross[0] + cross[1] * cross[1] + cross[2] * cross[2] + w * w)
+  return [cross[0] / len, cross[1] / len, cross[2] / len, w / len]
+}
+
+/** 四元数 → 旋转矩阵 (3x3, row-major)。 */
+function quaternionToMatrix3(q: [number, number, number, number]): number[] {
+  const [x, y, z, w] = q
+  const xx = x * x, yy = y * y, zz = z * z
+  const xy = x * y, xz = x * z, yz = y * z
+  const wx = w * x, wy = w * y, wz = w * z
+
+  return [
+    1 - 2 * (yy + zz), 2 * (xy - wz), 2 * (xz + wy),
+    2 * (xy + wz), 1 - 2 * (xx + zz), 2 * (yz - wx),
+    2 * (xz - wy), 2 * (yz + wx), 1 - 2 * (xx + yy),
+  ]
+}
+
+/** 矩阵 × 向量 (3x3 * 3)。 */
+function mat3MulVec(m: number[], v: [number, number, number]): [number, number, number] {
+  return [
+    m[0] * v[0] + m[1] * v[1] + m[2] * v[2],
+    m[3] * v[0] + m[4] * v[1] + m[5] * v[2],
+    m[6] * v[0] + m[7] * v[1] + m[8] * v[2],
+  ]
+}
+
+// ── 求解器 ──
+
+export interface FaceMateTransform {
+  quaternion: [number, number, number, number]
+  pivot: [number, number, number]
+  translation: [number, number, number]
+  rotationMatrix: number[]
+}
+
+/**
+ * 计算 face_mate 约束的变换（使 movingFace.normal → -fixedFace.normal + 中心重合）。
+ */
+export function solveFaceMate(
+  fixedCenter: [number, number, number],
+  fixedNormal: [number, number, number],
+  movingCenter: [number, number, number],
+  movingNormal: [number, number, number],
+): FaceMateTransform {
+  const n1 = vec3Normalize(fixedNormal)
+  const p1 = fixedCenter
+  const n2 = vec3Normalize(movingNormal)
+  const p2 = movingCenter
+
+  const targetNormal: [number, number, number] = [-n1[0], -n1[1], -n1[2]]
+  const quaternion = quaternionFromUnitVectors(n2, targetNormal)
+  const rotationMatrix = quaternionToMatrix3(quaternion)
+  const translation = vec3Sub(p1, p2)
+
+  return { quaternion, pivot: p2, translation, rotationMatrix }
+}
+
+/** 将变换应用到 Shape（绕 pivot 旋转后平移，顶点烘焙）。 */
+export function applyTransform(
+  shape: Shape,
+  quaternion: [number, number, number, number],
+  pivot: [number, number, number],
+  translation: [number, number, number],
+  rotationMatrix: number[],
+): Shape {
+  const positions = shape.positions
+  const newPositions = new Float32Array(positions.length)
+
+  for (let i = 0; i < positions.length; i += 3) {
+    const px = positions[i] - pivot[0]
+    const py = positions[i + 1] - pivot[1]
+    const pz = positions[i + 2] - pivot[2]
+
+    const rotated = mat3MulVec(rotationMatrix, [px, py, pz])
+
+    newPositions[i] = rotated[0] + pivot[0] + translation[0]
+    newPositions[i + 1] = rotated[1] + pivot[1] + translation[1]
+    newPositions[i + 2] = rotated[2] + pivot[2] + translation[2]
+  }
+
+  return {
+    positions: newPositions,
+    indices: shape.indices,
+  }
+}
+
+// ── AssemblyBehavior ──
+
+export interface AssemblyBehavior {
+  name?: string
+  memberNames: string[]
+  constraints: AssemblyConstraint[]
+  /** 执行装配：对 moving 成员施加 face_mate 变换（mesh + BREP + 下游传播）。 */
+  solve(): void
+}
+
+/**
+ * 沿 inputs 链把装配变换传播到下游 mesh shape（并同步回 ctx 与 outputCache）。
+ */
+function propagateTransformDownstream(
+  outputCache: Map<PartName, Shape>,
+  script: PartScript,
+  sourceId: PartName,
+  transform: FaceMateTransform,
+  setCtxVar: (name: string, value: unknown) => void,
+  visited: Set<PartName> = new Set(),
+): void {
+  if (visited.has(sourceId)) return
+  visited.add(sourceId)
+
+  for (const stmt of script.statements) {
+    if (stmt.inputs.includes(sourceId)) {
+      const downstreamName = asPartName(stmt.id)
+      const downstreamShape = outputCache.get(downstreamName)
+      if (downstreamShape && downstreamShape.positions) {
+        const transformed = applyTransform(
+          downstreamShape, transform.quaternion, transform.pivot, transform.translation, transform.rotationMatrix,
+        )
+        outputCache.set(downstreamName, transformed)
+        setCtxVar(downstreamName, transformed)
+        propagateTransformDownstream(outputCache, script, downstreamName, transform, setCtxVar, visited)
+      }
+    }
+  }
+}
+
+/** 执行装配变换（AssemblyBehavior.solve 的核心）。 */
+function solveAssembly(compound: CompoundShape, behavior: AssemblyBehavior, exec: ExecContextImpl): void {
+  const children = compound.children
+  const outputCache = exec.outputCache
+  const script = exec.script
+  const kernel = exec.brepChain.kernel
+
+  for (const constraint of behavior.constraints) {
+    if (constraint.type !== 'face_mate') {
+      throw new Error(`[compound] unsupported constraint type: ${constraint.type}`)
+    }
+
+    const movingIndex = behavior.memberNames.indexOf(constraint.movingPartName)
+    if (movingIndex < 0) continue
+    const movingShape = children[movingIndex]
+    if (!movingShape) continue
+
+    const transform = solveFaceMate(
+      constraint.fixedFace.center,
+      constraint.fixedFace.normal,
+      constraint.movingFace.center,
+      constraint.movingFace.normal,
+    )
+
+    // 1. Mesh 变换（顶点烘焙）
+    const transformed = applyTransform(
+      movingShape, transform.quaternion, transform.pivot, transform.translation, transform.rotationMatrix,
+    )
+    children[movingIndex] = transformed
+    exec.setVariable(constraint.movingPartName, transformed)
+    outputCache.set(constraint.movingPartName, transformed)
+
+    // 2. BREP 刚体变换（可选）
+    const movingSolid = exec.getSolid(movingShape)
+    if (kernel && movingSolid) {
+      const transformedSolid = applyTransformBrep(
+        kernel, movingSolid, transform.quaternion, transform.pivot, transform.translation,
+      )
+      try { kernel.release(movingSolid) } catch { /* 已释放 */ }
+      exec.setSolid(transformed, transformedSolid)
+    }
+
+    // 3. 下游 mesh 传播（可选）
+    if (script) {
+      propagateTransformDownstream(
+        outputCache, script, constraint.movingPartName, transform,
+        (name, value) => exec.setVariable(name, value),
+      )
+    }
+  }
+}
+
+// ── group / assembly 库函数 ──
+
+/**
+ * `cad.group({ name, members, memberNames }, exec)` → compound Shape。
+ * members 是成员 Shape（编译产物 ctx.<var> 引用），memberNames 是成员变量名。
+ */
+export function group(params: Record<string, unknown>, _exec: ExecContext): CompoundShape {
+  const members = (params.members as Shape[] | undefined) ?? []
+  const memberNames = (params.memberNames as string[] | undefined) ?? []
+  const c = makeCompound(members)
+  // 挂最小 behavior（memberNames 供 ExecutionResult.compounds 结构输出；group 无约束）
+  ensureSlot(c).behavior = { memberNames, constraints: [], solve: () => {} }
+  return c
+}
+
+/**
+ * `cad.assembly({ name, members, memberNames, constraints }, exec)` → compound Shape + AssemblyBehavior。
+ * 挂 do_assemble 方法（编译产物 `ctx.<asm>.do_assemble(exec)` 调用）。
+ */
+export function assembly(params: Record<string, unknown>, exec: ExecContext): CompoundShape {
+  const members = (params.members as Shape[] | undefined) ?? []
+  const memberNames = (params.memberNames as string[] | undefined) ?? []
+  const constraints = (params.constraints as AssemblyConstraint[] | undefined) ?? []
+
+  const c = makeCompound(members)
+  const behavior: AssemblyBehavior = {
+    name: params.name as string | undefined,
+    memberNames,
+    constraints,
+    solve: () => solveAssembly(c, behavior, exec as ExecContextImpl),
+  }
+  ensureSlot(c).behavior = behavior
+  ;(c as CompoundShape & { do_assemble?: (e: ExecContext) => void }).do_assemble = (_e: ExecContext) => {
+    behavior.solve()
+  }
+  return c
+}

@@ -42,6 +42,7 @@ import { ExecContextImpl, BrepUnsupportedError } from './exec-context'
 import { createInternalStdlib } from './internal-stdlib-adapter'
 import { computeContentKey } from './content-key'
 export { computeContentKey } from './content-key'
+import { isCompound, getSlot } from '../stdlib/shape'
 
 
 // ── 装配变换死代码已删除 ──
@@ -108,6 +109,11 @@ export interface ExecutionResult {
    * 拓扑来源静态判定：BREP 成功时 source='brep'，否则根据 part 类型判定。
    */
   topology?: Map<PartName, PartTopology>
+  /**
+   * 装配/分组结构 — 每个 compound 变量（group/assembly 产物）的成员变量名列表。
+   * key 为 compound 变量名（PartName），value 为成员变量名列表。
+   */
+  compounds?: Map<PartName, PartName[]>
 }
 
 export interface ExecuteOptions {
@@ -508,6 +514,18 @@ export class CadRuntime {
     const terminals = script.terminalShapes ?? []
     const brepSolids = this.extractBrepSolids(script, terminals)
 
+    // 装配/分组结构：compound 变量 → 成员变量名列表（Phase 2.4）
+    const compounds = new Map<PartName, PartName[]>()
+    for (const meta of this.executor.getMetas()) {
+      for (const w of meta.writes) {
+        const v = this.executor.getCtxVar(w)
+        if (isCompound(v)) {
+          const behavior = getSlot(v)?.behavior as { memberNames?: string[] } | undefined
+          compounds.set(asPartName(w), (behavior?.memberNames ?? []).map(asPartName))
+        }
+      }
+    }
+
     return {
       outputs,
       brepChain: exec.brepChain,
@@ -515,6 +533,7 @@ export class CadRuntime {
       infos: [],
       brepSolids: brepSolids.size > 0 ? brepSolids : undefined,
       topology: this.topologyCache.size > 0 ? new Map(this.topologyCache) : undefined,
+      compounds: compounds.size > 0 ? compounds : undefined,
     }
   }
 

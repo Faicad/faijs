@@ -214,4 +214,9 @@ export class ExecContextImpl implements ExecContext {
       if (shape) this.setCtxVar?.(asPartName(partName), shape)
     }
   }
+
+  /** 写持久 ctx 变量（装配/库函数把变换结果同步回 ctx，使 collectResult 读到最终几何）。 */
+  setVariable(name: string, value: unknown): void {
+    this.setCtxVar?.(name, value)
+  }
 }

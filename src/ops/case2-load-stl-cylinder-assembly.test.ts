@@ -273,11 +273,11 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
     expect(asmStmt).toBeDefined()
     expect(asmStmt!.args.members).toEqual(['cube_v0', 'drilled_v0'])
 
-    // Assembly statement goes through dispatcher (new_shape) but returns empty shape (no-op)
-    // The output exists but is empty (positions and indices are zero-length)
-    const asmOutput = result.outputs.get(asPartName('grp_asm0'))
-    expect(asmOutput).toBeDefined()
-    expect(asmOutput!.positions.length).toBe(0)
+    // Assembly statement produces a compound Shape（Phase 2.4）→ 出现在 ExecutionResult.compounds 而非 outputs
+    expect(result.compounds?.get(asPartName('grp_asm0'))).toEqual([
+      asPartName('cube_v0'),
+      asPartName('drilled_v0'),
+    ])
 
     fileBlobStore.release(bufferKey)
   })

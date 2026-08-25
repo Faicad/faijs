@@ -169,8 +169,19 @@ function buildStatementFnBody(stmt: CadStatement): string {
     return `      // no-op (Phase 1: constraints read from assembly statement args)`
   }
   if (stmt.op === 'do_assemble') {
-    // Phase 1：委托 exec 触发装配变换 pass（executeAssemblyPassForStmt）
-    return `      await exec.doAssemble(exec)`
+    // Phase 2.4：调用 assembly compound 的 do_assemble 方法（AssemblyBehavior.solve）
+    return `      await ctx.${stmt.assemblyTarget}.do_assemble(exec)`
+  }
+
+  // group/assembly：compound Shape（members 传 Shape 引用 + memberNames 供约束解析）
+  if (stmt.op === 'group' || stmt.op === 'assembly') {
+    const members = (stmt.args.members as string[] | undefined) ?? []
+    const memberRefs = members.map((m) => `ctx.${m}`).join(', ')
+    const memberNames = members.map((m) => JSON.stringify(m)).join(', ')
+    const nameStr = stmt.args.name ? translateArg(stmt.args.name) : 'undefined'
+    const constraintsStr = stmt.args.constraints ? translateArg(stmt.args.constraints) : '[]'
+    const extra = stmt.op === 'assembly' ? `, constraints: ${constraintsStr}` : ''
+    return `      ctx.${stmt.id} = await cad.${stmt.op}({ name: ${nameStr}, members: [${memberRefs}], memberNames: [${memberNames}]${extra} }, exec)`
   }
 
   const inputs = stmt.inputs.map((inp) => `ctx.${inp}`).join(', ')
