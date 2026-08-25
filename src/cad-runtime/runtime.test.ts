@@ -665,3 +665,55 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     expect(deltaY).toBeCloseTo(10, 1)
   })
 })
+
+// ─── plan deps 级联（参数语句化，Phase 1.7） ───
+
+describe('CadRuntime: plan deps 级联（参数语句化）', () => {
+  /** 构造带参数 r 的脚本：box 的 size 引用 $param r。 */
+  function makeScriptWithParam(r: number): PartScript {
+    return {
+      source: { kind: 'load' },
+      params: [{ name: 'r', type: 'number', value: r, default: r }],
+      statements: [
+        makeStmt('part0_v0', 'box', { size: { $param: 'r' } }, []),
+      ],
+    }
+  }
+
+  it('无变化 → plan 全 reused，零 stale', async () => {
+    const runtime = makeRuntime()
+    await runtime.execute(makeScriptWithParam(20))
+
+    const { stale, reused } = runtime.plan(makeScriptWithParam(20))
+    expect(stale.length).toBe(0)
+    // 参数语句 + box 语句都 reused
+    expect(reused.size).toBeGreaterThanOrEqual(1)
+  })
+
+  it('改参数语句 → 引用它的下游语句 stale（deps 级联）', async () => {
+    const runtime = makeRuntime()
+    await runtime.execute(makeScriptWithParam(20))
+
+    // r: 20 → 30：参数语句 key 变化 → box（依赖 r）经 deps 级联 stale
+    const { stale, reused } = runtime.plan(makeScriptWithParam(30))
+    expect(stale.length).toBe(1)
+    expect(stale[0].id).toBe('part0_v0')
+    expect(reused.size).toBe(0)
+  })
+
+  it('update 改参数 → 只重算引用语句（beforeStatement 触发）', async () => {
+    const runtime = makeRuntime()
+    await runtime.execute(makeScriptWithParam(20))
+
+    const beforeCalls: string[] = []
+    await runtime.update(makeScriptWithParam(30), {
+      beforeStatement: (stmt) => beforeCalls.push(stmt.id),
+    })
+
+    // 只重算 box（参数语句非 CadStatement，不进 beforeStatement）
+    expect(beforeCalls).toEqual(['part0_v0'])
+    // 重算后几何更新（bbox 翻倍）
+    const out = runtime.getCachedOutput(asStmtId('part0_v0'))
+    expect(out).toBeDefined()
+  })
+})

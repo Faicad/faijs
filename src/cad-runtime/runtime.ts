@@ -337,6 +337,8 @@ export class CadRuntime {
   /** plan() — 依赖分析，得出需要重算的语句集合（对外签名不变）。 */
   plan(script: PartScript): { stale: CadStatement[]; reused: Map<PartName, string> } {
     const { statements } = compileToModule(script)
+    // 先同步 executor 的脚本元数据——plan 计算参数语句 key 依赖 executor.script 的 params
+    this.executor.setCompiled(script, statements)
     const { staleCompiledIds, reused } = this.planCompiled(script, statements)
     const stale: CadStatement[] = []
     for (const id of staleCompiledIds) {
