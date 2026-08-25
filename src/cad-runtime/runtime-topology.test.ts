@@ -2,6 +2,7 @@
  * ExecutionResult 拓扑数据测试 — E13
  */
 import { describe, it, expect } from 'vitest'
+import { asOccurrenceId, asPartName } from '../identity'
 import { CadRuntime } from './runtime'
 import type { HostPorts } from './ports'
 import type { SelectorRuntimeData } from '../topology/build-selector-runtime'
@@ -23,7 +24,7 @@ describe('E13: ExecutionResult 携带拓扑数据', () => {
       edges: [],
       vertices: [],
       references: [],
-      singleOccurrenceId: '',
+      singleOccurrenceId: asOccurrenceId(''),
       proxy: {
         faceRuns: new Uint32Array(),
         faceRunColumns: [],
@@ -41,8 +42,8 @@ describe('E13: ExecutionResult 携带拓扑数据', () => {
       },
     }
 
-    runtime.setTopology('part0_v0', 'brep', mockData)
-    const topo = runtime.getTopology('part0_v0')
+    runtime.setTopology(asPartName('part0_v0'), 'brep', mockData)
+    const topo = runtime.getTopology(asPartName('part0_v0'))
     expect(topo).toBeDefined()
     expect(topo!.source).toBe('brep')
     expect(topo!.partName).toBe('part0_v0')
@@ -54,7 +55,7 @@ describe('E13: ExecutionResult 携带拓扑数据', () => {
       events: { emit: () => {} },
     }
     const runtime = new CadRuntime(ports)
-    expect(runtime.getTopology('nonexistent')).toBeUndefined()
+    expect(runtime.getTopology(asPartName('nonexistent'))).toBeUndefined()
   })
 
   it('deleteTopology 删除后返回 undefined', () => {
@@ -65,7 +66,7 @@ describe('E13: ExecutionResult 携带拓扑数据', () => {
     const mockData: SelectorRuntimeData = {
       cadPath: '', stepHash: '', bbox: null,
       occurrences: [], shapes: [], faces: [], edges: [], vertices: [],
-      references: [], singleOccurrenceId: '',
+      references: [], singleOccurrenceId: asOccurrenceId(''),
       proxy: {
         faceRuns: new Uint32Array(), faceRunColumns: [],
         edgePositions: new Float32Array(), edgeIndices: new Uint32Array(),
@@ -75,10 +76,10 @@ describe('E13: ExecutionResult 携带拓扑数据', () => {
         edgeMidCount: 0, faceCenterCount: 0,
       },
     }
-    runtime.setTopology('part0_v0', 'mesh', mockData)
-    expect(runtime.getTopology('part0_v0')).toBeDefined()
-    runtime.deleteTopology('part0_v0')
-    expect(runtime.getTopology('part0_v0')).toBeUndefined()
+    runtime.setTopology(asPartName('part0_v0'), 'mesh', mockData)
+    expect(runtime.getTopology(asPartName('part0_v0'))).toBeDefined()
+    runtime.deleteTopology(asPartName('part0_v0'))
+    expect(runtime.getTopology(asPartName('part0_v0'))).toBeUndefined()
   })
 
   it('dispose 清理拓扑缓存', () => {
@@ -89,7 +90,7 @@ describe('E13: ExecutionResult 携带拓扑数据', () => {
     const mockData: SelectorRuntimeData = {
       cadPath: '', stepHash: '', bbox: null,
       occurrences: [], shapes: [], faces: [], edges: [], vertices: [],
-      references: [], singleOccurrenceId: '',
+      references: [], singleOccurrenceId: asOccurrenceId(''),
       proxy: {
         faceRuns: new Uint32Array(), faceRunColumns: [],
         edgePositions: new Float32Array(), edgeIndices: new Uint32Array(),
@@ -99,8 +100,8 @@ describe('E13: ExecutionResult 携带拓扑数据', () => {
         edgeMidCount: 0, faceCenterCount: 0,
       },
     }
-    runtime.setTopology('part0_v0', 'brep', mockData)
+    runtime.setTopology(asPartName('part0_v0'), 'brep', mockData)
     runtime.dispose()
-    expect(runtime.getTopology('part0_v0')).toBeUndefined()
+    expect(runtime.getTopology(asPartName('part0_v0'))).toBeUndefined()
   })
 })

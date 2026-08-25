@@ -1,4 +1,5 @@
 import { getKernel, type ShapeHandle, type Mesh as WasmMesh, type BoundingBox, type Vec3 } from './occtKernel'
+import { asEdgeId, asFaceId, asOccurrenceId, asShapeId } from '../identity'
 
 /**
  * Safe getBoundingBox wrapper: tries useTriangulation=false first,
@@ -698,8 +699,8 @@ export function buildSelectorManifest(
     return { ...entry, faceOrdinals: faceOrds, edgeOrdinals: edgeOrds }
   })
 
-  const occId = occurrenceId
-  const shapeId = `${occId}.s1`
+  const occId = asOccurrenceId(occurrenceId)
+  const shapeId = asShapeId(`${occId}.s1`)
 
   // ── 6. Build edge rows — wireframe polyline per edge ──
   // Each edge's polyline comes from kernel.wireframe() (GCPnts_TangentialDeflection),
@@ -797,7 +798,7 @@ export function buildSelectorManifest(
     const segmentCountFinal = edgeIdsData.length - segmentStart
 
     edgeRows.push([
-      `${occId}.e${ordinal}`, occId, shapeId, ordinal, curveType, roundVal(edgeLen),
+      asEdgeId(`${occId}.e${ordinal}`), occId, shapeId, ordinal, curveType, roundVal(edgeLen),
       roundPoint(center), bboxArray(bb),
       0, 0, // faceStart, faceCount — filled later
       0, 0, // relevance, flags
@@ -854,7 +855,7 @@ export function buildSelectorManifest(
     const params = getSurfaceParams(kernel, face)
 
     faceRows.push([
-      `${occId}.f${ordinal}`, occId, shapeId, ordinal, surfaceType, roundVal(area),
+      asFaceId(`${occId}.f${ordinal}`), occId, shapeId, ordinal, surfaceType, roundVal(area),
       roundPoint(center), normal ? roundPoint(normal) : null, bboxArray(bb),
       0, 0, // edgeStart, edgeCount — filled later
       0, 0, // relevance, flags
@@ -957,7 +958,7 @@ export function buildSelectorManifest(
     const firstEdgeGlobal = entry.edgeOrdinals.length > 0 ? entry.edgeOrdinals[0] - 1 : edgeRows.length
 
     shapeRows.push([
-      `${occId}.s${entry.ordinal}`, occId, entry.ordinal, entry.kind,
+      asShapeId(`${occId}.s${entry.ordinal}`), occId, entry.ordinal, entry.kind,
       bboxArray(entryBbox), roundPoint(entryCenter), roundVal(entryArea), entryVolume !== null ? roundVal(entryVolume) : null,
       firstFaceGlobal, entry.faceOrdinals.length,
       firstEdgeGlobal, entry.edgeOrdinals.length,
@@ -1081,7 +1082,7 @@ export function buildAssemblySelectorManifest(
   // Process each part
   for (let partIdx = 0; partIdx < parts.length; partIdx++) {
     const part = parts[partIdx]
-    const occId = part.labelPath
+    const occId = asOccurrenceId(part.labelPath)
 
     // Run per-part manifest (uses the existing buildSelectorManifest logic)
     const partResult = buildSelectorManifest(
@@ -1143,7 +1144,7 @@ export function buildAssemblySelectorManifest(
     for (let fi = 0; fi < partFaces.length; fi++) {
       const face = [...partFaces[fi]] as unknown[]
       face[1] = occId  // occurrenceId
-      face[2] = `${occId}.s1`  // shapeId
+      face[2] = asShapeId(`${occId}.s1`)  // shapeId
       // Update edgeStart/edgeCount to global indices
       const edgeStart = face[9] as number
       const edgeCount = face[10] as number
@@ -1164,7 +1165,7 @@ export function buildAssemblySelectorManifest(
     for (let ei = 0; ei < partEdges.length; ei++) {
       const edge = [...partEdges[ei]] as unknown[]
       edge[1] = occId  // occurrenceId
-      edge[2] = `${occId}.s1`  // shapeId
+      edge[2] = asShapeId(`${occId}.s1`)  // shapeId
       // Update faceStart/faceCount to global indices
       const faceStart = edge[8] as number
       const edgeCount = edge[9] as number

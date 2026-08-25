@@ -11,8 +11,8 @@
  * - type: 'face_mate'（现阶段唯一支持的类型）
  * - fixedPartName: 固定件 partName
  * - movingPartName: 活动件 partName
- * - fixedFace: { faceId, surfaceType, center, normal } — center/normal 从拓扑数据派生
- * - movingFace: { faceId, surfaceType, center, normal } — center/normal 从拓扑数据派生
+ * - fixedFace: { surfaceType, center, normal } — center/normal 从拓扑数据派生
+ * - movingFace: { surfaceType, center, normal } — center/normal 从拓扑数据派生
  *
  * 数学（面贴合 + 中心重合）：
  * 1. 旋转 q1：使 movingFace.normal → -fixedFace.normal（法线反向平行，面贴合）
@@ -23,21 +23,20 @@ import type { Shape } from './types'
 import type { PartScript, CadStatement } from '../lang/types'
 import type { BrepChainState } from '../brep/brep-chain'
 import { applyTransformBrep } from '../brep/brep-ops'
+import { asPartName, asStmtId, type PartName } from '../identity'
 
 // ── 约束类型 ──
 
 export interface FaceMateConstraint {
   type: 'face_mate'
-  fixedPartName: string
-  movingPartName: string
+  fixedPartName: PartName
+  movingPartName: PartName
   fixedFace: {
-    faceId: string
     surfaceType: string
     center: [number, number, number]
     normal: [number, number, number]
   }
   movingFace: {
-    faceId: string
     surfaceType: string
     center: [number, number, number]
     normal: [number, number, number]
@@ -50,7 +49,7 @@ export type AssemblyConstraint = FaceMateConstraint
 
 export interface AssemblyDefinition {
   name?: string
-  members: string[]
+  members: PartName[]
   constraints: AssemblyConstraint[]
 }
 
@@ -243,10 +242,10 @@ export interface DoAssembleContext {
  */
 export function executeDoAssemble(
   assemblyDef: AssemblyDefinition,
-  outputCache: Map<string, Shape>,
+  outputCache: Map<PartName, Shape>,
   ctx?: DoAssembleContext,
-): Map<string, Shape> {
-  const results = new Map<string, Shape>()
+): Map<PartName, Shape> {
+  const results = new Map<PartName, Shape>()
   const script = ctx?.script
   const brepChain = ctx?.brepChain
   const kernel = brepChain?.kernel ?? null
@@ -320,29 +319,30 @@ export function executeDoAssemble(
  * 在常见装配场景下 moving part 是终端、不被其它几何 op 消费，故只变换其自身 solid 即正确。
  */
 function propagateTransformDownstream(
-  outputCache: Map<string, Shape>,
+  outputCache: Map<PartName, Shape>,
   script: PartScript,
-  sourceId: string,
+  sourceId: PartName,
   quaternion: [number, number, number, number],
   pivot: [number, number, number],
   translation: [number, number, number],
   rotationMatrix: number[],
-  visited: Set<string> = new Set(),
+  visited: Set<PartName> = new Set(),
 ): void {
   if (visited.has(sourceId)) return
   visited.add(sourceId)
 
   for (const stmt of script.statements) {
     if (stmt.inputs.includes(sourceId)) {
-      const downstreamShape = outputCache.get(stmt.id)
+      const downstreamName = asPartName(stmt.id)
+      const downstreamShape = outputCache.get(downstreamName)
       if (downstreamShape && downstreamShape.positions) {
         const transformed = applyTransform(
           downstreamShape, quaternion, pivot, translation, rotationMatrix,
         )
-        outputCache.set(stmt.id, transformed)
+        outputCache.set(downstreamName, transformed)
         // 递归传播到更下游
         propagateTransformDownstream(
-          outputCache, script, stmt.id,
+          outputCache, script, downstreamName,
           quaternion, pivot, translation, rotationMatrix, visited,
         )
       }
@@ -360,13 +360,13 @@ function propagateTransformDownstream(
  */
 export function previewAssembly(
   constraints: AssemblyConstraint[],
-): Map<string, {
+): Map<PartName, {
   quaternion: [number, number, number, number]
   pivot: [number, number, number]
   translation: [number, number, number]
   rotationMatrix: number[]
 }> {
-  const results = new Map<string, {
+  const results = new Map<PartName, {
     quaternion: [number, number, number, number]
     pivot: [number, number, number]
     translation: [number, number, number]
@@ -411,15 +411,15 @@ export function previewAssembly(
  */
 export function executeAssemblyPassForStmt(
   doAssembleStmt: CadStatement,
-  outputCache: Map<string, Shape>,
+  outputCache: Map<PartName, Shape>,
   script: PartScript,
   brepChain?: BrepChainState,
-): Set<string> {
+): Set<PartName> {
   const target = doAssembleStmt.assemblyTarget
   if (!target) return new Set()
 
   // 找到 assemblyTarget 指向的 assembly 语句
-  const assemblyStmt = script.statements.find(s => s.id === target)
+  const assemblyStmt = script.statements.find(s => s.id === asStmtId(target))
   if (!assemblyStmt || assemblyStmt.op !== 'assembly') return new Set()
 
   // 从 assembly 语句的 args.constraints 中读取约束
@@ -429,7 +429,7 @@ export function executeAssemblyPassForStmt(
   // 构造 AssemblyDefinition，委托 executeDoAssemble 执行
   const assemblyDef: AssemblyDefinition = {
     name: assemblyStmt.args?.name as string | undefined,
-    members: (assemblyStmt.args?.members as string[]) ?? [],
+    members: ((assemblyStmt.args?.members as string[]) ?? []).map(asPartName),
     constraints,
   }
 
@@ -441,24 +441,27 @@ export function executeAssemblyPassForStmt(
   })
 
   // 收集被变换的 part names（executeDoAssemble 返回的直接变换结果）
-  const transformedIds = new Set<string>(results.keys())
+  const transformedIds = new Set<PartName>(results.keys())
   // 下游传播的 part 也需要同步（propagateTransformDownstream 修改了 outputCache 但不返回哪些被改了）
   // 简单策略：assembly members + 其所有下游语句 id
-  const members = (assemblyStmt.args?.members as string[]) ?? []
+  const members: PartName[] = ((assemblyStmt.args?.members as string[]) ?? []).map(asPartName)
   for (const m of members) {
     transformedIds.add(m)
     // 沿 inputs 链找下游
-    const visited = new Set<string>()
-    const queue = [m]
+    const visited = new Set<PartName>()
+    const queue: PartName[] = [m]
     while (queue.length > 0) {
       const cur = queue.shift()!
       if (visited.has(cur)) continue
       visited.add(cur)
-      // 找以 cur 为 input 的语句
+      // 找以 cur 为 输入的语句，其输出名（= 首输出名）加入
       for (const s of script.statements) {
-        if (s.inputs?.includes(cur) && !visited.has(s.id)) {
-          transformedIds.add(s.id)
-          queue.push(s.id)
+        if (s.inputs?.includes(cur)) {
+          const outName = asPartName(s.id)
+          if (!visited.has(outName)) {
+            transformedIds.add(outName)
+            queue.push(outName)
+          }
         }
       }
     }

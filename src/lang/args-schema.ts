@@ -12,7 +12,7 @@ import type { CadStatement, ReturnType } from './types'
 
 // ── 类型定义 ──
 
-export type ArgType = 'number' | 'vec3' | 'string' | 'boolean' | 'any' | 'numberOrVec3'
+export type ArgType = 'number' | 'vec3' | 'string' | 'PartName' | 'boolean' | 'any' | 'numberOrVec3'
 
 export interface ArgFieldSchema {
   name: string
@@ -198,8 +198,8 @@ export const SCHEMAS: Record<string, OpSchema> = {
       { name: 'bboxSize', type: 'vec3', required: false },
       { name: 'selectedSections', type: 'any', required: false },
       { name: 'applyExplode', type: 'boolean', required: false },
-      { name: 'frontPartName', type: 'string', required: false },
-      { name: 'backPartName', type: 'string', required: false },
+      { name: 'frontPartName', type: 'PartName', required: false },
+      { name: 'backPartName', type: 'PartName', required: false },
     ],
     minInputs: 1,
   },
@@ -274,8 +274,8 @@ export const SCHEMAS: Record<string, OpSchema> = {
     returnType: 'same_shape',
     fields: [
       { name: 'type', type: 'string', required: false },
-      { name: 'fixedPartName', type: 'string', required: false },
-      { name: 'movingPartName', type: 'string', required: false },
+      { name: 'fixedPartName', type: 'PartName', required: false },
+      { name: 'movingPartName', type: 'PartName', required: false },
       { name: 'fixedFace', type: 'any', required: false },
       { name: 'movingFace', type: 'any', required: false },
     ],
@@ -307,6 +307,7 @@ function checkType(value: unknown, type: ArgType): boolean {
     case 'number': return typeof value === 'number'
     case 'vec3': return isVec3(value)
     case 'string': return typeof value === 'string'
+    case 'PartName': return typeof value === 'string'
     case 'boolean': return typeof value === 'boolean'
     case 'numberOrVec3': return isNumberOrVec3(value)
     case 'any': return true

@@ -11,6 +11,7 @@
 import type { Shape, Vec3 } from '../mesh/types'
 import { cad } from '../mesh'
 import type { OpContext } from './types'
+import { asPartName } from '../identity'
 
 /**
  * 执行滚花操作
@@ -25,7 +26,7 @@ export async function executeKnurl(ctx: OpContext): Promise<Shape> {
 
   // 防御性：确保输出 part 不在 solidCache 中（明确「本 part 失去 BREP」）
   // 输出是新 id，正常情况下不会残留，但显性删除更稳健、语义更清楚
-  brepChain?.solidCache.delete(stmt.id)
+  brepChain?.solidCache.delete(asPartName(stmt.id))
 
   // mesh 路径：应用纹理位移
   return cad.knurl(shape, {

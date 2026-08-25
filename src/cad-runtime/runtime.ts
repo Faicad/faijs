@@ -36,6 +36,7 @@ import { buildSolidTopologyRuntime } from '../brep/brep-topology'
 import type { SolidTopologyResult } from '../brep/brep-topology'
 import { buildTopologyFromMesh } from '../brep/brep-topology'
 import type { Mesh as WasmMesh } from 'occt-wasm'
+import { asPartName, type PartName, type StmtId } from '../identity'
 
 
 // ── 装配变换死代码已删除 ──
@@ -74,8 +75,8 @@ export type TopologySource = 'brep' | 'primitive' | 'mesh'
  * 而是从 ExecutionResult.topology 中读取。
  */
 export interface PartTopology {
-  /** partName（终端语句 id，faijs 变量名） */
-  partName: string
+  /** partName 即 faijs 变量名（PartName，品牌型） */
+  partName: PartName
   /** 拓扑来源（静态判定） */
   source: TopologySource
   /** 序列化的拓扑数据（可跨 Worker 传输） */
@@ -83,8 +84,8 @@ export interface PartTopology {
 }
 
 export interface ExecutionResult {
-  /** 语句输出缓存（stmtId → Shape） */
-  outputs: Map<string, Shape>
+  /** 语句输出缓存（PartName → Shape；含 split 的 front/back 双输出） */
+  outputs: Map<PartName, Shape>
   /** BREP 链状态（含逐 part solid 句柄） */
   brepChain: BrepChainState
   /** 终端几何列表 */
@@ -93,21 +94,22 @@ export interface ExecutionResult {
   infos: string[]
   /** 失败信息（如果执行中途出错） */
   failedAt?: { index: number; op: string; message: string }
-  /** 逐终端的 BREP 实体（仅持有 solid 的终端出现在此表）。 */
-  brepSolids?: Map<string, { solid: ShapeHandle; kernel: OcctKernel }>
+  /** 逐终端的 BREP 实体（仅持有 solid 的终端出现在此表）。key 为终端 PartName。 */
+  brepSolids?: Map<PartName, { solid: ShapeHandle; kernel: OcctKernel }>
   /**
    * 拓扑数据 — 每个 part 的拓扑运行时。
+   * key 为 PartName。
    * E13：由 ExecutionResult 携带，宿主从结果消费。
    * 拓扑来源静态判定：BREP 成功时 source='brep'，否则根据 part 类型判定。
    */
-  topology?: Map<string, PartTopology>
+  topology?: Map<PartName, PartTopology>
 }
 
 export interface ExecuteOptions {
   /** 参数表 */
   params?: Record<string, unknown>
-  /** 跨 part 输入几何（ShapeRef → Shape） */
-  inputGeometryMap?: Map<string, Shape>
+  /** 跨 part 输入几何（PartName → Shape） */
+  inputGeometryMap?: Map<PartName, Shape>
   /** 整场景 DAG（用于跨 part 引用解析） */
   sceneScript?: PartScript
   /** partTransform（世界→局部坐标偏移 + 单位缩放） */
@@ -125,7 +127,7 @@ export interface ExecuteOptions {
 
 function computeStatementKey(
   stmt: CadStatement,
-  getInputContentKey: (id: string) => string | undefined,
+  getInputContentKey: (id: PartName) => string | undefined,
 ): string {
   const parts: string[] = [stmt.op]
   parts.push(JSON.stringify(stmt.args))
@@ -164,8 +166,8 @@ export class CadRuntime {
   readonly ports: HostPorts
   readonly mode: ExecutionMode
 
-  /** 语句缓存（实例级，不再是模块单例） */
-  private statementCache = new Map<string, {
+  /** 语句缓存（实例级，不再是模块单例）。key = 可命中的 PartName（stmt.id 即其首输出名） */
+  private statementCache = new Map<PartName, {
     statementKey: string
     outputContentKey: string
     output: Shape
@@ -173,13 +175,13 @@ export class CadRuntime {
 
   /**
    * Persistent SolidCache（docs/plans/2026-08-18-brepchain-persistent-solid-cache.md）：
-   * statementId → OCCT 实体句柄，跨 execute 存活，持有所有权（顶替释放/删除/dispose 的唯一操作对象）。
+   * PartName → OCCT 实体句柄，跨 execute 存活，持有所有权（顶替释放/删除/dispose 的唯一操作对象）。
    * op 层通过 brepChain.solidCache 读写——该引用指向此持久 Map（见 ensureBrepChain）。
    */
-  private solidCache = new Map<string, ShapeHandle>()
+  private solidCache = new Map<PartName, ShapeHandle>()
 
-  /** 面演化映射缓存（statementId → FaceEvolution），随 solidCache 一并持久。 */
-  private faceEvolutionCache = new Map<string, Map<number, number[]>>()
+  /** 面演化映射缓存（PartName → FaceEvolution），随 solidCache 一并持久。 */
+  private faceEvolutionCache = new Map<PartName, Map<number, number[]>>()
 
   /** OCCT 内核引用（环境级单例，initOcctWasm() 幂等；mesh 模式为 null）。供顶替释放用。 */
   private kernel: OcctKernel | null = null
@@ -195,7 +197,7 @@ export class CadRuntime {
    * E13：宿主不再直接 import faijs 拓扑构建函数，而是从 ExecutionResult.topology 消费。
    * 拓扑构建由宿主在 execute 后调用 setTopology 注入（BREP 路径）或由加载时注入（mesh/primitive 路径）。
    */
-  private topologyCache = new Map<string, PartTopology>()
+  private topologyCache = new Map<PartName, PartTopology>()
 
   constructor(ports: HostPorts, mode: ExecutionMode = 'auto') {
     this.ports = ports
@@ -211,7 +213,7 @@ export class CadRuntime {
       solidCache: this.solidCache,
       kernel,
       faceEvolutionCache: this.faceEvolutionCache,
-      meshShapeCache: new Map<string, WasmMesh>(),
+      meshShapeCache: new Map<PartName, WasmMesh>(),
     }
     return this.brepChain
   }
@@ -235,7 +237,7 @@ export class CadRuntime {
     opts?: ExecuteOptions,
   ): Promise<ExecutionResult> {
     const infos: string[] = []
-    const outputCache = new Map<string, Shape>()
+    const outputCache = new Map<PartName, Shape>()
     const start = opts?.startIndex ?? 0
 
     // 复用持久 BREP 链（mesh 模式 kernel 为 null）
@@ -256,8 +258,9 @@ export class CadRuntime {
     if (start > 0) {
       for (let i = 0; i < start; i++) {
         const s = script.statements[i]
-        const cached = this.statementCache.get(s.id)
-        if (cached) outputCache.set(s.id, cached.output)
+        const key = asPartName(s.id)
+        const cached = this.statementCache.get(key)
+        if (cached) outputCache.set(key, cached.output)
         for (const outId of s.outputs ?? []) {
           const oc = this.statementCache.get(outId)
           if (oc) outputCache.set(outId, oc.output)
@@ -310,7 +313,7 @@ export class CadRuntime {
         // auto 模式：发逐 part 事件（mesh 模式不发——kernel 从未存在，无 BREP 可丢失）
         if (this.mode === 'auto') {
           this.ports.events.emit('part-brep-lost', {
-            partId: stmt.id,
+            partName: asPartName(stmt.id),
             op: stmt.op,
             reason: 'mesh-only op output',
           })
@@ -328,7 +331,8 @@ export class CadRuntime {
 
       // 顶替释放预捕获：dispatch 前捕获本语句将要写入的 key 集合（{id} ∪ outputs）的旧 handle。
       // 必须在 dispatch 之前捕获——op 执行时已用 solidCache.set 覆盖 map 条目，事后拿不到旧引用。
-      const writeKeys = [stmt.id, ...(stmt.outputs ?? [])]
+      const primaryOutputName = asPartName(stmt.id)
+      const writeKeys: PartName[] = [primaryOutputName, ...(stmt.outputs ?? [])]
       const oldHandles = writeKeys
         .map((k) => this.solidCache.get(k))
         .filter((h): h is ShapeHandle => !!h)
@@ -336,19 +340,19 @@ export class CadRuntime {
       // 执行语句
       // BREP 路径异常 = bug，直接冒泡报错，禁止 try-catch 回退 mesh
       const result = await dispatchStatement(stmt, inputGeometries, outputCache, paramsMap, brepChain, this.ports, this.mode)
-      outputCache.set(stmt.id, result)
+      outputCache.set(primaryOutputName, result)
 
       // 写入 statementCache（含 outputs[] 持久化——split 的 front/back 均可直接命中，见 §3.5）
       const contentKey = computeContentKey(result.positions, result.indices)
-      const getInputContentKey = (id: string) => this.statementCache.get(id)?.outputContentKey
+      const getInputContentKey = (id: PartName) => this.statementCache.get(id)?.outputContentKey
       const stmtKey = computeStatementKey(stmt, getInputContentKey)
-      this.statementCache.set(stmt.id, {
+      this.statementCache.set(primaryOutputName, {
         statementKey: stmtKey,
         outputContentKey: contentKey,
         output: result,
       })
       for (const outId of stmt.outputs ?? []) {
-        if (outId === stmt.id) continue // stmt.id 已写入（split 的 stmt.id === outputs[0]）
+        if (outId === primaryOutputName) continue // stmt.id 已写入（split 的 stmt.id === outputs[0]）
         const outShape = outputCache.get(outId)
         if (outShape) {
           this.statementCache.set(outId, {
@@ -369,14 +373,15 @@ export class CadRuntime {
     const terminals = script.terminalShapes ?? []
 
     // 逐终端提取 BREP solid（逐 part 设计）
-    const brepSolids = new Map<string, { solid: ShapeHandle; kernel: OcctKernel }>()
+    const brepSolids = new Map<PartName, { solid: ShapeHandle; kernel: OcctKernel }>()
     if (brepChain.kernel) {
       if (terminals.length > 0) {
         // 有终端声明：逐终端检查 solidCache
         for (const t of terminals) {
-          const s = brepChain.solidCache.get(t.id)
+          const tKey = asPartName(t.id)
+          const s = brepChain.solidCache.get(tKey)
           if (s && brepChain.kernel) {
-            brepSolids.set(t.id, { solid: s, kernel: brepChain.kernel })
+            brepSolids.set(tKey, { solid: s, kernel: brepChain.kernel })
           }
         }
       } else {
@@ -386,9 +391,9 @@ export class CadRuntime {
         )
         if (newShapeStmts.length > 0) {
           const lastStmt = newShapeStmts[newShapeStmts.length - 1]
-          const finalSolid = brepChain.solidCache.get(lastStmt.id)
+          const finalSolid = brepChain.solidCache.get(asPartName(lastStmt.id))
           if (finalSolid && brepChain.kernel) {
-            brepSolids.set(lastStmt.id, { solid: finalSolid, kernel: brepChain.kernel })
+            brepSolids.set(asPartName(lastStmt.id), { solid: finalSolid, kernel: brepChain.kernel })
           }
         }
       }
@@ -403,11 +408,13 @@ export class CadRuntime {
         if (!Array.isArray(members)) continue
         for (const m of members) {
           if (typeof m !== 'string') continue
+          // 成员引用即为 PartName（品牌型）
+          const mId = asPartName(m)
           // 只添加尚未在 brepSolids 中的 member（避免覆盖终端提取的结果）
-          if (brepSolids.has(m)) continue
-          const s = brepChain.solidCache.get(m)
+          if (brepSolids.has(mId)) continue
+          const s = brepChain.solidCache.get(mId)
           if (s && brepChain.kernel) {
-            brepSolids.set(m, { solid: s, kernel: brepChain.kernel })
+            brepSolids.set(mId, { solid: s, kernel: brepChain.kernel })
           }
         }
       }
@@ -467,7 +474,7 @@ export class CadRuntime {
    * 契约前提：新增语句的输入必然是此前已执行成功的活跃语句的输出，持久缓存保证其存在；
    * 若输入真缺失（dispose/删除后未同步），是调用方应先 execute 全量的信号——append 不做前缀完整性验证。
    */
-  async append(script: PartScript, newIds: string[], opts?: ExecuteOptions): Promise<ExecutionResult> {
+  async append(script: PartScript, newIds: StmtId[], opts?: ExecuteOptions): Promise<ExecutionResult> {
     const infos: string[] = []
     const brepChain = await this.ensureBrepChain()
     // 与 execute 一致：partTransform 随执行期上下文写入链（世界→局部坐标偏移）。
@@ -480,10 +487,10 @@ export class CadRuntime {
     }
     // 从持久 statementCache 预填所有既有语句的 mesh 输出（含 outputs[]），
     // 使新增语句的输入解析直接命中持久缓存，无需子重放。
-    const outputCache = new Map<string, Shape>()
+    const outputCache = new Map<PartName, Shape>()
     for (const s of script.statements) {
-      const cached = this.statementCache.get(s.id)
-      if (cached) outputCache.set(s.id, cached.output)
+      const cached = this.statementCache.get(asPartName(s.id))
+      if (cached) outputCache.set(asPartName(s.id), cached.output)
       for (const outId of s.outputs ?? []) {
         const oc = this.statementCache.get(outId)
         if (oc) outputCache.set(outId, oc.output)
@@ -491,7 +498,7 @@ export class CadRuntime {
     }
     const paramsMap = this.buildParamsMap(script, opts)
 
-    const byId = new Map(script.statements.map((s) => [s.id, s]))
+    const byId = new Map<StmtId, CadStatement>(script.statements.map((s) => [s.id, s]))
     for (const id of newIds) {
       const stmt = byId.get(id)
       if (!stmt) throw new Error(`[CadRuntime] append: unknown statement "${id}"`)
@@ -503,12 +510,12 @@ export class CadRuntime {
           const transformedIds = await this.executeAssemblyPass(stmt, outputCache, script)
           // 把变换后的几何同步到 statementCache，使 collectFromCache 能正确返回
           // 变换后的几何（append 走 collectFromCache 组装结果，与 execute 直接返回 outputCache 不同）
-          for (const partId of transformedIds) {
-            const transformed = outputCache.get(partId)
+          for (const partName of transformedIds) {
+            const transformed = outputCache.get(partName)
             if (transformed) {
               const contentKey = computeContentKey(transformed.positions, transformed.indices)
-              this.statementCache.set(partId, {
-                statementKey: (this.statementCache.get(partId)?.statementKey ?? '') + '|asm-transform',
+              this.statementCache.set(partName, {
+                statementKey: (this.statementCache.get(partName)?.statementKey ?? '') + '|asm-transform',
                 outputContentKey: contentKey,
                 output: transformed,
               })
@@ -544,7 +551,7 @@ export class CadRuntime {
         }
         if (this.mode === 'auto') {
           this.ports.events.emit('part-brep-lost', {
-            partId: stmt.id,
+            partName: asPartName(stmt.id),
             op: stmt.op,
             reason: 'mesh-only op output',
           })
@@ -560,25 +567,26 @@ export class CadRuntime {
       }
 
       // 顶替释放预捕获（与 execute 相同，见 §3.3）：dispatch 前捕获 {id} ∪ outputs 旧 handle
-      const writeKeys = [stmt.id, ...(stmt.outputs ?? [])]
+      const writeKeys: PartName[] = [asPartName(stmt.id), ...(stmt.outputs ?? [])]
       const oldHandles = writeKeys
         .map((k) => this.solidCache.get(k))
         .filter((h): h is ShapeHandle => !!h)
 
       const result = await dispatchStatement(stmt, inputGeometries, outputCache, paramsMap, brepChain, this.ports, this.mode)
-      outputCache.set(stmt.id, result)
+      const primaryOutputName = asPartName(stmt.id)
+      outputCache.set(primaryOutputName, result)
 
       // 写入 statementCache（含 outputs[] 持久化，见 §3.5）
       const contentKey = computeContentKey(result.positions, result.indices)
-      const getInputContentKey = (id: string) => this.statementCache.get(id)?.outputContentKey
+      const getInputContentKey = (id: PartName) => this.statementCache.get(id)?.outputContentKey
       const stmtKey = computeStatementKey(stmt, getInputContentKey)
-      this.statementCache.set(stmt.id, {
+      this.statementCache.set(primaryOutputName, {
         statementKey: stmtKey,
         outputContentKey: contentKey,
         output: result,
       })
       for (const outId of stmt.outputs ?? []) {
-        if (outId === stmt.id) continue
+        if (outId === primaryOutputName) continue
         const outShape = outputCache.get(outId)
         if (outShape) {
           this.statementCache.set(outId, {
@@ -605,10 +613,11 @@ export class CadRuntime {
    * 不依赖本次执行——这是 3d_editor 提交链（terminalToScopedId → commitGeometry）消费完整结果的前提。
    */
   private collectFromCache(script: PartScript): ExecutionResult {
-    const outputs = new Map<string, Shape>()
+    const outputs = new Map<PartName, Shape>()
     for (const s of script.statements) {
-      const cached = this.statementCache.get(s.id)
-      if (cached) outputs.set(s.id, cached.output)
+      const primaryName = asPartName(s.id)
+      const cached = this.statementCache.get(primaryName)
+      if (cached) outputs.set(primaryName, cached.output)
       for (const outId of s.outputs ?? []) {
         const oc = this.statementCache.get(outId)
         if (oc) outputs.set(outId, oc.output)
@@ -616,12 +625,13 @@ export class CadRuntime {
     }
 
     const terminals = script.terminalShapes ?? []
-    const brepSolids = new Map<string, { solid: ShapeHandle; kernel: OcctKernel }>()
+    const brepSolids = new Map<PartName, { solid: ShapeHandle; kernel: OcctKernel }>()
     if (this.kernel) {
       if (terminals.length > 0) {
         for (const t of terminals) {
-          const s = this.solidCache.get(t.id)
-          if (s && this.kernel) brepSolids.set(t.id, { solid: s, kernel: this.kernel })
+          const tKey = asPartName(t.id)
+          const s = this.solidCache.get(tKey)
+          if (s && this.kernel) brepSolids.set(tKey, { solid: s, kernel: this.kernel })
         }
       } else {
         // 无终端声明：取最后一条有赋值且 returnType=new_shape 的语句
@@ -630,8 +640,8 @@ export class CadRuntime {
         )
         if (newShapeStmts.length > 0) {
           const lastStmt = newShapeStmts[newShapeStmts.length - 1]
-          const finalSolid = this.solidCache.get(lastStmt.id)
-          if (finalSolid && this.kernel) brepSolids.set(lastStmt.id, { solid: finalSolid, kernel: this.kernel })
+          const finalSolid = this.solidCache.get(asPartName(lastStmt.id))
+          if (finalSolid && this.kernel) brepSolids.set(asPartName(lastStmt.id), { solid: finalSolid, kernel: this.kernel })
         }
       }
 
@@ -642,10 +652,11 @@ export class CadRuntime {
         if (!Array.isArray(members)) continue
         for (const m of members) {
           if (typeof m !== 'string') continue
-          if (brepSolids.has(m)) continue
-          const s = this.solidCache.get(m)
+          const mId = asPartName(m)
+          if (brepSolids.has(mId)) continue
+          const s = this.solidCache.get(mId)
           if (s && this.kernel) {
-            brepSolids.set(m, { solid: s, kernel: this.kernel })
+            brepSolids.set(mId, { solid: s, kernel: this.kernel })
           }
         }
       }
@@ -674,50 +685,50 @@ export class CadRuntime {
    * 不再 import ScriptEngine / useScriptStore——循环依赖消除。
    */
   private async resolveShapeRef(
-    statementId: string,
-    localCache: Map<string, Shape>,
+    partName: PartName,
+    localCache: Map<PartName, Shape>,
     sceneScript?: PartScript,
-    resolvingStack: Set<string> = new Set(),
+    resolvingStack: Set<PartName> = new Set(),
   ): Promise<Shape> {
     // 环检测
-    if (resolvingStack.has(statementId)) {
+    if (resolvingStack.has(partName)) {
       throw new Error(
-        `[CadRuntime.resolveShapeRef] circular reference: ${statementId} ` +
+        `[CadRuntime.resolveShapeRef] circular reference: ${partName} ` +
         `(stack: ${Array.from(resolvingStack).join(' → ')})`,
       )
     }
     if (resolvingStack.size >= MAX_RECURSION_DEPTH) {
       throw new Error(
-        `[CadRuntime.resolveShapeRef] max recursion depth (${MAX_RECURSION_DEPTH}) exceeded for "${statementId}"`,
+        `[CadRuntime.resolveShapeRef] max recursion depth (${MAX_RECURSION_DEPTH}) exceeded for "${partName}"`,
       )
     }
 
     // 1. 本地缓存
-    const local = localCache.get(statementId)
+    const local = localCache.get(partName)
     if (local) return local
 
     // 2. statementCache
-    const cached = this.statementCache.get(statementId)
+    const cached = this.statementCache.get(partName)
     if (cached) return cached.output
 
     // 3. sceneScript 中查找
     if (!sceneScript) {
       throw new Error(
-        `[CadRuntime.resolveShapeRef] statement "${statementId}" not found (no sceneScript provided)`,
+        `[CadRuntime.resolveShapeRef] statement "${partName}" not found (no sceneScript provided)`,
       )
     }
 
-    // 在 sceneScript 中查找包含该 statementId 的位置
-    const stmt = sceneScript.statements.find((s) => s.id === statementId)
+    // 在 sceneScript 中查找产生该 partName 的语句（partName 即语句首输出名）
+    const stmt = sceneScript.statements.find((s) => asPartName(s.id) === partName)
     if (!stmt) {
       throw new Error(
-        `[CadRuntime.resolveShapeRef] statement "${statementId}" not found in sceneScript`,
+        `[CadRuntime.resolveShapeRef] statement "${partName}" not found in sceneScript`,
       )
     }
 
     // 从 sceneScript 的开头重放到该语句（缓存缺失兜底：子重放复用同一持久链，不再新建 brepChain）
-    resolvingStack.add(statementId)
-    const subOutputCache = new Map<string, Shape>()
+    resolvingStack.add(partName)
+    const subOutputCache = new Map<PartName, Shape>()
     const brepChain = await this.ensureBrepChain()
 
     try {
@@ -726,31 +737,32 @@ export class CadRuntime {
         const srt = s.returnType ?? 'new_shape'
         if (srt === 'void' || srt === 'same_shape') continue
         const inputGeometries: Shape[] = []
-        for (const inputRef of s.inputs) {
-          let geo = subOutputCache.get(inputRef) ?? localCache.get(inputRef)
+        for (const inputId of s.inputs) {
+          let geo = subOutputCache.get(inputId) ?? localCache.get(inputId)
           if (!geo) {
-            geo = await this.resolveShapeRef(inputRef, subOutputCache, sceneScript, resolvingStack)
+            geo = await this.resolveShapeRef(inputId, subOutputCache, sceneScript, resolvingStack)
           }
           inputGeometries.push(geo)
         }
-        // 顶替释放预捕获（子重放复用持久链，覆盖前必须释放旧 handle，避免泄漏）
-        const writeKeys = [s.id, ...(s.outputs ?? [])]
+        // 顶替释放预捕获（子重放复用持久链，覆盖前必须先释放旧 handle，避免泄漏）
+        const writeKeys: PartName[] = [asPartName(s.id), ...(s.outputs ?? [])]
         const oldHandles = writeKeys
           .map((k) => this.solidCache.get(k))
           .filter((h): h is ShapeHandle => !!h)
         const result = await dispatchStatement(s, inputGeometries, subOutputCache, {}, brepChain, this.ports, this.mode)
-        subOutputCache.set(s.id, result)
+        const subPrimaryName = asPartName(s.id)
+        subOutputCache.set(subPrimaryName, result)
         // 写入持久 statementCache（含 outputs[]），使后续引用直接命中、不再子重放
         const contentKey = computeContentKey(result.positions, result.indices)
-        const getInputContentKey = (id: string) => this.statementCache.get(id)?.outputContentKey
+        const getInputContentKey = (id: PartName) => this.statementCache.get(id)?.outputContentKey
         const stmtKey = computeStatementKey(s, getInputContentKey)
-        this.statementCache.set(s.id, {
+        this.statementCache.set(subPrimaryName, {
           statementKey: stmtKey,
           outputContentKey: contentKey,
           output: result,
         })
         for (const outId of s.outputs ?? []) {
-          if (outId === s.id) continue
+          if (outId === subPrimaryName) continue
           const outShape = subOutputCache.get(outId)
           if (outShape) {
             this.statementCache.set(outId, {
@@ -764,38 +776,39 @@ export class CadRuntime {
           try { this.kernel?.release(old) } catch { /* 已释放 */ }
         }
 
-        if (s.id === statementId) {
-          resolvingStack.delete(statementId)
+        if (subPrimaryName === partName) {
+          resolvingStack.delete(partName)
           return result
         }
       }
     } finally {
       // 不复用持久链的释放（releaseBrepChainState 会清空持久 solidCache）——子重放结果已写入持久缓存
-      resolvingStack.delete(statementId)
+      resolvingStack.delete(partName)
     }
 
     throw new Error(
-      `[CadRuntime.resolveShapeRef] statement "${statementId}" not reached during sceneScript execution`,
+      `[CadRuntime.resolveShapeRef] statement "${partName}" not reached during sceneScript execution`,
     )
   }
 
   // ── 公开：缓存访问 ──
 
-  /** 获取语句缓存中的输出几何 */
-  getCachedOutput(statementId: string): Shape | undefined {
-    return this.statementCache.get(statementId)?.output
+  /** 获取语句缓存中的输出几何（key 为语句 id；内部查 PartName 键） */
+  getCachedOutput(statementId: StmtId): Shape | undefined {
+    return this.statementCache.get(asPartName(statementId))?.output
   }
 
-  /** 写入语句缓存 */
+  /** 写入语句缓存（key 为语句 id，内部按 PartName 键存储） */
   writeToStatementCache(
-    statementId: string,
+    statementId: StmtId,
     stmt: CadStatement,
     output: Shape,
     outputContentKey: string,
   ): void {
-    const getInputContentKey = (id: string) => this.statementCache.get(id)?.outputContentKey
+    const primaryKey = asPartName(statementId)
+    const getInputContentKey = (id: PartName) => this.statementCache.get(id)?.outputContentKey
     const stmtKey = computeStatementKey(stmt, getInputContentKey)
-    this.statementCache.set(statementId, {
+    this.statementCache.set(primaryKey, {
       statementKey: stmtKey,
       outputContentKey,
       output,
@@ -826,9 +839,9 @@ export class CadRuntime {
    */
   private async executeAssemblyPass(
     doAssembleStmt: CadStatement,
-    outputCache: Map<string, Shape>,
+    outputCache: Map<PartName, Shape>,
     script: PartScript,
-  ): Promise<Set<string>> {
+  ): Promise<Set<PartName>> {
     // 委托独立函数 executeAssemblyPassForStmt（与 3d_editor executeScript 共用同一入口）
     return Promise.resolve(
       executeAssemblyPassForStmt(doAssembleStmt, outputCache, script, this.brepChain ?? undefined)
@@ -836,10 +849,10 @@ export class CadRuntime {
   }
 
   /** plan() — 依赖分析，得出需要重算的语句集合 */
-  plan(script: PartScript): { stale: CadStatement[]; reused: Map<string, string> } {
+  plan(script: PartScript): { stale: CadStatement[]; reused: Map<PartName, string> } {
     const stale: CadStatement[] = []
-    const staleIds = new Set<string>()
-    const reused = new Map<string, string>()
+    const staleIds = new Set<PartName>()
+    const reused = new Map<PartName, string>()
 
     for (const stmt of script.statements) {
       // void / same_shape 语句不产出几何，不参与增量分析
@@ -849,20 +862,20 @@ export class CadRuntime {
       const inputStale = stmt.inputs.some((id) => staleIds.has(id))
       if (inputStale) {
         stale.push(stmt)
-        staleIds.add(stmt.id)
+        staleIds.add(asPartName(stmt.id))
         continue
       }
 
-      const getInputContentKey = (id: string) =>
+      const getInputContentKey = (id: PartName) =>
         reused.get(id) ?? this.statementCache.get(id)?.outputContentKey
       const newKey = computeStatementKey(stmt, getInputContentKey)
-      const cached = this.statementCache.get(stmt.id)
+      const cached = this.statementCache.get(asPartName(stmt.id))
 
       if (cached && cached.statementKey === newKey) {
-        reused.set(stmt.id, cached.outputContentKey)
+        reused.set(asPartName(stmt.id), cached.outputContentKey)
       } else {
         stale.push(stmt)
-        staleIds.add(stmt.id)
+        staleIds.add(asPartName(stmt.id))
       }
     }
 
@@ -881,17 +894,17 @@ export class CadRuntime {
    *
    * execute() 返回的 ExecutionResult.topology 会包含这些缓存数据。
    */
-  setTopology(partName: string, source: TopologySource, data: SelectorRuntimeData): void {
+  setTopology(partName: PartName, source: TopologySource, data: SelectorRuntimeData): void {
     this.topologyCache.set(partName, { partName, source, data })
   }
 
   /** 获取拓扑数据 */
-  getTopology(partName: string): PartTopology | undefined {
+  getTopology(partName: PartName): PartTopology | undefined {
     return this.topologyCache.get(partName)
   }
 
   /** 删除拓扑数据 */
-  deleteTopology(partName: string): void {
+  deleteTopology(partName: PartName): void {
     this.topologyCache.delete(partName)
   }
 
@@ -907,16 +920,18 @@ export class CadRuntime {
    * @param stmtId 终端语句 id（在 brepChain.solidCache 中查找）
    * @returns SelectorRuntime，或 null（无可用 BREP solid）
    */
-  buildBrepTopology(stmtId: string): SelectorRuntime | null {
+  buildBrepTopology(stmtId: StmtId): SelectorRuntime | null {
     const brepChain = this.brepChain
     if (!brepChain?.kernel) return null
 
-    const solid = brepChain.solidCache.get(stmtId)
+    // stmtId 即其首输出 PartName（品牌桥），按 PartName 查持久 solidCache
+    const partName = asPartName(stmtId)
+    const solid = brepChain.solidCache.get(partName)
     if (!solid) return null
 
     // 规则 1：优先从 brepChain.meshShapeCache 复用执行链产出的三角化结果
     // （与显示 mesh 完全同一份 mesh，不二次 meshShape）
-    const cachedMesh = brepChain.meshShapeCache?.get(stmtId)
+    const cachedMesh = brepChain.meshShapeCache?.get(partName)
     if (cachedMesh) {
       return buildTopologyFromMesh(solid, cachedMesh)
     }

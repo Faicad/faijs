@@ -1,3 +1,12 @@
+import {
+  asOccurrenceId,
+  asReferenceId,
+  asSelectorKey,
+  asShapeId,
+  type OccurrenceId,
+  type ReferenceId,
+  type SelectorKey,
+} from '../identity'
 import type {
   BBox,
   EdgeRow,
@@ -29,7 +38,7 @@ export interface SelectorRuntimeData {
   vertices: Record<string, unknown>[]
   /** Already filtered to visible references (non-empty normalizedSelector). */
   references: Reference[]
-  singleOccurrenceId: string
+  singleOccurrenceId: OccurrenceId
   proxy: SelectorProxy
 }
 import {
@@ -163,13 +172,22 @@ function normalizeBBox(bbox: unknown): BBox | null {
   if (!bbox) return null
   // Flat array: [xmin, ymin, zmin, xmax, ymax, zmax]
   if (Array.isArray(bbox) && bbox.length >= 6) {
-    return { min: [bbox[0], bbox[1], bbox[2]], max: [bbox[3], bbox[4], bbox[5]] }
+    const num = (v: unknown): number => (Number.isFinite(v as number) ? Number(v) : 0)
+    return {
+      min: [num(bbox[0]), num(bbox[1]), num(bbox[2])],
+      max: [num(bbox[3]), num(bbox[4]), num(bbox[5])],
+    }
   }
   if (!isObject(bbox)) return null
   const obj = bbox as Record<string, unknown>
-  const min = Array.isArray(obj.min) ? obj.min : [0, 0, 0]
-  const max = Array.isArray(obj.max) ? obj.max : [0, 0, 0]
-  return { min, max }
+  const rawMin = Array.isArray(obj.min) ? obj.min : []
+  const rawMax = Array.isArray(obj.max) ? obj.max : []
+  const num = (v: unknown): number => (Number.isFinite(v as number) ? Number(v) : 0)
+  // A3 (§4): BBox 契约 = 三元组 { min: [x,y,z]; max: [x,y,z] }；统一输出定长 tuple。
+  return {
+    min: [num(rawMin[0]), num(rawMin[1]), num(rawMin[2])],
+    max: [num(rawMax[0]), num(rawMax[1]), num(rawMax[2])],
+  }
 }
 
 function transformBBox(transform: number[], bbox: BBox | null): BBox | null {
@@ -331,7 +349,6 @@ function buildReference({
   rowIndex,
   singleOccurrenceId,
   selectorTransform,
-  scopedId,
   relationRows,
   targetRows,
   targetKey,
@@ -343,23 +360,23 @@ function buildReference({
   rowIndex: number
   singleOccurrenceId: string
   selectorTransform: number[] | null
-  scopedId?: string
   relationRows?: Uint32Array | number[]
   targetRows?: Record<string, unknown>[]
   targetKey?: string
   startKey?: string
   countKey?: string
 }): Reference {
-  const normalizedSelector = selectorForRow(selectorType, row, rowIndex, singleOccurrenceId)
+  // FAM-REF: 唯一信任点 — 在此处把裸 string 包装为品牌类型（编译期契约，运行时恒等）。
+  const normalizedSelector = asSelectorKey(
+    selectorForRow(selectorType, row, rowIndex, singleOccurrenceId),
+  )
   const displaySelector = normalizedSelector
   const label = `${selectorTypeLabel(selectorType)} ${displaySelector}`
   const summary = referenceSummary(selectorType, row)
   // referenceId format: `topology|<selectorType>|<displaySelector>`
-  // The scopedId segment was removed (2026-08-24): it was always empty because
-  // no caller passes the scopedId option to buildSelectorRuntime. The
-  // selectorRuntime is already resolved per-file by the consumer
+  // The selectorRuntime is already resolved per-file by the consumer
   // (getSelectorRuntime(fileId)), so the key does not need to carry fileId.
-  const id = `topology|${selectorType}|${displaySelector}`
+  const id = asReferenceId(`topology|${selectorType}|${displaySelector}`)
 
   const adjacentSelectors =
     relationRows && targetRows && startKey && countKey && targetKey
@@ -383,9 +400,12 @@ function buildReference({
     summary,
     shortSummary: summary,
     copyText: summary ? `${displaySelector} ${summary}` : displaySelector,
-    scopedId,
-    occurrenceId: row.occurrenceId ? selectorPrefix(singleOccurrenceId, String(row.occurrenceId)) : '',
-    shapeId: row.shapeId ? selectorPrefix(singleOccurrenceId, String(row.shapeId)) : '',
+    occurrenceId: asOccurrenceId(
+      row.occurrenceId ? selectorPrefix(singleOccurrenceId, String(row.occurrenceId)) : '',
+    ),
+    shapeId: asShapeId(
+      row.shapeId ? selectorPrefix(singleOccurrenceId, String(row.shapeId)) : '',
+    ),
     rowIndex,
     pickData: {
       selectorType,
@@ -489,7 +509,6 @@ export function extractVerticesFromEdges(
 export function buildSelectorRuntimeData(
   bundle: SelectorBundle,
   options: {
-    scopedId?: string
     transform?: number[] | null
     /** Scale factor for topology positions (default 0.001 = mm→m for STEP).
      *  STEP data is authored in mm; callers with mm scene units should
@@ -498,7 +517,7 @@ export function buildSelectorRuntimeData(
   } = {},
 ): SelectorRuntimeData {
   const { manifest, buffers } = bundle
-  const { scopedId = '', transform = null, scale = 0.001 } = options
+  const { transform = null, scale = 0.001 } = options
 
   // Build a combined transform that includes the mm→m scale factor.
   // STEP topology data is authored in mm.
@@ -530,7 +549,8 @@ export function buildSelectorRuntimeData(
   )
 
   const leafOccurrenceIds = buildLeafOccurrenceIds(shapes)
-  const singleOccurrenceId = leafOccurrenceIds.length === 1 ? leafOccurrenceIds[0] : ''
+  const singleOccurrenceId: OccurrenceId =
+    leafOccurrenceIds.length === 1 ? asOccurrenceId(leafOccurrenceIds[0]) : asOccurrenceId('')
 
   // Read edge data from buffers via proxy view names.
   const rawEdgePositions = typedBufferView(manifest, buffers, 'edgeProxy', 'positionsView')
@@ -615,13 +635,13 @@ export function buildSelectorRuntimeData(
 
   references.push(
     ...occurrences.map((row, i) =>
-      buildReference({ selectorType: 'occurrence', row, rowIndex: i, singleOccurrenceId, selectorTransform: effectiveTransform, scopedId }),
+      buildReference({ selectorType: 'occurrence', row, rowIndex: i, singleOccurrenceId, selectorTransform: effectiveTransform }),
     ),
   )
 
   references.push(
     ...shapes.map((row, i) =>
-      buildReference({ selectorType: 'shape', row, rowIndex: i, singleOccurrenceId, selectorTransform: effectiveTransform, scopedId }),
+      buildReference({ selectorType: 'shape', row, rowIndex: i, singleOccurrenceId, selectorTransform: effectiveTransform }),
     ),
   )
 
@@ -633,7 +653,6 @@ export function buildSelectorRuntimeData(
         rowIndex: i,
         singleOccurrenceId,
         selectorTransform: effectiveTransform,
-        scopedId,
         relationRows: faceRelations,
         targetRows: edges as unknown as Record<string, unknown>[],
         targetKey: 'id',
@@ -651,7 +670,6 @@ export function buildSelectorRuntimeData(
         rowIndex: i,
         singleOccurrenceId,
         selectorTransform: effectiveTransform,
-        scopedId,
         relationRows: edgeRelations,
         targetRows: faces as unknown as Record<string, unknown>[],
         targetKey: 'id',
@@ -681,7 +699,6 @@ export function buildSelectorRuntimeData(
         rowIndex: i,
         singleOccurrenceId,
         selectorTransform: effectiveTransform,
-        scopedId,
       }),
     ),
   )
@@ -702,7 +719,6 @@ export function buildSelectorRuntimeData(
         rowIndex,
         singleOccurrenceId,
         selectorTransform: effectiveTransform,
-        scopedId,
       }),
     )
   }
@@ -724,7 +740,6 @@ export function buildSelectorRuntimeData(
         rowIndex,
         singleOccurrenceId,
         selectorTransform: effectiveTransform,
-        scopedId,
       }),
     )
   }
@@ -770,9 +785,15 @@ export function buildSelectorRuntimeMaps(data: SelectorRuntimeData): SelectorRun
 
   return {
     ...data,
-    referenceMap: new Map(visibleReferences.map((ref) => [ref.id, ref])),
-    referenceByNormalizedSelector: new Map(visibleReferences.map((ref) => [ref.normalizedSelector, ref])),
-    referenceByDisplaySelector: new Map(visibleReferences.map((ref) => [ref.displaySelector, ref])),
+    referenceMap: new Map<ReferenceId | string, Reference>(
+      visibleReferences.map((ref) => [asReferenceId(ref.id), ref]),
+    ),
+    referenceByNormalizedSelector: new Map<SelectorKey, Reference>(
+      visibleReferences.map((ref) => [asSelectorKey(ref.normalizedSelector), ref]),
+    ),
+    referenceByDisplaySelector: new Map<SelectorKey, Reference>(
+      visibleReferences.map((ref) => [asSelectorKey(ref.displaySelector), ref]),
+    ),
     faceReferenceByRowIndex: new Map(
       visibleReferences.filter((ref) => ref.selectorType === 'face').map((ref) => [ref.rowIndex, ref]),
     ),
@@ -783,13 +804,13 @@ export function buildSelectorRuntimeMaps(data: SelectorRuntimeData): SelectorRun
       visibleReferences.filter((ref) => ref.selectorType === 'vertex').map((ref) => [ref.rowIndex, ref]),
     ),
     occurrenceIdByRowIndex,
-    faceReferenceMap: new Map(
+    faceReferenceMap: new Map<string, Reference>(
       visibleReferences.filter((ref) => ref.selectorType === 'face').map((ref) => [ref.id, ref]),
     ),
-    edgeReferenceMap: new Map(
+    edgeReferenceMap: new Map<string, Reference>(
       visibleReferences.filter((ref) => ref.selectorType === 'edge').map((ref) => [ref.id, ref]),
     ),
-    vertexReferenceMap: new Map(
+    vertexReferenceMap: new Map<string, Reference>(
       visibleReferences.filter((ref) => ref.selectorType === 'vertex').map((ref) => [ref.id, ref]),
     ),
   }
@@ -805,7 +826,6 @@ export function buildSelectorRuntimeMaps(data: SelectorRuntimeData): SelectorRun
 export function buildSelectorRuntime(
   bundle: SelectorBundle,
   options: {
-    scopedId?: string
     transform?: number[] | null
     scale?: number
   } = {},

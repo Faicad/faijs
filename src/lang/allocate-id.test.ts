@@ -11,14 +11,15 @@ import {
   type AllocateIdContext,
 } from './allocate-id'
 import type { CadStatement } from './types'
+import { asStmtId, asPartName } from '../identity'
 
 function makeStmt(id: string, op: string, inputs: string[] = [], outputs?: string[]): CadStatement {
   return {
-    id,
+    id: asStmtId(id),
     op,
     args: {},
-    inputs,
-    outputs,
+    inputs: inputs.map(asPartName),
+    outputs: outputs?.map(asPartName),
   }
 }
 

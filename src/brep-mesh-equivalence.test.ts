@@ -36,6 +36,7 @@ import type { ExecutionMode } from './cad-runtime/ports'
 import type { Shape } from './ops/types'
 import { ensureTestFontLoader } from './brep/text/fontTestHelper'
 import type { CadStatement, PartScript } from './lang/types'
+import { asStmtId, asPartName } from './identity'
 
 beforeAll(async () => {
   await initOcctWasm()
@@ -51,9 +52,9 @@ function makeStmt(
   inputs: string[] = [],
 ): CadStatement {
   return {
-    id, op,
+    id: asStmtId(id), op,
     args: args as any,
-    inputs,
+    inputs: inputs.map(asPartName),
     hasAssignment: true,
     returnType: 'new_shape',
   }
@@ -79,7 +80,7 @@ async function runMode(script: PartScript, mode: ExecutionMode): Promise<Shape> 
 
   const geoStmts = script.statements.filter(s => s.hasAssignment && (s.returnType ?? 'new_shape') === 'new_shape')
   const last = geoStmts[geoStmts.length - 1]
-  const shape = result.outputs.get(last.id)
+  const shape = result.outputs.get(asPartName(last.id))
   if (!shape) throw new Error(`No output for terminal statement "${last.id}"`)
   return shape
 }

@@ -49,6 +49,7 @@ import type { Shape } from '../mesh/types'
 import { executeScript, executeStatement } from '../test-helpers'
 import { ensureTestFontLoader } from '../brep/text/fontTestHelper'
 import type { CadStatement, PartScript } from '../lang/types'
+import { asPartName, asStmtId, type PartName } from '../identity'
 
 let kernel: OcctKernel
 
@@ -371,8 +372,8 @@ describe('BREP chain state management', () => {
     const state = createBrepChainState()
     const solid1 = makeBox(20)
     const solid2 = makeBox(10)
-    state.solidCache.set('stmt-1', solid1)
-    state.solidCache.set('stmt-2', solid2)
+    state.solidCache.set(asPartName('stmt-1'), solid1)
+    state.solidCache.set(asPartName('stmt-2'), solid2)
 
     // Persistent SolidCache 方案：keepIds 已删除，release 语义为全量释放 + 清空
     releaseBrepChainState(state)
@@ -570,10 +571,10 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
     inputs: string[] = [],
   ): CadStatement {
     return {
-      id,
+      id: asStmtId(id),
       op,
       args: args as any,
-      inputs,
+      inputs: inputs.map(asPartName),
       hasAssignment: true,
       returnType: 'new_shape',
     }
@@ -599,7 +600,7 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
     ])
 
     const result = await executeScript(script)
-    expect(result.brepChain.solidCache.has('s2')).toBe(true)
+    expect(result.brepChain.solidCache.has(asPartName('s2'))).toBe(true)
     expect(result.brepChain.kernel).not.toBeNull()
 
     // Clean up solid handles
@@ -612,13 +613,13 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
     // 直接用 executeStatement 测试：在 BREP 链中遇到 engrave → BREP 路径执行（textToSolid + boolean）
     // engrave 已有 BREP 实现，链不再断裂
     const brepChain = await initBrepChainState()
-    const outputCache = new Map<string, Shape>()
+    const outputCache = new Map<PartName, Shape>()
 
     // 1. 执行 box 语句（BREP 路径）
     const boxStmt = makeStmt('s1', 'box', { size: 20 }, [])
     const boxShape = await executeStatement(boxStmt, [], outputCache, undefined, brepChain)
-    outputCache.set('s1', boxShape)
-    expect(brepChain.solidCache.has('s1')).toBe(true)
+    outputCache.set(asPartName('s1'), boxShape)
+    expect(brepChain.solidCache.has(asPartName('s1'))).toBe(true)
 
     // 2. 执行 drill 语句（BREP 路径）
     const drillStmt = makeStmt('s2', 'drill', {
@@ -627,8 +628,8 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
       faceNormal: [0, 0, 1], holeType: 'simple',
     }, ['s1'])
     const drilledShape = await executeStatement(drillStmt, [boxShape], outputCache, undefined, brepChain)
-    outputCache.set('s2', drilledShape)
-    expect(brepChain.solidCache.has('s2')).toBe(true)
+    outputCache.set(asPartName('s2'), drilledShape)
+    expect(brepChain.solidCache.has(asPartName('s2'))).toBe(true)
 
     // 3. 执行 engrave 语句（BREP 路径 — textToSolid + boolean）
     const engraveStmt = makeStmt('s3', 'engrave', {
@@ -636,10 +637,10 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
       text: 'A', textSize: 10,
     }, ['s2'])
     const engraveShape = await executeStatement(engraveStmt, [drilledShape], outputCache, undefined, brepChain)
-    outputCache.set('s3', engraveShape)
+    outputCache.set(asPartName('s3'), engraveShape)
 
     // 验证链未断裂
-    expect(brepChain.solidCache.has('s3')).toBe(true)
+    expect(brepChain.solidCache.has(asPartName('s3'))).toBe(true)
 
     // Clean up
     releaseBrepChainState(brepChain)
@@ -659,7 +660,7 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
     ])
 
     const result = await executeScript(script)
-    expect(result.brepChain.solidCache.has('s2')).toBe(true)
+    expect(result.brepChain.solidCache.has(asPartName('s2'))).toBe(true)
 
     // Clean up
     if (result.brepChain) {
@@ -679,11 +680,11 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
     ])
 
     const result = await executeScript(script)
-    expect(result.brepChain.solidCache.has('s2')).toBe(true)
+    expect(result.brepChain.solidCache.has(asPartName('s2'))).toBe(true)
 
     // 获取终端 solid 并导出 STEP
-    if (result.brepChain?.kernel && result.brepChain.solidCache.has('s2')) {
-      const solid = result.brepChain.solidCache.get('s2')!
+    if (result.brepChain?.kernel && result.brepChain.solidCache.has(asPartName('s2'))) {
+      const solid = result.brepChain.solidCache.get(asPartName('s2'))!
       const step = brepSolidToStep(result.brepChain.kernel, solid)
       expect(step).toContain('ADVANCED_FACE')
       expect(step).toContain('CYLINDRICAL_SURFACE')

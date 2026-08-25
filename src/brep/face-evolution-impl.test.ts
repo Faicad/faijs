@@ -25,6 +25,7 @@ import {
 } from './face-evolution'
 import type { GeomRef } from '../lang/types'
 import type { Shape } from '../ops/types'
+import { asPartName } from '../identity'
 
 let kernel: OcctKernel
 
@@ -70,7 +71,7 @@ describe('resolveGeomRef with faceOrdinal (BREP path)', () => {
     // 构建 GeomRef with faceOrdinal
     const ref: GeomRef = {
       $geom: {
-        of: 'test_box',
+        of: asPartName('test_box'),
         feature: 'faceCenter',
         faceOrdinal: topOrdinal,
         anchor: { point: [5, 5, 10], normal: [0, 0, 1] },
@@ -112,7 +113,7 @@ describe('resolveGeomRef with faceOrdinal (BREP path)', () => {
 
     const ref: GeomRef = {
       $geom: {
-        of: 'test_box',
+        of: asPartName('test_box'),
         feature: 'faceNormal',
         faceOrdinal: topOrdinal,
         anchor: { point: [5, 5, 10], normal: [0, 0, 1] },
@@ -138,7 +139,7 @@ describe('resolveGeomRef with faceOrdinal (BREP path)', () => {
 
     const ref: GeomRef = {
       $geom: {
-        of: 'test_box',
+        of: asPartName('test_box'),
         feature: 'faceCenter',
         faceOrdinal: 0,
         anchor: { point: [5, 5, 10], normal: [0, 0, 1] },
@@ -161,7 +162,7 @@ describe('resolveGeomRef with faceOrdinal (BREP path)', () => {
 
     const ref: GeomRef = {
       $geom: {
-        of: 'test_box',
+        of: asPartName('test_box'),
         feature: 'faceCenter',
         faceOrdinal: 999, // 越界
         anchor: { point: [5, 5, 10], normal: [0, 0, 1] },
@@ -188,7 +189,7 @@ describe('resolveGeomRef with faceOrdinal (BREP path)', () => {
 
     const ref: GeomRef = {
       $geom: {
-        of: 'test_box',
+        of: asPartName('test_box'),
         feature: 'faceCenter',
         // 无 faceOrdinal — 纯 anchor 路径
         anchor: { point: [5, 5, 10], normal: [0, 0, 1] },
@@ -214,7 +215,7 @@ describe('resolveGeomRef with faceOrdinal (BREP path)', () => {
 
     const ref: GeomRef = {
       $geom: {
-        of: 'test_box',
+        of: asPartName('test_box'),
         feature: 'faceCenter',
         // 无 faceOrdinal, 无 anchor
       },
@@ -232,7 +233,7 @@ describe('resolveGeomRef with faceOrdinal (BREP path)', () => {
 
     const ref: GeomRef = {
       $geom: {
-        of: 'test_box',
+        of: asPartName('test_box'),
         feature: 'faceNormal',
         // 无 faceOrdinal, 无 anchor
       },
@@ -249,7 +250,7 @@ describe('resolveGeomRef with faceOrdinal (BREP path)', () => {
 
     const ref: GeomRef = {
       $geom: {
-        of: 'test_box',
+        of: asPartName('test_box'),
         feature: 'unknownFeature' as 'bboxCenter',
       },
     }

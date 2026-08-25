@@ -24,6 +24,7 @@ import { ensureTestFontLoader } from '../brep/text/fontTestHelper'
 import { fileBlobStore } from '../test/blob-store'
 import type { Shape } from './types'
 import type { CadStatement, PartScript } from '../lang/types'
+import { asStmtId, asPartName } from '../identity'
 
 // Polyfill DOMParser for Node.js — SVGLoader.parse needs it
 import { DOMParser as NodeDOMParser } from '@xmldom/xmldom'
@@ -82,9 +83,9 @@ function makeStmt(
   inputs: string[] = [],
 ): CadStatement {
   return {
-    id, op,
+    id: asStmtId(id), op,
     args: args as any,
-    inputs,
+    inputs: inputs.map(asPartName),
     hasAssignment: true,
     returnType: 'new_shape',
   }
@@ -113,7 +114,7 @@ function shapeTriangleCount(s: Shape): number { return s.indices.length / 3 }
 function getFinalOutput(result: ExecutionResult, statements: CadStatement[]): Shape {
   const geoStmts = statements.filter(s => s.hasAssignment && (s.returnType ?? 'new_shape') === 'new_shape')
   const last = geoStmts[geoStmts.length - 1]
-  const shape = result.outputs.get(last.id)
+  const shape = result.outputs.get(asPartName(last.id))
   if (!shape) throw new Error(`No output for terminal statement "${last.id}"`)
   return shape
 }
@@ -255,7 +256,7 @@ describe('svgExtrude: STEP export verification (BREP)', () => {
     const result = await runScript(stmts, 'brep', SVG_ASSET_KEY)
     expect(result.brepSolids).toBeDefined()
 
-    const solidEntry = result.brepSolids!.get('s1')!
+    const solidEntry = result.brepSolids!.get(asPartName('s1'))!
     const step = kernel.exportStep(solidEntry.solid)
     expect(step).toContain('ADVANCED_FACE')
   })

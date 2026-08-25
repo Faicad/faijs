@@ -1,4 +1,4 @@
-﻿/**
+/**
  * BREP 链状态管理
  *
  * 在语句重放过程中跟踪 OCCT 精确实体句柄。
@@ -14,6 +14,7 @@
 
 import type { OcctKernel, ShapeHandle, Mesh as WasmMesh } from 'occt-wasm'
 import { initOcctWasm } from '../occt-kernel/occtKernel'
+import type { PartName } from '../identity'
 
 // ─── BREP 能力分类 ───
 
@@ -99,8 +100,8 @@ export function isCadFormat(
  * 兄弟 part 之间互不污染。
  */
 export interface BrepChainState {
-  /** OCCT 实体句柄缓存（statementId → ShapeHandle）。存在即该 part 仍为 BREP；缺失即已降级为 mesh。 */
-  solidCache: Map<string, ShapeHandle>
+  /** OCCT 实体句柄缓存（PartName → ShapeHandle）。存在即该 part 仍为 BREP；缺失即已降级为 mesh。 */
+  solidCache: Map<PartName, ShapeHandle>
   /** OCCT 内核实例（mesh 模式为 null —— 等价于「无 BREP 能力」）。 */
   kernel: OcctKernel | null
   /**
@@ -121,9 +122,9 @@ export interface BrepChainState {
    *
    * FaceEvolution = Map<number, number[]>（inOrdinal → outOrdinal[]）
    */
-  faceEvolutionCache?: Map<string, Map<number, number[]>>
+  faceEvolutionCache?: Map<PartName, Map<number, number[]>>
   /**
-   * 三角化缓存：statementId → WasmMesh（含 faceGroups）。
+   * 三角化缓存：PartName → WasmMesh（含 faceGroups）。
    *
    * BREP op 调用 solidToShape 三角化后，把完整 WasmMesh 缓存到此 Map。
    * buildBrepTopology 复用此缓存，避免二次 meshShape 导致拓扑 mesh ≠ 显示 mesh。
@@ -131,7 +132,7 @@ export interface BrepChainState {
    * 规则 1：拓扑数据生成所使用的 mesh，必须是当前用户看到的 mesh。
    * 三角化和拓扑生成都是 faijs 的职责，宿主不参与。
    */
-  meshShapeCache?: Map<string, WasmMesh>
+  meshShapeCache?: Map<PartName, WasmMesh>
 }
 
 /**

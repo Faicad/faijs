@@ -12,6 +12,7 @@ import { initBrepChainState } from './brep/brep-chain'
 import { executeStatement } from './ops/dispatcher'
 import { computeContentKey } from './cad-runtime/runtime'
 import type { HostPorts, ExecutionMode } from './cad-runtime/ports'
+import { asPartName, type PartName } from './identity'
 
 export interface ExecuteOutput {
   contentKey: string
@@ -23,13 +24,13 @@ export { executeStatement }
 
 export async function executeScript(
   script: PartScript,
-  inputGeometryMap?: Map<string, Shape>,
+  inputGeometryMap?: Map<PartName, Shape>,
   params?: Record<string, unknown>,
   ports?: HostPorts,
   mode?: ExecutionMode,
   brepChain?: BrepChainState,
 ): Promise<ExecuteOutput> {
-  const outputCache = new Map<string, Shape>()
+  const outputCache = new Map<PartName, Shape>()
   // Persistent SolidCache 方案：可传入外部持久链（增量场景测试复用同一链）；
   // 不传时仍内部创建（一次脚本一次链，进程回收，不释放）。
   const chain = brepChain ?? await initBrepChainState()
@@ -48,7 +49,7 @@ export async function executeScript(
     }
 
     const result = await executeStatement(stmt, inputGeometries, outputCache, params, chain, ports, mode)
-    outputCache.set(stmt.id, result)
+    outputCache.set(asPartName(stmt.id), result)
   }
 
   const newShapeStmts = script.statements.filter(
@@ -58,7 +59,7 @@ export async function executeScript(
     throw new Error(`[executeScript] empty script — no geometry statements`)
   }
   const lastStmt = newShapeStmts[newShapeStmts.length - 1]
-  const finalShape = outputCache.get(lastStmt.id)!
+  const finalShape = outputCache.get(asPartName(lastStmt.id))!
   const contentKey = computeContentKey(finalShape.positions, finalShape.indices)
 
   return {

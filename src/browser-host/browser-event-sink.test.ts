@@ -11,6 +11,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { BrowserEventSink } from './browser-event-sink'
+import { asPartName } from '../identity'
 
 // Mock window + CustomEvent for Node environment
 class MockCustomEvent {
@@ -57,7 +58,7 @@ describe('BrowserEventSink', () => {
 
   it('dispatches "part-brep-lost" CustomEvent on window', () => {
     eventSink.emit('part-brep-lost', {
-      partId: 'part0_v1',
+      partName: asPartName('part0_v1'),
       op: 'drill',
       reason: 'no brep solid in chain',
     })
@@ -67,7 +68,6 @@ describe('BrowserEventSink', () => {
     expect(event.type).toBe('part-brep-lost')
     expect(event.detail.op).toBe('drill')
     expect(event.detail.partName).toBe('part0_v1')
-    expect(event.detail.stmtName).toBe('part0_v1')
     expect(event.detail.reason).toBe('no brep solid in chain')
   })
 
@@ -77,7 +77,7 @@ describe('BrowserEventSink', () => {
 
     expect(() => {
       eventSink.emit('part-brep-lost', {
-        partId: 'part0_v1',
+        partName: asPartName('part0_v1'),
         op: 'drill',
         reason: 'test',
       })

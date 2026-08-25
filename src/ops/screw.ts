@@ -13,6 +13,7 @@ import { solidToShape } from '../brep/brep-ops'
 import { getScrewSpec, threadToPitchMm, SCREW_HEAD_DIMS } from '../primitives/screw/screw-db'
 import type { OpContext } from './types'
 import { canUseBrep } from './types'
+import { asPartName } from '../identity'
 
 /**
  * 执行螺丝操作
@@ -102,8 +103,8 @@ async function executeScrewBrep(ctx: OpContext): Promise<Shape> {
     result = fused
   }
 
-  brepChain.solidCache.set(stmt.id, result)
-  return solidToShape(kernel, result, undefined, brepChain, stmt.id)
+  brepChain.solidCache.set(asPartName(stmt.id), result)
+  return solidToShape(kernel, result, undefined, brepChain, asPartName(stmt.id))
 }
 
 /**

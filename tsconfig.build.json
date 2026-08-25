@@ -16,6 +16,7 @@
     "dist",
     "vitest.config.ts",
     "src/test/",
-    "**/*.test.ts"
+    "**/*.test.ts",
+    "**/*.test-d.ts"
   ]
 }

@@ -16,6 +16,7 @@ import {
 import { identityEvolution } from '../brep/face-evolution'
 import type { OpContext } from './types'
 import { canUseBrep } from './types'
+import { asPartName } from '../identity'
 
 /**
  * 执行变换操作（translate/rotate/scale）
@@ -55,14 +56,14 @@ async function executeTransformBrep(ctx: OpContext): Promise<Shape> {
   } else {
     resultSolid = scaleBrep(brepChain.kernel, upstreamSolid, args.factor as number | Vec3)
   }
-  brepChain.solidCache.set(stmt.id, resultSolid)
+  brepChain.solidCache.set(asPartName(stmt.id), resultSolid)
 
   // P5-2: 存储恒等面演化映射（变换不改变拓扑，面 ordinal i → [i]）
   if (brepChain.faceEvolutionCache) {
-    brepChain.faceEvolutionCache.set(stmt.id, identityEvolution(brepChain.kernel, resultSolid))
+    brepChain.faceEvolutionCache.set(asPartName(stmt.id), identityEvolution(brepChain.kernel, resultSolid))
   }
 
-  return solidToShape(brepChain.kernel, resultSolid, undefined, brepChain, stmt.id)
+  return solidToShape(brepChain.kernel, resultSolid, undefined, brepChain, asPartName(stmt.id))
 }
 
 /**

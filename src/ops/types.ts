@@ -16,6 +16,7 @@
 import type { CadStatement, Vec3 } from '../lang/types'
 import type { BrepChainState } from '../brep/brep-chain'
 import type { HostPorts, ExecutionMode } from '../cad-runtime/ports'
+import type { PartName } from '../identity'
 
 // ── Shape ──
 
@@ -37,8 +38,8 @@ export interface OpContext {
   stmt: CadStatement
   /** 上游语句的输出几何（按 inputs 顺序） */
   inputGeometries: Shape[]
-  /** 当前重放的输出缓存（statementId → Shape），用于 GeomRef 求值 */
-  outputCache?: Map<string, Shape>
+  /** 当前重放的输出缓存（PartName → Shape），用于 GeomRef 求值 */
+  outputCache?: Map<PartName, Shape>
   /** 已解析的参数表 */
   args: Record<string, unknown>
   /** 参数表（本期可为空） */

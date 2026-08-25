@@ -17,6 +17,7 @@ import { getSolidBoundingBox } from '../brep/brep-utils'
 import type { OpContext } from './types'
 import { canUseBrep } from './types'
 import { containsCjk, loadSystemCjkFont } from '../primitives/text/cjk'
+import { asPartName } from '../identity'
 
 /**
  * 执行文字操作
@@ -78,6 +79,6 @@ async function executeTextBrep(ctx: OpContext): Promise<Shape> {
   const centeredSolid = kernel.translate(rawSolid, -cx, -bbox.min[1], -cz)
   kernel.release(rawSolid)
 
-  brepChain.solidCache.set(stmt.id, centeredSolid)
-  return solidToShape(kernel, centeredSolid, undefined, brepChain, stmt.id)
+  brepChain.solidCache.set(asPartName(stmt.id), centeredSolid)
+  return solidToShape(kernel, centeredSolid, undefined, brepChain, asPartName(stmt.id))
 }

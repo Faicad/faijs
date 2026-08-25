@@ -12,6 +12,7 @@ import { describe, it, expect } from 'vitest'
 import { getOpSchema, hasOpSchema } from './args-schema'
 import { buildArgsParts } from './codegen'
 import type { CadStatement } from './types'
+import { asStmtId } from '../identity'
 
 // ── schema 中的 op 集合 ──
 const SCHEMA_OPS = new Set([
@@ -156,7 +157,7 @@ describe('op-set-consistency: schema ↔ codegen 参数键集', () => {
       }
 
       const stmt: CadStatement = {
-        id: 'st_test',
+        id: asStmtId('st_test'),
         op,
         args: args as never,
         inputs: [],
@@ -190,7 +191,7 @@ describe('op-set-consistency: schema ↔ codegen 参数键集', () => {
       if (!args) continue
 
       const stmt: CadStatement = {
-        id: 'st_test',
+        id: asStmtId('st_test'),
         op,
         args: args as never,
         inputs: [],

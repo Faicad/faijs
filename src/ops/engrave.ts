@@ -19,6 +19,7 @@ import { getSolidBoundingBox } from '../brep/brep-utils'
 import { resolveSvgArg } from './svg-asset-resolver'
 import type { OpContext } from './types'
 import { canUseBrep } from './types'
+import { asPartName } from '../identity'
 
 /**
  * 将世界坐标转换为 BREP solid 的局部坐标。
@@ -258,6 +259,6 @@ async function executeEngraveBrep(ctx: OpContext, svgText?: string): Promise<Sha
     console.error('[executeEngraveBrep] getSubShapes failed (result may not be a compound), continuing with single solid:', subShapesErr)
   }
 
-  brepChain.solidCache.set(stmt.id, result)
-  return solidToShape(kernel, result, undefined, brepChain, stmt.id)
+  brepChain.solidCache.set(asPartName(stmt.id), result)
+  return solidToShape(kernel, result, undefined, brepChain, asPartName(stmt.id))
 }

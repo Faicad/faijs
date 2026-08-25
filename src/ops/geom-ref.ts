@@ -15,29 +15,30 @@ import { cad } from '../mesh'
 import type { GeomRef } from '../lang/types'
 import { isAssetRef, isGeomRef, isParamRef } from '../lang/types'
 import type { OcctKernel, ShapeHandle } from 'occt-wasm'
+import type { PartName } from '../identity'
 
 // re-export for backward compat（dispatcher 等仍从 geom-ref 导入）
 export { isAssetRef, isGeomRef, isParamRef }
 
 /**
- * BREP 面查询回调类型：从语句 id 获取上游 OCCT 实体句柄。
+ * BREP 面查询回调类型：从 part 名获取上游 OCCT 实体句柄。
  *
  * 当 BREP 链活跃时，dispatcher 传入此回调使 resolveGeomRef 能按 faceOrdinal
  * 直接取面（拓扑引用，不需要几何反查）。
  */
-export type GetUpstreamSolid = (id: string) => ShapeHandle | undefined
+export type GetUpstreamSolid = (id: PartName) => ShapeHandle | undefined
 
 /**
  * GeomRef 求值器
  *
  * @param ref GeomRef 引用
- * @param getUpstreamGeometry 从语句 id 获取上游 mesh 几何（用于 anchor 兜底和 bboxCenter）
- * @param getUpstreamSolid 从语句 id 获取上游 OCCT 实体句柄（可选，用于 faceOrdinal 拓扑引用）
+ * @param getUpstreamGeometry 从 part 名获取上游 mesh 几何（用于 anchor 兜底和 bboxCenter）
+ * @param getUpstreamSolid 从 part 名获取上游 OCCT 实体句柄（可选，用于 faceOrdinal 拓扑引用）
  * @param kernel OCCT 内核（可选，用于 faceOrdinal 取面）
  */
 export function resolveGeomRef(
   ref: GeomRef,
-  getUpstreamGeometry: (id: string) => Shape | undefined,
+  getUpstreamGeometry: (id: PartName) => Shape | undefined,
   getUpstreamSolid?: GetUpstreamSolid,
   kernel?: OcctKernel,
 ): Vec3 {

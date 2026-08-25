@@ -23,6 +23,7 @@ import { fileBlobStore } from '../test/blob-store'
 import { cad } from '../mesh'
 import type { Shape } from '../mesh/types'
 import type { CadStatement, PartScript } from '../lang/types'
+import { asPartName, asStmtId } from '../identity'
 import { executeStatement } from './dispatcher'
 import type { BrepChainState } from '../brep/brep-chain'
 
@@ -84,9 +85,9 @@ function makeStmt(
   extra?: Partial<CadStatement>,
 ): CadStatement {
   return {
-    id, op,
+    id: asStmtId(id), op,
     args: args as never,
-    inputs,
+    inputs: inputs.map(asPartName),
     hasAssignment: true,
     returnType: 'new_shape',
     ...extra,
@@ -359,7 +360,7 @@ describe('drill: execute (load STL → drill) with partTransform', () => {
 
     expect(result.failedAt).toBeUndefined()
 
-    const drilledShape = result.outputs.get('part1_v0')
+    const drilledShape = result.outputs.get(asPartName('part1_v0'))
     expect(drilledShape, 'drilled shape must be in outputCache').toBeDefined()
 
     const vertsBefore = shapeVertexCount(box)
@@ -400,7 +401,7 @@ describe('drill: execute (load STL → drill) with partTransform', () => {
 
     expect(result.failedAt).toBeUndefined()
 
-    const drilledShape = result.outputs.get('part1_v0')
+    const drilledShape = result.outputs.get(asPartName('part1_v0'))
     expect(drilledShape, 'drilled shape must be in outputCache').toBeDefined()
 
     const vertsBefore = shapeVertexCount(box)

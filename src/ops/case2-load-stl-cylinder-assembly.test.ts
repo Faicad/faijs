@@ -28,6 +28,7 @@ import { fileBlobStore } from '../test/blob-store'
 import { computeTerminalShapes } from '../lang/parser'
 import { exportStepFromSolid } from '../brep/export/step'
 import { exportStep } from '../occt-kernel/highLevelApi'
+import { asPartName, asStmtId } from '../identity'
 
 let stlBuffer: ArrayBuffer
 
@@ -85,9 +86,9 @@ function makeStmt(
   extra?: Partial<CadStatement>,
 ): CadStatement {
   return {
-    id, op,
+    id: asStmtId(id), op,
     args: args as never,
-    inputs,
+    inputs: inputs.map(asPartName),
     hasAssignment: true,
     returnType: 'new_shape',
     ...extra,
@@ -133,8 +134,8 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
         members: ['cube_v0', 'drilled_v0'],
         constraints: [{
           fixedScopedId: 'cube_v0', movingScopedId: 'drilled_v0',
-          fixedFace: { faceId: 'cube_top', surfaceType: 'plane' },
-          movingFace: { faceId: 'cyl_top', surfaceType: 'plane' },
+          fixedFace: { surfaceType: 'plane' },
+          movingFace: { surfaceType: 'plane' },
         }],
       }, [], { }),
       // S4: rotate with pivot — BREP-native transform
@@ -152,11 +153,11 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
 
     // Core assertions (per-part BREP independence):
     // STL load does NOT break BREP for subsequent parts
-    expect(solidCache.has('cube_v0')).toBe(false)     // STL → mesh (no solid) ✅
-    expect(solidCache.has('cyl_v0')).toBe(true)       // cylinder → BREP ✅ (core fix)
-    expect(solidCache.has('drilled_v0')).toBe(true)   // drill → BREP ✅ (upstream has solid)
-    expect(solidCache.has('rot_v0')).toBe(true)       // rotate → BREP ✅
-    expect(solidCache.has('mated_v0')).toBe(true)     // translate → BREP ✅
+    expect(solidCache.has(asPartName('cube_v0'))).toBe(false)     // STL → mesh (no solid) ✅
+    expect(solidCache.has(asPartName('cyl_v0'))).toBe(true)       // cylinder → BREP ✅ (core fix)
+    expect(solidCache.has(asPartName('drilled_v0'))).toBe(true)   // drill → BREP ✅ (upstream has solid)
+    expect(solidCache.has(asPartName('rot_v0'))).toBe(true)       // rotate → BREP ✅
+    expect(solidCache.has(asPartName('mated_v0'))).toBe(true)     // translate → BREP ✅
 
     // Assembly structural statement is skipped during execution
     const asmStmt = stmts.find(s => s.op === 'assembly')
@@ -192,9 +193,9 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
 
     // brepSolids should contain mated_v0 (BREP terminal)
     expect(result.brepSolids).toBeDefined()
-    expect(result.brepSolids!.has('mated_v0')).toBe(true)
+    expect(result.brepSolids!.has(asPartName('mated_v0'))).toBe(true)
     // cube_v0 should NOT be in brepSolids (mesh terminal)
-    expect(result.brepSolids!.has('cube_v0')).toBe(false)
+    expect(result.brepSolids!.has(asPartName('cube_v0'))).toBe(false)
 
     fileBlobStore.release(bufferKey)
   })
@@ -220,7 +221,7 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
     expect(result.failedAt).toBeUndefined()
 
     // mated_v0 → precise STEP (ADVANCED_FACE + CYLINDRICAL_SURFACE from drill hole)
-    const matedSolidEntry = result.brepSolids!.get('mated_v0')!
+    const matedSolidEntry = result.brepSolids!.get(asPartName('mated_v0'))!
     const preciseStepBuf = exportStepFromSolid(matedSolidEntry.solid, matedSolidEntry.kernel)
     const preciseStep = new TextDecoder().decode(preciseStepBuf)
     expect(preciseStep).toContain('ADVANCED_FACE')
@@ -228,7 +229,7 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
     expect(preciseStep).toContain('CYLINDRICAL_SURFACE')
 
     // cube_v0 → faceted STEP (meshesToStep)
-    const cubeShape = result.outputs.get('cube_v0')!
+    const cubeShape = result.outputs.get(asPartName('cube_v0'))!
     expect(cubeShape).toBeDefined()
     const facetedStep = exportStep(cubeShape)
     // Faceted STEP from mesh should NOT contain CYLINDRICAL_SURFACE
@@ -254,8 +255,8 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
         members: ['cube_v0', 'drilled_v0'],
         constraints: [{
           fixedScopedId: 'cube_v0', movingScopedId: 'drilled_v0',
-          fixedFace: { faceId: 'cube_top', surfaceType: 'plane' },
-          movingFace: { faceId: 'cyl_top', surfaceType: 'plane' },
+          fixedFace: { surfaceType: 'plane' },
+          movingFace: { surfaceType: 'plane' },
         }],
       }, [], { }),
       makeStmt('rot_v0', 'rotate', { anglesDeg: [180, 0, 0], pivot: [0, 0, 20] }, ['drilled_v0'],
@@ -274,7 +275,7 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
 
     // Assembly statement goes through dispatcher (new_shape) but returns empty shape (no-op)
     // The output exists but is empty (positions and indices are zero-length)
-    const asmOutput = result.outputs.get('grp_asm0')
+    const asmOutput = result.outputs.get(asPartName('grp_asm0'))
     expect(asmOutput).toBeDefined()
     expect(asmOutput!.positions.length).toBe(0)
 
@@ -300,7 +301,7 @@ describe('Pivot parity: rotate(anglesDeg, pivot) — BREP vs mesh path consisten
     const brepResult = await brepRuntime.execute(brepScript)
 
     expect(brepResult.failedAt).toBeUndefined()
-    expect(brepResult.brepChain.solidCache.has('s2')).toBe(true)
+    expect(brepResult.brepChain.solidCache.has(asPartName('s2'))).toBe(true)
 
     // Run in mesh mode
     const meshRuntime = createRuntime(createTestPorts(), 'mesh')
@@ -310,8 +311,8 @@ describe('Pivot parity: rotate(anglesDeg, pivot) — BREP vs mesh path consisten
     expect(meshResult.failedAt).toBeUndefined()
 
     // Compare bounding boxes — they should be close (pivot was applied in both paths)
-    const brepShape = brepResult.outputs.get('s2')!
-    const meshShape = meshResult.outputs.get('s2')!
+    const brepShape = brepResult.outputs.get(asPartName('s2'))!
+    const meshShape = meshResult.outputs.get(asPartName('s2'))!
 
     // Calculate bounding boxes
     function bbox(positions: Float32Array) {
@@ -374,8 +375,8 @@ describe('Pivot parity: rotate(anglesDeg, pivot) — BREP vs mesh path consisten
       return { xmin, ymin, xmax, ymax }
     }
 
-    const brepBB = bbox(brepResult.outputs.get('s2')!.positions)
-    const meshBB = bbox(meshResult.outputs.get('s2')!.positions)
+    const brepBB = bbox(brepResult.outputs.get(asPartName('s2'))!.positions)
+    const meshBB = bbox(meshResult.outputs.get(asPartName('s2'))!.positions)
 
     // Without pivot, both paths rotate around origin
     // BREP and mesh should produce similar results

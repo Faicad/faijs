@@ -19,6 +19,7 @@
  */
 
 import type { CadStatement } from './types'
+import { asStmtId, asPartName, type StmtId, type PartName, type GroupName } from '../identity'
 
 /** partN_vM 格式正则 */
 const PART_VM_RE = /^part(\d+)_v(\d+)$/
@@ -134,24 +135,24 @@ export interface AllocateIdContext {
  * @param op 操作类型
  * @param inputs 输入语句 id 列表
  * @param ctx 分配器上下文（包含已有语句列表）
- * @returns 分配的语句 id
+ * @returns 分配的语句 id（StmtId）
  */
 export function allocateStatementId(
   op: string,
   inputs: string[],
   ctx: AllocateIdContext,
-): string {
+): StmtId {
   const { statements } = ctx
 
   // 结构型 op（group/assembly/add_constraint/do_assemble）→ grp_N 格式
   if (GROUP_OPS.has(op)) {
-    return `grp_${getMaxGroupNum(statements) + 1}`
+    return asStmtId(`grp_${getMaxGroupNum(statements) + 1}`)
   }
 
   // 创建型 / 布尔 → 新模型
   if (isCreatorOp(op) || isBooleanOp(op) || inputs.length === 0) {
     const nextN = getMaxModelNum(statements) + 1
-    return `part${nextN}_v0`
+    return asStmtId(`part${nextN}_v0`)
   }
 
   // 有输入 → 跟随 inputs[0] 的模型号
@@ -161,38 +162,38 @@ export function allocateStatementId(
   if (inputModelNum === null) {
     // 输入不是 partN_vM 格式（可能是旧 st_* 格式），分配新模型
     const nextN = getMaxModelNum(statements) + 1
-    return `part${nextN}_v0`
+    return asStmtId(`part${nextN}_v0`)
   }
 
   // 跟随输入的模型号，版本 +1
   const maxVersion = getMaxVersionForModel(statements, inputModelNum)
   const nextV = maxVersion + 1
-  return `part${inputModelNum}_v${nextV}`
+  return asStmtId(`part${inputModelNum}_v${nextV}`)
 }
 
 /**
- * 为分割操作分配两个输出 id。
+ * 为分割操作分配两个输出的 PartName。
  *
- * 分割产生两个新模型：partN_v0 和 part(N+1)_v0。
+ * 分割产生两个 PartName：partN_v0 和 part(N+1)_v0。
  *
  * @param ctx 分配器上下文
- * @returns { front, back } 两个 id
+ * @param returns { front, back } 两个 PartName
  */
 export function allocateSplitIds(
   ctx: AllocateIdContext,
-): { front: string; back: string } {
+): { front: PartName; back: PartName } {
   const { statements } = ctx
   const nextN = getMaxModelNum(statements) + 1
   return {
-    front: `part${nextN}_v0`,
-    back: `part${nextN + 1}_v0`,
+    front: asPartName(`part${nextN}_v0`),
+    back: asPartName(`part${nextN + 1}_v0`),
   }
 }
 
 /**
- * 判断 id 是否为 partN_vM 格式。
+ * 判断 id 是否为 partN_vM 格式（PartName）。
  */
-export function isPartVmId(id: string): boolean {
+export function isPartVmId(id: string): id is PartName {
   return PART_VM_RE.test(id)
 }
 
@@ -211,9 +212,9 @@ export function getVersionNum(id: string): number | null {
 }
 
 /**
- * 判断 id 是否为 grp_N 格式。
+ * 判断 id 是否为 grp_N 格式（GroupName ⊆ PartName）。
  */
-export function isGrpId(id: string): boolean {
+export function isGrpId(id: string): id is GroupName {
   return GRP_RE.test(id)
 }
 

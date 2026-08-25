@@ -12,6 +12,7 @@ import { solidToShape } from '../brep/brep-ops'
 import { initOcctWasm } from '../occt-kernel/occtKernel'
 import type { OpContext } from './types'
 import { canUseBrep } from './types'
+import { asPartName } from '../identity'
 
 /**
  * 执行基本体创建操作（box/sphere/cylinder/cone/wedge）
@@ -42,8 +43,8 @@ async function executePrimitiveBrep(ctx: OpContext): Promise<Shape> {
 
   const type = stmt.op === 'box' ? 'cube' : stmt.op
   const result = primitiveToBrepSolid(brepChain!.kernel, type as 'cube' | 'sphere' | 'cylinder' | 'cone' | 'wedge', args as any)
-  brepChain!.solidCache.set(stmt.id, result.solid)
-  return solidToShape(brepChain!.kernel, result.solid, args.segments as number | undefined, brepChain, stmt.id)
+  brepChain!.solidCache.set(asPartName(stmt.id), result.solid)
+  return solidToShape(brepChain!.kernel, result.solid, args.segments as number | undefined, brepChain, asPartName(stmt.id))
 }
 
 /**

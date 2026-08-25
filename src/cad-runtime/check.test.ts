@@ -13,6 +13,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
+import { asStmtId } from '../identity'
 import { createRuntime } from './runtime'
 import type { HostPorts, EventSink } from './ports'
 
@@ -158,7 +159,7 @@ export default async (cad) => {
     const result = runtime.check(code)
     expect(result.ok).toBe(true)
     // No brepChain, no outputs — check is pure text validation
-    expect(runtime.getCachedOutput('part0_v0')).toBeUndefined()
+    expect(runtime.getCachedOutput(asStmtId('part0_v0'))).toBeUndefined()
   })
 
   it('check provides structured context for AI self-correction', () => {

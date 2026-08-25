@@ -15,16 +15,21 @@ import { describe, it, expect } from 'vitest'
 import { parseScript, ParseError, getApiVersion, computeTerminalShapes } from './parser'
 import { scriptToCode } from './codegen'
 import type { PartScript, CadStatement } from './types'
+import { asStmtId, asPartName } from '../identity'
 
 // ── 测试辅助 ──
 
-function makeStmt(partial: Partial<CadStatement>): CadStatement {
+function makeStmt(
+  partial: Omit<Partial<CadStatement>, 'id' | 'inputs' | 'outputs'> & { id?: string; inputs?: string[]; outputs?: string[] },
+): CadStatement {
+  const { id, inputs, outputs, ...rest } = partial
   return {
-    id: 'st_part1_1',
+    id: asStmtId(id ?? 'st_part1_1'),
     op: 'box',
     args: {},
-    inputs: [],
-    ...partial,
+    inputs: (inputs ?? []).map(asPartName),
+    outputs: outputs?.map(asPartName),
+    ...rest,
   }
 }
 

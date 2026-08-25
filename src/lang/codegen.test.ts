@@ -11,16 +11,21 @@ import { describe, it, expect } from 'vitest'
 import { statementToLine, scriptToCode, fmtNum } from './codegen'
 import { parseScript } from './parser'
 import type { CadStatement, PartScript } from './types'
+import { asStmtId, asPartName } from '../identity'
 
 // ── 测试辅助：构造语句 ──
 
-function makeStmt(partial: Partial<CadStatement>): CadStatement {
+function makeStmt(
+  partial: Omit<Partial<CadStatement>, 'id' | 'inputs' | 'outputs'> & { id?: string; inputs?: string[]; outputs?: string[] },
+): CadStatement {
+  const { id, inputs, outputs, ...rest } = partial
   return {
-    id: 'st_part1_1',
+    id: asStmtId(id ?? 'st_part1_1'),
     op: 'box',
     args: {},
-    inputs: [],
-    ...partial,
+    inputs: (inputs ?? []).map(asPartName),
+    outputs: outputs?.map(asPartName),
+    ...rest,
   }
 }
 
@@ -238,8 +243,8 @@ describe('codegen: center 参数往返 (codegen → parser)', () => {
 describe('codegen: GeomRef with faceOrdinal round-trip', () => {
   it('GeomRef with faceOrdinal round-trip: codegen → parse → same args', () => {
     const script = makeScript([
-      { id: 'part1_v0', op: 'box', args: { size: [10, 10, 10] }, inputs: [] },
-      {
+      makeStmt({ id: 'part1_v0', op: 'box', args: { size: [10, 10, 10] } }),
+      makeStmt({
         id: 'part1_v1',
         op: 'engrave',
         args: {
@@ -249,7 +254,7 @@ describe('codegen: GeomRef with faceOrdinal round-trip', () => {
           faceNormal: { $geom: { of: 'part1_v0', feature: 'faceNormal', faceOrdinal: 4, anchor: { point: [5, 5, 10] } } },
         },
         inputs: ['part1_v0'],
-      },
+      }),
     ])
     const fullCode = scriptToCode(script)
     const parsed = parseScript(fullCode)

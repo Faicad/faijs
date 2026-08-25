@@ -9,6 +9,7 @@
 import type { Shape } from '../mesh/types'
 import { cad } from '../mesh'
 import type { OpContext } from './types'
+import { asPartName } from '../identity'
 
 /**
  * 执行 SDF 操作
@@ -17,7 +18,7 @@ export async function executeSdf(ctx: OpContext): Promise<Shape> {
   const { stmt, args, brepChain } = ctx
 
   // 防御性：确保输出 part 不在 solidCache 中（明确「本 part 失去 BREP」）
-  brepChain?.solidCache.delete(stmt.id)
+  brepChain?.solidCache.delete(asPartName(stmt.id))
 
   const boxArg = args.box as [[number, number, number], [number, number, number]] | undefined
   return cad.sdf({

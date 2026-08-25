@@ -20,6 +20,7 @@ import {
 } from '../brep/face-evolution'
 import type { OpContext } from './types'
 import { canUseBrep } from './types'
+import { asPartName } from '../identity'
 
 /**
  * 执行布尔操作
@@ -107,14 +108,14 @@ async function executeBooleanBrep(ctx: OpContext): Promise<Shape> {
       brepChain.kernel.release(prev)
     }
   }
-  brepChain.solidCache.set(stmt.id, resultSolid)
+  brepChain.solidCache.set(asPartName(stmt.id), resultSolid)
 
   // P5-2: 存储面演化映射（最后一次二元操作的面演化，用于面引用稳定性验证和未来面迁移）
   if (lastEvolution && brepChain.faceEvolutionCache) {
-    brepChain.faceEvolutionCache.set(stmt.id, lastEvolution)
+    brepChain.faceEvolutionCache.set(asPartName(stmt.id), lastEvolution)
   }
 
-  return solidToShape(brepChain.kernel, resultSolid, undefined, brepChain, stmt.id)
+  return solidToShape(brepChain.kernel, resultSolid, undefined, brepChain, asPartName(stmt.id))
 }
 
 /**

@@ -16,7 +16,20 @@
  * - CSG Backend：setCsgBackend / geoToManifoldMesh / ...
  */
 
-// ── L0 文本�?──
+// ── identity：品牌类型 + 信任点（f0，零依赖）
+export type {
+  FileId, InnerId, ScopedId, StmtId, PartName, GroupName,
+  RefId, ReferenceId, SelectorKey, OccurrenceId, ShapeId,
+  FaceId, EdgeId, NodeId, StatementId, FaceSelector,
+} from './identity'
+export {
+  asFileId, asInnerId, asScopedId, asStmtId, asPartName, asGroupName,
+  asRefId, asReferenceId, asSelectorKey, asOccurrenceId, asShapeId,
+  asFaceId, asEdgeId, asNodeId,
+  toScopedId, splitScopedId, isScopedId, toInnerId,
+} from './identity'
+
+// ── L0 文本�?层
 export type {
   PartScript, CadStatement, Arg, Vec3, JsonValue, ShapeRef,
   ParamRef, GeomRef, AssetRef,

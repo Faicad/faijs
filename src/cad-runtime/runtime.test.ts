@@ -1,4 +1,4 @@
-﻿﻿/**
+/**
  * @vitest-environment node
  *
  * CadRuntime 三模式契约测试 + 单元测试 (P2-8)
@@ -13,6 +13,7 @@
  */
 
 import { describe, it, expect, beforeAll, vi } from 'vitest'
+import { asPartName, asStmtId } from '../identity'
 import { initOcctWasm, getKernel } from '../occt-kernel/occtKernel'
 import type { OcctKernel } from 'occt-wasm'
 import type { CadStatement, PartScript } from '../lang/types'
@@ -56,9 +57,9 @@ function makeStmt(
   // add_constraint/do_assemble have hasAssignment false
   const noAssignment = op === 'add_constraint' || op === 'do_assemble'
   return {
-    id, op,
+    id: asStmtId(id), op,
     args: args as any,
-    inputs,
+    inputs: inputs.map(asPartName),
     hasAssignment: !noAssignment,
     returnType,
   }
@@ -91,7 +92,7 @@ describe('CadRuntime: auto mode (BREP-first, per-part)', () => {
   it('BREP-native op (box): solid in cache, brepSolids is set', async () => {
     const { result } = await run([makeStmt('s1', 'box', { size: 20 })])
 
-    expect(result.brepChain.solidCache.has('s1')).toBe(true)
+    expect(result.brepChain.solidCache.has(asPartName('s1'))).toBe(true)
     expect(result.brepSolids).toBeDefined()
     expect(result.failedAt).toBeUndefined()
   })
@@ -152,7 +153,7 @@ describe('CadRuntime: brep mode (strict BREP, no fallback)', () => {
   it('BREP-native op (box): solid in cache', async () => {
     const { result } = await run([makeStmt('s1', 'box', { size: 20 })], 'brep')
 
-    expect(result.brepChain.solidCache.has('s1')).toBe(true)
+    expect(result.brepChain.solidCache.has(asPartName('s1'))).toBe(true)
     expect(result.brepSolids).toBeDefined()
     expect(result.failedAt).toBeUndefined()
   })
@@ -201,7 +202,7 @@ describe('CadRuntime: mesh mode (all mesh, no BREP)', () => {
     const { result } = await run([makeStmt('s1', 'box', { size: 20 })], 'mesh')
 
     // Output should still be set (mesh path produces geometry)
-    const output = result.outputs.get('s1')
+    const output = result.outputs.get(asPartName('s1'))
     expect(output).toBeDefined()
     expect(output!.positions.length).toBeGreaterThan(0)
   })
@@ -237,8 +238,8 @@ describe('CadRuntime: instance management', () => {
     await runtime.execute(script)
 
     // statementCache should have entries for both statements
-    expect(runtime.getCachedOutput('s1')).toBeDefined()
-    expect(runtime.getCachedOutput('s2')).toBeDefined()
+    expect(runtime.getCachedOutput(asStmtId('s1'))).toBeDefined()
+    expect(runtime.getCachedOutput(asStmtId('s2'))).toBeDefined()
   })
 
   it('brepSolids is populated after BREP execution', async () => {
@@ -248,7 +249,7 @@ describe('CadRuntime: instance management', () => {
 
     // brepSolids is the single source of truth for terminal solids
     expect(result.brepSolids).toBeDefined()
-    expect(result.brepSolids!.has('s1')).toBe(true)
+    expect(result.brepSolids!.has(asPartName('s1'))).toBe(true)
   })
 
   it('brepSolids updates after re-execute (overwrite)', async () => {
@@ -274,7 +275,7 @@ describe('CadRuntime: instance management', () => {
     await runtime.execute(script)
 
     runtime.dispose()
-    expect(runtime.getCachedOutput('s1')).toBeUndefined()
+    expect(runtime.getCachedOutput(asStmtId('s1'))).toBeUndefined()
   })
 
   it('buildBrepTopology(stmtId) returns SelectorRuntime from solidCache', async () => {
@@ -283,7 +284,7 @@ describe('CadRuntime: instance management', () => {
     await runtime.execute(script)
 
     // buildBrepTopology takes stmtId (not scopedId), queries solidCache directly
-    const topo = runtime.buildBrepTopology('s1')
+    const topo = runtime.buildBrepTopology(asStmtId('s1'))
     expect(topo).not.toBeNull()
   })
 
@@ -291,7 +292,7 @@ describe('CadRuntime: instance management', () => {
     const runtime = makeRuntime()
     await runtime.execute(makePartScript([makeStmt('s1', 'box', { size: 20 })]))
 
-    expect(runtime.buildBrepTopology('nonexistent')).toBeNull()
+    expect(runtime.buildBrepTopology(asStmtId('nonexistent'))).toBeNull()
   })
 
   it('plan() identifies stale statements after args change', async () => {
@@ -336,9 +337,9 @@ describe('CadRuntime: instance management', () => {
     const script = makePartScript([makeStmt('s1', 'box', { size: 20 })])
     await runtime.execute(script)
 
-    expect(runtime.getCachedOutput('s1')).toBeDefined()
+    expect(runtime.getCachedOutput(asStmtId('s1'))).toBeDefined()
     runtime.clearStatementCache()
-    expect(runtime.getCachedOutput('s1')).toBeUndefined()
+    expect(runtime.getCachedOutput(asStmtId('s1'))).toBeUndefined()
   })
 
   it('writeToStatementCache adds entry', async () => {
@@ -346,10 +347,10 @@ describe('CadRuntime: instance management', () => {
     const stmt = makeStmt('s1', 'box', { size: 20 })
     const shape = { positions: new Float32Array([0,0,0, 1,0,0, 0,1,0]), indices: new Uint32Array([0,1,2]) }
     const ck = computeContentKey(shape.positions, shape.indices)
-    runtime.writeToStatementCache('s1', stmt, shape, ck)
+    runtime.writeToStatementCache(asStmtId('s1'), stmt, shape, ck)
 
-    expect(runtime.getCachedOutput('s1')).toBeDefined()
-    expect(runtime.getCachedOutput('s1')!.positions.length).toBe(9)
+    expect(runtime.getCachedOutput(asStmtId('s1'))).toBeDefined()
+    expect(runtime.getCachedOutput(asStmtId('s1'))!.positions.length).toBe(9)
   })
 
   it('dispose() clears all caches', async () => {
@@ -358,7 +359,7 @@ describe('CadRuntime: instance management', () => {
     await runtime.execute(script)
 
     runtime.dispose()
-    expect(runtime.getCachedOutput('s1')).toBeUndefined()
+    expect(runtime.getCachedOutput(asStmtId('s1'))).toBeUndefined()
   })
 
   it('void/same_shape statements are skipped during execution', async () => {
@@ -371,10 +372,10 @@ describe('CadRuntime: instance management', () => {
     const result = await runtime.execute(script)
 
     // s1 and s3 should have outputs; grp_1 is new_shape but a no-op dispatcher (empty shape)
-    expect(result.outputs.get('s1')).toBeDefined()
+    expect(result.outputs.get(asPartName('s1'))).toBeDefined()
     // grp_1 has returnType new_shape (default) so it goes through dispatcher, returns empty shape
-    expect(result.outputs.get('grp_1')).toBeDefined() // no-op dispatcher returns empty shape
-    expect(result.outputs.get('s3')).toBeDefined()
+    expect(result.outputs.get(asPartName('grp_1'))).toBeDefined() // no-op dispatcher returns empty shape
+    expect(result.outputs.get(asPartName('s3'))).toBeDefined()
   })
 })
 
@@ -414,20 +415,20 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     const s3 = makeStmt('s3', 'translate', { offset: [0, 5, 0] }, ['s2'])
     const fullScript = makePartScript([s1, s2, s3])
     const beforeCalls: string[] = []
-    const result = await runtime.append(fullScript, ['s3'], {
+    const result = await runtime.append(fullScript, [asStmtId('s3')], {
       beforeStatement: (stmt) => beforeCalls.push(stmt.id),
     })
 
     // 只执行 s3；s1/s2 前缀语句完全不进循环
     expect(beforeCalls).toEqual(['s3'])
     // outputs 覆盖全部语句（前缀从持久缓存组装）
-    expect(result.outputs.get('s1')).toBeDefined()
-    expect(result.outputs.get('s2')).toBeDefined()
-    expect(result.outputs.get('s3')).toBeDefined()
+    expect(result.outputs.get(asPartName('s1'))).toBeDefined()
+    expect(result.outputs.get(asPartName('s2'))).toBeDefined()
+    expect(result.outputs.get(asPartName('s3'))).toBeDefined()
     // solidCache 含全部语句 solid
-    expect(result.brepChain.solidCache.has('s1')).toBe(true)
-    expect(result.brepChain.solidCache.has('s2')).toBe(true)
-    expect(result.brepChain.solidCache.has('s3')).toBe(true)
+    expect(result.brepChain.solidCache.has(asPartName('s1'))).toBe(true)
+    expect(result.brepChain.solidCache.has(asPartName('s2'))).toBe(true)
+    expect(result.brepChain.solidCache.has(asPartName('s3'))).toBe(true)
   })
 
   it('update: 参数变更只重算变更点及下游（变更点之前语句不进循环）', async () => {
@@ -447,7 +448,7 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
 
     expect(beforeCalls).toEqual(['s1', 's2'])
     // 重算后 s1 的几何更新（bbox 翻倍）
-    const s1Out = runtime.getCachedOutput('s1')
+    const s1Out = runtime.getCachedOutput(asStmtId('s1'))
     expect(s1Out).toBeDefined()
   })
 
@@ -463,8 +464,8 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     })
 
     expect(beforeCalls).toEqual([])
-    expect(result.outputs.get('s1')).toBeDefined()
-    expect(result.brepChain.solidCache.has('s1')).toBe(true)
+    expect(result.outputs.get(asPartName('s1'))).toBeDefined()
+    expect(result.brepChain.solidCache.has(asPartName('s1'))).toBe(true)
   })
 
   it('append: 传入已存在缓存中的 id → 重执行该语句（幂等，输出替换）', async () => {
@@ -474,12 +475,12 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     const result1 = await runtime.execute(script)
 
     // 再 append 同一 id → 重执行（顶替）
-    const result2 = await runtime.append(script, ['s1'])
-    expect(result2.outputs.get('s1')).toBeDefined()
-    expect(result2.brepChain.solidCache.has('s1')).toBe(true)
+    const result2 = await runtime.append(script, [asStmtId('s1')])
+    expect(result2.outputs.get(asPartName('s1'))).toBeDefined()
+    expect(result2.brepChain.solidCache.has(asPartName('s1'))).toBe(true)
     // 顶替释放后 handle 仍是新值
-    expect(result2.brepChain.solidCache.get('s1')).toBeDefined()
-    expect(result1.brepChain.solidCache.get('s1')).toBeDefined()
+    expect(result2.brepChain.solidCache.get(asPartName('s1'))).toBeDefined()
+    expect(result1.brepChain.solidCache.get(asPartName('s1'))).toBeDefined()
   })
 
   it('顶替释放: 同 id 重算后旧 solid 句柄被 release（kernel spy）', async () => {
@@ -513,10 +514,10 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
 
     // s1 的 solid 保留（失败语句 s2 未写入）——通过后续 append 引用 s1 验证
     const s3 = makeStmt('s3', 'translate', { offset: [1, 0, 0] }, ['s1'])
-    const result = await runtime.append(makePartScript([s1, s3]), ['s3'])
-    expect(result.outputs.get('s3')).toBeDefined()
-    expect(result.brepChain.solidCache.has('s1')).toBe(true)
-    expect(result.brepChain.solidCache.has('s2')).toBe(false)
+    const result = await runtime.append(makePartScript([s1, s3]), [asStmtId('s3')])
+    expect(result.outputs.get(asPartName('s3'))).toBeDefined()
+    expect(result.brepChain.solidCache.has(asPartName('s1'))).toBe(true)
+    expect(result.brepChain.solidCache.has(asPartName('s2'))).toBe(false)
   })
 
   it('断链增量 (mesh 模式): append 新语句走 mesh 路径（无 solid，静态判定）', async () => {
@@ -525,11 +526,11 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     await runtime.execute(makePartScript([s1]))
 
     const s2 = makeStmt('s2', 'translate', { offset: [5, 0, 0] }, ['s1'])
-    const result = await runtime.append(makePartScript([s1, s2]), ['s2'])
+    const result = await runtime.append(makePartScript([s1, s2]), [asStmtId('s2')])
 
-    expect(result.outputs.get('s2')).toBeDefined()
+    expect(result.outputs.get(asPartName('s2'))).toBeDefined()
     // mesh 路径不写 solidCache
-    expect(result.brepChain.solidCache.has('s2')).toBe(false)
+    expect(result.brepChain.solidCache.has(asPartName('s2'))).toBe(false)
   })
 
   it('brep 强制模式: append mesh-only op → E_BREP_UNSUPPORTED（不静默回退 mesh）', async () => {
@@ -539,7 +540,7 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
 
     // knurl 是 mesh-only：brep 强制模式下 append 应立即 E_BREP_UNSUPPORTED
     const s2 = makeStmt('s2', 'knurl', { knurlTextureHeight: 0.5, faceCenter: [0, 0, 5], faceNormal: [0, 0, 1], pattern: 'diagonal' }, ['s1'])
-    const result = await runtime.append(makePartScript([s1, s2]), ['s2'])
+    const result = await runtime.append(makePartScript([s1, s2]), [asStmtId('s2')])
 
     expect(result.failedAt).toBeDefined()
     expect(result.failedAt!.message).toContain('E_BREP_UNSUPPORTED')
@@ -549,10 +550,10 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     const runtime = makeRuntime()
     const s0 = makeStmt('s0', 'box', { size: 20 })
     const splitStmt: CadStatement = {
-      id: 's1', op: 'split',
+      id: asStmtId('s1'), op: 'split',
       args: { cutMode: 'plane', normal: [0, 0, 1], offset: 0 } as never,
-      inputs: ['s0'],
-      outputs: ['s1', 's1b'], // stmt.id === outputs[0]；outputs[1] (back) 需显式持久化
+      inputs: [asPartName('s0')],
+      outputs: [asPartName('s1'), asPartName('s1b')], // stmt.id === outputs[0]；outputs[1] (back) 需显式持久化
       hasAssignment: true,
       returnType: 'new_shape',
     }
@@ -561,21 +562,21 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     expect(result.failedAt).toBeUndefined()
 
     // front（== stmt.id）与 back（outputs[1]）都应在持久 statementCache 中
-    expect(runtime.getCachedOutput('s1')).toBeDefined()
-    expect(runtime.getCachedOutput('s1b')).toBeDefined()
+    expect(runtime.getCachedOutput(asStmtId('s1'))).toBeDefined()
+    expect(runtime.getCachedOutput(asStmtId('s1b'))).toBeDefined()
     // solidCache 同样按 outputs 键写入
-    expect(result.brepChain.solidCache.has('s1')).toBe(true)
-    expect(result.brepChain.solidCache.has('s1b')).toBe(true)
+    expect(result.brepChain.solidCache.has(asPartName('s1'))).toBe(true)
+    expect(result.brepChain.solidCache.has(asPartName('s1b'))).toBe(true)
   })
 
   it('append 引用 split back 输出 → 直接命中持久缓存（不触发子重放）', async () => {
     const runtime = makeRuntime()
     const s0 = makeStmt('s0', 'box', { size: 20 })
     const splitStmt: CadStatement = {
-      id: 's1', op: 'split',
+      id: asStmtId('s1'), op: 'split',
       args: { cutMode: 'plane', normal: [0, 0, 1], offset: 0 } as never,
-      inputs: ['s0'],
-      outputs: ['s1', 's1b'],
+      inputs: [asPartName('s0')],
+      outputs: [asPartName('s1'), asPartName('s1b')],
       hasAssignment: true,
       returnType: 'new_shape',
     }
@@ -583,9 +584,9 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
 
     // 追加一条引用 split back（outputs[1]）的语句
     const s3 = makeStmt('s3', 'translate', { offset: [5, 0, 0] }, ['s1b'])
-    const result = await runtime.append(makePartScript([s0, splitStmt, s3]), ['s3'])
+    const result = await runtime.append(makePartScript([s0, splitStmt, s3]), [asStmtId('s3')])
     expect(result.failedAt).toBeUndefined()
-    expect(result.outputs.get('s3')).toBeDefined()
+    expect(result.outputs.get(asPartName('s3'))).toBeDefined()
   })
 
   it('append: do_assemble 语句触发 executeAssemblyPass（变换 moving part 几何）', async () => {
@@ -597,12 +598,12 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     await runtime.execute(script)
 
     // 验证 s2 的初始位置（box 中心在原点）
-    const s2Initial = runtime.getCachedOutput('s2')!
+    const s2Initial = runtime.getCachedOutput(asStmtId('s2'))!
     expect(s2Initial).toBeDefined()
 
     // 创建 assembly + do_assemble 语句
     const assemblyStmt: CadStatement = {
-      id: 'asm1',
+      id: asStmtId('asm1'),
       op: 'assembly',
       args: {
         name: 'testAssembly',
@@ -612,9 +613,9 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
           fixedPartName: 's1',
           movingPartName: 's2',
           // s1 顶面：center=[0,5,0], normal=[0,1,0]
-          fixedFace: { faceId: 'f1', surfaceType: 'plane', center: [0, 5, 0], normal: [0, 1, 0] },
+          fixedFace: { surfaceType: 'plane', center: [0, 5, 0], normal: [0, 1, 0] },
           // s2 底面：center=[0,-5,0], normal=[0,-1,0]
-          movingFace: { faceId: 'f2', surfaceType: 'plane', center: [0, -5, 0], normal: [0, -1, 0] },
+          movingFace: { surfaceType: 'plane', center: [0, -5, 0], normal: [0, -1, 0] },
         }],
       },
       inputs: [],
@@ -622,17 +623,17 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
       returnType: 'new_shape',
     }
     const doAssembleStmt: CadStatement = {
-      id: 'do_asm1',
+      id: asStmtId('do_asm1'),
       op: 'do_assemble',
       args: {},
       inputs: [],
-      assemblyTarget: 'asm1',
+      assemblyTarget: asPartName('asm1'),
       returnType: 'void',
     }
 
     // append 两条新语句
     const fullScript = makePartScript([s1, s2, assemblyStmt, doAssembleStmt])
-    const result = await runtime.append(fullScript, ['asm1', 'do_asm1'])
+    const result = await runtime.append(fullScript, [asStmtId('asm1'), asStmtId('do_asm1')])
 
     expect(result.failedAt).toBeUndefined()
 
@@ -640,7 +641,7 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     // face_mate: s2 底面法线 [0,-1,0] → -s1 顶面法线 [0,-1,0]，已反向平行
     // 平移 = fixedFace.center - movingFace.center = [0,5,0] - [0,-5,0] = [0,10,0]
     // 所以 s2 应该被平移 [0,10,0]
-    const s2After = result.outputs.get('s2')
+    const s2After = result.outputs.get(asPartName('s2'))
     expect(s2After).toBeDefined()
     expect(s2After).not.toBe(s2Initial) // 几何确实变了
 

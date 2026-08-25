@@ -24,6 +24,7 @@ import { fileBlobStore } from '../test/blob-store'
 import type { Shape } from '../mesh/types'
 import type { CadStatement, PartScript } from '../lang/types'
 import { computeTerminalShapes } from '../lang/parser'
+import { asStmtId, asPartName } from '../identity'
 
 // ── Test fixtures ──
 
@@ -86,15 +87,21 @@ function makeStmt(
   op: string,
   args: Record<string, unknown>,
   inputs: string[] = [],
-  extra?: Partial<CadStatement>,
+  extra?: Omit<Partial<CadStatement>, 'id' | 'inputs' | 'outputs'> & {
+    id?: string
+    inputs?: string[]
+    outputs?: string[]
+  },
 ): CadStatement {
+  const { id: idOverride, inputs: inputsOverride, outputs, ...rest } = extra ?? {}
   return {
-    id, op,
+    id: asStmtId(idOverride ?? id), op,
     args: args as never,
-    inputs,
+    inputs: (inputsOverride ?? inputs).map(asPartName),
     hasAssignment: true,
     returnType: 'new_shape',
-    ...extra,
+    outputs: outputs?.map(asPartName),
+    ...rest,
   }
 }
 
@@ -273,19 +280,19 @@ describe('split: geometric correctness (mesh path — primitive box)', () => {
     expect(result.failedAt).toBeUndefined()
 
     // Invariant: outputs has front shape under outputs[0] id
-    const frontShape = result.outputs.get('part1_v0')
+    const frontShape = result.outputs.get(asPartName('part1_v0'))
     expect(frontShape, 'front shape (outputs[0]) must be in outputCache').toBeDefined()
     expect(shapeVertexCount(frontShape!)).toBeGreaterThan(0)
     expect(shapeTriangleCount(frontShape!)).toBeGreaterThan(0)
 
     // Invariant: outputs has back shape under outputs[1] id
-    const backShape = result.outputs.get('part2_v0')
+    const backShape = result.outputs.get(asPartName('part2_v0'))
     expect(backShape, 'back shape (outputs[1]) must be in outputCache').toBeDefined()
     expect(shapeVertexCount(backShape!)).toBeGreaterThan(0)
     expect(shapeTriangleCount(backShape!)).toBeGreaterThan(0)
 
     // Invariant: stmt.id (== outputs[0]) also has front shape
-    const stmtOutput = result.outputs.get('part1_v0')
+    const stmtOutput = result.outputs.get(asPartName('part1_v0'))
     expect(stmtOutput).toBe(frontShape)
   })
 
@@ -299,8 +306,8 @@ describe('split: geometric correctness (mesh path — primitive box)', () => {
 
     const result = await runScript(stmts, 'mesh')
 
-    const frontShape = result.outputs.get('part1_v0')!
-    const backShape = result.outputs.get('part2_v0')!
+    const frontShape = result.outputs.get(asPartName('part1_v0'))!
+    const backShape = result.outputs.get(asPartName('part2_v0'))!
 
     const frontBBox = computeBBox(frontShape.positions)
     const backBBox = computeBBox(backShape.positions)
@@ -321,9 +328,9 @@ describe('split: geometric correctness (mesh path — primitive box)', () => {
 
     const result = await runScript(stmts, 'mesh')
 
-    const sourceShape = result.outputs.get('part0_v0')!
-    const frontShape = result.outputs.get('part1_v0')!
-    const backShape = result.outputs.get('part2_v0')!
+    const sourceShape = result.outputs.get(asPartName('part0_v0'))!
+    const frontShape = result.outputs.get(asPartName('part1_v0'))!
+    const backShape = result.outputs.get(asPartName('part2_v0'))!
 
     const sourceVol = bboxVolume(sourceShape.positions)
     const frontVol = bboxVolume(frontShape.positions)
@@ -343,8 +350,8 @@ describe('split: geometric correctness (mesh path — primitive box)', () => {
 
     const result = await runScript(stmts, 'mesh')
 
-    const frontShape = result.outputs.get('part1_v0')!
-    const backShape = result.outputs.get('part2_v0')!
+    const frontShape = result.outputs.get(asPartName('part1_v0'))!
+    const backShape = result.outputs.get(asPartName('part2_v0'))!
 
     // With offset=5 (positive Z), front should be smaller than back
     // (front = above the plane = less material when plane is above center)
@@ -373,8 +380,8 @@ describe('split: geometric correctness (mesh path — STL source)', () => {
 
     expect(result.failedAt).toBeUndefined()
 
-    const frontShape = result.outputs.get('part1_v0')
-    const backShape = result.outputs.get('part2_v0')
+    const frontShape = result.outputs.get(asPartName('part1_v0'))
+    const backShape = result.outputs.get(asPartName('part2_v0'))
 
     expect(frontShape, 'front shape must be in outputCache').toBeDefined()
     expect(backShape, 'back shape must be in outputCache').toBeDefined()
@@ -397,7 +404,7 @@ describe('split: geometric correctness (mesh path — STL source)', () => {
     const result = await runScript(stmts, 'auto')
 
     // STL is mesh format → no solid in cache for STL-loaded part
-    expect(result.brepChain.solidCache.has('part0_v0')).toBe(false)
+    expect(result.brepChain.solidCache.has(asPartName('part0_v0'))).toBe(false)
     expect(result.failedAt).toBeUndefined()
   })
 })
@@ -421,11 +428,11 @@ describe('split: geometric correctness (BREP path — STEP source)', () => {
     expect(result.failedAt, `Execution failed: ${JSON.stringify(result.failedAt)}`).toBeUndefined()
 
     // STEP is CAD format → BREP solids in cache
-    expect(result.brepChain.solidCache.has('part0_v0')).toBe(true)
+    expect(result.brepChain.solidCache.has(asPartName('part0_v0'))).toBe(true)
 
     // Both outputs should have geometry
-    const frontShape = result.outputs.get('part1_v0')
-    const backShape = result.outputs.get('part2_v0')
+    const frontShape = result.outputs.get(asPartName('part1_v0'))
+    const backShape = result.outputs.get(asPartName('part2_v0'))
 
     expect(frontShape, 'front shape must be in outputCache').toBeDefined()
     expect(backShape, 'back shape must be in outputCache').toBeDefined()
@@ -450,8 +457,8 @@ describe('split: geometric correctness (BREP path — STEP source)', () => {
     expect(result.failedAt).toBeUndefined()
 
     // Invariant: BREP solids for front and back should be in solidCache
-    expect(result.brepChain.solidCache.has('part1_v0'), 'front solid in solidCache').toBe(true)
-    expect(result.brepChain.solidCache.has('part2_v0'), 'back solid in solidCache').toBe(true)
+    expect(result.brepChain.solidCache.has(asPartName('part1_v0')), 'front solid in solidCache').toBe(true)
+    expect(result.brepChain.solidCache.has(asPartName('part2_v0')), 'back solid in solidCache').toBe(true)
   })
 
   it('load STEP → split → front/back are separated along normal (BREP explode)', async () => {
@@ -467,8 +474,8 @@ describe('split: geometric correctness (BREP path — STEP source)', () => {
 
     expect(result.failedAt, `Execution failed: ${JSON.stringify(result.failedAt)}`).toBeUndefined()
 
-    const frontShape = result.outputs.get('part1_v0')!
-    const backShape = result.outputs.get('part2_v0')!
+    const frontShape = result.outputs.get(asPartName('part1_v0'))!
+    const backShape = result.outputs.get(asPartName('part2_v0'))!
 
     const frontBBox = computeBBox(frontShape.positions)
     const backBBox = computeBBox(backShape.positions)
@@ -503,12 +510,12 @@ describe('split: outputCache invariants', () => {
     //   'part1_v0' → front shape (set by both execute loop and executeSplitMesh)
     //   'part2_v0' → back shape
 
-    expect(result.outputs.has('part0_v0')).toBe(true) // source
-    expect(result.outputs.has('part1_v0')).toBe(true) // front (== stmt.id)
-    expect(result.outputs.has('part2_v0')).toBe(true) // back
+    expect(result.outputs.has(asPartName('part0_v0'))).toBe(true) // source
+    expect(result.outputs.has(asPartName('part1_v0'))).toBe(true) // front (== stmt.id)
+    expect(result.outputs.has(asPartName('part2_v0'))).toBe(true) // back
 
     // stmt.id == outputs[0], so they should be the same shape
-    expect(result.outputs.get('part1_v0')).toBe(result.outputs.get('part1_v0'))
+    expect(result.outputs.get(asPartName('part1_v0'))).toBe(result.outputs.get(asPartName('part1_v0')))
   })
 
   it('outputCache[outputs[0]] is front geometry, outputCache[outputs[1]] is back geometry (mesh mode)', async () => {
@@ -521,8 +528,8 @@ describe('split: outputCache invariants', () => {
 
     const result = await runScript(stmts, 'mesh')
 
-    const front = result.outputs.get('part1_v0')!
-    const back = result.outputs.get('part2_v0')!
+    const front = result.outputs.get(asPartName('part1_v0'))!
+    const back = result.outputs.get(asPartName('part2_v0'))!
 
     // front and back should be different shapes (different vertex counts or positions)
     // They can't be the same reference
@@ -549,7 +556,7 @@ describe('split: outputCache invariants', () => {
     expect(result.failedAt).toBeUndefined()
 
     // The scaled front should be in outputCache
-    const scaledFront = result.outputs.get('part1_v1')
+    const scaledFront = result.outputs.get(asPartName('part1_v1'))
     expect(scaledFront).toBeDefined()
     expect(shapeVertexCount(scaledFront!)).toBeGreaterThan(0)
   })
@@ -569,7 +576,7 @@ describe('split: outputCache invariants', () => {
 
     expect(result.failedAt).toBeUndefined()
 
-    const scaledBack = result.outputs.get('part2_v1')
+    const scaledBack = result.outputs.get(asPartName('part2_v1'))
     expect(scaledBack).toBeDefined()
     expect(shapeVertexCount(scaledBack!)).toBeGreaterThan(0)
   })
@@ -595,8 +602,8 @@ describe('split: mesh vs auto mode consistency', () => {
     expect(meshResult.brepChain.kernel).toBeNull()
 
     // But geometry should still be valid
-    const front = meshResult.outputs.get('part1_v0')!
-    const back = meshResult.outputs.get('part2_v0')!
+    const front = meshResult.outputs.get(asPartName('part1_v0'))!
+    const back = meshResult.outputs.get(asPartName('part2_v0'))!
     expect(shapeVertexCount(front)).toBeGreaterThan(0)
     expect(shapeVertexCount(back)).toBeGreaterThan(0)
   })
@@ -613,10 +620,10 @@ describe('split: mesh vs auto mode consistency', () => {
     expect(autoResult.failedAt, `auto mode failed: ${JSON.stringify(autoResult.failedAt)}`).toBeUndefined()
 
     // In auto mode with box primitive, BREP solids in cache
-    expect(autoResult.brepChain.solidCache.has('part1_v0')).toBe(true)
+    expect(autoResult.brepChain.solidCache.has(asPartName('part1_v0'))).toBe(true)
 
-    const front = autoResult.outputs.get('part1_v0')!
-    const back = autoResult.outputs.get('part2_v0')!
+    const front = autoResult.outputs.get(asPartName('part1_v0'))!
+    const back = autoResult.outputs.get(asPartName('part2_v0'))!
     expect(shapeVertexCount(front)).toBeGreaterThan(0)
     expect(shapeVertexCount(back)).toBeGreaterThan(0)
   })
@@ -648,8 +655,8 @@ describe('split: DAG chain (split-dag scenario)', () => {
     expect(result.failedAt).toBeUndefined()
 
     // Two terminals: part1_v2 and part2_v2
-    const terminal1 = result.outputs.get('part1_v2')
-    const terminal2 = result.outputs.get('part2_v2')
+    const terminal1 = result.outputs.get(asPartName('part1_v2'))
+    const terminal2 = result.outputs.get(asPartName('part2_v2'))
     expect(terminal1).toBeDefined()
     expect(terminal2).toBeDefined()
     expect(shapeVertexCount(terminal1!)).toBeGreaterThan(0)
@@ -684,7 +691,7 @@ describe('split: negative tests', () => {
     expect(result.failedAt).toBeUndefined()
 
     // stmt.id should have the front shape (set by execute loop)
-    const front = result.outputs.get('part1_v0')
+    const front = result.outputs.get(asPartName('part1_v0'))
     expect(front).toBeDefined()
     expect(shapeVertexCount(front!)).toBeGreaterThan(0)
   })

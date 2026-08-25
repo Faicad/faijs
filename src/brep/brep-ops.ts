@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 核心 BREP 操作 — 使用 OCCT 精确实体运算
  *
  * 设计文档：docs/plans/2026-08-08-primitive-brep-mode-plan.md §4.7 (Phase 2)
@@ -18,6 +18,7 @@ import * as THREE from 'three'
 import type { OcctKernel, ShapeHandle, Mesh as WasmMesh } from 'occt-wasm'
 import type { Shape, Vec3 } from '../mesh/types'
 import type { BrepChainState } from './brep-chain'
+import type { PartName } from '../identity'
 import { getSolidBoundingBox } from './brep-utils'
 
 // ─── 通用工具 ───
@@ -41,7 +42,7 @@ export function solidToShape(
   solid: ShapeHandle,
   segments?: number,
   brepChain?: BrepChainState,
-  stmtId?: string,
+  partName?: PartName,
 ): Shape {
   const angularDeflection = segments
     ? (2 * Math.PI) / Math.max(3, segments)
@@ -52,8 +53,8 @@ export function solidToShape(
   })
 
   // 规则 1：缓存完整 WasmMesh（含 faceGroups），供 buildBrepTopology 复用
-  if (brepChain?.meshShapeCache && stmtId) {
-    brepChain.meshShapeCache.set(stmtId, mesh)
+  if (brepChain?.meshShapeCache && partName) {
+    brepChain.meshShapeCache.set(partName, mesh)
   }
 
   return {
@@ -661,7 +662,7 @@ export function loadBrep(
   kernel: OcctKernel,
   buffer: ArrayBuffer,
   brepChain?: BrepChainState,
-  stmtId?: string,
+  stmtId?: PartName,
 ): { solid: ShapeHandle; shape: Shape } {
   // BREP 文件（CASCADE Topology 文本格式）必须用 kernel.fromBREP 解析；
   // 误用 STEP 解析器（importStep）读 BREP 会抛 "failed to read STEP data"。

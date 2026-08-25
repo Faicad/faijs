@@ -19,18 +19,22 @@ import {
   hasOpSchema,
 } from './args-schema'
 import type { CadStatement } from './types'
+import { asStmtId, asPartName } from '../identity'
 
 // ── 测试辅助 ──
 
-function makeStmt(partial: Partial<CadStatement>): CadStatement {
+function makeStmt(
+  partial: Omit<Partial<CadStatement>, 'id' | 'inputs'> & { id?: string; inputs?: string[] },
+): CadStatement {
+  const { id, inputs, ...rest } = partial
   return {
-    id: 'st_test_1',
+    id: asStmtId(id ?? 'st_test_1'),
     op: 'box',
     args: {},
-    inputs: [],
+    inputs: (inputs ?? []).map(asPartName),
     hasAssignment: true,
     returnType: 'new_shape',
-    ...partial,
+    ...rest,
   }
 }
 

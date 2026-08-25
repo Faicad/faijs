@@ -5,8 +5,10 @@
  *
  * 语句形式是唯一事实源，文本由语句序列确定性生成（pretty-print）。
  *
- * L0 边界：此文件仅依赖 TypeScript 内置类型，不 import 任何外部模块。
+ * L0 边界：此文件仅依赖 TypeScript 内置类型 + identity（零依赖品牌模块）。
  */
+
+import type { StmtId, PartName } from '../identity'
 
 // ── 值与引用 ──
 
@@ -33,7 +35,8 @@ export interface AssetRef {
 /** 语义引用：对上游几何的派生位置（面心/包围盒中心等），重算时自动跟随 */
 export interface GeomRef {
   $geom: {
-    of: ShapeRef
+    /** 上游左值变量名（PartName，fai 语句名空间；7 带 brand） */
+    of: PartName
     feature: 'bboxCenter' | 'faceCenter' | 'faceNormal' | 'bboxMin' | 'bboxMax'
     /** 面在上游形状 getSubShapes(shape,'face') 中的枚举序号（拓扑引用）。
      *  确定性重放下稳定（分析文档 §5.2）；优先于 anchor 用于面定位。
@@ -44,7 +47,8 @@ export interface GeomRef {
 }
 
 export type Arg = JsonValue | ParamRef | GeomRef | AssetRef
-export type ShapeRef = string
+/** 语句输入引用的左值变量名（PartName） */
+export type ShapeRef = PartName
 
 // ── 类型守卫（从 ops/geom-ref.ts 上提，斩断 codegen → occt 传递依赖） ──
 
@@ -79,7 +83,9 @@ export function isParamRef(arg: Arg): arg is ParamRef {
 export type ReturnType = 'new_shape' | 'same_shape' | 'scalar' | 'void'
 
 export interface CadStatement {
-  id: string
+  /** 语句 id（StmtId）——每条语句都有，无赋值语句（add_constraint/do_assemble）也有。
+   *  fai 语句名空间；与 3d_editor 的 ScopedId（fileId:innerId）是两套命名空间。 */
+  id: StmtId
   op: string
   args: Record<string, Arg>
   inputs: ShapeRef[]
@@ -87,14 +93,14 @@ export interface CadStatement {
   /** 多输出 op 的输出 id 列表（设计文档 §3）。
    *  默认 [id]（普通 op）；split 多输出写入 ['part1_v0','part2_v0']。
    *  outputCache 按 output id 索引，下游用具体 output id 引用。 */
-  outputs?: string[]
+  outputs?: PartName[]
   /** 全局序列号 — 用于 timeline 跨 part 线性排序。
    *  在 appendStatement / insertStatementAt 时由 script-store 自动赋值。
    *  undo/redo 后随 partScripts 快照恢复，保持时间线顺序一致。 */
   seq?: number
   /** 装配链式调用专属：标记 `assem1.add_constraint(...)` / `assem1.do_assemble()` 的目标变量。
-   *  指向 assembly 语句的变量名（= 语句 id）。 */
-  assemblyTarget?: string
+   *  指向 assembly 语句的变量名（= 语句 id，PartName）。 */
+  assemblyTarget?: PartName
 
   /** 该语句是否有赋值（`const x = ...` 或 `let x = ...`）。
    *  parser 根据 AST 节点类型设置：VariableDeclaration → true，ExpressionStatement → false。
@@ -129,7 +135,7 @@ export interface PartScriptMeta {
 /** 终端 mesh：return 数组中列出的最终输出（设计文档 §2.2） */
 export interface TerminalShape {
   /** 指向语句 id（如 'part1_v1'） */
-  id: string
+  id: StmtId
   /** 该终端 mesh 的独立 meta（name/appearance） */
   meta?: PartScriptMeta
 }
@@ -155,7 +161,7 @@ export interface PartScript {
  * 创建一条新语句。
  */
 export function createStatement(
-  id: string,
+  id: StmtId,
   op: string,
   args: Record<string, Arg>,
   inputs: ShapeRef[],

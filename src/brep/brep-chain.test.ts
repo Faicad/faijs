@@ -1,4 +1,4 @@
-﻿/**
+/**
  * BREP chain state management unit tests.
  *
  * Tests: createBrepChainState, initBrepChainState, releaseBrepChainState,
@@ -18,6 +18,7 @@ import {
   isCadFormat,
 } from './brep-chain'
 import { initOcctWasm } from '../occt-kernel/occtKernel'
+import { asPartName } from '../identity'
 
 beforeAll(async () => {
   await initOcctWasm()
@@ -48,8 +49,8 @@ describe('releaseBrepChainState', () => {
     // Create two solids
     const box1 = kernel.makeBoxFromCorners({ x: 0, y: 0, z: 0 }, { x: 10, y: 10, z: 10 })
     const box2 = kernel.makeBoxFromCorners({ x: 0, y: 0, z: 0 }, { x: 5, y: 5, z: 5 })
-    state.solidCache.set('s1', box1)
-    state.solidCache.set('s2', box2)
+    state.solidCache.set(asPartName('s1'), box1)
+    state.solidCache.set(asPartName('s2'), box2)
 
     // Persistent SolidCache 方案：releaseBrepChainState 语义收窄为全量释放 + 清空
     // （keepIds 参数已删除，见 docs/plans/2026-08-18-brepchain-persistent-solid-cache.md §9 决策 1）
@@ -63,7 +64,7 @@ describe('releaseBrepChainState', () => {
     const kernel = state.kernel!
 
     const box = kernel.makeBoxFromCorners({ x: 0, y: 0, z: 0 }, { x: 10, y: 10, z: 10 })
-    state.solidCache.set('s1', box)
+    state.solidCache.set(asPartName('s1'), box)
 
     releaseBrepChainState(state)
 

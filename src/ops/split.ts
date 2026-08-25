@@ -25,6 +25,7 @@ import {
 import { computeBasisFromNormal } from '../mesh/split'
 import type { OpContext } from './types'
 import { canUseBrep } from './types'
+import { asPartName } from '../identity'
 
 /**
  * 执行分割操作
@@ -278,7 +279,7 @@ async function executeSplitBrep(
   const primarySolid = side === 'back' ? backSolid : frontSolid
   const secondarySolid = side === 'back' ? frontSolid : backSolid
 
-  brepChain.solidCache.set(stmt.id, primarySolid)
+  brepChain.solidCache.set(asPartName(stmt.id), primarySolid)
   // 多输出：存入 solidCache 和 outputCache 的 mesh shape 对应（供下游使用）
   if (stmt.outputs && stmt.outputs.length >= 2 && ctx.outputCache) {
     brepChain.solidCache.set(stmt.outputs[0], frontSolid)
@@ -296,5 +297,5 @@ async function executeSplitBrep(
     // 没有声明 outputs，释放非主 solid
     kernel.release(secondarySolid)
   }
-  return solidToShape(kernel, primarySolid, undefined, brepChain, stmt.id)
+  return solidToShape(kernel, primarySolid, undefined, brepChain, asPartName(stmt.id))
 }

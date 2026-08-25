@@ -24,6 +24,7 @@ import { exportStep } from '../occt-kernel/highLevelApi'
 import { initOcctWasm } from '../occt-kernel/occtKernel'
 import type { Shape } from '../mesh/types'
 import type { ShapeHandle, OcctKernel } from 'occt-wasm'
+import { asPartName } from '../identity'
 
 export interface CliCheckOptions {
   assetsDir?: string
@@ -130,35 +131,35 @@ export async function cliRun(
     if (!lastStmt) {
       return { ok: false, error: 'No statements to export' }
     }
-    const shape = execResult.outputs.get(lastStmt.id)
+    const shape = execResult.outputs.get(asPartName(lastStmt.id))
     if (!shape) {
       return { ok: false, error: `No output for statement "${lastStmt.id}"` }
     }
-    const solidEntry = execResult.brepSolids?.get(lastStmt.id)
+    const solidEntry = execResult.brepSolids?.get(asPartName(lastStmt.id))
     return writeOutput(outPath, ext, shape, solidEntry ? { solid: solidEntry.solid, kernel: solidEntry.kernel } : undefined)
   }
 
   // Single terminal
   if (terminals.length === 1) {
     const terminal = terminals[0]
-    const shape = execResult.outputs.get(terminal.id)
+    const shape = execResult.outputs.get(asPartName(terminal.id))
     if (!shape) {
       return { ok: false, error: `No output for terminal "${terminal.id}"` }
     }
-    const solidEntry = execResult.brepSolids?.get(terminal.id)
+    const solidEntry = execResult.brepSolids?.get(asPartName(terminal.id))
     return writeOutput(outPath, ext, shape, solidEntry ? { solid: solidEntry.solid, kernel: solidEntry.kernel } : undefined)
   }
 
   // Multiple terminals — write each to a separate file
   for (let i = 0; i < terminals.length; i++) {
     const terminal = terminals[i]
-    const shape = execResult.outputs.get(terminal.id)
+    const shape = execResult.outputs.get(asPartName(terminal.id))
     if (!shape) continue
 
     const name = terminal.meta?.name ?? terminal.id
     const sep = outPath.endsWith('/') || outPath.endsWith('\\') ? '' : '_'
     const terminalOutPath = `${outPath}${sep}${i}_${name}.${ext}`
-    const solidEntry = execResult.brepSolids?.get(terminal.id)
+    const solidEntry = execResult.brepSolids?.get(asPartName(terminal.id))
     const result = writeOutput(terminalOutPath, ext, shape, solidEntry ? { solid: solidEntry.solid, kernel: solidEntry.kernel } : undefined)
     if (!result.ok) return result
   }

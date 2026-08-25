@@ -15,6 +15,7 @@ import { solidToShape } from '../brep/brep-ops'
 import { resolveSvgArg } from './svg-asset-resolver'
 import type { OpContext } from './types'
 import { canUseBrep } from './types'
+import { asPartName } from '../identity'
 
 /**
  * 执行 SVG 挤出操作
@@ -55,6 +56,6 @@ async function executeSvgExtrudeBrep(ctx: OpContext, svgText: string): Promise<S
 
   const solid = svgToSolid(kernel, svgText, { depth, targetLongSide })
 
-  brepChain.solidCache.set(stmt.id, solid)
-  return solidToShape(kernel, solid, undefined, brepChain, stmt.id)
+  brepChain.solidCache.set(asPartName(stmt.id), solid)
+  return solidToShape(kernel, solid, undefined, brepChain, asPartName(stmt.id))
 }

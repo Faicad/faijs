@@ -11,6 +11,7 @@ import type { BrepChainState } from '../brep/brep-chain'
 import type { HostPorts, ExecutionMode } from '../cad-runtime/ports'
 import { isAssetRef, isGeomRef, isParamRef, resolveGeomRef } from './geom-ref'
 import type { OpContext } from './types'
+import { asPartName, type PartName } from '../identity'
 
 // ─── Arg 解析 ───
 
@@ -21,7 +22,7 @@ import type { OpContext } from './types'
  */
 function resolveArg(
   arg: Arg,
-  outputCache?: Map<string, Shape>,
+  outputCache?: Map<PartName, Shape>,
   params?: Record<string, unknown>,
   brepChain?: BrepChainState,
 ): unknown {
@@ -43,11 +44,12 @@ function resolveArg(
         throw new Error(`[ExecutionValidator] GeomRef requires outputCache for resolution`)
       }
       // P5-2: 传入 BREP solidCache 和 kernel，使 resolveGeomRef 能按 faceOrdinal 取面
-      // 逐 part 设计：只要 kernel 存在就传入 solidCache 查询函数，按具体 part id 查各自的实体
+      // 逐 part 设计：只要 kernel 存在就传入 solidCache 查询函数，按具体 part id 查各自的实体。
+      // solidCache 键为 PartName：实参是语句引用（其首输出名即该部分件名），桥接为 PartName 查询。
       return resolveGeomRef(
         arg,
         (id) => outputCache.get(id),
-        brepChain?.kernel ? (id) => brepChain.solidCache.get(id) : undefined,
+        brepChain?.kernel ? (id) => brepChain.solidCache.get(asPartName(id)) : undefined,
         brepChain?.kernel ?? undefined,
       )
     }
@@ -62,7 +64,7 @@ function resolveArg(
 
 function resolveArgs(
   args: Record<string, Arg>,
-  outputCache?: Map<string, Shape>,
+  outputCache?: Map<PartName, Shape>,
   params?: Record<string, unknown>,
   brepChain?: BrepChainState,
 ): Record<string, unknown> {
@@ -93,7 +95,7 @@ function resolveArgs(
 export async function executeStatement(
   stmt: CadStatement,
   inputGeometries: Shape[],
-  outputCache?: Map<string, Shape>,
+  outputCache?: Map<PartName, Shape>,
   params?: Record<string, unknown>,
   brepChain?: BrepChainState,
   ports?: HostPorts,

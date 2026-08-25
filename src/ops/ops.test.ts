@@ -16,6 +16,7 @@ import { initOcctWasm, getKernel } from '../occt-kernel/occtKernel'
 import type { OcctKernel } from 'occt-wasm'
 import type { Shape } from './types'
 import type { CadStatement, PartScript } from '../lang/types'
+import { asPartName, asStmtId } from '../identity'
 import { createRuntime, type ExecutionResult } from '../cad-runtime/runtime'
 import type { HostPorts, EventSink } from '../cad-runtime/ports'
 import { MESH_ONLY_OPS } from '../brep/brep-chain'
@@ -57,9 +58,9 @@ function makeStmt(
   inputs: string[] = [],
 ): CadStatement {
   return {
-    id, op,
+    id: asStmtId(id), op,
     args: args as any,
-    inputs,
+    inputs: inputs.map(asPartName),
     hasAssignment: true,
     returnType: 'new_shape',
   }
@@ -87,7 +88,7 @@ function shapeTriangleCount(s: Shape): number { return s.indices.length / 3 }
 function getFinalOutput(result: ExecutionResult, statements: CadStatement[]): Shape {
   const geoStmts = statements.filter(s => s.hasAssignment && (s.returnType ?? 'new_shape') === 'new_shape')
   const last = geoStmts[geoStmts.length - 1]
-  const shape = result.outputs.get(last.id)
+  const shape = result.outputs.get(asPartName(last.id))
   if (!shape) throw new Error(`No output for terminal statement "${last.id}"`)
   return shape
 }
@@ -103,7 +104,7 @@ describe('CadRuntime.execute: primitives (BREP)', () => {
     expect(shapeVertexCount(shape)).toBeGreaterThan(0)
     expect(shapeTriangleCount(shape)).toBeGreaterThan(0)
 
-    expect(result.brepChain.solidCache.has('s1')).toBe(true)
+    expect(result.brepChain.solidCache.has(asPartName('s1'))).toBe(true)
   })
 
   it('sphere: should produce a valid Shape + cache solid', async () => {
@@ -112,7 +113,7 @@ describe('CadRuntime.execute: primitives (BREP)', () => {
 
     const shape = getFinalOutput(result, [stmt])
     expect(shapeVertexCount(shape)).toBeGreaterThan(0)
-    expect(result.brepChain.solidCache.has('s1')).toBe(true)
+    expect(result.brepChain.solidCache.has(asPartName('s1'))).toBe(true)
   })
 
   it('cylinder: should produce a valid Shape + cache solid', async () => {
@@ -121,7 +122,7 @@ describe('CadRuntime.execute: primitives (BREP)', () => {
 
     const shape = getFinalOutput(result, [stmt])
     expect(shapeVertexCount(shape)).toBeGreaterThan(0)
-    expect(result.brepChain.solidCache.has('s1')).toBe(true)
+    expect(result.brepChain.solidCache.has(asPartName('s1'))).toBe(true)
   })
 
   it('cone: should produce a valid Shape + cache solid', async () => {
@@ -130,7 +131,7 @@ describe('CadRuntime.execute: primitives (BREP)', () => {
 
     const shape = getFinalOutput(result, [stmt])
     expect(shapeVertexCount(shape)).toBeGreaterThan(0)
-    expect(result.brepChain.solidCache.has('s1')).toBe(true)
+    expect(result.brepChain.solidCache.has(asPartName('s1'))).toBe(true)
   })
 })
 
@@ -145,7 +146,7 @@ describe('CadRuntime.execute: transform (BREP)', () => {
     const shape = getFinalOutput(result, [s1, s2])
     expect(shapeVertexCount(shape)).toBeGreaterThan(0)
 
-    expect(result.brepChain.solidCache.has('s2')).toBe(true)
+    expect(result.brepChain.solidCache.has(asPartName('s2'))).toBe(true)
   })
 
   it('rotate: should rotate the solid and keep chain active', async () => {
@@ -181,7 +182,7 @@ describe('CadRuntime.execute: boolean (BREP)', () => {
     const shape = getFinalOutput(result, [s1, s2, s3])
     expect(shapeVertexCount(shape)).toBeGreaterThan(0)
 
-    expect(result.brepChain.solidCache.has('s3')).toBe(true)
+    expect(result.brepChain.solidCache.has(asPartName('s3'))).toBe(true)
   })
 
   it('subtract: should cut one box from another and keep chain active', async () => {
@@ -211,7 +212,7 @@ describe('CadRuntime.execute: drill (BREP)', () => {
     const shape = getFinalOutput(result, [s1, s2])
     expect(shapeVertexCount(shape)).toBeGreaterThan(0)
 
-    expect(result.brepChain.solidCache.has('s2')).toBe(true)
+    expect(result.brepChain.solidCache.has(asPartName('s2'))).toBe(true)
   })
 })
 
@@ -259,7 +260,7 @@ describe('CadRuntime.execute: text (BREP)', () => {
     const shape = getFinalOutput(result, [stmt])
     expect(shapeVertexCount(shape)).toBeGreaterThan(0)
 
-    expect(result.brepChain.solidCache.has('s1')).toBe(true)
+    expect(result.brepChain.solidCache.has(asPartName('s1'))).toBe(true)
   })
 
   it('STEP export should contain ADVANCED_FACE', async () => {
@@ -267,7 +268,7 @@ describe('CadRuntime.execute: text (BREP)', () => {
     const result = await runScript([stmt])
 
     expect(result.brepSolids).toBeDefined()
-    const solidEntry = result.brepSolids!.get('s1')!
+    const solidEntry = result.brepSolids!.get(asPartName('s1'))!
     const step = kernel.exportStep(solidEntry.solid)
     expect(step).toContain('ADVANCED_FACE')
   })
@@ -287,7 +288,7 @@ describe('CadRuntime.execute: engrave (BREP)', () => {
     const shape = getFinalOutput(result, [s1, s2])
     expect(shapeVertexCount(shape)).toBeGreaterThan(0)
 
-    expect(result.brepChain.solidCache.has('s2')).toBe(true)
+    expect(result.brepChain.solidCache.has(asPartName('s2'))).toBe(true)
   })
 
   it('convex: should fuse text to box and keep chain active', async () => {
@@ -322,7 +323,7 @@ describe('BREP chain integrity', () => {
 
     // Final STEP should contain ADVANCED_FACE
     expect(result.brepSolids).toBeDefined()
-    const solidEntry = result.brepSolids!.get('s3')!
+    const solidEntry = result.brepSolids!.get(asPartName('s3'))!
     const step = kernel.exportStep(solidEntry.solid)
     expect(step).toContain('ADVANCED_FACE')
   })
@@ -403,10 +404,10 @@ describe('BREP chain break: topology preservation (fake topology)', () => {
     const result = await runScript([s1])
 
         // Chain should have box solid (no mesh-only op encountered)
-    expect(result.brepChain.solidCache.has('s1')).toBe(true)
+    expect(result.brepChain.solidCache.has(asPartName('s1'))).toBe(true)
 
     // The box solid should be exportable as ADVANCED_FACE
-    const boxSolid = result.brepChain.solidCache.get('s1')!
+    const boxSolid = result.brepChain.solidCache.get(asPartName('s1'))!
     const step = kernel.exportStep(boxSolid)
     expect(step).toContain('ADVANCED_FACE')
 
@@ -425,10 +426,10 @@ describe('BREP chain break: topology preservation (fake topology)', () => {
     const result = await runScript([s1, s2])
 
     // drill is BREP-native → solid should be in cache
-    expect(result.brepChain.solidCache.has('s2')).toBe(true)
+    expect(result.brepChain.solidCache.has(asPartName('s2'))).toBe(true)
 
     // The drill solid should have a hole (CYLINDRICAL_SURFACE)
-    const drillSolid = result.brepChain.solidCache.get('s2')!
+    const drillSolid = result.brepChain.solidCache.get(asPartName('s2'))!
     const step = kernel.exportStep(drillSolid)
     expect(step).toContain('ADVANCED_FACE')
     expect(step).toContain('CYLINDRICAL_SURFACE')

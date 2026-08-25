@@ -10,6 +10,8 @@
  * - node host (P3): InlineCsgBackend / InlineSdfBackend / NodeFontProvider / ...
  */
 
+import type { PartName } from '../identity'
+
 // ── 共享类型 ──
 
 /** 网格数据（与 csg.ts ManifoldMeshData 同构） */
@@ -166,7 +168,7 @@ export interface AssetResolver {
  * node 实现 (P3)：CliEventSink（写入 stderr + 收集到 events 数组）
  */
 export interface EventSink {
-  emit(event: 'part-brep-lost', detail: { partId: string; op: string; reason: string }): void
+  emit(event: 'part-brep-lost', detail: { partName: PartName; op: string; reason: string }): void
 }
 
 // ── HostPorts 汇总 ──

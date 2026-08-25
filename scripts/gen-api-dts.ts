@@ -29,6 +29,7 @@ function tsType(argType: ArgType): string {
     case 'number': return 'number'
     case 'vec3': return '[number, number, number]'
     case 'string': return 'string'
+    case 'PartName': return 'string'
     case 'boolean': return 'boolean'
     case 'any': return 'any'
     case 'numberOrVec3': return 'number | [number, number, number]'

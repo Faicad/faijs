@@ -1,3 +1,12 @@
+import type {
+  EdgeId,
+  FaceId,
+  OccurrenceId,
+  ReferenceId,
+  SelectorKey,
+  ShapeId,
+} from '../identity'
+
 // ---- Buffer view descriptor (as it appears in manifest.buffers.views) ----
 
 export interface BufferViewDescriptor {
@@ -62,14 +71,14 @@ export interface SelectorBuffers {
 // ---- Bounding box ----
 
 export interface BBox {
-  min: number[]
-  max: number[]
+  readonly min: [number, number, number]
+  readonly max: [number, number, number]
 }
 
 // ---- Row types (after toRows conversion) ----
 
 export interface OccurrenceRow {
-  id: string
+  id: OccurrenceId
   path?: string
   name?: string | null
   sourceName?: string | null
@@ -86,7 +95,7 @@ export interface OccurrenceRow {
 }
 
 export interface ShapeRow {
-  id: string
+  id: ShapeId
   occurrenceId?: string
   kind?: string
   bbox?: BBox
@@ -101,7 +110,7 @@ export interface ShapeRow {
 }
 
 export interface FaceRow {
-  id: string
+  id: FaceId
   occurrenceId?: string
   shapeId?: string
   surfaceType?: string
@@ -125,7 +134,7 @@ export interface FaceRow {
 }
 
 export interface EdgeRow {
-  id: string
+  id: EdgeId
   occurrenceId?: string
   shapeId?: string
   curveType?: string
@@ -145,17 +154,16 @@ export interface EdgeRow {
 // ---- Reference (built per occurrence/shape/face/edge row) ----
 
 export interface Reference {
-  id: string
+  id: ReferenceId
   selectorType: 'occurrence' | 'shape' | 'face' | 'edge' | 'vertex'
-  normalizedSelector: string
-  displaySelector: string
+  normalizedSelector: SelectorKey
+  displaySelector: SelectorKey
   label: string
   summary: string
   shortSummary: string
   copyText: string
-  scopedId?: string
-  occurrenceId: string
-  shapeId: string
+  occurrenceId: OccurrenceId
+  shapeId: ShapeId
   rowIndex: number
   pickData: PickData
 }
@@ -201,9 +209,9 @@ export interface SelectorRuntime {
   edges: EdgeRow[]
   vertices: Record<string, unknown>[]
   references: Reference[]
-  referenceMap: Map<string, Reference>
-  referenceByNormalizedSelector: Map<string, Reference>
-  referenceByDisplaySelector: Map<string, Reference>
+  referenceMap: Map<ReferenceId | string, Reference>
+  referenceByNormalizedSelector: Map<SelectorKey, Reference>
+  referenceByDisplaySelector: Map<SelectorKey, Reference>
   faceReferenceByRowIndex: Map<number, Reference>
   edgeReferenceByRowIndex: Map<number, Reference>
   vertexReferenceByRowIndex: Map<number, Reference>
@@ -211,7 +219,7 @@ export interface SelectorRuntime {
   faceReferenceMap: Map<string, Reference>
   edgeReferenceMap: Map<string, Reference>
   vertexReferenceMap: Map<string, Reference>
-  singleOccurrenceId: string
+  singleOccurrenceId: OccurrenceId
   proxy: SelectorProxy
 }
 

@@ -20,6 +20,7 @@ import * as THREE from 'three'
 import { matrixToArray } from '../brep/brep-ops'
 import type { OpContext } from './types'
 import { canUseBrep } from './types'
+import { asPartName } from '../identity'
 
 /**
  * 执行钻孔操作
@@ -127,8 +128,8 @@ async function executeDrillBrep(
     faceNormal,
     holeType: 'simple',
   })
-  brepChain.solidCache.set(stmt.id, resultSolid)
-  return solidToShape(kernel, resultSolid, undefined, brepChain, stmt.id)
+  brepChain.solidCache.set(asPartName(stmt.id), resultSolid)
+  return solidToShape(kernel, resultSolid, undefined, brepChain, asPartName(stmt.id))
 }
 
 /**
@@ -193,13 +194,13 @@ async function executeScrewHoleBrep(
     kernel.release(result)
     kernel.release(positionedThread)
 
-    brepChain.solidCache.set(stmt.id, finalResult)
-    return solidToShape(kernel, finalResult, undefined, brepChain, stmt.id)
+    brepChain.solidCache.set(asPartName(stmt.id), finalResult)
+    return solidToShape(kernel, finalResult, undefined, brepChain, asPartName(stmt.id))
   }
 
   // 无螺纹，只有底孔
-  brepChain.solidCache.set(stmt.id, result)
-  return solidToShape(kernel, result, undefined, brepChain, stmt.id)
+  brepChain.solidCache.set(asPartName(stmt.id), result)
+  return solidToShape(kernel, result, undefined, brepChain, asPartName(stmt.id))
 }
 
 /**

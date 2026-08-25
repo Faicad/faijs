@@ -1,4 +1,4 @@
-﻿﻿/**
+﻿/**
  * @faicad/faijs/browser — Browser-safe exports (F6: A/B/C/D 四类收敛)
  *
  * Excludes L3 Node Host modules (node-host/*) that depend on node:fs/node:path.
@@ -17,6 +17,22 @@
  *   - 底层拓扑构建函数（已被 ExecutionResult.topology 替代）
  *   - getManifoldModule（已交由 CsgBackend）
  */
+
+// ═══════════════════════════════════════════════════════════
+// identity：品牌类型 + 信任点（f0，零依赖）
+// ═══════════════════════════════════════════════════════════
+
+export type {
+  FileId, InnerId, ScopedId, StmtId, PartName, GroupName,
+  RefId, ReferenceId, SelectorKey, OccurrenceId, ShapeId,
+  FaceId, EdgeId, NodeId, StatementId, FaceSelector,
+} from './identity'
+export {
+  asFileId, asInnerId, asScopedId, asStmtId, asPartName, asGroupName,
+  asRefId, asReferenceId, asSelectorKey, asOccurrenceId, asShapeId,
+  asFaceId, asEdgeId, asNodeId,
+  toScopedId, splitScopedId, isScopedId, toInnerId,
+} from './identity'
 
 // ═══════════════════════════════════════════════════════════
 // A 类：lang/ 全部导出（脚本类型 + 构建辅助 + 接口约定类型 + 常量）

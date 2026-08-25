@@ -15,6 +15,7 @@ import {
 } from '../brep/brep-ops'
 import type { OpContext } from './types'
 import { canUseBrep } from './types'
+import { asPartName } from '../identity'
 
 /**
  * 执行拉伸操作
@@ -66,6 +67,6 @@ async function executeExtrudeBrep(
     length: args.length as number,
     mode: args.mode as 'centered' | 'forward' | 'backward' | undefined,
   })
-  brepChain.solidCache.set(stmt.id, resultSolid)
-  return solidToShape(brepChain.kernel, resultSolid, undefined, brepChain, stmt.id)
+  brepChain.solidCache.set(asPartName(stmt.id), resultSolid)
+  return solidToShape(brepChain.kernel, resultSolid, undefined, brepChain, asPartName(stmt.id))
 }

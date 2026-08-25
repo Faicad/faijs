@@ -36,6 +36,10 @@ import type {
 } from './types'
 import { getOpReturnType } from './args-schema'
 import { allocateStatementId } from './allocate-id'
+import {
+  asStmtId, asPartName, asGroupName,
+  type StmtId, type PartName,
+} from '../identity'
 
 // ── 解析错误 ──
 
@@ -69,7 +73,7 @@ const ASSET_FEATURES = new Set(['asset'])
 function parseValueExpr(
   node: ASTNode,
   paramNames: Set<string>,
-  varToId: Map<string, string>,
+  varToId: Map<string, PartName>,
   line: number,
 ): Arg {
   if (!node) throw new ParseError('missing value expression', line)
@@ -188,7 +192,7 @@ interface ParsedStatement {
 function parseCadStatement(
   declNode: ASTNode,
   paramNames: Set<string>,
-  varToId: Map<string, string>,
+  varToId: Map<string, PartName>,
 ): ParsedStatement {
   const line = getLine(declNode)
 
@@ -225,7 +229,7 @@ function parseCadStatement(
   // 判断是否为 boolean op（union/subtract/intersect）
   let op: string
   let args: Record<string, Arg> = {}
-  const inputs: string[] = []
+  const inputs: PartName[] = []
 
   if (BOOLEAN_OP_NAMES.has(opName)) {
     // boolean op: cad.union(partA, partB) → op='boolean', args.operation=opName, inputs=[...]
@@ -277,7 +281,7 @@ function parseCadStatement(
   }
 
   // 语句 id = 变量名（partN_vM 体系，设计文档 §3）
-  const id = varName
+  const id = asStmtId(varName)
 
   const rt = getOpReturnType(op)
   const stmt: CadStatement = {
@@ -309,7 +313,7 @@ interface ParsedSplitDestructuring {
 function parseSplitDestructuring(
   declNode: ASTNode,
   paramNames: Set<string>,
-  varToId: Map<string, string>,
+  varToId: Map<string, PartName>,
 ): ParsedSplitDestructuring {
   const line = getLine(declNode)
 
@@ -369,9 +373,8 @@ function parseSplitDestructuring(
     throw new ParseError('destructuring is only allowed for cad.split(...)', line)
   }
 
-  // 解析参数（与普通 split 相同）
   const args: Record<string, Arg> = {}
-  const inputs: string[] = []
+  const inputs: PartName[] = []
 
   for (const argNode of init.arguments) {
     if (argNode.type === 'Identifier') {
@@ -393,9 +396,9 @@ function parseSplitDestructuring(
   }
 
   // split 语句的 id = front 变量名（约定：第一个输出）
-  const id = frontVarName
-  // outputs 包含两个输出 id
-  const outputs = [frontVarName, backVarName]
+  const id: StmtId = asStmtId(frontVarName)
+  // outputs 包含两个输出 PartName
+  const outputs: PartName[] = [asPartName(frontVarName), asPartName(backVarName)]
 
   const stmt: CadStatement = {
     id, op: 'split', args, inputs, outputs,
@@ -418,8 +421,8 @@ function parseSplitDestructuring(
  */
 function parseReturnStatement(
   node: ASTNode,
-  varToId: Map<string, string>,
-): { terminalShapeId: string | null; meta: PartScriptMeta | undefined; terminalShapes: TerminalShape[] | undefined } {
+  varToId: Map<string, PartName>,
+): { terminalShapeId: StmtId | null; meta: PartScriptMeta | undefined; terminalShapes: TerminalShape[] | undefined } {
   const line = getLine(node)
   const arg = node.argument
 
@@ -429,11 +432,11 @@ function parseReturnStatement(
 
   // return part0_vN（裸标识符）
   if (arg.type === 'Identifier') {
-    const id = varToId.get(arg.name)
-    if (!id) {
+    const ref = varToId.get(arg.name)
+    if (!ref) {
       throw new ParseError(`unknown variable "${arg.name}" in return`, line)
     }
-    return { terminalShapeId: id, meta: undefined, terminalShapes: undefined }
+    return { terminalShapeId: asStmtId(ref), meta: undefined, terminalShapes: undefined }
   }
 
   // return { shape: part0_vN, name, color, ... }
@@ -470,10 +473,10 @@ function parseReturnStatement(
 /** 解析单个 return 元素 { shape: varName, name?, color?, metalness?, roughness? } */
 function parseReturnObject(
   objNode: ASTNode,
-  varToId: Map<string, string>,
+  varToId: Map<string, PartName>,
   line: number,
-): { id: string | null; meta: PartScriptMeta | undefined } {
-  let id: string | null = null
+): { id: StmtId | null; meta: PartScriptMeta | undefined } {
+  let id: StmtId | null = null
   const meta: PartScriptMeta = {}
 
   for (const prop of objNode.properties) {
@@ -484,10 +487,11 @@ function parseReturnObject(
 
     if (key === 'shape') {
       if (prop.value?.type === 'Identifier') {
-        id = varToId.get(prop.value.name) ?? null
-        if (!id) {
+        const ref = varToId.get(prop.value.name)
+        if (!ref) {
           throw new ParseError(`unknown variable "${prop.value.name}" in return shape`, line)
         }
+        id = asStmtId(ref)
       }
     } else if (key === 'name') {
       if (prop.value?.type === 'Literal') {
@@ -595,7 +599,7 @@ export function parseScript(code: string, _options?: ParseOptions): ParseResult 
   const params: ParamDef[] = []
   const statements: CadStatement[] = []
   const paramNames = new Set<string>()
-  const varToId = new Map<string, string>()
+  const varToId = new Map<string, PartName>()
   const assemblyVars = new Set<string>()
   let meta: PartScriptMeta | undefined
   let terminalShapes: TerminalShape[] | undefined
@@ -622,9 +626,9 @@ export function parseScript(code: string, _options?: ParseOptions): ParseResult 
           }
           const { stmt, frontVarName, backVarName } = parseSplitDestructuring(decl, paramNames, varToId)
           statements.push(stmt)
-          // 注册两个输出变量名 → id
-          varToId.set(frontVarName, frontVarName)
-          varToId.set(backVarName, backVarName)
+          // 注册两个输出变量名 → 输出 PartName
+          varToId.set(frontVarName, asPartName(frontVarName))
+          varToId.set(backVarName, asPartName(backVarName))
           break
         }
 
@@ -672,12 +676,11 @@ export function parseScript(code: string, _options?: ParseOptions): ParseResult 
             returnType: getOpReturnType(opName),
           }
           statements.push(stmt)
+          // group/assembly 变量名 → 组名（GroupName ⊆ PartName）
           if (opName === 'assembly') {
             assemblyVars.add(varName)
-            varToId.set(varName, grpId)
-          } else {
-            varToId.set(varName, grpId)
           }
+          varToId.set(varName, asGroupName(grpId))
           break
         }
 
@@ -701,7 +704,8 @@ export function parseScript(code: string, _options?: ParseOptions): ParseResult 
             )
           }
           statements.push(stmt)
-          varToId.set(varName, stmt.id)
+          // 语句输出名 = 变量名（PartName）
+          varToId.set(varName, asPartName(varName))
         } else if (
           init?.type === 'Literal' ||
           init?.type === 'ArrayExpression' ||
@@ -841,7 +845,8 @@ export function computeTerminalShapes(statements: CadStatement[]): TerminalShape
   }
 
   // 收集所有输出 id（语句 id + split outputs），跳过无赋值/非 new_shape 语句
-  const outputIds: string[] = []
+  // TerminalShape.id 语义 = StmtId（FAM-STMT-ID）；split 的输出名按同一命名空间信任点 asStmtId 收口。
+  const outputIds: StmtId[] = []
   for (const stmt of statements) {
     const rt = stmt.returnType ?? 'new_shape'
     // 只有有赋值且返回 new_shape 的语句才产出几何终端
@@ -850,7 +855,7 @@ export function computeTerminalShapes(statements: CadStatement[]): TerminalShape
     outputIds.push(stmt.id)
     if (stmt.outputs) {
       for (const outId of stmt.outputs) {
-        outputIds.push(outId)
+        outputIds.push(asStmtId(outId))
       }
     }
   }

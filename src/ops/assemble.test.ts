@@ -12,6 +12,7 @@ import { solveFaceMate, applyTransform, previewAssembly, executeDoAssemble, exec
 import type { Shape } from '../ops/types'
 import type { FaceMateConstraint, AssemblyDefinition } from './assemble'
 import type { PartScript, CadStatement } from '../lang/types'
+import { asPartName, asStmtId, type PartName } from '../identity'
 
 describe('E15.1: 装配约束求解器', () => {
   describe('solveFaceMate', () => {
@@ -31,7 +32,7 @@ describe('E15.1: 装配约束求解器', () => {
       expect(result.translation[2]).toBeCloseTo(0, 5)
     })
 
-    it('法线同向的两个平面面 → 旋转 180°（需要翻转贴合）', () => {
+    it('法线同向的两个平面 → 旋转 180°（需要翻转贴合）', () => {
       const result = solveFaceMate(
         [0, 0, 5], [0, 0, 1],   // fixed: 顶面朝上
         [0, 0, 3], [0, 0, 1],   // moving: 顶面朝上（需要翻转）
@@ -42,7 +43,7 @@ describe('E15.1: 装配约束求解器', () => {
       expect(result.translation[2]).toBeCloseTo(2, 5) // 5 - 3 = 2
     })
 
-    it('法线垂直的两个平面面', () => {
+    it('法线垂直的两个平面', () => {
       const result = solveFaceMate(
         [0, 0, 5], [0, 0, 1],   // fixed: Z+
         [5, 0, 0], [1, 0, 0],   // moving: X+
@@ -96,15 +97,15 @@ describe('E15.1: 装配约束求解器', () => {
     it('返回每个 movingPartName 的变换', () => {
       const constraints: FaceMateConstraint[] = [{
         type: 'face_mate',
-        fixedPartName: 'part0_v0',
-        movingPartName: 'part1_v0',
-        fixedFace: { faceId: 'f0', surfaceType: 'plane', center: [0, 0, 5], normal: [0, 0, 1] },
-        movingFace: { faceId: 'f1', surfaceType: 'plane', center: [0, 0, 3], normal: [0, 0, 1] },
+        fixedPartName: asPartName('part0_v0'),
+        movingPartName: asPartName('part1_v0'),
+        fixedFace: { surfaceType: 'plane', center: [0, 0, 5], normal: [0, 0, 1] },
+        movingFace: { surfaceType: 'plane', center: [0, 0, 3], normal: [0, 0, 1] },
       }]
       const result = previewAssembly(constraints)
       expect(result.size).toBe(1)
-      expect(result.has('part1_v0')).toBe(true)
-      const transform = result.get('part1_v0')!
+      expect(result.has(asPartName('part1_v0'))).toBe(true)
+      const transform = result.get(asPartName('part1_v0'))!
       expect(transform.translation[2]).toBeCloseTo(2, 5)
     })
   })
@@ -117,24 +118,24 @@ describe('E15.1: 装配约束求解器', () => {
         positions: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
         indices: new Uint32Array([0, 1, 2]),
       }
-      const outputCache = new Map<string, Shape>([['part1_v0', movingShape]])
+      const outputCache = new Map<PartName, Shape>([[asPartName('part1_v0'), movingShape]])
 
       const assemblyDef: AssemblyDefinition = {
-        members: ['part0_v0', 'part1_v0'],
+        members: [asPartName('part0_v0'), asPartName('part1_v0')],
         constraints: [{
           type: 'face_mate',
-          fixedPartName: 'part0_v0',
-          movingPartName: 'part1_v0',
-          fixedFace: { faceId: 'f0', surfaceType: 'plane', center: [0, 0, 5], normal: [0, 0, 1] },
-          movingFace: { faceId: 'f1', surfaceType: 'plane', center: [0, 0, 3], normal: [0, 0, 1] },
+          fixedPartName: asPartName('part0_v0'),
+          movingPartName: asPartName('part1_v0'),
+          fixedFace: { surfaceType: 'plane', center: [0, 0, 5], normal: [0, 0, 1] },
+          movingFace: { surfaceType: 'plane', center: [0, 0, 3], normal: [0, 0, 1] },
         }],
       }
 
       const results = executeDoAssemble(assemblyDef, outputCache)
 
       // 变换结果应写回 outputCache 和 results
-      expect(results.has('part1_v0')).toBe(true)
-      const transformed = outputCache.get('part1_v0')!
+      expect(results.has(asPartName('part1_v0'))).toBe(true)
+      const transformed = outputCache.get(asPartName('part1_v0'))!
       // movingCenter=[0,0,3], movingNormal=[0,0,1], fixedCenter=[0,0,5], fixedNormal=[0,0,1]
       // solveFaceMate: 旋转180°绕Y轴 (normal [0,0,1] → [0,0,-1])，pivot=[0,0,3], translation=[0,0,2]
       // 顶点 [0,0,0]: R*(0-3)+3+2 = R*(-3)+5 → 旋转后 [0,0,3]+5 = [0,0,8]
@@ -142,33 +143,33 @@ describe('E15.1: 装配约束求解器', () => {
     })
 
     it('不支持的约束类型抛错', () => {
-      const outputCache = new Map<string, Shape>([['part1_v0', {
+      const outputCache = new Map<PartName, Shape>([[asPartName('part1_v0'), {
         positions: new Float32Array([0, 0, 0]),
         indices: new Uint32Array([0]),
       }]])
       const assemblyDef: AssemblyDefinition = {
-        members: ['part1_v0'],
+        members: [asPartName('part1_v0')],
         constraints: [{
           type: 'coaxial' as 'face_mate',
-          fixedPartName: 'part0_v0',
-          movingPartName: 'part1_v0',
-          fixedFace: { faceId: 'f0', surfaceType: 'plane', center: [0, 0, 0], normal: [0, 0, 1] },
-          movingFace: { faceId: 'f1', surfaceType: 'plane', center: [0, 0, 0], normal: [0, 0, 1] },
+          fixedPartName: asPartName('part0_v0'),
+          movingPartName: asPartName('part1_v0'),
+          fixedFace: { surfaceType: 'plane', center: [0, 0, 0], normal: [0, 0, 1] },
+          movingFace: { surfaceType: 'plane', center: [0, 0, 0], normal: [0, 0, 1] },
         }],
       }
       expect(() => executeDoAssemble(assemblyDef, outputCache)).toThrow(/unsupported constraint type/)
     })
 
     it('moving part 不存在时抛错', () => {
-      const outputCache = new Map<string, Shape>()
+      const outputCache = new Map<PartName, Shape>()
       const assemblyDef: AssemblyDefinition = {
-        members: ['part0_v0', 'part1_v0'],
+        members: [asPartName('part0_v0'), asPartName('part1_v0')],
         constraints: [{
           type: 'face_mate',
-          fixedPartName: 'part0_v0',
-          movingPartName: 'part1_v0',
-          fixedFace: { faceId: 'f0', surfaceType: 'plane', center: [0, 0, 5], normal: [0, 0, 1] },
-          movingFace: { faceId: 'f1', surfaceType: 'plane', center: [0, 0, 3], normal: [0, 0, 1] },
+          fixedPartName: asPartName('part0_v0'),
+          movingPartName: asPartName('part1_v0'),
+          fixedFace: { surfaceType: 'plane', center: [0, 0, 5], normal: [0, 0, 1] },
+          movingFace: { surfaceType: 'plane', center: [0, 0, 3], normal: [0, 0, 1] },
         }],
       }
       expect(() => executeDoAssemble(assemblyDef, outputCache)).toThrow(/moving part not found/)
@@ -186,18 +187,18 @@ describe('E15.1: 装配约束求解器', () => {
         positions: new Float32Array([0, 0, 10, 1, 0, 10, 0, 1, 10]),
         indices: new Uint32Array([0, 1, 2]),
       }
-      const outputCache = new Map<string, Shape>([
-        ['part1_v0', movingShape],
-        ['part1_v1', downstreamShape],
+      const outputCache = new Map<PartName, Shape>([
+        [asPartName('part1_v0'), movingShape],
+        [asPartName('part1_v1'), downstreamShape],
       ])
 
       // 构造简单的 DAG：part1_v1 的 inputs 包含 part1_v0
       const statements: CadStatement[] = [
-        { id: 'part0_v0', op: 'box', args: {}, inputs: [] },
-        { id: 'part1_v0', op: 'box', args: {}, inputs: [] },
-        { id: 'part1_v1', op: 'translate', args: { offset: [0, 0, 10] }, inputs: ['part1_v0'] },
-        { id: 'grp_1', op: 'assembly', args: { members: ['part0_v0', 'part1_v0'] }, inputs: [] },
-        { id: 'grp_2', op: 'do_assemble', args: {}, inputs: [], assemblyTarget: 'grp_1' },
+        { id: asStmtId('part0_v0'), op: 'box', args: {}, inputs: [] },
+        { id: asStmtId('part1_v0'), op: 'box', args: {}, inputs: [] },
+        { id: asStmtId('part1_v1'), op: 'translate', args: { offset: [0, 0, 10] }, inputs: [asPartName('part1_v0')] },
+        { id: asStmtId('grp_1'), op: 'assembly', args: { members: ['part0_v0', 'part1_v0'] }, inputs: [] },
+        { id: asStmtId('grp_2'), op: 'do_assemble', args: {}, inputs: [], assemblyTarget: asPartName('grp_1') },
       ]
       const script: PartScript = {
         statements,
@@ -205,13 +206,13 @@ describe('E15.1: 装配约束求解器', () => {
       }
 
       const assemblyDef: AssemblyDefinition = {
-        members: ['part0_v0', 'part1_v0'],
+        members: [asPartName('part0_v0'), asPartName('part1_v0')],
         constraints: [{
           type: 'face_mate',
-          fixedPartName: 'part0_v0',
-          movingPartName: 'part1_v0',
-          fixedFace: { faceId: 'f0', surfaceType: 'plane', center: [0, 0, 5], normal: [0, 0, 1] },
-          movingFace: { faceId: 'f1', surfaceType: 'plane', center: [0, 0, 3], normal: [0, 0, 1] },
+          fixedPartName: asPartName('part0_v0'),
+          movingPartName: asPartName('part1_v0'),
+          fixedFace: { surfaceType: 'plane', center: [0, 0, 5], normal: [0, 0, 1] },
+          movingFace: { surfaceType: 'plane', center: [0, 0, 3], normal: [0, 0, 1] },
         }],
       }
 
@@ -220,11 +221,11 @@ describe('E15.1: 装配约束求解器', () => {
       // moving part 应被变换
       // 顶点 [0,0,0] → 旋转180°绕Y轴, pivot=[0,0,3], translation=[0,0,2]
       // R*(-3)+3+2 = 3+5 = 8
-      const transformedMoving = outputCache.get('part1_v0')!
+      const transformedMoving = outputCache.get(asPartName('part1_v0'))!
       expect(transformedMoving.positions[2]).toBeCloseTo(8, 5)
 
       // 下游 part1_v1 也应被变换（同一变换）
-      const transformedDownstream = outputCache.get('part1_v1')!
+      const transformedDownstream = outputCache.get(asPartName('part1_v1'))!
       // 原始下游 z = 10, 变换后: R*(10-3)+3+2 = R*7+5 → 旋转180°绕Y轴 [0,0,7]→[0,0,-7], -7+5 = -2
       expect(transformedDownstream.positions[2]).toBeCloseTo(-2, 5)
     })
@@ -238,19 +239,19 @@ describe('E15.1: 装配约束求解器', () => {
         positions: new Float32Array([0, 0, 10, 1, 0, 10, 0, 1, 10]),
         indices: new Uint32Array([0, 1, 2]),
       }
-      const outputCache = new Map<string, Shape>([
-        ['part1_v0', movingShape],
-        ['part1_v1', downstreamShape],
+      const outputCache = new Map<PartName, Shape>([
+        [asPartName('part1_v0'), movingShape],
+        [asPartName('part1_v1'), downstreamShape],
       ])
 
       const assemblyDef: AssemblyDefinition = {
-        members: ['part0_v0', 'part1_v0'],
+        members: [asPartName('part0_v0'), asPartName('part1_v0')],
         constraints: [{
           type: 'face_mate',
-          fixedPartName: 'part0_v0',
-          movingPartName: 'part1_v0',
-          fixedFace: { faceId: 'f0', surfaceType: 'plane', center: [0, 0, 5], normal: [0, 0, 1] },
-          movingFace: { faceId: 'f1', surfaceType: 'plane', center: [0, 0, 3], normal: [0, 0, 1] },
+          fixedPartName: asPartName('part0_v0'),
+          movingPartName: asPartName('part1_v0'),
+          fixedFace: { surfaceType: 'plane', center: [0, 0, 5], normal: [0, 0, 1] },
+          movingFace: { surfaceType: 'plane', center: [0, 0, 3], normal: [0, 0, 1] },
         }],
       }
 
@@ -258,9 +259,9 @@ describe('E15.1: 装配约束求解器', () => {
       executeDoAssemble(assemblyDef, outputCache)
 
       // moving part 应被变换: 顶点 [0,0,0] → 8 (见上方计算)
-      expect(outputCache.get('part1_v0')!.positions[2]).toBeCloseTo(8, 5)
+      expect(outputCache.get(asPartName('part1_v0'))!.positions[2]).toBeCloseTo(8, 5)
       // 下游应保持不变
-      expect(outputCache.get('part1_v1')!.positions[2]).toBeCloseTo(10, 5)
+      expect(outputCache.get(asPartName('part1_v1'))!.positions[2]).toBeCloseTo(10, 5)
     })
 
     it('下游传播处理循环引用不无限递归', () => {
@@ -269,15 +270,15 @@ describe('E15.1: 装配约束求解器', () => {
         positions: new Float32Array([0, 0, 0]),
         indices: new Uint32Array([0]),
       }
-      const outputCache = new Map<string, Shape>([
-        ['part1_v0', shape],
-        ['part1_v1', shape],
+      const outputCache = new Map<PartName, Shape>([
+        [asPartName('part1_v0'), shape],
+        [asPartName('part1_v1'), shape],
       ])
 
       // part1_v1 inputs 包含 part1_v0, part1_v0 inputs 包含 part1_v1（异常场景）
       const statements: CadStatement[] = [
-        { id: 'part1_v0', op: 'box', args: {}, inputs: ['part1_v1'] },
-        { id: 'part1_v1', op: 'translate', args: {}, inputs: ['part1_v0'] },
+        { id: asStmtId('part1_v0'), op: 'box', args: {}, inputs: [asPartName('part1_v1')] },
+        { id: asStmtId('part1_v1'), op: 'translate', args: {}, inputs: [asPartName('part1_v0')] },
       ]
       const script: PartScript = {
         statements,
@@ -285,19 +286,19 @@ describe('E15.1: 装配约束求解器', () => {
       }
 
       const assemblyDef: AssemblyDefinition = {
-        members: ['part1_v0'],
+        members: [asPartName('part1_v0')],
         constraints: [{
           type: 'face_mate',
-          fixedPartName: 'part0_v0',
-          movingPartName: 'part1_v0',
-          fixedFace: { faceId: 'f0', surfaceType: 'plane', center: [0, 0, 5], normal: [0, 0, 1] },
-          movingFace: { faceId: 'f1', surfaceType: 'plane', center: [0, 0, 3], normal: [0, 0, 1] },
+          fixedPartName: asPartName('part0_v0'),
+          movingPartName: asPartName('part1_v0'),
+          fixedFace: { surfaceType: 'plane', center: [0, 0, 5], normal: [0, 0, 1] },
+          movingFace: { surfaceType: 'plane', center: [0, 0, 3], normal: [0, 0, 1] },
         }],
       }
 
       // 不应抛栈溢出
       executeDoAssemble(assemblyDef, outputCache, { script })
-      expect(outputCache.has('part1_v0')).toBe(true)
+      expect(outputCache.has(asPartName('part1_v0'))).toBe(true)
     })
   })
 
@@ -309,25 +310,25 @@ describe('E15.1: 装配约束求解器', () => {
       })
 
       const assemblyDef: AssemblyDefinition = {
-        members: ['part0_v0', 'part1_v0'],
+        members: [asPartName('part0_v0'), asPartName('part1_v0')],
         constraints: [{
           type: 'face_mate',
-          fixedPartName: 'part0_v0',
-          movingPartName: 'part1_v0',
-          fixedFace: { faceId: 'f0', surfaceType: 'plane', center: [0, 0, 5], normal: [0, 0, 1] },
-          movingFace: { faceId: 'f1', surfaceType: 'plane', center: [0, 0, 3], normal: [0, 0, 1] },
+          fixedPartName: asPartName('part0_v0'),
+          movingPartName: asPartName('part1_v0'),
+          fixedFace: { surfaceType: 'plane', center: [0, 0, 5], normal: [0, 0, 1] },
+          movingFace: { surfaceType: 'plane', center: [0, 0, 3], normal: [0, 0, 1] },
         }],
       }
 
-      const cache1 = new Map<string, Shape>([['part1_v0', makeShape()]])
-      const cache2 = new Map<string, Shape>([['part1_v0', makeShape()]])
+      const cache1 = new Map<PartName, Shape>([[asPartName('part1_v0'), makeShape()]])
+      const cache2 = new Map<PartName, Shape>([[asPartName('part1_v0'), makeShape()]])
 
       executeDoAssemble(assemblyDef, cache1)
       executeDoAssemble(assemblyDef, cache2)
 
-      // 两次执行结果应逐顶点一致
-      const r1 = cache1.get('part1_v0')!.positions
-      const r2 = cache2.get('part1_v0')!.positions
+      // 两次执行结果逐顶点比较
+      const r1 = cache1.get(asPartName('part1_v0'))!.positions
+      const r2 = cache2.get(asPartName('part1_v0'))!.positions
       for (let i = 0; i < r1.length; i++) {
         expect(r1[i]).toBeCloseTo(r2[i], 5)
       }
@@ -347,24 +348,24 @@ describe('E15.1: 装配约束求解器', () => {
         positions: new Float32Array([0, 0, 5, 1, 0, 5, 0, 1, 5]),
         indices: new Uint32Array([0, 1, 2]),
       }
-      const outputCache = new Map<string, Shape>([
-        ['part0_v0', fixedShape],
-        ['part1_v0', movingShape],
+      const outputCache = new Map<PartName, Shape>([
+        [asPartName('part0_v0'), fixedShape],
+        [asPartName('part1_v0'), movingShape],
       ])
 
       const constraints: FaceMateConstraint[] = [{
         type: 'face_mate',
-        fixedPartName: 'part0_v0',
-        movingPartName: 'part1_v0',
-        fixedFace: { faceId: 'f0', surfaceType: 'plane', center: [0, 0, 5], normal: [0, 0, 1] },
-        movingFace: { faceId: 'f1', surfaceType: 'plane', center: [0, 0, 3], normal: [0, 0, 1] },
+        fixedPartName: asPartName('part0_v0'),
+        movingPartName: asPartName('part1_v0'),
+        fixedFace: { surfaceType: 'plane', center: [0, 0, 5], normal: [0, 0, 1] },
+        movingFace: { surfaceType: 'plane', center: [0, 0, 3], normal: [0, 0, 1] },
       }]
 
       const statements: CadStatement[] = [
-        { id: 'part0_v0', op: 'box', args: {}, inputs: [] },
-        { id: 'part1_v0', op: 'box', args: {}, inputs: [] },
-        { id: 'grp_1', op: 'assembly', args: { members: ['part0_v0', 'part1_v0'], constraints } as unknown as Record<string, import('../lang/types').Arg>, inputs: [] },
-        { id: 'grp_2', op: 'do_assemble', args: {}, inputs: [], assemblyTarget: 'grp_1' },
+        { id: asStmtId('part0_v0'), op: 'box', args: {}, inputs: [] },
+        { id: asStmtId('part1_v0'), op: 'box', args: {}, inputs: [] },
+        { id: asStmtId('grp_1'), op: 'assembly', args: { members: ['part0_v0', 'part1_v0'], constraints } as unknown as Record<string, import('../lang/types').Arg>, inputs: [] },
+        { id: asStmtId('grp_2'), op: 'do_assemble', args: {}, inputs: [], assemblyTarget: asPartName('grp_1') },
       ]
       const script: PartScript = { statements, params: [] }
 
@@ -378,23 +379,23 @@ describe('E15.1: 装配约束求解器', () => {
       const transformedIds = executeAssemblyPassForStmt(doAssembleStmt, outputCache, script)
 
       // moving part 应被变换（part1_v0）
-      expect(transformedIds.has('part1_v0')).toBe(true)
+      expect(transformedIds.has(asPartName('part1_v0'))).toBe(true)
       // assembly 的所有 members 都在 transformedIds 中（包括 fixed part）
       // 因为 executeAssemblyPassForStmt 收集 members + 下游传播的 parts
-      expect(transformedIds.has('part0_v0')).toBe(true)
+      expect(transformedIds.has(asPartName('part0_v0'))).toBe(true)
 
       // outputCache 中 moving shape 应被变换
       // 顶点 [0,0,0]: solveFaceMate(movingCenter=[0,0,3], movingNormal=[0,0,1], fixedCenter=[0,0,5], fixedNormal=[0,0,1])
       // 旋转180°绕Y轴, pivot=[0,0,3], translation=[0,0,2]
       // R*(-3)+3+2 = 3+5 = 8
-      const transformed = outputCache.get('part1_v0')!
+      const transformed = outputCache.get(asPartName('part1_v0'))!
       expect(transformed.positions[2]).toBeCloseTo(8, 5)
     })
 
     it('do_assemble 没有 assemblyTarget 时返回空集合', () => {
       const { outputCache, script } = makeScene()
       const doAssembleStmt: CadStatement = {
-        id: 'grp_2',
+        id: asStmtId('grp_2'),
         op: 'do_assemble',
         args: {},
         inputs: [],
@@ -408,11 +409,11 @@ describe('E15.1: 装配约束求解器', () => {
     it('assemblyTarget 指向不存在的语句时返回空集合', () => {
       const { outputCache, script } = makeScene()
       const doAssembleStmt: CadStatement = {
-        id: 'grp_2',
+        id: asStmtId('grp_2'),
         op: 'do_assemble',
         args: {},
         inputs: [],
-        assemblyTarget: 'nonexistent_stmt',
+        assemblyTarget: asPartName('nonexistent_stmt'),
       }
 
       const result = executeAssemblyPassForStmt(doAssembleStmt, outputCache, script)
@@ -422,11 +423,11 @@ describe('E15.1: 装配约束求解器', () => {
     it('assemblyTarget 指向非 assembly 语句时返回空集合', () => {
       const { outputCache, script } = makeScene()
       const doAssembleStmt: CadStatement = {
-        id: 'grp_2',
+        id: asStmtId('grp_2'),
         op: 'do_assemble',
         args: {},
         inputs: [],
-        assemblyTarget: 'part0_v0', // part0_v0 是 box 语句，不是 assembly
+        assemblyTarget: asPartName('part0_v0'), // part0_v0 是 box 语句，不是 assembly
       }
 
       const result = executeAssemblyPassForStmt(doAssembleStmt, outputCache, script)
@@ -463,26 +464,26 @@ describe('E15.1: 装配约束求解器', () => {
         positions: new Float32Array([0, 0, 10, 1, 0, 10, 0, 1, 10]),
         indices: new Uint32Array([0, 1, 2]),
       }
-      const outputCache = new Map<string, Shape>([
-        ['part0_v0', { positions: new Float32Array([0, 0, 5]), indices: new Uint32Array([0]) }],
-        ['part1_v0', movingShape],
-        ['part1_v1', downstreamShape],
+      const outputCache = new Map<PartName, Shape>([
+        [asPartName('part0_v0'), { positions: new Float32Array([0, 0, 5]), indices: new Uint32Array([0]) }],
+        [asPartName('part1_v0'), movingShape],
+        [asPartName('part1_v1'), downstreamShape],
       ])
 
       const constraints: FaceMateConstraint[] = [{
         type: 'face_mate',
-        fixedPartName: 'part0_v0',
-        movingPartName: 'part1_v0',
-        fixedFace: { faceId: 'f0', surfaceType: 'plane', center: [0, 0, 5], normal: [0, 0, 1] },
-        movingFace: { faceId: 'f1', surfaceType: 'plane', center: [0, 0, 3], normal: [0, 0, 1] },
+        fixedPartName: asPartName('part0_v0'),
+        movingPartName: asPartName('part1_v0'),
+        fixedFace: { surfaceType: 'plane', center: [0, 0, 5], normal: [0, 0, 1] },
+        movingFace: { surfaceType: 'plane', center: [0, 0, 3], normal: [0, 0, 1] },
       }]
 
       const statements: CadStatement[] = [
-        { id: 'part0_v0', op: 'box', args: {}, inputs: [] },
-        { id: 'part1_v0', op: 'box', args: {}, inputs: [] },
-        { id: 'part1_v1', op: 'translate', args: { offset: [0, 0, 10] }, inputs: ['part1_v0'] },
-        { id: 'grp_1', op: 'assembly', args: { members: ['part0_v0', 'part1_v0'], constraints } as unknown as Record<string, import('../lang/types').Arg>, inputs: [] },
-        { id: 'grp_2', op: 'do_assemble', args: {}, inputs: [], assemblyTarget: 'grp_1' },
+        { id: asStmtId('part0_v0'), op: 'box', args: {}, inputs: [] },
+        { id: asStmtId('part1_v0'), op: 'box', args: {}, inputs: [] },
+        { id: asStmtId('part1_v1'), op: 'translate', args: { offset: [0, 0, 10] }, inputs: [asPartName('part1_v0')] },
+        { id: asStmtId('grp_1'), op: 'assembly', args: { members: ['part0_v0', 'part1_v0'], constraints } as unknown as Record<string, import('../lang/types').Arg>, inputs: [] },
+        { id: asStmtId('grp_2'), op: 'do_assemble', args: {}, inputs: [], assemblyTarget: asPartName('grp_1') },
       ]
       const script: PartScript = { statements, params: [] }
 
@@ -490,12 +491,12 @@ describe('E15.1: 装配约束求解器', () => {
       const transformedIds = executeAssemblyPassForStmt(doAssembleStmt, outputCache, script)
 
       // moving part + 下游 part 都应在集合中
-      expect(transformedIds.has('part1_v0')).toBe(true)
-      expect(transformedIds.has('part1_v1')).toBe(true)
+      expect(transformedIds.has(asPartName('part1_v0'))).toBe(true)
+      expect(transformedIds.has(asPartName('part1_v1'))).toBe(true)
 
       // 下游 shape 也应被变换
-      // 原始下游 z = 10, 变换后: R*(10-3)+3+2 = R*7+5 → 旋转180°绕Y轴 [0,0,7]→[0,0,-7], -7+5 = -2
-      const transformedDownstream = outputCache.get('part1_v1')!
+      // 原始下游 z = 10, 变换后: R*(0,0,7)+5 → -7+5 = -2
+      const transformedDownstream = outputCache.get(asPartName('part1_v1'))!
       expect(transformedDownstream.positions[2]).toBeCloseTo(-2, 5)
     })
 
@@ -503,18 +504,18 @@ describe('E15.1: 装配约束求解器', () => {
       const { outputCache, script, movingShape } = makeScene()
 
       // 直接调 executeDoAssemble
-      const directCache = new Map<string, Shape>([
-        ['part0_v0', { positions: new Float32Array([0, 0, 5]), indices: new Uint32Array([0]) }],
-        ['part1_v0', { positions: new Float32Array([...movingShape.positions]), indices: new Uint32Array([...movingShape.indices]) }],
+      const directCache = new Map<PartName, Shape>([
+        [asPartName('part0_v0'), { positions: new Float32Array([0, 0, 5]), indices: new Uint32Array([0]) }],
+        [asPartName('part1_v0'), { positions: new Float32Array([...movingShape.positions]), indices: new Uint32Array([...movingShape.indices]) }],
       ])
       const assemblyDef: AssemblyDefinition = {
-        members: ['part0_v0', 'part1_v0'],
+        members: [asPartName('part0_v0'), asPartName('part1_v0')],
         constraints: [{
           type: 'face_mate',
-          fixedPartName: 'part0_v0',
-          movingPartName: 'part1_v0',
-          fixedFace: { faceId: 'f0', surfaceType: 'plane', center: [0, 0, 5], normal: [0, 0, 1] },
-          movingFace: { faceId: 'f1', surfaceType: 'plane', center: [0, 0, 3], normal: [0, 0, 1] },
+          fixedPartName: asPartName('part0_v0'),
+          movingPartName: asPartName('part1_v0'),
+          fixedFace: { surfaceType: 'plane', center: [0, 0, 5], normal: [0, 0, 1] },
+          movingFace: { surfaceType: 'plane', center: [0, 0, 3], normal: [0, 0, 1] },
         }],
       }
       executeDoAssemble(assemblyDef, directCache, { script })
@@ -524,8 +525,8 @@ describe('E15.1: 装配约束求解器', () => {
       executeAssemblyPassForStmt(doAssembleStmt, outputCache, script)
 
       // 两个路径的结果应一致
-      const directResult = directCache.get('part1_v0')!.positions
-      const stmtResult = outputCache.get('part1_v0')!.positions
+      const directResult = directCache.get(asPartName('part1_v0'))!.positions
+      const stmtResult = outputCache.get(asPartName('part1_v0'))!.positions
       for (let i = 0; i < directResult.length; i++) {
         expect(stmtResult[i]).toBeCloseTo(directResult[i], 5)
       }

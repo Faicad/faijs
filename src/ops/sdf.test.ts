@@ -22,6 +22,7 @@ import { MESH_ONLY_OPS } from '../brep/brep-chain'
 import { ensureTestFontLoader } from '../brep/text/fontTestHelper'
 import type { Shape } from './types'
 import type { CadStatement, PartScript } from '../lang/types'
+import { asStmtId, asPartName } from '../identity'
 
 beforeAll(async () => {
   await initOcctWasm()
@@ -45,9 +46,9 @@ function makeStmt(
   inputs: string[] = [],
 ): CadStatement {
   return {
-    id, op,
+    id: asStmtId(id), op,
     args: args as any,
-    inputs,
+    inputs: inputs.map(asPartName),
     hasAssignment: true,
     returnType: 'new_shape',
   }
@@ -73,7 +74,7 @@ function shapeTriangleCount(s: Shape): number { return s.indices.length / 3 }
 function getFinalOutput(result: ExecutionResult, statements: CadStatement[]): Shape {
   const geoStmts = statements.filter(s => s.hasAssignment && (s.returnType ?? 'new_shape') === 'new_shape')
   const last = geoStmts[geoStmts.length - 1]
-  const shape = result.outputs.get(last.id)
+  const shape = result.outputs.get(asPartName(last.id))
   if (!shape) throw new Error(`No output for terminal statement "${last.id}"`)
   return shape
 }

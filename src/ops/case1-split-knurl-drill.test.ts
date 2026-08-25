@@ -21,6 +21,7 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import { initOcctWasm, getKernel } from '../occt-kernel/occtKernel'
 import type { OcctKernel } from 'occt-wasm'
 import type { CadStatement, PartScript } from '../lang/types'
+import { asPartName, asStmtId } from '../identity'
 import { createRuntime, type ExecutionResult } from '../cad-runtime/runtime'
 import type { HostPorts, EventSink } from '../cad-runtime/ports'
 import { computeTerminalShapes } from '../lang/parser'
@@ -54,9 +55,9 @@ function makeStmt(
   extra?: Partial<CadStatement>,
 ): CadStatement {
   return {
-    id, op,
+    id: asStmtId(id), op,
     args: args as never,
-    inputs,
+    inputs: inputs.map(asPartName),
     hasAssignment: true,
     returnType: 'new_shape',
     ...extra,
@@ -88,18 +89,18 @@ describe('Case 1: split → knurl(front) → drill(back) — per-part BREP indep
       makeStmt('part1_v0', 'split',
         { cutMode: 'plane', normal: [0, 0, 1], offset: 0 },
         ['part0_v0'],
-        { outputs: ['part1_v0', 'part2_v0'] },
+        { outputs: ['part1_v0', 'part2_v0'].map(asPartName) },
       ),
     ]
 
     const result = await runScript(stmts)
 
     // cylinder solid in cache
-    expect(result.brepChain.solidCache.has('part0_v0')).toBe(true)
+    expect(result.brepChain.solidCache.has(asPartName('part0_v0'))).toBe(true)
     // split front solid in cache
-    expect(result.brepChain.solidCache.has('part1_v0')).toBe(true)
+    expect(result.brepChain.solidCache.has(asPartName('part1_v0'))).toBe(true)
     // split back solid in cache
-    expect(result.brepChain.solidCache.has('part2_v0')).toBe(true)
+    expect(result.brepChain.solidCache.has(asPartName('part2_v0'))).toBe(true)
   })
 
   it('drill(back) stays BREP after knurl(front) — reverse order (drill first, knurl second)', async () => {
@@ -110,7 +111,7 @@ describe('Case 1: split → knurl(front) → drill(back) — per-part BREP indep
       makeStmt('part1_v0', 'split',
         { cutMode: 'plane', normal: [0, 0, 1], offset: 0 },
         ['part0_v0'],
-        { outputs: ['part1_v0', 'part2_v0'] },
+        { outputs: ['part1_v0', 'part2_v0'].map(asPartName) },
       ),
       // drill on back half — should stay BREP
       makeStmt('part4_v0', 'drill', {
@@ -141,7 +142,7 @@ describe('Case 1: split → knurl(front) → drill(back) — per-part BREP indep
         makeStmt('part1_v0', 'split',
           { cutMode: 'plane', normal: [0, 0, 1], offset: 0 },
           ['part0_v0'],
-          { outputs: ['part1_v0', 'part2_v0'] },
+          { outputs: ['part1_v0', 'part2_v0'].map(asPartName) },
         ),
         makeStmt('part4_v0', 'drill', {
           diameter: 4, depth: 20,
@@ -156,10 +157,10 @@ describe('Case 1: split → knurl(front) → drill(back) — per-part BREP indep
 
     // Core assertion: drill on back half stays BREP
     // (in old global-brepActive design, knurl would break the chain globally)
-    expect(solidCache.has('part0_v0')).toBe(true)   // cylinder BREP
-    expect(solidCache.has('part1_v0')).toBe(true)   // split front
-    expect(solidCache.has('part2_v0')).toBe(true)   // split back
-    expect(solidCache.has('part4_v0')).toBe(true)   // drill on back → still BREP ✅
+    expect(solidCache.has(asPartName('part0_v0'))).toBe(true)   // cylinder BREP
+    expect(solidCache.has(asPartName('part1_v0'))).toBe(true)   // split front
+    expect(solidCache.has(asPartName('part2_v0'))).toBe(true)   // split back
+    expect(solidCache.has(asPartName('part4_v0'))).toBe(true)   // drill on back → still BREP ✅
 
     // part3_v0 (knurl output) should NOT be in solidCache (mesh-only op)
     // (only verifiable if knurl didn't throw — but we can verify via MESH_ONLY_OPS)
@@ -172,7 +173,7 @@ describe('Case 1: split → knurl(front) → drill(back) — per-part BREP indep
       makeStmt('part1_v0', 'split',
         { cutMode: 'plane', normal: [0, 0, 1], offset: 0 },
         ['part0_v0'],
-        { outputs: ['part1_v0', 'part2_v0'] },
+        { outputs: ['part1_v0', 'part2_v0'].map(asPartName) },
       ),
       makeStmt('part4_v0', 'drill', {
         diameter: 4, depth: 20,
@@ -185,10 +186,10 @@ describe('Case 1: split → knurl(front) → drill(back) — per-part BREP indep
 
     // brepSolids should contain part4_v0 (BREP drill on back half)
     expect(result.brepSolids).toBeDefined()
-    expect(result.brepSolids!.has('part4_v0')).toBe(true)
+    expect(result.brepSolids!.has(asPartName('part4_v0'))).toBe(true)
 
     // STEP export should have precise surfaces
-    const solidEntry = result.brepSolids!.get('part4_v0')!
+    const solidEntry = result.brepSolids!.get(asPartName('part4_v0'))!
     const step = kernel.exportStep(solidEntry.solid)
     expect(step).toContain('ADVANCED_FACE')
     expect(step).toContain('CYLINDRICAL_SURFACE')
@@ -204,7 +205,7 @@ describe('Case 1: split → knurl(front) → drill(back) — per-part BREP indep
       makeStmt('part1_v0', 'split',
         { cutMode: 'plane', normal: [0, 0, 1], offset: 0 },
         ['part0_v0'],
-        { outputs: ['part1_v0', 'part2_v0'] },
+        { outputs: ['part1_v0', 'part2_v0'].map(asPartName) },
       ),
       makeStmt('part3_v0', 'knurl', {
         faceCenter: [0, 0, 0], faceNormal: [0, 0, 1],
@@ -225,6 +226,6 @@ describe('Case 1: split → knurl(front) → drill(back) — per-part BREP indep
     const brepLostEvents = sink.events.filter(e => e.event === 'part-brep-lost')
     expect(brepLostEvents.length).toBeGreaterThan(0)
     expect(brepLostEvents[0].detail.op).toBe('knurl')
-    expect(brepLostEvents[0].detail.partId).toBe('part3_v0')
+    expect(brepLostEvents[0].detail.partName).toBe('part3_v0')
   })
 })

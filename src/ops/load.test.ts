@@ -21,6 +21,7 @@ import type { CadStatement, PartScript } from '../lang/types'
 import { loadBrep } from '../brep/brep-ops'
 import { createRuntime, type ExecutionResult } from '../cad-runtime/runtime'
 import type { HostPorts, EventSink, AssetResolver } from '../cad-runtime/ports'
+import { asPartName, asStmtId } from '../identity'
 
 let kernel: OcctKernel
 let stepBuffer: ArrayBuffer      // test-model.step (2 solids)
@@ -84,9 +85,9 @@ function makeStmt(
   inputs: string[] = [],
 ): CadStatement {
   return {
-    id, op,
+    id: asStmtId(id), op,
     args: args as any,
-    inputs,
+    inputs: inputs.map(asPartName),
     hasAssignment: true,
     returnType: 'new_shape',
   }
@@ -179,13 +180,13 @@ describe('executeLoad: BREP mode (via CadRuntime)', () => {
     const result = await runScript([stmt])
 
     // Should produce a valid display mesh
-    const shape = result.outputs.get('s1')!
+    const shape = result.outputs.get(asPartName('s1'))!
     expect(shape).toBeDefined()
     expect(shapeTriangleCount(shape)).toBeGreaterThan(0)
 
     // BREP solid should be cached
-    expect(result.brepChain.solidCache.has('s1')).toBe(true)
-    const solid = result.brepChain.solidCache.get('s1')!
+    expect(result.brepChain.solidCache.has(asPartName('s1'))).toBe(true)
+    const solid = result.brepChain.solidCache.get(asPartName('s1'))!
     const solidCount = kernel.getSubShapes(solid, 'solid').length
     expect(solidCount).toBeGreaterThanOrEqual(1)
 
@@ -238,14 +239,14 @@ describe('executeLoad → drill: BREP chain propagation (via CadRuntime)', () =>
     const result = await runScript(stmts)
 
     // BREP solid should be cached
-    expect(result.brepChain.solidCache.has('s2')).toBe(true)
+    expect(result.brepChain.solidCache.has(asPartName('s2'))).toBe(true)
 
     // Output mesh should be valid
-    const drillShape = result.outputs.get('s2')!
+    const drillShape = result.outputs.get(asPartName('s2'))!
     expect(shapeVertexCount(drillShape)).toBeGreaterThan(0)
 
     // STEP export should contain ADVANCED_FACE
-    const drilledSolid = result.brepChain.solidCache.get('s2')!
+    const drilledSolid = result.brepChain.solidCache.get(asPartName('s2'))!
     const step = kernel.exportStep(drilledSolid)
     expect(step).toContain('ADVANCED_FACE')
 
@@ -275,18 +276,18 @@ describe('executeLoad → drill: BREP chain propagation (via CadRuntime)', () =>
     const result = await runScript(stmts)
 
     // BREP chain should have solid cached (box_boss is a valid single solid)
-    expect(result.brepChain.solidCache.has('s2')).toBe(true)
+    expect(result.brepChain.solidCache.has(asPartName('s2'))).toBe(true)
 
     // The loaded solid should be a real Solid (unwrapped), isValid=true
-    const solid = result.brepChain.solidCache.get('s1')!
+    const solid = result.brepChain.solidCache.get(asPartName('s1'))!
     expect(kernel.isValid(solid)).toBe(true)
 
     // Output mesh should be valid
-    const drillShape = result.outputs.get('s2')!
+    const drillShape = result.outputs.get(asPartName('s2'))!
     expect(shapeVertexCount(drillShape)).toBeGreaterThan(0)
 
     // STEP export should contain ADVANCED_FACE
-    const drilledSolid = result.brepChain.solidCache.get('s2')!
+    const drilledSolid = result.brepChain.solidCache.get(asPartName('s2'))!
     const step = kernel.exportStep(drilledSolid)
     expect(step).toContain('ADVANCED_FACE')
 
