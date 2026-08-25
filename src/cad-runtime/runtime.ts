@@ -27,6 +27,7 @@ import { initOcctWasm } from '../occt-kernel/occtKernel'
 import { executeStatement as dispatchStatement } from '../ops/dispatcher'
 import { parseScript, ParseError } from '../lang/parser'
 import { validateStatementArgs } from '../lang/args-schema'
+import { SCHEMAS } from '../stdlib/schemas'
 import type { HostPorts, ExecutionMode } from './ports'
 import type { SelectorRuntimeData } from '../topology/build-selector-runtime'
 import type { SelectorRuntime } from '../topology/types'
@@ -846,7 +847,7 @@ export class CadRuntime {
         }
       }
       const resolvedStmt = { ...stmt, args: resolvedArgs }
-      const validationErrors = validateStatementArgs(resolvedStmt)
+      const validationErrors = validateStatementArgs(resolvedStmt, SCHEMAS)
       for (const ve of validationErrors) {
         errors.push({
           stage: 'schema',

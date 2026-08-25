@@ -10,6 +10,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { getOpSchema, hasOpSchema } from './args-schema'
+import { SCHEMAS } from '../stdlib/schemas'
 import { buildArgsParts } from './codegen'
 import type { CadStatement } from './types'
 import { asStmtId } from '../identity'
@@ -31,7 +32,7 @@ describe('op-set-consistency: parser PRIMITIVE_OPS ⊆ schema', () => {
   it('parser 认识的每个 primitive op 都在 schema 中有定义', () => {
     const missing: string[] = []
     for (const op of PARSER_PRIMITIVE_OPS) {
-      if (!hasOpSchema(op)) {
+      if (!hasOpSchema(op, SCHEMAS)) {
         missing.push(op)
       }
     }
@@ -48,12 +49,12 @@ const criticalOps = [
 'drill', 'extrude', 'split', 'boolean', 'engrave', 'knurl', 'sdf',
 ]
     for (const op of criticalOps) {
-      expect(hasOpSchema(op)).toBe(true)
+      expect(hasOpSchema(op, SCHEMAS)).toBe(true)
     }
   })
 
   it('knurl schema 包含 knurl 专属参数', () => {
-    const schema = getOpSchema('knurl')
+    const schema = getOpSchema('knurl', SCHEMAS)
     expect(schema).toBeDefined()
     const fieldNames = schema!.fields.map((f) => f.name)
     expect(fieldNames).toContain('knurlTextureHeight')
@@ -62,7 +63,7 @@ const criticalOps = [
   })
 
   it('sdf schema 包含 code 字段', () => {
-    const schema = getOpSchema('sdf')
+    const schema = getOpSchema('sdf', SCHEMAS)
     expect(schema).toBeDefined()
     const fieldNames = schema!.fields.map((f) => f.name)
     expect(fieldNames).toContain('code')
@@ -146,7 +147,7 @@ describe('op-set-consistency: schema ↔ codegen 参数键集', () => {
     for (const op of SCHEMA_OPS) {
       if (OPS_TO_SKIP.has(op)) continue
 
-      const schema = getOpSchema(op)
+      const schema = getOpSchema(op, SCHEMAS)
       if (!schema) continue
 
       const schemaFields = new Set(schema.fields.map((f) => f.name))
@@ -183,7 +184,7 @@ describe('op-set-consistency: schema ↔ codegen 参数键集', () => {
     for (const op of SCHEMA_OPS) {
       if (OPS_TO_SKIP.has(op)) continue
 
-      const schema = getOpSchema(op)
+      const schema = getOpSchema(op, SCHEMAS)
       if (!schema) continue
 
       const schemaFields = new Set(schema.fields.map((f) => f.name))
