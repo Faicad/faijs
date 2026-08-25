@@ -15,11 +15,8 @@
  * brep 模式的不支持错误由库函数内部 resolvePath 抛出（BrepUnsupportedError → failedAt）。
  */
 
-import type { Shape, Vec3 } from '../mesh/types'
-import type { GeomRef } from '../lang/types'
-import type { PartName } from '../identity'
+import type { Shape } from '../mesh/types'
 import { asPartName } from '../identity'
-import { resolveGeomRef } from '../ops/geom-ref'
 import { box, sphere, cylinder, cone, wedge } from '../stdlib/primitives'
 import { translate, rotate, scale } from '../stdlib/transform'
 import { extrude } from '../stdlib/extrude'
@@ -33,6 +30,13 @@ import { drill } from '../stdlib/drill'
 import { split } from '../stdlib/split'
 import { boolean as booleanOp } from '../stdlib/boolean'
 import { engrave } from '../stdlib/engrave'
+import {
+  faceCenter as stdlibFaceCenter,
+  faceNormal as stdlibFaceNormal,
+  bboxCenter as stdlibBboxCenter,
+  bboxMin as stdlibBboxMin,
+  bboxMax as stdlibBboxMax,
+} from '../stdlib/geom'
 import type { ExecContextImpl, StdlibNamespace } from './exec-context'
 
 // ── 空 Shape（group/assembly 结构型语句的 Phase 2.1 产物；Phase 2.4 迁 compound） ──
@@ -57,34 +61,6 @@ function emitBrepLost(exec: ExecContextImpl, op: string): void {
     op,
     reason: 'mesh-only op output',
   })
-}
-
-// ── $geom 查询函数 ──
-
-/**
- * geom 查询：`cad.<feature>(of, anchor?, ordinal?, exec)`。
- * 末参 exec；内部复用 resolveGeomRef（faceOrdinal+BREP 优先 → anchor 反查 → 报错）。
- */
-function geomQuery(feature: GeomRef['$geom']['feature'], rest: unknown[]): Vec3 {
-  const exec = rest.pop() as ExecContextImpl
-  const of = rest[0] as Shape
-  const anchor = rest[1] as Vec3 | undefined
-  const faceOrdinal = rest[2] as number | undefined
-  const name = exec.shapeToName.get(of)
-  const ref: GeomRef = {
-    $geom: {
-      of: (name ?? '') as PartName,
-      feature,
-      anchor: anchor ? { point: anchor } : undefined,
-      faceOrdinal,
-    },
-  }
-  return resolveGeomRef(
-    ref,
-    () => of,
-    name ? (id) => exec.brepChain.solidCache.get(id) : undefined,
-    exec.brepChain.kernel ?? undefined,
-  )
 }
 
 // ── $asset 查询函数 ──
@@ -146,12 +122,12 @@ export function createInternalStdlib(): StdlibNamespace {
     group: (_args, _e) => emptyShape(),
     assembly: (_args, _e) => emptyShape(),
 
-    // ── $geom 查询（末参 exec） ──
-    faceCenter: (...rest) => geomQuery('faceCenter', rest),
-    faceNormal: (...rest) => geomQuery('faceNormal', rest),
-    bboxCenter: (...rest) => geomQuery('bboxCenter', rest),
-    bboxMin: (...rest) => geomQuery('bboxMin', rest),
-    bboxMax: (...rest) => geomQuery('bboxMax', rest),
+    // ── $geom 查询（末参 exec，转发 stdlib/geom） ──
+    faceCenter: (...rest) => stdlibFaceCenter(...rest),
+    faceNormal: (...rest) => stdlibFaceNormal(...rest),
+    bboxCenter: (...rest) => stdlibBboxCenter(...rest),
+    bboxMin: (...rest) => stdlibBboxMin(...rest),
+    bboxMax: (...rest) => stdlibBboxMax(...rest),
 
     // ── $asset 查询 ──
     asset: (key, e) => assetQuery(key as string, e as ExecContextImpl),
