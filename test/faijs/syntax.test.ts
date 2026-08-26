@@ -12,7 +12,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
 import { resolve, join } from 'node:path'
-import { parseScript } from '../../src/lang/parser'
+import { parseScript, computeTerminalShapes } from '../../src/lang/parser'
 import { scriptToCode } from '../../src/lang/codegen'
 import type { PartScript } from '../../src/lang/types'
 
@@ -95,8 +95,8 @@ const part0_v1 = cad.translate({ offset: [5, 0, 0] }, part0_v0)
 const part0_v2 = cad.rotate({ anglesDeg: [0, 0, 45] }, part0_v1)`
     const { script } = parseScript(code)
     expect(script.statements).toHaveLength(3)
-    expect(script.statements[1].inputs).toEqual(['part0_v0'])
-    expect(script.statements[2].inputs).toEqual(['part0_v1'])
+    expect(script.statements[1].inputs).toEqual(['part0'])
+    expect(script.statements[2].inputs).toEqual(['part0'])
   })
 
   it('multi mesh: two independent primitives → two terminal shapes', () => {
@@ -104,7 +104,9 @@ const part0_v2 = cad.rotate({ anglesDeg: [0, 0, 45] }, part0_v1)`
 const part1_v0 = cad.sphere({ radius: 10, center: [30, 0, 0] })`
     const { script } = parseScript(code)
     expect(script.statements).toHaveLength(2)
-    expect(script.terminalShapes).toBeDefined()
-    expect(script.terminalShapes).toHaveLength(2)
+    // Phase 3: terminalShapes 移入 runtime.collectResult；parser 不再自动计算
+    const terminals = computeTerminalShapes(script.statements)
+    expect(terminals).toBeDefined()
+    expect(terminals).toHaveLength(2)
   })
 })

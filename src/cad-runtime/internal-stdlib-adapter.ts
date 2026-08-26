@@ -51,8 +51,10 @@ function parseCall(rest: unknown[]): { exec: ExecContextImpl; args: Record<strin
 /** auto 模式 mesh-only op：发 part-brep-lost 事件。 */
 function emitBrepLost(exec: ExecContextImpl, op: string): void {
   const stmt = exec.currentStmt
+  // Phase 3：partName 在 outputs[0]（非 stmt.id，因 id 现在是 sN）
+  const partName = stmt?.outputs[0] ?? ''
   exec.ports.events.emit('part-brep-lost', {
-    partName: asPartName(stmt?.id ?? ''),
+    partName: asPartName(partName),
     op,
     reason: 'mesh-only op output',
   })

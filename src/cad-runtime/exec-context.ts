@@ -197,8 +197,9 @@ export class ExecContextImpl implements ExecContext {
       if (name === undefined) return
       for (const stmt of this.script.statements) {
         if (!stmt.inputs.includes(name)) continue
-        const outNames: PartName[] = [asPartName(stmt.id)]
-        for (const outId of stmt.outputs ?? []) outNames.push(asPartName(outId))
+        // Phase 3：输出名在 stmt.outputs（非 stmt.id）
+        const outNames: PartName[] = []
+        for (const outId of stmt.outputs) outNames.push(outId)
         for (const outName of outNames) {
           const outShape = this.outputCache.get(outName)
           if (outShape) {

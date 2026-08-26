@@ -333,8 +333,14 @@ export function buildArgsParts(stmt: CadStatement, varNames?: Map<string, string
 
 // ── 语句 → 代码行 ──
 
-/** 检测 id 是否已是 partN_vM 格式 */
+/** 检测 id 是否已是 partN_vM 或 partN 格式 */
+const PART_RE = /^part\d+$/
 const PART_VM_RE = /^part\d+_v\d+$/
+
+/** 从语句获取主输出变量名（单输出取 outputs[0]；无输出回退 stmt.id） */
+function primaryOutput(stmt: CadStatement): string {
+  return stmt.outputs[0] ?? stmt.id
+}
 
 /**
  * 将单条语句转为可读代码行（用于 TimelinePanel 显示和导出）。
@@ -350,32 +356,33 @@ export function statementToLine(stmt: CadStatement): string {
   // 结构型语句按 op 输出（group/assembly 需赋值）
   if (stmt.op === 'group' || stmt.op === 'assembly') {
     const parts = buildArgsParts(stmt)
-    return `const ${stmt.id} = cad.${stmt.op}({ ${parts.join(', ')} })`
+    const varName = primaryOutput(stmt)
+    return `let ${varName} = cad.${stmt.op}({ ${parts.join(', ')} })`
   }
 
-if (stmt.op === 'add_constraint') {
-const parts = buildArgsParts(stmt)
-const target = stmt.assemblyTarget ?? stmt.id
-return `${target}.add_constraint({ ${parts.join(', ')} })`
-}
-if (stmt.op === 'do_assemble') {
-const target = stmt.assemblyTarget ?? stmt.id
-return `${target}.do_assemble()`
-}
+  if (stmt.op === 'add_constraint') {
+    const parts = buildArgsParts(stmt)
+    const target = stmt.assemblyTarget ?? primaryOutput(stmt)
+    return `${target}.add_constraint({ ${parts.join(', ')} })`
+  }
+  if (stmt.op === 'do_assemble') {
+    const target = stmt.assemblyTarget ?? primaryOutput(stmt)
+    return `${target}.do_assemble()`
+  }
 
-  const varName = PART_VM_RE.test(stmt.id) ? stmt.id : stmt.id.replace(/[^a-zA-Z0-9_]/g, '_')
+  const varName = primaryOutput(stmt)
 
   const inputVars = stmt.inputs.map((id) => {
-    if (PART_VM_RE.test(id)) return id
+    if (PART_RE.test(id) || PART_VM_RE.test(id)) return id
     return id.replace(/[^a-zA-Z0-9_]/g, '_')
   }).join(', ')
 
   const argsParts = buildArgsParts(stmt)
 
-  const isMultiOutputSplit = stmt.outputs && stmt.outputs.length >= 2 && stmt.op === 'split'
+  const isMultiOutputSplit = stmt.outputs.length >= 2 && stmt.op === 'split'
   if (isMultiOutputSplit) {
     const filteredArgs = argsParts.filter((p) => !p.startsWith('side:'))
-    const destructureParts = stmt.outputs!.map((outId, idx) => {
+    const destructureParts = stmt.outputs.map((outId, idx) => {
       const key = idx === 0 ? 'front' : 'back'
       return `${key}: ${outId}`
     }).join(', ')
@@ -396,7 +403,8 @@ return `${target}.do_assemble()`
     opCall = `cad.${stmt.op}({${argsStr}})`
   }
 
-  return `const ${varName} = ${opCall}`
+  // Phase 3：单入单出复用输入名（let 重赋值）；无输入/单输出（let 首次声明）
+  return `let ${varName} = ${opCall}`
 }
 
 // ── 脚本 → 扁平代码 ──
@@ -410,28 +418,33 @@ return `${target}.do_assemble()`
 export function scriptToCode(script: PartScript): string {
   const bodyLines: string[] = []
   const varNames = new Map<string, string>()
-  let vIdx = 0
+  /** 已声明过的变量名集合（用于区分 let 首次声明 vs let 重赋值） */
+  const declared = new Set<string>()
 
   // 参数声明：输出为 const name = literal
   for (const p of script.params) {
     bodyLines.push(`const ${p.name} = ${fmtValue(p.value as Arg)}`)
+    varNames.set(p.name, p.name)
+    declared.add(p.name)
   }
 
   for (const stmt of script.statements) {
     if (stmt.op === 'group' || stmt.op === 'assembly') {
       const argsParts = buildArgsParts(stmt, varNames)
-      bodyLines.push(`const ${stmt.id} = cad.${stmt.op}({ ${argsParts.join(', ')} })`)
-      varNames.set(stmt.id, stmt.id)
+      const varName = stmt.outputs[0] ?? stmt.id
+      bodyLines.push(`let ${varName} = cad.${stmt.op}({ ${argsParts.join(', ')} })`)
+      varNames.set(varName, varName)
+      declared.add(varName)
       continue
     }
     if (stmt.op === 'add_constraint') {
       const argsParts = buildArgsParts(stmt, varNames)
-      const target = stmt.assemblyTarget ?? stmt.id
+      const target = stmt.assemblyTarget ?? (stmt.outputs[0] ?? stmt.id)
       bodyLines.push(`${target}.add_constraint({ ${argsParts.join(', ')} })`)
       continue
     }
     if (stmt.op === 'do_assemble') {
-      const target = stmt.assemblyTarget ?? stmt.id
+      const target = stmt.assemblyTarget ?? (stmt.outputs[0] ?? stmt.id)
       bodyLines.push(`${target}.do_assemble()`)
       continue
     }
@@ -441,16 +454,23 @@ export function scriptToCode(script: PartScript): string {
       bodyLines.push(`// source: load ${ref}`)
     }
 
-    const v = PART_VM_RE.test(stmt.id) ? stmt.id : `part0_v${vIdx++}`
-    varNames.set(stmt.id, v)
+    const varName = stmt.outputs[0] ?? stmt.id
+    // 将 outputs 中的每个 partName 映射到自身，使下游 inputs 能解析
+    for (const outId of stmt.outputs) {
+      varNames.set(outId, outId)
+    }
+    if (stmt.outputs.length === 0) {
+      varNames.set(stmt.id, varName)
+    }
 
-    if (stmt.outputs && stmt.outputs.length > 1) {
+    if (stmt.outputs.length > 1) {
       for (const outId of stmt.outputs) {
         varNames.set(outId, outId)
+        declared.add(outId)
       }
     }
 
-    const isMultiOutputSplit = stmt.outputs && stmt.outputs.length >= 2 && stmt.op === 'split'
+    const isMultiOutputSplit = stmt.outputs.length >= 2 && stmt.op === 'split'
 
     let argsParts = buildArgsParts(stmt, varNames)
     if (isMultiOutputSplit) {
@@ -476,13 +496,19 @@ export function scriptToCode(script: PartScript): string {
     }
 
     if (isMultiOutputSplit) {
-      const destructureParts = stmt.outputs!.map((outId, idx) => {
+      const destructureParts = stmt.outputs.map((outId, idx) => {
         const key = idx === 0 ? 'front' : 'back'
         return `${key}: ${outId}`
       }).join(', ')
       bodyLines.push(`const { ${destructureParts} } = ${opCall}`)
     } else {
-      bodyLines.push(`const ${v} = ${opCall}`)
+      // Phase 3：单入单出复用输入名 → 已声明则直接重赋值，未声明则首次 let
+      if (declared.has(varName)) {
+        bodyLines.push(`${varName} = ${opCall}`)
+      } else {
+        bodyLines.push(`let ${varName} = ${opCall}`)
+        declared.add(varName)
+      }
     }
   }
 

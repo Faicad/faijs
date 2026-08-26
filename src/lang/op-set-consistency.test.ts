@@ -162,6 +162,7 @@ describe('op-set-consistency: schema ↔ codegen 参数键集', () => {
         op,
         args: args as never,
         inputs: [],
+        outputs: [],
       }
 
       const parts = buildArgsParts(stmt)
@@ -196,6 +197,7 @@ describe('op-set-consistency: schema ↔ codegen 参数键集', () => {
         op,
         args: args as never,
         inputs: [],
+        outputs: [],
       }
 
       const parts = buildArgsParts(stmt)

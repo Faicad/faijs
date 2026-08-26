@@ -34,10 +34,10 @@ import type {
   TerminalShape,
   Vec3,
 } from './types'
-import { allocateStatementId } from './allocate-id'
+import { allocateStatementId, allocateSplitIds } from './allocate-id'
 import { isAssetRef, isGeomRef, isParamRef } from './types'
 import {
-  asStmtId, asPartName, asGroupName,
+  asStmtId, asPartName,
   type StmtId, type PartName,
 } from '../identity'
 import type { OpSchema } from './args-schema'
@@ -185,6 +185,8 @@ return ref
 interface ParsedStatement {
   stmt: CadStatement
   varName: string
+  /** 词法声明的输出名（parser 收集，最终遍历经 varToId 解析为物理 partName 后写入 stmt.outputs） */
+  declaredOutputs: string[]
 }
 
 /**
@@ -281,15 +283,14 @@ function parseCadStatement(
     delete args.fileRef
   }
 
-  // 语句 id = 变量名（partN_vM 体系，设计文档 §3）
-  const id = asStmtId(varName)
-
+  // Phase 3：id 不再赋变量名，由最终遍历赋 sN；变量名记录到 declaredOutputs
   const stmt: CadStatement = {
-    id, op, args, inputs,
+    id: asStmtId('__pending__'), op, args, inputs,
+    outputs: [],
     hasAssignment: true,
   }
 
-  return { stmt, varName }
+  return { stmt, varName, declaredOutputs: [varName] }
 }
 
 // ── split 解构解析 ──
@@ -301,6 +302,8 @@ interface ParsedSplitDestructuring {
   frontVarName: string
   /** back 输出的变量名 */
   backVarName: string
+  /** 词法声明的输出名 */
+  declaredOutputs: string[]
 }
 
 /**
@@ -394,18 +397,13 @@ function parseSplitDestructuring(
     }
   }
 
-  // split 语句的 id = front 变量名（约定：第一个输出）
-  const id: StmtId = asStmtId(frontVarName)
-  // outputs 包含两个输出 PartName
-  const outputs: PartName[] = [asPartName(frontVarName), asPartName(backVarName)]
-
+  // Phase 3：id 不再赋变量名；outputs 在最终遍历经 varToId 解析后写入
   const stmt: CadStatement = {
-    id, op: 'split', args, inputs, outputs,
+    id: asStmtId('__pending__'), op: 'split', args, inputs, outputs: [],
     hasAssignment: true,
-
   }
 
-  return { stmt, frontVarName, backVarName }
+  return { stmt, frontVarName, backVarName, declaredOutputs: [frontVarName, backVarName] }
 }
 
 // ── meta 解析 ──
@@ -667,10 +665,13 @@ export function parseScript(code: string, options?: ParseOptions): ParseResult {
             throw new ParseError('split destructuring requires const', line)
           }
           const { stmt, frontVarName, backVarName } = parseSplitDestructuring(decl, paramNames, varToId)
+          // Phase 3：立即分配 split 的两个输出 PartName
+          const { front, back } = allocateSplitIds({ statements })
+          stmt.outputs = [front, back]
           statements.push(stmt)
-          // 注册两个输出变量名 → 输出 PartName
-          varToId.set(frontVarName, asPartName(frontVarName))
-          varToId.set(backVarName, asPartName(backVarName))
+          // 词法变量名 → 物理 PartName
+          varToId.set(frontVarName, front)
+          varToId.set(backVarName, back)
           break
         }
 
@@ -710,26 +711,24 @@ export function parseScript(code: string, options?: ParseOptions): ParseResult {
           }
           const grpId = allocateStatementId(opName, [], { statements })
           const stmt: CadStatement = {
-            id: grpId,
+            id: asStmtId('__pending__'),
             op: opName,
             args,
             inputs: [],
+            outputs: [grpId],
             hasAssignment: true,
-
           }
           statements.push(stmt)
           // group/assembly 变量名 → 组名（GroupName ⊆ PartName）
           if (opName === 'assembly') {
             assemblyVars.add(varName)
           }
-          varToId.set(varName, asGroupName(grpId))
+          varToId.set(varName, grpId)
           break
         }
 
-        // let 不允许用于其他场景（const 已覆盖 group/assembly，let 也已覆盖）
-        if (stmtNode.kind === 'let') {
-          throw new ParseError("'let' is only allowed for cad.assembly()/cad.group() declarations", line)
-        }
+        // Phase 3: let 允许用于普通 cad.op() 语句（单入单出复用名时 codegen 产生 let 重赋值）
+        // const 已覆盖 group/assembly；普通 cad.op() 也允许 let
 
         if (
           init?.type === 'CallExpression' &&
@@ -738,7 +737,7 @@ export function parseScript(code: string, options?: ParseOptions): ParseResult {
           init.callee.object.name === 'cad'
         ) {
           // 语句：const partN_vM = [await] cad.op(...)
-          const { stmt, varName } = parseCadStatement(decl, paramNames, varToId)
+          const { stmt, varName, declaredOutputs } = parseCadStatement(decl, paramNames, varToId)
           // 赋值校验：void 不准赋值（schema 表由 parse 入口注入；无表则不校验）
           const schema = options?.schemas?.[stmt.op]
           if (schema?.void) {
@@ -746,9 +745,14 @@ export function parseScript(code: string, options?: ParseOptions): ParseResult {
               `cad.${stmt.op}() is void, cannot assign to a variable`, line,
             )
           }
+          // Phase 3：立即分配 outputs（调用 allocateStatementId），
+          //   这样 getMaxModelNum 能从已有 outputs 正确扫描，
+          //   且 varToId 映射为分配的 PartName（而非恒等映射变量名）。
+          const allocated = allocateStatementId(stmt.op, stmt.inputs.map(String), { statements })
+          stmt.outputs = [allocated]
           statements.push(stmt)
-          // 语句输出名 = 变量名（PartName）
-          varToId.set(varName, asPartName(varName))
+          // 词法变量名 → 物理 PartName
+          varToId.set(varName, allocated)
         } else if (
           init?.type === 'Literal' ||
           init?.type === 'ArrayExpression' ||
@@ -785,9 +789,49 @@ export function parseScript(code: string, options?: ParseOptions): ParseResult {
       }
 
       case 'ExpressionStatement': {
+        const expr = stmtNode.expression
+
+        // ── Phase 3: 裸重赋值 part0 = [await] cad.op(...) ──
+        // codegen 对已声明变量的重赋值不使用 let/const，产生裸赋值表达式
+        if (
+          expr?.type === 'AssignmentExpression' &&
+          expr.operator === '=' &&
+          expr.left?.type === 'Identifier'
+        ) {
+          const varName = expr.left.name
+          // 验证变量已声明
+          if (!varToId.has(varName)) {
+            throw new ParseError(`unknown variable "${varName}" in re-assignment`, line)
+          }
+          let init = expr.right
+          if (init?.type === 'AwaitExpression') init = init.argument
+          if (
+            init?.type === 'CallExpression' &&
+            init.callee?.type === 'MemberExpression' &&
+            init.callee.object?.type === 'Identifier' &&
+            init.callee.object.name === 'cad' &&
+            init.callee.property?.type === 'Identifier'
+          ) {
+            // 复用 parseCadStatement 的内部逻辑
+            const fakeDecl = {
+              id: { type: 'Identifier', name: varName } as const,
+              init: expr.right,
+              loc: stmtNode.loc,
+            }
+            const { stmt, varName: parsedVar, declaredOutputs } = parseCadStatement(fakeDecl, paramNames, varToId)
+            // Phase 3：裸重赋值也分配 outputs（单入单出 → 复用输入名）
+            const allocated = allocateStatementId(stmt.op, stmt.inputs.map(String), { statements })
+            stmt.outputs = [allocated]
+            statements.push(stmt)
+            // 重赋值同名变量，更新映射为分配的 PartName
+            varToId.set(parsedVar, allocated)
+            break
+          }
+          throw new ParseError(`re-assignment must be a cad.op() call`, line)
+        }
+
         // ── E15.1: 装配链式调用成员方法 ──
         // assem1.add_constraint({ ... }) / assem1.do_assemble()
-        const expr = stmtNode.expression
           if (
             expr?.type === 'CallExpression' &&
             expr.callee?.type === 'MemberExpression' &&
@@ -815,13 +859,13 @@ export function parseScript(code: string, options?: ParseOptions): ParseResult {
               }
             }
             const memberStmt: CadStatement = {
-              id: allocateStatementId(methodName, [], { statements }),
+              id: asStmtId('__pending__'),
               op: methodName,
               args,
               inputs: [],
+              outputs: [],
               assemblyTarget: targetVar,
               hasAssignment: false,
-
             }
             statements.push(memberStmt)
             break
@@ -839,23 +883,27 @@ export function parseScript(code: string, options?: ParseOptions): ParseResult {
     }
   }
 
-  // ── 3.5 独立 StmtId 分配 + 引用收集（Phase 1: VM 执行） ──
+  // ── 3.5 独立 StmtId 分配 + outputs 解析 + 引用收集（Phase 3: id = sN） ──
   // StmtId 按语句顺序分配 s(K+1)..s(K+N)，K = params.length——参数在编译产物中占 s1..sK，
-  // 使 parser 分配的 stmtId 与 compileToModule 生成的模块语句 id 一致。
+  // 使 parser 分配的 id 与 compileToModule 生成的模块语句 id 一致。
   const stmtIdBase = params.length
   let stmtIdx = 0
   for (const stmt of statements) {
-    stmt.stmtId = asStmtId(`s${stmtIdBase + (++stmtIdx)}`)
+    const sN = asStmtId(`s${stmtIdBase + (++stmtIdx)}`)
+    stmt.id = sN
+    // outputs：从词法声明名经 varToId 解析为物理 partName
+    const declared = (stmt as any)._declaredOutputs as string[] | undefined
+    if (declared) {
+      stmt.outputs = declared.map(n => varToId.get(n) ?? asPartName(n))
+      delete (stmt as any)._declaredOutputs
+    }
     stmt.refs = collectStatementRefs(stmt)
   }
 
-  // ── 4. 自动推导 terminal shapes ──
-  // 不被任何其他语句引用的输出即终端
-  const derivedTerminals = computeTerminalShapes(statements)
-
-  // 如果 return 语句提供了 terminalShapes/meta，则优先使用 return 的信息
-  // 否则使用自动推导的终端
-  const finalTerminalShapes = terminalShapes ?? derivedTerminals
+  // ── 4. terminal shapes ──
+  // Phase 3：终端判定移入执行收尾（runtime.collectResult），parser 不再计算。
+  // 显式 return [...] 的 terminalShapes 优先；否则运行期从 result.outputs 过滤。
+  const finalTerminalShapes = terminalShapes
 
   // ── 5. 构建 PartScript ──
   const script: PartScript = {
@@ -869,15 +917,9 @@ export function parseScript(code: string, options?: ParseOptions): ParseResult {
 }
 
 // ── terminal shapes 自动推导 ──
+// Phase 3：终端判定已移入执行收尾（runtime.collectResult），此函数保留为兼容导出。
+// 新代码不应调用此函数；终端由 runtime 从 result.outputs 过滤得出。
 
-/**
- * 从语句列表自动推导 terminal shapes。
- * 规则：不被任何其他语句引用的输出即终端。
- *
- * 终端计算基于 hasAssignment：
- * - 有赋值（hasAssignment=true）的语句才参与终端计算（void op 如 add_constraint/do_assemble 均无赋值，不产出几何）
- * - split 解构的 outputs 中不被引用的 → 终端
- */
 export function computeTerminalShapes(statements: CadStatement[]): TerminalShape[] | undefined {
   // 收集所有被引用的 id（inputs + group/assembly/assemble 的 members）
   const referencedIds = new Set<string>()
@@ -896,17 +938,13 @@ export function computeTerminalShapes(statements: CadStatement[]): TerminalShape
     }
   }
 
-  // 收集所有输出 id（语句 id + split outputs），跳过无赋值语句
-  // TerminalShape.id 语义 = StmtId（FAM-STMT-ID）；split 的输出名按同一命名空间信任点 asStmtId 收口。
-  const outputIds: StmtId[] = []
+  // 收集所有输出 id（outputs），跳过无赋值语句
+  const outputIds: string[] = []
   for (const stmt of statements) {
     // 只有有赋值的语句才产出几何终端（void op 均无赋值）
     if (!stmt.hasAssignment) continue
-    outputIds.push(stmt.id)
-    if (stmt.outputs) {
-      for (const outId of stmt.outputs) {
-        outputIds.push(asStmtId(outId))
-      }
+    for (const outId of stmt.outputs) {
+      outputIds.push(outId)
     }
   }
 
@@ -917,7 +955,7 @@ export function computeTerminalShapes(statements: CadStatement[]): TerminalShape
     if (referencedIds.has(id)) continue
     if (seen.has(id)) continue
     seen.add(id)
-    terminals.push({ id })
+    terminals.push({ id: asStmtId(id) })
   }
 
   // 如果只有一个终端，不返回数组（等价为单终端，meta 在 return 中处理）

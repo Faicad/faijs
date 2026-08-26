@@ -97,10 +97,10 @@ describe('compileToModule: 语句元数据', () => {
     const byId = new Map(statements.map((s) => [String(s.id), s]))
     // part0 引用参数 r → deps ['s1']
     expect(byId.get('s2')!.deps).toEqual(['s1'])
-    // part1 引用 part0（inputs + $geom.of）→ deps ['s2']
+    // part1 引用 part0（inputs + $geom.of）→ deps ['s2']（box 定义 part0）
     expect(byId.get('s3')!.deps).toEqual(['s2'])
-    // split 引用 part0 → deps ['s2']
-    expect(byId.get('s4')!.deps).toEqual(['s2'])
+    // split 引用 part0 → Phase 3 后 part0 被 drill(s3) 复写（单入单出复用名），deps ['s3']
+    expect(byId.get('s4')!.deps).toEqual(['s3'])
   })
 
   it('writes：普通语句 [id]、split 双输出、参数 [name]、do_assemble 空', () => {
@@ -124,10 +124,11 @@ describe('compileToModule: 语句元数据', () => {
       grp1.do_assemble()
     `
     const { statements, script } = compileText(text)
-    // group 语句 id 为 grp_1（allocateStatementId 的 grp_N 格式，Phase 1 保持）
+    // Phase 3: group 语句写入 partN（取消 grp_N，按「无输入/单输出」规则拿新 partN）
+    // 前两个 box → part0, part1；group → part2
     const groupMeta = statements.find((s) => s.sourceIndex !== undefined && script.statements[s.sourceIndex].op === 'group')!
     expect(groupMeta).toBeDefined()
-    expect(groupMeta.writes).toEqual(['grp_1'])
+    expect(groupMeta.writes).toEqual(['part2'])
     // group 的 deps 含成员语句
     expect(groupMeta.deps).toEqual(['s1', 's2'])
     // add_constraint / do_assemble 无写入

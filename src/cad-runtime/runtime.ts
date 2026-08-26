@@ -357,13 +357,12 @@ export class CadRuntime {
     this.reconcile(script, statements, opts?.sceneScript)
     await this.prepareCtx(script, opts)
     const exec = this.createExecContext(script, opts, brepChain)
-    // 调用方传入的 newIds 是源语句 id（varName）→ 翻译为编译产物 id（s1..sN）
+    // 调用方传入的 newIds 是源语句的 outputs 中的 partName → 翻译为编译产物 id（s1..sN）
     const sourceIdToCompiled = new Map<string, StmtId>()
     for (const meta of statements) {
       if (meta.sourceIndex === undefined) continue
       const stmt = script.statements[meta.sourceIndex]
-      sourceIdToCompiled.set(stmt.id, meta.id)
-      for (const outId of stmt.outputs ?? []) sourceIdToCompiled.set(outId, meta.id)
+      for (const outId of stmt.outputs) sourceIdToCompiled.set(outId, meta.id)
     }
     const compiledIds = newIds.map((id) => sourceIdToCompiled.get(String(id)) ?? (id as StmtId))
     return this.runWithFailureHandling(script, exec, async () => {
@@ -437,7 +436,7 @@ export class CadRuntime {
     if (sceneScript) {
       for (const stmt of sceneScript.statements) {
         activeIds.add(stmt.id)
-        writeSets.set(stmt.id, [asPartName(stmt.id), ...(stmt.outputs ?? []).map(asPartName)])
+        writeSets.set(stmt.id, stmt.outputs.map(asPartName))
       }
     }
     this.executor.reconcileCtx(activeIds, writeSets)
@@ -571,7 +570,35 @@ export class CadRuntime {
       if (slot?.faceEvolution) this.faceEvolutionCache.set(name, slot.faceEvolution)
     }
 
-    const terminals = script.terminalShapes ?? []
+    // T3-cond: 终端判定移入执行收尾
+    // 显式 terminalShapes（return [...]）优先；否则从 outputs 过滤出不被引用的活跃 Shape
+    const explicitTerminals = script.terminalShapes ?? []
+    let terminals: TerminalShape[]
+    if (explicitTerminals.length > 0) {
+      terminals = explicitTerminals
+    } else {
+      // 收集被引用的 partName（inputs + group/assembly members）
+      const referenced = new Set<string>()
+      for (const stmt of script.statements) {
+        for (const inp of stmt.inputs) referenced.add(inp)
+        if (stmt.op === 'group' || stmt.op === 'assembly') {
+          const members = stmt.args?.members
+          if (Array.isArray(members)) {
+            for (const m of members) if (typeof m === 'string') referenced.add(m)
+          }
+        }
+      }
+      // 不被引用的活跃 Shape = 终端
+      terminals = []
+      const seen = new Set<string>()
+      for (const [partName, val] of outputs) {
+        if (!isShapeLike(val)) continue
+        if (referenced.has(partName)) continue
+        if (seen.has(partName)) continue
+        seen.add(partName)
+        terminals.push({ id: asStmtId(partName) })
+      }
+    }
     const brepSolids = this.extractBrepSolids(script, terminals)
 
     // 装配/分组结构：compound 变量 → 成员变量名列表（Phase 2.4）
@@ -648,9 +675,10 @@ export class CadRuntime {
       const newShapeStmts = script.statements.filter((s) => s.hasAssignment)
       if (newShapeStmts.length > 0) {
         const lastStmt = newShapeStmts[newShapeStmts.length - 1]
-        const finalSolid = this.solidCache.get(asPartName(lastStmt.id))
+        const lastPartName = lastStmt.outputs[0] ?? lastStmt.id
+        const finalSolid = this.solidCache.get(asPartName(lastPartName))
         if (finalSolid && this.kernel) {
-          brepSolids.set(asPartName(lastStmt.id), { solid: finalSolid, kernel: this.kernel })
+          brepSolids.set(asPartName(lastPartName), { solid: finalSolid, kernel: this.kernel })
         }
       }
     }
@@ -703,7 +731,7 @@ export class CadRuntime {
         `[CadRuntime.resolveShapeRef] statement "${partName}" not found (no sceneScript provided)`,
       )
     }
-    const stmt = sceneScript.statements.find((s) => asPartName(s.id) === partName)
+    const stmt = sceneScript.statements.find((s) => s.outputs.includes(partName))
     if (!stmt) {
       throw new Error(
         `[CadRuntime.resolveShapeRef] statement "${partName}" not found in sceneScript`,
@@ -939,9 +967,8 @@ export class CadRuntime {
           })
         }
       }
-      definedIds.add(stmt.id)
-      // 多输出 op（split）：outputs 也是可引用 id（设计文档 §3）
-      for (const outId of stmt.outputs ?? []) {
+      // Phase 3：可引用的变量名在 outputs（非 stmt.id，因 id 现在是 sN）
+      for (const outId of stmt.outputs) {
         definedIds.add(outId)
       }
     }

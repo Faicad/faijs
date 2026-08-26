@@ -74,11 +74,13 @@ describe('E15.1: 装配链式调用解析', () => {
     expect(() => parseScript(code)).toThrow(/unknown assembly variable/)
   })
 
-  it('拒绝 let 用于非 assembly/group 场景', () => {
+  it('Phase 3: let 允许用于普通 cad.op()（单入单出复用名时 codegen 产生 let 重赋值）', () => {
     const code = `
       let foo = cad.box({ size: 20 })
     `
-    expect(() => parseScript(code)).toThrow(/let.*only.*cad\.assembly|let.*only.*cad\.group/)
+    const { script } = parseScript(code)
+    expect(script.statements).toHaveLength(1)
+    expect(script.statements[0].op).toBe('box')
   })
 
   it('完整链式调用 roundtrip', () => {

@@ -42,7 +42,7 @@ export async function executeScript(
     throw new Error(`[executeScript] empty script — no geometry statements`)
   }
   const lastStmt = newShapeStmts[newShapeStmts.length - 1]
-  const finalShape = result.outputs.get(asPartName(lastStmt.id))!
+  const finalShape = result.outputs.get(lastStmt.outputs[0])!
   const contentKey = computeContentKey(finalShape.positions, finalShape.indices)
 
   return {

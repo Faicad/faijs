@@ -181,17 +181,19 @@ function buildStatementFnBody(stmt: CadStatement): string {
     const nameStr = stmt.args.name ? translateArg(stmt.args.name) : 'undefined'
     const constraintsStr = stmt.args.constraints ? translateArg(stmt.args.constraints) : '[]'
     const extra = stmt.op === 'assembly' ? `, constraints: ${constraintsStr}` : ''
-    return `      ctx.${stmt.id} = await cad.${stmt.op}({ name: ${nameStr}, members: [${memberRefs}], memberNames: [${memberNames}]${extra} }, exec)`
+    // Phase 3：ctx 变量名 = outputs[0]（非 stmt.id）
+    const grpVar = stmt.outputs[0] ?? stmt.id
+    return `      ctx.${grpVar} = await cad.${stmt.op}({ name: ${nameStr}, members: [${memberRefs}], memberNames: [${memberNames}]${extra} }, exec)`
   }
 
   const inputs = stmt.inputs.map((inp) => `ctx.${inp}`).join(', ')
   const argsStr = translateArgs(stmt.args)
 
-  // split：多输出解构（无输入时省略 inputs 槽；无 outputs 时退化为单输出取 front）
+  // split：多输出解构（无输入时省略 inputs 槽）
   if (stmt.op === 'split') {
     const callArgs = inputs ? `${inputs}, ${argsStr}` : argsStr
-    const out0 = stmt.outputs?.[0]
-    const out1 = stmt.outputs?.[1]
+    const out0 = stmt.outputs[0]
+    const out1 = stmt.outputs[1]
     if (out0 && out1) {
       return [
         `      const { front, back } = await cad.split(${callArgs}, exec)`,
@@ -199,8 +201,9 @@ function buildStatementFnBody(stmt: CadStatement): string {
         `      ctx.${out1} = back`,
       ].join('\n')
     }
-    // 无 outputs：退化为单输出（取 front，与旧 executeSplit 返回 front/back 的语义一致）
-    return `      ctx.${stmt.id} = (await cad.split(${callArgs}, exec)).front`
+    // 单输出退化：取 front
+    const singleOut = stmt.outputs[0] ?? stmt.id
+    return `      ctx.${singleOut} = (await cad.split(${callArgs}, exec)).front`
   }
 
   // boolean：多输入 + operation 参数（cad.boolean(input1, input2, { operation }, exec)）
@@ -213,7 +216,9 @@ function buildStatementFnBody(stmt: CadStatement): string {
     call = `cad.${stmt.op}(${argsStr}, exec)`
   }
 
-  return `      ctx.${stmt.id} = await ${call}`
+  // Phase 3：ctx 变量名 = outputs[0]（非 stmt.id，因 id 现在是 sN）
+  const writeVar = stmt.outputs[0] ?? stmt.id
+  return `      ctx.${writeVar} = await ${call}`
 }
 
 // ── 主编译函数 ──
@@ -234,32 +239,29 @@ export function compileToModule(script: PartScript): CompiledModule {
     varToStmtId.set(p.name, id)
   })
 
-  // 2. 脚本语句（s(K+1)..s(K+N)，用 parser 分配的 stmtId）
+  // 2. 脚本语句（s(K+1)..s(K+N)，Phase 3: id 即 sN）
+  //    顺序处理：先算 deps（用已有 varToStmtId），再写 varToStmtId，
+  //    这样单入单出复用名的变量能正确解析到上游定义语句（而非自己）。
   script.statements.forEach((stmt, i) => {
-    const id = stmt.stmtId ?? asStmtId(`s${script.params.length + i + 1}`)
+    const id = stmt.id
     let writes: string[]
     if (stmt.op === 'add_constraint' || stmt.op === 'do_assemble') {
       writes = []
-    } else if (stmt.outputs && stmt.outputs.length >= 2) {
+    } else if (stmt.outputs.length >= 2) {
       writes = stmt.outputs
     } else {
-      writes = [stmt.id]
+      writes = stmt.outputs.length > 0 ? stmt.outputs : [stmt.id]
     }
-    metas.push({ id, deps: [], writes, sourceIndex: i })
-    for (const w of writes) varToStmtId.set(w, id)
-  })
-
-  // 3. deps：refs（变量名）→ 定义语句 id
-  for (const meta of metas) {
-    if (meta.sourceIndex === undefined) continue
-    const stmt = script.statements[meta.sourceIndex]
+    // 先算 deps（用已有 varToStmtId，此时还未被本语句的 writes 覆盖）
     const deps = new Set<StmtId>()
     for (const ref of getStatementRefs(stmt)) {
       const depId = varToStmtId.get(ref)
       if (depId) deps.add(depId)
     }
-    meta.deps = [...deps]
-  }
+    metas.push({ id, deps: [...deps], writes, sourceIndex: i })
+    // 再写 varToStmtId（后续语句引用本语句的输出时能找到）
+    for (const w of writes) varToStmtId.set(w, id)
+  })
 
   // 4. 生成模块文本
   const bodyLines: string[] = []

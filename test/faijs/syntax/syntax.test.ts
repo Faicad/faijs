@@ -11,7 +11,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
 import { resolve, join } from 'node:path'
-import { parseScript } from '../../../src/lang/parser'
+import { parseScript, computeTerminalShapes } from '../../../src/lang/parser'
 import { scriptToCode } from '../../../src/lang/codegen'
 
 const SYNTAX_DIR = resolve(process.cwd(), 'test/faijs/syntax')
@@ -57,7 +57,9 @@ describe('syntax .faijs tests', () => {
     const code = `const part0_v0 = cad.box({ size: 20 })`
     const { script } = parseScript(code)
     expect(script.statements).toHaveLength(1)
-    expect(script.terminalShapes).toBeUndefined()
+    // Phase 3: terminalShapes 移入 runtime.collectResult；parser 不再自动计算
+    const terminals = computeTerminalShapes(script.statements)
+    expect(terminals).toBeUndefined()
   })
 
   it('multi mesh flat code: auto-derives terminalShapes', () => {
@@ -65,7 +67,9 @@ describe('syntax .faijs tests', () => {
 const part1_v0 = cad.sphere({ radius: 10, center: [30, 0, 0] })`
     const { script } = parseScript(code)
     expect(script.statements.length).toBeGreaterThan(1)
-    expect(script.terminalShapes).toBeDefined()
-    expect(script.terminalShapes).toHaveLength(2)
+    // Phase 3: terminalShapes 移入 runtime.collectResult；显式调用 computeTerminalShapes
+    const terminals = computeTerminalShapes(script.statements)
+    expect(terminals).toBeDefined()
+    expect(terminals).toHaveLength(2)
   })
 })

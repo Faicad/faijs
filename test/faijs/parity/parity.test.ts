@@ -83,7 +83,7 @@ describe('parity .faijs tests (BREP vs mesh)', () => {
       const geoStmts = script.statements.filter(s => s.hasAssignment && (s.returnType ?? 'new_shape') === 'new_shape')
       const lastStmt = geoStmts[geoStmts.length - 1]
 
-      const brepShape = brepResult.outputs.get(lastStmt.id)
+      const brepShape = brepResult.outputs.get(lastStmt.outputs[0])
       expect(brepShape).toBeDefined()
       const brepBBox = computeBBox(brepShape!.positions)
       const brepSize = bboxSize(brepBBox)
@@ -93,7 +93,7 @@ describe('parity .faijs tests (BREP vs mesh)', () => {
       const meshResult = await meshRuntime.execute(script)
       expect(meshResult.failedAt).toBeUndefined()
 
-      const meshShape = meshResult.outputs.get(lastStmt.id)
+      const meshShape = meshResult.outputs.get(lastStmt.outputs[0])
       expect(meshShape).toBeDefined()
       const meshBBox = computeBBox(meshShape!.positions)
       const meshSize = bboxSize(meshBBox)

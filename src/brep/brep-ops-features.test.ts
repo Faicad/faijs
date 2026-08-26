@@ -550,6 +550,7 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
       op,
       args: args as any,
       inputs: inputs.map(asPartName),
+      outputs: [asPartName(id)],
       hasAssignment: true,
     }
   }

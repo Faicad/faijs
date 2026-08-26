@@ -27,12 +27,13 @@ import { SCHEMAS } from '../stdlib/schemas'
 function makeStmt(
   partial: Omit<Partial<CadStatement>, 'id' | 'inputs'> & { id?: string; inputs?: string[] },
 ): CadStatement {
-  const { id, inputs, ...rest } = partial
+  const { id, inputs, outputs, ...rest } = partial
   return {
     id: asStmtId(id ?? 'st_test_1'),
     op: 'box',
     args: {},
     inputs: (inputs ?? []).map(asPartName),
+    outputs: (outputs ?? [id ?? 'st_test_1']).map(asPartName),
     hasAssignment: true,
     ...rest,
   }

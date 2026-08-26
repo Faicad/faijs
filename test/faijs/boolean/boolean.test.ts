@@ -64,7 +64,7 @@ describe('boolean .faijs tests', () => {
 
       const geoStmts = script.statements.filter(s => s.hasAssignment && (s.returnType ?? 'new_shape') === 'new_shape')
       const lastStmt = geoStmts[geoStmts.length - 1]
-      const shape = result.outputs.get(lastStmt.id)
+      const shape = result.outputs.get(lastStmt.outputs[0])
       expect(shape).toBeDefined()
       expect(shape!.positions.length).toBeGreaterThan(0)
       expect(shape!.indices.length).toBeGreaterThan(0)

@@ -89,6 +89,7 @@ function makeStmt(
     id: asStmtId(id), op,
     args: args as never,
     inputs: inputs.map(asPartName),
+    outputs: [asPartName(id)],
     hasAssignment: true,
     ...extra,
   }

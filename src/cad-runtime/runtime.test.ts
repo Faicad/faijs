@@ -60,6 +60,7 @@ function makeStmt(
     id: asStmtId(id), op,
     args: args as any,
     inputs: inputs.map(asPartName),
+    outputs: noAssignment ? [] : [asPartName(id)],
     hasAssignment: !noAssignment,
   }
 }
@@ -619,12 +620,14 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
       },
       inputs: [],
       hasAssignment: true,
+      outputs: [asPartName('asm1')],
     }
     const doAssembleStmt: CadStatement = {
       id: asStmtId('do_asm1'),
       op: 'do_assemble',
       args: {},
       inputs: [],
+      outputs: [],
       assemblyTarget: asPartName('asm1'),
     }
 
@@ -695,12 +698,14 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
       },
       inputs: [],
       hasAssignment: true,
+      outputs: [asPartName('asm1')],
     }
     const doAssembleStmt: CadStatement = {
       id: asStmtId('do_asm1'),
       op: 'do_assemble',
       args: {},
       inputs: [],
+      outputs: [],
       assemblyTarget: asPartName('asm1'),
     }
 
@@ -753,12 +758,14 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
       },
       inputs: [],
       hasAssignment: true,
+      outputs: [asPartName('asm1')],
     }
     const doAssembleStmt: CadStatement = {
       id: asStmtId('do_asm1'),
       op: 'do_assemble',
       args: {},
       inputs: [],
+      outputs: [],
       assemblyTarget: asPartName('asm1'),
     }
 
