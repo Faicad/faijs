@@ -131,11 +131,8 @@ export class ModuleExecutor {
         .map((w) => this.getSolid?.(asPartName(w)))
         .filter((h): h is ShapeHandle => !!h)
       exec.currentStmt = source
-      if (source) {
-        const rt = source.returnType ?? 'new_shape'
-        if (rt !== 'void' && rt !== 'same_shape') {
-          exec.beforeStatement?.(source, this.script.statements.indexOf(source))
-        }
+      if (source && source.hasAssignment) {
+        exec.beforeStatement?.(source, this.script.statements.indexOf(source))
       }
       await compiled.fn(this.ctx, this.cad, exec)
       this.afterStatement(compiled, exec)

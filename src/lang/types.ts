@@ -114,9 +114,6 @@ export interface CadStatement {
    *  用于 terminal shape 计算：有赋值的语句参与终端计算。 */
   hasAssignment?: boolean
 
-  /** 该 op 的返回值类型。从 schema 查得，parser 设置。
-   *  用于赋值校验和 terminal shape 计算。 */
-  returnType?: ReturnType
 }
 
 // ── 参数表 ──

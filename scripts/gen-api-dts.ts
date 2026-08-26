@@ -37,7 +37,7 @@ function tsType(argType: ArgType): string {
   }
 }
 
-function fieldToTs(field: { name: string; type: ArgType; required: boolean }): string {
+function fieldToTs(field: { name: string; type: ArgType; required?: boolean }): string {
   const opt = field.required ? '' : '?'
   return `${field.name}${opt}: ${tsType(field.type)}`
 }

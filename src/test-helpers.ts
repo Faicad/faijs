@@ -37,9 +37,7 @@ export async function executeScript(
   const runtime = new CadRuntime(ports ?? defaultPorts(), mode)
   const result = await runtime.execute(script, { params, inputGeometryMap })
 
-  const newShapeStmts = script.statements.filter(
-    s => s.hasAssignment && (s.returnType ?? 'new_shape') === 'new_shape',
-  )
+  const newShapeStmts = script.statements.filter((s) => s.hasAssignment)
   if (newShapeStmts.length === 0) {
     throw new Error(`[executeScript] empty script — no geometry statements`)
   }

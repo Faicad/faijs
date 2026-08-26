@@ -28,10 +28,9 @@ export interface OpSchema {
   op: string
   fields: ArgFieldSchema[]
   minInputs?: number
-  returnType?: ReturnType
+  /** 结构型无输出 op（add_constraint/do_assemble）：赋值即错误（Phase 2.8 替代 returnType 四类分类） */
+  void?: boolean
 }
-
-export type ReturnType = 'new_shape' | 'same_shape' | 'scalar' | 'void'
 
 export interface ValidationError {
   field: string
@@ -127,18 +126,11 @@ export function validateStatementArgs(
     }
   }
 
-  // 赋值校验（与 parser 层双重保障）
-  const rt = stmt.returnType ?? schema.returnType ?? 'new_shape'
-  if (rt === 'void' && stmt.hasAssignment) {
+  // 赋值校验（基于 schema 表的可选校验；无表不校验）
+  if (schema.void && stmt.hasAssignment) {
     errors.push({
       field: 'assignment',
       message: `op "${stmt.op}" is void, cannot assign to a variable`,
-    })
-  }
-  if ((rt === 'new_shape' || rt === 'scalar') && !stmt.hasAssignment) {
-    errors.push({
-      field: 'assignment',
-      message: `op "${stmt.op}" returns ${rt}, must assign to a variable`,
     })
   }
 
@@ -172,16 +164,4 @@ export function getOpSchema(op: string, schemas: Record<string, OpSchema>): OpSc
 /** 判断 op 是否有 schema（对给定 schema 表查询） */
 export function hasOpSchema(op: string, schemas: Record<string, OpSchema>): boolean {
   return op in schemas
-}
-
-/**
- * 获取 op 的返回值类型（结构型 op 硬编码；其余默认 new_shape）。
- *
- * 仅 add_constraint（same_shape）与 do_assemble（void）有非默认返回值。
- * Phase 2.8 删除 returnType 后本函数退役。
- */
-export function getOpReturnType(op: string): ReturnType {
-  if (op === 'add_constraint') return 'same_shape'
-  if (op === 'do_assemble') return 'void'
-  return 'new_shape'
 }

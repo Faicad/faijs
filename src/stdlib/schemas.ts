@@ -246,7 +246,7 @@ export const SCHEMAS: Record<string, OpSchema> = {
   },
   add_constraint: {
     op: 'add_constraint',
-    returnType: 'same_shape',
+    void: true,
     fields: [
       { name: 'type', type: 'string', required: false },
       { name: 'fixedPartName', type: 'PartName', required: false },
@@ -257,7 +257,7 @@ export const SCHEMAS: Record<string, OpSchema> = {
   },
   do_assemble: {
     op: 'do_assemble',
-    returnType: 'void',
+    void: true,
     fields: [],
   },
 }

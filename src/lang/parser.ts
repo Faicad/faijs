@@ -34,7 +34,6 @@ import type {
   TerminalShape,
   Vec3,
 } from './types'
-import { getOpReturnType } from './args-schema'
 import { allocateStatementId } from './allocate-id'
 import { isAssetRef, isGeomRef, isParamRef } from './types'
 import {
@@ -284,11 +283,9 @@ function parseCadStatement(
   // 语句 id = 变量名（partN_vM 体系，设计文档 §3）
   const id = asStmtId(varName)
 
-  const rt = getOpReturnType(op)
   const stmt: CadStatement = {
     id, op, args, inputs,
     hasAssignment: true,
-    returnType: rt,
   }
 
   return { stmt, varName }
@@ -404,7 +401,7 @@ function parseSplitDestructuring(
   const stmt: CadStatement = {
     id, op: 'split', args, inputs, outputs,
     hasAssignment: true,
-    returnType: getOpReturnType('split'),
+
   }
 
   return { stmt, frontVarName, backVarName }
@@ -716,7 +713,7 @@ export function parseScript(code: string, _options?: ParseOptions): ParseResult 
             args,
             inputs: [],
             hasAssignment: true,
-            returnType: getOpReturnType(opName),
+
           }
           statements.push(stmt)
           // group/assembly 变量名 → 组名（GroupName ⊆ PartName）
@@ -821,7 +818,7 @@ export function parseScript(code: string, _options?: ParseOptions): ParseResult 
               inputs: [],
               assemblyTarget: targetVar,
               hasAssignment: false,
-              returnType: getOpReturnType(methodName),
+
             }
             statements.push(memberStmt)
             break

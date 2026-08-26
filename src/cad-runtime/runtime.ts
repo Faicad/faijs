@@ -397,10 +397,7 @@ export class CadRuntime {
     for (const meta of statements) {
       const source = meta.sourceIndex !== undefined ? script.statements[meta.sourceIndex] : undefined
       // void / same_shape 语句不产出几何，不参与增量分析
-      if (source) {
-        const rt = source.returnType ?? 'new_shape'
-        if (rt === 'void' || rt === 'same_shape') continue
-      }
+      if (source && !source.hasAssignment) continue
       // deps 级联：任一依赖 stale → 本语句 stale
       const depStale = meta.deps.some((d) => staleCompiledIds.has(d))
       if (depStale) {
@@ -600,9 +597,7 @@ export class CadRuntime {
         if (s && this.kernel) brepSolids.set(tKey, { solid: s, kernel: this.kernel })
       }
     } else {
-      const newShapeStmts = script.statements.filter(
-        (s) => s.hasAssignment && (s.returnType ?? 'new_shape') === 'new_shape',
-      )
+      const newShapeStmts = script.statements.filter((s) => s.hasAssignment)
       if (newShapeStmts.length > 0) {
         const lastStmt = newShapeStmts[newShapeStmts.length - 1]
         const finalSolid = this.solidCache.get(asPartName(lastStmt.id))
