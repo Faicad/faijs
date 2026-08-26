@@ -24,6 +24,7 @@ import type { Shape } from '../mesh/types'
 import type { PartName } from '../identity'
 import type { HostPorts, EventSink, ExecutionMode } from './ports'
 import { ensureTestFontLoader } from '../brep/text/fontTestHelper'
+import { getSolidBoundingBox } from '../brep/brep-utils'
 
 let kernel: OcctKernel
 
@@ -662,6 +663,66 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
 
     // 变更声明：s2 被 touch，列入 ExecutionResult.changed
     expect(result.changed).toContain(asPartName('s2'))
+  })
+
+  it('append: do_assemble 后 brepSolids 返回有效新 handle（T6.5 槽位反同步）', async () => {
+    const runtime = makeRuntime()
+    const s1 = makeStmt('s1', 'box', { size: 10 })
+    const s2 = makeStmt('s2', 'box', { size: 10 })
+    const script = makePartScript([s1, s2])
+    const first = await runtime.execute(script)
+
+    // 装配前：s2 的 BREP solid 在 brepSolids 中，bbox 有效（box 中心在原点）
+    const s2SolidBefore = first.brepSolids?.get(asPartName('s2'))
+    expect(s2SolidBefore).toBeDefined()
+    const bbBefore = getSolidBoundingBox(s2SolidBefore!.kernel, s2SolidBefore!.solid)
+    expect(bbBefore.min[1]).toBeCloseTo(-5, 1)
+    expect(bbBefore.max[1]).toBeCloseTo(5, 1)
+
+    const assemblyStmt: CadStatement = {
+      id: asStmtId('asm1'),
+      op: 'assembly',
+      args: {
+        name: 'testAssembly',
+        members: ['s1', 's2'],
+        constraints: [{
+          type: 'face_mate' as const,
+          fixedPartName: 's1',
+          movingPartName: 's2',
+          fixedFace: { surfaceType: 'plane', center: [0, 5, 0], normal: [0, 1, 0] },
+          movingFace: { surfaceType: 'plane', center: [0, -5, 0], normal: [0, -1, 0] },
+        }],
+      },
+      inputs: [],
+      hasAssignment: true,
+    }
+    const doAssembleStmt: CadStatement = {
+      id: asStmtId('do_asm1'),
+      op: 'do_assemble',
+      args: {},
+      inputs: [],
+      assemblyTarget: asPartName('asm1'),
+    }
+
+    const fullScript = makePartScript([s1, s2, assemblyStmt, doAssembleStmt])
+    const result = await runtime.append(fullScript, [asStmtId('asm1'), asStmtId('do_asm1')])
+    expect(result.failedAt).toBeUndefined()
+
+    // 装配后：brepSolids 对 s2 返回「新 handle」（非装配前的旧 handle），且 bbox 有效。
+    // 平移 [0,10,0]：y ∈ [5,15]。旧 handle 已被 solveAssembly release，若仍读到旧 handle 会抛 Invalid shape id。
+    const s2SolidAfter = result.brepSolids?.get(asPartName('s2'))
+    expect(s2SolidAfter).toBeDefined()
+    expect(s2SolidAfter!.solid).not.toBe(s2SolidBefore!.solid)
+    const bbAfter = getSolidBoundingBox(s2SolidAfter!.kernel, s2SolidAfter!.solid)
+    expect(bbAfter.min[1]).toBeCloseTo(5, 1)
+    expect(bbAfter.max[1]).toBeCloseTo(15, 1)
+
+    // 固定件 s1 不被变换
+    const s1SolidAfter = result.brepSolids?.get(asPartName('s1'))
+    expect(s1SolidAfter).toBeDefined()
+    const bb1 = getSolidBoundingBox(s1SolidAfter!.kernel, s1SolidAfter!.solid)
+    expect(bb1.min[1]).toBeCloseTo(-5, 1)
+    expect(bb1.max[1]).toBeCloseTo(5, 1)
   })
 })
 

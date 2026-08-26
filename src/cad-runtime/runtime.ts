@@ -543,6 +543,19 @@ export class CadRuntime {
       }
     }
 
+    // T6.5: 装配/原地变换后，身份槽 → PartName 键控 solidCache 反同步。
+    // solveAssembly 只把变换后的新 solid 写进身份槽（exec.setSolid），从未同步回
+    // runtime.solidCache；这里在提取前把 touchedShapes 的最新槽值写回映射，
+    // 使 extractBrepSolids / buildBrepTopology 拿到新 handle（而非已释放的旧 handle）。
+    // 幂等：重复写同一新 handle 无害；不在此处释放旧 handle（已由 solveAssembly 释放）。
+    for (const shape of exec.touchedShapes) {
+      const name = exec.shapeToName.get(shape)
+      if (name === undefined) continue
+      const slot = getSlot(shape)
+      if (slot?.solid) this.solidCache.set(name, slot.solid)
+      if (slot?.faceEvolution) this.faceEvolutionCache.set(name, slot.faceEvolution)
+    }
+
     const terminals = script.terminalShapes ?? []
     const brepSolids = this.extractBrepSolids(script, terminals)
 
