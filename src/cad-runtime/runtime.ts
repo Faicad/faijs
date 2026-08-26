@@ -34,7 +34,7 @@ import { buildSolidTopologyRuntime } from '../brep/brep-topology'
 import type { SolidTopologyResult } from '../brep/brep-topology'
 import { buildTopologyFromMesh } from '../brep/brep-topology'
 import type { Mesh as WasmMesh } from 'occt-wasm'
-import { asPartName, type PartName, type StmtId } from '../identity'
+import { asPartName, asStmtId, type PartName, type StmtId } from '../identity'
 import { compileToModule, type CompiledStatementMeta } from '../lang/compile'
 import { ModuleExecutor } from './module-executor'
 import { ExecContextImpl, BrepUnsupportedError } from './exec-context'
@@ -131,6 +131,13 @@ export interface ExecuteOptions {
    * 之前的语句不进执行循环（缺省 0 = 全量执行）。
    */
   startIndex?: number
+  /**
+   * 拓扑构建开关（Phase 2.6）：
+   * - 'auto'（默认）：为"在 BREP 链上"的终端自动构建 BREP 真拓扑
+   * - 'brep'：为所有在 BREP 链上的输出构建拓扑（含非终端）
+   * - 'off'：不自动构建（只返回宿主 setTopology 注入的拓扑）
+   */
+  topology?: 'auto' | 'brep' | 'off'
 }
 
 // ── CadRuntime ──
@@ -138,6 +145,24 @@ export interface ExecuteOptions {
 /** Shape 形状守卫（positions/indices 结构） */
 function isShapeLike(v: unknown): v is Shape {
   return !!v && typeof v === 'object' && 'positions' in v && 'indices' in v
+}
+
+/** SelectorRuntime → SelectorRuntimeData：剥离 Map 字段（跨 Worker 传输用）。 */
+function runtimeToData(rt: SelectorRuntime): SelectorRuntimeData {
+  const {
+    referenceMap: _referenceMap,
+    referenceByNormalizedSelector: _referenceByNormalizedSelector,
+    referenceByDisplaySelector: _referenceByDisplaySelector,
+    faceReferenceByRowIndex: _faceReferenceByRowIndex,
+    edgeReferenceByRowIndex: _edgeReferenceByRowIndex,
+    vertexReferenceByRowIndex: _vertexReferenceByRowIndex,
+    occurrenceIdByRowIndex: _occurrenceIdByRowIndex,
+    faceReferenceMap: _faceReferenceMap,
+    edgeReferenceMap: _edgeReferenceMap,
+    vertexReferenceMap: _vertexReferenceMap,
+    ...data
+  } = rt
+  return data as SelectorRuntimeData
 }
 
 export class CadRuntime {
@@ -257,7 +282,7 @@ export class CadRuntime {
       } else {
         await this.executor.executeAll(exec)
       }
-    })
+    }, opts)
   }
 
   /** 构建参数表：opts.params 优先，脚本 params 兜底（execute / append 复用）。 */
@@ -300,11 +325,11 @@ export class CadRuntime {
     const exec = this.createExecContext(script, opts, brepChain)
     const { staleCompiledIds } = this.planCompiled(script, statements)
     if (staleCompiledIds.size === 0) {
-      return this.collectResult(script, exec)
+      return this.collectResult(script, exec, opts)
     }
     return this.runWithFailureHandling(script, exec, async () => {
       await this.executor.executeFrom(staleCompiledIds, exec)
-    })
+    }, opts)
   }
 
   /**
@@ -341,7 +366,7 @@ export class CadRuntime {
     const compiledIds = newIds.map((id) => sourceIdToCompiled.get(String(id)) ?? (id as StmtId))
     return this.runWithFailureHandling(script, exec, async () => {
       await this.executor.executeIds(compiledIds, exec)
-    })
+    }, opts)
   }
 
   /** plan() — 依赖分析，得出需要重算的语句集合（对外签名不变）。 */
@@ -463,6 +488,7 @@ export class CadRuntime {
     script: PartScript,
     exec: ExecContextImpl,
     run: () => Promise<void>,
+    opts?: ExecuteOptions,
   ): Promise<ExecutionResult> {
     try {
       await run()
@@ -479,11 +505,11 @@ export class CadRuntime {
       }
       throw err
     }
-    return this.collectResult(script, exec)
+    return this.collectResult(script, exec, opts)
   }
 
-  /** 从持久 ctx 组装完整 ExecutionResult（outputs / statementCache / brepSolids / topology）。 */
-  private collectResult(script: PartScript, exec: ExecContextImpl): ExecutionResult {
+  /** 从持久 ctx 组装完整 ExecutionResult（outputs / statementCache / brepSolids / topology / compounds）。 */
+  private collectResult(script: PartScript, exec: ExecContextImpl, opts?: ExecuteOptions): ExecutionResult {
     const outputs = new Map<PartName, Shape>()
     for (const meta of this.executor.getMetas()) {
       for (const w of meta.writes) {
@@ -523,13 +549,38 @@ export class CadRuntime {
       }
     }
 
+    // 拓扑：宿主注入（mesh/primitive）+ 自动构建 BREP 真拓扑（Phase 2.6）
+    const topology = new Map<PartName, PartTopology>(this.topologyCache)
+    const topoMode = opts?.topology ?? 'auto'
+    if (topoMode !== 'off') {
+      const buildFor = (id: StmtId, key: PartName): void => {
+        if (topology.has(key)) return
+        const rt = this.buildBrepTopology(id)
+        if (rt) topology.set(key, { partName: key, source: 'brep', data: runtimeToData(rt) })
+      }
+      if (topoMode === 'brep') {
+        // brep 模式：为所有在 BREP 链上的输出构建拓扑（含非终端）
+        for (const meta of this.executor.getMetas()) {
+          for (const w of meta.writes) {
+            const v = this.executor.getCtxVar(w)
+            if (isShapeLike(v)) buildFor(asStmtId(w), asPartName(w))
+          }
+        }
+      } else {
+        // auto 模式：为"在 BREP 链上"的终端构建拓扑
+        for (const t of terminals) {
+          buildFor(t.id, asPartName(t.id))
+        }
+      }
+    }
+
     return {
       outputs,
       brepChain: exec.brepChain,
       terminals,
       infos: [],
       brepSolids: brepSolids.size > 0 ? brepSolids : undefined,
-      topology: this.topologyCache.size > 0 ? new Map(this.topologyCache) : undefined,
+      topology: topology.size > 0 ? topology : undefined,
       compounds: compounds.size > 0 ? compounds : undefined,
     }
   }
