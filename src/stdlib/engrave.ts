@@ -20,10 +20,25 @@ import { getSolidBoundingBox } from '../brep/brep-utils'
 import { resolveSvgArg } from './internal/svg-asset-resolver'
 import { solid } from './shape'
 import { resolvePath } from './internal/resolve-path'
+import { assertPositiveNumber } from './assert'
 import type { ExecContext, ExecContextImpl } from '../cad-runtime/exec-context'
 
 /** BREP 实现标记（engrave 有 OCCT 精确雕刻） */
 const brepImpl = true
+
+// ── per-op 参数自校验（Phase 2.2；stdlib 被直接 import 时的防御层） ──
+
+/** engrave: 至少提供 text 或 svg 之一；depth（如有）> 0。 */
+export function assertEngraveParams(params: Record<string, unknown>): void {
+  const hasText = params.text !== undefined && params.text !== null && params.text !== ''
+  const hasSvg = params.svg !== undefined && params.svg !== null
+  if (!hasText && !hasSvg) {
+    throw new Error('[stdlib] engrave requires either "text" or "svg"')
+  }
+  if (params.depth !== undefined && params.depth !== null) {
+    assertPositiveNumber(params.depth, 'engrave.depth')
+  }
+}
 
 /** 世界坐标 → BREP solid 局部坐标。 */
 function worldToLocalPosition(
@@ -154,6 +169,7 @@ async function engraveBrepPath(input: Shape, params: Record<string, unknown>, ex
 
 export async function engrave(input: Shape, params: Record<string, unknown>, exec: ExecContext): Promise<Shape> {
   if (!input) throw new Error('[stdlib/engrave] no input geometry')
+  assertEngraveParams(params)
   // 解析 SVG 资产引用（AssetRef → SVG 文本），如有
   const svgText = params.svg !== undefined && params.svg !== null
     ? await resolveSvgArg(params.svg, (exec as ExecContextImpl).ports)

@@ -18,6 +18,10 @@ import { initOcctWasm, getKernel } from '../occt-kernel/occtKernel'
 import type { OcctKernel } from 'occt-wasm'
 import type { CadStatement, PartScript } from '../lang/types'
 import { CadRuntime, createRuntime, computeContentKey } from './runtime'
+import { ExecContextImpl } from './exec-context'
+import { createBrepChainState } from '../brep/brep-chain'
+import type { Shape } from '../mesh/types'
+import type { PartName } from '../identity'
 import type { HostPorts, EventSink, ExecutionMode } from './ports'
 import { ensureTestFontLoader } from '../brep/text/fontTestHelper'
 
@@ -49,19 +53,13 @@ function makeStmt(
   args: Record<string, unknown>,
   inputs: string[] = [],
 ): CadStatement {
-  // Determine returnType based on op
-  let returnType: CadStatement['returnType'] = 'new_shape'
-  if (op === 'do_assemble') returnType = 'void'
-  else if (op === 'add_constraint') returnType = 'same_shape'
-  // group/assembly/assemble have returnType new_shape, hasAssignment true
-  // add_constraint/do_assemble have hasAssignment false
+  // add_constraint/do_assemble 无赋值；其余 op 有赋值
   const noAssignment = op === 'add_constraint' || op === 'do_assemble'
   return {
     id: asStmtId(id), op,
     args: args as any,
     inputs: inputs.map(asPartName),
     hasAssignment: !noAssignment,
-    returnType,
   }
 }
 
@@ -555,7 +553,6 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
       inputs: [asPartName('s0')],
       outputs: [asPartName('s1'), asPartName('s1b')], // stmt.id === outputs[0]；outputs[1] (back) 需显式持久化
       hasAssignment: true,
-      returnType: 'new_shape',
     }
     const script = makePartScript([s0, splitStmt])
     const result = await runtime.execute(script)
@@ -578,7 +575,6 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
       inputs: [asPartName('s0')],
       outputs: [asPartName('s1'), asPartName('s1b')],
       hasAssignment: true,
-      returnType: 'new_shape',
     }
     await runtime.execute(makePartScript([s0, splitStmt]))
 
@@ -600,6 +596,8 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     // 验证 s2 的初始位置（box 中心在原点）
     const s2Initial = runtime.getCachedOutput(asStmtId('s2'))!
     expect(s2Initial).toBeDefined()
+    // 快照初始顶点（原地修改会复用同一 Float32Array，须在 append 前拷贝）
+    const s2InitialPos = Array.from(s2Initial.positions)
 
     // 创建 assembly + do_assemble 语句
     const assemblyStmt: CadStatement = {
@@ -620,7 +618,6 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
       },
       inputs: [],
       hasAssignment: true,
-      returnType: 'new_shape',
     }
     const doAssembleStmt: CadStatement = {
       id: asStmtId('do_asm1'),
@@ -628,7 +625,6 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
       args: {},
       inputs: [],
       assemblyTarget: asPartName('asm1'),
-      returnType: 'void',
     }
 
     // append 两条新语句
@@ -643,12 +639,12 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     // 所以 s2 应该被平移 [0,10,0]
     const s2After = result.outputs.get(asPartName('s2'))
     expect(s2After).toBeDefined()
-    expect(s2After).not.toBe(s2Initial) // 几何确实变了
+    // 原地修改：同一对象引用（ctx 与 compound.children 同步看到变更）
+    expect(s2After).toBe(s2Initial)
 
     // 验证变换正确：s2 原来中心在 [0,0,0]，平移 [0,10,0] 后中心在 [0,10,0]
     // box(size=10) 顶点范围 [-5,5]×[-5,5]×[-5,5]，平移后 [−5,5]×[5,15]×[-5,5]
     // 检查 s2 的某个顶点是否被正确平移
-    const s2InitialPos = s2Initial.positions
     const s2AfterPos = s2After!.positions
     // 至少有变化（不是完全相同的 Float32Array）
     let hasChange = false
@@ -663,6 +659,61 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     // 验证平移量 = [0,10,0]（Y 轴方向偏移 10）
     const deltaY = s2AfterPos[1] - s2InitialPos[1] // 第一个顶点的 Y 分量差
     expect(deltaY).toBeCloseTo(10, 1)
+
+    // 变更声明：s2 被 touch，列入 ExecutionResult.changed
+    expect(result.changed).toContain(asPartName('s2'))
+  })
+})
+
+// ─── ExecContextImpl: dependentsOf / touch（Phase 2.4 平台 API） ───
+
+describe('ExecContextImpl: dependentsOf / touch', () => {
+  function makeShape(): Shape {
+    return { positions: new Float32Array(0), indices: new Uint32Array(0) } as Shape
+  }
+
+  function makeExec(script: PartScript, outputCache: Map<PartName, Shape>): ExecContextImpl {
+    return new ExecContextImpl({
+      mode: 'auto',
+      brepChain: createBrepChainState(),
+      ports: createNodePorts(),
+      script,
+      outputCache,
+      params: {},
+    })
+  }
+
+  it('dependentsOf 沿 inputs 链返回传递下游 Shape', () => {
+    const s0 = makeStmt('s0', 'box', { size: 20 })
+    const s1 = makeStmt('s1', 'translate', { offset: [1, 0, 0] }, ['s0'])
+    const s2 = makeStmt('s2', 'translate', { offset: [2, 0, 0] }, ['s1'])
+    const script = makePartScript([s0, s1, s2])
+
+    const shape0 = makeShape()
+    const shape1 = makeShape()
+    const shape2 = makeShape()
+    const outputCache = new Map<PartName, Shape>([
+      [asPartName('s0'), shape0],
+      [asPartName('s1'), shape1],
+      [asPartName('s2'), shape2],
+    ])
+    const exec = makeExec(script, outputCache)
+    exec.shapeToName.set(shape0, asPartName('s0'))
+    exec.shapeToName.set(shape1, asPartName('s1'))
+    exec.shapeToName.set(shape2, asPartName('s2'))
+
+    const downstream = exec.dependentsOf(shape0)
+    expect(downstream).toContain(shape1)
+    expect(downstream).toContain(shape2)
+    // 自身不入下游
+    expect(downstream).not.toContain(shape0)
+  })
+
+  it('touch 记录 Shape，供 ExecutionResult.changed 消费', () => {
+    const shape = makeShape()
+    const exec = makeExec(makePartScript([]), new Map())
+    exec.touch(shape)
+    expect(exec.touchedShapes.has(shape)).toBe(true)
   })
 })
 

@@ -90,7 +90,6 @@ function makeStmt(
     args: args as never,
     inputs: inputs.map(asPartName),
     hasAssignment: true,
-    returnType: 'new_shape',
     ...extra,
   }
 }

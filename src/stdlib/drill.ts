@@ -20,10 +20,24 @@ import { getScrewSpec, threadToPitchMm } from '../primitives/screw/screw-db'
 import * as THREE from 'three'
 import { solid } from './shape'
 import { resolvePath } from './internal/resolve-path'
+import { assertPositiveNumber, assertNumber, assertVec3 } from './assert'
 import type { ExecContext, ExecContextImpl } from '../cad-runtime/exec-context'
 
 /** BREP 实现标记（drill 有 OCCT 精确钻孔） */
 const brepImpl = true
+
+// ── per-op 参数自校验（Phase 2.2；stdlib 被直接 import 时的防御层） ──
+
+/** drill: diameter 必填 > 0；position（如有）为 vec3；depth（如有）为数字（<=0 表示通孔）。 */
+export function assertDrillParams(params: Record<string, unknown>): void {
+  assertPositiveNumber(params.diameter, 'drill.diameter')
+  if (params.position !== undefined && params.position !== null) {
+    assertVec3(params.position, 'drill.position')
+  }
+  if (params.depth !== undefined && params.depth !== null) {
+    assertNumber(params.depth, 'drill.depth')
+  }
+}
 
 /** 世界坐标 → 几何体局部坐标（含单位缩放）。 */
 function worldToLocalPosition(
@@ -178,6 +192,7 @@ async function drillMeshPath(input: Shape, params: Record<string, unknown>, exec
 
 export async function drill(input: Shape, params: Record<string, unknown>, exec: ExecContext): Promise<Shape> {
   if (!input) throw new Error('[stdlib/drill] no input geometry')
+  assertDrillParams(params)
   const path = resolvePath(exec, [input], brepImpl)
   if (path === 'brep') return drillBrepPath(input, params, exec)
   return solid(await drillMeshPath(input, params, exec))

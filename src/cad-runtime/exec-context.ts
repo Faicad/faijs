@@ -17,6 +17,7 @@ import type { BrepChainState } from '../brep/brep-chain'
 import type { ShapeHandle, OcctKernel } from 'occt-wasm'
 import { getSlot, ensureSlot } from '../stdlib/shape'
 import type { PartName } from '../identity'
+import { asPartName } from '../identity'
 import type {
   HostPorts,
   ExecutionMode,
@@ -123,6 +124,9 @@ export class ExecContextImpl implements ExecContext {
   /** Shape 身份 → PartName 反查（getSolid/setSolid 与 geom 查询的桥接） */
   readonly shapeToName = new WeakMap<object, PartName>()
 
+  /** 被 touch 声明的原地修改 Shape 集合（collectResult 据此填 ExecutionResult.changed） */
+  readonly touchedShapes = new Set<Shape>()
+
   /** 当前执行语句（ModuleExecutor 在调用 fn 前设置） */
   currentStmt?: CadStatement
 
@@ -180,21 +184,39 @@ export class ExecContextImpl implements ExecContext {
   }
 
   /**
-   * 查询某 Shape 的传递下游当前值。
-   * Phase 1：装配 pass 仍走旧 executeAssemblyPassForStmt（沿 inputs 链传播），
-   * 本方法暂返回空——Phase 2 stdlib 化后按 deps 图计算。
+   * 查询某 Shape 的传递下游当前值（inputs-based，含 visited 防环）。
+   * 装配变换只沿几何 inputs 链传播；$param 级联属 Phase 3 范畴。
    */
-  dependentsOf(_shape: Shape): Shape[] {
-    return []
+  dependentsOf(shape: Shape): Shape[] {
+    const visited = new Set<Shape>()
+    const result: Shape[] = []
+    const visit = (s: Shape): void => {
+      if (visited.has(s)) return
+      visited.add(s)
+      const name = this.shapeToName.get(s)
+      if (name === undefined) return
+      for (const stmt of this.script.statements) {
+        if (!stmt.inputs.includes(name)) continue
+        const outNames: PartName[] = [asPartName(stmt.id)]
+        for (const outId of stmt.outputs ?? []) outNames.push(asPartName(outId))
+        for (const outName of outNames) {
+          const outShape = this.outputCache.get(outName)
+          if (outShape) {
+            result.push(outShape)
+            visit(outShape)
+          }
+        }
+      }
+    }
+    visit(shape)
+    return result
   }
 
   /**
-   * 声明某 Shape 被原地修改。
-   * Phase 1：装配变换走旧路径（executeAssemblyPassForStmt 直接改 outputCache），
-   * 本方法暂为 no-op——Phase 2 stdlib 化后据此把持有该 Shape 的变量列入 changed。
+   * 声明某 Shape 被原地修改（引擎据此把持有它的变量列入 ExecutionResult.changed）。
    */
-  touch(_shape: Shape): void {
-    // no-op (Phase 1)
+  touch(shape: Shape): void {
+    this.touchedShapes.add(shape)
   }
 
   /** 写持久 ctx 变量（装配/库函数把变换结果同步回 ctx，使 collectResult 读到最终几何）。 */

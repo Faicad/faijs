@@ -18,10 +18,22 @@ import {
 } from '../brep/face-evolution'
 import { solid } from './shape'
 import { resolvePath } from './internal/resolve-path'
+import { assertOneOf } from './assert'
 import type { ExecContext } from '../cad-runtime/exec-context'
 
 /** BREP 实现标记（boolean 有 OCCT 精确布尔） */
 const brepImpl = true
+
+// ── per-op 参数自校验（Phase 2.2；stdlib 被直接 import 时的防御层） ──
+
+/** boolean: operation 必填，union | subtract | intersect。 */
+export function assertBooleanParams(params: Record<string, unknown>): void {
+  const op = params.operation
+  if (op === undefined || op === null) {
+    throw new Error('[stdlib] boolean.operation is required (union | subtract | intersect)')
+  }
+  assertOneOf(op, 'boolean.operation', ['union', 'subtract', 'intersect'])
+}
 
 /** BREP 路径：fuse/cut/common（*WithHistory 封装，收集面演化）。 */
 function booleanBrep(inputs: Shape[], params: Record<string, unknown>, exec: ExecContext): Shape {
@@ -85,6 +97,7 @@ export async function boolean(...rest: unknown[]): Promise<Shape> {
   const params = (rest.pop() ?? {}) as Record<string, unknown>
   const inputs = rest as Shape[]
   const operation = params.operation as 'union' | 'subtract' | 'intersect'
+  assertBooleanParams(params)
 
   const path = resolvePath(exec, inputs, brepImpl)
   if (path === 'brep') return booleanBrep(inputs, params, exec)

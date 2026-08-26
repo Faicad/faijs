@@ -12,10 +12,18 @@ import { cad } from '../mesh'
 import { extrudeBrep, solidToShape } from '../brep/brep-ops'
 import { solid } from './shape'
 import { resolvePath } from './internal/resolve-path'
+import { assertPositiveNumber } from './assert'
 import type { ExecContext } from '../cad-runtime/exec-context'
 
 /** BREP 实现标记（extrude 有 OCCT 精确拉伸） */
 const brepImpl = true
+
+// ── per-op 参数自校验（Phase 2.2；stdlib 被直接 import 时的防御层） ──
+
+/** extrude: length 必填 > 0。 */
+export function assertExtrudeParams(params: Record<string, unknown>): void {
+  assertPositiveNumber(params.length, 'extrude.length')
+}
 
 /** BREP 路径：OCCT extrude + 三角化 + 身份槽挂 solid。 */
 function extrudeBrepPath(input: Shape, params: Record<string, unknown>, exec: ExecContext): Shape {
@@ -40,6 +48,7 @@ function extrudeBrepPath(input: Shape, params: Record<string, unknown>, exec: Ex
 
 export async function extrude(input: Shape, params: Record<string, unknown>, exec: ExecContext): Promise<Shape> {
   if (!input) throw new Error('[stdlib/extrude] no input geometry')
+  assertExtrudeParams(params)
   const path = resolvePath(exec, [input], brepImpl)
   if (path === 'brep') return extrudeBrepPath(input, params, exec)
   return solid(await cad.extrude(input, {

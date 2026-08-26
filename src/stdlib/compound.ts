@@ -16,10 +16,9 @@
 import type { Shape } from '../mesh/types'
 import { compound as makeCompound, ensureSlot, type CompoundShape } from './shape'
 import { applyTransformBrep } from '../brep/brep-ops'
-import type { ExecContext, ExecContextImpl } from '../cad-runtime/exec-context'
+import type { ExecContext } from '../cad-runtime/exec-context'
 import type { PartName } from '../identity'
 import { asPartName } from '../identity'
-import type { PartScript } from '../lang/types'
 
 // ── 约束类型 ──
 
@@ -183,39 +182,10 @@ export interface AssemblyBehavior {
 /**
  * 沿 inputs 链把装配变换传播到下游 mesh shape（并同步回 ctx 与 outputCache）。
  */
-function propagateTransformDownstream(
-  outputCache: Map<PartName, Shape>,
-  script: PartScript,
-  sourceId: PartName,
-  transform: FaceMateTransform,
-  setCtxVar: (name: string, value: unknown) => void,
-  visited: Set<PartName> = new Set(),
-): void {
-  if (visited.has(sourceId)) return
-  visited.add(sourceId)
-
-  for (const stmt of script.statements) {
-    if (stmt.inputs.includes(sourceId)) {
-      const downstreamName = asPartName(stmt.id)
-      const downstreamShape = outputCache.get(downstreamName)
-      if (downstreamShape && downstreamShape.positions) {
-        const transformed = applyTransform(
-          downstreamShape, transform.quaternion, transform.pivot, transform.translation, transform.rotationMatrix,
-        )
-        outputCache.set(downstreamName, transformed)
-        setCtxVar(downstreamName, transformed)
-        propagateTransformDownstream(outputCache, script, downstreamName, transform, setCtxVar, visited)
-      }
-    }
-  }
-}
-
-/** 执行装配变换（AssemblyBehavior.solve 的核心）。 */
-function solveAssembly(compound: CompoundShape, behavior: AssemblyBehavior, exec: ExecContextImpl): void {
+/** 执行装配变换（AssemblyBehavior.solve 的核心）。只使用 ExecContext 平台 API，不依赖引擎实现内部。 */
+function solveAssembly(compound: CompoundShape, behavior: AssemblyBehavior, exec: ExecContext): void {
   const children = compound.children
-  const outputCache = exec.outputCache
-  const script = exec.script
-  const kernel = exec.brepChain.kernel
+  const kernel = exec.kernels.occt
 
   for (const constraint of behavior.constraints) {
     if (constraint.type !== 'face_mate') {
@@ -234,13 +204,10 @@ function solveAssembly(compound: CompoundShape, behavior: AssemblyBehavior, exec
       constraint.movingFace.normal,
     )
 
-    // 1. Mesh 变换（顶点烘焙）
-    const transformed = applyTransform(
+    // 1. Mesh 变换（原地修改：保留同一对象引用，ctx 与 compound.children 同步看到变更）
+    Object.assign(movingShape, applyTransform(
       movingShape, transform.quaternion, transform.pivot, transform.translation, transform.rotationMatrix,
-    )
-    children[movingIndex] = transformed
-    exec.setVariable(constraint.movingPartName, transformed)
-    outputCache.set(constraint.movingPartName, transformed)
+    ))
 
     // 2. BREP 刚体变换（可选）
     const movingSolid = exec.getSolid(movingShape)
@@ -249,16 +216,20 @@ function solveAssembly(compound: CompoundShape, behavior: AssemblyBehavior, exec
         kernel, movingSolid, transform.quaternion, transform.pivot, transform.translation,
       )
       try { kernel.release(movingSolid) } catch { /* 已释放 */ }
-      exec.setSolid(transformed, transformedSolid)
+      exec.setSolid(movingShape, transformedSolid)
     }
 
-    // 3. 下游 mesh 传播（可选）
-    if (script) {
-      propagateTransformDownstream(
-        outputCache, script, constraint.movingPartName, transform,
-        (name, value) => exec.setVariable(name, value),
-      )
+    // 3. 下游 mesh 传播（原地修改 + touch；下游 solid 由 setSolid 身份槽保留）
+    for (const downstream of exec.dependentsOf(movingShape)) {
+      if (downstream === movingShape) continue
+      Object.assign(downstream, applyTransform(
+        downstream, transform.quaternion, transform.pivot, transform.translation, transform.rotationMatrix,
+      ))
+      exec.touch(downstream)
     }
+
+    // 4. 变更声明：moving 成员列入 ExecutionResult.changed
+    exec.touch(movingShape)
   }
 }
 
@@ -291,7 +262,7 @@ export function assembly(params: Record<string, unknown>, exec: ExecContext): Co
     name: params.name as string | undefined,
     memberNames,
     constraints,
-    solve: () => solveAssembly(c, behavior, exec as ExecContextImpl),
+    solve: () => solveAssembly(c, behavior, exec),
   }
   ensureSlot(c).behavior = behavior
   ;(c as CompoundShape & { do_assemble?: (e: ExecContext) => void }).do_assemble = (_e: ExecContext) => {

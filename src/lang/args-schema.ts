@@ -5,11 +5,9 @@
  *
  * SCHEMAS（op 目录的 schema 表）已迁到 src/stdlib/schemas.ts（L1）。
  * 本文件（L0）只保留：
- * - schema 类型定义（ArgType / ArgFieldSchema / OpSchema / ReturnType / ValidationError）
+ * - schema 类型定义（ArgType / ArgFieldSchema / OpSchema / ValidationError）
  * - 对"给定 schema 表"校验的纯函数（validateStatementArgs / validateScriptArgs /
  *   getOpSchema / hasOpSchema）
- * - getOpReturnType：结构型 op（add_constraint/do_assemble）的返回值类型硬编码，
- *   不再依赖 schema 表（Phase 2.8 删除 returnType 后本函数退役）
  */
 
 import type { CadStatement } from './types'

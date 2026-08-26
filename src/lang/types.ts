@@ -75,13 +75,6 @@ export function isParamRef(arg: Arg): arg is ParamRef {
 
 // ── 语句 ──
 
-/** 语句返回值类型（四类）。
- *  - new_shape：返回新几何，必须赋值
- *  - same_shape：返回自身/上下文，可赋值可不赋值（用于链式调用）
- *  - scalar：返回非 shape 值，必须赋值
- *  - void：无返回值，不准赋值 */
-export type ReturnType = 'new_shape' | 'same_shape' | 'scalar' | 'void'
-
 export interface CadStatement {
   /** 语句 id（StmtId）——每条语句都有，无赋值语句（add_constraint/do_assemble）也有。
    *  fai 语句名空间；与 3d_editor 的 ScopedId（fileId:innerId）是两套命名空间。

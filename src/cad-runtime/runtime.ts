@@ -3,7 +3,7 @@
  *
  * Phase 1（VM 执行方案）：内部从"解释器主循环 + dispatcher switch"换成
  * compileToModule + ModuleExecutor。对外签名、ExecutionResult、PartScript、
- * partN_vM 命名、returnType 全部不变。
+ * partN_vM 命名全部不变。
  *
  * 职责：
  * - 执行 PartScript 语句序列，产出 ExecutionResult（纯计算，不碰 store/DOM）
@@ -113,6 +113,8 @@ export interface ExecutionResult {
    * key 为 compound 变量名（PartName），value 为成员变量名列表。
    */
   compounds?: Map<PartName, PartName[]>
+  /** 被 touch 声明的原地修改 Shape 的持有变量名（装配变换后 collectResult 填充，去重） */
+  changed?: PartName[]
 }
 
 export interface ExecuteOptions {
@@ -335,7 +337,7 @@ export class CadRuntime {
   /**
    * 追加语句：只执行新增语句（前缀已在持久 ctx）。
    *
-   * 对每条新语句应用与 execute 相同的防护：returnType 过滤 / beforeStatement 钩子 /
+   * 对每条新语句应用与 execute 相同的防护：hasAssignment 过滤 / beforeStatement 钩子 /
    * brep 模式防护 / 顶替释放预捕获。返回完整 ExecutionResult（未执行语句从 ctx 组装）。
    *
    * 契约前提：新增语句的输入必然是此前已执行成功的活跃语句的输出，持久 ctx 保证其存在；
@@ -440,7 +442,7 @@ export class CadRuntime {
       }
     }
     const paramsMap = this.buildParamsMap(script, opts)
-    return new ExecContextImpl({
+    const exec = new ExecContextImpl({
       mode: this.mode,
       brepChain,
       ports: this.ports,
@@ -450,6 +452,16 @@ export class CadRuntime {
       beforeStatement: opts?.beforeStatement,
       setCtxVar: (name, value) => this.executor.setCtxVar(name, value),
     })
+    // 预填 shapeToName：持久 ctx 中所有活跃 Shape → 变量名。
+    // append/update 只重放新增语句，已执行语句的 Shape 需在此补齐，
+    // 否则 dependentsOf / collectResult.changed 查不到装配成员与下游。
+    for (const meta of this.executor.getMetas()) {
+      for (const w of meta.writes) {
+        const v = this.executor.getCtxVar(w)
+        if (v !== null && typeof v === 'object') exec.shapeToName.set(v, asPartName(w))
+      }
+    }
+    return exec
   }
 
   /**
@@ -571,6 +583,13 @@ export class CadRuntime {
       }
     }
 
+    // 变更声明（touch）：被原地修改的 Shape → 持有它的变量名（去重）
+    const changed: PartName[] = []
+    for (const shape of exec.touchedShapes) {
+      const name = exec.shapeToName.get(shape)
+      if (name !== undefined && !changed.includes(name)) changed.push(name)
+    }
+
     return {
       outputs,
       brepChain: exec.brepChain,
@@ -579,6 +598,7 @@ export class CadRuntime {
       brepSolids: brepSolids.size > 0 ? brepSolids : undefined,
       topology: topology.size > 0 ? topology : undefined,
       compounds: compounds.size > 0 ? compounds : undefined,
+      changed: changed.length > 0 ? changed : undefined,
     }
   }
 
@@ -737,9 +757,10 @@ export class CadRuntime {
     })
   }
 
-  /** 清除语句缓存 */
+  /** 清除语句缓存（含 statementCache + executor key 缓存 + ctx 变量） */
   clearStatementCache(): void {
     this.statementCache.clear()
+    this.executor.clearCache()
   }
 
   // ── 公开：拓扑数据缓存 ──
@@ -819,7 +840,7 @@ export class CadRuntime {
     // ① parse（acorn 闸门）
     let script: PartScript
     try {
-      const result = parseScript(code)
+      const result = parseScript(code, { schemas: SCHEMAS })
       script = result.script
     } catch (err) {
       if (err instanceof ParseError) {

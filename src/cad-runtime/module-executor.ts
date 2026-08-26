@@ -186,6 +186,16 @@ export class ModuleExecutor {
 
   // ── 缓存访问（plan / collectResult 用） ──
 
+  /** 清除所有缓存（key 缓存 + ctx 变量）。测试用：CadRuntime.clearStatementCache 调用。 */
+  clearCache(): void {
+    for (const key of Object.keys(this.ctx)) {
+      this.releaseSolid?.(asPartName(key))
+      delete this.ctx[key]
+    }
+    this.cache.clear()
+    this.compiled = { params: [], statements: [] }
+  }
+
   /** 读取某语句的 statementKey 缓存。 */
   getCachedKey(id: StmtId): { key: string; outputContentKey: string } | undefined {
     return this.cache.get(id)

@@ -29,6 +29,7 @@ function makeStmt(
     args: {},
     inputs: (inputs ?? []).map(asPartName),
     outputs: outputs?.map(asPartName),
+    hasAssignment: true,
     ...rest,
   }
 }

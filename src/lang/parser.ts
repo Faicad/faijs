@@ -40,6 +40,7 @@ import {
   asStmtId, asPartName, asGroupName,
   type StmtId, type PartName,
 } from '../identity'
+import type { OpSchema } from './args-schema'
 
 // ── 解析错误 ──
 
@@ -562,7 +563,9 @@ function collectStatementRefs(stmt: CadStatement): string[] {
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface ParseOptions {
-  // 保留类型空位，未来可扩展（如 apiVersion 等）
+  /** op schema 表（由 CadRuntime 注入 SCHEMAS）。lang 层不出现 op 名知识；
+   *  schema 是数据表，注入不破坏该红线。无表则不校验（与总方案 §2.8「无表不校验」一致）。 */
+  schemas?: Record<string, OpSchema>
 }
 
 export interface ParseResult {
@@ -581,7 +584,7 @@ export interface ParseResult {
  *
  * @throws ParseError — 含行号
  */
-export function parseScript(code: string, _options?: ParseOptions): ParseResult {
+export function parseScript(code: string, options?: ParseOptions): ParseResult {
 
   // ── 0. 扁平代码检测与封装 ──
   // 如果代码不含 `export default`，则自动封装为合法容器
@@ -737,8 +740,9 @@ export function parseScript(code: string, _options?: ParseOptions): ParseResult 
         ) {
           // 语句：const partN_vM = [await] cad.op(...)
           const { stmt, varName } = parseCadStatement(decl, paramNames, varToId)
-          // 赋值校验：void 不准赋值
-          if (stmt.returnType === 'void') {
+          // 赋值校验：void 不准赋值（schema 表由 parse 入口注入；无表则不校验）
+          const schema = options?.schemas?.[stmt.op]
+          if (schema?.void) {
             throw new ParseError(
               `cad.${stmt.op}() is void, cannot assign to a variable`, line,
             )
@@ -871,9 +875,8 @@ export function parseScript(code: string, _options?: ParseOptions): ParseResult 
  * 从语句列表自动推导 terminal shapes。
  * 规则：不被任何其他语句引用的输出即终端。
  *
- * 终端计算基于 hasAssignment 和 returnType：
- * - 有赋值（hasAssignment=true）且 returnType 为 new_shape 的语句才参与终端计算
- * - void / same_shape / scalar 不产出几何，不作为终端
+ * 终端计算基于 hasAssignment：
+ * - 有赋值（hasAssignment=true）的语句才参与终端计算（void op 如 add_constraint/do_assemble 均无赋值，不产出几何）
  * - split 解构的 outputs 中不被引用的 → 终端
  */
 export function computeTerminalShapes(statements: CadStatement[]): TerminalShape[] | undefined {
@@ -894,14 +897,12 @@ export function computeTerminalShapes(statements: CadStatement[]): TerminalShape
     }
   }
 
-  // 收集所有输出 id（语句 id + split outputs），跳过无赋值/非 new_shape 语句
+  // 收集所有输出 id（语句 id + split outputs），跳过无赋值语句
   // TerminalShape.id 语义 = StmtId（FAM-STMT-ID）；split 的输出名按同一命名空间信任点 asStmtId 收口。
   const outputIds: StmtId[] = []
   for (const stmt of statements) {
-    const rt = stmt.returnType ?? 'new_shape'
-    // 只有有赋值且返回 new_shape 的语句才产出几何终端
-    if (!stmt.hasAssignment && rt !== 'new_shape') continue
-    if (rt !== 'new_shape') continue
+    // 只有有赋值的语句才产出几何终端（void op 均无赋值）
+    if (!stmt.hasAssignment) continue
     outputIds.push(stmt.id)
     if (stmt.outputs) {
       for (const outId of stmt.outputs) {

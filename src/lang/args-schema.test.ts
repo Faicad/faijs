@@ -34,7 +34,6 @@ function makeStmt(
     args: {},
     inputs: (inputs ?? []).map(asPartName),
     hasAssignment: true,
-    returnType: 'new_shape',
     ...rest,
   }
 }
