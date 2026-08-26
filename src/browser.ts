@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @faicad/faijs/browser — Browser-safe exports (F6: A/B/C/D 四类收敛)
  *
  * Excludes L3 Node Host modules (node-host/*) that depend on node:fs/node:path.
@@ -12,10 +12,9 @@
  * - C 类 = 执行产物类型（Shape + 拓扑数据类型 + buildSelectorRuntimeMaps）
  * - D 类 = 辅助函数 + 预览 API（明确导出后使用）
  *
- * ⚠️ deprecated 区：以下符号已标记为 deprecated，3d_editor 侧 E12 迁移完成后移除：
- *   - L1 内部执行引擎 API（executeStatement / BREP chain / OCCT kernel 底层函数）
- *   - 底层拓扑构建函数（已被 ExecutionResult.topology 替代）
- *   - getManifoldModule（已交由 CsgBackend）
+ * Phase 2 收尾完成：deprecated 区已删除。宿主如需执行/读取几何，一律走
+ * CadRuntime.execute / 高层 API（importStep/exportStep/ensureOcctKernel）；
+ * 主线程 CSG/SDF 预览走 previewMeshIntersect / runSdfMain。
  */
 
 // ═══════════════════════════════════════════════════════════
@@ -98,6 +97,8 @@ export { WorkerSdfBackend } from './browser-host/worker-sdf-backend'
 // E12.2: OCCT 高层 API（B 类——宿主用这些替代底层 kernel 函数）
 export { importStep, importStepMultiPart, exportStep, releaseSolid, ensureOcctKernel, disposeOcct, exportStepFromSolidsHighLevel } from './occt-kernel/highLevelApi'
 export type { ImportStepResult, ImportStepPartResult, ExportStepOptions } from './occt-kernel/highLevelApi'
+// 高层 API 的类型签名依赖的 OCCT 句柄/内核类型（D 类，公共契约）
+export type { OcctKernel, ShapeHandle, WasmTessellatedMesh, Mesh, MeshDeflectionOptions } from './occt-kernel/highLevelApi'
 
 // E15.1: 装配约束求解器（D 类预览 API + B 类执行 API，Phase 2.4 迁 stdlib/compound）
 export { solveFaceMate, applyTransform } from './stdlib/compound'
@@ -187,10 +188,14 @@ export {
 } from './boolean/joinery-shapes'
 export { geoToManifoldMesh, manifoldMeshToGeo } from './boolean/geo-convert'
 export { manifoldToMeshData, weldPositionsWorker, dovetailBooleanSplit, dowelOrTenonBooleanSplit, chainBoolean, meshToManifold } from './boolean/csg-core'
+export { previewMeshIntersect } from './boolean/manifold-preview'
+export type { ManifoldMeshData as PreviewManifoldMeshData } from './boolean/manifold-preview'
 export { svgToExtrudedGeometry, parseSvgShapes } from './primitives/svg-extrude'
 export type { SvgExtrudeOptions } from './primitives/svg-extrude'
 export { createTextGeometry, opentypePathToGeometry } from './primitives/text-geometry'
 export { runSdfInline } from './sdf/sdf-core'
+export { runSdf as runSdfMain } from './sdf/sdf-runner'
+export type { SdfMeshData as PreviewSdfMesh } from './sdf/sdf-runner'
 export { createMixedTextGeometry } from './primitives/text/cjk'
 
 // Knurl D 类
@@ -222,35 +227,3 @@ export { buildStlBufferFromMesh } from './brep/export/stl'
 export { exportStepFromSolid, exportStepFromSolids } from './brep/export/step'
 export type { StepExportEntry } from './brep/export/step'
 export { reconstructSolidFromMesh, meshToAsciiStl, cadShapeIsValid, meshToStepBrep } from './occt-kernel/meshReconstruct'
-
-// ═══════════════════════════════════════════════════════════
-// ⚠️ deprecated 区：L1 内部执行引擎 API（3d_editor E12 迁移后移除）
-// 红线 6：宿主不应 import 这些符号。以下保留仅为兼容过渡。
-// ═══════════════════════════════════════════════════════════
-
-/** @deprecated 用 CadRuntime.execute() 替代 */
-export { computeContentKey } from './cad-runtime/runtime'
-/** @deprecated BREP 链是执行内部状态，宿主不应触碰；用 CadRuntime.execute() */
-export { resolveGeomRef } from './stdlib/internal/geom-ref'
-/** @deprecated BREP 链是执行内部状态，宿主不应触碰；用 CadRuntime.execute() */
-export type { BrepChainState } from './brep/brep-chain'
-/** @deprecated BREP 链是执行内部状态，宿主不应触碰；用 CadRuntime.execute() */
-export {
-  createBrepChainState, initBrepChainState, releaseBrepChainState,
-  isCadFormat,
-} from './brep/brep-chain'
-/** @deprecated 用高层 API importStep/exportStep 替代 */
-export {
-  initOcctWasm, getKernel, disposeOcctWasm,
-  computeEffectiveDeflection, importStepToMesh, importBrepToMesh,
-  meshesToStep, releaseShape,
-  importAssemblyFromStep, releaseAssemblyTree, collectLeafParts,
-} from './occt-kernel/occtKernel'
-/** @deprecated 用高层 API 类型替代 */
-export type {
-  WasmTessellatedMesh, WasmImportResult, AssemblyPartNode,
-  MeshDeflectionOptions, ShapeHandle, OcctKernel,
-  Mesh, EdgeData, SurfaceKind, CurveKind,
-} from './occt-kernel/occtKernel'
-/** @deprecated 交由 faijs CsgBackend */
-export { getManifoldModule } from './mesh/manifold-loader'

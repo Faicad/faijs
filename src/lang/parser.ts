@@ -561,7 +561,6 @@ function collectStatementRefs(stmt: CadStatement): string[] {
 
 // ── 主解析函数 ──
 
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface ParseOptions {
   /** op schema 表（由 CadRuntime 注入 SCHEMAS）。lang 层不出现 op 名知识；
    *  schema 是数据表，注入不破坏该红线。无表则不校验（与总方案 §2.8「无表不校验」一致）。 */

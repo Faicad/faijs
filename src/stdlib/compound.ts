@@ -18,7 +18,6 @@ import { compound as makeCompound, ensureSlot, type CompoundShape } from './shap
 import { applyTransformBrep } from '../brep/brep-ops'
 import type { ExecContext } from '../cad-runtime/exec-context'
 import type { PartName } from '../identity'
-import { asPartName } from '../identity'
 
 // ── 约束类型 ──
 

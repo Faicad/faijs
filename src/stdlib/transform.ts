@@ -14,7 +14,7 @@ import { translateBrep, rotateBrep, scaleBrep, solidToShape } from '../brep/brep
 import { identityEvolution } from '../brep/face-evolution'
 import { solid } from './shape'
 import { resolvePath } from './internal/resolve-path'
-import { assertVec3, assertPositiveNumber, assertNumberOrVec3 } from './assert'
+import { assertVec3, assertPositiveNumber } from './assert'
 import type { ExecContext } from '../cad-runtime/exec-context'
 
 /** BREP 实现标记（transform 有 OCCT 精确变换） */

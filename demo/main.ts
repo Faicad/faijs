@@ -13,7 +13,7 @@
 
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { parseScript, ParseError, createRuntime, createBrowserPorts, setOcctWasmInitFn, initOcctWasm, exportStepFromSolid, exportStep, buildStlBufferFromMesh, deriveNormals, setManifoldWasmUrl } from '@faicad/faijs/browser'
+import { parseScript, ParseError, createRuntime, createBrowserPorts, setOcctWasmInitFn, ensureOcctKernel, exportStepFromSolid, exportStep, buildStlBufferFromMesh, deriveNormals, setManifoldWasmUrl } from '@faicad/faijs/browser'
 import type { ExecutionMode, HostPorts, ShapeHandle, OcctKernel, ExecutionResult } from '@faicad/faijs/browser'
 import { OcctKernel as OcctKernelValue } from 'occt-wasm'
 import fontUrl from './assets/fonts/OpenSans-Regular.ttf?url'
@@ -216,7 +216,7 @@ let occtReady: Promise<void> | null = null
 function preloadOcct() {
   if (occtReady) return
   setStatus('Loading OCCT kernel (~22MB, first run only)...', 'info')
-  occtReady = initOcctWasm().then(() => {}).catch((err) => {
+  occtReady = ensureOcctKernel().then(() => {}).catch((err) => {
     occtReady = null // 失败后允许下次重试
     const msg = err instanceof Error ? err.message : String(err)
     setStatus(`OCCT kernel failed: ${msg}`, 'error')
