@@ -4,6 +4,8 @@
  */
 
 export { CadRuntime, createRuntime, computeContentKey } from './runtime'
+export { createPreviewExec } from './preview-exec'
+export type { PreviewExec } from './preview-exec'
 export type {
   ExecutionResult,
   ExecuteOptions,
