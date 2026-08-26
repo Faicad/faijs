@@ -724,6 +724,59 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     expect(bb1.min[1]).toBeCloseTo(-5, 1)
     expect(bb1.max[1]).toBeCloseTo(5, 1)
   })
+
+  it('append: 分次 append（asm 与 do_assemble 分开）后 brepSolids 仍返回有效新 handle（T6.5 回归）', async () => {
+    // 3d_editor appendAndCommit 分次调用 runtime.append（每次新建 exec）。
+    // assembly() 闭包捕获 assembly append 的 exec，do_assemble 必须用当前 exec
+    // 求解，touch/变更声明才落在当前 exec 上，collectResult 反同步才生效。
+    const runtime = makeRuntime()
+    const s1 = makeStmt('s1', 'box', { size: 10 })
+    const s2 = makeStmt('s2', 'box', { size: 10 })
+    const base = makePartScript([s1, s2])
+    const first = await runtime.execute(base)
+    const s2SolidBefore = first.brepSolids?.get(asPartName('s2'))
+    expect(s2SolidBefore).toBeDefined()
+
+    const assemblyStmt: CadStatement = {
+      id: asStmtId('asm1'),
+      op: 'assembly',
+      args: {
+        name: 'testAssembly',
+        members: ['s1', 's2'],
+        constraints: [{
+          type: 'face_mate' as const,
+          fixedPartName: 's1',
+          movingPartName: 's2',
+          fixedFace: { surfaceType: 'plane', center: [0, 5, 0], normal: [0, 1, 0] },
+          movingFace: { surfaceType: 'plane', center: [0, -5, 0], normal: [0, -1, 0] },
+        }],
+      },
+      inputs: [],
+      hasAssignment: true,
+    }
+    const doAssembleStmt: CadStatement = {
+      id: asStmtId('do_asm1'),
+      op: 'do_assemble',
+      args: {},
+      inputs: [],
+      assemblyTarget: asPartName('asm1'),
+    }
+
+    // 分次 append：先 asm，再 do_assemble（各自新建 exec）
+    const full1 = makePartScript([s1, s2, assemblyStmt])
+    await runtime.append(full1, [asStmtId('asm1')])
+    const full2 = makePartScript([s1, s2, assemblyStmt, doAssembleStmt])
+    const result = await runtime.append(full2, [asStmtId('do_asm1')])
+
+    expect(result.failedAt).toBeUndefined()
+    const s2SolidAfter = result.brepSolids?.get(asPartName('s2'))
+    expect(s2SolidAfter).toBeDefined()
+    // 新 handle（非装配前旧 handle），且 bbox 有效（平移 [0,10,0] → y ∈ [5,15]）
+    expect(s2SolidAfter!.solid).not.toBe(s2SolidBefore!.solid)
+    const bbAfter = getSolidBoundingBox(s2SolidAfter!.kernel, s2SolidAfter!.solid)
+    expect(bbAfter.min[1]).toBeCloseTo(5, 1)
+    expect(bbAfter.max[1]).toBeCloseTo(15, 1)
+  })
 })
 
 // ─── ExecContextImpl: dependentsOf / touch（Phase 2.4 平台 API） ───

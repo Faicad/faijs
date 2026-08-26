@@ -175,8 +175,10 @@ export interface AssemblyBehavior {
   name?: string
   memberNames: string[]
   constraints: AssemblyConstraint[]
-  /** 执行装配：对 moving 成员施加 face_mate 变换（mesh + BREP + 下游传播）。 */
-  solve(): void
+  /** 执行装配：对 moving 成员施加 face_mate 变换（mesh + BREP + 下游传播）。
+   *  可选 exec：do_assemble 分次 append 时传入当前执行上下文（touch/变更声明
+   *  必须落在当前 exec 上，collectResult 才读得到 touchedShapes）。 */
+  solve(exec?: ExecContext): void
 }
 
 /**
@@ -262,11 +264,14 @@ export function assembly(params: Record<string, unknown>, exec: ExecContext): Co
     name: params.name as string | undefined,
     memberNames,
     constraints,
-    solve: () => solveAssembly(c, behavior, exec),
+    solve: (e?: ExecContext) => solveAssembly(c, behavior, e ?? exec),
   }
   ensureSlot(c).behavior = behavior
-  ;(c as CompoundShape & { do_assemble?: (e: ExecContext) => void }).do_assemble = (_e: ExecContext) => {
-    behavior.solve()
+  ;(c as CompoundShape & { do_assemble?: (e: ExecContext) => void }).do_assemble = (e: ExecContext) => {
+    // 用当前执行上下文求解：分次 append（3d_editor appendAndCommit）时
+    // 每次 runtime.append 新建 exec，touch/变更声明必须落在当前 exec 上，
+    // collectResult 才能反同步装配变换后的 solid 到 solidCache。
+    behavior.solve(e)
   }
   return c
 }

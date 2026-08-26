@@ -193,7 +193,11 @@ export class ModuleExecutor {
       delete this.ctx[key]
     }
     this.cache.clear()
-    this.compiled = { params: [], statements: [] }
+    this.script = { params: [], statements: [] }
+    this.metaById.clear()
+    this.stmts.clear()
+    this.sourceById.clear()
+    this.lastCode = ''
   }
 
   /** 读取某语句的 statementKey 缓存。 */

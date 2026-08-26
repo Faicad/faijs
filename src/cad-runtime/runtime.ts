@@ -273,7 +273,7 @@ export class CadRuntime {
         scale: opts.partTransform.scale,
       }
     }
-    this.reconcile(script, statements)
+    this.reconcile(script, statements, opts?.sceneScript)
     await this.prepareCtx(script, opts)
     const exec = this.createExecContext(script, opts, brepChain)
     const start = opts?.startIndex ?? 0
@@ -322,7 +322,7 @@ export class CadRuntime {
         scale: opts.partTransform.scale,
       }
     }
-    this.reconcile(script, statements)
+    this.reconcile(script, statements, opts?.sceneScript)
     await this.prepareCtx(script, opts)
     const exec = this.createExecContext(script, opts, brepChain)
     const { staleCompiledIds } = this.planCompiled(script, statements)
@@ -354,7 +354,7 @@ export class CadRuntime {
         scale: opts.partTransform.scale,
       }
     }
-    this.reconcile(script, statements)
+    this.reconcile(script, statements, opts?.sceneScript)
     await this.prepareCtx(script, opts)
     const exec = this.createExecContext(script, opts, brepChain)
     // 调用方传入的 newIds 是源语句 id（varName）→ 翻译为编译产物 id（s1..sN）
@@ -422,9 +422,24 @@ export class CadRuntime {
   // ── 内部：VM 执行编排 ──
 
   /** reconcileCtx：删除"定义语句已不在脚本中"的 ctx 变量并释放其内核资源。 */
-  private reconcile(script: PartScript, statements: CompiledStatementMeta[]): void {
+  private reconcile(
+    script: PartScript,
+    statements: CompiledStatementMeta[],
+    sceneScript?: PartScript | null,
+  ): void {
     const activeIds = new Set(statements.map((s) => s.id))
     const writeSets = new Map(statements.map((s) => [s.id, s.writes.map(asPartName)]))
+    // executePart 传过滤后的 partScript（只含本 part 语句），但持久 ctx 里
+    // 其它 part 的变量仍是场景 DAG 的活跃成员——不能把它们当作"不在脚本中"
+    // 而释放（否则跨 part 引用（装配 fixed part）的 solid 会被误释放）。
+    // 有 sceneScript 时把其全部语句并入活跃集，仅真正从 sceneScript 删除的
+    // 语句（undo delete）才会被回收。
+    if (sceneScript) {
+      for (const stmt of sceneScript.statements) {
+        activeIds.add(stmt.id)
+        writeSets.set(stmt.id, [asPartName(stmt.id), ...(stmt.outputs ?? []).map(asPartName)])
+      }
+    }
     this.executor.reconcileCtx(activeIds, writeSets)
   }
 
