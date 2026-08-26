@@ -50,15 +50,13 @@ export { statementToLine, scriptToCode, fmtNum, buildArgsParts } from './lang/co
 export { validateStatementArgs, validateScriptArgs, getOpSchema, hasOpSchema } from './lang/args-schema'
 export type { OpSchema, ArgFieldSchema, ArgType, ValidationError } from './lang/args-schema'
 
-// ── L1 几何执行�?──
-export type { Shape, OpContext } from './ops/types'
-export { executeStatement } from './ops/dispatcher'
-export { canUseBrep } from './ops/types'
-export { resolveGeomRef } from './ops/geom-ref'
+// ── L1 几何执行 ──
+export type { Shape } from './mesh/types'
+export { resolveGeomRef } from './stdlib/internal/geom-ref'
 export type { BrepChainState } from './brep/brep-chain'
 export {
   createBrepChainState, initBrepChainState, releaseBrepChainState,
-  BREP_NATIVE_OPS, MESH_ONLY_OPS, isCadFormat,
+  isCadFormat,
 } from './brep/brep-chain'
 export {
   solidToShape, getSolidBoundingBox,
@@ -194,9 +192,6 @@ export type { SelectorManifestInput, PartTopologyInput, AssemblyTopologyResult }
 // ── BREP Topology ──
 export { buildSolidTopologyRuntime } from './brep/brep-topology'
 export type { SolidTopologyResult } from './brep/brep-topology'
-
-// ── BREP ops (engrave etc.) ──
-export { executeEngrave } from './ops/engrave'
 
 // ── Font Registry (for browser host injection) ──
 export { setFontLoader, getFontLoader, loadFont, ensureDefaultFont, getFont, clearFonts } from './brep/text/fontRegistry'

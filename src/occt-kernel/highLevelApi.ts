@@ -20,7 +20,7 @@ import {
   releaseAssemblyTree,
   computeEffectiveDeflection,
 } from './occtKernel'
-import type { Shape } from '../ops/types'
+import type { Shape } from '../mesh/types'
 import { exportStepFromSolids } from '../brep/export/step'
 import type { StepExportEntry } from '../brep/export/step'
 import type {

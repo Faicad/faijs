@@ -14,9 +14,10 @@ import { cad } from '../mesh'
 import { parseSvgNaturalSize } from '../primitives/parse-svg-size'
 import { textToSolid } from '../brep/text/text-to-solid'
 import { svgToSolid } from '../brep/svg/svg-to-solid'
+import { ensureDefaultFont } from '../brep/text/fontRegistry'
 import { solidToShape } from '../brep/brep-ops'
 import { getSolidBoundingBox } from '../brep/brep-utils'
-import { resolveSvgArg } from '../ops/svg-asset-resolver'
+import { resolveSvgArg } from './internal/svg-asset-resolver'
 import { solid } from './shape'
 import { resolvePath } from './internal/resolve-path'
 import type { ExecContext, ExecContextImpl } from '../cad-runtime/exec-context'
@@ -76,7 +77,7 @@ function centerSolidAtOrigin(kernel: import('occt-wasm').OcctKernel, solid: Shap
 }
 
 /** BREP 路径：textToSolid/svgToSolid + boolean（cut/fuse）。 */
-function engraveBrepPath(input: Shape, params: Record<string, unknown>, exec: ExecContext, svgText?: string): Shape {
+async function engraveBrepPath(input: Shape, params: Record<string, unknown>, exec: ExecContext, svgText?: string): Promise<Shape> {
   const kernel = exec.kernels.occt
   if (!kernel) throw new Error('[stdlib/engrave] no OCCT kernel')
   const inputSolid = exec.getSolid(input)
@@ -89,6 +90,7 @@ function engraveBrepPath(input: Shape, params: Record<string, unknown>, exec: Ex
   // 1. 创建装饰 solid（文字或 SVG），depth 与 mesh 路径一致
   let decorationSolid: ShapeHandle
   if (text) {
+    await ensureDefaultFont()
     const textSize = (params.textSize as number) ?? 16
     decorationSolid = textToSolid(kernel, text, { fontSize: textSize, depth })
   } else if (svgText) {
@@ -158,7 +160,7 @@ export async function engrave(input: Shape, params: Record<string, unknown>, exe
     : undefined
 
   const path = resolvePath(exec, [input], brepImpl)
-  if (path === 'brep') return engraveBrepPath(input, params, exec, svgText)
+  if (path === 'brep') return await engraveBrepPath(input, params, exec, svgText)
 
   // mesh 路径
   const faceCenter: Vec3 = (params.faceCenter as Vec3) ?? [0, 0, 0]

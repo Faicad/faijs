@@ -20,11 +20,10 @@
  */
 
 import type { PartScript, CadStatement, TerminalShape, Arg } from '../lang/types'
-import type { Shape } from '../ops/types'
+import type { Shape } from '../mesh/types'
 import type { BrepChainState } from '../brep/brep-chain'
 import type { ShapeHandle, OcctKernel } from 'occt-wasm'
 import { initOcctWasm } from '../occt-kernel/occtKernel'
-import { executeStatement as dispatchStatement } from '../ops/dispatcher'
 import { parseScript, ParseError } from '../lang/parser'
 import { validateStatementArgs } from '../lang/args-schema'
 import { SCHEMAS } from '../stdlib/schemas'
@@ -135,8 +134,6 @@ export interface ExecuteOptions {
 }
 
 // ── CadRuntime ──
-
-const MAX_RECURSION_DEPTH = 50
 
 /** Shape 形状守卫（positions/indices 结构） */
 function isShapeLike(v: unknown): v is Shape {
@@ -597,21 +594,7 @@ export class CadRuntime {
     partName: PartName,
     localCache: Map<PartName, Shape>,
     sceneScript?: PartScript,
-    resolvingStack: Set<PartName> = new Set(),
   ): Promise<Shape> {
-    // 环检测
-    if (resolvingStack.has(partName)) {
-      throw new Error(
-        `[CadRuntime.resolveShapeRef] circular reference: ${partName} ` +
-        `(stack: ${Array.from(resolvingStack).join(' → ')})`,
-      )
-    }
-    if (resolvingStack.size >= MAX_RECURSION_DEPTH) {
-      throw new Error(
-        `[CadRuntime.resolveShapeRef] max recursion depth (${MAX_RECURSION_DEPTH}) exceeded for "${partName}"`,
-      )
-    }
-
     // 1. 本地缓存
     const local = localCache.get(partName)
     if (local) return local
@@ -620,14 +603,12 @@ export class CadRuntime {
     const cached = this.statementCache.get(partName)
     if (cached) return cached.output
 
-    // 3. sceneScript 中查找
+    // 3. sceneScript：编译 + 临时执行器全量执行后取该 part 的几何（VM 路径，替代旧 dispatchStatement 子重放）
     if (!sceneScript) {
       throw new Error(
         `[CadRuntime.resolveShapeRef] statement "${partName}" not found (no sceneScript provided)`,
       )
     }
-
-    // 在 sceneScript 中查找产生该 partName 的语句（partName 即语句首输出名）
     const stmt = sceneScript.statements.find((s) => asPartName(s.id) === partName)
     if (!stmt) {
       throw new Error(
@@ -635,66 +616,38 @@ export class CadRuntime {
       )
     }
 
-    // 从 sceneScript 的开头重放到该语句（缓存缺失兜底：子重放复用同一持久链，不再新建 brepChain）
-    resolvingStack.add(partName)
-    const subOutputCache = new Map<PartName, Shape>()
+    const { code, statements } = compileToModule(sceneScript)
+    const subExecutor = new ModuleExecutor(this.stdlib, {
+      releaseSolid: (p) => {
+        const h = this.solidCache.get(p)
+        if (h) {
+          try { this.kernel?.release(h) } catch { /* 已释放 */ }
+          this.solidCache.delete(p)
+        }
+      },
+      getSolid: (p) => this.solidCache.get(p),
+      releaseHandle: (h) => {
+        try { this.kernel?.release(h) } catch { /* 已释放 */ }
+      },
+      setSolid: (p, s) => this.solidCache.set(p, s),
+      setFaceEvolution: (p, e) => this.faceEvolutionCache.set(p, e),
+    })
+    subExecutor.setCompiled(sceneScript, statements)
+    await subExecutor.load(code)
     const brepChain = await this.ensureBrepChain()
+    const exec = new ExecContextImpl({
+      mode: this.mode,
+      brepChain,
+      ports: this.ports,
+      script: sceneScript,
+      outputCache: new Map(),
+      params: {},
+      setCtxVar: (name, value) => subExecutor.setCtxVar(name, value),
+    })
+    await subExecutor.executeAll(exec)
 
-    try {
-      for (const s of sceneScript.statements) {
-        // void / same_shape 语句不产出几何，跳过子重放
-        const srt = s.returnType ?? 'new_shape'
-        if (srt === 'void' || srt === 'same_shape') continue
-        const inputGeometries: Shape[] = []
-        for (const inputId of s.inputs) {
-          let geo = subOutputCache.get(inputId) ?? localCache.get(inputId)
-          if (!geo) {
-            geo = await this.resolveShapeRef(inputId, subOutputCache, sceneScript, resolvingStack)
-          }
-          inputGeometries.push(geo)
-        }
-        // 顶替释放预捕获（子重放复用持久链，覆盖前必须先释放旧 handle，避免泄漏）
-        const writeKeys: PartName[] = [asPartName(s.id), ...(s.outputs ?? [])]
-        const oldHandles = writeKeys
-          .map((k) => this.solidCache.get(k))
-          .filter((h): h is ShapeHandle => !!h)
-        const result = await dispatchStatement(s, inputGeometries, subOutputCache, {}, brepChain, this.ports, this.mode)
-        const subPrimaryName = asPartName(s.id)
-        subOutputCache.set(subPrimaryName, result)
-        // 写入持久 statementCache（含 outputs[]），使后续引用直接命中、不再子重放
-        const contentKey = computeContentKey(result.positions, result.indices)
-        const getInputContentKey = (id: PartName) => this.statementCache.get(id)?.outputContentKey
-        const stmtKey = this.computeLegacyStatementKey(s, getInputContentKey)
-        this.statementCache.set(subPrimaryName, {
-          statementKey: stmtKey,
-          outputContentKey: contentKey,
-          output: result,
-        })
-        for (const outId of s.outputs ?? []) {
-          if (outId === subPrimaryName) continue
-          const outShape = subOutputCache.get(outId)
-          if (outShape) {
-            this.statementCache.set(outId, {
-              statementKey: stmtKey + `|out:${outId}`,
-              outputContentKey: computeContentKey(outShape.positions, outShape.indices),
-              output: outShape,
-            })
-          }
-        }
-        for (const old of oldHandles) {
-          try { this.kernel?.release(old) } catch { /* 已释放 */ }
-        }
-
-        if (subPrimaryName === partName) {
-          resolvingStack.delete(partName)
-          return result
-        }
-      }
-    } finally {
-      // 不复用持久链的释放（releaseBrepChainState 会清空持久 solidCache）——子重放结果已写入持久缓存
-      resolvingStack.delete(partName)
-    }
-
+    const shape = subExecutor.getCtxVar(partName)
+    if (isShapeLike(shape)) return shape as Shape
     throw new Error(
       `[CadRuntime.resolveShapeRef] statement "${partName}" not reached during sceneScript execution`,
     )

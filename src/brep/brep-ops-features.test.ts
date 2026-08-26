@@ -42,14 +42,13 @@ import {
   solidToShape, getSolidBoundingBox,
   createBrepChainState, initBrepChainState,
   releaseBrepChainState,
-  BREP_NATIVE_OPS, MESH_ONLY_OPS,
   isCadFormat,
 } from '../brep'
 import type { Shape } from '../mesh/types'
-import { executeScript, executeStatement } from '../test-helpers'
+import { executeScript } from '../test-helpers'
 import { ensureTestFontLoader } from '../brep/text/fontTestHelper'
 import type { CadStatement, PartScript } from '../lang/types'
-import { asPartName, asStmtId, type PartName } from '../identity'
+import { asPartName, asStmtId } from '../identity'
 
 let kernel: OcctKernel
 
@@ -381,30 +380,7 @@ describe('BREP chain state management', () => {
   })
 })
 
-// ── BREP 能力集合 ──
-
-describe('BREP capability sets', () => {
-it('BREP_NATIVE_OPS contains all ops with BREP implementation', () => {
-expect(BREP_NATIVE_OPS.has('box')).toBe(true)
-expect(BREP_NATIVE_OPS.has('sphere')).toBe(true)
-expect(BREP_NATIVE_OPS.has('cylinder')).toBe(true)
-expect(BREP_NATIVE_OPS.has('boolean')).toBe(true)
-expect(BREP_NATIVE_OPS.has('translate')).toBe(true)
-expect(BREP_NATIVE_OPS.has('drill')).toBe(true)
-expect(BREP_NATIVE_OPS.has('split')).toBe(true)
-expect(BREP_NATIVE_OPS.has('extrude')).toBe(true)
-expect(BREP_NATIVE_OPS.has('engrave')).toBe(true)
-expect(BREP_NATIVE_OPS.has('text')).toBe(true)
-expect(BREP_NATIVE_OPS.has('screw')).toBe(true)
-expect(BREP_NATIVE_OPS.has('svgExtrude')).toBe(true)
-expect(BREP_NATIVE_OPS.has('load')).toBe(true)
-})
-
-it('MESH_ONLY_OPS contains sdf and knurl', () => {
-expect(MESH_ONLY_OPS.has('sdf')).toBe(true)
-expect(MESH_ONLY_OPS.has('knurl')).toBe(true)
-expect(MESH_ONLY_OPS.size).toBe(2)
-})
+// ── isCadFormat 静态判定（BREP 能力集合已随 src/ops/ 删除，Phase 2.5） ──
 
   it('isCadFormat: step format → true', () => {
     expect(isCadFormat({ format: 'step' }, true)).toBe(true)
@@ -431,7 +407,6 @@ expect(MESH_ONLY_OPS.size).toBe(2)
     expect(isCadFormat({ url: 'https://example.com/model.step' }, true)).toBe(true)
     expect(isCadFormat({ url: 'https://example.com/model.3mf' }, true)).toBe(false)
   })
-})
 
 // ── BREP 特征链 STEP 导出精确曲面验证 ──
 
@@ -609,41 +584,29 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
     }
   })
 
-  it('executeStatement(engrave, brep) → chain stays active (BREP engrave implemented)', async () => {
-    // 直接用 executeStatement 测试：在 BREP 链中遇到 engrave → BREP 路径执行（textToSolid + boolean）
-    // engrave 已有 BREP 实现，链不再断裂
-    const brepChain = await initBrepChainState()
-    const outputCache = new Map<PartName, Shape>()
+  it('executeScript(box → drill → engrave, brep) → chain stays active (BREP engrave implemented)', async () => {
+    // 在 BREP 链中遇到 engrave → BREP 路径执行（textToSolid + boolean），链不断裂
+    const script = makeScript([
+      makeStmt('s1', 'box', { size: 20 }, []),
+      makeStmt('s2', 'drill', {
+        diameter: 6, depth: 0,
+        position: [0, 0, 10], direction: 'normal',
+        faceNormal: [0, 0, 1], holeType: 'simple',
+      }, ['s1']),
+      makeStmt('s3', 'engrave', {
+        engravingType: 'text', mode: 'concave', depth: 1,
+        text: 'A', textSize: 10,
+      }, ['s2']),
+    ])
+    const result = await executeScript(script)
 
-    // 1. 执行 box 语句（BREP 路径）
-    const boxStmt = makeStmt('s1', 'box', { size: 20 }, [])
-    const boxShape = await executeStatement(boxStmt, [], outputCache, undefined, brepChain)
-    outputCache.set(asPartName('s1'), boxShape)
-    expect(brepChain.solidCache.has(asPartName('s1'))).toBe(true)
-
-    // 2. 执行 drill 语句（BREP 路径）
-    const drillStmt = makeStmt('s2', 'drill', {
-      diameter: 6, depth: 0,
-      position: [0, 0, 10], direction: 'normal',
-      faceNormal: [0, 0, 1], holeType: 'simple',
-    }, ['s1'])
-    const drilledShape = await executeStatement(drillStmt, [boxShape], outputCache, undefined, brepChain)
-    outputCache.set(asPartName('s2'), drilledShape)
-    expect(brepChain.solidCache.has(asPartName('s2'))).toBe(true)
-
-    // 3. 执行 engrave 语句（BREP 路径 — textToSolid + boolean）
-    const engraveStmt = makeStmt('s3', 'engrave', {
-      engravingType: 'text', mode: 'concave', depth: 1,
-      text: 'A', textSize: 10,
-    }, ['s2'])
-    const engraveShape = await executeStatement(engraveStmt, [drilledShape], outputCache, undefined, brepChain)
-    outputCache.set(asPartName('s3'), engraveShape)
-
-    // 验证链未断裂
-    expect(brepChain.solidCache.has(asPartName('s3'))).toBe(true)
+    // 验证链未断裂（box/drill/engrave 均有 solid）
+    expect(result.brepChain.solidCache.has(asPartName('s1'))).toBe(true)
+    expect(result.brepChain.solidCache.has(asPartName('s2'))).toBe(true)
+    expect(result.brepChain.solidCache.has(asPartName('s3'))).toBe(true)
 
     // Clean up
-    releaseBrepChainState(brepChain)
+    releaseBrepChainState(result.brepChain)
   })
 
   it('executeScript without engrave → solid still in cache (chain healed, not persistent)', async () => {

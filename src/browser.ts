@@ -97,20 +97,15 @@ export { WorkerSdfBackend } from './browser-host/worker-sdf-backend'
 export { importStep, importStepMultiPart, exportStep, releaseSolid, ensureOcctKernel, disposeOcct, exportStepFromSolidsHighLevel } from './occt-kernel/highLevelApi'
 export type { ImportStepResult, ImportStepPartResult, ExportStepOptions } from './occt-kernel/highLevelApi'
 
-// E15.1: 装配约束求解器（D 类预览 API + B 类执行 API）
-export {
-  solveFaceMate, applyTransform, executeDoAssemble, previewAssembly, executeAssemblyPassForStmt,
-} from './ops/assemble'
-export type {
-  FaceMateConstraint, AssemblyConstraint, AssemblyDefinition, DoAssembleContext,
-} from './ops/assemble'
+// E15.1: 装配约束求解器（D 类预览 API + B 类执行 API，Phase 2.4 迁 stdlib/compound）
+export { solveFaceMate, applyTransform } from './stdlib/compound'
+export type { FaceMateConstraint, AssemblyConstraint } from './stdlib/compound'
 
 // ═══════════════════════════════════════════════════════════
 // C 类：执行产物类型（Shape + 拓扑数据类型 + buildSelectorRuntimeMaps）
 // ═══════════════════════════════════════════════════════════
 
-export type { Shape } from './ops/types'
-export type { OpContext } from './ops/types'
+export type { Shape } from './mesh/types'
 
 // 拓扑数据类型
 export type { SelectorRuntimeData } from './topology/build-selector-runtime'
@@ -224,7 +219,6 @@ export { getSolidBoundingBox } from './brep/brep-utils'
 export { buildStlBufferFromMesh } from './brep/export/stl'
 export { exportStepFromSolid, exportStepFromSolids } from './brep/export/step'
 export type { StepExportEntry } from './brep/export/step'
-export { executeEngrave } from './ops/engrave'
 export { reconstructSolidFromMesh, meshToAsciiStl, cadShapeIsValid, meshToStepBrep } from './occt-kernel/meshReconstruct'
 
 // ═══════════════════════════════════════════════════════════
@@ -232,20 +226,16 @@ export { reconstructSolidFromMesh, meshToAsciiStl, cadShapeIsValid, meshToStepBr
 // 红线 6：宿主不应 import 这些符号。以下保留仅为兼容过渡。
 // ═══════════════════════════════════════════════════════════
 
-/** @deprecated 用 CadRuntime.execute() 替代手动逐语句执行 */
-export { executeStatement } from './ops/dispatcher'
 /** @deprecated 用 CadRuntime.execute() 替代 */
 export { computeContentKey } from './cad-runtime/runtime'
 /** @deprecated BREP 链是执行内部状态，宿主不应触碰；用 CadRuntime.execute() */
-export { canUseBrep } from './ops/types'
-/** @deprecated BREP 链是执行内部状态，宿主不应触碰；用 CadRuntime.execute() */
-export { resolveGeomRef } from './ops/geom-ref'
+export { resolveGeomRef } from './stdlib/internal/geom-ref'
 /** @deprecated BREP 链是执行内部状态，宿主不应触碰；用 CadRuntime.execute() */
 export type { BrepChainState } from './brep/brep-chain'
 /** @deprecated BREP 链是执行内部状态，宿主不应触碰；用 CadRuntime.execute() */
 export {
   createBrepChainState, initBrepChainState, releaseBrepChainState,
-  BREP_NATIVE_OPS, MESH_ONLY_OPS, isCadFormat,
+  isCadFormat,
 } from './brep/brep-chain'
 /** @deprecated 用高层 API importStep/exportStep 替代 */
 export {

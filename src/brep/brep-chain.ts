@@ -16,36 +16,6 @@ import type { OcctKernel, ShapeHandle, Mesh as WasmMesh } from 'occt-wasm'
 import { initOcctWasm } from '../occt-kernel/occtKernel'
 import type { PartName } from '../identity'
 
-// ─── BREP 能力分类 ───
-
-/**
- * BREP-native 操作集合：这些 op 有 OCCT 实现，可以在 BREP 链中传递实体。
- *
- * 所有 op 均已实现 BREP 路径，只有 sdf 没有 OCCT 实现（见 MESH_ONLY_OPS）。
- */
-export const BREP_NATIVE_OPS = new Set([
-  'box', 'sphere', 'cylinder', 'cone', 'wedge',
-  'translate', 'rotate', 'scale',
-  'boolean',
-  'drill', 'split', 'extrude',
-  'text', 'screw', 'svgExtrude', 'engrave',
-  'load',
-])
-
-/**
- * mesh-only 操作集合：这些 op 没有 OCCT 实现。
- *
- * - sdf — 纯网格 SDF 求值
- * - knurl — 位移纹理操作，无参数化滚花 BREP 实现
- *
- * 这些 op 永远走 mesh 路径，不写 solidCache → 输出 part 自动失去 BREP。
- * 不再翻转任何全局状态（逐 part 设计）。
- */
-export const MESH_ONLY_OPS = new Set<string>([
-  'sdf',
-  'knurl',
-])
-
 // ─── CAD 格式静态判定 ───
 
 /**

@@ -25,7 +25,6 @@ export {
   type BrepChainState,
   createBrepChainState, initBrepChainState,
   releaseBrepChainState,
-  BREP_NATIVE_OPS, MESH_ONLY_OPS,
   isCadFormat,
 } from './brep-chain'
 

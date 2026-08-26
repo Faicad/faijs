@@ -1,21 +1,14 @@
-﻿/**
- * SVG 资产解析辅助函数
- *
- * P4-2/P4-3：SVG 内容改为资产引用 { $asset: key }。
- * ops 层执行时需将 AssetRef 解析为 SVG 文本字符串。
- *
- * 解析优先级：
- * 1. ports.assets（headless 环境支持）→ bytes → UTF-8 decode
- * 2. SvgAssetStore（browser 回退）→ 直接字符串
- */
-
-import type { AssetRef } from '../lang/types'
-import { isAssetRef } from '../lang/types'
-import type { HostPorts } from '../cad-runtime/ports'
-
 /**
- * 将 ArrayBuffer 解码为 UTF-8 字符串
+ * stdlib internal svg-asset-resolver — SVG 资产解析辅助函数
+ *
+ * 从 src/ops/svg-asset-resolver.ts 迁入（Phase 2.5 删除 src/ops/）。
  */
+
+import type { AssetRef } from '../../lang/types'
+import { isAssetRef } from '../../lang/types'
+import type { HostPorts } from '../../cad-runtime/ports'
+
+/** 将 ArrayBuffer 解码为 UTF-8 字符串 */
 function decodeUtf8(bytes: ArrayBuffer): string {
   return new TextDecoder('utf-8').decode(new Uint8Array(bytes))
 }

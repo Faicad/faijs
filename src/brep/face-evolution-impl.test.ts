@@ -16,7 +16,7 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { initOcctWasm, getKernel } from '../occt-kernel/occtKernel'
 import type { OcctKernel, ShapeHandle } from 'occt-wasm'
-import { resolveGeomRef } from '../ops/geom-ref'
+import { resolveGeomRef } from '../stdlib/internal/geom-ref'
 import {
   cutWithHistoryBrep,
   fuseWithHistoryBrep,
@@ -24,7 +24,7 @@ import {
   getUnionFaceHashes,
 } from './face-evolution'
 import type { GeomRef } from '../lang/types'
-import type { Shape } from '../ops/types'
+import type { Shape } from '../mesh/types'
 import { asPartName } from '../identity'
 
 let kernel: OcctKernel

@@ -15,10 +15,8 @@ import type { CadStatement, PartScript } from '../lang/types'
 import type { Shape } from '../mesh/types'
 import type { BrepChainState } from '../brep/brep-chain'
 import type { ShapeHandle, OcctKernel } from 'occt-wasm'
-import { executeAssemblyPassForStmt } from '../ops/assemble'
 import { getSlot, ensureSlot } from '../stdlib/shape'
 import type { PartName } from '../identity'
-import { asPartName } from '../identity'
 import type {
   HostPorts,
   ExecutionMode,
@@ -197,22 +195,6 @@ export class ExecContextImpl implements ExecContext {
    */
   touch(_shape: Shape): void {
     // no-op (Phase 1)
-  }
-
-  /**
-   * do_assemble 语句的装配变换 pass（Phase 1 委托旧 executeAssemblyPassForStmt）。
-   *
-   * 变换后把受影响 part 的几何从 outputCache 同步回持久 ctx，
-   * 使 collectResult 能读到装配后的最终几何。
-   */
-  async doAssemble(): Promise<void> {
-    const stmt = this.currentStmt
-    if (!stmt) throw new Error('[exec] doAssemble: no current statement')
-    const transformed = executeAssemblyPassForStmt(stmt, this.outputCache, this.script, this.brepChain)
-    for (const partName of transformed) {
-      const shape = this.outputCache.get(partName)
-      if (shape) this.setCtxVar?.(asPartName(partName), shape)
-    }
   }
 
   /** 写持久 ctx 变量（装配/库函数把变换结果同步回 ctx，使 collectResult 读到最终几何）。 */

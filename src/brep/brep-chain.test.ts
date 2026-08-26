@@ -14,7 +14,6 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import {
   createBrepChainState, initBrepChainState, releaseBrepChainState,
-  BREP_NATIVE_OPS, MESH_ONLY_OPS,
   isCadFormat,
 } from './brep-chain'
 import { initOcctWasm } from '../occt-kernel/occtKernel'
@@ -69,43 +68,6 @@ describe('releaseBrepChainState', () => {
     releaseBrepChainState(state)
 
     expect(state.solidCache.size).toBe(0)
-  })
-})
-
-// ─── BREP 能力集合 ───
-
-describe('BREP_NATIVE_OPS', () => {
-  it('should contain all ops with BREP implementation', () => {
-    expect(BREP_NATIVE_OPS.has('box')).toBe(true)
-    expect(BREP_NATIVE_OPS.has('sphere')).toBe(true)
-    expect(BREP_NATIVE_OPS.has('cylinder')).toBe(true)
-    expect(BREP_NATIVE_OPS.has('cone')).toBe(true)
-    expect(BREP_NATIVE_OPS.has('wedge')).toBe(true)
-    expect(BREP_NATIVE_OPS.has('translate')).toBe(true)
-    expect(BREP_NATIVE_OPS.has('rotate')).toBe(true)
-    expect(BREP_NATIVE_OPS.has('scale')).toBe(true)
-    expect(BREP_NATIVE_OPS.has('boolean')).toBe(true)
-    expect(BREP_NATIVE_OPS.has('drill')).toBe(true)
-    expect(BREP_NATIVE_OPS.has('split')).toBe(true)
-    expect(BREP_NATIVE_OPS.has('extrude')).toBe(true)
-    expect(BREP_NATIVE_OPS.has('engrave')).toBe(true)
-    expect(BREP_NATIVE_OPS.has('text')).toBe(true)
-    expect(BREP_NATIVE_OPS.has('screw')).toBe(true)
-    expect(BREP_NATIVE_OPS.has('svgExtrude')).toBe(true)
-    expect(BREP_NATIVE_OPS.has('load')).toBe(true)
-  })
-
-  it('should NOT contain mesh-only ops (sdf, knurl)', () => {
-    expect(BREP_NATIVE_OPS.has('sdf')).toBe(false)
-    expect(BREP_NATIVE_OPS.has('knurl')).toBe(false)
-  })
-})
-
-describe('MESH_ONLY_OPS', () => {
-  it('should contain sdf and knurl', () => {
-    expect(MESH_ONLY_OPS.has('sdf')).toBe(true)
-    expect(MESH_ONLY_OPS.has('knurl')).toBe(true)
-    expect(MESH_ONLY_OPS.size).toBe(2)
   })
 })
 
