@@ -13,7 +13,7 @@
  * - GeomRef helper（cad.bboxCenter/cad.bboxMin/cad.bboxMax/cad.faceCenter/cad.faceNormal）→ 硬编码
  */
 
-import { SCHEMAS } from '../src/lang/args-schema'
+import { SCHEMAS } from '../src/stdlib/schemas'
 import type { ArgType, OpSchema } from '../src/lang/args-schema'
 import { writeFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
@@ -223,7 +223,13 @@ function generate(): string {
 
 // ── 主入口 ──
 
-const content = generate()
-writeFileSync(outputPath, content, 'utf-8')
-console.log(`[gen-api-dts] Generated ${outputPath}`)
-console.log(`[gen-api-dts] ${content.split('\n').length} lines`)
+export { generate, outputPath }
+
+// 仅直接执行时写文件（被 api-dts-sync.test.ts import 时不触发副作用）
+const isMain = !!process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+if (isMain) {
+  const content = generate()
+  writeFileSync(outputPath, content, 'utf-8')
+  console.log(`[gen-api-dts] Generated ${outputPath}`)
+  console.log(`[gen-api-dts] ${content.split('\n').length} lines`)
+}

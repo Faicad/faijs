@@ -22,6 +22,10 @@
       "types": "./dist/sdf.d.ts",
       "import": "./dist/sdf.js"
     },
+    "./stdlib": {
+      "types": "./dist/stdlib/index.d.ts",
+      "import": "./dist/stdlib/index.js"
+    },
     "./node": {
       "types": "./dist/node.d.ts",
       "import": "./dist/node.js"
