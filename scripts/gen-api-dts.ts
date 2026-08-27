@@ -43,6 +43,7 @@ function fieldToTs(field: { name: string; type: ArgType; required?: boolean }): 
 }
 
 function fieldsToParams(schema: OpSchema): string {
+  if (schema.fields.length === 0) return 'never'
   return `{ ${schema.fields.map(fieldToTs).join('; ')} }`
 }
 
@@ -72,9 +73,10 @@ function genSimpleOp(op: string): string {
   const schema = SCHEMAS[op]
   if (!schema) return ''
   const shapeParam = takesShape(schema) ? 'shape: Shape, ' : ''
-  const params = fieldsToParams(schema)
+  // 空 fields（如 copy）→ 可选 never 参数，避免生成空对象类型 `{}`（lint no-empty-object-type）
+  const params = schema.fields.length === 0 ? 'params?: never' : `params: ${fieldsToParams(schema)}`
   const ret = returnType(op)
-  return `  ${op}(${shapeParam}params: ${params}): ${ret}`
+  return `  ${op}(${shapeParam}${params}): ${ret}`
 }
 
 // ── 特殊 op 签名（不从 SCHEMAS 直接生成） ──
@@ -123,7 +125,7 @@ const SPECIAL_OPS: string[] = [
 // ── 生成完整文件 ──
 
 const SIMPLE_OPS = ['box', 'sphere', 'cylinder', 'cone', 'wedge', 'text', 'screw', 'svgExtrude', 'sdf',
-  'translate', 'rotate', 'scale', 'drill', 'extrude', 'engrave', 'knurl']
+  'translate', 'rotate', 'scale', 'drill', 'extrude', 'engrave', 'knurl', 'copy']
 
 const SKIP_OPS = new Set(['boolean', 'split', 'load']) // 有特殊签名
 
@@ -190,6 +192,11 @@ function generate(): string {
   lines.push(SPECIAL_OPS[9])  // bboxCenter
   lines.push(SPECIAL_OPS[10]) // volume
   lines.push(SPECIAL_OPS[11]) // faceAt
+
+  // copy
+  lines.push(``)
+  lines.push(`  // ── 克隆 ──`)
+  lines.push(genSimpleOp('copy'))
 
   // IO
   lines.push(``)

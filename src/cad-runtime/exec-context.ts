@@ -17,7 +17,6 @@ import type { BrepChainState } from '../brep/brep-chain'
 import type { ShapeHandle, OcctKernel } from 'occt-wasm'
 import { getSlot, ensureSlot } from '../stdlib/shape'
 import type { PartName } from '../identity'
-import { asPartName } from '../identity'
 import type {
   HostPorts,
   ExecutionMode,

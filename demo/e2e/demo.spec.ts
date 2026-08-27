@@ -54,8 +54,8 @@ test.describe('faijs demo', () => {
     await page.goto('/')
     await waitForStatusOk(page)
     const status = await page.locator(SELECTOR.statusBar).textContent()
-    // Phase 3: 终端 = 活跃 Shape 变量（box + sphere + subtract 三个都是 Shape → 3 个终端）
-    expect(status).toMatch(/OK — brep: 3 shape\(s\), \d+ verts, \d+ triangles \| mesh: 3 shape\(s\)/)
+    // DAG leaf: box + sphere + subtract → 仅 subtract 终端 (1 个)
+    expect(status).toMatch(/OK — brep: 1 shape\(s\), \d+ verts, \d+ triangles \| mesh: 1 shape\(s\)/)
     expect(page.locator(SELECTOR.statusBar)).toHaveClass(/success/)
   })
 
@@ -107,8 +107,8 @@ test.describe('faijs demo', () => {
     await expect(page.locator(SELECTOR.exampleSelect)).toHaveValue('__file__')
     await expect(page.locator(`${SELECTOR.exampleSelect} option[value="__file__"]`)).toHaveText('custom-part.faijs')
     const status = await page.locator(SELECTOR.statusBar).textContent()
-    // box + cylinder + subtract → 3 个活跃 Shape 终端
-    expect(status).toMatch(/OK — brep: 3 shape\(s\)/)
+    // box + cylinder + subtract → 仅 subtract 终端 (DAG leaf)
+    expect(status).toMatch(/OK — brep: 1 shape\(s\)/)
   })
 
   test('切到内置示例后，可切回已打开的文件（内容与文件名保留）', async ({ page }) => {
@@ -160,8 +160,8 @@ let part2 = cad.subtract(part0, part1)`)
     await waitForStatusOk(page)
 
     const status = await page.locator(SELECTOR.statusBar).textContent()
-    // box + sphere + subtract → 3 个活跃 Shape 终端
-    expect(status).toMatch(/OK — brep: 3 shape\(s\)/)
+    // box + sphere + subtract → 仅 subtract 终端 (DAG leaf)
+    expect(status).toMatch(/OK — brep: 1 shape\(s\)/)
     // 运行完成后内容无变化 → Run 按钮自动置灰
     await expect(page.locator(SELECTOR.runBtn)).toBeDisabled()
   })

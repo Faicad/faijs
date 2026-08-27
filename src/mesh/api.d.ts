@@ -73,6 +73,9 @@ export interface CadAPI {
     area: number
   } | null
 
+  // ── 克隆 ──
+  copy(shape: Shape, params?: never): Shape
+
   // ── IO ──
   load(params: { key?: string; path?: string; url?: string; format?: string }): Promise<Shape>
 }

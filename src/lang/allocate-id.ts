@@ -53,23 +53,6 @@ function getMaxModelNum(statements: CadStatement[]): number {
   return max
 }
 
-/** 从语句列表中提取最大 group 号（grp_N 中的 N，兼容旧名） */
-function getMaxGroupNum(statements: CadStatement[]): number {
-  let max = 0
-  for (const stmt of statements) {
-    // 兼容旧名：检查 stmt.id 和 outputs
-    const ids = [stmt.id, ...stmt.outputs]
-    for (const id of ids) {
-      const m = GRP_RE.exec(id)
-      if (m) {
-        const n = parseInt(m[1], 10)
-        if (n > max) max = n
-      }
-    }
-  }
-  return max
-}
-
 /** 从 id 中解析模型号（兼容旧名 partN_vM 和新名 partN） */
 function parseModelNum(id: string): number | null {
   const m = PART_RE.exec(id) ?? PART_VM_RE.exec(id)
@@ -87,6 +70,14 @@ function parseVersionNum(id: string): number | null {
  */
 function isCreatorOp(op: string): boolean {
   return ['box', 'sphere', 'cylinder', 'cone', 'wedge', 'load', 'sdf', 'text', 'screw', 'svgExtrude'].includes(op)
+}
+
+/**
+ * 判断 op 是否为克隆型操作（输出是独立新对象，不保名）。
+ * copy 不消费源（共享读取），但输出是独立几何 → 归“新名”类。
+ */
+function isCloneOp(op: string): boolean {
+  return op === 'copy'
 }
 
 /**
@@ -131,8 +122,8 @@ export function allocateStatementId(
     return asPartName(`part${nextN}`)
   }
 
-  // 创建型 / 布尔 / 无输入 → 新模型
-  if (isCreatorOp(op) || isBooleanOp(op) || inputs.length === 0) {
+  // 创建型 / 布尔 / 克隆 / 无输入 → 新模型
+  if (isCreatorOp(op) || isBooleanOp(op) || isCloneOp(op) || inputs.length === 0) {
     const nextN = getMaxModelNum(statements) + 1
     return asPartName(`part${nextN}`)
   }

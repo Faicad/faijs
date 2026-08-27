@@ -42,6 +42,7 @@ import { createInternalStdlib } from './internal-stdlib-adapter'
 import { computeContentKey } from './content-key'
 export { computeContentKey } from './content-key'
 import { isCompound, getSlot } from '../stdlib/shape'
+import { computeLeafTerminals } from './terminal-dag'
 
 
 // ── 装配变换死代码已删除 ──
@@ -570,22 +571,23 @@ export class CadRuntime {
       if (slot?.faceEvolution) this.faceEvolutionCache.set(name, slot.faceEvolution)
     }
 
-    // T3-cond: 终端判定移入执行收尾
-    // 显式 terminalShapes（return [...]）优先；否则终端 = 所有 shape 类型的顶层全局变量
-    // （Phase 3：不再计算 DAG 活跃度，只判断顶层全局变量）。
+    // T3-cond: DAG 叶子终端判定（§4.1）
+    // 显式 terminalShapes（return [...]）优先；否则用“最后写者 + 下游无独占消费”算法。
+    // NON_CONSUMING_OPS = {group, assembly, copy} 不消费其右侧引用。
     const explicitTerminals = script.terminalShapes ?? []
     let terminals: TerminalShape[]
     if (explicitTerminals.length > 0) {
       terminals = explicitTerminals
     } else {
-      terminals = []
-      const seen = new Set<string>()
-      for (const [partName, val] of outputs) {
-        if (!isShapeLike(val)) continue
-        if (seen.has(partName)) continue
-        seen.add(partName)
-        terminals.push({ id: asStmtId(partName) })
+      // 收集所有 shape-typed 顶层变量名（含 compound 变量）
+      const shapeVarNames = new Set<PartName>()
+      for (const meta of this.executor.getMetas()) {
+        for (const w of meta.writes) {
+          const v = this.executor.getCtxVar(w)
+          if (isShapeLike(v) || isCompound(v)) shapeVarNames.add(asPartName(w))
+        }
       }
+      terminals = computeLeafTerminals(script, shapeVarNames)
     }
     const brepSolids = this.extractBrepSolids(script, terminals)
 

@@ -107,11 +107,11 @@ Step -Label '5/5  npm pack + demo e2e (playwright)' -Block {
     $demoDir = Join-Path $ROOT 'demo'
     Push-Location $demoDir
     try {
-        # demo has its own package.json/lockfile; install first in a clean environment (no node_modules)
-        if (-not (Test-Path node_modules)) {
-            npm ci
-            if ($LASTEXITCODE -ne 0) { return }
-        }
+        # demo has its own package.json/lockfile; always install fresh so the
+        # newly packed tarball (file:../faicad-faijs-*.tgz) is picked up even
+        # when a stale node_modules already exists locally (npm ci cleans it)
+        npm ci
+        if ($LASTEXITCODE -ne 0) { return }
         # Playwright browsers (idempotent: skips if already downloaded)
         npx playwright install chromium
         if ($LASTEXITCODE -ne 0) { return }

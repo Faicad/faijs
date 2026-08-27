@@ -244,6 +244,11 @@ export const SCHEMAS: Record<string, OpSchema> = {
       { name: 'constraints', type: 'any', required: false },
     ],
   },
+  copy: {
+    op: 'copy',
+    fields: [],
+    minInputs: 1,
+  },
   add_constraint: {
     op: 'add_constraint',
     void: true,

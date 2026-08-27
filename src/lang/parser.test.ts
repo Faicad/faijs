@@ -340,3 +340,85 @@ describe('parser: load 旧 op 名兼容', () => {
     expect(script.statements[0].args.fileRef).toBeUndefined()
   })
 })
+
+// ── 静态消费校验（Rule A + Rule B） ──
+
+describe('parser: static consumption validation (Rule A + Rule B)', () => {
+  // 规则 A：任何变量最多被一个独占语句消费
+
+  it('规则 A 合法: 保名链 part0=drill(part0) → 合法（唯一消费）', () => {
+    const code = `
+      let part0 = cad.box({ size: 20 })
+      part0 = cad.drill(part0, { diameter: 5 })
+    `
+    expect(() => parseScript(code)).not.toThrow()
+  })
+
+  it('规则 A 非法: part0 被两个 boolean 语句消费 → ParseError', () => {
+    // boolean 是多入新名 op，不重赋值 part0 → 两次引用 part0 = 被消费两次
+    const code = `
+      let part0 = cad.box({ size: 20 })
+      let part1 = cad.sphere({ radius: 8 })
+      let part2 = cad.subtract(part0, part1)
+      let part3 = cad.subtract(part0, part2)
+    `
+    expect(() => parseScript(code)).toThrow(ParseError)
+    expect(() => parseScript(code)).toThrow(/consumed by more than one/)
+  })
+
+  it('规则 A 合法: copy 不计数 → part0 被 copy 引用两次仍合法', () => {
+    const code = `
+      let part0 = cad.box({ size: 20 })
+      let part1 = cad.copy(part0)
+      let part2 = cad.copy(part0)
+    `
+    expect(() => parseScript(code)).not.toThrow()
+  })
+
+  // 规则 B：成员必为终端
+
+  it('规则 B 非法: 成员被独占消费 → ParseError', () => {
+    // boolean 不重赋值 part0 → part0 被 subtract 消费 → group 成员 part0 被消费 → 报错
+    const code = `
+      let part0 = cad.box({ size: 20 })
+      let part1 = cad.sphere({ radius: 8 })
+      let part2 = cad.subtract(part0, part1)
+      let part3 = cad.group({ name: 'G', members: ['part0', 'part1'] })
+    `
+    expect(() => parseScript(code)).toThrow(ParseError)
+    expect(() => parseScript(code)).toThrow(/must be terminals/)
+  })
+
+  it('规则 B 合法: 保名链 + group 引用 → 合法', () => {
+    // part0 被 drill 重赋值 → drill 是 part0 的最后写者
+    // group 成员 part0 → part0 的最后写者是 drill，其后无消费 → 成员是终端 → 合法
+    const code = `
+      let part0 = cad.box({ size: 20 })
+      part0 = cad.drill(part0, { diameter: 5 })
+      let part1 = cad.group({ name: 'G', members: ['part0'] })
+    `
+    expect(() => parseScript(code)).not.toThrow()
+  })
+
+  it('规则 B 合法: 无输入新名 / split / boolean → 合法', () => {
+    const code = `
+      let part0 = cad.box({ size: 20 })
+      let part1 = cad.sphere({ radius: 8 })
+      let part2 = cad.subtract(part0, part1)
+    `
+    expect(() => parseScript(code)).not.toThrow()
+  })
+
+  // copy 新名测试
+
+  it('copy 分配新名: part0=box; part1=copy(part0) → part1 是新名', () => {
+    const code = `
+      let part0 = cad.box({ size: 20 })
+      let part1 = cad.copy(part0)
+    `
+    const { script } = parseScript(code)
+    expect(script.statements[1].op).toBe('copy')
+    expect(script.statements[1].outputs[0]).toBe('part1')
+    expect(script.statements[1].inputs).toEqual(['part0'])
+  })
+})

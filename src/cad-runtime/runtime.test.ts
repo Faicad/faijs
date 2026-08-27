@@ -889,3 +889,108 @@ describe('CadRuntime: plan deps 级联（参数语句化）', () => {
     expect(out).toBeDefined()
   })
 })
+
+// ── DAG 叶子终端判定 ──
+
+describe('CadRuntime: DAG leaf terminal detection', () => {
+  it('boolean: box + sphere + subtract → 仅 subtract 终端', async () => {
+    const { result } = await run([
+      makeStmt('s1', 'box', { size: 20 }),
+      makeStmt('s2', 'sphere', { radius: 8 }),
+      { id: asStmtId('s3'), op: 'boolean', args: { operation: 'subtract' }, inputs: [asPartName('s1'), asPartName('s2')], outputs: [asPartName('s3')], hasAssignment: true } as CadStatement,
+    ])
+    expect(result.terminals.map(t => t.id)).toEqual([asPartName('s3')])
+  })
+
+  it('链式重赋值: part0 = translate(part0) → 仅 1 个终端', async () => {
+    // makeStmt 默认 outputs = [id]，单入单出复用名时 allocateStatementId 会复用输入名
+    // 但这里直接构造 PartScript，不经过 parser，所以 outputs 就是 id
+    const s1 = makeStmt('part0', 'box', { size: 20 })
+    const s2: CadStatement = {
+      id: asStmtId('s2'), op: 'translate', args: { offset: [5, 0, 0] },
+      inputs: [asPartName('part0')], outputs: [asPartName('part0')], hasAssignment: true,
+    }
+    const { result } = await run([s1, s2])
+    expect(result.terminals.length).toBe(1)
+    expect(result.terminals[0].id).toBe(asPartName('part0'))
+  })
+
+  it('单 box → 单终端', async () => {
+    const { result } = await run([makeStmt('part0', 'box', { size: 20 })])
+    expect(result.terminals.length).toBe(1)
+    expect(result.terminals[0].id).toBe(asPartName('part0'))
+  })
+
+  it('三个独立原语 → 3 个终端', async () => {
+    const { result } = await run([
+      makeStmt('part0', 'box', { size: 20 }),
+      makeStmt('part1', 'sphere', { radius: 8 }),
+      makeStmt('part2', 'cylinder', { radius: 5, height: 20 }),
+    ])
+    expect(result.terminals.length).toBe(3)
+  })
+})
+
+// ── copy op ──
+
+describe('CadRuntime: copy op (deep clone)', () => {
+  it('mesh 深拷贝独立性: 改副本 positions 不影响源', async () => {
+    const runtime = makeRuntime('mesh')
+    const script = makePartScript([
+      makeStmt('part0', 'box', { size: 20 }),
+      makeStmt('part1', 'copy', {}, ['part0']),
+    ])
+    const result = await runtime.execute(script)
+    expect(result.failedAt).toBeUndefined()
+
+    const src = result.outputs.get(asPartName('part0'))!
+    const copy = result.outputs.get(asPartName('part1'))!
+    expect(src).toBeDefined()
+    expect(copy).toBeDefined()
+    // 独立的 TypedArray
+    expect(src.positions).not.toBe(copy.positions)
+    expect(src.indices).not.toBe(copy.indices)
+    // 但内容相同
+    expect(Array.from(src.positions)).toEqual(Array.from(copy.positions))
+    expect(Array.from(src.indices)).toEqual(Array.from(copy.indices))
+  })
+
+  it('BREP 实体复制: copy 产出独立 solid handle', async () => {
+    const runtime = makeRuntime('brep')
+    const script = makePartScript([
+      makeStmt('part0', 'box', { size: 20 }),
+      makeStmt('part1', 'copy', {}, ['part0']),
+    ])
+    const result = await runtime.execute(script)
+    expect(result.failedAt).toBeUndefined()
+
+    // 两个终端都应有 BREP solid
+    expect(result.brepSolids).toBeDefined()
+    expect(result.brepSolids!.has(asPartName('part0'))).toBe(true)
+    expect(result.brepSolids!.has(asPartName('part1'))).toBe(true)
+
+    // 独立 handle
+    const srcSolid = result.brepSolids!.get(asPartName('part0'))!
+    const copySolid = result.brepSolids!.get(asPartName('part1'))!
+    // ShapeHandle 是 number，copy 应产出新 handle（不同值）
+    expect(srcSolid.solid).not.toBe(copySolid.solid)
+
+    // 验证 STEP 导出两份都是有效实体
+    const stepSrc = kernel.exportStep(srcSolid.solid)
+    const stepCopy = kernel.exportStep(copySolid.solid)
+    expect(stepSrc).toContain('ADVANCED_FACE')
+    expect(stepCopy).toContain('ADVANCED_FACE')
+  })
+
+  it('终端判定: part0=box; part1=copy(part0) → 两者都是终端', async () => {
+    const runtime = makeRuntime('brep')
+    const script = makePartScript([
+      makeStmt('part0', 'box', { size: 20 }),
+      makeStmt('part1', 'copy', {}, ['part0']),
+    ])
+    const result = await runtime.execute(script)
+    expect(result.terminals.length).toBe(2)
+    const ids = result.terminals.map(t => t.id).sort()
+    expect(ids).toEqual([asPartName('part0'), asPartName('part1')])
+  })
+})

@@ -31,6 +31,7 @@ import { split } from '../stdlib/split'
 import { boolean as booleanOp } from '../stdlib/boolean'
 import { engrave } from '../stdlib/engrave'
 import { group as stdlibGroup, assembly as stdlibAssembly } from '../stdlib/compound'
+import { copy as stdlibCopy } from '../stdlib/copy'
 import {
   faceCenter as stdlibFaceCenter,
   faceNormal as stdlibFaceNormal,
@@ -118,6 +119,9 @@ export function createInternalStdlib(): StdlibNamespace {
     // ── 结构型（Phase 2.4：compound Shape + AssemblyBehavior） ──
     group: (...rest) => { const { exec, args } = parseCall(rest); return stdlibGroup(args, exec) },
     assembly: (...rest) => { const { exec, args } = parseCall(rest); return stdlibAssembly(args, exec) },
+
+    // ── copy（1 输入，深拷贝） ──
+    copy: (...rest) => { const { exec, args, inputs } = parseCall(rest); return stdlibCopy(inputs[0], args, exec) },
 
     // ── $geom 查询（末参 exec，转发 stdlib/geom） ──
     faceCenter: (...rest) => stdlibFaceCenter(...rest),

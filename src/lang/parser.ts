@@ -557,6 +557,87 @@ function collectStatementRefs(stmt: CadStatement): string[] {
   return [...refs]
 }
 
+// ── 静态消费校验（Rule A + Rule B） ──
+
+/** 不消费其右侧引用的语句类型（group/assembly 不消费成员，copy 不消费源）。 */
+const NON_CONSUMING_OPS = new Set(['group', 'assembly', 'copy'])
+
+/**
+ * 静态校验消费合法性（§4.1 前置）。
+ *
+ * 规则 A（通用：任何变量最多被消费一次）——对每个 shape 变量 v：
+ *   P = 最后一条 outputs 含 v 的语句下标；
+ *   consumers = P 之后引用 v 的非 NON_CONSUMING_OPS 语句数；
+ *   consumers > 1 → 抛 ParseError。
+ *
+ * 规则 B（成员必为终端）——对每个 group/assembly 成员 m：
+ *   P = 最后一条 outputs 含 m 的语句下标；
+ *   P 之后任何非 NON_CONSUMING_OPS 语句引用 m → 抛 ParseError。
+ *
+ * 注意：void op（add_constraint/do_assemble）无 outputs，不参与“被消费”判定
+ *（它们的 inputs 为空，refs 中只有 $param / $geom.of，不会出现 shape 变量名）。
+ */
+function validateConsumption(statements: CadStatement[]): void {
+  // 构建变量名 → 最后一条 outputs 含该名的语句下标
+  const lastProducer = new Map<string, number>()
+  for (let i = 0; i < statements.length; i++) {
+    const stmt = statements[i]
+    if (!stmt.hasAssignment) continue // void op 无 outputs
+    for (const out of stmt.outputs) {
+      lastProducer.set(out, i)
+    }
+  }
+
+  // 收集每个 group/assembly 语句的成员名
+  const allMembers = new Set<string>()
+  for (const stmt of statements) {
+    if (stmt.op === 'group' || stmt.op === 'assembly') {
+      const members = stmt.args?.members
+      if (Array.isArray(members)) {
+        for (const m of members) {
+          if (typeof m === 'string') allMembers.add(m)
+        }
+      }
+    }
+  }
+
+  // 规则 A + B：对每个有 lastProducer 的变量，统计其后的非 NON_CONSUMING_OPS 消费者数
+  for (const [varName, producerIdx] of lastProducer) {
+    const isMember = allMembers.has(varName)
+    let consumerCount = 0
+    let firstConsumerIdx = -1
+
+    for (let i = producerIdx + 1; i < statements.length; i++) {
+      const stmt = statements[i]
+      if (NON_CONSUMING_OPS.has(stmt.op)) continue // group/assembly/copy 不消费
+
+      // 检查该语句是否引用了 varName（refs 或 inputs）
+      const refs = stmt.refs ?? stmt.inputs ?? []
+      if (refs.includes(varName)) {
+        consumerCount++
+        if (firstConsumerIdx < 0) firstConsumerIdx = i
+      }
+    }
+
+    // 规则 B：成员必为终端 —— 成员有消费者即报错
+    if (isMember && consumerCount > 0) {
+      const consumerStmt = statements[firstConsumerIdx]
+      throw new ParseError(
+        `member "${varName}" is consumed by exclusive op "${consumerStmt.op}" — members of group/assembly must be terminals`,
+        0,
+      )
+    }
+
+    // 规则 A：任何变量最多被一个非 NON_CONSUMING_OPS 语句消费
+    if (consumerCount > 1) {
+      throw new ParseError(
+        `variable "${varName}" is consumed by more than one exclusive statement`,
+        0,
+      )
+    }
+  }
+}
+
 // ── 主解析函数 ──
 
 export interface ParseOptions {
@@ -737,7 +818,7 @@ export function parseScript(code: string, options?: ParseOptions): ParseResult {
           init.callee.object.name === 'cad'
         ) {
           // 语句：const partN_vM = [await] cad.op(...)
-          const { stmt, varName, declaredOutputs } = parseCadStatement(decl, paramNames, varToId)
+          const { stmt, varName } = parseCadStatement(decl, paramNames, varToId)
           // 赋值校验：void 不准赋值（schema 表由 parse 入口注入；无表则不校验）
           const schema = options?.schemas?.[stmt.op]
           if (schema?.void) {
@@ -818,7 +899,7 @@ export function parseScript(code: string, options?: ParseOptions): ParseResult {
               init: expr.right,
               loc: stmtNode.loc,
             }
-            const { stmt, varName: parsedVar, declaredOutputs } = parseCadStatement(fakeDecl, paramNames, varToId)
+            const { stmt, varName: parsedVar } = parseCadStatement(fakeDecl, paramNames, varToId)
             // Phase 3：裸重赋值也分配 outputs（单入单出 → 复用输入名）
             const allocated = allocateStatementId(stmt.op, stmt.inputs.map(String), { statements })
             stmt.outputs = [allocated]
@@ -899,6 +980,12 @@ export function parseScript(code: string, options?: ParseOptions): ParseResult {
     }
     stmt.refs = collectStatementRefs(stmt)
   }
+
+  // ── 3.6 静态消费校验（§4.1 前置 Rule A + Rule B） ──
+  // stmt.refs 已就绪，检查消费合法性：
+  // - 任何变量最多被一个独占语句消费（规则 A）
+  // - group/assembly 成员必为终端（规则 B）
+  validateConsumption(statements)
 
   // ── 4. terminal shapes ──
   // Phase 3：终端判定移入执行收尾（runtime.collectResult），parser 不再计算。

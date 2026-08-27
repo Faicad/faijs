@@ -13,7 +13,7 @@ import type { BrepChainState } from './brep/brep-chain'
 import { CadRuntime } from './cad-runtime/runtime'
 import { computeContentKey } from './cad-runtime/runtime'
 import type { HostPorts, ExecutionMode } from './cad-runtime/ports'
-import { asPartName, type PartName } from './identity'
+import type { PartName } from './identity'
 
 export interface ExecuteOutput {
   contentKey: string
