@@ -38,7 +38,7 @@ import { allocateStatementId, allocateSplitIds } from './allocate-id'
 import { isAssetRef, isGeomRef, isParamRef } from './types'
 import {
   asStmtId, asPartName,
-  type StmtId, type PartName,
+  type PartName,
 } from '../identity'
 import type { OpSchema } from './args-schema'
 
@@ -419,7 +419,7 @@ function parseSplitDestructuring(
 function parseReturnStatement(
   node: ASTNode,
   varToId: Map<string, PartName>,
-): { terminalShapeId: StmtId | null; meta: PartScriptMeta | undefined; terminalShapes: TerminalShape[] | undefined } {
+): { terminalShapeId: PartName | null; meta: PartScriptMeta | undefined; terminalShapes: TerminalShape[] | undefined } {
   const line = getLine(node)
   const arg = node.argument
 
@@ -433,7 +433,7 @@ function parseReturnStatement(
     if (!ref) {
       throw new ParseError(`unknown variable "${arg.name}" in return`, line)
     }
-    return { terminalShapeId: asStmtId(ref), meta: undefined, terminalShapes: undefined }
+    return { terminalShapeId: ref, meta: undefined, terminalShapes: undefined }
   }
 
   // return { shape: part0_vN, name, color, ... }
@@ -472,8 +472,8 @@ function parseReturnObject(
   objNode: ASTNode,
   varToId: Map<string, PartName>,
   line: number,
-): { id: StmtId | null; meta: PartScriptMeta | undefined } {
-  let id: StmtId | null = null
+): { id: PartName | null; meta: PartScriptMeta | undefined } {
+  let id: PartName | null = null
   const meta: PartScriptMeta = {}
 
   for (const prop of objNode.properties) {
@@ -488,7 +488,7 @@ function parseReturnObject(
         if (!ref) {
           throw new ParseError(`unknown variable "${prop.value.name}" in return shape`, line)
         }
-        id = asStmtId(ref)
+        id = ref
       }
     } else if (key === 'name') {
       if (prop.value?.type === 'Literal') {

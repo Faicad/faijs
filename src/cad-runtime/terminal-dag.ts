@@ -15,7 +15,6 @@
 
 import type { PartScript, TerminalShape } from '../lang/types'
 import type { PartName } from '../identity'
-import { asStmtId } from '../identity'
 
 /** 不消费其右侧引用的语句类型（group/assembly 不消费成员，copy 不消费源）。 */
 const NON_CONSUMING_OPS = new Set(['group', 'assembly', 'copy'])
@@ -56,7 +55,7 @@ export function computeLeafTerminals(
     const producerIdx = lastProducer.get(partName)
     // 无生产者（如手工注入的变量）→ 视为终端
     if (producerIdx === undefined) {
-      terminals.push({ id: asStmtId(partName) })
+      terminals.push({ id: partName })
       continue
     }
 
@@ -76,7 +75,7 @@ export function computeLeafTerminals(
     }
 
     if (!consumed) {
-      terminals.push({ id: asStmtId(partName) })
+      terminals.push({ id: partName })
     }
   }
 

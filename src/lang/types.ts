@@ -126,10 +126,10 @@ export interface PartScriptMeta {
   appearance?: { color?: string; metalness?: number; roughness?: number }
 }
 
-/** 终端 mesh：return 数组中列出的最终输出（设计文档 §2.2） */
+/** 终端 shape：return 数组/DAG 叶子判定列出的最终输出（设计文档 §2.2 / §4.1） */
 export interface TerminalShape {
-  /** 指向语句 id（如 's1'） */
-  id: StmtId
+  /** 终端左值变量名（PartName，如 'part0'）——终端按变量名（outputs）标识，非语句 id */
+  id: PartName
   /** 该终端 mesh 的独立 meta（name/appearance） */
   meta?: PartScriptMeta
 }

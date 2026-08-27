@@ -34,7 +34,7 @@ import { buildSolidTopologyRuntime } from '../brep/brep-topology'
 import type { SolidTopologyResult } from '../brep/brep-topology'
 import { buildTopologyFromMesh } from '../brep/brep-topology'
 import type { Mesh as WasmMesh } from 'occt-wasm'
-import { asPartName, asStmtId, type PartName, type StmtId } from '../identity'
+import { asPartName, type PartName, type StmtId } from '../identity'
 import { compileToModule, type CompiledStatementMeta } from '../lang/compile'
 import { ModuleExecutor } from './module-executor'
 import { ExecContextImpl, BrepUnsupportedError } from './exec-context'
@@ -607,23 +607,23 @@ export class CadRuntime {
     const topology = new Map<PartName, PartTopology>(this.topologyCache)
     const topoMode = opts?.topology ?? 'auto'
     if (topoMode !== 'off') {
-      const buildFor = (id: StmtId, key: PartName): void => {
-        if (topology.has(key)) return
-        const rt = this.buildBrepTopology(id)
-        if (rt) topology.set(key, { partName: key, source: 'brep', data: runtimeToData(rt) })
+      const buildFor = (partName: PartName): void => {
+        if (topology.has(partName)) return
+        const rt = this.buildBrepTopology(partName)
+        if (rt) topology.set(partName, { partName, source: 'brep', data: runtimeToData(rt) })
       }
       if (topoMode === 'brep') {
         // brep 模式：为所有在 BREP 链上的输出构建拓扑（含非终端）
         for (const meta of this.executor.getMetas()) {
           for (const w of meta.writes) {
             const v = this.executor.getCtxVar(w)
-            if (isShapeLike(v)) buildFor(asStmtId(w), asPartName(w))
+            if (isShapeLike(v)) buildFor(asPartName(w))
           }
         }
       } else {
         // auto 模式：为"在 BREP 链上"的终端构建拓扑
         for (const t of terminals) {
-          buildFor(t.id, asPartName(t.id))
+          buildFor(t.id)
         }
       }
     }
@@ -657,9 +657,8 @@ export class CadRuntime {
 
     if (terminals.length > 0) {
       for (const t of terminals) {
-        const tKey = asPartName(t.id)
-        const s = this.solidCache.get(tKey)
-        if (s && this.kernel) brepSolids.set(tKey, { solid: s, kernel: this.kernel })
+        const s = this.solidCache.get(t.id)
+        if (s && this.kernel) brepSolids.set(t.id, { solid: s, kernel: this.kernel })
       }
     } else {
       const newShapeStmts = script.statements.filter((s) => s.hasAssignment)
@@ -781,22 +780,21 @@ export class CadRuntime {
 
   // ── 公开：缓存访问 ──
 
-  /** 获取语句缓存中的输出几何（key 为语句 id；内部查 PartName 键） */
-  getCachedOutput(statementId: StmtId): Shape | undefined {
-    return this.statementCache.get(asPartName(statementId))?.output
+  /** 获取语句缓存中的输出几何（statementCache 按 PartName 键控） */
+  getCachedOutput(partName: PartName): Shape | undefined {
+    return this.statementCache.get(partName)?.output
   }
 
-  /** 写入语句缓存（key 为语句 id，内部按 PartName 键存储） */
+  /** 写入语句缓存（statementCache 按 PartName 键控） */
   writeToStatementCache(
-    statementId: StmtId,
+    partName: PartName,
     stmt: CadStatement,
     output: Shape,
     outputContentKey: string,
   ): void {
-    const primaryKey = asPartName(statementId)
     const getInputContentKey = (id: PartName) => this.statementCache.get(id)?.outputContentKey
     const stmtKey = this.computeLegacyStatementKey(stmt, getInputContentKey)
-    this.statementCache.set(primaryKey, {
+    this.statementCache.set(partName, {
       statementKey: stmtKey,
       outputContentKey,
       output,
@@ -841,18 +839,17 @@ export class CadRuntime {
    * 宿主不再直接 import faijs 内部构建函数（buildSolidTopologyRuntime），
    * 而是通过此方法从 runtime 获取 BREP 拓扑。
    *
-   * 按 stmtId 直接查持久 solidCache + brepChain.meshShapeCache（均为 stmtId key），
-   * 不再需要 scopedId 投影。单一真源：solidCache（stmtId → ShapeHandle）。
+   * 按 PartName 直接查持久 solidCache + brepChain.meshShapeCache（均为 PartName key），
+   * 不再需要 scopedId 投影。单一真源：solidCache（PartName → ShapeHandle）。
    *
-   * @param stmtId 终端语句 id（在 brepChain.solidCache 中查找）
+   * @param partName 终端变量名（PartName，在 brepChain.solidCache 中查找）
    * @returns SelectorRuntime，或 null（无可用 BREP solid）
    */
-  buildBrepTopology(stmtId: StmtId): SelectorRuntime | null {
+  buildBrepTopology(partName: PartName): SelectorRuntime | null {
     const brepChain = this.brepChain
     if (!brepChain?.kernel) return null
 
-    // stmtId 即其首输出 PartName（品牌桥），按 PartName 查持久 solidCache
-    const partName = asPartName(stmtId)
+    // partName 即该变量的首输出变量名，按 PartName 查持久 solidCache
     const solid = brepChain.solidCache.get(partName)
     if (!solid) return null
 
