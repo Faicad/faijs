@@ -1,2 +1,2 @@
-const part0_v0 = cad.box({ size: 20 })
-const part0_v1 = cad.translate({ offset: [10, 5, 0] }, part0_v0)
+let part0 = cad.box({ size:20 })
+part0 = cad.translate(part0, { offset:[10,5,0] })

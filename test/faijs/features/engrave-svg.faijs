@@ -1,4 +1,4 @@
-const part0_v0 = cad.box({ size: 50 })
+let part0 = cad.box({ size:50 })
 // SVG engrave would be tested with actual SVG data
 // For now, test text engrave as a proxy
-const part0_v1 = cad.engrave({ text: 'TEST', depth: 2, textSize: 8 }, part0_v0)
+part0 = cad.engrave(part0, { text:'TEST', depth:2, textSize:8 })

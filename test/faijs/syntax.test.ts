@@ -12,7 +12,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
 import { resolve, join } from 'node:path'
-import { parseScript, computeTerminalShapes } from '../../src/lang/parser'
+import { parseScript } from '../../src/lang/parser'
 import { scriptToCode } from '../../src/lang/codegen'
 import type { PartScript } from '../../src/lang/types'
 
@@ -74,15 +74,15 @@ describe('syntax round-trip: parse → codegen → parse', () => {
 
 describe('syntax features', () => {
   it('single mesh flat code', () => {
-    const code = `const part0_v0 = cad.box({ size: 20 })`
+    const code = `let part0 = cad.box({ size: 20 })`
     const { script } = parseScript(code)
     expect(script.statements).toHaveLength(1)
     expect(script.statements[0].op).toBe('box')
   })
 
   it('Vec3 parameter forms (array vs number)', () => {
-    const codeScalar = `const part0_v0 = cad.box({ size: 20 })`
-    const codeVec3 = `const part0_v0 = cad.box({ size: [20, 30, 40] })`
+    const codeScalar = `let part0 = cad.box({ size: 20 })`
+    const codeVec3 = `let part0 = cad.box({ size: [20, 30, 40] })`
     const { script: s1 } = parseScript(codeScalar)
     const { script: s2 } = parseScript(codeVec3)
     expect(s1.statements[0].args.size).toBe(20)
@@ -90,23 +90,24 @@ describe('syntax features', () => {
   })
 
   it('chained operations preserve input references', () => {
-    const code = `const part0_v0 = cad.box({ size: 20 })
-const part0_v1 = cad.translate({ offset: [5, 0, 0] }, part0_v0)
-const part0_v2 = cad.rotate({ anglesDeg: [0, 0, 45] }, part0_v1)`
+    const code = `let part0 = cad.box({ size: 20 })
+part0 = cad.translate({ offset: [5, 0, 0] }, part0)
+part0 = cad.rotate({ anglesDeg: [0, 0, 45] }, part0)`
     const { script } = parseScript(code)
     expect(script.statements).toHaveLength(3)
     expect(script.statements[1].inputs).toEqual(['part0'])
     expect(script.statements[2].inputs).toEqual(['part0'])
   })
 
-  it('multi mesh: two independent primitives → two terminal shapes', () => {
-    const code = `const part0_v0 = cad.box({ size: 20 })
-const part1_v0 = cad.sphere({ radius: 10, center: [30, 0, 0] })`
+  it('multi mesh: two independent primitives → two outputs (runtime terminals)', () => {
+    const code = `let part0 = cad.box({ size: 20 })
+let part1 = cad.sphere({ radius: 10, center: [30, 0, 0] })`
     const { script } = parseScript(code)
     expect(script.statements).toHaveLength(2)
-    // Phase 3: terminalShapes 移入 runtime.collectResult；parser 不再自动计算
-    const terminals = computeTerminalShapes(script.statements)
-    expect(terminals).toBeDefined()
-    expect(terminals).toHaveLength(2)
+    // Phase 3: parser 不再自动计算 terminalShapes；终端判定在 runtime.collectResult。
+    // 这里断言解析层对 outputs（PartName）的正确产出——运行期终端 = 这些 outputs 里的 Shape。
+    expect(script.terminalShapes).toBeUndefined()
+    expect(script.statements[0].outputs).toEqual(['part0'])
+    expect(script.statements[1].outputs).toEqual(['part1'])
   })
 })

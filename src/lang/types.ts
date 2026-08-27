@@ -128,7 +128,7 @@ export interface PartScriptMeta {
 
 /** 终端 mesh：return 数组中列出的最终输出（设计文档 §2.2） */
 export interface TerminalShape {
-  /** 指向语句 id（如 'part1_v1'） */
+  /** 指向语句 id（如 's1'） */
   id: StmtId
   /** 该终端 mesh 的独立 meta（name/appearance） */
   meta?: PartScriptMeta

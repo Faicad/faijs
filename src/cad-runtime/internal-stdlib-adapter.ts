@@ -3,8 +3,8 @@
  *
  * 设计文档：docs/plans/2026-08-25-faijs-vm-execution-implementation-plan.md §1.4
  *
- * 此层是临时的（Phase 2.5 删除）：把 `src/stdlib/*` 的库函数按编译产物的调用形态
- * 转发为 cad 命名空间函数。编译产物调用形态：
+ * Assembles the `src/stdlib/*` library functions into the cad namespace, adapting them
+ * to the call shapes emitted by compileToModule. Compiled call shapes:
  * - 创建类 `cad.<op>(args, exec)`；1 输入类 `cad.<op>(input, args, exec)`；
  * - boolean 多输入 `cad.boolean(input1, input2, args, exec)`；split 返回 { front, back }。
  *
@@ -74,7 +74,7 @@ async function assetQuery(key: string, exec: ExecContextImpl): Promise<string> {
 // ── 创建 cad 命名空间 ──
 
 /**
- * 创建内部适配命名空间（Phase 2.1：转发 stdlib 库函数；Phase 2.5 由正式 stdlib 子路径替代）。
+ * Assemble the stdlib library functions into the cad namespace (forwarding with the compiled call shape).
  */
 export function createInternalStdlib(): StdlibNamespace {
   return {

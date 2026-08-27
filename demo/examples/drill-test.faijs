@@ -1,4 +1,4 @@
-const part0_v0 = cad.box({ size: [30, 20, 15] })
-const part0_v1 = cad.cylinder({ radius: 5, height: 20, center: [0, 0, 0] })
-const part0_v2 = cad.subtract(part0_v0, part0_v1)
-const part0_v3 = cad.translate({ offset: [10, 0, 0] }, part0_v2)
+let part0 = cad.box({ size:[30,20,15] })
+let part1 = cad.cylinder({ radius:5, height:20, center:[0,0,0] })
+let part2 = cad.subtract(part0, part1)
+part2 = cad.translate(part2, { offset:[10,0,0] })

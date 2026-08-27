@@ -8,11 +8,11 @@ import { scriptToCode, statementToLine } from './codegen'
 describe('E15.1: 装配链式调用解析', () => {
   it('解析 const/let assem1 = cad.assembly({...})', () => {
     const code = `
-      const part0_v0 = cad.box({ size: 20 })
-      const part1_v0 = cad.box({ size: 10 })
+      let part0 = cad.box({ size: 20 })
+      let part1 = cad.box({ size: 10 })
       let assem1 = cad.assembly({
         name: 'MyAssembly',
-        members: ['part0_v0', 'part1_v0'],
+        members: ['part0', 'part1'],
         constraints: []
       })
     `
@@ -23,18 +23,18 @@ describe('E15.1: 装配链式调用解析', () => {
     const assemblyStmt = script.statements[2]
     expect(assemblyStmt.op).toBe('assembly')
     expect(assemblyStmt.args.name).toBe('MyAssembly')
-    expect(assemblyStmt.args.members).toEqual(['part0_v0', 'part1_v0'])
+    expect(assemblyStmt.args.members).toEqual(['part0', 'part1'])
   })
 
   it('解析 assem1.add_constraint({...})', () => {
     const code = `
-      const part0_v0 = cad.box({ size: 20 })
-      const part1_v0 = cad.box({ size: 10 })
-      let assem1 = cad.assembly({ name: 'A', members: ['part0_v0', 'part1_v0'], constraints: [] })
+      let part0 = cad.box({ size: 20 })
+      let part1 = cad.box({ size: 10 })
+      let assem1 = cad.assembly({ name: 'A', members: ['part0', 'part1'], constraints: [] })
       assem1.add_constraint({
         type: 'face_mate',
-        fixedPartName: 'part0_v0',
-        movingPartName: 'part1_v0',
+        fixedPartName: 'part0',
+        movingPartName: 'part1',
         fixedFace: { surfaceType: 'plane' },
         movingFace: { surfaceType: 'plane' }
       })
@@ -46,16 +46,16 @@ describe('E15.1: 装配链式调用解析', () => {
     expect(addConstraintStmt.op).toBe('add_constraint')
     expect(addConstraintStmt.assemblyTarget).toBe('assem1')
     expect(addConstraintStmt.args.type).toBe('face_mate')
-    expect(addConstraintStmt.args.fixedPartName).toBe('part0_v0')
-    expect(addConstraintStmt.args.movingPartName).toBe('part1_v0')
+    expect(addConstraintStmt.args.fixedPartName).toBe('part0')
+    expect(addConstraintStmt.args.movingPartName).toBe('part1')
   })
 
   it('解析 assem1.do_assemble()', () => {
     const code = `
-      const part0_v0 = cad.box({ size: 20 })
-      const part1_v0 = cad.box({ size: 10 })
-      let assem1 = cad.assembly({ name: 'A', members: ['part0_v0', 'part1_v0'], constraints: [] })
-      assem1.add_constraint({ type: 'face_mate', fixedPartName: 'part0_v0', movingPartName: 'part1_v0', fixedFace: { surfaceType: 'plane' }, movingFace: { surfaceType: 'plane' } })
+      let part0 = cad.box({ size: 20 })
+      let part1 = cad.box({ size: 10 })
+      let assem1 = cad.assembly({ name: 'A', members: ['part0', 'part1'], constraints: [] })
+      assem1.add_constraint({ type: 'face_mate', fixedPartName: 'part0', movingPartName: 'part1', fixedFace: { surfaceType: 'plane' }, movingFace: { surfaceType: 'plane' } })
       assem1.do_assemble()
     `
     const { script } = parseScript(code)
@@ -68,7 +68,7 @@ describe('E15.1: 装配链式调用解析', () => {
 
   it('拒绝未声明的装配变量', () => {
     const code = `
-      const part0_v0 = cad.box({ size: 20 })
+      let part0 = cad.box({ size: 20 })
       unknown_var.add_constraint({ type: 'face_mate' })
     `
     expect(() => parseScript(code)).toThrow(/unknown assembly variable/)
@@ -85,10 +85,10 @@ describe('E15.1: 装配链式调用解析', () => {
 
   it('完整链式调用 roundtrip', () => {
     const code = `
-      const part0_v0 = cad.box({ size: 20 })
-      const part1_v0 = cad.box({ size: 10 })
-      let assem1 = cad.assembly({ name: 'A', members: ['part0_v0', 'part1_v0'], constraints: [] })
-      assem1.add_constraint({ type: 'face_mate', fixedPartName: 'part0_v0', movingPartName: 'part1_v0', fixedFace: { surfaceType: 'plane' }, movingFace: { surfaceType: 'plane' } })
+      let part0 = cad.box({ size: 20 })
+      let part1 = cad.box({ size: 10 })
+      let assem1 = cad.assembly({ name: 'A', members: ['part0', 'part1'], constraints: [] })
+      assem1.add_constraint({ type: 'face_mate', fixedPartName: 'part0', movingPartName: 'part1', fixedFace: { surfaceType: 'plane' }, movingFace: { surfaceType: 'plane' } })
       assem1.do_assemble()
     `
     const { script } = parseScript(code)
@@ -104,8 +104,8 @@ describe('E15.1: 装配链式调用解析', () => {
 
   it('statementToLine 正确生成链式调用', () => {
     const code = `
-      const part0_v0 = cad.box({ size: 20 })
-      let assem1 = cad.assembly({ name: 'A', members: ['part0_v0'] })
+      let part0 = cad.box({ size: 20 })
+      let assem1 = cad.assembly({ name: 'A', members: ['part0'] })
       assem1.do_assemble()
     `
     const { script } = parseScript(code)

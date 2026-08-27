@@ -1,2 +1,2 @@
-const part0_v0 = cad.box({ size: 30 })
-const part0_v1 = cad.split(part0_v0)
+let part0 = cad.box({ size:30 })
+part0 = cad.split(part0)

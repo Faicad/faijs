@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { parseScript, ParseError, getApiVersion, computeTerminalShapes } from './parser'
+import { parseScript, ParseError, getApiVersion } from './parser'
 import { scriptToCode } from './codegen'
 import type { PartScript, CadStatement } from './types'
 import { asStmtId, asPartName } from '../identity'
@@ -38,12 +38,12 @@ function makeStmt(
 
 describe('parser: apiVersion', () => {
   it('从文本头部解析 apiVersion', () => {
-    expect(getApiVersion('// apiVersion: 1\nconst part0_v0 = cad.box({ size: 20 })')).toBe(1)
-    expect(getApiVersion('// apiVersion: 2\nconst part0_v0 = cad.box({ size: 20 })')).toBe(2)
+    expect(getApiVersion('// apiVersion: 1\nconst part0 = cad.box({ size: 20 })')).toBe(1)
+    expect(getApiVersion('// apiVersion: 2\nconst part0 = cad.box({ size: 20 })')).toBe(2)
   })
 
   it('无 apiVersion 时默认为 1', () => {
-    expect(getApiVersion('const part0_v0 = cad.box({ size: 20 })')).toBe(1)
+    expect(getApiVersion('const part0 = cad.box({ size: 20 })')).toBe(1)
   })
 })
 
@@ -51,32 +51,32 @@ describe('parser: apiVersion', () => {
 
 describe('parser: 基本语句', () => {
   it('解析单条 box 语句（扁平格式）', () => {
-    const code = `const part0_v0 = cad.box({ size: 20 })`
+    const code = `let part0 = cad.box({ size: 20 })`
     const { script } = parseScript(code)
     expect(script.statements).toHaveLength(1)
     expect(script.statements[0].op).toBe('box')
     expect(script.statements[0].args.size).toBe(20)
     expect(script.statements[0].inputs).toEqual([])
     expect(script.statements[0].id).toBe('s1')
-    // Phase 3: box 是 creator op，分配新名 part0（而非变量名 part0_v0）
+    // Phase 3: box 是 creator op，分配新名 part0（而非变量名 part0）
     expect(script.statements[0].outputs).toEqual(['part0'])
   })
 
   it('解析 vec3 参数', () => {
-    const code = `const part0_v0 = cad.box({ size: [10,20,30] })`
+    const code = `let part0 = cad.box({ size: [10,20,30] })`
     const { script } = parseScript(code)
     expect(script.statements[0].args.size).toEqual([10, 20, 30])
   })
 
   it('解析字符串参数', () => {
-    const code = `const part0_v0 = cad.load({ key: 'model.3mf' })`
+    const code = `let part0 = cad.load({ key: 'model.3mf' })`
     const { script } = parseScript(code)
     expect(script.statements[0].op).toBe('load')
     expect(script.statements[0].args.key).toBe('model.3mf')
   })
 
   it('解析多参数语句', () => {
-    const code = `const part0_v0 = cad.cone({ radiusBottom:5, radiusTop:0, height:10, segments:32 })`
+    const code = `let part0 = cad.cone({ radiusBottom:5, radiusTop:0, height:10, segments:32 })`
     const { script } = parseScript(code)
     expect(script.statements[0].args.radiusBottom).toBe(5)
     expect(script.statements[0].args.radiusTop).toBe(0)
@@ -89,21 +89,20 @@ describe('parser: 基本语句', () => {
 
 describe('parser: 依赖链', () => {
   it('解析带 input 的语句', () => {
-    const code = `const part0_v0 = cad.box({ size: 20 })
-const part0_v1 = cad.translate(part0_v0, { offset:[10,0,0] })`
+    const code = `let part0 = cad.box({ size: 20 })
+part0 = cad.translate(part0, { offset:[10,0,0] })`
     const { script, varToId } = parseScript(code)
     expect(script.statements).toHaveLength(2)
     expect(script.statements[1].op).toBe('translate')
     // Phase 3: translate 是单入单出，复用输入名 part0
     expect(script.statements[1].inputs).toEqual(['part0'])
-    expect(varToId.get('part0_v0')).toBe('part0')
-    expect(varToId.get('part0_v1')).toBe('part0')
+    expect(varToId.get('part0')).toBe('part0')
   })
 
   it('解析多级依赖（含 await 异步 op）', () => {
-    const code = `const part0_v0 = cad.box({ size: 20 })
-const part0_v1 = cad.translate(part0_v0, { offset:[0,0,5] })
-const part0_v2 = await cad.drill(part0_v1, { diameter:5, depth:0 })`
+    const code = `let part0 = cad.box({ size: 20 })
+part0 = cad.translate(part0, { offset:[0,0,5] })
+part0 = await cad.drill(part0, { diameter:5, depth:0 })`
     const { script } = parseScript(code)
     expect(script.statements).toHaveLength(3)
     // Phase 3: 复用输入名
@@ -117,9 +116,9 @@ const part0_v2 = await cad.drill(part0_v1, { diameter:5, depth:0 })`
 
 describe('parser: boolean op', () => {
   it('解析 cad.union(a, b)', () => {
-    const code = `const part0_v0 = cad.box({ size: 20 })
-const part0_v1 = cad.sphere({ radius: 10 })
-const part0_v2 = await cad.union(part0_v0, part0_v1)`
+    const code = `let part0 = cad.box({ size: 20 })
+let part1 = cad.sphere({ radius: 10 })
+let part2 = await cad.union(part0, part1)`
     const { script } = parseScript(code)
     expect(script.statements[2].op).toBe('boolean')
     expect(script.statements[2].args.operation).toBe('union')
@@ -128,9 +127,9 @@ const part0_v2 = await cad.union(part0_v0, part0_v1)`
   })
 
   it('解析 cad.subtract(a, b)', () => {
-    const code = `const part0_v0 = cad.box({ size: 20 })
-const part0_v1 = cad.sphere({ radius: 10 })
-const part0_v2 = await cad.subtract(part0_v0, part0_v1)`
+    const code = `let part0 = cad.box({ size: 20 })
+let part1 = cad.sphere({ radius: 10 })
+let part2 = await cad.subtract(part0, part1)`
     const { script } = parseScript(code)
     expect(script.statements[2].args.operation).toBe('subtract')
   })
@@ -141,7 +140,7 @@ const part0_v2 = await cad.subtract(part0_v0, part0_v1)`
 describe('parser: ParamRef 与 GeomRef', () => {
   it('解析 ParamRef（裸标识符引用参数）', () => {
     const code = `const size = 20
-const part0_v0 = cad.box({ size: size })`
+let part0 = cad.box({ size: size })`
     const { script } = parseScript(code)
     expect(script.params).toHaveLength(1)
     expect(script.params[0].name).toBe('size')
@@ -150,8 +149,8 @@ const part0_v0 = cad.box({ size: size })`
   })
 
   it('解析 GeomRef cad.bboxCenter(var)', () => {
-    const code = `const part0_v0 = cad.box({ size: 20 })
-const part0_v1 = cad.box({ size: cad.bboxCenter(part0_v0) })`
+    const code = `let part0 = cad.box({ size: 20 })
+let part1 = cad.box({ size: cad.bboxCenter(part0) })`
     const { script } = parseScript(code)
     expect(script.statements[1].args.size).toEqual({
       $geom: { of: 'part0', feature: 'bboxCenter' },
@@ -159,8 +158,8 @@ const part0_v1 = cad.box({ size: cad.bboxCenter(part0_v0) })`
   })
 
   it('解析 GeomRef cad.faceCenter(var, [anchor])', () => {
-    const code = `const part0_v0 = cad.box({ size: 20 })
-const part0_v1 = cad.box({ size: cad.faceCenter(part0_v0, [0,0,10]) })`
+    const code = `let part0 = cad.box({ size: 20 })
+let part1 = cad.box({ size: cad.faceCenter(part0, [0,0,10]) })`
     const { script } = parseScript(code)
     const ref = script.statements[1].args.size as { $geom: { of: string; feature: string; anchor?: { point: number[] } } }
     expect(ref.$geom.feature).toBe('faceCenter')
@@ -169,56 +168,53 @@ const part0_v1 = cad.box({ size: cad.faceCenter(part0_v0, [0,0,10]) })`
   })
 })
 
-// ── terminal shapes 自动推导 ──
+// ── outputs 与终端（Phase 3: parser 不再自动计算终端，终端判定移入 runtime.collectResult） ──
 
-describe('parser: terminal shapes 自动推导', () => {
-  it('单条语句 → 无 terminalShapes（单终端等价为 meta）', () => {
-    const code = `const part0_v0 = cad.box({ size: 20 })`
+describe('parser: outputs / 终端语义（Phase 3）', () => {
+  it('单条语句 → 无 terminalShapes（parser 不再自动计算；运行期从 outputs 过滤）', () => {
+    const code = `let part0 = cad.box({ size: 20 })`
     const { script } = parseScript(code)
     expect(script.terminalShapes).toBeUndefined()
+    // outputs 承载变量名（partName），供运行期终端判定
+    expect(script.statements[0].outputs).toEqual(['part0'])
   })
 
-  it('两条独立语句 → 两个终端', () => {
-    const code = `const part0_v0 = cad.box({ size: 20 })
-const part1_v0 = cad.sphere({ radius: 10 })`
+  it('两条独立语句 → 两个独立 outputs（part0/part1，运行期各为终端）', () => {
+    const code = `let part0 = cad.box({ size: 20 })
+let part1 = cad.sphere({ radius: 10 })`
     const { script } = parseScript(code)
-    // Phase 3: parser 不再自动计算终端，用 computeTerminalShapes
-    const terminals = computeTerminalShapes(script.statements)
-    expect(terminals).toBeDefined()
-    expect(terminals).toHaveLength(2)
+    expect(script.terminalShapes).toBeUndefined()
     // Phase 3: box/sphere 分配新名 part0/part1
-    expect(terminals![0].id).toBe('part0')
-    expect(terminals![1].id).toBe('part1')
+    expect(script.statements[0].outputs).toEqual(['part0'])
+    expect(script.statements[1].outputs).toEqual(['part1'])
   })
 
-  it('依赖链 → 最后一条是终端', () => {
-    const code = `const part0_v0 = cad.box({ size: 20 })
-const part0_v1 = cad.translate(part0_v0, { offset:[10,0,0] })`
+  it('依赖链（复用名）→ 单 outputs 条目（part0 始终是同一模型）', () => {
+    const code = `let part0 = cad.box({ size: 20 })
+part0 = cad.translate(part0, { offset:[10,0,0] })`
     const { script } = parseScript(code)
-    // 只有一个终端（part0_v1），不返回数组
     expect(script.terminalShapes).toBeUndefined()
+    // 单入单出复用输入名 → 两条语句 outputs 都是 part0
+    expect(script.statements[0].outputs).toEqual(['part0'])
+    expect(script.statements[1].outputs).toEqual(['part0'])
   })
 
-  it('split 解构 → 两个终端', () => {
-    const code = `const part0_v0 = cad.box({ size: 20 })
-const { front: part1_v0, back: part2_v0 } = await cad.split(part0_v0, { normal:[0,0,1], offset:0 })`
+  it('split 解构 → 两个 outputs（part1/part2）', () => {
+    const code = `let part0 = cad.box({ size: 20 })
+const { front: part1, back: part2 } = await cad.split(part0, { normal:[0,0,1], offset:0 })`
     const { script } = parseScript(code)
-    // Phase 3: parser 不再自动计算终端，用 computeTerminalShapes
-    const terminals = computeTerminalShapes(script.statements)
-    expect(terminals).toBeDefined()
-    expect(terminals).toHaveLength(2)
+    expect(script.terminalShapes).toBeUndefined()
     // Phase 3: split 分配新名 part1/part2
-    expect(terminals![0].id).toBe('part1')
-    expect(terminals![1].id).toBe('part2')
+    expect(script.statements[1].outputs).toEqual(['part1', 'part2'])
   })
 })
 
 // ── split 解构 ──
 
 describe('parser: split 解构', () => {
-  it('解析 const { front: part1_v0, back: part2_v0 } = await cad.split(...)', () => {
-    const code = `const part0_v0 = cad.box({ size: 20 })
-const { front: part1_v0, back: part2_v0 } = await cad.split(part0_v0, { normal:[0,0,1], offset:0 })`
+  it('解析 const { front: part1, back: part2 } = await cad.split(...)', () => {
+    const code = `let part0 = cad.box({ size: 20 })
+const { front: part1, back: part2 } = await cad.split(part0, { normal:[0,0,1], offset:0 })`
     const { script, varToId } = parseScript(code)
     expect(script.statements).toHaveLength(2)
     const splitStmt = script.statements[1]
@@ -226,25 +222,25 @@ const { front: part1_v0, back: part2_v0 } = await cad.split(part0_v0, { normal:[
     // Phase 3: split 分配新名 part1/part2；box 是 part0
     expect(splitStmt.outputs).toEqual(['part1', 'part2'])
     expect(splitStmt.inputs).toEqual(['part0'])
-    expect(varToId.get('part1_v0')).toBe('part1')
-    expect(varToId.get('part2_v0')).toBe('part2')
+    expect(varToId.get('part1')).toBe('part1')
+    expect(varToId.get('part2')).toBe('part2')
   })
 
   it('split 解构只允许 front 和 back 两个键', () => {
-    const code = `const part0_v0 = cad.box({ size: 20 })
-const { front: part1_v0, left: part2_v0 } = await cad.split(part0_v0, { normal:[0,0,1], offset:0 })`
+    const code = `let part0 = cad.box({ size: 20 })
+const { front: part1, left: part2 } = await cad.split(part0, { normal:[0,0,1], offset:0 })`
     expect(() => parseScript(code)).toThrow(/only allows "front" and "back"/)
   })
 
   it('split 解构必须恰好两个属性', () => {
-    const code = `const part0_v0 = cad.box({ size: 20 })
-const { front: part1_v0 } = await cad.split(part0_v0, { normal:[0,0,1], offset:0 })`
+    const code = `let part0 = cad.box({ size: 20 })
+const { front: part1 } = await cad.split(part0, { normal:[0,0,1], offset:0 })`
     expect(() => parseScript(code)).toThrow(/exactly 2 properties/)
   })
 
   it('解构只允许 cad.split（不允许其他 op）', () => {
-    const code = `const part0_v0 = cad.box({ size: 20 })
-const { front: part1_v0, back: part2_v0 } = await cad.drill(part0_v0, { diameter:5, depth:0 })`
+    const code = `let part0 = cad.box({ size: 20 })
+const { front: part1, back: part2 } = await cad.drill(part0, { diameter:5, depth:0 })`
     expect(() => parseScript(code)).toThrow(/only allowed for cad\.split/)
   })
 })
@@ -261,66 +257,14 @@ describe('parser: 错误处理', () => {
   })
 
   it('未知变量引用 → ParseError', () => {
-    const code = `const part0_v0 = cad.box({ size: 20 })
-const part0_v1 = cad.translate(partUnknown, { offset:[0,0,0] })`
+    const code = `let part0 = cad.box({ size: 20 })
+part0 = cad.translate(partUnknown, { offset:[0,0,0] })`
     expect(() => parseScript(code)).toThrow(/unknown variable/)
   })
 
   it('if 语句 → ParseError', () => {
-    const code = `if (true) { const part0_v0 = cad.box({ size: 20 }) }`
+    const code = `if (true) { let part0 = cad.box({ size: 20 }) }`
     expect(() => parseScript(code)).toThrow(ParseError)
-  })
-})
-
-// ── computeTerminalShapes 单元测试 ──
-
-describe('computeTerminalShapes', () => {
-  it('空语句列表 → undefined', () => {
-    expect(computeTerminalShapes([])).toBeUndefined()
-  })
-
-  it('单条语句 → undefined（单终端）', () => {
-    const stmts = [makeStmt({ id: 'part0_v0', op: 'box', args: { size: 20 } })]
-    expect(computeTerminalShapes(stmts)).toBeUndefined()
-  })
-
-  it('两条独立语句 → 两个终端', () => {
-    const stmts = [
-      makeStmt({ id: 'part0_v0', op: 'box', args: { size: 20 } }),
-      makeStmt({ id: 'part1_v0', op: 'sphere', args: { radius: 10 } }),
-    ]
-    const result = computeTerminalShapes(stmts)
-    expect(result).toBeDefined()
-    expect(result).toHaveLength(2)
-    expect(result![0].id).toBe('part0_v0')
-    expect(result![1].id).toBe('part1_v0')
-  })
-
-  it('依赖链 → 最后一条是终端', () => {
-    const stmts = [
-      makeStmt({ id: 'part0_v0', op: 'box', args: { size: 20 } }),
-      makeStmt({ id: 'part0_v1', op: 'translate', args: { offset: [1, 0, 0] }, inputs: ['part0_v0'] }),
-    ]
-    // 只有一个终端 part0_v1，所以返回 undefined
-    expect(computeTerminalShapes(stmts)).toBeUndefined()
-  })
-
-  it('split 解构 → 两个终端', () => {
-    const stmts = [
-      makeStmt({ id: 'part0_v0', op: 'box', args: { size: 20 } }),
-      makeStmt({
-        id: 'part1_v0',
-        op: 'split',
-        args: { side: 'front' },
-        inputs: ['part0_v0'],
-        outputs: ['part1_v0', 'part2_v0'],
-      }),
-    ]
-    const result = computeTerminalShapes(stmts)
-    expect(result).toBeDefined()
-    expect(result).toHaveLength(2)
-    expect(result![0].id).toBe('part1_v0')
-    expect(result![1].id).toBe('part2_v0')
   })
 })
 
@@ -330,7 +274,7 @@ describe('parser: 往返 codegen → parser', () => {
   it('单条 box 往返', () => {
     const script: PartScript = {
       params: [],
-      statements: [makeStmt({ id: 'part0_v0', op: 'box', args: { size: 20 } })],
+      statements: [makeStmt({ id: 'part0', op: 'box', args: { size: 20 } })],
     }
     const code = scriptToCode(script)
     const { script: parsed } = parseScript(code)
@@ -343,8 +287,8 @@ describe('parser: 往返 codegen → parser', () => {
     const script: PartScript = {
       params: [],
       statements: [
-        makeStmt({ id: 'part0_v0', op: 'box', args: { size: 20 } }),
-        makeStmt({ id: 'part0_v1', op: 'translate', args: { offset: [10, 0, 0] }, inputs: ['part0_v0'] }),
+        makeStmt({ id: 'part0', op: 'box', args: { size: 20 } }),
+        makeStmt({ id: 'part0', op: 'translate', args: { offset: [10, 0, 0] }, inputs: ['part0'] }),
       ],
     }
     const code = scriptToCode(script)
@@ -359,9 +303,9 @@ describe('parser: 往返 codegen → parser', () => {
     const script: PartScript = {
       params: [],
       statements: [
-        makeStmt({ id: 'part0_v0', op: 'box', args: { size: 20 } }),
-        makeStmt({ id: 'part0_v1', op: 'sphere', args: { radius: 10 } }),
-        makeStmt({ id: 'part0_v2', op: 'boolean', args: { operation: 'union', sourcePartNames: ['s0', 's1'] }, inputs: ['part0_v0', 'part0_v1'] }),
+        makeStmt({ id: 'part0', op: 'box', args: { size: 20 } }),
+        makeStmt({ id: 'part1', op: 'sphere', args: { radius: 10 } }),
+        makeStmt({ id: 'part2', op: 'boolean', args: { operation: 'union', sourcePartNames: ['s0', 's1'] }, inputs: ['part0', 'part1'] }),
       ],
     }
     const code = scriptToCode(script)
@@ -380,7 +324,7 @@ describe('parser: 往返 codegen → parser', () => {
 
 describe('parser: load 旧 op 名兼容', () => {
   it('解析 cad.loadFile({ path, format }) → 映射为 load', () => {
-    const code = `const part0_v0 = await cad.loadFile({ path: '/Users/me/models/bracket.step', format: 'step' })`
+    const code = `let part0 = await cad.loadFile({ path: '/Users/me/models/bracket.step', format: 'step' })`
     const { script } = parseScript(code)
     expect(script.statements).toHaveLength(1)
     expect(script.statements[0].op).toBe('load')
@@ -389,7 +333,7 @@ describe('parser: load 旧 op 名兼容', () => {
   })
 
   it('旧 cad.load({ fileRef }) → fileRef 转为 key', () => {
-    const code = `const part0_v0 = await cad.load({ fileRef: 'box_boss.3mf' })`
+    const code = `let part0 = await cad.load({ fileRef: 'box_boss.3mf' })`
     const { script } = parseScript(code)
     expect(script.statements[0].op).toBe('load')
     expect(script.statements[0].args.key).toBe('box_boss.3mf')

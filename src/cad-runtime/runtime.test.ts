@@ -847,7 +847,7 @@ describe('CadRuntime: plan deps 级联（参数语句化）', () => {
       source: { kind: 'load' },
       params: [{ name: 'r', type: 'number', value: r, default: r }],
       statements: [
-        makeStmt('part0_v0', 'box', { size: { $param: 'r' } }, []),
+        makeStmt('part0', 'box', { size: { $param: 'r' } }, []),
       ],
     }
   }
@@ -869,7 +869,7 @@ describe('CadRuntime: plan deps 级联（参数语句化）', () => {
     // r: 20 → 30：参数语句 key 变化 → box（依赖 r）经 deps 级联 stale
     const { stale, reused } = runtime.plan(makeScriptWithParam(30))
     expect(stale.length).toBe(1)
-    expect(stale[0].id).toBe('part0_v0')
+    expect(stale[0].id).toBe('part0')
     expect(reused.size).toBe(0)
   })
 
@@ -883,9 +883,9 @@ describe('CadRuntime: plan deps 级联（参数语句化）', () => {
     })
 
     // 只重算 box（参数语句非 CadStatement，不进 beforeStatement）
-    expect(beforeCalls).toEqual(['part0_v0'])
+    expect(beforeCalls).toEqual(['part0'])
     // 重算后几何更新（bbox 翻倍）
-    const out = runtime.getCachedOutput(asStmtId('part0_v0'))
+    const out = runtime.getCachedOutput(asStmtId('part0'))
     expect(out).toBeDefined()
   })
 })

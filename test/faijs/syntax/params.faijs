@@ -1,5 +1,5 @@
 const size = 20
 const radius = 10
-const part0_v0 = cad.box({ size: size })
-const part0_v1 = cad.sphere({ radius: radius, center: [30, 0, 0] })
-const part0_v2 = cad.union(part0_v0, part0_v1)
+let part0 = cad.box({ size:size })
+let part1 = cad.sphere({ radius:radius, center:[30,0,0] })
+let part2 = cad.union(part0, part1)

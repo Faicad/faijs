@@ -25,8 +25,8 @@ const SELECTOR = {
 const EXAMPLE_SNIPPETS: Record<string, string> = {
   'box-boolean': 'cad.box({ size: 20 })',
   'drill-test': 'cad.cylinder({ radius: 5, height: 20',
-  'text-engrave': "cad.text({ text: 'HELLO'",
-  'transform-chain': 'cad.rotate({ anglesDeg: [0, 0, 30] }',
+  'text-engrave': "cad.text(part0, { text: 'HELLO'",
+  'transform-chain': 'cad.rotate(part0, { anglesDeg: [0, 0, 30] }',
 }
 
 async function waitForStatusOk(page: Page, timeout = 120_000) {
@@ -54,7 +54,8 @@ test.describe('faijs demo', () => {
     await page.goto('/')
     await waitForStatusOk(page)
     const status = await page.locator(SELECTOR.statusBar).textContent()
-    expect(status).toMatch(/OK — brep: 1 shape\(s\), \d+ verts, \d+ triangles \| mesh: 1 shape\(s\)/)
+    // Phase 3: 终端 = 活跃 Shape 变量（box + sphere + subtract 三个都是 Shape → 3 个终端）
+    expect(status).toMatch(/OK — brep: 3 shape\(s\), \d+ verts, \d+ triangles \| mesh: 3 shape\(s\)/)
     expect(page.locator(SELECTOR.statusBar)).toHaveClass(/success/)
   })
 
@@ -93,7 +94,7 @@ test.describe('faijs demo', () => {
     await page.goto('/')
     await waitForStatusOk(page)
 
-    const snippet = `const part0_v0 = cad.box({ size: 7 })\nconst part0_v1 = cad.cylinder({ radius: 2, height: 12, center: [0, 0, 0] })\nconst part0_v2 = cad.subtract(part0_v0, part0_v1)`
+    const snippet = `let part0 = cad.box({ size: 7 })\nlet part1 = cad.cylinder({ radius: 2, height: 12, center: [0, 0, 0] })\nlet part2 = cad.subtract(part0, part1)`
     await page.locator(SELECTOR.fileInput).setInputFiles({
       name: 'custom-part.faijs',
       mimeType: 'text/plain',
@@ -106,14 +107,15 @@ test.describe('faijs demo', () => {
     await expect(page.locator(SELECTOR.exampleSelect)).toHaveValue('__file__')
     await expect(page.locator(`${SELECTOR.exampleSelect} option[value="__file__"]`)).toHaveText('custom-part.faijs')
     const status = await page.locator(SELECTOR.statusBar).textContent()
-    expect(status).toMatch(/OK — brep: 1 shape\(s\)/)
+    // box + cylinder + subtract → 3 个活跃 Shape 终端
+    expect(status).toMatch(/OK — brep: 3 shape\(s\)/)
   })
 
   test('切到内置示例后，可切回已打开的文件（内容与文件名保留）', async ({ page }) => {
     await page.goto('/')
     await waitForStatusOk(page)
 
-    const snippet = `const part0_v0 = cad.box({ size: 7 })\nconst part0_v1 = cad.cylinder({ radius: 2, height: 12, center: [0, 0, 0] })\nconst part0_v2 = cad.subtract(part0_v0, part0_v1)`
+    const snippet = `let part0 = cad.box({ size: 7 })\nlet part1 = cad.cylinder({ radius: 2, height: 12, center: [0, 0, 0] })\nlet part2 = cad.subtract(part0, part1)`
     await page.locator(SELECTOR.fileInput).setInputFiles({
       name: 'custom-part.faijs',
       mimeType: 'text/plain',
@@ -151,14 +153,15 @@ test.describe('faijs demo', () => {
     await page.goto('/')
     await waitForStatusOk(page)
 
-    await page.locator(SELECTOR.editor).fill(`const part0_v0 = cad.box({ size: 10 })
-const part0_v1 = cad.sphere({ radius: 4, center: [2, 0, 0] })
-const part0_v2 = cad.subtract(part0_v0, part0_v1)`)
+    await page.locator(SELECTOR.editor).fill(`let part0 = cad.box({ size: 10 })
+let part1 = cad.sphere({ radius: 4, center: [2, 0, 0] })
+let part2 = cad.subtract(part0, part1)`)
     await page.locator(SELECTOR.runBtn).click()
     await waitForStatusOk(page)
 
     const status = await page.locator(SELECTOR.statusBar).textContent()
-    expect(status).toMatch(/OK — brep: 1 shape\(s\)/)
+    // box + sphere + subtract → 3 个活跃 Shape 终端
+    expect(status).toMatch(/OK — brep: 3 shape\(s\)/)
     // 运行完成后内容无变化 → Run 按钮自动置灰
     await expect(page.locator(SELECTOR.runBtn)).toBeDisabled()
   })
@@ -171,7 +174,7 @@ const part0_v2 = cad.subtract(part0_v0, part0_v1)`)
     await expect(page.locator(SELECTOR.runBtn)).toBeDisabled()
 
     // 手动修改代码 → 按钮恢复可用
-    await page.locator(SELECTOR.editor).fill(`const part0_v0 = cad.box({ size: 3 })`)
+    await page.locator(SELECTOR.editor).fill(`let part0 = cad.box({ size: 3 })`)
     await expect(page.locator(SELECTOR.runBtn)).toBeEnabled()
 
     // 点击运行 → 完成后内容无变化 → 再次置灰
@@ -189,7 +192,7 @@ const part0_v2 = cad.subtract(part0_v0, part0_v1)`)
     await page.goto('/')
     await waitForStatusOk(page)
 
-    await page.locator(SELECTOR.editor).fill(`const part0_v0 = cad.box({ size: 6 })`)
+    await page.locator(SELECTOR.editor).fill(`let part0 = cad.box({ size: 6 })`)
     await page.locator(SELECTOR.editor).press('Control+Enter')
     await waitForStatusOk(page)
 
@@ -201,7 +204,7 @@ const part0_v2 = cad.subtract(part0_v0, part0_v1)`)
     await page.goto('/')
     await waitForStatusOk(page)
 
-    await page.locator(SELECTOR.editor).fill(`const part0_v0 = cad.box({`)
+    await page.locator(SELECTOR.editor).fill(`let part0 = cad.box({`)
     await page.locator(SELECTOR.runBtn).click()
 
     await expect(page.locator(SELECTOR.statusBar)).toContainText('Error', { timeout: 30_000 })

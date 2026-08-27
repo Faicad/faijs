@@ -1,1 +1,1 @@
-const part0_v0 = cad.box({ size: 20 })
+let part0 = cad.box({ size:20 })

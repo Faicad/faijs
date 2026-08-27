@@ -10,15 +10,15 @@ import {
 
 // bare string is not a brand
 // @ts-expect-error bare string is not assignable to StmtId
-const bad1: StmtId = 'part0_v0'
+const bad1: StmtId = 'part0'
 // @ts-expect-error bare string is not assignable to PartName
-const bad2: PartName = 'part0_v0'
+const bad2: PartName = 'part0'
 // @ts-expect-error bare string is not assignable to ScopedId
 const bad3: ScopedId = 'file1:part0'
 
 // brands are not mutually assignable
-const stmtId: StmtId = asStmtId('part0_v0')
-const partName: PartName = asPartName('part0_v0')
+const stmtId: StmtId = asStmtId('part0')
+const partName: PartName = asPartName('part0')
 const scopedId: ScopedId = asScopedId('file1:part0')
 const fileId: FileId = asFileId('file1')
 const innerId: InnerId = asInnerId('part0')

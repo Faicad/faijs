@@ -42,11 +42,11 @@ describe('E13: ExecutionResult 携带拓扑数据', () => {
       },
     }
 
-    runtime.setTopology(asPartName('part0_v0'), 'brep', mockData)
-    const topo = runtime.getTopology(asPartName('part0_v0'))
+    runtime.setTopology(asPartName('part0'), 'brep', mockData)
+    const topo = runtime.getTopology(asPartName('part0'))
     expect(topo).toBeDefined()
     expect(topo!.source).toBe('brep')
-    expect(topo!.partName).toBe('part0_v0')
+    expect(topo!.partName).toBe('part0')
     expect(topo!.data).toBe(mockData)
   })
 
@@ -76,10 +76,10 @@ describe('E13: ExecutionResult 携带拓扑数据', () => {
         edgeMidCount: 0, faceCenterCount: 0,
       },
     }
-    runtime.setTopology(asPartName('part0_v0'), 'mesh', mockData)
-    expect(runtime.getTopology(asPartName('part0_v0'))).toBeDefined()
-    runtime.deleteTopology(asPartName('part0_v0'))
-    expect(runtime.getTopology(asPartName('part0_v0'))).toBeUndefined()
+    runtime.setTopology(asPartName('part0'), 'mesh', mockData)
+    expect(runtime.getTopology(asPartName('part0'))).toBeDefined()
+    runtime.deleteTopology(asPartName('part0'))
+    expect(runtime.getTopology(asPartName('part0'))).toBeUndefined()
   })
 
   it('dispose 清理拓扑缓存', () => {
@@ -100,8 +100,8 @@ describe('E13: ExecutionResult 携带拓扑数据', () => {
         edgeMidCount: 0, faceCenterCount: 0,
       },
     }
-    runtime.setTopology(asPartName('part0_v0'), 'brep', mockData)
+    runtime.setTopology(asPartName('part0'), 'brep', mockData)
     runtime.dispose()
-    expect(runtime.getTopology(asPartName('part0_v0'))).toBeUndefined()
+    expect(runtime.getTopology(asPartName('part0'))).toBeUndefined()
   })
 })

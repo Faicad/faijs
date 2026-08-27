@@ -1,2 +1,2 @@
-const part0_v0 = cad.box({ size: [50, 50, 10] })
-const part0_v1 = cad.extrude({ length: 5 }, part0_v0)
+let part0 = cad.box({ size:[50,50,10] })
+part0 = cad.extrude(part0, { length:5 })

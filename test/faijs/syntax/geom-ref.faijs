@@ -1,4 +1,4 @@
-const part0_v0 = cad.box({ size: 20 })
+let part0 = cad.box({ size:20 })
 // GeomRef would be used with actual face references
 // For testing, we just verify the syntax is accepted
-const part0_v1 = cad.translate({ offset: [10, 0, 0] }, part0_v0)
+part0 = cad.translate(part0, { offset:[10,0,0] })

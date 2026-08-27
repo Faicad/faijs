@@ -25,7 +25,6 @@ import type { CadStatement, PartScript } from '../lang/types'
 import { createRuntime, type ExecutionResult } from '../cad-runtime/runtime'
 import type { HostPorts, EventSink, AssetResolver } from '../cad-runtime/ports'
 import { fileBlobStore } from '../test/blob-store'
-import { computeTerminalShapes } from '../lang/parser'
 import { exportStepFromSolid } from '../brep/export/step'
 import { exportStep } from '../occt-kernel/highLevelApi'
 import { asPartName, asStmtId } from '../identity'
@@ -96,12 +95,11 @@ function makeStmt(
 }
 
 function makePartScript(statements: CadStatement[]): PartScript {
-  const terminalShapes = computeTerminalShapes(statements)
+  // Phase 3: parser 不再计算 terminalShapes；终端判定在 runtime.collectResult（从 outputs 过滤）
   return {
     source: { kind: 'load' },
     params: [],
     statements,
-    terminalShapes,
   }
 }
 

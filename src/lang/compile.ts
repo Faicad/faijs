@@ -217,7 +217,7 @@ function buildStatementFnBody(stmt: CadStatement): string {
   }
 
   // Phase 3：ctx 变量名 = outputs[0]（非 stmt.id，因 id 现在是 sN）
-  const writeVar = stmt.outputs[0] ?? stmt.id
+  const writeVar = stmt.outputs[0]
   return `      ctx.${writeVar} = await ${call}`
 }
 
@@ -247,10 +247,9 @@ export function compileToModule(script: PartScript): CompiledModule {
     let writes: string[]
     if (stmt.op === 'add_constraint' || stmt.op === 'do_assemble') {
       writes = []
-    } else if (stmt.outputs.length >= 2) {
-      writes = stmt.outputs
     } else {
-      writes = stmt.outputs.length > 0 ? stmt.outputs : [stmt.id]
+      // Phase 3: 写键 = outputs（PartName）。语句可能有 0/1/多个左值；outputs 始终显式。
+      writes = stmt.outputs
     }
     // 先算 deps（用已有 varToStmtId，此时还未被本语句的 writes 覆盖）
     const deps = new Set<StmtId>()

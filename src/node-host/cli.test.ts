@@ -1,4 +1,4 @@
-﻿﻿/**
+/**
  * @vitest-environment node
  *
  * faijs-cli 测试 (P3-7)
@@ -59,7 +59,7 @@ describe('cliCheck: dryRun validation', () => {
 
   it('invalid .faijs (parse error) → ok=false', () => {
     const badCode = `export default async (cad) => {
-  const part0_v0 = cad.box({ size: 20
+  const part0 = cad.box({ size: 20
 }`
     // Write temp file
     const tmpFile = resolve(TMP_DIR, 'bad-parse.faijs')
@@ -71,8 +71,8 @@ describe('cliCheck: dryRun validation', () => {
 
   it('invalid .faijs (schema error) → ok=false', () => {
     const badCode = `export default async (cad) => {
-  const part0_v0 = cad.box({ size: 20, bogusField: 99 })
-  return { shape: part0_v0 }
+  const part0 = cad.box({ size: 20, bogusField: 99 })
+  return { shape: part0 }
 }`
     const tmpFile = resolve(TMP_DIR, 'bad-schema.faijs')
     writeFileSync(tmpFile, badCode)
@@ -84,7 +84,7 @@ describe('cliCheck: dryRun validation', () => {
 })
 
 describe('cliRun: execute and export', () => {
-  it('box-boolean.faijs → STL output', async () => {
+  it('box-boolean.faijs → STL per-terminal outputs', async () => {
     const filePath = resolve(FIXTURES_DIR, 'boolean/box-boolean.faijs')
     const outPath = resolve(TMP_DIR, 'box-boolean.stl')
 
@@ -92,17 +92,23 @@ describe('cliRun: execute and export', () => {
 
     expect(result.ok).toBe(true)
     expect(result.outputFormat).toBe('stl')
-    expect(existsSync(outPath)).toBe(true)
+    // Phase 3: 终端 = 全部活跃 shape 变量（part0 box / part1 sphere / part2 subtract）
+    // CLI 对多终端每个写一个独立文件（outPath_<i>_<partName>.stl）
+    const partFiles = ['part0', 'part1', 'part2']
+      .map((p, i) => `${outPath}_${i}_${p}.stl`)
+    for (const f of partFiles) {
+      expect(existsSync(f)).toBe(true)
+    }
 
-    // Verify STL file is non-empty and has valid header
-    const buf = readFileSync(outPath)
+    // Verify first STL file is non-empty and has valid header
+    const buf = readFileSync(partFiles[0])
     expect(buf.length).toBeGreaterThan(84) // at least header + count
     // STL header: first 80 bytes
     const header = buf.slice(0, 10).toString('utf-8')
     expect(header).toContain('Faicad')
   }, 60000)
 
-  it('box-boolean.faijs → STEP output (brep mode)', async () => {
+  it('box-boolean.faijs → STEP per-terminal outputs (brep mode)', async () => {
     const filePath = resolve(FIXTURES_DIR, 'boolean/box-boolean.faijs')
     const outPath = resolve(TMP_DIR, 'box-boolean.step')
 
@@ -110,24 +116,34 @@ describe('cliRun: execute and export', () => {
 
     expect(result.ok).toBe(true)
     expect(result.outputFormat).toBe('step')
-    expect(existsSync(outPath)).toBe(true)
+    const partFiles = ['part0', 'part1', 'part2']
+      .map((p, i) => `${outPath}_${i}_${p}.step`)
+    for (const f of partFiles) {
+      expect(existsSync(f)).toBe(true)
+    }
 
-    // Verify STEP file contains STEP content
-    const content = readFileSync(outPath, 'utf-8')
+    // Verify first STEP file contains STEP content
+    const content = readFileSync(partFiles[0], 'utf-8')
     expect(content).toContain('ISO-10303-21')
     expect(content).toContain('ADVANCED_FACE')
   }, 60000)
 
-  it('text-engrave.faijs → STL output', async () => {
+  it('text-engrave.faijs → per-terminal STL outputs (2 terminals)', async () => {
+    // box → part0；translate 单入单出复用 part0；text 无输入→新名 part1
+    // 终端 = 活跃 shape 变量 part0/part1 → 每个写独立文件
     const filePath = resolve(FIXTURES_DIR, 'features/text-engrave.faijs')
     const outPath = resolve(TMP_DIR, 'text-engrave.stl')
 
     const result = await cliRun(filePath, outPath, { mode: 'auto' })
 
     expect(result.ok).toBe(true)
-    expect(existsSync(outPath)).toBe(true)
+    const partFiles = ['part0', 'part1']
+      .map((p, i) => `${outPath}_${i}_${p}.stl`)
+    for (const f of partFiles) {
+      expect(existsSync(f)).toBe(true)
+    }
 
-    const buf = readFileSync(outPath)
+    const buf = readFileSync(partFiles[0])
     expect(buf.length).toBeGreaterThan(84)
   }, 60000)
 })

@@ -16,8 +16,8 @@
  * | `FileId` | 文件身份（3d 场景树），无冒号 | UUID / `prim_1` |
  * | `InnerId` | part 在文件内编号，无冒号 | `o1` / `part-0` |
  * | `ScopedId` | `fileId:innerId`，恰好一个冒号（场景树 key） | `fileId:part-0` |
- * | `StmtId` | 每条语句的 id（`CadStatement.id`），无赋值语句也有 | `part<N>_v<M>` / `grp_<N>` |
- * | `PartName` | 左值变量名（0/1/2 个，split 双值） | `part0_v2` |
+ * | `StmtId` | 每条语句的 id（`CadStatement.id`），无赋值语句也有 | `s1` / `s<N>` |
+ * | `PartName` | 左值变量名（0/1/2 个，split 双值） | `part0` / `part<N>` |
  * | `GroupName` | 装配/组语句的变量名（⊆ PartName） | `grp_<N>` |
  * | `RefId` | 装配成员引用（scopedId 形态） | `fileId:part-0` |
  * | `ReferenceId` | 拓扑选取 key（`topology\|<selType>\|<display>`） | `topology\|face\|o1.f1` |

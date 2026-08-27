@@ -58,7 +58,7 @@ describe('BrowserEventSink', () => {
 
   it('dispatches "part-brep-lost" CustomEvent on window', () => {
     eventSink.emit('part-brep-lost', {
-      partName: asPartName('part0_v1'),
+      partName: asPartName('part0'),
       op: 'drill',
       reason: 'no brep solid in chain',
     })
@@ -67,7 +67,7 @@ describe('BrowserEventSink', () => {
     const event = mockWindow.dispatchEvent.mock.calls[0][0] as MockCustomEvent
     expect(event.type).toBe('part-brep-lost')
     expect(event.detail.op).toBe('drill')
-    expect(event.detail.partName).toBe('part0_v1')
+    expect(event.detail.partName).toBe('part0')
     expect(event.detail.reason).toBe('no brep solid in chain')
   })
 
@@ -77,7 +77,7 @@ describe('BrowserEventSink', () => {
 
     expect(() => {
       eventSink.emit('part-brep-lost', {
-        partName: asPartName('part0_v1'),
+        partName: asPartName('part0'),
         op: 'drill',
         reason: 'test',
       })

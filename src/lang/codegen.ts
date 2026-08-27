@@ -4,14 +4,14 @@
  * 设计文档：docs/syntax-design.md §2（扁平代码格式）
  *
  * 职责：
- * - statementToLine(stmt)：按 op 输出可读单行语句（如 `const part0_v0 = cad.box({ size:20 })`）
+ * - statementToLine(stmt)：按 op 输出可读单行语句（如 `let part0 = cad.box({ size:20 })`）
  *   用于 TimelinePanel 显示和用户导出
  * - scriptToCode(script)：按语句顺序拼接为代码文本（无 export/return 封装）
  *
  * 扁平代码格式（无 export default / async / await / return / apiVersion）：
  * ```js
- * const part0_v0 = cad.box({ size: 20 })
- * const part0_v1 = cad.translate(part0_v0, { offset: [1, 2, 3] })
+ * let part0 = cad.box({ size: 20 })
+ * part0 = cad.translate(part0, { offset: [1, 2, 3] })
  * ```
  *
  * 约束：

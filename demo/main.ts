@@ -21,20 +21,20 @@ import fontUrl from './assets/fonts/OpenSans-Regular.ttf?url'
 // ── Example .faijs files ──
 
 const EXAMPLES: Record<string, string> = {
-  'box-boolean': `const part0_v0 = cad.box({ size: 20 })
-const part0_v1 = cad.sphere({ radius: 8, center: [5, 0, 0] })
-const part0_v2 = cad.subtract(part0_v0, part0_v1)`,
-  'drill-test': `const part0_v0 = cad.box({ size: [30, 20, 15] })
-const part0_v1 = cad.cylinder({ radius: 5, height: 20, center: [0, 0, 0] })
-const part0_v2 = cad.subtract(part0_v0, part0_v1)
-const part0_v3 = cad.translate({ offset: [10, 0, 0] }, part0_v2)`,
-  'text-engrave': `const part0_v0 = cad.box({ size: 30 })
-const part0_v1 = cad.translate({ offset: [0, 0, 14] }, part0_v0)
-const part0_v2 = cad.text({ text: 'HELLO', size: 8, depth: 2 }, part0_v1)`,
-  'transform-chain': `const part0_v0 = cad.box({ size: [20, 10, 5] })
-const part0_v1 = cad.rotate({ anglesDeg: [0, 0, 30] }, part0_v0)
-const part0_v2 = cad.translate({ offset: [5, 0, 0] }, part0_v1)
-const part0_v3 = cad.scale({ factor: [1, 1, 2] }, part0_v2)`,
+  'box-boolean': `let part0 = cad.box({ size: 20 })
+let part1 = cad.sphere({ radius: 8, center: [5, 0, 0] })
+let part2 = cad.subtract(part0, part1)`,
+  'drill-test': `let part0 = cad.box({ size: [30, 20, 15] })
+let part1 = cad.cylinder({ radius: 5, height: 20, center: [0, 0, 0] })
+let part2 = cad.subtract(part0, part1)
+part2 = cad.translate(part2, { offset: [10, 0, 0] })`,
+  'text-engrave': `let part0 = cad.box({ size: 30 })
+part0 = cad.translate(part0, { offset: [0, 0, 14] })
+let part1 = cad.text(part0, { text: 'HELLO', size: 8, depth: 2 })`,
+  'transform-chain': `let part0 = cad.box({ size: [20, 10, 5] })
+part0 = cad.rotate(part0, { anglesDeg: [0, 0, 30] })
+part0 = cad.translate(part0, { offset: [5, 0, 0] })
+part0 = cad.scale(part0, { factor: [1, 1, 2] })`,
 }
 
 // ── DOM elements ──

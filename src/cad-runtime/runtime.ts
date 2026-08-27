@@ -207,7 +207,7 @@ export class CadRuntime {
   /** VM 执行器（持久 ctx + 编译产物缓存） */
   private executor: ModuleExecutor
 
-  /** 内部适配命名空间（Phase 1 临时，Phase 2 由 src/stdlib 正式库函数替代） */
+  /** cad namespace assembled from stdlib functions (injected into compiled modules) */
   private readonly stdlib = createInternalStdlib()
 
   constructor(ports: HostPorts, mode: ExecutionMode = 'auto') {
@@ -571,29 +571,17 @@ export class CadRuntime {
     }
 
     // T3-cond: 终端判定移入执行收尾
-    // 显式 terminalShapes（return [...]）优先；否则从 outputs 过滤出不被引用的活跃 Shape
+    // 显式 terminalShapes（return [...]）优先；否则终端 = 所有 shape 类型的顶层全局变量
+    // （Phase 3：不再计算 DAG 活跃度，只判断顶层全局变量）。
     const explicitTerminals = script.terminalShapes ?? []
     let terminals: TerminalShape[]
     if (explicitTerminals.length > 0) {
       terminals = explicitTerminals
     } else {
-      // 收集被引用的 partName（inputs + group/assembly members）
-      const referenced = new Set<string>()
-      for (const stmt of script.statements) {
-        for (const inp of stmt.inputs) referenced.add(inp)
-        if (stmt.op === 'group' || stmt.op === 'assembly') {
-          const members = stmt.args?.members
-          if (Array.isArray(members)) {
-            for (const m of members) if (typeof m === 'string') referenced.add(m)
-          }
-        }
-      }
-      // 不被引用的活跃 Shape = 终端
       terminals = []
       const seen = new Set<string>()
       for (const [partName, val] of outputs) {
         if (!isShapeLike(val)) continue
-        if (referenced.has(partName)) continue
         if (seen.has(partName)) continue
         seen.add(partName)
         terminals.push({ id: asStmtId(partName) })

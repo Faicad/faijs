@@ -122,7 +122,7 @@ function parseValueExpr(
     }
 
     case 'CallExpression': {
-      // cad.faceCenter(part0_v0) / cad.faceCenter(part0_v0, [1,2,3]) → GeomRef
+      // cad.faceCenter(part0) / cad.faceCenter(part0, [1,2,3]) → GeomRef
       const callee = node.callee
       if (
         callee?.type === 'MemberExpression' &&
@@ -307,7 +307,7 @@ interface ParsedSplitDestructuring {
 }
 
 /**
- * 解析 `const { front: part1_v0, back: part2_v0 } = await cad.split(part0_v2, { ... })`。
+ * 解析 `const { front: part1, back: part2 } = await cad.split(part0, { ... })`。
  *
  * split 是唯一允许多输出解构的 op。产出两个不同模型（partN/partM），
  * 各自版本从 _v0 起算。
@@ -414,7 +414,7 @@ function parseSplitDestructuring(
  * 支持三种形式：
  * - `return part0_vN`（裸标识符）→ 单终端，无 meta
  * - `return { shape: part0_vN, name, color, ... }`（单终端 + meta）
- * - `return [ { shape: part1_v1, name, ... }, { shape: part2_v0, name, ... } ]`（多终端）
+ * - `return [ { shape: part1, name, ... }, { shape: part2, name, ... } ]`（多终端）
  */
 function parseReturnStatement(
   node: ASTNode,
@@ -659,7 +659,7 @@ export function parseScript(code: string, options?: ParseOptions): ParseResult {
         }
         const decl = stmtNode.declarations[0]
 
-        // split 解构：const { front: part1_v0, back: part2_v0 } = await cad.split(...)
+        // split 解构：const { front: part1, back: part2 } = await cad.split(...)
         if (decl.id?.type === 'ObjectPattern') {
           if (stmtNode.kind !== 'const') {
             throw new ParseError('split destructuring requires const', line)
@@ -914,53 +914,6 @@ export function parseScript(code: string, options?: ParseOptions): ParseResult {
   }
 
   return { script, varToId }
-}
-
-// ── terminal shapes 自动推导 ──
-// Phase 3：终端判定已移入执行收尾（runtime.collectResult），此函数保留为兼容导出。
-// 新代码不应调用此函数；终端由 runtime 从 result.outputs 过滤得出。
-
-export function computeTerminalShapes(statements: CadStatement[]): TerminalShape[] | undefined {
-  // 收集所有被引用的 id（inputs + group/assembly/assemble 的 members）
-  const referencedIds = new Set<string>()
-  for (const stmt of statements) {
-    for (const inputId of stmt.inputs) {
-      referencedIds.add(inputId)
-    }
-    // group/assembly 的 args.members 引用了其他语句的 id
-    if (stmt.op === 'group' || stmt.op === 'assembly') {
-      const members = stmt.args?.members
-      if (Array.isArray(members)) {
-        for (const m of members) {
-          if (typeof m === 'string') referencedIds.add(m)
-        }
-      }
-    }
-  }
-
-  // 收集所有输出 id（outputs），跳过无赋值语句
-  const outputIds: string[] = []
-  for (const stmt of statements) {
-    // 只有有赋值的语句才产出几何终端（void op 均无赋值）
-    if (!stmt.hasAssignment) continue
-    for (const outId of stmt.outputs) {
-      outputIds.push(outId)
-    }
-  }
-
-  // 终端 = 不被引用的输出
-  const terminals: TerminalShape[] = []
-  const seen = new Set<string>()
-  for (const id of outputIds) {
-    if (referencedIds.has(id)) continue
-    if (seen.has(id)) continue
-    seen.add(id)
-    terminals.push({ id: asStmtId(id) })
-  }
-
-  // 如果只有一个终端，不返回数组（等价为单终端，meta 在 return 中处理）
-  if (terminals.length <= 1) return undefined
-  return terminals
 }
 
 // ── 字面量解析（仅允许字面量，不允许标识符/调用） ──

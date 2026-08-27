@@ -131,11 +131,13 @@ export async function cliRun(
     if (!lastStmt) {
       return { ok: false, error: 'No statements to export' }
     }
-    const shape = execResult.outputs.get(asPartName(lastStmt.id))
+    // Phase 3: stmt.id 是 sN（StmtId），outputs[0] 才是 PartName（outputs 键）
+    const lastPartName = lastStmt.outputs[0] ?? lastStmt.id
+    const shape = execResult.outputs.get(asPartName(lastPartName))
     if (!shape) {
-      return { ok: false, error: `No output for statement "${lastStmt.id}"` }
+      return { ok: false, error: `No output for statement "${lastStmt.id}" (part: ${lastPartName})` }
     }
-    const solidEntry = execResult.brepSolids?.get(asPartName(lastStmt.id))
+    const solidEntry = execResult.brepSolids?.get(asPartName(lastPartName))
     return writeOutput(outPath, ext, shape, solidEntry ? { solid: solidEntry.solid, kernel: solidEntry.kernel } : undefined)
   }
 
