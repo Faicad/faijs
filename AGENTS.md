@@ -10,6 +10,8 @@ Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadR
 
 3. 全部通过后才准跑ci， `scripts/ci.ps1`。**严禁通过跑 CI 找 bug**。跑完一次 CI 后记住哪些测试失败了，之后只跑失败的测试，不要重复跑 CI。
 
+4. 打包发布前，必须更新版本号。
+
 ## 常用命令
 
 | 命令 | 说明 |

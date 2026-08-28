@@ -21,7 +21,9 @@ const __dirname = path.dirname(__filename)
 
 const STDLIB_DIR = path.resolve(__dirname, '..', 'src', 'stdlib')
 const INTERNAL_STDLIB_FILE = path.resolve(__dirname, '..', 'src', 'cad-runtime', 'internal-stdlib.ts')
-const OUTPUT = path.resolve(__dirname, '..', 'src', 'lang', 'symbol-table.json')
+// 输出为 .generated.ts 而非 .json（实施文档 §6.5）：ESM 下 JSON import 需要
+// import attribute（"type: json"），在 vite/vitest 的 Node ESM 消费方会报错。
+const OUTPUT = path.resolve(__dirname, '..', 'src', 'lang', 'symbol-table.generated.ts')
 
 interface FunctionSymbol {
   readonlyPositions?: number[]
@@ -366,8 +368,16 @@ function main(): void {
     if (!table[name]) table[name] = {}
   }
 
-  const json = JSON.stringify(table, null, 2)
-  fs.writeFileSync(OUTPUT, json + '\n', 'utf-8')
+  // 生成 .generated.ts：import 无 JSON attribute 需求，vite/vitest/node ESM 均可用
+  const lines: string[] = []
+  lines.push(`/**`)
+  lines.push(` * symbol-table 生成文件 — 禁手改。`)
+  lines.push(` * 由 scripts/gen-symbol-table.ts 从 stdlib 签名生成（readonlyPositions/readonlyPaths）。`)
+  lines.push(` * 覆盖 cad 命名空间全部函数；无 readonly 标注的记空对象（默认消费语义）。`)
+  lines.push(` */`)
+  lines.push(`export default ${JSON.stringify(table, null, 2)}`)
+  lines.push(``)
+  fs.writeFileSync(OUTPUT, lines.join('\n'), 'utf-8')
 
   const entries = Object.keys(table).length
   console.log(`[gen-symbol-table] Written ${entries} entries to ${path.relative(process.cwd(), OUTPUT)}`)

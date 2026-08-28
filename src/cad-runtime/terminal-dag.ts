@@ -24,6 +24,9 @@ import { isVarRef, isCallRef } from '../lang/types'
  * - 未知 callee → 无 readonly 信息 → 右侧出现即消费（默认）
  * - 嵌套调用（CallRef）中的引用 = 只读查询，不消费
  * - 符号表标记的 readonly 位置/路径不消费（copy 的源、group/assembly 的 members）
+ * - receiver（成员方法调用，如 add_constraint / do_assemble）是**原地修改** compound：
+ *   它**不消费** receiver 变量，compound 仍作为终端显示。只有出现在右侧 args 中的
+ *   普通 shape 引用才按 readonly 规则判定是否消费（设计 §4.8：仅函数调用的输入 shape 被消费）。
  */
 export function consumes(stmt: CadStatement, v: PartName): boolean {
   // inputs：位置引用（符号表 readonlyPositions 命中的位置不消费）

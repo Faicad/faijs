@@ -30,6 +30,7 @@ function makeStmt(opts: {
   inputs?: string[]
   args?: Record<string, unknown>
   refs?: string[]
+  receiver?: string
 }): CadStatement {
   return {
     id: asStmtId('s1'),
@@ -38,6 +39,7 @@ function makeStmt(opts: {
     inputs: (opts.inputs ?? []).map((s) => asPartName(s)),
     outputs: [],
     refs: opts.refs,
+    receiver: opts.receiver ? asPartName(opts.receiver) : undefined,
     hasAssignment: false,
   }
 }
@@ -173,5 +175,44 @@ describe('consumes: 边界与组合', () => {
       },
     })
     expect(consumes(stmt, asPartName('part2'))).toBe(false)
+  })
+})
+
+describe('consumes: receiver (member method calls) — 修正：原地修改不消费', () => {
+  it('do_assemble on receiver "grp1" does NOT consume grp1 (compound 原地修改，仍作为终端)', () => {
+    const stmt = makeStmt({
+      callee: 'do_assemble',
+      receiver: 'grp1',
+    })
+    expect(consumes(stmt, asPartName('grp1'))).toBe(false)
+  })
+
+  it('add_constraint on receiver "asm1" does NOT consume asm1 (compound 原地修改，仍作为终端)', () => {
+    const stmt = makeStmt({
+      callee: 'add_constraint',
+      receiver: 'asm1',
+      args: { type: 'face_mate' },
+    })
+    expect(consumes(stmt, asPartName('asm1'))).toBe(false)
+  })
+
+  it('do_assemble on receiver "grp1" does NOT consume unrelated variable', () => {
+    const stmt = makeStmt({
+      callee: 'do_assemble',
+      receiver: 'grp1',
+    })
+    expect(consumes(stmt, asPartName('part0'))).toBe(false)
+  })
+
+  it('add_constraint 右侧 args 中的输入 shape 仍按 readonly 规则判定消费', () => {
+    // 设计 §4.8：仅函数调用的输入 shape 被消费；receiver 自身不被消费。
+    // 这里 asm1 是 receiver（不消费），part0 作为 args 中的普通引用应被消费。
+    const stmt = makeStmt({
+      callee: 'add_constraint',
+      receiver: 'asm1',
+      args: { target: varRef('part0') },
+    })
+    expect(consumes(stmt, asPartName('asm1'))).toBe(false) // receiver 不消费
+    expect(consumes(stmt, asPartName('part0'))).toBe(true)  // 右侧输入 shape 消费
   })
 })

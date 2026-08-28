@@ -120,6 +120,8 @@ function translateArgs(args: Record<string, Arg>): string {
 function getStatementRefs(stmt: CadStatement): string[] {
   if (stmt.refs) return stmt.refs
   const refs = new Set<string>(stmt.inputs)
+  // receiver：成员方法调用（do_assemble 等）依赖其 receiver 变量
+  if (stmt.receiver) refs.add(stmt.receiver)
   const scan = (value: Arg): void => {
     if (value === null || typeof value !== 'object') return
     if (isParamRef(value)) {

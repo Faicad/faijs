@@ -8,11 +8,11 @@
  * 机器生成、均匀查询、无 per-函数代码路径。
  * 未知第三方函数不在表中时，语言的一切机制仍然工作（有确定默认行为）。
  *
- * 生成文件：src/lang/symbol-table.json（由 scripts/gen-symbol-table.ts 生成，禁手改）。
+ * 生成文件：src/lang/symbol-table.generated.ts（由 scripts/gen-symbol-table.ts 生成，禁手改）。
  * 消费方：命名服务（§4.7 derivePartName）、活跃性分析（§4.8 consumes）、check() 诊断（§4.9）。
  */
 
-import symbolTable from './symbol-table.json'
+import symbolTable from './symbol-table.generated'
 
 export interface FunctionSymbol {
   /** 位置形参中 ReadonlyShape 的下标 */

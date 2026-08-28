@@ -18,6 +18,7 @@ import { describe, it, expect } from 'vitest'
 import { computeLeafTerminals, consumes } from './terminal-dag'
 import { parseScript } from '../lang/parser'
 import type { PartName } from '../identity'
+import type { PartScript } from '../lang/types'
 import { asPartName } from '../identity'
 
 /** 用 parseScript 从代码构造 PartScript，提取所有 shape 变量名。 */
@@ -93,6 +94,43 @@ describe('computeLeafTerminals: DAG leaf detection', () => {
       let part2 = cad.assembly({ name: 'A', members: ['part0', 'part1'] })
     `)
     expect(terminals.sort()).toEqual(['part0', 'part1', 'part2'])
+  })
+
+  it('成员方法调用不消费 compound（真实解析: 变量被重命名为 partN）: asm1=assembly(...); asm1.add_constraint(...) → 重命名后的 compound 仍终端', () => {
+    // 设计 §4.8：仅函数调用的输入 shape 被消费；receiver（add_constraint/do_assemble）
+    // 是原地修改 compound，不应被消费。parser 会把 asm1 重命名为 part1，故终端为 part0 + part1。
+    const terminals = terminalsFromCode(`
+      let part0 = cad.box({ size: 20 })
+      let asm1 = cad.assembly({ members: ['part0'] })
+      asm1.add_constraint({ type: 'face_mate' })
+    `)
+    // assembly 不消费 part0 → part0 终端；add_constraint 不消费 compound → part1（即 asm1）终端
+    expect(terminals.sort()).toEqual(['part0', 'part1'])
+  })
+
+  it('do_assemble 成员方法调用同样不消费 compound（重命名后）', () => {
+    const terminals = terminalsFromCode(`
+      let part0 = cad.box({ size: 20 })
+      let asm1 = cad.assembly({ members: ['part0'] })
+      asm1.do_assemble()
+    `)
+    expect(terminals.sort()).toEqual(['part0', 'part1'])
+  })
+
+  it('computeLeafTerminals 端到端守卫: receiver 与变量名一致时，成员方法调用不消费 compound', () => {
+    // 手工构建命名一致的脚本，真正命中 consumes 的 receiver 分支：
+    // S1 产出 asm1；S2 = asm1.add_constraint(...) 的 receiver == 'asm1'。
+    // 修复前 consumes(S2,'asm1') 返回 true → asm1 被判消费、从终端消失（[]）；
+    // 修复后返回 false → asm1 仍是终端。
+    const script = {
+      params: [],
+      statements: [
+        { id: 's1' as never, callee: 'assembly', args: { members: [] }, inputs: [], outputs: [asPartName('asm1')], hasAssignment: true },
+        { id: 's2' as never, callee: 'add_constraint', args: { type: 'face_mate' }, inputs: [], outputs: [], hasAssignment: false, receiver: asPartName('asm1') },
+      ],
+    } as PartScript
+    const terminals = computeLeafTerminals(script, new Set<PartName>([asPartName('asm1')]))
+    expect(terminals.map(t => t.id)).toEqual(['asm1'])
   })
 
   it('copy 不消费源: part0=box; part1=copy(part0) → 两者都是终端', () => {
