@@ -44,7 +44,7 @@ describe('compileToModule: 模块文本', () => {
     expect(code).toContain('ctx.part0 = await cad.box({ size: ctx.r }, exec)')
   })
 
-  it('CallRef 翻译为 await cad.<callee>(...exec)；嵌套 asset 走 await cad.asset(key, exec)', async () => {
+  it('CallRefIR 翻译为 await cad.<callee>(...exec)；嵌套 asset 走 await cad.asset(key, exec)', async () => {
     const { code } = compileText(`
       const part0 = await cad.box({ size: [10, 20, 5] })
       const part1 = await cad.drill(part0, {
@@ -129,7 +129,7 @@ describe('compileToModule: 语句元数据', () => {
     const groupMeta = statements.find((s) => s.sourceIndex !== undefined && script.statements[s.sourceIndex].callee === 'group')!
     expect(groupMeta).toBeDefined()
     expect(groupMeta.writes).toEqual(['grp1'])
-    // group 的 deps 含成员语句（members 是 VarRef，经通用扫描收集）
+    // group 的 deps 含成员语句（members 是 VarRefIR，经通用扫描收集）
     expect(groupMeta.deps).toEqual(['s1', 's2'])
     // add_constraint / do_assemble 无写入
     for (let i = 0; i < statements.length; i++) {

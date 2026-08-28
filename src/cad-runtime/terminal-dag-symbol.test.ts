@@ -19,7 +19,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { consumes } from './terminal-dag'
-import type { CadStatement, Arg } from '../lang/types'
+import type { StatementIR, ArgIR } from '../lang/types'
 import { asPartName, asStmtId } from '../identity'
 
 // ── 辅助构造 ──
@@ -31,11 +31,11 @@ function makeStmt(opts: {
   args?: Record<string, unknown>
   refs?: string[]
   receiver?: string
-}): CadStatement {
+}): StatementIR {
   return {
     id: asStmtId('s1'),
     callee: opts.callee,
-    args: (opts.args ?? {}) as Record<string, Arg>,
+    args: (opts.args ?? {}) as Record<string, ArgIR>,
     inputs: (opts.inputs ?? []).map((s) => asPartName(s)),
     outputs: [],
     refs: opts.refs,
@@ -44,14 +44,14 @@ function makeStmt(opts: {
   }
 }
 
-/** VarRef 构造辅助 */
-function varRef(name: string): Arg {
-  return { $ref: asPartName(name) } as Arg
+/** VarRefIR 构造辅助 */
+function varRef(name: string): ArgIR {
+  return { $ref: asPartName(name) } as ArgIR
 }
 
-/** CallRef 构造辅助 */
-function callRef(callee: string, args: Arg[]): Arg {
-  return { $call: { callee, args } } as Arg
+/** CallRefIR 构造辅助 */
+function callRef(callee: string, args: ArgIR[]): ArgIR {
+  return { $call: { callee, args } } as ArgIR
 }
 
 describe('consumes: §4.8 效果对照表六例', () => {
@@ -163,7 +163,7 @@ describe('consumes: 边界与组合', () => {
     expect(consumes(stmt, asPartName('part99'))).toBe(false)
   })
 
-  it('CallRef 嵌套多层也不消费', () => {
+  it('CallRefIR 嵌套多层也不消费', () => {
     // drill(part0, { at: cad.faceCenter(cad.bboxCenter(part2)) })
     const stmt = makeStmt({
       callee: 'drill',

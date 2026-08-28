@@ -2,7 +2,7 @@
  * BREP 与 Mesh 实现等价性测试
  *
  * 验证原则：
- * 1. 同一 PartScript 分别以 'brep' 和 'mesh' 模式执行
+ * 1. 同一 ScriptIR 分别以 'brep' 和 'mesh' 模式执行
  * 2. 两个结果的最终 mesh 几何指标偏差 < 1/1000
  * 3. 指标包括：包围盒、体积、表面积
  *
@@ -35,7 +35,7 @@ import { createNodePorts } from './node-host'
 import type { ExecutionMode } from './cad-runtime/ports'
 import type { Shape } from './mesh/types'
 import { ensureTestFontLoader } from './brep/text/fontTestHelper'
-import type { CadStatement, PartScript } from './lang/types'
+import type { StatementIR, ScriptIR } from './lang/types'
 import { asStmtId, asPartName } from './identity'
 
 beforeAll(async () => {
@@ -50,7 +50,7 @@ function makeStmt(
   callee: string,
   args: Record<string, unknown>,
   inputs: string[] = [],
-): CadStatement {
+): StatementIR {
   return {
     id: asStmtId(id), callee,
     args: args as any,
@@ -60,7 +60,7 @@ function makeStmt(
   }
 }
 
-function makePartScript(statements: CadStatement[]): PartScript {
+function makePartScript(statements: StatementIR[]): ScriptIR {
   return {
     source: { kind: 'load' },
     params: [],
@@ -69,7 +69,7 @@ function makePartScript(statements: CadStatement[]): PartScript {
 }
 
 /** 在指定模式下运行脚本，返回最终 Shape */
-async function runMode(script: PartScript, mode: ExecutionMode): Promise<Shape> {
+async function runMode(script: ScriptIR, mode: ExecutionMode): Promise<Shape> {
   const ports = createNodePorts()
   const runtime = createRuntime(ports, mode)
   const result: ExecutionResult = await runtime.execute(script)
@@ -190,7 +190,7 @@ function assertMetricsEquivalent(
 }
 
 /** 辅助：运行并比较两种模式 */
-async function runAndCompare(statements: CadStatement[], label: string) {
+async function runAndCompare(statements: StatementIR[], label: string) {
   const script = makePartScript(statements)
   const brepShape = await runMode(script, 'brep')
   const meshShape = await runMode(script, 'mesh')

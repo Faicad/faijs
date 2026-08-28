@@ -16,7 +16,7 @@ import { describe, it, expect, beforeAll, vi } from 'vitest'
 import { asPartName, asStmtId } from '../identity'
 import { initOcctWasm, getKernel } from '../occt-kernel/occtKernel'
 import type { OcctKernel } from 'occt-wasm'
-import type { CadStatement, PartScript } from '../lang/types'
+import type { StatementIR, ScriptIR } from '../lang/types'
 import { CadRuntime, createRuntime, computeContentKey } from './runtime'
 import { ExecContextImpl } from './exec-context'
 import { createBrepChainState } from '../brep/brep-chain'
@@ -53,7 +53,7 @@ function makeStmt(
   callee: string,
   args: Record<string, unknown>,
   inputs: string[] = [],
-): CadStatement {
+): StatementIR {
   // add_constraint/do_assemble 无赋值；其余 op 有赋值
   const noAssignment = callee === 'add_constraint' || callee === 'do_assemble'
   return {
@@ -65,7 +65,7 @@ function makeStmt(
   }
 }
 
-function makePartScript(statements: CadStatement[]): PartScript {
+function makePartScript(statements: StatementIR[]): ScriptIR {
   return { source: { kind: 'load' }, params: [], statements }
 }
 
@@ -73,7 +73,7 @@ function makeRuntime(mode?: ExecutionMode): CadRuntime {
   return createRuntime(createNodePorts(), mode)
 }
 
-async function run(statements: CadStatement[], mode?: ExecutionMode) {
+async function run(statements: StatementIR[], mode?: ExecutionMode) {
   const runtime = makeRuntime(mode)
   const script = makePartScript(statements)
   return { runtime, result: await runtime.execute(script) }
@@ -549,7 +549,7 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
   it('statementCache 持久化多输出 outputs[]（split backId 可直接命中，§3.5）', async () => {
     const runtime = makeRuntime()
     const s0 = makeStmt('s0', 'box', { size: 20 })
-    const splitStmt: CadStatement = {
+    const splitStmt: StatementIR = {
       id: asStmtId('s1'), callee: 'split',
       args: { cutMode: 'plane', normal: [0, 0, 1], offset: 0 } as never,
       inputs: [asPartName('s0')],
@@ -572,7 +572,7 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
   it('append 引用 split back 输出 → 直接命中持久缓存（不触发子重放）', async () => {
     const runtime = makeRuntime()
     const s0 = makeStmt('s0', 'box', { size: 20 })
-    const splitStmt: CadStatement = {
+    const splitStmt: StatementIR = {
       id: asStmtId('s1'), callee: 'split',
       args: { cutMode: 'plane', normal: [0, 0, 1], offset: 0 } as never,
       inputs: [asPartName('s0')],
@@ -604,7 +604,7 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     const s2InitialPos = Array.from(s2Initial.positions)
 
     // 创建 assembly + do_assemble 语句
-    const assemblyStmt: CadStatement = {
+    const assemblyStmt: StatementIR = {
       id: asStmtId('asm1'),
       callee: 'assembly',
       args: {
@@ -624,7 +624,7 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
       hasAssignment: true,
       outputs: [asPartName('asm1')],
     }
-    const doAssembleStmt: CadStatement = {
+    const doAssembleStmt: StatementIR = {
       id: asStmtId('do_asm1'),
       callee: 'do_assemble',
       args: {},
@@ -684,7 +684,7 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     expect(bbBefore.min[1]).toBeCloseTo(-5, 1)
     expect(bbBefore.max[1]).toBeCloseTo(5, 1)
 
-    const assemblyStmt: CadStatement = {
+    const assemblyStmt: StatementIR = {
       id: asStmtId('asm1'),
       callee: 'assembly',
       args: {
@@ -702,7 +702,7 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
       hasAssignment: true,
       outputs: [asPartName('asm1')],
     }
-    const doAssembleStmt: CadStatement = {
+    const doAssembleStmt: StatementIR = {
       id: asStmtId('do_asm1'),
       callee: 'do_assemble',
       args: {},
@@ -744,7 +744,7 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     const s2SolidBefore = first.brepSolids?.get(asPartName('s2'))
     expect(s2SolidBefore).toBeDefined()
 
-    const assemblyStmt: CadStatement = {
+    const assemblyStmt: StatementIR = {
       id: asStmtId('asm1'),
       callee: 'assembly',
       args: {
@@ -762,7 +762,7 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
       hasAssignment: true,
       outputs: [asPartName('asm1')],
     }
-    const doAssembleStmt: CadStatement = {
+    const doAssembleStmt: StatementIR = {
       id: asStmtId('do_asm1'),
       callee: 'do_assemble',
       args: {},
@@ -795,7 +795,7 @@ describe('ExecContextImpl: dependentsOf / touch', () => {
     return { positions: new Float32Array(0), indices: new Uint32Array(0) } as Shape
   }
 
-  function makeExec(script: PartScript, outputCache: Map<PartName, Shape>): ExecContextImpl {
+  function makeExec(script: ScriptIR, outputCache: Map<PartName, Shape>): ExecContextImpl {
     return new ExecContextImpl({
       mode: 'auto',
       brepChain: createBrepChainState(),
@@ -844,7 +844,7 @@ describe('ExecContextImpl: dependentsOf / touch', () => {
 
 describe('CadRuntime: plan deps 级联（参数语句化）', () => {
   /** 构造带参数 r 的脚本：box 的 size 引用 $param r。 */
-  function makeScriptWithParam(r: number): PartScript {
+  function makeScriptWithParam(r: number): ScriptIR {
     return {
       source: { kind: 'load' },
       params: [{ name: 'r', type: 'number', value: r, default: r }],
@@ -884,7 +884,7 @@ describe('CadRuntime: plan deps 级联（参数语句化）', () => {
       beforeStatement: (stmt) => beforeCalls.push(stmt.id),
     })
 
-    // 只重算 box（参数语句非 CadStatement，不进 beforeStatement）
+    // 只重算 box（参数语句非 StatementIR，不进 beforeStatement）
     expect(beforeCalls).toEqual(['part0'])
     // 重算后几何更新（bbox 翻倍）
     const out = runtime.getCachedOutput(asPartName('part0'))
@@ -899,16 +899,16 @@ describe('CadRuntime: DAG leaf terminal detection', () => {
     const { result } = await run([
       makeStmt('s1', 'box', { size: 20 }),
       makeStmt('s2', 'sphere', { radius: 8 }),
-      { id: asStmtId('s3'), callee: 'subtract', args: {}, inputs: [asPartName('s1'), asPartName('s2')], outputs: [asPartName('s3')], hasAssignment: true } as CadStatement,
+      { id: asStmtId('s3'), callee: 'subtract', args: {}, inputs: [asPartName('s1'), asPartName('s2')], outputs: [asPartName('s3')], hasAssignment: true } as StatementIR,
     ])
     expect(result.terminals.map(t => t.id)).toEqual([asPartName('s3')])
   })
 
   it('链式重赋值: part0 = translate(part0) → 仅 1 个终端', async () => {
     // makeStmt 默认 outputs = [id]，单入单出复用名时 allocateStatementId 会复用输入名
-    // 但这里直接构造 PartScript，不经过 parser，所以 outputs 就是 id
+    // 但这里直接构造 ScriptIR，不经过 parser，所以 outputs 就是 id
     const s1 = makeStmt('part0', 'box', { size: 20 })
-    const s2: CadStatement = {
+    const s2: StatementIR = {
       id: asStmtId('s2'), callee: 'translate', args: { offset: [5, 0, 0] },
       inputs: [asPartName('part0')], outputs: [asPartName('part0')], hasAssignment: true,
     }

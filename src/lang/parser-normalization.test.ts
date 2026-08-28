@@ -3,13 +3,13 @@
  *
  * 设计文档：docs/plans/2026-08-27-faijs-language-normalization-design.md §4.1/§4.3
  *
- * 这些用例按**目标 IR**（callee/receiver/outputKeys/VarRef/CallRef）断言。
+ * 这些用例按**目标 IR**（callee/receiver/outputKeys/VarRefIR/CallRefIR）断言。
  * 阶段 2（IR + parser 纯化）落地后转绿；在此之前保持红 = 规格已锁定。
  */
 
 import { describe, it, expect } from 'vitest'
 import { parseScript } from './parser'
-import { isVarRef, isCallRef, type CallRef, type Arg } from './types'
+import { isVarRef, isCallRef, type CallRefIR, type ArgIR } from './types'
 
 describe('parser-normalization: boolean 归一取消', () => {
   it('cad.union(a,b) → callee === "union"，无 args.operation', () => {
@@ -90,8 +90,8 @@ describe('parser-normalization: 任意成员调用', () => {
   })
 })
 
-describe('parser-normalization: args 内嵌套调用 → CallRef', () => {
-  it('cad.drill(part0, { at: cad.faceCenter(part2) }) → args.at 是 CallRef', () => {
+describe('parser-normalization: args 内嵌套调用 → CallRefIR', () => {
+  it('cad.drill(part0, { at: cad.faceCenter(part2) }) → args.at 是 CallRefIR', () => {
     const code = [
       'let part0 = cad.box({ size: 20 })',
       'let part2 = cad.box({ size: 5 })',
@@ -101,15 +101,15 @@ describe('parser-normalization: args 内嵌套调用 → CallRef', () => {
     const drillStmt = script.statements[2]
     const atArg = drillStmt.args.at
     expect(isCallRef(atArg)).toBe(true)
-    const callRef = atArg as CallRef
+    const callRef = atArg as CallRefIR
     expect(callRef.$call.callee).toBe('faceCenter')
     expect(callRef.$call.args).toHaveLength(1)
     expect(isVarRef(callRef.$call.args[0])).toBe(true)
   })
 })
 
-describe('parser-normalization: members 走 VarRef', () => {
-  it('cad.group({ members: [part0, part1] }) → members 是 VarRef 数组', () => {
+describe('parser-normalization: members 走 VarRefIR', () => {
+  it('cad.group({ members: [part0, part1] }) → members 是 VarRefIR 数组', () => {
     const code = [
       'let part0 = cad.box({ size: 20 })',
       'let part1 = cad.box({ size: 10 })',
@@ -117,7 +117,7 @@ describe('parser-normalization: members 走 VarRef', () => {
     ].join('\n')
     const { script } = parseScript(code)
     const groupStmt = script.statements[2]
-    const members = groupStmt.args.members as Arg[] | undefined
+    const members = groupStmt.args.members as ArgIR[] | undefined
     expect(Array.isArray(members)).toBe(true)
     expect(members).toHaveLength(2)
     expect(isVarRef(members![0])).toBe(true)
@@ -125,8 +125,8 @@ describe('parser-normalization: members 走 VarRef', () => {
   })
 })
 
-describe('parser-normalization: asset 走 CallRef', () => {
-  it('cad.asset("cfg") 嵌套在 args 中 → CallRef', () => {
+describe('parser-normalization: asset 走 CallRefIR', () => {
+  it('cad.asset("cfg") 嵌套在 args 中 → CallRefIR', () => {
     const code = [
       'let part0 = cad.box({ size: 20 })',
       'part0 = cad.drill(part0, { depth: cad.asset("cfg") })',
@@ -134,7 +134,7 @@ describe('parser-normalization: asset 走 CallRef', () => {
     const { script } = parseScript(code)
     const drillStmt = script.statements[1]
     expect(isCallRef(drillStmt.args.depth)).toBe(true)
-    const callRef = drillStmt.args.depth as CallRef
+    const callRef = drillStmt.args.depth as CallRefIR
     expect(callRef.$call.callee).toBe('asset')
     expect(callRef.$call.args).toEqual(['cfg'])
   })

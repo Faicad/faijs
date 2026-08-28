@@ -1,271 +1,528 @@
 # .faijs 语法设计
 
-> 定位：这是 `.faijs` 的**语法与增量执行契约**（长期有效）。
+> 定位：这是 `.faijs` 的**语法契约**与**增量执行契约**（长期有效）。
+> 需求总纲：`C:\my\Faicad\3d_editor\Faijs语言的思考.md`
+> 相邻文档：`docs/api-contract.md`（接口契约）、`docs/ops-api-inventory.md`（API 手册，写给 AI/用户）、`docs/plans/2026-08-25-faijs-vm-execution-implementation-plan.md`（执行架构实施）。
 
-重大更新：partN_vM 格式的命名规则仅用于UI层自动生成的代码。手写、ai生成代码不在此列。
-
-**命名职责分层（parser 不命名）**：`derivePartName`（partN 分配服务）由生成侧（UI/AI/CLI）在生成代码文本时调用；parser **不调用**命名服务，解析时保留源码的词法变量名——任意合法 JS 标识符原样写入 `outputs`/`inputs`/`receiver`/`$ref`，不做任何名称翻译。
+版本状态（2026-08-28 重写）：本文档随 **语言正常化重构**（消灭 op 概念）与 **DAG 终端判定恢复** 两轮改造重写。
+与旧版的关键差异：① 废弃 `partN_vM` 版本链命名，改为**可重赋值的 `partN`**（模型即变量）；② `op` 概念消灭，函数就是函数（`callee`），引擎零函数知识；③ 语句身份 `StmtId`（`sN`）与变量身份 `PartName` 分离；④ 终端判定恢复为 **DAG 活跃性**（最后写者 + 下游无消费），由符号表的 readonly 数据驱动。
 
 ---
 
 ## 0. 需求与约束
 
+### 0.1 用户原话（需求基线，不准删除）
+
+来自 `Faijs语言的思考.md`：
+
+> 1. 需要能同时支持brep/mesh/sdf（甚至点云逆向）等各种建模方式。
+> 2. 需要支持多个后端建模引擎，目前brep用occt，mesh用manifold。未来要支持引擎切换。
+> 3. 需要能同时支持UI建模与AI建模。这是最重要的特性。UI建模也就是用户点击UI的时候生成脚本代码。AI建模是让大模型直接根据文本等描述生成建模源代码。要支持交互式运行，也就是UI和AI代码要能够交替生成，互相兼容。
+
+> 4. faijs引擎负责代码的解析与校验，提前杜绝错误和安全风险。但是执行完全交给js虚拟机。
+> 5. 几何运算全部交给faijs语言库来实现，faijs引擎不内置。
+> 6. faijs不处理UI状态，只处理几何。这是它和freecad宏之类的语言的最大区别。
+> 7. faijs可以UI录制，按行增量执行。这是它和cadquery、openscad之类3D建模语言最大的不同。
+
+> faijs是通用语言，并不是一个什么op相关的语言。op就是函数，这是长期的方向。未来的第三方库，它就是写代码，实现function。不需要知道什么op这种概念。
+
+> 必需再次强调，faijs必需是正常的语言，必需正常的设计。所有不符合这个要求的设计，都要给我去掉，目前的代码如何实现的不重要。唯一的例外，faijs必需是UI能够自动生成代码，比如AI/UI生成的代码能够和谐共存。
+
+> 规定faijs里不准出现控制流语句，也就是不能有if/for/while之类的语句。如此，canvas里如何决定显示哪些几何模型、timeline如何显示等需求不会被AI生成的代码破坏。
+
+> UI 层是"死"的，必须有一套确定的命名方案才能稳定生成与回放代码，因此约定 **UI 生成的代码统一采用 partN（N 为整数序号）。faijs变量名只要是合法的 JS 标识符即可，变量命名规则仅针对 UI 生成的代码，手写或AI生成的代码可以用任意合法的变量名。**
+
+> 其实最终就是一句话：dag活跃性，加ReadonlyShape的入参不被消费。最终存活下来的shape显示在canvas中。
+
+> parser 这是乱来，完全违规。parser 只应对代码进行语法分析，怎么可能改写用户提供的代码。
+> partN 这种命名是 UI 层的事情，怎么可能跑到 parser 层里，完全乱来。还篡改用户代码，莫名其妙。
+
+### 0.2 由原话推出的硬约束
+
 1. **`.faijs` 必须是 JavaScript 的合法子集** —— 任意 JS 解析器（acorn）都能无错解析。
-2. **禁止 `eval` / `new Function` / 动态 `import()` 真执行** —— 存在安全风险，且会让"子集边界"毫无意义。文本必须**先经语法解析**还原成结构化语句。
-3. **人类 UI 建模 与 AI 代码建模 在同一场景上交织**：
-   - 人类用鼠标建立方体、钻孔；AI 读代码后写"倒角 4 条边"并交回引擎。
-   - AI 可能**追加**语句，也可能**修改**已有语句（如把尺寸翻倍）。
-   - AI 执行后人类继续交互（如顶面滚花）。
-4. **引擎必须增量执行 + 变更识别**：
-   - "尺寸翻倍" → 引擎识别为**参数/参数值变更**，只重算受影响语句；
-   - "追加倒角" → 引擎识别为**新增**，仅执行新增后缀；
-   - 任意结构性修改 → 引擎识别为**结构变更**，从该点起重放。
-5. **语法层必须支持多 mesh（模型间派生 / 合并的 DAG）**。`partN_vM` 命名格式仅用于 **UI 层自动生成的代码**。
-6. **只有一份代码**：不存在"statement 对象"与"代码文本"两份表示的转化函数——代码文本是 PartScript 的确定性序列化投影（`scriptToCode`/`statementToLine`），parser 与 codegen 双向同构。代码允许注释；**一个操作对应一行代码**（注释/空行不计）。
+2. **禁止 `eval` / `new Function` / 动态 `import()` 真执行** —— 存在安全风险，且会让"子集边界"毫无意义。文本必须**先经语法解析**还原为结构化 IR（parse-then-execute）。
+3. **无控制流** —— 禁止 `if` / `for` / `while` / `try` / 函数定义 / IIFE / 模板字符串。这是"canvas 显示集合可静态推导"与"timeline 一行一节点"的前提，也是 AI 生成代码不破坏宿主推导的保证。
+4. **引擎零函数知识** —— parser / compile / codegen / runtime 中不允许存在任何按函数名分支的代码。函数的信息只以**机器生成的符号表**（§5.3）形式存在，且是均匀数据。
+5. **UI 建模 与 AI 建模 在同一份代码上交织** —— 两者收敛到同一个 `ScriptIR`；引擎只认 `ScriptIR`，不区分语句来源（来源标注是宿主职责，faijs 不处理 UI 状态）。
+6. **引擎必须增量执行** —— 按行录制、按行增量重算（§6.3）。
+7. **只有一份代码** —— 不存在"语句对象"与"代码文本"两份表示的转化函数，文本是 `ScriptIR` 的确定性序列化投影（`scriptToCode` / `statementToLine`），parser 与 codegen 双向同构。**一个操作对应一行代码**（注释/空行不计）。
+8. **命名职责分层** —— `derivePartName`（partN 分配服务）由**生成侧**（UI/AI/CLI）在生成代码文本时调用；**parser 不调用命名服务、不做任何名称翻译**，解析时原样保留源码里的词法变量名。
 
 ---
 
-## 1. 核心抽象：PartScript 是唯一事实源
+## 1. 核心抽象：ScriptIR 是唯一事实源
 
 ```
-            Human UI 操作                 AI 代码 (.faijs 文本)
-                 │                              │
-                 │ 记录语句                     │ acorn 解析（不执行）
-                 ▼                              ▼
-        ┌──────────────────────────────────────────────┐
-        │  PartScript（场景级单一 DAG）                  │   ← 唯一事实源
-        │   平铺语句序列：const part0_v0 = cad.box(…)  │
-        │               const {front: part1_v0, back:  │
-        │                 part2_v0} = cad.split(…)     │
-        │   每条 CadStatement 带 feature.createdBy     │
-        │   终端 = 自动推导（未被引用的输出 = 叶子）     │
-        └──────────────────────────────────────────────┘
+       Human UI 操作                    AI / 手写代码 (.faijs 文本)
+            │                                    │
+            │ 追加一行语句                        │ acorn 解析（不执行）
+            ▼                                    ▼
+   ┌────────────────────────────────────────────────────────┐
+   │  ScriptIR（场景级单一 DAG）              ← 唯一事实源   │
+   │   params:     const size = 20                          │
+   │   statements: let part0 = cad.box({ size })            │
+   │               part0 = cad.drill(part0, { diameter: 5 })│
+   │               const { front: part1, back: part2 } = …   │
+   └────────────────────────────────────────────────────────┘
                             │
                             ▼
-                CadRuntime.execute（BREP 优先 + 静态切换 mesh）
+        compileToModule → 零 import ESM → 动态 import()（JS VM 执行）
                             │
                             ▼
-                         Scene（单/多 mesh）
+              ExecutionResult { outputs, terminals, compounds, … }
 ```
 
-- **平铺代码格式**：`scriptToCode(script)` 产出纯语句序列——无 `export default` 包裹、无 `return`、无 `apiVersion` 头。UI 层自动生成的语句 id 采用 **partName** 格式（`partN_vM`，模型/版本分离，见 §3）。
-- **双向转换**：
-  - UI → PartScript → `scriptToCode` → `.faijs` 文本（代码视图）。
-  - AI → `.faijs` 文本 → `parseScript`（acorn）→ PartScript。
-  - 序列化是**可逆投影**：statement 对象的 `id`=变量名、`inputs`=参数引用、`op`=函数名；parser 能原样解析回来（部分宿主字段如 `seq`/`createdBy` 不进入文本，属宿主层信息）。
-- **终端自动推导**：不被任何语句引用为输入的输出即终端（叶子节点）。
-- **meta（name/color/metalness/roughness）不进代码文本**：由宿主（3d_editor）store 管理；`.faijs` 文本中不存在 `return { shape, name, color }`。
-- **执行永远走 CadRuntime**：`cad.*` 在文本里只是**约定**（合法 JS 子集），应用内执行时 parser 还原为结构化语句。几何由引擎双链路执行（BREP 优先，`MESH_ONLY_OPS = {sdf, knurl}`、mesh 源文件、多输入布尔含 mesh 输入时静态切换 mesh；**禁止运行时回退**）。
-- 因此"合法 JS"是**序列化契约**，不是"加载后真跑的代码"。这规避了安全风险，也保留了撤销粒度 / 增量重算 / args 校验（全部挂在 parse-then-execute 链路上）。
+### 1.1 四层分离（引擎零几何、零函数名）
+
+| 层 | 内容 |
+|---|---|
+| **语言** | `.faijs`（UI 录制、无类型、无控制流）；`.faits`（AI 编写、带类型，去类型后同管道，**远期**，§10） |
+| **引擎** | parser、codegen、`compileToModule`、`ModuleExecutor`、`ExecContext`、Shape 构造器、BREP/mesh **内核平台**——**不含任何函数名知识** |
+| **stdlib** | 全部官方函数的**库函数实现**（`src/stdlib/**`，`@faicad/faijs/stdlib`）。几何运算在这里，不在引擎 |
+| **第三方库** | 任意 JS 模块，遵守"末参 exec"约定即可被 `.faijs` 调用（远期） |
+
+### 1.2 身份契约：`StmtId` 与 `PartName` 是两个命名空间
+
+```
+part0 = cad.box(...)          // part0 是 PartName（变量身份）
+        ↑ 这条语句的身份是 StmtId = s1（语句身份）
+```
+
+- **`StmtId`**（`s1..sN`）：语句身份，用于依赖图（deps）与增量执行缓存键。参数语句占前段 `s1..sK`，语句占 `s(K+1)..s(K+N)`。**一条语句有且只有一个 StmtId**。
+- **`PartName`**：左值变量名（任意合法 JS 标识符）。一条语句可以有 **0 个**（成员调用）、**1 个**（普通赋值）或 **N 个**（解构）PartName。
+- 引擎与宿主都以 `PartName` 为**不透明 key**（`outputs: Map<PartName, Shape>`、`terminalToScopedId: Record<PartName, …>`），**不解析 `partN` 的结构**。`partN` 只是 UI 生成代码的命名约定。
+- 因此**同一变量名可以被多条语句写入**（重赋值 = 模型被修改），这是本语言与 SSA 版本链（`partN_vM`）的根本区别。
+
+### 1.3 执行永远走 JS VM
+
+`cad.*` 在文本里只是**约定**（合法 JS 子集），应用内执行时 parser 还原为 IR → 编译为**零 import ESM** → 动态 `import()` 由 JS 引擎执行。引擎不解释任何几何语义；几何运算在 stdlib 库函数里，BREP/mesh 双链路由库函数内部 `resolvePath` **静态判定**（禁止运行时回退，见 `docs/api-contract.md` §8）。
+
+"合法 JS"是**序列化契约**，不是"加载后真跑的代码"——这规避安全风险，同时保留了按行增量重算的粒度。
 
 ---
 
 ## 2. 语法规范（合法 JS 子集）
 
-> **语句 id 可以是任意合法 JS 标识符**（`const <id> = cad.op(...)`）。
-> `partN_vM` 只是 **UI 层自动生成代码**时采用的 id 形态（`partN`=模型号、`vM`=版本号）。引擎以 `stmt.id` 为不透明 key 执行与 execute，不解析其结构。
+### 2.1 文件容器
 
-### 2.2 单一 PartScript DAG
+- **扁平格式（推荐，UI/AI 生成的代码都用这个）**：纯语句序列，无 `export default`、无 `return`、无 `await`、无 `apiVersion` 头。
+  parser 检测到文本不含 `export default` 时，自动封装为 `export default async (cad) => { … }` 再交给 acorn（行号会扣掉封装偏移，报错行号始终相对原始文本）。
+- **`export default async (cad) => { … }` 容器**：同样合法（历史格式），parser 直接解析。
+- **`// apiVersion: N`** 注释可选（`getApiVersion`，缺省 1）。
 
-多 mesh **不是**"互相独立的平行 part 数组"，也**不是**把所有 mesh 平铺进同一个版本池——整场景是**一张 DAG**，每个语句的输出是一个节点，引用其它语句的输出。
-
-
-```js
-const part0_v0 = cad.box({ size: 20 })
-const part0_v1 = await cad.drill(part0_v0, { diameter: 5, depth: 0, position: cad.faceCenter(part0_v0), direction: 'normal', faceNormal: [0, 0, 1] })
-const part0_v2 = await cad.extrude(part0_v1, { length: 3 })
-
-// split 当前版本 → 两个新模型 part1 / part2
-const { front: part1_v0, back: part2_v0 } = await cad.split(part0_v2, { normal: [0, 0, 1], offset: 0, cutMode: 'plane' })
-
-const part1_v1 = await cad.drill(part1_v0, { diameter: 3, position: cad.faceCenter(part1_v0) })
-const part2_v1 = cad.knurl(part2_v0, { knurlTextureHeight: 0.5, knurlScaleU: 0.15, knurlScaleV: 0.15, knurlInvertDisplacement: false })
-
-// 新独立模型 part3
-const part3_v0 = cad.cylinder({ radius: 5, height: 40 })
-
-// 布尔合并产出新模型 part4（「布尔跟随主体」决策见 reconciliation 文档 §2.1）
-const part4_v0 = await cad.union(part1_v1, part3_v0)
-
-// 终端集合（自动推导，无 return）：未被引用的输出 part2_v1、part4_v0
-```
-
-- 终端 mesh = 未被引用的输出（叶子）。被作为后续输入的 mesh 视为中间产物，不单独入场景。
-- 不存在 `build` 闭包 / `parts[i]` 跨作用域引用：所有 mesh 在同一 DAG，跨模型引用就是直接写对方的 id（如 `union(part1_v1, part3_v0)`）。UI 路径与 AI 路径天然同构——人类在 UI 里 split，引擎追加 `const {front:partN_v0,back:partM_v0}=cad.split(part0_vK,…)` 到同一脚本即可。
-- 语法是完整 DAG：split / 布尔 / 多终端在语法层完整支持。
-
-### 2.3 形态清单（缺一不可、多一不可）
+### 2.2 形态清单（缺一不可、多一不可）
 
 ```
-script   = ( <comment> | <param> | <stmt> | <structural> )*
+script   = ( <comment> | <param> | <stmt> )*
+
 comment  = // 单行注释（不占操作行）
-param    = const <name> = <literal>                                              // 参数：字面量（数/串/布尔/数组/对象/负数）
-stmt     = const <id> = [await] cad.<op>(<inputVar>?, { <key>:<val>, … })                       // 版本链语句
-         | const <id> = [await] cad.<union|subtract|intersect>(<inputVar>, <inputVar>, …)        // 布尔（多输入）
-         | const { front: <id>, back: <id> } = [await] cad.split(<inputVar>, { … })              // 多输出
-structural = cad.group(<obj>) | cad.assembly(<obj>)                                              // 裸调用，不赋值，不产出几何
+
+param    = const <name> = <literal>                       // 参数：右侧仅字面量
+
+stmt     = (const|let) <id> = [await] cad.<fn>(<input>*, { <k>:<v>, … }?)   // 声明赋值
+         | const { <k1>: <id1>, … } = [await] cad.<fn>(<input>*, {…}?)      // 对象解构（必须 const）
+         | <id> = [await] cad.<fn>(<input>*, {…}?)                          // 裸重赋值（<id> 须已声明）
+         | <id>.<method>({ <k>:<v>, … }?)                                   // 成员方法调用（<id> 须已声明）
+         | return { shape: <id>, name?, color?, … }                         // 显式终端（可选）
+         | return [ { shape: <id>, … }, … ]                                 // 显式多终端（可选）
 ```
 
-- `// apiVersion: N` 注释**可选**（缺省 1）。
-- `<id>` 为任意合法 JS 标识符；输入引用 = **变量名**（如 `part0_v0`），即该语句的 `id`；boolean 的输入为多个变量名。`partN_vM` 形态仅用于 UI 层自动生成代码。
+- `cad.<fn>(…)` 的 `<fn>` 是**任意函数名**，parser 不认识也不关心；位置参数 `<input>*` 必须是**已声明的变量标识符**（0 个、1 个或多个均可）；尾部的选项对象 `{…}` **可省略**（如 `cad.split(part0)`）。
+- `await` 可选（parser 剥离），codegen 不产出 `await`。
+- 解构的键与 callee **均无限制**（`const { a, b } = cad.mySplit(x)` 合法）；解构必须用 `const`。
+- 成员方法调用的接收者必须是已声明变量，方法名任意（`asm1.add_constraint({…})`、`asm1.do_assemble()`）；这类语句**无输出**（`outputs = []`）。
+- 显式 `return` 只用于**指定终端集合**（§5.1 优先级）；绝大多数代码不写 `return`。
 
+### 2.3 args 允许的表达式（白名单，不是任意 JS）
+
+`parseValueExpr` 只接受以下节点，其余一律 `ParseError`：
+
+| 形态 | 结果 |
+|---|---|
+| 字面量（数/串/布尔/null）、负数字面量 `-5` | `JsonValue` |
+| 参数名 / 对象简写 `{ size }`（须是已声明的 param） | `ParamRefIR { $param: 'size' }` |
+| 已声明变量名 | `VarRefIR { $ref: 'part0' }` |
+| 数组 / 对象（递归） | `JsonValue[]` / `Record<string, ArgIR>` |
+| `cad.<fn>(…)` 嵌套调用（递归，任意 fn） | `CallRefIR { $call: { callee, args } }` |
+
+> **不支持二元表达式**：`cad.box({ size: [10, 20 * r, 5] })` 会报 `unsupported value expression: BinaryExpression`。需要计算的量请先声明为参数（`const h = 40`）。
+> **不支持模板字符串、三元、箭头函数、展开运算符。**
+
+### 2.4 禁止清单
+
+控制流（`if`/`for`/`while`/`do`/`switch`/`try`）、函数声明与函数表达式、类、`new`、模板字符串、IIFE、`eval`/`new Function`/动态 `import()`、`var`、多声明器（`const a = 1, b = 2`）、裸表达式语句（非成员调用）、`export`/`import`（容器除外）。
+
+理由（用户原话）：控制流会破坏"canvas 显示哪些几何"与"timeline 一行一节点"的静态可推导性。
 
 ### 2.5 标识符命名约束（关键字黑名单）——可读性约束
 
-本条约束的是**本项目生成/拥有的代码**，具体指：
-- `codegen` 输出的所有标识符（`const <name> = …` 的变量名、渲染为 `const <name> = <literal>` 的参数名）；
-- 引擎自身的固定词汇（`cad.box` / `cad.drill` / `cad.load` / `cad.split` / `faceCenter` 等 op 与 helper 名）。
+本条约束的是**本项目生成/拥有的代码**：`codegen` 输出的所有标识符（变量名、参数名）、引擎自身的固定词汇（`cad`、函数名、参数名）。
 
-上述标识符**不得**是以下任一门语言的保留关键字：
-- **JavaScript**（含严格模式/模块保留字）、**Python 3**、**C**（C11）、**Java**。
+上述标识符**不得**是以下任一门语言的保留关键字：**JavaScript**（含严格模式/模块保留字）、**Python 3**、**C**（C11）、**Java**。
 
-仅仅是可读性要求。
+仅仅是可读性要求，不构成对 AI/手写代码标识符的语法限制（§0.1 原话：任意合法 JS 标识符即可）。
 
 ---
 
-## 3. 语句模型 ↔ `CadStatement` 映射
+## 3. 语句模型 ↔ `StatementIR` 映射
 
-现有 `CadStatement = { id, op, args, inputs, name?, feature, model?, outputs?, seq? }`（`types.ts`）。**parser 只填充 `id`/`op`/`args`/`inputs`/`feature`（`createdBy:'script'`）/`outputs`（split）**；`model`/`seq` 由宿主层（3d_editor）填充。映射规则（表中示例 id 为 UI 层自动生成的 partN_vM 形态；AI / 手写代码的 id 可为任意合法 JS 标识符）：
+`src/lang/types.ts` 的 IR 定义（**这是 IR 的真源**）：
 
-| 文本（平铺） | PartScript |
-|------|-----------|
-| `const size = 20` | `script.params += { name:'size', type:'number', value:20, default:20 }`；引用处解析为 ParamRef `{ $param:'size' }`（**不折叠**，执行前求值） |
-| `const part0_v0 = cad.box({ size })` | `{ id: 'part0_v0', op: 'box', args: { size: { $param: 'size' } }, inputs: [], feature: { kind: 'primitive', label: 'box', createdBy: 'script' } }` |
-| `const part0_v1 = await cad.drill(part0_v0, {…})` | `{ id: 'part0_v1', op: 'drill', args: {…}, inputs: ['part0_v0'] }` |
-| `cad.faceCenter(part0_v0)` | `args.position = GeomRef { $geom: { of: 'part0_v0', feature: 'faceCenter', faceOrdinal?: <n>, anchor?: { point } } }`（`faceOrdinal` 为拓扑面序号引用，优先于 `anchor` 几何反查；`anchor.normal` 类型存在但文本无法表达） |
-| `const { front: part1_v0, back: part2_v0 } = await cad.split(part0_v2, {…})` | `{ id: 'part1_v0', op: 'split', args: {…}, inputs: ['part0_v2'], outputs: ['part1_v0','part2_v0'] }`（一个语句、两个输出 id；`front`→`part1` 模型、`back`→`part2` 模型） |
-| `const part4_v0 = await cad.union(part1_v1, part3_v0)` | `{ id: 'part4_v0', op: 'boolean', args: { operation: 'union' }, inputs: ['part1_v1','part3_v0'] }`（多输入；codegen 渲染回 `cad.union(...)`；subtract/intersect 同构） |
-| `cad.group({ name, members })` | `{ id: 'grp_N', op: 'group', args: {…}, inputs: [], feature: { kind: 'group', …, createdBy: 'script' } }`（结构型语句，不产出几何、不写终端；assembly 同构） |
-| 终端（自动推导，无 return） | `PartScript.terminalShapes = [ { id: 'part2_v1' }, { id: 'part4_v0' } ]`（未被引用的输出；单终端时等价单 mesh，meta 由宿主提供） |
-| 提交来源（UI / AI） | `feature.createdBy = 'user' \| 'ai'`（parser 统一产 `'script'`；宿主按提交上下文 / diff 继承重标，非语法） |
+```ts
+interface StatementIR {
+  id: StmtId                    // 顺序 sN（参数语句占前段）
+  callee: string                // 函数名：源码里写什么就是什么（union/split/add_constraint/…）
+  args: Record<string, ArgIR>   // 尾参选项对象（可为空）
+  inputs: PartName[]            // 位置参数中的变量引用
+  outputs: PartName[]           // 绑定的变量名（0/1/N 个）
+  outputKeys?: string[]         // 解构键，与 outputs 一一对应
+  receiver?: PartName           // 成员方法调用的接收者变量
+  refs?: string[]               // 依赖分析用：inputs + args 中的 $ref/$param + receiver
+  hasAssignment?: boolean       // 纯语法事实：是否有赋值
+  seq?: number                  // 宿主层填充：timeline 跨 part 线性排序
+}
 
-**`id` 全局唯一 + 模型/版本分离（partName 体系，关键决策）**：
-- 每个模型 `partN` 拥有独立版本链 `partN_v0, partN_v1, …`。`part0` 是主模型；`part1`/`part2`/… 是 split / 独立图元 / 布尔派生的其它模型。
-- 所有语句 `id`（`part0_v0`、`part1_v0`、`part2_v1`…）在整场景中**全局唯一**——模型号不同天然不冲突（`part0_vN` 与 `part1_vM` 永不撞）。
-- 人类 UI 路径记录语句时即按上述规则分配 id（主模型 append `part0_vN`、split 产出 `partN_v0`/`part(N+1)_v0`、独立新图元 `partN_v0`）。**AI / 手写代码的 id 不受此命名约束**（任意合法 JS 标识符），引擎按 id 对齐（见 §4），`partN_vM` 仅是 UI 层的形态约定。`st_*` 仅用于 load/sdf 等非可编辑来源；`grp_N` 仅用于 group/assembly 结构型语句。
-- `model?: string`（= id 中的模型号，如 `'part0'`/`'part1'`，供时间轴/代码视图按模型分组）与 `outputs?: string[]`（默认 `[id]`：普通 op `outputs=[id]`，split 多输出写入 `['part1_v0','part2_v0']`）。`outputCache` 按 **output id** 索引，下游用具体输出 id（`part1_v0`/`part2_v0`）引用。`model` 当前由宿主填充（parser 不产出，见 reconciliation §2.3）。
+interface ScriptIR {
+  params: ParamDef[]            // const name = literal
+  statements: StatementIR[]
+  meta?: ScriptMetaIR           // 单终端时的 name/appearance
+  terminalShapes?: TerminalShape[]  // 显式 return 指定（可选）
+}
+```
 
-> 理由：引擎用 `stmt.id` 作 `outputCache` 键、用 `inputs` 引用其它语句。把"模型"与"版本"拆成 `partN_vM` 两个命名维度后，split / 新图元 / 布尔产物各自拿到不冲突的模型号 `partN`——diff 只需按 id 对齐，不看编号池。
+映射规则表：
 
-**`id` 身份契约（§4 能工作的前提）**：所有语句 id 同时是"身份"和"顺序"。双方约定：
-- 既有语句的 id **不得重命名、不得重排**；只能就地改 `args` 值（参数变更）或改 `op`（结构变更）。
-- UI 层新增特征分配**下一个未用 id**：主模型追加用下一个 `part0_vN`，新模型用下一个 `partN_v0`；不得复用已删除的 id（避免碰撞）。AI / 手写代码新增语句的 id 由作者自定（任意合法 JS 标识符，不得与既有 id 重复）。
-- 删除特征 = 该 id 整行移除（见 §4.2 DELETE）。
-- 此契约对 UI 是引擎自身保证（append 即分配新 id），对 AI 不作命名格式约束但 id 需稳定。引擎侧可检测"id 顺序与出现顺序不一致"并警告，但不依赖它做对齐——对齐始终以 id 为准。
+| 文本（扁平） | IR |
+|---|---|
+| `const size = 20` | `params += { name:'size', type:'number', value:20, default:20 }`；引用处为 `ParamRefIR { $param:'size' }`（**不折叠**，执行前求值）。参数在编译产物里是普通语句（`ctx.size = 20`） |
+| `let part0 = cad.box({ size })` | `{ id:'s2', callee:'box', args:{ size:{ $param:'size' } }, inputs:[], outputs:['part0'], hasAssignment:true }` |
+| `part0 = cad.drill(part0, { diameter:5 })` | `{ id:'s3', callee:'drill', args:{…}, inputs:['part0'], outputs:['part0'] }`（**同一变量名 → 语义是"修改这个模型"**） |
+| `cad.faceCenter(part2)`（args 内嵌套） | `args.at = CallRefIR { $call:{ callee:'faceCenter', args:[{$ref:'part2'}] } }`。拓扑语义由 geom 库函数自己解释，引擎不认识 `faceCenter` |
+| `const { front: part1, back: part2 } = cad.split(part0)` | `{ callee:'split', inputs:['part0'], outputs:['part1','part2'], outputKeys:['front','back'] }` |
+| `let part2 = cad.union(part0, part1)` | `{ callee:'union', inputs:['part0','part1'], outputs:['part2'] }`（union/subtract/intersect 是**三个独立函数**，不再归并为 `op='boolean'`） |
+| `let g = cad.group({ members:['part0','part1'] })` | `{ callee:'group', inputs:[], args:{ members:[{$ref:'part0'},{$ref:'part1'}] }, outputs:['g'] }`。members 元素是通用 `VarRefIR` 扫描结果，无 group 特判 |
+| `asm1.add_constraint({ type:'face_mate' })` | `{ callee:'add_constraint', receiver:'asm1', inputs:[], outputs:[], hasAssignment:false }` |
+| `asm1.do_assemble()` | `{ callee:'do_assemble', receiver:'asm1', outputs:[], hasAssignment:false }` |
+| `return [{ shape: part0 }, { shape: part2 }]` | `terminalShapes = [{ id:'part0' }, { id:'part2' }]`（显式终端，优先于 DAG 推导） |
+
+> **`feature.createdBy` / `FeatureKind` 已从 faijs 彻底移除**（`src/` 下无残留）。"这一步是 UI 做的还是 AI 做的"、图标、颜色、显示名等**全部是宿主职责**——faijs 不处理 UI 状态（§0.1 原话 6）。
 
 ---
 
-## 4. AI 代码生成模型 与 引擎增量执行机制（核心 HOW）
+## 4. 变量命名：`partN` 约定（**生成侧**职责）
 
-### 4.1 AI 如何生成代码：**总是全量，不生成 patch**
+### 4.1 核心原则（用户原话）
 
-AI 的产出模型是**全量覆盖式 `.faijs` 文本**，不是结构化 diff/patch。理由：
+> 核心的底层原则是要看给定一个函数调用后，是否有独立的新的shape生成了。有新的shape生成了，就需要新的变量名。如果是在原来的shape的基础上的修改，则不需要分配新的变量名。
 
-1. **LLM 最擅长生成完整可运行代码，最难可靠生成结构化 patch**（patch 格式易不一致、易漏改依赖）。
+> 1. 如果输入是ReadonlyShape, 且输出是Shape的，需要一个新的变量名。比如copy，group，assemble
+> 2. 如果输入是一个Shape，输出是一个shape的，不需要变量名。代表修改这个入参本身。比如drill、fillet
+> 3. 如果输入和输出的（非readonly的）shape数量不同，则需要一个新的变量名。比如split/boolean
+
+### 4.2 `derivePartName`：引擎提供的命名服务，但**只有生成侧调用**
+
+```ts
+derivePartName(input: {
+  callee: string        // 函数名（语法事实）
+  inputCount: number    // 位置输入数（语法事实）
+  outputCount: number   // 输出数（含解构键数，语法事实）
+  code: string          // 当前代码文本：内部词法扫描已用 partN，取下一个序号
+}): { behavior: 'reuse' | 'new'; names: PartName[] }
+```
+
+规则（按优先级）：
+
+| 规则 | 条件 | 命名 | 例 |
+|---|---|---|---|
+| R0 | `outputCount === 0` | 无名字（无赋值语句） | `do_assemble` |
+| R1 | callee 在符号表且**全部 shape 入参位置都标了 readonly**（含无位置输入的 `group`/`assembly`） | **新名** partN（每输出一个） | `copy`、`group`、`assembly` |
+| R2 | `inputCount===1 && outputCount===1`（消费性单入单出） | **复用** inputs[0]（写回同一变量名） | `drill`、`fillet`、`translate` |
+| R3 | 其余（0 入 1 出创建类；入出数量不同） | **新名**（每输出一个 partN） | `box`、`union`、`split` |
+| R4 | 多入多出且数量相等（`Shape[]` 批处理） | **禁用**（`derivePartName` 抛错） | — |
+| R5 | 同一函数 `ReadonlyShape` 与 `Shape` 混合 shape 入参 | **禁用**（符号表生成期报错） | — |
+
+- **未知函数**（不在符号表，如第三方/AI 自造）→ 默认消费语义 → 命中 R2/R3。解析、编译、执行、命名、活跃性**全部正常工作**，只是命名退化为默认规则。这是"引擎不认识函数也能跑"的试金石。
+- partN 序号由 `code` 文本词法扫描（`/part(\d+)/`）取 `max+1`，**不 parse**（允许解析生成中的代码）。
+- `allocateSplitIds` 已被 `outputCount: 2` 吸收。
+
+### 4.3 分层红线：parser 不做命名（2026-08-28 修复）
+
+> partN 这种命名是 UI 层的事情，怎么可能跑到 parser 层里……这个 parser 是 faijs 语言的 parser，居然去改 UI 层生成的代码？
+
+- **parser 只做语法分析**：提取 `declNode.id.name` → 原样写入 `outputs` / `inputs` / `receiver` / `$ref` / return，**不做命名分配、不做名称翻译**。
+- `varToId` 映射恒等（词法名 → 词法名），仅用于**作用域校验**（"变量是否已声明"）。
+- 调用方（3d_editor FeatureDef、AI 管线、CLI）在**生成代码文本时**调用 `derivePartName`——"谁写代码谁命名"。
+- 后果：UI 生成的 `partN` 被原样保留；AI/手写写 `asm1` 也原样保留。两者在引擎里一视同仁。
+
+---
+
+## 5. 终端判定：DAG 活跃性（canvas 显示什么）
+
+### 5.1 一句话规则（用户原话）
+
+> DAG 活跃性判断就是**看一个变量是否被消费**——被消费了，就不出现在终端。规则只有一条：**compound shape 不消费其子 shape**，所以返回 compound 的语句要从"消费方"里排除；其它语句，只要 shape 出现在右侧，就认为被消费了。
+
+判定算法（`src/cad-runtime/terminal-dag.ts` `computeLeafTerminals`，执行收尾由 `runtime.collectResult` 调用）：
+
+```
+对每个 shape 变量名 v（含 compound 变量）：
+  P = 最后一条 outputs 含 v 的语句（最后写者）
+  若 P 之后存在语句 T 使 consumes(T, v) 为真 → v 被消费 → 不进终端
+  否则 → v 进终端
+```
+
+- 判定单位是 **PartName**（变量名），不是 StmtId——天然支持同一名字被多次写入。
+- 显式 `return [...]`（`script.terminalShapes`）**优先**于 DAG 推导；没有 `return` 时才推导。
+- **这是 faijs 引擎的职责**，宿主不重复实现该判定（切换算法不应影响下游）。
+
+### 5.2 `consumes(T, v)`：符号表驱动，三条例外
+
+```ts
+function consumes(stmt, v): boolean {
+  // 默认：v 出现在 stmt 的 inputs 或 args 的 VarRefIR 中 → 消费
+  // 例外 1：嵌套调用 CallRefIR 内部的引用 = 只读查询，不消费
+  //          （cad.drill(part0, { at: cad.faceCenter(part2) }) 不吃掉 part2）
+  // 例外 2：符号表 readonlyPositions 命中的 inputs 下标 → 不消费（copy 的源）
+  // 例外 3：符号表 readonlyPaths 命中的 args 属性 → 不消费（group/assembly 的 members）
+  // 成员调用（receiver）是原地修改 compound，不消费 receiver
+}
+```
+
+- 未知 callee → 无 readonly 信息 → **右侧出现即消费**（默认）。
+- `exec.touch` 机制（装配变换后的原地修改通知）与活跃性判定无关，结果记在 `ExecutionResult.changed`。
+
+### 5.3 符号表：唯一的函数信息载体（机器生成，无 per-函数代码）
+
+`src/lang/symbol-table.generated.ts`（由 `scripts/gen-symbol-table.ts` 从 stdlib 的 **TS 签名**生成，禁手改 + 守卫测试）：
+
+```jsonc
+{
+  "group":    { "readonlyPaths": ["members"] },
+  "assembly": { "readonlyPaths": ["members"] },
+  "copy":     { "readonlyPositions": [0] },
+  "box": {}, "drill": {}, "union": {}, …      // 无 readonly 标注 → 空对象 = 默认消费语义
+}
+```
+
+提取规则（纯机械）：位置形参类型为 `ReadonlyShape` → 记下标；options 属性类型为 `ReadonlyShape` / `readonly ReadonlyShape[]` → 记属性名。**库作者唯一的额外工作就是在签名里写类型**——这正是"第三方库提供是否修改入参的申明"的落地方式。
+
+```ts
+// src/mesh/types.ts
+export type ReadonlyShape = Shape & { readonly [readonlyBrand]?: true }
+```
+
+可选品牌属性使任何 `Shape` 可赋给 `ReadonlyShape` 形参（调用方零负担）；它是**文档 + 符号表提取源 + 实现契约**，契约由测试守护，不靠类型系统强制。
+
+符号表只有三个消费方，全部是均匀查表：`derivePartName`（§4.2）、`consumes`（§5.2）、`check()`（§6.4）。
+
+### 5.4 效果对照
+
+| 脚本 | 判定 | canvas 显示 |
+|---|---|---|
+| `let part0 = cad.box({…})` | 无消费者 | part0 |
+| `part0 = cad.box(); part0 = cad.drill(part0, …)` | drill 即最后写者，其后无消费 | part0（最新状态） |
+| `let part0 = cad.box(); let part1 = cad.drill(part0, …)` | part0 被 drill 消费 | part1 |
+| `let part0 = cad.box(); let part1 = cad.copy(part0)` | copy 入参 readonly → 不消费 | part0、part1（两份） |
+| `const { front: part1, back: part2 } = cad.split(part0)` | split 消费 part0 | part1、part2 |
+| `let g = cad.group({ members:['part0','part1'] })` | members 路径 readonly → 不消费 | part0、part1、g |
+| `let a = cad.assembly({members:['part0']}); a.do_assemble()` | 成员调用不消费 receiver | part0、a |
+| `let x = myLib.clone(part0)`（未知函数） | 默认消费 part0 | x（命名侧走 R2 复用 part0，此处即 part0 显示新值） |
+
+> `group` / `assembly` 自身也是 shape，同样按"是否被消费"判定终端。成员是否作为独立层级显示由宿主从 `ExecutionResult.compounds` 展开，**不对成员做二次活跃性判定**。
+
+---
+
+## 6. 执行模型与增量执行
+
+### 6.1 管线
+
+```
+.faijs 文本
+  → parseScript（acorn 闸门 + AST walk，零函数知识）→ ScriptIR
+  → compileToModule → 零 import ESM 文本（每条语句一个 { id, deps, fn }）
+  → 动态 import()（Node: data: URL；浏览器: Blob URL）
+  → ModuleExecutor：持久 ctx 容器 + 按拓扑序调用语句 fn
+  → collectResult：outputs / terminals / compounds / brepSolids / topology
+```
+
+**零 import** 是关键决策：`data:` URL 与 Blob URL 都无法解析裸说明符，零 import 使同一产物在两个平台都能直接 `import()`，无需 import map / 打包器 / 文件系统。**编译输入只有 IR，用户原文不进 VM**（parse-then-execute 红线）。
+
+### 6.2 统一 ABI（编译产物发射的唯一模板）
+
+所有可从 `.faijs` 调用的可调用体签名：
+
+```ts
+(…源码里写了什么实参, exec: ExecContext) => Result | Promise<Result>
+```
+
+- compile 只按 IR 机械发射，**无任何按函数名的分支**：
+  ```
+  赋值语句:   ctx.<out> = await cad.<callee>(<inputs→ctx.*>, <args>, exec)
+  解构语句:   const {<keys>} = await cad.<callee>(…, exec); ctx.<out_i> = <key_i>
+  成员调用:   await ctx.<receiver>.<callee>(<args?>, exec)
+  无赋值调用:  await cad.<callee>(…, exec)
+  ```
+- `cad` 命名空间 = 对象字面量装配（`internal-stdlib.ts` 的 `createInternalStdlib()`），全文件无任何 per-函数逻辑；`exec` 作为隐藏末参注入，不出现在 `.faijs` 文本与 `api.d.ts` 中。
+- `ArgIR` 翻译：`VarRefIR → ctx.<name>`；`CallRefIR → cad.<callee>(…, exec)`；`ParamRefIR → ctx.<param>`。
+- **参数即语句**：`const size = 20` 编译为 `ctx.size = 20`，占 `s1..sK`。
+
+### 6.3 增量执行（三入口）
+
+| API | 行为 |
+|---|---|
+| `execute(script)` | 全量：load 模块 → 逐条执行 |
+| `append(script, newIds)` | **只执行新增语句**（前缀依赖已在持久 ctx） |
+| `update(script)` | `plan()` 算出 stale 集 → `reconcileCtx` → 从 stale 集起重算（stale 集对 deps 封闭，按拓扑序） |
+
+`plan()` 的判定（内容寻址，非 id diff）：
+
+```
+statementKey = callee | JSON(args) | 各依赖的 outputContentKey
+              （参数语句的 key = param|JSON(value)）
+
+对每条语句（拓扑序）：
+  任一依赖 stale            → 本语句 stale（deps 级联）
+  statementKey 与缓存相同    → 命中缓存，复用（记入 reused）
+  否则                      → stale
+stale 为空 → 零执行，直接用持久 ctx 组装结果
+```
+
+- `outputContentKey` = 输出 mesh 的内容哈希（参数语句 = 参数值），因此"上游几何变了但参数没变"也能正确级联。
+- 参数语句参与 deps 级联——改参数会使全部引用它的语句 stale。
+- 无赋值的语句（`hasAssignment: false`）不产出几何，不参与增量分析。
+
+### 6.4 `check()`：dryRun 校验（零几何副作用）
+
+`CadRuntime.check(code)` 四阶段，**全部无 per-函数代码**：
+
+1. **parse** —— acorn 闸门 + AST walk（零知识解析），`ParseError` 带行号。
+2. **符号检查** —— `callee ∈ 符号表`，未知 → `function "xxx" does not exist in the stdlib symbol table`（正常语言的未定义符号诊断）。有 `receiver` 的成员方法不查表（那是对象方法）。
+3. **引用预检** —— 每条语句的 `inputs` 必须已由前面的语句或参数定义。
+4. **终端引用预检** —— 显式 `return` 引用的变量必须已定义。
+
+> 参数的**值域校验不在此处**：零向量、直径 ≤ 0、未知字段等由**各库函数自己检查并抛带上下文的 Error**（brepjs 模式），经 `ExecutionResult.failedAt` 反馈。`SCHEMAS`/`args-schema.ts` 已删除。
+
+---
+
+## 7. AI 代码生成模型 与 引擎增量执行
+
+### 7.1 AI 如何生成代码：**总是全量，不生成 patch**
+
+1. LLM 最擅长生成完整可运行代码，最难可靠生成结构化 patch。
 2. **增量识别的职责放在引擎侧**（确定性算法），比依赖 AI 的 patch 格式更稳。
-3. 这正好匹配需求原话"人类说把尺寸翻倍，AI 只需去更改原先的尺寸参数"——在"全量生成"视角下，就是 AI **保留 `part0_v0` 这行、只改它 `size` 的值**，而非输出一段"把 part0_v0.size 改成 40"的补丁。
+3. 这正好匹配"人类说把尺寸翻倍，AI 只需去更改原先的尺寸参数"——在全量视角下，就是 AI **保留那一行、只改 `size` 的值**。
 
 AI 提交的契约（写进代码生成 system prompt）：
-- 读取当前 `.faijs` **全文**（含所有既有语句，平铺格式）。
-- 输出**完整新全文**（平铺格式）：保留所有既有语句（除非用户要求删除该特征），仅在既有行改值/改 op，新增语句的 id 由作者自定（任意合法 JS 标识符，不得与既有 id 重复）。
-- 不得重排、不得重命名既有 id（见 §3 身份契约）。
-- `// apiVersion: N` 注释可选（默认 1）；不输出 `export default` / `return`。
 
-> 由此，AI 提交 = "一次完整重写"，引擎负责"和上次提交比对，找出改了什么"。AI 无需理解 diff 算法，引擎无需信任 AI 的意图描述——**全部基于解析后的 PartScript 做客观比对**。
+- 读取当前 `.faijs` **全文**（扁平格式，含所有既有语句）。
+- 输出**完整新全文**：保留所有既有语句（除非用户要求删除），仅在既有行改值/改 callee，新增语句写在末尾。
+- **不得重排、不得重命名既有变量**（重命名 = 旧的被删 + 新的被加，语义丢失且下游引用断裂）。
+- **不得写控制流**（§0.1 原话）。不输出 `export default` / `return`。
+- 新增变量可用任意合法 JS 标识符；若希望与 UI 生成的代码风格一致，可按 §4.2 规则命名。
 
-### 4.2 引擎如何知道"哪些修改 / 哪些新增 / 哪些删除"
+> AI 提交 = "一次完整重写"，引擎负责"和上次提交比对，找出改了什么"。引擎无需信任 AI 的意图描述——**全部基于解析后的 IR 做客观比对**。
 
-引擎持久保存**上一次已提交的 PartScript**（`committedPartScript`，场景级单一 DAG，存于宿主 store）。新提交到达时：
+### 7.2 宿主侧 id 对齐（3d_editor 职责）
 
-**Step 1 — 解析**：`acorn.parse`（合法性闸门，抛错即拒绝整个提交）→ `parseScript` → 新 `PartScript`（`newStmts`，ids = 语句变量名）。
+faijs 的增量是 `statementKey` 内容寻址（§6.3）；**语句级的新增/修改/删除分类由宿主按 `StmtId`/`PartName` 对齐**后，再调用 `append` / `update`：
 
-**Step 2 — 按 id 建立双映射**：
-```
-oldById = map(stmt.id -> stmt)   // committedPartScript
-newById = map(stmt.id -> stmt)   // 新 PartScript
-```
-
-**Step 3 — 逐条分类**（以 newStmts 的声明顺序遍历，同时对照 oldById）：
 | 判定 | 条件 | 类别 |
-|------|------|------|
-| 双方都有同一 id，`op` 与 `args` 完全相同 | `oldById[id] == newById[id]` | **UNCHANGED** |
-| 双方都有同一 id，`op` 相同但 `args` 值不同 | `op` 同，`args` 异 | **PARAM 变更** |
-| 双方都有同一 id，`op` 不同 | `op` 异 | **STRUCT 变更** |
-| 仅在新脚本中有（oldById 无此 id） | 新增 id | **ADD** |
-| 仅在旧脚本中有（newById 无此 id） | 消失 id | **DELETE** |
+|---|---|---|
+| 双方都有同一身份，`callee` 与 `args` 完全相同 | 内容 key 相同 | **UNCHANGED** |
+| 双方都有同一身份，`callee` 同 `args` 异 | — | **PARAM 变更** |
+| 双方都有同一身份，`callee` 异 | — | **STRUCT 变更** |
+| 仅在新脚本中有 | 新增 | **ADD** → `append` |
+| 仅在旧脚本中有 | 消失 | **DELETE** → 失效其缓存与下游 |
 
-> "args 值不同"指序列化后的 JSON 字符串不同（含 ParamRef/GeomRef 展开后）。内容比对用 `computeContentKey`，与 `editParam` 现有机制同源（J-2 保真）。
+- **身份契约是硬约束**：引擎与宿主都只靠身份对齐，不看行号位置。AI 若把 `part0` 改名成 `p0`，会被判成"删 part0 + 加 p0"——功能上可能仍跑，但下游 `inputs:['part0']` 全部断引用报错。
+- **DELETE 级联**：若某语句被删而其输出仍被下游引用（孤儿），推荐直接拒绝提交（AI 全量生成通常一并删除下游）；若确需级联，则把孤儿一并判为 DELETE 并级联其下游。
 
-**Step 4 — 定位首个变更点**：
-```
-firstChange = min(
-  indexOf(首个 PARAM/STRUCT/ADD 语句),
-  indexOf(首个被 DELETE 的语句在旧链中的位置)
-)
-```
-线性链下，从 `firstChange` 起的所有语句（及其下游）均需重放。
+### 7.3 场景对照
 
-### 4.3 重放规则
-
-1. 引擎为场景维护一个**持久 `outputCache`**（key = 语句 output id），跨提交存活。
-2. 遍历新链：
-   - **UNCHANGED** → 不重算，直接复用 `outputCache[id]` 中的几何（供下游引用）。
-   - **PARAM / STRUCT / ADD** → 从 `firstChange` 起执行 `executeStatement`；其结果写入 `outputCache`；其下游因读取到新结果而自动失效、随 suffix 重放。
-   - **DELETE** → 该 id 的 `outputCache` 失效；其下游（旧链中引用它的语句）在本次重放中已被 STRUCT/ADD 覆盖或一并失效。
-3. 执行沿用宿主 `ScriptEngine.executePart` 逻辑；失败沿用现有 statement 模式：保留前 k-1 条成功语句。
-4. 重放成功 → 新 `PartScript` 写回 store 作为下一次提交的 `committedPartScript`；`feature.createdBy` 按提交上下文标注（UI 提交='user'，AI 提交='ai'，行内来源由 parser 从既有 PartScript 继承——见 §4.4）。
-
-**DAG 相关补充**：
-5. **split 多输出**：split 语句 `id='part1_v0', outputs=['part1_v0','part2_v0']`，`outputCache` 同时存 part1_v0、part2_v0。`part1_v0` 这条 PARAM/STRUCT 变更 → 从它起重放，两个输出一并重算；下游引用 part1_v0 或 part2_v0 的语句随 suffix 失效重放。
-6. **DELETE 级联 / 孤儿**：若某语句被删且其输出仍被下游引用（如删了 split 但保留了 `drill(part1_v0)`），下游语句的 `inputs` 指向不存在的 id → 视为**孤儿**。推荐处理：直接 `ParseError` 拒绝提交（因为全量生成的 AI 通常一并删除下游，孤儿多代表 AI 违反身份契约）；若确需级联，则把孤儿语句一并判为 DELETE 并级联其下游。
-
-### 4.4 为什么"保留 id"让增量成立 + AI/UI 来源如何继承
-
-- **增量成立的前提**就是 §3 身份契约：引擎**只靠 id 对齐**，不看行号位置。所以 AI 改 `part0_v0.size` 时，只要 `part0_v0` 这个 id 保留，引擎就识别为"part0_v0 的参数变更"而非"删了 part0_v0 加了新东西"。若 AI 违反契约重命名 `part0_v0→part0_v9`，引擎会判成"删 part0_v0 + 加 part0_v9"——功能上可能仍能跑，但丢失了"参数变更"语义、且下游 `inputs:['part0_v0']` 全部断引用报错。**所以 id 身份契约是硬约束，不是建议。**
-- **`createdBy` 来源继承**：`parseScript` 解析新文本时本身**看不出**某行是 user 还是 ai（语法里不含此信息）。因此宿主在做 diff 时，对"UNCHANGED / PARAM / STRUCT"的既有 id，**从 `oldById[id]` 继承 `feature.createdBy`**；只有 **ADD** 的新 id 才标为本次提交的来源（AI 或 UI）。这样"哪些步骤是 AI 生成的"能在时间轴/代码视图正确延续，不会因为一次全量重写就丢失历史来源。
-
-### 4.5 场景对照（验证机制）
-
-| 场景 | AI 改动（全量文本） | diff 判定 | 重放范围 |
-|------|---------|-----------|----------|
-| 把正方形尺寸翻倍 | 保留 `part0_v0=box`，改 `size 20→40` | `part0_v0` PARAM 变更 | 重算 `part0_v0`，`part0_v1(drill)`/`part0_v2(extrude)` 随 suffix 重放 |
-| 给零件加高（追加） | 保留 `part0_v0/part0_v1`，末尾加 `part0_v2=extrude(part0_v1,…)` | `part0_v2` ADD | 只执行 `part0_v2`（`part0_v0/part0_v1` 命中缓存） |
-| 把钻孔改成雕刻文字（改 op） | 保留 `part0_v1`，改 `op drill→engrave` | `part0_v1` STRUCT 变更 | 从 `part0_v1` 起重放 |
-| 人类滚花顶面（UI 追加） | UI 追加 `part0_v3=knurl(part0_v2,…)` | `part0_v3` ADD | 只执行 `part0_v3` |
-| **多 mesh：前半(加高) ∪ 新立柱** | 保留 `part0_v0..part0_v2`，加 `part1_v0/part2_v0=split(part0_v2)`、加 `part1_v1=drill(part1_v0)`、加 `part3_v0=cylinder(...)`、`part4_v0=union(part1_v1,part3_v0)` | `part1_v0/part2_v0/part1_v1/part3_v0/part4_v0` ADD | 只执行这些新增（`part0_v0..part0_v2` 命中缓存；跨模型引用 `part1_v0`/`part1_v1` 直接命中） |
-
-> 表中示例沿用 UI 层的 `partN_vM` 命名风格，仅为可读性；AI / 手写代码的新增 id 可用任意合法 JS 标识符，diff 判定与重放逻辑不变。
+| 场景 | AI 改动（全量文本） | 判定 | 引擎动作 |
+|---|---|---|---|
+| 把方块尺寸翻倍 | 保留 `part0 = cad.box(…)`，改 `size 20→40` | `part0` 参数变更 | 重算该语句，下游随 deps 级联重放 |
+| 给零件加高（追加） | 末尾加 `part0 = cad.extrude(part0, { length:3 })` | ADD | 只执行新增（`append`） |
+| 把钻孔改成雕刻 | 改 `callee: drill→engrave` | STRUCT 变更 | 从该语句起重放 |
+| 人类滚花顶面（UI 追加） | UI 追加 `part0 = cad.knurl(part0, {…})` | ADD | 只执行新增 |
+| 多 mesh：split + 布尔 | 追加 split（双输出）+ 立柱 + union | 全部 ADD | 只执行新增，跨模型引用直接命中 ctx |
 
 ---
 
-## 5. 人类 UI ↔ AI 交织流程
+## 8. 人类 UI ↔ AI 交织流程
 
 **人类钻孔（UI）**：
-1. 用户点击面 → 引擎根据交互派生 args（position/normal/direction…）。
-2. `useScriptStore.appendStatement(scopedId, stmt)`，`stmt.id = 'part0_vN'`（主模型版本链）、`feature.createdBy = 'user'`。
-3. `executePart` 增量重算，`outputCache` 更新。
-4. `scriptToCode(sceneScript)` 回写 `.faijs` 全文（代码视图同步）。
+1. 用户点击面 → 宿主根据交互派生 args。
+2. 宿主调 `derivePartName({ callee:'drill', inputCount:1, outputCount:1, code })` → `behavior:'reuse'` → 语句写回 `part0`（不新分配名字）。
+3. 追加语句到 `ScriptIR`，`CadRuntime.append(...)` 增量重算。
+4. `scriptToCode(script)` 回写 `.faijs` 全文（代码视图同步）。
 
 **AI 倒角（代码）**：
-1. AI 读取当前 `.faijs` 全文（平铺：含 `part0_v0=box`、`part0_v1=drill`）。
-2. AI 输出全量新全文：保留 `part0_v0/part0_v1`，追加新语句（如 `part0_v2=extrude(part0_v1,…)`），交回引擎。
-3. `acorn` 解析（合法闸门）→ `parseScript` → 与 store 中 `committedPartScript` **按 id diff**（§4.2）。
-4. 判定新语句为 ADD → 只执行新增（既有语句命中缓存）→ `commitGeometry`。新增语句 `feature.createdBy='ai'`（ADD 继承本次来源），既有语句继承历史来源。
+1. AI 读取当前 `.faijs` 全文。
+2. AI 输出全量新全文（保留既有行、追加新语句）。
+3. `parseScript` 解析（合法性闸门）→ 宿主按身份 diff（§7.2）→ 判定新增 → `append`，或判定参数变更 → `update`（`plan()` 算 stale 集合）。
+4. 成功执行的 `ScriptIR` 写回宿主 store 作为下一次提交的基线。
 
-两条路径**收敛到同一个 PartScript**，引擎只认 PartScript；人类和 AI 永远在改同一份事实源。
+两条路径**收敛到同一个 `ScriptIR`**，引擎只认 `ScriptIR`；人类和 AI 永远在改同一份事实源。AI 与 UI 的**来源标注、图标、颜色、timeline 展示**全部在宿主侧（faijs 不处理 UI 状态）。
 
 ---
 
-## 6. 场景走查（端到端，主模型 part0 版本链）
+## 9. 场景走查（端到端）
 
-| 步骤 | 操作来源 | .faijs 关键变化 | diff 类型 | 引擎动作 |
-|------|----------|-----------------|-----------|----------|
-| 0 | 人类 | `part0_v0 = cad.box({ size: 20 })` | — | 建立方体（模型 part0 版本 0） |
-| 1 | 人类 | `part0_v1 = await cad.drill(part0_v0, {…faceCenter(part0_v0)…})` | 新增 | 钻孔（模型 part0 版本 1） |
-| 2 | AI | 追加 `part0_v2 = await cad.extrude(part0_v1, { length: 3 })` | 新增 `part0_v2` | 仅执行加高 |
-| 3 | AI | `part0_v0.box.args.size 20→40`（保留 `part0_v0` id） | `part0_v0` 参数变更 | 重算 `part0_v0`，`part0_v1/part0_v2` 随 suffix 重放 |
-| 4 | 人类 | 追加 `part0_v3 = cad.knurl(part0_v2, { knurlTextureHeight: 0.5 })` | 新增 `part0_v3` | 仅执行滚花 |
+```js
+// 0. 人类：建方块（UI 生成，创建类 → 新名 part0）
+let part0 = cad.box({ size: 20 })
 
-> 注意：`part0_v0`/`part0_v1`/`part0_v2`/`part0_v3` 始终是**同一个模型（part0）的版本链**；多模型语法不得破坏这个语义。
+// 1. 人类：钻孔（单入单出 → 复用 part0，语义是"修改这个模型"）
+part0 = cad.drill(part0, { diameter: 5, depth: 0, position: cad.faceCenter(part0), direction: 'normal' })
 
-每一步提交后，未被变更的前缀（`part0_v0` 在步骤 2/4；`part0_v0/part0_v1` 在步骤 4）都**命中持久缓存、不重算**。
+// 2. AI：加高（追加，单入单出 → 仍复用 part0）
+part0 = cad.extrude(part0, { length: 3 })
+
+// 3. AI：把尺寸翻倍（改 part0 那一行 box 的 size）
+//    let part0 = cad.box({ size: 40 })   ← 仅改值
+
+// 4. 人类：split 成两个模型（入出数量不同 → 新名 part1/part2，且 part0 被消费）
+const { front: part1, back: part2 } = cad.split(part0, { normal: [0, 0, 1], offset: 0, cutMode: 'plane' })
+
+// 5. AI：新立柱 + 布尔合并（新名 part3/part4；part1、part3 被 union 消费）
+let part3 = cad.cylinder({ radius: 5, height: 40 })
+let part4 = cad.union(part1, part3)
+
+// 6. 人类：把 part2 归入装配（compound 不消费成员 → part2 仍在 canvas）
+let asm1 = cad.assembly({ name: 'A', members: ['part2'], constraints: [] })
+asm1.do_assemble()
+```
+
+终端推导（步骤 6 之后）：`part2`（被 assembly 引用但不被消费）、`part4`（无下游）、`asm1`（无下游）→ 三个终端。`part0`/`part1`/`part3` 已被消费，不显示。
+
+增量表现：步骤 2/4/5/6 都是 ADD，只执行新增语句；步骤 3 只重算 `part0` 的 box 语句并级联下游；未被变更的前缀命中持久 `ctx`，**不重算**。
+
+---
+
+## 10. 远期：`.faits` 与第三方库
+
+以下来自 `Faijs语言的思考.md`，**当前未实现**，仅记录方向，不构成本文档契约：
+
+- **`.faits`**：带类型的源码（TS 形态），仅供 AI 编写，UI 不参与；去类型后与 `.faijs` 走同一管道。
+- **第三方库**：任意 `.js`/`.faits` 模块，遵守"末参 exec"约定即可被 `.faijs` 调用；动态加载方案参考 brepjs（`C:\git\OpenCascade\brepjs\docs\dynamic-third-party-library-loading_cn.md`）。加载时随包提供同款符号表 json，合并进引擎符号表。
+- **timeline 与特征**：timeline 是线性列表，一个节点对应一次操作（宿主侧 feature）。未来 faijs 支持函数定义后，可规定 feature 与函数一对一；第三方未知函数在 timeline 中可只显示只读函数名，不支持特征编辑。
+- **不做的事**（明确非目标）：`Shape[]` 批量操作（R4，需语言层新语法）、控制流、`ReadonlyShape`+`Shape` 混合入参（R5）。
+
+---
+
+## 附：与旧版文档的差异速查
+
+| 旧版（≤2026-08-26） | 现在 |
+|---|---|
+| `partN_vM` 版本链（SSA，一条语句一个新名） | `partN` + 重赋值（模型即变量，R2 复用名） |
+| `op` 字段 + `op='boolean'` + `args.operation` | `callee`（`union`/`subtract`/`intersect` 三个函数） |
+| `CadStatement` / `PartScript` | `StatementIR` / `ScriptIR`（`src/lang/types.ts`） |
+| `stmt.id` = 变量名 | `stmt.id` = `sN`（StmtId）；变量名在 `outputs`（PartName） |
+| `MESH_ONLY_OPS` / `BREP_NATIVE_OPS` 白名单 | 库函数内部 `resolvePath` 静态判定（无 brep 实现即 mesh-only） |
+| `SCHEMAS` + `validateStatementArgs`（引擎集中校验） | 校验进各库函数；`check()` 只做 parse + 符号 + 引用诊断 |
+| `NON_CONSUMING_OPS`（parser 与 terminal-dag 各硬编码一份） | 符号表的 readonly 数据（唯一真源），`consumes()` 查表 |
+| "所有活跃 Shape 变量都显示" | DAG 活跃性：最后写者 + 下游无消费 |
+| `GeomRef` / `AssetRef` 白名单（5 个 geom 名 + asset） | `CallRefIR`（任意 `cad.<fn>()` 嵌套调用） |
+| `feature.createdBy` / `FeatureKind` | 已移除，来源与 UI 元数据是宿主职责 |
+| parser 调用 `derivePartName` 改名 | parser 保留词法名；命名只在生成侧 |

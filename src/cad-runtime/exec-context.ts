@@ -11,7 +11,7 @@
  *   （Phase 1 装配仍走旧 executeAssemblyPassForStmt 路径，二者暂为占位）
  */
 
-import type { CadStatement, PartScript } from '../lang/types'
+import type { StatementIR, ScriptIR } from '../lang/types'
 import type { Shape } from '../mesh/types'
 import type { BrepChainState } from '../brep/brep-chain'
 import type { ShapeHandle, OcctKernel } from 'occt-wasm'
@@ -77,7 +77,7 @@ export interface ExecContext {
   readonly events: EventSink
 
   /** 当前执行语句（库函数内发事件/取输出名用）。 */
-  readonly currentStmt?: CadStatement
+  readonly currentStmt?: StatementIR
 }
 
 // ── ExecContextImpl（Phase 1 实现） ──
@@ -89,8 +89,8 @@ export interface ExecContext {
  * （与旧解释器"brep 模式立即返回 E_BREP_UNSUPPORTED，不静默回退 mesh"的语义一致）。
  */
 export class BrepUnsupportedError extends Error {
-  readonly stmt?: CadStatement
-  constructor(message: string, stmt?: CadStatement) {
+  readonly stmt?: StatementIR
+  constructor(message: string, stmt?: StatementIR) {
     super(message)
     this.name = 'BrepUnsupportedError'
     this.stmt = stmt
@@ -103,13 +103,13 @@ export interface ExecContextImplOptions {
   brepChain: BrepChainState
   ports: HostPorts
   /** 整场景 DAG（doAssemble 装配 pass 与下游传播需要） */
-  script: PartScript
+  script: ScriptIR
   /** 当前重放输出缓存（split 多输出写入 / 装配 pass 读写） */
   outputCache: Map<PartName, Shape>
   /** 已解析参数表（适配层透传，op 不直接消费） */
   params: Record<string, unknown>
   /** 语句前钩子（undo 逐语句快照；仅 new_shape 语句触发，与旧解释器一致） */
-  beforeStatement?: (stmt: CadStatement, index: number) => void
+  beforeStatement?: (stmt: StatementIR, index: number) => void
   /** 写回持久 ctx 变量的回调（装配变换后 outputCache → ctx 同步） */
   setCtxVar?: (name: string, value: unknown) => void
 }
@@ -118,10 +118,10 @@ export class ExecContextImpl implements ExecContext {
   readonly mode: ExecutionMode
   readonly brepChain: BrepChainState
   readonly ports: HostPorts
-  readonly script: PartScript
+  readonly script: ScriptIR
   readonly outputCache: Map<PartName, Shape>
   readonly params: Record<string, unknown>
-  readonly beforeStatement?: (stmt: CadStatement, index: number) => void
+  readonly beforeStatement?: (stmt: StatementIR, index: number) => void
 
   /** Shape 身份 → PartName 反查（getSolid/setSolid 与 geom 查询的桥接） */
   readonly shapeToName = new WeakMap<object, PartName>()
@@ -130,7 +130,7 @@ export class ExecContextImpl implements ExecContext {
   readonly touchedShapes = new Set<Shape>()
 
   /** 当前执行语句（ModuleExecutor 在调用 fn 前设置） */
-  currentStmt?: CadStatement
+  currentStmt?: StatementIR
 
   private readonly setCtxVar?: (name: string, value: unknown) => void
 

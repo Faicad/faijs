@@ -11,14 +11,14 @@
 import { describe, it, expect } from 'vitest'
 import { statementToLine, scriptToCode, fmtNum } from './codegen'
 import { parseScript } from './parser'
-import type { CadStatement, PartScript } from './types'
+import type { StatementIR, ScriptIR } from './types'
 import { asStmtId, asPartName } from '../identity'
 
 // ── 测试辅助：构造语句 ──
 
 function makeStmt(
-  partial: Omit<Partial<CadStatement>, 'id' | 'inputs' | 'outputs'> & { id?: string; inputs?: string[]; outputs?: string[] },
-): CadStatement {
+  partial: Omit<Partial<StatementIR>, 'id' | 'inputs' | 'outputs'> & { id?: string; inputs?: string[]; outputs?: string[] },
+): StatementIR {
   const { id, inputs, outputs, ...rest } = partial
   return {
     id: asStmtId(id ?? 's1'),
@@ -30,7 +30,7 @@ function makeStmt(
   }
 }
 
-function makeScript(statements: CadStatement[]): PartScript {
+function makeScript(statements: StatementIR[]): ScriptIR {
   return { params: [], statements }
 }
 
@@ -157,7 +157,7 @@ describe('codegen: scriptToCode (Phase 3)', () => {
 
 describe('codegen: split 解构输出 (Phase 3)', () => {
   it('多输出 split 输出 const { front: part1, back: part2 } = cad.split(...)', () => {
-    const script: PartScript = {
+    const script: ScriptIR = {
       params: [],
       statements: [
         makeStmt({ id: 's1', callee: 'box', args: { size: 20 }, outputs: ['part0'] }),
@@ -182,7 +182,7 @@ describe('codegen: split 解构输出 (Phase 3)', () => {
 
 describe('codegen: 外部 st_ id 含冒号时报错', () => {
   it('split 引用无法解析的外部 id 时抛错', () => {
-    const script: PartScript = {
+    const script: ScriptIR = {
       params: [],
       statements: [
         makeStmt({
@@ -201,7 +201,7 @@ describe('codegen: 外部 st_ id 含冒号时报错', () => {
 // ── 值格式化 ──
 
 describe('codegen: 值格式化', () => {
-  it('CallRef → cad.faceCenter(of)', () => {
+  it('CallRefIR → cad.faceCenter(of)', () => {
     const stmt = makeStmt({
       id: 's2',
       callee: 'drill',
@@ -217,7 +217,7 @@ describe('codegen: 值格式化', () => {
     expect(code).toContain('faceNormal:cad.faceNormal(part0)')
   })
 
-  it('ParamRef → 裸标识符（无 $ 前缀）', () => {
+  it('ParamRefIR → 裸标识符（无 $ 前缀）', () => {
     const stmt = makeStmt({ id: 's1', callee: 'box', args: { size: { $param: 'boxSize' } }, outputs: ['part0'] })
     expect(statementToLine(stmt)).toBe('let part0 = cad.box({ size:boxSize })')
   })
@@ -235,7 +235,7 @@ describe('codegen: 值格式化', () => {
 
 describe('codegen: center 参数往返 (codegen → parser)', () => {
   it('sphere 含 center 往返', () => {
-    const script: PartScript = {
+    const script: ScriptIR = {
       params: [],
       statements: [makeStmt({ id: 's1', callee: 'sphere', args: { radius: 5, segments: 32, center: [3, 4, 0] }, outputs: ['part0'] })],
     }
@@ -246,10 +246,10 @@ describe('codegen: center 参数往返 (codegen → parser)', () => {
   })
 })
 
-// ── CallRef with faceOrdinal round-trip ──
+// ── CallRefIR with faceOrdinal round-trip ──
 
-describe('codegen: CallRef with faceOrdinal round-trip', () => {
-  it('CallRef with faceOrdinal round-trip: codegen → parse → same args', () => {
+describe('codegen: CallRefIR with faceOrdinal round-trip', () => {
+  it('CallRefIR with faceOrdinal round-trip: codegen → parse → same args', () => {
     const script = makeScript([
       makeStmt({ id: 's1', callee: 'box', args: { size: [10, 10, 10] }, outputs: ['part0'] }),
       makeStmt({

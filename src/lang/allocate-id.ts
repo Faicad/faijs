@@ -4,22 +4,25 @@
  * 设计文档：docs/plans/2026-08-27-faijs-language-normalization-design.md §4.7
  * 实施文档：docs/plans/2026-08-27-faijs-language-normalization-implementation.md §5.4
  *
- * `derivePartName` 是命名服务：输入只含语法事实（callee/inputCount/outputCount）
+ * `derivePartName` 是命名服务（宿主契约唯一形态，B2 修正）：输入只含语法事实
+ * （callee/inputCount/outputCount）+ 当前代码文本（内部扫描已用 partN）
  * + 符号表查询（readonly 标注），输出 behavior（reuse/new）+ names。
- * 调用方不传任何函数元数据；op 白名单（isCreatorOp/isCloneOp/isBooleanOp）与
- * group/assembly 特判全部删除；allocateSplitIds 被 outputCount 吸收。
+ * 调用方不传任何函数元数据，也不传 IR 语句（IR 剥离红线）。
+ * allocateSplitIds 被 outputCount 吸收。
  *
  * 版本号 _vM 语义取消：模型号 N 在单次脚本内单调递增（partN 新名）。
  */
 
-import type { CadStatement } from './types'
+import type { StatementIR } from './types'
 import { asPartName, type PartName } from '../identity'
 import { getFunctionSymbol } from './symbol-table'
 
 const PART_RE = /^part(\d+)$/
+/** 代码文本中出现的 partN 标识符（词法扫描，不 parse——允许部分/生成中代码） */
+const PART_TOKEN_RE = /\bpart(\d+)\b/g
 
 /** 从语句 outputs 中提取最大模型号（PartName 均为 partN 新名；旧名兼容已删，决策 2）。 */
-export function getMaxModelNum(statements: CadStatement[]): number {
+export function getMaxModelNum(statements: StatementIR[]): number {
   let max = -1
   for (const stmt of statements) {
     for (const outId of stmt.outputs) {
@@ -39,8 +42,8 @@ export interface DerivePartNameInput {
   inputCount: number
   /** 语法事实：输出数（含解构键数） */
   outputCount: number
-  /** 现有语句（取下一个 partN） */
-  statements: CadStatement[]
+  /** 当前代码文本：内部扫描已用 partN，取下一个模型号（不 parse，允许生成中代码） */
+  code: string
 }
 
 export interface DerivePartNameResult {
@@ -51,11 +54,11 @@ export interface DerivePartNameResult {
 
 /**
  * 变量名自动推导（设计文档 §4.7 R0–R5）。
- * 输入只含语法事实 + 符号表查询，调用方不传任何函数元数据。
+ * 输入只含语法事实 + 代码文本 + 符号表查询，调用方不传任何函数元数据。
  * 未知 callee（不在符号表）→ 默认消费语义，走 R2/R3。
  */
 export function derivePartName(input: DerivePartNameInput): DerivePartNameResult {
-  const { callee, inputCount, outputCount, statements } = input
+  const { callee, inputCount, outputCount, code } = input
 
   // R0：无赋值语句 → 无名字
   if (outputCount === 0) return { behavior: 'new', names: [] }
@@ -66,7 +69,7 @@ export function derivePartName(input: DerivePartNameInput): DerivePartNameResult
   //   group/assembly 无位置输入（members 走 readonlyPaths），inputCount=0 时也视为"无消费性输入"→ 新名
   const allInputsReadonly = info !== undefined && isAllInputsReadonly(info, inputCount)
   if (allInputsReadonly) {
-    return { behavior: 'new', names: nextPartNames(statements, outputCount) }
+    return { behavior: 'new', names: nextPartNames(code, outputCount) }
   }
 
   // R2：单入单出（消费性）→ 复用 inputs[0]
@@ -81,7 +84,7 @@ export function derivePartName(input: DerivePartNameInput): DerivePartNameResult
   }
 
   // R3：其余（创建类、入出数量不同）→ 新名，每输出一个 partN
-  return { behavior: 'new', names: nextPartNames(statements, outputCount) }
+  return { behavior: 'new', names: nextPartNames(code, outputCount) }
 }
 
 function isAllInputsReadonly(info: { readonlyPositions?: number[] }, inputCount: number): boolean {
@@ -91,7 +94,13 @@ function isAllInputsReadonly(info: { readonlyPositions?: number[] }, inputCount:
   return true
 }
 
-function nextPartNames(statements: CadStatement[], count: number): PartName[] {
-  const base = getMaxModelNum(statements) + 1
+/** 从代码文本扫描已用 partN，分配下一段新名（getMaxPartNum 不对外提供，B2 决策）。 */
+function nextPartNames(code: string, count: number): PartName[] {
+  let max = -1
+  for (const m of code.matchAll(PART_TOKEN_RE)) {
+    const n = parseInt(m[1], 10)
+    if (n > max) max = n
+  }
+  const base = max + 1
   return Array.from({ length: count }, (_, i) => asPartName(`part${base + i}`))
 }

@@ -250,7 +250,7 @@ function solveAssembly(compound: CompoundShape, behavior: AssemblyBehavior, exec
 // ── group / assembly 库函数 ──
 
 /**
- * 从当前语句的 args.members（VarRef 形态，编译产物 `members:[ctx.a,ctx.b]`）推导成员变量名。
+ * 从当前语句的 args.members（VarRefIR 形态，编译产物 `members:[ctx.a,ctx.b]`）推导成员变量名。
  * 统一 ABI 后编译产物不再发射 memberNames 键（§5.2）；成员名由库函数从 IR 元数据自己解释。
  * 兼容旧手工构造 IR（字符串数组 / 显式 memberNames）。
  */

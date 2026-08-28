@@ -1,11 +1,11 @@
 /**
- * parser 单元测试 — 文本 → PartScript（扁平代码格式）
+ * parser 单元测试 — 文本 → ScriptIR（扁平代码格式）
  *
  * 覆盖：
  * - apiVersion 解析
  * - 语句解析（创建/变换/特征类）
  * - boolean op（cad.union/subtract/intersect）
- * - ParamRef / GeomRef 解析
+ * - ParamRefIR / GeomRef 解析
  * - terminal shapes 自动推导
  * - 错误处理（行号报告）
  * - 往返：codegen → parser → 相同语义
@@ -15,14 +15,14 @@ import { describe, it, expect } from 'vitest'
 import { parseScript, ParseError, getApiVersion } from './parser'
 import { scriptToCode } from './codegen'
 import { isVarRef, isCallRef } from './types'
-import type { PartScript, CadStatement, CallRef, Arg } from './types'
+import type { ScriptIR, StatementIR, CallRefIR, ArgIR } from './types'
 import { asStmtId, asPartName } from '../identity'
 
 // ── 测试辅助 ──
 
 function makeStmt(
-  partial: Omit<Partial<CadStatement>, 'id' | 'inputs' | 'outputs'> & { id?: string; inputs?: string[]; outputs?: string[] },
-): CadStatement {
+  partial: Omit<Partial<StatementIR>, 'id' | 'inputs' | 'outputs'> & { id?: string; inputs?: string[]; outputs?: string[] },
+): StatementIR {
   const { id, inputs, outputs, ...rest } = partial
   return {
     id: asStmtId(id ?? 'st_part1_1'),
@@ -136,10 +136,10 @@ let part2 = await cad.subtract(part0, part1)`
   })
 })
 
-// ── ParamRef / VarRef / CallRef ──
+// ── ParamRefIR / VarRefIR / CallRefIR ──
 
-describe('parser: ParamRef 与嵌套调用', () => {
-  it('解析 ParamRef（裸标识符引用参数）', () => {
+describe('parser: ParamRefIR 与嵌套调用', () => {
+  it('解析 ParamRefIR（裸标识符引用参数）', () => {
     const code = `const size = 20
 let part0 = cad.box({ size: size })`
     const { script } = parseScript(code)
@@ -149,22 +149,22 @@ let part0 = cad.box({ size: size })`
     expect(script.statements[0].args.size).toEqual({ $param: 'size' })
   })
 
-  it('解析嵌套调用 cad.bboxCenter(var) → CallRef', () => {
+  it('解析嵌套调用 cad.bboxCenter(var) → CallRefIR', () => {
     const code = `let part0 = cad.box({ size: 20 })
 let part1 = cad.box({ size: cad.bboxCenter(part0) })`
     const { script } = parseScript(code)
-    const arg = script.statements[1].args.size as CallRef
+    const arg = script.statements[1].args.size as CallRefIR
     expect(isCallRef(arg)).toBe(true)
     expect(arg.$call.callee).toBe('bboxCenter')
     expect(arg.$call.args).toHaveLength(1)
     expect(isVarRef(arg.$call.args[0])).toBe(true)
   })
 
-  it('解析嵌套调用 cad.faceCenter(var, [anchor]) → CallRef', () => {
+  it('解析嵌套调用 cad.faceCenter(var, [anchor]) → CallRefIR', () => {
     const code = `let part0 = cad.box({ size: 20 })
 let part1 = cad.box({ size: cad.faceCenter(part0, [0,0,10]) })`
     const { script } = parseScript(code)
-    const arg = script.statements[1].args.size as CallRef
+    const arg = script.statements[1].args.size as CallRefIR
     expect(isCallRef(arg)).toBe(true)
     expect(arg.$call.callee).toBe('faceCenter')
     expect(arg.$call.args).toHaveLength(2)
@@ -271,7 +271,7 @@ part0 = cad.translate(partUnknown, { offset:[0,0,0] })`
 
 describe('parser: 往返 codegen → parser', () => {
   it('单条 box 往返', () => {
-    const script: PartScript = {
+    const script: ScriptIR = {
       params: [],
       statements: [makeStmt({ id: 'part0', callee: 'box', args: { size: 20 } })],
     }
@@ -283,7 +283,7 @@ describe('parser: 往返 codegen → parser', () => {
   })
 
   it('带依赖链往返', () => {
-    const script: PartScript = {
+    const script: ScriptIR = {
       params: [],
       statements: [
         makeStmt({ id: 'part0', callee: 'box', args: { size: 20 } }),
@@ -299,7 +299,7 @@ describe('parser: 往返 codegen → parser', () => {
   })
 
   it('带 boolean op 往返（callee 直写 union）', () => {
-    const script: PartScript = {
+    const script: ScriptIR = {
       params: [],
       statements: [
         makeStmt({ id: 'part0', callee: 'box', args: { size: 20 } }),
@@ -397,7 +397,7 @@ describe('parser: 命名分层修复（parser 保留词法名，不调 derivePar
     expect(constraintStmt.refs).toContain('asm1')
   })
 
-  it('VarRef 引用保留词法名: members: [part0] → $ref 为 "part0"', () => {
+  it('VarRefIR 引用保留词法名: members: [part0] → $ref 为 "part0"', () => {
     const code = `
       let part0 = cad.box({ size: 20 })
       let g = cad.group({ name: 'G', members: [part0] })
@@ -406,7 +406,7 @@ describe('parser: 命名分层修复（parser 保留词法名，不调 derivePar
     const groupStmt = script.statements[1]
     expect(groupStmt.callee).toBe('group')
     expect(groupStmt.outputs).toEqual(['g'])
-    const members = groupStmt.args.members as Arg[]
+    const members = groupStmt.args.members as ArgIR[]
     expect(Array.isArray(members)).toBe(true)
     expect(isVarRef(members![0])).toBe(true)
     expect((members![0] as { $ref: string }).$ref).toBe('part0')

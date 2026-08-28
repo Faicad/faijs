@@ -1,5 +1,5 @@
 /**
- * stdlib asset — `cad.asset(key, exec)` 库函数（A7 消灭后 asset 走 CallRef）
+ * stdlib asset — `cad.asset(key, exec)` 库函数（A7 消灭后 asset 走 CallRefIR）
  *
  * 设计文档：docs/plans/2026-08-27-faijs-language-normalization-implementation.md §5.2
  *

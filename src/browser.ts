@@ -38,13 +38,13 @@ export {
 // ═══════════════════════════════════════════════════════════
 
 export type {
-  PartScript, CadStatement, Arg, Vec3, JsonValue, ShapeRef,
-  ParamRef, VarRef, CallRef,
-  TerminalShape, ParamDef, PartScriptMeta,
+  ScriptIR, StatementIR, ArgIR, Vec3, JsonValue,
+  ParamRefIR, VarRefIR, CallRefIR,
+  TerminalShape, ParamDef, ScriptMetaIR,
 } from './lang/types'
 export {
   isVarRef, isParamRef, isCallRef,
-  createStatement, createPartScript,
+  createStatementIR, createScriptIR,
 } from './lang/types'
 export {
   derivePartName, getMaxModelNum,
@@ -54,7 +54,11 @@ export { SYMBOL_TABLE, getFunctionSymbol } from './lang/symbol-table'
 export type { SymbolTable, FunctionSymbol } from './lang/symbol-table'
 export { parseScript, ParseError, getApiVersion } from './lang/parser'
 export type { ParseResult } from './lang/parser'
-export { statementToLine, scriptToCode, fmtNum, buildArgsParts } from './lang/codegen'
+export { statementToLine, scriptToCode, fmtNum, buildArgsParts, formatCodeLine } from './lang/codegen'
+export type { FormatCodeLineInput } from './lang/codegen'
+export { analyzeCode } from './lang/statement-summary'
+export type { StatementSummary } from './lang/statement-summary'
+export { codeToArgs } from './lang/code-to-args'
 
 // ═══════════════════════════════════════════════════════════
 // B 类：cad-runtime/ + createBrowserPorts + 外部资源注入点
@@ -63,7 +67,7 @@ export { statementToLine, scriptToCode, fmtNum, buildArgsParts } from './lang/co
 export { CadRuntime, createRuntime } from './cad-runtime/runtime'
 export { createPreviewExec } from './cad-runtime/preview-exec'
 export type { PreviewExec } from './cad-runtime/preview-exec'
-export type { ExecutionResult, ExecuteOptions, CheckResult, CheckError, PartTopology, TopologySource } from './cad-runtime/runtime'
+export type { ExecutionResult, ExecuteOptions, ExecuteCodeOptions, CheckResult, CheckError, PartTopology, TopologySource } from './cad-runtime/runtime'
 export type {
   HostPorts,
   CsgBackend, SdfBackend, FontProvider, TextureSampler,

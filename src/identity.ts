@@ -16,7 +16,7 @@
  * | `FileId` | 文件身份（3d 场景树），无冒号 | UUID / `prim_1` |
  * | `InnerId` | part 在文件内编号，无冒号 | `o1` / `part-0` |
  * | `ScopedId` | `fileId:innerId`，恰好一个冒号（场景树 key） | `fileId:part-0` |
- * | `StmtId` | 每条语句的 id（`CadStatement.id`），无赋值语句也有 | `s1` / `s<N>` |
+ * | `StmtId` | 每条语句的 id（`StatementIR.id`），无赋值语句也有 | `s1` / `s<N>` |
  * | `PartName` | 左值变量名（0/1/2 个，split 双值） | `part0` / `part<N>` |
  * | `GroupName` | 装配/组语句的变量名（⊆ PartName） | `grp_<N>` |
  * | `RefId` | 装配成员引用（scopedId 形态） | `fileId:part-0` |
@@ -53,7 +53,7 @@ declare const __nodeId:      unique symbol
 export type FileId       = string & { readonly [__fileId]:      true }
 export type InnerId      = string & { readonly [__innerId]:     true }
 export type ScopedId     = string & { readonly [__scopedId]:    true }
-export type StmtId       = string & { readonly [__stmtId]:      true }   // CadStatement.id（无赋值语句也有）
+export type StmtId       = string & { readonly [__stmtId]:      true }   // StatementIR.id（无赋值语句也有）
 export type PartName     = string & { readonly [__partName]:    true }   // 左值；split outputs 双值
 export type GroupName    = PartName & { readonly [__groupName]: true }   // grp_N ⊆ PartName
 export type RefId        = string & { readonly [__refId]:       true }
@@ -65,7 +65,7 @@ export type FaceId       = string & { readonly [__faceId]:      true }
 export type EdgeId       = string & { readonly [__edgeId]:      true }
 export type NodeId       = string & { readonly [__nodeId]:      true }
 
-export type StatementId  = StmtId   // 别名（= CadStatement.id，≠ PartName 语义，见 §0）
+export type StatementId  = StmtId   // 别名（= StatementIR.id，≠ PartName 语义，见 §0）
 export type FaceSelector = FaceId   // 别名（网格 FaceDescriptor 无 id，暂不用）
 
 // ═════════════════════════════════════════════════════════════════════════

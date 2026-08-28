@@ -18,10 +18,10 @@ import { describe, it, expect } from 'vitest'
 import { computeLeafTerminals, consumes } from './terminal-dag'
 import { parseScript } from '../lang/parser'
 import type { PartName } from '../identity'
-import type { PartScript } from '../lang/types'
+import type { ScriptIR } from '../lang/types'
 import { asPartName } from '../identity'
 
-/** 用 parseScript 从代码构造 PartScript，提取所有 shape 变量名。 */
+/** 用 parseScript 从代码构造 ScriptIR，提取所有 shape 变量名。 */
 function parseAndCollectVars(code: string) {
   const { script } = parseScript(code)
   const shapeVarNames = new Set<PartName>()
@@ -128,7 +128,7 @@ describe('computeLeafTerminals: DAG leaf detection', () => {
         { id: 's1' as never, callee: 'assembly', args: { members: [] }, inputs: [], outputs: [asPartName('asm1')], hasAssignment: true },
         { id: 's2' as never, callee: 'add_constraint', args: { type: 'face_mate' }, inputs: [], outputs: [], hasAssignment: false, receiver: asPartName('asm1') },
       ],
-    } as PartScript
+    } as ScriptIR
     const terminals = computeLeafTerminals(script, new Set<PartName>([asPartName('asm1')]))
     expect(terminals.map(t => t.id)).toEqual(['asm1'])
   })

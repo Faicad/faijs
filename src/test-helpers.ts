@@ -7,7 +7,7 @@
  * Phase 2.5：executeScript 改用 CadRuntime（VM 执行），不再依赖 src/ops/dispatcher 的 executeStatement。
  */
 
-import type { PartScript } from './lang/types'
+import type { ScriptIR } from './lang/types'
 import type { Shape } from './mesh/types'
 import type { BrepChainState } from './brep/brep-chain'
 import { CadRuntime } from './cad-runtime/runtime'
@@ -27,7 +27,7 @@ function defaultPorts(): HostPorts {
 }
 
 export async function executeScript(
-  script: PartScript,
+  script: ScriptIR,
   inputGeometryMap?: Map<PartName, Shape>,
   params?: Record<string, unknown>,
   ports?: HostPorts,

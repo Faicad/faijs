@@ -1,9 +1,9 @@
 /**
- * compile — PartScript → 零 import ESM 模块（VM 执行方案 Phase 1）
+ * compile — ScriptIR → 零 import ESM 模块（VM 执行方案 Phase 1）
  *
  * 设计文档：docs/plans/2026-08-25-faijs-vm-execution-implementation-plan.md §3.1 / §3.9
  *
- * `compileToModule(script)` 把校验过的 PartScript IR 编译为**不含任何 import 语句**的
+ * `compileToModule(script)` 把校验过的 ScriptIR IR 编译为**不含任何 import 语句**的
  * ESM 文本（`export const statements = [...]`）。产物零 import 是关键决策——Node 的
  * `data:` URL 与浏览器的 Blob URL 动态 import 都无法解析裸说明符，零 import 使模块在
  * 两个平台都能直接 `import()`，无需 import map / 打包器 / 文件系统。
@@ -19,13 +19,13 @@
  */
 
 import type {
-  Arg,
-  CadStatement,
+  ArgIR,
+  StatementIR,
   JsonValue,
-  ParamRef,
-  PartScript,
-  VarRef,
-  CallRef,
+  ParamRefIR,
+  ScriptIR,
+  VarRefIR,
+  CallRefIR,
 } from './types'
 import { isParamRef, isVarRef, isCallRef } from './types'
 import { fmtNum } from './codegen'
@@ -64,27 +64,27 @@ function fmtStr(s: string): string {
   return JSON.stringify(s)
 }
 
-// ── Arg 翻译（$param / $ref / $call → 编译产物表达式） ──
+// ── ArgIR 翻译（$param / $ref / $call → 编译产物表达式） ──
 
-/** ParamRef → `ctx.<name>` */
-function translateParamRef(ref: ParamRef): string {
+/** ParamRefIR → `ctx.<name>` */
+function translateParamRef(ref: ParamRefIR): string {
   return `ctx.${ref.$param}`
 }
 
-/** VarRef → `ctx.<name>` */
-function translateVarRef(ref: VarRef): string {
+/** VarRefIR → `ctx.<name>` */
+function translateVarRef(ref: VarRefIR): string {
   return `ctx.${ref.$ref}`
 }
 
-/** CallRef → `await cad.<callee>(<args>, exec)`（嵌套调用，统一 await：同步函数被 await 是合法 JS） */
-function translateCallRef(ref: CallRef): string {
+/** CallRefIR → `await cad.<callee>(<args>, exec)`（嵌套调用，统一 await：同步函数被 await 是合法 JS） */
+function translateCallRef(ref: CallRefIR): string {
   const { callee, args } = ref.$call
   const inner = args.map((a) => translateArg(a)).join(', ')
   return `await cad.${callee}(${inner}, exec)`
 }
 
-/** 递归翻译单个 Arg 值为编译产物表达式。 */
-function translateArg(value: Arg): string {
+/** 递归翻译单个 ArgIR 值为编译产物表达式。 */
+function translateArg(value: ArgIR): string {
   if (value === null || value === undefined) return 'null'
   if (typeof value === 'number') return fmtNum(value)
   if (typeof value === 'boolean') return String(value)
@@ -93,17 +93,17 @@ function translateArg(value: Arg): string {
   if (isVarRef(value)) return translateVarRef(value)
   if (isCallRef(value)) return translateCallRef(value)
   if (Array.isArray(value)) {
-    return `[${value.map((v) => translateArg(v as Arg)).join(', ')}]`
+    return `[${value.map((v) => translateArg(v as ArgIR)).join(', ')}]`
   }
   if (typeof value === 'object') {
-    const entries = Object.entries(value as Record<string, Arg>)
+    const entries = Object.entries(value as Record<string, ArgIR>)
     return `{ ${entries.map(([k, v]) => `${k}: ${translateArg(v)}`).join(', ')} }`
   }
   return String(value)
 }
 
 /** 语句 args 表 → 编译产物对象字面量。 */
-function translateArgs(args: Record<string, Arg>): string {
+function translateArgs(args: Record<string, ArgIR>): string {
   const entries = Object.entries(args)
   if (entries.length === 0) return '{}'
   return `{ ${entries.map(([k, v]) => `${k}: ${translateArg(v)}`).join(', ')} }`
@@ -115,14 +115,14 @@ function translateArgs(args: Record<string, Arg>): string {
  * 获取语句引用的变量名集合。
  *
  * 优先用 parser 填充的 stmt.refs（inputs + $param + $ref + 嵌套调用）；
- * 手工构造的 PartScript（测试等）无 refs 时，从 inputs + args 扫描兜底计算。
+ * 手工构造的 ScriptIR（测试等）无 refs 时，从 inputs + args 扫描兜底计算。
  */
-function getStatementRefs(stmt: CadStatement): string[] {
+function getStatementRefs(stmt: StatementIR): string[] {
   if (stmt.refs) return stmt.refs
   const refs = new Set<string>(stmt.inputs)
   // receiver：成员方法调用（do_assemble 等）依赖其 receiver 变量
   if (stmt.receiver) refs.add(stmt.receiver)
-  const scan = (value: Arg): void => {
+  const scan = (value: ArgIR): void => {
     if (value === null || typeof value !== 'object') return
     if (isParamRef(value)) {
       refs.add(value.$param)
@@ -154,7 +154,7 @@ function getStatementRefs(stmt: CadStatement): string[] {
 }
 
 /** 生成单条语句的 fn 体（缩进 6 空格，嵌入模块文本）。纯机械：按 IR 形态发射，无 callee 分支（A9 消灭）。 */
-function buildStatementFnBody(stmt: CadStatement): string {
+function buildStatementFnBody(stmt: StatementIR): string {
   const inputs = stmt.inputs.map((inp) => `ctx.${inp}`).join(', ')
   const argsStr = translateArgs(stmt.args)
   const hasArgs = Object.keys(stmt.args).length > 0
@@ -193,11 +193,11 @@ function buildStatementFnBody(stmt: CadStatement): string {
 // ── 主编译函数 ──
 
 /**
- * 把 PartScript 编译为零 import ESM 模块文本 + 语句元数据。
+ * 把 ScriptIR 编译为零 import ESM 模块文本 + 语句元数据。
  *
- * 同一份 PartScript 编译结果确定（StmtId 按语句顺序稳定分配）。
+ * 同一份 ScriptIR 编译结果确定（StmtId 按语句顺序稳定分配）。
  */
-export function compileToModule(script: PartScript): CompiledModule {
+export function compileToModule(script: ScriptIR): CompiledModule {
   const metas: CompiledStatementMeta[] = []
   const varToStmtId = new Map<string, StmtId>()
 

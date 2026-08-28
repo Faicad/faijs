@@ -21,7 +21,7 @@ import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { initOcctWasm } from '../occt-kernel/occtKernel'
-import type { CadStatement, PartScript } from '../lang/types'
+import type { StatementIR, ScriptIR } from '../lang/types'
 import { createRuntime, type ExecutionResult } from '../cad-runtime/runtime'
 import type { HostPorts, EventSink, AssetResolver } from '../cad-runtime/ports'
 import { fileBlobStore } from '../test/blob-store'
@@ -82,8 +82,8 @@ function makeStmt(
   callee: string,
   args: Record<string, unknown>,
   inputs: string[] = [],
-  extra?: Partial<CadStatement>,
-): CadStatement {
+  extra?: Partial<StatementIR>,
+): StatementIR {
   return {
     id: asStmtId(id), callee,
     args: args as never,
@@ -94,7 +94,7 @@ function makeStmt(
   }
 }
 
-function makePartScript(statements: CadStatement[]): PartScript {
+function makePartScript(statements: StatementIR[]): ScriptIR {
   // Phase 3: parser 不再计算 terminalShapes；终端判定在 runtime.collectResult（从 outputs 过滤）
   return {
     source: { kind: 'load' },
@@ -103,7 +103,7 @@ function makePartScript(statements: CadStatement[]): PartScript {
   }
 }
 
-async function runScript(statements: CadStatement[]): Promise<ExecutionResult> {
+async function runScript(statements: StatementIR[]): Promise<ExecutionResult> {
   const runtime = createRuntime(createTestPorts(), 'auto')
   const script = makePartScript(statements)
   return runtime.execute(script)
@@ -114,7 +114,7 @@ async function runScript(statements: CadStatement[]): Promise<ExecutionResult> {
 describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP independence', () => {
   it('STL load does not break BREP for subsequent cylinder/drill/transforms', async () => {
     const bufferKey = fileBlobStore.put(stlBuffer)
-    const stmts: CadStatement[] = [
+    const stmts: StatementIR[] = [
       // S0: load STL → non-CAD source → mesh only, no solid
       makeStmt('cube_v0', 'load', { key: bufferKey, format: 'stl' }, [],
         { }),
@@ -166,7 +166,7 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
 
   it('brepSolids contains mated_v0 (BREP) but not cube_v0 (mesh)', async () => {
     const bufferKey = fileBlobStore.put(stlBuffer)
-    const stmts: CadStatement[] = [
+    const stmts: StatementIR[] = [
       makeStmt('cube_v0', 'load', { key: bufferKey, format: 'stl' }, [],
         { }),
       makeStmt('cyl_v0', 'cylinder', { radius: 5, height: 20 }, []),
@@ -200,7 +200,7 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
 
   it('STEP export: mated_v0 is precise (ADVANCED_FACE), cube_v0 is faceted', async () => {
     const bufferKey = fileBlobStore.put(stlBuffer)
-    const stmts: CadStatement[] = [
+    const stmts: StatementIR[] = [
       makeStmt('cube_v0', 'load', { key: bufferKey, format: 'stl' }, [],
         { }),
       makeStmt('cyl_v0', 'cylinder', { radius: 5, height: 20 }, []),
@@ -239,7 +239,7 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
 
   it('assembly statement has correct members and is skipped during execution', async () => {
     const bufferKey = fileBlobStore.put(stlBuffer)
-    const stmts: CadStatement[] = [
+    const stmts: StatementIR[] = [
       makeStmt('cube_v0', 'load', { key: bufferKey, format: 'stl' }, [],
         { }),
       makeStmt('cyl_v0', 'cylinder', { radius: 5, height: 20 }, []),
@@ -287,7 +287,7 @@ describe('Pivot parity: rotate(anglesDeg, pivot) — BREP vs mesh path consisten
   it('BREP rotate with pivot produces correct result (not rotating around origin)', async () => {
     // Create a box offset from origin, then rotate with a pivot
     // If pivot is ignored, the result will be wrong (rotating around origin)
-    const stmts: CadStatement[] = [
+    const stmts: StatementIR[] = [
       makeStmt('s1', 'box', { size: 10, center: [20, 0, 0] }, []),
       makeStmt('s2', 'rotate', { anglesDeg: [0, 0, 90], pivot: [20, 0, 0] }, ['s1'],
         { }),
@@ -345,7 +345,7 @@ describe('Pivot parity: rotate(anglesDeg, pivot) — BREP vs mesh path consisten
   })
 
   it('BREP rotate without pivot matches mesh rotate without pivot', async () => {
-    const stmts: CadStatement[] = [
+    const stmts: StatementIR[] = [
       makeStmt('s1', 'box', { size: 10, center: [20, 0, 0] }, []),
       makeStmt('s2', 'rotate', { anglesDeg: [0, 0, 90] }, ['s1'],
         { }),

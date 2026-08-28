@@ -12,7 +12,7 @@
  */
 
 import type { CompiledStatementMeta } from '../lang/compile'
-import type { CadStatement, PartScript } from '../lang/types'
+import type { StatementIR, ScriptIR } from '../lang/types'
 import type { Shape } from '../mesh/types'
 import type { ShapeHandle } from 'occt-wasm'
 import type { PartName, StmtId } from '../identity'
@@ -68,9 +68,9 @@ export class ModuleExecutor {
   private stmts = new Map<StmtId, CompiledStatement>()
   /** statementKey 缓存（增量判定；key = op|JSON(args)|deps 的 outputContentKey） */
   private cache = new Map<StmtId, { key: string; outputContentKey: string }>()
-  private sourceById = new Map<StmtId, CadStatement>()
+  private sourceById = new Map<StmtId, StatementIR>()
   private metaById = new Map<StmtId, CompiledStatementMeta>()
-  private script: PartScript = { params: [], statements: [] }
+  private script: ScriptIR = { params: [], statements: [] }
   private lastCode = ''
   private readonly cad: StdlibNamespace
   private readonly releaseSolid?: (partName: PartName) => void
@@ -89,7 +89,7 @@ export class ModuleExecutor {
   }
 
   /** 更新脚本 + 编译元数据（ctx 保持存活）。 */
-  setCompiled(script: PartScript, compiled: CompiledStatementMeta[]): void {
+  setCompiled(script: ScriptIR, compiled: CompiledStatementMeta[]): void {
     this.script = script
     this.metaById = new Map(compiled.map((m) => [m.id, m]))
     this.sourceById = new Map()
@@ -257,7 +257,7 @@ export class ModuleExecutor {
    * statementKey = op | JSON(args) | 各依赖的 outputContentKey（参数语句 = 参数值）。
    * 供 plan() 在重算前用当前 cache 计算预期 key 做增量判定。
    */
-  computeKey(meta: CompiledStatementMeta, source: CadStatement | undefined): string {
+  computeKey(meta: CompiledStatementMeta, source: StatementIR | undefined): string {
     const primary = meta.writes[0]
     if (!source) {
       const p = this.script.params.find((pp) => pp.name === primary)

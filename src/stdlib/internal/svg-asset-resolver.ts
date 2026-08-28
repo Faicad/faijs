@@ -3,7 +3,7 @@
  *
  * 从 src/ops/svg-asset-resolver.ts 迁入（Phase 2.5 删除 src/ops/）。
  *
- * AssetRef 类型已退役（§4.2：`cad.asset(...)` 走 CallRef，运行时解析为字符串）；
+ * AssetRef 类型已退役（§4.2：`cad.asset(...)` 走 CallRefIR，运行时解析为字符串）；
  * 此处保留对 `{$asset: key}` 结构（旧 IR / 宿主手写语句）的运行时兼容。
  */
 

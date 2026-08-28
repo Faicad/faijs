@@ -1,17 +1,17 @@
 /**
- * parser — 文本 → PartScript（合法 JS 子集，设计文档 §2）
+ * parser — 文本 → ScriptIR（合法 JS 子集，设计文档 §2）
  *
- * 执行模型：`.faijs` 文本先用 acorn 解析（合法性证明 J-1），再 walk AST 还原为 PartScript。
+ * 执行模型：`.faijs` 文本先用 acorn 解析（合法性证明 J-1），再 walk AST 还原为 ScriptIR。
  * 绝不 eval / new Function / import() 真执行。
  *
  * 支持的语法（合法 JS 子集）：
  * - `// apiVersion: N` — 版本声明（可选，默认 1）
  * - `export default async (cad) => { ... }` — 唯一合法容器
  * - `const <name> = <literal>` → ParamDef（参数声明，右侧仅字面量）
- * - `const part<N>_v<M> = [await] cad.<op>(<inputVar>?, { ...args })` → CadStatement
+ * - `const part<N>_v<M> = [await] cad.<op>(<inputVar>?, { ...args })` → StatementIR
  * - `cad.union/subtract/intersect(inputVar, inputVar)` → boolean op
  * - `cad.faceCenter(var)` / `cad.faceNormal(var)` / `cad.bboxCenter(var)` / ... → GeomRef
- * - `return { shape: part<N>_v<M>, name, color, metalness, roughness }` → PartScript.meta
+ * - `return { shape: part<N>_v<M>, name, color, metalness, roughness }` → ScriptIR.meta
  *
  * 禁止（acorn 抛错或 AST walk 拒绝即 ParseError）：
  * - `param` / `with` 关键字、对象字面量用 `=`
@@ -22,13 +22,13 @@
 
 import { parse as acornParse } from 'acorn'
 import type {
-  Arg,
-  CadStatement,
+  ArgIR,
+  StatementIR,
   JsonValue,
   ParamDef,
-  ParamRef,
-  PartScript,
-  PartScriptMeta,
+  ParamRefIR,
+  ScriptIR,
+  ScriptMetaIR,
   TerminalShape,
 } from './types'
 import { isParamRef, isVarRef, isCallRef } from './types'
@@ -63,13 +63,13 @@ function getLine(node: ASTNode): number {
 
 // ── AST 值解析 ──
 
-/** 解析字面量 / 数组 / 对象 / ParamRef / GeomRef */
+/** 解析字面量 / 数组 / 对象 / ParamRefIR / GeomRef */
 function parseValueExpr(
   node: ASTNode,
   paramNames: Set<string>,
   varToId: Map<string, PartName>,
   line: number,
-): Arg {
+): ArgIR {
   if (!node) throw new ParseError('missing value expression', line)
 
   switch (node.type) {
@@ -77,15 +77,15 @@ function parseValueExpr(
       return node.value
 
     case 'Identifier': {
-      // 裸标识符：参数变量 → ParamRef；已声明变量 → VarRef（A7 消灭后通用）
+      // 裸标识符：参数变量 → ParamRefIR；已声明变量 → VarRefIR（A7 消灭后通用）
       const name = node.name
       if (paramNames.has(name)) {
-        const ref: ParamRef = { $param: name }
+        const ref: ParamRefIR = { $param: name }
         return ref
       }
       const varId = varToId.get(name)
       if (varId) {
-        return { $ref: varId } as Arg
+        return { $ref: varId } as ArgIR
       }
       throw new ParseError(`unknown identifier "${name}" in args value (not a declared param or variable)`, line)
     }
@@ -95,7 +95,7 @@ function parseValueExpr(
     }
 
     case 'ObjectExpression': {
-      const obj: Record<string, Arg> = {}
+      const obj: Record<string, ArgIR> = {}
       for (const prop of node.properties) {
         // shorthand property: { size } → { size: size }
         const key = prop.key.type === 'Identifier' ? prop.key.name
@@ -107,7 +107,7 @@ function parseValueExpr(
         // shorthand: { size } → value is the same identifier
         if (prop.shorthand) {
           if (paramNames.has(key)) {
-            obj[key] = { $param: key } as ParamRef
+            obj[key] = { $param: key } as ParamRefIR
           } else {
             throw new ParseError(`unknown shorthand identifier "${key}" (not a declared param)`, line)
           }
@@ -115,11 +115,11 @@ function parseValueExpr(
           obj[key] = parseValueExpr(prop.value, paramNames, varToId, line)
         }
       }
-      return obj as Arg
+      return obj as ArgIR
     }
 
     case 'CallExpression': {
-      // 嵌套调用 → CallRef（A7 消灭后任意 cad.<ident>(...) 都合法）
+      // 嵌套调用 → CallRefIR（A7 消灭后任意 cad.<ident>(...) 都合法）
       const callee = node.callee
       if (
         callee?.type === 'MemberExpression' &&
@@ -129,7 +129,7 @@ function parseValueExpr(
       ) {
         const innerCallee = callee.property.name
         const innerArgs = node.arguments.map((a: ASTNode) => parseValueExpr(a, paramNames, varToId, line))
-        return { $call: { callee: innerCallee, args: innerArgs } } as Arg
+        return { $call: { callee: innerCallee, args: innerArgs } } as ArgIR
       }
       throw new ParseError('nested calls in args must be cad.<ident>(...)', line)
     }
@@ -146,10 +146,10 @@ function parseValueExpr(
   }
 }
 
-// ── CadStatement 解析 ──
+// ── StatementIR 解析 ──
 
 interface ParsedStatement {
-  stmt: CadStatement
+  stmt: StatementIR
   varName: string
   /** 词法声明的输出名（parser 收集，最终遍历经 varToId 解析为物理 partName 后写入 stmt.outputs） */
   declaredOutputs: string[]
@@ -196,7 +196,7 @@ function parseCadStatement(
   const opName = callee.property.name
 
   // 普通调用：callee 就是源码里的名字（A1 boolean 改写 / A4 load 收敛已删）
-  let args: Record<string, Arg> = {}
+  let args: Record<string, ArgIR> = {}
   const inputs: PartName[] = []
   for (const argNode of init.arguments) {
     if (argNode.type === 'Identifier') {
@@ -210,7 +210,7 @@ function parseCadStatement(
       // args 对象
       const parsed = parseValueExpr(argNode, paramNames, varToId, line)
       if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-        args = parsed as Record<string, Arg>
+        args = parsed as Record<string, ArgIR>
       } else {
         throw new ParseError('args must be an object', line)
       }
@@ -220,7 +220,7 @@ function parseCadStatement(
   }
 
   // Phase 3：id 不再赋变量名，由最终遍历赋 sN；变量名记录到 declaredOutputs
-  const stmt: CadStatement = {
+  const stmt: StatementIR = {
     id: asStmtId('__pending__'), callee: opName, args, inputs,
     outputs: [],
     hasAssignment: true,
@@ -233,7 +233,7 @@ function parseCadStatement(
 
 interface ParsedDestructuring {
   /** 语句列表（解构调用本身） */
-  stmt: CadStatement
+  stmt: StatementIR
   /** 每个解构值的词法变量名（与 keys 一一对应） */
   valueNames: string[]
   /** 词法声明的输出名 */
@@ -295,7 +295,7 @@ function parseDestructuring(
   }
 
   const opName = callee.property.name
-  const args: Record<string, Arg> = {}
+  const args: Record<string, ArgIR> = {}
   const inputs: PartName[] = []
 
   for (const argNode of init.arguments) {
@@ -308,7 +308,7 @@ function parseDestructuring(
     } else if (argNode.type === 'ObjectExpression') {
       const parsed = parseValueExpr(argNode, paramNames, varToId, line)
       if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-        Object.assign(args, parsed as Record<string, Arg>)
+        Object.assign(args, parsed as Record<string, ArgIR>)
       } else {
         throw new ParseError('destructuring args must be an object', line)
       }
@@ -318,7 +318,7 @@ function parseDestructuring(
   }
 
   // Phase 3：id 不再赋变量名；outputs 在最终遍历经 varToId 解析后写入
-  const stmt: CadStatement = {
+  const stmt: StatementIR = {
     id: asStmtId('__pending__'), callee: opName, args, inputs, outputs: [],
     outputKeys: keys,
     hasAssignment: true,
@@ -340,7 +340,7 @@ function parseDestructuring(
 function parseReturnStatement(
   node: ASTNode,
   varToId: Map<string, PartName>,
-): { terminalShapeId: PartName | null; meta: PartScriptMeta | undefined; terminalShapes: TerminalShape[] | undefined } {
+): { terminalShapeId: PartName | null; meta: ScriptMetaIR | undefined; terminalShapes: TerminalShape[] | undefined } {
   const line = getLine(node)
   const arg = node.argument
 
@@ -393,9 +393,9 @@ function parseReturnObject(
   objNode: ASTNode,
   varToId: Map<string, PartName>,
   line: number,
-): { id: PartName | null; meta: PartScriptMeta | undefined } {
+): { id: PartName | null; meta: ScriptMetaIR | undefined } {
   let id: PartName | null = null
-  const meta: PartScriptMeta = {}
+  const meta: ScriptMetaIR = {}
 
   for (const prop of objNode.properties) {
     const key = prop.key?.type === 'Identifier' ? prop.key.name
@@ -438,8 +438,8 @@ function parseReturnObject(
 
 // ── 引用收集（Phase 1: VM 执行 deps 计算） ──
 
-/** 递归收集 Arg 中的变量引用：$param → 参数名；$ref → 变量名；$call → 递归收集内部 args。 */
-function collectRefsFromArg(value: Arg, out: Set<string>): void {
+/** 递归收集 ArgIR 中的变量引用：$param → 参数名；$ref → 变量名；$call → 递归收集内部 args。 */
+function collectRefsFromArg(value: ArgIR, out: Set<string>): void {
   if (value === null || value === undefined) return
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return
   if (isParamRef(value)) {
@@ -455,11 +455,11 @@ function collectRefsFromArg(value: Arg, out: Set<string>): void {
     return
   }
   if (Array.isArray(value)) {
-    for (const v of value) collectRefsFromArg(v as Arg, out)
+    for (const v of value) collectRefsFromArg(v as ArgIR, out)
     return
   }
   if (typeof value === 'object') {
-    for (const v of Object.values(value)) collectRefsFromArg(v as Arg, out)
+    for (const v of Object.values(value)) collectRefsFromArg(v as ArgIR, out)
   }
 }
 
@@ -467,7 +467,7 @@ function collectRefsFromArg(value: Arg, out: Set<string>): void {
  * 收集单条语句引用的全部变量名（inputs + args 中 $param / $ref / 嵌套调用 + receiver）。
  * 存入 stmt.refs，编译期据此翻译为 deps（定义这些变量的语句 id）。
  */
-function collectStatementRefs(stmt: CadStatement): string[] {
+function collectStatementRefs(stmt: StatementIR): string[] {
   const refs = new Set<string>(stmt.inputs)
   for (const arg of Object.values(stmt.args)) {
     collectRefsFromArg(arg, refs)
@@ -481,18 +481,20 @@ function collectStatementRefs(stmt: CadStatement): string[] {
 // ── 主解析函数 ──
 
 export interface ParseResult {
-  script: PartScript
+  script: ScriptIR
   /** 语句 id → 变量名映射（新格式下为恒等映射） */
   varToId: Map<string, string>
+  /** 每条语句在源码中的行号（1-based，与 script.statements 一一对应；analyzeCode 用） */
+  statementLines: number[]
 }
 
 /**
- * 解析合法 JS 子集文本为 PartScript。
+ * 解析合法 JS 子集文本为 ScriptIR。
  *
  * 步骤：
  * 1. acorn.parse — 合法性闸门（J-1），抛 SyntaxError 即文本非法
  * 2. AST walk — 只接受允许的节点形状，遇违规即 ParseError
- * 3. 构建 PartScript
+ * 3. 构建 ScriptIR
  *
  * 零函数知识：parser 不接收任何 schemas/函数元数据（A5/A14 已删），
  * 对 callee 名字完全均匀处理。
@@ -504,7 +506,10 @@ export function parseScript(code: string): ParseResult {
   // ── 0. 扁平代码检测与封装 ──
   // 如果代码不含 `export default`，则自动封装为合法容器
   let parseCode = code
-  if (!code.includes('export default')) {
+  // 扁平封装后首行代码在 parseCode 中位于第 2 行；statementLines 须扣掉封装偏移，
+  // 使行号始终相对宿主原始文本（analyzeCode 契约）。
+  const lineOffset = code.includes('export default') ? 0 : 1
+  if (lineOffset) {
     // 扁平格式：自动封装
     parseCode = `export default async (cad) => {\n${code}\n}`
   }
@@ -555,10 +560,11 @@ export function parseScript(code: string): ParseResult {
 
   // ── 3. walk body ──
   const params: ParamDef[] = []
-  const statements: CadStatement[] = []
+  const statements: StatementIR[] = []
+  const statementLines: number[] = []
   const paramNames = new Set<string>()
   const varToId = new Map<string, PartName>()
-  let meta: PartScriptMeta | undefined
+  let meta: ScriptMetaIR | undefined
   let terminalShapes: TerminalShape[] | undefined
 
   for (const stmtNode of body.body) {
@@ -585,6 +591,7 @@ export function parseScript(code: string): ParseResult {
           // 命名服务不再由 parser 调用：parser 只做语法分析，保留词法变量名（设计 §5.1）
           stmt.outputs = valueNames.map((n) => asPartName(n))
           statements.push(stmt)
+          statementLines.push(line)
           // varToId 仅用于作用域校验，恒等映射（词法名 → 词法名）
           valueNames.forEach((n) => varToId.set(n, asPartName(n)))
           break
@@ -595,7 +602,7 @@ export function parseScript(code: string): ParseResult {
         const isAwait = init?.type === 'AwaitExpression'
         if (isAwait) init = init.argument
 
-        // ── E15.1 已删（A3）：group/assembly 走普通调用路径，members 数组元素经 VarRef 通用扫描 ──
+        // ── E15.1 已删（A3）：group/assembly 走普通调用路径，members 数组元素经 VarRefIR 通用扫描 ──
 
         // Phase 3: let 允许用于普通 cad.op() 语句（单入单出复用名时 codegen 产生 let 重赋值）
 
@@ -610,6 +617,7 @@ export function parseScript(code: string): ParseResult {
           // 命名服务不再由 parser 调用：parser 只做语法分析，保留词法变量名（设计 §5.1）
           stmt.outputs = [asPartName(varName)]
           statements.push(stmt)
+          statementLines.push(line)
           // varToId 仅用于作用域校验，恒等映射（词法名 → 词法名）
           varToId.set(varName, asPartName(varName))
         } else if (
@@ -622,7 +630,7 @@ export function parseScript(code: string): ParseResult {
             throw new ParseError('param declaration must have identifier name', line)
           }
           const name = decl.id.name
-          // 解析字面量值（不允许 ParamRef / GeomRef / 标识符）
+          // 解析字面量值（不允许 ParamRefIR / GeomRef / 标识符）
           const value = parseLiteralOnly(init, line)
           params.push({
             name,
@@ -681,6 +689,7 @@ export function parseScript(code: string): ParseResult {
             // 命名服务不再由 parser 调用：裸重赋值保留词法变量名（设计 §5.1）
             stmt.outputs = [asPartName(parsedVar)]
             statements.push(stmt)
+            statementLines.push(line)
             // varToId 仅用于作用域校验，恒等映射（词法名 → 词法名）
             varToId.set(parsedVar, asPartName(parsedVar))
             break
@@ -702,12 +711,12 @@ export function parseScript(code: string): ParseResult {
             if (!varToId.has(targetVar)) {
               throw new ParseError(`unknown variable "${targetVar}" in .${methodName}() call`, line)
             }
-            const args: Record<string, Arg> = {}
+            const args: Record<string, ArgIR> = {}
             for (const argNode of expr.arguments) {
               if (argNode.type === 'ObjectExpression') {
                 const parsed = parseValueExpr(argNode, paramNames, varToId, line)
                 if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-                  Object.assign(args, parsed as Record<string, Arg>)
+                  Object.assign(args, parsed as Record<string, ArgIR>)
                 } else {
                   throw new ParseError(`${methodName} args must be an object`, line)
                 }
@@ -715,7 +724,7 @@ export function parseScript(code: string): ParseResult {
                 throw new ParseError(`unexpected argument type in ${methodName}: ${argNode.type}`, line)
               }
             }
-            const memberStmt: CadStatement = {
+            const memberStmt: StatementIR = {
               id: asStmtId('__pending__'),
               callee: methodName,
               args,
@@ -725,6 +734,7 @@ export function parseScript(code: string): ParseResult {
               hasAssignment: false,
             }
             statements.push(memberStmt)
+            statementLines.push(line)
             break
           }
 
@@ -750,21 +760,22 @@ export function parseScript(code: string): ParseResult {
     stmt.id = sN
     stmt.refs = collectStatementRefs(stmt)
   }
+  const sourceLines = lineOffset ? statementLines.map((l) => l - lineOffset) : statementLines
 
   // ── 4. terminal shapes ──
   // Phase 3：终端判定移入执行收尾（runtime.collectResult），parser 不再计算。
   // 显式 return [...] 的 terminalShapes 优先；否则运行期从 result.outputs 过滤。
   const finalTerminalShapes = terminalShapes
 
-  // ── 5. 构建 PartScript ──
-  const script: PartScript = {
+  // ── 5. 构建 ScriptIR ──
+  const script: ScriptIR = {
     params,
     statements,
     meta,
     terminalShapes: finalTerminalShapes,
   }
 
-  return { script, varToId }
+  return { script, varToId, statementLines: sourceLines }
 }
 
 // ── 字面量解析（仅允许字面量，不允许标识符/调用） ──

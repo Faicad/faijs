@@ -23,61 +23,59 @@ export type JsonValue =
   | { [k: string]: JsonValue }
 
 /** 参数引用：语句参数中出现它时，执行前先从参数表求值 */
-export interface ParamRef {
+export interface ParamRefIR {
   $param: string
 }
 
 /** 变量引用：args 内出现的已声明变量（如 group/assembly 的 members 元素）。编译为 ctx.<name>。 */
-export interface VarRef {
+export interface VarRefIR {
   $ref: string
 }
 
 /** 嵌套调用：args 内的 cad.<callee>(...)。编译为 cad.<callee>(…, exec)。 */
-export interface CallRef {
+export interface CallRefIR {
   $call: {
     callee: string
-    args: Arg[]
+    args: ArgIR[]
   }
 }
 
-export type Arg = JsonValue | ParamRef | VarRef | CallRef
-/** 语句输入引用的左值变量名（PartName） */
-export type ShapeRef = PartName
+export type ArgIR = JsonValue | ParamRefIR | VarRefIR | CallRefIR
 
 // ── 类型守卫（L0 零依赖） ──
 
 /**
- * 检测 Arg 是否为 ParamRef
+ * 检测 ArgIR 是否为 ParamRefIR
  */
-export function isParamRef(arg: Arg): arg is ParamRef {
+export function isParamRef(arg: ArgIR): arg is ParamRefIR {
   return arg !== null && typeof arg === 'object' && !Array.isArray(arg) && '$param' in arg
 }
 
 /**
- * 检测 Arg 是否为 VarRef
+ * 检测 ArgIR 是否为 VarRefIR
  */
-export function isVarRef(arg: Arg): arg is VarRef {
+export function isVarRef(arg: ArgIR): arg is VarRefIR {
   return arg !== null && typeof arg === 'object' && !Array.isArray(arg) && '$ref' in arg
 }
 
 /**
- * 检测 Arg 是否为 CallRef
+ * 检测 ArgIR 是否为 CallRefIR
  */
-export function isCallRef(arg: Arg): arg is CallRef {
+export function isCallRef(arg: ArgIR): arg is CallRefIR {
   return arg !== null && typeof arg === 'object' && !Array.isArray(arg) && '$call' in arg
 }
 
 // ── 语句 ──
 
-export interface CadStatement {
+export interface StatementIR {
   /** 语句 id（StmtId）——顺序稳定的语句身份（格式 s1..sN，参数语句占前段）。
    *  每条语句都有，无赋值语句（add_constraint/do_assemble）也有。
    *  fai 语句名空间；与 3d_editor 的 ScopedId（fileId:innerId）是两套命名空间。
    *  Phase 3：id = 顺序 sN（不再是变量名）；变量名只存 outputs。 */
   id: StmtId
   callee: string
-  args: Record<string, Arg>
-  inputs: ShapeRef[]
+  args: Record<string, ArgIR>
+  inputs: PartName[]
   name?: string
   /** 本语句引用的变量名集合（inputs + args 中的 $param + $geom.of + group/assembly members）。
    *  parser 收集，编译期（compileToModule）据此翻译为 deps（定义这些变量的语句 id）。 */
@@ -117,7 +115,7 @@ export interface ParamDef {
 
 // ── Part 脚本 ──
 
-export interface PartScriptMeta {
+export interface ScriptMetaIR {
   name?: string
   appearance?: { color?: string; metalness?: number; roughness?: number }
 }
@@ -127,18 +125,18 @@ export interface TerminalShape {
   /** 终端左值变量名（PartName，如 'part0'）——终端按变量名（outputs）标识，非语句 id */
   id: PartName
   /** 该终端 mesh 的独立 meta（name/appearance） */
-  meta?: PartScriptMeta
+  meta?: ScriptMetaIR
 }
 
-export interface PartScript {
+export interface ScriptIR {
   source?:
     | { kind: 'load' }
     | { kind: 'sdf' }
   params: ParamDef[]
-  statements: CadStatement[]
+  statements: StatementIR[]
   /** 场景级模型属性（C-4/C-7）。
    *  缺省时由 SceneMutator 按 op 兜底派生（默认名 + nextPrimitiveColor()）。 */
-  meta?: PartScriptMeta
+  meta?: ScriptMetaIR
   /** 多 mesh 终端集合（设计文档 §2.2：return [ { shape, meta }, ... ]）。
    *  单 mesh 简写时为 undefined（用 meta 代替）；
    *  多 mesh 时每个终端 mesh 有独立 meta。 */
@@ -150,21 +148,21 @@ export interface PartScript {
 /**
  * 创建一条新语句。
  */
-export function createStatement(
+export function createStatementIR(
   id: StmtId,
   callee: string,
-  args: Record<string, Arg>,
-  inputs: ShapeRef[],
+  args: Record<string, ArgIR>,
+  inputs: PartName[],
   outputs: PartName[],
   name?: string,
-): CadStatement {
+): StatementIR {
   return { id, callee, args, inputs, outputs, name }
 }
 
 /**
- * 创建一个空 PartScript。
+ * 创建一个空 ScriptIR。
  */
-export function createPartScript(): PartScript {
+export function createScriptIR(): ScriptIR {
   return {
     params: [],
     statements: [],

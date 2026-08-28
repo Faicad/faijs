@@ -13,7 +13,7 @@
  * 判定单位是 PartName（不涉及 StmtId），与 partN 命名天然兼容。
  */
 
-import type { PartScript, TerminalShape, CadStatement, Arg } from '../lang/types'
+import type { ScriptIR, TerminalShape, StatementIR, ArgIR } from '../lang/types'
 import type { PartName } from '../identity'
 import { getFunctionSymbol } from '../lang/symbol-table'
 import { isVarRef, isCallRef } from '../lang/types'
@@ -22,22 +22,22 @@ import { isVarRef, isCallRef } from '../lang/types'
  * 判定语句 stmt 是否"消费"变量 v（替换 NON_CONSUMING_OPS 查表）。
  * 规则（设计文档 §4.8）：
  * - 未知 callee → 无 readonly 信息 → 右侧出现即消费（默认）
- * - 嵌套调用（CallRef）中的引用 = 只读查询，不消费
+ * - 嵌套调用（CallRefIR）中的引用 = 只读查询，不消费
  * - 符号表标记的 readonly 位置/路径不消费（copy 的源、group/assembly 的 members）
  * - receiver（成员方法调用，如 add_constraint / do_assemble）是**原地修改** compound：
  *   它**不消费** receiver 变量，compound 仍作为终端显示。只有出现在右侧 args 中的
  *   普通 shape 引用才按 readonly 规则判定是否消费（设计 §4.8：仅函数调用的输入 shape 被消费）。
  */
-export function consumes(stmt: CadStatement, v: PartName): boolean {
+export function consumes(stmt: StatementIR, v: PartName): boolean {
   // inputs：位置引用（符号表 readonlyPositions 命中的位置不消费）
   const idx = stmt.inputs.indexOf(v)
   if (idx >= 0) {
     const info = getFunctionSymbol(stmt.callee)
     if (!info?.readonlyPositions?.includes(idx)) return true
   }
-  // args：递归扫描 VarRef（CallRef 内不消费；readonlyPaths 属性内不消费）
+  // args：递归扫描 VarRefIR（CallRefIR 内不消费；readonlyPaths 属性内不消费）
   let consumed = false
-  const scan = (value: Arg, inCallRef: boolean, path: string[]): void => {
+  const scan = (value: ArgIR, inCallRef: boolean, path: string[]): void => {
     if (consumed) return
     if (value === null || typeof value !== 'object') return
     if (isVarRef(value)) {
@@ -54,10 +54,10 @@ export function consumes(stmt: CadStatement, v: PartName): boolean {
       return
     }
     if (Array.isArray(value)) {
-      for (const item of value) scan(item as Arg, inCallRef, path)
+      for (const item of value) scan(item as ArgIR, inCallRef, path)
       return
     }
-    for (const [k, vv] of Object.entries(value)) scan(vv as Arg, inCallRef, [...path, k])
+    for (const [k, vv] of Object.entries(value)) scan(vv as ArgIR, inCallRef, [...path, k])
   }
   for (const [k, vv] of Object.entries(stmt.args)) scan(vv, false, [k])
   return consumed
@@ -69,12 +69,12 @@ export function consumes(stmt: CadStatement, v: PartName): boolean {
  * 遍历每个 shape 变量名（含 compound 变量），"最后写者 P + 其后无独占语句消费该变量"
  * 即终端（消费判定换 consumes，B1 消灭）。
  *
- * @param script 已解析的 PartScript（statements 含 outputs/refs）
+ * @param script 已解析的 ScriptIR（statements 含 outputs/refs）
  * @param shapeVarNames 所有 shape-typed 顶层变量名集合（含 compound 变量名）
  * @returns 终端列表（TerminalShape[]），去重
  */
 export function computeLeafTerminals(
-  script: PartScript,
+  script: ScriptIR,
   shapeVarNames: Set<PartName>,
 ): TerminalShape[] {
   const statements = script.statements

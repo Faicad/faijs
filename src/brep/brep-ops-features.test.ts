@@ -47,7 +47,7 @@ import {
 import type { Shape } from '../mesh/types'
 import { executeScript } from '../test-helpers'
 import { ensureTestFontLoader } from '../brep/text/fontTestHelper'
-import type { CadStatement, PartScript } from '../lang/types'
+import type { StatementIR, ScriptIR } from '../lang/types'
 import { asPartName, asStmtId } from '../identity'
 
 let kernel: OcctKernel
@@ -538,13 +538,13 @@ describe('getSolidBoundingBox', () => {
 // 严禁把"已断裂"作为脱离链的零件状态单独持久化（那会造成"无法回退"）。
 
 describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from statement chain)', () => {
-  // 辅助：构造最小 CadStatement
+  // 辅助：构造最小 StatementIR
   function makeStmt(
     id: string,
     callee: string,
     args: Record<string, unknown>,
     inputs: string[] = [],
-  ): CadStatement {
+  ): StatementIR {
     return {
       id: asStmtId(id),
       callee,
@@ -555,8 +555,8 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
     }
   }
 
-  // 辅助：构造最小 PartScript
-  function makeScript(statements: CadStatement[]): PartScript {
+  // 辅助：构造最小 ScriptIR
+  function makeScript(statements: StatementIR[]): ScriptIR {
     return {
       params: [],
       source: { kind: 'load' },

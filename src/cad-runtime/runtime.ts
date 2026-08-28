@@ -2,11 +2,11 @@
  * CadRuntime — 执行核心（L2 编排层）
  *
  * Phase 1（VM 执行方案）：内部从"解释器主循环 + dispatcher switch"换成
- * compileToModule + ModuleExecutor。对外签名、ExecutionResult、PartScript、
+ * compileToModule + ModuleExecutor。对外签名、ExecutionResult、ScriptIR、
  * partN_vM 命名全部不变。
  *
  * 职责：
- * - 执行 PartScript 语句序列，产出 ExecutionResult（纯计算，不碰 store/DOM）
+ * - 执行 ScriptIR 语句序列，产出 ExecutionResult（纯计算，不碰 store/DOM）
  * - 管理 statementCache 作为实例成员（不再是模块级单例）
  * - 内部 resolveShapeRef（不再反向 import ScriptEngine / useScriptStore）
  * - 执行模式感知（auto / brep / mesh）
@@ -19,7 +19,7 @@
  * - window.dispatchEvent / toast
  */
 
-import type { PartScript, CadStatement, TerminalShape } from '../lang/types'
+import type { ScriptIR, StatementIR, TerminalShape } from '../lang/types'
 import type { Shape } from '../mesh/types'
 import type { BrepChainState } from '../brep/brep-chain'
 import type { ShapeHandle, OcctKernel } from 'occt-wasm'
@@ -123,11 +123,11 @@ export interface ExecuteOptions {
   /** 跨 part 输入几何（PartName → Shape） */
   inputGeometryMap?: Map<PartName, Shape>
   /** 整场景 DAG（用于跨 part 引用解析） */
-  sceneScript?: PartScript
+  sceneScript?: ScriptIR
   /** partTransform（世界→局部坐标偏移 + 单位缩放） */
   partTransform?: { position: [number, number, number]; scale?: [number, number, number] }
   /** 语句前钩子（用于 undo 逐语句快照） */
-  beforeStatement?: (stmt: CadStatement, index: number) => void
+  beforeStatement?: (stmt: StatementIR, index: number) => void
   /**
    * 增量执行起点（兼容旧签名）：从指定位置开始顺序执行，
    * 之前的语句不进执行循环（缺省 0 = 全量执行）。
@@ -140,6 +140,25 @@ export interface ExecuteOptions {
    * - 'off'：不自动构建（只返回宿主 setTopology 注入的拓扑）
    */
   topology?: 'auto' | 'brep' | 'off'
+}
+
+export interface ExecuteCodeOptions extends ExecuteOptions {
+  /**
+   * 执行子集：源语句 id（sN）或输出变量名（partN）。省略 = 全量执行。
+   * 子集语义：过滤出匹配语句（保持原顺序）后走 execute 全流水线
+   * （对应宿主 executePart / recomputePart 的"只执行该 part 的语句子集"）。
+   */
+  stmtIds?: (StmtId | PartName)[]
+  /**
+   * 增量追加语义（等价 runtime.append）：stmtIds 只含新增语句，
+   * 前缀依赖须已在持久 ctx（对应宿主 appendStatement）。
+   */
+  incremental?: boolean
+  /**
+   * 跨 part 引用的整场景代码文本（IR 剥离配套：宿主不能构造 sceneScript IR，
+   * 传 sceneCode 文本，内部 parseScript 后作为 sceneScript 传递）。
+   */
+  sceneCode?: string
 }
 
 // ── CadRuntime ──
@@ -251,7 +270,7 @@ export class CadRuntime {
   // ── 核心方法：execute（全量执行） ──
 
   /**
-   * 执行 PartScript，返回 ExecutionResult。
+   * 执行 ScriptIR，返回 ExecutionResult。
    *
    * 纯计算：只产出几何，不碰场景树/store/DOM。
    * browser host 负责消费 ExecutionResult 并落地。
@@ -260,7 +279,7 @@ export class CadRuntime {
    * executeAll（startIndex > 0 时从该语句起）→ collectResult。
    */
   async execute(
-    script: PartScript,
+    script: ScriptIR,
     opts?: ExecuteOptions,
   ): Promise<ExecutionResult> {
     const { code, statements } = compileToModule(script)
@@ -288,7 +307,7 @@ export class CadRuntime {
   }
 
   /** 构建参数表：opts.params 优先，脚本 params 兜底（execute / append 复用）。 */
-  private buildParamsMap(script: PartScript, opts?: ExecuteOptions): Record<string, unknown> {
+  private buildParamsMap(script: ScriptIR, opts?: ExecuteOptions): Record<string, unknown> {
     const paramsMap: Record<string, unknown> = {}
     if (opts?.params) {
       for (const [k, v] of Object.entries(opts.params)) {
@@ -311,7 +330,7 @@ export class CadRuntime {
    * - stale 为空（无变化）→ 从持久 ctx 组装结果直接返回，零执行；
    * - 否则 executeFrom(staleIds)（stale 集对 deps 封闭，按拓扑序执行）。
    */
-  async update(script: PartScript, opts?: ExecuteOptions): Promise<ExecutionResult> {
+  async update(script: ScriptIR, opts?: ExecuteOptions): Promise<ExecutionResult> {
     const { code, statements } = compileToModule(script)
     this.executor.setCompiled(script, statements)
     await this.executor.load(code)
@@ -343,7 +362,7 @@ export class CadRuntime {
    * 契约前提：新增语句的输入必然是此前已执行成功的活跃语句的输出，持久 ctx 保证其存在；
    * 若输入真缺失（dispose/删除后未同步），是调用方应先 execute 全量的信号——append 不做前缀完整性验证。
    */
-  async append(script: PartScript, newIds: StmtId[], opts?: ExecuteOptions): Promise<ExecutionResult> {
+  async append(script: ScriptIR, newIds: StmtId[], opts?: ExecuteOptions): Promise<ExecutionResult> {
     const { code, statements } = compileToModule(script)
     this.executor.setCompiled(script, statements)
     await this.executor.load(code)
@@ -370,13 +389,50 @@ export class CadRuntime {
     }, opts)
   }
 
+  /**
+   * 源代码执行入口（IR 剥离配套）：宿主只见 code 文本，不接触 ScriptIR。
+   *
+   * 内部 parseScript(code) 后三分派：
+   * ① 无 stmtIds → execute（全量）
+   * ② stmtIds + incremental → append（只执行指定语句，前缀依赖在持久 ctx）
+   * ③ stmtIds（子集）→ 过滤语句子集后 execute（对应宿主 executePart/recomputePart）
+   *
+   * ExecutionResult 结构与 execute/append 完全一致。
+   */
+  async executeCode(code: string, opts?: ExecuteCodeOptions): Promise<ExecutionResult> {
+    const { script } = parseScript(code)
+    let execOpts: ExecuteOptions | undefined = opts
+    if (opts?.sceneCode !== undefined) {
+      const { script: sceneScript } = parseScript(opts.sceneCode)
+      const { sceneCode: _sceneCode, ...rest } = opts
+      execOpts = { ...rest, sceneScript }
+    }
+    const stmtIds = opts?.stmtIds
+    if (!stmtIds || stmtIds.length === 0) {
+      return this.execute(script, execOpts)
+    }
+    if (opts?.incremental) {
+      return this.append(script, stmtIds as StmtId[], execOpts)
+    }
+    const wanted = new Set(stmtIds.map(String))
+    const subset = script.statements.filter(
+      (s) => wanted.has(String(s.id)) || s.outputs.some((o) => wanted.has(String(o))),
+    )
+    if (subset.length === 0) {
+      throw new Error(
+        `[CadRuntime.executeCode] no statement matches stmtIds [${stmtIds.join(', ')}]`,
+      )
+    }
+    return this.execute({ ...script, statements: subset }, execOpts)
+  }
+
   /** plan() — 依赖分析，得出需要重算的语句集合（对外签名不变）。 */
-  plan(script: PartScript): { stale: CadStatement[]; reused: Map<PartName, string> } {
+  plan(script: ScriptIR): { stale: StatementIR[]; reused: Map<PartName, string> } {
     const { statements } = compileToModule(script)
     // 先同步 executor 的脚本元数据——plan 计算参数语句 key 依赖 executor.script 的 params
     this.executor.setCompiled(script, statements)
     const { staleCompiledIds, reused } = this.planCompiled(script, statements)
-    const stale: CadStatement[] = []
+    const stale: StatementIR[] = []
     for (const id of staleCompiledIds) {
       const meta = statements.find((m) => m.id === id)
       if (meta?.sourceIndex !== undefined) stale.push(script.statements[meta.sourceIndex])
@@ -389,7 +445,7 @@ export class CadRuntime {
    * 参数语句（改参数 = 参数语句 key 变化）经 deps 级联使全部引用语句 stale（根治 plan 不感知 params）。
    */
   private planCompiled(
-    script: PartScript,
+    script: ScriptIR,
     statements: CompiledStatementMeta[],
   ): { staleCompiledIds: Set<StmtId>; reused: Map<PartName, string> } {
     const staleCompiledIds = new Set<StmtId>()
@@ -422,9 +478,9 @@ export class CadRuntime {
 
   /** reconcileCtx：删除"定义语句已不在脚本中"的 ctx 变量并释放其内核资源。 */
   private reconcile(
-    script: PartScript,
+    script: ScriptIR,
     statements: CompiledStatementMeta[],
-    sceneScript?: PartScript | null,
+    sceneScript?: ScriptIR | null,
   ): void {
     const activeIds = new Set(statements.map((s) => s.id))
     const writeSets = new Map(statements.map((s) => [s.id, s.writes.map(asPartName)]))
@@ -444,7 +500,7 @@ export class CadRuntime {
 
   /** 创建 ExecContextImpl（当前重放输出缓存从持久 ctx 预填）。 */
   private createExecContext(
-    script: PartScript,
+    script: ScriptIR,
     opts: ExecuteOptions | undefined,
     brepChain: BrepChainState,
   ): ExecContextImpl {
@@ -483,7 +539,7 @@ export class CadRuntime {
    * 使编译产物 fn 的 `ctx.<var>` 直接命中（旧解释器经 resolveShapeRef 兜底）。
    * 必须在 reconcileCtx 之后调用（否则被当作非活跃变量回收）。
    */
-  private async prepareCtx(script: PartScript, opts?: ExecuteOptions): Promise<void> {
+  private async prepareCtx(script: ScriptIR, opts?: ExecuteOptions): Promise<void> {
     if (opts?.inputGeometryMap) {
       for (const [name, shape] of opts.inputGeometryMap) {
         if (this.executor.getCtxVar(name) === undefined) this.executor.setCtxVar(name, shape)
@@ -508,7 +564,7 @@ export class CadRuntime {
 
   /** 执行并捕获 brep 强制模式失败（BrepUnsupportedError → ExecutionResult.failedAt）。 */
   private async runWithFailureHandling(
-    script: PartScript,
+    script: ScriptIR,
     exec: ExecContextImpl,
     run: () => Promise<void>,
     opts?: ExecuteOptions,
@@ -532,7 +588,7 @@ export class CadRuntime {
   }
 
   /** 从持久 ctx 组装完整 ExecutionResult（outputs / statementCache / brepSolids / topology / compounds）。 */
-  private collectResult(script: PartScript, exec: ExecContextImpl, opts?: ExecuteOptions): ExecutionResult {
+  private collectResult(script: ScriptIR, exec: ExecContextImpl, opts?: ExecuteOptions): ExecutionResult {
     const outputs = new Map<PartName, Shape>()
     for (const meta of this.executor.getMetas()) {
       for (const w of meta.writes) {
@@ -648,7 +704,7 @@ export class CadRuntime {
 
   /** 逐终端提取 BREP solid（含装配成员 solid）。 */
   private extractBrepSolids(
-    script: PartScript,
+    script: ScriptIR,
     terminals: TerminalShape[],
   ): Map<PartName, { solid: ShapeHandle; kernel: OcctKernel }> {
     const brepSolids = new Map<PartName, { solid: ShapeHandle; kernel: OcctKernel }>()
@@ -710,7 +766,7 @@ export class CadRuntime {
   private async resolveShapeRef(
     partName: PartName,
     localCache: Map<PartName, Shape>,
-    sceneScript?: PartScript,
+    sceneScript?: ScriptIR,
   ): Promise<Shape> {
     // 1. 本地缓存
     const local = localCache.get(partName)
@@ -772,7 +828,7 @@ export class CadRuntime {
 
   /** 旧 statementKey 计算（跨 part 子重放用，逻辑与旧解释器一致）。 */
   private computeLegacyStatementKey(
-    stmt: CadStatement,
+    stmt: StatementIR,
     getInputContentKey: (id: PartName) => string | undefined,
   ): string {
     const parts: string[] = [stmt.callee]
@@ -794,7 +850,7 @@ export class CadRuntime {
   /** 写入语句缓存（statementCache 按 PartName 键控） */
   writeToStatementCache(
     partName: PartName,
-    stmt: CadStatement,
+    stmt: StatementIR,
     output: Shape,
     outputContentKey: string,
   ): void {
@@ -888,7 +944,7 @@ export class CadRuntime {
     const warnings: string[] = []
 
     // ① parse（acorn 闸门；零知识解析）
-    let script: PartScript
+    let script: ScriptIR
     try {
       const result = parseScript(code)
       script = result.script
