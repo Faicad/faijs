@@ -31,10 +31,10 @@ import type {
   PartScriptMeta,
   TerminalShape,
 } from './types'
-import { derivePartName } from './allocate-id'
 import { isParamRef, isVarRef, isCallRef } from './types'
 import {
   asStmtId,
+  asPartName,
   type PartName,
 } from '../identity'
 
@@ -464,7 +464,7 @@ function collectRefsFromArg(value: Arg, out: Set<string>): void {
 }
 
 /**
- * 收集单条语句引用的全部变量名（inputs + args 中 $param / $ref / 嵌套调用）。
+ * 收集单条语句引用的全部变量名（inputs + args 中 $param / $ref / 嵌套调用 + receiver）。
  * 存入 stmt.refs，编译期据此翻译为 deps（定义这些变量的语句 id）。
  */
 function collectStatementRefs(stmt: CadStatement): string[] {
@@ -472,6 +472,9 @@ function collectStatementRefs(stmt: CadStatement): string[] {
   for (const arg of Object.values(stmt.args)) {
     collectRefsFromArg(arg, refs)
   }
+  // receiver：成员方法调用（add_constraint/do_assemble 等）依赖其 receiver 变量，
+  // 不加入则成员调用对 compound 的依赖边缺失（连带 bug，见命名分层修复文档 §2.4）。
+  if (stmt.receiver) refs.add(stmt.receiver)
   return [...refs]
 }
 
@@ -579,19 +582,11 @@ export function parseScript(code: string): ParseResult {
             throw new ParseError('destructuring requires const', line)
           }
           const { stmt, valueNames } = parseDestructuring(decl, paramNames, varToId)
-          // 命名服务：按输出数分配连续 PartName（derivePartName，A13 消灭）
-          const outCount = valueNames.length
-          const result = derivePartName({
-            callee: stmt.callee,
-            inputCount: stmt.inputs.length,
-            outputCount: outCount,
-            statements,
-          })
-          const outs = result.names
-          stmt.outputs = outs
+          // 命名服务不再由 parser 调用：parser 只做语法分析，保留词法变量名（设计 §5.1）
+          stmt.outputs = valueNames.map((n) => asPartName(n))
           statements.push(stmt)
-          // 词法变量名 → 物理 PartName
-          valueNames.forEach((n, i) => varToId.set(n, outs[i]))
+          // varToId 仅用于作用域校验，恒等映射（词法名 → 词法名）
+          valueNames.forEach((n) => varToId.set(n, asPartName(n)))
           break
         }
 
@@ -612,20 +607,11 @@ export function parseScript(code: string): ParseResult {
         ) {
           // 语句：const partN_vM = [await] cad.op(...)
           const { stmt, varName } = parseCadStatement(decl, paramNames, varToId)
-          // 命名服务：立即分配 outputs（derivePartName），
-          //   这样 getMaxModelNum 能从已有 outputs 正确扫描，
-          //   且 varToId 映射为分配的 PartName（而非恒等映射变量名）。
-          const result = derivePartName({
-            callee: stmt.callee,
-            inputCount: stmt.inputs.length,
-            outputCount: 1,
-            statements,
-          })
-          const allocated = result.behavior === 'reuse' ? stmt.inputs[0] : result.names[0]
-          stmt.outputs = [allocated]
+          // 命名服务不再由 parser 调用：parser 只做语法分析，保留词法变量名（设计 §5.1）
+          stmt.outputs = [asPartName(varName)]
           statements.push(stmt)
-          // 词法变量名 → 物理 PartName
-          varToId.set(varName, allocated)
+          // varToId 仅用于作用域校验，恒等映射（词法名 → 词法名）
+          varToId.set(varName, asPartName(varName))
         } else if (
           init?.type === 'Literal' ||
           init?.type === 'ArrayExpression' ||
@@ -692,18 +678,11 @@ export function parseScript(code: string): ParseResult {
               loc: stmtNode.loc,
             }
             const { stmt, varName: parsedVar } = parseCadStatement(fakeDecl, paramNames, varToId)
-            // 命名服务：裸重赋值也分配 outputs（单入单出 → 复用输入名）
-            const result = derivePartName({
-              callee: stmt.callee,
-              inputCount: stmt.inputs.length,
-              outputCount: 1,
-              statements,
-            })
-            const allocated = result.behavior === 'reuse' ? stmt.inputs[0] : result.names[0]
-            stmt.outputs = [allocated]
+            // 命名服务不再由 parser 调用：裸重赋值保留词法变量名（设计 §5.1）
+            stmt.outputs = [asPartName(parsedVar)]
             statements.push(stmt)
-            // 重赋值同名变量，更新映射为分配的 PartName
-            varToId.set(parsedVar, allocated)
+            // varToId 仅用于作用域校验，恒等映射（词法名 → 词法名）
+            varToId.set(parsedVar, asPartName(parsedVar))
             break
           }
           throw new ParseError(`re-assignment must be a cad.op() call`, line)

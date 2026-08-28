@@ -15,7 +15,7 @@ import { describe, it, expect } from 'vitest'
 import { parseScript, ParseError, getApiVersion } from './parser'
 import { scriptToCode } from './codegen'
 import { isVarRef, isCallRef } from './types'
-import type { PartScript, CadStatement, CallRef } from './types'
+import type { PartScript, CadStatement, CallRef, Arg } from './types'
 import { asStmtId, asPartName } from '../identity'
 
 // ── 测试辅助 ──
@@ -363,5 +363,52 @@ describe('parser: 引用预检与自由引用', () => {
     expect(script.statements[1].callee).toBe('copy')
     expect(script.statements[1].outputs[0]).toBe('part1')
     expect(script.statements[1].inputs).toEqual(['part0'])
+  })
+})
+
+// ── 命名分层修复（2026-08-28）：parser 保留词法名，不做命名分配 ──
+
+describe('parser: 命名分层修复（parser 保留词法名，不调 derivePartName）', () => {
+  it('单声明保留词法名: let asm1 = cad.assembly(...) → outputs:["asm1"]', () => {
+    const code = `
+      let part0 = cad.box({ size: 20 })
+      let asm1 = cad.assembly({ name: 'A', members: ['part0'] })
+    `
+    const { script } = parseScript(code)
+    expect(script.statements).toHaveLength(2)
+    const asmStmt = script.statements[1]
+    expect(asmStmt.callee).toBe('assembly')
+    // 修复前 asm1 被 derivePartName 改成 partN；修复后保留词法名 asm1
+    expect(asmStmt.outputs).toEqual(['asm1'])
+  })
+
+  it('成员调用 receiver 保留词法名且 refs 含 receiver（依赖边不缺失）', () => {
+    const code = `
+      let part0 = cad.box({ size: 20 })
+      let asm1 = cad.assembly({ name: 'A', members: ['part0'] })
+      asm1.add_constraint({ type: 'face_mate' })
+    `
+    const { script } = parseScript(code)
+    expect(script.statements).toHaveLength(3)
+    const constraintStmt = script.statements[2]
+    expect(constraintStmt.callee).toBe('add_constraint')
+    expect(constraintStmt.receiver).toBe('asm1')
+    // Phase 2 修复：collectStatementRefs 补收 receiver
+    expect(constraintStmt.refs).toContain('asm1')
+  })
+
+  it('VarRef 引用保留词法名: members: [part0] → $ref 为 "part0"', () => {
+    const code = `
+      let part0 = cad.box({ size: 20 })
+      let g = cad.group({ name: 'G', members: [part0] })
+    `
+    const { script } = parseScript(code)
+    const groupStmt = script.statements[1]
+    expect(groupStmt.callee).toBe('group')
+    expect(groupStmt.outputs).toEqual(['g'])
+    const members = groupStmt.args.members as Arg[]
+    expect(Array.isArray(members)).toBe(true)
+    expect(isVarRef(members![0])).toBe(true)
+    expect((members![0] as { $ref: string }).$ref).toBe('part0')
   })
 })

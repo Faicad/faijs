@@ -4,6 +4,10 @@
  * 设计文档：docs/plans/2026-08-27-faijs-language-normalization-design.md §4.7
  * 实施文档：docs/plans/2026-08-27-faijs-language-normalization-implementation.md §2.2
  *
+ * 定位：**命名服务单测（生成侧）**——derivePartName 仅供 UI/AI/CLI 生成代码文本时调用，
+ * parser 不调用（2026-08-28 命名分层修复后，parser 只做语法分析、保留词法变量名）。
+ * 本测试与 parser 解耦：parser 不再调用本服务，不影响本测试。
+ *
  * `derivePartName` 是阶段 3 才实现的纯函数（实施文档 §5.4）。
  * 本测试按目标签名写，阶段 0 必须红（编译失败/断言失败均可接受）。
  * 阶段 3 实现后转绿。

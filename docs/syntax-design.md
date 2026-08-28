@@ -4,6 +4,8 @@
 
 重大更新：partN_vM 格式的命名规则仅用于UI层自动生成的代码。手写、ai生成代码不在此列。
 
+**命名职责分层（parser 不命名）**：`derivePartName`（partN 分配服务）由生成侧（UI/AI/CLI）在生成代码文本时调用；parser **不调用**命名服务，解析时保留源码的词法变量名——任意合法 JS 标识符原样写入 `outputs`/`inputs`/`receiver`/`$ref`，不做任何名称翻译。
+
 ---
 
 ## 0. 需求与约束

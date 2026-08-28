@@ -96,25 +96,25 @@ describe('computeLeafTerminals: DAG leaf detection', () => {
     expect(terminals.sort()).toEqual(['part0', 'part1', 'part2'])
   })
 
-  it('成员方法调用不消费 compound（真实解析: 变量被重命名为 partN）: asm1=assembly(...); asm1.add_constraint(...) → 重命名后的 compound 仍终端', () => {
+  it('成员方法调用不消费 compound（真实解析: parser 保留词法名）: asm1=assembly(...); asm1.add_constraint(...) → compound 仍终端', () => {
     // 设计 §4.8：仅函数调用的输入 shape 被消费；receiver（add_constraint/do_assemble）
-    // 是原地修改 compound，不应被消费。parser 会把 asm1 重命名为 part1，故终端为 part0 + part1。
+    // 是原地修改 compound，不应被消费。parser 保留词法名 asm1，故终端为 part0 + asm1。
     const terminals = terminalsFromCode(`
       let part0 = cad.box({ size: 20 })
       let asm1 = cad.assembly({ members: ['part0'] })
       asm1.add_constraint({ type: 'face_mate' })
     `)
-    // assembly 不消费 part0 → part0 终端；add_constraint 不消费 compound → part1（即 asm1）终端
-    expect(terminals.sort()).toEqual(['part0', 'part1'])
+    // assembly 不消费 part0 → part0 终端；add_constraint 不消费 compound → asm1 终端
+    expect(terminals.sort()).toEqual(['asm1', 'part0'])
   })
 
-  it('do_assemble 成员方法调用同样不消费 compound（重命名后）', () => {
+  it('do_assemble 成员方法调用同样不消费 compound（保留词法名）', () => {
     const terminals = terminalsFromCode(`
       let part0 = cad.box({ size: 20 })
       let asm1 = cad.assembly({ members: ['part0'] })
       asm1.do_assemble()
     `)
-    expect(terminals.sort()).toEqual(['part0', 'part1'])
+    expect(terminals.sort()).toEqual(['asm1', 'part0'])
   })
 
   it('computeLeafTerminals 端到端守卫: receiver 与变量名一致时，成员方法调用不消费 compound', () => {

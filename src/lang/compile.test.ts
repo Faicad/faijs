@@ -99,8 +99,9 @@ describe('compileToModule: 语句元数据', () => {
     expect(byId.get('s2')!.deps).toEqual(['s1'])
     // part1 引用 part0（inputs + $geom.of）→ deps ['s2']（box 定义 part0）
     expect(byId.get('s3')!.deps).toEqual(['s2'])
-    // split 引用 part0 → Phase 3 后 part0 被 drill(s3) 复写（单入单出复用名），deps ['s3']
-    expect(byId.get('s4')!.deps).toEqual(['s3'])
+    // split 引用 part0 → parser 保留词法名（drill 产出 part1 而非复用 part0），
+    // part0 由 box(s2) 定义 → deps ['s2']
+    expect(byId.get('s4')!.deps).toEqual(['s2'])
   })
 
   it('writes：普通语句 [id]、split 双输出、参数 [name]、do_assemble 空', () => {
@@ -124,11 +125,10 @@ describe('compileToModule: 语句元数据', () => {
       grp1.do_assemble()
     `
     const { statements, script } = compileText(text)
-    // Phase 3: group 语句写入 partN（取消 grp_N，按「无输入/单输出」规则拿新 partN）
-    // 前两个 box → part0, part1；group → part2
+    // parser 保留词法名：group 语句写入 grp1（不再分配 partN）
     const groupMeta = statements.find((s) => s.sourceIndex !== undefined && script.statements[s.sourceIndex].callee === 'group')!
     expect(groupMeta).toBeDefined()
-    expect(groupMeta.writes).toEqual(['part2'])
+    expect(groupMeta.writes).toEqual(['grp1'])
     // group 的 deps 含成员语句（members 是 VarRef，经通用扫描收集）
     expect(groupMeta.deps).toEqual(['s1', 's2'])
     // add_constraint / do_assemble 无写入
