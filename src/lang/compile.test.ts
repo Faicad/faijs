@@ -44,7 +44,7 @@ describe('compileToModule: 模块文本', () => {
     expect(code).toContain('ctx.part0 = await cad.box({ size: ctx.r }, exec)')
   })
 
-  it('$geom 翻译为 cad.faceCenter(...exec)；$asset 翻译为 await cad.asset(key, exec)', async () => {
+  it('CallRef 翻译为 await cad.<callee>(...exec)；嵌套 asset 走 await cad.asset(key, exec)', async () => {
     const { code } = compileText(`
       const part0 = await cad.box({ size: [10, 20, 5] })
       const part1 = await cad.drill(part0, {
@@ -53,7 +53,7 @@ describe('compileToModule: 模块文本', () => {
       })
       const part2 = await cad.svgExtrude({ svg: cad.asset('logo.svg'), depth: 2, targetLongSide: 20 })
     `)
-    expect(code).toContain('cad.faceCenter(ctx.part0, [5,20,2.5], 2, exec)')
+    expect(code).toContain('position: await cad.faceCenter(ctx.part0, [5, 20, 2.5], 2, exec)')
     expect(code).toContain('await cad.asset("logo.svg", exec)')
   })
 
@@ -67,13 +67,13 @@ describe('compileToModule: 模块文本', () => {
     expect(code).toContain('ctx.part2 = back')
   })
 
-  it('boolean 多输入：cad.boolean(input1, input2, { operation }, exec)', async () => {
+  it('boolean 归一取消：cad.union 编译为 cad.union(input1, input2, exec)（空 args 槽不发射）', async () => {
     const { code } = compileText(`
       const part0 = await cad.box({ size: [10, 20, 5] })
       const part1 = await cad.box({ size: [5, 5, 5] })
       const part2 = await cad.union(part0, part1)
     `)
-    expect(code).toContain('cad.boolean(ctx.part0, ctx.part1, { operation: "union" }, exec)')
+    expect(code).toContain('ctx.part2 = await cad.union(ctx.part0, ctx.part1, exec)')
   })
 })
 
@@ -119,24 +119,24 @@ describe('compileToModule: 语句元数据', () => {
     const text = `
       const part0 = await cad.box({ size: [10, 20, 5] })
       const part1 = await cad.box({ size: [5, 5, 5] })
-      const grp1 = await cad.group({ name: 'G', members: ['part0', 'part1'] })
+      const grp1 = await cad.group({ name: 'G', members: [part0, part1] })
       grp1.add_constraint({ type: 'face_mate' })
       grp1.do_assemble()
     `
     const { statements, script } = compileText(text)
     // Phase 3: group 语句写入 partN（取消 grp_N，按「无输入/单输出」规则拿新 partN）
     // 前两个 box → part0, part1；group → part2
-    const groupMeta = statements.find((s) => s.sourceIndex !== undefined && script.statements[s.sourceIndex].op === 'group')!
+    const groupMeta = statements.find((s) => s.sourceIndex !== undefined && script.statements[s.sourceIndex].callee === 'group')!
     expect(groupMeta).toBeDefined()
     expect(groupMeta.writes).toEqual(['part2'])
-    // group 的 deps 含成员语句
+    // group 的 deps 含成员语句（members 是 VarRef，经通用扫描收集）
     expect(groupMeta.deps).toEqual(['s1', 's2'])
     // add_constraint / do_assemble 无写入
     for (let i = 0; i < statements.length; i++) {
       const meta = statements[i]
       if (meta.sourceIndex === undefined) continue
       const stmt = script.statements[meta.sourceIndex]
-      if (stmt.op === 'add_constraint' || stmt.op === 'do_assemble') {
+      if (stmt.callee === 'add_constraint' || stmt.callee === 'do_assemble') {
         expect(meta.writes).toEqual([])
       }
     }

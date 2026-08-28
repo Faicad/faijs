@@ -2,7 +2,7 @@
  * @faicad/faijs �?Faicad CAD execution engine
  *
  * 公开 API 统一入口。所有导出按层组织：
- * - L0 文本层：parser / codegen / args-schema / types
+ * - L0 文本层：parser / codegen / symbol-table / types
  * - L1 几何执行层：BREP ops / Shape / 导出
  * - L1 Mesh 执行层：cad API
  * - L1 Boolean/CSG 辅助：cross-section / deriveNormals / extrude-helpers / joinery-shapes
@@ -29,30 +29,28 @@ export {
   toScopedId, splitScopedId, isScopedId, toInnerId,
 } from './identity'
 
-// ── L0 文本�?层
+// ── L0 文本层
 export type {
   PartScript, CadStatement, Arg, Vec3, JsonValue, ShapeRef,
-  ParamRef, GeomRef, AssetRef,
+  ParamRef, VarRef, CallRef,
   TerminalShape, ParamDef, PartScriptMeta,
 } from './lang/types'
 export {
-  isGeomRef, isParamRef, isAssetRef,
+  isVarRef, isParamRef, isCallRef,
   createStatement, createPartScript,
 } from './lang/types'
 export {
-  allocateStatementId, allocateSplitIds,
-  isPartVmId, getModelNum, getVersionNum,
+  derivePartName, getMaxModelNum,
 } from './lang/allocate-id'
-export type { AllocateIdContext } from './lang/allocate-id'
+export type { DerivePartNameInput, DerivePartNameResult } from './lang/allocate-id'
+export { SYMBOL_TABLE, getFunctionSymbol } from './lang/symbol-table'
+export type { SymbolTable, FunctionSymbol } from './lang/symbol-table'
 export { parseScript, ParseError, getApiVersion } from './lang/parser'
-export type { ParseOptions, ParseResult } from './lang/parser'
+export type { ParseResult } from './lang/parser'
 export { statementToLine, scriptToCode, fmtNum, buildArgsParts } from './lang/codegen'
-export { validateStatementArgs, validateScriptArgs, getOpSchema, hasOpSchema } from './lang/args-schema'
-export type { OpSchema, ArgFieldSchema, ArgType, ValidationError } from './lang/args-schema'
 
 // ── L1 几何执行 ──
-export type { Shape } from './mesh/types'
-export { resolveGeomRef } from './stdlib/internal/geom-ref'
+export type { Shape, ReadonlyShape } from './mesh/types'
 export type { BrepChainState } from './brep/brep-chain'
 export {
   createBrepChainState, initBrepChainState, releaseBrepChainState,

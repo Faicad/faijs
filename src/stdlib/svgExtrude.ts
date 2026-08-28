@@ -16,10 +16,19 @@ import { solidToShape } from '../brep/brep-ops'
 import { resolveSvgArg } from './internal/svg-asset-resolver'
 import { solid } from './shape'
 import { resolvePath } from './internal/resolve-path'
+import { assertPositiveNumber } from './assert'
 import type { ExecContext, ExecContextImpl } from '../cad-runtime/exec-context'
 
 /** BREP 实现标记（resolvePath 判定用；svgExtrude 有 OCCT 精确构造） */
 const brepImpl = svgToSolid
+
+/** svgExtrude: svg 必填；depth 必填 > 0。 */
+export function assertSvgExtrudeParams(params: Record<string, unknown>): void {
+  if (params.svg === undefined || params.svg === null || params.svg === '') {
+    throw new Error(`[stdlib/svgExtrude] svg is required, got ${JSON.stringify(params.svg)}`)
+  }
+  assertPositiveNumber(params.depth, 'svgExtrude.depth')
+}
 
 /** BREP 路径：SVG path 解析 → OCCT wire/face → extrude + 身份槽挂 solid。 */
 function svgExtrudeBrep(params: Record<string, unknown>, exec: ExecContext, svgText: string): Shape {
@@ -37,6 +46,7 @@ function svgExtrudeBrep(params: Record<string, unknown>, exec: ExecContext, svgT
 }
 
 export async function svgExtrude(params: Record<string, unknown>, exec: ExecContext): Promise<Shape> {
+  assertSvgExtrudeParams(params)
   // 解析 SVG 资产引用（AssetRef → SVG 文本）；两条路径都需要
   const svgText = await resolveSvgArg(params.svg, (exec as ExecContextImpl).ports)
 

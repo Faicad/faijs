@@ -3,10 +3,10 @@
  *
  * CadRuntime.check() dryRun 测试 (P3-6)
  *
- * 测试内容：
+ * 测试内容（阶段 4 三阶段：parse + symbol + reference）：
  * 1. 合法脚本 → ok: true
  * 2. parse 错误 → ok: false, stage: 'parse'
- * 3. schema 错误（unknown key）→ ok: false, stage: 'schema'
+ * 3. 符号错误（未知 callee）→ ok: false, stage: 'symbol'
  * 4. 引用预检（安全网，parser 已拦截大多数引用错误）
  *
  * Run: npx vitest run src/cad-runtime/check.test.ts
@@ -41,7 +41,7 @@ export default async (cad) => {
     expect(result.errors).toHaveLength(0)
     expect(result.script).toBeDefined()
     expect(result.script!.statements).toBe(1)
-    expect(result.script!.ops).toEqual(['box'])
+    expect(result.script!.callees).toEqual(['box'])
   })
 
   it('valid script: box + sphere boolean subtract → ok', () => {
@@ -54,7 +54,7 @@ export default async (cad) => {
 }`
     const result = makeRuntime().check(code)
     expect(result.ok).toBe(true)
-    expect(result.script!.ops).toEqual(['box', 'sphere', 'boolean'])
+    expect(result.script!.callees).toEqual(['box', 'sphere', 'subtract'])
   })
 
   it('valid script with params → ok', () => {
@@ -81,7 +81,7 @@ export default async (cad) => {
     const result = makeRuntime().check(code)
     expect(result.ok).toBe(true)
     expect(result.errors).toHaveLength(0)
-    expect(result.script!.ops).toEqual(['box', 'split', 'translate'])
+    expect(result.script!.callees).toEqual(['box', 'split', 'translate'])
   })
 
   it('reference precheck: undefined split output id → ok=false', () => {
@@ -126,28 +126,29 @@ export default async (cad) => {
     expect(result.errors[0].stage).toBe('parse')
   })
 
-  it('schema error: unknown field → ok=false, stage=schema', () => {
+  it('symbol error: unknown callee → ok=false, stage=symbol', () => {
     const code = `export default async (cad) => {
-  const part0 = cad.box({ size: 20, bogusField: 99 })
+  const part0 = cad.bogusFn({ size: 20 })
   return { shape: part0 }
 }`
     const result = makeRuntime().check(code)
     expect(result.ok).toBe(false)
-    const schemaErrors = result.errors.filter((e) => e.stage === 'schema')
-    expect(schemaErrors.length).toBeGreaterThan(0)
-    expect(schemaErrors[0].message).toContain('bogusField')
+    const symbolErrors = result.errors.filter((e) => e.stage === 'symbol')
+    expect(symbolErrors.length).toBeGreaterThan(0)
+    expect(symbolErrors[0].message).toContain('bogusFn')
   })
 
-  it('schema error: missing required field → ok=false, stage=schema', () => {
+  it('member method calls are exempt from symbol check (receiver present)', () => {
+    // 成员方法（asm.do_assemble）不在符号表（对象方法），receiver 非空时不查符号表
     const code = `export default async (cad) => {
-  const part0 = cad.box({})
+  const part0 = cad.box({ size: 20 })
+  const asm0 = cad.assembly({ members: [part0] })
+  asm0.do_assemble()
   return { shape: part0 }
 }`
     const result = makeRuntime().check(code)
-    expect(result.ok).toBe(false)
-    const schemaErrors = result.errors.filter((e) => e.stage === 'schema')
-    expect(schemaErrors.length).toBeGreaterThan(0)
-    expect(schemaErrors[0].message).toContain('size')
+    expect(result.ok).toBe(true)
+    expect(result.errors).toHaveLength(0)
   })
 
   it('check is zero-geometry-side-effect: no OCCT init needed', () => {
@@ -174,6 +175,6 @@ export default async (cad) => {
     expect(result.ok).toBe(true)
     expect(result.script).toBeDefined()
     expect(result.script!.statements).toBe(3)
-    expect(result.script!.ops).toEqual(['box', 'sphere', 'boolean'])
+    expect(result.script!.callees).toEqual(['box', 'sphere', 'union'])
   })
 })

@@ -11,10 +11,26 @@ import type { Shape, Vec3 } from '../mesh/types'
 import { cad } from '../mesh'
 import { solid } from './shape'
 import { resolvePath } from './internal/resolve-path'
+import { asPartName } from '../identity'
+import { assertPositiveNumber } from './assert'
 import type { ExecContext } from '../cad-runtime/exec-context'
+
+/** knurl: knurlTextureHeight 必填 > 0。 */
+export function assertKnurlParams(params: Record<string, unknown>): void {
+  assertPositiveNumber(params.knurlTextureHeight, 'knurl.knurlTextureHeight')
+}
 
 export async function knurl(input: Shape, params: Record<string, unknown>, exec: ExecContext): Promise<Shape> {
   if (!input) throw new Error('[stdlib/knurl] no input geometry')
+  assertKnurlParams(params)
+  // mesh-only op: emit part-brep-lost in auto mode (design §4.5-1, moved from adapter)
+  if (exec.mode === 'auto') {
+    exec.events.emit('part-brep-lost', {
+      partName: asPartName(exec.currentStmt?.outputs[0] ?? ''),
+      op: 'knurl',
+      reason: 'mesh-only op output',
+    })
+  }
   // mesh-only：无 brepImpl；brep 模式下 resolvePath 调用前抛 BrepUnsupportedError
   resolvePath(exec, [input], undefined)
   return solid(await cad.knurl(input, {

@@ -13,11 +13,24 @@
  * 对 moving 成员施加 face_mate 变换（mesh 顶点烘焙 + BREP 刚体变换 + 下游传播）。
  */
 
-import type { Shape } from '../mesh/types'
+import type { Shape, ReadonlyShape } from '../mesh/types'
 import { compound as makeCompound, ensureSlot, type CompoundShape } from './shape'
 import { applyTransformBrep } from '../brep/brep-ops'
 import type { ExecContext } from '../cad-runtime/exec-context'
 import type { PartName } from '../identity'
+
+// ── 参数类型（设计文档 §4.6：members readonly 标注供符号表提取） ──
+
+export interface GroupParams {
+  name?: string
+  /** Compound members: read-only references, never mutated by group/assembly. */
+  members?: readonly ReadonlyShape[]
+  memberNames?: string[]
+}
+
+export interface AssemblyParams extends GroupParams {
+  constraints?: AssemblyConstraint[]
+}
 
 // ── 约束类型 ──
 
@@ -237,12 +250,34 @@ function solveAssembly(compound: CompoundShape, behavior: AssemblyBehavior, exec
 // ── group / assembly 库函数 ──
 
 /**
- * `cad.group({ name, members, memberNames }, exec)` → compound Shape。
- * members 是成员 Shape（编译产物 ctx.<var> 引用），memberNames 是成员变量名。
+ * 从当前语句的 args.members（VarRef 形态，编译产物 `members:[ctx.a,ctx.b]`）推导成员变量名。
+ * 统一 ABI 后编译产物不再发射 memberNames 键（§5.2）；成员名由库函数从 IR 元数据自己解释。
+ * 兼容旧手工构造 IR（字符串数组 / 显式 memberNames）。
  */
-export function group(params: Record<string, unknown>, _exec: ExecContext): CompoundShape {
+function deriveMemberNames(params: { memberNames?: unknown; members?: unknown }, exec: ExecContext): string[] {
+  if (Array.isArray(params.memberNames) && params.memberNames.length > 0) {
+    return params.memberNames as string[]
+  }
+  const members = params.members
+  if (!Array.isArray(members)) return []
+  const stmtMembers = (exec.currentStmt?.args?.members as unknown[] | undefined) ?? []
+  if (stmtMembers.length !== members.length) return []
+  const names: string[] = []
+  for (const m of stmtMembers) {
+    if (typeof m === 'string') names.push(m)
+    else if (m && typeof m === 'object' && '$ref' in m) names.push((m as { $ref: string }).$ref)
+    else return []
+  }
+  return names
+}
+
+/**
+ * `cad.group({ name, members }, exec)` → compound Shape。
+ * members 是成员 Shape（编译产物 ctx.<var> 引用），成员名从 IR 元数据推导。
+ */
+export function group(params: GroupParams, exec: ExecContext): CompoundShape {
   const members = (params.members as Shape[] | undefined) ?? []
-  const memberNames = (params.memberNames as string[] | undefined) ?? []
+  const memberNames = deriveMemberNames(params, exec)
   const c = makeCompound(members)
   // 挂最小 behavior（memberNames 供 ExecutionResult.compounds 结构输出；group 无约束）
   ensureSlot(c).behavior = { memberNames, constraints: [], solve: () => {} }
@@ -250,12 +285,12 @@ export function group(params: Record<string, unknown>, _exec: ExecContext): Comp
 }
 
 /**
- * `cad.assembly({ name, members, memberNames, constraints }, exec)` → compound Shape + AssemblyBehavior。
+ * `cad.assembly({ name, members, constraints }, exec)` → compound Shape + AssemblyBehavior。
  * 挂 do_assemble 方法（编译产物 `ctx.<asm>.do_assemble(exec)` 调用）。
  */
-export function assembly(params: Record<string, unknown>, exec: ExecContext): CompoundShape {
+export function assembly(params: AssemblyParams, exec: ExecContext): CompoundShape {
   const members = (params.members as Shape[] | undefined) ?? []
-  const memberNames = (params.memberNames as string[] | undefined) ?? []
+  const memberNames = deriveMemberNames(params, exec)
   const constraints = (params.constraints as AssemblyConstraint[] | undefined) ?? []
 
   const c = makeCompound(members)
@@ -271,6 +306,12 @@ export function assembly(params: Record<string, unknown>, exec: ExecContext): Co
     // 每次 runtime.append 新建 exec，touch/变更声明必须落在当前 exec 上，
     // collectResult 才能反同步装配变换后的 solid 到 solidCache。
     behavior.solve(e)
+  }
+  // 统一成员调用 ABI：add_constraint 是 no-op（现状语义：约束由 assembly 语句 args.constraints 读取，
+  // 编译产物机械发射 `ctx.<asm>.add_constraint({...}, exec)`，调用此方法不崩）
+  ;(c as CompoundShape & { add_constraint?: (args: unknown, e: ExecContext) => void }).add_constraint = () => {
+    // Phase 1 semantics: constraints are read from the assembly statement's args.constraints;
+    // add_constraint is intentionally a no-op (kept for ABI uniformity).
   }
   return c
 }

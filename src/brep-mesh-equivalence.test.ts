@@ -47,12 +47,12 @@ beforeAll(async () => {
 
 function makeStmt(
   id: string,
-  op: string,
+  callee: string,
   args: Record<string, unknown>,
   inputs: string[] = [],
 ): CadStatement {
   return {
-    id: asStmtId(id), op,
+    id: asStmtId(id), callee,
     args: args as any,
     inputs: inputs.map(asPartName),
     outputs: [asPartName(id)],
@@ -324,7 +324,7 @@ describe('BREP/Mesh equivalence: boolean operations', () => {
     await runAndCompare([
       makeStmt('s1', 'box', { size: 20 }),
       makeStmt('s2', 'box', { size: 20, center: [15, 0, 0] }),
-      makeStmt('s3', 'boolean', { operation: 'union' }, ['s1', 's2']),
+      makeStmt('s3', 'union', {}, ['s1', 's2']),
     ], 'box+box union')
   })
 
@@ -332,7 +332,7 @@ describe('BREP/Mesh equivalence: boolean operations', () => {
     await runAndCompare([
       makeStmt('s1', 'box', { size: 20 }),
       makeStmt('s2', 'box', { size: 10 }),
-      makeStmt('s3', 'boolean', { operation: 'subtract' }, ['s1', 's2']),
+      makeStmt('s3', 'subtract', {}, ['s1', 's2']),
     ], 'box-box subtract')
   })
 
@@ -340,7 +340,7 @@ describe('BREP/Mesh equivalence: boolean operations', () => {
     await runAndCompare([
       makeStmt('s1', 'box', { size: 20 }),
       makeStmt('s2', 'box', { size: 20, center: [10, 0, 0] }),
-      makeStmt('s3', 'boolean', { operation: 'intersect' }, ['s1', 's2']),
+      makeStmt('s3', 'intersect', {}, ['s1', 's2']),
     ], 'box∩box intersect')
   })
 
@@ -348,7 +348,7 @@ describe('BREP/Mesh equivalence: boolean operations', () => {
     await runAndCompare([
       makeStmt('s1', 'box', { size: 20 }),
       makeStmt('s2', 'sphere', { radius: 10, center: [10, 0, 0] }),
-      makeStmt('s3', 'boolean', { operation: 'union' }, ['s1', 's2']),
+      makeStmt('s3', 'union', {}, ['s1', 's2']),
     ], 'box+sphere union')
   })
 
@@ -356,7 +356,7 @@ describe('BREP/Mesh equivalence: boolean operations', () => {
     await runAndCompare([
       makeStmt('s1', 'cylinder', { radius: 10, height: 20 }),
       makeStmt('s2', 'sphere', { radius: 8 }),
-      makeStmt('s3', 'boolean', { operation: 'subtract' }, ['s1', 's2']),
+      makeStmt('s3', 'subtract', {}, ['s1', 's2']),
     ], 'cyl-sphere subtract')
   })
 
@@ -369,7 +369,7 @@ describe('BREP/Mesh equivalence: boolean operations', () => {
         faceNormal: [0, 0, 1], holeType: 'simple',
       }, ['s1']),
       makeStmt('s3', 'box', { size: 15, center: [20, 0, 0] }),
-      makeStmt('s4', 'boolean', { operation: 'union' }, ['s2', 's3']),
+      makeStmt('s4', 'union', {}, ['s2', 's3']),
     ], 'box→drill→union')
   })
 })
@@ -423,7 +423,7 @@ describe('BREP/Mesh equivalence: end-to-end scripts', () => {
     await runAndCompare([
       makeStmt('s1', 'box', { size: 20 }),
       makeStmt('s2', 'sphere', { radius: 8, center: [5, 0, 0] }),
-      makeStmt('s3', 'boolean', { operation: 'subtract' }, ['s1', 's2']),
+      makeStmt('s3', 'subtract', {}, ['s1', 's2']),
     ], 'box-sphere (box-boolean.faijs)')
   })
 
@@ -432,9 +432,9 @@ describe('BREP/Mesh equivalence: end-to-end scripts', () => {
       makeStmt('s1', 'cylinder', { radius: 10, height: 30 }),
       makeStmt('s2', 'box', { size: 25 }),
       makeStmt('s3', 'translate', { offset: [0, 0, 5] }, ['s2']),
-      makeStmt('s4', 'boolean', { operation: 'intersect' }, ['s1', 's3']),
+      makeStmt('s4', 'intersect', {}, ['s1', 's3']),
       makeStmt('s5', 'sphere', { radius: 8, center: [0, 0, 15] }),
-      makeStmt('s6', 'boolean', { operation: 'subtract' }, ['s4', 's5']),
+      makeStmt('s6', 'subtract', {}, ['s4', 's5']),
     ], 'cyl∩box-sphere')
   })
 })

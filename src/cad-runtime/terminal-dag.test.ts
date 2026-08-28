@@ -15,7 +15,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { computeLeafTerminals, isNonConsumingOp } from './terminal-dag'
+import { computeLeafTerminals, consumes } from './terminal-dag'
 import { parseScript } from '../lang/parser'
 import type { PartName } from '../identity'
 import { asPartName } from '../identity'
@@ -157,18 +157,42 @@ describe('computeLeafTerminals: DAG leaf detection', () => {
   })
 })
 
-describe('isNonConsumingOp', () => {
-  it('group/assembly/copy 是不消费 op', () => {
-    expect(isNonConsumingOp('group')).toBe(true)
-    expect(isNonConsumingOp('assembly')).toBe(true)
-    expect(isNonConsumingOp('copy')).toBe(true)
+describe('consumes: 符号表驱动的消费判定（B1 消灭 NON_CONSUMING_OPS）', () => {
+  it('group/assembly/copy 是不消费 op（readonly 标注）', () => {
+    expect(consumes(
+      { id: 's1' as never, callee: 'group', args: { members: [{ $ref: asPartName('s1') }] }, inputs: [], outputs: [], hasAssignment: false },
+      asPartName('s1'),
+    )).toBe(false)
+    expect(consumes(
+      { id: 's1' as never, callee: 'assembly', args: { members: [{ $ref: asPartName('s1') }] }, inputs: [], outputs: [], hasAssignment: false },
+      asPartName('s1'),
+    )).toBe(false)
+    expect(consumes(
+      { id: 's1' as never, callee: 'copy', args: {}, inputs: [asPartName('s1')], outputs: [], hasAssignment: false },
+      asPartName('s1'),
+    )).toBe(false)
   })
 
-  it('其它 op 是消费 op', () => {
-    expect(isNonConsumingOp('box')).toBe(false)
-    expect(isNonConsumingOp('drill')).toBe(false)
-    expect(isNonConsumingOp('translate')).toBe(false)
-    expect(isNonConsumingOp('boolean')).toBe(false)
-    expect(isNonConsumingOp('split')).toBe(false)
+  it('其它 op 是消费 op（无 readonly 标注）', () => {
+    expect(consumes(
+      { id: 's1' as never, callee: 'box', args: {}, inputs: [], outputs: [], hasAssignment: false },
+      asPartName('part99'),
+    )).toBe(false)
+    expect(consumes(
+      { id: 's1' as never, callee: 'drill', args: { diameter: 5 }, inputs: [asPartName('part0')], outputs: [], hasAssignment: false },
+      asPartName('part0'),
+    )).toBe(true)
+    expect(consumes(
+      { id: 's1' as never, callee: 'translate', args: { offset: [1, 0, 0] }, inputs: [asPartName('part0')], outputs: [], hasAssignment: false },
+      asPartName('part0'),
+    )).toBe(true)
+    expect(consumes(
+      { id: 's1' as never, callee: 'subtract', args: {}, inputs: [asPartName('part0'), asPartName('part1')], outputs: [], hasAssignment: false },
+      asPartName('part0'),
+    )).toBe(true)
+    expect(consumes(
+      { id: 's1' as never, callee: 'split', args: { normal: [0, 0, 1], offset: 0 }, inputs: [asPartName('part0')], outputs: [], hasAssignment: false },
+      asPartName('part0'),
+    )).toBe(true)
   })
 })

@@ -263,7 +263,7 @@ export class ModuleExecutor {
       const p = this.script.params.find((pp) => pp.name === primary)
       return `param|${JSON.stringify(p?.value)}`
     }
-    const parts = [source.op]
+    const parts = [source.callee]
     parts.push(JSON.stringify(source.args))
     for (const dep of meta.deps) {
       const ck = this.cache.get(dep)?.outputContentKey

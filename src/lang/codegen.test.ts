@@ -22,7 +22,7 @@ function makeStmt(
   const { id, inputs, outputs, ...rest } = partial
   return {
     id: asStmtId(id ?? 's1'),
-    op: 'box',
+    callee: 'box',
     args: {},
     inputs: (inputs ?? []).map(asPartName),
     outputs: (outputs ?? [id ?? 'part0']).map(asPartName),
@@ -38,40 +38,40 @@ function makeScript(statements: CadStatement[]): PartScript {
 
 describe('codegen: statementToLine 基本体 (Phase 3)', () => {
   it('box：size 为 vec3 输出数组', () => {
-    const stmt = makeStmt({ id: 's1', op: 'box', args: { size: [10, 10, 10] }, outputs: ['part0'] })
+    const stmt = makeStmt({ id: 's1', callee: 'box', args: { size: [10, 10, 10] }, outputs: ['part0'] })
     expect(statementToLine(stmt)).toBe('let part0 = cad.box({ size:[10,10,10] })')
   })
 
   it('box：size 为数字输出标量', () => {
-    const stmt = makeStmt({ id: 's1', op: 'box', args: { size: 20 }, outputs: ['part0'] })
+    const stmt = makeStmt({ id: 's1', callee: 'box', args: { size: 20 }, outputs: ['part0'] })
     expect(statementToLine(stmt)).toBe('let part0 = cad.box({ size:20 })')
   })
 
   it('sphere / cylinder / cone / wedge', () => {
-    expect(statementToLine(makeStmt({ id: 's1', op: 'sphere', args: { radius: 5, segments: 32 }, outputs: ['part0'] })))
+    expect(statementToLine(makeStmt({ id: 's1', callee: 'sphere', args: { radius: 5, segments: 32 }, outputs: ['part0'] })))
       .toBe('let part0 = cad.sphere({ radius:5, segments:32 })')
-    expect(statementToLine(makeStmt({ id: 's1', op: 'cylinder', args: { radius: 2, height: 10, segments: 32 }, outputs: ['part0'] })))
+    expect(statementToLine(makeStmt({ id: 's1', callee: 'cylinder', args: { radius: 2, height: 10, segments: 32 }, outputs: ['part0'] })))
       .toBe('let part0 = cad.cylinder({ radius:2, height:10, segments:32 })')
   })
 })
 
 describe('codegen: statementToLine 变换 (Phase 3: 复用输入名)', () => {
   it('translate — 复用输入名', () => {
-    const stmt = makeStmt({ id: 's2', op: 'translate', args: { offset: [1, 2, 3] }, inputs: ['part0'], outputs: ['part0'] })
+    const stmt = makeStmt({ id: 's2', callee: 'translate', args: { offset: [1, 2, 3] }, inputs: ['part0'], outputs: ['part0'] })
     expect(statementToLine(stmt)).toBe('let part0 = cad.translate(part0, { offset:[1,2,3] })')
   })
 
   it('rotate：含 pivot — 复用输入名', () => {
-    const stmt = makeStmt({ id: 's2', op: 'rotate', args: { anglesDeg: [0, 0, 90], pivot: [0, 0, 0] }, inputs: ['part0'], outputs: ['part0'] })
+    const stmt = makeStmt({ id: 's2', callee: 'rotate', args: { anglesDeg: [0, 0, 90], pivot: [0, 0, 0] }, inputs: ['part0'], outputs: ['part0'] })
     expect(statementToLine(stmt)).toBe('let part0 = cad.rotate(part0, { anglesDeg:[0,0,90], pivot:[0,0,0] })')
   })
 })
 
 describe('codegen: statementToLine 钻孔 (Phase 3: 复用输入名)', () => {
-  it('drill：通孔省略 holeType/tolerance 默认值', () => {
+  it('drill：IR 里有什么打印什么（A12 消灭默认值省略）', () => {
     const stmt = makeStmt({
       id: 's2',
-      op: 'drill',
+      callee: 'drill',
       args: {
         diameter: 5,
         depth: 0,
@@ -83,16 +83,16 @@ describe('codegen: statementToLine 钻孔 (Phase 3: 复用输入名)', () => {
       inputs: ['part0'],
       outputs: ['part0'],
     })
-    expect(statementToLine(stmt)).toBe('let part0 = cad.drill(part0, { diameter:5, depth:0, position:[0,0,10], faceNormal:[0,0,1] })')
+    expect(statementToLine(stmt)).toBe("let part0 = cad.drill(part0, { diameter:5, depth:0, holeType:'simple', tolerance:0.3, position:[0,0,10], faceNormal:[0,0,1] })")
   })
 })
 
 describe('codegen: statementToLine 布尔 (Phase 3: 新名)', () => {
-  it('boolean：输出 cad.operation(inputs)', () => {
+  it('boolean 归一取消：callee 直写 subtract', () => {
     const stmt = makeStmt({
       id: 's3',
-      op: 'boolean',
-      args: { operation: 'subtract', sourcePartNames: ['p1', 'p2'] },
+      callee: 'subtract',
+      args: {},
       inputs: ['part0', 'part1'],
       outputs: ['part2'],
     })
@@ -104,7 +104,7 @@ describe('codegen: statementToLine 雕刻 (Phase 3: 复用输入名)', () => {
   it('engrave：文本雕刻', () => {
     const stmt = makeStmt({
       id: 's2',
-      op: 'engrave',
+      callee: 'engrave',
       args: { text: 'Hello', depth: 2, textSize: 10 },
       inputs: ['part0'],
       outputs: ['part0'],
@@ -118,7 +118,7 @@ describe('codegen: statementToLine 雕刻 (Phase 3: 复用输入名)', () => {
 describe('codegen: scriptToCode (Phase 3)', () => {
   it('单条 box 语句', () => {
     const script = makeScript([
-      makeStmt({ id: 's1', op: 'box', args: { size: 20 }, outputs: ['part0'] }),
+      makeStmt({ id: 's1', callee: 'box', args: { size: 20 }, outputs: ['part0'] }),
     ])
     const code = scriptToCode(script)
     expect(code).toBe('let part0 = cad.box({ size:20 })')
@@ -126,9 +126,9 @@ describe('codegen: scriptToCode (Phase 3)', () => {
 
   it('多级依赖：连续下游复用输入名', () => {
     const script = makeScript([
-      makeStmt({ id: 's1', op: 'box', args: { size: 20 }, outputs: ['part0'] }),
-      makeStmt({ id: 's2', op: 'translate', args: { offset: [0, 0, 5] }, inputs: ['part0'], outputs: ['part0'] }),
-      makeStmt({ id: 's3', op: 'drill', args: { diameter: 5, depth: 0 }, inputs: ['part0'], outputs: ['part0'] }),
+      makeStmt({ id: 's1', callee: 'box', args: { size: 20 }, outputs: ['part0'] }),
+      makeStmt({ id: 's2', callee: 'translate', args: { offset: [0, 0, 5] }, inputs: ['part0'], outputs: ['part0'] }),
+      makeStmt({ id: 's3', callee: 'drill', args: { diameter: 5, depth: 0 }, inputs: ['part0'], outputs: ['part0'] }),
     ])
     const code = scriptToCode(script)
     expect(code).toBe(
@@ -142,11 +142,11 @@ describe('codegen: scriptToCode (Phase 3)', () => {
     expect(scriptToCode(makeScript([]))).toBe('')
   })
 
-  it('boolean op 输出 cad.union(inputs)', () => {
+  it('boolean op 输出 cad.union(inputs)（归一取消，callee 直写）', () => {
     const script = makeScript([
-      makeStmt({ id: 's1', op: 'box', args: { size: 20 }, outputs: ['part0'] }),
-      makeStmt({ id: 's2', op: 'sphere', args: { radius: 10 }, outputs: ['part1'] }),
-      makeStmt({ id: 's3', op: 'boolean', args: { operation: 'union', sourcePartNames: ['s0', 's1'] }, inputs: ['part0', 'part1'], outputs: ['part2'] }),
+      makeStmt({ id: 's1', callee: 'box', args: { size: 20 }, outputs: ['part0'] }),
+      makeStmt({ id: 's2', callee: 'sphere', args: { radius: 10 }, outputs: ['part1'] }),
+      makeStmt({ id: 's3', callee: 'union', args: {}, inputs: ['part0', 'part1'], outputs: ['part2'] }),
     ])
     const code = scriptToCode(script)
     expect(code).toContain('cad.union(part0, part1)')
@@ -160,19 +160,21 @@ describe('codegen: split 解构输出 (Phase 3)', () => {
     const script: PartScript = {
       params: [],
       statements: [
-        makeStmt({ id: 's1', op: 'box', args: { size: 20 }, outputs: ['part0'] }),
-        makeStmt({ id: 's2', op: 'translate', args: { offset: [0, 0, 5] }, inputs: ['part0'], outputs: ['part0'] }),
+        makeStmt({ id: 's1', callee: 'box', args: { size: 20 }, outputs: ['part0'] }),
+        makeStmt({ id: 's2', callee: 'translate', args: { offset: [0, 0, 5] }, inputs: ['part0'], outputs: ['part0'] }),
         makeStmt({
           id: 's3',
-          op: 'split',
+          callee: 'split',
           args: { cutMode: 'plane', normal: [0, 0, 1], offset: 0, inPlaneAngleDeg: 0, side: 'front' },
           inputs: ['part0'],
           outputs: ['part1', 'part2'],
+          outputKeys: ['front', 'back'],
         }),
       ],
     }
     const code = scriptToCode(script)
-    expect(code).toContain('const { front: part1, back: part2 } = cad.split(part0)')
+    // 通用打印机：IR 里有什么打印什么（split 的 args 原样输出，不再省略）
+    expect(code).toContain('const { front: part1, back: part2 } = cad.split(part0, { cutMode:\'plane\', normal:[0,0,1], offset:0, inPlaneAngleDeg:0, side:\'front\' })')
   })
 })
 
@@ -185,7 +187,7 @@ describe('codegen: 外部 st_ id 含冒号时报错', () => {
       statements: [
         makeStmt({
           id: 'st_front_1',
-          op: 'split',
+          callee: 'split',
           inputs: ['st_prim_panel_1:o1_1'],
           args: { normal: [0, 0, 1], offset: 0, inPlaneAngleDeg: 0, side: 'front', bbCenter: [0, 0, 0], bboxSize: [20, 20, 20] },
           outputs: ['part0', 'part1'],
@@ -199,13 +201,13 @@ describe('codegen: 外部 st_ id 含冒号时报错', () => {
 // ── 值格式化 ──
 
 describe('codegen: 值格式化', () => {
-  it('GeomRef → cad.faceCenter(of)', () => {
+  it('CallRef → cad.faceCenter(of)', () => {
     const stmt = makeStmt({
       id: 's2',
-      op: 'drill',
+      callee: 'drill',
       args: {
-        position: { $geom: { of: 'part0', feature: 'faceCenter' } },
-        faceNormal: { $geom: { of: 'part0', feature: 'faceNormal' } },
+        position: { $call: { callee: 'faceCenter', args: [{ $ref: 'part0' }] } },
+        faceNormal: { $call: { callee: 'faceNormal', args: [{ $ref: 'part0' }] } },
       },
       inputs: ['part0'],
       outputs: ['part0'],
@@ -216,7 +218,7 @@ describe('codegen: 值格式化', () => {
   })
 
   it('ParamRef → 裸标识符（无 $ 前缀）', () => {
-    const stmt = makeStmt({ id: 's1', op: 'box', args: { size: { $param: 'boxSize' } }, outputs: ['part0'] })
+    const stmt = makeStmt({ id: 's1', callee: 'box', args: { size: { $param: 'boxSize' } }, outputs: ['part0'] })
     expect(statementToLine(stmt)).toBe('let part0 = cad.box({ size:boxSize })')
   })
 
@@ -235,7 +237,7 @@ describe('codegen: center 参数往返 (codegen → parser)', () => {
   it('sphere 含 center 往返', () => {
     const script: PartScript = {
       params: [],
-      statements: [makeStmt({ id: 's1', op: 'sphere', args: { radius: 5, segments: 32, center: [3, 4, 0] }, outputs: ['part0'] })],
+      statements: [makeStmt({ id: 's1', callee: 'sphere', args: { radius: 5, segments: 32, center: [3, 4, 0] }, outputs: ['part0'] })],
     }
     const code = scriptToCode(script)
     expect(code).toContain('center:[3,4,0]')
@@ -244,20 +246,20 @@ describe('codegen: center 参数往返 (codegen → parser)', () => {
   })
 })
 
-// ── GeomRef with faceOrdinal round-trip ──
+// ── CallRef with faceOrdinal round-trip ──
 
-describe('codegen: GeomRef with faceOrdinal round-trip', () => {
-  it('GeomRef with faceOrdinal round-trip: codegen → parse → same args', () => {
+describe('codegen: CallRef with faceOrdinal round-trip', () => {
+  it('CallRef with faceOrdinal round-trip: codegen → parse → same args', () => {
     const script = makeScript([
-      makeStmt({ id: 's1', op: 'box', args: { size: [10, 10, 10] }, outputs: ['part0'] }),
+      makeStmt({ id: 's1', callee: 'box', args: { size: [10, 10, 10] }, outputs: ['part0'] }),
       makeStmt({
         id: 's2',
-        op: 'engrave',
+        callee: 'engrave',
         args: {
           text: 'test',
           depth: 2,
-          faceCenter: { $geom: { of: 'part0', feature: 'faceCenter', faceOrdinal: 4, anchor: { point: [5, 5, 10] } } },
-          faceNormal: { $geom: { of: 'part0', feature: 'faceNormal', faceOrdinal: 4, anchor: { point: [5, 5, 10] } } },
+          faceCenter: { $call: { callee: 'faceCenter', args: [{ $ref: 'part0' }, [5, 5, 10], 4] } },
+          faceNormal: { $call: { callee: 'faceNormal', args: [{ $ref: 'part0' }, [5, 5, 10], 4] } },
         },
         inputs: ['part0'],
         outputs: ['part0'],
@@ -267,7 +269,7 @@ describe('codegen: GeomRef with faceOrdinal round-trip', () => {
     const parsed = parseScript(fullCode)
     const parsedStmt = parsed.script.statements[1]
     expect(parsedStmt.args.faceCenter).toEqual({
-      $geom: { of: 'part0', feature: 'faceCenter', faceOrdinal: 4, anchor: { point: [5, 5, 10] } },
+      $call: { callee: 'faceCenter', args: [{ $ref: 'part0' }, [5, 5, 10], 4] },
     })
   })
 })
@@ -277,10 +279,10 @@ describe('codegen: GeomRef with faceOrdinal round-trip', () => {
 describe('codegen: transform 语句 (Phase 3: 复用输入名)', () => {
   it('box + translate + rotate + scale', () => {
     const script = makeScript([
-      makeStmt({ id: 's1', op: 'box', args: { size: 20 }, outputs: ['part0'] }),
-      makeStmt({ id: 's2', op: 'translate', args: { offset: [10, 0, 0] }, inputs: ['part0'], outputs: ['part0'] }),
-      makeStmt({ id: 's3', op: 'rotate', args: { anglesDeg: [0, 0, 90] }, inputs: ['part0'], outputs: ['part0'] }),
-      makeStmt({ id: 's4', op: 'scale', args: { factor: 2 }, inputs: ['part0'], outputs: ['part0'] }),
+      makeStmt({ id: 's1', callee: 'box', args: { size: 20 }, outputs: ['part0'] }),
+      makeStmt({ id: 's2', callee: 'translate', args: { offset: [10, 0, 0] }, inputs: ['part0'], outputs: ['part0'] }),
+      makeStmt({ id: 's3', callee: 'rotate', args: { anglesDeg: [0, 0, 90] }, inputs: ['part0'], outputs: ['part0'] }),
+      makeStmt({ id: 's4', callee: 'scale', args: { factor: 2 }, inputs: ['part0'], outputs: ['part0'] }),
     ])
     const code = scriptToCode(script)
     expect(code).toContain('cad.translate(part0, { offset:[10,0,0] })')

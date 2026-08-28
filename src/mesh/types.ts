@@ -37,6 +37,17 @@ export interface Shape {
   indices: Uint32Array
 }
 
+// ── ReadonlyShape 品牌类型（设计文档 §4.5-2） ──
+
+declare const readonlyBrand: unique symbol
+
+/**
+ * Shape 类型的强化：承诺本函数不修改、不消费该入参。
+ * 可选品牌属性使任何 Shape 可赋给 ReadonlyShape 形参（调用方零负担）。
+ * 它是文档 + 符号表提取源 + 实现契约；契约靠契约测试守护，不靠类型系统强制。
+ */
+export type ReadonlyShape = Shape & { readonly [readonlyBrand]?: true }
+
 // ── 创建参数 ──
 
 /** nRad 默认值及约束 */

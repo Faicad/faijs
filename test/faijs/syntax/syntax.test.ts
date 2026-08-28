@@ -49,7 +49,7 @@ describe('syntax .faijs tests', () => {
 
       // Check that statements are preserved
       expect(script2.statements.length).toBe(script1.statements.length)
-      expect(script2.statements[0].op).toBe(script1.statements[0].op)
+      expect(script2.statements[0].callee).toBe(script1.statements[0].callee)
     })
   }
 

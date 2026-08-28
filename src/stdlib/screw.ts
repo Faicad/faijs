@@ -131,7 +131,20 @@ function makeHexPrismBrep(
   return positioned
 }
 
+/** screw: system/specIdx/length 必填；length 为有限数字。 */
+export function assertScrewParams(params: Record<string, unknown>): void {
+  if (typeof params.system !== 'string' || typeof params.specIdx !== 'number') {
+    throw new Error(
+      `[stdlib/screw] system (string) and specIdx (number) are required, got system=${JSON.stringify(params.system)}, specIdx=${JSON.stringify(params.specIdx)}`,
+    )
+  }
+  if (typeof params.length !== 'number' || !Number.isFinite(params.length)) {
+    throw new Error(`[stdlib/screw] length must be a finite number, got ${JSON.stringify(params.length)}`)
+  }
+}
+
 export async function screw(params: Record<string, unknown>, exec: ExecContext): Promise<Shape> {
+  assertScrewParams(params)
   const path = resolvePath(exec, [], brepImpl)
   if (path === 'brep') return screwBrep(params, exec)
   return solid(await cad.screw({

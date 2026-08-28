@@ -20,14 +20,14 @@
 
 import type {
   Arg,
-  AssetRef,
   CadStatement,
-  GeomRef,
   JsonValue,
   ParamRef,
   PartScript,
+  VarRef,
+  CallRef,
 } from './types'
-import { isAssetRef, isGeomRef, isParamRef } from './types'
+import { isParamRef, isVarRef, isCallRef } from './types'
 import { fmtNum } from './codegen'
 import { asStmtId, type StmtId } from '../identity'
 
@@ -53,11 +53,6 @@ export interface CompiledModule {
 
 // ── 值格式化（编译产物内部，非用户可读文本） ──
 
-/** vec3 → `[x,y,z]` */
-function fmtVec3(v: readonly number[]): string {
-  return `[${v.map((n) => fmtNum(n)).join(',')}]`
-}
-
 /** JsonValue（参数字面量）→ JS 表达式 */
 function fmtJsonValue(v: JsonValue): string {
   if (typeof v === 'number') return fmtNum(v)
@@ -69,32 +64,23 @@ function fmtStr(s: string): string {
   return JSON.stringify(s)
 }
 
-// ── Arg 翻译（$param / $geom / $asset → 编译产物表达式） ──
-
-/** GeomRef → `cad.<feature>(ctx.<of>, [anchor], ordinal, exec)` */
-function translateGeomRef(ref: GeomRef): string {
-  const { of, feature, anchor, faceOrdinal } = ref.$geom
-  let expr = `cad.${feature}(ctx.${of}`
-  if (anchor) {
-    expr += `, ${fmtVec3(anchor.point)}`
-  } else if (faceOrdinal !== undefined) {
-    expr += `, null`
-  }
-  if (faceOrdinal !== undefined) {
-    expr += `, ${faceOrdinal}`
-  }
-  expr += `, exec)`
-  return expr
-}
+// ── Arg 翻译（$param / $ref / $call → 编译产物表达式） ──
 
 /** ParamRef → `ctx.<name>` */
 function translateParamRef(ref: ParamRef): string {
   return `ctx.${ref.$param}`
 }
 
-/** AssetRef → `await cad.asset(key, exec)`（fn 是 async，实参位置可 await） */
-function translateAssetRef(ref: AssetRef): string {
-  return `await cad.asset(${fmtStr(ref.$asset)}, exec)`
+/** VarRef → `ctx.<name>` */
+function translateVarRef(ref: VarRef): string {
+  return `ctx.${ref.$ref}`
+}
+
+/** CallRef → `await cad.<callee>(<args>, exec)`（嵌套调用，统一 await：同步函数被 await 是合法 JS） */
+function translateCallRef(ref: CallRef): string {
+  const { callee, args } = ref.$call
+  const inner = args.map((a) => translateArg(a)).join(', ')
+  return `await cad.${callee}(${inner}, exec)`
 }
 
 /** 递归翻译单个 Arg 值为编译产物表达式。 */
@@ -104,8 +90,8 @@ function translateArg(value: Arg): string {
   if (typeof value === 'boolean') return String(value)
   if (typeof value === 'string') return fmtStr(value)
   if (isParamRef(value)) return translateParamRef(value)
-  if (isGeomRef(value)) return translateGeomRef(value)
-  if (isAssetRef(value)) return translateAssetRef(value)
+  if (isVarRef(value)) return translateVarRef(value)
+  if (isCallRef(value)) return translateCallRef(value)
   if (Array.isArray(value)) {
     return `[${value.map((v) => translateArg(v as Arg)).join(', ')}]`
   }
@@ -128,7 +114,7 @@ function translateArgs(args: Record<string, Arg>): string {
 /**
  * 获取语句引用的变量名集合。
  *
- * 优先用 parser 填充的 stmt.refs（inputs + $param + $geom.of + members）；
+ * 优先用 parser 填充的 stmt.refs（inputs + $param + $ref + 嵌套调用）；
  * 手工构造的 PartScript（测试等）无 refs 时，从 inputs + args 扫描兜底计算。
  */
 function getStatementRefs(stmt: CadStatement): string[] {
@@ -140,11 +126,14 @@ function getStatementRefs(stmt: CadStatement): string[] {
       refs.add(value.$param)
       return
     }
-    if (isGeomRef(value)) {
-      refs.add(value.$geom.of)
+    if (isVarRef(value)) {
+      refs.add(value.$ref)
       return
     }
-    if (isAssetRef(value)) return
+    if (isCallRef(value)) {
+      for (const a of value.$call.args) scan(a)
+      return
+    }
     if (Array.isArray(value)) {
       for (const v of value) scan(v)
       return
@@ -152,7 +141,8 @@ function getStatementRefs(stmt: CadStatement): string[] {
     for (const v of Object.values(value)) scan(v)
   }
   for (const arg of Object.values(stmt.args)) scan(arg)
-  if (stmt.op === 'group' || stmt.op === 'assembly') {
+  // 兼容旧手工构造 IR：group/assembly members 可能是裸字符串变量名
+  if (stmt.callee === 'group' || stmt.callee === 'assembly') {
     const members = stmt.args?.members
     if (Array.isArray(members)) {
       for (const m of members) if (typeof m === 'string') refs.add(m)
@@ -161,64 +151,41 @@ function getStatementRefs(stmt: CadStatement): string[] {
   return [...refs]
 }
 
-/** 生成单条语句的 fn 体（缩进 6 空格，嵌入模块文本）。 */
+/** 生成单条语句的 fn 体（缩进 6 空格，嵌入模块文本）。纯机械：按 IR 形态发射，无 callee 分支（A9 消灭）。 */
 function buildStatementFnBody(stmt: CadStatement): string {
-  // 结构型无赋值语句
-  if (stmt.op === 'add_constraint') {
-    // Phase 1：约束由 assembly 语句 args.constraints 读取，add_constraint 无合并逻辑（已知缺口，Phase 2 修复）
-    return `      // no-op (Phase 1: constraints read from assembly statement args)`
-  }
-  if (stmt.op === 'do_assemble') {
-    // Phase 2.4：调用 assembly compound 的 do_assemble 方法（AssemblyBehavior.solve）
-    return `      await ctx.${stmt.assemblyTarget}.do_assemble(exec)`
-  }
-
-  // group/assembly：compound Shape（members 传 Shape 引用 + memberNames 供约束解析）
-  if (stmt.op === 'group' || stmt.op === 'assembly') {
-    const members = (stmt.args.members as string[] | undefined) ?? []
-    const memberRefs = members.map((m) => `ctx.${m}`).join(', ')
-    const memberNames = members.map((m) => JSON.stringify(m)).join(', ')
-    const nameStr = stmt.args.name ? translateArg(stmt.args.name) : 'undefined'
-    const constraintsStr = stmt.args.constraints ? translateArg(stmt.args.constraints) : '[]'
-    const extra = stmt.op === 'assembly' ? `, constraints: ${constraintsStr}` : ''
-    // Phase 3：ctx 变量名 = outputs[0]（非 stmt.id）
-    const grpVar = stmt.outputs[0] ?? stmt.id
-    return `      ctx.${grpVar} = await cad.${stmt.op}({ name: ${nameStr}, members: [${memberRefs}], memberNames: [${memberNames}]${extra} }, exec)`
-  }
-
   const inputs = stmt.inputs.map((inp) => `ctx.${inp}`).join(', ')
   const argsStr = translateArgs(stmt.args)
+  const hasArgs = Object.keys(stmt.args).length > 0
 
-  // split：多输出解构（无输入时省略 inputs 槽）
-  if (stmt.op === 'split') {
-    const callArgs = inputs ? `${inputs}, ${argsStr}` : argsStr
-    const out0 = stmt.outputs[0]
-    const out1 = stmt.outputs[1]
-    if (out0 && out1) {
-      return [
-        `      const { front, back } = await cad.split(${callArgs}, exec)`,
-        `      ctx.${out0} = front`,
-        `      ctx.${out1} = back`,
-      ].join('\n')
-    }
-    // 单输出退化：取 front
-    const singleOut = stmt.outputs[0] ?? stmt.id
-    return `      ctx.${singleOut} = (await cad.split(${callArgs}, exec)).front`
+  // 调用实参序列：有 inputs 则前置；有 args 则后置（空 args 不发射，§5.1 空槽规则）
+  const callArgs = inputs
+    ? (hasArgs ? `${inputs}, ${argsStr}` : inputs)
+    : (hasArgs ? argsStr : '{}')
+
+  // 1) 对象解构赋值：outputKeys 存在（任意 callee）
+  if (stmt.outputKeys && stmt.outputKeys.length > 0) {
+    const keys = stmt.outputKeys.join(', ')
+    const assigns = stmt.outputs.map((out, i) => `      ctx.${out} = ${stmt.outputKeys![i]}`).join('\n')
+    return [
+      `      const { ${keys} } = await cad.${stmt.callee}(${callArgs}, exec)`,
+      assigns,
+    ].join('\n')
   }
 
-  // boolean：多输入 + operation 参数（cad.boolean(input1, input2, { operation }, exec)）
-  let call: string
-  if (stmt.op === 'boolean') {
-    call = `cad.boolean(${inputs}${inputs ? ', ' : ''}${argsStr}, exec)`
-  } else if (inputs) {
-    call = `cad.${stmt.op}(${inputs}, ${argsStr}, exec)`
-  } else {
-    call = `cad.${stmt.op}(${argsStr}, exec)`
+  // 2) 成员调用（表达式语句）：receiver 存在（add_constraint/do_assemble 挂 compound 方法）
+  if (stmt.receiver) {
+    // 空 args 不发射 `{}`：`do_assemble(exec)` 而不是 `do_assemble({}, exec)`（§5.2 成员方法签名）
+    const mArgs = hasArgs ? `${argsStr}, ` : ''
+    return `      await ctx.${stmt.receiver}.${stmt.callee}(${mArgs}exec)`
   }
 
-  // Phase 3：ctx 变量名 = outputs[0]（非 stmt.id，因 id 现在是 sN）
-  const writeVar = stmt.outputs[0]
-  return `      ctx.${writeVar} = await ${call}`
+  // 3) 无赋值调用（表达式语句，outputs 为空且无 receiver）
+  if (stmt.outputs.length === 0) {
+    return `      await cad.${stmt.callee}(${callArgs}, exec)`
+  }
+
+  // 4) 普通赋值（单输出）
+  return `      ctx.${stmt.outputs[0]} = await cad.${stmt.callee}(${callArgs}, exec)`
 }
 
 // ── 主编译函数 ──
@@ -244,13 +211,8 @@ export function compileToModule(script: PartScript): CompiledModule {
   //    这样单入单出复用名的变量能正确解析到上游定义语句（而非自己）。
   script.statements.forEach((stmt, i) => {
     const id = stmt.id
-    let writes: string[]
-    if (stmt.op === 'add_constraint' || stmt.op === 'do_assemble') {
-      writes = []
-    } else {
-      // Phase 3: 写键 = outputs（PartName）。语句可能有 0/1/多个左值；outputs 始终显式。
-      writes = stmt.outputs
-    }
+    // A11 消灭：writes = outputs（无赋值语句 outputs 本来就是 []，机械写法天然正确）
+    const writes = stmt.outputs
     // 先算 deps（用已有 varToStmtId，此时还未被本语句的 writes 覆盖）
     const deps = new Set<StmtId>()
     for (const ref of getStatementRefs(stmt)) {

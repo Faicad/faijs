@@ -19,14 +19,13 @@
  * - window.dispatchEvent / toast
  */
 
-import type { PartScript, CadStatement, TerminalShape, Arg } from '../lang/types'
+import type { PartScript, CadStatement, TerminalShape } from '../lang/types'
 import type { Shape } from '../mesh/types'
 import type { BrepChainState } from '../brep/brep-chain'
 import type { ShapeHandle, OcctKernel } from 'occt-wasm'
 import { initOcctWasm } from '../occt-kernel/occtKernel'
 import { parseScript, ParseError } from '../lang/parser'
-import { validateStatementArgs } from '../lang/args-schema'
-import { SCHEMAS } from '../stdlib/schemas'
+import { getFunctionSymbol } from '../lang/symbol-table'
 import type { HostPorts, ExecutionMode } from './ports'
 import type { SelectorRuntimeData } from '../topology/build-selector-runtime'
 import type { SelectorRuntime } from '../topology/types'
@@ -38,7 +37,7 @@ import { asPartName, type PartName, type StmtId } from '../identity'
 import { compileToModule, type CompiledStatementMeta } from '../lang/compile'
 import { ModuleExecutor } from './module-executor'
 import { ExecContextImpl, BrepUnsupportedError } from './exec-context'
-import { createInternalStdlib } from './internal-stdlib-adapter'
+import { createInternalStdlib } from './internal-stdlib'
 import { computeContentKey } from './content-key'
 export { computeContentKey } from './content-key'
 import { isCompound, getSlot } from '../stdlib/shape'
@@ -52,7 +51,7 @@ import { computeLeafTerminals } from './terminal-dag'
 // ── 类型定义 ──
 
 export interface CheckError {
-  stage: 'parse' | 'schema' | 'reference'
+  stage: 'parse' | 'symbol' | 'reference'
   message: string
   line?: number
   stmtId?: string
@@ -63,7 +62,7 @@ export interface CheckResult {
   errors: CheckError[]
   warnings: string[]
   /** 供 AI 自我修正的结构化上下文 */
-  script?: { statements: number; ops: string[] }
+  script?: { statements: number; callees: string[] }
 }
 
 /**
@@ -524,7 +523,7 @@ export class CadRuntime {
           brepChain: exec.brepChain,
           terminals: [],
           infos: [],
-          failedAt: { index, op: err.stmt?.op ?? '', message: err.message },
+          failedAt: { index, op: err.stmt?.callee ?? '', message: err.message },
         }
       }
       throw err
@@ -672,14 +671,21 @@ export class CadRuntime {
       }
     }
 
-    // 装配成员 solid 提取：assembly 终端本身不持有 solid，但其 members 在 solidCache 中有更新后的 solid
+    // 装配成员 solid 提取：compound 语句（assembly，带 members）本身不持有 solid，
+    // 但其 members 在 solidCache 中有更新后的 solid（B4：运行时 compound 值判定，不再按 callee 特判）。
+    // 双条件：outputs[0] 的 shape 是 compound 且 args.members 存在——实际等价于原 assembly 判定
+    //（group 成员本就在 terminals/brepSolids 中，has() 检查直接跳过，行为零变化）。
     for (const stmt of script.statements) {
-      if (stmt.op !== 'assembly') continue
+      const out0 = stmt.outputs[0]
+      if (!out0) continue
       const members = stmt.args?.members
       if (!Array.isArray(members)) continue
+      const shape = this.executor.getCtxVar(out0)
+      if (!isCompound(shape)) continue
       for (const m of members) {
-        if (typeof m !== 'string') continue
-        const mId = asPartName(m)
+        const name = typeof m === 'string' ? m : (m as { $ref?: string } | null)?.$ref
+        if (!name) continue
+        const mId = asPartName(name)
         if (brepSolids.has(mId)) continue
         const s = this.solidCache.get(mId)
         if (s && this.kernel) brepSolids.set(mId, { solid: s, kernel: this.kernel })
@@ -769,7 +775,7 @@ export class CadRuntime {
     stmt: CadStatement,
     getInputContentKey: (id: PartName) => string | undefined,
   ): string {
-    const parts: string[] = [stmt.op]
+    const parts: string[] = [stmt.callee]
     parts.push(JSON.stringify(stmt.args))
     for (const inputId of stmt.inputs) {
       const ck = getInputContentKey(inputId)
@@ -868,10 +874,11 @@ export class CadRuntime {
   // ── 公开：dryRun 校验 ──
 
   /**
-   * dryRun：parse + schema 校验 + 引用预检，零几何副作用。
+   * dryRun：parse + 符号检查 + 引用预检，零几何副作用。
    *
-   * 设计文档 §5.4：三通道归一——
-   * browser bridge / AI 自检 / CI 离线校验 都用同一 check()。
+   * 设计文档 §4.9：三阶段，全部无 per-函数代码——
+   * ① parse（零知识解析）；② 符号检查（callee ∈ 符号表，未知 → "函数不存在"；
+   * receiver 非空 = 成员方法，不查符号表）；③ 引用预检（inputs/refs 须先定义）。
    *
    * @param code .faijs 文本
    * @returns CheckResult
@@ -880,10 +887,10 @@ export class CadRuntime {
     const errors: CheckError[] = []
     const warnings: string[] = []
 
-    // ① parse（acorn 闸门）
+    // ① parse（acorn 闸门；零知识解析）
     let script: PartScript
     try {
-      const result = parseScript(code, { schemas: SCHEMAS })
+      const result = parseScript(code)
       script = result.script
     } catch (err) {
       if (err instanceof ParseError) {
@@ -901,39 +908,15 @@ export class CadRuntime {
       return { ok: false, errors, warnings }
     }
 
-    // ② schema 校验（含 unknown-key 报错）
-    // 先解析 ParamRef（{ $param: 'name' } → 实际值），使 schema 能校验类型
-    const paramValues = new Map<string, unknown>()
-    for (const p of script.params) {
-      paramValues.set(p.name, p.value)
-    }
+    // ② 符号检查：callee ∈ 符号表（未知 → "函数不存在"）。
+    // 只有无 receiver 的调用才查符号表（成员方法是对象方法，不在表内，见 §6.2）。
     for (const stmt of script.statements) {
-      // 解析 ParamRef
-      const resolvedArgs: Record<string, Arg> = {}
-      for (const [key, value] of Object.entries(stmt.args)) {
-        if (typeof value === 'object' && value !== null && '$param' in value) {
-          const paramName = (value as { $param: string }).$param
-          const resolved = paramValues.get(paramName)
-          if (resolved === undefined) {
-            errors.push({
-              stage: 'reference',
-              message: `statement "${stmt.id}" references undefined param "${paramName}" in field "${key}"`,
-              stmtId: stmt.id,
-            })
-            resolvedArgs[key] = value
-          } else {
-            resolvedArgs[key] = resolved as Arg
-          }
-        } else {
-          resolvedArgs[key] = value
-        }
-      }
-      const resolvedStmt = { ...stmt, args: resolvedArgs }
-      const validationErrors = validateStatementArgs(resolvedStmt, SCHEMAS)
-      for (const ve of validationErrors) {
+      if (stmt.receiver) continue
+      const fnSymbol = getFunctionSymbol(stmt.callee)
+      if (!fnSymbol) {
         errors.push({
-          stage: 'schema',
-          message: ve.message,
+          stage: 'symbol',
+          message: `function "${stmt.callee}" does not exist in the stdlib symbol table`,
           stmtId: stmt.id,
         })
       }
@@ -977,7 +960,7 @@ export class CadRuntime {
       warnings,
       script: ok ? {
         statements: script.statements.length,
-        ops: script.statements.map((s) => s.op),
+        callees: script.statements.map((s) => s.callee),
       } : undefined,
     }
   }

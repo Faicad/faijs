@@ -25,6 +25,7 @@ import {
 import { computeBasisFromNormal } from '../mesh/split'
 import { solid } from './shape'
 import { resolvePath } from './internal/resolve-path'
+import { assertNonZeroVec3 } from './assert'
 import type { ExecContext, ExecContextImpl } from '../cad-runtime/exec-context'
 
 /** BREP 实现标记（split 有 OCCT 精确分割） */
@@ -233,12 +234,14 @@ async function splitMeshPath(input: Shape, params: Record<string, unknown>, exec
   return { front: solid(result.front), back: solid(result.back) }
 }
 
-export async function split(
-  input: Shape,
-  params: Record<string, unknown>,
-  exec: ExecContext,
-): Promise<{ front: Shape; back: Shape }> {
+export async function split(...rest: unknown[]): Promise<{ front: Shape; back: Shape }> {
+  const exec = rest.pop() as ExecContext
+  const input = rest.shift() as Shape | undefined
+  const params = (rest[0] ?? {}) as Record<string, unknown>
   if (!input) throw new Error('[stdlib/split] no input geometry')
+  if (params.normal !== undefined && params.normal !== null) {
+    assertNonZeroVec3(params.normal, 'split.normal')
+  }
   const path = resolvePath(exec, [input], brepImpl)
   if (path === 'brep') return splitBrepPath(input, params, exec)
   return splitMeshPath(input, params, exec)

@@ -1,214 +1,113 @@
 /**
- * op-set-consistency L0 — schema ↔ codegen ↔ parser 一致性守卫（L0 零依赖）
+ * op-set-consistency — 符号表 ↔ stdlib 签名一致性守卫
  *
- * 从 script-engine/op-set-consistency.test.ts 拆分而来。
- * L0 部分仅依赖 @faijs/* 模块，不依赖 execute-validator / brep-chain。
+ * 阶段 1（§3.6）新增：符号表 ↔ stdlib 签名一致性守卫。
+ * 阶段 4（§6.1）改造：SCHEMAS 框架删除后，schema↔codegen 键集一致性测试随之删除
+ * （codegen 已是通用打印机：IR 里有什么打印什么，无 per-op 字段表可对照）；
+ * 符号表守卫保留并更新——符号表现覆盖 cad 命名空间全部函数
+ * （无 readonly 标注的记空对象，check() 符号检查据此判定"函数不存在"）。
  *
- * L1 部分（execute-validator case 集合、BREP 能力集合）留在
- * src/lang/op-set-consistency.test.ts
+ * 覆盖：
+ * - 符号表键集合 == cad 命名空间函数集（与 internal-stdlib 装配一致）
+ * - copy 的 readonlyPositions、group/assembly 的 readonlyPaths 标注正确
+ * - 未知函数（不在 cad 命名空间）→ undefined（默认消费语义）
+ * - R5 反例：混合 Shape + ReadonlyShape 签名 → 生成期抛错
  */
 
 import { describe, it, expect } from 'vitest'
-import { getOpSchema, hasOpSchema } from './args-schema'
-import { SCHEMAS } from '../stdlib/schemas'
-import { buildArgsParts } from './codegen'
-import type { CadStatement } from './types'
-import { asStmtId } from '../identity'
+import { writeFileSync, unlinkSync } from 'node:fs'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
+import { SYMBOL_TABLE, getFunctionSymbol } from './symbol-table'
+import { extractSymbolTable } from '../../scripts/gen-symbol-table'
 
-// ── schema 中的 op 集合 ──
-const SCHEMA_OPS = new Set([
-'box', 'sphere', 'cylinder', 'cone', 'wedge',
-'text', 'screw', 'svgExtrude', 'load',
-'translate', 'rotate', 'scale',
-'drill', 'extrude', 'split', 'boolean', 'engrave', 'knurl', 'sdf',
+/**
+ * cad 命名空间函数集（与 src/cad-runtime/internal-stdlib.ts 的 createInternalStdlib
+ * 装配键一致）。符号表应恰好覆盖此集合。
+ */
+const CAD_NAMESPACE_FUNCTIONS = new Set([
+  'box', 'sphere', 'cylinder', 'cone', 'wedge',
+  'text', 'screw', 'svgExtrude', 'sdf', 'load',
+  'translate', 'rotate', 'scale',
+  'drill', 'extrude', 'engrave', 'knurl',
+  'union', 'subtract', 'intersect',
+  'split', 'group', 'assembly', 'copy',
+  'faceCenter', 'faceNormal', 'bboxCenter', 'bboxMin', 'bboxMax',
+  'asset',
 ])
 
-// ── parser 的 PRIMITIVE_OPS（从 parser.ts:60 提取） ──
-const PARSER_PRIMITIVE_OPS = new Set([
-  'box', 'sphere', 'cylinder', 'cone', 'wedge', 'text', 'screw', 'svgExtrude',
-])
-
-describe('op-set-consistency: parser PRIMITIVE_OPS ⊆ schema', () => {
-  it('parser 认识的每个 primitive op 都在 schema 中有定义', () => {
-    const missing: string[] = []
-    for (const op of PARSER_PRIMITIVE_OPS) {
-      if (!hasOpSchema(op, SCHEMAS)) {
-        missing.push(op)
-      }
-    }
+describe('symbol-table-consistency: SYMBOL_TABLE ↔ cad namespace', () => {
+  it('符号表键集合恰好等于 cad 命名空间函数集', () => {
+    const tableKeys = new Set(Object.keys(SYMBOL_TABLE))
+    // 双向一致：无缺失、无多余
+    const missing = [...CAD_NAMESPACE_FUNCTIONS].filter((f) => !tableKeys.has(f))
+    const extra = [...tableKeys].filter((f) => !CAD_NAMESPACE_FUNCTIONS.has(f))
     expect(missing).toEqual([])
+    expect(extra).toEqual([])
+  })
+
+  it('每个 cad 命名空间函数在符号表中都有条目（空对象 = 默认消费语义）', () => {
+    for (const fn of CAD_NAMESPACE_FUNCTIONS) {
+      expect(SYMBOL_TABLE[fn], `missing symbol for "${fn}"`).toBeDefined()
+    }
+  })
+
+  it('copy 的 readonlyPositions 包含 0', () => {
+    const sym = getFunctionSymbol('copy')
+    expect(sym).toBeDefined()
+    expect(sym!.readonlyPositions).toContain(0)
+  })
+
+  it('group 的 readonlyPaths 包含 members', () => {
+    const sym = getFunctionSymbol('group')
+    expect(sym).toBeDefined()
+    expect(sym!.readonlyPaths).toContain('members')
+  })
+
+  it('assembly 的 readonlyPaths 包含 members', () => {
+    const sym = getFunctionSymbol('assembly')
+    expect(sym).toBeDefined()
+    expect(sym!.readonlyPaths).toContain('members')
+  })
+
+  it('消费性函数（drill/union）在符号表中但无 readonly 标注', () => {
+    // drill/union 无 readonly 标注 → 空对象（默认消费语义），但必须存在（check() 符号检查）
+    const drill = getFunctionSymbol('drill')
+    expect(drill).toBeDefined()
+    expect(drill!.readonlyPositions).toBeUndefined()
+    expect(drill!.readonlyPaths).toBeUndefined()
+    const union = getFunctionSymbol('union')
+    expect(union).toBeDefined()
+    expect(union!.readonlyPositions).toBeUndefined()
+  })
+
+  it('未知函数不在符号表中（返回 undefined）', () => {
+    expect(getFunctionSymbol('unknownFunction')).toBeUndefined()
+    expect(getFunctionSymbol('myLib.clone')).toBeUndefined()
   })
 })
 
-describe('op-set-consistency: schema op 集合完整性', () => {
-it('所有关键 op 都在 schema 中有定义', () => {
-const criticalOps = [
-'box', 'sphere', 'cylinder', 'cone', 'wedge',
-'text', 'screw', 'svgExtrude', 'load',
-'translate', 'rotate', 'scale',
-'drill', 'extrude', 'split', 'boolean', 'engrave', 'knurl', 'sdf',
-]
-    for (const op of criticalOps) {
-      expect(hasOpSchema(op, SCHEMAS)).toBe(true)
-    }
-  })
+// ── R5 反例：混合 Shape + ReadonlyShape → 生成期抛错 ──
 
-  it('knurl schema 包含 knurl 专属参数', () => {
-    const schema = getOpSchema('knurl', SCHEMAS)
-    expect(schema).toBeDefined()
-    const fieldNames = schema!.fields.map((f) => f.name)
-    expect(fieldNames).toContain('knurlTextureHeight')
-    expect(fieldNames).toContain('knurlScaleU')
-    expect(fieldNames).toContain('knurlScaleV')
-  })
+describe('symbol-table R5 violation: mixed Shape + ReadonlyShape', () => {
+  it('extractSymbolTable 对混合 Shape + ReadonlyShape 签名抛错', () => {
+    // Construct a temp TS source with a function that has both Shape and ReadonlyShape params
+    const tempSource = `
+import type { Shape, ReadonlyShape } from './mesh/types'
+import type { ExecContext } from './cad-runtime/exec-context'
 
-  it('sdf schema 包含 code 字段', () => {
-    const schema = getOpSchema('sdf', SCHEMAS)
-    expect(schema).toBeDefined()
-    const fieldNames = schema!.fields.map((f) => f.name)
-    expect(fieldNames).toContain('code')
-  })
-})
-
-// ── schema ↔ codegen 参数键集一致性守卫 ──
-// 对于每个 schema 中定义的 op，验证 codegen 的 buildArgsParts 不会遗漏 schema 声明的字段。
-// 方法：构造一个所有字段都设为非默认值的 statement，调用 buildArgsParts，
-// 检查输出的 key 集合是否覆盖了 schema 声明的所有字段。
-// 例外：boolean op 的 args 全部由 codegen 特殊处理（operation→函数名，inputs→位置实参），不进 args 对象。
-
-/**
- * 为每个 op 构造「全部字段非默认值」的 args。
- * 值的选择原则：不命中 codegen 中任何 skip 函数的默认值条件。
- */
-const NON_DEFAULT_ARGS: Record<string, Record<string, unknown>> = {
-  box: { size: [10, 20, 30], center: [1, 2, 3], nRad: 64 },
-  sphere: { radius: 5, segments: 32, center: [1, 2, 3], nRad: 64 },
-  cylinder: { radius: 5, height: 10, segments: 32, center: [1, 2, 3], nRad: 64 },
-  cone: { radiusBottom: 5, radiusTop: 1, height: 10, segments: 32, center: [1, 2, 3], nRad: 64 },
-  wedge: { width: 10, height: 20, angle: 60, length: 50, center: [1, 2, 3], nRad: 64 },
-  text: { text: 'hello', size: 10, depth: 2 },
-  screw: { system: 'metric', specIdx: 0, thread: 'coarse', pitchCustom: 1.5, length: 10, head: 'none', nRad: 64 },
-  svgExtrude: { svg: '<svg></svg>', depth: 5, targetLongSide: 20 },
-  load: { key: 'model.3mf', path: '/path/to/file.step', url: 'https://example.com/model.3mf', format: '3mf' },
-  translate: { offset: [1, 2, 3] },
-  rotate: { anglesDeg: [10, 20, 30], pivot: [1, 2, 3] },
-  scale: { factor: [1, 2, 3] },
-  drill: {
-    diameter: 5, depth: 10, position: [0, 0, 5], faceNormal: [0, 0, 1],
-    direction: 'reverse', holeType: 'screw', tolerance: 0.1,
-    screwSystem: 'metric', screwSpecIdx: 4, screwThread: 'coarse', screwHead: 'none',
-  },
-  extrude: { length: 10, mode: 'forward', normal: [0, 0, 1], originOffset: 5, space: 'world' },
-  split: {
-    cutMode: 'dovetail', normal: [1, 0, 0], offset: 5, inPlaneAngleDeg: 45,
-    side: 'front',
-    grooveDepth: 4, grooveWidth: 2, grooveDepthTolerance: 0.1, grooveWidthTolerance: 0.1,
-    grooveFlapsAngle: 30,
-    dowelDiameter: 3, dowelDiameterTolerance: 0.1, dowelHeight: 5, dowelHeightTolerance: 0.1,
-    tenonSideLength: 5, tenonSideLengthTolerance: 0.1, tenonHeight: 3, tenonHeightTolerance: 0.1,
-    bbCenter: [0, 0, 0], bboxSize: [20, 20, 20],
-    selectedSections: [0], applyExplode: true,
-    frontPartName: 'p1', backPartName: 'p2',
-  },
-  boolean: { operation: 'subtract', sourcePartNames: ['p1', 'p2'] },
-  engrave: {
-    text: 'hello', depth: 2, textSize: 10, svg: { $asset: 'svgkey' }, svgSize: 100,
-    mode: 'convex',
-    faceCenter: [0, 0, 0], faceNormal: [0, 0, 1],
-  },
-  knurl: {
-    knurlTextureHeight: 2, knurlScaleU: 1, knurlScaleV: 1,
-    knurlInvertDisplacement: true, knurlRefineLength: 1, knurlMappingMode: 0,
-    faceCenter: [0, 0, 0], faceNormal: [0, 0, 1],
-  },
-  sdf: { code: 'fn', box: [10, 10, 10], resolution: 32, params: { a: 1 } },
+export function mixedFn(a: Shape, b: ReadonlyShape, exec: ExecContext): Shape {
+  return a
 }
+`
+    // Use a temp file path for the generator to scan
+    const tempFile = join(tmpdir(), `__r5_test_${Date.now()}.ts`)
+    writeFileSync(tempFile, tempSource, 'utf-8')
 
-/**
- * 从 buildArgsParts 输出中提取 key 名。
- * 例如 'normal:[0,0,1]' → 'normal', 'side:\'front\'' → 'side'
- */
-function extractKeys(parts: string[]): Set<string> {
-  return new Set(parts.map((p) => p.split(':')[0]))
-}
-
-describe('op-set-consistency: schema ↔ codegen 参数键集', () => {
-  // boolean 是特殊情况：operation→函数名，inputs→位置实参，不进 args 对象
-  const OPS_TO_SKIP = new Set(['boolean'])
-
-  // 已知未实现的 codegen 字段：在 schema 中声明但 codegen 暂不输出
-  // 每项为 'op:field' 格式。新增条目时必须附注释说明原因。
-  const KNOWN_CODEGEN_PENDING = new Set<string>([
-    // P4 全部修复后，此列表应为空
-  ])
-
-  it('每个 schema op 的非默认值 statement → buildArgsParts 输出覆盖所有 schema 字段', () => {
-    const mismatches: string[] = []
-    for (const op of SCHEMA_OPS) {
-      if (OPS_TO_SKIP.has(op)) continue
-
-      const schema = getOpSchema(op, SCHEMAS)
-      if (!schema) continue
-
-      const schemaFields = new Set(schema.fields.map((f) => f.name))
-      const args = NON_DEFAULT_ARGS[op]
-      if (!args) {
-        mismatches.push(`${op}: no non-default args defined in test`)
-        continue
-      }
-
-      const stmt: CadStatement = {
-        id: asStmtId('st_test'),
-        op,
-        args: args as never,
-        inputs: [],
-        outputs: [],
-      }
-
-      const parts = buildArgsParts(stmt)
-      const outputKeys = extractKeys(parts)
-
-      // schema 声明的字段中，有哪些没出现在 codegen 输出里（排除已知未实现字段）
-      const missing = [...schemaFields].filter((f) => {
-        if (KNOWN_CODEGEN_PENDING.has(`${op}:${f}`)) return false
-        return !outputKeys.has(f)
-      })
-      if (missing.length > 0) {
-        mismatches.push(`${op}: schema fields not in codegen output: ${missing.join(', ')}`)
-      }
+    try {
+      expect(() => extractSymbolTable([tempFile])).toThrow(/R5/)
+    } finally {
+      unlinkSync(tempFile)
     }
-    expect(mismatches).toEqual([])
-  })
-
-  it('codegen 输出的 key 都在 schema 字段中声明（无多余 key）', () => {
-    const mismatches: string[] = []
-    for (const op of SCHEMA_OPS) {
-      if (OPS_TO_SKIP.has(op)) continue
-
-      const schema = getOpSchema(op, SCHEMAS)
-      if (!schema) continue
-
-      const schemaFields = new Set(schema.fields.map((f) => f.name))
-      const args = NON_DEFAULT_ARGS[op]
-      if (!args) continue
-
-      const stmt: CadStatement = {
-        id: asStmtId('st_test'),
-        op,
-        args: args as never,
-        inputs: [],
-        outputs: [],
-      }
-
-      const parts = buildArgsParts(stmt)
-      const outputKeys = extractKeys(parts)
-
-      // codegen 输出的字段中，有哪些没在 schema 里声明
-      const extra = [...outputKeys].filter((k) => !schemaFields.has(k))
-      if (extra.length > 0) {
-        mismatches.push(`${op}: codegen output keys not in schema: ${extra.join(', ')}`)
-      }
-    }
-    expect(mismatches).toEqual([])
   })
 })

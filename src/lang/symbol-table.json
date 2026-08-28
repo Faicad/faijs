@@ -1,0 +1,44 @@
+{
+  "group": {
+    "readonlyPaths": [
+      "members"
+    ]
+  },
+  "assembly": {
+    "readonlyPaths": [
+      "members"
+    ]
+  },
+  "copy": {
+    "readonlyPositions": [
+      0
+    ]
+  },
+  "box": {},
+  "sphere": {},
+  "cylinder": {},
+  "cone": {},
+  "wedge": {},
+  "text": {},
+  "screw": {},
+  "svgExtrude": {},
+  "sdf": {},
+  "load": {},
+  "translate": {},
+  "rotate": {},
+  "scale": {},
+  "drill": {},
+  "extrude": {},
+  "engrave": {},
+  "knurl": {},
+  "union": {},
+  "subtract": {},
+  "intersect": {},
+  "split": {},
+  "faceCenter": {},
+  "faceNormal": {},
+  "bboxCenter": {},
+  "bboxMin": {},
+  "bboxMax": {},
+  "asset": {}
+}

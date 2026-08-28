@@ -42,7 +42,7 @@ function scriptsEqual(a: PartScript, b: PartScript): boolean {
     const sa = a.statements[i]
     const sb = b.statements[i]
     if (sa.id !== sb.id) return false
-    if (sa.op !== sb.op) return false
+    if (sa.callee !== sb.callee) return false
     if (JSON.stringify(sa.inputs) !== JSON.stringify(sb.inputs)) return false
     if (JSON.stringify(sa.args) !== JSON.stringify(sb.args)) return false
   }
@@ -77,7 +77,7 @@ describe('syntax features', () => {
     const code = `let part0 = cad.box({ size: 20 })`
     const { script } = parseScript(code)
     expect(script.statements).toHaveLength(1)
-    expect(script.statements[0].op).toBe('box')
+    expect(script.statements[0].callee).toBe('box')
   })
 
   it('Vec3 parameter forms (array vs number)', () => {

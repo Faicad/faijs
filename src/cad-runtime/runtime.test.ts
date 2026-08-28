@@ -50,14 +50,14 @@ function createNodePorts(): HostPorts {
 
 function makeStmt(
   id: string,
-  op: string,
+  callee: string,
   args: Record<string, unknown>,
   inputs: string[] = [],
 ): CadStatement {
   // add_constraint/do_assemble 无赋值；其余 op 有赋值
-  const noAssignment = op === 'add_constraint' || op === 'do_assemble'
+  const noAssignment = callee === 'add_constraint' || callee === 'do_assemble'
   return {
-    id: asStmtId(id), op,
+    id: asStmtId(id), callee,
     args: args as any,
     inputs: inputs.map(asPartName),
     outputs: noAssignment ? [] : [asPartName(id)],
@@ -102,7 +102,7 @@ describe('CadRuntime: auto mode (BREP-first, per-part)', () => {
     // Error propagates directly (no try-catch fallback)
     await expect(run([
       makeStmt('s1', 'box', { size: 20 }),
-      makeStmt('s2', 'sdf', { code: '0', box: [[-5,-5,-5],[5,5,5]], resolution: 8 }, ['s1']),
+      makeStmt('s2', 'sdf', { code: '0', box: [[-5,-5,-5],[5,5,5]], resolution: 8 }),
     ])).rejects.toThrow()
   })
 
@@ -131,7 +131,7 @@ describe('CadRuntime: auto mode (BREP-first, per-part)', () => {
     const runtime = createRuntime(ports)
     const script = makePartScript([
       makeStmt('s1', 'box', { size: 20 }),
-      makeStmt('s2', 'sdf', { code: '0', box: [[-5,-5,-5],[5,5,5]], resolution: 8 }, ['s1']),
+      makeStmt('s2', 'sdf', { code: '0', box: [[-5,-5,-5],[5,5,5]], resolution: 8 }),
     ])
     // sdf mesh path throws in node, but the part-brep-lost event
     // is emitted during mesh-only op execution
@@ -161,7 +161,7 @@ describe('CadRuntime: brep mode (strict BREP, no fallback)', () => {
   it('mesh-only op (sdf): returns E_BREP_UNSUPPORTED immediately (no retry)', async () => {
     const { result } = await run([
       makeStmt('s1', 'box', { size: 20 }),
-      makeStmt('s2', 'sdf', { code: '0', box: [[-5,-5,-5],[5,5,5]], resolution: 8 }, ['s1']),
+      makeStmt('s2', 'sdf', { code: '0', box: [[-5,-5,-5],[5,5,5]], resolution: 8 }),
     ], 'brep')
 
     // brep mode: sdf is mesh-only → immediate E_BREP_UNSUPPORTED
@@ -216,7 +216,7 @@ describe('CadRuntime: mesh mode (all mesh, no BREP)', () => {
     const runtime = createRuntime(ports, 'mesh')
     const script = makePartScript([
       makeStmt('s1', 'box', { size: 20 }),
-      makeStmt('s2', 'sdf', { code: '0', box: [[-5,-5,-5],[5,5,5]], resolution: 8 }, ['s1']),
+      makeStmt('s2', 'sdf', { code: '0', box: [[-5,-5,-5],[5,5,5]], resolution: 8 }),
     ])
     // sdf mesh path throws in node (no Worker)
     await expect(runtime.execute(script)).rejects.toThrow()
@@ -366,7 +366,7 @@ describe('CadRuntime: instance management', () => {
     const runtime = makeRuntime()
     const script = makePartScript([
       makeStmt('s1', 'box', { size: 20 }),
-      makeStmt('grp_1', 'group', { name: 'G', members: ['s1'] }, []),
+      makeStmt('grp_1', 'group', { name: 'G', members: [{ $ref: 's1' }] }, []),
       makeStmt('s3', 'translate', { offset: [5, 0, 0] }, ['s1']), // depends on s1, not grp_1
     ])
     const result = await runtime.execute(script)
@@ -550,10 +550,11 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     const runtime = makeRuntime()
     const s0 = makeStmt('s0', 'box', { size: 20 })
     const splitStmt: CadStatement = {
-      id: asStmtId('s1'), op: 'split',
+      id: asStmtId('s1'), callee: 'split',
       args: { cutMode: 'plane', normal: [0, 0, 1], offset: 0 } as never,
       inputs: [asPartName('s0')],
       outputs: [asPartName('s1'), asPartName('s1b')], // stmt.id === outputs[0]；outputs[1] (back) 需显式持久化
+      outputKeys: ['front', 'back'],
       hasAssignment: true,
     }
     const script = makePartScript([s0, splitStmt])
@@ -572,10 +573,11 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     const runtime = makeRuntime()
     const s0 = makeStmt('s0', 'box', { size: 20 })
     const splitStmt: CadStatement = {
-      id: asStmtId('s1'), op: 'split',
+      id: asStmtId('s1'), callee: 'split',
       args: { cutMode: 'plane', normal: [0, 0, 1], offset: 0 } as never,
       inputs: [asPartName('s0')],
       outputs: [asPartName('s1'), asPartName('s1b')],
+      outputKeys: ['front', 'back'],
       hasAssignment: true,
     }
     await runtime.execute(makePartScript([s0, splitStmt]))
@@ -604,10 +606,10 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     // 创建 assembly + do_assemble 语句
     const assemblyStmt: CadStatement = {
       id: asStmtId('asm1'),
-      op: 'assembly',
+      callee: 'assembly',
       args: {
         name: 'testAssembly',
-        members: ['s1', 's2'],
+        members: [{ $ref: 's1' }, { $ref: 's2' }],
         constraints: [{
           type: 'face_mate' as const,
           fixedPartName: 's1',
@@ -624,11 +626,11 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     }
     const doAssembleStmt: CadStatement = {
       id: asStmtId('do_asm1'),
-      op: 'do_assemble',
+      callee: 'do_assemble',
       args: {},
       inputs: [],
       outputs: [],
-      assemblyTarget: asPartName('asm1'),
+      receiver: asPartName('asm1'),
     }
 
     // append 两条新语句
@@ -684,10 +686,10 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
 
     const assemblyStmt: CadStatement = {
       id: asStmtId('asm1'),
-      op: 'assembly',
+      callee: 'assembly',
       args: {
         name: 'testAssembly',
-        members: ['s1', 's2'],
+        members: [{ $ref: 's1' }, { $ref: 's2' }],
         constraints: [{
           type: 'face_mate' as const,
           fixedPartName: 's1',
@@ -702,11 +704,11 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     }
     const doAssembleStmt: CadStatement = {
       id: asStmtId('do_asm1'),
-      op: 'do_assemble',
+      callee: 'do_assemble',
       args: {},
       inputs: [],
       outputs: [],
-      assemblyTarget: asPartName('asm1'),
+      receiver: asPartName('asm1'),
     }
 
     const fullScript = makePartScript([s1, s2, assemblyStmt, doAssembleStmt])
@@ -744,10 +746,10 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
 
     const assemblyStmt: CadStatement = {
       id: asStmtId('asm1'),
-      op: 'assembly',
+      callee: 'assembly',
       args: {
         name: 'testAssembly',
-        members: ['s1', 's2'],
+        members: [{ $ref: 's1' }, { $ref: 's2' }],
         constraints: [{
           type: 'face_mate' as const,
           fixedPartName: 's1',
@@ -762,11 +764,11 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     }
     const doAssembleStmt: CadStatement = {
       id: asStmtId('do_asm1'),
-      op: 'do_assemble',
+      callee: 'do_assemble',
       args: {},
       inputs: [],
       outputs: [],
-      assemblyTarget: asPartName('asm1'),
+      receiver: asPartName('asm1'),
     }
 
     // 分次 append：先 asm，再 do_assemble（各自新建 exec）
@@ -897,7 +899,7 @@ describe('CadRuntime: DAG leaf terminal detection', () => {
     const { result } = await run([
       makeStmt('s1', 'box', { size: 20 }),
       makeStmt('s2', 'sphere', { radius: 8 }),
-      { id: asStmtId('s3'), op: 'boolean', args: { operation: 'subtract' }, inputs: [asPartName('s1'), asPartName('s2')], outputs: [asPartName('s3')], hasAssignment: true } as CadStatement,
+      { id: asStmtId('s3'), callee: 'subtract', args: {}, inputs: [asPartName('s1'), asPartName('s2')], outputs: [asPartName('s3')], hasAssignment: true } as CadStatement,
     ])
     expect(result.terminals.map(t => t.id)).toEqual([asPartName('s3')])
   })
@@ -907,7 +909,7 @@ describe('CadRuntime: DAG leaf terminal detection', () => {
     // 但这里直接构造 PartScript，不经过 parser，所以 outputs 就是 id
     const s1 = makeStmt('part0', 'box', { size: 20 })
     const s2: CadStatement = {
-      id: asStmtId('s2'), op: 'translate', args: { offset: [5, 0, 0] },
+      id: asStmtId('s2'), callee: 'translate', args: { offset: [5, 0, 0] },
       inputs: [asPartName('part0')], outputs: [asPartName('part0')], hasAssignment: true,
     }
     const { result } = await run([s1, s2])

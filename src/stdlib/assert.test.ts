@@ -10,7 +10,12 @@ import { assertDrillParams } from './drill'
 import { assertExtrudeParams } from './extrude'
 import { assertEngraveParams } from './engrave'
 import { assertTranslateParams, assertRotateParams, assertScaleParams } from './transform'
-import { assertBooleanParams } from './boolean'
+import { assertSdfParams } from './sdf'
+import { assertTextParams } from './text'
+import { assertScrewParams } from './screw'
+import { assertSvgExtrudeParams } from './svgExtrude'
+import { assertKnurlParams } from './knurl'
+import { assertNonZeroVec3 } from './assert'
 
 describe('stdlib per-op assert: 创建类', () => {
   it('box: size 必填（number 或 vec3）', () => {
@@ -88,11 +93,39 @@ describe('stdlib per-op assert: 变换类', () => {
   })
 })
 
-describe('stdlib per-op assert: 布尔', () => {
-  it('boolean: operation 必填，union | subtract | intersect', () => {
-    expect(() => assertBooleanParams({})).toThrow(/boolean\.operation/)
-    expect(() => assertBooleanParams({ operation: 'fuse' })).toThrow(/boolean\.operation/)
-    expect(() => assertBooleanParams({ operation: 'union' })).not.toThrow()
-    expect(() => assertBooleanParams({ operation: 'subtract' })).not.toThrow()
+describe('stdlib per-op assert: 阶段 4 补入的校验（§6.3）', () => {
+  it('assertNonZeroVec3: 零向量报错', () => {
+    expect(() => assertNonZeroVec3([0, 0, 0], 'split.normal')).toThrow(/non-zero/)
+    expect(() => assertNonZeroVec3([0, 0, 1], 'split.normal')).not.toThrow()
+  })
+
+  it('sdf: code 必填非空字符串', () => {
+    expect(() => assertSdfParams({})).toThrow(/sdf.*code/)
+    expect(() => assertSdfParams({ code: '' })).toThrow(/sdf.*code/)
+    expect(() => assertSdfParams({ code: 'fn' })).not.toThrow()
+  })
+
+  it('text: text 非空；size/depth > 0', () => {
+    expect(() => assertTextParams({})).toThrow(/text.*text/)
+    expect(() => assertTextParams({ text: 'A', size: 0, depth: 2 })).toThrow(/text\.size/)
+    expect(() => assertTextParams({ text: 'A', size: 10, depth: -1 })).toThrow(/text\.depth/)
+    expect(() => assertTextParams({ text: 'A', size: 10, depth: 2 })).not.toThrow()
+  })
+
+  it('screw: system/specIdx/length 必填', () => {
+    expect(() => assertScrewParams({})).toThrow(/screw/)
+    expect(() => assertScrewParams({ system: 'metric', specIdx: 0, length: 10 })).not.toThrow()
+  })
+
+  it('svgExtrude: svg 必填；depth > 0', () => {
+    expect(() => assertSvgExtrudeParams({})).toThrow(/svgExtrude.*svg/)
+    expect(() => assertSvgExtrudeParams({ svg: '<svg/>', depth: 0 })).toThrow(/svgExtrude\.depth/)
+    expect(() => assertSvgExtrudeParams({ svg: '<svg/>', depth: 5 })).not.toThrow()
+  })
+
+  it('knurl: knurlTextureHeight 必填 > 0', () => {
+    expect(() => assertKnurlParams({})).toThrow(/knurl/)
+    expect(() => assertKnurlParams({ knurlTextureHeight: 0 })).toThrow(/knurl/)
+    expect(() => assertKnurlParams({ knurlTextureHeight: 0.5 })).not.toThrow()
   })
 })

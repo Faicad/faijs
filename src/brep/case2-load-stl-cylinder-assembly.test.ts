@@ -79,13 +79,13 @@ function createTestPorts(): HostPorts {
 
 function makeStmt(
   id: string,
-  op: string,
+  callee: string,
   args: Record<string, unknown>,
   inputs: string[] = [],
   extra?: Partial<CadStatement>,
 ): CadStatement {
   return {
-    id: asStmtId(id), op,
+    id: asStmtId(id), callee,
     args: args as never,
     inputs: inputs.map(asPartName),
     outputs: [asPartName(id)],
@@ -158,7 +158,7 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
     expect(solidCache.has(asPartName('mated_v0'))).toBe(true)     // translate → BREP ✅
 
     // Assembly structural statement is skipped during execution
-    const asmStmt = stmts.find(s => s.op === 'assembly')
+    const asmStmt = stmts.find(s => s.callee === 'assembly')
     expect(asmStmt).toBeDefined()
 
     fileBlobStore.release(bufferKey)
@@ -267,7 +267,7 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
     expect(result.failedAt).toBeUndefined()
 
     // Verify assembly statement metadata
-    const asmStmt = stmts.find(s => s.op === 'assembly')
+    const asmStmt = stmts.find(s => s.callee === 'assembly')
     expect(asmStmt).toBeDefined()
     expect(asmStmt!.args.members).toEqual(['cube_v0', 'drilled_v0'])
 

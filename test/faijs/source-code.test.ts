@@ -9,8 +9,6 @@
 
 import { describe, it, expect } from 'vitest'
 import { parseScript, ParseError } from '../../src/lang/parser'
-import { validateScriptArgs } from '../../src/lang/args-schema'
-import { SCHEMAS } from '../../src/stdlib/schemas'
 
 describe('faijs source code: parse error handling', () => {
   it('rejects JavaScript syntax errors', () => {
@@ -30,21 +28,5 @@ describe('faijs source code: parse error handling', () => {
     const code = `let part0 = cad.box({ size: 20 })
 console.log(part0)`
     expect(() => parseScript(code)).toThrow(ParseError)
-  })
-})
-
-describe('faijs source code: args-schema validation', () => {
-  it('rejects missing required args via args validation', () => {
-    const code = `let part0 = cad.box({})`
-    const { script } = parseScript(code)
-    const errors = validateScriptArgs(script.statements, SCHEMAS)
-    expect(errors.length).toBeGreaterThan(0)
-  })
-
-  it('accepts unknown op (validation is done at execution time)', () => {
-    const code = `let part0 = cad.bogusOp({ size: 20 })`
-    const { script } = parseScript(code)
-    const errors = validateScriptArgs(script.statements, SCHEMAS)
-    expect(errors.length).toBe(0)  // No schema = no validation errors
   })
 })

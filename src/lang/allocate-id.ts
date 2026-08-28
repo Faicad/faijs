@@ -1,196 +1,97 @@
 /**
- * allocate-id — 语句 id 分配器（Phase 3 命名规则）
+ * allocate-id — 变量名自动推导服务（Phase 3 命名规则，A13 消灭）
  *
- * Phase 3 命名规则（§4）：
- * - 单入单出（translate/rotate/drill/extrude/knurl/engrave/boolean 等）：**复用输入名**
- * - 无输入/单输出（box/sphere/cylinder/cone/wedge/text/screw/svgExtrude/sdf/load）：**新名 partN**
- * - 多输出（split 1→2）：按输出数分配新 partN / part(N+1)
- * - group/assembly：取消 grp_N，按「无输入/单输出」规则拿新 partN
- * - void op（add_constraint/do_assemble）：无输出，不调用 allocateStatementId
+ * 设计文档：docs/plans/2026-08-27-faijs-language-normalization-design.md §4.7
+ * 实施文档：docs/plans/2026-08-27-faijs-language-normalization-implementation.md §5.4
  *
- * 版本号 _vM 语义取消：模型号 N 在单次脚本内单调递增。
- * 存量 partN_vM fixture 仍可加载（isPartVmId/getModelNum/getVersionNum 保留供解析旧名）。
+ * `derivePartName` 是命名服务：输入只含语法事实（callee/inputCount/outputCount）
+ * + 符号表查询（readonly 标注），输出 behavior（reuse/new）+ names。
+ * 调用方不传任何函数元数据；op 白名单（isCreatorOp/isCloneOp/isBooleanOp）与
+ * group/assembly 特判全部删除；allocateSplitIds 被 outputCount 吸收。
+ *
+ * 版本号 _vM 语义取消：模型号 N 在单次脚本内单调递增（partN 新名）。
  */
 
 import type { CadStatement } from './types'
 import { asPartName, type PartName } from '../identity'
+import { getFunctionSymbol } from './symbol-table'
 
-/** partN_vM 格式正则（兼容旧名） */
-const PART_VM_RE = /^part(\d+)_v(\d+)$/
-/** partN 格式正则（Phase 3 新名） */
 const PART_RE = /^part(\d+)$/
-/** grp_N 格式正则（兼容旧名） */
-const GRP_RE = /^grp_(\d+)$/
 
-/**
- * 从语句 outputs 列表中提取最大模型号（Phase 3: 从 outputs 扫描，不再依赖 stmt.id）。
- * 同时兼容旧名 partN_vM 和新名 partN。
- */
-function getMaxModelNum(statements: CadStatement[]): number {
+/** 从语句 outputs 中提取最大模型号（PartName 均为 partN 新名；旧名兼容已删，决策 2）。 */
+export function getMaxModelNum(statements: CadStatement[]): number {
   let max = -1
   for (const stmt of statements) {
     for (const outId of stmt.outputs) {
-      // Phase 3: 新名 partN
       const m = PART_RE.exec(outId)
       if (m) {
         const n = parseInt(m[1], 10)
         if (n > max) max = n
       }
-      // 兼容旧名 partN_vM
-      const om = PART_VM_RE.exec(outId)
-      if (om) {
-        const n = parseInt(om[1], 10)
-        if (n > max) max = n
-      }
-    }
-    // 也检查旧格式的 stmt.id（兼容旧 fixture 中 id 仍为 partN_vM）
-    const idM = PART_RE.exec(stmt.id) ?? PART_VM_RE.exec(stmt.id)
-    if (idM) {
-      const n = parseInt(idM[1], 10)
-      if (n > max) max = n
     }
   }
   return max
 }
 
-/** 从 id 中解析模型号（兼容旧名 partN_vM 和新名 partN） */
-function parseModelNum(id: string): number | null {
-  const m = PART_RE.exec(id) ?? PART_VM_RE.exec(id)
-  return m ? parseInt(m[1], 10) : null
-}
-
-/** 从 id 中解析版本号（仅旧名 partN_vM 有版本号；新名 partN 返回 0） */
-function parseVersionNum(id: string): number | null {
-  const m = PART_VM_RE.exec(id)
-  return m ? parseInt(m[2], 10) : null
-}
-
-/**
- * 判断 op 是否为无输入的创建型操作（新模型）。
- */
-function isCreatorOp(op: string): boolean {
-  return ['box', 'sphere', 'cylinder', 'cone', 'wedge', 'load', 'sdf', 'text', 'screw', 'svgExtrude'].includes(op)
-}
-
-/**
- * 判断 op 是否为克隆型操作（输出是独立新对象，不保名）。
- * copy 不消费源（共享读取），但输出是独立几何 → 归“新名”类。
- */
-function isCloneOp(op: string): boolean {
-  return op === 'copy'
-}
-
-/**
- * 判断 op 是否为布尔操作（结果为新模型）。
- */
-function isBooleanOp(op: string): boolean {
-  return op === 'boolean'
-}
-
-/** 分配器上下文 */
-export interface AllocateIdContext {
-  /** 当前 sceneScript 中所有已有语句 */
+export interface DerivePartNameInput {
+  callee: string
+  /** 语法事实：位置输入数 */
+  inputCount: number
+  /** 语法事实：输出数（含解构键数） */
+  outputCount: number
+  /** 现有语句（取下一个 partN） */
   statements: CadStatement[]
 }
 
-/**
- * 分配语句的输出变量名（PartName）。
- *
- * Phase 3 命名规则（§4）：
- * - 单入单出（translate/rotate/drill/extrude/knurl/engrave/boolean 等）：**复用输入名**（inputs[0]）
- * - 无输入/单输出（box/sphere/cylinder/cone/wedge/text/screw/svgExtrude/sdf/load）：**新名 partN**
- * - group/assembly：取消 grp_N，按「无输入/单输出」规则拿新 partN
- * - void op（add_constraint/do_assemble）：不调用此函数（outputs 为空数组）
- *
- * 版本号 _vM 语义取消：模型号 N 在单次脚本内单调递增。
- *
- * @param op 操作类型
- * @param inputs 输入变量名列表（PartName）
- * @param ctx 分配器上下文（包含已有语句列表）
- * @returns 分配的变量名（PartName）
- */
-export function allocateStatementId(
-  op: string,
-  inputs: string[],
-  ctx: AllocateIdContext,
-): PartName {
-  const { statements } = ctx
+export interface DerivePartNameResult {
+  behavior: 'reuse' | 'new'
+  /** behavior='new' 时分配的名字（长度=outputCount）；'reuse' 时为空 */
+  names: PartName[]
+}
 
-  // group/assembly：取消 grp_N，按「无输入/单输出」规则拿新 partN
-  if (op === 'group' || op === 'assembly') {
-    const nextN = getMaxModelNum(statements) + 1
-    return asPartName(`part${nextN}`)
+/**
+ * 变量名自动推导（设计文档 §4.7 R0–R5）。
+ * 输入只含语法事实 + 符号表查询，调用方不传任何函数元数据。
+ * 未知 callee（不在符号表）→ 默认消费语义，走 R2/R3。
+ */
+export function derivePartName(input: DerivePartNameInput): DerivePartNameResult {
+  const { callee, inputCount, outputCount, statements } = input
+
+  // R0：无赋值语句 → 无名字
+  if (outputCount === 0) return { behavior: 'new', names: [] }
+
+  const info = getFunctionSymbol(callee)
+
+  // R1：callee 在符号表且全部 shape 入参位置都被标 readonly → 新名（copy/group/assembly）
+  //   group/assembly 无位置输入（members 走 readonlyPaths），inputCount=0 时也视为"无消费性输入"→ 新名
+  const allInputsReadonly = info !== undefined && isAllInputsReadonly(info, inputCount)
+  if (allInputsReadonly) {
+    return { behavior: 'new', names: nextPartNames(statements, outputCount) }
   }
 
-  // 创建型 / 布尔 / 克隆 / 无输入 → 新模型
-  if (isCreatorOp(op) || isBooleanOp(op) || isCloneOp(op) || inputs.length === 0) {
-    const nextN = getMaxModelNum(statements) + 1
-    return asPartName(`part${nextN}`)
+  // R2：单入单出（消费性）→ 复用 inputs[0]
+  if (inputCount === 1 && outputCount === 1) return { behavior: 'reuse', names: [] }
+
+  // R4：多入多出且数量相等（Shape[] 批处理）→ 禁用（决策 4）
+  if (inputCount > 1 && outputCount > 1 && inputCount === outputCount) {
+    throw new Error(
+      `[derivePartName] "${callee}" has equal multi-input/multi-output counts ` +
+      `(${inputCount}→${outputCount}); Shape[] batch ops are disabled (design decision R4)`,
+    )
   }
 
-  // 单入单出 → 复用输入名
-  return asPartName(inputs[0])
+  // R3：其余（创建类、入出数量不同）→ 新名，每输出一个 partN
+  return { behavior: 'new', names: nextPartNames(statements, outputCount) }
 }
 
-/**
- * 为分割操作分配两个输出的 PartName。
- *
- * 分割产生两个新模型：partN 和 part(N+1)。
- *
- * @param ctx 分配器上下文
- * @returns { front, back } 两个 PartName
- */
-export function allocateSplitIds(
-  ctx: AllocateIdContext,
-): { front: PartName; back: PartName } {
-  const { statements } = ctx
-  const nextN = getMaxModelNum(statements) + 1
-  return {
-    front: asPartName(`part${nextN}`),
-    back: asPartName(`part${nextN + 1}`),
-  }
+function isAllInputsReadonly(info: { readonlyPositions?: number[] }, inputCount: number): boolean {
+  if (inputCount === 0) return true            // 无位置输入（group/assembly：members 走 readonlyPaths）→ 新名
+  const pos = info.readonlyPositions ?? []
+  for (let i = 0; i < inputCount; i++) if (!pos.includes(i)) return false
+  return true
 }
 
-/**
- * 判断 id 是否为 partN_vM 格式（旧名 PartName）。
- * 新名 partN 请用 isPartId 判断。
- */
-export function isPartVmId(id: string): id is PartName {
-  return PART_VM_RE.test(id)
-}
-
-/**
- * 判断 id 是否为 partN 格式（Phase 3 新名 PartName）。
- */
-export function isPartId(id: string): id is PartName {
-  return PART_RE.test(id)
-}
-
-/**
- * 从 id 中提取模型号（兼容旧名 partN_vM 和新名 partN）。
- */
-export function getModelNum(id: string): number | null {
-  return parseModelNum(id)
-}
-
-/**
- * 从 id 中提取版本号（仅旧名 partN_vM 有版本号；新名 partN 返回 null）。
- */
-export function getVersionNum(id: string): number | null {
-  return parseVersionNum(id)
-}
-
-/**
- * 判断 id 是否为 grp_N 格式（GroupName ⊆ PartName，兼容旧名）。
- */
-export function isGrpId(id: string): id is PartName {
-  return GRP_RE.test(id)
-}
-
-/**
- * 从 id 中提取 group 号（grp_N 中的 N）。
- */
-export function getGroupNum(id: string): number | null {
-  const m = GRP_RE.exec(id)
-  return m ? parseInt(m[1], 10) : null
+function nextPartNames(statements: CadStatement[], count: number): PartName[] {
+  const base = getMaxModelNum(statements) + 1
+  return Array.from({ length: count }, (_, i) => asPartName(`part${base + i}`))
 }

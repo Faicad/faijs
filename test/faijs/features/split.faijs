@@ -1,2 +1,2 @@
 let part0 = cad.box({ size:30 })
-part0 = cad.split(part0)
+const { front: part1, back: part2 } = cad.split(part0)

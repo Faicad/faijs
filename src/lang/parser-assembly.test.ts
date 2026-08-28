@@ -21,7 +21,7 @@ describe('E15.1: 装配链式调用解析', () => {
 
     // 第三条语句应该是 assembly 结构型语句
     const assemblyStmt = script.statements[2]
-    expect(assemblyStmt.op).toBe('assembly')
+    expect(assemblyStmt.callee).toBe('assembly')
     expect(assemblyStmt.args.name).toBe('MyAssembly')
     expect(assemblyStmt.args.members).toEqual(['part0', 'part1'])
   })
@@ -43,8 +43,8 @@ describe('E15.1: 装配链式调用解析', () => {
     expect(script.statements).toHaveLength(4)
 
     const addConstraintStmt = script.statements[3]
-    expect(addConstraintStmt.op).toBe('add_constraint')
-    expect(addConstraintStmt.assemblyTarget).toBe('assem1')
+    expect(addConstraintStmt.callee).toBe('add_constraint')
+    expect(addConstraintStmt.receiver).toBe('assem1')
     expect(addConstraintStmt.args.type).toBe('face_mate')
     expect(addConstraintStmt.args.fixedPartName).toBe('part0')
     expect(addConstraintStmt.args.movingPartName).toBe('part1')
@@ -62,8 +62,8 @@ describe('E15.1: 装配链式调用解析', () => {
     expect(script.statements).toHaveLength(5)
 
     const doAssembleStmt = script.statements[4]
-    expect(doAssembleStmt.op).toBe('do_assemble')
-    expect(doAssembleStmt.assemblyTarget).toBe('assem1')
+    expect(doAssembleStmt.callee).toBe('do_assemble')
+    expect(doAssembleStmt.receiver).toBe('assem1')
   })
 
   it('拒绝未声明的装配变量', () => {
@@ -71,7 +71,7 @@ describe('E15.1: 装配链式调用解析', () => {
       let part0 = cad.box({ size: 20 })
       unknown_var.add_constraint({ type: 'face_mate' })
     `
-    expect(() => parseScript(code)).toThrow(/unknown assembly variable/)
+    expect(() => parseScript(code)).toThrow(/unknown variable "unknown_var"/)
   })
 
   it('Phase 3: let 允许用于普通 cad.op()（单入单出复用名时 codegen 产生 let 重赋值）', () => {
@@ -80,7 +80,7 @@ describe('E15.1: 装配链式调用解析', () => {
     `
     const { script } = parseScript(code)
     expect(script.statements).toHaveLength(1)
-    expect(script.statements[0].op).toBe('box')
+    expect(script.statements[0].callee).toBe('box')
   })
 
   it('完整链式调用 roundtrip', () => {

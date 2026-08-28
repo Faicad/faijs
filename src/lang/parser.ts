@@ -23,24 +23,20 @@
 import { parse as acornParse } from 'acorn'
 import type {
   Arg,
-  AssetRef,
   CadStatement,
-  GeomRef,
   JsonValue,
   ParamDef,
   ParamRef,
   PartScript,
   PartScriptMeta,
   TerminalShape,
-  Vec3,
 } from './types'
-import { allocateStatementId, allocateSplitIds } from './allocate-id'
-import { isAssetRef, isGeomRef, isParamRef } from './types'
+import { derivePartName } from './allocate-id'
+import { isParamRef, isVarRef, isCallRef } from './types'
 import {
-  asStmtId, asPartName,
+  asStmtId,
   type PartName,
 } from '../identity'
-import type { OpSchema } from './args-schema'
 
 // ── 解析错误 ──
 
@@ -63,10 +59,7 @@ function getLine(node: ASTNode): number {
 }
 
 // ── AST 辅助常量 ──
-
-const BOOLEAN_OP_NAMES = new Set(['union', 'subtract', 'intersect'])
-const GEOMREF_FEATURES = new Set(['bboxCenter', 'bboxMin', 'bboxMax', 'faceCenter', 'faceNormal'])
-const ASSET_FEATURES = new Set(['asset'])
+// (none: the parser holds zero function-name knowledge — A1/A7 constants removed)
 
 // ── AST 值解析 ──
 
@@ -84,13 +77,17 @@ function parseValueExpr(
       return node.value
 
     case 'Identifier': {
-      // 裸标识符 → ParamRef（必须是已声明的参数名）
+      // 裸标识符：参数变量 → ParamRef；已声明变量 → VarRef（A7 消灭后通用）
       const name = node.name
       if (paramNames.has(name)) {
         const ref: ParamRef = { $param: name }
         return ref
       }
-      throw new ParseError(`unknown identifier "${name}" in args value (not a declared param)`, line)
+      const varId = varToId.get(name)
+      if (varId) {
+        return { $ref: varId } as Arg
+      }
+      throw new ParseError(`unknown identifier "${name}" in args value (not a declared param or variable)`, line)
     }
 
     case 'ArrayExpression': {
@@ -122,7 +119,7 @@ function parseValueExpr(
     }
 
     case 'CallExpression': {
-      // cad.faceCenter(part0) / cad.faceCenter(part0, [1,2,3]) → GeomRef
+      // 嵌套调用 → CallRef（A7 消灭后任意 cad.<ident>(...) 都合法）
       const callee = node.callee
       if (
         callee?.type === 'MemberExpression' &&
@@ -130,42 +127,11 @@ function parseValueExpr(
         callee.object.name === 'cad' &&
         callee.property?.type === 'Identifier'
       ) {
-        const feature = callee.property.name
-        if (GEOMREF_FEATURES.has(feature)) {
-          const args = node.arguments
-          if (args.length < 1 || args[0].type !== 'Identifier') {
-            throw new ParseError(`cad.${feature}() requires a variable name as first argument`, line)
-          }
-          const varName = args[0].name
-          const of = varToId.get(varName)
-          if (!of) {
-            throw new ParseError(`unknown variable "${varName}" in cad.${feature}()`, line)
-          }
-const ref: GeomRef = { $geom: { of, feature } }
-// 可选第二参数：anchor point [x, y, z]
-if (args.length >= 2) {
-const anchorArr = parseValueExpr(args[1], paramNames, varToId, line)
-if (Array.isArray(anchorArr) && anchorArr.length === 3) {
-ref.$geom.anchor = { point: anchorArr as Vec3 }
-}
-}
-// P5-2: 可选第三参数：faceOrdinal（拓扑面序号）
-if (args.length >= 3 && args[2].type === 'Literal') {
-ref.$geom.faceOrdinal = args[2].value as number
-}
-return ref
-        }
-        // cad.asset('key') → AssetRef
-        if (ASSET_FEATURES.has(feature)) {
-          const args = node.arguments
-          if (args.length !== 1 || args[0].type !== 'Literal') {
-            throw new ParseError(`cad.asset() requires a single string literal argument`, line)
-          }
-          const ref: AssetRef = { $asset: args[0].value as string }
-          return ref
-        }
+        const innerCallee = callee.property.name
+        const innerArgs = node.arguments.map((a: ASTNode) => parseValueExpr(a, paramNames, varToId, line))
+        return { $call: { callee: innerCallee, args: innerArgs } } as Arg
       }
-      throw new ParseError(`unsupported call expression in args value`, line)
+      throw new ParseError('nested calls in args must be cad.<ident>(...)', line)
     }
 
     case 'UnaryExpression':
@@ -229,63 +195,33 @@ function parseCadStatement(
 
   const opName = callee.property.name
 
-  // 判断是否为 boolean op（union/subtract/intersect）
-  let op: string
+  // 普通调用：callee 就是源码里的名字（A1 boolean 改写 / A4 load 收敛已删）
   let args: Record<string, Arg> = {}
   const inputs: PartName[] = []
-
-  if (BOOLEAN_OP_NAMES.has(opName)) {
-    // boolean op: cad.union(partA, partB) → op='boolean', args.operation=opName, inputs=[...]
-    op = 'boolean'
-    args = { operation: opName }
-    for (const argNode of init.arguments) {
-      if (argNode.type !== 'Identifier') {
-        throw new ParseError(`boolean op arguments must be variable names`, getLine(argNode))
-      }
+  for (const argNode of init.arguments) {
+    if (argNode.type === 'Identifier') {
+      // input 变量引用
       const inputId = varToId.get(argNode.name)
       if (!inputId) {
-        throw new ParseError(`unknown variable "${argNode.name}" in boolean inputs`, getLine(argNode))
+        throw new ParseError(`unknown variable "${argNode.name}" in inputs`, getLine(argNode))
       }
       inputs.push(inputId)
-    }
-  } else {
-    // 普通 op: cad.op(inputVar?, { args })
-    op = opName
-    for (const argNode of init.arguments) {
-      if (argNode.type === 'Identifier') {
-        // input 变量引用
-        const inputId = varToId.get(argNode.name)
-        if (!inputId) {
-          throw new ParseError(`unknown variable "${argNode.name}" in inputs`, getLine(argNode))
-        }
-        inputs.push(inputId)
-      } else if (argNode.type === 'ObjectExpression') {
-        // args 对象
-        const parsed = parseValueExpr(argNode, paramNames, varToId, line)
-        if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-          args = parsed as Record<string, Arg>
-        } else {
-          throw new ParseError('args must be an object', line)
-        }
+    } else if (argNode.type === 'ObjectExpression') {
+      // args 对象
+      const parsed = parseValueExpr(argNode, paramNames, varToId, line)
+      if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+        args = parsed as Record<string, Arg>
       } else {
-        throw new ParseError(`unexpected argument type: ${argNode.type}`, getLine(argNode))
+        throw new ParseError('args must be an object', line)
       }
+    } else {
+      throw new ParseError(`unexpected argument type: ${argNode.type}`, getLine(argNode))
     }
-  }
-
-  // P4-1: load op 收敛 — 旧 op 名映射为统一 'load' op
-  if (op === 'loadFile' || op === 'loadUrl' || op === 'loadByKey') {
-    op = 'load'
-  }
-  // 旧 load op 的 fileRef → key（向后兼容旧文本）
-  if (op === 'load' && args.fileRef !== undefined && args.key === undefined) {
-    args.key = args.fileRef
-    delete args.fileRef
   }
 
   // Phase 3：id 不再赋变量名，由最终遍历赋 sN；变量名记录到 declaredOutputs
   const stmt: CadStatement = {
-    id: asStmtId('__pending__'), op, args, inputs,
+    id: asStmtId('__pending__'), callee: opName, args, inputs,
     outputs: [],
     hasAssignment: true,
   }
@@ -293,88 +229,72 @@ function parseCadStatement(
   return { stmt, varName, declaredOutputs: [varName] }
 }
 
-// ── split 解构解析 ──
+// ── 通用解构解析（A2 消灭：任意 callee、任意键） ──
 
-interface ParsedSplitDestructuring {
-  /** 语句列表（split 本身 + 两个输出的变量注册） */
+interface ParsedDestructuring {
+  /** 语句列表（解构调用本身） */
   stmt: CadStatement
-  /** front 输出的变量名 */
-  frontVarName: string
-  /** back 输出的变量名 */
-  backVarName: string
+  /** 每个解构值的词法变量名（与 keys 一一对应） */
+  valueNames: string[]
   /** 词法声明的输出名 */
   declaredOutputs: string[]
 }
 
 /**
- * 解析 `const { front: part1, back: part2 } = await cad.split(part0, { ... })`。
+ * 解析 `const { k1: v1, k2: v2 } = [await] cad.<any>(...)`。
  *
- * split 是唯一允许多输出解构的 op。产出两个不同模型（partN/partM），
- * 各自版本从 _v0 起算。
+ * 任意键数（1..N）、任意 callee（不再限 split/front/back）。
  */
-function parseSplitDestructuring(
+function parseDestructuring(
   declNode: ASTNode,
   paramNames: Set<string>,
   varToId: Map<string, PartName>,
-): ParsedSplitDestructuring {
+): ParsedDestructuring {
   const line = getLine(declNode)
 
   // id 必须是 ObjectPattern
   if (declNode.id?.type !== 'ObjectPattern') {
-    throw new ParseError('expected object pattern for split destructuring', line)
+    throw new ParseError('expected object pattern for destructuring', line)
   }
 
-  // 必须恰好两个属性: front 和 back
   const props = declNode.id.properties
-  if (props.length !== 2) {
-    throw new ParseError(`split destructuring must have exactly 2 properties (front, back), got ${props.length}`, line)
+  if (props.length === 0) {
+    throw new ParseError('destructuring must have at least one property', line)
   }
 
-  let frontVarName: string | null = null
-  let backVarName: string | null = null
-
+  const keys: string[] = []
+  const valueNames: string[] = []
   for (const prop of props) {
     if (prop.type !== 'Property' || prop.key?.type !== 'Identifier') {
-      throw new ParseError('split destructuring properties must be identifiers', line)
+      throw new ParseError('destructuring properties must be identifiers', line)
     }
-    const keyName = prop.key.name
     if (prop.value?.type !== 'Identifier') {
-      throw new ParseError(`split destructuring value for "${keyName}" must be an identifier`, line)
+      throw new ParseError(`destructuring value for "${prop.key.name}" must be an identifier`, line)
     }
-    if (keyName === 'front') {
-      frontVarName = prop.value.name
-    } else if (keyName === 'back') {
-      backVarName = prop.value.name
-    } else {
-      throw new ParseError(`split destructuring only allows "front" and "back" keys, got "${keyName}"`, line)
-    }
+    keys.push(prop.key.name)
+    valueNames.push(prop.value.name)
   }
 
-  if (!frontVarName || !backVarName) {
-    throw new ParseError('split destructuring must have both "front" and "back" keys', line)
-  }
-
-  // 提取 init（必须包在 AwaitExpression 里）
+  // 提取 init（可包 AwaitExpression），必须是 cad.<ident>(...) 调用
   let init = declNode.init
   if (init?.type === 'AwaitExpression') {
     init = init.argument
   }
   if (init?.type !== 'CallExpression') {
-    throw new ParseError(`expected cad.split(...) call in destructuring, got ${init?.type ?? 'null'}`, line)
+    throw new ParseError(`expected cad.<op>(...) call in destructuring, got ${init?.type ?? 'null'}`, line)
   }
 
-  // callee 必须是 cad.split
   const callee = init.callee
   if (
     callee?.type !== 'MemberExpression' ||
     callee.object?.type !== 'Identifier' ||
     callee.object.name !== 'cad' ||
-    callee.property?.type !== 'Identifier' ||
-    callee.property.name !== 'split'
+    callee.property?.type !== 'Identifier'
   ) {
-    throw new ParseError('destructuring is only allowed for cad.split(...)', line)
+    throw new ParseError('destructuring is only allowed for cad.<op>(...) calls', line)
   }
 
+  const opName = callee.property.name
   const args: Record<string, Arg> = {}
   const inputs: PartName[] = []
 
@@ -382,7 +302,7 @@ function parseSplitDestructuring(
     if (argNode.type === 'Identifier') {
       const inputId = varToId.get(argNode.name)
       if (!inputId) {
-        throw new ParseError(`unknown variable "${argNode.name}" in split inputs`, getLine(argNode))
+        throw new ParseError(`unknown variable "${argNode.name}" in destructuring inputs`, getLine(argNode))
       }
       inputs.push(inputId)
     } else if (argNode.type === 'ObjectExpression') {
@@ -390,20 +310,21 @@ function parseSplitDestructuring(
       if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
         Object.assign(args, parsed as Record<string, Arg>)
       } else {
-        throw new ParseError('split args must be an object', line)
+        throw new ParseError('destructuring args must be an object', line)
       }
     } else {
-      throw new ParseError(`unexpected argument type in split: ${argNode.type}`, getLine(argNode))
+      throw new ParseError(`unexpected argument type in destructuring: ${argNode.type}`, getLine(argNode))
     }
   }
 
   // Phase 3：id 不再赋变量名；outputs 在最终遍历经 varToId 解析后写入
   const stmt: CadStatement = {
-    id: asStmtId('__pending__'), op: 'split', args, inputs, outputs: [],
+    id: asStmtId('__pending__'), callee: opName, args, inputs, outputs: [],
+    outputKeys: keys,
     hasAssignment: true,
   }
 
-  return { stmt, frontVarName, backVarName, declaredOutputs: [frontVarName, backVarName] }
+  return { stmt, valueNames, declaredOutputs: valueNames }
 }
 
 // ── meta 解析 ──
@@ -517,7 +438,7 @@ function parseReturnObject(
 
 // ── 引用收集（Phase 1: VM 执行 deps 计算） ──
 
-/** 递归收集 Arg 中的变量引用：$param → 参数名；$geom.of → 上游变量名；$asset 无引用。 */
+/** 递归收集 Arg 中的变量引用：$param → 参数名；$ref → 变量名；$call → 递归收集内部 args。 */
 function collectRefsFromArg(value: Arg, out: Set<string>): void {
   if (value === null || value === undefined) return
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return
@@ -525,11 +446,14 @@ function collectRefsFromArg(value: Arg, out: Set<string>): void {
     out.add(value.$param)
     return
   }
-  if (isGeomRef(value)) {
-    out.add(value.$geom.of)
+  if (isVarRef(value)) {
+    out.add(value.$ref)
     return
   }
-  if (isAssetRef(value)) return
+  if (isCallRef(value)) {
+    for (const a of value.$call.args) collectRefsFromArg(a, out)
+    return
+  }
   if (Array.isArray(value)) {
     for (const v of value) collectRefsFromArg(v as Arg, out)
     return
@@ -540,7 +464,7 @@ function collectRefsFromArg(value: Arg, out: Set<string>): void {
 }
 
 /**
- * 收集单条语句引用的全部变量名（inputs + args 中 $param / $geom.of + group/assembly members）。
+ * 收集单条语句引用的全部变量名（inputs + args 中 $param / $ref / 嵌套调用）。
  * 存入 stmt.refs，编译期据此翻译为 deps（定义这些变量的语句 id）。
  */
 function collectStatementRefs(stmt: CadStatement): string[] {
@@ -548,103 +472,10 @@ function collectStatementRefs(stmt: CadStatement): string[] {
   for (const arg of Object.values(stmt.args)) {
     collectRefsFromArg(arg, refs)
   }
-  if (stmt.op === 'group' || stmt.op === 'assembly') {
-    const members = stmt.args?.members
-    if (Array.isArray(members)) {
-      for (const m of members) if (typeof m === 'string') refs.add(m)
-    }
-  }
   return [...refs]
 }
 
-// ── 静态消费校验（Rule A + Rule B） ──
-
-/** 不消费其右侧引用的语句类型（group/assembly 不消费成员，copy 不消费源）。 */
-const NON_CONSUMING_OPS = new Set(['group', 'assembly', 'copy'])
-
-/**
- * 静态校验消费合法性（§4.1 前置）。
- *
- * 规则 A（通用：任何变量最多被消费一次）——对每个 shape 变量 v：
- *   P = 最后一条 outputs 含 v 的语句下标；
- *   consumers = P 之后引用 v 的非 NON_CONSUMING_OPS 语句数；
- *   consumers > 1 → 抛 ParseError。
- *
- * 规则 B（成员必为终端）——对每个 group/assembly 成员 m：
- *   P = 最后一条 outputs 含 m 的语句下标；
- *   P 之后任何非 NON_CONSUMING_OPS 语句引用 m → 抛 ParseError。
- *
- * 注意：void op（add_constraint/do_assemble）无 outputs，不参与“被消费”判定
- *（它们的 inputs 为空，refs 中只有 $param / $geom.of，不会出现 shape 变量名）。
- */
-function validateConsumption(statements: CadStatement[]): void {
-  // 构建变量名 → 最后一条 outputs 含该名的语句下标
-  const lastProducer = new Map<string, number>()
-  for (let i = 0; i < statements.length; i++) {
-    const stmt = statements[i]
-    if (!stmt.hasAssignment) continue // void op 无 outputs
-    for (const out of stmt.outputs) {
-      lastProducer.set(out, i)
-    }
-  }
-
-  // 收集每个 group/assembly 语句的成员名
-  const allMembers = new Set<string>()
-  for (const stmt of statements) {
-    if (stmt.op === 'group' || stmt.op === 'assembly') {
-      const members = stmt.args?.members
-      if (Array.isArray(members)) {
-        for (const m of members) {
-          if (typeof m === 'string') allMembers.add(m)
-        }
-      }
-    }
-  }
-
-  // 规则 A + B：对每个有 lastProducer 的变量，统计其后的非 NON_CONSUMING_OPS 消费者数
-  for (const [varName, producerIdx] of lastProducer) {
-    const isMember = allMembers.has(varName)
-    let consumerCount = 0
-    let firstConsumerIdx = -1
-
-    for (let i = producerIdx + 1; i < statements.length; i++) {
-      const stmt = statements[i]
-      if (NON_CONSUMING_OPS.has(stmt.op)) continue // group/assembly/copy 不消费
-
-      // 检查该语句是否引用了 varName（refs 或 inputs）
-      const refs = stmt.refs ?? stmt.inputs ?? []
-      if (refs.includes(varName)) {
-        consumerCount++
-        if (firstConsumerIdx < 0) firstConsumerIdx = i
-      }
-    }
-
-    // 规则 B：成员必为终端 —— 成员有消费者即报错
-    if (isMember && consumerCount > 0) {
-      const consumerStmt = statements[firstConsumerIdx]
-      throw new ParseError(
-        `member "${varName}" is consumed by exclusive op "${consumerStmt.op}" — members of group/assembly must be terminals`,
-        0,
-      )
-    }
-
-    // 规则 A：任何变量最多被一个非 NON_CONSUMING_OPS 语句消费
-    if (consumerCount > 1) {
-      throw new ParseError(
-        `variable "${varName}" is consumed by more than one exclusive statement`,
-        0,
-      )
-    }
-  }
-}
-
 // ── 主解析函数 ──
-
-export interface ParseOptions {
-  /** op schema 表（由 CadRuntime 注入 SCHEMAS）。lang 层不出现 op 名知识；
-   *  schema 是数据表，注入不破坏该红线。无表则不校验（与总方案 §2.8「无表不校验」一致）。 */
-  schemas?: Record<string, OpSchema>
-}
 
 export interface ParseResult {
   script: PartScript
@@ -660,9 +491,12 @@ export interface ParseResult {
  * 2. AST walk — 只接受允许的节点形状，遇违规即 ParseError
  * 3. 构建 PartScript
  *
+ * 零函数知识：parser 不接收任何 schemas/函数元数据（A5/A14 已删），
+ * 对 callee 名字完全均匀处理。
+ *
  * @throws ParseError — 含行号
  */
-export function parseScript(code: string, options?: ParseOptions): ParseResult {
+export function parseScript(code: string): ParseResult {
 
   // ── 0. 扁平代码检测与封装 ──
   // 如果代码不含 `export default`，则自动封装为合法容器
@@ -721,7 +555,6 @@ export function parseScript(code: string, options?: ParseOptions): ParseResult {
   const statements: CadStatement[] = []
   const paramNames = new Set<string>()
   const varToId = new Map<string, PartName>()
-  const assemblyVars = new Set<string>()
   let meta: PartScriptMeta | undefined
   let terminalShapes: TerminalShape[] | undefined
 
@@ -740,19 +573,25 @@ export function parseScript(code: string, options?: ParseOptions): ParseResult {
         }
         const decl = stmtNode.declarations[0]
 
-        // split 解构：const { front: part1, back: part2 } = await cad.split(...)
+        // 通用解构：const { k1: v1, k2: v2 } = [await] cad.<any>(...)（A2 消灭：任意 callee、任意键）
         if (decl.id?.type === 'ObjectPattern') {
           if (stmtNode.kind !== 'const') {
-            throw new ParseError('split destructuring requires const', line)
+            throw new ParseError('destructuring requires const', line)
           }
-          const { stmt, frontVarName, backVarName } = parseSplitDestructuring(decl, paramNames, varToId)
-          // Phase 3：立即分配 split 的两个输出 PartName
-          const { front, back } = allocateSplitIds({ statements })
-          stmt.outputs = [front, back]
+          const { stmt, valueNames } = parseDestructuring(decl, paramNames, varToId)
+          // 命名服务：按输出数分配连续 PartName（derivePartName，A13 消灭）
+          const outCount = valueNames.length
+          const result = derivePartName({
+            callee: stmt.callee,
+            inputCount: stmt.inputs.length,
+            outputCount: outCount,
+            statements,
+          })
+          const outs = result.names
+          stmt.outputs = outs
           statements.push(stmt)
           // 词法变量名 → 物理 PartName
-          varToId.set(frontVarName, front)
-          varToId.set(backVarName, back)
+          valueNames.forEach((n, i) => varToId.set(n, outs[i]))
           break
         }
 
@@ -761,55 +600,9 @@ export function parseScript(code: string, options?: ParseOptions): ParseResult {
         const isAwait = init?.type === 'AwaitExpression'
         if (isAwait) init = init.argument
 
-        // ── E15.1: const/let assem1 = cad.assembly({...}) ──
-        if (
-          (stmtNode.kind === 'const' || stmtNode.kind === 'let') &&
-          init?.type === 'CallExpression' &&
-          init.callee?.type === 'MemberExpression' &&
-          init.callee.object?.type === 'Identifier' &&
-          init.callee.object.name === 'cad' &&
-          init.callee.property?.type === 'Identifier' &&
-          (init.callee.property.name === 'group' ||
-           init.callee.property.name === 'assembly')
-        ) {
-          if (decl.id?.type !== 'Identifier') {
-            throw new ParseError('assembly/group must have identifier name', line)
-          }
-          const varName = decl.id.name
-          const opName = init.callee.property.name
-          const args: Record<string, Arg> = {}
-          for (const argNode of init.arguments) {
-            if (argNode.type === 'ObjectExpression') {
-              const parsed = parseValueExpr(argNode, paramNames, varToId, line)
-              if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-                Object.assign(args, parsed as Record<string, Arg>)
-              } else {
-                throw new ParseError(`${opName} args must be an object`, line)
-              }
-            } else {
-              throw new ParseError(`unexpected argument type in ${opName}: ${argNode.type}`, line)
-            }
-          }
-          const grpId = allocateStatementId(opName, [], { statements })
-          const stmt: CadStatement = {
-            id: asStmtId('__pending__'),
-            op: opName,
-            args,
-            inputs: [],
-            outputs: [grpId],
-            hasAssignment: true,
-          }
-          statements.push(stmt)
-          // group/assembly 变量名 → 组名（GroupName ⊆ PartName）
-          if (opName === 'assembly') {
-            assemblyVars.add(varName)
-          }
-          varToId.set(varName, grpId)
-          break
-        }
+        // ── E15.1 已删（A3）：group/assembly 走普通调用路径，members 数组元素经 VarRef 通用扫描 ──
 
         // Phase 3: let 允许用于普通 cad.op() 语句（单入单出复用名时 codegen 产生 let 重赋值）
-        // const 已覆盖 group/assembly；普通 cad.op() 也允许 let
 
         if (
           init?.type === 'CallExpression' &&
@@ -819,17 +612,16 @@ export function parseScript(code: string, options?: ParseOptions): ParseResult {
         ) {
           // 语句：const partN_vM = [await] cad.op(...)
           const { stmt, varName } = parseCadStatement(decl, paramNames, varToId)
-          // 赋值校验：void 不准赋值（schema 表由 parse 入口注入；无表则不校验）
-          const schema = options?.schemas?.[stmt.op]
-          if (schema?.void) {
-            throw new ParseError(
-              `cad.${stmt.op}() is void, cannot assign to a variable`, line,
-            )
-          }
-          // Phase 3：立即分配 outputs（调用 allocateStatementId），
+          // 命名服务：立即分配 outputs（derivePartName），
           //   这样 getMaxModelNum 能从已有 outputs 正确扫描，
           //   且 varToId 映射为分配的 PartName（而非恒等映射变量名）。
-          const allocated = allocateStatementId(stmt.op, stmt.inputs.map(String), { statements })
+          const result = derivePartName({
+            callee: stmt.callee,
+            inputCount: stmt.inputs.length,
+            outputCount: 1,
+            statements,
+          })
+          const allocated = result.behavior === 'reuse' ? stmt.inputs[0] : result.names[0]
           stmt.outputs = [allocated]
           statements.push(stmt)
           // 词法变量名 → 物理 PartName
@@ -900,8 +692,14 @@ export function parseScript(code: string, options?: ParseOptions): ParseResult {
               loc: stmtNode.loc,
             }
             const { stmt, varName: parsedVar } = parseCadStatement(fakeDecl, paramNames, varToId)
-            // Phase 3：裸重赋值也分配 outputs（单入单出 → 复用输入名）
-            const allocated = allocateStatementId(stmt.op, stmt.inputs.map(String), { statements })
+            // 命名服务：裸重赋值也分配 outputs（单入单出 → 复用输入名）
+            const result = derivePartName({
+              callee: stmt.callee,
+              inputCount: stmt.inputs.length,
+              outputCount: 1,
+              statements,
+            })
+            const allocated = result.behavior === 'reuse' ? stmt.inputs[0] : result.names[0]
             stmt.outputs = [allocated]
             statements.push(stmt)
             // 重赋值同名变量，更新映射为分配的 PartName
@@ -911,20 +709,19 @@ export function parseScript(code: string, options?: ParseOptions): ParseResult {
           throw new ParseError(`re-assignment must be a cad.op() call`, line)
         }
 
-        // ── E15.1: 装配链式调用成员方法 ──
-        // assem1.add_constraint({ ... }) / assem1.do_assemble()
+        // ── 成员方法调用（A6 消灭：任意方法名；receiver 须已声明） ──
+        // assem1.add_constraint({ ... }) / assem1.do_assemble() / assem1.myMethod()
           if (
             expr?.type === 'CallExpression' &&
             expr.callee?.type === 'MemberExpression' &&
             expr.callee.object?.type === 'Identifier' &&
-            expr.callee.property?.type === 'Identifier' &&
-            (expr.callee.property.name === 'add_constraint' || expr.callee.property.name === 'do_assemble')
+            expr.callee.property?.type === 'Identifier'
           ) {
             const targetVar = expr.callee.object.name
             const methodName = expr.callee.property.name
-            // 验证 targetVar 是已声明的装配变量
-            if (!varToId.has(targetVar) && !assemblyVars.has(targetVar)) {
-              throw new ParseError(`unknown assembly variable "${targetVar}" in .${methodName}() call`, line)
+            // 验证 targetVar 已声明（变量作用域检查，非 op 知识）
+            if (!varToId.has(targetVar)) {
+              throw new ParseError(`unknown variable "${targetVar}" in .${methodName}() call`, line)
             }
             const args: Record<string, Arg> = {}
             for (const argNode of expr.arguments) {
@@ -941,11 +738,11 @@ export function parseScript(code: string, options?: ParseOptions): ParseResult {
             }
             const memberStmt: CadStatement = {
               id: asStmtId('__pending__'),
-              op: methodName,
+              callee: methodName,
               args,
               inputs: [],
               outputs: [],
-              assemblyTarget: targetVar,
+              receiver: targetVar,
               hasAssignment: false,
             }
             statements.push(memberStmt)
@@ -964,7 +761,7 @@ export function parseScript(code: string, options?: ParseOptions): ParseResult {
     }
   }
 
-  // ── 3.5 独立 StmtId 分配 + outputs 解析 + 引用收集（Phase 3: id = sN） ──
+  // ── 3.5 独立 StmtId 分配 + 引用收集（Phase 3: id = sN） ──
   // StmtId 按语句顺序分配 s(K+1)..s(K+N)，K = params.length——参数在编译产物中占 s1..sK，
   // 使 parser 分配的 id 与 compileToModule 生成的模块语句 id 一致。
   const stmtIdBase = params.length
@@ -972,20 +769,8 @@ export function parseScript(code: string, options?: ParseOptions): ParseResult {
   for (const stmt of statements) {
     const sN = asStmtId(`s${stmtIdBase + (++stmtIdx)}`)
     stmt.id = sN
-    // outputs：从词法声明名经 varToId 解析为物理 partName
-    const declared = (stmt as any)._declaredOutputs as string[] | undefined
-    if (declared) {
-      stmt.outputs = declared.map(n => varToId.get(n) ?? asPartName(n))
-      delete (stmt as any)._declaredOutputs
-    }
     stmt.refs = collectStatementRefs(stmt)
   }
-
-  // ── 3.6 静态消费校验（§4.1 前置 Rule A + Rule B） ──
-  // stmt.refs 已就绪，检查消费合法性：
-  // - 任何变量最多被一个独占语句消费（规则 A）
-  // - group/assembly 成员必为终端（规则 B）
-  validateConsumption(statements)
 
   // ── 4. terminal shapes ──
   // Phase 3：终端判定移入执行收尾（runtime.collectResult），parser 不再计算。

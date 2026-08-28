@@ -30,10 +30,10 @@ import type {
 
 // ── Stdlib 命名空间（cad 对象） ──
 
-/** 库函数统一形态：`(inputs..., args, exec) => Promise<unknown>`；geom 查询末参 exec。 */
-export type StdlibFn = (...args: unknown[]) => Promise<unknown> | unknown
+/** 库函数统一形态：`(…sourceVisibleArgs, exec) => Result`（编译产物无类型调用面，签名异构）。 */
+export type StdlibFn = (...args: any[]) => unknown
 
-/** cad 命名空间：op 函数 + geom 查询函数 + asset。Phase 1 为内部适配命名空间。 */
+/** cad 命名空间：op 函数 + geom 查询函数 + asset。对象字面量装配（§4.5-3）。 */
 export interface StdlibNamespace {
   [name: string]: StdlibFn
 }
@@ -75,6 +75,9 @@ export interface ExecContext {
   readonly texture: TextureSampler | undefined
   readonly assets: AssetResolver | undefined
   readonly events: EventSink
+
+  /** 当前执行语句（库函数内发事件/取输出名用）。 */
+  readonly currentStmt?: CadStatement
 }
 
 // ── ExecContextImpl（Phase 1 实现） ──

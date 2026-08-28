@@ -52,9 +52,9 @@ describe('cliCheck: dryRun validation', () => {
     expect(result.ok).toBe(true)
     expect(result.errors).toHaveLength(0)
     expect(result.script).toBeDefined()
-    expect(result.script!.ops).toContain('box')
-    expect(result.script!.ops).toContain('sphere')
-    expect(result.script!.ops).toContain('boolean')
+    expect(result.script!.callees).toContain('box')
+    expect(result.script!.callees).toContain('sphere')
+    expect(result.script!.callees).toContain('subtract')
   })
 
   it('invalid .faijs (parse error) → ok=false', () => {
@@ -69,17 +69,17 @@ describe('cliCheck: dryRun validation', () => {
     expect(result.errors[0].stage).toBe('parse')
   })
 
-  it('invalid .faijs (schema error) → ok=false', () => {
+  it('invalid .faijs (symbol error: unknown callee) → ok=false', () => {
     const badCode = `export default async (cad) => {
-  const part0 = cad.box({ size: 20, bogusField: 99 })
+  const part0 = cad.bogusFn({ size: 20 })
   return { shape: part0 }
 }`
-    const tmpFile = resolve(TMP_DIR, 'bad-schema.faijs')
+    const tmpFile = resolve(TMP_DIR, 'bad-symbol.faijs')
     writeFileSync(tmpFile, badCode)
     const result = cliCheck(tmpFile)
     expect(result.ok).toBe(false)
-    const schemaErrors = result.errors.filter((e) => e.stage === 'schema')
-    expect(schemaErrors.length).toBeGreaterThan(0)
+    const symbolErrors = result.errors.filter((e) => e.stage === 'symbol')
+    expect(symbolErrors.length).toBeGreaterThan(0)
   })
 })
 

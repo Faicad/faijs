@@ -27,50 +27,44 @@ export interface ParamRef {
   $param: string
 }
 
-/** 资产引用：SVG/XML 等大段文本不进 faijs 文本，由 AssetResolver 按 key 解析 */
-export interface AssetRef {
-  $asset: string
+/** 变量引用：args 内出现的已声明变量（如 group/assembly 的 members 元素）。编译为 ctx.<name>。 */
+export interface VarRef {
+  $ref: string
 }
 
-/** 语义引用：对上游几何的派生位置（面心/包围盒中心等），重算时自动跟随 */
-export interface GeomRef {
-  $geom: {
-    /** 上游左值变量名（PartName，fai 语句名空间；7 带 brand） */
-    of: PartName
-    feature: 'bboxCenter' | 'faceCenter' | 'faceNormal' | 'bboxMin' | 'bboxMax'
-    /** 面在上游形状 getSubShapes(shape,'face') 中的枚举序号（拓扑引用）。
-     *  确定性重放下稳定（分析文档 §5.2）；优先于 anchor 用于面定位。
-     *  undefined 时降级到 anchor 几何反查（兼容旧文本）。 */
-    faceOrdinal?: number
-    anchor?: { point: Vec3; normal?: Vec3 }
+/** 嵌套调用：args 内的 cad.<callee>(...)。编译为 cad.<callee>(…, exec)。 */
+export interface CallRef {
+  $call: {
+    callee: string
+    args: Arg[]
   }
 }
 
-export type Arg = JsonValue | ParamRef | GeomRef | AssetRef
+export type Arg = JsonValue | ParamRef | VarRef | CallRef
 /** 语句输入引用的左值变量名（PartName） */
 export type ShapeRef = PartName
 
-// ── 类型守卫（从 ops/geom-ref.ts 上提，斩断 codegen → occt 传递依赖） ──
-
-/**
- * 检测 Arg 是否为 AssetRef
- */
-export function isAssetRef(arg: Arg): arg is AssetRef {
-  return arg !== null && typeof arg === 'object' && !Array.isArray(arg) && '$asset' in arg
-}
-
-/**
- * 检测 Arg 是否为 GeomRef
- */
-export function isGeomRef(arg: Arg): arg is GeomRef {
-  return arg !== null && typeof arg === 'object' && !Array.isArray(arg) && '$geom' in arg
-}
+// ── 类型守卫（L0 零依赖） ──
 
 /**
  * 检测 Arg 是否为 ParamRef
  */
 export function isParamRef(arg: Arg): arg is ParamRef {
   return arg !== null && typeof arg === 'object' && !Array.isArray(arg) && '$param' in arg
+}
+
+/**
+ * 检测 Arg 是否为 VarRef
+ */
+export function isVarRef(arg: Arg): arg is VarRef {
+  return arg !== null && typeof arg === 'object' && !Array.isArray(arg) && '$ref' in arg
+}
+
+/**
+ * 检测 Arg 是否为 CallRef
+ */
+export function isCallRef(arg: Arg): arg is CallRef {
+  return arg !== null && typeof arg === 'object' && !Array.isArray(arg) && '$call' in arg
 }
 
 // ── 语句 ──
@@ -81,7 +75,7 @@ export interface CadStatement {
    *  fai 语句名空间；与 3d_editor 的 ScopedId（fileId:innerId）是两套命名空间。
    *  Phase 3：id = 顺序 sN（不再是变量名）；变量名只存 outputs。 */
   id: StmtId
-  op: string
+  callee: string
   args: Record<string, Arg>
   inputs: ShapeRef[]
   name?: string
@@ -91,13 +85,15 @@ export interface CadStatement {
   /** 本语句产出的变量名列表（PartName）。
    *  单输出 op = [partName]；split = [front, back]；void op（add_constraint/do_assemble）= []。 */
   outputs: PartName[]
+  /** 解构键：`const {front: a, back: b} = ...` → ['front','back']。与 outputs 一一对应。 */
+  outputKeys?: string[]
   /** 全局序列号 — 用于 timeline 跨 part 线性排序。
    *  在 appendStatement / insertStatementAt 时由 script-store 自动赋值。
    *  undo/redo 后随 partScripts 快照恢复，保持时间线顺序一致。 */
   seq?: number
-  /** 装配链式调用专属：标记 `assem1.add_constraint(...)` / `assem1.do_assemble()` 的目标变量。
-   *  指向 assembly 语句的变量名（= 语句 id，PartName）。 */
-  assemblyTarget?: PartName
+  /** 成员方法调用的接收者变量（`asm1.add_constraint(...)` / `asm1.do_assemble()`）。
+   *  指向成员调用语句的接收者变量名（PartName）。 */
+  receiver?: PartName
 
   /** 该语句是否有赋值（`const x = ...` 或 `let x = ...`）。
    *  parser 根据 AST 节点类型设置：VariableDeclaration → true，ExpressionStatement → false。
@@ -156,13 +152,13 @@ export interface PartScript {
  */
 export function createStatement(
   id: StmtId,
-  op: string,
+  callee: string,
   args: Record<string, Arg>,
   inputs: ShapeRef[],
   outputs: PartName[],
   name?: string,
 ): CadStatement {
-  return { id, op, args, inputs, outputs, name }
+  return { id, callee, args, inputs, outputs, name }
 }
 
 /**

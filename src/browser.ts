@@ -39,24 +39,22 @@ export {
 
 export type {
   PartScript, CadStatement, Arg, Vec3, JsonValue, ShapeRef,
-  ParamRef, GeomRef, AssetRef,
+  ParamRef, VarRef, CallRef,
   TerminalShape, ParamDef, PartScriptMeta,
 } from './lang/types'
 export {
-  isGeomRef, isParamRef, isAssetRef,
+  isVarRef, isParamRef, isCallRef,
   createStatement, createPartScript,
 } from './lang/types'
 export {
-  allocateStatementId, allocateSplitIds,
-  isPartVmId, getModelNum, getVersionNum,
-  isGrpId, getGroupNum,
+  derivePartName, getMaxModelNum,
 } from './lang/allocate-id'
-export type { AllocateIdContext } from './lang/allocate-id'
+export type { DerivePartNameInput, DerivePartNameResult } from './lang/allocate-id'
+export { SYMBOL_TABLE, getFunctionSymbol } from './lang/symbol-table'
+export type { SymbolTable, FunctionSymbol } from './lang/symbol-table'
 export { parseScript, ParseError, getApiVersion } from './lang/parser'
-export type { ParseOptions, ParseResult } from './lang/parser'
+export type { ParseResult } from './lang/parser'
 export { statementToLine, scriptToCode, fmtNum, buildArgsParts } from './lang/codegen'
-export { validateStatementArgs, validateScriptArgs, getOpSchema, hasOpSchema } from './lang/args-schema'
-export type { OpSchema, ArgFieldSchema, ArgType, ValidationError } from './lang/args-schema'
 
 // ═══════════════════════════════════════════════════════════
 // B 类：cad-runtime/ + createBrowserPorts + 外部资源注入点
@@ -108,7 +106,7 @@ export type { FaceMateConstraint, AssemblyConstraint } from './stdlib/compound'
 // C 类：执行产物类型（Shape + 拓扑数据类型 + buildSelectorRuntimeMaps）
 // ═══════════════════════════════════════════════════════════
 
-export type { Shape } from './mesh/types'
+export type { Shape, ReadonlyShape } from './mesh/types'
 
 // 拓扑数据类型
 export type { SelectorRuntimeData } from './topology/build-selector-runtime'

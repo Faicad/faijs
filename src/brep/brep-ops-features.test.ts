@@ -541,13 +541,13 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
   // 辅助：构造最小 CadStatement
   function makeStmt(
     id: string,
-    op: string,
+    callee: string,
     args: Record<string, unknown>,
     inputs: string[] = [],
   ): CadStatement {
     return {
       id: asStmtId(id),
-      op,
+      callee,
       args: args as any,
       inputs: inputs.map(asPartName),
       outputs: [asPartName(id)],

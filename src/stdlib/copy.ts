@@ -13,7 +13,7 @@
  * - BREP 路径：kernel.copy(inputSolid) → solidToShape → setSolid/setFaceEvolution
  */
 
-import type { Shape } from '../mesh/types'
+import type { Shape, ReadonlyShape } from '../mesh/types'
 import { solidToShape } from '../brep/brep-ops'
 import { identityEvolution } from '../brep/face-evolution'
 import { solid } from './shape'
@@ -40,14 +40,16 @@ function copyBrep(input: Shape, exec: ExecContext): Shape {
 }
 
 /**
- * `cad.copy(input, params, exec)` → 深拷贝 Shape。
+ * `cad.copy(input, exec)` → 深拷贝 Shape。
+ *
+ * 统一 ABI：(…sourceVisibleArgs, exec)。copy 无 args（空 args 槽不发射），
+ * 编译产物 `cad.copy(ctx.part0, exec)`。
+ * 具名形参 `input: ReadonlyShape` 是符号表提取 readonlyPositions 的来源（R1：copy → 新名）。
  *
  * mesh 路径：positions/indices 复制到新数组（改副本不影响源）。
  * BREP 路径：kernel.copy 产出独立 ShapeHandle。
- *
- * 无参数。
  */
-export function copy(input: Shape, _params: Record<string, unknown>, exec: ExecContext): Shape {
+export function copy(input: ReadonlyShape, exec: ExecContext): Shape {
   if (!input) throw new Error('[stdlib/copy] no input geometry')
   const path = resolvePath(exec, [input], brepImpl)
   if (path === 'brep') return copyBrep(input, exec)

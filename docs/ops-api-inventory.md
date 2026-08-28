@@ -23,9 +23,9 @@
 ### 3.1 `box` ✅
 
 ```js
-const part0_v0 = cad.box({ size: 20 })                  // 等边（立方体）
-const part0_v0 = cad.box({ size: [30, 20, 10] })        // 三边
-const part0_v0 = cad.box({ size: [30, 20, 10], center: [0, 0, 5] })
+const part0 = cad.box({ size: 20 })                  // 等边（立方体）
+const part0 = cad.box({ size: [30, 20, 10] })        // 三边
+const part0 = cad.box({ size: [30, 20, 10], center: [0, 0, 5] })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -176,30 +176,30 @@ const s = await cad.sdf({
 
 异步。生成独立零件。
 
-### 3.10 加载：`loadByKey` / `loadFile` / `loadUrl` ⚠️
+### 3.10 加载：`load` ✅（key / path / url 三选一）
 
 ```js
 // ✅ 资产引用的正确形态（内容不进代码，只进引用）：
-const p = await cad.loadByKey({ key: 'file_abc123' })
+const p = await cad.load({ key: 'file_abc123' })
 // 非 web 环境（本地文件）：
-const p = await cad.loadFile({ path: 'D:/models/box.step', format: 'step' })
+const p = await cad.load({ path: 'D:/models/box.step', format: 'step' })
 // 网络：
-const p = await cad.loadUrl({ url: 'https://…/box.3mf' })
+const p = await cad.load({ url: 'https://…/box.3mf' })
 ```
 
 | op | 参数 | 类型 | 必填 | 说明 |
 |---|---|---|---|---|
-| `loadByKey` | `key` | string | ✅ | faicad 缓存中的资产 key（内容按 key 取，**引用而非拷贝** ✔） |
-| `loadFile` | `path` | string | ✅ | 本地绝对路径（非 web 环境） |
-| `loadUrl` | `url` | string | ✅ | 网络地址 |
-| 共用 | `format` | string | | 格式提示（step/3mf/stl/obj/…） |
+| `load` | `key` | string | 三选一 | faicad 缓存中的资产 key（内容按 key 取，**引用而非拷贝** ✔） |
+| `load` | `path` | string | 三选一 | 本地绝对路径（非 web 环境） |
+| `load` | `url` | string | 三选一 | 网络地址 |
+| `load` | `format` | string | | 格式提示（step/3mf/stl/obj/…） |
 
-> ⚠️ 旧 `load`（参数 `fileRef`）与 `loadByKey` 语义重叠，四 op 待收敛为一个；`load`/`fileRef` **暂不要用**，用 `loadByKey`。
+> 语言正常化后 `loadFile`/`loadUrl`/`loadByKey` 别名已删除（A4），统一为 `load` 一个函数。
 
 异步。永远是一个 part 的第一条语句，后面可接特征链：
 
 ```js
-const p = await cad.loadByKey({ key: 'file_abc123' })
+const p = await cad.load({ key: 'file_abc123' })
 const p2 = await cad.drill(p, { diameter: 5 })
 return { shape: p2 }
 ```
@@ -209,11 +209,11 @@ return { shape: p2 }
 ## 4. 变换类操作（inputs ≥ 1，同步，无 await）
 
 ```js
-const p1 = cad.translate(part0_v0, { offset: [10, 0, 0] })          // 平移
-const p2 = cad.rotate(part0_v0, { anglesDeg: [0, 0, 45] })          // 旋转（度）
-const p3 = cad.rotate(part0_v0, { anglesDeg: [0, 0, 45], pivot: [0,0,0] })  // 绕指定点旋转
-const p4 = cad.scale(part0_v0, { factor: 2 })                        // 等比缩放
-const p5 = cad.scale(part0_v0, { factor: [2, 1, 1] })                // 非等比
+const p1 = cad.translate(part0, { offset: [10, 0, 0] })          // 平移
+const p2 = cad.rotate(part0, { anglesDeg: [0, 0, 45] })          // 旋转（度）
+const p3 = cad.rotate(part0, { anglesDeg: [0, 0, 45], pivot: [0,0,0] })  // 绕指定点旋转
+const p4 = cad.scale(part0, { factor: 2 })                        // 等比缩放
+const p5 = cad.scale(part0, { factor: [2, 1, 1] })                // 非等比
 ```
 
 | op | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -232,9 +232,9 @@ const p5 = cad.scale(part0_v0, { factor: [2, 1, 1] })                // 非等�
 ### 5.1 `drill` ⚠️
 
 ```js
-const p = await cad.drill(part0_v0, { diameter: 5 })                             // 通孔，沿面法向
-const p = await cad.drill(part0_v0, { diameter: 5, depth: 3 })                   // 盲孔
-const p = await cad.drill(part0_v0, {                                            // 螺丝孔
+const p = await cad.drill(part0, { diameter: 5 })                             // 通孔，沿面法向
+const p = await cad.drill(part0, { diameter: 5, depth: 3 })                   // 盲孔
+const p = await cad.drill(part0, {                                            // 螺丝孔
   diameter: 5.2, depth: 8, holeType: 'screw',
   screwSystem: 'metric', screwSpecIdx: 6, screwThread: 'coarse', screwHead: 'none',
 })
@@ -246,7 +246,7 @@ const p = await cad.drill(part0_v0, {                                           
 | `depth` | number | | 0 | 孔深；**0 = 通孔** |
 | `holeType` | `'simple'` \| `'screw'` | | `'simple'` | 螺丝孔时填 `'screw'` |
 | `direction` | `'normal'` \| `'x'` \| `'y'` \| `'z'` | | `'normal'` | 钻孔轴向（默认沿面法向） |
-| `position` | [x,y,z] | | — | 孔心位置（🔎 建议用几何引用：`cad.faceCenter(part0_v0, [锚点])`） |
+| `position` | [x,y,z] | | — | 孔心位置（🔎 建议用几何引用：`cad.faceCenter(part0, [锚点])`） |
 | `faceNormal` | [x,y,z] | | [0,0,1] | 面法向（决定朝向） |
 | `tolerance` | number | | 0.3 | 公差 |
 | `screwSystem` / `screwSpecIdx` / `screwThread` / `screwHead` | 见 3.7 同名字段 | | `'metric'` / 6 / `'coarse'` / `'none'` | 螺丝孔规格（holeType='screw' 时用） |
@@ -258,9 +258,9 @@ const p = await cad.drill(part0_v0, {                                           
 ### 5.2 `extrude` ✅
 
 ```js
-const p = await cad.extrude(part0_v0, { length: 10 })                       // 沿法向双向各 5
-const p = await cad.extrude(part0_v0, { length: 10, mode: 'forward' })      // 单向
-const p = await cad.extrude(part0_v0, { length: 10, normal: [0,0,1], originOffset: 2 })
+const p = await cad.extrude(part0, { length: 10 })                       // 沿法向双向各 5
+const p = await cad.extrude(part0, { length: 10, mode: 'forward' })      // 单向
+const p = await cad.extrude(part0, { length: 10, normal: [0,0,1], originOffset: 2 })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -277,7 +277,7 @@ const p = await cad.extrude(part0_v0, { length: 10, normal: [0,0,1], originOffse
 
 ```js
 // 多输出：解构出 front / back 两个零件
-const { front: part1_v0, back: part2_v0 } = await cad.split(part0_v1, {
+const { front: part1, back: part2 } = await cad.split(part0, {
   normal: [0, 0, 1], offset: 5,                 // ⚠️ 文本层写法（见下方警告）
   cutMode: 'dovetail',
   grooveDepth: 3, grooveWidth: 5, grooveDepthTolerance: 0.1, grooveWidthTolerance: 0.1, grooveFlapsAngle: 30,
@@ -302,9 +302,9 @@ const { front: part1_v0, back: part2_v0 } = await cad.split(part0_v1, {
 ### 5.4 布尔：`union` / `subtract` / `intersect` ✅
 
 ```js
-const a = await cad.union(part0_v0, part1_v0)          // 合并（≥2 个输入）
-const b = await cad.subtract(part0_v0, part1_v0)       // 差集：part0 减 part1（第一个为主体）
-const c = await cad.intersect(part0_v0, part1_v0)      // 交集
+const a = await cad.union(part0, part1)          // 合并（≥2 个输入）
+const b = await cad.subtract(part0, part1)       // 差集：part0 减 part1（第一个为主体）
+const c = await cad.intersect(part0, part1)      // 交集
 ```
 
 - **函数名即操作**，没有 args 对象；输入全是变量引用（多个可用 `cad.union(a, b, c)`）。
@@ -314,13 +314,13 @@ const c = await cad.intersect(part0_v0, part1_v0)      // 交集
 
 ```js
 // ✅ 文字雕刻（可用）
-const p = await cad.engrave(part0_v0, {
+const p = await cad.engrave(part0, {
   mode: 'concave', depth: 2,                // concave=凹陷 / convex=凸出
   text: 'Hello', textSize: 10,
   faceCenter: [0, 0, 0], faceNormal: [0, 0, -1],
 })
 // ❌ logo 雕刻（禁止使用——svgText 为整份 XML 拷贝 + svgSize 文本导出丢失，往返失真）
-const p = await cad.engrave(part0_v0, { engravingType: 'logo', svgText: '<svg>…</svg>', svgSize: 20, … })
+const p = await cad.engrave(part0, { engravingType: 'logo', svgText: '<svg>…</svg>', svgSize: 20, … })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -331,7 +331,7 @@ const p = await cad.engrave(part0_v0, { engravingType: 'logo', svgText: '<svg>�
 | `textSize` | number | 文字时 | 10 | 字号 |
 | `engravingType` | `'text'` \| `'logo'` | | 按内容推导 | **冗余参数**，不要写 |
 | `svgText` / `svgSize` | — | logo 时 | — | ❌ logo 分支错误（§7），禁止 |
-| `faceCenter` / `faceNormal` | [x,y,z] | | — | 面位置（🔎 建议几何引用 `cad.faceCenter(part0_v0, [锚点])`；⚠️ 目前为绝对坐标快照） |
+| `faceCenter` / `faceNormal` | [x,y,z] | | — | 面位置（🔎 建议几何引用 `cad.faceCenter(part0, [锚点])`；⚠️ 目前为绝对坐标快照） |
 
 异步。
 
@@ -341,7 +341,7 @@ const p = await cad.engrave(part0_v0, { engravingType: 'logo', svgText: '<svg>�
 ### 5.6 `knurl` ⚠️（网格型 op）
 
 ```js
-const p = cad.knurl(part0_v0, {
+const p = cad.knurl(part0, {
   knurlTextureHeight: 0.5, knurlScaleU: 0.15, knurlScaleV: 0.15,
   knurlInvertDisplacement: false, knurlRefineLength: 1.0, knurlMappingMode: 5,
 })
@@ -366,30 +366,30 @@ const p = cad.knurl(part0_v0, {
 
 ```js
 export default async (cad) => {
-  const part0_v0 = cad.box({ size: [30, 20, 10] })
-  const part1_v0 = cad.box({ size: [10, 5, 5] })
-  const part1_v1 = cad.translate(part1_v0, { offset: [5, -2, 0] })   // 相对位置由成员自己的变换语句表达
+  const part0 = cad.box({ size: [30, 20, 10] })
+  const part1 = cad.box({ size: [10, 5, 5] })
+  const part1 = cad.translate(part1, { offset: [5, -2, 0] })   // 相对位置由成员自己的变换语句表达
 
-  cad.group({ name: '底板组', members: ['part0_v0'] })               // 分组：零约束，保持当前布局
+  cad.group({ name: '底板组', members: ['part0'] })               // 分组：零约束，保持当前布局
   cad.assembly({
     name: '装配1',
-    members: ['part0_v0', 'part1_v1'],
+    members: ['part0', 'part1'],
     constraints: [{
-      fixedPartId: 'part0_v0',
-      movingPartId: 'part1_v1',
+      fixedPartId: 'part0',
+      movingPartId: 'part1',
       fixedFace: { faceRowIndex: 3, faceId: 'col:0:face:3', surfaceType: 'plane' },
       movingFace: { faceRowIndex: 17, faceId: 'col:0:face:17', surfaceType: 'plane' },
       invalid: false,
     }],
   })
-  return [{ shape: part0_v0 }, { shape: part1_v1 }]
+  return [{ shape: part0 }, { shape: part1 }]
 }
 ```
 
 | 参数 | 类型 | 必填 | 说明 |
 |---|---|---|---|
 | `name` | string | ✅ | 组/装配名 |
-| `members` | string[] | ✅ | 成员 **faijs 变量名**（`partN_vM`） |
+| `members` | Shape[]（变量引用数组） | ✅ | 成员 **faijs 变量名**（`[part0, part1]`，语言正常化后为 VarRef 数组，不再是字符串数组） |
 | `constraints`（仅 assembly） | 数组 | | 面约束：`fixedPartId`/`movingPartId`（变量名）+ `fixedFace`/`movingFace`（拓扑面引用 `{ faceRowIndex, faceId, surfaceType }`，**几何数据不入参数，运行时从面行派生**） |
 
 ### 6.2 装配自身的可改进之处（勿当成照抄模板）
@@ -410,11 +410,11 @@ export default async (cad) => {
 | `svgExtrude({ svg: … })` | ① 整份 XML 内容拷贝；② 自然尺寸两套实现隐式推导（mesh scale=1 bug）；③ 语义挂在三角化实现上 | 内容改**资产引用**（参照 `loadByKey`）或规范化 2D 轮廓数据 + 显式尺寸参数；BREP 后端已具备（`makeWire/makeFace/addHolesInFace/extrude`） | 🔄 设计中 |
 | `engrave` logo 分支（`svgText`/`svgSize`） | ① 同 svgExtrude 内容拷贝；② `svgSize` 录制有但 schema/codegen 缺失 → **.faijs 导出丢缩放参数，往返失真**；③ `faceCenter/faceNormal` 绝对快照 | logo 改**资产引用**；面改**拓扑引用**（`cad.faceCenter(of, anchor)` 几何引用 / TopoFaceRef 风格）；三件套参数完备 | 🔄 设计中 |
 | `split` 文本参数断裂 | 文本层输出 `normal`/`offset`，执行层读 `planeRotation`/`planePosition` → 非默认平面无法文本复现 | 统一键名（直接序列化 `normal`/`offset`/`inPlaneAngleDeg`），加「旋转平面往返」测试 | ✅ 已修 |
-| `drill` API 素材漂移 | `api.d.ts` 写 `type: 'through'|'blind'`、`direction` 为向量，与真实契约（`holeType`/`direction` 枚举）不符 → AI 照旧素材写必错 | `api.d.ts` 收敛到语句契约，删错误键 | ❌ 未修 |
+| `drill` API 素材漂移 | `api.d.ts` 写 `type: 'through'|'blind'`、`direction` 为向量，与真实契约（`holeType`/`direction` 枚举）不符 → AI 照旧素材写必错 | `api.d.ts` 收敛到语句契约，删错误键 | ✅ 已修（gen-api-dts 签名驱动重写后按真实契约生成） |
 | `screw.pitchCustom` | schema 有、codegen 输出缺失 → 文本往返丢失 | codegen 加 TODO 注释，待用户确认后启用 | ⏳ 暂缓（用户要求） |
 | `screw.nRad` | 拓扑参数（径向分段数），schema 有、codegen 缺失 → 文本往返丢失 | codegen 补输出（非默认值 32 时序列化），设计 nRad 为 mesh 拓扑参数 + BREP 三角化提示 | ✅ 已修 |
 | `screwHole` | FeatureKind 存在但无执行分派（执行走 drill.holeType='screw'） | screwHole 是 FeatureKind 别名（回退到 drill），保留 | ✅ 已确认保留 |
-| `load` 四联（load/loadFile/loadUrl/loadByKey） | 语义重叠冗余 | 收敛为一个 `load` + 引用 key | ❌ 未修 |
+| `load` 四联（load/loadFile/loadUrl/loadByKey） | 语义重叠冗余 | 收敛为一个 `load` + 引用 key | ✅ 已修（语言正常化 A4：别名删除，统一 `load`，key/path/url 三选一） |
 | `text.font` | 两套字体语义（THREE 字体名 vs 注册表 key），当前只有默认字体 | 定义为字体资产引用或删除参数 | ❌ 未修 |
 | `wedge` 双形态 | `size` 与 `width/height/angle/length` 并存 | 收敛单一形态 | ❌ 未修 |
 | `engrave.engravingType` | 冗余推导键（内容类型由 text/svgText 决定） | 重做时去掉 | ❌ 未修 |
@@ -427,12 +427,12 @@ export default async (cad) => {
 
 ```
 创建（同步，无 await）: box / sphere / cylinder / cone / wedge
-创建（异步，await）:    text / screw / sdf / loadByKey / loadFile / loadUrl
+创建（异步，await）:    text / screw / sdf / load
 变换（同步）:           translate / rotate / scale
 特征（异步）:           drill / extrude / split(双输出解构) / union / subtract / intersect / engrave(仅文字)
 同步特征:               knurl
 结构（裸调用）:         group / assembly
-禁止:                   svgExtrude、engrave(logo)、load 的 fileRef
+禁止:                   svgExtrude、engrave(logo)
 面定位:                 优先 cad.faceCenter(v, [锚点]) / cad.faceNormal(v, [锚点])
 交互式可编辑:           cad.faceCenter / faceNormal / bboxCenter / bboxMin / bboxMax（参数量引用）
 ```

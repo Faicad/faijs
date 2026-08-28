@@ -17,10 +17,20 @@ import { getSolidBoundingBox } from '../brep/brep-utils'
 import { containsCjk, loadSystemCjkFont } from '../primitives/text/cjk'
 import { solid } from './shape'
 import { resolvePath } from './internal/resolve-path'
+import { assertPositiveNumber } from './assert'
 import type { ExecContext } from '../cad-runtime/exec-context'
 
 /** BREP 实现标记（resolvePath 判定用；text 有 OCCT 精确构造） */
 const brepImpl = textToSolid
+
+/** text: text 必填非空字符串；size/depth 必填 > 0。 */
+export function assertTextParams(params: Record<string, unknown>): void {
+  if (typeof params.text !== 'string' || params.text.trim() === '') {
+    throw new Error(`[stdlib/text] text must be a non-empty string, got ${JSON.stringify(params.text)}`)
+  }
+  assertPositiveNumber(params.size, 'text.size')
+  assertPositiveNumber(params.depth, 'text.depth')
+}
 
 /**
  * BREP 路径：opentype.js → OCCT wire/face → extrude → center + 身份槽挂 solid。
@@ -67,7 +77,10 @@ async function textBrep(params: Record<string, unknown>, exec: ExecContext): Pro
   return shape
 }
 
-export async function text(params: Record<string, unknown>, exec: ExecContext): Promise<Shape> {
+export async function text(...rest: unknown[]): Promise<Shape> {
+  const exec = rest.pop() as ExecContext
+  const params = (rest.pop() ?? {}) as Record<string, unknown>
+  assertTextParams(params)
   const path = resolvePath(exec, [], brepImpl)
   if (path === 'brep') return textBrep(params, exec)
   return solid(await cad.text({ text: params.text as string, size: params.size as number, depth: params.depth as number }))

@@ -3,10 +3,8 @@
  *
  * 设计文档：docs/plans/2026-08-26-phase2-completion-plan.md §2.C
  *
- * 集中式 validateStatementArgs（runtime.check）是 parse 期 UX 校验；
- * 本模块是 stdlib 被**直接 import**（如 3d_editor 预览路径）时的防御层。
- * 每个 op 文件导出 assertXxxParams(params)，op 函数体在 resolvePath 之前调用，
- * 非法即抛 Error（不静默）。
+ * 阶段 4 起（args-schema/SCHEMAS 已删除），参数校验全部由本模块的 assert 助手
+ * 承担（各 stdlib 函数在 resolvePath 之前调用）；非法即抛 Error（不静默）。
  */
 
 /** 断言参数为有限数字（类型守卫：通过后 value 收窄为 number）。 */
@@ -40,6 +38,15 @@ export function assertVec3(value: unknown, name: string): void {
     value.some((n) => typeof n !== 'number' || !Number.isFinite(n))
   ) {
     throw new Error(`[stdlib] ${name} must be a vec3 [x, y, z], got ${JSON.stringify(value)}`)
+  }
+}
+
+/** 断言参数为非零 vec3（零向量会使 split/faceNormal 等退化，拒绝）。 */
+export function assertNonZeroVec3(value: unknown, name: string): void {
+  assertVec3(value, name)
+  const v = value as [number, number, number]
+  if (v[0] === 0 && v[1] === 0 && v[2] === 0) {
+    throw new Error(`[stdlib] ${name} must be a non-zero vec3, got ${JSON.stringify(value)}`)
   }
 }
 

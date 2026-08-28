@@ -1,29 +1,70 @@
 /**
- * terminal-dag — DAG 叶子终端判定（纯函数）
+ * terminal-dag — DAG 叶子终端判定（纯函数，符号表驱动）
  *
  * 设计文档：docs/plans/2026-08-27-restore-dag-terminal-detection.md §4.1
+ *          docs/plans/2026-08-27-faijs-language-normalization-design.md §4.8
+ * 实施文档：docs/plans/2026-08-27-faijs-language-normalization-implementation.md §5.5
  *
  * 核心语义（用户 2026-08-27 澄清，最简）：
  * - 一个变量是否进终端 = 它「是否被消费」。被消费 → 不进终端。
- * - "被消费" = 存在一条**独占**语句 T（T.op ∉ NON_CONSUMING_OPS），其 index > 该变量
- *   最后一条赋值语句 P，且 T 的 inputs/refs 里包含该变量名（shape 出现在右侧）。
- * - NON_CONSUMING_OPS = {group, assembly, copy}：这三类语句**不消费**其右侧引用
- *   （group/assembly 不消费成员，copy 不消费源），在"消费方"判定中直接跳过（不计数）。
+ * - "被消费" = 存在一条**独占**语句 T，其 index > 该变量最后一条赋值语句 P，
+ *   且 `consumes(T, v)` 判定 T 消费了该变量（符号表驱动，B1 消灭 NON_CONSUMING_OPS）。
  *
  * 判定单位是 PartName（不涉及 StmtId），与 partN 命名天然兼容。
  */
 
-import type { PartScript, TerminalShape } from '../lang/types'
+import type { PartScript, TerminalShape, CadStatement, Arg } from '../lang/types'
 import type { PartName } from '../identity'
+import { getFunctionSymbol } from '../lang/symbol-table'
+import { isVarRef, isCallRef } from '../lang/types'
 
-/** 不消费其右侧引用的语句类型（group/assembly 不消费成员，copy 不消费源）。 */
-const NON_CONSUMING_OPS = new Set(['group', 'assembly', 'copy'])
+/**
+ * 判定语句 stmt 是否"消费"变量 v（替换 NON_CONSUMING_OPS 查表）。
+ * 规则（设计文档 §4.8）：
+ * - 未知 callee → 无 readonly 信息 → 右侧出现即消费（默认）
+ * - 嵌套调用（CallRef）中的引用 = 只读查询，不消费
+ * - 符号表标记的 readonly 位置/路径不消费（copy 的源、group/assembly 的 members）
+ */
+export function consumes(stmt: CadStatement, v: PartName): boolean {
+  // inputs：位置引用（符号表 readonlyPositions 命中的位置不消费）
+  const idx = stmt.inputs.indexOf(v)
+  if (idx >= 0) {
+    const info = getFunctionSymbol(stmt.callee)
+    if (!info?.readonlyPositions?.includes(idx)) return true
+  }
+  // args：递归扫描 VarRef（CallRef 内不消费；readonlyPaths 属性内不消费）
+  let consumed = false
+  const scan = (value: Arg, inCallRef: boolean, path: string[]): void => {
+    if (consumed) return
+    if (value === null || typeof value !== 'object') return
+    if (isVarRef(value)) {
+      if (value.$ref !== v) return
+      if (inCallRef) return                       // 嵌套调用内 = 只读查询
+      const info = getFunctionSymbol(stmt.callee)
+      // readonlyPaths 匹配路径首段（如 members）
+      if (info?.readonlyPaths?.includes(path[0] ?? '')) return
+      consumed = true
+      return
+    }
+    if (isCallRef(value)) {
+      for (const a of value.$call.args) scan(a, true, path)
+      return
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) scan(item as Arg, inCallRef, path)
+      return
+    }
+    for (const [k, vv] of Object.entries(value)) scan(vv as Arg, inCallRef, [...path, k])
+  }
+  for (const [k, vv] of Object.entries(stmt.args)) scan(vv, false, [k])
+  return consumed
+}
 
 /**
  * 计算 DAG 叶子终端集合。
  *
  * 遍历每个 shape 变量名（含 compound 变量），"最后写者 P + 其后无独占语句消费该变量"
- * 即终端。
+ * 即终端（消费判定换 consumes，B1 消灭）。
  *
  * @param script 已解析的 PartScript（statements 含 outputs/refs）
  * @param shapeVarNames 所有 shape-typed 顶层变量名集合（含 compound 变量名）
@@ -59,16 +100,11 @@ export function computeLeafTerminals(
       continue
     }
 
-    // 检查 producer 之后是否有独占语句消费该变量
-    // refs 由 parser 收集（inputs + args 中的 $param/$geom.of + group/assembly members）；
-    // 直接构造的语句可能没有 refs，回退到 inputs
+    // 检查 producer 之后是否有语句消费该变量（符号表驱动 consumes）
     let consumed = false
     for (let i = producerIdx + 1; i < statements.length; i++) {
       const stmt = statements[i]
-      if (NON_CONSUMING_OPS.has(stmt.op)) continue // group/assembly/copy 不消费
-
-      const refs = stmt.refs ?? stmt.inputs ?? []
-      if (refs.includes(partName)) {
+      if (consumes(stmt, partName)) {
         consumed = true
         break
       }
@@ -80,12 +116,4 @@ export function computeLeafTerminals(
   }
 
   return terminals
-}
-
-/**
- * 判断一个 op 是否为"不消费"语句（NON_CONSUMING_OPS）。
- * 供 runtime 判断语句是否消费其右侧引用时使用。
- */
-export function isNonConsumingOp(op: string): boolean {
-  return NON_CONSUMING_OPS.has(op)
 }

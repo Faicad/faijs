@@ -42,7 +42,7 @@ export interface CliCheckResult {
   ok: boolean
   errors: Array<{ stage: string; message: string; line?: number; stmtId?: string }>
   warnings: string[]
-  script?: { statements: number; ops: string[] }
+  script?: { statements: number; callees: string[] }
 }
 
 export interface CliRunResult {
@@ -278,7 +278,7 @@ export async function cliMain(argv: string[]): Promise<number> {
       process.stdout.write(`✓ ${filePath}: OK\n`)
       if (result.script) {
         process.stdout.write(`  statements: ${result.script.statements}\n`)
-        process.stdout.write(`  ops: ${result.script.ops.join(', ')}\n`)
+        process.stdout.write(`  callees: ${result.script.callees.join(', ')}\n`)
       }
       return 0
     } else {
