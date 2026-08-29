@@ -31,6 +31,7 @@ import type {
   ScriptMetaIR,
   TerminalShape,
   ImportIR,
+  FunctionDefIR,
 } from './types'
 import { isParamRef, isVarRef, isCallRef } from './types'
 import {
@@ -806,9 +807,6 @@ function throwUnsupportedStatement(node: ASTNode, line: number): never {
   if (node.type === 'ExportNamedDeclaration' || node.type === 'ExportAllDeclaration') {
     throw new ParseError('export statements are not allowed (faijs auto-exports the default module)', line, 'E_STATEMENT')
   }
-  if (node.type === 'FunctionDeclaration') {
-    throw new ParseError('function declarations are not yet supported (roadmap V1.3)', line, 'E_STATEMENT')
-  }
   if (node.type === 'ClassDeclaration') {
     throw new ParseError('class declarations are not allowed in faijs', line, 'E_STATEMENT')
   }
@@ -816,6 +814,97 @@ function throwUnsupportedStatement(node: ASTNode, line: number): never {
     throw new ParseError('"new" expressions are not allowed in faijs (new Function is a safety red line)', line, 'E_STATEMENT')
   }
   throw new ParseError(`unsupported statement: ${node.type}`, line, 'E_STATEMENT')
+}
+
+// ── 顶层函数定义（A1） ──
+
+/**
+ * 解析顶层 `function name(params) { ... }` 为 FunctionDefIR（A1）。
+ *
+ * 函数定义**不是几何语句**：不进 statements、不参与 DAG 终端判定；
+ * 函数体原文按 acorn 坐标从 parseCode 切片保留，codegen 原样打印回文件（往返保真）。
+ *
+ * 函数体同样受黑名单约束（与顶层一致）：
+ * - 控制流 → E_CONTROL_FLOW；
+ * - eval / new / export / class → E_STATEMENT；
+ * - import 只允许在文件头 → E_IMPORT。
+ */
+function parseFunctionDeclaration(
+  node: ASTNode,
+  line: number,
+  functions: FunctionDefIR[],
+  parseCode: string,
+): void {
+  const name = node.id?.name
+  if (typeof name !== 'string' || name === '') {
+    throw new ParseError('function declaration must have a name', line, 'E_STATEMENT')
+  }
+
+  // 形参：只允许简单 Identifier（解构/默认值/rest 参数不在子集内）
+  const params: string[] = []
+  for (const p of node.params ?? []) {
+    if (p?.type !== 'Identifier') {
+      throw new ParseError('function params must be plain identifiers', line, 'E_STATEMENT')
+    }
+    params.push(p.name)
+  }
+
+  // 函数体必须是 BlockStatement（acorn 对合法函数声明必然如此，防御性校验）
+  if (node.body?.type !== 'BlockStatement') {
+    throw new ParseError('function body must be a block statement', line, 'E_STATEMENT')
+  }
+
+  // 函数体黑名单校验（与顶层同语义）
+  validateFunctionBody(node.body, line)
+
+  // 函数体原文（花括号内的完整文本，含换行/缩进）——坐标相对 parseCode
+  const body = parseCode.slice(node.body.start + 1, node.body.end - 1)
+  functions.push({ name, params, body })
+}
+
+/**
+ * 校验函数体内的黑名单（A1）：控制流 / eval / new / export / class / import。
+ * 递归遍历全部节点——函数体（含嵌套函数体）必须保持无控制流的合法子集。
+ */
+function validateFunctionBody(body: ASTNode, line: number): void {
+  const stack: ASTNode[] = [body]
+  while (stack.length > 0) {
+    const n = stack.pop()!
+    if (CONTROL_FLOW_TYPES.has(n.type)) {
+      throw new ParseError(
+        `control flow statement "${n.type}" is not allowed inside function bodies`,
+        line,
+        'E_CONTROL_FLOW',
+      )
+    }
+    if (n.type === 'ImportDeclaration') {
+      throw new ParseError('import statements are not allowed inside function bodies', line, 'E_IMPORT')
+    }
+    if (n.type === 'ExportNamedDeclaration' || n.type === 'ExportAllDeclaration') {
+      throw new ParseError('export statements are not allowed in faijs (faijs auto-exports the default module)', line, 'E_STATEMENT')
+    }
+    if (n.type === 'ClassDeclaration') {
+      throw new ParseError('class declarations are not allowed in faijs', line, 'E_STATEMENT')
+    }
+    if (n.type === 'CallExpression' && n.callee?.type === 'Identifier' && n.callee.name === 'eval') {
+      throw new ParseError('eval is not allowed in faijs', line, 'E_STATEMENT')
+    }
+    if (n.type === 'NewExpression') {
+      throw new ParseError('"new" expressions are not allowed in faijs (new Function is a safety red line)', line, 'E_STATEMENT')
+    }
+    // 子节点入栈（跳过元数据字段）
+    for (const key of Object.keys(n)) {
+      if (key === 'loc' || key === 'start' || key === 'end' || key === 'range' || key === 'parent') continue
+      const v = n[key]
+      if (Array.isArray(v)) {
+        for (const item of v) {
+          if (item && typeof item === 'object' && typeof item.type === 'string') stack.push(item)
+        }
+      } else if (v && typeof v === 'object' && typeof v.type === 'string') {
+        stack.push(v)
+      }
+    }
+  }
 }
 
 // ── 主解析函数 ──
@@ -954,6 +1043,8 @@ export function parseScript(code: string): ParseResult {
   const params: ParamDef[] = []
   const statements: StatementIR[] = []
   const statementLines: number[] = []
+  /** 顶层函数定义（A1；无函数时保持空数组，ScriptIR 构建时省略） */
+  const functions: FunctionDefIR[] = []
   const paramNames = new Set<string>()
   /** 参数名 → 字面量值（F1 表达式折叠依据；仅声明在前面的参数可折叠） */
   const paramValues = new Map<string, JsonValue>()
@@ -983,6 +1074,14 @@ export function parseScript(code: string): ParseResult {
     const line = getLine(stmtNode)
 
     switch (stmtNode.type) {
+      case 'FunctionDeclaration': {
+        // A1：顶层函数定义（V1.3/P4）。函数定义不是几何语句——不进 statements、
+        // 不参与 DAG 终端判定（不污染终端集），codegen 原样打印回文件（往返保真）。
+        // 函数体同样受黑名单约束：控制流仍报 E_CONTROL_FLOW，eval/new/export/class 仍被拒。
+        parseFunctionDeclaration(stmtNode, line, functions, parseCode)
+        break
+      }
+
       case 'VariableDeclaration': {
         // 允许 const 和 let（let 仅用于装配变量）；var 保持拒绝（O2 排后）
         if (stmtNode.kind !== 'const' && stmtNode.kind !== 'let') {
@@ -1248,6 +1347,7 @@ export function parseScript(code: string): ParseResult {
     params,
     statements,
     ...(scriptImports.length > 0 ? { imports: scriptImports } : {}),
+    ...(functions.length > 0 ? { functions } : {}),
     meta,
     terminalShapes: finalTerminalShapes,
   }

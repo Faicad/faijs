@@ -163,6 +163,24 @@ export interface ImportIR {
   packageName: string
 }
 
+// ── 顶层函数定义（A1 / roadmap V1.3） ──
+
+/**
+ * 顶层函数定义（`function foo(params) { ... }`，A1 语言层收尾）。
+ * 模块声明非控制流 → 合法子集成员；codegen 打印回文件（往返保真）。
+ *
+ * 语义：函数定义**不是几何语句**——不进 `statements`、不参与 DAG 终端判定
+ * （函数定义不污染终端集），执行时由编译产物原样保留供宿主调用。
+ */
+export interface FunctionDefIR {
+  /** 函数名（feature = `包名.函数名` 的 callee 侧） */
+  name: string
+  /** 形参名列表 */
+  params: string[]
+  /** 函数体原文（acorn 定位的 body 区间切片，含花括号内的完整文本） */
+  body: string
+}
+
 export interface ScriptIR {
   source?:
     | { kind: 'load' }
@@ -171,6 +189,8 @@ export interface ScriptIR {
   statements: StatementIR[]
   /** 顶层 import 段（F2；无 import 时为 undefined）。编译产物仍零 import（宿主 registerLib 注入）。 */
   imports?: ImportIR[]
+  /** 顶层函数定义段（A1；无函数时为 undefined）。 */
+  functions?: FunctionDefIR[]
   /** 场景级模型属性（C-4/C-7）。
    *  缺省时由 SceneMutator 按 op 兜底派生（默认名 + nextPrimitiveColor()）。 */
   meta?: ScriptMetaIR

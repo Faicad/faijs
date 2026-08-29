@@ -29,7 +29,7 @@
  * - 对象字面量 → `{key:value}`（冒号，合法 JS）
  */
 
-import type { ArgIR, StatementIR, ScriptIR, ParamRefIR, VarRefIR, CallRefIR, ImportIR } from './types'
+import type { ArgIR, StatementIR, ScriptIR, ParamRefIR, VarRefIR, CallRefIR, ImportIR, FunctionDefIR } from './types'
 import type { PartName } from '../identity'
 import { isParamRef, isVarRef, isCallRef } from './types'
 
@@ -241,12 +241,20 @@ function fmtImport(imp: ImportIR): string {
   }
 }
 
+/** FunctionDefIR → 源码函数定义（A1 往返打印；body 保留原文切片，含花括号内换行/缩进，
+ *  直接夹在 `{` 与 `}` 之间即可逐位还原原始函数定义）。 */
+function fmtFunction(fn: FunctionDefIR): string {
+  const params = fn.params.length > 0 ? fn.params.join(', ') : ''
+  return `function ${fn.name}(${params}) {${fn.body}}`
+}
+
 /**
  * 将整个 ScriptIR 按语句顺序拼接为扁平代码文本。
  *
  * 无 export/async/await/return/参数声明。
  * terminal shapes 自动推导：不被引用的输出即终端（不在代码中标注）。
  * F2：顶层 import 段打印回文件头（往返保真）。
+ * A1：顶层函数定义段打印回 import 之后、语句之前（往返保真）。
  */
 export function scriptToCode(script: ScriptIR): string {
   const bodyLines: string[] = []
@@ -274,6 +282,8 @@ export function scriptToCode(script: ScriptIR): string {
 
   const body = bodyLines.join('\n')
   const imports = (script.imports ?? []).map(fmtImport).join('\n')
-  if (imports) return body ? `${imports}\n${body}` : imports
+  const functions = (script.functions ?? []).map(fmtFunction).join('\n')
+  const head = [imports, functions].filter((s) => s.length > 0).join('\n')
+  if (head) return body ? `${head}\n${body}` : head
   return body
 }

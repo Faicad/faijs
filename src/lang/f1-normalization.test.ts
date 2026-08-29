@@ -219,14 +219,10 @@ describe('F1: 控制流专用错误码 E_CONTROL_FLOW', () => {
     expect(err!.code).toBe('E_STATEMENT')
   })
 
-  it('顶层 function 定义 → E_STATEMENT（roadmap V1.3 排后，非 F1）', () => {
-    let err: ParseError | undefined
-    try {
-      parseScript('function foo() { return 1 }')
-    } catch (e) {
-      err = e as ParseError
-    }
-    expect(err!.code).toBe('E_STATEMENT')
+  it('顶层 function 定义 → 合法（A1 语言层收尾后支持）', () => {
+    const { script } = parseScript('function foo() { return 1 }')
+    expect(script.functions).toHaveLength(1)
+    expect(script.functions![0].name).toBe('foo')
   })
 
   it('CadRuntime.check 透传 code（E_CONTROL_FLOW 出现在 CheckResult.errors[0].code）', async () => {
