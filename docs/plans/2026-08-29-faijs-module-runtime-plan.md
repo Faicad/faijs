@@ -706,6 +706,13 @@ let part2 = cad.union(part0, part1)
 5. 3d_editor timeline 出现只读节点 `brepjs-gear.external`
 6. 保存 → 重载 → 几何一致
 
+**C 执行记录（faijs 侧，2026-08-29）**：
+
+- **适配器物理位置**：按 §6.2（adapter 属于库，非 faijs 一部分），定为 faijs `test/figures` fixture（`test/faijs/libs/brepjs-gear.ts`），**不进入 `src/`**——结束时不污染 faijs 代码（红线遵守）。真实宿主消费方为 3d_editor（C2/C4 沿用 B2 预 bundle 通道）。
+- **R1 版本治理**：occt-wasm 锁 exact `3.7.0`（原 `^3.7.0`），并加 `overrides: {"occt-wasm":"3.7.0"}` 化解与 brepjs 18.119.2 的 peer `^3.8.0` 冲突；faijs `dependencies` 与 brepjs `devDependencies`（`brepjs: "18.119.2"`）。不改行为（H3）。
+- **C5 泛化验证**：第二类形状生成器 `thread`（螺纹）经同一 adapter 协议（内核注入 / 所有权 pin / 错误转译）可用 → 泛化性成立。
+- **断言 1–4 落地**：`test/faijs/libs/brepjs-gear.test.ts`（8 用例，C1）+ `c3-brepjs-scenario.test.ts`（4 断言，C3）。断言 5/6（timeline / snapshot）属 3d_editor C4 侧，faijs 单测不覆盖。
+
 ### 7.5 Phase D —— faits 执行路径（faijs 0.5.5）
 
 `.ts`（faits 脚本） → sucrase 去类型（保留行号）→ acorn 解析 import → 说明符重写 → Blob → `import()` 整段执行 → 显式声明输出。
