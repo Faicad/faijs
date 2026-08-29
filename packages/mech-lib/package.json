@@ -1,0 +1,30 @@
+{
+  "name": "@faicad/mech-lib",
+  "version": "0.5.8",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "brepjs": "18.119.2"
+  },
+  "peerDependencies": {
+    "@faicad/faijs-core": "^0.5.8",
+    "occt-wasm": "^3.7.0"
+  },
+  "devDependencies": {
+    "typescript": "*",
+    "vitest": "*"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && node ../../scripts/fix-import-extensions.mjs dist",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "eslint src"
+  }
+}

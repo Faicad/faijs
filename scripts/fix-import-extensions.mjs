@@ -20,7 +20,11 @@ import { readdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { join, dirname, extname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const distDir = join(fileURLToPath(import.meta.url), '..', '..', 'dist')
+// dist 目录：默认根 dist（脚本位置上溯两级）；也可传参数（workspace 包各自调，
+// 如 `node ../../scripts/fix-import-extensions.mjs dist`，cwd=包目录）。
+const distDir = process.argv[2]
+  ? join(process.cwd(), process.argv[2])
+  : join(fileURLToPath(import.meta.url), '..', '..', 'dist')
 
 /** Recursively collect all .js and .d.ts files under a directory */
 function collectFiles(dir) {
@@ -82,13 +86,21 @@ function fixImports(content, filePath) {
   const pattern =
     /(from\s+|import\s*\(\s*)(['"])(\.{1,2}\/[^'"]+?)(['"])/g
 
-  return content.replace(pattern, (match, prefix, q1, path, q2) => {
+  let out = content.replace(pattern, (match, prefix, q1, path, q2) => {
     // Already has an extension?
     if (/\.(js|mjs|cjs|json)$/.test(path)) return match
     // Resolve to actual file
     const resolved = resolveImportPath(path, filePath)
     return `${prefix}${q1}${resolved}${q2}`
   })
+
+  // §7.5: worker URL 在源码里写 .ts 字面量（源码模式可解析），build 产物重写回 .js
+  out = out.replace(
+    /(new URL\(\s*['"])(\.{1,2}\/[^'"]+?)\.ts(['"])/g,
+    '$1$2.js$3',
+  )
+
+  return out
 }
 
 function main() {

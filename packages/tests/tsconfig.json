@@ -1,0 +1,43 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noFallthroughCasesInSwitch": true,
+    "types": [
+      "node"
+    ],
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@faicad/faijs": ["../../src/index.ts"],
+      "@faicad/faijs/node": ["../../src/node.ts"],
+      "@faicad/faijs-core": ["../core/src/index.ts"],
+      "@faicad/faijs-core/*": ["../core/src/*"],
+      "@faicad/faijs-stdlib": ["../stdlib/src/index.ts"],
+      "@faicad/faijs-stdlib/*": ["../stdlib/src/*"],
+      "@faicad/mech-lib": ["../mech-lib/src/index.ts"],
+      "@faicad/faijs-fixtures": ["../fixtures/data"]
+    }
+  },
+  "include": [
+    "faijs/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
+}

@@ -1,16 +1,4 @@
 /**
- * faits — 浏览器入口：@faicad/faijs/faqts/browser
- *
- * 绑定 Blob 执行器（Blob URL → import）。不含任何 Node 专属依赖。
+ * faqts/browser subpath facade — re-export core's faqts/browser entry.
  */
-
-export { transformFaqts } from './transform'
-export type { FaqtsTransformOptions, FaqtsTransformResult } from './transform'
-export { findImports, rewriteImports } from './imports'
-export type { FaqtsImportSpan, FaqtsRewriteFn } from './imports'
-export { runFaqts } from './run'
-export type { FaqtsRunOptions, FaqtsRunResult } from './run'
-export { executeFaqtsModuleInBrowser } from './exec-blob'
-import { executeFaqtsModuleInBrowser } from './exec-blob'
-import type { FaqtsModuleExecutor } from './run'
-export const faqtsBrowserExecutor: FaqtsModuleExecutor = executeFaqtsModuleInBrowser
+export * from '@faicad/faijs-core/faqts/browser'

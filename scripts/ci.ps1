@@ -50,19 +50,24 @@ function Step {
 }
 
 $ciMain = {
-Step -Label '1/5  npm run lint' -Block { npm run lint }
+# monorepo（P1-P6.5）：根 lint 已覆盖 src + packages/*/src；typecheck/test 经 --workspaces 逐包跑。
+Step -Label '1/8  npm run lint' -Block { npm run lint }
 
-Step -Label '2/5  npm run typecheck' -Block { npm run typecheck }
+Step -Label '2/8  npm run typecheck（根 + workspaces）' -Block {
+    npm run typecheck
+    if ($LASTEXITCODE -ne 0) { return }
+    npm run typecheck --workspaces --if-present
+}
 
-Step -Label '3/5  npm run build (tsc → dist)' -Block { npm run build }
+Step -Label '3/8  npm run build（core → stdlib → 门面）' -Block { npm run build }
 
-Write-Host "==> 4/5  npx vitest run"
+Write-Host "==> 4/8  npm run test --workspaces"
 $start3 = Get-Date
 $tmpVitest = [System.IO.Path]::GetTempFileName()
-npx vitest run 2>&1 | Tee-Object -FilePath $tmpVitest
+npm run test --workspaces --if-present 2>&1 | Tee-Object -FilePath $tmpVitest
 if ($LASTEXITCODE -ne 0) {
     if ($allMode) {
-        $script:failures.Add('4/5  npx vitest run')
+        $script:failures.Add('4/8  npm run test --workspaces')
     } else {
         exit $LASTEXITCODE
     }
@@ -89,7 +94,7 @@ if ($stderrLines.Count -gt 0) {
     Write-Host "`nERROR: Tests produced stderr output — all test stderr must be resolved." -ForegroundColor Red
     $stderrLines | ForEach-Object { Write-Host $_ }
     if ($allMode) {
-        $script:failures.Add('4/5  npx vitest run (stderr)')
+        $script:failures.Add('4/8  npm run test --workspaces (stderr)')
     } else {
         exit 1
     }
@@ -99,29 +104,27 @@ $elapsed3 = (Get-Date) - $start3
 $total3 = (Get-Date) - $script:globalStart
 Write-Host "    ($($elapsed3.TotalSeconds.ToString('0.0'))s / 累计 $($total3.TotalSeconds.ToString('0.0'))s)" -ForegroundColor DarkGray
 
-Step -Label '5/5  npm pack + demo e2e (playwright)' -Block {
-    # demo 依赖 npm pack 的 tarball（demo/package.json → file:../faicad-faijs-0.1.0.tgz），
-    # 必须先打包，npm ci 才能解析 file: 依赖
-    npm pack
+Step -Label '5/8  守卫：幽灵依赖 / workspaces 顺序 / 包图无环 / 导出面' -Block {
+    node scripts/check-ghost-deps.mjs
     if ($LASTEXITCODE -ne 0) { return }
-    $demoDir = Join-Path $ROOT 'demo'
-    Push-Location $demoDir
-    try {
-        # demo has its own package.json/lockfile; always install fresh so the
-        # newly packed tarball (file:../faicad-faijs-*.tgz) is picked up even
-        # when a stale node_modules already exists locally (npm ci cleans it)
-        npm ci
-        if ($LASTEXITCODE -ne 0) { return }
-        # Playwright browsers (idempotent: skips if already downloaded)
-        npx playwright install chromium
-        if ($LASTEXITCODE -ne 0) { return }
-        npm run test:e2e
-        if ($LASTEXITCODE -ne 0) { return }
-        # build 产物的 CDN 加载验证（vite preview + jsdelivr importmap）
-        npm run test:e2e:preview
-    } finally {
-        Pop-Location
-    }
+    node scripts/check-workspaces-order.mjs
+    if ($LASTEXITCODE -ne 0) { return }
+    npx madge --circular packages/core/src packages/stdlib/src packages/mech-lib/src
+    if ($LASTEXITCODE -ne 0) { return }
+    # 导出面：11 个子路径必须全部可导入（快照脚本自身断言；有 error 即失败）
+    node scripts/api-surface-snapshot.mjs
+}
+
+Step -Label '6/8  demo e2e（dev server 模式，M7 链路）' -Block {
+    npm run test:e2e -w @faicad/faijs-demo
+}
+
+Step -Label '7/8  demo e2e:preview（CDN/importmap 产物路径）' -Block {
+    npm run test:e2e:preview -w @faicad/faijs-demo
+}
+
+Step -Label '8/8  npm pack（3d_editor tarball）' -Block {
+    npm pack
 }
 }
 

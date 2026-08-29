@@ -1,0 +1,18 @@
+{
+  "name": "@faicad/faijs-tests",
+  "version": "0.5.8",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@faicad/mech-lib": "*",
+    "@faicad/faijs-fixtures": "*"
+  },
+  "devDependencies": {
+    "typescript": "*",
+    "vitest": "*"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  }
+}

@@ -20,7 +20,14 @@
       "DOM",
       "DOM.Iterable"
     ],
-    "noEmit": true
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@faicad/faijs-core": ["./packages/core/src/index.ts"],
+      "@faicad/faijs-core/*": ["./packages/core/src/*"],
+      "@faicad/faijs-stdlib": ["./packages/stdlib/src/index.ts"],
+      "@faicad/faijs-stdlib/*": ["./packages/stdlib/src/*"]
+    }
   },
   "include": [
     "src/**/*.ts"

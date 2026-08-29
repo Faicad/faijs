@@ -1,0 +1,12 @@
+{
+  "name": "@faicad/faijs-fixtures",
+  "version": "0.5.8",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./*": "./data/*"
+  },
+  "files": [
+    "data"
+  ]
+}

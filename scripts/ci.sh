@@ -13,18 +13,19 @@ esac
 
 cd "$ROOT"
 
-echo "==> 1/5  npm run lint"
+echo "==> 1/8  npm run lint"
 npm run lint
 
-echo "==> 2/5  npm run typecheck"
+echo "==> 2/8  npm run typecheck（根 + workspaces）"
 npm run typecheck
+npm run typecheck --workspaces --if-present
 
-echo "==> 3/5  npm run build (tsc → dist)"
+echo "==> 3/8  npm run build（core → stdlib → 门面）"
 npm run build
 
-echo "==> 4/5  npx vitest run"
+echo "==> 4/8  npm run test --workspaces"
 set +o pipefail
-npx vitest run --no-color 2>&1 | tee /tmp/vitest-out.txt
+npm run test --workspaces --if-present --no-color 2>&1 | tee /tmp/vitest-out.txt
 exit_code=${PIPESTATUS[0]}
 set -o pipefail
 
@@ -44,21 +45,22 @@ if [ -n "$unexpected_stderr" ]; then
   exit 1
 fi
 
-echo "==> 5/5  npm pack + demo e2e (playwright)"
+echo "==> 5/8  守卫：幽灵依赖 / workspaces 顺序 / 包图无环 / 导出面"
+node scripts/check-ghost-deps.mjs
+node scripts/check-workspaces-order.mjs
+npx madge --circular packages/core/src packages/stdlib/src packages/mech-lib/src
+node scripts/api-surface-snapshot.mjs
+
+echo "==> 6/8  demo e2e（dev server 模式，M7 链路）"
 cd "$ROOT"
-# demo 依赖 npm pack 的 tarball（demo/package.json → file:../faicad-faijs-0.1.0.tgz），
-# 必须先打包，npm ci 才能解析 file: 依赖
-npm pack
-cd "$ROOT/demo"
-# demo has its own package.json/lockfile; install first in a clean environment (no node_modules)
-if [ ! -d node_modules ]; then
-  npm ci
-fi
-# Playwright browsers (idempotent: skips if already downloaded)
 npx playwright install chromium
-npm run test:e2e
-# build 产物的 CDN 加载验证（vite preview + jsdelivr importmap）
-npm run test:e2e:preview
+npm run test:e2e -w @faicad/faijs-demo
+
+echo "==> 7/8  demo e2e:preview（CDN/importmap 产物路径）"
+npm run test:e2e:preview -w @faicad/faijs-demo
+
+echo "==> 8/8  npm pack（3d_editor tarball）"
 cd "$ROOT"
+npm pack
 
 echo "==> All CI checks passed"

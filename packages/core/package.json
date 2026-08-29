@@ -1,0 +1,55 @@
+{
+  "name": "@faicad/faijs-core",
+  "version": "0.5.8",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./sdk": { "types": "./dist/sdk.d.ts", "default": "./dist/sdk.js" },
+    "./csg": { "types": "./dist/csg.d.ts", "default": "./dist/csg.js" },
+    "./sdf": { "types": "./dist/sdf.d.ts", "default": "./dist/sdf.js" },
+    "./node": { "types": "./dist/node.d.ts", "default": "./dist/node.js" },
+    "./browser": { "types": "./dist/browser.d.ts", "default": "./dist/browser.js" },
+    "./runtime-state": { "types": "./dist/runtime-state.d.ts", "default": "./dist/runtime-state.js" },
+    "./identity": { "types": "./dist/identity.d.ts", "default": "./dist/identity.js" },
+    "./shape": { "types": "./dist/shape.d.ts", "default": "./dist/shape.js" },
+    "./faqts": { "types": "./dist/faqts/index.d.ts", "default": "./dist/faqts/index.js" },
+    "./faqts/*": { "types": "./dist/faqts/*.d.ts", "default": "./dist/faqts/*.js" },
+    "./module-resolver": { "types": "./dist/module-resolver/index.d.ts", "default": "./dist/module-resolver/index.js" },
+    "./module-resolver/*": { "types": "./dist/module-resolver/*.d.ts", "default": "./dist/module-resolver/*.js" },
+    "./stdlib": { "types": "./dist/stdlib/index.d.ts", "default": "./dist/stdlib/index.js" },
+    "./stdlib/*": { "types": "./dist/stdlib/*.d.ts", "default": "./dist/stdlib/*.js" },
+    "./mesh": { "types": "./dist/mesh/index.d.ts", "default": "./dist/mesh/index.js" },
+    "./mesh/*": { "types": "./dist/mesh/*.d.ts", "default": "./dist/mesh/*.js" },
+    "./brep/*": { "types": "./dist/brep/*.d.ts", "default": "./dist/brep/*.js" },
+    "./primitives/*": { "types": "./dist/primitives/*.d.ts", "default": "./dist/primitives/*.js" },
+    "./cad-runtime/*": { "types": "./dist/cad-runtime/*.d.ts", "default": "./dist/cad-runtime/*.js" },
+    "./occt-kernel/*": { "types": "./dist/occt-kernel/*.d.ts", "default": "./dist/occt-kernel/*.js" },
+    "./topology/*": { "types": "./dist/topology/*.d.ts", "default": "./dist/topology/*.js" },
+    "./boolean/*": { "types": "./dist/boolean/*.d.ts", "default": "./dist/boolean/*.js" }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "acorn": "^8.18.0",
+    "manifold-3d": "^3.5.1",
+    "opentype.js": "^1.3.4",
+    "sucrase": "^3.35.1",
+    "three": "^0.184.0"
+  },
+  "peerDependencies": {
+    "occt-wasm": "3.7.0"
+  },
+  "devDependencies": {
+    "typescript": "*",
+    "vitest": "*"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && node ../../scripts/fix-import-extensions.mjs dist",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "eslint src"
+  }
+}
