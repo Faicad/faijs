@@ -15,7 +15,7 @@
   },
   "peerDependencies": {
     "@faicad/faijs-core": "^0.5.8",
-    "occt-wasm": "^3.7.0"
+    "occt-wasm": "^3.8.0"
   },
   "devDependencies": {
     "typescript": "*",

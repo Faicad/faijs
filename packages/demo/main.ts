@@ -501,7 +501,7 @@ const initOcct = (() =>
   OcctKernelValue.init({
     wasm: import.meta.env.DEV
       ? '/wasm/occt-wasm.wasm'
-      : 'https://cdn.jsdelivr.net/npm/occt-wasm@3.7.0/dist/occt-wasm.wasm',
+      : 'https://cdn.jsdelivr.net/npm/occt-wasm@3.8.4/dist/occt-wasm.wasm',
   })) as unknown as () => Promise<never>
 setOcctWasmInitFn(initOcct)
 

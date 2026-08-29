@@ -40,7 +40,7 @@
     "three": "^0.184.0"
   },
   "peerDependencies": {
-    "occt-wasm": "3.7.0"
+    "occt-wasm": "3.8.4"
   },
   "devDependencies": {
     "typescript": "*",

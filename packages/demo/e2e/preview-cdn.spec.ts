@@ -14,7 +14,7 @@ import { test, expect, type Page } from '@playwright/test'
 
 // 两条 wasm 二进制必须真的从 CDN 下载（而不是本地 node_modules）
 const WASM_CDN_URLS = [
-  'https://cdn.jsdelivr.net/npm/occt-wasm@3.7.0/dist/occt-wasm.wasm',
+  'https://cdn.jsdelivr.net/npm/occt-wasm@3.8.4/dist/occt-wasm.wasm',
   'https://cdn.jsdelivr.net/npm/manifold-3d@3.5.1/manifold.wasm',
 ]
 

@@ -46,7 +46,7 @@ export function setOcctWasmInitFn(fn: (() => Promise<OcctKernel>) | null): void 
 /**
  * 解析 occt-wasm 的 WASM 文件路径（linker-agnostic）。
  *
- * 走 package exports（occt-wasm@3.7.0 导出了 `"./dist/occt-wasm.wasm"`），
+ * 走 package exports（occt-wasm@3.8.4 导出了 `"./dist/occt-wasm.wasm"`），
  * 与 cwd / hoisting / pnpm|npm linker 全部无关（实测 pattern C）。
  * 替代旧的 4 层 `..` 路径猜测 + process.cwd() 兜底（monorepo-plan P-0）。
  *

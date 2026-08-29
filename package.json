@@ -90,7 +90,7 @@
   "dependencies": {
     "@faicad/faijs-core": "*",
     "@faicad/faijs-stdlib": "*",
-    "occt-wasm": "3.7.0"
+    "occt-wasm": "3.8.4"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -107,6 +107,6 @@
     "vitest": "^3.0.0"
   },
   "overrides": {
-    "occt-wasm": "3.7.0"
+    "occt-wasm": "3.8.4"
   }
 }

@@ -15,7 +15,7 @@ const CDN_BASE = 'https://cdn.jsdelivr.net/npm'
 
 const THREE_VERSION = '0.184.0'
 const MANIFOLD_VERSION = '3.5.1'
-const OCCT_VERSION = '3.7.0'
+const OCCT_VERSION = '3.8.4'
 
 const EXACT_CDN = new Map<string, string>([
   ['three', `${CDN_BASE}/three@${THREE_VERSION}/build/three.module.js`],
