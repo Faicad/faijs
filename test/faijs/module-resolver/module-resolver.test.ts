@@ -14,6 +14,7 @@ import {
   resolveImports,
   UnresolvedImportError,
   ImportVersionError,
+  ModuleResolverError,
   splitVersionRange,
   satisfies,
   assertSatisfies,
@@ -171,5 +172,82 @@ describe('version 极简语义', () => {
     expect(splitVersionRange('mech@^1.2.0')).toEqual({ name: 'mech', range: '^1.2.0' })
     expect(splitVersionRange('@scope/gear@~2.0')).toEqual({ name: '@scope/gear', range: '~2.0' })
     expect(splitVersionRange('@scope/gear')).toEqual({ name: '@scope/gear' })
+  })
+})
+
+describe('module-resolver: V5.4 按需加载（大库动态切片）', () => {
+  // 大库 `std-parts`（完整标准件数据库）只开放命名切片；模块图只 fetch 被引用的切片
+  const partsRes = (extra: Record<string, string> = {}) => ({
+    imports: { 'std-parts': 'https://cdn/std-parts/index.js' },
+    slices: {
+      'std-parts': {
+        base: 'https://cdn/std-parts/',
+        version: '3.1.0',
+        exports: { 'bolts/iso4014': 'bolts/iso4014.js', 'nuts/iso4032': 'nuts/iso4032.js', ...extra },
+      },
+    },
+  })
+
+  it('切片子路径重写为独立 slice URL（宿主只 fetch 被引用的切片）', () => {
+    const src = "import * as b from 'std-parts/bolts/iso4014'\nexport const a = b\n"
+    const res = resolveImports(src, partsRes())
+    expect(res.resolved['std-parts/bolts/iso4014']).toBe('https://cdn/std-parts/bolts/iso4014.js')
+    expect(res.code).toContain("from 'https://cdn/std-parts/bolts/iso4014.js'")
+  })
+
+  it('库根面 `std-parts` 本身仍走 imports（未被切片吞并）', () => {
+    const src = "import * as lib from 'std-parts'\nexport const a = lib\n"
+    const res = resolveImports(src, partsRes())
+    expect(res.resolved['std-parts']).toBe('https://cdn/std-parts/index.js')
+    expect(res.code).toContain("from 'https://cdn/std-parts/index.js'")
+  })
+
+  it('未声明的切片子路径 → 明确抛错（不回退、不静默）', () => {
+    const src = "import * as s from 'std-parts/bolts/m12'\nexport const a = s\n"
+    let err: unknown
+    try {
+      resolveImports(src, partsRes())
+    } catch (e) {
+      err = e
+    }
+    expect(err).toBeInstanceOf(ModuleResolverError)
+    expect((err as ModuleResolverError).message).toContain('std-parts/bolts/m12')
+    expect((err as ModuleResolverError).message).toContain('not an exported slice')
+  })
+
+  it('切片带版本范围：满足 → 成功；不满足 → ImportVersionError', () => {
+    const ok = resolveImports("import * as b from 'std-parts/bolts/iso4014@^3.0.0'\nexport const a = b\n", partsRes())
+    expect(ok.resolved['std-parts/bolts/iso4014@^3.0.0']).toBe('https://cdn/std-parts/bolts/iso4014.js')
+    expect(() =>
+      resolveImports("import * as b from 'std-parts/bolts/iso4014@^4.0.0'\nexport const a = b\n", partsRes()),
+    ).toThrow(ImportVersionError)
+  })
+
+  it('多个切片各自独立、可同时引用（各自 resolved）', () => {
+    const src = [
+      "import * as b from 'std-parts/bolts/iso4014'",
+      "import * as n from 'std-parts/nuts/iso4032'",
+      'export const out = [b, n]',
+    ].join('\n')
+    const res = resolveImports(src, partsRes())
+    expect(res.resolved['std-parts/bolts/iso4014']).toBe('https://cdn/std-parts/bolts/iso4014.js')
+    expect(res.resolved['std-parts/nuts/iso4032']).toBe('https://cdn/std-parts/nuts/iso4032.js')
+  })
+
+  it('切片文件名 URL 化：相对文件名按 base 绝对化', () => {
+    const res = resolveImports("import * as x from 'std-parts/bolts/iso4014'\nexport const a = x\n", partsRes())
+    expect(res.resolved['std-parts/bolts/iso4014']).toBe('https://cdn/std-parts/bolts/iso4014.js')
+    // base 尾斜杠 + 相对文件名 → 直接拼接
+    const src = "import * as y from 'std-parts/custom'\nexport const a = y\n"
+    const res2 = resolveImports(src, partsRes({ custom: 'custom/c.js' }))
+    expect(res2.resolved['std-parts/custom']).toBe('https://cdn/std-parts/custom/c.js')
+  })
+
+  it('纯函数：切片解析确定性（相同输入 → 相同输出，无网络/IO）', () => {
+    const src = "import * as b from 'std-parts/bolts/iso4014'\nexport const a = b\n"
+    const a = resolveImports(src, partsRes())
+    const b = resolveImports(src, partsRes())
+    expect(a.code).toBe(b.code)
+    expect(a.resolved).toEqual(b.resolved)
   })
 })
