@@ -95,6 +95,8 @@ function getLine(node: ASTNode): number {
 interface FoldOk {
   ok: true
   value: JsonValue
+  /** 折叠结果是否引用了已声明的参数（决定 hasComputedArgs，F1-E1）。 */
+  usedParam: boolean
 }
 interface FoldFail {
   ok: false
@@ -102,17 +104,17 @@ interface FoldFail {
 type FoldResult = FoldOk | FoldFail
 
 /** 数值折叠：非有限值（NaN/Infinity）不是 JSON 安全字面量 → 不可折叠。 */
-function numFold(v: number): FoldResult {
-  return Number.isFinite(v) ? { ok: true, value: v } : { ok: false }
+function numFold(v: number, usedParam = false): FoldResult {
+  return Number.isFinite(v) ? { ok: true, value: v, usedParam } : { ok: false }
 }
 
-function numBin(a: JsonValue, b: JsonValue, op: (x: number, y: number) => number): FoldResult {
-  return typeof a === 'number' && typeof b === 'number' ? numFold(op(a, b)) : { ok: false }
+function numBin(a: JsonValue, b: JsonValue, op: (x: number, y: number) => number, usedParam = false): FoldResult {
+  return typeof a === 'number' && typeof b === 'number' ? numFold(op(a, b), usedParam) : { ok: false }
 }
 
-function cmpBin(a: JsonValue, b: JsonValue, op: (x: number | string, y: number | string) => boolean): FoldResult {
-  if (typeof a === 'number' && typeof b === 'number') return { ok: true, value: op(a, b) }
-  if (typeof a === 'string' && typeof b === 'string') return { ok: true, value: op(a, b) }
+function cmpBin(a: JsonValue, b: JsonValue, op: (x: number | string, y: number | string) => boolean, usedParam = false): FoldResult {
+  if (typeof a === 'number' && typeof b === 'number') return { ok: true, value: op(a, b), usedParam }
+  if (typeof a === 'string' && typeof b === 'string') return { ok: true, value: op(a, b), usedParam }
   return { ok: false }
 }
 
@@ -139,12 +141,12 @@ function tryFoldConstExpr(
 ): FoldResult {
   switch (node.type) {
     case 'Literal':
-      return { ok: true, value: node.value }
+      return { ok: true, value: node.value, usedParam: false }
 
     case 'Identifier': {
       if (!paramNames.has(node.name)) return { ok: false }
       const v = paramValues.get(node.name)
-      return v === undefined ? { ok: false } : { ok: true, value: v }
+      return v === undefined ? { ok: false } : { ok: true, value: v, usedParam: true }
     }
 
     case 'UnaryExpression': {
@@ -152,11 +154,11 @@ function tryFoldConstExpr(
       if (!operand.ok) return { ok: false }
       const v = operand.value
       switch (node.operator) {
-        case '-': return typeof v === 'number' ? numFold(-v) : { ok: false }
-        case '+': return typeof v === 'number' ? numFold(+v) : { ok: false }
-        case '!': return { ok: true, value: !v }
-        case '~': return typeof v === 'number' ? { ok: true, value: ~v } : { ok: false }
-        case 'typeof': return { ok: true, value: typeof v }
+        case '-': return typeof v === 'number' ? numFold(-v, operand.usedParam) : { ok: false }
+        case '+': return typeof v === 'number' ? numFold(+v, operand.usedParam) : { ok: false }
+        case '!': return { ok: true, value: !v, usedParam: operand.usedParam }
+        case '~': return typeof v === 'number' ? { ok: true, value: ~v, usedParam: operand.usedParam } : { ok: false }
+        case 'typeof': return { ok: true, value: typeof v, usedParam: operand.usedParam }
         default: return { ok: false }
       }
     }
@@ -168,25 +170,26 @@ function tryFoldConstExpr(
       if (!right.ok) return { ok: false }
       const a = left.value
       const b = right.value
+      const usedParam = left.usedParam || right.usedParam
       switch (node.operator) {
         case '+': {
-          if (typeof a === 'number' && typeof b === 'number') return numFold(a + b)
-          if (typeof a === 'string' || typeof b === 'string') return { ok: true, value: String(a) + String(b) }
+          if (typeof a === 'number' && typeof b === 'number') return numFold(a + b, usedParam)
+          if (typeof a === 'string' || typeof b === 'string') return { ok: true, value: String(a) + String(b), usedParam }
           return { ok: false }
         }
-        case '-': return numBin(a, b, (x, y) => x - y)
-        case '*': return numBin(a, b, (x, y) => x * y)
-        case '/': return numBin(a, b, (x, y) => x / y)
-        case '%': return numBin(a, b, (x, y) => x % y)
-        case '**': return numBin(a, b, (x, y) => x ** y)
-        case '<': return cmpBin(a, b, (x, y) => x < y)
-        case '<=': return cmpBin(a, b, (x, y) => x <= y)
-        case '>': return cmpBin(a, b, (x, y) => x > y)
-        case '>=': return cmpBin(a, b, (x, y) => x >= y)
-        case '==': return { ok: true, value: looseEq(a, b) }
-        case '!=': return { ok: true, value: !looseEq(a, b) }
-        case '===': return { ok: true, value: a === b }
-        case '!==': return { ok: true, value: a !== b }
+        case '-': return numBin(a, b, (x, y) => x - y, usedParam)
+        case '*': return numBin(a, b, (x, y) => x * y, usedParam)
+        case '/': return numBin(a, b, (x, y) => x / y, usedParam)
+        case '%': return numBin(a, b, (x, y) => x % y, usedParam)
+        case '**': return numBin(a, b, (x, y) => x ** y, usedParam)
+        case '<': return cmpBin(a, b, (x, y) => x < y, usedParam)
+        case '<=': return cmpBin(a, b, (x, y) => x <= y, usedParam)
+        case '>': return cmpBin(a, b, (x, y) => x > y, usedParam)
+        case '>=': return cmpBin(a, b, (x, y) => x >= y, usedParam)
+        case '==': return { ok: true, value: looseEq(a, b), usedParam }
+        case '!=': return { ok: true, value: !looseEq(a, b), usedParam }
+        case '===': return { ok: true, value: a === b, usedParam }
+        case '!==': return { ok: true, value: a !== b, usedParam }
         default: return { ok: false }
       }
     }
@@ -198,10 +201,11 @@ function tryFoldConstExpr(
       const right = tryFoldConstExpr(node.right, paramNames, paramValues)
       if (!right.ok) return { ok: false }
       const a = left.value
+      const usedParam = left.usedParam || right.usedParam
       switch (node.operator) {
-        case '&&': return a ? right : left
-        case '||': return a ? left : right
-        case '??': return a === null ? right : left
+        case '&&': return { ok: true, value: a ? right.value : left.value, usedParam }
+        case '||': return { ok: true, value: a ? left.value : right.value, usedParam }
+        case '??': return { ok: true, value: a === null ? right.value : left.value, usedParam }
         default: return { ok: false }
       }
     }
@@ -210,22 +214,26 @@ function tryFoldConstExpr(
       const parts: string[] = []
       const quasis = node.quasis as ASTNode[]
       const exprs = node.expressions as ASTNode[]
+      let usedParam = false
       for (let i = 0; i < quasis.length; i++) {
         const cooked = quasis[i].value?.cooked
         parts.push(cooked ?? '')
         if (i < exprs.length) {
           const r = tryFoldConstExpr(exprs[i], paramNames, paramValues)
           if (!r.ok) return { ok: false }
+          usedParam = usedParam || r.usedParam
           parts.push(String(r.value))
         }
       }
-      return { ok: true, value: parts.join('') }
+      return { ok: true, value: parts.join(''), usedParam }
     }
 
     case 'ConditionalExpression': {
       const test = tryFoldConstExpr(node.test, paramNames, paramValues)
       if (!test.ok) return { ok: false }
-      return tryFoldConstExpr(test.value ? node.consequent : node.alternate, paramNames, paramValues)
+      const chosen = tryFoldConstExpr(test.value ? node.consequent : node.alternate, paramNames, paramValues)
+      if (!chosen.ok) return { ok: false }
+      return { ok: true, value: chosen.value, usedParam: test.usedParam || chosen.usedParam }
     }
 
     default:
@@ -360,7 +368,10 @@ function parseValueExpr(
           'E_VALUE',
         )
       }
-      if (flags) flags.computed = true
+      // F1-E1：仅当折叠表达式引用了已声明的参数才标 computed。
+      // 纯字面量（含负数字面量，acorn 用 UnaryExpression 表示 -10）不标 computed，
+      // 避免宿主把普通字面量参数误判为「计算参数」而降级为只读（时间线无法回填编辑）。
+      if (flags && r.usedParam) flags.computed = true
       return r.value
     }
 

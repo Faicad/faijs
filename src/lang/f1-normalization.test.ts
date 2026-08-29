@@ -98,10 +98,59 @@ describe('F1: 表达式折叠（parse 期静态求值为字面量）', () => {
     expect(script.statements[0].args.center).toEqual([1, 2, 3])
   })
 
-  it('无参数字面量的表达式也折叠（纯字面量算术）', () => {
+  it('无参数字面量的表达式也折叠（纯字面量算术），但不是 computed（不引用参数）', () => {
     const code = 'let part0 = cad.box({ size: 20 + 4 * 3 })'
     const { script } = parseScript(code)
     expect(script.statements[0].args.size).toBe(32)
+    expect(script.statements[0].hasComputedArgs).toBeFalsy()
+    expect(analyzeCode(code)[0].hasComputedArgs).toBe(false)
+  })
+
+  it('负数字面量（UnaryExpression -10）不误标为 computed（无参数引用 → 纯字面量）', () => {
+    // 回归：实际 drill 语句 position:[0,10,-10] 中的 -10 是 UnaryExpression，
+    // 旧实现在 parseValueExpr 折叠分支无差别置位 computed → drill 节点在时间线上
+    // 被降级为只读「查看代码」，点击无法进入钻孔编辑回填。修复后仅参数引用标 computed。
+    const code = [
+      'let part0 = cad.box({ size: 20 })',
+      'let part1 = cad.drill(part0, { diameter: 5, position: [0, 10, -10], faceNormal: [0, 1, 0] })',
+    ].join('\n')
+    const { script } = parseScript(code)
+    const drill = script.statements[1]
+    expect(drill.args.position).toEqual([0, 10, -10])
+    expect(drill.args.faceNormal).toEqual([0, 1, 0])
+    // IR 侧不置位（undefined）；宿主侧 analyzeCode 归一为 false。
+    expect(drill.hasComputedArgs).toBeFalsy()
+    expect(analyzeCode(code)[1].hasComputedArgs).toBe(false)
+  })
+
+  it('单参数负数字面量（文案标量 -10）不误判为 computed', () => {
+    const code = [
+      'let part0 = cad.box({ size: 20 })',
+      'let part1 = cad.drill(part0, { offset: -10 })',
+    ].join('\n')
+    const { script } = parseScript(code)
+    expect(script.statements[1].args.offset).toBe(-10)
+    expect(script.statements[1].hasComputedArgs).toBeFalsy()
+  })
+
+  it('引用已声明参数的折叠表达式仍标 computed（三元 g ? 5 : 0）', () => {
+    const code = [
+      'const g = true',
+      'let part0 = cad.box({ size: 20 })',
+      'let part1 = cad.drill(part0, { depth: g ? 5 : 0 })',
+    ].join('\n')
+    const { script } = parseScript(code)
+    expect(script.statements[1].args.depth).toBe(5)
+    expect(script.statements[1].hasComputedArgs).toBe(true)
+  })
+
+  it('引用参数的一元折叠（-base）仍标 computed', () => {
+    const code = [
+      'const base = 5',
+      'let part0 = cad.box({ size: -base })',
+    ].join('\n')
+    const { script } = parseScript(code)
+    expect(script.statements[0].args.size).toBe(-5)
     expect(script.statements[0].hasComputedArgs).toBe(true)
   })
 
