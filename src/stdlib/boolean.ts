@@ -21,6 +21,7 @@ import {
 } from '../brep/face-evolution'
 import { getBackends, keepHidden } from '../runtime-state'
 import { solid, fromBrep, brepOf } from './shape'
+import { reconcileBrepInputs } from './reconcile'
 import { dispatchPath } from '../cad-runtime/backend-dispatch'
 
 /** BREP 实现标记（boolean 有 OCCT 精确布尔） */
@@ -97,7 +98,8 @@ async function booleanImpl(operation: BooleanOperation, inputs: Shape[]): Promis
   if (inputs.length > 0) keepHidden(...inputs)
   const path = dispatchPath(inputs, brepImpl)
   if (path === 'brep') return booleanBrep(inputs, operation)
-  return solid(await booleanMesh(inputs, operation))
+  // 混合/断链时刻：BREP 侧输入先归约为合法 2-manifold 网格，mesh 侧原样透传
+  return solid(await booleanMesh(reconcileBrepInputs(inputs), operation))
 }
 
 // ── 三个薄导出（多输入 variadic） ──

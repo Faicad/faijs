@@ -11,6 +11,7 @@
 import type { Shape, Vec3 } from '../mesh/types'
 import { cad } from '../mesh'
 import { solid } from './shape'
+import { reconcileBrepInputs } from './reconcile'
 import { dispatchPath } from '../cad-runtime/backend-dispatch'
 import { assertPositiveNumber } from './assert'
 
@@ -24,9 +25,12 @@ export async function knurl(input: Shape, params: Record<string, unknown>): Prom
   assertKnurlParams(params)
   // mesh-only：无 brepImpl；brep 模式下 dispatchPath 调用前抛 BrepUnsupportedError
   dispatchPath([input], undefined)
-  return solid(await cad.knurl(input, {
+  // 断链时刻（用户点名场景）：BREP 建模的模型最后做滚花 → BREP 输入必须先归约为
+  // 合法 2-manifold 网格再进 mesh 路径（reconcileBrepInputs 对 mesh 侧输入原样透传）
+  const [meshInput] = reconcileBrepInputs([input])
+  return solid(await cad.knurl(meshInput, {
     face: {
-      center: (params.faceCenter as Vec3 | undefined) ?? cad.bboxCenter(input),
+      center: (params.faceCenter as Vec3 | undefined) ?? cad.bboxCenter(meshInput),
       normal: (params.faceNormal as Vec3 | undefined) ?? [0, 0, 1],
     },
     knurlTextureHeight: (params.knurlTextureHeight as number | undefined) ?? 0.5,
