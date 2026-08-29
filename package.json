@@ -1,6 +1,6 @@
 {
   "name": "@faicad/faijs",
-  "version": "0.5.4",
+  "version": "0.5.5",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -28,6 +28,18 @@
     "./node": {
       "types": "./dist/node.d.ts",
       "import": "./dist/node.js"
+    },
+    "./faqts": {
+      "types": "./dist/faqts/index.d.ts",
+      "import": "./dist/faqts/index.js"
+    },
+    "./faqts/node": {
+      "types": "./dist/faqts/node.d.ts",
+      "import": "./dist/faqts/node.js"
+    },
+    "./faqts/browser": {
+      "types": "./dist/faqts/browser.d.ts",
+      "import": "./dist/faqts/browser.js"
     },
     "./sdk": {
       "types": "./dist/sdk.d.ts",
@@ -69,6 +81,7 @@
     "manifold-3d": "^3.5.1",
     "occt-wasm": "3.7.0",
     "opentype.js": "^1.3.4",
+    "sucrase": "^3.35.1",
     "three": "^0.184.0"
   },
   "devDependencies": {
