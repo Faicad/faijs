@@ -77,11 +77,11 @@ function translateVarRef(ref: VarRefIR): string {
   return `ctx.${ref.$ref}`
 }
 
-/** CallRefIR → `await ns.cad.<callee>(<args>)`（嵌套调用，统一 await：同步函数被 await 是合法 JS） */
+/** CallRefIR → `await ns.<ns>.<callee>(<args>)`（嵌套调用，统一 await：同步函数被 await 是合法 JS；F2 放开命名空间） */
 function translateCallRef(ref: CallRefIR): string {
-  const { callee, args } = ref.$call
+  const { callee, args, namespace } = ref.$call
   const inner = args.map((a) => translateArg(a)).join(', ')
-  return `await ns.cad.${callee}(${inner})`
+  return `await ns.${namespace ?? 'cad'}.${callee}(${inner})`
 }
 
 /** 递归翻译单个 ArgIR 值为编译产物表达式。 */

@@ -32,11 +32,13 @@ export interface VarRefIR {
   $ref: string
 }
 
-/** 嵌套调用：args 内的 cad.<callee>(...)。编译为 ns.<callee>(...)。 */
+/** 嵌套调用：args 内的 cad.<callee>(...) 或 <ns>.<callee>(...)。编译为 ns.<callee>(...)。 */
 export interface CallRefIR {
   $call: {
     callee: string
     args: ArgIR[]
+    /** 调用所在命名空间（F2：`mech.helper(...)` 嵌套调用的 namespace='mech'；缺省 = 'cad'） */
+    namespace?: string
   }
 }
 
@@ -100,6 +102,11 @@ export interface StatementIR {
    *  用于 terminal shape 计算：有赋值的语句参与终端计算。 */
   hasAssignment?: boolean
 
+  /** 参数是否含计算表达式（binary/template/conditional/spread，F1 编译期折叠）。
+   *  parser 折叠表达式为字面量时置 true；宿主据此将编辑面板降级为只读/代码编辑
+   *  （防止把折叠值写回、丢失原表达式）。折叠后重解析为纯字面量时为 undefined/false。 */
+  hasComputedArgs?: boolean
+
 }
 
 // ── 参数表 ──
@@ -137,12 +144,33 @@ export interface TerminalShape {
   hidden?: boolean
 }
 
+// ── 顶层 import（F2 / roadmap V1.1） ──
+
+/**
+ * 顶层 import 声明（`import * as mech from 'mech-lib'` 等）。
+ * 模块声明非控制流 → 合法子集成员；codegen 打印回文件头（往返保真）。
+ */
+export interface ImportIR {
+  /** 原始说明符，如 'mech-lib' / '@scope/pkg/sub' */
+  specifier: string
+  /** import 形态 */
+  kind: 'namespace' | 'named' | 'default'
+  /** 本地绑定名（namespace → `import * as X` 的 X；default → `import X from` 的 X；named → 首个绑定） */
+  localName: string
+  /** named 形态的全部绑定名（`import { a, b } from '...'` → ['a','b']；其余形态 = [localName]） */
+  bindings?: string[]
+  /** 由 specifier 推导的包名（@scope/pkg/sub → @scope/pkg；mech-lib → mech-lib）。statementKey 包名前缀 / 宿主 getFeatureByOp 用。 */
+  packageName: string
+}
+
 export interface ScriptIR {
   source?:
     | { kind: 'load' }
     | { kind: 'sdf' }
   params: ParamDef[]
   statements: StatementIR[]
+  /** 顶层 import 段（F2；无 import 时为 undefined）。编译产物仍零 import（宿主 registerLib 注入）。 */
+  imports?: ImportIR[]
   /** 场景级模型属性（C-4/C-7）。
    *  缺省时由 SceneMutator 按 op 兜底派生（默认名 + nextPrimitiveColor()）。 */
   meta?: ScriptMetaIR

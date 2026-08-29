@@ -1,7 +1,6 @@
 {
   "name": "@faicad/faijs",
-  "version": "0.2.1",
-  "private": true,
+  "version": "0.5.0",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -29,12 +28,31 @@
     "./node": {
       "types": "./dist/node.d.ts",
       "import": "./dist/node.js"
+    },
+    "./sdk": {
+      "types": "./dist/sdk.d.ts",
+      "import": "./dist/sdk.js"
     }
   },
   "files": [
     "dist/"
   ],
   "description": "Faicad CAD execution engine — faijs language parser, BREP/mesh geometry ops, CadRuntime",
+  "license": "LGPL-2.0-only",
+  "keywords": [
+    "cad",
+    "faijs",
+    "brep",
+    "mesh",
+    "manifold",
+    "occt",
+    "parametric",
+    "geometry"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://gitcode.com/Faicad/faijs.git"
+  },
   "scripts": {
     "build": "npm run clean && tsc -p tsconfig.build.json && node scripts/fix-import-extensions.mjs",
     "clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",

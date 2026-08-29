@@ -60,6 +60,8 @@ export interface CheckError {
   message: string
   line?: number
   stmtId?: string
+  /** 解析诊断码（F1：E_CONTROL_FLOW 等，parser ParseError.code 透传） */
+  code?: string
 }
 
 export interface CheckResult {
@@ -1021,6 +1023,7 @@ export class CadRuntime {
           stage: 'parse',
           message: err.message,
           line: err.line,
+          ...(err.code ? { code: err.code } : {}),
         })
       } else {
         errors.push({
@@ -1033,8 +1036,29 @@ export class CadRuntime {
 
     // ② 符号检查：callee ∈ 符号表（未知 → "函数不存在"）。
     // 只有无 receiver 的调用才查符号表（成员方法是对象方法，不在表内，见 §6.2）。
+    // F2：命名空间调用按已注册库校验（未登记 specifier → 明确报错，不回退不静默）。
     for (const stmt of script.statements) {
       if (stmt.receiver) continue
+      const ns = stmt.namespace
+      if (ns && ns !== 'cad') {
+        const lib = this.libs[ns]
+        if (!lib) {
+          errors.push({
+            stage: 'symbol',
+            message: `namespace "${ns}" is not registered (missing registerLib or import specifier)`,
+            stmtId: stmt.id,
+          })
+          continue
+        }
+        if (typeof lib[stmt.callee] !== 'function') {
+          errors.push({
+            stage: 'symbol',
+            message: `function "${stmt.callee}" does not exist in namespace "${ns}"`,
+            stmtId: stmt.id,
+          })
+        }
+        continue
+      }
       const fnSymbol = getFunctionSymbol(stmt.callee)
       if (!fnSymbol) {
         errors.push({

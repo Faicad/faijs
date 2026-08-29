@@ -30,6 +30,7 @@ import type {
   ScriptIR,
   ScriptMetaIR,
   TerminalShape,
+  ImportIR,
 } from './types'
 import { isParamRef, isVarRef, isCallRef } from './types'
 import {
@@ -40,13 +41,34 @@ import {
 
 // ── 解析错误 ──
 
+/**
+ * 解析诊断码（F1：黑名单化后拒绝清单收敛，控制流给专用码）。
+ * 宿主（CadRuntime.check）把 code 透传给 CheckError，AI 可据此精确修正。
+ */
+export type ParseErrorCode =
+  /** 语法错误（acorn 闸门） */
+  | 'E_SYNTAX'
+  /** 控制流语句（if/for/while/do/switch/try/throw/break/continue/labeled/with + 动态 import()） */
+  | 'E_CONTROL_FLOW'
+  /** 不支持的语句形态（函数/类/export/new/eval 等） */
+  | 'E_STATEMENT'
+  /** 参数值表达式不合法（无法静态折叠 / 不支持的表达式节点） */
+  | 'E_VALUE'
+  /** import 声明位置/形态违规（F2） */
+  | 'E_IMPORT'
+  /** 引用错误（未知变量 / 未声明 receiver） */
+  | 'E_REFERENCE'
+
 export class ParseError extends Error {
   line: number
+  /** 诊断码（缺省 E_SYNTAX）。宿主 check() 透传；3d_editor 可据此给 AI 精确反馈。 */
+  code: ParseErrorCode
 
-  constructor(message: string, line: number) {
+  constructor(message: string, line: number, code: ParseErrorCode = 'E_SYNTAX') {
     super(`[parser] line ${line}: ${message}`)
     this.name = 'ParseError'
     this.line = line
+    this.code = code
   }
 }
 
@@ -63,14 +85,170 @@ function getLine(node: ASTNode): number {
 
 // ── AST 值解析 ──
 
-/** 解析字面量 / 数组 / 对象 / ParamRefIR / GeomRef */
+// ── 常量表达式折叠（F1：编译期求值，normal-js-subset O1） ──
+//
+// 无控制流 → 参数（const x = <literal>）的值在 parse 期已知。
+// Binary/Unary/Template/Conditional/Spread 全部按当前参数值静态折叠为字面量
+// （IR 零改动，不发明运行时求值机制）；引用语句变量（shape）的表达式
+// 无法静态求值 → parse 期明确报错 E_VALUE。
+
+interface FoldOk {
+  ok: true
+  value: JsonValue
+}
+interface FoldFail {
+  ok: false
+}
+type FoldResult = FoldOk | FoldFail
+
+/** 数值折叠：非有限值（NaN/Infinity）不是 JSON 安全字面量 → 不可折叠。 */
+function numFold(v: number): FoldResult {
+  return Number.isFinite(v) ? { ok: true, value: v } : { ok: false }
+}
+
+function numBin(a: JsonValue, b: JsonValue, op: (x: number, y: number) => number): FoldResult {
+  return typeof a === 'number' && typeof b === 'number' ? numFold(op(a, b)) : { ok: false }
+}
+
+function cmpBin(a: JsonValue, b: JsonValue, op: (x: number | string, y: number | string) => boolean): FoldResult {
+  if (typeof a === 'number' && typeof b === 'number') return { ok: true, value: op(a, b) }
+  if (typeof a === 'string' && typeof b === 'string') return { ok: true, value: op(a, b) }
+  return { ok: false }
+}
+
+/** JS `==` 的 JSON 值域近似（null/boolean/number/string，无对象）。 */
+function looseEq(a: JsonValue, b: JsonValue): boolean {
+  let x: JsonValue = a
+  let y: JsonValue = b
+  if (typeof x === 'boolean') x = x ? 1 : 0
+  if (typeof y === 'boolean') y = y ? 1 : 0
+  if (typeof x === 'number' && typeof y === 'string') return x === Number(y)
+  if (typeof x === 'string' && typeof y === 'number') return Number(x) === y
+  if (x === null || y === null) return x === null && y === null
+  return x === y
+}
+
+/**
+ * 静态折叠求值：仅接受可由「字面量 + 参数值」算出的表达式。
+ * 引用语句变量 / 嵌套调用 / 成员访问 → 不可折叠（返回 ok:false，调用方报 E_VALUE）。
+ */
+function tryFoldConstExpr(
+  node: ASTNode,
+  paramNames: Set<string>,
+  paramValues: Map<string, JsonValue>,
+): FoldResult {
+  switch (node.type) {
+    case 'Literal':
+      return { ok: true, value: node.value }
+
+    case 'Identifier': {
+      if (!paramNames.has(node.name)) return { ok: false }
+      const v = paramValues.get(node.name)
+      return v === undefined ? { ok: false } : { ok: true, value: v }
+    }
+
+    case 'UnaryExpression': {
+      const operand = tryFoldConstExpr(node.argument, paramNames, paramValues)
+      if (!operand.ok) return { ok: false }
+      const v = operand.value
+      switch (node.operator) {
+        case '-': return typeof v === 'number' ? numFold(-v) : { ok: false }
+        case '+': return typeof v === 'number' ? numFold(+v) : { ok: false }
+        case '!': return { ok: true, value: !v }
+        case '~': return typeof v === 'number' ? { ok: true, value: ~v } : { ok: false }
+        case 'typeof': return { ok: true, value: typeof v }
+        default: return { ok: false }
+      }
+    }
+
+    case 'BinaryExpression': {
+      const left = tryFoldConstExpr(node.left, paramNames, paramValues)
+      if (!left.ok) return { ok: false }
+      const right = tryFoldConstExpr(node.right, paramNames, paramValues)
+      if (!right.ok) return { ok: false }
+      const a = left.value
+      const b = right.value
+      switch (node.operator) {
+        case '+': {
+          if (typeof a === 'number' && typeof b === 'number') return numFold(a + b)
+          if (typeof a === 'string' || typeof b === 'string') return { ok: true, value: String(a) + String(b) }
+          return { ok: false }
+        }
+        case '-': return numBin(a, b, (x, y) => x - y)
+        case '*': return numBin(a, b, (x, y) => x * y)
+        case '/': return numBin(a, b, (x, y) => x / y)
+        case '%': return numBin(a, b, (x, y) => x % y)
+        case '**': return numBin(a, b, (x, y) => x ** y)
+        case '<': return cmpBin(a, b, (x, y) => x < y)
+        case '<=': return cmpBin(a, b, (x, y) => x <= y)
+        case '>': return cmpBin(a, b, (x, y) => x > y)
+        case '>=': return cmpBin(a, b, (x, y) => x >= y)
+        case '==': return { ok: true, value: looseEq(a, b) }
+        case '!=': return { ok: true, value: !looseEq(a, b) }
+        case '===': return { ok: true, value: a === b }
+        case '!==': return { ok: true, value: a !== b }
+        default: return { ok: false }
+      }
+    }
+
+    // acorn 把 && / || / ?? 解析为 LogicalExpression（ESTree 规范）
+    case 'LogicalExpression': {
+      const left = tryFoldConstExpr(node.left, paramNames, paramValues)
+      if (!left.ok) return { ok: false }
+      const right = tryFoldConstExpr(node.right, paramNames, paramValues)
+      if (!right.ok) return { ok: false }
+      const a = left.value
+      switch (node.operator) {
+        case '&&': return a ? right : left
+        case '||': return a ? left : right
+        case '??': return a === null ? right : left
+        default: return { ok: false }
+      }
+    }
+
+    case 'TemplateLiteral': {
+      const parts: string[] = []
+      const quasis = node.quasis as ASTNode[]
+      const exprs = node.expressions as ASTNode[]
+      for (let i = 0; i < quasis.length; i++) {
+        const cooked = quasis[i].value?.cooked
+        parts.push(cooked ?? '')
+        if (i < exprs.length) {
+          const r = tryFoldConstExpr(exprs[i], paramNames, paramValues)
+          if (!r.ok) return { ok: false }
+          parts.push(String(r.value))
+        }
+      }
+      return { ok: true, value: parts.join('') }
+    }
+
+    case 'ConditionalExpression': {
+      const test = tryFoldConstExpr(node.test, paramNames, paramValues)
+      if (!test.ok) return { ok: false }
+      return tryFoldConstExpr(test.value ? node.consequent : node.alternate, paramNames, paramValues)
+    }
+
+    default:
+      return { ok: false }
+  }
+}
+
+/** 折叠过程标记：某参数值被计算表达式产生（宿主据此降级编辑面板）。 */
+interface ValueFlags {
+  computed: boolean
+}
+
+/** 解析字面量 / 数组 / 对象 / ParamRefIR / GeomRef（F1：支持可静态折叠的表达式） */
 function parseValueExpr(
   node: ASTNode,
   paramNames: Set<string>,
+  paramValues: Map<string, JsonValue>,
   varToId: Map<string, PartName>,
+  nsNames: ReadonlySet<string>,
   line: number,
+  flags?: ValueFlags | null,
 ): ArgIR {
-  if (!node) throw new ParseError('missing value expression', line)
+  if (!node) throw new ParseError('missing value expression', line, 'E_VALUE')
 
   switch (node.type) {
     case 'Literal':
@@ -87,62 +265,107 @@ function parseValueExpr(
       if (varId) {
         return { $ref: varId } as ArgIR
       }
-      throw new ParseError(`unknown identifier "${name}" in args value (not a declared param or variable)`, line)
+      throw new ParseError(`unknown identifier "${name}" in args value (not a declared param or variable)`, line, 'E_REFERENCE')
     }
 
     case 'ArrayExpression': {
-      return node.elements.map((el: ASTNode) => parseValueExpr(el, paramNames, varToId, line))
+      const out: ArgIR[] = []
+      for (const el of node.elements) {
+        if (el === null || el === undefined) {
+          throw new ParseError('array holes are not supported in args', line, 'E_VALUE')
+        }
+        if (el.type === 'SpreadElement') {
+          // [...parts]：parts 须为可折叠的数组参数/字面量
+          const r = tryFoldConstExpr(el.argument, paramNames, paramValues)
+          if (!r.ok || !Array.isArray(r.value)) {
+            throw new ParseError('cannot statically evaluate spread in args (must reference an array param or literal)', line, 'E_VALUE')
+          }
+          if (flags) flags.computed = true
+          out.push(...(r.value as ArgIR[]))
+        } else {
+          out.push(parseValueExpr(el, paramNames, paramValues, varToId, nsNames, line, flags))
+        }
+      }
+      return out as ArgIR
     }
 
     case 'ObjectExpression': {
       const obj: Record<string, ArgIR> = {}
       for (const prop of node.properties) {
+        if (prop.type === 'SpreadElement') {
+          // {...opts}：opts 须为可折叠的对象参数/字面量
+          const r = tryFoldConstExpr(prop.argument, paramNames, paramValues)
+          if (!r.ok || typeof r.value !== 'object' || r.value === null || Array.isArray(r.value)) {
+            throw new ParseError('cannot statically evaluate object spread in args', line, 'E_VALUE')
+          }
+          if (flags) flags.computed = true
+          Object.assign(obj, r.value)
+          continue
+        }
         // shorthand property: { size } → { size: size }
         const key = prop.key.type === 'Identifier' ? prop.key.name
           : prop.key.type === 'Literal' ? String(prop.key.value)
           : null
         if (key === null) {
-          throw new ParseError(`invalid object key`, line)
+          throw new ParseError(`invalid object key`, line, 'E_VALUE')
         }
         // shorthand: { size } → value is the same identifier
         if (prop.shorthand) {
           if (paramNames.has(key)) {
             obj[key] = { $param: key } as ParamRefIR
           } else {
-            throw new ParseError(`unknown shorthand identifier "${key}" (not a declared param)`, line)
+            throw new ParseError(`unknown shorthand identifier "${key}" (not a declared param)`, line, 'E_REFERENCE')
           }
         } else {
-          obj[key] = parseValueExpr(prop.value, paramNames, varToId, line)
+          obj[key] = parseValueExpr(prop.value, paramNames, paramValues, varToId, nsNames, line, flags)
         }
       }
       return obj as ArgIR
     }
 
     case 'CallExpression': {
-      // 嵌套调用 → CallRefIR（A7 消灭后任意 cad.<ident>(...) 都合法）
+      // 嵌套调用 → CallRefIR（A7 消灭后任意 <ns>.<ident>(...) 都合法；F2 放开命名空间）
       const callee = node.callee
       if (
         callee?.type === 'MemberExpression' &&
         callee.object?.type === 'Identifier' &&
-        callee.object.name === 'cad' &&
+        nsNames.has(callee.object.name) &&
         callee.property?.type === 'Identifier'
       ) {
+        const nsName = callee.object.name
         const innerCallee = callee.property.name
-        const innerArgs = node.arguments.map((a: ASTNode) => parseValueExpr(a, paramNames, varToId, line))
-        return { $call: { callee: innerCallee, args: innerArgs } } as ArgIR
+        const innerArgs = node.arguments.map((a: ASTNode) => parseValueExpr(a, paramNames, paramValues, varToId, nsNames, line, flags))
+        return {
+          $call: {
+            callee: innerCallee,
+            args: innerArgs,
+            ...(nsName !== 'cad' ? { namespace: nsName } : {}),
+          },
+        } as ArgIR
       }
-      throw new ParseError('nested calls in args must be cad.<ident>(...)', line)
+      throw new ParseError('nested calls in args must be <ns>.<ident>(...)', line, 'E_VALUE')
     }
 
+    // F1 扩展：可静态折叠的表达式（无控制流 → 参数值已知，编译期求值）
     case 'UnaryExpression':
-      // 负数: -5
-      if (node.operator === '-' && node.argument?.type === 'Literal') {
-        return -node.argument.value
+    case 'BinaryExpression':
+    case 'LogicalExpression':
+    case 'TemplateLiteral':
+    case 'ConditionalExpression': {
+      const r = tryFoldConstExpr(node, paramNames, paramValues)
+      if (!r.ok) {
+        throw new ParseError(
+          `cannot statically evaluate ${node.type} in args (must reference declared params or literals)`,
+          line,
+          'E_VALUE',
+        )
       }
-      throw new ParseError(`unsupported unary expression in args value`, line)
+      if (flags) flags.computed = true
+      return r.value
+    }
 
     default:
-      throw new ParseError(`unsupported value expression: ${node.type}`, line)
+      throw new ParseError(`unsupported value expression: ${node.type}`, line, 'E_VALUE')
   }
 }
 
@@ -156,18 +379,20 @@ interface ParsedStatement {
 }
 
 /**
- * 解析一条 `const varName = [await] cad.op(...)` 语句。
+ * 解析一条 `const varName = [await] <ns>.<op>(...)` 语句。
  */
 function parseCadStatement(
   declNode: ASTNode,
   paramNames: Set<string>,
+  paramValues: Map<string, JsonValue>,
   varToId: Map<string, PartName>,
+  nsNames: ReadonlySet<string>,
 ): ParsedStatement {
   const line = getLine(declNode)
 
   // 提取变量名
   if (declNode.id?.type !== 'Identifier') {
-    throw new ParseError('expected identifier on left side of const declaration', line)
+    throw new ParseError('expected identifier on left side of const declaration', line, 'E_STATEMENT')
   }
   const varName = declNode.id.name
 
@@ -179,43 +404,45 @@ function parseCadStatement(
 
   // init 必须是 CallExpression
   if (init?.type !== 'CallExpression') {
-    throw new ParseError(`expected cad.<op>(...) call, got ${init?.type ?? 'null'}`, line)
+    throw new ParseError(`expected <ns>.<op>(...) call, got ${init?.type ?? 'null'}`, line, 'E_STATEMENT')
   }
 
-  // callee 必须是 MemberExpression: cad.<op>
+  // callee 必须是 MemberExpression: <ns>.<op>（cad 或顶层 import 绑定名，F2 消灭硬编码）
   const callee = init.callee
   if (
     callee?.type !== 'MemberExpression' ||
     callee.object?.type !== 'Identifier' ||
-    callee.object.name !== 'cad' ||
+    !nsNames.has(callee.object.name) ||
     callee.property?.type !== 'Identifier'
   ) {
-    throw new ParseError('expected cad.<op>(...) call', line)
+    throw new ParseError('expected <ns>.<op>(...) call', line, 'E_STATEMENT')
   }
 
+  const nsName = callee.object.name
   const opName = callee.property.name
 
   // 普通调用：callee 就是源码里的名字（A1 boolean 改写 / A4 load 收敛已删）
   let args: Record<string, ArgIR> = {}
   const inputs: PartName[] = []
+  const flags: ValueFlags = { computed: false }
   for (const argNode of init.arguments) {
     if (argNode.type === 'Identifier') {
       // input 变量引用
       const inputId = varToId.get(argNode.name)
       if (!inputId) {
-        throw new ParseError(`unknown variable "${argNode.name}" in inputs`, getLine(argNode))
+        throw new ParseError(`unknown variable "${argNode.name}" in inputs`, getLine(argNode), 'E_REFERENCE')
       }
       inputs.push(inputId)
     } else if (argNode.type === 'ObjectExpression') {
       // args 对象
-      const parsed = parseValueExpr(argNode, paramNames, varToId, line)
+      const parsed = parseValueExpr(argNode, paramNames, paramValues, varToId, nsNames, line, flags)
       if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
         args = parsed as Record<string, ArgIR>
       } else {
-        throw new ParseError('args must be an object', line)
+        throw new ParseError('args must be an object', line, 'E_VALUE')
       }
     } else {
-      throw new ParseError(`unexpected argument type: ${argNode.type}`, getLine(argNode))
+      throw new ParseError(`unexpected argument type: ${argNode.type}`, getLine(argNode), 'E_VALUE')
     }
   }
 
@@ -224,6 +451,8 @@ function parseCadStatement(
     id: asStmtId('__pending__'), callee: opName, args, inputs,
     outputs: [],
     hasAssignment: true,
+    ...(nsName !== 'cad' ? { namespace: nsName } : {}),
+    ...(flags.computed ? { hasComputedArgs: true } : {}),
   }
 
   return { stmt, varName, declaredOutputs: [varName] }
@@ -241,79 +470,83 @@ interface ParsedDestructuring {
 }
 
 /**
- * 解析 `const { k1: v1, k2: v2 } = [await] cad.<any>(...)`。
+ * 解析 `const { k1: v1, k2: v2 } = [await] <ns>.<any>(...)`。
  *
  * 任意键数（1..N）、任意 callee（不再限 split/front/back）。
  */
 function parseDestructuring(
   declNode: ASTNode,
   paramNames: Set<string>,
+  paramValues: Map<string, JsonValue>,
   varToId: Map<string, PartName>,
+  nsNames: ReadonlySet<string>,
 ): ParsedDestructuring {
   const line = getLine(declNode)
 
   // id 必须是 ObjectPattern
   if (declNode.id?.type !== 'ObjectPattern') {
-    throw new ParseError('expected object pattern for destructuring', line)
+    throw new ParseError('expected object pattern for destructuring', line, 'E_STATEMENT')
   }
 
   const props = declNode.id.properties
   if (props.length === 0) {
-    throw new ParseError('destructuring must have at least one property', line)
+    throw new ParseError('destructuring must have at least one property', line, 'E_STATEMENT')
   }
 
   const keys: string[] = []
   const valueNames: string[] = []
   for (const prop of props) {
     if (prop.type !== 'Property' || prop.key?.type !== 'Identifier') {
-      throw new ParseError('destructuring properties must be identifiers', line)
+      throw new ParseError('destructuring properties must be identifiers', line, 'E_STATEMENT')
     }
     if (prop.value?.type !== 'Identifier') {
-      throw new ParseError(`destructuring value for "${prop.key.name}" must be an identifier`, line)
+      throw new ParseError(`destructuring value for "${prop.key.name}" must be an identifier`, line, 'E_STATEMENT')
     }
     keys.push(prop.key.name)
     valueNames.push(prop.value.name)
   }
 
-  // 提取 init（可包 AwaitExpression），必须是 cad.<ident>(...) 调用
+  // 提取 init（可包 AwaitExpression），必须是 <ns>.<ident>(...) 调用
   let init = declNode.init
   if (init?.type === 'AwaitExpression') {
     init = init.argument
   }
   if (init?.type !== 'CallExpression') {
-    throw new ParseError(`expected cad.<op>(...) call in destructuring, got ${init?.type ?? 'null'}`, line)
+    throw new ParseError(`expected <ns>.<op>(...) call in destructuring, got ${init?.type ?? 'null'}`, line, 'E_STATEMENT')
   }
 
   const callee = init.callee
   if (
     callee?.type !== 'MemberExpression' ||
     callee.object?.type !== 'Identifier' ||
-    callee.object.name !== 'cad' ||
+    !nsNames.has(callee.object.name) ||
     callee.property?.type !== 'Identifier'
   ) {
-    throw new ParseError('destructuring is only allowed for cad.<op>(...) calls', line)
+    throw new ParseError('destructuring is only allowed for <ns>.<op>(...) calls', line, 'E_STATEMENT')
   }
 
+  const nsName = callee.object.name
   const opName = callee.property.name
   const args: Record<string, ArgIR> = {}
   const inputs: PartName[] = []
+  const flags: ValueFlags = { computed: false }
 
   for (const argNode of init.arguments) {
     if (argNode.type === 'Identifier') {
       const inputId = varToId.get(argNode.name)
       if (!inputId) {
-        throw new ParseError(`unknown variable "${argNode.name}" in destructuring inputs`, getLine(argNode))
+        throw new ParseError(`unknown variable "${argNode.name}" in destructuring inputs`, getLine(argNode), 'E_REFERENCE')
       }
       inputs.push(inputId)
     } else if (argNode.type === 'ObjectExpression') {
-      const parsed = parseValueExpr(argNode, paramNames, varToId, line)
+      const parsed = parseValueExpr(argNode, paramNames, paramValues, varToId, nsNames, line, flags)
       if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
         Object.assign(args, parsed as Record<string, ArgIR>)
       } else {
-        throw new ParseError('destructuring args must be an object', line)
+        throw new ParseError('destructuring args must be an object', line, 'E_VALUE')
       }
     } else {
-      throw new ParseError(`unexpected argument type in destructuring: ${argNode.type}`, getLine(argNode))
+      throw new ParseError(`unexpected argument type in destructuring: ${argNode.type}`, getLine(argNode), 'E_VALUE')
     }
   }
 
@@ -322,6 +555,8 @@ function parseDestructuring(
     id: asStmtId('__pending__'), callee: opName, args, inputs, outputs: [],
     outputKeys: keys,
     hasAssignment: true,
+    ...(nsName !== 'cad' ? { namespace: nsName } : {}),
+    ...(flags.computed ? { hasComputedArgs: true } : {}),
   }
 
   return { stmt, valueNames, declaredOutputs: valueNames }
@@ -478,6 +713,100 @@ function collectStatementRefs(stmt: StatementIR): string[] {
   return [...refs]
 }
 
+// ── 语句黑名单（F1：白名单 → 黑名单） ──
+
+/** 控制流语句（faijs 唯一禁令，V1.5 专用错误码）。 */
+const CONTROL_FLOW_TYPES = new Set([
+  'IfStatement', 'ForStatement', 'ForInStatement', 'ForOfStatement',
+  'WhileStatement', 'DoWhileStatement', 'SwitchStatement', 'TryStatement',
+  'ThrowStatement', 'BreakStatement', 'ContinueStatement', 'LabeledStatement',
+  'WithStatement',
+])
+
+/** 文本仅含注释与空白（import 头部连续段约束用）。 */
+function onlyWhitespaceAndComments(text: string): boolean {
+  return text
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\/\/[^\n]*/g, '')
+    .trim() === ''
+}
+
+/** 文本行数（空文本 = 0；含 n 个换行的文本 = n+1 行）。 */
+function countLines(text: string): number {
+  if (text === '') return 0
+  return (text.match(/\n/g) ?? []).length + 1
+}
+
+/** 由 specifier 推导包名：@scope/pkg/sub → @scope/pkg；mech-lib → mech-lib。 */
+function derivePackageName(specifier: string): string {
+  if (specifier.startsWith('@')) {
+    const parts = specifier.split('/')
+    return parts.length >= 2 ? `${parts[0]}/${parts[1]}` : specifier
+  }
+  return specifier.split('/')[0]
+}
+
+/** ImportDeclaration → ImportIR（F2）。 */
+function importDeclToIR(decl: ASTNode, line: number): ImportIR {
+  const specifier = decl.source?.value
+  if (typeof specifier !== 'string' || specifier === '') {
+    throw new ParseError('import must have a string specifier', line, 'E_IMPORT')
+  }
+  const packageName = derivePackageName(specifier)
+  const specifiers = decl.specifiers ?? []
+  if (specifiers.length === 0) {
+    throw new ParseError('side-effect imports are not supported (use import * as ns from "pkg")', line, 'E_IMPORT')
+  }
+  const first = specifiers[0]
+  if (first.type === 'ImportNamespaceSpecifier') {
+    const localName = first.local?.name
+    if (typeof localName !== 'string') throw new ParseError('invalid namespace import binding', line, 'E_IMPORT')
+    return { specifier, kind: 'namespace', localName, packageName }
+  }
+  if (first.type === 'ImportDefaultSpecifier') {
+    const localName = first.local?.name
+    if (typeof localName !== 'string') throw new ParseError('invalid default import binding', line, 'E_IMPORT')
+    return { specifier, kind: 'default', localName, packageName }
+  }
+  // ImportSpecifier（named）
+  const bindings: string[] = (specifiers as ASTNode[]).map((s) => s.local?.name as string)
+  if (bindings.some((b) => typeof b !== 'string')) {
+    throw new ParseError('invalid named import bindings', line, 'E_IMPORT')
+  }
+  return { specifier, kind: 'named', localName: bindings[0], bindings, packageName }
+}
+
+/**
+ * 默认分支：黑名单式拒绝（normal-js-subset P1）。
+ * 除控制流（专用 E_CONTROL_FLOW 码）与安全红线（eval/new/export）外，
+ * 未识别的语句形态一律 E_STATEMENT。
+ */
+function throwUnsupportedStatement(node: ASTNode, line: number): never {
+  if (CONTROL_FLOW_TYPES.has(node.type)) {
+    throw new ParseError(
+      `control flow statement "${node.type}" is not allowed in faijs`,
+      line,
+      'E_CONTROL_FLOW',
+    )
+  }
+  if (node.type === 'ImportDeclaration') {
+    throw new ParseError('import statements must be at the top level, before any statements', line, 'E_IMPORT')
+  }
+  if (node.type === 'ExportNamedDeclaration' || node.type === 'ExportAllDeclaration') {
+    throw new ParseError('export statements are not allowed (faijs auto-exports the default module)', line, 'E_STATEMENT')
+  }
+  if (node.type === 'FunctionDeclaration') {
+    throw new ParseError('function declarations are not yet supported (roadmap V1.3)', line, 'E_STATEMENT')
+  }
+  if (node.type === 'ClassDeclaration') {
+    throw new ParseError('class declarations are not allowed in faijs', line, 'E_STATEMENT')
+  }
+  if (node.type === 'NewExpression') {
+    throw new ParseError('"new" expressions are not allowed in faijs (new Function is a safety red line)', line, 'E_STATEMENT')
+  }
+  throw new ParseError(`unsupported statement: ${node.type}`, line, 'E_STATEMENT')
+}
+
 // ── 主解析函数 ──
 
 export interface ParseResult {
@@ -503,15 +832,67 @@ export interface ParseResult {
  */
 export function parseScript(code: string): ParseResult {
 
-  // ── 0. 扁平代码检测与封装 ──
-  // 如果代码不含 `export default`，则自动封装为合法容器
+  // ── 0. 顶层 import/export 预扫描（F1 黑名单化 + F2 import 提升） ──
+  // 用 module 模式解析原始文本：
+  // - 顶层 export（非默认导出容器）→ 明确 E_STATEMENT（扁平包装会先被 acorn 以
+  //   SyntaxError 拒绝：'import' and 'export' may appear only at top level）。
+  // - 顶层 import → 收集声明，校验「文件头部连续段」约束（F2），供扁平代码包装提升。
+  let importBlock: { start: number; end: number } | null = null
+  const prescanImports: ASTNode[] = []
+  {
+    const topLevel: ASTNode[] = []
+    try {
+      topLevel.push(...acornParse(code, { ecmaVersion: 'latest', sourceType: 'module', locations: true, ranges: true }).body)
+    } catch {
+      // 原始文本非合法 module（如含 return）→ 交给主解析报错
+    }
+    for (const n of topLevel) {
+      if (n.type === 'ExportNamedDeclaration' || n.type === 'ExportAllDeclaration') {
+        throw new ParseError(
+          `export statements are not allowed (faijs auto-exports the default module)`,
+          getLine(n) ?? 1,
+          'E_STATEMENT',
+        )
+      }
+      if (n.type === 'ImportDeclaration') prescanImports.push(n)
+    }
+    if (prescanImports.length > 0) {
+      const first = prescanImports[0]
+      const last = prescanImports[prescanImports.length - 1]
+      // 约束 1：import 之前只能有注释/空白（头部连续段）
+      if (!onlyWhitespaceAndComments(code.slice(0, first.start))) {
+        throw new ParseError('import statements must appear as a contiguous block at the top of the file', getLine(first) ?? 1, 'E_IMPORT')
+      }
+      // 约束 2：import 之间只能有注释/空白
+      for (let i = 1; i < prescanImports.length; i++) {
+        const gap = code.slice(prescanImports[i - 1].end, prescanImports[i].start)
+        if (!onlyWhitespaceAndComments(gap)) {
+          throw new ParseError('import statements must be contiguous (no statements between imports)', getLine(prescanImports[i]) ?? 1, 'E_IMPORT')
+        }
+      }
+      importBlock = { start: first.start, end: last.end }
+    }
+  }
+
+  // ── 0.5 扁平代码检测与封装 ──
+  // 如果代码不含 `export default`，则自动封装为合法容器。
+  // 含顶层 import 时把 import 段提到 `export default async (cad) => {...}` 之外
+  // （import 不能出现在函数体内，否则 acorn SyntaxError —— D4）。
   let parseCode = code
   // 扁平封装后首行代码在 parseCode 中位于第 2 行；statementLines 须扣掉封装偏移，
   // 使行号始终相对宿主原始文本（analyzeCode 契约）。
-  const lineOffset = code.includes('export default') ? 0 : 1
+  let lineOffset = code.includes('export default') ? 0 : 1
   if (lineOffset) {
-    // 扁平格式：自动封装
-    parseCode = `export default async (cad) => {\n${code}\n}`
+    if (importBlock) {
+      const prefix = code.slice(0, importBlock.start)
+      const importText = code.slice(importBlock.start, importBlock.end)
+      const rest = code.slice(importBlock.end)
+      parseCode = `${prefix}${importText}\nexport default async (cad) => {\n${rest}\n}`
+      lineOffset = countLines(prefix + importText) + 1
+    } else {
+      parseCode = `export default async (cad) => {\n${code}\n}`
+      lineOffset = 1
+    }
   }
 
   // ── 1. acorn 解析（合法性闸门） ──
@@ -526,7 +907,7 @@ export function parseScript(code: string): ParseResult {
     const syntaxErr = err as { message?: string; loc?: { line: number } }
     const line = syntaxErr.loc?.line ?? 1
     const msg = syntaxErr.message ?? String(err)
-    throw new ParseError(`SyntaxError: ${msg}`, line)
+    throw new ParseError(`SyntaxError: ${msg}`, line, 'E_SYNTAX')
   }
 
   // ── 2. 验证 AST 结构 ──
@@ -563,87 +944,113 @@ export function parseScript(code: string): ParseResult {
   const statements: StatementIR[] = []
   const statementLines: number[] = []
   const paramNames = new Set<string>()
+  /** 参数名 → 字面量值（F1 表达式折叠依据；仅声明在前面的参数可折叠） */
+  const paramValues = new Map<string, JsonValue>()
   const varToId = new Map<string, PartName>()
   let meta: ScriptMetaIR | undefined
   let terminalShapes: TerminalShape[] | undefined
+
+  // ── 3.1 顶层 import → ScriptIR.imports + 命名空间绑定表（F2） ──
+  // import 已提升到模块顶层（扁平包装之外）；主解析的 ast.body 顶层直接可取。
+  const scriptImports: ImportIR[] = []
+  /** 命名空间绑定名 → 包名（`import * as mech from 'mech-lib'` → mech → mech-lib）。
+   *  只有 namespace 形态的 import 构成语句命名空间（cad 是缺省命名空间）。 */
+  const importBindings = new Map<string, string>()
+  for (const node of ast.body) {
+    if (node.type !== 'ImportDeclaration') continue
+    const imp = importDeclToIR(node, getLine(node))
+    scriptImports.push(imp)
+    if (imp.kind === 'namespace') importBindings.set(imp.localName, imp.packageName)
+  }
+
+  /** 命名空间判定：'cad'（缺省）或顶层 import 绑定名（F2 消灭硬编码）。 */
+  const isNamespaceName = (name: string): boolean => name === 'cad' || importBindings.has(name)
+  /** 合法命名空间名集合（parseValueExpr/parseCadStatement/parseDestructuring 共用）。 */
+  const nsNames: ReadonlySet<string> = new Set(['cad', ...importBindings.keys()])
 
   for (const stmtNode of body.body) {
     const line = getLine(stmtNode)
 
     switch (stmtNode.type) {
       case 'VariableDeclaration': {
-        // 允许 const 和 let（let 仅用于装配变量）
+        // 允许 const 和 let（let 仅用于装配变量）；var 保持拒绝（O2 排后）
         if (stmtNode.kind !== 'const' && stmtNode.kind !== 'let') {
-          throw new ParseError(`only 'const' or 'let' declarations allowed, got '${stmtNode.kind}'`, line)
+          throw new ParseError(`only 'const' or 'let' declarations allowed, got '${stmtNode.kind}'`, line, 'E_STATEMENT')
         }
-        // 单声明器
-        if (stmtNode.declarations.length !== 1) {
-          throw new ParseError('only single declarator per const/let allowed', line)
-        }
-        const decl = stmtNode.declarations[0]
+        // F1 黑名单化：多声明器逐个处理（const a = 1, b = 2）
+        for (const decl of stmtNode.declarations) {
+          const dline = getLine(decl)
 
-        // 通用解构：const { k1: v1, k2: v2 } = [await] cad.<any>(...)（A2 消灭：任意 callee、任意键）
-        if (decl.id?.type === 'ObjectPattern') {
-          if (stmtNode.kind !== 'const') {
-            throw new ParseError('destructuring requires const', line)
+          // 通用解构：const { k1: v1, k2: v2 } = [await] <ns>.<any>(...)（A2 消灭：任意 callee、任意键）
+          if (decl.id?.type === 'ObjectPattern') {
+            if (stmtNode.kind !== 'const') {
+              throw new ParseError('destructuring requires const', line, 'E_STATEMENT')
+            }
+            const { stmt, valueNames } = parseDestructuring(decl, paramNames, paramValues, varToId, nsNames)
+            // 命名服务不再由 parser 调用：parser 只做语法分析，保留词法变量名（设计 §5.1）
+            stmt.outputs = valueNames.map((n) => asPartName(n))
+            statements.push(stmt)
+            statementLines.push(dline)
+            // varToId 仅用于作用域校验，恒等映射（词法名 → 词法名）
+            valueNames.forEach((n) => varToId.set(n, asPartName(n)))
+            continue
           }
-          const { stmt, valueNames } = parseDestructuring(decl, paramNames, varToId)
-          // 命名服务不再由 parser 调用：parser 只做语法分析，保留词法变量名（设计 §5.1）
-          stmt.outputs = valueNames.map((n) => asPartName(n))
-          statements.push(stmt)
-          statementLines.push(line)
-          // varToId 仅用于作用域校验，恒等映射（词法名 → 词法名）
-          valueNames.forEach((n) => varToId.set(n, asPartName(n)))
-          break
-        }
 
-        // 判断是参数还是语句
-        let init = decl.init
-        const isAwait = init?.type === 'AwaitExpression'
-        if (isAwait) init = init.argument
+          // 判断是参数还是语句
+          let init = decl.init
+          const isAwait = init?.type === 'AwaitExpression'
+          if (isAwait) init = init.argument
 
-        // ── E15.1 已删（A3）：group/assembly 走普通调用路径，members 数组元素经 VarRefIR 通用扫描 ──
-
-        // Phase 3: let 允许用于普通 cad.op() 语句（单入单出复用名时 codegen 产生 let 重赋值）
-
-        if (
-          init?.type === 'CallExpression' &&
-          init.callee?.type === 'MemberExpression' &&
-          init.callee.object?.type === 'Identifier' &&
-          init.callee.object.name === 'cad'
-        ) {
-          // 语句：const partN_vM = [await] cad.op(...)
-          const { stmt, varName } = parseCadStatement(decl, paramNames, varToId)
-          // 命名服务不再由 parser 调用：parser 只做语法分析，保留词法变量名（设计 §5.1）
-          stmt.outputs = [asPartName(varName)]
-          statements.push(stmt)
-          statementLines.push(line)
-          // varToId 仅用于作用域校验，恒等映射（词法名 → 词法名）
-          varToId.set(varName, asPartName(varName))
-        } else if (
-          init?.type === 'Literal' ||
-          init?.type === 'ArrayExpression' ||
-          init?.type === 'ObjectExpression'
-        ) {
-          // 参数：const name = literal
-          if (decl.id?.type !== 'Identifier') {
-            throw new ParseError('param declaration must have identifier name', line)
+          // 动态 import() → 控制流专用错误码（V1.5；`await import("mod")` 走声明路径）
+          if (init?.type === 'ImportExpression') {
+            throw new ParseError('dynamic import() is not allowed in faijs (no control flow)', line, 'E_CONTROL_FLOW')
           }
-          const name = decl.id.name
-          // 解析字面量值（不允许 ParamRefIR / GeomRef / 标识符）
-          const value = parseLiteralOnly(init, line)
-          params.push({
-            name,
-            type: typeof value === 'number' ? 'number' : typeof value === 'boolean' ? 'bool' : 'vec3',
-            value: value as never,
-            default: value as never,
-          })
-          paramNames.add(name)
-        } else {
-          throw new ParseError(
-            `unsupported const declaration: init type = ${init?.type ?? 'null'}`,
-            line,
-          )
+
+          // Phase 3: let 允许用于普通 cad.op() 语句（单入单出复用名时 codegen 产生 let 重赋值）
+
+          if (
+            init?.type === 'CallExpression' &&
+            init.callee?.type === 'MemberExpression' &&
+            init.callee.object?.type === 'Identifier' &&
+            isNamespaceName(init.callee.object.name)
+          ) {
+            // 语句：const partN_vM = [await] <ns>.op(...)
+            const { stmt, varName } = parseCadStatement(decl, paramNames, paramValues, varToId, nsNames)
+            // 命名服务不再由 parser 调用：parser 只做语法分析，保留词法变量名（设计 §5.1）
+            stmt.outputs = [asPartName(varName)]
+            statements.push(stmt)
+            statementLines.push(dline)
+            // varToId 仅用于作用域校验，恒等映射（词法名 → 词法名）
+            varToId.set(varName, asPartName(varName))
+          } else if (
+            init?.type === 'Literal' ||
+            init?.type === 'ArrayExpression' ||
+            init?.type === 'ObjectExpression'
+          ) {
+            // 参数：const name = literal
+            if (decl.id?.type !== 'Identifier') {
+              throw new ParseError('param declaration must have identifier name', line, 'E_STATEMENT')
+            }
+            const name = decl.id.name
+            // 解析字面量值（不允许 ParamRefIR / GeomRef / 标识符）
+            const value = parseLiteralOnly(init, dline)
+            params.push({
+              name,
+              type: typeof value === 'number' ? 'number' : typeof value === 'boolean' ? 'bool' : 'vec3',
+              value: value as never,
+              default: value as never,
+            })
+            paramNames.add(name)
+            paramValues.set(name, value)
+            // F1：参数也可作为 input（cad.drill(p, {...})），加入 varToId 供输入/接收者解析
+            varToId.set(name, asPartName(name))
+          } else {
+            throw new ParseError(
+              `unsupported const declaration: init type = ${init?.type ?? 'null'}`,
+              line,
+              'E_STATEMENT',
+            )
+          }
         }
         break
       }
@@ -658,6 +1065,18 @@ export function parseScript(code: string): ParseResult {
       case 'ExpressionStatement': {
         const expr = stmtNode.expression
 
+        // 动态 import() → 控制流专用错误码（V1.5）
+        if (expr?.type === 'ImportExpression') {
+          throw new ParseError('dynamic import() is not allowed in faijs (no control flow)', line, 'E_CONTROL_FLOW')
+        }
+        // eval / new Function 安全红线
+        if (expr?.type === 'CallExpression' && expr.callee?.type === 'Identifier' && expr.callee.name === 'eval') {
+          throw new ParseError('eval is not allowed in faijs', line, 'E_STATEMENT')
+        }
+        if (expr?.type === 'NewExpression') {
+          throw new ParseError('"new" expressions are not allowed in faijs (new Function is a safety red line)', line, 'E_STATEMENT')
+        }
+
         // ── Phase 3: 裸重赋值 part0 = [await] cad.op(...) ──
         // codegen 对已声明变量的重赋值不使用 let/const，产生裸赋值表达式
         if (
@@ -668,7 +1087,7 @@ export function parseScript(code: string): ParseResult {
           const varName = expr.left.name
           // 验证变量已声明
           if (!varToId.has(varName)) {
-            throw new ParseError(`unknown variable "${varName}" in re-assignment`, line)
+            throw new ParseError(`unknown variable "${varName}" in re-assignment`, line, 'E_REFERENCE')
           }
           let init = expr.right
           if (init?.type === 'AwaitExpression') init = init.argument
@@ -676,7 +1095,7 @@ export function parseScript(code: string): ParseResult {
             init?.type === 'CallExpression' &&
             init.callee?.type === 'MemberExpression' &&
             init.callee.object?.type === 'Identifier' &&
-            init.callee.object.name === 'cad' &&
+            isNamespaceName(init.callee.object.name) &&
             init.callee.property?.type === 'Identifier'
           ) {
             // 复用 parseCadStatement 的内部逻辑
@@ -685,7 +1104,7 @@ export function parseScript(code: string): ParseResult {
               init: expr.right,
               loc: stmtNode.loc,
             }
-            const { stmt, varName: parsedVar } = parseCadStatement(fakeDecl, paramNames, varToId)
+            const { stmt, varName: parsedVar } = parseCadStatement(fakeDecl, paramNames, paramValues, varToId, nsNames)
             // 命名服务不再由 parser 调用：裸重赋值保留词法变量名（设计 §5.1）
             stmt.outputs = [asPartName(parsedVar)]
             statements.push(stmt)
@@ -694,59 +1113,105 @@ export function parseScript(code: string): ParseResult {
             varToId.set(parsedVar, asPartName(parsedVar))
             break
           }
-          throw new ParseError(`re-assignment must be a cad.op() call`, line)
+          throw new ParseError(`re-assignment must be a cad.op() call`, line, 'E_STATEMENT')
         }
 
         // ── 成员方法调用（A6 消灭：任意方法名；receiver 须已声明） ──
         // assem1.add_constraint({ ... }) / assem1.do_assemble() / assem1.myMethod()
-          if (
-            expr?.type === 'CallExpression' &&
-            expr.callee?.type === 'MemberExpression' &&
-            expr.callee.object?.type === 'Identifier' &&
-            expr.callee.property?.type === 'Identifier'
-          ) {
-            const targetVar = expr.callee.object.name
-            const methodName = expr.callee.property.name
-            // 验证 targetVar 已声明（变量作用域检查，非 op 知识）
-            if (!varToId.has(targetVar)) {
-              throw new ParseError(`unknown variable "${targetVar}" in .${methodName}() call`, line)
-            }
+        if (
+          expr?.type === 'CallExpression' &&
+          expr.callee?.type === 'MemberExpression' &&
+          expr.callee.object?.type === 'Identifier' &&
+          expr.callee.property?.type === 'Identifier'
+        ) {
+          const objName = expr.callee.object.name
+          const methodName = expr.callee.property.name
+
+          // F1 黑名单化 + F2：命名空间调用（<ns>.<op>() 裸调用，无赋值）——对象是 'cad'
+          // 或顶层 import 绑定名（第三方命名空间调用）
+          if (isNamespaceName(objName)) {
+            const nsName = objName
             const args: Record<string, ArgIR> = {}
+            const inputs: PartName[] = []
+            const flags: ValueFlags = { computed: false }
             for (const argNode of expr.arguments) {
-              if (argNode.type === 'ObjectExpression') {
-                const parsed = parseValueExpr(argNode, paramNames, varToId, line)
+              if (argNode.type === 'Identifier') {
+                const inputId = varToId.get(argNode.name)
+                if (!inputId) {
+                  throw new ParseError(`unknown variable "${argNode.name}" in ${nsName}.${methodName}() call`, getLine(argNode), 'E_REFERENCE')
+                }
+                inputs.push(inputId)
+              } else if (argNode.type === 'ObjectExpression') {
+                const parsed = parseValueExpr(argNode, paramNames, paramValues, varToId, nsNames, line, flags)
                 if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
                   Object.assign(args, parsed as Record<string, ArgIR>)
                 } else {
-                  throw new ParseError(`${methodName} args must be an object`, line)
+                  throw new ParseError(`${methodName} args must be an object`, line, 'E_VALUE')
                 }
               } else if (argNode.type !== 'undefined') {
-                throw new ParseError(`unexpected argument type in ${methodName}: ${argNode.type}`, line)
+                throw new ParseError(`unexpected argument type in ${methodName}: ${argNode.type}`, getLine(argNode), 'E_VALUE')
               }
             }
-            const memberStmt: StatementIR = {
+            const nsStmt: StatementIR = {
               id: asStmtId('__pending__'),
               callee: methodName,
               args,
-              inputs: [],
+              inputs,
               outputs: [],
-              receiver: targetVar,
               hasAssignment: false,
+              ...(nsName !== 'cad' ? { namespace: nsName } : {}),
+              ...(flags.computed ? { hasComputedArgs: true } : {}),
             }
-            statements.push(memberStmt)
+            statements.push(nsStmt)
             statementLines.push(line)
             break
           }
 
-          // All other bare expression statements are not allowed
-          throw new ParseError(
-            `bare expression statements not allowed; use 'const part0_vN = cad.op(...)' instead`,
-            line,
-          )
+          // 成员方法调用：receiver 须已声明
+          const targetVar = objName
+          // 验证 targetVar 已声明（变量作用域检查，非 op 知识）
+          if (!varToId.has(targetVar)) {
+            throw new ParseError(`unknown variable "${targetVar}" in .${methodName}() call`, line, 'E_REFERENCE')
+          }
+          const args: Record<string, ArgIR> = {}
+          const flags: ValueFlags = { computed: false }
+          for (const argNode of expr.arguments) {
+            if (argNode.type === 'ObjectExpression') {
+              const parsed = parseValueExpr(argNode, paramNames, paramValues, varToId, nsNames, line, flags)
+              if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+                Object.assign(args, parsed as Record<string, ArgIR>)
+              } else {
+                throw new ParseError(`${methodName} args must be an object`, line, 'E_VALUE')
+              }
+            } else if (argNode.type !== 'undefined') {
+              throw new ParseError(`unexpected argument type in ${methodName}: ${argNode.type}`, getLine(argNode), 'E_VALUE')
+            }
+          }
+          const memberStmt: StatementIR = {
+            id: asStmtId('__pending__'),
+            callee: methodName,
+            args,
+            inputs: [],
+            outputs: [],
+            receiver: targetVar,
+            hasAssignment: false,
+            ...(flags.computed ? { hasComputedArgs: true } : {}),
+          }
+          statements.push(memberStmt)
+          statementLines.push(line)
+          break
         }
 
+        // 其余裸表达式语句：黑名单化后仍拒绝（无意义的表达式）
+        throw new ParseError(
+          `bare expression statements not allowed; use 'const part0 = cad.op(...)' instead`,
+          line,
+          'E_STATEMENT',
+        )
+      }
+
       default:
-        throw new ParseError(`unsupported statement: ${stmtNode.type}`, line)
+        throwUnsupportedStatement(stmtNode, line)
     }
   }
 
@@ -771,6 +1236,7 @@ export function parseScript(code: string): ParseResult {
   const script: ScriptIR = {
     params,
     statements,
+    ...(scriptImports.length > 0 ? { imports: scriptImports } : {}),
     meta,
     terminalShapes: finalTerminalShapes,
   }

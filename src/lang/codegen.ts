@@ -29,7 +29,7 @@
  * - 对象字面量 → `{key:value}`（冒号，合法 JS）
  */
 
-import type { ArgIR, StatementIR, ScriptIR, ParamRefIR, VarRefIR, CallRefIR } from './types'
+import type { ArgIR, StatementIR, ScriptIR, ParamRefIR, VarRefIR, CallRefIR, ImportIR } from './types'
 import type { PartName } from '../identity'
 import { isParamRef, isVarRef, isCallRef } from './types'
 
@@ -93,11 +93,11 @@ function fmtVarRef(ref: VarRefIR, varNames?: Map<string, string>): string {
   return varNames?.get(ref.$ref) ?? ref.$ref
 }
 
-/** CallRefIR → `cad.<callee>(<args>)`（嵌套调用，如 cad.faceCenter(part0)） */
+/** CallRefIR → `<ns>.<callee>(<args>)`（嵌套调用，如 cad.faceCenter(part0)；F2 放开命名空间） */
 function fmtCallRef(ref: CallRefIR, varNames?: Map<string, string>): string {
-  const { callee, args } = ref.$call
+  const { callee, args, namespace } = ref.$call
   const inner = args.map((a) => fmtValue(a, varNames)).join(', ')
-  return `cad.${callee}(${inner})`
+  return `${namespace ?? 'cad'}.${callee}(${inner})`
 }
 
 // ── 语句 args → key:value 片段数组 ──
@@ -136,11 +136,13 @@ function printStatement(stmt: StatementIR, declared: Set<string>, varNames: Map<
     return mapped
   }).join(', ')
   const callArgs = [inputVars, argsObj].filter((s) => s.length > 0).join(', ')
+  // F2：命名空间前缀（缺省 cad）
+  const nsExpr = `${stmt.namespace ?? 'cad'}.${stmt.callee}`
 
   // 1) 解构：outputKeys + outputs 一一对应
   if (stmt.outputKeys && stmt.outputKeys.length > 0) {
     const destructure = stmt.outputKeys.map((k, i) => `${k}: ${stmt.outputs[i]}`).join(', ')
-    return `const { ${destructure} } = cad.${stmt.callee}(${callArgs})`
+    return `const { ${destructure} } = ${nsExpr}(${callArgs})`
   }
 
   // 2) 成员调用
@@ -150,14 +152,14 @@ function printStatement(stmt: StatementIR, declared: Set<string>, varNames: Map<
 
   // 3) 无赋值调用
   if (stmt.outputs.length === 0) {
-    return `cad.${stmt.callee}(${callArgs})`
+    return `${nsExpr}(${callArgs})`
   }
 
   // 4) 赋值：outputs[0] 已声明 → 裸重赋值；未声明 → let 声明
   const out = stmt.outputs[0]
-  if (declared.has(out)) return `${out} = cad.${stmt.callee}(${callArgs})`
+  if (declared.has(out)) return `${out} = ${nsExpr}(${callArgs})`
   declared.add(out)
-  return `let ${out} = cad.${stmt.callee}(${callArgs})`
+  return `let ${out} = ${nsExpr}(${callArgs})`
 }
 
 /**
@@ -192,6 +194,8 @@ export interface FormatCodeLineInput {
   outputKeys?: string[]
   /** 参数对象（纯数据；支持 ParamRef/VarRef/CallRef 形态） */
   args: Record<string, ArgIR>
+  /** 调用命名空间（F2：第三方库 `mech.makeHeadstock(...)` → 'mech'；缺省 'cad'） */
+  namespace?: string
   /**
    * outputs[0] 是否已在代码中声明：true → 裸重赋值（`part0 = ...`），
    * false/省略 → let 声明；解构/成员调用/无输出时忽略。
@@ -210,6 +214,7 @@ export function formatCodeLine(input: FormatCodeLineInput): string {
     id: '__fmt__' as never,
     callee: input.callee,
     ...(input.receiver !== undefined ? { receiver: input.receiver as PartName } : {}),
+    ...(input.namespace !== undefined ? { namespace: input.namespace } : {}),
     inputs: input.inputs as PartName[],
     outputs: input.outputs as PartName[],
     ...(input.outputKeys !== undefined ? { outputKeys: input.outputKeys } : {}),
@@ -224,11 +229,24 @@ export function formatCodeLine(input: FormatCodeLineInput): string {
 
 // ── 脚本 → 扁平代码 ──
 
+/** ImportIR → 源码 import 行（F2 往返打印）。 */
+function fmtImport(imp: ImportIR): string {
+  switch (imp.kind) {
+    case 'namespace':
+      return `import * as ${imp.localName} from '${imp.specifier}'`
+    case 'default':
+      return `import ${imp.localName} from '${imp.specifier}'`
+    case 'named':
+      return `import { ${(imp.bindings ?? [imp.localName]).join(', ')} } from '${imp.specifier}'`
+  }
+}
+
 /**
  * 将整个 ScriptIR 按语句顺序拼接为扁平代码文本。
  *
  * 无 export/async/await/return/参数声明。
  * terminal shapes 自动推导：不被引用的输出即终端（不在代码中标注）。
+ * F2：顶层 import 段打印回文件头（往返保真）。
  */
 export function scriptToCode(script: ScriptIR): string {
   const bodyLines: string[] = []
@@ -254,5 +272,8 @@ export function scriptToCode(script: ScriptIR): string {
     }
   }
 
-  return bodyLines.join('\n')
+  const body = bodyLines.join('\n')
+  const imports = (script.imports ?? []).map(fmtImport).join('\n')
+  if (imports) return body ? `${imports}\n${body}` : imports
+  return body
 }
