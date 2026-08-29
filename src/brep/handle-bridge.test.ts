@@ -15,7 +15,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getKernel, meshHandle, fromHandle } from './handle-bridge'
 import { hasBrep } from '../stdlib/shape'
-import { initOcctWasm } from '../occt-kernel/occtKernel'
 import { configureBackends } from '../runtime-state'
 import { createNodePorts } from '../node-host'
 import { createRuntime } from '../cad-runtime/runtime'

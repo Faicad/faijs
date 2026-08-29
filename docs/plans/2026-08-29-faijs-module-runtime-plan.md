@@ -218,7 +218,7 @@ faijs 源码 (.faijs)
 | 无兼容层规范 | 缺"外部 CAD 库 → faijs Shape"的契约与所有权协议 | §6 |
 | occt-wasm 版本落后 brepjs | faijs 锁 `^3.7.0`（实测 3.7.0），brepjs 要求 `^3.8.0` | §7 P0-4 |
 | 顶层函数定义未支持 | `src/lang/parser.ts:809-811` 主动抛 `E_STATEMENT`；3d_editor `todo2_.md:37` 有实际需求 | §7 Phase A |
-| 3d_editor `getFeatureByOp` 是死链 | `features/index.ts:126-129` 硬编码 `if (packageName && packageName !== 'cad') return undefined`；调用点 `ScriptEngine.ts:462` 恒传 `undefined` | §7 Phase B6 |
+| ~~3d_editor `getFeatureByOp` 是死链~~ → **实测论断过时，撤下**（B6 执行记录） | ~~`features/index.ts:126-129` 硬编码 `if (packageName && packageName !== 'cad') return undefined`；调用点 `ScriptEngine.ts:462` 恒传 `undefined`~~ → 这是 **F2 刻意设计**（防 `mech.box` 误撞 primitive 家族）；TimelinePanel 第三方只读节点走 `getFeatureForSummary` + `isThirdParty` 分支，链路是通的；`feature-registry.test.ts:582-587` 已断言隔离行为 | ~~§7 Phase B6~~ → B6 无改动 |
 | 3d_editor 无可执行的 mock 库 | 全仓无带 `contractVersion` 导出的库模块 | §7 Phase B4 |
 
 ---
@@ -229,7 +229,7 @@ faijs 源码 (.faijs)
 
 | 通道 | 机制 | 运行时残留裸说明符 | 定位 |
 |---|---|---|---|
-| **① 构建期预 bundle** | 后端 esbuild 把库 + 全部依赖打平成单文件 ESM，`@faicad/faijs/sdk` 与 `occt-wasm` 设为 external → 对象存储 → 内容 hash URL | 仅 `@faicad/faijs/sdk`（+ `occt-wasm`） | **主路径** |
+| **① 构建期预 bundle** | ~~后端 esbuild 把库 + 全部依赖打平成单文件 ESM~~ → **手动脚本** `scripts/prebundle-lib.mjs`（B2 实测无后端，改手动执行），`@faicad/faijs/sdk` 与 `occt-wasm` 设为 external → 产物 `src/public/vendor/` | 仅 `@faicad/faijs/sdk`（+ `occt-wasm`） | **主路径** |
 | **② CDN external** | `https://esm.sh/mech-lib?external=@faicad/faijs/sdk` | 仅 `@faicad/faijs/sdk` | 开发者路径（零后端） |
 | **③ 运行时 ModuleResolver** | faijs 提供纯函数 `resolveImports(code, table)`，acorn 解析并重写裸说明符为绝对 URL，宿主提供表与 IO | 全解析 | **延后到 V5.2**（与多版本 scopes 合并做） |
 
@@ -243,7 +243,7 @@ faijs 源码 (.faijs)
 |---|---|
 | 库作者 | 写普通 TS/ESM，正常 `import` 依赖；对 faijs SDK 用**裸名** `@faicad/faijs/sdk` 导入；不打包 |
 | faijs | 提供 SDK 包（零 heavy 依赖），声明 external 清单，提供 `assertContractVersion` |
-| 后端（3d_editor `/api/internal` 已有） | esbuild bundle：入口 = 库入口；`external: ['@faicad/faijs/sdk', 'occt-wasm']`；产物上传对象存储，返回内容 hash URL |
+| 后端（~~3d_editor `/api/internal` 已有~~ → **实测不存在，B2 已改手动预 bundle**） | ~~esbuild bundle：入口 = 库入口；`external: ['@faicad/faijs/sdk', 'occt-wasm']`；产物上传对象存储，返回内容 hash URL~~ → `scripts/prebundle-lib.mjs` 手动执行，产物 `src/public/vendor/`（见 §7.3 B2 执行记录） |
 | 宿主（3d_editor） | `registerInstalledLibs`（`ScriptEngine.ts:119-124`）：`import(url)` → `registerLib(binding, mod)`；快照记录 `lib-manifest.json` |
 
 **external 是硬要求，不是优化**：
@@ -656,15 +656,26 @@ export function planetary(params: { /* 见 PlanetaryGearParams */ }): CompoundSh
 | # | 任务 | 交付物 | 依赖 | 验收 |
 |---|---|---|---|---|
 | B1 | **SDK 增补** `getKernel` / `meshHandle` / `fromHandle` | 新增 `src/brep/handle-bridge.ts` + `src/sdk.ts` 增补导出 | P0-4 | §4.5 四条不变量各有测试；`src/sdk.test.ts` 守卫仍通过（`dist/sdk.js` 零 heavy 依赖） |
-| B2 | **通道①预 bundle**：后端 esbuild 服务（external SDK + occt-wasm）→ 对象存储 → hash URL | 3d_editor `/api/internal` | B1 | 产出的 ESM 内 `@faicad/faijs/sdk` 保持为裸说明符 |
+| B2 | **通道①预 bundle**：~~后端 esbuild 服务（external SDK + occt-wasm）→ 对象存储 → hash URL~~ → **实测前提错误，改为手动预 bundle**（见下） | ~~3d_editor `/api/internal`~~ → `scripts/prebundle-lib.mjs` + `src/public/vendor/` | B1 | 产出的 ESM 内 `@faicad/faijs/sdk` 保持为裸说明符（脚本内断言，失败退出码非 0） |
+
+**B2 执行记录（2026-08-29 实测）**：
+
+- **原方案前提错误**：文档 §4.2 写"后端（3d_editor `/api/internal` 已有）"，实测 3d_editor 是**纯前端 SPA**——`vite.config.ts:261-264` 的 `/api/internal` 只是 proxy 到 `http://localhost:3001`（外部 faicad_auth_cn 认证后端），3d_editor 仓库内**无任何后端代码**（无 server/backend/api 目录、无 express/fastify/hono）。
+- **用户指示（原话，逐字）**：「为什么一定要服务？你手动处理一次，然后跑通流程不就可以了？」
+- **替代方案**：手动预 bundle 脚本 `3d_editor/scripts/prebundle-lib.mjs`——esbuild bundle 第三方库入口（`src/fixtures/libs/mock-mech-lib.ts`），`external: ['@faicad/faijs/sdk', 'occt-wasm']`，产物写入 `src/public/vendor/mock-mech.js`（vite root=src → publicDir=`src/public/`）。脚本内断言 `@faicad/faijs/sdk` 保持裸说明符（验收达成，不满足即 exit 非 0）。
+- **后续 C2 复用**：Phase C 的 adapter 库预 bundle 走同一脚本（入口换成 adapter），产物同样进 `src/public/vendor/`。
 | B3 | **importmap + `dist/sdk.js` 复制到 `public/vendor/`** | 3d_editor `vite.config.ts` + 页面 | B1 | 浏览器控制台无裸说明符解析错误 |
 | B4 | **mock 库 fixture**：带 `contractVersion` 的最小库模块，**mesh 版 + BREP 版各一** | faijs `test/` + 3d_editor fixture | B1 | 两版均可被 `registerLib` 接受并真正求值 |
 | B5 | **`registerInstalledLibs` 单测** | 3d_editor | B4 | 覆盖 import → registerLib → `ns.<binding>(...)` 真正求值 |
-| B6 | 🔴 **修 `getFeatureByOp` 死链** | `features/index.ts:126-129` 去掉硬编码 `return undefined`；`ScriptEngine.ts:462` 传真实包名 | B4 | 第三方包名的 feature 可被查到；有测试 |
+| B6 | 🔴 ~~修 `getFeatureByOp` 死链~~ → **实测论断过时，无需改代码**（见下） | ~~`features/index.ts:126-129` 去掉硬编码 `return undefined`；`ScriptEngine.ts:462` 传真实包名~~ → 无改动 | B4 | 实测确认：第三方包名隔离是 F2 刻意设计，现有测试已覆盖 |
 | B7 | **无 faceEvolution 的退化行为确认** | faijs | B1 | 缺失时下游（如 drill 按面选择）**显式报错**而非崩溃或静默错误结果。**不得**因此把第三方 BREP 产物降级为 mesh |
 | B8 | **快照对齐回归** | 3d_editor | B5 | `lib-manifest.json` export/restore 往返一致 |
 | B9 | **通道②CDN 通道打通** | 宿主侧 | B3 | `esm.sh?external=@faicad/faijs/sdk` 可加载 |
 | B10 | 通道③ModuleResolver | — | **延后到 V5.2** | — |
+
+
+B9：esm.sh 前提错误（未发布 npm）
+
 
 ### 7.4 Phase C —— brepjs 兼容层端到端（faijs 0.5.4）
 
@@ -697,7 +708,7 @@ let part2 = cad.union(part0, part1)
 
 ### 7.5 Phase D —— faits 执行路径（faijs 0.5.5）
 
-`.faits` → sucrase 去类型（保留行号）→ acorn 解析 import → 说明符重写 → Blob → `import()` 整段执行 → 显式声明输出。
+`.ts`（faits 脚本） → sucrase 去类型（保留行号）→ acorn 解析 import → 说明符重写 → Blob → `import()` 整段执行 → 显式声明输出。
 
 | | faijs | faits |
 |---|---|---|
@@ -707,6 +718,20 @@ let part2 = cad.union(part0, part1)
 | timeline | ✅ 一行一节点 | ❌ 不参与 timeline |
 
 faits 的 import 解析**复用** B 阶段的通道 ①② —— 这是 B 排在 D 前面的理由。
+
+#### 7.5.1 文件后缀约定（faits 取消 `.faits`，改用 `.ts`；faijs 不变）
+
+**决议**：faits 手写脚本**不再使用 `.faits` 后缀，统一使用 `.ts`**；faijs 录制脚本**维持 `.faijs` 后缀不变**。
+
+**理由**（摘要）：
+
+1. **3d_editor 是 faijs 的 UI 录制层，只处理 `.faijs`**，不消费 faits；faits 由独立的代码编辑器 / 开发态 runner 加载执行，故后缀之争与 3d_editor 无关，也不存在"3d_editor 靠后缀路由 faits/faijs"的问题。
+2. **faits 本质就是 TS**（roadmap 原话"faits 可以理解为就是 ts 代码"）。用 `.ts` 命名最诚实，且直接复用通用 TS 工具链（tsc 类型检查、LSP 高亮、为 `cad` 命名空间补一份极小 ambient 声明即可获得补全），无需为编辑器注册新语言 ID；并与第三方库（同为 `.ts`）同构。
+3. **浏览器不原生执行任何带类型后缀**，`.faits` 与 `.ts` 进浏览器前都需 sucrase/esbuild 转译，后缀与运行时兼容无关，只关乎文件身份标识与编辑器上下文。
+4. **调度不靠后缀**：faits 与 faijs 是两套不同执行管线（faits 整段一次执行、显式声明输出、不进 timeline；faijs 逐语句 append/update/plan），宿主按**显式 entry 登记 / 领域 `.d.ts`** 识别 faits 身份，而非靠后缀。`.faits` 仅剩的"自描述领域标记"价值可由 entry 登记与 `.d.ts` 覆盖，属可选优化而非必需。
+5. **领域类型已现成**：faijs 构建产物 `dist/*.d.ts` 已导出 `StdlibNamespace` 与 `cad`，faits 作者 `import { cad } from '@faicad/faijs'` 即得完整类型；若把 `cad` 当全局，仅补一份约 3 行的 `declare const cad: StdlibNamespace` ambient 声明，不重复定义。
+
+**结论**：faits 采用 `.ts`；其"CAD 脚本"身份由执行宿主的 entry 登记与领域 `.d.ts` 提供，不依赖自定义 `.faits` 语言。faijs 的 `.faijs` 后缀与全部现有行为保持不变。
 
 ### 7.6 Phase E —— 生态与加固（V4/V5）
 
@@ -752,9 +777,9 @@ V4.1 库市场 / V4.2 参数表单 / V4.4 脚手架 / V4.5 文档站 / V5.1 Work
 |---|---|---|
 | **0** | M1–M8 全绿且 M4/M5 与基线一致；`reconcile` 四步各有单测；C1–C10 十格状态表全部有结论；触发语义为"断链时刻、只对 BREP 侧"（H4）；P0-4 有明确结论 | 回归全绿 |
 | **A** | 函数定义 parse → codegen → parse 往返相等；控制流仍报专用码；DAG 终端集不受函数污染 | 回归全绿 |
-| **B** | SDK 三 API 可用且有守卫测试；`dist/sdk.js` 仍零 heavy 依赖；B7 退化行为有测试 | mock 库（mesh + BREP 两版）经 `registerInstalledLibs` 真正求值；`getFeatureByOp` 死链修复并有测试；timeline 出现 `包名.函数名` 只读节点 |
+| **B** | SDK 三 API 可用且有守卫测试；`dist/sdk.js` 仍零 heavy 依赖；B7 退化行为有测试 | mock 库（mesh + BREP 两版）经 `registerInstalledLibs` 真正求值；~~`getFeatureByOp` 死链修复并有测试~~ → **实测非死链（F2 隔离设计），无改动**；timeline 出现 `包名.函数名` 只读节点 |
 | **C** | §7.4 六项断言全过；精确 STEP（`ADVANCED_FACE`）；零额外 wasm | timeline 只读节点；快照 export/restore 几何一致 |
-| **D** | faits 执行 + faijs⇄faits 互操作用例 | faits 文件可执行（不参与 timeline） |
+| **D** | faits（`.ts`）执行 + faijs⇄faits 互操作用例 | faits（`.ts`）脚本可执行（不参与 timeline） |
 | **E** | 逐项按 V4/V5 验收 | 对应 UI/沙箱/多版本能力 |
 
 ### 8.3 闭环定义
@@ -847,7 +872,7 @@ V4.1 库市场 / V4.2 参数表单 / V4.4 脚手架 / V4.5 文档站 / V5.1 Work
 |---|---|
 | faijs 依赖 | `package.json:24` → `file:../faijs/faicad-faijs-0.5.0.tgz` |
 | 库注册 | `src/engine/script-engine/ScriptEngine.ts:101`（调用点）、`:119-124`（`registerInstalledLibs`） |
-| 🔴 死链 | `ScriptEngine.ts:462`（恒传 `undefined`）、`src/engine/features/index.ts:126-129`（硬编码 return undefined） |
+| ~~🔴 死链~~ → **实测非死链（B6 结论）** | `ScriptEngine.ts:462`（恒传 `undefined`）与 `src/engine/features/index.ts:126-129`（`packageName !== 'cad'` 守卫）是 **F2 刻意设计**：recordFeature 只录制内置特征、第三方命名空间不匹配内置 Feature（防 `mech.box` 误撞 primitive 家族）；TimelinePanel 第三方只读节点走 `getFeatureForSummary` + `isThirdParty` 分支，链路通 |
 | 库清单 | `src/engine/version-store/LibManifestStore.ts:17-61`；`src/stores/serialization/snapshot-io.ts:166-174,338-348` |
 | Timeline 只读节点 | `src/engine/components/panels/TimelinePanel.tsx:124,171,173` |
 
