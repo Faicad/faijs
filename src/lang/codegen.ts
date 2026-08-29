@@ -60,19 +60,27 @@ function fmtValue(value: ArgIR, varNames?: Map<string, string>): string {
   return String(value)
 }
 
-/** 字符串转义：单引号、反斜杠与控制字符。
- *  必须保证 fmtValue ⇄ analyzeCode 往返一致：多行字符串参数（SDF code 等）
- *  嵌入 '…' 后仍须是合法 JS，且可被 parser 精确还原（\n → \\n，\r → \\r 等）。 */
+/** 字符串转义：转义反斜杠、单引号与控制字符（多行 SDF code 等字符串参数用）。
+ *  逐一字符映射（避开 regex 控制字符字面量，满足 eslint no-control-regex），
+ *  保证 fmtValue ⇄ analyzeCode 往返一致：嵌入 '…' 后仍是合法 JS，可被 parser 精确还原。 */
+const STRING_ESCAPES: Record<string, string> = {
+  '\\': '\\\\',
+  "'": "\\'",
+  '\u0008': '\\b', // backspace
+  '\u000C': '\\f', // form feed
+  '\u000A': '\\n', // line feed
+  '\u000D': '\\r', // carriage return
+  '\u0009': '\\t', // tab
+  '\u000B': '\\v', // vertical tab
+}
+
 function escapeStr(s: string): string {
-  return s
-    .replace(/\\/g, '\\\\')
-    .replace(/'/g, "\\'")
-    .replace(/\n/g, '\\n')
-    .replace(/\r/g, '\\r')
-    .replace(/\t/g, '\\t')
-    .replace(/\x08/g, '\\b') // 退格；注意 /\b/ 在外是单词边界，必须用 \x08
-    .replace(/\f/g, '\\f')
-    .replace(/\x0B/g, '\\v') // 垂直制表；\v 在正则是单词内不匹配，用 \x0B 防歧义
+  let out = ''
+  for (let i = 0; i < s.length; i++) {
+    const esc = STRING_ESCAPES[s[i]]
+    out += esc ?? s[i]
+  }
+  return out
 }
 
 /** ParamRefIR → 裸标识符 `name`（文本形式中无 $ 前缀，合法 JS） */
