@@ -61,3 +61,10 @@ export type {
   ShapeSlot,
   KeepSink,
 } from './runtime-state'
+
+// ── BREP 桥接（B1：第三方库造 BREP 产物的三角化入口） ──
+// handle-bridge 只 import runtime-state / stdlib/shape / type-only mesh/types，
+// 零 heavy 依赖——dist/sdk.js 守卫测试继续通过。
+
+export { getKernel, meshHandle, fromHandle } from './brep/handle-bridge'
+export type { MeshHandleOptions } from './brep/handle-bridge'
