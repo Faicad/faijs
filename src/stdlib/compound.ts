@@ -4,22 +4,21 @@
  * 设计文档：docs/plans/2026-08-25-faijs-vm-execution-implementation-plan.md §3.10 / §2.4
  *
  * 从 src/ops/assemble.ts 迁出并改写为 stdlib 形态：
- * - `group(params, exec)` → compound Shape（kind='compound'，children 为成员 Shape 引用）
- * - `assembly(params, exec)` → compound Shape + AssemblyBehavior（约束列表 + solve 方法）
+ * - `group(params)` → compound Shape（kind='compound'，children 为成员 Shape 引用）
+ * - `assembly(params)` → compound Shape + AssemblyBehavior（约束列表 + solve 方法）
  * - 装配三件套（solveFaceMate / executeDoAssemble / previewAssembly）迁移并挂到 AssemblyBehavior
  *
  * compound 自身无独立 mesh——几何由 children 承载，意义是结构（层级）。
- * do_assemble 编译为 `ctx.<asm>.do_assemble(exec)`：调用 compound 的 solve 方法，
+ * do_assemble 编译为 `await ctx.<asm>.do_assemble()`：调用 compound 的 solve 方法，
  * 对 moving 成员施加 face_mate 变换（mesh 顶点烘焙 + BREP 刚体变换 + 下游传播）。
  */
 
 import type { Shape } from '../mesh/types'
 import { compound as makeCompound, ensureSlot, type CompoundShape } from './shape'
-import { applyTransformBrep } from '../brep/brep-ops'
-import type { ExecContext } from '../cad-runtime/exec-context'
+import { keep, nameOf, setPendingAssemblyTransforms, type AssemblyTransform } from '../runtime-state'
 import type { PartName } from '../identity'
 
-// ── 参数类型（keep-syntax 设计 §2.5：成员保留由函数体 exec.keep 显式声明，不再靠类型标注） ──
+// ── 参数类型（keep-syntax 设计 §2.5：成员保留由函数体 keep() 显式声明，不再靠类型标注） ──
 
 export interface GroupParams {
   name?: string
@@ -187,135 +186,96 @@ export interface AssemblyBehavior {
   name?: string
   memberNames: string[]
   constraints: AssemblyConstraint[]
-  /** 执行装配：对 moving 成员施加 face_mate 变换（mesh + BREP + 下游传播）。
-   *  可选 exec：do_assemble 分次 append 时传入当前执行上下文（touch/变更声明
-   *  必须落在当前 exec 上，collectResult 才读得到 touchedShapes）。 */
-  solve(exec?: ExecContext): void
+  /** 只求解（P6）：返回"成员下标 → 变换"列表。不改写入参、不传播；可重复调用（幂等）。 */
+  solve(): AssemblyTransform[]
 }
 
 /**
- * 沿 inputs 链把装配变换传播到下游 mesh shape（并同步回 ctx 与 outputCache）。
+ * 纯求解（P6：求解 ≠ 传播）：复用 solveFaceMate 的纯计算，产出变换列表。
+ * 不修改任何输入、不触碰引擎状态——引擎负责应用变换并让下游失效重算（F2）。
  */
-/** 执行装配变换（AssemblyBehavior.solve 的核心）。只使用 ExecContext 平台 API，不依赖引擎实现内部。 */
-function solveAssembly(compound: CompoundShape, behavior: AssemblyBehavior, exec: ExecContext): void {
-  const children = compound.children
-  const kernel = exec.kernels.occt
-
+function solveTransforms(members: Shape[], behavior: AssemblyBehavior): AssemblyTransform[] {
+  const out: AssemblyTransform[] = []
   for (const constraint of behavior.constraints) {
     if (constraint.type !== 'face_mate') {
       throw new Error(`[compound] unsupported constraint type: ${constraint.type}`)
     }
-
     const movingIndex = behavior.memberNames.indexOf(constraint.movingPartName)
     if (movingIndex < 0) continue
-    const movingShape = children[movingIndex]
+    const movingShape = members[movingIndex]
     if (!movingShape) continue
-
     const transform = solveFaceMate(
       constraint.fixedFace.center,
       constraint.fixedFace.normal,
       constraint.movingFace.center,
       constraint.movingFace.normal,
     )
-
-    // 1. Mesh 变换（原地修改：保留同一对象引用，ctx 与 compound.children 同步看到变更）
-    Object.assign(movingShape, applyTransform(
-      movingShape, transform.quaternion, transform.pivot, transform.translation, transform.rotationMatrix,
-    ))
-
-    // 2. BREP 刚体变换（可选）
-    const movingSolid = exec.getSolid(movingShape)
-    if (kernel && movingSolid) {
-      const transformedSolid = applyTransformBrep(
-        kernel, movingSolid, transform.quaternion, transform.pivot, transform.translation,
-      )
-      try { kernel.release(movingSolid) } catch { /* 已释放 */ }
-      exec.setSolid(movingShape, transformedSolid)
-    }
-
-    // 3. 下游 mesh 传播（原地修改 + touch；下游 solid 由 setSolid 身份槽保留）
-    for (const downstream of exec.dependentsOf(movingShape)) {
-      if (downstream === movingShape) continue
-      Object.assign(downstream, applyTransform(
-        downstream, transform.quaternion, transform.pivot, transform.translation, transform.rotationMatrix,
-      ))
-      exec.touch(downstream)
-    }
-
-    // 4. 变更声明：moving 成员列入 ExecutionResult.changed
-    exec.touch(movingShape)
+    out.push({ index: movingIndex, ...transform })
   }
+  return out
 }
 
 // ── group / assembly 库函数 ──
 
 /**
- * 从当前语句的 args.members（VarRefIR 形态，编译产物 `members:[ctx.a,ctx.b]`）推导成员变量名。
- * 统一 ABI 后编译产物不再发射 memberNames 键（§5.2）；成员名由库函数从 IR 元数据自己解释。
- * 兼容旧手工构造 IR（字符串数组 / 显式 memberNames）。
+ * 成员名推导：显式 memberNames 兼容旧手工构造 IR；否则经 keep() 反查
+ * （P3 起经 keep()/nameOfShapes 反查成员名——库不再访问执行上下文，F1）。
  */
-function deriveMemberNames(params: { memberNames?: unknown; members?: unknown }, exec: ExecContext): string[] {
+function memberNamesOf(params: { memberNames?: unknown }, members: Shape[]): string[] {
   if (Array.isArray(params.memberNames) && params.memberNames.length > 0) {
     return params.memberNames as string[]
   }
-  const members = params.members
-  if (!Array.isArray(members)) return []
-  const stmtMembers = (exec.currentStmt?.args?.members as unknown[] | undefined) ?? []
-  if (stmtMembers.length !== members.length) return []
-  const names: string[] = []
-  for (const m of stmtMembers) {
-    if (typeof m === 'string') names.push(m)
-    else if (m && typeof m === 'object' && '$ref' in m) names.push((m as { $ref: string }).$ref)
-    else return []
-  }
-  return names
+  return members.map((m) => {
+    // 兼容字符串形态的 members（历史 IR 直传 partName）：字符串本身就是名字
+    if (typeof m === 'string') return m
+    return String(nameOf(m) ?? '')
+  })
 }
 
 /**
- * `cad.group({ name, members }, exec)` → compound Shape。
- * members 是成员 Shape（编译产物 ctx.<var> 引用），成员名从 IR 元数据推导。
+ * `cad.group({ name, members })` → compound Shape。
+ * members 是成员 Shape（编译产物 ctx.<var> 引用），成员名经 keep() 反查。
  *
  * 函数体 keep 声明（keep-syntax 设计 §2.5）：group 保留其成员且可见（R6）。
  */
-export function group(params: GroupParams, exec: ExecContext): CompoundShape {
+export function group(params: GroupParams): CompoundShape {
   const members = (params.members as Shape[] | undefined) ?? []
-  const memberNames = deriveMemberNames(params, exec)
-  if (members.length > 0) exec.keep(...members)
+  if (members.length > 0) keep(...members)
+  const memberNames = memberNamesOf(params, members)
   const c = makeCompound(members)
   // 挂最小 behavior（memberNames 供 ExecutionResult.compounds 结构输出；group 无约束）
-  ensureSlot(c).behavior = { memberNames, constraints: [], solve: () => {} }
+  ensureSlot(c).behavior = { memberNames, constraints: [], solve: () => [] }
   return c
 }
 
 /**
- * `cad.assembly({ name, members, constraints }, exec)` → compound Shape + AssemblyBehavior。
- * 挂 do_assemble 方法（编译产物 `ctx.<asm>.do_assemble(exec)` 调用）。
+ * `cad.assembly({ name, members, constraints })` → compound Shape + AssemblyBehavior。
+ * 挂 do_assemble 方法（编译产物 `ctx.<asm>.do_assemble()` 调用）。
  *
  * 函数体 keep 声明（keep-syntax 设计 §2.5）：assembly 保留其成员且可见（R6）。
  */
-export function assembly(params: AssemblyParams, exec: ExecContext): CompoundShape {
+export function assembly(params: AssemblyParams): CompoundShape {
   const members = (params.members as Shape[] | undefined) ?? []
-  const memberNames = deriveMemberNames(params, exec)
   const constraints = (params.constraints as AssemblyConstraint[] | undefined) ?? []
 
-  if (members.length > 0) exec.keep(...members)
+  if (members.length > 0) keep(...members)
+  const memberNames = memberNamesOf(params, members)
   const c = makeCompound(members)
   const behavior: AssemblyBehavior = {
     name: params.name as string | undefined,
     memberNames,
     constraints,
-    solve: (e?: ExecContext) => solveAssembly(c, behavior, e ?? exec),
+    solve: () => solveTransforms(members, behavior),
   }
   ensureSlot(c).behavior = behavior
-  ;(c as CompoundShape & { do_assemble?: (e: ExecContext) => void }).do_assemble = (e: ExecContext) => {
-    // 用当前执行上下文求解：分次 append（3d_editor appendAndCommit）时
-    // 每次 runtime.append 新建 exec，touch/变更声明必须落在当前 exec 上，
-    // collectResult 才能反同步装配变换后的 solid 到 solidCache。
-    behavior.solve(e)
+  ;(c as CompoundShape & { do_assemble?: () => void }).do_assemble = () => {
+    // P6：只求解并登记待应用变换；应用与下游失效由引擎做（F2：库不查询/修改 DAG）
+    const transforms = behavior.solve()
+    if (transforms.length > 0) setPendingAssemblyTransforms(c, transforms)
   }
   // 统一成员调用 ABI：add_constraint 是 no-op（现状语义：约束由 assembly 语句 args.constraints 读取，
-  // 编译产物机械发射 `ctx.<asm>.add_constraint({...}, exec)`，调用此方法不崩）
-  ;(c as CompoundShape & { add_constraint?: (args: unknown, e: ExecContext) => void }).add_constraint = () => {
+  // 编译产物机械发射 `ctx.<asm>.add_constraint({...})`，调用此方法不崩）
+  ;(c as CompoundShape & { add_constraint?: () => void }).add_constraint = () => {
     // Phase 1 semantics: constraints are read from the assembly statement's args.constraints;
     // add_constraint is intentionally a no-op (kept for ABI uniformity).
   }

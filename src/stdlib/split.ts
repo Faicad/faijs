@@ -2,10 +2,9 @@
  * stdlib split — 分割库函数（返回具名对象 { front, back }）
  *
  * 设计文档：docs/plans/2026-08-25-faijs-vm-execution-implementation-plan.md §3.11
+ * 实施文档：docs/plans/2026-08-29-engine-library-contract-implementation.md P2
  *
- * 从 src/ops/split.ts 迁出并改写为 stdlib 形态：
- * `(input, params, exec) => Promise<{ front: Shape; back: Shape }>`，
- * resolvePath 静态判定 brep/mesh，双输出以具名对象返回（替代 outputCache 多输出写入）。
+ * dispatchPath 静态判定 brep/mesh，双输出以具名对象返回（替代 outputCache 多输出写入）。
  */
 
 import type { Shape, Vec3 } from '../mesh/types'
@@ -23,10 +22,10 @@ import {
   type DowelOrTenonParams,
 } from '../brep/brepjs-mirror/joinery-brep'
 import { computeBasisFromNormal } from '../mesh/split'
-import { solid } from './shape'
-import { resolvePath } from './internal/resolve-path'
+import { getBackends } from '../runtime-state'
+import { solid, fromBrep, brepOf } from './shape'
+import { dispatchPath } from '../cad-runtime/backend-dispatch'
 import { assertNonZeroVec3 } from './assert'
-import type { ExecContext, ExecContextImpl } from '../cad-runtime/exec-context'
 
 /** BREP 实现标记（split 有 OCCT 精确分割） */
 const brepImpl = true
@@ -54,10 +53,10 @@ function worldToLocalVec3(
 }
 
 /** BREP 路径：OCCT 平面/榫卯分割 + 分离位移。 */
-function splitBrepPath(input: Shape, params: Record<string, unknown>, exec: ExecContext): { front: Shape; back: Shape } {
-  const kernel = exec.kernels.occt
+function splitBrepPath(input: Shape, params: Record<string, unknown>): { front: Shape; back: Shape } {
+  const kernel = getBackends().kernel.occt as import('occt-wasm').OcctKernel | null
   if (!kernel) throw new Error('[stdlib/split] no OCCT kernel')
-  const inputSolid = exec.getSolid(input)
+  const inputSolid = brepOf(input) as import('occt-wasm').ShapeHandle | undefined
   if (!inputSolid) throw new Error('[stdlib/split] input is not BREP')
 
   const cutMode = (params.cutMode as string) ?? 'plane'
@@ -69,7 +68,7 @@ function splitBrepPath(input: Shape, params: Record<string, unknown>, exec: Exec
     (v, i) => v - cad.boundingBox(input).min[i],
   ) as Vec3
 
-  const partTransform = (exec as ExecContextImpl).brepChain.partTransform
+  const partTransform = getBackends().config.partTransform
   const localBbCenter = worldToLocalVec3(bbCenter, partTransform)
   const scale = partTransform?.scale
   const hasScale = scale && (scale[0] !== 1 || scale[1] !== 1 || scale[2] !== 1)
@@ -174,15 +173,13 @@ function splitBrepPath(input: Shape, params: Record<string, unknown>, exec: Exec
     backSolid = backTranslated
   }
 
-  const frontShape = solid(solidToShape(kernel, frontSolid))
-  const backShape = solid(solidToShape(kernel, backSolid))
-  exec.setSolid(frontShape, frontSolid)
-  exec.setSolid(backShape, backSolid)
+  const frontShape = fromBrep(solidToShape(kernel, frontSolid), { solid: frontSolid })
+  const backShape = fromBrep(solidToShape(kernel, backSolid), { solid: backSolid })
   return { front: frontShape, back: backShape }
 }
 
 /** mesh 路径：manifold-3d mesh-CSG。 */
-async function splitMeshPath(input: Shape, params: Record<string, unknown>, exec: ExecContext): Promise<{ front: Shape; back: Shape }> {
+async function splitMeshPath(input: Shape, params: Record<string, unknown>): Promise<{ front: Shape; back: Shape }> {
   const cutMode = (params.cutMode as string) ?? 'plane'
   const normal = (params.normal as Vec3) ?? [0, 0, 1]
   const offset = typeof params.offset === 'number' ? params.offset : 0
@@ -192,7 +189,7 @@ async function splitMeshPath(input: Shape, params: Record<string, unknown>, exec
     (v, i) => v - cad.boundingBox(input).min[i],
   ) as Vec3
 
-  const partTransform = (exec as ExecContextImpl).brepChain.partTransform
+  const partTransform = getBackends().config.partTransform
   const localBbCenter = worldToLocalVec3(bbCenter, partTransform)
   const scale = partTransform?.scale
   const hasScale = scale && (scale[0] !== 1 || scale[1] !== 1 || scale[2] !== 1)
@@ -234,15 +231,12 @@ async function splitMeshPath(input: Shape, params: Record<string, unknown>, exec
   return { front: solid(result.front), back: solid(result.back) }
 }
 
-export async function split(...rest: unknown[]): Promise<{ front: Shape; back: Shape }> {
-  const exec = rest.pop() as ExecContext
-  const input = rest.shift() as Shape | undefined
-  const params = (rest[0] ?? {}) as Record<string, unknown>
+export async function split(input: Shape, params: Record<string, unknown> = {}): Promise<{ front: Shape; back: Shape }> {
   if (!input) throw new Error('[stdlib/split] no input geometry')
   if (params.normal !== undefined && params.normal !== null) {
     assertNonZeroVec3(params.normal, 'split.normal')
   }
-  const path = resolvePath(exec, [input], brepImpl)
-  if (path === 'brep') return splitBrepPath(input, params, exec)
-  return splitMeshPath(input, params, exec)
+  const path = dispatchPath([input], brepImpl)
+  if (path === 'brep') return splitBrepPath(input, params)
+  return splitMeshPath(input, params)
 }

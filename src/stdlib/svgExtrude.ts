@@ -1,25 +1,25 @@
 /**
- * stdlib svgExtrude — SVG 挤出创建库函数（creator op，无输入）
+ * stdlib svgExtrude — SVG 挤出创建库函数（creator 函数，无输入）
  *
  * 设计文档：docs/plans/2026-08-25-faijs-vm-execution-implementation-plan.md §3.11
+ * 实施文档：docs/plans/2026-08-29-engine-library-contract-implementation.md P2
  *
- * 从 src/ops/svgExtrude.ts 迁出并改写为 stdlib 形态：
- * `(params, exec) => Promise<Shape>`，resolvePath 静态判定 brep/mesh，
- * 产物经 solid() 构造器创建，solid 经 exec.setSolid 挂身份槽。
+ * dispatchPath 静态判定 brep/mesh，产物经 solid()/fromBrep() 构造器创建。
  */
 
 import type { Shape } from '../mesh/types'
+import type { AssetResolver } from '../cad-runtime/ports'
 import { cad } from '../mesh'
 import { parseSvgNaturalSize } from '../primitives/parse-svg-size'
 import { svgToSolid } from '../brep/svg/svg-to-solid'
 import { solidToShape } from '../brep/brep-ops'
 import { resolveSvgArg } from './internal/svg-asset-resolver'
-import { solid } from './shape'
-import { resolvePath } from './internal/resolve-path'
+import { getBackends } from '../runtime-state'
+import { solid, fromBrep } from './shape'
+import { dispatchPath } from '../cad-runtime/backend-dispatch'
 import { assertPositiveNumber } from './assert'
-import type { ExecContext, ExecContextImpl } from '../cad-runtime/exec-context'
 
-/** BREP 实现标记（resolvePath 判定用；svgExtrude 有 OCCT 精确构造） */
+/** BREP 实现标记（dispatchPath 判定用；svgExtrude 有 OCCT 精确构造） */
 const brepImpl = svgToSolid
 
 /** svgExtrude: svg 必填；depth 必填 > 0。 */
@@ -30,9 +30,9 @@ export function assertSvgExtrudeParams(params: Record<string, unknown>): void {
   assertPositiveNumber(params.depth, 'svgExtrude.depth')
 }
 
-/** BREP 路径：SVG path 解析 → OCCT wire/face → extrude + 身份槽挂 solid。 */
-function svgExtrudeBrep(params: Record<string, unknown>, exec: ExecContext, svgText: string): Shape {
-  const kernel = exec.kernels.occt
+/** BREP 路径：SVG path 解析 → OCCT wire/face → extrude + fromBrep 登记。 */
+function svgExtrudeBrep(params: Record<string, unknown>, svgText: string): Shape {
+  const kernel = getBackends().kernel.occt as import('occt-wasm').OcctKernel | null
   if (!kernel) throw new Error('[stdlib/svgExtrude] no OCCT kernel')
 
   const solidHandle = svgToSolid(kernel, svgText, {
@@ -40,18 +40,16 @@ function svgExtrudeBrep(params: Record<string, unknown>, exec: ExecContext, svgT
     targetLongSide: (params.targetLongSide as number | undefined) ?? 20,
   })
 
-  const shape = solid(solidToShape(kernel, solidHandle))
-  exec.setSolid(shape, solidHandle)
-  return shape
+  return fromBrep(solidToShape(kernel, solidHandle), { solid: solidHandle })
 }
 
-export async function svgExtrude(params: Record<string, unknown>, exec: ExecContext): Promise<Shape> {
+export async function svgExtrude(params: Record<string, unknown>): Promise<Shape> {
   assertSvgExtrudeParams(params)
   // 解析 SVG 资产引用（AssetRef → SVG 文本）；两条路径都需要
-  const svgText = await resolveSvgArg(params.svg, (exec as ExecContextImpl).ports)
+  const svgText = await resolveSvgArg(params.svg, { assets: getBackends().assets as AssetResolver | undefined })
 
-  const path = resolvePath(exec, [], brepImpl)
-  if (path === 'brep') return svgExtrudeBrep(params, exec, svgText)
+  const path = dispatchPath([], brepImpl)
+  if (path === 'brep') return svgExtrudeBrep(params, svgText)
 
   // mesh 路径：与 BREP 路径一致，内部解析 SVG 自然尺寸后缩放
   const { naturalWidth, naturalHeight } = parseSvgNaturalSize(svgText)

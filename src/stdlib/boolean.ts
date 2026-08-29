@@ -3,10 +3,9 @@
  *
  * 设计文档：docs/plans/2026-08-25-faijs-vm-execution-implementation-plan.md §3.11
  *          docs/plans/2026-08-27-faijs-language-normalization-implementation.md §3.3
+ * 实施文档：docs/plans/2026-08-29-engine-library-contract-implementation.md P2
  *
- * 从 src/ops/boolean.ts 迁出并改写为 stdlib 形态：
- * `(...rest)`（末参 exec，倒数第二参 params，其余为输入 Shape），
- * resolvePath 静态判定 brep/mesh，BREP 路径用 *WithHistory 收集面演化。
+ * dispatchPath 静态判定 brep/mesh，BREP 路径用 *WithHistory 收集面演化。
  *
  * 阶段 1：拆为三个薄函数 union/subtract/intersect + 兼容 boolean 导出（过渡）。
  * 阶段 3 将删除 boolean 兼容导出。
@@ -20,9 +19,9 @@ import {
   fuseWithHistoryBrep,
   intersectWithHistoryBrep,
 } from '../brep/face-evolution'
-import { solid } from './shape'
-import { resolvePath } from './internal/resolve-path'
-import type { ExecContext } from '../cad-runtime/exec-context'
+import { getBackends, keepHidden } from '../runtime-state'
+import { solid, fromBrep, brepOf } from './shape'
+import { dispatchPath } from '../cad-runtime/backend-dispatch'
 
 /** BREP 实现标记（boolean 有 OCCT 精确布尔） */
 const brepImpl = true
@@ -32,11 +31,11 @@ type BooleanOperation = 'union' | 'subtract' | 'intersect'
 // ── 共享内部实现 ──
 
 /** BREP 路径：fuse/cut/common（*WithHistory 封装，收集面演化）。 */
-function booleanBrep(inputs: Shape[], operation: BooleanOperation, exec: ExecContext): Shape {
-  const kernel = exec.kernels.occt
+function booleanBrep(inputs: Shape[], operation: BooleanOperation): Shape {
+  const kernel = getBackends().kernel.occt as import('occt-wasm').OcctKernel | null
   if (!kernel) throw new Error('[stdlib/boolean] no OCCT kernel')
 
-  const inputSolids = inputs.map((s) => exec.getSolid(s))
+  const inputSolids = inputs.map((s) => brepOf(s) as import('occt-wasm').ShapeHandle | undefined)
   if (inputSolids.some((s) => !s)) {
     throw new Error('[stdlib/boolean] input is not BREP')
   }
@@ -64,10 +63,10 @@ function booleanBrep(inputs: Shape[], operation: BooleanOperation, exec: ExecCon
     kernel.release(prev)
   }
 
-  const shape = solid(solidToShape(kernel, resultSolid))
-  exec.setSolid(shape, resultSolid)
-  if (lastEvolution) exec.setFaceEvolution(shape, lastEvolution)
-  return shape
+  return fromBrep(
+    solidToShape(kernel, resultSolid),
+    lastEvolution ? { solid: resultSolid, faceEvolution: lastEvolution } : { solid: resultSolid },
+  )
 }
 
 /** mesh 路径：manifold-3d mesh-CSG。 */
@@ -87,36 +86,31 @@ async function booleanMesh(inputs: Shape[], operation: BooleanOperation): Promis
   return result
 }
 
-/** 共享内部实现：operation 从参数改为入参。
+/**
+ * 共享内部实现：operation 从参数改为入参。
  *
  * 函数体 keep 声明（keep-syntax 设计 §2.5）：union/subtract/intersect 保留其
- * 输入且隐藏（R5：3d_editor 现状）——exec.keepHidden 使源变量保持终端但 canvas
+ * 输入且隐藏（R5：3d_editor 现状）——keepHidden 使源变量保持终端但 canvas
  * 不渲染，只有布尔结果正常显示。
  */
-async function booleanImpl(operation: BooleanOperation, inputs: Shape[], params: Record<string, unknown>, exec: ExecContext): Promise<Shape> {
-  if (inputs.length > 0) exec.keepHidden(...inputs)
-  const path = resolvePath(exec, inputs, brepImpl)
-  if (path === 'brep') return booleanBrep(inputs, operation, exec)
+async function booleanImpl(operation: BooleanOperation, inputs: Shape[]): Promise<Shape> {
+  if (inputs.length > 0) keepHidden(...inputs)
+  const path = dispatchPath(inputs, brepImpl)
+  if (path === 'brep') return booleanBrep(inputs, operation)
   return solid(await booleanMesh(inputs, operation))
 }
 
-// ── 三个薄导出（统一 ABI：(…sourceArgs, exec)，见阶段 3） ──
-// 编译产物按空槽规则发射 `cad.union(a, b, exec)`——无 params 槽，只弹 exec。
+// ── 三个薄导出（多输入 variadic） ──
+// P5：编译产物不再发射末参 exec，纯 variadic（P2 的 rest.pop() 过渡已移除）。
 
-export function union(...rest: unknown[]): Promise<Shape> {
-  const exec = rest.pop() as ExecContext
-  const inputs = rest as Shape[]
-  return booleanImpl('union', inputs, {}, exec)
+export function union(...shapes: Shape[]): Promise<Shape> {
+  return booleanImpl('union', shapes)
 }
 
-export function subtract(...rest: unknown[]): Promise<Shape> {
-  const exec = rest.pop() as ExecContext
-  const inputs = rest as Shape[]
-  return booleanImpl('subtract', inputs, {}, exec)
+export function subtract(...shapes: Shape[]): Promise<Shape> {
+  return booleanImpl('subtract', shapes)
 }
 
-export function intersect(...rest: unknown[]): Promise<Shape> {
-  const exec = rest.pop() as ExecContext
-  const inputs = rest as Shape[]
-  return booleanImpl('intersect', inputs, {}, exec)
+export function intersect(...shapes: Shape[]): Promise<Shape> {
+  return booleanImpl('intersect', shapes)
 }

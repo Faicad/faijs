@@ -18,13 +18,14 @@ import { initOcctWasm, getKernel } from '../occt-kernel/occtKernel'
 import type { OcctKernel } from 'occt-wasm'
 import type { StatementIR, ScriptIR } from '../lang/types'
 import { CadRuntime, createRuntime, computeContentKey } from './runtime'
-import { ExecContextImpl } from './exec-context'
-import { createBrepChainState } from '../brep/brep-chain'
-import type { Shape } from '../mesh/types'
-import type { PartName } from '../identity'
 import type { HostPorts, EventSink, ExecutionMode } from './ports'
 import { ensureTestFontLoader } from '../brep/text/fontTestHelper'
 import { getSolidBoundingBox } from '../brep/brep-utils'
+import { setKnurlTextureLoader } from '../mesh/knurl/textureLoader'
+import { union } from '../stdlib/boolean'
+import { solid } from '../stdlib/shape'
+import type { StdlibNamespace } from '../runtime-state'
+import type { Shape } from '../mesh/types'
 
 let kernel: OcctKernel
 
@@ -129,21 +130,27 @@ describe('CadRuntime: auto mode (BREP-first, per-part)', () => {
     const ports = createNodePorts()
     const sink = ports.events as TestEventSink
     const runtime = createRuntime(ports)
-    const script = makePartScript([
-      makeStmt('s1', 'box', { size: 20 }),
-      makeStmt('s2', 'sdf', { code: '0', box: [[-5,-5,-5],[5,5,5]], resolution: 8 }),
-    ])
-    // sdf mesh path throws in node, but the part-brep-lost event
-    // is emitted during mesh-only op execution
+    // knurl mesh 路径在 node 无纹理端口——注入假纹理使其可执行（本用例只断言事件，不关心几何）
+    setKnurlTextureLoader(() => Promise.resolve({
+      data: new Uint8ClampedArray(16 * 16).fill(128),
+      width: 16,
+      height: 16,
+    }))
     try {
-      await runtime.execute(script)
-    } catch {
-      // Expected: sdf mesh path fails in node
-    }
+      const script = makePartScript([
+        makeStmt('s1', 'box', { size: 20 }),
+        makeStmt('s2', 'knurl', { knurlTextureHeight: 0.5, faceCenter: [0, 0, 5], faceNormal: [0, 0, 1] }, ['s1']),
+      ])
+      const result = await runtime.execute(script)
 
-    expect(sink.events.length).toBeGreaterThan(0)
-    expect(sink.events[0].event).toBe('part-brep-lost')
-    expect(sink.events[0].detail.op).toBe('sdf')
+      // P4：part-brep-lost 由引擎在语句执行后统一发（上游在 BREP 链、输出断链）
+      expect(result.failedAt).toBeUndefined()
+      expect(sink.events.length).toBeGreaterThan(0)
+      expect(sink.events[0].event).toBe('part-brep-lost')
+      expect(sink.events[0].detail.op).toBe('knurl')
+    } finally {
+      setKnurlTextureLoader(null)
+    }
   })
 })
 
@@ -734,6 +741,121 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     expect(bb1.max[1]).toBeCloseTo(5, 1)
   })
 
+  // ── P6：装配重做（求解 ≠ 传播）专项 ──
+
+  function makeAssemblyStmt(): StatementIR {
+    return {
+      id: asStmtId('asm1'),
+      callee: 'assembly',
+      args: {
+        name: 'testAssembly',
+        members: [{ $ref: 's1' }, { $ref: 's2' }],
+        constraints: [{
+          type: 'face_mate' as const,
+          fixedPartName: 's1',
+          movingPartName: 's2',
+          // s1 顶面：center=[0,5,0], normal=[0,1,0]
+          fixedFace: { surfaceType: 'plane', center: [0, 5, 0], normal: [0, 1, 0] },
+          // s2 底面：center=[0,-5,0], normal=[0,-1,0]
+          movingFace: { surfaceType: 'plane', center: [0, -5, 0], normal: [0, -1, 0] },
+        }],
+      },
+      inputs: [],
+      hasAssignment: true,
+      outputs: [asPartName('asm1')],
+    }
+  }
+
+  function makeDoAssembleStmt(): StatementIR {
+    return {
+      id: asStmtId('do_asm1'),
+      callee: 'do_assemble',
+      args: {},
+      inputs: [],
+      outputs: [],
+      receiver: asPartName('asm1'),
+    }
+  }
+
+  it('P6: do_assemble 幂等——全量重跑不叠加变换', async () => {
+    const runtime = makeRuntime()
+    const s1 = makeStmt('s1', 'box', { size: 10 })
+    const s2 = makeStmt('s2', 'box', { size: 10 })
+    const script = makePartScript([s1, s2, makeAssemblyStmt(), makeDoAssembleStmt()])
+
+    const r1 = await runtime.execute(script)
+    expect(r1.failedAt).toBeUndefined()
+    const s2a = r1.outputs.get(asPartName('s2'))
+    if (!s2a || !('positions' in s2a)) throw new Error('expected mesh shape')
+
+    // 全量重跑（execute 无条件重放）：成员对象全新，装配重新求解并应用一次，不叠加
+    const r2 = await runtime.execute(script)
+    expect(r2.failedAt).toBeUndefined()
+    const s2b = r2.outputs.get(asPartName('s2'))
+    if (!s2b || !('positions' in s2b)) throw new Error('expected mesh shape')
+
+    expect(Array.from(s2b.positions)).toEqual(Array.from(s2a.positions))
+  })
+
+  it('P6: 装配后下游 drill 的 mesh 与 BREP 句柄同步（下游重算）', async () => {
+    const runtime = makeRuntime()
+    const s1 = makeStmt('s1', 'box', { size: 10 })
+    const s2 = makeStmt('s2', 'box', { size: 10 })
+    const s3 = makeStmt('s3', 'drill', {
+      diameter: 4, depth: -1,
+      position: [0, 5, 0], faceNormal: [0, 1, 0], faceCenter: [0, 5, 0],
+    }, ['s2'])
+    const script = makePartScript([s1, s2, s3, makeAssemblyStmt(), makeDoAssembleStmt()])
+
+    const result = await runtime.execute(script)
+    expect(result.failedAt).toBeUndefined()
+
+    // 下游 s3 被重算（changed 含 s3）
+    expect(result.changed).toContain(asPartName('s3'))
+
+    // mesh 反映装配后的 s2（平移 [0,10,0] 后 y ∈ [5,15]）
+    const s3Mesh = result.outputs.get(asPartName('s3'))
+    if (!s3Mesh || !('positions' in s3Mesh)) throw new Error('expected mesh shape')
+    const meshMinY = Math.min(...Array.from(s3Mesh.positions).filter((_, i) => i % 3 === 1))
+    expect(meshMinY).toBeCloseTo(5, 0)
+
+    // BREP 同步：s3 的 solid 也基于装配后的 s2（y-min ≈ 5，而非原点 box 的 -5）
+    const s3Solid = result.brepSolids?.get(asPartName('s3'))
+    expect(s3Solid).toBeDefined()
+    const bb = getSolidBoundingBox(kernel, s3Solid!.solid)
+    expect(bb.min[1]).toBeCloseTo(5, 0)
+  })
+
+  it('P6: 装配 + 下游 drill 后 STEP 导出为有效实体', async () => {
+    const runtime = makeRuntime()
+    const s1 = makeStmt('s1', 'box', { size: 10 })
+    const s2 = makeStmt('s2', 'box', { size: 10 })
+    const s3 = makeStmt('s3', 'drill', {
+      diameter: 4, depth: -1,
+      position: [0, 5, 0], faceNormal: [0, 1, 0], faceCenter: [0, 5, 0],
+    }, ['s2'])
+    const script = makePartScript([s1, s2, s3, makeAssemblyStmt(), makeDoAssembleStmt()])
+
+    const result = await runtime.execute(script)
+    expect(result.failedAt).toBeUndefined()
+
+    const s3Solid = result.brepSolids?.get(asPartName('s3'))
+    expect(s3Solid).toBeDefined()
+    const step = kernel.exportStep(s3Solid!.solid)
+    expect(step).toContain('ADVANCED_FACE')
+  })
+
+  it('P6: ExecutionResult.compounds 仍产出成员名（nameOfShapes 反查）', async () => {
+    const runtime = makeRuntime()
+    const s1 = makeStmt('s1', 'box', { size: 10 })
+    const s2 = makeStmt('s2', 'box', { size: 10 })
+    const script = makePartScript([s1, s2, makeAssemblyStmt()])
+
+    const result = await runtime.execute(script)
+    expect(result.failedAt).toBeUndefined()
+    expect(result.compounds!.get(asPartName('asm1'))).toEqual([asPartName('s1'), asPartName('s2')])
+  })
+
   it('append: 分次 append（asm 与 do_assemble 分开）后 brepSolids 仍返回有效新 handle（T6.5 回归）', async () => {
     // 3d_editor appendAndCommit 分次调用 runtime.append（每次新建 exec）。
     // assembly() 闭包捕获 assembly append 的 exec，do_assemble 必须用当前 exec
@@ -787,58 +909,6 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     const bbAfter = getSolidBoundingBox(s2SolidAfter!.kernel, s2SolidAfter!.solid)
     expect(bbAfter.min[1]).toBeCloseTo(5, 1)
     expect(bbAfter.max[1]).toBeCloseTo(15, 1)
-  })
-})
-
-// ─── ExecContextImpl: dependentsOf / touch（Phase 2.4 平台 API） ───
-
-describe('ExecContextImpl: dependentsOf / touch', () => {
-  function makeShape(): Shape {
-    return { positions: new Float32Array(0), indices: new Uint32Array(0) } as Shape
-  }
-
-  function makeExec(script: ScriptIR, outputCache: Map<PartName, Shape>): ExecContextImpl {
-    return new ExecContextImpl({
-      mode: 'auto',
-      brepChain: createBrepChainState(),
-      ports: createNodePorts(),
-      script,
-      outputCache,
-      params: {},
-    })
-  }
-
-  it('dependentsOf 沿 inputs 链返回传递下游 Shape', () => {
-    const s0 = makeStmt('s0', 'box', { size: 20 })
-    const s1 = makeStmt('s1', 'translate', { offset: [1, 0, 0] }, ['s0'])
-    const s2 = makeStmt('s2', 'translate', { offset: [2, 0, 0] }, ['s1'])
-    const script = makePartScript([s0, s1, s2])
-
-    const shape0 = makeShape()
-    const shape1 = makeShape()
-    const shape2 = makeShape()
-    const outputCache = new Map<PartName, Shape>([
-      [asPartName('s0'), shape0],
-      [asPartName('s1'), shape1],
-      [asPartName('s2'), shape2],
-    ])
-    const exec = makeExec(script, outputCache)
-    exec.shapeToName.set(shape0, asPartName('s0'))
-    exec.shapeToName.set(shape1, asPartName('s1'))
-    exec.shapeToName.set(shape2, asPartName('s2'))
-
-    const downstream = exec.dependentsOf(shape0)
-    expect(downstream).toContain(shape1)
-    expect(downstream).toContain(shape2)
-    // 自身不入下游
-    expect(downstream).not.toContain(shape0)
-  })
-
-  it('touch 记录 Shape，供 ExecutionResult.changed 消费', () => {
-    const shape = makeShape()
-    const exec = makeExec(makePartScript([]), new Map())
-    exec.touch(shape)
-    expect(exec.touchedShapes.has(shape)).toBe(true)
   })
 })
 
@@ -1003,5 +1073,76 @@ describe('CadRuntime: copy op (deep clone)', () => {
     expect(result.terminals.length).toBe(2)
     const ids = result.terminals.map(t => t.id).sort()
     expect(ids).toEqual([asPartName('part0'), asPartName('part1')])
+  })
+})
+
+// ── P7：第三方库通道 ──
+
+/** 最小立方体 mesh（mock 第三方库用）。 */
+function cubeMesh(size: number): { positions: Float32Array; indices: Uint32Array } {
+  const s = size / 2
+  const positions = new Float32Array([
+    -s, -s, -s,  s, -s, -s,  s, s, -s,  -s, s, -s,
+    -s, -s,  s,  s, -s,  s,  s, s,  s,  -s, s,  s,
+  ])
+  const indices = new Uint32Array([
+    // -X: 0,4,7 / 0,7,3 ; +X: 1,2,6 / 1,6,5
+    0, 4, 7,  0, 7, 3,  1, 2, 6,  1, 6, 5,
+    // -Y: 0,1,5 / 0,5,4 ; +Y: 3,7,6 / 3,6,2
+    0, 1, 5,  0, 5, 4,  3, 7, 6,  3, 6, 2,
+    // +Z: 4,5,6 / 4,6,7 ; -Z: 0,3,2 / 0,2,1
+    4, 5, 6,  4, 6, 7,  0, 3, 2,  0, 2, 1,
+  ])
+  return { positions, indices }
+}
+
+describe('P7: 第三方库通道（registerLib / statementKey 包名前缀 / 版本校验）', () => {
+  it('statementKey 含包名前缀（cad.box ≠ mech.box 不碰撞）；编译按命名空间发射', async () => {
+    const runtime = makeRuntime()
+    runtime.registerLib('mech', {
+      box: (params: { size: number }) => solid(cubeMesh(params.size)),
+    })
+    // 直接构造带 namespace 的 IR（parser 就绪后由 `import * as mech from 'mech-lib'` 产出）
+    const s1 = makeStmt('s1', 'box', { size: 20 })
+    const s2 = makeStmt('s2', 'box', { size: 20 })
+    const mechStmt: StatementIR = { ...makeStmt('s3', 'box', { size: 20 }), namespace: 'mech' }
+    const script = makePartScript([s1, s2, mechStmt])
+
+    const result = await runtime.execute(script)
+    expect(result.failedAt).toBeUndefined()
+    expect(result.outputs.get(asPartName('s3'))).toBeDefined()
+
+    // 同名函数跨库 key 不碰撞（回归锚点：cad.chamfer ≠ mech-lib.chamfer）
+    const keyCad = runtime.getStatementCacheEntry(asPartName('s2'))!.statementKey
+    const keyMech = runtime.getStatementCacheEntry(asPartName('s3'))!.statementKey
+    expect(keyCad).toContain('cad.box')
+    expect(keyMech).toContain('mech.box')
+    expect(keyCad).not.toBe(keyMech)
+  })
+
+  it('第三方库函数产物可与标准库产物混合 union（同为库函数）', async () => {
+    // mesh 模式：两条路径都是纯 manifold 网格（BREP 链产物与 mesh-only 混合的
+    // OCCT 三角化兼容性是另一个已知缺口，不属于 P7 通道验证范围）
+    const runtime = makeRuntime('mesh')
+    const mechLib: StdlibNamespace = {
+      makeHeadstock: () => solid(cubeMesh(8)),
+    }
+    runtime.registerLib('mech', mechLib)
+
+    const result = await runtime.execute(makePartScript([makeStmt('s1', 'box', { size: 10 })]))
+    expect(result.failedAt).toBeUndefined()
+    const boxShape = runtime.getCachedOutput(asPartName('s1'))! as Shape
+    const headstock = mechLib.makeHeadstock() as Shape
+
+    const fused = await union(boxShape, headstock)
+    expect(fused).toBeDefined()
+    expect(fused.positions.length).toBeGreaterThan(0)
+  })
+
+  it('版本不匹配时 registerLib 抛错（不静默降级）', () => {
+    const runtime = makeRuntime()
+    const badLib = { contractVersion: 999, makeHeadstock: () => null }
+    expect(() => runtime.registerLib('mech', badLib as unknown as StdlibNamespace))
+      .toThrow(/contract version mismatch/)
   })
 })

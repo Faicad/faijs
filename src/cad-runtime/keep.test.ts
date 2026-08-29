@@ -71,22 +71,22 @@ function makeScript(statements: StatementIR[]): ScriptIR {
 // ── 编译层（P5：§7.1 剥离 + §7.2 statementKey + §7.3 往返） ──
 
 describe('keep: 编译层剥离（设计 §7.1）', () => {
-  it('cad.union(a,b,{keep:[a,b]}) → cad.union(ctx.a, ctx.b, exec)（剥离后空 args 槽）', () => {
+  it('cad.union(a,b,{keep:[a,b]}) → ns.cad.union(ctx.a, ctx.b)（剥离后空 args 槽）', () => {
     const { code } = compileText(`
       const part0 = await cad.box({ size: [10, 20, 5] })
       const part1 = await cad.box({ size: [5, 5, 5] })
       const part2 = await cad.union(part0, part1, { keep: [part0, part1] })
     `)
-    expect(code).toContain('ctx.part2 = await cad.union(ctx.part0, ctx.part1, exec)')
+    expect(code).toContain('ctx.part2 = await ns.cad.union(ctx.part0, ctx.part1)')
     expect(code).not.toContain('keep')
   })
 
-  it('cad.copy(a,{keep:[a]}) → cad.copy(ctx.a, exec)（copy 无 params 槽）', () => {
+  it('cad.copy(a,{keep:[a]}) → ns.cad.copy(ctx.a)（copy 无 params 槽）', () => {
     const { code } = compileText(`
       const part0 = await cad.box({ size: [10, 20, 5] })
       const part1 = await cad.copy(part0, { keep: [part0] })
     `)
-    expect(code).toContain('ctx.part1 = await cad.copy(ctx.part0, exec)')
+    expect(code).toContain('ctx.part1 = await ns.cad.copy(ctx.part0)')
     expect(code).not.toContain('keep')
   })
 
@@ -95,7 +95,7 @@ describe('keep: 编译层剥离（设计 §7.1）', () => {
       const part0 = await cad.box({ size: [10, 20, 5] })
       const part1 = await cad.drill(part0, { diameter: 8, keep: ['part0'], keepHidden: true })
     `)
-    expect(code).toContain('ctx.part1 = await cad.drill(ctx.part0, { diameter: 8 }, exec)')
+    expect(code).toContain('ctx.part1 = await ns.cad.drill(ctx.part0, { diameter: 8 })')
     expect(code).not.toContain('keepHidden')
     expect(code).not.toContain('keep')
   })
@@ -106,7 +106,7 @@ describe('keep: 编译层剥离（设计 §7.1）', () => {
       const part1 = await cad.box({ size: [5, 5, 5] })
       const part2 = await cad.union(part0, part1, { keep: [{ shape: part0, hidden: true }] })
     `)
-    expect(code).toContain('ctx.part2 = await cad.union(ctx.part0, ctx.part1, exec)')
+    expect(code).toContain('ctx.part2 = await ns.cad.union(ctx.part0, ctx.part1)')
   })
 })
 
@@ -116,7 +116,7 @@ describe('keep: statementKey 排除 keep（设计 §7.2，零几何重算）', (
       const part0 = await cad.box({ size: 20 })
       const part1 = await cad.drill(part0, { diameter: 8 })
     `)
-    const executor = new ModuleExecutor(createInternalStdlib())
+    const executor = new ModuleExecutor({ cad: createInternalStdlib() })
     executor.setCompiled(script, statements)
     const drillMeta = statements[statements.length - 1]
     const drillStmt = script.statements[script.statements.length - 1]
@@ -133,8 +133,8 @@ describe('keep: statementKey 排除 keep（设计 §7.2，零几何重算）', (
     const a = compileText(`const part0 = await cad.box({ size: 20 })`)
     const b = compileText(`const part0 = await cad.box({ size: 20, keep: ['part0'] })`)
     // box 的 args 剥离 keep 后相同 → 发射一致
-    expect(a.code).toContain('ctx.part0 = await cad.box({ size: 20 }, exec)')
-    expect(b.code).toContain('ctx.part0 = await cad.box({ size: 20 }, exec)')
+    expect(a.code).toContain('ctx.part0 = await ns.cad.box({ size: 20 })')
+    expect(b.code).toContain('ctx.part0 = await ns.cad.box({ size: 20 })')
   })
 })
 

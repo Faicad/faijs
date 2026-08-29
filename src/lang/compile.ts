@@ -11,10 +11,10 @@
  * 编译规则：
  * - 每条语句一个 `{ id, deps, fn }`：`id` 是独立 StmtId（参数语句占 s1..sK，语句 s(K+1)..s(K+N)）；
  *   `deps` 由 parser 收集的 `stmt.refs`（inputs + $param + $geom.of + members）翻译为定义语句的 id；
- *   `fn` 是 `async (ctx, cad, exec) => {...}`。
+ *   `fn` 是 `async (ctx, ns) => {...}`（ns = 命名空间集合，无隐式参数）。
  * - 参数即变量：`const r = 20` 编译为普通语句 `ctx.r = 20`。
  * - 变量引用编译为 `ctx.x`（持久变量容器，跨增量执行存活）。
- * - $param → `ctx.<name>`；$geom → `cad.<feature>(ctx.<of>, ...)`；$asset → `await cad.asset(key, exec)`。
+ * - $param → `ctx.<name>`；$geom → `ns.cad.<feature>(ctx.<of>, ...)`；$asset → `await ns.cad.asset(key)`。
  * - 编译输入只有 IR，用户原文不进 VM（先解析后执行红线）。
  */
 
@@ -77,11 +77,11 @@ function translateVarRef(ref: VarRefIR): string {
   return `ctx.${ref.$ref}`
 }
 
-/** CallRefIR → `await cad.<callee>(<args>, exec)`（嵌套调用，统一 await：同步函数被 await 是合法 JS） */
+/** CallRefIR → `await ns.cad.<callee>(<args>)`（嵌套调用，统一 await：同步函数被 await 是合法 JS） */
 function translateCallRef(ref: CallRefIR): string {
   const { callee, args } = ref.$call
   const inner = args.map((a) => translateArg(a)).join(', ')
-  return `await cad.${callee}(${inner}, exec)`
+  return `await ns.cad.${callee}(${inner})`
 }
 
 /** 递归翻译单个 ArgIR 值为编译产物表达式。 */
@@ -160,10 +160,12 @@ function buildStatementFnBody(stmt: StatementIR): string {
   // 调用点 keep 指令发射前剥离（keep-syntax 设计 §7.1）：keep 透传会挤占
   // params 槽 / 被当 Shape 传入（union/split 的 ...rest、copy 的双参签名）。
   // 顺序是硬要求：先剥离再算 hasArgs（cad.union(a,b,{keep:[a,b]}) 剥离后为空
-  // → hasArgs=false → 发射 cad.union(ctx.a, ctx.b, exec)，与现状逐字一致）。
+  // → hasArgs=false → 发射 ns.cad.union(ctx.a, ctx.b)，与现状逐字一致）。
   const runtimeArgs = withoutKeepDirectives(stmt.args)
   const argsStr = translateArgs(runtimeArgs)
   const hasArgs = Object.keys(runtimeArgs).length > 0
+  // P7：按命名空间发射（`import * as mech from 'mech-lib'` → ns.mech.<callee>；缺省 cad）
+  const nsExpr = `ns.${stmt.namespace ?? 'cad'}`
 
   // 调用实参序列：有 inputs 则前置；有 args 则后置（空 args 不发射，§5.1 空槽规则）
   const callArgs = inputs
@@ -175,25 +177,25 @@ function buildStatementFnBody(stmt: StatementIR): string {
     const keys = stmt.outputKeys.join(', ')
     const assigns = stmt.outputs.map((out, i) => `      ctx.${out} = ${stmt.outputKeys![i]}`).join('\n')
     return [
-      `      const { ${keys} } = await cad.${stmt.callee}(${callArgs}, exec)`,
+      `      const { ${keys} } = await ${nsExpr}.${stmt.callee}(${callArgs})`,
       assigns,
     ].join('\n')
   }
 
   // 2) 成员调用（表达式语句）：receiver 存在（add_constraint/do_assemble 挂 compound 方法）
   if (stmt.receiver) {
-    // 空 args 不发射 `{}`：`do_assemble(exec)` 而不是 `do_assemble({}, exec)`（§5.2 成员方法签名）
-    const mArgs = hasArgs ? `${argsStr}, ` : ''
-    return `      await ctx.${stmt.receiver}.${stmt.callee}(${mArgs}exec)`
+    // 空 args 不发射 `{}`：`do_assemble()` 而不是 `do_assemble({})`（§5.2 成员方法签名）
+    const mArgs = hasArgs ? `${argsStr}` : ''
+    return `      await ctx.${stmt.receiver}.${stmt.callee}(${mArgs})`
   }
 
   // 3) 无赋值调用（表达式语句，outputs 为空且无 receiver）
   if (stmt.outputs.length === 0) {
-    return `      await cad.${stmt.callee}(${callArgs}, exec)`
+    return `      await ${nsExpr}.${stmt.callee}(${callArgs})`
   }
 
   // 4) 普通赋值（单输出）
-  return `      ctx.${stmt.outputs[0]} = await cad.${stmt.callee}(${callArgs}, exec)`
+  return `      ctx.${stmt.outputs[0]} = await ${nsExpr}.${stmt.callee}(${callArgs})`
 }
 
 // ── 主编译函数 ──
@@ -247,7 +249,7 @@ export function compileToModule(script: ScriptIR): CompiledModule {
     stmtCursor++
     const depsStr = meta.deps.length > 0 ? meta.deps.map((d) => `'${d}'`).join(', ') : ''
     bodyLines.push(`  { id: '${meta.id}', deps: [${depsStr}],`)
-    bodyLines.push(`    fn: async (ctx, cad, exec) => {`)
+    bodyLines.push(`    fn: async (ctx, ns) => {`)
     bodyLines.push(fnBody)
     bodyLines.push(`    } },`)
   }

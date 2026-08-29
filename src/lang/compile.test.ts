@@ -41,10 +41,10 @@ describe('compileToModule: 模块文本', () => {
       const part0 = await cad.box({ size: r })
     `)
     expect(code).toContain('ctx.r = 20')
-    expect(code).toContain('ctx.part0 = await cad.box({ size: ctx.r }, exec)')
+    expect(code).toContain('ctx.part0 = await ns.cad.box({ size: ctx.r })')
   })
 
-  it('CallRefIR 翻译为 await cad.<callee>(...exec)；嵌套 asset 走 await cad.asset(key, exec)', async () => {
+  it('CallRefIR 翻译为 await ns.cad.<callee>(...)；嵌套 asset 走 await ns.cad.asset(key)', async () => {
     const { code } = compileText(`
       const part0 = await cad.box({ size: [10, 20, 5] })
       const part1 = await cad.drill(part0, {
@@ -53,8 +53,8 @@ describe('compileToModule: 模块文本', () => {
       })
       const part2 = await cad.svgExtrude({ svg: cad.asset('logo.svg'), depth: 2, targetLongSide: 20 })
     `)
-    expect(code).toContain('position: await cad.faceCenter(ctx.part0, [5, 20, 2.5], 2, exec)')
-    expect(code).toContain('await cad.asset("logo.svg", exec)')
+    expect(code).toContain('position: await ns.cad.faceCenter(ctx.part0, [5, 20, 2.5], 2)')
+    expect(code).toContain('await ns.cad.asset("logo.svg")')
   })
 
   it('split 多输出：解构 { front, back } 并写两个 ctx 键', async () => {
@@ -62,18 +62,18 @@ describe('compileToModule: 模块文本', () => {
       const part0 = await cad.box({ size: [10, 20, 5] })
       const { front: part1, back: part2 } = await cad.split(part0, { cutMode: 'plane' })
     `)
-    expect(code).toContain('const { front, back } = await cad.split(ctx.part0, { cutMode: "plane" }, exec)')
+    expect(code).toContain('const { front, back } = await ns.cad.split(ctx.part0, { cutMode: "plane" })')
     expect(code).toContain('ctx.part1 = front')
     expect(code).toContain('ctx.part2 = back')
   })
 
-  it('boolean 归一取消：cad.union 编译为 cad.union(input1, input2, exec)（空 args 槽不发射）', async () => {
+  it('boolean 归一取消：cad.union 编译为 ns.cad.union(input1, input2)（空 args 槽不发射）', async () => {
     const { code } = compileText(`
       const part0 = await cad.box({ size: [10, 20, 5] })
       const part1 = await cad.box({ size: [5, 5, 5] })
       const part2 = await cad.union(part0, part1)
     `)
-    expect(code).toContain('ctx.part2 = await cad.union(ctx.part0, ctx.part1, exec)')
+    expect(code).toContain('ctx.part2 = await ns.cad.union(ctx.part0, ctx.part1)')
   })
 })
 

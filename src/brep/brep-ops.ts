@@ -285,8 +285,9 @@ export function drillBrep(
   let holeCenter: THREE.Vector3
   const pos = new THREE.Vector3(...params.position)
 
-  if (params.depth === 0) {
-    // 通孔：与 mesh 路径一致（slab-method bbox 求交 + 0.2 余量）
+  // 通孔：depth <= 0（契约：depth<=0 表示通孔，与 mesh 路径 `depth>0 ? 'blind':'through'` 一致）。
+  // ⚠️ 只判 `=== 0` 会让 depth<0 落入盲孔分支 → safeDepth=0 → 零高圆柱 → OCCT transform 崩溃。
+  if (params.depth <= 0) {
     const d = direction.clone().normalize()
     const bbMin = new THREE.Vector3(bbox.min[0], bbox.min[1], bbox.min[2])
     const bbMax = new THREE.Vector3(bbox.max[0], bbox.max[1], bbox.max[2])

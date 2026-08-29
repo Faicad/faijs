@@ -36,9 +36,12 @@ import { buildTopologyFromMesh } from '../brep/brep-topology'
 import type { Mesh as WasmMesh } from 'occt-wasm'
 import { asPartName, type PartName, type StmtId } from '../identity'
 import { compileToModule, type CompiledStatementMeta } from '../lang/compile'
-import { ModuleExecutor } from './module-executor'
-import { ExecContextImpl, BrepUnsupportedError } from './exec-context'
-import { createInternalStdlib } from './internal-stdlib'
+import { ModuleExecutor, type ExecBookkeeping } from './module-executor'
+import {
+  configureBackends, CONTRACT_VERSION, setKeepSink, setName,
+  assertContractVersion, BrepUnsupportedError, type StdlibNamespace,
+} from '../runtime-state'
+import { createNamespaces } from './internal-stdlib'
 import { computeContentKey } from './content-key'
 export { computeContentKey } from './content-key'
 import { isCompoundLike, getSlot, type CompoundShape } from '../stdlib/shape'
@@ -238,13 +241,24 @@ export class CadRuntime {
   /** VM 执行器（持久 ctx + 编译产物缓存） */
   private executor: ModuleExecutor
 
-  /** cad namespace assembled from stdlib functions (injected into compiled modules) */
-  private readonly stdlib = createInternalStdlib()
+  /** cad 命名空间集合（标准库 + 宿主注册库；注入编译产物 fn 的第二参 ns） */
+  private readonly libs: Record<string, StdlibNamespace> = {}
+  private readonly namespaces = createNamespaces(this.libs)
+
+  /**
+   * 注册第三方库命名空间（P7）。
+   * 版本不兼容即抛错（不静默降级）；之后编译产物 `ns.<binding>.<callee>` 可用新库。
+   */
+  registerLib(binding: string, ns: StdlibNamespace): void {
+    assertContractVersion(ns as unknown as { contractVersion?: number })
+    this.libs[binding] = ns
+    this.executor.setNamespaces(createNamespaces(this.libs))
+  }
 
   constructor(ports: HostPorts, mode: ExecutionMode = 'auto') {
     this.ports = ports
     this.mode = mode
-    this.executor = new ModuleExecutor(this.stdlib, {
+    this.executor = new ModuleExecutor(this.namespaces, {
       releaseSolid: (partName) => {
         const handle = this.solidCache.get(partName)
         if (handle) {
@@ -262,6 +276,37 @@ export class CadRuntime {
       setFaceEvolution: (partName, evo) => {
         this.faceEvolutionCache.set(partName, evo)
       },
+    })
+
+    // P2：装配全局 backends（stdlib 经 getBackends() 取资源）。
+    // getter 保证 kernel 异步就绪与 partTransform 运行期变更可见（P5 会细化此装配）。
+    // ⚠️ getter 的 this 指向所在对象字面量，用箭头闭包捕获实例（避免 no-this-alias）。
+    const brepChainOf = (): BrepChainState | null => this.brepChain
+    const portsOf = (): HostPorts => this.ports
+    configureBackends({
+      contractVersion: CONTRACT_VERSION,
+      config: {
+        mode: this.mode,
+        get partTransform() {
+          return brepChainOf()?.partTransform
+        },
+      },
+      kernel: {
+        get occt() {
+          return brepChainOf()?.kernel ?? null
+        },
+        get csg() {
+          return portsOf().csg
+        },
+        get sdf() {
+          return portsOf().sdf
+        },
+      },
+      fonts: this.ports.fonts,
+      texture: this.ports.texture,
+      assets: this.ports.assets,
+      events: this.ports.events,
+      cad: this.namespaces.cad,
     })
   }
 
@@ -306,7 +351,7 @@ export class CadRuntime {
     }
     this.reconcile(script, statements, opts?.sceneScript)
     await this.prepareCtx(script, opts)
-    const exec = this.createExecContext(script, opts, brepChain)
+    const exec = this.createBookkeeping(script, opts)
     const start = opts?.startIndex ?? 0
     return this.runWithFailureHandling(script, exec, async () => {
       if (start > 0) {
@@ -316,22 +361,6 @@ export class CadRuntime {
         await this.executor.executeAll(exec)
       }
     }, opts)
-  }
-
-  /** 构建参数表：opts.params 优先，脚本 params 兜底（execute / append 复用）。 */
-  private buildParamsMap(script: ScriptIR, opts?: ExecuteOptions): Record<string, unknown> {
-    const paramsMap: Record<string, unknown> = {}
-    if (opts?.params) {
-      for (const [k, v] of Object.entries(opts.params)) {
-        paramsMap[k] = v
-      }
-    }
-    for (const p of script.params) {
-      if (!(p.name in paramsMap)) {
-        paramsMap[p.name] = p.value
-      }
-    }
-    return paramsMap
   }
 
   // ── 语义入口：update / append（增量执行） ──
@@ -355,7 +384,7 @@ export class CadRuntime {
     }
     this.reconcile(script, statements, opts?.sceneScript)
     await this.prepareCtx(script, opts)
-    const exec = this.createExecContext(script, opts, brepChain)
+    const exec = this.createBookkeeping(script, opts)
     const { staleCompiledIds } = this.planCompiled(script, statements)
     if (staleCompiledIds.size === 0) {
       return this.collectResult(script, exec, opts)
@@ -387,7 +416,7 @@ export class CadRuntime {
     }
     this.reconcile(script, statements, opts?.sceneScript)
     await this.prepareCtx(script, opts)
-    const exec = this.createExecContext(script, opts, brepChain)
+    const exec = this.createBookkeeping(script, opts)
     // 调用方传入的 newIds 是源语句的 outputs 中的 partName → 翻译为编译产物 id（s1..sN）
     const sourceIdToCompiled = new Map<string, StmtId>()
     for (const meta of statements) {
@@ -510,12 +539,8 @@ export class CadRuntime {
     this.executor.reconcileCtx(activeIds, writeSets)
   }
 
-  /** 创建 ExecContextImpl（当前重放输出缓存从持久 ctx 预填）。 */
-  private createExecContext(
-    script: ScriptIR,
-    opts: ExecuteOptions | undefined,
-    brepChain: BrepChainState,
-  ): ExecContextImpl {
+  /** 创建执行记账（outputCache 预填 + keep 装配 + shapeToName 预填）。 */
+  private createBookkeeping(script: ScriptIR, opts: ExecuteOptions | undefined): ExecBookkeeping {
     const outputCache = new Map<PartName, Shape>()
     for (const meta of this.executor.getMetas()) {
       for (const w of meta.writes) {
@@ -523,30 +548,17 @@ export class CadRuntime {
         if (isShapeLike(v)) outputCache.set(asPartName(w), v as Shape)
       }
     }
-    const paramsMap = this.buildParamsMap(script, opts)
-    const exec = new ExecContextImpl({
-      mode: this.mode,
-      brepChain,
-      ports: this.ports,
-      script,
-      outputCache,
-      params: paramsMap,
-      beforeStatement: opts?.beforeStatement,
-      setCtxVar: (name, value) => this.executor.setCtxVar(name, value),
-      // keep-syntax §2.2：函数体 exec.keep/keepHidden → ModuleExecutor.internalKeep
-      // （按语句持久；语句重执行前清空本条，缓存命中保留上轮记录）
-      onKeep: (stmtId, names, hidden) => this.executor.registerKeep(stmtId, names, hidden),
-    })
-    // 预填 shapeToName：持久 ctx 中所有活跃 Shape → 变量名。
-    // append/update 只重放新增语句，已执行语句的 Shape 需在此补齐，
-    // 否则 dependentsOf / collectResult.changed 查不到装配成员与下游。
+    // keep()（import 入口）统一装配到 ModuleExecutor.internalKeep
+    setKeepSink((stmtId, names, hidden) => this.executor.registerKeep(stmtId as StmtId, names, hidden))
+    // 预填 shapeToName：持久 ctx 中所有活跃 Shape → 变量名（keep() 反查依赖）。
+    // append/update 只重放新增语句，已执行语句的 Shape 需在此补齐。
     for (const meta of this.executor.getMetas()) {
       for (const w of meta.writes) {
         const v = this.executor.getCtxVar(w)
-        if (v !== null && typeof v === 'object') exec.shapeToName.set(v, asPartName(w))
+        if (v !== null && typeof v === 'object') setName(v, asPartName(w))
       }
     }
-    return exec
+    return { outputCache, beforeStatement: opts?.beforeStatement, changed: new Set<PartName>() }
   }
 
   /**
@@ -580,7 +592,7 @@ export class CadRuntime {
   /** 执行并捕获 brep 强制模式失败（BrepUnsupportedError → ExecutionResult.failedAt）。 */
   private async runWithFailureHandling(
     script: ScriptIR,
-    exec: ExecContextImpl,
+    exec: ExecBookkeeping,
     run: () => Promise<void>,
     opts?: ExecuteOptions,
   ): Promise<ExecutionResult> {
@@ -591,7 +603,7 @@ export class CadRuntime {
         const index = err.stmt ? script.statements.indexOf(err.stmt) : -1
         return {
           outputs: exec.outputCache,
-          brepChain: exec.brepChain,
+          brepChain: this.brepChain!,
           terminals: [],
           infos: [],
           failedAt: { index, op: err.stmt?.callee ?? '', message: err.message },
@@ -603,7 +615,7 @@ export class CadRuntime {
   }
 
   /** 从持久 ctx 组装完整 ExecutionResult（outputs / statementCache / brepSolids / topology / compounds / activeValues）。 */
-  private collectResult(script: ScriptIR, exec: ExecContextImpl, opts?: ExecuteOptions): ExecutionResult {
+  private collectResult(script: ScriptIR, exec: ExecBookkeeping, opts?: ExecuteOptions): ExecutionResult {
     const outputs = new Map<PartName, Shape | CompoundShape>()
     for (const meta of this.executor.getMetas()) {
       for (const w of meta.writes) {
@@ -629,18 +641,8 @@ export class CadRuntime {
       }
     }
 
-    // T6.5: 装配/原地变换后，身份槽 → PartName 键控 solidCache 反同步。
-    // solveAssembly 只把变换后的新 solid 写进身份槽（exec.setSolid），从未同步回
-    // runtime.solidCache；这里在提取前把 touchedShapes 的最新槽值写回映射，
-    // 使 extractBrepSolids / buildBrepTopology 拿到新 handle（而非已释放的旧 handle）。
-    // 幂等：重复写同一新 handle 无害；不在此处释放旧 handle（已由 solveAssembly 释放）。
-    for (const shape of exec.touchedShapes) {
-      const name = exec.shapeToName.get(shape)
-      if (name === undefined) continue
-      const slot = getSlot(shape)
-      if (slot?.solid) this.solidCache.set(name, slot.solid)
-      if (slot?.faceEvolution) this.faceEvolutionCache.set(name, slot.faceEvolution)
-    }
+    // P6：装配变换的应用与同步由引擎完成（applyPendingAssemblyTransforms 直接写
+    // 身份槽 + solidCache/faceEvolutionCache），此处不再需要反同步循环。
 
     // T3-cond: DAG 叶子终端判定（§4.1）
     // 显式 terminalShapes（return [...]）优先；否则用“最后写者 + 下游无独占消费”算法
@@ -711,16 +713,12 @@ export class CadRuntime {
       }
     }
 
-    // 变更声明（touch）：被原地修改的 Shape → 持有它的变量名（去重）
-    const changed: PartName[] = []
-    for (const shape of exec.touchedShapes) {
-      const name = exec.shapeToName.get(shape)
-      if (name !== undefined && !changed.includes(name)) changed.push(name)
-    }
+    // 变更声明（P6）：引擎推导——语句写值前后比对 + 装配应用记录（exec.changed）
+    const changed: PartName[] = [...exec.changed]
 
     return {
       outputs,
-      brepChain: exec.brepChain,
+      brepChain: this.brepChain!,
       terminals,
       infos: [],
       brepSolids: brepSolids.size > 0 ? brepSolids : undefined,
@@ -859,7 +857,7 @@ export class CadRuntime {
     }
 
     const { code, statements } = compileToModule(sceneScript)
-    const subExecutor = new ModuleExecutor(this.stdlib, {
+    const subExecutor = new ModuleExecutor(this.namespaces, {
       releaseSolid: (p) => {
         const h = this.solidCache.get(p)
         if (h) {
@@ -876,16 +874,9 @@ export class CadRuntime {
     })
     subExecutor.setCompiled(sceneScript, statements)
     await subExecutor.load(code)
-    const brepChain = await this.ensureBrepChain()
-    const exec = new ExecContextImpl({
-      mode: this.mode,
-      brepChain,
-      ports: this.ports,
-      script: sceneScript,
-      outputCache: new Map(),
-      params: {},
-      setCtxVar: (name, value) => subExecutor.setCtxVar(name, value),
-    })
+    await this.ensureBrepChain()
+    // P5：子重放只需 outputCache 记账（beforeStatement 无钩子）
+    const exec: ExecBookkeeping = { outputCache: new Map(), changed: new Set() }
     await subExecutor.executeAll(exec)
 
     const shape = subExecutor.getCtxVar(partName)
@@ -914,6 +905,13 @@ export class CadRuntime {
   /** 获取语句缓存中的输出几何（statementCache 按 PartName 键控） */
   getCachedOutput(partName: PartName): Shape | undefined {
     return this.statementCache.get(partName)?.output
+  }
+
+  /** 获取语句缓存完整条目（statementKey / outputContentKey / output；测试与宿主诊断用）。 */
+  getStatementCacheEntry(
+    partName: PartName,
+  ): { statementKey: string; outputContentKey: string; output: Shape } | undefined {
+    return this.statementCache.get(partName)
   }
 
   /** 写入语句缓存（statementCache 按 PartName 键控） */

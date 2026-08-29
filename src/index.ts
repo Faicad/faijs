@@ -29,6 +29,18 @@ export {
   toScopedId, splitScopedId, isScopedId, toInnerId,
 } from './identity'
 
+// ── 运行时状态锚点（零依赖层；引擎与库共享）
+export {
+  configureBackends, getBackends, setCurrentStmt, getCurrentStmt,
+  keep, keepHidden, getRuntimeState, nameOf, setName, setKeepSink,
+  setPendingAssemblyTransforms, takePendingAssemblyTransforms, assertContractVersion,
+  CONTRACT_VERSION,
+} from './runtime-state'
+export type {
+  Backends, FaijsRuntimeState, ShapeSlot, KeepSink, RuntimeExecutionMode,
+  AssemblyTransform, StdlibFn, StdlibNamespace,
+} from './runtime-state'
+
 // ── L0 文本层
 export type {
   ScriptIR, StatementIR, ArgIR, Vec3, JsonValue,

@@ -1,11 +1,10 @@
 /**
- * stdlib screw — 螺丝创建库函数（creator op，无输入）
+ * stdlib screw — 螺丝创建库函数（creator 函数，无输入）
  *
  * 设计文档：docs/plans/2026-08-25-faijs-vm-execution-implementation-plan.md §3.11
+ * 实施文档：docs/plans/2026-08-29-engine-library-contract-implementation.md P2
  *
- * 从 src/ops/screw.ts 迁出并改写为 stdlib 形态：
- * `(params, exec) => Promise<Shape>`，resolvePath 静态判定 brep/mesh，
- * 产物经 solid() 构造器创建，solid 经 exec.setSolid 挂身份槽。
+ * dispatchPath 静态判定 brep/mesh，产物经 solid()/fromBrep() 构造器创建。
  */
 
 import type { Shape } from '../mesh/types'
@@ -13,16 +12,16 @@ import { cad } from '../mesh'
 import { solidToShape } from '../brep/brep-ops'
 import { threadBrep } from '../brep/brepjs-mirror/threadFns'
 import { getScrewSpec, threadToPitchMm, SCREW_HEAD_DIMS } from '../primitives/screw/screw-db'
-import { solid } from './shape'
-import { resolvePath } from './internal/resolve-path'
-import type { ExecContext } from '../cad-runtime/exec-context'
+import { getBackends } from '../runtime-state'
+import { solid, fromBrep } from './shape'
+import { dispatchPath } from '../cad-runtime/backend-dispatch'
 
-/** BREP 实现标记（resolvePath 判定用；screw 有 OCCT 精确构造） */
+/** BREP 实现标记（dispatchPath 判定用；screw 有 OCCT 精确构造） */
 const brepImpl = screwBrep
 
-/** BREP 路径：threadBrep + fuse 构造精确螺纹螺钉 + 三角化 + 身份槽挂 solid。 */
-async function screwBrep(params: Record<string, unknown>, exec: ExecContext): Promise<Shape> {
-  const kernel = exec.kernels.occt
+/** BREP 路径：threadBrep + fuse 构造精确螺纹螺钉 + 三角化 + fromBrep 登记。 */
+async function screwBrep(params: Record<string, unknown>): Promise<Shape> {
+  const kernel = getBackends().kernel.occt as import('occt-wasm').OcctKernel | null
   if (!kernel) throw new Error('[stdlib/screw] no OCCT kernel')
 
   const system = params.system as 'metric' | 'imperial'
@@ -82,9 +81,7 @@ async function screwBrep(params: Record<string, unknown>, exec: ExecContext): Pr
     result = fused
   }
 
-  const shape = solid(solidToShape(kernel, result))
-  exec.setSolid(shape, result)
-  return shape
+  return fromBrep(solidToShape(kernel, result), { solid: result })
 }
 
 /**
@@ -143,10 +140,10 @@ export function assertScrewParams(params: Record<string, unknown>): void {
   }
 }
 
-export async function screw(params: Record<string, unknown>, exec: ExecContext): Promise<Shape> {
+export async function screw(params: Record<string, unknown>): Promise<Shape> {
   assertScrewParams(params)
-  const path = resolvePath(exec, [], brepImpl)
-  if (path === 'brep') return screwBrep(params, exec)
+  const path = dispatchPath([], brepImpl)
+  if (path === 'brep') return screwBrep(params)
   return solid(await cad.screw({
     system: params.system as 'metric' | 'imperial',
     specIdx: params.specIdx as number,

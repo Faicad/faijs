@@ -231,6 +231,10 @@ function extractShapes(result: ExecutionResult): ShapeSummary[] {
 
   if (result.terminals.length > 0) {
     for (const terminal of result.terminals) {
+      // keep-syntax：布尔源（box/sphere）等以 hidden 终端保留在场景里但不渲染
+      // （Demo 与 3d_editor 的 setNodeVisible(!terminal.hidden) 语义一致，契约 §9）。
+      // 渲染/统计只数可见终端——box-boolean 仅 subtract 显示 → 1 shape(s)。
+      if (terminal.hidden) continue
       const shape = result.outputs.get(terminal.id)
       if (shape && isMeshShape(shape) && shape.positions.length > 0) {
         shapes.push({ id: terminal.id, positions: shape.positions, indices: shape.indices })
@@ -306,10 +310,25 @@ async function runCode() {
 
     setStatus('Executing (brep + mesh)...', 'info')
 
-    // 两条链路解耦，各自等各自的 wasm 后端，互不阻塞：
-    // - mesh 只依赖 manifold（首用时异步加载，较快）→ 下方 STL 视图先出模型
-    // - brep 依赖 OCCT kernel（~22MB 下载，较慢）→ 上方 STEP/BREP 视图后出模型
-    const brepTask = (async () => {
+    // 两条链路**串行**执行（不再并发）：
+    // 引擎契约（2026-08-29-engine-library-contract.md §O7）把后端环境装配为
+    // **模块级单例**（stdlib 经 getBackends() 读取，runtime-state.ts），同一执行
+    // 环境里同时存在两个 CadRuntime（brep/mesh 不同 mode）时，后构造的 runtime
+    // 会 overwrite 全局 backends → 先跑的 mesh 链读到 brep 配置而它的 BREP 链
+    // 尚未初始化 → `[stdlib/box] no OCCT kernel`。多实例并发在契约范围外。
+    // 顺序：先 mesh（只依赖 manifold，快），再等 OCCT 后 brep——视觉上仍保持
+    // "mesh 视图先出模型、brep 视图随后补齐"，只是不再两条同时跑。
+    const meshReport = await (async () => {
+      try {
+        return await runMode(meshView, parseResult.script, portsMesh)
+      } catch (err) {
+        // mesh 后端失败不影响 brep 结果
+        const msg = err instanceof Error ? err.message : String(err)
+        return `Mesh unavailable: ${msg}`
+      }
+    })()
+
+    const brepReport = await (async () => {
       try {
         if (occtReady) {
           setStatus('Waiting for OCCT kernel (~22MB)...', 'info')
@@ -322,9 +341,6 @@ async function runCode() {
         return `BREP unavailable: ${msg}`
       }
     })()
-    const meshTask = runMode(meshView, parseResult.script, portsMesh)
-
-    const [brepReport, meshReport] = await Promise.all([brepTask, meshTask])
 
     setStatus(`OK — brep: ${brepReport} | mesh: ${meshReport}`, 'success')
 

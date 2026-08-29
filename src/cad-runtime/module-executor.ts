@@ -15,20 +15,43 @@ import type { CompiledStatementMeta } from '../lang/compile'
 import type { StatementIR, ScriptIR } from '../lang/types'
 import { withoutKeepDirectives, type InternalKeepRecord } from '../lang/keep'
 import type { Shape } from '../mesh/types'
-import type { ShapeHandle } from 'occt-wasm'
+import type { ShapeHandle, OcctKernel } from 'occt-wasm'
 import type { PartName, StmtId } from '../identity'
 import { asPartName } from '../identity'
 import { computeContentKey } from './content-key'
-import { getSlot } from '../stdlib/shape'
-import type { ExecContextImpl, StdlibNamespace } from './exec-context'
+import { getSlot, hasBrep, brepOf, ensureSlot } from '../stdlib/shape'
+import { setCurrentStmt, setName, getBackends, takePendingAssemblyTransforms, type StdlibNamespace } from '../runtime-state'
+import { applyTransform } from '../stdlib/compound'
+import { applyTransformBrep } from '../brep/brep-ops'
+import type { EventSink } from './ports'
 
 // ── 编译产物语句（从模块文本 import 得到） ──
+
+/**
+ * 已装配的命名空间集合（标准库 `cad` + 宿主注册的库）。
+ * 编译产物 `fn(ctx, ns)` 经 ns.<binding>.<callee>() 调用——引擎不区分函数来自哪个库。
+ */
+export interface Namespaces {
+  readonly cad: StdlibNamespace
+  readonly [binding: string]: StdlibNamespace
+}
+
+/**
+ * 执行记账（P5：exec 上下文删除后，ModuleExecutor 只需 beforeStatement + outputCache）。
+ * beforeStatement：undo 逐语句快照钩子；outputCache：语句产物缓存（collectResult 消费）。
+ */
+export interface ExecBookkeeping {
+  beforeStatement?: (stmt: StatementIR, index: number) => void
+  outputCache: Map<PartName, Shape>
+  /** 变更声明（P6：引擎比对推导 + 装配应用记录），collectResult 消费。 */
+  changed: Set<PartName>
+}
 
 /** 编译产物中的单条语句（模块文本 `{ id, deps, fn }`）。 */
 export interface CompiledStatement {
   id: StmtId
   deps: StmtId[]
-  fn: (ctx: Record<string, unknown>, cad: StdlibNamespace, exec: ExecContextImpl) => Promise<void>
+  fn: (ctx: Record<string, unknown>, ns: Namespaces) => Promise<void>
 }
 
 /** 动态 import 编译产物（Node: data: URL；浏览器: Blob URL）。 */
@@ -79,20 +102,25 @@ export class ModuleExecutor {
   private metaById = new Map<StmtId, CompiledStatementMeta>()
   private script: ScriptIR = { params: [], statements: [] }
   private lastCode = ''
-  private readonly cad: StdlibNamespace
+  private namespaces: Namespaces
   private readonly releaseSolid?: (partName: PartName) => void
   private readonly getSolid?: (partName: PartName) => ShapeHandle | undefined
   private readonly releaseHandle?: (handle: ShapeHandle) => void
   private readonly setSolid?: (partName: PartName, solid: ShapeHandle) => void
   private readonly setFaceEvolution?: (partName: PartName, evo: Map<number, number[]>) => void
 
-  constructor(cad: StdlibNamespace, options?: ModuleExecutorOptions) {
-    this.cad = cad
+  constructor(namespaces: Namespaces, options?: ModuleExecutorOptions) {
+    this.namespaces = namespaces
     this.releaseSolid = options?.releaseSolid
     this.getSolid = options?.getSolid
     this.releaseHandle = options?.releaseHandle
     this.setSolid = options?.setSolid
     this.setFaceEvolution = options?.setFaceEvolution
+  }
+
+  /** 热更新命名空间集合（P7：registerLib 后装配新库）。 */
+  setNamespaces(namespaces: Namespaces): void {
+    this.namespaces = namespaces
   }
 
   /** 更新脚本 + 编译元数据（ctx 保持存活）。 */
@@ -116,7 +144,7 @@ export class ModuleExecutor {
   }
 
   /** 全量执行（按 deps 拓扑序 = 语句表顺序）。 */
-  async executeAll(exec: ExecContextImpl): Promise<void> {
+  async executeAll(exec: ExecBookkeeping): Promise<void> {
     await this.executeIds([...this.stmts.keys()], exec)
   }
 
@@ -126,7 +154,7 @@ export class ModuleExecutor {
    * 与旧解释器一致的防护：beforeStatement 仅对 new_shape 语句触发；
    * void/same_shape（do_assemble/add_constraint）不触发（do_assemble 的 fn 内部委托 exec.doAssemble）。
    */
-  async executeIds(ids: StmtId[], exec: ExecContextImpl): Promise<void> {
+  async executeIds(ids: StmtId[], exec: ExecBookkeeping): Promise<void> {
     for (const id of ids) {
       const compiled = this.stmts.get(id)
       if (!compiled) throw new Error(`[ModuleExecutor] unknown statement "${id}"`)
@@ -137,14 +165,20 @@ export class ModuleExecutor {
       const oldHandles = (meta?.writes ?? [])
         .map((w) => this.getSolid?.(asPartName(w)))
         .filter((h): h is ShapeHandle => !!h)
-      exec.currentStmt = source
+      // P6：changed 由引擎比对推导（替代旧的 touch 声明机制）
+      const oldWrites = new Map<string, unknown>()
+      for (const w of meta?.writes ?? []) oldWrites.set(w, this.ctx[w])
+      setCurrentStmt(source) // P5：新 keep() 归属当前语句
       // keep 登记先清空本条记录：重执行的语句重新登记（执行中累加，设计 §2.2）
       this.internalKeep.delete(id)
       if (source && source.hasAssignment) {
         exec.beforeStatement?.(source, this.script.statements.indexOf(source))
       }
-      await compiled.fn(this.ctx, this.cad, exec)
-      this.afterStatement(compiled, exec)
+      await compiled.fn(this.ctx, this.namespaces)
+      await this.afterStatement(compiled, exec)
+      for (const [w, old] of oldWrites) {
+        if (old !== this.ctx[w]) exec.changed.add(asPartName(w))
+      }
       // 顶替释放：执行成功后才释放旧 handle（失败时缓存保持执行前状态，天然回滚）
       for (const old of oldHandles) {
         this.releaseHandle?.(old)
@@ -156,7 +190,7 @@ export class ModuleExecutor {
    * 从变更点起重执行（update：plan 得出 stale 集）。
    * stale 集对 deps 封闭（依赖 stale 的语句必 stale），按拓扑序执行。
    */
-  async executeFrom(staleIds: Set<StmtId>, exec: ExecContextImpl): Promise<void> {
+  async executeFrom(staleIds: Set<StmtId>, exec: ExecBookkeeping): Promise<void> {
     const ordered: StmtId[] = []
     const visited = new Set<StmtId>()
     const visit = (id: StmtId): void => {
@@ -224,7 +258,7 @@ export class ModuleExecutor {
     return this.internalKeep.get(id)
   }
 
-  /** 函数体 keep 登记（ExecContextImpl.onKeep 回调落地；执行中累加）。 */
+  /** 函数体 keep 登记（ModuleExecutor.internalKeep 落地；执行中累加）。 */
   registerKeep(id: StmtId, names: PartName[], hidden: boolean): void {
     let rec = this.internalKeep.get(id)
     if (!rec) {
@@ -263,8 +297,8 @@ export class ModuleExecutor {
 
   // ── 内部 ──
 
-  /** 语句执行后：ctx → outputCache 同步 + 身份槽 → solidCache/faceEvolutionCache 同步 + statementKey 缓存。 */
-  private afterStatement(compiled: CompiledStatement, exec: ExecContextImpl): void {
+  /** 语句执行后：ctx → outputCache 同步 + 身份槽 → solidCache/faceEvolutionCache 同步 + statementKey 缓存 + 装配传播。 */
+  private async afterStatement(compiled: CompiledStatement, exec: ExecBookkeeping): Promise<void> {
     const source = this.sourceById.get(compiled.id)
     const meta = this.metaById.get(compiled.id)
     const writes = meta?.writes ?? []
@@ -272,10 +306,10 @@ export class ModuleExecutor {
       const v = this.ctx[w]
       if (v !== undefined) {
         if (typeof v === 'object' && v !== null) {
-          exec.shapeToName.set(v, asPartName(w))
+          setName(v, asPartName(w)) // P3：新 keep() 反查走 runtime-state 映射（P5 删 exec 侧）
           // 身份槽 → PartName 键控缓存同步（runtime 的 brepSolids/顶替释放/buildBrepTopology 依赖）
           const slot = getSlot(v)
-          if (slot?.solid) this.setSolid?.(asPartName(w), slot.solid)
+          if (slot?.solid) this.setSolid?.(asPartName(w), slot.solid as ShapeHandle)
           if (slot?.faceEvolution) this.setFaceEvolution?.(asPartName(w), slot.faceEvolution)
         }
         exec.outputCache.set(asPartName(w), v as Shape)
@@ -284,6 +318,85 @@ export class ModuleExecutor {
     const key = meta ? this.computeKey(meta, source) : ''
     const outputContentKey = this.computeOutputContentKey(compiled)
     this.cache.set(compiled.id, { key, outputContentKey })
+
+    // P4：引擎统一发 part-brep-lost（F1：库不再读 currentStmt / 不再 emit）
+    // 语义：上游在 BREP 链上，但本语句产物不在链上 → BREP 链在此断开
+    this.emitBrepLost(compiled.id, source)
+
+    // P6：装配传播（求解在库，应用与失效在引擎）
+    await this.applyPendingAssemblyTransforms(exec)
+  }
+
+  /**
+   * P6：装配传播——取走全部待应用变换，引擎应用到成员（mesh 原地 + BREP 槽 + solidCache），
+   * 记录 changed，并让依赖成员的下游语句失效重算（DAG 重放，替代 exec.dependentsOf 图遍历）。
+   */
+  private async applyPendingAssemblyTransforms(exec: ExecBookkeeping): Promise<void> {
+    const pending = takePendingAssemblyTransforms()
+    if (pending.length === 0) return
+    const kernel = getBackends().kernel.occt as OcctKernel | null
+    for (const { compound, transforms } of pending) {
+      const behavior = getSlot(compound)?.behavior as { memberNames?: string[] } | undefined
+      if (!behavior?.memberNames) continue
+      const children = (compound as { children?: Shape[] }).children ?? []
+      const memberNames = behavior.memberNames
+      for (const t of transforms) {
+        const member = children[t.index]
+        const name = memberNames[t.index]
+        if (!member || typeof member !== 'object') continue
+        // mesh 原地变换（保留同一对象引用，ctx 与 compound.children 同步看到变更）
+        Object.assign(member, applyTransform(member, t.quaternion, t.pivot, t.translation, t.rotationMatrix))
+        // BREP 刚体变换（可选）：新 solid 写身份槽 + solidCache（替代旧 T6.5 反同步循环）
+        const solid = brepOf(member) as ShapeHandle | undefined
+        if (kernel && solid) {
+          const transformed = applyTransformBrep(kernel, solid, t.quaternion, t.pivot, t.translation)
+          try { kernel.release(solid) } catch { /* 已释放 */ }
+          ensureSlot(member).solid = transformed
+          if (name) this.setSolid?.(asPartName(name), transformed)
+        }
+        if (name) exec.changed.add(asPartName(name))
+      }
+      // 下游失效重算：依赖成员名的语句（拓扑序由 executeFrom 按 deps 保证）
+      const stale = this.computeDownstream(memberNames)
+      if (stale.size > 0) await this.executeFrom(stale, exec)
+    }
+  }
+
+  /** 找出依赖给定变量名的语句（装配成员 → 消费它的下游）。 */
+  private computeDownstream(memberNames: string[]): Set<StmtId> {
+    const names = new Set(memberNames)
+    const stale = new Set<StmtId>()
+    for (const [id, source] of this.sourceById) {
+      if (source.inputs.some((n) => names.has(String(n)))) stale.add(id)
+    }
+    return stale
+  }
+
+  /**
+   * 判定并发 part-brep-lost 事件。
+   *
+   * 判据：语句有几何输入且**全部**输入都在 BREP 链上，但输出**不在**链上
+   * → BREP 链在此断开（mesh-only 函数或 fallthrough）。
+   */
+  private emitBrepLost(id: StmtId, source: StatementIR | undefined): void {
+    if (!source || source.inputs.length === 0) return
+    const sink = getBackends().events as EventSink | undefined
+    if (!sink) return
+
+    const inputsOnChain = source.inputs
+      .map((n) => this.ctx[String(n)])
+      .filter((v): v is Shape => !!v && typeof v === 'object')
+    if (inputsOnChain.length === 0) return
+    if (!inputsOnChain.every(hasBrep)) return          // 上游本就不在链上 → 非断开
+
+    const out = this.ctx[this.metaById.get(id)?.writes[0] ?? '']
+    if (out && typeof out === 'object' && hasBrep(out as Shape)) return   // 输出仍在链上
+
+    sink.emit('part-brep-lost', {
+      partName: asPartName(String(source.outputs[0] ?? '')),
+      op: source.callee,
+      reason: `${source.callee} has no BREP implementation`,
+    })
   }
 
   /**
@@ -297,7 +410,7 @@ export class ModuleExecutor {
       const p = this.script.params.find((pp) => pp.name === primary)
       return `param|${JSON.stringify(p?.value)}`
     }
-    const parts = [source.callee]
+    const parts = [`${source.namespace ?? 'cad'}.${source.callee}`]
     parts.push(JSON.stringify(withoutKeepDirectives(source.args)))
     for (const dep of meta.deps) {
       const ck = this.cache.get(dep)?.outputContentKey

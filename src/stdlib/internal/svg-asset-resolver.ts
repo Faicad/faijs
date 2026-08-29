@@ -29,7 +29,7 @@ function isLegacyAssetRef(v: unknown): v is { $asset: string } {
  */
 export async function resolveSvgArg(
   svg: unknown,
-  ports?: HostPorts,
+  ports?: Pick<HostPorts, 'assets'>,
 ): Promise<string> {
   // 普通字符串：直接返回（兼容旧格式或直接传入 SVG 文本）
   if (typeof svg === 'string') return svg

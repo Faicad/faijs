@@ -2,14 +2,15 @@
  * stdlib engrave — 雕刻库函数
  *
  * 设计文档：docs/plans/2026-08-25-faijs-vm-execution-implementation-plan.md §3.11
+ * 实施文档：docs/plans/2026-08-29-engine-library-contract-implementation.md P2
  *
- * 从 src/ops/engrave.ts 迁出并改写为 stdlib 形态：
- * `(input, params, exec) => Promise<Shape>`，resolvePath 静态判定 brep/mesh。
+ * dispatchPath 静态判定 brep/mesh。
  * BREP 路径：textToSolid/svgToSolid + boolean（cut/fuse）。
  */
 
 import type { Shape, Vec3 } from '../mesh/types'
 import type { ShapeHandle } from 'occt-wasm'
+import type { AssetResolver } from '../cad-runtime/ports'
 import { cad } from '../mesh'
 import { parseSvgNaturalSize } from '../primitives/parse-svg-size'
 import { textToSolid } from '../brep/text/text-to-solid'
@@ -18,10 +19,10 @@ import { ensureDefaultFont } from '../brep/text/fontRegistry'
 import { solidToShape } from '../brep/brep-ops'
 import { getSolidBoundingBox } from '../brep/brep-utils'
 import { resolveSvgArg } from './internal/svg-asset-resolver'
-import { solid } from './shape'
-import { resolvePath } from './internal/resolve-path'
+import { getBackends } from '../runtime-state'
+import { solid, fromBrep, brepOf } from './shape'
+import { dispatchPath } from '../cad-runtime/backend-dispatch'
 import { assertPositiveNumber } from './assert'
-import type { ExecContext, ExecContextImpl } from '../cad-runtime/exec-context'
 
 /** BREP 实现标记（engrave 有 OCCT 精确雕刻） */
 const brepImpl = true
@@ -43,9 +44,9 @@ export function assertEngraveParams(params: Record<string, unknown>): void {
 /** 世界坐标 → BREP solid 局部坐标。 */
 function worldToLocalPosition(
   worldPos: Vec3,
-  brepChain: { partTransform?: { position: [number, number, number] } } | undefined,
+  partTransform: { position?: [number, number, number] } | undefined,
 ): Vec3 {
-  const offset = brepChain?.partTransform?.position
+  const offset = partTransform?.position
   if (!offset) return worldPos
   return [
     worldPos[0] - offset[0],
@@ -92,10 +93,10 @@ function centerSolidAtOrigin(kernel: import('occt-wasm').OcctKernel, solid: Shap
 }
 
 /** BREP 路径：textToSolid/svgToSolid + boolean（cut/fuse）。 */
-async function engraveBrepPath(input: Shape, params: Record<string, unknown>, exec: ExecContext, svgText?: string): Promise<Shape> {
-  const kernel = exec.kernels.occt
+async function engraveBrepPath(input: Shape, params: Record<string, unknown>, svgText?: string): Promise<Shape> {
+  const kernel = getBackends().kernel.occt as import('occt-wasm').OcctKernel | null
   if (!kernel) throw new Error('[stdlib/engrave] no OCCT kernel')
-  const inputSolid = exec.getSolid(input)
+  const inputSolid = brepOf(input) as import('occt-wasm').ShapeHandle | undefined
   if (!inputSolid) throw new Error('[stdlib/engrave] input is not BREP')
 
   const depth = params.depth as number
@@ -128,7 +129,7 @@ async function engraveBrepPath(input: Shape, params: Record<string, unknown>, ex
 
   // 4. 沿法向偏移 + 平移到面中心（凸 offset=+depth/2，凹 offset=-depth/2；加 0.01 避免共面）
   const worldFaceCenter: Vec3 = (params.faceCenter as Vec3) ?? [0, 0, 0]
-  const localFaceCenter = worldToLocalPosition(worldFaceCenter, (exec as ExecContextImpl).brepChain)
+  const localFaceCenter = worldToLocalPosition(worldFaceCenter, getBackends().config.partTransform)
   const offset = mode === 'convex' ? depth / 2 : -depth / 2
   const epsilon = 0.01
   const tx = localFaceCenter[0] + worldFaceNormal[0] * (offset + epsilon)
@@ -162,21 +163,19 @@ async function engraveBrepPath(input: Shape, params: Record<string, unknown>, ex
     // getSubShapes 失败说明结果不是 compound，无需处理
   }
 
-  const shape = solid(solidToShape(kernel, result))
-  exec.setSolid(shape, result)
-  return shape
+  return fromBrep(solidToShape(kernel, result), { solid: result })
 }
 
-export async function engrave(input: Shape, params: Record<string, unknown>, exec: ExecContext): Promise<Shape> {
+export async function engrave(input: Shape, params: Record<string, unknown>): Promise<Shape> {
   if (!input) throw new Error('[stdlib/engrave] no input geometry')
   assertEngraveParams(params)
   // 解析 SVG 资产引用（AssetRef → SVG 文本），如有
   const svgText = params.svg !== undefined && params.svg !== null
-    ? await resolveSvgArg(params.svg, (exec as ExecContextImpl).ports)
+    ? await resolveSvgArg(params.svg, { assets: getBackends().assets as AssetResolver | undefined })
     : undefined
 
-  const path = resolvePath(exec, [input], brepImpl)
-  if (path === 'brep') return await engraveBrepPath(input, params, exec, svgText)
+  const path = dispatchPath([input], brepImpl)
+  if (path === 'brep') return await engraveBrepPath(input, params, svgText)
 
   // mesh 路径
   const faceCenter: Vec3 = (params.faceCenter as Vec3) ?? [0, 0, 0]

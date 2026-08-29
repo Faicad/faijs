@@ -32,7 +32,7 @@ export interface VarRefIR {
   $ref: string
 }
 
-/** 嵌套调用：args 内的 cad.<callee>(...)。编译为 cad.<callee>(…, exec)。 */
+/** 嵌套调用：args 内的 cad.<callee>(...)。编译为 ns.<callee>(...)。 */
 export interface CallRefIR {
   $call: {
     callee: string
@@ -73,6 +73,8 @@ export interface StatementIR {
    *  fai 语句名空间；与 3d_editor 的 ScopedId（fileId:innerId）是两套命名空间。
    *  Phase 3：id = 顺序 sN（不再是变量名）；变量名只存 outputs。 */
   id: StmtId
+  /** 调用所在命名空间（P7 第三方库通道：`import * as mech from 'mech-lib'` 后 `mech.makeHeadstock(...)` 的 namespace='mech'；缺省 = 'cad'）。 */
+  namespace?: string
   callee: string
   args: Record<string, ArgIR>
   inputs: PartName[]

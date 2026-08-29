@@ -2,9 +2,9 @@
  * stdlib drill — 钻孔库函数
  *
  * 设计文档：docs/plans/2026-08-25-faijs-vm-execution-implementation-plan.md §3.11
+ * 实施文档：docs/plans/2026-08-29-engine-library-contract-implementation.md P2
  *
- * 从 src/ops/drill.ts 迁出并改写为 stdlib 形态：
- * `(input, params, exec) => Promise<Shape>`，resolvePath 静态判定 brep/mesh。
+ * dispatchPath 静态判定 brep/mesh。
  * BREP 路径：OCCT cut（简单孔）或 threadBrep + cut（螺丝孔）。
  */
 
@@ -18,10 +18,10 @@ import {
 import { threadBrep } from '../brep/brepjs-mirror/threadFns'
 import { getScrewSpec, threadToPitchMm } from '../primitives/screw/screw-db'
 import * as THREE from 'three'
-import { solid } from './shape'
-import { resolvePath } from './internal/resolve-path'
+import { getBackends } from '../runtime-state'
+import { solid, fromBrep, brepOf } from './shape'
+import { dispatchPath } from '../cad-runtime/backend-dispatch'
 import { assertPositiveNumber, assertNumber, assertVec3 } from './assert'
-import type { ExecContext, ExecContextImpl } from '../cad-runtime/exec-context'
 
 /** BREP 实现标记（drill 有 OCCT 精确钻孔） */
 const brepImpl = true
@@ -129,10 +129,10 @@ function screwHoleBrep(
 }
 
 /** BREP 路径：OCCT cut（简单孔）或 threadBrep + cut（螺丝孔）。 */
-function drillBrepPath(input: Shape, params: Record<string, unknown>, exec: ExecContext): Shape {
-  const kernel = exec.kernels.occt
+function drillBrepPath(input: Shape, params: Record<string, unknown>): Shape {
+  const kernel = getBackends().kernel.occt as import('occt-wasm').OcctKernel | null
   if (!kernel) throw new Error('[stdlib/drill] no OCCT kernel')
-  const inputSolid = exec.getSolid(input)
+  const inputSolid = brepOf(input) as import('occt-wasm').ShapeHandle | undefined
   if (!inputSolid) throw new Error('[stdlib/drill] input is not BREP')
 
   const faceNormal = params.faceNormal as Vec3
@@ -140,7 +140,7 @@ function drillBrepPath(input: Shape, params: Record<string, unknown>, exec: Exec
   const holeType = params.holeType as 'simple' | 'screw' | undefined
 
   // 世界坐标 → 局部坐标（cad.load 返回的几何体在原始文件坐标系中）
-  const partTransform = (exec as ExecContextImpl).brepChain.partTransform
+  const partTransform = getBackends().config.partTransform
   const localPosition = worldToLocalPosition(params.position as [number, number, number], partTransform)
 
   let resultSolid: import('occt-wasm').ShapeHandle
@@ -157,16 +157,14 @@ function drillBrepPath(input: Shape, params: Record<string, unknown>, exec: Exec
     })
   }
 
-  const shape = solid(solidToShape(kernel, resultSolid))
-  exec.setSolid(shape, resultSolid)
-  return shape
+  return fromBrep(solidToShape(kernel, resultSolid), { solid: resultSolid })
 }
 
 /** mesh 路径：manifold-3d mesh-CSG。 */
-async function drillMeshPath(input: Shape, params: Record<string, unknown>, exec: ExecContext): Promise<Shape> {
+async function drillMeshPath(input: Shape, params: Record<string, unknown>): Promise<Shape> {
   const faceNormal = params.faceNormal as Vec3
   const direction = resolveDirection(params, faceNormal)
-  const partTransform = (exec as ExecContextImpl).brepChain.partTransform
+  const partTransform = getBackends().config.partTransform
   const localPos = worldToLocalPosition(params.position as [number, number, number], partTransform)
 
   const scale = partTransform?.scale
@@ -190,10 +188,10 @@ async function drillMeshPath(input: Shape, params: Record<string, unknown>, exec
   })
 }
 
-export async function drill(input: Shape, params: Record<string, unknown>, exec: ExecContext): Promise<Shape> {
+export async function drill(input: Shape, params: Record<string, unknown>): Promise<Shape> {
   if (!input) throw new Error('[stdlib/drill] no input geometry')
   assertDrillParams(params)
-  const path = resolvePath(exec, [input], brepImpl)
-  if (path === 'brep') return drillBrepPath(input, params, exec)
-  return solid(await drillMeshPath(input, params, exec))
+  const path = dispatchPath([input], brepImpl)
+  if (path === 'brep') return drillBrepPath(input, params)
+  return solid(await drillMeshPath(input, params))
 }
