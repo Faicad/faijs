@@ -204,7 +204,8 @@ describe('CadRuntime: mesh mode (all mesh, no BREP)', () => {
     // Output should still be set (mesh path produces geometry)
     const output = result.outputs.get(asPartName('s1'))
     expect(output).toBeDefined()
-    expect(output!.positions.length).toBeGreaterThan(0)
+    if (!('positions' in output!)) throw new Error('expected mesh shape')
+    expect(output.positions.length).toBeGreaterThan(0)
   })
 
   it('sdf throws in mesh mode (no worker in node)', async () => {
@@ -651,7 +652,8 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     // 验证变换正确：s2 原来中心在 [0,0,0]，平移 [0,10,0] 后中心在 [0,10,0]
     // box(size=10) 顶点范围 [-5,5]×[-5,5]×[-5,5]，平移后 [−5,5]×[5,15]×[-5,5]
     // 检查 s2 的某个顶点是否被正确平移
-    const s2AfterPos = s2After!.positions
+    if (!('positions' in s2After!)) throw new Error('expected mesh shape')
+    const s2AfterPos = s2After.positions
     // 至少有变化（不是完全相同的 Float32Array）
     let hasChange = false
     for (let i = 0; i < s2AfterPos.length; i++) {
@@ -895,13 +897,18 @@ describe('CadRuntime: plan deps 级联（参数语句化）', () => {
 // ── DAG 叶子终端判定 ──
 
 describe('CadRuntime: DAG leaf terminal detection', () => {
-  it('boolean: box + sphere + subtract → 仅 subtract 终端', async () => {
+  it('boolean: box + sphere + subtract → subtract 终端 + 输入保留隐藏（内置 exec.keepHidden）', async () => {
     const { result } = await run([
       makeStmt('s1', 'box', { size: 20 }),
       makeStmt('s2', 'sphere', { radius: 8 }),
       { id: asStmtId('s3'), callee: 'subtract', args: {}, inputs: [asPartName('s1'), asPartName('s2')], outputs: [asPartName('s3')], hasAssignment: true } as StatementIR,
     ])
-    expect(result.terminals.map(t => t.id)).toEqual([asPartName('s3')])
+    // keep-syntax §2.5：subtract 函数体 exec.keepHidden(inputs) → s1/s2 保留且隐藏（R5）
+    const byId = new Map(result.terminals.map((t) => [String(t.id), t]))
+    expect([...byId.keys()].sort()).toEqual(['s1', 's2', 's3'])
+    expect(byId.get('s1')!.hidden).toBe(true)
+    expect(byId.get('s2')!.hidden).toBe(true)
+    expect(byId.get('s3')!.hidden).toBeUndefined()
   })
 
   it('链式重赋值: part0 = translate(part0) → 仅 1 个终端', async () => {
@@ -949,6 +956,8 @@ describe('CadRuntime: copy op (deep clone)', () => {
     const copy = result.outputs.get(asPartName('part1'))!
     expect(src).toBeDefined()
     expect(copy).toBeDefined()
+    if (!('positions' in src) || !('indices' in src)) throw new Error('src expected mesh')
+    if (!('positions' in copy) || !('indices' in copy)) throw new Error('copy expected mesh')
     // 独立的 TypedArray
     expect(src.positions).not.toBe(copy.positions)
     expect(src.indices).not.toBe(copy.indices)

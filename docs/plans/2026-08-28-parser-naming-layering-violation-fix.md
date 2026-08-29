@@ -1,5 +1,7 @@
 # faijs parser 越权做 UI 层命名（变量重命名）— 分析与修复文档
 
+> ⚠️ **过时修正（2026-08-29）**：本文档正文未改动。§3.3 分层对照表中"parser（先解析后执行）"表述已过时——faijs 的准确执行模型是**先解析后编译、执行交给 JS 虚拟机**（parser 只做语法分析，`compileToModule` 从 IR 编译产物，JS VM 动态 import 执行）。权威表述见 `docs/syntax-design.md` §6 与 `docs/api-contract.md` R-2。
+
 > 日期：2026-08-28
 > 范围：faijs `src/lang/parser.ts` + `src/lang/allocate-id.ts` 的命名越权；跨项目核对 `../3d_editor`
 > 性质：**架构分层违规修复**（仅写方案，未实施代码）

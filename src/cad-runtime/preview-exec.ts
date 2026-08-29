@@ -62,6 +62,9 @@ export function createPreviewExec(ports?: Partial<HostPorts>): PreviewExec {
     },
     dependentsOf: () => [],
     touch: () => {},
+    // 预览无 internalKeep 登记（函数体 keep 声明在预览场景无消费方）
+    keep: () => {},
+    keepHidden: () => {},
     fonts: fullPorts.fonts,
     texture: fullPorts.texture,
     assets: fullPorts.assets,

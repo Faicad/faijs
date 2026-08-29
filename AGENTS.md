@@ -30,7 +30,7 @@ Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadR
 
 ## 架构（L0–L3 分层）
 
-- **L0 文本层** `src/lang/`：parser（acorn，**先解析后执行，绝不 eval**）、codegen、args-schema。`.faijs` 是合法 JS 子集，语句 id 用 `partN_vM`（N=模型号，M=版本号）。
+- **L0 文本层** `src/lang/`：parser（acorn，**先解析后编译，执行交给 JS 虚拟机**）、codegen、args-schema。`.faijs` 是合法 JS 子集，语句 id 用 `partN_vM`（N=模型号，M=版本号）。
 - **L1 几何层**：`src/brep/`（OCCT brep 链）、`src/mesh/`（manifold-3d mesh 路径 + `cad` API）、`src/ops/`（每 op 的 BREP/Mesh 双链路分派器）、`src/boolean/`、`src/primitives/`、`src/sdf/`、`src/topology/`。
 - **L2 编排** `src/cad-runtime/`：`CadRuntime` + `HostPorts`（csg/sdf/fonts/assets/events 注入接口）。
 - **L3 Host**：`src/node-host/`（fs）+ `src/browser-host/`（worker）。

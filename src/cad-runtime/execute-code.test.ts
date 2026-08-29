@@ -32,6 +32,8 @@ const CODE = [
 async function resultFingerprint(rt: CadRuntime, result: Awaited<ReturnType<CadRuntime['execute']>>) {
   const keys: string[] = []
   for (const [name, shape] of result.outputs) {
+    // keep-syntax §5.1：outputs 含 compound（无 mesh，无法算内容 key）——跳过
+    if (!('positions' in shape) || !('indices' in shape)) continue
     keys.push(`${name}:${computeContentKey(shape.positions, shape.indices)}`)
   }
   keys.sort()

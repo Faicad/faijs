@@ -26,6 +26,7 @@ import type { ShapeHandle, OcctKernel } from 'occt-wasm'
 import { initOcctWasm } from '../occt-kernel/occtKernel'
 import { parseScript, ParseError } from '../lang/parser'
 import { getFunctionSymbol } from '../lang/symbol-table'
+import { validateKeepDirectives } from '../lang/keep'
 import type { HostPorts, ExecutionMode } from './ports'
 import type { SelectorRuntimeData } from '../topology/build-selector-runtime'
 import type { SelectorRuntime } from '../topology/types'
@@ -40,8 +41,8 @@ import { ExecContextImpl, BrepUnsupportedError } from './exec-context'
 import { createInternalStdlib } from './internal-stdlib'
 import { computeContentKey } from './content-key'
 export { computeContentKey } from './content-key'
-import { isCompound, getSlot } from '../stdlib/shape'
-import { computeLeafTerminals } from './terminal-dag'
+import { isCompoundLike, getSlot, type CompoundShape } from '../stdlib/shape'
+import { computeLeafTerminals, consumes, type DagRuntimeView } from './terminal-dag'
 
 
 // ── 装配变换死代码已删除 ──
@@ -51,7 +52,8 @@ import { computeLeafTerminals } from './terminal-dag'
 // ── 类型定义 ──
 
 export interface CheckError {
-  stage: 'parse' | 'symbol' | 'reference'
+  /** 'keep' = keep 指令校验（keep-syntax 设计 §7.4） */
+  stage: 'parse' | 'symbol' | 'reference' | 'keep'
   message: string
   line?: number
   stmtId?: string
@@ -89,8 +91,12 @@ export interface PartTopology {
 }
 
 export interface ExecutionResult {
-  /** 语句输出缓存（PartName → Shape；含 split 的 front/back 双输出） */
-  outputs: Map<PartName, Shape>
+  /**
+   * 语句输出缓存（PartName → Shape 或 compound；含 split 的 front/back 双输出）。
+   * keep-syntax §5.1：UI 查询入口，含所有 shape 变量——第三方返回的未注册
+   * compound（结构判定 isCompoundLike）同样进入（设计 §9 验收）。
+   */
+  outputs: Map<PartName, Shape | CompoundShape>
   /** BREP 链状态（含逐 part solid 句柄） */
   brepChain: BrepChainState
   /** 终端几何列表 */
@@ -115,6 +121,12 @@ export interface ExecutionResult {
   compounds?: Map<PartName, PartName[]>
   /** 被 touch 声明的原地修改 Shape 的持有变量名（装配变换后 collectResult 填充，去重） */
   changed?: PartName[]
+  /**
+   * 活跃但非几何的值（keep-syntax 设计 §5.2，UI 可选消费）。
+   * DAG 叶子且非 shape/compound：第三方测量/查询函数返回的 number/普通对象等。
+   * 不进 terminals（terminals 只含几何，零回归）。
+   */
+  activeValues?: Map<PartName, unknown>
 }
 
 export interface ExecuteOptions {
@@ -521,6 +533,9 @@ export class CadRuntime {
       params: paramsMap,
       beforeStatement: opts?.beforeStatement,
       setCtxVar: (name, value) => this.executor.setCtxVar(name, value),
+      // keep-syntax §2.2：函数体 exec.keep/keepHidden → ModuleExecutor.internalKeep
+      // （按语句持久；语句重执行前清空本条，缓存命中保留上轮记录）
+      onKeep: (stmtId, names, hidden) => this.executor.registerKeep(stmtId, names, hidden),
     })
     // 预填 shapeToName：持久 ctx 中所有活跃 Shape → 变量名。
     // append/update 只重放新增语句，已执行语句的 Shape 需在此补齐，
@@ -587,13 +602,14 @@ export class CadRuntime {
     return this.collectResult(script, exec, opts)
   }
 
-  /** 从持久 ctx 组装完整 ExecutionResult（outputs / statementCache / brepSolids / topology / compounds）。 */
+  /** 从持久 ctx 组装完整 ExecutionResult（outputs / statementCache / brepSolids / topology / compounds / activeValues）。 */
   private collectResult(script: ScriptIR, exec: ExecContextImpl, opts?: ExecuteOptions): ExecutionResult {
-    const outputs = new Map<PartName, Shape>()
+    const outputs = new Map<PartName, Shape | CompoundShape>()
     for (const meta of this.executor.getMetas()) {
       for (const w of meta.writes) {
         const v = this.executor.getCtxVar(w)
-        if (isShapeLike(v)) outputs.set(asPartName(w), v as Shape)
+        // keep-syntax §5.1：outputs 含所有 shape 变量（mesh + compound，结构判定）
+        if (isShapeLike(v) || isCompoundLike(v)) outputs.set(asPartName(w), v as Shape | CompoundShape)
       }
     }
 
@@ -627,23 +643,35 @@ export class CadRuntime {
     }
 
     // T3-cond: DAG 叶子终端判定（§4.1）
-    // 显式 terminalShapes（return [...]）优先；否则用“最后写者 + 下游无独占消费”算法。
-    // NON_CONSUMING_OPS = {group, assembly, copy} 不消费其右侧引用。
+    // 显式 terminalShapes（return [...]）优先；否则用“最后写者 + 下游无独占消费”算法
+    // （keep-syntax 设计 §3：C0/C1 声明层 + C3/C5 推断层，消费判定由 keep 驱动）。
+    // 收集所有 shape-typed 顶层变量名（含 compound 变量；结构判定 isCompoundLike，
+    // 第三方返回的未注册 compound 同样识别——keep-syntax §5.3）
+    const shapeVarNames = new Set<PartName>()
+    for (const meta of this.executor.getMetas()) {
+      for (const w of meta.writes) {
+        const v = this.executor.getCtxVar(w)
+        if (isShapeLike(v) || isCompoundLike(v)) shapeVarNames.add(asPartName(w))
+      }
+    }
+    // 运行时视图：函数体 exec.keep 登记（ModuleExecutor.internalKeep，C1 判定）——
+    // 省略 view 会退回纯静态（union 的 exec.keepHidden 将不生效，输入被误消费）
+    const view: DagRuntimeView = {
+      value: (name) => this.executor.getCtxVar(name),
+      internalKeep: (stmt) => this.executor.getInternalKeep(stmt.id),
+    }
     const explicitTerminals = script.terminalShapes ?? []
     let terminals: TerminalShape[]
     if (explicitTerminals.length > 0) {
       terminals = explicitTerminals
     } else {
-      // 收集所有 shape-typed 顶层变量名（含 compound 变量）
-      const shapeVarNames = new Set<PartName>()
-      for (const meta of this.executor.getMetas()) {
-        for (const w of meta.writes) {
-          const v = this.executor.getCtxVar(w)
-          if (isShapeLike(v) || isCompound(v)) shapeVarNames.add(asPartName(w))
-        }
-      }
-      terminals = computeLeafTerminals(script, shapeVarNames)
+      terminals = computeLeafTerminals(script, shapeVarNames, view).map((t) => {
+        const v = this.executor.getCtxVar(t.id)
+        return isCompoundLike(v) ? { ...t, kind: 'compound' } : t
+      })
     }
+    // keep-syntax §5.2：活跃但非几何的值 → activeValues（不进 terminals，零回归）
+    const activeValues = this.collectActiveValues(script, view, shapeVarNames)
     const brepSolids = this.extractBrepSolids(script, terminals)
 
     // 装配/分组结构：compound 变量 → 成员变量名列表（Phase 2.4）
@@ -651,7 +679,7 @@ export class CadRuntime {
     for (const meta of this.executor.getMetas()) {
       for (const w of meta.writes) {
         const v = this.executor.getCtxVar(w)
-        if (isCompound(v)) {
+        if (isCompoundLike(v)) {
           const behavior = getSlot(v)?.behavior as { memberNames?: string[] } | undefined
           compounds.set(asPartName(w), (behavior?.memberNames ?? []).map(asPartName))
         }
@@ -699,7 +727,48 @@ export class CadRuntime {
       topology: topology.size > 0 ? topology : undefined,
       compounds: compounds.size > 0 ? compounds : undefined,
       changed: changed.length > 0 ? changed : undefined,
+      activeValues: activeValues.size > 0 ? activeValues : undefined,
     }
+  }
+
+  /**
+   * 收集活跃但非几何的值（keep-syntax 设计 §5.2）→ Map<PartName, unknown>。
+   *
+   * 判定与 computeLeafTerminals 同构：变量 v 的最后一次赋值语句 P 之后，
+   * 没有任何语句消费 v（consumes 判定，C0/C1/C3/C5）→ 该变量是 DAG 叶子。
+   * 叶子且非 shape/compound（第三方测量/查询函数返回的 number/普通对象）→ activeValues。
+   * 几何叶子走 terminals（本函数跳过，零回归）；显式 terminalShapes 分支不受影响。
+   */
+  private collectActiveValues(
+    script: ScriptIR,
+    view: DagRuntimeView,
+    shapeVarNames: Set<PartName>,
+  ): Map<PartName, unknown> {
+    const active = new Map<PartName, unknown>()
+    const lastProducer = new Map<string, number>()
+    script.statements.forEach((stmt, i) => {
+      if (!stmt.hasAssignment) return
+      for (const out of stmt.outputs) lastProducer.set(out, i)
+    })
+    const names = new Set<string>()
+    for (const meta of this.executor.getMetas()) {
+      for (const w of meta.writes) names.add(w)
+    }
+    for (const name of names) {
+      const v = this.executor.getCtxVar(name)
+      if (v === undefined || isShapeLike(v) || isCompoundLike(v)) continue
+      const producerIdx = lastProducer.get(name)
+      if (producerIdx === undefined) continue
+      let consumed = false
+      for (let i = producerIdx + 1; i < script.statements.length; i++) {
+        if (consumes(script.statements[i], asPartName(name), view, shapeVarNames)) {
+          consumed = true
+          break
+        }
+      }
+      if (!consumed) active.set(asPartName(name), v)
+    }
+    return active
   }
 
   /** 逐终端提取 BREP solid（含装配成员 solid）。 */
@@ -737,7 +806,7 @@ export class CadRuntime {
       const members = stmt.args?.members
       if (!Array.isArray(members)) continue
       const shape = this.executor.getCtxVar(out0)
-      if (!isCompound(shape)) continue
+      if (!isCompoundLike(shape)) continue
       for (const m of members) {
         const name = typeof m === 'string' ? m : (m as { $ref?: string } | null)?.$ref
         if (!name) continue
@@ -975,6 +1044,22 @@ export class CadRuntime {
           message: `function "${stmt.callee}" does not exist in the stdlib symbol table`,
           stmtId: stmt.id,
         })
+      }
+    }
+
+    // ②.5 keep 指令校验（keep-syntax 设计 §7.4：纯静态，不依赖第三方签名）。
+    // 引用目标必须是本语句 inputs 之一或 args 中的变量；keepHidden 必须是 boolean。
+    for (const stmt of script.statements) {
+      for (const msg of validateKeepDirectives(stmt)) {
+        errors.push({ stage: 'keep', message: msg, stmtId: stmt.id })
+      }
+      // E4：keep* 前缀的未识别键（keeps 等拼写错误）→ warning（未知键会透传给 params）
+      for (const key of Object.keys(stmt.args ?? {})) {
+        if (key.startsWith('keep') && key !== 'keep' && key !== 'keepHidden') {
+          warnings.push(
+            `statement "${stmt.id}": unknown keep-prefixed option "${key}" (did you mean "keep"?)`,
+          )
+        }
       }
     }
 

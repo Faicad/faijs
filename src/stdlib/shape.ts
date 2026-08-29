@@ -55,9 +55,24 @@ export function isShape(v: unknown): v is Shape {
   return !!v && typeof v === 'object' && created.has(v)
 }
 
-/** 是否为 compound Shape。 */
+/** 是否为 compound Shape（构造器产物，WeakSet 严格判定）。 */
 export function isCompound(v: unknown): v is CompoundShape {
   return isShape(v) && (v as { kind?: string }).kind === 'compound'
+}
+
+/**
+ * 结构判定：是否为 compound 形态（keep-syntax 设计 §5.3，D5）。
+ *
+ * 引擎内部的终端/消费判定用结构判定（对第三方零要求）：第三方库直接返回
+ * `{kind:'compound', children:[...]}` 而未经 SDK `compound()` → `isShape` false、
+ * 又无 `positions` → 旧 `isCompound` 完全不识别、静默丢失；`isCompoundLike`
+ * 按结构识别（与 runtime 的 `isShapeLike` 鸭子类型同一风格）。
+ * SDK 公开的 `isShape`/`isCompound` 保持 WeakSet 严格（身份槽依赖它）。
+ */
+export function isCompoundLike(v: unknown): v is CompoundShape {
+  return !!v && typeof v === 'object'
+    && (v as { kind?: string }).kind === 'compound'
+    && Array.isArray((v as { children?: unknown }).children)
 }
 
 // ── 身份槽（WeakMap<Shape, ShapeSlot>） ──

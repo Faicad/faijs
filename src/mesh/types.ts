@@ -37,16 +37,15 @@ export interface Shape {
   indices: Uint32Array
 }
 
-// ── ReadonlyShape 品牌类型（设计文档 §4.5-2） ──
-
-declare const readonlyBrand: unique symbol
-
 /**
- * Shape 类型的强化：承诺本函数不修改、不消费该入参。
- * 可选品牌属性使任何 Shape 可赋给 ReadonlyShape 形参（调用方零负担）。
- * 它是文档 + 符号表提取源 + 实现契约；契约靠契约测试守护，不靠类型系统强制。
+ * 结构判定：是否为 mesh Shape（positions/indices 鸭子类型，对第三方零要求）。
+ *
+ * keep-syntax 设计 §5（D5）：宿主消费 ExecutionResult.outputs 时用本守卫
+ * 区分 mesh Shape 与 compound（outputs 现含两者）。与运行时内部 isShapeLike 同风格。
  */
-export type ReadonlyShape = Shape & { readonly [readonlyBrand]?: true }
+export function isMeshShape(v: unknown): v is Shape {
+  return !!v && typeof v === 'object' && 'positions' in v && 'indices' in v
+}
 
 // ── 创建参数 ──
 

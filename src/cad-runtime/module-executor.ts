@@ -13,6 +13,7 @@
 
 import type { CompiledStatementMeta } from '../lang/compile'
 import type { StatementIR, ScriptIR } from '../lang/types'
+import { withoutKeepDirectives, type InternalKeepRecord } from '../lang/keep'
 import type { Shape } from '../mesh/types'
 import type { ShapeHandle } from 'occt-wasm'
 import type { PartName, StmtId } from '../identity'
@@ -68,6 +69,12 @@ export class ModuleExecutor {
   private stmts = new Map<StmtId, CompiledStatement>()
   /** statementKey 缓存（增量判定；key = op|JSON(args)|deps 的 outputContentKey） */
   private cache = new Map<StmtId, { key: string; outputContentKey: string }>()
+  /**
+   * 函数体 keep 登记（keep-syntax 设计 §2.2）：
+   * stmtId → { kept, hidden }。语句执行前清空本条记录，执行中累加；
+   * 本轮未执行（缓存命中）→ 保留上一轮记录（keep 零重算的前提）。
+   */
+  readonly internalKeep = new Map<StmtId, InternalKeepRecord>()
   private sourceById = new Map<StmtId, StatementIR>()
   private metaById = new Map<StmtId, CompiledStatementMeta>()
   private script: ScriptIR = { params: [], statements: [] }
@@ -131,6 +138,8 @@ export class ModuleExecutor {
         .map((w) => this.getSolid?.(asPartName(w)))
         .filter((h): h is ShapeHandle => !!h)
       exec.currentStmt = source
+      // keep 登记先清空本条记录：重执行的语句重新登记（执行中累加，设计 §2.2）
+      this.internalKeep.delete(id)
       if (source && source.hasAssignment) {
         exec.beforeStatement?.(source, this.script.statements.indexOf(source))
       }
@@ -182,6 +191,10 @@ export class ModuleExecutor {
         delete this.ctx[key]
       }
     }
+    // keep 登记同步修剪：语句已不在脚本中（undo 删除）→ 其 keep 声明失效
+    for (const id of [...this.internalKeep.keys()]) {
+      if (!activeStmtIds.has(id)) this.internalKeep.delete(id)
+    }
   }
 
   // ── 缓存访问（plan / collectResult 用） ──
@@ -197,12 +210,31 @@ export class ModuleExecutor {
     this.metaById.clear()
     this.stmts.clear()
     this.sourceById.clear()
+    this.internalKeep.clear()
     this.lastCode = ''
   }
 
   /** 读取某语句的 statementKey 缓存。 */
   getCachedKey(id: StmtId): { key: string; outputContentKey: string } | undefined {
     return this.cache.get(id)
+  }
+
+  /** 读取某语句的函数体 keep 登记（terminal-dag C1 判定用；无登记返回 undefined）。 */
+  getInternalKeep(id: StmtId): InternalKeepRecord | undefined {
+    return this.internalKeep.get(id)
+  }
+
+  /** 函数体 keep 登记（ExecContextImpl.onKeep 回调落地；执行中累加）。 */
+  registerKeep(id: StmtId, names: PartName[], hidden: boolean): void {
+    let rec = this.internalKeep.get(id)
+    if (!rec) {
+      rec = { kept: new Set(), hidden: new Map() }
+      this.internalKeep.set(id, rec)
+    }
+    for (const n of names) {
+      rec.kept.add(n)
+      rec.hidden.set(n, hidden)
+    }
   }
 
   /** 读取 ctx 变量。 */
@@ -224,6 +256,7 @@ export class ModuleExecutor {
   clear(): void {
     for (const key of Object.keys(this.ctx)) delete this.ctx[key]
     this.cache.clear()
+    this.internalKeep.clear()
     this.stmts.clear()
     this.lastCode = ''
   }
@@ -254,7 +287,8 @@ export class ModuleExecutor {
   }
 
   /**
-   * statementKey = op | JSON(args) | 各依赖的 outputContentKey（参数语句 = 参数值）。
+   * statementKey = op | JSON(args without keep) | 各依赖的 outputContentKey（参数语句 = 参数值）。
+   * keep/keepHidden 两键排除（keep-syntax 设计 §7.2）：切换保留/隐藏状态零几何重算。
    * 供 plan() 在重算前用当前 cache 计算预期 key 做增量判定。
    */
   computeKey(meta: CompiledStatementMeta, source: StatementIR | undefined): string {
@@ -264,7 +298,7 @@ export class ModuleExecutor {
       return `param|${JSON.stringify(p?.value)}`
     }
     const parts = [source.callee]
-    parts.push(JSON.stringify(source.args))
+    parts.push(JSON.stringify(withoutKeepDirectives(source.args)))
     for (const dep of meta.deps) {
       const ck = this.cache.get(dep)?.outputContentKey
       parts.push(ck ?? 'missing')

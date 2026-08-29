@@ -1,85 +1,133 @@
 /**
- * terminal-dag — DAG 叶子终端判定（纯函数，符号表驱动）
+ * terminal-dag — DAG 叶子终端判定（keep 驱动，C0/C1/C3/C5）
  *
- * 设计文档：docs/plans/2026-08-27-restore-dag-terminal-detection.md §4.1
- *          docs/plans/2026-08-27-faijs-language-normalization-design.md §4.8
- * 实施文档：docs/plans/2026-08-27-faijs-language-normalization-implementation.md §5.5
+ * 设计文档：docs/plans/2026-08-28-keep-syntax-design.md §3 / §6
  *
- * 核心语义（用户 2026-08-27 澄清，最简）：
+ * 核心语义（keep 统一机制）：
  * - 一个变量是否进终端 = 它「是否被消费」。被消费 → 不进终端。
- * - "被消费" = 存在一条**独占**语句 T，其 index > 该变量最后一条赋值语句 P，
- *   且 `consumes(T, v)` 判定 T 消费了该变量（符号表驱动，B1 消灭 NON_CONSUMING_OPS）。
+ * - "被消费" = 存在一条语句 T（位于该变量最后一条赋值语句 P 之后）判定 T 消费了该变量。
+ *
+ * 单条语句 T 对变量 v 的消费判定（C0 → C3 → C5，短路）：
+ * - C0/C1：v ∈ resolveKeep(T).kept（调用点 keep 或函数体 exec.keep 声明）→ 不消费。
+ *   声明层是「有人表态」：用户/库作者显式声明保留。
+ * - C3：T 有赋值且所有输出都是非几何（outputs 均不在 shapeVarNames）→ 不消费任何输入。
+ *   推断层客观默认：faijs 执行模型是纯函数链，「返回非几何的函数不可能把几何吞进结果」
+ *   ——零签名知识，第三方测量/查询函数的输入不被误吃（R9）。
+ * - C5：默认消费（drill/transform/未声明保留的第三方几何函数）。
+ * - 嵌套调用（CallRefIR）中的引用 = 只读查询，不消费（既有规则，与 C3 同精神）。
+ * - receiver（成员方法调用，add_constraint/do_assemble）不消费 receiver 变量。
+ *
+ * hidden（D1/D2）：「最后一次保留声明胜出」——按语句顺序遍历，
+ * 后声明的保留条目压过先前的（union 的 keepHidden 被 group 的 keep 覆盖为可见）。
  *
  * 判定单位是 PartName（不涉及 StmtId），与 partN 命名天然兼容。
  */
 
 import type { ScriptIR, TerminalShape, StatementIR, ArgIR } from '../lang/types'
 import type { PartName } from '../identity'
-import { getFunctionSymbol } from '../lang/symbol-table'
 import { isVarRef, isCallRef } from '../lang/types'
+import { resolveKeep, type InternalKeepRecord } from '../lang/keep'
 
 /**
- * 判定语句 stmt 是否"消费"变量 v（替换 NON_CONSUMING_OPS 查表）。
- * 规则（设计文档 §4.8）：
- * - 未知 callee → 无 readonly 信息 → 右侧出现即消费（默认）
- * - 嵌套调用（CallRefIR）中的引用 = 只读查询，不消费
- * - 符号表标记的 readonly 位置/路径不消费（copy 的源、group/assembly 的 members）
- * - receiver（成员方法调用，如 add_constraint / do_assemble）是**原地修改** compound：
- *   它**不消费** receiver 变量，compound 仍作为终端显示。只有出现在右侧 args 中的
- *   普通 shape 引用才按 readonly 规则判定是否消费（设计 §4.8：仅函数调用的输入 shape 被消费）。
+ * DAG 运行时视图（设计契约 §6）：terminal-dag 从运行时读取函数体 keep 登记。
+ * 省略 view → 纯静态判定（C0 + C3 + C5，无 C1 函数体声明信息）。
  */
-export function consumes(stmt: StatementIR, v: PartName): boolean {
-  // inputs：位置引用（符号表 readonlyPositions 命中的位置不消费）
-  const idx = stmt.inputs.indexOf(v)
-  if (idx >= 0) {
-    const info = getFunctionSymbol(stmt.callee)
-    if (!info?.readonlyPositions?.includes(idx)) return true
+export interface DagRuntimeView {
+  /** 变量当前值（运行时；纯静态场景无值） */
+  value(name: PartName): unknown
+  /** 函数体 exec.keep 登记（ModuleExecutor.internalKeep，缓存命中时保留上一轮记录） */
+  internalKeep(stmt: StatementIR): InternalKeepRecord | undefined
+}
+
+/**
+ * 判定语句 stmt 是否"消费"变量 v（keep 驱动，C0 → C3 → C5 短路）。
+ *
+ * @param stmt 待判定语句
+ * @param v 变量名（PartName）
+ * @param view 运行时视图（省略 → 纯静态，无函数体声明信息）
+ * @param shapeVarNames 所有 shape-typed 顶层变量名集合（C3 判定依据）
+ */
+export function consumes(
+  stmt: StatementIR,
+  v: PartName,
+  view?: DagRuntimeView,
+  shapeVarNames?: Set<PartName>,
+): boolean {
+  // C0/C1：保留声明优先——被声明保留的变量不被本语句消费
+  const resolved = resolveKeep(stmt, view?.internalKeep(stmt))
+  if (resolved.kept.has(v)) return false
+
+  // C3：本语句有赋值且所有输出都是非几何 → 纯数据/测量/查询语句，不消费任何输入
+  if (
+    stmt.hasAssignment &&
+    stmt.outputs.length > 0 &&
+    shapeVarNames !== undefined &&
+    stmt.outputs.every((o) => !shapeVarNames.has(o))
+  ) {
+    return false
   }
-  // args：递归扫描 VarRefIR（CallRefIR 内不消费；readonlyPaths 属性内不消费）
+
+  // C5：默认消费。inputs：位置引用
+  if (stmt.inputs.includes(v)) return true
+
+  // args：递归扫描 VarRefIR（CallRefIR 内不消费 = 只读查询）
   let consumed = false
-  const scan = (value: ArgIR, inCallRef: boolean, path: string[]): void => {
+  const scan = (value: ArgIR, inCallRef: boolean): void => {
     if (consumed) return
     if (value === null || typeof value !== 'object') return
     if (isVarRef(value)) {
       if (value.$ref !== v) return
       if (inCallRef) return                       // 嵌套调用内 = 只读查询
-      const info = getFunctionSymbol(stmt.callee)
-      // readonlyPaths 匹配路径首段（如 members）
-      if (info?.readonlyPaths?.includes(path[0] ?? '')) return
       consumed = true
       return
     }
     if (isCallRef(value)) {
-      for (const a of value.$call.args) scan(a, true, path)
+      for (const a of value.$call.args) scan(a, true)
       return
     }
     if (Array.isArray(value)) {
-      for (const item of value) scan(item as ArgIR, inCallRef, path)
+      for (const item of value) scan(item as ArgIR, inCallRef)
       return
     }
-    for (const [k, vv] of Object.entries(value)) scan(vv as ArgIR, inCallRef, [...path, k])
+    for (const vv of Object.values(value)) scan(vv as ArgIR, inCallRef)
   }
-  for (const [k, vv] of Object.entries(stmt.args)) scan(vv, false, [k])
+  for (const vv of Object.values(stmt.args ?? {})) scan(vv, false)
   return consumed
 }
 
 /**
- * 计算 DAG 叶子终端集合。
+ * 计算 DAG 叶子终端集合（keep 驱动）。
  *
- * 遍历每个 shape 变量名（含 compound 变量），"最后写者 P + 其后无独占语句消费该变量"
- * 即终端（消费判定换 consumes，B1 消灭）。
+ * 遍历每个 shape 变量名（含 compound 变量）：
+ * - 「最后写者 P + 其后无语句消费该变量」→ 终端；
+ * - 被 keep 声明保留的变量不被声明语句消费（C0/C1 在 consumes 内短路）。
+ *
+ * hidden（D2）：按语句顺序应用「最后一次保留声明胜出」；未声明保留的终端可见
+ * （hidden 为 undefined）。
  *
  * @param script 已解析的 ScriptIR（statements 含 outputs/refs）
  * @param shapeVarNames 所有 shape-typed 顶层变量名集合（含 compound 变量名）
+ * @param view 运行时视图（省略 → 纯静态判定，供纯静态单测/工具）
  * @returns 终端列表（TerminalShape[]），去重
  */
 export function computeLeafTerminals(
   script: ScriptIR,
   shapeVarNames: Set<PartName>,
+  view?: DagRuntimeView,
 ): TerminalShape[] {
   const statements = script.statements
   const terminals: TerminalShape[] = []
   const seen = new Set<string>()
+
+  // 0. hidden 计算（D2：最后一次保留声明胜出）——按语句顺序遍历，
+  //    每个 kept 变量的 hidden 被后续声明覆盖。
+  const hiddenOf = new Map<PartName, boolean>()
+  for (const stmt of statements) {
+    const resolved = resolveKeep(stmt, view?.internalKeep(stmt))
+    for (const v of resolved.kept) {
+      hiddenOf.set(v, resolved.hidden.get(v) ?? false)
+    }
+  }
 
   // 1. 预计算每个变量名 → 最后一条 outputs 含该名的语句下标
   const lastProducer = new Map<string, number>()
@@ -99,24 +147,33 @@ export function computeLeafTerminals(
     const producerIdx = lastProducer.get(partName)
     // 无生产者（如手工注入的变量）→ 视为终端
     if (producerIdx === undefined) {
-      terminals.push({ id: partName })
+      terminals.push(makeTerminal(partName, hiddenOf))
       continue
     }
 
-    // 检查 producer 之后是否有语句消费该变量（符号表驱动 consumes）
+    // 检查 producer 之后是否有语句消费该变量（keep 驱动 consumes）
     let consumed = false
     for (let i = producerIdx + 1; i < statements.length; i++) {
-      const stmt = statements[i]
-      if (consumes(stmt, partName)) {
+      if (consumes(statements[i], partName, view, shapeVarNames)) {
         consumed = true
         break
       }
     }
 
     if (!consumed) {
-      terminals.push({ id: partName })
+      terminals.push(makeTerminal(partName, hiddenOf))
     }
   }
 
   return terminals
+}
+
+/**
+ * 组装终端条目（设计 §6：hidden 缺省 undefined → 可见）。
+ * 只有显式 hidden=true 才带 hidden 字段；可见（false/未声明）归一为 undefined，
+ * 与宿主 `setNodeVisible(scopedId, !terminal.hidden)` 的消费语义一致。
+ */
+function makeTerminal(id: PartName, hiddenOf: Map<PartName, boolean>): TerminalShape {
+  const hidden = hiddenOf.get(id)
+  return hidden ? { id, hidden: true } : { id }
 }

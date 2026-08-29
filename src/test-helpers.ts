@@ -43,6 +43,9 @@ export async function executeScript(
   }
   const lastStmt = newShapeStmts[newShapeStmts.length - 1]
   const finalShape = result.outputs.get(lastStmt.outputs[0])!
+  if (!('positions' in finalShape) || !('indices' in finalShape)) {
+    throw new Error(`[executeScript] final output "${lastStmt.outputs[0]}" is not a mesh shape`)
+  }
   const contentKey = computeContentKey(finalShape.positions, finalShape.indices)
 
   return {

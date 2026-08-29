@@ -1,5 +1,7 @@
 # faijs 执行架构设计：JS VM 执行 + op 即库函数
 
+> ⚠️ **过时修正（2026-08-29）**：本文档为历史方案，正文未改动。其中"先解析后执行，**绝不 eval**"表述已过时——faijs 的准确执行模型是**先解析后编译、执行交给 JS 虚拟机**（acorn 解析 → ScriptIR → `compileToModule` 编译零 import ESM → data:/Blob URL 动态 import 执行；用户原文不进 VM）。权威表述见 `docs/syntax-design.md` §6 与 `docs/api-contract.md` R-2。
+
 - 日期：2026-08-25
 - 状态：待评审
 

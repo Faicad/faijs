@@ -87,8 +87,14 @@ async function booleanMesh(inputs: Shape[], operation: BooleanOperation): Promis
   return result
 }
 
-/** 共享内部实现：operation 从参数改为入参。 */
+/** 共享内部实现：operation 从参数改为入参。
+ *
+ * 函数体 keep 声明（keep-syntax 设计 §2.5）：union/subtract/intersect 保留其
+ * 输入且隐藏（R5：3d_editor 现状）——exec.keepHidden 使源变量保持终端但 canvas
+ * 不渲染，只有布尔结果正常显示。
+ */
 async function booleanImpl(operation: BooleanOperation, inputs: Shape[], params: Record<string, unknown>, exec: ExecContext): Promise<Shape> {
+  if (inputs.length > 0) exec.keepHidden(...inputs)
   const path = resolvePath(exec, inputs, brepImpl)
   if (path === 'brep') return booleanBrep(inputs, operation, exec)
   return solid(await booleanMesh(inputs, operation))

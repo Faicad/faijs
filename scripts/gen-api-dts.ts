@@ -154,13 +154,13 @@ const API_ENTRIES: Record<string, ApiEntry> = {
     inputs: 0,
     params: '{ name?: string; members?: readonly Shape[] }',
     returns: 'Shape',
-    note: 'members are read-only references (ReadonlyShape[]); group does not consume them',
+    note: 'members are kept via function-body exec.keep (visible); group does not consume them',
   },
   assembly: {
     inputs: 0,
     params: '{ name?: string; members?: readonly Shape[]; constraints?: any[] }',
     returns: 'Shape',
-    note: 'members are read-only references; assembly does not consume them',
+    note: 'members are kept via function-body exec.keep (visible); assembly does not consume them',
   },
 
   // ── 克隆 ──
@@ -168,7 +168,7 @@ const API_ENTRIES: Record<string, ApiEntry> = {
     inputs: 1,
     params: 'never',
     returns: 'Shape',
-    note: 'input is ReadonlyShape; copy does not consume it',
+    note: 'input is kept via function-body exec.keep (visible); copy does not consume it',
   },
 
   // ── 几何查询 ──

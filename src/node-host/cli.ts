@@ -23,6 +23,7 @@ import { exportStepFromSolid } from '../brep/export/step'
 import { exportStep } from '../occt-kernel/highLevelApi'
 import { initOcctWasm } from '../occt-kernel/occtKernel'
 import type { Shape } from '../mesh/types'
+import type { CompoundShape } from '../stdlib/shape'
 import type { ShapeHandle, OcctKernel } from 'occt-wasm'
 import { asPartName } from '../identity'
 
@@ -176,13 +177,22 @@ export async function cliRun(
  * - 有 BREP solid → 精确 STEP（exportStepFromSolid，ADVANCED_FACE）
  * - 无 BREP solid → 三角化 STEP（exportStep/meshesToStep，faceted）
  * - STL：无论是否 BREP，都取 mesh Shape 导出
+ *
+ * keep-syntax §5.1：outputs 现含 compound（group/assembly 产物，无 mesh）；
+ * compound 无法导出，给出明确错误（此前"不在 outputs 中"是静默失败）。
  */
 function writeOutput(
   outPath: string,
   ext: string,
-  shape: Shape,
+  shape: Shape | CompoundShape,
   brepSolid?: { solid: ShapeHandle; kernel: OcctKernel },
 ): CliRunResult {
+  if (!('positions' in shape) || !('indices' in shape)) {
+    return {
+      ok: false,
+      error: `Output "${outPath}" is a compound (group/assembly) with no exportable mesh; export a member shape instead`,
+    }
+  }
   if (ext === 'stl') {
     const buffer = buildStlBufferFromMesh(shape.positions, shape.indices)
     writeFileSync(outPath, Buffer.from(buffer))

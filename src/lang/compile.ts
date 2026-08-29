@@ -28,6 +28,7 @@ import type {
   CallRefIR,
 } from './types'
 import { isParamRef, isVarRef, isCallRef } from './types'
+import { withoutKeepDirectives } from './keep'
 import { fmtNum } from './codegen'
 import { asStmtId, type StmtId } from '../identity'
 
@@ -156,8 +157,13 @@ function getStatementRefs(stmt: StatementIR): string[] {
 /** 生成单条语句的 fn 体（缩进 6 空格，嵌入模块文本）。纯机械：按 IR 形态发射，无 callee 分支（A9 消灭）。 */
 function buildStatementFnBody(stmt: StatementIR): string {
   const inputs = stmt.inputs.map((inp) => `ctx.${inp}`).join(', ')
-  const argsStr = translateArgs(stmt.args)
-  const hasArgs = Object.keys(stmt.args).length > 0
+  // 调用点 keep 指令发射前剥离（keep-syntax 设计 §7.1）：keep 透传会挤占
+  // params 槽 / 被当 Shape 传入（union/split 的 ...rest、copy 的双参签名）。
+  // 顺序是硬要求：先剥离再算 hasArgs（cad.union(a,b,{keep:[a,b]}) 剥离后为空
+  // → hasArgs=false → 发射 cad.union(ctx.a, ctx.b, exec)，与现状逐字一致）。
+  const runtimeArgs = withoutKeepDirectives(stmt.args)
+  const argsStr = translateArgs(runtimeArgs)
+  const hasArgs = Object.keys(runtimeArgs).length > 0
 
   // 调用实参序列：有 inputs 则前置；有 args 则后置（空 args 不发射，§5.1 空槽规则）
   const callArgs = inputs

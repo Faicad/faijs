@@ -120,12 +120,19 @@ export interface ScriptMetaIR {
   appearance?: { color?: string; metalness?: number; roughness?: number }
 }
 
+/** 终端变量类型（keep-syntax 设计 §6：运行时登记，缺省 'shape'）。 */
+export type VarKind = 'shape' | 'compound' | 'value'
+
 /** 终端 shape：return 数组/DAG 叶子判定列出的最终输出（设计文档 §2.2 / §4.1） */
 export interface TerminalShape {
   /** 终端左值变量名（PartName，如 'part0'）——终端按变量名（outputs）标识，非语句 id */
   id: PartName
   /** 该终端 mesh 的独立 meta（name/appearance） */
   meta?: ScriptMetaIR
+  /** 变量类型（'shape' | 'compound' | 'value'），运行时登记，缺省 'shape' */
+  kind?: VarKind
+  /** 保留但 canvas 不渲染（keep-syntax 设计 §6），缺省 undefined → 可见 */
+  hidden?: boolean
 }
 
 export interface ScriptIR {

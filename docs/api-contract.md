@@ -69,7 +69,7 @@
 ## 2. 铁律（写进契约，后续任何实现都不得违反）
 
 - **R-1 单一几何实现**：语句 op 与几何核心函数一一映射，参数编排只发生在几何核心内。禁止「UI 一份、重放一份」两份实现。每个 op 内置 BREP 与 Mesh 两条执行路径，切换由**静态规则**判定，**严禁运行时 try-catch BREP 异常后回退 Mesh**（BREP 路径执行抛异常 = 设计缺陷或 bug，直接报错暴露）。
-- **R-2 用户原文不直接执行（先解析后编译，JS VM 执行）**：`.faijs` 是合法 JS 子集，加载时先经 acorn 解析还原为结构化语句（白名单语法闸门：无控制流等），再由 `compileToModule` 编译为引擎生成的**零 import ESM 模块**，经 `data:`/Blob URL 动态 import 在 JS VM 中执行。安全边界 = parser 白名单 + 编译产物由引擎生成（用户原文不进 VM）——**不直接 eval 用户文本**（`sdf-core.ts` 的 `new Function` 是对 SDF 用户传入的函数体求值，属 sdf 后端固有行为，不在主脚本路径）。
+- **R-2 用户原文不直接执行（先解析后编译，JS VM 执行）**：`.faijs` 是合法 JS 子集，加载时先经 acorn 解析还原为结构化语句（语法闸门：拒绝控制流等禁止形态），再由 `compileToModule` 编译为 ESM 产物，经 JS VM 动态 import 执行。安全边界 = parser 语法闸门 + 编译产物由引擎生成（用户原文不进 VM）——**不直接 eval 用户文本**（`sdf-core.ts` 的 `new Function` 是对 SDF 用户传入的函数体求值，属 sdf 后端固有行为，不在主脚本路径）。**当前实现的产物是零 import ESM**（`data:`/Blob URL 加载）——这是**实现取舍而非规范要求**，见 `docs/syntax-design.md` §6.1。
 - **R-3 命名与终端语义由引擎统一**：`partN` 命名规则、DAG 叶子终端判定、消费合法性静态校验全部封装在 faijs（`allocate-id.ts` / `terminal-dag.ts` / `parser.ts`），宿主不重复实现。
 - **R-4 坐标空间约定**：毫米（mm）、+Z 向上、角度用度。所有 `cad.*` 输入/输出均为世界空间 `Shape`；局部↔世界变换由宿主/执行器负责，几何核心不读网格的世界矩阵。
 - **R-5 BREP 链是逐 part 的**：一个 part 是否仍为 BREP，由 `solidCache` 中是否有它的句柄唯一决定；不存在全局 `brepActive` 标志，兄弟 part 互不污染。
@@ -193,8 +193,9 @@ export interface PartScript {
 
 ## 5. 语法契约（`.faijs` 合法 JS 子集）
 
-- `.faijs` 必须是 **JavaScript 的合法子集**——任意 JS 解析器（acorn）都能无错解析。加载流程：**acorn 解析（白名单语法闸门）→ `compileToModule` 编译为引擎生成的零 import ESM 模块 → JS VM 动态 import 执行**。用户原文不直接执行（不 eval 用户文本）；编译产物由引擎从 IR 生成，加载走 `data:`/Blob URL。
-- **禁止**：控制流（if/for/while）、`param`/`with` 关键字、循环/条件/IIFE/try-catch/模板字符串、`eval`/`new Function`/动态 `import()`、除 split 外的解构、函数定义。越界一律 `ParseError`。
+- `.faijs` 必须是 **JavaScript 的合法子集**——任意 JS 解析器（acorn）都能无错解析。加载流程：**acorn 解析（语法闸门：拒绝控制流等禁止形态）→ `compileToModule` 编译为 ESM 产物 → JS VM 动态 import 执行**。用户原文不直接执行（不 eval 用户文本）；编译产物由引擎从 IR 生成（当前实现为零 import ESM，走 `data:`/Blob URL——实现取舍，见 `docs/syntax-design.md` §6.1）。
+- **禁止（规范要求）**：控制流（if/for/while/do/switch/try）、动态 `import()`、`eval`/`new Function`、`export`。越界一律 `ParseError`（控制流给专用错误码，路线图 V1.5）。
+- **当前实现额外限制（临时，非规范）**：`param`/`with` 关键字、IIFE、模板字符串、函数定义、任意表达式语句等——这些是 parser 白名单的现状，随 V1 语言正常化逐步放开，见开发计划 `docs/plans/2026-08-29-faijs-normal-js-subset.md`。任意 callee 解构已支持（`const { a, b } = cad.mySplit(x)` 合法）。
 - **平铺格式**（`scriptToCode` 产出，无 `export default` 包裹、无 `return`、无 `apiVersion` 头）：
 
 ```js

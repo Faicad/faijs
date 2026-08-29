@@ -229,6 +229,7 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
     // cube_v0 → faceted STEP (meshesToStep)
     const cubeShape = result.outputs.get(asPartName('cube_v0'))!
     expect(cubeShape).toBeDefined()
+    if (!('positions' in cubeShape)) throw new Error('cube_v0 should be a mesh shape')
     const facetedStep = exportStep(cubeShape)
     // Faceted STEP from mesh should NOT contain CYLINDRICAL_SURFACE
     // (cube-10x5x5.stl is a plain box with no cylindrical surfaces)
@@ -311,6 +312,9 @@ describe('Pivot parity: rotate(anglesDeg, pivot) — BREP vs mesh path consisten
     // Compare bounding boxes — they should be close (pivot was applied in both paths)
     const brepShape = brepResult.outputs.get(asPartName('s2'))!
     const meshShape = meshResult.outputs.get(asPartName('s2'))!
+    if (!('positions' in brepShape) || !('positions' in meshShape)) {
+      throw new Error('s2 should be a mesh shape in both modes')
+    }
 
     // Calculate bounding boxes
     function bbox(positions: Float32Array) {
@@ -373,8 +377,13 @@ describe('Pivot parity: rotate(anglesDeg, pivot) — BREP vs mesh path consisten
       return { xmin, ymin, xmax, ymax }
     }
 
-    const brepBB = bbox(brepResult.outputs.get(asPartName('s2'))!.positions)
-    const meshBB = bbox(meshResult.outputs.get(asPartName('s2'))!.positions)
+    const brepShape2 = brepResult.outputs.get(asPartName('s2'))!
+    const meshShape2 = meshResult.outputs.get(asPartName('s2'))!
+    if (!('positions' in brepShape2) || !('positions' in meshShape2)) {
+      throw new Error('s2 should be a mesh shape in both modes')
+    }
+    const brepBB = bbox(brepShape2.positions)
+    const meshBB = bbox(meshShape2.positions)
 
     // Without pivot, both paths rotate around origin
     // BREP and mesh should produce similar results

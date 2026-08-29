@@ -8,7 +8,7 @@
  * 宿主不得用 acorn 自行解析（B3 修正）。
  */
 
-import type { ArgIR } from './types'
+import type { JsonValue } from './types'
 import { parseScript } from './parser'
 
 /**
@@ -73,7 +73,7 @@ function declaredByLine(line: string): Set<string> {
  *
  * @throws ParseError — 行文本不是合法语句时抛出（含行号）
  */
-export function codeToArgs(codeLine: string): Record<string, ArgIR> {
+export function codeToArgs(codeLine: string): Record<string, JsonValue> {
   const decls = extractIdentifiers(codeLine)
     .map((id) => `let ${id} = cad.assembly({})`)
     .join('\n')
@@ -81,5 +81,8 @@ export function codeToArgs(codeLine: string): Record<string, ArgIR> {
   const { script } = parseScript(code)
   const last = script.statements[script.statements.length - 1]
   if (!last) return {}
-  return last.args
+  // Args on the wire are JSON-shaped data (ParamRef/VarRef/CallRef are plain
+  // objects like { $param } / { $ref } / { $call }); the host contract face is
+  // JsonValue — IR types never leak to the host (IR strip red line).
+  return last.args as unknown as Record<string, JsonValue>
 }

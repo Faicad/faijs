@@ -106,11 +106,15 @@ export type { OcctKernel, ShapeHandle, WasmTessellatedMesh, Mesh, MeshDeflection
 export { solveFaceMate, applyTransform } from './stdlib/compound'
 export type { FaceMateConstraint, AssemblyConstraint } from './stdlib/compound'
 
+// keep-syntax（P7）：宿主守卫——outputs 现含 compound，消费端须区分
+export { isCompoundLike } from './stdlib/shape'
+export { isMeshShape } from './mesh/types'
+
 // ═══════════════════════════════════════════════════════════
 // C 类：执行产物类型（Shape + 拓扑数据类型 + buildSelectorRuntimeMaps）
 // ═══════════════════════════════════════════════════════════
 
-export type { Shape, ReadonlyShape } from './mesh/types'
+export type { Shape } from './mesh/types'
 
 // 拓扑数据类型
 export type { SelectorRuntimeData } from './topology/build-selector-runtime'

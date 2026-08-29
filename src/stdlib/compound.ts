@@ -13,18 +13,18 @@
  * 对 moving 成员施加 face_mate 变换（mesh 顶点烘焙 + BREP 刚体变换 + 下游传播）。
  */
 
-import type { Shape, ReadonlyShape } from '../mesh/types'
+import type { Shape } from '../mesh/types'
 import { compound as makeCompound, ensureSlot, type CompoundShape } from './shape'
 import { applyTransformBrep } from '../brep/brep-ops'
 import type { ExecContext } from '../cad-runtime/exec-context'
 import type { PartName } from '../identity'
 
-// ── 参数类型（设计文档 §4.6：members readonly 标注供符号表提取） ──
+// ── 参数类型（keep-syntax 设计 §2.5：成员保留由函数体 exec.keep 显式声明，不再靠类型标注） ──
 
 export interface GroupParams {
   name?: string
   /** Compound members: read-only references, never mutated by group/assembly. */
-  members?: readonly ReadonlyShape[]
+  members?: Shape[]
   memberNames?: string[]
 }
 
@@ -274,10 +274,13 @@ function deriveMemberNames(params: { memberNames?: unknown; members?: unknown },
 /**
  * `cad.group({ name, members }, exec)` → compound Shape。
  * members 是成员 Shape（编译产物 ctx.<var> 引用），成员名从 IR 元数据推导。
+ *
+ * 函数体 keep 声明（keep-syntax 设计 §2.5）：group 保留其成员且可见（R6）。
  */
 export function group(params: GroupParams, exec: ExecContext): CompoundShape {
   const members = (params.members as Shape[] | undefined) ?? []
   const memberNames = deriveMemberNames(params, exec)
+  if (members.length > 0) exec.keep(...members)
   const c = makeCompound(members)
   // 挂最小 behavior（memberNames 供 ExecutionResult.compounds 结构输出；group 无约束）
   ensureSlot(c).behavior = { memberNames, constraints: [], solve: () => {} }
@@ -287,12 +290,15 @@ export function group(params: GroupParams, exec: ExecContext): CompoundShape {
 /**
  * `cad.assembly({ name, members, constraints }, exec)` → compound Shape + AssemblyBehavior。
  * 挂 do_assemble 方法（编译产物 `ctx.<asm>.do_assemble(exec)` 调用）。
+ *
+ * 函数体 keep 声明（keep-syntax 设计 §2.5）：assembly 保留其成员且可见（R6）。
  */
 export function assembly(params: AssemblyParams, exec: ExecContext): CompoundShape {
   const members = (params.members as Shape[] | undefined) ?? []
   const memberNames = deriveMemberNames(params, exec)
   const constraints = (params.constraints as AssemblyConstraint[] | undefined) ?? []
 
+  if (members.length > 0) exec.keep(...members)
   const c = makeCompound(members)
   const behavior: AssemblyBehavior = {
     name: params.name as string | undefined,

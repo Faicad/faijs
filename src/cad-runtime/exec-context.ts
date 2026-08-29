@@ -16,7 +16,7 @@ import type { Shape } from '../mesh/types'
 import type { BrepChainState } from '../brep/brep-chain'
 import type { ShapeHandle, OcctKernel } from 'occt-wasm'
 import { getSlot, ensureSlot } from '../stdlib/shape'
-import type { PartName } from '../identity'
+import type { PartName, StmtId } from '../identity'
 import type {
   HostPorts,
   ExecutionMode,
@@ -70,6 +70,15 @@ export interface ExecContext {
   /** 变更型库调用：声明该 Shape 被原地修改（引擎据此把持有它的变量列入 changed） */
   touch(shape: Shape): void
 
+  /**
+   * 函数体 keep 声明（keep-syntax 设计 §2.2）：声明保留这些 Shape 的变量（可见）。
+   * Shape → 变量名经 shapeToName 反查；登记到当前执行语句（exec.currentStmt.id），
+   * 供 terminal-dag 的 C1 消费判定。调用点 keep 覆盖此声明（优先级更高）。
+   */
+  keep(...shapes: unknown[]): void
+  /** 函数体 keep 声明（保留且隐藏，R5）：union/subtract/intersect 等使用 */
+  keepHidden(...shapes: unknown[]): void
+
   /** 平台能力（自现 HostPorts 演进，与具体 op 无关） */
   readonly fonts: FontProvider | undefined
   readonly texture: TextureSampler | undefined
@@ -112,6 +121,11 @@ export interface ExecContextImplOptions {
   beforeStatement?: (stmt: StatementIR, index: number) => void
   /** 写回持久 ctx 变量的回调（装配变换后 outputCache → ctx 同步） */
   setCtxVar?: (name: string, value: unknown) => void
+  /**
+   * 函数体 keep 登记回调（keep-syntax 设计 §2.2）：exec.keep/keepHidden 经此
+   * 写入 ModuleExecutor.internalKeep（按语句持久，缓存命中时保留上一轮记录）。
+   */
+  onKeep?: (stmtId: StmtId, names: PartName[], hidden: boolean) => void
 }
 
 export class ExecContextImpl implements ExecContext {
@@ -133,6 +147,7 @@ export class ExecContextImpl implements ExecContext {
   currentStmt?: StatementIR
 
   private readonly setCtxVar?: (name: string, value: unknown) => void
+  private readonly onKeep?: (stmtId: StmtId, names: PartName[], hidden: boolean) => void
 
   constructor(options: ExecContextImplOptions) {
     this.mode = options.mode
@@ -143,6 +158,7 @@ export class ExecContextImpl implements ExecContext {
     this.params = options.params
     this.beforeStatement = options.beforeStatement
     this.setCtxVar = options.setCtxVar
+    this.onKeep = options.onKeep
   }
 
   get kernels(): ExecContext['kernels'] {
@@ -220,6 +236,30 @@ export class ExecContextImpl implements ExecContext {
    */
   touch(shape: Shape): void {
     this.touchedShapes.add(shape)
+  }
+
+  /** 函数体 keep 声明（可见）。未登记在 shapeToName 的对象（第三方私有对象）忽略。 */
+  keep(...shapes: unknown[]): void {
+    this.registerKeep(shapes, false)
+  }
+
+  /** 函数体 keep 声明（保留且隐藏，R5）。 */
+  keepHidden(...shapes: unknown[]): void {
+    this.registerKeep(shapes, true)
+  }
+
+  /** keep 登记核心：shapeToName 反查变量名 → onKeep 回调（归属当前执行语句）。 */
+  private registerKeep(shapes: unknown[], hidden: boolean): void {
+    const stmt = this.currentStmt
+    if (!stmt || !this.onKeep) return
+    const names: PartName[] = []
+    for (const s of shapes) {
+      if (s === null || typeof s !== 'object') continue
+      const name = this.shapeToName.get(s)
+      if (name !== undefined) names.push(name)
+    }
+    if (names.length === 0) return
+    this.onKeep(stmt.id, names, hidden)
   }
 
   /** 写持久 ctx 变量（装配/库函数把变换结果同步回 ctx，使 collectResult 读到最终几何）。 */

@@ -3,21 +3,20 @@
  *
  * 设计文档：docs/plans/2026-08-27-faijs-language-normalization-design.md §4.7
  * 修订：3d_editor docs/plans/2026-08-28-ir-strip-source-code-generation-plan.md §4.2（B2 修正）
+ * 修订：keep-syntax 设计 §4（2026-08-28）——命名与保留信息解耦，**一律新名**
+ * （R1 readonly 入参、R2 复用名已删；任何 callee 都分配新名 partN）。
  *
  * 定位：**命名服务单测（生成侧）**——derivePartName 仅供 UI/AI/CLI 生成代码文本时调用，
  * parser 不调用（2026-08-28 命名分层修复后，parser 只做语法分析、保留词法变量名）。
  *
- * IR 剥离后唯一形态：入参为 `{ callee, inputCount, outputCount, code }`——
- * 宿主无 IR，统一传当前代码文本，faijs 内部扫描已用 partN。
+ * IR 剥离后唯一形态：入参为 `{ inputCount, outputCount, code }`——
+ * 宿主无 IR，统一传当前代码文本，faijs 内部扫描已用 partN。无 callee 字段
+ * （命名不依赖任何函数元数据）。
  *
- * 符号表示例（设计文档 §4.6）：
- *   copy     → { readonlyPositions: [0] }
- *   group    → { readonlyPaths: ['members'] }
- *   assembly → { readonlyPaths: ['members'] }
- *   drill    → {} (无 readonly 标注)
- *   box      → {} (无 readonly 标注)
- *   union    → {} (无 readonly 标注)
- *   split    → {} (无 readonly 标注)
+ * 命名规则（keep-syntax §4.2）：
+ * - R0：无赋值语句 → 无名字
+ * - 唯一规则：一律分配新名（drill/group/copy/union/第三方 → 都 new）
+ * - R4：多入多出且数量相等（Shape[] 批处理）→ 保持禁用（独立决策）
  */
 
 import { describe, it, expect } from 'vitest'
@@ -47,7 +46,6 @@ function stmtWithOutputs(outputs: string[]): StatementIR {
 describe('derivePartName: R0 — 无赋值语句', () => {
   it('do_assemble (outputCount=0) → behavior=new, names=[]', () => {
     const result = derivePartName({
-      callee: 'do_assemble',
       inputCount: 0,
       outputCount: 0,
       code: codeWith('part0'),
@@ -57,60 +55,39 @@ describe('derivePartName: R0 — 无赋值语句', () => {
   })
 })
 
-describe('derivePartName: R1 — readonly 入参 → 新名', () => {
-  it('R1a: copy (inputCount=1, outputCount=1, readonlyPositions=[0]) → new, names=[partN]', () => {
+describe('derivePartName: 一律新名（keep-syntax §4.2，R1/R2 复用名已删）', () => {
+  it('drill（消费性单入单出）→ new, names=[partN]', () => {
     const result = derivePartName({
-      callee: 'copy',
       inputCount: 1,
       outputCount: 1,
       code: codeWith('part0'),
     })
     expect(result.behavior).toBe('new')
-    expect(result.names).toHaveLength(1)
-    expect(result.names[0]).toBe(asPartName('part1'))
+    expect(result.names).toEqual([asPartName('part1')])
   })
 
-  it('R1b: group (inputCount=0, outputCount=1, readonlyPaths=["members"]) → new, names=[partN]', () => {
+  it('copy → new, names=[partN]', () => {
     const result = derivePartName({
-      callee: 'group',
+      inputCount: 1,
+      outputCount: 1,
+      code: codeWith('part0'),
+    })
+    expect(result.behavior).toBe('new')
+    expect(result.names).toEqual([asPartName('part1')])
+  })
+
+  it('group（无位置输入）→ new, names=[partN]', () => {
+    const result = derivePartName({
       inputCount: 0,
       outputCount: 1,
       code: codeWith('part0', 'part1'),
     })
     expect(result.behavior).toBe('new')
-    expect(result.names).toHaveLength(1)
-    expect(result.names[0]).toBe(asPartName('part2'))
+    expect(result.names).toEqual([asPartName('part2')])
   })
 
-  it('R1c: assembly (inputCount=0, outputCount=1, readonlyPaths=["members"]) → new, names=[partN]', () => {
+  it('assembly（无位置输入）→ new, names=[partN]', () => {
     const result = derivePartName({
-      callee: 'assembly',
-      inputCount: 0,
-      outputCount: 1,
-      code: '',
-    })
-    expect(result.behavior).toBe('new')
-    expect(result.names).toEqual([asPartName('part0')])
-  })
-})
-
-describe('derivePartName: R2 — 消费性单入单出 → 复用', () => {
-  it('R2: drill (inputCount=1, outputCount=1, 无 readonly) → reuse, names=[]', () => {
-    const result = derivePartName({
-      callee: 'drill',
-      inputCount: 1,
-      outputCount: 1,
-      code: codeWith('part0'),
-    })
-    expect(result.behavior).toBe('reuse')
-    expect(result.names).toEqual([])
-  })
-})
-
-describe('derivePartName: R3 — 其余 → 新名', () => {
-  it('R3a: box (inputCount=0, outputCount=1) → new, names=[partN]', () => {
-    const result = derivePartName({
-      callee: 'box',
       inputCount: 0,
       outputCount: 1,
       code: '',
@@ -119,9 +96,8 @@ describe('derivePartName: R3 — 其余 → 新名', () => {
     expect(result.names).toEqual([asPartName('part0')])
   })
 
-  it('R3b: union (inputCount=2, outputCount=1) → new, names=[partN]', () => {
+  it('union（多入单出）→ new, names=[partN]', () => {
     const result = derivePartName({
-      callee: 'union',
       inputCount: 2,
       outputCount: 1,
       code: codeWith('part0', 'part1'),
@@ -130,9 +106,8 @@ describe('derivePartName: R3 — 其余 → 新名', () => {
     expect(result.names).toEqual([asPartName('part2')])
   })
 
-  it('R3c: split (inputCount=1, outputCount=2) → new, names=[partN, part(N+1)]', () => {
+  it('split（单入多出）→ new, names=[partN, part(N+1)]', () => {
     const result = derivePartName({
-      callee: 'split',
       inputCount: 1,
       outputCount: 2,
       code: codeWith('part0'),
@@ -142,34 +117,19 @@ describe('derivePartName: R3 — 其余 → 新名', () => {
   })
 })
 
-describe('derivePartName: R4 — 等量多入多出 → 禁用（抛错）', () => {
-  it('R4: myBatch (inputCount=2, outputCount=2) → throws', () => {
-    expect(() =>
-      derivePartName({
-        callee: 'myBatch',
-        inputCount: 2,
-        outputCount: 2,
-        code: '',
-      }),
-    ).toThrow()
-  })
-})
-
-describe('derivePartName: 未知函数 → 默认消费语义', () => {
-  it('未知函数 inputCount=1, outputCount=1 → reuse (默认消费)', () => {
+describe('derivePartName: 未知函数 → 一律新名（默认消费语义不影响命名）', () => {
+  it('未知函数 inputCount=1, outputCount=1 → new, names=[partN]', () => {
     const result = derivePartName({
-      callee: 'myLib.clone',
       inputCount: 1,
       outputCount: 1,
       code: codeWith('part0'),
     })
-    expect(result.behavior).toBe('reuse')
-    expect(result.names).toEqual([])
+    expect(result.behavior).toBe('new')
+    expect(result.names).toEqual([asPartName('part1')])
   })
 
-  it('未知函数 inputCount=0, outputCount=1 → new (默认创建)', () => {
+  it('未知函数 inputCount=0, outputCount=1 → new, names=[partN]', () => {
     const result = derivePartName({
-      callee: 'myLib.create',
       inputCount: 0,
       outputCount: 1,
       code: '',
@@ -179,11 +139,22 @@ describe('derivePartName: 未知函数 → 默认消费语义', () => {
   })
 })
 
+describe('derivePartName: R4 — 等量多入多出 → 禁用（抛错）', () => {
+  it('R4: myBatch (inputCount=2, outputCount=2) → throws', () => {
+    expect(() =>
+      derivePartName({
+        inputCount: 2,
+        outputCount: 2,
+        code: '',
+      }),
+    ).toThrow()
+  })
+})
+
 describe('derivePartName: partN 递增（code 词法扫描）', () => {
   it('多个已有 partN 时 N 递增正确', () => {
     // 新名应为 part3
     const result = derivePartName({
-      callee: 'box',
       inputCount: 0,
       outputCount: 1,
       code: codeWith('part0', 'part1', 'part2'),
@@ -193,7 +164,6 @@ describe('derivePartName: partN 递增（code 词法扫描）', () => {
 
   it('split 多输出连续递增', () => {
     const result = derivePartName({
-      callee: 'split',
       inputCount: 1,
       outputCount: 2,
       code: codeWith('part0'),
@@ -208,7 +178,6 @@ describe('derivePartName: partN 递增（code 词法扫描）', () => {
       'part0 = cad.drill(part0, { diameter: 1 })',
     ].join('\n')
     const result = derivePartName({
-      callee: 'box',
       inputCount: 0,
       outputCount: 1,
       code,
@@ -222,7 +191,6 @@ describe('derivePartName: partN 递增（code 词法扫描）', () => {
       "let grp0 = cad.group({ name: 'G', members: [part0] })",
     ].join('\n')
     const result = derivePartName({
-      callee: 'box',
       inputCount: 0,
       outputCount: 1,
       code,

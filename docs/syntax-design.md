@@ -40,8 +40,8 @@
 ### 0.2 由原话推出的硬约束
 
 1. **`.faijs` 必须是 JavaScript 的合法子集** —— 任意 JS 解析器（acorn）都能无错解析。
-2. **禁止 `eval` / `new Function` / 动态 `import()` 真执行** —— 存在安全风险，且会让"子集边界"毫无意义。文本必须**先经语法解析**还原为结构化 IR（parse-then-execute）。
-3. **无控制流** —— 禁止 `if` / `for` / `while` / `try` / 函数定义 / IIFE / 模板字符串。这是"canvas 显示集合可静态推导"与"timeline 一行一节点"的前提，也是 AI 生成代码不破坏宿主推导的保证。
+2. **禁止 `eval` / `new Function` / 动态 `import()` 真执行** —— 存在安全风险，且会让"子集边界"毫无意义。文本必须**先经语法解析**还原为结构化 IR（parse-then-compile），执行交给 JS 虚拟机——编译产物由引擎从 IR 生成，用户原文不进 VM。
+3. **无控制流** —— 唯一禁令：禁止 `if` / `for` / `while` / `do` / `switch` / `try` 等控制流语句与动态 `import()`（§2.4）。这是"canvas 显示集合可静态推导"与"timeline 一行一节点"的前提，也是 AI 生成代码不破坏宿主推导的保证。函数定义、模板字符串、IIFE 等非控制流 JS 特性是合法子集成员（实施见开发计划）。
 4. **引擎零函数知识** —— parser / compile / codegen / runtime 中不允许存在任何按函数名分支的代码。函数的信息只以**机器生成的符号表**（§5.3）形式存在，且是均匀数据。
 5. **UI 建模 与 AI 建模 在同一份代码上交织** —— 两者收敛到同一个 `ScriptIR`；引擎只认 `ScriptIR`，不区分语句来源（来源标注是宿主职责，faijs 不处理 UI 状态）。
 6. **引擎必须增量执行** —— 按行录制、按行增量重算（§6.3）。
@@ -103,14 +103,27 @@ part0 = cad.box(...)          // part0 是 PartName（变量身份）
 
 ## 2. 语法规范（合法 JS 子集）
 
+> **本章双层结构——规范要求与当前实现必须分清**：
+> - **规范要求（目标契约，语言应该是什么样）**：faijs 是**正常 JS 的合法子集**，除控制流语句外一切合法（"faijs 必需是正常的 js 的子集，除了没有控制流语句"）。
+> - **当前实现（现状，可能临时、可能错）**：parser 白名单只支持其中一部分形态，其余暂报 `ParseError`。**实现不是规范**——规范以本章"规范要求"为准；实现差距与实施见开发计划 `docs/plans/2026-08-29-faijs-normal-js-subset.md`。
+
 ### 2.1 文件容器
 
-- **扁平格式（推荐，UI/AI 生成的代码都用这个）**：纯语句序列，无 `export default`、无 `return`、无 `await`、无 `apiVersion` 头。
-  parser 检测到文本不含 `export default` 时，自动封装为 `export default async (cad) => { … }` 再交给 acorn（行号会扣掉封装偏移，报错行号始终相对原始文本）。
+**规范要求**：
+- 文件是合法 JS（除控制流外一切合法），可含**顶层 `import` 段**（路线图 V1.1）：允许 `import * as mech from 'mech-lib'` 等模块声明。`import` 是**模块声明而非控制流**，不破坏 DAG 与 timeline（路线图 §1.1 关键澄清）。
+- **扁平格式**是 UI 录制推荐的形态（一行一语句），**不是唯一格式**——AI/手写代码可用任意合法 JS 形态。
+
+**当前实现**：
+- **扁平格式**：纯语句序列，无 `export default`、无 `return`、无 `await`、无 `apiVersion` 头。parser 检测到文本不含 `export default` 时，自动封装为 `export default async (cad) => { … }` 再交给 acorn（行号扣掉封装偏移，报错行号始终相对原始文本）。
 - **`export default async (cad) => { … }` 容器**：同样合法（历史格式），parser 直接解析。
 - **`// apiVersion: N`** 注释可选（`getApiVersion`，缺省 1）。
+- **顶层 `import` 尚未支持**（V1.1 实施中；当前 import 落进函数体即语法错误）。
 
-### 2.2 形态清单（缺一不可、多一不可）
+### 2.2 语句形态（开放子集，不是封闭清单）
+
+**规范要求**：语句形态是**开放的**——任何不构成控制流的合法 JS 语句都允许：声明、赋值、表达式语句、函数调用、`return`、顶层 `function` 声明（V1.3）、顶层 `import`（V1.1）。不存在"缺一不可、多一不可"的封闭清单。
+
+**当前实现**：parser 只接受以下形态（其余一律 `ParseError` "unsupported statement"）：
 
 ```
 script   = ( <comment> | <param> | <stmt> )*
@@ -133,9 +146,17 @@ stmt     = (const|let) <id> = [await] cad.<fn>(<input>*, { <k>:<v>, … }?)   //
 - 成员方法调用的接收者必须是已声明变量，方法名任意（`asm1.add_constraint({…})`、`asm1.do_assemble()`）；这类语句**无输出**（`outputs = []`）。
 - 显式 `return` 只用于**指定终端集合**（§5.1 优先级）；绝大多数代码不写 `return`。
 
-### 2.3 args 允许的表达式（白名单，不是任意 JS）
+### 2.3 表达式（args 与赋值右侧）
 
-`parseValueExpr` 只接受以下节点，其余一律 `ParseError`：
+**规范要求**：值是**正常 JS 表达式**——字面量、标识符、一元/二元运算、模板字符串、三元、数组/对象字面量、函数调用（含嵌套 `cad.<fn>()` 与用户自定义函数，V1.3）、展开运算符等，只要不含控制流。例：
+
+```js
+let part0 = cad.box({ size: base + 20 })                    // 二元表达式
+let part1 = cad.box({ size: r, name: `板-${n}` })            // 模板字符串
+let part2 = cad.drill(part0, { at: cad.faceCenter(part0), depth: flag ? 5 : 0 })
+```
+
+**当前实现**：`parseValueExpr` 是白名单，只接受：
 
 | 形态 | 结果 |
 |---|---|
@@ -145,14 +166,20 @@ stmt     = (const|let) <id> = [await] cad.<fn>(<input>*, { <k>:<v>, … }?)   //
 | 数组 / 对象（递归） | `JsonValue[]` / `Record<string, ArgIR>` |
 | `cad.<fn>(…)` 嵌套调用（递归，任意 fn） | `CallRefIR { $call: { callee, args } }` |
 
-> **不支持二元表达式**：`cad.box({ size: [10, 20 * r, 5] })` 会报 `unsupported value expression: BinaryExpression`。需要计算的量请先声明为参数（`const h = 40`）。
-> **不支持模板字符串、三元、箭头函数、展开运算符。**
+> 当前实现**不支持**二元表达式（`cad.box({ size: [10, 20 * r, 5] })` 报 `unsupported value expression: BinaryExpression`）、模板字符串、三元、展开等——这些是**临时实现限制，不是语言规范**，实施见开发计划。
 
-### 2.4 禁止清单
+### 2.4 禁止清单（规范禁令 vs 当前实现限制）
 
-控制流（`if`/`for`/`while`/`do`/`switch`/`try`）、函数声明与函数表达式、类、`new`、模板字符串、IIFE、`eval`/`new Function`/动态 `import()`、`var`、多声明器（`const a = 1, b = 2`）、裸表达式语句（非成员调用）、`export`/`import`（容器除外）。
+**规范要求（唯一禁令）**：
 
-理由（用户原话）：控制流会破坏"canvas 显示哪些几何"与"timeline 一行一节点"的静态可推导性。
+| 禁止 | 理由 |
+|---|---|
+| 控制流语句：`if` / `for` / `while` / `do` / `switch` / `try` | 破坏"canvas 显示哪些几何"与"timeline 一行一节点"的静态可推导性（用户原话） |
+| 动态 `import()` | 属控制流范畴（路线图 V1.5：parse 阶段专用错误码显式报错） |
+| `eval` / `new Function` | 安全红线：文本必须先进 parser 校验（parse-then-compile），执行交给 JS VM |
+| `export` | 保持自动 export 方案（路线图 O3 裁定） |
+
+**当前实现额外禁止（临时限制，非规范）**：函数声明/表达式、类、`new`、模板字符串、IIFE、`var`、多声明器（`const a = 1, b = 2`）、裸表达式语句（非成员调用）、顶层 `import`。这些是**当前 parser 白名单的临时限制**，随 V1 语言正常化逐步放开（路线图 V1.1/V1.3，见开发计划）。
 
 ### 2.5 标识符命名约束（关键字黑名单）——可读性约束
 
@@ -345,7 +372,11 @@ export type ReadonlyShape = Shape & { readonly [readonlyBrand]?: true }
   → collectResult：outputs / terminals / compounds / brepSolids / topology
 ```
 
-**零 import** 是关键决策：`data:` URL 与 Blob URL 都无法解析裸说明符，零 import 使同一产物在两个平台都能直接 `import()`，无需 import map / 打包器 / 文件系统。**编译输入只有 IR，用户原文不进 VM**（parse-then-execute 红线）。
+**当前实现（取舍，非规范）**：编译产物是**零 import ESM**——`data:` URL 与 Blob URL 无法解析裸说明符，零 import 使产物能在两个平台直接 `import()`，无需 import map / 打包器 / 文件系统。这是**当前加载机制的实现取舍**，**不是语言规范要求**（路线图 §0.2 E4：语言能力不能被实现取舍反向阉割）。
+
+**规范要求**：语言层允许顶层 `import`（路线图 V1.1），届时编译产物携带 import 说明符，模块解析由宿主 `ModuleResolver` 负责（V3）。
+
+**红线（不变）**：编译输入只有 IR，用户原文不进 VM（parse-then-compile：执行完全交给 JS 虚拟机，VM 运行的是从 IR 编译的产物）。
 
 ### 6.2 统一 ABI（编译产物发射的唯一模板）
 

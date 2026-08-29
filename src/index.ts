@@ -54,7 +54,7 @@ export type { StatementSummary } from './lang/statement-summary'
 export { codeToArgs } from './lang/code-to-args'
 
 // ── L1 几何执行 ──
-export type { Shape, ReadonlyShape } from './mesh/types'
+export type { Shape } from './mesh/types'
 export type { BrepChainState } from './brep/brep-chain'
 export {
   createBrepChainState, initBrepChainState, releaseBrepChainState,

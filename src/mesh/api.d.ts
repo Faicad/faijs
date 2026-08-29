@@ -44,9 +44,9 @@ export interface CadAPI {
   knurl(shape: Shape, params: { knurlTextureHeight?: number; knurlScaleU?: number; knurlScaleV?: number; knurlInvertDisplacement?: boolean; knurlRefineLength?: number; knurlMappingMode?: number; faceCenter?: any; faceNormal?: any }): Promise<Shape>
 
   // ── 结构（不消费成员） ──
-  group(params: { name?: string; members?: readonly Shape[] }): Shape  // members are read-only references (ReadonlyShape[]); group does not consume them
-  assembly(params: { name?: string; members?: readonly Shape[]; constraints?: any[] }): Shape  // members are read-only references; assembly does not consume them
-  copy(shape: Shape, params?: never): Shape  // input is ReadonlyShape; copy does not consume it
+  group(params: { name?: string; members?: readonly Shape[] }): Shape  // members are kept via function-body exec.keep (visible); group does not consume them
+  assembly(params: { name?: string; members?: readonly Shape[]; constraints?: any[] }): Shape  // members are kept via function-body exec.keep (visible); assembly does not consume them
+  copy(shape: Shape, params?: never): Shape  // input is kept via function-body exec.keep (visible); copy does not consume it
 
   // ── 几何查询 ──
   faceCenter(shape: Shape, params?: never): [number, number, number]  // usage: cad.faceCenter(of, anchor?, faceOrdinal?)

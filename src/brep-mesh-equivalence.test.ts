@@ -82,6 +82,10 @@ async function runMode(script: ScriptIR, mode: ExecutionMode): Promise<Shape> {
   const last = geoStmts[geoStmts.length - 1]
   const shape = result.outputs.get(last.outputs[0])
   if (!shape) throw new Error(`No output for terminal statement "${last.id}"`)
+  // keep-syntax §5.1：outputs 含 compound；本测试断言的是 mesh 结果
+  if (!('positions' in shape) || !('indices' in shape)) {
+    throw new Error(`Output for "${last.id}" is not a mesh shape (compound?)`)
+  }
   return shape
 }
 
