@@ -60,9 +60,19 @@ function fmtValue(value: ArgIR, varNames?: Map<string, string>): string {
   return String(value)
 }
 
-/** 字符串转义：单引号与反斜杠 */
+/** 字符串转义：单引号、反斜杠与控制字符。
+ *  必须保证 fmtValue ⇄ analyzeCode 往返一致：多行字符串参数（SDF code 等）
+ *  嵌入 '…' 后仍须是合法 JS，且可被 parser 精确还原（\n → \\n，\r → \\r 等）。 */
 function escapeStr(s: string): string {
-  return s.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+  return s
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/\t/g, '\\t')
+    .replace(/\x08/g, '\\b') // 退格；注意 /\b/ 在外是单词边界，必须用 \x08
+    .replace(/\f/g, '\\f')
+    .replace(/\x0B/g, '\\v') // 垂直制表；\v 在正则是单词内不匹配，用 \x0B 防歧义
 }
 
 /** ParamRefIR → 裸标识符 `name`（文本形式中无 $ 前缀，合法 JS） */

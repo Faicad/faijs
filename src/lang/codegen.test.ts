@@ -290,3 +290,46 @@ describe('codegen: transform 语句 (Phase 3: 复用输入名)', () => {
     expect(code).toContain('cad.scale(part0, { factor:2 })')
   })
 })
+
+// ── 多行字符串参数：escapeStr 往返（SDF code / text 等） ──
+// 回归：escapeStr 之前只转义 \\ 与 '，多行字符串参数嵌入 '…' 后产生非法 JS
+// （3d_editor SDF 生成 → formatCodeLine → analyzeCode 抛 Unterminated string）。
+
+describe('codegen: 多行字符串参数往返（escapeStr 控制符转义修复）', () => {
+  const multiCode = [
+    'return x > 0 ? 1.0 : 0.0;',
+    "// comment with 'single' quote",
+    'const s = "double" + "\\"backslash\\"";',
+    '',
+    '\tindented line after tab',
+  ].join('\r\n')
+
+  it('scriptToCode 输出单行合法 JS，parseScript 后字符串精确还原', () => {
+    const stmt = makeStmt({
+      id: 's1',
+      callee: 'text',
+      args: { text: multiCode, at: [0, 0, 0], opts: {} },
+      outputs: ['part0'],
+    })
+    const code = scriptToCode(makeScript([stmt]))
+    // 不允许裸换行/回车出现在生成的 JS 文本里
+    expect(code).not.toMatch(/[\r\n]/)
+    const parsed = parseScript(code)
+    expect(parsed.script.statements).toHaveLength(1)
+    expect(parsed.script.statements[0].args.text).toBe(multiCode)
+  })
+
+  it('formatCodeLine → codeToArgs（宿主路径）也保持多行字符串参数', async () => {
+    const { formatCodeLine } = await import('./codegen')
+    const { codeToArgs } = await import('./code-to-args')
+    const line = formatCodeLine({
+      callee: 'text',
+      inputs: [],
+      outputs: ['part0'],
+      args: { text: multiCode, at: [0, 0, 0], opts: {} },
+    })
+    expect(line).not.toMatch(/\r|\n/)
+    const args = codeToArgs(line)
+    expect(args.text).toBe(multiCode)
+  })
+})
