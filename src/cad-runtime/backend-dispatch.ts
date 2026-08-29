@@ -19,18 +19,27 @@ import { getBackends, getCurrentStmt, BrepUnsupportedError } from '../runtime-st
 import { hasBrep } from '../stdlib/shape'
 import type { Shape } from '../mesh/types'
 
+/** 静态判定的两个可能结果：走 BREP 链或 mesh 链。 */
+export type BrepPath = 'brep' | 'mesh'
+
 /**
- * 判定本次调用走 BREP 还是 mesh。
+ * 判定方便本次调用走 BREATHE 还是 mesh。
  *
  * 规则（与迁移前逐字一致）：
  * 1. mode='mesh' → mesh
- * 2. mode='brep' → 无 brepImpl 则抛错；有 brepImpl 但输入不全在链也抛错
+ * 2. mode='brep' → 无 brepImpl 则抛；有 brepImpl 但输入不全在链也抛
  * 3. mode='auto' → 有 brepImpl 且全部输入在链 → brep；否则 mesh
+ *
+ * V5.3：第三方库作者从 @faicad/faijs/sdk 导入本函数，与内置 op 同机制选路径：
+ *   import { dispatchPath } from '@faicad/faijs/sdk'
+ *   const path = dispatchPath(inputs, myBrepImpl)
+ *   if (path === 'brep') return ... // 精确几何实现
+ *   return solid(...)               // mesh 兜底（静态，非 try-catch 回退）
  */
 export function dispatchPath(
   inputs: Shape[],
   brepImpl: unknown | undefined,
-): 'brep' | 'mesh' {
+): BrepPath {
   const { config } = getBackends()
 
   if (config.mode === 'mesh') return 'mesh'

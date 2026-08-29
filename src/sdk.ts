@@ -68,3 +68,12 @@ export type {
 
 export { getKernel, meshHandle, fromHandle } from './brep/handle-bridge'
 export type { MeshHandleOptions } from './brep/handle-bridge'
+
+// ── 双链路静态判定（V5.3：库与内置 op 同机制） ──
+// backend-dispatch 只依赖 runtime-state / stdlib/shape / type-only mesh/types，
+// 零 heavy 依赖——dist/sdk.js 守卫测试继续通过。
+// 第三方库作者在库函数体内与本 SDK 导出的 dispatchPath 相同判据选路径：
+//   import { dispatchPath, hasBrep } from '@faicad/faijs/sdk'
+
+export { dispatchPath } from './cad-runtime/backend-dispatch'
+export type { BrepPath } from './cad-runtime/backend-dispatch'
