@@ -60,7 +60,7 @@ async function waitForStatusOk(page: Page): Promise<StatusOkResult> {
   const statusBar = page.locator('#status-bar')
   const deadline = Date.now() + OCCT_WAIT_TIMEOUT_MS
   while (Date.now() < deadline) {
-    const text = await statusBar.textContent().catch(() => '')
+    const text = (await statusBar.textContent().catch(() => '')) ?? ''
     // Both chains actually produced geometry (a degraded "BREP unavailable"
     // status still starts with "OK — brep:" — it must NOT count as success).
     if (/OK — brep: \d+ shape/.test(text) && text.includes('| mesh:')) return 'ok'
@@ -71,7 +71,7 @@ async function waitForStatusOk(page: Page): Promise<StatusOkResult> {
     }
     await page.waitForTimeout(1000)
   }
-  const finalText = await statusBar.textContent().catch(() => '')
+  const finalText = (await statusBar.textContent().catch(() => '')) ?? ''
   if (finalText.includes('Waiting for OCCT kernel') || finalText.includes('Loading OCCT kernel')) {
     return 'occt-stuck'
   }

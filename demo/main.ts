@@ -13,7 +13,7 @@
 
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { parseScript, ParseError, createRuntime, createBrowserPorts, setOcctWasmInitFn, ensureOcctKernel, exportStepFromSolid, exportStep, buildStlBufferFromMesh, deriveNormals, setManifoldWasmUrl } from '@faicad/faijs/browser'
+import { parseScript, ParseError, createRuntime, createBrowserPorts, setOcctWasmInitFn, ensureOcctKernel, exportStepFromSolid, exportStep, buildStlBufferFromMesh, deriveNormals, setManifoldWasmUrl, isMeshShape } from '@faicad/faijs/browser'
 import type { ExecutionMode, HostPorts, ShapeHandle, OcctKernel, ExecutionResult } from '@faicad/faijs/browser'
 import { OcctKernel as OcctKernelValue } from 'occt-wasm'
 import fontUrl from './assets/fonts/OpenSans-Regular.ttf?url'
@@ -232,7 +232,7 @@ function extractShapes(result: ExecutionResult): ShapeSummary[] {
   if (result.terminals.length > 0) {
     for (const terminal of result.terminals) {
       const shape = result.outputs.get(terminal.id)
-      if (shape && shape.positions.length > 0) {
+      if (shape && isMeshShape(shape) && shape.positions.length > 0) {
         shapes.push({ id: terminal.id, positions: shape.positions, indices: shape.indices })
       }
     }
@@ -241,7 +241,7 @@ function extractShapes(result: ExecutionResult): ShapeSummary[] {
     const outputs = Array.from(result.outputs.entries())
     if (outputs.length > 0) {
       const last = outputs[outputs.length - 1]
-      if (last[1].positions.length > 0) {
+      if (isMeshShape(last[1]) && last[1].positions.length > 0) {
         shapes.push({ id: last[0], positions: last[1].positions, indices: last[1].indices })
       }
     }
