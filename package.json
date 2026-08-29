@@ -1,6 +1,6 @@
 {
   "name": "@faicad/faijs",
-  "version": "0.5.5",
+  "version": "0.5.6",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -40,6 +40,10 @@
     "./faqts/browser": {
       "types": "./dist/faqts/browser.d.ts",
       "import": "./dist/faqts/browser.js"
+    },
+    "./module-resolver": {
+      "types": "./dist/module-resolver/index.d.ts",
+      "import": "./dist/module-resolver/index.js"
     },
     "./sdk": {
       "types": "./dist/sdk.d.ts",
