@@ -42,6 +42,5 @@ diag*.png
 # Test coverage
 coverage/
 docs/patents
-docs/analysis
 .atomcode
 .workbuddy
