@@ -2,8 +2,9 @@
 
 - 日期：2026-08-23
 - 类型：架构设计方案
-- 状态：待评审
+- 状态：**已废弃**
 - 替代：`2026-08-19-faijs-execution-v8.md`（v8 的 `registerOp` 能力声明协议**取消**，见 §1.2）
+- ⚠️ 本方案已被 2026-08-25 版取代，见 [2026-08-25-faijs-execution-v9.md](2026-08-25-faijs-execution-v9.md)
 - 配套：3d_editor 侧 Feature 层方案 `3d_editor/docs/plans/2026-08-23-feature-op-decoupling-design-v2.md`
 
 ---

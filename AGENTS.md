@@ -32,6 +32,8 @@ Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadR
 | `scripts/ci.sh` | Linux/macOS 版；Windows 下会报错提示改用 ps1 |
 | `npx tsx packages/core/scripts/faijs-cli.ts check <f.faijs>` | 干跑校验（parse + schema + 引用预检） |
 | `npx tsx packages/core/scripts/faijs-cli.ts run <f.faijs> --out x.stl\|step [--mode auto\|brep\|mesh]` | 执行并导出；STEP 需要 BREP 链存活 |
+| `npm run doc-sync` | 文档规范全量检查（12 项门禁：链接、换行、预算、Agent Note、双语、类型等价、Mermaid、JSDoc、ts 编译、引用、归档） |
+| `npm run archive-plans` | 归档上月 docs/plans/ 文档到 yyyy-mm/ 文件夹（每月 1 号运行） |
 
 ## 架构（L0–L3 分层，全部位于 `packages/core/src/`）
 
@@ -49,12 +51,16 @@ Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadR
 - **typecheck/lint 不覆盖测试**：各包 `tsc --noEmit` 的 include 含 `src/**/*.ts`（含同目录测试），但 `packages/tests` 的集成测试由 `npm run typecheck -w @faicad/faijs-tests` 单独覆盖——改动后手动跑 vitest 验证。
 - 测试分布：`packages/core/src/**/*.test.ts`（与源码同目录）、`packages/stdlib/src/**`、`packages/mech-lib/src/**`、`packages/tests/faijs/`（按功能分目录，含 `.faijs` fixture）、`packages/fixtures/data/`（step/stl/3mf/svg 数据）。parity 测试（BREP vs mesh 一致性）在 `beforeAll` 里 `initOcctWasm()`。fixture 路径已 `import.meta.url` 化（与 cwd 无关）。
 - `packages/demo/` 是独立 vite 应用（dev 端口 8899；build 时 three/manifold-3d/occt-wasm 外链 jsdelivr CDN importmap，版本号与 package.json 手写同步）。demo 在 workspace 内通过 `resolve.alias` 直接消费根门面/引擎源码（M7 免打包，`vite.config.ts` 的 alias + `optimizeDeps.exclude` + `server.watch` 反选）；改 faijs 源码 → demo dev server HMR 即生效，**无需 npm pack**。wasm 经 `wasmAssets()` 插件（dev 中间件 `/wasm/*` + build 拷贝）。
-- 仓库文档与代码注释用英文；commit message 用 conventional commits（如 `feat(brep): ...`）。
+- 仓库文档双语配对（英文 `foo.md` + 中文 `foo.zh.md` + `foo.i18n.yaml`），见 [docs/i18n/README.md](docs/i18n/README.md)。例外：`docs/plans/`、`docs/analysis/`、`AGENTS.md` 不配对。commit message 用 conventional commits（英文）；代码注释用英文。
 
 ## 文档地图
 
+- `docs/AGENTS.md`：文档标准，改文档前必读。
 - `docs/api-contract.md`、`docs/syntax-design.md`、`docs/ops-api-inventory.md`（写 `.faijs` 的 API 手册）：有效契约，改行为前必读。
-- `docs/plans/YYYY-MM-DD-*.md`：按日期命名的设计/计划文档。
+- `docs/plans/YYYY-MM-DD-*.md`：按日期命名的设计/计划文档。每月 1 号归档到 `yyyy-mm/` 文件夹。
+- `docs/analysis/`：技术分析文档。
+- `.agents/notes/`：决策记录（Agent Notes），见 [.agents/notes/README.md](.agents/notes/README.md)。
+- `docs/i18n/`：双语配对约定与翻译规则。
 
 
 
@@ -89,3 +95,14 @@ Brep链可以切换，没有回退。在链上增加一个brep不支持的操作
 
 如果用户说写方案，那么整个会话过程中都只写方案。用户让你改的任何东西，意思都是在方案中修改。
 除非用户明确说开始实施、开始写代码。
+
+## 文档管理
+
+- 非平凡变更必须在同一 PR 中新增或更新至少一份 Agent Note（见 [.agents/notes/README.md](.agents/notes/README.md)）。
+- 代码改动和文档更新在同一 PR 中完成——配置键、默认值、错误码的变更同步更新 README 和 JSDoc。
+- 运行 `npm run doc-sync` 检查文档规范（全部 12 项门禁）。
+- 文档放置规则：方案设计→`docs/plans/`；技术分析→`docs/analysis/`；决策记录→`.agents/notes/`；接口契约→`docs/api-contract.md`；语法契约→`docs/syntax-design.md`；API 手册→`docs/ops-api-inventory.md`。
+- 一个事实一个家：每条规则只有一处权威归属，其他地方只链接不重复。
+- 记录当前状态，不写变更历史——变更历史放在 commit message 和 PR 中。
+- 双语配对：范围内文档必须配齐 `.md`（英文）、`.zh.md`（中文）、`.i18n.yaml`（一致性记录）。例外：`docs/plans/`、`docs/analysis/`、`AGENTS.md` 不配对。
+- `docs/plans/` 中的方案文档状态流转：方案（未实施）→实施中→已落地/已废弃。废弃的方案文档标注替代方案链接。每月 1 号归档上月文档到 `yyyy-mm/` 文件夹。

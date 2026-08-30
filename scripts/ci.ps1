@@ -51,23 +51,23 @@ function Step {
 
 $ciMain = {
 # monorepo（P1-P6.5）：根 lint 已覆盖 src + packages/*/src；typecheck/test 经 --workspaces 逐包跑。
-Step -Label '1/8  npm run lint' -Block { npm run lint }
+Step -Label '1/9  npm run lint' -Block { npm run lint }
 
-Step -Label '2/8  npm run typecheck（根 + workspaces）' -Block {
+Step -Label '2/9  npm run typecheck（根 + workspaces）' -Block {
     npm run typecheck
     if ($LASTEXITCODE -ne 0) { return }
     npm run typecheck --workspaces --if-present
 }
 
-Step -Label '3/8  npm run build（core → stdlib → 门面）' -Block { npm run build }
+Step -Label '3/9  npm run build（core → stdlib → 门面）' -Block { npm run build }
 
-Write-Host "==> 4/8  npm run test --workspaces"
+Write-Host "==> 4/9  npm run test --workspaces"
 $start3 = Get-Date
 $tmpVitest = [System.IO.Path]::GetTempFileName()
 npm run test --workspaces --if-present 2>&1 | Tee-Object -FilePath $tmpVitest
 if ($LASTEXITCODE -ne 0) {
     if ($allMode) {
-        $script:failures.Add('4/8  npm run test --workspaces')
+        $script:failures.Add('4/9  npm run test --workspaces')
     } else {
         exit $LASTEXITCODE
     }
@@ -94,7 +94,7 @@ if ($stderrLines.Count -gt 0) {
     Write-Host "`nERROR: Tests produced stderr output — all test stderr must be resolved." -ForegroundColor Red
     $stderrLines | ForEach-Object { Write-Host $_ }
     if ($allMode) {
-        $script:failures.Add('4/8  npm run test --workspaces (stderr)')
+        $script:failures.Add('4/9  npm run test --workspaces (stderr)')
     } else {
         exit 1
     }
@@ -104,7 +104,7 @@ $elapsed3 = (Get-Date) - $start3
 $total3 = (Get-Date) - $script:globalStart
 Write-Host "    ($($elapsed3.TotalSeconds.ToString('0.0'))s / 累计 $($total3.TotalSeconds.ToString('0.0'))s)" -ForegroundColor DarkGray
 
-Step -Label '5/8  守卫：幽灵依赖 / workspaces 顺序 / 包图无环 / 导出面' -Block {
+Step -Label '5/9  守卫：幽灵依赖 / workspaces 顺序 / 包图无环 / 导出面' -Block {
     node scripts/check-ghost-deps.mjs
     if ($LASTEXITCODE -ne 0) { return }
     node scripts/check-workspaces-order.mjs
@@ -115,15 +115,17 @@ Step -Label '5/8  守卫：幽灵依赖 / workspaces 顺序 / 包图无环 / 导
     node scripts/api-surface-snapshot.mjs
 }
 
-Step -Label '6/8  demo e2e（dev server 模式，M7 链路）' -Block {
+Step -Label '6/9  demo e2e（dev server 模式，M7 链路）' -Block {
     npm run test:e2e -w @faicad/faijs-demo
 }
 
-Step -Label '7/8  demo e2e:preview（CDN/importmap 产物路径）' -Block {
+Step -Label '7/9  demo e2e:preview（CDN/importmap 产物路径）' -Block {
     npm run test:e2e:preview -w @faicad/faijs-demo
 }
 
-Step -Label '8/8  npm pack（3d_editor tarball）' -Block {
+Step -Label '8/9  npm run doc-sync（文档规范检查）' -Block { npm run doc-sync }
+
+Step -Label '9/9  npm pack（3d_editor tarball）' -Block {
     npm pack
 }
 }

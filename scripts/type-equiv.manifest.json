@@ -1,0 +1,4 @@
+{
+  "comment": "Maps each ts type-equiv block to the source declaration it must match.",
+  "entries": []
+}
