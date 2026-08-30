@@ -29,10 +29,10 @@ import type {
 } from '../types'
 import type { BrepEngineApi, AssertSatisfiesBrepEngineApi } from '../primitives'
 
-/** memory 引擎注册 id。 */
-export const MEMORY_BREP_ENGINE_ID = 'memory'
+/** brep-mock engine registration id. */
+export const BREP_MOCK_ENGINE_ID = 'brep_mock'
 
-/** 内部形状记录（内存 BREP 的"实体"）。 */
+/** Internal shape record (the "solid" of an in-memory mock BREP). */
 interface MemShape {
   kind: 'box' | 'sphere' | 'cylinder' | 'cone' | 'edge' | 'wire' | 'face' | 'solid' | 'compound'
   /** 轴对齐包围盒（近似真实几何，供 getBoundingBox / 导出用）。 */
@@ -66,8 +66,8 @@ function unitBoxMesh(): BrepMeshResult {
   }
 }
 
-/** 构造内存模拟 BREP 引擎（实现 BrepEngineApi 子集）。 */
-export function createMemoryBrepApi(): BrepEngineApi {
+/** Build an in-memory mock BREP engine (BrepEngineApi subset). */
+export function createBrepMockApi(): BrepEngineApi {
   const shapes = new Map<number, MemShape>()
   let nextHandle = 1
 
@@ -80,12 +80,12 @@ export function createMemoryBrepApi(): BrepEngineApi {
 
   const need = (h: BrepHandle, method: string): MemShape => {
     const s = shapes.get(h)
-    if (!s) throw new Error(`[memory-engine] ${method}: unknown handle ${h}`)
+    if (!s) throw new Error(`[brep-mock-engine] ${method}: unknown handle ${h}`)
     return s
   }
 
   const unsupported = (method: string): never => {
-    throw new Error(`[memory-engine] ${method}() not implemented — engine-switch test only`)
+    throw new Error(`[brep-mock-engine] ${method}() not implemented — engine-switch test only`)
   }
 
   /** 布尔合并 bbox（fuse/cut/common 的近似包围盒）。 */
@@ -105,9 +105,9 @@ export function createMemoryBrepApi(): BrepEngineApi {
   })
 
   const mockStepExport = (): string =>
-    'memory-engine STEP (mock)\n' +
-    '// 这不是真实 STEP——内存模拟 BREP 引擎的导出标记，仅用于引擎切换测试。\n' +
-    'FILE_DESCRIPTION(("memory-engine"), "2;1");'
+    'brep-mock-engine STEP (mock)\n' +
+    '// Not real STEP — marker of the in-memory mock BREP engine, for engine-switch tests only.\n' +
+    'FILE_DESCRIPTION(("brep-mock-engine"), "2;1");'
 
   const primitive = (
     kind: MemShape['kind'],
@@ -288,7 +288,7 @@ export function createMemoryBrepApi(): BrepEngineApi {
     importStep: () => alloc({ kind: 'solid', bbox: bboxOf('solid', [10, 10, 10]), tag: 'importStep(mock)' }),
     exportStep: (shape) => {
       const s = need(shape, 'exportStep')
-      return `memory-engine STEP (mock)\nshape #${shape}: ${s.tag}\nFILE_DESCRIPTION(("memory-engine"), "2;1");`
+      return `brep-mock-engine STEP (mock)\nshape #${shape}: ${s.tag}\nFILE_DESCRIPTION(("brep-mock-engine"), "2;1");`
     },
     importStl: () => alloc({ kind: 'solid', bbox: bboxOf('solid', [10, 10, 10]), tag: 'importStl(mock)' }),
     fromBREP: () => alloc({ kind: 'solid', bbox: bboxOf('solid', [10, 10, 10]), tag: 'fromBREP(mock)' }),
@@ -317,16 +317,16 @@ export function createMemoryBrepApi(): BrepEngineApi {
   return primitives
 }
 
-/** 装配 memory BREP 引擎（同步注册——无异步初始化）。 */
-export function registerMemoryBrepEngine(): void {
-  registerBrepEngine(MEMORY_BREP_ENGINE_ID, async (): Promise<BrepEngine> => ({
-    id: MEMORY_BREP_ENGINE_ID,
-    primitives: createMemoryBrepApi(),
+/** Assemble the brep-mock engine (sync registration — no async init). */
+export function registerBrepMockEngine(): void {
+  registerBrepEngine(BREP_MOCK_ENGINE_ID, async (): Promise<BrepEngine> => ({
+    id: BREP_MOCK_ENGINE_ID,
+    primitives: createBrepMockApi(),
     capabilities: {
-      // memory 引擎无面演化/修复/装配能力——缺失即暴露（§7.5 语义）
+      // brep-mock lacks evolution/heal/assembly — missing capabilities are exposed (§7.5).
     },
   }))
 }
 
-// §7.8 编译期守卫：createMemoryBrepApi 的返回类型必须满足 BrepEngineApi。
-type _AssertMemoryApi = AssertSatisfiesBrepEngineApi<ReturnType<typeof createMemoryBrepApi>>
+// §7.8 compile-time guard: createBrepMockApi's return type must satisfy BrepEngineApi.
+type _AssertBrepMockApi = AssertSatisfiesBrepEngineApi<ReturnType<typeof createBrepMockApi>>

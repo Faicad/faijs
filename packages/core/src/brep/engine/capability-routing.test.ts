@@ -16,7 +16,7 @@ import type { ExecutionResult } from '../../cad-runtime/runtime'
 import type { HostPorts } from '../../cad-runtime/ports'
 import { asPartName } from '../../identity'
 import { __resetEngineRegistriesForTests } from './registry'
-import { registerMemoryBrepEngine } from './adapters/memory'
+import { registerBrepMockEngine } from './adapters/brep-mock'
 import { registerOcctBrepEngine } from './adapters/occt'
 
 const SCRIPT = `let part0 = cad.box({ size: 10 })
@@ -35,10 +35,10 @@ async function run(mode: 'auto' | 'brep'): Promise<ExecutionResult> {
   return runtime.execute(script)
 }
 
-describe('能力路由（§8.4）：memory 引擎无 evolution 能力', () => {
+describe('能力路由（§8.4）：brep-mock 引擎无 evolution 能力', () => {
   beforeEach(() => {
     __resetEngineRegistriesForTests()
-    registerMemoryBrepEngine()
+    registerBrepMockEngine()
   })
 
   it('brep 模式：union（需 evolution）→ BrepUnsupportedError → failedAt 明确报错', async () => {

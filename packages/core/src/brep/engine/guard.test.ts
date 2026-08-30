@@ -11,11 +11,11 @@
 import { describe, it, expect } from 'vitest'
 import type { AssertSatisfiesBrepEngineApi } from './primitives'
 import { initOcctWasm } from '../../occt-kernel/occtKernel'
-import { createMemoryBrepApi } from './adapters/memory'
+import { createBrepMockApi } from './adapters/brep-mock'
 
 // ── 正向断言：两引擎的 API 类型都满足接口 ──
 type _OcctSatisfies = AssertSatisfiesBrepEngineApi<Awaited<ReturnType<typeof initOcctWasm>>>
-type _MemorySatisfies = AssertSatisfiesBrepEngineApi<ReturnType<typeof createMemoryBrepApi>>
+type _BrepMockSatisfies = AssertSatisfiesBrepEngineApi<ReturnType<typeof createBrepMockApi>>
 
 // ── 负向断言：不完整实现必须被拒绝 ──
 // @ts-expect-error — 缺少 BrepEngineApi 的大多数方法（release 不足以满足接口）
@@ -24,7 +24,7 @@ type _IncompleteRejected = AssertSatisfiesBrepEngineApi<{ release(): void }>
 describe('编译期守卫 AssertSatisfiesBrepEngineApi（§7.8）', () => {
   it('两引擎 API 满足接口（正向断言由 tsc 编译期保证）', () => {
     // 类型别名已由 tsc 检查；运行时仅确认构造器存在
-    expect(typeof createMemoryBrepApi).toBe('function')
+    expect(typeof createBrepMockApi).toBe('function')
     expect(typeof initOcctWasm).toBe('function')
   })
 })

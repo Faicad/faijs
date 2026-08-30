@@ -102,6 +102,18 @@ export type { ImportStepResult, ImportStepPartResult, ExportStepOptions } from '
 // 高层 API 的类型签名依赖的 OCCT 句柄/内核类型（D 类，公共契约）
 export type { OcctKernel, ShapeHandle, WasmTessellatedMesh, Mesh, MeshDeflectionOptions } from './occt-kernel/highLevelApi'
 
+// ── BREP 引擎注册（宿主装配；引擎可切换——occt 只是默认实现） ──
+export { registerOcctBrepEngine, OCCT_BREP_ENGINE_ID } from './brep/engine/adapters/occt'
+export {
+  registerBrepEngine, getBrepEngine, hasBrepEngine, getActiveBrepEngineId, freezeEngineRegistries,
+} from './brep/engine/registry'
+export type { BrepEngine, BrepEngineProvider } from './brep/engine/registry'
+export type { BrepEngineApi } from './brep/engine/primitives'
+export type {
+  BrepHandle, BrepMeshResult, BrepBoundingBox, BrepVec3, BrepCapabilities,
+  BrepEvolutionData, BrepXcafDocument,
+} from './brep/engine/types'
+
 // keep-syntax（P7）：宿主守卫——outputs 现含 compound，消费端须区分
 export { isCompoundLike } from './shape'
 export { isMeshShape } from './mesh/types'
