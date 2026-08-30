@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url'
 import {
   solid, fromBrep, compound, isShape, isCompound, hasBrep, brepOf,
   keep, keepHidden, getBackends, configureBackends, CONTRACT_VERSION, BrepUnsupportedError,
+  MeshUnsupportedError, defineOp, assertLibConforms,
 } from './sdk'
 import type { Shape } from './mesh/types'
 
@@ -94,7 +95,12 @@ describe('sdk: 构造器/守卫使用面', () => {
     const err = new BrepUnsupportedError('brep not supported')
     expect(err).toBeInstanceOf(Error)
     expect(err.name).toBe('BrepUnsupportedError')
+    const meshErr = new MeshUnsupportedError('mesh not supported')
+    expect(meshErr).toBeInstanceOf(Error)
+    expect(meshErr.name).toBe('MeshUnsupportedError')
     expect(typeof getBackends).toBe('function')
     expect(typeof configureBackends).toBe('function')
+    expect(typeof defineOp).toBe('function')
+    expect(typeof assertLibConforms).toBe('function')
   })
 })

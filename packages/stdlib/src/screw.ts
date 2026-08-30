@@ -13,13 +13,10 @@ import { solidToShape } from '@faicad/faijs-core/brep/brep-ops'
 import { threadBrep } from './brepjs-mirror/threadFns'
 import { getScrewSpec, threadToPitchMm, SCREW_HEAD_DIMS } from '@faicad/faijs-core/primitives/screw/screw-db'
 import { getBackends } from '@faicad/faijs-core/runtime-state'
-import { solid, fromBrep } from '@faicad/faijs-core/shape'
-import { dispatchPath } from '@faicad/faijs-core/cad-runtime/backend-dispatch'
+import { fromBrep } from '@faicad/faijs-core/shape'
+import { defineOp } from '@faicad/faijs-core/sdk'
 import type { BrepHandle } from '@faicad/faijs-core/brep/engine/types'
 import type { BrepEngineApi } from '@faicad/faijs-core/brep/engine/primitives'
-
-/** BREP 实现标记（dispatchPath 判定用；screw 有 OCCT 精确构造） */
-const brepImpl = screwBrep
 
 /** BREP 路径：threadBrep + fuse 构造精确螺纹螺钉 + 三角化 + fromBrep 登记。 */
 async function screwBrep(params: Record<string, unknown>): Promise<Shape> {
@@ -167,17 +164,21 @@ export function assertScrewParams(params: Record<string, unknown>): void {
  * const s = await cad.screw({ system: 'metric', specIdx: 6, thread: 'coarse', length: 20, head: 'hex' })
  * const s = await cad.screw({ system: 'metric', specIdx: 6, thread: 'coarse', length: 20, head: 'hex', nRad: 64 })
   */
-export async function screw(params: Record<string, unknown>): Promise<Shape> {
-  assertScrewParams(params)
-  const path = dispatchPath([], brepImpl)
-  if (path === 'brep') return screwBrep(params)
-  return solid(await cad.screw({
-    system: params.system as 'metric' | 'imperial',
-    specIdx: params.specIdx as number,
-    thread: params.thread as 'coarse' | 'fine' | 'custom' | 'none',
-    pitchCustom: params.pitchCustom as number | undefined,
-    length: params.length as number,
-    head: params.head as 'hex' | 'chc' | 'none',
-    nRad: params.nRad as number | undefined,
-  }))
-}
+export const screw = defineOp({
+  mesh: async (params: Record<string, unknown>) => {
+    assertScrewParams(params)
+    return cad.screw({
+      system: params.system as 'metric' | 'imperial',
+      specIdx: params.specIdx as number,
+      thread: params.thread as 'coarse' | 'fine' | 'custom' | 'none',
+      pitchCustom: params.pitchCustom as number | undefined,
+      length: params.length as number,
+      head: params.head as 'hex' | 'chc' | 'none',
+      nRad: params.nRad as number | undefined,
+    })
+  },
+  brep: async (params: Record<string, unknown>) => {
+    assertScrewParams(params)
+    return screwBrep(params)
+  },
+})

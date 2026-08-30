@@ -8,10 +8,8 @@
  * part-brep-lost 事件由引擎统一发（P4，库不再 emit）。
  */
 
-import type { Shape } from '@faicad/faijs-core/mesh/types'
 import { cad } from '@faicad/faijs-core/mesh'
-import { solid } from '@faicad/faijs-core/shape'
-import { dispatchPath } from '@faicad/faijs-core/cad-runtime/backend-dispatch'
+import { defineOp } from '@faicad/faijs-core/sdk'
 
 /**
  * Validate sdf parameters: `code` must be a non-empty string.
@@ -39,14 +37,14 @@ export function assertSdfParams(params: Record<string, unknown>): void {
  * @example
  * const s = await cad.sdf({ code: 'return sphere(10) - sphere(5, [10,0,0])', box: [[-20,-20,-20],[30,20,20]], resolution: 1 })
   */
-export async function sdf(params: Record<string, unknown>): Promise<Shape> {
-  assertSdfParams(params)
-  // mesh-only：无 brepImpl；brep 模式下 dispatchPath 调用前抛 BrepUnsupportedError
-  dispatchPath([], undefined)
-  return solid(await cad.sdf({
-    code: params.code as string,
-    box: params.box as [[number, number, number], [number, number, number]] | undefined,
-    resolution: params.resolution as number | undefined,
-    params: params.params as Record<string, number> | undefined,
-  }))
-}
+export const sdf = defineOp({
+  mesh: async (params: Record<string, unknown>) => {
+    assertSdfParams(params)
+    return cad.sdf({
+      code: params.code as string,
+      box: params.box as [[number, number, number], [number, number, number]] | undefined,
+      resolution: params.resolution as number | undefined,
+      params: params.params as Record<string, number> | undefined,
+    })
+  },
+})

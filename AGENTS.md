@@ -41,7 +41,7 @@ Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadR
 - **L1 几何层**：`brep/`（OCCT brep 链）、`mesh/`（manifold-3d mesh 路径 + `cad` API）、`boolean/`、`primitives/`、`sdf/`、`topology/`；**几何库函数在 `packages/stdlib/src/`**（库函数经 `@faicad/faijs-stdlib` 导入）。
 - **L2 编排** `cad-runtime/`：`CadRuntime` + `HostPorts`（csg/sdf/fonts/assets/events 注入接口）。
 - **L3 Host**：`node-host/`（fs）+ `browser-host/`（worker）。
-- **双链路执行**：每个 op 有 BREP（occt-wasm）与 mesh（manifold-3d）两条路径，`cad-runtime/backend-dispatch.ts` 按静态规则分派；BREP 链状态在 `brep/brep-chain.ts`。单位 mm、+Z 向上、角度用度（契约见 `docs/api-contract.md`）。
+- **双链路执行**：每个 op 必支持 mesh（默认路径），可选支持 brep——库函数经 `defineOp` 声明实现集（`@faicad/faijs/sdk`），`cad-runtime/backend-dispatch.ts` 按静态规则分派，无运行时回退；BREP 链状态在 `brep/brep-chain.ts`。单位 mm、+Z 向上、角度用度（契约见 `docs/api-contract.md`）。
 - 入口：根门面 `@faicad/faijs`（`src/index.ts` 等 11 个 exports 子路径，薄 re-export + `createRuntime` 包装注入 cad）；引擎入口在 `packages/core/src/index.ts` / `browser.ts`（不含 node-host）/ `node.ts` / `csg.ts` / `sdf.ts` / `sdk.ts`。浏览器构建里静态 import node-host 会 404——Node 专用代码一律从 `@faicad/faijs/node` 导入。
 
 ## 必须知道的约定

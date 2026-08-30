@@ -78,7 +78,7 @@ describe('memory 引擎（第二引擎——切换能力验证）', () => {
 
     // 布尔声明 evolution（§8.4），brep-mock 缺该能力 → brep 模式执行前明确报错，不伪造
     expect(result.failedAt).toBeDefined()
-    expect(result.failedAt!.op).toBe('union')
+    expect(result.failedAt!.callee).toBe('union')
     expect(result.failedAt!.message).toMatch(/lacks capability 'evolution'/)
     // 能力路由在执行前拦截 union——失败不组装 brepSolids（无部分成功结果）
     expect(result.brepSolids).toBeUndefined()

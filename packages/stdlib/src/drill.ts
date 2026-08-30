@@ -19,14 +19,11 @@ import { threadBrep } from './brepjs-mirror/threadFns'
 import { getScrewSpec, threadToPitchMm } from '@faicad/faijs-core/primitives/screw/screw-db'
 import * as THREE from 'three'
 import { getBackends } from '@faicad/faijs-core/runtime-state'
-import { solid, fromBrep, brepOf } from '@faicad/faijs-core/shape'
-import { dispatchPath } from '@faicad/faijs-core/cad-runtime/backend-dispatch'
+import { fromBrep, brepOf } from '@faicad/faijs-core/shape'
+import { defineOp } from '@faicad/faijs-core/sdk'
 import type { BrepHandle } from '@faicad/faijs-core/brep/engine/types'
 import type { BrepEngineApi } from '@faicad/faijs-core/brep/engine/primitives'
 import { assertPositiveNumber, assertNumber, assertVec3 } from './assert'
-
-/** BREP 实现标记（drill 有 OCCT 精确钻孔） */
-const brepImpl = true
 
 // ── per-op 参数自校验（Phase 2.2；stdlib 被直接 import 时的防御层） ──
 
@@ -220,10 +217,15 @@ async function drillMeshPath(input: Shape, params: Record<string, unknown>): Pro
  * const p = await cad.drill(part0, { diameter: 5, depth: 3 })
  * const p = await cad.drill(part0, { diameter: 5.2, depth: 8, holeType: 'screw', screwSystem: 'metric', screwSpecIdx: 4, screwThread: 'coarse', screwHead: 'none' })
   */
-export async function drill(input: Shape, params: Record<string, unknown>): Promise<Shape> {
-  if (!input) throw new Error('[stdlib/drill] no input geometry')
-  assertDrillParams(params)
-  const path = dispatchPath([input], brepImpl)
-  if (path === 'brep') return drillBrepPath(input, params)
-  return solid(await drillMeshPath(input, params))
-}
+export const drill = defineOp({
+  mesh: async (input: Shape, params: Record<string, unknown>) => {
+    if (!input) throw new Error('[stdlib/drill] no input geometry')
+    assertDrillParams(params)
+    return drillMeshPath(input, params)
+  },
+  brep: (input: Shape, params: Record<string, unknown>) => {
+    if (!input) throw new Error('[stdlib/drill] no input geometry')
+    assertDrillParams(params)
+    return drillBrepPath(input, params)
+  },
+})

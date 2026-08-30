@@ -29,7 +29,7 @@ import { union } from '@faicad/faijs-stdlib'
 import { solid } from '../shape'
 import type { StdlibNamespace } from '../runtime-state'
 import type { Shape } from '../mesh/types'
-import { dispatchPath as libDispatchPath, hasBrep } from '../sdk'
+import { defineOp, hasBrep, CONTRACT_VERSION } from '../sdk'
 
 let kernel: BrepEngineApi
 
@@ -151,7 +151,7 @@ describe('CadRuntime: auto mode (BREP-first, per-part)', () => {
       expect(result.failedAt).toBeUndefined()
       expect(sink.events.length).toBeGreaterThan(0)
       expect(sink.events[0].event).toBe('part-brep-lost')
-      expect(sink.events[0].detail.op).toBe('knurl')
+      expect(sink.events[0].detail.callee).toBe('knurl')
     } finally {
       setKnurlTextureLoader(null)
     }
@@ -1151,17 +1151,18 @@ describe('P7: 第三方库通道（registerLib / statementKey 包名前缀 / 版
   })
 })
 
-describe('V5.3: 第三方库声明 brepImpl（dispatchPath 静态判定，与内置 op 同机制）', () => {
-  it('库声明 brepImpl，auto 模式在链输入 → BREATHE 判定且输出 hasBrep', async () => {
+describe('V5.3: 第三方库声明实现集（defineOp，dispatchPath 静态判定与内置 op 同机制）', () => {
+  it('库声明 mesh+brep，auto 模式在链输入 → brep 判定且输出 hasBrep', async () => {
     const runtime = makeRuntime('auto')
-    const gearLib: StdlibNamespace = {
-      importGear: (shape: Shape): Shape => {
-        // 库作者视角：函数体内走 SDK 导出的 dispatchPath，声明精确实现
-        const path = libDispatchPath([shape], true)
-        if (path === 'brep') return shape
-        return shape
-      },
-    }
+    const gearLib = {
+      // 库作者视角：defineOp 声明实现集；包装器内部走引擎同一 dispatchPath
+      // （D-4 严格校验：导出 dual-op 的库必须带匹配的 contractVersion）
+      contractVersion: CONTRACT_VERSION,
+      importGear: defineOp({
+        mesh: (shape: Shape) => shape,
+        brep: (shape: Shape) => shape,
+      }),
+    } as unknown as StdlibNamespace
     runtime.registerLib('gearlib', gearLib)
 
     const s1 = { ...makeStmt('s1', 'box', { size: 20 }), namespace: undefined }
@@ -1173,15 +1174,12 @@ describe('V5.3: 第三方库声明 brepImpl（dispatchPath 静态判定，与内
     expect(hasBrep(part)).toBe(true)
   })
 
-  it('库未声明 brepImpl + brep 模式 → dispatchPath 抛错 → failedAt（不静默 mesh）', async () => {
+  it('库只声明 mesh（无 brep）+ brep 模式 → defineOp 内 dispatchPath 抛错 → failedAt（不静默 mesh）', async () => {
     const runtime = makeRuntime('brep')
-    const meshLib: StdlibNamespace = {
-      knurl: (shape: Shape): Shape => {
-        const path = libDispatchPath([shape], undefined)
-        void path
-        return shape
-      },
-    }
+    const meshLib = {
+      contractVersion: CONTRACT_VERSION,
+      knurl: defineOp({ mesh: (shape: Shape) => shape }),
+    } as unknown as StdlibNamespace
     runtime.registerLib('gearlib', meshLib)
     const result = await runtime.execute(makePartScript([
       { ...makeStmt('s1', 'box', { size: 20 }), namespace: undefined as never } as StatementIR,
@@ -1192,7 +1190,7 @@ describe('V5.3: 第三方库声明 brepImpl（dispatchPath 静态判定，与内
     expect(result.outputs.get(asPartName('s2'))).toBeUndefined()
   })
 
-  it('公共 SDK 导出的 dispatchPath 可被库函数引用（engine 同一实现）', () => {
-    expect(typeof libDispatchPath).toBe('function')
+  it('公共 SDK 导出的 defineOp 可被库函数使用（engine 同一实现）', () => {
+    expect(typeof defineOp).toBe('function')
   })
 })

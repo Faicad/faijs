@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-30-ops-api-inventory-generator.md
-2026-08-30-ops-api-inventory-generator.md: c721c0b9f5c088d7bcf9ee1bf3d8a8485711b25b
+2026-08-30-ops-api-inventory-generator.md: 836d7a87bd837fb311a80fb073a1fed4ddf32403
 2026-08-30-ops-api-inventory-generator.zh.md: 21b403328cc8bdc7194174310f0f41ddd32039bd

@@ -24,13 +24,10 @@ import {
 import { computeBasisFromNormal } from '@faicad/faijs-core/mesh/split'
 import { getBackends } from '@faicad/faijs-core/runtime-state'
 import { solid, fromBrep, brepOf } from '@faicad/faijs-core/shape'
-import { dispatchPath } from '@faicad/faijs-core/cad-runtime/backend-dispatch'
+import { defineOp } from '@faicad/faijs-core/sdk'
 import { assertNonZeroVec3 } from './assert'
 import type { BrepHandle } from '@faicad/faijs-core/brep/engine/types'
 import type { BrepEngineApi } from '@faicad/faijs-core/brep/engine/primitives'
-
-/** BREP 实现标记（split 有 OCCT 精确分割） */
-const brepImpl = true
 
 /** 世界坐标 → 局部坐标（含单位缩放）。 */
 function worldToLocalVec3(
@@ -267,12 +264,20 @@ async function splitMeshPath(input: Shape, params: Record<string, unknown>): Pro
  * @example
  * const { front: part1, back: part2 } = await cad.split(part0, { normal: [0, 0, 1], offset: 5, cutMode: 'dovetail', grooveDepth: 3, grooveWidth: 5 })
   */
-export async function split(input: Shape, params: Record<string, unknown> = {}): Promise<{ front: Shape; back: Shape }> {
-  if (!input) throw new Error('[stdlib/split] no input geometry')
-  if (params.normal !== undefined && params.normal !== null) {
-    assertNonZeroVec3(params.normal, 'split.normal')
-  }
-  const path = dispatchPath([input], brepImpl)
-  if (path === 'brep') return splitBrepPath(input, params)
-  return splitMeshPath(input, params)
-}
+export const split = defineOp({
+  mesh: (input: Shape, params: Record<string, unknown> = {}) => {
+    if (!input) throw new Error('[stdlib/split] no input geometry')
+    if (params.normal !== undefined && params.normal !== null) {
+      assertNonZeroVec3(params.normal, 'split.normal')
+    }
+    return splitMeshPath(input, params)
+  },
+  brep: (input: Shape, params: Record<string, unknown> = {}) => {
+    if (!input) throw new Error('[stdlib/split] no input geometry')
+    if (params.normal !== undefined && params.normal !== null) {
+      assertNonZeroVec3(params.normal, 'split.normal')
+    }
+    return splitBrepPath(input, params)
+  },
+  outputs: ['front', 'back'],
+})

@@ -15,13 +15,10 @@ import { svgToSolid } from '@faicad/faijs-core/brep/svg/svg-to-solid'
 import { solidToShape } from '@faicad/faijs-core/brep/brep-ops'
 import { resolveSvgArg } from './internal/svg-asset-resolver'
 import { getBackends } from '@faicad/faijs-core/runtime-state'
-import { solid, fromBrep } from '@faicad/faijs-core/shape'
-import { dispatchPath } from '@faicad/faijs-core/cad-runtime/backend-dispatch'
+import { fromBrep } from '@faicad/faijs-core/shape'
+import { defineOp } from '@faicad/faijs-core/sdk'
 import { assertPositiveNumber } from './assert'
 import type { BrepEngineApi } from '@faicad/faijs-core/brep/engine/primitives'
-
-/** BREP 实现标记（dispatchPath 判定用；svgExtrude 有 OCCT 精确构造） */
-const brepImpl = svgToSolid
 
 /**
  * Validate svgExtrude parameters: `svg` is required and `depth` must be a
@@ -63,21 +60,23 @@ function svgExtrudeBrep(params: Record<string, unknown>, svgText: string): Shape
  * @example
  * const s = await cad.svgExtrude({ svg: 'logo.svg', depth: 5, targetLongSide: 20 })
   */
-export async function svgExtrude(params: Record<string, unknown>): Promise<Shape> {
-  assertSvgExtrudeParams(params)
-  // 解析 SVG 资产引用（AssetRef → SVG 文本）；两条路径都需要
-  const svgText = await resolveSvgArg(params.svg, { assets: getBackends().assets as AssetResolver | undefined })
-
-  const path = dispatchPath([], brepImpl)
-  if (path === 'brep') return svgExtrudeBrep(params, svgText)
-
-  // mesh 路径：与 BREP 路径一致，内部解析 SVG 自然尺寸后缩放
-  const { naturalWidth, naturalHeight } = parseSvgNaturalSize(svgText)
-  return solid(await cad.svgExtrude({
-    svg: svgText,
-    depth: params.depth as number,
-    targetLongSide: (params.targetLongSide as number | undefined) ?? 20,
-    naturalWidth,
-    naturalHeight,
-  }))
-}
+export const svgExtrude = defineOp({
+  mesh: async (params: Record<string, unknown>) => {
+    assertSvgExtrudeParams(params)
+    const svgText = await resolveSvgArg(params.svg, { assets: getBackends().assets as AssetResolver | undefined })
+    // mesh 路径：与 BREP 路径一致，内部解析 SVG 自然尺寸后缩放
+    const { naturalWidth, naturalHeight } = parseSvgNaturalSize(svgText)
+    return cad.svgExtrude({
+      svg: svgText,
+      depth: params.depth as number,
+      targetLongSide: (params.targetLongSide as number | undefined) ?? 20,
+      naturalWidth,
+      naturalHeight,
+    })
+  },
+  brep: async (params: Record<string, unknown>) => {
+    assertSvgExtrudeParams(params)
+    const svgText = await resolveSvgArg(params.svg, { assets: getBackends().assets as AssetResolver | undefined })
+    return svgExtrudeBrep(params, svgText)
+  },
+})

@@ -18,13 +18,10 @@ import type { Shape } from '@faicad/faijs-core/mesh/types'
 import { solidToShape } from '@faicad/faijs-core/brep/brep-ops'
 import { identityEvolution } from '@faicad/faijs-core/brep/face-evolution'
 import { getBackends, keep } from '@faicad/faijs-core/runtime-state'
-import { solid, fromBrep, brepOf } from '@faicad/faijs-core/shape'
-import { dispatchPath } from '@faicad/faijs-core/cad-runtime/backend-dispatch'
+import { fromBrep, brepOf } from '@faicad/faijs-core/shape'
+import { defineOp } from '@faicad/faijs-core/sdk'
 import type { BrepHandle } from '@faicad/faijs-core/brep/engine/types'
 import type { BrepEngineApi } from '@faicad/faijs-core/brep/engine/primitives'
-
-/** BREP 实现标记（copy 有 OCCT 精确实体复制 API） */
-const brepImpl = true
 
 /** BREP 路径：kernel.copy 深拷贝实体 + 恒等面演化 + 三角化 + fromBrep 一次登记。 */
 function copyBrep(input: Shape): Shape {
@@ -63,14 +60,19 @@ function copyBrep(input: Shape): Shape {
  * @example
  * const part1 = cad.copy(part0)
   */
-export function copy(input: Shape): Shape {
-  if (!input) throw new Error('[stdlib/copy] no input geometry')
-  keep(input)
-  const path = dispatchPath([input], brepImpl)
-  if (path === 'brep') return copyBrep(input)
-  // mesh 路径：深拷贝到新 TypedArray
-  return solid({
-    positions: new Float32Array(input.positions),
-    indices: new Uint32Array(input.indices),
-  })
-}
+export const copy = defineOp({
+  mesh: (input: Shape) => {
+    if (!input) throw new Error('[stdlib/copy] no input geometry')
+    keep(input)
+    // mesh 路径：深拷贝到新 TypedArray（改副本不影响源）
+    return {
+      positions: new Float32Array(input.positions),
+      indices: new Uint32Array(input.indices),
+    }
+  },
+  brep: (input: Shape) => {
+    if (!input) throw new Error('[stdlib/copy] no input geometry')
+    keep(input)
+    return copyBrep(input)
+  },
+})

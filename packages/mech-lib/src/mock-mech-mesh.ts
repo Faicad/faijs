@@ -1,29 +1,28 @@
 /**
- * B4 — mock 库 fixture：mesh 版（B4）
+ * B4 — mock library fixture: mesh version (B4), defineOp mesh-only form.
  *
- * 设计文档：docs/plans/2026-08-29-faijs-module-runtime-plan.md §7.3 B4 / §4.4
+ * Design: docs/plans/2026-08-29-faijs-module-runtime-plan.md §7.3 B4 / §4.4
+ *         docs/plans/2026-08-30-defineop-library-contract.md §6.3
  *
- * 模拟第三方库模块（`import * as mech from 'mech-lib'` 的目标）：
- * - 带 `contractVersion`（= CONTRACT_VERSION，registerLib 校验通过）
- * - 函数从 faijs SDK（@faicad/faijs/sdk）构造 Shape
- * - 本文件是 **mesh 版**：产物用 `solid()` 构造，无 BREP 槽
+ * Simulates a third-party library module (the target of
+ * `import * as mech from 'mech-lib'`):
+ * - carries `contractVersion` (= CONTRACT_VERSION, registerLib check passes);
+ * - declares its implementation set via `defineOp({ mesh })` — the mesh-only
+ *   legal form (D1: mesh mandatory; no brep slot, hasBrep === false).
  *
- * 与真实库的差异：真实库打包后走构建期预 bundle / CDN external（B2/B3），
- * 这里直接以源码形态注册，验证 registerLib → ns.<binding>.<callee> 全链路。
+ * Difference from a real library: a real one ships as a pre-bundled / CDN
+ * external (B2/B3); here it is registered in source form to validate the
+ * full registerLib → ns.<binding>.<callee> pipeline.
  */
 
-import { solid, CONTRACT_VERSION, type SolidShape } from '@faicad/faijs-core/sdk'
+import { defineOp, CONTRACT_VERSION } from '@faicad/faijs-core/sdk'
 
 /** Adapter contract version, checked against CONTRACT_VERSION by registerLib. */
 export const contractVersion = CONTRACT_VERSION
 
-/**
- * Build a cube as a faijs SolidShape with no BREP slot (mesh only).
- * @param params - configuration for the cube; `size` is the edge length.
- * @returns the cube as a mesh-based faijs SolidShape.
- */
-export function makeHeadstock(params: { size: number }): SolidShape {
-  const s = params.size / 2
+/** 12-vertex cube mesh (raw MeshData; the wrapper calls solid() on it). */
+function cubeMesh(size: number): { positions: Float32Array; indices: Uint32Array } {
+  const s = size / 2
   const positions = new Float32Array([
     -s, -s, -s, s, -s, -s, s, s, -s, -s, s, -s,
     -s, -s, s, s, -s, s, s, s, s, -s, s, s,
@@ -32,17 +31,12 @@ export function makeHeadstock(params: { size: number }): SolidShape {
     0, 1, 2, 0, 2, 3, 4, 6, 5, 4, 7, 6, 0, 4, 5, 0, 5, 1,
     1, 5, 6, 1, 6, 2, 2, 6, 7, 2, 7, 3, 3, 7, 4, 3, 4, 0,
   ])
-  return solid({ positions, indices })
+  return { positions, indices }
 }
 
-/**
- * Build a sphere as a faijs SolidShape with no BREP slot (mesh only),
- * approximated by subdivision to demonstrate mesh-only library diversity.
- * @param params - configuration for the sphere; `radius` is the sphere radius.
- * @returns the sphere as a mesh-based faijs SolidShape.
- */
-export function makeBall(params: { radius: number }): SolidShape {
-  const r = params.radius
+/** Subdivided sphere mesh (raw MeshData). */
+function sphereMesh(radius: number): { positions: Float32Array; indices: Uint32Array } {
+  const r = radius
   const positions: number[] = []
   const indices: number[] = []
   const segments = 12
@@ -64,8 +58,23 @@ export function makeBall(params: { radius: number }): SolidShape {
       indices.push(a, b, a + 1, a + 1, b, b + 1)
     }
   }
-  return solid({
-    positions: new Float32Array(positions),
-    indices: new Uint32Array(indices),
-  })
+  return { positions: new Float32Array(positions), indices: new Uint32Array(indices) }
 }
+
+/**
+ * Build a cube as a mesh-only faijs SolidShape (no BREP slot).
+ * @param params - configuration for the cube; `size` is the edge length.
+ * @returns the cube as a mesh-based faijs SolidShape.
+ */
+export const makeHeadstock = defineOp({
+  mesh: (params: { size: number }) => cubeMesh(params.size),
+})
+
+/**
+ * Build a sphere as a mesh-only faijs SolidShape, approximated by subdivision.
+ * @param params - configuration for the sphere; `radius` is the sphere radius.
+ * @returns the sphere as a mesh-based faijs SolidShape.
+ */
+export const makeBall = defineOp({
+  mesh: (params: { radius: number }) => sphereMesh(params.radius),
+})

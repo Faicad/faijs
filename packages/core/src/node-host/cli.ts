@@ -149,7 +149,7 @@ export async function cliRun(
   if (execResult.failedAt) {
     return {
       ok: false,
-      error: `Execution failed at statement ${execResult.failedAt.index} (op: ${execResult.failedAt.op}): ${execResult.failedAt.message}`,
+      error: `Execution failed at statement ${execResult.failedAt.index} (callee: ${execResult.failedAt.callee}): ${execResult.failedAt.message}`,
       infos: execResult.infos,
     }
   }

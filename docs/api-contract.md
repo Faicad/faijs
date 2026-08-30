@@ -9,10 +9,6 @@ English | [中文](api-contract.zh.md)
 > Related documents:
 > - `docs/syntax-design.md` — `.faijs` syntax and incremental execution contract
 > - `docs/ops-api-inventory.md` — API manual for writing `.faijs` code (AI/user side, generated file)
-> - `docs/plans/2026-08-29-engine-library-contract.md` — engine/library contract (K1–K6) and the three library contract surfaces (landed)
-> - `docs/plans/2026-08-28-keep-syntax-design.md` — keep syntax and terminal detection (landed)
-> - `docs/plans/2026-08-30-brep-engine-switch.md` — dual engine slots and capability routing (landed)
-> - `docs/plans/2026-08-29-monorepo-plan.md` — monorepo package structure (landed)
 
 ---
 
@@ -99,6 +95,7 @@ The engine package also exposes fine-grained subpaths (`@faicad/faijs-core/runti
 - **R-6 The BREP chain is per part.** Whether a part is still BREP is decided solely by whether `solidCache` holds a handle for it; there is no global flag, and sibling parts never contaminate each other.
 - **R-7 Static dispatch, no runtime fallback.** An exception on the BREP path is a bug — surface it, never catch it and silently switch to mesh. A missing capability degrades statically or raises a clear error; **never fake an API**.
 - **R-8 keep is the only coupling point between faijs and the UI.** faijs defines no features, UI forms, icons or edit panels — those belong to the upper-layer application (3d_editor).
+- **R-9 Terminology: op vs. feature.** At the **faijs layer**, op = an operation that returns a geometric entity (`Shape` / `CompoundShape`). At the **host layer (3d_editor)**, op = any operation / any function call, and feature = the generic CAD term implemented by one or more ops / function calls. The engine has zero function knowledge (§1.2) and sees only "a library function call returning a geometric entity"; feature semantics, like UI forms / icons / edit panels, belong to the upper-layer application (see R-8). The user's exact words (zh) are quoted in the Chinese version (§2 R-9).
 
 ---
 
@@ -158,6 +155,8 @@ export type ArgIR = JsonValue | ParamRefIR | VarRefIR | CallRefIR
 ### 4.2 `StatementIR` (core contract)
 
 ```ts
+import type { StmtId, ArgIR, PartName } from '@faicad/faijs-core'
+
 export interface StatementIR {
   id: StmtId
   namespace?: string          // third-party namespace; default 'cad'
@@ -176,7 +175,7 @@ export interface StatementIR {
 
 ### 4.3 `ScriptIR` and terminals
 
-```ts
+```ts ignore-check
 export interface ScriptIR {
   source?: { kind: 'load' } | { kind: 'sdf' }
   params: ParamDef[]
@@ -233,7 +232,7 @@ A retention declaration can appear in two places, with priority **call site > fu
 cad.drill(a, { diameter: 8, keep: ['a'], keepHidden: true })
 ```
 
-```ts
+```ts ignore-check
 export function group(params) {
   keep(...params.members)
   return compound(params.members)
@@ -275,7 +274,7 @@ For each shape variable (compound variables included), take its "last writer P";
 
 ### 7.1 Factory and execution modes
 
-```ts
+```ts ignore-check
 createRuntime(ports: HostPorts, mode?: ExecutionMode, libs?: Record<string, StdlibNamespace>): CadRuntime
 export type ExecutionMode = 'auto' | 'brep' | 'mesh'
 ```
@@ -304,13 +303,13 @@ export type ExecutionMode = 'auto' | 'brep' | 'mesh'
 
 ### 7.3 `ExecutionResult` (host main consumption surface)
 
-```ts
+```ts ignore-check
 export interface ExecutionResult {
   outputs: Map<PartName, Shape | CompoundShape>   // all shape variables, intermediates included
   brepChain: BrepChainState                       // BREP chain state (per-part handles)
   terminals: TerminalShape[]                      // DAG leaf terminals
   infos: string[]
-  failedAt?: { index: number; op: string; message: string }
+  failedAt?: { index: number; callee: string; message: string }
   brepSolids?: Map<PartName, { solid: BrepHandle; kernel: BrepEngineApi }>
   topology?: Map<PartName, PartTopology>
   compounds?: Map<PartName, PartName[]>           // compound variable -> member names
@@ -321,7 +320,7 @@ export interface ExecutionResult {
 
 ### 7.4 `ExecuteOptions`
 
-```ts
+```ts ignore-check
 export interface ExecuteOptions {
   params?: Record<string, unknown>
   inputGeometryMap?: Map<PartName, Shape>
@@ -349,7 +348,7 @@ The old `ExecContext` packed kernels, identity slots and DAG queries into one in
 
 **Surface A — Backends (host injects once, libraries import to access)**
 
-```ts
+```ts ignore-check
 configureBackends(backends: Backends): void   // called once at host startup
 getBackends(): Backends                       // throws when unconfigured; no silent default
 export interface Backends {
@@ -364,7 +363,7 @@ export const CONTRACT_VERSION = 1
 
 **Surface B — Shape constructors (zero bookkeeping in libraries)**
 
-```ts
+```ts ignore-check
 solid(mesh): SolidShape                       // every mesh product must be created here
 fromBrep(mesh, holder): SolidShape            // BREP product: registers handle + face evolution
 compound(children): CompoundShape             // structure (hierarchy), not new geometry
@@ -374,7 +373,7 @@ hasBrep(shape): boolean / brepOf(shape): unknown | undefined
 
 **Surface C — keep declarations (called inside library function bodies)**
 
-```ts
+```ts ignore-check
 keep(...shapes): void        // keep and render
 keepHidden(...shapes): void  // keep but do not render on canvas
 ```
@@ -387,25 +386,25 @@ keepHidden(...shapes): void  // keep but do not render on canvas
 
 ### 8.1 `dispatchPath` (static determination, no runtime fallback)
 
-Located in `packages/core/src/cad-runtime/backend-dispatch.ts`:
+Located in `packages/core/src/cad-runtime/backend-dispatch.ts` (**not on the SDK public surface** — library authors declare implementation sets via `defineOp`, see §10.3):
 
-```ts
-dispatchPath(inputs: Shape[], brepImpl: unknown | undefined, requiredCapability?: BrepCapabilityName): 'brep' | 'mesh'
+```ts ignore-check
+dispatchPath(inputs: Shape[], impls: { mesh?: UnknownFn; brep?: UnknownFn }, requiredCapability?: BrepCapabilityName): 'brep' | 'mesh'
 ```
 
 Decision order:
 
-1. `mode='mesh'` → mesh.
-2. `mode='brep'` → no `brepImpl`, inputs not all on the chain (`hasBrep`), or the current engine lacking `requiredCapability` → **throw `BrepUnsupportedError`**.
-3. `mode='auto'` → missing `requiredCapability` → mesh (static degradation); otherwise `brepImpl` present and all inputs on the chain → brep, else mesh.
+1. `mode='mesh'` → no `impls.mesh` → **throw `MeshUnsupportedError`** (`E_MESH_UNSUPPORTED`); else mesh.
+2. `mode='brep'` → no `impls.brep`, inputs off-chain, or `requiredCapability` missing → **throw `BrepUnsupportedError`**.
+3. `mode='auto'` → capability missing → mesh (static degradation); else `impls.brep` present and all inputs on the chain → brep, else mesh.
 
-Creation ops with empty inputs satisfy `[].every(hasBrep) === true`, so they take the brep path.
+Creation ops (empty inputs) satisfy `[].every(hasBrep) === true`, so they take the brep path. Both unsupported errors are captured by the engine as `ExecutionResult.failedAt`.
 
 ### 8.2 Two-slot engine registry
 
 The mesh engine and the BREP engine are **two orthogonal slots**, not alternatives: mesh is mandatory for every chain (`Shape` is the required payload plus display tessellation), while BREP is an optional precision layer that can break away at any time. Switching one does not affect the other.
 
-```ts
+```ts ignore-check
 registerBrepEngine(id: string, provider: BrepEngineProvider): void  // first registrant becomes default
 registerMeshEngine(id: string, engine: MeshEngine): void
 getBrepEngine(id?): Promise<BrepEngine>     // async provider, result cached
@@ -421,7 +420,7 @@ export type BrepEngineProvider = () => Promise<BrepEngine>
 
 ### 8.3 `BrepChainState`
 
-```ts
+```ts ignore-check
 export interface BrepChainState {
   solidCache: Map<PartName, BrepHandle>       // present = still BREP; absent = downgraded
   kernel: BrepEngineApi | null                // null in mesh mode
@@ -456,14 +455,14 @@ The `part-brep-lost` event is emitted **uniformly by the engine** (libraries do 
 
 ### 9.1 `HostPorts`
 
-```ts
+```ts ignore-check
 export interface HostPorts {
   csg?: CsgBackend
   sdf?: SdfBackend
   fonts?: FontProvider
   texture?: TextureSampler
   assets?: AssetResolver
-  events: EventSink   // required: emit('part-brep-lost', { partName, op, reason })
+  events: EventSink   // required: emit('part-brep-lost', { partName, callee, reason })
 }
 ```
 
@@ -495,6 +494,8 @@ Everything except `events` is optional — a Node test environment can supply on
 | Query | `faceCenter` `faceNormal` `bboxCenter` `bboxMin` `bboxMax` |
 | Asset | `asset` |
 
+> Note: "Feature" above is an internal faijs catalog category (ops modifying existing geometry), unrelated to the host-layer "feature" term — the generic CAD term implemented by one or more ops / function calls (see §2 R-9).
+
 **The complete parameter contract (defaults / required) is `docs/ops-api-inventory.md`** (generated from stdlib JSDoc; do not edit by hand).
 
 ### 10.2 Consumption semantics (declaration-driven)
@@ -507,20 +508,35 @@ Consumption is no longer hard-coded per op category; it is **declaration-driven*
 | `copy` | `keep(input)` | The source is not consumed; source and copy are both displayed |
 | Boolean family | `keepHidden(...inputs)` | Sources are kept but not rendered on canvas |
 
-### 10.3 Uniform library function shape
+### 10.3 Uniform library function shape (`defineOp`)
+
+Library functions declare implementations with `defineOp` (`@faicad/faijs/sdk`); do not hand-write `dispatchPath` (not on the SDK public surface, §8.1):
 
 ```ts
-export function myOp(input: Shape, params: MyParams): Shape {
-  const path = dispatchPath([input], brepImpl)
-  if (path === 'brep') return myOpBrep(input, params)
-  return solid(myOpMesh(input, params))
-}
+import { defineOp } from '@faicad/faijs/sdk'
+import type { Shape } from '@faicad/faijs/sdk'
+import type { BrepHandle } from '@faicad/faijs-core/brep/engine/types'
+
+interface MyParams { size: number }
+declare function myOpMesh(input: Shape, params: MyParams): { positions: Float32Array; indices: Uint32Array }
+declare function myOpBrep(input: Shape, params: MyParams): BrepHandle
+
+export const myOp = defineOp({
+  mesh: (input: Shape, params: MyParams) => myOpMesh(input, params),
+  brep: (input: Shape, params: MyParams) => myOpBrep(input, params),
+})
 ```
+
+`defineOp` constraints:
+
+- At least one implementation; **mesh is the default path** (mesh-only / brep-only both legal).
+- Geometry inputs are collected automatically (`args.filter(isShape)`); multi-product functions declare `outputs: string[]` (e.g. `split` → `{ front, back }`).
+- The wrapper dispatches by mode (internally `dispatchPath`, §8.1); failures raise `BrepUnsupportedError` / `MeshUnsupportedError`, converted to `ExecutionResult.failedAt`. Capabilities (e.g. boolean `['evolution']`) degrade to mesh in auto when missing; brep mode raises.
 
 ### 10.4 Third-party library channel
 
 - **Registration**: `runtime.registerLib(binding, ns)`; a script writes `import * as mech from 'mech-lib'` and calls `mech.fn(...)`. `StatementIR.namespace` records the origin and statementKey carries the package-name prefix.
-- **Validation**: a library module may export `contractVersion`; a mismatch with `CONTRACT_VERSION` throws (`assertContractVersion`) rather than silently degrading.
+- **Validation**: a library exporting defineOp declarations must carry a matching `contractVersion` (= `CONTRACT_VERSION`); `registerLib` validates strictly via `assertLibConforms` (D-4). Plain functions without defineOp are legal but get no mode routing / wrapping / assembly validation.
 - **Resolution**: `@faicad/faijs/module-resolver` provides `resolveImports` and semver checks (`satisfies`), enabling on-demand loading of large library slices.
 
 ### 10.5 Whole-module `.ts` execution channel (faqts)

@@ -13,10 +13,10 @@ export class CliEventSink implements EventSink {
   /** The collected events pushed so far. */
   readonly events: Array<{ event: string; detail: Record<string, unknown> }> = []
 
-  emit(event: 'part-brep-lost', detail: { partName: PartName; op: string; reason: string }): void {
+  emit(event: 'part-brep-lost', detail: { partName: PartName; callee: string; reason: string }): void {
     this.events.push({ event, detail: { ...detail } })
     // 写入 stderr（不干扰 stdout 的产物输出）
-    process.stderr.write(`[faijs] ${event}: op="${detail.op}", partName="${detail.partName}", reason="${detail.reason}"\n`)
+    process.stderr.write(`[faijs] ${event}: callee="${detail.callee}", partName="${detail.partName}", reason="${detail.reason}"\n`)
   }
 
   /** Clear all collected events. */

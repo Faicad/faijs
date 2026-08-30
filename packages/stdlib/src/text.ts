@@ -15,13 +15,10 @@ import { ensureDefaultFont } from '@faicad/faijs-core/brep/text/fontRegistry'
 import { getSolidBoundingBox } from '@faicad/faijs-core/brep/brep-utils'
 import { containsCjk, loadSystemCjkFont } from '@faicad/faijs-core/primitives/text/cjk'
 import { getBackends } from '@faicad/faijs-core/runtime-state'
-import { solid, fromBrep } from '@faicad/faijs-core/shape'
-import { dispatchPath } from '@faicad/faijs-core/cad-runtime/backend-dispatch'
+import { fromBrep } from '@faicad/faijs-core/shape'
+import { defineOp } from '@faicad/faijs-core/sdk'
 import { assertPositiveNumber } from './assert'
 import type { BrepEngineApi } from '@faicad/faijs-core/brep/engine/primitives'
-
-/** BREP 实现标记（dispatchPath 判定用；text 有 OCCT 精确构造） */
-const brepImpl = textToSolid
 
 /**
  * Validate text parameters: `text` must be a non-empty string, and `size` and
@@ -79,6 +76,12 @@ async function textBrep(params: Record<string, unknown>): Promise<Shape> {
   return fromBrep(solidToShape(kernel, centeredSolid), { solid: centeredSolid })
 }
 
+/** 兼容两种调用形态：`cad.text({ text, size, depth })`（创建类）与
+ * `cad.text(part0, { text, size, depth })`（历史 fixture 带输入参数，输入被忽略）。 */
+function textParamsOf(inputOrParams: unknown, maybeParams?: Record<string, unknown>): Record<string, unknown> {
+  return (maybeParams ?? inputOrParams ?? {}) as Record<string, unknown>
+}
+
 /**
  * 生成文字零件（文字轮廓挤出，X/Z 居中、Y 底部对齐原点）。
  * @group 创建
@@ -96,12 +99,15 @@ async function textBrep(params: Record<string, unknown>): Promise<Shape> {
  * @example
  * const t = await cad.text({ text: 'Hello', size: 20, depth: 5 })
   */
-export async function text(inputOrParams: unknown, maybeParams?: Record<string, unknown>): Promise<Shape> {
-  // 兼容两种调用形态：`cad.text({ text, size, depth })`（创建类）与
-  // `cad.text(part0, { text, size, depth })`（历史 fixture 带输入参数，输入被忽略）。
-  const params = (maybeParams ?? inputOrParams ?? {}) as Record<string, unknown>
-  assertTextParams(params)
-  const path = dispatchPath([], brepImpl)
-  if (path === 'brep') return textBrep(params)
-  return solid(await cad.text({ text: params.text as string, size: params.size as number, depth: params.depth as number }))
-}
+export const text = defineOp({
+  mesh: async (inputOrParams: unknown, maybeParams?: Record<string, unknown>) => {
+    const params = textParamsOf(inputOrParams, maybeParams)
+    assertTextParams(params)
+    return cad.text({ text: params.text as string, size: params.size as number, depth: params.depth as number })
+  },
+  brep: async (inputOrParams: unknown, maybeParams?: Record<string, unknown>) => {
+    const params = textParamsOf(inputOrParams, maybeParams)
+    assertTextParams(params)
+    return textBrep(params)
+  },
+})

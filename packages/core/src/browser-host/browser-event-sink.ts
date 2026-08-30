@@ -24,12 +24,12 @@ import type { PartName } from '../identity'
  * partId/stmtName/partName keys coincide and are de-duplicated per the spec).
  */
 export class BrowserEventSink implements EventSink {
-  emit(event: 'part-brep-lost', detail: { partName: PartName; op: string; reason: string }): void {
+  emit(event: 'part-brep-lost', detail: { partName: PartName; callee: string; reason: string }): void {
     if (event === 'part-brep-lost' && typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('part-brep-lost', {
         detail: {
           partName: detail.partName,
-          op: detail.op,
+          callee: detail.callee,
           reason: detail.reason,
         },
       }))

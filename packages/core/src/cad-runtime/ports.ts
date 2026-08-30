@@ -168,7 +168,7 @@ export interface AssetResolver {
  * node 实现 (P3)：CliEventSink（写入 stderr + 收集到 events 数组）
  */
 export interface EventSink {
-  emit(event: 'part-brep-lost', detail: { partName: PartName; op: string; reason: string }): void
+  emit(event: 'part-brep-lost', detail: { partName: PartName; callee: string; reason: string }): void
 }
 
 // ── HostPorts 汇总 ──

@@ -12,8 +12,8 @@ import { cad } from '@faicad/faijs-core/mesh'
 import { primitiveToBrepSolid } from '@faicad/faijs-core/primitives/brep-primitives'
 import { solidToShape } from '@faicad/faijs-core/brep/brep-ops'
 import { getBackends } from '@faicad/faijs-core/runtime-state'
-import { solid, fromBrep } from '@faicad/faijs-core/shape'
-import { dispatchPath } from '@faicad/faijs-core/cad-runtime/backend-dispatch'
+import { fromBrep } from '@faicad/faijs-core/shape'
+import { defineOp } from '@faicad/faijs-core/sdk'
 import { assertPositiveNumber, assertNonNegativeNumber, assertNumberOrVec3 } from './assert'
 import type { BrepEngineApi } from '@faicad/faijs-core/brep/engine/primitives'
 
@@ -67,9 +67,6 @@ export function assertWedgeParams(params: Record<string, unknown>): void {
   assertPositiveNumber(params.length, 'wedge.length')
 }
 
-/** BREP 实现标记（dispatchPath 判定用；primitives 有 OCCT 精确构造） */
-const brepImpl = primitiveToBrepSolid
-
 /** BREP 路径：OCCT 精确构造 + 三角化 + fromBrep 登记（基本体无面演化）。 */
 function primitiveBrep(op: string, params: Record<string, unknown>): Shape {
   const kernel = getBackends().kernel.brep as BrepEngineApi | null
@@ -96,12 +93,16 @@ function primitiveBrep(op: string, params: Record<string, unknown>): Shape {
  * const part0 = cad.box({ size: 20 })
  * const part0 = cad.box({ size: [30, 20, 10], center: [0, 0, 5] })
    */
-export function box(params: Record<string, unknown>): Shape {
-  assertBoxParams(params)
-  const path = dispatchPath([], brepImpl)
-  if (path === 'brep') return primitiveBrep('box', params)
-  return solid(cad.box(params as never))
-}
+export const box = defineOp({
+  mesh: (params: Record<string, unknown>) => {
+    assertBoxParams(params)
+    return cad.box(params as never)
+  },
+  brep: (params: Record<string, unknown>) => {
+    assertBoxParams(params)
+    return primitiveBrep('box', params)
+  },
+})
 
 /**
  * 创建球体。
@@ -118,12 +119,16 @@ export function box(params: Record<string, unknown>): Shape {
  * const r = cad.sphere({ radius: 10 })
  * const r = cad.sphere({ radius: 10, segments: 64, center: [0,0,10] })
   */
-export function sphere(params: Record<string, unknown>): Shape {
-  assertSphereParams(params)
-  const path = dispatchPath([], brepImpl)
-  if (path === 'brep') return primitiveBrep('sphere', params)
-  return solid(cad.sphere(params as never))
-}
+export const sphere = defineOp({
+  mesh: (params: Record<string, unknown>) => {
+    assertSphereParams(params)
+    return cad.sphere(params as never)
+  },
+  brep: (params: Record<string, unknown>) => {
+    assertSphereParams(params)
+    return primitiveBrep('sphere', params)
+  },
+})
 
 /**
  * 创建圆柱体。
@@ -140,12 +145,16 @@ export function sphere(params: Record<string, unknown>): Shape {
  * @example
  * const c = cad.cylinder({ radius: 5, height: 40 })
   */
-export function cylinder(params: Record<string, unknown>): Shape {
-  assertCylinderParams(params)
-  const path = dispatchPath([], brepImpl)
-  if (path === 'brep') return primitiveBrep('cylinder', params)
-  return solid(cad.cylinder(params as never))
-}
+export const cylinder = defineOp({
+  mesh: (params: Record<string, unknown>) => {
+    assertCylinderParams(params)
+    return cad.cylinder(params as never)
+  },
+  brep: (params: Record<string, unknown>) => {
+    assertCylinderParams(params)
+    return primitiveBrep('cylinder', params)
+  },
+})
 
 /**
  * 创建圆锥体。radiusTop 等于 radiusBottom 时即圆柱。
@@ -163,12 +172,16 @@ export function cylinder(params: Record<string, unknown>): Shape {
  * @example
  * const c = cad.cone({ radiusBottom: 10, radiusTop: 4, height: 30 })
   */
-export function cone(params: Record<string, unknown>): Shape {
-  assertConeParams(params)
-  const path = dispatchPath([], brepImpl)
-  if (path === 'brep') return primitiveBrep('cone', params)
-  return solid(cad.cone(params as never))
-}
+export const cone = defineOp({
+  mesh: (params: Record<string, unknown>) => {
+    assertConeParams(params)
+    return cad.cone(params as never)
+  },
+  brep: (params: Record<string, unknown>) => {
+    assertConeParams(params)
+    return primitiveBrep('cone', params)
+  },
+})
 
 /**
  * 创建楔形体。唯一契约是 width/height/angle/length（width/height/angle 为正数，length 沿切割方向），
@@ -187,9 +200,13 @@ export function cone(params: Record<string, unknown>): Shape {
  * @example
  * const w = cad.wedge({ width: 30, height: 20, angle: 45, length: 10 })
   */
-export function wedge(params: Record<string, unknown>): Shape {
-  assertWedgeParams(params)
-  const path = dispatchPath([], brepImpl)
-  if (path === 'brep') return primitiveBrep('wedge', params)
-  return solid(cad.wedge(params as never))
-}
+export const wedge = defineOp({
+  mesh: (params: Record<string, unknown>) => {
+    assertWedgeParams(params)
+    return cad.wedge(params as never)
+  },
+  brep: (params: Record<string, unknown>) => {
+    assertWedgeParams(params)
+    return primitiveBrep('wedge', params)
+  },
+})

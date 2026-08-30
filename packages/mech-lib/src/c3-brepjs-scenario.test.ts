@@ -75,7 +75,7 @@ describe('C3 brepjs 端到端场景验收（断言 1–4）', () => {
     expect(hasBrep(p1)).toBe(true)
     // dispatchPath 静态判定：auto 模式 + 全部输入 hasBrep + 有 brep 实现 → brep
     // （union 的 BREP 实现存在且同获注入；这里传一个非空实现占位即可验证判定逻辑）
-    const path = dispatchPath([p0, p1], () => undefined)
+    const path = dispatchPath([p0, p1], { brep: () => undefined })
     expect(path).toBe('brep')
     // 且 union 结果保留 BREP 槽——精确布尔，非混合降到 mesh（与 b7 双向）
     const p2 = shapeOf('part2')

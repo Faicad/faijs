@@ -462,7 +462,7 @@ export class ModuleExecutor {
 
     sink.emit('part-brep-lost', {
       partName: asPartName(String(source.outputs[0] ?? '')),
-      op: source.callee,
+      callee: source.callee,
       reason: `${source.callee} has no BREP implementation`,
     })
   }

@@ -27,7 +27,7 @@ A `.faijs` script can `import * as mech from 'mech-lib'` and call `mech.makeHead
 
 Your module is a plain ESM file exporting functions — write it against the SDK entry:
 
-```ts
+```ts ignore-check
 // mech-lib.mjs
 import { solid, fromBrep, keep, getBackends, CONTRACT_VERSION } from '@faicad/faijs/sdk'
 

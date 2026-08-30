@@ -13,16 +13,13 @@ import { cad } from '@faicad/faijs-core/mesh'
 import { translateBrep, rotateBrep, scaleBrep, solidToShape } from '@faicad/faijs-core/brep/brep-ops'
 import { identityEvolution } from '@faicad/faijs-core/brep/face-evolution'
 import { getBackends } from '@faicad/faijs-core/runtime-state'
-import { solid, fromBrep, brepOf } from '@faicad/faijs-core/shape'
-import { dispatchPath } from '@faicad/faijs-core/cad-runtime/backend-dispatch'
+import { fromBrep, brepOf } from '@faicad/faijs-core/shape'
+import { defineOp } from '@faicad/faijs-core/sdk'
 import { assertVec3, assertPositiveNumber } from './assert'
 import type { BrepHandle } from '@faicad/faijs-core/brep/engine/types'
 import type { BrepEngineApi } from '@faicad/faijs-core/brep/engine/primitives'
 
-/** BREP 实现标记（transform 有 OCCT 精确变换） */
-const brepImpl = true
-
-// ── per-op 参数自校验（Phase 2.2；stdlib 被直接 import 时的防御层） ──
+/** BREP 路径：变换 solid + 恒等面演化 + 三角化 + fromBrep 登记。 */
 
 /**
  * Validate translate parameters: `offset` must be a vec3.
@@ -92,13 +89,18 @@ function transformBrep(op: string, input: Shape, params: Record<string, unknown>
  * @example
  * const p1 = cad.translate(part0, { offset: [10, 0, 0] })
   */
-export function translate(input: Shape, params: Record<string, unknown>): Shape {
-  if (!input) throw new Error('[stdlib/translate] no input geometry')
-  assertTranslateParams(params)
-  const path = dispatchPath([input], brepImpl)
-  if (path === 'brep') return transformBrep('translate', input, params)
-  return solid(cad.translate(input, params.offset as Vec3))
-}
+export const translate = defineOp({
+  mesh: (input: Shape, params: Record<string, unknown>) => {
+    if (!input) throw new Error('[stdlib/translate] no input geometry')
+    assertTranslateParams(params)
+    return cad.translate(input, params.offset as Vec3)
+  },
+  brep: (input: Shape, params: Record<string, unknown>) => {
+    if (!input) throw new Error('[stdlib/translate] no input geometry')
+    assertTranslateParams(params)
+    return transformBrep('translate', input, params)
+  },
+})
 
 /**
  * 绕轴旋转几何体。anglesDeg 为欧拉角（度，XYZ 顺序）。
@@ -115,13 +117,18 @@ export function translate(input: Shape, params: Record<string, unknown>): Shape 
  * const p2 = cad.rotate(part0, { anglesDeg: [0, 0, 45] })
  * const p3 = cad.rotate(part0, { anglesDeg: [0, 0, 45], pivot: [0,0,0] })
   */
-export function rotate(input: Shape, params: Record<string, unknown>): Shape {
-  if (!input) throw new Error('[stdlib/rotate] no input geometry')
-  assertRotateParams(params)
-  const path = dispatchPath([input], brepImpl)
-  if (path === 'brep') return transformBrep('rotate', input, params)
-  return solid(cad.rotate(input, params.anglesDeg as Vec3, params.pivot as Vec3 | undefined))
-}
+export const rotate = defineOp({
+  mesh: (input: Shape, params: Record<string, unknown>) => {
+    if (!input) throw new Error('[stdlib/rotate] no input geometry')
+    assertRotateParams(params)
+    return cad.rotate(input, params.anglesDeg as Vec3, params.pivot as Vec3 | undefined)
+  },
+  brep: (input: Shape, params: Record<string, unknown>) => {
+    if (!input) throw new Error('[stdlib/rotate] no input geometry')
+    assertRotateParams(params)
+    return transformBrep('rotate', input, params)
+  },
+})
 
 /**
  * 缩放几何体。factor 传 number 为等比缩放，传 [x,y,z] 为非等比。
@@ -137,10 +144,15 @@ export function rotate(input: Shape, params: Record<string, unknown>): Shape {
  * const p4 = cad.scale(part0, { factor: 2 })
  * const p5 = cad.scale(part0, { factor: [2, 1, 1] })
   */
-export function scale(input: Shape, params: Record<string, unknown>): Shape {
-  if (!input) throw new Error('[stdlib/scale] no input geometry')
-  assertScaleParams(params)
-  const path = dispatchPath([input], brepImpl)
-  if (path === 'brep') return transformBrep('scale', input, params)
-  return solid(cad.scale(input, params.factor as number | Vec3))
-}
+export const scale = defineOp({
+  mesh: (input: Shape, params: Record<string, unknown>) => {
+    if (!input) throw new Error('[stdlib/scale] no input geometry')
+    assertScaleParams(params)
+    return cad.scale(input, params.factor as number | Vec3)
+  },
+  brep: (input: Shape, params: Record<string, unknown>) => {
+    if (!input) throw new Error('[stdlib/scale] no input geometry')
+    assertScaleParams(params)
+    return transformBrep('scale', input, params)
+  },
+})

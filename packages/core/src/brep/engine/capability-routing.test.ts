@@ -44,7 +44,7 @@ describe('能力路由（§8.4）：brep-mock 引擎无 evolution 能力', () =>
   it('brep 模式：union（需 evolution）→ BrepUnsupportedError → failedAt 明确报错', async () => {
     const result = await run('brep')
     expect(result.failedAt).toBeDefined()
-    expect(result.failedAt!.op).toBe('union')
+    expect(result.failedAt!.callee).toBe('union')
     expect(result.failedAt!.message).toMatch(/lacks capability 'evolution'/)
   })
 

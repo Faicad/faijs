@@ -31,15 +31,17 @@ import {
   isErr,
 } from 'brepjs'
 import {
+  defineOp,
   fromHandle,
   getBackends,
   compound,
+  CONTRACT_VERSION,
   type SolidShape,
   type CompoundShape,
 } from '@faicad/faijs-core/sdk'
 
 /** Adapter contract version for the registerLib compatibility check. */
-export const contractVersion = 1
+export const contractVersion = CONTRACT_VERSION
 
 // ── ① 内核注入（§6.4 / §6.1） ──
 
@@ -131,24 +133,28 @@ export interface GearParams {
  * @param params - the external-gear parameters.
  * @returns the gear as a faijs SolidShape.
  */
-export function external(params: GearParams): SolidShape {
-  ensureKernelInjected()
-  const r = makeExternalGear(params)
-  if (isErr(r)) convError(r.error)
-  return shapeFromGear(r.value.solid)
-}
+export const external = defineOp({
+  brep: (params: GearParams): SolidShape => {
+    ensureKernelInjected()
+    const r = makeExternalGear(params)
+    if (isErr(r)) convError(r.error)
+    return shapeFromGear(r.value.solid)
+  },
+})
 
 /**
  * Build an internal (ring) gear as a faijs SolidShape with a BREP slot.
  * @param params - the internal-gear parameters, including an optional ring wall thickness.
  * @returns the gear as a faijs SolidShape.
  */
-export function internal(params: GearParams & { ringWallThickness?: number }): SolidShape {
-  ensureKernelInjected()
-  const r = makeInternalGear(params)
-  if (isErr(r)) convError(r.error)
-  return shapeFromGear(r.value.solid)
-}
+export const internal = defineOp({
+  brep: (params: GearParams & { ringWallThickness?: number }): SolidShape => {
+    ensureKernelInjected()
+    const r = makeInternalGear(params)
+    if (isErr(r)) convError(r.error)
+    return shapeFromGear(r.value.solid)
+  },
+})
 
 /**
  * Build a planetary gear train (sun + planets + ring), each as a BREP solid,
@@ -156,6 +162,8 @@ export function internal(params: GearParams & { ringWallThickness?: number }): S
  * @param params - the planetary-gear parameters.
  * @returns the assembled gear train as a faijs CompoundShape.
  */
+// planetary 是结构函数（返回 CompoundShape，几何由成员承载）——不在 defineOp
+// 适用范围（§4.2：返回 SolidShape 的函数）；成员各自由 shapeFromGear 登记 BREP 槽。
 export function planetary(params: {
   thickness: number
   moduleSize?: number
@@ -192,10 +200,12 @@ export interface ThreadParams {
  * @param params - the thread profile parameters.
  * @returns the thread as a faijs SolidShape.
  */
-export function thread(params: ThreadParams): SolidShape {
-  ensureKernelInjected()
-  const r = brepThread(params)
-  if (isErr(r)) convError(r.error)
-  // thread 的 Result.value 本身就是形状对象（带 wrapped），与 geol 的 { solid } 不同
-  return shapeFromGear(r.value as unknown)
-}
+export const thread = defineOp({
+  brep: (params: ThreadParams): SolidShape => {
+    ensureKernelInjected()
+    const r = brepThread(params)
+    if (isErr(r)) convError(r.error)
+    // thread 的 Result.value 本身就是形状对象（带 wrapped），与 geol 的 { solid } 不同
+    return shapeFromGear(r.value as unknown)
+  },
+})

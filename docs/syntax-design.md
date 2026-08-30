@@ -193,7 +193,7 @@ let part2 = cad.drill(part0, { at: cad.faceCenter(part0), depth: flag ? 5 : 0 })
 
 `src/lang/types.ts` 的 IR 定义（**这是 IR 的真源**）：
 
-```ts
+```ts ignore-check
 interface StatementIR {
   id: StmtId                    // 顺序 sN（参数语句占前段）
   callee: string                // 函数名：源码里写什么就是什么（union/split/add_constraint/…）
@@ -246,7 +246,7 @@ interface ScriptIR {
 
 ### 4.2 `derivePartName`: engine-provided naming service, but **only called by generating side**
 
-```ts
+```ts ignore-check
 derivePartName(input: {
   callee: string        // 函数名（语法事实）
   inputCount: number    // 位置输入数（语法事实）
@@ -302,7 +302,7 @@ derivePartName(input: {
 
 ### 5.2 `consumes(T, v)`: symbol-table-driven, three exceptions
 
-```ts
+```ts ignore-check
 function consumes(stmt, v): boolean {
   // 默认：v 出现在 stmt 的 inputs 或 args 的 VarRefIR 中 → 消费
   // 例外 1：嵌套调用 CallRefIR 内部的引用 = 只读查询，不消费
@@ -331,7 +331,7 @@ function consumes(stmt, v): boolean {
 
 提取规则（纯机械）：位置形参类型为 `ReadonlyShape` → 记下标；options 属性类型为 `ReadonlyShape` / `readonly ReadonlyShape[]` → 记属性名。**库作者唯一的额外工作就是在签名里写类型**——这正是"第三方库提供是否修改入参的申明"的落地方式。
 
-```ts
+```ts ignore-check
 // src/mesh/types.ts
 export type ReadonlyShape = Shape & { readonly [readonlyBrand]?: true }
 ```
@@ -380,7 +380,7 @@ export type ReadonlyShape = Shape & { readonly [readonlyBrand]?: true }
 
 所有可从 `.faijs` 调用的可调用体签名：
 
-```ts
+```ts ignore-check
 (…源码里写了什么实参, exec: ExecContext) => Result | Promise<Result>
 ```
 

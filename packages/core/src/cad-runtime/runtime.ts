@@ -41,7 +41,7 @@ import { compileToModule, type CompiledStatementMeta } from '../lang/compile'
 import { ModuleExecutor, type ExecBookkeeping } from './module-executor'
 import {
   configureBackends, CONTRACT_VERSION, setKeepSink, setName,
-  assertContractVersion, BrepUnsupportedError, type StdlibNamespace,
+  assertContractVersion, BrepUnsupportedError, MeshUnsupportedError, type StdlibNamespace,
 } from '../runtime-state'
 import { assertLibConforms } from '../define-op'
 import { computeContentKey } from './content-key'
@@ -123,7 +123,7 @@ export interface ExecutionResult {
   /** 信息/警告列表 */
   infos: string[]
   /** 失败信息（如果执行中途出错） */
-  failedAt?: { index: number; op: string; message: string }
+  failedAt?: { index: number; callee: string; message: string }
   /** 逐终端的 BREP 实体（仅持有 solid 的终端出现在此表）。key 为终端 PartName。 */
   brepSolids?: Map<PartName, { solid: BrepHandle; kernel: BrepEngineApi }>
   /**
@@ -672,7 +672,7 @@ export class CadRuntime {
     }
   }
 
-  /** 执行并捕获 brep 强制模式失败（BrepUnsupportedError → ExecutionResult.failedAt）。 */
+  /** 执行并捕获模式不支持失败（BrepUnsupportedError / MeshUnsupportedError → ExecutionResult.failedAt）。 */
   private async runWithFailureHandling(
     script: ScriptIR,
     exec: ExecBookkeeping,
@@ -682,14 +682,14 @@ export class CadRuntime {
     try {
       await run()
     } catch (err) {
-      if (err instanceof BrepUnsupportedError) {
+      if (err instanceof BrepUnsupportedError || err instanceof MeshUnsupportedError) {
         const index = err.stmt ? script.statements.indexOf(err.stmt) : -1
         return {
           outputs: exec.outputCache,
           brepChain: this.brepChain!,
           terminals: [],
           infos: [],
-          failedAt: { index, op: err.stmt?.callee ?? '', message: err.message },
+          failedAt: { index, callee: err.stmt?.callee ?? '', message: err.message },
         }
       }
       throw err

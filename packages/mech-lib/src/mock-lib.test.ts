@@ -15,6 +15,7 @@ import { createRuntime } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs-core/node'
 import { initOcctWasm } from '@faicad/faijs-core'
 import { hasBrep } from '@faicad/faijs-core/shape'
+import { CONTRACT_VERSION } from '@faicad/faijs-core/sdk'
 import type { Shape } from '@faicad/faijs-core/mesh/types'
 import * as mockMechMesh from './mock-mech-mesh'
 import * as mockMechBrep from './mock-mech-brep'
@@ -43,7 +44,7 @@ async function executeWithLib(
 
 describe('B4: mock 库 fixture — mesh 版', () => {
   it('带 contractVersion，可被 registerLib 接受', () => {
-    expect(mockMechMesh.contractVersion).toBe(1)
+    expect(mockMechMesh.contractVersion).toBe(CONTRACT_VERSION)
     const runtime = createRuntime(createNodePorts(), 'auto')
     expect(() => runtime.registerLib('mech', mockMechMesh as never)).not.toThrow()
   })
@@ -61,7 +62,7 @@ describe('B4: mock 库 fixture — mesh 版', () => {
 
 describe('B4: mock 库 fixture — BREP 版', () => {
   it('带 contractVersion，可被 registerLib 接受', () => {
-    expect(mockMechBrep.contractVersion).toBe(1)
+    expect(mockMechBrep.contractVersion).toBe(CONTRACT_VERSION)
     const runtime = createRuntime(createNodePorts(), 'auto')
     expect(() => runtime.registerLib('mech', mockMechBrep as never)).not.toThrow()
   })
@@ -90,5 +91,22 @@ describe('B4: mock 库 fixture — BREP 版', () => {
     const lastStmt = script.statements[script.statements.length - 1]
     const shape = result.outputs.get(lastStmt.outputs[0]) as Shape
     expect(shape.positions.length).toBeGreaterThan(0)
+  })
+
+  it('mesh 模式：makeHeadstock 产 mesh box（mesh-first，不再崩溃，hasBrep false）', async () => {
+    const runtime = createRuntime(createNodePorts(), 'mesh')
+    runtime.registerLib('mech', mockMechBrep as never)
+    const { script } = parseScript([
+      "import * as mech from 'mech-lib'",
+      'let part0 = mech.makeHeadstock({ size: 20 })',
+    ].join('\n'))
+    const result = await runtime.execute(script)
+    expect(result.failedAt).toBeUndefined()
+    const geoStmts = script.statements.filter((s) => s.hasAssignment)
+    const lastStmt = geoStmts[geoStmts.length - 1]
+    const shape = result.outputs.get(lastStmt.outputs[0]) as Shape | undefined
+    expect(shape).toBeDefined()
+    expect(shape!.positions.length).toBeGreaterThan(0)
+    expect(hasBrep(shape!)).toBe(false)
   })
 })

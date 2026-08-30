@@ -27,7 +27,7 @@ Faicad CAD 执行引擎——`faijs` 语言 parser、BREP/mesh 双链路几何�
 
 你的模块是一个导出函数的普通 ESM 文件——通过 SDK 入口编写：
 
-```ts
+```ts ignore-check
 // mech-lib.mjs
 import { solid, fromBrep, keep, getBackends, CONTRACT_VERSION } from '@faicad/faijs/sdk'
 

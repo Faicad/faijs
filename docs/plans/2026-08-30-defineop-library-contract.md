@@ -1,7 +1,8 @@
 # faijs 第三方库双路径契约与 defineOp 开发面（实施文档）
 
 - 日期：2026-08-30
-- 状态：方案（未实施）
+- 状态：已落地
+- 实施记录（2026-08-30）：P1（SDK 层 `defineOp` + `CONTRACT_VERSION` 1→2 + dispatchPath 移出公开面）→ P2（stdlib 全量迁移 defineOp）→ P3（mech-lib mesh-first 重写 + brep-only D1b）→ P4（术语清理 `op`→`callee` + 3d_editor 宿主同步）。发布版本 0.5.10 → 0.5.11（patch）。
 - 上位文档：`C:\my\Faicad\3d_editor\Faijs语言的思考.md`（语言定位唯一权威）
 - 关联文档：`docs/plans/2026-08-29-engine-library-contract.md`（引擎/库契约 K1–K6 与库契约三面）、`docs/plans/2026-08-29-engine-library-contract-implementation.md`（P0–P8 实施）、`docs/api-contract.zh.md`（当前接口契约）、`docs/plans/2026-08-28-keep-syntax-design.md`（keep 与终端判定）
 - 本文档是引擎/库契约的**第二轮修订**：以"每个 op 必须支持 mesh、BREP 可选"为基石，用 `defineOp` 取代"每函数手写 `dispatchPath` + `brepImpl` 标记"的开发形态，并给出函数四分类概念模型与要修改的文件清单。
@@ -116,17 +117,20 @@ faijs 没有"op"实体，只有**函数**。引擎按**运行时输出形态**�
 ### 4.2 `defineOp` API（`@faicad/faijs/sdk` 新增）
 
 ```ts
-export type MeshImpl<A extends unknown[]> = (...args: A) => MeshData | Shape
-export type BrepImpl<A extends unknown[]> = (...args: A) => BrepHandle | { solid: BrepHandle; faceEvolution?: Map<number, number[]> }
+export type MeshImpl<A extends unknown[]> = (...args: A) => MeshData | Shape | Record<string, MeshData | Shape>
+export type BrepImpl<A extends unknown[]> = (...args: A) => BrepHandle | BrepResult | Shape | Record<string, BrepHandle | BrepResult | Shape>
+export interface BrepResult { solid: BrepHandle; faceEvolution?: Map<number, number[]> }
+
+/** 可选声明：capabilities（D5）与多产物命名键（方案 C，如 split）。 */
+export interface DualOpOptions {
+  capabilities?: BrepCapabilityName[]
+  outputs?: string[]
+}
 
 export function defineOp<A extends unknown[]>(
-  impls:
-    | { mesh: MeshImpl<A>; brep?: BrepImpl<A> }      // 双路径 或 mesh-only
-    | { brep: BrepImpl<A> },                          // brep-only（D1b）
-  opts?: {
-    capabilities?: BrepCapabilityName[]               // D5
-    outputs?: string[]                                // 多产物命名键（方案 C，如 split）
-  },
+  decl:
+    | (DualOpOptions & { mesh: MeshImpl<A>; brep?: BrepImpl<A> })   // 双路径 或 mesh-only
+    | (DualOpOptions & { mesh?: never; brep: BrepImpl<A> }),        // brep-only（D1b）
 ): ((...args: A) => Shape | Record<string, Shape>) & { __faijs?: DualOpMeta }
 ```
 

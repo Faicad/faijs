@@ -27,6 +27,7 @@ import { group, assembly } from './compound'
 import { copy } from './copy'
 import { faceCenter, faceNormal, bboxCenter, bboxMin, bboxMax } from './geom'
 import { asset } from './asset'
+import { CONTRACT_VERSION } from '@faicad/faijs-core/runtime-state'
 import type { StdlibNamespace } from '@faicad/faijs-core/runtime-state'
 
 /**
@@ -34,7 +35,11 @@ import type { StdlibNamespace } from '@faicad/faijs-core/runtime-state'
  * @returns the assembled StdlibNamespace ready for runtime injection.
  */
 export function createInternalStdlib(): StdlibNamespace {
+  // D-4 strict assembly check: the cad namespace now exports dual-op functions
+  // (defineOp), so registerLib requires a matching contractVersion. Cast is
+  // needed because StdlibNamespace is an index-signature type.
   return {
+    contractVersion: CONTRACT_VERSION,
     box, sphere, cylinder, cone, wedge,
     text, screw, svgExtrude, sdf, load,
     translate, rotate, scale,
@@ -43,5 +48,5 @@ export function createInternalStdlib(): StdlibNamespace {
     split, group, assembly, copy,
     faceCenter, faceNormal, bboxCenter, bboxMin, bboxMax,
     asset,
-  }
+  } as unknown as StdlibNamespace
 }

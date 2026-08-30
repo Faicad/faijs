@@ -9,10 +9,6 @@
 > 关联文档：
 > - `docs/syntax-design.md` —— `.faijs` 语法与增量执行契约
 > - `docs/ops-api-inventory.md` —— 写 `.faijs` 代码的 API 手册（AI／用户侧，生成文件）
-> - `docs/plans/2026-08-29-engine-library-contract.md` —— 引擎／库契约（K1–K6）与库契约三面（已落地）
-> - `docs/plans/2026-08-28-keep-syntax-design.md` —— keep 语法与终端判定（已落地）
-> - `docs/plans/2026-08-30-brep-engine-switch.md` —— 双引擎槽位与能力路由（已落地）
-> - `docs/plans/2026-08-29-monorepo-plan.md` —— monorepo 包结构（已落地）
 
 ---
 
@@ -99,6 +95,7 @@ faijs 是 **npm workspaces monorepo**。根包 `@faicad/faijs` 是**门面薄层
 - **R-6 BREP 链是逐 part 的。** 一个 part 是否仍为 BREP，由 `solidCache` 中是否有它的句柄唯一决定；不存在全局标志，兄弟 part 互不污染。
 - **R-7 静态分派，禁止运行时回退。** BREP 路径执行抛异常 = bug，直接报错暴露，绝不 try-catch 后改走 mesh；能力缺失按静态规则降级或明确报错，**绝不伪造 API**。
 - **R-8 keep 是 faijs 与 UI 的唯一耦合点。** faijs 不定义 feature／UI 表单／图标／编辑面板——它们属于上层应用（3d_editor）。
+- **R-9 op 与特征（feature）的术语约定。** 用户原话（逐字）："关于op的定义，在faijs里就是返回几何实体的操作。而在上层应用如3d_editor中，op默认指任何操作，或者说任何函数调用，而特征则对应到通用CAD术语，可以通过1个到多个op/函数调用实现。"——因此：**faijs 层**，op = 返回几何实体（`Shape`／`CompoundShape`）的操作；**宿主层（3d_editor）**，op = 任何操作／任何函数调用，特征（feature）= 通用 CAD 术语，由 1 到多个 op／函数调用实现。引擎零函数知识（§1.2）只认识"返回几何实体的库函数调用"这一均匀概念；特征的语义与 UI 表单／图标／编辑面板一样属于上层应用（见 R-8）。
 
 ---
 
@@ -158,6 +155,8 @@ export type ArgIR = JsonValue | ParamRefIR | VarRefIR | CallRefIR
 ### 4.2 `StatementIR`（核心契约）
 
 ```ts
+import type { StmtId, ArgIR, PartName } from '@faicad/faijs-core'
+
 export interface StatementIR {
   id: StmtId
   namespace?: string          // third-party namespace; default 'cad'
@@ -176,7 +175,7 @@ export interface StatementIR {
 
 ### 4.3 `ScriptIR` 与终端
 
-```ts
+```ts ignore-check
 export interface ScriptIR {
   source?: { kind: 'load' } | { kind: 'sdf' }
   params: ParamDef[]
@@ -233,7 +232,7 @@ let part5 = mech.makeHeadstock({ length: 120 })
 cad.drill(a, { diameter: 8, keep: ['a'], keepHidden: true })
 ```
 
-```ts
+```ts ignore-check
 export function group(params) {
   keep(...params.members)
   return compound(params.members)
@@ -275,7 +274,7 @@ C3 是**零签名知识**的客观默认：返回非几何的函数不可能把�
 
 ### 7.1 工厂与执行模式
 
-```ts
+```ts ignore-check
 createRuntime(ports: HostPorts, mode?: ExecutionMode, libs?: Record<string, StdlibNamespace>): CadRuntime
 export type ExecutionMode = 'auto' | 'brep' | 'mesh'
 ```
@@ -304,13 +303,13 @@ export type ExecutionMode = 'auto' | 'brep' | 'mesh'
 
 ### 7.3 `ExecutionResult`（宿主主要消费面）
 
-```ts
+```ts ignore-check
 export interface ExecutionResult {
   outputs: Map<PartName, Shape | CompoundShape>   // all shape variables, intermediates included
   brepChain: BrepChainState                       // BREP chain state (per-part handles)
   terminals: TerminalShape[]                      // DAG leaf terminals
   infos: string[]
-  failedAt?: { index: number; op: string; message: string }
+  failedAt?: { index: number; callee: string; message: string }
   brepSolids?: Map<PartName, { solid: BrepHandle; kernel: BrepEngineApi }>
   topology?: Map<PartName, PartTopology>
   compounds?: Map<PartName, PartName[]>           // compound variable -> member names
@@ -321,7 +320,7 @@ export interface ExecutionResult {
 
 ### 7.4 `ExecuteOptions`
 
-```ts
+```ts ignore-check
 export interface ExecuteOptions {
   params?: Record<string, unknown>
   inputGeometryMap?: Map<PartName, Shape>
@@ -349,7 +348,7 @@ export interface ExecuteOptions {
 
 **面 A —— Backends（宿主注入一次，库 import 访问）**
 
-```ts
+```ts ignore-check
 configureBackends(backends: Backends): void   // called once at host startup
 getBackends(): Backends                       // throws when unconfigured; no silent default
 export interface Backends {
@@ -364,7 +363,7 @@ export const CONTRACT_VERSION = 1
 
 **面 B —— Shape 构造器（库零记账）**
 
-```ts
+```ts ignore-check
 solid(mesh): SolidShape                       // every mesh product must be created here
 fromBrep(mesh, holder): SolidShape            // BREP product: registers handle + face evolution
 compound(children): CompoundShape             // structure (hierarchy), not new geometry
@@ -374,7 +373,7 @@ hasBrep(shape): boolean / brepOf(shape): unknown | undefined
 
 **面 C —— keep 声明（库函数体内调用）**
 
-```ts
+```ts ignore-check
 keep(...shapes): void        // keep and render
 keepHidden(...shapes): void  // keep but do not render on canvas
 ```
@@ -387,25 +386,25 @@ keepHidden(...shapes): void  // keep but do not render on canvas
 
 ### 8.1 `dispatchPath`（静态判定，禁止运行时回退）
 
-位于 `packages/core/src/cad-runtime/backend-dispatch.ts`：
+位于 `packages/core/src/cad-runtime/backend-dispatch.ts`（**不在 SDK 公开面**——库作者经 `defineOp` 声明实现集，见 §10.3）：
 
-```ts
-dispatchPath(inputs: Shape[], brepImpl: unknown | undefined, requiredCapability?: BrepCapabilityName): 'brep' | 'mesh'
+```ts ignore-check
+dispatchPath(inputs: Shape[], impls: { mesh?: UnknownFn; brep?: UnknownFn }, requiredCapability?: BrepCapabilityName): 'brep' | 'mesh'
 ```
 
 判定顺序：
 
-1. `mode='mesh'` → mesh。
-2. `mode='brep'` → 无 `brepImpl`、输入不全在链（`hasBrep`）、或当前引擎缺 `requiredCapability` → **抛 `BrepUnsupportedError`**。
-3. `mode='auto'` → 缺 `requiredCapability` → mesh（静态降级）；否则有 `brepImpl` 且全部输入在链 → brep，否则 mesh。
+1. `mode='mesh'` → 无 `impls.mesh` → **抛 `MeshUnsupportedError`**（`E_MESH_UNSUPPORTED`）；否则 mesh。
+2. `mode='brep'` → 无 `impls.brep`、输入不全在链（`hasBrep`）、或当前引擎缺 `requiredCapability` → **抛 `BrepUnsupportedError`**。
+3. `mode='auto'` → 缺 `requiredCapability` → mesh（静态降级）；否则有 `impls.brep` 且全部输入在链 → brep，否则 mesh。
 
-空输入的创建类 op 满足 `[].every(hasBrep) === true`，因此走 brep。
+空输入的创建类 op 满足 `[].every(hasBrep) === true`，因此走 brep。两种不支持错误（`BrepUnsupportedError`／`MeshUnsupportedError`）都被引擎捕获为 `ExecutionResult.failedAt`，不冒泡、不静默。
 
 ### 8.2 双引擎槽位注册表
 
 mesh 引擎与 BREP 引擎是**两个正交槽位**，不是互相替代：mesh 是每条链的必经之路（`Shape` 是必有载荷 + 显示三角化），BREP 是可选的精度增强层，可随时断链。切换其中一个不影响另一个。
 
-```ts
+```ts ignore-check
 registerBrepEngine(id: string, provider: BrepEngineProvider): void  // first registrant becomes default
 registerMeshEngine(id: string, engine: MeshEngine): void
 getBrepEngine(id?): Promise<BrepEngine>     // async provider, result cached
@@ -421,7 +420,7 @@ export type BrepEngineProvider = () => Promise<BrepEngine>
 
 ### 8.3 `BrepChainState`
 
-```ts
+```ts ignore-check
 export interface BrepChainState {
   solidCache: Map<PartName, BrepHandle>       // present = still BREP; absent = downgraded
   kernel: BrepEngineApi | null                // null in mesh mode
@@ -456,14 +455,14 @@ export interface BrepChainState {
 
 ### 9.1 `HostPorts`
 
-```ts
+```ts ignore-check
 export interface HostPorts {
   csg?: CsgBackend
   sdf?: SdfBackend
   fonts?: FontProvider
   texture?: TextureSampler
   assets?: AssetResolver
-  events: EventSink   // required: emit('part-brep-lost', { partName, op, reason })
+  events: EventSink   // required: emit('part-brep-lost', { partName, callee, reason })
 }
 ```
 
@@ -495,6 +494,8 @@ export interface HostPorts {
 | 查询 | `faceCenter` `faceNormal` `bboxCenter` `bboxMin` `bboxMax` |
 | 资产 | `asset` |
 
+> 注：表中"特征类"是 faijs 函数目录的内部类别名（对既有几何做修改的操作），与宿主层"特征（feature）"术语无关——后者是通用 CAD 术语，由 1 到多个 op／函数调用实现（见 §2 R-9）。
+
 **完整参数契约（默认值／必填）以 `docs/ops-api-inventory.md` 为准**（由 stdlib JSDoc 生成的产物，禁止手改）。
 
 ### 10.2 消费语义（声明驱动）
@@ -507,20 +508,35 @@ export interface HostPorts {
 | `copy` | `keep(input)` | 源不被消费，源与副本都显示 |
 | 布尔系 | `keepHidden(...inputs)` | 源保留但 canvas 不渲染 |
 
-### 10.3 库函数统一形态
+### 10.3 库函数统一形态（defineOp）
+
+库函数统一用 `defineOp`（`@faicad/faijs/sdk`）声明实现集——**不手写 `dispatchPath`**（该函数不在 SDK 公开面，见 §8.1）：
 
 ```ts
-export function myOp(input: Shape, params: MyParams): Shape {
-  const path = dispatchPath([input], brepImpl)
-  if (path === 'brep') return myOpBrep(input, params)
-  return solid(myOpMesh(input, params))
-}
+import { defineOp } from '@faicad/faijs/sdk'
+import type { Shape } from '@faicad/faijs/sdk'
+import type { BrepHandle } from '@faicad/faijs-core/brep/engine/types'
+
+interface MyParams { size: number }
+declare function myOpMesh(input: Shape, params: MyParams): { positions: Float32Array; indices: Uint32Array }
+declare function myOpBrep(input: Shape, params: MyParams): BrepHandle
+
+export const myOp = defineOp({
+  mesh: (input: Shape, params: MyParams) => myOpMesh(input, params),
+  brep: (input: Shape, params: MyParams) => myOpBrep(input, params),
+})
 ```
+
+`defineOp` 的约束：
+
+- 至少声明一个实现；**mesh 为默认路径**（mesh-only／brep-only 均合法）。
+- 几何输入自动收集（`args.filter(isShape)`）；多产物函数用 `outputs: string[]` 声明（如 `split` 的 `{ front, back }`）。
+- 包装器按 mode 自动分派（内部走 `dispatchPath`，见 §8.1）；失败抛 `BrepUnsupportedError`／`MeshUnsupportedError`，由引擎转 `ExecutionResult.failedAt`。能力声明（如布尔系 `['evolution']`）缺失时 auto 降级 mesh、brep 模式报错。
 
 ### 10.4 第三方库通道
 
 - **注册**：`runtime.registerLib(binding, ns)`；脚本中 `import * as mech from 'mech-lib'` 后以 `mech.fn(...)` 调用。`StatementIR.namespace` 记录来源，statementKey 带包名前缀。
-- **校验**：库模块可导出 `contractVersion`，与 `CONTRACT_VERSION` 不符即抛错（`assertContractVersion`），不静默降级。
+- **校验**：导出 defineOp 声明的库必须带匹配的 `contractVersion`（=`CONTRACT_VERSION`）；`registerLib` 经 `assertLibConforms` 严格校验——不匹配即抛错，不静默降级（D-4）。未用 defineOp 声明的普通函数合法，但不享受 mode 路由／自动包装／装配校验。
 - **解析**：`@faicad/faijs/module-resolver` 提供 `resolveImports` 与 semver 判定（`satisfies`），支持按需加载大库分片。
 
 ### 10.5 `.ts` 整段执行通道（faqts）

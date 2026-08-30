@@ -21,12 +21,9 @@ import { solidToShape } from '@faicad/faijs-core/brep/brep-ops'
 import { getSolidBoundingBox } from '@faicad/faijs-core/brep/brep-utils'
 import { resolveSvgArg } from './internal/svg-asset-resolver'
 import { getBackends } from '@faicad/faijs-core/runtime-state'
-import { solid, fromBrep, brepOf } from '@faicad/faijs-core/shape'
-import { dispatchPath } from '@faicad/faijs-core/cad-runtime/backend-dispatch'
+import { fromBrep, brepOf } from '@faicad/faijs-core/shape'
+import { defineOp } from '@faicad/faijs-core/sdk'
 import { assertPositiveNumber } from './assert'
-
-/** BREP 实现标记（engrave 有 OCCT 精确雕刻） */
-const brepImpl = true
 
 // ── per-op 参数自校验（Phase 2.2；stdlib 被直接 import 时的防御层） ──
 
@@ -171,6 +168,13 @@ async function engraveBrepPath(input: Shape, params: Record<string, unknown>, sv
   return fromBrep(solidToShape(kernel, result), { solid: result })
 }
 
+/** 解析 SVG 资产引用（AssetRef → SVG 文本），两条路径共享；无 svg 返回 undefined。 */
+async function resolveEngraveSvg(params: Record<string, unknown>): Promise<string | undefined> {
+  return params.svg !== undefined && params.svg !== null
+    ? await resolveSvgArg(params.svg, { assets: getBackends().assets as AssetResolver | undefined })
+    : undefined
+}
+
 /**
  * 在几何表面雕刻文字或 SVG（文字分支与 logo 分支都可用）。
  * @group 特征
@@ -192,32 +196,33 @@ async function engraveBrepPath(input: Shape, params: Record<string, unknown>, sv
  * @example
  * const p = await cad.engrave(part0, { mode: 'concave', depth: 2, text: 'Hello', textSize: 10, faceCenter: [0, 0, 0], faceNormal: [0, 0, -1] })
   */
-export async function engrave(input: Shape, params: Record<string, unknown>): Promise<Shape> {
-  if (!input) throw new Error('[stdlib/engrave] no input geometry')
-  assertEngraveParams(params)
-  // 解析 SVG 资产引用（AssetRef → SVG 文本），如有
-  const svgText = params.svg !== undefined && params.svg !== null
-    ? await resolveSvgArg(params.svg, { assets: getBackends().assets as AssetResolver | undefined })
-    : undefined
+export const engrave = defineOp({
+  mesh: async (input: Shape, params: Record<string, unknown>) => {
+    if (!input) throw new Error('[stdlib/engrave] no input geometry')
+    assertEngraveParams(params)
+    const svgText = await resolveEngraveSvg(params)
+    // mesh 路径
+    const faceCenter: Vec3 = (params.faceCenter as Vec3) ?? [0, 0, 0]
+    const faceNormal: Vec3 = (params.faceNormal as Vec3) ?? [0, 0, 1]
+    const { naturalWidth, naturalHeight } = svgText ? parseSvgNaturalSize(svgText) : { naturalWidth: 0, naturalHeight: 0 }
+    const hasText = !!(params.text as string | undefined)
 
-  const path = dispatchPath([input], brepImpl)
-  if (path === 'brep') return await engraveBrepPath(input, params, svgText)
-
-  // mesh 路径
-  const faceCenter: Vec3 = (params.faceCenter as Vec3) ?? [0, 0, 0]
-  const faceNormal: Vec3 = (params.faceNormal as Vec3) ?? [0, 0, 1]
-  const { naturalWidth, naturalHeight } = svgText ? parseSvgNaturalSize(svgText) : { naturalWidth: 0, naturalHeight: 0 }
-  const hasText = !!(params.text as string | undefined)
-
-  return solid(await cad.engrave(input, {
-    mode: (params.mode as 'convex' | 'concave' | undefined) ?? 'concave',
-    depth: params.depth as number,
-    face: { center: faceCenter, normal: faceNormal },
-    text: hasText ? (params.text as string) : undefined,
-    textSize: params.textSize as number | undefined,
-    svg: svgText,
-    svgNaturalWidth: naturalWidth,
-    svgNaturalHeight: naturalHeight,
-    svgSize: params.svgSize as number | undefined,
-  }))
-}
+    return cad.engrave(input, {
+      mode: (params.mode as 'convex' | 'concave' | undefined) ?? 'concave',
+      depth: params.depth as number,
+      face: { center: faceCenter, normal: faceNormal },
+      text: hasText ? (params.text as string) : undefined,
+      textSize: params.textSize as number | undefined,
+      svg: svgText,
+      svgNaturalWidth: naturalWidth,
+      svgNaturalHeight: naturalHeight,
+      svgSize: params.svgSize as number | undefined,
+    })
+  },
+  brep: async (input: Shape, params: Record<string, unknown>) => {
+    if (!input) throw new Error('[stdlib/engrave] no input geometry')
+    assertEngraveParams(params)
+    const svgText = await resolveEngraveSvg(params)
+    return engraveBrepPath(input, params, svgText)
+  },
+})

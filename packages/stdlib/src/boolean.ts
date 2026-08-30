@@ -20,14 +20,11 @@ import {
   intersectWithHistoryBrep,
 } from '@faicad/faijs-core/brep/face-evolution'
 import { getBackends, keepHidden } from '@faicad/faijs-core/runtime-state'
-import { solid, fromBrep, brepOf } from '@faicad/faijs-core/shape'
+import { fromBrep, brepOf } from '@faicad/faijs-core/shape'
 import { reconcileBrepInputs } from './reconcile'
-import { dispatchPath } from '@faicad/faijs-core/cad-runtime/backend-dispatch'
+import { defineOp } from '@faicad/faijs-core/sdk'
 import type { BrepHandle } from '@faicad/faijs-core/brep/engine/types'
 import type { BrepEngineApi } from '@faicad/faijs-core/brep/engine/primitives'
-
-/** BREP 实现标记（boolean 有 OCCT 精确布尔） */
-const brepImpl = true
 
 type BooleanOperation = 'union' | 'subtract' | 'intersect'
 
@@ -89,24 +86,11 @@ async function booleanMesh(inputs: Shape[], operation: BooleanOperation): Promis
   return result
 }
 
-/**
- * 共享内部实现：operation 从参数改为入参。
- *
- * 函数体 keep 声明（keep-syntax 设计 §2.5）：union/subtract/intersect 保留其
- * 输入且隐藏（R5：3d_editor 现状）——keepHidden 使源变量保持终端但 canvas
- * 不渲染，只有布尔结果正常显示。
- */
-async function booleanImpl(operation: BooleanOperation, inputs: Shape[]): Promise<Shape> {
-  if (inputs.length > 0) keepHidden(...inputs)
-  // boolean 走 *WithHistory 面演化（face-evolution.ts）→ 声明 evolution 能力（§8.4 能力路由）
-  const path = dispatchPath(inputs, brepImpl, 'evolution')
-  if (path === 'brep') return booleanBrep(inputs, operation)
-  // 混合/断链时刻：BREP 侧输入先归约为合法 2-manifold 网格，mesh 侧原样透传
-  return solid(await booleanMesh(reconcileBrepInputs(inputs), operation))
-}
-
-// ── 三个薄导出（多输入 variadic） ──
-// P5：编译产物不再发射末参 exec，纯 variadic（P2 的 rest.pop() 过渡已移除）。
+// ── 三个薄导出（多输入 variadic，defineOp 声明双路径 + evolution 能力） ──
+// 函数体 keep 声明（keep-syntax 设计 §2.5）：union/subtract/intersect 保留其
+// 输入且隐藏（R5：3d_editor 现状）——keepHidden 使源变量保持终端但 canvas
+// 不渲染，只有布尔结果正常显示。混合/断链时刻：BREP 侧输入先归约为合法
+// 2-manifold 网格（reconcileBrepInputs），mesh 侧原样透传。
 
 /**
  * 布尔并集：合并所有输入几何（≥2 个输入）。
@@ -120,9 +104,17 @@ async function booleanImpl(operation: BooleanOperation, inputs: Shape[]): Promis
  * @example
  * const a = await cad.union(part0, part1)
   */
-export function union(...shapes: Shape[]): Promise<Shape> {
-  return booleanImpl('union', shapes)
-}
+export const union = defineOp({
+  mesh: (...shapes: Shape[]) => {
+    if (shapes.length > 0) keepHidden(...shapes)
+    return booleanMesh(reconcileBrepInputs(shapes), 'union')
+  },
+  brep: (...shapes: Shape[]) => {
+    if (shapes.length > 0) keepHidden(...shapes)
+    return booleanBrep(shapes, 'union')
+  },
+  capabilities: ['evolution'],
+})
 
 /**
  * 布尔差集：第一个为主体，减去其余输入。
@@ -136,9 +128,17 @@ export function union(...shapes: Shape[]): Promise<Shape> {
  * @example
  * const b = await cad.subtract(part0, part1)
   */
-export function subtract(...shapes: Shape[]): Promise<Shape> {
-  return booleanImpl('subtract', shapes)
-}
+export const subtract = defineOp({
+  mesh: (...shapes: Shape[]) => {
+    if (shapes.length > 0) keepHidden(...shapes)
+    return booleanMesh(reconcileBrepInputs(shapes), 'subtract')
+  },
+  brep: (...shapes: Shape[]) => {
+    if (shapes.length > 0) keepHidden(...shapes)
+    return booleanBrep(shapes, 'subtract')
+  },
+  capabilities: ['evolution'],
+})
 
 /**
  * 布尔交集：所有输入的重叠部分。
@@ -152,6 +152,14 @@ export function subtract(...shapes: Shape[]): Promise<Shape> {
  * @example
  * const c = await cad.intersect(part0, part1)
   */
-export function intersect(...shapes: Shape[]): Promise<Shape> {
-  return booleanImpl('intersect', shapes)
-}
+export const intersect = defineOp({
+  mesh: (...shapes: Shape[]) => {
+    if (shapes.length > 0) keepHidden(...shapes)
+    return booleanMesh(reconcileBrepInputs(shapes), 'intersect')
+  },
+  brep: (...shapes: Shape[]) => {
+    if (shapes.length > 0) keepHidden(...shapes)
+    return booleanBrep(shapes, 'intersect')
+  },
+  capabilities: ['evolution'],
+})

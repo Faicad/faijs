@@ -1,6 +1,6 @@
 {
   "name": "@faicad/mech-lib",
-  "version": "0.5.9",
+  "version": "0.5.10",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -14,7 +14,7 @@
     "brepjs": "18.119.2"
   },
   "peerDependencies": {
-    "@faicad/faijs-core": "^0.5.8",
+    "@faicad/faijs-core": "^0.5.11",
     "occt-wasm": "^3.8.0"
   },
   "devDependencies": {
