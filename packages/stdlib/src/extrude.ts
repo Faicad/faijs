@@ -46,6 +46,25 @@ function extrudeBrepPath(input: Shape, params: Record<string, unknown>): Shape {
   return fromBrep(solidToShape(kernel, resultSolid), { solid: resultSolid })
 }
 
+/**
+ * 沿法向拉伸几何。
+ * @group 特征
+ * @inputs 1
+ * @async true
+ * @qual ok
+ * @name extrude
+ * @returns Shape 拉伸后的几何。
+ * @param input - 目标几何。type:Shape required:true
+ * @param params.length - 总拉伸量（mm）。type:number required:true
+ * @param params.mode - 拉伸方向：centered 双向各一半 / forward 正向 / backward 反向。type:'centered' | 'forward' | 'backward' 默认 'centered'
+ * @param params.normal - 拉伸方向法向。type:[x,y,z] 默认 当前面法向 [0,0,1]
+ * @param params.originOffset - 切面在法向上的偏移。type:number 默认 0
+ * @param params.space - 坐标空间声明。type:'local' | 'world'
+ * @example
+ * const p = await cad.extrude(part0, { length: 10 })
+ * const p = await cad.extrude(part0, { length: 10, mode: 'forward' })
+ * const p = await cad.extrude(part0, { length: 10, normal: [0,0,1], originOffset: 2 })
+  */
 export async function extrude(input: Shape, params: Record<string, unknown>): Promise<Shape> {
   if (!input) throw new Error('[stdlib/extrude] no input geometry')
   assertExtrudeParams(params)

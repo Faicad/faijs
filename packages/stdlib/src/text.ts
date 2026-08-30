@@ -75,6 +75,23 @@ async function textBrep(params: Record<string, unknown>): Promise<Shape> {
   return fromBrep(solidToShape(kernel, centeredSolid), { solid: centeredSolid })
 }
 
+/**
+ * 生成文字零件（文字轮廓挤出，X/Z 居中、Y 底部对齐原点）。
+ * @group 创建
+ * @inputs 0
+ * @async true
+ * @qual warn
+ * @name text
+ * @returns Shape 文字几何，生成独立零件。
+ * @param maybeParams - 兼容形态的补充参数（正常不传）。type:Record<string, unknown> required:false
+ * @param inputOrParams.text - 要生成的文字。type:string required:true
+ * @param inputOrParams.size - 字号（mm）。type:number required:true
+ * @param inputOrParams.depth - 挤出深度（mm）。type:number required:true
+ * @param inputOrParams.font - 字体。type:string 默认 默认字体
+ * @note font 语义未定（当前只有默认字体），⚠️ 暂不要传。兼容 `cad.text(part0, {...})` 带输入形态（输入被忽略），正常写 `cad.text({...})` 即可。
+ * @example
+ * const t = await cad.text({ text: 'Hello', size: 20, depth: 5 })
+  */
 export async function text(inputOrParams: unknown, maybeParams?: Record<string, unknown>): Promise<Shape> {
   // 兼容两种调用形态：`cad.text({ text, size, depth })`（创建类）与
   // `cad.text(part0, { text, size, depth })`（历史 fixture 带输入参数，输入被忽略）。

@@ -20,6 +20,27 @@ export function assertKnurlParams(params: Record<string, unknown>): void {
   assertPositiveNumber(params.knurlTextureHeight, 'knurl.knurlTextureHeight')
 }
 
+/**
+ * 施加滚花（顶点位移，非布尔）。mesh-only。
+ * @group 特征
+ * @inputs 1
+ * @async true
+ * @qual warn
+ * @name knurl
+ * @note knurl 无 BREP 实现（mesh-only），本质是顶点位移（网格操作），网格参数可接受；brep 模式下调用前抛 BrepUnsupportedError。面锚定建议用几何引用。
+ * @returns Shape 滚花后的几何。
+ * @param input - 目标几何。type:Shape required:true
+ * @param params.knurlTextureHeight - 纹路高度（mm）。type:number 默认 0.5
+ * @param params.knurlScaleU - 纹路 U 向频率。type:number 默认 0.15
+ * @param params.knurlScaleV - 纹路 V 向频率。type:number 默认 0.15
+ * @param params.knurlInvertDisplacement - 反向位移。type:boolean 默认 false
+ * @param params.knurlRefineLength - 细分长度（mm）。type:number 默认 1.0
+ * @param params.knurlMappingMode - UV 映射模式。type:number 默认 5
+ * @param params.faceCenter - 面锚点中心。type:[x,y,z] 默认 bboxCenter
+ * @param params.faceNormal - 面法向。type:[x,y,z] 默认 [0,0,1]
+ * @example
+ * const p = await cad.knurl(part0, { knurlTextureHeight: 0.5, knurlScaleU: 0.15, knurlScaleV: 0.15, knurlInvertDisplacement: false, knurlRefineLength: 1.0, knurlMappingMode: 5 })
+  */
 export async function knurl(input: Shape, params: Record<string, unknown>): Promise<Shape> {
   if (!input) throw new Error('[stdlib/knurl] no input geometry')
   assertKnurlParams(params)

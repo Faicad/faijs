@@ -68,27 +68,86 @@ function geomQuery(
   return feature === 'faceCenter' ? face.center : face.normal
 }
 
-/** `cad.faceCenter(of, anchor?, ordinal?)` */
+/**
+ * 查询面上某点（锚点）的中心坐标。faceOrdinal 拓扑引用优先，anchor 几何反查兜底。
+ * @group 查询
+ * @inputs 1
+ * @async false
+ * @qual ok
+ * @name faceCenter
+ * @returns Vec3 面上锚点处的中心坐标 [x,y,z]。交互式可编辑（参数量引用）。
+ * @param of - 目标几何（编译产物 ctx.<var> 引用）。type:Shape required:true
+ * @param anchor - 锚点（几何反查兜底）。type:[x,y,z]
+ * @param ordinal - 面序号（BREP 拓扑引用优先）。type:number
+ * @example
+ * const c = cad.faceCenter(part0, [0, 0, 5])
+  */
 export function faceCenter(of: Shape, anchor?: Vec3, ordinal?: number): Vec3 {
   return geomQuery('faceCenter', of, anchor, ordinal)
 }
 
-/** `cad.faceNormal(of, anchor?, ordinal?)` */
+/**
+ * 查询面上某点（锚点）的法向。
+ * @group 查询
+ * @inputs 1
+ * @async false
+ * @qual ok
+ * @name faceNormal
+ * @returns Vec3 面上锚点处的法向 [x,y,z]。
+ * @param of - 目标几何（编译产物 ctx.<var> 引用）。type:Shape required:true
+ * @param anchor - 锚点（几何反查兜底）。type:[x,y,z]
+ * @param ordinal - 面序号（BREP 拓扑引用优先）。type:number
+ * @example
+ * const n = cad.faceNormal(part0, [0, 0, 5])
+  */
 export function faceNormal(of: Shape, anchor?: Vec3, ordinal?: number): Vec3 {
   return geomQuery('faceNormal', of, anchor, ordinal)
 }
 
-/** `cad.bboxCenter(of)` */
+/**
+ * 查询几何包围盒中心。
+ * @group 查询
+ * @inputs 1
+ * @async false
+ * @qual ok
+ * @name bboxCenter
+ * @returns Vec3 包围盒中心 [x,y,z]。交互式可编辑（参数量引用）。
+ * @param of - 目标几何。type:Shape required:true
+ * @example
+ * const c = cad.bboxCenter(part0)
+  */
 export function bboxCenter(of: Shape): Vec3 {
   return cad.bboxCenter(of)
 }
 
-/** `cad.bboxMin(of)` */
+/**
+ * 查询几何包围盒最小角点。
+ * @group 查询
+ * @inputs 1
+ * @async false
+ * @qual ok
+ * @name bboxMin
+ * @returns Vec3 包围盒最小角点 [x,y,z]。
+ * @param of - 目标几何。type:Shape required:true
+ * @example
+ * const mn = cad.bboxMin(part0)
+  */
 export function bboxMin(of: Shape): Vec3 {
   return cad.boundingBox(of).min
 }
 
-/** `cad.bboxMax(of)` */
+/**
+ * 查询几何包围盒最大角点。
+ * @group 查询
+ * @inputs 1
+ * @async false
+ * @qual ok
+ * @name bboxMax
+ * @returns Vec3 包围盒最大角点 [x,y,z]。
+ * @param of - 目标几何。type:Shape required:true
+ * @example
+ * const mx = cad.bboxMax(part0)
+  */
 export function bboxMax(of: Shape): Vec3 {
   return cad.boundingBox(of).max
 }

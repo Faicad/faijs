@@ -69,6 +69,19 @@ function transformBrep(op: string, input: Shape, params: Record<string, unknown>
   })
 }
 
+/**
+ * 平移几何体。
+ * @group 变换
+ * @inputs 1
+ * @async false
+ * @qual ok
+ * @name translate
+ * @returns Shape 平移后的几何，装配的相对位置靠成员的变换语句表达。
+ * @param input - 目标几何。type:Shape required:true
+ * @param params.offset - 平移向量（mm）。type:[x,y,z] required:true
+ * @example
+ * const p1 = cad.translate(part0, { offset: [10, 0, 0] })
+  */
 export function translate(input: Shape, params: Record<string, unknown>): Shape {
   if (!input) throw new Error('[stdlib/translate] no input geometry')
   assertTranslateParams(params)
@@ -77,6 +90,21 @@ export function translate(input: Shape, params: Record<string, unknown>): Shape 
   return solid(cad.translate(input, params.offset as Vec3))
 }
 
+/**
+ * 绕轴旋转几何体。anglesDeg 为欧拉角（度，XYZ 顺序）。
+ * @group 变换
+ * @inputs 1
+ * @async false
+ * @qual ok
+ * @name rotate
+ * @returns Shape 旋转后的几何。
+ * @param input - 目标几何。type:Shape required:true
+ * @param params.anglesDeg - 欧拉角（度，XYZ 顺序）。type:[x,y,z] required:true
+ * @param params.pivot - 旋转中心。type:[x,y,z] 默认 原点
+ * @example
+ * const p2 = cad.rotate(part0, { anglesDeg: [0, 0, 45] })
+ * const p3 = cad.rotate(part0, { anglesDeg: [0, 0, 45], pivot: [0,0,0] })
+  */
 export function rotate(input: Shape, params: Record<string, unknown>): Shape {
   if (!input) throw new Error('[stdlib/rotate] no input geometry')
   assertRotateParams(params)
@@ -85,6 +113,20 @@ export function rotate(input: Shape, params: Record<string, unknown>): Shape {
   return solid(cad.rotate(input, params.anglesDeg as Vec3, params.pivot as Vec3 | undefined))
 }
 
+/**
+ * 缩放几何体。factor 传 number 为等比缩放，传 [x,y,z] 为非等比。
+ * @group 变换
+ * @inputs 1
+ * @async false
+ * @qual ok
+ * @name scale
+ * @returns Shape 缩放后的几何。
+ * @param input - 目标几何。type:Shape required:true
+ * @param params.factor - 缩放系数：number（等比）或 [x,y,z]（非等比，> 0）。type:number | [x,y,z] required:true
+ * @example
+ * const p4 = cad.scale(part0, { factor: 2 })
+ * const p5 = cad.scale(part0, { factor: [2, 1, 1] })
+  */
 export function scale(input: Shape, params: Record<string, unknown>): Shape {
   if (!input) throw new Error('[stdlib/scale] no input geometry')
   assertScaleParams(params)

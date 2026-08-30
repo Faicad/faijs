@@ -51,6 +51,18 @@ function copyBrep(input: Shape): Shape {
  * mesh 路径：positions/indices 复制到新数组（改副本不影响源）。
  * BREP 路径：kernel.copy 产出独立 ShapeHandle。
  */
+/**
+ * 深拷贝几何为独立新对象（源不变，源与副本都显示）。
+ * @group 特征
+ * @inputs 1
+ * @async false
+ * @qual ok
+ * @name copy
+ * @param input - 源几何。type:Shape required:true
+ * @returns Shape 源几何的深拷贝。copy 不消费其源（画布显示 box 和副本两份），改副本不影响源。
+ * @example
+ * const part1 = cad.copy(part0)
+  */
 export function copy(input: Shape): Shape {
   if (!input) throw new Error('[stdlib/copy] no input geometry')
   keep(input)

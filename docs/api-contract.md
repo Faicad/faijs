@@ -2,299 +2,320 @@
 
 English | [中文](api-contract.zh.md)
 
-> Position: This document records the **current** design intent and API contract of the faijs engine — layering responsibilities, naming rules, statement model, syntax, terminal detection, execution, dual-path geometry, host injection and consumption surface.
+> Position: This document records the **current** API contract of faijs — layering and package structure, engine/library responsibility boundaries, naming rules, statement model, syntax, terminal detection, execution, geometry engine slots, host injection and consumption surface.
 >
-> **This document does not cover development plans or track defects** (see `docs/plans/` for historical phases and known issues).
+> **This document does not cover development plans or track defects** (see the design documents under `docs/plans/` for historical phases and known issues).
 >
 > Related documents:
 > - `docs/syntax-design.md` — `.faijs` syntax and incremental execution contract
-> - `docs/ops-api-inventory.md` — API manual for writing `.faijs` code (AI/user side)
-> - `docs/plans/2026-08-27-restore-dag-terminal-detection.md` — DAG terminal detection design (landed)
-> - `docs/plans/2026-08-27-faijs-language-refactor.md` — Function-oriented long-term direction (pending review)
-> - `docs/plans/2026-08-26-phase3-implementation-plan.md` — Naming rules and StmtId/partName separation (landed)
-> - `docs/plans/2026-08-25-faijs-vm-execution-implementation-plan.md` — JS VM execution + stdlib-ization (landed)
+> - `docs/ops-api-inventory.md` — API manual for writing `.faijs` code (AI/user side, generated file)
+> - `docs/plans/2026-08-29-engine-library-contract.md` — engine/library contract (K1–K6) and the three library contract surfaces (landed)
+> - `docs/plans/2026-08-28-keep-syntax-design.md` — keep syntax and terminal detection (landed)
+> - `docs/plans/2026-08-30-brep-engine-switch.md` — dual engine slots and capability routing (landed)
+> - `docs/plans/2026-08-29-monorepo-plan.md` — monorepo package structure (landed)
 
 ---
 
-## 1. Architecture Layers (L0–L3)
+## 1. Architecture Layers and Package Structure
+
+faijs is an **npm workspaces monorepo**. The root package `@faicad/faijs` is a **thin facade** (`src/index.ts` is 22 lines); the real implementation lives in workspace packages.
+
+| Package | Package name | Responsibility |
+|---|---|---|
+| `packages/core` | `@faicad/faijs-core` | **Engine**: parse / validate / schedule / bookkeep / resources. Zero geometry, zero function knowledge |
+| `packages/stdlib` | `@faicad/faijs-stdlib` | **Geometry library**: every op in the `cad` namespace (assembly and boolean included) |
+| `packages/mech-lib` | `@faicad/mech-lib` | Third-party library sample (peer dependency on `@faicad/faijs-core`) |
+| `packages/fixtures` | `@faicad/faijs-fixtures` | Private, data only |
+| `packages/tests` | `@faicad/faijs-tests` | Private, integration tests |
+| `packages/demo` | `@faicad/faijs-demo` | Private, vite demo |
+
+Dependencies are one-directional and acyclic: `stdlib → core`, `mech-lib → core`, `tests → mech-lib + fixtures`, `root → core + stdlib`. **core has no internal dependencies.**
 
 ```
-┌────────────────────────────────────────────────────────────┐
-│ L0 文本层  src/lang/                                       │
-│   parser（acorn 白名单语法闸门，先解析后编译）               │
-│   codegen（scriptToCode / statementToLine，双向同构）        │
-│   compile（compileToModule → 零 import 的 ESM 编译产物）      │
-│   args-schema（OpSchema 类型 + 纯函数校验框架）               │
-│   allocate-id（partN 命名规则分配器）                        │
-│   types（CadStatement / PartScript / TerminalShape / Arg…）  │
-├────────────────────────────────────────────────────────────┤
-│ L1 几何层                                                   │
-│   brep/    —— OCCT BREP 链（brep-chain、brep-ops、拓扑）      │
-│   mesh/    —— manifold-3d mesh 路径 + cad API（api.d.ts 生成）│
-│   stdlib/  —— 库函数（box/translate/drill/boolean/split/      │
-│               group/assembly/copy/…），每 op 双链路分派        │
-│   boolean/ primitives/ sdf/ topology/                        │
-├────────────────────────────────────────────────────────────┤
-│ L2 编排  src/cad-runtime/                                   │
-│   CadRuntime（execute / append / update / plan / check）     │
-│   ModuleExecutor（编译产物加载 + 增量调度 + 持久 ctx）         │
-│   ExecContext（双内核 + 身份槽 + dependentsOf/touch）         │
-│   terminal-dag（DAG 叶子终端判定，纯函数）                    │
-│   ports（HostPorts 注入接口）                                │
-├────────────────────────────────────────────────────────────┤
-│ L3 Host                                                     │
-│   node-host/（fs / CLI）  browser-host/（worker / fetch）     │
-└────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│ L0  text layer  packages/core/src/lang/                      │
+│   parser (acorn + syntax gate)   codegen (round-trip)        │
+│   compile (compileToModule -> zero-import ESM)               │
+│   allocate-id (partN)   keep (retention directives)          │
+│   types (StatementIR / ScriptIR / ArgIR / TerminalShape)     │
+├──────────────────────────────────────────────────────────────┤
+│ L0+ anchor  packages/core/src/runtime-state.ts (no imports)  │
+│   Backends / keep sink / Shape identity tables / contract ver│
+├──────────────────────────────────────────────────────────────┤
+│ L1  geometry library  packages/stdlib/src/ (**outside eng**)  │
+│   primitives transform drill extrude engrave knurl           │
+│   boolean split compound copy geom reconcile                 │
+├──────────────────────────────────────────────────────────────┤
+│ L1' engine core  packages/core/src/{mesh,brep,topology}/     │
+│   mesh path + CSG | brep/engine (two-slot registry) | topo   │
+├──────────────────────────────────────────────────────────────┤
+│ L2  orchestration  packages/core/src/cad-runtime/            │
+│   CadRuntime (execute/append/update/executeCode/plan/check)  │
+│   ModuleExecutor (module load + incremental + persistent ctx)│
+│   backend-dispatch (dispatchPath)   terminal-dag             │
+│   module-resolver (on-demand library resolution)             │
+├──────────────────────────────────────────────────────────────┤
+│ L3  Host  node-host (fs/CLI)   browser-host (worker/fetch)   │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ### 1.1 Entry export surface
 
+The root package `@faicad/faijs` has **11 subpath exports** (the `exports` field of `package.json`):
+
 | Entry | Contents | Notes |
 |---|---|---|
-| `@faicad/faijs` (`src/index.ts`) | Full export (incl. Node-side OCCT low-level) | Production code should prefer `/browser` |
-| `@faicad/faijs/browser` (`src/browser.ts`) | Browser-safe surface: **no node-host**; A/B/C/D four export categories | Host (3d_editor) imports from this entry |
-| `@faicad/faijs/node` (`src/node.ts`) | Node-specific: `createNodePorts` / CLI / FsAssetResolver etc. | Node-specific code must not be statically imported into browser builds |
-| `@faicad/faijs/csg` (`src/csg.ts`) | CSG/Boolean low-level helpers (manifold data exchange) | Browser-safe |
-| `@faicad/faijs/sdf` (`src/sdf.ts`) | SDF runtime templates and types | Browser-safe |
+| `@faicad/faijs` | Facade: `export * from '@faicad/faijs-core'` plus a wrapped `createRuntime` | Unified host entry; **the package name must not change** |
+| `/browser` | Browser-safe surface (no node-host) | Preferred entry for hosts (3d_editor) |
+| `/sdk` | **Third-party library authoring surface**, zero heavy dependencies | The only entry a library author should depend on |
+| `/stdlib` | Geometry library namespace | `cad` must be injected by the caller |
+| `/csg` | CSG / Manifold data exchange | Browser-safe |
+| `/sdf` | SDF runtime templates and types | Browser-safe |
+| `/node` | Node-only: `createNodePorts` / CLI / FsAssetResolver | Must not enter browser builds |
+| `/faqts`, `/faqts/node`, `/faqts/browser` | Whole-module `.ts` execution channel (second execution path) | See §10.5 |
+| `/module-resolver` | Third-party library version resolution | See §10.4 |
 
-**Rule**: statically importing node-host in a browser build causes 404 — Node-specific code must be imported from `@faicad/faijs/node`; `src/browser.ts` / `src/csg.ts` / `src/sdf.ts` are browser-safe surfaces and must not depend on `node:fs` / `node:path`.
+The engine package also exposes fine-grained subpaths (`@faicad/faijs-core/runtime-state`, `/shape`, `/identity`, `/lang/*`, `/brep/*`, and so on) for library authors to import on demand.
 
-### 1.2 Responsibility boundaries (host contract)
+**Rule**: a static import of node-host inside a browser build 404s — Node-only code must be imported from `/node`. The runtime export surface of the 11 entries is guarded by snapshot comparison between `scripts/api-surface-snapshot.mjs` and `scripts/api-surface-snapshot.json`.
 
-- **faijs has one job**: execute faijs scripts to produce 3D models (`ExecutionResult`).
-- **The host has two jobs**: ① generate correct faijs scripts; ② call faijs to execute those scripts.
-- 🔴 **All geometry changes must go through faijs script statements — execute faijs scripts to obtain them.**
-- The host only consumes `ExecutionResult`; it **must not re-derive** terminal detection or implement its own DAG leaf filtering (terminal semantics is an engine product).
+### 1.2 Responsibility boundaries (engine / library split)
 
----
-
-## 2. Iron rules (written into the contract; no implementation may violate them)
-
-- **R-1 Single geometry implementation**: statement op maps one-to-one to a geometry core function; parameter orchestration happens only inside the geometry core. No "UI one copy, replay one copy" duplication. Each op has BREP and Mesh execution paths; switching is determined by **static rules** — **runtime try-catch of BREP exceptions with mesh fallback is forbidden** (a BREP path exception = design defect or bug; report it directly).
-- **R-2 User source text is not directly executed (parse then compile, JS VM executes)**: `.faijs` is a legal JS subset; at load time it is parsed by acorn to restore structured statements (syntax gate: rejects control flow and other forbidden forms), then compiled to an ESM product by `compileToModule`, and executed via JS VM dynamic import. Security boundary = parser syntax gate + compiled product generated by the engine (user text never enters the VM) — **user text is never eval'd** (`new Function` in `sdf-core.ts` evaluates user-supplied function bodies for SDF; this is inherent SDF backend behavior, not on the main script path). **The current product is zero-import ESM** (loaded via `data:`/Blob URL) — this is an **implementation trade-off, not a spec requirement**; see `docs/syntax-design.md` §6.1.
-- **R-3 Naming and terminal semantics are owned by the engine**: `partN` naming rules, DAG leaf terminal detection, and consumption legality static validation are all encapsulated in faijs (`allocate-id.ts` / `terminal-dag.ts` / `parser.ts`); the host does not reimplement them.
-- **R-4 Coordinate space convention**: millimeters (mm), +Z up, angles in degrees. All `cad.*` inputs/outputs are world-space `Shape`; local↔world transforms are the host/executor's responsibility; the geometry core does not read mesh world matrices.
-- **R-5 BREP chain is per-part**: whether a part is still BREP is uniquely determined by whether its handle exists in `solidCache`; there is no global `brepActive` flag; sibling parts do not pollute each other.
+- **Engine = parse + validate + schedule + bookkeep + resources; library = all geometry.**
+- **To decide where a function belongs, ask "is it a geometry algorithm?", not "who imports it today?"** If the engine currently calls a geometry function, that is a defect to clean up — not a reason to move the function into the engine.
+- **The engine has zero function knowledge**: parser / compile / runtime must not branch on function names or classify functions. The engine knows only one uniform concept, "library function", and function information can only be data (`StdlibNamespace`).
+- faijs has exactly one responsibility: execute a script and produce a 3D model (`ExecutionResult`). The host has exactly two: generate a correct script, and call faijs to execute it.
+- 🔴 **All geometry changes must go through script statements**; the host only consumes `ExecutionResult` and must not re-derive terminal detection or implement its own DAG leaf filtering.
 
 ---
 
-## 3. Naming Contract (Phase 3: StmtId and PartName separation)
+## 2. Iron Rules (written into the contract; no implementation may violate them)
 
-Each part has two **orthogonal identifiers** within a PartScript:
+- **R-1 The engine embeds no geometry.** All geometry operations are implemented by libraries; the engine only schedules, bookkeeps and supplies resources.
+- **R-2 A library function signature is exactly what the source says.** Implicit injection is forbidden: `cad.box({ size })` compiles to `cad.box({ size })`, no more and no fewer parameters; no appending a trailing parameter at compile time, no `rest.pop()` to obtain context.
+- **R-3 User source text is never executed directly.** acorn parse (syntax gate) → `compileToModule` into a zero-import ESM → JS VM dynamic import. The security boundary is the syntax gate plus engine-generated output; **user text is never eval'd**.
+- **R-4 Naming and terminal semantics are owned by the engine.** `partN` allocation, DAG leaf detection and consumption validation all live inside the engine; the host does not reimplement them.
+- **R-5 Coordinate space**: millimeters (mm), +Z up, angles in degrees. Every `cad.*` input and output is a world-space `Shape`.
+- **R-6 The BREP chain is per part.** Whether a part is still BREP is decided solely by whether `solidCache` holds a handle for it; there is no global flag, and sibling parts never contaminate each other.
+- **R-7 Static dispatch, no runtime fallback.** An exception on the BREP path is a bug — surface it, never catch it and silently switch to mesh. A missing capability degrades statically or raises a clear error; **never fake an API**.
+- **R-8 keep is the only coupling point between faijs and the UI.** faijs defines no features, UI forms, icons or edit panels — those belong to the upper-layer application (3d_editor).
 
-| Key | Meaning | Allocation rule | Usage |
+---
+
+## 3. Naming Contract (StmtId and PartName)
+
+Each part has two **orthogonal identifiers** within one ScriptIR:
+
+| Key | Meaning | Allocation rule | Use |
 |---|---|---|---|
-| **StmtId (`sN`)** | Statement identity, order-stable | Allocated in compile/parse order by statement sequence `s1, s2, …` (parameter statements occupy the prefix `s1..sK`, K = param count) | Timeline node keys, incremental scheduling plan cache keys, `executeScriptDiff` diff keys |
-| **PartName (`partN`)** | Variable name; one statement may have 0–multiple | `allocateStatementId` / `allocateSplitIds` (see §3.1) | `ExecutionResult.outputs/terminals/compounds` keys, execution ctx variable keys, host `terminalToScopedId` keys |
+| **StmtId (`sN`)** | Identity of a statement, order-stable | Assigned in statement order at parse/compile time, `s1, s2, …` (parameter statements occupy the leading range) | Timeline node key, incremental plan cache key, diff key |
+| **PartName (`partN`)** | Variable name; a statement may have 0 to many | `derivePartName` (see §3.1) | Key of `ExecutionResult.outputs/compounds`, execution ctx variable key, terminal id |
 
 **Invariants**:
-- `CadStatement.id` is always a StmtId (`sN`), **not a variable name**; variable names exist only in `outputs: PartName[]`.
-- `outputs` is always explicit: single-output op = `[partName]`; split = `[front, back]`; void op (add_constraint/do_assemble) = `[]`.
-- `TerminalShape.id` is typed as StmtId but **semantically a PartName** (`collectResult` closes with `asStmtId(partName)`) — the host should treat `terminals[].id` as PartName when consuming.
-- Legacy `partN_vM` fixtures remain parseable and executable (`isPartVmId`/`getModelNum`/`getVersionNum` retained for parsing old names), but new allocations produce only `partN`; `grp_N` likewise (old names parseable, new allocations removed).
 
-### 3.1 `allocateStatementId` naming rules (static, UI-generated code follows)
+- `StatementIR.id` is always a StmtId (`sN`), **never a variable name**; variable names exist only in `outputs: PartName[]`.
+- `outputs` is always explicit: single output = `[name]`; split = `[front, back]`; void op = `[]`.
+- `TerminalShape.id` is a PartName, not a StmtId.
+
+### 3.1 `derivePartName` naming rules
+
+**The single rule: always allocate a new name, incrementing `partN` by output count.** Input-name reuse (name-preserving reassignment for translate/drill and friends) and the `_vM` version suffix have both been removed.
 
 | Case | Variable name | Example |
 |---|---|---|
-| Single-input single-output (translate/rotate/scale/drill/extrude/engrave/knurl etc.) | **Reuses input name** | `part0 = cad.drill(part0, …)` |
-| No input / single output (box/sphere/cylinder/cone/wedge/text/screw/svgExtrude/sdf/load) | **New name** `partN` (N = current max model number + 1) | `let part3 = cad.box(…)` |
-| Boolean (union/subtract/intersect → op `boolean`) | New name `partN` (multi-input 2→1) | `let part5 = cad.union(part1, part3)` |
-| split (1→2) | `allocateSplitIds` → `partN` / `part(N+1)` | `const { front: part1, back: part2 } = cad.split(part0, …)` |
-| group/assembly | New name `partN` (removed `grp_N`) | `let part4 = cad.group({ members: [part0, part1] })` |
-| **copy** (clone type) | **New name** `partN` (output is an independent new object, does not preserve name) | `let part2 = cad.copy(part1)` |
-| void op (add_constraint/do_assemble) | No output (`outputs: []`), does not call allocator | `assem4.add_constraint(…)` |
+| No assignment (add_constraint / do_assemble) | None (R0) | `assem1.add_constraint({ … })` |
+| Has an assignment (including single-input/single-output) | A new name, one `partN` per output | `let part3 = cad.drill(part0, { diameter: 5 })` |
+| split (1→2) | Two consecutive new names | `const { front: part1, back: part2 } = cad.split(part0, { cutMode: 'plane' })` |
+| Equal multi-input/multi-output (Shape[] batch) | Disabled (R4), throws | — |
 
-Model number N increments monotonically within a single script (`getMaxModelNum` scans from existing statements' `outputs`).
+The model number N is the maximum `partN` found by a lexical scan of the code text, plus 1 (no parsing, so in-progress code is allowed).
+
+**`partN` constrains UI-generated code only.** AI-written or hand-written code may use any **legal JS identifier** (`const shaft = cad.cylinder({ … })`); the engine treats both identically.
 
 ---
 
-## 4. Statement and script model (`src/lang/types.ts`)
+## 4. Statement and Script Model (`packages/core/src/lang/types.ts`)
 
-### 4.1 Base value types
+### 4.1 Value and reference types
 
 ```ts
-export type Vec3 = [number, number, number]      // 毫米，右手系 +Z 向上
+export type Vec3 = [number, number, number]
 
 export type JsonValue =
   | string | number | boolean | null
   | JsonValue[] | { [k: string]: JsonValue }
 
-export type Arg = JsonValue | ParamRef | GeomRef | AssetRef
-/** 语句输入引用的左值变量名（PartName） */
-export type ShapeRef = PartName
+export interface ParamRefIR { $param: string }
+export interface VarRefIR { $ref: string }
+export interface CallRefIR {
+  $call: { callee: string; args: ArgIR[]; namespace?: string }
+}
+export type ArgIR = JsonValue | ParamRefIR | VarRefIR | CallRefIR
 ```
 
-`Shape` (`src/mesh/types.ts`) is the core geometry type: `{ positions: Float32Array; indices: Uint32Array }` (triangle mesh, world space).
+`Shape` (`packages/core/src/mesh/types.ts`) is the core geometry type: `{ positions: Float32Array; indices: Uint32Array }` (triangle mesh, world space). `CompoundShape` is `{ kind: 'compound', children: Shape[] }`.
 
-### 4.2 Reference types (distinct from literals)
-
-```ts
-/** 参数引用：执行前从参数表求值 */
-export interface ParamRef { $param: string }
-
-/** 语义引用：对上游几何的派生位置，重算时自动跟随 */
-export interface GeomRef {
-  $geom: {
-    of: PartName                        // 上游左值变量名
-    feature: 'bboxCenter' | 'faceCenter' | 'faceNormal' | 'bboxMin' | 'bboxMax'
-    faceOrdinal?: number                // 拓扑面序号（getSubShapes(shape,'face') 索引），优先于 anchor
-    anchor?: { point: Vec3; normal?: Vec3 }   // 拾取时记录的 point+normal（降级路径）
-  }
-}
-
-/** 资产引用：SVG/XML 等大段文本不进 faijs 文本，由 AssetResolver 按 key 解析 */
-export interface AssetRef { $asset: string }
-```
-
-`GeomRef` evaluation semantics: use `of` to get upstream geometry → resolve position by `feature`; `faceCenter/faceNormal` first uses `faceOrdinal` to get the face directly; on failure or no ordinal, uses `anchor` to find the nearest face, finally falling back to `bboxCenter`.
-
-### 4.3 `CadStatement` (core contract)
+### 4.2 `StatementIR` (core contract)
 
 ```ts
-export interface CadStatement {
-  id: StmtId                    // 语句 id（sN）——顺序稳定的语句身份；不再是变量名
-  op: string                    // 函数名（见 §10 目录），必须命中白名单/注册函数
-  args: Record<string, Arg>     // 该 op 的完备参数集
-  inputs: ShapeRef[]            // 上游变量名（PartName，顺序敏感）
-  name?: string                 // 语句显示名（Timeline 用），不进 args
-  refs?: string[]               // 引用的变量名集合（inputs + args 中的 $param/$geom.of + group/assembly members）；parser 收集，编译期据此翻译为 deps
-  outputs: PartName[]           // 本语句产出的变量名列表（单输出 [partName]；split [front,back]；void []）
-  seq?: number                  // 全局序列号，timeline 跨 part 线性排序用（宿主 script-store 赋值）
-  assemblyTarget?: PartName     // 装配链式调用专属：assem1.add_constraint(...) 的目标变量名
-  hasAssignment?: boolean       // 是否有左值赋值（声明/裸重赋值/group-assembly 赋值 → true；add_constraint/do_assemble 方法链调用（无输出）→ false）
-}
-```
-
-### 4.4 `PartScript` and terminals
-
-```ts
-export interface PartScriptMeta {
-  name?: string
-  appearance?: { color?: string; metalness?: number; roughness?: number }
-}
-
-/** 终端：return 数组中列出的最终输出；id 类型为 StmtId，语义为 PartName */
-export interface TerminalShape {
+export interface StatementIR {
   id: StmtId
-  meta?: PartScriptMeta
-}
-
-export interface PartScript {
-  source?: { kind: 'load' } | { kind: 'sdf' }
-  params: ParamDef[]            // 参数表（const name = literal）
-  statements: CadStatement[]    // 拓扑序：被依赖的语句在前
-  meta?: PartScriptMeta         // 零件级模型属性（往返保真载体）；缺省时宿主按 op 兜底派生
-  terminalShapes?: TerminalShape[]  // 显式 return [...] 的终端 override（缺省时运行期 DAG 判定）
+  namespace?: string          // third-party namespace; default 'cad'
+  callee: string              // function name
+  args: Record<string, ArgIR>
+  inputs: PartName[]          // upstream variable names (order-sensitive)
+  name?: string               // display name for Timeline; not part of args
+  refs?: string[]             // referenced variables; compiled into deps
+  outputs: PartName[]
+  outputKeys?: string[]       // destructuring keys, 1:1 with outputs
+  seq?: number                // global sequence number (host-assigned)
+  receiver?: PartName         // receiver of a member call (asm1.add_constraint)
+  hasAssignment?: boolean     // whether the statement has an lvalue
 }
 ```
 
-**`meta` positioning (round-trip fidelity carrier)**: color and user-renamed names cannot be derived from modeling parameters and must be recorded explicitly; placed at part level / `TerminalShape` level, not in `args`. The code path only carries result values; the execution end follows them without replicating the mouse-path coloring/naming algorithm (fallback derivation is not a defect). `CadStatement.name` (statement display name) and `meta.name` (part name) are different things; do not conflate.
+### 4.3 `ScriptIR` and terminals
+
+```ts
+export interface ScriptIR {
+  source?: { kind: 'load' } | { kind: 'sdf' }
+  params: ParamDef[]
+  statements: StatementIR[]
+  imports?: ImportIR[]        // top-level imports (third-party libraries)
+  functions?: FunctionDefIR[] // top-level function definitions
+  meta?: ScriptMetaIR         // part-level properties (round-trip carrier)
+  terminalShapes?: TerminalShape[]  // explicit return [...] override
+}
+
+export interface TerminalShape {
+  id: PartName                // identified by variable name, not statement id
+  meta?: ScriptMetaIR
+  kind?: VarKind              // 'shape' | 'compound' | 'value'
+  hidden?: boolean            // kept but not rendered; undefined means visible
+}
+```
+
+**The role of `meta`**: color and user-renamed parts cannot be derived from modeling parameters, so they must be recorded explicitly. `StatementIR.name` (statement display name) and `meta.name` (part name) are different things — do not conflate them.
 
 ---
 
-## 5. Syntax contract (`.faijs` legal JS subset)
+## 5. Syntax Contract (`.faijs` legal JS subset)
 
-- `.faijs` must be a **legal subset of JavaScript** — any JS parser (acorn) can parse it without errors. Loading flow: **acorn parse (syntax gate: rejects control flow and other forbidden forms) → `compileToModule` compile to ESM product → JS VM dynamic import execute**. User source text is not directly executed (user text is not eval'd); the compiled product is generated by the engine from IR (current implementation is zero-import ESM, via `data:`/Blob URL — implementation trade-off, see `docs/syntax-design.md` §6.1).
-- **Forbidden (spec requirement)**: control flow (if/for/while/do/switch/try), dynamic `import()`, `eval`/`new Function`, `export`. Violations produce `ParseError` (control flow has a dedicated error code, roadmap V1.5).
-- **Current implementation extra restrictions (temporary, non-spec)**: `param`/`with` keywords, IIFE, template strings, function definitions, arbitrary expression statements — these are the current parser whitelist state; will be gradually relaxed with V1 language normalization, see dev plan `docs/plans/2026-08-29-faijs-normal-js-subset.md`. Arbitrary callee destructuring is already supported (`const { a, b } = cad.mySplit(x)` is legal).
-- **Flat format** (`scriptToCode` output, no `export default` wrapper, no `return`, no `apiVersion` header):
+`.faijs` must be a **legal subset of JavaScript** — any JS parser (acorn) parses it without error. Load flow: acorn parse (syntax gate) → `compileToModule` → JS VM dynamic import for execution.
+
+**Forbidden**: control flow (if/for/while/do/switch/try), dynamic `import()`, `eval`/`new Function`, `export`. Any violation raises `ParseError` with diagnostic code `E_CONTROL_FLOW` / `E_SYNTAX` / `E_VALUE` / `E_REFERENCE` / `E_IMPORT`, surfaced through `check()`.
+
+**Allowed**: top-level `import` (third-party libraries, not control flow), top-level function definitions, statically foldable expressions (binary / template literal / ternary), arbitrary callee destructuring, member method chains (`asm1.add_constraint({ … })`).
+
+Flat format (produced by `scriptToCode`):
 
 ```js
-const size = 20                                   // 参数声明（右侧仅字面量）
-let part0 = cad.box({ size })                     // 创建类语句（新名）
-let part0 = cad.drill(part0, { diameter: 5 })     // 单入单出保名重赋值（let）
-const { front: part1, back: part2 } = cad.split(part0, { … })  // split 双输出解构
-let part3 = cad.group({ members: [part0, part1] })  // 结构型（compound 输出）
-let part4 = cad.copy(part1)                       // 克隆型（新名，不消费源）
-cad.faceCenter(part0)                             // 几何查询 → GeomRef
+import * as mech from 'mech-lib'
+const size = 20
+let part0 = cad.box({ size })
+let part3 = cad.drill(part0, { diameter: 5 })
+const { front: part1, back: part2 } = cad.split(part0, { cutMode: 'plane' })
+let part4 = cad.group({ members: [part0, part1] })
+let part5 = mech.makeHeadstock({ length: 120 })
 ```
 
-- **Explicit return is still supported**: `return part0` / `return { shape, meta }` / `return [{ shape, meta }, …]` produce `script.terminalShapes`, which take priority over DAG detection at runtime.
-- **Statement ids can be any legal JS identifier** (AI/handwritten code is not constrained by partN); `partN` is only a convention for UI-generated code.
-- Code text is the deterministic serialization projection of PartScript (`scriptToCode`/`statementToLine`); parser and codegen are bidirectionally isomorphic; one operation = one line of code (comments/blank lines excluded).
-- Error forms: `ParseError` (parse phase, with line).
+The **keep directive** lives inside args (it is not a new keyword) — see §6. Code text is a deterministic serialization projection of ScriptIR; parser and codegen are isomorphic in both directions, and one operation is one line of code.
 
 ---
 
-## 6. Terminal detection contract (DAG leaves, `terminal-dag.ts`)
+## 6. Terminal Detection Contract (keep-driven)
 
-**Core semantics (user clarification 2026-08-27, simplest)**: whether a variable enters terminals = whether it is "consumed". If consumed → not a terminal.
+**Core semantics**: whether a variable becomes a terminal is whether it "is consumed". Consumed → not a terminal.
 
-- **"Consumed"** = there exists an **exclusive** statement T (`T.op ∉ NON_CONSUMING_OPS`) whose index > the variable's last assignment statement P, and T's inputs/refs contain that variable name (shape appears on the right side).
-- **`NON_CONSUMING_OPS = {group, assembly, copy}`**: these three statement types **do not consume** their right-side references (group/assembly does not consume members, copy does not consume the source); they are skipped directly in "consumer" determination. This is the only point requiring special handling in terminal detection — aside from this, group/assembly themselves are judged by "whether consumed by an exclusive statement" like any other shape.
-- The unit of determination is **PartName**, not StmtId; naturally compatible with partN naming.
+A retention declaration can appear in two places, with priority **call site > function body**:
 
-**Determination flow** (inside `collectResult`, explicit return takes priority):
+```js
+cad.drill(a, { diameter: 8, keep: ['a'], keepHidden: true })
+```
 
-1. Explicit `script.terminalShapes` (return [...]) first;
-2. Otherwise collect **all shape-typed top-level variable names** (including compound variables; `isShapeLike` only recognizes positions/indices, CompoundShape lacks those two fields, must extend traversal);
-3. `computeLeafTerminals(script, shapeVarNames)`: for each variable name, take "last writer P"; if no exclusive statement consumes it after P → terminal.
+```ts
+export function group(params) {
+  keep(...params.members)
+  return compound(params.members)
+}
+```
 
-**Three spec examples**:
+### 6.1 The `consumes()` decision chain (C0 → C3 → C5, short-circuiting)
 
-| Script | Terminals | Explanation |
+| Rule | Condition | Result |
 |---|---|---|
-| `x1=box; x2=drill(x1)` | `[x2]` | x1 consumed by drill → not terminal |
-| `x1=box; x1=drill(x1)` | `[x1]` | drill is x1's last writer; no consumer after → x1 terminal (drilled) |
-| `x1=box; x2=assemble(x1); x1=drill(x1)` | `[x1, x2]` | assemble does not consume x1; x2 has no downstream → both terminal; assemble binds to x1's final value |
+| **C0/C1** | Variable ∈ `resolveKeep(stmt).kept` (call-site or function-body declaration) | **Not consumed** |
+| **C3** | The statement assigns and every output is non-geometric | **Consumes** no input at all |
+| **C5** | Default | **Consumed** (an `inputs` positional reference, or a `VarRefIR` in args) |
 
-**copy example**: `part0=box; part1=copy(part0)` → `[part0, part1]` (source + copy both displayed); `part0=box; part1=copy(part0); part2=drill(part1)` → `[part0, part2]` (part1 consumed by drill → not terminal).
+Additional rules: a reference inside a nested call (`CallRefIR`) is a read-only query and does not consume; `receiver` (member method call) does not consume the receiver variable.
 
-### 6.1 Parser static consumption validation (rules A/B, `validateConsumption`)
+C3 is an objective default that requires **zero signature knowledge**: a function returning non-geometry cannot have swallowed geometry into its result, so inputs of third-party measurement/query functions are not eaten by mistake.
 
-UI-generated code follows static naming rules (§3.1) and will not trigger; AI-generated code cannot enforce naming rules, so two static checks run at the end of `parseScript` (consumption counting uniformly excludes `NON_CONSUMING_OPS`):
+`resolveKeep` merges function-body registration (`internalKeep`) with call-site `parseUserKeep`; **hidden follows "the last retention declaration wins"** (in statement order, a later declaration overrides an earlier one).
 
-- **Rule A (any variable consumed at most once)**: for each shape variable v, after its last assignment P, the count of consumption by **exclusive statements** (op ∉ {group, assembly, copy}) ≤ 1; ≥2 → `ParseError` (e.g., `part1=drill(part0); part2=extrude(part0)`).
-- **Rule B (members must be terminals)**: for each group/assembly member m, after the last assignment P, it must not be consumed by any exclusive statement; violation → `ParseError` (e.g., `part1=drill(part0); part2=group(part0,part1)`).
+### 6.2 `computeLeafTerminals()`
 
-Both rules are the same "last writer + no downstream consumer" count with different thresholds on two variable types (non-member ≤1, member =0). This is the precondition for the host removing the `groupAssemblyMemberIds` keep-alive fallback (see `docs/plans/2026-08-27-restore-dag-terminal-detection.md` §5.2): in a legal script, members are always terminals, no host fallback needed.
+For each shape variable (compound variables included), take its "last writer P"; if no statement after P consumes it, it is a terminal. A variable with no producer (manually injected by the host) counts as a terminal.
 
-### 6.2 Terminals and execution products
+- An explicit `script.terminalShapes` (`return [...]`) takes priority over DAG detection.
+- `hidden` carries a field only when explicitly `true`; visible normalizes to `undefined` (matching the host's `setNodeVisible(scopedId, !terminal.hidden)`).
 
-- `ExecutionResult.outputs` still contains **all** Shape variables (including intermediate results) — they just don't enter terminals; `brepSolids`/topology are extracted/built **by terminals** (intermediate variables have no BREP solid or real topology; no STEP export, no topology selectors).
-- Explicit `return [...]` takes priority over DAG.
-- After incremental (append/update), the terminal set is consistent with full execution.
+### 6.3 Static validation
+
+`validateKeepDirectives(stmt)` is a purely static validation that applies to third-party libraries as well: `keep` must be an array; entries must be variable references or `{ shape, hidden }`; referenced targets must be one of the statement's inputs or appear in args; `keepHidden` must be a boolean. Violations go into `CheckResult.errors`.
+
+### 6.4 Terminals and execution products
+
+`ExecutionResult.outputs` contains **all** Shape variables (intermediate results included) — they simply do not enter terminals; `brepSolids` and topology are extracted **per terminal**. Non-geometric DAG leaves (measurements, plain objects) go into `activeValues`, not `terminals`.
 
 ---
 
-## 7. Execution contract (`CadRuntime`, `src/cad-runtime/runtime.ts`)
+## 7. Execution Contract (`CadRuntime`)
 
 ### 7.1 Factory and execution modes
 
 ```ts
-createRuntime(ports: HostPorts, mode?: ExecutionMode): CadRuntime   // mode 缺省 'auto'
+createRuntime(ports: HostPorts, mode?: ExecutionMode, libs?: Record<string, StdlibNamespace>): CadRuntime
 export type ExecutionMode = 'auto' | 'brep' | 'mesh'
 ```
 
-- `auto` (default): prefer BREP; mesh-only op / broken chain switches to mesh by static rules + `part-brep-lost` event notification.
-- `brep`: force BREP; unsupported → error (`BrepUnsupportedError` → `failedAt`), **no auto-switch**.
-- `mesh`: all ops use mesh path.
+- `auto` (default): prefer BREP; a mesh-only op, a broken input chain, or a missing capability falls back to mesh statically.
+- `brep`: force BREP; anything unsupported raises (`BrepUnsupportedError` → `failedAt`) and **never switches automatically**.
+- `mesh`: every op takes the mesh path.
 
-### 7.2 Three entry points + plan + check + dispose
+**Facade vs engine**: core's `createRuntime` does **not** assemble `cad` (the engine has zero function knowledge); the root facade `src/index.ts` wraps it and injects `registerLib('cad', createInternalStdlib())`. Third-party libraries are always registered through `runtime.registerLib(binding, ns)`.
+
+### 7.2 `CadRuntime` API
 
 | API | Semantics |
 |---|---|
 | `execute(script, opts?)` | Full execution: compileToModule → load → executeAll → collectResult |
-| `append(script, newIds, opts?)` | Incremental append: execute only new statements (prefix already in persistent ctx); `newIds` are partNames from source statement outputs, translated to compiled product ids |
-| `update(script, opts?)` | Incremental update: plan() → stale set → reconcileCtx → executeFrom recompute; empty stale → assemble result from ctx with zero execution |
-| `plan(script)` | Dependency analysis, returns `{ stale: CadStatement[]; reused: Map<PartName, string> }` (statementKey cascade) |
-| `check(code)` | Dry-run validation: parse (acorn gate) → schema validation (incl. unknown-key) → reference pre-check (inputs/terminals) → `CheckResult` |
-| `dispose()` | Release all OCCT handles and caches |
+| `append(script, newIds, opts?)` | Incremental append: execute only the new statements (the prefix is already in the persistent ctx) |
+| `update(script, opts?)` | Incremental update: plan → reconcileCtx → recompute stale; zero execution when nothing is stale |
+| `executeCode(code, opts?)` | Text entry (parses, then executes); `stmtIds` selects a subset, `incremental` switches to append semantics |
+| `plan(script)` | Dependency analysis, returns `{ stale, reused }` |
+| `check(code)` | Dry-run validation: parse (syntax gate) → schema (unknown keys included) → reference pre-check → `CheckResult` |
+| `registerLib(binding, ns)` | Register a library namespace (third-party library channel) |
+| `setTopology` / `getTopology` / `deleteTopology` / `buildBrepTopology` | Topology injection and construction |
+| `dispose()` | Release all BREP handles and caches |
+
+`CheckResult = { ok, errors: CheckError[], warnings, script? }`, where `script` provides `{ statements, callees }` for AI self-correction.
 
 ### 7.3 `ExecutionResult` (host main consumption surface)
 
 ```ts
 export interface ExecutionResult {
-  outputs: Map<PartName, Shape>        // 全部 Shape 变量（含中间结果）
-  brepChain: BrepChainState            // BREP 链状态（含逐 part solid 句柄）
-  terminals: TerminalShape[]           // DAG 叶子终端（id 语义 = PartName）
-  infos: string[]                      // 信息/警告列表
-  failedAt?: { index: number; op: string; message: string }   // 执行中途出错
-  brepSolids?: Map<PartName, { solid: ShapeHandle; kernel: OcctKernel }>  // 逐终端 BREP 实体
-  topology?: Map<PartName, PartTopology>   // 拓扑运行时（E13：由 ExecutionResult 携带）
-  compounds?: Map<PartName, PartName[]>    // compound 变量 → 成员变量名列表（group/assembly 结构）
-  changed?: PartName[]                     // 被 touch 声明的原地修改 Shape 的持有变量名（去重）
+  outputs: Map<PartName, Shape | CompoundShape>   // all shape variables, intermediates included
+  brepChain: BrepChainState                       // BREP chain state (per-part handles)
+  terminals: TerminalShape[]                      // DAG leaf terminals
+  infos: string[]
+  failedAt?: { index: number; op: string; message: string }
+  brepSolids?: Map<PartName, { solid: BrepHandle; kernel: BrepEngineApi }>
+  topology?: Map<PartName, PartTopology>
+  compounds?: Map<PartName, PartName[]>           // compound variable -> member names
+  changed?: PartName[]                            // variables whose value changed this run
+  activeValues?: Map<PartName, unknown>           // live but non-geometric leaf values
 }
 ```
 
@@ -302,221 +323,254 @@ export interface ExecutionResult {
 
 ```ts
 export interface ExecuteOptions {
-  params?: Record<string, unknown>                 // 参数表（opts 优先，脚本 params 兜底）
-  inputGeometryMap?: Map<PartName, Shape>          // 跨 part 输入几何
-  sceneScript?: PartScript                         // 整场景 DAG（跨 part 引用解析）
-  partTransform?: { position: Vec3; scale?: Vec3 } // part 世界→局部偏移 + 缩放
-  beforeStatement?: (stmt: CadStatement, index: number) => void  // undo 逐语句快照
-  startIndex?: number                              // 增量执行起点（缺省 0 = 全量）
-  topology?: 'auto' | 'brep' | 'off'               // 拓扑构建开关（见 §11）
+  params?: Record<string, unknown>
+  inputGeometryMap?: Map<PartName, Shape>
+  sceneScript?: ScriptIR                          // whole-scene DAG for cross-part refs
+  partTransform?: { position: Vec3; scale?: Vec3 }
+  beforeStatement?: (stmt: StatementIR, index: number) => void   // per-statement undo snapshot
+  startIndex?: number
+  topology?: 'auto' | 'brep' | 'off'
 }
 ```
 
-### 7.5 `ModuleExecutor` (VM execution core, `module-executor.ts`)
+`ExecuteCodeOptions` adds `stmtIds` / `incremental` / `sceneCode` on top of this (hosts pass text when they do not construct IR).
 
-- **Compiled product**: `compileToModule(script)` generates **zero-import** ESM text (Node via `data:` URL, browser via Blob URL); each statement = `{ id: sN, deps: StmtId[], fn: (ctx, cad, exec) => Promise<void> }`.
-- **ctx persistent variable container**: survives across execute/append/update; all script variables in a statement compile to `ctx.<name>` property accesses (supports in-place reassignment).
-- **Incremental scheduling**: `executeAll` / `executeIds` (append) / `executeFrom(staleIds)` (update); `reconcileCtx` reclaims variables whose defining statements are no longer in the script and releases their kernel resources (required after undo deletes a statement).
-- **Pre-capture for replacement release**: before fn execution, capture old handles for this statement's write keys; release after success (on failure, cache maintains pre-execution state, natural rollback).
-- **statementKey cache**: `key = op|JSON(args)|deps outputContentKey`; plan uses this to determine stale; after parameter statement-ization, "change parameter → param statement key changes → cascade downstream stale".
+### 7.5 `ModuleExecutor` (VM execution core)
 
-### 7.6 `ExecContext` (library function platform API, `exec-context.ts`)
+- **Compiled output**: `compileToModule` produces a **zero-import** ESM (Node uses a `data:` URL, browsers a Blob URL); each statement is `{ id, deps, fn }` where `fn: async (ctx, ns) => { … }` — **only two parameters, no injected context object**.
+- **ctx persistent variable container**: survives across execute/append/update; script variables compile to `ctx.<name>` property access (supporting in-place reassignment).
+- **Incremental scheduling**: `executeAll` / `executeIds` (append) / `executeFrom(staleIds)` (update); `reconcileCtx` reclaims variables whose defining statement no longer exists in the script and releases their kernel resources.
+- **statementKey** = `` `${namespace ?? 'cad'}.${callee}` | JSON(args minus keep) | each dependency's outputContentKey ``; a parameter statement uses `param|JSON(value)`. The `keep`/`keepHidden` keys are excluded — **toggling retention or hidden state triggers zero geometry recomputation**.
+- **Pre-capture for replacement release**: before `fn`, the old handle of the statement's write key is captured and released after successful execution (on failure the cache retains the pre-execution state, so rollback is natural).
+
+### 7.6 The three library contract surfaces
+
+The old `ExecContext` packed kernels, identity slots and DAG queries into one injected `exec` object; it is abolished. The current contract is three **explicitly imported** surfaces, all exported from `@faicad/faijs/sdk`.
+
+**Surface A — Backends (host injects once, libraries import to access)**
 
 ```ts
-export interface ExecContext {
-  readonly mode: ExecutionMode
-  readonly kernels: { occt: OcctKernel | null; csg: CsgBackend | undefined; sdf: SdfBackend | undefined }  // 双内核地位对称
-  getSolid(shape: Shape): ShapeHandle | undefined      // BREP 链记账（按 Shape 身份，身份槽）
-  setSolid(shape: Shape, solid: ShapeHandle): void
-  getFaceEvolution(shape: Shape): Map<number, number[]> | undefined
-  setFaceEvolution(shape: Shape, evo: Map<number, number[]>): void
-  dependentsOf(shape: Shape): Shape[]                   // 变更型库调用：传递下游查询
-  touch(shape: Shape): void                             // 变更声明：持有它的变量列入 ExecutionResult.changed
-  readonly fonts: FontProvider | undefined
-  readonly texture: TextureSampler | undefined
-  readonly assets: AssetResolver | undefined
-  readonly events: EventSink
+configureBackends(backends: Backends): void   // called once at host startup
+getBackends(): Backends                       // throws when unconfigured; no silent default
+export interface Backends {
+  readonly contractVersion: number
+  readonly config: { mode; brepEngineId?; brepCapabilities?; partTransform? }
+  readonly kernel: { readonly brep: unknown | null; readonly csg?; readonly sdf? }
+  readonly fonts; texture; assets; events
+  readonly cad?: StdlibNamespace
 }
+export const CONTRACT_VERSION = 1
 ```
 
-Library function uniform signature: `(inputs..., args, exec) => Promise<Shape> | Shape`; `$geom` query functions take exec as last param.
+**Surface B — Shape constructors (zero bookkeeping in libraries)**
+
+```ts
+solid(mesh): SolidShape                       // every mesh product must be created here
+fromBrep(mesh, holder): SolidShape            // BREP product: registers handle + face evolution
+compound(children): CompoundShape             // structure (hierarchy), not new geometry
+isShape(v) / isCompound(v) / isCompoundLike(v)
+hasBrep(shape): boolean / brepOf(shape): unknown | undefined
+```
+
+**Surface C — keep declarations (called inside library function bodies)**
+
+```ts
+keep(...shapes): void        // keep and render
+keepHidden(...shapes): void  // keep but do not render on canvas
+```
+
+**Two prohibitions**: a library **must not** access engine-internal mutable state (no `currentStmt` / `script` / `outputCache` / `brepChain`); a library **must not** query or modify the DAG (no `dependentsOf` / `touch`, and no in-place mutation of an already published Shape). Those capabilities belong to the engine: `changed` is derived by engine comparison, and downstream invalidation after assembly transforms is done by the engine's `computeDownstream`.
 
 ---
 
-## 8. Dual-path geometry contract (BREP / Mesh)
+## 8. Geometry Contract (BREP / Mesh dual path)
 
-### 8.1 `resolvePath` (static determination, no runtime fallback)
+### 8.1 `dispatchPath` (static determination, no runtime fallback)
 
-`src/stdlib/internal/resolve-path.ts`, shared by library functions:
+Located in `packages/core/src/cad-runtime/backend-dispatch.ts`:
 
 ```ts
-resolvePath(exec, inputs, brepImpl): 'brep' | 'mesh'
+dispatchPath(inputs: Shape[], brepImpl: unknown | undefined, requiredCapability?: BrepCapabilityName): 'brep' | 'mesh'
 ```
 
-1. `mode='mesh'` → mesh (all ops must implement mesh path).
-2. `mode='brep'` → no brepImpl or inputs not all on chain (`exec.getSolid`) → **throw before call** (`BrepUnsupportedError` → failedAt).
-3. `mode='auto'` → has brepImpl and all inputs on chain → brep; otherwise mesh (empty inputs `[].every()===true` → brep).
-4. **No runtime fallback**: brep path exception = bug; report directly.
+Decision order:
 
-**Chain break switching semantics**: after a mesh-only op (sdf/knurl) appears on the BREP chain or inputs break the chain, **the subsequent part of that chain goes mesh**; the part before the chain remains unchanged (still brep). Switching is determined by static rules, no runtime try-catch fallback.
+1. `mode='mesh'` → mesh.
+2. `mode='brep'` → no `brepImpl`, inputs not all on the chain (`hasBrep`), or the current engine lacking `requiredCapability` → **throw `BrepUnsupportedError`**.
+3. `mode='auto'` → missing `requiredCapability` → mesh (static degradation); otherwise `brepImpl` present and all inputs on the chain → brep, else mesh.
 
-### 8.2 `BrepChainState` (`src/brep/brep-chain.ts`)
+Creation ops with empty inputs satisfy `[].every(hasBrep) === true`, so they take the brep path.
+
+### 8.2 Two-slot engine registry
+
+The mesh engine and the BREP engine are **two orthogonal slots**, not alternatives: mesh is mandatory for every chain (`Shape` is the required payload plus display tessellation), while BREP is an optional precision layer that can break away at any time. Switching one does not affect the other.
+
+```ts
+registerBrepEngine(id: string, provider: BrepEngineProvider): void  // first registrant becomes default
+registerMeshEngine(id: string, engine: MeshEngine): void
+getBrepEngine(id?): Promise<BrepEngine>     // async provider, result cached
+getMeshEngine(id?): MeshEngine
+freezeEngineRegistries(): void              // freeze after assembly; further registration throws
+export interface BrepEngine { readonly id: string; readonly primitives: BrepEngineApi; readonly capabilities?: BrepCapabilities }
+export type BrepEngineProvider = () => Promise<BrepEngine>
+```
+
+**Registration happens only during host startup assembly; the registry is read-only at runtime** and offers no unregister / setDefault / runtime switching. OCCT is installed as the default BREP engine by the adapter's idempotent `ensureOcctDefaultEngine()`.
+
+**Capability declarations** (`BrepCapabilities`, all optional): `evolution` (`*WithHistory` face evolution), `heal`, `directEdit`, `advSurface`, `assembly` (XCAF), `meshLift` (mesh→BREP lifting). A missing capability degrades statically or raises a clear error — **never faked**.
+
+### 8.3 `BrepChainState`
 
 ```ts
 export interface BrepChainState {
-  solidCache: Map<PartName, ShapeHandle>   // 存在即该 part 仍为 BREP；缺失即已降级为 mesh
-  kernel: OcctKernel | null                // mesh 模式为 null
-  partTransform?: { position: Vec3; scale?: Vec3 }   // 世界→局部坐标偏移
-  faceEvolutionCache?: Map<PartName, Map<number, number[]>>  // 面 ordinal 映射（布尔/变换 *WithHistory 产物）
-  meshShapeCache?: Map<PartName, WasmMesh>  // 三角化缓存（拓扑 mesh = 显示 mesh）
+  solidCache: Map<PartName, BrepHandle>       // present = still BREP; absent = downgraded
+  kernel: BrepEngineApi | null                // null in mesh mode
+  capabilities?: BrepCapabilities             // current engine capabilities (capability routing)
+  partTransform?: { position: Vec3; scale?: Vec3 }
+  faceEvolutionCache?: Map<PartName, Map<number, number[]>>
+  meshShapeCache?: Map<PartName, WasmMesh>    // tessellation cache (topology mesh = display mesh)
 }
 ```
 
-- **Per-part**: no global brepActive flag; a part loses BREP status if and only if: produced by a mesh-only op, or at least one upstream input has no BREP solid. Sibling parts do not pollute each other.
-- **Static CAD format determination**: `isCadFormat(args, isSource)` — `step/brep/stp` → BREP (IGES not included; occt-wasm does not link TKDEIGES); determined by `args.format` or path/url extension; pure function, no try-catch.
-- **Lifecycle**: solid ownership is in the **persistent solidCache** (replacement release on recompute / dispose release); `releaseBrepChainState` releases all handles (no longer has "keep terminal, release intermediate" selective semantics).
+**Lifecycle**: solid ownership lives in the **persistent `solidCache`** (released on recomputation replacement or on `dispose`).
 
-### 8.3 Shape and identity slot (`src/stdlib/shape.ts`)
+### 8.4 Shape and identity slots
 
-- `solid(mesh)` / `compound(children)` constructor products are Shapes; `isShape` only recognizes constructor products (WeakSet registered), the sole basis for terminal determination.
-- **Identity slot** `WeakMap<Shape, Slot>`: `{ solid?, faceEvolution?, meshShape?, behavior? }` — chain bookkeeping by Shape identity, not variable name; library functions are unaware of the naming system; `behavior` slot is assembly compound-specific.
-- **CompoundShape**: `{ kind: 'compound', children: Shape[] }` — structure (hierarchy) not new geometry, no independent mesh; can nest. It is itself a Shape → is a terminal → displays in UI (display method decided by host: each child displayed individually + scene tree hierarchy).
+`Shape` is the **mandatory payload** (mesh); BREP is an **optional layer** on top of the identity slot. The identity tables (`created` WeakSet / `slots` WeakMap / `shapeToName`) hang off the global anchor `runtime-state` on `globalThis` — this lets "two copies of faijs code" (one in the host bundle, one bundled into a third-party library) share one state and avoids Shape identity islands.
+
+`isShape` recognizes only constructor products (WeakSet registration) and is the sole basis for terminal detection. `isCompoundLike` is a structural test (`kind === 'compound' && Array.isArray(children)`); the engine uses it for internal terminal/consumption decisions, and it also works for unregistered compounds returned by third-party libraries.
+
+### 8.5 Chain break materialization
+
+**A chain break** is when a product uses `solid()` instead of `fromBrep()` → it has no BREP handle → that part keeps only its mesh layer from then on, **permanently and non-recoverably**. The moment of the break is when `dispatchPath` returns `'mesh'`.
+
+Three triggers: T1 a mesh-only op (such as knurl/sdf); T2 mixed inputs (`inputs.every(hasBrep)` is false); T3 explicit `mode='mesh'`.
+
+**Materialization entry point** `reconcileBrepInputs(inputs)` (`packages/stdlib/src/reconcile.ts`): BREP-side inputs are tessellated and reduced (weld vertices → remove degenerate faces → unify orientation → assert 2-manifold), while mesh-side inputs pass through unchanged.
+
+The `part-brep-lost` event is emitted **uniformly by the engine** (libraries do not emit it): the criterion is that the statement has geometry inputs, all inputs are on the chain, but the output is not.
 
 ---
 
-## 9. Host contract (`HostPorts` + consumption surface)
+## 9. Host Contract
 
-### 9.1 `HostPorts` (`src/cad-runtime/ports.ts`)
+### 9.1 `HostPorts`
 
 ```ts
 export interface HostPorts {
-  csg?: CsgBackend        // mesh 布尔/分割（Worker 或 Inline，位置由 createBrowserPorts 决定）
-  sdf?: SdfBackend        // SDF 求值
-  fonts?: FontProvider    // 字体字节加载 + key 列表
-  texture?: TextureSampler // knurl 纹理采样
-  assets?: AssetResolver  // load* 字节来源（resolveByKey / resolveFile / resolveUrl）
-  events: EventSink       // 必填：emit('part-brep-lost', { partName, op, reason })
+  csg?: CsgBackend
+  sdf?: SdfBackend
+  fonts?: FontProvider
+  texture?: TextureSampler
+  assets?: AssetResolver
+  events: EventSink   // required: emit('part-brep-lost', { partName, op, reason })
 }
 ```
 
-All fields except `events` are optional — node test environment can provide only occt kernel; BREP-path ops do not depend on Ports.
+Everything except `events` is optional — a Node test environment can supply only the BREP engine, since BREP-path ops do not depend on Ports.
 
 ### 9.2 Host consumption contract (3d_editor)
 
-- Import uniformly from `@faicad/faijs/browser`; symbol-level whitelist (`contract-entry.test.ts`) locks the export surface.
-- Execution uniformly goes through `CadRuntime.execute/append/update`; **bypassing the engine with manual execution loops is forbidden** (old `executeStatement`/`initBrepChainState` etc. deleted).
-- `terminalToScopedId: Record<PartName, ScopedId>` keys are always **PartName** (append-only, reverse lookup takes last match).
-- Scene tree hierarchy built from `ExecutionResult.compounds` (`buildSceneTreeFromDag` consumes `sceneCompounds`); compound child shapes expand in UI layer; no secondary liveness check on members.
-- Terminal geometry commit follows `result.terminals`; `brepSolids`/`topology` consumed directly (STEP export, topology rebuild).
-- **The host must not reimplement DAG leaf filtering** (terminal semantics is an engine product); geometry changes must go through faijs script statements.
+- Import uniformly from `@faicad/faijs/browser`.
+- Execute uniformly through `CadRuntime.execute/append/update/executeCode`.
+- **The host must not reimplement DAG leaf filtering** (terminal semantics are an engine product); geometry changes must go through script statements.
+- Build scene tree hierarchy from `ExecutionResult.compounds`; submit terminal geometry per `result.terminals`; consume `brepSolids`/`topology` directly (STEP export, topology rebuild).
+- **STEP export**: mesh parts can be exported too — the difference is a faceted STEP rather than an exact BREP solid. Handle each part by its type (exact vs tessellated) instead of failing the whole export.
 
 ---
 
-## 10. stdlib function catalog (`cad` namespace)
+## 10. stdlib and Third-Party Libraries
 
-> Full parameter contracts (incl. defaults/required) are in `src/mesh/api.d.ts` (**generated file**, from `scripts/gen-api-dts.ts` based on `src/stdlib/schemas.ts`, do not hand-edit) and `docs/ops-api-inventory.md`. The table below is function form classification and consumption semantics.
+### 10.1 Function catalog (`cad` namespace, 30 functions)
 
-### 10.1 Creation (no input, single output)
-
-| Function | Sync/Async | Notes |
-|---|---|---|
-| `box` / `sphere` / `cylinder` / `cone` / `wedge` | Sync | Primitives; `size/radius/height/segments/center` etc. |
-| `text` | Async | Text outline extrusion (font asset) |
-| `screw` | Async | Standard part (system/specIdx/thread/length/head) |
-| `svgExtrude` | Async | SVG extrusion |
-| `sdf` | Async | mesh-only op (auto mode emits part-brep-lost) |
-| `load` | Async | `key/path/url` exactly one (schema mutual-exclusion check) + `format` |
-
-### 10.2 Transform (1 input, single output, sync)
-
-`translate` (offset), `rotate` (anglesDeg/pivot), `scale` (factor).
-
-### 10.3 Feature (1 input, single output)
-
-| Function | Sync/Async | Notes |
-|---|---|---|
-| `drill` | Async | Hole (diameter/depth/holeType/direction/position/faceNormal/tolerance/screw*) |
-| `extrude` | Async | Face extrusion (length/mode/normal/originOffset/space) |
-| `engrave` | Async | Engraving (mode/depth/text or svg) |
-| `knurl` | Sync | mesh-only op (vertex displacement; auto mode emits part-brep-lost) |
-
-### 10.4 Boolean (≥2 inputs, single output, async)
-
-`union` / `subtract` / `intersect` → internal op `boolean` (`args.operation`); subtract/intersect use inputs[0] as the subject. Function name is the operation; no separate args object.
-
-### 10.5 split (1 input, dual output, async)
-
-`split(input, { cutMode, normal, offset, inPlaneAngleDeg, side, bbCenter, bboxSize, … })` → `{ front, back }` (destructuring syntax `const { front, back } = cad.split(…)`); `cutMode` includes plane/dovetail/dowel/straight-tenon/tenon/straight and respective dedicated params.
-
-### 10.6 Structural (compound output)
-
-| Function | Notes |
+| Category | Functions |
 |---|---|
-| `group({ name, members, memberNames })` | compound Shape, no constraints, no geometry side effects, pure hierarchy |
-| `assembly({ name, members, memberNames, constraints })` | compound Shape + AssemblyBehavior (constraint solving + transform propagation) |
+| Creation | `box` `sphere` `cylinder` `cone` `wedge` `text` `screw` `svgExtrude` `sdf` `load` |
+| Transform | `translate` `rotate` `scale` |
+| Feature | `drill` `extrude` `engrave` `knurl` |
+| Boolean | `union` `subtract` `intersect` |
+| Split | `split` (dual output, destructured as `const { front, back } = …`) |
+| Structural | `group` `assembly` (compound output) |
+| Clone | `copy` |
+| Query | `faceCenter` `faceNormal` `bboxCenter` `bboxMin` `bboxMax` |
+| Asset | `asset` |
 
-**Method chain**: `assem1.add_constraint({…})` / `assem1.do_assemble()` (void op, `outputs: []`, assignment → ParseError).
+**The complete parameter contract (defaults / required) is `docs/ops-api-inventory.md`** (generated from stdlib JSDoc; do not edit by hand).
 
-### 10.7 copy (clone type, 1 input, single output, sync)
+### 10.2 Consumption semantics (declaration-driven)
 
-`copy(input)`: **deep copy** (option B) — mesh path copies positions/indices to new arrays; BREP path `kernel.copy(inputSolid)` + `solidToShape` + `setSolid`/`setFaceEvolution` (identity face evolution). **Does not consume source** (`NON_CONSUMING_OPS`), output gets a "new name", source remains visible.
+Consumption is no longer hard-coded per op category; it is **declaration-driven**: consume by default (C5), retention declared by a library function body's `keep()` / `keepHidden()`, and overridden by a call-site `keep` directive.
 
-### 10.8 Query functions (`$geom` derived positions, last param exec)
-
-`faceCenter` / `faceNormal` / `bboxCenter` / `bboxMin` / `bboxMax` — appear in text as `cad.faceCenter(part0)` in an args value position; parser converts to `GeomRef`; compiled product translates to a query function call. Also `asset(key, exec)` (`$asset` reference resolution).
-
-### 10.9 Consumption semantics summary (terminal detection basis)
-
-| Category | Consumes right-side references? | Naming |
+| Library function | Declaration | Effect |
 |---|---|---|
-| Transform/Feature/Boolean/split/drill etc. | **Yes** (exclusive overwrite) | Single-input single-output name-preserving; boolean/split new name |
-| group / assembly | **No** (does not consume members) | New name `partN` |
-| copy | **No** (does not consume source) | New name `partN` (source stays alive and visible) |
+| `group` / `assembly` | `keep(...members)` | Members are not consumed; members and the compound are both displayed |
+| `copy` | `keep(input)` | The source is not consumed; source and copy are both displayed |
+| Boolean family | `keepHidden(...inputs)` | Sources are kept but not rendered on canvas |
+
+### 10.3 Uniform library function shape
+
+```ts
+export function myOp(input: Shape, params: MyParams): Shape {
+  const path = dispatchPath([input], brepImpl)
+  if (path === 'brep') return myOpBrep(input, params)
+  return solid(myOpMesh(input, params))
+}
+```
+
+### 10.4 Third-party library channel
+
+- **Registration**: `runtime.registerLib(binding, ns)`; a script writes `import * as mech from 'mech-lib'` and calls `mech.fn(...)`. `StatementIR.namespace` records the origin and statementKey carries the package-name prefix.
+- **Validation**: a library module may export `contractVersion`; a mismatch with `CONTRACT_VERSION` throws (`assertContractVersion`) rather than silently degrading.
+- **Resolution**: `@faicad/faijs/module-resolver` provides `resolveImports` and semver checks (`satisfies`), enabling on-demand loading of large library slices.
+
+### 10.5 Whole-module `.ts` execution channel (faqts)
+
+`@faicad/faijs/faqts` is a **second execution path running parallel** to the recording pipeline: `.ts` source is transformed as a whole and executed in one shot, building no IR, running no per-statement scheduling and joining no timeline; outputs are declared by the author through explicit `export` (no automatic DAG detection). It shares the same `cad` API and Shape contract as the faijs side, so products of the two are interoperable.
 
 ---
 
-## 11. Topology contract
+## 11. Topology Contract
 
-- `ExecuteOptions.topology`: `'auto'` (default) builds BREP real topology for **terminals** automatically; `'brep'` builds for all outputs on the BREP chain (incl. non-terminals); `'off'` does not auto-build (only returns topology injected by host `setTopology`).
-- **BREP real topology** is built by the engine at finalization (reuses identity slot `meshShape` triangulation cache, ensuring topology mesh = display mesh), carried via `ExecutionResult.topology` (E13 contract).
-- **Fake topology** (primitive parameter assembly / STL·3MF feature detection): built by the host at load/create time, injected via `runtime.setTopology`, passed through by the engine; **fake topology is not regenerated** contract unchanged.
-- Host rebuilds SelectorRuntime using `buildSelectorRuntimeMaps` (from `topology`'s `SelectorRuntimeData`).
-
----
-
-## 12. Assembly / grouping contract
-
-- **Product is compound Shape** (user requirement: belongs to shapes, displays in UI): `group`/`assembly` statements return compound, are terminals (per §6); no independent mesh, geometry carried by members.
-- **`ExecutionResult.compounds: Map<PartName, PartName[]>`**: compound variable → member variable name list, generated by the engine at finalization by reverse-looking up ctx variable names from compound's children; host builds scene tree hierarchy (UI expansion), no secondary liveness check on members.
-- **Constraint solving** (`src/stdlib/compound.ts` `solveAssembly`): face_mate constraint → `solveFaceMate` computes rigid transform → member mesh in-place transform + BREP solid transform sync → `dependentsOf` propagates downstream (mesh and solid both covered) → `exec.touch` declares change (→ `ExecutionResult.changed`).
-- **group semantics**: atomic group, zero constraints (`constraints: []`, `solve: () => {}`); members cannot be individually modified (modifying a group = modifying all its members) — this lifecycle semantics is a separate future item (see `docs/plans/2026-08-27-restore-dag-terminal-detection.md` §4.3), outside terminal detection scope.
-- **Member modification lifecycle** (member source statement change → assembly auto incremental recompute / group atomicity constraint) is orthogonal to terminal detection, not currently implemented, layer undetermined, separate plan.
+- `ExecuteOptions.topology`: `'auto'` (default) builds BREP true topology for **terminals that are on the BREP chain**; `'brep'` builds it for all on-chain outputs (non-terminals included); `'off'` disables automatic construction.
+- **BREP true topology** is built by the engine at wrap-up, reusing the tessellation cache in the identity slot so that topology mesh equals display mesh; it is carried on `ExecutionResult.topology`.
+- **Fake topology** (primitive parameter assembly / STL·3MF feature detection) is built by the host at load/creation time and injected via `runtime.setTopology`; the engine passes it through. **Fake topology is never regenerated.**
+- The host rebuilds SelectorRuntime with `buildSelectorRuntimeMaps` (from the `SelectorRuntimeData` of `topology`).
 
 ---
 
-## 13. Invariants and versioning
+## 12. Assembly / Grouping Contract
 
-### 13.1 Identity contract (incremental execution precondition)
+- The product of `group` / `assembly` is a **compound Shape** (it is a shape, enters terminals, and is displayed in the UI); it has no independent mesh of its own — geometry is carried by its members.
+- `ExecutionResult.compounds: Map<PartName, PartName[]>` is generated by the engine at wrap-up by reverse-looking-up ctx variable names from the compound's children; the host builds scene tree hierarchy from it and does not run a second liveness pass over members.
+- **Solving ≠ propagation** (responsibility split): constraint solving happens in the **library** (`solveTransforms` → `setPendingAssemblyTransforms` registers the result); **applying the transform and invalidating downstream happens in the engine** (`takePendingAssemblyTransforms` → member mesh and BREP solid transformed in sync → `computeDownstream` recomputes downstream → variable names go into `ExecutionResult.changed`).
+- **Member method chains**: `assem1.add_constraint({ … })` / `assem1.do_assemble()` are void ops (`outputs: []`) and do not consume the receiver variable.
+- **`group` semantics**: an atomic group with zero constraints; members must not be modified individually (modifying the group modifies all of its members).
 
-- Existing statement ids (StmtId) **must not be renamed or reordered**; only in-place `args` value changes (parameter change) or `op` changes (structural change) are allowed.
-- AI submission = **full overwrite text**; the engine diffs by id (UNCHANGED / PARAM / STRUCT / ADD / DELETE), replays from the first change point.
-- AI new statement ids are chosen by the author (any legal JS identifier, must not duplicate existing ids); deleting a feature = that id's line removed entirely.
-- Parameter declarations are statements themselves (compiled to ctx variables); "change parameter → param statement key changes → cascade downstream stale".
+---
+
+## 13. Invariants and Versioning
+
+### 13.1 Identity contract (precondition for incremental execution)
+
+- Existing statement ids (StmtId) **must not be renamed or reordered**; only `args` values may change in place (parameter change) or `callee` may change (structural change).
+- An AI submission is a **full overwriting text**; the engine aligns by id and diffs (UNCHANGED / PARAM / STRUCT / ADD / DELETE), replaying from the first change point.
+- A parameter declaration is itself a statement, so "changing a parameter → the parameter statement's key changes → downstream goes stale in cascade".
 
 ### 13.2 contentKey and fidelity
 
-- `computeContentKey` (positions/indices → content fingerprint) is the geometric equivalence metric; statementKey = `op|JSON(args)|deps outputContentKey`; plan uses this to determine incremental recompute scope.
+`computeContentKey` (positions/indices → content fingerprint) is the measure of geometric equivalence; statementKey consists of callee, args (keep excluded) and each dependency's outputContentKey, and plan uses it to decide the incremental recomputation scope.
 
-### 13.3 "Result consistent" boundary (anti-regression)
+### 13.3 The boundary of "consistent results" (anti-regression)
 
-The contract only guarantees: **code → model is a function**, and `scriptToCode → parseScript` round-trip produces the same model. **Does not guarantee or require**: code path and mouse path internal implementation/property allocation algorithms match, instance id values match, undo stack structure matches. When any design requiring "code computes the same as UI" appears, first check against R-1 in §2.
+The contract guarantees only: **code → model is a function**, and the model is identical after a `scriptToCode → parseScript` round trip. It does **not** guarantee or require: identical internal implementations or attribute-assignment algorithms between the code path and the mouse path, identical instance id values, or identical undo stack structure.
 
-### 13.4 Generated file red line
+### 13.4 Generated file red lines
 
-- `src/mesh/api.d.ts` is a **generated file**: generated from `src/lang/args-schema.ts` schema (via `scripts/gen-api-dts.ts`), do not hand-edit; after changing schema, must re-run that script (`api-dts-sync.test.ts` guards generated product consistency).
+- `docs/ops-api-inventory.md` is generated by `scripts/gen-ops-api-inventory.ts` from stdlib JSDoc — **do not edit by hand** (CI `--check` guards it).
+- `packages/core/src/mesh/api.d.ts` is generated by `packages/core/scripts/gen-api-dts.ts` from the stdlib function catalog — **do not edit by hand** (guard test `packages/core/src/api-dts-sync.test.ts`).
 
 ### 13.5 Compatibility
 
-- Legacy `partN_vM` and `grp_N` fixtures remain parseable and executable (parser retains old name format recognition), but new code produces only `partN`.
-- `export default async (cad) => {}` container and flat format are both parseable; flat code is auto-wrapped into a legal container.
-- Top-level control flow is forbidden (language constraint), ensuring terminal detection and other static rules are not broken by AI code.
+- Control flow is forbidden at the top level (a language constraint), which keeps static rules such as terminal detection safe from AI-generated code.
+- Legacy `partN_vM` and `grp_N` names are no longer produced (the version suffix and the `grp_` prefix were both removed), but the parser still recognizes them in existing scripts.
+- Both the `export default async (cad) => {}` container and the flat format parse; flat code is automatically wrapped into a legal container.

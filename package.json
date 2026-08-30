@@ -92,7 +92,9 @@
     "verify-doc-refs": "npx tsx scripts/verify-doc-refs.ts",
     "verify-archived-agent-notes": "npx tsx scripts/verify-archived-agent-notes.ts",
     "archive-plans": "node scripts/archive-plans.mjs",
-    "doc-sync": "npx tsx scripts/verify-md-links.ts && npx tsx scripts/verify-md-wrap.ts && npx tsx scripts/verify-doc-budgets.ts && npx tsx scripts/verify-agent-note-format.ts && npx tsx scripts/verify-agent-note-classification.ts && npx tsx scripts/verify-translation-pairing.ts && npx tsx scripts/verify-type-equiv.ts && npx tsx scripts/verify-mermaid.ts && npx tsx scripts/verify-export-jsdoc.ts && npx tsx scripts/doc-typecheck.ts && npx tsx scripts/verify-doc-refs.ts && npx tsx scripts/verify-archived-agent-notes.ts"
+    "gen-ops-api-inventory": "npx tsx scripts/gen-ops-api-inventory.ts",
+    "check-ops-api-inventory": "npx tsx scripts/gen-ops-api-inventory.ts --check",
+    "doc-sync": "npx tsx scripts/gen-ops-api-inventory.ts --check && npx tsx scripts/verify-md-links.ts && npx tsx scripts/verify-md-wrap.ts && npx tsx scripts/verify-doc-budgets.ts && npx tsx scripts/verify-agent-note-format.ts && npx tsx scripts/verify-agent-note-classification.ts && npx tsx scripts/verify-translation-pairing.ts && npx tsx scripts/verify-type-equiv.ts && npx tsx scripts/verify-mermaid.ts && npx tsx scripts/verify-export-jsdoc.ts && npx tsx scripts/doc-typecheck.ts && npx tsx scripts/verify-doc-refs.ts && npx tsx scripts/verify-archived-agent-notes.ts"
   },
   "workspaces": [
     "packages/core",

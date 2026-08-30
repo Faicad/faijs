@@ -65,6 +65,20 @@ function primitiveBrep(op: string, params: Record<string, unknown>): Shape {
   )
 }
 
+/**
+ * 创建长方体（或立方体）。size 给定三条边：传 number 为等边立方体，传 [x,y,z] 为长方体。
+ * @group 创建
+ * @inputs 0
+ * @async false
+ * @qual ok
+ * @name box
+ * @returns Shape 长方体几何，可作为后续 op 的输入。
+ * @param params.size - 尺寸（[x,y,z] 三边或 number 等边）。type:number | [x,y,z] required:true
+ * @param params.center - 中心位置。type:[x,y,z] 默认 [0,0,0]（原点）。
+ * @example
+ * const part0 = cad.box({ size: 20 })
+ * const part0 = cad.box({ size: [30, 20, 10], center: [0, 0, 5] })
+   */
 export function box(params: Record<string, unknown>): Shape {
   assertBoxParams(params)
   const path = dispatchPath([], brepImpl)
@@ -72,6 +86,21 @@ export function box(params: Record<string, unknown>): Shape {
   return solid(cad.box(params as never))
 }
 
+/**
+ * 创建球体。
+ * @group 创建
+ * @inputs 0
+ * @async false
+ * @qual ok
+ * @name sphere
+ * @returns Shape 球体几何，可作为后续 op 的输入。
+ * @param params.radius - 半径（mm）。type:number required:true
+ * @param params.segments - 细分度（影响面数）。type:number 默认 32
+ * @param params.center - 球心位置。type:[x,y,z] 默认 [0,0,0]（原点）。
+ * @example
+ * const r = cad.sphere({ radius: 10 })
+ * const r = cad.sphere({ radius: 10, segments: 64, center: [0,0,10] })
+  */
 export function sphere(params: Record<string, unknown>): Shape {
   assertSphereParams(params)
   const path = dispatchPath([], brepImpl)
@@ -79,6 +108,21 @@ export function sphere(params: Record<string, unknown>): Shape {
   return solid(cad.sphere(params as never))
 }
 
+/**
+ * 创建圆柱体。
+ * @group 创建
+ * @inputs 0
+ * @async false
+ * @qual ok
+ * @name cylinder
+ * @returns Shape 圆柱体几何，可作为后续 op 的输入。
+ * @param params.radius - 底面半径（mm）。type:number required:true
+ * @param params.height - 高度（mm），沿 Z 轴。type:number required:true
+ * @param params.segments - 细分度（影响面数）。type:number 默认 32
+ * @param params.center - 中心位置。type:[x,y,z] 默认 [0,0,0]（原点）。
+ * @example
+ * const c = cad.cylinder({ radius: 5, height: 40 })
+  */
 export function cylinder(params: Record<string, unknown>): Shape {
   assertCylinderParams(params)
   const path = dispatchPath([], brepImpl)
@@ -86,6 +130,22 @@ export function cylinder(params: Record<string, unknown>): Shape {
   return solid(cad.cylinder(params as never))
 }
 
+/**
+ * 创建圆锥体。radiusTop 等于 radiusBottom 时即圆柱。
+ * @group 创建
+ * @inputs 0
+ * @async false
+ * @qual ok
+ * @name cone
+ * @returns Shape 圆锥体几何，可作为后续 op 的输入。
+ * @param params.radiusBottom - 底半径（mm）。type:number required:true
+ * @param params.radiusTop - 顶半径（mm），可传 0 得尖锥，传等于 radiusBottom 得圆柱。type:number required:true
+ * @param params.height - 高度（mm），沿 Z 轴。type:number required:true
+ * @param params.segments - 细分度（影响面数）。type:number 默认 32
+ * @param params.center - 中心位置。type:[x,y,z] 默认 [0,0,0]（原点）。
+ * @example
+ * const c = cad.cone({ radiusBottom: 10, radiusTop: 4, height: 30 })
+  */
 export function cone(params: Record<string, unknown>): Shape {
   assertConeParams(params)
   const path = dispatchPath([], brepImpl)
@@ -93,6 +153,23 @@ export function cone(params: Record<string, unknown>): Shape {
   return solid(cad.cone(params as never))
 }
 
+/**
+ * 创建楔形体。唯一契约是 width/height/angle/length（width/height/angle 为正数，length 沿切割方向），
+ * 旧文档的 size 形态已废弃，传 { size } 会抛错。
+ * @group 创建
+ * @inputs 0
+ * @async false
+ * @qual ok
+ * @name wedge
+ * @note 曾与 UI 面板的 `size` 形态并存并写入文档，但断言层确认唯一合法契约是 width/height/angle/length；传 `{ size }` 直接抛错。已按真源收敛。
+ * @returns Shape 楔形体几何，可作为后续 op 的输入。
+ * @param params.width - 底面宽度（mm）。type:number required:true
+ * @param params.height - 高度（mm）。type:number required:true
+ * @param params.angle - 楔形角度（度）。type:number required:true
+ * @param params.length - 沿切割方向的长度（mm）。type:number required:true
+ * @example
+ * const w = cad.wedge({ width: 30, height: 20, angle: 45, length: 10 })
+  */
 export function wedge(params: Record<string, unknown>): Shape {
   assertWedgeParams(params)
   const path = dispatchPath([], brepImpl)

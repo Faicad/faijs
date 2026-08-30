@@ -96,7 +96,7 @@ function screwHoleBrep(
 
   // 2. 螺纹（内螺纹 ridge，inward=true）
   const screwSystem = (params.screwSystem as 'metric' | 'imperial') ?? 'metric'
-  const screwSpecIdx = (params.screwSpecIdx as number) ?? 5 // M6 default
+  const screwSpecIdx = (params.screwSpecIdx as number) ?? 4 // M5 default（与 mesh 路径一致）
   const screwThread = (params.screwThread as 'coarse' | 'fine' | 'custom') ?? 'coarse'
   const spec = getScrewSpec(screwSystem, screwSpecIdx)
   const pitch = threadToPitchMm(screwSystem, spec, screwThread)
@@ -137,7 +137,7 @@ function drillBrepPath(input: Shape, params: Record<string, unknown>): Shape {
   const inputSolid = brepOf(input) as BrepHandle | undefined
   if (!inputSolid) throw new Error('[stdlib/drill] input is not BREP')
 
-  const faceNormal = params.faceNormal as Vec3
+  const faceNormal = (params.faceNormal as Vec3) ?? [0, 0, 1]
   const direction = resolveDirection(params, faceNormal)
   const holeType = params.holeType as 'simple' | 'screw' | undefined
 
@@ -164,7 +164,7 @@ function drillBrepPath(input: Shape, params: Record<string, unknown>): Shape {
 
 /** mesh 路径：manifold-3d mesh-CSG。 */
 async function drillMeshPath(input: Shape, params: Record<string, unknown>): Promise<Shape> {
-  const faceNormal = params.faceNormal as Vec3
+  const faceNormal = (params.faceNormal as Vec3) ?? [0, 0, 1]
   const direction = resolveDirection(params, faceNormal)
   const partTransform = getBackends().config.partTransform
   const localPos = worldToLocalPosition(params.position as [number, number, number], partTransform)
@@ -190,6 +190,32 @@ async function drillMeshPath(input: Shape, params: Record<string, unknown>): Pro
   })
 }
 
+/**
+ * 在几何体上钻孔（CSG 减除）。depth=0 为通孔，>0 为盲孔。
+ * @group 特征
+ * @inputs 1
+ * @async true
+ * @qual ok
+ * @name drill
+ * @note 键名以本表为准：`type: 'through'|'blind'` 与 `direction` 为向量的旧素材是无效写法——孔型由 `depth`（0=通孔）推导，`direction` 是 'normal'|'x'|'y'|'z' 枚举。
+ * @returns Shape 钻孔后的几何。
+ * @param input - 目标几何。type:Shape required:true
+ * @param params.diameter - 孔径（mm）。type:number required:true
+ * @param params.depth - 孔深（mm）；0 = 通孔，> 0 = 盲孔。type:number 默认 0
+ * @param params.holeType - 孔类型：simple 简单孔 / screw 螺丝孔。type:'simple' | 'screw' 默认 'simple'
+ * @param params.direction - 钻孔轴向（normal 表示沿面法向）。type:'normal' | 'x' | 'y' | 'z' 默认 'normal'
+ * @param params.position - 孔心位置（建议几何引用 cad.faceCenter）。type:[x,y,z] 默认 原点
+ * @param params.faceNormal - 面法向（决定朝向）。type:[x,y,z] 默认 [0,0,1]
+ * @param params.tolerance - 公差（mm）。type:number 默认 0.3
+ * @param params.screwSystem - 螺丝孔制式（holeType='screw' 时用）。type:'metric' | 'imperial' 默认 'metric'
+ * @param params.screwSpecIdx - 螺丝规格索引（holeType='screw' 时用；4 → M5）。type:number 默认 4
+ * @param params.screwThread - 螺丝螺纹类型。type:'coarse' | 'fine' | 'custom' 默认 'coarse'
+ * @param params.screwHead - 螺丝头型。type:'hex' | 'chc' | 'none' 默认 'none'
+ * @example
+ * const p = await cad.drill(part0, { diameter: 5 })
+ * const p = await cad.drill(part0, { diameter: 5, depth: 3 })
+ * const p = await cad.drill(part0, { diameter: 5.2, depth: 8, holeType: 'screw', screwSystem: 'metric', screwSpecIdx: 4, screwThread: 'coarse', screwHead: 'none' })
+  */
 export async function drill(input: Shape, params: Record<string, unknown>): Promise<Shape> {
   if (!input) throw new Error('[stdlib/drill] no input geometry')
   assertDrillParams(params)

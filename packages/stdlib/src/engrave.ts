@@ -108,7 +108,7 @@ async function engraveBrepPath(input: Shape, params: Record<string, unknown>, sv
   let decorationSolid: BrepHandle
   if (text) {
     await ensureDefaultFont()
-    const textSize = (params.textSize as number) ?? 16
+    const textSize = (params.textSize as number) ?? 10
     decorationSolid = textToSolid(kernel, text, { fontSize: textSize, depth })
   } else if (svgText) {
     decorationSolid = svgToSolid(kernel, svgText, {
@@ -167,6 +167,27 @@ async function engraveBrepPath(input: Shape, params: Record<string, unknown>, sv
   return fromBrep(solidToShape(kernel, result), { solid: result })
 }
 
+/**
+ * 在几何表面雕刻文字或 SVG（文字分支与 logo 分支都可用）。
+ * @group 特征
+ * @inputs 1
+ * @async true
+ * @qual ok
+ * @name engrave
+ * @returns Shape 雕刻后的几何。
+ * @param input - 目标几何。type:Shape required:true
+ * @param params.mode - 雕刻方式：concave 凹陷（减法）/ convex 凸出（加法）。type:'concave' | 'convex' 默认 'concave'
+ * @param params.depth - 深度 / 凸出高度（mm）。type:number 默认 0
+ * @param params.text - 文字内容（与 svg 二选一）。type:string
+ * @param params.textSize - 字号（mm）。type:number 默认 10
+ * @param params.svg - SVG 资产引用（与 text 二选一；经 cad.asset 解析）。type:string
+ * @param params.svgSize - SVG 长边目标尺寸。type:number
+ * @param params.faceCenter - 面位置（绝对坐标）。type:[x,y,z] 默认 [0,0,0]
+ * @param params.faceNormal - 面法向。type:[x,y,z] 默认 [0,0,1]
+ * @note 早期 logo 分支用 `svgText`（整份 XML 拷贝 + `svgSize` 文本导出丢失，往返失真）；现已改为 `svg` 资产引用，`engravingType` 冗余键已移除。faceCenter/faceNormal 目前是绝对坐标快照，建议用几何引用 `cad.faceCenter(part0, [锚点])`。
+ * @example
+ * const p = await cad.engrave(part0, { mode: 'concave', depth: 2, text: 'Hello', textSize: 10, faceCenter: [0, 0, 0], faceNormal: [0, 0, -1] })
+  */
 export async function engrave(input: Shape, params: Record<string, unknown>): Promise<Shape> {
   if (!input) throw new Error('[stdlib/engrave] no input geometry')
   assertEngraveParams(params)

@@ -233,6 +233,40 @@ async function splitMeshPath(input: Shape, params: Record<string, unknown>): Pro
   return { front: solid(result.front), back: solid(result.back) }
 }
 
+/**
+ * 分割几何，返回具名对象 { front, back } 两个独立零件。
+ * @group 特征
+ * @inputs 1
+ * @async true
+ * @qual warn
+ * @name split
+ * @returns { front: Shape; back: Shape } 必须用解构 `const { front: partA, back: partB } = await cad.split(...)` 取出两个零件。
+ * @param input - 目标几何。type:Shape required:true
+ * @param params.cutMode - 切割模式。type:'plane' | 'dovetail' | 'dowel' | 'tenon' | 'straight-tenon' | 'straight' 默认 'plane'
+ * @param params.normal - 切割面法向。type:[x,y,z] 默认 [0,0,1]
+ * @param params.offset - 切割面沿法向偏移（过 bbCenter）。type:number 默认 0
+ * @param params.inPlaneAngleDeg - 切割面面内旋转角（度）。type:number 默认 0
+ * @param params.bbCenter - 包围盒中心（缺省自动推导）。type:[x,y,z] 默认 自动
+ * @param params.bboxSize - 包围盒尺寸（缺省自动推导）。type:[x,y,z] 默认 自动
+ * @param params.applyExplode - 是否将两侧沿法向分离位移（bbox 对角线 2% + 榫卯深度一半）。type:boolean 默认 true
+ * @param params.grooveDepth - 燕尾槽深（cutMode='dovetail'）。type:number
+ * @param params.grooveWidth - 燕尾槽宽（cutMode='dovetail'）。type:number
+ * @param params.grooveDepthTolerance - 燕尾槽深公差。type:number
+ * @param params.grooveWidthTolerance - 燕尾槽宽公差。type:number
+ * @param params.grooveFlapsAngle - 燕尾槽翼角（度）。type:number
+ * @param params.dowelDiameter - 定位销直径（cutMode='dowel'）。type:number
+ * @param params.dowelDiameterTolerance - 定位销直径公差。type:number
+ * @param params.dowelHeight - 定位销高度。type:number
+ * @param params.dowelHeightTolerance - 定位销高度公差。type:number
+ * @param params.tenonSideLength - 直榫边长（cutMode='tenon'/'straight-tenon'）。type:number
+ * @param params.tenonSideLengthTolerance - 直榫边长公差。type:number
+ * @param params.tenonHeight - 直榫高度。type:number
+ * @param params.tenonHeightTolerance - 直榫高度公差。type:number
+ * @param params.selectedSections - 参与榫卯的截面下标。type:number[]
+ * @note 切割面统一用 `normal`/`offset`/`inPlaneAngleDeg` 描述；早期文本层曾与执行层键名断裂（planeRotation/planePosition），已修并统一为上述键名。
+ * @example
+ * const { front: part1, back: part2 } = await cad.split(part0, { normal: [0, 0, 1], offset: 5, cutMode: 'dovetail', grooveDepth: 3, grooveWidth: 5 })
+  */
 export async function split(input: Shape, params: Record<string, unknown> = {}): Promise<{ front: Shape; back: Shape }> {
   if (!input) throw new Error('[stdlib/split] no input geometry')
   if (params.normal !== undefined && params.normal !== null) {

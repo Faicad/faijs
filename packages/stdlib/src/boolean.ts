@@ -108,14 +108,50 @@ async function booleanImpl(operation: BooleanOperation, inputs: Shape[]): Promis
 // ── 三个薄导出（多输入 variadic） ──
 // P5：编译产物不再发射末参 exec，纯 variadic（P2 的 rest.pop() 过渡已移除）。
 
+/**
+ * 布尔并集：合并所有输入几何（≥2 个输入）。
+ * @group 特征
+ * @inputs 2
+ * @async true
+ * @qual ok
+ * @name union
+ * @param shapes - 参与运算的几何（变量引用，≥2 个）。type:Shape[] required:true
+ * @returns Shape 所有输入的并集。函数名即操作，输入全是变量引用，可用 `cad.union(a, b, c)` 多输入。
+ * @example
+ * const a = await cad.union(part0, part1)
+  */
 export function union(...shapes: Shape[]): Promise<Shape> {
   return booleanImpl('union', shapes)
 }
 
+/**
+ * 布尔差集：第一个为主体，减去其余输入。
+ * @group 特征
+ * @inputs 2
+ * @async true
+ * @qual ok
+ * @name subtract
+ * @param shapes - 参与运算的几何（变量引用，第一个为主体）。type:Shape[] required:true
+ * @returns Shape part0 减 part1 的差集（第一个为主体）。
+ * @example
+ * const b = await cad.subtract(part0, part1)
+  */
 export function subtract(...shapes: Shape[]): Promise<Shape> {
   return booleanImpl('subtract', shapes)
 }
 
+/**
+ * 布尔交集：所有输入的重叠部分。
+ * @group 特征
+ * @inputs 2
+ * @async true
+ * @qual ok
+ * @name intersect
+ * @param shapes - 参与运算的几何（变量引用）。type:Shape[] required:true
+ * @returns Shape 所有输入的交集。
+ * @example
+ * const c = await cad.intersect(part0, part1)
+  */
 export function intersect(...shapes: Shape[]): Promise<Shape> {
   return booleanImpl('intersect', shapes)
 }

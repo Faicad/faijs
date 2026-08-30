@@ -20,6 +20,22 @@ export function assertSdfParams(params: Record<string, unknown>): void {
   }
 }
 
+/**
+ * 用 SDF（符号距离场）函数生成网格体（mesh-only）。
+ * @group 创建
+ * @inputs 0
+ * @async true
+ * @qual warn
+ * @name sdf
+ * @note SDF 无 BREP 实现（mesh-only）；brep 模式下 dispatchPath 调用前抛 BrepUnsupportedError。SDF 天生是网格操作，允许网格参数（resolution）。
+ * @returns Shape SDF 生成的网格体，生成独立零件。
+ * @param params.code - SDF 函数源码（`sdf(x,y,z)` 定义或标题模板调用，如 'return sphere(10) - sphere(5, [10,0,0])'）。type:string required:true
+ * @param params.box - 采样包围盒。type:[[minX,minY,minZ],[maxX,maxY,maxZ]] 默认 [[-10,-10,-10],[10,10,10]]
+ * @param params.resolution - 网格单元边长（越小越精细）。type:number 默认 1.0
+ * @param params.params - 参数数值表（SDF 里引用的变量值）。type:object
+ * @example
+ * const s = await cad.sdf({ code: 'return sphere(10) - sphere(5, [10,0,0])', box: [[-20,-20,-20],[30,20,20]], resolution: 1 })
+  */
 export async function sdf(params: Record<string, unknown>): Promise<Shape> {
   assertSdfParams(params)
   // mesh-only：无 brepImpl；brep 模式下 dispatchPath 调用前抛 BrepUnsupportedError

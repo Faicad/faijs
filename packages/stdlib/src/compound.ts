@@ -204,6 +204,21 @@ function memberNamesOf(params: { memberNames?: unknown }, members: Shape[]): str
  *
  * 函数体 keep 声明（keep-syntax 设计 §2.5）：group 保留其成员且可见（R6）。
  */
+/**
+ * 分组：零约束，保持当前布局。结构语句，无几何输出，成员用变量名引用。
+ * @group 结构
+ * @inputs 1
+ * @async false
+ * @qual ok
+ * @name group
+ * @returns CompoundShape 复合几何（kind='compound'，children 为成员 Shape 引用）。
+ * @param params.name - 组名。type:string
+ * @param params.members - 成员（编译产物 ctx.<var> 引用；结构语句里是裸变量引用，非字符串数组）。type:Shape[]
+ * @note members 在 .faijs 里是裸变量引用（编译为 ctx.<var>），字符串数组形态的成员名经 keep() 反查兼容历史 IR。
+ * @example
+ * const part0 = cad.box({ size: [30, 20, 10] })
+ * cad.group({ name: '底板组', members: [part0] })
+  */
 export function group(params: GroupParams): CompoundShape {
   const members = (params.members as Shape[] | undefined) ?? []
   if (members.length > 0) keep(...members)
@@ -220,6 +235,21 @@ export function group(params: GroupParams): CompoundShape {
  *
  * 函数体 keep 声明（keep-syntax 设计 §2.5）：assembly 保留其成员且可见（R6）。
  */
+/**
+ * 装配：成员 + 面约束（face_mate）。结构语句，无几何输出，成员用变量名引用、约束用拓扑面引用。
+ * @group 结构
+ * @inputs 1
+ * @async false
+ * @qual warn
+ * @name assembly
+ * @returns CompoundShape + AssemblyBehavior（含 do_assemble 方法）。
+ * @note 早期文档/示例曾用 `fixedPartId`/`movingPartId`/`faceRowIndex`/`faceId`/`invalid`——这些键在代码中不存在。真实契约是 `fixedPartName`/`movingPartName` + `fixedFace`/`movingFace`（{surfaceType, center, normal}，几何数据不入参数，运行时从面行派生）。
+ * @param params.name - 装配名。type:string
+ * @param params.members - 成员（裸变量引用）。type:Shape[]
+ * @param params.constraints - 面约束数组（type='face_mate'；fixedPartName/movingPartName + fixedFace/movingFace {surfaceType, center, normal}）。type:AssemblyConstraint[]
+ * @example
+ * cad.assembly({ name: '装配1', members: [part0, part1], constraints: [{ type: 'face_mate', fixedPartName: part0, movingPartName: part1, fixedFace: { surfaceType: 'plane', center: [0,0,5], normal: [0,0,1] }, movingFace: { surfaceType: 'plane', center: [0,0,0], normal: [0,0,-1] } }] })
+  */
 export function assembly(params: AssemblyParams): CompoundShape {
   const members = (params.members as Shape[] | undefined) ?? []
   const constraints = (params.constraints as AssemblyConstraint[] | undefined) ?? []

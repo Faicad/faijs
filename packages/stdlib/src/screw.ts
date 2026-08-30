@@ -142,6 +142,27 @@ export function assertScrewParams(params: Record<string, unknown>): void {
   }
 }
 
+/**
+ * 生成螺丝零件（螺纹 + 头型）。
+ * @group 创建
+ * @inputs 0
+ * @async true
+ * @qual ok
+ * @name screw
+ * @returns Shape 螺丝几何，生成独立零件。
+ * @param params.system - 制式。type:'metric' | 'imperial' required:true
+ * @param params.specIdx - 规格索引（决定公称直径，如 5 → M5、6 → M6）。type:number required:true
+ * @param params.thread - 螺纹类型。type:'coarse' | 'fine' | 'custom' | 'none' 默认 'coarse'
+ * @param params.length - 螺杆长度（mm）。type:number required:true
+ * @param params.head - 头型（hex 六角 / chc 沉头 / none 无头）。type:'hex' | 'chc' | 'none' 默认 'none'
+ * @param params.pitchCustom - 自定螺距（thread='custom' 时用）。type:number
+ * @param params.nRad - 径向分段数（拓扑参数）。type:number 默认 32
+ * @note nRad 是拓扑参数不是渲染参数：mesh 路径直接决定分段数；BREP 路径用精确曲面，nRad 仅作 BREP→mesh 三角化角度提示（angular deflection ≈ 2π/nRad）。.faijs 默认 32 不输出，非默认才输出以保证可复现。
+ * @note pitchCustom 执行层已支持（makeScrew/threadBrep 均读取），codegen 曾不序列化（TODO）；当前已机械输出。
+ * @example
+ * const s = await cad.screw({ system: 'metric', specIdx: 6, thread: 'coarse', length: 20, head: 'hex' })
+ * const s = await cad.screw({ system: 'metric', specIdx: 6, thread: 'coarse', length: 20, head: 'hex', nRad: 64 })
+  */
 export async function screw(params: Record<string, unknown>): Promise<Shape> {
   assertScrewParams(params)
   const path = dispatchPath([], brepImpl)
