@@ -113,7 +113,8 @@ export interface BrepChainState {
 }
 
 /**
- * 创建空的 BREP 链状态。
+ * Create an empty BREP chain state with no cached solids and no kernel.
+ * @returns a new empty BrepChainState.
  */
 export function createBrepChainState(): BrepChainState {
   return {
@@ -125,8 +126,11 @@ export function createBrepChainState(): BrepChainState {
 }
 
 /**
- * 初始化 BREP 链状态（异步：从注册表取当前 BREP 引擎并初始化；无引擎则抛错）。
- * OCCT 是内置默认引擎：未注册任何引擎时先装配 OCCT（ensureOcctDefaultEngine 幂等）。
+ * Initialize the BREP chain state asynchronously: resolve the active BREP
+ * engine from the registry and initialize its kernel.
+ * OCCT is the built-in default engine: when no engine is registered it is
+ * assembled first (ensureOcctDefaultEngine is idempotent).
+ * @returns a Promise resolving to an initialized BrepChainState.
  */
 export async function initBrepChainState(): Promise<BrepChainState> {
   await ensureOcctDefaultEngine()

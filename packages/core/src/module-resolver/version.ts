@@ -22,8 +22,15 @@
  * 需要的面；遇到不认识的语法按"不匹配"处理（宁可报错也不静默通过）。
  */
 
+/** A parsed version triple; omitted minor/patch segments are null. */
 export type ParsedVersion = [major: number, minor: number | null, patch: number | null]
 
+/**
+ * Parse a version string (`1`, `1.2`, `1.2.3`, with an optional leading `v`)
+ * into a ParsedVersion triple; returns null when the input is not recognized.
+ * @param input - the version string, or nullish for the empty case.
+ * @returns the parsed version triple, or null when unparseable.
+ */
 export function parseVersion(input: string | undefined | null): ParsedVersion | null {
   if (!input || typeof input !== 'string') return null
   const m = /^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?$/.exec(input.trim())
@@ -147,7 +154,12 @@ function partSatisfies(partStr: string, version: ParsedVersion): boolean {
   return check(pair.opRaw as Cmp, version, pair.ver)
 }
 
-/** 极简 semver satisfies。 */
+/**
+ * Minimal semver satisfies check for the supported subset of range syntax.
+ * @param version - the concrete version string to test.
+ * @param range - the version range expression.
+ * @returns true when the version satisfies the range.
+ */
 export function satisfies(version: string, range: string): boolean {
   const v = parseVersion(version)
   if (!v) return false
@@ -168,7 +180,13 @@ export function satisfies(version: string, range: string): boolean {
   return segs.some((seg) => partSatisfies(seg, v))
 }
 
-/** 版本校验（验收③）：不满足必须抛错，不降级。 */
+/**
+ * Assert that a version satisfies a range; throws when it does not (no silent
+ * downgrade).
+ * @param version - the concrete version string.
+ * @param range - the required version range.
+ * @param what - label of the dependency, used in the error message.
+ */
 export function assertSatisfies(version: string, range: string, what = 'dependency'): void {
   if (!satisfies(version, range)) {
     throw new Error(`[module-resolver] ${what} version "${version}" does not satisfy required range "${range}"`)

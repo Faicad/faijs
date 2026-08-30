@@ -18,10 +18,13 @@ import { svgToExtrudedGeometry } from '../primitives/svg-extrude'
 import type { Shape, EngraveParams, KnurlParams } from './types'
 
 /**
- * 执行雕刻：生成装饰几何 → 定位到面 → 布尔运算
+ * Execute an engraving: generate the decoration geometry (text or SVG),
+ * position it onto a face, then run a boolean union (convex) or subtract
+ * (concave).
  *
- * 输入：世界空间 Shape（目标几何）+ 雕刻参数
- * 输出：世界空间 Shape（雕刻结果）
+ * @param shape - the world-space target shape.
+ * @param params - engrave parameters (text/svg, depth, face, mode).
+ * @returns the engraved shape in world space.
  */
 export async function engrave(shape: Shape, params: EngraveParams): Promise<Shape> {
   // 1. 生成装饰几何（局部空间，+Z = 挤出方向）
@@ -100,18 +103,14 @@ export async function engrave(shape: Shape, params: EngraveParams): Promise<Shap
 }
 
 /**
- * 执行滚花（位移变形，非布尔）
+ * Apply a knurling texture displacement to a shape (vertex displacement, not a
+ * boolean op). The replay path approximates UI face selection by excluding
+ * faces whose normal deviates from the given face normal; the angle limits act
+ * as an angular mask.
  *
- * 从 KnurlGenerator.applyKnurlDisplacement 提取纯几何计算：
- * 1. Shape → THREE.BufferGeometry
- * 2. 基于 face.normal 计算面排除权重（近似 UI 路径的 face selection）
- * 3. 调用 applyKnurlDisplacement（细分 + 位移）
- * 4. THREE.BufferGeometry → Shape
- *
- * 与 UI 路径的差异：
- * - UI 路径使用 detectPlanes + 用户选面，精确排除非选中面
- * - 重放路径使用 faceNormal 近似匹配，对法向接近的面施加位移
- * - bottomAngleLimit/topAngleLimit 提供角度遮罩，减少差异
+ * @param shape - the world-space shape to knurl.
+ * @param params - knurl parameters (texture height, refine length, UV scale, mapping mode).
+ * @returns the displaced shape in world space.
  */
 export async function knurl(shape: Shape, params: KnurlParams): Promise<Shape> {
   const { applyKnurlDisplacement, KNURL_DEFAULTS } = await import(

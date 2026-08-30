@@ -73,21 +73,37 @@ async function importModule(code: string): Promise<{ statements: CompiledStateme
 
 // ── ModuleExecutor ──
 
+/**
+ * Options for constructing a ModuleExecutor, providing the OCCT handle
+ * callbacks the executor needs to integrate with the runtime's persistent
+ * solid caches.
+ */
 export interface ModuleExecutorOptions {
-  /** 释放某 PartName 的 OCCT 句柄（reconcileCtx 删除变量时调用；无句柄则 no-op） */
+  /** Release the OCCT handle for a PartName (called when reconcileCtx deletes a variable; no-op without a handle). */
   releaseSolid?: (partName: PartName) => void
-  /** 读取某 PartName 当前持有的 OCCT 句柄（顶替释放预捕获用） */
+  /** Read the OCCT handle currently held for a PartName (used for replacement-release pre-capture). */
   getSolid?: (partName: PartName) => BrepHandle | undefined
-  /** 释放一个已捕获的 OCCT 句柄（顶替释放：同 id 重算成功后释放旧 handle） */
+  /** Release a previously captured OCCT handle (replacement release: free the old handle after a same-id recompute succeeds). */
   releaseHandle?: (handle: BrepHandle) => void
-  /** 同步身份槽 solid → PartName 键控 solidCache（runtime 既有逻辑依赖） */
+  /** Sync an identity-slot solid into the PartName-keyed solidCache (relied on by existing runtime logic). */
   setSolid?: (partName: PartName, solid: BrepHandle) => void
-  /** 同步身份槽 faceEvolution → PartName 键控 faceEvolutionCache */
+  /** Sync an identity-slot faceEvolution into the PartName-keyed faceEvolutionCache. */
   setFaceEvolution?: (partName: PartName, evo: Map<number, number[]>) => void
 }
 
+/**
+ * ModuleExecutor loads JS VM modules and schedules incremental execution.
+ *
+ * It is the heart of the VM execution approach: it keeps the persistent `ctx`
+ * variable container alive across execute/append/update calls, dynamically
+ * imports compiled modules from data:/Blob URLs (zero imports, isomorphic on
+ * both platforms), schedules all/selected/from statements in dependency
+ * topological order, reclaims variables whose defining statements have left the
+ * script, and caches each statement's key + output content key for incremental
+ * planning.
+ */
 export class ModuleExecutor {
-  /** 持久变量容器（跨增量执行存活） */
+  /** Persistent variable container across incremental executions. */
   readonly ctx: Record<string, unknown> = {}
 
   private stmts = new Map<StmtId, CompiledStatement>()
@@ -119,12 +135,20 @@ export class ModuleExecutor {
     this.setFaceEvolution = options?.setFaceEvolution
   }
 
-  /** 热更新命名空间集合（P7：registerLib 后装配新库）。 */
+  /**
+   * Hot-update the assembled namespace set (after registerLib mounts a new
+   * library).
+   * @param namespaces - the new assembled namespaces.
+   */
   setNamespaces(namespaces: Namespaces): void {
     this.namespaces = namespaces
   }
 
-  /** 更新脚本 + 编译元数据（ctx 保持存活）。 */
+  /**
+   * Update the script and its compiled metadata (ctx stays alive).
+   * @param script - the parsed ScriptIR.
+   * @param compiled - the compiled statement metadata.
+   */
   setCompiled(script: ScriptIR, compiled: CompiledStatementMeta[]): void {
     this.script = script
     this.metaById = new Map(compiled.map((m) => [m.id, m]))
@@ -136,7 +160,11 @@ export class ModuleExecutor {
     }
   }
 
-  /** 加载编译产物（同 code 跳过重载——编译产物缓存）。 */
+  /**
+   * Load the compiled module, skipping a reload when the code is unchanged
+   * (compiled-product cache).
+   * @param code - the compiled module source.
+   */
   async load(code: string): Promise<void> {
     if (code === this.lastCode) return
     const mod = await importModule(code)
@@ -144,16 +172,22 @@ export class ModuleExecutor {
     this.lastCode = code
   }
 
-  /** 全量执行（按 deps 拓扑序 = 语句表顺序）。 */
+  /**
+   * Execute every statement in dependency topological order (i.e. statement
+   * table order).
+   * @param exec - the execution bookkeeping.
+   */
   async executeAll(exec: ExecBookkeeping): Promise<void> {
     await this.executeIds([...this.stmts.keys()], exec)
   }
 
   /**
-   * 只执行指定语句（append：前缀已在持久 ctx）。
-   *
-   * 与旧解释器一致的防护：beforeStatement 仅对 new_shape 语句触发；
-   * void/same_shape（do_assemble/add_constraint）不触发（do_assemble 的 fn 内部委托 exec.doAssemble）。
+   * Execute only the given statements (append: the prefix is already in the
+   * persistent ctx). As in the old interpreter, beforeStatement fires only for
+   * new_shape statements; void/same_shape statements (do_assemble/add_constraint)
+   * do not trigger it (do_assemble's fn delegates internally).
+   * @param ids - the compiled statement ids to execute.
+   * @param exec - the execution bookkeeping.
    */
   async executeIds(ids: StmtId[], exec: ExecBookkeeping): Promise<void> {
     for (const id of ids) {
@@ -188,8 +222,11 @@ export class ModuleExecutor {
   }
 
   /**
-   * 从变更点起重执行（update：plan 得出 stale 集）。
-   * stale 集对 deps 封闭（依赖 stale 的语句必 stale），按拓扑序执行。
+   * Re-execute from the change points on (update: plan derives the stale set).
+   * The stale set is closed over deps (a statement depending on a stale one is
+   * itself stale) and runs in topological order.
+   * @param staleIds - the set of stale statement ids to recompute.
+   * @param exec - the execution bookkeeping.
    */
   async executeFrom(staleIds: Set<StmtId>, exec: ExecBookkeeping): Promise<void> {
     const ordered: StmtId[] = []
@@ -210,8 +247,11 @@ export class ModuleExecutor {
   }
 
   /**
-   * ctx 回收：删除"定义语句已不在脚本中"的变量并释放其内核资源
-   * （undo 删除语句后的必需动作）。
+   * Reclaim ctx variables whose defining statement is no longer in the script
+   * and release their kernel resources (a required action after undoing a
+   * statement deletion).
+   * @param activeStmtIds - the ids of statements still considered active.
+   * @param writeSets - mapping of statement id to the variable names it writes.
    */
   reconcileCtx(activeStmtIds: Set<StmtId>, writeSets: Map<StmtId, PartName[]>): void {
     const activeWrites = new Set<string>()
@@ -249,17 +289,32 @@ export class ModuleExecutor {
     this.lastCode = ''
   }
 
-  /** 读取某语句的 statementKey 缓存。 */
+  /**
+   * Read a statement's statementKey cache entry.
+   * @param id - the compiled statement id.
+   * @returns the cached key and output content key, or undefined.
+   */
   getCachedKey(id: StmtId): { key: string; outputContentKey: string } | undefined {
     return this.cache.get(id)
   }
 
-  /** 读取某语句的函数体 keep 登记（terminal-dag C1 判定用；无登记返回 undefined）。 */
+  /**
+   * Read a statement's function-body keep registration (used by the terminal-dag
+   * C1 check); undefined when none exists.
+   * @param id - the compiled statement id.
+   * @returns the internal keep record, or undefined.
+   */
   getInternalKeep(id: StmtId): InternalKeepRecord | undefined {
     return this.internalKeep.get(id)
   }
 
-  /** 函数体 keep 登记（ModuleExecutor.internalKeep 落地；执行中累加）。 */
+  /**
+   * Register a function-body keep entry into ModuleExecutor.internalKeep,
+   * accumulating during execution.
+   * @param id - the compiled statement id.
+   * @param names - the kept variable names.
+   * @param hidden - whether the kept variables are hidden.
+   */
   registerKeep(id: StmtId, names: PartName[], hidden: boolean): void {
     let rec = this.internalKeep.get(id)
     if (!rec) {
@@ -272,17 +327,29 @@ export class ModuleExecutor {
     }
   }
 
-  /** 读取 ctx 变量。 */
+  /**
+   * Read a ctx variable.
+   * @param name - the variable name.
+   * @returns the variable value.
+   */
   getCtxVar(name: string): unknown {
     return this.ctx[name]
   }
 
-  /** 写 ctx 变量（装配变换 outputCache → ctx 同步）。 */
+  /**
+   * Write a ctx variable (used to sync assembly transforms from outputCache
+   * back into ctx).
+   * @param name - the variable name.
+   * @param value - the value to store.
+   */
   setCtxVar(name: string, value: unknown): void {
     this.ctx[name] = value
   }
 
-  /** 编译元数据（params + statements 顺序）。 */
+  /**
+   * Returns the compiled metadata in params + statements order.
+   * @returns the compiled statement metadata array.
+   */
   getMetas(): CompiledStatementMeta[] {
     return [...this.metaById.values()]
   }
@@ -401,9 +468,14 @@ export class ModuleExecutor {
   }
 
   /**
-   * statementKey = op | JSON(args without keep) | 各依赖的 outputContentKey（参数语句 = 参数值）。
-   * keep/keepHidden 两键排除（keep-syntax 设计 §7.2）：切换保留/隐藏状态零几何重算。
-   * 供 plan() 在重算前用当前 cache 计算预期 key 做增量判定。
+   * Compute a statementKey = op | JSON(args without keep) | each dependency's
+   * output content key (parameter statements use the parameter value). The
+   * keep/keepHidden keys are excluded so toggling retain/hide state triggers no
+   * geometric recompute. plan() uses this with the current cache to compute the
+   * expected key for incremental decisions.
+   * @param meta - the compiled statement metadata.
+   * @param source - the source statement, or undefined for parameter statements.
+   * @returns the computed statement key string.
    */
   computeKey(meta: CompiledStatementMeta, source: StatementIR | undefined): string {
     const primary = meta.writes[0]

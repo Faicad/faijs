@@ -34,13 +34,16 @@ let activeFontLoader: FontLoader | null = null
  *
  * 浏览器：由 browserFontLoader.ts 在应用启动时自动调用。
  * 测试：由 fontTestHelper.ts 在 beforeAll 中调用。
+ *
+ * @param loader - the font loader to install, or null to clear the active one.
  */
 export function setFontLoader(loader: FontLoader | null): void {
   activeFontLoader = loader
 }
 
 /**
- * 获取当前已设置的字体加载器（可能为 null）。
+ * Get the currently-installed font loader (may be null).
+ * @returns the active font loader, or null when none is set.
  */
 export function getFontLoader(): FontLoader | null {
   return activeFontLoader

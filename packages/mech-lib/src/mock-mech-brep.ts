@@ -16,6 +16,7 @@
 
 import { solid, fromHandle, CONTRACT_VERSION, getBackends, type SolidShape } from '@faicad/faijs-core/sdk'
 
+/** Adapter contract version, checked against CONTRACT_VERSION by registerLib. */
 export const contractVersion = CONTRACT_VERSION
 
 /**
@@ -34,18 +35,30 @@ function boxSolidHandle(size: number): unknown {
   return kernel.makeBox(size, size, size)
 }
 
-/** 立方体（BREP 版，含 BREP 槽）。 */
+/**
+ * Build a cube as a faijs SolidShape with a BREP slot.
+ * @param params - configuration for the cube; `size` is the edge length.
+ * @returns the cube as a faijs SolidShape.
+ */
 export function makeHeadstock(params: { size: number }): SolidShape {
   const handle = boxSolidHandle(params.size)
   return fromHandle(handle)
 }
 
-/** 无参演示函数：调用方负责在 auto 模式（内核就绪）下调用。 */
+/**
+ * Parameterless demo function; the caller is responsible for invoking it in
+ * auto mode once the OCCT kernel is ready.
+ * @returns a fixed-size cube as a faijs SolidShape.
+ */
 export function makeBox(): SolidShape {
   return makeHeadstock({ size: 10 })
 }
 
-/** 纯 mesh 版函数保留（证明同一库内可混用 mesh/BREP 产物）。 */
+/**
+ * Retained mesh-only function (proves a library can mix mesh and BREP products).
+ * @param _params - reserved for a radius-based sphere; currently unused.
+ * @returns an empty faijs SolidShape.
+ */
 export function makeBall(_params: { radius: number }): SolidShape {
   return solid({
     positions: new Float32Array(0),

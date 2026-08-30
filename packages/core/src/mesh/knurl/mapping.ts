@@ -4,12 +4,19 @@
  * 所有函数接受 {x,y,z} 格式的 position/normal 和 bounds 对象。
  */
 
+/** Planar projection mode projecting onto the XY plane (normal ≈ Z axis). */
 export const MODE_PLANAR_XY = 0
+/** Planar projection mode projecting onto the XZ plane (normal ≈ Y axis). */
 export const MODE_PLANAR_XZ = 1
+/** Planar projection mode projecting onto the YZ plane (normal ≈ X axis). */
 export const MODE_PLANAR_YZ = 2
+/** Cylindrical projection mode around the vertical axis. */
 export const MODE_CYLINDRICAL = 3
+/** Spherical projection mode around the bounds center. */
 export const MODE_SPHERICAL = 4
+/** Triplanar projection mode blending the three axial planar projections. */
 export const MODE_TRIPLANAR = 5
+/** Cubic projection mode with one dominant axis and seam blending. */
 export const MODE_CUBIC = 6
 
 const TWO_PI = Math.PI * 2
@@ -28,6 +35,11 @@ interface Bounds {
   size: Vec3
 }
 
+/**
+ * UV mapping settings: per-axis scale and offset, rotation, the optional
+ * texture aspect ratio, seam blend and band width, plus the optional cylinder
+ * parameters used by the cylindrical mode.
+ */
 export interface MappingSettings {
   scaleU: number
   scaleV: number
@@ -44,12 +56,20 @@ export interface MappingSettings {
   cylinderRadius?: number
 }
 
+/**
+ * A single UV sample paired with a blend weight, used when a projection
+ * returns several weighted planes (triplanar or seam blending).
+ */
 export interface UVSample {
   u: number
   v: number
   w: number
 }
 
+/**
+ * Result of a UV projection: either a single transformed UV pair, or a flag
+ * plus a list of weighted samples for multi-plane projections.
+ */
 export interface UVResult {
   u: number
   v: number
@@ -57,6 +77,12 @@ export interface UVResult {
   samples?: UVSample[]
 }
 
+/**
+ * Pick the dominant axis of a normal for cubic projection.
+ *
+ * @param normal - the vertex normal (unit length not required).
+ * @returns the axis with the largest absolute component, preferring x then y.
+ */
 export function getDominantCubicAxis(normal: Vec3): 'x' | 'y' | 'z' {
   const ax = Math.abs(normal.x)
   const ay = Math.abs(normal.y)
@@ -66,6 +92,15 @@ export function getDominantCubicAxis(normal: Vec3): 'x' | 'y' | 'z' {
   return 'z'
 }
 
+/**
+ * Compute per-axis blend weights for cubic projection, softening the seams
+ * between the dominant axis and the secondary axes.
+ *
+ * @param normal - the vertex normal.
+ * @param blend - blend amount in [0, 1]; 0 keeps a single dominant axis.
+ * @param seamBandWidth - width of the seam-blend band.
+ * @returns the x/y/z blend weights, summing to 1.
+ */
 export function getCubicBlendWeights(
   normal: Vec3,
   blend: number,
@@ -126,7 +161,15 @@ export function getCubicBlendWeights(
 }
 
 /**
- * 计算顶点的归一化 UV 坐标 [0, 1)（平铺）。
+ * Compute the normalized tiling UV coordinates [0, 1) for a vertex under the
+ * requested projection mode.
+ *
+ * @param pos - the vertex position.
+ * @param normal - the vertex normal.
+ * @param mode - projection mode constant (planar, cylindrical, spherical, triplanar, or cubic).
+ * @param settings - mapping settings for scale, offset, and rotation.
+ * @param bounds - the mesh bounds used to normalize coordinates.
+ * @returns the UV result (a single pair or weighted samples).
  */
 export function computeUV(
   pos: Vec3,

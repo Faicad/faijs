@@ -130,7 +130,11 @@ function makeHexPrismBrep(
   return positioned
 }
 
-/** screw: system/specIdx/length 必填；length 为有限数字。 */
+/**
+ * Validate screw parameters: `system` and `specIdx` are required, and `length`
+ * must be a finite number.
+ * @param params - the raw screw operation parameters.
+ */
 export function assertScrewParams(params: Record<string, unknown>): void {
   if (typeof params.system !== 'string' || typeof params.specIdx !== 'number') {
     throw new Error(

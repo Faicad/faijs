@@ -470,6 +470,11 @@ function buildLeafOccurrenceIds(shapes: ShapeRow[]): string[] {
  * Each edge is defined by 2 endpoint indices into edgePositions, so we
  * walk edgeIndices and collect the referenced positions, deduplicating
  * by a spatial tolerance.
+ *
+ * @param edgePositions - vertex positions of edge endpoints.
+ * @param edgeIndices - index pairs defining each edge segment.
+ * @param tolerance - spatial tolerance used to deduplicate by position.
+ * @returns the unique vertex positions and their sequential ids.
  */
 export function extractVerticesFromEdges(
   edgePositions: Float32Array,
@@ -506,6 +511,15 @@ export function extractVerticesFromEdges(
 
 // ---- main entry ----
 
+/**
+ * Build the serializable selector runtime data (manifest rows, reference
+ * list, logical point buffers) without Maps, so it can be structured-cloned
+ * across the Worker boundary.
+ *
+ * @param bundle - the parsed selector manifest and its typed buffer views.
+ * @param options - optional transform and scale for topology positions.
+ * @returns the serializable selector runtime data.
+ */
 export function buildSelectorRuntimeData(
   bundle: SelectorBundle,
   options: {
@@ -772,6 +786,9 @@ export function buildSelectorRuntimeData(
  * This runs on the main thread after receiving data from the worker.
  * It is O(n) in the number of references — fast compared to the full
  * buildSelectorRuntimeData computation.
+ *
+ * @param data - the serializable runtime data.
+ * @returns the fully assembled selector runtime with Map lookups.
  */
 export function buildSelectorRuntimeMaps(data: SelectorRuntimeData): SelectorRuntime {
   const { references: visibleReferences, occurrences, singleOccurrenceId } = data
@@ -822,6 +839,10 @@ export function buildSelectorRuntimeMaps(data: SelectorRuntimeData): SelectorRun
  * Convenience wrapper: buildSelectorRuntimeData + buildSelectorRuntimeMaps.
  * Use buildSelectorRuntimeData in workers and rebuild Maps on the main thread
  * to avoid expensive structured-clone of Map objects.
+ *
+ * @param bundle - the parsed selector manifest and its typed buffer views.
+ * @param options - optional transform and scale for topology positions.
+ * @returns the fully assembled selector runtime.
  */
 export function buildSelectorRuntime(
   bundle: SelectorBundle,

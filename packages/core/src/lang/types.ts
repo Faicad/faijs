@@ -12,8 +12,10 @@ import type { StmtId, PartName } from '../identity'
 
 // ── 值与引用 ──
 
+/** A 3-component vector. */
 export type Vec3 = [number, number, number]
 
+/** A JSON-serializable value, used for parameter literals and wire-shaped args. */
 export type JsonValue =
   | string
   | number
@@ -42,12 +44,17 @@ export interface CallRefIR {
   }
 }
 
+/**
+ * An argument value in the IR: a literal, or one of the reference/call shapes.
+ */
 export type ArgIR = JsonValue | ParamRefIR | VarRefIR | CallRefIR
 
 // ── 类型守卫（L0 零依赖） ──
 
 /**
  * 检测 ArgIR 是否为 ParamRefIR
+ * @param arg - the argument value to test.
+ * @returns true when the value is a ParamRefIR, narrowing the type.
  */
 export function isParamRef(arg: ArgIR): arg is ParamRefIR {
   return arg !== null && typeof arg === 'object' && !Array.isArray(arg) && '$param' in arg
@@ -55,6 +62,8 @@ export function isParamRef(arg: ArgIR): arg is ParamRefIR {
 
 /**
  * 检测 ArgIR 是否为 VarRefIR
+ * @param arg - the argument value to test.
+ * @returns true when the value is a VarRefIR, narrowing the type.
  */
 export function isVarRef(arg: ArgIR): arg is VarRefIR {
   return arg !== null && typeof arg === 'object' && !Array.isArray(arg) && '$ref' in arg
@@ -62,6 +71,8 @@ export function isVarRef(arg: ArgIR): arg is VarRefIR {
 
 /**
  * 检测 ArgIR 是否为 CallRefIR
+ * @param arg - the argument value to test.
+ * @returns true when the value is a CallRefIR, narrowing the type.
  */
 export function isCallRef(arg: ArgIR): arg is CallRefIR {
   return arg !== null && typeof arg === 'object' && !Array.isArray(arg) && '$call' in arg
@@ -69,6 +80,10 @@ export function isCallRef(arg: ArgIR): arg is CallRefIR {
 
 // ── 语句 ──
 
+/**
+ * The statement-form IR: a single faijs statement, mechanically derived from
+ * its source text and mechanically printed back.
+ */
 export interface StatementIR {
   /** 语句 id（StmtId）——顺序稳定的语句身份（格式 s1..sN，参数语句占前段）。
    *  每条语句都有，无赋值语句（add_constraint/do_assemble）也有。
@@ -111,6 +126,10 @@ export interface StatementIR {
 
 // ── 参数表 ──
 
+/**
+ * A parameter declaration (`const name = <literal>`), with its value and
+ * optional schema metadata.
+ */
 export interface ParamDef {
   name: string
   type: 'number' | 'vec3' | 'bool' | 'enum'
@@ -124,6 +143,9 @@ export interface ParamDef {
 
 // ── Part 脚本 ──
 
+/**
+ * Scene-level model metadata (name and appearance) carried by a script.
+ */
 export interface ScriptMetaIR {
   name?: string
   appearance?: { color?: string; metalness?: number; roughness?: number }
@@ -181,6 +203,10 @@ export interface FunctionDefIR {
   body: string
 }
 
+/**
+ * The whole-script IR: parameters, statements, and optional imports, function
+ * definitions, meta, and terminal shapes.
+ */
 export interface ScriptIR {
   source?:
     | { kind: 'load' }
@@ -203,7 +229,14 @@ export interface ScriptIR {
 // ── 语句工厂 ──
 
 /**
- * 创建一条新语句。
+ * Create a new statement IR with the given identity and content.
+ * @param id - the statement's StmtId.
+ * @param callee - the operation name being called.
+ * @param args - the call's argument object.
+ * @param inputs - the positional input variable names.
+ * @param outputs - the produced variable names.
+ * @param name - an optional statement name.
+ * @returns the constructed statement IR.
  */
 export function createStatementIR(
   id: StmtId,
@@ -217,7 +250,8 @@ export function createStatementIR(
 }
 
 /**
- * 创建一个空 ScriptIR。
+ * Create an empty script IR with no parameters or statements.
+ * @returns an empty ScriptIR.
  */
 export function createScriptIR(): ScriptIR {
   return {

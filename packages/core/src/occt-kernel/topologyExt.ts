@@ -88,6 +88,7 @@ interface BBox {
   max: number[]
 }
 
+/** Input for building a per-part selector manifest. */
 export interface SelectorManifestInput {
   shapeHandle: BrepHandle
   meshWithGroups: BrepMeshResult
@@ -567,12 +568,27 @@ function findOrdinal(
   return undefined
 }
 
+/**
+ * Build a selector manifest for a single part's topology.
+ *
+ * Enumerates the shape's faces and edges and their relations, extracts edge
+ * polylines from the kernel wireframe and face geometry from the mesh, computes
+ * relevance scores, and assembles everything into a columnar selector manifest
+ * plus its binary attribute buffers.
+ *
+ * @param kernel - the OCCT kernel
+ * @param input - the shape handle and mesh-with-groups input
+ * @param options - optional metadata (step hash and CAD path)
+ * @param occurrenceId - the occurrence ID to prefix this part's ids (default 'o1')
+ * @returns the assembled manifest and its binary buffers
+ */
 export function buildSelectorManifest(
   kernel: BrepEngineApi,
   input: SelectorManifestInput,
-  { stepHash, cadPath }: SelectorManifestOptions,
+  options: SelectorManifestOptions,
   occurrenceId: string = 'o1',
 ): { manifest: Record<string, unknown>; buffers: Record<string, Float32Array | Uint32Array> } {
+  const { stepHash, cadPath } = options
   const shape = input.shapeHandle
   const mesh = input.meshWithGroups
   const posArr = mesh.positions
@@ -1056,6 +1072,11 @@ export interface AssemblyTopologyResult {
  *
  * Face/edge triangle ranges are per-mesh (each part has its own mesh),
  * identified by the occurrenceRow index in faceRuns.
+ *
+ * @param kernel - the OCCT kernel
+ * @param parts - per-part topology inputs for the assembly
+ * @param opts - optional step hash and CAD path metadata
+ * @returns the merged assembly manifest and its binary buffers
  */
 export function buildAssemblySelectorManifest(
   kernel: BrepEngineApi,

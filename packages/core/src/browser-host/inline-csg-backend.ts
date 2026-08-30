@@ -31,6 +31,16 @@ async function toManifold(mesh: MeshData): Promise<import('manifold-3d/manifold'
   return meshToManifold(Manifold, Mesh, mesh)
 }
 
+/**
+ * InlineCsgBackend is a CSG backend that runs manifold-3d on the main thread.
+ *
+ * It is usable in both browser and Node environments (manifold-3d works in
+ * both). Unlike the WorkerCsgBackend it spawns no Web Worker and instead calls
+ * the manifold-3d core directly through the manifold-loader, blocking the main
+ * thread — acceptable for CLI/CI scenarios without a UI. Correctness is
+ * guaranteed by sharing the same pure functions from csg-core as the worker
+ * backend.
+ */
 export class InlineCsgBackend implements CsgBackend {
   async boolean(op: 'union' | 'subtract' | 'intersect', meshes: MeshData[]): Promise<MeshData> {
     const manifolds: import('manifold-3d/manifold').Manifold[] = []

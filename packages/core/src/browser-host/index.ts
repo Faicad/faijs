@@ -35,42 +35,44 @@ import type { BrowserFontProviderOptions } from './browser-font-provider'
 import { FetchAssetResolver } from './fetch-asset-resolver'
 import { setFontLoader } from '../brep/text/fontRegistry'
 
+/**
+ * Options for creating browser HostPorts.
+ */
 export interface CreateBrowserPortsOptions {
-  /** 默认字体 URL（消费者通过 Vite ?url 注入） */
+  /** Default font URL injected by the consumer (via Vite ?url). */
   fontUrl?: string
-  /** 额外字体注册表 */
+  /** Additional font registry entries. */
   fontUrls?: BrowserFontProviderOptions['fontUrls']
   /**
-   * 是否使用 Worker 后端（CSG/SDF 计算移出主线程）。
-   * 默认：有 Web Worker 环境用 Worker，否则回退 Inline。
-   * 显式传 false 强制 Inline；显式传 true 但环境无 Worker 时抛错。
+   * Whether to use worker backends (moving CSG/SDF computation off the main
+   * thread). Defaults to whichever Worker availability warrants: worker when a
+   * Web Worker environment exists, otherwise inline. Passing false forces the
+   * inline backend; passing true in an environment without Worker throws.
    */
   useWorker?: boolean
-  /** 消费者可注入自定义 CSG 后端 */
+  /** Consumer-injectable custom CSG backend. */
   csg?: HostPorts['csg']
-  /** 消费者可注入自定义 SDF 后端 */
+  /** Consumer-injectable custom SDF backend. */
   sdf?: HostPorts['sdf']
-  /** 消费者可注入自定义资产解析器 */
+  /** Consumer-injectable custom asset resolver. */
   assets?: HostPorts['assets']
-  /** 消费者可注入自定义事件接收器 */
+  /** Consumer-injectable custom event sink. */
   events?: HostPorts['events']
 }
 
 /**
- * 创建 Browser 端 HostPorts（注入 CadRuntime 用）。
+ * Create browser HostPorts to inject into a CadRuntime.
  *
- * 默认使用：
- * - csg: WorkerCsgBackend（经 csg-worker postMessage）— 延迟加载
- * - sdf: WorkerSdfBackend（经 sdf-worker postMessage）— 延迟加载
- * - fonts: BrowserFontProvider（fetch 字体 URL）
- * - assets: FetchAssetResolver（fetch URL）
- * - events: BrowserEventSink（window.dispatchEvent）
- *
- * 无 Worker 的环境（Node/测试）自动回退 InlineCsgBackend/InlineSdfBackend。
- * 消费者可通过 opts 注入自定义后端；注入时不会加载默认后端。
- *
- * 同时将 BrowserFontProvider 连接到 fontRegistry（setFontLoader），
- * 使 brep/text 的 ensureDefaultFont() 能通过 fetch 加载字体。
+ * By default this wires up: a WorkerCsgBackend (via csg-worker postMessage,
+ * lazily loaded), a WorkerSdfBackend (via sdf-worker postMessage, lazily
+ * loaded), a BrowserFontProvider (fetch font URLs), a FetchAssetResolver (fetch
+ * URLs) and a BrowserEventSink (window.dispatchEvent). In environments without
+ * a Web Worker (Node/tests) it falls back to the inline backends. Consumers may
+ * inject custom backends through opts; injecting one prevents the default from
+ * loading. It also connects the BrowserFontProvider to the fontRegistry via
+ * setFontLoader so brep/text can load fonts through fetch.
+ * @param opts - options controlling font, worker, and backend selection.
+ * @returns promise resolving to the assembled HostPorts.
  */
 export async function createBrowserPorts(opts?: CreateBrowserPortsOptions): Promise<HostPorts> {
   const fontProvider = new BrowserFontProvider({

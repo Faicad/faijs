@@ -1,3 +1,11 @@
+/**
+ * Parameters describing a screw geometry.
+ *
+ * References a pre-defined spec from the screw database via specIdx; the
+ * pitch can be overridden with a custom value or disabled entirely. head
+ * selects a hex or socket-cap head, and nRad controls the radial resolution
+ * of the thread profile.
+ */
 export interface ScrewParams {
   system: 'metric' | 'imperial'
   specIdx: number           // 规格 index，默认 4 → M5
@@ -8,6 +16,13 @@ export interface ScrewParams {
   nRad: number              // 径向分辨率 32 | 48 | 64 | 96
 }
 
+/**
+ * One entry in the screw specification database.
+ *
+ * dia is always in mm (imperial values converted to mm); coarse and fine
+ * hold the pitch in mm for metric systems or the thread-per-inch (TPI)
+ * count for imperial systems.
+ */
 export interface ScrewSpec {
   /** 公称直径 mm（metric 与 imperial 均已换算为 mm） */
   dia: number
@@ -19,13 +34,16 @@ export interface ScrewSpec {
   label: string
 }
 
+/** The available screw thread systems: metric (mm) or imperial (inch/TPI). */
 export type ScrewSystem = 'metric' | 'imperial'
 
 /**
- * 螺钉头部尺寸共享常量 — BREP 和 Mesh 路径的唯一真源。
+ * Shared screw head dimension constants — the single source of truth for the
+ * BREP and mesh paths.
  *
- * 因子均相对于公称直径 dia。
- * 统一到标准螺丝规格（与 BREP 现有实现一致）。
+ * All factors are relative to the nominal diameter dia and match the
+ * standard screw specifications (consistent with the existing BREP
+ * implementation).
  */
 export const SCREW_HEAD_DIMS = {
   hex: {
@@ -72,12 +90,25 @@ const IMPERIAL_SPECS: ScrewSpec[] = [
   { dia: 25.400, coarse: 8,  fine: 12, label: '1"' },
 ]
 
-/** Get all specs for a given system */
+/**
+ * Get all specs for a given thread system.
+ *
+ * @param system - the thread system to look up.
+ * @returns the full list of specs for that system.
+ */
 export function getScrewSpecs(system: ScrewSystem): ScrewSpec[] {
   return system === 'metric' ? METRIC_SPECS : IMPERIAL_SPECS
 }
 
-/** Get a specific spec by system and index */
+/**
+ * Get a specific spec by system and index.
+ *
+ * The index is clamped to the valid range of that system's spec list.
+ *
+ * @param system - the thread system to look up.
+ * @param specIdx - the index into the system's spec list.
+ * @returns the selected screw spec.
+ */
 export function getScrewSpec(system: ScrewSystem, specIdx: number): ScrewSpec {
   const specs = getScrewSpecs(system)
   const idx = Math.max(0, Math.min(specIdx, specs.length - 1))
@@ -85,8 +116,17 @@ export function getScrewSpec(system: ScrewSystem, specIdx: number): ScrewSpec {
 }
 
 /**
- * Convert thread type to actual pitch in mm.
- * For imperial, TPI → mm via 25.4 / tpi.
+ * Convert a thread type to the actual pitch in mm.
+ *
+ * For imperial systems the TPI value is converted to mm via 25.4 / tpi.
+ * 'none' returns 0; 'custom' returns pitchCustom (falling back to the
+ * coarse pitch when pitchCustom is omitted).
+ *
+ * @param system - the thread system of the spec.
+ * @param spec - the screw spec whose pitch is resolved.
+ * @param thread - the thread type to convert.
+ * @param pitchCustom - the custom pitch in mm, used when thread is 'custom'.
+ * @returns the thread pitch in mm.
  */
 export function threadToPitchMm(
   system: ScrewSystem,

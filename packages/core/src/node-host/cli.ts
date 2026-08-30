@@ -29,37 +29,60 @@ import type { BrepHandle } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 import { asPartName } from '../identity'
 
+/** Options accepted by the `check` command. */
 export interface CliCheckOptions {
+  /** Asset directory used by the node ports. */
   assetsDir?: string
+  /** Extra fonts directory used by the node ports. */
   fontsDir?: string
 }
 
+/** Options accepted by the `run` command. */
 export interface CliRunOptions {
+  /** Execution mode ('auto' | 'brep' | 'mesh'). */
   mode?: ExecutionMode
+  /** Asset directory used by the node ports. */
   assetsDir?: string
+  /** Extra fonts directory used by the node ports. */
   fontsDir?: string
+  /** Default font path used by the node ports. */
   defaultFontPath?: string
-  /** 宿主注入的库命名空间（含 cad——CLI 入口 faijs-cli.ts 传 createInternalStdlib；core 不默认装配） */
+  /** Host-injected library namespace (includes cad — the CLI entry faijs-cli.ts passes createInternalStdlib; core does not assemble it by default). */
   libs?: Record<string, StdlibNamespace>
 }
 
+/** Result of the `check` (dry-run validation) command. */
 export interface CliCheckResult {
+  /** Whether the validation passed. */
   ok: boolean
+  /** Validation errors found, one per stage. */
   errors: Array<{ stage: string; message: string; line?: number; stmtId?: string }>
+  /** Non-fatal warnings reported during validation. */
   warnings: string[]
+  /** Script-level summary when the script parsed successfully. */
   script?: { statements: number; callees: string[] }
 }
 
+/** Result of the `run` (execute and export) command. */
 export interface CliRunResult {
+  /** Whether execution and export succeeded. */
   ok: boolean
+  /** The written output file path. */
   outputFile?: string
+  /** The written output format ('stl' | 'step'). */
   outputFormat?: string
+  /** A human-readable error message when the command failed. */
   error?: string
+  /** Informational messages collected during execution. */
   infos?: string[]
 }
 
 /**
- * 执行 check 命令：dryRun 校验 .faijs 文件
+ * Execute the `check` command: dry-run validate a .faijs file.
+ *
+ * @param filePath - path to the .faijs file to validate
+ * @param _opts - optional CLI check options (assets and fonts directories)
+ * @returns the check result with any validation errors
  */
 export function cliCheck(filePath: string, _opts?: CliCheckOptions): CliCheckResult {
   const code = readFileSync(filePath, 'utf-8')
@@ -83,7 +106,12 @@ export function cliCheck(filePath: string, _opts?: CliCheckOptions): CliCheckRes
 }
 
 /**
- * 执行 run 命令：执行 .faijs 文件并导出 STL/STEP
+ * Execute the `run` command: execute a .faijs file and export STL/STEP.
+ *
+ * @param filePath - path to the .faijs file to execute
+ * @param outPath - output file path for the exported result (extension determines format)
+ * @param opts - optional run options (mode, assets/fonts directories, injected libs)
+ * @returns the run result describing success or failure
  */
 export async function cliRun(
   filePath: string,
@@ -220,7 +248,10 @@ function writeOutput(
 }
 
 /**
- * 解析命令行参数
+ * Parse command-line arguments.
+ *
+ * @param argv - the raw process argument list (index 0 = node, 1 = script)
+ * @returns the parsed command, file, and option values (command is null when unusable)
  */
 export function parseArgs(argv: string[]): {
   command: 'check' | 'run' | null
@@ -264,9 +295,11 @@ export function parseArgs(argv: string[]): {
 }
 
 /**
- * CLI 主入口（被 scripts/faijs-cli.ts 调用）
+ * CLI main entry point (called by scripts/faijs-cli.ts).
  *
- * @param libs 宿主注入的库命名空间（含 cad——faijs-cli.ts 传 createInternalStdlib；core 不默认装配）
+ * @param argv - the raw process argument list
+ * @param libs - host-injected library namespace (includes cad — faijs-cli.ts passes createInternalStdlib; core does not assemble it by default)
+ * @returns the process exit code (0 on success, non-zero on failure)
  */
 export async function cliMain(argv: string[], libs?: Record<string, StdlibNamespace>): Promise<number> {
   const { command, file, out, mode, assetsDir, fontsDir } = parseArgs(argv)

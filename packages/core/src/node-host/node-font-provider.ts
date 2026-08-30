@@ -23,13 +23,25 @@ const DEFAULT_FONT_PATH = fileURLToPath(new URL('../assets/fonts/OpenSans-Regula
 /** 字体文件扩展名 */
 const FONT_EXTENSIONS = new Set(['.ttf', '.otf', '.woff', '.woff2'])
 
+/** Options for constructing a NodeFontProvider. */
 export interface NodeFontProviderOptions {
-  /** 默认字体路径（不传则用项目唯一真源） */
+  /** Default font path (falls back to the project single source of truth when omitted). */
   defaultFontPath?: string
-  /** 额外字体目录：目录下所有 .ttf/.otf 文件按文件名（不含扩展名）注册为 key */
+  /** Extra fonts directory: all .ttf/.otf files are registered by file name (without extension) as keys. */
   fontsDir?: string
 }
 
+/**
+ * Node-side font provider (fs loading).
+ *
+ * Implements the FontProvider interface (ports.ts) + FontLoader interface (fontRegistry.ts).
+ *
+ * - FontProvider.loadFont(key): load a font ArrayBuffer by key
+ * - FontLoader.loadDefaultFont(): return the default font
+ *
+ * Single source of truth for the default font file: src/assets/fonts/OpenSans-Regular.ttf.
+ * Extra fonts can be registered via the --fonts <dir> option.
+ */
 export class NodeFontProvider implements FontProvider, FontLoader {
   private defaultFontPath: string
   private fontsDir: string | undefined
@@ -60,7 +72,7 @@ export class NodeFontProvider implements FontProvider, FontLoader {
     }
   }
 
-  /** FontProvider.loadFont: 按 key 加载字体字节 */
+  /** FontProvider.loadFont: load font bytes by key. */
   async loadFont(key: string): Promise<ArrayBuffer> {
     const path = this.keyToPath.get(key)
     if (!path) {
@@ -69,12 +81,12 @@ export class NodeFontProvider implements FontProvider, FontLoader {
     return this.loadFile(path)
   }
 
-  /** FontLoader.loadDefaultFont: 返回默认字体字节 */
+  /** FontLoader.loadDefaultFont: return the default font bytes. */
   async loadDefaultFont(): Promise<ArrayBuffer> {
     return this.loadFile(this.defaultFontPath)
   }
 
-  /** FontProvider.listFonts: 列出可用字体 key */
+  /** FontProvider.listFonts: list the available font keys. */
   listFonts(): string[] {
     return Array.from(this.keyToPath.keys())
   }

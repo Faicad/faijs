@@ -30,7 +30,11 @@ const brepImpl = true
 
 // ── per-op 参数自校验（Phase 2.2；stdlib 被直接 import 时的防御层） ──
 
-/** drill: diameter 必填 > 0；position（如有）为 vec3；depth（如有）为数字（<=0 表示通孔）。 */
+/**
+ * Validate drill parameters: `diameter` must be a positive number, `position`
+ * (if provided) a vec3, and `depth` (if provided) a number (<= 0 means a through hole).
+ * @param params - the raw drill operation parameters.
+ */
 export function assertDrillParams(params: Record<string, unknown>): void {
   assertPositiveNumber(params.diameter, 'drill.diameter')
   if (params.position !== undefined && params.position !== null) {

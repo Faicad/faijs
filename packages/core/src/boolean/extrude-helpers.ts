@@ -1,4 +1,4 @@
-﻿﻿/**
+﻿/**
  * 拉伸（extrude）几何工具集 —— 从 ExtrudeRenderer.tsx 抽出的纯几何函数。
  *
  * 拉伸的语义（三段模型）：在切割平面把模型切开，得到
@@ -23,6 +23,9 @@ export type ExtrudeOffsetMode = 'centered' | 'forward' | 'backward'
 /** slice 法取薄片的厚度（沿法线），随后按 L/SLICE_THICKNESS 拉伸。 */
 export const SLICE_THICKNESS = 0.2
 
+/**
+ * The three mesh parts produced by an extrude operation.
+ */
 export interface ExtrudeParts {
   front: ManifoldMeshData | null
   back: ManifoldMeshData | null
@@ -34,6 +37,9 @@ export interface ExtrudeParts {
  * - centered：平面居中，上下各推 L/2
  * - forward：只推上半 L，下半不动
  * - backward：只拉下半 -L，上半不动
+ * @param mode - the offset mode ('centered', 'forward', or 'backward').
+ * @param length - the extrusion length L (mm).
+ * @returns the front and back displacement amounts, with front - back === length.
  */
 export function computeExtrudeOffsets(
   mode: ExtrudeOffsetMode,
@@ -55,6 +61,9 @@ export function computeExtrudeOffsets(
  *
  * 约定：平面方程为 `N · p = originOffset`；THREE.Plane 用 `N · p + constant = 0`，
  * 故 constant = -originOffset。THREE 裁剪保留 distanceToPoint >= 0 的一侧（法线正侧）。
+ * @param normal - the cutting plane normal as a 3-component array.
+ * @param originOffset - the plane equation origin offset along the normal.
+ * @returns a THREE.Plane and its normalized normal vector.
  */
 export function makeWorldPlane(
   normal: [number, number, number],
@@ -78,6 +87,7 @@ export function makeWorldPlane(
  * @param originOffset 平面方程 N·p = originOffset 的右端
  * @param length      拉伸长度 L
  * @param mode        三段位移模式
+ * @returns the split front, back, and extruded middle mesh parts.
  */
 export async function buildExtrudeParts(
   worldMesh: ManifoldMeshData,
@@ -115,6 +125,11 @@ export async function buildExtrudeParts(
 /**
  * 沿法线方向按 scaleFactor 缩放每个顶点到平面的有向距离。
  * 平面上的顶点不动，离面顶点按比例外推。
+ * @param mesh - the source mesh data to scale.
+ * @param normal - the plane normal (unit vector).
+ * @param planeOffset - the plane offset along the normal.
+ * @param scaleFactor - the scaling factor applied to each vertex's signed distance to the plane.
+ * @returns the scaled mesh data (positions rewritten, indices unchanged).
  */
 export function scaleMeshAlongNormal(
   mesh: ManifoldMeshData,
@@ -133,7 +148,13 @@ export function scaleMeshAlongNormal(
   return { positions: out, indices: mesh.indices }
 }
 
-/** 整体沿 direction 平移 distance（distance 为 0 时原样返回，不拷贝）。 */
+/**
+ * 整体沿 direction 平移 distance（distance 为 0 时原样返回，不拷贝）。
+ * @param mesh - the source mesh data to translate.
+ * @param direction - the translation direction (not necessarily unit length).
+ * @param distance - the translation distance (mm); 0 returns the mesh unchanged.
+ * @returns the translated mesh data (positions rewritten, indices unchanged).
+ */
 export function offsetMesh(
   mesh: ManifoldMeshData,
   direction: [number, number, number],

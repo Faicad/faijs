@@ -14,6 +14,7 @@ import {
   type Vec3,
 } from './dovetail-math'
 
+/** Interchange joinery mesh representation: interleaved positions with triangle indices. */
 export interface JoineryMeshData {
   positions: Float32Array
   indices: Uint32Array
@@ -44,6 +45,7 @@ export interface JoineryMeshData {
  * @param width         Bottom edge length (mm)
  * @param angleDeg      Angle between bottom edge and slanted side (degrees)
  * @param extrudeLength Total extrusion length along widthDir (mm)
+ * @returns the wedge mesh data (positions and triangle indices).
  */
 export function buildWedgeGeometry(
   planeCenter: Vec3,
@@ -117,6 +119,7 @@ export function buildWedgeGeometry(
  * @param diameter   Cylinder diameter (mm)
  * @param height     Cylinder height (mm), extends along -normal
  * @param segments   Number of circular segments (default 32)
+ * @returns the cylindrical mesh data (positions and triangle indices).
  */
 export function buildDowelGeometry(
   centroid: Vec3,
@@ -206,6 +209,7 @@ export function buildDowelGeometry(
  * @param depthDir    Depth direction in the cutting plane (unit vector)
  * @param sideLength  Square side length (mm)
  * @param height      Box height (mm), extends along -normal
+ * @returns the box mesh data (positions and triangle indices).
  */
 export function buildStraightTenonGeometry(
   centroid: Vec3,

@@ -10,12 +10,14 @@ import type { BrepHandle } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 import { getSolidColorsOrdered } from './stepColorParser'
 
+/** A single tessellated mesh produced by the OCCT kernel. */
 export interface WasmTessellatedMesh {
   positions: Float32Array
   normals: Float32Array
   indices: Uint32Array
 }
 
+/** Result of importing a shape into the OCCT kernel. */
 export interface WasmImportResult {
   shapeHandle: ShapeHandle
   meshes: WasmTessellatedMesh[]
@@ -34,28 +36,34 @@ let initPromise: Promise<BrepEngineApi> | null = null
 let customInitFn: (() => Promise<OcctKernel>) | null = null
 
 /**
- * 浏览器 host 注入 OCCT 初始化函数。
+ * Let the browser host inject the OCCT initialization function.
  *
- * 浏览器 host 调用此函数注册自己的初始化逻辑（dev/prod/CDN/e2e 分支），
- * faijs 的 initOcctWasm() 会优先使用注入的函数。
+ * The browser host calls this to register its own init logic (dev/prod/CDN/e2e
+ * branches); faijs's initOcctWasm() prefers the injected function.
  *
- * 如果未注入，initOcctWasm() 在 Node 环境下从 node_modules 读取 WASM。
+ * When nothing is injected, initOcctWasm() reads the WASM from node_modules in
+ * a Node environment.
+ *
+ * @param fn - the initialization function to use, or null to clear
  */
 export function setOcctWasmInitFn(fn: (() => Promise<OcctKernel>) | null): void {
   customInitFn = fn
 }
 
 /**
- * 解析 occt-wasm 的 WASM 文件路径（linker-agnostic）。
+ * Resolve the occt-wasm WASM file path (linker-agnostic).
  *
- * 走 package exports（occt-wasm@3.8.4 导出了 `"./dist/occt-wasm.wasm"`），
- * 与 cwd / hoisting / pnpm|npm linker 全部无关（实测 pattern C）。
- * 替代旧的 4 层 `..` 路径猜测 + process.cwd() 兜底（monorepo-plan P-0）。
+ * Walks the package exports (occt-wasm@3.8.4 exports "./dist/occt-wasm.wasm"),
+ * independent of cwd / hoisting / pnpm|npm linker (verified pattern C).
+ * Replaces the old 4-level `..` path guessing + process.cwd() fallback.
  *
- * ⚠️ 惰性获取 node:module（Node ≥ 20.16 的 process.getBuiltinModule）：不能用
- * 静态 `import { createRequire } from 'node:module'`——occtKernel 在浏览器构建
- * （demo vite build）的 import 链上，静态 node:* import 会被外部化后报错。
- * 本函数只在 Node 分支（initOcctWasm）被调用，浏览器环境永不执行。
+ * Lazy-fetches node:module (Node >= 20.16 process.getBuiltinModule): a static
+ * `import { createRequire } from 'node:module'` must not be used — occtKernel is
+ * on the browser build's (demo vite build) import chain, and a static node:*
+ * import would be externalized and error. This function is only called in the
+ * Node branch (initOcctWasm); it never runs in a browser environment.
+ *
+ * @returns the resolved WASM file path
  */
 export function resolveOcctWasmPath(): string {
   const builtin = (process as { getBuiltinModule?: (id: string) => unknown }).getBuiltinModule?.('node:module') as
@@ -68,12 +76,13 @@ export function resolveOcctWasmPath(): string {
 }
 
 /**
- * 初始化 occt-wasm 内核（单例）。
+ * Initialize the occt-wasm kernel (singleton).
  *
- * - Node.js 测试环境：从 node_modules 读取 WASM 文件，传入 ArrayBuffer。
- * - 开发环境：直接 ESM import，Vite 解析 node_modules。
- *   WASM 文件从 public/wasm/occt-wasm.wasm 加载。
- * - 生产环境：从 CDN 动态 import 整个模块 + WASM。
+ * - Node.js test environment: read the WASM file from node_modules, pass an ArrayBuffer.
+ * - Development: direct ESM import, Vite resolves node_modules. The WASM file is loaded from public/wasm/occt-wasm.wasm.
+ * - Production: dynamically import the whole module + WASM from a CDN.
+ *
+ * @returns the initialized BREP engine API
  */
 export async function initOcctWasm(): Promise<BrepEngineApi> {
   if (kernelInstance) return kernelInstance as unknown as BrepEngineApi
@@ -103,13 +112,17 @@ export async function initOcctWasm(): Promise<BrepEngineApi> {
   return initPromise as unknown as Promise<BrepEngineApi>
 }
 
-/** 获取已初始化的 kernel 实例（必须先调用 initOcctWasm）。 */
+/**
+ * Get the initialized kernel instance (initOcctWasm must be called first).
+ *
+ * @returns the initialized OCCT kernel
+ */
 export function getKernel(): OcctKernel {
   if (!kernelInstance) throw new Error('occt-wasm kernel not initialized — call initOcctWasm() first')
   return kernelInstance
 }
 
-/** 释放 kernel 实例（应用卸载时调用）。 */
+/** Release the kernel instance (call when the app unloads). */
 export function disposeOcctWasm(): void {
   if (kernelInstance) {
     kernelInstance[Symbol.dispose]()
@@ -118,6 +131,7 @@ export function disposeOcctWasm(): void {
   }
 }
 
+/** Options controlling mesh deflection during tessellation. */
 export interface MeshDeflectionOptions {
   linearDeflection?: number
   angularDeflection?: number
@@ -126,8 +140,15 @@ export interface MeshDeflectionOptions {
   relative?: boolean
 }
 
-/** Compute the effective linear deflection, applying relative scaling
- *  exactly as OCCT does internally: `linDefl * bboxDiagonal` when relative=true. */
+/**
+ * Compute the effective linear deflection, applying relative scaling
+ * exactly as OCCT does internally: `linDefl * bboxDiagonal` when relative=true.
+ *
+ * @param kernel - the OCCT kernel
+ * @param shape - the shape whose bounding box drives relative scaling
+ * @param options - the requested deflection options
+ * @returns the effective linear and angular deflection values
+ */
 export function computeEffectiveDeflection(
   kernel: BrepEngineApi,
   shape: BrepHandle,
@@ -159,10 +180,14 @@ export function computeEffectiveDeflection(
 }
 
 /**
- * 导入 STEP → ShapeHandle + Mesh（含 faceGroups）。
+ * Import a STEP file to ShapeHandle + Mesh (including face groups).
  *
- * 使用 meshShape() 而非 tessellate()，以获取 faceGroups 数据
- * （每个面的三角形范围 [triStart, triCount, faceHash]）。
+ * Uses meshShape() rather than tessellate(), so face-group data is available
+ * (each face's triangle range [triStart, triCount, faceHash]).
+ *
+ * @param stepData - STEP file bytes
+ * @param deflection - optional mesh deflection options
+ * @returns the import result with shape handle and meshes
  */
 export async function importStepToMesh(
   stepData: ArrayBuffer | Uint8Array,
@@ -221,6 +246,9 @@ const IDENTITY_MATRIX = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0]
  *
  * The caller is responsible for releasing all shapeHandle values in the tree
  * (use `releaseAssemblyTree`).
+ *
+ * @param stepData - STEP file bytes
+ * @returns the root assembly-part nodes
  */
 export async function importAssemblyFromStep(
   stepData: ArrayBuffer | Uint8Array,
@@ -369,7 +397,11 @@ function walkLabel(
   }
 }
 
-/** Recursively release all shapeHandle values in an assembly tree. */
+/** Recursively release all shapeHandle values in an assembly tree.
+ *
+ * @param kernel - the OCCT kernel used to release handles
+ * @param nodes - the assembly tree nodes to release
+ */
 export function releaseAssemblyTree(kernel: BrepEngineApi, nodes: AssemblyPartNode[]): void {
   for (const node of nodes) {
     if (node.shapeHandle) kernel.release(node.shapeHandle as unknown as BrepHandle)
@@ -377,7 +409,11 @@ export function releaseAssemblyTree(kernel: BrepEngineApi, nodes: AssemblyPartNo
   }
 }
 
-/** Collect all leaf (non-assembly) nodes from an assembly tree. */
+/** Collect all leaf (non-assembly) nodes from an assembly tree.
+ *
+ * @param nodes - the assembly tree nodes to traverse
+ * @returns the collected leaf part nodes in depth-first order
+ */
 export function collectLeafParts(nodes: AssemblyPartNode[]): AssemblyPartNode[] {
   const leaves: AssemblyPartNode[] = []
   function walk(node: AssemblyPartNode) {
@@ -392,7 +428,11 @@ export function collectLeafParts(nodes: AssemblyPartNode[]): AssemblyPartNode[] 
 }
 
 /**
- * 导入 BREP → ShapeHandle + Mesh。
+ * Import BREP text to ShapeHandle + Mesh.
+ *
+ * @param brepData - BREP file content as a string
+ * @param deflection - optional mesh deflection options
+ * @returns the import result with shape handle and meshes
  */
 export async function importBrepToMesh(
   brepData: string,
@@ -416,13 +456,13 @@ export async function importBrepToMesh(
 }
 
 /**
- * Mesh → STEP 导出：从三角网格重建 STEP 实体。
- * 参考 occt-wasm/examples/stl2step.mjs 的实现模式。
+ * Mesh → STEP export: rebuild a STEP solid from a triangle mesh.
+ * Follows the pattern from occt-wasm/examples/stl2step.mjs.
  *
- * @param positions 顶点数组 [x0,y0,z0, x1,y1,z1, ...]
- * @param indices   索引数组 [i0,i1,i2, i3,i4,i5, ...]
- * @param tolerance 缝合容差（mm，默认 0.01）
- * @returns STEP 文件内容字符串
+ * @param positions - vertex array [x0,y0,z0, x1,y1,z1, ...]
+ * @param indices - index array [i0,i1,i2, i3,i4,i5, ...]
+ * @param tolerance - sewing tolerance in mm (default 0.01)
+ * @returns the STEP file content string
  */
 export function meshesToStep(
   positions: Float32Array,
@@ -457,7 +497,11 @@ export function meshesToStep(
   }
 }
 
-/** 释放一个 shape handle。 */
+/**
+ * Release a shape handle.
+ *
+ * @param handle - the shape handle to release
+ */
 export function releaseShape(handle: ShapeHandle): void {
   if (kernelInstance) kernelInstance.release(handle)
 }

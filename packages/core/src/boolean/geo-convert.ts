@@ -10,13 +10,16 @@ import { deriveNormals } from './deriveNormals'
 
 // ── 类型（与 csg.ts 保持一致）──
 
+/** The set of supported boolean operations. */
 export type BooleanOperation = 'union' | 'subtract' | 'intersect'
 
+/** Interchange mesh representation: interleaved positions with triangle indices. */
 export interface ManifoldMeshData {
   positions: Float32Array
   indices: Uint32Array
 }
 
+/** Design parameters for a dovetail groove (depth, tolerances, width, flaps angle). */
 export interface DovetailGrooveParams {
   depth: number
   depthTolerance: number
@@ -25,6 +28,7 @@ export interface DovetailGrooveParams {
   flapsAngle: number
 }
 
+/** Design parameters for a dowel split (diameter, tolerances, height). */
 export interface DowelSplitParams {
   diameter: number
   diameterTolerance: number
@@ -32,6 +36,7 @@ export interface DowelSplitParams {
   heightTolerance: number
 }
 
+/** Design parameters for a straight-tenon split (side length, tolerances, height). */
 export interface StraightTenonSplitParams {
   sideLength: number
   sideLengthTolerance: number
@@ -86,6 +91,11 @@ function weldPositions(
 
 // ── THREE.BufferGeometry → ManifoldMeshData ──
 
+/**
+ * Convert a THREE.BufferGeometry into ManifoldMeshData, welding duplicate vertices.
+ * @param geo - the source THREE.BufferGeometry with a position attribute (and optional index).
+ * @returns the converted mesh data with welded, unique vertices.
+ */
 export function geoToManifoldMesh(geo: THREE.BufferGeometry): ManifoldMeshData {
   const pos = geo.getAttribute('position') as THREE.BufferAttribute
   const arr = (pos as unknown as { array: ArrayLike<number> }).array
@@ -112,6 +122,12 @@ export function geoToManifoldMesh(geo: THREE.BufferGeometry): ManifoldMeshData {
 
 // ── ManifoldMeshData → THREE.BufferGeometry ──
 
+/**
+ * Convert ManifoldMeshData into a THREE.BufferGeometry, optionally computing creased normals.
+ * @param data - the source mesh data.
+ * @param options - optional settings; computeNormals defaults to true and derives creased normals.
+ * @returns the resulting THREE.BufferGeometry (empty when there are no positions or indices).
+ */
 export function manifoldMeshToGeo(
   data: ManifoldMeshData,
   options?: { computeNormals?: boolean },

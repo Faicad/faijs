@@ -13,13 +13,25 @@
 import type { FontProvider } from '../cad-runtime/ports'
 import type { FontLoader } from '../brep/text/fontRegistry'
 
+/**
+ * Options for constructing a BrowserFontProvider.
+ */
 export interface BrowserFontProviderOptions {
-  /** 默认字体 URL（消费者通过 Vite ?url 注入） */
+  /** Default font URL injected by the consumer (via Vite ?url). */
   defaultFontUrl?: string
-  /** 额外字体注册表：key → URL */
+  /** Additional font registry mapping font key to URL. */
   fontUrls?: Record<string, string>
 }
 
+/**
+ * BrowserFontProvider loads fonts in the browser by fetching URLs.
+ *
+ * It implements both the FontProvider contract (ports.ts) and the FontLoader
+ * contract (fontRegistry.ts). It is the browser counterpart of the node-host
+ * NodeFontProvider: instead of reading font bytes from disk it fetches them over
+ * the network. Font URLs are injected by the consumer (the editor supplies font
+ * paths via Vite ?url syntax).
+ */
 export class BrowserFontProvider implements FontProvider, FontLoader {
   private defaultFontUrl: string | undefined
   private fontUrls: Map<string, string>

@@ -1,5 +1,6 @@
 import type { SelectorRuntime } from './types'
 
+/** Sentinel face id meaning "no face" for a triangle. */
 export const TOPOLOGY_FACE_ID_NONE = 0xffffffff
 
 interface FaceRunColumns {
@@ -11,6 +12,12 @@ interface FaceRunColumns {
   faceRow: number
 }
 
+/**
+ * Resolve the column indexes used to read face-run rows from a proxy.
+ *
+ * @param runtime - the selector runtime whose proxy defines the run columns.
+ * @returns the resolved column positions and row stride.
+ */
 export function faceRunColumnIndexes(runtime: SelectorRuntime): FaceRunColumns {
   const columns =
     Array.isArray(runtime.proxy.faceRunColumns) && runtime.proxy.faceRunColumns.length > 0
@@ -27,6 +34,7 @@ export function faceRunColumnIndexes(runtime: SelectorRuntime): FaceRunColumns {
   }
 }
 
+/** Identifies a single part/mesh for which face ids are computed. */
 export interface PartMeshInfo {
   occurrenceId: string
   primitiveIndex: number
@@ -36,6 +44,10 @@ export interface PartMeshInfo {
 /**
  * Build a per-triangle faceId array for one part/mesh (from SelectorRuntime).
  * Each entry is either a face table row index or TOPOLOGY_FACE_ID_NONE.
+ *
+ * @param part - identifies the part/mesh whose triangles to label.
+ * @param runtime - the selector runtime providing the face-run data.
+ * @returns the per-triangle faceId array, or null when no faces match.
  */
 export function buildFaceIdsForPart(
   part: PartMeshInfo,

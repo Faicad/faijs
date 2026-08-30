@@ -19,30 +19,47 @@ import type { BrepEngineApi } from '@faicad/faijs-core/brep/engine/primitives'
 
 // ── per-op 参数自校验（Phase 2.2；stdlib 被直接 import 时的防御层） ──
 
-/** box: size 必填（number 或 vec3），> 0。 */
+/**
+ * Validate box parameters: `size` must be a number or vec3 with positive values.
+ * @param params - the raw box operation parameters.
+ */
 export function assertBoxParams(params: Record<string, unknown>): void {
   assertNumberOrVec3(params.size, 'box.size')
 }
 
-/** sphere: radius 必填，> 0。 */
+/**
+ * Validate sphere parameters: `radius` must be a positive number.
+ * @param params - the raw sphere operation parameters.
+ */
 export function assertSphereParams(params: Record<string, unknown>): void {
   assertPositiveNumber(params.radius, 'sphere.radius')
 }
 
-/** cylinder: radius/height 必填，> 0。 */
+/**
+ * Validate cylinder parameters: `radius` and `height` must be positive numbers.
+ * @param params - the raw cylinder operation parameters.
+ */
 export function assertCylinderParams(params: Record<string, unknown>): void {
   assertPositiveNumber(params.radius, 'cylinder.radius')
   assertPositiveNumber(params.height, 'cylinder.height')
 }
 
-/** cone: radiusBottom/height 必填 > 0，radiusTop >= 0。 */
+/**
+ * Validate cone parameters: `radiusBottom` and `height` must be positive,
+ * while `radiusTop` must be non-negative.
+ * @param params - the raw cone operation parameters.
+ */
 export function assertConeParams(params: Record<string, unknown>): void {
   assertPositiveNumber(params.radiusBottom, 'cone.radiusBottom')
   assertNonNegativeNumber(params.radiusTop, 'cone.radiusTop')
   assertPositiveNumber(params.height, 'cone.height')
 }
 
-/** wedge: width/height/angle/length 必填，> 0。 */
+/**
+ * Validate wedge parameters: `width`, `height`, `angle`, and `length` must be
+ * positive numbers.
+ * @param params - the raw wedge operation parameters.
+ */
 export function assertWedgeParams(params: Record<string, unknown>): void {
   assertPositiveNumber(params.width, 'wedge.width')
   assertPositiveNumber(params.height, 'wedge.height')

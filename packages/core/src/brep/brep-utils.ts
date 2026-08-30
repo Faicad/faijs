@@ -15,6 +15,10 @@ import type { Vec3 } from '../mesh/types'
  * 1. 尝试 getBoundingBox(useTriangulation=false)
  * 2. 尝试 getBoundingBox(useTriangulation=true)
  * 3. 两者均失败 → console.error + throw（不再静默返回默认 bbox）
+ *
+ * @param kernel  the OCCT kernel instance.
+ * @param solid   the solid whose bounding box to compute.
+ * @returns the solid's bounding box as { min, max } corner vectors.
  */
 export function getSolidBoundingBox(kernel: BrepEngineApi, solid: BrepHandle): { min: Vec3; max: Vec3 } {
   try {

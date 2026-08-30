@@ -61,6 +61,7 @@ export interface SdfWorkerResult {
   indices: Uint32Array
 }
 
+/** Worker error message reporting a failed SDF job. */
 export interface SdfWorkerError {
   type: 'error'
   id: string
@@ -79,6 +80,7 @@ export interface SdfWorkerProgress {
   elapsedMs: number
 }
 
+/** Union of all messages a Worker can send for an SDF job. */
 export type SdfWorkerMessage = SdfWorkerResult | SdfWorkerError | SdfWorkerProgress
 
 // ── @param 注释解析器 ──────────────────────────────────────────
@@ -96,6 +98,9 @@ export type SdfWorkerMessage = SdfWorkerResult | SdfWorkerError | SdfWorkerProgr
  *   // @param radius 10               // label=radius, type=number
  *   // @param maxIter 20 迭代次数 int  // label=迭代次数, type=int
  *   // @param count 8 int             // label=count,  type=int
+ *
+ * @param code - the SDF source code to parse.
+ * @returns the parsed parameter definitions.
  */
 export function parseParamDefs(code: string): SdfParamDef[] {
   const defs: SdfParamDef[] = []
@@ -138,7 +143,12 @@ export function parseParamDefs(code: string): SdfParamDef[] {
   return defs
 }
 
-/** 根据参数定义生成默认参数值表 */
+/**
+ * 根据参数定义生成默认参数值表。
+ *
+ * @param defs - the parsed parameter definitions.
+ * @returns a map of parameter name → default value.
+ */
 export function defaultParamValues(defs: SdfParamDef[]): Record<string, number> {
   const vals: Record<string, number> = {}
   for (const d of defs) {
@@ -147,12 +157,22 @@ export function defaultParamValues(defs: SdfParamDef[]): Record<string, number> 
   return vals
 }
 
-/** 将包围盒转为 worker 输入所需的 6 元组 */
+/**
+ * 将包围盒转为 worker 输入所需的 6 元组。
+ *
+ * @param box - the bounding box to convert.
+ * @returns the box as [xmin, ymin, zmin, xmax, ymax, zmax].
+ */
 export function boxToTuple(box: SdfBox): [number, number, number, number, number, number] {
   return [box.min[0], box.min[1], box.min[2], box.max[0], box.max[1], box.max[2]]
 }
 
-/** 将 6 元组转为包围盒 */
+/**
+ * 将 6 元组转为包围盒。
+ *
+ * @param t - the [xmin, ymin, zmin, xmax, ymax, zmax] tuple.
+ * @returns the equivalent bounding box.
+ */
 export function tupleToBox(t: [number, number, number, number, number, number]): SdfBox {
   return { min: [t[0], t[1], t[2]], max: [t[3], t[4], t[5]] }
 }

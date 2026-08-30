@@ -13,7 +13,10 @@ import { cad } from '@faicad/faijs-core/mesh'
 import { solid } from '@faicad/faijs-core/shape'
 import { dispatchPath } from '@faicad/faijs-core/cad-runtime/backend-dispatch'
 
-/** sdf: code 必填非空字符串。 */
+/**
+ * Validate sdf parameters: `code` must be a non-empty string.
+ * @param params - the raw sdf operation parameters.
+ */
 export function assertSdfParams(params: Record<string, unknown>): void {
   if (typeof params.code !== 'string' || params.code.trim() === '') {
     throw new Error(`[stdlib/sdf] code must be a non-empty string, got ${JSON.stringify(params.code)}`)

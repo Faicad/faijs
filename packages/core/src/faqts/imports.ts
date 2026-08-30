@@ -16,6 +16,10 @@
 
 import { parse } from 'acorn'
 
+/**
+ * The exact location of one static import declaration within module source,
+ * used to rewrite its specifier without rebuilding the AST.
+ */
 export interface FaqtsImportSpan {
   /** import 声明的原始说明符，如 `./partner`、`@faqad/faqjs/sdk` */
   specifier: string
@@ -27,6 +31,10 @@ export interface FaqtsImportSpan {
   bare: boolean
 }
 
+/**
+ * A host-provided rewrite hook that maps an import specifier to the URL the
+ * host can resolve. Returning `undefined` leaves the specifier unchanged.
+ */
 export type FaqtsRewriteFn = (specifier: string, ctx: { bare: boolean }) => string | undefined
 
 /** 宿主 importmap 应已覆盖的说明符前缀，重写时默认跳过。 */
@@ -37,6 +45,13 @@ const RESERVED_BARE_PREFIXES = ['@faicad/faijs', '@faicad/faq', '@faicad/faq/sdk
  *
  * 只处理顶层 import 声明（ESM 静态导入）；动态 import() 属于运行时行为，
  * 不在重写范围内——若 faits 需要动态导入，宿主 importmap 自行兜底。
+ */
+/**
+ * Parse module source (de-typed JS) and return the specifier and location of
+ * every static top-level import declaration. Dynamic import() is runtime
+ * behavior and is not part of the rewrite scope.
+ * @param code - the module JavaScript source text.
+ * @returns an array of import spans covering each static import declaration.
  */
 export function findImports(code: string): FaqtsImportSpan[] {
   const ast = parse(code, { ecmaVersion: 'latest', sourceType: 'module' })
@@ -67,6 +82,14 @@ function isReserved(specifier: string): boolean {
  * 4. 其余 → 原样保留
  *
  * 用一次 `code` 全串替换（从后往前保证 span 位置不漂移）。
+ */
+/**
+ * Rewrite import specifiers in module code by splicing the source at each
+ * span's start/end offsets. Priority: reserved prefixes stay unchanged, then
+ * the rewrite hook's result, then relative absolute-ization, else preserved.
+ * @param code - the module JavaScript source text to rewrite.
+ * @param options - rewrite hook and optional base URL for relative specifiers.
+ * @returns the rewritten module source text.
  */
 export function rewriteImports(
   code: string,

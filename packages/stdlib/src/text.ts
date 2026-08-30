@@ -23,7 +23,11 @@ import type { BrepEngineApi } from '@faicad/faijs-core/brep/engine/primitives'
 /** BREP 实现标记（dispatchPath 判定用；text 有 OCCT 精确构造） */
 const brepImpl = textToSolid
 
-/** text: text 必填非空字符串；size/depth 必填 > 0。 */
+/**
+ * Validate text parameters: `text` must be a non-empty string, and `size` and
+ * `depth` must be positive numbers.
+ * @param params - the raw text operation parameters.
+ */
 export function assertTextParams(params: Record<string, unknown>): void {
   if (typeof params.text !== 'string' || params.text.trim() === '') {
     throw new Error(`[stdlib/text] text must be a non-empty string, got ${JSON.stringify(params.text)}`)

@@ -15,6 +15,11 @@ import { MODE_TRIPLANAR } from './mapping'
 
 // ── Types ──
 
+/**
+ * Knurling texture-displacement parameters: texture height, inversion,
+ * subdivision resolution, UV scale/offset/rotation, mapping mode, seam
+ * blending, and angle-based face masking limits.
+ */
 export interface KnurlParams {
   /** 纹理高度 (mm)，默认 0.5 */
   textureHeight: number
@@ -54,6 +59,7 @@ export interface KnurlBounds {
   center: THREE.Vector3
 }
 
+/** Default knurling parameters, used for every field the caller leaves unset. */
 export const KNURL_DEFAULTS: KnurlParams = {
   textureHeight: 0.5,
   invertDisplacement: false,
@@ -72,22 +78,30 @@ export const KNURL_DEFAULTS: KnurlParams = {
 }
 
 /**
- * 对 geometry 应用 knurling 纹理位移。
+ * Apply a knurling texture displacement to a geometry, entirely in mesh-local
+ * space. Pipeline:
+ *   1. Load the knurling texture as ImageData.
+ *   2. Subdivide the geometry to the effective refine length.
+ *   3. Displace the subdivided vertices along their smoothed normals.
  *
- * 管线：
- *   1. 加载 knurling 纹理 → ImageData
- *   2. subdivide(geometry, refineLength, faceWeights) → 细分后 geometry
- *   3. applyDisplacement(subdivided, imageData, settings, bounds) → 位移后 geometry
+ * The effective refine length is never coarser than the caller's
+ * `refineLength`: it is clamped so each texture tile keeps ~8 segments when
+ * the requested resolution would alias the fine diamond pattern.
  *
- * 全程在 mesh 局部空间。
+ * @param geometry - the source geometry (mesh-local space).
+ * @param params - knurl parameters.
+ * @param onProgress - optional callback reporting stage and progress ('texture' | 'subdivide' | 'displace').
+ * @param boundsOverride - optional whole-part bounds keeping texture density consistent with the GPU preview.
+ * @returns the displaced geometry.
  */
 export async function applyKnurlDisplacement(
   geometry: THREE.BufferGeometry,
   params: KnurlParams,
   onProgress?: (stage: string, p: number) => void,
-  /** 外部传入的整体包围盒（默认从 geometry 计算）。
-   *  传入整块部件的包围盒可使纹理密度与 GPU 预览一致
-   *  （预览用整块部件 bbox 归一化，而这里 geometry 往往只是选中面子集）。 */
+  /** External whole-part bounds (defaults to the geometry's own bounds).
+   *  Passing the whole part's bounds keeps texture density consistent with the
+   *  GPU preview, which normalizes against the part bbox while this geometry
+   *  is often only the selected-face subset. */
   boundsOverride?: KnurlBounds,
 ): Promise<THREE.BufferGeometry> {
   const {

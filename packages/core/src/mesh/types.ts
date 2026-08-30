@@ -16,6 +16,9 @@
 
 export type Vec3 = [number, number, number]
 
+/**
+ * A JSON-serializable value: scalar, null, array, or plain object.
+ */
 export type JsonValue =
   | string
   | number
@@ -27,10 +30,10 @@ export type JsonValue =
 // ── Shape ──
 
 /**
- * 几何形状 — mesh 的核心数据类型。
+ * A mesh shape — the core data type of the mesh API.
  *
- * F3 修复：Shape 在 mesh/types.ts 中直接定义，不再从 ops/types.ts re-export。
- * ops/types.ts 反向从此处 import，消除类型环。
+ * Shape is defined directly in mesh/types.ts rather than re-exported from
+ * ops/types.ts; ops/types.ts imports it from here, removing the type cycle.
  */
 export interface Shape {
   positions: Float32Array
@@ -38,10 +41,15 @@ export interface Shape {
 }
 
 /**
- * 结构判定：是否为 mesh Shape（positions/indices 鸭子类型，对第三方零要求）。
+ * Structural guard: returns true when the value looks like a mesh Shape
+ * (duck-typed via positions/indices, with no requirements on third-party
+ * types).
  *
- * keep-syntax 设计 §5（D5）：宿主消费 ExecutionResult.outputs 时用本守卫
- * 区分 mesh Shape 与 compound（outputs 现含两者）。与运行时内部 isShapeLike 同风格。
+ * Per the keep-syntax design, hosts use this guard to distinguish mesh Shapes
+ * from compounds when consuming ExecutionResult.outputs, in the same style as
+ * the runtime-internal isShapeLike.
+ * @param v - the value to test.
+ * @returns true when the value is a mesh Shape.
  */
 export function isMeshShape(v: unknown): v is Shape {
   return !!v && typeof v === 'object' && 'positions' in v && 'indices' in v
@@ -49,23 +57,32 @@ export function isMeshShape(v: unknown): v is Shape {
 
 // ── 创建参数 ──
 
-/** nRad 默认值及约束 */
+/** Default radial segment count used for rounded geometry. */
 export const NRAD_DEFAULT = 32
+/** Minimum allowed radial segment count. */
 export const NRAD_MIN = 3
+/** Maximum allowed radial segment count. */
 export const NRAD_MAX = 128
 
-/** 将 nRad 钳位到合法范围 */
+/**
+ * Clamp an nRad value into the legal range [NRAD_MIN, NRAD_MAX], rounding to
+ * the nearest integer; undefined falls back to NRAD_DEFAULT.
+ * @param n - the requested radial segment count, or undefined.
+ * @returns the clamped radial segment count.
+ */
 export function clampNRad(n: number | undefined): number {
   if (n === undefined) return NRAD_DEFAULT
   return Math.max(NRAD_MIN, Math.min(NRAD_MAX, Math.round(n)))
 }
 
+/** Parameters for creating a box. */
 export interface BoxParams {
   size: Vec3 | number
   center?: Vec3
   nRad?: number
 }
 
+/** Parameters for creating a sphere. */
 export interface SphereParams {
   radius: number
   segments?: number
@@ -73,6 +90,7 @@ export interface SphereParams {
   nRad?: number
 }
 
+/** Parameters for creating a cylinder. */
 export interface CylinderParams {
   radius: number
   height: number
@@ -81,6 +99,7 @@ export interface CylinderParams {
   nRad?: number
 }
 
+/** Parameters for creating a cone (or a truncated cone). */
 export interface ConeParams {
   radiusBottom: number
   radiusTop: number
@@ -90,25 +109,30 @@ export interface ConeParams {
   nRad?: number
 }
 
+/**
+ * Parameters for creating a wedge (trapezoidal prism).
+ */
 export interface WedgeParams {
-  /** 底边宽度 (mm)，沿 Y 轴 */
+  /** Width of the base edge (mm), along the Y axis. */
   width: number
-  /** 梯形高 (mm)，沿 Z 轴 */
+  /** Height of the trapezoid (mm), along the Z axis. */
   height: number
-  /** 底边与斜边的夹角 (度) */
+  /** Angle between the base edge and the slope (degrees). */
   angle: number
-  /** 拉伸总长 (mm)，沿 X 轴 */
+  /** Total extrusion length (mm), along the X axis. */
   length: number
   center?: Vec3
   nRad?: number
 }
 
+/** Parameters for creating 3D text. */
 export interface TextParams {
   text: string
   size: number
   depth: number
 }
 
+/** Parameters for extruding an SVG into a solid. */
 export interface SvgExtrudeParams {
   svg: string
   depth: number
@@ -117,6 +141,7 @@ export interface SvgExtrudeParams {
   naturalHeight?: number
 }
 
+/** Parameters for building a solid from an SDF (signed distance function). */
 export interface SdfParams {
   code: string
   box?: [Vec3, Vec3]
@@ -126,30 +151,36 @@ export interface SdfParams {
 
 // ── 变换参数 ──
 
+/** Parameters for translating a shape. */
 export interface TranslateParams {
   offset: Vec3
 }
 
+/** Parameters for rotating a shape. */
 export interface RotateParams {
   anglesDeg: Vec3
   pivot?: Vec3
 }
 
+/** Parameters for scaling a shape. */
 export interface ScaleParams {
   factor: number | Vec3
 }
 
 // ── 布尔参数 ──
 
+/** Kinds of binary boolean operations. */
 export type BooleanOperation = 'union' | 'subtract' | 'intersect'
 
 // ── 分割参数 ──
 
+/** A cutting plane defined by a unit normal and a signed offset. */
 export interface SplitPlane {
   normal: Vec3
   offset: number
 }
 
+/** Parameters for a dovetail split, including the cutting plane setup. */
 export interface DovetailSplitParams {
   plane: SplitPlane
   planeCenter: Vec3
@@ -164,6 +195,7 @@ export interface DovetailSplitParams {
   }
 }
 
+/** Parameters for a dowel-pin split, including the cutting plane setup. */
 export interface DowelSplitParams {
   plane: SplitPlane
   planeCenter: Vec3
@@ -177,6 +209,7 @@ export interface DowelSplitParams {
   selectedSections?: number[] | null
 }
 
+/** Parameters for a straight-tenon split, including the cutting plane setup. */
 export interface TenonSplitParams {
   plane: SplitPlane
   planeCenter: Vec3
@@ -190,6 +223,7 @@ export interface TenonSplitParams {
   selectedSections?: number[] | null
 }
 
+/** Result of a joinery split: the two halves plus the cut-out wedge. */
 export interface SplitResult {
   front: Shape
   back: Shape
@@ -198,6 +232,7 @@ export interface SplitResult {
 
 // ── 钻孔参数 ──
 
+/** Parameters for drilling a hole. */
 export interface DrillParams {
   diameter: number
   depth?: number
@@ -215,6 +250,7 @@ export interface DrillParams {
 
 // ── 拉伸参数 ──
 
+/** Parameters for extruding a face bounded by a plane. */
 export interface ExtrudeParams {
   normal: Vec3
   originOffset: number
@@ -224,6 +260,7 @@ export interface ExtrudeParams {
 
 // ── 雕刻参数 ──
 
+/** Parameters for engraving text or an SVG onto a face. */
 export interface EngraveParams {
   mode: 'convex' | 'concave'
   depth: number
@@ -239,6 +276,7 @@ export interface EngraveParams {
   svgSize?: number
 }
 
+/** Parameters for applying a knurl texture to a face. */
 export interface KnurlParams {
   face: {
     center: Vec3
@@ -254,11 +292,13 @@ export interface KnurlParams {
 
 // ── 查询结果 ──
 
+/** Axis-aligned bounding box in world space. */
 export interface BoundingBox {
   min: Vec3
   max: Vec3
 }
 
+/** Description of a face on a shape: center, normal and area. */
 export interface FaceDescriptor {
   center: Vec3
   normal: Vec3

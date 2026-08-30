@@ -24,7 +24,10 @@ import type {
 
 let _backend: CsgBackend | null = null
 
-/** 浏览器 host 注入 CSG 后端（WorkerCsgBackend） */
+/**
+ * Inject the CSG backend used by the browser host (e.g. WorkerCsgBackend).
+ * @param backend The backend instance to install as the current CSG backend.
+ */
 export function setCsgBackend(backend: CsgBackend): void {
   _backend = backend
 }
@@ -43,6 +46,12 @@ async function getBackend(): Promise<CsgBackend> {
 
 // ── CSG 操作 API（与 csg.ts 签名一致）──
 
+/**
+ * Apply a boolean operation across several meshes via the current backend.
+ * @param meshes    The input meshes to combine.
+ * @param operation The boolean operation to perform (union/subtract/intersect).
+ * @returns The resulting mesh of the boolean operation.
+ */
 export async function computeBoolean(
   meshes: ManifoldMeshData[],
   operation: BooleanOperation,
@@ -51,6 +60,13 @@ export async function computeBoolean(
   return backend.boolean(operation, meshes)
 }
 
+/**
+ * Split a mesh by a plane via the current backend.
+ * @param mesh   The mesh to split.
+ * @param normal The plane normal (unit vector).
+ * @param offset The plane offset along the normal.
+ * @returns The front and back halves of the split.
+ */
 export async function computeSplit(
   mesh: ManifoldMeshData,
   normal: [number, number, number],
@@ -61,6 +77,17 @@ export async function computeSplit(
   return { front: result.front, back: result.back }
 }
 
+/**
+ * Split a mesh by a plane and cut a dovetail groove via the current backend.
+ * @param mesh                The mesh to split.
+ * @param planeNormal         The cutting plane normal (unit vector).
+ * @param planeOriginOffset   The cutting plane offset along the normal.
+ * @param planeCenter         A point on the cutting plane.
+ * @param widthDir            The width direction within the cutting plane (unit vector).
+ * @param bboxWidthOnWidthDir The model bounding-box width along the width direction.
+ * @param groove              The dovetail groove parameters.
+ * @returns The front/back halves plus the wedge mesh (or null when no wedge).
+ */
 export async function computeDovetailSplit(
   mesh: ManifoldMeshData,
   planeNormal: [number, number, number],
@@ -82,6 +109,17 @@ export async function computeDovetailSplit(
   return { front: result.front, back: result.back, wedge: result.wedge }
 }
 
+/**
+ * Split a mesh by a plane and cut dowel tenons via the current backend.
+ * @param mesh                The mesh to split.
+ * @param planeNormal         The cutting plane normal (unit vector).
+ * @param planeOriginOffset   The cutting plane offset along the normal.
+ * @param planeCenter         A point on the cutting plane.
+ * @param widthDir            The width direction within the cutting plane (unit vector).
+ * @param dowel               The dowel split parameters.
+ * @param selectedSections    Optional list of section indices to place tenons on.
+ * @returns The front/back halves plus the wedge mesh (or null when no wedge).
+ */
 export async function computeDowelSplit(
   mesh: ManifoldMeshData,
   planeNormal: [number, number, number],
@@ -103,6 +141,17 @@ export async function computeDowelSplit(
   return { front: result.front, back: result.back, wedge: result.wedge }
 }
 
+/**
+ * Split a mesh by a plane and cut straight tenons via the current backend.
+ * @param mesh                The mesh to split.
+ * @param planeNormal         The cutting plane normal (unit vector).
+ * @param planeOriginOffset   The cutting plane offset along the normal.
+ * @param planeCenter         A point on the cutting plane.
+ * @param widthDir            The width direction within the cutting plane (unit vector).
+ * @param tenon               The straight-tenon split parameters.
+ * @param selectedSections    Optional list of section indices to place tenons on.
+ * @returns The front/back halves plus the wedge mesh (or null when no wedge).
+ */
 export async function computeStraightTenonSplit(
   mesh: ManifoldMeshData,
   planeNormal: [number, number, number],
@@ -124,9 +173,14 @@ export async function computeStraightTenonSplit(
   return { front: result.front, back: result.back, wedge: result.wedge }
 }
 
+/**
+ * Terminate the worker held by the backend, if any.
+ * The InlineCsgBackend owns no worker to terminate; the WorkerCsgBackend
+ * termination logic is managed by the browser host.
+ */
 export function terminateWorker(): void {
-  // InlineCsgBackend 没有 worker 需要终止
-  // WorkerCsgBackend 的 terminate 逻辑由浏览器 host 管理
+  // InlineCsgBackend has no worker to terminate
+  // WorkerCsgBackend termination is managed by the browser host
 }
 
 // ── 纯函数重导出（从 geo-convert）──

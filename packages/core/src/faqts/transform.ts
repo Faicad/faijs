@@ -14,11 +14,17 @@
 
 import { transform } from 'sucrase'
 
+/**
+ * Options controlling the TypeScript-to-JavaScript transform.
+ */
 export interface FaqtsTransformOptions {
   /** 是否启用 JSX 转译（默认 false：纯 TS） */
   jsx?: boolean
 }
 
+/**
+ * The result of transforming TypeScript source to plain JavaScript module code.
+ */
 export interface FaqtsTransformResult {
   /** 去类型后的纯 JS 模块代码（行号与源文件保持一致） */
   code: string
@@ -29,6 +35,14 @@ export interface FaqtsTransformResult {
  *
  * - 不生成 source map（行号保留，错误定位足够）
  * - 仅 `transforms: ['typescript']`；若脚本含 JSX 需显式开启 `jsx`
+ */
+/**
+ * Strip TypeScript types (preserving line numbers) and return module code that
+ * can run in the browser or Node. No source map is generated; only the
+ * `typescript` transform runs unless `jsx` is explicitly enabled.
+ * @param source - the TypeScript source text to transform.
+ * @param options - transform options such as JSX enablement.
+ * @returns the de-typed JavaScript module code.
  */
 export function transformFaqts(source: string, options: FaqtsTransformOptions = {}): FaqtsTransformResult {
   const js = transform(source, {

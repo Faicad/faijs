@@ -27,7 +27,13 @@ function geoToShape(geo: THREE.BufferGeometry): Shape {
 
 // ── 创建 API ──
 
-/** 创建立方体 */
+/**
+ * Create a box solid. A numeric `size` yields a cube; a Vec3 yields a box with
+ * distinct dimensions (Z-up).
+ *
+ * @param params - box parameters (size, optional center).
+ * @returns the box shape.
+ */
 export function box(params: BoxParams): Shape {
   let geo: THREE.BufferGeometry
   if (Array.isArray(params.size)) {
@@ -44,7 +50,12 @@ export function box(params: BoxParams): Shape {
   return geoToShape(geo)
 }
 
-/** 创建球体 */
+/**
+ * Create a sphere centered at the origin (or the optional `center`).
+ *
+ * @param params - sphere parameters (radius, optional segments, optional center).
+ * @returns the sphere shape.
+ */
 export function sphere(params: SphereParams): Shape {
   const segs = clampNRad(params.nRad ?? params.segments)
   const geo = makePrimitiveGeo('sphere', params.radius * 2, segs)
@@ -54,7 +65,12 @@ export function sphere(params: SphereParams): Shape {
   return geoToShape(geo)
 }
 
-/** 创建圆柱体 */
+/**
+ * Create a cylinder oriented along X (Z-up convention is applied internally).
+ *
+ * @param params - cylinder parameters (radius, height, optional segments, optional center).
+ * @returns the cylinder shape.
+ */
 export function cylinder(params: CylinderParams): Shape {
   // makePrimitiveGeo('cylinder', size) 使用 size 作为直径和高度
   // mesh API 分离 radius 和 height，需要直接构建
@@ -67,7 +83,12 @@ export function cylinder(params: CylinderParams): Shape {
   return geoToShape(geo)
 }
 
-/** 创建圆锥体 */
+/**
+ * Create a cone, or a frustum when the top and bottom radii differ.
+ *
+ * @param params - cone parameters (radiusBottom, radiusTop, height, optional segments, optional center).
+ * @returns the cone shape.
+ */
 export function cone(params: ConeParams): Shape {
   const segs = clampNRad(params.nRad ?? params.segments)
   const geo = new THREE.ConeGeometry(
@@ -96,7 +117,12 @@ export function cone(params: ConeParams): Shape {
   return geoToShape(resultGeo)
 }
 
-/** 创建楔形体（全参数，与 WedgePanel.buildWedgeGeometry 等价，Z-up） */
+/**
+ * Create a wedge (ramp) solid, fully parameterized and Z-up.
+ *
+ * @param params - wedge parameters (width, height, angle, length, optional center).
+ * @returns the wedge shape.
+ */
 export function wedge(params: WedgeParams): Shape {
   const width = params.width
   const height = params.height
@@ -139,10 +165,11 @@ export function wedge(params: WedgeParams): Shape {
 }
 
 /**
- * 创建文字几何体
+ * Create text geometry. Font loading is asynchronous, so this function is
+ * async; CJK text is rendered with the system font when one is available.
  *
- * 注意：字体加载是异步的（FontLoader），所以此函数是 async。
- * P3+ 迁移到 worker 后，字体通过 bufferKey 加载。
+ * @param params - text parameters (text, size, depth).
+ * @returns the text shape.
  */
 export async function text(params: TextParams): Promise<Shape> {
   const { getOpentypeFont, createTextGeometry } = await import(
@@ -170,7 +197,12 @@ export async function text(params: TextParams): Promise<Shape> {
   return geoToShape(geo)
 }
 
-/** 创建螺丝几何体 */
+/**
+ * Create a screw (threaded) geometry.
+ *
+ * @param params - screw parameters (system, specIdx, thread, length, head, optional pitchCustom and nRad).
+ * @returns the screw shape.
+ */
 export async function screw(params: {
   system: 'metric' | 'imperial'
   specIdx: number
@@ -193,7 +225,12 @@ export async function screw(params: {
   return geoToShape(geo)
 }
 
-/** 从 SVG 创建拉伸几何体 */
+/**
+ * Create an extruded geometry from an SVG source.
+ *
+ * @param params - SVG extrude parameters (svg, depth, target size, optional natural size).
+ * @returns the extruded shape.
+ */
 export function svgExtrude(params: SvgExtrudeParams): Shape {
   const geo = svgToExtrudedGeometry(params.svg, {
     depth: params.depth,
@@ -204,7 +241,13 @@ export function svgExtrude(params: SvgExtrudeParams): Shape {
   return geoToShape(geo)
 }
 
-/** 从 SDF 代码创建几何体 */
+/**
+ * Create a mesh from SDF (signed distance field) code, sampling the field with
+ * marching cubes.
+ *
+ * @param params - SDF parameters (code, optional bounds, params, resolution).
+ * @returns the sampled shape.
+ */
 export async function sdf(params: SdfParams): Promise<Shape> {
   const { runSdf } = await import('../sdf/sdf-runner')
   const box = params.box ?? [[-10, -10, -10], [10, 10, 10]]

@@ -14,6 +14,15 @@
 import type { EventSink } from '../cad-runtime/ports'
 import type { PartName } from '../identity'
 
+/**
+ * BrowserEventSink is the browser-side event notification implementation.
+ *
+ * It implements the EventSink contract (ports.ts) by dispatching a CustomEvent
+ * through window.dispatchEvent, which the browser UI listens to ('part-brep-lost')
+ * in order to surface toast notifications. It is the browser counterpart of the
+ * node-host CliEventSink. The event detail carries only a `partName` (the
+ * partId/stmtName/partName keys coincide and are de-duplicated per the spec).
+ */
 export class BrowserEventSink implements EventSink {
   emit(event: 'part-brep-lost', detail: { partName: PartName; op: string; reason: string }): void {
     if (event === 'part-brep-lost' && typeof window !== 'undefined') {

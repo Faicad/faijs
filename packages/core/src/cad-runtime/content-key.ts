@@ -18,7 +18,13 @@ function hashTypedArray(arr: Float32Array | Uint32Array): string {
   return (hash >>> 0).toString(16).padStart(8, '0')
 }
 
-/** 计算 mesh 内容键（positions + indices 哈希），用于增量执行判定。 */
+/**
+ * Compute the mesh content key (hash of positions and indices) used to decide
+ * incremental execution.
+ * @param positions - the mesh vertex positions.
+ * @param indices - the mesh triangle indices.
+ * @returns the content key string.
+ */
 export function computeContentKey(positions: Float32Array, indices: Uint32Array): string {
   const posHash = hashTypedArray(positions)
   const idxHash = hashTypedArray(indices)

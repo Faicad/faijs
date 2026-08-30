@@ -28,17 +28,24 @@ export const HASH_UPPER_BOUND = 2147483647
 export type FaceEvolution = Map<number, number[]>
 
 /**
- * 收集形状所有面的 hash 列表（通过 subShapeHashes，高效，不分配句柄）。
+ * Collect the hash list of all faces of a shape (via subShapeHashes; efficient, no handles allocated).
+ * @param kernel - the OCCT kernel.
+ * @param shape - the shape whose face hashes to collect.
+ * @returns the array of face hashes.
  */
 export function getFaceHashes(kernel: BrepEngineApi, shape: BrepHandle): number[] {
   return Array.from(kernel.subShapeHashes(shape, 'face', HASH_UPPER_BOUND))
 }
 
 /**
- * 收集两个形状的面 hash 并集（用于双形状布尔操作的 WithHistory 调用）。
+ * Collect the union of face hashes of two shapes (for WithHistory calls of binary boolean operations).
  *
- * 分析文档 §4.2：fuse/cut/intersect 必须传 subShapeHashes(A) ∪ subShapeHashes(B)
- * 才能跟踪两个输入的面演化。
+ * Analysis doc §4.2: fuse/cut/intersect must pass subShapeHashes(A) ∪ subShapeHashes(B)
+ * to track both inputs' face evolution.
+ * @param kernel - the OCCT kernel.
+ * @param shapeA - the first input shape.
+ * @param shapeB - the second input shape.
+ * @returns the union of the two shapes' face hashes.
  */
 export function getUnionFaceHashes(
   kernel: BrepEngineApi,
@@ -55,10 +62,11 @@ export function getUnionFaceHashes(
  *
  * modified 分段编码格式：[inputHash, count, outHash1, outHash2, ...] × N
  *
- * @param evo BrepEvolutionData（来自 *WithHistory API）
- * @param inputShape 输入形状（用于获取输入面 hash → ordinal 映射）
- * @param resultShape 结果形状（用于获取输出面 hash → ordinal 映射）
- * @returns FaceEvolution：inOrdinal → outOrdinal[]
+ * @param kernel      the OCCT kernel.
+ * @param evo         the BrepEvolutionData (from a *WithHistory API).
+ * @param inputShape  the input shape (for the input face hash → ordinal mapping).
+ * @param resultShape the result shape (for the output face hash → ordinal mapping).
+ * @returns the FaceEvolution: inOrdinal → outOrdinal[].
  */
 export function decodeEvolution(
   kernel: BrepEngineApi,
@@ -105,7 +113,11 @@ export function decodeEvolution(
 }
 
 /**
- * 解码 BrepEvolutionData 的 deleted 数组为被删除面的 ordinal 列表。
+ * Decode a BrepEvolutionData deleted array into the ordinal list of deleted faces.
+ * @param kernel     - the OCCT kernel.
+ * @param evo        - the BrepEvolutionData (from a *WithHistory API).
+ * @param inputShape - the input shape (for the hash → ordinal mapping).
+ * @returns the array of deleted face ordinals.
  */
 export function decodeDeleted(
   kernel: BrepEngineApi,
@@ -150,7 +162,11 @@ export function cutWithHistoryBrep(
 }
 
 /**
- * fuseWithHistory 封装：执行融合并返回结果 + 面演化映射。
+ * fuseWithHistory wrapper: performs the fuse and returns the result plus the face evolution mapping.
+ * @param kernel - the OCCT kernel.
+ * @param a - the base shape.
+ * @param b - the tool shape to fuse into the base.
+ * @returns the result BrepHandle plus the face evolution mapping.
  */
 export function fuseWithHistoryBrep(
   kernel: BrepEngineApi,
@@ -164,7 +180,11 @@ export function fuseWithHistoryBrep(
 }
 
 /**
- * intersectWithHistory 封装：执行交集并返回结果 + 面演化映射。
+ * intersectWithHistory wrapper: performs the intersection and returns the result plus the face evolution mapping.
+ * @param kernel - the OCCT kernel.
+ * @param a - the first input shape.
+ * @param b - the second input shape.
+ * @returns the result BrepHandle plus the face evolution mapping.
  */
 export function intersectWithHistoryBrep(
   kernel: BrepEngineApi,

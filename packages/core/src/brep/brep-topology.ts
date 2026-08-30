@@ -18,6 +18,10 @@ import { computeEffectiveDeflection } from '../occt-kernel/occtKernel'
 import { buildAssemblySelectorManifest } from '../occt-kernel/topologyExt'
 import { buildSelectorRuntime } from '../topology/build-selector-runtime'
 
+/**
+ * Result of building BREP topology from an OCCT solid: the SelectorRuntime
+ * plus the mesh data produced by the same meshShape call.
+ */
 export interface SolidTopologyResult {
   /** SelectorRuntime，与 STEP_T 使用同源算法生成 */
   runtime: SelectorRuntime
@@ -35,9 +39,10 @@ export interface SolidTopologyResult {
  * 用于 BREP 路径在场景已有三角化时复用——三角化属于几何数据生成，
  * 拓扑构建应接收已有结果而非内部重新生成（需求 §2.0/§2.2、验收 3）。
  *
- * @param solid  OCCT solid 句柄（用于 buildAssemblySelectorManifest 的 shapeHandle）
- * @param meshWithGroups 已有的三角化结果（来自 kernel.meshShape）
- * @returns SelectorRuntime
+ * @param kernel          the OCCT kernel instance.
+ * @param solid           the OCCT solid handle (the shapeHandle for buildAssemblySelectorManifest).
+ * @param meshWithGroups  the existing tessellation result (from kernel.meshShape).
+ * @returns the assembled SelectorRuntime.
  */
 export function buildTopologyFromMesh(
   kernel: BrepEngineApi,
@@ -75,8 +80,9 @@ export function buildTopologyFromMesh(
  * 此处重新三角化的结果与显示 mesh 完全相同。
  * 如果已有三角化结果（meshShapeCache），应直接调 buildTopologyFromMesh 以复用。
  *
- * @param kernel OCCT 内核实例
- * @param solid  OCCT solid 句柄（不会被释放或修改）
+ * @param kernel  the OCCT kernel instance.
+ * @param solid   the OCCT solid handle (never released or modified).
+ * @returns the SelectorRuntime plus the mesh data from the same meshShape call.
  */
 export function buildSolidTopologyRuntime(
   kernel: BrepEngineApi,

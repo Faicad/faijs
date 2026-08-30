@@ -36,26 +36,26 @@ import type { BrepEngineApi } from '../brep/engine/primitives'
 
 // ── 导入 API ──
 
-/** 单个 part 的导入结果（多 part STEP 导入时每个 part 一份） */
+/** Result of importing a single part from a multi-part STEP file. */
 export interface ImportStepPartResult {
-  /** 该 part 的 mesh（positions + indices） */
+  /** The part's mesh (positions + indices). */
   shape: Shape
-  /** OCCT solid 句柄（带 location，用于后续 BREP 操作或 STEP 导出） */
+  /** OCCT solid handle (with location, for later BREP operations or STEP export). */
   solid: ShapeHandle
-  /** part 名称（来自 XCAF label） */
+  /** Part name (from the XCAF label). */
   name: string
-  /** part 颜色 [r,g,b] 0..1，无颜色为 null */
+  /** Part color [r,g,b] in 0..1, or null when there is no color. */
   color: [number, number, number] | null
 }
 
 /**
- * 高层：从 STEP 文件字节流导入多 part mesh + solid。
+ * High-level: import multi-part mesh + solid from a STEP file byte stream.
  *
- * 使用 XCAF 解析装配树，保留每个 part 的独立 mesh 和 solid。
- * 与 importStep 不同，不合并所有 mesh——每个 part 返回独立的 shape。
+ * Uses XCAF assembly-tree parsing, keeping each part's mesh and solid independent.
+ * Unlike importStep, this does not merge meshes — each part returns its own shape.
  *
- * @param bytes STEP 文件字节流
- * @returns 每个 part 的导入结果数组
+ * @param bytes - STEP file byte stream
+ * @returns an array of per-part import results
  */
 export async function importStepMultiPart(
   bytes: ArrayBuffer | Uint8Array,
@@ -94,27 +94,28 @@ export async function importStepMultiPart(
   return results
 }
 
+/** Result of importing a STEP/BREP file. */
 export interface ImportStepResult {
-  /** 合并后的 mesh（所有 part 的 positions/indices 合并） */
+  /** The merged mesh (all parts' positions/indices combined). */
   shape: Shape
-  /** 每个 part 的 mesh（用于拓扑构建） */
+  /** Each part's mesh (for topology building). */
   meshes: WasmTessellatedMesh[]
-  /** OCCT solid 句柄（用于后续 BREP 操作或 STEP 导出） */
+  /** OCCT solid handle (for later BREP operations or STEP export). */
   solid: ShapeHandle
-  /** 面组信息（用于拓扑构建） */
+  /** Face-group information (for topology building). */
   meshWithGroups: Mesh
 }
 
 /**
- * 高层：从 STEP/BREP 文件字节流导入 mesh + solid。
+ * High-level: import mesh + solid from a STEP/BREP file byte stream.
  *
- * 封装了 importStepToMesh/importBrepToMesh + 合并 mesh 的完整流程。
- * 宿主不需要再直接操作 OCCT kernel。
+ * Wraps the full importStepToMesh/importBrepToMesh + mesh merge flow.
+ * Hosts no longer need to operate the OCCT kernel directly.
  *
- * @param bytes STEP/BREP 文件字节流
- * @param format 文件格式：'step' | 'brep'
- * @param options 可选参数
- * @returns ImportStepResult
+ * @param bytes - STEP/BREP file byte stream
+ * @param format - the file format: 'step' | 'brep'
+ * @param options - optional mesh deflection options
+ * @returns the import result
  */
 export async function importStep(
   bytes: ArrayBuffer | Uint8Array | string,
@@ -159,20 +160,20 @@ export async function importStep(
 
 // ── 导出 API ──
 
+/** Options for exporting mesh data to a STEP string. */
 export interface ExportStepOptions {
-  /** 缝合容差 */
+  /** Sewing tolerance. */
   tolerance?: number
 }
 
 /**
- * 高层：将 mesh 数据导出为 STEP 字符串。
+ * High-level: export mesh data as a STEP string.
  *
- * 封装了 meshesToStep 的完整流程。
- * 宿主不需要再直接操作 OCCT kernel。
+ * Wraps the full meshesToStep flow. Hosts no longer need to operate the OCCT kernel directly.
  *
- * @param shape mesh 数据（positions + indices）
- * @param options 可选参数
- * @returns STEP 文件文本内容
+ * @param shape - mesh data (positions + indices)
+ * @param options - optional export options (sewing tolerance)
+ * @returns the STEP file text content
  */
 export function exportStep(
   shape: Shape,
@@ -186,24 +187,26 @@ export function exportStep(
 }
 
 /**
- * 高层：释放 OCCT solid 句柄。
+ * High-level: release an OCCT solid handle.
  *
- * 封装了 releaseShape 的完整流程。
+ * Wraps the full releaseShape flow.
+ *
+ * @param solid - the solid handle to release
  */
 export function releaseSolid(solid: ShapeHandle): void {
   releaseShape(solid)
 }
 
 /**
- * 高层：多实体 STEP 导出（零 fuse）。
+ * High-level: multi-solid STEP export (zero fuse).
  *
- * 每个 entry 作为 STEP 中独立实体（独立 XCAF label / PRODUCT）导出，
- * 保留名称与颜色。多实体之间绝不 fuse。
+ * Each entry is exported as an independent entity in the STEP (independent XCAF
+ * label / PRODUCT), preserving name and color. Multiple solids are never fused.
  *
- * 封装了 ensureOcctKernel + exportStepFromSolids 的完整流程。
- * 宿主不需要再直接操作 OCCT kernel。
+ * Wraps the full ensureOcctKernel + exportStepFromSolids flow.
+ * Hosts no longer need to operate the OCCT kernel directly.
  *
- * @param entries parts to export; each becomes its own independent entity
+ * @param entries - parts to export; each becomes its own independent entity
  * @returns STEP file content as ArrayBuffer
  */
 export async function exportStepFromSolidsHighLevel(
@@ -216,16 +219,18 @@ export async function exportStepFromSolidsHighLevel(
 // ── 管理函数 ──
 
 /**
- * 高层：初始化 OCCT kernel。
- * 如果已初始化，返回缓存的实例。
+ * High-level: initialize the OCCT kernel.
+ * Returns the cached instance if already initialized.
+ *
+ * @returns the initialized OCCT kernel
  */
 export async function ensureOcctKernel(): Promise<OcctKernel> {
   return initOcctWasm() as unknown as Promise<OcctKernel>
 }
 
 /**
- * 高层：释放 OCCT kernel。
- * 在页面卸载或需要释放 WASM 内存时调用。
+ * High-level: dispose the OCCT kernel.
+ * Call when unloading the page or releasing WASM memory.
  */
 export function disposeOcct(): void {
   disposeOcctWasm()

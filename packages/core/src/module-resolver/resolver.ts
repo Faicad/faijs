@@ -16,9 +16,13 @@
 import { findImports } from '../faqts/imports'
 import { assertSatisfies } from './version'
 
-/** 解析值：可直接给 URL，或带版本的对象（用于范围校验）。 */
+/** Resolution value: a direct URL, or an object with URL plus an optional version for range validation. */
 export type ResolverValue = string | { url: string; version?: string }
 
+/**
+ * Options for resolveImports: the resolution table, scopes, slices, and the
+ * importer/base context used to absolutize relative specifiers.
+ */
 export interface ResolveImportsOptions {
   /** 顶层解析表：裸说明符 → URL / {url, version} */
   imports: Record<string, ResolverValue>
@@ -46,6 +50,10 @@ export interface ResolveImportsOptions {
   reservedPrefixes?: string[]
 }
 
+/**
+ * Result of resolveImports: the rewritten module source plus the mapping of
+ * every rewritten import specifier to its absolute URL.
+ */
 export interface ResolveResult {
   /** 重写后的模块源码 */
   code: string
@@ -53,10 +61,17 @@ export interface ResolveResult {
   resolved: Record<string, string>
 }
 
+/**
+ * Base error for module-resolution failures.
+ */
 export class ModuleResolverError extends Error {}
 
-/** 未登记的裸说明符（roadmap §11 第一条：不回退、不静默）。 */
+/**
+ * Thrown for a bare specifier that is not registered in the resolution table
+ * (roadmap acceptance: never fall back, never stay silent).
+ */
 export class UnresolvedImportError extends ModuleResolverError {
+  /** The unresolvable bare module specifier. */
   readonly specifier: string
   constructor(specifier: string, importerHint?: string) {
     super(
@@ -69,8 +84,12 @@ export class UnresolvedImportError extends ModuleResolverError {
   }
 }
 
-/** 版本范围不满足（roadmap §11 第三条：必须抛错）。 */
+/**
+ * Thrown when an import's version range is not satisfied (roadmap
+ * acceptance: a version mismatch must throw).
+ */
 export class ImportVersionError extends ModuleResolverError {
+  /** The specifier whose version range was not satisfied. */
   readonly specifier: string
   constructor(specifier: string, version: string, range: string) {
     super(
@@ -105,7 +124,12 @@ function resolverBase(opts: ResolveImportsOptions): string | undefined {
   return undefined
 }
 
-/** 拆分裸名（可能内嵌版本范围）：`mech@^1.2` / `@scope/gear@~2.0` */
+/**
+ * Split a bare specifier that may embed a version range:
+ * `mech@^1.2` / `@scope/gear@~2.0`.
+ * @param spec - the bare module specifier, possibly with an embedded range.
+ * @returns the package name and the optional version range.
+ */
 export function splitVersionRange(spec: string): { name: string; range?: string } {
   const at = spec.startsWith('@') ? spec.indexOf('@', 1) : spec.indexOf('@')
   if (at === -1 || at === spec.length - 1) return { name: spec }
@@ -208,15 +232,18 @@ function resolveEntry(
 }
 
 /**
- * 纯函数：解析并重写模块代码中的 import 说明符。
+ * Pure function: resolve and rewrite the import specifiers in module code.
  *
- * 优先级：
- * 1. 保留前缀（`@faicad/faijs` 家族）→ 零替换（宿主 importmap）
- * 2. 大库切片（`slices` 中 `pkg/sub`）→ 切片 URL（V5.4 按需加载）
- * 3. scope 表（最长前缀匹配）覆盖顶层 imports
- * 4. 相对说明符且有 base → 绝对化；否则原样保留
- * 5. 顶层表登记 → 绝对 URL（含版本范围校验）
- * 6. 未登记的裸说明符 → UnresolvedImportError
+ * Priority order:
+ * 1. Reserved prefixes (@faicad/faijs family) → untouched (host importmap)
+ * 2. Library slices (`pkg/sub` in `slices`) → slice URL (V5.4 on-demand)
+ * 3. Scope tables (longest-prefix match) override top-level imports
+ * 4. Relative specifiers with a base → absolutized; otherwise kept as-is
+ * 5. Top-level table entry → absolute URL (with version-range validation)
+ * 6. Unregistered bare specifiers → UnresolvedImportError
+ * @param code - the module source code to rewrite.
+ * @param options - resolution tables, scopes, slices and importer/base context.
+ * @returns the rewritten code and the specifier→URL mapping.
  */
 export function resolveImports(code: string, options: ResolveImportsOptions): ResolveResult {
   const spans = findImports(code)

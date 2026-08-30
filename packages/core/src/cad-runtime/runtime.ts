@@ -43,6 +43,7 @@ import {
   configureBackends, CONTRACT_VERSION, setKeepSink, setName,
   assertContractVersion, BrepUnsupportedError, type StdlibNamespace,
 } from '../runtime-state'
+import { assertLibConforms } from '../define-op'
 import { computeContentKey } from './content-key'
 export { computeContentKey } from './content-key'
 import type { Namespaces } from './module-executor'
@@ -56,21 +57,27 @@ import { computeLeafTerminals, consumes, type DagRuntimeView } from './terminal-
 
 // ── 类型定义 ──
 
+/**
+ * A single validation error produced by CadRuntime.check.
+ */
 export interface CheckError {
-  /** 'keep' = keep 指令校验（keep-syntax 设计 §7.4） */
+  /** The stage that produced the error ('keep' = keep directive validation). */
   stage: 'parse' | 'symbol' | 'reference' | 'keep'
   message: string
   line?: number
   stmtId?: string
-  /** 解析诊断码（F1：E_CONTROL_FLOW 等，parser ParseError.code 透传） */
+  /** Parse diagnostic code (e.g. E_CONTROL_FLOW, passed through from parser ParseError.code). */
   code?: string
 }
 
+/**
+ * The aggregated result of a CadRuntime.check dry run.
+ */
 export interface CheckResult {
   ok: boolean
   errors: CheckError[]
   warnings: string[]
-  /** 供 AI 自我修正的结构化上下文 */
+  /** Structured context for AI self-correction. */
   script?: { statements: number; callees: string[] }
 }
 
@@ -97,11 +104,16 @@ export interface PartTopology {
   data: SelectorRuntimeData
 }
 
+/**
+ * The result of a CadRuntime execution, carrying geometry, chain state, and
+ * host-consumable topology data.
+ */
 export interface ExecutionResult {
   /**
-   * 语句输出缓存（PartName → Shape 或 compound；含 split 的 front/back 双输出）。
-   * keep-syntax §5.1：UI 查询入口，含所有 shape 变量——第三方返回的未注册
-   * compound（结构判定 isCompoundLike）同样进入（设计 §9 验收）。
+   * Statement output cache (PartName → Shape or compound; includes the dual
+   * front/back outputs of a split). UI query entry point listing every shape
+   * variable — unregistered compounds returned by third parties (structural
+   * test isCompoundLike) enter as well.
    */
   outputs: Map<PartName, Shape | CompoundShape>
   /** BREP 链状态（含逐 part solid 句柄） */
@@ -136,8 +148,11 @@ export interface ExecutionResult {
   activeValues?: Map<PartName, unknown>
 }
 
+/**
+ * Options controlling a single CadRuntime execution.
+ */
 export interface ExecuteOptions {
-  /** 参数表 */
+  /** The parameter table. */
   params?: Record<string, unknown>
   /** 跨 part 输入几何（PartName → Shape） */
   inputGeometryMap?: Map<PartName, Shape>
@@ -161,11 +176,16 @@ export interface ExecuteOptions {
   topology?: 'auto' | 'brep' | 'off'
 }
 
+/**
+ * Options for CadRuntime.executeCode, extending ExecuteOptions with the
+ * execution-subset controls used by hosts that only see code text.
+ */
 export interface ExecuteCodeOptions extends ExecuteOptions {
   /**
-   * 执行子集：源语句 id（sN）或输出变量名（partN）。省略 = 全量执行。
-   * 子集语义：过滤出匹配语句（保持原顺序）后走 execute 全流水线
-   * （对应宿主 executePart / recomputePart 的"只执行该 part 的语句子集"）。
+   * Execution subset: source statement ids (sN) or output variable names
+   * (partN); omitted means full execution. Subset semantics filter the matching
+   * statements (preserving order) then run the full execute pipeline (the
+   * host's executePart/recomputePart "recompute only this part's statements").
    */
   stmtIds?: (StmtId | PartName)[]
   /**
@@ -205,8 +225,20 @@ function runtimeToData(rt: SelectorRuntime): SelectorRuntimeData {
   return data as SelectorRuntimeData
 }
 
+/**
+ * CadRuntime is the execution core of the L2 orchestration layer.
+ *
+ * It executes a ScriptIR statement sequence and produces an ExecutionResult
+ * (pure computation that touches neither the scene store nor the DOM), manages
+ * the statementCache as an instance member, resolves shape references
+ * internally, and is execution-mode aware (auto/brep/mesh). Hosts own undoing,
+ * scene mutation, script-store writes, group/assembly rebuilding, and event
+ * dispatch.
+ */
 export class CadRuntime {
+  /** The host-injected environment capabilities. */
   readonly ports: HostPorts
+  /** The execution mode (auto/brep/mesh). */
   readonly mode: ExecutionMode
 
   /** 语句缓存（实例级，不再是模块单例）。key = 可命中的 PartName（stmt.id 即其首输出名） */
@@ -250,12 +282,18 @@ export class CadRuntime {
   private readonly namespaces: Namespaces
 
   /**
-   * 注册第三方库命名空间（P7）。
-   * 版本不兼容即抛错（不静默降级）；之后编译产物 `ns.<binding>.<callee>` 可用新库。
-   * cad 与第三方库同构：根门面通过 registerLib('cad', createInternalStdlib()) 注入（E-a-1）。
+   * Register a third-party library namespace. A version mismatch throws (no
+   * silent degradation); afterwards compiled products may use the new library
+   * via `ns.<binding>.<callee>`. `cad` is registered the same way: the root
+   * facade injects it through registerLib('cad', createInternalStdlib()).
+   * @param binding - the namespace binding name.
+   * @param ns - the namespace object to register.
    */
   registerLib(binding: string, ns: StdlibNamespace): void {
     assertContractVersion(ns as unknown as { contractVersion?: number })
+    // D-4 strict assembly check: every exported dual-op must be structurally
+    // valid; a library exporting dual-ops must carry a matching contractVersion.
+    assertLibConforms(ns as unknown as Record<string, unknown>)
     this.libs[binding] = ns
     this.executor.setNamespaces({ ...this.libs } as Namespaces)
   }
@@ -352,13 +390,14 @@ export class CadRuntime {
   // ── 核心方法：execute（全量执行） ──
 
   /**
-   * 执行 ScriptIR，返回 ExecutionResult。
-   *
-   * 纯计算：只产出几何，不碰场景树/store/DOM。
-   * browser host 负责消费 ExecutionResult 并落地。
-   *
-   * VM 路径：compileToModule → executor.load → reconcileCtx → prepareCtx →
-   * executeAll（startIndex > 0 时从该语句起）→ collectResult。
+   * Execute a ScriptIR and return an ExecutionResult. Pure computation: it only
+   * produces geometry and touches neither the scene tree/store nor the DOM; the
+   * browser host consumes and lands the result. VM path: compileToModule →
+   * executor.load → reconcileCtx → prepareCtx → executeAll (from startIndex when
+   * > 0) → collectResult.
+   * @param script - the parsed ScriptIR to execute.
+   * @param opts - optional execution options.
+   * @returns promise resolving to the ExecutionResult.
    */
   async execute(
     script: ScriptIR,
@@ -391,10 +430,14 @@ export class CadRuntime {
   // ── 语义入口：update / append（增量执行） ──
 
   /**
-   * 更新参数：plan() 算变更语句 → reconcileCtx → executeFrom 重算 stale 集。
-   *
-   * - stale 为空（无变化）→ 从持久 ctx 组装结果直接返回，零执行；
-   * - 否则 executeFrom(staleIds)（stale 集对 deps 封闭，按拓扑序执行）。
+   * Update parameters: plan() derives the changed statements →
+   * reconcileCtx → executeFrom recomputes the stale set. When stale is empty
+   * (no change) it assembles the result from the persistent ctx and returns
+   * with zero execution; otherwise it runs executeFrom(staleIds), the stale set
+   * being closed over deps and executed in topological order.
+   * @param script - the parsed ScriptIR to update against.
+   * @param opts - optional execution options.
+   * @returns promise resolving to the ExecutionResult.
    */
   async update(script: ScriptIR, opts?: ExecuteOptions): Promise<ExecutionResult> {
     const { code, statements } = compileToModule(script)
@@ -420,13 +463,20 @@ export class CadRuntime {
   }
 
   /**
-   * 追加语句：只执行新增语句（前缀已在持久 ctx）。
-   *
-   * 对每条新语句应用与 execute 相同的防护：hasAssignment 过滤 / beforeStatement 钩子 /
-   * brep 模式防护 / 顶替释放预捕获。返回完整 ExecutionResult（未执行语句从 ctx 组装）。
-   *
-   * 契约前提：新增语句的输入必然是此前已执行成功的活跃语句的输出，持久 ctx 保证其存在；
-   * 若输入真缺失（dispose/删除后未同步），是调用方应先 execute 全量的信号——append 不做前缀完整性验证。
+   * Append statements: only the newly added statements execute (the prefix is
+   * already in the persistent ctx). Each new statement gets the same guards as
+   * execute — hasAssignment filter / beforeStatement hook / brep-mode guard /
+   * replacement-release pre-capture — and a complete ExecutionResult is returned
+   * (unexecuted statements are assembled from ctx). Precondition: a new
+   * statement's inputs must be outputs of previously executed successful active
+   * statements, guaranteed by the persistent ctx; if an input is genuinely
+   * missing (after an unsynced dispose/delete) that is a signal the caller
+   * should run a full execute instead — append does not validate prefix
+   * integrity.
+   * @param script - the parsed ScriptIR containing the appended statements.
+   * @param newIds - the source statement ids to execute.
+   * @param opts - optional execution options.
+   * @returns promise resolving to the ExecutionResult.
    */
   async append(script: ScriptIR, newIds: StmtId[], opts?: ExecuteOptions): Promise<ExecutionResult> {
     const { code, statements } = compileToModule(script)
@@ -456,14 +506,16 @@ export class CadRuntime {
   }
 
   /**
-   * 源代码执行入口（IR 剥离配套）：宿主只见 code 文本，不接触 ScriptIR。
-   *
-   * 内部 parseScript(code) 后三分派：
-   * ① 无 stmtIds → execute（全量）
-   * ② stmtIds + incremental → append（只执行指定语句，前缀依赖在持久 ctx）
-   * ③ stmtIds（子集）→ 过滤语句子集后 execute（对应宿主 executePart/recomputePart）
-   *
-   * ExecutionResult 结构与 execute/append 完全一致。
+   * Source-code execution entry point (the IR-stripping companion): the host
+   * only sees code text and never touches ScriptIR. After parseScript(code) it
+   * dispatches three ways: (1) no stmtIds → execute (full); (2) stmtIds +
+   * incremental → append (execute only the given statements, prefix deps in the
+   * persistent ctx); (3) stmtIds subset → filter the statement subset then
+   * execute (host executePart/recomputePart). The ExecutionResult structure is
+   * identical to execute/append.
+   * @param code - the .faijs source text.
+   * @param opts - optional execution options.
+   * @returns promise resolving to the ExecutionResult.
    */
   async executeCode(code: string, opts?: ExecuteCodeOptions): Promise<ExecutionResult> {
     const { script } = parseScript(code)
@@ -492,7 +544,13 @@ export class CadRuntime {
     return this.execute({ ...script, statements: subset }, execOpts)
   }
 
-  /** plan() — 依赖分析，得出需要重算的语句集合（对外签名不变）。 */
+  /**
+   * Dependency analysis producing the set of statements that need recompute
+   * (public signature unchanged).
+   * @param script - the parsed ScriptIR to analyze.
+   * @returns the stale statements and the map of reused part names to their
+   * output content keys.
+   */
   plan(script: ScriptIR): { stale: StatementIR[]; reused: Map<PartName, string> } {
     const { statements } = compileToModule(script)
     // 先同步 executor 的脚本元数据——plan 计算参数语句 key 依赖 executor.script 的 params
@@ -927,19 +985,34 @@ export class CadRuntime {
 
   // ── 公开：缓存访问 ──
 
-  /** 获取语句缓存中的输出几何（statementCache 按 PartName 键控） */
+  /**
+   * Get the output geometry from the statement cache (keyed by PartName).
+   * @param partName - the part name to look up.
+   * @returns the cached shape, or undefined.
+   */
   getCachedOutput(partName: PartName): Shape | undefined {
     return this.statementCache.get(partName)?.output
   }
 
-  /** 获取语句缓存完整条目（statementKey / outputContentKey / output；测试与宿主诊断用）。 */
+  /**
+   * Get a statement cache's full entry (statementKey / outputContentKey / output;
+   * used by tests and host diagnostics).
+   * @param partName - the part name to look up.
+   * @returns the cached entry, or undefined.
+   */
   getStatementCacheEntry(
     partName: PartName,
   ): { statementKey: string; outputContentKey: string; output: Shape } | undefined {
     return this.statementCache.get(partName)
   }
 
-  /** 写入语句缓存（statementCache 按 PartName 键控） */
+  /**
+   * Write an entry into the statement cache (keyed by PartName).
+   * @param partName - the part name to store under.
+   * @param stmt - the statement whose key is computed.
+   * @param output - the shape output.
+   * @param outputContentKey - the output's content key.
+   */
   writeToStatementCache(
     partName: PartName,
     stmt: StatementIR,
@@ -964,25 +1037,33 @@ export class CadRuntime {
   // ── 公开：拓扑数据缓存 ──
 
   /**
-   * 写入拓扑数据缓存（E13）。
-   *
-   * 宿主在以下时机调用：
-   * - BREP 执行成功后：用 buildSolidTopologyRuntime 构建 source='brep' 的拓扑
-   * - 文件加载时：用 buildSelectorRuntime 构建 source='mesh' 的拓扑
-   * - primitive 创建时：用 primitive 拓扑构建函数构建 source='primitive' 的拓扑
-   *
-   * execute() 返回的 ExecutionResult.topology 会包含这些缓存数据。
+   * Write an entry into the topology data cache. Hosts call this after a
+   * successful BREP execution (building source='brep' topology via
+   * buildSolidTopologyRuntime), on file load (source='mesh' via
+   * buildSelectorRuntime), and on primitive creation (source='primitive' via the
+   * primitive topology builder). The topology returned by execute()'s
+   * ExecutionResult includes these cached entries.
+   * @param partName - the part name to store under.
+   * @param source - the topology source (brep/primitive/mesh).
+   * @param data - the serialized topology data.
    */
   setTopology(partName: PartName, source: TopologySource, data: SelectorRuntimeData): void {
     this.topologyCache.set(partName, { partName, source, data })
   }
 
-  /** 获取拓扑数据 */
+  /**
+   * Get the topology data for a part.
+   * @param partName - the part name to look up.
+   * @returns the part topology, or undefined.
+   */
   getTopology(partName: PartName): PartTopology | undefined {
     return this.topologyCache.get(partName)
   }
 
-  /** 删除拓扑数据 */
+  /**
+   * Delete the topology data for a part.
+   * @param partName - the part name to delete.
+   */
   deleteTopology(partName: PartName): void {
     this.topologyCache.delete(partName)
   }
@@ -1153,6 +1234,10 @@ export class CadRuntime {
 
   // ── 公开：释放 ──
 
+  /**
+   * Dispose the runtime, releasing all acquired OCCT handles and clearing every
+   * cache. The instance is unusable afterwards.
+   */
   dispose(): void {
     // 所有权在持久 solidCache：释放全部 OCCT handle（§9 决策 2）
     for (const [, handle] of this.solidCache) {
@@ -1171,11 +1256,12 @@ export class CadRuntime {
 // ── 工厂函数 ──
 
 /**
- * 创建 CadRuntime 实例。
- *
- * @param ports Host 注入的环境能力
- * @param mode 执行模式（默认 'auto'）
- * @param libs 宿主注入的库命名空间（含 cad——根门面 createRuntime 包装自动注入；core 不默认装配）
+ * Create a CadRuntime instance.
+ * @param ports - the host-injected environment capabilities.
+ * @param mode - the execution mode (default 'auto').
+ * @param libs - the host-injected library namespaces (including `cad`, which the
+ * root facade injects automatically; core does not assemble it by default).
+ * @returns a new CadRuntime.
  */
 export function createRuntime(ports: HostPorts, mode?: ExecutionMode, libs?: Record<string, StdlibNamespace>): CadRuntime {
   return new CadRuntime(ports, mode, libs)

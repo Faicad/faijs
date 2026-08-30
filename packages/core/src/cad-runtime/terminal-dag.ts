@@ -40,12 +40,15 @@ export interface DagRuntimeView {
 }
 
 /**
- * 判定语句 stmt 是否"消费"变量 v（keep 驱动，C0 → C3 → C5 短路）。
- *
- * @param stmt 待判定语句
- * @param v 变量名（PartName）
- * @param view 运行时视图（省略 → 纯静态，无函数体声明信息）
- * @param shapeVarNames 所有 shape-typed 顶层变量名集合（C3 判定依据）
+ * Determine whether statement stmt "consumes" variable v (keep driven, using
+ * the C0 → C3 → C5 short-circuit flow).
+ * @param stmt - the statement under test.
+ * @param v - the variable name (PartName).
+ * @param view - the runtime view; when omitted a purely static pass with no
+ * function-body declaration info is used.
+ * @param shapeVarNames - the set of all shape-typed top-level variable names,
+ * the basis for the C3 decision.
+ * @returns true when the statement consumes the variable.
  */
 export function consumes(
   stmt: StatementIR,

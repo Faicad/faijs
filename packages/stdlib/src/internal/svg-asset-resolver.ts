@@ -25,7 +25,10 @@ function isLegacyAssetRef(v: unknown): v is { $asset: string } {
  * - 普通字符串：直接返回（兼容直接传入 SVG 文本）
  * - 旧 AssetRef 结构（{ $asset: key }）：按 key 解析（运行时兼容）
  *
- * @throws 如果 key 无法解析
+ * @throws if the SVG key cannot be resolved.
+ * @param svg - the svg argument: a plain SVG string or a legacy `{ $asset: key }` reference.
+ * @param ports - the host asset ports used to resolve a legacy asset reference.
+ * @returns the resolved SVG text string.
  */
 export async function resolveSvgArg(
   svg: unknown,

@@ -17,10 +17,13 @@ import type { ManifoldMeshData } from '../boolean/csg-backend'
 import type { Shape, ExtrudeParams } from './types'
 
 /**
- * 执行拉伸：在切割平面处将模型切开，中段沿法线挤出 length。
+ * Execute a face extrude: cut the model at the cutting plane and extrude the
+ * middle section by `length` along the plane normal, then union the three
+ * segments back into a single solid.
  *
- * 输入：世界空间 Shape + 拉伸参数
- * 输出：世界空间 Shape（拉伸结果，三段 union 为单体）
+ * @param shape - the world-space shape to extrude.
+ * @param params - extrude parameters (normal, originOffset, length, mode).
+ * @returns the extruded shape in world space.
  */
 export async function extrude(shape: Shape, params: ExtrudeParams): Promise<Shape> {
   const mode = params.mode ?? 'centered'

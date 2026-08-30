@@ -50,80 +50,166 @@ declare const __faceId:      unique symbol
 declare const __edgeId:      unique symbol
 declare const __nodeId:      unique symbol
 
+/** Branded ID: the file identity (3d scene tree node root), with no colon. */
 export type FileId       = string & { readonly [__fileId]:      true }
+/** Branded ID: a part's in-file number, with no colon. */
 export type InnerId      = string & { readonly [__innerId]:     true }
+/** Branded ID: `fileId:innerId` with exactly one colon (scene tree key). */
 export type ScopedId     = string & { readonly [__scopedId]:    true }
-export type StmtId       = string & { readonly [__stmtId]:      true }   // StatementIR.id（无赋值语句也有）
-export type PartName     = string & { readonly [__partName]:    true }   // 左值；split outputs 双值
-export type GroupName    = PartName & { readonly [__groupName]: true }   // grp_N ⊆ PartName
+/** Branded ID: a statement's id (StatementIR.id); every statement has one. */
+export type StmtId       = string & { readonly [__stmtId]:      true }
+/** Branded ID: a left-hand-side variable name; split outputs yield two values. */
+export type PartName     = string & { readonly [__partName]:    true }
+/** Branded ID: an assembly/group statement's variable name (`grp_N` ⊆ PartName). */
+export type GroupName    = PartName & { readonly [__groupName]: true }
+/** Branded ID: an assembly member reference (scopedId shape). */
 export type RefId        = string & { readonly [__refId]:       true }
+/** Branded ID: a topology selection key (`topology|<selType>|<display>`). */
 export type ReferenceId  = string & { readonly [__referenceId]: true }
+/** Branded ID: a user-visible selector (prefix-stripped). */
 export type SelectorKey  = string & { readonly [__selectorKey]: true }
+/** Branded ID: a topology row occurrence id. */
 export type OccurrenceId = string & { readonly [__occurrenceId]: true }
+/** Branded ID: a topology row shape id. */
 export type ShapeId      = string & { readonly [__shapeId]:     true }
+/** Branded ID: a topology row face id. */
 export type FaceId       = string & { readonly [__faceId]:      true }
+/** Branded ID: a topology row edge id. */
 export type EdgeId       = string & { readonly [__edgeId]:      true }
+/** Branded ID: a scene tree node key (= ScopedId or a fileId root). */
 export type NodeId       = string & { readonly [__nodeId]:      true }
 
-export type StatementId  = StmtId   // 别名（= StatementIR.id，≠ PartName 语义，见 §0）
-export type FaceSelector = FaceId   // 别名（网格 FaceDescriptor 无 id，暂不用）
+/** Alias for StmtId (= StatementIR.id, distinct from PartName semantics). */
+export type StatementId  = StmtId
+/** Alias for FaceId (mesh FaceDescriptor carries no id; currently unused). */
+export type FaceSelector = FaceId
 
 // ═════════════════════════════════════════════════════════════════════════
 // 唯一信任点（string → ID 的唯一大门）
 // ═════════════════════════════════════════════════════════════════════════
 
+/**
+ * Trust point that converts a plain string to a branded FileId.
+ * @param raw - the raw string value.
+ * @returns the input typed as FileId.
+ */
 export function asFileId(raw: string): FileId {
   return raw as FileId
 }
 
+/**
+ * Trust point that converts a plain string to a branded InnerId.
+ * @param raw - the raw string value.
+ * @returns the input typed as InnerId.
+ */
 export function asInnerId(raw: string): InnerId {
   return raw as InnerId
 }
 
+/**
+ * Trust point that converts a plain string to a branded ScopedId.
+ * @param raw - the raw string value.
+ * @returns the input typed as ScopedId.
+ */
 export function asScopedId(raw: string): ScopedId {
   return raw as ScopedId
 }
 
+/**
+ * Trust point that converts a plain string to a branded StmtId.
+ * @param raw - the raw string value.
+ * @returns the input typed as StmtId.
+ */
 export function asStmtId(raw: string): StmtId {
   return raw as StmtId
 }
 
+/**
+ * Trust point that converts a plain string to a branded PartName.
+ * @param raw - the raw string value.
+ * @returns the input typed as PartName.
+ */
 export function asPartName(raw: string): PartName {
   return raw as PartName
 }
 
+/**
+ * Trust point that converts a plain string to a branded GroupName.
+ * @param raw - the raw string value.
+ * @returns the input typed as GroupName.
+ */
 export function asGroupName(raw: string): GroupName {
   return raw as GroupName
 }
 
+/**
+ * Trust point that converts a plain string to a branded RefId.
+ * @param raw - the raw string value.
+ * @returns the input typed as RefId.
+ */
 export function asRefId(raw: string): RefId {
   return raw as RefId
 }
 
+/**
+ * Trust point that converts a plain string to a branded ReferenceId.
+ * @param raw - the raw string value.
+ * @returns the input typed as ReferenceId.
+ */
 export function asReferenceId(raw: string): ReferenceId {
   return raw as ReferenceId
 }
 
+/**
+ * Trust point that converts a plain string to a branded SelectorKey.
+ * @param raw - the raw string value.
+ * @returns the input typed as SelectorKey.
+ */
 export function asSelectorKey(raw: string): SelectorKey {
   return raw as SelectorKey
 }
 
+/**
+ * Trust point that converts a plain string to a branded OccurrenceId.
+ * @param raw - the raw string value.
+ * @returns the input typed as OccurrenceId.
+ */
 export function asOccurrenceId(raw: string): OccurrenceId {
   return raw as OccurrenceId
 }
 
+/**
+ * Trust point that converts a plain string to a branded ShapeId.
+ * @param raw - the raw string value.
+ * @returns the input typed as ShapeId.
+ */
 export function asShapeId(raw: string): ShapeId {
   return raw as ShapeId
 }
 
+/**
+ * Trust point that converts a plain string to a branded FaceId.
+ * @param raw - the raw string value.
+ * @returns the input typed as FaceId.
+ */
 export function asFaceId(raw: string): FaceId {
   return raw as FaceId
 }
 
+/**
+ * Trust point that converts a plain string to a branded EdgeId.
+ * @param raw - the raw string value.
+ * @returns the input typed as EdgeId.
+ */
 export function asEdgeId(raw: string): EdgeId {
   return raw as EdgeId
 }
 
+/**
+ * Trust point that converts a plain string to a branded NodeId.
+ * @param raw - the raw string value.
+ * @returns the input typed as NodeId.
+ */
 export function asNodeId(raw: string): NodeId {
   return raw as NodeId
 }
@@ -133,9 +219,12 @@ export function asNodeId(raw: string): NodeId {
 // ═════════════════════════════════════════════════════════════════════
 
 /**
- * 构造 scopedId = `${fileId}:${innerId}`。
- *
- * 断言 fileId / innerId 均无冒号（防双重前缀），空值抛错（CLAUDE.md 案例 2）。
+ * Construct a scopedId = `${fileId}:${innerId}`. Asserts that neither fileId
+ * nor innerId contains a colon (preventing double prefixing) and throws on
+ * empty values.
+ * @param fileId - the file identity, without a colon.
+ * @param innerId - the part's in-file identity, without a colon.
+ * @returns the combined scopedId string.
  */
 export function toScopedId(fileId: FileId, innerId: InnerId): ScopedId {
   if (!fileId) throw new Error('[identity] toScopedId: fileId is empty')
@@ -150,7 +239,10 @@ export function toScopedId(fileId: FileId, innerId: InnerId): ScopedId {
 }
 
 /**
- * 唯一拆分入口。断言恰好一个冒号，返回 { fileId, innerId }。
+ * The single split entry point: asserts the input has exactly one colon and
+ * returns the fileId and innerId components.
+ * @param scopedId - the scopedId to split.
+ * @returns an object with the fileId and innerId components.
  */
 export function splitScopedId(scopedId: ScopedId): { fileId: FileId; innerId: InnerId } {
   if (!scopedId) throw new Error('[identity] splitScopedId: input is empty')
@@ -169,20 +261,21 @@ export function splitScopedId(scopedId: ScopedId): { fileId: FileId; innerId: In
 }
 
 /**
- * 格式判断：是否为 scopedId（含冒号）。
- *
- * 注意：file 根节点 nodeKey = fileId（无冒号），isScopedId 返回 false。
+ * Format check: whether the string is a scopedId (contains a colon). Note that
+ * a file root's nodeKey equals its fileId (no colon) and so returns false.
+ * @param s - the string to test.
+ * @returns true when the string is a scopedId, narrowing the type accordingly.
  */
 export function isScopedId(s: string): s is ScopedId {
   return s.includes(':')
 }
 
 /**
- * 剥离 scopedId 的 `fileId:` 前缀得到 innerId。
- *
- * 输入无冒号（本身就是 innerId）时原样返回——收敛了 3d 端 ModelGroup 等
- * 历史 `toInnerId(incomingScopedId || src.name)` 的兜底逻辑：
- * 传入侧必须自行保证语义正确，本函数只负责"剥离前缀"这一件事。
+ * Strip the `fileId:` prefix from a scopedId to obtain its innerId. Inputs
+ * without a colon (already an innerId) are returned unchanged — the caller is
+ * responsible for semantic correctness; this function only strips the prefix.
+ * @param raw - a scopedId or a bare innerId string.
+ * @returns the innerId portion of the input.
  */
 export function toInnerId(raw: string): InnerId {
   if (!raw) throw new Error('[identity] toInnerId: input is empty')

@@ -1,12 +1,26 @@
 import * as THREE from 'three'
 import type { PrimitiveType } from './types'
 
+/** Default size in mm used when no explicit size is given. */
 export const DEFAULT_SIZE = 20
+/** Default angular/height segment count used by curved primitives. */
 export const DEFAULT_SEGMENTS = 32
 
 /** Rotation matrix: +90° around X — converts Y-up vertex data to Z-up. */
 const ROT_Y_TO_Z = new THREE.Matrix4().makeRotationX(Math.PI / 2)
 
+/**
+ * Build the base geometry for a primitive type, centred on the origin.
+ *
+ * Returns a BufferGeometry in Z-up coordinates. Cube/sphere/cylinder/cone
+ * geometry is rotated from Y-up to Z-up; the wedge is constructed directly
+ * in Z-up.
+ *
+ * @param type - the primitive type to build.
+ * @param size - nominal size in mm (defaults to DEFAULT_SIZE).
+ * @param segments - angular/height resolution for curved primitives (defaults to DEFAULT_SEGMENTS).
+ * @returns the primitive BufferGeometry.
+ */
 export function makePrimitiveGeo(
   type: PrimitiveType,
   size?: number,
@@ -90,6 +104,10 @@ export function makePrimitiveGeo(
  * Translate geometry to the given world coordinates.
  * The geometry should already be centred on the origin (makePrimitiveGeo /
  * makeScrew / createTextGeometry all produce centred geometry).
+ *
+ * @param geo - the geometry to translate.
+ * @param x - the X offset in mm.
+ * @param y - the Y offset in mm.
  */
 export function applyPrimitiveOffset(
   geo: THREE.BufferGeometry,
@@ -101,8 +119,11 @@ export function applyPrimitiveOffset(
 }
 
 /**
- * 合并多个 BufferGeometry 为一个 indexed 几何体。
- * 自动处理 indexed 和 non-indexed 几何的混合输入。
+ * Merge multiple BufferGeometries into a single indexed geometry.
+ * Automatically handles a mix of indexed and non-indexed inputs.
+ *
+ * @param geometries - the geometries to merge.
+ * @returns a new BufferGeometry containing the combined vertices and triangles.
  */
 export function mergeBufferGeometries(geometries: THREE.BufferGeometry[]): THREE.BufferGeometry {
   if (geometries.length === 1) return geometries[0].clone()

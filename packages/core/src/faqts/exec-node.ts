@@ -11,7 +11,12 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { pathToFileURL } from 'node:url'
 
-/** 将模块代码写入唯一临时 .mjs 并 import 一次，返回 ES 模块命名空间快照。 */
+/**
+ * Write module code to a unique temporary .mjs file and import it once,
+ * returning the ES module namespace snapshot.
+ * @param jsCode - the compiled, de-typed JavaScript module source to execute.
+ * @returns the ES module namespace snapshot of the imported module.
+ */
 export async function executeFaqtsModuleInNode(jsCode: string): Promise<Record<string, unknown>> {
   const dir = mkdtempSync(join(tmpdir(), 'faqts-'))
   const file = join(dir, 'mod.mjs')

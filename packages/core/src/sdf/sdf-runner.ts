@@ -10,6 +10,7 @@
 
 import type { SdfBackend } from '../cad-runtime/ports'
 
+/** Mesh data produced by an SDF run: interleaved positions and triangle indices. */
 export interface SdfMeshData {
   positions: Float32Array
   indices: Uint32Array
@@ -17,7 +18,11 @@ export interface SdfMeshData {
 
 let _backend: SdfBackend | null = null
 
-/** 浏览器 host 注入 SDF 后端（WorkerSdfBackend） */
+/**
+ * 浏览器 host 注入 SDF 后端（WorkerSdfBackend）。
+ *
+ * @param backend - the SDF backend to use.
+ */
 export function setSdfBackend(backend: SdfBackend): void {
   _backend = backend
 }
@@ -42,6 +47,7 @@ async function getBackend(): Promise<SdfBackend> {
  * @param edgeLength 八叉树单元边长（越小越精细）
  * @param level   等值面值（默认 0）
  * @param tolerance 网格化容差（<0 用 manifold 默认）
+ * @returns mesh data produced by the SDF extraction.
  */
 export async function runSdf(
   code: string,

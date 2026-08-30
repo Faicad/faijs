@@ -15,7 +15,7 @@
  * P4b（可选）把函数拆成 brep/mesh 双实现后，此依赖会自然消失。
  */
 
-import { getBackends, getCurrentStmt, BrepUnsupportedError } from '../runtime-state'
+import { getBackends, getCurrentStmt, BrepUnsupportedError, MeshUnsupportedError } from '../runtime-state'
 import { hasBrep } from '../shape'
 import type { Shape } from '../mesh/types'
 
@@ -32,42 +32,61 @@ export type BrepCapabilityName =
   | 'meshLift'
 
 /**
- * 判定方便本次调用走 BREATHE 还是 mesh。
+ * Decide whether this invocation takes the BREP or the mesh backend path.
  *
- * 规则（与迁移前逐字一致）：
- * 1. mode='mesh' → mesh
- * 2. mode='brep' → 无 brepImpl 则抛；有 brepImpl 但输入不全在链也抛
- * 3. mode='auto' → 有 brepImpl 且全部输入在链 → brep；否则 mesh
+ * Bidirectional dispatch (defineOp contract, D1/D1b/D2):
+ * - `impls` carries mesh/brep implementation presence (function reference or
+ *   undefined, fixed at defineOp construction — static).
+ * - `mode='mesh'` → always mesh; missing mesh implementation (brep-only)
+ *   throws `MeshUnsupportedError`.
+ * - `mode='brep'` → missing brep / input off chain / missing capability throws
+ *   `BrepUnsupportedError`.
+ * - `mode='auto'` → brep when brep exists and all inputs are on the chain;
+ *   otherwise mesh when mesh exists; brep-only with a broken input chain (or
+ *   missing capability) throws `MeshUnsupportedError` — no mesh to fall back to.
  *
- * §8.4 能力路由（Phase 1）：op 可声明所需能力（requiredCapability）——
- * 当前引擎（注册表）缺该能力时：
- * - brep 模式 → 抛 BrepUnsupportedError（明确报错，不静默回退）
- * - auto 模式 → 静态降级走 mesh（绝不伪造缺失的能力）
+ * Capability routing (requiredCapability): when the current engine (registry)
+ * lacks a declared capability, brep mode throws a BrepUnsupportedError (an
+ * explicit error, never a silent fallback) while auto mode statically degrades
+ * to mesh (never fabricating a missing capability).
  *
- * V5.3：第三方库作者从 @faicad/faijs/sdk 导入本函数，与内置 op 同机制选路径：
- *   import { dispatchPath } from '@faicad/faijs/sdk'
- *   const path = dispatchPath(inputs, myBrepImpl)
- *   if (path === 'brep') return ... // 精确几何实现
- *   return solid(...)               // mesh 兜底（静态，非 try-catch 回退）
+ * Red line unchanged: static dispatch, no runtime try-catch fallback. The
+ * decision happens before the implementation runs and is never revised after a
+ * failed execution.
+ *
+ * Third-party library authors never call this directly — `defineOp` (SDK)
+ * invokes it inside its wrapper; authors only declare the implementation set.
+ * @param inputs - the shapes feeding the operation, used to test whether all
+ * lie on the BREP chain.
+ * @param impls - the operation's implementation set: `mesh`/`brep` presence
+ * (function reference or undefined; fixed at defineOp construction).
+ * @param requiredCapability - an optional capability the operation declares;
+ * a missing capability routes the dispatch.
+ * @returns the selected backend path: 'brep' or 'mesh'.
  */
 export function dispatchPath(
   inputs: Shape[],
-  brepImpl: unknown | undefined,
+  impls: { mesh?: unknown; brep?: unknown },
   requiredCapability?: BrepCapabilityName,
 ): BrepPath {
   const { config } = getBackends()
 
-  if (config.mode === 'mesh') return 'mesh'
+  if (config.mode === 'mesh') {
+    if (!impls.mesh) {
+      throw new MeshUnsupportedError('E_MESH_UNSUPPORTED: function has no mesh implementation', getCurrentStmt())
+    }
+    return 'mesh'
+  }
   const currentStmt = getCurrentStmt()
 
   if (config.mode === 'brep') {
-    if (!brepImpl) {
+    if (!impls.brep) {
       throw new BrepUnsupportedError('E_BREP_UNSUPPORTED: function has no BREP implementation', currentStmt)
     }
     if (!inputs.every(hasBrep)) {
       throw new BrepUnsupportedError('E_BREP_UNSUPPORTED: input is not BREP', currentStmt)
     }
-    // §8.4 能力路由：brep 模式缺能力 → 明确报错，不静默回退
+    // 能力路由：brep 模式缺能力 → 明确报错，不静默回退
     if (requiredCapability && !config.brepCapabilities?.[requiredCapability]) {
       throw new BrepUnsupportedError(
         `E_BREP_UNSUPPORTED: current engine lacks capability '${requiredCapability}' (brepEngineId=${config.brepEngineId ?? '<none>'})`,
@@ -77,9 +96,23 @@ export function dispatchPath(
     return 'brep'
   }
 
-  // §8.4 能力路由：auto 模式缺能力 → 静态降级走 mesh（绝不伪造）
-  if (requiredCapability && !config.brepCapabilities?.[requiredCapability]) return 'mesh'
+  // auto 模式：能力路由（缺能力 → 静态降级走 mesh；brep-only 无 mesh 可降 → 明确报错）
+  if (requiredCapability && !config.brepCapabilities?.[requiredCapability]) {
+    if (!impls.mesh) {
+      throw new MeshUnsupportedError(
+        `E_MESH_UNSUPPORTED: current engine lacks capability '${requiredCapability}' and function has no mesh implementation`,
+        currentStmt,
+      )
+    }
+    return 'mesh'
+  }
 
-  if (brepImpl && inputs.every(hasBrep)) return 'brep'
+  if (impls.brep && inputs.every(hasBrep)) return 'brep'
+  if (!impls.mesh) {
+    throw new MeshUnsupportedError(
+      'E_MESH_UNSUPPORTED: input is not BREP and function has no mesh implementation',
+      currentStmt,
+    )
+  }
   return 'mesh'
 }

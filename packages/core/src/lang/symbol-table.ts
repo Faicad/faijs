@@ -25,7 +25,13 @@ export type SymbolTable = Record<string, FunctionSymbol>
 /** 生成的符号表（禁手改，由 scripts/gen-symbol-table.ts 生成） */
 export const SYMBOL_TABLE: SymbolTable = symbolTable as SymbolTable
 
-/** 未知函数（不在表中）→ undefined，check() 据此报"函数不存在" */
+/**
+ * Look up a callee in the standard-library symbol table. Unknown functions
+ * (absent from the table) return undefined, which check() reports as
+ * "function does not exist".
+ * @param callee - the callee name to look up.
+ * @returns the matching symbol-table entry, or undefined when unknown.
+ */
 export function getFunctionSymbol(callee: string): FunctionSymbol | undefined {
   return SYMBOL_TABLE[callee]
 }

@@ -9,6 +9,7 @@ import type {
 
 // ---- Buffer view descriptor (as it appears in manifest.buffers.views) ----
 
+/** Describes a typed buffer view declared in the manifest's buffers.views. */
 export interface BufferViewDescriptor {
   bufferView: number
   dtype: 'float32' | 'uint32'
@@ -19,11 +20,13 @@ export interface BufferViewDescriptor {
 
 // ---- Parsed selector bundle (manifest + typed buffer views) ----
 
+/** A parsed selector bundle: the manifest plus its typed buffer views. */
 export interface SelectorBundle {
   manifest: SelectorManifest
   buffers: SelectorBuffers
 }
 
+/** The parsed topology manifest describing occurrences, shapes, faces, edges and buffer views. */
 export interface SelectorManifest {
   schemaVersion?: number
   profile?: string
@@ -58,6 +61,7 @@ export interface SelectorManifest {
   [key: string]: unknown
 }
 
+/** Typed buffer views referenced by the manifest's proxy and relations. */
 export interface SelectorBuffers {
   faceRuns?: Uint32Array
   edgePositions?: Float32Array
@@ -70,6 +74,7 @@ export interface SelectorBuffers {
 
 // ---- Bounding box ----
 
+/** An axis-aligned bounding box defined by min/max corner tuples. */
 export interface BBox {
   readonly min: [number, number, number]
   readonly max: [number, number, number]
@@ -77,6 +82,7 @@ export interface BBox {
 
 // ---- Row types (after toRows conversion) ----
 
+/** A single occurrence row in the topology table. */
 export interface OccurrenceRow {
   id: OccurrenceId
   path?: string
@@ -94,6 +100,7 @@ export interface OccurrenceRow {
   [key: string]: unknown
 }
 
+/** A single shape row in the topology table. */
 export interface ShapeRow {
   id: ShapeId
   occurrenceId?: string
@@ -109,6 +116,7 @@ export interface ShapeRow {
   [key: string]: unknown
 }
 
+/** A single face row in the topology table. */
 export interface FaceRow {
   id: FaceId
   occurrenceId?: string
@@ -133,6 +141,7 @@ export interface FaceRow {
   [key: string]: unknown
 }
 
+/** A single edge row in the topology table. */
 export interface EdgeRow {
   id: EdgeId
   occurrenceId?: string
@@ -153,6 +162,7 @@ export interface EdgeRow {
 
 // ---- Reference (built per occurrence/shape/face/edge row) ----
 
+/** A selectable topology element built from a row plus its pick data. */
 export interface Reference {
   id: ReferenceId
   selectorType: 'occurrence' | 'shape' | 'face' | 'edge' | 'vertex'
@@ -168,6 +178,7 @@ export interface Reference {
   pickData: PickData
 }
 
+/** Geometry and metadata used to highlight and select a single reference. */
 export interface PickData {
   selectorType: string
   rowIndex: number
@@ -199,6 +210,7 @@ export interface PickData {
 
 // ---- SelectorRuntime (the fully built runtime object) ----
 
+/** The fully assembled selector runtime: row data, references, lookups and proxy buffers. */
 export interface SelectorRuntime {
   cadPath: string
   stepHash: string
@@ -223,6 +235,7 @@ export interface SelectorRuntime {
   proxy: SelectorProxy
 }
 
+/** Typed buffers backing the selector runtime's face-run and edge geometry. */
 export interface SelectorProxy {
   faceRuns: Uint32Array
   faceRunColumns: string[]

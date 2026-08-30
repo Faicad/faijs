@@ -13,13 +13,23 @@
 
 import type { AssetResolver } from '../cad-runtime/ports'
 
+/**
+ * Options for constructing a FetchAssetResolver.
+ */
 export interface FetchAssetResolverOptions {
-  /** key → URL 映射（类似 manifest） */
+  /** key to URL mapping (analogous to a manifest). */
   keyToUrl?: Record<string, string>
-  /** 自定义 key → URL 解析函数 */
+  /** Custom key to URL resolution function. */
   keyResolver?: (key: string) => string | undefined
 }
 
+/**
+ * FetchAssetResolver resolves assets in the browser by fetching URLs.
+ *
+ * It implements the AssetResolver contract (ports.ts), mirroring the node-host
+ * FsAssetResolver. resolveUrl and resolveByKey fetch asset bytes over the
+ * network; resolveFile is unsupported in the browser (no filesystem) and throws.
+ */
 export class FetchAssetResolver implements AssetResolver {
   private keyToUrl: Map<string, string>
   private keyResolver: ((key: string) => string | undefined) | undefined

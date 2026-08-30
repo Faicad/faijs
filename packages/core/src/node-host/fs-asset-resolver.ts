@@ -42,13 +42,30 @@ function inferFormat(filePath: string): string | undefined {
   return formatMap[ext]
 }
 
+/** Options for constructing an FsAssetResolver. */
 export interface FsAssetResolverOptions {
-  /** 资产根目录 */
+  /** Asset root directory. */
   assetsDir?: string
-  /** manifest 文件路径（JSON，key → {path, format?}） */
+  /** Manifest file path (JSON, key -> {path, format?}). */
   manifestPath?: string
 }
 
+/**
+ * Node-side asset resolver backed by the filesystem (directory/manifest).
+ *
+ * Implements the AssetResolver interface:
+ * - resolveByKey(key): resolve a key from the --assets directory/manifest to a file path and return its bytes
+ * - resolveFile(path): read a local file directly
+ * - resolveUrl(url): fetch a URL (Node 18+ built-in fetch)
+ *
+ * Manifest format (JSON):
+ *   {
+ *     "file_abc123": { "path": "models/box.step", "format": "step" },
+ *     "logo_svg_key": { "path": "assets/logo.svg", "format": "svg" }
+ *   }
+ *
+ * Or a plain directory mode (no manifest): key = file name without extension.
+ */
 export class FsAssetResolver implements AssetResolver {
   private assetsDir: string | undefined
   private manifest: Manifest = {}

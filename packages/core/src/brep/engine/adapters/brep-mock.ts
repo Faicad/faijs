@@ -63,7 +63,10 @@ function unitBoxMesh(): BrepMeshResult {
   }
 }
 
-/** Build an in-memory mock BREP engine (BrepEngineApi subset). */
+/**
+ * Build an in-memory mock BREP engine (a BrepEngineApi subset).
+ * @returns the mock in-memory BREP engine API.
+ */
 export function createBrepMockApi(): BrepEngineApi {
   const shapes = new Map<number, MemShape>()
   let nextHandle = 1

@@ -30,7 +30,11 @@ const brepImpl = true
 
 // ── per-op 参数自校验（Phase 2.2；stdlib 被直接 import 时的防御层） ──
 
-/** engrave: 至少提供 text 或 svg 之一；depth（如有）> 0。 */
+/**
+ * Validate engrave parameters: at least one of `text` or `svg` must be
+ * provided, and `depth` (if provided) must be a positive number.
+ * @param params - the raw engrave operation parameters.
+ */
 export function assertEngraveParams(params: Record<string, unknown>): void {
   const hasText = params.text !== undefined && params.text !== null && params.text !== ''
   const hasSvg = params.svg !== undefined && params.svg !== null

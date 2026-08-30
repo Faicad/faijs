@@ -27,8 +27,10 @@ type MeshCtor = typeof import('manifold-3d/manifold').Mesh
 // ── Manifold → MeshData 转换 ──
 
 /**
- * 从 Manifold 提取 {positions, indices}。
- * 处理 numProp > 3 的情况（manifold 可能含额外属性通道）。
+ * Extract {positions, indices} from a Manifold mesh.
+ * Handles the numProp > 3 case (manifold may carry extra property channels).
+ * @param manifold The manifold from which to read mesh data.
+ * @returns The extracted positions and indices buffers.
  */
 export function manifoldToMeshData(manifold: ManifoldInstance): {
   positions: Float32Array; indices: Uint32Array
@@ -52,10 +54,13 @@ export function manifoldToMeshData(manifold: ManifoldInstance): {
 // ── MeshData → Manifold ──
 
 /**
- * 从 MeshData 构建 Manifold：顶点密度过高（接近每个三角形 3 个独立顶点）时
- * 先焊接重复顶点，再 Manifold.ofMesh。
- *
- * Inline 后端与 Worker 后端共用本函数，保证双后端输入转换一致。
+ * Build a Manifold from mesh data, welding duplicate vertices when the density
+ * is too high (close to one independent vertex per triangle) before Manifold.ofMesh.
+ * Shared by the Inline and Worker backends so both produce identical input conversion.
+ * @param Manifold The Manifold constructor from the manifold module.
+ * @param Mesh     The Mesh constructor from the manifold module.
+ * @param mesh     The mesh data (positions and indices).
+ * @returns The constructed Manifold instance.
  */
 export function meshToManifold(
   Manifold: ManifoldCtor,
@@ -81,8 +86,11 @@ export function meshToManifold(
 }
 
 /**
- * 对一组 Manifold 依次做布尔运算（union/subtract/intersect）。
- * 调用方负责 delete 传入的 manifolds 与返回的 result。
+ * Sequentially apply a boolean operation across an array of Manifolds.
+ * The caller is responsible for deleting the input manifolds and the result.
+ * @param op         The boolean operation to apply (union/subtract/intersect).
+ * @param manifolds  The manifolds to combine in order.
+ * @returns The resulting Manifold of the chain.
  */
 export function chainBoolean(
   op: 'union' | 'subtract' | 'intersect',
@@ -108,8 +116,12 @@ export function chainBoolean(
 // ── 顶点焊接 ──
 
 /**
- * Weld duplicate vertices using quantized 1 µm grid.
+ * Weld duplicate vertices using a quantized 1 µm grid.
  * Uses three nested numeric Maps (no string allocation).
+ * @param positions The input vertex positions.
+ * @param indices   The input triangle indices.
+ * @param count     The number of indices to process.
+ * @returns The welded positions and remapped indices buffers.
  */
 export function weldPositionsWorker(
   positions: Float32Array,
@@ -161,11 +173,20 @@ export class SimpleUnionFind {
   private parent: number[]
   private rank: number[]
 
+  /**
+   * Create a union-find structure with n initial singletons.
+   * @param n The number of elements.
+   */
   constructor(n: number) {
     this.parent = Array.from({ length: n }, (_, i) => i)
     this.rank = new Array(n).fill(0)
   }
 
+  /**
+   * Find the root representative of the element x (with path compression).
+   * @param x The element to look up.
+   * @returns The root index of the set containing x.
+   */
   find(x: number): number {
     if (this.parent[x] !== x) {
       this.parent[x] = this.find(this.parent[x])
@@ -173,6 +194,11 @@ export class SimpleUnionFind {
     return this.parent[x]
   }
 
+  /**
+   * Union the sets containing x and y.
+   * @param x The first element.
+   * @param y The second element.
+   */
   union(x: number, y: number): void {
     const px = this.find(x)
     const py = this.find(y)
@@ -192,6 +218,16 @@ export class SimpleUnionFind {
 
 /**
  * Create a wedge (trapezoidal prism) Manifold from cutting-plane parameters.
+ * @param Manifold       The Manifold constructor from the manifold module.
+ * @param Mesh           The Mesh constructor from the manifold module.
+ * @param planeCenter    Center of the cutting plane.
+ * @param normal         Cutting plane normal (unit vector).
+ * @param widthDir       Extrusion direction (unit vector).
+ * @param depth          Wedge depth (mm).
+ * @param width          Wedge width (mm).
+ * @param angleDeg       Slant angle of the wedge sides (degrees).
+ * @param extrudeLength  Total extrusion length along widthDir (mm).
+ * @returns The constructed wedge Manifold.
  */
 export function createWedge(
   Manifold: ManifoldCtor,
@@ -219,8 +255,11 @@ export function createWedge(
 
 /**
  * Detect connected components of cap faces on the cutting plane.
- *
  * Returns an array of components, each being a Set of vertex indices.
+ * @param upper         The upper mesh to scan for cap faces.
+ * @param normal        The cutting plane normal.
+ * @param originOffset  The cutting plane offset along the normal.
+ * @returns An array of components, each a Set of vertex indices on the cap.
  */
 export function detectCapComponents(
   upper: ManifoldInstance,
@@ -283,6 +322,12 @@ export function detectCapComponents(
 /**
  * Compute the actual extent of the model's cross-section at the cutting plane
  * along the width direction.
+ * @param upper         The upper mesh to measure.
+ * @param normal        The cutting plane normal.
+ * @param originOffset  The cutting plane offset along the normal.
+ * @param widthDir      The width direction along which to measure.
+ * @param comp          Optional connected component to restrict the measurement to.
+ * @returns The cross-section extent along the width direction (0 when none found).
  */
 export function computeCrossSectionWidth(
   upper: ManifoldInstance,
@@ -324,6 +369,12 @@ export function computeCrossSectionWidth(
 
 /**
  * Compute the centroid of vertices lying on the cutting plane.
+ * @param upper         The upper mesh to scan.
+ * @param normal        The cutting plane normal.
+ * @param originOffset  The cutting plane offset along the normal.
+ * @param fallback      The centroid fallback when no vertex lies on the plane.
+ * @param comp          Optional connected component to restrict the measurement to.
+ * @returns The computed centroid, or the fallback when none is found.
  */
 export function computeCrossSectionCentroid(
   upper: ManifoldInstance,
@@ -364,6 +415,17 @@ export function computeCrossSectionCentroid(
 
 /**
  * Perform the dovetail split using boolean operations.
+ * @param Manifold - the Manifold constructor from the manifold module.
+ * @param Mesh - the Mesh constructor from the manifold module.
+ * @param original - the original manifold to split.
+ * @param normal - the cutting plane normal (unit vector).
+ * @param originOffset - the plane equation origin offset along the normal.
+ * @param planeCenter - a point on the cutting plane used to center the wedge.
+ * @param widthDirInput - the width direction in the cutting plane (will be normalized).
+ * @param bboxWidthOnWidthDir - the model's bounding-box width along widthDir, used as a fallback cross-section width.
+ * @param groove - the dovetail groove design parameters (depth, tolerances, width, flaps angle).
+ * @param keepOriginal - when true, the original manifold is not deleted after splitting (default false).
+ * @returns a tuple of the split upper manifold, lower manifold, and the trimmed wedge mesh data (or null when empty).
  */
 export function dovetailBooleanSplit(
   Manifold: ManifoldCtor,
@@ -478,6 +540,16 @@ export function dovetailBooleanSplit(
 
 /**
  * Create a cylindrical Manifold for the dowel tenon.
+ * @param Manifold - the Manifold constructor from the manifold module.
+ * @param Mesh - the Mesh constructor from the manifold module.
+ * @param centroid - the center of the cylinder in the cutting plane.
+ * @param normal - the cutting plane normal (unit vector, points "up").
+ * @param widthDir - the width direction in the cutting plane (unit vector).
+ * @param depthDir - the depth direction in the cutting plane (unit vector).
+ * @param diameter - the cylinder diameter (mm).
+ * @param height - the cylinder height (mm), extends along -normal.
+ * @param segments - the number of circular segments (default 32).
+ * @returns the resulting cylindrical Manifold instance.
  */
 export function createDowel(
   Manifold: ManifoldCtor,
@@ -505,6 +577,15 @@ export function createDowel(
 
 /**
  * Create a box-shaped Manifold for the straight tenon.
+ * @param Manifold - the Manifold constructor from the manifold module.
+ * @param Mesh - the Mesh constructor from the manifold module.
+ * @param centroid - the center of the box in the cutting plane.
+ * @param normal - the cutting plane normal (unit vector, points "up").
+ * @param widthDir - the width direction in the cutting plane (unit vector).
+ * @param depthDir - the depth direction in the cutting plane (unit vector).
+ * @param sideLength - the square cross-section side length (mm).
+ * @param height - the box height (mm), extends along -normal.
+ * @returns the resulting box-shaped Manifold instance.
  */
 export function createStraightTenon(
   Manifold: ManifoldCtor,
@@ -531,6 +612,18 @@ export function createStraightTenon(
 
 /**
  * Perform the dowel (or straight-tenon) split using boolean operations.
+ * @param Manifold - the Manifold constructor from the manifold module.
+ * @param Mesh - the Mesh constructor from the manifold module.
+ * @param original - the original manifold to split.
+ * @param normal - the cutting plane normal (unit vector).
+ * @param originOffset - the plane equation origin offset along the normal.
+ * @param planeCenter - a point on the cutting plane used to center the joinery.
+ * @param widthDirInput - the width direction in the cutting plane (will be normalized).
+ * @param shape - the joinery shape: 'dowel' or 'tenon'.
+ * @param params - the joinery sizing parameters (size, tolerances, height).
+ * @param keepOriginal - when true, the original manifold is not deleted after splitting (default false).
+ * @param selectedSections - optional list of indices selecting which cap sections receive joinery placement; null or empty means a single placement at the overall cross-section centroid.
+ * @returns a tuple of the split upper manifold, lower manifold, and the generated joinery mesh data (or null).
  */
 export function dowelOrTenonBooleanSplit(
   Manifold: ManifoldCtor,

@@ -23,7 +23,11 @@ import type { BrepEngineApi } from '@faicad/faijs-core/brep/engine/primitives'
 /** BREP 实现标记（dispatchPath 判定用；svgExtrude 有 OCCT 精确构造） */
 const brepImpl = svgToSolid
 
-/** svgExtrude: svg 必填；depth 必填 > 0。 */
+/**
+ * Validate svgExtrude parameters: `svg` is required and `depth` must be a
+ * positive number.
+ * @param params - the raw svgExtrude operation parameters.
+ */
 export function assertSvgExtrudeParams(params: Record<string, unknown>): void {
   if (params.svg === undefined || params.svg === null || params.svg === '') {
     throw new Error(`[stdlib/svgExtrude] svg is required, got ${JSON.stringify(params.svg)}`)

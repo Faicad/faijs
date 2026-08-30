@@ -8,7 +8,12 @@
 import * as THREE from 'three'
 import type { Shape, Vec3, BoundingBox, FaceDescriptor } from './types'
 
-/** 计算包围盒 */
+/**
+ * Compute the axis-aligned bounding box of a shape.
+ *
+ * @param shape - the shape to measure.
+ * @returns the min/max bounding box.
+ */
 export function boundingBox(shape: Shape): BoundingBox {
   const min: Vec3 = [Infinity, Infinity, Infinity]
   const max: Vec3 = [-Infinity, -Infinity, -Infinity]
@@ -26,7 +31,12 @@ export function boundingBox(shape: Shape): BoundingBox {
   return { min, max }
 }
 
-/** 计算包围盒中心 */
+/**
+ * Compute the center of a shape's bounding box.
+ *
+ * @param shape - the shape to measure.
+ * @returns the bounding-box center as a Vec3.
+ */
 export function bboxCenter(shape: Shape): Vec3 {
   const bb = boundingBox(shape)
   return [
@@ -36,7 +46,13 @@ export function bboxCenter(shape: Shape): Vec3 {
   ]
 }
 
-/** 计算体积（基于三角网格的散度定理） */
+/**
+ * Compute the enclosed volume of a closed triangle mesh using the divergence
+ * theorem.
+ *
+ * @param shape - the shape to measure.
+ * @returns the volume in mm³.
+ */
 export function volume(shape: Shape): number {
   let vol = 0
   const indices = shape.indices
@@ -54,10 +70,13 @@ export function volume(shape: Shape): number {
 }
 
 /**
- * 在给定点附近查找面
+ * Find the face nearest to an anchor (a pick point plus an optional reference
+ * normal). Used for GeomRef faceCenter/faceNormal evaluation: faces whose
+ * normal is closer to the target normal are weighted more favorably.
  *
- * 用于 GeomRef 的 faceCenter/faceNormal 求值：
- * 根据锚点（拾取时的点+法向）在几何上找到最近的面。
+ * @param shape - the shape to search.
+ * @param anchor - the target point with an optional reference normal.
+ * @returns the closest face descriptor, or null when the mesh has no faces.
  */
 export function faceAt(shape: Shape, anchor: { point: Vec3; normal?: Vec3 }): FaceDescriptor | null {
   const targetPoint = new THREE.Vector3(...anchor.point)

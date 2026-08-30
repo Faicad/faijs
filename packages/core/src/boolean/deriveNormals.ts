@@ -15,6 +15,9 @@ import { toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.j
  *
  * 约定：项目中所有"需要派生法线"之处（操作结果、STL/3MF 导入）都经此函数，
  * 不得再直接调用 `computeVertexNormals()`。
+ * @param geometry - the indexed geometry to derive creased (folded) normals for.
+ * @param creaseAngleDeg - the dihedral-angle threshold in degrees above which normals are split (default 60).
+ * @returns a BufferGeometry with creased normals applied; it may be non-indexed.
  */
 export function deriveNormals(geometry: BufferGeometry, creaseAngleDeg = 60): BufferGeometry {
   const creaseAngle = (creaseAngleDeg * Math.PI) / 180

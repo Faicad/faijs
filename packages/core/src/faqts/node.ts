@@ -17,7 +17,13 @@ export { runFaqts } from './run'
 export type { FaqtsRunOptions, FaqtsRunResult } from './run'
 export { executeFaqtsModuleInNode } from './exec-node'
 
-/** Node 环境整段执行 `.ts` 源码的便捷入口。 */
+/**
+ * Convenience entry point that runs `.ts` source end-to-end in a Node
+ * environment, binding the Node module executor (temporary .mjs file).
+ * @param source - the complete TypeScript source to execute as a module.
+ * @param options - run options; the `execute` executor is supplied automatically.
+ * @returns the run result containing the module namespace and explicit outputs.
+ */
 export async function runFaqtsInNode(
   source: string,
   options: Omit<FaqtsRunOptions, 'execute'> = {},

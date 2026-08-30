@@ -25,8 +25,9 @@ interface MeshableKernel {
 }
 
 /**
- * 取 faijs 当前使用的 OCCT 内核实例。
- * @throws 内核未就绪（mesh 模式或未初始化）时抛错 —— 不静默返回 null。
+ * Get the OCCT kernel instance faijs is currently using.
+ * @returns the current OCCT kernel.
+ * @throws when the kernel is not ready (mesh mode or uninitialized) — never silently returns null.
  */
 export function getKernel(): unknown {
   const kernel = getBackends().kernel.brep
@@ -36,14 +37,22 @@ export function getKernel(): unknown {
   return kernel
 }
 
+/**
+ * Options controlling how a handle is tessellated.
+ */
 export interface MeshHandleOptions {
-  /** 线性偏差（mm），默认 0.1 —— 与内置 op 一致（src/brep/brep-ops.ts:27） */
+  /** linear deflection (mm), default 0.1 — matches the built-in ops (src/brep/brep-ops.ts:27). */
   linearDeflection?: number
-  /** 角度分段数，默认 32 —— angularDeflection = 2π / segments */
+  /** angular segment count, default 32 — angularDeflection = 2π / segments. */
   segments?: number
 }
 
-/** 三角化一个 OCCT 句柄 → Shape（不登记 BREP 槽）。 */
+/**
+ * Tessellate an OCCT handle into a Shape (without registering a BREP slot).
+ * @param handle - the OCCT solid handle to tessellate.
+ * @param opts - optional tessellation options.
+ * @returns the tessellated Shape.
+ */
 export function meshHandle(handle: unknown, opts?: MeshHandleOptions): Shape {
   const kernel = getKernel() as MeshableKernel
   const mesh = kernel.meshShape(handle, {
@@ -57,9 +66,13 @@ export function meshHandle(handle: unknown, opts?: MeshHandleOptions): Shape {
 }
 
 /**
- * 默认路径（推荐）：三角化 + 登记 BREP 槽，一步完成。
- * 等价于 meshHandle(h) + fromBrep(sh, { solid: h })。
- * 库作者只有在需要自定义三角化精度时，才退回 meshHandle + fromBrep 组合。
+ * Default path (recommended): tessellate + register the BREP slot in one step.
+ * Equivalent to meshHandle(h) + fromBrep(sh, { solid: h }).
+ * Library authors only fall back to the meshHandle + fromBrep combination when
+ * they need custom tessellation precision.
+ * @param handle - the OCCT solid handle to bridge.
+ * @param opts - optional tessellation options.
+ * @returns the registered Shape, as returned by fromBrep.
  */
 export function fromHandle(handle: unknown, opts?: MeshHandleOptions): ReturnType<typeof fromBrep> {
   return fromBrep(meshHandle(handle, opts), { solid: handle })

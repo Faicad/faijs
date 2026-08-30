@@ -20,6 +20,16 @@ interface Pending {
   reject: (err: Error) => void
 }
 
+/**
+ * WorkerCsgBackend is a CSG backend that runs manifold-3d in a Web Worker.
+ *
+ * It behaves identically to the InlineCsgBackend (both share the same pure
+ * functions from csg-core), except that the manifold WASM computation happens
+ * on a dedicated worker thread so the UI is not blocked. The constructor sends
+ * the init handshake carrying the worker's wasm URL immediately (read from the
+ * manifold-loader configuration); every subsequent operation awaits that
+ * handshake.
+ */
 export class WorkerCsgBackend implements CsgBackend {
   private worker: Worker
   private nextId = 1

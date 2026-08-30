@@ -60,7 +60,12 @@ export type ParseErrorCode =
   /** 引用错误（未知变量 / 未声明 receiver） */
   | 'E_REFERENCE'
 
+/**
+ * An error raised while parsing faijs source, carrying the offending line
+ * number and a diagnostic code the host can forward for precise feedback.
+ */
 export class ParseError extends Error {
+  /** The 1-based source line at which the parse error occurred. */
   line: number
   /** 诊断码（缺省 E_SYNTAX）。宿主 check() 透传；3d_editor 可据此给 AI 精确反馈。 */
   code: ParseErrorCode
@@ -909,6 +914,10 @@ function validateFunctionBody(body: ASTNode, line: number): void {
 
 // ── 主解析函数 ──
 
+/**
+ * The result of parsing a faijs source text: the ScriptIR plus supporting
+ * line and variable mappings.
+ */
 export interface ParseResult {
   script: ScriptIR
   /** 语句 id → 变量名映射（新格式下为恒等映射） */
@@ -928,6 +937,8 @@ export interface ParseResult {
  * 零函数知识：parser 不接收任何 schemas/函数元数据（A5/A14 已删），
  * 对 callee 名字完全均匀处理。
  *
+ * @param code - the faijs valid-JS-subset source text to parse.
+ * @returns the parsed ScriptIR plus line and variable mappings.
  * @throws ParseError — 含行号
  */
 export function parseScript(code: string): ParseResult {
@@ -1386,6 +1397,12 @@ function parseLiteralOnly(node: ASTNode, line: number): JsonValue {
 
 // ── 版本迁移 ──
 
+/**
+ * Read the `// apiVersion: N` declaration from the top of a faijs source text,
+ * defaulting to 1 when absent.
+ * @param code - the faijs source text to inspect.
+ * @returns the declared API version number, or 1 when none is present.
+ */
 export function getApiVersion(code: string): number {
   const match = code.match(/^\/\/\s*apiVersion:\s*(\d+)/m)
   return match ? parseInt(match[1], 10) : 1

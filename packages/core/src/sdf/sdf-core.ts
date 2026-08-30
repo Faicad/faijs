@@ -11,9 +11,17 @@
 import type { Manifold as ManifoldInstance } from 'manifold-3d/manifold'
 import { manifoldToMeshData } from '../boolean/csg-core'
 
+/** A compiled signed distance field function evaluating at a 3D point. */
 export type SdfFn = (x: number, y: number, z: number) => number
 
-/** 编译用户代码，注入参数为函数形参，返回 sdf 函数 */
+/**
+ * Compile user-supplied code by injecting params as function arguments and
+ * returning the `sdf` function it defines.
+ *
+ * @param code - the user code containing the `sdf` function.
+ * @param params - parameter name → value map injected as function arguments.
+ * @returns the compiled sdf function.
+ */
 export function compileSdf(code: string, params: Record<string, number>): SdfFn {
   const paramNames = Object.keys(params)
   const paramValues = Object.values(params)
@@ -26,7 +34,14 @@ export function compileSdf(code: string, params: Record<string, number>): SdfFn 
   return fn(...paramValues) as SdfFn
 }
 
-/** 尝试编译并调用用户定义的 bounds()，失败则返回 null */
+/**
+ * Try to compile and invoke the user-defined `bounds()` function; returns null
+ * if no bounds function is present or it cannot be evaluated.
+ *
+ * @param code - the user code containing the optional `bounds` function.
+ * @param params - parameter name → value map injected as function arguments.
+ * @returns the resolved bounds box, or null if unavailable.
+ */
 export function tryCompileBounds(
   code: string,
   params: Record<string, number>,
@@ -52,7 +67,13 @@ export function tryCompileBounds(
   }
 }
 
-/** 超时保护 */
+/**
+ * Race a promise against a timeout, rejecting if the timeout elapses first.
+ *
+ * @param promise - the promise to guard.
+ * @param ms - the timeout in milliseconds.
+ * @returns the result of the guarded promise.
+ */
 export function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return Promise.race([
     promise,
@@ -62,7 +83,13 @@ export function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   ])
 }
 
-/** 调用次数限制包装器 */
+/**
+ * Wrap an sdf function with a per-execution call count limit.
+ *
+ * @param fn - the sdf function to guard.
+ * @param maxCalls - the maximum number of allowed invocations.
+ * @returns a guarded sdf function that throws once the limit is exceeded.
+ */
 export function createGuardedSdf(fn: SdfFn, maxCalls: number): (p: [number, number, number]) => number {
   let calls = 0
   return (p: [number, number, number]) => {
@@ -77,6 +104,13 @@ export { manifoldToMeshData }
 /**
  * 执行 SDF 等值面提取（纯计算，不依赖 Worker）。
  *
+ * @param Manifold - the manifold-3d Manifold class, used for levelSet extraction.
+ * @param code - the user code containing the `sdf` (and optional `bounds`) function.
+ * @param params - parameter name → value map injected as function arguments.
+ * @param bounds - fallback bounding box as [xmin, ymin, zmin, xmax, ymax, zmax].
+ * @param edgeLength - octree cell edge length; smaller yields finer detail.
+ * @param level - the isosurface value (default 0).
+ * @param tolerance - meshing tolerance (< 0 uses the manifold default).
  * @returns {positions, indices} mesh 数据
  */
 export async function runSdfInline(

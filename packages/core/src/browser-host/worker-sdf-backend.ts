@@ -17,6 +17,13 @@ interface Pending {
   reject: (err: Error) => void
 }
 
+/**
+ * WorkerSdfBackend is an SDF backend that runs manifold-3d in a Web Worker.
+ *
+ * It behaves identically to the InlineSdfBackend (both share runSdfInline from
+ * sdf-core), except that the levelSet computation happens on a dedicated worker
+ * thread so the UI is not blocked.
+ */
 export class WorkerSdfBackend implements SdfBackend {
   private worker: Worker
   private nextId = 1

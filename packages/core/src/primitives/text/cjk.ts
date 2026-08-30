@@ -15,7 +15,12 @@ import type { Font } from 'opentype.js'
 import { mergeBufferGeometries } from '../../primitives/mesh-primitives'
 import { getOpentypeFont } from '../text-geometry'
 
-/** Check if a character is CJK (CJK Unified Ideographs + extensions). */
+/**
+ * Check if a character is CJK (CJK Unified Ideographs + extensions).
+ *
+ * @param ch - the single character to test.
+ * @returns true when the character falls in a CJK code point range.
+ */
 export function isCjkChar(ch: string): boolean {
   const code = ch.charCodeAt(0)
   return (
@@ -27,7 +32,12 @@ export function isCjkChar(ch: string): boolean {
   )
 }
 
-/** Check if text contains any CJK characters. */
+/**
+ * Check if a text string contains any CJK characters.
+ *
+ * @param text - the text to scan.
+ * @returns true when at least one character is CJK.
+ */
 export function containsCjk(text: string): boolean {
   for (const ch of text) {
     if (isCjkChar(ch)) return true
@@ -44,6 +54,9 @@ export interface CjkFontResult {
 /**
  * Load a CJK font from the system using the Local Font Access API.
  * Returns null if unavailable (no permission, unsupported browser, or no CJK font found).
+ *
+ * @returns a promise resolving to the parsed CJK font and its family name,
+ *   or null when no usable system CJK font is available.
  */
 export async function loadSystemCjkFont(): Promise<CjkFontResult | null> {
   const w = typeof window !== 'undefined' ? (window as any) : undefined
@@ -171,6 +184,7 @@ function charGeometry(
  * @param cjkFont  CJK font from system (null = use default font only)
  * @param defaultFont  Default opentype.js Font (OpenSans Regular from fontRegistry).
  *                     If not provided, will be loaded via getOpentypeFont().
+ * @returns a promise resolving to the merged, centred geometry for the whole text.
  */
 export async function createMixedTextGeometry(
   text: string,

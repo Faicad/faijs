@@ -11,6 +11,7 @@
 import { getManifoldModule } from '../mesh/manifold-loader'
 import { meshToManifold, manifoldToMeshData } from './csg-core'
 
+/** Interchange mesh representation for preview operations: positions with triangle indices. */
 export interface ManifoldMeshData {
   positions: Float32Array
   indices: Uint32Array
@@ -22,6 +23,9 @@ export interface ManifoldMeshData {
  * 与 computeDovetailSplit 等执行路径不同，这里只做一次三元操作并返回
  * mesh 数据；任一侧为空或 CSG 失败时返回 null（宿主回退到简单预览）。
  * 内部负责 Manifold/Mesh 的 delete（WASM 内存安全）。
+ * @param a - the first input mesh data.
+ * @param b - the second input mesh data.
+ * @returns the intersecting mesh data, or null when either input is empty or the CSG operation fails.
  */
 export async function previewMeshIntersect(
   a: ManifoldMeshData,

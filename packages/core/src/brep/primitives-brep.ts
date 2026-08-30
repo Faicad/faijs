@@ -87,27 +87,47 @@ async function brepToShape(
 
 // ─── BREP 创建 API ───
 
-/** 用 OCCT 精确实体创建立方体，三角化为 Shape */
+/**
+ * Create a box with an OCCT exact solid and tessellate it into a Shape.
+ * @param params - the box parameters.
+ * @returns a Promise resolving to the tessellated Shape.
+ */
 export async function boxBrep(params: BoxParams): Promise<Shape> {
   return brepToShape('cube', params)
 }
 
-/** 用 OCCT 精确实体创建球体，三角化为 Shape */
+/**
+ * Create a sphere with an OCCT exact solid and tessellate it into a Shape.
+ * @param params - the sphere parameters.
+ * @returns a Promise resolving to the tessellated Shape.
+ */
 export async function sphereBrep(params: SphereParams): Promise<Shape> {
 return brepToShape('sphere', params, clampNRad(params.nRad ?? params.segments))
 }
 
-/** 用 OCCT 精确实体创建圆柱体，三角化为 Shape */
+/**
+ * Create a cylinder with an OCCT exact solid and tessellate it into a Shape.
+ * @param params - the cylinder parameters.
+ * @returns a Promise resolving to the tessellated Shape.
+ */
 export async function cylinderBrep(params: CylinderParams): Promise<Shape> {
 return brepToShape('cylinder', params, clampNRad(params.nRad ?? params.segments))
 }
 
-/** 用 OCCT 精确实体创建圆锥体，三角化为 Shape */
+/**
+ * Create a cone with an OCCT exact solid and tessellate it into a Shape.
+ * @param params - the cone parameters.
+ * @returns a Promise resolving to the tessellated Shape.
+ */
 export async function coneBrep(params: ConeParams): Promise<Shape> {
 return brepToShape('cone', params, clampNRad(params.nRad ?? params.segments))
 }
 
-/** 用 OCCT 精确实体创建楔形体，三角化为 Shape */
+/**
+ * Create a wedge with an OCCT exact solid and tessellate it into a Shape.
+ * @param params - the wedge parameters.
+ * @returns a Promise resolving to the tessellated Shape.
+ */
 export async function wedgeBrep(params: WedgeParams): Promise<Shape> {
   return brepToShape('wedge', params)
 }

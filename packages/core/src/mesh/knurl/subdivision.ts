@@ -95,6 +95,19 @@ function makeVertStore(initialCap: number, hasWeights: boolean, hasCanon: boolea
 
 // ── 公共入口 ──
 
+/**
+ * Adaptively subdivide a geometry until every edge is ≤ maxEdgeLength.
+ * Indexed inputs are expanded to non-indexed form first; sharp edges are
+ * split at vertices whose face-normal angle exceeds the threshold so each
+ * surface keeps its own normal direction and the result stays watertight.
+ * Faces marked by `faceWeights` are excluded from refinement.
+ *
+ * @param geometry - the source geometry (position attribute; may be indexed).
+ * @param maxEdgeLength - maximum allowed edge length in millimeters.
+ * @param onProgress - optional callback receiving progress, triangle count, and longest edge.
+ * @param faceWeights - optional per-face exclusion weights (non-indexed triangle soup layout).
+ * @returns the subdivided non-indexed geometry and whether the safety cap was reached.
+ */
 export async function subdivide(
   geometry: THREE.BufferGeometry,
   maxEdgeLength: number,

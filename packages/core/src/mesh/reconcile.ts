@@ -19,6 +19,10 @@
 
 import { weldPositionsWorker } from '../boolean/csg-core'
 
+/**
+ * Result of one reconciliation step: the reduced vertex buffer and the index
+ * buffer of triangles referencing it.
+ */
 export interface ReconcileResult {
   positions: Float32Array
   indices: Uint32Array
@@ -27,8 +31,13 @@ export interface ReconcileResult {
 // ── 步骤 1：顶点焊接 ──
 
 /**
- * 合并共享边重复顶点（复用 csg-core 既有实现，仓库内只有一份 weld）。
- * 输入坐标原样保留（1e-6 量化只做 key，不写回），无精度损失。
+ * Weld duplicated vertices shared across triangle edges (reuses the single
+ * csg-core weld implementation). Input coordinates are preserved — the 1e-6
+ * quantization is only used as a map key and is never written back — so there
+ * is no precision loss.
+ * @param positions - flat XYZ vertex buffer, length 3 * vertexCount.
+ * @param indices - triangle index buffer, length 3 * triangleCount.
+ * @returns the welded mesh as a new ReconcileResult.
  */
 export function weldVertices(
   positions: Float32Array,
@@ -58,8 +67,12 @@ function bboxDiagonal(positions: Float32Array): number {
 }
 
 /**
- * 丢弃零面积三角形，并把剩余索引紧凑化（同时压缩未再引用的顶点）。
- * 退化判定：三角形面积 < (对角线 × 1e-9)² 的相对阈值。
+ * Drop zero-area triangles and compact the surviving indices, also squeezing
+ * out vertices that are no longer referenced. A triangle is degenerate when
+ * its area is below the relative threshold (diagonal * 1e-9)².
+ * @param positions - flat XYZ vertex buffer, length 3 * vertexCount.
+ * @param indices - triangle index buffer, length 3 * triangleCount.
+ * @returns the cleaned mesh as a new ReconcileResult.
  */
 export function removeDegenerate(
   positions: Float32Array,
@@ -130,13 +143,18 @@ interface EdgeRef {
 }
 
 /**
- * 连通分量内面法向传播：相邻三角形共享边时，必须沿相反方向遍历该边
- * （流形网格的缠绕一致性）。不一致者翻转（交换 v1/v2）。
+ * Propagate face winding across each connected component: adjacent triangles
+ * sharing an edge must traverse it in opposite directions (manifold winding
+ * consistency). Triangles that violate this are flipped (v1/v2 swapped).
  *
- * 用 BFS 逐连通分量传播翻转状态 f ∈ {+1, -1}：
- *   f(neighbor) = -f(cur) × baseDir(cur, e) × baseDir(neighbor, e)
- * 冲突（同一三角形被两条路径要求不同翻转）说明网格不可定向——保持首赋值，
- * 交由步骤 4 的 2-manifold 断言显式报错。
+ * BFS propagates a flip state f ∈ {+1, -1} per connected component:
+ *   f(neighbor) = -f(cur) * baseDir(cur, e) * baseDir(neighbor, e)
+ * A conflict (one triangle demanded to flip by two different paths) means the
+ * mesh is not orientable — the first assignment is kept and step 4's
+ * 2-manifold assertion reports the error explicitly.
+ * @param positions - flat XYZ vertex buffer.
+ * @param indices - triangle index buffer.
+ * @returns the orientation-unified mesh as a new ReconcileResult.
  */
 export function unifyOrientation(
   positions: Float32Array,
@@ -223,8 +241,11 @@ export function unifyOrientation(
 // ── 步骤 4：2-manifold 断言 ──
 
 /**
- * 断言网格为 2-manifold：每条无向边恰好被 2 个三角形共享。
- * 不满足即显式抛错（红线：不静默、不 try-catch 回退）。
+ * Assert the mesh is 2-manifold: every undirected edge is shared by exactly
+ * two triangles. A violation throws immediately (no silent handling, no
+ * try-catch fallback).
+ * @param positions - flat XYZ vertex buffer.
+ * @param indices - triangle index buffer.
  */
 export function assertManifold(positions: Float32Array, indices: Uint32Array): void {
   const triCount = indices.length / 3
@@ -263,14 +284,21 @@ export function assertManifold(positions: Float32Array, indices: Uint32Array): v
 
 // ── 四步归约（默认入口） ──
 
+/**
+ * Tuning knobs for the full reconciliation pass.
+ */
 export interface ReconcileOptions {
-  /** 是否做 2-manifold 断言（默认 true） */
+  /** Whether to run the 2-manifold assertion (default true). */
   assertManifold?: boolean
 }
 
 /**
- * 完整归约：weld → 退化剔除 → 朝向统一 → 2-manifold 断言。
- * 空网格直接返回，不做任何处理。
+ * Full reconciliation: weld → degenerate removal → orientation unification →
+ * 2-manifold assertion. An empty mesh is returned untouched.
+ * @param positions - flat XYZ vertex buffer.
+ * @param indices - triangle index buffer.
+ * @param opts - optional tuning knobs, e.g. to skip the manifold assertion.
+ * @returns the reconciled mesh as a new ReconcileResult.
  */
 export function reconcileMesh(
   positions: Float32Array,

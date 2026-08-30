@@ -5,6 +5,11 @@
  * 用于全 mesh 顶点去重：相同位置的多个副本（非 indexed 三角面 soup）共享一个 ID。
  */
 
+/**
+ * Open-addressing hash table that deduplicates quantized 3D points. Queries
+ * allocate nothing and compare exact integer keys, so identical positions in a
+ * non-indexed triangle soup share a single ID.
+ */
 export class QuantizedPointMap {
   private quant: number
   private _cap!: number
@@ -14,7 +19,7 @@ export class QuantizedPointMap {
   private _qz!: Float64Array
   private _val!: Int32Array
   private _size = 0
-  /** true 当上次 getOrSet 插入了新 key */
+  /** True when the last getOrSet call inserted a new key. */
   inserted = false
 
   constructor(quant: number, expected: number = 256) {
@@ -25,6 +30,7 @@ export class QuantizedPointMap {
     this._alloc(cap)
   }
 
+  /** Number of unique keys currently stored. */
   get size(): number {
     return this._size
   }
@@ -71,7 +77,14 @@ export class QuantizedPointMap {
     }
   }
 
-  /** 查找 (x,y,z) 对应的值，不存在返回 -1。 */
+  /**
+   * Look up the value stored for (x, y, z), or -1 when the key is absent.
+   *
+   * @param x - the x coordinate.
+   * @param y - the y coordinate.
+   * @param z - the z coordinate.
+   * @returns the stored value, or -1 when not present.
+   */
   get(x: number, y: number, z: number): number {
     const q = this.quant
     const i = this._slot(
@@ -83,8 +96,14 @@ export class QuantizedPointMap {
   }
 
   /**
-   * 返回 (x,y,z) 已存储的值；如果不存在，存入 value 并返回。
-   * this.inserted 标识是否发生了插入。
+   * Return the value stored for (x, y, z); when the key is new, store `value`
+   * first and report the insertion on `inserted`.
+   *
+   * @param x - the x coordinate.
+   * @param y - the y coordinate.
+   * @param z - the z coordinate.
+   * @param value - the value to store when the key is new.
+   * @returns the existing stored value, or `value` after insertion.
    */
   getOrSet(x: number, y: number, z: number, value: number): number {
     const q = this.quant
@@ -108,7 +127,13 @@ export class QuantizedPointMap {
 }
 
 /**
- * 焊接非 indexed 位置缓冲：每个顶点分配其量化位置的序列 ID（首次出现）。
+ * Weld a non-indexed position buffer: give each vertex the sequential ID of
+ * its quantized position, with the first occurrence winning.
+ *
+ * @param pos - the interleaved xyz position buffer.
+ * @param count - the number of vertices in the buffer.
+ * @param quant - quantization multiplier used to round positions.
+ * @returns the per-vertex canonical ID and the number of unique positions.
  */
 export function weldVertices(
   pos: Float32Array | Float64Array,

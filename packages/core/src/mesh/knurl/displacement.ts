@@ -14,6 +14,10 @@ import * as THREE from 'three'
 import { QuantizedPointMap } from './meshIndex'
 import { computeUV, getCubicBlendWeights, type MappingSettings } from './mapping'
 
+/**
+ * Displacement settings: the mapping settings plus the amplitude, optional
+ * symmetric displacement, and angle-based face-masking limits.
+ */
 export interface DisplacementSettings extends MappingSettings {
   mappingMode: number
   amplitude: number
@@ -36,7 +40,19 @@ interface ImageDataLike {
 }
 
 /**
- * 对 non-indexed BufferGeometry 的每个顶点应用位移。
+ * Displace every vertex of a non-indexed BufferGeometry. For each vertex the
+ * UV is computed with the same math as the GPU preview shader, the greyscale
+ * ImageData is sampled bilinearly, and the position is shifted along the
+ * smoothed normal by grey × amplitude.
+ *
+ * @param geometry - the non-indexed source geometry (position + normal attributes).
+ * @param imageData - RGBA pixel data of the height map.
+ * @param imgWidth - texture width in pixels.
+ * @param imgHeight - texture height in pixels.
+ * @param settings - displacement and mapping settings.
+ * @param bounds - overall mesh bounds used to normalize UV coordinates.
+ * @param onProgress - optional callback receiving progress in [0, 1].
+ * @returns a new BufferGeometry with displaced positions and face normals.
  */
 export function applyDisplacement(
   geometry: THREE.BufferGeometry,

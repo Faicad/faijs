@@ -7,13 +7,15 @@
 
 import type { MeshData, PlaneParams, SplitResult } from '../cad-runtime/ports'
 
+/** Worker init handshake request; carries the manifold.wasm URL. */
 export interface CsgWorkerInitRequest {
   id: number
   kind: 'init'
-  /** manifold.wasm 地址（undefined 时 worker 用默认定位） */
+  /** manifold.wasm URL (undefined lets the worker use default resolution). */
   wasmUrl?: string
 }
 
+/** CSG boolean operation request executed on the worker. */
 export interface CsgWorkerBooleanRequest {
   id: number
   kind: 'boolean'
@@ -21,6 +23,7 @@ export interface CsgWorkerBooleanRequest {
   meshes: MeshData[]
 }
 
+/** Plane split request executed on the worker. */
 export interface CsgWorkerSplitPlaneRequest {
   id: number
   kind: 'splitPlane'
@@ -28,6 +31,7 @@ export interface CsgWorkerSplitPlaneRequest {
   plane: PlaneParams
 }
 
+/** Dovetail split request executed on the worker. */
 export interface CsgWorkerSplitDovetailRequest {
   id: number
   kind: 'splitDovetail'
@@ -42,6 +46,7 @@ export interface CsgWorkerSplitDovetailRequest {
   }
 }
 
+/** Dowel split request executed on the worker. */
 export interface CsgWorkerSplitDowelRequest {
   id: number
   kind: 'splitDowel'
@@ -56,6 +61,7 @@ export interface CsgWorkerSplitDowelRequest {
   }
 }
 
+/** Straight tenon split request executed on the worker. */
 export interface CsgWorkerSplitTenonRequest {
   id: number
   kind: 'splitStraightTenon'
@@ -70,6 +76,7 @@ export interface CsgWorkerSplitTenonRequest {
   }
 }
 
+/** Discriminated union of every request the CSG worker can receive. */
 export type CsgWorkerRequest =
   | CsgWorkerInitRequest
   | CsgWorkerBooleanRequest
@@ -78,6 +85,7 @@ export type CsgWorkerRequest =
   | CsgWorkerSplitDowelRequest
   | CsgWorkerSplitTenonRequest
 
+/** Discriminated union of every response the CSG worker can emit. */
 export type CsgWorkerResponse =
   | { id: number; kind: 'init'; ok: true }
   | { id: number; kind: 'boolean'; ok: true; result: MeshData }

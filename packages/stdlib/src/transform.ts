@@ -24,12 +24,19 @@ const brepImpl = true
 
 // ── per-op 参数自校验（Phase 2.2；stdlib 被直接 import 时的防御层） ──
 
-/** translate: offset 必填 vec3。 */
+/**
+ * Validate translate parameters: `offset` must be a vec3.
+ * @param params - the raw translate operation parameters.
+ */
 export function assertTranslateParams(params: Record<string, unknown>): void {
   assertVec3(params.offset, 'translate.offset')
 }
 
-/** rotate: anglesDeg 必填 vec3；pivot（如有）为 vec3。 */
+/**
+ * Validate rotate parameters: `anglesDeg` must be a vec3, and `pivot`
+ * (if provided) must also be a vec3.
+ * @param params - the raw rotate operation parameters.
+ */
 export function assertRotateParams(params: Record<string, unknown>): void {
   assertVec3(params.anglesDeg, 'rotate.anglesDeg')
   if (params.pivot !== undefined && params.pivot !== null) {
@@ -37,7 +44,10 @@ export function assertRotateParams(params: Record<string, unknown>): void {
   }
 }
 
-/** scale: factor 必填（number > 0 或 vec3）。 */
+/**
+ * Validate scale parameters: `factor` must be a positive number or a vec3.
+ * @param params - the raw scale operation parameters.
+ */
 export function assertScaleParams(params: Record<string, unknown>): void {
   if (typeof params.factor === 'number') {
     assertPositiveNumber(params.factor, 'scale.factor')

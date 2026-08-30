@@ -60,6 +60,9 @@ interface ClosedSubpath {
  *
  * 支持：<path>, <rect>, <circle>, <ellipse>, <line>, <polyline>, <polygon>。
  * 使用正则提取，无 DOMParser 依赖（可在 Web Worker / Node 中运行）。
+ *
+ * @param svgString - the raw SVG markup to extract paths from.
+ * @returns an array of path `d` strings.
  */
 export function extractSvgPaths(svgString: string): string[] {
   const paths: string[] = []
@@ -747,6 +750,9 @@ interface ContourGroup {
  * 2. 对每条子路径 A，找到直接包含它的最小外轮廓 B
  * 3. A 是 B 的孔洞
  * 4. 没有外轮廓的子路径是独立外轮廓
+ *
+ * @param subpaths - the closed subpaths to classify.
+ * @returns the contour groups of outer wires and their hole wires.
  */
 export function classifyHoles(subpaths: ClosedSubpath[]): ContourGroup[] {
   // 按面积绝对值降序排

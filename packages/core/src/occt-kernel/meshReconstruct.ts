@@ -23,8 +23,13 @@ import type { BrepEngineApi } from '../brep/engine/primitives'
 // ─── 验证 ───
 
 /**
- * 验证 OCCT 形状是否为合法拓扑。
- * 调用 kernel.isValid() 检查：实体封闭性、边属于恰好两个面、面朝向一致等。
+ * Validate whether an OCCT shape is a legal topology.
+ * Calls kernel.isValid() to check: solid closedness, each edge belongs to exactly
+ * two faces, consistent face orientation, etc.
+ *
+ * @param kernel - the initialized OCCT kernel
+ * @param shape - the shape to validate
+ * @returns true when the shape is valid, false otherwise
  */
 export function cadShapeIsValid(kernel: BrepEngineApi, shape: BrepHandle): boolean {
   try {
@@ -37,13 +42,18 @@ export function cadShapeIsValid(kernel: BrepEngineApi, shape: BrepHandle): boole
 // ─── STL 序列化 ───
 
 /**
- * 将三角网格数据序列化为 ASCII STL 文本。
+ * Serialize triangle mesh data as ASCII STL text.
  *
- * OCCT 的 importStl 接受字符串输入，ASCII STL 可在无 File/Blob 依赖的情况下
- * 直接构造。
+ * OCCT's importStl accepts a string input, so ASCII STL can be built directly
+ * without any File/Blob dependency.
  *
- * 每个三角形输出一个 facet 块，包含法线和三个顶点坐标。
- * 法线通过叉积计算并归一化（OCCT 导入后会重新计算法线，此处仅临时使用）。
+ * Each triangle emits a facet block containing a normal and three vertex
+ * coordinates. The normal is computed via cross product and normalized (OCCT
+ * recomputes normals after import; this is only temporary).
+ *
+ * @param positions - vertex array [x0,y0,z0, x1,y1,z1, ...]
+ * @param indices - triangle index array [i0,i1,i2, i3,i4,i5, ...]
+ * @returns the ASCII STL text
  */
 export function meshToAsciiStl(positions: Float32Array, indices: Uint32Array): string {
   if (!positions || positions.length === 0 || !indices || indices.length === 0) {
@@ -88,19 +98,19 @@ export function meshToAsciiStl(positions: Float32Array, indices: Uint32Array): s
 // ─── 重建管线 ───
 
 /**
- * 从三角网格重建 CAD 实体（Solid）。
+ * Rebuild a CAD solid from a triangle mesh.
  *
- * 完整流程：
+ * Full flow:
  * 1. mesh → ASCII STL → OCCT importStl
- * 2. fixShape 基础修复
- * 3. 若 isSolid → 直接愈合管线
- * 4. 若失败 → 多容差面缝合管线
+ * 2. fixShape base repair
+ * 3. if isSolid → direct healing pipeline
+ * 4. on failure → multi-tolerance face-sewing pipeline
  *
- * @param kernel  已初始化的 OCCT 内核
- * @param positions  顶点数组 [x0,y0,z0, x1,y1,z1, ...]
- * @param indices    三角形索引 [i0,j0,k0, i1,j1,k1, ...]
- * @returns 重建后的 Solid 形状句柄（调用方负责释放）
- * @throws 若网格开放或非流形
+ * @param kernel - the initialized OCCT kernel
+ * @param positions - vertex array [x0,y0,z0, x1,y1,z1, ...]
+ * @param indices - triangle index array [i0,j0,k0, i1,j1,k1, ...]
+ * @returns the reconstructed solid shape handle (caller is responsible for releasing)
+ * @throws if the mesh is open or non-manifold
  */
 export function reconstructSolidFromMesh(
   kernel: BrepEngineApi,
@@ -163,16 +173,16 @@ export function reconstructSolidFromMesh(
 // ─── 便捷导出 ───
 
 /**
- * 从三角网格重建 CAD 实体并导出为 STEP 字符串。
+ * Rebuild a CAD solid from a triangle mesh and export it as a STEP string.
  *
- * 内部调用 reconstructSolidFromMesh，然后 exportStep。
- * 返回的 STEP 文件使用 BREP 表示（ADVANCED_FACE + 精确曲面），
- * 而非 faceted 表示（POLYGONAL_FACE）。
+ * Internally calls reconstructSolidFromMesh, then exportStep.
+ * The returned STEP uses a BREP representation (ADVANCED_FACE + exact surfaces)
+ * rather than a faceted representation (POLYGONAL_FACE).
  *
- * @param kernel  已初始化的 OCCT 内核
- * @param positions  顶点数组
- * @param indices    三角形索引
- * @returns STEP 文件内容字符串
+ * @param kernel - the initialized OCCT kernel
+ * @param positions - vertex array
+ * @param indices - triangle index array
+ * @returns the STEP file content string
  */
 export function meshToStepBrep(
   kernel: BrepEngineApi,

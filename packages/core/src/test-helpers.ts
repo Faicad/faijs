@@ -26,6 +26,7 @@ async function getCadLib(): Promise<StdlibNamespace> {
   return mod.createInternalStdlib()
 }
 
+/** Result of executing a script via the test helper. */
 export interface ExecuteOutput {
   contentKey: string
   shape: Shape
@@ -37,6 +38,18 @@ function defaultPorts(): HostPorts {
   return { events: { emit: () => {} } } as HostPorts
 }
 
+/**
+ * Execute a script through the CadRuntime (VM) and return the final shape,
+ * its content key, and the resulting BREP chain state.
+ *
+ * @param script - the compiled script IR to execute.
+ * @param inputGeometryMap - optional input geometry keyed by part name.
+ * @param params - optional execution parameters.
+ * @param ports - optional host ports (defaults to a no-op events sink).
+ * @param mode - optional execution mode.
+ * @param _brepChain - optional pre-existing BREP chain state (reserved).
+ * @returns the final shape, content key, and BREP chain state.
+ */
 export async function executeScript(
   script: ScriptIR,
   inputGeometryMap?: Map<PartName, Shape>,

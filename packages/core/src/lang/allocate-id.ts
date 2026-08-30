@@ -24,7 +24,12 @@ const PART_RE = /^part(\d+)$/
 /** 代码文本中出现的 partN 标识符（词法扫描，不 parse——允许部分/生成中代码） */
 const PART_TOKEN_RE = /\bpart(\d+)\b/g
 
-/** 从语句 outputs 中提取最大模型号（PartName 均为 partN 新名；旧名兼容已删，决策 2）。 */
+/**
+ * Extract the largest model number across statement outputs (PartNames are all
+ * fresh partN names; legacy-name compatibility was removed, decision 2).
+ * @param statements - the IR statements to scan.
+ * @returns the maximum part model number found, or -1 when no output matches.
+ */
 export function getMaxModelNum(statements: StatementIR[]): number {
   let max = -1
   for (const stmt of statements) {
@@ -39,6 +44,10 @@ export function getMaxModelNum(statements: StatementIR[]): number {
   return max
 }
 
+/**
+ * The syntax-fact inputs to part-name derivation: positional input/output
+ * counts plus the current code text for scanning used partN names.
+ */
 export interface DerivePartNameInput {
   /** 语法事实：位置输入数 */
   inputCount: number
@@ -48,6 +57,10 @@ export interface DerivePartNameInput {
   code: string
 }
 
+/**
+ * The result of part-name derivation: always behavior `'new'` with one fresh
+ * name per output.
+ */
 export interface DerivePartNameResult {
   /** 恒为 'new'（keep-syntax §4：复用名已删；保留字段供宿主平滑迁移） */
   behavior: 'new'
@@ -59,6 +72,14 @@ export interface DerivePartNameResult {
  * 变量名自动推导（keep-syntax 设计 §4.2）：命名与「入参是否被保留」的静态知识
  * 完全解耦——无论 callee 是否保留入参，输出都获得新名。
  * 输入只含语法事实 + 代码文本，调用方不传任何函数元数据。
+ */
+/**
+ * Derive variable names (keep-syntax design §4.2): naming is fully decoupled
+ * from whether the callee preserves its inputs — outputs always receive fresh
+ * names. The input carries only syntax facts plus code text; the caller must
+ * not pass any function metadata.
+ * @param input - the syntax-fact input: input/output counts and code text.
+ * @returns the derived result with one fresh name per output.
  */
 export function derivePartName(input: DerivePartNameInput): DerivePartNameResult {
   const { inputCount, outputCount, code } = input

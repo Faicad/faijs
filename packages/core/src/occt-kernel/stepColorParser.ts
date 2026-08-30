@@ -20,6 +20,7 @@ export interface StepEntity {
   params: string
 }
 
+/** A solid's color parsed from STEP text. */
 export interface SolidColor {
   /** STEP entity ID of the MANIFOLD_SOLID_BREP. */
   solidId: number
@@ -136,6 +137,9 @@ export function parseStepColors(stepText: string): Map<number, [number, number, 
  * This order should match OCCT's getSubShapes(compound, 'solid') order,
  * because both iterate the compound's sub-shapes in the same order
  * they appear in the STEP file.
+ *
+ * @param stepText - raw STEP file content
+ * @returns the ordered MANIFOLD_SOLID_BREP entity IDs
  */
 export function parseStepSolidOrder(stepText: string): number[] {
   const entities = parseStepEntities(stepText)

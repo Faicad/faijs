@@ -14,6 +14,9 @@ pre-commit:
       glob: '.agents/notes/archived/**'
       run: node_modules/.bin/tsx scripts/verify-archived-agent-notes.ts
 
+    - name: export jsdoc (repo-wide API completeness)
+      run: node_modules/.bin/tsx scripts/verify-export-jsdoc.ts
+
     - name: eslint (staged)
       glob: '{src,packages/core/src,packages/stdlib/src,packages/mech-lib/src}/**/*.{ts,tsx}'
       run: node_modules/.bin/eslint --fix {staged_files}
@@ -33,6 +36,9 @@ pre-merge-commit:
     - name: archived agent notes
       glob: '.agents/notes/archived/**'
       run: node_modules/.bin/tsx scripts/verify-archived-agent-notes.ts
+
+    - name: export jsdoc (repo-wide API completeness)
+      run: node_modules/.bin/tsx scripts/verify-export-jsdoc.ts
 
 pre-push:
   jobs:

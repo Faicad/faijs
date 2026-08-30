@@ -35,7 +35,12 @@ import { isParamRef, isVarRef, isCallRef } from './types'
 
 // ── 数值格式化 ──
 
-/** 数字 → 文本：整数直出，小数保留最多 6 位有效小数并去尾零 */
+/**
+ * Format a number as text: integers emit as-is; decimals retain at most 6
+ * significant fractional digits with trailing zeros stripped.
+ * @param n - the number to format.
+ * @returns the formatted text representation.
+ */
 export function fmtNum(n: number): string {
   if (!Number.isFinite(n)) return String(n)
   if (Number.isInteger(n)) return String(n)
@@ -106,6 +111,13 @@ function fmtCallRef(ref: CallRefIR, varNames?: Map<string, string>): string {
  * 通用 args 打印机（A12 消灭）：IR 里的每个键按原样打印，无 callee 分支、无默认值省略。
  * 设计文档 §4.4：比现状更忠实（现状会把显式写的 nRad: 32 吞掉）。
  */
+/**
+ * Generic args printer (A12 removal): print every key in the IR as-is, with no
+ * per-callee branching and no default-value omission.
+ * @param stmt - the statement whose args to print.
+ * @param varNames - optional mapping from IR variable names to printed names.
+ * @returns an array of `key:value` fragment strings.
+ */
 export function buildArgsParts(stmt: StatementIR, varNames?: Map<string, string>): string[] {
   return Object.entries(stmt.args).map(([k, v]) => `${k}:${fmtValue(v, varNames)}`)
 }
@@ -169,6 +181,12 @@ function printStatement(stmt: StatementIR, declared: Set<string>, varNames: Map<
  * - 多输出解构输出 `const { front: out0, back: out1 } = cad.split(input, { ... })`
  * - 成员调用输出 `assem1.add_constraint({ ... })` / `assem1.do_assemble()`
  */
+/**
+ * Convert a single statement into a readable code line (used by the timeline
+ * panel display and export).
+ * @param stmt - the statement to print.
+ * @returns the printed single-line code text.
+ */
 export function statementToLine(stmt: StatementIR): string {
   return formatCodeLine({
     callee: stmt.callee,
@@ -182,6 +200,10 @@ export function statementToLine(stmt: StatementIR): string {
 
 // ── 纯数据 → 代码行（宿主代码生成入口，IR 剥离配套） ──
 
+/**
+ * Pure-data input for printing one faijs source line, decoupled from IR types
+ * (IR-strip companion for the host code-generation entry point).
+ */
 export interface FormatCodeLineInput {
   callee: string
   /** 成员方法调用接收者变量名 */
@@ -208,6 +230,13 @@ export interface FormatCodeLineInput {
  *
  * 宿主 buildCode / 编辑重排行（editStatement → replaceCodeAt）统一走此入口，
  * 与 statementToLine/scriptToCode 共用同一打印机（单一文本形态真源）。
+ */
+/**
+ * Print one line of faijs source from pure data (non-IR types). Hosts building
+ * code or reflowing edits (editStatement → replaceCodeAt) all route through
+ * this entry, sharing the same printer as statementToLine/scriptToCode.
+ * @param input - the pure-data line description.
+ * @returns the printed single-line code text.
  */
 export function formatCodeLine(input: FormatCodeLineInput): string {
   const stmt: StatementIR = {
@@ -255,6 +284,13 @@ function fmtFunction(fn: FunctionDefIR): string {
  * terminal shapes 自动推导：不被引用的输出即终端（不在代码中标注）。
  * F2：顶层 import 段打印回文件头（往返保真）。
  * A1：顶层函数定义段打印回 import 之后、语句之前（往返保真）。
+ */
+/**
+ * Concatenate an entire ScriptIR into flat code text in statement order. No
+ * export/async/await/return or parameter declarations are emitted; terminal
+ * shapes are auto-derived (unreferenced outputs are not annotated in code).
+ * @param script - the script IR to print.
+ * @returns the assembled flat code text.
  */
 export function scriptToCode(script: ScriptIR): string {
   const bodyLines: string[] = []

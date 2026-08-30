@@ -8,6 +8,7 @@
 const _store = new Map<string, ArrayBuffer>()
 let _nextId = 0
 
+/** In-memory Blob store singleton used by tests, replacing the browser FileBlobStore. */
 export const fileBlobStore = {
   get(key: string): ArrayBuffer | undefined {
     return _store.get(key)

@@ -13,6 +13,14 @@ import type { SdfBackend, MeshData } from '../cad-runtime/ports'
 import { runSdfInline } from '../sdf/sdf-core'
 import { getManifoldModule } from '../mesh/manifold-loader'
 
+/**
+ * InlineSdfBackend is an SDF backend that runs manifold-3d on the main thread.
+ *
+ * It is usable in both browser and Node environments (manifold-3d works in
+ * both). Unlike the WorkerSdfBackend it spawns no Web Worker and instead runs
+ * manifold-3d's levelSet directly via the manifold-loader; it does not support
+ * progress callbacks, which is fine for CLI scenarios.
+ */
 export class InlineSdfBackend implements SdfBackend {
   async runSdf(
     code: string,

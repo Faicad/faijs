@@ -17,6 +17,13 @@
  *     - attr:     2 bytes (0)
  */
 
+/**
+ * Build a binary STL buffer from raw positions and indices (no THREE dependency).
+ * @param positions - the interleaved vertex positions (x,y,z per vertex).
+ * @param indices - the triangle indices (3 indices per triangle).
+ * @param header - optional 80-byte header text (defaults to 'Faicad STL').
+ * @returns an ArrayBuffer holding the binary STL data.
+ */
 export function buildStlBufferFromMesh(
   positions: Float32Array,
   indices: Uint32Array,

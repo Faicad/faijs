@@ -30,12 +30,12 @@ import { getSolidBoundingBox } from './brep-utils'
  * brepChain.meshShapeCache，供 buildBrepTopology 复用——确保拓扑 mesh 与显示 mesh
  * 完全一致（规则 1：拓扑数据生成所使用的 mesh，必须是当前用户看到的 mesh）。
  *
- * @param kernel     已初始化的 OCCT 内核
- * @param solid      CAD 实体句柄
- * @param segments   可选分段数（影响三角化精度）
- * @param brepChain  可选——传入则缓存 BrepMeshResult
- * @param stmtId     可选——与 brepChain 配对，缓存 key
- * @returns Shape（三角化 mesh）
+ * @param kernel     the initialized OCCT kernel.
+ * @param solid      the CAD solid handle.
+ * @param segments   optional tessellation segment count (affects precision).
+ * @param brepChain  optional - caches the BrepMeshResult when provided.
+ * @param partName   optional - the part this solid belongs to, paired with brepChain as the cache key.
+ * @returns the tessellated Shape.
  */
 export function solidToShape(
   kernel: BrepEngineApi,
@@ -655,9 +655,11 @@ export function extrudeBrep(
  *   合法性判据改为 `getSubShapes(top, 'solid').length >= 1`（含 ≥1 个 solid 即合法），
  *   与装配路径 `walkLabel` 一致。
  *
- * @param kernel  已初始化的 OCCT 内核
- * @param buffer  STEP 文件原始字节（文本编码的 ArrayBuffer）
- * @returns { solid: OCCT 实体句柄, shape: 显示用三角网格 }
+ * @param kernel     the initialized OCCT kernel.
+ * @param buffer     the raw STEP file bytes (a text-encoded ArrayBuffer).
+ * @param brepChain  optional - caches the tessellated BrepMeshResult when provided.
+ * @param stmtId     optional - the part this solid belongs to, paired with brepChain as the cache key.
+ * @returns { solid: the OCCT solid handle, shape: the display tessellated mesh }
  */
 export function loadBrep(
   kernel: BrepEngineApi,
@@ -703,9 +705,12 @@ export function loadBrep(
 // ─── 辅助函数 ───
 
 /**
- * 将 THREE.Matrix4 转换为 OCCT transform 所需的 3x4 row-major 数组（12 doubles）。
+ * Convert a THREE.Matrix4 into the 3x4 row-major array (12 doubles) the OCCT
+ * transform expects.
  *
- * OCCT transform 接受 [r00,r01,r02,tx, r10,r11,r12,ty, r20,r21,r22,tz] 格式。
+ * OCCT transform accepts [r00,r01,r02,tx, r10,r11,r12,ty, r20,r21,r22,tz].
+ * @param matrix - the source matrix to convert.
+ * @returns the 3x4 row-major array of 12 doubles.
  */
 export function matrixToArray(matrix: THREE.Matrix4): number[] {
   const e = matrix.elements

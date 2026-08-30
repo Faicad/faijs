@@ -2,6 +2,13 @@ import * as THREE from 'three'
 import { SVGLoader, type SVGResult } from 'three/examples/jsm/loaders/SVGLoader.js'
 import { mergeBufferGeometries } from '../primitives/mesh-primitives'
 
+/**
+ * Options controlling an SVG extrusion.
+ *
+ * targetLongSide maps the longer logical side of the SVG to this length in
+ * mm (the short side is scaled proportionally); naturalWidth/naturalHeight
+ * are the SVG's logical dimensions used to compute the scale factor.
+ */
 export interface SvgExtrudeOptions {
   depth: number
   /** 长边目标长度（mm），短边按比例计算。默认 20 */
@@ -12,8 +19,12 @@ export interface SvgExtrudeOptions {
 }
 
 /**
- * 解析 SVG 文本为 Three.js Shape 列表。
- * 使用 SVGLoader 将 SVG 路径转换为可用于 ExtrudeGeometry 的 Shape。
+ * Parse SVG text into a list of THREE.Shape contours.
+ * Uses SVGLoader to convert the SVG paths into shapes usable by ExtrudeGeometry.
+ *
+ * @param svgText - the SVG source text.
+ * @returns the list of closed shapes found in the SVG.
+ * @throws when the SVG contains no closed contour.
  */
 export function parseSvgShapes(svgText: string): THREE.Shape[] {
   const loader = new SVGLoader()
@@ -35,8 +46,12 @@ export function parseSvgShapes(svgText: string): THREE.Shape[] {
 }
 
 /**
- * 将 Shape 列表挤出为合并的 BufferGeometry。
- * 根据 naturalWidth/naturalHeight 和 targetLongSide 计算实际缩放比例。
+ * Extrude a list of shapes into a single merged BufferGeometry.
+ * The scale factor is computed from naturalWidth/naturalHeight and targetLongSide.
+ *
+ * @param shapes - the shapes to extrude.
+ * @param options - the extrusion options (depth and scale inputs).
+ * @returns the merged, scaled, centred BufferGeometry.
  */
 export function extrudeShapes(
   shapes: THREE.Shape[],
@@ -81,7 +96,11 @@ export function extrudeShapes(
 }
 
 /**
- * 一站式：SVG 文本 → 挤出 BufferGeometry。
+ * One-stop helper: SVG text → extruded BufferGeometry.
+ *
+ * @param svgText - the SVG source text.
+ * @param options - the extrusion options.
+ * @returns the extruded BufferGeometry.
  */
 export function svgToExtrudedGeometry(
   svgText: string,

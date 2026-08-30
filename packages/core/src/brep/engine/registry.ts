@@ -50,7 +50,11 @@ export function freezeEngineRegistries(): void {
   frozen = true
 }
 
-/** 注册 BREP 引擎（槽位 1）。首个注册者自动成为默认。 */
+/**
+ * Register a BREP engine (slot 1). The first registrant automatically becomes the default.
+ * @param id - the engine registration id.
+ * @param provider - the async provider that resolves the engine instance.
+ */
 export function registerBrepEngine(id: string, provider: BrepEngineProvider): void {
   if (frozen) {
     throw new Error(`[engine/registry] registry frozen — cannot register BREP engine '${id}' after assembly (R8)`)
@@ -62,7 +66,11 @@ export function registerBrepEngine(id: string, provider: BrepEngineProvider): vo
   if (defaultBrepId === null) defaultBrepId = id
 }
 
-/** 注册 mesh 引擎（槽位 2）。首个注册者自动成为默认。 */
+/**
+ * Register a mesh engine (slot 2). The first registrant automatically becomes the default.
+ * @param id - the engine registration id.
+ * @param engine - the engine instance to register.
+ */
 export function registerMeshEngine(id: string, engine: MeshEngine): void {
   if (frozen) {
     throw new Error(`[engine/registry] registry frozen — cannot register mesh engine '${id}' after assembly (R8)`)
@@ -74,17 +82,29 @@ export function registerMeshEngine(id: string, engine: MeshEngine): void {
   if (defaultMeshId === null) defaultMeshId = id
 }
 
-/** 默认 BREP 引擎是否已注册（未注册 → mesh 模式等价「无 BREP 能力」）。 */
+/**
+ * Whether a default BREP engine is registered (none → mesh mode, equivalent to "no BREP capability").
+ * @returns true when a default BREP engine is registered.
+ */
 export function hasBrepEngine(): boolean {
   return defaultBrepId !== null
 }
 
-/** 指定 BREP 引擎是否已注册（适配器幂等注册用）。 */
+/**
+ * Whether the given BREP engine is registered (used for idempotent adapter registration).
+ * @param id - the engine registration id to look up.
+ * @returns true when the engine is registered.
+ */
 export function isBrepEngineRegistered(id: string): boolean {
   return brepEngineProviders.has(id)
 }
 
-/** 取 BREP 引擎（异步解析 provider；未注册则抛错）。省略 id 用默认（首个注册者）。 */
+/**
+ * Resolve a BREP engine (asynchronously, resolving its provider; throws when not registered).
+ * Omitting id uses the default (the first registrant).
+ * @param id - optional engine registration id; defaults to the active engine.
+ * @returns a Promise resolving to the BREP engine instance.
+ */
 export async function getBrepEngine(id?: string): Promise<BrepEngine> {
   const key = id ?? defaultBrepId
   if (key === null) {
@@ -101,7 +121,11 @@ export async function getBrepEngine(id?: string): Promise<BrepEngine> {
   return engine
 }
 
-/** 取 mesh 引擎（未注册则抛错）。省略 id 用默认（首个注册者）。 */
+/**
+ * Get a mesh engine (throws when not registered). Omitting id uses the default (the first registrant).
+ * @param id - optional engine registration id; defaults to the active engine.
+ * @returns the mesh engine instance.
+ */
 export function getMeshEngine(id?: string): MeshEngine {
   const key = id ?? defaultMeshId
   const engine = key === null ? undefined : meshEngines.get(key)
@@ -111,12 +135,18 @@ export function getMeshEngine(id?: string): MeshEngine {
   return engine
 }
 
-/** 当前默认 BREP 引擎 id（无注册返回 null）。 */
+/**
+ * The current default BREP engine id (null when none is registered).
+ * @returns the active BREP engine id or null.
+ */
 export function getActiveBrepEngineId(): string | null {
   return defaultBrepId
 }
 
-/** 当前默认 mesh 引擎 id（无注册返回 null）。 */
+/**
+ * The current default mesh engine id (null when none is registered).
+ * @returns the active mesh engine id or null.
+ */
 export function getActiveMeshEngineId(): string | null {
   return defaultMeshId
 }

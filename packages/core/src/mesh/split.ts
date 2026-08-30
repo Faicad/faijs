@@ -22,8 +22,15 @@ import type { Shape, SplitResult, SplitPlane, DovetailSplitParams, DowelSplitPar
 // ── 派生量计算（从 split-store 下沉，UI 与重放共用同一份公式） ──
 
 /**
- * 从欧拉角（角度制）+ planePosition + bbCenter 推导切割平面参数。
- * 与原 split-store.computePlaneParams 行为完全一致。
+ * Derive the cutting-plane parameters from Euler angles (in degrees), the
+ * plane position and the bounding-box center. Behavior is identical to the
+ * former split-store.computePlaneParams.
+ * @param rotationX - rotation about X in degrees.
+ * @param rotationY - rotation about Y in degrees.
+ * @param rotationZ - rotation about Z in degrees.
+ * @param planePosition - offset of the cutting plane along the plane normal.
+ * @param bbCenter - world-space bounding-box center of the source mesh.
+ * @returns the plane normal, the plane's signed distance from the origin, and its center.
  */
 export function computePlaneParams(
   rotationX: number,
@@ -54,8 +61,12 @@ export function computePlaneParams(
 }
 
 /**
- * 从欧拉角（角度制）推导平面基向量。
- * 与原 split-store.computePlaneBasis 行为完全一致。
+ * Derive the plane basis vectors from Euler angles (in degrees). Behavior is
+ * identical to the former split-store.computePlaneBasis.
+ * @param rotationX - rotation about X in degrees.
+ * @param rotationY - rotation about Y in degrees.
+ * @param rotationZ - rotation about Z in degrees.
+ * @returns the plane normal plus the in-plane width and depth directions.
  */
 export function computePlaneBasis(
   rotationX: number,
@@ -83,14 +94,18 @@ export function computePlaneBasis(
 // ── 从法线 + 面内旋转推导基向量（纯数学，无 THREE 依赖） ──
 
 /**
- * 从切割面法线 + 面内旋转角度推导 widthDir/depthDir。
- *
- * 与 computePlaneBasis(rx, ry, rz) 结果一致，其中 normal 由 eulerXYZToNormal(rx, ry, 0) 推导、
- * inPlaneAngleDeg = rz。通过从 normal 反解 rx/ry（Euler XYZ 分解），再施加 rz 旋转。
+ * Derive widthDir/depthDir from the cutting-plane normal and the in-plane
+ * rotation angle. Matches computePlaneBasis(rx, ry, rz) with
+ * normal = eulerXYZToNormal(rx, ry, 0) and inPlaneAngleDeg = rz: the rx/ry
+ * Euler XYZ decomposition is recovered from the normal, then the rz rotation
+ * is applied.
  *
  * normal = [sin(ry), -sin(rx)*cos(ry), cos(rx)*cos(ry)]
- * → ry = asin(normal[0])
- * → rx = atan2(-normal[1], normal[2])  （cos(ry) ≠ 0 时）
+ *   ry = asin(normal[0])
+ *   rx = atan2(-normal[1], normal[2])  (when cos(ry) !== 0)
+ * @param normal - cutting-plane unit normal.
+ * @param inPlaneAngleDeg - in-plane rotation about the normal, in degrees.
+ * @returns the in-plane width and depth directions.
  */
 export function computeBasisFromNormal(
   normal: Vec3,
@@ -134,7 +149,9 @@ export function computeBasisFromNormal(
 
 // ── 统一分割入口 ──
 
-/** splitWithParams 的输入参数 */
+/**
+ * Input parameters for splitWithParams.
+ */
 export interface SplitWithParamsInput {
   /** 源几何（已在世界空间） */
   shape: Shape
@@ -178,7 +195,9 @@ export interface SplitWithParamsInput {
   applyExplode?: boolean
 }
 
-/** splitWithParams 的输出 */
+/**
+ * Output of splitWithParams: the two halves plus the derived splitting data.
+ */
 export interface SplitWithParamsResult {
   front: Shape
   back: Shape
@@ -196,12 +215,13 @@ export interface SplitWithParamsResult {
 }
 
 /**
- * 统一分割入口：UI 执行器与脚本重放共用的唯一分割函数。
- *
- * 参数编排（planeParams / planeBasis / bboxWidthOnWidthDir / 爆炸位移）
- * 全部在此函数内部完成，调用方只需传入语义参数。
- *
- * 两条路径（鼠标 / 代码）最终都调到这里 → 几何结果一致。
+ * Unified split entry point: the single split function shared by the UI
+ * executor and script replay. All parameter orchestration (planeParams,
+ * planeBasis, bboxWidthOnWidthDir, explode offset) happens inside this
+ * function; callers pass only semantic parameters. Both interaction paths
+ * (mouse / code) converge here, so the geometry result is identical.
+ * @param input - the split mode-specific input (shape, plane, mode params).
+ * @returns the split result with front/back halves and derived plane data.
  */
 export async function splitWithParams(input: SplitWithParamsInput): Promise<SplitWithParamsResult> {
   const { shape, cutMode, normal, offset, inPlaneAngleDeg, bbCenter, bboxSize } = input
@@ -322,13 +342,23 @@ function offsetPositions(
 
 // ── 低级 API（保留向后兼容） ──
 
-/** 平面分割 */
+/**
+ * Plane split of a mesh shape.
+ * @param shape - the mesh shape to split.
+ * @param plane - the cutting plane (normal + offset).
+ * @returns the front and back halves of the shape.
+ */
 export async function split(shape: Shape, plane: SplitPlane): Promise<{ front: Shape; back: Shape }> {
   const result = await computeSplit(shape, plane.normal, plane.offset)
   return { front: result.front, back: result.back }
 }
 
-/** 燕尾分割 */
+/**
+ * Dovetail split of a mesh shape.
+ * @param shape - the mesh shape to split.
+ * @param params - dovetail groove parameters plus the cutting plane setup.
+ * @returns the front/back halves and the dovetail wedge.
+ */
 export async function dovetailSplit(shape: Shape, params: DovetailSplitParams): Promise<SplitResult> {
   const result = await computeDovetailSplit(
     shape,
@@ -346,7 +376,12 @@ export async function dovetailSplit(shape: Shape, params: DovetailSplitParams): 
   }
 }
 
-/** 定位销分割 */
+/**
+ * Dowel-pin split of a mesh shape.
+ * @param shape - the mesh shape to split.
+ * @param params - dowel parameters plus the cutting plane setup.
+ * @returns the front/back halves and the dowel wedge.
+ */
 export async function dowelSplit(shape: Shape, params: DowelSplitParams): Promise<SplitResult> {
   const result = await computeDowelSplit(
     shape,
@@ -364,7 +399,12 @@ export async function dowelSplit(shape: Shape, params: DowelSplitParams): Promis
   }
 }
 
-/** 直榫分割 */
+/**
+ * Straight-tenon split of a mesh shape.
+ * @param shape - the mesh shape to split.
+ * @param params - tenon parameters plus the cutting plane setup.
+ * @returns the front/back halves and the tenon wedge.
+ */
 export async function tenonSplit(shape: Shape, params: TenonSplitParams): Promise<SplitResult> {
   const result = await computeStraightTenonSplit(
     shape,

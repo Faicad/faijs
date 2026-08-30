@@ -12,8 +12,14 @@ import { createRuntime as createRuntimeCore, type HostPorts, type ExecutionMode,
 import { createInternalStdlib } from '@faicad/faijs-stdlib/internal-stdlib'
 
 /**
- * 创建 CadRuntime 并注入 cad 命名空间（标准库）。
- * 与 core 的 createRuntime 同签名；第三方库仍经 runtime.registerLib() 注册。
+ * Create a CadRuntime and inject the cad namespace (standard library).
+ *
+ * Facade wrapper — same signature as core's createRuntime; third-party
+ * libraries are still registered via runtime.registerLib().
+ *
+ * @param ports - Host bindings (CSG engine, fonts, assets, event sink, etc.).
+ * @param mode  - Optional execution mode override (auto / brep / mesh).
+ * @returns A ready-to-execute CadRuntime instance with the cad library registered.
  */
 export function createRuntime(ports: HostPorts, mode?: ExecutionMode): CadRuntime {
   const rt = createRuntimeCore(ports, mode)

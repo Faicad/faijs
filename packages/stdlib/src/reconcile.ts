@@ -25,6 +25,9 @@ import { hasBrep } from '@faicad/faijs-core/shape'
 /**
  * 混合/断链时刻定向归约：仅对 BREP 侧输入做归约，mesh 侧原样透传。
  * 无 BREP 输入时返回原数组引用（零开销、零行为变化）。
+ * @param inputs - the input shapes to reconcile.
+ * @returns the input array as-is when no BREP input is present, otherwise a
+ *   new array with BREP-side inputs converted to valid 2-manifold meshes.
  */
 export function reconcileBrepInputs(inputs: Shape[]): Shape[] {
   let hasBrepSide = false

@@ -1,6 +1,7 @@
 /** SDF 内置模板库 — 每个模板既是功能也是教学示例 */
 import type { SdfTemplate } from './types'
 
+/** Built-in SDF templates: each template is both a feature and a teaching example. */
 export const SDF_TEMPLATES: SdfTemplate[] = [
   {
     id: 'sphere',

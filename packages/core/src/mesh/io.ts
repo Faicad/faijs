@@ -9,10 +9,12 @@ import { geoToManifoldMesh } from '../boolean/geo-convert'
 import type { Shape } from './types'
 
 /**
- * 从文件字节加载几何（headless 版本）
+ * Load geometry from raw file bytes (headless variant). STL is parsed
+ * directly; unsupported formats fall back to STL parsing.
  *
- * @param buffer 文件字节
- * @param format 格式标识（stl 等）
+ * @param buffer - the raw file bytes to parse.
+ * @param format - format identifier such as 'stl' (defaults to 'stl').
+ * @returns the loaded shape.
  */
 export async function importFile(
   buffer: ArrayBuffer,

@@ -24,10 +24,12 @@ import { getScrewSpec } from '../primitives/screw/screw-db'
 import type { Shape, DrillParams } from './types'
 
 /**
- * 在几何体上钻孔（CSG subtract）
+ * Drill a hole into a world-space shape, cutting the hole geometry out with a
+ * CSG subtract.
  *
- * 输入：世界空间 Shape + 钻孔参数
- * 输出：世界空间 Shape（钻孔结果）
+ * @param shape - the world-space shape to drill into.
+ * @param params - drill parameters (position, direction, depth, hole type, screw details).
+ * @returns the drilled shape in world space.
  */
 export async function drill(shape: Shape, params: DrillParams): Promise<Shape> {
   const position = new THREE.Vector3(...params.position)

@@ -15,7 +15,12 @@
 import * as THREE from 'three'
 import type { Shape, Vec3 } from './types'
 
-/** 平移几何（烘焙顶点） */
+/**
+ * Translate a mesh shape by baking the offset into its vertices.
+ * @param shape - the mesh shape to translate.
+ * @param offset - translation vector in mm.
+ * @returns a new shape moved by the given offset.
+ */
 export function translate(shape: Shape, offset: Vec3): Shape {
   const positions = new Float32Array(shape.positions)
   for (let i = 0; i < positions.length; i += 3) {
@@ -26,7 +31,14 @@ export function translate(shape: Shape, offset: Vec3): Shape {
   return { positions, indices: shape.indices }
 }
 
-/** 旋转几何（烘焙顶点，角度用度） */
+/**
+ * Rotate a mesh shape by baking the rotation into its vertices (angles in
+ * degrees, optionally about a pivot).
+ * @param shape - the mesh shape to rotate.
+ * @param anglesDeg - XYZ Euler angles in degrees.
+ * @param pivot - optional rotation pivot point in mm.
+ * @returns a new shape with rotated vertices.
+ */
 export function rotate(shape: Shape, anglesDeg: Vec3, pivot?: Vec3): Shape {
   const euler = new THREE.Euler(
     (anglesDeg[0] * Math.PI) / 180,
@@ -41,7 +53,12 @@ export function rotate(shape: Shape, anglesDeg: Vec3, pivot?: Vec3): Shape {
   return applyMatrix(shape, matrix)
 }
 
-/** 缩放几何（烘焙顶点） */
+/**
+ * Scale a mesh shape by baking the factor into its vertices.
+ * @param shape - the mesh shape to scale.
+ * @param factor - uniform scale factor or per-axis (x, y, z) factors.
+ * @returns a new shape with scaled vertices.
+ */
 export function scale(shape: Shape, factor: number | Vec3): Shape {
   const f = typeof factor === 'number' ? [factor, factor, factor] : factor
   const matrix = new THREE.Matrix4().makeScale(f[0], f[1], f[2])
@@ -63,8 +80,11 @@ function applyMatrix(shape: Shape, matrix: THREE.Matrix4): Shape {
 }
 
 /**
- * 用任意 THREE.Matrix4 变换几何
- * 对应现有 transformMeshData 函数
+ * Transform a mesh shape with an arbitrary THREE.Matrix4 (corresponds to the
+ * existing transformMeshData function).
+ * @param shape - the mesh shape to transform.
+ * @param matrix - the 4x4 transform matrix to apply.
+ * @returns a new shape with transformed vertices.
  */
 export function transformMatrix(shape: Shape, matrix: THREE.Matrix4): Shape {
   return applyMatrix(shape, matrix)

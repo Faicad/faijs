@@ -27,6 +27,11 @@ import * as ioOps from './io'
 
 // ── 统一 cad API 对象 ──
 
+/**
+ * Unified `cad` API object aggregating the pure-data mesh operations: mesh and
+ * BREP primitives, transforms, booleans, splits, drill/extrude/engrave/knurl,
+ * geometry queries, file IO, and BREP feature operations.
+ */
 export const cad = {
   // 创建（mesh 路径）
   box: primitives.box,

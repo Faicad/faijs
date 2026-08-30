@@ -13,6 +13,11 @@
 import type { StmtId, PartName } from '../identity'
 import { parseScript } from './parser'
 
+/**
+ * A flat scalar projection of one statement for host display and orchestration
+ * (a non-IR type). Timeline rows, scene tree grouping, feature-tree
+ * recognition, and edit-backfill navigation all consume this summary.
+ */
 export interface StatementSummary {
   /** 语句 id（sN，parser 顺序分配） */
   id: StmtId
@@ -46,6 +51,8 @@ export interface StatementSummary {
  * 解析代码文本，返回语句平铺摘要（非 IR 类型）。
  * 与 parser 结果逐字段一致（阶段 0 测试兜底）。
  *
+ * @param code - the faijs source text to parse and summarize.
+ * @returns a flat statement summary for every parsed statement.
  * @throws ParseError — 含行号
  */
 export function analyzeCode(code: string): StatementSummary[] {

@@ -15,7 +15,10 @@ import { reconcileBrepInputs } from './reconcile'
 import { dispatchPath } from '@faicad/faijs-core/cad-runtime/backend-dispatch'
 import { assertPositiveNumber } from './assert'
 
-/** knurl: knurlTextureHeight 必填 > 0。 */
+/**
+ * Validate knurl parameters: `knurlTextureHeight` must be a positive number.
+ * @param params - the raw knurl operation parameters.
+ */
 export function assertKnurlParams(params: Record<string, unknown>): void {
   assertPositiveNumber(params.knurlTextureHeight, 'knurl.knurlTextureHeight')
 }

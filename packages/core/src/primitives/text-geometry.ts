@@ -14,10 +14,12 @@ import { ensureDefaultFont, getFont as getRegisteredFont } from '../brep/text/fo
 // ── Font loading ──
 
 /**
- * 获取默认 opentype.js 字体（OpenSans Regular）。
+ * Get the default opentype.js font (OpenSans Regular).
  *
- * 从 fontRegistry 获取，与 BREP 路径（text-to-solid）使用同一字体。
- * 首次调用会触发 ensureDefaultFont() 惰性加载。
+ * Fetched from fontRegistry — the same font used by the BREP path
+ * (text-to-solid). The first call triggers a lazy ensureDefaultFont() load.
+ *
+ * @returns a promise resolving to the default opentype.js Font.
  */
 export async function getOpentypeFont(): Promise<Font> {
   await ensureDefaultFont()
@@ -44,6 +46,7 @@ export async function getOpentypeFont(): Promise<Font> {
  * @param size  Font size in mm
  * @param depth Extrusion depth in mm
  * @param font  opentype.js Font object (from fontRegistry)
+ * @returns a promise resolving to the extruded text geometry.
  */
 export async function createTextGeometry(
   text: string,
@@ -80,6 +83,10 @@ export async function createTextGeometry(
  * The result is centered in X and Z (bounding box center → origin).
  *
  * Exported for reuse by the CJK text path and 3d_editor preview layer.
+ *
+ * @param path - the opentype.js path to convert.
+ * @param depth - extrusion depth in mm.
+ * @returns the resulting BufferGeometry, or null when the path is empty.
  */
 export function opentypePathToGeometry(
   path: Path,

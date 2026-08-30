@@ -38,6 +38,7 @@ import {
   type CompoundShape,
 } from '@faicad/faijs-core/sdk'
 
+/** Adapter contract version for the registerLib compatibility check. */
 export const contractVersion = 1
 
 // ── ① 内核注入（§6.4 / §6.1） ──
@@ -71,7 +72,10 @@ function ensureKernelInjected(): void {
 // faijs 侧独占释放（kernel.release）。中间结果由 brepjs DisposalScope 处理，adapter 不重复释放。
 const pinned: unknown[] = []
 
-/** 测试可观测钩子：当前被 pin 的 brepjs 句柄数（仅测试断言用）。 */
+/**
+ * Test-observable hook: the number of brepjs handles currently pinned.
+ * @returns the current length of the module-level pinned-handle array.
+ */
 export function pinnedCount(): number {
   return pinned.length
 }
@@ -111,6 +115,7 @@ function shapeFromGear(brepShape: unknown): ReturnType<typeof fromHandle> {
 
 // ── 齿轮工厂（§6.5 契约：参数名沿用 brepjs 字段名，不加映射层） ──
 
+/** Parameters for building an external or internal spur gear. */
 export interface GearParams {
   teeth: number
   moduleSize: number
@@ -121,7 +126,11 @@ export interface GearParams {
   clearance?: number
 }
 
-/** 外齿齿轮（external spur gear）→ faijs SolidShape（含 BREP 槽）。 */
+/**
+ * Build an external spur gear as a faijs SolidShape with a BREP slot.
+ * @param params - the external-gear parameters.
+ * @returns the gear as a faijs SolidShape.
+ */
 export function external(params: GearParams): SolidShape {
   ensureKernelInjected()
   const r = makeExternalGear(params)
@@ -129,7 +138,11 @@ export function external(params: GearParams): SolidShape {
   return shapeFromGear(r.value.solid)
 }
 
-/** 内齿齿轮（internal gear）。 */
+/**
+ * Build an internal (ring) gear as a faijs SolidShape with a BREP slot.
+ * @param params - the internal-gear parameters, including an optional ring wall thickness.
+ * @returns the gear as a faijs SolidShape.
+ */
 export function internal(params: GearParams & { ringWallThickness?: number }): SolidShape {
   ensureKernelInjected()
   const r = makeInternalGear(params)
@@ -137,7 +150,12 @@ export function internal(params: GearParams & { ringWallThickness?: number }): S
   return shapeFromGear(r.value.solid)
 }
 
-/** 行星齿轮组：sun + planets + ring 各造一个 BREP Solid，合成 CompoundShape。 */
+/**
+ * Build a planetary gear train (sun + planets + ring), each as a BREP solid,
+ * combined into a single CompoundShape.
+ * @param params - the planetary-gear parameters.
+ * @returns the assembled gear train as a faijs CompoundShape.
+ */
 export function planetary(params: {
   thickness: number
   moduleSize?: number
@@ -156,6 +174,7 @@ export function planetary(params: {
 // ── C5（可复用的第二类形状生成器 ── 螺纹） ──
 // §7.4 C5：同一套 adapter（注入 / 所有权 / 错误转译）对螺纹 op 同样成立。
 
+/** Parameters describing an external thread profile. */
 export interface ThreadParams {
   radius: number
   pitch: number
@@ -168,7 +187,11 @@ export interface ThreadParams {
   inward?: boolean
 }
 
-/** 螺纹（external thread）→ faijs SolidShape（含 BREP 槽）。 */
+/**
+ * Build an external thread as a faijs SolidShape with a BREP slot.
+ * @param params - the thread profile parameters.
+ * @returns the thread as a faijs SolidShape.
+ */
 export function thread(params: ThreadParams): SolidShape {
   ensureKernelInjected()
   const r = brepThread(params)

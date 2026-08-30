@@ -37,10 +37,13 @@ import type {
 // ─── 辅助：从 BufferGeometry 提取网格数据 ───
 
 /**
- * 从 THREE.BufferGeometry 提取 positions + indices，供 mesh 重建路径使用。
+ * Extract positions + indices from a THREE.BufferGeometry for the mesh reconstruction path.
  *
- * 处理 indexed 和 non-indexed 几何体。
- * 对 non-indexed 几何体自动创建顺序索引。
+ * Handles both indexed and non-indexed geometry.
+ * Sequential indices are created automatically for non-indexed geometry.
+ *
+ * @param geo - the source THREE.BufferGeometry.
+ * @returns the extracted positions and indices arrays.
  */
 export function extractMeshData(geo: THREE.BufferGeometry): {
   positions: Float32Array
@@ -205,18 +208,18 @@ function wedgeToCadSolid(kernel: BrepEngineApi, params: WedgeParams): BrepHandle
 // ─── 统一入口 ───
 
 /**
- * 转换结果：包含 CAD 实体句柄和所使用的路径类型。
+ * Conversion result: the CAD solid handle and the construction path used.
  */
 export interface PrimitiveToBrepResult {
-  /** CAD 实体句柄（调用方负责释放） */
+  /** CAD solid handle (the caller is responsible for releasing it). */
   solid: BrepHandle
-  /** 使用的构造路径 */
+  /** The construction path used. */
   path: 'primitive' | 'mesh'
-  /** primitive 类型 */
+  /** The primitive type. */
   type: PrimitiveType | 'screw' | 'text'
 }
 
-/** 所有基本体参数的联合类型 */
+/** Union type of the primitive parameter objects. */
 export type PrimitiveParams = BoxParams | SphereParams | CylinderParams | ConeParams | WedgeParams
 
 /**
@@ -247,15 +250,15 @@ function sizeToParams(type: PrimitiveType | 'screw' | 'text', size: number): Pri
 }
 
 /**
- * 将本项目的 primitive 转换为 OCCT CAD 实体。
+ * Convert a project primitive to an OCCT CAD solid.
  *
- * - cube, sphere, cylinder, cone, wedge：使用 OCCT 直接构造（精确 BREP）
- * - screw, text：使用 mesh 重建路径（faceted BREP）
+ * - cube, sphere, cylinder, cone, wedge: constructed directly with OCCT (exact BREP)
+ * - screw, text: use the mesh reconstruction path (faceted BREP)
  *
- * @param kernel  已初始化的 OCCT 内核
- * @param type    primitive 类型
- * @param params  完整参数对象（BoxParams 等），或 size 数字（向后兼容，默认 20mm）
- * @returns CAD 实体 + 路径信息
+ * @param kernel - the initialized OCCT kernel.
+ * @param type - the primitive type.
+ * @param params - a full parameter object (BoxParams etc.), or a size number (backwards-compatible, default 20mm).
+ * @returns the CAD solid plus path information.
  */
 export function primitiveToBrepSolid(
   kernel: BrepEngineApi,
@@ -298,13 +301,14 @@ export function primitiveToBrepSolid(
 }
 
 /**
- * 从 THREE.BufferGeometry 通过 mesh 重建路径创建 CAD 实体。
+ * Create a CAD solid from a THREE.BufferGeometry via the mesh reconstruction path.
  *
- * 适用于无法直接构造的复杂形状（screw, text, SVG extrude 等）。
+ * Suitable for complex shapes that cannot be constructed directly
+ * (screw, text, SVG extrusion, etc.).
  *
- * @param kernel  已初始化的 OCCT 内核
- * @param geo     THREE.js BufferGeometry
- * @returns CAD 实体 + 路径信息
+ * @param kernel - the initialized OCCT kernel.
+ * @param geo - the THREE.js BufferGeometry.
+ * @returns the CAD solid plus path information.
  */
 export function geometryToBrepSolid(
   kernel: BrepEngineApi,
@@ -316,29 +320,30 @@ export function geometryToBrepSolid(
 }
 
 /**
- * 将 CAD 实体导出为 BREP 格式的 STEP 字符串。
+ * Export a CAD solid as a BREP-format STEP string.
  *
- * OCCT 的 exportStep 产出标准 ISO-10303-21 STEP 文件，
- * 使用 ADVANCED_FACE + 精确曲面（PLANE, CYLINDRICAL_SURFACE 等），
- * 而非 faceted 表示（POLYGONAL_FACE）。
+ * OCCT's exportStep produces a standard ISO-10303-21 STEP file using
+ * ADVANCED_FACE with exact surfaces (PLANE, CYLINDRICAL_SURFACE, etc.)
+ * rather than a faceted representation (POLYGONAL_FACE).
  *
- * @param kernel  已初始化的 OCCT 内核
- * @param solid   CAD 实体句柄
- * @returns STEP 文件内容字符串
+ * @param kernel - the initialized OCCT kernel.
+ * @param solid - the CAD solid handle.
+ * @returns the STEP file content as a string.
  */
 export function brepSolidToStep(kernel: BrepEngineApi, solid: BrepHandle): string {
   return kernel.exportStep(solid)
 }
 
 /**
- * 便捷方法：将 primitive 直接转换为 STEP 字符串。
+ * Convenience method: convert a primitive directly to a STEP string.
  *
- * 内部调用 primitiveToBrepSolid + brepSolidToStep，自动管理句柄生命周期。
+ * Internally calls primitiveToBrepSolid + brepSolidToStep and manages the
+ * handle lifecycle automatically.
  *
- * @param kernel  已初始化的 OCCT 内核
- * @param type    primitive 类型
- * @param params  完整参数对象，或 size 数字（向后兼容，默认 20mm）
- * @returns STEP 文件内容字符串 + 使用的路径
+ * @param kernel - the initialized OCCT kernel.
+ * @param type - the primitive type.
+ * @param params - a full parameter object, or a size number (backwards-compatible, default 20mm).
+ * @returns the STEP file content string plus the path used.
  */
 export function primitiveToBrepStep(
   kernel: BrepEngineApi,

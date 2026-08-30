@@ -13,6 +13,10 @@
  *
  * @param edgeSegmentStarts — segmentStart value per edge (from edge row)
  * @param edgeSegmentCounts — segmentCount value per edge (from edge row)
+ * @param edgePositions — vertex positions of edge endpoints.
+ * @param edgeIndices — index pairs defining each edge segment.
+ * @param edgeCount — the number of edges.
+ * @returns the midpoints as a Float32Array of (x, y, z) per edge.
  */
 export function computeEdgeMidpoints(
   edgePositions: Float32Array,
@@ -55,6 +59,13 @@ export function computeEdgeMidpoints(
  * Multiple runs may reference the same faceRow (e.g. when a face's triangles
  * are split across multiple 3MF primitives). This function collects all
  * triangle vertices per face and averages their unique positions.
+ *
+ * @param facePositions — vertex positions of face triangles.
+ * @param faceIndices — triangle indices into facePositions.
+ * @param faceRuns — flat run table with rows of `faceRunStride` columns.
+ * @param faceRunStride — number of columns per run row.
+ * @param faceCount — the number of faces.
+ * @returns the face centers as a Float32Array of (x, y, z) per face.
  */
 export function computeFaceCenters(
   facePositions: Float32Array,
@@ -116,6 +127,7 @@ export function computeFaceCenters(
   return centers
 }
 
+/** Merged point buffers and counts for the point selection pick geometry. */
 export interface AllPointData {
   allPointPositions: Float32Array
   /** 0=vertex, 1=edge-mid, 2=face-center */
@@ -130,6 +142,9 @@ export interface AllPointData {
 /**
  * Merge vertex positions, edge midpoints, and face centers into a single
  * contiguous buffer suitable for building a THREE.Points pick geometry.
+ *
+ * @param params - the individual position and index buffers plus counts.
+ * @returns the merged point data.
  */
 export function buildAllPointData(params: {
   vertexPositions: Float32Array

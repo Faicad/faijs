@@ -24,6 +24,9 @@ import type { FaqtsRewriteFn } from './imports'
 /** 将"已转译 + 已重写"的模块代码执行一次，返回 ES 模块命名空间快照。 */
 export type FaqtsModuleExecutor = (jsCode: string) => Promise<Record<string, unknown>>
 
+/**
+ * Options controlling one full-module run through `runFaqts`.
+ */
 export interface FaqtsRunOptions {
   /** 导入重写钩子（裸说明符 → 宿主可解析的 URL）；默认保留。 */
   rewrite?: FaqtsRewriteFn
@@ -35,6 +38,10 @@ export interface FaqtsRunOptions {
   execute?: FaqtsModuleExecutor
 }
 
+/**
+ * The outcome of executing one module: the full namespace plus the outputs the
+ * author explicitly declared via `export default { ... }` and named exports.
+ */
 export interface FaqtsRunResult {
   /** 已执行的 ES 模块命名空间 */
   namespace: Record<string, unknown>
@@ -47,6 +54,14 @@ export interface FaqtsRunResult {
  *
  * - 不建 IR、不逐语句执行、不接入 timeline
  * - 每次调用执行一份全新模块实例（执行器唯一 blob/temp 路径）
+ */
+/**
+ * Execute the complete `.ts` source as a single ES module once. No IR is
+ * built, statements are not executed one by one, and no timeline is involved;
+ * each call runs a fresh module instance.
+ * @param source - the complete TypeScript source to execute.
+ * @param options - run options including the mandatory `execute` executor.
+ * @returns the run result with the module namespace and explicit outputs.
  */
 export async function runFaqts(source: string, options: FaqtsRunOptions = {}): Promise<FaqtsRunResult> {
   if (typeof options.execute !== 'function') {

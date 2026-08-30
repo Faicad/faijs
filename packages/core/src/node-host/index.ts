@@ -24,29 +24,33 @@ import { FsAssetResolver } from './fs-asset-resolver'
 import { CliEventSink } from './cli-event-sink'
 import { setFontLoader } from '../brep/text/fontRegistry'
 
+/** Options for creating Node host ports. */
 export interface CreateNodePortsOptions {
-  /** 资产目录（供 FsAssetResolver 使用） */
+  /** Asset directory (used by FsAssetResolver). */
   assetsDir?: string
-  /** manifest 文件路径 */
+  /** Manifest file path. */
   manifestPath?: string
-  /** 额外字体目录 */
+  /** Extra fonts directory. */
   fontsDir?: string
-  /** 默认字体路径（不传则用项目唯一真源） */
+  /** Default font path (falls back to the project single source of truth when omitted). */
   defaultFontPath?: string
 }
 
 /**
- * 创建 Node 端 HostPorts（注入 CadRuntime 用）。
+ * Create Node-side HostPorts (for injecting into CadRuntime).
  *
- * 组装全部 inline 后端为 HostPorts：
- * - csg: InlineCsgBackend（主线程直跑 manifold-3d）
- * - sdf: InlineSdfBackend（主线程直跑）
- * - fonts: NodeFontProvider（fs 字体加载）
- * - assets: FsAssetResolver（fs 资产解析）
- * - events: CliEventSink（写入 stderr + 收集）
+ * Assembles all inline backends into HostPorts:
+ * - csg: InlineCsgBackend (runs manifold-3d directly on the main thread)
+ * - sdf: InlineSdfBackend (runs directly on the main thread)
+ * - fonts: NodeFontProvider (fs font loading)
+ * - assets: FsAssetResolver (fs asset resolution)
+ * - events: CliEventSink (writes to stderr + collects)
  *
- * 同时将 NodeFontProvider 连接到 fontRegistry（setFontLoader），
- * 使 brep/text 的 ensureDefaultFont() 能通过 fs 加载字体。
+ * Also connects the NodeFontProvider to fontRegistry (setFontLoader), so that
+ * brep/text's ensureDefaultFont() can load fonts via the filesystem.
+ *
+ * @param opts - options controlling the ports (assets/fonts directories, default font path)
+ * @returns the assembled HostPorts
  */
 export function createNodePorts(opts?: CreateNodePortsOptions): HostPorts {
   const fontProvider = new NodeFontProvider({

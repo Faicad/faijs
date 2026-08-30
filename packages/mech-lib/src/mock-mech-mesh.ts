@@ -14,9 +14,14 @@
 
 import { solid, CONTRACT_VERSION, type SolidShape } from '@faicad/faijs-core/sdk'
 
+/** Adapter contract version, checked against CONTRACT_VERSION by registerLib. */
 export const contractVersion = CONTRACT_VERSION
 
-/** 立方体（mesh 版，无 BREP 槽）。 */
+/**
+ * Build a cube as a faijs SolidShape with no BREP slot (mesh only).
+ * @param params - configuration for the cube; `size` is the edge length.
+ * @returns the cube as a mesh-based faijs SolidShape.
+ */
 export function makeHeadstock(params: { size: number }): SolidShape {
   const s = params.size / 2
   const positions = new Float32Array([
@@ -30,7 +35,12 @@ export function makeHeadstock(params: { size: number }): SolidShape {
   return solid({ positions, indices })
 }
 
-/** 球体（mesh 版，用细分近似；验证 mesh-only 库的多样性）。 */
+/**
+ * Build a sphere as a faijs SolidShape with no BREP slot (mesh only),
+ * approximated by subdivision to demonstrate mesh-only library diversity.
+ * @param params - configuration for the sphere; `radius` is the sphere radius.
+ * @returns the sphere as a mesh-based faijs SolidShape.
+ */
 export function makeBall(params: { radius: number }): SolidShape {
   const r = params.radius
   const positions: number[] = []

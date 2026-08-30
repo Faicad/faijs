@@ -52,6 +52,7 @@ export {
   assertContractVersion,
   CONTRACT_VERSION,
   BrepUnsupportedError,
+  MeshUnsupportedError,
 } from './runtime-state'
 export type {
   Backends,
@@ -69,11 +70,20 @@ export type {
 export { getKernel, meshHandle, fromHandle } from './brep/handle-bridge'
 export type { MeshHandleOptions } from './brep/handle-bridge'
 
-// ── 双链路静态判定（V5.3：库与内置 op 同机制） ──
-// backend-dispatch 只依赖 runtime-state / stdlib/shape / type-only mesh/types，
-// 零 heavy 依赖——dist/sdk.js 守卫测试继续通过。
-// 第三方库作者在库函数体内与本 SDK 导出的 dispatchPath 相同判据选路径：
-//   import { dispatchPath, hasBrep } from '@faicad/faijs/sdk'
+// ── 双路径实现声明（D 面契约：mesh 必选、BREP 可选；几何函数专用） ──
+// define-op 只依赖 runtime-state / stdlib/shape / handle-bridge / backend-dispatch
+// 与 type-only mesh、brep 类型——零 heavy 依赖，dist/sdk.js 守卫继续通过。
+// 第三方库作者用 defineOp 声明实现集合；dispatchPath 不再直接导出——
+// 分派由 defineOp 包装器内部调用（规则仍是引擎 backend-dispatch.ts 单点）。
 
-export { dispatchPath } from './cad-runtime/backend-dispatch'
-export type { BrepPath } from './cad-runtime/backend-dispatch'
+export { defineOp, assertLibConforms, DUAL_OP_META } from './define-op'
+export type {
+  DualOpMeta,
+  DualOpOptions,
+  DualOpImpls,
+  MeshImpl,
+  BrepImpl,
+  MeshData,
+  BrepResult,
+} from './define-op'
+export type { BrepCapabilityName } from './cad-runtime/backend-dispatch'

@@ -29,7 +29,10 @@ import { faceCenter, faceNormal, bboxCenter, bboxMin, bboxMax } from './geom'
 import { asset } from './asset'
 import type { StdlibNamespace } from '@faicad/faijs-core/runtime-state'
 
-/** Assemble stdlib functions into the cad namespace. */
+/**
+ * Assemble stdlib functions into the cad namespace.
+ * @returns the assembled StdlibNamespace ready for runtime injection.
+ */
 export function createInternalStdlib(): StdlibNamespace {
   return {
     box, sphere, cylinder, cone, wedge,

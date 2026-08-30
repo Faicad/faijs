@@ -16,14 +16,20 @@
  */
 import * as THREE from 'three'
 
-/** 单条闭合环（3D，局部空间，位于截面平面上）。isHole=false 为外边界，true 为孔。 */
+/**
+ * A single closed loop (3D, local space, lying on the section plane).
+ * `isHole=false` marks the outer boundary, `true` marks a hole.
+ */
 export interface SectionRing {
   points: THREE.Vector3[]
   isHole: boolean
 }
 
+/**
+ * Result of computing a section: the stitched loops and diagnostic counters.
+ */
 export interface SectionResult {
-  /** 缝合后的全部环（已按面积分类 isHole）。 */
+  /** All stitched loops (already classified by area into isHole). */
   rings: SectionRing[]
   /** 外环列表（3D 点）。 */
   outers: THREE.Vector3[][]
@@ -68,9 +74,10 @@ interface TriRef {
 }
 
 /**
- * 求截面。
- * @param geometry 源网格（局部空间），支持索引/非索引。
- * @param plane    局部空间切割平面（THREE.Plane 语义：normal·p + constant = 0）。
+ * Compute the section of a mesh cut by a plane.
+ * @param geometry Source mesh (local space), supports indexed and non-indexed.
+ * @param plane    Local-space cutting plane (THREE.Plane semantics: normal·p + constant = 0).
+ * @returns The stitched section rings, outers, holes, and diagnostic counters.
  */
 export function computeSection(geometry: THREE.BufferGeometry, plane: THREE.Plane): SectionResult {
   const posAttr = geometry.attributes.position as THREE.BufferAttribute
@@ -268,14 +275,16 @@ export function computeSection(geometry: THREE.BufferGeometry, plane: THREE.Plan
 }
 
 /**
- * 由截面 rings 生成「沿法线挤出 length、起始于 start」的棱柱几何（局部空间）。
- * 输出同时含：cap 三角化（上下端面）+ 所有环边界的侧壁。可直接喂给
- * THREE.BufferGeometry 或转 ManifoldMeshData。
+ * Build a prism geometry by extruding the section rings along the normal for
+ * `length`, starting at `start` (in local space). The output contains the cap
+ * triangulation (top/bottom faces) plus the side walls of every boundary loop.
+ * It can be fed directly to a THREE.BufferGeometry or converted to ManifoldMeshData.
  *
- * @param section    computeSection 结果
- * @param normal     挤出方向（局部空间，单位向量）
- * @param length     拉伸长度
- * @param start      沿法线的起始偏移（centered 模式传 offsetBack，使棱柱落在 [offsetBack, offsetFront]）
+ * @param section    computeSection result
+ * @param normal     Extrusion direction (local space, unit vector)
+ * @param length     Extrusion length
+ * @param start      Start offset along the normal (centered mode passes offsetBack so the prism spans [offsetBack, offsetFront])
+ * @returns Filled position and index buffers describing the extruded prism.
  */
 export function buildExtrudedProfile(
   section: SectionResult,

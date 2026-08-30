@@ -22,19 +22,32 @@ let wasmUrl: string | undefined
 let manifoldPromise: Promise<ManifoldToplevel> | null = null
 
 /**
- * 指定 manifold.wasm 的加载地址。
- * 必须在首次 getManifoldModule() 之前调用（模块级缓存，与官方 setWasmUrl 语义一致）。
+ * Specify the URL from which manifold.wasm is loaded.
+ * Must be called before the first getManifoldModule() (module-level cache,
+ * matching the official setWasmUrl semantics).
+ *
+ * @param url - the wasm file URL.
  */
 export function setManifoldWasmUrl(url: string): void {
   wasmUrl = url
 }
 
-/** 读取当前配置的 wasm 地址（Worker 后端初始化握手用） */
+/**
+ * Read the currently configured wasm URL (used by the Worker backend during
+ * the initialization handshake).
+ *
+ * @returns the configured wasm URL, or undefined when none was set.
+ */
 export function getManifoldWasmUrl(): string | undefined {
   return wasmUrl
 }
 
-/** 获取（并缓存）Manifold WASM 模块实例 */
+/**
+ * Get (and cache) the Manifold WASM module instance, loaded once per
+ * environment.
+ *
+ * @returns a promise resolving to the initialized Manifold module.
+ */
 export async function getManifoldModule(): Promise<ManifoldToplevel> {
   if (!manifoldPromise) {
     manifoldPromise = import('manifold-3d').then(async (m) => {

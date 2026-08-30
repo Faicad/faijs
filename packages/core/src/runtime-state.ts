@@ -63,7 +63,7 @@ export interface Backends {
 }
 
 /** 契约版本。破坏性变更 +1。加载第三方库时校验，不兼容即抛错。 */
-export const CONTRACT_VERSION = 1
+export const CONTRACT_VERSION = 2
 
 /** 库函数签名（引擎视角：任意参数的普通函数，信息均匀化，不按名字分支）。 */
 export type StdlibFn = (...args: any[]) => unknown
@@ -76,6 +76,8 @@ export interface StdlibNamespace {
 /**
  * 契约版本校验（P7 第三方库通道）：加载时校验，不兼容即抛错（不静默降级）。
  * 第三方库模块若带 contractVersion 字段（与 CONTRACT_VERSION 对齐），必须匹配。
+ *
+ * @param lib - the library module whose contractVersion field is validated.
  */
 export function assertContractVersion(lib: { contractVersion?: unknown }): void {
   if (lib.contractVersion !== undefined && lib.contractVersion !== CONTRACT_VERSION) {
@@ -93,6 +95,7 @@ export function assertContractVersion(lib: { contractVersion?: unknown }): void 
  * P2 起定义在本层（零依赖），stdlib 与引擎共享同一类（instanceof 判定）。
  */
 export class BrepUnsupportedError extends Error {
+  /** The statement that triggered the unsupported operation, when available. */
   readonly stmt?: StatementIR
   constructor(message: string, stmt?: StatementIR) {
     super(message)
@@ -101,8 +104,33 @@ export class BrepUnsupportedError extends Error {
   }
 }
 
+/**
+ * Unsupported error for mesh-forced mode (brep-only functions, or auto-mode
+ * brep-only functions with a broken input chain).
+ *
+ * Symmetric to BrepUnsupportedError: thrown statically by the dispatch path,
+ * caught by CadRuntime and converted into ExecutionResult.failedAt. A brep-only
+ * function being unavailable in mesh mode is expected behavior (mode ×
+ * implementation-set mismatch), not a bug fallback — the static-dispatch red
+ * line (no try-catch, no runtime fallback) is unchanged.
+ */
+export class MeshUnsupportedError extends Error {
+  /** The statement that triggered the unsupported operation, when available. */
+  readonly stmt?: StatementIR
+  constructor(message: string, stmt?: StatementIR) {
+    super(message)
+    this.name = 'MeshUnsupportedError'
+    this.stmt = stmt
+  }
+}
+
 // ── 状态容器 ──
 
+/**
+ * The global runtime state singleton: backend configuration, the currently
+ * executing statement, and the Shape identity tables (constructor registry,
+ * identity slots, and Shape → PartName reverse lookup).
+ */
 export interface FaijsRuntimeState {
   readonly stateVersion: number
   /** 后端配置（configureBackends 写入） */
@@ -143,7 +171,13 @@ export interface AssemblyTransform {
 const pendingAssemblyKeys = new Set<object>()
 const pendingAssemblyTransforms = new WeakMap<object, AssemblyTransform[]>()
 
-/** 登记待应用变换（do_assemble 方法体调用；可累加）。 */
+/**
+ * Register a compound's pending assembly transforms (called from the
+ * do_assemble method body; accumulates across calls).
+ *
+ * @param c - the compound object that owns the transforms.
+ * @param ts - the assembly transforms to append.
+ */
 export function setPendingAssemblyTransforms(c: object, ts: AssemblyTransform[]): void {
   if (ts.length === 0) return
   pendingAssemblyKeys.add(c)
@@ -151,7 +185,12 @@ export function setPendingAssemblyTransforms(c: object, ts: AssemblyTransform[])
   pendingAssemblyTransforms.set(c, [...existing, ...ts])
 }
 
-/** 取走全部待应用变换并清空（引擎 afterStatement 调用；一次性消费）。 */
+/**
+ * Take all pending assembly transforms and clear them (called by the engine's
+ * afterStatement hook; consumed exactly once).
+ *
+ * @returns the list of compounds with their accumulated transforms.
+ */
 export function takePendingAssemblyTransforms(): Array<{ compound: object; transforms: AssemblyTransform[] }> {
   const out: Array<{ compound: object; transforms: AssemblyTransform[] }> = []
   for (const c of pendingAssemblyKeys) {
@@ -172,6 +211,8 @@ const KEY = '__FAICAD_FAIJS_RUNTIME__'
  * 挂在 globalThis 上是为了让"两份 faijs 代码"（宿主 bundle 一份、第三方库
  * 打进一份）共享同一份状态——两份 WeakSet 会导致 Shape 身份不通（几何孤岛）。
  * 构建期去重（external）是主手段，这里是兜底。
+ *
+ * @returns the shared global runtime state singleton.
  */
 export function getRuntimeState(): FaijsRuntimeState {
   const g = globalThis as unknown as Record<string, unknown>
@@ -198,7 +239,11 @@ export function getRuntimeState(): FaijsRuntimeState {
 
 // ── 后端配置读写 ──
 
-/** 宿主在启动时调用一次，注入环境资源。 */
+/**
+ * 宿主在启动时调用一次，注入环境资源。
+ *
+ * @param backends - the host-injected environment resources.
+ */
 export function configureBackends(backends: Backends): void {
   getRuntimeState().backends = backends
 }
@@ -207,6 +252,8 @@ export function configureBackends(backends: Backends): void {
  * 读取后端配置。库函数通过它获取内核与宿主端口。
  *
  * 未配置时抛错——不要返回默认值兜底（配置是宿主的责任，缺失必须暴露）。
+ *
+ * @returns the configured backend resources.
  */
 export function getBackends(): Backends {
   const b = getRuntimeState().backends
@@ -218,24 +265,42 @@ export function getBackends(): Backends {
 
 // ── 当前执行语句（引擎内部状态）──
 
-/** 引擎在语句 fn 之前调用（替换现状的 exec.currentStmt = source）。 */
+/**
+ * 引擎在语句 fn 之前调用（替换现状的 exec.currentStmt = source）。
+ *
+ * @param stmt - the statement currently being executed.
+ */
 export function setCurrentStmt(stmt: StatementIR | undefined): void {
   getRuntimeState().currentStmt = stmt
 }
 
-/** 读取当前执行语句。库函数不应调用它（F1）。 */
+/**
+ * 读取当前执行语句。库函数不应调用它（F1）。
+ *
+ * @returns the currently executing statement, or undefined if none.
+ */
 export function getCurrentStmt(): StatementIR | undefined {
   return getRuntimeState().currentStmt
 }
 
 // ── Shape 身份表 ──
 
-/** Shape → 变量名反查（keep 与 dependentsOf 依赖）。 */
+/**
+ * Shape → 变量名反查（keep 与 dependentsOf 依赖）。
+ *
+ * @param shape - the shape to look up.
+ * @returns the part name registered for the shape, or undefined.
+ */
 export function nameOf(shape: object): PartName | undefined {
   return getRuntimeState().shapeToName.get(shape)
 }
 
-/** 登记 Shape → 变量名映射。 */
+/**
+ * 登记 Shape → 变量名映射。
+ *
+ * @param shape - the shape to register.
+ * @param name - the part name to associate with the shape.
+ */
 export function setName(shape: object, name: PartName): void {
   getRuntimeState().shapeToName.set(shape, name)
 }
@@ -249,7 +314,11 @@ export type KeepSink = (stmtId: string, names: PartName[], hidden: boolean) => v
 
 let keepSink: KeepSink | undefined
 
-/** 引擎装配 keep 的落地目标（ModuleExecutor.registerKeep）。 */
+/**
+ * 引擎装配 keep 的落地目标（ModuleExecutor.registerKeep）。
+ *
+ * @param sink - the keep callback registered by the engine, or undefined to clear.
+ */
 export function setKeepSink(sink: KeepSink | undefined): void {
   keepSink = sink
 }
@@ -268,12 +337,18 @@ export function setKeepSink(sink: KeepSink | undefined): void {
  *
  * 归属到"当前正在执行的语句"（引擎在 fn 之前 setCurrentStmt）。
  * 未登记在 shapeToName 的对象（库内部的自定义对象）被忽略——这是刻意的静默。
+ *
+ * @param shapes - the shapes whose corresponding variables should be kept.
  */
 export function keep(...shapes: unknown[]): void {
   registerKeep(shapes, false)
 }
 
-/** 函数体 keep 声明：保留但 canvas 不渲染（布尔系函数的源）。 */
+/**
+ * 函数体 keep 声明：保留但 canvas 不渲染（布尔系函数的源）。
+ *
+ * @param shapes - the shapes whose corresponding variables should be kept hidden.
+ */
 export function keepHidden(...shapes: unknown[]): void {
   registerKeep(shapes, true)
 }

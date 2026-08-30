@@ -20,6 +20,7 @@ import type { PartName } from '@faicad/faijs-core/identity'
 
 // ── 参数类型（keep-syntax 设计 §2.5：成员保留由函数体 keep() 显式声明，不再靠类型标注） ──
 
+/** Parameters for the `group` stdlib function: an optional name and ordered members. */
 export interface GroupParams {
   name?: string
   /** Compound members: read-only references, never mutated by group/assembly. */
@@ -27,12 +28,14 @@ export interface GroupParams {
   memberNames?: string[]
 }
 
+/** Parameters for the `assembly` stdlib function: group params plus assembly constraints. */
 export interface AssemblyParams extends GroupParams {
   constraints?: AssemblyConstraint[]
 }
 
 // ── 约束类型 ──
 
+/** A face-mate constraint aligning two faces so the moving face mates against the fixed face. */
 export interface FaceMateConstraint {
   type: 'face_mate'
   fixedPartName: PartName
@@ -49,6 +52,7 @@ export interface FaceMateConstraint {
   }
 }
 
+/** The union of supported assembly constraint types (currently only face_mate). */
 export type AssemblyConstraint = FaceMateConstraint
 
 // ── 向量数学（无 three.js 依赖，纯计算） ──
@@ -113,6 +117,7 @@ function quaternionToMatrix3(q: [number, number, number, number]): number[] {
 
 // ── 求解器 ──
 
+/** The rotation and translation that a face-mate constraint resolves to. */
 export interface FaceMateTransform {
   quaternion: [number, number, number, number]
   pivot: [number, number, number]
@@ -121,7 +126,13 @@ export interface FaceMateTransform {
 }
 
 /**
- * 计算 face_mate 约束的变换（使 movingFace.normal → -fixedFace.normal + 中心重合）。
+ * Compute the transform that satisfies a face-mate constraint, rotating the
+ * moving face so its normal opposes the fixed normal and aligning the centers.
+ * @param fixedCenter - the world-space center of the fixed face.
+ * @param fixedNormal - the world-space normal of the fixed face.
+ * @param movingCenter - the world-space center of the moving face.
+ * @param movingNormal - the world-space normal of the moving face.
+ * @returns the resolved FaceMateTransform (quaternion, pivot, translation, matrix).
  */
 export function solveFaceMate(
   fixedCenter: [number, number, number],
@@ -148,6 +159,7 @@ export { applyTransform } from '@faicad/faijs-core/mesh/rigid-transform'
 
 // ── AssemblyBehavior ──
 
+/** Behavior attached to an assembly compound: its members, constraints, and solver. */
 export interface AssemblyBehavior {
   name?: string
   memberNames: string[]

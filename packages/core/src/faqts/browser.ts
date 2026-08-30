@@ -13,4 +13,6 @@ export type { FaqtsRunOptions, FaqtsRunResult } from './run'
 export { executeFaqtsModuleInBrowser } from './exec-blob'
 import { executeFaqtsModuleInBrowser } from './exec-blob'
 import type { FaqtsModuleExecutor } from './run'
+
+/** The browser-bound module executor: executes compiled module code via a Blob URL import. */
 export const faqtsBrowserExecutor: FaqtsModuleExecutor = executeFaqtsModuleInBrowser

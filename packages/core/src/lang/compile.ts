@@ -205,6 +205,13 @@ function buildStatementFnBody(stmt: StatementIR): string {
  *
  * 同一份 ScriptIR 编译结果确定（StmtId 按语句顺序稳定分配）。
  */
+/**
+ * Compile a validated ScriptIR into a zero-import ESM module text plus parallel
+ * statement metadata. The output of compiling the same ScriptIR is
+ * deterministic (StmtIds are assigned stably in statement order).
+ * @param script - the validated ScriptIR to compile.
+ * @returns the compiled module code and its statement metadata.
+ */
 export function compileToModule(script: ScriptIR): CompiledModule {
   const metas: CompiledStatementMeta[] = []
   const varToStmtId = new Map<string, StmtId>()

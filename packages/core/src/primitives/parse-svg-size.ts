@@ -1,10 +1,15 @@
 /**
- * SVG 自然尺寸解析（单一真源）
+ * Parse the natural size of an SVG (single source of truth).
  *
- * BREP（svg-to-solid.svgToSolid）与 mesh（svgToExtrudedGeometry）
- * 双路径共用此函数，保证同一 SVG 的双路径缩放一致。
+ * Both the BREP path (svg-to-solid.svgToSolid) and the mesh path
+ * (svgToExtrudedGeometry) share this function so the same SVG scales
+ * identically on both paths.
  *
- * viewBox 优先，回退到 width/height，都没有则返回 0（不缩放）。
+ * viewBox takes priority, falling back to width/height; if neither exists,
+ * returns 0 (no scaling).
+ *
+ * @param svgString - the SVG source text.
+ * @returns the natural width and height of the SVG.
  */
 
 export function parseSvgNaturalSize(svgString: string): { naturalWidth: number; naturalHeight: number } {

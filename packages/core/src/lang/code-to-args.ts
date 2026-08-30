@@ -82,6 +82,8 @@ function declaredByLine(line: string): Set<string> {
  * @param codeLine 单条语句源码行
  * @param opts.namespaces 该脚本顶层 import 的绑定名（F2：`mech.makeHeadstock(...)`
  *   中 `mech` 不得被前置声明为变量）。L0 不感知注册表，由宿主从脚本 imports 提供。
+ * @returns the extracted args object in serialized JSON form (`{}` when the
+ * statement has no args).
  * @throws ParseError — 行文本不是合法语句时抛出（含行号）
  */
 export function codeToArgs(codeLine: string, opts?: { namespaces?: string[] }): Record<string, JsonValue> {

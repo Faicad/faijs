@@ -262,6 +262,13 @@ function makeBasisTransform(basis: JoineryBasis, origin: Vec3): THREE.Matrix4 {
  *
  * 用 kernel.makeLineEdge + makeWire + makeFace + extrude 构造实体，
  * 然后用 transform 对齐到世界坐标系。
+ * @param kernel - the BREP engine API.
+ * @param basis - the joinery coordinate frame (normal/widthDir/depthDir/planeCenter).
+ * @param depth - the wedge depth along the normal direction.
+ * @param width - the wedge bottom width.
+ * @param angleDeg - the dovetail flap angle in degrees.
+ * @param extrudeLength - the extrusion length along the width direction.
+ * @returns the constructed wedge solid handle.
  */
 export function buildWedgeSolid(
   kernel: BrepEngineApi,
@@ -320,6 +327,12 @@ export function buildWedgeSolid(
  * - 从切割平面向下延伸 height（沿 -normal）
  *
  * 用 kernel.makeCylinder + transform 对齐方向。
+ * @param kernel - the BREP engine API.
+ * @param centroid - the centroid where the dowel is placed.
+ * @param basis - the joinery coordinate frame.
+ * @param diameter - the dowel diameter.
+ * @param height - the dowel height along the normal direction.
+ * @returns the constructed dowel solid handle.
  */
 export function buildDowelSolid(
   kernel: BrepEngineApi,
@@ -359,6 +372,12 @@ export function buildDowelSolid(
  * - 从切割平面向下延伸 height（沿 -normal）
  *
  * 用 kernel.makeBoxFromCorners + transform 对齐方向。
+ * @param kernel - the BREP engine API.
+ * @param centroid - the centroid where the tenon is placed.
+ * @param basis - the joinery coordinate frame.
+ * @param sideLength - the tenon square side length.
+ * @param height - the tenon height along the normal direction.
+ * @returns the constructed tenon solid handle.
  */
 export function buildTenonSolid(
   kernel: BrepEngineApi,
@@ -401,6 +420,10 @@ export interface CrossSectionComponent {
  * 完全相同的算法（找帽面三角形 → union-find）检测连通分量。
  *
  * 与 csg-worker.ts detectCapComponents + computeCrossSectionCentroid 一致。
+ * @param kernel - the BREP engine API.
+ * @param upper - the upper solid whose cross section is analyzed.
+ * @param basis - the joinery coordinate frame.
+ * @returns the detected cross-section components (centroid + area).
  */
 export function detectCrossSectionComponents(
   kernel: BrepEngineApi,
@@ -460,6 +483,11 @@ export interface GrooveParams {
  * 3. buildWedgeSolid（overhang=20）→ common(wedge, lower) 裁剪贴合
  * 4. fuse(upper, wedgeTrimmed) → upper'
  * 5. buildWedgeSolid（公差）→ cut(lower, wedgeTol) → lower'
+ * @param kernel - the BREP engine API.
+ * @param original - the original solid to split.
+ * @param basis - the joinery coordinate frame.
+ * @param groove - the dovetail groove parameters.
+ * @returns the split result with front (upper + wedge) and back (lower - cavity) handles.
  */
 export function dovetailBooleanSplitBrep(
   kernel: BrepEngineApi,
@@ -540,6 +568,13 @@ export interface DowelOrTenonParams {
  * 2. detectCrossSectionComponents → 截面质心列表
  * 3. 对每个质心：buildShapeSolid → fuse(upper, shape) → upper'
  * 4. 对每个质心：buildShapeSolid（公差）→ cut(lower, shapeTol) → lower'
+ * @param kernel - the BREP engine API.
+ * @param original - the original solid to split.
+ * @param basis - the joinery coordinate frame.
+ * @param shape - whether to build a dowel or a tenon.
+ * @param params - the dowel/tenon size and tolerance parameters.
+ * @param selectedSections - optional indices of cross-section components to place shapes on.
+ * @returns the split result with front (upper + shape) and back (lower - hole) handles.
  */
 export function dowelOrTenonBooleanSplitBrep(
   kernel: BrepEngineApi,

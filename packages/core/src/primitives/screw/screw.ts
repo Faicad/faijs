@@ -32,6 +32,9 @@ function threadProfileFactor(offset: number): number {
  * Internally Y-up (NASSCAD convention), then rotated to Z-up.
  * Thread ridge follows a helix: at each axial position, the crest occurs
  * at a specific angular phase; vertices near that phase get larger radius.
+ *
+ * @param params - the screw parameters (system, spec, thread, length, head, resolution).
+ * @returns a Z-up BufferGeometry of the screw.
  */
 export function makeScrew(params: ScrewParams): THREE.BufferGeometry {
   const {

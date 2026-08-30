@@ -14,12 +14,17 @@ import type { DrillDirection, DrillHoleParams } from './drill-types'
 const ROT_Y_TO_Z = new THREE.Matrix4().makeRotationX(Math.PI / 2)
 
 /**
- * Build a Z-up hole geometry centered on the origin, with axial direction along Z.
+ * Build a Z-up hole geometry centered on the origin, with the axial direction
+ * along Z.
  *
  * - simple: CylinderGeometry rotated to Z-up
  * - screw: makeScrew() already returns Z-up
  *
  * Tolerance is applied as a radial expansion (tolerance/2 on radius).
+ *
+ * @param params - drill-hole parameters (type, diameter, screw details, tolerance).
+ * @param height - axial length of the hole in millimeters.
+ * @returns the hole geometry as a Z-up BufferGeometry.
  */
 export function buildHoleGeometry(
   params: DrillHoleParams,
@@ -93,9 +98,14 @@ export function buildHoleGeometry(
 }
 
 /**
- * Compute the through-hole height by raycasting against the target mesh's bbox.
- * Returns { height, center } so the cylinder exactly spans the model thickness
- * along the drill direction, without extending outside.
+ * Compute the through-hole height by raycasting against the target mesh's
+ * bounding box. Returns { height, center } so the cylinder exactly spans the
+ * model thickness along the drill direction, without extending outside.
+ *
+ * @param position - world-space position of the hole entry point.
+ * @param direction - the drill direction (normalized internally).
+ * @param bbox - world-space bounding box of the target mesh.
+ * @returns the height and world-space center of the through hole.
  */
 export function computeThroughHoleDimensions(
   position: THREE.Vector3,
@@ -160,6 +170,11 @@ export function computeThroughHoleDimensions(
  * Compute the blind-hole center: the hole entry is at the click point,
  * the hole extends inward by `depth`. The cylinder center is at
  * position + direction * (depth / 2).
+ *
+ * @param position - world-space hole entry point.
+ * @param direction - the drill direction (normalized internally).
+ * @param depth - blind-hole depth in millimeters.
+ * @returns the world-space cylinder center.
  */
 export function computeBlindHoleCenter(
   position: THREE.Vector3,
@@ -172,6 +187,11 @@ export function computeBlindHoleCenter(
 /**
  * Orient and position a Z-up hole geometry (axial along Z) to world space.
  * Returns a new geometry with the transform baked in.
+ *
+ * @param geo - Z-up hole geometry centered on the origin.
+ * @param direction - world-space axis the hole should point along.
+ * @param center - world-space position of the hole center.
+ * @returns a transformed clone of the input geometry.
  */
 export function positionHoleGeometry(
   geo: THREE.BufferGeometry,
@@ -196,6 +216,10 @@ export function positionHoleGeometry(
  * - 'normal': inward direction = negated face normal
  * - 'x'/'y'/'z': axis-aligned, flipped to point INTO the material
  *   (i.e. opposite to the face normal)
+ *
+ * @param direction - requested drill-direction reference.
+ * @param faceNormal - face normal at the drill position.
+ * @returns the resolved unit drill direction.
  */
 export function resolveDrillDirection(
   direction: DrillDirection,
@@ -219,6 +243,16 @@ export function resolveDrillDirection(
   return axisDir
 }
 
+/**
+ * Drill a hole into a THREE.Mesh in world space, returning the resulting
+ * geometry in the mesh's local space.
+ *
+ * @param targetMesh - the mesh to drill into.
+ * @param params - drill-hole parameters.
+ * @param position - world-space hole entry point.
+ * @param faceNormal - world-space normal of the face at the entry point.
+ * @returns the drilled geometry in mesh-local space.
+ */
 export async function executeDrillHole(
   targetMesh: THREE.Mesh,
   params: DrillHoleParams,
@@ -241,6 +275,13 @@ export async function executeDrillHole(
  * This avoids the need to temporarily swap mesh.geometry when the mesh
  * currently has a preview geometry on it. Callers that have the G0 geometry
  * in a separate BufferGeometry can use this directly.
+ *
+ * @param sourceGeometry - the base geometry to drill (mesh-local space).
+ * @param worldMatrix - world transform of the source geometry.
+ * @param params - drill-hole parameters.
+ * @param position - world-space hole entry point.
+ * @param faceNormal - world-space face normal at the entry point.
+ * @returns the drilled geometry, transformed back into mesh-local space.
  */
 export async function executeDrillHoleOnGeometry(
   sourceGeometry: THREE.BufferGeometry,

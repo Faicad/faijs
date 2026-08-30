@@ -54,6 +54,14 @@ export interface UserKeep {
  * 编译发射与 statementKey 必须剥离（设计 §7.1/§7.2）：keep 透传给库函数会
  * 挤占 params 槽 / 被当 Shape 传入（union/split 的 `...rest`）。
  */
+/**
+ * Strip the call-site keep directives (`keep` / `keepHidden` keys). Both
+ * compile emission and statement-key computation must strip them (design
+ * §7.1/§7.2): passing keep through would crowd the params slot or be treated as
+ * a Shape argument (union/split `...rest`).
+ * @param args - the statement's args object, or undefined.
+ * @returns the args with the keep and keepHidden keys removed.
+ */
 export function withoutKeepDirectives(
   args: Record<string, ArgIR> | undefined,
 ): Record<string, ArgIR> {
@@ -96,6 +104,13 @@ function parseKeepEntry(entry: unknown): { target: PartName; hidden?: boolean } 
  * hidden 三态：仅 `{shape, hidden}` 显式条目写入；普通条目不写
  * （hidden 由语句级 keepHidden 兜底，设计 §2.4 `?? statementDefault`）。
  */
+/**
+ * Parse the call-site keep / keepHidden directives (IR shape into targets and
+ * hidden states). Identifier and string-literal entry forms are equivalent;
+ * hidden is three-valued, with only explicit `{shape, hidden}` entries written.
+ * @param stmt - the statement whose args hold the keep directives.
+ * @returns the parsed user keep targets and hidden defaults.
+ */
 export function parseUserKeep(stmt: StatementIR): UserKeep {
   const targets: PartName[] = []
   const hidden = new Map<PartName, boolean>()
@@ -126,6 +141,14 @@ export function parseUserKeep(stmt: StatementIR): UserKeep {
  * 优先级体现为两步顺序：先铺函数体声明（internal），再用调用点声明覆盖写入。
  * 调用点条目的 hidden = 逐条目 hidden ?? statementDefault（D1：默认可见）。
  */
+/**
+ * Merge function-body declarations with call-site declarations. Precedence is a
+ * two-step order: function-body declarations (internal) are laid down first,
+ * then call-site declarations overwrite them.
+ * @param stmt - the statement whose call-site keep directives to merge.
+ * @param internal - the function-body keep registration, if any.
+ * @returns the merged keep resolution with kept variables and hidden states.
+ */
 export function resolveKeep(
   stmt: StatementIR,
   internal?: InternalKeepRecord,
@@ -150,6 +173,13 @@ export function resolveKeep(
  * - `keep` 必须是数组；条目必须是变量引用（字符串或标识符）或 `{shape, hidden}` 对象
  * - 引用目标必须是本语句 inputs 之一，或出现在 args 中（VarRefIR）
  * - `keepHidden` 必须是 boolean
+ */
+/**
+ * Validate a statement's keep / keepHidden directives (purely static, does not
+ * depend on third-party signatures). Returns a list of error messages, empty
+ * when the directives are legal.
+ * @param stmt - the statement whose keep directives to validate.
+ * @returns an array of error messages, empty when valid.
  */
 export function validateKeepDirectives(stmt: StatementIR): string[] {
   const errors: string[] = []

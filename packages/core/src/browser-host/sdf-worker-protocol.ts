@@ -4,13 +4,15 @@
 
 import type { MeshData } from '../cad-runtime/ports'
 
+/** Worker init handshake request; carries the manifold.wasm URL. */
 export interface SdfWorkerInitRequest {
   id: number
   kind: 'init'
-  /** manifold.wasm 地址（undefined 时 worker 用默认定位） */
+  /** manifold.wasm URL (undefined lets the worker use default resolution). */
   wasmUrl?: string
 }
 
+/** SDF evaluation request executed on the worker. */
 export interface SdfWorkerRunRequest {
   id: number
   kind: 'runSdf'
@@ -22,8 +24,10 @@ export interface SdfWorkerRunRequest {
   tolerance?: number
 }
 
+/** Discriminated union of every request the SDF worker can receive. */
 export type SdfWorkerRequest = SdfWorkerInitRequest | SdfWorkerRunRequest
 
+/** Discriminated union of every response the SDF worker can emit. */
 export type SdfWorkerResponse =
   | { id: number; kind: 'init'; ok: true }
   | { id: number; kind: 'runSdf'; ok: true; result: MeshData }

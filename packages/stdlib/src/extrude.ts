@@ -22,7 +22,10 @@ const brepImpl = true
 
 // ── per-op 参数自校验（Phase 2.2；stdlib 被直接 import 时的防御层） ──
 
-/** extrude: length 必填 > 0。 */
+/**
+ * Validate extrude parameters: `length` must be a positive number.
+ * @param params - the raw extrude operation parameters.
+ */
 export function assertExtrudeParams(params: Record<string, unknown>): void {
   assertPositiveNumber(params.length, 'extrude.length')
 }

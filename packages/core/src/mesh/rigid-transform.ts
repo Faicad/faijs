@@ -24,7 +24,17 @@ function mat3MulVec(m: number[], v: [number, number, number]): [number, number, 
   ]
 }
 
-/** Apply the transform to a mesh shape (rotate about pivot, then translate). */
+/**
+ * Apply an assembly transform to a mesh shape: rotate the vertices about the
+ * pivot, then translate. The rotation is applied via the precomputed 3x3
+ * rotation matrix; the quaternion is carried along for source fidelity.
+ * @param shape - the mesh shape to transform.
+ * @param quaternion - source rotation as an (x, y, z, w) quaternion (informational).
+ * @param pivot - rotation pivot point in mm.
+ * @param translation - translation applied after rotation, in mm.
+ * @param rotationMatrix - 3x3 rotation matrix as 9 row-major entries.
+ * @returns a new shape sharing the same indices with transformed positions.
+ */
 export function applyTransform(
   shape: Shape,
   quaternion: [number, number, number, number],
