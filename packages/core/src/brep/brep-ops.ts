@@ -1,8 +1,7 @@
 /**
  * 核心 BREP 操作 — 使用 OCCT 精确实体运算
  *
- * 设计文档：docs/plans/2026-08-08-primitive-brep-mode-plan.md §4.7 (Phase 2)
- *           docs/plans/2026-08-10-brep-break-fix-plan.md §0 (目录重构)
+ * See docs/api-contract.md §8 (dual-path geometry contract: BREP / Mesh).
  *
  * 与 mesh 路径（transform.ts / boolean/ / drill.ts / split.ts / extrude.ts）对照：
  * - mesh 路径：消费 Shape（三角网格），走 manifold-3d（mesh-CSG）

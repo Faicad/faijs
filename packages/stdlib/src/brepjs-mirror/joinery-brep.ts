@@ -1,7 +1,7 @@
 /**
  * BREP 榫卯结构操作 — 用 OCCT 精确实体复刻 mesh 路径的榫卯布尔序列
  *
- * 设计文档：docs/plans/2026-08-11-split-joinery-brep-plan.md
+ * See docs/api-contract.md §8 (dual-path geometry contract) and §10.5 (split).
  *
  * 与 mesh 路径（joinery-shapes.ts + csg-worker.ts）对照：
  * - mesh 路径：buildWedgeGeometry/buildDowelGeometry/buildStraightTenonGeometry → Manifold CSG

@@ -1,5 +1,7 @@
 # Bilingual Document Pairing
 
+English | [中文](README.zh.md)
+
 Every in-scope document is a trio of files in the same directory:
 
 | File | Role |

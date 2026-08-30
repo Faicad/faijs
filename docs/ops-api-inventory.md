@@ -1,6 +1,6 @@
-# faijs 语言 API 参考（AI / 用户写代码手册）
+# faijs Language API Reference (AI / User Coding Manual)
 
-[English](ops-api-inventory.md) | 中文
+English | [中文](ops-api-inventory.zh.md)
 
 > 日期：2026-08-12 — **本手册的用途**：给 AI 和用户写 `.faijs` 代码用的 API 参考。**不需要看任何内部实现**，照着本手册写即可。
 >
@@ -12,7 +12,7 @@
 
 ---
 
-## 1. 原则：只写拓扑，不写网格
+## 1. Principle: write topology only, not meshes
 
 > **所有和拓扑相关的操作，API 参数里只准写拓扑信息（实体引用、面引用、参数数值），不准写三角化网格相关的信息（顶点/索引数组、细分参数、网格几何快照、原始文档内容）。**
 

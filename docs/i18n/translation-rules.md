@@ -1,5 +1,7 @@
 # Translation Rules
 
+English | [中文](translation-rules.zh.md)
+
 ## General principles
 
 - Translate meaning, not words. Read the whole paragraph, then write the target language naturally.

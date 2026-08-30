@@ -28,6 +28,11 @@ The staged lint runs ESLint (the repository's existing linter) instead of
 switching to oxlint, so there is no rule duplication or config drift. CI runs
 skip installation via the `CI`/`GITHUB_ACTIONS` environment guard.
 
+The `whitespace (staged)` gate is backed by a repository-wide LF policy: the
+root `.gitattributes` declares `* text=auto eol=lf` (binary fixtures via
+`*.3mf binary` / `*.pdf binary`), so the index form is always LF and CRLF never
+surfaces as trailing whitespace in `git diff --cached --check`, on any host.
+
 ## Alternatives considered
 
 - **oxlint for the staged lint job.** Faster for full-repo linting, but its
@@ -48,6 +53,8 @@ skip installation via the `CI`/`GITHUB_ACTIONS` environment guard.
   `pre-merge-commit`, `pre-push`); `npm ci` on a fresh checkout installs them too.
 - A commit with a broken staged `.i18n.yaml` record, a touched frozen archive,
   a lint error, or trailing whitespace now fails immediately.
+- Working-tree files on CRLF (e.g. Windows editors) are normalized to LF in the
+  index at add time, and `eol=lf` keeps a fresh checkout LF across platforms.
 - ESLint auto-fixes still apply to staged files; the re-staged result is what
   gets committed.
 - Where a native hook cannot run in some environment, `native:*` overrides

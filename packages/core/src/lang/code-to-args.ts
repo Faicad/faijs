@@ -1,7 +1,7 @@
 /**
  * code-to-args — 单语句行 args 提取（编辑回填配套）
  *
- * 设计文档：3d_editor docs/plans/2026-08-28-ir-strip-source-code-generation-plan.md §4.6
+ * See docs/syntax-design.md §3 (statement model ↔ StatementIR mapping) and §6.4 (check).
  *
  * 宿主编辑回填（FeatureEditor.backfill / editStatement）需要从代码行
  * 反提参数对象。此能力由 faijs 标配提供（与 parse 语义一致），

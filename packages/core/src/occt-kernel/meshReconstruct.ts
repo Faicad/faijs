@@ -2,7 +2,7 @@
  * Mesh → CAD 实体重建管线。
  *
  * 移植自 SketchForge-3D 项目的 `cadModifier.worker.ts` 中的 mesh 路径
- * （参见 docs/mesh-reconstruct-path.md）。
+ * (ported from SketchForge-3D cadModifier.worker.ts).
  *
  * 核心流程：
  * 1. 三角网格 → ASCII STL 文本 → OCCT importStl

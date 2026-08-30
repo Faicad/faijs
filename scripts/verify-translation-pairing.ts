@@ -92,9 +92,9 @@ const isTranslationPairSource = translationPairSourcePredicate(manifest)
 
 /**
  * An excluded entry ending in `/` excludes the whole directory. The trailing
- * slash IS the path boundary — `docs/example/` cannot prefix-match a
- * sibling like `docs/example-notes/x.md` — so directory entries in the
- * manifest must keep their trailing slash.
+ * slash IS the path boundary — `docs/example/` cannot prefix-match a sibling
+ * file outside that directory — so directory entries in the manifest must
+ * keep their trailing slash.
  */
 function isExcluded(file: string): boolean {
   return isTranslationPairingManifestExcluded(file, manifest)

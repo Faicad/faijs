@@ -18,6 +18,8 @@ Status: implemented
 
 暂存 lint 使用 ESLint（仓库现有 linter）而非切换到 oxlint，因此没有规则重复或配置漂移。CI 通过 `CI`/`GITHUB_ACTIONS` 环境守卫跳过安装。
 
+`whitespace (staged)` 关卡由仓库级 LF 策略支撑：根目录的 `.gitattributes` 声明 `* text=auto eol=lf`（二进制 fixture 通过 `*.3mf binary` / `*.pdf binary`），因此索引形态始终是 LF，CRLF 不会在任何平台上以尾随空白的形式出现在 `git diff --cached --check` 中。
+
 ## Alternatives considered
 
 - **为暂存 lint job 使用 oxlint。** 对全量 lint 更快，但对少量暂存文件其速度优势消失，且 oxlint 在 Windows 上有已知内存不足问题。它还会与 ESLint 已强制的规则重复并造成配置漂移。
@@ -29,5 +31,6 @@ Status: implemented
 
 - `npm install` 现在会安装 hooks（`.git/hooks/pre-commit`、`pre-merge-commit`、`pre-push`）；全新 checkout 上的 `npm ci` 也会安装。
 - 提交包含损坏的暂存 `.i18n.yaml` 记录、改动冻结归档、lint 错误或尾随空白的 commit 会立即失败。
+- 工作区为 CRLF 的文件（例如 Windows 编辑器）在 add 时会在索引中归一化为 LF，`eol=lf` 也让全新 checkout 保持各平台 LF。
 - ESLint 自动修复仍会应用到暂存文件；重新暂存的结果才是被提交的内容。
 - 当某个环境无法运行原生 hook 时，`lefthook.yml` 仍可提供 `native:*` 覆盖。

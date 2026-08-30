@@ -1,7 +1,7 @@
 /**
  * identity.ts — 全仓唯一的 ID 品牌类型定义与信任点（f0，零依赖，可脱离 web 运行）
  *
- * 设计文档：docs/plans/2026-08-24-id-branded-a1a2a3-implementation.md §0 / §2
+ * See docs/api-contract.md §3 (naming contract: StmtId and PartName separation).
  *
  * ## 目标
  *

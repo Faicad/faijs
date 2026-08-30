@@ -1,31 +1,31 @@
 # @faicad/faijs
 
-English | [中文](README.zh.md)
+[English](README.md) | 中文
 
-Faicad CAD execution engine — a `faijs` language parser, BREP/mesh dual-path geometry operations, and a `CadRuntime` orchestrator.
+Faicad CAD 执行引擎——`faijs` 语言 parser、BREP/mesh 双链路几何运算与 `CadRuntime` 编排器。
 
-- **L0 text layer** (`src/lang/`): `faijs` = a legal subset of JavaScript with **no control flow** (`if`/`for`/`while`/`do`/`switch`/`try`, dynamic `import()`). Scripts are parsed with acorn, compiled to a zero-import ESM module, and executed by the JS VM (never `eval`/`new Function`).
-- **L1 geometry layer** (`src/brep/` + `src/mesh/`): every op has a BREP (OCCT) path and a mesh (manifold-3d) path; `src/ops/dispatcher.ts` picks statically.
-- **L2 orchestration** (`src/cad-runtime/`): `CadRuntime` + `HostPorts`.
-- **L3 host** (`src/node-host/` / `src/browser-host/`).
+- **L0 文本层**（`src/lang/`）：`faijs` 是合法的 JavaScript 子集，**无控制流**（`if`/`for`/`while`/`do`/`switch`/`try`、动态 `import()`）。脚本经 acorn 解析、编译为零 import 的 ESM 模块，由 JS VM 执行（不使用 `eval`/`new Function`）。
+- **L1 几何层**（`src/brep/` + `src/mesh/`）：每个 op 有 BREP（OCCT）路径和 mesh（manifold-3d）路径；`src/ops/dispatcher.ts` 按静态规则分派。
+- **L2 编排**（`src/cad-runtime/`）：`CadRuntime` + `HostPorts`。
+- **L3 宿主**（`src/node-host/` / `src/browser-host/`）。
 
-Units: millimeters, +Z up, angles in degrees. Contract docs: `docs/api-contract.md`, `docs/syntax-design.md`.
+单位：毫米，+Z 向上，角度用度。契约文档：`docs/api-contract.md`、`docs/syntax-design.md`。
 
 ## Entry points
 
 | Import | Contents |
 |---|---|
-| `@faicad/faijs` | Full API (L0–L3, incl. Node host) |
-| `@faicad/faijs/browser` | Browser-safe subset (no `node:*`) |
-| `@faicad/faijs/node` | Node host entry |
-| `@faicad/faijs/stdlib` | Built-in library namespace |
-| `@faicad/faijs/sdk` | **Third-party library authoring surface** (zero heavy deps) |
+| `@faicad/faijs` | 全量 API（L0–L3，含 Node host） |
+| `@faicad/faijs/browser` | 浏览器安全子集（无 `node:*`） |
+| `@faicad/faijs/node` | Node host 入口 |
+| `@faicad/faijs/stdlib` | 内置库命名空间 |
+| `@faicad/faijs/sdk` | **第三方库开发面**（零重依赖） |
 
 ## Developing a third-party library (`@faicad/faijs/sdk`)
 
-A `.faijs` script can `import * as mech from 'mech-lib'` and call `mech.makeHeadstock(...)`; the host loads your module (`import(url)`) and registers it via `CadRuntime.registerLib(binding, module)` **before** any check/execute.
+`.faijs` 脚本可以 `import * as mech from 'mech-lib'` 并调用 `mech.makeHeadstock(...)`；宿主加载你的模块（`import(url)`）并在任何 check/execute 之前通过 `CadRuntime.registerLib(binding, module)` 注册。
 
-Your module is a plain ESM file exporting functions — write it against the SDK entry:
+你的模块是一个导出函数的普通 ESM 文件——通过 SDK 入口编写：
 
 ```ts
 // mech-lib.mjs

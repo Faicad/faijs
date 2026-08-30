@@ -1,7 +1,7 @@
 /**
  * 面演化（face evolution）工具：hash 映射 ↔ ordinal 映射转换
  *
- * 分析文档：docs/plans/2026-08-12-topology-face-tracking-analysis.md
+ * See docs/api-contract.md §11 (topology contract) for face evolution context.
  *
  * occt-wasm 的 *WithHistory API 返回 BrepEvolutionData，其中 modified/generated
  * 用面 hash（内存指针哈希）编码。本模块将其解码为 ordinal 映射（面枚举序号），

@@ -1,7 +1,7 @@
 /**
  * mesh BREP 基本体 API — 使用 OCCT 精确实体构造
  *
- * 设计文档：docs/plans/2026-08-08-primitive-brep-mode-plan.md §4.1
+ * See docs/api-contract.md §8 (dual-path geometry contract: BREP / Mesh).
  *
  * 与 `primitives.ts`（mesh 路径）的对照：
  * - mesh 路径：THREE 参数几何 → geoToManifoldMesh → Shape（三角网格近似）

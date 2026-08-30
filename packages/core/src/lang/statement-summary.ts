@@ -1,7 +1,7 @@
 /**
  * statement-summary — 语句平铺摘要（宿主展示/编排用，非 IR 类型）
  *
- * 设计文档：3d_editor docs/plans/2026-08-28-ir-strip-source-code-generation-plan.md §4.2
+ * See docs/syntax-design.md §3 (statement model ↔ StatementIR mapping).
  *
  * `analyzeCode(code)` 是宿主消费语句信息的唯一形态（IR 剥离后宿主禁止
  * import ScriptIR/StatementIR）。摘要只含展示/编排所需的标量字段：

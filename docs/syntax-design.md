@@ -1,6 +1,6 @@
-# .faijs 语法设计
+# .faijs Syntax Design
 
-[English](syntax-design.md) | 中文
+English | [中文](syntax-design.zh.md)
 
 > 定位：这是 `.faijs` 的**语法契约**与**增量执行契约**（长期有效）。需求总纲：`C:\my\Faicad\3d_editor\Faijs语言的思考.md`。相邻文档：`docs/api-contract.md`（接口契约）、`docs/ops-api-inventory.md`（API 手册，写给 AI/用户）、`docs/plans/2026-08-25-faijs-vm-execution-implementation-plan.md`（执行架构实施）。
 
@@ -8,9 +8,9 @@
 
 ---
 
-## 0. 需求与约束
+## 0. Requirements and constraints
 
-### 0.1 用户原话（需求基线，不准删除）
+### 0.1 User's original words (requirements baseline, must not be deleted)
 
 来自 `Faijs语言的思考.md`：
 
@@ -35,7 +35,7 @@
 
 > parser 这是乱来，完全违规。parser 只应对代码进行语法分析，怎么可能改写用户提供的代码。partN 这种命名是 UI 层的事情，怎么可能跑到 parser 层里，完全乱来。还篡改用户代码，莫名其妙。
 
-### 0.2 由原话推出的硬约束
+### 0.2 Hard constraints derived from the original words
 
 1. **`.faijs` 必须是 JavaScript 的合法子集** —— 任意 JS 解析器（acorn）都能无错解析。
 2. **禁止 `eval` / `new Function` / 动态 `import()` 真执行** —— 存在安全风险，且会让"子集边界"毫无意义。文本必须**先经语法解析**还原为结构化 IR（parse-then-compile），执行交给 JS 虚拟机——编译产物由引擎从 IR 生成，用户原文不进 VM。
@@ -48,7 +48,7 @@
 
 ---
 
-## 1. 核心抽象：ScriptIR 是唯一事实源
+## 1. Core abstraction: ScriptIR is the single source of truth
 
 ```
        Human UI 操作                    AI / 手写代码 (.faijs 文本)
@@ -70,7 +70,7 @@
               ExecutionResult { outputs, terminals, compounds, … }
 ```
 
-### 1.1 四层分离（引擎零几何、零函数名）
+### 1.1 Four-layer separation (engine zero-geometry, zero-function-name)
 
 | 层 | 内容 |
 |---|---|
@@ -79,7 +79,7 @@
 | **stdlib** | 全部官方函数的**库函数实现**（`src/stdlib/**`，`@faicad/faijs/stdlib`）。几何运算在这里，不在引擎 |
 | **第三方库** | 任意 JS 模块，遵守"末参 exec"约定即可被 `.faijs` 调用（远期） |
 
-### 1.2 身份契约：`StmtId` 与 `PartName` 是两个命名空间
+### 1.2 Identity contract: `StmtId` and `PartName` are two namespaces
 
 ```
 part0 = cad.box(...)          // part0 是 PartName（变量身份）
@@ -91,7 +91,7 @@ part0 = cad.box(...)          // part0 是 PartName（变量身份）
 - 引擎与宿主都以 `PartName` 为**不透明 key**（`outputs: Map<PartName, Shape>`、`terminalToScopedId: Record<PartName, …>`），**不解析 `partN` 的结构**。`partN` 只是 UI 生成代码的命名约定。
 - 因此**同一变量名可以被多条语句写入**（重赋值 = 模型被修改），这是本语言与 SSA 版本链（`partN_vM`）的根本区别。
 
-### 1.3 执行永远走 JS VM
+### 1.3 Execution always goes through JS VM
 
 `cad.*` 在文本里只是**约定**（合法 JS 子集），应用内执行时 parser 还原为 IR → 编译为**零 import ESM** → 动态 `import()` 由 JS 引擎执行。引擎不解释任何几何语义；几何运算在 stdlib 库函数里，BREP/mesh 双链路由库函数内部 `resolvePath` **静态判定**（禁止运行时回退，见 `docs/api-contract.md` §8）。
 
@@ -99,13 +99,13 @@ part0 = cad.box(...)          // part0 是 PartName（变量身份）
 
 ---
 
-## 2. 语法规范（合法 JS 子集）
+## 2. Syntax specification (legal JS subset)
 
 > **本章双层结构——规范要求与当前实现必须分清**：
 > - **规范要求（目标契约，语言应该是什么样）**：faijs 是**正常 JS 的合法子集**，除控制流语句外一切合法（"faijs 必需是正常的 js 的子集，除了没有控制流语句"）。
 > - **当前实现（现状，可能临时、可能错）**：parser 白名单只支持其中一部分形态，其余暂报 `ParseError`。**实现不是规范**——规范以本章"规范要求"为准；实现差距与实施见开发计划 `docs/plans/2026-08-29-faijs-normal-js-subset.md`。
 
-### 2.1 文件容器
+### 2.1 File container
 
 **规范要求**：
 - 文件是合法 JS（除控制流外一切合法），可含**顶层 `import` 段**（路线图 V1.1）：允许 `import * as mech from 'mech-lib'` 等模块声明。`import` 是**模块声明而非控制流**，不破坏 DAG 与 timeline（路线图 §1.1 关键澄清）。
@@ -117,7 +117,7 @@ part0 = cad.box(...)          // part0 是 PartName（变量身份）
 - **`// apiVersion: N`** 注释可选（`getApiVersion`，缺省 1）。
 - **顶层 `import` 尚未支持**（V1.1 实施中；当前 import 落进函数体即语法错误）。
 
-### 2.2 语句形态（开放子集，不是封闭清单）
+### 2.2 Statement forms (open subset, not a closed list)
 
 **规范要求**：语句形态是**开放的**——任何不构成控制流的合法 JS 语句都允许：声明、赋值、表达式语句、函数调用、`return`、顶层 `function` 声明（V1.3）、顶层 `import`（V1.1）。不存在"缺一不可、多一不可"的封闭清单。
 
@@ -144,7 +144,7 @@ stmt     = (const|let) <id> = [await] cad.<fn>(<input>*, { <k>:<v>, … }?)   //
 - 成员方法调用的接收者必须是已声明变量，方法名任意（`asm1.add_constraint({…})`、`asm1.do_assemble()`）；这类语句**无输出**（`outputs = []`）。
 - 显式 `return` 只用于**指定终端集合**（§5.1 优先级）；绝大多数代码不写 `return`。
 
-### 2.3 表达式（args 与赋值右侧）
+### 2.3 Expressions (args and assignment right side)
 
 **规范要求**：值是**正常 JS 表达式**——字面量、标识符、一元/二元运算、模板字符串、三元、数组/对象字面量、函数调用（含嵌套 `cad.<fn>()` 与用户自定义函数，V1.3）、展开运算符等，只要不含控制流。例：
 
@@ -166,7 +166,7 @@ let part2 = cad.drill(part0, { at: cad.faceCenter(part0), depth: flag ? 5 : 0 })
 
 > 当前实现**不支持**二元表达式（`cad.box({ size: [10, 20 * r, 5] })` 报 `unsupported value expression: BinaryExpression`）、模板字符串、三元、展开等——这些是**临时实现限制，不是语言规范**，实施见开发计划。
 
-### 2.4 禁止清单（规范禁令 vs 当前实现限制）
+### 2.4 Prohibition list (spec prohibitions vs current implementation limits)
 
 **规范要求（唯一禁令）**：
 
@@ -179,7 +179,7 @@ let part2 = cad.drill(part0, { at: cad.faceCenter(part0), depth: flag ? 5 : 0 })
 
 **当前实现额外禁止（临时限制，非规范）**：函数声明/表达式、类、`new`、模板字符串、IIFE、`var`、多声明器（`const a = 1, b = 2`）、裸表达式语句（非成员调用）、顶层 `import`。这些是**当前 parser 白名单的临时限制**，随 V1 语言正常化逐步放开（路线图 V1.1/V1.3，见开发计划）。
 
-### 2.5 标识符命名约束（关键字黑名单）——可读性约束
+### 2.5 Identifier naming constraints (keyword blacklist) — readability constraint
 
 本条约束的是**本项目生成/拥有的代码**：`codegen` 输出的所有标识符（变量名、参数名）、引擎自身的固定词汇（`cad`、函数名、参数名）。
 
@@ -189,7 +189,7 @@ let part2 = cad.drill(part0, { at: cad.faceCenter(part0), depth: flag ? 5 : 0 })
 
 ---
 
-## 3. 语句模型 ↔ `StatementIR` 映射
+## 3. Statement model ↔ `StatementIR` mapping
 
 `src/lang/types.ts` 的 IR 定义（**这是 IR 的真源**）：
 
@@ -234,9 +234,9 @@ interface ScriptIR {
 
 ---
 
-## 4. 变量命名：`partN` 约定（**生成侧**职责）
+## 4. Variable naming: `partN` convention (**generating-side** responsibility)
 
-### 4.1 核心原则（用户原话）
+### 4.1 Core principle (user's original words)
 
 > 核心的底层原则是要看给定一个函数调用后，是否有独立的新的shape生成了。有新的shape生成了，就需要新的变量名。如果是在原来的shape的基础上的修改，则不需要分配新的变量名。
 
@@ -244,7 +244,7 @@ interface ScriptIR {
 > 2. 如果输入是一个Shape，输出是一个shape的，不需要变量名。代表修改这个入参本身。比如drill、fillet
 > 3. 如果输入和输出的（非readonly的）shape数量不同，则需要一个新的变量名。比如split/boolean
 
-### 4.2 `derivePartName`：引擎提供的命名服务，但**只有生成侧调用**
+### 4.2 `derivePartName`: engine-provided naming service, but **only called by generating side**
 
 ```ts
 derivePartName(input: {
@@ -270,7 +270,7 @@ derivePartName(input: {
 - partN 序号由 `code` 文本词法扫描（`/part(\d+)/`）取 `max+1`，**不 parse**（允许解析生成中的代码）。
 - `allocateSplitIds` 已被 `outputCount: 2` 吸收。
 
-### 4.3 分层红线：parser 不做命名（2026-08-28 修复）
+### 4.3 Layer red line: parser does not do naming (2026-08-28 fix)
 
 > partN 这种命名是 UI 层的事情，怎么可能跑到 parser 层里……这个 parser 是 faijs 语言的 parser，居然去改 UI 层生成的代码？
 
@@ -281,9 +281,9 @@ derivePartName(input: {
 
 ---
 
-## 5. 终端判定：DAG 活跃性（canvas 显示什么）
+## 5. Terminal detection: DAG liveness (what canvas displays)
 
-### 5.1 一句话规则（用户原话）
+### 5.1 One-sentence rule (user's original words)
 
 > DAG 活跃性判断就是**看一个变量是否被消费**——被消费了，就不出现在终端。规则只有一条：**compound shape 不消费其子 shape**，所以返回 compound 的语句要从"消费方"里排除；其它语句，只要 shape 出现在右侧，就认为被消费了。
 
@@ -300,7 +300,7 @@ derivePartName(input: {
 - 显式 `return [...]`（`script.terminalShapes`）**优先**于 DAG 推导；没有 `return` 时才推导。
 - **这是 faijs 引擎的职责**，宿主不重复实现该判定（切换算法不应影响下游）。
 
-### 5.2 `consumes(T, v)`：符号表驱动，三条例外
+### 5.2 `consumes(T, v)`: symbol-table-driven, three exceptions
 
 ```ts
 function consumes(stmt, v): boolean {
@@ -316,7 +316,7 @@ function consumes(stmt, v): boolean {
 - 未知 callee → 无 readonly 信息 → **右侧出现即消费**（默认）。
 - `exec.touch` 机制（装配变换后的原地修改通知）与活跃性判定无关，结果记在 `ExecutionResult.changed`。
 
-### 5.3 符号表：唯一的函数信息载体（机器生成，无 per-函数代码）
+### 5.3 Symbol table: the sole function information carrier (machine-generated, no per-function code)
 
 `src/lang/symbol-table.generated.ts`（由 `scripts/gen-symbol-table.ts` 从 stdlib 的 **TS 签名**生成，禁手改 + 守卫测试）：
 
@@ -340,7 +340,7 @@ export type ReadonlyShape = Shape & { readonly [readonlyBrand]?: true }
 
 符号表只有三个消费方，全部是均匀查表：`derivePartName`（§4.2）、`consumes`（§5.2）、`check()`（§6.4）。
 
-### 5.4 效果对照
+### 5.4 Effect comparison
 
 | 脚本 | 判定 | canvas 显示 |
 |---|---|---|
@@ -357,9 +357,9 @@ export type ReadonlyShape = Shape & { readonly [readonlyBrand]?: true }
 
 ---
 
-## 6. 执行模型与增量执行
+## 6. Execution model and incremental execution
 
-### 6.1 管线
+### 6.1 Pipeline
 
 ```
 .faijs 文本
@@ -376,7 +376,7 @@ export type ReadonlyShape = Shape & { readonly [readonlyBrand]?: true }
 
 **红线（不变）**：编译输入只有 IR，用户原文不进 VM（parse-then-compile：执行完全交给 JS 虚拟机，VM 运行的是从 IR 编译的产物）。
 
-### 6.2 统一 ABI（编译产物发射的唯一模板）
+### 6.2 Unified ABI (the sole template emitted by compilation)
 
 所有可从 `.faijs` 调用的可调用体签名：
 
@@ -395,7 +395,7 @@ export type ReadonlyShape = Shape & { readonly [readonlyBrand]?: true }
 - `ArgIR` 翻译：`VarRefIR → ctx.<name>`；`CallRefIR → cad.<callee>(…, exec)`；`ParamRefIR → ctx.<param>`。
 - **参数即语句**：`const size = 20` 编译为 `ctx.size = 20`，占 `s1..sK`。
 
-### 6.3 增量执行（三入口）
+### 6.3 Incremental execution (three entry points)
 
 | API | 行为 |
 |---|---|
@@ -420,7 +420,7 @@ stale 为空 → 零执行，直接用持久 ctx 组装结果
 - 参数语句参与 deps 级联——改参数会使全部引用它的语句 stale。
 - 无赋值的语句（`hasAssignment: false`）不产出几何，不参与增量分析。
 
-### 6.4 `check()`：dryRun 校验（零几何副作用）
+### 6.4 `check()`: dryRun validation (zero geometry side effects)
 
 `CadRuntime.check(code)` 四阶段，**全部无 per-函数代码**：
 
@@ -433,9 +433,9 @@ stale 为空 → 零执行，直接用持久 ctx 组装结果
 
 ---
 
-## 7. AI 代码生成模型 与 引擎增量执行
+## 7. AI code generation model and engine incremental execution
 
-### 7.1 AI 如何生成代码：**总是全量，不生成 patch**
+### 7.1 How AI generates code: **always full, never patches**
 
 1. LLM 最擅长生成完整可运行代码，最难可靠生成结构化 patch。
 2. **增量识别的职责放在引擎侧**（确定性算法），比依赖 AI 的 patch 格式更稳。
@@ -451,7 +451,7 @@ AI 提交的契约（写进代码生成 system prompt）：
 
 > AI 提交 = "一次完整重写"，引擎负责"和上次提交比对，找出改了什么"。引擎无需信任 AI 的意图描述——**全部基于解析后的 IR 做客观比对**。
 
-### 7.2 宿主侧 id 对齐（3d_editor 职责）
+### 7.2 Host-side id alignment (3d_editor responsibility)
 
 faijs 的增量是 `statementKey` 内容寻址（§6.3）；**语句级的新增/修改/删除分类由宿主按 `StmtId`/`PartName` 对齐**后，再调用 `append` / `update`：
 
@@ -466,7 +466,7 @@ faijs 的增量是 `statementKey` 内容寻址（§6.3）；**语句级的新增
 - **身份契约是硬约束**：引擎与宿主都只靠身份对齐，不看行号位置。AI 若把 `part0` 改名成 `p0`，会被判成"删 part0 + 加 p0"——功能上可能仍跑，但下游 `inputs:['part0']` 全部断引用报错。
 - **DELETE 级联**：若某语句被删而其输出仍被下游引用（孤儿），推荐直接拒绝提交（AI 全量生成通常一并删除下游）；若确需级联，则把孤儿一并判为 DELETE 并级联其下游。
 
-### 7.3 场景对照
+### 7.3 Scenario comparison
 
 | 场景 | AI 改动（全量文本） | 判定 | 引擎动作 |
 |---|---|---|---|
@@ -478,7 +478,7 @@ faijs 的增量是 `statementKey` 内容寻址（§6.3）；**语句级的新增
 
 ---
 
-## 8. 人类 UI ↔ AI 交织流程
+## 8. Human UI ↔ AI interleaving flow
 
 **人类钻孔（UI）**：
 1. 用户点击面 → 宿主根据交互派生 args。
@@ -496,7 +496,7 @@ faijs 的增量是 `statementKey` 内容寻址（§6.3）；**语句级的新增
 
 ---
 
-## 9. 场景走查（端到端）
+## 9. Scenario walkthrough (end-to-end)
 
 ```js
 // 0. 人类：建方块（UI 生成，创建类 → 新名 part0）
@@ -529,7 +529,7 @@ asm1.do_assemble()
 
 ---
 
-## 10. 远期：`.faits` 与第三方库
+## 10. Long-term: `.faits` and third-party libraries
 
 以下来自 `Faijs语言的思考.md`，**当前未实现**，仅记录方向，不构成本文档契约：
 
@@ -540,7 +540,7 @@ asm1.do_assemble()
 
 ---
 
-## 附：与旧版文档的差异速查
+## Appendix: Quick reference of differences from old version
 
 | 旧版（≤2026-08-26） | 现在 |
 |---|---|

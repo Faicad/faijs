@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿/**
  * 拉伸（extrude）几何工具集 —— 从 ExtrudeRenderer.tsx 抽出的纯几何函数。
  *
  * 拉伸的语义（三段模型）：在切割平面把模型切开，得到
@@ -71,7 +71,7 @@ export function makeWorldPlane(
  * 全分辨率构建拉伸三段（世界空间进、世界空间出）。
  *
  * 这是**提交路径的唯一真相**：预览无论用什么近似手段，执行时都走这里重算，
- * 因此预览的几何误差不会污染最终模型（见 docs/plans/2026-08-05-extrude-preview-nosplit.md §5）。
+ * so preview geometry errors do not pollute the final model.
  *
  * @param worldMesh   世界空间的源网格（局部几何 × matrixWorld）
  * @param normal      切割平面法线（单位向量）

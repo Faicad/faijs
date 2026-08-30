@@ -1,5 +1,7 @@
 # Agent Notes
 
+English | [中文](README.zh.md)
+
 Agent Notes are decision records: why a change was made, what was given up, and what alternatives were rejected. They live under `.agents/notes/` in a lifecycle/class tree and are distinct from standing documentation in `docs/`.
 
 ## Layout and naming

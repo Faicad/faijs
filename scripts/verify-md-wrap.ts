@@ -26,6 +26,13 @@ const PATTERNS = [
   'packages/AGENTS.md',
 ]
 
+/** Exclude plans/ and analysis/ (not subject to wrap checking). */
+function isExcluded(relativePath: string): boolean {
+  return isArchivedAgentNotePath(relativePath)
+    || relativePath.startsWith('docs/plans/')
+    || relativePath.startsWith('docs/analysis/')
+}
+
 /** A located hard-wrap: a prose paragraph spanning more than one source line. */
 interface Violation {
   file: string
@@ -67,7 +74,7 @@ function findViolations(absPath: string): Violation[] {
   return out
 }
 
-const files = uniqueRepoFiles(root, PATTERNS, isArchivedAgentNotePath)
+const files = uniqueRepoFiles(root, PATTERNS, isExcluded)
 const all = files.flatMap(file => findViolations(file.abs))
 const checked = files.length
 

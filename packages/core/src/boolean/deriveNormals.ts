@@ -6,7 +6,7 @@ import { toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.j
  *
  * 取代散落在各处的 `geometry.computeVertexNormals()`。后者在**索引（共享顶点）
  * 几何**上会把相邻三角面的法线取平均 → 棱边被"磨圆"。这正是钻孔/布尔/分割操作后
- * 模型视觉异常的根因（见 docs/plans/2026-08-10-operation-result-material-consistency-design.md）。
+ * model visual anomalies after drilling/boolean/split operations.
  *
  * `toCreasedNormals` 只在二面角大于 `creaseAngleDeg` 的边处"裂开"法线 → 锐边保持锐利，
  * 仅对近共面 / 真实曲面（如钻孔内壁）平滑。它内部会把索引几何 `toNonIndexed()`
