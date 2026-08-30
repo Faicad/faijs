@@ -14,8 +14,10 @@
 
 import { describe, it, expect, beforeAll, vi } from 'vitest'
 import { asPartName, asStmtId } from '../identity'
-import { initOcctWasm, getKernel } from '../occt-kernel/occtKernel'
-import type { OcctKernel } from 'occt-wasm'
+import { getKernel } from '../occt-kernel/occtKernel'
+import { registerOcctBrepEngine } from '../brep/engine/adapters/occt'
+import type { BrepHandle } from '../brep/engine/types'
+import type { BrepEngineApi } from '../brep/engine/primitives'
 import type { StatementIR, ScriptIR } from '../lang/types'
 import { createRuntime } from '@faicad/faijs'
 import { CadRuntime, computeContentKey } from './runtime'
@@ -29,11 +31,11 @@ import type { StdlibNamespace } from '../runtime-state'
 import type { Shape } from '../mesh/types'
 import { dispatchPath as libDispatchPath, hasBrep } from '../sdk'
 
-let kernel: OcctKernel
+let kernel: BrepEngineApi
 
 beforeAll(async () => {
-  await initOcctWasm()
-  kernel = getKernel()
+  await registerOcctBrepEngine()
+  kernel = getKernel() as unknown as BrepEngineApi
   ensureTestFontLoader()
 }, 120000)
 
@@ -83,7 +85,7 @@ async function run(statements: StatementIR[], mode?: ExecutionMode) {
 }
 
 // Helper: get first brepSolid from result
-function getFirstBrepSolid(result: { brepSolids?: Map<string, { solid: import('occt-wasm').ShapeHandle; kernel: import('occt-wasm').OcctKernel }> }) {
+function getFirstBrepSolid(result: { brepSolids?: Map<string, { solid: BrepHandle; kernel: BrepEngineApi }> }) {
   if (!result.brepSolids) return undefined
   for (const [, entry] of result.brepSolids) return entry
   return undefined
@@ -1055,7 +1057,7 @@ describe('CadRuntime: copy op (deep clone)', () => {
     // 独立 handle
     const srcSolid = result.brepSolids!.get(asPartName('part0'))!
     const copySolid = result.brepSolids!.get(asPartName('part1'))!
-    // ShapeHandle 是 number，copy 应产出新 handle（不同值）
+    // BrepHandle 是 number，copy 应产出新 handle（不同值）
     expect(srcSolid.solid).not.toBe(copySolid.solid)
 
     // 验证 STEP 导出两份都是有效实体

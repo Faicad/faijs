@@ -14,6 +14,7 @@ import { isCadFormat } from '@faicad/faijs-core/brep/brep-chain'
 import { loadBrep } from '@faicad/faijs-core/brep/brep-ops'
 import { getBackends, BrepUnsupportedError } from '@faicad/faijs-core/runtime-state'
 import { solid, fromBrep } from '@faicad/faijs-core/shape'
+import type { BrepEngineApi } from '@faicad/faijs-core/brep/engine/primitives'
 
 /**
  * 执行加载操作（统一 load 函数）
@@ -49,7 +50,7 @@ export async function load(params: Record<string, unknown>): Promise<Shape> {
 
   // 静态判定路径：mesh 模式 / 无 kernel / 非 CAD 源 → mesh 路径；否则 BREP 路径
   const { config, kernel: kernels } = getBackends()
-  const kernel = kernels.occt as import('occt-wasm').OcctKernel | null
+  const kernel = kernels.brep as BrepEngineApi | null
   const useBrep = config.mode !== 'mesh' && !!kernel && isCadFormat(params, true)
 
   // brep 模式且将走 mesh-only 路径 → 调用前抛错，不静默回退

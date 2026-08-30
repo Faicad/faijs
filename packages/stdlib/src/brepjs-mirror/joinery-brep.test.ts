@@ -12,7 +12,7 @@
 
 import { describe, it, expect, beforeAll } from 'vitest'
 import { initOcctWasm, getKernel } from '@faicad/faijs-core/occt-kernel/occtKernel'
-import type { OcctKernel } from 'occt-wasm'
+import type { BrepEngineApi } from '@faicad/faijs-core/brep/engine/primitives'
 import {
   buildWedgeSolid,
   buildDowelSolid,
@@ -25,11 +25,11 @@ import {
 import { getSolidBoundingBox } from '@faicad/faijs-core/brep/brep-utils'
 import { splitBrep } from '@faicad/faijs-core/brep/brep-ops'
 
-let kernel: OcctKernel
+let kernel: BrepEngineApi
 
 beforeAll(async () => {
   await initOcctWasm()
-  kernel = getKernel()
+  kernel = getKernel() as unknown as BrepEngineApi
 }, 120000)
 
 // 标准测试坐标框架：Z-up 切割平面在 Z=0

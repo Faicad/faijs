@@ -26,6 +26,8 @@ import { getBackends } from '@faicad/faijs-core/runtime-state'
 import { solid, fromBrep, brepOf } from '@faicad/faijs-core/shape'
 import { dispatchPath } from '@faicad/faijs-core/cad-runtime/backend-dispatch'
 import { assertNonZeroVec3 } from './assert'
+import type { BrepHandle } from '@faicad/faijs-core/brep/engine/types'
+import type { BrepEngineApi } from '@faicad/faijs-core/brep/engine/primitives'
 
 /** BREP 实现标记（split 有 OCCT 精确分割） */
 const brepImpl = true
@@ -54,9 +56,9 @@ function worldToLocalVec3(
 
 /** BREP 路径：OCCT 平面/榫卯分割 + 分离位移。 */
 function splitBrepPath(input: Shape, params: Record<string, unknown>): { front: Shape; back: Shape } {
-  const kernel = getBackends().kernel.occt as import('occt-wasm').OcctKernel | null
+  const kernel = getBackends().kernel.brep as BrepEngineApi | null
   if (!kernel) throw new Error('[stdlib/split] no OCCT kernel')
-  const inputSolid = brepOf(input) as import('occt-wasm').ShapeHandle | undefined
+  const inputSolid = brepOf(input) as BrepHandle | undefined
   if (!inputSolid) throw new Error('[stdlib/split] input is not BREP')
 
   const cutMode = (params.cutMode as string) ?? 'plane'
@@ -92,8 +94,8 @@ function splitBrepPath(input: Shape, params: Record<string, unknown>): { front: 
     originOffset,
   }
 
-  let frontSolid: import('occt-wasm').ShapeHandle
-  let backSolid: import('occt-wasm').ShapeHandle
+  let frontSolid: BrepHandle
+  let backSolid: BrepHandle
 
   if (cutMode === 'dovetail') {
     const groove: GrooveParams = {

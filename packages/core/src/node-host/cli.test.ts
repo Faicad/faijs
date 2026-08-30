@@ -18,7 +18,7 @@ import { readFileSync, existsSync, rmSync, mkdirSync, writeFileSync } from 'node
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { cliCheck, cliRun, parseArgs } from './cli'
-import { initOcctWasm } from '../occt-kernel/occtKernel'
+import { registerOcctBrepEngine } from '../brep/engine/adapters/occt'
 import { ensureTestFontLoader } from '../brep/text/fontTestHelper'
 import { createInternalStdlib } from '@faicad/faijs-stdlib/internal-stdlib'
 
@@ -26,7 +26,7 @@ import { createInternalStdlib } from '@faicad/faijs-stdlib/internal-stdlib'
 const CAD_LIBS = { cad: createInternalStdlib() }
 
 beforeAll(async () => {
-  await initOcctWasm()
+  await registerOcctBrepEngine()
   ensureTestFontLoader()
 }, 120000)
 

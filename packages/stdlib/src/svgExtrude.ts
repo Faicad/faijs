@@ -18,6 +18,7 @@ import { getBackends } from '@faicad/faijs-core/runtime-state'
 import { solid, fromBrep } from '@faicad/faijs-core/shape'
 import { dispatchPath } from '@faicad/faijs-core/cad-runtime/backend-dispatch'
 import { assertPositiveNumber } from './assert'
+import type { BrepEngineApi } from '@faicad/faijs-core/brep/engine/primitives'
 
 /** BREP 实现标记（dispatchPath 判定用；svgExtrude 有 OCCT 精确构造） */
 const brepImpl = svgToSolid
@@ -32,7 +33,7 @@ export function assertSvgExtrudeParams(params: Record<string, unknown>): void {
 
 /** BREP 路径：SVG path 解析 → OCCT wire/face → extrude + fromBrep 登记。 */
 function svgExtrudeBrep(params: Record<string, unknown>, svgText: string): Shape {
-  const kernel = getBackends().kernel.occt as import('occt-wasm').OcctKernel | null
+  const kernel = getBackends().kernel.brep as BrepEngineApi | null
   if (!kernel) throw new Error('[stdlib/svgExtrude] no OCCT kernel')
 
   const solidHandle = svgToSolid(kernel, svgText, {

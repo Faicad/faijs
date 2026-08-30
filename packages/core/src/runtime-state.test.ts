@@ -11,7 +11,7 @@ function fakeBackends(): Backends {
   return {
     contractVersion: CONTRACT_VERSION,
     config: { mode: 'auto' },
-    kernel: { occt: { tag: 'fake-occt' }, csg: undefined, sdf: undefined },
+    kernel: { brep: { tag: 'fake-brep' }, csg: undefined, sdf: undefined },
     fonts: undefined, texture: undefined, assets: undefined, events: undefined,
     cad: {},
   }

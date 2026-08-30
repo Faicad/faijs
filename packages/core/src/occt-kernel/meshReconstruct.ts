@@ -17,7 +17,8 @@
  * - isValid 验证
  */
 
-import type { OcctKernel, ShapeHandle } from 'occt-wasm'
+import type { BrepHandle } from '../brep/engine/types'
+import type { BrepEngineApi } from '../brep/engine/primitives'
 
 // ─── 验证 ───
 
@@ -25,7 +26,7 @@ import type { OcctKernel, ShapeHandle } from 'occt-wasm'
  * 验证 OCCT 形状是否为合法拓扑。
  * 调用 kernel.isValid() 检查：实体封闭性、边属于恰好两个面、面朝向一致等。
  */
-export function cadShapeIsValid(kernel: OcctKernel, shape: ShapeHandle): boolean {
+export function cadShapeIsValid(kernel: BrepEngineApi, shape: BrepHandle): boolean {
   try {
     return kernel.isValid(shape)
   } catch {
@@ -102,10 +103,10 @@ export function meshToAsciiStl(positions: Float32Array, indices: Uint32Array): s
  * @throws 若网格开放或非流形
  */
 export function reconstructSolidFromMesh(
-  kernel: OcctKernel,
+  kernel: BrepEngineApi,
   positions: Float32Array,
   indices: Uint32Array,
-): ShapeHandle {
+): BrepHandle {
   // 步骤①: 三角网格 → ASCII STL → OCCT 导入
   const stlText = meshToAsciiStl(positions, indices)
   const imported = kernel.importStl(stlText)
@@ -174,7 +175,7 @@ export function reconstructSolidFromMesh(
  * @returns STEP 文件内容字符串
  */
 export function meshToStepBrep(
-  kernel: OcctKernel,
+  kernel: BrepEngineApi,
   positions: Float32Array,
   indices: Uint32Array,
 ): string {

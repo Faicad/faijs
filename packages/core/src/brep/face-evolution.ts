@@ -3,7 +3,7 @@
  *
  * 分析文档：docs/plans/2026-08-12-topology-face-tracking-analysis.md
  *
- * occt-wasm 的 *WithHistory API 返回 EvolutionData，其中 modified/generated
+ * occt-wasm 的 *WithHistory API 返回 BrepEvolutionData，其中 modified/generated
  * 用面 hash（内存指针哈希）编码。本模块将其解码为 ordinal 映射（面枚举序号），
  * 可安全持久化进 faijs 文本。
  *
@@ -12,7 +12,8 @@
  * 因此可以把 hash 映射无损转换为 ordinal 映射。
  */
 
-import type { OcctKernel, ShapeHandle, EvolutionData } from 'occt-wasm'
+import type { BrepHandle, BrepEvolutionData } from './engine/types'
+import type { BrepEngineApi } from './engine/primitives'
 
 /** hash 上界（与 occt-wasm kernel.cpp 一致：`% 2147483647`） */
 export const HASH_UPPER_BOUND = 2147483647
@@ -29,7 +30,7 @@ export type FaceEvolution = Map<number, number[]>
 /**
  * 收集形状所有面的 hash 列表（通过 subShapeHashes，高效，不分配句柄）。
  */
-export function getFaceHashes(kernel: OcctKernel, shape: ShapeHandle): number[] {
+export function getFaceHashes(kernel: BrepEngineApi, shape: BrepHandle): number[] {
   return Array.from(kernel.subShapeHashes(shape, 'face', HASH_UPPER_BOUND))
 }
 
@@ -40,9 +41,9 @@ export function getFaceHashes(kernel: OcctKernel, shape: ShapeHandle): number[] 
  * 才能跟踪两个输入的面演化。
  */
 export function getUnionFaceHashes(
-  kernel: OcctKernel,
-  shapeA: ShapeHandle,
-  shapeB: ShapeHandle,
+  kernel: BrepEngineApi,
+  shapeA: BrepHandle,
+  shapeB: BrepHandle,
 ): number[] {
   const hashesA = getFaceHashes(kernel, shapeA)
   const hashesB = getFaceHashes(kernel, shapeB)
@@ -50,20 +51,20 @@ export function getUnionFaceHashes(
 }
 
 /**
- * 解码 EvolutionData 的 modified 数组为 ordinal 映射。
+ * 解码 BrepEvolutionData 的 modified 数组为 ordinal 映射。
  *
  * modified 分段编码格式：[inputHash, count, outHash1, outHash2, ...] × N
  *
- * @param evo EvolutionData（来自 *WithHistory API）
+ * @param evo BrepEvolutionData（来自 *WithHistory API）
  * @param inputShape 输入形状（用于获取输入面 hash → ordinal 映射）
  * @param resultShape 结果形状（用于获取输出面 hash → ordinal 映射）
  * @returns FaceEvolution：inOrdinal → outOrdinal[]
  */
 export function decodeEvolution(
-  kernel: OcctKernel,
-  evo: EvolutionData,
-  inputShape: ShapeHandle,
-  resultShape: ShapeHandle,
+  kernel: BrepEngineApi,
+  evo: BrepEvolutionData,
+  inputShape: BrepHandle,
+  resultShape: BrepHandle,
 ): FaceEvolution {
   const inputHashes = getFaceHashes(kernel, inputShape)
   const resultHashes = getFaceHashes(kernel, resultShape)
@@ -104,12 +105,12 @@ export function decodeEvolution(
 }
 
 /**
- * 解码 EvolutionData 的 deleted 数组为被删除面的 ordinal 列表。
+ * 解码 BrepEvolutionData 的 deleted 数组为被删除面的 ordinal 列表。
  */
 export function decodeDeleted(
-  kernel: OcctKernel,
-  evo: EvolutionData,
-  inputShape: ShapeHandle,
+  kernel: BrepEngineApi,
+  evo: BrepEvolutionData,
+  inputShape: BrepHandle,
 ): number[] {
   const inputHashes = getFaceHashes(kernel, inputShape)
   const inputHashToOrdinal = new Map<number, number>()
@@ -135,13 +136,13 @@ export function decodeDeleted(
  * @param kernel OCCT 内核
  * @param a 基体
  * @param b 工具（从基体中减去）
- * @returns { result: 结果 ShapeHandle, faceEvolution: 面演化映射 }
+ * @returns { result: 结果 BrepHandle, faceEvolution: 面演化映射 }
  */
 export function cutWithHistoryBrep(
-  kernel: OcctKernel,
-  a: ShapeHandle,
-  b: ShapeHandle,
-): { result: ShapeHandle; faceEvolution: FaceEvolution } {
+  kernel: BrepEngineApi,
+  a: BrepHandle,
+  b: BrepHandle,
+): { result: BrepHandle; faceEvolution: FaceEvolution } {
   const inputHashes = getUnionFaceHashes(kernel, a, b)
   const evo = kernel.cutWithHistory(a, b, inputHashes, HASH_UPPER_BOUND)
   const faceEvolution = decodeEvolution(kernel, evo, a, evo.result)
@@ -152,10 +153,10 @@ export function cutWithHistoryBrep(
  * fuseWithHistory 封装：执行融合并返回结果 + 面演化映射。
  */
 export function fuseWithHistoryBrep(
-  kernel: OcctKernel,
-  a: ShapeHandle,
-  b: ShapeHandle,
-): { result: ShapeHandle; faceEvolution: FaceEvolution } {
+  kernel: BrepEngineApi,
+  a: BrepHandle,
+  b: BrepHandle,
+): { result: BrepHandle; faceEvolution: FaceEvolution } {
   const inputHashes = getUnionFaceHashes(kernel, a, b)
   const evo = kernel.fuseWithHistory(a, b, inputHashes, HASH_UPPER_BOUND)
   const faceEvolution = decodeEvolution(kernel, evo, a, evo.result)
@@ -166,10 +167,10 @@ export function fuseWithHistoryBrep(
  * intersectWithHistory 封装：执行交集并返回结果 + 面演化映射。
  */
 export function intersectWithHistoryBrep(
-  kernel: OcctKernel,
-  a: ShapeHandle,
-  b: ShapeHandle,
-): { result: ShapeHandle; faceEvolution: FaceEvolution } {
+  kernel: BrepEngineApi,
+  a: BrepHandle,
+  b: BrepHandle,
+): { result: BrepHandle; faceEvolution: FaceEvolution } {
   const inputHashes = getUnionFaceHashes(kernel, a, b)
   const evo = kernel.intersectWithHistory(a, b, inputHashes, HASH_UPPER_BOUND)
   const faceEvolution = decodeEvolution(kernel, evo, a, evo.result)
@@ -189,8 +190,8 @@ export function intersectWithHistoryBrep(
  * @returns 恒等 FaceEvolution
  */
 export function identityEvolution(
-  kernel: OcctKernel,
-  shape: ShapeHandle,
+  kernel: BrepEngineApi,
+  shape: BrepHandle,
 ): FaceEvolution {
   const faceCount = getFaceHashes(kernel, shape).length
   const evolution: FaceEvolution = new Map()

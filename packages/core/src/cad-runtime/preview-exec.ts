@@ -15,7 +15,7 @@
 import type { BrepChainState } from '../brep/brep-chain'
 import type { HostPorts } from './ports'
 import type { Shape } from '../mesh/types'
-import type { ShapeHandle } from 'occt-wasm'
+import type { BrepHandle } from '../brep/engine/types'
 import { getSlot, ensureSlot } from '../shape'
 
 /**
@@ -26,9 +26,9 @@ export interface PreviewExec {
   readonly mode: 'mesh'
   readonly brepChain: BrepChainState
   readonly ports: HostPorts
-  readonly kernels: { occt: null; csg?: HostPorts['csg']; sdf?: HostPorts['sdf'] }
-  readonly getSolid: (shape: Shape) => ShapeHandle | undefined
-  readonly setSolid: (shape: Shape, solid: ShapeHandle) => void
+  readonly kernels: { brep: null; csg?: HostPorts['csg']; sdf?: HostPorts['sdf'] }
+  readonly getSolid: (shape: Shape) => BrepHandle | undefined
+  readonly setSolid: (shape: Shape, solid: BrepHandle) => void
   readonly getFaceEvolution: (shape: Shape) => Map<number, number[]> | undefined
   readonly setFaceEvolution: (shape: Shape, evo: Map<number, number[]>) => void
   readonly dependentsOf: () => Shape[]
@@ -64,12 +64,12 @@ export function createPreviewExec(ports?: Partial<HostPorts>): PreviewExec {
   return {
     mode: 'mesh',
     kernels: {
-      occt: null,
+      brep: null,
       csg: fullPorts.csg,
       sdf: fullPorts.sdf,
     },
-    getSolid: (shape: Shape): ShapeHandle | undefined => getSlot(shape)?.solid as ShapeHandle | undefined,
-    setSolid: (shape: Shape, solid: ShapeHandle): void => {
+    getSolid: (shape: Shape): BrepHandle | undefined => getSlot(shape)?.solid as BrepHandle | undefined,
+    setSolid: (shape: Shape, solid: BrepHandle): void => {
       ensureSlot(shape).solid = solid
     },
     getFaceEvolution: (shape: Shape) => getSlot(shape)?.faceEvolution,

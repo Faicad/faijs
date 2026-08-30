@@ -16,7 +16,7 @@
  * ⑤ 错误转译：`isErr(r)` → `throw new Error(code + ': ' + message)`，不静默。
  *
  * 时序（§6.4）：内核注入在模块加载期完成。测试宿主先建 runtime 并热身执行一次
- * （确保 `getBackends().kernel.occt` 非空），然后 `await import()` 本模块——与真实宿主
+ * （确保 `getBackends().kernel.brep` 非空），然后 `await import()` 本模块——与真实宿主
  * `await import(url)` 完全一致。工厂函数内的 `ensureKernelInjected()` 是同步一次守卫，
  * 只防御"模块被过早加载"的测试环境偏差，不含 per-function await。
  */
@@ -49,7 +49,7 @@ interface KernelOwner {
 }
 
 function kernelOwnerOf(): KernelOwner | null {
-  const k = getBackends().kernel.occt
+  const k = getBackends().kernel.brep
   return (k as unknown as KernelOwner | null | undefined) ?? null
 }
 

@@ -30,16 +30,16 @@ console.log = (...args: unknown[]) => {
 
 import { describe, it, expect, beforeAll } from 'vitest'
 import { initOcctWasm, getKernel } from '@faicad/faijs-core/occt-kernel/occtKernel'
-import type { OcctKernel } from 'occt-wasm'
+import type { BrepEngineApi } from '@faicad/faijs-core/brep/engine/primitives'
 import { threadBrep } from './threadFns'
 import { solidToShape } from '@faicad/faijs-core/brep/brep-ops'
 import { getSolidBoundingBox } from '@faicad/faijs-core/brep/brep-utils'
 
-let kernel: OcctKernel
+let kernel: BrepEngineApi
 
 beforeAll(async () => {
   await initOcctWasm()
-  kernel = getKernel()
+  kernel = getKernel() as unknown as BrepEngineApi
 }, 120000)
 
 describe('threadBrep', () => {

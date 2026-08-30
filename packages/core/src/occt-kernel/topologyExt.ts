@@ -1,4 +1,5 @@
-import { getKernel, type ShapeHandle, type Mesh as WasmMesh, type BoundingBox, type Vec3 } from './occtKernel'
+import type { BrepHandle, BrepMeshResult, BrepBoundingBox, BrepVec3 } from '../brep/engine/types'
+import type { BrepEngineApi } from '../brep/engine/primitives'
 import { asEdgeId, asFaceId, asOccurrenceId, asShapeId } from '../identity'
 
 /**
@@ -8,10 +9,10 @@ import { asEdgeId, asFaceId, asOccurrenceId, asShapeId } from '../identity'
  * getBoundingBox may fail in the browser WASM environment.
  */
 function tryGetBoundingBox(
-  kernel: { getBoundingBox(s: ShapeHandle, t: boolean): BoundingBox },
-  shape: ShapeHandle,
+  kernel: { getBoundingBox(s: BrepHandle, t: boolean): BrepBoundingBox },
+  shape: BrepHandle,
   meshPositions?: Float32Array,
-): BoundingBox {
+): BrepBoundingBox {
   try {
     return kernel.getBoundingBox(shape, false)
   } catch {
@@ -88,11 +89,11 @@ interface BBox {
 }
 
 export interface SelectorManifestInput {
-  shapeHandle: ShapeHandle
-  meshWithGroups: WasmMesh
+  shapeHandle: BrepHandle
+  meshWithGroups: BrepMeshResult
 }
 
-function bboxFromOcc(bb: BoundingBox): BBox {
+function bboxFromOcc(bb: BrepBoundingBox): BBox {
   return { min: [bb.xmin, bb.ymin, bb.zmin], max: [bb.xmax, bb.ymax, bb.zmax] }
 }
 
@@ -108,7 +109,7 @@ function bboxArray(bbox: BBox): Record<string, number[]> {
   return { min: roundPoint(bbox.min), max: roundPoint(bbox.max) }
 }
 
-function vec3ToArray(v: Vec3): number[] {
+function vec3ToArray(v: BrepVec3): number[] {
   return [v.x, v.y, v.z]
 }
 
@@ -288,8 +289,8 @@ function extractEdgePolylineFromWireframe(
 //   dS/dv ≈ (S(u,v+dv) - S(u,v))/dv
 //   axis = normalize(cross(dS/du, dS/dv))
 function geometricNormal(
-  kernel: ReturnType<typeof getKernel>,
-  face: ShapeHandle,
+  kernel: BrepEngineApi,
+  face: BrepHandle,
   u: number,
   v: number,
 ): number[] | null {
@@ -309,7 +310,7 @@ function geometricNormal(
 }
 
 // ── Surface params (matches Python _surface_params exactly) ──
-function getSurfaceParams(kernel: ReturnType<typeof getKernel>, face: ShapeHandle): Record<string, unknown> | null {
+function getSurfaceParams(kernel: BrepEngineApi, face: BrepHandle): Record<string, unknown> | null {
   const surfaceType = kernel.surfaceType(face)
   const params: Record<string, unknown> = {}
   const uv = kernel.uvBounds(face)
@@ -371,7 +372,7 @@ function getSurfaceParams(kernel: ReturnType<typeof getKernel>, face: ShapeHandl
 }
 
 // ── Curve params (matches Python _curve_params) ──
-function getCurveParams(kernel: ReturnType<typeof getKernel>, edge: ShapeHandle): Record<string, unknown> | null {
+function getCurveParams(kernel: BrepEngineApi, edge: BrepHandle): Record<string, unknown> | null {
   const curveType = kernel.curveType(edge)
   const params: Record<string, unknown> = {}
 
@@ -413,9 +414,11 @@ function getCurveParams(kernel: ReturnType<typeof getKernel>, edge: ShapeHandle)
   } else if (curveType === 'bezier' || curveType === 'bspline') {
     try {
       const nc = kernel.getNurbsCurveData(edge)
-      params.degree = nc.degree
-      params.periodic = nc.periodic
-      params.rational = nc.rational
+      if (nc) {
+        params.degree = nc.degree
+        params.periodic = nc.periodic
+        params.rational = nc.rational
+      }
     } catch {
       // getNurbsCurveData may fail for non-NURBS edges
     }
@@ -521,8 +524,8 @@ function extractFaceGeometry(
 // Collisions (extremely rare with HASH_BOUND=INT32_MAX) are resolved by
 // isSame() — the OCCT identity check.
 function buildEdgeOrdLookup(
-  kernel: ReturnType<typeof getKernel>,
-  edgeHandles: ShapeHandle[],
+  kernel: BrepEngineApi,
+  edgeHandles: BrepHandle[],
 ): Map<number, number[]> {
   const lookup = new Map<number, number[]>()
   for (let ei = 0; ei < edgeHandles.length; ei++) {
@@ -535,8 +538,8 @@ function buildEdgeOrdLookup(
 }
 
 function buildFaceOrdLookup(
-  kernel: ReturnType<typeof getKernel>,
-  faceHandles: ShapeHandle[],
+  kernel: BrepEngineApi,
+  faceHandles: BrepHandle[],
 ): Map<number, number[]> {
   const lookup = new Map<number, number[]>()
   for (let fi = 0; fi < faceHandles.length; fi++) {
@@ -550,9 +553,9 @@ function buildFaceOrdLookup(
 
 // Find the global ordinal of a sub-shape by hash lookup + isSame collision resolution
 function findOrdinal(
-  kernel: ReturnType<typeof getKernel>,
-  subShape: ShapeHandle,
-  globalHandles: ShapeHandle[],
+  kernel: BrepEngineApi,
+  subShape: BrepHandle,
+  globalHandles: BrepHandle[],
   lookup: Map<number, number[]>,
 ): number | undefined {
   const h = kernel.hashCode(subShape, HASH_BOUND)
@@ -565,11 +568,11 @@ function findOrdinal(
 }
 
 export function buildSelectorManifest(
+  kernel: BrepEngineApi,
   input: SelectorManifestInput,
   { stepHash, cadPath }: SelectorManifestOptions,
   occurrenceId: string = 'o1',
 ): { manifest: Record<string, unknown>; buffers: Record<string, Float32Array | Uint32Array> } {
-  const kernel = getKernel()
   const shape = input.shapeHandle
   const mesh = input.meshWithGroups
   const posArr = mesh.positions
@@ -666,7 +669,7 @@ export function buildSelectorManifest(
   // ── 5. Build shape entries (SOLID/SHELL/compound) ──
   const solidHandles = kernel.getSubShapes(shape, 'solid')
   const shellHandles = kernel.getSubShapes(shape, 'shell')
-  type ShapeEntry = { ordinal: number; shape: ShapeHandle; kind: string }
+  type ShapeEntry = { ordinal: number; shape: BrepHandle; kind: string }
   let shapeEntries: ShapeEntry[]
   if (solidHandles.length > 0) {
     shapeEntries = solidHandles.map((s, i) => ({ ordinal: i + 1, shape: s, kind: 'solid' }))
@@ -1033,8 +1036,8 @@ export function buildSelectorManifest(
 /** Input for per-part topology identification in an assembly. */
 export interface PartTopologyInput {
   labelPath: string
-  shapeHandle: ShapeHandle
-  meshWithGroups: WasmMesh
+  shapeHandle: BrepHandle
+  meshWithGroups: BrepMeshResult
 }
 
 /** Result of assembly-level topology identification. */
@@ -1055,6 +1058,7 @@ export interface AssemblyTopologyResult {
  * identified by the occurrenceRow index in faceRuns.
  */
 export function buildAssemblySelectorManifest(
+  kernel: BrepEngineApi,
   parts: PartTopologyInput[],
   opts: SelectorManifestOptions = {},
 ): AssemblyTopologyResult {
@@ -1086,6 +1090,7 @@ export function buildAssemblySelectorManifest(
 
     // Run per-part manifest (uses the existing buildSelectorManifest logic)
     const partResult = buildSelectorManifest(
+      kernel,
       { shapeHandle: part.shapeHandle, meshWithGroups: part.meshWithGroups },
       { stepHash, cadPath },
       occId,

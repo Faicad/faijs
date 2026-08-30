@@ -6,16 +6,17 @@
  *
  * 与 mesh 路径（transform.ts / boolean/ / drill.ts / split.ts / extrude.ts）对照：
  * - mesh 路径：消费 Shape（三角网格），走 manifold-3d（mesh-CSG）
- * - BREP 路径：消费 ShapeHandle（OCCT 实体句柄），走 OCCT 精确布尔/变换
+ * - BREP 路径：消费 BrepHandle（OCCT 实体句柄），走 OCCT 精确布尔/变换
  *
  * 所有函数都是纯函数（可 import occtWasmKernel，不读 store）。
- * 输入输出均为 OCCT ShapeHandle，调用方负责句柄生命周期。
+ * 输入输出均为 OCCT BrepHandle，调用方负责句柄生命周期。
  *
  * 坐标系：Z-up、毫米，与 mesh 路径一致。
  */
 
 import * as THREE from 'three'
-import type { OcctKernel, ShapeHandle, Mesh as WasmMesh } from 'occt-wasm'
+import type { BrepHandle, BrepMeshResult } from './engine/types'
+import type { BrepEngineApi } from './engine/primitives'
 import type { Shape, Vec3 } from '../mesh/types'
 import type { BrepChainState } from './brep-chain'
 import type { PartName } from '../identity'
@@ -26,20 +27,20 @@ import { getSolidBoundingBox } from './brep-utils'
 /**
  * 将 OCCT solid 三角化为 Shape（供显示用）。
  *
- * 如果传入 brepChain + stmtId，同时把完整 WasmMesh（含 faceGroups）缓存到
+ * 如果传入 brepChain + stmtId，同时把完整 BrepMeshResult（含 faceGroups）缓存到
  * brepChain.meshShapeCache，供 buildBrepTopology 复用——确保拓扑 mesh 与显示 mesh
  * 完全一致（规则 1：拓扑数据生成所使用的 mesh，必须是当前用户看到的 mesh）。
  *
  * @param kernel     已初始化的 OCCT 内核
  * @param solid      CAD 实体句柄
  * @param segments   可选分段数（影响三角化精度）
- * @param brepChain  可选——传入则缓存 WasmMesh
+ * @param brepChain  可选——传入则缓存 BrepMeshResult
  * @param stmtId     可选——与 brepChain 配对，缓存 key
  * @returns Shape（三角化 mesh）
  */
 export function solidToShape(
-  kernel: OcctKernel,
-  solid: ShapeHandle,
+  kernel: BrepEngineApi,
+  solid: BrepHandle,
   segments?: number,
   brepChain?: BrepChainState,
   partName?: PartName,
@@ -47,12 +48,12 @@ export function solidToShape(
   const angularDeflection = segments
     ? (2 * Math.PI) / Math.max(3, segments)
     : (2 * Math.PI) / 32 // 默认 32 段精度（与 primitives-brep.ts 一致）
-  const mesh: WasmMesh = kernel.meshShape(solid, {
+  const mesh: BrepMeshResult = kernel.meshShape(solid, {
     linearDeflection: 0.1,
     angularDeflection,
   })
 
-  // 规则 1：缓存完整 WasmMesh（含 faceGroups），供 buildBrepTopology 复用
+  // 规则 1：缓存完整 BrepMeshResult（含 faceGroups），供 buildBrepTopology 复用
   if (brepChain?.meshShapeCache && partName) {
     brepChain.meshShapeCache.set(partName, mesh)
   }
@@ -74,10 +75,10 @@ export function solidToShape(
  * @returns 新实体（调用方负责释放输入实体）
  */
 export function translateBrep(
-  kernel: OcctKernel,
-  solid: ShapeHandle,
+  kernel: BrepEngineApi,
+  solid: BrepHandle,
   offset: Vec3,
-): ShapeHandle {
+): BrepHandle {
   return kernel.translate(solid, offset[0], offset[1], offset[2])
 }
 
@@ -95,11 +96,11 @@ export function translateBrep(
  * @returns 新实体
  */
 export function rotateBrep(
-  kernel: OcctKernel,
-  solid: ShapeHandle,
+  kernel: BrepEngineApi,
+  solid: BrepHandle,
   anglesDeg: Vec3,
   pivot?: Vec3,
-): ShapeHandle {
+): BrepHandle {
   const euler = new THREE.Euler(
     (anglesDeg[0] * Math.PI) / 180,
     (anglesDeg[1] * Math.PI) / 180,
@@ -125,10 +126,10 @@ export function rotateBrep(
  * @returns 新实体
  */
 export function scaleBrep(
-  kernel: OcctKernel,
-  solid: ShapeHandle,
+  kernel: BrepEngineApi,
+  solid: BrepHandle,
   factor: number | Vec3,
-): ShapeHandle {
+): BrepHandle {
   const f = typeof factor === 'number' ? [factor, factor, factor] : factor
   const matrix = new THREE.Matrix4().makeScale(f[0], f[1], f[2])
   const isUniform = f[0] === f[1] && f[1] === f[2]
@@ -159,12 +160,12 @@ export function scaleBrep(
  * @returns 新实体（调用方负责释放输入实体）
  */
 export function applyTransformBrep(
-  kernel: OcctKernel,
-  solid: ShapeHandle,
+  kernel: BrepEngineApi,
+  solid: BrepHandle,
   quaternion: [number, number, number, number],
   pivot: [number, number, number],
   translation: [number, number, number],
-): ShapeHandle {
+): BrepHandle {
   const rotation = new THREE.Matrix4().makeRotationFromQuaternion(
     new THREE.Quaternion(quaternion[0], quaternion[1], quaternion[2], quaternion[3]),
   )
@@ -188,10 +189,10 @@ export function applyTransformBrep(
  * @returns 融合后的实体
  */
 export function fuseBrep(
-  kernel: OcctKernel,
-  a: ShapeHandle,
-  b: ShapeHandle,
-): ShapeHandle {
+  kernel: BrepEngineApi,
+  a: BrepHandle,
+  b: BrepHandle,
+): BrepHandle {
   return kernel.fuse(a, b)
 }
 
@@ -204,10 +205,10 @@ export function fuseBrep(
  * @returns 切割后的实体
  */
 export function cutBrep(
-  kernel: OcctKernel,
-  a: ShapeHandle,
-  b: ShapeHandle,
-): ShapeHandle {
+  kernel: BrepEngineApi,
+  a: BrepHandle,
+  b: BrepHandle,
+): BrepHandle {
   return kernel.cut(a, b)
 }
 
@@ -220,10 +221,10 @@ export function cutBrep(
  * @returns 交集实体
  */
 export function commonBrep(
-  kernel: OcctKernel,
-  a: ShapeHandle,
-  b: ShapeHandle,
-): ShapeHandle {
+  kernel: BrepEngineApi,
+  a: BrepHandle,
+  b: BrepHandle,
+): BrepHandle {
   return kernel.common(a, b)
 }
 
@@ -260,10 +261,10 @@ export interface DrillBrepParams {
  * @returns 钻孔后的实体
  */
 export function drillBrep(
-  kernel: OcctKernel,
-  solid: ShapeHandle,
+  kernel: BrepEngineApi,
+  solid: BrepHandle,
   params: DrillBrepParams,
-): ShapeHandle {
+): BrepHandle {
   const radius = params.diameter / 2
   const direction = new THREE.Vector3(...params.direction).normalize()
   // 确保方向指向材料内部
@@ -377,9 +378,9 @@ export interface SplitBrepParams {
 /** splitBrep 的结果 */
 export interface SplitBrepResult {
   /** 法线正方向的半部分 */
-  front: ShapeHandle
+  front: BrepHandle
   /** 法线负方向的半部分 */
-  back: ShapeHandle
+  back: BrepHandle
 }
 
 /**
@@ -399,8 +400,8 @@ export interface SplitBrepResult {
  * @returns 两个半部分
  */
 export function splitBrep(
-  kernel: OcctKernel,
-  solid: ShapeHandle,
+  kernel: BrepEngineApi,
+  solid: BrepHandle,
   params: SplitBrepParams,
 ): SplitBrepResult {
   const bbox = getSolidBoundingBox(kernel, solid)
@@ -489,10 +490,10 @@ export interface ExtrudeBrepParams {
  * @returns 拉伸后的实体
  */
 export function extrudeBrep(
-  kernel: OcctKernel,
-  solid: ShapeHandle,
+  kernel: BrepEngineApi,
+  solid: BrepHandle,
   params: ExtrudeBrepParams,
-): ShapeHandle {
+): BrepHandle {
   const mode = params.mode ?? 'centered'
   const normal = new THREE.Vector3(...params.normal).normalize()
   const length = params.length
@@ -545,7 +546,7 @@ export function extrudeBrep(
   kernel.release(planeFace)
 
   // 4. 构建截面 wire → face → 拉伸
-  let extrudedSolid: ShapeHandle
+  let extrudedSolid: BrepHandle
   try {
     // 尝试从截面边构建 wire
     const subShapes = kernel.getSubShapes(sectionEdges, 'edge')
@@ -614,7 +615,7 @@ export function extrudeBrep(
   kernel.release(splitResult.back)
 
   // 6. Fuse 三段
-  let result: ShapeHandle
+  let result: BrepHandle
   try {
     const fused1 = kernel.fuse(frontTranslated, extrudedSolid)
     kernel.release(frontTranslated)
@@ -638,8 +639,8 @@ export function extrudeBrep(
  * BREP-native STEP 导入：使用 OCCT kernel.importStep 导入 STEP 文件为精确实体。
  *
  * 与 mesh 路径（cad-core/io.ts importFile → loadFormat → meshes）对照：
- * - mesh 路径：STEP → 三角网格，丢弃 OCCT ShapeHandle
- * - BREP 路径：STEP → kernel.importStep → 保留 ShapeHandle，同时三角化为显示 mesh
+ * - mesh 路径：STEP → 三角网格，丢弃 OCCT BrepHandle
+ * - BREP 路径：STEP → kernel.importStep → 保留 BrepHandle，同时三角化为显示 mesh
  *
  * 导入的 solid 存入 brepChain.solidCache，后续操作（drillBrep/splitBrep 等）
  * 将其作为"基座特征"进行精确运算。
@@ -660,11 +661,11 @@ export function extrudeBrep(
  * @returns { solid: OCCT 实体句柄, shape: 显示用三角网格 }
  */
 export function loadBrep(
-  kernel: OcctKernel,
+  kernel: BrepEngineApi,
   buffer: ArrayBuffer,
   brepChain?: BrepChainState,
   stmtId?: PartName,
-): { solid: ShapeHandle; shape: Shape } {
+): { solid: BrepHandle; shape: Shape } {
   // BREP 文件（CASCADE Topology 文本格式）必须用 kernel.fromBREP 解析；
   // 误用 STEP 解析器（importStep）读 BREP 会抛 "failed to read STEP data"。
   const decoder = new TextDecoder('utf-8')

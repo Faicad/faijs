@@ -13,11 +13,12 @@
  * - depthDir = normalize(cross(normal, widthDir))
  * - planeCenter: 切割平面中心
  *
- * 所有函数都是纯函数，输入输出均为 OCCT ShapeHandle，调用方负责句柄生命周期。
+ * 所有函数都是纯函数，输入输出均为 OCCT BrepHandle，调用方负责句柄生命周期。
  */
 
 import * as THREE from 'three'
-import type { OcctKernel, ShapeHandle } from 'occt-wasm'
+import type { BrepHandle } from '@faicad/faijs-core/brep/engine/types'
+import type { BrepEngineApi } from '@faicad/faijs-core/brep/engine/primitives'
 import type { Vec3 } from '@faicad/faijs-core/mesh/types'
 import { getSolidBoundingBox } from '@faicad/faijs-core/brep/brep-utils'
 import { splitBrep, matrixToArray } from '@faicad/faijs-core/brep/brep-ops'
@@ -224,7 +225,7 @@ function computeCrossSectionWidthFromMesh(
 }
 
 /** 将 OCCT solid 三角化为 MeshData（用于截面分析） */
-function solidToMeshData(kernel: OcctKernel, solid: ShapeHandle): MeshData {
+function solidToMeshData(kernel: BrepEngineApi, solid: BrepHandle): MeshData {
   const mesh = kernel.meshShape(solid, {
     linearDeflection: 0.1,
     angularDeflection: (2 * Math.PI) / 32,
@@ -263,13 +264,13 @@ function makeBasisTransform(basis: JoineryBasis, origin: Vec3): THREE.Matrix4 {
  * 然后用 transform 对齐到世界坐标系。
  */
 export function buildWedgeSolid(
-  kernel: OcctKernel,
+  kernel: BrepEngineApi,
   basis: JoineryBasis,
   depth: number,
   width: number,
   angleDeg: number,
   extrudeLength: number,
-): ShapeHandle {
+): BrepHandle {
   const { planeCenter } = basis
   const angleRad = (angleDeg * Math.PI) / 180
 
@@ -286,7 +287,7 @@ export function buildWedgeSolid(
   const v3 = { x: xLocal, y: -halfTopWidth, z: 0 }      // topLeft
 
   // 构建梯形 wire
-  const edges: ShapeHandle[] = []
+  const edges: BrepHandle[] = []
   edges.push(kernel.makeLineEdge(v0, v1))
   edges.push(kernel.makeLineEdge(v1, v2))
   edges.push(kernel.makeLineEdge(v2, v3))
@@ -321,12 +322,12 @@ export function buildWedgeSolid(
  * 用 kernel.makeCylinder + transform 对齐方向。
  */
 export function buildDowelSolid(
-  kernel: OcctKernel,
+  kernel: BrepEngineApi,
   centroid: Vec3,
   basis: JoineryBasis,
   diameter: number,
   height: number,
-): ShapeHandle {
+): BrepHandle {
   const radius = diameter / 2
   const { normal } = basis
 
@@ -360,12 +361,12 @@ export function buildDowelSolid(
  * 用 kernel.makeBoxFromCorners + transform 对齐方向。
  */
 export function buildTenonSolid(
-  kernel: OcctKernel,
+  kernel: BrepEngineApi,
   centroid: Vec3,
   basis: JoineryBasis,
   sideLength: number,
   height: number,
-): ShapeHandle {
+): BrepHandle {
   const half = sideLength / 2
 
   // 在局部坐标系中创建盒子：X ∈ [-half, half], Y ∈ [-half, half], Z ∈ [-height, 0]
@@ -402,8 +403,8 @@ export interface CrossSectionComponent {
  * 与 csg-worker.ts detectCapComponents + computeCrossSectionCentroid 一致。
  */
 export function detectCrossSectionComponents(
-  kernel: OcctKernel,
-  upper: ShapeHandle,
+  kernel: BrepEngineApi,
+  upper: BrepHandle,
   basis: JoineryBasis,
 ): CrossSectionComponent[] {
   const { normal, originOffset, widthDir, depthDir, planeCenter } = basis
@@ -428,17 +429,17 @@ export function detectCrossSectionComponents(
 /** dovetail 布尔分割的结果 */
 export interface DovetailSplitBrepResult {
   /** 上部 + 楔（法线正方向半部分加燕尾榫） */
-  front: ShapeHandle
+  front: BrepHandle
   /** 下部 - 凹腔（法线负方向半部分减燕尾槽） */
-  back: ShapeHandle
+  back: BrepHandle
 }
 
 /** dowel/tenon 布尔分割的结果 */
 export interface DowelOrTenonSplitBrepResult {
   /** 上部 + 销/榫（法线正方向半部分加圆柱/方柱） */
-  front: ShapeHandle
+  front: BrepHandle
   /** 下部 - 孔（法线负方向半部分减圆柱/方柱） */
-  back: ShapeHandle
+  back: BrepHandle
 }
 
 /** groove 参数 */
@@ -461,8 +462,8 @@ export interface GrooveParams {
  * 5. buildWedgeSolid（公差）→ cut(lower, wedgeTol) → lower'
  */
 export function dovetailBooleanSplitBrep(
-  kernel: OcctKernel,
-  original: ShapeHandle,
+  kernel: BrepEngineApi,
+  original: BrepHandle,
   basis: JoineryBasis,
   groove: GrooveParams,
 ): DovetailSplitBrepResult {
@@ -541,8 +542,8 @@ export interface DowelOrTenonParams {
  * 4. 对每个质心：buildShapeSolid（公差）→ cut(lower, shapeTol) → lower'
  */
 export function dowelOrTenonBooleanSplitBrep(
-  kernel: OcctKernel,
-  original: ShapeHandle,
+  kernel: BrepEngineApi,
+  original: BrepHandle,
   basis: JoineryBasis,
   shape: 'dowel' | 'tenon',
   params: DowelOrTenonParams,
@@ -585,7 +586,7 @@ export function dowelOrTenonBooleanSplitBrep(
 
   // Step 3: 对每个质心构造基本体并 fuse 到 upper
   for (const { centroid } of placements) {
-    let shapeC: ShapeHandle
+    let shapeC: BrepHandle
     if (shape === 'dowel') {
       shapeC = buildDowelSolid(kernel, centroid, basis, params.size, params.height)
     } else {
@@ -603,7 +604,7 @@ export function dowelOrTenonBooleanSplitBrep(
   const tolHeight = params.height + params.heightTolerance
 
   for (const { centroid } of placements) {
-    let shapeCTol: ShapeHandle
+    let shapeCTol: BrepHandle
     if (shape === 'dowel') {
       shapeCTol = buildDowelSolid(kernel, centroid, basis, tolSize, tolHeight)
     } else {

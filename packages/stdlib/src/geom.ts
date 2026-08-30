@@ -15,6 +15,8 @@ import type { Shape, Vec3 } from '@faicad/faijs-core/mesh/types'
 import { cad } from '@faicad/faijs-core/mesh'
 import { getBackends } from '@faicad/faijs-core/runtime-state'
 import { brepOf } from '@faicad/faijs-core/shape'
+import type { BrepHandle } from '@faicad/faijs-core/brep/engine/types'
+import type { BrepEngineApi } from '@faicad/faijs-core/brep/engine/primitives'
 
 /** 内部实现：faceOrdinal+BREP 优先 → anchor 反查 → 报错（逻辑迁移自 resolveGeomRef）。 */
 function geomQuery(
@@ -25,8 +27,8 @@ function geomQuery(
 ): Vec3 {
   // 优先路径：faceOrdinal 拓扑引用（BREP 路径）
   if (faceOrdinal !== undefined) {
-    const solid = brepOf(of) as import('occt-wasm').ShapeHandle | undefined
-    const kernel = getBackends().kernel.occt as import('occt-wasm').OcctKernel | null
+    const solid = brepOf(of) as BrepHandle | undefined
+    const kernel = getBackends().kernel.brep as BrepEngineApi | null
     if (solid && kernel) {
       try {
         const faces = kernel.getSubShapes(solid, 'face')

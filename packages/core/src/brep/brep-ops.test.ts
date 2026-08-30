@@ -12,7 +12,7 @@
 
 import { describe, it, expect, beforeAll } from 'vitest'
 import { initOcctWasm, getKernel } from '../occt-kernel/occtKernel'
-import type { OcctKernel } from 'occt-wasm'
+import type { BrepEngineApi } from './engine/primitives'
 import {
   translateBrep, rotateBrep, scaleBrep,
   fuseBrep, cutBrep, commonBrep,
@@ -22,11 +22,11 @@ import {
 import { getSolidBoundingBox } from './brep-utils'
 import * as THREE from 'three'
 
-let kernel: OcctKernel
+let kernel: BrepEngineApi
 
 beforeAll(async () => {
   await initOcctWasm()
-  kernel = getKernel()
+  kernel = getKernel() as unknown as BrepEngineApi
 }, 120000)
 
 // ─── solidToShape ───

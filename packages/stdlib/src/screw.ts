@@ -15,13 +15,15 @@ import { getScrewSpec, threadToPitchMm, SCREW_HEAD_DIMS } from '@faicad/faijs-co
 import { getBackends } from '@faicad/faijs-core/runtime-state'
 import { solid, fromBrep } from '@faicad/faijs-core/shape'
 import { dispatchPath } from '@faicad/faijs-core/cad-runtime/backend-dispatch'
+import type { BrepHandle } from '@faicad/faijs-core/brep/engine/types'
+import type { BrepEngineApi } from '@faicad/faijs-core/brep/engine/primitives'
 
 /** BREP 实现标记（dispatchPath 判定用；screw 有 OCCT 精确构造） */
 const brepImpl = screwBrep
 
 /** BREP 路径：threadBrep + fuse 构造精确螺纹螺钉 + 三角化 + fromBrep 登记。 */
 async function screwBrep(params: Record<string, unknown>): Promise<Shape> {
-  const kernel = getBackends().kernel.occt as import('occt-wasm').OcctKernel | null
+  const kernel = getBackends().kernel.brep as BrepEngineApi | null
   if (!kernel) throw new Error('[stdlib/screw] no OCCT kernel')
 
   const system = params.system as 'metric' | 'imperial'
@@ -88,11 +90,11 @@ async function screwBrep(params: Record<string, unknown>): Promise<Shape> {
  * 构造六棱柱 BREP solid
  */
 function makeHexPrismBrep(
-  kernel: import('occt-wasm').OcctKernel,
+  kernel: BrepEngineApi,
   radius: number,
   height: number,
   zOffset: number,
-): import('occt-wasm').ShapeHandle {
+): BrepHandle {
   // 六边形顶点
   const pts: { x: number; y: number; z: number }[] = []
   for (let i = 0; i < 6; i++) {
@@ -105,7 +107,7 @@ function makeHexPrismBrep(
   }
 
   // 构建边
-  const edges: import('occt-wasm').ShapeHandle[] = []
+  const edges: BrepHandle[] = []
   for (let i = 0; i < 6; i++) {
     const edge = kernel.makeLineEdge(pts[i], pts[(i + 1) % 6])
     edges.push(edge)

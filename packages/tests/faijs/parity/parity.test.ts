@@ -16,12 +16,12 @@ import { fileURLToPath } from 'node:url'
 import { parseScript } from '@faicad/faijs'
 import { createRuntime } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
-import { initOcctWasm } from '@faicad/faijs'
+import { registerOcctBrepEngine } from '@faicad/faijs'
 import type { Shape } from '@faicad/faijs-core/mesh/types'
 import { ensureTestFontLoader } from '@faicad/faijs-core/brep/text/fontTestHelper'
 
 beforeAll(async () => {
-  await initOcctWasm()
+  await registerOcctBrepEngine()
   ensureTestFontLoader()
 }, 120000)
 

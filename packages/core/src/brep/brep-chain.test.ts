@@ -16,11 +16,11 @@ import {
   createBrepChainState, initBrepChainState, releaseBrepChainState,
   isCadFormat,
 } from './brep-chain'
-import { initOcctWasm } from '../occt-kernel/occtKernel'
+import { registerOcctBrepEngine } from './engine/adapters/occt'
 import { asPartName } from '../identity'
 
 beforeAll(async () => {
-  await initOcctWasm()
+  await registerOcctBrepEngine()
 }, 120000)
 
 describe('createBrepChainState', () => {

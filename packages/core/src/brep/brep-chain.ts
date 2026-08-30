@@ -12,8 +12,9 @@
  * 终端句柄（如果有）由调用方保留用于导出。
  */
 
-import type { OcctKernel, ShapeHandle, Mesh as WasmMesh } from 'occt-wasm'
-import { initOcctWasm } from '../occt-kernel/occtKernel'
+import type { BrepHandle, BrepMeshResult, BrepCapabilities } from './engine/types'
+import type { BrepEngineApi } from './engine/primitives'
+import { getBrepEngine } from './engine/registry'
 import type { PartName } from '../identity'
 
 // ─── CAD 格式静态判定 ───
@@ -70,10 +71,15 @@ export function isCadFormat(
  * 兄弟 part 之间互不污染。
  */
 export interface BrepChainState {
-  /** OCCT 实体句柄缓存（PartName → ShapeHandle）。存在即该 part 仍为 BREP；缺失即已降级为 mesh。 */
-  solidCache: Map<PartName, ShapeHandle>
-  /** OCCT 内核实例（mesh 模式为 null —— 等价于「无 BREP 能力」）。 */
-  kernel: OcctKernel | null
+  /** BREP 实体句柄缓存（PartName → BrepHandle）。存在即该 part 仍为 BREP；缺失即已降级为 mesh。 */
+  solidCache: Map<PartName, BrepHandle>
+  /** BREP 引擎实例（mesh 模式为 null —— 等价于「无 BREP 能力」）。 */
+  kernel: BrepEngineApi | null
+  /**
+   * 当前引擎的能力声明（§7.5；mesh 模式无引擎 → undefined）。
+   * 供能力路由静态判定（§8.4）：缺失的能力 → 依赖它的功能静态降级走 mesh。
+   */
+  capabilities?: BrepCapabilities
   /**
    * 零件在世界空间中的平移偏移（来自 mesh.position / partTransforms）。
    *
@@ -102,7 +108,7 @@ export interface BrepChainState {
    * 规则 1：拓扑数据生成所使用的 mesh，必须是当前用户看到的 mesh。
    * 三角化和拓扑生成都是 faijs 的职责，宿主不参与。
    */
-  meshShapeCache?: Map<PartName, WasmMesh>
+  meshShapeCache?: Map<PartName, BrepMeshResult>
 }
 
 /**
@@ -118,13 +124,14 @@ export function createBrepChainState(): BrepChainState {
 }
 
 /**
- * 初始化 BREP 链状态（异步，需初始化 OCCT 内核）。
+ * 初始化 BREP 链状态（异步：从注册表取当前 BREP 引擎并初始化；无引擎则抛错）。
  */
 export async function initBrepChainState(): Promise<BrepChainState> {
-  const kernel = await initOcctWasm()
+  const engine = await getBrepEngine()
   return {
     solidCache: new Map(),
-    kernel,
+    kernel: engine.primitives,
+    capabilities: engine.capabilities,
     faceEvolutionCache: new Map(),
     meshShapeCache: new Map(),
   }

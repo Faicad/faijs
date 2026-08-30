@@ -34,11 +34,22 @@ export interface Backends {
   /** 执行配置（可变对象，宿主可在运行期切换） */
   readonly config: {
     mode: RuntimeExecutionMode
+    /** 当前 BREP 引擎 id（注册表首个注册者；未注册为 null）。能力路由读（§8.4）。 */
+    brepEngineId?: string | null
+    /** 当前引擎能力声明（宽松结构，零依赖）。能力路由读（§8.4）。 */
+    brepCapabilities?: {
+      evolution?: boolean
+      heal?: boolean
+      directEdit?: boolean
+      advSurface?: boolean
+      assembly?: boolean
+      meshLift?: boolean
+    }
     partTransform?: { position: [number, number, number]; scale?: [number, number, number] }
   }
-  /** 几何后端。occt 异步初始化 → 用 getter。 */
+  /** 几何后端。brep 引擎异步初始化 → 用 getter。 */
   readonly kernel: {
-    readonly occt: unknown | null
+    readonly brep: unknown | null
     readonly csg: unknown | undefined
     readonly sdf: unknown | undefined
   }

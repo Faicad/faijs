@@ -18,6 +18,7 @@ import { getBackends } from '@faicad/faijs-core/runtime-state'
 import { solid, fromBrep } from '@faicad/faijs-core/shape'
 import { dispatchPath } from '@faicad/faijs-core/cad-runtime/backend-dispatch'
 import { assertPositiveNumber } from './assert'
+import type { BrepEngineApi } from '@faicad/faijs-core/brep/engine/primitives'
 
 /** BREP 实现标记（dispatchPath 判定用；text 有 OCCT 精确构造） */
 const brepImpl = textToSolid
@@ -38,7 +39,7 @@ export function assertTextParams(params: Record<string, unknown>): void {
  * 将 CJK 字符替换为 '?' 以实现优雅降级。
  */
 async function textBrep(params: Record<string, unknown>): Promise<Shape> {
-  const kernel = getBackends().kernel.occt as import('occt-wasm').OcctKernel | null
+  const kernel = getBackends().kernel.brep as BrepEngineApi | null
   if (!kernel) throw new Error('[stdlib/text] no OCCT kernel')
 
   await ensureDefaultFont()

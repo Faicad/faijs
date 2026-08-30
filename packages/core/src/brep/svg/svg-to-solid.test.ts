@@ -33,7 +33,7 @@ import { readFileSync, mkdirSync, writeFileSync } from 'fs'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import { initOcctWasm, getKernel } from '../../occt-kernel/occtKernel'
-import type { OcctKernel } from 'occt-wasm'
+import type { BrepEngineApi } from '../engine/primitives'
 import {
   extractSvgPaths,
   parseSVGPathToWires,
@@ -44,14 +44,14 @@ import {
 import { solidToShape } from '../brep-ops'
 import { getSolidBoundingBox } from '../brep-utils'
 
-let kernel: OcctKernel
+let kernel: BrepEngineApi
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const TEST_RESULTS_DIR = join(__dirname, '..', '..', '..', 'test-results', 'svg-blueprints')
 
 beforeAll(async () => {
   await initOcctWasm()
-  kernel = getKernel()
+  kernel = getKernel() as unknown as BrepEngineApi
 }, 120000)
 
 // ─── extractSvgPaths ───

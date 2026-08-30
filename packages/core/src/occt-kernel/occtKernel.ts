@@ -6,6 +6,8 @@
  * 利用 wireframe() 获取边折线数据，利用 edgeToFaceMap() 获取边→面关联。
  */
 import type { OcctKernel, ShapeHandle, Mesh, EdgeData, SurfaceKind, CurveKind, BoundingBox, Vec3, XCAFDocument, LabelInfo, LabelTag } from 'occt-wasm'
+import type { BrepHandle } from '../brep/engine/types'
+import type { BrepEngineApi } from '../brep/engine/primitives'
 import { getSolidColorsOrdered } from './stepColorParser'
 
 export interface WasmTessellatedMesh {
@@ -21,7 +23,7 @@ export interface WasmImportResult {
 }
 
 let kernelInstance: OcctKernel | null = null
-let initPromise: Promise<OcctKernel> | null = null
+let initPromise: Promise<BrepEngineApi> | null = null
 
 // F5 设计意图说明：
 // kernelInstance / initPromise 是环境级单例，不是实例级。
@@ -73,15 +75,15 @@ export function resolveOcctWasmPath(): string {
  *   WASM 文件从 public/wasm/occt-wasm.wasm 加载。
  * - 生产环境：从 CDN 动态 import 整个模块 + WASM。
  */
-export async function initOcctWasm(): Promise<OcctKernel> {
-  if (kernelInstance) return kernelInstance
-  if (initPromise) return initPromise
+export async function initOcctWasm(): Promise<BrepEngineApi> {
+  if (kernelInstance) return kernelInstance as unknown as BrepEngineApi
+  if (initPromise) return initPromise as unknown as Promise<BrepEngineApi>
 
   initPromise = (async () => {
     // 优先使用浏览器 host 注入的初始化函数
     if (customInitFn) {
       kernelInstance = await customInitFn()
-      return kernelInstance!
+      return kernelInstance as unknown as BrepEngineApi
     }
 
     // Node.js 环境：从 node_modules 读取 WASM 文件
@@ -92,13 +94,13 @@ export async function initOcctWasm(): Promise<OcctKernel> {
       const buf = readFileSync(wasmPath)
       const wasmBinary = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer
       kernelInstance = await Ctor.init({ wasm: wasmBinary })
-      return kernelInstance!
+      return kernelInstance as unknown as BrepEngineApi
     }
 
     throw new Error('initOcctWasm: no init function set and not in Node environment. Call setOcctWasmInitFn() first.')
   })()
 
-  return initPromise
+  return initPromise as unknown as Promise<BrepEngineApi>
 }
 
 /** 获取已初始化的 kernel 实例（必须先调用 initOcctWasm）。 */
@@ -127,8 +129,8 @@ export interface MeshDeflectionOptions {
 /** Compute the effective linear deflection, applying relative scaling
  *  exactly as OCCT does internally: `linDefl * bboxDiagonal` when relative=true. */
 export function computeEffectiveDeflection(
-  kernel: OcctKernel,
-  shape: ShapeHandle,
+  kernel: BrepEngineApi,
+  shape: BrepHandle,
   options: MeshDeflectionOptions = {},
 ): { linearDeflection: number; angularDeflection: number } {
   const ld = options.linearDeflection ?? 0.1
@@ -166,11 +168,11 @@ export async function importStepToMesh(
   stepData: ArrayBuffer | Uint8Array,
   deflection?: MeshDeflectionOptions,
 ): Promise<WasmImportResult> {
-  const kernel = await initOcctWasm()
+  const kernel = (await initOcctWasm()) as unknown as OcctKernel
   const ab = stepData instanceof Uint8Array ? stepData.buffer.slice(stepData.byteOffset, stepData.byteOffset + stepData.byteLength) as ArrayBuffer : stepData
   const shape = kernel.importStep(ab)
 
-  const eff = computeEffectiveDeflection(kernel, shape, deflection)
+  const eff = computeEffectiveDeflection(kernel as unknown as BrepEngineApi, shape as unknown as BrepHandle, deflection)
   const mesh = kernel.meshShape(shape, { linearDeflection: eff.linearDeflection, angularDeflection: eff.angularDeflection })
 
   return {
@@ -223,7 +225,7 @@ const IDENTITY_MATRIX = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0]
 export async function importAssemblyFromStep(
   stepData: ArrayBuffer | Uint8Array,
 ): Promise<AssemblyPartNode[]> {
-  const kernel = await initOcctWasm()
+  const kernel = (await initOcctWasm()) as unknown as OcctKernel
   const stepText = stepData instanceof Uint8Array
     ? new TextDecoder().decode(stepData)
     : new TextDecoder().decode(new Uint8Array(stepData))
@@ -368,9 +370,9 @@ function walkLabel(
 }
 
 /** Recursively release all shapeHandle values in an assembly tree. */
-export function releaseAssemblyTree(kernel: OcctKernel, nodes: AssemblyPartNode[]): void {
+export function releaseAssemblyTree(kernel: BrepEngineApi, nodes: AssemblyPartNode[]): void {
   for (const node of nodes) {
-    if (node.shapeHandle) kernel.release(node.shapeHandle)
+    if (node.shapeHandle) kernel.release(node.shapeHandle as unknown as BrepHandle)
     if (node.children.length > 0) releaseAssemblyTree(kernel, node.children)
   }
 }
@@ -396,10 +398,10 @@ export async function importBrepToMesh(
   brepData: string,
   deflection?: MeshDeflectionOptions,
 ): Promise<WasmImportResult> {
-  const kernel = await initOcctWasm()
+  const kernel = (await initOcctWasm()) as unknown as OcctKernel
   const shape = kernel.fromBREP(brepData)
 
-  const eff = computeEffectiveDeflection(kernel, shape, deflection)
+  const eff = computeEffectiveDeflection(kernel as unknown as BrepEngineApi, shape as unknown as BrepHandle, deflection)
   const mesh = kernel.meshShape(shape, { linearDeflection: eff.linearDeflection, angularDeflection: eff.angularDeflection })
 
   return {

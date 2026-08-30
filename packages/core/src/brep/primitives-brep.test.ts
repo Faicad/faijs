@@ -30,17 +30,18 @@ console.log = (...args: unknown[]) => {
 }
 
 import { describe, it, expect, beforeAll } from 'vitest'
-import { initOcctWasm, getKernel } from '../occt-kernel/occtKernel'
+import { getKernel } from '../occt-kernel/occtKernel'
+import { registerOcctBrepEngine } from './engine/adapters/occt'
 import { cad } from '../mesh/index'
 import type { Shape } from '../mesh/types'
 import { primitiveToBrepSolid, brepSolidToStep } from '../primitives/brep-primitives'
-import type { OcctKernel } from 'occt-wasm'
+import type { BrepEngineApi } from './engine/primitives'
 
-let kernel: OcctKernel
+let kernel: BrepEngineApi
 
 beforeAll(async () => {
-  await initOcctWasm()
-  kernel = getKernel()
+  await registerOcctBrepEngine()
+  kernel = getKernel() as unknown as BrepEngineApi
 }, 120000)
 
 // ── 辅助函数 ──

@@ -22,8 +22,9 @@
 import type { ScriptIR, StatementIR, TerminalShape } from '../lang/types'
 import type { Shape } from '../mesh/types'
 import type { BrepChainState } from '../brep/brep-chain'
-import type { ShapeHandle, OcctKernel } from 'occt-wasm'
-import { initOcctWasm } from '../occt-kernel/occtKernel'
+import type { BrepHandle } from '../brep/engine/types'
+import type { BrepEngineApi } from '../brep/engine/primitives'
+import { getBrepEngine, hasBrepEngine, getActiveBrepEngineId } from '../brep/engine/registry'
 import { parseScript, ParseError } from '../lang/parser'
 import { getFunctionSymbol } from '../lang/symbol-table'
 import { validateKeepDirectives } from '../lang/keep'
@@ -33,7 +34,7 @@ import type { SelectorRuntime } from '../topology/types'
 import { buildSolidTopologyRuntime } from '../brep/brep-topology'
 import type { SolidTopologyResult } from '../brep/brep-topology'
 import { buildTopologyFromMesh } from '../brep/brep-topology'
-import type { Mesh as WasmMesh } from 'occt-wasm'
+import type { BrepMeshResult } from '../brep/engine/types'
 import { asPartName, type PartName, type StmtId } from '../identity'
 import { compileToModule, type CompiledStatementMeta } from '../lang/compile'
 import { ModuleExecutor, type ExecBookkeeping } from './module-executor'
@@ -111,7 +112,7 @@ export interface ExecutionResult {
   /** 失败信息（如果执行中途出错） */
   failedAt?: { index: number; op: string; message: string }
   /** 逐终端的 BREP 实体（仅持有 solid 的终端出现在此表）。key 为终端 PartName。 */
-  brepSolids?: Map<PartName, { solid: ShapeHandle; kernel: OcctKernel }>
+  brepSolids?: Map<PartName, { solid: BrepHandle; kernel: BrepEngineApi }>
   /**
    * 拓扑数据 — 每个 part 的拓扑运行时。
    * key 为 PartName。
@@ -219,13 +220,13 @@ export class CadRuntime {
    * PartName → OCCT 实体句柄，跨 execute 存活，持有所有权（顶替释放/删除/dispose 的唯一操作对象）。
    * op 层通过 brepChain.solidCache 读写——该引用指向此持久 Map（见 ensureBrepChain）。
    */
-  private solidCache = new Map<PartName, ShapeHandle>()
+  private solidCache = new Map<PartName, BrepHandle>()
 
   /** 面演化映射缓存（PartName → FaceEvolution），随 solidCache 一并持久。 */
   private faceEvolutionCache = new Map<PartName, Map<number, number[]>>()
 
   /** OCCT 内核引用（环境级单例，initOcctWasm() 幂等；mesh 模式为 null）。供顶替释放用。 */
-  private kernel: OcctKernel | null = null
+  private kernel: BrepEngineApi | null = null
 
   /**
    * 惰性初始化的 BREP 链：solidCache / faceEvolutionCache 引用实例持久 Map，
@@ -292,12 +293,18 @@ export class CadRuntime {
       contractVersion: CONTRACT_VERSION,
       config: {
         mode: this.mode,
+        get brepEngineId() {
+          return getActiveBrepEngineId()
+        },
+        get brepCapabilities() {
+          return brepChainOf()?.capabilities
+        },
         get partTransform() {
           return brepChainOf()?.partTransform
         },
       },
       kernel: {
-        get occt() {
+        get brep() {
           return brepChainOf()?.kernel ?? null
         },
         get csg() {
@@ -315,16 +322,23 @@ export class CadRuntime {
     })
   }
 
-  /** 确保持久 BREP 链存在（惰性初始化）。mesh 模式 kernel 为 null（无 BREP 能力）。 */
+  /**
+   * 确保持久 BREP 链存在（惰性初始化）。
+   * 引擎从注册表取当前 BREP 引擎（宿主装配时注册）；无引擎或 mesh 模式 → kernel 为 null。
+   */
   private async ensureBrepChain(): Promise<BrepChainState> {
     if (this.brepChain) return this.brepChain
-    const kernel = this.mode === 'mesh' ? null : await initOcctWasm()
+    const engine = this.mode === 'mesh' || !hasBrepEngine()
+      ? null
+      : await getBrepEngine()
+    const kernel = engine?.primitives ?? null
     this.kernel = kernel
     this.brepChain = {
       solidCache: this.solidCache,
       kernel,
+      capabilities: engine?.capabilities,
       faceEvolutionCache: this.faceEvolutionCache,
-      meshShapeCache: new Map<PartName, WasmMesh>(),
+      meshShapeCache: new Map<PartName, BrepMeshResult>(),
     }
     return this.brepChain
   }
@@ -778,8 +792,8 @@ export class CadRuntime {
   private extractBrepSolids(
     script: ScriptIR,
     terminals: TerminalShape[],
-  ): Map<PartName, { solid: ShapeHandle; kernel: OcctKernel }> {
-    const brepSolids = new Map<PartName, { solid: ShapeHandle; kernel: OcctKernel }>()
+  ): Map<PartName, { solid: BrepHandle; kernel: BrepEngineApi }> {
+    const brepSolids = new Map<PartName, { solid: BrepHandle; kernel: BrepEngineApi }>()
     if (!this.kernel) return brepSolids
 
     if (terminals.length > 0) {
@@ -974,7 +988,7 @@ export class CadRuntime {
    * 而是通过此方法从 runtime 获取 BREP 拓扑。
    *
    * 按 PartName 直接查持久 solidCache + brepChain.meshShapeCache（均为 PartName key），
-   * 不再需要 scopedId 投影。单一真源：solidCache（PartName → ShapeHandle）。
+   * 不再需要 scopedId 投影。单一真源：solidCache（PartName → BrepHandle）。
    *
    * @param partName 终端变量名（PartName，在 brepChain.solidCache 中查找）
    * @returns SelectorRuntime，或 null（无可用 BREP solid）
@@ -990,8 +1004,8 @@ export class CadRuntime {
     // 规则 1：优先从 brepChain.meshShapeCache 复用执行链产出的三角化结果
     // （与显示 mesh 完全同一份 mesh，不二次 meshShape）
     const cachedMesh = brepChain.meshShapeCache?.get(partName)
-    if (cachedMesh) {
-      return buildTopologyFromMesh(solid, cachedMesh)
+    if (cachedMesh && brepChain.kernel) {
+      return buildTopologyFromMesh(brepChain.kernel, solid, cachedMesh)
     }
 
     // 无缓存（非执行链路径，如 STEP 导入后直接构建拓扑）→ 执行完整构建（含 meshShape 三角化）

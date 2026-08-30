@@ -23,6 +23,8 @@ import { getBackends, keepHidden } from '@faicad/faijs-core/runtime-state'
 import { solid, fromBrep, brepOf } from '@faicad/faijs-core/shape'
 import { reconcileBrepInputs } from './reconcile'
 import { dispatchPath } from '@faicad/faijs-core/cad-runtime/backend-dispatch'
+import type { BrepHandle } from '@faicad/faijs-core/brep/engine/types'
+import type { BrepEngineApi } from '@faicad/faijs-core/brep/engine/primitives'
 
 /** BREP 实现标记（boolean 有 OCCT 精确布尔） */
 const brepImpl = true
@@ -33,21 +35,21 @@ type BooleanOperation = 'union' | 'subtract' | 'intersect'
 
 /** BREP 路径：fuse/cut/common（*WithHistory 封装，收集面演化）。 */
 function booleanBrep(inputs: Shape[], operation: BooleanOperation): Shape {
-  const kernel = getBackends().kernel.occt as import('occt-wasm').OcctKernel | null
+  const kernel = getBackends().kernel.brep as BrepEngineApi | null
   if (!kernel) throw new Error('[stdlib/boolean] no OCCT kernel')
 
-  const inputSolids = inputs.map((s) => brepOf(s) as import('occt-wasm').ShapeHandle | undefined)
+  const inputSolids = inputs.map((s) => brepOf(s) as BrepHandle | undefined)
   if (inputSolids.some((s) => !s)) {
     throw new Error('[stdlib/boolean] input is not BREP')
   }
 
-  let resultSolid: import('occt-wasm').ShapeHandle
+  let resultSolid: BrepHandle
   let lastEvolution: Map<number, number[]> | undefined
 
   const applyBinary = (
-    a: import('occt-wasm').ShapeHandle,
-    b: import('occt-wasm').ShapeHandle,
-  ): { result: import('occt-wasm').ShapeHandle; faceEvolution?: Map<number, number[]> } => {
+    a: BrepHandle,
+    b: BrepHandle,
+  ): { result: BrepHandle; faceEvolution?: Map<number, number[]> } => {
     if (operation === 'union') return fuseWithHistoryBrep(kernel, a, b)
     if (operation === 'subtract') return cutWithHistoryBrep(kernel, a, b)
     return intersectWithHistoryBrep(kernel, a, b)
@@ -96,7 +98,8 @@ async function booleanMesh(inputs: Shape[], operation: BooleanOperation): Promis
  */
 async function booleanImpl(operation: BooleanOperation, inputs: Shape[]): Promise<Shape> {
   if (inputs.length > 0) keepHidden(...inputs)
-  const path = dispatchPath(inputs, brepImpl)
+  // boolean 走 *WithHistory 面演化（face-evolution.ts）→ 声明 evolution 能力（§8.4 能力路由）
+  const path = dispatchPath(inputs, brepImpl, 'evolution')
   if (path === 'brep') return booleanBrep(inputs, operation)
   // 混合/断链时刻：BREP 侧输入先归约为合法 2-manifold 网格，mesh 侧原样透传
   return solid(await booleanMesh(reconcileBrepInputs(inputs), operation))

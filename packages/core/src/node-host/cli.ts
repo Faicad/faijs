@@ -25,7 +25,8 @@ import { exportStep } from '../occt-kernel/highLevelApi'
 import { initOcctWasm } from '../occt-kernel/occtKernel'
 import type { Shape } from '../mesh/types'
 import type { CompoundShape } from '../shape'
-import type { ShapeHandle, OcctKernel } from 'occt-wasm'
+import type { BrepHandle } from '../brep/engine/types'
+import type { BrepEngineApi } from '../brep/engine/primitives'
 import { asPartName } from '../identity'
 
 export interface CliCheckOptions {
@@ -188,7 +189,7 @@ function writeOutput(
   outPath: string,
   ext: string,
   shape: Shape | CompoundShape,
-  brepSolid?: { solid: ShapeHandle; kernel: OcctKernel },
+  brepSolid?: { solid: BrepHandle; kernel: BrepEngineApi },
 ): CliRunResult {
   if (!('positions' in shape) || !('indices' in shape)) {
     return {

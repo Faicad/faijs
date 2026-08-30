@@ -205,6 +205,20 @@ export { exportStepFromSolidsHighLevel } from './occt-kernel/highLevelApi'
 export { buildSelectorManifest, buildAssemblySelectorManifest } from './occt-kernel/topologyExt'
 export type { SelectorManifestInput, PartTopologyInput, AssemblyTopologyResult } from './occt-kernel/topologyExt'
 
+// ── BREP 引擎注册（宿主装配；引擎可切换——occt 只是默认实现） ──
+export { registerOcctBrepEngine, OCCT_BREP_ENGINE_ID } from './brep/engine/adapters/occt'
+export { registerMemoryBrepEngine, MEMORY_BREP_ENGINE_ID, createMemoryBrepApi } from './brep/engine/adapters/memory'
+export {
+  registerBrepEngine, getBrepEngine, hasBrepEngine, getActiveBrepEngineId,
+  registerMeshEngine, getMeshEngine, getActiveMeshEngineId, freezeEngineRegistries,
+} from './brep/engine/registry'
+export type { BrepEngine, BrepEngineProvider, MeshEngine } from './brep/engine/registry'
+export type { BrepEngineApi } from './brep/engine/primitives'
+export type {
+  BrepHandle, BrepMeshResult, BrepBoundingBox, BrepVec3, BrepCapabilities,
+  BrepEvolutionData, BrepXcafDocument,
+} from './brep/engine/types'
+
 // ── BREP Topology ──
 export { buildSolidTopologyRuntime } from './brep/brep-topology'
 export type { SolidTopologyResult } from './brep/brep-topology'

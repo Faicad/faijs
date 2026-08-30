@@ -14,6 +14,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { getKernel, meshHandle, fromHandle } from './handle-bridge'
+import { registerOcctBrepEngine } from './engine/adapters/occt'
 import { hasBrep } from '../shape'
 import { configureBackends } from '../runtime-state'
 import { createNodePorts } from '../node-host'
@@ -21,11 +22,11 @@ import { createRuntime } from '@faicad/faijs'
 
 describe('handle-bridge: getKernel', () => {
   it('throws when kernel is not available (mesh mode / not initialized)', () => {
-    // 显式装配 mesh 模式（kernel.occt = null）→ getKernel 必须抛错，不静默返回 null
+    // 显式装配 mesh 模式（kernel.brep = null）→ getKernel 必须抛错，不静默返回 null
     configureBackends({
       contractVersion: 1,
       config: { mode: 'mesh' },
-      kernel: { occt: null, csg: undefined, sdf: undefined },
+      kernel: { brep: null, csg: undefined, sdf: undefined },
       fonts: undefined,
       texture: undefined,
       assets: undefined,
@@ -41,6 +42,8 @@ describe('handle-bridge: meshHandle / fromHandle with real OCCT kernel', () => {
   let solidHandle: unknown
 
   beforeAll(async () => {
+    // 宿主装配：注册 OCCT BREP 引擎（runtime 从注册表取引擎）
+    await registerOcctBrepEngine()
     // 用 runtime 装配真实 backends（auto 模式 → kernel 存在），再建一个 box solid
     runtime = createRuntime(createNodePorts(), 'auto')
     await runtime.execute({

@@ -36,7 +36,7 @@ function setMode(mode: 'auto' | 'brep' | 'mesh'): void {
   const backends: Backends = {
     contractVersion: CONTRACT_VERSION,
     config: { mode },
-    kernel: { occt: null, csg: {}, sdf: {} },
+    kernel: { brep: null, csg: {}, sdf: {} },
     fonts: undefined as unknown as Backends['fonts'],
     texture: undefined as unknown as Backends['texture'],
     assets: undefined as unknown as Backends['assets'],

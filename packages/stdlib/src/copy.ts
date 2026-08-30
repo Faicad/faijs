@@ -20,15 +20,17 @@ import { identityEvolution } from '@faicad/faijs-core/brep/face-evolution'
 import { getBackends, keep } from '@faicad/faijs-core/runtime-state'
 import { solid, fromBrep, brepOf } from '@faicad/faijs-core/shape'
 import { dispatchPath } from '@faicad/faijs-core/cad-runtime/backend-dispatch'
+import type { BrepHandle } from '@faicad/faijs-core/brep/engine/types'
+import type { BrepEngineApi } from '@faicad/faijs-core/brep/engine/primitives'
 
 /** BREP 实现标记（copy 有 OCCT 精确实体复制 API） */
 const brepImpl = true
 
 /** BREP 路径：kernel.copy 深拷贝实体 + 恒等面演化 + 三角化 + fromBrep 一次登记。 */
 function copyBrep(input: Shape): Shape {
-  const kernel = getBackends().kernel.occt as import('occt-wasm').OcctKernel | null
+  const kernel = getBackends().kernel.brep as BrepEngineApi | null
   if (!kernel) throw new Error('[stdlib/copy] no OCCT kernel')
-  const inputSolid = brepOf(input) as import('occt-wasm').ShapeHandle | undefined
+  const inputSolid = brepOf(input) as BrepHandle | undefined
   if (!inputSolid) throw new Error('[stdlib/copy] input is not BREP')
 
   const copiedSolid = kernel.copy(inputSolid)

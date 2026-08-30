@@ -2,7 +2,8 @@
  * BREP 通用工具函数
  */
 
-import type { OcctKernel, ShapeHandle } from 'occt-wasm'
+import type { BrepHandle } from './engine/types'
+import type { BrepEngineApi } from './engine/primitives'
 import type { Vec3 } from '../mesh/types'
 
 /**
@@ -15,7 +16,7 @@ import type { Vec3 } from '../mesh/types'
  * 2. 尝试 getBoundingBox(useTriangulation=true)
  * 3. 两者均失败 → console.error + throw（不再静默返回默认 bbox）
  */
-export function getSolidBoundingBox(kernel: OcctKernel, solid: ShapeHandle): { min: Vec3; max: Vec3 } {
+export function getSolidBoundingBox(kernel: BrepEngineApi, solid: BrepHandle): { min: Vec3; max: Vec3 } {
   try {
     const bbox = kernel.getBoundingBox(solid, false)
     return {

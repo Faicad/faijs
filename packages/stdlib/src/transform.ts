@@ -16,6 +16,8 @@ import { getBackends } from '@faicad/faijs-core/runtime-state'
 import { solid, fromBrep, brepOf } from '@faicad/faijs-core/shape'
 import { dispatchPath } from '@faicad/faijs-core/cad-runtime/backend-dispatch'
 import { assertVec3, assertPositiveNumber } from './assert'
+import type { BrepHandle } from '@faicad/faijs-core/brep/engine/types'
+import type { BrepEngineApi } from '@faicad/faijs-core/brep/engine/primitives'
 
 /** BREP 实现标记（transform 有 OCCT 精确变换） */
 const brepImpl = true
@@ -46,12 +48,12 @@ export function assertScaleParams(params: Record<string, unknown>): void {
 
 /** BREP 路径：变换 solid + 恒等面演化 + 三角化 + fromBrep 登记。 */
 function transformBrep(op: string, input: Shape, params: Record<string, unknown>): Shape {
-  const kernel = getBackends().kernel.occt as import('occt-wasm').OcctKernel | null
+  const kernel = getBackends().kernel.brep as BrepEngineApi | null
   if (!kernel) throw new Error('[stdlib/transform] no OCCT kernel')
-  const inputSolid = brepOf(input) as import('occt-wasm').ShapeHandle | undefined
+  const inputSolid = brepOf(input) as BrepHandle | undefined
   if (!inputSolid) throw new Error('[stdlib/transform] input is not BREP')
 
-  let resultSolid: import('occt-wasm').ShapeHandle
+  let resultSolid: BrepHandle
   if (op === 'translate') {
     resultSolid = translateBrep(kernel, inputSolid, params.offset as Vec3)
   } else if (op === 'rotate') {

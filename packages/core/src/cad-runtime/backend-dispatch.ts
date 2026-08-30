@@ -22,6 +22,15 @@ import type { Shape } from '../mesh/types'
 /** 静态判定的两个可能结果：走 BREP 链或 mesh 链。 */
 export type BrepPath = 'brep' | 'mesh'
 
+/** 能力名（对应 §7.5 BrepCapabilities 的布尔字段；能力路由 §8.4 用）。 */
+export type BrepCapabilityName =
+  | 'evolution'
+  | 'heal'
+  | 'directEdit'
+  | 'advSurface'
+  | 'assembly'
+  | 'meshLift'
+
 /**
  * 判定方便本次调用走 BREATHE 还是 mesh。
  *
@@ -29,6 +38,11 @@ export type BrepPath = 'brep' | 'mesh'
  * 1. mode='mesh' → mesh
  * 2. mode='brep' → 无 brepImpl 则抛；有 brepImpl 但输入不全在链也抛
  * 3. mode='auto' → 有 brepImpl 且全部输入在链 → brep；否则 mesh
+ *
+ * §8.4 能力路由（Phase 1）：op 可声明所需能力（requiredCapability）——
+ * 当前引擎（注册表）缺该能力时：
+ * - brep 模式 → 抛 BrepUnsupportedError（明确报错，不静默回退）
+ * - auto 模式 → 静态降级走 mesh（绝不伪造缺失的能力）
  *
  * V5.3：第三方库作者从 @faicad/faijs/sdk 导入本函数，与内置 op 同机制选路径：
  *   import { dispatchPath } from '@faicad/faijs/sdk'
@@ -39,6 +53,7 @@ export type BrepPath = 'brep' | 'mesh'
 export function dispatchPath(
   inputs: Shape[],
   brepImpl: unknown | undefined,
+  requiredCapability?: BrepCapabilityName,
 ): BrepPath {
   const { config } = getBackends()
 
@@ -52,8 +67,18 @@ export function dispatchPath(
     if (!inputs.every(hasBrep)) {
       throw new BrepUnsupportedError('E_BREP_UNSUPPORTED: input is not BREP', currentStmt)
     }
+    // §8.4 能力路由：brep 模式缺能力 → 明确报错，不静默回退
+    if (requiredCapability && !config.brepCapabilities?.[requiredCapability]) {
+      throw new BrepUnsupportedError(
+        `E_BREP_UNSUPPORTED: current engine lacks capability '${requiredCapability}' (brepEngineId=${config.brepEngineId ?? '<none>'})`,
+        currentStmt,
+      )
+    }
     return 'brep'
   }
+
+  // §8.4 能力路由：auto 模式缺能力 → 静态降级走 mesh（绝不伪造）
+  if (requiredCapability && !config.brepCapabilities?.[requiredCapability]) return 'mesh'
 
   if (brepImpl && inputs.every(hasBrep)) return 'brep'
   return 'mesh'

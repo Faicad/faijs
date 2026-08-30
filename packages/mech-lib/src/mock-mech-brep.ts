@@ -24,7 +24,7 @@ export const contractVersion = CONTRACT_VERSION
  * 验证 SDK 桥接（B1）从库函数可达。
  */
 function boxSolidHandle(size: number): unknown {
-  const kernel = getBackends().kernel.occt as
+  const kernel = getBackends().kernel.brep as
     | { makeBox(x: number, y: number, z: number): unknown }
     | null
     | undefined

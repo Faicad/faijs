@@ -5,7 +5,7 @@
  *
  * 直接测 adapter（libs/brepjs-gear.ts）的契约：
  * 1. contractVersion = 1（registerLib 版本契约）
- * 2. 内核注入经 getBackends().kernel.occt（auto 模式 + 热身执行后非空），零 shim
+ * 2. 内核注入经 getBackends().kernel.brep（auto 模式 + 热身执行后非空），零 shim
  * 3. 齿轮 API：external / internal / planetary 产出 faijs Shape 且 hasBrep === true
  * 4. 所有权三态：模块级 pinned 递增（只钉不释 §6.3）；同内核再建不抛错
  * 5. 错误转译：非法入参 → throw（携带 brepjs error code + message，不静默）
@@ -23,7 +23,7 @@ import { hasBrep } from '@faicad/faijs-core/shape'
 import { makeExternalGear } from 'brepjs'
 import * as gear from './brepjs-gear'
 
-// 预热：让内核就绪（getBackends().kernel.occt 非空）且 backends 已配置。
+// 预热：让内核就绪（getBackends().kernel.brep 非空）且 backends 已配置。
 // 保持 runtime 存活——kernel getter 从运行中的实例读 brepChain。
 // 宿主时序（§6.4）：先建 runtime + 执行，再加载/使用 adapter（每次 run 加载一次）。
 let runtime: ReturnType<typeof createRuntime>

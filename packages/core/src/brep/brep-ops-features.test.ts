@@ -32,9 +32,11 @@ console.log = (...args: unknown[]) => {
 }
 
 import { describe, it, expect, beforeAll } from 'vitest'
-import { initOcctWasm, getKernel } from '../occt-kernel/occtKernel'
+import { getKernel } from '../occt-kernel/occtKernel'
+import { registerOcctBrepEngine } from './engine/adapters/occt'
 import { primitiveToBrepSolid, brepSolidToStep } from '../primitives/brep-primitives'
-import type { OcctKernel, ShapeHandle } from 'occt-wasm'
+import type { BrepHandle } from './engine/types'
+import type { BrepEngineApi } from './engine/primitives'
 import {
   translateBrep, rotateBrep, scaleBrep,
   fuseBrep, cutBrep, commonBrep,
@@ -50,11 +52,11 @@ import { ensureTestFontLoader } from '../brep/text/fontTestHelper'
 import type { StatementIR, ScriptIR } from '../lang/types'
 import { asPartName, asStmtId } from '../identity'
 
-let kernel: OcctKernel
+let kernel: BrepEngineApi
 
 beforeAll(async () => {
-  await initOcctWasm()
-  kernel = getKernel()
+  await registerOcctBrepEngine()
+  kernel = getKernel() as unknown as BrepEngineApi
   // 注入 fs 字体加载器（BREP text/engrave 操作需要）
   ensureTestFontLoader()
 }, 120000)
@@ -80,11 +82,11 @@ function shapeBoundingBox(s: Shape) {
   return { min: [xmin, ymin, zmin] as [number, number, number], max: [xmax, ymax, zmax] as [number, number, number] }
 }
 
-function makeBox(size = 20): ShapeHandle {
+function makeBox(size = 20): BrepHandle {
   return primitiveToBrepSolid(kernel, 'cube', { size }).solid
 }
 
-function makeCylinder(radius: number, height: number): ShapeHandle {
+function makeCylinder(radius: number, height: number): BrepHandle {
   return primitiveToBrepSolid(kernel, 'cylinder', { radius, height }).solid
 }
 

@@ -11,7 +11,8 @@
  * 保证 mesh 三角形与 topology faceRuns 一一对应。
  */
 
-import type { OcctKernel, ShapeHandle, Mesh as WasmMesh } from 'occt-wasm'
+import type { BrepHandle, BrepMeshResult } from './engine/types'
+import type { BrepEngineApi } from './engine/primitives'
 import type { SelectorRuntime, SelectorBundle, SelectorManifest } from '../topology/types'
 import { computeEffectiveDeflection } from '../occt-kernel/occtKernel'
 import { buildAssemblySelectorManifest } from '../occt-kernel/topologyExt'
@@ -39,11 +40,12 @@ export interface SolidTopologyResult {
  * @returns SelectorRuntime
  */
 export function buildTopologyFromMesh(
-  solid: ShapeHandle,
-  meshWithGroups: WasmMesh,
+  kernel: BrepEngineApi,
+  solid: BrepHandle,
+  meshWithGroups: BrepMeshResult,
 ): SelectorRuntime {
   // 生成拓扑清单（与 STEP_T 同源：buildAssemblySelectorManifest）
-  const result = buildAssemblySelectorManifest([{
+  const result = buildAssemblySelectorManifest(kernel, [{
     labelPath: 'o1',
     shapeHandle: solid,
     meshWithGroups,
@@ -77,8 +79,8 @@ export function buildTopologyFromMesh(
  * @param solid  OCCT solid 句柄（不会被释放或修改）
  */
 export function buildSolidTopologyRuntime(
-  kernel: OcctKernel,
-  solid: ShapeHandle,
+  kernel: BrepEngineApi,
+  solid: BrepHandle,
 ): SolidTopologyResult {
   // 1. 三角化（含 faceGroups）——与显示 mesh 使用相同的 deflection 参数
   //    solidToShape 默认 angularDeflection = 2π/32 ≈ 0.196
@@ -88,13 +90,13 @@ export function buildSolidTopologyRuntime(
     angularDeflection: DISPLAY_ANGULAR_DEFLECTION,
     relative: false,
   })
-  const mesh: WasmMesh = kernel.meshShape(solid, {
+  const mesh: BrepMeshResult = kernel.meshShape(solid, {
     linearDeflection: eff.linearDeflection,
     angularDeflection: eff.angularDeflection,
   })
 
   // 2. 从已有三角化结果构建拓扑（复用 buildTopologyFromMesh）
-  const runtime = buildTopologyFromMesh(solid, mesh)
+  const runtime = buildTopologyFromMesh(kernel, solid, mesh)
 
   // 3. 返回 runtime + mesh（同一个 meshShape 输出）
   return {

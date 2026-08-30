@@ -15,7 +15,8 @@
  * - brepjs 用 Result 类型 → 本项目抛出异常
  */
 
-import type { OcctKernel, ShapeHandle } from 'occt-wasm'
+import type { BrepHandle } from '@faicad/faijs-core/brep/engine/types'
+import type { BrepEngineApi } from '@faicad/faijs-core/brep/engine/primitives'
 
 /** 螺纹配置参数。单位 mm，角度由螺距推导。 */
 export interface ThreadOptions {
@@ -48,7 +49,7 @@ export interface ThreadOptions {
  *
  * @param kernel  OCCT 内核
  * @param options 螺纹配置
- * @returns 螺纹 ridge solid（ShapeHandle）
+ * @returns 螺纹 ridge solid（BrepHandle）
  *
  * @example 外螺纹（Ø12 螺杆，2.5mm 螺距）:
  * ```ts
@@ -67,9 +68,9 @@ export interface ThreadOptions {
  * ```
  */
 export function threadBrep(
-  kernel: OcctKernel,
+  kernel: BrepEngineApi,
   options: ThreadOptions,
-): ShapeHandle {
+): BrepHandle {
   const {
     radius,
     pitch,
@@ -102,8 +103,8 @@ export function threadBrep(
   const a = toothHalfWidth
 
   // 构建截面序列
-  const sections: ShapeHandle[] = []
-  const intermediateEdges: ShapeHandle[] = []
+  const sections: BrepHandle[] = []
+  const intermediateEdges: BrepHandle[] = []
 
   for (let i = 0; i <= nSec; i++) {
     const th = (sign * i * 2 * Math.PI) / sectionsPerTurn
@@ -126,7 +127,7 @@ export function threadBrep(
       : [pt(baseU, -a), pt(apexU, 0), pt(baseU, a)]
 
     // 构建边
-    const edges: ShapeHandle[] = []
+    const edges: BrepHandle[] = []
     for (let k = 0; k < profile.length; k++) {
       const edge = kernel.makeLineEdge(profile[k], profile[(k + 1) % profile.length])
       edges.push(edge)

@@ -14,6 +14,8 @@ import { getBackends } from '@faicad/faijs-core/runtime-state'
 import { solid, fromBrep, brepOf } from '@faicad/faijs-core/shape'
 import { dispatchPath } from '@faicad/faijs-core/cad-runtime/backend-dispatch'
 import { assertPositiveNumber } from './assert'
+import type { BrepHandle } from '@faicad/faijs-core/brep/engine/types'
+import type { BrepEngineApi } from '@faicad/faijs-core/brep/engine/primitives'
 
 /** BREP 实现标记（extrude 有 OCCT 精确拉伸） */
 const brepImpl = true
@@ -27,9 +29,9 @@ export function assertExtrudeParams(params: Record<string, unknown>): void {
 
 /** BREP 路径：OCCT extrude + 三角化 + fromBrep 登记。 */
 function extrudeBrepPath(input: Shape, params: Record<string, unknown>): Shape {
-  const kernel = getBackends().kernel.occt as import('occt-wasm').OcctKernel | null
+  const kernel = getBackends().kernel.brep as BrepEngineApi | null
   if (!kernel) throw new Error('[stdlib/extrude] no OCCT kernel')
-  const inputSolid = brepOf(input) as import('occt-wasm').ShapeHandle | undefined
+  const inputSolid = brepOf(input) as BrepHandle | undefined
   if (!inputSolid) throw new Error('[stdlib/extrude] input is not BREP')
 
   const normal = (params.normal as Vec3 | undefined) ?? [0, 0, 1]

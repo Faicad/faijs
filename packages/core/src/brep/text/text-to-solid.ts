@@ -17,7 +17,8 @@
  * - Z (closePath) → 闭合 wire
  */
 
-import type { OcctKernel, ShapeHandle } from 'occt-wasm'
+import type { BrepHandle } from '../engine/types'
+import type { BrepEngineApi } from '../engine/primitives'
 import type { Font } from 'opentype.js'
 import type { PathCommand } from 'opentype.js'
 import { getFont } from './fontRegistry'
@@ -62,9 +63,9 @@ function quadToCubic(
  * occt-wasm 的 makeBezierEdge 接受 Vec3[] 控制点数组。
  */
 function makeBezierFromPoints(
-  kernel: OcctKernel,
+  kernel: BrepEngineApi,
   p0: Pt, c1: Pt, c2: Pt, p1: Pt,
-): ShapeHandle {
+): BrepHandle {
   return kernel.makeBezierEdge([p0, c1, c2, p1])
 }
 
@@ -74,10 +75,10 @@ function makeBezierFromPoints(
  * @param kernel OCCT 内核
  * @param text 文字字符串
  * @param options 配置选项
- * @returns ShapeHandle 数组（每个是一个闭合 wire）
+ * @returns BrepHandle 数组（每个是一个闭合 wire）
  */
 export function textBlueprints(
-  kernel: OcctKernel,
+  kernel: BrepEngineApi,
   text: string,
   options: {
     startX?: number
@@ -85,7 +86,7 @@ export function textBlueprints(
     fontSize?: number
     fontFamily?: string
   } = {},
-): ShapeHandle[] {
+): BrepHandle[] {
   const { startX = 0, startY = 0, fontSize = 16, fontFamily = 'default' } = options
 
   let font: Font | undefined = getFont(fontFamily)
@@ -110,10 +111,10 @@ export function textBlueprints(
   const path = font.getPath(text, startX, startY, fontSize)
   const commands = path.commands as PathCommand[]
 
-  const wires: ShapeHandle[] = []
-  const allEdges: ShapeHandle[] = []
+  const wires: BrepHandle[] = []
+  const allEdges: BrepHandle[] = []
 
-  let currentEdges: ShapeHandle[] = []
+  let currentEdges: BrepHandle[] = []
   let lastPt: Pt | null = null
   let subpathStart: Pt | null = null
 
@@ -213,17 +214,17 @@ export function textBlueprints(
  * @param kernel OCCT 内核
  * @param text 文字字符串
  * @param options 配置选项
- * @returns ShapeHandle（合并后的 solid）
+ * @returns BrepHandle（合并后的 solid）
  */
 export function textToSolid(
-  kernel: OcctKernel,
+  kernel: BrepEngineApi,
   text: string,
   options: {
     fontSize?: number
     fontFamily?: string
     depth: number
   },
-): ShapeHandle {
+): BrepHandle {
   const { fontSize = 16, fontFamily = 'default', depth } = options
 
   const wires = textBlueprints(kernel, text, { fontSize, fontFamily })
@@ -233,7 +234,7 @@ export function textToSolid(
   }
 
   // 为每个 wire 创建 face → extrude
-  const solids: ShapeHandle[] = []
+  const solids: BrepHandle[] = []
   for (const wire of wires) {
     try {
       const face = kernel.makeFace(wire)

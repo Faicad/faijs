@@ -32,14 +32,15 @@ import { primitiveToBrepSolid } from '../primitives/brep-primitives'
 import { buildSolidTopologyRuntime } from './brep-topology'
 import { buildAssemblySelectorManifest } from '../occt-kernel/topologyExt'
 import { buildSelectorRuntime } from '../topology/build-selector-runtime'
-import type { OcctKernel, ShapeHandle } from 'occt-wasm'
+import type { BrepHandle } from './engine/types'
+import type { BrepEngineApi } from './engine/primitives'
 import type { SelectorRuntime } from '../topology/types'
 
-let kernel: OcctKernel
+let kernel: BrepEngineApi
 
 beforeAll(async () => {
   await initOcctWasm()
-  kernel = getKernel()
+  kernel = getKernel() as unknown as BrepEngineApi
 }, 120000)
 
 // ── 从 STEP 文件提取 STEP_T 拓扑数据（"正确答案"） ──
@@ -48,7 +49,7 @@ beforeAll(async () => {
  * 从 OCCT solid 导出 STEP 文件，再导入，提取 STEP_T 拓扑。
  * 产出的数据就是"正确的 STEP_T 拓扑数据"。
  */
-function extractStepTTopology(k: OcctKernel, solid: ShapeHandle): SelectorRuntime {
+function extractStepTTopology(k: BrepEngineApi, solid: BrepHandle): SelectorRuntime {
   const stepText = k.exportStep(solid)
   const stepBuf = new TextEncoder().encode(stepText).buffer
   const importedShape = k.importStep(stepBuf)
@@ -66,7 +67,7 @@ function extractStepTTopology(k: OcctKernel, solid: ShapeHandle): SelectorRuntim
       angularDeflection: 0.5,
     })
 
-    const result = buildAssemblySelectorManifest([{
+    const result = buildAssemblySelectorManifest(k, [{
       labelPath: 'o1',
       shapeHandle: importedShape,
       meshWithGroups: mesh,

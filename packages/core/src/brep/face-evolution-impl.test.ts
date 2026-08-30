@@ -14,7 +14,7 @@
 
 import { describe, it, expect, beforeAll } from 'vitest'
 import { initOcctWasm, getKernel } from '../occt-kernel/occtKernel'
-import type { OcctKernel } from 'occt-wasm'
+import type { BrepEngineApi } from './engine/primitives'
 import {
   cutWithHistoryBrep,
   fuseWithHistoryBrep,
@@ -22,11 +22,11 @@ import {
   getUnionFaceHashes,
 } from './face-evolution'
 
-let kernel: OcctKernel
+let kernel: BrepEngineApi
 
 beforeAll(async () => {
   await initOcctWasm()
-  kernel = getKernel()
+  kernel = getKernel() as unknown as BrepEngineApi
 }, 120000)
 
 // ─── face-evolution 工具函数测试 ───

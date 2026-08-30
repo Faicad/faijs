@@ -8,6 +8,25 @@
 - 包管理器：**npm workspaces**（已裁定，见 §2）
 - 仓库形态：**单 git 仓 + 多 package**（已裁定，见 §0.3 D1）
 
+> ⚠️ **2026-08-30 追加更正说明（仅追加，不改动上文任何原有内容）**
+>
+> **本文档 §6.2「OCCT 单一实例」的 occt-wasm 硬 peer（非 optional）决策，已被 `docs/plans/2026-08-30-brep-engine-switch.md` §9.1 取代。** 取代理由：§6.2 的依据是「faijs 没有替代内核」，而引擎切换方案的需求 R4（内核可替换/可省略，不装 occt-wasm 时 build/typecheck/纯 mesh 执行全过）恰恰消灭了这个前提——**前提变更，决策反转**。
+>
+> 被取代的条目（原文保留不动，此处追认修订）：
+>
+> | 原文（§6.2 / §3.9 / §12 / §14） | 修订（2026-08-30） |
+> |---|---|
+> | core/stdlib/mech-lib 声明**硬 peer**（不加 `optional`） | 降为 **optional peer**（`peerDependenciesMeta.optional: true`）；§3.9 第 2 条"不抄 brepjs 的 optional peer"同因作废 |
+> | 根 `overrides: {"occt-wasm": ...}` 双锁**保留** | **移除**（overrides 只在 workspace 根自己的 install 生效，消费端会忽略；它本就不构成对外保证） |
+> | `npm ls occt-wasm --workspaces` 断言**只出现一个版本**（无条件，§6.2/§14 C.3） | 改为**条件断言**：装了 → 恰好一个版本、无 nested 副本；没装 → 零个（"未安装"是可选化后的合法状态） |
+> | §12 O13 / §14 E 的验收「3d_editor 装 tarball 后 `npm ls occt-wasm` 单版本 = 3.7.0」 | 更新为 **3.8.4** + 条件化 |
+>
+> **不变的部分**：单一实例不变量本身仍然成立，只是机制从"npm 靠硬 peer 强制单份"变为"**单一安装点 + 守卫**"（根 dependencies 或宿主自身保持唯一安装点，npm 对 optional peer 同样解析到 hoist 的那一份）；3d_editor 装 tarball 后 `npm ls occt-wasm` 单版本的验收仍然保留。3d_editor 不受影响：其 `package.json` 已在 dependencies 与 devDependencies 各声明 `occt-wasm: 3.8.4`（`:49,92`）。
+>
+> **版本注记**：本文档写作时 occt-wasm 为 3.7.0；仓库已于 HEAD `3f79826` bump 到 **3.8.4**（本追加与 engine-switch §9.1 均按 3.8.4 表述）。另：monorepo 迁移实际**已实施**（`feat/monorepo` 分支，`packages/core` 等已存在），本文档头部"未实施"状态行已过时。
+>
+> 逐条对照与论证详见 engine-switch §9.1「对 monorepo-plan §6.2 的修订（决策反转说明，2026-08-30）」。
+
 ## 权威文档（本方案的判据来源，按优先级）
 
 | 优先级 | 文档 | 状态 | 本方案依据它的什么 |

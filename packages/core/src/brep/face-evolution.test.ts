@@ -14,15 +14,16 @@
 
 import { describe, it, expect, beforeAll } from 'vitest'
 import { initOcctWasm, getKernel } from '../occt-kernel/occtKernel'
-import type { OcctKernel, ShapeHandle } from 'occt-wasm'
+import type { BrepHandle } from './engine/types'
+import type { BrepEngineApi } from './engine/primitives'
 
 const HASH_UPPER_BOUND = 2147483647
 
-let kernel: OcctKernel
+let kernel: BrepEngineApi
 
 beforeAll(async () => {
   await initOcctWasm()
-  kernel = getKernel()
+  kernel = getKernel() as unknown as BrepEngineApi
 }, 120000)
 
 // ─── 辅助函数 ───
@@ -31,7 +32,7 @@ beforeAll(async () => {
  * 获取形状所有面的面积序列（用于确定性比较）。
  * 面面积通过 queryBatch 获取。
  */
-function getFaceAreas(shape: ShapeHandle): number[] {
+function getFaceAreas(shape: BrepHandle): number[] {
   const faces = kernel.getSubShapes(shape, 'face')
   const results = kernel.queryBatch(faces)
   const areas = results.map(r => r.area)
@@ -43,7 +44,7 @@ function getFaceAreas(shape: ShapeHandle): number[] {
  * 获取形状所有面的中心坐标序列（用于几何位置比较）。
  * 使用 getSurfaceCenterOfMass 获取面积加权重心。
  */
-function getFaceCenters(shape: ShapeHandle): Array<{ x: number; y: number; z: number }> {
+function getFaceCenters(shape: BrepHandle): Array<{ x: number; y: number; z: number }> {
   const faces = kernel.getSubShapes(shape, 'face')
   const centers = faces.map(f => kernel.getSurfaceCenterOfMass(f))
   for (const f of faces) kernel.release(f)
@@ -52,9 +53,9 @@ function getFaceCenters(shape: ShapeHandle): Array<{ x: number; y: number; z: nu
 
 /**
  * 构建一个标准测试场景：box 被圆柱切割。
- * 返回切割结果的 ShapeHandle。
+ * 返回切割结果的 BrepHandle。
  */
-function buildBoxCutByCylinder(): ShapeHandle {
+function buildBoxCutByCylinder(): BrepHandle {
   const box = kernel.makeBoxFromCorners({ x: 0, y: 0, z: 0 }, { x: 10, y: 10, z: 10 })
   // 圆柱从顶面中心向下钻
   const cyl = kernel.makeCylinder(2, 10)
@@ -69,9 +70,9 @@ function buildBoxCutByCylinder(): ShapeHandle {
 
 /**
  * 构建一个标准测试场景：两个 box 融合。
- * 返回融合结果的 ShapeHandle。
+ * 返回融合结果的 BrepHandle。
  */
-function buildBoxFuseBox(): ShapeHandle {
+function buildBoxFuseBox(): BrepHandle {
   const boxA = kernel.makeBoxFromCorners({ x: 0, y: 0, z: 0 }, { x: 10, y: 10, z: 10 })
   const boxB = kernel.makeBoxFromCorners({ x: 5, y: 5, z: 0 }, { x: 15, y: 15, z: 10 })
   const result = kernel.fuse(boxA, boxB)
@@ -83,7 +84,7 @@ function buildBoxFuseBox(): ShapeHandle {
 /**
  * 收集形状所有面的 hash 列表（通过 subShapeHashes）。
  */
-function getFaceHashes(shape: ShapeHandle): number[] {
+function getFaceHashes(shape: BrepHandle): number[] {
   return Array.from(kernel.subShapeHashes(shape, 'face', HASH_UPPER_BOUND))
 }
 

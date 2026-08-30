@@ -16,11 +16,11 @@ import { fileURLToPath } from 'node:url'
 import { parseScript } from '@faicad/faijs'
 import { createRuntime } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
-import { initOcctWasm } from '@faicad/faijs'
+import { registerOcctBrepEngine } from '@faicad/faijs'
 import type { Shape } from '@faicad/faijs-core/mesh/types'
 
 beforeAll(async () => {
-  await initOcctWasm()
+  await registerOcctBrepEngine()
 }, 120000)
 
 const TRANSFORMS_DIR = fileURLToPath(new URL('.', import.meta.url))

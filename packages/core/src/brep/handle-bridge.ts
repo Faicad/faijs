@@ -29,7 +29,7 @@ interface MeshableKernel {
  * @throws 内核未就绪（mesh 模式或未初始化）时抛错 —— 不静默返回 null。
  */
 export function getKernel(): unknown {
-  const kernel = getBackends().kernel.occt
+  const kernel = getBackends().kernel.brep
   if (!kernel) {
     throw new Error('[faijs/bridge] OCCT kernel not available: BREP operations require an initialized kernel')
   }

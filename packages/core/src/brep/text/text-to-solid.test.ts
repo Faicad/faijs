@@ -30,16 +30,16 @@ console.log = (...args: unknown[]) => {
 
 import { describe, it, expect, beforeAll } from 'vitest'
 import { initOcctWasm, getKernel } from '../../occt-kernel/occtKernel'
-import type { OcctKernel } from 'occt-wasm'
+import type { BrepEngineApi } from '../engine/primitives'
 import { setupTestFont } from './fontTestHelper'
 import { textBlueprints, textToSolid } from './text-to-solid'
 import { solidToShape } from '../brep-ops'
 
-let kernel: OcctKernel
+let kernel: BrepEngineApi
 
 beforeAll(async () => {
   await initOcctWasm()
-  kernel = getKernel()
+  kernel = getKernel() as unknown as BrepEngineApi
   // 注入 fs 字体加载器并加载默认字体
   await setupTestFont()
 }, 120000)

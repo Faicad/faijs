@@ -15,6 +15,7 @@ import { getBackends } from '@faicad/faijs-core/runtime-state'
 import { solid, fromBrep } from '@faicad/faijs-core/shape'
 import { dispatchPath } from '@faicad/faijs-core/cad-runtime/backend-dispatch'
 import { assertPositiveNumber, assertNonNegativeNumber, assertNumberOrVec3 } from './assert'
+import type { BrepEngineApi } from '@faicad/faijs-core/brep/engine/primitives'
 
 // ── per-op 参数自校验（Phase 2.2；stdlib 被直接 import 时的防御层） ──
 
@@ -54,7 +55,7 @@ const brepImpl = primitiveToBrepSolid
 
 /** BREP 路径：OCCT 精确构造 + 三角化 + fromBrep 登记（基本体无面演化）。 */
 function primitiveBrep(op: string, params: Record<string, unknown>): Shape {
-  const kernel = getBackends().kernel.occt as import('occt-wasm').OcctKernel | null
+  const kernel = getBackends().kernel.brep as BrepEngineApi | null
   if (!kernel) throw new Error('[stdlib/box] no OCCT kernel')
   const type = op === 'box' ? 'cube' : op
   const result = primitiveToBrepSolid(kernel, type as 'cube' | 'sphere' | 'cylinder' | 'cone' | 'wedge', params as never)

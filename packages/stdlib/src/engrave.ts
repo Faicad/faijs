@@ -9,7 +9,8 @@
  */
 
 import type { Shape, Vec3 } from '@faicad/faijs-core/mesh/types'
-import type { ShapeHandle } from 'occt-wasm'
+import type { BrepHandle } from '@faicad/faijs-core/brep/engine/types'
+import type { BrepEngineApi } from '@faicad/faijs-core/brep/engine/primitives'
 import type { AssetResolver } from '@faicad/faijs-core/cad-runtime/ports'
 import { cad } from '@faicad/faijs-core/mesh'
 import { parseSvgNaturalSize } from '@faicad/faijs-core/primitives/parse-svg-size'
@@ -82,7 +83,7 @@ function alignZToNormal(normal: Vec3): number[] {
 }
 
 /** 将 solid 居中到原点（基于包围盒中心，与 mesh 路径语义一致）。 */
-function centerSolidAtOrigin(kernel: import('occt-wasm').OcctKernel, solid: ShapeHandle): ShapeHandle {
+function centerSolidAtOrigin(kernel: BrepEngineApi, solid: BrepHandle): BrepHandle {
   const bb = getSolidBoundingBox(kernel, solid)
   const cx = (bb.min[0] + bb.max[0]) / 2
   const cy = (bb.min[1] + bb.max[1]) / 2
@@ -94,9 +95,9 @@ function centerSolidAtOrigin(kernel: import('occt-wasm').OcctKernel, solid: Shap
 
 /** BREP 路径：textToSolid/svgToSolid + boolean（cut/fuse）。 */
 async function engraveBrepPath(input: Shape, params: Record<string, unknown>, svgText?: string): Promise<Shape> {
-  const kernel = getBackends().kernel.occt as import('occt-wasm').OcctKernel | null
+  const kernel = getBackends().kernel.brep as BrepEngineApi | null
   if (!kernel) throw new Error('[stdlib/engrave] no OCCT kernel')
-  const inputSolid = brepOf(input) as import('occt-wasm').ShapeHandle | undefined
+  const inputSolid = brepOf(input) as BrepHandle | undefined
   if (!inputSolid) throw new Error('[stdlib/engrave] input is not BREP')
 
   const depth = params.depth as number
@@ -104,7 +105,7 @@ async function engraveBrepPath(input: Shape, params: Record<string, unknown>, sv
   const text = params.text as string | undefined
 
   // 1. 创建装饰 solid（文字或 SVG），depth 与 mesh 路径一致
-  let decorationSolid: ShapeHandle
+  let decorationSolid: BrepHandle
   if (text) {
     await ensureDefaultFont()
     const textSize = (params.textSize as number) ?? 16
@@ -140,7 +141,7 @@ async function engraveBrepPath(input: Shape, params: Record<string, unknown>, sv
 
   // 5. 布尔运算（凸=fuse，凹=cut）
   const isRaised = mode === 'convex'
-  let result: ShapeHandle
+  let result: BrepHandle
   if (isRaised) {
     result = kernel.fuse(inputSolid, positioned)
   } else {

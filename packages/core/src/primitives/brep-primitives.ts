@@ -22,7 +22,8 @@
  */
 
 import type * as THREE from 'three'
-import type { OcctKernel, ShapeHandle } from 'occt-wasm'
+import type { BrepHandle } from '../brep/engine/types'
+import type { BrepEngineApi } from '../brep/engine/primitives'
 import type { PrimitiveType } from './types'
 import { reconstructSolidFromMesh } from '../occt-kernel/meshReconstruct'
 import type {
@@ -66,7 +67,7 @@ export function extractMeshData(geo: THREE.BufferGeometry): {
 // ─── 直接构造路径 ───
 
 /** 应用 center 偏移到 OCCT solid（如果有 center 参数）。 */
-function applyCenter(kernel: OcctKernel, solid: ShapeHandle, center?: [number, number, number]): ShapeHandle {
+function applyCenter(kernel: BrepEngineApi, solid: BrepHandle, center?: [number, number, number]): BrepHandle {
   if (!center) return solid
   const translated = kernel.translate(solid, center[0], center[1], center[2])
   kernel.release(solid)
@@ -81,7 +82,7 @@ function applyCenter(kernel: OcctKernel, solid: ShapeHandle, center?: [number, n
  * 与 mesh 路径一致性：mesh 侧 BoxGeometry(w, h, d) 经 ROT_Y_TO_Z 后
  * 轴变为 X=w, Y=d, Z=h（Y/Z 互换），因此 OCCT 的 corners 也按此映射。
  */
-function cubeToCadSolid(kernel: OcctKernel, params: BoxParams): ShapeHandle {
+function cubeToCadSolid(kernel: BrepEngineApi, params: BoxParams): BrepHandle {
   let w: number, h: number, d: number
   if (Array.isArray(params.size)) {
     [w, h, d] = params.size
@@ -101,7 +102,7 @@ function cubeToCadSolid(kernel: OcctKernel, params: BoxParams): ShapeHandle {
  *
  * 接收完整 SphereParams：radius 是球体半径，segments 不影响 BREP（仅影响 mesh 离散化）。
  */
-function sphereToCadSolid(kernel: OcctKernel, params: SphereParams): ShapeHandle {
+function sphereToCadSolid(kernel: BrepEngineApi, params: SphereParams): BrepHandle {
   const solid = kernel.makeSphere(params.radius)
   return applyCenter(kernel, solid, params.center)
 }
@@ -114,7 +115,7 @@ function sphereToCadSolid(kernel: OcctKernel, params: SphereParams): ShapeHandle
  * OCCT 的 makeCylinder 创建从 Z=0 到 Z=height 的圆柱体，
  * 需要平移使其以原点为中心。
  */
-function cylinderToCadSolid(kernel: OcctKernel, params: CylinderParams): ShapeHandle {
+function cylinderToCadSolid(kernel: BrepEngineApi, params: CylinderParams): BrepHandle {
   const solid = kernel.makeCylinder(params.radius, params.height)
   // 平移使圆柱以原点为中心（OCCT 从 Z=0 创建，需下移 height/2）
   const centered = kernel.translate(solid, 0, 0, -params.height / 2)
@@ -129,7 +130,7 @@ function cylinderToCadSolid(kernel: OcctKernel, params: CylinderParams): ShapeHa
  *
  * OCCT 的 makeCone(r1, r2, height) 中 r1=底半径、r2=顶半径。
  */
-function coneToCadSolid(kernel: OcctKernel, params: ConeParams): ShapeHandle {
+function coneToCadSolid(kernel: BrepEngineApi, params: ConeParams): BrepHandle {
   const solid = kernel.makeCone(params.radiusBottom, params.radiusTop, params.height)
   // 平移使圆锥以原点为中心
   const centered = kernel.translate(solid, 0, 0, -params.height / 2)
@@ -154,7 +155,7 @@ function coneToCadSolid(kernel: OcctKernel, params: ConeParams): ShapeHandle {
  * 3. 沿 X 轴拉伸
  * 4. 平移使 X 方向居中
  */
-function wedgeToCadSolid(kernel: OcctKernel, params: WedgeParams): ShapeHandle {
+function wedgeToCadSolid(kernel: BrepEngineApi, params: WedgeParams): BrepHandle {
   const width = params.width                    // 底边长度（沿 Y）
   const height = params.height                  // 梯形高（沿 Z）
   const angleDeg = params.angle                 // 底边与斜边的夹角
@@ -167,7 +168,7 @@ function wedgeToCadSolid(kernel: OcctKernel, params: WedgeParams): ShapeHandle {
   const halfTopWidth = Math.max(0, hw - height / Math.tan(angleRad))
 
   // 在 YZ 平面创建梯形 wire（X=0）
-  const edges: ShapeHandle[] = [
+  const edges: BrepHandle[] = [
     kernel.makeLineEdge(
       { x: 0, y: -hw, z: 0 },
       { x: 0, y: hw, z: 0 },
@@ -208,7 +209,7 @@ function wedgeToCadSolid(kernel: OcctKernel, params: WedgeParams): ShapeHandle {
  */
 export interface PrimitiveToBrepResult {
   /** CAD 实体句柄（调用方负责释放） */
-  solid: ShapeHandle
+  solid: BrepHandle
   /** 使用的构造路径 */
   path: 'primitive' | 'mesh'
   /** primitive 类型 */
@@ -257,7 +258,7 @@ function sizeToParams(type: PrimitiveType | 'screw' | 'text', size: number): Pri
  * @returns CAD 实体 + 路径信息
  */
 export function primitiveToBrepSolid(
-  kernel: OcctKernel,
+  kernel: BrepEngineApi,
   type: PrimitiveType | 'screw' | 'text',
   params?: PrimitiveParams | number,
 ): PrimitiveToBrepResult {
@@ -306,7 +307,7 @@ export function primitiveToBrepSolid(
  * @returns CAD 实体 + 路径信息
  */
 export function geometryToBrepSolid(
-  kernel: OcctKernel,
+  kernel: BrepEngineApi,
   geo: THREE.BufferGeometry,
 ): PrimitiveToBrepResult {
   const { positions, indices } = extractMeshData(geo)
@@ -325,7 +326,7 @@ export function geometryToBrepSolid(
  * @param solid   CAD 实体句柄
  * @returns STEP 文件内容字符串
  */
-export function brepSolidToStep(kernel: OcctKernel, solid: ShapeHandle): string {
+export function brepSolidToStep(kernel: BrepEngineApi, solid: BrepHandle): string {
   return kernel.exportStep(solid)
 }
 
@@ -340,7 +341,7 @@ export function brepSolidToStep(kernel: OcctKernel, solid: ShapeHandle): string 
  * @returns STEP 文件内容字符串 + 使用的路径
  */
 export function primitiveToBrepStep(
-  kernel: OcctKernel,
+  kernel: BrepEngineApi,
   type: PrimitiveType,
   params?: PrimitiveParams | number,
 ): { step: string; path: 'primitive' | 'mesh' } {

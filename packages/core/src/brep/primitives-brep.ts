@@ -19,9 +19,10 @@
  * 坐标系：Z-up、毫米，与 mesh 路径一致。
  */
 
-import { initOcctWasm } from '../occt-kernel/occtKernel'
+import { getBrepEngine } from './engine/registry'
 import { primitiveToBrepSolid } from '../primitives/brep-primitives'
-import type { OcctKernel, ShapeHandle } from 'occt-wasm'
+import type { BrepHandle } from './engine/types'
+import type { BrepEngineApi } from './engine/primitives'
 import type {
   Shape,
   BoxParams,
@@ -48,7 +49,7 @@ function segmentsToAngularDeflection(segments?: number): number {
 /**
  * 用 OCCT 构造 BREP 实体并三角化为 Shape。
  *
- * 内部流程：initOcctWasm → primitiveToBrepSolid（OCCT 精确构造）→ meshShape → release → Shape
+ * 内部流程：注册表取当前 BREP 引擎 → primitiveToBrepSolid（引擎精确构造）→ meshShape → release → Shape
  *
  * @param type      primitive 类型（cube/sphere/cylinder/cone/wedge）
  * @param params    完整参数对象
@@ -60,11 +61,11 @@ async function brepToShape(
   params: BoxParams | SphereParams | CylinderParams | ConeParams | WedgeParams,
   segments?: number,
 ): Promise<Shape> {
-  const kernel: OcctKernel = await initOcctWasm()
+  const kernel: BrepEngineApi = (await getBrepEngine()).primitives
 
   // 用升级后的 primitiveToBrepSolid 构造 OCCT 精确实体
   const result = primitiveToBrepSolid(kernel, type, params)
-  const solid: ShapeHandle = result.solid
+  const solid: BrepHandle = result.solid
 
   try {
     // 三角化为显示 mesh

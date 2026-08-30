@@ -15,7 +15,8 @@ import type { CompiledStatementMeta } from '../lang/compile'
 import type { StatementIR, ScriptIR } from '../lang/types'
 import { withoutKeepDirectives, type InternalKeepRecord } from '../lang/keep'
 import type { Shape } from '../mesh/types'
-import type { ShapeHandle, OcctKernel } from 'occt-wasm'
+import type { BrepHandle } from '../brep/engine/types'
+import type { BrepEngineApi } from '../brep/engine/primitives'
 import type { PartName, StmtId } from '../identity'
 import { asPartName } from '../identity'
 import { computeContentKey } from './content-key'
@@ -76,11 +77,11 @@ export interface ModuleExecutorOptions {
   /** 释放某 PartName 的 OCCT 句柄（reconcileCtx 删除变量时调用；无句柄则 no-op） */
   releaseSolid?: (partName: PartName) => void
   /** 读取某 PartName 当前持有的 OCCT 句柄（顶替释放预捕获用） */
-  getSolid?: (partName: PartName) => ShapeHandle | undefined
+  getSolid?: (partName: PartName) => BrepHandle | undefined
   /** 释放一个已捕获的 OCCT 句柄（顶替释放：同 id 重算成功后释放旧 handle） */
-  releaseHandle?: (handle: ShapeHandle) => void
+  releaseHandle?: (handle: BrepHandle) => void
   /** 同步身份槽 solid → PartName 键控 solidCache（runtime 既有逻辑依赖） */
-  setSolid?: (partName: PartName, solid: ShapeHandle) => void
+  setSolid?: (partName: PartName, solid: BrepHandle) => void
   /** 同步身份槽 faceEvolution → PartName 键控 faceEvolutionCache */
   setFaceEvolution?: (partName: PartName, evo: Map<number, number[]>) => void
 }
@@ -104,9 +105,9 @@ export class ModuleExecutor {
   private lastCode = ''
   private namespaces: Namespaces
   private readonly releaseSolid?: (partName: PartName) => void
-  private readonly getSolid?: (partName: PartName) => ShapeHandle | undefined
-  private readonly releaseHandle?: (handle: ShapeHandle) => void
-  private readonly setSolid?: (partName: PartName, solid: ShapeHandle) => void
+  private readonly getSolid?: (partName: PartName) => BrepHandle | undefined
+  private readonly releaseHandle?: (handle: BrepHandle) => void
+  private readonly setSolid?: (partName: PartName, solid: BrepHandle) => void
   private readonly setFaceEvolution?: (partName: PartName, evo: Map<number, number[]>) => void
 
   constructor(namespaces: Namespaces, options?: ModuleExecutorOptions) {
@@ -164,7 +165,7 @@ export class ModuleExecutor {
       // 必须在 fn 之前捕获——op 执行时已用 solidCache.set 覆盖条目，事后拿不到旧引用。
       const oldHandles = (meta?.writes ?? [])
         .map((w) => this.getSolid?.(asPartName(w)))
-        .filter((h): h is ShapeHandle => !!h)
+        .filter((h): h is BrepHandle => !!h)
       // P6：changed 由引擎比对推导（替代旧的 touch 声明机制）
       const oldWrites = new Map<string, unknown>()
       for (const w of meta?.writes ?? []) oldWrites.set(w, this.ctx[w])
@@ -309,7 +310,7 @@ export class ModuleExecutor {
           setName(v, asPartName(w)) // P3：新 keep() 反查走 runtime-state 映射（P5 删 exec 侧）
           // 身份槽 → PartName 键控缓存同步（runtime 的 brepSolids/顶替释放/buildBrepTopology 依赖）
           const slot = getSlot(v)
-          if (slot?.solid) this.setSolid?.(asPartName(w), slot.solid as ShapeHandle)
+          if (slot?.solid) this.setSolid?.(asPartName(w), slot.solid as BrepHandle)
           if (slot?.faceEvolution) this.setFaceEvolution?.(asPartName(w), slot.faceEvolution)
         }
         exec.outputCache.set(asPartName(w), v as Shape)
@@ -334,7 +335,7 @@ export class ModuleExecutor {
   private async applyPendingAssemblyTransforms(exec: ExecBookkeeping): Promise<void> {
     const pending = takePendingAssemblyTransforms()
     if (pending.length === 0) return
-    const kernel = getBackends().kernel.occt as OcctKernel | null
+    const kernel = getBackends().kernel.brep as BrepEngineApi | null
     for (const { compound, transforms } of pending) {
       const behavior = getSlot(compound)?.behavior as { memberNames?: string[] } | undefined
       if (!behavior?.memberNames) continue
@@ -347,7 +348,7 @@ export class ModuleExecutor {
         // mesh 原地变换（保留同一对象引用，ctx 与 compound.children 同步看到变更）
         Object.assign(member, applyTransform(member, t.quaternion, t.pivot, t.translation, t.rotationMatrix))
         // BREP 刚体变换（可选）：新 solid 写身份槽 + solidCache（替代旧 T6.5 反同步循环）
-        const solid = brepOf(member) as ShapeHandle | undefined
+        const solid = brepOf(member) as BrepHandle | undefined
         if (kernel && solid) {
           const transformed = applyTransformBrep(kernel, solid, t.quaternion, t.pivot, t.translation)
           try { kernel.release(solid) } catch { /* 已释放 */ }

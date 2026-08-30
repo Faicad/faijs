@@ -23,7 +23,8 @@
  * - Z (closePath) → 闭合 wire
  */
 
-import type { OcctKernel, ShapeHandle } from 'occt-wasm'
+import type { BrepHandle } from '../engine/types'
+import type { BrepEngineApi } from '../engine/primitives'
 import { getSolidBoundingBox } from '../brep-utils'
 import { parseSvgNaturalSize } from '../../primitives/parse-svg-size'
 
@@ -49,7 +50,7 @@ interface ClosedSubpath {
   /** 有符号面积（Shoelace，正=CCW，负=CW） */
   signedArea: number
   /** 对应的 OCCT wire */
-  wire: ShapeHandle
+  wire: BrepHandle
 }
 
 // ─── SVG 元素提取（将 <rect>/<circle>/… 转为 <path d>） ───
@@ -349,7 +350,7 @@ function arcMidPoint(
  * @returns 闭合子路径列表（含 wire + 几何信息）
  */
 export function parseSVGPathToWires(
-  kernel: OcctKernel,
+  kernel: BrepEngineApi,
   pathD: string,
 ): ClosedSubpath[] {
   const tokens = tokenizeSVGPath(pathD)
@@ -360,7 +361,7 @@ export function parseSVGPathToWires(
     prevControlX: 0, prevControlY: 0, lastCmd: '',
   }
 
-  let currentEdges: ShapeHandle[] = []
+  let currentEdges: BrepHandle[] = []
   let currentPoints: Pt[] = []
   let lastPt: Pt | null = null
   let subpathStart: Pt | null = null
@@ -733,9 +734,9 @@ function bboxContains(outer: { minX: number; minY: number; maxX: number; maxY: n
 
 interface ContourGroup {
   /** 外轮廓 wire */
-  outer: ShapeHandle
+  outer: BrepHandle
   /** 孔洞 wire 列表 */
-  holes: ShapeHandle[]
+  holes: BrepHandle[]
 }
 
 /**
@@ -826,16 +827,16 @@ export function classifyHoles(subpaths: ClosedSubpath[]): ContourGroup[] {
  * @param kernel OCCT 内核
  * @param svgString SVG 字符串
  * @param options 配置选项
- * @returns ShapeHandle（合并后的 solid）
+ * @returns BrepHandle（合并后的 solid）
  */
 export function svgToSolid(
-  kernel: OcctKernel,
+  kernel: BrepEngineApi,
   svgString: string,
   options: {
     depth: number
     targetLongSide?: number
   },
-): ShapeHandle {
+): BrepHandle {
   const { depth, targetLongSide = 20 } = options
 
   // 1. 提取所有 path d
@@ -885,7 +886,7 @@ export function svgToSolid(
 
   // 5. 对每个分组：makeFace → addHolesInFace → 缩放 face → extrude
   //    缩放在 extrude 之前应用（仅 XY），确保 depth 不被缩放
-  const solids: ShapeHandle[] = []
+  const solids: BrepHandle[] = []
   for (const group of groups) {
     try {
       let face = kernel.makeFace(group.outer)

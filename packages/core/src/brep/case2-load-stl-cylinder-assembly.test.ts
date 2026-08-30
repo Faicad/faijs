@@ -21,7 +21,7 @@ import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { initOcctWasm } from '../occt-kernel/occtKernel'
+import { registerOcctBrepEngine } from '../brep/engine/adapters/occt'
 import type { StatementIR, ScriptIR } from '../lang/types'
 import { createRuntime } from '@faicad/faijs'
 import type { ExecutionResult } from '../cad-runtime/runtime'
@@ -34,7 +34,7 @@ import { asPartName, asStmtId } from '../identity'
 let stlBuffer: ArrayBuffer
 
 beforeAll(async () => {
-  await initOcctWasm()
+  await registerOcctBrepEngine()
 
   // Load cube-10x5x5.stl fixture（P6：fixtures 独立包，模块相对路径）
   const stlPath = fileURLToPath(new URL('../../../fixtures/data/cube-10x5x5.stl', import.meta.url))

@@ -21,6 +21,8 @@ import * as THREE from 'three'
 import { getBackends } from '@faicad/faijs-core/runtime-state'
 import { solid, fromBrep, brepOf } from '@faicad/faijs-core/shape'
 import { dispatchPath } from '@faicad/faijs-core/cad-runtime/backend-dispatch'
+import type { BrepHandle } from '@faicad/faijs-core/brep/engine/types'
+import type { BrepEngineApi } from '@faicad/faijs-core/brep/engine/primitives'
 import { assertPositiveNumber, assertNumber, assertVec3 } from './assert'
 
 /** BREP 实现标记（drill 有 OCCT 精确钻孔） */
@@ -73,13 +75,13 @@ function resolveDirection(params: Record<string, unknown>, faceNormal: Vec3): Ve
 
 /** BREP 螺丝孔：底孔（圆柱 cut）+ 内螺纹（threadBrep + cut）。 */
 function screwHoleBrep(
-  kernel: import('occt-wasm').OcctKernel,
-  upstreamSolid: import('occt-wasm').ShapeHandle,
+  kernel: BrepEngineApi,
+  upstreamSolid: BrepHandle,
   params: Record<string, unknown>,
   direction: Vec3,
   faceNormal: Vec3,
   localPosition: [number, number, number],
-): import('occt-wasm').ShapeHandle {
+): BrepHandle {
   const diameter = params.diameter as number
   const depth = params.depth as number
   // 1. 底孔（圆柱 cut）
@@ -130,9 +132,9 @@ function screwHoleBrep(
 
 /** BREP 路径：OCCT cut（简单孔）或 threadBrep + cut（螺丝孔）。 */
 function drillBrepPath(input: Shape, params: Record<string, unknown>): Shape {
-  const kernel = getBackends().kernel.occt as import('occt-wasm').OcctKernel | null
+  const kernel = getBackends().kernel.brep as BrepEngineApi | null
   if (!kernel) throw new Error('[stdlib/drill] no OCCT kernel')
-  const inputSolid = brepOf(input) as import('occt-wasm').ShapeHandle | undefined
+  const inputSolid = brepOf(input) as BrepHandle | undefined
   if (!inputSolid) throw new Error('[stdlib/drill] input is not BREP')
 
   const faceNormal = params.faceNormal as Vec3
@@ -143,7 +145,7 @@ function drillBrepPath(input: Shape, params: Record<string, unknown>): Shape {
   const partTransform = getBackends().config.partTransform
   const localPosition = worldToLocalPosition(params.position as [number, number, number], partTransform)
 
-  let resultSolid: import('occt-wasm').ShapeHandle
+  let resultSolid: BrepHandle
   if (holeType === 'screw') {
     resultSolid = screwHoleBrep(kernel, inputSolid, params, direction, faceNormal, localPosition)
   } else {

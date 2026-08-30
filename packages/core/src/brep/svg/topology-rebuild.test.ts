@@ -16,15 +16,15 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import { initOcctWasm, getKernel } from '../../occt-kernel/occtKernel'
-import type { OcctKernel } from 'occt-wasm'
+import type { BrepEngineApi } from '../engine/primitives'
 import { svgToSolid } from './svg-to-solid'
 import { buildSolidTopologyRuntime } from '../brep-topology'
 
-let kernel: OcctKernel
+let kernel: BrepEngineApi
 
 beforeAll(async () => {
   await initOcctWasm()
-  kernel = getKernel()
+  kernel = getKernel() as unknown as BrepEngineApi
 }, 120000)
 
 describe('buildSolidTopologyRuntime with SVG-derived solid', () => {

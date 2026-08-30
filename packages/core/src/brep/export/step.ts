@@ -10,13 +10,14 @@
  * `name [n]`，与本节点的展平命名规则一致。
  */
 
-import type { ShapeHandle, OcctKernel } from 'occt-wasm'
+import type { BrepHandle } from '../engine/types'
+import type { BrepEngineApi } from '../engine/primitives'
 import { reconstructSolidFromMesh } from '../../occt-kernel/meshReconstruct'
 
 /** STEP 导出条目：一个 part（精确 solid 或三角网格，二选一）。 */
 export interface StepExportEntry {
   /** 精确 BREP solid（来自宿主导出缓存）。与 mesh 二选一，solid 优先。 */
-  solid?: ShapeHandle
+  solid?: BrepHandle
   /** 三角网格（世界坐标、已按单位缩放），经 reconstructSolidFromMesh 重建为实体。 */
   mesh?: { positions: Float32Array; indices: Uint32Array }
   /** 实体名称（写入 label name，导出为 PRODUCT 名称）。 */
@@ -49,7 +50,7 @@ function srgbToLinear(c: number): number {
  * @throws if entries is empty, or a mesh entry fails to reconstruct
  */
 export function exportStepFromSolids(
-  kernel: OcctKernel,
+  kernel: BrepEngineApi,
   entries: StepExportEntry[],
 ): ArrayBuffer {
   if (entries.length === 0) {
@@ -59,7 +60,7 @@ export function exportStepFromSolids(
   const doc = kernel.createXCAFDocument()
   // 本函数创建的句柄（展平出的子 solid + mesh 重建的 solid），导出后释放。
   // 缓存里的原 solid（entry.solid）绝不释放，归调用方/缓存所有。
-  const ownedHandles: ShapeHandle[] = []
+  const ownedHandles: BrepHandle[] = []
 
   try {
     for (const entry of entries) {
@@ -121,8 +122,8 @@ export function exportStepFromSolids(
  * @returns STEP file content as ArrayBuffer
  */
 export function exportStepFromSolid(
-  solid: ShapeHandle,
-  kernel: OcctKernel,
+  solid: BrepHandle,
+  kernel: BrepEngineApi,
 ): ArrayBuffer {
   return exportStepFromSolids(kernel, [{ solid }])
 }

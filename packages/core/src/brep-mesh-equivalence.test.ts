@@ -29,7 +29,7 @@ console.log = (...args: unknown[]) => {
 }
 
 import { describe, it, expect, beforeAll } from 'vitest'
-import { initOcctWasm } from './occt-kernel/occtKernel'
+import { registerOcctBrepEngine } from './brep/engine/adapters/occt'
 import { createRuntime } from '@faicad/faijs'
 import type { ExecutionResult } from './cad-runtime/runtime'
 import { createNodePorts } from './node-host'
@@ -40,7 +40,7 @@ import type { StatementIR, ScriptIR } from './lang/types'
 import { asStmtId, asPartName } from './identity'
 
 beforeAll(async () => {
-  await initOcctWasm()
+  await registerOcctBrepEngine()
   ensureTestFontLoader()
 }, 120000)
 

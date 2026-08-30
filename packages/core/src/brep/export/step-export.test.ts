@@ -17,14 +17,15 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { initOcctWasm, getKernel, disposeOcctWasm } from '../../occt-kernel/occtKernel'
 import { importAssemblyFromStep, releaseAssemblyTree } from '../../occt-kernel/occtKernel'
 import type { AssemblyPartNode } from '../../occt-kernel/occtKernel'
-import type { OcctKernel, ShapeHandle } from 'occt-wasm'
+import type { BrepHandle } from '../engine/types'
+import type { BrepEngineApi } from '../engine/primitives'
 import { exportStepFromSolids } from './step'
 
-let kernel: OcctKernel
+let kernel: BrepEngineApi
 
 beforeAll(async () => {
   await initOcctWasm()
-  kernel = getKernel()
+  kernel = getKernel() as unknown as BrepEngineApi
 }, 120000)
 
 afterAll(() => {
@@ -33,7 +34,7 @@ afterAll(() => {
 
 // ─── helpers ───
 
-function makeBox(x: number, y: number, z: number, w = 10, h = 10, d = 10): ShapeHandle {
+function makeBox(x: number, y: number, z: number, w = 10, h = 10, d = 10): BrepHandle {
   return kernel.makeBoxFromCorners(
     { x, y, z },
     { x: x + w, y: y + h, z: z + d },
