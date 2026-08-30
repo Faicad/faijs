@@ -10,7 +10,6 @@
 
 import { describe, it, expect } from 'vitest'
 import { readFileSync, existsSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   solid, fromBrep, compound, isShape, isCompound, hasBrep, brepOf,

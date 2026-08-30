@@ -25,6 +25,7 @@ import type { BrepChainState } from '../brep/brep-chain'
 import type { BrepHandle } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 import { getBrepEngine, hasBrepEngine, getActiveBrepEngineId } from '../brep/engine/registry'
+import { ensureOcctDefaultEngine } from '../brep/engine/adapters/occt'
 import { parseScript, ParseError } from '../lang/parser'
 import { getFunctionSymbol } from '../lang/symbol-table'
 import { validateKeepDirectives } from '../lang/keep'
@@ -325,9 +326,14 @@ export class CadRuntime {
   /**
    * 确保持久 BREP 链存在（惰性初始化）。
    * 引擎从注册表取当前 BREP 引擎（宿主装配时注册）；无引擎或 mesh 模式 → kernel 为 null。
+   * OCCT 是内置默认引擎：宿主未注册任何引擎时，非 mesh 模式自动装配 OCCT——
+   * 现有宿主无需改动即恢复默认 BREP 行为；换引擎仍是静态的（装配期注册其它引擎即可）。
    */
   private async ensureBrepChain(): Promise<BrepChainState> {
     if (this.brepChain) return this.brepChain
+    if (this.mode !== 'mesh') {
+      await ensureOcctDefaultEngine()
+    }
     const engine = this.mode === 'mesh' || !hasBrepEngine()
       ? null
       : await getBrepEngine()

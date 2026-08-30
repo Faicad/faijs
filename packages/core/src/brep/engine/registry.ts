@@ -79,6 +79,11 @@ export function hasBrepEngine(): boolean {
   return defaultBrepId !== null
 }
 
+/** 指定 BREP 引擎是否已注册（适配器幂等注册用）。 */
+export function isBrepEngineRegistered(id: string): boolean {
+  return brepEngineProviders.has(id)
+}
+
 /** 取 BREP 引擎（异步解析 provider；未注册则抛错）。省略 id 用默认（首个注册者）。 */
 export async function getBrepEngine(id?: string): Promise<BrepEngine> {
   const key = id ?? defaultBrepId

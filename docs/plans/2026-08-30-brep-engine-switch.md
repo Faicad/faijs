@@ -3,6 +3,8 @@
 > 日期 2026-08-30 ｜ 状态：**方案（未实施）** ｜ 参照项目 `C:\git\OpenCascade\brepjs`
 >
 > **2026-08-30 修订**：§5.2 / §9.1 / §9.3 / §9.4 / §10.2 / §12-6 / 附录 A 按 monorepo 迁移后的代码现状与 3d_editor 实测消费面更正（版本 3.7.0 → 3.8.4；browser 入口真实导出面；对 monorepo-plan §6.2 的决策反转记录）。修订处均带 ⚠️ 标记与日期。
+>
+> **2026-08-30 修订 2（实施后纠正）**：用户确认引擎替换是「低频率、静态的替换」，并要求 OCCT 作为**内置默认 BREP 引擎**——宿主无需自行注册引擎。实施落地：`runtime.ensureBrepChain()` 与 `brep-chain.initBrepChainState()` 在无任何引擎注册时自动装配 OCCT（`adapters/occt.ts` 新增幂等的 `ensureOcctDefaultEngine()`；已注册其它引擎则 no-op，首个注册者仍为默认）。「宿主必须在装配期注册引擎」的约定废弃——那使 3d_editor / CLI 等既有消费方大面积报 `[stdlib/*] no OCCT kernel`。换引擎仍为静态动作：装配期显式注册其它引擎，或修改默认装配处。
 
 ---
 

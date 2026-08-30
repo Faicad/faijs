@@ -12,7 +12,7 @@
  * 接触 occt-wasm 类型。
  */
 
-import { registerBrepEngine, type BrepEngine } from '../registry'
+import { registerBrepEngine, hasBrepEngine, isBrepEngineRegistered, type BrepEngine } from '../registry'
 import type { AssertSatisfiesBrepEngineApi } from '../primitives'
 import { initOcctWasm } from '../../../occt-kernel/occtKernel'
 
@@ -24,9 +24,11 @@ export const OCCT_BREP_ENGINE_ID = 'occt'
  *
  * 预初始化 initOcctWasm()：wasm 加载完成后立即注册——保证注册返回后
  * getKernel() 立即可用（occt-kernel 单例已就绪），provider 直接返回预初始化实例。
+ * 幂等：已注册（含运行时默认装配或宿主先行注册）则跳过注册，仅确保 wasm 预初始化。
  */
 export async function registerOcctBrepEngine(): Promise<void> {
   const primitives = await initOcctWasm()
+  if (isBrepEngineRegistered(OCCT_BREP_ENGINE_ID)) return
   registerBrepEngine(OCCT_BREP_ENGINE_ID, async (): Promise<BrepEngine> => ({
     id: OCCT_BREP_ENGINE_ID,
     primitives,
@@ -38,6 +40,18 @@ export async function registerOcctBrepEngine(): Promise<void> {
       assembly: true,
     },
   }))
+}
+
+/**
+ * 内置默认 BREP 引擎装配（OCCT）：宿主未注册任何引擎时的缺省值。
+ *
+ * OCCT 是 faijs 的默认 BREP 引擎——低频率、静态的替换：换引擎 = 宿主在
+ * 装配期显式注册其它引擎（首个注册者为默认），或改本处默认。宿主无需为
+ * 每次使用自行提供引擎；本函数幂等，已注册任何引擎则 no-op。
+ */
+export async function ensureOcctDefaultEngine(): Promise<void> {
+  if (hasBrepEngine()) return
+  await registerOcctBrepEngine()
 }
 
 // §7.8 编译期守卫：initOcctWasm 的返回类型必须满足 BrepEngineApi。

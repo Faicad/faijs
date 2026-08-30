@@ -19,7 +19,6 @@
 
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { registerOcctBrepEngine } from '../brep/engine/adapters/occt'
 import type { StatementIR, ScriptIR } from '../lang/types'

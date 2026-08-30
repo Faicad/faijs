@@ -21,10 +21,7 @@ import type {
   BrepEvolutionData,
   BrepHandle,
   BrepMeshResult,
-  BrepSubShapeType,
-  BrepTessellateOptions,
   BrepUvBounds,
-  BrepVec3,
   BrepXcafDocument,
 } from '../types'
 import type { BrepEngineApi, AssertSatisfiesBrepEngineApi } from '../primitives'

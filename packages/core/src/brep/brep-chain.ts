@@ -15,6 +15,7 @@
 import type { BrepHandle, BrepMeshResult, BrepCapabilities } from './engine/types'
 import type { BrepEngineApi } from './engine/primitives'
 import { getBrepEngine } from './engine/registry'
+import { ensureOcctDefaultEngine } from './engine/adapters/occt'
 import type { PartName } from '../identity'
 
 // ─── CAD 格式静态判定 ───
@@ -125,8 +126,10 @@ export function createBrepChainState(): BrepChainState {
 
 /**
  * 初始化 BREP 链状态（异步：从注册表取当前 BREP 引擎并初始化；无引擎则抛错）。
+ * OCCT 是内置默认引擎：未注册任何引擎时先装配 OCCT（ensureOcctDefaultEngine 幂等）。
  */
 export async function initBrepChainState(): Promise<BrepChainState> {
+  await ensureOcctDefaultEngine()
   const engine = await getBrepEngine()
   return {
     solidCache: new Map(),
