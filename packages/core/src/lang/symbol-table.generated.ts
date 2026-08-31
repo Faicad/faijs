@@ -21,6 +21,7 @@ export default {
   "drill": {},
   "extrude": {},
   "engrave": {},
+  "chamfer": {},
   "knurl": {},
   "union": {},
   "subtract": {},

@@ -22,7 +22,7 @@ import { fileURLToPath } from 'url'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-const INTERNAL_STDLIB_FILE = path.resolve(__dirname, '..', 'src', 'cad-runtime', 'internal-stdlib.ts')
+const INTERNAL_STDLIB_FILE = path.resolve(__dirname, '..', '..', 'stdlib', 'src', 'internal-stdlib.ts')
 // 输出为 .generated.ts 而非 .json（实施文档 §6.5）：ESM 下 JSON import 需要
 // import attribute（"type: json"），在 vite/vitest 的 Node ESM 消费方会报错。
 const OUTPUT = path.resolve(__dirname, '..', 'src', 'lang', 'symbol-table.generated.ts')
@@ -40,18 +40,35 @@ export function discoverCadNamespaceFunctions(): string[] {
   const names: string[] = []
   for (const stmt of sf.statements) {
     if (!ts.isFunctionDeclaration(stmt) || stmt.name?.text !== 'createInternalStdlib') continue
-    // 找 return { ... } 对象字面量
-    const visit = (node: ts.Node): void => {
-      if (ts.isReturnStatement(node) && node.expression && ts.isObjectLiteralExpression(node.expression)) {
-        for (const prop of node.expression.properties) {
-          // 简写属性（{ box, sphere }）与完整属性（{ key: value }）都要收
-          if (ts.isShorthandPropertyAssignment(prop)) {
-            names.push(prop.name.text)
-          } else if (ts.isPropertyAssignment(prop) && ts.isIdentifier(prop.name)) {
-            names.push(prop.name.text)
-          }
+    // 找 return { ... } 对象字面量（可能带 `as unknown as StdlibNamespace` 断言）
+    const unwrapObject = (expr: ts.Expression): ts.ObjectLiteralExpression | undefined => {
+      let cur: ts.Expression | undefined = expr
+      while (cur) {
+        if (ts.isObjectLiteralExpression(cur)) return cur
+        if (ts.isAsExpression(cur)) {
+          cur = cur.expression
+          continue
         }
-        return
+        return undefined
+      }
+      return undefined
+    }
+    const visit = (node: ts.Node): void => {
+      if (ts.isReturnStatement(node) && node.expression) {
+        const obj = unwrapObject(node.expression)
+        if (obj) {
+          for (const prop of obj.properties) {
+            // 简写属性（{ box, sphere }）与完整属性（{ key: value }）都要收
+            const key = ts.isShorthandPropertyAssignment(prop)
+              ? prop.name.text
+              : ts.isPropertyAssignment(prop) && ts.isIdentifier(prop.name)
+                ? prop.name.text
+                : undefined
+            // contractVersion 是命名空间元数据键，不是可调用 callee——符号表不收
+            if (key !== undefined && key !== 'contractVersion') names.push(key)
+          }
+          return
+        }
       }
       ts.forEachChild(node, visit)
     }

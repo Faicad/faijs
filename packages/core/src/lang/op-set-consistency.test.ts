@@ -24,7 +24,7 @@ const CAD_NAMESPACE_FUNCTIONS = new Set([
   'box', 'sphere', 'cylinder', 'cone', 'wedge',
   'text', 'screw', 'svgExtrude', 'sdf', 'load',
   'translate', 'rotate', 'scale',
-  'drill', 'extrude', 'engrave', 'knurl',
+  'drill', 'extrude', 'engrave', 'chamfer', 'knurl',
   'union', 'subtract', 'intersect',
   'split', 'group', 'assembly', 'copy',
   'faceCenter', 'faceNormal', 'bboxCenter', 'bboxMin', 'bboxMax',

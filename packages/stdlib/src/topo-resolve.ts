@@ -21,11 +21,13 @@ import { HASH_UPPER_BOUND } from '@faicad/faijs-core/brep/face-evolution'
 import {
   resolveTopoRef,
   captureFaceHint,
+  captureEdgeHint,
   faceRowToHint,
   TopoRefError,
   type FaceTopoRef,
   type ResolutionContext,
   type FaceHint,
+  type EdgeCandidateEntry,
   type RoleTable,
 } from '@faicad/faijs-core/topology/naming'
 
@@ -71,6 +73,110 @@ export function buildShapeResolutionContext(
     return { kernel: null, faces, roleTable }
   }
   return undefined
+}
+
+/**
+ * 为 BREP 现场构建带边候选与邻接表的 ResolutionContext（edge TopoRef 解析用）。
+ *
+ * 与 `buildBrepResolutionContext` 的面候选同源（同一枚举序），并补充：
+ * - `edges`：边候选表（ordinal 1 起，含活句柄 + length/midpoint hint）；
+ * - `faceEdgeAdjacency` / `edgeFaceAdjacency`：邻接表（edge lineage 解析用，M3）。
+ *
+ * 只支持 BREP 现场（edge lineage 需要 face→edge 邻接）；mesh/primitive 路径
+ * 没有邻接能力（build-mesh-topology.ts:262，§5.3）→ 返回 undefined，调用方
+ * 按 E_TOPO_NOT_FOUND 处理。
+ *
+ * @param kernel - the OCCT kernel.
+ * @param shape - the live input shape whose naming slot is read.
+ * @returns the edge-enabled resolution context, or undefined when the shape has
+ *   no BREP naming slot.
+ */
+export function buildEdgeResolutionContext(
+  kernel: BrepEngineApi,
+  shape: object | undefined,
+): ResolutionContext | undefined {
+  if (!shape) return undefined
+  const slot = getSlot(shape)
+  if (!slot) return undefined
+  const roleTable = slot.roleTable as RoleTable | undefined
+  const solid = slot.solid as BrepHandle | undefined
+  if (!solid) return undefined
+
+  const faceHandles = kernel.getSubShapes(solid, 'face')
+  const faceHashes = Array.from(kernel.subShapeHashes(solid, 'face', HASH_UPPER_BOUND))
+  const faces = faceHandles.map((handle, i) => ({ ordinal: i + 1, hash: faceHashes[i] ?? 0, handle }))
+
+  const edgeHandles = kernel.getSubShapes(solid, 'edge')
+  const edges: EdgeCandidateEntry[] = edgeHandles.map((handle, i) => ({
+    ordinal: i + 1,
+    handle,
+    hint: captureEdgeHint(kernel, handle),
+  }))
+  const liveEdges = edges.filter((e): e is EdgeCandidateEntry & { handle: BrepHandle } => e.handle !== undefined)
+
+  // face → 邻接 edges（ordinal 1 起）。mesh 无 face→edge 邻接，这里 BREP 现场直取。
+  const faceHandlesArr = faceHandles.map((h, hi) => ({ handle: h, ordinal: hi + 1 }))
+
+  const faceEdgeAdjacency = faceHandlesArr.map(({ handle }) => {
+    const sub = kernel.getSubShapes(handle, 'edge')
+    return sub
+      .map((eh) => liveEdges.find((e) => kernel.isSame(eh, e.handle))?.ordinal)
+      .filter((v): v is number => v !== undefined)
+  })
+  const edgeFaceAdjacency = liveEdges.map(({ handle }) => {
+    const adj: number[] = []
+    for (const f of faceHandlesArr) {
+      if (kernel.getSubShapes(f.handle, 'edge').some((fe) => kernel.isSame(fe, handle))) {
+        adj.push(f.ordinal)
+      }
+    }
+    return adj
+  })
+
+  return { kernel, faces, edges, roleTable, faceEdgeAdjacency, edgeFaceAdjacency }
+}
+
+/**
+ * 从 BREP 现场句柄建带边候选/邻接的 ResolutionContext（twoDistances 逐边重建用）。
+ *
+ * 与 `buildEdgeResolutionContext` 相同，但直接接收 live solid 句柄而非 Shape 槽——
+ * 用于真机逐边构建后，输入已从上一次结果演化，Shape 槽里的 roleTable/hash 不再
+ * 与当前句柄对应（§3.6 逐边构建，后续边要重新 resolve）。
+ *
+ * @param kernel - the OCCT kernel.
+ * @param solid - the live BREP solid handle.
+ * @param roleTable - optional role table to carry over (not used for strict matching).
+ * @returns the edge-enabled resolution context (faces/edges/adjacency live from `solid`).
+ */
+export function buildEdgeContextFromSolid(
+  kernel: BrepEngineApi,
+  solid: BrepHandle,
+  roleTable?: RoleTable,
+): ResolutionContext {
+  const faceHandles = kernel.getSubShapes(solid, 'face')
+  const faces = faceHandles.map((handle, i) => ({ ordinal: i + 1, hash: undefined, handle }))
+  const edgeHandles = kernel.getSubShapes(solid, 'edge')
+  const edges: EdgeCandidateEntry[] = edgeHandles.map((handle, i) => ({
+    ordinal: i + 1,
+    handle,
+    hint: captureEdgeHint(kernel, handle),
+  }))
+  const liveEdges = edges.filter((e): e is EdgeCandidateEntry & { handle: BrepHandle } => e.handle !== undefined)
+  const faceHandlesArr = faceHandles.map((h, hi) => ({ handle: h, ordinal: hi + 1 }))
+  const faceEdgeAdjacency = faceHandlesArr.map(({ handle }) => {
+    const sub = kernel.getSubShapes(handle, 'edge')
+    return sub
+      .map((eh) => liveEdges.find((e) => kernel.isSame(eh, e.handle))?.ordinal)
+      .filter((v): v is number => v !== undefined)
+  })
+  const edgeFaceAdjacency = liveEdges.map(({ handle }) => {
+    const adj: number[] = []
+    for (const f of faceHandlesArr) {
+      if (kernel.getSubShapes(f.handle, 'edge').some((fe) => kernel.isSame(fe, handle))) adj.push(f.ordinal)
+    }
+    return adj
+  })
+  return { kernel, faces, edges, roleTable, faceEdgeAdjacency, edgeFaceAdjacency }
 }
 
 /**

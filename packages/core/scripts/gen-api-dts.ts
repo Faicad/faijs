@@ -148,6 +148,11 @@ const API_ENTRIES: Record<string, ApiEntry> = {
     params: '{ knurlTextureHeight?: number; knurlScaleU?: number; knurlScaleV?: number; knurlInvertDisplacement?: boolean; knurlRefineLength?: number; knurlMappingMode?: number; faceCenter?: any; faceNormal?: any }',
     returns: 'Promise<Shape>',
   },
+  chamfer: {
+    inputs: 1,
+    params: '{ edges: any[]; type?: string; width?: number; width1?: number; width2?: number; angle?: number }',
+    returns: 'Promise<Shape>',
+  },
 
   // ── 结构类 ──
   group: {
@@ -239,7 +244,7 @@ const ORDER = [
   'translate', 'rotate', 'scale',
   'union', 'subtract', 'intersect',
   'split',
-  'drill', 'extrude', 'engrave', 'knurl',
+  'drill', 'extrude', 'engrave', 'chamfer', 'knurl',
   'group', 'assembly', 'copy',
   'faceCenter', 'faceNormal', 'bboxCenter', 'bboxMin', 'bboxMax',
   'asset',
@@ -260,7 +265,7 @@ function generate(): string {
   lines.push(`/**`)
   lines.push(` * The \`cad\` object's runtime API surface: every callable available to a`)
   lines.push(` * \`.faijs\` model, grouped by category (creation, transform, boolean, split,`)
-  lines.push(` * drill, extrude, engrave, structure, geometry queries, assets).`)
+  lines.push(` * drill, extrude, engrave, chamfer, structure, geometry queries, assets).`)
   lines.push(` */`)
   lines.push(`export interface CadAPI {`)
 
@@ -272,6 +277,7 @@ function generate(): string {
     ['钻孔', ['drill']],
     ['拉伸', ['extrude']],
     ['雕刻', ['engrave', 'knurl']],
+    ['倒角', ['chamfer']],
     ['结构（不消费成员）', ['group', 'assembly', 'copy']],
     ['几何查询', ['faceCenter', 'faceNormal', 'bboxCenter', 'bboxMin', 'bboxMax']],
     ['资产', ['asset']],

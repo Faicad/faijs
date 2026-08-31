@@ -136,6 +136,16 @@ export function createBrepMockApi(): BrepEngineApi {
     },
     loft: () => unsupported('loft'),
 
+    // ── 倒角（mock：只重打标签/复制，不做真几何；引擎切换测试覆盖签名面） ──
+    chamfer: (solid, edges, distance) => {
+      const s = need(solid, 'chamfer')
+      return alloc({ kind: 'solid', bbox: { ...s.bbox }, tag: `chamfer(${s.tag},d=${distance},e=${edges.length})` })
+    },
+    chamferDistAngle: (solid, edges, distance, angleDeg) => {
+      const s = need(solid, 'chamferDistAngle')
+      return alloc({ kind: 'solid', bbox: { ...s.bbox }, tag: `chamferDA(${s.tag},d=${distance},a=${angleDeg},e=${edges.length})` })
+    },
+
     // ── 布尔与分割 ──
     fuse: (a, b) => {
       const sa = need(a, 'fuse')

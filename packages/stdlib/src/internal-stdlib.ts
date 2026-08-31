@@ -23,6 +23,7 @@ import { drill } from './drill'
 import { split } from './split'
 import { union, subtract, intersect } from './boolean'
 import { engrave } from './engrave'
+import { chamfer } from './chamfer'
 import { group, assembly } from './compound'
 import { copy } from './copy'
 import { faceCenter, faceNormal, bboxCenter, bboxMin, bboxMax } from './geom'
@@ -43,7 +44,7 @@ export function createInternalStdlib(): StdlibNamespace {
     box, sphere, cylinder, cone, wedge,
     text, screw, svgExtrude, sdf, load,
     translate, rotate, scale,
-    drill, extrude, engrave, knurl,
+    drill, extrude, engrave, chamfer, knurl,
     union, subtract, intersect,
     split, group, assembly, copy,
     faceCenter, faceNormal, bboxCenter, bboxMin, bboxMax,

@@ -80,3 +80,32 @@ export function edgeRowToHint(row: {
   }
   return hint
 }
+
+/**
+ * BREP 现场边 → EdgeHint。
+ *
+ * hint 是「并列裁决者」而非身份本身（§1.2），只在两邻面多公共边时用于打分。
+ * length 用 `kernel.curveLength(edge)`；midpoint 取曲线参数中点的点坐标
+ * （与 face 的 curvePointAtParam 同口径；屏蔽封闭/退化边的采样退化）。
+ *
+ * @param kernel - the OCCT kernel.
+ * @param edge - the edge handle to snapshot.
+ * @returns the captured EdgeHint.
+ */
+export function captureEdgeHint(kernel: BrepEngineApi, edge: BrepHandle): EdgeHint {
+  const length = kernel.curveLength(edge)
+  const hint: { kind: 'edge'; length?: number; midpoint?: [number, number, number] } = { kind: 'edge' }
+  if (Number.isFinite(length) && length > 0) hint.length = length
+  try {
+    const { first, last } = kernel.curveParameters(edge)
+    if (Number.isFinite(first) && Number.isFinite(last)) {
+      const mid = kernel.curvePointAtParam(edge, (first + last) / 2)
+      if (Number.isFinite(mid.x) && Number.isFinite(mid.y) && Number.isFinite(mid.z)) {
+        hint.midpoint = [mid.x, mid.y, mid.z]
+      }
+    }
+  } catch {
+    // 退化边（如长度 0）读曲线参数失败 → 只留 length，不发散
+  }
+  return hint
+}

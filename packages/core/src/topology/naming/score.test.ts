@@ -148,6 +148,8 @@ function planeKernel(): BrepEngineApi {
     intersectWithHistory: () => ({ result: 1 as BrepHandle, modified: [], generated: [], deleted: [] }),
     createXCAFDocument: () => ({ addShape: () => undefined, exportSTEP: () => '', close: () => undefined }),
     importXCAFFromSTEP: () => ({ addShape: () => undefined, exportSTEP: () => '', close: () => undefined }),
+    chamfer: () => 1 as BrepHandle,
+    chamferDistAngle: () => 1 as BrepHandle,
   } as BrepEngineApi
 }
 

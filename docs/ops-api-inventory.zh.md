@@ -258,7 +258,28 @@ const p1 = cad.translate(part0, { offset: [10, 0, 0] })
 
 ## 5. 特征类操作（inputs ≥ 1）
 
-### 5.1 `copy` ✅
+### 5.1 `chamfer` ✅
+
+在几何体上倒角（等距 / 双距 / 距角）。仅 BREP 可用。
+
+```js
+const p = await cad.chamfer(part0, { edges: [{ kind:'edge', faces:[{ origin:'box', role:'box:top' }, { origin:'box', role:'box:front' }], hint:{ kind:'edge' } }], type:'equal', width:1 })
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `edges` | `EdgeTopoRef[]` | ✅ | — | 参与倒角的边（EdgeTopoRef[]，条目为相邻两面的 role 线路） |
+| `type` | `string` | ✅ | — | 倒角类型（equal | twoDistances | distanceAngle） |
+| `width` | `number` |  | 1 | type=equal: 倒角宽度（mm） |
+| `width1` | `number` |  | — | type=twoDistances: 沿 faces[0] 侧距离（mm） |
+| `width2` | `number` |  | — | type=twoDistances: 沿 faces[1] 侧距离（mm） |
+| `angle` | `number` |  | — | type=distanceAngle: 与参考面夹角（度，(0,90)） |
+
+**异步**。Shape 倒角后的几何。
+
+> 倒角是 BREP-only：非 BREP 输入抛 E_MESH_UNSUPPORTED。参考面由内核自选，`width1` 沿 faces[0] 侧、`width2` 沿 faces[1] 侧。
+
+### 5.2 `copy` ✅
 
 深拷贝几何为独立新对象（源不变，源与副本都显示）。
 
@@ -271,7 +292,7 @@ const part1 = cad.copy(part0)
 
 **同步**。Shape 源几何的深拷贝。copy 不消费其源（画布显示 box 和副本两份），改副本不影响源。
 
-### 5.2 `drill` ✅
+### 5.3 `drill` ✅
 
 在几何体上钻孔（CSG 减除）。depth=0 为通孔，>0 为盲孔。
 
@@ -300,7 +321,7 @@ const p = await cad.drill(part0, { diameter: 5.2, depth: 8, holeType: 'screw', s
 
 > 键名以本表为准：`type: 'through'|'blind'` 与 `direction` 为向量的旧素材是无效写法——孔型由 `depth`（0=通孔）推导，`direction` 是 'normal'|'x'|'y'|'z' 枚举。
 
-### 5.3 `engrave` ✅
+### 5.4 `engrave` ✅
 
 在几何表面雕刻文字或 SVG（文字分支与 logo 分支都可用）。
 
@@ -323,7 +344,7 @@ const p = await cad.engrave(part0, { mode: 'concave', depth: 2, text: 'Hello', t
 
 > 早期 logo 分支用 `svgText`（整份 XML 拷贝 + `svgSize` 文本导出丢失，往返失真）；现已改为 `svg` 资产引用，`engravingType` 冗余键已移除。faceCenter/faceNormal 目前是绝对坐标快照，建议用几何引用 `cad.faceCenter(part0, [锚点])`。
 
-### 5.4 `extrude` ✅
+### 5.5 `extrude` ✅
 
 沿法向拉伸几何。
 
@@ -343,7 +364,7 @@ const p = await cad.extrude(part0, { length: 10, normal: [0,0,1], originOffset: 
 
 **异步**。Shape 拉伸后的几何。
 
-### 5.5 `intersect` ✅
+### 5.6 `intersect` ✅
 
 布尔交集：所有输入的重叠部分。
 
@@ -357,7 +378,7 @@ const c = await cad.intersect(part0, part1)
 
 **异步**。Shape 所有输入的交集。
 
-### 5.6 `knurl` ⚠️
+### 5.7 `knurl` ⚠️
 
 施加滚花（顶点位移，非布尔）。mesh-only。
 
@@ -380,7 +401,7 @@ const p = await cad.knurl(part0, { knurlTextureHeight: 0.5, knurlScaleU: 0.15, k
 
 > knurl 无 BREP 实现（mesh-only），本质是顶点位移（网格操作），网格参数可接受；brep 模式下调用前抛 BrepUnsupportedError。面锚定建议用几何引用。
 
-### 5.7 `split` ⚠️
+### 5.8 `split` ⚠️
 
 分割几何，返回具名对象 { front, back } 两个独立零件。
 
@@ -416,7 +437,7 @@ const { front: part1, back: part2 } = await cad.split(part0, { normal: [0, 0, 1]
 
 > 切割面统一用 `normal`/`offset`/`inPlaneAngleDeg` 描述；早期文本层曾与执行层键名断裂（planeRotation/planePosition），已修并统一为上述键名。
 
-### 5.8 `subtract` ✅
+### 5.9 `subtract` ✅
 
 布尔差集：第一个为主体，减去其余输入。
 
@@ -430,7 +451,7 @@ const b = await cad.subtract(part0, part1)
 
 **异步**。Shape part0 减 part1 的差集（第一个为主体）。
 
-### 5.9 `union` ✅
+### 5.10 `union` ✅
 
 布尔并集：合并所有输入几何（≥2 个输入）。
 
@@ -597,7 +618,7 @@ const n = cad.faceNormal(part0, [0, 0, 5])
 ```
 创建: load / box / sphere / cylinder / cone / wedge / screw / sdf / svgExtrude / text
 变换: translate / rotate / scale
-特征: union / subtract / intersect / copy / drill / engrave / extrude / knurl / split
+特征: union / subtract / intersect / chamfer / copy / drill / engrave / extrude / knurl / split
 结构: group / assembly
 查询: asset / faceCenter / faceNormal / bboxCenter / bboxMin / bboxMax
 ```

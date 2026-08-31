@@ -10,7 +10,7 @@ import type { Shape } from './types'
 /**
  * The `cad` object's runtime API surface: every callable available to a
  * `.faijs` model, grouped by category (creation, transform, boolean, split,
- * drill, extrude, engrave, structure, geometry queries, assets).
+ * drill, extrude, engrave, chamfer, structure, geometry queries, assets).
  */
 export interface CadAPI {
   // ── 创建 ──
@@ -47,6 +47,9 @@ export interface CadAPI {
   // ── 雕刻 ──
   engrave(shape: Shape, params: { text?: string; depth?: number; textSize?: number; svg?: any; svgSize?: number; mode?: string; faceCenter?: any; faceNormal?: any }): Promise<Shape>
   knurl(shape: Shape, params: { knurlTextureHeight?: number; knurlScaleU?: number; knurlScaleV?: number; knurlInvertDisplacement?: boolean; knurlRefineLength?: number; knurlMappingMode?: number; faceCenter?: any; faceNormal?: any }): Promise<Shape>
+
+  // ── 倒角 ──
+  chamfer(shape: Shape, params: { edges: any[]; type?: string; width?: number; width1?: number; width2?: number; angle?: number }): Promise<Shape>
 
   // ── 结构（不消费成员） ──
   group(params: { name?: string; members?: readonly Shape[] }): Shape  // members are kept via function-body exec.keep (visible); group does not consume them

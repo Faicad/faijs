@@ -54,6 +54,17 @@ export interface BrepEngineApi {
   section(a: BrepHandle, b: BrepHandle): BrepHandle
   fuseAll(shapes: BrepHandle[]): BrepHandle
 
+  // ── 倒角（directEdit 能力）──
+  /** 等距倒角：逐边 `BRepFilletAPI_MakeChamfer::Add(distance, E)`。 */
+  chamfer(solid: BrepHandle, edges: BrepHandle[], distance: number): BrepHandle
+  /**
+   * 距角倒角：`AddDA(distance, angleRad, E, F)`。
+   * ⚠️ F 由内核自选（外层 TopExp_Explorer 第一个含该边的面），调用方不可指定。
+   */
+  chamferDistAngle(
+    solid: BrepHandle, edges: BrepHandle[], distance: number, angleDeg: number,
+  ): BrepHandle
+
   // ── 变换 ──
   translate(shape: BrepHandle, dx: number, dy: number, dz: number): BrepHandle
   scale(shape: BrepHandle, center: BrepVec3, factor: number): BrepHandle
