@@ -258,6 +258,9 @@ export class CadRuntime {
   /** 面演化映射缓存（PartName → FaceEvolution），随 solidCache 一并持久。 */
   private faceEvolutionCache = new Map<PartName, Map<number, number[]>>()
 
+  /** 拓扑命名 RoleTable 缓存（PartName → RoleTable，§2.3），与 faceEvolutionCache 同生命周期。 */
+  private roleTableCache = new Map<PartName, unknown>()
+
   /** OCCT 内核引用（环境级单例，initOcctWasm() 幂等；mesh 模式为 null）。供顶替释放用。 */
   private kernel: BrepEngineApi | null = null
 
@@ -321,6 +324,9 @@ export class CadRuntime {
       setFaceEvolution: (partName, evo) => {
         this.faceEvolutionCache.set(partName, evo)
       },
+      setRoleTable: (partName, roleTable) => {
+        this.roleTableCache.set(partName, roleTable)
+      },
     })
 
     // P2：装配全局 backends（stdlib 经 getBackends() 取资源）。
@@ -382,6 +388,7 @@ export class CadRuntime {
       kernel,
       capabilities: engine?.capabilities,
       faceEvolutionCache: this.faceEvolutionCache,
+      roleTableCache: this.roleTableCache,
       meshShapeCache: new Map<PartName, BrepMeshResult>(),
     }
     return this.brepChain
@@ -1265,6 +1272,7 @@ export class CadRuntime {
     }
     this.solidCache.clear()
     this.faceEvolutionCache.clear()
+    this.roleTableCache.clear()
     this.statementCache.clear()
     this.topologyCache.clear()
     this.brepChain = null

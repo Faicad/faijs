@@ -145,10 +145,12 @@ export interface FaijsRuntimeState {
   readonly shapeToName: WeakMap<object, PartName>
 }
 
-/** Shape 身份槽（OCCT 句柄 + 面演化 + 装配行为）。 */
+/** Shape 身份槽（OCCT 句柄 + 面演化 + 拓扑命名 + 装配行为）。 */
 export interface ShapeSlot {
   solid?: unknown
   faceEvolution?: Map<number, number[]>
+  /** 拓扑命名 RoleTable（§2.3 naming 槽：随 Shape 身份槽传播，不序列化）。 */
+  roleTable?: unknown
   behavior?: unknown
 }
 

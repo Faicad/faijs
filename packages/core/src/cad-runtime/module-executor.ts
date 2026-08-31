@@ -89,6 +89,8 @@ export interface ModuleExecutorOptions {
   setSolid?: (partName: PartName, solid: BrepHandle) => void
   /** Sync an identity-slot faceEvolution into the PartName-keyed faceEvolutionCache. */
   setFaceEvolution?: (partName: PartName, evo: Map<number, number[]>) => void
+  /** Sync an identity-slot roleTable into the PartName-keyed roleTableCache (§2.3 naming). */
+  setRoleTable?: (partName: PartName, roleTable: unknown) => void
 }
 
 /**
@@ -396,6 +398,7 @@ export class ModuleExecutor {
           const slot = getSlot(v)
           if (slot?.solid) this.setSolid?.(asPartName(w), slot.solid as BrepHandle)
           if (slot?.faceEvolution) this.setFaceEvolution?.(asPartName(w), slot.faceEvolution)
+          if (slot?.roleTable) this.setRoleTable?.(asPartName(w), slot.roleTable)
         }
         exec.outputCache.set(asPartName(w), v as Shape)
       }

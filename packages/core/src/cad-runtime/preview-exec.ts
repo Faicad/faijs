@@ -58,6 +58,7 @@ export function createPreviewExec(ports?: Partial<HostPorts>): PreviewExec {
     solidCache: new Map(),
     kernel: null,
     faceEvolutionCache: new Map(),
+    roleTableCache: new Map(),
     meshShapeCache: new Map(),
   }
 

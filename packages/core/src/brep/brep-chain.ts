@@ -101,6 +101,16 @@ export interface BrepChainState {
    */
   faceEvolutionCache?: Map<PartName, Map<number, number[]>>
   /**
+   * 拓扑命名 RoleTable 持久缓存（PartName → RoleTable，§2.3 of
+   * docs/plans/2026-08-31-topology-naming-port-v2.md）。
+   *
+   * 与 faceEvolutionCache 完全同生命周期：runtime 实例级持久、按语句增量同步、
+   * dispose 一并 clear。RoleTable 是执行内状态，不序列化、不进 .faijs、不进
+   * ExecutionResult.naming（宿主只拿 §3.7 的纯数据）。hash 是会话内活句柄索引，
+   * 跨实例/会话重建时整体重建。
+   */
+  roleTableCache?: Map<PartName, unknown>
+  /**
    * 三角化缓存：PartName → WasmMesh（含 faceGroups）。
    *
    * BREP op 调用 solidToShape 三角化后，把完整 WasmMesh 缓存到此 Map。
@@ -121,6 +131,7 @@ export function createBrepChainState(): BrepChainState {
     solidCache: new Map(),
     kernel: null,
     faceEvolutionCache: new Map(),
+    roleTableCache: new Map(),
     meshShapeCache: new Map(),
   }
 }
@@ -140,6 +151,7 @@ export async function initBrepChainState(): Promise<BrepChainState> {
     kernel: engine.primitives,
     capabilities: engine.capabilities,
     faceEvolutionCache: new Map(),
+    roleTableCache: new Map(),
     meshShapeCache: new Map(),
   }
 }

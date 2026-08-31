@@ -112,6 +112,90 @@ export function decodeEvolution(
   return evolution
 }
 
+// ─── hash 键演化解码（§2.4 of docs/plans/2026-08-31-topology-naming-port-v2.md）───
+
+/**
+ * Hash 键面演化：输入面 hash → 输出面 hash 列表（1→多分裂时多个）。
+ *
+ * 与序号键 FaceEvolution 并列、同源（同一次 *WithHistory 打包结果解出），
+ * 一个供 role 传播（hash 键）、一个供选择器/文本（序号键），零额外 wasm 调用。
+ */
+export interface HashEvolution {
+  /** 输入面 hash → 输出面 hash 列表（1→多分裂时多个）。 */
+  readonly modified: ReadonlyMap<number, readonly number[]>
+  /** 输入面中已不存在的面 hash。 */
+  readonly deleted: ReadonlySet<number>
+}
+
+/**
+ * 把 BrepEvolutionData 解码为 hash 键演化（§2.4）。
+ *
+ * modified 分段编码格式：[inHash, count, outHash1, ...] × N —— 本身就是
+ * hash→hash[] 的 1→多映射，直接按同一格式解出 hash 键版本，不需要
+ * getSubShapes 逐句柄 hashCode，也不分配任何句柄。
+ *
+ * generated 刻意不进 role 传播（§1.3 事实：occt 系 generated hash 指向中间形、
+ * 对布尔实测 0 个存活），生成面改由 DerivedFaceTopoRef 以 lineage 命名。
+ *
+ * @param evo - the BrepEvolutionData (from a *WithHistory API).
+ * @returns the hash-keyed evolution.
+ */
+export function decodeHashEvolution(evo: BrepEvolutionData): HashEvolution {
+  const modified = new Map<number, number[]>()
+  const m = evo.modified
+  let idx = 0
+  while (idx < m.length) {
+    const inHash = m[idx]
+    const count = m[idx + 1]
+    const outHashes: number[] = []
+    for (let j = 0; j < count; j++) {
+      outHashes.push(m[idx + 2 + j])
+    }
+    modified.set(inHash, outHashes)
+    idx += 2 + count
+  }
+  return { modified, deleted: new Set(evo.deleted) }
+}
+
+/**
+ * 把一次双输入布尔（cut/fuse/intersect）的打包演化按「inHash 属于 A 还是 B」
+ * 拆成 A、B 两张 hash 演化（§3.4 布尔合流，faijs 对 brepjs 的必要扩展）。
+ *
+ * 现有 *WithHistoryBrep 包装只用 getUnionFaceHashes 传入 A∪B 两边 hash、且只对
+ * 基体 a 解码序号演化。本函数对同一份 evo 零额外内核调用：用 subShapeHashes(a)
+ * / subShapeHashes(b) 两个集合判定每个 inHash 的归属，各自传播各自的 role 表。
+ *
+ * @param evo     - the BrepEvolutionData (from a binary boolean *WithHistory API).
+ * @param hashesA - the face hashes of input A (target), via subShapeHashes.
+ * @param hashesB - the face hashes of input B (tool), via subShapeHashes.
+ * @returns the A/B split hash evolutions (faces from neither input are dropped).
+ */
+export function splitHashEvolutionByOrigin(
+  evo: BrepEvolutionData,
+  hashesA: readonly number[],
+  hashesB: readonly number[],
+): { a: HashEvolution; b: HashEvolution } {
+  const raw = decodeHashEvolution(evo)
+  const setA = new Set(hashesA)
+  const setB = new Set(hashesB)
+
+  const aModified = new Map<number, number[]>()
+  const bModified = new Map<number, number[]>()
+  for (const [inHash, outs] of raw.modified) {
+    if (setA.has(inHash)) aModified.set(inHash, [...outs])
+    else if (setB.has(inHash)) bModified.set(inHash, [...outs])
+  }
+
+  const aDeleted = new Set<number>()
+  const bDeleted = new Set<number>()
+  for (const h of raw.deleted) {
+    if (setA.has(h)) aDeleted.add(h)
+    else if (setB.has(h)) bDeleted.add(h)
+  }
+
+  return { a: { modified: aModified, deleted: aDeleted }, b: { modified: bModified, deleted: bDeleted } }
+}
+
 /**
  * Decode a BrepEvolutionData deleted array into the ordinal list of deleted faces.
  * @param kernel     - the OCCT kernel.

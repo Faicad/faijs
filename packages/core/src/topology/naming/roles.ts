@@ -12,6 +12,7 @@
 
 import type { BrepEngineApi } from '../../brep/engine/primitives'
 import type { BrepHandle } from '../../brep/engine/types'
+import type { HashEvolution } from '../../brep/face-evolution'
 import type { PartName } from '../../identity'
 import type { RoleTable } from './types'
 import { captureFaceHint } from './geom-hint'
@@ -19,11 +20,8 @@ import { captureFaceHint } from './geom-hint'
 /** 主轴判定阈值：abs(component) > 0.9 视为轴对齐。 */
 export const AXIS_THRESHOLD = 0.9
 
-/** Hash 演化：输入面 hash → 输出面 hash 列表（1→多分裂时多个）。 */
-export interface HashEvolution {
-  readonly modified: ReadonlyMap<number, readonly number[]>
-  readonly deleted: ReadonlySet<number>
-}
+/** Re-export：hash 键演化（decodeHashEvolution 产出，见 brep/face-evolution.ts §2.4）。 */
+export type { HashEvolution }
 
 // ── 语义命名器（§3.2：faijs 单位/轴向契约，mm、+Z 向上）──
 

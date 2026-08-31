@@ -67,14 +67,16 @@ export function fromBrep(mesh: Shape, holder: BrepHolder): SolidShape {
   const slot = state.slots.get(s) ?? {}
   slot.solid = holder.solid
   if (holder.faceEvolution) slot.faceEvolution = holder.faceEvolution
+  if (holder.roleTable) slot.roleTable = holder.roleTable
   state.slots.set(s, slot)
   return s
 }
 
-/** BREP 句柄 + 面演化（对应 OCCT 的 ShapeHandle）。类型为 unknown 以保持零依赖。 */
+/** BREP 句柄 + 面演化 + 拓扑命名 RoleTable（对应 OCCT 的 ShapeHandle）。类型为 unknown 以保持零依赖。 */
 export interface BrepHolder {
   solid: unknown
   faceEvolution?: Map<number, number[]>
+  roleTable?: unknown
 }
 
 /**
