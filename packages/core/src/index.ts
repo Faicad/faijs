@@ -41,25 +41,16 @@ export type {
   AssemblyTransform, StdlibFn, StdlibNamespace,
 } from './runtime-state'
 
-// ── L0 文本层
+// ── L0 文本层（IR 是引擎内部实现细节，不导出；公开面只有代码文本工具与结果类型）
 export type {
-  ScriptIR, StatementIR, ArgIR, Vec3, JsonValue,
-  ParamRefIR, VarRefIR, CallRefIR,
-  TerminalShape, ParamDef, ScriptMetaIR,
-} from './lang/types'
-export {
-  isVarRef, isParamRef, isCallRef,
-  createStatementIR, createScriptIR,
+  Vec3, JsonValue,
+  TerminalShape, ParamDef,
 } from './lang/types'
 export {
   derivePartName, getMaxModelNum,
 } from './lang/allocate-id'
 export type { DerivePartNameInput, DerivePartNameResult } from './lang/allocate-id'
-export { SYMBOL_TABLE, getFunctionSymbol } from './lang/symbol-table'
-export type { SymbolTable, FunctionSymbol } from './lang/symbol-table'
-export { parseScript, ParseError, getApiVersion } from './lang/parser'
-export type { ParseResult } from './lang/parser'
-export { statementToLine, scriptToCode, fmtNum, buildArgsParts, formatCodeLine } from './lang/codegen'
+export { fmtNum, formatCodeLine } from './lang/codegen'
 export type { FormatCodeLineInput } from './lang/codegen'
 export { analyzeCode } from './lang/statement-summary'
 export type { StatementSummary } from './lang/statement-summary'
@@ -172,7 +163,7 @@ export type {
 export { CadRuntime, createRuntime, computeContentKey } from './cad-runtime/runtime'
 export { createPreviewExec } from './cad-runtime/preview-exec'
 export type { PreviewExec } from './cad-runtime/preview-exec'
-export type { ExecutionResult, ExecuteOptions, ExecuteCodeOptions, CheckResult, CheckError } from './cad-runtime/runtime'
+export type { ExecutionResult, ExecuteOptions, CheckResult, CheckError } from './cad-runtime/runtime'
 export type {
   HostPorts, CsgBackend, SdfBackend, FontProvider, TextureSampler,
   AssetResolver, EventSink, ExecutionMode,

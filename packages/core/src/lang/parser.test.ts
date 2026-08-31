@@ -13,7 +13,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { parseScript, ParseError, getApiVersion } from './parser'
-import { scriptToCode } from './codegen'
+import { scriptIRToCode } from './codegen'
 import { isVarRef, isCallRef } from './types'
 import type { ScriptIR, StatementIR, CallRefIR, ArgIR } from './types'
 import { asStmtId, asPartName } from '../identity'
@@ -275,7 +275,7 @@ describe('parser: 往返 codegen → parser', () => {
       params: [],
       statements: [makeStmt({ id: 'part0', callee: 'box', args: { size: 20 } })],
     }
-    const code = scriptToCode(script)
+    const code = scriptIRToCode(script)
     const { script: parsed } = parseScript(code)
     expect(parsed.statements).toHaveLength(1)
     expect(parsed.statements[0].callee).toBe('box')
@@ -290,7 +290,7 @@ describe('parser: 往返 codegen → parser', () => {
         makeStmt({ id: 'part0', callee: 'translate', args: { offset: [10, 0, 0] }, inputs: ['part0'] }),
       ],
     }
-    const code = scriptToCode(script)
+    const code = scriptIRToCode(script)
     const { script: parsed } = parseScript(code)
     expect(parsed.statements).toHaveLength(2)
     expect(parsed.statements[1].callee).toBe('translate')
@@ -307,7 +307,7 @@ describe('parser: 往返 codegen → parser', () => {
         makeStmt({ id: 'part2', callee: 'union', args: {}, inputs: ['part0', 'part1'] }),
       ],
     }
-    const code = scriptToCode(script)
+    const code = scriptIRToCode(script)
     const { script: parsed } = parseScript(code)
     expect(parsed.statements).toHaveLength(3)
     expect(parsed.statements[2].callee).toBe('union')

@@ -2,7 +2,7 @@
  * faijs syntax tests — parse → codegen → parse round-trip.
  *
  * Verifies that:
- * 1. scriptToCode produces valid faijs from a parsed PartScript
+ * 1. scriptIRToCode produces valid faijs from a parsed PartScript
  * 2. Re-parsing the generated code produces the same PartScript (for supported ops)
  * 3. Codegen is deterministic (same script → same code)
  *
@@ -13,8 +13,8 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { parseScript } from '@faicad/faijs'
-import { scriptToCode } from '@faicad/faijs'
+import { parseScript } from '@faicad/faijs-core/lang/parser'
+import { scriptIRToCode } from '@faicad/faijs-core/lang/codegen'
 
 // PartScript 类型随 parseScript 返回推导（门面不单独导出该类型）
 type PartScript = ReturnType<typeof parseScript>['script']
@@ -60,7 +60,7 @@ describe('syntax round-trip: parse → codegen → parse', () => {
     const code = readFileSync(filePath, 'utf-8')
     it(`${fileName}: round-trip preserves script structure`, () => {
       const { script: script1 } = parseScript(code)
-      const generatedCode = scriptToCode(script1)
+      const generatedCode = scriptIRToCode(script1)
       const { script: script2 } = parseScript(generatedCode)
 
       expect(scriptsEqual(script1, script2)).toBe(true)
@@ -68,8 +68,8 @@ describe('syntax round-trip: parse → codegen → parse', () => {
 
     it(`${fileName}: codegen is deterministic`, () => {
       const { script } = parseScript(code)
-      const code1 = scriptToCode(script)
-      const code2 = scriptToCode(script)
+      const code1 = scriptIRToCode(script)
+      const code2 = scriptIRToCode(script)
       expect(code2).toBe(code1)
     })
   }

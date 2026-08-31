@@ -13,7 +13,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { parseScript, ParseError } from './parser'
-import { scriptToCode } from './codegen'
+import { scriptIRToCode } from './codegen'
 import { codeToArgs } from './code-to-args'
 import { analyzeCode } from './statement-summary'
 
@@ -285,7 +285,7 @@ describe('F1: 语句形态放开（白名单 → 黑名单）', () => {
 describe('F1: 表达式折叠后往返稳定', () => {
   function roundTrip(code: string): { args: Record<string, unknown>; callee: string; inputs: string[] } {
     const { script } = parseScript(code)
-    const regenerated = scriptToCode(script)
+    const regenerated = scriptIRToCode(script)
     const reparsed = parseScript(regenerated).script
     const orig = script.statements[script.statements.length - 1]
     const again = reparsed.statements[reparsed.statements.length - 1]
@@ -317,7 +317,7 @@ describe('F1: 表达式折叠后往返稳定', () => {
       'part2 = cad.drill(part2, { diameter: 5, depth: 0 })',
     ].join('\n')
     const { script } = parseScript(code)
-    const regenerated = scriptToCode(script)
+    const regenerated = scriptIRToCode(script)
     const reparsed = parseScript(regenerated).script
     expect(reparsed.statements.length).toBe(script.statements.length)
     expect(reparsed.statements[2].callee).toBe('union')
@@ -346,7 +346,7 @@ describe('F1: StatementSummary.hasComputedArgs', () => {
   it('折叠后重解析 → hasComputedArgs 变 false（源码已变成字面量）', () => {
     const code = 'const base = 100\nlet part0 = cad.box({ size: base + 20 })'
     const { script } = parseScript(code)
-    const regenerated = scriptToCode(script)
+    const regenerated = scriptIRToCode(script)
     expect(regenerated).toContain('size:120')
     expect(analyzeCode(regenerated)[0].hasComputedArgs).toBe(false)
   })

@@ -36,7 +36,7 @@
 4. **引擎零函数知识** —— parser / compile / codegen / runtime 中没有任何按函数名分支的代码；函数信息只有机器生成的符号表，且只承载"键是否存在"。
 5. **UI 与 AI 收敛到同一份 `ScriptIR`** —— 引擎从不区分来源；图标、颜色、显示名都是宿主的职责。
 6. **增量执行是强制项** —— 按行录制、按行增量重算（§6.3）。
-7. **只有一份表示** —— 文本是 `ScriptIR` 的确定性投影（`scriptToCode` / `statementToLine`），一个操作一行。
+7. **代码是唯一事实** —— 文本是唯一事实源；`ScriptIR` 只是 parser 从文本编译出的内部表示，属内部细节，可随时变更。`scriptIRToCode` / `statementIRToLine` 只用于调试重打。一个操作一行是扁平格式（UI 录制）的约定，不是投影关系的推论。
 8. **命名是生成侧的职责** —— UI / AI / CLI 生成代码时调用 `derivePartName`；parser 既不命名也不改名。
 
 ---
@@ -124,9 +124,9 @@ stmt     = (const|let) <id> = [await] <ns>.<fn>(<input>*, { <k>:<v>, … }?)
 | `let part3 = mech.makeHeadstock({ length:120 })` | `{ namespace:'mech', callee:'makeHeadstock', outputs:['part3'] }` —— 命名空间取自 import 说明符 |
 | `return [{ shape: part0 }, { shape: part2 }]` | `terminalShapes = [{ id:'part0' }, { id:'part2' }]` |
 
-### 3.2 文本是 IR 的投影
+### 3.2 IR 是文本的编译产物
 
-`scriptToCode` 依次打印 import、函数定义、参数、语句；`statementToLine` / `formatCodeLine` 为宿主编辑器渲染单条语句。规则是机械的：已声明的名字裸重赋值（`part0 = …`），未声明的则声明（`let part0 = …`），解构渲染为 `const { front: a, back: b } = ns.callee(…)`，数字最多六位小数且不保留尾随零。
+方向只有一个：文本 → `parseScript` → `ScriptIR` → `compileToModule` → VM（§6.1）；`scriptIRToCode` / `statementIRToLine` / `formatCodeLine` 只是调试用的重打工具，不是文本的来源。打印规则是机械的：已声明的名字裸重赋值（`part0 = …`），未声明的则声明（`let part0 = …`），解构渲染为 `const { front: a, back: b } = ns.callee(…)`，数字最多六位小数且不保留尾随零。
 
 ---
 
@@ -217,11 +217,11 @@ no assignment:   await ns.<ns>.<callee>(…)
 
 | API | 行为 |
 |---|---|
-| `execute(script)` | 全量：加载模块，然后执行每条语句 |
-| `append(script, newIds)` | 只执行新语句 —— 前缀已在常驻 ctx 里 |
-| `update(script)` | `plan()` 算出失效集 → `reconcileCtx` → 按拓扑序从该集重算；无失效时零执行 |
+| `execute(code)` | 全量：加载模块，然后执行每条语句 |
+| `append(code, newIds)` | 只执行新语句 —— 前缀已在常驻 ctx 里 |
+| `update(code)` | `plan()` 算出失效集 → `reconcileCtx` → 按拓扑序从该集重算；无失效时零执行 |
 
-`plan()` 是内容寻址的，不是 id diff。`statementKey` 由带命名空间的被调函数名、剔除 `keep` / `keepHidden` 后的 `args` JSON、以及每个依赖的 `outputContentKey` 组成；参数语句用 `param|JSON(value)`。因此保留与可见性零成本：切换 `keep` 不重算任何几何。语句失效的条件是某个依赖失效，或自身的 key 变了。
+三个入口都接收代码文本（引擎内部解析文本为 IR 再执行）。`plan()` 是内容寻址的，不是 id diff。`statementKey` 由带命名空间的被调函数名、剔除 `keep` / `keepHidden` 后的 `args` JSON、以及每个依赖的 `outputContentKey` 组成；参数语句用 `param|JSON(value)`。因此保留与可见性零成本：切换 `keep` 不重算任何几何。语句失效的条件是某个依赖失效，或自身的 key 变了。
 
 ### 6.4 `check()`
 

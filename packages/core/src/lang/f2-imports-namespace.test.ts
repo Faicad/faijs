@@ -13,7 +13,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { parseScript, ParseError } from './parser'
-import { scriptToCode } from './codegen'
+import { scriptIRToCode } from './codegen'
 import { analyzeCode } from './statement-summary'
 import { createRuntime } from '@faicad/faijs'
 import type { HostPorts, EventSink } from '../cad-runtime/ports'
@@ -70,7 +70,7 @@ describe('F2: import + 命名空间往返', () => {
     expect(headstock.namespace).toBe('mech')
     expect(headstock.inputs).toEqual([])
 
-    const regenerated = scriptToCode(script)
+    const regenerated = scriptIRToCode(script)
     expect(regenerated.startsWith("import * as mech from 'mech-lib'\n")).toBe(true)
     expect(regenerated).toContain('mech.makeHeadstock({ teeth:8 })')
 
@@ -104,7 +104,7 @@ describe('F2: import + 命名空间往返', () => {
     expect(script.imports?.[0]).toEqual({ specifier: 'gear-lib', kind: 'named', localName: 'makeHeadstock', bindings: ['makeHeadstock', 'gear'], packageName: 'gear-lib' })
     expect(script.imports?.[1]).toEqual({ specifier: 'bearing-db', kind: 'default', localName: 'spec', packageName: 'bearing-db' })
 
-    const regenerated = scriptToCode(script)
+    const regenerated = scriptIRToCode(script)
     expect(regenerated).toContain("import { makeHeadstock, gear } from 'gear-lib'")
     expect(regenerated).toContain("import spec from 'bearing-db'")
 
@@ -234,7 +234,7 @@ describe('F2: mock 库端到端执行', () => {
       'let part1 = mech.makeHeadstock({ teeth: 8 })',
       'let part2 = cad.union(part0, part1)',
     ].join('\n')
-    const result = await runtime.executeCode(code)
+    const result = await runtime.execute(code)
     expect(result.failedAt).toBeUndefined()
     expect(result.outputs.size).toBeGreaterThan(0)
     // 混合产物在场：union 结果可见
@@ -252,7 +252,7 @@ describe('F2: mock 库端到端执行', () => {
       'let part0 = cad.box({ size: 10 })',
       'let part1 = mech.box({ size: 10 })',
     ].join('\n')
-    const result = await runtime.executeCode(code)
+    const result = await runtime.execute(code)
     expect(result.failedAt).toBeUndefined()
     const key0 = runtime.getStatementCacheEntry(asPartName('part0'))?.statementKey ?? ''
     const key1 = runtime.getStatementCacheEntry(asPartName('part1'))?.statementKey ?? ''

@@ -10,7 +10,6 @@
  */
 
 import { describe, it, expect, beforeAll } from 'vitest'
-import { parseScript } from '@faicad/faijs-core'
 import { createRuntime } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs-core/node'
 import { initOcctWasm } from '@faicad/faijs-core'
@@ -24,7 +23,7 @@ beforeAll(async () => {
   await initOcctWasm()
 }, 120000)
 
-/** 解析 import + 命名空间调用脚本并执行（F2 parser → P7 registerLib → 执行全链路）。 */
+/** 执行 import + 命名空间调用脚本（F2 parser → P7 registerLib → 执行全链路，公共文本 API）。 */
 async function executeWithLib(
   binding: string,
   lib: unknown,
@@ -32,14 +31,20 @@ async function executeWithLib(
 ): Promise<Shape> {
   const runtime = createRuntime(createNodePorts(), 'auto')
   runtime.registerLib(binding, lib as never)
-  const { script } = parseScript(code)
-  const result = await runtime.execute(script)
+  const result = await runtime.execute(code)
   expect(result.failedAt).toBeUndefined()
-  const geoStmts = script.statements.filter((s) => s.hasAssignment)
-  const lastStmt = geoStmts[geoStmts.length - 1]
-  const shape = result.outputs.get(lastStmt.outputs[0]) as Shape | undefined
+  const outputs = Array.from(result.outputs.entries())
+  const shape = outputs[outputs.length - 1]?.[1] as Shape | undefined
   expect(shape).toBeDefined()
   return shape!
+}
+
+/** 最后一个 shape 输出（公共 ExecutionResult 面；不触碰引擎内部 IR）。 */
+function lastShape(
+  result: Awaited<ReturnType<ReturnType<typeof createRuntime>['execute']>>,
+): Shape | undefined {
+  const outputs = Array.from(result.outputs.entries())
+  return outputs[outputs.length - 1]?.[1] as Shape | undefined
 }
 
 describe('B4: mock 库 fixture — mesh 版', () => {
@@ -80,31 +85,27 @@ describe('B4: mock 库 fixture — BREP 版', () => {
   it('BREP 产物可与内置 op 混合布尔（跨命名空间消费）', async () => {
     const runtime = createRuntime(createNodePorts(), 'auto')
     runtime.registerLib('mech', mockMechBrep as never)
-    const { script } = parseScript([
+    const result = await runtime.execute([
       "import * as mech from 'mech-lib'",
       'let part0 = mech.makeHeadstock({ size: 10 })',
       'let part1 = cad.box({ size: 5 })',
       'let part2 = cad.union(part0, part1)',
     ].join('\n'))
-    const result = await runtime.execute(script)
     expect(result.failedAt).toBeUndefined()
-    const lastStmt = script.statements[script.statements.length - 1]
-    const shape = result.outputs.get(lastStmt.outputs[0]) as Shape
-    expect(shape.positions.length).toBeGreaterThan(0)
+    const shape = lastShape(result)
+    expect(shape).toBeDefined()
+    expect(shape!.positions.length).toBeGreaterThan(0)
   })
 
   it('mesh 模式：makeHeadstock 产 mesh box（mesh-first，不再崩溃，hasBrep false）', async () => {
     const runtime = createRuntime(createNodePorts(), 'mesh')
     runtime.registerLib('mech', mockMechBrep as never)
-    const { script } = parseScript([
+    const result = await runtime.execute([
       "import * as mech from 'mech-lib'",
       'let part0 = mech.makeHeadstock({ size: 20 })',
     ].join('\n'))
-    const result = await runtime.execute(script)
     expect(result.failedAt).toBeUndefined()
-    const geoStmts = script.statements.filter((s) => s.hasAssignment)
-    const lastStmt = geoStmts[geoStmts.length - 1]
-    const shape = result.outputs.get(lastStmt.outputs[0]) as Shape | undefined
+    const shape = lastShape(result)
     expect(shape).toBeDefined()
     expect(shape!.positions.length).toBeGreaterThan(0)
     expect(hasBrep(shape!)).toBe(false)

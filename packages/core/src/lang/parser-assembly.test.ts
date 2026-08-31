@@ -3,7 +3,7 @@
  */
 import { describe, it, expect } from 'vitest'
 import { parseScript } from './parser'
-import { scriptToCode, statementToLine } from './codegen'
+import { scriptIRToCode, statementIRToLine } from './codegen'
 
 describe('E15.1: 装配链式调用解析', () => {
   it('解析 const/let assem1 = cad.assembly({...})', () => {
@@ -94,7 +94,7 @@ describe('E15.1: 装配链式调用解析', () => {
     const { script } = parseScript(code)
 
     // 重新生成代码
-    const regenerated = scriptToCode(script)
+    const regenerated = scriptIRToCode(script)
 
     // 验证再生成包含链式调用语法
     expect(regenerated).toContain('cad.assembly(')
@@ -102,7 +102,7 @@ describe('E15.1: 装配链式调用解析', () => {
     expect(regenerated).toContain('assem1.do_assemble()')
   })
 
-  it('statementToLine 正确生成链式调用', () => {
+  it('statementIRToLine 正确生成链式调用', () => {
     const code = `
       let part0 = cad.box({ size: 20 })
       let assem1 = cad.assembly({ name: 'A', members: ['part0'] })
@@ -110,10 +110,10 @@ describe('E15.1: 装配链式调用解析', () => {
     `
     const { script } = parseScript(code)
 
-    const assemblyLine = statementToLine(script.statements[1])
+    const assemblyLine = statementIRToLine(script.statements[1])
     expect(assemblyLine).toContain('cad.assembly(')
 
-    const doAssembleLine = statementToLine(script.statements[2])
+    const doAssembleLine = statementIRToLine(script.statements[2])
     expect(doAssembleLine).toBe('assem1.do_assemble()')
   })
 })

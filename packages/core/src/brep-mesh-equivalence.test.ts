@@ -73,7 +73,7 @@ function makePartScript(statements: StatementIR[]): ScriptIR {
 async function runMode(script: ScriptIR, mode: ExecutionMode): Promise<Shape> {
   const ports = createNodePorts()
   const runtime = createRuntime(ports, mode)
-  const result: ExecutionResult = await runtime.execute(script)
+  const result: ExecutionResult = await runtime.executeIR(script)
 
   if (result.failedAt) {
     throw new Error(`Execution failed at ${result.failedAt.callee}: ${result.failedAt.message}`)

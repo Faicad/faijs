@@ -30,10 +30,9 @@ Dependencies are one-directional and acyclic: `stdlib → core`, `mech-lib → c
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │ L0  text layer  packages/core/src/lang/                      │
-│   parser (acorn + syntax gate)   codegen (round-trip)        │
-│   compile (compileToModule -> zero-import ESM)               │
-│   allocate-id (partN)   keep (retention directives)          │
-│   types (StatementIR / ScriptIR / ArgIR / TerminalShape)     │
+│   parser (acorn + syntax gate)   codegen (debug re-print)    │
+│   compile (to zero-import ESM)   allocate-id (partN)         │
+│   keep (retention directives)   internal statement model     │
 ├──────────────────────────────────────────────────────────────┤
 │ L0+ anchor  packages/core/src/runtime-state.ts (no imports)  │
 │   Backends / keep sink / Shape identity tables / contract ver│
@@ -46,7 +45,7 @@ Dependencies are one-directional and acyclic: `stdlib → core`, `mech-lib → c
 │   mesh path + CSG | brep/engine (two-slot registry) | topo   │
 ├──────────────────────────────────────────────────────────────┤
 │ L2  orchestration  packages/core/src/cad-runtime/            │
-│   CadRuntime (execute/append/update/executeCode/plan/check)  │
+│   CadRuntime (execute/append/update/check — text in, result out)│
 │   ModuleExecutor (module load + incremental + persistent ctx)│
 │   backend-dispatch (dispatchPath)   terminal-dag             │
 │   module-resolver (on-demand library resolution)             │
@@ -89,7 +88,7 @@ The engine package also exposes fine-grained subpaths (`@faicad/faijs-core/runti
 
 - **R-1 The engine embeds no geometry.** All geometry operations are implemented by libraries; the engine only schedules, bookkeeps and supplies resources.
 - **R-2 A library function signature is exactly what the source says.** Implicit injection is forbidden: `cad.box({ size })` compiles to `cad.box({ size })`, no more and no fewer parameters; no appending a trailing parameter at compile time, no `rest.pop()` to obtain context.
-- **R-3 User source text is never executed directly.** acorn parse (syntax gate) → `compileToModule` into a zero-import ESM → JS VM dynamic import. The security boundary is the syntax gate plus engine-generated output; **user text is never eval'd**.
+- **R-3 User source text is never executed directly.** acorn parse (syntax gate) → engine compiles into a zero-import module → JS VM dynamic import. The security boundary is the syntax gate plus engine-generated output; **user text is never eval'd**.
 - **R-4 Naming and terminal semantics are owned by the engine.** `partN` allocation, DAG leaf detection and consumption validation all live inside the engine; the host does not reimplement them.
 - **R-5 Coordinate space**: millimeters (mm), +Z up, angles in degrees. Every `cad.*` input and output is a world-space `Shape`.
 - **R-6 The BREP chain is per part.** Whether a part is still BREP is decided solely by whether `solidCache` holds a handle for it; there is no global flag, and sibling parts never contaminate each other.
@@ -101,17 +100,17 @@ The engine package also exposes fine-grained subpaths (`@faicad/faijs-core/runti
 
 ## 3. Naming Contract (StmtId and PartName)
 
-Each part has two **orthogonal identifiers** within one ScriptIR:
+Each statement carries two **orthogonal identifiers**:
 
 | Key | Meaning | Allocation rule | Use |
 |---|---|---|---|
-| **StmtId (`sN`)** | Identity of a statement, order-stable | Assigned in statement order at parse/compile time, `s1, s2, …` (parameter statements occupy the leading range) | Timeline node key, incremental plan cache key, diff key |
+| **StmtId (`sN`)** | Identity of a statement, order-stable | Assigned in statement order at parse time, `s1, s2, …` (parameter statements occupy the leading range) | Timeline node key, incremental plan cache key, diff key |
 | **PartName (`partN`)** | Variable name; a statement may have 0 to many | `derivePartName` (see §3.1) | Key of `ExecutionResult.outputs/compounds`, execution ctx variable key, terminal id |
 
 **Invariants**:
 
-- `StatementIR.id` is always a StmtId (`sN`), **never a variable name**; variable names exist only in `outputs: PartName[]`.
-- `outputs` is always explicit: single output = `[name]`; split = `[front, back]`; void op = `[]`.
+- The statement id is always a StmtId (`sN`), **never a variable name**; variable names exist only in the statement's declared outputs.
+- The declared outputs are always explicit: single output = `[name]`; split = `[front, back]`; void op = `[]`.
 - `TerminalShape.id` is a PartName, not a StmtId.
 
 ### 3.1 `derivePartName` naming rules
@@ -131,82 +130,37 @@ The model number N is the maximum `partN` found by a lexical scan of the code te
 
 ---
 
-## 4. Statement and Script Model (`packages/core/src/lang/types.ts`)
+## 4. Statement and Script Model
 
-### 4.1 Value and reference types
-
-```ts
-export type Vec3 = [number, number, number]
-
-export type JsonValue =
-  | string | number | boolean | null
-  | JsonValue[] | { [k: string]: JsonValue }
-
-export interface ParamRefIR { $param: string }
-export interface VarRefIR { $ref: string }
-export interface CallRefIR {
-  $call: { callee: string; args: ArgIR[]; namespace?: string }
-}
-export type ArgIR = JsonValue | ParamRefIR | VarRefIR | CallRefIR
-```
+A `.faijs` script is a sequence of statements, one operation per line (the flat format, §5). The engine parses the text into an internal representation; **that representation is an implementation detail — it is not part of this interface contract and may change at any time**. The contract-facing statement model is the code itself: variable names (`PartName`), the called function, positional inputs, the trailing options object, and the declared outputs (§3, §5).
 
 `Shape` (`packages/core/src/mesh/types.ts`) is the core geometry type: `{ positions: Float32Array; indices: Uint32Array }` (triangle mesh, world space). `CompoundShape` is `{ kind: 'compound', children: Shape[] }`.
 
-### 4.2 `StatementIR` (core contract)
+### 4.1 Terminals
 
 ```ts
-import type { StmtId, ArgIR, PartName } from '@faicad/faijs-core'
-
-export interface StatementIR {
-  id: StmtId
-  namespace?: string          // third-party namespace; default 'cad'
-  callee: string              // function name
-  args: Record<string, ArgIR>
-  inputs: PartName[]          // upstream variable names (order-sensitive)
-  name?: string               // display name for Timeline; not part of args
-  refs?: string[]             // referenced variables; compiled into deps
-  outputs: PartName[]
-  outputKeys?: string[]       // destructuring keys, 1:1 with outputs
-  seq?: number                // global sequence number (host-assigned)
-  receiver?: PartName         // receiver of a member call (asm1.add_constraint)
-  hasAssignment?: boolean     // whether the statement has an lvalue
-}
-```
-
-### 4.3 `ScriptIR` and terminals
-
-```ts ignore-check
-export interface ScriptIR {
-  source?: { kind: 'load' } | { kind: 'sdf' }
-  params: ParamDef[]
-  statements: StatementIR[]
-  imports?: ImportIR[]        // top-level imports (third-party libraries)
-  functions?: FunctionDefIR[] // top-level function definitions
-  meta?: ScriptMetaIR         // part-level properties (round-trip carrier)
-  terminalShapes?: TerminalShape[]  // explicit return [...] override
-}
+import type { PartName } from '@faicad/faijs'
 
 export interface TerminalShape {
   id: PartName                // identified by variable name, not statement id
-  meta?: ScriptMetaIR
-  kind?: VarKind              // 'shape' | 'compound' | 'value'
+  kind?: 'shape' | 'compound' | 'value'
   hidden?: boolean            // kept but not rendered; undefined means visible
 }
 ```
 
-**The role of `meta`**: color and user-renamed parts cannot be derived from modeling parameters, so they must be recorded explicitly. `StatementIR.name` (statement display name) and `meta.name` (part name) are different things — do not conflate them.
+`ExecutionResult.terminals` carries these; an explicit `return [...]` in the code overrides the DAG-derived terminal set.
 
 ---
 
 ## 5. Syntax Contract (`.faijs` legal JS subset)
 
-`.faijs` must be a **legal subset of JavaScript** — any JS parser (acorn) parses it without error. Load flow: acorn parse (syntax gate) → `compileToModule` → JS VM dynamic import for execution.
+`.faijs` must be a **legal subset of JavaScript** — any JS parser (acorn) parses it without error. Load flow: acorn parse (syntax gate) → the engine compiles the parsed script into a module → JS VM dynamic import for execution; **user text is never eval'd** (R-3).
 
-**Forbidden**: control flow (if/for/while/do/switch/try), dynamic `import()`, `eval`/`new Function`, `export`. Any violation raises `ParseError` with diagnostic code `E_CONTROL_FLOW` / `E_SYNTAX` / `E_VALUE` / `E_REFERENCE` / `E_IMPORT`, surfaced through `check()`.
+**Forbidden**: control flow (if/for/while/do/switch/try), dynamic `import()`, `eval`/`new Function`, `export`. Any violation is reported with a diagnostic code `E_CONTROL_FLOW` / `E_SYNTAX` / `E_VALUE` / `E_REFERENCE` / `E_IMPORT`, surfaced through `check()`.
 
 **Allowed**: top-level `import` (third-party libraries, not control flow), top-level function definitions, statically foldable expressions (binary / template literal / ternary), arbitrary callee destructuring, member method chains (`asm1.add_constraint({ … })`).
 
-Flat format (produced by `scriptToCode`):
+Flat format (UI recording, one operation per line):
 
 ```js
 import * as mech from 'mech-lib'
@@ -218,7 +172,7 @@ let part4 = cad.group({ members: [part0, part1] })
 let part5 = mech.makeHeadstock({ length: 120 })
 ```
 
-The **keep directive** lives inside args (it is not a new keyword) — see §6. Code text is a deterministic serialization projection of ScriptIR; parser and codegen are isomorphic in both directions, and one operation is one line of code.
+The **keep directive** lives inside args (it is not a new keyword) — see §6. Code text is the single source of truth; the internal representation compiled from it is an implementation detail, and re-printing text from it is debug-only (see §13.3 PS). One operation is one line of code is a flat-format convention.
 
 ---
 
@@ -245,9 +199,9 @@ export function group(params) {
 |---|---|---|
 | **C0/C1** | Variable ∈ `resolveKeep(stmt).kept` (call-site or function-body declaration) | **Not consumed** |
 | **C3** | The statement assigns and every output is non-geometric | **Consumes** no input at all |
-| **C5** | Default | **Consumed** (an `inputs` positional reference, or a `VarRefIR` in args) |
+| **C5** | Default | **Consumed** (an `inputs` positional reference, or a variable reference in args) |
 
-Additional rules: a reference inside a nested call (`CallRefIR`) is a read-only query and does not consume; `receiver` (member method call) does not consume the receiver variable.
+Additional rules: a reference inside a nested call is a read-only query and does not consume; `receiver` (member method call) does not consume the receiver variable.
 
 C3 is an objective default that requires **zero signature knowledge**: a function returning non-geometry cannot have swallowed geometry into its result, so inputs of third-party measurement/query functions are not eaten by mistake.
 
@@ -257,7 +211,7 @@ C3 is an objective default that requires **zero signature knowledge**: a functio
 
 For each shape variable (compound variables included), take its "last writer P"; if no statement after P consumes it, it is a terminal. A variable with no producer (manually injected by the host) counts as a terminal.
 
-- An explicit `script.terminalShapes` (`return [...]`) takes priority over DAG detection.
+- An explicit `return [...]` in the code takes priority over DAG detection.
 - `hidden` carries a field only when explicitly `true`; visible normalizes to `undefined` (matching the host's `setNodeVisible(scopedId, !terminal.hidden)`).
 
 ### 6.3 Static validation
@@ -289,15 +243,15 @@ export type ExecutionMode = 'auto' | 'brep' | 'mesh'
 
 | API | Semantics |
 |---|---|
-| `execute(script, opts?)` | Full execution: compileToModule → load → executeAll → collectResult |
-| `append(script, newIds, opts?)` | Incremental append: execute only the new statements (the prefix is already in the persistent ctx) |
-| `update(script, opts?)` | Incremental update: plan → reconcileCtx → recompute stale; zero execution when nothing is stale |
-| `executeCode(code, opts?)` | Text entry (parses, then executes); `stmtIds` selects a subset, `incremental` switches to append semantics |
-| `plan(script)` | Dependency analysis, returns `{ stale, reused }` |
+| `execute(code, opts?)` | Full run: execute every statement of the code text |
+| `append(code, newIds, opts?)` | Incremental append: execute only the new statements (the prefix is already in the persistent ctx) |
+| `update(code, opts?)` | Incremental update: `plan` computes the stale set → `reconcileCtx` → recompute from that set in topological order; zero execution when nothing is stale |
 | `check(code)` | Dry-run validation: parse (syntax gate) → schema (unknown keys included) → reference pre-check → `CheckResult` |
 | `registerLib(binding, ns)` | Register a library namespace (third-party library channel) |
 | `setTopology` / `getTopology` / `deleteTopology` / `buildBrepTopology` | Topology injection and construction |
 | `dispose()` | Release all BREP handles and caches |
+
+All three execution entries are **public interfaces whose input is code text** (`execute` / `append` / `update`); the engine parses the text internally. Incremental semantics are content-addressed (§13.2).
 
 `CheckResult = { ok, errors: CheckError[], warnings, script? }`, where `script` provides `{ statements, callees }` for AI self-correction.
 
@@ -324,23 +278,20 @@ export interface ExecutionResult {
 export interface ExecuteOptions {
   params?: Record<string, unknown>
   inputGeometryMap?: Map<PartName, Shape>
-  sceneScript?: ScriptIR                          // whole-scene DAG for cross-part refs
+  sceneCode?: string                               // whole-scene code text for cross-part refs
   partTransform?: { position: Vec3; scale?: Vec3 }
-  beforeStatement?: (stmt: StatementIR, index: number) => void   // per-statement undo snapshot
   startIndex?: number
   topology?: 'auto' | 'brep' | 'off'
 }
 ```
 
-`ExecuteCodeOptions` adds `stmtIds` / `incremental` / `sceneCode` on top of this (hosts pass text when they do not construct IR).
+There are exactly three public execution entries — `execute(code)` / `append(code, newIds)` / `update(code)` — all taking code text; there is no fourth entry and no `ExecuteCodeOptions`. `sceneCode` carries the whole-scene code text for cross-part references.
 
-### 7.5 `ModuleExecutor` (VM execution core)
+### 7.5 Incremental execution semantics
 
-- **Compiled output**: `compileToModule` produces a **zero-import** ESM (Node uses a `data:` URL, browsers a Blob URL); each statement is `{ id, deps, fn }` where `fn: async (ctx, ns) => { … }` — **only two parameters, no injected context object**.
-- **ctx persistent variable container**: survives across execute/append/update; script variables compile to `ctx.<name>` property access (supporting in-place reassignment).
-- **Incremental scheduling**: `executeAll` / `executeIds` (append) / `executeFrom(staleIds)` (update); `reconcileCtx` reclaims variables whose defining statement no longer exists in the script and releases their kernel resources.
-- **statementKey** = `` `${namespace ?? 'cad'}.${callee}` | JSON(args minus keep) | each dependency's outputContentKey ``; a parameter statement uses `param|JSON(value)`. The `keep`/`keepHidden` keys are excluded — **toggling retention or hidden state triggers zero geometry recomputation**.
-- **Pre-capture for replacement release**: before `fn`, the old handle of the statement's write key is captured and released after successful execution (on failure the cache retains the pre-execution state, so rollback is natural).
+- **Content-addressed**: a statement's identity key combines the namespace-qualified callee, the JSON of its args (keep excluded), and each dependency's content fingerprint; a parameter statement keys on `param|JSON(value)`. `keep` / `keepHidden` are excluded — **toggling retention or hidden state triggers zero geometry recomputation**.
+- **Persistent ctx**: script variables live in a container that survives across executions; in-place reassignment is supported.
+- **Replay scope**: `plan` computes the stale set and replays from the first change point; when nothing is stale, nothing executes.
 
 ### 7.6 The three library contract surfaces
 
@@ -471,7 +422,7 @@ Everything except `events` is optional — a Node test environment can supply on
 ### 9.2 Host consumption contract (3d_editor)
 
 - Import uniformly from `@faicad/faijs/browser`.
-- Execute uniformly through `CadRuntime.execute/append/update/executeCode`.
+- Execute uniformly through `CadRuntime.execute` / `append` / `update` / `check` (code text in, `ExecutionResult` out).
 - **The host must not reimplement DAG leaf filtering** (terminal semantics are an engine product); geometry changes must go through script statements.
 - Build scene tree hierarchy from `ExecutionResult.compounds`; submit terminal geometry per `result.terminals`; consume `brepSolids`/`topology` directly (STEP export, topology rebuild).
 - **STEP export**: mesh parts can be exported too — the difference is a faceted STEP rather than an exact BREP solid. Handle each part by its type (exact vs tessellated) instead of failing the whole export.
@@ -535,13 +486,13 @@ export const myOp = defineOp({
 
 ### 10.4 Third-party library channel
 
-- **Registration**: `runtime.registerLib(binding, ns)`; a script writes `import * as mech from 'mech-lib'` and calls `mech.fn(...)`. `StatementIR.namespace` records the origin and statementKey carries the package-name prefix.
+- **Registration**: `runtime.registerLib(binding, ns)`; a script writes `import * as mech from 'mech-lib'` and calls `mech.fn(...)`. The engine records the call's origin namespace, and the incremental key carries the package-name prefix.
 - **Validation**: a library exporting defineOp declarations must carry a matching `contractVersion` (= `CONTRACT_VERSION`); `registerLib` validates strictly via `assertLibConforms` (D-4). Plain functions without defineOp are legal but get no mode routing / wrapping / assembly validation.
 - **Resolution**: `@faicad/faijs/module-resolver` provides `resolveImports` and semver checks (`satisfies`), enabling on-demand loading of large library slices.
 
 ### 10.5 Whole-module `.ts` execution channel (faqts)
 
-`@faicad/faijs/faqts` is a **second execution path running parallel** to the recording pipeline: `.ts` source is transformed as a whole and executed in one shot, building no IR, running no per-statement scheduling and joining no timeline; outputs are declared by the author through explicit `export` (no automatic DAG detection). It shares the same `cad` API and Shape contract as the faijs side, so products of the two are interoperable.
+`@faicad/faijs/faqts` is a **second execution path running parallel** to the recording pipeline: `.ts` source is transformed as a whole and executed in one shot, with no per-statement scheduling and no timeline; outputs are declared by the author through explicit `export` (no automatic DAG detection). It shares the same `cad` API and Shape contract as the faijs side, so products of the two are interoperable.
 
 ---
 
@@ -572,13 +523,15 @@ export const myOp = defineOp({
 - An AI submission is a **full overwriting text**; the engine aligns by id and diffs (UNCHANGED / PARAM / STRUCT / ADD / DELETE), replaying from the first change point.
 - A parameter declaration is itself a statement, so "changing a parameter → the parameter statement's key changes → downstream goes stale in cascade".
 
-### 13.2 contentKey and fidelity
+### 13.2 Incremental fidelity
 
-`computeContentKey` (positions/indices → content fingerprint) is the measure of geometric equivalence; statementKey consists of callee, args (keep excluded) and each dependency's outputContentKey, and plan uses it to decide the incremental recomputation scope.
+`computeContentKey` (positions/indices → content fingerprint) is the measure of geometric equivalence; the statement identity key (callee + args minus keep + each dependency's content fingerprint) decides the incremental recomputation scope, and `plan` uses it. See §7.5.
 
 ### 13.3 The boundary of "consistent results" (anti-regression)
 
-The contract guarantees only: **code → model is a function**, and the model is identical after a `scriptToCode → parseScript` round trip. It does **not** guarantee or require: identical internal implementations or attribute-assignment algorithms between the code path and the mouse path, identical instance id values, or identical undo stack structure.
+The contract guarantees only: **code → model is a function**, and the save/load round trip: code exported from 3d_editor, saved as a `.faijs` file, re-imported, yields an identical model — a text-level round trip (text is the source). It does **not** guarantee or require: identical internal implementations or attribute-assignment algorithms between the code path and the mouse path, identical instance id values, or identical undo stack structure.
+
+PS: Re-printing text from the IR is debug-only, never part of a contract.
 
 ### 13.4 Generated file red lines
 

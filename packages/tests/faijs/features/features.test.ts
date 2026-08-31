@@ -13,7 +13,7 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { parseScript } from '@faicad/faijs'
+import { parseScript } from '@faicad/faijs-core/lang/parser'
 import { createRuntime } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
 import { registerOcctBrepEngine } from '@faicad/faijs'
@@ -62,7 +62,7 @@ describe('features .faijs tests', () => {
     it(`${file}: executes in mesh mode → non-empty mesh`, async () => {
       const { script } = parseScript(code)
       const runtime = createRuntime(createNodePorts(), 'mesh')
-      const result = await runtime.execute(script)
+      const result = await runtime.executeIR(script)
 
       expect(result.failedAt).toBeUndefined()
 

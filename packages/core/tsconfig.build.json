@@ -6,6 +6,7 @@
     "rootDir": "src",
     "declaration": true,
     "declarationMap": true,
+    "stripInternal": true,
     "sourceMap": true,
     "inlineSources": true,
     "incremental": false,

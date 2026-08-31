@@ -7,13 +7,13 @@
  *
  * Flow:
  * 1. User edits faijs source code in the textarea
- * 2. Click "Run" → parseScript(code) → createRuntime ×2 (brep + mesh) → execute both
+ * 2. Click "Run" → createRuntime ×2 (brep + mesh) → runtime.execute(code) for each
  * 3. Extract terminal shapes from each result, render into the matching viewer
  */
 
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { parseScript, ParseError, createRuntime, createBrowserPorts, setOcctWasmInitFn, ensureOcctKernel, exportStepFromSolid, exportStep, buildStlBufferFromMesh, deriveNormals, setManifoldWasmUrl, isMeshShape } from '@faicad/faijs/browser'
+import { createRuntime, createBrowserPorts, setOcctWasmInitFn, ensureOcctKernel, exportStepFromSolid, exportStep, buildStlBufferFromMesh, deriveNormals, setManifoldWasmUrl, isMeshShape } from '@faicad/faijs/browser'
 import type { ExecutionMode, HostPorts, ShapeHandle, OcctKernel, ExecutionResult } from '@faicad/faijs/browser'
 import { OcctKernel as OcctKernelValue } from 'occt-wasm'
 import fontUrl from './assets/fonts/OpenSans-Regular.ttf?url'
@@ -256,11 +256,11 @@ function extractShapes(result: ExecutionResult): ShapeSummary[] {
 
 async function runMode(
   view: Viewer3D,
-  script: ReturnType<typeof parseScript>['script'],
+  code: string,
   ports: HostPorts,
 ): Promise<string> {
   const runtime = createRuntime(ports, view.mode)
-  const result = await runtime.execute(script)
+  const result = await runtime.execute(code)
 
   if (result.failedAt) {
     clearMeshes(view)
@@ -299,14 +299,23 @@ async function runCode() {
   setStatus('Parsing...', 'info')
 
   try {
-    // Parse (parseScript throws ParseError on failure)
-    const parseResult = parseScript(code)
-
-    // Each mode gets its own ports + runtime
+    // 每个模式各自 execute(code)（公共文本 API；引擎内部 parse）
     const [portsBrep, portsMesh] = await Promise.all([
       createBrowserPorts({ fontUrl }),
       createBrowserPorts({ fontUrl }),
     ])
+
+    // 公共校验 API（宿主规范用法）：parse + 符号/引用预检，零几何副作用。
+    // 无效代码在此直接以 Error 呈现，不进执行流程（避免误报 "OK"）。
+    const checkResult = createRuntime(portsMesh, 'auto').check(code)
+    if (!checkResult.ok) {
+      const first = checkResult.errors[0]
+      setStatus(
+        `Error: ${first?.message ?? 'invalid faijs source'}${first?.line != null ? ` (line ${first.line})` : ''}`,
+        'error',
+      )
+      return
+    }
 
     setStatus('Executing (brep + mesh)...', 'info')
 
@@ -320,7 +329,7 @@ async function runCode() {
     // "mesh 视图先出模型、brep 视图随后补齐"，只是不再两条同时跑。
     const meshReport = await (async () => {
       try {
-        return await runMode(meshView, parseResult.script, portsMesh)
+        return await runMode(meshView, code, portsMesh)
       } catch (err) {
         // mesh 后端失败不影响 brep 结果
         const msg = err instanceof Error ? err.message : String(err)
@@ -334,7 +343,7 @@ async function runCode() {
           setStatus('Waiting for OCCT kernel (~22MB)...', 'info')
           await occtReady
         }
-        return await runMode(brepView, parseResult.script, portsBrep)
+        return await runMode(brepView, code, portsBrep)
       } catch (err) {
         // OCCT 失败只影响 brep 链路，不拖累 mesh 结果
         const msg = err instanceof Error ? err.message : String(err)

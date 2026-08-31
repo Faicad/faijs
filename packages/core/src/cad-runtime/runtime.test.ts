@@ -81,7 +81,7 @@ function makeRuntime(mode?: ExecutionMode): CadRuntime {
 async function run(statements: StatementIR[], mode?: ExecutionMode) {
   const runtime = makeRuntime(mode)
   const script = makePartScript(statements)
-  return { runtime, result: await runtime.execute(script) }
+  return { runtime, result: await runtime.executeIR(script) }
 }
 
 // Helper: get first brepSolid from result
@@ -145,7 +145,7 @@ describe('CadRuntime: auto mode (BREP-first, per-part)', () => {
         makeStmt('s1', 'box', { size: 20 }),
         makeStmt('s2', 'knurl', { knurlTextureHeight: 0.5, faceCenter: [0, 0, 5], faceNormal: [0, 0, 1] }, ['s1']),
       ])
-      const result = await runtime.execute(script)
+      const result = await runtime.executeIR(script)
 
       // P4：part-brep-lost 由引擎在语句执行后统一发（上游在 BREP 链、输出断链）
       expect(result.failedAt).toBeUndefined()
@@ -231,7 +231,7 @@ describe('CadRuntime: mesh mode (all mesh, no BREP)', () => {
       makeStmt('s2', 'sdf', { code: '0', box: [[-5,-5,-5],[5,5,5]], resolution: 8 }),
     ])
     // sdf mesh path throws in node (no Worker)
-    await expect(runtime.execute(script)).rejects.toThrow()
+    await expect(runtime.executeIR(script)).rejects.toThrow()
 
     // No part-brep-lost events (mesh mode, kernel was never active)
     expect(sink.events.length).toBe(0)
@@ -247,7 +247,7 @@ describe('CadRuntime: instance management', () => {
       makeStmt('s1', 'box', { size: 20 }),
       makeStmt('s2', 'translate', { offset: [5, 0, 0] }, ['s1']),
     ])
-    await runtime.execute(script)
+    await runtime.executeIR(script)
 
     // statementCache should have entries for both statements
     expect(runtime.getCachedOutput(asPartName('s1'))).toBeDefined()
@@ -257,7 +257,7 @@ describe('CadRuntime: instance management', () => {
   it('brepSolids is populated after BREP execution', async () => {
     const runtime = makeRuntime()
     const script = makePartScript([makeStmt('s1', 'box', { size: 20 })])
-    const result = await runtime.execute(script)
+    const result = await runtime.executeIR(script)
 
     // brepSolids is the single source of truth for terminal solids
     expect(result.brepSolids).toBeDefined()
@@ -267,13 +267,13 @@ describe('CadRuntime: instance management', () => {
   it('brepSolids updates after re-execute (overwrite)', async () => {
     const runtime = makeRuntime()
     const script1 = makePartScript([makeStmt('s1', 'box', { size: 20 })])
-    const result1 = await runtime.execute(script1)
+    const result1 = await runtime.executeIR(script1)
     const solid1 = getFirstBrepSolid(result1)
     expect(solid1).toBeDefined()
 
     // Re-execute with different args → solidCache overwrites s1
     const script2 = makePartScript([makeStmt('s1', 'sphere', { radius: 10 })])
-    const result2 = await runtime.execute(script2)
+    const result2 = await runtime.executeIR(script2)
     const solid2 = getFirstBrepSolid(result2)
     expect(solid2).toBeDefined()
     // Verify it's a valid solid (sphere, not box)
@@ -284,7 +284,7 @@ describe('CadRuntime: instance management', () => {
   it('dispose() clears all caches', async () => {
     const runtime = makeRuntime()
     const script = makePartScript([makeStmt('s1', 'box', { size: 20 })])
-    await runtime.execute(script)
+    await runtime.executeIR(script)
 
     runtime.dispose()
     expect(runtime.getCachedOutput(asPartName('s1'))).toBeUndefined()
@@ -293,7 +293,7 @@ describe('CadRuntime: instance management', () => {
   it('buildBrepTopology(stmtId) returns SelectorRuntime from solidCache', async () => {
     const runtime = makeRuntime()
     const script = makePartScript([makeStmt('s1', 'box', { size: 20 })])
-    await runtime.execute(script)
+    await runtime.executeIR(script)
 
     // buildBrepTopology takes stmtId (not scopedId), queries solidCache directly
     const topo = runtime.buildBrepTopology(asPartName('s1'))
@@ -302,7 +302,7 @@ describe('CadRuntime: instance management', () => {
 
   it('buildBrepTopology returns null for unknown stmtId', async () => {
     const runtime = makeRuntime()
-    await runtime.execute(makePartScript([makeStmt('s1', 'box', { size: 20 })]))
+    await runtime.executeIR(makePartScript([makeStmt('s1', 'box', { size: 20 })]))
 
     expect(runtime.buildBrepTopology(asPartName('nonexistent'))).toBeNull()
   })
@@ -314,7 +314,7 @@ describe('CadRuntime: instance management', () => {
       makeStmt('s2', 'translate', { offset: [5, 0, 0] }, ['s1']),
     ]
     const script = makePartScript(stmts)
-    await runtime.execute(script)
+    await runtime.executeIR(script)
 
     // Modify s1's args → plan should identify s1 and s2 (dependent) as stale
     const modifiedScript = makePartScript([
@@ -336,7 +336,7 @@ describe('CadRuntime: instance management', () => {
       makeStmt('s2', 'translate', { offset: [5, 0, 0] }, ['s1']),
     ]
     const script = makePartScript(stmts)
-    await runtime.execute(script)
+    await runtime.executeIR(script)
 
     // Same script → plan should reuse everything
     const { stale, reused } = runtime.plan(script)
@@ -347,7 +347,7 @@ describe('CadRuntime: instance management', () => {
   it('clearStatementCache clears all entries', async () => {
     const runtime = makeRuntime()
     const script = makePartScript([makeStmt('s1', 'box', { size: 20 })])
-    await runtime.execute(script)
+    await runtime.executeIR(script)
 
     expect(runtime.getCachedOutput(asPartName('s1'))).toBeDefined()
     runtime.clearStatementCache()
@@ -368,7 +368,7 @@ describe('CadRuntime: instance management', () => {
   it('dispose() clears all caches', async () => {
     const runtime = makeRuntime()
     const script = makePartScript([makeStmt('s1', 'box', { size: 20 })])
-    await runtime.execute(script)
+    await runtime.executeIR(script)
 
     runtime.dispose()
     expect(runtime.getCachedOutput(asPartName('s1'))).toBeUndefined()
@@ -381,7 +381,7 @@ describe('CadRuntime: instance management', () => {
       makeStmt('grp_1', 'group', { name: 'G', members: [{ $ref: 's1' }] }, []),
       makeStmt('s3', 'translate', { offset: [5, 0, 0] }, ['s1']), // depends on s1, not grp_1
     ])
-    const result = await runtime.execute(script)
+    const result = await runtime.executeIR(script)
 
     // s1 and s3 should have outputs; grp_1 is a compound (group product) → compounds 而非 outputs
     expect(result.outputs.get(asPartName('s1'))).toBeDefined()
@@ -421,14 +421,14 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     const s1 = makeStmt('s1', 'box', { size: 20 })
     const s2 = makeStmt('s2', 'translate', { offset: [5, 0, 0] }, ['s1'])
     const script = makePartScript([s1, s2])
-    await runtime.execute(script)
+    await runtime.executeIR(script)
 
     // 追加 s3（依赖 s2）
     const s3 = makeStmt('s3', 'translate', { offset: [0, 5, 0] }, ['s2'])
     const fullScript = makePartScript([s1, s2, s3])
     const beforeCalls: string[] = []
-    const result = await runtime.append(fullScript, [asStmtId('s3')], {
-      beforeStatement: (stmt) => beforeCalls.push(stmt.id),
+    const result = await runtime.appendIR(fullScript, [asStmtId('s3')], {
+      beforeStatement: (stmtId) => beforeCalls.push(stmtId),
     })
 
     // 只执行 s3；s1/s2 前缀语句完全不进循环
@@ -448,7 +448,7 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     const s1 = makeStmt('s1', 'box', { size: 20 })
     const s2 = makeStmt('s2', 'translate', { offset: [5, 0, 0] }, ['s1'])
     const script = makePartScript([s1, s2])
-    await runtime.execute(script)
+    await runtime.executeIR(script)
 
     // 改 s1 args → s1 与下游 s2 都是 stale
     const modified = makePartScript([
@@ -456,7 +456,7 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
       makeStmt('s2', 'translate', { offset: [5, 0, 0] }, ['s1']),
     ])
     const beforeCalls: string[] = []
-    await runtime.update(modified, { beforeStatement: (stmt) => beforeCalls.push(stmt.id) })
+    await runtime.updateIR(modified, { beforeStatement: (stmtId) => beforeCalls.push(stmtId) })
 
     expect(beforeCalls).toEqual(['s1', 's2'])
     // 重算后 s1 的几何更新（bbox 翻倍）
@@ -468,10 +468,10 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     const runtime = makeRuntime()
     const s1 = makeStmt('s1', 'box', { size: 20 })
     const script = makePartScript([s1])
-    await runtime.execute(script)
+    await runtime.executeIR(script)
 
     const beforeCalls: string[] = []
-    const result = await runtime.update(script, {
+    const result = await runtime.updateIR(script, {
       beforeStatement: () => beforeCalls.push('should-not-run'),
     })
 
@@ -484,10 +484,10 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     const runtime = makeRuntime()
     const s1 = makeStmt('s1', 'box', { size: 20 })
     const script = makePartScript([s1])
-    const result1 = await runtime.execute(script)
+    const result1 = await runtime.executeIR(script)
 
     // 再 append 同一 id → 重执行（顶替）
-    const result2 = await runtime.append(script, [asStmtId('s1')])
+    const result2 = await runtime.appendIR(script, [asStmtId('s1')])
     expect(result2.outputs.get(asPartName('s1'))).toBeDefined()
     expect(result2.brepChain.solidCache.has(asPartName('s1'))).toBe(true)
     // 顶替释放后 handle 仍是新值
@@ -499,13 +499,13 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     const runtime = makeRuntime()
     const s1 = makeStmt('s1', 'box', { size: 20 })
     const script = makePartScript([s1])
-    await runtime.execute(script)
+    await runtime.executeIR(script)
 
     const releaseSpy = vi.spyOn(kernel, 'release')
     try {
       // 用不同 args 重算同一 id → 旧 handle 应被 release
       const modified = makePartScript([makeStmt('s1', 'box', { size: 30 })])
-      await runtime.execute(modified)
+      await runtime.executeIR(modified)
       expect(releaseSpy).toHaveBeenCalled()
     } finally {
       releaseSpy.mockRestore()
@@ -515,18 +515,18 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
   it('失败回滚: 执行失败语句不写缓存，已成功语句 solid 保留', async () => {
     const runtime = makeRuntime()
     const s1 = makeStmt('s1', 'box', { size: 20 })
-    await runtime.execute(makePartScript([s1]))
+    await runtime.executeIR(makePartScript([s1]))
 
     // sdf 是 mesh-only，node 下抛错 → 整次执行失败
     const script = makePartScript([
       s1,
       makeStmt('s2', 'sdf', { code: '0', box: [[-5,-5,-5],[5,5,5]], resolution: 8 }, ['s1']),
     ])
-    await expect(runtime.execute(script)).rejects.toThrow()
+    await expect(runtime.executeIR(script)).rejects.toThrow()
 
     // s1 的 solid 保留（失败语句 s2 未写入）——通过后续 append 引用 s1 验证
     const s3 = makeStmt('s3', 'translate', { offset: [1, 0, 0] }, ['s1'])
-    const result = await runtime.append(makePartScript([s1, s3]), [asStmtId('s3')])
+    const result = await runtime.appendIR(makePartScript([s1, s3]), [asStmtId('s3')])
     expect(result.outputs.get(asPartName('s3'))).toBeDefined()
     expect(result.brepChain.solidCache.has(asPartName('s1'))).toBe(true)
     expect(result.brepChain.solidCache.has(asPartName('s2'))).toBe(false)
@@ -535,10 +535,10 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
   it('断链增量 (mesh 模式): append 新语句走 mesh 路径（无 solid，静态判定）', async () => {
     const runtime = makeRuntime('mesh')
     const s1 = makeStmt('s1', 'box', { size: 20 })
-    await runtime.execute(makePartScript([s1]))
+    await runtime.executeIR(makePartScript([s1]))
 
     const s2 = makeStmt('s2', 'translate', { offset: [5, 0, 0] }, ['s1'])
-    const result = await runtime.append(makePartScript([s1, s2]), [asStmtId('s2')])
+    const result = await runtime.appendIR(makePartScript([s1, s2]), [asStmtId('s2')])
 
     expect(result.outputs.get(asPartName('s2'))).toBeDefined()
     // mesh 路径不写 solidCache
@@ -548,11 +548,11 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
   it('brep 强制模式: append mesh-only op → E_BREP_UNSUPPORTED（不静默回退 mesh）', async () => {
     const runtime = makeRuntime('brep')
     const s1 = makeStmt('s1', 'box', { size: 20 })
-    await runtime.execute(makePartScript([s1]))
+    await runtime.executeIR(makePartScript([s1]))
 
     // knurl 是 mesh-only：brep 强制模式下 append 应立即 E_BREP_UNSUPPORTED
     const s2 = makeStmt('s2', 'knurl', { knurlTextureHeight: 0.5, faceCenter: [0, 0, 5], faceNormal: [0, 0, 1], pattern: 'diagonal' }, ['s1'])
-    const result = await runtime.append(makePartScript([s1, s2]), [asStmtId('s2')])
+    const result = await runtime.appendIR(makePartScript([s1, s2]), [asStmtId('s2')])
 
     expect(result.failedAt).toBeDefined()
     expect(result.failedAt!.message).toContain('E_BREP_UNSUPPORTED')
@@ -570,7 +570,7 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
       hasAssignment: true,
     }
     const script = makePartScript([s0, splitStmt])
-    const result = await runtime.execute(script)
+    const result = await runtime.executeIR(script)
     expect(result.failedAt).toBeUndefined()
 
     // front（== stmt.id）与 back（outputs[1]）都应在持久 statementCache 中
@@ -592,11 +592,11 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
       outputKeys: ['front', 'back'],
       hasAssignment: true,
     }
-    await runtime.execute(makePartScript([s0, splitStmt]))
+    await runtime.executeIR(makePartScript([s0, splitStmt]))
 
     // 追加一条引用 split back（outputs[1]）的语句
     const s3 = makeStmt('s3', 'translate', { offset: [5, 0, 0] }, ['s1b'])
-    const result = await runtime.append(makePartScript([s0, splitStmt, s3]), [asStmtId('s3')])
+    const result = await runtime.appendIR(makePartScript([s0, splitStmt, s3]), [asStmtId('s3')])
     expect(result.failedAt).toBeUndefined()
     expect(result.outputs.get(asPartName('s3'))).toBeDefined()
   })
@@ -607,7 +607,7 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     const s1 = makeStmt('s1', 'box', { size: 10 })
     const s2 = makeStmt('s2', 'box', { size: 10 })
     const script = makePartScript([s1, s2])
-    await runtime.execute(script)
+    await runtime.executeIR(script)
 
     // 验证 s2 的初始位置（box 中心在原点）
     const s2Initial = runtime.getCachedOutput(asPartName('s2'))!
@@ -647,7 +647,7 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
 
     // append 两条新语句
     const fullScript = makePartScript([s1, s2, assemblyStmt, doAssembleStmt])
-    const result = await runtime.append(fullScript, [asStmtId('asm1'), asStmtId('do_asm1')])
+    const result = await runtime.appendIR(fullScript, [asStmtId('asm1'), asStmtId('do_asm1')])
 
     expect(result.failedAt).toBeUndefined()
 
@@ -688,7 +688,7 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     const s1 = makeStmt('s1', 'box', { size: 10 })
     const s2 = makeStmt('s2', 'box', { size: 10 })
     const script = makePartScript([s1, s2])
-    const first = await runtime.execute(script)
+    const first = await runtime.executeIR(script)
 
     // 装配前：s2 的 BREP solid 在 brepSolids 中，bbox 有效（box 中心在原点）
     const s2SolidBefore = first.brepSolids?.get(asPartName('s2'))
@@ -725,7 +725,7 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     }
 
     const fullScript = makePartScript([s1, s2, assemblyStmt, doAssembleStmt])
-    const result = await runtime.append(fullScript, [asStmtId('asm1'), asStmtId('do_asm1')])
+    const result = await runtime.appendIR(fullScript, [asStmtId('asm1'), asStmtId('do_asm1')])
     expect(result.failedAt).toBeUndefined()
 
     // 装配后：brepSolids 对 s2 返回「新 handle」（非装配前的旧 handle），且 bbox 有效。
@@ -787,13 +787,13 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     const s2 = makeStmt('s2', 'box', { size: 10 })
     const script = makePartScript([s1, s2, makeAssemblyStmt(), makeDoAssembleStmt()])
 
-    const r1 = await runtime.execute(script)
+    const r1 = await runtime.executeIR(script)
     expect(r1.failedAt).toBeUndefined()
     const s2a = r1.outputs.get(asPartName('s2'))
     if (!s2a || !('positions' in s2a)) throw new Error('expected mesh shape')
 
     // 全量重跑（execute 无条件重放）：成员对象全新，装配重新求解并应用一次，不叠加
-    const r2 = await runtime.execute(script)
+    const r2 = await runtime.executeIR(script)
     expect(r2.failedAt).toBeUndefined()
     const s2b = r2.outputs.get(asPartName('s2'))
     if (!s2b || !('positions' in s2b)) throw new Error('expected mesh shape')
@@ -811,7 +811,7 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     }, ['s2'])
     const script = makePartScript([s1, s2, s3, makeAssemblyStmt(), makeDoAssembleStmt()])
 
-    const result = await runtime.execute(script)
+    const result = await runtime.executeIR(script)
     expect(result.failedAt).toBeUndefined()
 
     // 下游 s3 被重算（changed 含 s3）
@@ -840,7 +840,7 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     }, ['s2'])
     const script = makePartScript([s1, s2, s3, makeAssemblyStmt(), makeDoAssembleStmt()])
 
-    const result = await runtime.execute(script)
+    const result = await runtime.executeIR(script)
     expect(result.failedAt).toBeUndefined()
 
     const s3Solid = result.brepSolids?.get(asPartName('s3'))
@@ -855,7 +855,7 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     const s2 = makeStmt('s2', 'box', { size: 10 })
     const script = makePartScript([s1, s2, makeAssemblyStmt()])
 
-    const result = await runtime.execute(script)
+    const result = await runtime.executeIR(script)
     expect(result.failedAt).toBeUndefined()
     expect(result.compounds!.get(asPartName('asm1'))).toEqual([asPartName('s1'), asPartName('s2')])
   })
@@ -868,7 +868,7 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     const s1 = makeStmt('s1', 'box', { size: 10 })
     const s2 = makeStmt('s2', 'box', { size: 10 })
     const base = makePartScript([s1, s2])
-    const first = await runtime.execute(base)
+    const first = await runtime.executeIR(base)
     const s2SolidBefore = first.brepSolids?.get(asPartName('s2'))
     expect(s2SolidBefore).toBeDefined()
 
@@ -901,9 +901,9 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
 
     // 分次 append：先 asm，再 do_assemble（各自新建 exec）
     const full1 = makePartScript([s1, s2, assemblyStmt])
-    await runtime.append(full1, [asStmtId('asm1')])
+    await runtime.appendIR(full1, [asStmtId('asm1')])
     const full2 = makePartScript([s1, s2, assemblyStmt, doAssembleStmt])
-    const result = await runtime.append(full2, [asStmtId('do_asm1')])
+    const result = await runtime.appendIR(full2, [asStmtId('do_asm1')])
 
     expect(result.failedAt).toBeUndefined()
     const s2SolidAfter = result.brepSolids?.get(asPartName('s2'))
@@ -932,7 +932,7 @@ describe('CadRuntime: plan deps 级联（参数语句化）', () => {
 
   it('无变化 → plan 全 reused，零 stale', async () => {
     const runtime = makeRuntime()
-    await runtime.execute(makeScriptWithParam(20))
+    await runtime.executeIR(makeScriptWithParam(20))
 
     const { stale, reused } = runtime.plan(makeScriptWithParam(20))
     expect(stale.length).toBe(0)
@@ -942,7 +942,7 @@ describe('CadRuntime: plan deps 级联（参数语句化）', () => {
 
   it('改参数语句 → 引用它的下游语句 stale（deps 级联）', async () => {
     const runtime = makeRuntime()
-    await runtime.execute(makeScriptWithParam(20))
+    await runtime.executeIR(makeScriptWithParam(20))
 
     // r: 20 → 30：参数语句 key 变化 → box（依赖 r）经 deps 级联 stale
     const { stale, reused } = runtime.plan(makeScriptWithParam(30))
@@ -953,11 +953,11 @@ describe('CadRuntime: plan deps 级联（参数语句化）', () => {
 
   it('update 改参数 → 只重算引用语句（beforeStatement 触发）', async () => {
     const runtime = makeRuntime()
-    await runtime.execute(makeScriptWithParam(20))
+    await runtime.executeIR(makeScriptWithParam(20))
 
     const beforeCalls: string[] = []
-    await runtime.update(makeScriptWithParam(30), {
-      beforeStatement: (stmt) => beforeCalls.push(stmt.id),
+    await runtime.updateIR(makeScriptWithParam(30), {
+      beforeStatement: (stmtId) => beforeCalls.push(stmtId),
     })
 
     // 只重算 box（参数语句非 StatementIR，不进 beforeStatement）
@@ -1023,7 +1023,7 @@ describe('CadRuntime: copy op (deep clone)', () => {
       makeStmt('part0', 'box', { size: 20 }),
       makeStmt('part1', 'copy', {}, ['part0']),
     ])
-    const result = await runtime.execute(script)
+    const result = await runtime.executeIR(script)
     expect(result.failedAt).toBeUndefined()
 
     const src = result.outputs.get(asPartName('part0'))!
@@ -1046,7 +1046,7 @@ describe('CadRuntime: copy op (deep clone)', () => {
       makeStmt('part0', 'box', { size: 20 }),
       makeStmt('part1', 'copy', {}, ['part0']),
     ])
-    const result = await runtime.execute(script)
+    const result = await runtime.executeIR(script)
     expect(result.failedAt).toBeUndefined()
 
     // 两个终端都应有 BREP solid
@@ -1073,7 +1073,7 @@ describe('CadRuntime: copy op (deep clone)', () => {
       makeStmt('part0', 'box', { size: 20 }),
       makeStmt('part1', 'copy', {}, ['part0']),
     ])
-    const result = await runtime.execute(script)
+    const result = await runtime.executeIR(script)
     expect(result.terminals.length).toBe(2)
     const ids = result.terminals.map(t => t.id).sort()
     expect(ids).toEqual([asPartName('part0'), asPartName('part1')])
@@ -1112,7 +1112,7 @@ describe('P7: 第三方库通道（registerLib / statementKey 包名前缀 / 版
     const mechStmt: StatementIR = { ...makeStmt('s3', 'box', { size: 20 }), namespace: 'mech' }
     const script = makePartScript([s1, s2, mechStmt])
 
-    const result = await runtime.execute(script)
+    const result = await runtime.executeIR(script)
     expect(result.failedAt).toBeUndefined()
     expect(result.outputs.get(asPartName('s3'))).toBeDefined()
 
@@ -1133,7 +1133,7 @@ describe('P7: 第三方库通道（registerLib / statementKey 包名前缀 / 版
     }
     runtime.registerLib('mech', mechLib)
 
-    const result = await runtime.execute(makePartScript([makeStmt('s1', 'box', { size: 10 })]))
+    const result = await runtime.executeIR(makePartScript([makeStmt('s1', 'box', { size: 10 })]))
     expect(result.failedAt).toBeUndefined()
     const boxShape = runtime.getCachedOutput(asPartName('s1'))! as Shape
     const headstock = mechLib.makeHeadstock() as Shape
@@ -1167,7 +1167,7 @@ describe('V5.3: 第三方库声明实现集（defineOp，dispatchPath 静态判�
 
     const s1 = { ...makeStmt('s1', 'box', { size: 20 }), namespace: undefined }
     const s2Stmt: StatementIR = { ...makeStmt('s2', 'importGear', {}, ['s1']), namespace: 'gearlib' }
-    const result = await runtime.execute(makePartScript([s1 as StatementIR, s2Stmt]))
+    const result = await runtime.executeIR(makePartScript([s1 as StatementIR, s2Stmt]))
     expect(result.failedAt).toBeUndefined()
     const part = runtime.getCachedOutput(asPartName('s2')) as Shape
     expect(part).toBeDefined()
@@ -1181,7 +1181,7 @@ describe('V5.3: 第三方库声明实现集（defineOp，dispatchPath 静态判�
       knurl: defineOp({ mesh: (shape: Shape) => shape }),
     } as unknown as StdlibNamespace
     runtime.registerLib('gearlib', meshLib)
-    const result = await runtime.execute(makePartScript([
+    const result = await runtime.executeIR(makePartScript([
       { ...makeStmt('s1', 'box', { size: 20 }), namespace: undefined as never } as StatementIR,
       { ...makeStmt('s2', 'knurl', {}, ['s1']), namespace: 'gearlib' },
     ]))

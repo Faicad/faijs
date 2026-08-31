@@ -59,9 +59,10 @@ test.describe('faijs demo', () => {
     expect(page.locator(SELECTOR.statusBar)).toHaveClass(/success/)
   })
 
-  test('dev：两条链路 wasm 均从本地 node_modules 加载（非 CDN）', async ({ page }) => {
+  test('dev：两条链路 wasm 均从本地加载（非 CDN）', async ({ page }) => {
     // 与 preview-cdn.spec.ts 的 CDN 断言互为正反：dev 模式 manifold/occt wasm
-    // 必须走 vite dev server 的本地文件（main.ts 的 import.meta.env.DEV 分支）。
+    // 必须走 vite dev server 的本地文件（main.ts 的 import.meta.env.DEV 分支，
+    // wasmAssets() 中间件把 /wasm/* 映射到 node_modules 物理文件）。
     // worker 内发起的 wasm 请求同样会被 page.on('request') 捕获。
     const wasmRequests: string[] = []
     page.on('request', (req) => {
@@ -72,8 +73,8 @@ test.describe('faijs demo', () => {
     await waitForStatusOk(page)
 
     const local = (path: string) => new URL(path, 'http://localhost:8899').toString()
-    expect(wasmRequests).toContain(local('/node_modules/occt-wasm/dist/occt-wasm.wasm'))
-    expect(wasmRequests).toContain(local('/node_modules/manifold-3d/manifold.wasm'))
+    expect(wasmRequests).toContain(local('/wasm/occt-wasm.wasm'))
+    expect(wasmRequests).toContain(local('/wasm/manifold.wasm'))
     expect(wasmRequests.length).toBeGreaterThanOrEqual(2)
     // 一条 CDN 请求都不许出现（dev 模式必须全部本地加载）
     expect(wasmRequests.every((u) => u.startsWith('http://localhost:8899/'))).toBe(true)

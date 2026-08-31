@@ -30,10 +30,9 @@ faijs 是 **npm workspaces monorepo**。根包 `@faicad/faijs` 是**门面薄层
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │ L0  text layer  packages/core/src/lang/                      │
-│   parser (acorn + syntax gate)   codegen (round-trip)        │
-│   compile (compileToModule -> zero-import ESM)               │
-│   allocate-id (partN)   keep (retention directives)          │
-│   types (StatementIR / ScriptIR / ArgIR / TerminalShape)     │
+│   parser (acorn + syntax gate)   codegen (debug re-print)    │
+│   compile (to zero-import ESM)   allocate-id (partN)         │
+│   keep (retention directives)   internal statement model     │
 ├──────────────────────────────────────────────────────────────┤
 │ L0+ anchor  packages/core/src/runtime-state.ts (no imports)  │
 │   Backends / keep sink / Shape identity tables / contract ver│
@@ -46,7 +45,7 @@ faijs 是 **npm workspaces monorepo**。根包 `@faicad/faijs` 是**门面薄层
 │   mesh path + CSG | brep/engine (two-slot registry) | topo   │
 ├──────────────────────────────────────────────────────────────┤
 │ L2  orchestration  packages/core/src/cad-runtime/            │
-│   CadRuntime (execute/append/update/executeCode/plan/check)  │
+│   CadRuntime (execute/append/update/check — text in, result out)│
 │   ModuleExecutor (module load + incremental + persistent ctx)│
 │   backend-dispatch (dispatchPath)   terminal-dag             │
 │   module-resolver (on-demand library resolution)             │
@@ -89,7 +88,7 @@ faijs 是 **npm workspaces monorepo**。根包 `@faicad/faijs` 是**门面薄层
 
 - **R-1 引擎不内置几何。** 几何运算全部由库实现；引擎只做调度、记账与资源供给。
 - **R-2 库函数签名 = 源码里写的样子。** 禁止隐式注入：`cad.box({ size })` 编译后就是 `cad.box({ size })`，参数一个不多一个不少；禁止编译期追加末参，禁止用 `rest.pop()` 取上下文。
-- **R-3 用户原文不直接执行。** 先 acorn 解析（语法闸门）→ `compileToModule` 编译为零 import ESM → JS VM 动态 import 执行。安全边界 = 语法闸门 + 产物由引擎生成，**不 eval 用户文本**。
+- **R-3 用户原文不直接执行。** 先 acorn 解析（语法闸门）→ 引擎编译为零 import 模块 → JS VM 动态 import 执行。安全边界 = 语法闸门 + 产物由引擎生成，**不 eval 用户文本**。
 - **R-4 命名与终端语义由引擎统一。** `partN` 分配、DAG 叶子判定、消费合法性校验全部封装在引擎内，宿主不重复实现。
 - **R-5 坐标空间**：毫米（mm）、+Z 向上、角度用度。所有 `cad.*` 输入／输出均为世界空间 `Shape`。
 - **R-6 BREP 链是逐 part 的。** 一个 part 是否仍为 BREP，由 `solidCache` 中是否有它的句柄唯一决定；不存在全局标志，兄弟 part 互不污染。
@@ -101,17 +100,17 @@ faijs 是 **npm workspaces monorepo**。根包 `@faicad/faijs` 是**门面薄层
 
 ## 3. 命名契约（StmtId 与 PartName）
 
-每个 part 在一个 ScriptIR 内有两个**正交标识**：
+每条语句带两个**正交标识**：
 
 | 键 | 含义 | 分配规则 | 用途 |
 |---|---|---|---|
-| **StmtId（`sN`）** | 一条语句的身份，顺序稳定 | 编译／解析期按语句顺序 `s1, s2, …`（参数语句占前段） | Timeline 节点键、增量调度 plan 缓存键、diff 键 |
+| **StmtId（`sN`）** | 一条语句的身份，顺序稳定 | 解析期按语句顺序 `s1, s2, …`（参数语句占前段） | Timeline 节点键、增量调度 plan 缓存键、diff 键 |
 | **PartName（`partN`）** | 变量名，一条语句可有 0~多个 | `derivePartName`（见 §3.1） | `ExecutionResult.outputs/compounds` 键、执行 ctx 变量键、终端 id |
 
 **不变量**：
 
-- `StatementIR.id` 永远是 StmtId（`sN`），**不是变量名**；变量名只存在于 `outputs: PartName[]`。
-- `outputs` 始终显式存在：单输出 = `[name]`；split = `[front, back]`；void op = `[]`。
+- 语句 id 永远是 StmtId（`sN`），**不是变量名**；变量名只存在于语句声明的输出里。
+- 声明的输出始终显式存在：单输出 = `[name]`；split = `[front, back]`；void op = `[]`。
 - `TerminalShape.id` 就是 PartName，不是 StmtId。
 
 ### 3.1 `derivePartName` 命名规则
@@ -131,82 +130,37 @@ faijs 是 **npm workspaces monorepo**。根包 `@faicad/faijs` 是**门面薄层
 
 ---
 
-## 4. 语句与脚本模型（`packages/core/src/lang/types.ts`）
+## 4. 语句与脚本模型
 
-### 4.1 值与引用类型
-
-```ts
-export type Vec3 = [number, number, number]
-
-export type JsonValue =
-  | string | number | boolean | null
-  | JsonValue[] | { [k: string]: JsonValue }
-
-export interface ParamRefIR { $param: string }
-export interface VarRefIR { $ref: string }
-export interface CallRefIR {
-  $call: { callee: string; args: ArgIR[]; namespace?: string }
-}
-export type ArgIR = JsonValue | ParamRefIR | VarRefIR | CallRefIR
-```
+一个 `.faijs` 脚本是一串语句，一行一个操作（扁平格式，§5）。引擎把文本解析为内部表示；**该表示是实现细节——不属于本接口契约，可随时变更**。契约面对的语句模型就是代码本身：变量名（`PartName`）、被调函数、位置入参、末尾选项对象、声明的输出（§3、§5）。
 
 `Shape`（`packages/core/src/mesh/types.ts`）是核心几何类型：`{ positions: Float32Array; indices: Uint32Array }`（三角网格，世界空间）。`CompoundShape` 是 `{ kind: 'compound', children: Shape[] }`。
 
-### 4.2 `StatementIR`（核心契约）
+### 4.1 终端
 
 ```ts
-import type { StmtId, ArgIR, PartName } from '@faicad/faijs-core'
-
-export interface StatementIR {
-  id: StmtId
-  namespace?: string          // third-party namespace; default 'cad'
-  callee: string              // function name
-  args: Record<string, ArgIR>
-  inputs: PartName[]          // upstream variable names (order-sensitive)
-  name?: string               // display name for Timeline; not part of args
-  refs?: string[]             // referenced variables; compiled into deps
-  outputs: PartName[]
-  outputKeys?: string[]       // destructuring keys, 1:1 with outputs
-  seq?: number                // global sequence number (host-assigned)
-  receiver?: PartName         // receiver of a member call (asm1.add_constraint)
-  hasAssignment?: boolean     // whether the statement has an lvalue
-}
-```
-
-### 4.3 `ScriptIR` 与终端
-
-```ts ignore-check
-export interface ScriptIR {
-  source?: { kind: 'load' } | { kind: 'sdf' }
-  params: ParamDef[]
-  statements: StatementIR[]
-  imports?: ImportIR[]        // top-level imports (third-party libraries)
-  functions?: FunctionDefIR[] // top-level function definitions
-  meta?: ScriptMetaIR         // part-level properties (round-trip carrier)
-  terminalShapes?: TerminalShape[]  // explicit return [...] override
-}
+import type { PartName } from '@faicad/faijs'
 
 export interface TerminalShape {
   id: PartName                // identified by variable name, not statement id
-  meta?: ScriptMetaIR
-  kind?: VarKind              // 'shape' | 'compound' | 'value'
+  kind?: 'shape' | 'compound' | 'value'
   hidden?: boolean            // kept but not rendered; undefined means visible
 }
 ```
 
-**`meta` 的定位**：颜色与用户改过的名字不可从建模参数推导，必须显式记录。`StatementIR.name`（语句显示名）与 `meta.name`（零件名）是两回事，勿混。
+`ExecutionResult.terminals` 携带这些；代码里的显式 `return [...]` 覆盖 DAG 推导的终端集合。
 
 ---
 
 ## 5. 语法契约（`.faijs` 合法 JS 子集）
 
-`.faijs` 必须是 **JavaScript 的合法子集**——任意 JS 解析器（acorn）都能无错解析。加载流程：acorn 解析（语法闸门）→ `compileToModule` → JS VM 动态 import 执行。
+`.faijs` 必须是 **JavaScript 的合法子集**——任意 JS 解析器（acorn）都能无错解析。加载流程：acorn 解析（语法闸门）→ 引擎把解析结果编译为模块 → JS VM 动态 import 执行；**不 eval 用户文本**（R-3）。
 
-**禁止**：控制流（if／for／while／do／switch／try）、动态 `import()`、`eval`／`new Function`、`export`。越界一律 `ParseError`，诊断码 `E_CONTROL_FLOW` / `E_SYNTAX` / `E_VALUE` / `E_REFERENCE` / `E_IMPORT`，由 `check()` 透传。
+**禁止**：控制流（if／for／while／do／switch／try）、动态 `import()`、`eval`／`new Function`、`export`。越界一律报诊断码 `E_CONTROL_FLOW` / `E_SYNTAX` / `E_VALUE` / `E_REFERENCE` / `E_IMPORT`，由 `check()` 透传。
 
 **允许**：顶层 `import`（第三方库，非控制流）、顶层函数定义、可静态折叠的表达式（二元／模板字符串／三元）、任意 callee 解构、成员方法链（`asm1.add_constraint({ … })`）。
 
-平铺格式（`scriptToCode` 产出）：
+平铺格式（UI 录制，一行一个操作）：
 
 ```js
 import * as mech from 'mech-lib'
@@ -218,7 +172,7 @@ let part4 = cad.group({ members: [part0, part1] })
 let part5 = mech.makeHeadstock({ length: 120 })
 ```
 
-**keep 指令**寄生在 args 中（不是新关键字），见 §6。代码文本是 ScriptIR 的确定性序列化投影，parser 与 codegen 双向同构；一个操作对应一行代码。
+**keep 指令**寄生在 args 中（不是新关键字），见 §6。代码文本是唯一事实源；从它编译出的内部表示是实现细节，从内部表示重打文本只用于调试（见 §13.3 PS）。一个操作对应一行代码是扁平格式（UI 录制）的约定。
 
 ---
 
@@ -245,9 +199,9 @@ export function group(params) {
 |---|---|---|
 | **C0/C1** | 变量 ∈ `resolveKeep(stmt).kept`（调用点或函数体声明） | **不消费** |
 | **C3** | 语句有赋值且所有输出都是非几何 | **不消费**任何输入 |
-| **C5** | 默认 | **消费**（inputs 位置引用，或 args 中的 `VarRefIR`） |
+| **C5** | 默认 | **消费**（inputs 位置引用，或 args 中的变量引用） |
 
-补充规则：嵌套调用（`CallRefIR`）内的引用是只读查询，不消费；`receiver`（成员方法调用）不消费接收者变量。
+补充规则：嵌套调用内的引用是只读查询，不消费；`receiver`（成员方法调用）不消费接收者变量。
 
 C3 是**零签名知识**的客观默认：返回非几何的函数不可能把几何吞进结果——第三方测量／查询函数的输入因此不被误吃。
 
@@ -257,7 +211,7 @@ C3 是**零签名知识**的客观默认：返回非几何的函数不可能把�
 
 对每个 shape 变量名（含 compound 变量）取「最后写者 P」；P 之后无任何语句消费它 → 终端。无生产者的变量（宿主手工注入）视为终端。
 
-- 显式 `script.terminalShapes`（`return [...]`）优先于 DAG 判定。
+- 代码里的显式 `return [...]` 优先于 DAG 判定。
 - `hidden` 只有显式为 `true` 才带字段，可见归一为 `undefined`（对齐宿主 `setNodeVisible(scopedId, !terminal.hidden)`）。
 
 ### 6.3 静态校验
@@ -289,15 +243,15 @@ export type ExecutionMode = 'auto' | 'brep' | 'mesh'
 
 | API | 语义 |
 |---|---|
-| `execute(script, opts?)` | 全量执行：compileToModule → load → executeAll → collectResult |
-| `append(script, newIds, opts?)` | 增量追加：只执行新增语句（前缀已在持久 ctx） |
-| `update(script, opts?)` | 增量更新：plan → reconcileCtx → 重算 stale；stale 为空则零执行 |
-| `executeCode(code, opts?)` | 文本入口（parse 后走 execute）；`stmtIds` 指定子集，`incremental` 走 append 语义 |
-| `plan(script)` | 依赖分析，返回 `{ stale, reused }` |
+| `execute(code, opts?)` | 全量执行：执行代码文本的每条语句 |
+| `append(code, newIds, opts?)` | 增量追加：只执行新增语句（前缀已在持久 ctx） |
+| `update(code, opts?)` | 增量更新：`plan` 算出失效集 → `reconcileCtx` → 按拓扑序从该集重算；无失效时零执行 |
 | `check(code)` | 干跑校验：parse（语法闸门）→ schema（含 unknown-key）→ 引用预检 → `CheckResult` |
 | `registerLib(binding, ns)` | 注册库命名空间（第三方库通道） |
 | `setTopology` / `getTopology` / `deleteTopology` / `buildBrepTopology` | 拓扑注入与构建 |
 | `dispose()` | 释放全部 BREP 句柄与缓存 |
+
+三个执行入口**都是公开接口，输入是代码文本**（`execute` / `append` / `update`）；引擎在内部解析文本。增量语义按内容寻址（§13.2）。
 
 `CheckResult = { ok, errors: CheckError[], warnings, script? }`，其中 `script` 提供 `{ statements, callees }` 供 AI 自我修正。
 
@@ -324,23 +278,20 @@ export interface ExecutionResult {
 export interface ExecuteOptions {
   params?: Record<string, unknown>
   inputGeometryMap?: Map<PartName, Shape>
-  sceneScript?: ScriptIR                          // whole-scene DAG for cross-part refs
+  sceneCode?: string                               // whole-scene code text for cross-part refs
   partTransform?: { position: Vec3; scale?: Vec3 }
-  beforeStatement?: (stmt: StatementIR, index: number) => void   // per-statement undo snapshot
   startIndex?: number
   topology?: 'auto' | 'brep' | 'off'
 }
 ```
 
-`ExecuteCodeOptions` 在此基础上追加 `stmtIds` / `incremental` / `sceneCode`（宿主不构造 IR 时传文本）。
+公开执行入口**恰好三个**——`execute(code)` / `append(code, newIds)` / `update(code)`，全部接收代码文本；**不存在第四个入口，也没有 `ExecuteCodeOptions`**。`sceneCode` 携带跨 part 引用的整场景代码文本。
 
-### 7.5 `ModuleExecutor`（VM 执行核心）
+### 7.5 增量执行语义
 
-- **编译产物**：`compileToModule` 生成**零 import** ESM（Node 走 `data:` URL，浏览器走 Blob URL）；每条语句 = `{ id, deps, fn }`，其中 `fn: async (ctx, ns) => { … }`——**只有两个参数，无注入的上下文对象**。
-- **ctx 持久变量容器**：跨 execute／append／update 存活；脚本变量编译为 `ctx.<name>` 属性访问（支持原地重赋值）。
-- **增量调度**：`executeAll` / `executeIds`（append）/ `executeFrom(staleIds)`（update）；`reconcileCtx` 回收「定义语句已不在脚本中」的变量并释放其内核资源。
-- **statementKey** = `` `${namespace ?? 'cad'}.${callee}` | JSON(args 去掉 keep) | 各依赖的 outputContentKey ``；参数语句为 `param|JSON(value)`。`keep`／`keepHidden` 两键被排除——**切换保留／隐藏状态零几何重算**。
-- **顶替释放预捕获**：fn 前捕获本语句写键的旧句柄，执行成功后释放（失败时缓存保持执行前状态，天然回滚）。
+- **按内容寻址**：语句身份键 = 带命名空间的被调函数 + args 的 JSON（去掉 keep）+ 各依赖的内容指纹；参数语句为 `param|JSON(value)`。`keep`／`keepHidden` 两键被排除——**切换保留／隐藏状态零几何重算**。
+- **持久 ctx**：脚本变量存于跨执行存活的容器，支持原地重赋值。
+- **重放范围**：`plan` 算出失效集，从首个变更点重放；无失效则零执行。
 
 ### 7.6 库契约三面
 
@@ -471,7 +422,7 @@ export interface HostPorts {
 ### 9.2 宿主消费契约（3d_editor）
 
 - 统一从 `@faicad/faijs/browser` 导入。
-- 执行统一走 `CadRuntime.execute/append/update/executeCode`。
+- 执行统一走 `CadRuntime.execute` / `append` / `update` / `check`（代码文本进，`ExecutionResult` 出）。
 - **宿主不得重复实现 DAG 叶子过滤**（终端语义是引擎产物）；几何变更必须走脚本语句。
 - 场景树层级从 `ExecutionResult.compounds` 构建；终端几何提交按 `result.terminals`；`brepSolids`／`topology` 直接消费（STEP 导出、拓扑重建）。
 - **STEP 导出**：mesh 零件也可导出，区别只是三角化（faceted）STEP 而非精确 BREP 实体。按零件类型分别处理（精确 vs 三角化），不要整段失败。
@@ -535,13 +486,13 @@ export const myOp = defineOp({
 
 ### 10.4 第三方库通道
 
-- **注册**：`runtime.registerLib(binding, ns)`；脚本中 `import * as mech from 'mech-lib'` 后以 `mech.fn(...)` 调用。`StatementIR.namespace` 记录来源，statementKey 带包名前缀。
+- **注册**：`runtime.registerLib(binding, ns)`；脚本中 `import * as mech from 'mech-lib'` 后以 `mech.fn(...)` 调用。引擎记录调用的来源命名空间，增量键带包名前缀。
 - **校验**：导出 defineOp 声明的库必须带匹配的 `contractVersion`（=`CONTRACT_VERSION`）；`registerLib` 经 `assertLibConforms` 严格校验——不匹配即抛错，不静默降级（D-4）。未用 defineOp 声明的普通函数合法，但不享受 mode 路由／自动包装／装配校验。
 - **解析**：`@faicad/faijs/module-resolver` 提供 `resolveImports` 与 semver 判定（`satisfies`），支持按需加载大库分片。
 
 ### 10.5 `.ts` 整段执行通道（faqts）
 
-`@faicad/faijs/faqts` 是与录制管道**平行的第二条执行路径**：`.ts` 源码整段 transform 后一次执行，不建 IR、不逐语句、不接入 timeline，输出由作者显式 `export` 声明（无 DAG 自动推导）。它与 faijs 侧共享同一套 `cad` API 与 Shape 契约，因此两者产物互通。
+`@faicad/faijs/faqts` 是与录制管道**平行的第二条执行路径**：`.ts` 源码整段 transform 后一次执行，不逐语句调度、不接入 timeline；输出由作者显式 `export` 声明（无 DAG 自动推导）。它与 faijs 侧共享同一套 `cad` API 与 Shape 契约，因此两者产物互通。
 
 ---
 
@@ -572,13 +523,15 @@ export const myOp = defineOp({
 - AI 提交 = **全量覆盖式文本**，引擎按 id 对齐做 diff（UNCHANGED / PARAM / STRUCT / ADD / DELETE），从首个变更点起重放。
 - 参数声明本身是语句，"改参数 → 参数语句 key 变化 → 级联下游 stale"。
 
-### 13.2 contentKey 与保真
+### 13.2 增量保真
 
-`computeContentKey`（positions/indices → 内容指纹）是几何等价的度量手段；statementKey 由 callee、args（去掉 keep）与各依赖的 outputContentKey 组成，plan 据此判定增量重算范围。
+`computeContentKey`（positions/indices → 内容指纹）是几何等价的度量手段；语句身份键（callee + 去掉 keep 的 args + 各依赖的内容指纹）决定增量重算范围，`plan` 据此判定。见 §7.5。
 
 ### 13.3 「结果一致」的边界（防回潮）
 
-契约只保证：**代码 → 模型是一个函数**，且 `scriptToCode → parseScript` 往返后模型相同。**不保证也不要求**：代码路径与鼠标路径的内部实现／属性分配算法一致、实例 id 值相同、undo 栈结构相同。
+契约只保证：**代码 → 模型是一个函数**，且保存/加载往返稳定：3d_editor 导出代码保存为 `.faijs` 文件、再导入该文件，得到的模型必须一致——这是文本级往返（文本是唯一事实源）。**不保证也不要求**：代码路径与鼠标路径的内部实现／属性分配算法一致、实例 id 值相同、undo 栈结构相同。
+
+PS：从 IR 重打文本只用于调试，不属于任何契约。
 
 ### 13.4 生成文件红线
 

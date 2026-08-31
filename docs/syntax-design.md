@@ -36,7 +36,7 @@ English | [中文](syntax-design.zh.md)
 4. **Zero function knowledge** — no parser / compile / codegen / runtime branch depends on a function name; the machine-generated symbol table carries key existence only.
 5. **UI and AI converge on one `ScriptIR`** — the engine never distinguishes provenance; icons, colors and display names are host concerns.
 6. **Incremental execution is mandatory** — line-by-line recording and recomputation (§6.3).
-7. **One representation** — text is a deterministic projection of `ScriptIR` (`scriptToCode` / `statementToLine`); one operation, one line.
+7. **Code is the single source of truth** — text is the source; `ScriptIR` is an internal representation compiled from it; `scriptIRToCode` / `statementIRToLine` are debug-only printers.
 8. **Naming is a generating-side responsibility** — UI / AI / CLI call `derivePartName` when emitting code; the parser neither names nor renames.
 
 ---
@@ -124,9 +124,9 @@ The field-level contract of `StatementIR` and `ScriptIR` belongs to [`docs/api-c
 | `let part3 = mech.makeHeadstock({ length:120 })` | `{ namespace:'mech', callee:'makeHeadstock', outputs:['part3'] }` — the namespace comes from the import specifier |
 | `return [{ shape: part0 }, { shape: part2 }]` | `terminalShapes = [{ id:'part0' }, { id:'part2' }]` |
 
-### 3.2 Text is a projection of the IR
+### 3.2 IR is compiled from text
 
-`scriptToCode` prints imports, function definitions, parameters, then statements; `statementToLine` / `formatCodeLine` render one statement for editors. The rules are mechanical: a declared name is reassigned bare (`part0 = …`), an undeclared one declared (`let part0 = …`), destructuring rendered as `const { front: a, back: b } = ns.callee(…)`, numbers printed with at most six decimals, no trailing zeros.
+Direction is one-way: text → `parseScript` → `ScriptIR` → `compileToModule` → VM (§6.1); `scriptIRToCode` / `statementIRToLine` are debug-only; the rules are mechanical: a declared name is reassigned bare (`part0 = …`), an undeclared one declared (`let part0 = …`), destructuring rendered as `const { front: a, back: b } = ns.callee(…)`, numbers printed with at most six decimals, no trailing zeros.
 
 ---
 
@@ -217,11 +217,11 @@ no assignment:   await ns.<ns>.<callee>(…)
 
 | API | Behavior |
 |---|---|
-| `execute(script)` | Full run: load the module, then execute every statement |
-| `append(script, newIds)` | Execute only the new statements — the prefix is already in the persistent ctx |
-| `update(script)` | `plan()` computes the stale set → `reconcileCtx` → recompute from that set in topological order; zero execution when nothing is stale |
+| `execute(code)` | Full run: load the module, then execute every statement |
+| `append(code, newIds)` | Execute only the new statements — the prefix is already in the persistent ctx |
+| `update(code)` | `plan()` computes the stale set → `reconcileCtx` → recompute from that set in topological order; zero execution when nothing is stale |
 
-`plan()` is content-addressed, not an id diff. `statementKey` is the namespace-qualified callee, the JSON of `args` without `keep` / `keepHidden`, and each dependency's `outputContentKey`; a parameter statement uses `param|JSON(value)`. Retention and visibility therefore cost nothing: toggling `keep` recomputes no geometry. A statement is stale when a dependency is stale or its key changed.
+All three take code text. `plan()` is content-addressed, not an id diff. `statementKey` is the namespace-qualified callee, the JSON of `args` without `keep` / `keepHidden`, and each dependency's `outputContentKey`; a parameter statement uses `param|JSON(value)`. Retention and visibility therefore cost nothing: toggling `keep` recomputes no geometry. A statement is stale when a dependency is stale or its key changed.
 
 ### 6.4 `check()`
 

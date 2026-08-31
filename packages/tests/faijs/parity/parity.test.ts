@@ -13,7 +13,7 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { parseScript } from '@faicad/faijs'
+import { parseScript } from '@faicad/faijs-core/lang/parser'
 import { createRuntime } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
 import { registerOcctBrepEngine } from '@faicad/faijs'
@@ -79,7 +79,7 @@ describe('parity .faijs tests (BREP vs mesh)', () => {
 
       // Execute in BREP mode
       const brepRuntime = createRuntime(createNodePorts(), 'brep')
-      const brepResult = await brepRuntime.execute(script)
+      const brepResult = await brepRuntime.executeIR(script)
       expect(brepResult.failedAt).toBeUndefined()
 
       const geoStmts = script.statements.filter(s => s.hasAssignment)
@@ -92,7 +92,7 @@ describe('parity .faijs tests (BREP vs mesh)', () => {
 
       // Execute in mesh mode
       const meshRuntime = createRuntime(createNodePorts(), 'mesh')
-      const meshResult = await meshRuntime.execute(script)
+      const meshResult = await meshRuntime.executeIR(script)
       expect(meshResult.failedAt).toBeUndefined()
 
       const meshShape = meshResult.outputs.get(lastStmt.outputs[0]) as Shape | undefined

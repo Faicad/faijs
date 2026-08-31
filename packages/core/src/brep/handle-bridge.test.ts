@@ -46,7 +46,7 @@ describe('handle-bridge: meshHandle / fromHandle with real OCCT kernel', () => {
     await registerOcctBrepEngine()
     // 用 runtime 装配真实 backends（auto 模式 → kernel 存在），再建一个 box solid
     runtime = createRuntime(createNodePorts(), 'auto')
-    await runtime.execute({
+    await runtime.executeIR({
       params: [],
       statements: [],
     })

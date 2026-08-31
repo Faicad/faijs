@@ -25,7 +25,6 @@
  */
 
 import { describe, it, expect, beforeAll } from 'vitest'
-import { parseScript } from '@faicad/faijs-core'
 import { createRuntime } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs-core/node'
 import { initOcctWasm } from '@faicad/faijs-core'
@@ -37,21 +36,18 @@ import type { Shape } from '@faicad/faijs-core/mesh/types'
 import type { PartName } from '@faicad/faijs-core/identity'
 
 let runtime: ReturnType<typeof createRuntime>
-let script: ReturnType<typeof parseScript>['script']
 let result: Awaited<ReturnType<ReturnType<typeof createRuntime>['execute']>>
 
 beforeAll(async () => {
   await initOcctWasm()
   runtime = createRuntime(createNodePorts(), 'auto')
   runtime.registerLib('gear', gear as never)
-  const { script: s } = parseScript([
+  result = await runtime.execute([
     "import * as gear from 'brepjs-gear'",
     'let part0 = gear.external({ teeth: 24, moduleSize: 2, thickness: 8, bore: 8 })',
     'let part1 = cad.box({ size: [48, 48, 8] })',
     'let part2 = cad.union(part0, part1)',
   ].join('\n'))
-  script = s
-  result = await runtime.execute(script)
 }, 120000)
 
 function shapeOf(partId: string): Shape {

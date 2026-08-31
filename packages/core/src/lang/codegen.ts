@@ -1,12 +1,17 @@
 /**
- * codegen — 语句 → 文本 确定性生成器（S-5 不变式）（L0，仅依赖 ./types）
+ * codegen — IR → 文本 打印工具（宿主编辑器/测试用；L0，仅依赖 ./types）
  *
  * 设计文档：docs/syntax-design.md §2（扁平代码格式）
  *          docs/plans/2026-08-27-faijs-language-normalization-design.md §4.4（通用打印机）
  *
+ * 事实方向：代码文本是唯一事实源；IR 是 parser 从文本编译出的内部表示。
+ * 本模块只是把 IR 承载的信息机械地打印回扁平文本，供宿主编辑器显示与
+ * 往返测试（S-5 不变式）——它是打印工具，不是文本的来源；文本并不
+ * "由 IR 生成"。
+ *
  * 职责：
- * - statementToLine(stmt)：按 IR 机械打印单行语句（用于 TimelinePanel 显示和导出）
- * - scriptToCode(script)：按语句顺序拼接为代码文本（无 export/return 封装）
+ * - statementIRToLine(stmt)：按 IR 机械打印单行语句（用于 TimelinePanel 显示和导出）
+ * - scriptIRToCode(script)：按语句顺序拼接为代码文本（无 export/return 封装）
  *
  * 扁平代码格式（无 export default / async / await / return / apiVersion）：
  * ```js
@@ -19,7 +24,7 @@
  * - 无 per-callee 分支（A12 消灭）：按 IR 形态机械打印，IR 里有什么打印什么
  * - terminal shapes 自动推导：不被任何其他语句引用的输出即终端
  *
- * 值格式约定（确定性输出，parser 按此反解）：
+ * 值格式约定（确定性输出，与 parser 的解析方向互补）：
  * - vec3 → `[1,2,3]`（紧凑无空格）
  * - 数字 → 整数直出；小数最多保留 6 位有效小数并去尾零
  * - 字符串 → 单引号包裹
@@ -118,7 +123,7 @@ function fmtCallRef(ref: CallRefIR, varNames?: Map<string, string>): string {
  * @param varNames - optional mapping from IR variable names to printed names.
  * @returns an array of `key:value` fragment strings.
  */
-export function buildArgsParts(stmt: StatementIR, varNames?: Map<string, string>): string[] {
+export function buildIRArgsParts(stmt: StatementIR, varNames?: Map<string, string>): string[] {
   return Object.entries(stmt.args).map(([k, v]) => `${k}:${fmtValue(v, varNames)}`)
 }
 
@@ -138,7 +143,7 @@ function primaryOutput(stmt: StatementIR): string {
  * 4) 赋值：outputs[0] 已声明 → 裸重赋值；未声明 → let 声明
  */
 function printStatement(stmt: StatementIR, declared: Set<string>, varNames: Map<string, string>): string {
-  const argsParts = buildArgsParts(stmt, varNames)
+  const argsParts = buildIRArgsParts(stmt, varNames)
   const argsObj = argsParts.length > 0 ? `{ ${argsParts.join(', ')} }` : ''
   const inputVars = stmt.inputs.map((id) => {
     const mapped = varNames.get(id)
@@ -187,7 +192,7 @@ function printStatement(stmt: StatementIR, declared: Set<string>, varNames: Map<
  * @param stmt - the statement to print.
  * @returns the printed single-line code text.
  */
-export function statementToLine(stmt: StatementIR): string {
+export function statementIRToLine(stmt: StatementIR): string {
   return formatCodeLine({
     callee: stmt.callee,
     receiver: stmt.receiver,
@@ -229,12 +234,12 @@ export interface FormatCodeLineInput {
  * 从纯数据（非 IR 类型）打印一行 faijs 源代码。
  *
  * 宿主 buildCode / 编辑重排行（editStatement → replaceCodeAt）统一走此入口，
- * 与 statementToLine/scriptToCode 共用同一打印机（单一文本形态真源）。
+ * 与 statementIRToLine/scriptIRToCode 共用同一打印机（单一文本形态真源）。
  */
 /**
  * Print one line of faijs source from pure data (non-IR types). Hosts building
  * code or reflowing edits (editStatement → replaceCodeAt) all route through
- * this entry, sharing the same printer as statementToLine/scriptToCode.
+ * this entry, sharing the same printer as statementIRToLine/scriptIRToCode.
  * @param input - the pure-data line description.
  * @returns the printed single-line code text.
  */
@@ -292,7 +297,7 @@ function fmtFunction(fn: FunctionDefIR): string {
  * @param script - the script IR to print.
  * @returns the assembled flat code text.
  */
-export function scriptToCode(script: ScriptIR): string {
+export function scriptIRToCode(script: ScriptIR): string {
   const bodyLines: string[] = []
   const varNames = new Map<string, string>()
   /** 已声明过的变量名集合（用于区分 let 首次声明 vs let 重赋值） */

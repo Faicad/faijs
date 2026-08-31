@@ -45,7 +45,7 @@ async function runWithEngine(
   expect(getActiveBrepEngineId()).toBe(expectedEngineId)
   const { script } = parseScript(SCRIPT)
   const runtime = createRuntime(createNodePorts(), 'brep')
-  return runtime.execute(script)
+  return runtime.executeIR(script)
 }
 
 describe('occt 引擎（默认实现）', () => {

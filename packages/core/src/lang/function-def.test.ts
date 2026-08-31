@@ -14,7 +14,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { parseScript, ParseError } from './parser'
-import { scriptToCode } from './codegen'
+import { scriptIRToCode } from './codegen'
 import { computeLeafTerminals } from '../cad-runtime/terminal-dag'
 import { asPartName, type PartName } from '../identity'
 
@@ -66,7 +66,7 @@ describe('A1: round-trip (parse → codegen → parse)', () => {
     ].join('\n')
 
     const { script } = parseScript(code)
-    const regenerated = scriptToCode(script)
+    const regenerated = scriptIRToCode(script)
     const reparsed = parseScript(regenerated).script
 
     // 函数段逐位相等
@@ -92,7 +92,7 @@ describe('A1: round-trip (parse → codegen → parse)', () => {
       'let part0 = cad.sphere({ radius: 3 })',
     ].join('\n')
     const { script } = parseScript(code)
-    const reparsed = parseScript(scriptToCode(script)).script
+    const reparsed = parseScript(scriptIRToCode(script)).script
     expect(reparsed.functions!.map((f) => f.name)).toEqual(['a', 'b'])
     expect(reparsed.functions).toEqual(script.functions)
   })

@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { parseScript, ParseError } from '@faicad/faijs'
+import { parseScript, ParseError } from '@faicad/faijs-core/lang/parser'
 
 describe('faijs source code: parse error handling', () => {
   it('rejects JavaScript syntax errors', () => {

@@ -42,7 +42,7 @@ export interface Namespaces {
  * beforeStatement：undo 逐语句快照钩子；outputCache：语句产物缓存（collectResult 消费）。
  */
 export interface ExecBookkeeping {
-  beforeStatement?: (stmt: StatementIR, index: number) => void
+  beforeStatement?: (stmtId: string, index: number) => void
   outputCache: Map<PartName, Shape>
   /** 变更声明（P6：引擎比对推导 + 装配应用记录），collectResult 消费。 */
   changed: Set<PartName>
@@ -207,7 +207,7 @@ export class ModuleExecutor {
       // keep 登记先清空本条记录：重执行的语句重新登记（执行中累加，设计 §2.2）
       this.internalKeep.delete(id)
       if (source && source.hasAssignment) {
-        exec.beforeStatement?.(source, this.script.statements.indexOf(source))
+        exec.beforeStatement?.(String(source.id), this.script.statements.indexOf(source))
       }
       await compiled.fn(this.ctx, this.namespaces)
       await this.afterStatement(compiled, exec)

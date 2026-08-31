@@ -143,8 +143,8 @@ export async function cliRun(
   })
   const runtime = createRuntime(ports, opts?.mode ?? 'auto', opts?.libs)
 
-  // Execute
-  const execResult = await runtime.execute(script)
+  // Execute（内部：直接消费 parseScript 的 IR，走引擎内部版本）
+  const execResult = await runtime.executeIR(script)
 
   if (execResult.failedAt) {
     return {

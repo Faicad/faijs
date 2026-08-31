@@ -12,8 +12,8 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { parseScript } from '@faicad/faijs'
-import { scriptToCode } from '@faicad/faijs'
+import { parseScript } from '@faicad/faijs-core/lang/parser'
+import { scriptIRToCode } from '@faicad/faijs-core/lang/codegen'
 
 const SYNTAX_DIR = fileURLToPath(new URL('.', import.meta.url))
 
@@ -37,7 +37,7 @@ describe('syntax .faijs tests', () => {
 
     it(`${file}: codegen produces valid flat code`, () => {
       const { script } = parseScript(code)
-      const generatedCode = scriptToCode(script)
+      const generatedCode = scriptIRToCode(script)
       expect(generatedCode).toContain('cad.')
       // Should NOT contain export default
       expect(generatedCode).not.toContain('export default')
@@ -45,7 +45,7 @@ describe('syntax .faijs tests', () => {
 
     it(`${file}: round-trip is stable`, () => {
       const { script: script1 } = parseScript(code)
-      const generatedCode = scriptToCode(script1)
+      const generatedCode = scriptIRToCode(script1)
       const { script: script2 } = parseScript(generatedCode)
 
       // Check that statements are preserved

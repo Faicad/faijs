@@ -32,7 +32,7 @@ function createNodePorts(): HostPorts {
 async function run(mode: 'auto' | 'brep'): Promise<ExecutionResult> {
   const { script } = parseScript(SCRIPT)
   const runtime = createRuntime(createNodePorts(), mode)
-  return runtime.execute(script)
+  return runtime.executeIR(script)
 }
 
 describe('能力路由（§8.4）：brep-mock 引擎无 evolution 能力', () => {

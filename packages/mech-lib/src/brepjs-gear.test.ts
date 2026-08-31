@@ -15,7 +15,6 @@
  */
 
 import { describe, it, expect, beforeAll } from 'vitest'
-import { parseScript } from '@faicad/faijs-core'
 import { initOcctWasm } from '@faicad/faijs-core'
 import { createRuntime } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs-core/node'
@@ -32,8 +31,7 @@ beforeAll(async () => {
   await initOcctWasm()
   runtime = createRuntime(createNodePorts(), 'auto')
   // 触发 ensureBrepChain：一条最简 box 语句即可将环境内核接进 brepChain
-  const { script } = parseScript('let a = cad.box({ size: [1, 1, 1] })')
-  await runtime.execute(script)
+  await runtime.execute('let a = cad.box({ size: [1, 1, 1] })')
   // 触发 adapter 模块级一次注册：brepjs 全局 kernel 就绪，后续测试共享
   await gear.external({ teeth: 24, moduleSize: 2, thickness: 8, bore: 8 })
 }, 120000)
@@ -119,11 +117,10 @@ describe('C1 brepjs-gear adapter', () => {
   it('brep-only（D1b）：mesh 模式调用 → MeshUnsupportedError（不崩溃不静默）', async () => {
     const meshRuntime = createRuntime(createNodePorts(), 'mesh')
     meshRuntime.registerLib('gear', gear as never)
-    const { script } = parseScript([
+    const result = await meshRuntime.execute([
       "import * as gear from 'brepjs-gear'",
       'let a = gear.external({ teeth: 24, moduleSize: 2, thickness: 8, bore: 8 })',
     ].join('\n'))
-    const result = await meshRuntime.execute(script)
     expect(result.failedAt).toBeDefined()
     expect(result.failedAt!.message).toMatch(/E_MESH_UNSUPPORTED/)
   })

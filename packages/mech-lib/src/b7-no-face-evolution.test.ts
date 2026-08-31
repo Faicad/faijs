@@ -22,7 +22,6 @@
  */
 
 import { describe, it, expect, beforeAll } from 'vitest'
-import { parseScript } from '@faicad/faijs-core'
 import { createRuntime } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs-core/node'
 import { initOcctWasm } from '@faicad/faijs-core'
@@ -36,39 +35,37 @@ beforeAll(async () => {
 
 async function executeScript(code: string): Promise<{
   runtime: ReturnType<typeof createRuntime>
-  script: ReturnType<typeof parseScript>['script']
   result: Awaited<ReturnType<ReturnType<typeof createRuntime>['execute']>>
 }> {
   const runtime = createRuntime(createNodePorts(), 'auto')
   runtime.registerLib('mech', mockMechBrep as never)
-  const { script } = parseScript(code)
-  const result = await runtime.execute(script)
-  return { runtime, script, result }
+  const result = await runtime.execute(code)
+  return { runtime, result }
 }
 
 function lastShape(
-  script: ReturnType<typeof parseScript>['script'],
   result: Awaited<ReturnType<ReturnType<typeof createRuntime>['execute']>>,
 ): Shape {
-  const geoStmts = script.statements.filter((s) => s.hasAssignment)
-  const lastStmt = geoStmts[geoStmts.length - 1]
-  return result.outputs.get(lastStmt.outputs[0]) as Shape
+  const outputs = Array.from(result.outputs.entries())
+  const last = outputs[outputs.length - 1]
+  if (!last) throw new Error('no shape output produced')
+  return last[1] as Shape
 }
 
 describe('B7: 第三方 BREP 产物无 faceEvolution（fromHandle）', () => {
   it('产物 hasBrep === true 且无 faceEvolution 槽（无历史）', async () => {
-    const { script, result } = await executeScript([
+    const { result } = await executeScript([
       "import * as mech from 'mech-lib'",
       'let part0 = mech.makeHeadstock({ size: 20 })',
     ].join('\n'))
     expect(result.failedAt).toBeUndefined()
-    const shape = lastShape(script, result)
+    const shape = lastShape(result)
     expect(hasBrep(shape)).toBe(true)
     expect(getSlot(shape)?.faceEvolution).toBeUndefined()
   })
 
   it('不被降级为 mesh：与内置 box 的布尔仍走精确 BREP 路径', async () => {
-    const { script, result } = await executeScript([
+    const { result } = await executeScript([
       "import * as mech from 'mech-lib'",
       'let part0 = mech.makeHeadstock({ size: 10 })',
       'let part1 = cad.box({ size: 20 })',
@@ -76,7 +73,7 @@ describe('B7: 第三方 BREP 产物无 faceEvolution（fromHandle）', () => {
     ].join('\n'))
     expect(result.failedAt).toBeUndefined()
     // 全部输入 hasBrep → dispatchPath 返回 'brep' → 结果保留 BREP 槽（精确布尔，非混合降级）
-    const shape = lastShape(script, result)
+    const shape = lastShape(result)
     expect(hasBrep(shape)).toBe(true)
     expect(shape.positions.length).toBeGreaterThan(0)
   })
@@ -85,7 +82,7 @@ describe('B7: 第三方 BREP 产物无 faceEvolution（fromHandle）', () => {
     // 面选择走 geomQuery：有 faceOrdinal 实时枚举当前面（无历史也可用）；
     // 无 faceOrdinal 且无 anchor → 显式抛错（[GeomRef] ... requires anchor or faceOrdinal）。
     // anchor 需先声明为参数（parser 位置参数只接受标识符引用，不接受数组字面量）。
-    const { script, result } = await executeScript([
+    const { result } = await executeScript([
       "import * as mech from 'mech-lib'",
       'let part0 = mech.makeHeadstock({ size: 20 })',
       'const anchor = [0, 0, 10]',
@@ -93,7 +90,7 @@ describe('B7: 第三方 BREP 产物无 faceEvolution（fromHandle）', () => {
       'let part1 = cad.drill(part0, { diameter: 4, depth: 10, position: [0, 0, 10], faceNormal: f })',
     ].join('\n'))
     expect(result.failedAt).toBeUndefined()
-    const shape = lastShape(script, result)
+    const shape = lastShape(result)
     expect(shape.positions.length).toBeGreaterThan(0)
   })
 
@@ -107,7 +104,6 @@ describe('B7: 第三方 BREP 产物无 faceEvolution（fromHandle）', () => {
     ].join('\n')
     const runtime = createRuntime(createNodePorts(), 'auto')
     runtime.registerLib('mech', mockMechBrep as never)
-    const { script } = parseScript(code)
-    await expect(runtime.execute(script)).rejects.toThrow(/faceNormal requires anchor or faceOrdinal/)
+    await expect(runtime.execute(code)).rejects.toThrow(/faceNormal requires anchor or faceOrdinal/)
   })
 })

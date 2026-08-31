@@ -149,19 +149,20 @@ export interface ExecutionResult {
 }
 
 /**
- * Options controlling a single CadRuntime execution.
+ * Options controlling a single CadRuntime execution. All inputs are code text
+ * or plain values — the engine's internal IR is never part of this surface.
  */
 export interface ExecuteOptions {
   /** The parameter table. */
   params?: Record<string, unknown>
   /** 跨 part 输入几何（PartName → Shape） */
   inputGeometryMap?: Map<PartName, Shape>
-  /** 整场景 DAG（用于跨 part 引用解析） */
-  sceneScript?: ScriptIR
+  /** 整场景代码文本（跨 part 引用解析；引擎内部 parse 后使用） */
+  sceneCode?: string
   /** partTransform（世界→局部坐标偏移 + 单位缩放） */
   partTransform?: { position: [number, number, number]; scale?: [number, number, number] }
-  /** 语句前钩子（用于 undo 逐语句快照） */
-  beforeStatement?: (stmt: StatementIR, index: number) => void
+  /** 语句前钩子（用于 undo 逐语句快照）；参数为语句 id（sN）与语句下标 */
+  beforeStatement?: (stmtId: string, index: number) => void
   /**
    * 增量执行起点（兼容旧签名）：从指定位置开始顺序执行，
    * 之前的语句不进执行循环（缺省 0 = 全量执行）。
@@ -174,30 +175,6 @@ export interface ExecuteOptions {
    * - 'off'：不自动构建（只返回宿主 setTopology 注入的拓扑）
    */
   topology?: 'auto' | 'brep' | 'off'
-}
-
-/**
- * Options for CadRuntime.executeCode, extending ExecuteOptions with the
- * execution-subset controls used by hosts that only see code text.
- */
-export interface ExecuteCodeOptions extends ExecuteOptions {
-  /**
-   * Execution subset: source statement ids (sN) or output variable names
-   * (partN); omitted means full execution. Subset semantics filter the matching
-   * statements (preserving order) then run the full execute pipeline (the
-   * host's executePart/recomputePart "recompute only this part's statements").
-   */
-  stmtIds?: (StmtId | PartName)[]
-  /**
-   * 增量追加语义（等价 runtime.append）：stmtIds 只含新增语句，
-   * 前缀依赖须已在持久 ctx（对应宿主 appendStatement）。
-   */
-  incremental?: boolean
-  /**
-   * 跨 part 引用的整场景代码文本（IR 剥离配套：宿主不能构造 sceneScript IR，
-   * 传 sceneCode 文本，内部 parseScript 后作为 sceneScript 传递）。
-   */
-  sceneCode?: string
 }
 
 // ── CadRuntime ──
@@ -387,19 +364,28 @@ export class CadRuntime {
     return this.brepChain
   }
 
-  // ── 核心方法：execute（全量执行） ──
+  // ── 公开入口：execute / append / update（输入一律是代码文本，IR 在引擎内部） ──
 
   /**
-   * Execute a ScriptIR and return an ExecutionResult. Pure computation: it only
-   * produces geometry and touches neither the scene tree/store nor the DOM; the
-   * browser host consumes and lands the result. VM path: compileToModule →
-   * executor.load → reconcileCtx → prepareCtx → executeAll (from startIndex when
-   * > 0) → collectResult.
+   * Full execution from code text: parse → execute every statement.
+   * @param code - the .faijs source text.
+   * @param opts - optional execution options.
+   * @returns promise resolving to the ExecutionResult.
+   */
+  async execute(code: string, opts?: ExecuteOptions): Promise<ExecutionResult> {
+    const { script } = parseScript(code)
+    return this.executeIR(script, opts)
+  }
+
+  /**
+   * Full execution from a parsed ScriptIR. Internal: the public surface takes
+   * code text only (see {@link execute}); kept for the engine and project tests.
+   * @internal
    * @param script - the parsed ScriptIR to execute.
    * @param opts - optional execution options.
    * @returns promise resolving to the ExecutionResult.
    */
-  async execute(
+  async executeIR(
     script: ScriptIR,
     opts?: ExecuteOptions,
   ): Promise<ExecutionResult> {
@@ -413,7 +399,7 @@ export class CadRuntime {
         scale: opts.partTransform.scale,
       }
     }
-    this.reconcile(script, statements, opts?.sceneScript)
+    this.reconcile(script, statements, this.resolveSceneScript(opts))
     await this.prepareCtx(script, opts)
     const exec = this.createBookkeeping(script, opts)
     const start = opts?.startIndex ?? 0
@@ -430,16 +416,29 @@ export class CadRuntime {
   // ── 语义入口：update / append（增量执行） ──
 
   /**
-   * Update parameters: plan() derives the changed statements →
+   * Update from code text: plan() derives the changed statements →
    * reconcileCtx → executeFrom recomputes the stale set. When stale is empty
    * (no change) it assembles the result from the persistent ctx and returns
    * with zero execution; otherwise it runs executeFrom(staleIds), the stale set
    * being closed over deps and executed in topological order.
+   * @param code - the .faijs source text.
+   * @param opts - optional execution options.
+   * @returns promise resolving to the ExecutionResult.
+   */
+  async update(code: string, opts?: ExecuteOptions): Promise<ExecutionResult> {
+    const { script } = parseScript(code)
+    return this.updateIR(script, opts)
+  }
+
+  /**
+   * Update from a parsed ScriptIR. Internal: the public surface takes code text
+   * only (see {@link update}); kept for the engine and project tests.
+   * @internal
    * @param script - the parsed ScriptIR to update against.
    * @param opts - optional execution options.
    * @returns promise resolving to the ExecutionResult.
    */
-  async update(script: ScriptIR, opts?: ExecuteOptions): Promise<ExecutionResult> {
+  async updateIR(script: ScriptIR, opts?: ExecuteOptions): Promise<ExecutionResult> {
     const { code, statements } = compileToModule(script)
     this.executor.setCompiled(script, statements)
     await this.executor.load(code)
@@ -450,7 +449,7 @@ export class CadRuntime {
         scale: opts.partTransform.scale,
       }
     }
-    this.reconcile(script, statements, opts?.sceneScript)
+    this.reconcile(script, statements, this.resolveSceneScript(opts))
     await this.prepareCtx(script, opts)
     const exec = this.createBookkeeping(script, opts)
     const { staleCompiledIds } = this.planCompiled(script, statements)
@@ -463,22 +462,38 @@ export class CadRuntime {
   }
 
   /**
-   * Append statements: only the newly added statements execute (the prefix is
-   * already in the persistent ctx). Each new statement gets the same guards as
-   * execute — hasAssignment filter / beforeStatement hook / brep-mode guard /
-   * replacement-release pre-capture — and a complete ExecutionResult is returned
-   * (unexecuted statements are assembled from ctx). Precondition: a new
-   * statement's inputs must be outputs of previously executed successful active
-   * statements, guaranteed by the persistent ctx; if an input is genuinely
-   * missing (after an unsynced dispose/delete) that is a signal the caller
-   * should run a full execute instead — append does not validate prefix
-   * integrity.
-   * @param script - the parsed ScriptIR containing the appended statements.
-   * @param newIds - the source statement ids to execute.
+   * Append statements from code text: only the newly added statements execute
+   * (the prefix is already in the persistent ctx). Each new statement gets the
+   * same guards as execute — hasAssignment filter / beforeStatement hook /
+   * brep-mode guard / replacement-release pre-capture — and a complete
+   * ExecutionResult is returned (unexecuted statements are assembled from ctx).
+   * Precondition: a new statement's inputs must be outputs of previously
+   * executed successful active statements, guaranteed by the persistent ctx; if
+   * an input is genuinely missing (after an unsynced dispose/delete) that is a
+   * signal the caller should run a full execute instead — append does not
+   * validate prefix integrity.
+   * @param code - the .faijs source text containing the appended statements.
+   * @param newIds - the source statement ids (sN) or output part names (partN)
+   * to execute.
    * @param opts - optional execution options.
    * @returns promise resolving to the ExecutionResult.
    */
-  async append(script: ScriptIR, newIds: StmtId[], opts?: ExecuteOptions): Promise<ExecutionResult> {
+  async append(code: string, newIds: (StmtId | PartName)[], opts?: ExecuteOptions): Promise<ExecutionResult> {
+    const { script } = parseScript(code)
+    return this.appendIR(script, newIds, opts)
+  }
+
+  /**
+   * Append from a parsed ScriptIR. Internal: the public surface takes code text
+   * only (see {@link append}); kept for the engine and project tests.
+   * @internal
+   * @param script - the parsed ScriptIR containing the appended statements.
+   * @param newIds - the source statement ids (sN) or output part names (partN)
+   * to execute.
+   * @param opts - optional execution options.
+   * @returns promise resolving to the ExecutionResult.
+   */
+  async appendIR(script: ScriptIR, newIds: (StmtId | PartName)[], opts?: ExecuteOptions): Promise<ExecutionResult> {
     const { code, statements } = compileToModule(script)
     this.executor.setCompiled(script, statements)
     await this.executor.load(code)
@@ -489,7 +504,7 @@ export class CadRuntime {
         scale: opts.partTransform.scale,
       }
     }
-    this.reconcile(script, statements, opts?.sceneScript)
+    this.reconcile(script, statements, this.resolveSceneScript(opts))
     await this.prepareCtx(script, opts)
     const exec = this.createBookkeeping(script, opts)
     // 调用方传入的 newIds 是源语句的 outputs 中的 partName → 翻译为编译产物 id（s1..sN）
@@ -506,47 +521,18 @@ export class CadRuntime {
   }
 
   /**
-   * Source-code execution entry point (the IR-stripping companion): the host
-   * only sees code text and never touches ScriptIR. After parseScript(code) it
-   * dispatches three ways: (1) no stmtIds → execute (full); (2) stmtIds +
-   * incremental → append (execute only the given statements, prefix deps in the
-   * persistent ctx); (3) stmtIds subset → filter the statement subset then
-   * execute (host executePart/recomputePart). The ExecutionResult structure is
-   * identical to execute/append.
-   * @param code - the .faijs source text.
-   * @param opts - optional execution options.
-   * @returns promise resolving to the ExecutionResult.
+   * sceneCode（代码文本）→ 内部 sceneScript（IR），供 reconcile 跨 part 引用解析。
+   * @internal
    */
-  async executeCode(code: string, opts?: ExecuteCodeOptions): Promise<ExecutionResult> {
-    const { script } = parseScript(code)
-    let execOpts: ExecuteOptions | undefined = opts
-    if (opts?.sceneCode !== undefined) {
-      const { script: sceneScript } = parseScript(opts.sceneCode)
-      const { sceneCode: _sceneCode, ...rest } = opts
-      execOpts = { ...rest, sceneScript }
-    }
-    const stmtIds = opts?.stmtIds
-    if (!stmtIds || stmtIds.length === 0) {
-      return this.execute(script, execOpts)
-    }
-    if (opts?.incremental) {
-      return this.append(script, stmtIds as StmtId[], execOpts)
-    }
-    const wanted = new Set(stmtIds.map(String))
-    const subset = script.statements.filter(
-      (s) => wanted.has(String(s.id)) || s.outputs.some((o) => wanted.has(String(o))),
-    )
-    if (subset.length === 0) {
-      throw new Error(
-        `[CadRuntime.executeCode] no statement matches stmtIds [${stmtIds.join(', ')}]`,
-      )
-    }
-    return this.execute({ ...script, statements: subset }, execOpts)
+  private resolveSceneScript(opts?: ExecuteOptions): ScriptIR | undefined {
+    if (opts?.sceneCode === undefined) return undefined
+    return parseScript(opts.sceneCode).script
   }
 
   /**
-   * Dependency analysis producing the set of statements that need recompute
-   * (public signature unchanged).
+   * Dependency analysis producing the set of statements that need recompute.
+   * Internal: operates on the parsed IR; the public surface takes code text.
+   * @internal
    * @param script - the parsed ScriptIR to analyze.
    * @returns the stale statements and the map of reused part names to their
    * output content keys.
@@ -655,7 +641,7 @@ export class CadRuntime {
         if (this.executor.getCtxVar(name) === undefined) this.executor.setCtxVar(name, shape)
       }
     }
-    const sceneScript = opts?.sceneScript
+    const sceneScript = this.resolveSceneScript(opts)
     if (!sceneScript) return
     const localDefs = new Set<string>()
     for (const p of script.params) localDefs.add(p.name)

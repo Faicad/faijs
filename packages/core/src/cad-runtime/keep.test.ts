@@ -20,7 +20,7 @@ import { CadRuntime } from './runtime'
 import type { HostPorts } from './ports'
 import { parseScript } from '../lang/parser'
 import { compileToModule } from '../lang/compile'
-import { scriptToCode } from '../lang/codegen'
+import { scriptIRToCode } from '../lang/codegen'
 import { computeLeafTerminals } from './terminal-dag'
 import { ModuleExecutor } from './module-executor'
 import { createInternalStdlib } from '@faicad/faijs-stdlib/internal-stdlib'
@@ -146,7 +146,7 @@ describe('keep: parse → codegen → parse 往返（设计 §7.3，含 keep/kee
       'let part2 = cad.union(part0, part1, { keep: [part0, "part1"], keepHidden: true })',
     ].join('\n')
     const { script } = parseScript(code)
-    const regenerated = scriptToCode(script)
+    const regenerated = scriptIRToCode(script)
     const reparsed = parseScript(regenerated).script
     expect(reparsed.statements.length).toBe(script.statements.length)
     const orig = script.statements[2]
@@ -161,7 +161,7 @@ describe('keep: parse → codegen → parse 往返（设计 §7.3，含 keep/kee
 describe('keep: 运行时消费判定（设计 §3）', () => {
   it('回归锚点：无任何 keep 声明的消费性 op → 输入被消费，只有产物是终端', async () => {
     const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createInternalStdlib() })
-    const result = await rt.executeCode([
+    const result = await rt.execute([
       'let part0 = cad.box({ size: 20 })',
       'let part1 = cad.translate(part0, { offset: [1, 0, 0] })',
     ].join('\n'))
@@ -171,7 +171,7 @@ describe('keep: 运行时消费判定（设计 §3）', () => {
 
   it('cad.union(a,b) → a、b 是终端且 hidden（内置 exec.keepHidden 生效）', async () => {
     const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createInternalStdlib() })
-    const result = await rt.executeCode([
+    const result = await rt.execute([
       'let part0 = cad.box({ size: 20 })',
       'let part1 = cad.box({ size: 5 })',
       'let part2 = cad.union(part0, part1)',
@@ -185,7 +185,7 @@ describe('keep: 运行时消费判定（设计 §3）', () => {
 
   it('cad.group({members:[a,b]}) → a、b 是终端且可见（函数体 exec.keep 生效）', async () => {
     const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createInternalStdlib() })
-    const result = await rt.executeCode([
+    const result = await rt.execute([
       'let part0 = cad.box({ size: 20 })',
       'let part1 = cad.box({ size: 5 })',
       'let grp0 = cad.group({ name: "G", members: [part0, part1] })',
@@ -200,7 +200,7 @@ describe('keep: 运行时消费判定（设计 §3）', () => {
 
   it('cad.copy(a) → a 是终端（函数体 exec.keep 生效）', async () => {
     const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createInternalStdlib() })
-    const result = await rt.executeCode([
+    const result = await rt.execute([
       'let part0 = cad.box({ size: 20 })',
       'let part1 = cad.copy(part0)',
     ].join('\n'))
@@ -209,7 +209,7 @@ describe('keep: 运行时消费判定（设计 §3）', () => {
 
   it('cad.drill(c, {keep:["c"]}) → c 是终端（调用点覆盖无声明的函数）', async () => {
     const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createInternalStdlib() })
-    const result = await rt.executeCode([
+    const result = await rt.execute([
       'let part0 = cad.box({ size: 20 })',
       'let part1 = cad.translate(part0, { offset: [1, 0, 0], keep: ["part0"] })',
     ].join('\n'))
@@ -220,7 +220,7 @@ describe('keep: 运行时消费判定（设计 §3）', () => {
 
   it('cad.drill(c, {keep:["c"], keepHidden:true}) → c hidden', async () => {
     const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createInternalStdlib() })
-    const result = await rt.executeCode([
+    const result = await rt.execute([
       'let part0 = cad.box({ size: 20 })',
       'let part1 = cad.translate(part0, { offset: [1, 0, 0], keep: ["part0"], keepHidden: true })',
     ].join('\n'))
@@ -232,7 +232,7 @@ describe('keep: 运行时消费判定（设计 §3）', () => {
   it('优先级：调用点 keepHidden 覆盖函数体 exec.keep（用户胜，D1）', async () => {
     // group 函数体 exec.keep 声明成员可见；调用点 keepHidden:true → 成员隐藏
     const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createInternalStdlib() })
-    const result = await rt.executeCode([
+    const result = await rt.execute([
       'let part0 = cad.box({ size: 20 })',
       'let part1 = cad.box({ size: 5 })',
       'let grp0 = cad.group({ name: "G", members: [part0, part1], keep: ["part0", "part1"], keepHidden: true })',
@@ -243,7 +243,7 @@ describe('keep: 运行时消费判定（设计 §3）', () => {
 
   it('hidden 最后一次保留声明胜出（D2）：union 隐藏后 group 改可见', async () => {
     const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createInternalStdlib() })
-    const result = await rt.executeCode([
+    const result = await rt.execute([
       'let part0 = cad.box({ size: 20 })',
       'let part1 = cad.box({ size: 5 })',
       'let part2 = cad.union(part0, part1)',
@@ -312,7 +312,7 @@ describe('keep: 第三方函数（C1/C3/C5，terminal-dag 静态判定）', () =
 describe('keep: activeValues 与 outputs 含 compound（设计 §5）', () => {
   it('查询函数（返回非几何值）→ 进 activeValues、不进 terminals；输入不被消费（C3）', async () => {
     const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createInternalStdlib() })
-    const result = await rt.executeCode([
+    const result = await rt.execute([
       'let part0 = cad.box({ size: 20 })',
       'let c = cad.bboxCenter(part0)',
     ].join('\n'))
@@ -326,7 +326,7 @@ describe('keep: activeValues 与 outputs 含 compound（设计 §5）', () => {
 
   it('group 产物（compound）进 outputs（keep-syntax §5.1 契约）', async () => {
     const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createInternalStdlib() })
-    const result = await rt.executeCode([
+    const result = await rt.execute([
       'let part0 = cad.box({ size: 20 })',
       'let grp0 = cad.group({ name: "G", members: [part0] })',
     ].join('\n'))
@@ -396,7 +396,7 @@ describe('keep: check() 静态校验（设计 §7.4）', () => {
 describe('keep: 增量执行 keep 持久（设计 §2.2）', () => {
   it('union 未重跑（缓存命中）时 internalKeep 仍生效', async () => {
     const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createInternalStdlib() })
-    await rt.executeCode([
+    await rt.execute([
       'let part0 = cad.box({ size: 20 })',
       'let part1 = cad.box({ size: 5 })',
       'let part2 = cad.union(part0, part1)',
@@ -409,7 +409,7 @@ describe('keep: 增量执行 keep 持久（设计 §2.2）', () => {
       'let part2 = cad.union(part0, part1)',
       'let part3 = cad.translate(part2, { offset: [1, 0, 0] })',
     ].join('\n')
-    const result = await rt.executeCode(code, { stmtIds: [asStmtId('s4')], incremental: true })
+    const result = await rt.append(code, [asStmtId('s4')])
 
     const byId = new Map(result.terminals.map((t) => [String(t.id), t]))
     expect(byId.get('part0')!.hidden).toBe(true)

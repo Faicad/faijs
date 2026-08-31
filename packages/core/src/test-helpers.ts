@@ -60,7 +60,7 @@ export async function executeScript(
 ): Promise<ExecuteOutput> {
   // P5/E-a-1：测试辅助注入 cad 命名空间（core 不默认装配；test-helpers 只被测试消费）
   const runtime = createRuntime(ports ?? defaultPorts(), mode, { cad: await getCadLib() })
-  const result = await runtime.execute(script, { params, inputGeometryMap })
+  const result = await runtime.executeIR(script, { params, inputGeometryMap })
 
   const newShapeStmts = script.statements.filter((s) => s.hasAssignment)
   if (newShapeStmts.length === 0) {
