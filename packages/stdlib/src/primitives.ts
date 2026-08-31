@@ -11,8 +11,10 @@ import type { Shape } from '@faicad/faijs-core/mesh/types'
 import { cad } from '@faicad/faijs-core/mesh'
 import { primitiveToBrepSolid } from '@faicad/faijs-core/primitives/brep-primitives'
 import { solidToShape } from '@faicad/faijs-core/brep/brep-ops'
-import { getBackends } from '@faicad/faijs-core/runtime-state'
+import { getBackends, getCurrentStmt } from '@faicad/faijs-core/runtime-state'
 import { fromBrep } from '@faicad/faijs-core/shape'
+import { assignRoles } from '@faicad/faijs-core/topology/naming/roles'
+import { asPartName } from '@faicad/faijs-core/identity'
 import { defineOp } from '@faicad/faijs-core/sdk'
 import { assertPositiveNumber, assertNonNegativeNumber, assertNumberOrVec3 } from './assert'
 import type { BrepEngineApi } from '@faicad/faijs-core/brep/engine/primitives'
@@ -67,15 +69,19 @@ export function assertWedgeParams(params: Record<string, unknown>): void {
   assertPositiveNumber(params.length, 'wedge.length')
 }
 
-/** BREP 路径：OCCT 精确构造 + 三角化 + fromBrep 登记（基本体无面演化）。 */
+/** BREP 路径：OCCT 精确构造 + 三角化 + fromBrep 登记（基本体无面演化；链根建 roleTable）。 */
 function primitiveBrep(op: string, params: Record<string, unknown>): Shape {
   const kernel = getBackends().kernel.brep as BrepEngineApi | null
   if (!kernel) throw new Error('[stdlib/box] no OCCT kernel')
   const type = op === 'box' ? 'cube' : op
   const result = primitiveToBrepSolid(kernel, type as 'cube' | 'sphere' | 'cylinder' | 'cone' | 'wedge', params as never)
+  // §3.2：链根建表——语义命名器按 op 类型给面命名（'box'→box:top 等，其余位置名兜底）。
+  // origin 用链根 part 变量名（当前语句 LHS，§2.2），保证多个同类型 primitive 不撞 origin。
+  const origin = String(getCurrentStmt()?.outputs[0] ?? op)
+  const roles = assignRoles(kernel, result.solid, op)
   return fromBrep(
     solidToShape(kernel, result.solid, params.segments as number | undefined),
-    { solid: result.solid },
+    { solid: result.solid, roleTable: new Map([[asPartName(origin), roles]]) },
   )
 }
 

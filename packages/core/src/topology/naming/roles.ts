@@ -158,6 +158,27 @@ export function propagateRoles(
 }
 
 /**
+ * 沿一次 hash 演化推进 RoleTable 的**所有** origin（单父 op 用，§3.3）。
+ *
+ * 变换/倒角等单输入 op 只产生一份演化，作用在输入表的所有 origin 上
+ * （布尔合流后的表含多个 origin，刚体变换下面 1:1 保留全部）。
+ *
+ * @param roles - the input role table (possibly multi-origin after a merge).
+ * @param evolution - the hash-keyed evolution record for this op.
+ * @returns a NEW RoleTable with every origin's roles advanced.
+ */
+export function propagateAllOrigins(
+  roles: RoleTable,
+  evolution: HashEvolution,
+): RoleTable {
+  let result: RoleTable = roles
+  for (const origin of roles.keys()) {
+    result = propagateRoles(result, origin, evolution)
+  }
+  return result
+}
+
+/**
  * 布尔合流：合并两个来源的 role 表（§3.4，faijs 对 brepjs 的必要扩展）。
  *
  * 对 A、B 两张 hash 演化分别传播各自的表后合并；布尔新生成的缝面/刃面

@@ -18,9 +18,10 @@ import {
   cutWithHistoryBrep,
   fuseWithHistoryBrep,
   intersectWithHistoryBrep,
+  booleanWithRoleTable,
 } from '@faicad/faijs-core/brep/face-evolution'
-import { getBackends, keepHidden } from '@faicad/faijs-core/runtime-state'
-import { fromBrep, brepOf } from '@faicad/faijs-core/shape'
+import { getBackends, getCurrentStmt, keepHidden } from '@faicad/faijs-core/runtime-state'
+import { fromBrep, brepOf, getSlot } from '@faicad/faijs-core/shape'
 import { reconcileBrepInputs } from './reconcile'
 import { defineOp } from '@faicad/faijs-core/sdk'
 import type { BrepHandle } from '@faicad/faijs-core/brep/engine/types'
@@ -30,7 +31,7 @@ type BooleanOperation = 'union' | 'subtract' | 'intersect'
 
 // ── 共享内部实现 ──
 
-/** BREP 路径：fuse/cut/common（*WithHistory 封装，收集面演化）。 */
+/** BREP 路径：fuse/cut/common（*WithHistory 封装，收集面演化 + roleTable 合流 §3.4）。 */
 function booleanBrep(inputs: Shape[], operation: BooleanOperation): Shape {
   const kernel = getBackends().kernel.brep as BrepEngineApi | null
   if (!kernel) throw new Error('[stdlib/boolean] no OCCT kernel')
@@ -42,30 +43,41 @@ function booleanBrep(inputs: Shape[], operation: BooleanOperation): Shape {
 
   let resultSolid: BrepHandle
   let lastEvolution: Map<number, number[]> | undefined
+  let roleTable: ReadonlyMap<unknown, unknown> | undefined
 
-  const applyBinary = (
-    a: BrepHandle,
-    b: BrepHandle,
-  ): { result: BrepHandle; faceEvolution?: Map<number, number[]> } => {
-    if (operation === 'union') return fuseWithHistoryBrep(kernel, a, b)
-    if (operation === 'subtract') return cutWithHistoryBrep(kernel, a, b)
-    return intersectWithHistoryBrep(kernel, a, b)
-  }
+  // 链式布尔：每步 target（累积结果）与下一个 tool 合流
+  const op: 'fuse' | 'cut' | 'intersect' =
+    operation === 'union' ? 'fuse' : operation === 'subtract' ? 'cut' : 'intersect'
 
-  const first = applyBinary(inputSolids[0]!, inputSolids[1]!)
-  resultSolid = first.result
-  lastEvolution = first.faceEvolution
-  for (let i = 2; i < inputSolids.length; i++) {
+  // 首个输入作为 target 起点
+  resultSolid = inputSolids[0]!
+  roleTable = getSlot(inputs[0])?.roleTable as ReadonlyMap<unknown, unknown> | undefined
+
+  for (let i = 1; i < inputSolids.length; i++) {
     const prev = resultSolid
-    const r = applyBinary(prev, inputSolids[i]!)
+    const prevTable = roleTable
+    const toolTable = getSlot(inputs[i])?.roleTable as ReadonlyMap<unknown, unknown> | undefined
+    const outPart = String(getCurrentStmt()?.outputs[0] ?? '')
+
+    // §3.4：一次内核调用，A/B 拆流各自传播后合表（缝面以本次语句 LHS 为新 origin）
+    const r = booleanWithRoleTable(
+      kernel,
+      op,
+      prev,
+      inputSolids[i]!,
+      prevTable ?? new Map(),
+      toolTable ?? new Map(),
+      outPart,
+    )
     resultSolid = r.result
     lastEvolution = r.faceEvolution
-    kernel.release(prev)
+    roleTable = r.roleTable
+    if (i > 1) kernel.release(prev)
   }
 
   return fromBrep(
     solidToShape(kernel, resultSolid),
-    lastEvolution ? { solid: resultSolid, faceEvolution: lastEvolution } : { solid: resultSolid },
+    lastEvolution ? { solid: resultSolid, faceEvolution: lastEvolution, roleTable } : { solid: resultSolid, roleTable },
   )
 }
 

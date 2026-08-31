@@ -11,9 +11,11 @@
 import type { Shape, Vec3 } from '@faicad/faijs-core/mesh/types'
 import { cad } from '@faicad/faijs-core/mesh'
 import { translateBrep, rotateBrep, scaleBrep, solidToShape } from '@faicad/faijs-core/brep/brep-ops'
-import { identityEvolution } from '@faicad/faijs-core/brep/face-evolution'
+import { identityEvolution, identityHashEvolution } from '@faicad/faijs-core/brep/face-evolution'
 import { getBackends } from '@faicad/faijs-core/runtime-state'
-import { fromBrep, brepOf } from '@faicad/faijs-core/shape'
+import { fromBrep, brepOf, getSlot } from '@faicad/faijs-core/shape'
+import { propagateAllOrigins } from '@faicad/faijs-core/topology/naming/roles'
+import type { RoleTable } from '@faicad/faijs-core/topology/naming/types'
 import { defineOp } from '@faicad/faijs-core/sdk'
 import { assertVec3, assertPositiveNumber } from './assert'
 import type { BrepHandle } from '@faicad/faijs-core/brep/engine/types'
@@ -53,7 +55,7 @@ export function assertScaleParams(params: Record<string, unknown>): void {
   }
 }
 
-/** BREP 路径：变换 solid + 恒等面演化 + 三角化 + fromBrep 登记。 */
+/** BREP 路径：变换 solid + 恒等面演化 + 恒等 roleTable 传播 + 三角化 + fromBrep 登记。 */
 function transformBrep(op: string, input: Shape, params: Record<string, unknown>): Shape {
   const kernel = getBackends().kernel.brep as BrepEngineApi | null
   if (!kernel) throw new Error('[stdlib/transform] no OCCT kernel')
@@ -69,10 +71,18 @@ function transformBrep(op: string, input: Shape, params: Record<string, unknown>
     resultSolid = scaleBrep(kernel, inputSolid, params.factor as number | Vec3)
   }
 
+  // §2.4/§3.3：刚体变换面 1:1 保留——hash 恒等传播 roleTable（所有 origin）
+  const inputTable = getSlot(input)?.roleTable as RoleTable | undefined
+  let roleTable: RoleTable | undefined
+  if (inputTable && inputTable.size > 0) {
+    roleTable = propagateAllOrigins(inputTable, identityHashEvolution(kernel, inputSolid, resultSolid))
+  }
+
   return fromBrep(solidToShape(kernel, resultSolid), {
     solid: resultSolid,
     // 变换不改变拓扑，面 ordinal 不变（与旧路径一致）
     faceEvolution: identityEvolution(kernel, resultSolid),
+    roleTable,
   })
 }
 

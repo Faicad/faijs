@@ -197,6 +197,129 @@ export function splitHashEvolutionByOrigin(
 }
 
 /**
+ * 构造 hash 键恒等演化（§2.4：变换类 translate/rotate/scale/copy 用）。
+ *
+ * 刚体变换/深拷贝不改变面数量与顺序：输入第 i 面 hash → 输出第 i 面 hash，
+ * 用 subShapeHashes 两端对齐合成 hash 恒等（避免调用 *WithHistory 的签名兼容问题）。
+ *
+ * @param kernel       - the OCCT kernel.
+ * @param inputShape   - the input shape.
+ * @param resultShape  - the transformed/copied output shape.
+ * @returns the hash identity evolution (modified: in[i] → [out[i]]).
+ */
+export function identityHashEvolution(
+  kernel: BrepEngineApi,
+  inputShape: BrepHandle,
+  resultShape: BrepHandle,
+): HashEvolution {
+  const inputHashes = getFaceHashes(kernel, inputShape)
+  const resultHashes = getFaceHashes(kernel, resultShape)
+  const count = Math.min(inputHashes.length, resultHashes.length)
+  const modified = new Map<number, number[]>()
+  for (let i = 0; i < count; i++) {
+    modified.set(inputHashes[i], [resultHashes[i]])
+  }
+  return { modified, deleted: new Set() }
+}
+
+/**
+ * 双输入布尔 + roleTable 合流组合封装（§3.4，stdlib boolean 链式调用用）。
+ *
+ * 一次 *WithHistory 内核调用同时产出：
+ * - result：结果实体
+ * - faceEvolution：序号键演化（进 faceEvolutionCache，服务选择器/可视化）
+ * - roleTable：A/B 两侧 role 表各自传播后合并（进 roleTableCache，服务命名）
+ *
+ * 缝面（generated）刻意不进 role 传播（§1.3/R2：generated hash 指向中间形、
+ * 实测 0 存活），以本次语句 LHS 为 outPart 新 origin 的位置名由调用方决定。
+ *
+ * @param kernel  - the OCCT kernel.
+ * @param op      - the boolean operation ('fuse' | 'cut' | 'intersect').
+ * @param a       - the target shape.
+ * @param b       - the tool shape.
+ * @param tableA  - the target's role table.
+ * @param tableB  - the tool's role table.
+ * @param outPart - the boolean statement's LHS variable name (new origin for seam faces).
+ * @returns the result handle, ordinal evolution and merged role table.
+ */
+export function booleanWithRoleTable(
+  kernel: BrepEngineApi,
+  op: 'fuse' | 'cut' | 'intersect',
+  a: BrepHandle,
+  b: BrepHandle,
+  tableA: ReadonlyMap<unknown, unknown>,
+  tableB: ReadonlyMap<unknown, unknown>,
+  outPart: string,
+): { result: BrepHandle; faceEvolution: FaceEvolution; roleTable: ReadonlyMap<unknown, unknown> } {
+  const inputHashes = getUnionFaceHashes(kernel, a, b)
+  let evo: BrepEvolutionData
+  if (op === 'fuse') evo = kernel.fuseWithHistory(a, b, inputHashes, HASH_UPPER_BOUND)
+  else if (op === 'cut') evo = kernel.cutWithHistory(a, b, inputHashes, HASH_UPPER_BOUND)
+  else evo = kernel.intersectWithHistory(a, b, inputHashes, HASH_UPPER_BOUND)
+
+  const faceEvolution = decodeEvolution(kernel, evo, a, evo.result)
+
+  // A/B 拆流 → 各自传播 → 合表（§3.4）
+  const hashesA = getFaceHashes(kernel, a)
+  const hashesB = getFaceHashes(kernel, b)
+  const { a: evoA, b: evoB } = splitHashEvolutionByOrigin(evo, hashesA, hashesB)
+  const merged = mergeRoleTablesLocal(tableA, evoA, tableB, evoB, outPart)
+
+  return { result: evo.result, faceEvolution, roleTable: merged }
+}
+
+/** 合表（避免 naming/roles 循环依赖：本文件不 import naming，用结构等价实现）。 */
+function mergeRoleTablesLocal(
+  tableA: ReadonlyMap<unknown, unknown>,
+  evoA: HashEvolution,
+  tableB: ReadonlyMap<unknown, unknown>,
+  evoB: HashEvolution,
+  outPart: string,
+): ReadonlyMap<unknown, unknown> {
+  const result = new Map<unknown, unknown>()
+  for (const [origin, roles] of tableA) {
+    result.set(origin, propagateOriginRoles(roles as ReadonlyMap<string, readonly number[]>, evoA))
+  }
+  for (const [origin, roles] of tableB) {
+    const existing = result.get(origin) as ReadonlyMap<string, readonly number[]> | undefined
+    const advanced = propagateOriginRoles(roles as ReadonlyMap<string, readonly number[]>, evoB)
+    if (existing) {
+      const merged = new Map<string, number[]>()
+      for (const [role, hs] of existing) merged.set(role, [...hs])
+      for (const [role, hs] of advanced) {
+        const prev = merged.get(role)
+        merged.set(role, prev ? [...new Set([...prev, ...hs])] : [...hs])
+      }
+      result.set(origin, merged)
+    } else {
+      result.set(origin, advanced)
+    }
+  }
+  // 缝面位置名：调用方决定是否补（generated 不可靠，默认不补）
+  void outPart
+  return result
+}
+
+/** 单 origin 传播（结构等价于 naming/roles.propagateRoles，避免循环依赖）。 */
+function propagateOriginRoles(
+  roles: ReadonlyMap<string, readonly number[]>,
+  evolution: HashEvolution,
+): ReadonlyMap<string, readonly number[]> {
+  const updated = new Map<string, number[]>()
+  for (const [role, hashes] of roles) {
+    const successors: number[] = []
+    for (const hash of hashes) {
+      if (evolution.deleted.has(hash)) continue
+      const modified = evolution.modified.get(hash)
+      const targets = modified !== undefined && modified.length > 0 ? modified : [hash]
+      for (const h of targets) if (!successors.includes(h)) successors.push(h)
+    }
+    if (successors.length > 0) updated.set(role, successors)
+  }
+  return updated
+}
+
+/**
  * Decode a BrepEvolutionData deleted array into the ordinal list of deleted faces.
  * @param kernel     - the OCCT kernel.
  * @param evo        - the BrepEvolutionData (from a *WithHistory API).

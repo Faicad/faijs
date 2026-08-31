@@ -16,14 +16,16 @@
 
 import type { Shape } from '@faicad/faijs-core/mesh/types'
 import { solidToShape } from '@faicad/faijs-core/brep/brep-ops'
-import { identityEvolution } from '@faicad/faijs-core/brep/face-evolution'
+import { identityEvolution, identityHashEvolution } from '@faicad/faijs-core/brep/face-evolution'
 import { getBackends, keep } from '@faicad/faijs-core/runtime-state'
-import { fromBrep, brepOf } from '@faicad/faijs-core/shape'
+import { fromBrep, brepOf, getSlot } from '@faicad/faijs-core/shape'
+import { propagateAllOrigins } from '@faicad/faijs-core/topology/naming/roles'
+import type { RoleTable } from '@faicad/faijs-core/topology/naming/types'
 import { defineOp } from '@faicad/faijs-core/sdk'
 import type { BrepHandle } from '@faicad/faijs-core/brep/engine/types'
 import type { BrepEngineApi } from '@faicad/faijs-core/brep/engine/primitives'
 
-/** BREP 路径：kernel.copy 深拷贝实体 + 恒等面演化 + 三角化 + fromBrep 一次登记。 */
+/** BREP 路径：kernel.copy 深拷贝实体 + 恒等面演化 + 恒等 roleTable 传播 + fromBrep 一次登记。 */
 function copyBrep(input: Shape): Shape {
   const kernel = getBackends().kernel.brep as BrepEngineApi | null
   if (!kernel) throw new Error('[stdlib/copy] no OCCT kernel')
@@ -32,10 +34,18 @@ function copyBrep(input: Shape): Shape {
 
   const copiedSolid = kernel.copy(inputSolid)
 
+  // §2.4/§3.3：copy 面 1:1 保留——hash 恒等传播 roleTable（所有 origin）
+  const inputTable = getSlot(input)?.roleTable as RoleTable | undefined
+  let roleTable: RoleTable | undefined
+  if (inputTable && inputTable.size > 0) {
+    roleTable = propagateAllOrigins(inputTable, identityHashEvolution(kernel, inputSolid, copiedSolid))
+  }
+
   return fromBrep(solidToShape(kernel, copiedSolid), {
     solid: copiedSolid,
     // copy 不改变拓扑，面 ordinal 不变
     faceEvolution: identityEvolution(kernel, copiedSolid),
+    roleTable,
   })
 }
 
