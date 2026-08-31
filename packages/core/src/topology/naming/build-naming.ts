@@ -15,7 +15,7 @@
 import type { PartName } from '../../identity'
 import type { RoleTable, FaceNaming, EdgeNaming, PartNaming } from './types'
 import { faceRowToHint, edgeRowToHint } from './geom-hint'
-import { roleOfOrdinal } from './roles'
+import { roleOfOrdinal, boxRoleFromNormal } from './roles'
 
 /** 面的源行数据（FaceRow 子集，够生成 hint + 反查）。 */
 export interface NamingFaceRow {
@@ -68,6 +68,39 @@ export function findOriginRole(
     if (role !== undefined) return { origin, role }
   }
   return undefined
+}
+
+/**
+ * 为 primitive 假拓扑按面行几何命名语义 role（§5.2，与 BREP §3.2 同一套命名器）。
+ *
+ * primitive 无 OCCT solid，用「固定面序 + 面行几何」直接命名：
+ * - plane + 法向主轴 → box 语义名（box:top/bottom/front/back/left/right）
+ * - cylinder/cone/sphere 曲面 → lateral/surface 语义名
+ * - 其余/认不出 → 位置名 `${partName}:face_${i}`（保证每面必有 role）
+ *
+ * 与 BREP assignRoles 的对照：cube 固定面序（+X,-X,+Y,-Y,+Z,-Z）命名一致
+ * （f0→box:right、f1→box:left、f2→box:back、f3→box:front、f4→box:top、f5→box:bottom）。
+ *
+ * @param faces - the primitive's face rows (fixed enumeration order).
+ * @param partName - the part variable name (positional-role prefix).
+ * @returns one semantic role per face (same length as faces).
+ */
+export function assignPrimitiveFaceRoles(
+  faces: readonly NamingFaceRow[],
+  partName: PartName,
+): string[] {
+  return faces.map((row, i) => {
+    const surfaceType = row.surfaceType
+    const normal = row.normal
+    if (surfaceType === 'cylinder') return 'cylinder:lateral'
+    if (surfaceType === 'cone') return 'cone:lateral'
+    if (surfaceType === 'sphere') return 'sphere:surface'
+    if (surfaceType === 'plane' && normal && normal.length === 3) {
+      const role = boxRoleFromNormal([normal[0], normal[1], normal[2]])
+      if (role) return role
+    }
+    return `${partName}:face_${i}`
+  })
 }
 
 /**

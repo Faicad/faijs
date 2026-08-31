@@ -50,7 +50,7 @@ import type { Namespaces } from './module-executor'
 import { isCompoundLike, getSlot, ensureSlot, type CompoundShape } from '../shape'
 import { computeLeafTerminals, consumes, type DagRuntimeView } from './terminal-dag'
 import type { PartNaming } from '../topology/naming/types'
-import { buildPartNaming, type PartNamingInput } from '../topology/naming/build-naming'
+import { buildPartNaming, assignPrimitiveFaceRoles, type PartNamingInput } from '../topology/naming/build-naming'
 import { faceRowToHint } from '../topology/naming/geom-hint'
 import { HASH_UPPER_BOUND } from '../brep/face-evolution'
 
@@ -932,7 +932,8 @@ export class CadRuntime {
    * 构建一个 part 的命名输入（§3.7）。
    *
    * - BREP：roleTableCache 反查 {origin, role} + subShapeHashes 序号对照 + 面/边行 hint；
-   * - primitive/mesh：只从拓扑行取 hint（role 由 M4 的 primitiveRoles 填充）。
+   * - primitive：assignPrimitiveFaceRoles 按固定面序给语义 role（§5.2，与 BREP 同一套命名器）；
+   * - mesh：只填 hint（role=''，§5.3）。
    *
    * @param partName - the part whose naming to build.
    * @param partTopo - the part's topology entry (source + serialized rows).
@@ -964,6 +965,12 @@ export class CadRuntime {
         edgeFaceOrdinals,
       }
     }
+    if (partTopo.source === 'primitive') {
+      // §5.2：把「固定面序」升级为「语义 role」，与 BREP assignRoles 同一套命名器
+      const primitiveRoles = assignPrimitiveFaceRoles(faces, partName)
+      return { source: 'primitive', partName, faces, edges, primitiveRoles, edgeFaceOrdinals }
+    }
+    // mesh：只填 hint（role=''，§5.3）
     return { source: partTopo.source, partName, faces, edges, edgeFaceOrdinals }
   }
 
