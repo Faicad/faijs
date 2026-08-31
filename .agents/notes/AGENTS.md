@@ -6,4 +6,4 @@ Key rules:
 - One note per non-trivial change, in the correct lifecycle/class folder
 - `## Alternatives considered` is mandatory
 - `implemented/` notes describe what *is* (present tense), not what was planned
-- Link to full design documents in `docs/plans/` when they exist
+- Notes are self-contained: per the docs standard, no non-`docs/plans/` document may reference a `docs/plans/` document

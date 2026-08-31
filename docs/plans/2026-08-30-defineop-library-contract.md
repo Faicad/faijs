@@ -138,7 +138,7 @@ export function defineOp<A extends unknown[]>(
 
 - **实现组合是命名数据**（`{ mesh?, brep? }`），不是位置参数——mesh-only / brep-only / 双路径全部自然表达，未来新增实现形态零破坏。
 - **"至少一个实现"三重强制**：TS 类型（union）→ 构造期校验（`typeof mesh/brep`）→ 装配期校验（`assertLibConforms`，D-4 严格模式）。
-- **几何输入自动收集**（D-7）：包装器内 `args.filter(isShape)`——`isShape` 是 O(1) 身份查询，只认构造器产物；裸 mesh 数据、params 普通对象、内嵌 Shape 的成员对象均不算几何输入。`inputs` 字段**取消**。
+- **几何输入自动收集**（D-7）：包装器内 `args.filter(isGeometryInput)`——兼容旧形态（重构前每函数手写 `dispatchPath([input], ...)`，直接把实参当几何输入），凡身份登记的 `isShape` 或结构上带 `positions`/`indices` 的裸 mesh 数据（`isMeshShape`，如宿主经 `geoToManifoldMesh` 直传）均算几何输入；params 普通对象、内嵌 Shape 的成员对象不算。`inputs` 字段**取消**。
 - **多产物**（方案 C）：`outputs: ['front', 'back']` 声明命名产物，包装器按键逐值包装（键类型由路径约定：brep 键 → handle、mesh 键 → MeshData）。单产物函数不写 `outputs`。
 - **适用边界**（D-6）：`defineOp` 的适用范围 = **函数签名返回 `SolidShape` 的所有函数**（用户拍板原话）。结构函数（`compound()` + `keep()`）、查询函数、动作函数一律不写。
 
@@ -171,7 +171,7 @@ export const split = defineOp({
 
 ```ts
 return (...args) => {
-  const inputs = args.filter(isShape)                 // 几何输入自动收集（执行前）
+  const inputs = args.filter(isGeometryInput)         // 几何输入自动收集（执行前；isShape ∨ isMeshShape）
   const path = dispatchPath(inputs, impls, requiredCapability)   // 引擎同一套静态规则
   if (path === 'brep') {
     const r = brep!(...args)
@@ -347,7 +347,7 @@ export function dispatchPath(
 - mesh-only 函数在 `mode='brep'` 抛 `BrepUnsupportedError`；brep-only 函数在 `mode='mesh'` 抛 `MeshUnsupportedError`；双路径在 auto 下静态优先 brep、断链走 mesh。
 
 **自动收集与多产物（P1/P2）**
-- 几何输入自动收集：`(input, params)`、`(...shapes)`、`(params)` 三种形态 `args.filter(isShape)` 结果正确；params 内嵌 Shape、裸 mesh 数据不误抓。
+- 几何输入自动收集：`(input, params)`、`(...shapes)`、`(params)` 三种形态 `args.filter(isGeometryInput)` 结果正确；params 内嵌 Shape 不误抓，**裸 mesh 数据（positions/indices）必须照常当作几何输入**（兼容：重构前 `dispatchPath([input], ...)` 直传实参，裸数据走 mesh 路径）。
 - `split`（`outputs: ['front','back']`）：brep 路径两产物均 `hasBrep===true`；`.faijs` 解构 `const { front: p1, back: p2 } = cad.split(...)` 往返正常。
 
 **迁移回归（P2）**

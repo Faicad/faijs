@@ -76,7 +76,7 @@ async function runMode(script: ScriptIR, mode: ExecutionMode): Promise<Shape> {
   const result: ExecutionResult = await runtime.execute(script)
 
   if (result.failedAt) {
-    throw new Error(`Execution failed at ${result.failedAt.op}: ${result.failedAt.message}`)
+    throw new Error(`Execution failed at ${result.failedAt.callee}: ${result.failedAt.message}`)
   }
 
   const geoStmts = script.statements.filter(s => s.hasAssignment)

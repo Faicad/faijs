@@ -4,7 +4,7 @@ English | [中文](api-contract.zh.md)
 
 > Position: This document records the **current** API contract of faijs — layering and package structure, engine/library responsibility boundaries, naming rules, statement model, syntax, terminal detection, execution, geometry engine slots, host injection and consumption surface.
 >
-> **This document does not cover development plans or track defects** (see the design documents under `docs/plans/` for historical phases and known issues).
+> **This document covers the standing interface contract only: it does not track development plans or defects, and it does not reference `docs/plans/` documents.**
 >
 > Related documents:
 > - `docs/syntax-design.md` — `.faijs` syntax and incremental execution contract

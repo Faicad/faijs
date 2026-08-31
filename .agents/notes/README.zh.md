@@ -25,7 +25,7 @@ Agent Notes 是决策记录：为什么做某项变更、放弃了什么、拒�
 
 ## When to write one
 
-每次非平凡变更必须包含至少一份 Agent Note。如果完整设计文档已存在于 `docs/plans/`，则 Agent Note 是链接到该文档的精简摘要。
+每次非平凡变更必须包含至少一份 Agent Note。如果完整设计文档已存在于 `docs/plans/`，则 Agent Note 是对该设计的精简摘要，必须**自包含成文**——文档规范禁止任何非 `docs/plans/` 文档引用 `docs/plans/` 文档。
 
 ## The file format
 
@@ -76,5 +76,5 @@ Status: <status>
 ## Relationship to `docs/plans/`
 
 - `docs/plans/` 存放完整设计文档（需求、技术分析、实施计划）
-- `.agents/notes/` 存放链接到完整设计文档的精简决策记录
-- 当方案落地时，创建一份 `implemented/` Agent Note 摘要并链接到 `docs/plans/` 文档
+- Agent Note 是自包含的决策记录，不引用 `docs/plans/` 文档（只有 plans 文档可以引用其他 plans 文档）
+- 当方案落地时，创建一份 `implemented/` Agent Note 摘要，自行陈述决策

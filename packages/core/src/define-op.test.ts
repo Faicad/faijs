@@ -8,8 +8,8 @@
  * - dispatchPath bidirectional matrix (mode × implementation set × chain state)
  * - ④ defineOp integration: mode selects the implementation automatically
  * - capability routing (D5)
- * - auto-collection of geometry inputs (args.filter(isShape)) and automatic
- *   product wrapping (solid / fromHandle / fromBrep)
+ * - auto-collection of geometry inputs (args.filter(isGeometryInput)) and
+ *   automatic product wrapping (solid / fromHandle / fromBrep)
  * - multi-product outputs (scheme C, split shape)
  * - ③ assertLibConforms strict assembly validation
  */
@@ -174,6 +174,27 @@ describe('defineOp: mode auto-selects the implementation (④)', () => {
     const op = defineOp({ mesh: () => cubeMesh(10), brep: () => wrapped })
     const result = await op()
     expect(result).toBe(wrapped)
+  })
+
+  // ── 兼容性回归：裸 ManifoldMeshData 作为几何输入（host 直接经 geoToManifoldMesh 传入）──
+  it('raw ManifoldMeshData (non-constructor positions/indices) → mesh path in auto mode', async () => {
+    configureBackends(makeBackends('auto'))
+    const meshSpy = vi.fn((_input: Shape, _params: Record<string, unknown>) => cubeMesh(10))
+    const brepSpy = vi.fn(() => {
+      throw new Error('[compat] raw mesh input must never reach the BREP path')
+    })
+    const op = defineOp({ mesh: meshSpy, brep: brepSpy })
+
+    // 裸 mesh 数据：与 geoToManifoldMesh 输出同构，未经过 solid() 身份登记
+    const rawMesh = cubeMesh(5)
+    expect(isShape(rawMesh)).toBe(false)
+
+    const result = await op(rawMesh, {})
+    expect(meshSpy).toHaveBeenCalledTimes(1)
+    expect(meshSpy).toHaveBeenCalledWith(rawMesh, {})
+    expect(brepSpy).not.toHaveBeenCalled()
+    expect(isShape(result)).toBe(true)
+    expect(hasBrep(result as Shape)).toBe(false)
   })
 })
 

@@ -59,3 +59,7 @@ See [docs/i18n/README.md](i18n/README.md) for the pairing contract.
 - Monthly on the 1st, last month's documents are moved into `docs/plans/yyyy-mm/` folders
 - Yearly on January 1st, the previous year's month folders are wrapped into `docs/plans/yyyy/`
 - Archived documents are frozen; only status annotations may be updated
+
+## Non-`docs/plans/` documents must not reference `docs/plans/`
+
+`docs/plans/` documents are provisional: they record an in-session proposal, get archived monthly, and their status flips from 方案（未实施） to 已落地/已废弃. No document outside `docs/plans/` may reference or link to a `docs/plans/` document — a plan must never become a citation target. Every non-`docs/plans/` document is self-contained: standing facts live in standing docs, decision records in Agent Notes, and technical analysis in `docs/analysis/`. Mentioning the `docs/plans/` tier itself in governing text (this file, `AGENTS.md`) is governance prose, not a reference.

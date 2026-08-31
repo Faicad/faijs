@@ -25,7 +25,7 @@ A Chinese counterpart (`foo.zh.md`) and its `.i18n.yaml` record sit beside the E
 
 ## When to write one
 
-Every non-trivial change must include at least one Agent Note. If a full design document exists in `docs/plans/`, the Agent Note is a concise summary that links to it.
+Every non-trivial change must include at least one Agent Note. If a full design document exists in `docs/plans/`, the Agent Note is a concise summary of the decision — stated so that it stands alone, because the docs standard forbids any non-`docs/plans/` document from referencing a `docs/plans/` document.
 
 ## The file format
 
@@ -76,5 +76,5 @@ Every Agent Note must include this section. Each alternative and why it was not 
 ## Relationship to `docs/plans/`
 
 - `docs/plans/` holds full design documents (requirements, technical analysis, implementation plan)
-- `.agents/notes/` holds concise decision records that link to the full design document
-- When a plan lands, create an `implemented/` Agent Note summary linking to the `docs/plans/` document
+- Agent Notes are self-contained decision records; they do not reference a `docs/plans/` document (only a plan may reference another plan)
+- When a plan lands, create an `implemented/` Agent Note summary that states the decision on its own terms

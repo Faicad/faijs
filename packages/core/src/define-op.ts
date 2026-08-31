@@ -7,8 +7,14 @@
  * `defineOp({ mesh?, brep?, ... })` declares the implementation set of a
  * geometry function (a function whose signature returns `SolidShape`). The
  * wrapper:
- * - auto-collects geometry inputs via `args.filter(isShape)` (no `inputs`
- *   field — identity-based, runtime-visible before the implementation runs);
+ * - auto-collects geometry inputs via `args.filter(isGeometryInput)` — a shape
+ *   that is identity-registered (`isShape`) or a structural mesh shape
+ *   (`isMeshShape`, positions + indices — e.g. bare ManifoldMeshData handed in
+ *   by a host via `geoToManifoldMesh`). The old per-function form passed the
+ *   actual geometry args (`dispatchPath([input], ...)`), so a bare mesh input
+ *   dispatched to the mesh path (`hasBrep=false`); the re-collection must keep
+ *   that compatibility. No `inputs` field — decided at runtime by the args
+ *   themselves, not the author.
  * - calls the engine's `dispatchPath` to select brep/mesh by mode (static,
  *   no runtime fallback);
  * - wraps raw products: mesh path → `solid()`, brep path → `fromHandle()` /
@@ -16,19 +22,39 @@
  *   must carry a BREP slot).
  *
  * Zero heavy runtime dependencies: imports only runtime-state / shape /
- * handle-bridge / backend-dispatch / type-only mesh & brep types — the
- * dist/sdk.js static-import guard keeps passing.
+ * handle-bridge / backend-dispatch / mesh/types (a zero-import module holding
+ * the Shape type and the structural `isMeshShape` guard) — the dist/sdk.js
+ * static-import guard keeps passing.
  */
 
 import { dispatchPath, type BrepCapabilityName } from './cad-runtime/backend-dispatch'
 import { getBackends, CONTRACT_VERSION } from './runtime-state'
 import { isShape, solid, fromBrep } from './shape'
+import { isMeshShape } from './mesh/types'
 import { fromHandle, meshHandle } from './brep/handle-bridge'
 import type { Shape } from './mesh/types'
 import type { BrepHandle } from './brep/engine/types'
 
 /** Raw mesh data (structurally identical to Shape; mesh impls return it). */
 export type MeshData = { positions: Float32Array; indices: Uint32Array }
+
+/**
+ * Geometry-input recognition for dispatch auto-collection.
+ *
+ * Compat rule: the old per-function form passed the *actual* geometry args to
+ * `dispatchPath` (`[input]` / `shapes`), so a bare ManifoldMeshData object
+ * (e.g. `geoToManifoldMesh` output passed straight by a host) had no BREP slot
+ * → `hasBrep=false` → mesh path. defineOp must keep that: an input counts as
+ * geometry when it is identity-registered (`isShape`, constructor product) OR
+ * structurally a mesh shape (`positions` + `indices`). Params objects and other
+ * scalar args are not geometry inputs.
+ *
+ * @param v - the candidate argument.
+ * @returns true when the argument is a geometry input (registered shape or bare mesh data).
+ */
+export function isGeometryInput(v: unknown): v is Shape {
+  return isShape(v) || isMeshShape(v)
+}
 
 /** Product of a mesh implementation: raw mesh data, a wrapped Shape, or (with `outputs`) a record of named products. */
 export type MeshProduct = MeshData | Shape | Record<string, MeshData | Shape>
@@ -99,8 +125,9 @@ function wrapByKeys(r: unknown, keys: string[], wrapOne: (v: unknown) => Shape):
  *
  * At least one implementation (mesh or brep) is required — enforced at
  * compile time by the union type and at construction time by a runtime check.
- * Geometry inputs are auto-collected by identity (`args.filter(isShape)`);
- * raw mesh products are wrapped by `solid()`, raw brep products by
+ * Geometry inputs are auto-collected by identity-or-structure
+ * (`args.filter(isGeometryInput)` = `isShape` ∨ `isMeshShape`); raw mesh
+ * products are wrapped by `solid()`, raw brep products by
  * `fromHandle()` / `fromBrep()`. `mode` selects the engine path via the
  * engine's static `dispatchPath` — the author never writes an `if (path)`
  * branch.
@@ -150,9 +177,11 @@ export function defineOp<A extends unknown[]>(
   // often async, e.g. drill/engrave/boolean). The compiled .faijs product always
   // awaits the call, so returning a Promise is transparent.
   const wrapped = async (...args: A): Promise<Shape | Record<string, Shape>> => {
-    // Geometry inputs: identity-based auto collection (execution-time read,
-    // same nature as hasBrep — decided before the implementation runs).
-    const inputs = args.filter(isShape) as Shape[]
+    // Geometry inputs: identity-or-structure auto collection (execution-time
+    // read, same nature as hasBrep — decided before the implementation runs).
+    // Compat: bare ManifoldMeshData args (host geoToManifoldMesh output) are
+    // geometry inputs too — old form passed [input] so they reached the mesh path.
+    const inputs = args.filter(isGeometryInput) as Shape[]
     // D5 capability routing: feed the first missing capability to dispatchPath
     // (auto degrades to mesh, brep mode errors).
     const missing = meta.capabilities?.find((cap) => !getBackends().config.brepCapabilities?.[cap])

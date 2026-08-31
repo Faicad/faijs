@@ -78,7 +78,7 @@ describe('BrowserEventSink', () => {
     expect(() => {
       eventSink.emit('part-brep-lost', {
         partName: asPartName('part0'),
-        op: 'drill',
+        callee: 'drill',
         reason: 'test',
       })
     }).not.toThrow()
