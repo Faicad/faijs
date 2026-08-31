@@ -229,15 +229,22 @@ describe('resolveTopoRef / buildTopoError', () => {
     expect(buildTopoError('not-found', 'face').code).toBe('E_TOPO_NOT_FOUND')
   })
 
-  it('throws for edge/vertex/derived until M3 wiring', () => {
+  it('resolves edge refs through the lineage resolver (M3)', () => {
     const kernel = planeKernel([0, 0, 1], [5, 5, 10])
     const edgeRef = {
       kind: 'edge' as const,
-      faces: [{ origin: asPartName('box'), role: 'box:top' }, { origin: asPartName('box'), role: 'box:front' }],
+      faces: [{ origin: asPartName('box'), role: 'box:top' }, { origin: asPartName('box'), role: 'box:front' }] as const,
       hint: { kind: 'edge' as const, length: 10 },
     }
-    expect(() => resolveTopoRef(edgeRef, ctxFor(kernel, boxCandidates(), boxTable)))
-      .toThrowError(/not wired/)
+    // 无邻接 → hint-only 兜底；无 edges 表 → not-found（E_TOPO_NOT_FOUND）
+    try {
+      resolveTopoRef(edgeRef, ctxFor(kernel, boxCandidates(), boxTable))
+      expect.unreachable('should have thrown')
+    } catch (e) {
+      const err = e as { code?: string; refKind?: string }
+      expect(err.code).toBe('E_TOPO_NOT_FOUND')
+      expect(err.refKind).toBe('edge')
+    }
   })
 })
 
@@ -267,7 +274,7 @@ describe('resolveTopoArgs / originOf', () => {
   it('derives origin for edge refs from faces[0]', () => {
     const edgeRef = {
       kind: 'edge' as const,
-      faces: [{ origin: asPartName('box'), role: 'box:top' }, { origin: asPartName('box'), role: 'box:front' }],
+      faces: [{ origin: asPartName('box'), role: 'box:top' }, { origin: asPartName('box'), role: 'box:front' }] as const,
       hint: { kind: 'edge' as const },
     }
     expect(originOf(edgeRef)).toBe('box')

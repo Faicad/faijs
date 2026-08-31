@@ -104,6 +104,7 @@ export type {
   BrepHandle, BrepMeshResult, BrepBoundingBox, BrepVec3, BrepCapabilities,
   BrepEvolutionData, BrepXcafDocument,
 } from './brep/engine/types'
+export { buildTopologyAdjacency, type TopologyAdjacency } from './occt-kernel/topologyExt'
 
 // keep-syntax（P7）：宿主守卫——outputs 现含 compound，消费端须区分
 export { isCompoundLike } from './shape'

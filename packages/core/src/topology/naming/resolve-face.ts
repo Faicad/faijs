@@ -34,7 +34,7 @@ export interface FaceCandidateEntry {
   }>
 }
 
-/** 面解析上下文：候选表 + role 表 + kernel（BREP 现场打分用，可为 null）。 */
+/** 面解析上下文：候选表 + role 表 + kernel（BREP 现场打分用，可为 null）+ 邻接（M3）。 */
 export interface ResolutionContext {
   /** OCCT 内核（mesh/primitive 路径为 null——打分走 row 快照）。 */
   readonly kernel: BrepEngineApi | null
@@ -42,6 +42,45 @@ export interface ResolutionContext {
   readonly faces: readonly FaceCandidateEntry[]
   /** 该 part 的 RoleTable（BREP 链上的 part 有；mesh/primitive 无 → 只走几何兜底）。 */
   readonly roleTable?: RoleTable
+  /** 边候选表（ordinal 1 起 ↔ 数组下标 0 起；edge lineage 解析用，M3）。 */
+  readonly edges?: readonly EdgeCandidateEntry[]
+  /** 顶点候选表（ordinal 1 起 ↔ 数组下标 0 起；vertex lineage 解析用，M3）。 */
+  readonly vertices?: readonly VertexCandidateEntry[]
+  /** face ordinal(1 起) → 邻接 face ordinal 列表（derived/布尔缝解析用，M3）。 */
+  readonly faceAdjacency?: ReadonlyArray<readonly number[]>
+  /** face ordinal(1 起) → 邻接 edge ordinal 列表（edge lineage 用，M3；mesh 为空 → 边 lineage 不可用）。 */
+  readonly faceEdgeAdjacency?: ReadonlyArray<readonly number[]>
+  /** edge ordinal(1 起) → 邻接 face ordinal 列表（edge lineage 用，M3）。 */
+  readonly edgeFaceAdjacency?: ReadonlyArray<readonly number[]>
+  /** face ordinal(1 起) → 邻接 vertex ordinal 列表（vertex lineage 用，M3）。 */
+  readonly faceVertexAdjacency?: ReadonlyArray<readonly number[]>
+}
+
+/** 边候选：序号 + length/midpoint hint（edge lineage 解析用，M3）。 */
+export interface EdgeCandidateEntry {
+  /** 边枚举序号（1 起）。 */
+  ordinal: number
+  /** 会话内 hash（exact 匹配预留）。 */
+  hash?: number
+  /** BREP 现场句柄（存在 → 打分走 kernel 现场几何）。 */
+  handle?: BrepHandle
+  /** 边几何 hint（length/midpoint；候选裁决用）。 */
+  hint?: {
+    length?: number
+    midpoint?: readonly number[]
+  }
+}
+
+/** 顶点候选：序号 + position hint（vertex lineage 解析用，M3）。 */
+export interface VertexCandidateEntry {
+  /** 顶点枚举序号（1 起）。 */
+  ordinal: number
+  /** 会话内 hash。 */
+  hash?: number
+  /** BREP 现场句柄。 */
+  handle?: BrepHandle
+  /** 顶点坐标。 */
+  position?: readonly number[]
 }
 
 /** 打分候选 → 候选条目（handle 优先、row 兜底，与 score.ts FaceCandidate 同构）。 */

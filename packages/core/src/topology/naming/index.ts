@@ -11,9 +11,10 @@ export * from './geom-hint'
 export * from './score'
 export * from './roles'
 export * from './resolve-face'
+export * from './resolve-edge'
+export * from './resolve-vertex'
+export * from './resolve-derived'
 export * from './resolver'
 export * from './ref-params'
 export * from './capture-topo-ref'
 export * from './build-naming'
-
-// 在 M3 接入 resolve-edge/vertex/derived 时在此追加对应导出。

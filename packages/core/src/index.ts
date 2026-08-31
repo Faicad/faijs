@@ -196,8 +196,8 @@ export { reconstructSolidFromMesh, meshToAsciiStl, cadShapeIsValid, meshToStepBr
 export { exportStepFromSolidsHighLevel } from './occt-kernel/highLevelApi'
 
 // ── OCCT Topology Extension ──
-export { buildSelectorManifest, buildAssemblySelectorManifest } from './occt-kernel/topologyExt'
-export type { SelectorManifestInput, PartTopologyInput, AssemblyTopologyResult } from './occt-kernel/topologyExt'
+export { buildSelectorManifest, buildAssemblySelectorManifest, buildTopologyAdjacency } from './occt-kernel/topologyExt'
+export type { SelectorManifestInput, PartTopologyInput, AssemblyTopologyResult, TopologyAdjacency } from './occt-kernel/topologyExt'
 
 // ── BREP 引擎注册（宿主装配；引擎可切换——occt 只是默认实现） ──
 export { registerOcctBrepEngine, OCCT_BREP_ENGINE_ID } from './brep/engine/adapters/occt'

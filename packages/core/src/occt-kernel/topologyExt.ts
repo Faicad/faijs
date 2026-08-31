@@ -1359,3 +1359,82 @@ export function buildAssemblySelectorManifest(
 
   return { manifest, buffers }
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// 拓扑邻接查询（§3.8 of docs/plans/2026-08-31-topology-naming-port-v2.md M3）
+//
+// 供 TopoRef 命名层做 edge/vertex lineage 解析。与 buildSelectorManifest
+// 内部的 face→edge 邻接同源（同一次 TopExp::MapShapes 枚举），选择器
+// manifest 输出保持不变——这是命名层的独立查询出口。
+// ═══════════════════════════════════════════════════════════════════════
+
+/** 拓扑邻接表：ordinal(1 起) ↔ 邻接 ordinal 列表。 */
+export interface TopologyAdjacency {
+  /** face ordinal(1 起) → 邻接 edge ordinal 列表。 */
+  readonly faceEdgeOrdinals: ReadonlyArray<readonly number[]>
+  /** edge ordinal(1 起) → 邻接 face ordinal 列表。 */
+  readonly edgeFaceOrdinals: ReadonlyArray<readonly number[]>
+  /** face ordinal(1 起) → 邻接 vertex ordinal 列表。 */
+  readonly faceVertexOrdinals: ReadonlyArray<readonly number[]>
+}
+
+/**
+ * 构建一个 solid 的拓扑邻接表（edge/vertex lineage 解析用，§4.2/§4.4）。
+ *
+ * 与 buildSelectorManifest 同一枚举序（getSubShapes ↔ subShapeHashes ↔
+ * manifest 行序），hash 碰撞按既有办法用 isSame 消解（findOrdinal）。
+ * 每次调用重新枚举（解析是低频路径，不建缓存）。
+ *
+ * @param kernel - the OCCT kernel.
+ * @param shape - the solid to query.
+ * @returns the adjacency tables (face→edge, edge→face, face→vertex).
+ */
+export function buildTopologyAdjacency(
+  kernel: BrepEngineApi,
+  shape: BrepHandle,
+): TopologyAdjacency {
+  const faceHandles = kernel.getSubShapes(shape, 'face')
+  const edgeHandles = kernel.getSubShapes(shape, 'edge')
+  const vertexHandles = kernel.getSubShapes(shape, 'vertex')
+  const faceCount = faceHandles.length
+  const edgeCount = edgeHandles.length
+
+  const edgeOrdLookup = buildEdgeOrdLookup(kernel, edgeHandles)
+  const vertexOrdLookup = buildFaceOrdLookup(kernel, vertexHandles)
+
+  const faceEdgeOrdinals: number[][] = []
+  const edgeFaceOrdinals: number[][] = []
+  const faceVertexOrdinals: number[][] = []
+  for (let ei = 0; ei < edgeCount; ei++) edgeFaceOrdinals.push([])
+
+  for (let fi = 0; fi < faceCount; fi++) {
+    // face → edge（与 manifest 的 faceEdgeRows 同源）
+    const faceEdges = kernel.getSubShapes(faceHandles[fi], 'edge')
+    const edgeOrds: number[] = []
+    const seen = new Set<number>()
+    for (const fe of faceEdges) {
+      const ord = findOrdinal(kernel, fe, edgeHandles, edgeOrdLookup)
+      if (ord !== undefined && !seen.has(ord)) {
+        seen.add(ord)
+        edgeOrds.push(ord)
+        edgeFaceOrdinals[ord - 1].push(fi + 1)
+      }
+    }
+    faceEdgeOrdinals.push(edgeOrds)
+
+    // face → vertex（§4.4：内核 getSubShapes(face,'vertex') 可用）
+    const faceVertices = kernel.getSubShapes(faceHandles[fi], 'vertex')
+    const vertexOrds: number[] = []
+    const seenV = new Set<number>()
+    for (const fv of faceVertices) {
+      const ord = findOrdinal(kernel, fv, vertexHandles, vertexOrdLookup)
+      if (ord !== undefined && !seenV.has(ord)) {
+        seenV.add(ord)
+        vertexOrds.push(ord)
+      }
+    }
+    faceVertexOrdinals.push(vertexOrds)
+  }
+
+  return { faceEdgeOrdinals, edgeFaceOrdinals, faceVertexOrdinals }
+}

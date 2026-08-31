@@ -13,6 +13,9 @@
 
 import { TopoRefError, type TopoErrorCode, type TopoRef } from './types'
 import { resolveFaceTopo, type ResolutionContext } from './resolve-face'
+import { resolveEdgeTopo } from './resolve-edge'
+import { resolveVertexTopo } from './resolve-vertex'
+import { resolveDerivedFaceTopo } from './resolve-derived'
 
 export type { ResolutionContext }
 
@@ -32,13 +35,12 @@ export function resolveTopoRef(ref: TopoRef, ctx: ResolutionContext): ResolvedTo
   let resolution
   if (ref.kind === 'face') {
     resolution = resolveFaceTopo(ref, ctx)
+  } else if (ref.kind === 'edge') {
+    resolution = resolveEdgeTopo(ref, ctx)
+  } else if (ref.kind === 'vertex') {
+    resolution = resolveVertexTopo(ref, ctx)
   } else {
-    // M3：边/顶点/生成面解析（resolve-edge/vertex/derived）尚未接入
-    throw new TopoRefError(
-      'E_TOPO_NOT_FOUND',
-      ref.kind,
-      `topo ref (${ref.kind}) resolution is not wired yet (M3)`,
-    )
+    resolution = resolveDerivedFaceTopo(ref, ctx)
   }
   if (!resolution.ok) {
     throw buildTopoError(resolution.reason, ref.kind, resolution.candidatesOrdinal)
