@@ -15,8 +15,11 @@
 
 import type { Shape } from '@faicad/faijs-core/mesh/types'
 import { compound as makeCompound, ensureSlot, type CompoundShape } from '@faicad/faijs-core/shape'
-import { keep, nameOf, setPendingAssemblyTransforms, type AssemblyTransform } from '@faicad/faijs-core/runtime-state'
+import { keep, nameOf, getBackends, setPendingAssemblyTransforms, type AssemblyTransform } from '@faicad/faijs-core/runtime-state'
 import type { PartName } from '@faicad/faijs-core/identity'
+import type { FaceTopoRef } from '@faicad/faijs-core/topology/naming'
+import type { BrepEngineApi } from '@faicad/faijs-core/brep/engine/primitives'
+import { resolveFaceGeometry, type ResolvedFaceGeometry } from './topo-resolve'
 
 // ── 参数类型（keep-syntax 设计 §2.5：成员保留由函数体 keep() 显式声明，不再靠类型标注） ──
 
@@ -35,21 +38,23 @@ export interface AssemblyParams extends GroupParams {
 
 // ── 约束类型 ──
 
+/**
+ * 装配约束的一个面：`{ topoRef: FaceTopoRef }`（§6.2 新形态，执行期解析几何）或
+ * 旧快照 `{ surfaceType, center, normal }`（兼容已持久化的历史脚本）。
+ */
+export type FaceMateFace = { topoRef: FaceTopoRef } | {
+  surfaceType?: string
+  center: [number, number, number]
+  normal: [number, number, number]
+}
+
 /** A face-mate constraint aligning two faces so the moving face mates against the fixed face. */
 export interface FaceMateConstraint {
   type: 'face_mate'
   fixedPartName: PartName
   movingPartName: PartName
-  fixedFace: {
-    surfaceType: string
-    center: [number, number, number]
-    normal: [number, number, number]
-  }
-  movingFace: {
-    surfaceType: string
-    center: [number, number, number]
-    normal: [number, number, number]
-  }
+  fixedFace: FaceMateFace
+  movingFace: FaceMateFace
 }
 
 /** The union of supported assembly constraint types (currently only face_mate). */
@@ -171,8 +176,14 @@ export interface AssemblyBehavior {
 /**
  * 纯求解（P6：求解 ≠ 传播）：复用 solveFaceMate 的纯计算，产出变换列表。
  * 不修改任何输入、不触碰引擎状态——引擎负责应用变换并让下游失效重算（F2）。
+ *
+ * 面参数支持两种形态（§6.2）：
+ * - `{ topoRef: FaceTopoRef }`：执行期解析——按成员当前命名槽（BREP 现场/面行快照）
+ *   解析出中心与法向，再喂给 solveFaceMate（接口不变，几何执行派生）；
+ * - 旧 `{ center, normal }` 快照：直接使用（兼容已持久化的历史脚本）。
  */
 function solveTransforms(members: Shape[], behavior: AssemblyBehavior): AssemblyTransform[] {
+  const kernel = getBackends().kernel.brep as BrepEngineApi | null
   const out: AssemblyTransform[] = []
   for (const constraint of behavior.constraints) {
     if (constraint.type !== 'face_mate') {
@@ -182,15 +193,39 @@ function solveTransforms(members: Shape[], behavior: AssemblyBehavior): Assembly
     if (movingIndex < 0) continue
     const movingShape = members[movingIndex]
     if (!movingShape) continue
+    const fixedIndex = behavior.memberNames.indexOf(constraint.fixedPartName)
+    const fixedShape = fixedIndex >= 0 ? members[fixedIndex] : undefined
+    const fixedGeom = geometryOfFace(kernel, fixedShape, constraint.fixedFace)
+    const movingGeom = geometryOfFace(kernel, movingShape, constraint.movingFace)
+    if (!fixedGeom || !movingGeom) continue
     const transform = solveFaceMate(
-      constraint.fixedFace.center,
-      constraint.fixedFace.normal,
-      constraint.movingFace.center,
-      constraint.movingFace.normal,
+      fixedGeom.center,
+      fixedGeom.normal,
+      movingGeom.center,
+      movingGeom.normal,
     )
     out.push({ index: movingIndex, ...transform })
   }
   return out
+}
+
+/** 取当前给该行为供内核（null 表示 mesh 路径——解析走行快照）。 */
+function geometryOfFace(
+  kernel: BrepEngineApi | null,
+  shape: Shape | undefined,
+  face: FaceMateFace,
+): ResolvedFaceGeometry | undefined {
+  if (face && typeof face === 'object' && !Array.isArray(face) && (face as { topoRef?: unknown }).topoRef) {
+    if (!shape) return undefined
+    return resolveFaceGeometry(kernel, shape, (face as { topoRef: FaceTopoRef }).topoRef)
+  }
+  const snapshot = face as { center?: [number, number, number]; normal?: [number, number, number]; surfaceType?: string }
+  if (!snapshot?.center || !snapshot?.normal) return undefined
+  return {
+    surfaceType: snapshot.surfaceType,
+    center: snapshot.center,
+    normal: snapshot.normal,
+  }
 }
 
 // ── group / assembly 库函数 ──
@@ -255,12 +290,12 @@ export function group(params: GroupParams): CompoundShape {
  * @qual warn
  * @name assembly
  * @returns CompoundShape + AssemblyBehavior（含 do_assemble 方法）。
- * @note 早期文档/示例曾用 `fixedPartId`/`movingPartId`/`faceRowIndex`/`faceId`/`invalid`——这些键在代码中不存在。真实契约是 `fixedPartName`/`movingPartName` + `fixedFace`/`movingFace`（{surfaceType, center, normal}，几何数据不入参数，运行时从面行派生）。
+ * @note 早期文档/示例曾用 `fixedPartId`/`movingPartId`/`faceRowIndex`/`faceId`/`invalid`——这些键在代码中不存在。真实契约是 `fixedPartName`/`movingPartName` + `fixedFace`/`movingFace`。支持两种形态：`{ topoRef: FaceTopoRef }`（§6.2 新形态，几何由 faijs 执行期从面行派生）或旧快照 `{ surfaceType, center, normal }`（兼容历史脚本）。`faceId` 字段随 §6.2 移除，不再写入。
  * @param params.name - 装配名。type:string
  * @param params.members - 成员（裸变量引用）。type:Shape[]
- * @param params.constraints - 面约束数组（type='face_mate'；fixedPartName/movingPartName + fixedFace/movingFace {surfaceType, center, normal}）。type:AssemblyConstraint[]
+ * @param params.constraints - 面约束数组（type='face_mate'；fixedPartName/movingPartName + fixedFace/movingFace：`{topoRef: FaceTopoRef}` 或 `{surfaceType, center, normal}`）。type:AssemblyConstraint[]
  * @example
- * cad.assembly({ name: '装配1', members: [part0, part1], constraints: [{ type: 'face_mate', fixedPartName: part0, movingPartName: part1, fixedFace: { surfaceType: 'plane', center: [0,0,5], normal: [0,0,1] }, movingFace: { surfaceType: 'plane', center: [0,0,0], normal: [0,0,-1] } }] })
+ * cad.assembly({ name: '装配1', members: [part0, part1], constraints: [{ type: 'face_mate', fixedPartName: part0, movingPartName: part1, fixedFace: { topoRef: { kind: 'face', origin: 'part0', role: 'box:top', hint: { kind: 'face', surfaceType: 'plane' } } }, movingFace: { topoRef: { kind: 'face', origin: 'part1', role: 'cylinder:bottom', hint: { kind: 'face', surfaceType: 'circle' } } } }] })
   */
 export function assembly(params: AssemblyParams): CompoundShape {
   const members = (params.members as Shape[] | undefined) ?? []

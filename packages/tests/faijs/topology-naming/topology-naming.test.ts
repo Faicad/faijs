@@ -213,4 +213,113 @@ describe('topology naming .faijs integration', () => {
     expect(naming0.faceNaming.filter((f) => f.role !== '').length).toBe(6)
     expect(naming0.faceNaming.every((f) => f.hint.surfaceType === 'plane')).toBe(true)
   })
+
+  it('装配 TopoRef 驱动：约束面用 {topoRef} 时执行期解析并变换 moving 成员（§6.2）', async () => {
+    // 与宿主编排相同：fixed=cylinder（顶面），moving=box（顶面），两法线同向 → 180° 翻转
+    // box 顶面贴到 cylinder 顶面（z=10）→ box 中心落到 z=20，bottom z=10
+    const code = `
+      const part0 = cad.cylinder({ radius: 10, height: 20, center: [0, 0, 0] })
+      const part1 = cad.box({ size: 20, center: [10, 0, 0] })
+      let asm0 = cad.assembly({ name: 'asm1', members: [part0, part1], constraints: [{
+        type: 'face_mate',
+        fixedPartName: 'part0',
+        movingPartName: 'part1',
+        fixedFace: { topoRef: { kind: 'face', origin: 'part0', role: 'cylinder:top', hint: { kind: 'face', surfaceType: 'plane' } } },
+        movingFace: { topoRef: { kind: 'face', origin: 'part1', role: 'box:top', hint: { kind: 'face', surfaceType: 'plane' } } },
+      }] })
+      asm0.do_assemble()
+    `
+    const result = await runtime.execute(code, { topology: 'auto' })
+    expect(result.failedAt).toBeUndefined()
+    expect(result.brepChain.solidCache.has(asPartName('part1'))).toBe(true)
+
+    // 面重合不变量：moving(box) 底面 z == fixed(cylinder) 顶面 z == ~10
+    const bbox = (name: PartName) => {
+      const p = result.outputs.get(name) as { positions?: ArrayLike<number> } | undefined
+      expect(p).toBeDefined()
+      const ps = p?.positions as ArrayLike<number> | undefined
+      expect(ps).toBeDefined()
+      let minZ = Infinity
+      let maxZ = -Infinity
+      for (let i = 2; i < (ps?.length ?? 0); i += 3) {
+        const z = (ps?.[i] as number) ?? 0
+        if (z < minZ) minZ = z
+        if (z > maxZ) maxZ = z
+      }
+      return { minZ, maxZ }
+    }
+    const fixed = bbox(asPartName('part0'))
+    const moving = bbox(asPartName('part1'))
+    // cylinder 不移动（fixed part），顶面 z=10
+    expect(fixed.maxZ).toBeCloseTo(10, 0)
+    expect(fixed.minZ).toBeCloseTo(-10, 0)
+    // moving 顶面翻到底面 → moving 底面 z=10，顶面 z=30（box 尺寸 20）
+    expect(moving.minZ).toBeCloseTo(10, 0)
+    expect(moving.maxZ).toBeCloseTo(30, 0)
+  })
+
+  it('装配 TopoRef 悬空引用：无法命名上下文 → 显式三态错误（不静默）', async () => {
+    const code = `
+      const part0 = cad.box({ size: 20 })
+      let asm0 = cad.assembly({ name: 'bogus', members: [part0], constraints: [{
+        type: 'face_mate',
+        fixedPartName: 'part0',
+        movingPartName: 'part0',
+        fixedFace: { topoRef: { kind: 'face', origin: 'part0', role: 'ghost:role', hint: { kind: 'face', surfaceType: 'torus' } } },
+        movingFace: { topoRef: { kind: 'face', origin: 'part0', role: 'box:top', hint: { kind: 'face', surfaceType: 'plane' } } },
+      }] })
+      asm0.do_assemble()
+    `
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    try {
+      await runtime.execute(code, { topology: 'auto' })
+      expect.unreachable('topoRef resolution should have failed')
+    } catch (e) {
+      const err = e as { code?: string; refKind?: string }
+      expect(err.code).toBe('E_TOPO_NOT_FOUND')
+      expect(err.refKind).toBe('face')
+    } finally {
+      warnSpy.mockRestore()
+      errorSpy.mockRestore()
+    }
+    expect(warnSpy).not.toHaveBeenCalled()
+    expect(errorSpy).not.toHaveBeenCalled()
+  })
+
+  it('drill TopoRef 驱动：face 用 {topoRef} 时执行期派生法向钻孔（§6.2）', async () => {
+    // box 顶面（z=+10 端盖）钻通孔：法向由 face TopoRef 在执行期解析得到 +Z
+    const code = `
+      const part0 = cad.box({ size: 20, center: [0, 0, 0] })
+      const part1 = cad.drill(part0, {
+        diameter: 4, depth: 5, holeType: 'simple',
+        position: [0, 0, 10], direction: 'normal',
+        face: { kind: 'face', origin: 'part0', role: 'box:top', hint: { kind: 'face', surfaceType: 'plane' } },
+      })
+    `
+    const result = await runtime.execute(code, { topology: 'auto' })
+    expect(result.failedAt).toBeUndefined()
+    expect(result.brepChain.solidCache.has(asPartName('part1'))).toBe(true)
+    // 钻孔后的 box 仍在 BREP 链（drill 走 BREP 路径，face 解析到 +Z 不抛错）
+    const naming1 = result.naming!.get(asPartName('part1'))!
+    expect(naming1.faceNaming.length).toBeGreaterThanOrEqual(6)
+  })
+
+  it('drill 轴向：face + faceNormal 同时给出时以点击法向快照为权威（曲面轴向只能按点击点还原）', async () => {
+    // 圆柱侧面点击：cylinder:lateral 的单一 hint 法向是柱轴，无法还原点击点径向；
+    // 轴向必须以宿主捕获的 faceNormal（点击点真实法向）为权威。同时给出
+    // face（身份引用）与 faceNormal（轴向快照）→ 不抛错且仍走 BREP。
+    const code = `
+      const part0 = cad.cylinder({ radius: 10, height: 20, center: [0, 0, 0] })
+      const part1 = cad.drill(part0, {
+        diameter: 5, depth: 0, holeType: 'simple',
+        position: [0, -10, 10], direction: 'normal',
+        face: { kind: 'face', origin: 'part0', role: 'cylinder:lateral', hint: { kind: 'face', surfaceType: 'cylinder', normal: [0, 0, 1], center: [0, 0, 0] } },
+        faceNormal: [-0.049068, -0.998795, 0],
+      })
+    `
+    const result = await runtime.execute(code, { topology: 'auto' })
+    expect(result.failedAt).toBeUndefined()
+    expect(result.brepChain.solidCache.has(asPartName('part1'))).toBe(true)
+  })
 })

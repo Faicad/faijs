@@ -1,9 +1,9 @@
-# 拓扑命名（TopoRef）移植与历史追踪技术实现方案（v2 重写稿）
+# 拓扑命名（TopoRef）移植与历史追踪技术实现方案
 
 > 状态：方案（未实施）
-> 取代关系：本文是对 `2026-08-31-topology-naming-port.md`（下称「旧稿」）的**全新重写**，旧稿保留不动，不在其上修改。
 > 涉及仓库：`faijs`（C:\my\Faicad\faijs）、`3d_editor`（C:\my\Faicad\3d_editor）、移植来源 `brepjs`（C:\git\OpenCascade\brepjs）。
 > 关联方案：`2026-08-31-chamfer-brep-api-design.md`（倒角边选择子，本文为其补上真正的跨历史身份层）。
+> 边界：项目未上线，本文不考虑任何向后兼容负担，直接定义目标形态；不参考任何历史/废弃设计。
 
 ---
 
@@ -24,11 +24,11 @@
 1. 移植 brepjs 的拓扑命名/历史追踪代码，落到 faijs 引擎与 3d_editor 宿主；
 2. 现状「拓扑直接采用序号」必须升级为「可跨历史追踪的命名」；
 3. STL/3MF 等 mesh 近似拓扑（以及 primitive 假拓扑）无法做历史追踪，需要给出**明确的重构判断**——允许「只让数据格式兼容」这一较轻路线；
-4. 只写方案，不改旧稿、不写实现代码。
+4. 只写方案，不写实现代码；项目未上线，无任何向后兼容负担，直接定义目标形态。
 
 ---
 
-## §1 现状（对照源码核实后的事实，非旧稿推断）
+## §1 现状（对照源码核实后的事实，非二手转述）
 
 本节所有结论均来自三个仓库当前源码，给出文件路径；「事实」= 代码可直接验证，「判断」= 在事实之上的设计推断，会显式标注。
 
@@ -43,19 +43,19 @@
 
 - `types.ts`：`SelectorManifest`（occurrences/shapes/faces/edges 四张列存表 + buffers）、`SelectorRuntime`、`Reference`；
 - `build-face-ids.ts`：三角片 → 面行；`build-selector-runtime.ts`：manifest → `referenceMap` / `faceReferenceByRowIndex`；
-- **没有 vertex 表**（只有面、边两级）；
+- manifest **没有 vertex 表**（只有面、边两级）；
 - `FaceRow` 已携带 `surfaceType / area / center / normal / bbox`——这些恰好等于 brepjs 的 `GeometricHint` 字段（见 §2.2），是后续「格式兼容」的关键。
 
 **（事实）BREP 链按 part 维护，节点已带「演化」，但是序号键。** `packages/core/src/brep/`：
 
 - `brep-chain.ts`：**没有逐节点链表**，链状态是 `BrepChainState` 上的三个逐 part 缓存——`solidCache: Map<PartName,BrepHandle>`（某 part 有句柄即在 BREP 链上、缺失即已降级 mesh）、`faceEvolutionCache: Map<PartName,FaceEvolution>`（产出该 part 的上一步序号演化）、`meshShapeCache`；由 `runtime.ts:259/322/384` 在每个 BREP op 后写入并传入状态。遇到 mesh-only op 时按 AGENTS 红线做「链切换」（该 part 不写 solidCache），前半段保持 BREP、后半段转 mesh，**无运行时回退**。
-- `face-evolution.ts`：演化的**原始形态就是 hash**。occt-wasm 高层 `*WithHistory` 返回 `BrepEvolutionData { result, modified:number[], generated:number[], deleted:number[] }`，其中 `modified` 是**分段打包**的 `[inHash, count, outHash1, outHash2, ...] × N`（即 hash→hash[] 的 1→多，文件头 61-63 行注释）；`decodeEvolution()` 用 `subShapeHashes(shape,'face',B)`（批量取 hash、**不分配句柄**）建 hash↔序号对照，把它**解码成序号键** `FaceEvolution = Map<inOrd,outOrd[]>` 供选择器/文本持久化使用。注意：布尔包装 `cut/fuse/intersectWithHistoryBrep` 虽然用 `getUnionFaceHashes` 传入了 A∪B 两边的 hash（打包结果含双方），但 `decodeEvolution(evo, a, result)` **只对基体 a 解码，工具 b 的面去向被丢弃**。
+- `face-evolution.ts`：演化的**原始形态就是 hash**。occt-wasm 高层 `*WithHistory` 返回 `BrepEvolutionData { result, modified:number[], generated:number[], deleted:number[] }`，其中 `modified` 是**分段打包**的 `[inHash, count, outHash1, outHash2, ...] × N`（即 hash→hash[] 的 1→多，`face-evolution.ts:63` 头注释、:94-110 实现）；`decodeEvolution()` 用 `subShapeHashes(shape,'face',B)`（批量取 hash、**不分配句柄**）建 hash↔序号对照，把它**解码成序号键** `FaceEvolution = Map<inOrd,outOrd[]>` 供选择器/文本持久化使用。注意：布尔包装 `cut/fuse/intersectWithHistoryBrep` 虽然用 `getUnionFaceHashes` 传入了 A∪B 两边的 hash（打包结果含双方），但 `decodeEvolution(evo, a, result)` **只对基体 a 解码，工具 b 的面去向被丢弃**。
 - `engine/primitives.ts` 的 `BrepEngineApi` 是对 occt-wasm 原始 kernel 的**结构化子集重声明**——`initOcctWasm()` 直接把 occt-wasm 实例 `as unknown as BrepEngineApi`（`occt-kernel/occtKernel.ts:106`），因此接口里只声明了 `cut/fuse/intersectWithHistory` 三个带历史方法，但底层实例实际具备 `index.d.ts:458-472`（3.8.4）的全部 12 个 `*WithHistory`（translate/rotate/mirror/scale/fuse/cut/intersect/fillet/chamfer/shell/offset/thicken），**新增方法只需补接口声明 + 补 face-evolution 包装，不需要写内核实现**。
-- `stdlib/src/transform.ts` 的 BREP 实现走 `applyTransformBrep()`（`brep-ops.ts`，矩阵 copyTransform，**不调 WithHistory**），再由 `face-evolution.identityEvolution()` 按「刚体变换不改变面数量与顺序」合成 ordinal i→[i] 的**恒等演化**（202-222 行，注释明确说明是为绕开 rotate/scale WithHistory 签名不兼容而设）。
+- `stdlib/src/transform.ts` 的 BREP 实现走 `translateBrep/rotateBrep/scaleBrep`（`brep-ops.ts`，`kernel.transform` 矩阵，**不调 WithHistory**；`applyTransformBrep` 是装配传播专用，`module-executor.ts:437`），再由 `face-evolution.identityEvolution()` 按「刚体变换不改变面数量与顺序」合成 ordinal i→[i] 的**恒等演化**（202-222 行，注释明确说明是为绕开 rotate/scale WithHistory 签名不兼容而设）。
 
 **（事实）内核底层原语已齐备。** `occt-kernel/topologyExt.ts` 已使用 `kernel.hashCode(h, 2147483647)`、`getSubShapes(shape,'face'|'edge'|'vertex')`（`BrepSubShapeType` 含 `'vertex'`，`engine/types.ts:106`）、`isSame(a,b)`，并在 646-668 行用 isSame 建出了 face↔edge 双向邻接序号（`faceEdgeRows / edgeFaceRows`）。即：移植 shapeRef 所需的 hash、邻接、同构判断**不需要新的 C++/wasm 能力**。
 
-**（事实）当前没有任何 faijs op 以面/边引用为参数。** 全 `packages/stdlib/src` 检索 `FaceId/EdgeId/selector` 无消费方：
+**（事实）当前没有任何 faijs op 以 `FaceId/EdgeId` 品牌字符串为参数；唯一的拓扑引用先例是 `geom.ts` 的 `geomQuery`，以裸 ordinal 为面引用（`geom.ts:29-58`）且含 try-catch 静默降级——§2.5 的「定不了案就抛错」一并修掉它。** 全 `packages/stdlib/src` 检索 `FaceId/EdgeId/selector` 无消费方：
 
 - 钻孔 `drill.ts` 用 `position + faceNormal`（几何快照）；
 - 装配 `stdlib/src/compound.ts` 的 `FaceMateConstraint` 只有 `{surfaceType,center,normal}`，且 258 行注释明确写「`faceId`/`faceRowIndex` 这些键在代码中不存在」——**求解器完全不用 faceId**；
@@ -78,11 +78,12 @@
 
 - `lib/topology/picking.ts`：`faceIds[triangle] → 面行 → runtime.faceReferenceByRowIndex → Reference`；选中态存 `selection-store.ts` 的 `selectedReferenceIds`（`topology|...` 字符串）+ `selectedRefScopedIds`。
 - 代码生成：`ScriptEngine.recordFeature → Feature.buildCode（engine/features/*.ts）→ formatCodeLine（faijs codegen，参数以 JSON 字面量打印）→ appendCode`。**因此任何要写进 `.faijs` 的拓扑引用，必须是 JSON 可序列化的纯对象。**
+- **（事实）faceId 已被持久化进装配脚本**：`assemble-store.ts` 的 `confirmAssemble` 把 faceId 放进 TopoFaceRef → `createAssembly`（model-store.ts:1772 附近）写入装配 feature 的 args，产出形如 `fixedFace:{faceId:'o1.f6', surfaceType:'plane', center:[...], normal:[...]}` 的代码行（script-engine.test.ts:1765 有断言）；但求解数学 `solveFaceMate/executeDoAssemble` 只消费 center/normal，faceId 仅作记录——这正是「序号快照被当身份持久化」的现场，§6.2 以 TopoRef 替换并移除 faceId。
 - 宿主经 `file:../faijs/*.tgz`（当前 0.6.0）消费 `@faicad/faijs(-core/-stdlib)`，occt-wasm 同为 3.8.4。
 
 ### 1.3 brepjs：要移植的 shapeRef 到底是什么
 
-移植源是 `src/topology/shapeRef/`（9 个文件、约 1.1k 行、**纯函数、内核抽象**），不是旧稿说的 `TopoShapeRef.ts/TopoShapeRefManager.ts/FaceRefBuilder.ts`（仓库里不存在这些文件名，旧稿此处失实）。实际构成：
+移植源是 `src/topology/shapeRef/`（9 个文件、8 模块合计约 1.28k 行、**纯函数、内核抽象**）。实际构成：
 
 | 文件 | 行数 | 职责 |
 |---|---|---|
@@ -91,8 +92,8 @@
 | `scoring.ts` | 79 | `defaultScorer`：曲面类型硬门 + 法向点积≥0.707 + 质心距²≤100 + 面积 log 比 |
 | `roleLookup.ts` | 59 | `roleOfFace`（hash→role 反查）、`facesForRole`（role→当前面）、距离/质心 |
 | `edgeRefFns.ts` | 139 | 边 = 两邻面之交：`facesOfEdge`+反查 role 捕获，`sharedEdges`+hint 解析 |
-| `vertexRefFns.ts` | 129 | 顶点 = ≥3 面交点：邻面 role 集合捕获，面顶点交集 + 位置 hint 解析 |
-| `derivedFaceRefFns.ts` | 141 | 倒角/圆角「生成面」= 桥接两命名面的过渡面，法向混合过滤 |
+| `vertexRefFns.ts` | 139 | 顶点 = ≥3 面交点：邻面 role 集合捕获，面顶点交集 + 位置 hint 解析 |
+| `derivedFaceRefFns.ts` | 154 | 倒角/圆角「生成面」= 桥接两命名面的过渡面，法向混合过滤 |
 | `refResolveFns.ts` | 164 | 四类 ref 的类型守卫、统一 `resolveLineageRef`、从零重建的 `resolveRefIn`、递归替换 op 参数的 `resolveRefParams`（仅单输入） |
 
 配套但**不直接照搬**的两层：
@@ -102,21 +103,11 @@
 
 **（事实，关键）三层身份分工。** 综合源码：
 
-1. **hash（OCCT `HashCode`，上界 INT32_MAX）是「一次执行会话内」的活句柄标识**：同一次重放中 op1→op2 句柄还在，hash 可沿演化传播；但两次独立全量重放之间句柄重建、hash 不稳定；
-2. **role（语义/位置名，如 `box:top`）才是跨重放稳定的身份**，由 `assignRoles` 在每次重放开头重建 role→hash；
+1. **hash（OCCT `HashCode`，上界 INT32_MAX）是「一次执行会话内」的活句柄标识**：同一次重放中 op1→op2 句柄还在，hash 可沿演化传播；但两次独立执行之间句柄重建、hash 不稳定；
+2. **role（语义/位置名，如 `box:top`）才是跨重放稳定的身份**，由 `assignRoles` 在链根建立 role→hash、此后沿演化增量推进，跨会话重建时按 origin 惰性重建（`resolveRefIn/resolveRefParams → rolesFor`）；
 3. **hint（几何快照）是最后兜底**，role 对不上时全形状打分，并显式区分 exact / geometric-fallback / deleted / ambiguous / not-found。
 
 **（事实）`updateRoles` 只消费 deleted/modified，刻意不消费 generated**（`shapeRefFns.ts:169-174` 注释：occt 系内核 generated hash 指向中间形、对布尔实测 0 个存活）；生成面（圆角/倒角/布尔缝）改由 `DerivedFaceRef` 以「桥接的两个面」lineage 命名。
-
-### 1.4 旧稿哪里不准确（本稿的修正点）
-
-1. 旧稿按 `TopoShapeRef/FaceRefBuilder/EdgeNameBuilder` 等不存在的文件组织移植清单；本稿按真实 9 文件 + 配套两层组织。
-2. 旧稿把「序号演化」与「命名」混在一层；本稿明确**序号是快照内地址、命名是跨历史身份，两层并存、互不替换**（§2.1）。
-3. 旧稿未回答「mesh/primitive 近似拓扑怎么办」；本稿给出明确决策：**统一数据格式 + 分级解析**，不伪造 hash 血缘（§5）。
-4. 旧稿未识别「布尔会合并两个来源的 role 表」「faijs 边可能跨来源」这两个 brepjs 单形状模型没覆盖、而 faijs 装配/布尔必然遇到的问题（§3.4、§4.3）。
-5. 旧稿未区分「引用解析降级」与 AGENTS 红线禁止的「引擎路径运行时回退」——本稿显式划清（§5.4）。
-
----
 
 ## §2 总体设计
 
@@ -184,18 +175,18 @@ export type TopoResolution<T> =
   | { readonly ok: false; readonly reason: 'deleted' | 'ambiguous' | 'not-found'; readonly candidatesOrdinal?: readonly number[] }
 ```
 
-短写形态（手写脚本友好，对齐倒角方案）：`FaceTopoRef | FaceId`（字符串 `'o1.f3'`）、`EdgeTopoRef | EdgeId`。短写只给序号，解析时走「当前快照直取 + hint 缺失则不纠错」的快路径。
+### 2.3 RoleTable 的生命周期：随 Shape 身份槽传播 + runtime 持久缓存（D2）
 
-### 2.3 RoleTable 的属主：BREP 链，不是 op、也不是宿主（D2）
+brepjs 把 RoleTable 留给调用方（playground/historyFns）。faijs 的落点复用 `faceEvolution` 的既有双轨制——这是 op 内能拿到演化数据的唯一现成通道：
 
-brepjs 把 RoleTable 留给调用方（playground/historyFns）。faijs 里唯一正确的属主是 **`BrepChainState`（逐 part 缓存）**，与现有 `solidCache / faceEvolutionCache` 并列新增 `roleTableCache: Map<PartName, RoleTable>`，因为只有链状态同时握有：每个 part 的当前句柄、上一步演化、输入 part 是谁。
-
-- 链根（primitive / load STEP / 导入产出的 part）建表：`assignRoles(solid, opType)`（§3.2），写入 `roleTableCache[part]`；
-- 每个后续 BREP op：读输入 part 的表 + 本次 hash 演化，算出输出 part 的表并回写（§3.3），写入点与 `runtime.ts:322 faceEvolutionCache.set` 同处；
+- **数据随 Shape 身份槽走**：`Shape.brepSlot` 新增 `naming` 槽（`roleTable` + 面 hint 快照），随 op 产物传播——op 的 brep 实现经输入 Shape 直接读取（§3.6 数据通道）；
+- **runtime 侧持久缓存**：`CadRuntime` 与 `BrepChainState` 各增 `roleTableCache: Map<PartName, RoleTable>`，与 `faceEvolutionCache` 完全同生命周期：runtime 实例级持久、按语句增量同步（对齐 `module-executor.ts:398` 的 `setFaceEvolution` 同步点）、`dispose` 一并 clear（对齐 `runtime.ts:1267`）。**不是每次 execute 全量重建**：未变语句经 statementKey 缓存复用产物，RoleTable 随产物缓存一并复用；上游语句 update 时其下游重算，roleTable 沿重算链重新传播（对齐 module-executor 既有级联失效）。
+- 链根（primitive / load STEP / 导入产出的 part）建表：`assignRoles(solid, opType)`（§3.2），随该 part 产物缓存；
+- 每个后续 BREP op：读输入 part 的表 + 本次 hash 演化，算出输出 part 的表并随产物传播（§3.3）；
 - 布尔合流：合并两个输入 part 的表（§3.4）；
-- RoleTable **只活在一次执行内**，随 `CadRuntime.execute` 确定性重建（执行结束随 `runtime.ts:1265` 一并 clear），**不序列化、不进 `.faijs`、不进 STEP_T**。脚本里只存 TopoRef。
+- RoleTable 是执行内状态：**不序列化、不进 `.faijs`、不进 STEP_T、不进 `ExecutionResult.naming`**（宿主只拿 §3.7 的纯数据）。脚本里只存 TopoRef。
 
-（判断）这与 faijs「纯文本源码 + 确定性全量重放」模型天然契合：每次重放都从链根重新 assign、沿同一条语句序列重新传播，得到与本次句柄一致的 role→hash。
+（判断）hash 的稳定边界是「同一 runtime 实例的 wasm 会话内」（句柄存活期内）；跨实例/会话重建时 RoleTable 整体重建，TopoRef 的稳定性来自 role/hint 纯数据而非 hash，hash 仅作会话内索引——与 brepjs「hash 是活句柄、role 是稳定身份」的分层一致（§1.3）。
 
 ### 2.4 hash 键演化：打包结果本身就是 hash 键，新增一个并列解码器即可（D3）
 
@@ -213,11 +204,11 @@ hashEvo.deleted = [...evo.deleted]   // 已是输入面 hash
 
 它与现有 `decodeEvolution` **同源、同一次内核调用**，一个供 role 传播（hash 键）、一个供选择器/文本（序号键），不新增任何 wasm 调用，也不需要 `getSubShapes` 逐句柄 `hashCode`。需要 hash↔序号对照时统一用 `subShapeHashes`（批量、零句柄分配）；hash 碰撞按 topologyExt 既有办法用 `isSame` 消解（`findOrdinal`，topologyExt.ts:555-569）。`subShapeHashes` 与 `getSubShapes` 同走 `TopExp::MapShapes+IndexedMap`、逐位同序（face-evolution.ts:10-12 已声明），是本方案成立的前提，M1 补成断言（§7-R4）。
 
-**变换类（translate/rotate/scale/mirror）**：当前不调 WithHistory、用 `identityEvolution` 合成序号恒等。刚体平移/旋转下面 1:1 保留，role 传播可同样按「输入第 i 面 hash → 输出第 i 面 hash」用 `subShapeHashes` 两端对齐合成 hash 恒等，M1 先沿用；M2 再切到 occt-wasm 已有的 `translate/rotate/mirror/scaleWithHistory`（只需在 `BrepEngineApi` 补声明 + 在 face-evolution 补包装，签名见 `index.d.ts:458-472`）以覆盖镜像（镜像反向、法向变化，语义角色需重判，见 §7-R3）。
+**变换类（translate/rotate/scale/mirror）**：当前不调 WithHistory、用 `identityEvolution` 合成序号恒等。刚体平移/旋转下面 1:1 保留，role 传播可同样按「输入第 i 面 hash → 输出第 i 面 hash」用 `subShapeHashes` 两端对齐合成 hash 恒等，M1 先沿用；M2 再切到 occt-wasm 已有的 `translate/rotate/mirror/scaleWithHistory`（只需在 `BrepEngineApi` 补声明 + 在 face-evolution 补包装，签名见 `index.d.ts:458-472`）以覆盖镜像（镜像反向、法向变化，role 不重判的取舍见 §7-R3）。
 
 ### 2.5 解析总算法（op 执行时把 TopoRef 变活）
 
-新增 `topology/naming/resolver.ts`，输入一个 `ResolutionContext`（封装「当前 part 的活 solid+kernel」或「mesh/primitive 的 manifest 行」+ 该 part 的 RoleTable），输出 §2.2 的 `TopoResolution`。以面为例（移植 `shapeRefFns.resolveRef`）：
+新增 `topology/naming/resolver.ts`，输入一个 `ResolutionContext`（封装「当前 part 的活 solid+kernel」或「mesh/primitive 的命名槽面 hint 快照」+ 该 part 的 RoleTable，全部取自输入 Shape 的命名槽，§3.6），输出 §2.2 的 `TopoResolution`。以面为例（移植 `shapeRefFns.resolveRef`）：
 
 ```
 resolveFace(ref, ctx):
@@ -227,7 +218,7 @@ resolveFace(ref, ctx):
      - 命中多个（1→多分裂）→ 只在这几个候选间用 hint 打分（§3.5），不与全形状竞争
   2. 几何兜底（role 缺失 / 上一步未命中）：在「当前全部面」上按 hint 打分
      - BREP：用 kernel 现场算 surfaceType/normal/center/area
-     - mesh/primitive：直接读 FaceRow 同名字段（§5）
+     - mesh/primitive：直接读该 part 命名槽中的面 hint 快照（§3.6、§5）
   3. 最优分 > MIN_SCORE 且与次优差 ≥ AMBIGUITY_THRESHOLD → geometric-fallback
      否则 ambiguous（并列候选）/ not-found（无超阈值候选）
 ```
@@ -247,15 +238,15 @@ resolveFace(ref, ctx):
 
 ```
 packages/core/src/topology/naming/
-  types.ts            # §2.2 全部类型 + 错误码枚举
+  types.ts            # §2.2 全部类型 + §3.7 FaceNaming/EdgeNaming + 错误码枚举
   geom-hint.ts        # captureFaceHint(kernel, faceHandle)；faceRowToHint(row, colIdx)
-  roles.ts            # assignRoles / propagateRoles / mergeRoleTables / roleOfOrdinal
-  score.ts            # defaultFaceScorer（BREP 现场几何）+ scoreFaceRow（manifest 行）两套候选打分
+  roles.ts            # assignRoles / propagateRoles / mergeRoleTables / assignGeneratedPositionalRoles / roleOfOrdinal
+  score.ts            # defaultFaceScorer（BREP 现场几何）+ scoreFaceRow（面行/命名槽快照）两套候选打分
   resolve-face.ts     # resolveFaceTopo
   resolve-edge.ts     # resolveEdgeTopo
   resolve-vertex.ts   # resolveVertexTopo（P2，依赖 vertex 邻接）
   resolve-derived.ts  # resolveDerivedFaceTopo（倒角/圆角，P3）
-  resolver.ts         # 统一 ResolutionContext + resolveTopoRef + 短写解析
+  resolver.ts         # 统一 ResolutionContext + resolveTopoRef
   ref-params.ts       # 递归把 op 参数里的 TopoRef 替换为解析后的 {ordinal/handle}（移植 resolveRefParams，扩展多输入显式标注 origin）
   index.ts
 ```
@@ -273,9 +264,9 @@ packages/core/src/topology/naming/
 
 ### 3.3 沿链传播（改 `brep-chain.ts` + `runtime.ts` + `module-executor.ts`）
 
-- `BrepChainState` 与 `runtime` 各增一个 `roleTableCache: Map<PartName, RoleTable>`，初始化/clear 点对齐 `faceEvolutionCache`（`brep-chain.ts:102/123/142`、`runtime.ts:259/384/1265`、`preview-exec.ts:60`）。
-- 链根：primitive/load 产出 part 时建表写入。
-- 单父 op（变换/倒角/钻孔等）：`roleTableCache[out] = propagateRoles(roleTableCache[in], decodeHashEvolution(evo))`，移植 `nextHashes`：deleted 丢弃、modified 用全部后继替换（保留 1→多）、未变保留；身份槽 → 缓存的同步点对齐 `module-executor.ts:90`。
+- `Shape.brepSlot` 新增 `naming` 槽（`shape.ts`，与 `faceEvolution` 同槽）；`BrepChainState` 与 `runtime` 各增 `roleTableCache: Map<PartName, RoleTable>` 持久缓存，初始化/clear 点对齐 `faceEvolutionCache`（`brep-chain.ts:102/123/142`、`runtime.ts:259/384/1267`、`preview-exec.ts:60`）。
+- 链根：primitive/load 产出 part 时建表，随产物写入命名槽并同步缓存。
+- 单父 op（变换/倒角/钻孔等）：`outNaming = propagateRoles(inNaming, decodeHashEvolution(evo))`，移植 `nextHashes`：deleted 丢弃、modified 用全部后继替换（保留 1→多）、未变保留；产物槽 → 缓存的同步对齐 `module-executor.ts:398`（`afterStatement` 的身份槽同步处）。
 - 与现有序号演化的关系：`decodeEvolution`（序号键，进 `faceEvolutionCache`）继续服务选择器/可视化；`decodeHashEvolution`（hash 键，进 `roleTableCache`）服务命名；二者由同一次 `*WithHistory` 的打包结果解出，不重复调用内核。
 
 ### 3.4 布尔合流：合并两个来源的 role 表（faijs 对 brepjs 的必要扩展）
@@ -286,8 +277,8 @@ faijs 布尔有 target + tool 两个输入，各自带链根来源；brepjs 是�
 resultTable = {}
 for origin,roles in roleTableCache[targetPart]: resultTable[origin] = propagate(roles, targetHashEvo)
 for origin,roles in roleTableCache[toolPart]:   resultTable[origin] = propagate(roles, toolHashEvo)
-# 布尔新生成的缝面/刃面：以「本次布尔语句」为新 origin，位置名命名
-resultTable[thisStmtId] = assignGeneratedPositionalRoles(...)
+# 布尔新生成的缝面/刃面：以本次布尔语句的 LHS 变量名（= outPart）为新 origin，位置名命名
+resultTable[outPart] = assignGeneratedPositionalRoles(...)
 roleTableCache[outPart] = resultTable
 ```
 
@@ -298,34 +289,40 @@ roleTableCache[outPart] = resultTable
 - `defaultFaceScorer`（BREP）：移植阈值（类型不符直接 -∞、法向点积 <0.707 拒、质心距²>100 拒、面积 |log 比|>1 扣分；最优阈值 MIN_SCORE=0.5、模糊带 0.1）。**阈值常量化并在 JSDoc 写明 mm 单位假设**，faijs 契约就是 mm，可直接沿用。
 - `scoreFaceRow`（mesh/primitive）：候选不是句柄而是 FaceRow，用行内 `surfaceType/normal/center/area` 走同一套权重，保证两条路径打分口径一致、结果可比。
 
-### 3.6 op 如何拿到解析结果：`resolveTopoArgs`（不改 defineOp 形态）
+### 3.6 op 如何拿到解析结果：解析上下文随 Shape 命名槽走（不改 defineOp 形态）
 
-`define-op.ts` 的 `brepImpl(...args)` 签名保持不变。新增辅助：op 的 brep 实现内部对「含 TopoRef 的参数」调用
+`define-op.ts` 的 `brepImpl(...args)` 签名保持不变——签名里只有用户 args，因此**解析上下文必须随输入 Shape 走**：`Shape.brepSlot.naming` 槽（§2.3）携带该 part 的 `roleTable`（BREP，hash 键）或面 hint 快照（mesh/primitive，`setTopology` 注入时由 runtime 从 SelectorRuntime 面行提炼写入）。op 的 brep 实现内部对「含 TopoRef 的参数」调用：
 
 ```ts
-resolveTopoArgs(params, { kernel, solid: inputSolid, roleTable: roleTableCache.get(inputPart) })
+resolveTopoArgs(params, { kernel, inputs })  // inputs = 参数中的几何输入
+// 各输入 Shape 自带 naming 槽：BREP 经 roleTable 走 §2.5 exact 路径；
+// mesh/primitive 经面 hint 快照走 geometric-fallback
 ```
 
-它把每个 TopoRef 解析为 `{ ordinal, handle, confidence }`（移植 `refResolveFns.resolveRefParams` 的递归，数组/嵌套对象都下钻）。区别于 brepjs「仅单输入自动解析」：faijs 的 TopoRef 自带 `origin`（§2.2），多输入布尔也能按 origin 定位到对应输入 part 的表，因此**可支持多输入**——这是 faijs 相对 brepjs 的增强点。解析失败按 §2.5 抛错码（如 `E_TOPO_FACE_DELETED / E_TOPO_AMBIGUOUS / E_TOPO_NOT_FOUND`），纳入 args 校验。
+它把每个 TopoRef 解析为 `{ ordinal, handle, confidence }`（移植 `refResolveFns.resolveRefParams` 的递归，数组/嵌套对象都下钻）。区别于 brepjs「仅单输入自动解析」：faijs 的 TopoRef 自带 `origin`（§2.2），多输入布尔也能按 origin 定位到对应输入 Shape 的命名槽，因此**可支持多输入**——这是 faijs 相对 brepjs 的增强点。解析失败按 §2.5 抛错码（如 `E_TOPO_FACE_DELETED / E_TOPO_AMBIGUOUS / E_TOPO_NOT_FOUND`），纳入 args 校验。
 
 ### 3.7 向宿主暴露命名数据（改 ExecutionResult）
 
 3d_editor 拾取时要把「选中的序号」反查成 role 才能造 TopoRef，不能让宿主为这件事再打一次 wasm。在 `ExecutionResult` 增加（与 `topology` 并列、选择器 manifest 不改动）：
 
 ```ts
+// 命名行（naming 数组元素，序号(1起) ↔ 数组下标）
+export interface FaceNaming { readonly origin: PartName; readonly role: string; readonly hint: FaceHint }
+export interface EdgeNaming { readonly faces: readonly [RoleQualifier, RoleQualifier] | null; readonly hint: EdgeHint }
+
 naming?: Map<PartName, {
   source: TopologySource
-  // 序号(1起) → { origin, role, hint }，宿主 O(1) 反查；BREP/primitive 完整，mesh 只给 hint（role 为空串）
-  faceNaming: ReadonlyArray<{ origin: PartName; role: string; hint: FaceHint }>
-  edgeNaming: ReadonlyArray<{ faces: [RoleQualifier, RoleQualifier] | null; hint: EdgeHint }>
+  // 宿主 O(1) 反查；BREP/primitive 完整，mesh 只给 hint（role 为空串）
+  faceNaming: ReadonlyArray<FaceNaming>
+  edgeNaming: ReadonlyArray<EdgeNaming>
 }>
 ```
 
-- BREP：由链节点 roleTable + `roleOfOrdinal`（hash→role 反查的序号版）+ captureHint 生成；
+- BREP：由链节点 roleTable + `roleOfOrdinal`（hash→role 反查的序号版）+ captureHint 生成（边 `midpoint` 与 `EdgeRow.center` 同口径，`geom-hint.ts` 统一采集）；
 - primitive：由语义命名器直接按固定面序生成（§3.2 对照表）；
 - mesh：只填 hint（取自 FaceRow），`role=''`、`origin=该 part`，表示「只能几何兜底」。
 
-根门面在 `./browser`（及 `./node`）导出 naming 类型与 `captureTopoRef(runtime, naming, referenceId)` 纯函数，供宿主统一构造 TopoRef。
+根门面在 `./browser`（及 `./node`）导出 naming 类型与纯函数 `captureTopoRef(row: FaceNaming | EdgeNaming): TopoRef`（由命名行构造 TopoRef；ReferenceId/ordinal 的解析与命名行定位由宿主 §6.1 完成），供宿主统一构造 TopoRef。
 
 ### 3.8 内核/API 扩展点清单
 
@@ -333,6 +330,7 @@ naming?: Map<PartName, {
 - `brep/face-evolution.ts`：增 §2.4 hash 键解码 + 布尔按 A/B 归属拆演化（§3.4）。
 - `occt-kernel/topologyExt.ts`：补 edge→faces、face→vertex 邻接查询（edge/vertex lineage 用，face→edge 已有）；选择器 manifest 输出保持不变。
 - 根 `src/index.ts` 等 exports：`./browser`、`./node` 增导 naming 模块；不新增第 12 个 exports 子路径（命名属于核心公共能力，随 browser/node 走）。
+- `shape.ts`：`brepSlot` 新增 `naming` 槽（§2.3/§3.6 数据通道）；`cad-runtime/runtime.ts` 的 `setTopology` 注入时从 SelectorRuntime 面行提炼面 hint 快照写入对应 Shape 槽（mesh/primitive 解析用）。
 
 ---
 
@@ -344,7 +342,7 @@ naming?: Map<PartName, {
 
 ### 4.2 边（M3，对齐倒角方案）
 
-`EdgeTopoRef` 取代倒角方案 §2.2 里「`faces?:[FaceId,FaceId]` 裸序号」的临时形态：两个邻面改用 `RoleQualifier`（带 origin 的稳定 role），`length/midpoint` 仍是 hint。解析 = 两 role 解析到当前面 → 取公共边（`sharedEdges` 同构）→ 多公共边时 hint 裁决。倒角方案 §2.4 的「三步解析（序号快取 → lineage 校验 → hint 重定位）」保留为本解析器在「短写 EdgeId / 完整 EdgeTopoRef」两种入参下的具体策略，错误码合并到 §3.6 同一套。
+`EdgeTopoRef` 取代倒角方案 §2.2 里「`faces?:[FaceId,FaceId]` 裸序号」的临时形态：两个邻面改用 `RoleQualifier`（带 origin 的稳定 role），`length/midpoint` 仍是 hint。解析 = 两 role 解析到当前面 → 取公共边（`sharedEdges` 同构）→ 多公共边时 hint 裁决。倒角方案 §2.4 的解析步骤收编为本解析器对 EdgeTopoRef 的具体策略（lineage 校验 → hint 重定位），错误码合并到 §3.6 同一套。
 
 ### 4.3 跨来源边（布尔缝边，faijs 扩展）
 
@@ -384,7 +382,7 @@ faijs 选择器无 vertex 表、UI 也暂无顶点拾取。`VertexTopoRef`（≥
 
 - `build-mesh-topology` 输出**结构不变**（仍是 SelectorBundle），`ExecutionResult.naming` 对 mesh 只填 hint、role 留空；
 - 在 STL 上选面 → 捕获 `FaceTopoRef{ role:'', hint:{surfaceType,normal,center,area} }`；
-- 解析时走 `scoreFaceRow` 在（可能已陈旧的）FaceRow 里找最匹配面；并列/无匹配 → ambiguous/not-found，**UI 明确提示「网格模型只能按几何特征近似追踪，模型改动后可能失效」**，不假装精确。
+- 解析时走 `scoreFaceRow` 在该 part 命名槽的面 hint 快照里找最匹配面；并列/无匹配 → ambiguous/not-found，**UI 明确提示「网格模型只能按几何特征近似追踪，模型改动后可能失效」**，不假装精确。
 - mesh 的 edge-face 邻接当前为空（build-mesh-topology.ts:262），故 STL 上不产出 EdgeTopoRef lineage，只能给边 hint；这是已知能力边界，写进 JSDoc 与用户提示。
 
 ### 5.4 BREP→mesh 链切换：身份降级，不是路径回退（守住 AGENTS 红线）
@@ -392,7 +390,7 @@ faijs 选择器无 vertex 表、UI 也暂无顶点拾取。`VertexTopoRef`（≥
 当一个 part 在链中途遇到 mesh-only op（sdf/knurl/load STL 等），按现有红线「链切换」：前半 BREP、后半 mesh。命名层行为：
 
 - 切换点：solid 句柄消失、hash 血缘终止，但**已累积的 `{origin,role}` 与 hint 作为纯数据保留**；
-- 切换后解析同一 TopoRef：无活 solid → 自动走 §5.3 的 manifest 行几何兜底；能对上就 geometric-fallback，对不上就报错；
+- 切换后解析同一 TopoRef：无活 solid → 自动走 §5.3 的命名槽面 hint 快照几何兜底；能对上就 geometric-fallback，对不上就报错；
 - **这属于「引用解析」层面的降级（reference resolution degradation），不是 AGENTS 禁止的「引擎路径运行时回退」**：走 mesh 还是 BREP 仍由静态规则在执行前定死，解析器不会、也无权把 mesh 执行改回 BREP。代码评审与文档中必须用这两个不同术语，避免混淆。
 
 ### 5.5 「假拓扑只生成一次、陈旧保留」规则不变
@@ -405,22 +403,22 @@ faijs 选择器无 vertex 表、UI 也暂无顶点拾取。`VertexTopoRef`（≥
 
 ### 6.1 捕获：从选中 Reference 造 TopoRef（新增 `src/lib/topology/capture-topo-ref.ts` 宿主胶水）
 
-faijs 导出纯构造函数 `captureTopoRef(ordinal, namingRow)`（§3.7，不含任何前端状态）；3d_editor 新增的 `capture-topo-ref.ts` 只负责取前端状态、调用它。输入 `fileId + ReferenceId`，输出可直接塞进 op 参数的 TopoRef：
+faijs 导出纯构造函数 `captureTopoRef(namingRow)`（§3.7，不含任何前端状态）；3d_editor 新增的 `capture-topo-ref.ts` 只负责取前端状态、定位命名行并调用它。输入 `fileId + ReferenceId`，输出可直接塞进 op 参数的 TopoRef：
 
 ```
 1. selection-store 取 scopedId → term PartName；
-2. 从 ScriptEngine 缓存的最近一次 ExecutionResult.naming 取该 part 的 faceNaming/edgeNaming；
-3. Reference 的 ordinal（'o1.f3'→3）→ naming 行 → {origin,role,hint}；
+2. 从 ScriptEngine 最近一次 `ExecutionResult.naming` 取该 part 的 faceNaming/edgeNaming（消费点对齐 `_rebuildBrepTopology` 消费 result.topology 的位置，ScriptEngine.ts:715/1194 附近）；
+3. Reference 的 ordinal（'o1.f3'→3）→ naming 行 → `captureTopoRef(row)` → TopoRef；
    - BREP/primitive：得到完整 FaceTopoRef；
    - mesh：role='' 的 hint-only ref（§5.3）；
 4. 边：用 edgeNaming 的两邻面 RoleQualifier + length/midpoint 组 EdgeTopoRef。
 ```
 
-`ScriptEngine` 需缓存 `ExecutionResult.naming`（与现在缓存 result.topology 同处，`_rebuildBrepTopology/ commitSceneResult` 附近）。
+`ScriptEngine` 需在 `_rebuildBrepTopology / commitSceneResult` 消费 result.topology 的同一位置消费并缓存 `ExecutionResult.naming`。
 
 ### 6.2 代码生成：Feature.buildCode 发 TopoRef 字面量
 
-- 需要面/边的 Feature（先做装配、钻孔；倒角随其自身方案）在 `buildArgs` 里把原先的 `faceNormal/position` 或裸 faceId **替换/增补**为 `captureTopoRef()` 的纯对象；`formatCodeLine` 以 JSON 字面量打印，得到形如：
+- 需要面/边的 Feature（先做装配、钻孔；倒角随其自身方案）在 `buildArgs` 里直接把面/边参数**替换**为 `captureTopoRef()` 的纯对象；`formatCodeLine` 以 JSON 字面量打印，得到形如：
 
   ```js
   part2 = cad.chamfer(part2, { edges: [ { kind:'edge',
@@ -428,7 +426,8 @@ faijs 导出纯构造函数 `captureTopoRef(ordinal, namingRow)`（§3.7，不�
     hint:{length:20,midpoint:[0,-10,10]} } ], type:'equal', width:2 })
   ```
 
-- **向后兼容**：装配 `TopoFaceRef`/`FaceMateConstraint` 保留现有 `center/normal`（solveFaceMate 仍用），**新增** `topoRef` 字段，不删旧字段，保证旧脚本/旧快照可回放；drill 的 `position/faceNormal` 同理保留，新增可选 `face` TopoRef。
+- **装配约束改为 TopoRef 驱动，移除捕获期几何快照**：`TopoFaceRef`/`FaceMateConstraint` 的面参数改为 `{ topoRef: FaceTopoRef }`；faijs 侧 assembly 执行时解析 topoRef → 从当前面行派生 center/normal → 喂给 `solveFaceMate`（求解器接口不变，几何改为执行期派生——`compound.ts:258`「几何数据运行时从面行派生」的契约正式生效）。当前已持久化的 `faceId` 字段（§1.2）随本次改造移除，不再写入脚本。
+- **drill**：`position`（钻孔落点，用户点击坐标）保留为参数，`faceNormal` 移除，改为 `face: FaceTopoRef`，执行期解析派生法向。
 
 ### 6.3 拾取与展示
 
@@ -437,21 +436,21 @@ faijs 导出纯构造函数 `captureTopoRef(ordinal, namingRow)`（§3.7，不�
 
 ### 6.4 版本与联调
 
-- faijs 按 AGENTS「打包发布前必须更新版本号」先升 minor（0.6.0 → 0.7.0，新能力、向后兼容），`npm run pack` 后 3d_editor `package.json` 三个 `file:` tgz 版本同步；
+- faijs 按 AGENTS「打包发布前必须更新版本号」升版本（未上线阶段无兼容负担，直接改目标版本），`npm run pack` 后 3d_editor `package.json` 三个 `file:` tgz 版本同步；
 - 3d_editor 不直接碰 wasm 做命名反查，全部经 faijs 导出的 `captureTopoRef / resolveTopoRef`，保持「宿主不重算引擎事实」的既有边界。
 
 ---
 
 ## §7 风险与对冲
 
-- **R1 hash 会话内稳定性**：HashCode 基于句柄，必须保证「assign 与 propagate/resolve 在同一次执行、同一 wasm 堆」内完成；RoleTable 不跨执行缓存、不序列化即天然规避。补测：同一脚本两次 execute，role 解析结果一致而 hash 可以不同。
+- **R1 hash 会话内稳定性**：HashCode 基于句柄，稳定边界是「同一 runtime 实例的 wasm 会话内」（句柄存活期）；RoleTable 随句柄生命周期重建、不跨实例缓存、不序列化即天然规避。补测：同一脚本两次 execute（同实例）role 解析结果一致；跨实例重建后解析结果一致而 hash 可以不同。
 - **R2 generated 不可靠**：遵循 brepjs 实测结论，布尔 generated 不进 role 传播，缝面用位置名、倒角面用 derived lineage，不依赖 generated hash。
-- **R3 镜像/非刚体变换后的语义角色**：镜像翻转法向，`box:top` 可能变 `box:bottom`。M2 切真实 WithHistory 后，镜像节点按演化结果重判语义 role（而非沿用旧 role）；在那之前镜像 op 标记为「role 需几何复核」，解析强制走 hint 并标注。
+- **R3 镜像/非刚体变换后的语义角色**：镜像翻转法向，若按几何重判，`box:top` 会变 `box:bottom`，反而破坏已记录 TopoRef 的可解析性。M2 切真实 WithHistory 后，镜像节点**沿用 hash 链传播、role 不重判**（同一物理面保持同一 role）；hint 法向翻转仅在 exact 命中失败时作为降级输入。在那之前镜像 op 标记为「role 需几何复核」，解析强制走 hint 并标注。
 - **R4 序号↔hash 枚举一致性**：hash 键解码与序号键解码依赖 `subShapeHashes` / `getSubShapes` / topologyExt 三者同一 `TopExp::MapShapes` 枚举顺序。以单测锁定「同一 solid 上 subShapeHashes 第 i 项 == getSubShapes 第 i 个的 hashCode == topologyExt manifest 第 i 行」（face-evolution.ts:10-12 与 topologyExt.ts:600-604 已声明，补成断言）。
 - **R5 对称几何歧义**：立方体 6 面全等、球单面，hint 也可能分不开。语义 role（法向主轴）在规范朝向下可分；旋转到非主轴朝向时 role 退化为位置名、hint 失效 → 明确 ambiguous，让用户/上层补约束，绝不随机选。
 - **R6 mesh 陈旧误配**：STL 变更后旧假拓扑几何对不上，hint 可能错配。用「类型硬门 + 法向阈值 + 面积比」多重门限，宁报 not-found/ambiguous；UI 标注近似性质（§5.3）。
 - **R7 句柄生命周期**：assign/resolve 中 `getSubShapes` 产出的临时面句柄，读完 hash/几何量后不挂到 RoleTable（只存 number/number[]），避免 wasm 内存泄漏；对齐 brepjs transient dispose 纪律与 faijs 现有 handle 归属约定。
-- **R8 origin（链根变量）在编辑下的稳定性**：origin 用脚本中的 part 变量名；语句增删导致变量改名时，由既有 codegen/IR 重排机制像处理普通输入变量引用一样同步改写 TopoRef 内 origin（与跨 part 输入引用同一套机制），不另造 id 体系。补测：上游插入一条语句后，下游 TopoRef 仍解析到同一语义面。
+- **R8 origin（链根变量）在编辑下的稳定性**：origin 用脚本中的 part 变量名；语句增删导致变量重编号时，TopoRef 内的 origin 与普通输入变量引用一样需要 codegen/IR 重排同步改写——**M5 落地时先验证既有重排机制是否覆盖参数对象内嵌引用字符串，不覆盖则补**，不另造 id 体系。补测：上游插入一条语句后，下游 TopoRef 仍解析到同一语义面。
 - **R9 范围蔓延**：选择器/拾取/渲染/STEP_T 列式格式一律不改；命名层是叠加层。vertex 不接 UI（§4.4）。
 
 ---
@@ -470,7 +469,7 @@ faijs 导出纯构造函数 `captureTopoRef(ordinal, namingRow)`（§3.7，不�
 
 **M2 面 TopoRef 全链路 + 内核补全 + ExecutionResult.naming**
 - resolve-face/ref-params/resolver、`./browser`/`./node` 导出、`captureTopoRef`；补 translate/rotate/scale/mirror WithHistory 包装；
-- 验收：`.faijs` 参数携带 FaceTopoRef，改上游参数后全量重放仍命中同一语义面；错误码三态有测试；`faijs-cli run` 导出 STEP 正常。
+- 验收：`.faijs` 参数携带 FaceTopoRef，改上游参数后重新执行（含增量重算路径）仍命中同一语义面；错误码三态有测试；`faijs-cli run` 导出 STEP 正常。
 
 **M3 边/生成面（对接倒角方案）+ 顶点类型预留**
 - resolve-edge/derived/vertex、edge→faces 与 face→vertex 邻接、fillet/chamfer WithHistory；跨来源缝边用例（§4.3）。
@@ -479,7 +478,7 @@ faijs 导出纯构造函数 `captureTopoRef(ordinal, namingRow)`（§3.7，不�
 - primitive 语义 naming、mesh hint-only naming、链切换降级（§5）；验收：cube 假拓扑与 BREP 同语义名对照一致；STL 选面解析为 geometric-fallback，篡改网格后正确报 ambiguous/not-found。
 
 **M5 3d_editor 集成**
-- capture-topo-ref、ScriptEngine 缓存 naming、装配/钻孔 Feature 增补 topoRef（保留旧字段）、选中态近似提示；e2e：建盒→选面→装配/钻孔→改盒参数重放，引用不漂移。
+- capture-topo-ref、ScriptEngine 消费 naming、装配/钻孔 Feature 替换为 topoRef 并移除 faceId/faceNormal 旧字段（§6.2）、选中态近似提示、R8 的重排改写验证；e2e：建盒→选面→装配/钻孔→改盒参数重放，引用不漂移。
 
 **M6 文档/契约/发布**
 - 更新 `docs/api-contract.md`（TopoRef 是参数层契约）、`docs/ops-api-inventory.md`（受影响 op 的参数形态）、必要 Agent Note；`npm run doc-sync` 12 项门禁；升版本、`npm run pack`、3d_editor tgz 同步；全量 CI。
@@ -490,13 +489,13 @@ faijs 导出纯构造函数 `captureTopoRef(ordinal, namingRow)`（§3.7，不�
 - `packages/core/src/brep/*.test.ts`：hash 键解码、布尔 A/B 双输入演化、链切换命名降级（parity 测试 beforeAll `initOcctWasm()`）；
 - `packages/tests/faijs/`：新增带 TopoRef 参数的 `.faijs` fixture（面引用改参重放、倒角边引用、装配）；
 - stderr 零容忍：故意触发的失败解析必须 spy `console.warn/error` 并断言；
-- 3d_editor：capture/代码生成 roundtrip、mesh 近似提示、旧脚本兼容（无 topoRef 字段仍可跑）。
+- 3d_editor：capture/代码生成 roundtrip、mesh 近似提示、装配/钻孔脚本经改参重放后引用不漂移（e2e）。
 
 ---
 
 ## §9 调研足迹（源码依据，便于复核）
 
-- faijs：根 `src/identity.ts`、`src/define-op.ts`、`src/shape.ts`、`src/runtime-state.ts`；`topology/{types,build-face-ids,build-selector-runtime}.ts`；`brep/{brep-chain,face-evolution,brep-topology,brep-ops}.ts`；`brep/engine/{types,primitives}.ts`、`brep/engine/adapters/{occt,brep-mock}.ts`；`occt-kernel/{occtKernel,topologyExt,highLevelApi}.ts`（initOcctWasm 直接 cast 原始 kernel）；`cad-runtime/{runtime,module-executor}.ts`；`stdlib/src/{compound,transform,boolean,drill,primitives}.ts`；`node_modules/occt-wasm/dist/index.d.ts:458-472`、`types.d.ts(EvolutionData)`。faijs 自身不使用 `mapShapesAndAncestors`（那是 brepjs 的抽取方式），演化统一来自 occt-wasm 高层 `*WithHistory` 的打包 hash 数组。
-- 3d_editor：`stores/core/{selection-store,topology-store}.ts`；`stores/tools/assemble-store.ts`；`lib/topology/picking.ts`；`lib/mesh-feature-detection/build-mesh-topology.ts`；`lib/primitives-topology/{build-primitive-topology,cube}.ts`；`engine/script-engine/ScriptEngine.ts`；`engine/features/{types,drill}.ts`；`package.json`（faijs 0.6.0 tgz / occt-wasm 3.8.4）。
+- faijs：根 `src/identity.ts`、`src/define-op.ts`、`src/shape.ts`、`src/runtime-state.ts`；`topology/{types,build-face-ids,build-selector-runtime}.ts`；`brep/{brep-chain,face-evolution,brep-topology,brep-ops}.ts`；`brep/engine/{types,primitives}.ts`、`brep/engine/adapters/{occt,brep-mock}.ts`；`occt-kernel/{occtKernel,topologyExt,highLevelApi}.ts`（initOcctWasm 直接 cast 原始 kernel）；`cad-runtime/{runtime,module-executor}.ts`；`stdlib/src/{compound,transform,boolean,drill,geom,primitives}.ts`；`node_modules/occt-wasm/dist/index.d.ts:458-472`、`types.d.ts(EvolutionData)`。faijs 自身不使用 `mapShapesAndAncestors`（那是 brepjs 的抽取方式），演化统一来自 occt-wasm 高层 `*WithHistory` 的打包 hash 数组。
+- 3d_editor：`stores/core/{selection-store,topology-store}.ts`；`stores/tools/assemble-store.ts`（confirmAssemble 的 faceId 持久化）；`stores/core/model-store.ts`（createAssembly 写入脚本）；`lib/topology/picking.ts`；`lib/mesh-feature-detection/build-mesh-topology.ts`；`lib/primitives-topology/{build-primitive-topology,cube}.ts`；`engine/script-engine/ScriptEngine.ts`；`engine/features/{types,drill}.ts`；`package.json`（faijs 0.6.0 tgz / occt-wasm 3.8.4）。
 - brepjs：`src/topology/shapeRef/{shapeRefTypes,shapeRefFns,scoring,roleLookup,edgeRefFns,vertexRefFns,derivedFaceRefFns,refResolveFns,index}.ts`；`src/kernel/occt/{historyOps,evolutionOps}.ts`；`src/operations/historyFns.ts`；`src/topology/adjacencyFns.ts`；`tests/shapeRef*.test.ts`。
-- 初始拓扑定义：`3d_editor/docs/step-topology-implementation.md`；brepjs 分析：`brepjs/notes/brepjs-toponaming-and-history-analysis.md`；旧稿（仅参考、不修改）：`docs/plans/2026-08-31-topology-naming-port.md`。
+- 初始拓扑定义：`3d_editor/docs/step-topology-implementation.md`；brepjs 分析：`brepjs/notes/brepjs-toponaming-and-history-analysis.md`。

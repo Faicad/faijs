@@ -4,6 +4,10 @@
 > 本文只写技术实现。调研结论以「文件:行号」形式给出，可逐条复核。
 > 与本文并存的前一版 `docs/plans/2026-08-30-chamfer-design-and-implementation.md` **不作修改、不作废**，
 > 本文在两处关键结论上取代它：① `edges` 的接口形态（§1.7 / §2）；② 非对称倒角的三角换算方向（§3.5）。
+>
+> **本文现阶段的改写（对接拓扑命名方案）**：`edges` 接口按 `2026-08-31-topology-naming-port-v2.md` 对拓扑数据的最新规定改写：
+> 倒角参数不再选用序数 `EdgeId`，而是直接使用命名层的 `EdgeTopoRef`（边 = 两邻面角色线路）；并把开发次序与
+> 拓扑移植绑定 —— **倒角开发必须在拓扑到达移植完成之后才能开始**（需求原话见 §0，次序闸门见 §6 G0）。
 
 ---
 
@@ -28,6 +32,15 @@
 
 > 1. 必需调研清楚brepjs里面拓扑相关的代码，倒角时的edge到底如何定义。整个文档里，最核心的就是要把这个接口定义下来。你这里的edges定义明显错的离谱。
 > 2. 本项目现在支持brep only的操作。这个倒角，目前只需要支持brep。而且未来，绝大部分操作都只支持brep。倒角可用的前提是，模型是brep的，拓扑边存在。而且3d_editor项目只支持拓扑边的选择。
+
+本次改写（对接拓扑命名方案）的要求（原话）：
+
+> 这份文档需要更新。请根据文档 @docs\plans\2026-08-31-topology-naming-port-v2.md 里对拓扑数据的最新规定，完成倒角接口的修改，而且要在拓扑移植功能完成后，才能开始倒角功能的开发。
+
+由此纳入本方案的两个新约束（作为本方案的最高要求）：
+
+1. **`edges` 接口以拓扑命名方案的最新规定为唯一权威**（`EdgeTopoRef`，见 §1.3 / §2.2）；
+2. **开发次序：倒角的开发（实现 / 测试 / 3d_editor UI）必须排在拓扑移植完成之后才能开始**。前置闸门见 §6 G0。
 
 ---
 
@@ -92,20 +105,22 @@ CSG IR 层是 brepjs **可重放**的那一层：`ChamferNode.ref` 的类型注�
 
 **结论**：brepjs 在「持久化/重放」这一层，边的身份 = `{ origin, faceRoles: [roleA, roleB], hint }`；在「调用内核」这一层，边 = OCCT 句柄。两者之间的桥梁是 `resolveEdgeRef`。
 
-### 1.3 faijs 现有的拓扑边体系
+### 1.3 faijs 现有的拓扑边体系（及拓扑移植后的对应关系）
 
-faijs 已有完整拓扑运行时，与 brepjs 的对应关系如下：
+faijs 已有完整拓扑运行时。**下表左列仍是 brepjs 概念，右列给出的是本仓库现状；而「拓扑命名移植完成后」的交付物（RoleTable / TopoRef / 解析器）由 `2026-08-31-topology-naming-port-v2.md` 补齐，倒角 §2 直接消费那些交付物——不再另起一套。**
 
-| brepjs | faijs | 位置 |
-|---|---|---|
-| `Face` 的 role 名（语义） | **无对应物** | faijs 没有 role 表 |
-| `ShapeRef.role` | `FaceId`（`o1.f3`） | `packages/core/src/topology/types.ts:121`（`FaceRow.id`） |
-| `EdgeRef.faceRoles` | `Reference.adjacentSelectors` | `types.ts:193`（`PickData.adjacentSelectors`） |
-| `EdgeHint.length` | `EdgeRow.length` / `PickData.length` | `types.ts:150`、`types.ts:208` |
-| `EdgeHint.midpoint` | `EdgeRow.center`（折线顶点算术平均） | `types.ts:151` |
-| `resolveEdgeRef` | **无对应物** | 需新建 |
+| brepjs | faijs（现状） | 移植后交付物（命名方案 v2） | 位置 |
+|---|---|---|---|
+| `Face` 的 role 名（语义） | **无对应物**（faijs 没有 role 表） | `RoleTable`（`origin → role → hash[]`）+ `FaceTopoRef.{origin, role}` | 命名方案 §2.2 / §2.3 |
+| `ShapeRef.role` | `FaceId`（`o1.f3`，快照内序号） | `FaceTopoRef` 用 `{origin, role}` 表达，不落序号 | `topology/types.ts:121`（现状）；命名方案 §2.2 |
+| `EdgeRef.faceRoles` | `Reference.adjacentSelectors`（`PickData.adjacentSelectors`，序号面们） | `EdgeTopoRef.faces: [RoleQualifier, RoleQualifier]` | `types.ts:193`（现状）；命名方案 §2.2 |
+| `EdgeHint.length` | `EdgeRow.length` / `PickData.length` | `EdgeTopoRef.hint.length` | `types.ts:150`、`types.ts:208` |
+| `EdgeHint.midpoint` | `EdgeRow.center`（折线顶点算术平均） | `EdgeTopoRef.hint.midpoint`（口径统一见命名方案 §3.7） | `types.ts:151` |
+| `resolveEdgeRef` | **无对应物** | `resolveTopoRef` / `resolveEdgeTopo`（命名方案交付） | 命名方案 §2.5 / §3.6 |
 
-**faijs 的边 id 就是 `EdgeId = o1.e{ordinal}`**，生成点在 `packages/core/src/occt-kernel/topologyExt.ts:819`：
+> **本次改写的关键点**：上一版本文 §2 把身份定为快照内序号 `EdgeId`（`o1.e7`），正因为 faijs 当时「没有 role 表」。拓扑命名方案 v2 明确了「序号无法跨历史追踪」（命名方案 §1.1 判断），并交付 `EdgeTopoRef`（两条相邻面的 `{origin, role}` 线路）与解析器。因此本文 §2 改为**完全采用命名方案交付的 `EdgeTopoRef` 作为 `edges` 参数形态**，序号仅作为解析成功后的内部快照坐标。
+
+**faijs 的快照内边 id 就是 `EdgeId = o1.e{ordinal}`**，生成点在 `packages/core/src/occt-kernel/topologyExt.ts:819`：
 
 ```ts
 edgeRows.push([
@@ -134,7 +149,7 @@ if (faceOrdinal !== undefined) {
     if (faceOrdinal < faces.length) { const face = faces[faceOrdinal]; ... }
 ```
 
-即：**序号 + `getSubShapes` 取句柄**，这是 faijs 既有范式。但该范式**只做了「取」，没有做「校验」**——序号指向错了就直接拿到错的那个面。本文 §2.4 补上校验。
+即：**序号 + `getSubShapes` 取句柄**，这是 faijs 既有范式。但该范式**只做了「取」，没有做「校验」**——序号指向错了就直接拿到错的那个面。该缺口（含「序号」本身不能跨历史追踪）已由拓扑命名方案 v2 的 `EdgeTopoRef` + 解析器一并解决（§1.3 移植后交付物列 / §2.2 / §2.4）。
 
 ### 1.4 3d_editor 的边选择现状
 
@@ -143,7 +158,7 @@ if (faceOrdinal !== undefined) {
 - 选中态：selection-store 存 **id 字符串数组**，元素是 `ReferenceId = 'topology|edge|o1.e7'`，并配 `selectedRefScopedIds: Map<ReferenceId, ScopedId>` 记录文件归属（`src/stores/core/selection-store.ts:42-72`；id 格式见 `packages/core/src/identity.ts` 品牌表 `ReferenceId` 行）。
 - **3d_editor 已有「用 selector 数组引用一批边」的消费先例**：`collectEdgeRows(runtime, selectedIds)`（`src/engine/components/core/CurvatureCombCore.ts:191-219`）——`referenceMap.get(id)` → `ref.rowIndex`；若选中的是面，还用 `proxy.faceEdgeRows` 展开成该面的所有边。
 
-**结论**：3d_editor 侧天然握有 `'topology|edge|o1.e7'` 与 `Reference.adjacentSelectors`，两者可直接序列化进 faijs 脚本，零额外计算。
+**结论**：3d_editor 侧天然握有 `'topology|edge|o1.e7'` 与 `Reference.adjacentSelectors`，且 BREP 执行后握有 `ExecutionResult.naming` —— 供命名层的 `captureTopoRef`（拓扑命名 v2 §3.4）一键生成 `EdgeTopoRef`（§5.5），无需 3d_editor 手工拼 `{origin, role}`。
 
 ### 1.5 occt-wasm 提供的能力（已安装 3.8.4）
 
@@ -202,7 +217,7 @@ edges: [
 2. **`reference` 字段语义混乱**。它同时想表达「参考面在哪一侧」和「翻转方向」，两件事压进一个坐标点；而且第二条边直接省略了它——同一个字段时有时无，接口无法稳定实现。
 3. **与数据提供方不匹配**。3d_editor 只能给出拓扑边（§1.4），它手里是 `'topology|edge|o1.e7'` 和 `adjacentSelectors`；faijs 拓扑运行时也已经有 `EdgeId` / `edgeFaceRows`（§1.3）。前一版定义要求 3d_editor 把已有的精确身份**降质**成浮点坐标，再由 faijs 反过来猜——绕一圈且不稳定。
 
-本文 §2 的接口改为：**以 faijs 拓扑 id 为身份，以 brepjs 的 lineage 思想做校验**。
+本文 §2 的接口改为：**以命名方案交付的 `EdgeTopoRef`（两个相邻面的 `{origin, role}` 线路）为身份**——即 brepjs lineage 思想在 faijs 命名层的正式形态，不再用任何快照序号（§2.2 / §1.3 表格 移植后交付物 列）。
 
 ---
 
@@ -212,7 +227,16 @@ edges: [
 
 ```js
 part0_v1 = await cad.chamfer(part0, {
-  edges: ['o1.e7', 'o1.e11'],
+  edges: [
+    {
+      kind: 'edge',
+      faces: [
+        { origin: 'part1', role: 'box:top' },
+        { origin: 'part1', role: 'box:front' },
+      ],
+      hint: { length: 20, midpoint: [0, -10, 10] },
+    },
+  ],
   type: 'equal',
   width: 1,
 })
@@ -224,43 +248,38 @@ cad.chamfer(input: Shape, params: ChamferParams): Promise<Shape>
 
 单输入单输出，与 `drill` / `engrave` 同构（`deriveOutputs` 走 `'auto'` 终端映射）。
 
-### 2.2 `edges` 的类型
+### 2.2 `edges` 的类型：直接采用拓扑命名方案的 `EdgeTopoRef`
+
+`edges` 参数**不在 faijs 侧再另立一套边引用类型**，而是**直接采用拓扑命名方案 v2 的 `EdgeTopoRef`**（唯一权威定义在 `packages/core/src/topology/naming/types.ts`，见命名方案 §2.2）。本文不再重复定义，只按倒角参数的使用方式给出形态示例：
 
 ```ts
-/** 边 id 简写形态：`'o1.e7'`（EdgeId，见 packages/core/src/identity.ts 品牌表）。 */
-export type ChamferEdgeId = string
-
-/**
- * 一条参与倒角的边的完整引用。
- *
- * 身份 = `edge`（拓扑 id）。`faces` 是 lineage（边 = 两面之交，抄 brepjs
- * EdgeRef.faceRoles 的思想）；`length` / `midpoint` 是 hint，只在歧义时裁决，
- * 不是身份的一部分。
- */
-export interface ChamferEdgeRef {
-  /** 边的拓扑 id，主键。 */
-  edge: ChamferEdgeId
-  /** 该边的两个相邻面（FaceId），顺序取自 faijs edgeFaceRows。 */
-  faces?: [string, string]
-  /** hint：边长（mm）。 */
-  length?: number
-  /** hint：边中点 [x, y, z]。 */
-  midpoint?: [number, number, number]
+// EdgeTopoRef / EdgeHint 的唯一权威定义在 topology/naming/types.ts（命名方案 v2 §2.2），
+// 此处仅在倒角参数形态下列出引用；本文不再自建一套边引用类型
+export interface EdgeTopoRef {
+  readonly kind: 'edge'
+  // 边的身份 = 它两个相邻面的 { origin, role } 线路（lineage）
+  readonly faces: readonly [RoleQualifier, RoleQualifier]
+  readonly hint: EdgeHint   // 仅并列裁决用，不是身份
+}
+export interface EdgeHint {
+  readonly kind: 'edge'
+  readonly length?: number
+  readonly midpoint?: [number, number, number]   // 边两端的中点
 }
 
-/** 简写（只有 id）与完整形态都接受。 */
-export type ChamferEdgeSelector = ChamferEdgeId | ChamferEdgeRef
+/** 倒角参数形态：直接使用 EdgeTopoRef（hint 可省）。 */
+export type ChamferEdgeSelector = EdgeTopoRef
 ```
 
-**为什么身份是 `EdgeId`（序号）而不是 brepjs 的 role lineage**：
+**为什么身份用 `EdgeTopoRef`（两个相邻面的 role 线路）而不是 `EdgeId`（序号 `o1.e7`）**：
 
-1. **faijs 没有 role 表，且不需要**。brepjs 用 role 是因为它面对「改一个参数、局部重建」的交互式重放，需要用语义名（如 `box:top`）在重建后的形状里重新找到同一个面（§1.1）。faijs 的 `.faijs` 是**纯文本源码、确定性全量重放**：同一份脚本重放出同一条构造序列，OCCT 的 `TopExp::MapShapes` 枚举顺序随之确定 → `ordinal` 稳定。
-2. **3d_editor 只提供 selector**（§1.4）。它给出 `'topology|edge|o1.e7'`，转成 `'o1.e7'` 是字符串切片；反过来要求它产出 role 名，需要 faijs 先建一套 role 分配 + 演化推进机制——那是 brepjs 为解决它自己的问题造的轮子。
-3. **`EdgeId` 是 faijs 既有品牌类型**，与 `FaceId` / `OccurrenceId` 同族，装配场景下 `o1` 前缀携带 occurrence 归属。
+1. **序号身份跨不过历史**。命名方案 v2 §1.1 的「判断」已明确：`o1.e7` 这类序号的确只在「当前这一个 solid 快照」内有意义，上游改参/插入布尔后 `TopExp::MapShapes` 枚举顺序会变，`o1.e7` 就指向别的边。本文 §1.3 的「确定性重放下 ordinal 稳定」赌注被用户本次「按拓扑最新规定改接口」的要求否决——**以命名方案 v2 为唯一权威**。
+2. **role 线路正是 brepjs `EdgeRef.faceRoles` 的移植形态**（命名方案 v2 §4.2 明言「`EdgeTopoRef` 取代倒角方案 §2.2 里 `faces?:[FaceId,FaceId]` 裸序号的临时形态」）。倒角是**第一个消费跨历史边身份的 op**，直接使用命名层的原语，不再自创一套边引用类型。
+3. **解析器由命名层统一交付**（命名方案 §2.5 / §3.6，`resolveTopoRef` / `resolveEdgeTopo`）：`EdgeTopoRef` 的解析策略就是命名方案 §4.2 的「lineage 校验 → hint 重定位」，**旧 §2.4 的解析步骤即被收编合并**，错误码并入统一 `E_TOPO_*`（命名方案 §3.6）。
 
-> ⚠️ 上述第 1 条的「ordinal 稳定」是**推断，不是已验证事实**。它必须由 §4 的 T-A2 实测钉死；若不成立，退路见 §7 R1。
+> ⚠️ 因此旧版 T-A2「ordinal 稳定性」关键假设作废，不再需要验证；`ChamferEdgeId` 前缀类型废弃。
 
-**为什么 `faces` / `length` / `midpoint` 是可选而不是必填**：它们是**校验与回退**用的，不是身份。3d_editor 生成时全部填写（它天然握有这些数据，零成本）；手写脚本时只写 id 也能工作。这与 brepjs 的分层一致（`faceRoles` 必填、`hint` 必填但可为空对象）。
+**为什么 hint 可省**：`hint` 只是「一条边的两个邻面之间有多条公共边时」的并列裁决数据。role 线路可精确命中时无需 hint；只有 mesh / geometric-fallback 才需要 hint 几何兜底。3d_editor 生成时全部填写（它天然握有 `ExecutionResult.naming`，零成本）；手写时只给 `faces` 也能工作。
 
 ### 2.3 参数表
 
@@ -300,43 +319,29 @@ export interface ChamferParams {
 
 边界值沿用 Onshape：`BLEND_BOUNDS = [1e-5, 0.005, 500]` m（`valueBounds.fs:346-355`，mm 制下默认 5.0）、`CHAMFER_ANGLE_BOUNDS = [0.1, 45, 179.9]` degree（`edgeBlendCommon.fs:23-28` 的同族常量）。本文取 `width* > 0` 且 `angle ∈ (0, 90)`，与 occt-wasm `chamferDistAngle` 的校验区间一致（`src/topology/chamferAngleFns.ts` 中 brepjs 侧同区间）；UI 侧的软边界另见 §5.4。
 
-### 2.4 边的解析算法
+### 2.4 边的解析：交给命名方案解析器完成
 
-对 `edges` 中每一项，在输入 part 的 OCCT solid 上解析出 `BrepHandle`：
+**旧的「主键直取 → lineage 校验 → hint 重定位」三段算法被拓扑命名方案 v2 §2.5 / §3.6 的解析器统一收编**（倒角在 BREP 实现里对 `edges` 逐条调 `resolveTopoRef`，拿 `TopoResolution`）。命名方案 §4.2 明言：**「倒角方案 §2.4 的解析步骤收编为本解析器对 `EdgeTopoRef` 的具体策略（lineage 校验 → hint 重定位），错误码合并到 §3.6 同一套」**。据此，倒角实现在解析层面的义务只剩：
 
-**第 1 步 — 主键直取（快路径）**
+- **身份来源**：`EdgeTopoRef.faces` 两个 `RoleQualifier` 各自解析到当前面集合——role 精确命中，或 role 丢失时用 `hint` 做 geometric-fallback；
+- **公共边候选**：两个面集合的公共边（`sharedEdges` 同构，`kernel.isSame` 判等）即候选集；
+- **裁决**：候选恰好 1 条 → 采纳为 `BrepHandle`；候选 ≥2 且 `hint` 评分并列 → `E_TOPO_AMBIGUOUS`；候选 0 → `E_TOPO_NOT_FOUND`；role 对应面已消失 → `E_TOPO_FACE_DELETED`；
+- **禁止静默**：任何一步无法定案都抛带错误码的异常——命名方案 §2.5「任何一步定不了案就抛错，绝不静默拿序号硬取」在倒角里的落地。
 
-```
-ordinal = parseInt(edge.split('.e')[1], 10)        // 'o1.e7' → 7
-edgeHandles = kernel.getSubShapes(solid, 'edge')
-if (ordinal < 1 || ordinal > edgeHandles.length) → E_CHAMFER_EDGE_NOT_FOUND
-candidate = edgeHandles[ordinal - 1]
-```
-
-**第 2 步 — lineage 校验**
-
-若 `faces`（两个 `FaceId`）存在，取 `faceHandles = kernel.getSubShapes(solid, 'face')`，解析出两个面句柄，再用 `getSubShapes(face, 'edge')` + `kernel.isSame` 判断 `candidate` 是否同时属于这两个面。
-
-- 通过 → 采纳 `candidate`。
-- 不通过 → 进入第 3 步。
-
-**第 3 步 — hint 重定位**
-
-在两个面的公共边集合（`kernel.getSubShapes(f0,'edge') ∩ getSubShapes(f1,'edge')`，用 `isSame` 判等）里，按 `|length - hint.length| + |midpoint - hint.midpoint|` 打分选最优（打分函数与 brepjs `bestByHint` 同构，`edgeRefFns.ts:55-79`）。若最优与次优分差 < `1e-6` → `E_CHAMFER_EDGE_AMBIGUOUS`。
-
-**禁止静默**：第 2、3 步是**校验与纠错**，不是「猜不到就随便挑」。任何一步无法定案都必须抛错（错误码见 §2.5）——这与 `geom.ts:28-60` 现状（序号错了就静默拿到错的面）相反，是本文要求补上的缺口。
-
-**为什么允许第 3 步存在**：它不是 AGENTS.md 红线所禁的「BREP/mesh 路径运行时回退」——那是**引擎选择**，这是**引用解析**，且 faijs 已有同构先例（`geomQuery` 的 ordinal → anchor 兜底，`geom.ts:28-63`）。区别在于本文要求每次兜底都可判定、不可判定时报错。
+> **为什么允许 hint 兜底（geometric-fallback）**：它不是 AGENTS.md 红线禁止的「BREP/mesh 路径运行时回退」——那是**引擎选择**，这是**引用解析**（命名方案 §5.4 明确区分）。role 线路解决不了（role 需重建 / 跨来源操作）时，hint 兜底是可判定的；判定不出即抛错，不静默。
 
 ### 2.5 错误码
 
+**边解析类错误并入命名方案统一错误族**（命名方案 §2.5 / §3.6；`E_CHAMFER_EDGE_NOT_FOUND` / `E_CHAMFER_EDGE_AMBIGUOUS` 由 `E_TOPO_*` 取代，见下表前三行）：
+
 | 错误码 | 触发条件 |
 |---|---|
+| `E_TOPO_FACE_DELETED` | `EdgeTopoRef.faces` 中某 role 在当前演化的 solid 中不存在（命名方案 §2.4 错误族） |
+| `E_TOPO_AMBIGUOUS` | 公共边候选多条且 hint 评分并列 / 面回退并列（命名方案 §2.4 错误族） |
+| `E_TOPO_NOT_FOUND` | 两邻面在当前 solid 中无公共边，或 hint 兜底无超阈值候选（命名方案 §2.4 错误族） |
 | `E_CHAMFER_NO_EDGES` | `edges` 为空数组 |
-| `E_CHAMFER_BAD_EDGE_REF` | `edge` 不是 `'o1.eN'` 形态的字符串 |
-| `E_CHAMFER_EDGE_NOT_FOUND` | ordinal 越界，或 lineage 两面在当前 solid 中无公共边 |
-| `E_CHAMFER_EDGE_AMBIGUOUS` | hint 重定位时并列最优（分差 < 1e-6） |
-| `E_CHAMFER_EDGE_MISMATCH` | 只给了 `faces` 但没给 hint，且主键校验失败（信息不足，无法重定位） |
+| `E_CHAMFER_BAD_EDGE_REF` | 条目不是合法 `EdgeTopoRef`（缺 `faces` 二元组 / kind 不对） |
+| `E_CHAMFER_EDGE_MISMATCH` | §3.5 中 `faces` 解析出的两个面与内核参考面对不上（bug 信号，不静默） |
 | `E_CHAMFER_BAD_TYPE` | `type` 不在三种枚举内 |
 | `E_CHAMFER_BAD_WIDTH` | 所需宽度缺失或非正数 |
 | `E_CHAMFER_BAD_ANGLE` | `angle` 缺失或不在 (0, 90) |
@@ -353,10 +358,11 @@ candidate = edgeHandles[ordinal - 1]
 
 | 文件 | 动作 | 内容 |
 |---|---|---|
-| `packages/stdlib/src/chamfer.ts` | 新增 | 参数校验、edge 解析、BREP 实现、`defineOp({ brep })` |
+| `packages/stdlib/src/chamfer.ts` | 新增 | 参数校验、把 `edges`（`EdgeTopoRef`）交给命名解析器、BREP 实现、`defineOp({ brep })` |
+| `packages/core/src/topology/naming/*` | 依赖（**命名方案 v2 交付，不在本方案实现**） | `EdgeTopoRef` / `RoleQualifier` 类型 + `resolveTopoRef` / `resolveEdgeTopo` 解析器 + `ExecutionResult.naming`（§2.2 / §2.4） |
 | `packages/stdlib/src/internal-stdlib.ts` | 改 | import `chamfer` 并加入 `createInternalStdlib()` 返回对象 |
-| `packages/core/src/brep/engine/primitives.ts` | 改 | `BrepEngineApi` 加 `chamfer` / `chamferDistAngle` |
-| `packages/core/src/brep/engine/adapters/brep-mock.ts` | 改 | 补两个桩方法（编译期守卫要求） |
+| `packages/core/src/brep/engine/primitives.ts` | 改 | `BrepEngineApi` 加 `chamfer` / `chamferDistAngle`（`chamferWithHistory` 由命名方案 §3.8 一并补齐） |
+| `packages/core/src/brep/engine/adapters/brep-mock.ts` | 改 | 补对应桩方法（编译期守卫要求） |
 | `packages/core/src/lang/op-set-consistency.test.ts` | 改 | `CAD_NAMESPACE_FUNCTIONS` 加 `'chamfer'` |
 | `packages/core/scripts/gen-api-dts.ts` | 改 | `API_ENTRIES` 加 `chamfer` 条目 |
 | `packages/core/src/mesh/api.d.ts` | 重新生成 | 跑 `npx tsx packages/core/scripts/gen-api-dts.ts`（**禁止手改**） |
@@ -387,28 +393,25 @@ candidate = edgeHandles[ordinal - 1]
 
 无需新增转发代码：`initOcctWasm()` 直接返回原始 `OcctKernel`（`occtKernel.ts:87-113`），而 occt-wasm 3.8.4 的 `index.d.ts:136-137` 已有这两个方法且签名与 §3.2 一致。加完接口声明后即通过编译期守卫。
 
-### 3.4 edge selector 解析
+### 3.4 edge selector 解析：调用命名解析器
 
-`packages/stdlib/src/chamfer.ts` 内：
+`packages/stdlib/src/chamfer.ts` 不再自实现 `EDGE_ID_RE` / `edgeOrdinalOf`，而是把 `edges` 交给命名方案交付的解析器（§2.4）：
 
 ```ts
-const EDGE_ID_RE = /^o\d+(?:\.o\d+)*\.e(\d+)$/
+import { resolveEdgeTopo, type EdgeTopoRef } from '@faicad/faijs-core'   // 命名方案 API
 
-/** 'o1.e7' → 7；非法形态 → null。 */
-function edgeOrdinalOf(id: string): number | null { ... }
-
-/** §2.4 三步解析，返回 OCCT 边句柄；失败抛对应错误码。 */
-function resolveEdge(
+/** 对 params.edges 逐条解析，返回 OCCT 边句柄数组；任一条失败 → 整体抛错。 */
+function resolveEdgeHandles(
   kernel: BrepEngineApi, solid: BrepHandle,
-  sel: ChamferEdgeSelector,
-  caches: { edges: BrepHandle[]; faces: BrepHandle[] },
-): BrepHandle { ... }
+  edges: EdgeTopoRef[],
+  ctx: ResolveContext,          // 命名方案的解析帧
+): BrepHandle[] { ... }
 ```
 
 要点：
 
-- `caches`（`getSubShapes` 结果）在**一次 chamfer 调用内复用**，避免 N 条边做 2N 次枚举。
-- 句柄释放：`getSubShapes` 返回的子句柄用完后 `kernel.release`（照 `geom.ts:38-42` 的既有写法）。
+- 解析上下文由命名方案提供（`ResolveContext` / `NamingFrame`），倒角只传 `params.edges` 与目标 `solid`；`hint` 兜底、`E_TOPO_*` 错误、句柄点亮均在该层（§2.4 / 命名方案 §2.5）。
+- 句柄释放：解析返回的是命名层句柄，`chamfer` 结束后随 `solid` 释放（照命名方案句柄纪律）。
 - 解析全部成功后再进入倒角；**不允许部分成功**（一批边里某条解析失败 → 整体报错，不静默跳过）。
 
 ### 3.5 非对称倒角的三角换算
@@ -478,24 +481,23 @@ function chamferBrep(input: Shape, params: Record<string, unknown>): Shape {
   if (!solid) throw new Error('[stdlib/chamfer] E_CHAMFER_NO_BREP: input is not BREP')
 
   // 1. 校验参数（type / width* / angle / 非空）
-  // 2. 枚举一次 edges / faces 句柄缓存
-  // 3. 逐条解析 edges → BrepHandle[]（§2.4）
-  // 4. 按 type 分派：
+  // 2. 把 params.edges（EdgeTopoRef[]）交给命名解析器 → BrepHandle[]（§2.4 / §3.4）
+  // 3. 按 type 分派：
   //    equal          → kernel.chamfer(solid, edgeHandles, width)
   //    distanceAngle  → kernel.chamferDistAngle(solid, edgeHandles, width, angle)
   //    twoDistances   → 对每条边：算 β、定 F、换算 θ
-  //                     → 按 θ 分组，同 θ 的边一批调 chamferDistAngle
-  // 5. fromBrep(solidToShape(kernel, resultSolid), { solid: resultSolid })
+  //                     → 按 θ 分组，边一批调 chamferDistAngle
+  // 4. fromBrep(solidToShape(kernel, resultSolid), { solid: resultSolid })
 }
 ```
 
 要点：
 
-- **步骤 4 的 `twoDistances` 按 θ 分组**：不同边的 β 可能不同 → θ 不同 → 必须分组调用（每个 θ 一次 `chamferDistAngle`）。但 OCCT 的 `MakeChamfer` 是一次构建多条边，分组意味着多次构建 → 后续构建的输入是前次的结果，边的 ordinal 会变。**因此必须用「解析一次句柄 → 分批应用 → 每批后重新解析剩余边」的循环**，或对单一边集逐个构建。前者复杂度高，后者简单：V1 采用**逐边构建**（每条边一次 `chamferDistAngle`），代价是 N 次调用，正确优先。N 通常是个位数到几十，性能可接受；若实测成为瓶颈再优化。
+- **步骤 3 的 `twoDistances` 按 θ 分组**：不同边的 β 可能不同 → θ 不同 → 必须分组调用（每个 θ 一次 `chamferDistAngle`）。但 OCCT 的 `MakeChamfer` 是一次构建多条边，分组意味着多次构建 → 后续构建的输入是前次的结果，边的 ordinal 会变。**因此必须用「解析一次句柄 → 分批应用 → 每批后重新解析剩余边」的循环**，或对单一边集逐个构建。前者复杂度高，后者简单：V1 采用**逐边构建**（每条边一次 `chamferDistAngle`），正确优先。N 通常是个位数到几十，性能可接受；若实测成为瓶颈再优化。
 
 - **不产生断链**：双链齐备（`fromBrep` 登记槽），与 `drill` 同构，不同于 mesh-only 的 `knurl`。倒角**不会**让 part 退化成 mesh。
 
-- **不使用 `chamferWithHistory`**：它只支持对称（§1.5 约束 2），且 faijs 生产路径目前没有任何 op 消费 `*WithHistory`（`cutWithHistoryBrep` 等仅被 `brep/face-evolution-impl.test.ts` 消费）。保持一致。
+- **不使用 `chamferWithHistory`**：它只支持对称（§1.5 约束 2），且 faijs 生产路径没有任何 op 可消费它——倒角输出的演化/命名回填由拓扑命名方案 v2 §2.5「演化登记」统一接管，不再需要倒角自行调 `*WithHistory`。
 
 ### 3.7 `defineOp` 声明与 JSDoc
 
@@ -538,11 +540,11 @@ JSDoc 头部注释照 `packages/stdlib/src/drill.ts:194-219` 的既有格式写�
 ### 4.2 测点
 
 - **T-A1 三角换算（纯函数，无 wasm）**：§3.5 自检表 5 行全部断言；特别断言「立方体 2:1 → 26.5651°」这一行（反向检测器）。另断言 `β = 180° − acos(n1·n2)` 在立方体棱上得 90°。
-- **T-A2 ordinal 稳定性（关键假设）**：同一份脚本连续执行两次，断言 `getSubShapes(solid,'edge')` 的 `EdgeId` 序列完全一致；再改上游 `box` 尺寸后重放，断言**结构相同**的 box 的 `EdgeId` 序列仍一致。
-- **T-A3 参考面枚举一致性（关键假设）**：在两侧尺寸不同的长方体上取一条棱，断言 §3.5 的 `kernelReferenceFaceIndex` 返回值 == `chamferDistAngle` 实际参考的那个面（判定方法：`twoDistances` 取 `width1=1, width2=3`，执行后实测倒角面到 `faces[0]` / `faces[1]` 的距离）。
-- **T-A4 `equal` 端到端**：box → `chamfer(edges: ['o1.e1'], type:'equal', width:1)` → 断言 BREP 句柄仍在（未断链）、面数 +1、体积减少量在解析值容差内。
+- **T-A2 命名/引用稳定性（关键，复用命名方案解析器）**：同一份脚本连续执行两次，断言 `edges` 中每个 `EdgeTopoRef` 都解析到「同一条物理边」；再改上游 `box` 尺寸后重放，断言仍解析到同一条边——`EdgeTopoRef` 身份跨历史稳定。旧版 T-A2「`EdgeId` 序号稳定」假设已作废。
+- **T-A3 参考面枚举一致性（关键假设）**：在两侧尺寸不同的长方体上取一条棱（经 `EdgeTopoRef` 解析），断言 §3.5 的 `kernelReferenceFaceIndex` 返回值 == `chamferDistAngle` 实际参考的那个面（判定方法：`twoDistances` 取 `width1=1, width2=3`，执行后实测倒角面到解析出的两面的距离）。
+- **T-A4 `equal` 端到端**：box → `chamfer(edges:[{kind:'edge',faces:[{origin:'box',role:'box:top'},{origin:'box',role:'box:front'}],hint:{…}}], type:'equal', width:1)` → 断言 BREP 句柄仍在（未断链）、面数 +1、体积减少量在解析值容差内。
 - **T-A5 `twoDistances` / `distanceAngle`**：`width1=1, width2=3` 后实测两侧距离分别为 1 / 3；`width=2, angle=30` 后实测沿参考面距离 2、夹角 30°。
-- **T-A6 错误路径**：空 `edges`、`'o1.ex'` 非法形态、ordinal 越界、`width <= 0`、`angle = 0 / 90`、凹棱（`E_CHAMFER_REFLEX_EDGE`）、**非 BREP 输入**（`E_MESH_UNSUPPORTED`，验证 `dispatchPath` 分支）。
+- **T-A6 错误路径**：空 `edges`、`EdgeTopoRef` 缺 `faces`（`E_CHAMFER_BAD_EDGE_REF`）、role 指向已删面（`E_TOPO_FACE_DELETED`）、两邻面间无公共边（`E_TOPO_NOT_FOUND`）、hint 解析候选并列（`E_TOPO_AMBIGUOUS`）、`width <= 0`、`angle = 0 / 90`、凹棱（`E_CHAMFER_REFLEX_EDGE`）、**非 BREP 输入**（`E_MESH_UNSUPPORTED`，验证 `dispatchPath` 分支）。
 - **T-A7 一致性门禁**：`op-set-consistency` 用例通过；符号表含 `chamfer`。
 - **T-A8 句柄释放**：连续执行 N 次后无泄漏报告（照既有 brep 测试的写法）。
 - **T-A9 完整性**：`edges` 含 2 条边，其中第 2 条解析失败 → 整体报错，且**不产生任何几何修改**。
@@ -550,7 +552,7 @@ JSDoc 头部注释照 `packages/stdlib/src/drill.ts:194-219` 的既有格式写�
 ### 4.3 3d_editor 侧
 
 - **T-E1 工具栏激活条件**（§5.2 三态）。
-- **T-E2 生成脚本**：选 2 条边 → 断言生成的 faijs 行含完整形态的 `edges`（含 `faces` / `length` / `midpoint`）。
+- **T-E2 生成脚本**：选 2 条边 → 断言生成的 faijs 行含完整形态的 `edges`（`kind:'edge'` + `faces` 的 `RoleQualifier` + `hint.length` / `hint.midpoint`）。
 - **T-E3 预览往返**：预览显示 → 改宽度 → 预览更新 → 确定 → 脚本执行 → 场景几何与预览一致。
 
 ---
@@ -563,7 +565,7 @@ UI 参数（`chamfer-store.ts`）→ faijs args：
 
 | UI | faijs 参数 |
 |---|---|
-| `selectedReferenceIds: string[]`（`'topology|edge|o1.e7'`） | `edges: ChamferEdgeRef[]`（见 §5.5 转换） |
+| `selectedReferenceIds: string[]`（`topology\|edge\|…`） | `edges: EdgeTopoRef[]`（经命名层 `captureTopoRef` 生成，见 §5.5 转换） |
 | `type: 'equal' \| 'twoDistances' \| 'distanceAngle'` | 同名 |
 | `width` / `width1` / `width2` / `angle` | 同名，单位 mm / 度 |
 
@@ -593,14 +595,17 @@ UI 参数（`chamfer-store.ts`）→ faijs args：
 
 ### 5.5 脚本生成
 
-`features/chamfer.ts` 的 `buildArgs`：把每个选中的 `ReferenceId` 转成完整形态的 `ChamferEdgeRef`：
+`features/chamfer.ts` 的 `buildArgs`：把每个选中的 `ReferenceId` 经**命名层** `captureTopoRef`（拓扑命名方案 v2 §3.4「捕获引用」）转成完整形态的 `EdgeTopoRef`：
 
 ```
-'topology|edge|o1.e7'  ──strip──▶  edge: 'o1.e7'
-reference.adjacentSelectors       ──▶  faces: ['o1.f2', 'o1.f5']
-reference.pickData.length         ──▶  length
-reference.pickData.center         ──▶  midpoint
+selectedReference  ── captureTopoRef ──▶  kind: 'edge'
+该边的两邻面 role 线路       ──▶  faces: [{origin, role}, {origin, role}]
+reference.pickData.length   ──▶  hint.length
+reference.pickData.center   ──▶  hint.midpoint
 ```
+
+- `faces` 的 `RoleQualifier` 必须来自命名层（role 线路 = 邻面在 brepjs `EdgeRef` 里的线系，§1.1 / 命名方案 §2.2），**不是**裸 `FaceId` 序号——这是本次接口由 `['o1.f2','o1.f5']` 升级为 `EdgeTopoRef` 的要点。
+- `hint` 生成逻辑同前（长度 / 中点），仅作为 role 丢失时的兜底。
 
 `pickData.center` 是折线顶点算术平均（`topologyExt.ts:795`），与 brepjs `EdgeHint.midpoint`（两端点中点，`edgeRefFns.ts:24-29`）**定义不同**。两者都只用于打分排序，量级相当即可；但跨实现比较时不可混用，需在 JSDoc 中写明本字段口径。
 
@@ -640,14 +645,17 @@ reference.pickData.center         ──▶  midpoint
 
 | # | 内容 | 验收 |
 |---|---|---|
-| M1 | **先钉两个关键假设**：T-A2（ordinal 稳定性）、T-A3（参考面枚举一致性）。两者都是纯调研型测试，可在写实现前跑 | 结论写入本文 §7 对应风险条目；若不成立，先定退路再动手 |
+| **G0** | **前置门：拓扑命名移植全部验收通过**——拓扑命名方案 v2 的 M0–M 里程碑（`EdgeTopoRef` / `resolveTopoRef` / `ExecutionResult.naming` / 错误族 `E_TOPO_*`）完成并验收 | 命名方案 v2 验收清单全绿。**倒角开发在 G0 通过前不启动**；G0 前只允许本文已完成的接口设计 / 纯调研（§8） |
+| M1 | **钉关键假设**：T-A2（命名/引用稳定性，复用命名方案解析器）、T-A3（参考面枚举一致性）、T-A1（三角换算反向检测器）。均为纯调研型测试，可在写实现前跑 | 结论写入本文 §7 对应风险条目；若不成立，先定退路再动手 |
 | M2 | faijs：`BrepEngineApi` 扩展 + mock + 编译期守卫通过 | `npx tsc --noEmit` 全绿 |
-| M3 | faijs：`chamfer.ts`（解析 + `equal` + JSDoc + `defineOp`）+ T-A1 / T-A4 / T-A6 | `npx vitest run` + `npm run test -w @faicad/faijs-tests` 绿 |
+| M3 | faijs：`chamfer.ts`（调命名解析器 `resolveTopoRef` + `equal` + JSDoc + `defineOp`）+ T-A1 / T-A4 / T-A6 | `npx vitest run` + `npm run test -w @faicad/faijs-tests` 绿 |
 | M4 | faijs：`twoDistances` / `distanceAngle`（依赖 M1 结论）+ T-A5 | 同上 |
 | M5 | faijs：生成链（`gen-api-dts` / 符号表 / `op-set-consistency`）+ 全量受影响测试 | `npm run lint` → `tsc` → `vitest` → `test -w` → `build` 逐层绿 |
 | M6 | faijs 发版（版本号 +1）+ `npm run pack`；3d_editor 更新 `package.json` 依赖 | 3d_editor `npm install` 后能 import 到 `chamfer` |
 | M7 | 3d_editor：store + feature + 工具栏三态 Filter + 面板 | T-E1 / T-E2 |
 | M8 | 3d_editor：预览双分支 + 确定提交 | T-E3 |
+
+**G0 是硬门（对齐用户要求）**：拓扑命名移植（拓扑命名方案 v2）验收通过前，本文 M1–M8 的**实现 / 测试 / 3d_editor** 一律不启动；G0 之前只允许与本次「完成倒角接口修改」相关的设计（§0–§5 的接口与解析说明）——开发倒角只会在整条拓扑移植完成后开始。
 
 纪律：每步先跑自己写的测试 → 再跑可能受影响的测试 → **全绿后才准跑 `scripts/ci.ps1`**；严禁通过跑 CI 找 bug；跑过一次 CI 后只重跑失败项。
 
@@ -657,12 +665,12 @@ reference.pickData.center         ──▶  midpoint
 
 | # | 风险 | 影响 | 处理 |
 |---|---|---|---|
-| R1 | **ordinal 稳定性未验证**（§2.2 推断 1） | 上游参数变更后 `o1.e7` 指向别的边 | M1 的 T-A2 实测。不成立则：改用 `faces` lineage 为**主键**、ordinal 降为快路径校验值（即向 brepjs 方案靠拢，代价是需要解决面的稳定性这一同构问题） |
+| R1 | **整条开发被 G0 前置门卡住 / 命名方案依赖** | 拓扑命名移植（命名方案 v2）未验收，倒角实现无法启动 | G0 是硬门（§6）。本文只交付接口设计与调研；倒角实现严格等待命名移植验收 |
 | R2 | **参考面枚举顺序未必一致**（§3.5） | `twoDistances` 的两侧距离对调 | M1 的 T-A3 实测。不成立则：砍掉 `twoDistances`，只留 `equal` + `distanceAngle`，并在 JSDoc / UI 中说明「`distanceAngle` 的参考面由内核选定」 |
 | R3 | occt-wasm 无 `Add(Dis1,Dis2,E,F)`（§1.5） | 双距必须经距角换算 | §3.5 换算 + T-A1 反向检测器 |
 | R4 | `AddDA` 的 `Ang` 口径未实测 | `distanceAngle` / `twoDistances` 几何错误 | T-A5 实测（执行后量倒角面到面的距离与夹角）。若与本文假设不符，改 §3.5 的 θ 定义，不改判据结构 |
 | R5 | 凹棱不支持（§3.5 范围界定） | 内拐角无法倒角 | 显式报 `E_CHAMFER_REFLEX_EDGE`；后续版本补「加材料」几何关系 |
-| R6 | `chamferWithHistory` 只支持对称（§1.5） | 非对称倒角拿不到面演化 | 与现状一致——faijs 生产路径目前无任何 op 消费 `*WithHistory`。需要面演化时另立议题 |
+| R6 | `chamferDistAngle` 无 `*WithHistory` 变体（§1.5） | 非对称倒角的演化回填一度无入口 | 演化责任归命名层（拓扑命名 v2 §3.8 处理）；倒角本体只用 `chamfer` / `chamferDistAngle`。若命名层需要对称路径的演化回填，由命名方案 §4.5 决定是否让倒角在 `equal` 路径走 `chamferWithHistory` |
 | R7 | `twoDistances` 逐边构建的性能（§3.6） | 边数多时慢 | V1 接受；T-A8 观察，实测成为瓶颈再优化为分组批量 |
 | R8 | 首个 BREP-only op（§1.6） | 下游对「无 mesh 实现」的处理未经实战 | T-A6 专门覆盖 `E_MESH_UNSUPPORTED` 分支 |
 | R9 | 3d_editor 拓扑陈旧（§5.3） | mesh 模式下选到过期的边 | 面板打开时校验 freshness；必要时重算（>10000 三角跳过）。该缺陷本身超出本次范围，需在 3d_editor 侧另立议题 |
@@ -677,6 +685,8 @@ reference.pickData.center         ──▶  midpoint
 
 **occt-wasm**（`C:/git/OpenCascade/occt-wasm`）：`xtask/src/codegen/config.rs:495-544`（`chamfer` / `chamferDistAngle` 生成，含参考面双层枚举 `:517-527`）；已安装 `node_modules/occt-wasm/dist/index.d.ts:136-137`、`:469`（3.8.4）。
 
-**faijs**：`packages/core/src/topology/types.ts`（`EdgeRow` `:145-162`；`Reference` `:166-179`；`PickData.adjacentSelectors` `:193`；`SelectorRuntime` `:214-236`）、`packages/core/src/topology/build-selector-runtime.ts`（`selectorForRow` `:305-314`；`buildAdjacencySelectors` `:318-342`；`buildReference` `:346` 起；edge references 构造 `:679-694`）、`packages/core/src/occt-kernel/topologyExt.ts`（枚举方法注释 `:599-603`；`edgeHandles` `:604`；`edgeFaceOrdinals` 构建 `:646-665`；`edgeRows` 生成 `:819`；关系表写入 `:903-911`；`center` 口径 `:795`）、`packages/core/src/identity.ts`（品牌表，含 `EdgeId` / `FaceId` / `ReferenceId` / `SelectorKey`）、`packages/core/src/brep/brep-topology.ts`（`buildSolidTopologyRuntime` `:87-124`）、`packages/core/src/brep/engine/primitives.ts`（`BrepEngineApi` `:35-166`；编译期守卫 `:169-175`）、`packages/core/src/brep/engine/adapters/occt.ts`（capabilities `:33-42`；守卫 `:59-60`）、`packages/core/src/define-op.ts:127-175`、`packages/core/src/cad-runtime/backend-dispatch.ts:76-131`、`packages/stdlib/src/geom.ts:28-63`（序号式拓扑引用先例）、`packages/stdlib/src/drill.ts`（BREP 路径模板 `:134-166`；JSDoc 范例 `:194-219`）、`packages/core/src/lang/op-set-consistency.test.ts:24-33`、`packages/core/scripts/gen-api-dts.ts:25-40`。
+**faijs**：`packages/core/src/topology/naming/types.ts`（`EdgeTopoRef` / `RoleQualifier` / `EdgeHint` 权威定义——**拓扑命名 v2 §2.2**，本文 §2.2 只引用不重复）、`packages/core/src/topology/naming/resolver.ts`（`resolveTopoRef` / `resolveEdgeTopo`，**命名 v2 §2.5 / §3.6**）、`packages/core/src/topology/types.ts`（`EdgeRow` `:145-162`；`Reference` `:166-179`；`PickData.adjacentSelectors` `:193`；`SelectorRuntime` `:214-236`）、`packages/core/src/topology/build-selector-runtime.ts`（`selectorForRow` `:305-314`；`buildAdjacencySelectors` `:318-342`；`buildReference` `:346` 起；edge references 构造 `:679-694`）、`packages/core/src/occt-kernel/topologyExt.ts`（枚举方法注释 `:599-603`；`edgeHandles` `:604`；`edgeFaceOrdinals` 构建 `:646-665`；`edgeRows` 生成 `:819`；关系表写入 `:903-911`；`center` 口径 `:795`）、`packages/core/src/identity.ts`（品牌表，含 `EdgeId` / `FaceId` / `ReferenceId` / `SelectorKey`）、`packages/core/src/brep/brep-topology.ts`（`buildSolidTopologyRuntime` `:87-124`）、`packages/core/src/brep/engine/primitives.ts`（`BrepEngineApi` `:35-166`；编译期守卫 `:169-175`）、`packages/core/src/brep/engine/adapters/occt.ts`（capabilities `:33-42`；守卫 `:59-60`）、`packages/core/src/define-op.ts:127-175`、`packages/core/src/cad-runtime/backend-dispatch.ts:76-131`、`packages/stdlib/src/geom.ts:28-63`（序号式拓扑引用先例，已被命名方案 §2.5 废弃缺口）、`packages/stdlib/src/drill.ts`（BREP 路径模板 `:134-166`；JSDoc 范例 `:194-219`）、`packages/core/src/lang/op-set-consistency.test.ts:24-33`、`packages/core/scripts/gen-api-dts.ts:25-40`。
+
+**拓扑命名方案 v2**（`C:\my\Faicad\faijs\docs\plans\2026-08-31-topology-naming-port-v2.md`，本次改写的唯一权威）：§2.2（`EdgeTopoRef` / `RoleQualifier` / `EdgeHint`）、§2.5（解析器收编与错误族）、§3.6（解析策略）、§3.8（`chamferWithHistory` 并入 BrepEngineApi）、§4.2（收编倒角 §2.4 解析步骤）、§5.4（引擎选择 vs 引用解析）、§6.2（`{edges: EdgeTopoRef[]}` 接口示例）。
 
 **3d_editor**：`src/lib/topology/picking.ts:43-57`（`edgeReferenceFromIntersection`）、`src/engine/hooks/useTopologyPicking.ts:266-301`（边拾取）、`src/stores/core/selection-store.ts:42-72`（选中态形态）、`src/engine/components/core/CurvatureCombCore.ts:191-219`（selector 数组消费先例）、`src/engine/features/types.ts`（`FeatureIconKey` `:27-35`；`FeatureDef` `:94-148`；`deriveOutputs` `:161-176`）、`src/engine/features/drill.ts`（Feature 模板全文）、`src/engine/components/drill-hole/DrillHoleToolbar.tsx:20-47`（Filter 范式）、`src/engine/components/drill-hole/LiveDrillPreview.tsx`（预览链路）、`src/engine/script-engine/ScriptEngine.ts:616-624` + `:1003/:1176/:1348`（拓扑刷新点）、`src/components/viewport/ViewportContainer.tsx:418-422` + `:558`、`src/layouts/DesktopLayout.tsx:1434`、`src/locales/`（20 个）。

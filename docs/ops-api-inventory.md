@@ -288,7 +288,8 @@ const p = await cad.drill(part0, { diameter: 5.2, depth: 8, holeType: 'screw', s
 | `holeType` | `'simple' | 'screw'` |  | 'simple' | 孔类型：simple 简单孔 / screw 螺丝孔 |
 | `direction` | `'normal' | 'x' | 'y' | 'z'` |  | 'normal' | 钻孔轴向（normal 表示沿面法向） |
 | `position` | `[x,y,z]` |  | 原点 | 孔心位置（建议几何引用 cad.faceCenter） |
-| `faceNormal` | `[x,y,z]` |  | [0,0,1] | 面法向（决定朝向） |
+| `face` | `FaceTopoRef` |  | — | 面引用（§6.2 新形态：`FaceTopoRef`，执行期按输入 Shape 解析派生法向；优先于 `faceNormal`） |
+| `faceNormal` | `[x,y,z]` |  | [0,0,1] | 面法向（决定朝向；历史兜底，§6.2 起宿主不再写，改由 `face` 解析） |
 | `tolerance` | `number` |  | 0.3 | 公差（mm） |
 | `screwSystem` | `'metric' | 'imperial'` |  | 'metric' | 螺丝孔制式（holeType='screw' 时用） |
 | `screwSpecIdx` | `number` |  | 4 | 螺丝规格索引（holeType='screw' 时用；4 → M5） |
@@ -452,18 +453,18 @@ const a = await cad.union(part0, part1)
 装配：成员 + 面约束（face_mate）。结构语句，无几何输出，成员用变量名引用、约束用拓扑面引用。
 
 ```js
-cad.assembly({ name: '装配1', members: [part0, part1], constraints: [{ type: 'face_mate', fixedPartName: part0, movingPartName: part1, fixedFace: { surfaceType: 'plane', center: [0,0,5], normal: [0,0,1] }, movingFace: { surfaceType: 'plane', center: [0,0,0], normal: [0,0,-1] } }] })
+cad.assembly({ name: '装配1', members: [part0, part1], constraints: [{ type: 'face_mate', fixedPartName: part0, movingPartName: part1, fixedFace: { topoRef: { kind: 'face', origin: 'part0', role: 'box:top', hint: { kind: 'face', surfaceType: 'plane' } } }, movingFace: { topoRef: { kind: 'face', origin: 'part1', role: 'cylinder:bottom', hint: { kind: 'face', surfaceType: 'circle' } } } }] })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
 | `name` | `string` |  | — | 装配名 |
 | `members` | `Shape[]` |  | — | 成员（裸变量引用） |
-| `constraints` | `AssemblyConstraint[]` |  | — | 面约束数组（type='face_mate'；fixedPartName/movingPartName + fixedFace/movingFace {surfaceType, center, normal}） |
+| `constraints` | `AssemblyConstraint[]` |  | — | 面约束数组（type='face_mate'；fixedPartName/movingPartName + fixedFace/movingFace：`{topoRef: FaceTopoRef}` 或 `{surfaceType, center, normal}`） |
 
 **同步**。CompoundShape + AssemblyBehavior（含 do_assemble 方法）。
 
-> 早期文档/示例曾用 `fixedPartId`/`movingPartId`/`faceRowIndex`/`faceId`/`invalid`——这些键在代码中不存在。真实契约是 `fixedPartName`/`movingPartName` + `fixedFace`/`movingFace`（{surfaceType, center, normal}，几何数据不入参数，运行时从面行派生）。
+> 早期文档/示例曾用 `fixedPartId`/`movingPartId`/`faceRowIndex`/`faceId`/`invalid`——这些键在代码中不存在。真实契约是 `fixedPartName`/`movingPartName` + `fixedFace`/`movingFace`。支持两种形态：`{ topoRef: FaceTopoRef }`（§6.2 新形态，几何由 faijs 执行期从面行派生）或旧快照 `{ surfaceType, center, normal }`（兼容历史脚本）。`faceId` 字段随 §6.2 移除，不再写入。
 
 ### 6.2 `group` ✅
 
@@ -581,7 +582,7 @@ const n = cad.faceNormal(part0, [0, 0, 5])
 
 | op | 品质 | 说明 |
 |---|---|---|
-| `assembly` | ⚠️ | 早期文档/示例曾用 `fixedPartId`/`movingPartId`/`faceRowIndex`/`faceId`/`invalid`——这些键在代码中不存在。真实契约是 `fixedPartName`/`movingPartName` + `fixedFace`/`movingFace`（{surfaceType, center, normal}，几何数据不入参数，运行时从面行派生）。 |
+| `assembly` | ⚠️ | 早期文档/示例曾用 `fixedPartId`/`movingPartId`/`faceRowIndex`/`faceId`/`invalid`——这些键在代码中不存在。真实契约是 `fixedPartName`/`movingPartName` + `fixedFace`/`movingFace`。支持两种形态：`{ topoRef: FaceTopoRef }`（§6.2 新形态，几何由 faijs 执行期从面行派生）或旧快照 `{ surfaceType, center, normal }`（兼容历史脚本）。`faceId` 字段随 §6.2 移除，不再写入。 |
 | `knurl` | ⚠️ | knurl 无 BREP 实现（mesh-only），本质是顶点位移（网格操作），网格参数可接受；brep 模式下调用前抛 BrepUnsupportedError。面锚定建议用几何引用。 |
 | `sdf` | ⚠️ | SDF 无 BREP 实现（mesh-only）；brep 模式下 dispatchPath 调用前抛 BrepUnsupportedError。SDF 天生是网格操作，允许网格参数（resolution）。 |
 | `split` | ⚠️ | 切割面统一用 `normal`/`offset`/`inPlaneAngleDeg` 描述；早期文本层曾与执行层键名断裂（planeRotation/planePosition），已修并统一为上述键名。 |

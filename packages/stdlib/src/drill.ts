@@ -24,6 +24,8 @@ import { defineOp } from '@faicad/faijs-core/sdk'
 import type { BrepHandle } from '@faicad/faijs-core/brep/engine/types'
 import type { BrepEngineApi } from '@faicad/faijs-core/brep/engine/primitives'
 import { assertPositiveNumber, assertNumber, assertVec3 } from './assert'
+import type { FaceTopoRef } from '@faicad/faijs-core/topology/naming'
+import { resolveFaceGeometry } from './topo-resolve'
 
 // ── per-op 参数自校验（Phase 2.2；stdlib 被直接 import 时的防御层） ──
 
@@ -72,6 +74,31 @@ function resolveDirection(params: Record<string, unknown>, faceNormal: Vec3): Ve
   if (directionEnum === 'y') return [0, -1, 0]
   if (directionEnum === 'z') return [0, 0, -1]
   return faceNormal
+}
+
+/**
+ * 面法向派生（§6.2）：钻孔轴向是「点击点的真实面法向」——曲面（圆柱面等）上
+ * 仅凭 FaceTopoRef 的单一 hint 法向无法还原点击点的径向方向（引擎无 点→曲面
+ * 投影 API），故轴向优先使用宿主捕获的 `faceNormal` 快照（与 position 同为点击
+ * 快照）；`face: FaceTopoRef` 作为持久化身份引用（跨重放追踪），仅在无
+ * `faceNormal` 的历史/手写脚本时才按其派生的法向兜底。
+ *
+ * @param input - the target geometry (used to resolve the face ref).
+ * @param params - raw drill params.
+ * @returns the face normal the drill axis uses.
+ */
+function faceNormalFrom(input: Shape, params: Record<string, unknown>): Vec3 {
+  const faceNormal = params.faceNormal as Vec3 | undefined
+  if (faceNormal && Array.isArray(faceNormal)) {
+    return faceNormal
+  }
+  const face = params.face as FaceTopoRef | undefined
+  if (face && typeof face === 'object' && face.kind === 'face') {
+    const kernel = getBackends().kernel.brep as BrepEngineApi | null
+    const geom = resolveFaceGeometry(kernel, input, face)
+    return geom.normal
+  }
+  return [0, 0, 1]
 }
 
 /** BREP 螺丝孔：底孔（圆柱 cut）+ 内螺纹（threadBrep + cut）。 */
@@ -138,7 +165,7 @@ function drillBrepPath(input: Shape, params: Record<string, unknown>): Shape {
   const inputSolid = brepOf(input) as BrepHandle | undefined
   if (!inputSolid) throw new Error('[stdlib/drill] input is not BREP')
 
-  const faceNormal = (params.faceNormal as Vec3) ?? [0, 0, 1]
+  const faceNormal = faceNormalFrom(input, params)
   const direction = resolveDirection(params, faceNormal)
   const holeType = params.holeType as 'simple' | 'screw' | undefined
 
@@ -165,7 +192,7 @@ function drillBrepPath(input: Shape, params: Record<string, unknown>): Shape {
 
 /** mesh 路径：manifold-3d mesh-CSG。 */
 async function drillMeshPath(input: Shape, params: Record<string, unknown>): Promise<Shape> {
-  const faceNormal = (params.faceNormal as Vec3) ?? [0, 0, 1]
+  const faceNormal = faceNormalFrom(input, params)
   const direction = resolveDirection(params, faceNormal)
   const partTransform = getBackends().config.partTransform
   const localPos = worldToLocalPosition(params.position as [number, number, number], partTransform)
@@ -206,7 +233,8 @@ async function drillMeshPath(input: Shape, params: Record<string, unknown>): Pro
  * @param params.holeType - 孔类型：simple 简单孔 / screw 螺丝孔。type:'simple' | 'screw' 默认 'simple'
  * @param params.direction - 钻孔轴向（normal 表示沿面法向）。type:'normal' | 'x' | 'y' | 'z' 默认 'normal'
  * @param params.position - 孔心位置（建议几何引用 cad.faceCenter）。type:[x,y,z] 默认 原点
- * @param params.faceNormal - 面法向（决定朝向）。type:[x,y,z] 默认 [0,0,1]
+ * @param params.face - 面引用（§6.2 新形态：`FaceTopoRef`，执行期按输入 Shape 解析派生法向；优先于 `faceNormal`）。type:FaceTopoRef
+ * @param params.faceNormal - 面法向（决定朝向；历史兜底，§6.2 起宿主不再写，改由 `face` 解析）。type:[x,y,z] 默认 [0,0,1]
  * @param params.tolerance - 公差（mm）。type:number 默认 0.3
  * @param params.screwSystem - 螺丝孔制式（holeType='screw' 时用）。type:'metric' | 'imperial' 默认 'metric'
  * @param params.screwSpecIdx - 螺丝规格索引（holeType='screw' 时用；4 → M5）。type:number 默认 4

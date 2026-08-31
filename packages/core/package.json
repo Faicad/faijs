@@ -1,6 +1,6 @@
 {
   "name": "@faicad/faijs-core",
-  "version": "0.6.0",
+  "version": "0.7.1",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -26,6 +26,7 @@
     "./primitives/*": { "types": "./dist/primitives/*.d.ts", "default": "./dist/primitives/*.js" },
     "./cad-runtime/*": { "types": "./dist/cad-runtime/*.d.ts", "default": "./dist/cad-runtime/*.js" },
     "./occt-kernel/*": { "types": "./dist/occt-kernel/*.d.ts", "default": "./dist/occt-kernel/*.js" },
+    "./topology/naming": { "types": "./dist/topology/naming/index.d.ts", "default": "./dist/topology/naming/index.js" },
     "./topology/*": { "types": "./dist/topology/*.d.ts", "default": "./dist/topology/*.js" },
     "./boolean/*": { "types": "./dist/boolean/*.d.ts", "default": "./dist/boolean/*.js" }
   },

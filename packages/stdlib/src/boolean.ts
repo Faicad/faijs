@@ -15,9 +15,6 @@ import type { Shape } from '@faicad/faijs-core/mesh/types'
 import { cad } from '@faicad/faijs-core/mesh'
 import { solidToShape } from '@faicad/faijs-core/brep/brep-ops'
 import {
-  cutWithHistoryBrep,
-  fuseWithHistoryBrep,
-  intersectWithHistoryBrep,
   booleanWithRoleTable,
 } from '@faicad/faijs-core/brep/face-evolution'
 import { getBackends, getCurrentStmt, keepHidden } from '@faicad/faijs-core/runtime-state'
