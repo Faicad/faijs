@@ -3,7 +3,7 @@
  *
  * Phase 1（VM 执行方案）：内部从"解释器主循环 + dispatcher switch"换成
  * compileToModule + ModuleExecutor。对外签名、ExecutionResult、ScriptIR、
- * partN_vM 命名全部不变。
+ * 语句 id（sN）与产出名（PartName）语义全部不变。
  *
  * 职责：
  * - 执行 ScriptIR 语句序列，产出 ExecutionResult（纯计算，不碰 store/DOM）

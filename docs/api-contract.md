@@ -551,5 +551,5 @@ PS: Re-printing text from the IR is debug-only, never part of a contract.
 ### 13.5 Compatibility
 
 - Control flow is forbidden at the top level (a language constraint), which keeps static rules such as terminal detection safe from AI-generated code.
-- Legacy `partN_vM` and `grp_N` names are no longer produced (the version suffix and the `grp_` prefix were both removed), but the parser still recognizes them in existing scripts.
+- Legacy version-suffixed names are no longer produced and no longer parsed (the version suffix and the `grp_` prefix were both removed; compatibility parsing was removed, decision 2, see `lang/allocate-id.ts`).
 - Both the `export default async (cad) => {}` container and the flat format parse; flat code is automatically wrapped into a legal container.

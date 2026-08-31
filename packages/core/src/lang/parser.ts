@@ -610,8 +610,8 @@ function parseDestructuring(
  * 解析 return 语句，提取 terminal shape(s) 和 meta。
  *
  * 支持三种形式：
- * - `return part0_vN`（裸标识符）→ 单终端，无 meta
- * - `return { shape: part0_vN, name, color, ... }`（单终端 + meta）
+ * - `return part0`（裸标识符）→ 单终端，无 meta
+ * - `return { shape: part0, name, color, ... }`（单终端 + meta）
  * - `return [ { shape: part1, name, ... }, { shape: part2, name, ... } ]`（多终端）
  */
 function parseReturnStatement(
@@ -625,7 +625,7 @@ function parseReturnStatement(
     return { terminalShapeId: null, meta: undefined, terminalShapes: undefined }
   }
 
-  // return part0_vN（裸标识符）
+  // return part0（裸标识符）
   if (arg.type === 'Identifier') {
     const ref = varToId.get(arg.name)
     if (!ref) {
@@ -634,7 +634,7 @@ function parseReturnStatement(
     return { terminalShapeId: ref, meta: undefined, terminalShapes: undefined }
   }
 
-  // return { shape: part0_vN, name, color, ... }
+  // return { shape: part0, name, color, ... }
   if (arg.type === 'ObjectExpression') {
     const result = parseReturnObject(arg, varToId, line)
     return { terminalShapeId: result.id, meta: result.meta, terminalShapes: undefined }
@@ -1179,7 +1179,7 @@ export function parseScript(code: string, options?: ParseScriptOptions): ParseRe
             init.callee.object?.type === 'Identifier' &&
             isNamespaceName(init.callee.object.name)
           ) {
-            // 语句：const partN_vM = [await] <ns>.op(...)
+            // 语句：const partN = [await] <ns>.op(...)
             const { stmt, varName } = parseCadStatement(decl, paramNames, paramValues, varToId, nsNames, looseVars)
             // 命名服务不再由 parser 调用：parser 只做语法分析，保留词法变量名（设计 §5.1）
             stmt.outputs = [asPartName(varName)]
