@@ -8,11 +8,23 @@ const SNAPSHOT_REF_PREFIX = 'refs/dsh/translation-pairing/snapshots'
 /** Maximum buffered stdout or stderr for repository-owned Git subprocesses. */
 export const GIT_COMMAND_MAX_BUFFER = 1 << 26
 
+/**
+ * LF-normalize UTF-8 text bytes. Working copies written by Windows editors
+ * frequently carry CRLF, but git stores text files with LF (`* text=auto eol=lf`
+ * in .gitattributes). Pairing hashes must be computed on the LF form so a CRLF
+ * working copy hashes identically to the committed blob.
+ */
+export function lfNormalize(content: Buffer): Buffer {
+  if (!content.includes(0x0d)) return content
+  return Buffer.from(content.toString('utf8').replace(/\r\n/g, '\n').replace(/\r/g, '\n'), 'utf8')
+}
+
 /** Full SHA-1 Git blob hash (the 40-hex format used by pairing records). */
 export function gitBlobHash(content: Buffer): string {
+  const normalized = lfNormalize(content)
   const hash = createHash('sha1')
-  hash.update(`blob ${content.byteLength}\0`)
-  hash.update(content)
+  hash.update(`blob ${normalized.byteLength}\0`)
+  hash.update(normalized)
   return hash.digest('hex')
 }
 

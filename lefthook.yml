@@ -4,6 +4,10 @@
 
 pre-commit:
   jobs:
+    - name: normalize line endings to LF (staged)
+      glob: '**/*'
+      run: git add --renormalize {staged_files}
+
     - name: translation pairing (staged records)
       glob: '*.i18n.yaml'
       exclude:

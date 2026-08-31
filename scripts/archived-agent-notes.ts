@@ -15,11 +15,18 @@ function archiveContentHash(content: Buffer): string {
   return `sha256:${createHash('sha256').update(content).digest('hex')}`
 }
 
-/** Compute the SHA-1 Git blob id used by bilingual consistency sidecars. */
+/**
+ * Compute the SHA-1 Git blob id used by bilingual consistency sidecars.
+ * LF-normalized first, matching how git stores text files (`eol=lf`): a CRLF
+ * working copy must hash identically to the committed blob.
+ */
 export function gitBlobHash(content: Buffer): string {
+  const normalized = content.includes(0x0d)
+    ? Buffer.from(content.toString('utf8').replace(/\r\n/g, '\n').replace(/\r/g, '\n'), 'utf8')
+    : content
   const hash = createHash('sha1')
-  hash.update(`blob ${content.byteLength}\0`)
-  hash.update(content)
+  hash.update(`blob ${normalized.byteLength}\0`)
+  hash.update(normalized)
   return hash.digest('hex')
 }
 

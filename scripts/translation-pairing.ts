@@ -70,13 +70,19 @@ export function partitionGeneratedRegions(content: string): { regions: string[];
 
 /**
  * Full git blob hash of file content (what `git hash-object` prints).
+ * The content is LF-normalized first: git stores text files with LF under
+ * `.gitattributes` (`* text=auto eol=lf`), so the hash must match that LF
+ * form even when the working copy carries CRLF.
  * @param content - Exact file bytes.
  * @returns The 40-hex-digit SHA-1 blob hash.
  */
 export function blobHash(content: Buffer): string {
+  const normalized = content.includes(0x0d)
+    ? Buffer.from(content.toString('utf8').replace(/\r\n/g, '\n').replace(/\r/g, '\n'), 'utf8')
+    : content
   const hash = createHash('sha1')
-  hash.update(`blob ${content.byteLength}\0`)
-  hash.update(content)
+  hash.update(`blob ${normalized.byteLength}\0`)
+  hash.update(normalized)
   return hash.digest('hex')
 }
 
