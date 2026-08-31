@@ -129,6 +129,9 @@ export { buildSelectorRuntimeMaps } from './topology/build-selector-runtime'
 // 拓扑常量
 export { TOPOLOGY_FACE_ID_NONE } from './topology/build-face-ids'
 
+// ── TopoRef 命名层（§3.7/§3.8：命名属于核心公共能力，随 browser/node 走）──
+export * from './topology/naming'
+
 // D 类辅助：拓扑构建函数（宿主在加载时刻调用，构建 mesh/primitive 近似拓扑）
 // 注意：这些只在加载/创建时刻合法，变更后不重新生成
 // BREP 真拓扑通过 CadRuntime.buildBrepTopology() 获取，不再直接导出 buildSolidTopologyRuntime

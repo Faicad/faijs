@@ -127,6 +127,7 @@ export class ModuleExecutor {
   private readonly releaseHandle?: (handle: BrepHandle) => void
   private readonly setSolid?: (partName: PartName, solid: BrepHandle) => void
   private readonly setFaceEvolution?: (partName: PartName, evo: Map<number, number[]>) => void
+  private readonly setRoleTable?: (partName: PartName, roleTable: unknown) => void
 
   constructor(namespaces: Namespaces, options?: ModuleExecutorOptions) {
     this.namespaces = namespaces
@@ -135,6 +136,7 @@ export class ModuleExecutor {
     this.releaseHandle = options?.releaseHandle
     this.setSolid = options?.setSolid
     this.setFaceEvolution = options?.setFaceEvolution
+    this.setRoleTable = options?.setRoleTable
   }
 
   /**

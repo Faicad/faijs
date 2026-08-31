@@ -151,6 +151,8 @@ export interface ShapeSlot {
   faceEvolution?: Map<number, number[]>
   /** 拓扑命名 RoleTable（§2.3 naming 槽：随 Shape 身份槽传播，不序列化）。 */
   roleTable?: unknown
+  /** mesh/primitive 面 hint 快照（§3.6 setTopology 注入时由 runtime 提炼写入，解析兜底用）。 */
+  faceHints?: unknown
   behavior?: unknown
 }
 

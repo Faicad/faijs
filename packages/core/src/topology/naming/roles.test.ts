@@ -291,8 +291,16 @@ describe('assignGeneratedPositionalRoles', () => {
 // ── roleOfOrdinal ──
 
 describe('roleOfOrdinal', () => {
-  it('is a placeholder contract: ordinal→role 由调用方提供序号↔hash 对照', () => {
-    const roles = new Map([['box:top', [5]]])
-    expect(roleOfOrdinal(roles, 1)).toBeUndefined()
+  it('reverse-looks-up the role of an ordinal via the ordinal→hash table', () => {
+    const roles = new Map<string, number[]>([
+      ['box:top', [5]],
+      ['box:front', [2]],
+    ])
+    // ordinalToHash：下标 i ↔ 序号 i+1 的 hash（subShapeHashes 约定）
+    const ordinalToHash = [11, 2, 33, 44, 5]
+    expect(roleOfOrdinal(roles, ordinalToHash, 5)).toBe('box:top')
+    expect(roleOfOrdinal(roles, ordinalToHash, 2)).toBe('box:front')
+    expect(roleOfOrdinal(roles, ordinalToHash, 1)).toBeUndefined() // 不在表中
+    expect(roleOfOrdinal(roles, ordinalToHash, 9)).toBeUndefined() // 越界
   })
 })

@@ -159,6 +159,9 @@ export type {
   BufferViewDescriptor, SelectorProxy,
 } from './topology/types'
 
+// ── L1 Topology Naming（TopoRef 命名层，§2 docs/plans/2026-08-31-topology-naming-port-v2.md）──
+export * from './topology/naming'
+
 // ── L2 编排�?──
 export { CadRuntime, createRuntime, computeContentKey, AppendPrefixError } from './cad-runtime/runtime'
 export { createPreviewExec } from './cad-runtime/preview-exec'

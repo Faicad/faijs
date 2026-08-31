@@ -47,8 +47,12 @@ import { assertLibConforms } from '../define-op'
 import { computeContentKey } from './content-key'
 export { computeContentKey } from './content-key'
 import type { Namespaces } from './module-executor'
-import { isCompoundLike, getSlot, type CompoundShape } from '../shape'
+import { isCompoundLike, getSlot, ensureSlot, type CompoundShape } from '../shape'
 import { computeLeafTerminals, consumes, type DagRuntimeView } from './terminal-dag'
+import type { PartNaming } from '../topology/naming/types'
+import { buildPartNaming, type PartNamingInput } from '../topology/naming/build-naming'
+import { faceRowToHint } from '../topology/naming/geom-hint'
+import { HASH_UPPER_BOUND } from '../brep/face-evolution'
 
 
 // ── 装配变换死代码已删除 ──
@@ -133,6 +137,15 @@ export interface ExecutionResult {
    * 拓扑来源静态判定：BREP 成功时 source='brep'，否则根据 part 类型判定。
    */
   topology?: Map<PartName, PartTopology>
+  /**
+   * 拓扑命名数据 — 每个 part 的命名行（§3.7 of
+   * docs/plans/2026-08-31-topology-naming-port-v2.md）。
+   *
+   * 宿主拾取到 Reference（序号）后 O(1) 反查命名行 → captureTopoRef 造 TopoRef。
+   * BREP/primitive 完整（faceNaming 有 origin+role），mesh 只给 hint（role=''）。
+   * 与 topology 并列、选择器 manifest 不改动；命名数据不进 topology-store。
+   */
+  naming?: Map<PartName, PartNaming>
   /**
    * 装配/分组结构 — 每个 compound 变量（group/assembly 产物）的成员变量名列表。
    * key 为 compound 变量名（PartName），value 为成员变量名列表。
@@ -891,6 +904,13 @@ export class CadRuntime {
       }
     }
 
+    // 拓扑命名（§3.7）：与 topology 同 set，宿主拾取后 O(1) 反查命名行造 TopoRef
+    const naming = new Map<PartName, PartNaming>()
+    for (const [partName, partTopo] of topology) {
+      const input = this.buildNamingInput(partName, partTopo)
+      if (input) naming.set(partName, buildPartNaming(input))
+    }
+
     // 变更声明（P6）：引擎推导——语句写值前后比对 + 装配应用记录（exec.changed）
     const changed: PartName[] = [...exec.changed]
 
@@ -901,10 +921,81 @@ export class CadRuntime {
       infos: [],
       brepSolids: brepSolids.size > 0 ? brepSolids : undefined,
       topology: topology.size > 0 ? topology : undefined,
+      naming: naming.size > 0 ? naming : undefined,
       compounds: compounds.size > 0 ? compounds : undefined,
       changed: changed.length > 0 ? changed : undefined,
       activeValues: activeValues.size > 0 ? activeValues : undefined,
     }
+  }
+
+  /**
+   * 构建一个 part 的命名输入（§3.7）。
+   *
+   * - BREP：roleTableCache 反查 {origin, role} + subShapeHashes 序号对照 + 面/边行 hint；
+   * - primitive/mesh：只从拓扑行取 hint（role 由 M4 的 primitiveRoles 填充）。
+   *
+   * @param partName - the part whose naming to build.
+   * @param partTopo - the part's topology entry (source + serialized rows).
+   * @returns the PartNamingInput, or undefined when the topology rows are unavailable.
+   */
+  private buildNamingInput(partName: PartName, partTopo: PartTopology): PartNamingInput | undefined {
+    const faces = (partTopo.data.faces ?? []) as Array<{
+      surfaceType?: string; normal?: readonly number[] | null; center?: readonly number[] | null; area?: number
+    }>
+    const edges = (partTopo.data.edges ?? []) as Array<{
+      length?: number; center?: readonly number[] | null
+    }>
+    const edgeFaceOrdinals = this.edgeFaceOrdinalsOf(partTopo.data)
+
+    if (partTopo.source === 'brep') {
+      const roleTable = this.roleTableCache.get(partName) as PartNamingInput['roleTable']
+      const solid = this.solidCache.get(partName)
+      let ordinalToHash: readonly number[] | undefined
+      if (solid && this.kernel) {
+        ordinalToHash = Array.from(this.kernel.subShapeHashes(solid, 'face', HASH_UPPER_BOUND))
+      }
+      return {
+        source: 'brep',
+        partName,
+        faces,
+        edges,
+        roleTable,
+        ordinalToHash,
+        edgeFaceOrdinals,
+      }
+    }
+    return { source: partTopo.source, partName, faces, edges, edgeFaceOrdinals }
+  }
+
+  /**
+   * 从 SelectorRuntimeData 的 edgeFaceRows 提取每条边的两邻面序号（1 起；§3.7）。
+   * mesh 无邻接 → undefined（edgeNaming.faces=null，只能 hint 兜底，§5.3）。
+   *
+   * @param data - the serialized topology data.
+   * @returns per-edge adjacent face ordinal pair, or undefined.
+   */
+  private edgeFaceOrdinalsOf(data: SelectorRuntimeData): ReadonlyArray<readonly [number, number] | null> | undefined {
+    const edgeFaceRows = data.proxy?.edgeFaceRows
+    const edges = (data.edges ?? []) as Array<{ faceStart?: number; faceCount?: number }>
+    if (!Array.isArray(edgeFaceRows) && !(edgeFaceRows instanceof Uint32Array)) return undefined
+    const rows = edgeFaceRows as ArrayLike<number>
+    const out: Array<readonly [number, number] | null> = []
+    for (const edge of edges) {
+      const start = edge.faceStart ?? 0
+      const count = edge.faceCount ?? 0
+      if (count < 2) {
+        out.push(null)
+        continue
+      }
+      const a = rows[start]
+      const b = rows[start + 1]
+      if (a === undefined || b === undefined) {
+        out.push(null)
+        continue
+      }
+      out.push([a + 1, b + 1])
+    }
+    return out
   }
 
   /**
@@ -1076,6 +1167,13 @@ export class CadRuntime {
    */
   setTopology(partName: PartName, source: TopologySource, data: SelectorRuntimeData): void {
     this.topologyCache.set(partName, { partName, source, data })
+    // §3.6：mesh/primitive 面 hint 快照——从拓扑行提炼写入对应 Shape 槽，
+    // op 解析 TopoRef 时经输入 Shape 的命名槽走 geometric-fallback。
+    const v = this.executor.getCtxVar(partName)
+    if (v && typeof v === 'object') {
+      const hints = (data.faces ?? []).map((f) => faceRowToHint(f))
+      ensureSlot(v).faceHints = hints
+    }
   }
 
   /**

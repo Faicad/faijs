@@ -237,21 +237,26 @@ export function assignGeneratedPositionalRoles(outPart: string, count: number): 
 
 /**
  * 序号 → role 反查（§3.7 生成 ExecutionResult.naming 用）。
- * 对给定 origin 的表，找包含该序号对应 hash 的 role。
  *
- * @param roles - the role table for a single origin.
- * @param ordinal - the face ordinal (1-based, per TopExp::MapShapes enumeration).
+ * 反查需要「序号 → hash」对照：subShapeHashes(shape,'face',B) 的数组下标 i 对应
+ * 序号 i+1（§1.1 事实：getSubShapes ↔ subShapeHashes 同走 TopExp::MapShapes、
+ * 逐位同序）。调用方传入该对照数组 + 该 origin 的 role 表，返回第 ordinal 个面
+ * 的 role 名；不在表中 → undefined。
+ *
+ * @param roles - the role table for a single origin (role → hash list).
+ * @param ordinalToHash - subShapeHashes(shape,'face') 数组：下标 i ↔ 序号 i+1 的 hash。
+ * @param ordinal - the face ordinal (1-based).
  * @returns the role name, or undefined when the ordinal isn't tracked.
  */
 export function roleOfOrdinal(
   roles: ReadonlyMap<string, readonly number[]>,
+  ordinalToHash: readonly number[],
   ordinal: number,
 ): string | undefined {
-  // 序号从 1 起；RoleTable 的 hash 列表无法直接反查序号——hash 是会话内句柄索引，
-  // 序号是枚举序。反查需要「序号 → hash」对照（subShapeHashes），由调用方提供；
-  // 本函数按「第 ordinal 个 hash」约定工作：hash 列表本身不可反查，故这里
-  // 通过调用方预构建的 ordinal→role 映射服务（见 naming/index.ts 的 buildFaceNaming）。
-  void roles
-  void ordinal
+  const hash = ordinalToHash[ordinal - 1]
+  if (hash === undefined) return undefined
+  for (const [role, hashes] of roles) {
+    if (hashes.includes(hash)) return role
+  }
   return undefined
 }

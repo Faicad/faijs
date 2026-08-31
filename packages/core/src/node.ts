@@ -17,3 +17,6 @@ export { FsAssetResolver } from './node-host/fs-asset-resolver'
 export { CliEventSink } from './node-host/cli-event-sink'
 export { cliCheck, cliRun, cliMain, parseArgs } from './node-host/cli'
 export type { CliCheckResult, CliRunResult, CliRunOptions } from './node-host/cli'
+
+// ── TopoRef 命名层（§3.7/§3.8：命名属于核心公共能力，随 browser/node 走）──
+export * from './topology/naming'

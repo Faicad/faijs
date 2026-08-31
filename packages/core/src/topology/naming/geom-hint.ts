@@ -51,11 +51,13 @@ export function faceRowToHint(row: {
   center?: readonly number[] | null
   area?: number
 }): FaceHint {
-  const hint: FaceHint = { kind: 'face' }
-  if (row.surfaceType !== undefined) hint.surfaceType = row.surfaceType
-  if (row.normal && row.normal.length === 3) hint.normal = [row.normal[0], row.normal[1], row.normal[2]]
-  if (row.center && row.center.length === 3) hint.center = [row.center[0], row.center[1], row.center[2]]
-  if (row.area !== undefined && Number.isFinite(row.area)) hint.area = row.area
+  const hint: FaceHint = {
+    kind: 'face',
+    ...(row.surfaceType !== undefined ? { surfaceType: row.surfaceType } : {}),
+    ...(row.normal && row.normal.length === 3 ? { normal: [row.normal[0], row.normal[1], row.normal[2]] as [number, number, number] } : {}),
+    ...(row.center && row.center.length === 3 ? { center: [row.center[0], row.center[1], row.center[2]] as [number, number, number] } : {}),
+    ...(row.area !== undefined && Number.isFinite(row.area) ? { area: row.area } : {}),
+  }
   return hint
 }
 
@@ -71,8 +73,10 @@ export function edgeRowToHint(row: {
   length?: number
   center?: readonly number[] | null
 }): EdgeHint {
-  const hint: EdgeHint = { kind: 'edge' }
-  if (row.length !== undefined && Number.isFinite(row.length)) hint.length = row.length
-  if (row.center && row.center.length === 3) hint.midpoint = [row.center[0], row.center[1], row.center[2]]
+  const hint: EdgeHint = {
+    kind: 'edge',
+    ...(row.length !== undefined && Number.isFinite(row.length) ? { length: row.length } : {}),
+    ...(row.center && row.center.length === 3 ? { midpoint: [row.center[0], row.center[1], row.center[2]] as [number, number, number] } : {}),
+  }
   return hint
 }
