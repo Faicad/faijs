@@ -261,6 +261,7 @@ function parseValueExpr(
   nsNames: ReadonlySet<string>,
   line: number,
   flags?: ValueFlags | null,
+  looseVars = false,
 ): ArgIR {
   if (!node) throw new ParseError('missing value expression', line, 'E_VALUE')
 
@@ -278,6 +279,14 @@ function parseValueExpr(
       const varId = varToId.get(name)
       if (varId) {
         return { $ref: varId } as ArgIR
+      }
+      // Loose mode (append passes only the newest statements): an external
+      // variable passes through as its physical PartName; the caller validates
+      // it against the persistent ctx (AppendPrefixError when missing).
+      if (looseVars) {
+        const external = asPartName(name)
+        varToId.set(name, external)
+        return { $ref: external } as ArgIR
       }
       throw new ParseError(`unknown identifier "${name}" in args value (not a declared param or variable)`, line, 'E_REFERENCE')
     }
@@ -297,7 +306,7 @@ function parseValueExpr(
           if (flags) flags.computed = true
           out.push(...(r.value as ArgIR[]))
         } else {
-          out.push(parseValueExpr(el, paramNames, paramValues, varToId, nsNames, line, flags))
+          out.push(parseValueExpr(el, paramNames, paramValues, varToId, nsNames, line, flags, looseVars))
         }
       }
       return out as ArgIR
@@ -331,7 +340,7 @@ function parseValueExpr(
             throw new ParseError(`unknown shorthand identifier "${key}" (not a declared param)`, line, 'E_REFERENCE')
           }
         } else {
-          obj[key] = parseValueExpr(prop.value, paramNames, paramValues, varToId, nsNames, line, flags)
+          obj[key] = parseValueExpr(prop.value, paramNames, paramValues, varToId, nsNames, line, flags, looseVars)
         }
       }
       return obj as ArgIR
@@ -348,7 +357,7 @@ function parseValueExpr(
       ) {
         const nsName = callee.object.name
         const innerCallee = callee.property.name
-        const innerArgs = node.arguments.map((a: ASTNode) => parseValueExpr(a, paramNames, paramValues, varToId, nsNames, line, flags))
+        const innerArgs = node.arguments.map((a: ASTNode) => parseValueExpr(a, paramNames, paramValues, varToId, nsNames, line, flags, looseVars))
         return {
           $call: {
             callee: innerCallee,
@@ -404,6 +413,7 @@ function parseCadStatement(
   paramValues: Map<string, JsonValue>,
   varToId: Map<string, PartName>,
   nsNames: ReadonlySet<string>,
+  looseVars = false,
 ): ParsedStatement {
   const line = getLine(declNode)
 
@@ -445,14 +455,21 @@ function parseCadStatement(
   for (const argNode of init.arguments) {
     if (argNode.type === 'Identifier') {
       // input 变量引用
-      const inputId = varToId.get(argNode.name)
+      let inputId = varToId.get(argNode.name)
       if (!inputId) {
-        throw new ParseError(`unknown variable "${argNode.name}" in inputs`, getLine(argNode), 'E_REFERENCE')
+        // Loose mode: external variable passes through as its physical PartName
+        // (the append prefix is validated by the caller against the persistent ctx).
+        if (looseVars) {
+          inputId = asPartName(argNode.name)
+          varToId.set(argNode.name, inputId)
+        } else {
+          throw new ParseError(`unknown variable "${argNode.name}" in inputs`, getLine(argNode), 'E_REFERENCE')
+        }
       }
       inputs.push(inputId)
     } else if (argNode.type === 'ObjectExpression') {
       // args 对象
-      const parsed = parseValueExpr(argNode, paramNames, paramValues, varToId, nsNames, line, flags)
+      const parsed = parseValueExpr(argNode, paramNames, paramValues, varToId, nsNames, line, flags, looseVars)
       if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
         args = parsed as Record<string, ArgIR>
       } else {
@@ -497,6 +514,7 @@ function parseDestructuring(
   paramValues: Map<string, JsonValue>,
   varToId: Map<string, PartName>,
   nsNames: ReadonlySet<string>,
+  looseVars = false,
 ): ParsedDestructuring {
   const line = getLine(declNode)
 
@@ -550,13 +568,20 @@ function parseDestructuring(
 
   for (const argNode of init.arguments) {
     if (argNode.type === 'Identifier') {
-      const inputId = varToId.get(argNode.name)
+      let inputId = varToId.get(argNode.name)
       if (!inputId) {
-        throw new ParseError(`unknown variable "${argNode.name}" in destructuring inputs`, getLine(argNode), 'E_REFERENCE')
+        // Loose mode: external variable passes through as its physical PartName
+        // (the append prefix is validated by the caller against the persistent ctx).
+        if (looseVars) {
+          inputId = asPartName(argNode.name)
+          varToId.set(argNode.name, inputId)
+        } else {
+          throw new ParseError(`unknown variable "${argNode.name}" in destructuring inputs`, getLine(argNode), 'E_REFERENCE')
+        }
       }
       inputs.push(inputId)
     } else if (argNode.type === 'ObjectExpression') {
-      const parsed = parseValueExpr(argNode, paramNames, paramValues, varToId, nsNames, line, flags)
+      const parsed = parseValueExpr(argNode, paramNames, paramValues, varToId, nsNames, line, flags, looseVars)
       if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
         Object.assign(args, parsed as Record<string, ArgIR>)
       } else {
@@ -941,7 +966,26 @@ export interface ParseResult {
  * @returns the parsed ScriptIR plus line and variable mappings.
  * @throws ParseError — 含行号
  */
-export function parseScript(code: string): ParseResult {
+export interface ParseScriptOptions {
+  /**
+   * Loose variable resolution for partial code text (CadRuntime.append receives
+   * only the newest statements). Unknown references resolve to their physical
+   * PartName instead of throwing; the caller validates them against the
+   * persistent ctx (AppendPrefixError when missing).
+   */
+  looseVars?: boolean
+}
+
+/**
+ * Parse CAD script code text into a ScriptIR.
+ *
+ * @param code    - the script text to parse.
+ * @param options - optional parse options (looseVars enables loose variable
+ *                  resolution for partial append text).
+ * @returns the parse result (script IR + parse diagnostics).
+ */
+export function parseScript(code: string, options?: ParseScriptOptions): ParseResult {
+  const looseVars = options?.looseVars === true
 
   // ── 0. 顶层 import/export 预扫描（F1 黑名单化 + F2 import 提升） ──
   // 用 module 模式解析原始文本：
@@ -1107,7 +1151,7 @@ export function parseScript(code: string): ParseResult {
             if (stmtNode.kind !== 'const') {
               throw new ParseError('destructuring requires const', line, 'E_STATEMENT')
             }
-            const { stmt, valueNames } = parseDestructuring(decl, paramNames, paramValues, varToId, nsNames)
+            const { stmt, valueNames } = parseDestructuring(decl, paramNames, paramValues, varToId, nsNames, looseVars)
             // 命名服务不再由 parser 调用：parser 只做语法分析，保留词法变量名（设计 §5.1）
             stmt.outputs = valueNames.map((n) => asPartName(n))
             statements.push(stmt)
@@ -1136,7 +1180,7 @@ export function parseScript(code: string): ParseResult {
             isNamespaceName(init.callee.object.name)
           ) {
             // 语句：const partN_vM = [await] <ns>.op(...)
-            const { stmt, varName } = parseCadStatement(decl, paramNames, paramValues, varToId, nsNames)
+            const { stmt, varName } = parseCadStatement(decl, paramNames, paramValues, varToId, nsNames, looseVars)
             // 命名服务不再由 parser 调用：parser 只做语法分析，保留词法变量名（设计 §5.1）
             stmt.outputs = [asPartName(varName)]
             statements.push(stmt)
@@ -1206,9 +1250,13 @@ export function parseScript(code: string): ParseResult {
           expr.left?.type === 'Identifier'
         ) {
           const varName = expr.left.name
-          // 验证变量已声明
+          // 验证变量已声明（loose 模式下外部变量透传，由 append 前缀校验兜底）
           if (!varToId.has(varName)) {
-            throw new ParseError(`unknown variable "${varName}" in re-assignment`, line, 'E_REFERENCE')
+            if (looseVars) {
+              varToId.set(varName, asPartName(varName))
+            } else {
+              throw new ParseError(`unknown variable "${varName}" in re-assignment`, line, 'E_REFERENCE')
+            }
           }
           let init = expr.right
           if (init?.type === 'AwaitExpression') init = init.argument
@@ -1225,7 +1273,7 @@ export function parseScript(code: string): ParseResult {
               init: expr.right,
               loc: stmtNode.loc,
             }
-            const { stmt, varName: parsedVar } = parseCadStatement(fakeDecl, paramNames, paramValues, varToId, nsNames)
+            const { stmt, varName: parsedVar } = parseCadStatement(fakeDecl, paramNames, paramValues, varToId, nsNames, looseVars)
             // 命名服务不再由 parser 调用：裸重赋值保留词法变量名（设计 §5.1）
             stmt.outputs = [asPartName(parsedVar)]
             statements.push(stmt)
@@ -1257,13 +1305,19 @@ export function parseScript(code: string): ParseResult {
             const flags: ValueFlags = { computed: false }
             for (const argNode of expr.arguments) {
               if (argNode.type === 'Identifier') {
-                const inputId = varToId.get(argNode.name)
+                let inputId = varToId.get(argNode.name)
                 if (!inputId) {
-                  throw new ParseError(`unknown variable "${argNode.name}" in ${nsName}.${methodName}() call`, getLine(argNode), 'E_REFERENCE')
+                  // Loose mode: external variable passes through as its physical PartName
+                  if (looseVars) {
+                    inputId = asPartName(argNode.name)
+                    varToId.set(argNode.name, inputId)
+                  } else {
+                    throw new ParseError(`unknown variable "${argNode.name}" in ${nsName}.${methodName}() call`, getLine(argNode), 'E_REFERENCE')
+                  }
                 }
                 inputs.push(inputId)
               } else if (argNode.type === 'ObjectExpression') {
-                const parsed = parseValueExpr(argNode, paramNames, paramValues, varToId, nsNames, line, flags)
+                const parsed = parseValueExpr(argNode, paramNames, paramValues, varToId, nsNames, line, flags, looseVars)
                 if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
                   Object.assign(args, parsed as Record<string, ArgIR>)
                 } else {
@@ -1292,13 +1346,19 @@ export function parseScript(code: string): ParseResult {
           const targetVar = objName
           // 验证 targetVar 已声明（变量作用域检查，非 op 知识）
           if (!varToId.has(targetVar)) {
-            throw new ParseError(`unknown variable "${targetVar}" in .${methodName}() call`, line, 'E_REFERENCE')
+            // Loose mode: external receiver passes through (append text may call
+            // do_assemble() on an assembly created by an earlier statement).
+            if (looseVars) {
+              varToId.set(targetVar, asPartName(targetVar))
+            } else {
+              throw new ParseError(`unknown variable "${targetVar}" in .${methodName}() call`, line, 'E_REFERENCE')
+            }
           }
           const args: Record<string, ArgIR> = {}
           const flags: ValueFlags = { computed: false }
           for (const argNode of expr.arguments) {
             if (argNode.type === 'ObjectExpression') {
-              const parsed = parseValueExpr(argNode, paramNames, paramValues, varToId, nsNames, line, flags)
+              const parsed = parseValueExpr(argNode, paramNames, paramValues, varToId, nsNames, line, flags, looseVars)
               if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
                 Object.assign(args, parsed as Record<string, ArgIR>)
               } else {

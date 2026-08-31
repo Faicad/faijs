@@ -659,6 +659,8 @@ export function extrudeBrep(
  * @param buffer     the raw STEP file bytes (a text-encoded ArrayBuffer).
  * @param brepChain  optional - caches the tessellated BrepMeshResult when provided.
  * @param stmtId     optional - the part this solid belongs to, paired with brepChain as the cache key.
+ * @param partIndex  optional - for multi-solid files, return the N-th sub-solid
+ *                   (host emits one load statement per part with its index).
  * @returns { solid: the OCCT solid handle, shape: the display tessellated mesh }
  */
 export function loadBrep(
@@ -666,6 +668,7 @@ export function loadBrep(
   buffer: ArrayBuffer,
   brepChain?: BrepChainState,
   stmtId?: PartName,
+  partIndex?: number,
 ): { solid: BrepHandle; shape: Shape } {
   // BREP 文件（CASCADE Topology 文本格式）必须用 kernel.fromBREP 解析；
   // 误用 STEP 解析器（importStep）读 BREP 会抛 "failed to read STEP data"。
@@ -691,6 +694,22 @@ export function loadBrep(
     kernel.release(top) // 释放 Compound 包裹，realSolid 独立持有
     const shape = solidToShape(kernel, realSolid, undefined, brepChain, stmtId)
     return { solid: realSolid, shape }
+  }
+
+  // 多 solid + partIndex：提取第 partIndex 个子 solid（逐 part load 语句使用）。
+  // 宿主为多 part 文件的每个 part 生成独立 load 语句并携带 partIndex，
+  // 使每条 load 输出对应 part 的几何，而不是整个文件的 Compound。
+  if (partIndex !== undefined) {
+    const target = solids[partIndex]
+    if (!target) {
+      kernel.release(top)
+      throw new Error(
+        `[loadBrep] partIndex ${partIndex} out of range (${solids.length} solids)`,
+      )
+    }
+    kernel.release(top) // 释放 Compound 包裹，target 独立持有（同单 solid 模式）
+    const shape = solidToShape(kernel, target, undefined, brepChain, stmtId)
+    return { solid: target, shape }
   }
 
   // 多 solid：保留 Compound 不合并（I5），逐 part 编辑由 Phase 1 XCAF 负责

@@ -160,7 +160,7 @@ export type {
 } from './topology/types'
 
 // ── L2 编排�?──
-export { CadRuntime, createRuntime, computeContentKey } from './cad-runtime/runtime'
+export { CadRuntime, createRuntime, computeContentKey, AppendPrefixError } from './cad-runtime/runtime'
 export { createPreviewExec } from './cad-runtime/preview-exec'
 export type { PreviewExec } from './cad-runtime/preview-exec'
 export type { ExecutionResult, ExecuteOptions, CheckResult, CheckError } from './cad-runtime/runtime'

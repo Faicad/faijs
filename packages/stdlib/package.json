@@ -1,6 +1,6 @@
 {
   "name": "@faicad/faijs-stdlib",
-  "version": "0.5.12",
+  "version": "0.6.0",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -16,7 +16,7 @@
     "three": "^0.184.0"
   },
   "peerDependencies": {
-    "@faicad/faijs-core": "^0.5.11",
+    "@faicad/faijs-core": "^0.6.0",
     "occt-wasm": "^3.8.0"
   },
   "devDependencies": {

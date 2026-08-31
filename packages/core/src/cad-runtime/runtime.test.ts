@@ -456,7 +456,7 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
       makeStmt('s2', 'translate', { offset: [5, 0, 0] }, ['s1']),
     ])
     const beforeCalls: string[] = []
-    await runtime.updateIR(modified, { beforeStatement: (stmtId) => beforeCalls.push(stmtId) })
+    await runtime.updateIR(script, modified, { beforeStatement: (stmtId) => beforeCalls.push(stmtId) })
 
     expect(beforeCalls).toEqual(['s1', 's2'])
     // 重算后 s1 的几何更新（bbox 翻倍）
@@ -471,7 +471,7 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     await runtime.executeIR(script)
 
     const beforeCalls: string[] = []
-    const result = await runtime.updateIR(script, {
+    const result = await runtime.updateIR(script, script, {
       beforeStatement: () => beforeCalls.push('should-not-run'),
     })
 
@@ -956,7 +956,7 @@ describe('CadRuntime: plan deps 级联（参数语句化）', () => {
     await runtime.executeIR(makeScriptWithParam(20))
 
     const beforeCalls: string[] = []
-    await runtime.updateIR(makeScriptWithParam(30), {
+    await runtime.updateIR(makeScriptWithParam(20), makeScriptWithParam(30), {
       beforeStatement: (stmtId) => beforeCalls.push(stmtId),
     })
 

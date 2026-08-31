@@ -28,7 +28,7 @@ import { getBrepEngine, hasBrepEngine, getActiveBrepEngineId } from '../brep/eng
 import { ensureOcctDefaultEngine } from '../brep/engine/adapters/occt'
 import { parseScript, ParseError } from '../lang/parser'
 import { getFunctionSymbol } from '../lang/symbol-table'
-import { validateKeepDirectives } from '../lang/keep'
+import { validateKeepDirectives, withoutKeepDirectives } from '../lang/keep'
 import type { HostPorts, ExecutionMode } from './ports'
 import type { SelectorRuntimeData } from '../topology/build-selector-runtime'
 import type { SelectorRuntime } from '../topology/types'
@@ -155,10 +155,6 @@ export interface ExecutionResult {
 export interface ExecuteOptions {
   /** The parameter table. */
   params?: Record<string, unknown>
-  /** 跨 part 输入几何（PartName → Shape） */
-  inputGeometryMap?: Map<PartName, Shape>
-  /** 整场景代码文本（跨 part 引用解析；引擎内部 parse 后使用） */
-  sceneCode?: string
   /** partTransform（世界→局部坐标偏移 + 单位缩放） */
   partTransform?: { position: [number, number, number]; scale?: [number, number, number] }
   /** 语句前钩子（用于 undo 逐语句快照）；参数为语句 id（sN）与语句下标 */
@@ -175,6 +171,28 @@ export interface ExecuteOptions {
    * - 'off'：不自动构建（只返回宿主 setTopology 注入的拓扑）
    */
   topology?: 'auto' | 'brep' | 'off'
+}
+
+/**
+ * Thrown by CadRuntime.append when a newly appended statement references a
+ * variable that is not in the persistent context — its producer was never
+ * executed (cross-file reference to an unloaded part, or ctx cleared by
+ * dispose). The host should upgrade to a full `execute(code)`.
+ */
+export class AppendPrefixError extends Error {
+  constructor(
+    /** The source statement id (sN) whose reference is missing. */
+    readonly statementId: string,
+    /** The referenced variable missing from the persistent ctx. */
+    readonly missingVar: string,
+  ) {
+    super(
+      `[faijs] append: prefix missing — statement "${statementId}" references ` +
+      `"${missingVar}" which is not in the persistent context; ` +
+      `run execute(code) for a full execution`,
+    )
+    this.name = 'AppendPrefixError'
+  }
 }
 
 // ── CadRuntime ──
@@ -224,6 +242,11 @@ export class CadRuntime {
     outputContentKey: string
     output: Shape
   }>()
+
+  /** 场景代码累积（三接口收敛：append 只传新行，faijs 累积全文使 id 按位置稳定 + DAG/keep 分析可见全场景）。 */
+  private accumulatedCode: string | null = null
+  /** 已累积场景的语句 id 集（append 据此判定「新增语句」）。 */
+  private accumulatedIds = new Set<StmtId>()
 
   /**
    * Persistent SolidCache（docs/plans/2026-08-18-brepchain-persistent-solid-cache.md）：
@@ -374,6 +397,9 @@ export class CadRuntime {
    */
   async execute(code: string, opts?: ExecuteOptions): Promise<ExecutionResult> {
     const { script } = parseScript(code)
+    // Full replace: the whole scene resets to this text.
+    this.accumulatedCode = code
+    this.accumulatedIds = new Set(script.statements.map((s) => s.id))
     return this.executeIR(script, opts)
   }
 
@@ -399,8 +425,7 @@ export class CadRuntime {
         scale: opts.partTransform.scale,
       }
     }
-    this.reconcile(script, statements, this.resolveSceneScript(opts))
-    await this.prepareCtx(script, opts)
+    this.reconcile(script, statements)
     const exec = this.createBookkeeping(script, opts)
     const start = opts?.startIndex ?? 0
     return this.runWithFailureHandling(script, exec, async () => {
@@ -416,29 +441,36 @@ export class CadRuntime {
   // ── 语义入口：update / append（增量执行） ──
 
   /**
-   * Update from code text: plan() derives the changed statements →
-   * reconcileCtx → executeFrom recomputes the stale set. When stale is empty
-   * (no change) it assembles the result from the persistent ctx and returns
-   * with zero execution; otherwise it runs executeFrom(staleIds), the stale set
-   * being closed over deps and executed in topological order.
-   * @param code - the .faijs source text.
+   * Update from the two code texts (before/after an edit): the diff is derived
+   * from the passed codes themselves — the engine's persistent ctx is only an
+   * execution cache, never the diff authority. Changed statements (paired by
+   * positional id, S-2) plus their downstream closure are recomputed in
+   * topological order; when nothing changed, the result is assembled from the
+   * persistent ctx with zero execution.
+   * @param oldCode - the .faijs source text before the edit.
+   * @param newCode - the .faijs source text after the edit.
    * @param opts - optional execution options.
    * @returns promise resolving to the ExecutionResult.
    */
-  async update(code: string, opts?: ExecuteOptions): Promise<ExecutionResult> {
-    const { script } = parseScript(code)
-    return this.updateIR(script, opts)
+  async update(oldCode: string, newCode: string, opts?: ExecuteOptions): Promise<ExecutionResult> {
+    const { script: oldScript } = parseScript(oldCode)
+    const { script } = parseScript(newCode)
+    // The scene is now the new code (ids stay position-stable by line).
+    this.accumulatedCode = newCode
+    this.accumulatedIds = new Set(script.statements.map((s) => s.id))
+    return this.updateIR(oldScript, script, opts)
   }
 
   /**
-   * Update from a parsed ScriptIR. Internal: the public surface takes code text
+   * Update from parsed ScriptIRs. Internal: the public surface takes code text
    * only (see {@link update}); kept for the engine and project tests.
    * @internal
-   * @param script - the parsed ScriptIR to update against.
+   * @param oldScript - the parsed ScriptIR before the edit.
+   * @param script - the parsed ScriptIR after the edit.
    * @param opts - optional execution options.
    * @returns promise resolving to the ExecutionResult.
    */
-  async updateIR(script: ScriptIR, opts?: ExecuteOptions): Promise<ExecutionResult> {
+  async updateIR(oldScript: ScriptIR, script: ScriptIR, opts?: ExecuteOptions): Promise<ExecutionResult> {
     const { code, statements } = compileToModule(script)
     this.executor.setCompiled(script, statements)
     await this.executor.load(code)
@@ -449,10 +481,9 @@ export class CadRuntime {
         scale: opts.partTransform.scale,
       }
     }
-    this.reconcile(script, statements, this.resolveSceneScript(opts))
-    await this.prepareCtx(script, opts)
+    this.reconcile(script, statements)
     const exec = this.createBookkeeping(script, opts)
-    const { staleCompiledIds } = this.planCompiled(script, statements)
+    const staleCompiledIds = this.planUpdateStale(oldScript, script, statements)
     if (staleCompiledIds.size === 0) {
       return this.collectResult(script, exec, opts)
     }
@@ -462,24 +493,33 @@ export class CadRuntime {
   }
 
   /**
-   * Append statements from code text: only the newly added statements execute
-   * (the prefix is already in the persistent ctx). Each new statement gets the
-   * same guards as execute — hasAssignment filter / beforeStatement hook /
-   * brep-mode guard / replacement-release pre-capture — and a complete
-   * ExecutionResult is returned (unexecuted statements are assembled from ctx).
-   * Precondition: a new statement's inputs must be outputs of previously
-   * executed successful active statements, guaranteed by the persistent ctx; if
-   * an input is genuinely missing (after an unsynced dispose/delete) that is a
-   * signal the caller should run a full execute instead — append does not
-   * validate prefix integrity.
-   * @param code - the .faijs source text containing the appended statements.
-   * @param newIds - the source statement ids (sN) or output part names (partN)
-   * to execute.
+   * Append the newest statement text (one or more lines generated by the host
+   * UI). Every statement in the passed text is treated as new and executed;
+   * their inputs resolve from the persistent ctx (outputs of previously
+   * executed statements, including other files on the same runtime). When a
+   * referenced variable is not in the persistent ctx the prefix is incomplete
+   * (e.g. cross-file reference to a never-executed part, or ctx cleared by
+   * dispose) — an {@link AppendPrefixError} is thrown and the host should
+   * upgrade to a full `execute(code)`.
+   * @param code - the .faijs source text of the newly added statements only.
    * @param opts - optional execution options.
-   * @returns promise resolving to the ExecutionResult.
+   * @returns promise resolving to the ExecutionResult (all terminals covered —
+   * unexecuted statements are assembled from the persistent ctx).
    */
-  async append(code: string, newIds: (StmtId | PartName)[], opts?: ExecuteOptions): Promise<ExecutionResult> {
-    const { script } = parseScript(code)
+  async append(code: string, opts?: ExecuteOptions): Promise<ExecutionResult> {
+    // Append the newest statement text onto the accumulated scene code so ids
+    // stay position-stable and DAG/keep analysis sees the whole scene. The
+    // passed text is parsed loose: references to parts defined earlier resolve
+    // as external vars, validated by assertAppendPrefix against the ctx.
+    const fullCode = this.accumulatedCode === null ? code : `${this.accumulatedCode}\n${code}`
+    this.accumulatedCode = fullCode
+    const { script } = parseScript(fullCode, { looseVars: true })
+    // New statements = ids not seen in the previous accumulated scene.
+    const newIds: (StmtId | PartName)[] = []
+    for (const s of script.statements) {
+      if (!this.accumulatedIds.has(s.id)) newIds.push(s.id)
+    }
+    this.accumulatedIds = new Set(script.statements.map((s) => s.id))
     return this.appendIR(script, newIds, opts)
   }
 
@@ -488,12 +528,16 @@ export class CadRuntime {
    * only (see {@link append}); kept for the engine and project tests.
    * @internal
    * @param script - the parsed ScriptIR containing the appended statements.
-   * @param newIds - the source statement ids (sN) or output part names (partN)
-   * to execute.
+   * @param newIds - the appended statement ids to execute (derived by append from
+   *                the accumulated scene; kept for internal callers).
    * @param opts - optional execution options.
    * @returns promise resolving to the ExecutionResult.
    */
-  async appendIR(script: ScriptIR, newIds: (StmtId | PartName)[], opts?: ExecuteOptions): Promise<ExecutionResult> {
+  async appendIR(
+    script: ScriptIR,
+    newIds: (StmtId | PartName)[],
+    opts?: ExecuteOptions,
+  ): Promise<ExecutionResult> {
     const { code, statements } = compileToModule(script)
     this.executor.setCompiled(script, statements)
     await this.executor.load(code)
@@ -504,10 +548,12 @@ export class CadRuntime {
         scale: opts.partTransform.scale,
       }
     }
-    this.reconcile(script, statements, this.resolveSceneScript(opts))
-    await this.prepareCtx(script, opts)
+    // Append never reconciles: it never deletes statements, and the persistent
+    // ctx of previously executed statements must stay untouched.
+    this.assertAppendPrefix(script, statements, newIds)
     const exec = this.createBookkeeping(script, opts)
-    // 调用方传入的 newIds 是源语句的 outputs 中的 partName → 翻译为编译产物 id（s1..sN）
+    // newIds are source statement ids (sN) or output part names (partN) →
+    // translate to compiled product ids (s1..sN)
     const sourceIdToCompiled = new Map<string, StmtId>()
     for (const meta of statements) {
       if (meta.sourceIndex === undefined) continue
@@ -521,12 +567,36 @@ export class CadRuntime {
   }
 
   /**
-   * sceneCode（代码文本）→ 内部 sceneScript（IR），供 reconcile 跨 part 引用解析。
-   * @internal
+   * Validate the append prefix: every reference of the newly appended
+   * statements must resolve to a definition within the accumulated scene text
+   * itself or to a variable already in the persistent ctx (executed before).
+   * Missing references throw {@link AppendPrefixError}.
    */
-  private resolveSceneScript(opts?: ExecuteOptions): ScriptIR | undefined {
-    if (opts?.sceneCode === undefined) return undefined
-    return parseScript(opts.sceneCode).script
+  private assertAppendPrefix(
+    script: ScriptIR,
+    statements: CompiledStatementMeta[],
+    newIds: (StmtId | PartName)[],
+  ): void {
+    // Everything defined in the full scene script (params + statement outputs)
+    // is a valid prefix; only refs outside the scene must already be in the
+    // persistent ctx (cross-file parts executed earlier).
+    const idSet = new Set(newIds.map(String))
+    const localDefs = new Set<string>()
+    for (const p of script.params) localDefs.add(p.name)
+    for (const s of script.statements) for (const o of s.outputs) localDefs.add(String(o))
+    for (const meta of statements) {
+      if (meta.sourceIndex === undefined) continue
+      const source = script.statements[meta.sourceIndex]
+      if (!source) continue
+      const isNew =
+        idSet.has(String(source.id)) || source.outputs.some((o) => idSet.has(String(o)))
+      if (!isNew) continue
+      for (const ref of source.refs ?? []) {
+        if (localDefs.has(ref)) continue
+        if (this.executor.getCtxVar(ref) !== undefined) continue
+        throw new AppendPrefixError(String(source.id), ref)
+      }
+    }
   }
 
   /**
@@ -584,78 +654,105 @@ export class CadRuntime {
     return { staleCompiledIds, reused }
   }
 
-  // ── 内部：VM 执行编排 ──
-
-  /** reconcileCtx：删除"定义语句已不在脚本中"的 ctx 变量并释放其内核资源。 */
-  private reconcile(
+  /**
+   * Diff-based change-point detection for update(old, new): the two passed code
+   * texts are the diff authority (never the executor cache). Statements are
+   * paired by id (S-2: same position → same id); the own key (param = param|value,
+   * statement = ns.callee|args) is compared and any difference marks the
+   * statement stale, cascading through deps. Unpaired new statements (ADD) are
+   * always stale; old statements missing from the new text (DELETE) are
+   * reclaimed by reconcile.
+   */
+  private planUpdateStale(
+    oldScript: ScriptIR,
     script: ScriptIR,
     statements: CompiledStatementMeta[],
-    sceneScript?: ScriptIR | null,
-  ): void {
+  ): Set<StmtId> {
+    const oldById = new Map<string, StatementIR>()
+    for (const s of oldScript.statements) oldById.set(String(s.id), s)
+    const oldParams = new Map<string, unknown>()
+    for (const p of oldScript.params) oldParams.set(p.name, p.value)
+    const newParams = new Map<string, unknown>()
+    for (const p of script.params) newParams.set(p.name, p.value)
+
+    const stale = new Set<StmtId>()
+    for (const meta of statements) {
+      const source = meta.sourceIndex !== undefined ? script.statements[meta.sourceIndex] : undefined
+      if (source && !source.hasAssignment) continue
+      // deps cascade: a statement depending on a stale one is itself stale
+      if (meta.deps.some((d) => stale.has(d))) {
+        stale.add(meta.id)
+        continue
+      }
+      const newKey = this.ownKeyOf(meta, source, newParams)
+      const oldKey = this.oldKeyOf(meta, source, oldById, oldParams)
+      if (oldKey !== newKey) stale.add(meta.id)
+    }
+    return stale
+  }
+
+  /** Own key of a statement (no dep output contents — downstream goes stale via the deps cascade). */
+  private ownKeyOf(
+    meta: CompiledStatementMeta,
+    source: StatementIR | undefined,
+    paramByName: Map<string, unknown>,
+  ): string {
+    const primary = meta.writes[0]
+    if (!source) return `param|${JSON.stringify(paramByName.get(primary))}`
+    return `${source.namespace ?? 'cad'}.${source.callee}|${JSON.stringify(withoutKeepDirectives(source.args))}`
+  }
+
+  /** Own key of the paired old statement; '' when unpaired (ADD) → always stale. */
+  private oldKeyOf(
+    meta: CompiledStatementMeta,
+    source: StatementIR | undefined,
+    oldById: Map<string, StatementIR>,
+    oldParams: Map<string, unknown>,
+  ): string {
+    const primary = meta.writes[0]
+    if (!source) return `param|${JSON.stringify(oldParams.get(primary))}`
+    const old = oldById.get(String(source.id))
+    if (!old) return ''
+    return `${old.namespace ?? 'cad'}.${old.callee}|${JSON.stringify(withoutKeepDirectives(old.args))}`
+  }
+
+  // ── 内部：VM 执行编排 ──
+
+  /**
+   * Reclaim ctx variables whose defining statement is no longer in the script
+   * and release their kernel resources. Cross-file protection: variables still
+   * referenced by the script (outputs of parts in other files) are kept — the
+   * runtime has no code for them and must not treat them as "not in script".
+   */
+  private reconcile(script: ScriptIR, statements: CompiledStatementMeta[]): void {
     const activeIds = new Set(statements.map((s) => s.id))
     const writeSets = new Map(statements.map((s) => [s.id, s.writes.map(asPartName)]))
-    // executePart 传过滤后的 partScript（只含本 part 语句），但持久 ctx 里
-    // 其它 part 的变量仍是场景 DAG 的活跃成员——不能把它们当作"不在脚本中"
-    // 而释放（否则跨 part 引用（装配 fixed part）的 solid 会被误释放）。
-    // 有 sceneScript 时把其全部语句并入活跃集，仅真正从 sceneScript 删除的
-    // 语句（undo delete）才会被回收。
-    if (sceneScript) {
-      for (const stmt of sceneScript.statements) {
-        activeIds.add(stmt.id)
-        writeSets.set(stmt.id, stmt.outputs.map(asPartName))
-      }
+    const referenced = new Set<string>()
+    for (const meta of statements) {
+      if (meta.sourceIndex === undefined) continue
+      for (const ref of script.statements[meta.sourceIndex].refs ?? []) referenced.add(ref)
     }
-    this.executor.reconcileCtx(activeIds, writeSets)
+    this.executor.reconcileCtx(activeIds, writeSets, referenced)
   }
 
   /** 创建执行记账（outputCache 预填 + keep 装配 + shapeToName 预填）。 */
   private createBookkeeping(script: ScriptIR, opts: ExecuteOptions | undefined): ExecBookkeeping {
     const outputCache = new Map<PartName, Shape>()
-    for (const meta of this.executor.getMetas()) {
-      for (const w of meta.writes) {
-        const v = this.executor.getCtxVar(w)
-        if (isShapeLike(v)) outputCache.set(asPartName(w), v as Shape)
-      }
+    // All alive shape vars from the persistent ctx (append passes only the
+    // newest statements; previously executed parts must stay covered).
+    for (const name of this.allShapeVarNames()) {
+      const v = this.executor.getCtxVar(name)
+      if (isShapeLike(v)) outputCache.set(name, v as Shape)
     }
     // keep()（import 入口）统一装配到 ModuleExecutor.internalKeep
     setKeepSink((stmtId, names, hidden) => this.executor.registerKeep(stmtId as StmtId, names, hidden))
     // 预填 shapeToName：持久 ctx 中所有活跃 Shape → 变量名（keep() 反查依赖）。
     // append/update 只重放新增语句，已执行语句的 Shape 需在此补齐。
-    for (const meta of this.executor.getMetas()) {
-      for (const w of meta.writes) {
-        const v = this.executor.getCtxVar(w)
-        if (v !== null && typeof v === 'object') setName(v, asPartName(w))
-      }
+    for (const name of this.allShapeVarNames()) {
+      const v = this.executor.getCtxVar(name)
+      if (v !== null && typeof v === 'object') setName(v, name)
     }
     return { outputCache, beforeStatement: opts?.beforeStatement, changed: new Set<PartName>() }
-  }
-
-  /**
-   * 跨 part 引用准备：把 inputGeometryMap 与 sceneScript 解析出的外部 Shape 注入持久 ctx，
-   * 使编译产物 fn 的 `ctx.<var>` 直接命中（旧解释器经 resolveShapeRef 兜底）。
-   * 必须在 reconcileCtx 之后调用（否则被当作非活跃变量回收）。
-   */
-  private async prepareCtx(script: ScriptIR, opts?: ExecuteOptions): Promise<void> {
-    if (opts?.inputGeometryMap) {
-      for (const [name, shape] of opts.inputGeometryMap) {
-        if (this.executor.getCtxVar(name) === undefined) this.executor.setCtxVar(name, shape)
-      }
-    }
-    const sceneScript = this.resolveSceneScript(opts)
-    if (!sceneScript) return
-    const localDefs = new Set<string>()
-    for (const p of script.params) localDefs.add(p.name)
-    for (const meta of this.executor.getMetas()) for (const w of meta.writes) localDefs.add(w)
-    for (const meta of this.executor.getMetas()) {
-      if (meta.sourceIndex === undefined) continue
-      const stmt = script.statements[meta.sourceIndex]
-      for (const ref of stmt.refs ?? []) {
-        if (localDefs.has(ref)) continue
-        if (this.executor.getCtxVar(ref) !== undefined) continue
-        const shape = await this.resolveShapeRef(asPartName(ref), new Map(), sceneScript)
-        this.executor.setCtxVar(ref, shape)
-      }
-    }
   }
 
   /** 执行并捕获模式不支持失败（BrepUnsupportedError / MeshUnsupportedError → ExecutionResult.failedAt）。 */
@@ -683,15 +780,30 @@ export class CadRuntime {
     return this.collectResult(script, exec, opts)
   }
 
+  /**
+   * All shape/compound variable names currently alive in the persistent ctx.
+   * The engine executes only the current script's statements, but the result
+   * must cover every part — including parts executed by earlier calls
+   * (append passes only the newest statements).
+   */
+  private allShapeVarNames(): Set<PartName> {
+    const names = new Set<PartName>()
+    for (const key of this.executor.listCtxKeys()) {
+      const v = this.executor.getCtxVar(key)
+      if (isShapeLike(v) || isCompoundLike(v)) names.add(asPartName(key))
+    }
+    return names
+  }
+
   /** 从持久 ctx 组装完整 ExecutionResult（outputs / statementCache / brepSolids / topology / compounds / activeValues）。 */
   private collectResult(script: ScriptIR, exec: ExecBookkeeping, opts?: ExecuteOptions): ExecutionResult {
     const outputs = new Map<PartName, Shape | CompoundShape>()
-    for (const meta of this.executor.getMetas()) {
-      for (const w of meta.writes) {
-        const v = this.executor.getCtxVar(w)
-        // keep-syntax §5.1：outputs 含所有 shape 变量（mesh + compound，结构判定）
-        if (isShapeLike(v) || isCompoundLike(v)) outputs.set(asPartName(w), v as Shape | CompoundShape)
-      }
+    // All alive shape/compound vars from the persistent ctx — covers parts
+    // executed by previous calls (append passes only the newest statements).
+    for (const name of this.allShapeVarNames()) {
+      const v = this.executor.getCtxVar(name)
+      // keep-syntax §5.1：outputs 含所有 shape 变量（mesh + compound，结构判定）
+      outputs.set(name, v as Shape | CompoundShape)
     }
 
     // 同步 statementCache（getCachedOutput / writeToStatementCache 公开 API 依赖）
@@ -718,13 +830,7 @@ export class CadRuntime {
     // （keep-syntax 设计 §3：C0/C1 声明层 + C3/C5 推断层，消费判定由 keep 驱动）。
     // 收集所有 shape-typed 顶层变量名（含 compound 变量；结构判定 isCompoundLike，
     // 第三方返回的未注册 compound 同样识别——keep-syntax §5.3）
-    const shapeVarNames = new Set<PartName>()
-    for (const meta of this.executor.getMetas()) {
-      for (const w of meta.writes) {
-        const v = this.executor.getCtxVar(w)
-        if (isShapeLike(v) || isCompoundLike(v)) shapeVarNames.add(asPartName(w))
-      }
-    }
+    const shapeVarNames = this.allShapeVarNames()
     // 运行时视图：函数体 exec.keep 登记（ModuleExecutor.internalKeep，C1 判定）——
     // 省略 view 会退回纯静态（union 的 exec.keepHidden 将不生效，输入被误消费）
     const view: DagRuntimeView = {
@@ -747,13 +853,11 @@ export class CadRuntime {
 
     // 装配/分组结构：compound 变量 → 成员变量名列表（Phase 2.4）
     const compounds = new Map<PartName, PartName[]>()
-    for (const meta of this.executor.getMetas()) {
-      for (const w of meta.writes) {
-        const v = this.executor.getCtxVar(w)
-        if (isCompoundLike(v)) {
-          const behavior = getSlot(v)?.behavior as { memberNames?: string[] } | undefined
-          compounds.set(asPartName(w), (behavior?.memberNames ?? []).map(asPartName))
-        }
+    for (const name of this.allShapeVarNames()) {
+      const v = this.executor.getCtxVar(name)
+      if (isCompoundLike(v)) {
+        const behavior = getSlot(v)?.behavior as { memberNames?: string[] } | undefined
+        compounds.set(name, (behavior?.memberNames ?? []).map(asPartName))
       }
     }
 
@@ -768,11 +872,9 @@ export class CadRuntime {
       }
       if (topoMode === 'brep') {
         // brep 模式：为所有在 BREP 链上的输出构建拓扑（含非终端）
-        for (const meta of this.executor.getMetas()) {
-          for (const w of meta.writes) {
-            const v = this.executor.getCtxVar(w)
-            if (isShapeLike(v)) buildFor(asPartName(w))
-          }
+        for (const name of this.allShapeVarNames()) {
+          const v = this.executor.getCtxVar(name)
+          if (isShapeLike(v)) buildFor(name)
         }
       } else {
         // auto 模式：为"在 BREP 链上"的终端构建拓扑
@@ -885,74 +987,6 @@ export class CadRuntime {
     }
 
     return brepSolids
-  }
-
-  // ── 内部：跨 part 引用解析 ──
-
-  /**
-   * 解析跨 part 的语句引用。
-   *
-   * 查找顺序：
-   * 1. localCache（本 part 的 outputCache）
-   * 2. statementCache（实例级缓存）
-   * 3. sceneScript 中查找并重放该部分
-   *
-   * 不再 import ScriptEngine / useScriptStore——循环依赖消除。
-   */
-  private async resolveShapeRef(
-    partName: PartName,
-    localCache: Map<PartName, Shape>,
-    sceneScript?: ScriptIR,
-  ): Promise<Shape> {
-    // 1. 本地缓存
-    const local = localCache.get(partName)
-    if (local) return local
-
-    // 2. statementCache
-    const cached = this.statementCache.get(partName)
-    if (cached) return cached.output
-
-    // 3. sceneScript：编译 + 临时执行器全量执行后取该 part 的几何（VM 路径，替代旧 dispatchStatement 子重放）
-    if (!sceneScript) {
-      throw new Error(
-        `[CadRuntime.resolveShapeRef] statement "${partName}" not found (no sceneScript provided)`,
-      )
-    }
-    const stmt = sceneScript.statements.find((s) => s.outputs.includes(partName))
-    if (!stmt) {
-      throw new Error(
-        `[CadRuntime.resolveShapeRef] statement "${partName}" not found in sceneScript`,
-      )
-    }
-
-    const { code, statements } = compileToModule(sceneScript)
-    const subExecutor = new ModuleExecutor(this.namespaces, {
-      releaseSolid: (p) => {
-        const h = this.solidCache.get(p)
-        if (h) {
-          try { this.kernel?.release(h) } catch { /* 已释放 */ }
-          this.solidCache.delete(p)
-        }
-      },
-      getSolid: (p) => this.solidCache.get(p),
-      releaseHandle: (h) => {
-        try { this.kernel?.release(h) } catch { /* 已释放 */ }
-      },
-      setSolid: (p, s) => this.solidCache.set(p, s),
-      setFaceEvolution: (p, e) => this.faceEvolutionCache.set(p, e),
-    })
-    subExecutor.setCompiled(sceneScript, statements)
-    await subExecutor.load(code)
-    await this.ensureBrepChain()
-    // P5：子重放只需 outputCache 记账（beforeStatement 无钩子）
-    const exec: ExecBookkeeping = { outputCache: new Map(), changed: new Set() }
-    await subExecutor.executeAll(exec)
-
-    const shape = subExecutor.getCtxVar(partName)
-    if (isShapeLike(shape)) return shape as Shape
-    throw new Error(
-      `[CadRuntime.resolveShapeRef] statement "${partName}" not reached during sceneScript execution`,
-    )
   }
 
   /** 旧 statementKey 计算（跨 part 子重放用，逻辑与旧解释器一致）。 */

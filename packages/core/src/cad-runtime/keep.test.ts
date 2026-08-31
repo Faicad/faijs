@@ -26,7 +26,7 @@ import { ModuleExecutor } from './module-executor'
 import { createInternalStdlib } from '@faicad/faijs-stdlib/internal-stdlib'
 import { isCompoundLike } from '../shape'
 import type { InternalKeepRecord } from '../lang/keep'
-import { asPartName, asStmtId, type PartName } from '../identity'
+import { asPartName, type PartName } from '../identity'
 import type { StatementIR, ScriptIR, ArgIR } from '../lang/types'
 
 function defaultPorts(): HostPorts {
@@ -403,13 +403,7 @@ describe('keep: 增量执行 keep 持久（设计 §2.2）', () => {
     ].join('\n'))
 
     // append 一条新语句；union（s3）缓存命中不重跑 → 上轮 keepHidden 记录保留
-    const code = [
-      'let part0 = cad.box({ size: 20 })',
-      'let part1 = cad.box({ size: 5 })',
-      'let part2 = cad.union(part0, part1)',
-      'let part3 = cad.translate(part2, { offset: [1, 0, 0] })',
-    ].join('\n')
-    const result = await rt.append(code, [asStmtId('s4')])
+    const result = await rt.append('let part3 = cad.translate(part2, { offset: [1, 0, 0] })')
 
     const byId = new Map(result.terminals.map((t) => [String(t.id), t]))
     expect(byId.get('part0')!.hidden).toBe(true)

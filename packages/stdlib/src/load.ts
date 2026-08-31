@@ -84,6 +84,9 @@ export async function load(params: Record<string, unknown>): Promise<Shape> {
 
   // BREP 路径（直接执行，不包 try-catch！异常 = 未预期错误，冒泡上报）
   // P2：brepChain（meshShapeCache）归引擎侧，loadBrep 不再传
-  const { solid: solidHandle, shape } = loadBrep(kernel!, buffer)
+  // partIndex：多 part 文件（如多 solid STEP）逐 part 加载——宿主为每个 part
+  // 生成独立 load 语句并携带 partIndex，提取 Compound 中对应子 solid。
+  const partIndex = typeof params.partIndex === 'number' ? params.partIndex : undefined
+  const { solid: solidHandle, shape } = loadBrep(kernel!, buffer, undefined, undefined, partIndex)
   return fromBrep(shape, { solid: solidHandle })
 }

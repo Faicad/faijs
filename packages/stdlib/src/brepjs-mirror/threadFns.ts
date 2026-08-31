@@ -78,7 +78,7 @@ export function threadBrep(
     depth = 0.6 * pitch,
     toothHalfWidth = 0.42 * pitch,
     crest = 0,
-    sectionsPerTurn = 20,
+    sectionsPerTurn = 12,
     lefthand = false,
     inward = false,
   } = options

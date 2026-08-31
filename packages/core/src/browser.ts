@@ -55,7 +55,7 @@ export { codeToArgs } from './lang/code-to-args'
 // B 类：cad-runtime/ + createBrowserPorts + 外部资源注入点
 // ═══════════════════════════════════════════════════════════
 
-export { CadRuntime, createRuntime } from './cad-runtime/runtime'
+export { CadRuntime, createRuntime, AppendPrefixError } from './cad-runtime/runtime'
 export { createPreviewExec } from './cad-runtime/preview-exec'
 export type { PreviewExec } from './cad-runtime/preview-exec'
 export type { ExecutionResult, ExecuteOptions, CheckResult, CheckError, PartTopology, TopologySource } from './cad-runtime/runtime'

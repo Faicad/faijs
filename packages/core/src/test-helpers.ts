@@ -14,7 +14,6 @@ import { createRuntime } from './cad-runtime/runtime'
 import { computeContentKey } from './cad-runtime/runtime'
 import type { StdlibNamespace } from './runtime-state'
 import type { HostPorts, ExecutionMode } from './cad-runtime/ports'
-import type { PartName } from './identity'
 
 // P5/E-a-1：cad 注入经「变量动态 import」——tsc 不解析非字面量 specifier，
 // core build 不依赖 @faicad/faijs-stdlib 的 dist（构建顺序 core → stdlib）；
@@ -43,7 +42,6 @@ function defaultPorts(): HostPorts {
  * its content key, and the resulting BREP chain state.
  *
  * @param script - the compiled script IR to execute.
- * @param inputGeometryMap - optional input geometry keyed by part name.
  * @param params - optional execution parameters.
  * @param ports - optional host ports (defaults to a no-op events sink).
  * @param mode - optional execution mode.
@@ -52,7 +50,6 @@ function defaultPorts(): HostPorts {
  */
 export async function executeScript(
   script: ScriptIR,
-  inputGeometryMap?: Map<PartName, Shape>,
   params?: Record<string, unknown>,
   ports?: HostPorts,
   mode?: ExecutionMode,
@@ -60,7 +57,7 @@ export async function executeScript(
 ): Promise<ExecuteOutput> {
   // P5/E-a-1：测试辅助注入 cad 命名空间（core 不默认装配；test-helpers 只被测试消费）
   const runtime = createRuntime(ports ?? defaultPorts(), mode, { cad: await getCadLib() })
-  const result = await runtime.executeIR(script, { params, inputGeometryMap })
+  const result = await runtime.executeIR(script, { params })
 
   const newShapeStmts = script.statements.filter((s) => s.hasAssignment)
   if (newShapeStmts.length === 0) {

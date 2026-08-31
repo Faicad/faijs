@@ -249,11 +249,19 @@ export class ModuleExecutor {
   /**
    * Reclaim ctx variables whose defining statement is no longer in the script
    * and release their kernel resources (a required action after undoing a
-   * statement deletion).
+   * statement deletion). Variables in `referencedVars` are kept even when not
+   * written by an active statement (cross-file references to other files'
+   * parts).
    * @param activeStmtIds - the ids of statements still considered active.
    * @param writeSets - mapping of statement id to the variable names it writes.
+   * @param referencedVars - variable names still referenced by the active
+   * script; these survive reclaim.
    */
-  reconcileCtx(activeStmtIds: Set<StmtId>, writeSets: Map<StmtId, PartName[]>): void {
+  reconcileCtx(
+    activeStmtIds: Set<StmtId>,
+    writeSets: Map<StmtId, PartName[]>,
+    referencedVars?: Set<string>,
+  ): void {
     const activeWrites = new Set<string>()
     for (const [id, writes] of writeSets) {
       if (activeStmtIds.has(id)) {
@@ -261,7 +269,7 @@ export class ModuleExecutor {
       }
     }
     for (const key of Object.keys(this.ctx)) {
-      if (!activeWrites.has(key)) {
+      if (!activeWrites.has(key) && !(referencedVars?.has(key) ?? false)) {
         this.releaseSolid?.(asPartName(key))
         delete this.ctx[key]
       }
@@ -344,6 +352,15 @@ export class ModuleExecutor {
    */
   setCtxVar(name: string, value: unknown): void {
     this.ctx[name] = value
+  }
+
+  /**
+   * All variable names currently held in the persistent ctx (covers parts
+   * executed by previous execute/append/update calls).
+   * @returns the ctx variable names.
+   */
+  listCtxKeys(): string[] {
+    return Object.keys(this.ctx)
   }
 
   /**
