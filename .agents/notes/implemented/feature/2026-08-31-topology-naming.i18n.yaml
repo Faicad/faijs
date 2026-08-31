@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-31-topology-naming.md
+2026-08-31-topology-naming.md: 72f2ef8a7e2d5044d6dcb4478ae93661521b33c9
+2026-08-31-topology-naming.zh.md: 474f577c2419f94dd40ac0a566d56f50fa6bc342

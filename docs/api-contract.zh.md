@@ -503,6 +503,16 @@ export const myOp = defineOp({
 - **假拓扑**（primitive 参数拼凑 / STL·3MF 特征检测）：宿主在加载／创建时刻构建，经 `runtime.setTopology` 注入，引擎透传；**假拓扑不重新生成**。
 - 宿主重建 SelectorRuntime 用 `buildSelectorRuntimeMaps`（从 `topology` 的 `SelectorRuntimeData` 构建）。
 
+### 11.1 TopoRef 命名层（跨历史身份）
+
+- **两层职责**：快照内地址层（`FaceId`/`EdgeId` 序号、`SelectorManifest`/`SelectorRuntime`）服务拾取/渲染，保持不变；跨历史层（`TopoRef` + `RoleTable`）在重放后命名「同一个面/边/点」。
+- **`TopoRef` 是纯数据、JSON 安全**：写进 `.faijs` op 参数（face / edge / vertex / derived-face 四类）。解析方向单向——`TopoRef` → 解析器 → 当前序号或活 BREP 句柄；绝不反向把序号当稳定身份存进脚本。
+- **`ExecutionResult.naming: Map<PartName, {source, faceNaming, edgeNaming}>`** 与 `topology` 并列携带命名行（序号 1 起 ↔ 下标）；宿主把拾取到的 Reference 序号反查到命名行，经 `captureTopoRef(row)` 造 `TopoRef`。
+- **`RoleTable` 只是执行内状态**（Shape 身份槽 + runtime 持久 `roleTableCache`，与 `faceEvolutionCache` 同生命周期）；绝不序列化。hash 是会话内活句柄；跨会话整体重建，`TopoRef` 的稳定性来自 role/hint 数据。
+- **解析显式三态**：成功 `exact` / `geometric-fallback`；失败抛 `TopoRefError`（`E_TOPO_DELETED` / `E_TOPO_AMBIGUOUS` / `E_TOPO_NOT_FOUND`）——绝不静默拿序号硬取。
+- **来源能力分级**：BREP part 带沿演化传播的语义+位置 role；primitive 假拓扑用与 BREP 同一套命名器按固定面序给语义 role；mesh（STL/3MF）part 只给 hint（`role=''`），恒走几何解析。
+- **链切换降级**：part 在链中途从 BREP 降级 mesh 时，已累积的 `{origin, role}` 与 hint 作为纯数据保留，解析回落到面 hint 快照（几何兜底）——引用层面的降级，不是引擎路径运行时回退。
+
 ---
 
 ## 12. 装配 / 分组契约

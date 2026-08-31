@@ -503,6 +503,16 @@ export const myOp = defineOp({
 - **Fake topology** (primitive parameter assembly / STL·3MF feature detection) is built by the host at load/creation time and injected via `runtime.setTopology`; the engine passes it through. **Fake topology is never regenerated.**
 - The host rebuilds SelectorRuntime with `buildSelectorRuntimeMaps` (from the `SelectorRuntimeData` of `topology`).
 
+### 11.1 TopoRef naming layer (cross-history identity)
+
+- **Two layers**: the snapshot address layer (`FaceId`/`EdgeId` ordinals, `SelectorManifest`/`SelectorRuntime`) serves picking/rendering, unchanged; the cross-history layer (`TopoRef` + `RoleTable`) names the same face/edge/point across replay.
+- **`TopoRef` is pure JSON-safe data** written into `.faijs` op params (face / edge / vertex / derived-face). Resolution: `TopoRef` → resolver → current ordinal or live BREP handle; ordinals are never stored back as identity.
+- **`ExecutionResult.naming: Map<PartName, {source, faceNaming, edgeNaming}>`** carries naming rows (ordinal 1-based ↔ index); hosts build `TopoRef` from a picked Reference via `captureTopoRef(row)`.
+- **`RoleTable` is execution-time state only** (Shape identity slot + runtime `roleTableCache`, same lifecycle as `faceEvolutionCache`), never serialized; hashes are session-live handles, the table rebuilds across sessions.
+- **Three-state resolution**: `exact` / `geometric-fallback`; failures throw `TopoRefError` (`E_TOPO_DELETED` / `E_TOPO_AMBIGUOUS` / `E_TOPO_NOT_FOUND`).
+- **Source tiers**: BREP carries semantic+positional roles propagated through evolution; primitive fake topology gets the same semantic namer over its fixed face order; mesh (STL/3MF) is hint-only (`role=''`).
+- **Chain-switch degradation**: a part dropping BREP→mesh mid-chain keeps `{origin, role}` and hints as pure data; resolution falls back to the face-hint snapshot — reference degradation, not a runtime engine-path fallback.
+
 ---
 
 ## 12. Assembly / Grouping Contract
