@@ -11,9 +11,10 @@
  */
 import { writeFileSync } from 'node:fs'
 
-// 与根 package.json exports 的 11 个键一一对应（漏一个 = 迁移后 3d_editor import 断）
+// 与根 package.json exports 的 10 个键一一对应（P6 起取消 ./stdlib 子路径；
+// 漏一个 = 迁移后 3d_editor import 断）
 const SUBPATHS = [
-  '.', './browser', './csg', './sdf', './stdlib', './node',
+  '.', './browser', './csg', './sdf', './node',
   './faqts', './faqts/node', './faqts/browser', './module-resolver', './sdk',
 ]
 

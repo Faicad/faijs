@@ -50,8 +50,8 @@ describe('handle-bridge: meshHandle / fromHandle with real OCCT kernel', () => {
       params: [],
       statements: [],
     })
-    // 直接经 runtime 的 brep 链造一个 box solid：走 stdlib box → fromBrep 登记
-    const { box } = await import('@faicad/faijs-stdlib')
+    // 经 L3 api/ 层的 box（原 stdlib 已并入 core）
+    const { box } = await import('@faicad/faijs-core/api')
     const shape = await box({ size: 10 })
     // 从全局 slot 取回句柄
     const { brepOf } = await import('../shape')

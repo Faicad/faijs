@@ -28,8 +28,6 @@
       "@faicad/faijs/browser": ["../../src/browser.ts"],
       "@faicad/faijs-core": ["../core/src/index.ts"],
       "@faicad/faijs-core/*": ["../core/src/*"],
-      "@faicad/faijs-stdlib": ["../stdlib/src/index.ts"],
-      "@faicad/faijs-stdlib/*": ["../stdlib/src/*"],
       "@faicad/mech-lib": ["../mech-lib/src/index.ts"],
       "@faicad/faijs-fixtures": ["../fixtures/data"]
     }
@@ -40,9 +38,10 @@
   "exclude": [
     "node_modules",
     "dist",
-    // P3：brepjs 自己的测试拷贝（tests/ 子目录）。上游 tsc 也 exclude tests/——
+    // P3/P5：brepjs 自己的测试拷贝（tests/ 子目录）。上游 tsc 也 exclude tests/——
     // 这些文件是按「能跑 vitest」写的，不做严格类型门禁；harness 代码
-    // （brep-surface.ts / kernel-setup.ts / kernel-divergences.ts）仍在门内。
-    "faijs/p3-vendored-surface/tests"
+    // （*-surface.ts / kernel-setup.ts / kernel-divergences.ts）仍在门内。
+    "faijs/p3-vendored-surface/tests",
+    "faijs/p5-vendored-surface/tests"
   ]
 }

@@ -1,23 +1,21 @@
 /**
- * @faicad/faijs facade entry — re-export engine + stdlib packages.
+ * @faicad/faijs facade entry — re-export engine + L3 API surface.
  *
- * 门面薄层：全部导出来自 @faicad/faijs-core 与 @faicad/faijs-stdlib（P5）。
+ * 门面薄层：全部导出来自 @faicad/faijs-core（P6 起原 stdlib 包取消，L3 API 面并入 core 的 api/ 层）。
  * 公共 API 面与迁移前 src/index.ts 一致（P0 导出面快照 diff 守卫）。
  *
- * createRuntime 在这里包装（E-a-1）：core 不默认装配 cad 命名空间
+ * createRuntime 在这里包装（E-a-1）：core 运行时不默认装配 cad 命名空间
  * （引擎零函数知识，K5），由门面注入——3d_editor / demo 零改动。
  */
 export * from '@faicad/faijs-core'
 import { createRuntime as createRuntimeCore, type HostPorts, type ExecutionMode, type CadRuntime } from '@faicad/faijs-core'
-import { createInternalStdlib } from '@faicad/faijs-stdlib/internal-stdlib'
+import { createApiNamespace } from '@faicad/faijs-core/api/api-namespace'
 
-// ── D1-⓪ 桥接：宿主（3d_editor）从 @faicad/faijs/stdlib 迁移到根导出的先行导出。
-//    在 P6（取消 stdlib）之前 drill/engrave 暂从 stdlib re-export，P6 落 L3 后改指 L3 API 面。
-export { drill } from '@faicad/faijs-stdlib'
-export { engrave } from '@faicad/faijs-stdlib'
+// ── D1-⓪ 迁移完成（P6）：drill/engrave 已落入 L3 api/ 层，随上方 `export * from core`
+//    一并导出；宿主（3d_editor）从 @faicad/faijs/browser 直接导入即可，不再需要 stdlib 子路径。
 
 /**
- * Create a CadRuntime and inject the cad namespace (standard library).
+ * Create a CadRuntime and inject the cad namespace (L3 API surface).
  *
  * Facade wrapper — same signature as core's createRuntime; third-party
  * libraries are still registered via runtime.registerLib().
@@ -28,6 +26,6 @@ export { engrave } from '@faicad/faijs-stdlib'
  */
 export function createRuntime(ports: HostPorts, mode?: ExecutionMode): CadRuntime {
   const rt = createRuntimeCore(ports, mode)
-  rt.registerLib('cad', createInternalStdlib())
+  rt.registerLib('cad', createApiNamespace())
   return rt
 }

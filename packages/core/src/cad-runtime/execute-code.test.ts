@@ -14,7 +14,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { CadRuntime, AppendPrefixError } from './runtime'
-import { createInternalStdlib } from '@faicad/faijs-stdlib/internal-stdlib'
+import { createApiNamespace } from '../api/api-namespace'
 import type { HostPorts } from './ports'
 import { parseScript } from '../lang/parser'
 import { asPartName } from '../identity'
@@ -25,7 +25,7 @@ function defaultPorts(): HostPorts {
 }
 
 function makeRuntime(): CadRuntime {
-  return new CadRuntime(defaultPorts(), 'mesh', { cad: createInternalStdlib() })
+  return new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
 }
 
 const CODE = [

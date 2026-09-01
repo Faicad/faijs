@@ -21,10 +21,6 @@
       "types": "./dist/sdf.d.ts",
       "import": "./dist/sdf.js"
     },
-    "./stdlib": {
-      "types": "./dist/stdlib/index.d.ts",
-      "import": "./dist/stdlib/index.js"
-    },
     "./node": {
       "types": "./dist/node.d.ts",
       "import": "./dist/node.js"
@@ -70,7 +66,7 @@
     "url": "https://gitcode.com/Faicad/faijs.git"
   },
   "scripts": {
-    "build": "npm run clean && npm run build -w @faicad/faijs-core && npm run build -w @faicad/faijs-stdlib && tsc -p tsconfig.build.json && node scripts/fix-import-extensions.mjs",
+    "build": "npm run clean && npm run build -w @faicad/faijs-core && tsc -p tsconfig.build.json && node scripts/fix-import-extensions.mjs",
     "clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
     "pack": "npm run build && npm pack",
     "prepack": "npm run build",
@@ -78,7 +74,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src packages/core/src packages/stdlib/src packages/mech-lib/src",
+    "lint": "eslint src packages/core/src packages/mech-lib/src",
     "verify-md-links": "npx tsx scripts/verify-md-links.ts",
     "verify-md-wrap": "npx tsx scripts/verify-md-wrap.ts",
     "verify-doc-budgets": "npx tsx scripts/verify-doc-budgets.ts",
@@ -98,7 +94,6 @@
   },
   "workspaces": [
     "packages/core",
-    "packages/stdlib",
     "packages/mech-lib",
     "packages/fixtures",
     "packages/tests",
@@ -106,7 +101,6 @@
   ],
   "dependencies": {
     "@faicad/faijs-core": "*",
-    "@faicad/faijs-stdlib": "*",
     "occt-wasm": "3.8.4"
   },
   "devDependencies": {

@@ -14,7 +14,7 @@
 
 import { describe, it, expect, beforeAll } from 'vitest'
 import { CadRuntime, ExecutionLimitError } from './runtime'
-import { createInternalStdlib } from '@faicad/faijs-stdlib/internal-stdlib'
+import { createApiNamespace } from '../api/api-namespace'
 import type { HostPorts } from './ports'
 import { parseScript } from '../lang/parser'
 import { compileToModule } from '../lang/compile'
@@ -26,7 +26,7 @@ function defaultPorts(): HostPorts {
 }
 
 function makeRuntime(mode: 'mesh' | 'auto' = 'mesh'): CadRuntime {
-  return new CadRuntime(defaultPorts(), mode, { cad: createInternalStdlib() })
+  return new CadRuntime(defaultPorts(), mode, { cad: createApiNamespace() })
 }
 
 describe('Phase2 executor: keep 隔离（§5.5 / D5）', () => {

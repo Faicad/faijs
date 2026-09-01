@@ -14,7 +14,7 @@
     "brepjs": "18.119.2"
   },
   "peerDependencies": {
-    "@faicad/faijs-core": "^0.5.11",
+    "@faicad/faijs-core": "*",
     "occt-wasm": "^3.8.0"
   },
   "devDependencies": {

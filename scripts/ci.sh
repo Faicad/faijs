@@ -20,7 +20,7 @@ echo "==> 2/9  npm run typecheck（根 + workspaces）"
 npm run typecheck
 npm run typecheck --workspaces --if-present
 
-echo "==> 3/9  npm run build（core → stdlib → 门面）"
+echo "==> 3/9  npm run build（core → 门面）"
 npm run build
 
 echo "==> 4/9  npm run test --workspaces"
@@ -48,7 +48,7 @@ fi
 echo "==> 5/9  守卫：幽灵依赖 / workspaces 顺序 / 包图无环 / 导出面"
 node scripts/check-ghost-deps.mjs
 node scripts/check-workspaces-order.mjs
-npx madge --circular packages/core/src packages/stdlib/src packages/mech-lib/src
+npx madge --circular packages/core/src packages/mech-lib/src
 node scripts/api-surface-snapshot.mjs
 
 echo "==> 6/9  demo e2e（dev server 模式，M7 链路）"

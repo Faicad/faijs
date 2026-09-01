@@ -59,7 +59,7 @@ Step -Label '2/9  npm run typecheck（根 + workspaces）' -Block {
     npm run typecheck --workspaces --if-present
 }
 
-Step -Label '3/9  npm run build（core → stdlib → 门面）' -Block { npm run build }
+Step -Label '3/9  npm run build（core → 门面）' -Block { npm run build }
 
 Write-Host "==> 4/9  npm run test --workspaces"
 $start3 = Get-Date
@@ -109,9 +109,9 @@ Step -Label '5/9  守卫：幽灵依赖 / workspaces 顺序 / 包图无环 / 导
     if ($LASTEXITCODE -ne 0) { return }
     node scripts/check-workspaces-order.mjs
     if ($LASTEXITCODE -ne 0) { return }
-    npx madge --circular packages/core/src packages/stdlib/src packages/mech-lib/src
+    npx madge --circular packages/core/src packages/mech-lib/src
     if ($LASTEXITCODE -ne 0) { return }
-    # 导出面：11 个子路径必须全部可导入（快照脚本自身断言；有 error 即失败）
+    # 导出面：10 个子路径必须全部可导入（快照脚本自身断言；有 error 即失败）
     node scripts/api-surface-snapshot.mjs
     if ($LASTEXITCODE -ne 0) { return }
     # P1：vendored/brepjs 移植树——D9 独立严格编译 + D8 层边界

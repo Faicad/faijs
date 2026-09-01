@@ -25,9 +25,7 @@
     "paths": {
       "@faicad/faijs": ["../../src/index.ts"],
       "@faicad/faijs-core": ["../core/src/index.ts"],
-      "@faicad/faijs-core/*": ["../core/src/*"],
-      "@faicad/faijs-stdlib": ["../stdlib/src/index.ts"],
-      "@faicad/faijs-stdlib/*": ["../stdlib/src/*"]
+      "@faicad/faijs-core/*": ["../core/src/*"]
     }
   },
   "include": [

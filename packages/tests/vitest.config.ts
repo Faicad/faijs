@@ -5,7 +5,6 @@ export default defineConfig({
   resolve: {
     alias: [
       // M7：包名解析到活源码（不经 dist）。
-      { find: '@faicad/faijs-stdlib', replacement: resolve(__dirname, '../stdlib/src') },
       { find: '@faicad/faijs-core', replacement: resolve(__dirname, '../core/src') },
       { find: '@faicad/faijs', replacement: resolve(__dirname, '../../src') },
       { find: '@faicad/mech-lib', replacement: resolve(__dirname, '../mech-lib/src/index.ts') },

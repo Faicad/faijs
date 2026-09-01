@@ -237,3 +237,7 @@ export type { FetchAssetResolverOptions } from './browser-host/fetch-asset-resol
 
 // ── Test helpers ──
 export { executeScript, type ExecuteOutput } from './test-helpers'
+
+// ── L3 API 面（原 packages/stdlib 迁入，P6/D1）──
+export * from './api'
+export { createApiNamespace } from './api/api-namespace'

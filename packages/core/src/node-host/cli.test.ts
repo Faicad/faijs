@@ -20,10 +20,10 @@ import { fileURLToPath } from 'node:url'
 import { cliCheck, cliRun, parseArgs } from './cli'
 import { registerOcctBrepEngine } from '../brep/engine/adapters/occt'
 import { ensureTestFontLoader } from '../brep/text/fontTestHelper'
-import { createInternalStdlib } from '@faicad/faijs-stdlib/internal-stdlib'
+import { createApiNamespace } from '@faicad/faijs-core/api/api-namespace'
 
-// P5/E-a-1：CLI 测试注入 cad（core 不默认装配）
-const CAD_LIBS = { cad: createInternalStdlib() }
+// P6/D1：CLI 测试注入 cad（L3 api/ 层，原 stdlib 取消）
+const CAD_LIBS = { cad: createApiNamespace() }
 
 beforeAll(async () => {
   await registerOcctBrepEngine()

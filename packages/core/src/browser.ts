@@ -236,3 +236,6 @@ export { buildStlBufferFromMesh } from './brep/export/stl'
 export { exportStepFromSolid, exportStepFromSolids } from './brep/export/step'
 export type { StepExportEntry } from './brep/export/step'
 export { reconstructSolidFromMesh, meshToAsciiStl, cadShapeIsValid, meshToStepBrep } from './occt-kernel/meshReconstruct'
+
+// ── L3 API 面（P6/D1：原 packages/stdlib 迁入 core）──
+export * from './api'

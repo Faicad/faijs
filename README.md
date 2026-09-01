@@ -15,10 +15,9 @@ Units: millimeters, +Z up, angles in degrees. Contract docs: `docs/api-contract.
 
 | Import | Contents |
 |---|---|
-| `@faicad/faijs` | Full API (L0–L3, incl. Node host) |
+| `@faicad/faijs` | Full API (L0–L3, incl. Node host); the built-in `cad` library ops are re-exported here (原 `@faicad/faijs/stdlib` merged into core) |
 | `@faicad/faijs/browser` | Browser-safe subset (no `node:*`) |
 | `@faicad/faijs/node` | Node host entry |
-| `@faicad/faijs/stdlib` | Built-in library namespace |
 | `@faicad/faijs/sdk` | **Third-party library authoring surface** (zero heavy deps) |
 
 ## Developing a third-party library (`@faicad/faijs/sdk`)

@@ -23,7 +23,7 @@ import { compileToModule } from '../lang/compile'
 import { scriptIRToCode } from '../lang/codegen'
 import { computeLeafTerminals } from './terminal-dag'
 import { ModuleExecutor } from './module-executor'
-import { createInternalStdlib } from '@faicad/faijs-stdlib/internal-stdlib'
+import { createApiNamespace } from '../api/api-namespace'
 import { isCompoundLike } from '../shape'
 import type { InternalKeepRecord } from '../lang/keep'
 import { asPartName, type PartName } from '../identity'
@@ -116,7 +116,7 @@ describe('keep: statementKey 排除 keep（设计 §7.2，零几何重算）', (
       const part0 = await cad.box({ size: 20 })
       const part1 = await cad.drill(part0, { diameter: 8 })
     `)
-    const executor = new ModuleExecutor({ cad: createInternalStdlib() })
+    const executor = new ModuleExecutor({ cad: createApiNamespace() })
     executor.setCompiled(script, statements)
     const drillMeta = statements[statements.length - 1]
     const drillStmt = script.statements[script.statements.length - 1]
@@ -160,7 +160,7 @@ describe('keep: parse → codegen → parse 往返（设计 §7.3，含 keep/kee
 
 describe('keep: 运行时消费判定（设计 §3）', () => {
   it('回归锚点：无任何 keep 声明的消费性 op → 输入被消费，只有产物是终端', async () => {
-    const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createInternalStdlib() })
+    const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
     const result = await rt.execute([
       'let part0 = cad.box({ size: 20 })',
       'let part1 = cad.translate(part0, { offset: [1, 0, 0] })',
@@ -170,7 +170,7 @@ describe('keep: 运行时消费判定（设计 §3）', () => {
   })
 
   it('cad.union(a,b) → a、b 是终端且 hidden（内置 exec.keepHidden 生效）', async () => {
-    const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createInternalStdlib() })
+    const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
     const result = await rt.execute([
       'let part0 = cad.box({ size: 20 })',
       'let part1 = cad.box({ size: 5 })',
@@ -184,7 +184,7 @@ describe('keep: 运行时消费判定（设计 §3）', () => {
   })
 
   it('cad.group({members:[a,b]}) → a、b 是终端且可见（函数体 exec.keep 生效）', async () => {
-    const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createInternalStdlib() })
+    const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
     const result = await rt.execute([
       'let part0 = cad.box({ size: 20 })',
       'let part1 = cad.box({ size: 5 })',
@@ -199,7 +199,7 @@ describe('keep: 运行时消费判定（设计 §3）', () => {
   })
 
   it('cad.copy(a) → a 是终端（函数体 exec.keep 生效）', async () => {
-    const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createInternalStdlib() })
+    const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
     const result = await rt.execute([
       'let part0 = cad.box({ size: 20 })',
       'let part1 = cad.copy(part0)',
@@ -208,7 +208,7 @@ describe('keep: 运行时消费判定（设计 §3）', () => {
   })
 
   it('cad.drill(c, {keep:["c"]}) → c 是终端（调用点覆盖无声明的函数）', async () => {
-    const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createInternalStdlib() })
+    const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
     const result = await rt.execute([
       'let part0 = cad.box({ size: 20 })',
       'let part1 = cad.translate(part0, { offset: [1, 0, 0], keep: ["part0"] })',
@@ -219,7 +219,7 @@ describe('keep: 运行时消费判定（设计 §3）', () => {
   })
 
   it('cad.drill(c, {keep:["c"], keepHidden:true}) → c hidden', async () => {
-    const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createInternalStdlib() })
+    const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
     const result = await rt.execute([
       'let part0 = cad.box({ size: 20 })',
       'let part1 = cad.translate(part0, { offset: [1, 0, 0], keep: ["part0"], keepHidden: true })',
@@ -231,7 +231,7 @@ describe('keep: 运行时消费判定（设计 §3）', () => {
 
   it('优先级：调用点 keepHidden 覆盖函数体 exec.keep（用户胜，D1）', async () => {
     // group 函数体 exec.keep 声明成员可见；调用点 keepHidden:true → 成员隐藏
-    const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createInternalStdlib() })
+    const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
     const result = await rt.execute([
       'let part0 = cad.box({ size: 20 })',
       'let part1 = cad.box({ size: 5 })',
@@ -242,7 +242,7 @@ describe('keep: 运行时消费判定（设计 §3）', () => {
   })
 
   it('hidden 最后一次保留声明胜出（D2）：union 隐藏后 group 改可见', async () => {
-    const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createInternalStdlib() })
+    const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
     const result = await rt.execute([
       'let part0 = cad.box({ size: 20 })',
       'let part1 = cad.box({ size: 5 })',
@@ -311,7 +311,7 @@ describe('keep: 第三方函数（C1/C3/C5，terminal-dag 静态判定）', () =
 
 describe('keep: activeValues 与 outputs 含 compound（设计 §5）', () => {
   it('查询函数（返回非几何值）→ 进 activeValues、不进 terminals；输入不被消费（C3）', async () => {
-    const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createInternalStdlib() })
+    const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
     const result = await rt.execute([
       'let part0 = cad.box({ size: 20 })',
       'let c = cad.bboxCenter(part0)',
@@ -325,7 +325,7 @@ describe('keep: activeValues 与 outputs 含 compound（设计 §5）', () => {
   })
 
   it('group 产物（compound）进 outputs（keep-syntax §5.1 契约）', async () => {
-    const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createInternalStdlib() })
+    const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
     const result = await rt.execute([
       'let part0 = cad.box({ size: 20 })',
       'let grp0 = cad.group({ name: "G", members: [part0] })',
@@ -341,7 +341,7 @@ describe('keep: activeValues 与 outputs 含 compound（设计 §5）', () => {
 
 describe('keep: check() 静态校验（设计 §7.4）', () => {
   it('合法 keep → ok', () => {
-    const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createInternalStdlib() })
+    const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
     const result = rt.check([
       'let part0 = cad.box({ size: 20 })',
       'let part1 = cad.translate(part0, { offset: [1, 0, 0], keep: ["part0"], keepHidden: true })',
@@ -351,7 +351,7 @@ describe('keep: check() 静态校验（设计 §7.4）', () => {
   })
 
   it('keep 元素不是变量引用（字面量）→ stage=keep 报错', () => {
-    const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createInternalStdlib() })
+    const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
     const result = rt.check([
       'let part0 = cad.box({ size: 20 })',
       'let part1 = cad.translate(part0, { offset: [1, 0, 0], keep: [42] })',
@@ -361,7 +361,7 @@ describe('keep: check() 静态校验（设计 §7.4）', () => {
   })
 
   it('keep 目标不是本语句 inputs/args 变量 → 报错', () => {
-    const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createInternalStdlib() })
+    const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
     const result = rt.check([
       'let part0 = cad.box({ size: 20 })',
       'let part1 = cad.translate(part0, { offset: [1, 0, 0], keep: ["part9"] })',
@@ -371,7 +371,7 @@ describe('keep: check() 静态校验（设计 §7.4）', () => {
   })
 
   it('keepHidden 非 boolean → 报错', () => {
-    const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createInternalStdlib() })
+    const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
     const result = rt.check([
       'let part0 = cad.box({ size: 20 })',
       'let part1 = cad.translate(part0, { offset: [1, 0, 0], keep: ["part0"], keepHidden: "yes" })',
@@ -381,7 +381,7 @@ describe('keep: check() 静态校验（设计 §7.4）', () => {
   })
 
   it('E4：keep 拼写错误（keeps）→ warning 而非 error', () => {
-    const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createInternalStdlib() })
+    const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
     const result = rt.check([
       'let part0 = cad.box({ size: 20 })',
       'let part1 = cad.translate(part0, { offset: [1, 0, 0], keeps: ["part0"] })',
@@ -395,7 +395,7 @@ describe('keep: check() 静态校验（设计 §7.4）', () => {
 
 describe('keep: 增量执行 keep 持久（设计 §2.2）', () => {
   it('union 未重跑（缓存命中）时 internalKeep 仍生效', async () => {
-    const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createInternalStdlib() })
+    const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
     await rt.execute([
       'let part0 = cad.box({ size: 20 })',
       'let part1 = cad.box({ size: 5 })',

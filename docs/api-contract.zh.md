@@ -18,14 +18,13 @@ faijs 是 **npm workspaces monorepo**。根包 `@faicad/faijs` 是**门面薄层
 
 | 包 | 包名 | 职责 |
 |---|---|---|
-| `packages/core` | `@faicad/faijs-core` | **引擎**：解析／校验／调度／记账／资源。零几何、零函数知识 |
-| `packages/stdlib` | `@faicad/faijs-stdlib` | **几何库**：`cad` 命名空间的全部 op（含装配与布尔） |
+| `packages/core` | `@faicad/faijs-core` | **引擎 + L3 API 面**：解析／校验／调度／记账／资源，含 `cad` 命名空间全部 op（装配与布尔）于 `core/src/api/` |
 | `packages/mech-lib` | `@faicad/mech-lib` | 第三方库样例（peer 依赖 `@faicad/faijs-core`） |
 | `packages/fixtures` | `@faicad/faijs-fixtures` | 私有，纯数据 |
 | `packages/tests` | `@faicad/faijs-tests` | 私有，集成测试 |
 | `packages/demo` | `@faicad/faijs-demo` | 私有，vite 演示 |
 
-依赖方向单向无环：`stdlib → core`、`mech-lib → core`、`tests → mech-lib + fixtures`、`根 → core + stdlib`。**core 无内部依赖。**
+依赖方向单向无环：`mech-lib → core`、`tests → mech-lib + fixtures`、`根 → core`。**core 无内部依赖。**
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -37,7 +36,7 @@ faijs 是 **npm workspaces monorepo**。根包 `@faicad/faijs` 是**门面薄层
 │ L0+ anchor  packages/core/src/runtime-state.ts (no imports)  │
 │   Backends / keep sink / Shape identity tables / contract ver│
 ├──────────────────────────────────────────────────────────────┤
-│ L1  geometry library  packages/stdlib/src/ (**outside eng**)  │
+│ L1  geometry library  packages/core/src/api/ (L3 API 面)      │
 │   primitives transform drill extrude engrave knurl           │
 │   boolean split compound copy geom reconcile                 │
 ├──────────────────────────────────────────────────────────────┤
@@ -408,7 +407,7 @@ export interface BrepChainState {
 
 三种触发：T1 mesh-only op（如 knurl／sdf）；T2 混合输入（`inputs.every(hasBrep)` 不成立）；T3 显式 `mode='mesh'`。
 
-**物化入口** `reconcileBrepInputs(inputs)`（`packages/stdlib/src/reconcile.ts`）：对 BREP 侧输入做三角化归约（焊接顶点 → 去退化面 → 统一朝向 → 断言 2-manifold），mesh 侧透传。
+**物化入口** `reconcileBrepInputs(inputs)`（`packages/core/src/api/reconcile.ts`）：对 BREP 侧输入做三角化归约（焊接顶点 → 去退化面 → 统一朝向 → 断言 2-manifold），mesh 侧透传。
 
 `part-brep-lost` 事件由**引擎统一发送**（库不 emit）：判据是语句有几何输入、全部输入在链上、但输出不在链上。
 

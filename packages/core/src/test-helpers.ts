@@ -15,14 +15,13 @@ import { computeContentKey } from './cad-runtime/runtime'
 import type { StdlibNamespace } from './runtime-state'
 import type { HostPorts, ExecutionMode } from './cad-runtime/ports'
 
-// P5/E-a-1：cad 注入经「变量动态 import」——tsc 不解析非字面量 specifier，
-// core build 不依赖 @faicad/faijs-stdlib 的 dist（构建顺序 core → stdlib）；
-// vitest 运行时经 alias 解析到 stdlib 源码。test-helpers 只被测试消费。
-const STDLIB_INTERNAL_MODULE = '@faicad/faijs-stdlib/internal-stdlib'
+// P6/D1：库函数已并入 core 的 api/ 层（原 packages/stdlib 取消）。
+// 用「变量动态 import」——tsc 不解析非字面量 specifier，vitest 经 alias 解析到 api 源码。
+const API_NAMESPACE_MODULE = '@faicad/faijs-core/api/api-namespace'
 
 async function getCadLib(): Promise<StdlibNamespace> {
-  const mod = (await import(STDLIB_INTERNAL_MODULE)) as { createInternalStdlib: () => StdlibNamespace }
-  return mod.createInternalStdlib()
+  const mod = (await import(API_NAMESPACE_MODULE)) as { createApiNamespace: () => StdlibNamespace }
+  return mod.createApiNamespace()
 }
 
 /** Result of executing a script via the test helper. */

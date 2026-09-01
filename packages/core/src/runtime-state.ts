@@ -4,9 +4,9 @@
  * 设计文档：docs/plans/2026-08-29-engine-library-contract.md §6 / §7 / §8
  * 实施文档：docs/plans/2026-08-29-engine-library-contract-implementation.md P0
  *
- * 本模块位于 L0+（零运行时依赖），是 stdlib（L1）与 cad-runtime（L2）之间
- * 唯一的共享状态。**放在这一层是为了避免循环依赖**：stdlib 不能 import
- * cad-runtime（cad-runtime/internal-stdlib.ts 已经 import 了 stdlib）。
+ * 本模块位于 L0+（零运行时依赖），是 L3 API 面（core/src/api，原 stdlib）与
+ * cad-runtime（L2）之间唯一的共享状态。**放在这一层是为了避免循环依赖**：
+ * api/ 不能 import cad-runtime（cad-runtime/api-namespace.ts 已经 import 了 api/）。
  *
  * 承载三类状态：
  * 1. Backends —— 宿主注入的环境资源（内核 / 端口 / 模式 / 标准库命名空间）
@@ -92,7 +92,7 @@ export function assertContractVersion(lib: { contractVersion?: unknown }): void 
  *
  * 由分派路径抛出，CadRuntime 捕获后转换为 ExecutionResult.failedAt
  * （与旧解释器"brep 模式立即返回 E_BREP_UNSUPPORTED，不静默回退 mesh"的语义一致）。
- * P2 起定义在本层（零依赖），stdlib 与引擎共享同一类（instanceof 判定）。
+ * P2 起定义在本层（零依赖），L3 API 命名空间与引擎共享同一类（instanceof 判定）。
  */
 export class BrepUnsupportedError extends Error {
   /** The statement that triggered the unsupported operation, when available. */

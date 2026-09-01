@@ -24,9 +24,7 @@
     "baseUrl": ".",
     "paths": {
       "@faicad/faijs-core": ["./packages/core/src/index.ts"],
-      "@faicad/faijs-core/*": ["./packages/core/src/*"],
-      "@faicad/faijs-stdlib": ["./packages/stdlib/src/index.ts"],
-      "@faicad/faijs-stdlib/*": ["./packages/stdlib/src/*"]
+      "@faicad/faijs-core/*": ["./packages/core/src/*"]
     }
   },
   "include": [

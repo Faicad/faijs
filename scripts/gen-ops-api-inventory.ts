@@ -1,9 +1,10 @@
 /**
- * Generate docs/ops-api-inventory.md (+ .zh.md + .i18n.yaml) from the stdlib
- * exported-op JSDoc. The stdlib is the single source of truth for the faijs
- * `.fai.js` coding API; this generator projects each op's JSDoc (params, types,
- * required/default, quality, group, async, examples, notes) into the standing
- * bilingual doc so it never silently drifts from the implementation.
+ * Generate docs/ops-api-inventory.md (+ .zh.md + .i18n.yaml) from the L3
+ * API-surface exported-op JSDoc. The api layer (core/src/api, 原 stdlib) is the
+ * single source of truth for the faijs `.fai.js` coding API; this generator
+ * projects each op's JSDoc (params, types, required/default, quality, group,
+ * async, examples, notes) into the standing bilingual doc so it never silently
+ * drifts from the implementation.
  *
  * Usage:
  *   npx tsx scripts/gen-ops-api-inventory.ts            # write both sides
@@ -14,7 +15,7 @@ import { readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 
 const root = resolve(import.meta.dirname, '..')
-const STDLIB_SRC = join(root, 'packages/stdlib/src')
+const API_SRC = join(root, 'packages/core/src/api')
 const EN_TARGET = join(root, 'docs/ops-api-inventory.md')
 const ZH_TARGET = join(root, 'docs/ops-api-inventory.zh.md')
 
@@ -134,11 +135,11 @@ function parseParam(raw: string): Param | null {
 const GROUP_ORDER = ['创建', '变换', '特征', '结构', '查询']
 
 function renderDoc(locale: 'en' | 'zh'): string {
-  const files = readdirSync(STDLIB_SRC)
+  const files = readdirSync(API_SRC)
     .filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts'))
     .sort()
   const allOps: Op[] = []
-  for (const f of files) allOps.push(...collectOps(join(STDLIB_SRC, f)))
+  for (const f of files) allOps.push(...collectOps(join(API_SRC, f)))
   const grouped = new Map<string, Op[]>()
   for (const op of allOps) {
     if (!grouped.has(op.group)) grouped.set(op.group, [])

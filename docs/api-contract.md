@@ -18,14 +18,13 @@ faijs is an **npm workspaces monorepo**. The root package `@faicad/faijs` is a *
 
 | Package | Package name | Responsibility |
 |---|---|---|
-| `packages/core` | `@faicad/faijs-core` | **Engine**: parse / validate / schedule / bookkeep / resources. Zero geometry, zero function knowledge |
-| `packages/stdlib` | `@faicad/faijs-stdlib` | **Geometry library**: every op in the `cad` namespace (assembly and boolean included) |
+| `packages/core` | `@faicad/faijs-core` | **Engine + L3 API surface**: parse / validate / schedule / bookkeep / resources, plus every op in the `cad` namespace (assembly and boolean included) in `core/src/api/` |
 | `packages/mech-lib` | `@faicad/mech-lib` | Third-party library sample (peer dependency on `@faicad/faijs-core`) |
 | `packages/fixtures` | `@faicad/faijs-fixtures` | Private, data only |
 | `packages/tests` | `@faicad/faijs-tests` | Private, integration tests |
 | `packages/demo` | `@faicad/faijs-demo` | Private, vite demo |
 
-Dependencies are one-directional and acyclic: `stdlib → core`, `mech-lib → core`, `tests → mech-lib + fixtures`, `root → core + stdlib`. **core has no internal dependencies.**
+Dependencies are one-directional and acyclic: `mech-lib → core`, `tests → mech-lib + fixtures`, `root → core`. **core has no internal dependencies.**
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -37,7 +36,7 @@ Dependencies are one-directional and acyclic: `stdlib → core`, `mech-lib → c
 │ L0+ anchor  packages/core/src/runtime-state.ts (no imports)  │
 │   Backends / keep sink / Shape identity tables / contract ver│
 ├──────────────────────────────────────────────────────────────┤
-│ L1  geometry library  packages/stdlib/src/ (**outside eng**)  │
+│ L1  geometry library  packages/core/src/api/ (L3 API 面)      │
 │   primitives transform drill extrude engrave knurl           │
 │   boolean split compound copy geom reconcile                 │
 ├──────────────────────────────────────────────────────────────┤
@@ -407,7 +406,7 @@ export interface BrepChainState {
 
 Three triggers: T1 a mesh-only op (such as knurl/sdf); T2 mixed inputs (`inputs.every(hasBrep)` is false); T3 explicit `mode='mesh'`.
 
-**Materialization entry point** `reconcileBrepInputs(inputs)` (`packages/stdlib/src/reconcile.ts`): BREP-side inputs are tessellated and reduced (weld vertices → remove degenerate faces → unify orientation → assert 2-manifold), while mesh-side inputs pass through unchanged.
+**Materialization entry point** `reconcileBrepInputs(inputs)` (`packages/core/src/api/reconcile.ts`): BREP-side inputs are tessellated and reduced (weld vertices → remove degenerate faces → unify orientation → assert 2-manifold), while mesh-side inputs pass through unchanged.
 
 The `part-brep-lost` event is emitted **uniformly by the engine** (libraries do not emit it): the criterion is that the statement has geometry inputs, all inputs are on the chain, but the output is not.
 

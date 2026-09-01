@@ -21,8 +21,6 @@
       "@faicad/faijs/*": ["./src/*"],
       "@faicad/faijs-core": ["./packages/core/src/index.ts"],
       "@faicad/faijs-core/*": ["./packages/core/src/*"],
-      "@faicad/faijs-stdlib": ["./packages/stdlib/src/index.ts"],
-      "@faicad/faijs-stdlib/*": ["./packages/stdlib/src/*"],
       "@faicad/mech-lib": ["./packages/mech-lib/src/index.ts"]
     }
   },

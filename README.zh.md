@@ -15,10 +15,9 @@ Faicad CAD 执行引擎——`faijs` 语言 parser、BREP/mesh 双链路几何�
 
 | Import | Contents |
 |---|---|
-| `@faicad/faijs` | 全量 API（L0–L3，含 Node host） |
+| `@faicad/faijs` | 全量 API（L0–L3，含 Node host）；内置 `cad` 库 op 在此重导出（原 `@faicad/faijs/stdlib` 并入 core） |
 | `@faicad/faijs/browser` | 浏览器安全子集（无 `node:*`） |
-| `@faicad/faijs/node` | Node host 入口 |
-| `@faicad/faijs/stdlib` | 内置库命名空间 |
+| `@facade/faijs/node` | Node host 入口 |
 | `@faicad/faijs/sdk` | **第三方库开发面**（零重依赖） |
 
 ## Developing a third-party library (`@faicad/faijs/sdk`)

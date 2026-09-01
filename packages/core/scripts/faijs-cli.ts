@@ -5,7 +5,7 @@
  *   npx tsx scripts/faijs-cli.ts run <file.fai.js> --out <output.stl|step> [--mode auto|brep|mesh]
  */
 import { cliMain } from '../src/node-host/cli.ts'
-import { createInternalStdlib } from '@faicad/faijs-stdlib'
+import { createApiNamespace } from '../src/api/api-namespace.ts'
 
-// P5/E-a-1：cad 命名空间由 CLI 入口注入（core 不默认装配库函数）。
-cliMain(process.argv, { cad: createInternalStdlib() }).then((code) => process.exit(code))
+// P6/D1：cad 命名空间由 CLI 入口注入（L3 api/ 层，原 stdlib 取消）。
+cliMain(process.argv, { cad: createApiNamespace() }).then((code) => process.exit(code))

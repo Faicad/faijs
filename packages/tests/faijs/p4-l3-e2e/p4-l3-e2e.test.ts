@@ -24,7 +24,7 @@ import { createRuntime as coreCreateRuntime } from '@faicad/faijs-core/cad-runti
 import type { ExecutionResult } from '@faicad/faijs-core/cad-runtime/runtime'
 import { DUAL_OP_META, CONTRACT_VERSION, defineOp } from '@faicad/faijs-core/sdk'
 import type { StdlibNamespace } from '@faicad/faijs-core/runtime-state'
-import { box as stdlibBox, cylinder as stdlibCylinder, union as stdlibUnion } from '@faicad/faijs-stdlib'
+import { box as stdlibBox, cylinder as stdlibCylinder, union as stdlibUnion } from '@faicad/faijs-core/api'
 import { asPartName } from '@faicad/faijs-core/identity'
 import type { Shape } from '@faicad/faijs-core/mesh/types'
 
