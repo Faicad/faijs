@@ -1,0 +1,141 @@
+/**
+ * Standalone functions for Blueprint operations.
+ *
+ * Each function wraps the corresponding {@link Blueprint} class method as a
+ * pure function, enabling a functional programming style.
+ *
+ * @see {@link Blueprint} for the OOP equivalent.
+ */
+
+import type { Point2D, BoundingBox2d } from '../../2d/lib/index.js';
+import BlueprintClass from './blueprint.js';
+import type Blueprint from './blueprint.js';
+import CompoundBlueprintClass from './compoundBlueprint.js';
+import type CompoundBlueprint from './compoundBlueprint.js';
+import type { PointInput } from '../../core/types.js';
+import type { Plane, PlaneName } from '../../core/planeTypes.js';
+import type { Face } from '../../core/shapeTypes.js';
+import type { ScaleMode } from '../../2d/curves.js';
+import { type Result, ok, err } from '../../core/result.js';
+import { validationError, BrepErrorCode } from '../../core/errors.js';
+
+/**
+ * Create a new Blueprint from an ordered array of 2D curves.
+ *
+ * Returns a `Result` — use `unwrap()` in tests or `isOk()`/`match()` in
+ * production code.
+ *
+ * @see {@link Blueprint} constructor.
+ */
+export function createBlueprint(curves: Blueprint['curves']): Result<Blueprint> {
+  if (curves.length === 0) {
+    return err(
+      validationError(
+        BrepErrorCode.BLUEPRINT_EMPTY_CURVES,
+        'createBlueprint: at least one curve is required'
+      )
+    );
+  }
+  return ok(new BlueprintClass(curves));
+}
+
+/**
+ * Create a CompoundBlueprint from an outer boundary and optional holes.
+ *
+ * The first element of `blueprints` is the outer boundary; subsequent
+ * elements are subtracted as holes.
+ *
+ * @see {@link CompoundBlueprint} constructor.
+ */
+export function createCompoundBlueprint(blueprints: Blueprint[]): Result<CompoundBlueprint> {
+  if (blueprints.length === 0) {
+    return err(
+      validationError(
+        BrepErrorCode.COMPOUND_BLUEPRINT_EMPTY,
+        'createCompoundBlueprint: at least one blueprint (outer boundary) is required'
+      )
+    );
+  }
+  return ok(new CompoundBlueprintClass(blueprints));
+}
+
+// ── Utility Functions (Clean 2D API) ──
+
+/** Get the axis-aligned bounding box of a 2D blueprint. */
+export function getBounds2D(bp: Blueprint): BoundingBox2d {
+  return bp.boundingBox;
+}
+
+/** Get the winding direction of a 2D blueprint. */
+export function getOrientation2D(bp: Blueprint): 'clockwise' | 'counterClockwise' {
+  return bp.orientation;
+}
+
+/** Test whether a 2D point lies strictly inside a blueprint. */
+export function isInside2D(bp: Blueprint, point: Point2D): boolean {
+  return bp.isInside(point);
+}
+
+/** Convert a 2D blueprint to an SVG path d attribute string. */
+export function toSVGPathD(bp: Blueprint): string {
+  return bp.toSVGPathD();
+}
+
+// ── Transform Functions (Clean 2D API) ──
+
+/** Translate a 2D blueprint by the given x and y distances. */
+export function translate2D(bp: Blueprint, dx: number, dy: number): Blueprint {
+  return bp.translate(dx, dy);
+}
+
+/** Rotate a 2D blueprint by the given angle in degrees. */
+export function rotate2D(bp: Blueprint, angle: number, center?: Point2D): Blueprint {
+  return bp.rotate(angle, center);
+}
+
+/** Uniformly scale a 2D blueprint by a factor around a center point. */
+export function scale2D(bp: Blueprint, factor: number, center?: Point2D): Blueprint {
+  return bp.scale(factor, center);
+}
+
+/** Mirror a 2D blueprint across a point or plane. */
+export function mirror2D(
+  bp: Blueprint,
+  centerOrDirection: Point2D,
+  origin?: Point2D,
+  mode?: 'center' | 'plane'
+): Blueprint {
+  return bp.mirror(centerOrDirection, origin, mode);
+}
+
+/** Stretch a 2D blueprint along a direction by a given ratio. */
+export function stretch2D(
+  bp: Blueprint,
+  ratio: number,
+  direction: Point2D,
+  origin?: Point2D
+): Blueprint {
+  return bp.stretch(ratio, direction, origin);
+}
+
+// ── Sketching Functions (Clean 2D API) ──
+
+/** Project a blueprint onto a 3D plane, producing sketch data. */
+export function sketchOnPlane2D(
+  bp: Blueprint,
+  inputPlane?: PlaneName | Plane,
+  origin?: PointInput | number
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Sketch type not yet ported
+): any {
+  return bp.sketchOnPlane(inputPlane, origin);
+}
+
+/** Map a blueprint onto a 3D face's UV surface, producing sketch data. */
+export function sketchOnFace2D(
+  bp: Blueprint,
+  face: Face,
+  scaleMode?: ScaleMode
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Sketch types not yet ported
+): any {
+  return bp.sketchOnFace(face, scaleMode);
+}

@@ -1,0 +1,414 @@
+import { DEG2RAD } from '../../core/constants.js';
+import { polarToCartesian, type Point2D, type Curve2D } from '../../2d/lib/index.js';
+
+type StartSplineTangent = number | Point2D;
+/** Tangent specification for smooth spline endpoints: an angle (degrees), a 2D direction, or `'symmetric'`. */
+export type SplineTangent = StartSplineTangent | 'symmetric';
+
+/**
+ * Configuration for {@link GenericSketcher.smoothSplineTo}.
+ *
+ * Can be a single tangent value (applied to the end), or an object with
+ * separate start/end tangents and distance factors.
+ */
+export type SplineOptions =
+  | SplineTangent
+  | {
+      endTangent?: SplineTangent;
+      startTangent?: StartSplineTangent;
+      startFactor?: number;
+      endFactor?: number;
+    };
+
+const isTangent = (c: unknown): c is SplineTangent =>
+  c === 'symmetric' || typeof c === 'number' || (Array.isArray(c) && c.length === 2);
+
+/** Resolve a {@link SplineOptions} into fully-expanded tangent directions and factors. */
+export const defaultsSplineOptions = (
+  config?: SplineOptions
+): {
+  endTangent: Point2D | 'symmetric';
+  startTangent?: Point2D | undefined;
+  startFactor: number;
+  endFactor: number;
+} => {
+  let conf: {
+    endTangent: SplineTangent;
+    startFactor?: number;
+    endFactor?: number;
+    startTangent?: StartSplineTangent;
+  };
+  if (!config) conf = { endTangent: [1, 0] };
+  else if (isTangent(config)) {
+    conf = { endTangent: config };
+  } else {
+    conf = { endTangent: 0, ...config };
+  }
+  const { endTangent: endTgt, startFactor = 1, endFactor = 1, startTangent: startTgt } = conf;
+
+  let endTangent: Point2D | 'symmetric';
+  if (typeof endTgt === 'number') {
+    endTangent = polarToCartesian(1, endTgt * DEG2RAD);
+  } else {
+    endTangent = endTgt;
+  }
+
+  let startTangent: Point2D | undefined;
+  if (typeof startTgt === 'number') {
+    startTangent = polarToCartesian(1, startTgt * DEG2RAD);
+  } else {
+    startTangent = startTgt;
+  }
+
+  return { endTangent, startFactor, endFactor, startTangent };
+};
+
+/**
+ * Sketchers allow the user to draw a two dimensional shape using segments of
+ * curve. You start by defining where your sketch will start (with the method
+ * `movePointerTo`).
+ * Each sketching method corresponds to drawing a curve of some type (line,
+ * arc, elliptic arc, bezier curve) to a new point. The next segment will start
+ * from the end point of the previous segment.
+ * Once you end your sketch you will receive a `Sketch` object that allows you
+ * to give some three dimensionality to your finished sketch.
+ *
+ * @category Sketching
+ */
+export interface GenericSketcher<ReturnType> {
+  /**
+   * Changes the point to start your drawing from
+   */
+  movePointerTo(point: Point2D): this;
+
+  /**
+   * Draws a line from the current point to the point given in argument
+   *
+   * @category Line Segment
+   */
+  lineTo(point: Point2D): this;
+  /**
+   * Draws a line at the horizontal distance xDist and the vertical distance
+   * yDist of the current point
+   *
+   * @category Line Segment
+   */
+  line(xDist: number, yDist: number): this;
+  /**
+   * Draws a vertical line of length distance from the current point
+   *
+   * @category Line Segment
+   */
+  vLine(distance: number): this;
+  /**
+   * Draws an horizontal line of length distance from the current point
+   *
+   * @category Line Segment
+   */
+  hLine(distance: number): this;
+  /**
+   * Draws a vertical line to the y coordinate
+   *
+   * @category Line Segment
+   */
+  vLineTo(yPos: number): this;
+  /**
+   * Draws an horizontal line to the x coordinate
+   *
+   * @category Line Segment
+   */
+  hLineTo(xPos: number): this;
+  /**
+   * Draws a line from the current point to the point defined in polar
+   * coordinates, of radius r and angle theta (in degrees) from the origin
+   *
+   * @category Line Segment
+   */
+  polarLineTo([r, theta]: [number, number]): this;
+  /**
+   * Draws a line from the current point to the point defined in polar
+   * coordinates, of radius r and angle theta (in degrees) from the current
+   * point
+   *
+   * @category Line Segment
+   */
+  polarLine(r: number, theta: number): this;
+  /**
+   * Draws a line from the current point as a tangent to the previous part of
+   * curve drawn. The distance defines how long the line will be.
+   *
+   * @category Line Segment
+   */
+  tangentLine(distance: number): this;
+
+  /** Draws an arc of circle by defining its end point and a third point
+   * through which the arc will pass.
+   *
+   * @category Arc Segment
+   */
+  threePointsArcTo(end: Point2D, innerPoint: Point2D): this;
+  /** Draws an arc of circle by defining its end point and a third point
+   * through which the arc will pass. Both points are defined in horizontal
+   * (x) and vertical (y) distances from the start point.
+   *
+   * @category Arc Segment
+   */
+  threePointsArc(xDist: number, yDist: number, viaXDist: number, viaYDist: number): this;
+  /** Draws an arc of circle by defining its end point and the sagitta - the
+   * maximum distance between the arc and the straight line going from start to
+   * end point.
+   *
+   * @category Arc Segment
+   */
+  sagittaArcTo(end: Point2D, sagitta: number): this;
+  /** Draws an arc of circle by defining its end point and the sagitta - the
+   * maximum distance between the arc and the straight line going from start to
+   * end point. The end point is defined by its horizontal and vertical
+   * distances from the start point.
+   *
+   * @category Arc Segment
+   */
+  sagittaArc(xDist: number, yDist: number, sagitta: number): this;
+  /** Draws a vertical arc of circle by defining its end point and the sagitta
+   * - the maximum distance between the arc and the straight line going from
+   * start to end point. The end point is defined by its vertical distance from
+   * the start point.
+   *
+   * @category Arc Segment
+   */
+  vSagittaArc(distance: number, sagitta: number): this;
+  /** Draws an horizontal arc of circle by defining its end point and the
+   * sagitta - the maximum distance between the arc and the straight line going
+   * from start to end point. The end point is defined by its horizontal
+   * distance from the start point.
+   *
+   * @category Arc Segment
+   */
+  hSagittaArc(distance: number, sagitta: number): this;
+  /** Draws an arc of circle by defining its end point and the bulge - the
+   * maximum distance between the arc and the straight line going from start to
+   * end point.
+   *
+   * @category Arc Segment
+   */
+  bulgeArcTo(end: Point2D, bulge: number): this;
+  /** Draws an arc of circle by defining its end point and the bulge - the
+   * maximum distance between the arc and the straight line going from start to
+   * end point in units of half the chord. The end point is defined by its horizontal and vertical distances
+   * from the start point.
+   *
+   * @category Arc Segment
+   */
+  bulgeArc(xDist: number, yDist: number, bulge: number): this;
+  /** Draws a vertical arc of circle by defining its end point and the bulge
+   * - the maximum distance between the arc and the straight line going from
+   * start to end point in units of half the chord. The end point is defined by its vertical distance from
+   * the start point.
+   *
+   * @category Arc Segment
+   */
+  vBulgeArc(distance: number, bulge: number): this;
+  /** Draws an horizontal arc of circle by defining its end point and the bulge
+   * - the maximum distance between the arc and the straight line going from
+   * start to end point in units of half the chord. The end point is defined by
+   * its horizontal distance from the start point.
+   *
+   * @category Arc Segment
+   */
+  hBulgeArc(distance: number, bulge: number): this;
+
+  /**
+   * Draws an arc of circle from the current point as a tangent to the previous
+   * part of curve drawn.
+   *
+   * @category Arc Segment
+   */
+  tangentArcTo(end: Point2D): this;
+  /**
+   * Draws an arc of circle from the current point as a tangent to the previous
+   * part of curve drawn. The end point is defined by its horizontal and vertical
+   * distances from the start point.
+   *
+   * @category Arc Segment
+   */
+  tangentArc(xDist: number, yDist: number): this;
+
+  /**
+   * Draws an arc of ellipse by defining its end point and an ellipse.
+   *
+   * The shape of the ellipse is defined by both its radiuses, its angle
+   * relative to the current coordinate system, as well as the long and sweep
+   * flags (as defined for SVG paths)
+   *
+   * @category Ellipse Arc Segment
+   */
+  ellipseTo(
+    end: Point2D,
+    horizontalRadius: number,
+    verticalRadius: number,
+    rotation: number,
+    longAxis: boolean,
+    sweep: boolean
+  ): this;
+  /**
+   * Draws an arc of ellipse by defining its end point and an ellipse. The end
+   * point is defined by distances from the start point.
+   *
+   * The shape of the ellipse is defined by both its radiuses, its angle
+   * relative to the current coordinate system, as well as the long and sweep
+   * flags (as defined for SVG paths)
+   *
+   * @category Ellipse Arc Segment
+   */
+  ellipse(
+    xDist: number,
+    yDist: number,
+    horizontalRadius: number,
+    verticalRadius: number,
+    rotation: number,
+    longAxis: boolean,
+    sweep: boolean
+  ): this;
+  /**
+   * Draws an arc as half an ellipse, defined by the sagitta of the ellipse
+   * (which corresponds to the radius in the axe orthogonal to the straight
+   * line).
+   *
+   * The sweep flag is to be understood as defined for SVG paths.
+   *
+   * @category Ellipse Arc Segment
+   */
+  halfEllipseTo(end: Point2D, radius: number, sweep: boolean): this;
+
+  /**
+   * Draws an arc as half an ellipse, defined by the sagitta of the ellipse
+   * (which corresponds to the radius in the axe orthogonal to the straight
+   * line). The end point is defined by distances from the start point.
+   *
+   * The sweep flag is to be understood as defined for SVG paths.
+   *
+   * @category Ellipse Arc Segment
+   */
+  halfEllipse(xDist: number, yDist: number, radius: number, sweep: boolean): this;
+
+  /** Draws a generic bezier curve to the end point, going using a set of
+   * control points.
+   *
+   * This is the generic definition of a bezier curve, you might want to use
+   * either the quadratic or cubic (most common) version, unless you know
+   * exactly what you are aiming at.
+   *
+   * @category Bezier Curve
+   */
+  bezierCurveTo(end: Point2D, controlPoints: Point2D | Point2D[]): this;
+  /** Draws a quadratic bezier curve to the end point, using the single control
+   * point.
+   *
+   * @category Bezier Curve
+   */
+  quadraticBezierCurveTo(end: Point2D, controlPoint: Point2D): this;
+  /** Draws a cubic bezier curve to the end point, using the start and end
+   * control point to define its shape. This corresponds to the most commonly
+   * used bezier curve.
+   *
+   * If you are struggling setting your control points, the smoothSpline might
+   * be better for your needs.
+   *
+   * @category Bezier Curve
+   */
+  cubicBezierCurveTo(end: Point2D, startControlPoint: Point2D, endControlPoint: Point2D): this;
+  /** Draws a cubic bezier curve to the end point, attempting to make the line
+   * smooth with the previous segment.
+   *
+   * It will base its first control point so that its tangent is the same as
+   * the previous segment.
+   *
+   * The control point relative to the end is by default set to be in the
+   * direction of the straight line between start and end. You can specify the
+   * `endSkew` either as an angle (in degrees) to this direction, or as an
+   * absolute direction in the coordinate system (a Point).
+   *
+   * The start- and end- factors decide on how far the control point is from
+   * the start and end point. At a factor of 1, the distance corresponds to
+   * a quarter of the straight line distance.
+   *
+   * @category Bezier Curve
+   */
+  smoothSplineTo(end: Point2D, config?: SplineOptions): this;
+  /** Draws a cubic bezier curve to the end point, attempting to make the line
+   * smooth with the previous segment. The end point is defined by its distance
+   * to the first point.
+   *
+   * It will base its first control point so that its tangent is the same as
+   * the previous segment. You can force another tangent by defining
+   * `startTangent`.
+   *
+   * You can configure the tangent of the end point by configuring the
+   * `endTangent`, either as "symmetric" to reproduce the start angle, as an
+   * angle from the X axis (in the coordinate system) or a 2d direction (still
+   * in the coordinate system).
+   *
+   * The start- and end- factors decide on how far the control point is from
+   * the start and end point. At a factor of 1, the distance corresponds to
+   * a quarter of the straight line distance.
+   *
+   * @category Bezier Curve
+   */
+  smoothSpline(xDist: number, yDist: number, splineConfig: SplineOptions): this;
+
+  /**
+   * Changes the corner between the previous and next segments by applying
+   * a fillet, chamfer, or custom corner function.
+   *
+   * @param radius - Fillet/chamfer radius, or a custom corner function.
+   * @param mode - Corner treatment type: `'fillet'` (default) or `'chamfer'`.
+   *
+   * @category Corner Treatment
+   */
+  customCorner(
+    radius: number | ((first: Curve2D, second: Curve2D) => Curve2D[]),
+    mode?: 'fillet' | 'chamfer'
+  ): this;
+
+  /**
+   * Returns the current pen position as [x, y] coordinates.
+   *
+   * @category Drawing State
+   */
+  readonly penPosition: Point2D;
+
+  /**
+   * Returns the current pen angle in degrees, based on the tangent direction
+   * at the end of the last drawn segment. Returns 0 if nothing has been drawn.
+   *
+   * @category Drawing State
+   */
+  readonly penAngle: number;
+
+  /**
+   * Stop drawing and returns the sketch.
+   */
+  done(): ReturnType;
+  /**
+   * Stop drawing, make sure the sketch is closed (by adding a straight line to
+   * from the last point to the first) and returns the sketch.
+   */
+  close(): ReturnType;
+  /**
+   * Stop drawing, make sure the sketch is closed (by mirroring the lines
+   * between the first and last points drawn) and returns the sketch.
+   */
+  closeWithMirror(): ReturnType;
+
+  /**
+   * Close the path and apply a custom corner treatment (fillet, chamfer, or dogbone)
+   * between the last and first segments.
+   *
+   * @param radius - Fillet/chamfer radius, or a custom corner function.
+   * @param mode - Corner treatment type: `'fillet'` (default), `'chamfer'`, or `'dogbone'`.
+   */
+  closeWithCustomCorner(
+    radius: number | ((f: Curve2D, s: Curve2D) => Curve2D[]),
+    mode?: 'fillet' | 'chamfer' | 'dogbone'
+  ): ReturnType;
+}
