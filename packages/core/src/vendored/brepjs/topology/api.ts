@@ -1,0 +1,504 @@
+/**
+ * Public API functions — short names for transforms, booleans, modifiers, and utilities.
+ *
+ * These functions provide the primary public API with short names, Shapeable<T> support,
+ * and options objects. They delegate to implementations in shapeFns.ts, booleanFns.ts, etc.
+ */
+
+import type { Vec3, MatrixInput } from '../core/types.js';
+import type { Result } from '../core/result.js';
+import type { AnyShape, Dimension, Edge, Face, Shape3D, Shell, Solid } from '../core/shapeTypes.js';
+import type { ValidSolid } from '../core/validityTypes.js';
+import type {
+  Shapeable,
+  FinderFn,
+  FilletRadius,
+  ChamferDistance,
+  DraftOptions,
+} from './apiTypes.js';
+import { resolve } from './apiTypes.js';
+import type { ShapeFinder } from '../query/finderFns.js';
+import * as transforms from './shapeFns.js';
+import * as booleans from './booleanFns.js';
+import * as modifiers from './modifierFns.js';
+import * as angles from './chamferAngleFns.js';
+import * as healing from './healingFns.js';
+import * as meshing from './meshFns.js';
+import * as casting from './cast.js';
+import { edgeFinder, faceFinder } from '../query/finderFns.js';
+import type { PlaneInput } from '../core/planeTypes.js';
+
+// ---------------------------------------------------------------------------
+// Transforms — accept Shapeable<T>, use options objects
+// ---------------------------------------------------------------------------
+
+/** Translate a shape by a vector. Returns a new shape. */
+export function translate<T extends AnyShape<Dimension>>(shape: Shapeable<T>, v: Vec3): T {
+  return transforms.translate(resolve(shape), v);
+}
+
+// An array passed where an options object is expected resolves option keys to
+// `Array.prototype` methods — notably `at`, which becomes a function instead of
+// `undefined` and corrupts a plane/pivot origin into NaN, silently producing
+// degenerate geometry rather than an error. Reject it loudly. See issue #1881.
+function assertNotPositionalOptions(options: unknown, fn: string): void {
+  if (Array.isArray(options)) {
+    throw new Error(
+      `${fn}() expects an options object, e.g. ${fn}(shape, { ... }), not an array of coordinates.`
+    );
+  }
+}
+
+/** Options for {@link rotate}. */
+export interface RotateOptions {
+  /** Pivot point. Default: [0, 0, 0]. */
+  at?: Vec3;
+  /** Rotation axis. Default: [0, 0, 1] (Z). */
+  axis?: Vec3;
+}
+
+/** Rotate a shape around an axis. Angle is in degrees. Returns a new shape. */
+export function rotate<T extends AnyShape<Dimension>>(
+  shape: Shapeable<T>,
+  angle: number,
+  options?: RotateOptions
+): T {
+  assertNotPositionalOptions(options, 'rotate');
+  const pivotPoint = options?.at;
+  return transforms.rotate(resolve(shape), angle, pivotPoint, options?.axis);
+}
+
+/** Options for {@link mirror}. */
+export interface MirrorOptions {
+  /** Plane normal. Default: [1, 0, 0]. */
+  normal?: Vec3;
+  /** Plane origin. Default: [0, 0, 0]. */
+  at?: Vec3;
+}
+
+/** Mirror a shape through a plane. Returns a new shape. */
+export function mirror<T extends AnyShape<Dimension>>(
+  shape: Shapeable<T>,
+  options?: MirrorOptions
+): T {
+  assertNotPositionalOptions(options, 'mirror');
+  const planeOrigin = options?.at;
+  return transforms.mirror(resolve(shape), options?.normal ?? [1, 0, 0], planeOrigin);
+}
+
+/** Options for {@link scale}. */
+export interface ScaleOptions {
+  /** Center of scaling. Default: [0, 0, 0]. */
+  center?: Vec3;
+}
+
+/** Scale a shape uniformly. Returns a new shape. */
+export function scale<T extends AnyShape<Dimension>>(
+  shape: Shapeable<T>,
+  factor: number,
+  options?: ScaleOptions
+): T {
+  return transforms.scale(resolve(shape), factor, options?.center);
+}
+
+/** Clone a shape (deep copy). */
+export function clone<T extends AnyShape<Dimension>>(shape: Shapeable<T>): Result<T> {
+  return transforms.clone(resolve(shape));
+}
+
+/**
+ * Apply a 4x4 affine transformation matrix to a shape.
+ * Equivalent to OpenSCAD's `multmatrix`.
+ *
+ * Accepts either a raw `Matrix4x4` (4 rows of 4 numbers, row-major) or a structured
+ * `MatrixTransform` with explicit `linear` and `translation` fields.
+ */
+export function applyMatrix<T extends AnyShape<Dimension>>(
+  shape: Shapeable<T>,
+  matrix: MatrixInput
+): Result<T> {
+  return transforms.applyMatrix(resolve(shape), matrix);
+}
+
+export type { TransformOp, ComposedTransform } from './shapeFns.js';
+export { composeTransforms } from './shapeFns.js';
+
+/**
+ * Clone a shape and apply a pre-composed transform in a single kernel operation.
+ * Much faster than separate clone() + translate() + rotate() calls for batch patterns.
+ */
+export function transformCopy<T extends AnyShape<Dimension>>(
+  shape: Shapeable<T>,
+  composed: transforms.ComposedTransform
+): T {
+  return transforms.transformCopy(resolve(shape), composed);
+}
+
+/**
+ * Placement-only rigid move (translate / rotate) via the kernel's cheap location
+ * re-tag — O(1) on occt-wasm ≥3.6.0, falling back to a copy elsewhere. Same
+ * face-metadata guarantee as `translate`, at location-swap cost. Ideal for
+ * placing one cached cell at N positions without paying for N deep copies.
+ */
+export function locate<T extends AnyShape<Dimension>>(
+  shape: Shapeable<T>,
+  placement: transforms.TransformOp | readonly transforms.TransformOp[]
+): T {
+  return transforms.locate(resolve(shape), placement);
+}
+
+// ---------------------------------------------------------------------------
+// Booleans — accept Shapeable, preserve first operand type T
+// ---------------------------------------------------------------------------
+
+/** Fuse two 3D shapes (boolean union). */
+export function fuse<T extends Shape3D>(
+  a: Shapeable<T>,
+  b: Shapeable<Shape3D>,
+  options?: booleans.BooleanOptions
+): Result<T> {
+  return booleans.fuse(resolve(a), resolve(b), {
+    ...options,
+    unsafe: true,
+  }) as Result<T>;
+}
+
+/** Cut a tool from a base shape (boolean subtraction). */
+export function cut<T extends Shape3D>(
+  base: Shapeable<T>,
+  tool: Shapeable<Shape3D>,
+  options?: booleans.BooleanOptions
+): Result<T> {
+  return booleans.cut(resolve(base), resolve(tool), {
+    ...options,
+    unsafe: true,
+  }) as Result<T>;
+}
+
+/** Fuse many 3D shapes (boolean union) in a single operation. */
+export function fuseAll<T extends Shape3D>(
+  shapes: Shapeable<T>[],
+  options?: booleans.BooleanOptions
+): Result<T> {
+  return booleans.fuseAll(
+    shapes.map((s) => resolve(s)),
+    { ...options, unsafe: true }
+  ) as Result<T>;
+}
+
+/** Cut many tool shapes from a base shape (boolean subtraction) in a single operation. */
+export function cutAll<T extends Shape3D>(
+  base: Shapeable<T>,
+  tools: Shapeable<Shape3D>[],
+  options?: booleans.BooleanOptions
+): Result<T> {
+  return booleans.cutAll(
+    resolve(base),
+    tools.map((s) => resolve(s)),
+    { ...options, unsafe: true }
+  ) as Result<T>;
+}
+
+/** Compute the intersection of two shapes (boolean common). */
+export function intersect<T extends Shape3D>(
+  a: Shapeable<T>,
+  b: Shapeable<Shape3D>,
+  options?: booleans.BooleanOptions
+): Result<T> {
+  return booleans.intersect(resolve(a), resolve(b), {
+    ...options,
+    unsafe: true,
+  }) as Result<T>;
+}
+
+/** Section (cross-section) a shape with a plane. */
+export function section(
+  shape: Shapeable<AnyShape<Dimension>>,
+  plane: PlaneInput,
+  options?: { approximation?: boolean; planeSize?: number }
+): Result<AnyShape<Dimension>> {
+  return booleans.section(resolve(shape), plane, options);
+}
+
+/** Section a shape with a plane and return a filled Face. */
+export function sectionToFace(
+  shape: Shapeable<AnyShape<Dimension>>,
+  plane: PlaneInput,
+  options?: { approximation?: boolean; planeSize?: number }
+): Result<Face> {
+  return booleans.sectionToFace(resolve(shape), plane, options);
+}
+
+/** Split a shape with tool shapes. */
+export function split(
+  shape: Shapeable<AnyShape<Dimension>>,
+  tools: AnyShape<Dimension>[]
+): Result<AnyShape<Dimension>> {
+  return booleans.split(resolve(shape), tools);
+}
+
+/** Slice a shape with multiple planes. */
+export function slice(
+  shape: Shapeable<AnyShape<Dimension>>,
+  planes: PlaneInput[],
+  options?: { approximation?: boolean; planeSize?: number }
+): Result<AnyShape<Dimension>[]> {
+  return booleans.slice(resolve(shape), planes, options);
+}
+
+// ---------------------------------------------------------------------------
+// Modifiers — accept Shapeable, FinderFn, new radius/distance types
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve a FinderFn callback or ShapeFinder into an array of elements.
+ * If the argument is already an array, return it directly.
+ */
+function resolveEdges(
+  edgesOrFn: Edge[] | FinderFn<Edge> | ShapeFinder<Edge> | undefined,
+  shape: Shape3D
+): ReadonlyArray<Edge> | undefined {
+  if (edgesOrFn === undefined) return undefined;
+  if (Array.isArray(edgesOrFn)) return edgesOrFn;
+
+  // If it's a ShapeFinder, use it directly
+  if (typeof edgesOrFn === 'object' && 'findAll' in edgesOrFn) {
+    return edgesOrFn.findAll(shape);
+  }
+
+  // It's a FinderFn — apply it to edgeFinder() and execute
+  const finder = edgesOrFn(edgeFinder());
+  return finder.findAll(shape);
+}
+
+function resolveFaces(
+  facesOrFn: Face[] | FinderFn<Face> | ShapeFinder<Face>,
+  shape: Shape3D
+): ReadonlyArray<Face> {
+  if (Array.isArray(facesOrFn)) return facesOrFn;
+
+  // If it's a ShapeFinder, use it directly
+  if (typeof facesOrFn === 'object' && 'findAll' in facesOrFn) {
+    return facesOrFn.findAll(shape);
+  }
+
+  const finder = facesOrFn(faceFinder());
+  return finder.findAll(shape);
+}
+
+/**
+ * Normalize a ChamferDistance, handling the {distance, angle} case.
+ * Returns either a kernel-compatible distance or signals distance-angle mode.
+ */
+type NormalizedChamfer =
+  | {
+      mode: 'standard';
+      distance: number | [number, number] | ((edge: Edge) => number | [number, number] | null);
+    }
+  | { mode: 'distAngle'; distance: number; angle: number };
+
+function normalizeChamferDistance(distance: ChamferDistance): NormalizedChamfer {
+  if (typeof distance === 'object' && !Array.isArray(distance) && typeof distance !== 'function') {
+    // { distance, angle } mode
+    return { mode: 'distAngle', distance: distance.distance, angle: distance.angle };
+  }
+  if (typeof distance === 'function') {
+    // Per-edge callback — check if any returns { distance, angle }
+    // Wrap callback to extract standard values
+    const wrappedFn = (edge: Edge) => {
+      const val = distance(edge);
+      if (val === null) return null;
+      if (typeof val === 'object' && !Array.isArray(val)) {
+        // { distance, angle } — not supported in per-edge callback for standard chamfer
+        // Fall back to distance-only
+        return val.distance;
+      }
+      return val;
+    };
+    return { mode: 'standard', distance: wrappedFn };
+  }
+  return { mode: 'standard', distance };
+}
+
+// Overloads: 2-arg (all edges) vs 3-arg (selected edges)
+
+/** Apply a fillet to all edges of a valid solid. */
+export function fillet<T extends ValidSolid>(shape: Shapeable<T>, radius: FilletRadius): Result<T>;
+/** Apply a fillet to selected edges of a valid solid. */
+export function fillet<T extends ValidSolid>(
+  shape: Shapeable<T>,
+  edges: Edge[] | FinderFn<Edge> | ShapeFinder<Edge>,
+  radius: FilletRadius
+): Result<T>;
+export function fillet<T extends ValidSolid>(
+  shape: Shapeable<T>,
+  edgesOrRadius: Edge[] | FinderFn<Edge> | ShapeFinder<Edge> | FilletRadius,
+  maybeRadius?: FilletRadius
+): Result<T> {
+  const s = resolve(shape);
+  let edges: ReadonlyArray<Edge> | undefined;
+  let radius: FilletRadius;
+
+  if (maybeRadius !== undefined) {
+    // 3-arg form: shape, edges, radius
+    edges = resolveEdges(edgesOrRadius as Edge[] | FinderFn<Edge> | ShapeFinder<Edge>, s);
+    radius = maybeRadius;
+  } else {
+    // 2-arg form: shape, radius (fillet all edges)
+    edges = undefined;
+    radius = edgesOrRadius as FilletRadius;
+  }
+
+  return modifiers.fillet(s, edges, radius) as Result<T>;
+}
+
+/** Apply a chamfer to all edges of a valid solid. */
+export function chamfer<T extends ValidSolid>(
+  shape: Shapeable<T>,
+  distance: ChamferDistance
+): Result<T>;
+/** Apply a chamfer to selected edges of a valid solid. */
+export function chamfer<T extends ValidSolid>(
+  shape: Shapeable<T>,
+  edges: Edge[] | FinderFn<Edge> | ShapeFinder<Edge>,
+  distance: ChamferDistance
+): Result<T>;
+export function chamfer<T extends ValidSolid>(
+  shape: Shapeable<T>,
+  edgesOrDistance: Edge[] | FinderFn<Edge> | ShapeFinder<Edge> | ChamferDistance,
+  maybeDistance?: ChamferDistance
+): Result<T> {
+  const s = resolve(shape);
+  let edges: ReadonlyArray<Edge> | undefined;
+  let distance: ChamferDistance;
+
+  if (maybeDistance !== undefined) {
+    edges = resolveEdges(edgesOrDistance as Edge[] | FinderFn<Edge> | ShapeFinder<Edge>, s);
+    distance = maybeDistance;
+  } else {
+    edges = undefined;
+    distance = edgesOrDistance as ChamferDistance;
+  }
+
+  const normalized = normalizeChamferDistance(distance);
+  if (normalized.mode === 'distAngle') {
+    // Use chamferDistAngle for distance-angle mode
+    const selectedEdges = edges ?? transforms.getEdges(s);
+    return angles.chamferDistAngle(
+      s,
+      [...selectedEdges],
+      normalized.distance,
+      normalized.angle
+    ) as Result<T>;
+  }
+
+  return modifiers.chamfer(s, edges, normalized.distance) as Result<T>;
+}
+
+/** Create a hollow shell by removing faces and offsetting remaining walls. */
+export function shell<T extends ValidSolid>(
+  shape: Shapeable<T>,
+  faces: Face[] | FinderFn<Face> | ShapeFinder<Face>,
+  thickness: number,
+  options?: { tolerance?: number }
+): Result<T> {
+  const s = resolve(shape);
+  const resolvedFaces = resolveFaces(faces, s);
+  return modifiers.shell(s, resolvedFaces, thickness, options?.tolerance) as Result<T>;
+}
+
+/** Offset all faces of a valid solid by a given distance. */
+export function offset<T extends ValidSolid>(
+  shape: Shapeable<T>,
+  distance: number,
+  options?: { tolerance?: number }
+): Result<T> {
+  return modifiers.offset(resolve(shape), distance, options?.tolerance) as Result<T>;
+}
+
+/** Thicken a surface (face or shell) into a solid. */
+export function thicken(
+  shape: Shapeable<Face<Dimension> | Shell>,
+  thickness: number
+): Result<Solid> {
+  // Thicken is 3D-only — narrow from Face<Dimension> to Face<'3D'>
+  return modifiers.thicken(resolve(shape) as Face | Shell, thickness);
+}
+
+/**
+ * Draft (taper) selected faces of a 3D shape.
+ *
+ * Tilts faces by a specified angle relative to a pull direction,
+ * pivoting about a neutral plane. Essential for manufacturing workflows
+ * (injection molding, casting) where parts must release from a mold.
+ */
+export function draft<T extends ValidSolid>(
+  shape: Shapeable<T>,
+  faces: Face[] | FinderFn<Face> | ShapeFinder<Face>,
+  options: DraftOptions
+): Result<T> {
+  const s = resolve(shape);
+  const resolvedFaces = resolveFaces(faces, s);
+  return modifiers.draft(
+    s,
+    resolvedFaces,
+    options.pullDirection,
+    options.neutralPlane,
+    options.angle
+  ) as Result<T>;
+}
+
+// ---------------------------------------------------------------------------
+// Utilities — clean names
+// ---------------------------------------------------------------------------
+
+/** Heal a shape using the appropriate fixer. */
+export function heal<T extends AnyShape<Dimension>>(shape: Shapeable<T>): Result<T> {
+  return healing.heal(resolve(shape));
+}
+
+/** Simplify a shape by merging same-domain faces/edges. */
+export function simplify<T extends AnyShape<Dimension>>(shape: Shapeable<T>): Result<T> {
+  return transforms.simplify(resolve(shape));
+}
+
+/** Mesh a shape for rendering. */
+export function mesh(
+  shape: Shapeable<AnyShape<Dimension>>,
+  options?: meshing.MeshOptions & { skipNormals?: boolean; includeUVs?: boolean; cache?: boolean }
+): meshing.ShapeMesh {
+  return meshing.mesh(resolve(shape), options);
+}
+
+/** Mesh the edges of a shape for wireframe rendering. */
+export function meshEdges(
+  shape: Shapeable<AnyShape<Dimension>>,
+  options?: meshing.MeshOptions & { cache?: boolean }
+): meshing.EdgeMesh {
+  return meshing.meshEdges(resolve(shape), options);
+}
+
+/** Get a summary description of a shape. */
+export function describe(shape: Shapeable<AnyShape<Dimension>>): transforms.ShapeDescription {
+  return transforms.describe(resolve(shape));
+}
+
+/** Serialize a shape to BREP format. */
+export function toBREP(shape: Shapeable<AnyShape<Dimension>>): Result<string> {
+  return transforms.toBREP(resolve(shape));
+}
+
+/** Deserialize a shape from BREP format. */
+export function fromBREP(data: string): Result<AnyShape<Dimension>> {
+  return casting.fromBREP(data);
+}
+
+/** Check if a shape is valid. */
+export function isValid(shape: Shapeable<AnyShape<Dimension>>): boolean {
+  return healing.isValid(resolve(shape));
+}
+
+/** Check if a shape is empty (null). */
+export function isEmpty(shape: Shapeable<AnyShape<Dimension>>): boolean {
+  return transforms.isEmpty(resolve(shape));
+}

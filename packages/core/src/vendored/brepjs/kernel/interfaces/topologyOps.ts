@@ -1,0 +1,64 @@
+/**
+ * KernelTopologyOps — topological introspection and iteration.
+ *
+ * Covers shape iteration, type checking, identity comparison, hashing,
+ * orientation queries, and adjacency queries. Analogous to OCCT's
+ * TopExp_Explorer and BRepTools packages.
+ */
+
+import type { KernelShape, ShapeOrientation, ShapeType } from '../../kernel/types.js';
+
+export interface KernelTopologyOps {
+  /** Iterate sub-shapes of a given type. */
+  iterShapes(shape: KernelShape, type: ShapeType): KernelShape[];
+  /** Iterate a TopTools_ListOfShape, calling a callback for each item. */
+  iterShapeList(list: KernelShape, callback: (item: KernelShape) => void): void;
+  /** Get the topological type of a shape. */
+  shapeType(shape: KernelShape): ShapeType;
+  /** Test if two shapes are the same topological entity. */
+  isSame(a: KernelShape, b: KernelShape): boolean;
+  /** Test if two shapes are geometrically equal (same location + orientation). */
+  isEqual(a: KernelShape, b: KernelShape): boolean;
+  /** Downcast a shape to a more specific type (e.g., TopoDS_Shape → TopoDS_Edge). */
+  downcast(shape: KernelShape, type?: ShapeType): KernelShape;
+  /**
+   * Return an independently-disposable duplicate of a shape.
+   *
+   * `downcast` is a *cast*, not a copy: on the occt-wasm arena kernel a
+   * same-type downcast returns the very same handle id, so disposing the
+   * "copy" would free the source. `copyShape` guarantees a handle that can be
+   * disposed without affecting the source — a real geometric copy where a
+   * primitive exists (occt-wasm `k.copy`), or the safe existing duplicate on
+   * kernels that never free handles individually (brepkit/manifold) or share
+   * refcounted geometry (occt Embind).
+   */
+  copyShape(shape: KernelShape): KernelShape;
+  /** Compute a hash code for a shape (used for face tracking). */
+  hashCode(shape: KernelShape, upperBound: number): number;
+  /**
+   * Count sub-shapes of a type without allocating a handle per sub-shape.
+   * Optional native fast path (occt-wasm >= 3.7.0); absent kernels fall back to
+   * iterating handles. See the topology-layer `subShapeCount` wrapper.
+   */
+  subShapeCount?(shape: KernelShape, type: ShapeType): number;
+  /**
+   * Deduplicated sub-shape hashes at `hashUpperBound`, with no per-sub-shape
+   * handle allocation. Hashes agree with {@link hashCode} at the same bound.
+   * Optional native fast path (occt-wasm >= 3.7.0). See the topology-layer
+   * `subShapeHashes` wrapper.
+   */
+  subShapeHashes?(shape: KernelShape, type: ShapeType, hashUpperBound: number): number[];
+  /** Check if a shape handle is null. */
+  isNull(shape: KernelShape): boolean;
+  /** Get the orientation of a shape (forward, reversed, internal, external). */
+  shapeOrientation(shape: KernelShape): ShapeOrientation;
+  /** Get edge-to-face adjacency map as JSON. */
+  edgeToFaceMap(shape: KernelShape): string;
+  /** Get shared edges between two faces. */
+  sharedEdges(faceA: KernelShape, faceB: KernelShape): KernelShape[];
+  /** Get faces adjacent to a given face within a shape. */
+  adjacentFaces(shape: KernelShape, face: KernelShape): KernelShape[];
+
+  /** Sew shapes together at shared edges. */
+  sew(shapes: KernelShape[], tolerance?: number): KernelShape;
+}

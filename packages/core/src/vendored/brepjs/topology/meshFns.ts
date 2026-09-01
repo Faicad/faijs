@@ -1,0 +1,570 @@
+/**
+ * Meshing and export functions — functional replacements for Shape mesh/export methods.
+ */
+
+import { getKernel } from '../kernel/index.js';
+import { qualityDeflection } from '../kernel/quality.js';
+import type { AnyShape, Dimension } from '../core/shapeTypes.js';
+import { type Result, ok, err } from '../core/result.js';
+import { ioError, type BrepError } from '../core/errors.js';
+
+import {
+  buildMeshCacheKey,
+  getMeshForShape,
+  setMeshForShape,
+  buildEdgeMeshCacheKey,
+  getEdgeMeshForShape,
+  setEdgeMeshForShape,
+} from './meshCache.js';
+import { getFaceOrigins } from './shapeFns.js';
+import { getBounds, getSolids } from './topologyQueryFns.js';
+
+// ---------------------------------------------------------------------------
+// Mesh types
+// ---------------------------------------------------------------------------
+
+/** Triangle mesh data extracted from a shape, ready for GPU rendering. */
+export interface ShapeMesh {
+  /** Triangle vertex indices (3 per triangle). */
+  triangles: Uint32Array;
+  /** Flat array of vertex positions (x,y,z interleaved). */
+  vertices: Float32Array;
+  /** Flat array of vertex normals (x,y,z interleaved). */
+  normals: Float32Array;
+  /** Flat array of UV coordinates (u,v interleaved), empty if not requested. */
+  uvs: Float32Array;
+  /** Per-face triangle index ranges for multi-material rendering. */
+  faceGroups: { start: number; count: number; faceId: number; origin: number }[];
+}
+
+/** Line segment mesh data for edge rendering (wireframe). */
+export interface EdgeMesh {
+  /** Flat array of line vertex positions (x,y,z interleaved, 2 vertices per segment). */
+  lines: Float32Array;
+  /** Per-edge line segment index ranges for highlighting individual edges. */
+  edgeGroups: { start: number; count: number; edgeId: number }[];
+}
+
+/** Shared options for meshing operations. */
+export interface MeshOptions {
+  /** Linear deflection tolerance. Smaller = finer mesh. Defaults to the active
+   *  quality level, scaled with the shape's bounding-box diagonal beyond 10
+   *  model units so default meshes stay scale-invariant. */
+  tolerance?: number;
+  /** Angular deflection tolerance in radians. Smaller = finer mesh on curved surfaces. Defaults to the active quality level. */
+  angularTolerance?: number;
+  /** Abort signal to cancel mesh generation between face iterations. */
+  signal?: AbortSignal;
+}
+
+// Beyond this bounding-box diagonal (model units) the default deflection grows
+// linearly with size, keeping default meshes scale-invariant; below it the
+// absolute tier default applies unchanged. Quality deflections are absolute
+// model units tuned for ~unit-scale parts: adopting them unscaled at BIM
+// (mm) scale explodes a curved surface into 10^5-10^6 triangles and can
+// exhaust the WASM heap.
+const SCALE_INVARIANT_DIAGONAL = 10;
+
+export function scaleDefaultTolerance(base: number, shape: AnyShape<Dimension>): number {
+  let diagonal: number;
+  try {
+    const b = getBounds(shape);
+    const dx = b.xMax - b.xMin;
+    const dy = b.yMax - b.yMin;
+    const dz = b.zMax - b.zMin;
+    diagonal = Math.sqrt(dx * dx + dy * dy + dz * dz);
+  } catch {
+    return base;
+  }
+  return base * Math.max(1, diagonal / SCALE_INVARIANT_DIAGONAL);
+}
+
+// ---------------------------------------------------------------------------
+// Triangle mesh
+// ---------------------------------------------------------------------------
+
+/**
+ * Mesh a shape as a set of triangles for rendering.
+ *
+ * Results are cached by default (keyed by shape identity + tolerance parameters).
+ * Delegates to the kernel adapter's bulk C++ mesh extraction for performance.
+ *
+ * @returns A ShapeMesh containing typed arrays ready for GPU upload.
+ * @see toBufferGeometryData — convert to Three.js BufferGeometry format
+ */
+export function mesh(
+  shape: AnyShape<Dimension>,
+  opts: MeshOptions & { skipNormals?: boolean; includeUVs?: boolean; cache?: boolean } = {}
+): ShapeMesh {
+  // Unspecified deflection defaults to the active quality level (see
+  // withQuality / withTier), scaled with the shape's size beyond a 10-unit
+  // bounding diagonal (see scaleDefaultTolerance). The resolved value is a
+  // pure function of the shape, so it keys the cache like an explicit one.
+  const quality = qualityDeflection();
+  const {
+    tolerance = scaleDefaultTolerance(quality.tolerance, shape),
+    angularTolerance = quality.angularTolerance,
+    skipNormals = false,
+    includeUVs = false,
+    cache = true,
+    signal,
+  } = opts;
+  signal?.throwIfAborted();
+  // Check cache first (uses WeakMap keyed by shape object to avoid hash collisions)
+  const cacheKey = buildMeshCacheKey(tolerance, angularTolerance, skipNormals, includeUVs);
+  if (cache) {
+    const cached = getMeshForShape(shape.wrapped, cacheKey);
+    if (cached) return cached;
+  }
+
+  const result = getKernel().mesh(shape.wrapped, {
+    tolerance,
+    angularTolerance,
+    skipNormals,
+    includeUVs,
+    ...(signal ? { signal } : {}),
+  });
+
+  const origins = getFaceOrigins(shape);
+  const mesh: ShapeMesh = {
+    vertices: result.vertices,
+    normals: result.normals,
+    triangles: result.triangles,
+    uvs: result.uvs,
+    faceGroups: result.faceGroups.map((g) => ({
+      start: g.start,
+      count: g.count,
+      faceId: g.faceHash,
+      origin: origins?.get(g.faceHash) ?? 0,
+    })),
+  };
+
+  // Store in cache
+  if (cache) {
+    setMeshForShape(shape.wrapped, cacheKey, mesh);
+  }
+
+  return mesh;
+}
+
+// ---------------------------------------------------------------------------
+// Edge mesh (line segments)
+// ---------------------------------------------------------------------------
+
+/**
+ * Mesh the edges of a shape as line segments for wireframe rendering.
+ *
+ * Results are cached by default (keyed by shape identity + tolerance parameters).
+ *
+ * @returns An EdgeMesh containing line vertex positions and per-edge groups.
+ * @see toLineGeometryData — convert to Three.js LineSegments format
+ */
+export function meshEdges(
+  shape: AnyShape<Dimension>,
+  opts: MeshOptions & { cache?: boolean } = {}
+): EdgeMesh {
+  // Default deflection follows mesh(): quality level, scale-relative.
+  const quality = qualityDeflection();
+  const {
+    tolerance = scaleDefaultTolerance(quality.tolerance, shape),
+    angularTolerance = quality.angularTolerance,
+    cache = true,
+  } = opts;
+  // Check cache first (uses WeakMap keyed by shape object to avoid hash collisions)
+  const cacheKey = buildEdgeMeshCacheKey(tolerance, angularTolerance);
+  if (cache) {
+    const cached = getEdgeMeshForShape(shape.wrapped, cacheKey);
+    if (cached) return cached;
+  }
+
+  const kernelResult = getKernel().meshEdges(shape.wrapped, tolerance, angularTolerance);
+
+  const result: EdgeMesh = {
+    lines: kernelResult.lines,
+    edgeGroups: kernelResult.edgeGroups.map((g) => ({
+      start: g.start,
+      count: g.count,
+      edgeId: g.edgeHash,
+    })),
+  };
+
+  // Store in cache
+  if (cache) {
+    setEdgeMeshForShape(shape.wrapped, cacheKey, result);
+  }
+
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// File export
+// ---------------------------------------------------------------------------
+
+/**
+ * Export a shape as a STEP file Blob.
+ *
+ * @returns Ok with a Blob (MIME type `application/STEP`), or Err on failure.
+ */
+/**
+ * Classify a thrown export error into three distinct cases:
+ * - the kernel throws "<FMT> export failed:" when the writer reports a non-success status;
+ * - a `WebAssembly.RuntimeError` means the writer trapped on geometry it could not serialize
+ *   (e.g. a degenerate sub-shape) — this can corrupt the kernel for the rest of the session,
+ *   so it must not be silently relabelled as a file-read issue;
+ * - anything else is an FS read failure on the V7 file path (write succeeded, readback threw).
+ */
+function exportError(e: unknown, fmt: 'STEP' | 'STL'): BrepError {
+  if (e instanceof Error && e.message.startsWith(`${fmt} export failed`)) {
+    return ioError(`${fmt}_EXPORT_FAILED`, `Failed to write ${fmt} file`, e);
+  }
+  if (e instanceof WebAssembly.RuntimeError) {
+    return ioError(
+      `${fmt}_EXPORT_CRASHED`,
+      `${fmt} export crashed the kernel (${e.message}); the shape likely contains geometry the ${fmt} writer cannot serialize`,
+      e
+    );
+  }
+  return ioError(`${fmt}_FILE_READ_ERROR`, `Failed to read exported ${fmt} file`, e);
+}
+
+/**
+ * When a compound's bounds probe fails, localize the offending sub-solid(s) so the
+ * caller can heal or drop them. Returns a suffix for the error message; empty when
+ * the shape is a single solid or localization itself fails. Only reached on the
+ * error path, so the extra per-solid probes cost nothing in the happy case.
+ */
+function describeOffendingSolids(shape: AnyShape<Dimension>): string {
+  let solids;
+  try {
+    solids = getSolids(shape);
+  } catch {
+    return '';
+  }
+  if (solids.length <= 1) return '';
+  const bad: number[] = [];
+  solids.forEach((solid, i) => {
+    try {
+      getBounds(solid);
+    } catch (e) {
+      // Mirror probeSerializable: a TypeError is a programming bug, not degenerate geometry.
+      if (e instanceof TypeError) throw e;
+      bad.push(i);
+    }
+  });
+  if (bad.length === 0) {
+    return `; could not localize the offending sub-solid among ${solids.length} solids`;
+  }
+  return `; offending sub-solid${bad.length > 1 ? 's' : ''} (of ${solids.length}): index ${bad.join(', ')}`;
+}
+
+/**
+ * Probe a shape's bounding box before handing it to the STEP/STL writer.
+ *
+ * Some sub-shapes pass `isValid`/`validSolid` yet are degenerate enough that the
+ * OCCT writer traps with a `WebAssembly.RuntimeError` (OOB) mid-transfer — which
+ * corrupts the Emscripten heap and poisons the kernel for the rest of the session
+ * (#1126). `getBounds` exercises the same geometry but fails *catchably*, so a
+ * cheap pre-export probe lets us return a clean `Err` instead of crashing.
+ * Heuristic, not universal: it only catches shapes whose bounding-box evaluation
+ * also throws.
+ *
+ * Note: the canonical #1126 shape (an annular-sector tread fused with a frenet
+ * helical rail) is NOT caught here — `getBounds` *succeeds* on it, as do
+ * `isValid`/`validSolid`/`mesh`/`measureArea`, and `autoHeal` cannot repair it.
+ * No known non-trapping check detects that BOPAlgo corruption; the only safety net
+ * for it is `exportError` classifying the writer's `WebAssembly.RuntimeError` as
+ * `*_EXPORT_CRASHED`. A real fix must come from the kernel (OCCT BOPAlgo).
+ */
+function probeSerializable(shape: AnyShape<Dimension>, fmt: 'STEP' | 'STL'): BrepError | null {
+  try {
+    getBounds(shape);
+    return null;
+  } catch (e) {
+    // A TypeError signals a caller/programming bug (e.g. a malformed handle), not
+    // unserializable geometry — let it surface rather than masking it as an export error.
+    if (e instanceof TypeError) throw e;
+    return ioError(
+      `${fmt}_EXPORT_UNSERIALIZABLE`,
+      `${fmt} export aborted: the shape contains degenerate geometry the ${fmt} writer cannot serialize (bounding-box evaluation failed); export was skipped to avoid crashing the kernel${describeOffendingSolids(shape)}`,
+      e
+    );
+  }
+}
+
+export function exportSTEP(shape: AnyShape<Dimension>): Result<Blob> {
+  const unserializable = probeSerializable(shape, 'STEP');
+  if (unserializable) return err(unserializable);
+  try {
+    const stepString = getKernel().exportSTEP([shape.wrapped]);
+    return ok(new Blob([stepString], { type: 'application/STEP' }));
+  } catch (e) {
+    return err(exportError(e, 'STEP'));
+  }
+}
+
+/**
+ * Export a shape as an STL file Blob.
+ *
+ * @returns Ok with a Blob (MIME type `application/sla`), or Err on failure.
+ */
+export function exportSTL(
+  shape: AnyShape<Dimension>,
+  opts: MeshOptions & { binary?: boolean } = {}
+): Result<Blob> {
+  // Default deflection follows mesh(): quality level, scale-relative.
+  const quality = qualityDeflection();
+  const {
+    tolerance = scaleDefaultTolerance(quality.tolerance, shape),
+    angularTolerance = quality.angularTolerance,
+    binary = false,
+  } = opts;
+  const unserializable = probeSerializable(shape, 'STL');
+  if (unserializable) return err(unserializable);
+  try {
+    // Ensure shape has triangulation before export
+    if (!getKernel().hasTriangulation(shape.wrapped)) {
+      getKernel().meshShape(shape.wrapped, tolerance, angularTolerance);
+    }
+    const stlData = getKernel().exportSTL(shape.wrapped, binary, tolerance, angularTolerance);
+    return ok(new Blob([stlData], { type: 'application/sla' }));
+  } catch (e) {
+    return err(exportError(e, 'STL'));
+  }
+}
+
+/**
+ * Export a shape as an IGES file Blob.
+ *
+ * @returns Ok with a Blob (MIME type `application/iges`), or Err on failure.
+ */
+export function exportIGES(shape: AnyShape<Dimension>): Result<Blob> {
+  try {
+    const igesString = getKernel().exportIGES([shape.wrapped]);
+    return ok(new Blob([igesString], { type: 'application/iges' }));
+  } catch (e) {
+    return err(ioError('IGES_EXPORT_FAILED', 'Failed to write IGES file', e));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Multi-LOD meshing
+// ---------------------------------------------------------------------------
+
+export interface MultiLODMesh {
+  readonly coarse: ShapeMesh;
+  readonly fine: ShapeMesh;
+}
+
+/**
+ * Produce coarse (preview) + fine (export) meshes for a shape.
+ *
+ * Coarse mesh uses high tolerance for fast preview rendering.
+ * Fine mesh uses low tolerance for export quality.
+ */
+export function meshMultiLOD(
+  shape: AnyShape<Dimension>,
+  options?: {
+    readonly coarseTolerance?: number | undefined;
+    readonly fineTolerance?: number | undefined;
+    readonly angularTolerance?: number | undefined;
+  }
+): MultiLODMesh {
+  const coarseTol = options?.coarseTolerance ?? 0.5;
+  const fineTol = options?.fineTolerance ?? 0.05;
+  const angTol = options?.angularTolerance ?? 0.5;
+
+  const coarse = mesh(shape, { tolerance: coarseTol, angularTolerance: angTol });
+  const fine = mesh(shape, { tolerance: fineTol, angularTolerance: angTol * 0.2 });
+
+  return { coarse, fine };
+}
+
+// ---------------------------------------------------------------------------
+// N-level scale-relative LOD meshing
+// ---------------------------------------------------------------------------
+
+/** One level of a multi-resolution mesh: the geometry plus the tolerances it was meshed at. */
+export interface LODMesh {
+  /** Linear deflection (model units) used for this level. */
+  readonly tolerance: number;
+  /** Angular deflection (radians) used for this level. */
+  readonly angularTolerance: number;
+  /** The meshed geometry at this level. */
+  readonly mesh: ShapeMesh;
+}
+
+/** Options for {@link meshLODs}. */
+export interface MeshLODsOptions {
+  /** Number of levels, coarsest → finest (>= 1). Default 3. Ignored when `tolerances` is given. */
+  readonly levels?: number;
+  /**
+   * The finest level's linear tolerance as a fraction of the shape's bounding-box
+   * diagonal, so detail is scale-invariant across part sizes. Default 0.0005
+   * (0.05% of the diagonal). Ignored when `tolerances` is given.
+   */
+  readonly relativeTolerance?: number;
+  /**
+   * Geometric ratio between successive levels: each coarser level's tolerance is
+   * `spacing`× the next finer one. Default 4. Ignored when `tolerances` is given.
+   */
+  readonly spacing?: number;
+  /** Explicit absolute linear tolerances (one per level). Overrides `levels`/`relativeTolerance`/`spacing`; sorted coarse → fine. */
+  readonly tolerances?: readonly number[];
+  /** The finest level's angular deflection (radians). Defaults to the active quality level; coarser levels scale up with the tolerance ratio (capped at 1 rad). */
+  readonly angularTolerance?: number;
+  /** Abort signal forwarded to each level's mesh call. */
+  readonly signal?: AbortSignal;
+  /** Whether to use the mesh cache per level. Default true. */
+  readonly cache?: boolean;
+}
+
+function boundsDiagonal(shape: AnyShape<Dimension>): number {
+  const b = getBounds(shape);
+  const dx = b.xMax - b.xMin;
+  const dy = b.yMax - b.yMin;
+  const dz = b.zMax - b.zMin;
+  // Fall back to 1 for a degenerate/empty bbox so relative tolerance stays positive.
+  return Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
+}
+
+/** Per-level linear tolerances for a LOD ladder, coarse (large) → fine (small). */
+function lodTolerances(shape: AnyShape<Dimension>, options: MeshLODsOptions): number[] {
+  let tolerances: number[];
+  if (options.tolerances && options.tolerances.length > 0) {
+    tolerances = [...options.tolerances];
+  } else {
+    const levels = Math.max(1, Math.floor(options.levels ?? 3));
+    const spacing = options.spacing ?? 4;
+    const relative = options.relativeTolerance ?? 0.0005;
+    const finest = relative * boundsDiagonal(shape) || Number.EPSILON;
+    tolerances = [];
+    for (let i = levels - 1; i >= 0; i--) tolerances.push(finest * spacing ** i);
+  }
+  // Sorted so the documented coarse → fine order holds for explicit input and a spacing < 1.
+  tolerances.sort((a, b) => b - a);
+  return tolerances;
+}
+
+/** A level's angular deflection scales with how much coarser it is than the finest (capped at 1 rad). */
+function levelAngular(tolerance: number, finestTol: number, finestAngular: number): number {
+  return Math.min(finestAngular * (tolerance / finestTol), 1);
+}
+
+/**
+ * Mesh a shape at several levels of detail, coarse → fine.
+ *
+ * Tolerances are **scale-relative** by default: the finest level is a fraction
+ * (`relativeTolerance`) of the shape's bounding-box diagonal and each coarser
+ * level steps up by `spacing`×, so the same call gives sensible detail whether
+ * the part is millimetres or metres. Pass `tolerances` for absolute control.
+ * Each level goes through {@link mesh}, so levels are cached individually.
+ *
+ * @returns LOD levels ordered coarsest → finest.
+ * @see toLODGeometryLevels — convert to THREE.LOD geometry data
+ */
+export function meshLODs(shape: AnyShape<Dimension>, options: MeshLODsOptions = {}): LODMesh[] {
+  const finestAngular = options.angularTolerance ?? qualityDeflection().angularTolerance;
+  const cache = options.cache ?? true;
+  const tolerances = lodTolerances(shape, options);
+  const finestTol = Math.min(...tolerances);
+  return tolerances.map((tolerance) => {
+    const angularTolerance = levelAngular(tolerance, finestTol, finestAngular);
+    const levelMesh = mesh(shape, {
+      tolerance,
+      angularTolerance,
+      cache,
+      ...(options.signal ? { signal: options.signal } : {}),
+    });
+    return { tolerance, angularTolerance, mesh: levelMesh };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Progressive (async) LOD meshing
+// ---------------------------------------------------------------------------
+
+/**
+ * Mesh one LOD level. Defaults to the synchronous main-thread {@link mesh}; pass
+ * an async implementation (e.g. one that serializes the shape with `toBREP` and
+ * meshes it on a worker) to refine finer levels off the main thread.
+ */
+export type MeshLevelFn = (
+  shape: AnyShape<Dimension>,
+  tolerance: number,
+  angularTolerance: number
+) => ShapeMesh | Promise<ShapeMesh>;
+
+/** Options for {@link meshLODsProgressive}. */
+export interface MeshLODsProgressiveOptions extends MeshLODsOptions {
+  /**
+   * Called as each level finishes, coarsest first, so a viewer can show the
+   * coarse preview immediately and swap in finer meshes as they arrive.
+   */
+  readonly onLevel?: (level: LODMesh, index: number) => void;
+  /** How to mesh one level. Defaults to the synchronous main-thread {@link mesh}. */
+  readonly meshLevel?: MeshLevelFn;
+}
+
+function nextTick(): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, 0);
+  });
+}
+
+/**
+ * Mesh a shape at several levels of detail, delivering them over time coarse →
+ * fine instead of all at once — so a viewer paints the coarse preview first and
+ * refines as finer levels land.
+ *
+ * The coarsest level is meshed first and reported via `onLevel`; control then
+ * yields to the event loop before each finer (heavier) level so the UI stays
+ * responsive. Each level is meshed synchronously on the calling thread by
+ * default; pass `meshLevel` to offload finer levels (e.g. to a worker). An
+ * aborted `signal` stops refinement and resolves with the levels produced so far.
+ *
+ * @returns the delivered LOD levels, coarsest → finest.
+ * @see meshLODs — the synchronous, all-at-once variant
+ */
+export async function meshLODsProgressive(
+  shape: AnyShape<Dimension>,
+  options: MeshLODsProgressiveOptions = {}
+): Promise<LODMesh[]> {
+  const finestAngular = options.angularTolerance ?? qualityDeflection().angularTolerance;
+  const cache = options.cache ?? true;
+  const meshLevel: MeshLevelFn =
+    options.meshLevel ??
+    ((s, tolerance, angularTolerance) =>
+      mesh(s, {
+        tolerance,
+        angularTolerance,
+        cache,
+        ...(options.signal ? { signal: options.signal } : {}),
+      }));
+
+  const tolerances = lodTolerances(shape, options);
+  const finestTol = Math.min(...tolerances);
+  const results: LODMesh[] = [];
+
+  for (const [index, tolerance] of tolerances.entries()) {
+    if (options.signal?.aborted) break;
+    const angularTolerance = levelAngular(tolerance, finestTol, finestAngular);
+    let levelMesh: ShapeMesh;
+    try {
+      levelMesh = await meshLevel(shape, tolerance, angularTolerance);
+    } catch (e) {
+      // An async (e.g. worker-backed) meshLevel may reject when it observes the
+      // abort; treat that as a clean stop and keep the levels already produced.
+      // Rethrow a genuine meshing failure.
+      if (options.signal?.aborted) break;
+      throw e;
+    }
+    // A level that finished meshing is always delivered; abort stops the next one.
+    const level: LODMesh = { tolerance, angularTolerance, mesh: levelMesh };
+    results.push(level);
+    options.onLevel?.(level, index);
+    if (options.signal?.aborted || index === tolerances.length - 1) break;
+    // Yield before the next (finer, heavier) level so the caller can paint.
+    await nextTick();
+  }
+  return results;
+}

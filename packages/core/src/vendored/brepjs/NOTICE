@@ -1,0 +1,14 @@
+faijs — vendored brepjs port
+============================
+
+This directory contains code ported from the `brepjs` project
+(https://github.com/OpenCascade/brepjs), which is licensed under the
+Apache License 2.0.
+
+Ported as of brepjs commit 8685273a (locked upstream reference, O10; no
+two-way sync).
+Ported files retain their original Apache-2.0 attribution. The faijs root
+package and `@faicad/faijs-core` are licensed under the Apache License 2.0
+(SLIC window, O13).
+
+Full license text: https://www.apache.org/licenses/LICENSE-2.0

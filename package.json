@@ -54,7 +54,7 @@
     "dist/"
   ],
   "description": "Faicad CAD execution engine — faijs language parser, BREP/mesh geometry ops, CadRuntime",
-  "license": "LGPL-2.0-only",
+  "license": "Apache-2.0",
   "keywords": [
     "cad",
     "faijs",

@@ -1,0 +1,282 @@
+/**
+ * Rust-inspired Result<T, E> type for explicit error handling.
+ * Zero internal imports — this is a pure foundation module.
+ */
+
+import type { BrepError } from './errors.js';
+
+// ---------------------------------------------------------------------------
+// Core types
+// ---------------------------------------------------------------------------
+
+export interface Ok<T> {
+  readonly ok: true;
+  readonly value: T;
+}
+
+export interface Err<E> {
+  readonly ok: false;
+  readonly error: E;
+}
+
+export type Result<T, E = BrepError> = Ok<T> | Err<E>;
+
+export type Unit = undefined;
+
+// ---------------------------------------------------------------------------
+// Constructors
+// ---------------------------------------------------------------------------
+
+export function ok<T>(value: T): Ok<T> {
+  return { ok: true, value };
+}
+
+export function err<E>(error: E): Err<E> {
+  return { ok: false, error };
+}
+
+export const OK: Ok<Unit> = ok(undefined);
+
+// ---------------------------------------------------------------------------
+// Type guards
+// ---------------------------------------------------------------------------
+
+export function isOk<T, E>(result: Result<T, E>): result is Ok<T> {
+  return result.ok;
+}
+
+export function isErr<T, E>(result: Result<T, E>): result is Err<E> {
+  return !result.ok;
+}
+
+// ---------------------------------------------------------------------------
+// Combinators
+// ---------------------------------------------------------------------------
+
+export function map<T, U, E>(result: Result<T, E>, fn: (value: T) => U): Result<U, E> {
+  if (result.ok) return ok(fn(result.value));
+  return result;
+}
+
+export function mapErr<T, E, F>(result: Result<T, E>, fn: (error: E) => F): Result<T, F> {
+  if (result.ok) return result;
+  return err(fn(result.error));
+}
+
+export function andThen<T, U, E>(
+  result: Result<T, E>,
+  fn: (value: T) => Result<U, E>
+): Result<U, E> {
+  if (result.ok) return fn(result.value);
+  return result;
+}
+
+/** Alias for andThen */
+export const flatMap = andThen;
+
+/** Return `a` if Ok, otherwise return `b`. */
+export function or<T, E, F>(a: Result<T, E>, b: Result<T, F>): Result<T, F> {
+  if (a.ok) return a;
+  return b;
+}
+
+/** Return `result` if Ok, otherwise call `fn` with the error and return its result. */
+export function orElse<T, E, F>(
+  result: Result<T, E>,
+  fn: (error: E) => Result<T, F>
+): Result<T, F> {
+  if (result.ok) return result;
+  return fn(result.error);
+}
+
+/** Combine two independent Results into a Result of a tuple. */
+export function zip<A, B, E>(a: Result<A, E>, b: Result<B, E>): Result<[A, B], E> {
+  if (!a.ok) return a;
+  if (!b.ok) return b;
+  return ok([a.value, b.value]);
+}
+
+/** Collect an array of Results into a Result of an array. Alias for {@link collect}. */
+export const all = collect;
+
+/** Run a side-effect on an Ok value without transforming the result. */
+export function tap<T, E>(result: Result<T, E>, fn: (value: T) => void): Result<T, E> {
+  if (result.ok) fn(result.value);
+  return result;
+}
+
+/** Run a side-effect on an Err value without transforming the result. */
+export function tapErr<T, E>(result: Result<T, E>, fn: (error: E) => void): Result<T, E> {
+  if (!result.ok) fn(result.error);
+  return result;
+}
+
+/** Flatten a nested Result<Result<T, E>, E> into Result<T, E>. */
+export function flatten<T, E>(result: Result<Result<T, E>, E>): Result<T, E> {
+  return result.ok ? result.value : result;
+}
+
+/** Map both Ok and Err variants in a single pass. */
+export function mapBoth<T, U, E, F>(
+  result: Result<T, E>,
+  okFn: (value: T) => U,
+  errFn: (error: E) => F
+): Result<U, F> {
+  return result.ok ? ok(okFn(result.value)) : err(errFn(result.error));
+}
+
+/** Convert a nullable value to a Result, using `errorFn` to produce the error for null/undefined. */
+export function fromNullable<T, E>(value: T | null | undefined, errorFn: () => E): Result<T, E> {
+  if (value === null || value === undefined) return err(errorFn());
+  return ok(value);
+}
+
+// ---------------------------------------------------------------------------
+// Extraction
+// ---------------------------------------------------------------------------
+
+/** Format an error for display, handling BrepError objects specially */
+function formatError(error: unknown): string {
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'kind' in error &&
+    'code' in error &&
+    'message' in error
+  ) {
+    // BrepError-like object
+    const e = error as { kind: string; code: string; message: string };
+    return `[${e.kind}] ${e.code}: ${e.message}`;
+  }
+  return String(error);
+}
+
+export function unwrap<T, E>(result: Result<T, E>): T {
+  if (result.ok) return result.value;
+  throw new Error(`Called unwrap() on an Err: ${formatError(result.error)}`);
+}
+
+export function unwrapOr<T, E>(result: Result<T, E>, defaultValue: T): T {
+  if (result.ok) return result.value;
+  return defaultValue;
+}
+
+export function unwrapOrElse<T, E>(result: Result<T, E>, fn: (error: E) => T): T {
+  if (result.ok) return result.value;
+  return fn(result.error);
+}
+
+export function unwrapErr<T, E>(result: Result<T, E>): E {
+  if (!result.ok) return result.error;
+  throw new Error(`Called unwrapErr() on an Ok: ${String(result.value)}`);
+}
+
+// ---------------------------------------------------------------------------
+// Pattern matching
+// ---------------------------------------------------------------------------
+
+export function match<T, E, U>(
+  result: Result<T, E>,
+  handlers: { ok: (value: T) => U; err: (error: E) => U }
+): U {
+  if (result.ok) return handlers.ok(result.value);
+  return handlers.err(result.error);
+}
+
+// ---------------------------------------------------------------------------
+// Collection
+// ---------------------------------------------------------------------------
+
+/**
+ * Collects an array of Results into a Result of an array.
+ * Short-circuits on the first Err.
+ */
+export function collect<T, E>(results: Result<T, E>[]): Result<T[], E> {
+  const values: T[] = [];
+  for (const result of results) {
+    if (!result.ok) return result;
+    values.push(result.value);
+  }
+  return ok(values);
+}
+
+// ---------------------------------------------------------------------------
+// Try-catch boundary
+// ---------------------------------------------------------------------------
+
+/**
+ * Wraps a throwing function into a Result.
+ * The mapError function converts the caught exception into the error type.
+ */
+export function tryCatch<T, E>(fn: () => T, mapError: (error: unknown) => E): Result<T, E> {
+  try {
+    return ok(fn());
+  } catch (e: unknown) {
+    return err(mapError(e));
+  }
+}
+
+/**
+ * Wraps an async throwing function into a Result.
+ * The mapError function converts the caught exception into the error type.
+ */
+export async function tryCatchAsync<T, E>(
+  fn: () => Promise<T>,
+  mapError: (error: unknown) => E
+): Promise<Result<T, E>> {
+  try {
+    return ok(await fn());
+  } catch (e: unknown) {
+    return err(mapError(e));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Pipeline combinator
+// ---------------------------------------------------------------------------
+
+/** A chainable pipeline that short-circuits on the first Err. */
+export interface ResultPipeline<T, E> {
+  /** Chain a Result-returning transform. Short-circuits on Err. */
+  then<U>(fn: (value: T) => Result<U, E>): ResultPipeline<U, E>;
+  /** Extract the final Result. */
+  readonly result: Result<T, E>;
+}
+
+/**
+ * Create a chainable pipeline from a value or Result.
+ *
+ * ```ts
+ * pipeline(shape)
+ *   .then(s => filletShape(s, edges, 2))
+ *   .then(s => shellShape(s, [topFace], 1))
+ *   .result  // → Result<Shape3D>
+ * ```
+ */
+export function pipeline<T, E = BrepError>(input: T | Result<T, E>): ResultPipeline<T, E> {
+  // Detect Result objects by checking the 'ok' discriminant is a boolean
+  function isResult(v: unknown): v is Result<T, E> {
+    return (
+      typeof v === 'object' &&
+      v !== null &&
+      'ok' in v &&
+      typeof (v as Record<string, unknown>)['ok'] === 'boolean'
+    );
+  }
+
+  const initial: Result<T, E> = isResult(input) ? input : ok(input);
+
+  function makePipeline<U>(current: Result<U, E>): ResultPipeline<U, E> {
+    return {
+      then<V>(fn: (value: U) => Result<V, E>): ResultPipeline<V, E> {
+        if (!current.ok) return makePipeline(current as Result<V, E>);
+        return makePipeline(fn(current.value));
+      },
+      get result(): Result<U, E> {
+        return current;
+      },
+    };
+  }
+
+  return makePipeline(initial);
+}

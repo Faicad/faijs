@@ -104,7 +104,7 @@ $elapsed3 = (Get-Date) - $start3
 $total3 = (Get-Date) - $script:globalStart
 Write-Host "    ($($elapsed3.TotalSeconds.ToString('0.0'))s / 累计 $($total3.TotalSeconds.ToString('0.0'))s)" -ForegroundColor DarkGray
 
-Step -Label '5/9  守卫：幽灵依赖 / workspaces 顺序 / 包图无环 / 导出面' -Block {
+Step -Label '5/9  守卫：幽灵依赖 / workspaces 顺序 / 包图无环 / 导出面 / P1 移植树' -Block {
     node scripts/check-ghost-deps.mjs
     if ($LASTEXITCODE -ne 0) { return }
     node scripts/check-workspaces-order.mjs
@@ -113,6 +113,11 @@ Step -Label '5/9  守卫：幽灵依赖 / workspaces 顺序 / 包图无环 / 导
     if ($LASTEXITCODE -ne 0) { return }
     # 导出面：11 个子路径必须全部可导入（快照脚本自身断言；有 error 即失败）
     node scripts/api-surface-snapshot.mjs
+    if ($LASTEXITCODE -ne 0) { return }
+    # P1：vendored/brepjs 移植树——D9 独立严格编译 + D8 层边界
+    npx tsc --noEmit -p packages/core/tsconfig.vendored.json
+    if ($LASTEXITCODE -ne 0) { return }
+    node scripts/check-layer-boundaries.mjs
 }
 
 Step -Label '6/9  demo e2e（dev server 模式，M7 链路）' -Block {

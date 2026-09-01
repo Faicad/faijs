@@ -1,0 +1,26 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "noEmit": true,
+    "types": [
+      "node"
+    ],
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "paths": {}
+  },
+  "include": ["src/vendored/brepjs/**/*.ts"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test-d.ts"]
+}

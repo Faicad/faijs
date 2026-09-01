@@ -11,6 +11,11 @@ export * from '@faicad/faijs-core'
 import { createRuntime as createRuntimeCore, type HostPorts, type ExecutionMode, type CadRuntime } from '@faicad/faijs-core'
 import { createInternalStdlib } from '@faicad/faijs-stdlib/internal-stdlib'
 
+// ── D1-⓪ 桥接：宿主（3d_editor）从 @faicad/faijs/stdlib 迁移到根导出的先行导出。
+//    在 P6（取消 stdlib）之前 drill/engrave 暂从 stdlib re-export，P6 落 L3 后改指 L3 API 面。
+export { drill } from '@faicad/faijs-stdlib'
+export { engrave } from '@faicad/faijs-stdlib'
+
 /**
  * Create a CadRuntime and inject the cad namespace (standard library).
  *

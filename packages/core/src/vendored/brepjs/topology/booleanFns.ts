@@ -1,0 +1,1060 @@
+/**
+ * Boolean and compound operations — functional replacements for _3DShape boolean methods.
+ * All functions are immutable: they return new shapes without disposing inputs.
+ */
+
+import { getKernel } from '../kernel/index.js';
+import type {
+  AnyShape,
+  ClosedWire,
+  Dimension,
+  Edge,
+  OrientedFace,
+  PlanarWire,
+  Shape3D,
+  Vertex,
+  Wire,
+} from '../core/shapeTypes.js';
+import {
+  castShape,
+  castResultShape,
+  disposeDowncastSource,
+  disposeResultShape,
+  getShapeKind,
+  isShape3D,
+} from '../core/shapeTypes.js';
+import { type Result, ok, err, isErr, unwrap } from '../core/result.js';
+import { validationError, typeCastError, kernelError, BrepErrorCode } from '../core/errors.js';
+import type { Plane } from '../core/planeTypes.js';
+import type { PlaneInput } from '../core/planeTypes.js';
+import { resolvePlane } from '../core/planeOps.js';
+import { vecAdd, vecScale, vecSub, vecDot } from '../core/vecOps.js';
+import type { Vec3 } from '../core/types.js';
+import { HASH_CODE_MAX } from '../core/constants.js';
+import { getWires, getEdges, getVertices } from './shapeFns.js';
+import { getAtOrThrow, firstOrThrow } from '../utils/arrayAccess.js';
+import {
+  collectInputFaceHashes,
+  propagateAllMetadata,
+  propagateMetadataByHash,
+} from './metadata/metadataPropagation.js';
+import { makeFace } from './surfaceBuilders.js';
+
+// ---------------------------------------------------------------------------
+// Pre-validation
+// ---------------------------------------------------------------------------
+
+function validateShape3D(shape: Shape3D, label: string): Result<undefined> {
+  if (getKernel().isNull(shape.wrapped)) {
+    return err(validationError(BrepErrorCode.NULL_SHAPE_INPUT, `${label} is a null shape`));
+  }
+  return ok(undefined);
+}
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+import type { BooleanOptions, BooleanDiagnostics, KernelType } from '../kernel/types.js';
+import type { ValidSolid } from '../core/validityTypes.js';
+export type { BooleanOptions };
+
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
+
+function castToShape3D(
+  shape: KernelType,
+  errorCode: string,
+  errorMsg: string,
+  suggestion?: string,
+  diagnostics?: BooleanDiagnostics
+): Result<Shape3D> {
+  const wrapped = castShape(shape);
+  if (!isShape3D(wrapped)) {
+    const typeName = getShapeKind(wrapped).toUpperCase();
+    disposeDowncastSource(shape, wrapped);
+    disposeResultShape(wrapped);
+    return err(
+      typeCastError(
+        errorCode,
+        `${errorMsg}. Got ${typeName} instead.`,
+        undefined,
+        diagnostics ? { diagnostics } : undefined,
+        suggestion
+      )
+    );
+  }
+  disposeDowncastSource(shape, wrapped);
+  return ok(wrapped);
+}
+
+// ---------------------------------------------------------------------------
+// Boolean operations
+// ---------------------------------------------------------------------------
+
+/**
+ * Fuse two 3D shapes together (boolean union). Returns a new shape.
+ *
+ * @param a - The first operand.
+ * @param b - The second operand.
+ * @param options - Boolean operation options.
+ * @returns Ok with the fused shape, or Err if the result is not 3D.
+ *
+ * @example
+ * ```ts
+ * const result = fuse(box, cylinder);
+ * if (isOk(result)) console.log(describe(result.value));
+ * ```
+ */
+export function fuse(a: ValidSolid, b: ValidSolid, options?: BooleanOptions): Result<ValidSolid>;
+export function fuse(
+  a: Shape3D,
+  b: Shape3D,
+  options: BooleanOptions & { unsafe: true }
+): Result<Shape3D>;
+export function fuse(
+  a: Shape3D,
+  b: Shape3D,
+  {
+    optimisation = 'none',
+    simplify = false,
+    signal,
+    fuzzyValue,
+    unsafe: _unsafe,
+    trackEvolution = true,
+  }: BooleanOptions = {}
+): Result<Shape3D> {
+  if (signal?.aborted) throw signal.reason;
+  const checkA = validateShape3D(a, 'fuse: first operand');
+  if (isErr(checkA)) return checkA;
+  const checkB = validateShape3D(b, 'fuse: second operand');
+  if (isErr(checkB)) return checkB;
+
+  if (!trackEvolution) {
+    const resultShape = getKernel().fuse(a.wrapped, b.wrapped, {
+      optimisation,
+      simplify,
+      fuzzyValue,
+    });
+    return castToShape3D(resultShape, 'FUSE_NOT_3D', 'Fuse did not produce a 3D shape');
+  }
+
+  const inputFaceHashes = collectInputFaceHashes([a, b]);
+  const kernelResult = getKernel().fuseWithHistory(
+    a.wrapped,
+    b.wrapped,
+    inputFaceHashes,
+    HASH_CODE_MAX,
+    { optimisation, simplify, fuzzyValue }
+  );
+  const { shape: resultShape, evolution, diagnostics } = kernelResult;
+  if (diagnostics.hasErrors) {
+    if (getKernel().isNull(resultShape)) {
+      getKernel().dispose(resultShape);
+      console.warn(
+        'brepjs: fuse history path produced null result; retrying without evolution tracking.',
+        diagnostics
+      );
+      const fallbackShape = getKernel().fuse(a.wrapped, b.wrapped, {
+        optimisation,
+        simplify,
+        fuzzyValue,
+      });
+      return castToShape3D(fallbackShape, 'FUSE_NOT_3D', 'Fuse did not produce a 3D shape');
+    }
+    console.warn(
+      'brepjs: fuse reported OCCT warnings/errors but produced a shape. Continuing with result.',
+      diagnostics
+    );
+  }
+  const fuseResult = castToShape3D(
+    resultShape,
+    'FUSE_NOT_3D',
+    'Fuse did not produce a 3D shape',
+    'Common causes: overlapping coplanar faces, zero-thickness geometry, or non-manifold input. Try autoHeal() on inputs first.',
+    diagnostics
+  );
+  if (fuseResult.ok) {
+    propagateAllMetadata(evolution, [a, b], fuseResult.value);
+  }
+  return fuseResult;
+}
+
+/**
+ * Cut a tool shape from a base shape (boolean subtraction). Returns a new shape.
+ *
+ * @param base - The shape to cut from.
+ * @param tool - The shape to subtract.
+ * @param options - Boolean operation options.
+ * @returns Ok with the cut shape, or Err if the result is not 3D.
+ *
+ * @example
+ * ```ts
+ * const result = cut(box, hole);
+ * ```
+ */
+export function cut(
+  base: ValidSolid,
+  tool: ValidSolid,
+  options?: BooleanOptions
+): Result<ValidSolid>;
+export function cut(
+  base: Shape3D,
+  tool: Shape3D,
+  options: BooleanOptions & { unsafe: true }
+): Result<Shape3D>;
+export function cut(
+  base: Shape3D,
+  tool: Shape3D,
+  {
+    optimisation = 'none',
+    simplify = false,
+    signal,
+    fuzzyValue,
+    unsafe: _unsafe,
+    trackEvolution = true,
+  }: BooleanOptions = {}
+): Result<Shape3D> {
+  if (signal?.aborted) throw signal.reason;
+  const checkBase = validateShape3D(base, 'cut: base');
+  if (isErr(checkBase)) return checkBase;
+  const checkTool = validateShape3D(tool, 'cut: tool');
+  if (isErr(checkTool)) return checkTool;
+
+  if (!trackEvolution) {
+    const resultShape = getKernel().cut(base.wrapped, tool.wrapped, {
+      optimisation,
+      simplify,
+      fuzzyValue,
+    });
+    return castToShape3D(resultShape, 'CUT_NOT_3D', 'Cut did not produce a 3D shape');
+  }
+
+  const inputFaceHashes = collectInputFaceHashes([base, tool]);
+  const kernelResult = getKernel().cutWithHistory(
+    base.wrapped,
+    tool.wrapped,
+    inputFaceHashes,
+    HASH_CODE_MAX,
+    { optimisation, simplify, fuzzyValue }
+  );
+  const { shape: resultShape, evolution, diagnostics } = kernelResult;
+  if (diagnostics.hasErrors) {
+    if (getKernel().isNull(resultShape)) {
+      getKernel().dispose(resultShape);
+      console.warn(
+        'brepjs: cut history path produced null result; retrying without evolution tracking.',
+        diagnostics
+      );
+      const fallbackShape = getKernel().cut(base.wrapped, tool.wrapped, {
+        optimisation,
+        simplify,
+        fuzzyValue,
+      });
+      return castToShape3D(fallbackShape, 'CUT_NOT_3D', 'Cut did not produce a 3D shape');
+    }
+    console.warn(
+      'brepjs: cut reported OCCT warnings/errors but produced a shape. Continuing with result.',
+      diagnostics
+    );
+  }
+  const cutResult = castToShape3D(
+    resultShape,
+    'CUT_NOT_3D',
+    'Cut did not produce a 3D shape',
+    'Common causes: tool does not fully intersect the base, or produces a zero-thickness sliver. Ensure the tool extends through the shape.',
+    diagnostics
+  );
+  if (cutResult.ok) {
+    propagateAllMetadata(evolution, [base, tool], cutResult.value);
+  }
+  return cutResult;
+}
+
+/**
+ * Compute the intersection of two shapes (boolean common). Returns a new shape.
+ *
+ * @param a - The first operand.
+ * @param b - The second operand.
+ * @param options - Boolean operation options.
+ * @returns Ok with the intersection, or Err if the result is not 3D.
+ */
+export function intersect(
+  a: ValidSolid,
+  b: ValidSolid,
+  options?: BooleanOptions
+): Result<ValidSolid>;
+export function intersect(
+  a: Shape3D,
+  b: Shape3D,
+  options: BooleanOptions & { unsafe: true }
+): Result<Shape3D>;
+export function intersect(
+  a: Shape3D,
+  b: Shape3D,
+  {
+    simplify = false,
+    signal,
+    fuzzyValue,
+    unsafe: _unsafe,
+    trackEvolution = true,
+  }: BooleanOptions = {}
+): Result<Shape3D> {
+  if (signal?.aborted) throw signal.reason;
+  const checkA = validateShape3D(a, 'intersect: first operand');
+  if (isErr(checkA)) return checkA;
+  const checkB = validateShape3D(b, 'intersect: second operand');
+  if (isErr(checkB)) return checkB;
+
+  if (!trackEvolution) {
+    const resultShape = getKernel().intersect(a.wrapped, b.wrapped, { simplify, fuzzyValue });
+    return castToShape3D(resultShape, 'INTERSECT_NOT_3D', 'Intersect did not produce a 3D shape');
+  }
+
+  const inputFaceHashes = collectInputFaceHashes([a, b]);
+  const kernelResult = getKernel().intersectWithHistory(
+    a.wrapped,
+    b.wrapped,
+    inputFaceHashes,
+    HASH_CODE_MAX,
+    { simplify, fuzzyValue }
+  );
+  const { shape: resultShape, evolution, diagnostics } = kernelResult;
+  if (diagnostics.hasErrors) {
+    if (getKernel().isNull(resultShape)) {
+      getKernel().dispose(resultShape);
+      console.warn(
+        'brepjs: intersect history path produced null result; retrying without evolution tracking.',
+        diagnostics
+      );
+      const fallbackShape = getKernel().intersect(a.wrapped, b.wrapped, {
+        simplify,
+        fuzzyValue,
+      });
+      return castToShape3D(
+        fallbackShape,
+        'INTERSECT_NOT_3D',
+        'Intersect did not produce a 3D shape'
+      );
+    }
+    console.warn(
+      'brepjs: intersect reported OCCT warnings/errors but produced a shape. Continuing with result.',
+      diagnostics
+    );
+  }
+  const intResult = castToShape3D(
+    resultShape,
+    'INTERSECT_NOT_3D',
+    'Intersect did not produce a 3D shape',
+    'Shapes may not overlap. Verify they share a common volume before intersecting.',
+    diagnostics
+  );
+  if (intResult.ok) {
+    propagateAllMetadata(evolution, [a, b], intResult.value);
+  }
+  return intResult;
+}
+
+// ---------------------------------------------------------------------------
+// Batch boolean operations
+// ---------------------------------------------------------------------------
+
+/**
+ * Result of a pairwise fuse subtree. `owned` is true when `shape` is a fresh
+ * fused solid this recursion produced (the parent must dispose it once consumed)
+ * and false when it is a passthrough of a caller-owned input (a `count === 1`
+ * leaf) that must never be disposed here.
+ */
+interface PairwiseNode {
+  shape: Shape3D;
+  owned: boolean;
+}
+
+/**
+ * Internal helper for pairwise fuse using index ranges to avoid array allocations.
+ *
+ * `isFinal` marks the subtree whose output is the overall result; only then does
+ * a two-input leaf apply `simplify` (with 3+ inputs the top-level combine already
+ * does, but a two-input fuse is a lone leaf with no combine to reapply it).
+ */
+function fuseAllPairwise(
+  shapes: Shape3D[],
+  start: number,
+  end: number,
+  optimisation: 'none' | 'commonFace' | 'sameFace',
+  simplify: boolean,
+  isFinal: boolean,
+  trackEvolution: boolean,
+  signal?: AbortSignal,
+  fuzzyValue?: number
+): Result<PairwiseNode> {
+  if (signal?.aborted) throw signal.reason;
+  const count = end - start;
+  if (count === 1) return ok({ shape: getAtOrThrow(shapes, start), owned: false });
+  if (count === 2) {
+    const pair = fuse(getAtOrThrow(shapes, start), getAtOrThrow(shapes, start + 1), {
+      optimisation,
+      simplify: isFinal ? simplify : false,
+      trackEvolution,
+      fuzzyValue,
+      unsafe: true,
+      ...(signal ? { signal } : {}),
+    });
+    if (isErr(pair)) return pair;
+    return ok({ shape: pair.value, owned: true });
+  }
+
+  const mid = start + Math.ceil(count / 2);
+  const leftResult = fuseAllPairwise(
+    shapes,
+    start,
+    mid,
+    optimisation,
+    simplify,
+    false,
+    trackEvolution,
+    signal,
+    fuzzyValue
+  );
+  if (isErr(leftResult)) return leftResult;
+  const rightResult = fuseAllPairwise(
+    shapes,
+    mid,
+    end,
+    optimisation,
+    simplify,
+    false,
+    trackEvolution,
+    signal,
+    fuzzyValue
+  );
+  if (isErr(rightResult)) {
+    if (leftResult.value.owned) disposeResultShape(leftResult.value.shape);
+    return rightResult;
+  }
+
+  const combined = fuse(leftResult.value.shape, rightResult.value.shape, {
+    optimisation,
+    simplify,
+    trackEvolution,
+    fuzzyValue,
+    unsafe: true,
+    ...(signal ? { signal } : {}),
+  });
+  // The two operands are consumed by the combine; release the ones this
+  // recursion owns (never the caller-owned leaf passthroughs).
+  if (leftResult.value.owned) disposeResultShape(leftResult.value.shape);
+  if (rightResult.value.owned) disposeResultShape(rightResult.value.shape);
+  if (isErr(combined)) return combined;
+  return ok({ shape: combined.value, owned: true });
+}
+
+/**
+ * Fuse all shapes in a single boolean operation.
+ *
+ * With `strategy: 'native'` (default), uses N-way BRepAlgoAPI_BuilderAlgo.
+ * With `strategy: 'pairwise'`, uses recursive divide-and-conquer over
+ * BRepAlgoAPI_Fuse.
+ *
+ * `strategy: 'pairwise'` is the workaround for #1126: the native N-way builder
+ * can silently corrupt the topology of certain disjoint inputs (e.g. an
+ * annular-sector tread fused with a frenet-swept rail) so the result passes all
+ * in-memory checks but traps the STEP writer. The pairwise path uses a different
+ * OCCT algorithm that is not affected. Tracked upstream at
+ * andymai/opencascade.js#3.
+ *
+ * @param shapes - Array of 3D shapes to fuse (at least one required).
+ * @param options - Boolean operation options.
+ * @returns Ok with the fused shape, or Err if the array is empty or the result is not 3D.
+ *
+ * @example
+ * ```ts
+ * const result = fuseAll([box1, box2, box3], { simplify: true });
+ * ```
+ */
+export function fuseAll(shapes: ValidSolid[], options?: BooleanOptions): Result<ValidSolid>;
+export function fuseAll(
+  shapes: Shape3D[],
+  options: BooleanOptions & { unsafe: true }
+): Result<Shape3D>;
+export function fuseAll(
+  shapes: Shape3D[],
+  {
+    optimisation = 'none',
+    simplify = false,
+    strategy = 'native',
+    signal,
+    fuzzyValue,
+    unsafe: _unsafe,
+    trackEvolution = true,
+  }: BooleanOptions = {}
+): Result<Shape3D> {
+  if (signal?.aborted) throw signal.reason;
+  if (shapes.length === 0)
+    return err(validationError('FUSE_ALL_EMPTY', 'fuseAll requires at least one shape'));
+  if (shapes.length === 1) return ok(firstOrThrow(shapes));
+
+  for (let i = 0; i < shapes.length; i++) {
+    const check = validateShape3D(getAtOrThrow(shapes, i), `fuseAll: shape at index ${i}`);
+    if (isErr(check)) return check;
+  }
+
+  if (strategy === 'native') {
+    // Delegate to kernel's native N-way fuse via BRepAlgoAPI_BuilderAlgo
+    const result = getKernel().fuseAll(
+      shapes.map((s) => s.wrapped),
+      { optimisation, simplify, strategy, fuzzyValue, ...(signal ? { signal } : {}) }
+    );
+    const fuseAllResult = castToShape3D(
+      result,
+      'FUSE_ALL_NOT_3D',
+      'fuseAll did not produce a 3D shape'
+    );
+    if (fuseAllResult.ok && trackEvolution) {
+      // Native N-way fuse has no ShapeEvolution — only origins propagate (tags/colors lost)
+      propagateMetadataByHash(shapes, fuseAllResult.value);
+    }
+    return fuseAllResult;
+  }
+
+  // Pairwise fallback: recursive divide-and-conquer with index ranges
+  // Uses index ranges instead of slice() to avoid array allocations
+  const pairwise = fuseAllPairwise(
+    shapes,
+    0,
+    shapes.length,
+    optimisation,
+    simplify,
+    true,
+    trackEvolution,
+    signal,
+    fuzzyValue
+  );
+  if (isErr(pairwise)) return pairwise;
+  return ok(pairwise.value.shape);
+}
+
+/**
+ * Cut all tool shapes from a base shape in a single boolean operation.
+ *
+ * Combines all tools into a compound before cutting to avoid accumulated
+ * floating-point drift from sequential pair-wise cuts.
+ *
+ * @param base - The shape to cut from.
+ * @param tools - Array of tool shapes to subtract.
+ * @param options - Boolean operation options.
+ * @returns Ok with the cut shape, or the base shape unchanged if tools is empty.
+ */
+export function cutAll(
+  base: ValidSolid,
+  tools: ValidSolid[],
+  options?: BooleanOptions
+): Result<ValidSolid>;
+export function cutAll(
+  base: Shape3D,
+  tools: Shape3D[],
+  options: BooleanOptions & { unsafe: true }
+): Result<Shape3D>;
+export function cutAll(
+  base: Shape3D,
+  tools: Shape3D[],
+  {
+    optimisation = 'none',
+    simplify = false,
+    signal,
+    fuzzyValue,
+    unsafe: _unsafe,
+    trackEvolution = true,
+  }: BooleanOptions = {}
+): Result<Shape3D> {
+  if (signal?.aborted) throw signal.reason;
+  if (tools.length === 0) return ok(base);
+
+  const checkBase = validateShape3D(base, 'cutAll: base');
+  if (isErr(checkBase)) return checkBase;
+  for (let i = 0; i < tools.length; i++) {
+    const check = validateShape3D(getAtOrThrow(tools, i), `cutAll: tool at index ${i}`);
+    if (isErr(check)) return check;
+  }
+
+  const allInputs = [base, ...tools];
+  const result = getKernel().cutAll(
+    base.wrapped,
+    tools.map((s) => s.wrapped),
+    { optimisation, simplify, fuzzyValue }
+  );
+  const cutAllResult = castToShape3D(result, 'CUT_ALL_NOT_3D', 'cutAll did not produce a 3D shape');
+  if (cutAllResult.ok && trackEvolution) {
+    // Batch cut has no ShapeEvolution — only origins propagate (tags/colors lost)
+    propagateMetadataByHash(allInputs, cutAllResult.value);
+  }
+  return cutAllResult;
+}
+
+// ---------------------------------------------------------------------------
+// Section (cross-section / slicing)
+// ---------------------------------------------------------------------------
+
+/**
+ * Choose the section face's in-plane half-extent and centre so it covers the
+ * whole shape. The rectangle is centred on the shape's bounding-box centre
+ * projected onto the cutting plane (dropping the normal component keeps the cut
+ * at the plane's position while covering an off-origin shape). The half-extent is
+ * the bbox diagonal — large enough for any plane orientation — so a big or
+ * off-origin shape is not silently clipped.
+ *
+ * When the caller passes an explicit `planeSize` they've taken manual control, so
+ * the historical plane-origin centring is preserved (only the auto path re-centres
+ * on the shape) to avoid silently changing behaviour for existing callers.
+ */
+function resolveSectionPlacement(
+  shape: AnyShape<Dimension>,
+  plane: Plane,
+  planeSize: number | undefined
+): { size: number; center: Vec3 } {
+  if (planeSize !== undefined) {
+    return { size: planeSize, center: plane.origin };
+  }
+  const { min, max } = getKernel().boundingBox(shape.wrapped);
+  const bboxCenter: Vec3 = [(min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2];
+  // Project the bbox centre onto the plane: c - ((c - origin)·n) n.
+  const normalOffset = vecDot(vecSub(bboxCenter, plane.origin), plane.zDir);
+  const center = vecSub(bboxCenter, vecScale(plane.zDir, normalOffset));
+  const diagonal = Math.hypot(max[0] - min[0], max[1] - min[1], max[2] - min[2]);
+  // Floor guards a degenerate (point/empty) bbox.
+  const size = Math.max(diagonal, 1);
+  return { size, center };
+}
+
+/**
+ * Build a large bounded planar face from a Plane definition.
+ * The face extends +/-size along xDir and yDir from `center` (a point on the plane).
+ */
+function makeSectionFace(plane: Plane, size: number, center: Vec3): KernelType {
+  const kernel = getKernel();
+
+  // Compute 4 corners of a large rectangle on the plane
+  const hx = vecScale(plane.xDir, size);
+  const hy = vecScale(plane.yDir, size);
+  const nhx = vecScale(plane.xDir, -size);
+  const nhy = vecScale(plane.yDir, -size);
+  const o = center;
+  const c0: [number, number, number] = [...vecAdd(vecAdd(o, nhx), nhy)];
+  const c1: [number, number, number] = [...vecAdd(vecAdd(o, hx), nhy)];
+  const c2: [number, number, number] = [...vecAdd(vecAdd(o, hx), hy)];
+  const c3: [number, number, number] = [...vecAdd(vecAdd(o, nhx), hy)];
+
+  // Build 4 edges forming a closed rectangle
+  const edges = [
+    kernel.makeLineEdge(c0, c1),
+    kernel.makeLineEdge(c1, c2),
+    kernel.makeLineEdge(c2, c3),
+    kernel.makeLineEdge(c3, c0),
+  ];
+
+  // Build wire from edges, then face
+  const wire = kernel.makeWire(edges);
+  const face = kernel.makeFace(wire, true);
+
+  // Cleanup temporaries. `.delete()` is a no-op on arena kernels (occt-wasm) —
+  // route through kernel.dispose so the edge/wire slots are actually reclaimed
+  // (the face shares their refcounted TShape and survives).
+  for (const e of edges) kernel.dispose(e);
+  kernel.dispose(wire);
+
+  return face;
+}
+
+/**
+ * Section (cross-section) a shape with a plane, returning the intersection
+ * edges and wires. Useful for slicing solids to get 2D cross-section profiles.
+ *
+ * @param shape The shape to section (typically a solid or shell)
+ * @param plane Plane definition — a named plane ("XY", "XZ", etc.) or a Plane object
+ * @param options.approximation Whether to approximate the section curves (default true)
+ * @param options.planeSize Half-size of the cutting plane. Defaults to the shape's
+ *   bounding-box diagonal so large or off-origin shapes aren't clipped.
+ * @returns The section result as a shape (typically containing wires/edges)
+ */
+export function section(
+  shape: AnyShape<Dimension>,
+  plane: PlaneInput,
+  { approximation = true, planeSize }: { approximation?: boolean; planeSize?: number } = {}
+): Result<AnyShape<Dimension>> {
+  if (getKernel().isNull(shape.wrapped)) {
+    return err(validationError(BrepErrorCode.NULL_SHAPE_INPUT, 'section: shape is a null shape'));
+  }
+
+  const resolvedPlane: Plane = typeof plane === 'string' ? unwrap(resolvePlane(plane)) : plane;
+  const { size, center } = resolveSectionPlacement(shape, resolvedPlane, planeSize);
+  const sectionFace = makeSectionFace(resolvedPlane, size, center);
+
+  try {
+    const kernel = getKernel();
+    const resultOc = kernel.section(shape.wrapped, sectionFace, approximation);
+    const wrapped = castResultShape(resultOc);
+    return ok(wrapped);
+  } catch (e) {
+    const raw = e instanceof Error ? e.message : String(e);
+    const planeName = typeof plane === 'string' ? plane : 'custom';
+    return err(
+      kernelError(
+        'SECTION_FAILED',
+        `Section with ${planeName} plane failed: ${raw}`,
+        e,
+        { operation: 'section', plane: planeName },
+        'The cutting plane may not intersect the shape. Verify plane position relative to shape bounds.'
+      )
+    );
+  } finally {
+    // `.delete()` is a no-op on arena kernels; dispose reclaims the slot.
+    getKernel().dispose(sectionFace);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// sectionToFace helpers
+// ---------------------------------------------------------------------------
+
+type EdgeD = Edge<Dimension>;
+type VertexD = Vertex<Dimension>;
+
+/** Adjacency data for O(n) wire assembly from loose edges. */
+interface EdgeAdjacency {
+  readonly vertexToEdges: Map<number, EdgeD[]>;
+  readonly edgeVertexHashes: Map<EdgeD, [number, number]>;
+}
+
+/**
+ * Build vertex-hash → edge adjacency map for O(n) wire assembly.
+ * Each edge maps to its two vertex hashes; each hash maps to the edges sharing that vertex.
+ */
+function buildEdgeAdjacency(edges: EdgeD[]): EdgeAdjacency {
+  const kernel = getKernel();
+  const vertexToEdges = new Map<number, EdgeD[]>();
+  const edgeVertexHashes = new Map<EdgeD, [number, number]>();
+
+  for (const edge of edges) {
+    const verts: VertexD[] = getVertices(edge);
+    const h0 = verts[0] ? kernel.hashCode(verts[0].wrapped, HASH_CODE_MAX) : -1;
+    const h1 = verts.length > 1 && verts[1] ? kernel.hashCode(verts[1].wrapped, HASH_CODE_MAX) : h0;
+    edgeVertexHashes.set(edge, [h0, h1]);
+    for (const h of [h0, h1]) {
+      const bucket = vertexToEdges.get(h) ?? [];
+      bucket.push(edge);
+      vertexToEdges.set(h, bucket);
+    }
+  }
+
+  return { vertexToEdges, edgeVertexHashes };
+}
+
+/**
+ * Find the first unvisited adjacent edge reachable from `tip` in the adjacency map.
+ * Returns the matched edge and the new tip hash, or undefined if no match.
+ */
+function findNextEdge(
+  tip: number,
+  adjacency: EdgeAdjacency,
+  visited: Set<EdgeD>
+): { edge: EdgeD; nextTip: number } | undefined {
+  const bucket = adjacency.vertexToEdges.get(tip);
+  if (!bucket) return undefined;
+  for (const candidate of bucket) {
+    if (visited.has(candidate)) continue;
+    const ch = adjacency.edgeVertexHashes.get(candidate);
+    if (!ch) continue;
+    visited.add(candidate);
+    const nextTip = ch[0] === tip ? ch[1] : ch[0];
+    return { edge: candidate, nextTip };
+  }
+  return undefined;
+}
+
+/**
+ * Walk a connected chain of edges starting from `startEdge` in both directions.
+ * Marks all traversed edges as visited. Returns the ordered edge chain.
+ */
+function walkEdgeChain(startEdge: EdgeD, adjacency: EdgeAdjacency, visited: Set<EdgeD>): EdgeD[] {
+  visited.add(startEdge);
+  const wireEdges = [startEdge];
+  const hashes = adjacency.edgeVertexHashes.get(startEdge);
+  if (!hashes) return wireEdges;
+
+  // Walk forward from hashes[1], then backward from hashes[0]
+  const endpoints = [hashes[1], hashes[0]] as const;
+  for (let dir = 0; dir < 2; dir++) {
+    let tip = endpoints[dir];
+    if (tip === undefined) continue;
+    let match = findNextEdge(tip, adjacency, visited);
+    while (match) {
+      if (dir === 0) wireEdges.push(match.edge);
+      else wireEdges.unshift(match.edge);
+      tip = match.nextTip;
+      match = findNextEdge(tip, adjacency, visited);
+    }
+  }
+
+  return wireEdges;
+}
+
+/**
+ * Assemble loose section edges into wires via vertex-hash adjacency.
+ * Walks connected components and builds kernel wires from each chain.
+ */
+function assembleWiresFromEdges(edges: EdgeD[]): Wire[] {
+  const kernel = getKernel();
+  const adjacency = buildEdgeAdjacency(edges);
+  const visited = new Set<EdgeD>();
+  const wires: Wire[] = [];
+
+  for (const startEdge of edges) {
+    if (visited.has(startEdge)) continue;
+    const wireEdges = walkEdgeChain(startEdge, adjacency, visited);
+    try {
+      const wireOc = kernel.makeWire(wireEdges.map((e) => e.wrapped));
+      wires.push(castResultShape(wireOc) as Wire);
+    } catch {
+      // Skip malformed wire components
+    }
+  }
+
+  return wires;
+}
+
+/**
+ * Find the index of the outermost wire (largest bounding-box diagonal).
+ * Works for any plane orientation.
+ */
+function findOuterWireIndex(wires: Wire<Dimension>[]): number {
+  const kernel = getKernel();
+  let outerIdx = 0;
+  let maxDiag = -1;
+  for (let i = 0; i < wires.length; i++) {
+    const w = wires[i];
+    if (!w) continue;
+    const bb = kernel.boundingBox(w.wrapped);
+    const dx = bb.max[0] - bb.min[0];
+    const dy = bb.max[1] - bb.min[1];
+    const dz = bb.max[2] - bb.min[2];
+    const diag = dx * dx + dy * dy + dz * dz;
+    if (diag > maxDiag) {
+      maxDiag = diag;
+      outerIdx = i;
+    }
+  }
+  return outerIdx;
+}
+
+// ---------------------------------------------------------------------------
+// sectionToFace
+// ---------------------------------------------------------------------------
+
+/**
+ * Section a shape with a plane and return a filled Face.
+ * The outermost wire (largest bounding-box area) becomes the outer boundary;
+ * any remaining wires are treated as holes.
+ */
+export function sectionToFace(
+  shape: AnyShape<Dimension>,
+  plane: PlaneInput,
+  options: { approximation?: boolean; planeSize?: number } = {}
+): Result<OrientedFace> {
+  const sectionResult = section(shape, plane, options);
+  if (!sectionResult.ok) return sectionResult;
+
+  const wires = getWires(sectionResult.value);
+  if (wires.length === 0) {
+    // Section may return loose edges — assemble them into wires
+    const edges = getEdges(sectionResult.value);
+    if (edges.length === 0) {
+      return err(
+        kernelError(
+          'SECTION_FAILED',
+          'sectionToFace: section produced no geometry',
+          undefined,
+          undefined,
+          'The cutting plane may not intersect the shape. Verify plane position relative to shape bounds.'
+        )
+      );
+    }
+    wires.push(...assembleWiresFromEdges(edges));
+  }
+
+  if (wires.length === 0) {
+    return err(
+      kernelError(
+        'SECTION_FAILED',
+        'sectionToFace: section produced no usable geometry',
+        undefined,
+        undefined,
+        'The cutting plane may not intersect the shape. Verify plane position relative to shape bounds.'
+      )
+    );
+  }
+
+  const outerIdx = findOuterWireIndex(wires);
+  const outer = getAtOrThrow(wires, outerIdx);
+  const holes = wires.filter((_, i) => i !== outerIdx);
+  // Section result wires are always closed, coplanar boundary loops
+  return makeFace(
+    outer as ClosedWire & PlanarWire,
+    holes.length > 0 ? (holes as Array<ClosedWire & PlanarWire>) : undefined
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Splitting
+// ---------------------------------------------------------------------------
+
+/**
+ * Split a shape with one or more tool shapes using BRepAlgoAPI_Splitter.
+ * Returns all pieces from the split as a compound.
+ */
+export function split(
+  shape: AnyShape<Dimension>,
+  tools: AnyShape<Dimension>[]
+): Result<AnyShape<Dimension>> {
+  if (tools.length === 0) return ok(shape);
+
+  if (getKernel().isNull(shape.wrapped)) {
+    return err(validationError(BrepErrorCode.NULL_SHAPE_INPUT, 'split: shape is a null shape'));
+  }
+  for (let i = 0; i < tools.length; i++) {
+    if (getKernel().isNull(getAtOrThrow(tools, i).wrapped)) {
+      return err(
+        validationError(
+          BrepErrorCode.NULL_SHAPE_INPUT,
+          `splitShape: tool at index ${i} is a null shape`
+        )
+      );
+    }
+  }
+
+  try {
+    const result = getKernel().split(
+      shape.wrapped,
+      tools.map((t) => t.wrapped)
+    );
+    return ok(castResultShape(result));
+  } catch (e) {
+    const raw = e instanceof Error ? e.message : String(e);
+    return err(
+      kernelError(
+        'SPLIT_FAILED',
+        `Split operation failed on ${tools.length} tool(s): ${raw}`,
+        e,
+        { operation: 'split', toolCount: tools.length },
+        "The splitting tools may not intersect the shape. Ensure tools cross through the shape's interior."
+      )
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Batch slicing
+// ---------------------------------------------------------------------------
+
+/**
+ * Slice a shape with multiple planes, returning one cross-section per plane.
+ * Each result entry corresponds to the input plane at the same index.
+ */
+export function slice(
+  shape: AnyShape<Dimension>,
+  planes: PlaneInput[],
+  options: { approximation?: boolean; planeSize?: number } = {}
+): Result<AnyShape<Dimension>[]> {
+  const results: AnyShape<Dimension>[] = [];
+  for (const plane of planes) {
+    const result = section(shape, plane, options);
+    if (isErr(result)) return result;
+    results.push(result.value);
+  }
+  return ok(results);
+}
+
+// ---------------------------------------------------------------------------
+// Boolean pipeline — chained operations in a single WASM call
+// ---------------------------------------------------------------------------
+
+export type PipelineOp = 'fuse' | 'cut' | 'intersect';
+
+export interface BooleanPipelineStep {
+  readonly op: PipelineOp;
+  readonly tool: Shape3D;
+}
+
+/**
+ * Execute a chained boolean pipeline in a single WASM call.
+ *
+ * More efficient than sequential fuse/cut calls for long chains (e.g., 16-step
+ * spiral staircase). Skips UnifySameDomain on intermediate results — only
+ * simplifies the final shape.
+ *
+ * Falls back to sequential operations when the C++ pipeline class is not
+ * available in the WASM build.
+ */
+export function booleanPipeline(
+  base: Shape3D,
+  steps: readonly BooleanPipelineStep[],
+  options?: {
+    readonly optimisation?: 'none' | 'commonFace' | 'sameFace' | undefined;
+  }
+): Result<Shape3D> {
+  if (steps.length === 0) return ok(base);
+
+  const glueMode =
+    options?.optimisation === 'commonFace' ? 1 : options?.optimisation === 'sameFace' ? 2 : 0;
+
+  const k = getKernel();
+  const kernelSteps = steps.map((s) => ({
+    op: s.op,
+    tool: s.tool.wrapped,
+  }));
+
+  try {
+    const result = k.booleanPipeline?.(base.wrapped, kernelSteps, { glueMode });
+    if (result === undefined) {
+      // Kernel doesn't support pipeline — fall back to sequential
+      return booleanPipelineFallback(base, steps, options);
+    }
+    if (result === null) {
+      return err(kernelError('BOOLEAN_PIPELINE_FAILED', 'Boolean pipeline returned null shape'));
+    }
+
+    const shape = castResultShape(result);
+    if (!isShape3D(shape)) {
+      disposeResultShape(shape);
+      return err(typeCastError('BOOLEAN_PIPELINE_NOT_3D', 'Pipeline result is not a 3D shape'));
+    }
+    return ok(shape);
+  } catch (e) {
+    return err(kernelError('BOOLEAN_PIPELINE_FAILED', e instanceof Error ? e.message : String(e)));
+  }
+}
+
+function booleanPipelineFallback(
+  base: Shape3D,
+  steps: readonly BooleanPipelineStep[],
+  options?: {
+    readonly optimisation?: 'none' | 'commonFace' | 'sameFace' | undefined;
+  }
+): Result<Shape3D> {
+  let current: Shape3D = base;
+  const boolOpts: BooleanOptions & { unsafe: true } = {
+    ...(options?.optimisation ? { optimisation: options.optimisation } : {}),
+    unsafe: true,
+  };
+  for (const step of steps) {
+    const r =
+      step.op === 'fuse'
+        ? fuse(current, step.tool, boolOpts)
+        : step.op === 'cut'
+          ? cut(current, step.tool, boolOpts)
+          : intersect(current, step.tool, boolOpts);
+    if (isErr(r)) return r;
+    current = unwrap(r);
+  }
+  return ok(current);
+}
