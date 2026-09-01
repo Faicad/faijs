@@ -108,6 +108,10 @@ export const box = defineOp({
     assertBoxParams(params)
     return primitiveBrep('box', params)
   },
+  // L3 metadata (D2): a creator consumes no shape inputs → operands stay in the
+  // timeline; schema feeds codegen/UI parameter panels.
+  consumes: 'none',
+  schema: { size: 'number | [n,n,n]', center: 'vec3?' },
 })
 
 /**
@@ -160,6 +164,9 @@ export const cylinder = defineOp({
     assertCylinderParams(params)
     return primitiveBrep('cylinder', params)
   },
+  // L3 metadata (D2): creator consumes no shape inputs.
+  consumes: 'none',
+  schema: { radius: 'number', height: 'number', segments: 'number?', center: 'vec3?' },
 })
 
 /**

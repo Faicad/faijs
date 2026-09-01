@@ -74,10 +74,30 @@ export type BrepProduct = BrepHandle | BrepResult | Shape | Record<string, BrepH
 /** BREP implementation: sync or async; returns a brep product. */
 export type BrepImpl<A extends unknown[]> = (...args: A) => BrepProduct | Promise<BrepProduct>
 
+/**
+ * L3 static consumption declaration (D2, G3/G4): which of the op's shape
+ * inputs it consumes at the timeline level.
+ * - `'all'` (default): every geometric input is consumed — earlier shapes are
+ *   not timeline terminals (a boolean/transform result owns its operands).
+ * - `'none'`: the op does not consume any shape input — previous shapes stay
+ *   in the timeline (a pure query/creator does not hide its operands).
+ * - `number[]`: consume only the listed input positions (variadic ops that
+ *   absorb a subset of their operands, e.g. keep-first pathologies).
+ *
+ * This replaces the runtime body `keep()`/`keepHidden()` call for L3 ops
+ * authored on the new API face, moving the timeline semantics to a static,
+ * testable, codegen-visible declaration (see layered-api D2 §4.3).
+ */
+export type ConsumeSpec = 'all' | 'none' | number[]
+
 /** Optional declaration: capabilities (D5) and named multi-products (split, scheme C). */
 export interface DualOpOptions {
   capabilities?: BrepCapabilityName[]
   outputs?: string[]
+  /** Static timeline consumption declaration (G3/G4 terminals); default `'all'`. */
+  consumes?: ConsumeSpec
+  /** L3 schema per named parameter (G1 codegen + UI panel, plain string form). */
+  schema?: Record<string, string>
 }
 
 /** Implementation set (at least one of mesh/brep is required, D1/D1b); options are siblings of the implementations. */
@@ -92,6 +112,8 @@ export interface DualOpMeta {
   brep?: unknown
   capabilities?: BrepCapabilityName[]
   outputs?: string[]
+  consumes?: ConsumeSpec
+  schema?: Record<string, string>
 }
 
 /** Property key carrying DualOpMeta on wrapped functions. */
@@ -171,6 +193,8 @@ export function defineOp<A extends unknown[]>(
     brep: decl.brep,
     capabilities: decl.capabilities,
     outputs: decl.outputs,
+    consumes: decl.consumes,
+    schema: decl.schema,
   }
 
   // Async wrapper: implementations may be sync or async (stdlib mesh paths are
@@ -240,5 +264,26 @@ export function assertLibConforms(lib: Record<string, unknown>): void {
     ) {
       throw new Error(`[faijs] lib function '${name}' declares invalid outputs (expected string[])`)
     }
+    if (meta.consumes !== undefined && !isValidConsumeSpec(meta.consumes)) {
+      throw new Error(
+        `[faijs] lib function '${name}' declares invalid consumes (expected 'all' | 'none' | number[])`,
+      )
+    }
+    if (meta.schema !== undefined && !isValidSchema(meta.schema)) {
+      throw new Error(`[faijs] lib function '${name}' declares invalid schema (expected Record<string, string>)`)
+    }
   }
+}
+
+/** True when spec is `'all'`, `'none'`, or an array of non-negative integer input positions. */
+function isValidConsumeSpec(spec: unknown): spec is ConsumeSpec {
+  if (spec === 'all' || spec === 'none') return true
+  if (!Array.isArray(spec)) return false
+  return spec.every((i) => typeof i === 'number' && Number.isInteger(i) && i >= 0)
+}
+
+/** True when every schema value is a non-empty string. */
+function isValidSchema(schema: unknown): schema is Record<string, string> {
+  if (schema === null || typeof schema !== 'object' || Array.isArray(schema)) return false
+  return Object.values(schema).every((v) => typeof v === 'string' && v.length > 0)
 }

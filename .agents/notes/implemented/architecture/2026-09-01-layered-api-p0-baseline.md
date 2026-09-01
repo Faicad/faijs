@@ -23,8 +23,6 @@ Landed four pieces, all self-contained in-faijs, host-facing swaps prepared but 
    - the D1-0 bridge (see next point);
    - append-incremental and failure semantics;
    - the §2.8 regression anchors run green (170 core + 132 integration tests) alongside the new suite.
-   The §2.8 regression anchors were run and are green (170 core + 132 integration tests) alongside the new suite.
-
 2. **Host stdlib migration bridge (D1-⓪, partial)** — made `drill` and `engrave` importable from both `@faicad/faijs` (root) and `@faicad/faijs/browser` by re-exporting from stdlib, and locked it with an acceptance assertion. The actual host repos (3d_editor) import swap is deliberately **not** done yet: the host resolves faijs as packed `.tgz` files, so the swap needs a fa-aijs pack + version bump, which is a release gate, not a code decision.
 
 3. **Vendored skeleton** — `packages/core/src/vendored/brepjs/` (with README), `packages/core/tsconfig.vendored.json` carrying brepjs original strictness (`noUncheckedIndexedAccess` + `exactOptionalPropertyTypes`) for isolated compile (D9), and `scripts/check-layer-boundaries.mjs` implementing the ported layer rules R1–R5 (D8). The boundary script is self-testable via `BOUNDARY_SRC_DIR` and passes on the empty tree; CI wiring is deferred until P1 puts content in.

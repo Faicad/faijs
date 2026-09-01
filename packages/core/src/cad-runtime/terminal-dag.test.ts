@@ -284,3 +284,67 @@ describe('computeLeafTerminals: hidden（D2 最后一次保留声明胜出）', 
     expect(t0!.hidden).toBeUndefined()
   })
 })
+
+/**
+ * C2 — L3 静态 consumes 声明（D2 G3/G4）：op 声明消费语义，取代/细化 C5 默认。
+ * 视角：新 API 面上的 op 不再在函数体写 keep()，而是声明 consumes:
+ *   'none'   → 本语句不消费任何几何输入（查询/创建类）→ 上游保持终端；
+ *   number[] → 只消费列出的位置输入（其余保持终端）；
+ *   'all'/缺省 → C5 默认（消费）。
+ */
+describe('C2: static consumes declaration (D2 G3/G4) drives terminals', () => {
+  /** 视图：按 callee 提供 consumes 声明的库（模拟 runtime.libs 查找）。 */
+  function consumesView(decls: Record<string, import('../define-op').ConsumeSpec>): DagRuntimeView {
+    return {
+      value: () => undefined,
+      internalKeep: () => undefined,
+      opConsumes: (stmt) => decls[stmt.callee],
+    }
+  }
+
+  it('consumes "none" → 语句不消费输入：part0 → probe → 两者都保持终端', () => {
+    // probe 是有几何输入的 op，但声明不消费（如只读测量/查询）→ part0 不被吞
+    const code = `
+      let part0 = cad.box({ size: 20 })
+      let part1 = cad.probe(part0)
+    `
+    const view = consumesView({ probe: 'none' })
+    const terminals = terminalsFromCode(code, view)
+    expect(terminals.sort()).toEqual(['part0', 'part1'])
+  })
+
+  it('无 consumes 声明 → C5 默认消费：probe 缺省吞上游', () => {
+    const code = `
+      let part0 = cad.box({ size: 20 })
+      let part1 = cad.probe(part0)
+    `
+    const terminals = terminalsFromCode(code)
+    expect(terminals).toEqual(['part1'])
+  })
+
+  it('consumes number[] 只消费列出的位置：只吞第 2 个输入', () => {
+    const code = `
+      let part0 = cad.box({ size: 20 })
+      let part1 = cad.box({ size: 5 })
+      let part2 = cad.combine(part0, part1)
+    `
+    const view = consumesView({ combine: [1] }) // 只消费 part1（位置 1）
+    const terminals = terminalsFromCode(code, view)
+    expect(terminals.sort()).toEqual(['part0', 'part2'])
+  })
+
+  it('consumes 声明被调用点 keep 覆盖（C0 优先）', () => {
+    const code = `
+      let part0 = cad.box({ size: 20 })
+      let part1 = cad.keep_combined(part0) // 调用点显式 keep
+    `
+    const view: DagRuntimeView = {
+      value: () => undefined,
+      internalKeep: (s) =>
+        s.callee === 'keep_combined' ? { kept: new Set([asPartName('part0')]), hidden: new Map() } : undefined,
+      opConsumes: (_stmt) => 'all',
+    }
+    const terminals = terminalsFromCode(code, view)
+    expect(terminals.sort()).toEqual(['part0', 'part1'])
+  })
+})

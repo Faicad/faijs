@@ -123,6 +123,11 @@ export const union = defineOp({
     return booleanBrep(shapes, 'union')
   },
   capabilities: ['evolution'],
+  // L3 metadata (D2): a boolean absorbs (consumes) its operands; the runtime
+  // keepHidden() above remains authoritative for the current timeline display
+  // (O6 defers the static-declaration takeover to the per-op migration).
+  consumes: 'all',
+  schema: { shapes: 'Shape*' },
 })
 
 /**

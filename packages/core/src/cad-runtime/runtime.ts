@@ -43,7 +43,7 @@ import {
   configureBackends, CONTRACT_VERSION, setKeepSink, setName,
   assertContractVersion, BrepUnsupportedError, MeshUnsupportedError, type StdlibNamespace,
 } from '../runtime-state'
-import { assertLibConforms } from '../define-op'
+import { assertLibConforms, DUAL_OP_META } from '../define-op'
 import { computeContentKey } from './content-key'
 export { computeContentKey } from './content-key'
 import type { Namespaces } from './module-executor'
@@ -902,6 +902,16 @@ export class CadRuntime {
     const view: DagRuntimeView = {
       value: (name) => this.executor.getCtxVar(name),
       internalKeep: (stmt) => this.executor.getInternalKeep(stmt.id),
+      // C2：语句调用的 op 若带 L3 静态 consumes 声明（D2），以声明为准。
+      // 命名空间缺省 = 'cad'（lang 层 F2 缺省）；本机函数调用（local）无库元数据。
+      opConsumes: (stmt) => {
+        if (stmt.local) return undefined
+        const ns = stmt.namespace ?? 'cad'
+        const fn = this.libs[ns]?.[stmt.callee]
+        if (typeof fn !== 'function') return undefined
+        const fnWithMeta = fn as unknown as { [DUAL_OP_META]?: import('../define-op').DualOpMeta }
+        return fnWithMeta[DUAL_OP_META]?.consumes
+      },
     }
     const explicitTerminals = script.terminalShapes ?? []
     let terminals: TerminalShape[]
