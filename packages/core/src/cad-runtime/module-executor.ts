@@ -20,8 +20,8 @@ import type { BrepEngineApi } from '../brep/engine/primitives'
 import type { PartName, StmtId } from '../identity'
 import { asPartName } from '../identity'
 import { computeContentKey } from './content-key'
-import { getSlot, hasBrep, brepOf, ensureSlot } from '../shape'
-import { setCurrentStmt, setName, getBackends, takePendingAssemblyTransforms, type StdlibNamespace } from '../runtime-state'
+import { getSlot, hasBrep, brepOf, ensureSlot, isCompoundLike } from '../shape'
+import { setCurrentStmt, setName, getBackends, takePendingAssemblyTransforms, enterFunctionBrep, exitFunctionBrep, takeFunctionBrepDomain, type StdlibNamespace } from '../runtime-state'
 import { applyTransform } from '../mesh/rigid-transform'
 import { applyTransformBrep } from '../brep/brep-ops'
 import type { EventSink } from './ports'
@@ -68,6 +68,33 @@ async function importModule(code: string): Promise<{ statements: CompiledStateme
     return await import(/* @vite-ignore */ url)
   } finally {
     URL.revokeObjectURL(url)
+  }
+}
+
+/**
+ * 收集一个值可到达的全部 BREP 句柄（函数返回值 keep 集，§5.6）：
+ * shape → 身份槽 solid；compound → children 递归；数组 / 普通对象 → 递归。
+ */
+function collectBrepHandles(v: unknown, out: Set<unknown>): void {
+  if (v === null || v === undefined) return
+  if (typeof v !== 'object') return
+  if (v instanceof Set || v instanceof Map) return
+  // shape：身份槽持 OCCT 句柄
+  const slot = getSlot(v as object)
+  if (slot?.solid) out.add(slot.solid)
+  // compound children / 数组 / 对象递归
+  if (Array.isArray(v)) {
+    for (const item of v) collectBrepHandles(item, out)
+    return
+  }
+  if (isCompoundLike(v)) {
+    for (const child of (v as { children: unknown[] }).children) collectBrepHandles(child, out)
+    return
+  }
+  for (const k of Object.keys(v)) {
+    // 跳过内部元数据字段（positions/indices/kind 等 mesh 数据不含句柄，无需遍历）
+    if (k === 'positions' || k === 'indices' || k === 'kind') continue
+    collectBrepHandles((v as Record<string, unknown>)[k], out)
   }
 }
 
@@ -122,6 +149,8 @@ export class ModuleExecutor {
   private script: ScriptIR = { params: [], statements: [] }
   private lastCode = ''
   private namespaces: Namespaces
+  /** 本机函数调用嵌套深度（§5.5）：> 0 表示当前在函数体内执行——keep 登记被抑制。 */
+  private userFunctionDepth = 0
   private readonly releaseSolid?: (partName: PartName) => void
   private readonly getSolid?: (partName: PartName) => BrepHandle | undefined
   private readonly releaseHandle?: (handle: BrepHandle) => void
@@ -213,7 +242,23 @@ export class ModuleExecutor {
       if (source && source.hasAssignment) {
         exec.beforeStatement?.(String(source.id), this.script.statements.indexOf(source))
       }
-      await compiled.fn(this.ctx, this.namespaces)
+      // 本机函数调用（local）：进入函数 BREP 域（§5.6），提升 userFunctionDepth（keep 隔离，§5.5）。
+      // 函数体执行期间：内部 keep 登记被抑制（registerKeep no-op）；体内瞬态句柄登记到域，
+      // 结束后释放除返回值可到达句柄外的全部（finally 保证异常路径同样释放）。
+      const isLocal = source?.local === true
+      if (isLocal) {
+        this.userFunctionDepth++
+        enterFunctionBrep()
+      }
+      try {
+        await compiled.fn(this.ctx, this.namespaces)
+      } finally {
+        if (isLocal) {
+          this.releaseFunctionBrepDomain(compiled, meta)
+          exitFunctionBrep()
+          this.userFunctionDepth--
+        }
+      }
       await this.afterStatement(compiled, exec)
       for (const [w, old] of oldWrites) {
         if (old !== this.ctx[w]) exec.changed.add(asPartName(w))
@@ -328,6 +373,9 @@ export class ModuleExecutor {
    * @param hidden - whether the kept variables are hidden.
    */
   registerKeep(id: StmtId, names: PartName[], hidden: boolean): void {
+    // 函数 BREP 域 / keep 隔离（§5.5 / D5）：本机函数体内嵌套 cad.* 的库内部
+    // keep 登记一律抑制——保留语义由调用点 keep 表达，函数体不向顶层传播保留。
+    if (this.userFunctionDepth > 0) return
     let rec = this.internalKeep.get(id)
     if (!rec) {
       rec = { kept: new Set(), hidden: new Map() }
@@ -336,6 +384,28 @@ export class ModuleExecutor {
     for (const n of names) {
       rec.kept.add(n)
       rec.hidden.set(n, hidden)
+    }
+  }
+
+  /**
+   * 函数 BREP 域释放（§5.6 / D13）：取走当前域的句柄登记表，收集本语句输出
+   * （返回值）可到达的全部句柄为 keep 集，释放登记域内除 keep 集外的全部句柄。
+   * 函数体内中间体的瞬态句柄在此一次性释放——单次调用内存有界，不逐轮释放。
+   */
+  private releaseFunctionBrepDomain(compiled: CompiledStatement, meta: CompiledStatementMeta | undefined): void {
+    const domain = takeFunctionBrepDomain()
+    if (domain.length === 0) return
+    // keep 集：返回值（语句 writes 的 ctx 值，可能是 shape / compound / 数组 / 对象）可到达的句柄
+    const kept = new Set<unknown>()
+    for (const w of meta?.writes ?? []) {
+      const v = this.ctx[w]
+      collectBrepHandles(v, kept)
+    }
+    for (const h of domain) {
+      if (kept.has(h)) continue
+      try {
+        this.releaseHandle?.(h as BrepHandle)
+      } catch { /* 已释放 */ }
     }
   }
 
@@ -495,6 +565,9 @@ export class ModuleExecutor {
    * keep/keepHidden keys are excluded so toggling retain/hide state triggers no
    * geometric recompute. plan() uses this with the current cache to compute the
    * expected key for incremental decisions.
+   *
+   * 本机函数调用（local）：key 前缀 `local.<callee>#<bodyHash>`（§6.2 / P4 内容寻址）——
+   * 编辑函数体文本 → 所有调用该函数的语句 key 变化 → 下游失效重算；不改函数体零重算。
    * @param meta - the compiled statement metadata.
    * @param source - the source statement, or undefined for parameter statements.
    * @returns the computed statement key string.
@@ -505,13 +578,27 @@ export class ModuleExecutor {
       const p = this.script.params.find((pp) => pp.name === primary)
       return `param|${JSON.stringify(p?.value)}`
     }
-    const parts = [`${source.namespace ?? 'cad'}.${source.callee}`]
+    const parts = [
+      source.local
+        ? `local.${source.callee}#${this.bodyHashOf(source.callee)}`
+        : `${source.namespace ?? 'cad'}.${source.callee}`,
+    ]
     parts.push(JSON.stringify(withoutKeepDirectives(source.args)))
     for (const dep of meta.deps) {
       const ck = this.cache.get(dep)?.outputContentKey
       parts.push(ck ?? 'missing')
     }
     return parts.join('|')
+  }
+
+  /**
+   * 按函数名查 bodyHash（setCompiled 已存 script；查不到 → 'missing'，增量会失效重算）。
+   * @internal runtime.planUpdateStale 的 ownKey/oldKey 对比（§6.2 / P4）复用。
+   * @param name 本机函数名。
+   * @returns 函数体的内容哈希；`'missing'` 表示未知函数。
+   */
+  bodyHashOf(name: string): string {
+    return this.script.functions?.find((f) => f.name === name)?.bodyHash ?? 'missing'
   }
 
   /** outputContentKey：shape 语句 = mesh 内容哈希；参数语句 = 参数值。 */

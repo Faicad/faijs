@@ -19,7 +19,7 @@
  * - window.dispatchEvent / toast
  */
 
-import type { ScriptIR, StatementIR, TerminalShape } from '../lang/types'
+import type { ScriptIR, StatementIR, TerminalShape, FunctionDefIR } from '../lang/types'
 import type { Shape } from '../mesh/types'
 import type { BrepChainState } from '../brep/brep-chain'
 import type { BrepHandle } from '../brep/engine/types'
@@ -184,6 +184,25 @@ export interface ExecuteOptions {
    * - 'off'：不自动构建（只返回宿主 setTopology 注入的拓扑）
    */
   topology?: 'auto' | 'brep' | 'off'
+  /**
+   * 执行护栏（§6.3 / D8，v1 可选、默认关闭）：**整轮超时**（覆盖 execute/append/update
+   * 全程，含全部函数体重放），超时抛 {@link ExecutionLimitError}（E_EXEC_LIMIT）。
+   * 防 `while(true)` 死循环挂死 worker/UI；不传则无超时（现状行为不变）。
+   */
+  executionTimeoutMs?: number
+}
+
+/**
+ * 执行护栏超时错误（§6.3 / D8）：整轮执行超过 `executionTimeoutMs` 时抛出。
+ * code = 'E_EXEC_LIMIT'（宿主可按 code 识别，区别于普通执行错误）。
+ */
+export class ExecutionLimitError extends Error {
+  /** 宿主可按 code 识别的错误码：'E_EXEC_LIMIT'。 */
+  readonly code = 'E_EXEC_LIMIT'
+  constructor(timeoutMs: number) {
+    super(`[faijs] execution timed out after ${timeoutMs}ms`)
+    this.name = 'ExecutionLimitError'
+  }
 }
 
 /**
@@ -705,13 +724,14 @@ export class CadRuntime {
         continue
       }
       const newKey = this.ownKeyOf(meta, source, newParams)
-      const oldKey = this.oldKeyOf(meta, source, oldById, oldParams)
+      const oldKey = this.oldKeyOf(meta, source, oldById, oldParams, oldScript.functions)
       if (oldKey !== newKey) stale.add(meta.id)
     }
     return stale
   }
 
-  /** Own key of a statement (no dep output contents — downstream goes stale via the deps cascade). */
+  /** Own key of a statement (no dep output contents — downstream goes stale via the deps cascade).
+   *  local 语句：key 前缀 `local.<callee>#<bodyHash>`（§6.2 / P4）——编辑函数体 → 调用语句 key 变 → 重放。 */
   private ownKeyOf(
     meta: CompiledStatementMeta,
     source: StatementIR | undefined,
@@ -719,7 +739,10 @@ export class CadRuntime {
   ): string {
     const primary = meta.writes[0]
     if (!source) return `param|${JSON.stringify(paramByName.get(primary))}`
-    return `${source.namespace ?? 'cad'}.${source.callee}|${JSON.stringify(withoutKeepDirectives(source.args))}`
+    const head = source.local
+      ? `local.${source.callee}#${this.executor.bodyHashOf(source.callee)}`
+      : `${source.namespace ?? 'cad'}.${source.callee}`
+    return `${head}|${JSON.stringify(withoutKeepDirectives(source.args))}`
   }
 
   /** Own key of the paired old statement; '' when unpaired (ADD) → always stale. */
@@ -728,12 +751,19 @@ export class CadRuntime {
     source: StatementIR | undefined,
     oldById: Map<string, StatementIR>,
     oldParams: Map<string, unknown>,
+    oldFunctions?: FunctionDefIR[],
   ): string {
     const primary = meta.writes[0]
     if (!source) return `param|${JSON.stringify(oldParams.get(primary))}`
     const old = oldById.get(String(source.id))
     if (!old) return ''
-    return `${old.namespace ?? 'cad'}.${old.callee}|${JSON.stringify(withoutKeepDirectives(old.args))}`
+    const oldHash = old.local
+      ? (oldFunctions?.find((f) => f.name === old.callee)?.bodyHash ?? 'missing')
+      : ''
+    const head = old.local
+      ? `local.${old.callee}#${oldHash}`
+      : `${old.namespace ?? 'cad'}.${old.callee}`
+    return `${head}|${JSON.stringify(withoutKeepDirectives(old.args))}`
   }
 
   // ── 内部：VM 执行编排 ──
@@ -775,29 +805,45 @@ export class CadRuntime {
     return { outputCache, beforeStatement: opts?.beforeStatement, changed: new Set<PartName>() }
   }
 
-  /** 执行并捕获模式不支持失败（BrepUnsupportedError / MeshUnsupportedError → ExecutionResult.failedAt）。 */
+  /** 执行并捕获模式不支持失败（BrepUnsupportedError / MeshUnsupportedError → ExecutionResult.failedAt）。
+   *  执行护栏（§6.3 / D8）：设了 executionTimeoutMs 时整轮超时抛 ExecutionLimitError。 */
   private async runWithFailureHandling(
     script: ScriptIR,
     exec: ExecBookkeeping,
     run: () => Promise<void>,
     opts?: ExecuteOptions,
   ): Promise<ExecutionResult> {
-    try {
-      await run()
-    } catch (err) {
-      if (err instanceof BrepUnsupportedError || err instanceof MeshUnsupportedError) {
-        const index = err.stmt ? script.statements.indexOf(err.stmt) : -1
-        return {
-          outputs: exec.outputCache,
-          brepChain: this.brepChain!,
-          terminals: [],
-          infos: [],
-          failedAt: { index, callee: err.stmt?.callee ?? '', message: err.message },
+    const guard = async (): Promise<ExecutionResult> => {
+      try {
+        await run()
+      } catch (err) {
+        if (err instanceof BrepUnsupportedError || err instanceof MeshUnsupportedError) {
+          const index = err.stmt ? script.statements.indexOf(err.stmt) : -1
+          return {
+            outputs: exec.outputCache,
+            brepChain: this.brepChain!,
+            terminals: [],
+            infos: [],
+            failedAt: { index, callee: err.stmt?.callee ?? '', message: err.message },
+          }
         }
+        throw err
       }
-      throw err
+      return this.collectResult(script, exec, opts)
     }
-    return this.collectResult(script, exec, opts)
+    const timeoutMs = opts?.executionTimeoutMs
+    if (timeoutMs !== undefined && timeoutMs > 0) {
+      let timer: ReturnType<typeof setTimeout> | undefined
+      const timeout = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new ExecutionLimitError(timeoutMs)), timeoutMs)
+      })
+      try {
+        return await Promise.race([guard(), timeout])
+      } finally {
+        if (timer !== undefined) clearTimeout(timer)
+      }
+    }
+    return guard()
   }
 
   /**
@@ -1275,6 +1321,8 @@ export class CadRuntime {
     // F2：命名空间调用按已注册库校验（未登记 specifier → 明确报错，不回退不静默）。
     for (const stmt of script.statements) {
       if (stmt.receiver) continue
+      // 本机函数调用（local）：存在性已在 parse 期校验（§3.4 / D15），不查 stdlib 符号表
+      if (stmt.local) continue
       const ns = stmt.namespace
       if (ns && ns !== 'cad') {
         const lib = this.libs[ns]

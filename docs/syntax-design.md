@@ -48,44 +48,54 @@ English | [中文](syntax-design.zh.md)
 | Allowed | Notes |
 |---|---|
 | Top-level `import` | Module declaration, not control flow: one contiguous top block; the namespace must be registered |
-| Top-level function definitions | Recorded as `FunctionDefIR`; not statements, they do not enter the DAG |
-| Statically foldable expressions | Binary / template / ternary / spread fold to literals, marking the statement `hasComputedArgs` (§2.4) |
-| Any callee, any destructuring keys | The parser neither knows nor validates function names |
+| Top-level function definitions | Recorded as `FunctionDefIR`; not statements, they do not enter the DAG; the body may contain control flow (§2.3) |
+| **Control flow inside a function body** | `if` / `for` / `while` / `switch` / `try` / `throw` / `break` / `continue` / `labeled`, plus `var`; top level stays linear (§2.3) |
+| **Local function calls** | `myFn(input, { … })` — bare-identifier callee from the script's own function set; four forms (§2.3), ABI in §6.2 |
+| **Runtime expressions (`ExprIR`)** | A statement-variable expression is evaluated at runtime instead of folded (§2.4) |
+| Statically foldable expressions | Binary / template / ternary / spread over parameters and literals fold to literals, marking `hasComputedArgs` (§2.4) |
+| Any callee, any destructuring keys | The parser neither knows nor validates namespace function names |
 | Member method calls | `asm1.add_constraint({ … })`; a call never consumes its receiver |
 | `return { shape: … }` / `return [ … ]` | An explicit terminal set, overriding DAG derivation |
 | `await` | Optional and stripped; codegen never emits it |
 
 | Forbidden | Diagnostic |
 |---|---|
-| `if` / `for` / `while` / `do` / `switch` / `try` | `E_CONTROL_FLOW` — canvas and timeline stop being derivable |
+| Control flow **at the top level** | `E_CONTROL_FLOW` — control flow lives in function bodies only |
 | Dynamic `import()` | `E_IMPORT` — a control-flow construct |
-| `eval` / `new Function` | `E_SYNTAX` — security red line |
+| `eval` / `new Function` / `new` | `E_SYNTAX` — security red line (also inside function bodies) |
 | `export` | `E_SYNTAX` — declaring outputs is the engine's job |
 | Imports in a function body, non-contiguous top-level imports | `E_IMPORT` |
+| Calling a local function **inside a function body** | `E_STATEMENT` — callable from the top level only (v1) |
+| Unknown local function name at the top level | `E_REFERENCE` — the parser knows the script's function set |
+| Duplicate function names | `E_STATEMENT` — a function name must be unique |
 
 ### 2.2 File container
 
 - **Flat format** (recommended for UI recording): a plain statement sequence; with no `export default`, the parser wraps it into a legal container before acorn and reports line numbers against the original text.
-- **`export default async (cad) => { … }`** is equally legal and parsed directly; **`// apiVersion: N`** is an optional header, default `1`.
+- **`export default async (cad) => { … }`** is equally legal; **`// apiVersion: N`** is an optional header, default `1`.
 
 ### 2.3 Statement forms
 
 ```
 script   = import* function* (comment | param | stmt)*
-
 param    = const <name> = <literal | foldable expression>
-
 stmt     = (const|let) <id> = [await] <ns>.<fn>(<input>*, { <k>:<v>, … }?)
          | const { <k1>: <id1>, … } = [await] <ns>.<fn>(<input>*, {…}?)
          | <id> = [await] <ns>.<fn>(<input>*, {…}?)
          | <id>.<method>({ <k>:<v>, … }?)
+         | (const|let) <id> = [await] <localFn>(<input>*, { <k>:<v>, … }?)
+         | <id> = [await] <localFn>(<input>*, {…}?)          // re-assignment
+         | const { <k1>: <id1>, … } = [await] <localFn>(<input>*, {…}?)
+         | [await] <localFn>(<input>*, {…}?)                  // side-effect call
          | return { shape: <id>, name?, color?, … }
          | return [ { shape: <id>, … }, … ]
+function = function <name>(<param>, …) { <body> }             // body may contain control flow
 ```
 
 - `<ns>` is `cad` or an imported namespace such as `mech`; positional inputs must be declared variables (zero, one or many), and the trailing options object may be omitted or may carry `keep` / `keepHidden` (§5.1).
 - A bare reassignment is an ordinary JS assignment to a declared variable; it is how "modify this model" reads in code.
-
+- **Local function calls** use a bare-identifier callee from the script's own function set; positional inputs bind to the first `M` parameters, the trailing object's keys to the rest by name (ABI in §6.2). A body may not call another local function (v1).
+- **Function bodies** may contain arbitrary control flow, local `let` / `const` / `var`, conditional expressions, nested functions, and any `return` value; safety red lines (`eval` / `new` / dynamic `import()` / `import` / `export` / `class` / `with`) still apply inside bodies.
 ### 2.4 Expressions
 
 | Form | Result |
@@ -95,9 +105,10 @@ stmt     = (const|let) <id> = [await] <ns>.<fn>(<input>*, { <k>:<v>, … }?)
 | Declared variable name | `VarRefIR { $ref }` |
 | Array / object (recursive) | `JsonValue[]` / `Record<string, ArgIR>` |
 | Nested `<ns>.<fn>(…)` call | `CallRefIR { $call }` — a read-only query, it consumes nothing |
-| Binary / template / ternary / spread | Folded to a literal; the statement is marked `hasComputedArgs: true` |
+| Binary / template / ternary / spread over parameters and literals | Folded to a literal; the statement is marked `hasComputedArgs: true` |
+| **Expression referencing a statement variable** (`n > 10 ? 20 : 10`) | **`ExprIR { $expr }`** — kept verbatim, evaluated at runtime via an arrow wrapper; marked `hasComputedArgs: true` |
 
-A folded statement keeps only the literal in the IR, so the host editing surface degrades it to read-only: writing the value back erases the original expression.
+An `ExprIR` is a whitelisted grammar — `Literal` / `Identifier` / `Unary` / `Binary` / `Logical` / `Conditional` / `Array` (recursive), **no calls, no member access** (nested calls keep using `CallRefIR`); its value may be a Shape, not just JSON. Folding still wins for pure parameter/literal expressions — the runtime form only kicks in when folding fails. A folded statement keeps only the literal, so the host degrades it to read-only; `hasComputedArgs` gives the host the same cue.
 
 ### 2.5 Identifiers
 
@@ -116,12 +127,12 @@ The field-level contract of `StatementIR` and `ScriptIR` belongs to [`docs/api-c
 | `const size = 20` | A parameter statement: `params += { name:'size', default:20 }`; a reference is `ParamRefIR { $param:'size' }`, compiling to `ctx.size = 20` |
 | `let part0 = cad.box({ size })` | `{ id:'s2', callee:'box', args:{ size:{ $param:'size' } }, outputs:['part0'] }` |
 | `let part1 = cad.drill(part0, { diameter:5 })` | `{ callee:'drill', inputs:['part0'], outputs:['part1'] }` |
-| `cad.faceCenter(part0)` nested in args | `args.at = CallRefIR { $call:{ callee:'faceCenter', … } }` — the library owns the semantics; the engine does not know `faceCenter` |
+| `cad.faceCenter(part0)` nested in args | `args.at = CallRefIR { $call:{ callee:'faceCenter', … } }` — the library owns the semantics |
 | `const { front: part1, back: part2 } = cad.split(part0)` | `{ callee:'split', inputs:['part0'], outputs:['part1','part2'], outputKeys:['front','back'] }` |
-| `let part2 = cad.union(part0, part1)` | `{ callee:'union', inputs:['part0','part1'], outputs:['part2'] }` — `union` / `subtract` / `intersect` are separate functions |
-| `let g = cad.group({ members: [part0, part1] })` | `{ callee:'group', inputs:[], args:{ members:[{$ref:'part0'},{$ref:'part1'}] }, outputs:['g'] }` — members come from a generic `VarRefIR` scan |
+| `let part2 = cad.union(part0, part1)` | `{ callee:'union', inputs:['part0','part1'], outputs:['part2'] }` |
+| `let g = cad.group({ members: [part0, part1] })` | `{ callee:'group', inputs:[], args:{ members:[{$ref:'part0'},{$ref:'part1'}] }, outputs:['g'] }` |
 | `asm1.add_constraint({ type:'face_mate' })` | `{ callee:'add_constraint', receiver:'asm1', inputs:[], outputs:[] }` |
-| `let part3 = mech.makeHeadstock({ length:120 })` | `{ namespace:'mech', callee:'makeHeadstock', outputs:['part3'] }` — the namespace comes from the import specifier |
+| `let part3 = mech.makeHeadstock({ length:120 })` | `{ namespace:'mech', callee:'makeHeadstock', outputs:['part3'] }` |
 | `return [{ shape: part0 }, { shape: part2 }]` | `terminalShapes = [{ id:'part0' }, { id:'part2' }]` |
 
 ### 3.2 IR is compiled from text
@@ -181,7 +192,7 @@ export function group(params) {
 | `let a = cad.assembly({ members: [part0] })` then `a.do_assemble()` | `part0`, `a` — a member call never consumes its receiver |
 | `let c = cad.bboxCenter(part0)` | `part0`, `c` — all outputs non-geometric, so nothing is consumed |
 
-The decision chain behind this table — retention first, then "every output is non-geometric", then the default — and the leaf-terminal algorithm are owned by [`docs/api-contract.md`](api-contract.md).
+The decision chain behind this table — retention first, then "every output is non-geometric", then the default — and the leaf-terminal algorithm are owned by [`docs/api-contract.md`](api-contract.md). **Local function calls** (§2.3) follow the same chain with an opaque body: body-internal `cad.*` calls never register keeps (call-site `keep` is the only retention channel) and body intermediates never become terminals.
 
 ---
 
@@ -213,6 +224,17 @@ no assignment:   await ns.<ns>.<callee>(…)
 
 `$param` and `$ref` both compile to `ctx.<name>`, a nested `$call` to `await ns.<ns>.<callee>(…)`. A parameter declaration is a statement too (`ctx.size = 20`), which is why a parameter change cascades like any other dependency.
 
+**Local function ABI** (§2.3): `function <name>(<p1>, …, <pk>)` compiles to `async function <name>(__ctx, __ns, <p1>, …, <pk>)` — user parameters preserved verbatim after two injected engine parameters. A call binds positional-plus-named:
+```
+positional inputs  a1..aM  →  p1..pM        (M ≤ k, more → E_ARG)
+args object keys   key_i   →  p_{M+1}..p_k  (by name; unknown key / collision → E_ARG)
+unbound parameters          →  undefined    (JS semantics, no error)
+keep / keepHidden           →  stripped first, never participate in binding
+emission:  await localFns.<name>(ctx, ns, <p1>, …, <pM>, <v_{M+1}>, …, <vk>)
+```
+
+The wrapped body injects `const <binding> = __ns.<binding>` for `cad` and each top-level import binding, then embeds the user's body verbatim. A body may not call another local function (v1); its internal `cad.*` calls never enter the top-level DAG or register keeps (call-site `keep` is the only retention channel, §5), and transient OCCT handles are released on return except those reachable from the return value.
+
 ### 6.3 Incremental execution (three entries)
 
 | API | Behavior |
@@ -221,11 +243,11 @@ no assignment:   await ns.<ns>.<callee>(…)
 | `append(code, newIds)` | Execute only the new statements — the prefix is already in the persistent ctx |
 | `update(code)` | `plan()` computes the stale set → `reconcileCtx` → recompute from that set in topological order; zero execution when nothing is stale |
 
-All three take code text. `plan()` is content-addressed, not an id diff. `statementKey` is the namespace-qualified callee, the JSON of `args` without `keep` / `keepHidden`, and each dependency's `outputContentKey`; a parameter statement uses `param|JSON(value)`. Retention and visibility therefore cost nothing: toggling `keep` recomputes no geometry. A statement is stale when a dependency is stale or its key changed.
+All three take code text. `plan()` is content-addressed, not an id diff. `statementKey` is the namespace-qualified callee, the JSON of `args` without `keep` / `keepHidden`, and each dependency's `outputContentKey`; a parameter statement uses `param|JSON(value)`; a local-function call uses `local.<callee>#<bodyHash>` — editing a body changes every caller's key, so downstream recomputes; untouched bodies cost zero. Retention and visibility cost nothing: toggling `keep` recomputes no geometry. A statement is stale when a dependency is stale or its key changed.
 
 ### 6.4 `check()`
 
-`CadRuntime.check(code)` is a dry run with no geometry side effects, in four stages: **parse** — the acorn gate, `ParseError` carrying line number and diagnostic code; **symbol** — `cad` calls against the symbol table, namespaced calls against registered libraries, member methods skipped; **keep** — `validateKeepDirectives`, plus a warning for a misspelled `keep`-prefixed option; **reference** — every input and explicit terminal must be defined earlier. Value ranges are not checked here: each library function validates its own inputs and throws with context, surfaced via `ExecutionResult.failedAt`.
+`CadRuntime.check(code)` is a dry run with no geometry side effects, in four stages: **parse** — acorn gate, `ParseError` with line and code (local-call existence and ABI binding enforced here); **symbol** — `cad` calls against the symbol table, namespaced calls against registered libraries, member methods and local calls skipped; **keep** — `validateKeepDirectives` plus a misspelled-`keep` warning; **reference** — every input and explicit terminal must be defined earlier. Value ranges are checked by each library, surfaced via `ExecutionResult.failedAt`.
 
 ---
 
@@ -237,7 +259,7 @@ All three take code text. `plan()` is content-addressed, not an id diff. `statem
 2. Incremental recognition belongs to the engine — a deterministic algorithm — not the model.
 3. "Double the size" is, in a full-text view, "keep the line, change the value of `size`".
 
-The AI contract: read the whole current `.fai.js` text, return the whole new text — keep every existing statement unless deletion was requested, change only values or the callee on existing lines, append new statements at the end; never reorder or rename existing variables, never write control flow, `export default` or `return`.
+The AI contract: read the whole current `.fai.js` text, return the whole new text — keep every existing statement unless deletion was requested, change only values or the callee on existing lines, append new statements at the end; never reorder or rename existing variables, never write top-level control flow, `export default` or `return`. Control flow and loops go **inside a function body**, called by a top-level statement — a loop-driven part is a local function plus one call. Conditional expressions may appear in any argument value.
 
 ### 7.2 Host-side identity alignment
 
@@ -292,4 +314,4 @@ Terminals after step 6: `part4` (retained by the assembly), `part6`, `asm1`; the
 ## 9. Adjacent channels and non-goals
 
 - **Whole-module TypeScript** is a second execution channel: types are stripped and the source imported as one module, `export` naming its outputs. It builds no IR and never enters the timeline — an escape hatch, not part of the `.fai.js` statement language.
-- **Non-goals**: control flow, `Shape[]` batch operations, in-place mutation of a published Shape.
+- **Non-goals**: top-level control flow (function bodies may contain it), `Shape[]` batch operations, in-place mutation of a published Shape.

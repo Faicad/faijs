@@ -34,9 +34,9 @@
  * - 对象字面量 → `{key:value}`（冒号，合法 JS）
  */
 
-import type { ArgIR, StatementIR, ScriptIR, ParamRefIR, VarRefIR, CallRefIR, ImportIR, FunctionDefIR } from './types'
+import type { ArgIR, StatementIR, ScriptIR, ParamRefIR, VarRefIR, CallRefIR, ImportIR, FunctionDefIR, ExprIR } from './types'
 import type { PartName } from '../identity'
-import { isParamRef, isVarRef, isCallRef } from './types'
+import { isParamRef, isVarRef, isCallRef, isExprRef } from './types'
 
 // ── 数值格式化 ──
 
@@ -62,6 +62,8 @@ function fmtValue(value: ArgIR, varNames?: Map<string, string>): string {
   if (isParamRef(value)) return fmtParamRef(value)
   if (isVarRef(value)) return fmtVarRef(value, varNames)
   if (isCallRef(value)) return fmtCallRef(value, varNames)
+  // ExprIR → 原文（往返保真；<text> 是合法 JS 表达式，加括号保证与相邻 tokens 不粘连）
+  if (isExprRef(value)) return `(${(value as ExprIR).$expr.text})`
   if (Array.isArray(value)) return `[${value.map(v => fmtValue(v, varNames)).join(',')}]`
   if (typeof value === 'object') {
     const entries = Object.entries(value as Record<string, ArgIR>)
@@ -153,8 +155,8 @@ function printStatement(stmt: StatementIR, declared: Set<string>, varNames: Map<
     return mapped
   }).join(', ')
   const callArgs = [inputVars, argsObj].filter((s) => s.length > 0).join(', ')
-  // F2：命名空间前缀（缺省 cad）
-  const nsExpr = `${stmt.namespace ?? 'cad'}.${stmt.callee}`
+  // F2：命名空间前缀（缺省 cad）；本机函数调用（local）callee 无命名空间前缀（§3.4 / §7.2）
+  const nsExpr = stmt.local ? stmt.callee : `${stmt.namespace ?? 'cad'}.${stmt.callee}`
 
   // 1) 解构：outputKeys + outputs 一一对应
   if (stmt.outputKeys && stmt.outputKeys.length > 0) {

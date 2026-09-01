@@ -16,6 +16,8 @@ import { parseScript, ParseError } from './parser'
 import { scriptIRToCode } from './codegen'
 import { codeToArgs } from './code-to-args'
 import { analyzeCode } from './statement-summary'
+import { isExprRef } from './types'
+import type { ExprIR } from './types'
 
 // ── 表达式折叠（O1：编译期求值，IR 零改动） ──
 
@@ -154,19 +156,16 @@ describe('F1: 表达式折叠（parse 期静态求值为字面量）', () => {
     expect(script.statements[0].hasComputedArgs).toBe(true)
   })
 
-  it('引用语句变量（shape）的表达式 → parse 期明确报错 E_VALUE', () => {
+  it('引用语句变量（shape）的表达式 → 降级为 ExprIR 运行时求值（控制流放松方案 §3.3）', () => {
     const code = [
       'let part0 = cad.box({ size: 20 })',
       'let part1 = cad.box({ size: part0 + 1 })',
     ].join('\n')
-    let err: ParseError | undefined
-    try {
-      parseScript(code)
-    } catch (e) {
-      err = e as ParseError
-    }
-    expect(err).toBeInstanceOf(ParseError)
-    expect(err!.code).toBe('E_VALUE')
+    const { script } = parseScript(code)
+    const size = script.statements[1].args.size
+    expect(isExprRef(size)).toBe(true)
+    expect((size as ExprIR).$expr.refs).toEqual(['part0'])
+    expect(script.statements[1].hasComputedArgs).toBe(true)
   })
 })
 

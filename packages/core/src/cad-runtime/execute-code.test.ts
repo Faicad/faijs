@@ -232,3 +232,52 @@ describe('update(oldCode, newCode, opts): 双代码 diff 增量重算', () => {
     expect(await resultFingerprint(rt, result)).toEqual(await resultFingerprint(fullRt, full))
   })
 })
+
+// ── ExprIR 增量（控制流放松方案 Phase 1：编辑表达式 → key 变 → 重算） ──
+
+describe('ExprIR 增量（§5.4 箭头包装 / §6.2 key）', () => {
+  const CODE_EXPR = [
+    'let part0 = cad.box({ size: 20 })',
+    'let part1 = cad.box({ size: part0 ? 30 : 10 })',
+  ].join('\n')
+
+  it('编辑 ExprIR 表达式文本 → 语句重算；未改 → 零重算', async () => {
+    const rt = makeRuntime()
+    await rt.execute(CODE_EXPR)
+
+    // 改表达式分支值：part0 ? 30 : 10 → part0 ? 40 : 10
+    const newCode = [
+      'let part0 = cad.box({ size: 20 })',
+      'let part1 = cad.box({ size: part0 ? 40 : 10 })',
+    ].join('\n')
+    const executed: string[] = []
+    const result = await rt.update(CODE_EXPR, newCode, {
+      beforeStatement: (stmtId) => executed.push(stmtId),
+    })
+    // s2（part1）因 key 变化重算；s1（part0）不变
+    expect(executed).toEqual(['s2'])
+
+    const fullRt = makeRuntime()
+    const full = await fullRt.execute(newCode)
+    expect(await resultFingerprint(rt, result)).toEqual(await resultFingerprint(fullRt, full))
+  })
+
+  it('ExprIR 引用的上游变量变化 → 经 deps 级联重算（refs 进 deps）', async () => {
+    const rt = makeRuntime()
+    await rt.execute(CODE_EXPR)
+    // 改 part0 的 size：part0 内容变化 → part1 的 deps（part0）变化 → part1 级联重算
+    const newCode = [
+      'let part0 = cad.box({ size: 40 })',
+      'let part1 = cad.box({ size: part0 ? 30 : 10 })',
+    ].join('\n')
+    const executed: string[] = []
+    const result = await rt.update(CODE_EXPR, newCode, {
+      beforeStatement: (stmtId) => executed.push(stmtId),
+    })
+    expect(executed.sort()).toEqual(['s1', 's2'])
+
+    const fullRt = makeRuntime()
+    const full = await fullRt.execute(newCode)
+    expect(await resultFingerprint(rt, result)).toEqual(await resultFingerprint(fullRt, full))
+  })
+})

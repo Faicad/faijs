@@ -16,8 +16,8 @@
  * L0 边界：仅依赖 ./types 与 ../identity，零运行时依赖。
  */
 
-import type { ArgIR, CallRefIR, StatementIR, VarRefIR } from './types'
-import { isVarRef, isCallRef } from './types'
+import type { ArgIR, CallRefIR, StatementIR, VarRefIR, ExprIR } from './types'
+import { isVarRef, isCallRef, isExprRef } from './types'
 import { asPartName, type PartName } from '../identity'
 
 // ── 数据结构（设计契约 §6） ──
@@ -190,12 +190,17 @@ export function validateKeepDirectives(stmt: StatementIR): string[] {
     if (!Array.isArray(keepArg)) {
       errors.push(`statement "${stmt.id}": keep must be an array of variable references`)
     } else {
-      // 合法引用目标：inputs + args（除 keep/keepHidden 两键）中的 VarRefIR
+      // 合法引用目标：inputs + args（除 keep/keepHidden 两键）中的 VarRefIR / ExprIR refs
       const referable = new Set<string>(stmt.inputs.map(String))
       const scan = (value: unknown): void => {
         if (value === null || typeof value !== 'object') return
         if (isVarRef(value as ArgIR)) {
           referable.add(String((value as VarRefIR).$ref))
+          return
+        }
+        if (isExprRef(value as ArgIR)) {
+          // ExprIR refs（引用变量）也是合法 keep 目标；params 是参数（自身是输入）无需加入
+          for (const r of (value as ExprIR).$expr.refs) referable.add(String(r))
           return
         }
         if (isCallRef(value as CallRefIR)) {

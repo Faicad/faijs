@@ -25,7 +25,7 @@
 
 import type { ScriptIR, TerminalShape, StatementIR, ArgIR } from '../lang/types'
 import type { PartName } from '../identity'
-import { isVarRef, isCallRef } from '../lang/types'
+import { isVarRef, isCallRef, isExprRef } from '../lang/types'
 import { resolveKeep, type InternalKeepRecord } from '../lang/keep'
 
 /**
@@ -73,7 +73,7 @@ export function consumes(
   // C5：默认消费。inputs：位置引用
   if (stmt.inputs.includes(v)) return true
 
-  // args：递归扫描 VarRefIR（CallRefIR 内不消费 = 只读查询）
+  // args：递归扫描 VarRefIR（CallRefIR 内不消费 = 只读查询）；ExprIR refs 按 C5 消费（§4.3）
   let consumed = false
   const scan = (value: ArgIR, inCallRef: boolean): void => {
     if (consumed) return
@@ -82,6 +82,11 @@ export function consumes(
       if (value.$ref !== v) return
       if (inCallRef) return                       // 嵌套调用内 = 只读查询
       consumed = true
+      return
+    }
+    if (isExprRef(value)) {
+      if (inCallRef) return                       // 嵌套调用内 = 只读查询
+      if (value.$expr.refs.includes(String(v))) consumed = true
       return
     }
     if (isCallRef(value)) {

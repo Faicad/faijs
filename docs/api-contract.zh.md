@@ -156,20 +156,28 @@ export interface TerminalShape {
 
 `.fai.js` 必须是 **JavaScript 的合法子集**——任意 JS 解析器（acorn）都能无错解析。加载流程：acorn 解析（语法闸门）→ 引擎把解析结果编译为模块 → JS VM 动态 import 执行；**不 eval 用户文本**（R-3）。
 
-**禁止**：控制流（if／for／while／do／switch／try）、动态 `import()`、`eval`／`new Function`、`export`。越界一律报诊断码 `E_CONTROL_FLOW` / `E_SYNTAX` / `E_VALUE` / `E_REFERENCE` / `E_IMPORT`，由 `check()` 透传。
+**顶层禁止**：控制流（if／for／while／do／switch／try）、动态 `import()`、`eval`／`new Function`／`new`、`export`。越界一律报诊断码 `E_CONTROL_FLOW` / `E_SYNTAX` / `E_VALUE` / `E_REFERENCE` / `E_IMPORT` / `E_ARG`，由 `check()` 透传。
 
-**允许**：顶层 `import`（第三方库，非控制流）、顶层函数定义、可静态折叠的表达式（二元／模板字符串／三元）、任意 callee 解构、成员方法链（`asm1.add_constraint({ … })`）。
+**允许**：顶层 `import`（第三方库，非控制流）、顶层函数定义、**函数体内的控制流**（if／for／while／switch／try／throw／break／continue／labeled，外加 `var`）、**本机函数调用**（callee 是脚本自身函数集的裸标识符，四种形式：赋值／重赋值／解构／副作用）、**运行时表达式**（参数值里的 `ExprIR`，由 JS 引擎求值而非折叠）、可静态折叠的表达式（二元／模板字符串／三元）、任意 callee 解构、成员方法链（`asm1.add_constraint({ … })`）。
+
+**函数体不透明**：体内控制流合法，但 `eval`／`new`／动态 `import()`／`import`／`export`／`class`／`with` 依旧禁止，且体内不得调用另一个本机函数（v1）。本机调用按「位置 + 按名」ABI 绑定：位置实参映射前 `M` 个形参，末尾对象的键按名映射剩余形参（未知键或占用冲突 → `E_ARG`），未绑定形参为 `undefined`，`keep`／`keepHidden` 在绑定前剥离。编辑函数体经 `bodyHash` 内容键使所有调用者失效（§7.5）。
 
 平铺格式（UI 录制，一行一个操作）：
 
 ```js
 import * as mech from 'mech-lib'
 const size = 20
+function makeGear(count, pitch) {            // body may contain loops/branches
+  let parts = []
+  for (let i = 0; i < count; i++) parts.push(await cad.box({ size: pitch }))
+  return await cad.union(parts[0], parts[1])
+}
 let part0 = cad.box({ size })
 let part3 = cad.drill(part0, { diameter: 5 })
 const { front: part1, back: part2 } = cad.split(part0, { cutMode: 'plane' })
 let part4 = cad.group({ members: [part0, part1] })
 let part5 = mech.makeHeadstock({ length: 120 })
+let part6 = makeGear({ count: 8, pitch: 5 })
 ```
 
 **keep 指令**寄生在 args 中（不是新关键字），见 §6。代码文本是唯一事实源；从它编译出的内部表示是实现细节，从内部表示重打文本只用于调试（见 §13.3 PS）。一个操作对应一行代码是扁平格式（UI 录制）的约定。
@@ -282,16 +290,20 @@ export interface ExecuteOptions {
   partTransform?: { position: Vec3; scale?: Vec3 }
   startIndex?: number
   topology?: 'auto' | 'brep' | 'off'
+  executionTimeoutMs?: number                      // whole-run guard (optional, default off) → E_EXEC_LIMIT
 }
 ```
 
 公开执行入口**恰好三个**——`execute(code)` / `append(code, newIds)` / `update(code)`，全部接收代码文本；**不存在第四个入口，也没有 `ExecuteCodeOptions`**。`sceneCode` 携带跨 part 引用的整场景代码文本。
 
+**执行护栏**（`executionTimeoutMs`，可选、默认关）：覆盖 execute/append/update 全程（含每个本机函数重放）的整轮超时；超时抛 `ExecutionLimitError`（`E_EXEC_LIMIT`），保护 worker/UI 免于死循环。函数体内的同步 `while(true)` 是 JS 引擎单线程限制，本护栏无法打断——真正的防护在宿主层（worker terminate / AbortController）。
+
 ### 7.5 增量执行语义
 
-- **按内容寻址**：语句身份键 = 带命名空间的被调函数 + args 的 JSON（去掉 keep）+ 各依赖的内容指纹；参数语句为 `param|JSON(value)`。`keep`／`keepHidden` 两键被排除——**切换保留／隐藏状态零几何重算**。
+- **按内容寻址**：语句身份键 = 带命名空间的被调函数 + args 的 JSON（去掉 keep）+ 各依赖的内容指纹；参数语句为 `param|JSON(value)`；**本机函数调用为 `local.<callee>#<bodyHash>`**——编辑函数体使所有调用它的语句 key 变化、下游重算，未改动的函数体零重算。`keep`／`keepHidden` 两键被排除——**切换保留／隐藏状态零几何重算**。
 - **持久 ctx**：脚本变量存于跨执行存活的容器，支持原地重赋值。
-- **重放范围**：`plan` 算出失效集，从首个变更点重放；无失效则零执行。
+- **重放范围**：`plan` 算出失效集，从首个变更点重放；无失效则零执行。**本机函数调用是单一执行单元**——整个函数体作为一个整体重放（函数体内无语句级 diff）；函数体中间变量永不进入顶层 ctx 或终端判定。
+- **函数 BREP 域**：本机函数运行期间新产生的 OCCT 句柄被登记；返回时除返回值可达句柄外的全部瞬态句柄被释放（`finally`，异常路径同样）。函数体内的 `cad.*` 调用产生几何但永不进入顶层 `solidCache`；只有返回值的句柄进入。
 
 ### 7.6 库契约三面
 
@@ -550,6 +562,9 @@ PS：从 IR 重打文本只用于调试，不属于任何契约。
 
 ### 13.5 兼容性
 
-- 顶层禁止控制流（语言约束），保证终端判定等静态规则不被 AI 代码破坏。
+- 顶层禁止控制流（语言约束），保证终端判定等静态规则不被 AI 代码破坏；**控制流允许出现在函数体内**（v1，§5）。
+- 本机函数调用（裸标识符 callee）与运行时表达式（参数里的 `ExprIR`）是新的顶层能力；不含函数的既有脚本解析不变（零回归），参数/字面量表达式依旧按原样折叠。
+- 本机函数调用与其它语句一样是 DAG 节点：`inputs` / `args` / `outputs` 参与 `consumes()` 与终端判定，只有函数体不透明。
+- 函数体是嵌入编译产物的用户源码——对「用户文本不进 VM」（R-3）的已记录例外，边界是 acorn 闸门 + 白名单（见 `docs/syntax-design.md`），与 faqts 通道同构（§10.5）。
 - 旧版带版本后缀的命名不再产生、也不再解析（版本号语义与 `grp_` 前缀均已取消；旧名兼容解析已删除，决策 2，见 `lang/allocate-id.ts`）。
 - `export default async (cad) => {}` 容器与扁平格式均可解析；扁平代码自动封装为合法容器。

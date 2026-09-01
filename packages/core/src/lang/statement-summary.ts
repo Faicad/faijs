@@ -25,6 +25,9 @@ export interface StatementSummary {
   callee: string
   /** 调用命名空间（F2：`mech.makeHeadstock(...)` → 'mech'；缺省 cad 时为 undefined） */
   namespace?: string
+  /** 本机函数调用（§3.4）：callee 是脚本内函数名，namespace/packageName 缺省。
+   *  宿主据此渲染「本机函数」节点（只读编辑，函数体不透明）。 */
+  local?: boolean
   /** 命名空间对应的包名（F2：由顶层 import specifier 推导；cad 时为 undefined）。
    *  timeline「带包名」标识 / 宿主 getFeatureByOp(packageName, op) 的依据。 */
   packageName?: string
@@ -65,6 +68,7 @@ export function analyzeCode(code: string): StatementSummary[] {
   return script.statements.map((s, i) => ({
     id: s.id,
     callee: s.callee,
+    ...(s.local ? { local: true } : {}),
     ...(s.namespace !== undefined
       ? { namespace: s.namespace, ...(nsToPkg.get(s.namespace) !== undefined ? { packageName: nsToPkg.get(s.namespace) } : {}) }
       : {}),

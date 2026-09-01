@@ -48,20 +48,26 @@
 | 允许 | 说明 |
 |---|---|
 | 顶层 `import` | 模块声明而非控制流：必须是顶部连续的一块；命名空间须已在运行时注册 |
-| 顶层函数定义 | 记为 `FunctionDefIR`；不是语句，不进 DAG |
-| 可静态折叠的表达式 | 二元 / 模板 / 三元 / 展开折叠为字面量，并把语句标记为 `hasComputedArgs`（§2.4） |
-| 任意被调函数、任意解构键 | parser 不知道也不需要校验函数名 |
+| 顶层函数定义 | 记为 `FunctionDefIR`；不是语句，不进 DAG；函数体可以含控制流（§2.3） |
+| **函数体内的控制流** | `if` / `for` / `while` / `switch` / `try` / `throw` / `break` / `continue` / `labeled` 与 `var` 只允许出现在函数体内 —— 顶层保持线性（§2.3） |
+| **本机函数调用** | `myFn(input, { … })` —— callee 是脚本自身函数集的裸标识符；四种形式（§2.3），由 ABI 契约约束（§6.2） |
+| **运行时表达式（`ExprIR`）** | 引用语句变量的条件 / 逻辑 / 二元表达式保持为表达式，由 JS 引擎在运行时求值，不再折叠（§2.4） |
+| 可静态折叠的表达式 | 参数与字面量上的二元 / 模板 / 三元 / 展开折叠为字面量，并把语句标记为 `hasComputedArgs`（§2.4） |
+| 任意被调函数、任意解构键 | parser 不知道也不需要校验命名空间的函数名；本机函数仅按名参与 ABI 绑定 |
 | 成员方法调用 | `asm1.add_constraint({ … })`；调用永不消费它的接收者 |
 | `return { shape: … }` / `return [ … ]` | 显式终端集，覆盖 DAG 的推导结果 |
 | `await` | 可选且被剥离；codegen 从不输出它 |
 
 | 禁止 | 诊断 |
 |---|---|
-| `if` / `for` / `while` / `do` / `switch` / `try` | `E_CONTROL_FLOW` —— canvas 与 timeline 将无法推导 |
+| **顶层的**控制流 | `E_CONTROL_FLOW` —— canvas 与 timeline 保持可推导；控制流只住在函数体内 |
 | 动态 `import()` | `E_IMPORT` —— 控制流构造 |
-| `eval` / `new Function` | `E_SYNTAX` —— 安全红线 |
+| `eval` / `new Function` / `new` | `E_SYNTAX` —— 安全红线（函数体内同样拒绝） |
 | `export` | `E_SYNTAX` —— 声明输出是引擎的事 |
 | 函数体内的 import、非连续的顶层 import | `E_IMPORT` |
+| **函数体内**调用本机函数 | `E_STATEMENT` —— 本机函数只能从顶层调用（v1） |
+| 顶层未知的本机函数名 | `E_REFERENCE` —— parser 知道脚本的函数集 |
+| 重复的函数名 | `E_STATEMENT` —— 函数名必须唯一 |
 
 ### 2.2 文件容器
 
@@ -72,19 +78,24 @@
 
 ```
 script   = import* function* (comment | param | stmt)*
-
 param    = const <name> = <literal | foldable expression>
-
 stmt     = (const|let) <id> = [await] <ns>.<fn>(<input>*, { <k>:<v>, … }?)
          | const { <k1>: <id1>, … } = [await] <ns>.<fn>(<input>*, {…}?)
          | <id> = [await] <ns>.<fn>(<input>*, {…}?)
          | <id>.<method>({ <k>:<v>, … }?)
+         | (const|let) <id> = [await] <localFn>(<input>*, { <k>:<v>, … }?)
+         | <id> = [await] <localFn>(<input>*, {…}?)          // re-assignment
+         | const { <k1>: <id1>, … } = [await] <localFn>(<input>*, {…}?)
+         | [await] <localFn>(<input>*, {…}?)                  // side-effect call
          | return { shape: <id>, name?, color?, … }
          | return [ { shape: <id>, … }, … ]
+function = function <name>(<param>, …) { <body> }             // body may contain control flow
 ```
 
 - `<ns>` 是 `cad` 或 `mech` 这类导入的命名空间；位置参数必须是已声明的变量（零个、一个或多个），末尾的选项对象可以省略，也可以带 `keep` / `keepHidden`（§5.1）。
 - 裸重赋值就是对已声明变量的普通 JS 赋值；"修改这个模型"在代码里就长这样。
+- **本机函数调用**的 callee 是脚本自身函数集的裸标识符（`<localFn>`）。位置实参绑定前 `M` 个形参，末尾选项对象的键按名绑定剩余形参 —— 完整 ABI 契约见 §6.2。函数体内不得调用另一个本机函数（v1）。
+- **函数体**可含任意控制流（`if` / `for` / `while` / `switch` / `try` / `throw` / `break` / `continue` / `labeled`）、局部 `let` / `const` / `var`、条件表达式、嵌套函数，以及任意 `return` 值（Shape / CompoundShape / 数组 / 对象 / 标量）。安全红线依旧适用：函数体内的 `eval` / `new` / 动态 `import()` / `import` / `export` / `class` / `with` 同样被拒。
 
 ### 2.4 表达式
 
@@ -95,9 +106,12 @@ stmt     = (const|let) <id> = [await] <ns>.<fn>(<input>*, { <k>:<v>, … }?)
 | 已声明的变量名 | `VarRefIR { $ref }` |
 | 数组 / 对象（递归） | `JsonValue[]` / `Record<string, ArgIR>` |
 | 嵌套的 `<ns>.<fn>(…)` 调用 | `CallRefIR { $call }` —— 只读查询，不消费任何东西 |
-| 二元 / 模板 / 三元 / 展开 | 折叠为字面量；语句被标记 `hasComputedArgs: true` |
+| 参数与字面量上的二元 / 模板 / 三元 / 展开 | 折叠为字面量；语句被标记 `hasComputedArgs: true` |
+| **引用语句变量的表达式**（`n > 10 ? 20 : 10`、`[w, h, r * 2 + 1]`） | **`ExprIR { $expr }`** —— 原文保留，经箭头包装由 JS 引擎运行时求值；语句被标记 `hasComputedArgs: true` |
 
-折叠后的语句在 IR 里只留下字面量，因此宿主的编辑面必须把它降级为只读：把值写回去会抹掉原始表达式。
+`ExprIR` 是白名单表达式文法 —— `Literal` / `Identifier` / `Unary` / `Binary` / `Logical` / `Conditional` / `Array`（递归），**不含调用与成员访问**（嵌套调用继续走 `CallRefIR`）。它的值不限于 JSON：标识符可以引用 Shape 变量，求值结果原样传给 op。纯参数 / 字面量表达式仍然折叠 —— 运行时形态只在折叠失败（引用了语句变量）时接管，这是最小行为变更。
+
+折叠后的语句在 IR 里只留下字面量，因此宿主的编辑面必须把它降级为只读：把值写回去会抹掉原始表达式。`hasComputedArgs` 同样为 `ExprIR` 参数给宿主降级提示。
 
 ### 2.5 标识符
 
@@ -213,6 +227,18 @@ no assignment:   await ns.<ns>.<callee>(…)
 
 `$param` 与 `$ref` 都编译成 `ctx.<name>`，嵌套的 `$call` 编译成 `await ns.<ns>.<callee>(…)`。参数声明本身也是语句（`ctx.size = 20`），所以改一个参数会像其它依赖一样级联。
 
+**本机函数 ABI**（§2.3）：脚本定义的 `function <name>(<p1>, …, <pk>)` 在编译期被包装为 `async function <name>(__ctx, __ns, <p1>, …, <pk>)` —— 用户的形参表原样保留在两个注入的引擎参数之后。调用 `myFn(a1..aM, { key1: v1, … })` 按「位置 + 按名」契约绑定：
+
+```
+positional inputs  a1..aM  →  p1..pM        (M ≤ k, more → E_ARG)
+args object keys   key_i   →  p_{M+1}..p_k  (by name; unknown key / collision → E_ARG)
+unbound parameters          →  undefined    (JS semantics, no error)
+keep / keepHidden           →  stripped first, never participate in binding
+emission:  await localFns.<name>(ctx, ns, <p1>, …, <pM>, <v_{M+1}>, …, <vk>)
+```
+
+包装体为 `cad` 与每个顶层 import 绑定注入 `const <binding> = __ns.<binding>`，然后原样嵌入用户函数体。函数体内不得调用另一个本机函数（v1，D10）；函数的几何保持不透明 —— 其内部的 `cad.*` 调用产生几何与 BREP 句柄，但永不进入顶层 DAG、永不登记 keep（调用点 `keep` 是唯一的保留通道，§5），函数返回时释放瞬态 OCCT 句柄，只保留返回值可达的句柄（函数 BREP 域）。
+
 ### 6.3 增量执行（三个入口）
 
 | API | 行为 |
@@ -221,11 +247,11 @@ no assignment:   await ns.<ns>.<callee>(…)
 | `append(code, newIds)` | 只执行新语句 —— 前缀已在常驻 ctx 里 |
 | `update(code)` | `plan()` 算出失效集 → `reconcileCtx` → 按拓扑序从该集重算；无失效时零执行 |
 
-三个入口都接收代码文本（引擎内部解析文本为 IR 再执行）。`plan()` 是内容寻址的，不是 id diff。`statementKey` 由带命名空间的被调函数名、剔除 `keep` / `keepHidden` 后的 `args` JSON、以及每个依赖的 `outputContentKey` 组成；参数语句用 `param|JSON(value)`。因此保留与可见性零成本：切换 `keep` 不重算任何几何。语句失效的条件是某个依赖失效，或自身的 key 变了。
+三个入口都接收代码文本（引擎内部解析文本为 IR 再执行）。`plan()` 是内容寻址的，不是 id diff。`statementKey` 由带命名空间的被调函数名、剔除 `keep` / `keepHidden` 后的 `args` JSON、以及每个依赖的 `outputContentKey` 组成；参数语句用 `param|JSON(value)`；本机函数调用用 `local.<callee>#<bodyHash>` —— 编辑函数体使所有调用它的语句 key 变化、下游重算，未改动的函数体零重算。因此保留与可见性零成本：切换 `keep` 不重算任何几何。语句失效的条件是某个依赖失效，或自身的 key 变了。
 
 ### 6.4 `check()`
 
-`CadRuntime.check(code)` 是无几何副作用的干跑，分四阶段：**解析** —— acorn 闸门，`ParseError` 带行号与诊断码；**符号** —— `cad` 调用查符号表，带命名空间的调用查已注册的库，成员方法跳过；**keep** —— `validateKeepDirectives`，外加对拼错的 `keep` 前缀选项给出警告；**引用** —— 每个入参与显式终端都必须更早定义。值域不在这里检查：每个库函数自行校验入参并带上下文抛错，经 `ExecutionResult.failedAt` 暴露。
+`CadRuntime.check(code)` 是无几何副作用的干跑，分四阶段：**解析** —— acorn 闸门，`ParseError` 带行号与诊断码（本机调用存在性与 ABI 绑定在此最早拦截）；**符号** —— `cad` 调用查符号表，带命名空间的调用查已注册的库，成员方法跳过，本机调用跳过（已在 parse 期校验）；**keep** —— `validateKeepDirectives`，外加对拼错的 `keep` 前缀选项给出警告；**引用** —— 每个入参与显式终端都必须更早定义。值域不在这里检查：每个库函数自行校验入参并带上下文抛错，经 `ExecutionResult.failedAt` 暴露。
 
 ---
 
@@ -237,7 +263,7 @@ no assignment:   await ns.<ns>.<callee>(…)
 2. 增量识别属于引擎 —— 一个确定性算法 —— 而不是模型。
 3. "把尺寸翻倍"在全文视角下就是"保留那一行，把 `size` 的值改掉"。
 
-AI 契约：读当前完整的 `.fai.js` 文本，返回完整的新文本 —— 除非要求删除，否则保留每一条已有语句；已有行只改值或被调函数名；新语句追加在末尾；绝不重排或重命名已有变量，绝不写控制流、`export default` 或 `return`。
+AI 契约：读当前完整的 `.fai.js` 文本，返回完整的新文本 —— 除非要求删除，否则保留每一条已有语句；已有行只改值或被调函数名；新语句追加在末尾；绝不重排或重命名已有变量，绝不写顶层控制流、`export default` 或 `return`。控制流与循环可以写在**函数体内**，顶层语句可以调用这样的函数 —— 循环驱动的零件（齿轮、阵列）表达为一个本机函数 + 一条调用语句。条件表达式可以出现在任何参数值里。
 
 ### 7.2 宿主侧的对齐
 

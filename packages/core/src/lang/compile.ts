@@ -26,8 +26,9 @@ import type {
   ScriptIR,
   VarRefIR,
   CallRefIR,
+  ExprIR,
 } from './types'
-import { isParamRef, isVarRef, isCallRef } from './types'
+import { isParamRef, isVarRef, isCallRef, isExprRef } from './types'
 import { withoutKeepDirectives } from './keep'
 import { fmtNum } from './codegen'
 import { asStmtId, type StmtId } from '../identity'
@@ -84,6 +85,18 @@ function translateCallRef(ref: CallRefIR): string {
   return `await ns.${namespace ?? 'cad'}.${callee}(${inner})`
 }
 
+/**
+ * ExprIR → 箭头包装发射（§5.4，零改写）：
+ * `((${names}) => ${text})(${args})`，names = [...params, ...refs]（去重、保持声明顺序），
+ * args = `ctx.<name>, ...` 与 names 一一对应。表达式原文 text 不重写，标识符经
+ * 箭头参数绑定解析到 ctx.<name>；语法门禁在 parse 期完成（§3.3 白名单文法）。
+ */
+function translateExprRef(ref: ExprIR): string {
+  const names = [...new Set([...ref.$expr.params, ...ref.$expr.refs])]
+  const args = names.map((n) => `ctx.${n}`).join(', ')
+  return `((${names.join(', ')}) => ${ref.$expr.text})(${args})`
+}
+
 /** 递归翻译单个 ArgIR 值为编译产物表达式。 */
 function translateArg(value: ArgIR): string {
   if (value === null || value === undefined) return 'null'
@@ -93,6 +106,7 @@ function translateArg(value: ArgIR): string {
   if (isParamRef(value)) return translateParamRef(value)
   if (isVarRef(value)) return translateVarRef(value)
   if (isCallRef(value)) return translateCallRef(value)
+  if (isExprRef(value)) return translateExprRef(value)
   if (Array.isArray(value)) {
     return `[${value.map((v) => translateArg(v as ArgIR)).join(', ')}]`
   }
@@ -137,6 +151,11 @@ function getStatementRefs(stmt: StatementIR): string[] {
       for (const a of value.$call.args) scan(a)
       return
     }
+    if (isExprRef(value)) {
+      for (const p of value.$expr.params) refs.add(p)
+      for (const r of value.$expr.refs) refs.add(r)
+      return
+    }
     if (Array.isArray(value)) {
       for (const v of value) scan(v)
       return
@@ -154,8 +173,40 @@ function getStatementRefs(stmt: StatementIR): string[] {
   return [...refs]
 }
 
-/** 生成单条语句的 fn 体（缩进 6 空格，嵌入模块文本）。纯机械：按 IR 形态发射，无 callee 分支（A9 消灭）。 */
-function buildStatementFnBody(stmt: StatementIR): string {
+/** 生成单条语句的 fn 体（缩进 6 空格，嵌入模块文本）。纯机械：按 IR 形态发射，无 callee 分支（A9 消灭）。
+ *  @param localParams 本机函数名 → 形参表（ABI 发射用；local 语句按形参序补位）。 */
+function buildStatementFnBody(stmt: StatementIR, localParams?: Map<string, string[]>): string {
+  // ── 本机函数调用（local，§3.4 / §5.3）：ABI 按形参序发射 ──
+  // 发射形态（§3.6）：`await <name>(ctx, ns, <pos1>, …, <posM>, <v_{M+1}>, …, <vk>)`
+  // - 位置实参（inputs）占前 M 位 → `ctx.<input>`
+  // - args 对象键按形参名补到剩余位（缺失形参 → undefined；parse 期 ABI 已拦截未知/占用键）
+  // - keep/keepHidden 先剥离（与命名空间调用一致）
+  if (stmt.local) {
+    const params = localParams?.get(stmt.callee) ?? []
+    const M = stmt.inputs.length
+    const callArgs: string[] = ['ctx', 'ns']
+    for (const inp of stmt.inputs) callArgs.push(`ctx.${inp}`)
+    const runtimeArgs = withoutKeepDirectives(stmt.args)
+    for (let i = M; i < params.length; i++) {
+      const p = params[i]
+      const v = runtimeArgs[p]
+      callArgs.push(v !== undefined ? translateArg(v) : 'undefined')
+    }
+    const call = `await localFns.${stmt.callee}(${callArgs.join(', ')})`
+    // 1) 对象解构赋值（本机函数多返回值：return { front, back }）
+    if (stmt.outputKeys && stmt.outputKeys.length > 0) {
+      const keys = stmt.outputKeys.join(', ')
+      const assigns = stmt.outputs.map((out, i) => `      ctx.${out} = ${stmt.outputKeys![i]}`).join('\n')
+      return [`      const { ${keys} } = ${call}`, assigns].join('\n')
+    }
+    // 2) 无赋值调用（副作用）
+    if (stmt.outputs.length === 0) {
+      return `      await ${call}`
+    }
+    // 3) 普通赋值（单输出）
+    return `      ctx.${stmt.outputs[0]} = ${call}`
+  }
+
   const inputs = stmt.inputs.map((inp) => `ctx.${inp}`).join(', ')
   // 调用点 keep 指令发射前剥离（keep-syntax 设计 §7.1）：keep 透传会挤占
   // params 槽 / 被当 Shape 传入（union/split 的 ...rest、copy 的双参签名）。
@@ -215,6 +266,9 @@ function buildStatementFnBody(stmt: StatementIR): string {
 export function compileToModule(script: ScriptIR): CompiledModule {
   const metas: CompiledStatementMeta[] = []
   const varToStmtId = new Map<string, StmtId>()
+  // 本机函数名 → 形参表（ABI 发射：位置实参占前 M 位，args 键按形参名补剩余位）
+  const localParams = new Map<string, string[]>()
+  for (const fn of script.functions ?? []) localParams.set(fn.name, fn.params)
 
   // 1. 参数语句（s1..sK）
   script.params.forEach((p, i) => {
@@ -251,7 +305,7 @@ export function compileToModule(script: ScriptIR): CompiledModule {
       const p = script.params[stmtCursor]
       fnBody = `      ctx.${p.name} = ${fmtJsonValue(p.value as JsonValue)}`
     } else {
-      fnBody = buildStatementFnBody(script.statements[meta.sourceIndex])
+      fnBody = buildStatementFnBody(script.statements[meta.sourceIndex], localParams)
     }
     stmtCursor++
     const depsStr = meta.deps.length > 0 ? meta.deps.map((d) => `'${d}'`).join(', ') : ''
@@ -261,6 +315,30 @@ export function compileToModule(script: ScriptIR): CompiledModule {
     bodyLines.push(`    } },`)
   }
 
-  const code = `export const statements = [\n${bodyLines.join('\n')}\n]\n`
+  // 5. 本机函数段（§5.1 / §5.2，ABI 方案 A / D7）：
+  //    包装器 = `async function <name>(__ctx, __ns, <用户形参按名>) { <命名空间绑定> <用户函数体原文> }`。
+  //    命名空间绑定：`const cad = __ns.cad` + 每个顶层 import 绑定名（函数体内裸 cad./mech. 可解析）。
+  //    函数体原文嵌入（语法门禁后，P3/P5）；不注入 ctx / 兄弟函数名（D10 禁体内本机调用）。
+  const fnLines: string[] = []
+  for (const fn of script.functions ?? []) {
+    const bindNames = new Set<string>(['cad'])
+    for (const imp of script.imports ?? []) {
+      bindNames.add(imp.localName)
+      for (const b of imp.bindings ?? []) bindNames.add(b)
+    }
+    const binds = [...bindNames].map((n) => `  const ${n} = __ns.${n}`).join('\n')
+    const params = fn.params.length > 0 ? `, ${fn.params.join(', ')}` : ''
+    fnLines.push(`async function ${fn.name}(__ctx, __ns${params}) {`)
+    fnLines.push(binds)
+    fnLines.push(fn.body)
+    fnLines.push('}')
+  }
+  const localFnsExport =
+    (script.functions ?? []).length > 0
+      ? `export const localFns = { ${(script.functions ?? []).map((f) => f.name).join(', ')} }\n`
+      : ''
+  const fnSection = fnLines.length > 0 ? `${fnLines.join('\n')}\n` : ''
+
+  const code = `${fnSection}${localFnsExport}export const statements = [\n${bodyLines.join('\n')}\n]\n`
   return { code, statements: metas }
 }

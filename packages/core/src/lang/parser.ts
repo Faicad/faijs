@@ -32,8 +32,9 @@ import type {
   TerminalShape,
   ImportIR,
   FunctionDefIR,
+  ExprIR,
 } from './types'
-import { isParamRef, isVarRef, isCallRef } from './types'
+import { isParamRef, isVarRef, isCallRef, isExprRef } from './types'
 import {
   asStmtId,
   asPartName,
@@ -59,6 +60,8 @@ export type ParseErrorCode =
   | 'E_IMPORT'
   /** 引用错误（未知变量 / 未声明 receiver） */
   | 'E_REFERENCE'
+  /** 本机函数调用 ABI 违规（§3.6：位置实参超位 / args 对象键不在形参表） */
+  | 'E_ARG'
 
 /**
  * An error raised while parsing faijs source, carrying the offending line
@@ -252,6 +255,164 @@ interface ValueFlags {
   computed: boolean
 }
 
+// ── ExprIR（运行时表达式，控制流放松方案 §3.3 / §4.3） ──
+// 折叠失败（引用了语句变量等）且节点 ∈ 白名单文法时，把表达式原文 + 引用名
+// 集合降级为 ExprIR，由编译期箭头包装发射、JS 引擎运行时求值（§5.4）。
+
+/**
+ * ExprIR 白名单文法（§3.3）：Literal / Identifier / Unary / Binary / Logical /
+ * Conditional / Array（元素递归走白名单）。**不含** CallExpression、MemberExpression、
+ * TemplateLiteral、SpreadElement、**ObjectExpression**——这些形态保持现状路径
+ * （嵌套调用走 CallRefIR；折叠失败 → E_VALUE）。
+ *
+ * ObjectExpression 不整体降级：对象属性值引用变量时本就是 VarRefIR（现状路径），
+ * 属性值为折叠失败的表达式时由属性值递归各自降级为 ExprIR——整体降级语义等价
+ * 且会误伤 args 顶层容器（`cad.op({ size: ... })` 的整个 args 对象不能被降级）。
+ */
+function isExprWhitelist(node: ASTNode): boolean {
+  if (!node || typeof node !== 'object') return false
+  switch (node.type) {
+    case 'Literal':
+    case 'Identifier':
+      return true
+    case 'UnaryExpression':
+      return isExprWhitelist(node.argument)
+    case 'BinaryExpression':
+    case 'LogicalExpression':
+      return isExprWhitelist(node.left) && isExprWhitelist(node.right)
+    case 'ConditionalExpression':
+      return (
+        isExprWhitelist(node.test) &&
+        isExprWhitelist(node.consequent) &&
+        isExprWhitelist(node.alternate)
+      )
+    case 'ArrayExpression':
+      return node.elements.every(
+        (el: ASTNode) => el !== null && el !== undefined && isExprWhitelist(el),
+      )
+    default:
+      return false
+  }
+}
+
+/**
+ * 预检：节点是否「需整体降级为 ExprIR」——数组内出现折叠失败（引用变量）且自身
+ * ∈ 白名单的表达式元素。折叠成功 / 纯字面量 / 参数 / 变量引用 / 嵌套调用均返回
+ * false（维持现状路径）；未知标识符等非法形态也返回 false（由现状路径报错）。
+ * 对象不整体降级（属性值各自递归降级，见 isExprWhitelist 注释）。
+ */
+function needsExprFallback(
+  node: ASTNode,
+  paramNames: Set<string>,
+  paramValues: Map<string, JsonValue>,
+): boolean {
+  if (!node || typeof node !== 'object') return false
+  switch (node.type) {
+    case 'Literal':
+    case 'Identifier':
+    case 'ObjectExpression':
+      return false
+    case 'UnaryExpression':
+    case 'BinaryExpression':
+    case 'LogicalExpression':
+    case 'TemplateLiteral':
+    case 'ConditionalExpression': {
+      if (tryFoldConstExpr(node, paramNames, paramValues).ok) return false
+      return isExprWhitelist(node)
+    }
+    case 'ArrayExpression':
+      return node.elements.some(
+        (el: ASTNode) => el !== null && el !== undefined && needsExprFallback(el, paramNames, paramValues),
+      )
+    default:
+      return false
+  }
+}
+
+/**
+ * 递归收集 ExprIR 引用的参数名 / 变量名：Identifier → 参数进 params（ctx 键）、
+ * 已声明变量进 refs（VarRef 语义）、未知标识符 → E_REFERENCE（loose 模式透传为 partName）。
+ */
+function collectExprIdentifiers(
+  node: ASTNode,
+  paramNames: Set<string>,
+  varToId: Map<string, PartName>,
+  line: number,
+  params: Set<string>,
+  refs: Set<string>,
+  looseVars: boolean,
+): void {
+  if (!node || typeof node !== 'object') return
+  switch (node.type) {
+    case 'Identifier': {
+      const name = node.name
+      if (paramNames.has(name)) {
+        params.add(name)
+      } else if (varToId.has(name)) {
+        refs.add(String(varToId.get(name)))
+      } else if (looseVars) {
+        // Loose mode: external variable passes through as its physical PartName
+        // (the append prefix is validated by the caller against the persistent ctx).
+        refs.add(String(asPartName(name)))
+        varToId.set(name, asPartName(name))
+      } else {
+        throw new ParseError(`unknown identifier "${name}" in expression`, getLine(node), 'E_REFERENCE')
+      }
+      return
+    }
+    case 'UnaryExpression':
+      collectExprIdentifiers(node.argument, paramNames, varToId, line, params, refs, looseVars)
+      return
+    case 'BinaryExpression':
+    case 'LogicalExpression':
+      collectExprIdentifiers(node.left, paramNames, varToId, line, params, refs, looseVars)
+      collectExprIdentifiers(node.right, paramNames, varToId, line, params, refs, looseVars)
+      return
+    case 'ConditionalExpression':
+      collectExprIdentifiers(node.test, paramNames, varToId, line, params, refs, looseVars)
+      collectExprIdentifiers(node.consequent, paramNames, varToId, line, params, refs, looseVars)
+      collectExprIdentifiers(node.alternate, paramNames, varToId, line, params, refs, looseVars)
+      return
+    case 'ArrayExpression':
+      for (const el of node.elements) {
+        collectExprIdentifiers(el, paramNames, varToId, line, params, refs, looseVars)
+      }
+      return
+    case 'ObjectExpression':
+      for (const prop of node.properties) {
+        if (prop?.type !== 'Property') continue
+        // shorthand { w } 的 value 即 Identifier(w)，直接收集即可
+        collectExprIdentifiers(prop.value, paramNames, varToId, line, params, refs, looseVars)
+      }
+      return
+    default:
+      return
+  }
+}
+
+/** 构建 ExprIR：原文切片（acorn 坐标相对 sourceText）+ 引用名集合；置 hasComputedArgs。 */
+function buildExprIR(
+  node: ASTNode,
+  paramNames: Set<string>,
+  varToId: Map<string, PartName>,
+  line: number,
+  flags: ValueFlags | null | undefined,
+  looseVars: boolean,
+  sourceText: string,
+): ExprIR {
+  const params = new Set<string>()
+  const refs = new Set<string>()
+  collectExprIdentifiers(node, paramNames, varToId, line, params, refs, looseVars)
+  if (flags) flags.computed = true
+  return {
+    $expr: {
+      text: sourceText.slice(node.start, node.end),
+      refs: [...refs],
+      params: [...params],
+    },
+  }
+}
+
 /** 解析字面量 / 数组 / 对象 / ParamRefIR / GeomRef（F1：支持可静态折叠的表达式） */
 function parseValueExpr(
   node: ASTNode,
@@ -262,6 +423,7 @@ function parseValueExpr(
   line: number,
   flags?: ValueFlags | null,
   looseVars = false,
+  sourceText = '',
 ): ArgIR {
   if (!node) throw new ParseError('missing value expression', line, 'E_VALUE')
 
@@ -292,6 +454,10 @@ function parseValueExpr(
     }
 
     case 'ArrayExpression': {
+      // ExprIR 降级：数组含折叠失败（引用变量）的白名单表达式元素 → 整体作为运行时表达式
+      if (needsExprFallback(node, paramNames, paramValues)) {
+        return buildExprIR(node, paramNames, varToId, line, flags, looseVars, sourceText)
+      }
       const out: ArgIR[] = []
       for (const el of node.elements) {
         if (el === null || el === undefined) {
@@ -306,13 +472,17 @@ function parseValueExpr(
           if (flags) flags.computed = true
           out.push(...(r.value as ArgIR[]))
         } else {
-          out.push(parseValueExpr(el, paramNames, paramValues, varToId, nsNames, line, flags, looseVars))
+          out.push(parseValueExpr(el, paramNames, paramValues, varToId, nsNames, line, flags, looseVars, sourceText))
         }
       }
       return out as ArgIR
     }
 
     case 'ObjectExpression': {
+      // ExprIR 降级：对象含折叠失败（引用变量）的白名单表达式属性值 → 整体作为运行时表达式
+      if (needsExprFallback(node, paramNames, paramValues)) {
+        return buildExprIR(node, paramNames, varToId, line, flags, looseVars, sourceText)
+      }
       const obj: Record<string, ArgIR> = {}
       for (const prop of node.properties) {
         if (prop.type === 'SpreadElement') {
@@ -340,7 +510,7 @@ function parseValueExpr(
             throw new ParseError(`unknown shorthand identifier "${key}" (not a declared param)`, line, 'E_REFERENCE')
           }
         } else {
-          obj[key] = parseValueExpr(prop.value, paramNames, paramValues, varToId, nsNames, line, flags, looseVars)
+          obj[key] = parseValueExpr(prop.value, paramNames, paramValues, varToId, nsNames, line, flags, looseVars, sourceText)
         }
       }
       return obj as ArgIR
@@ -357,7 +527,7 @@ function parseValueExpr(
       ) {
         const nsName = callee.object.name
         const innerCallee = callee.property.name
-        const innerArgs = node.arguments.map((a: ASTNode) => parseValueExpr(a, paramNames, paramValues, varToId, nsNames, line, flags, looseVars))
+        const innerArgs = node.arguments.map((a: ASTNode) => parseValueExpr(a, paramNames, paramValues, varToId, nsNames, line, flags, looseVars, sourceText))
         return {
           $call: {
             callee: innerCallee,
@@ -377,6 +547,11 @@ function parseValueExpr(
     case 'ConditionalExpression': {
       const r = tryFoldConstExpr(node, paramNames, paramValues)
       if (!r.ok) {
+        // ExprIR 降级：折叠失败（引用了语句变量等）且节点 ∈ 白名单文法
+        // → 运行时求值（§3.3 / §4.3）；白名单外（含嵌套调用/成员）→ E_VALUE
+        if (isExprWhitelist(node)) {
+          return buildExprIR(node, paramNames, varToId, line, flags, looseVars, sourceText)
+        }
         throw new ParseError(
           `cannot statically evaluate ${node.type} in args (must reference declared params or literals)`,
           line,
@@ -407,6 +582,50 @@ interface ParsedStatement {
 /**
  * 解析一条 `const varName = [await] <ns>.<op>(...)` 语句。
  */
+/**
+ * ABI 绑定校验（§3.6 / D11）：本机函数调用 `myFn(a1..aM, { key1: v1, ... })`，
+ * 设形参表 [p1..pk]：
+ * 1. 位置实参 a1..aM 按序绑定 p1..pM（M ≤ k，超出 → E_ARG）；
+ * 2. 尾部对象键绑定剩余形参 p_{M+1}..p_k（按名）；未知键 / 与位置占用冲突 → E_ARG；
+ * 3. 未被绑定的形参 → undefined（JS 语义，不报错）；
+ * 4. keep/keepHidden 键先剥离，不参与形参校验（§3.6 第 4 条）。
+ * @param callee - 函数名（错误消息用）。
+ * @param params - 函数形参表（来自 parseScript 预扫描的 localFnParams）。
+ * @param positionalCount - 位置实参个数（M）。
+ * @param args - 尾部对象键值（keep/keepHidden 可能仍在其中，校验时跳过）。
+ * @param line - 报错行号。
+ */
+function validateLocalAbi(
+  callee: string,
+  params: string[],
+  positionalCount: number,
+  args: Record<string, ArgIR>,
+  line: number,
+): void {
+  const M = positionalCount
+  if (M > params.length) {
+    throw new ParseError(
+      `function "${callee}" takes at most ${params.length} positional argument(s), got ${M}`,
+      line,
+      'E_ARG',
+    )
+  }
+  for (const key of Object.keys(args)) {
+    if (key === 'keep' || key === 'keepHidden') continue
+    const idx = params.indexOf(key)
+    if (idx === -1) {
+      throw new ParseError(`function "${callee}" has no parameter named "${key}"`, line, 'E_ARG')
+    }
+    if (idx < M) {
+      throw new ParseError(
+        `function "${callee}" parameter "${key}" is already bound by a positional argument`,
+        line,
+        'E_ARG',
+      )
+    }
+  }
+}
+
 function parseCadStatement(
   declNode: ASTNode,
   paramNames: Set<string>,
@@ -414,6 +633,8 @@ function parseCadStatement(
   varToId: Map<string, PartName>,
   nsNames: ReadonlySet<string>,
   looseVars = false,
+  sourceText = '',
+  localFnParams?: ReadonlyMap<string, string[]>,
 ): ParsedStatement {
   const line = getLine(declNode)
 
@@ -431,22 +652,34 @@ function parseCadStatement(
 
   // init 必须是 CallExpression
   if (init?.type !== 'CallExpression') {
-    throw new ParseError(`expected <ns>.<op>(...) call, got ${init?.type ?? 'null'}`, line, 'E_STATEMENT')
+    throw new ParseError(`expected <ns>.<op>(...) or local function call, got ${init?.type ?? 'null'}`, line, 'E_STATEMENT')
   }
 
-  // callee 必须是 MemberExpression: <ns>.<op>（cad 或顶层 import 绑定名，F2 消灭硬编码）
   const callee = init.callee
-  if (
-    callee?.type !== 'MemberExpression' ||
-    callee.object?.type !== 'Identifier' ||
-    !nsNames.has(callee.object.name) ||
-    callee.property?.type !== 'Identifier'
-  ) {
-    throw new ParseError('expected <ns>.<op>(...) call', line, 'E_STATEMENT')
+  // 命名空间调用：callee 是 MemberExpression <ns>.<op>（cad 或顶层 import 绑定名，F2 消灭硬编码）
+  const isNsCall =
+    callee?.type === 'MemberExpression' &&
+    callee.object?.type === 'Identifier' &&
+    nsNames.has(callee.object.name) &&
+    callee.property?.type === 'Identifier'
+  // 本机函数调用：callee 是裸标识符且 ∈ 脚本函数集（§3.4 / §4.2）
+  const isLocalCall =
+    callee?.type === 'Identifier' && (localFnParams?.has(callee.name) ?? false)
+  if (!isNsCall && !isLocalCall) {
+    // 裸 callee 且不在函数集 → 「函数不存在」（E_REFERENCE，§3.4 / D15）；其余形态 → E_STATEMENT
+    if (callee?.type === 'Identifier') {
+      throw new ParseError(
+        `function "${callee.name}" does not exist in this script`,
+        line,
+        'E_REFERENCE',
+      )
+    }
+    throw new ParseError('expected <ns>.<op>(...) or local function call', line, 'E_STATEMENT')
   }
 
-  const nsName = callee.object.name
-  const opName = callee.property.name
+  const nsName = isNsCall ? callee.object.name : undefined
+  const opName = isNsCall ? callee.property.name : callee.name
+  const local = isLocalCall
 
   // 普通调用：callee 就是源码里的名字（A1 boolean 改写 / A4 load 收敛已删）
   let args: Record<string, ArgIR> = {}
@@ -469,7 +702,7 @@ function parseCadStatement(
       inputs.push(inputId)
     } else if (argNode.type === 'ObjectExpression') {
       // args 对象
-      const parsed = parseValueExpr(argNode, paramNames, paramValues, varToId, nsNames, line, flags, looseVars)
+      const parsed = parseValueExpr(argNode, paramNames, paramValues, varToId, nsNames, line, flags, looseVars, sourceText)
       if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
         args = parsed as Record<string, ArgIR>
       } else {
@@ -480,12 +713,20 @@ function parseCadStatement(
     }
   }
 
+  // 本机调用：ABI 绑定校验（§3.6，parse 期拦截 E_ARG）
+  if (local && localFnParams) {
+    validateLocalAbi(opName, localFnParams.get(opName) ?? [], inputs.length, args, line)
+  }
+
   // Phase 3：id 不再赋变量名，由最终遍历赋 sN；变量名记录到 declaredOutputs
   const stmt: StatementIR = {
-    id: asStmtId('__pending__'), callee: opName, args, inputs,
+    id: asStmtId('__pending__'),
+    callee: opName,
+    args,
+    inputs,
     outputs: [],
     hasAssignment: true,
-    ...(nsName !== 'cad' ? { namespace: nsName } : {}),
+    ...(local ? { local: true } : nsName !== 'cad' ? { namespace: nsName } : {}),
     ...(flags.computed ? { hasComputedArgs: true } : {}),
   }
 
@@ -504,9 +745,9 @@ interface ParsedDestructuring {
 }
 
 /**
- * 解析 `const { k1: v1, k2: v2 } = [await] <ns>.<any>(...)`。
+ * 解析 `const { k1: v1, k2: v2 } = [await] <ns>.<any>(...)` 或本机函数调用（§3.4）。
  *
- * 任意键数（1..N）、任意 callee（不再限 split/front/back）。
+ * 任意键数（1..N）、任意 callee（不再限 split/front/back）；本机函数调用走 local 分支。
  */
 function parseDestructuring(
   declNode: ASTNode,
@@ -515,6 +756,8 @@ function parseDestructuring(
   varToId: Map<string, PartName>,
   nsNames: ReadonlySet<string>,
   looseVars = false,
+  sourceText = '',
+  localFnParams?: ReadonlyMap<string, string[]>,
 ): ParsedDestructuring {
   const line = getLine(declNode)
 
@@ -541,27 +784,37 @@ function parseDestructuring(
     valueNames.push(prop.value.name)
   }
 
-  // 提取 init（可包 AwaitExpression），必须是 <ns>.<ident>(...) 调用
+  // 提取 init（可包 AwaitExpression），必须是调用（命名空间或本机函数）
   let init = declNode.init
   if (init?.type === 'AwaitExpression') {
     init = init.argument
   }
   if (init?.type !== 'CallExpression') {
-    throw new ParseError(`expected <ns>.<op>(...) call in destructuring, got ${init?.type ?? 'null'}`, line, 'E_STATEMENT')
+    throw new ParseError(`expected <ns>.<op>(...) or local function call in destructuring, got ${init?.type ?? 'null'}`, line, 'E_STATEMENT')
   }
 
   const callee = init.callee
-  if (
-    callee?.type !== 'MemberExpression' ||
-    callee.object?.type !== 'Identifier' ||
-    !nsNames.has(callee.object.name) ||
-    callee.property?.type !== 'Identifier'
-  ) {
-    throw new ParseError('destructuring is only allowed for <ns>.<op>(...) calls', line, 'E_STATEMENT')
+  const isNsCall =
+    callee?.type === 'MemberExpression' &&
+    callee.object?.type === 'Identifier' &&
+    nsNames.has(callee.object.name) &&
+    callee.property?.type === 'Identifier'
+  const isLocalCall =
+    callee?.type === 'Identifier' && (localFnParams?.has(callee.name) ?? false)
+  if (!isNsCall && !isLocalCall) {
+    if (callee?.type === 'Identifier') {
+      throw new ParseError(
+        `function "${callee.name}" does not exist in this script`,
+        line,
+        'E_REFERENCE',
+      )
+    }
+    throw new ParseError('destructuring is only allowed for <ns>.<op>(...) or local function calls', line, 'E_STATEMENT')
   }
 
-  const nsName = callee.object.name
-  const opName = callee.property.name
+  const nsName = isNsCall ? callee.object.name : undefined
+  const opName = isNsCall ? callee.property.name : callee.name
+  const local = isLocalCall
   const args: Record<string, ArgIR> = {}
   const inputs: PartName[] = []
   const flags: ValueFlags = { computed: false }
@@ -581,7 +834,7 @@ function parseDestructuring(
       }
       inputs.push(inputId)
     } else if (argNode.type === 'ObjectExpression') {
-      const parsed = parseValueExpr(argNode, paramNames, paramValues, varToId, nsNames, line, flags, looseVars)
+      const parsed = parseValueExpr(argNode, paramNames, paramValues, varToId, nsNames, line, flags, looseVars, sourceText)
       if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
         Object.assign(args, parsed as Record<string, ArgIR>)
       } else {
@@ -592,12 +845,21 @@ function parseDestructuring(
     }
   }
 
+  // 本机调用：ABI 绑定校验（§3.6，parse 期拦截 E_ARG）
+  if (local && localFnParams) {
+    validateLocalAbi(opName, localFnParams.get(opName) ?? [], inputs.length, args, line)
+  }
+
   // Phase 3：id 不再赋变量名；outputs 在最终遍历经 varToId 解析后写入
   const stmt: StatementIR = {
-    id: asStmtId('__pending__'), callee: opName, args, inputs, outputs: [],
+    id: asStmtId('__pending__'),
+    callee: opName,
+    args,
+    inputs,
+    outputs: [],
     outputKeys: keys,
     hasAssignment: true,
-    ...(nsName !== 'cad' ? { namespace: nsName } : {}),
+    ...(local ? { local: true } : nsName !== 'cad' ? { namespace: nsName } : {}),
     ...(flags.computed ? { hasComputedArgs: true } : {}),
   }
 
@@ -715,7 +977,7 @@ function parseReturnObject(
 
 // ── 引用收集（Phase 1: VM 执行 deps 计算） ──
 
-/** 递归收集 ArgIR 中的变量引用：$param → 参数名；$ref → 变量名；$call → 递归收集内部 args。 */
+/** 递归收集 ArgIR 中的变量引用：$param → 参数名；$ref → 变量名；$call → 递归收集内部 args；$expr → refs/params 并入（§4.3）。 */
 function collectRefsFromArg(value: ArgIR, out: Set<string>): void {
   if (value === null || value === undefined) return
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return
@@ -729,6 +991,11 @@ function collectRefsFromArg(value: ArgIR, out: Set<string>): void {
   }
   if (isCallRef(value)) {
     for (const a of value.$call.args) collectRefsFromArg(a, out)
+    return
+  }
+  if (isExprRef(value)) {
+    for (const p of value.$expr.params) out.add(p)
+    for (const r of value.$expr.refs) out.add(r)
     return
   }
   if (Array.isArray(value)) {
@@ -846,28 +1113,48 @@ function throwUnsupportedStatement(node: ASTNode, line: number): never {
   throw new ParseError(`unsupported statement: ${node.type}`, line, 'E_STATEMENT')
 }
 
-// ── 顶层函数定义（A1） ──
+// ── 顶层函数定义（A1 / 控制流放松方案 Phase 2） ──
+
+/** FNV-1a 32-bit 十六进制哈希（L0 零依赖；bodyHash 内容寻址用，增量失效无需抗碰撞）。 */
+function fnv1a32(text: string): string {
+  let h = 0x811c9dc5
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i)
+    h = (h * 0x01000193) >>> 0
+  }
+  return h.toString(16).padStart(8, '0')
+}
 
 /**
- * 解析顶层 `function name(params) { ... }` 为 FunctionDefIR（A1）。
+ * 解析顶层 `function name(params) { ... }` 为 FunctionDefIR（A1 / Phase 2）。
  *
  * 函数定义**不是几何语句**：不进 statements、不参与 DAG 终端判定；
  * 函数体原文按 acorn 坐标从 parseCode 切片保留，codegen 原样打印回文件（往返保真）。
  *
- * 函数体同样受黑名单约束（与顶层一致）：
- * - 控制流 → E_CONTROL_FLOW；
- * - eval / new / export / class → E_STATEMENT；
- * - import 只允许在文件头 → E_IMPORT。
+ * 函数体校验（Phase 2 放行控制流，§3.1 / §3.2）：
+ * - 控制流（if/for/while/switch/try/throw/break/continue/labeled）放行；
+ * - eval / new / export / class / import / with / 动态 import() 仍拒（P5 安全红线）；
+ * - 体内禁止调用本机函数（裸 callee 调用 → E_STATEMENT，D10）；
+ * - var 允许（D12，不新增收紧）。
+ *
+ * @param codeOffset parseCode 相对原始 code 的字符偏移（扁平封装前缀；容器格式为 0）。
+ *                   函数体坐标经此换算为相对原始文本，供宿主 bodyRange 使用。
  */
 function parseFunctionDeclaration(
   node: ASTNode,
   line: number,
   functions: FunctionDefIR[],
   parseCode: string,
+  codeOffset = 0,
 ): void {
   const name = node.id?.name
   if (typeof name !== 'string' || name === '') {
     throw new ParseError('function declaration must have a name', line, 'E_STATEMENT')
+  }
+
+  // 查重（D14）：localFns 发射与 bodyHash 按名查表要求函数名唯一
+  if (functions.some((f) => f.name === name)) {
+    throw new ParseError(`function "${name}" is already defined (duplicate function names are not allowed)`, line, 'E_STATEMENT')
   }
 
   // 形参：只允许简单 Identifier（解构/默认值/rest 参数不在子集内）
@@ -884,31 +1171,35 @@ function parseFunctionDeclaration(
     throw new ParseError('function body must be a block statement', line, 'E_STATEMENT')
   }
 
-  // 函数体黑名单校验（与顶层同语义）
+  // 函数体校验（Phase 2：放行控制流，保留安全红线，禁体内本机调用）
   validateFunctionBody(node.body, line)
 
   // 函数体原文（花括号内的完整文本，含换行/缩进）——坐标相对 parseCode
   const body = parseCode.slice(node.body.start + 1, node.body.end - 1)
-  functions.push({ name, params, body })
+  functions.push({
+    name,
+    params,
+    body,
+    bodyHash: fnv1a32(body),
+    bodyRange: { start: node.body.start + 1 - codeOffset, end: node.body.end - 1 - codeOffset },
+  })
 }
 
 /**
- * 校验函数体内的黑名单（A1）：控制流 / eval / new / export / class / import。
- * 递归遍历全部节点——函数体（含嵌套函数体）必须保持无控制流的合法子集。
+ * 校验函数体（Phase 2，§3.1 / §3.2 / D10 / D12）：
+ * - **放行**控制流（if/for/while/switch/try/throw/break/continue/labeled）与 var；
+ * - **仍拒**（安全红线 P5）：import 声明 / export / class / eval / new / with / 动态 import()；
+ * - **体内禁止本机函数调用**（裸标识符 callee，D10）——递归遍历全部节点（含嵌套函数体）。
  */
 function validateFunctionBody(body: ASTNode, line: number): void {
   const stack: ASTNode[] = [body]
   while (stack.length > 0) {
     const n = stack.pop()!
-    if (CONTROL_FLOW_TYPES.has(n.type)) {
-      throw new ParseError(
-        `control flow statement "${n.type}" is not allowed inside function bodies`,
-        line,
-        'E_CONTROL_FLOW',
-      )
-    }
     if (n.type === 'ImportDeclaration') {
       throw new ParseError('import statements are not allowed inside function bodies', line, 'E_IMPORT')
+    }
+    if (n.type === 'ImportExpression') {
+      throw new ParseError('dynamic import() is not allowed in faijs', line, 'E_CONTROL_FLOW')
     }
     if (n.type === 'ExportNamedDeclaration' || n.type === 'ExportAllDeclaration') {
       throw new ParseError('export statements are not allowed in faijs (faijs auto-exports the default module)', line, 'E_STATEMENT')
@@ -916,11 +1207,25 @@ function validateFunctionBody(body: ASTNode, line: number): void {
     if (n.type === 'ClassDeclaration') {
       throw new ParseError('class declarations are not allowed in faijs', line, 'E_STATEMENT')
     }
-    if (n.type === 'CallExpression' && n.callee?.type === 'Identifier' && n.callee.name === 'eval') {
-      throw new ParseError('eval is not allowed in faijs', line, 'E_STATEMENT')
+    if (n.type === 'WithStatement') {
+      throw new ParseError('"with" statements are not allowed in faijs (strict mode)', line, 'E_CONTROL_FLOW')
     }
     if (n.type === 'NewExpression') {
       throw new ParseError('"new" expressions are not allowed in faijs (new Function is a safety red line)', line, 'E_STATEMENT')
+    }
+    if (n.type === 'CallExpression') {
+      // eval 安全红线（与顶层一致）
+      if (n.callee?.type === 'Identifier' && n.callee.name === 'eval') {
+        throw new ParseError('eval is not allowed in faijs', line, 'E_STATEMENT')
+      }
+      // D10：体内禁止调用本机函数（裸标识符 callee）——顶层 ABI 与 verbatim 函数体语义冲突
+      if (n.callee?.type === 'Identifier') {
+        throw new ParseError(
+          `calling local function "${n.callee.name}" inside a function body is not allowed (D10): local functions are callable from the top level only`,
+          line,
+          'E_STATEMENT',
+        )
+      }
     }
     // 子节点入栈（跳过元数据字段）
     for (const key of Object.keys(n)) {
@@ -1036,7 +1341,9 @@ export function parseScript(code: string, options?: ParseScriptOptions): ParseRe
   let parseCode = code
   // 扁平封装后首行代码在 parseCode 中位于第 2 行；statementLines 须扣掉封装偏移，
   // 使行号始终相对宿主原始文本（analyzeCode 契约）。
+  // codeOffset：parseCode 坐标 → 原始 code 坐标的字符偏移（函数体 bodyRange 用；容器格式为 0）。
   let lineOffset = code.includes('export default') ? 0 : 1
+  let codeOffset = 0
   if (lineOffset) {
     if (importBlock) {
       const prefix = code.slice(0, importBlock.start)
@@ -1044,9 +1351,12 @@ export function parseScript(code: string, options?: ParseScriptOptions): ParseRe
       const rest = code.slice(importBlock.end)
       parseCode = `${prefix}${importText}\nexport default async (cad) => {\n${rest}\n}`
       lineOffset = countLines(prefix + importText) + 1
+      // import 段之后的代码（函数定义所在）偏移 = 封装前缀长度（`\nexport default async (cad) => {\n` = 33 字符）
+      codeOffset = 33
     } else {
       parseCode = `export default async (cad) => {\n${code}\n}`
       lineOffset = 1
+      codeOffset = 'export default async (cad) => {\n'.length
     }
   }
 
@@ -1125,15 +1435,29 @@ export function parseScript(code: string, options?: ParseScriptOptions): ParseRe
   /** 合法命名空间名集合（parseValueExpr/parseCadStatement/parseDestructuring 共用）。 */
   const nsNames: ReadonlySet<string> = new Set(['cad', ...importBindings.keys()])
 
+  // ── 3.2 本机函数集预扫描（Phase 2 / §3.4） ──
+  // 函数声明**提升**（可被其后语句调用），且未知函数名 parse 期报 E_REFERENCE——
+  // 故解析语句前预扫描全部顶层 FunctionDeclaration，收集函数名 → 形参表（ABI 校验用）。
+  // 仅顶层函数构成「本机函数集」；函数体内嵌套函数不参与（D10 禁体内调用，体内容器不透明）。
+  const localFnParams = new Map<string, string[]>()
+  for (const topNode of body.body) {
+    if (topNode.type !== 'FunctionDeclaration' || topNode.id?.type !== 'Identifier') continue
+    const params: string[] = []
+    for (const p of topNode.params ?? []) {
+      if (p?.type === 'Identifier') params.push(p.name)
+    }
+    localFnParams.set(topNode.id.name, params)
+  }
+
   for (const stmtNode of body.body) {
     const line = getLine(stmtNode)
 
     switch (stmtNode.type) {
       case 'FunctionDeclaration': {
-        // A1：顶层函数定义（V1.3/P4）。函数定义不是几何语句——不进 statements、
+        // A1/Phase 2：顶层函数定义。函数定义不是几何语句——不进 statements、
         // 不参与 DAG 终端判定（不污染终端集），codegen 原样打印回文件（往返保真）。
-        // 函数体同样受黑名单约束：控制流仍报 E_CONTROL_FLOW，eval/new/export/class 仍被拒。
-        parseFunctionDeclaration(stmtNode, line, functions, parseCode)
+        // Phase 2：函数体放行控制流（§3.1），保留安全红线，禁体内本机调用（D10）。
+        parseFunctionDeclaration(stmtNode, line, functions, parseCode, codeOffset)
         break
       }
 
@@ -1151,7 +1475,7 @@ export function parseScript(code: string, options?: ParseScriptOptions): ParseRe
             if (stmtNode.kind !== 'const') {
               throw new ParseError('destructuring requires const', line, 'E_STATEMENT')
             }
-            const { stmt, valueNames } = parseDestructuring(decl, paramNames, paramValues, varToId, nsNames, looseVars)
+            const { stmt, valueNames } = parseDestructuring(decl, paramNames, paramValues, varToId, nsNames, looseVars, parseCode, localFnParams)
             // 命名服务不再由 parser 调用：parser 只做语法分析，保留词法变量名（设计 §5.1）
             stmt.outputs = valueNames.map((n) => asPartName(n))
             statements.push(stmt)
@@ -1175,12 +1499,17 @@ export function parseScript(code: string, options?: ParseScriptOptions): ParseRe
 
           if (
             init?.type === 'CallExpression' &&
-            init.callee?.type === 'MemberExpression' &&
-            init.callee.object?.type === 'Identifier' &&
-            isNamespaceName(init.callee.object.name)
+            (
+              // 命名空间调用：<ns>.<op>(...)（F2：cad 或顶层 import 绑定名）
+              (init.callee?.type === 'MemberExpression' &&
+                init.callee.object?.type === 'Identifier' &&
+                isNamespaceName(init.callee.object.name)) ||
+              // 裸标识符 callee（本机函数或未知函数名——parseCadStatement 内判 local / E_REFERENCE，§3.4）
+              init.callee?.type === 'Identifier'
+            )
           ) {
-            // 语句：const partN = [await] <ns>.op(...)
-            const { stmt, varName } = parseCadStatement(decl, paramNames, paramValues, varToId, nsNames, looseVars)
+            // 语句：const partN = [await] <ns>.op(...) 或 const partN = [await] localFn(...)
+            const { stmt, varName } = parseCadStatement(decl, paramNames, paramValues, varToId, nsNames, looseVars, parseCode, localFnParams)
             // 命名服务不再由 parser 调用：parser 只做语法分析，保留词法变量名（设计 §5.1）
             stmt.outputs = [asPartName(varName)]
             statements.push(stmt)
@@ -1262,10 +1591,15 @@ export function parseScript(code: string, options?: ParseScriptOptions): ParseRe
           if (init?.type === 'AwaitExpression') init = init.argument
           if (
             init?.type === 'CallExpression' &&
-            init.callee?.type === 'MemberExpression' &&
-            init.callee.object?.type === 'Identifier' &&
-            isNamespaceName(init.callee.object.name) &&
-            init.callee.property?.type === 'Identifier'
+            (
+              // 命名空间调用：<ns>.<op>(...)
+              (init.callee?.type === 'MemberExpression' &&
+                init.callee.object?.type === 'Identifier' &&
+                isNamespaceName(init.callee.object.name) &&
+                init.callee.property?.type === 'Identifier') ||
+              // 裸标识符 callee（本机函数或未知函数名——parseCadStatement 内判 local / E_REFERENCE，§3.4）
+              init.callee?.type === 'Identifier'
+            )
           ) {
             // 复用 parseCadStatement 的内部逻辑
             const fakeDecl = {
@@ -1273,7 +1607,7 @@ export function parseScript(code: string, options?: ParseScriptOptions): ParseRe
               init: expr.right,
               loc: stmtNode.loc,
             }
-            const { stmt, varName: parsedVar } = parseCadStatement(fakeDecl, paramNames, paramValues, varToId, nsNames, looseVars)
+            const { stmt, varName: parsedVar } = parseCadStatement(fakeDecl, paramNames, paramValues, varToId, nsNames, looseVars, parseCode, localFnParams)
             // 命名服务不再由 parser 调用：裸重赋值保留词法变量名（设计 §5.1）
             stmt.outputs = [asPartName(parsedVar)]
             statements.push(stmt)
@@ -1283,6 +1617,56 @@ export function parseScript(code: string, options?: ParseScriptOptions): ParseRe
             break
           }
           throw new ParseError(`re-assignment must be a cad.op() call`, line, 'E_STATEMENT')
+        }
+
+        // ── 本机函数无赋值调用（§3.4 四形态之四：副作用调用） ──
+        // myFn(part0, { ... }) —— callee 是裸标识符且 ∈ 函数集；未知函数名 → E_REFERENCE
+        if (expr?.type === 'CallExpression' && expr.callee?.type === 'Identifier') {
+          const fnName = expr.callee.name
+          if (localFnParams.has(fnName)) {
+            const args: Record<string, ArgIR> = {}
+            const inputs: PartName[] = []
+            const flags: ValueFlags = { computed: false }
+            for (const argNode of expr.arguments) {
+              if (argNode.type === 'Identifier') {
+                let inputId = varToId.get(argNode.name)
+                if (!inputId) {
+                  if (looseVars) {
+                    inputId = asPartName(argNode.name)
+                    varToId.set(argNode.name, inputId)
+                  } else {
+                    throw new ParseError(`unknown variable "${argNode.name}" in ${fnName}() call`, getLine(argNode), 'E_REFERENCE')
+                  }
+                }
+                inputs.push(inputId)
+              } else if (argNode.type === 'ObjectExpression') {
+                const parsed = parseValueExpr(argNode, paramNames, paramValues, varToId, nsNames, line, flags, looseVars, parseCode)
+                if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+                  Object.assign(args, parsed as Record<string, ArgIR>)
+                } else {
+                  throw new ParseError(`${fnName} args must be an object`, line, 'E_VALUE')
+                }
+              } else if (argNode.type !== 'undefined') {
+                throw new ParseError(`unexpected argument type in ${fnName}: ${argNode.type}`, getLine(argNode), 'E_VALUE')
+              }
+            }
+            validateLocalAbi(fnName, localFnParams.get(fnName) ?? [], inputs.length, args, line)
+            const localStmt: StatementIR = {
+              id: asStmtId('__pending__'),
+              callee: fnName,
+              args,
+              inputs,
+              outputs: [],
+              local: true,
+              hasAssignment: false,
+              ...(flags.computed ? { hasComputedArgs: true } : {}),
+            }
+            statements.push(localStmt)
+            statementLines.push(line)
+            break
+          }
+          // 裸 callee 不在函数集 → 「函数不存在」（E_REFERENCE，§3.4 / D15）
+          throw new ParseError(`function "${fnName}" does not exist in this script`, line, 'E_REFERENCE')
         }
 
         // ── 成员方法调用（A6 消灭：任意方法名；receiver 须已声明） ──
@@ -1317,7 +1701,7 @@ export function parseScript(code: string, options?: ParseScriptOptions): ParseRe
                 }
                 inputs.push(inputId)
               } else if (argNode.type === 'ObjectExpression') {
-                const parsed = parseValueExpr(argNode, paramNames, paramValues, varToId, nsNames, line, flags, looseVars)
+                const parsed = parseValueExpr(argNode, paramNames, paramValues, varToId, nsNames, line, flags, looseVars, parseCode)
                 if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
                   Object.assign(args, parsed as Record<string, ArgIR>)
                 } else {
@@ -1358,7 +1742,7 @@ export function parseScript(code: string, options?: ParseScriptOptions): ParseRe
           const flags: ValueFlags = { computed: false }
           for (const argNode of expr.arguments) {
             if (argNode.type === 'ObjectExpression') {
-              const parsed = parseValueExpr(argNode, paramNames, paramValues, varToId, nsNames, line, flags, looseVars)
+              const parsed = parseValueExpr(argNode, paramNames, paramValues, varToId, nsNames, line, flags, looseVars, parseCode)
               if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
                 Object.assign(args, parsed as Record<string, ArgIR>)
               } else {

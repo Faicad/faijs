@@ -55,6 +55,9 @@ export interface DerivePartNameInput {
   outputCount: number
   /** 当前代码文本：内部扫描已用 partN，取下一个模型号（不 parse，允许生成中代码） */
   code: string
+  /** 可选：排除区间（如函数体 [start, end)），扫描 partN 时跳过——
+   *  函数体内的 partN 不污染顶层命名（§7.1，FunctionDefIR.bodyRange 来源）。 */
+  excludeRanges?: Array<{ start: number; end: number }>
 }
 
 /**
@@ -82,7 +85,7 @@ export interface DerivePartNameResult {
  * @returns the derived result with one fresh name per output.
  */
 export function derivePartName(input: DerivePartNameInput): DerivePartNameResult {
-  const { inputCount, outputCount, code } = input
+  const { inputCount, outputCount, code, excludeRanges } = input
 
   // R0：无赋值语句 → 无名字
   if (outputCount === 0) return { behavior: 'new', names: [] }
@@ -96,13 +99,16 @@ export function derivePartName(input: DerivePartNameInput): DerivePartNameResult
   }
 
   // 唯一规则：一律分配新名（每输出一个 partN）
-  return { behavior: 'new', names: nextPartNames(code, outputCount) }
+  return { behavior: 'new', names: nextPartNames(code, outputCount, excludeRanges) }
 }
 
-/** 从代码文本扫描已用 partN，分配下一段新名（getMaxPartNum 不对外提供，B2 决策）。 */
-function nextPartNames(code: string, count: number): PartName[] {
+/** 从代码文本扫描已用 partN，分配下一段新名（getMaxPartNum 不对外提供，B2 决策）。
+ *  @param excludeRanges 可选排除区间：区间内的 partN 不参与计数（函数体 partN 不污染顶层命名，§7.1）。 */
+function nextPartNames(code: string, count: number, excludeRanges?: Array<{ start: number; end: number }>): PartName[] {
   let max = -1
   for (const m of code.matchAll(PART_TOKEN_RE)) {
+    const idx = m.index ?? 0
+    if (excludeRanges?.some((r) => idx >= r.start && idx < r.end)) continue
     const n = parseInt(m[1], 10)
     if (n > max) max = n
   }

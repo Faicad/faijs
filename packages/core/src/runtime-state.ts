@@ -145,6 +145,45 @@ export interface FaijsRuntimeState {
   readonly shapeToName: WeakMap<object, PartName>
 }
 
+// ── 函数 BREP 域（控制流放松方案 §5.6 / D13） ──
+// 本机函数体内的瞬态 BREP 句柄：进入函数时开启登记域，op 输出句柄写入时经
+// registerFunctionBrep 登记；函数返回后引擎取走域、释放除返回值可到达句柄外的全部
+// （对齐「调用方负责句柄生命周期」brep-ops.ts 与 meshesToStep 的 finally 模式）。
+// 全局计数与 ModuleExecutor.userFunctionDepth 同步（单 runtime 场景，与 setCurrentStmt 同构）。
+
+let functionBrepDepth = 0
+const functionBrepDomain: unknown[] = []
+
+/** 进入函数 BREP 域（ModuleExecutor 执行 local 语句 fn 之前调用）。 */
+export function enterFunctionBrep(): void {
+  if (functionBrepDepth === 0) functionBrepDomain.length = 0
+  functionBrepDepth++
+}
+
+/** 退出函数 BREP 域（fn 结束后调用）。 */
+export function exitFunctionBrep(): void {
+  functionBrepDepth = Math.max(0, functionBrepDepth - 1)
+}
+
+/**
+ * 登记函数域内新产生的 BREP 句柄（hook 点在 op 输出 shape 槽位写入处——fromBrep）。
+ * 非函数域（depth = 0）时 no-op（零开销，现状路径不变）。
+ * @param solid - 新产生的 OCCT 句柄。
+ */
+export function registerFunctionBrep(solid: unknown): void {
+  if (functionBrepDepth > 0) functionBrepDomain.push(solid)
+}
+
+/**
+ * 取走当前函数域的句柄登记表并清空（引擎在 fn 结束后调用，随后释放非返回值句柄）。
+ * @returns 当前函数域的句柄登记表快照。
+ */
+export function takeFunctionBrepDomain(): unknown[] {
+  const domain = [...functionBrepDomain]
+  functionBrepDomain.length = 0
+  return domain
+}
+
 /** Shape 身份槽（OCCT 句柄 + 面演化 + 拓扑命名 + 装配行为）。 */
 export interface ShapeSlot {
   solid?: unknown

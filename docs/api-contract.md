@@ -156,20 +156,28 @@ export interface TerminalShape {
 
 `.fai.js` must be a **legal subset of JavaScript** — any JS parser (acorn) parses it without error. Load flow: acorn parse (syntax gate) → the engine compiles the parsed script into a module → JS VM dynamic import for execution; **user text is never eval'd** (R-3).
 
-**Forbidden**: control flow (if/for/while/do/switch/try), dynamic `import()`, `eval`/`new Function`, `export`. Any violation is reported with a diagnostic code `E_CONTROL_FLOW` / `E_SYNTAX` / `E_VALUE` / `E_REFERENCE` / `E_IMPORT`, surfaced through `check()`.
+**Forbidden at the top level**: control flow (if/for/while/do/switch/try), dynamic `import()`, `eval`/`new Function`/`new`, `export` — reported as `E_CONTROL_FLOW` / `E_SYNTAX` / `E_VALUE` / `E_REFERENCE` / `E_IMPORT` / `E_ARG`, surfaced through `check()`.
 
-**Allowed**: top-level `import` (third-party libraries, not control flow), top-level function definitions, statically foldable expressions (binary / template literal / ternary), arbitrary callee destructuring, member method chains (`asm1.add_constraint({ … })`).
+**Allowed**: top-level `import` (third-party libraries, not control flow), top-level function definitions, **control flow inside a function body** (if/for/while/switch/try/throw/break/continue/labeled, plus `var`), **local function calls** (bare-identifier callee from the script's own function set, four forms: assignment / re-assignment / destructuring / side-effect), **runtime expressions** (`ExprIR` in argument values, evaluated at runtime instead of folded), statically foldable expressions (binary / template literal / ternary), arbitrary callee destructuring, member method chains (`asm1.add_constraint({ … })`).
+
+**Function bodies** are opaque: control flow is legal inside them, but `eval`/`new`/dynamic `import()`/`import`/`export`/`class`/`with` remain forbidden, and a body may not call another local function (v1). Local calls bind positional-plus-named: positional inputs map to the first `M` parameters, the trailing object's keys to the remaining parameters by name (unknown key or collision → `E_ARG`), unbound parameters are `undefined`, `keep`/`keepHidden` stripped before binding. Editing a body invalidates every caller through the `bodyHash` key (§7.5).
 
 Flat format (UI recording, one operation per line):
 
 ```js
 import * as mech from 'mech-lib'
 const size = 20
+function makeGear(count, pitch) {            // body may contain loops/branches
+  let parts = []
+  for (let i = 0; i < count; i++) parts.push(await cad.box({ size: pitch }))
+  return await cad.union(parts[0], parts[1])
+}
 let part0 = cad.box({ size })
 let part3 = cad.drill(part0, { diameter: 5 })
 const { front: part1, back: part2 } = cad.split(part0, { cutMode: 'plane' })
 let part4 = cad.group({ members: [part0, part1] })
 let part5 = mech.makeHeadstock({ length: 120 })
+let part6 = makeGear({ count: 8, pitch: 5 })
 ```
 
 The **keep directive** lives inside args (it is not a new keyword) — see §6. Code text is the single source of truth; the internal representation compiled from it is an implementation detail, and re-printing text from it is debug-only (see §13.3 PS). One operation is one line of code is a flat-format convention.
@@ -282,16 +290,19 @@ export interface ExecuteOptions {
   partTransform?: { position: Vec3; scale?: Vec3 }
   startIndex?: number
   topology?: 'auto' | 'brep' | 'off'
+  executionTimeoutMs?: number                      // whole-run guard (optional, default off) → E_EXEC_LIMIT
 }
 ```
 
 There are exactly three public execution entries — `execute(code)` / `append(code, newIds)` / `update(code)` — all taking code text; there is no fourth entry and no `ExecuteCodeOptions`. `sceneCode` carries the whole-scene code text for cross-part references.
 
+**Execution guard** (`executionTimeoutMs`, optional, default off): a whole-run timeout over execute/append/update including local-function replays; on expiry it throws `ExecutionLimitError` (`E_EXEC_LIMIT`). A synchronous `while(true)` is a JS single-thread limit the guard cannot interrupt — real protection lives at the host layer (worker terminate / AbortController).
 ### 7.5 Incremental execution semantics
 
-- **Content-addressed**: a statement's identity key combines the namespace-qualified callee, the JSON of its args (keep excluded), and each dependency's content fingerprint; a parameter statement keys on `param|JSON(value)`. `keep` / `keepHidden` are excluded — **toggling retention or hidden state triggers zero geometry recomputation**.
+- **Content-addressed**: a statement's identity key combines the namespace-qualified callee, the JSON of its args (keep excluded), and each dependency's content fingerprint; a parameter statement keys on `param|JSON(value)`; **a local-function call keys on `local.<callee>#<bodyHash>`** — editing a body changes every caller's key, so downstream recomputes; untouched bodies cost zero. `keep` / `keepHidden` are excluded — **toggling retention or hidden state triggers zero geometry recomputation**.
 - **Persistent ctx**: script variables live in a container that survives across executions; in-place reassignment is supported.
-- **Replay scope**: `plan` computes the stale set and replays from the first change point; when nothing is stale, nothing executes.
+- **Replay scope**: `plan` computes the stale set and replays from the first change point; when nothing is stale, nothing executes. **A local-function call is a single execution unit** — the whole body replays as one unit; body intermediates never enter the top-level ctx or terminal detection.
+- **Function BREP domain**: while a local function runs, newly produced OCCT handles are registered; on return all transient handles except those reachable from the return value are released (`finally`, also on error). Body `cad.*` calls never enter the top-level `solidCache`; only the return value's handle does.
 
 ### 7.6 The three library contract surfaces
 
@@ -550,6 +561,9 @@ PS: Re-printing text from the IR is debug-only, never part of a contract.
 
 ### 13.5 Compatibility
 
-- Control flow is forbidden at the top level (a language constraint), which keeps static rules such as terminal detection safe from AI-generated code.
+- Control flow is forbidden at the top level (a language constraint), which keeps static rules such as terminal detection safe from AI-generated code; **control flow is allowed inside function bodies** (v1, §5).
+- Local function calls (bare-identifier callee) and runtime expressions (`ExprIR` in args) are new top-level capabilities; existing scripts without functions parse unchanged (zero regression), and parameter/literal expressions still fold as before.
+- A local function call is a DAG node like any other: `inputs` / `args` / `outputs` participate in `consumes()` and terminal detection; only the body is opaque.
+- The function body is user source embedded into the compiled module — a documented exception to "user text never reaches the VM" (R-3), bounded by the acorn gate plus the whitelist (see `docs/syntax-design.md`), isomorphic to the faqts channel (§10.5).
 - Legacy version-suffixed names are no longer produced and no longer parsed (the version suffix and the `grp_` prefix were both removed; compatibility parsing was removed, decision 2, see `lang/allocate-id.ts`).
 - Both the `export default async (cad) => {}` container and the flat format parse; flat code is automatically wrapped into a legal container.

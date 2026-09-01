@@ -13,7 +13,7 @@
  */
 
 import type { Shape } from './mesh/types'
-import { getRuntimeState, nameOf, type ShapeSlot } from './runtime-state'
+import { getRuntimeState, registerFunctionBrep, nameOf, type ShapeSlot } from './runtime-state'
 
 // ── Shape 构造器 ──
 
@@ -69,6 +69,8 @@ export function fromBrep(mesh: Shape, holder: BrepHolder): SolidShape {
   if (holder.faceEvolution) slot.faceEvolution = holder.faceEvolution
   if (holder.roleTable) slot.roleTable = holder.roleTable
   state.slots.set(s, slot)
+  // 函数 BREP 域（§5.6）：函数体内 op 产生的新句柄登记到当前域，函数返回后统一释放
+  registerFunctionBrep(holder.solid)
   return s
 }
 

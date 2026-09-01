@@ -47,9 +47,29 @@ export interface CallRefIR {
 }
 
 /**
- * An argument value in the IR: a literal, or one of the reference/call shapes.
+ * 运行时表达式（ExprIR，控制流放松方案 §4.3）：折叠失败且节点 ∈ 白名单文法
+ * （Literal/Identifier/Unary/Binary/Logical/Conditional/Array/Object 递归）时，
+ * 表达式原文 + 引用名集合作为值进入 args；编译期用箭头包装发射（§5.4），
+ * 由 JS 引擎求值，不做编译期折叠。不存 AST、不重写文本（R13 保持）。
+ *
+ * 值语义：求值结果**不限制为 JSON 值**（白名单内 Identifier 可引用 Shape 变量，
+ * 求值可得到 Shape）——args 槽收到 Shape 值原样传给 op，op 自行校验参数。
  */
-export type ArgIR = JsonValue | ParamRefIR | VarRefIR | CallRefIR
+export interface ExprIR {
+  $expr: {
+    /** 表达式原文（acorn 坐标切片；语法门禁已过） */
+    text: string
+    /** 引用的顶层变量名（VarRef 语义 → deps / terminal 消费判定） */
+    refs: string[]
+    /** 引用的参数名（ParamRef 语义 → deps；参数本身是 ctx 键） */
+    params: string[]
+  }
+}
+
+/**
+ * An argument value in the IR: a literal, or one of the reference/call/expr shapes.
+ */
+export type ArgIR = JsonValue | ParamRefIR | VarRefIR | CallRefIR | ExprIR
 
 // ── 类型守卫（L0 零依赖） ──
 
@@ -80,6 +100,15 @@ export function isCallRef(arg: ArgIR): arg is CallRefIR {
   return arg !== null && typeof arg === 'object' && !Array.isArray(arg) && '$call' in arg
 }
 
+/**
+ * 检测 ArgIR 是否为 ExprIR（运行时表达式）
+ * @param arg - the argument value to test.
+ * @returns true when the value is an ExprIR, narrowing the type.
+ */
+export function isExprRef(arg: ArgIR): arg is ExprIR {
+  return arg !== null && typeof arg === 'object' && !Array.isArray(arg) && '$expr' in arg
+}
+
 // ── 语句 ──
 
 /**
@@ -94,6 +123,9 @@ export interface StatementIR {
   id: StmtId
   /** 调用所在命名空间（P7 第三方库通道：`import * as mech from 'mech-lib'` 后 `mech.makeHeadstock(...)` 的 namespace='mech'；缺省 = 'cad'）。 */
   namespace?: string
+  /** 本机函数调用：callee 是脚本内函数名（区别于命名空间调用）。缺省 = 命名空间调用。
+   *  local: true 时 namespace 缺省，callee 即函数名；调用约定见 §3.6 ABI（位置实参 → 前 M 形参 + args 对象按名补剩余）。 */
+  local?: boolean
   callee: string
   args: Record<string, ArgIR>
   inputs: PartName[]
@@ -203,6 +235,10 @@ export interface FunctionDefIR {
   params: string[]
   /** 函数体原文（acorn 定位的 body 区间切片，含花括号内的完整文本） */
   body: string
+  /** 函数体文本的稳定哈希（P4 内容寻址；statementKey 用，编辑函数体 → 下游失效重算） */
+  bodyHash: string
+  /** 函数体在原始代码文本中的 [start, end) 区间（parser 用 acorn 坐标换算；宿主命名/高亮用） */
+  bodyRange?: { start: number; end: number }
 }
 
 /**
