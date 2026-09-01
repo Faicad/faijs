@@ -635,6 +635,7 @@ function parseCadStatement(
   looseVars = false,
   sourceText = '',
   localFnParams?: ReadonlyMap<string, string[]>,
+  looseLocalCalls = false,
 ): ParsedStatement {
   const line = getLine(declNode)
 
@@ -665,7 +666,10 @@ function parseCadStatement(
   // 本机函数调用：callee 是裸标识符且 ∈ 脚本函数集（§3.4 / §4.2）
   const isLocalCall =
     callee?.type === 'Identifier' && (localFnParams?.has(callee.name) ?? false)
-  if (!isNsCall && !isLocalCall) {
+  // 宽松本机调用（单行提取 codeToArgs）：裸 callee 不在函数集时也放行，
+  // 视为 local 调用候选（ABI 形态未知 → 跳过绑定校验），由调用方在完整上下文校验。
+  const looseLocalCall = !isLocalCall && looseLocalCalls && callee?.type === 'Identifier'
+  if (!isNsCall && !isLocalCall && !looseLocalCall) {
     // 裸 callee 且不在函数集 → 「函数不存在」（E_REFERENCE，§3.4 / D15）；其余形态 → E_STATEMENT
     if (callee?.type === 'Identifier') {
       throw new ParseError(
@@ -679,7 +683,7 @@ function parseCadStatement(
 
   const nsName = isNsCall ? callee.object.name : undefined
   const opName = isNsCall ? callee.property.name : callee.name
-  const local = isLocalCall
+  const local = isLocalCall || looseLocalCall
 
   // 普通调用：callee 就是源码里的名字（A1 boolean 改写 / A4 load 收敛已删）
   let args: Record<string, ArgIR> = {}
@@ -714,7 +718,8 @@ function parseCadStatement(
   }
 
   // 本机调用：ABI 绑定校验（§3.6，parse 期拦截 E_ARG）
-  if (local && localFnParams) {
+  // 宽松本机调用（codeToArgs 单行提取）形参未知 → 跳过绑定校验，由调用方在完整上下文校验。
+  if (local && localFnParams && !looseLocalCall) {
     validateLocalAbi(opName, localFnParams.get(opName) ?? [], inputs.length, args, line)
   }
 
@@ -758,6 +763,7 @@ function parseDestructuring(
   looseVars = false,
   sourceText = '',
   localFnParams?: ReadonlyMap<string, string[]>,
+  looseLocalCalls = false,
 ): ParsedDestructuring {
   const line = getLine(declNode)
 
@@ -801,7 +807,10 @@ function parseDestructuring(
     callee.property?.type === 'Identifier'
   const isLocalCall =
     callee?.type === 'Identifier' && (localFnParams?.has(callee.name) ?? false)
-  if (!isNsCall && !isLocalCall) {
+  // 宽松本机调用（单行提取 codeToArgs）：裸 callee 不在函数集时也放行，
+  // 视为 local 调用候选（ABI 形态未知 → 跳过绑定校验），由调用方在完整上下文校验。
+  const looseLocalCall = !isLocalCall && looseLocalCalls && callee?.type === 'Identifier'
+  if (!isNsCall && !isLocalCall && !looseLocalCall) {
     if (callee?.type === 'Identifier') {
       throw new ParseError(
         `function "${callee.name}" does not exist in this script`,
@@ -814,7 +823,7 @@ function parseDestructuring(
 
   const nsName = isNsCall ? callee.object.name : undefined
   const opName = isNsCall ? callee.property.name : callee.name
-  const local = isLocalCall
+  const local = isLocalCall || looseLocalCall
   const args: Record<string, ArgIR> = {}
   const inputs: PartName[] = []
   const flags: ValueFlags = { computed: false }
@@ -846,7 +855,8 @@ function parseDestructuring(
   }
 
   // 本机调用：ABI 绑定校验（§3.6，parse 期拦截 E_ARG）
-  if (local && localFnParams) {
+  // 宽松本机调用（codeToArgs 单行提取）形参未知 → 跳过绑定校验，由调用方在完整上下文校验。
+  if (local && localFnParams && !looseLocalCall) {
     validateLocalAbi(opName, localFnParams.get(opName) ?? [], inputs.length, args, line)
   }
 
@@ -1279,6 +1289,14 @@ export interface ParseScriptOptions {
    * persistent ctx (AppendPrefixError when missing).
    */
   looseVars?: boolean
+  /**
+   * Loose local-function calls for single-line extraction (codeToArgs).
+   * A bare callee that is not in the script's function set is accepted as a
+   * local call candidate instead of throwing E_REFERENCE (D15) — the caller
+   * validates it against the full script context. ABI shape is unknown for
+   * such callees, so the binding check (validateLocalAbi) is skipped.
+   */
+  looseLocalCalls?: boolean
 }
 
 /**
@@ -1291,6 +1309,7 @@ export interface ParseScriptOptions {
  */
 export function parseScript(code: string, options?: ParseScriptOptions): ParseResult {
   const looseVars = options?.looseVars === true
+  const looseLocalCalls = options?.looseLocalCalls === true
 
   // ── 0. 顶层 import/export 预扫描（F1 黑名单化 + F2 import 提升） ──
   // 用 module 模式解析原始文本：
@@ -1475,7 +1494,7 @@ export function parseScript(code: string, options?: ParseScriptOptions): ParseRe
             if (stmtNode.kind !== 'const') {
               throw new ParseError('destructuring requires const', line, 'E_STATEMENT')
             }
-            const { stmt, valueNames } = parseDestructuring(decl, paramNames, paramValues, varToId, nsNames, looseVars, parseCode, localFnParams)
+            const { stmt, valueNames } = parseDestructuring(decl, paramNames, paramValues, varToId, nsNames, looseVars, parseCode, localFnParams, looseLocalCalls)
             // 命名服务不再由 parser 调用：parser 只做语法分析，保留词法变量名（设计 §5.1）
             stmt.outputs = valueNames.map((n) => asPartName(n))
             statements.push(stmt)
@@ -1509,7 +1528,7 @@ export function parseScript(code: string, options?: ParseScriptOptions): ParseRe
             )
           ) {
             // 语句：const partN = [await] <ns>.op(...) 或 const partN = [await] localFn(...)
-            const { stmt, varName } = parseCadStatement(decl, paramNames, paramValues, varToId, nsNames, looseVars, parseCode, localFnParams)
+            const { stmt, varName } = parseCadStatement(decl, paramNames, paramValues, varToId, nsNames, looseVars, parseCode, localFnParams, looseLocalCalls)
             // 命名服务不再由 parser 调用：parser 只做语法分析，保留词法变量名（设计 §5.1）
             stmt.outputs = [asPartName(varName)]
             statements.push(stmt)
@@ -1607,7 +1626,7 @@ export function parseScript(code: string, options?: ParseScriptOptions): ParseRe
               init: expr.right,
               loc: stmtNode.loc,
             }
-            const { stmt, varName: parsedVar } = parseCadStatement(fakeDecl, paramNames, paramValues, varToId, nsNames, looseVars, parseCode, localFnParams)
+            const { stmt, varName: parsedVar } = parseCadStatement(fakeDecl, paramNames, paramValues, varToId, nsNames, looseVars, parseCode, localFnParams, looseLocalCalls)
             // 命名服务不再由 parser 调用：裸重赋值保留词法变量名（设计 §5.1）
             stmt.outputs = [asPartName(parsedVar)]
             statements.push(stmt)
@@ -1621,9 +1640,12 @@ export function parseScript(code: string, options?: ParseScriptOptions): ParseRe
 
         // ── 本机函数无赋值调用（§3.4 四形态之四：副作用调用） ──
         // myFn(part0, { ... }) —— callee 是裸标识符且 ∈ 函数集；未知函数名 → E_REFERENCE
+        // 宽松本机调用（codeToArgs 单行提取）：裸 callee 不在函数集时也放行，
+        // 视为 local 调用候选（ABI 形态未知 → 跳过绑定校验），由调用方在完整上下文校验。
         if (expr?.type === 'CallExpression' && expr.callee?.type === 'Identifier') {
           const fnName = expr.callee.name
-          if (localFnParams.has(fnName)) {
+          const looseLocal = looseLocalCalls && !localFnParams.has(fnName)
+          if (localFnParams.has(fnName) || looseLocal) {
             const args: Record<string, ArgIR> = {}
             const inputs: PartName[] = []
             const flags: ValueFlags = { computed: false }
@@ -1650,7 +1672,10 @@ export function parseScript(code: string, options?: ParseScriptOptions): ParseRe
                 throw new ParseError(`unexpected argument type in ${fnName}: ${argNode.type}`, getLine(argNode), 'E_VALUE')
               }
             }
-            validateLocalAbi(fnName, localFnParams.get(fnName) ?? [], inputs.length, args, line)
+            // 宽松本机调用（codeToArgs 单行提取）形参未知 → 跳过绑定校验，由调用方在完整上下文校验。
+            if (!looseLocal) {
+              validateLocalAbi(fnName, localFnParams.get(fnName) ?? [], inputs.length, args, line)
+            }
             const localStmt: StatementIR = {
               id: asStmtId('__pending__'),
               callee: fnName,

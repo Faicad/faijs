@@ -92,7 +92,9 @@ export function codeToArgs(codeLine: string, opts?: { namespaces?: string[] }): 
     .map((id) => `let ${id} = 0`)
     .join('\n')
   const code = decls ? `${decls}\n${codeLine}` : codeLine
-  const { script } = parseScript(code)
+  // looseLocalCalls：单行提取无函数定义上下文，本机函数调用行（`makeArray(...)`）
+  // 的裸 callee 放行（D15 交由调用方在完整脚本上下文校验）；ABI 绑定校验跳过。
+  const { script } = parseScript(code, { looseLocalCalls: true })
   const last = script.statements[script.statements.length - 1]
   if (!last) return {}
   // Args on the wire are JSON-shaped data (ParamRef/VarRef/CallRef are plain

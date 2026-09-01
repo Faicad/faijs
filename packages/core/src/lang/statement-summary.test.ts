@@ -101,6 +101,34 @@ describe('analyzeCode: line 为源码行号', () => {
   })
 })
 
+describe('looseLocalCalls: 单行提取放行本机函数调用（D15 回归）', () => {
+  // codeToArgs 不传 looseLocalCalls 时对裸本机函数调用行抛 E_REFERENCE（3d_editor createPartsFromResult
+  // 单行提取场景），looseLocalCalls: true 则放行为 local 调用候选，由调用方在完整上下文校验。
+  it('无 looseLocalCalls → 裸本机 callee 抛 E_REFERENCE', () => {
+    expect(() => parseScript('let n = 0\nlet part1 = makeArray({ n })')).toThrow(
+      /function "makeArray" does not exist/,
+    )
+  })
+
+  it('无 looseLocalCalls → 无赋值副作用调用也抛 E_REFERENCE', () => {
+    expect(() => parseScript('myHelper({ x: 1 })')).toThrow(
+      /function "myHelper" does not exist/,
+    )
+  })
+
+  it('looseLocalCalls: true → 本机函数调用行放行', () => {
+    const { script } = parseScript('let n = 0\nlet part1 = makeArray({ n })', { looseLocalCalls: true })
+    expect(script.statements).toHaveLength(1)
+    expect(script.statements[0].callee).toBe('makeArray')
+  })
+
+  it('looseLocalCalls: true → 无赋值副作用调用放行', () => {
+    const { script } = parseScript('myHelper({ x: 1 })', { looseLocalCalls: true })
+    expect(script.statements).toHaveLength(1)
+    expect(script.statements[0].callee).toBe('myHelper')
+  })
+})
+
 describe('codeToArgs: 单语句行 args 提取', () => {
   it('普通语句行', () => {
     expect(codeToArgs('let part0 = cad.box({ size: 20 })')).toEqual({ size: 20 })
@@ -126,6 +154,18 @@ describe('codeToArgs: 单语句行 args 提取', () => {
   it('嵌套值形态保留（数组/对象/字符串）', () => {
     const args = codeToArgs("let part0 = cad.text({ text: 'hi', at: [1, 2, 0], opts: { bold: true } })")
     expect(args).toEqual({ text: 'hi', at: [1, 2, 0], opts: { bold: true } })
+  })
+
+  it('本机函数调用行（looseLocalCalls）', () => {
+    expect(codeToArgs('let part1 = makeArray({ n })')).toEqual({ n: { $param: 'n' } })
+  })
+
+  it('本机函数调用行 — 无赋值副作用调用', () => {
+    expect(codeToArgs('myHelper({ x: 1 })')).toEqual({ x: 1 })
+  })
+
+  it('本机函数调用行 — 复合对象参数', () => {
+    expect(codeToArgs('makeArray({ n: 4, tag: "hello" })')).toEqual({ n: 4, tag: 'hello' })
   })
 
   it('非法行抛 ParseError', () => {
