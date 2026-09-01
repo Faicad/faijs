@@ -33,7 +33,7 @@ function defaultPorts(): HostPorts {
   return { events: { emit: () => {} } } as HostPorts
 }
 
-/** 编译一段 .faijs 文本，返回 script + 编译产物。 */
+/** 编译一段 .fai.js 文本，返回 script + 编译产物。 */
 function compileText(text: string) {
   const { script } = parseScript(text)
   return { script, ...compileToModule(script) }

@@ -4,10 +4,10 @@
  * faijs-cli 测试 (P3-7)
  *
  * 测试内容：
- * 1. cliCheck: 合法 .faijs → ok=true
- * 2. cliCheck: 非法 .faijs → ok=false
- * 3. cliRun: 执行 .faijs → 产出 STL
- * 4. cliRun: 执行 .faijs → 产出 STEP (BREP mode)
+ * 1. cliCheck: 合法 .fai.js → ok=true
+ * 2. cliCheck: 非法 .fai.js → ok=false
+ * 3. cliRun: 执行 .fai.js → 产出 STL
+ * 4. cliRun: 执行 .fai.js → 产出 STEP (BREP mode)
  * 5. parseArgs: 命令行参数解析
  *
  * Run: npx vitest run src/node-host/cli.test.ts
@@ -52,8 +52,8 @@ afterAll(() => {
 import { afterAll } from 'vitest'
 
 describe('cliCheck: dryRun validation', () => {
-  it('valid .faijs file → ok=true', () => {
-    const filePath = resolve(FIXTURES_DIR, 'boolean/box-boolean.faijs')
+  it('valid .fai.js file → ok=true', () => {
+    const filePath = resolve(FIXTURES_DIR, 'boolean/box-boolean.fai.js')
     const result = cliCheck(filePath)
     expect(result.ok).toBe(true)
     expect(result.errors).toHaveLength(0)
@@ -63,24 +63,24 @@ describe('cliCheck: dryRun validation', () => {
     expect(result.script!.callees).toContain('subtract')
   })
 
-  it('invalid .faijs (parse error) → ok=false', () => {
+  it('invalid .fai.js (parse error) → ok=false', () => {
     const badCode = `export default async (cad) => {
   const part0 = cad.box({ size: 20
 }`
     // Write temp file
-    const tmpFile = resolve(TMP_DIR, 'bad-parse.faijs')
+    const tmpFile = resolve(TMP_DIR, 'bad-parse.fai.js')
     writeFileSync(tmpFile, badCode)
     const result = cliCheck(tmpFile)
     expect(result.ok).toBe(false)
     expect(result.errors[0].stage).toBe('parse')
   })
 
-  it('invalid .faijs (symbol error: unknown callee) → ok=false', () => {
+  it('invalid .fai.js (symbol error: unknown callee) → ok=false', () => {
     const badCode = `export default async (cad) => {
   const part0 = cad.bogusFn({ size: 20 })
   return { shape: part0 }
 }`
-    const tmpFile = resolve(TMP_DIR, 'bad-symbol.faijs')
+    const tmpFile = resolve(TMP_DIR, 'bad-symbol.fai.js')
     writeFileSync(tmpFile, badCode)
     const result = cliCheck(tmpFile)
     expect(result.ok).toBe(false)
@@ -90,8 +90,8 @@ describe('cliCheck: dryRun validation', () => {
 })
 
 describe('cliRun: execute and export', () => {
-  it('box-boolean.faijs → STL multi-terminal output (keep-syntax 后 subtract 保留源且隐藏)', async () => {
-    const filePath = resolve(FIXTURES_DIR, 'boolean/box-boolean.faijs')
+  it('box-boolean.fai.js → STL multi-terminal output (keep-syntax 后 subtract 保留源且隐藏)', async () => {
+    const filePath = resolve(FIXTURES_DIR, 'boolean/box-boolean.fai.js')
     const outPath = resolve(TMP_DIR, 'box-boolean.stl')
 
     const result = await cliRun(filePath, outPath, { mode: 'auto', libs: CAD_LIBS })
@@ -112,8 +112,8 @@ describe('cliRun: execute and export', () => {
     expect(header).toContain('Faicad')
   }, 60000)
 
-  it('box-boolean.faijs → STEP multi-terminal output (brep mode)', async () => {
-    const filePath = resolve(FIXTURES_DIR, 'boolean/box-boolean.faijs')
+  it('box-boolean.fai.js → STEP multi-terminal output (brep mode)', async () => {
+    const filePath = resolve(FIXTURES_DIR, 'boolean/box-boolean.fai.js')
     const outPath = resolve(TMP_DIR, 'box-boolean.step')
 
     const result = await cliRun(filePath, outPath, { mode: 'brep', libs: CAD_LIBS })
@@ -130,11 +130,11 @@ describe('cliRun: execute and export', () => {
     expect(content).toContain('ADVANCED_FACE')
   }, 60000)
 
-  it('text-engrave.faijs → single terminal STL output', async () => {
+  it('text-engrave.fai.js → single terminal STL output', async () => {
     // box → part0；translate 保名复用 part0；text(part0) 是 creator → 新名 part1
     // DAG leaf: part0 被 text 消耗 → 非终端；part1 是唯一终端
     // 单终端 → 直接写到 outPath
-    const filePath = resolve(FIXTURES_DIR, 'features/text-engrave.faijs')
+    const filePath = resolve(FIXTURES_DIR, 'features/text-engrave.fai.js')
     const outPath = resolve(TMP_DIR, 'text-engrave.stl')
 
     const result = await cliRun(filePath, outPath, { mode: 'auto', libs: CAD_LIBS })
@@ -149,30 +149,30 @@ describe('cliRun: execute and export', () => {
 
 describe('parseArgs', () => {
   it('parses check command', () => {
-    const result = parseArgs(['node', 'cli.ts', 'check', 'model.faijs'])
+    const result = parseArgs(['node', 'cli.ts', 'check', 'model.fai.js'])
     expect(result.command).toBe('check')
-    expect(result.file).toBe('model.faijs')
+    expect(result.file).toBe('model.fai.js')
   })
 
   it('parses run command with --out', () => {
-    const result = parseArgs(['node', 'cli.ts', 'run', 'model.faijs', '--out', 'output.stl'])
+    const result = parseArgs(['node', 'cli.ts', 'run', 'model.fai.js', '--out', 'output.stl'])
     expect(result.command).toBe('run')
-    expect(result.file).toBe('model.faijs')
+    expect(result.file).toBe('model.fai.js')
     expect(result.out).toBe('output.stl')
   })
 
   it('parses --mode option', () => {
-    const result = parseArgs(['node', 'cli.ts', 'run', 'model.faijs', '--out', 'out.step', '--mode', 'brep'])
+    const result = parseArgs(['node', 'cli.ts', 'run', 'model.fai.js', '--out', 'out.step', '--mode', 'brep'])
     expect(result.mode).toBe('brep')
   })
 
   it('parses --assets option', () => {
-    const result = parseArgs(['node', 'cli.ts', 'run', 'model.faijs', '--out', 'out.stl', '--assets', './assets/'])
+    const result = parseArgs(['node', 'cli.ts', 'run', 'model.fai.js', '--out', 'out.stl', '--assets', './assets/'])
     expect(result.assetsDir).toBe('./assets/')
   })
 
   it('returns null for unknown command', () => {
-    const result = parseArgs(['node', 'cli.ts', 'unknown', 'model.faijs'])
+    const result = parseArgs(['node', 'cli.ts', 'unknown', 'model.fai.js'])
     expect(result.command).toBe(null)
   })
 

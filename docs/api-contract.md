@@ -7,8 +7,8 @@ English | [中文](api-contract.zh.md)
 > **This document covers the standing interface contract only: it does not track development plans or defects, and it does not reference `docs/plans/` documents.**
 >
 > Related documents:
-> - `docs/syntax-design.md` — `.faijs` syntax and incremental execution contract
-> - `docs/ops-api-inventory.md` — API manual for writing `.faijs` code (AI/user side, generated file)
+> - `docs/syntax-design.md` — `.fai.js` syntax and incremental execution contract
+> - `docs/ops-api-inventory.md` — API manual for writing `.fai.js` code (AI/user side, generated file)
 
 ---
 
@@ -132,7 +132,7 @@ The model number N is the maximum `partN` found by a lexical scan of the code te
 
 ## 4. Statement and Script Model
 
-A `.faijs` script is a sequence of statements, one operation per line (the flat format, §5). The engine parses the text into an internal representation; **that representation is an implementation detail — it is not part of this interface contract and may change at any time**. The contract-facing statement model is the code itself: variable names (`PartName`), the called function, positional inputs, the trailing options object, and the declared outputs (§3, §5).
+A `.fai.js` script is a sequence of statements, one operation per line (the flat format, §5). The engine parses the text into an internal representation; **that representation is an implementation detail — it is not part of this interface contract and may change at any time**. The contract-facing statement model is the code itself: variable names (`PartName`), the called function, positional inputs, the trailing options object, and the declared outputs (§3, §5).
 
 `Shape` (`packages/core/src/mesh/types.ts`) is the core geometry type: `{ positions: Float32Array; indices: Uint32Array }` (triangle mesh, world space). `CompoundShape` is `{ kind: 'compound', children: Shape[] }`.
 
@@ -152,9 +152,9 @@ export interface TerminalShape {
 
 ---
 
-## 5. Syntax Contract (`.faijs` legal JS subset)
+## 5. Syntax Contract (`.fai.js` legal JS subset)
 
-`.faijs` must be a **legal subset of JavaScript** — any JS parser (acorn) parses it without error. Load flow: acorn parse (syntax gate) → the engine compiles the parsed script into a module → JS VM dynamic import for execution; **user text is never eval'd** (R-3).
+`.fai.js` must be a **legal subset of JavaScript** — any JS parser (acorn) parses it without error. Load flow: acorn parse (syntax gate) → the engine compiles the parsed script into a module → JS VM dynamic import for execution; **user text is never eval'd** (R-3).
 
 **Forbidden**: control flow (if/for/while/do/switch/try), dynamic `import()`, `eval`/`new Function`, `export`. Any violation is reported with a diagnostic code `E_CONTROL_FLOW` / `E_SYNTAX` / `E_VALUE` / `E_REFERENCE` / `E_IMPORT`, surfaced through `check()`.
 
@@ -506,7 +506,7 @@ export const myOp = defineOp({
 ### 11.1 TopoRef naming layer (cross-history identity)
 
 - **Two layers**: the snapshot address layer (`FaceId`/`EdgeId` ordinals, `SelectorManifest`/`SelectorRuntime`) serves picking/rendering, unchanged; the cross-history layer (`TopoRef` + `RoleTable`) names the same face/edge/point across replay.
-- **`TopoRef` is pure JSON-safe data** written into `.faijs` op params (face / edge / vertex / derived-face). Resolution: `TopoRef` → resolver → current ordinal or live BREP handle; ordinals are never stored back as identity.
+- **`TopoRef` is pure JSON-safe data** written into `.fai.js` op params (face / edge / vertex / derived-face). Resolution: `TopoRef` → resolver → current ordinal or live BREP handle; ordinals are never stored back as identity.
 - **`ExecutionResult.naming: Map<PartName, {source, faceNaming, edgeNaming}>`** carries naming rows (ordinal 1-based ↔ index); hosts build `TopoRef` from a picked Reference via `captureTopoRef(row)`.
 - **`RoleTable` is execution-time state only** (Shape identity slot + runtime `roleTableCache`, same lifecycle as `faceEvolutionCache`), never serialized; hashes are session-live handles, the table rebuilds across sessions.
 - **Three-state resolution**: `exact` / `geometric-fallback`; failures throw `TopoRefError` (`E_TOPO_DELETED` / `E_TOPO_AMBIGUOUS` / `E_TOPO_NOT_FOUND`).
@@ -539,7 +539,7 @@ export const myOp = defineOp({
 
 ### 13.3 The boundary of "consistent results" (anti-regression)
 
-The contract guarantees only: **code → model is a function**, and the save/load round trip: code exported from 3d_editor, saved as a `.faijs` file, re-imported, yields an identical model — a text-level round trip (text is the source). It does **not** guarantee or require: identical internal implementations or attribute-assignment algorithms between the code path and the mouse path, identical instance id values, or identical undo stack structure.
+The contract guarantees only: **code → model is a function**, and the save/load round trip: code exported from 3d_editor, saved as a `.fai.js` file, re-imported, yields an identical model — a text-level round trip (text is the source). It does **not** guarantee or require: identical internal implementations or attribute-assignment algorithms between the code path and the mouse path, identical instance id values, or identical undo stack structure.
 
 PS: Re-printing text from the IR is debug-only, never part of a contract.
 

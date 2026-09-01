@@ -261,7 +261,7 @@ function memberNamesOf(params: { memberNames?: unknown }, members: Shape[]): str
  * @returns CompoundShape 复合几何（kind='compound'，children 为成员 Shape 引用）。
  * @param params.name - 组名。type:string
  * @param params.members - 成员（编译产物 ctx.<var> 引用；结构语句里是裸变量引用，非字符串数组）。type:Shape[]
- * @note members 在 .faijs 里是裸变量引用（编译为 ctx.<var>），字符串数组形态的成员名经 keep() 反查兼容历史 IR。
+ * @note members 在 .fai.js 里是裸变量引用（编译为 ctx.<var>），字符串数组形态的成员名经 keep() 反查兼容历史 IR。
  * @example
  * const part0 = cad.box({ size: [30, 20, 10] })
  * cad.group({ name: '底板组', members: [part0] })

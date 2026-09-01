@@ -1,5 +1,5 @@
 /**
- * Mixed-modeling .faijs tests — P0-1a regression matrix (M1–M5)
+ * Mixed-modeling .fai.js tests — P0-1a regression matrix (M1–M5)
  *
  * These are the "test first" baseline for the mixed-modeling contract
  * (docs/plans/2026-08-29-faijs-module-runtime-plan.md §6.1.5):
@@ -38,16 +38,16 @@ const FIXTURES_DIR = fileURLToPath(new URL('../../../fixtures/data', import.meta
 
 /** Per-fixture expectation: which path the union must take. */
 const EXPECTED_PATH: Record<string, 'brep' | 'mesh'> = {
-  'm1-stl-box-union.faijs': 'mesh',
-  'm2-stl-cylinder-union.faijs': 'mesh',
-  'm3-sdf-box-union.faijs': 'mesh',
-  'm4-box-box-union.faijs': 'brep',
-  'm5-stl-stl-union.faijs': 'mesh',
+  'm1-stl-box-union.fai.js': 'mesh',
+  'm2-stl-cylinder-union.fai.js': 'mesh',
+  'm3-sdf-box-union.fai.js': 'mesh',
+  'm4-box-box-union.fai.js': 'brep',
+  'm5-stl-stl-union.fai.js': 'mesh',
 }
 
 function listFaijsFiles(): string[] {
   return readdirSync(MIXED_DIR)
-    .filter(f => f.endsWith('.faijs'))
+    .filter(f => f.endsWith('.fai.js'))
     .sort()
 }
 

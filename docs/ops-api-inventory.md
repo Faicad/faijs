@@ -109,7 +109,7 @@ const s = await cad.screw({ system: 'metric', specIdx: 6, thread: 'coarse', leng
 
 **异步**。Shape 螺丝几何，生成独立零件。
 
-> nRad 是拓扑参数不是渲染参数：mesh 路径直接决定分段数；BREP 路径用精确曲面，nRad 仅作 BREP→mesh 三角化角度提示（angular deflection ≈ 2π/nRad）。.faijs 默认 32 不输出，非默认才输出以保证可复现。
+> nRad 是拓扑参数不是渲染参数：mesh 路径直接决定分段数；BREP 路径用精确曲面，nRad 仅作 BREP→mesh 三角化角度提示（angular deflection ≈ 2π/nRad）。.fai.js 默认 32 不输出，非默认才输出以保证可复现。
 >
 > pitchCustom 执行层已支持（makeScrew/threadBrep 均读取），codegen 曾不序列化（TODO）；当前已机械输出。
 
@@ -503,7 +503,7 @@ cad.group({ name: '底板组', members: [part0] })
 
 **同步**。CompoundShape 复合几何（kind='compound'，children 为成员 Shape 引用）。
 
-> members 在 .faijs 里是裸变量引用（编译为 ctx.<var>），字符串数组形态的成员名经 keep() 反查兼容历史 IR。
+> members 在 .fai.js 里是裸变量引用（编译为 ctx.<var>），字符串数组形态的成员名经 keep() 反查兼容历史 IR。
 
 ---
 

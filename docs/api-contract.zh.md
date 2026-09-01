@@ -7,8 +7,8 @@
 > **本文档是长期有效的接口契约：不写开发计划、不记录缺陷，也不引用 `docs/plans/` 下的任何文档。**
 >
 > 关联文档：
-> - `docs/syntax-design.md` —— `.faijs` 语法与增量执行契约
-> - `docs/ops-api-inventory.md` —— 写 `.faijs` 代码的 API 手册（AI／用户侧，生成文件）
+> - `docs/syntax-design.md` —— `.fai.js` 语法与增量执行契约
+> - `docs/ops-api-inventory.md` —— 写 `.fai.js` 代码的 API 手册（AI／用户侧，生成文件）
 
 ---
 
@@ -132,7 +132,7 @@ faijs 是 **npm workspaces monorepo**。根包 `@faicad/faijs` 是**门面薄层
 
 ## 4. 语句与脚本模型
 
-一个 `.faijs` 脚本是一串语句，一行一个操作（扁平格式，§5）。引擎把文本解析为内部表示；**该表示是实现细节——不属于本接口契约，可随时变更**。契约面对的语句模型就是代码本身：变量名（`PartName`）、被调函数、位置入参、末尾选项对象、声明的输出（§3、§5）。
+一个 `.fai.js` 脚本是一串语句，一行一个操作（扁平格式，§5）。引擎把文本解析为内部表示；**该表示是实现细节——不属于本接口契约，可随时变更**。契约面对的语句模型就是代码本身：变量名（`PartName`）、被调函数、位置入参、末尾选项对象、声明的输出（§3、§5）。
 
 `Shape`（`packages/core/src/mesh/types.ts`）是核心几何类型：`{ positions: Float32Array; indices: Uint32Array }`（三角网格，世界空间）。`CompoundShape` 是 `{ kind: 'compound', children: Shape[] }`。
 
@@ -152,9 +152,9 @@ export interface TerminalShape {
 
 ---
 
-## 5. 语法契约（`.faijs` 合法 JS 子集）
+## 5. 语法契约（`.fai.js` 合法 JS 子集）
 
-`.faijs` 必须是 **JavaScript 的合法子集**——任意 JS 解析器（acorn）都能无错解析。加载流程：acorn 解析（语法闸门）→ 引擎把解析结果编译为模块 → JS VM 动态 import 执行；**不 eval 用户文本**（R-3）。
+`.fai.js` 必须是 **JavaScript 的合法子集**——任意 JS 解析器（acorn）都能无错解析。加载流程：acorn 解析（语法闸门）→ 引擎把解析结果编译为模块 → JS VM 动态 import 执行；**不 eval 用户文本**（R-3）。
 
 **禁止**：控制流（if／for／while／do／switch／try）、动态 `import()`、`eval`／`new Function`、`export`。越界一律报诊断码 `E_CONTROL_FLOW` / `E_SYNTAX` / `E_VALUE` / `E_REFERENCE` / `E_IMPORT`，由 `check()` 透传。
 
@@ -506,7 +506,7 @@ export const myOp = defineOp({
 ### 11.1 TopoRef 命名层（跨历史身份）
 
 - **两层职责**：快照内地址层（`FaceId`/`EdgeId` 序号、`SelectorManifest`/`SelectorRuntime`）服务拾取/渲染，保持不变；跨历史层（`TopoRef` + `RoleTable`）在重放后命名「同一个面/边/点」。
-- **`TopoRef` 是纯数据、JSON 安全**：写进 `.faijs` op 参数（face / edge / vertex / derived-face 四类）。解析方向单向——`TopoRef` → 解析器 → 当前序号或活 BREP 句柄；绝不反向把序号当稳定身份存进脚本。
+- **`TopoRef` 是纯数据、JSON 安全**：写进 `.fai.js` op 参数（face / edge / vertex / derived-face 四类）。解析方向单向——`TopoRef` → 解析器 → 当前序号或活 BREP 句柄；绝不反向把序号当稳定身份存进脚本。
 - **`ExecutionResult.naming: Map<PartName, {source, faceNaming, edgeNaming}>`** 与 `topology` 并列携带命名行（序号 1 起 ↔ 下标）；宿主把拾取到的 Reference 序号反查到命名行，经 `captureTopoRef(row)` 造 `TopoRef`。
 - **`RoleTable` 只是执行内状态**（Shape 身份槽 + runtime 持久 `roleTableCache`，与 `faceEvolutionCache` 同生命周期）；绝不序列化。hash 是会话内活句柄；跨会话整体重建，`TopoRef` 的稳定性来自 role/hint 数据。
 - **解析显式三态**：成功 `exact` / `geometric-fallback`；失败抛 `TopoRefError`（`E_TOPO_DELETED` / `E_TOPO_AMBIGUOUS` / `E_TOPO_NOT_FOUND`）——绝不静默拿序号硬取。
@@ -539,7 +539,7 @@ export const myOp = defineOp({
 
 ### 13.3 「结果一致」的边界（防回潮）
 
-契约只保证：**代码 → 模型是一个函数**，且保存/加载往返稳定：3d_editor 导出代码保存为 `.faijs` 文件、再导入该文件，得到的模型必须一致——这是文本级往返（文本是唯一事实源）。**不保证也不要求**：代码路径与鼠标路径的内部实现／属性分配算法一致、实例 id 值相同、undo 栈结构相同。
+契约只保证：**代码 → 模型是一个函数**，且保存/加载往返稳定：3d_editor 导出代码保存为 `.fai.js` 文件、再导入该文件，得到的模型必须一致——这是文本级往返（文本是唯一事实源）。**不保证也不要求**：代码路径与鼠标路径的内部实现／属性分配算法一致、实例 id 值相同、undo 栈结构相同。
 
 PS：从 IR 重打文本只用于调试，不属于任何契约。
 

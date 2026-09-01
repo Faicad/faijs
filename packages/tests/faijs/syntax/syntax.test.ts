@@ -1,7 +1,7 @@
 /**
- * Syntax .faijs tests — test specific syntax features
+ * Syntax .fai.js tests — test specific syntax features
  *
- * For each .faijs file in test/faijs/syntax/:
+ * For each .fai.js file in test/faijs/syntax/:
  * 1. Parse with parseScript
  * 2. Verify specific syntax constructs are correctly parsed
  *
@@ -19,11 +19,11 @@ const SYNTAX_DIR = fileURLToPath(new URL('.', import.meta.url))
 
 function listFaijsFiles(): string[] {
   return readdirSync(SYNTAX_DIR)
-    .filter(f => f.endsWith('.faijs'))
+    .filter(f => f.endsWith('.fai.js'))
     .sort()
 }
 
-describe('syntax .faijs tests', () => {
+describe('syntax .fai.js tests', () => {
   const files = listFaijsFiles()
 
   for (const file of files) {

@@ -105,7 +105,7 @@ export interface BrepChainState {
    * docs/plans/2026-08-31-topology-naming-port-v2.md）。
    *
    * 与 faceEvolutionCache 完全同生命周期：runtime 实例级持久、按语句增量同步、
-   * dispose 一并 clear。RoleTable 是执行内状态，不序列化、不进 .faijs、不进
+   * dispose 一并 clear。RoleTable 是执行内状态，不序列化、不进 .fai.js、不进
    * ExecutionResult.naming（宿主只拿 §3.7 的纯数据）。hash 是会话内活句柄索引，
    * 跨实例/会话重建时整体重建。
    */

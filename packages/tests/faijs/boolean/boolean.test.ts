@@ -1,7 +1,7 @@
 /**
- * Boolean .faijs tests — test boolean ops (union, subtract, intersect)
+ * Boolean .fai.js tests — test boolean ops (union, subtract, intersect)
  *
- * For each .faijs file in test/faijs/boolean/:
+ * For each .fai.js file in test/faijs/boolean/:
  * 1. Parse with parseScript
  * 2. Execute with createRuntime (mesh mode)
  * 3. Verify non-empty mesh, valid bbox
@@ -27,7 +27,7 @@ const BOOLEAN_DIR = fileURLToPath(new URL('.', import.meta.url))
 
 function listFaijsFiles(): string[] {
   return readdirSync(BOOLEAN_DIR)
-    .filter(f => f.endsWith('.faijs'))
+    .filter(f => f.endsWith('.fai.js'))
     .sort()
 }
 
@@ -45,7 +45,7 @@ function computeBBox(positions: Float32Array): { min: [number, number, number]; 
   return { min, max }
 }
 
-describe('boolean .faijs tests', () => {
+describe('boolean .fai.js tests', () => {
   const files = listFaijsFiles()
 
   for (const file of files) {

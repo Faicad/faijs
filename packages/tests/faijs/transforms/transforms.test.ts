@@ -1,7 +1,7 @@
 /**
- * Transforms .faijs tests — test transform ops (translate, rotate, scale)
+ * Transforms .fai.js tests — test transform ops (translate, rotate, scale)
  *
- * For each .faijs file in test/faijs/transforms/:
+ * For each .fai.js file in test/faijs/transforms/:
  * 1. Parse with parseScript
  * 2. Execute with createRuntime (mesh mode)
  * 3. Verify non-empty mesh, valid bbox
@@ -27,7 +27,7 @@ const TRANSFORMS_DIR = fileURLToPath(new URL('.', import.meta.url))
 
 function listFaijsFiles(): string[] {
   return readdirSync(TRANSFORMS_DIR)
-    .filter(f => f.endsWith('.faijs'))
+    .filter(f => f.endsWith('.fai.js'))
     .sort()
 }
 
@@ -45,7 +45,7 @@ function computeBBox(positions: Float32Array): { min: [number, number, number]; 
   return { min, max }
 }
 
-describe('transforms .faijs tests', () => {
+describe('transforms .fai.js tests', () => {
   const files = listFaijsFiles()
 
   for (const file of files) {

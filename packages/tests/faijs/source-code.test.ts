@@ -1,5 +1,5 @@
 /**
- * faijs source code tests — parse and execute .faijs files end-to-end.
+ * faijs source code tests — parse and execute .fai.js files end-to-end.
  *
  * Tests error handling and args validation.
  * Individual category tests are in subdirectories (primitives/, transforms/, etc.).

@@ -10,7 +10,7 @@
  * ⚠️ 仅显式 re-export BREP 版：mock-mech-mesh 与 brepjs-gear 的符号（contractVersion /
  * makeHeadstock / makeBall）与 BREP 版同名，export * 会歧义；它们由测试直接 import
  * 文件路径（mock-lib.test.ts / c3-brepjs-scenario.test.ts），不走包入口。
- * （.faijs 脚本里的 `import * as mech from 'mech-lib'` 是库机制运行时注入，与此无关。）
+ * （.fai.js 脚本里的 `import * as mech from 'mech-lib'` 是库机制运行时注入，与此无关。）
  */
 export { contractVersion, makeHeadstock, makeBall } from './mock-mech-brep'
 export type { SolidShape } from '@faicad/faijs-core/sdk'

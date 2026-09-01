@@ -1,7 +1,7 @@
 /**
- * Multi-mesh .faijs tests — test multi-mesh DAG and multiple returns
+ * Multi-mesh .fai.js tests — test multi-mesh DAG and multiple returns
  *
- * For each .faijs file in test/faijs/multi-mesh/:
+ * For each .fai.js file in test/faijs/multi-mesh/:
  * 1. Parse with parseScript
  * 2. Execute with createRuntime (mesh mode)
  * 3. Verify multiple terminal shapes
@@ -27,7 +27,7 @@ const MULTI_MESH_DIR = fileURLToPath(new URL('.', import.meta.url))
 
 function listFaijsFiles(): string[] {
   return readdirSync(MULTI_MESH_DIR)
-    .filter(f => f.endsWith('.faijs'))
+    .filter(f => f.endsWith('.fai.js'))
     .sort()
 }
 
@@ -45,7 +45,7 @@ function computeBBox(positions: Float32Array): { min: [number, number, number]; 
   return { min, max }
 }
 
-describe('multi-mesh .faijs tests', () => {
+describe('multi-mesh .fai.js tests', () => {
   const files = listFaijsFiles()
 
   for (const file of files) {

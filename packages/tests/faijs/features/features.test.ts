@@ -1,7 +1,7 @@
 /**
- * Features .faijs tests — test feature ops (drill, split, extrude, engrave, screw, knurl, sdf)
+ * Features .fai.js tests — test feature ops (drill, split, extrude, engrave, screw, knurl, sdf)
  *
- * For each .faijs file in test/faijs/features/:
+ * For each .fai.js file in test/faijs/features/:
  * 1. Parse with parseScript
  * 2. Execute with createRuntime (mesh mode)
  * 3. Verify non-empty mesh, valid bbox
@@ -29,7 +29,7 @@ const FEATURES_DIR = fileURLToPath(new URL('.', import.meta.url))
 
 function listFaijsFiles(): string[] {
   return readdirSync(FEATURES_DIR)
-    .filter(f => f.endsWith('.faijs'))
+    .filter(f => f.endsWith('.fai.js'))
     .sort()
 }
 
@@ -47,7 +47,7 @@ function computeBBox(positions: Float32Array): { min: [number, number, number]; 
   return { min, max }
 }
 
-describe('features .faijs tests', () => {
+describe('features .fai.js tests', () => {
   const files = listFaijsFiles()
 
   for (const file of files) {

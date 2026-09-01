@@ -1,10 +1,10 @@
-# .faijs 语法设计
+# .fai.js 语法设计
 
 [English](syntax-design.md) | 中文
 
-> 定位：本文档是 `.faijs` 的**语法契约**与**增量执行契约** —— 可以写什么、它如何映射为 `ScriptIR`、生成侧如何命名、终端如何推导、引擎如何只重算变化的部分。
+> 定位：本文档是 `.fai.js` 的**语法契约**与**增量执行契约** —— 可以写什么、它如何映射为 `ScriptIR`、生成侧如何命名、终端如何推导、引擎如何只重算变化的部分。
 >
-> 相邻：[`docs/api-contract.zh.md`](api-contract.zh.md) 是接口契约（身份、语句模型、终端判定、执行、几何分派）；[`docs/ops-api-inventory.zh.md`](ops-api-inventory.zh.md) 是写 `.faijs` 代码用的生成式 API 手册。
+> 相邻：[`docs/api-contract.zh.md`](api-contract.zh.md) 是接口契约（身份、语句模型、终端判定、执行、几何分派）；[`docs/ops-api-inventory.zh.md`](ops-api-inventory.zh.md) 是写 `.fai.js` 代码用的生成式 API 手册。
 >
 > §1 引用本仓库之外 `Faijs语言的思考.md` 里的需求原话；本文档的英文版给出对应的英文转述。
 
@@ -30,7 +30,7 @@
 
 ### 1.2 由原话推出的硬约束
 
-1. **合法 JS 子集** —— acorn 解析任意 `.faijs` 文件均无错。
+1. **合法 JS 子集** —— acorn 解析任意 `.fai.js` 文件均无错。
 2. **先解析后编译** —— 文本先变成 `ScriptIR`，VM 执行的是由它编译出来的模块，绝不是用户原文。`eval` / `new Function` / 动态 `import()` 在 parser 层即被拒绝。
 3. **无控制流** —— 唯一的语言级禁令（§2.1）；它保证 canvas 显示集合与"timeline 一行一节点"可推导。
 4. **引擎零函数知识** —— parser / compile / codegen / runtime 中没有任何按函数名分支的代码；函数信息只有机器生成的符号表，且只承载"键是否存在"。
@@ -190,7 +190,7 @@ export function group(params) {
 ### 6.1 流水线
 
 ```
-.faijs text
+.fai.js text
   → parseScript (acorn gate, zero function knowledge) → ScriptIR
   → compileToModule → zero-import ESM (one { id, deps, fn } per statement)
   → dynamic import() (Node: data: URL; browser: Blob URL)
@@ -237,7 +237,7 @@ no assignment:   await ns.<ns>.<callee>(…)
 2. 增量识别属于引擎 —— 一个确定性算法 —— 而不是模型。
 3. "把尺寸翻倍"在全文视角下就是"保留那一行，把 `size` 的值改掉"。
 
-AI 契约：读当前完整的 `.faijs` 文本，返回完整的新文本 —— 除非要求删除，否则保留每一条已有语句；已有行只改值或被调函数名；新语句追加在末尾；绝不重排或重命名已有变量，绝不写控制流、`export default` 或 `return`。
+AI 契约：读当前完整的 `.fai.js` 文本，返回完整的新文本 —— 除非要求删除，否则保留每一条已有语句；已有行只改值或被调函数名；新语句追加在末尾；绝不重排或重命名已有变量，绝不写控制流、`export default` 或 `return`。
 
 ### 7.2 宿主侧的对齐
 
@@ -291,5 +291,5 @@ asm1.do_assemble()
 
 ## 9. 相邻通道与非目标
 
-- **整模块 TypeScript** 是第二条执行通道：剥掉类型后作为一个模块导入，由 `export` 指明输出。它不生成 IR，也永不进入 timeline —— 是一个逃生口，不属于 `.faijs` 语句语言。
+- **整模块 TypeScript** 是第二条执行通道：剥掉类型后作为一个模块导入，由 `export` 指明输出。它不生成 IR，也永不进入 timeline —— 是一个逃生口，不属于 `.fai.js` 语句语言。
 - **非目标**：控制流、`Shape[]` 批量操作、以及对已发布 Shape 的原地修改。

@@ -5,7 +5,7 @@
  *   .ts（faits 脚本） → 本模块：sucrase 去类型（保留行号）
  *   → acorn 解析 import → 说明符重写 → Blob → import() 整段执行
  *
- * 与 faijs 录制的 `.faijs` 不同，faits 不建 IR、逐语句执行，而是
+ * 与 faijs 录制的 `.fai.js` 不同，faits 不建 IR、逐语句执行，而是
  * 整段一次性 import() 执行；DAG 活跃性不自动推导，输出由作者显式
  * export 声明（§7.5 行 723–724）。
  *

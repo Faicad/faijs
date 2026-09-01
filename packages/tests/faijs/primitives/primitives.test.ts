@@ -1,7 +1,7 @@
 /**
- * Primitives .faijs tests — test all primitive ops (box, sphere, cylinder, cone, wedge)
+ * Primitives .fai.js tests — test all primitive ops (box, sphere, cylinder, cone, wedge)
  *
- * For each .faijs file in test/faijs/primitives/:
+ * For each .fai.js file in test/faijs/primitives/:
  * 1. Parse with parseScript
  * 2. Execute with createRuntime (mesh mode)
  * 3. Verify non-empty mesh, valid bbox
@@ -25,10 +25,10 @@ beforeAll(async () => {
 
 const PRIMITIVES_DIR = fileURLToPath(new URL('.', import.meta.url))
 
-/** Read all .faijs files from the primitives directory */
+/** Read all .fai.js files from the primitives directory */
 function listFaijsFiles(): string[] {
   return readdirSync(PRIMITIVES_DIR)
-    .filter(f => f.endsWith('.faijs'))
+    .filter(f => f.endsWith('.fai.js'))
     .sort()
 }
 
@@ -47,7 +47,7 @@ function computeBBox(positions: Float32Array): { min: [number, number, number]; 
   return { min, max }
 }
 
-describe('primitives .faijs tests', () => {
+describe('primitives .fai.js tests', () => {
   const files = listFaijsFiles()
 
   for (const file of files) {

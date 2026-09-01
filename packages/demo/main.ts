@@ -18,7 +18,7 @@ import type { ExecutionMode, HostPorts, ShapeHandle, OcctKernel, ExecutionResult
 import { OcctKernel as OcctKernelValue } from 'occt-wasm'
 import fontUrl from './assets/fonts/OpenSans-Regular.ttf?url'
 
-// ── Example .faijs files ──
+// ── Example .fai.js files ──
 
 const EXAMPLES: Record<string, string> = {
   'box-boolean': `let part0 = cad.box({ size: 20 })
@@ -461,7 +461,7 @@ exampleSelect.addEventListener('change', () => {
   }
 })
 
-// Open a local .faijs file → load its source and run immediately
+// Open a local .fai.js file → load its source and run immediately
 openBtn.addEventListener('click', () => fileInput.click())
 
 fileInput.addEventListener('change', async () => {
@@ -469,8 +469,8 @@ fileInput.addEventListener('change', async () => {
   fileInput.value = '' // allow re-selecting the same file later
   if (!file) return
 
-  if (!file.name.toLowerCase().endsWith('.faijs')) {
-    setStatus(`Error: "${file.name}" is not a .faijs file`, 'error')
+  if (!file.name.toLowerCase().endsWith('.fai.js')) {
+    setStatus(`Error: "${file.name}" is not a .fai.js file`, 'error')
     return
   }
 

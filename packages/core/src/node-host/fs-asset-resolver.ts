@@ -29,6 +29,7 @@ type Manifest = Record<string, ManifestEntry>
 
 /** 从文件扩展名推断格式 */
 function inferFormat(filePath: string): string | undefined {
+  if (filePath.toLowerCase().endsWith('.fai.js')) return 'faijs'
   const ext = extname(filePath).toLowerCase().slice(1)
   const formatMap: Record<string, string> = {
     step: 'step',
@@ -37,7 +38,6 @@ function inferFormat(filePath: string): string | undefined {
     stl: 'stl',
     obj: 'obj',
     svg: 'svg',
-    faijs: 'faijs',
   }
   return formatMap[ext]
 }

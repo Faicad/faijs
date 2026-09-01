@@ -1,7 +1,7 @@
 /**
  * Generate docs/ops-api-inventory.md (+ .zh.md + .i18n.yaml) from the stdlib
  * exported-op JSDoc. The stdlib is the single source of truth for the faijs
- * `.faijs` coding API; this generator projects each op's JSDoc (params, types,
+ * `.fai.js` coding API; this generator projects each op's JSDoc (params, types,
  * required/default, quality, group, async, examples, notes) into the standing
  * bilingual doc so it never silently drifts from the implementation.
  *

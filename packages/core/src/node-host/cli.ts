@@ -3,8 +3,8 @@
  *
  *
  * 命令：
- *   check <file.faijs>                  — dryRun：parse + schema + 引用预检
- *   run <file.faijs> --out <file>       — 执行并导出 STL/STEP
+ *   check <file.fai.js>                 — dryRun：parse + schema + 引用预检
+ *   run <file.fai.js> --out <file>      — 执行并导出 STL/STEP
  *
  * 选项：
  *   --mode <auto|brep|mesh>             — 执行模式（默认 auto）
@@ -78,9 +78,9 @@ export interface CliRunResult {
 }
 
 /**
- * Execute the `check` command: dry-run validate a .faijs file.
+ * Execute the `check` command: dry-run validate a .fai.js file.
  *
- * @param filePath - path to the .faijs file to validate
+ * @param filePath - path to the .fai.js file to validate
  * @param _opts - optional CLI check options (assets and fonts directories)
  * @returns the check result with any validation errors
  */
@@ -106,9 +106,9 @@ export function cliCheck(filePath: string, _opts?: CliCheckOptions): CliCheckRes
 }
 
 /**
- * Execute the `run` command: execute a .faijs file and export STL/STEP.
+ * Execute the `run` command: execute a .fai.js file and export STL/STEP.
  *
- * @param filePath - path to the .faijs file to execute
+ * @param filePath - path to the .fai.js file to execute
  * @param outPath - output file path for the exported result (extension determines format)
  * @param opts - optional run options (mode, assets/fonts directories, injected libs)
  * @returns the run result describing success or failure
@@ -305,7 +305,7 @@ export async function cliMain(argv: string[], libs?: Record<string, StdlibNamesp
   const { command, file, out, mode, assetsDir, fontsDir } = parseArgs(argv)
 
   if (!command) {
-    process.stderr.write('Usage: faijs-cli <check|run> <file.faijs> [options]\n')
+    process.stderr.write('Usage: faijs-cli <check|run> <file.fai.js> [options]\n')
     process.stderr.write('  check <file>              DryRun validation\n')
     process.stderr.write('  run <file> --out <file>   Execute and export\n')
     process.stderr.write('  --mode <auto|brep|mesh>   Execution mode\n')

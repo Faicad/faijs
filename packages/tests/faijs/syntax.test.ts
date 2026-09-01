@@ -21,7 +21,7 @@ type PartScript = ReturnType<typeof parseScript>['script']
 
 const FAIJS_DIR = fileURLToPath(new URL('.', import.meta.url))
 
-/** Recursively find all .faijs files */
+/** Recursively find all .fai.js files */
 function listFaijsFiles(dir: string = FAIJS_DIR): string[] {
   const files: string[] = []
   const entries = readdirSync(dir, { withFileTypes: true })
@@ -30,7 +30,7 @@ function listFaijsFiles(dir: string = FAIJS_DIR): string[] {
     const fullPath = join(dir, entry.name)
     if (entry.isDirectory()) {
       files.push(...listFaijsFiles(fullPath))
-    } else if (entry.name.endsWith('.faijs')) {
+    } else if (entry.name.endsWith('.fai.js')) {
       files.push(fullPath)
     }
   }

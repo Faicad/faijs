@@ -1,10 +1,10 @@
-# .faijs Syntax Design
+# .fai.js Syntax Design
 
 English | [中文](syntax-design.zh.md)
 
-> Position: this document is the **syntax contract** and **incremental execution contract** of `.faijs` — what may be written, how it maps to `ScriptIR`, how generated code is named, how terminals are derived, and how the engine replays only what changed.
+> Position: this document is the **syntax contract** and **incremental execution contract** of `.fai.js` — what may be written, how it maps to `ScriptIR`, how generated code is named, how terminals are derived, and how the engine replays only what changed.
 >
-> Related: [`docs/api-contract.md`](api-contract.md) owns the interface contract (identity, statement model, terminal detection, execution, geometry dispatch); [`docs/ops-api-inventory.md`](ops-api-inventory.md) is the generated API manual for writing `.faijs` code.
+> Related: [`docs/api-contract.md`](api-contract.md) owns the interface contract (identity, statement model, terminal detection, execution, geometry dispatch); [`docs/ops-api-inventory.md`](ops-api-inventory.md) is the generated API manual for writing `.fai.js` code.
 >
 > §1 quotes the requirements from the Faijs language design notes kept outside this repository; the Chinese originals are quoted verbatim in the Chinese counterpart of this document.
 
@@ -30,7 +30,7 @@ English | [中文](syntax-design.zh.md)
 
 ### 1.2 Hard constraints derived from them
 
-1. **Legal JS subset** — acorn parses any `.faijs` file without error.
+1. **Legal JS subset** — acorn parses any `.fai.js` file without error.
 2. **parse-then-compile** — text becomes `ScriptIR` first; the VM runs the module compiled from it, never the user's text. `eval` / `new Function` / dynamic `import()` are rejected at the parser.
 3. **No control flow** — the single language-level prohibition (§2.1); it keeps the canvas set and one-timeline-node-per-line derivable.
 4. **Zero function knowledge** — no parser / compile / codegen / runtime branch depends on a function name; the machine-generated symbol table carries key existence only.
@@ -190,7 +190,7 @@ The decision chain behind this table — retention first, then "every output is 
 ### 6.1 Pipeline
 
 ```
-.faijs text
+.fai.js text
   → parseScript (acorn gate, zero function knowledge) → ScriptIR
   → compileToModule → zero-import ESM (one { id, deps, fn } per statement)
   → dynamic import() (Node: data: URL; browser: Blob URL)
@@ -237,7 +237,7 @@ All three take code text. `plan()` is content-addressed, not an id diff. `statem
 2. Incremental recognition belongs to the engine — a deterministic algorithm — not the model.
 3. "Double the size" is, in a full-text view, "keep the line, change the value of `size`".
 
-The AI contract: read the whole current `.faijs` text, return the whole new text — keep every existing statement unless deletion was requested, change only values or the callee on existing lines, append new statements at the end; never reorder or rename existing variables, never write control flow, `export default` or `return`.
+The AI contract: read the whole current `.fai.js` text, return the whole new text — keep every existing statement unless deletion was requested, change only values or the callee on existing lines, append new statements at the end; never reorder or rename existing variables, never write control flow, `export default` or `return`.
 
 ### 7.2 Host-side identity alignment
 
@@ -291,5 +291,5 @@ Terminals after step 6: `part4` (retained by the assembly), `part6`, `asm1`; the
 
 ## 9. Adjacent channels and non-goals
 
-- **Whole-module TypeScript** is a second execution channel: types are stripped and the source imported as one module, `export` naming its outputs. It builds no IR and never enters the timeline — an escape hatch, not part of the `.faijs` statement language.
+- **Whole-module TypeScript** is a second execution channel: types are stripped and the source imported as one module, `export` naming its outputs. It builds no IR and never enters the timeline — an escape hatch, not part of the `.fai.js` statement language.
 - **Non-goals**: control flow, `Shape[]` batch operations, in-place mutation of a published Shape.

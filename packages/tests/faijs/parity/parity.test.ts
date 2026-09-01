@@ -1,7 +1,7 @@
 /**
- * Parity .faijs tests — test BREP/mesh equivalence
+ * Parity .fai.js tests — test BREP/mesh equivalence
  *
- * For each .faijs file in test/faijs/parity/:
+ * For each .fai.js file in test/faijs/parity/:
  * 1. Parse with parseScript
  * 2. Execute in BREP mode and mesh mode
  * 3. Verify bbox/size are equivalent (within tolerance)
@@ -29,7 +29,7 @@ const PARITY_DIR = fileURLToPath(new URL('.', import.meta.url))
 
 function listFaijsFiles(): string[] {
   return readdirSync(PARITY_DIR)
-    .filter(f => f.endsWith('.faijs'))
+    .filter(f => f.endsWith('.fai.js'))
     .sort()
 }
 
@@ -62,7 +62,7 @@ function closeTo(a: number, b: number, relTol: number = 0.01): boolean {
   return diff <= relTol * mag || diff < 1e-6
 }
 
-describe('parity .faijs tests (BREP vs mesh)', () => {
+describe('parity .fai.js tests (BREP vs mesh)', () => {
   const files = listFaijsFiles()
 
   for (const file of files) {

@@ -424,12 +424,12 @@ describe('BREP/Mesh equivalence: drill', () => {
 // ── 端到端脚本 ──
 
 describe('BREP/Mesh equivalence: end-to-end scripts', () => {
-  it('box-boolean.faijs (box - sphere)', async () => {
+  it('box-boolean.fai.js (box - sphere)', async () => {
     await runAndCompare([
       makeStmt('s1', 'box', { size: 20 }),
       makeStmt('s2', 'sphere', { radius: 8, center: [5, 0, 0] }),
       makeStmt('s3', 'subtract', {}, ['s1', 's2']),
-    ], 'box-sphere (box-boolean.faijs)')
+    ], 'box-sphere (box-boolean.fai.js)')
   })
 
   it('complex chain: primitives + transforms + boolean', async () => {

@@ -174,7 +174,7 @@ export function defineOp<A extends unknown[]>(
   }
 
   // Async wrapper: implementations may be sync or async (stdlib mesh paths are
-  // often async, e.g. drill/engrave/boolean). The compiled .faijs product always
+  // often async, e.g. drill/engrave/boolean). The compiled .fai.js product always
   // awaits the call, so returning a Promise is transparent.
   const wrapped = async (...args: A): Promise<Shape | Record<string, Shape>> => {
     // Geometry inputs: identity-or-structure auto collection (execution-time

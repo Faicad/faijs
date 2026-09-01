@@ -91,13 +91,13 @@ test.describe('faijs demo', () => {
     }
   })
 
-  test('打开本地 .faijs 文件：编辑器载入文件内容并立即执行', async ({ page }) => {
+  test('打开本地 .fai.js 文件：编辑器载入文件内容并立即执行', async ({ page }) => {
     await page.goto('/')
     await waitForStatusOk(page)
 
     const snippet = `let part0 = cad.box({ size: 7 })\nlet part1 = cad.cylinder({ radius: 2, height: 12, center: [0, 0, 0] })\nlet part2 = cad.subtract(part0, part1)`
     await page.locator(SELECTOR.fileInput).setInputFiles({
-      name: 'custom-part.faijs',
+      name: 'custom-part.fai.js',
       mimeType: 'text/plain',
       buffer: Buffer.from(snippet),
     })
@@ -106,7 +106,7 @@ test.describe('faijs demo', () => {
     // 文件内容已载入编辑器，且示例下拉切到文件名
     await expect(page.locator(SELECTOR.editor)).toHaveValue(/cad\.cylinder\(/)
     await expect(page.locator(SELECTOR.exampleSelect)).toHaveValue('__file__')
-    await expect(page.locator(`${SELECTOR.exampleSelect} option[value="__file__"]`)).toHaveText('custom-part.faijs')
+    await expect(page.locator(`${SELECTOR.exampleSelect} option[value="__file__"]`)).toHaveText('custom-part.fai.js')
     const status = await page.locator(SELECTOR.statusBar).textContent()
     // box + cylinder + subtract → 仅 subtract 终端 (DAG leaf)
     expect(status).toMatch(/OK — brep: 1 shape\(s\)/)
@@ -118,7 +118,7 @@ test.describe('faijs demo', () => {
 
     const snippet = `let part0 = cad.box({ size: 7 })\nlet part1 = cad.cylinder({ radius: 2, height: 12, center: [0, 0, 0] })\nlet part2 = cad.subtract(part0, part1)`
     await page.locator(SELECTOR.fileInput).setInputFiles({
-      name: 'custom-part.faijs',
+      name: 'custom-part.fai.js',
       mimeType: 'text/plain',
       buffer: Buffer.from(snippet),
     })
@@ -134,10 +134,10 @@ test.describe('faijs demo', () => {
     await waitForStatusOk(page)
     await expect(page.locator(SELECTOR.editor)).toHaveValue(/cad\.cylinder\(\{ radius: 2, height: 12/)
     await expect(page.locator(SELECTOR.exampleSelect)).toHaveValue('__file__')
-    await expect(page.locator(`${SELECTOR.exampleSelect} option[value="__file__"]`)).toHaveText('custom-part.faijs')
+    await expect(page.locator(`${SELECTOR.exampleSelect} option[value="__file__"]`)).toHaveText('custom-part.fai.js')
   })
 
-  test('打开非 .faijs 文件：状态栏显示错误', async ({ page }) => {
+  test('打开非 .fai.js 文件：状态栏显示错误', async ({ page }) => {
     await page.goto('/')
     await waitForStatusOk(page)
 
@@ -146,7 +146,7 @@ test.describe('faijs demo', () => {
       mimeType: 'text/plain',
       buffer: Buffer.from('hello'),
     })
-    await expect(page.locator(SELECTOR.statusBar)).toContainText('is not a .faijs file', { timeout: 30_000 })
+    await expect(page.locator(SELECTOR.statusBar)).toContainText('is not a .fai.js file', { timeout: 30_000 })
     await expect(page.locator(SELECTOR.statusBar)).toHaveClass(/error/)
   })
 

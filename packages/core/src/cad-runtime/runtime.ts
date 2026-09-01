@@ -411,7 +411,7 @@ export class CadRuntime {
 
   /**
    * Full execution from code text: parse → execute every statement.
-   * @param code - the .faijs source text.
+   * @param code - the .fai.js source text.
    * @param opts - optional execution options.
    * @returns promise resolving to the ExecutionResult.
    */
@@ -467,8 +467,8 @@ export class CadRuntime {
    * positional id, S-2) plus their downstream closure are recomputed in
    * topological order; when nothing changed, the result is assembled from the
    * persistent ctx with zero execution.
-   * @param oldCode - the .faijs source text before the edit.
-   * @param newCode - the .faijs source text after the edit.
+   * @param oldCode - the .fai.js source text before the edit.
+   * @param newCode - the .fai.js source text after the edit.
    * @param opts - optional execution options.
    * @returns promise resolving to the ExecutionResult.
    */
@@ -521,7 +521,7 @@ export class CadRuntime {
    * (e.g. cross-file reference to a never-executed part, or ctx cleared by
    * dispose) — an {@link AppendPrefixError} is thrown and the host should
    * upgrade to a full `execute(code)`.
-   * @param code - the .faijs source text of the newly added statements only.
+   * @param code - the .fai.js source text of the newly added statements only.
    * @param opts - optional execution options.
    * @returns promise resolving to the ExecutionResult (all terminals covered —
    * unexecuted statements are assembled from the persistent ctx).
@@ -1241,7 +1241,7 @@ export class CadRuntime {
    * ① parse（零知识解析）；② 符号检查（callee ∈ 符号表，未知 → "函数不存在"；
    * receiver 非空 = 成员方法，不查符号表）；③ 引用预检（inputs/refs 须先定义）。
    *
-   * @param code .faijs 文本
+   * @param code .fai.js 文本
    * @returns CheckResult
    */
   check(code: string): CheckResult {

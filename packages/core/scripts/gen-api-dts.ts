@@ -264,7 +264,7 @@ function generate(): string {
   lines.push(``)
   lines.push(`/**`)
   lines.push(` * The \`cad\` object's runtime API surface: every callable available to a`)
-  lines.push(` * \`.faijs\` model, grouped by category (creation, transform, boolean, split,`)
+  lines.push(` * \`.fai.js\` model, grouped by category (creation, transform, boolean, split,`)
   lines.push(` * drill, extrude, engrave, chamfer, structure, geometry queries, assets).`)
   lines.push(` */`)
   lines.push(`export interface CadAPI {`)

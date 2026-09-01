@@ -5,7 +5,7 @@
  * 实施文档：docs/plans/2026-08-29-engine-library-contract-implementation.md P2
  *
  * 导出全部官方库函数、Shape 构造器与 schema 表。
- * 库函数签名 = .faijs 源码里的调用形态（无隐式参数）；
+ * 库函数签名 = .fai.js 源码里的调用形态（无隐式参数）；
  * 后端资源经 getBackends() 获取，保留声明经 keep() 表达。
  */
 

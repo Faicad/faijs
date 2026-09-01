@@ -1,7 +1,7 @@
 /**
  * TopoRef 命名层类型（§2.2 of docs/plans/2026-08-31-topology-naming-port-v2.md）
  *
- * 跨历史身份层：TopoRef 是纯数据、JSON 安全（写进 .faijs 的参数），
+ * 跨历史身份层：TopoRef 是纯数据、JSON 安全（写进 .fai.js 的参数），
  * 在改参重放后仍能指认「同一个面/边/点」。序号（FaceId/EdgeId）是
  * 快照内地址层，不动；本层叠加在其上。
  *
@@ -93,7 +93,7 @@ export interface DerivedFaceTopoRef {
 /** 四类拓扑引用的并集。 */
 export type TopoRef = FaceTopoRef | EdgeTopoRef | VertexTopoRef | DerivedFaceTopoRef
 
-// ── 运行期 role 表（不序列化、不进 .faijs）──
+// ── 运行期 role 表（不序列化、不进 .fai.js）──
 
 /**
  * origin（链根 PartName）→ role → 当前面 hash 列表。

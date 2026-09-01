@@ -1,7 +1,7 @@
 /**
  * parser — 文本 → ScriptIR（合法 JS 子集，设计文档 §2）
  *
- * 执行模型：`.faijs` 文本先用 acorn 解析（合法性证明 J-1），再 walk AST 还原为 ScriptIR。
+ * 执行模型：`.fai.js` 文本先用 acorn 解析（合法性证明 J-1），再 walk AST 还原为 ScriptIR。
  * 绝不 eval / new Function / import() 真执行。
  *
  * 支持的语法（合法 JS 子集）：

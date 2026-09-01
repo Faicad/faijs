@@ -30,14 +30,14 @@ Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadR
 | `npx madge --circular packages/*/src` | 包图无环守卫 |
 | `pwsh -NoProfile scripts/ci.ps1` | Windows 全量 CI：lint → typecheck → build → workspace 测试 + stderr 检查 → 守卫 → demo e2e ×2 → pack |
 | `scripts/ci.sh` | Linux/macOS 版；Windows 下会报错提示改用 ps1 |
-| `npx tsx packages/core/scripts/faijs-cli.ts check <f.faijs>` | 干跑校验（parse + schema + 引用预检） |
-| `npx tsx packages/core/scripts/faijs-cli.ts run <f.faijs> --out x.stl\|step [--mode auto\|brep\|mesh]` | 执行并导出；STEP 需要 BREP 链存活 |
+| `npx tsx packages/core/scripts/faijs-cli.ts check <f.fai.js>` | 干跑校验（parse + schema + 引用预检） |
+| `npx tsx packages/core/scripts/faijs-cli.ts run <f.fai.js> --out x.stl\|step [--mode auto\|brep\|mesh]` | 执行并导出；STEP 需要 BREP 链存活 |
 | `npm run doc-sync` | 文档规范全量检查（12 项门禁：链接、换行、预算、Agent Note、双语、类型等价、Mermaid、JSDoc、ts 编译、引用、归档） |
 | `npm run archive-plans` | 归档上月 docs/plans/ 文档到 yyyy-mm/ 文件夹（每月 1 号运行） |
 
 ## 架构（L0–L3 分层，全部位于 `packages/core/src/`）
 
-- **L0 文本层** `lang/`：parser（acorn，**先解析后编译，执行交给 JS 虚拟机**）、codegen、args-schema。`.faijs` 是合法 JS 子集，语句 id 用 `sN`（StmtId），产出变量名用词法名（UI 自动生成代码采用 `partN` 形式，见 `lang/allocate-id.ts`）。
+- **L0 文本层** `lang/`：parser（acorn，**先解析后编译，执行交给 JS 虚拟机**）、codegen、args-schema。`.fai.js` 是合法 JS 子集，语句 id 用 `sN`（StmtId），产出变量名用词法名（UI 自动生成代码采用 `partN` 形式，见 `lang/allocate-id.ts`）。
 - **L1 几何层**：`brep/`（OCCT brep 链）、`mesh/`（manifold-3d mesh 路径 + `cad` API）、`boolean/`、`primitives/`、`sdf/`、`topology/`；**几何库函数在 `packages/stdlib/src/`**（库函数经 `@faicad/faijs-stdlib` 导入）。
 - **L2 编排** `cad-runtime/`：`CadRuntime` + `HostPorts`（csg/sdf/fonts/assets/events 注入接口）。
 - **L3 Host**：`node-host/`（fs）+ `browser-host/`（worker）。
@@ -50,14 +50,14 @@ Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadR
 - **`packages/core/src/mesh/api.d.ts` 是生成文件**：由 `packages/core/scripts/gen-api-dts.ts` 生成（内嵌函数目录），禁止手改；改 schema 后必须重跑 `npx tsx packages/core/scripts/gen-api-dts.ts`。
 - **测试 stderr 零容忍**（CI 强制）：任何测试输出 `stderr |` 行即判失败。测试若故意触发错误，必须在测试内 spy `console.warn/error` 并断言；禁止全局静默 stderr。
 - **typecheck/lint 不覆盖测试**：各包 `tsc --noEmit` 的 include 含 `src/**/*.ts`（含同目录测试），但 `packages/tests` 的集成测试由 `npm run typecheck -w @faicad/faijs-tests` 单独覆盖——改动后手动跑 vitest 验证。
-- 测试分布：`packages/core/src/**/*.test.ts`（与源码同目录）、`packages/stdlib/src/**`、`packages/mech-lib/src/**`、`packages/tests/faijs/`（按功能分目录，含 `.faijs` fixture）、`packages/fixtures/data/`（step/stl/3mf/svg 数据）。parity 测试（BREP vs mesh 一致性）在 `beforeAll` 里 `initOcctWasm()`。fixture 路径已 `import.meta.url` 化（与 cwd 无关）。
+- 测试分布：`packages/core/src/**/*.test.ts`（与源码同目录）、`packages/stdlib/src/**`、`packages/mech-lib/src/**`、`packages/tests/faijs/`（按功能分目录，含 `.fai.js` fixture）、`packages/fixtures/data/`（step/stl/3mf/svg 数据）。parity 测试（BREP vs mesh 一致性）在 `beforeAll` 里 `initOcctWasm()`。fixture 路径已 `import.meta.url` 化（与 cwd 无关）。
 - `packages/demo/` 是独立 vite 应用（dev 端口 8899；build 时 three/manifold-3d/occt-wasm 外链 jsdelivr CDN importmap，版本号与 package.json 手写同步）。demo 在 workspace 内通过 `resolve.alias` 直接消费根门面/引擎源码（M7 免打包，`vite.config.ts` 的 alias + `optimizeDeps.exclude` + `server.watch` 反选）；改 faijs 源码 → demo dev server HMR 即生效，**无需 npm pack**。wasm 经 `wasmAssets()` 插件（dev 中间件 `/wasm/*` + build 拷贝）。
 - 仓库文档双语配对（英文 `foo.md` + 中文 `foo.zh.md` + `foo.i18n.yaml`），见 [docs/i18n/README.md](docs/i18n/README.md)。例外：`docs/plans/`、`docs/analysis/`、`AGENTS.md` 不配对。commit message 用 conventional commits（英文）；代码注释用英文。
 
 ## 文档地图
 
 - `docs/AGENTS.md`：文档标准，改文档前必读。
-- `docs/api-contract.md`、`docs/syntax-design.md`、`docs/ops-api-inventory.md`（写 `.faijs` 的 API 手册）：有效契约，改行为前必读。
+- `docs/api-contract.md`、`docs/syntax-design.md`、`docs/ops-api-inventory.md`（写 `.fai.js` 的 API 手册）：有效契约，改行为前必读。
 - `docs/plans/YYYY-MM-DD-*.md`：按日期命名的设计/计划文档。每月 1 号归档到 `yyyy-mm/` 文件夹。
 - `docs/analysis/`：技术分析文档。
 - `.agents/notes/`：决策记录（Agent Notes），见 [.agents/notes/README.md](.agents/notes/README.md)。

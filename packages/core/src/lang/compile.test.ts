@@ -11,7 +11,7 @@ import { describe, it, expect } from 'vitest'
 import { compileToModule } from './compile'
 import { parseScript } from './parser'
 
-/** 编译一段 .faijs 文本，返回模块文本 + 元数据。 */
+/** 编译一段 .fai.js 文本，返回模块文本 + 元数据。 */
 function compileText(text: string) {
   const { script } = parseScript(text)
   return { script, ...compileToModule(script) }

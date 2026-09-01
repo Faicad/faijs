@@ -1,5 +1,5 @@
 /**
- * chamfer e2e (.faijs, BREP-only) — T-A4/T-A5/T-A6 (§4.2)
+ * chamfer e2e (.fai.js, BREP-only) — T-A4/T-A5/T-A6 (§4.2)
  *
  * 覆盖（真实 OCCT，beforeAll registerOcctBrepEngine）：
  * - T-A4 `equal`：box → chamfer(edges, type:'equal', width:1) → BREP 未断链、

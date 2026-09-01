@@ -1,5 +1,5 @@
 /**
- * topology-naming .faijs fixture 集成测试（M5 引擎侧，§8）
+ * topology-naming .fai.js fixture 集成测试（M5 引擎侧，§8）
  *
  * 验证真实 BREP 链路上的 TopoRef 命名/解析：
  * - 面引用改参重放：box → translate 链上 box:top 语义面在改参重放后仍命中
@@ -50,7 +50,7 @@ function refForRole(naming: PartNaming, origin: string, role: string): FaceTopoR
   return { kind: 'face', origin: row.origin, role: row.role, hint: row.hint }
 }
 
-describe('topology naming .faijs integration', () => {
+describe('topology naming .fai.js integration', () => {
   let runtime: CadRuntime
 
   beforeEach(() => {

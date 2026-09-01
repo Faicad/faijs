@@ -9,7 +9,7 @@ import type { Shape } from './types'
 
 /**
  * The `cad` object's runtime API surface: every callable available to a
- * `.faijs` model, grouped by category (creation, transform, boolean, split,
+ * `.fai.js` model, grouped by category (creation, transform, boolean, split,
  * drill, extrude, engrave, chamfer, structure, geometry queries, assets).
  */
 export interface CadAPI {
