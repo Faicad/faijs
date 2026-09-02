@@ -236,6 +236,49 @@ function bounds() {
   return { min: [-scale, -scale, -height], max: [scale, scale, height * 1.5] }
 }`,
   },
+  {
+    id: 'schwarzP',
+    name: 'Schwarz P 极小曲面',
+    category: 'periodic',
+    description: 'cos 和式 TPMS（§2.6.4 补 lattice 缺口）',
+    defaultBounds: { min: [-7, -7, -7], max: [7, 7, 7] },
+    code: `// Schwarz P 极小曲面 -- cos(kx)+cos(ky)+cos(kz)=0 的等值壳
+// @param period 6.28 周期
+// @param thickness 0.5 壁厚
+function sdf(x, y, z) {
+  const k = 2 * Math.PI / period
+  const p = Math.cos(k*x) + Math.cos(k*y) + Math.cos(k*z)
+  return thickness - Math.abs(p)
+}
+
+function bounds() {
+  const p = period
+  return { min: [-p, -p, -p], max: [p, p, p] }
+}`,
+  },
+  {
+    id: 'diamond',
+    name: 'Diamond 极小曲面',
+    category: 'periodic',
+    description: '四重 sin/cos 和式 TPMS（§2.6.4 补 lattice 缺口）',
+    defaultBounds: { min: [-7, -7, -7], max: [7, 7, 7] },
+    code: `// Diamond 极小曲面 -- 四重和式 TPMS 的等值壳
+// @param period 6.28 周期
+// @param thickness 0.5 壁厚
+function sdf(x, y, z) {
+  const k = 2 * Math.PI / period
+  const sx = Math.sin(k*x), cx = Math.cos(k*x)
+  const sy = Math.sin(k*y), cy = Math.cos(k*y)
+  const sz = Math.sin(k*z), cz = Math.cos(k*z)
+  const d = sx*sy*sz + sx*cy*cz + cx*sy*cz + cx*cy*sz
+  return thickness - Math.abs(d)
+}
+
+function bounds() {
+  const p = period
+  return { min: [-p, -p, -p], max: [p, p, p] }
+}`,
+  },
 ]
 
 /** 默认模板（球体） */
