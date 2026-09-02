@@ -1273,4 +1273,414 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     module: 'io',
     reason: 'plan §5.5/§7.10: IO/字节 → host ports，skip（divergence）',
   },
+
+  // ──── P14 第八片：operations 模块（122 符号 = 16 brep-op + 11 pure + 45 skip + 8u/others) ────
+  // brep-op：Shapeable<…> 单/双形状入参 → faijs Shape 借入 → vendored Result → adopt 单产物；
+  // 数组形状入参（loft/guidedSweep/multiSectionSweep 的 Wire[]）与多产物结果（extrudeAll/
+  // loftAll = Shape[]/ValidSolid[]）不在单产物收养模板内 → skip（与 P14 派生早先判据一致）；
+  // history/assembly/mate/instance 家族 = 状态化 DSL / kernel 句柄容器 → skip；
+  // export*/createAssembly = host IO（同 io 判据）/宿主 API → skip；KernelType raw 句柄入参
+//（supportExtrude）→ skip。joint 构造/数值助手与骨架计算 → pure。
+  {
+    // ---- 类型（全部 re-export；barrel 别名走 index.js）----
+    name: 'AssemblyExporter', source: 'operations/exporters.js#AssemblyExporter', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'AssemblyNode', source: 'operations/assemblyFns.js#AssemblyNode', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'AssemblyNodeOptions', source: 'operations/assemblyFns.js#AssemblyNodeOptions', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'AssemblySolveResult', source: 'operations/mateFns.js#AssemblySolveResult', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'CleanLoftOptions', source: 'index.js#CleanLoftOptions', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'CleanSweepOptions', source: 'index.js#CleanSweepOptions', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'CylindricalOptions', source: 'operations/jointFns.js#CylindricalOptions', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'DHOptions', source: 'operations/dhFns.js#DHOptions', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'DHRow', source: 'operations/dhFns.js#DHRow', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'ExtrudeAllEntry', source: 'operations/extrudeFns.js#ExtrudeAllEntry', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'ExtrusionProfile', source: 'operations/extrudeFns.js#ExtrusionProfile', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'GuidedSweepOptions', source: 'operations/guidedSweepFns.js#GuidedSweepOptions', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'HistoryOperationRegistry', source: 'index.js#HistoryOperationRegistry', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'IKOptions', source: 'operations/ikFns.js#IKOptions', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'IKResult', source: 'operations/ikFns.js#IKResult', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'IKTarget', source: 'operations/ikFns.js#IKTarget', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'InstancedMesh', source: 'operations/instanceFns.js#InstancedMesh', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'InstancedShape', source: 'operations/instanceFns.js#InstancedShape', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'InstanceGridOptions', source: 'operations/instanceFns.js#InstanceGridOptions', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'Joint', source: 'operations/jointFns.js#Joint', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'JointAxis', source: 'operations/jointFns.js#JointAxis', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'JointDOF', source: 'operations/jointFns.js#JointDOF', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'JointOptions', source: 'operations/jointFns.js#JointOptions', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'JointPose', source: 'operations/jointFns.js#JointPose', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'JointType', source: 'operations/jointFns.js#JointType', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'LoftAllEntry', source: 'operations/loftFns.js#LoftAllEntry', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'MateConstraint', source: 'operations/mateFns.js#MateConstraint', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'MateEntity', source: 'operations/mateFns.js#MateEntity', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'MaterializeOptions', source: 'operations/instanceFns.js#MaterializeOptions', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'ModelHistory', source: 'operations/historyFns.js#ModelHistory', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'MultiSweepOptions', source: 'operations/multiSweepFns.js#MultiSweepOptions', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'OperationFn', source: 'operations/historyFns.js#OperationFn', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'OperationStep', source: 'operations/historyFns.js#OperationStep', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'PlanarOptions', source: 'operations/jointFns.js#PlanarOptions', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'RevolveOptions', source: 'operations/api.js#RevolveOptions', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'RoofOptions', source: 'operations/roofFns.js#RoofOptions', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'SerializedHistory', source: 'operations/historyFns.js#SerializedHistory', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'ShapeOptions', source: 'operations/exporterFns.js#ShapeOptions', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'SkeletonFace', source: 'operations/straightSkeleton.js#SkeletonFace', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'SkeletonNode', source: 'operations/straightSkeleton.js#SkeletonNode', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'SkPoint2D', source: 'operations/straightSkeleton.js#SkPoint2D', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'SphericalOptions', source: 'operations/jointFns.js#SphericalOptions', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'StraightSkeleton', source: 'operations/straightSkeleton.js#StraightSkeleton', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'SupportedUnit', source: 'operations/exporterFns.js#SupportedUnit', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'SweepOptions', source: 'operations/extrudeFns.js#SweepOptions', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'SweepSectionConfig', source: 'operations/multiSweepFns.js#SweepSectionConfig', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'ThreadOptions', source: 'operations/threadFns.js#ThreadOptions', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'TrajectorySample', source: 'operations/ikFns.js#TrajectorySample', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'UrdfDocument', source: 'operations/urdfFns.js#UrdfDocument', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    name: 'UrdfExportOptions', source: 'operations/urdfFns.js#UrdfExportOptions', kind: 'type', module: 'operations', reason: '',
+  },
+  {
+    // ---- pure：纯数据/几何构造，直接 re-export ----
+    name: 'revoluteJoint', source: 'operations/jointFns.js#revoluteJoint', kind: 'pure', module: 'operations', reason: '纯数据构造（无 kernel/Shape 参数）',
+  },
+  {
+    name: 'prismaticJoint', source: 'operations/jointFns.js#prismaticJoint', kind: 'pure', module: 'operations', reason: '纯数据构造（无 kernel 参数）',
+  },
+  {
+    name: 'cylindricalJoint', source: 'operations/jointFns.js#cylindricalJoint', kind: 'pure', module: 'operations', reason: '纯数据构造（无 kernel 参数）',
+  },
+  {
+    name: 'planarJoint', source: 'operations/jointFns.js#planarJoint', kind: 'pure', module: 'operations', reason: '纯数据构造（无 kernel 参数）',
+  },
+  {
+    name: 'sphericalJoint', source: 'operations/jointFns.js#sphericalJoint', kind: 'pure', module: 'operations', reason: '纯数据构造（无 kernel 参数）',
+  },
+  {
+    name: 'setJointValue', source: 'operations/jointFns.js#setJointValue', kind: 'pure', module: 'operations', reason: 'Joint→Joint 数值更新（纯数据）',
+  },
+  {
+    name: 'setJointValues', source: 'operations/jointFns.js#setJointValues', kind: 'pure', module: 'operations', reason: 'Joint→Joint 数值批量更新（纯数据）',
+  },
+  {
+    name: 'jointTransform', source: 'operations/jointFns.js#jointTransform', kind: 'pure', module: 'operations', reason: 'Joint→JointPose（纯数据）',
+  },
+  {
+    name: 'jointsFromDH', source: 'operations/dhFns.js#jointsFromDH', kind: 'pure', module: 'operations', reason: 'DH 表→Joint[]（纯数据）',
+  },
+  {
+    name: 'computeStraightSkeleton', source: 'operations/straightSkeleton.js#computeStraightSkeleton', kind: 'pure', module: 'operations', reason: '纯 2D 骨架计算（无 kernel/Shape 参数）',
+  },
+  {
+    name: 'isInstanced', source: 'operations/instanceFns.js#isInstanced', kind: 'pure', module: 'operations', reason: 'type guard（无 kernel 参数）',
+  },
+  {
+    // ---- brep-op：单/多单形状入参 → 单产物收养 ----
+    name: 'extrude', source: 'operations/api.js#extrude', kind: 'brep-op', module: 'operations',
+    geometryArgs: [0], reason: 'shapeable 面/边 → Result(Shape)，brep-op',
+    args: 'extrude(face: Shape, height?: number|Vec3) → Shape',
+  },
+  {
+    name: 'revolve', source: 'operations/api.js#revolve', kind: 'brep-op', module: 'operations',
+    geometryArgs: [0], reason: 'shapeable 面 → Result(Shape3D)，brep-op',
+    args: 'revolve(face: Shape, options?: RevolveOptions): Shape',
+  },
+  {
+    name: 'sweep', source: 'operations/extrudeFns.js#sweep', kind: 'brep-op', module: 'operations',
+    geometryArgs: [0, 1], reason: 'wire + spine → Result(Shape3D|tuple)，默认单产物，brep-op',
+    args: 'sweep(wire: Shape, spine: Shape, config?: SweepOptions, shellMode?: boolean): Shape',
+  },
+  {
+    name: 'complexExtrude', source: 'operations/extrudeFns.js#complexExtrude', kind: 'brep-op', module: 'operations',
+    geometryArgs: [0], reason: 'wire → Result(Shape3D)，brep-op',
+    args: 'complexExtrude(wire: Shape, center: Vec3, normal: Vec3, profile?: ExtrusionProfile): Shape',
+  },
+  {
+    name: 'twistExtrude', source: 'operations/extrudeFns.js#twistExtrude', kind: 'brep-op', module: 'operations',
+    geometryArgs: [0], reason: 'wire → Result(Shape3D)，brep-op',
+    args: 'twistExtrude(wire: Shape, angleDegrees: number, center: Vec3, normal: Vec3): Shape',
+  },
+  {
+    name: 'linearPattern', source: 'operations/patternFns.js#linearPattern', kind: 'brep-op', module: 'operations',
+    geometryArgs: [0], reason: 'shape → Result(Shape3D)，brep-op',
+    args: 'linearPattern(shape: Shape, direction: Vec3, count: number, spacing: number): Shape',
+  },
+  {
+    name: 'circularPattern', source: 'operations/patternFns.js#circularPattern', kind: 'brep-op', module: 'operations',
+    geometryArgs: [0], reason: 'shape → Result(Shape3D)，brep-op',
+    args: 'circularPattern(shape: Shape, axis: Vec3, count: number, fullAngle?: number, center?: Vec3): Shape',
+  },
+  {
+    name: 'gridPattern', source: 'operations/patternFns.js#gridPattern', kind: 'brep-op', module: 'operations',
+    geometryArgs: [0], reason: 'shape → Result(Shape3D)，brep-op',
+    args: 'gridPattern(shape: Shape, directionX: Vec3, directionY: Vec3, countX: number, countY: number, spacingX: number, spacingY: number): Shape',
+  },
+  {
+    name: 'roof', source: 'operations/roofFns.js#roof', kind: 'brep-op', module: 'operations',
+    geometryArgs: [0], reason: 'wire → Result(ValidSolid)→solid，brep-op',
+    args: 'roof(wire: Shape, options?: RoofOptions): Shape',
+  },
+  {
+    name: 'drill', source: 'operations/compoundOpsFns.js#drill', kind: 'brep-op', module: 'operations',
+    geometryArgs: [0], reason: 'Shapeable<Shape3D> → Result<T>，brep-op',
+    args: 'drill(shape: Shape, options: DrillOptions): Shape',
+  },
+  {
+    name: 'pocket', source: 'operations/compoundOpsFns.js#pocket', kind: 'brep-op', module: 'operations',
+    geometryArgs: [0], reason: 'Shapeable<Shape3D> → Result<T>，brep-op',
+    args: 'pocket(shape: Shape, options: PocketOptions): Shape',
+  },
+  {
+    name: 'boss', source: 'operations/compoundOpsFns.js#boss', kind: 'brep-op', module: 'operations',
+    geometryArgs: [0], reason: 'Shapeable<Shape3D> → Result<T>，brep-op',
+    args: 'boss(shape: Shape, options: BossOptions): Shape',
+  },
+  {
+    name: 'mirrorJoin', source: 'operations/compoundOpsFns.js#mirrorJoin', kind: 'brep-op', module: 'operations',
+    geometryArgs: [0], reason: 'Shapeable<Shape3D> → Result<T>，brep-op',
+    args: 'mirrorJoin(shape: Shape, options?: MirrorJoinOptions): Shape',
+  },
+  {
+    name: 'rectangularPattern', source: 'operations/compoundOpsFns.js#rectangularPattern', kind: 'brep-op', module: 'operations',
+    geometryArgs: [0], reason: 'Shapeable<Shape3D> → Result<T>，brep-op',
+    args: 'rectangularPattern(shape: Shape, options: RectangularPatternOptions): Shape',
+  },
+  {
+    name: 'thread', source: 'operations/threadFns.js#thread', kind: 'brep-op', module: 'operations',
+    geometryArgs: [], reason: '仅参数构造 → Result(Shape3D)，单产物，brep-op（consumes: none）',
+    args: 'thread(options: ThreadOptions): Shape',
+  },
+  {
+    name: 'convexHull', source: 'operations/convexHullFns.js#convexHull', kind: 'brep-op', module: 'operations',
+    geometryArgs: [], reason: '点集构造 → Result(Solid)，单产物，brep-op',
+    args: 'convexHull(points: Vec3[]): Shape',
+  },
+  {
+    // ---- skip：状态 DSL/多产物/数组入参/host IO/kernel 入参 ----
+    name: 'addChild', source: 'operations/assemblyFns.js#addChild', kind: 'skip', module: 'operations', reason: '装配树操作（AssemblyNode 含 kernel Shape 引用），skip host 装配适配',
+  },
+  {
+    name: 'collectShapes', source: 'operations/assemblyFns.js#collectShapes', kind: 'skip', module: 'operations', reason: '返回 AnyShape[]（kernel 句柄数组），单产物收养缺位，skip',
+  },
+  {
+    name: 'countNodes', source: 'operations/assemblyFns.js#countNodes', kind: 'skip', module: 'operations', reason: '装配场景输入，skip',
+  },
+  {
+    name: 'createAssemblyNode', source: 'operations/assemblyFns.js#createAssemblyNode', kind: 'skip', module: 'operations', reason: 'AssemblyNode 直接持有 kernel Shape 句柄，skip host 装配适配',
+  },
+  {
+    name: 'findNode', source: 'operations/assemblyFns.js#findNode', kind: 'skip', module: 'operations', reason: '装配场景遍历，skip',
+  },
+  {
+    name: 'removeChild', source: 'operations/assemblyFns.js#removeChild', kind: 'skip', module: 'operations', reason: '装配树操作，skip',
+  },
+  {
+    name: 'updateNode', source: 'operations/assemblyFns.js#updateNode', kind: 'skip', module: 'operations', reason: '装配树操作，skip',
+  },
+  {
+    name: 'walkAssembly', source: 'operations/assemblyFns.js#walkAssembly', kind: 'skip', module: 'operations', reason: '装配树遍历（含 kernel 形状），skip',
+  },
+  {
+    name: 'supportExtrude', source: 'operations/extrudeFns.js#supportExtrude', kind: 'skip', module: 'operations', reason: 'support: KernelType raw 内核句柄入参，skip',
+  },
+  {
+    name: 'extrudeAll', source: 'operations/extrudeFns.js#extrudeAll', kind: 'skip', module: 'operations', reason: '返回 ValidSolid[]（多产物），单产物收养缺位，skip',
+  },
+  {
+    name: 'loft', source: 'operations/api.js#loft', kind: 'skip', module: 'operations', reason: '入参 Shapeable<Wire>[]（形状数组），brep-op 模板单柄借入不适用，skip',
+  },
+  {
+    name: 'loftAll', source: 'operations/loftFns.js#loftAll', kind: 'skip', module: 'operations', reason: '返回 Shape3D 数组（多产物），skip',
+  },
+  {
+    name: 'guidedSweep', source: 'operations/guidedSweepFns.js#guidedSweep', kind: 'skip', module: 'operations', reason: 'guides: Wire[]（数组）入参，brefreq 模板无法数组借入，skip',
+  },
+  {
+    name: 'multiSectionSweep', source: 'operations/multiSweepFns.js#multiSectionSweep', kind: 'skip', module: 'operations', reason: 'sections: SweepSectionConfig[]（每份含 wire）数组入参，skip',
+  },
+  {
+    name: 'addJoint', source: 'operations/jointFns.js#addJoint', kind: 'skip', module: 'operations', reason: '装配场景（AssemblyNode 输入），skip',
+  },
+  {
+    name: 'forwardKinematics', source: 'operations/jointFns.js#forwardKinematics', kind: 'skip', module: 'operations', reason: '装配运动链场景输入，skip',
+  },
+  {
+    name: 'mechanismDOF', source: 'operations/jointFns.js#mechanismDOF', kind: 'skip', module: 'operations', reason: '装配场景输入，skip',
+  },
+  {
+    name: 'addMate', source: 'operations/mateFns.js#addMate', kind: 'skip', module: 'operations', reason: '装配约束 DSL（AssemblyNode+kernel 面/边），skip',
+  },
+  {
+    name: 'solveAssembly', source: 'operations/mateFns.js#solveAssembly', kind: 'skip', module: 'operations', reason: '约束求解场景（kernel 句柄），skip',
+  },
+  {
+    name: 'createHistory', source: 'operations/historyFns.js#createHistory', kind: 'skip', module: 'operations', reason: '状态化历史 DSL，skip host 适配',
+  },
+  {
+    name: 'createRegistry', source: 'operations/historyFns.js#createRegistry', kind: 'skip', module: 'operations', reason: 'OperationRegistry 注册表状态，skip',
+  },
+  {
+    name: 'addStep', source: 'operations/historyFns.js#addStep', kind: 'skip', module: 'operations', reason: '返回历史快照状态，skip',
+  },
+  {
+    name: 'getHistoryShape', source: 'index.js#getHistoryShape', kind: 'skip', module: 'operations', reason: '历史快照查询（kernel Shape 句柄），skip',
+  },
+  {
+    name: 'findStep', source: 'operations/historyFns.js#findStep', kind: 'skip', module: 'operations', reason: '历史注册表查询状态，skip',
+  },
+  {
+    name: 'stepCount', source: 'operations/historyFns.js#stepCount', kind: 'skip', module: 'operations', reason: '历史栈长度（非几何查询），skip',
+  },
+  {
+    name: 'stepsFrom', source: 'operations/historyFns.js#stepsFrom', kind: 'skip', module: 'operations', reason: '历史切片状态，skip',
+  },
+  {
+    name: 'modifyStep', source: 'operations/historyFns.js#modifyStep', kind: 'skip', module: 'operations', reason: '改参+replay DSL，skip',
+  },
+  {
+    name: 'registerShape', source: 'operations/historyFns.js#registerShape', kind: 'skip', module: 'operations', reason: '写入 ShapeMap 快照，skip',
+  },
+  {
+    name: 'registerOperation', source: 'operations/historyFns.js#registerOperation', kind: 'skip', module: 'operations', reason: '注册表状态，skip',
+  },
+  {
+    name: 'replayHistory', source: 'operations/historyFns.js#replayHistory', kind: 'skip', module: 'operations', reason: '重播模式，skip',
+  },
+  {
+    name: 'replayFrom', source: 'operations/historyFns.js#replayFrom', kind: 'skip', module: 'operations', reason: '重播子域，skip',
+  },
+  {
+    name: 'serializeHistory', source: 'operations/historyFns.js#serializeHistory', kind: 'skip', module: 'operations', reason: '序列化需 Shape→BREP 内部表示，skip',
+  },
+  {
+    name: 'deserializeHistory', source: 'operations/historyFns.js#deserializeHistory', kind: 'skip', module: 'operations', reason: '重建 kernel Shapes 状态，skip',
+  },
+  {
+    name: 'undoLast', source: 'operations/historyFns.js#undoLast', kind: 'skip', module: 'operations', reason: '历史回退 DSL，skip',
+  },
+  {
+    name: 'instance', source: 'operations/instanceFns.js#instance', kind: 'skip', module: 'operations', reason: '返回 InstancedShape 容器（source 句柄 ownership），skip host 渲染',
+  },
+  {
+    name: 'instanceGrid', source: 'operations/instanceFns.js#instanceGrid', kind: 'skip', module: 'operations', reason: '返回 InstancedShape（矩阵集），skip',
+  },
+  {
+    name: 'instanceCount', source: 'operations/instanceFns.js#instanceCount', kind: 'skip', module: 'operations', reason: '作用于 InstancedShape 宿主引用，skip',
+  },
+  {
+    name: 'instancedMesh', source: 'operations/instanceFns.js#instancedMesh', kind: 'skip', module: 'operations', reason: '返回 host 渲染数据（geometry+instances），非 Shape，skip',
+  },
+  {
+    name: 'materialize', source: 'operations/instanceFns.js#materialize', kind: 'skip', module: 'operations', reason: 'InstancedShape→多产物（Compound/fused），单产物收养缺位，skip',
+  },
+  {
+    name: 'inverseKinematics', source: 'operations/ikFns.js#inverseKinematics', kind: 'skip', module: 'operations', reason: '装配 IK 场景（AssemblyNode 输入），skip',
+  },
+  {
+    name: 'jointTrajectory', source: 'operations/ikFns.js#jointTrajectory', kind: 'skip', module: 'operations', reason: '装配 IK 场景，skip',
+  },
+  {
+    name: 'exportURDF', source: 'operations/urdfFns.js#exportURDF', kind: 'skip', module: 'operations', reason: 'URDF 字符串 host IO，skip（同 IO 判据）',
+  },
+  {
+    name: 'importURDF', source: 'operations/urdfFns.js#importURDF', kind: 'skip', module: 'operations', reason: 'URDF 字符串 host IO，skip',
+  },
+  {
+    name: 'exportAssemblySTEP', source: 'operations/exporterFns.js#exportAssemblySTEP', kind: 'skip', module: 'operations', reason: 'Blob/STEP 字节 host IO，skip',
+  },
+  {
+    name: 'createAssembly', source: 'operations/exporters.js#createAssembly', kind: 'skip', module: 'operations', reason: '返回 AssemblyExporter（kernel 包裹），skip host API',
+  },
 ]
