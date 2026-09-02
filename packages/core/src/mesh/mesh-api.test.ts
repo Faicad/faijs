@@ -117,18 +117,18 @@ describe('mesh-api: transform', () => {
     expect(origBb.min[0]).toBeCloseTo(-5, 1)
   })
 
-  it('rotate: 旋转几何', () => {
+  it('rotate_euler: 旋转几何', () => {
     const s = cad.box({ size: 10 })
-    const rotated = cad.rotate(s, [90, 0, 0])
+    const rotated = cad.rotate_euler(s, [90, 0, 0])
 
     // 旋转后仍然是立方体，包围盒不变
     const bb = cad.boundingBox(rotated)
     expect(bb.max[0] - bb.min[0]).toBeCloseTo(10, 1)
   })
 
-  it('rotate: 带 pivot 旋转', () => {
+  it('rotate_euler: 带 pivot 旋转', () => {
     const s = cad.box({ size: 10, center: [0, 0, 0] })
-    const rotated = cad.rotate(s, [0, 0, 90], [100, 0, 0])
+    const rotated = cad.rotate_euler(s, [0, 0, 90], [100, 0, 0])
 
     // 围绕 (100,0,0) 旋转 90° → 原本在 (5,0,0) 的点变到 (100,5,0)
     const bb = cad.boundingBox(rotated)
@@ -229,10 +229,10 @@ describe('mesh-api: immutability', () => {
     expect(Array.from(s.positions)).toEqual(Array.from(original))
   })
 
-  it('rotate 不修改输入', () => {
+  it('rotate_euler 不修改输入', () => {
     const s = cad.box({ size: 10 })
     const original = new Float32Array(s.positions)
-    cad.rotate(s, [45, 30, 60])
+    cad.rotate_euler(s, [45, 30, 60])
     expect(Array.from(s.positions)).toEqual(Array.from(original))
   })
 })
@@ -253,7 +253,7 @@ describe('mesh-api: API contract', () => {
 
   it('cad 对象包含所有变换 API', () => {
     expect(typeof cad.translate).toBe('function')
-    expect(typeof cad.rotate).toBe('function')
+    expect(typeof cad.rotate_euler).toBe('function')
     expect(typeof cad.scale).toBe('function')
   })
 

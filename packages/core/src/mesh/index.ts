@@ -53,7 +53,7 @@ export const cad = {
 
   // 变换
   translate: transformOps.translate,
-  rotate: transformOps.rotate,
+  rotate_euler: transformOps.rotate_euler,
   scale: transformOps.scale,
   transformMatrix: transformOps.transformMatrix,
 

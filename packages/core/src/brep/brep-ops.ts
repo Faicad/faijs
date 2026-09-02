@@ -84,7 +84,7 @@ export function translateBrep(
 /**
  * BREP 旋转：使用 OCCT transform（3x4 仿射矩阵）。
  *
- * 与 mesh 路径 rotate(shape, anglesDeg, pivot?) 一致：
+ * 与 mesh 路径 rotate_euler(shape, anglesDeg, pivot?) 一致：
  * - anglesDeg 为 XYZ 欧拉角（角度制）
  * - pivot 为旋转中心（可选，默认原点）
  *

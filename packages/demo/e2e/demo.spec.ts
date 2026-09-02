@@ -26,7 +26,7 @@ const EXAMPLE_SNIPPETS: Record<string, string> = {
   'box-boolean': 'cad.box({ size: 20 })',
   'drill-test': 'cad.cylinder({ radius: 5, height: 20',
   'text-engrave': "cad.text(part0, { text: 'HELLO'",
-  'transform-chain': 'cad.rotate(part0, { anglesDeg: [0, 0, 30] }',
+  'transform-chain': 'cad.rotate_euler(part0, { anglesDeg: [0, 0, 30] }',
 }
 
 async function waitForStatusOk(page: Page, timeout = 120_000) {

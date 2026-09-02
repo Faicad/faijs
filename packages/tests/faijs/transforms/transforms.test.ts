@@ -1,5 +1,5 @@
 /**
- * Transforms .fai.js tests — test transform ops (translate, rotate, scale)
+ * Transforms .fai.js tests — test transform ops (translate, rotate_euler, scale)
  *
  * For each .fai.js file in test/faijs/transforms/:
  * 1. Parse with parseScript

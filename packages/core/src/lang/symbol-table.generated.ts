@@ -16,7 +16,7 @@ export default {
   "sdf": {},
   "load": {},
   "translate": {},
-  "rotate": {},
+  "rotate_euler": {},
   "scale": {},
   "fai_drill": {},
   "fai_extrude": {},

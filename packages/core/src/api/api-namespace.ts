@@ -11,7 +11,7 @@
  */
 
 import { box, sphere, cylinder, cone, wedge } from './primitives'
-import { translate, rotate, scale } from './transform'
+import { translate, rotate_euler, scale } from './transform'
 import { fai_extrude } from './fai_extrude'
 import { knurl } from './knurl'
 import { sdf } from './sdf'
@@ -43,7 +43,7 @@ export function createApiNamespace(): StdlibNamespace {
     contractVersion: CONTRACT_VERSION,
     box, sphere, cylinder, cone, wedge,
     text, screw, svgExtrude, sdf, load,
-    translate, rotate, scale,
+    translate, rotate_euler, scale,
     fai_drill, fai_extrude, engrave, chamfer, knurl,
     union, subtract, intersect,
     fai_split, group, assembly, copy,

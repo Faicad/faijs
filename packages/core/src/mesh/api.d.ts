@@ -27,7 +27,7 @@ export interface CadAPI {
 
   // ── 变换 ──
   translate(shape: Shape, params: { offset: [number, number, number] }): Shape
-  rotate(shape: Shape, params: { anglesDeg: [number, number, number]; pivot?: [number, number, number] }): Shape
+  rotate_euler(shape: Shape, params: { anglesDeg: [number, number, number]; pivot?: [number, number, number] }): Shape
   scale(shape: Shape, params: { factor: number | [number, number, number] }): Shape
 
   // ── 布尔 ──

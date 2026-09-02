@@ -32,7 +32,7 @@ part2 = cad.translate(part2, { offset: [10, 0, 0] })`,
 part0 = cad.translate(part0, { offset: [0, 0, 14] })
 let part1 = cad.text(part0, { text: 'HELLO', size: 8, depth: 2 })`,
   'transform-chain': `let part0 = cad.box({ size: [20, 10, 5] })
-part0 = cad.rotate(part0, { anglesDeg: [0, 0, 30] })
+part0 = cad.rotate_euler(part0, { anglesDeg: [0, 0, 30] })
 part0 = cad.translate(part0, { offset: [5, 0, 0] })
 part0 = cad.scale(part0, { factor: [1, 1, 2] })`,
 }

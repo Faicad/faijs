@@ -12,7 +12,7 @@
  */
 
 export { box, sphere, cylinder, cone, wedge } from './primitives'
-export { translate, rotate, scale } from './transform'
+export { translate, rotate_euler, scale } from './transform'
 export { fai_extrude } from './fai_extrude'
 export { fai_drill } from './fai_drill'
 export { fai_split } from './fai_split'

@@ -1,5 +1,5 @@
 /**
- * stdlib transform — 变换库函数（translate/rotate/scale）
+ * stdlib transform — 变换库函数（translate/rotate_euler/scale）
  *
  * 设计文档：docs/plans/2026-08-25-faijs-vm-execution-implementation-plan.md §3.11
  * 实施文档：docs/plans/2026-08-29-engine-library-contract-implementation.md P2
@@ -32,14 +32,14 @@ export function assertTranslateParams(params: Record<string, unknown>): void {
 }
 
 /**
- * Validate rotate parameters: `anglesDeg` must be a vec3, and `pivot`
+ * Validate rotate_euler parameters: `anglesDeg` must be a vec3, and `pivot`
  * (if provided) must also be a vec3.
- * @param params - the raw rotate operation parameters.
+ * @param params - the raw rotate_euler operation parameters.
  */
 export function assertRotateParams(params: Record<string, unknown>): void {
-  assertVec3(params.anglesDeg, 'rotate.anglesDeg')
+  assertVec3(params.anglesDeg, 'rotate_euler.anglesDeg')
   if (params.pivot !== undefined && params.pivot !== null) {
-    assertVec3(params.pivot, 'rotate.pivot')
+    assertVec3(params.pivot, 'rotate_euler.pivot')
   }
 }
 
@@ -65,7 +65,7 @@ function transformBrep(op: string, input: Shape, params: Record<string, unknown>
   let resultSolid: BrepHandle
   if (op === 'translate') {
     resultSolid = translateBrep(kernel, inputSolid, params.offset as Vec3)
-  } else if (op === 'rotate') {
+  } else if (op === 'rotate_euler') {
     resultSolid = rotateBrep(kernel, inputSolid, params.anglesDeg as Vec3, params.pivot as Vec3 | undefined)
   } else {
     resultSolid = scaleBrep(kernel, inputSolid, params.factor as number | Vec3)
@@ -118,25 +118,25 @@ export const translate = defineOp({
  * @inputs 1
  * @async false
  * @qual ok
- * @name rotate
+ * @name rotate_euler
  * @returns Shape 旋转后的几何。
  * @param input - 目标几何。type:Shape required:true
  * @param params.anglesDeg - 欧拉角（度，XYZ 顺序）。type:[x,y,z] required:true
  * @param params.pivot - 旋转中心。type:[x,y,z] 默认 原点
  * @example
- * const p2 = cad.rotate(part0, { anglesDeg: [0, 0, 45] })
- * const p3 = cad.rotate(part0, { anglesDeg: [0, 0, 45], pivot: [0,0,0] })
-  */
-export const rotate = defineOp({
+ * const p2 = cad.rotate_euler(part0, { anglesDeg: [0, 0, 45] })
+ * const p3 = cad.rotate_euler(part0, { anglesDeg: [0, 0, 45], pivot: [0,0,0] })
+ */
+export const rotate_euler = defineOp({
   mesh: (input: Shape, params: Record<string, unknown>) => {
-    if (!input) throw new Error('[stdlib/rotate] no input geometry')
+    if (!input) throw new Error('[stdlib/rotate_euler] no input geometry')
     assertRotateParams(params)
-    return cad.rotate(input, params.anglesDeg as Vec3, params.pivot as Vec3 | undefined)
+    return cad.rotate_euler(input, params.anglesDeg as Vec3, params.pivot as Vec3 | undefined)
   },
   brep: (input: Shape, params: Record<string, unknown>) => {
-    if (!input) throw new Error('[stdlib/rotate] no input geometry')
+    if (!input) throw new Error('[stdlib/rotate_euler] no input geometry')
     assertRotateParams(params)
-    return transformBrep('rotate', input, params)
+    return transformBrep('rotate_euler', input, params)
   },
 })
 

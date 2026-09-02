@@ -6,7 +6,7 @@
  * - engine-store.partTransforms
  *
  * 变换语义（烘焙执行引擎）：
- * - translate/rotate/scale 直接烘焙顶点（修改 positions）
+ * - translate/rotate_euler/scale 直接烘焙顶点（修改 positions）
  * - 执行器（dispatcher / runtime.execute）调用这些函数将变换烘焙进几何
  * - 交互拖拽期间的预览仍由 partTransforms（渲染层瞬态）承担
  *   确认后由引擎重放语句完成烘焙（P2）
@@ -39,7 +39,7 @@ export function translate(shape: Shape, offset: Vec3): Shape {
  * @param pivot - optional rotation pivot point in mm.
  * @returns a new shape with rotated vertices.
  */
-export function rotate(shape: Shape, anglesDeg: Vec3, pivot?: Vec3): Shape {
+export function rotate_euler(shape: Shape, anglesDeg: Vec3, pivot?: Vec3): Shape {
   const euler = new THREE.Euler(
     (anglesDeg[0] * Math.PI) / 180,
     (anglesDeg[1] * Math.PI) / 180,

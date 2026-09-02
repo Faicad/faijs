@@ -79,9 +79,9 @@ describe('stdlib per-op assert: 变换类', () => {
     expect(() => assertTranslateParams({ offset: [1, 2, 3] })).not.toThrow()
   })
 
-  it('rotate: anglesDeg 必填 vec3；pivot（如有）为 vec3', () => {
-    expect(() => assertRotateParams({})).toThrow(/rotate\.anglesDeg/)
-    expect(() => assertRotateParams({ anglesDeg: [0, 0, 90], pivot: 'x' })).toThrow(/rotate\.pivot/)
+  it('rotate_euler: anglesDeg 必填 vec3；pivot（如有）为 vec3', () => {
+    expect(() => assertRotateParams({})).toThrow(/rotate_euler\.anglesDeg/)
+    expect(() => assertRotateParams({ anglesDeg: [0, 0, 90], pivot: 'x' })).toThrow(/rotate_euler\.pivot/)
     expect(() => assertRotateParams({ anglesDeg: [0, 0, 90] })).not.toThrow()
   })
 

@@ -61,9 +61,9 @@ describe('codegen: statementIRToLine 变换 (Phase 3: 复用输入名)', () => {
     expect(statementIRToLine(stmt)).toBe('let part0 = cad.translate(part0, { offset:[1,2,3] })')
   })
 
-  it('rotate：含 pivot — 复用输入名', () => {
-    const stmt = makeStmt({ id: 's2', callee: 'rotate', args: { anglesDeg: [0, 0, 90], pivot: [0, 0, 0] }, inputs: ['part0'], outputs: ['part0'] })
-    expect(statementIRToLine(stmt)).toBe('let part0 = cad.rotate(part0, { anglesDeg:[0,0,90], pivot:[0,0,0] })')
+  it('rotate_euler：含 pivot — 复用输入名', () => {
+    const stmt = makeStmt({ id: 's2', callee: 'rotate_euler', args: { anglesDeg: [0, 0, 90], pivot: [0, 0, 0] }, inputs: ['part0'], outputs: ['part0'] })
+    expect(statementIRToLine(stmt)).toBe('let part0 = cad.rotate_euler(part0, { anglesDeg:[0,0,90], pivot:[0,0,0] })')
   })
 })
 
@@ -277,16 +277,16 @@ describe('codegen: CallRefIR with faceOrdinal round-trip', () => {
 // ── transform 语句 codegen 验证 ──
 
 describe('codegen: transform 语句 (Phase 3: 复用输入名)', () => {
-  it('box + translate + rotate + scale', () => {
+  it('box + translate + rotate_euler + scale', () => {
     const script = makeScript([
       makeStmt({ id: 's1', callee: 'box', args: { size: 20 }, outputs: ['part0'] }),
       makeStmt({ id: 's2', callee: 'translate', args: { offset: [10, 0, 0] }, inputs: ['part0'], outputs: ['part0'] }),
-      makeStmt({ id: 's3', callee: 'rotate', args: { anglesDeg: [0, 0, 90] }, inputs: ['part0'], outputs: ['part0'] }),
+      makeStmt({ id: 's3', callee: 'rotate_euler', args: { anglesDeg: [0, 0, 90] }, inputs: ['part0'], outputs: ['part0'] }),
       makeStmt({ id: 's4', callee: 'scale', args: { factor: 2 }, inputs: ['part0'], outputs: ['part0'] }),
     ])
     const code = scriptIRToCode(script)
     expect(code).toContain('cad.translate(part0, { offset:[10,0,0] })')
-    expect(code).toContain('cad.rotate(part0, { anglesDeg:[0,0,90] })')
+    expect(code).toContain('cad.rotate_euler(part0, { anglesDeg:[0,0,90] })')
     expect(code).toContain('cad.scale(part0, { factor:2 })')
   })
 })
