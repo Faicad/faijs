@@ -347,4 +347,130 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     returnsResult: false,
     returnType: 'InterferencePair[]',
   },
+
+  // ──── P14 第二片：text 模块（8 符号：3 pure + 3 skip + 2 type）────
+  // 纯字体/度量函数直接 re-export；字体加载（fetch/ArrayBuffer + 全局注册表
+  // 状态）与「返回 brep 侧 DSL 对象」的函数（blueprints/sketches）无法静态透传，
+  // 登记 skip + reason（divergence，理由见各条）。
+  {
+    name: 'FontMetricsResult',
+    source: 'text/textMetrics.js#FontMetricsResult',
+    kind: 'type',
+    module: 'text',
+  },
+  {
+    name: 'TextMetricsResult',
+    source: 'text/textMetrics.js#TextMetricsResult',
+    kind: 'type',
+    module: 'text',
+  },
+  {
+    name: 'fontMetrics',
+    source: 'text/textMetrics.js#fontMetrics',
+    kind: 'pure',
+    module: 'text',
+  },
+  {
+    name: 'getFont',
+    source: 'text/fontRegistry.js#getFont',
+    kind: 'pure',
+    module: 'text',
+  },
+  {
+    name: 'textMetrics',
+    source: 'text/textMetrics.js#textMetrics',
+    kind: 'pure',
+    module: 'text',
+  },
+  {
+    name: 'loadFont',
+    source: 'text/fontRegistry.js#loadFont',
+    kind: 'skip',
+    module: 'text',
+    reason:
+      '字体加载走 fetch/ArrayBuffer + 全局注册表（FONT_REGISTER）状态副作用；faijs 需 ' +
+      'host 侧提供字体源与生命周期管理（同 faijs HostPorts.fonts 通道），非静态透传函数',
+  },
+  {
+    name: 'sketchText',
+    source: 'text/sketchText.js#sketchText',
+    kind: 'skip',
+    module: 'text',
+    reason:
+      '返回 brep 域 Sketches DSL 对象（sketchOnPlane/extrude 方法链），并依赖已加载字体 ' +
+      '注册表；faijs 面需要单独的 sketch DSL 适配层，跳过（divergence）',
+  },
+  {
+    name: 'textBlueprints',
+    source: 'text/textBlueprints.js#textBlueprints',
+    kind: 'skip',
+    module: 'text',
+    reason:
+      '返回 brep 域 Blueprints DSL 对象（组织轮廓/孔 + mirror 方法），依赖已加载字体；' +
+      'faijs 面需要单独的 2D sketch 适配层，跳过（divergence）',
+  },
+
+  // ──── P14 第二片：projection 模块（9 符号，4 pure + 3 type + 2 skip）────
+  // 相机/pure 向量数学与平面别名 guard 直接 re-export；projectEdges/makeProjectedEdges
+  // 返回「克隆 Edge 句柄数组」且逐条管理所有权（makeProjectedEdges.ts 的 compound 生命周期），
+  // faijs 的单一产物再收养模型不匹配，登记 skip（divergence）。
+  {
+    name: 'Camera',
+    source: 'projection/cameraFns.js#Camera',
+    kind: 'type',
+    module: 'projection',
+  },
+  {
+    name: 'CubeFace',
+    source: 'projection/projectionPlanes.js#CubeFace',
+    kind: 'type',
+    module: 'projection',
+  },
+  {
+    name: 'ProjectionPlane',
+    source: 'projection/projectionPlanes.js#ProjectionPlane',
+    kind: 'type',
+    module: 'projection',
+  },
+  {
+    name: 'cameraFromPlane',
+    source: 'projection/cameraFns.js#cameraFromPlane',
+    kind: 'pure',
+    module: 'projection',
+  },
+  {
+    name: 'cameraLookAt',
+    source: 'projection/cameraFns.js#cameraLookAt',
+    kind: 'pure',
+    module: 'projection',
+  },
+  {
+    name: 'createCamera',
+    source: 'projection/cameraFns.js#createCamera',
+    kind: 'pure',
+    module: 'projection',
+  },
+  {
+    name: 'isProjectionPlane',
+    source: 'projection/projectionPlanes.js#isProjectionPlane',
+    kind: 'pure',
+    module: 'projection',
+  },
+  {
+    name: 'makeProjectedEdges',
+    source: 'projection/makeProjectedEdges.js#makeProjectedEdges',
+    kind: 'skip',
+    module: 'projection',
+    reason:
+      '返回 { visible: Edge[]; hidden: Edge[] } 克隆句柄数组并管理 compound 生命周期；' +
+      'faijs 单一收养模型不匹配，且属于 2D 投影预览语义，跳过（divergence）',
+  },
+  {
+    name: 'projectEdges',
+    source: 'projection/cameraFns.js#projectEdges',
+    kind: 'skip',
+    module: 'projection',
+    reason:
+      '同 makeProjectedEdges：返回 Edge 句柄数组 + 所有权生命周期，无法静态收养，跳过（divergence）',
+  },
 ]
