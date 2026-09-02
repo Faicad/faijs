@@ -3393,4 +3393,128 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     name: 'polyhedron', source: 'topology/polyhedronFns.js#polyhedron', kind: 'skip',
     reason: '多面体构造（面片选项 DSL，返回 ValidSolid 形态待核），skip',
   },
+
+  // ──── P14 补批 12：kernel 模块（57 = 21 value + 36 type；D10 冻结 registry）────
+  // kernel 是 L0 注册表面：D10 单实例 occt-wasm 由 faijs occt-kernel-bridge 装配并冻结，
+  // 只读/纯数据符号 re-export；registry 生命周期（init/with*/register*/tier/perf）与
+  // KernelAdapter 对象谓词登记 skip（理由见各条）；上游已剪除符号（BrepkitHandle、
+  // PerformanceStats、BrepkitAdapter、init 系等）同样 skip——vendored 树无对应导出。
+  //
+  // 36 type：34 个 re-export（真身所在文件）+ 2 个 skip（vendored 无此类型）
+  { name: 'BooleanDiagnostics', source: 'kernel/types.js#BooleanDiagnostics', kind: 'type', module: 'kernel' },
+  { name: 'BooleanIssue', source: 'kernel/types.js#BooleanIssue', kind: 'type', module: 'kernel' },
+  { name: 'BooleanOpType', source: 'kernel/types.js#BooleanOpType', kind: 'type', module: 'kernel' },
+  { name: 'CheckBooleanResult', source: 'kernel/types.js#CheckBooleanResult', kind: 'type', module: 'kernel' },
+  { name: 'NurbsCurveData', source: 'kernel/types.js#NurbsCurveData', kind: 'type', module: 'kernel' },
+  { name: 'NurbsSurfaceData', source: 'kernel/types.js#NurbsSurfaceData', kind: 'type', module: 'kernel' },
+  { name: 'ShapeEvolution', source: 'kernel/types.js#ShapeEvolution', kind: 'type', module: 'kernel' },
+  { name: 'ShapeOrientation', source: 'kernel/types.js#ShapeOrientation', kind: 'type', module: 'kernel' },
+  { name: 'ShapeType', source: 'kernel/types.js#ShapeType', kind: 'type', module: 'kernel' },
+  { name: 'SurfaceType', source: 'kernel/types.js#SurfaceType', kind: 'type', module: 'kernel' },
+  { name: 'ProjectionCapability', source: 'kernel/types.js#ProjectionCapability', kind: 'type', module: 'kernel' },
+  { name: 'ConstraintSketchCapability', source: 'kernel/types.js#ConstraintSketchCapability', kind: 'type', module: 'kernel' },
+  { name: 'KernelAdapter', source: 'kernel/interfaces/index.js#KernelAdapter', kind: 'type', module: 'kernel' },
+  { name: 'KernelCore', source: 'kernel/interfaces/index.js#KernelCore', kind: 'type', module: 'kernel' },
+  { name: 'KernelBooleanOps', source: 'kernel/interfaces/index.js#KernelBooleanOps', kind: 'type', module: 'kernel' },
+  { name: 'KernelBuilderOps', source: 'kernel/interfaces/index.js#KernelBuilderOps', kind: 'type', module: 'kernel' },
+  { name: 'KernelCurveOps', source: 'kernel/interfaces/index.js#KernelCurveOps', kind: 'type', module: 'kernel' },
+  { name: 'KernelEvolutionOps', source: 'kernel/interfaces/index.js#KernelEvolutionOps', kind: 'type', module: 'kernel' },
+  { name: 'KernelIOOps', source: 'kernel/interfaces/index.js#KernelIOOps', kind: 'type', module: 'kernel' },
+  { name: 'KernelMeasureOps', source: 'kernel/interfaces/index.js#KernelMeasureOps', kind: 'type', module: 'kernel' },
+  { name: 'KernelMeshOps', source: 'kernel/interfaces/index.js#KernelMeshOps', kind: 'type', module: 'kernel' },
+  { name: 'KernelModifierOps', source: 'kernel/interfaces/index.js#KernelModifierOps', kind: 'type', module: 'kernel' },
+  { name: 'KernelPrimitiveOps', source: 'kernel/interfaces/index.js#KernelPrimitiveOps', kind: 'type', module: 'kernel' },
+  { name: 'KernelRepairOps', source: 'kernel/interfaces/index.js#KernelRepairOps', kind: 'type', module: 'kernel' },
+  { name: 'KernelSurfaceOps', source: 'kernel/interfaces/index.js#KernelSurfaceOps', kind: 'type', module: 'kernel' },
+  { name: 'KernelSweepOps', source: 'kernel/interfaces/index.js#KernelSweepOps', kind: 'type', module: 'kernel' },
+  { name: 'KernelTopologyOps', source: 'kernel/interfaces/index.js#KernelTopologyOps', kind: 'type', module: 'kernel' },
+  { name: 'KernelTransformOps', source: 'kernel/interfaces/index.js#KernelTransformOps', kind: 'type', module: 'kernel' },
+  { name: 'KernelCapabilities', source: 'kernel/capabilities.js#KernelCapabilities', kind: 'type', module: 'kernel' },
+  { name: 'TessellationModel', source: 'kernel/capabilities.js#TessellationModel', kind: 'type', module: 'kernel' },
+  { name: 'QualityLevel', source: 'kernel/quality.js#QualityLevel', kind: 'type', module: 'kernel' },
+  { name: 'OcctKernelWasm', source: 'kernel/occtWasm/occtWasmTypes.js#OcctKernelWasm', kind: 'type', module: 'kernel' },
+  { name: 'OcctWasmHandle', source: 'kernel/occtWasm/occtWasmTypes.js#OcctWasmHandle', kind: 'type', module: 'kernel' },
+  { name: 'OcctWasmModule', source: 'kernel/occtWasm/occtWasmTypes.js#OcctWasmModule', kind: 'type', module: 'kernel' },
+  {
+    name: 'BrepkitHandle', source: 'kernel/index.js#BrepkitHandle', kind: 'skip', module: 'kernel',
+    reason: '上游 brepkit 句柄类型（faijs 以 occt-kernel-bridge/OcctWasmHandle 承担），vendored 无此导出，skip',
+  },
+  {
+    name: 'PerformanceStats', source: 'kernel/perfStats.js#PerformanceStats', kind: 'skip', module: 'kernel',
+    reason: '性能统计类型，vendored perfStats 模块已剪除，skip',
+  },
+
+  // 21 value：4 个只读/纯数据 re-export；registry 生命周期与对象谓词 skip
+  { name: 'DEFAULT_CAPABILITIES', source: 'kernel/capabilities.js#DEFAULT_CAPABILITIES', kind: 'pure', module: 'kernel', reason: 'kernel 能力常量表（纯数据）' },
+  { name: 'EXACT_BREP_CAPABILITIES', source: 'kernel/capabilities.js#EXACT_BREP_CAPABILITIES', kind: 'pure', module: 'kernel', reason: 'kernel 能力常量表（纯数据）' },
+  { name: 'currentQuality', source: 'kernel/quality.js#currentQuality', kind: 'pure', module: 'kernel', reason: '当前细分质量档读取（无 Shape 参数，纯读取）' },
+  { name: 'getKernelCapabilities', source: 'kernel/index.js#getKernelCapabilities', kind: 'pure', module: 'kernel', reason: 'kernel 能力查询（返回 KernelCapabilities 纯数据）' },
+  {
+    name: 'getKernel', source: 'kernel/index.js#getKernel', kind: 'skip', module: 'kernel',
+    reason: 'L0 kernel 读取器（D10：faijs occt-kernel-bridge 单实例装配并冻结），不向 L3 用户面暴露，skip',
+  },
+  {
+    name: 'registerKernel', source: 'kernel/index.js#registerKernel', kind: 'skip', module: 'kernel',
+    reason: 'L0 kernel 注册（D10 冻结后禁止，faijs host 装配期专用），skip',
+  },
+  {
+    name: 'supportsProjection', source: 'kernel/types.js#supportsProjection', kind: 'skip', module: 'kernel',
+    reason: 'KernelAdapter 能力谓词（入参为内部 kernel 对象），faijs 面不可达，skip',
+  },
+  {
+    name: 'supportsConstraintSketch', source: 'kernel/types.js#supportsConstraintSketch', kind: 'skip', module: 'kernel',
+    reason: 'KernelAdapter 能力谓词（入参为内部 kernel 对象），faijs 面不可达，skip',
+  },
+  {
+    name: 'OcctWasmAdapter', source: 'kernel/occtWasm/occtWasmAdapter.js#OcctWasmAdapter', kind: 'skip', module: 'kernel',
+    reason: 'occt-wasm 宿主适配器类（faijs occt-kernel-bridge 装配期构造单实例，D10），skip',
+  },
+  {
+    name: 'BrepkitAdapter', source: 'kernel/index.js#BrepkitAdapter', kind: 'skip', module: 'kernel',
+    reason: '上游 brepkit 适配器（faijs 以 occt-kernel-bridge 承担），vendored 无此导出，skip',
+  },
+  {
+    name: 'init', source: 'kernel/index.js#init', kind: 'skip', module: 'kernel',
+    reason: '上游 kernel 三档 init（D10 剪除；faijs host 注入 occt-wasm 单实例），skip',
+  },
+  {
+    name: 'initFromOC', source: 'kernel/index.js#initFromOC', kind: 'skip', module: 'kernel',
+    reason: '上游 kernel init（D10 剪除），skip',
+  },
+  {
+    name: 'initFromManifold', source: 'kernel/index.js#initFromManifold', kind: 'skip', module: 'kernel',
+    reason: '上游 manifold kernel init（D10 剪除），skip',
+  },
+  {
+    name: 'prewarm', source: 'kernel/index.js#prewarm', kind: 'skip', module: 'kernel',
+    reason: '上游 kernel 预热（D10 剪除），skip',
+  },
+  {
+    name: 'withKernel', source: 'kernel/index.js#withKernel', kind: 'skip', module: 'kernel',
+    reason: '上游运行时切 kernel（D10 剪除：registry 冻结、无运行时切换），skip',
+  },
+  {
+    name: 'withQuality', source: 'kernel/index.js#withQuality', kind: 'skip', module: 'kernel',
+    reason: '上游质量档切换（D10 剪除），skip',
+  },
+  {
+    name: 'withTier', source: 'kernel/index.js#withTier', kind: 'skip', module: 'kernel',
+    reason: '上游 tier 切换（D10 剪除），skip',
+  },
+  {
+    name: 'getKernelTier', source: 'kernel/index.js#getKernelTier', kind: 'skip', module: 'kernel',
+    reason: '上游 tier 读取（D10 剪除），skip',
+  },
+  {
+    name: 'registerKernelTier', source: 'kernel/index.js#registerKernelTier', kind: 'skip', module: 'kernel',
+    reason: '上游 tier 注册（D10 剪除），skip',
+  },
+  {
+    name: 'getPerformanceStats', source: 'kernel/index.js#getPerformanceStats', kind: 'skip', module: 'kernel',
+    reason: '上游性能统计读取（vendored 剪除），skip',
+  },
+  {
+    name: 'resetPerformanceStats', source: 'kernel/index.js#resetPerformanceStats', kind: 'skip', module: 'kernel',
+    reason: '上游性能统计重置（vendored 剪除），skip',
+  },
 ]
