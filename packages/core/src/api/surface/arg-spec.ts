@@ -1683,4 +1683,533 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   {
     name: 'createAssembly', source: 'operations/exporters.js#createAssembly', kind: 'skip', module: 'operations', reason: '返回 AssemblyExporter（kernel 包裹），skip host API',
   },
+
+  // ──── P14 batch 9：core 模块（168 = 47 type + 67 pure + 1 query + 53 skip）────
+  // core 是 brepjs 的 L0/L1 基础设施层：Result 组合子、错误构造、向量/平面数学、
+  // 类型判别与 Shape 类型体系、内核句柄生命周期。faijs 面把「裸 kernel 句柄」排除在
+  // 外（Shape 所有权经 l3-bridge 借入/收养），故 disposal/kernelBoundary/kernelCall/
+  // shapeTypes 裸句柄族登记 skip；纯数据函数与常量直接 re-export（pure）。
+
+  // 47 × type（全量 re-export，无行为）
+  {
+    name: 'Curve2DHandle', source: 'core/curve2dHandle.js#Curve2DHandle', kind: 'type', module: 'core',
+  },
+  {
+    name: 'DimensionError', source: 'core/dimensionTypes.js#DimensionError', kind: 'type', module: 'core',
+  },
+  {
+    name: 'RequireDimension', source: 'core/dimensionTypes.js#RequireDimension', kind: 'type', module: 'core',
+  },
+  {
+    name: 'SameDimension', source: 'core/dimensionTypes.js#SameDimension', kind: 'type', module: 'core',
+  },
+  {
+    name: 'Deletable', source: 'core/disposal.js#Deletable', kind: 'type', module: 'core',
+  },
+  {
+    name: 'DisposalStats', source: 'core/disposal.js#DisposalStats', kind: 'type', module: 'core',
+  },
+  {
+    name: 'KernelHandle', source: 'core/disposal.js#KernelHandle', kind: 'type', module: 'core',
+  },
+  {
+    name: 'ShapeHandle', source: 'core/disposal.js#ShapeHandle', kind: 'type', module: 'core',
+  },
+  {
+    name: 'BrepError', source: 'core/errors.js#BrepError', kind: 'type', module: 'core',
+  },
+  {
+    name: 'BrepErrorKind', source: 'core/errors.js#BrepErrorKind', kind: 'type', module: 'core',
+  },
+  {
+    name: 'Plane', source: 'core/planeTypes.js#Plane', kind: 'type', module: 'core',
+  },
+  {
+    name: 'PlaneInput', source: 'core/planeTypes.js#PlaneInput', kind: 'type', module: 'core',
+  },
+  {
+    name: 'PlaneName', source: 'core/planeTypes.js#PlaneName', kind: 'type', module: 'core',
+  },
+  {
+    name: 'Err', source: 'core/result.js#Err', kind: 'type', module: 'core',
+  },
+  {
+    name: 'Ok', source: 'core/result.js#Ok', kind: 'type', module: 'core',
+  },
+  {
+    name: 'Result', source: 'core/result.js#Result', kind: 'type', module: 'core',
+  },
+  {
+    name: 'ResultPipeline', source: 'core/result.js#ResultPipeline', kind: 'type', module: 'core',
+  },
+  {
+    name: 'Unit', source: 'core/result.js#Unit', kind: 'type', module: 'core',
+  },
+  {
+    name: 'AnyShape', source: 'core/shapeTypes.js#AnyShape', kind: 'type', module: 'core',
+  },
+  {
+    name: 'ClosedWire', source: 'core/shapeTypes.js#ClosedWire', kind: 'type', module: 'core',
+  },
+  {
+    name: 'Compound', source: 'core/shapeTypes.js#Compound', kind: 'type', module: 'core',
+  },
+  {
+    name: 'CompSolid', source: 'core/shapeTypes.js#CompSolid', kind: 'type', module: 'core',
+  },
+  {
+    name: 'CurveLike', source: 'core/shapeTypes.js#CurveLike', kind: 'type', module: 'core',
+  },
+  {
+    name: 'Dimension', source: 'core/shapeTypes.js#Dimension', kind: 'type', module: 'core',
+  },
+  {
+    name: 'Edge', source: 'core/shapeTypes.js#Edge', kind: 'type', module: 'core',
+  },
+  {
+    name: 'Face', source: 'core/shapeTypes.js#Face', kind: 'type', module: 'core',
+  },
+  {
+    name: 'ManifoldShell', source: 'core/shapeTypes.js#ManifoldShell', kind: 'type', module: 'core',
+  },
+  {
+    name: 'OrientedFace', source: 'core/shapeTypes.js#OrientedFace', kind: 'type', module: 'core',
+  },
+  {
+    name: 'PlanarFace', source: 'core/shapeTypes.js#PlanarFace', kind: 'type', module: 'core',
+  },
+  {
+    name: 'PlanarWire', source: 'core/shapeTypes.js#PlanarWire', kind: 'type', module: 'core',
+  },
+  {
+    name: 'Shape1D', source: 'core/shapeTypes.js#Shape1D', kind: 'type', module: 'core',
+  },
+  {
+    name: 'Shape3D', source: 'core/shapeTypes.js#Shape3D', kind: 'type', module: 'core',
+  },
+  {
+    name: 'ShapeKind', source: 'core/shapeTypes.js#ShapeKind', kind: 'type', module: 'core',
+  },
+  {
+    name: 'Shell', source: 'core/shapeTypes.js#Shell', kind: 'type', module: 'core',
+  },
+  {
+    name: 'Solid', source: 'core/shapeTypes.js#Solid', kind: 'type', module: 'core',
+  },
+  {
+    name: 'UnknownDimShape', source: 'core/shapeTypes.js#UnknownDimShape', kind: 'type', module: 'core',
+  },
+  {
+    name: 'ValidSolid', source: 'core/shapeTypes.js#ValidSolid', kind: 'type', module: 'core',
+  },
+  {
+    name: 'Vertex', source: 'core/shapeTypes.js#Vertex', kind: 'type', module: 'core',
+  },
+  {
+    name: 'Wire', source: 'core/shapeTypes.js#Wire', kind: 'type', module: 'core',
+  },
+  {
+    name: 'CurveType', source: 'core/typeDiscriminants.js#CurveType', kind: 'type', module: 'core',
+  },
+  {
+    // 别名：vendored types.ts 只导出 Direction；根 barrel `Direction as DirectionInput`
+    name: 'DirectionInput', source: 'index.js#DirectionInput', kind: 'type', module: 'core',
+  },
+  {
+    name: 'Matrix4x4', source: 'core/types.js#Matrix4x4', kind: 'type', module: 'core',
+  },
+  {
+    name: 'MatrixInput', source: 'core/types.js#MatrixInput', kind: 'type', module: 'core',
+  },
+  {
+    name: 'MatrixTransform', source: 'core/types.js#MatrixTransform', kind: 'type', module: 'core',
+  },
+  {
+    name: 'PointInput', source: 'core/types.js#PointInput', kind: 'type', module: 'core',
+  },
+  {
+    name: 'Vec2', source: 'core/types.js#Vec2', kind: 'type', module: 'core',
+  },
+  {
+    name: 'Vec3', source: 'core/types.js#Vec3', kind: 'type', module: 'core',
+  },
+
+  // 67 × pure（无 Shape/kernel 参数 → 直接 re-export，不进 defineOp）
+  {
+    name: 'DEG2RAD', source: 'core/constants.js#DEG2RAD', kind: 'pure', module: 'core', reason: '角度换算常量（纯数据）',
+  },
+  {
+    name: 'RAD2DEG', source: 'core/constants.js#RAD2DEG', kind: 'pure', module: 'core', reason: '角度换算常量（纯数据）',
+  },
+  {
+    name: 'HASH_CODE_MAX', source: 'core/constants.js#HASH_CODE_MAX', kind: 'pure', module: 'core', reason: '哈希上限常量（纯数据）',
+  },
+  {
+    name: 'BrepBugError', source: 'core/errors.js#BrepBugError', kind: 'pure', module: 'core', reason: '错误类（纯构造，无 kernel 参数）',
+  },
+  {
+    name: 'BrepErrorCode', source: 'core/errors.js#BrepErrorCode', kind: 'pure', module: 'core', reason: '错误码常量表（纯数据）',
+  },
+  {
+    name: 'bug', source: 'core/errors.js#bug', kind: 'pure', module: 'core', reason: 'bug 错误构造器（纯函数）',
+  },
+  {
+    name: 'computationError', source: 'core/errors.js#computationError', kind: 'pure', module: 'core', reason: '错误构造器（纯函数）',
+  },
+  {
+    name: 'ioError', source: 'core/errors.js#ioError', kind: 'pure', module: 'core', reason: '错误构造器（纯函数）',
+  },
+  {
+    name: 'kernelError', source: 'core/errors.js#kernelError', kind: 'pure', module: 'core', reason: '错误构造器（纯函数）',
+  },
+  {
+    name: 'moduleInitError', source: 'core/errors.js#moduleInitError', kind: 'pure', module: 'core', reason: '错误构造器（纯函数）',
+  },
+  {
+    name: 'queryError', source: 'core/errors.js#queryError', kind: 'pure', module: 'core', reason: '错误构造器（纯函数）',
+  },
+  {
+    name: 'sketcherStateError', source: 'core/errors.js#sketcherStateError', kind: 'pure', module: 'core', reason: '错误构造器（纯函数）',
+  },
+  {
+    name: 'typeCastError', source: 'core/errors.js#typeCastError', kind: 'pure', module: 'core', reason: '错误构造器（纯函数）',
+  },
+  {
+    name: 'unsupportedError', source: 'core/errors.js#unsupportedError', kind: 'pure', module: 'core', reason: '错误构造器（纯函数）',
+  },
+  {
+    name: 'validationError', source: 'core/errors.js#validationError', kind: 'pure', module: 'core', reason: '错误构造器（纯函数）',
+  },
+  {
+    name: 'createNamedPlane', source: 'core/planeOps.js#createNamedPlane', kind: 'pure', module: 'core', reason: '命名平面构造（PlaneName，无 kernel 参数）',
+  },
+  {
+    name: 'createPlane', source: 'core/planeOps.js#createPlane', kind: 'pure', module: 'core', reason: '平面构造（纯数据）',
+  },
+  {
+    name: 'makePlane', source: 'core/planeOps.js#makePlane', kind: 'pure', module: 'core', reason: '平面构造（纯数据，PlaneInput）',
+  },
+  {
+    name: 'pivotPlane', source: 'core/planeOps.js#pivotPlane', kind: 'pure', module: 'core', reason: '平面旋转变换（纯数据）',
+  },
+  {
+    name: 'resolvePlane', source: 'core/planeOps.js#resolvePlane', kind: 'pure', module: 'core', reason: 'PlaneInput → Result<Plane>（无 Shape 参数）',
+  },
+  {
+    name: 'translatePlane', source: 'core/planeOps.js#translatePlane', kind: 'pure', module: 'core', reason: '平面平移（纯数据）',
+  },
+  {
+    name: 'ok', source: 'core/result.js#ok', kind: 'pure', module: 'core', reason: 'Result Ok 构造（纯函数）',
+  },
+  {
+    name: 'err', source: 'core/result.js#err', kind: 'pure', module: 'core', reason: 'Result Err 构造（纯函数）',
+  },
+  {
+    name: 'OK', source: 'core/result.js#OK', kind: 'pure', module: 'core', reason: 'Ok<Unit> 常量',
+  },
+  {
+    name: 'isOk', source: 'core/result.js#isOk', kind: 'pure', module: 'core', reason: 'Result 判别（纯函数）',
+  },
+  {
+    name: 'isErr', source: 'core/result.js#isErr', kind: 'pure', module: 'core', reason: 'Result 判别（纯函数）',
+  },
+  {
+    name: 'map', source: 'core/result.js#map', kind: 'pure', module: 'core', reason: 'Result 组合子（纯函数）',
+  },
+  {
+    name: 'mapErr', source: 'core/result.js#mapErr', kind: 'pure', module: 'core', reason: 'Result 组合子（纯函数）',
+  },
+  {
+    name: 'mapBoth', source: 'core/result.js#mapBoth', kind: 'pure', module: 'core', reason: 'Result 组合子（纯函数）',
+  },
+  {
+    name: 'andThen', source: 'core/result.js#andThen', kind: 'pure', module: 'core', reason: 'Result 组合子（纯函数）',
+  },
+  {
+    name: 'flatMap', source: 'core/result.js#flatMap', kind: 'pure', module: 'core', reason: 'andThen 别名（纯函数）',
+  },
+  {
+    name: 'or', source: 'core/result.js#or', kind: 'pure', module: 'core', reason: 'Result 组合子（纯函数）',
+  },
+  {
+    name: 'orElse', source: 'core/result.js#orElse', kind: 'pure', module: 'core', reason: 'Result 组合子（纯函数）',
+  },
+  {
+    name: 'all', source: 'core/result.js#all', kind: 'pure', module: 'core', reason: 'collect 别名（纯函数）',
+  },
+  {
+    name: 'collect', source: 'core/result.js#collect', kind: 'pure', module: 'core', reason: 'Result[] 收集（纯函数）',
+  },
+  {
+    name: 'tap', source: 'core/result.js#tap', kind: 'pure', module: 'core', reason: 'Result 副作用（纯函数）',
+  },
+  {
+    name: 'tapErr', source: 'core/result.js#tapErr', kind: 'pure', module: 'core', reason: 'Result 副作用（纯函数）',
+  },
+  {
+    name: 'flatten', source: 'core/result.js#flatten', kind: 'pure', module: 'core', reason: 'Result 嵌套展平（纯函数）',
+  },
+  {
+    name: 'fromNullable', source: 'core/result.js#fromNullable', kind: 'pure', module: 'core', reason: 'nullable → Result（纯函数）',
+  },
+  {
+    name: 'unwrap', source: 'core/result.js#unwrap', kind: 'pure', module: 'core', reason: 'Result 解包（纯函数）',
+  },
+  {
+    name: 'unwrapOr', source: 'core/result.js#unwrapOr', kind: 'pure', module: 'core', reason: 'Result 解包（纯函数）',
+  },
+  {
+    name: 'unwrapOrElse', source: 'core/result.js#unwrapOrElse', kind: 'pure', module: 'core', reason: 'Result 解包（纯函数）',
+  },
+  {
+    name: 'unwrapErr', source: 'core/result.js#unwrapErr', kind: 'pure', module: 'core', reason: 'Result 解包（纯函数）',
+  },
+  {
+    name: 'match', source: 'core/result.js#match', kind: 'pure', module: 'core', reason: 'Result 模式匹配（纯函数）',
+  },
+  {
+    name: 'tryCatch', source: 'core/result.js#tryCatch', kind: 'pure', module: 'core', reason: '同步 try→Result（纯函数）',
+  },
+  {
+    name: 'tryCatchAsync', source: 'core/result.js#tryCatchAsync', kind: 'pure', module: 'core', reason: '异步 try→Result（纯函数）',
+  },
+  {
+    name: 'pipeline', source: 'core/result.js#pipeline', kind: 'pure', module: 'core', reason: 'Result 管道入口（纯函数）',
+  },
+  {
+    // 别名：vendored result.ts 导出名 zip；根 barrel `zip as zipResults`
+    name: 'zipResults', source: 'index.js#zipResults', kind: 'pure', module: 'core', reason: 'zip 的根 barrel 别名导出（纯函数）',
+  },
+  {
+    name: 'resolveDirection', source: 'core/types.js#resolveDirection', kind: 'pure', module: 'core', reason: '方向简写 → Vec3（纯函数）',
+  },
+  {
+    name: 'toVec2', source: 'core/types.js#toVec2', kind: 'pure', module: 'core', reason: 'PointInput → Vec2（纯函数）',
+  },
+  {
+    name: 'toVec3', source: 'core/types.js#toVec3', kind: 'pure', module: 'core', reason: 'PointInput → Vec3（纯函数）',
+  },
+  {
+    name: 'vecAdd', source: 'core/vecOps.js#vecAdd', kind: 'pure', module: 'core', reason: '向量加法（纯函数）',
+  },
+  {
+    name: 'vecAngle', source: 'core/vecOps.js#vecAngle', kind: 'pure', module: 'core', reason: '向量夹角（纯函数）',
+  },
+  {
+    name: 'vecCross', source: 'core/vecOps.js#vecCross', kind: 'pure', module: 'core', reason: '向量叉积（纯函数）',
+  },
+  {
+    name: 'vecDistance', source: 'core/vecOps.js#vecDistance', kind: 'pure', module: 'core', reason: '向量距离（纯函数）',
+  },
+  {
+    name: 'vecDot', source: 'core/vecOps.js#vecDot', kind: 'pure', module: 'core', reason: '向量点积（纯函数）',
+  },
+  {
+    name: 'vecEquals', source: 'core/vecOps.js#vecEquals', kind: 'pure', module: 'core', reason: '向量相等（纯函数）',
+  },
+  {
+    name: 'vecIsZero', source: 'core/vecOps.js#vecIsZero', kind: 'pure', module: 'core', reason: '零向量判别（纯函数）',
+  },
+  {
+    name: 'vecLength', source: 'core/vecOps.js#vecLength', kind: 'pure', module: 'core', reason: '向量模长（纯函数）',
+  },
+  {
+    name: 'vecLengthSq', source: 'core/vecOps.js#vecLengthSq', kind: 'pure', module: 'core', reason: '向量模长平方（纯函数）',
+  },
+  {
+    name: 'vecNegate', source: 'core/vecOps.js#vecNegate', kind: 'pure', module: 'core', reason: '向量取反（纯函数）',
+  },
+  {
+    name: 'vecNormalize', source: 'core/vecOps.js#vecNormalize', kind: 'pure', module: 'core', reason: '向量归一化（纯函数）',
+  },
+  {
+    name: 'vecProjectToPlane', source: 'core/vecOps.js#vecProjectToPlane', kind: 'pure', module: 'core', reason: '向量平面投影（纯函数）',
+  },
+  {
+    name: 'vecRepr', source: 'core/vecOps.js#vecRepr', kind: 'pure', module: 'core', reason: '向量字符串（纯函数）',
+  },
+  {
+    name: 'vecRotate', source: 'core/vecOps.js#vecRotate', kind: 'pure', module: 'core', reason: '向量绕轴旋转（纯函数）',
+  },
+  {
+    name: 'vecScale', source: 'core/vecOps.js#vecScale', kind: 'pure', module: 'core', reason: '向量缩放（纯函数）',
+  },
+  {
+    name: 'vecSub', source: 'core/vecOps.js#vecSub', kind: 'pure', module: 'core', reason: '向量减法（纯函数）',
+  },
+
+  // 1 × query：形状判别串查询（Shape 进 → ShapeKind 字符串出，纯数据）
+  {
+    name: 'getShapeKind', source: 'core/shapeTypes.js#getShapeKind', kind: 'query', module: 'core',
+    args: '(shape: AnyShape) -> ShapeKind',
+    consumes: 'none',
+    geometryArgs: [0],
+    returnsResult: false,
+    returnType: 'ShapeKind',
+  },
+
+  // 53 × skip（裸 kernel 句柄族；faijs 面 Shape 所有权经 l3-bridge 借入/收养，不暴露裸句柄）
+  // disposal：内核句柄生命周期/作用域基础设施
+  {
+    name: 'createHandle', source: 'core/disposal.js#createHandle', kind: 'skip', module: 'core', reason: '裸 OCCT Shape 句柄注册（KernelShape 入参），skip host 生命周期管理',
+  },
+  {
+    name: 'createKernelHandle', source: 'core/disposal.js#createKernelHandle', kind: 'skip', module: 'core', reason: '裸 OCCT 对象句柄包装，skip',
+  },
+  {
+    name: 'DisposalScope', source: 'core/disposal.js#DisposalScope', kind: 'skip', module: 'core', reason: '内核句柄作用域类（裸句柄注册），skip host 生命周期管理',
+  },
+  {
+    name: 'getDisposalStats', source: 'core/disposal.js#getDisposalStats', kind: 'skip', module: 'core', reason: '裸句柄泄漏统计（内部调试），skip',
+  },
+  {
+    name: 'isLive', source: 'core/disposal.js#isLive', kind: 'skip', module: 'core', reason: '裸句柄存活判别（ShapeHandle/KernelHandle），skip',
+  },
+  {
+    name: 'resetDisposalStats', source: 'core/disposal.js#resetDisposalStats', kind: 'skip', module: 'core', reason: '裸句柄统计清零（内部调试），skip',
+  },
+  {
+    name: 'withScope', source: 'core/disposal.js#withScope', kind: 'skip', module: 'core', reason: '裸句柄作用域执行（DisposalScope 回调），skip host 生命周期管理',
+  },
+  {
+    name: 'withScopeResult', source: 'core/disposal.js#withScopeResult', kind: 'skip', module: 'core', reason: '裸句柄作用域执行（Result 变体），skip',
+  },
+  {
+    name: 'withScopeResultAsync', source: 'core/disposal.js#withScopeResultAsync', kind: 'skip', module: 'core', reason: '裸句柄作用域执行（异步变体），skip',
+  },
+  // kernelBoundary：OCCT 内核对象 ↔ JS 值 边界转换（Vec/KernelType）
+  {
+    name: 'toKernelVec', source: 'core/kernelBoundary.js#toKernelVec', kind: 'skip', module: 'core', reason: 'Vec3 → OCCT 内核对象（L0 内部桥），skip',
+  },
+  {
+    name: 'fromKernelVec', source: 'core/kernelBoundary.js#fromKernelVec', kind: 'skip', module: 'core', reason: 'OCCT 内核对象 → Vec3（L0 内部桥），skip',
+  },
+  {
+    name: 'fromKernelPnt', source: 'core/kernelBoundary.js#fromKernelPnt', kind: 'skip', module: 'core', reason: 'OCCT 内核对象 → Vec3（L0 内部桥），skip',
+  },
+  {
+    name: 'fromKernelDir', source: 'core/kernelBoundary.js#fromKernelDir', kind: 'skip', module: 'core', reason: 'OCCT 内核对象 → Vec3（L0 内部桥），skip',
+  },
+  {
+    name: 'withKernelVec', source: 'core/kernelBoundary.js#withKernelVec', kind: 'skip', module: 'core', reason: 'OCCT 对象生命周期作用域（L0 内部桥），skip',
+  },
+  {
+    name: 'withKernelPnt', source: 'core/kernelBoundary.js#withKernelPnt', kind: 'skip', module: 'core', reason: 'OCCT 对象生命周期作用域（L0 内部桥），skip',
+  },
+  {
+    name: 'withKernelDir', source: 'core/kernelBoundary.js#withKernelDir', kind: 'skip', module: 'core', reason: 'OCCT 对象生命周期作用域（L0 内部桥），skip',
+  },
+  // kernelCall：裸内核调用通道（kernel 句柄/方法名协议）
+  {
+    name: 'kernelCall', source: 'core/kernelCall.js#kernelCall', kind: 'skip', module: 'core', reason: '裸内核方法调用通道（L0 内部），skip',
+  },
+  {
+    name: 'kernelCallRaw', source: 'core/kernelCall.js#kernelCallRaw', kind: 'skip', module: 'core', reason: '裸内核方法调用（raw 变体，L0 内部），skip',
+  },
+  {
+    name: 'kernelCallScoped', source: 'core/kernelCall.js#kernelCallScoped', kind: 'skip', module: 'core', reason: '裸内核调用 + 句柄作用域（L0 内部），skip',
+  },
+  // shapeTypes：KernelShape 裸句柄构造/谓词/断言（faijs 面 Shape 经桥接生成，无裸句柄可传）
+  {
+    name: 'as2D', source: 'core/shapeTypes.js#as2D', kind: 'skip', module: 'core', reason: 'AnyShape → Shape1D 维度收窄（KernelShape 包装），skip',
+  },
+  {
+    name: 'as3D', source: 'core/shapeTypes.js#as3D', kind: 'skip', module: 'core', reason: 'AnyShape → Shape3D 维度收窄（KernelShape 包装），skip',
+  },
+  {
+    name: 'castShape', source: 'core/shapeTypes.js#castShape', kind: 'skip', module: 'core', reason: 'KernelShape → 拓扑类型收窄（裸句柄入参），skip',
+  },
+  {
+    name: 'castShape3D', source: 'core/shapeTypes.js#castShape3D', kind: 'skip', module: 'core', reason: 'KernelShape → Shape3D（裸句柄入参），skip',
+  },
+  {
+    name: 'closedWire', source: 'core/shapeTypes.js#closedWire', kind: 'skip', module: 'core', reason: 'Wire → ClosedWire 判别包装（KernelShape），skip',
+  },
+  {
+    name: 'createCompound', source: 'core/shapeTypes.js#createCompound', kind: 'skip', module: 'core', reason: 'KernelShape → Compound 包装（裸句柄入参），skip',
+  },
+  {
+    name: 'createEdge', source: 'core/shapeTypes.js#createEdge', kind: 'skip', module: 'core', reason: 'KernelShape → Edge 包装（裸句柄入参），skip',
+  },
+  {
+    name: 'createFace', source: 'core/shapeTypes.js#createFace', kind: 'skip', module: 'core', reason: 'KernelShape → Face 包装（裸句柄入参），skip',
+  },
+  {
+    name: 'createShell', source: 'core/shapeTypes.js#createShell', kind: 'skip', module: 'core', reason: 'KernelShape → Shell 包装（裸句柄入参），skip',
+  },
+  {
+    name: 'createSolid', source: 'core/shapeTypes.js#createSolid', kind: 'skip', module: 'core', reason: 'KernelShape → Solid 包装（裸句柄入参），skip',
+  },
+  {
+    name: 'createVertex', source: 'core/shapeTypes.js#createVertex', kind: 'skip', module: 'core', reason: 'KernelShape → Vertex 包装（裸句柄入参），skip',
+  },
+  {
+    name: 'createWire', source: 'core/shapeTypes.js#createWire', kind: 'skip', module: 'core', reason: 'KernelShape → Wire 包装（裸句柄入参），skip',
+  },
+  {
+    name: 'is2D', source: 'core/shapeTypes.js#is2D', kind: 'skip', module: 'core', reason: 'AnyShape 维度判别（KernelShape 谓词），skip',
+  },
+  {
+    name: 'is3D', source: 'core/shapeTypes.js#is3D', kind: 'skip', module: 'core', reason: 'AnyShape 维度判别（KernelShape 谓词），skip',
+  },
+  {
+    name: 'isClosedWire', source: 'core/shapeTypes.js#isClosedWire', kind: 'skip', module: 'core', reason: '拓扑谓词（KernelShape），skip',
+  },
+  {
+    name: 'isCompound', source: 'core/shapeTypes.js#isCompound', kind: 'skip', module: 'core', reason: '拓扑谓词（KernelShape），skip',
+  },
+  {
+    name: 'isEdge', source: 'core/shapeTypes.js#isEdge', kind: 'skip', module: 'core', reason: '拓扑谓词（KernelShape），skip',
+  },
+  {
+    name: 'isFace', source: 'core/shapeTypes.js#isFace', kind: 'skip', module: 'core', reason: '拓扑谓词（KernelShape），skip',
+  },
+  {
+    name: 'isManifoldShell', source: 'core/shapeTypes.js#isManifoldShell', kind: 'skip', module: 'core', reason: '拓扑谓词（KernelShape），skip',
+  },
+  {
+    name: 'isOrientedFace', source: 'core/shapeTypes.js#isOrientedFace', kind: 'skip', module: 'core', reason: '拓扑谓词（KernelShape），skip',
+  },
+  {
+    name: 'isPlanarFace', source: 'core/shapeTypes.js#isPlanarFace', kind: 'skip', module: 'core', reason: '拓扑谓词（KernelShape），skip',
+  },
+  {
+    name: 'isPlanarWire', source: 'core/shapeTypes.js#isPlanarWire', kind: 'skip', module: 'core', reason: '拓扑谓词（KernelShape），skip',
+  },
+  {
+    name: 'isShape1D', source: 'core/shapeTypes.js#isShape1D', kind: 'skip', module: 'core', reason: '拓扑谓词（KernelShape），skip',
+  },
+  {
+    name: 'isShape3D', source: 'core/shapeTypes.js#isShape3D', kind: 'skip', module: 'core', reason: '拓扑谓词（KernelShape），skip',
+  },
+  {
+    name: 'isShell', source: 'core/shapeTypes.js#isShell', kind: 'skip', module: 'core', reason: '拓扑谓词（KernelShape），skip',
+  },
+  {
+    name: 'isSolid', source: 'core/shapeTypes.js#isSolid', kind: 'skip', module: 'core', reason: '拓扑谓词（KernelShape），skip',
+  },
+  {
+    name: 'isValidSolid', source: 'core/shapeTypes.js#isValidSolid', kind: 'skip', module: 'core', reason: 'ValidSolid 判别（KernelShape 谓词），skip',
+  },
+  {
+    name: 'isVertex', source: 'core/shapeTypes.js#isVertex', kind: 'skip', module: 'core', reason: '拓扑谓词（KernelShape），skip',
+  },
+  {
+    name: 'isWire', source: 'core/shapeTypes.js#isWire', kind: 'skip', module: 'core', reason: '拓扑谓词（KernelShape），skip',
+  },
+  {
+    name: 'manifoldShell', source: 'core/shapeTypes.js#manifoldShell', kind: 'skip', module: 'core', reason: 'Shell → ManifoldShell 判别包装（KernelShape），skip',
+  },
+  {
+    name: 'orientedFace', source: 'core/shapeTypes.js#orientedFace', kind: 'skip', module: 'core', reason: 'Face → OrientedFace 判别包装（KernelShape），skip',
+  },
+  {
+    name: 'planarFace', source: 'core/shapeTypes.js#planarFace', kind: 'skip', module: 'core', reason: 'Face → PlanarFace 判别包装（KernelShape），skip',
+  },
+  {
+    name: 'planarWire', source: 'core/shapeTypes.js#planarWire', kind: 'skip', module: 'core', reason: 'Wire → PlanarWire 判别包装（KernelShape），skip',
+  },
+  {
+    name: 'validSolid', source: 'core/shapeTypes.js#validSolid', kind: 'skip', module: 'core', reason: 'Solid → ValidSolid 判别包装（KernelShape），skip',
+  },
 ]
