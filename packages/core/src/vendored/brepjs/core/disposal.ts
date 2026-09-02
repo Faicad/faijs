@@ -46,7 +46,7 @@ interface GlobalWithRegistry {
 const globalWithRegistry = globalThis as GlobalWithRegistry;
 
 if (!globalWithRegistry.FinalizationRegistry) {
-  console.warn('brepjs: FinalizationRegistry unavailable — garbage collection will not work');
+  console.warn('faijs: FinalizationRegistry unavailable — garbage collection will not work');
   globalWithRegistry.FinalizationRegistry = class NoOpFinalizationRegistry {
     register(_target: object, _heldValue: unknown, _unregisterToken?: object): void {
       // no-op

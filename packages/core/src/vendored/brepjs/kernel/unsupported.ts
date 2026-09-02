@@ -7,7 +7,7 @@
  * wording. Adapters keep their existing messages; this only adds the marker.
  */
 
-const UNSUPPORTED_MARKER = Symbol.for('brepjs.kernel.unsupportedOperation');
+const UNSUPPORTED_MARKER = Symbol.for('faijs.kernel.unsupportedOperation');
 
 /** Thrown by a kernel adapter asked to perform an operation it doesn't support. */
 export class UnsupportedKernelOperationError extends Error {

@@ -122,7 +122,7 @@ export function buildBinarySTL(
 /** Serialize a triangle soup as an ASCII STL. */
 export function buildAsciiSTL(vertices: ArrayLike<number>, triangles: ArrayLike<number>): string {
   const triCount = Math.floor(triangles.length / 3);
-  const lines: string[] = ['solid brepjs'];
+  const lines: string[] = ['solid faijs'];
   for (let i = 0; i < triCount; i++) {
     const f = facetAt(vertices, triangles, i);
     lines.push(`facet normal ${f.nx} ${f.ny} ${f.nz}`);
@@ -133,6 +133,6 @@ export function buildAsciiSTL(vertices: ArrayLike<number>, triangles: ArrayLike<
     lines.push('endloop');
     lines.push('endfacet');
   }
-  lines.push('endsolid brepjs');
+  lines.push('endsolid faijs');
   return lines.join('\n') + '\n';
 }

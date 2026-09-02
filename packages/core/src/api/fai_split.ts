@@ -20,7 +20,7 @@ import {
   type JoineryBasis,
   type GrooveParams,
   type DowelOrTenonParams,
-} from './brepjs-mirror/joinery-brep'
+} from './brep-mirror/joinery-brep'
 import { computeBasisFromNormal } from '../mesh/fai_split'
 import { getBackends } from '../runtime-state'
 import { solid, fromBrep, brepOf } from '../shape'

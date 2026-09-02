@@ -53,7 +53,7 @@ function buildGltfManifest(
   bounds: Vec3Bounds
 ): object {
   return {
-    asset: { version: '2.0', generator: 'brepjs occt-wasm' },
+    asset: { version: '2.0', generator: 'faijs occt-wasm' },
     scene: 0,
     scenes: [{ nodes: [0] }],
     nodes: [{ mesh: 0 }],
@@ -254,7 +254,7 @@ export function exportOBJ(mesh: MeshFn, shape: KernelShape, tolerance: number): 
   const n = result.normals;
   const t = result.triangles;
 
-  const lines: string[] = ['# brepjs OBJ export'];
+  const lines: string[] = ['# faijs OBJ export'];
   const vCount = v.length / 3;
   for (let i = 0; i < vCount; i++) {
     const o = i * 3;
@@ -296,7 +296,7 @@ export function exportPLY(mesh: MeshFn, shape: KernelShape, tolerance: number): 
   const lines: string[] = [
     'ply',
     'format ascii 1.0',
-    'comment brepjs PLY export',
+    'comment faijs PLY export',
     `element vertex ${vCount}`,
     'property float x',
     'property float y',

@@ -20,6 +20,7 @@
  */
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs'
 import { join, resolve, relative, sep } from 'node:path'
+import ts from 'typescript'
 
 const ROOT = resolve('.')
 
@@ -35,47 +36,27 @@ function walk(dir, extRe, out = []) {
   return out
 }
 
-/** 剥离注释（行注释与块注释，字符串内不受影响），再提取字符串字面量。 */
+/**
+ * 提取字符串字面量文本（供 A1 检查）。用 TypeScript AST 而非手写词法：
+ *  - 注释天然被排除（A1 白名单的 UPSTREAM 标注在注释里，本来就不该算字面量）；
+ *  - 模板字符串的 `${...}` 插值、嵌套反引号、转义由 TS 解析器精确处理，
+ *    不会像手写扫描那样把插值表达式/注释误当字符串内容；
+ *  - 返回每个字符串字面量解码后的文本（不含引号/反引号）。
+ */
 function stringLiterals(code) {
-  // 1) 逐字符剥离注释，保留字符串本体
-  let cleaned = ''
-  let i = 0
-  const n = code.length
-  while (i < n) {
-    const c = code[i]
-    const d = code[i + 1]
-    if (c === "'" || c === '"' || c === '`') {
-      // 拷贝到配对的闭引号（处理转义）
-      let j = i + 1
-      while (j < n) {
-        if (code[j] === '\\') { j += 2; continue }
-        if (code[j] === c) break
-        j++
-      }
-      cleaned += code.slice(i, Math.min(j + 1, n))
-      i = j + 1
-      continue
-    }
-    if (c === '/' && d === '/') {
-      while (i < n && code[i] !== '\n') i++
-      cleaned += '\n'
-      continue
-    }
-    if (c === '/' && d === '*') {
-      i += 2
-      while (i < n && !(code[i] === '*' && code[i + 1] === '/')) i++
-      i += 2
-      cleaned += '  '
-      continue
-    }
-    cleaned += c
-    i++
-  }
-  // 2) 提取含 brepjs 的字符串字面量
   const hits = []
-  const re = /(['"`])([^'"`]*brepjs[^'"`]*)\1/g
-  let m
-  while ((m = re.exec(cleaned)) !== null) hits.push(m[2])
+  const sf = ts.createSourceFile('_t.ts', code, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
+  function visit(node) {
+    if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+      hits.push(node.text)
+    } else if (ts.isTemplateExpression(node)) {
+      // 插值外的文本片段（head + 每段 literal）；插值表达式自身会被 visit 继续遍历
+      hits.push(node.head.text)
+      for (const span of node.templateSpans) hits.push(span.literal.text)
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(sf)
   return hits
 }
 
@@ -83,6 +64,28 @@ function stringLiterals(code) {
 
 const errors = []
 function fail(msg) { errors.push(msg) }
+
+/**
+ * 迁移豁免登记（P15/P16 前过渡态，迁移完成后删除对应条目）：
+ *  - sheetmetal/src/compat.ts —— P15（E8）删除 compat.ts 后移除；
+ *  - mech-lib/src/brepjs-gear* / c3-brepjs-scenario —— P16（E9）mech-lib 迁 L3 后移除。
+ * 守卫对这些文件跳过 A3/A4 检查；文件名本身含 brepjs 属于 P16 重命名范围。
+ */
+const MIGRATION_EXEMPT = [
+  'packages/sheetmetal/src/compat.ts',
+  'packages/mech-lib/package.json',
+  'packages/mech-lib/src/brepjs-gear.ts',
+  'packages/mech-lib/src/brepjs-gear.test.ts',
+  'packages/mech-lib/src/c3-brepjs-scenario.test.ts',
+]
+function isExempt(rel) {
+  const norm = rel.split(sep).join('/')
+  return MIGRATION_EXEMPT.some((p) => norm === p || norm.startsWith(p + '/'))
+}
+/** 相对导入说明符（./ ../ 开头）中的 brepjs 是物理目录名（§3.3 目录名保留合法），放行。 */
+function isRelativeSpec(spec) {
+  return spec.startsWith('./') || spec.startsWith('../')
+}
 
 // A1：vendored 源码 + core dist 字符串字面量零 brepjs
 {
@@ -93,11 +96,13 @@ function fail(msg) { errors.push(msg) }
   const offenders = new Set() // 同文件多字面量合并报告
   for (const f of files) {
     const rel = relative(ROOT, f)
-    const isVendoredSrc = rel.includes(`${sep}vendored${sep}brepjs${sep}`) && !rel.includes(`${sep}dist${sep}`)
     const code = readFileSync(f, 'utf-8')
     for (const lit of stringLiterals(code)) {
       // 白名单：NOTICE 内容随文件头注释（不含字面量）；UPSTREAM: 注释已剥离。
-      // 字符串字面量本身无白名单——出现即违规。
+      // 相对导入路径段（./ ../）是物理目录名，目录名保留合法（§3.3）——放行；
+      // 其余字符串字面量含 brepjs 即违规。
+      if (!lit.includes('brepjs')) continue
+      if (isRelativeSpec(lit.trimStart())) continue
       offenders.add(rel)
     }
   }
@@ -120,6 +125,8 @@ function fail(msg) { errors.push(msg) }
   const pkgFiles = walk(resolve('packages'), /package\.json$/)
     .filter((f) => relative(resolve('packages'), f).split(sep).length === 2) // 仅一层深
   for (const f of pkgFiles) {
+    const rel = relative(ROOT, f)
+    if (isExempt(rel)) continue // 迁移豁免登记（P15/P16 后移除）
     const pkg = JSON.parse(readFileSync(f, 'utf-8'))
     const probe = [
       pkg.name ?? '',
@@ -143,11 +150,14 @@ function fail(msg) { errors.push(msg) }
   for (const dir of srcDirs) {
     for (const f of walk(dir, /\.(ts|mts)$/)) {
       const rel = relative(ROOT, f)
+      if (isExempt(rel)) continue // 迁移豁免登记（P15/P16 后移除）
       if (rel.includes(`${sep}vendored${sep}`)) continue // vendored 树内相对导入
       const code = readFileSync(f, 'utf-8')
       let m
       while ((m = re.exec(code)) !== null) {
         const spec = m[1]
+        // 相对导入路径段（./ ../）= 物理目录名（§3.3 保留合法，如 api/ 层反向依赖 vendored）——放行
+        if (isRelativeSpec(spec)) continue
         if (spec.includes('brepjs')) offenders.add(`${rel}: ${spec}`)
       }
     }

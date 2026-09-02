@@ -15,7 +15,7 @@ import {
   solidToShape,
   matrixToArray,
 } from '../brep/brep-ops'
-import { threadBrep } from './brepjs-mirror/threadFns'
+import { threadBrep } from './brep-mirror/threadFns'
 import { getScrewSpec, threadToPitchMm } from '../primitives/screw/screw-db'
 import * as THREE from 'three'
 import { getBackends } from '../runtime-state'

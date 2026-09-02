@@ -33,7 +33,7 @@ function triAt(arr: Uint32Array, offset: number): [number, number, number] {
  * ```
  */
 export function exportOBJ(mesh: ShapeMesh): string {
-  const lines: string[] = ['# brepjs OBJ export'];
+  const lines: string[] = ['# faijs OBJ export'];
 
   // Vertices
   const vertCount = mesh.vertices.length / 3;

@@ -10,7 +10,7 @@
 import type { Shape } from '../mesh/types'
 import { cad } from '../mesh'
 import { solidToShape } from '../brep/brep-ops'
-import { threadBrep } from './brepjs-mirror/threadFns'
+import { threadBrep } from './brep-mirror/threadFns'
 import { getScrewSpec, threadToPitchMm, SCREW_HEAD_DIMS } from '../primitives/screw/screw-db'
 import { getBackends } from '../runtime-state'
 import { fromBrep } from '../shape'

@@ -351,7 +351,7 @@ function buildGltfDocument(
   const { min, max } = computeMinMax(vertices);
 
   const doc: GltfDocument = {
-    asset: { version: '2.0', generator: 'brepjs' },
+    asset: { version: '2.0', generator: 'faijs' },
     scene: 0,
     scenes: [{ nodes: [0] }],
     nodes: sceneNodes(options?.upAxis ?? 'Y'),
@@ -605,7 +605,7 @@ function buildGltfDocFromLayout(
   );
 
   return {
-    asset: { version: '2.0', generator: 'brepjs' },
+    asset: { version: '2.0', generator: 'faijs' },
     scene: 0,
     scenes: [{ nodes: [0] }],
     nodes: sceneNodes(upAxis),

@@ -88,7 +88,7 @@ export function freezeKernels(): void {
 export function registerKernel(id: string, adapter: KernelAdapter): void {
   if (_frozen) {
     throw new Error(
-      `brepjs kernel registry frozen — cannot register '${id}' after assembly (D10)`
+      `faijs kernel registry frozen — cannot register '${id}' after assembly (D10)`
     );
   }
   _kernels.set(id, adapter);
@@ -107,12 +107,12 @@ export function getKernel(id?: string): KernelAdapter {
   const targetId = id ?? _defaultKernelId;
   if (!targetId) {
     throw new Error(
-      'brepjs kernel not initialized. The faijs host must bind occt-wasm before use (D10).'
+      'faijs kernel not initialized. The faijs host must bind occt-wasm before use (D10).'
     );
   }
   const kernel = _kernels.get(targetId);
   if (!kernel) {
-    throw new Error(`brepjs: kernel '${targetId}' is not registered.`);
+    throw new Error(`faijs: kernel '${targetId}' is not registered.`);
   }
   return kernel;
 }
@@ -124,7 +124,7 @@ export function getKernel(id?: string): KernelAdapter {
 export function getKernel2D(id?: string): KernelAdapter & Kernel2DCapability {
   const kernel = getKernel(id);
   if (!supportsKernel2D(kernel)) {
-    throw new Error('brepjs: current kernel does not support 2D operations.');
+    throw new Error('faijs: current kernel does not support 2D operations.');
   }
   return kernel;
 }

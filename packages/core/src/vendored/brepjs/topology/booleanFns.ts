@@ -153,7 +153,7 @@ export function fuse(
     if (getKernel().isNull(resultShape)) {
       getKernel().dispose(resultShape);
       console.warn(
-        'brepjs: fuse history path produced null result; retrying without evolution tracking.',
+        'faijs: fuse history path produced null result; retrying without evolution tracking.',
         diagnostics
       );
       const fallbackShape = getKernel().fuse(a.wrapped, b.wrapped, {
@@ -164,7 +164,7 @@ export function fuse(
       return castToShape3D(fallbackShape, 'FUSE_NOT_3D', 'Fuse did not produce a 3D shape');
     }
     console.warn(
-      'brepjs: fuse reported OCCT warnings/errors but produced a shape. Continuing with result.',
+      'faijs: fuse reported OCCT warnings/errors but produced a shape. Continuing with result.',
       diagnostics
     );
   }
@@ -244,7 +244,7 @@ export function cut(
     if (getKernel().isNull(resultShape)) {
       getKernel().dispose(resultShape);
       console.warn(
-        'brepjs: cut history path produced null result; retrying without evolution tracking.',
+        'faijs: cut history path produced null result; retrying without evolution tracking.',
         diagnostics
       );
       const fallbackShape = getKernel().cut(base.wrapped, tool.wrapped, {
@@ -255,7 +255,7 @@ export function cut(
       return castToShape3D(fallbackShape, 'CUT_NOT_3D', 'Cut did not produce a 3D shape');
     }
     console.warn(
-      'brepjs: cut reported OCCT warnings/errors but produced a shape. Continuing with result.',
+      'faijs: cut reported OCCT warnings/errors but produced a shape. Continuing with result.',
       diagnostics
     );
   }
@@ -325,7 +325,7 @@ export function intersect(
     if (getKernel().isNull(resultShape)) {
       getKernel().dispose(resultShape);
       console.warn(
-        'brepjs: intersect history path produced null result; retrying without evolution tracking.',
+        'faijs: intersect history path produced null result; retrying without evolution tracking.',
         diagnostics
       );
       const fallbackShape = getKernel().intersect(a.wrapped, b.wrapped, {
@@ -339,7 +339,7 @@ export function intersect(
       );
     }
     console.warn(
-      'brepjs: intersect reported OCCT warnings/errors but produced a shape. Continuing with result.',
+      'faijs: intersect reported OCCT warnings/errors but produced a shape. Continuing with result.',
       diagnostics
     );
   }
