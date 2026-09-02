@@ -644,4 +644,123 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'pure',
     module: 'ns',
   },
+
+  // ──── P14 第五片：gear 模块（17 符号 = 11 type + 3 pure + 3 skip）────
+  // 纯数学/校验助手（无 Shape 参数，返回几何数据/校验结果）→ pure 直连 brepjs 函数。
+  // 3 个 make*Gear 构造器返回「复合多句柄结果」：GearResult 内含 solid + 计量字段
+  // （pitch/base/tip/root 直径 + diagnostics）；PlanetaryGearAssembly 内含 sun +
+  // planets[] + ring 多个 solid。faijs 面的 ops 模板当前只收「单产物 Shape」
+  // （brep-op：adopt 一个 product）或标量查询（query）——复合结果既非单产物
+  // 也非标量：需要「结果对象内多句柄收养/再导出」的适配模型，同 makeProjectedEdges
+  // 判例（多产物收养模型缺位），故 skip + reason（divergence，留待 E12 宿主层设计）。
+  {
+    name: 'ExternalGearParams',
+    source: 'gear/index.js#ExternalGearParams',
+    kind: 'type',
+    module: 'gear',
+  },
+  {
+    name: 'GearDiagnostic',
+    source: 'gear/index.js#GearDiagnostic',
+    kind: 'type',
+    module: 'gear',
+  },
+  {
+    name: 'GearDiagnosticCode',
+    source: 'gear/index.js#GearDiagnosticCode',
+    kind: 'type',
+    module: 'gear',
+  },
+  {
+    name: 'GearDiagnosticSeverity',
+    source: 'gear/index.js#GearDiagnosticSeverity',
+    kind: 'type',
+    module: 'gear',
+  },
+  {
+    name: 'GearGeometry',
+    source: 'gear/index.js#GearGeometry',
+    kind: 'type',
+    module: 'gear',
+  },
+  {
+    name: 'GearResult',
+    source: 'gear/index.js#GearResult',
+    kind: 'type',
+    module: 'gear',
+  },
+  {
+    name: 'InternalGearParams',
+    source: 'gear/index.js#InternalGearParams',
+    kind: 'type',
+    module: 'gear',
+  },
+  {
+    name: 'PlanetPlacement',
+    source: 'gear/index.js#PlanetPlacement',
+    kind: 'type',
+    module: 'gear',
+  },
+  {
+    name: 'PlanetPlacementParams',
+    source: 'gear/index.js#PlanetPlacementParams',
+    kind: 'type',
+    module: 'gear',
+  },
+  {
+    name: 'PlanetaryGearAssembly',
+    source: 'gear/index.js#PlanetaryGearAssembly',
+    kind: 'type',
+    module: 'gear',
+  },
+  {
+    name: 'PlanetaryGearParams',
+    source: 'gear/index.js#PlanetaryGearParams',
+    kind: 'type',
+    module: 'gear',
+  },
+  {
+    name: 'gearGeometry',
+    source: 'gear/index.js#gearGeometry',
+    kind: 'pure',
+    module: 'gear',
+  },
+  {
+    name: 'planetPlacements',
+    source: 'gear/index.js#planetPlacements',
+    kind: 'pure',
+    module: 'gear',
+  },
+  {
+    name: 'validatePlanetary',
+    source: 'gear/index.js#validatePlanetary',
+    kind: 'pure',
+    module: 'gear',
+  },
+  {
+    name: 'makeExternalGear',
+    source: 'gear/index.js#makeExternalGear',
+    kind: 'skip',
+    module: 'gear',
+    reason:
+      '复合结果（GearResult：solid + 计量 + diagnostics），faijs ops 模板只有单产物收养/标量查询，' +
+      '无「结果对象内收养 solid」模型，跳过（divergence，待 E4 宿主层多产物收养）',
+  },
+  {
+    name: 'makeInternalGear',
+    source: 'gear/index.js#makeInternalGear',
+    kind: 'skip',
+    module: 'gear',
+    reason:
+      '同 makeExternalGear：复合结果含 solid 句柄 + 计量，需结果内收养模型，跳过（divergence）',
+  },
+  {
+    name: 'makePlanetaryGear',
+    source: 'gear/index.js#makePlanetaryGear',
+    kind: 'skip',
+    module: 'gear',
+    reason:
+      '返回 PlanetaryGearAssembly：sun + planets[] + ring 多个 solid（多产物收养模型缺位），' +
+      '跳过（divergence，同 makeProjectedEdges 判例）',
+  },
 ]
