@@ -31,7 +31,7 @@ const VENDORED_ROOT_REL = '../../vendored/brepjs/' // from api/generated/ -> src
 const OUT_DIR = path.resolve(__dirname, '..', 'src', 'api', 'generated')
 
 /** 已登记分片的模块名（写产物 + 机制测试遍历对象）。 */
-export const PROJECTED_MODULES = ['topology', 'measurement', 'text', 'projection'] as const
+export const PROJECTED_MODULES = ['topology', 'measurement', 'text', 'projection', 'query'] as const
 
 /** 模块 → 产物文件路径。 */
 export function generatedOutputPath(module: string): string {

@@ -473,4 +473,113 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     reason:
       '同 makeProjectedEdges：返回 Edge 句柄数组 + 所有权生命周期，无法静态收养，跳过（divergence）',
   },
+
+  // ──── P14 第二片：query 模块（14 符号：7 type + 7 skip）────
+  // finder 体系（edge/face/wire/vertex/corner + ShapeFinder 基接口）是「状态化查询工具」：
+  // finder 工厂返回带内部闭包状态的 DSL 对象（.when/.inList/.findAll…逐步链式），与
+  // createDistanceQuery 同类（§5.2/测量批的 skip 先例）。faijs 面无法以静态函数忠实建模
+  // （finder 生命周期 + 逐次 Shape 借入需宿主适配），值侧全部 skip + reason。类型侧仍然
+  // re-export：这些类型是可复用查询契约的形态面，无运行时语义。
+  {
+    name: 'CornerFilter',
+    source: 'query/finderFns.js#CornerFilter',
+    kind: 'type',
+    module: 'query',
+  },
+  {
+    name: 'CornerFinderFn',
+    source: 'query/finderFns.js#CornerFinderFn',
+    kind: 'type',
+    module: 'query',
+  },
+  {
+    name: 'EdgeFinderFn',
+    source: 'query/finderFns.js#EdgeFinderFn',
+    kind: 'type',
+    module: 'query',
+  },
+  {
+    name: 'FaceFinderFn',
+    source: 'query/finderFns.js#FaceFinderFn',
+    kind: 'type',
+    module: 'query',
+  },
+  {
+    name: 'ShapeFinder',
+    source: 'query/finderFns.js#ShapeFinder',
+    kind: 'type',
+    module: 'query',
+  },
+  {
+    name: 'SingleFace',
+    source: 'query/helpers.js#SingleFace',
+    kind: 'type',
+    module: 'query',
+  },
+  {
+    name: 'VertexFinderFn',
+    source: 'query/finderFns.js#VertexFinderFn',
+    kind: 'type',
+    module: 'query',
+  },
+  {
+    name: 'WireFinderFn',
+    source: 'query/finderFns.js#WireFinderFn',
+    kind: 'type',
+    module: 'query',
+  },
+  {
+    name: 'cornerFinder',
+    source: 'query/finderFns.js#cornerFinder',
+    kind: 'skip',
+    module: 'query',
+    reason:
+      '返回带状态链式的 2D 角 finder 对象（builder DSL），同 createDistanceQuery 判例：' +
+      'faijs 面无法静态建模（逐 Shape 借入 + 生命周期），跳过（divergence）',
+  },
+  {
+    name: 'edgeFinder',
+    source: 'query/finderFns.js#edgeFinder',
+    kind: 'skip',
+    module: 'query',
+    reason:
+      '返回带状态链式的边 finder 对象（builder DSL），同 createDistanceQuery 判例：' +
+      'faijs 面无法静态建模，跳过（divergence）',
+  },
+  {
+    name: 'faceFinder',
+    source: 'query/finderFns.js#faceFinder',
+    kind: 'skip',
+    module: 'query',
+    reason:
+      '返回带状态链式的面 finder 对象（builder DSL），同 createDistanceQuery 判例：' +
+      'faijs 面无法静态建模，跳过（divergence）',
+  },
+  {
+    name: 'getSingleFace',
+    source: 'query/helpers.js#getSingleFace',
+    kind: 'skip',
+    module: 'query',
+    reason:
+      '接受 SingleFace（finder 对象/Face 回调）并返回 Result<Face>——输入是 finder/findCallable ' +
+      '而非纯的子句，且返回值借用输入 shape 的 Face；faijs 面需要 finder 契约适配，跳过（divergence）',
+  },
+  {
+    name: 'vertexFinder',
+    source: 'query/finderFns.js#vertexFinder',
+    kind: 'skip',
+    module: 'query',
+    reason:
+      '返回带状态链式的顶点 finder 对象（builder DSL），同 createDistanceQuery 判例：' +
+      'faijs 面无法静态建模，跳过（divergence）',
+  },
+  {
+    name: 'wireFinder',
+    source: 'query/finderFns.js#wireFinder',
+    kind: 'skip',
+    module: 'query',
+    reason:
+      '返回带状态链式的线框 finder 对象（builder DSL），同 createDistanceQuery 判例：' +
+      'faijs 面无法静态建模，跳过（divergence）',
+  },
 ]
