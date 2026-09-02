@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-02-layered-api-p7-dual-chain.md
+2026-09-02-layered-api-p7-dual-chain.md: 30d8b820c18e80ed443e5b861e5823941166be60
+2026-09-02-layered-api-p7-dual-chain.zh.md: 67241e6e5489eb8e52c7ed0cd48ed5f87a733905

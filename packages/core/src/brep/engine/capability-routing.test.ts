@@ -67,4 +67,16 @@ describe('能力路由：occt 引擎具备 evolution 能力', () => {
     expect(result.failedAt).toBeUndefined()
     expect(result.brepSolids?.size).toBeGreaterThanOrEqual(3)
   })
+
+  it('D4 并入：occt 适配器如实声明合并后的 KernelCapabilities 字段（exact/brepExport/exactMeasurement/tessellationModel）', async () => {
+    await registerOcctBrepEngine()
+    const { getBrepEngine } = await import('./registry')
+    const engine = await getBrepEngine('occt')
+    expect(engine.capabilities).toMatchObject({
+      exact: true,
+      brepExport: true,
+      exactMeasurement: true,
+      tessellationModel: 'extract-time',
+    })
+  })
 })

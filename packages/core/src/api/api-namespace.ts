@@ -24,6 +24,7 @@ import { split } from './split'
 import { union, subtract, intersect } from './boolean'
 import { engrave } from './engrave'
 import { chamfer } from './chamfer'
+import { fillet } from './fillet'
 import { group, assembly } from './compound'
 import { copy } from './copy'
 import { faceCenter, faceNormal, bboxCenter, bboxMin, bboxMax } from './geom'
@@ -45,6 +46,7 @@ export function createApiNamespace(): StdlibNamespace {
     text, screw, svgExtrude, sdf, load,
     translate, rotate, scale,
     drill, extrude, engrave, chamfer, knurl,
+    fillet,
     union, subtract, intersect,
     split, group, assembly, copy,
     faceCenter, faceNormal, bboxCenter, bboxMin, bboxMax,

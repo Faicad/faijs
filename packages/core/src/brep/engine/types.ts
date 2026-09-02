@@ -117,9 +117,29 @@ export interface BrepXcafDocument {
 }
 
 /**
+ * 曲面细分精度控制模型（与 brepjs KernelCapabilities.tessellationModel 同构的中立镜像，
+ * P7 并入；faijs 侧零内核依赖，不 import vendored 树——D8 反向只允许发生在 api/）。
+ *
+ * - `'build-time'`  — 网格在实体构造时固定（如 manifold 全局分段设置）；质量参数须在构造前应用。
+ * - `'extract-time'`— 形状是精确的，按需以每调用 deflection 细分（如 OCCT）；质量是
+ *                    `mesh()`/导出时的默认 deflection。
+ * - `'none'`        — 无细分控制（或非网格内核）。
+ */
+export type BrepTessellationModel = 'build-time' | 'extract-time' | 'none'
+
+/**
  * 可选能力槽声明（§7.5，Phase 1 钉死成员）。
  *
  * 缺失的能力 → 依赖它的功能静态降级走 mesh（§8.4），绝不伪造。
+ *
+ * P7 并入（D4）：移植 brepjs `KernelCapabilities` 的数据字段（exact/brepExport/
+ * exactMeasurement/tessellationModel）进本模型，由适配器在注册时如实声明；分派逻辑
+ * （backend-dispatch 的 BrepCapabilityName 路由）不改——新字段是引擎本质描述，不是
+ * 逐 op 路由键。
+ *
+ * 未并入 `disposalModel`（D5 决策，与 vendored port 一致）：faijs 的句柄释放由
+ * `cad-runtime` 顶替释放统一编排（增量失败回滚前提），brepjs 的 DisposalScope/arena
+ * 语义不强制统一，故不作为能力位记录。
  */
 export interface BrepCapabilities {
   /** *WithHistory 面演化族 */
@@ -134,4 +154,12 @@ export interface BrepCapabilities {
   assembly?: boolean
   /** mesh→BREP 提升（buildTriFace/sewAndSolidify） */
   meshLift?: boolean
+  /** 精确 B-rep 几何（vs mesh 近似）——brepjs KernelCapabilities.exact 并入 */
+  exact?: boolean
+  /** 可序列化为 B-rep 交换格式（BREP/STEP）——brepjs brepExport 并入 */
+  brepExport?: boolean
+  /** 体积/面积/长度匹配解析值（vs mesh 近似）——brepjs exactMeasurement 并入 */
+  exactMeasurement?: boolean
+  /** 细分精度控制模型——brepjs tessellationModel 并入 */
+  tessellationModel?: BrepTessellationModel
 }

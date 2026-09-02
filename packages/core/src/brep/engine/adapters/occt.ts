@@ -15,6 +15,7 @@
 import { registerBrepEngine, hasBrepEngine, isBrepEngineRegistered, type BrepEngine } from '../registry'
 import type { AssertSatisfiesBrepEngineApi } from '../primitives'
 import { initOcctWasm } from '../../../occt-kernel/occtKernel'
+import { bindOcctKernel } from '../../../api/occt-kernel-bridge'
 
 /** OCCT 引擎注册 id（默认 BREP 引擎；首个注册自动成为默认）。 */
 export const OCCT_BREP_ENGINE_ID = 'occt'
@@ -38,8 +39,16 @@ export async function registerOcctBrepEngine(): Promise<void> {
       directEdit: true,
       advSurface: true,
       assembly: true,
+      // P7 并入（D4）：OCCT 是精确 B-rep 内核——如实声明 brepjs KernelCapabilities 字段。
+      exact: true,
+      brepExport: true,
+      exactMeasurement: true,
+      tessellationModel: 'extract-time',
     },
   }))
+  // P7-②：同一装配点把移植内核注册表绑定到同一个 occt-wasm 实例（D10 单实例 + 冻结）。
+  // 使 L3 调移植 L2 的 op（如 fillet）在宿主装配后立即可用；幂等，重复调用安全。
+  bindOcctKernel()
 }
 
 /**
