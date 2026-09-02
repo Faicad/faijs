@@ -1,0 +1,675 @@
+/**
+ * Fluent facade — `sheetMetal(base).flange(...).miter(...).unfold()`.
+ *
+ * A lightweight immutable builder over the {@link ./api.js} wrappers. Authoring
+ * steps (`flange`, `material`) accumulate into a spec; part-consuming steps
+ * (`miter`, `miterCorner`, `unfold`, `report`, `dxf`, `validate`, `part`)
+ * materialize the folded part once and thread it through, auto-unwrapping the
+ * underlying `Result<T>` and throwing {@link SheetMetalError} on failure so the
+ * chain stays terminal-free. Use the `Result`-returning functions in `./api.js`
+ * directly when explicit error handling is preferred over throwing.
+ */
+
+import type { BrepError, Result, Solid } from './compat.js';
+import { isErr } from './compat.js';
+import type { AuthorSpec, BaseFlatSpec, FlangeSpec, SeamSpec } from './authorFns.js';
+import type { MiterPlane, DxfOptions, SlotPlacement } from './api.js';
+import {
+  author,
+  unfold,
+  unfoldSolid,
+  fold,
+  miter,
+  miterCorner,
+  bendRelief,
+  autoReliefs,
+  relieveCorner,
+  addCutout,
+  addHole,
+  addSlot,
+  addPolygonCutout,
+  addTab,
+  tabAndSlot,
+  louver,
+  emboss,
+  contourFlange,
+  loftedFlange,
+  hem,
+  jog,
+  toDXF,
+  report,
+  validate,
+} from './api.js';
+import type {
+  SheetMetalPart,
+  FlatPattern,
+  FlatInput,
+  BendReport,
+  MaterialSpec,
+  ReliefSpec,
+  CutoutSpec,
+  TabSpec,
+  ContourFlangeSpec,
+  LoftedFlangeSpec,
+  HemSpec,
+  JogSpec,
+  SheetMetalWarning,
+  UnfoldResult,
+} from './types.js';
+
+/** Thrown by the fluent facade when an underlying `Result<T>` is an `Err`. */
+export class SheetMetalError extends Error {
+  /** The machine-readable error code from the underlying `BrepError`. */
+  readonly code: string;
+  /** The error kind/category from the underlying `BrepError`. */
+  readonly kind: string;
+
+  constructor(brepError: BrepError) {
+    super(
+      brepError.suggestion
+        ? `${brepError.message}\nSuggestion: ${brepError.suggestion}`
+        : brepError.message
+    );
+    this.name = 'SheetMetalError';
+    this.code = brepError.code;
+    this.kind = brepError.kind;
+  }
+}
+
+function unwrapOrThrow<T>(result: Result<T>): T {
+  if (isErr(result)) {
+    throw new SheetMetalError(result.error);
+  }
+  return result.value;
+}
+
+/** A built part already mitered/operated on, re-entering the fluent chain. */
+class SheetMetalPartHandle {
+  constructor(readonly part: SheetMetalPart) {}
+
+  /**
+   * Cut by an oriented plane, removing material on the `+normal` side.
+   * @param plane - the oriented cutting plane; material on the plane's `+normal` side is removed.
+   * @returns a new `SheetMetalPartHandle` carrying the mitered part.
+   */
+  miter(plane: MiterPlane): SheetMetalPartHandle {
+    return new SheetMetalPartHandle(unwrapOrThrow(miter(this.part, plane)));
+  }
+
+  /**
+   * Auto-miter the shared corner of two flanges with an optional gap.
+   * @param flangeIdA - id of the first flange meeting at the corner.
+   * @param flangeIdB - id of the second flange meeting at the corner.
+   * @param gap - optional gap (in millimetres) left between the two mitered edges; defaults to 0.
+   * @returns a new `SheetMetalPartHandle` carrying the part with the corner mitered.
+   */
+  miterCorner(flangeIdA: string, flangeIdB: string, gap = 0): SheetMetalPartHandle {
+    return new SheetMetalPartHandle(unwrapOrThrow(miterCorner(this.part, flangeIdA, flangeIdB, gap)));
+  }
+
+  /**
+   * Add a bend relief at each mid-edge end of a partial flange's bend line.
+   * @param flangeId - id of the partial flange whose bend-line ends get the relief.
+   * @param spec - optional relief specification overriding the defaults.
+   * @returns a new `SheetMetalPartHandle` carrying the part with the relief added.
+   */
+  bendRelief(flangeId: string, spec?: ReliefSpec): SheetMetalPartHandle {
+    return new SheetMetalPartHandle(unwrapOrThrow(bendRelief(this.part, flangeId, spec)));
+  }
+
+  /**
+   * Add a bend relief to every partial-span bend in the part.
+   * @param spec - optional relief specification applied to every partial bend.
+   * @returns a new `SheetMetalPartHandle` carrying the part with all reliefs added.
+   */
+  autoReliefs(spec?: ReliefSpec): SheetMetalPartHandle {
+    return new SheetMetalPartHandle(unwrapOrThrow(autoReliefs(this.part, spec)));
+  }
+
+  /**
+   * Cut a corner relief notch at the shared corner of two adjacent flanges.
+   * @param flangeIdA - id of the first flange forming the corner.
+   * @param flangeIdB - id of the second flange forming the corner.
+   * @param spec - optional relief specification overriding the defaults.
+   * @returns a new `SheetMetalPartHandle` carrying the part with the corner relief added.
+   */
+  cornerRelief(flangeIdA: string, flangeIdB: string, spec?: ReliefSpec): SheetMetalPartHandle {
+    return new SheetMetalPartHandle(unwrapOrThrow(relieveCorner(this.part, flangeIdA, flangeIdB, spec)));
+  }
+
+  /**
+   * Punch a cutout (hole / slot / polygon) through a named flat region.
+   * @param spec - the cutout definition (kind, geometry, and target region).
+   * @returns a new `SheetMetalPartHandle` carrying the part with the cutout punched.
+   */
+  cutout(spec: CutoutSpec): SheetMetalPartHandle {
+    return new SheetMetalPartHandle(unwrapOrThrow(addCutout(this.part, spec)));
+  }
+
+  /**
+   * Punch a circular hole of `diameter` centred at region-local `(x, y)`.
+   * @param region - name of the flat region the hole is punched through.
+   * @param x - region-local X of the hole centre.
+   * @param y - region-local Y of the hole centre.
+   * @param diameter - hole diameter.
+   * @returns a new `SheetMetalPartHandle` carrying the part with the hole punched.
+   */
+  hole(region: string, x: number, y: number, diameter: number): SheetMetalPartHandle {
+    return new SheetMetalPartHandle(unwrapOrThrow(addHole(this.part, region, x, y, diameter)));
+  }
+
+  /**
+   * Punch a slot (rectangular or obround) centred at region-local `(x, y)`.
+   * @param region - name of the flat region the slot is punched through.
+   * @param opts - slot geometry: centre `(x, y)`, `length`, `width`, optional `angleDeg` rotation, and `round` ends flag.
+   * @returns a new `SheetMetalPartHandle` carrying the part with the slot punched.
+   */
+  slot(
+    region: string,
+    opts: { x: number; y: number; length: number; width: number; angleDeg?: number; round?: boolean }
+  ): SheetMetalPartHandle {
+    return new SheetMetalPartHandle(unwrapOrThrow(addSlot(this.part, region, opts)));
+  }
+
+  /**
+   * Punch an arbitrary polygon cutout from its region-local `points`.
+   * @param region - name of the flat region the polygon is punched through.
+   * @param points - region-local polygon vertices as `[x, y]` pairs.
+   * @returns a new `SheetMetalPartHandle` carrying the part with the polygon cutout.
+   */
+  polygonCutout(region: string, points: [number, number][]): SheetMetalPartHandle {
+    return new SheetMetalPartHandle(unwrapOrThrow(addPolygonCutout(this.part, region, points)));
+  }
+
+  /**
+   * Fuse a rectangular tab (additive protrusion) onto a region's edge.
+   * @param spec - tab definition: edge, width, and length.
+   * @returns a new `SheetMetalPartHandle` carrying the part with the tab added.
+   */
+  tab(spec: TabSpec): SheetMetalPartHandle {
+    return new SheetMetalPartHandle(unwrapOrThrow(addTab(this.part, spec)));
+  }
+
+  /**
+   * Self-fixturing tab-and-slot joint: a tab on one region + a matching slot on another.
+   * @param tab - the tab to add to the first region.
+   * @param slot - placement of the matching slot on the second region.
+   * @returns a new `SheetMetalPartHandle` carrying the part with the joint added.
+   */
+  tabAndSlot(tab: TabSpec, slot: SlotPlacement): SheetMetalPartHandle {
+    return new SheetMetalPartHandle(unwrapOrThrow(tabAndSlot(this.part, tab, slot)));
+  }
+
+  /**
+   * Form a louver (vent flap) on a region.
+   * @param opts - louver geometry: target `region`, centre `(x, y)`, `length`, `width`, `height`, and optional `direction`.
+   * @returns a new `SheetMetalPartHandle` carrying the part with the louver formed.
+   */
+  louver(opts: {
+    region: string;
+    x: number;
+    y: number;
+    length: number;
+    width: number;
+    height: number;
+    direction?: 'up' | 'down';
+  }): SheetMetalPartHandle {
+    return new SheetMetalPartHandle(unwrapOrThrow(louver(this.part, opts)));
+  }
+
+  /**
+   * Form a round emboss (raised) or dimple (recessed) on a region.
+   * @param opts - emboss geometry: target `region`, centre `(x, y)`, `diameter`, `height`, and `kind` (`dimple` or `emboss`).
+   * @returns a new `SheetMetalPartHandle` carrying the part with the form added.
+   */
+  emboss(opts: {
+    region: string;
+    x: number;
+    y: number;
+    diameter: number;
+    height: number;
+    kind: 'dimple' | 'emboss';
+  }): SheetMetalPartHandle {
+    return new SheetMetalPartHandle(unwrapOrThrow(emboss(this.part, opts)));
+  }
+
+  /**
+   * Author a contour flange (open line/arc profile swept along a base edge).
+   * @param spec - contour flange definition: profile, base edge, and bend parameters.
+   * @returns a new `SheetMetalPartHandle` carrying the part with the contour flange added.
+   */
+  contourFlange(spec: ContourFlangeSpec): SheetMetalPartHandle {
+    return new SheetMetalPartHandle(unwrapOrThrow(contourFlange(this.part, spec)));
+  }
+
+  /**
+   * Author a lofted / ruled transition flange between two parallel open profiles.
+   * @param spec - lofted flange definition: the two open profiles and their alignment.
+   * @returns a new `SheetMetalPartHandle` carrying the part with the lofted flange added.
+   */
+  loftedFlange(spec: LoftedFlangeSpec): SheetMetalPartHandle {
+    return new SheetMetalPartHandle(unwrapOrThrow(loftedFlange(this.part, spec)));
+  }
+
+  /**
+   * Fold a region edge back ~180°+ onto its parent as a hem (closed/open/teardrop/rolled).
+   * @param spec - hem definition: edge, curl radius, and return leg length.
+   * @returns a new `SheetMetalPartHandle` carrying the part with the hem added.
+   */
+  hem(spec: HemSpec): SheetMetalPartHandle {
+    return new SheetMetalPartHandle(unwrapOrThrow(hem(this.part, spec)));
+  }
+
+  /**
+   * Step a region's flat by `offsetHeight` with two opposite bends (a jog/joggle).
+   * @param spec - jog definition: bend line, offset height, and radii.
+   * @returns a new `SheetMetalPartHandle` carrying the part with the jog added.
+   */
+  jog(spec: JogSpec): SheetMetalPartHandle {
+    return new SheetMetalPartHandle(unwrapOrThrow(jog(this.part, spec)));
+  }
+
+  /**
+   * Flatten into a developed flat pattern + bend report + warnings.
+   * @returns the `UnfoldResult` with the flat pattern, bend report, and any warnings.
+   */
+  unfold(): UnfoldResult {
+    return unwrapOrThrow(unfold(this.part));
+  }
+
+  /**
+   * Just the flat pattern from the unfold.
+   * @returns the developed `FlatPattern`.
+   */
+  flatPattern(): FlatPattern {
+    return this.unfold().pattern;
+  }
+
+  /**
+   * Bend report built from the feature tree.
+   * @returns the `BendReport` describing every bend in the part.
+   */
+  report(): BendReport {
+    return unwrapOrThrow(report(this.part));
+  }
+
+  /**
+   * Annotated multi-layer DXF of the developed flat pattern.
+   * @param options - optional DXF output options (layers, precision, units).
+   * @returns the DXF text of the developed flat pattern.
+   */
+  dxf(options?: DxfOptions): string {
+    return unwrapOrThrow(toDXF(this.flatPattern(), options));
+  }
+
+  /**
+   * Manufacturability warnings (advisory, never throws).
+   * @returns the list of `SheetMetalWarning`s (empty when the part is manufacturable).
+   */
+  validate(): SheetMetalWarning[] {
+    return validate(this.part);
+  }
+
+  /**
+   * The materialized part (escape hatch back to the functional API).
+   * @returns the underlying `SheetMetalPart`.
+   */
+  get(): SheetMetalPart {
+    return this.part;
+  }
+}
+
+/**
+ * An imported foreign solid (no feature tree) re-entering the fluent chain: detect
+ * its geometry and unfold it. `kFactor` defaults to the mid-surface neutral axis.
+ */
+class ForeignSolidHandle {
+  constructor(
+    private readonly solid: Solid,
+    private readonly opts?: { kFactor?: number }
+  ) {}
+
+  /**
+   * Override the neutral-axis K-factor (default 0.5, the mid-surface).
+   * @param kFactor - the K-factor to use for the bend allowance.
+   * @returns a new `ForeignSolidHandle` with the K-factor applied.
+   */
+  kFactor(kFactor: number): ForeignSolidHandle {
+    return new ForeignSolidHandle(this.solid, { ...this.opts, kFactor });
+  }
+
+  /**
+   * Detect geometry and flatten into a developed flat pattern + report + warnings.
+   * @returns the `UnfoldResult` with the detected flat pattern, report, and any warnings.
+   */
+  unfold(): UnfoldResult {
+    return unwrapOrThrow(unfoldSolid(this.solid, this.opts));
+  }
+
+  /**
+   * Just the flat pattern from the detected unfold.
+   * @returns the developed `FlatPattern`.
+   */
+  flatPattern(): FlatPattern {
+    return this.unfold().pattern;
+  }
+
+  /**
+   * Annotated multi-layer DXF of the developed flat pattern.
+   * @param options - optional DXF output options (layers, precision, units).
+   * @returns the DXF text of the developed flat pattern.
+   */
+  dxf(options?: DxfOptions): string {
+    return unwrapOrThrow(toDXF(this.flatPattern(), options));
+  }
+}
+
+/** Authoring builder — accumulates the base/flanges/material spec, then folds. */
+class SheetMetalBuilder {
+  private built?: SheetMetalPartHandle;
+
+  constructor(private readonly spec: AuthorSpec) {}
+
+  /**
+   * Add a flange folded off its parent edge (the base by default).
+   * @param flange - the flange definition to add.
+   * @returns a new `SheetMetalBuilder` with the flange appended to the spec.
+   */
+  flange(flange: FlangeSpec): SheetMetalBuilder {
+    return new SheetMetalBuilder({ ...this.spec, flanges: [...this.spec.flanges, flange] });
+  }
+
+  /**
+   * Add a seam closing a profile into a tube/box (left unfolded).
+   * @param seam - the seam definition to add.
+   * @returns a new `SheetMetalBuilder` with the seam appended to the spec.
+   */
+  seam(seam: SeamSpec): SheetMetalBuilder {
+    return new SheetMetalBuilder({ ...this.spec, seams: [...(this.spec.seams ?? []), seam] });
+  }
+
+  /**
+   * Set the part material (its thickness/default rule).
+   * @param material - the material definition (thickness / default rule).
+   * @returns a new `SheetMetalBuilder` with the material set.
+   */
+  material(material: MaterialSpec): SheetMetalBuilder {
+    return new SheetMetalBuilder({ ...this.spec, material });
+  }
+
+  /**
+   * Fold the accumulated spec into a 3D part, re-entering the fluent chain.
+   * Memoized so chaining multiple terminal shortcuts (e.g. `unfold()` then
+   * `report()`) authors the solid only once.
+   * @returns a `SheetMetalPartHandle` for the folded part, memoized across calls.
+   */
+  build(): SheetMetalPartHandle {
+    this.built ??= new SheetMetalPartHandle(unwrapOrThrow(author(this.spec)));
+    return this.built;
+  }
+
+  // ----- part-consuming shortcuts (build then delegate) -----
+
+  /**
+   * Build the part and cut it by an oriented plane, removing material on the `+normal` side.
+   * @param plane - the oriented cutting plane; material on the plane's `+normal` side is removed.
+   * @returns a `SheetMetalPartHandle` carrying the mitered part.
+   */
+  miter(plane: MiterPlane): SheetMetalPartHandle {
+    return this.build().miter(plane);
+  }
+
+  /**
+   * Build the part and auto-miter the shared corner of two flanges with an optional gap.
+   * @param flangeIdA - id of the first flange meeting at the corner.
+   * @param flangeIdB - id of the second flange meeting at the corner.
+   * @param gap - optional gap (in millimetres) left between the two mitered edges; defaults to 0.
+   * @returns a `SheetMetalPartHandle` carrying the part with the corner mitered.
+   */
+  miterCorner(flangeIdA: string, flangeIdB: string, gap = 0): SheetMetalPartHandle {
+    return this.build().miterCorner(flangeIdA, flangeIdB, gap);
+  }
+
+  /**
+   * Build the part and add a bend relief at each mid-edge end of a partial flange's bend line.
+   * @param flangeId - id of the partial flange whose bend-line ends get the relief.
+   * @param spec - optional relief specification overriding the defaults.
+   * @returns a `SheetMetalPartHandle` carrying the part with the relief added.
+   */
+  bendRelief(flangeId: string, spec?: ReliefSpec): SheetMetalPartHandle {
+    return this.build().bendRelief(flangeId, spec);
+  }
+
+  /**
+   * Build the part and add a bend relief to every partial-span bend.
+   * @param spec - optional relief specification applied to every partial bend.
+   * @returns a `SheetMetalPartHandle` carrying the part with all reliefs added.
+   */
+  autoReliefs(spec?: ReliefSpec): SheetMetalPartHandle {
+    return this.build().autoReliefs(spec);
+  }
+
+  /**
+   * Build the part and cut a corner relief notch at the shared corner of two adjacent flanges.
+   * @param flangeIdA - id of the first flange forming the corner.
+   * @param flangeIdB - id of the second flange forming the corner.
+   * @param spec - optional relief specification overriding the defaults.
+   * @returns a `SheetMetalPartHandle` carrying the part with the corner relief added.
+   */
+  cornerRelief(flangeIdA: string, flangeIdB: string, spec?: ReliefSpec): SheetMetalPartHandle {
+    return this.build().cornerRelief(flangeIdA, flangeIdB, spec);
+  }
+
+  /**
+   * Build the part and punch a cutout (hole / slot / polygon) through a named flat region.
+   * @param spec - the cutout definition (kind, geometry, and target region).
+   * @returns a `SheetMetalPartHandle` carrying the part with the cutout punched.
+   */
+  cutout(spec: CutoutSpec): SheetMetalPartHandle {
+    return this.build().cutout(spec);
+  }
+
+  /**
+   * Build the part and punch a circular hole of `diameter` centred at region-local `(x, y)`.
+   * @param region - name of the flat region the hole is punched through.
+   * @param x - region-local X of the hole centre.
+   * @param y - region-local Y of the hole centre.
+   * @param diameter - hole diameter.
+   * @returns a `SheetMetalPartHandle` carrying the part with the hole punched.
+   */
+  hole(region: string, x: number, y: number, diameter: number): SheetMetalPartHandle {
+    return this.build().hole(region, x, y, diameter);
+  }
+
+  /**
+   * Build the part and punch a slot (rectangular or obround) centred at region-local `(x, y)`.
+   * @param region - name of the flat region the slot is punched through.
+   * @param opts - slot geometry: centre `(x, y)`, `length`, `width`, optional `angleDeg` rotation, and `round` ends flag.
+   * @returns a `SheetMetalPartHandle` carrying the part with the slot punched.
+   */
+  slot(
+    region: string,
+    opts: { x: number; y: number; length: number; width: number; angleDeg?: number; round?: boolean }
+  ): SheetMetalPartHandle {
+    return this.build().slot(region, opts);
+  }
+
+  /**
+   * Build the part and punch an arbitrary polygon cutout from its region-local `points`.
+   * @param region - name of the flat region the polygon is punched through.
+   * @param points - region-local polygon vertices as `[x, y]` pairs.
+   * @returns a `SheetMetalPartHandle` carrying the part with the polygon cutout.
+   */
+  polygonCutout(region: string, points: [number, number][]): SheetMetalPartHandle {
+    return this.build().polygonCutout(region, points);
+  }
+
+  /**
+   * Build the part and fuse a rectangular tab (additive protrusion) onto a region's edge.
+   * @param spec - tab definition: edge, width, and length.
+   * @returns a `SheetMetalPartHandle` carrying the part with the tab added.
+   */
+  tab(spec: TabSpec): SheetMetalPartHandle {
+    return this.build().tab(spec);
+  }
+
+  /**
+   * Build the part and add a self-fixturing tab-and-slot joint across two regions.
+   * @param tab - the tab to add to the first region.
+   * @param slot - placement of the matching slot on the second region.
+   * @returns a `SheetMetalPartHandle` carrying the part with the joint added.
+   */
+  tabAndSlot(tab: TabSpec, slot: SlotPlacement): SheetMetalPartHandle {
+    return this.build().tabAndSlot(tab, slot);
+  }
+
+  /**
+   * Build the part and form a louver (vent flap) on a region.
+   * @param opts - louver geometry: target `region`, centre `(x, y)`, `length`, `width`, `height`, and optional `direction`.
+   * @returns a `SheetMetalPartHandle` carrying the part with the louver formed.
+   */
+  louver(opts: {
+    region: string;
+    x: number;
+    y: number;
+    length: number;
+    width: number;
+    height: number;
+    direction?: 'up' | 'down';
+  }): SheetMetalPartHandle {
+    return this.build().louver(opts);
+  }
+
+  /**
+   * Build the part and form a round emboss (raised) or dimple (recessed) on a region.
+   * @param opts - emboss geometry: target `region`, centre `(x, y)`, `diameter`, `height`, and `kind` (`dimple` or `emboss`).
+   * @returns a `SheetMetalPartHandle` carrying the part with the form added.
+   */
+  emboss(opts: {
+    region: string;
+    x: number;
+    y: number;
+    diameter: number;
+    height: number;
+    kind: 'dimple' | 'emboss';
+  }): SheetMetalPartHandle {
+    return this.build().emboss(opts);
+  }
+
+  /**
+   * Build the part and author a contour flange (open line/arc profile swept along a base edge).
+   * @param spec - contour flange definition: profile, base edge, and bend parameters.
+   * @returns a `SheetMetalPartHandle` carrying the part with the contour flange added.
+   */
+  contourFlange(spec: ContourFlangeSpec): SheetMetalPartHandle {
+    return this.build().contourFlange(spec);
+  }
+
+  /**
+   * Build the part and author a lofted / ruled transition flange between two parallel open profiles.
+   * @param spec - lofted flange definition: the two open profiles and their alignment.
+   * @returns a `SheetMetalPartHandle` carrying the part with the lofted flange added.
+   */
+  loftedFlange(spec: LoftedFlangeSpec): SheetMetalPartHandle {
+    return this.build().loftedFlange(spec);
+  }
+
+  /**
+   * Build the part and fold a region edge back ~180°+ onto its parent as a hem.
+   * @param spec - hem definition: edge, curl radius, and return leg length.
+   * @returns a `SheetMetalPartHandle` carrying the part with the hem added.
+   */
+  hem(spec: HemSpec): SheetMetalPartHandle {
+    return this.build().hem(spec);
+  }
+
+  /**
+   * Build the part and step a region's flat by `offsetHeight` with two opposite bends (a jog/joggle).
+   * @param spec - jog definition: bend line, offset height, and radii.
+   * @returns a `SheetMetalPartHandle` carrying the part with the jog added.
+   */
+  jog(spec: JogSpec): SheetMetalPartHandle {
+    return this.build().jog(spec);
+  }
+
+  /**
+   * Build the part and flatten it into a developed flat pattern + bend report + warnings.
+   * @returns the `UnfoldResult` with the flat pattern, bend report, and any warnings.
+   */
+  unfold(): UnfoldResult {
+    return this.build().unfold();
+  }
+
+  /**
+   * Build the part and produce the bend report from its feature tree.
+   * @returns the `BendReport` describing every bend in the part.
+   */
+  report(): BendReport {
+    return this.build().report();
+  }
+
+  /**
+   * Build the part and emit an annotated multi-layer DXF of its developed flat pattern.
+   * @param options - optional DXF output options (layers, precision, units).
+   * @returns the DXF text of the developed flat pattern.
+   */
+  dxf(options?: DxfOptions): string {
+    return this.build().dxf(options);
+  }
+
+  /**
+   * Build the part and run manufacturability checks (advisory, never throws).
+   * @returns the list of `SheetMetalWarning`s (empty when the part is manufacturable).
+   */
+  validate(): SheetMetalWarning[] {
+    return this.build().validate();
+  }
+
+  /**
+   * Build the part and return it (escape hatch back to the functional API).
+   * @returns the underlying `SheetMetalPart`.
+   */
+  get(): SheetMetalPart {
+    return this.build().get();
+  }
+}
+
+/**
+ * Start a fluent sheet-metal chain from a base flat (`length × width`).
+ * @param base - the base flat definition (length × width).
+ * @param thickness - the sheet material thickness in millimetres.
+ * @returns a `SheetMetalBuilder` ready for authoring steps like `flange`/`seam`/`material`.
+ */
+export function sheetMetal(base: BaseFlatSpec, thickness: number): SheetMetalBuilder {
+  return new SheetMetalBuilder({ thickness, base, flanges: [] });
+}
+
+/**
+ * Re-enter the fluent chain from an already-authored part.
+ * @param part - an authored sheet-metal part to operate on.
+ * @returns a `SheetMetalPartHandle` wrapping the part.
+ */
+export function fromPart(part: SheetMetalPart): SheetMetalPartHandle {
+  return new SheetMetalPartHandle(part);
+}
+
+/**
+ * Fold a flat pattern up into a part and re-enter the fluent chain.
+ * @param input - the flat pattern (region tree) to fold up.
+ * @returns a `SheetMetalPartHandle` carrying the folded part.
+ */
+export function foldFlat(input: FlatInput): SheetMetalPartHandle {
+  return new SheetMetalPartHandle(unwrapOrThrow(fold(input)));
+}
+
+/**
+ * Detect and unfold an imported foreign sheet-metal solid (no feature tree).
+ * @param solid - the imported solid (B-rep) to unfold.
+ * @param opts - optional overrides; `opts.kFactor` sets the K-factor used for the bend allowance.
+ * @returns a `ForeignSolidHandle` for detecting and unfolding the solid.
+ */
+export function fromSolid(solid: Solid, opts?: { kFactor?: number }): ForeignSolidHandle {
+  return new ForeignSolidHandle(solid, opts);
+}
+
+export { SheetMetalBuilder, SheetMetalPartHandle, ForeignSolidHandle };
