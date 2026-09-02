@@ -2212,4 +2212,179 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   {
     name: 'validSolid', source: 'core/shapeTypes.js#validSolid', kind: 'skip', module: 'core', reason: 'Solid → ValidSolid 判别包装（KernelShape），skip',
   },
+
+  // ──── P14 batch 10：sketching 模块（52 = 3 type + 1 pure + 1 brep-op + 47 skip）────
+  // sketching 是 brepjs 的「状态化草图 DSL」层：Sketcher/Sketch/Sketches/FaceSketcher/
+  // CompoundSketch 类 + draw*/drawing*/sketch*/compoundSketch* 函数全部消费 brepjs 内部
+  // 草图状态对象（内部持有 kernel 引用/草绘平面），faijs 面以 cad 命名空间的声明式 op
+  // 表达建模，不暴露草图 DSL 状态机 —— 整层除下列 5 个符号外登记 skip。
+  // 保留：Drawing/DrawingPen/SketchInterface 类型 re-export（TS 消费方类型面需要）；
+  // polysideInnerRadius（纯正多边形内径计算，无 kernel/Shape）；makeBaseBox（纯数值
+  // 构造 → Shape3D，brep-op 构造类，与 torus 同款模板）。
+
+  // 3 × type
+  {
+    name: 'Drawing', source: 'sketching/drawing.js#Drawing', kind: 'type', module: 'sketching',
+  },
+  {
+    name: 'DrawingPen', source: 'sketching/drawingPen.js#DrawingPen', kind: 'type', module: 'sketching',
+  },
+  {
+    name: 'SketchInterface', source: 'sketching/sketch.js#SketchInterface', kind: 'type', module: 'sketching',
+  },
+  // 1 × pure
+  {
+    name: 'polysideInnerRadius', source: 'sketching/cannedSketches.js#polysideInnerRadius', kind: 'pure', module: 'sketching', reason: '正多边形内径计算（纯数学，无 kernel/Shape）',
+  },
+  // 1 × brep-op（构造类：纯数值参数 → Shape3D，无几何输入）
+  {
+    name: 'makeBaseBox', source: 'sketching/shortcuts.js#makeBaseBox', kind: 'brep-op', module: 'sketching',
+    args: '(xLength: number, yLength: number, zLength: number) -> Shape3D',
+    consumes: 'none',
+    geometryArgs: [],
+    returnsResult: false,
+  },
+
+  // 47 × skip（状态化草图/绘图 DSL 族）
+  {
+    name: 'sketchCircle', source: 'sketching/cannedSketches.js#sketchCircle', kind: 'skip', module: 'sketching', reason: '状态化草图 DSL（返回 Sketch 状态对象），skip',
+  },
+  {
+    name: 'sketchEllipse', source: 'sketching/cannedSketches.js#sketchEllipse', kind: 'skip', module: 'sketching', reason: '状态化草图 DSL，skip',
+  },
+  {
+    name: 'sketchFaceOffset', source: 'sketching/cannedSketches.js#sketchFaceOffset', kind: 'skip', module: 'sketching', reason: '状态化草图 DSL（Face 偏移），skip',
+  },
+  {
+    name: 'sketchHelix', source: 'sketching/cannedSketches.js#sketchHelix', kind: 'skip', module: 'sketching', reason: '状态化草图 DSL，skip',
+  },
+  {
+    name: 'sketchParametricFunction', source: 'sketching/cannedSketches.js#sketchParametricFunction', kind: 'skip', module: 'sketching', reason: '状态化草图 DSL，skip',
+  },
+  {
+    name: 'sketchPolysides', source: 'sketching/cannedSketches.js#sketchPolysides', kind: 'skip', module: 'sketching', reason: '状态化草图 DSL，skip',
+  },
+  {
+    name: 'sketchRectangle', source: 'sketching/cannedSketches.js#sketchRectangle', kind: 'skip', module: 'sketching', reason: '状态化草图 DSL，skip',
+  },
+  {
+    name: 'sketchRoundedRectangle', source: 'sketching/cannedSketches.js#sketchRoundedRectangle', kind: 'skip', module: 'sketching', reason: '状态化草图 DSL，skip',
+  },
+  {
+    name: 'CompoundSketch', source: 'sketching/compoundSketch.js#CompoundSketch', kind: 'skip', module: 'sketching', reason: '复合草图状态类（kernel 引用），skip',
+  },
+  {
+    name: 'drawFaceOutline', source: 'sketching/draw3d.js#drawFaceOutline', kind: 'skip', module: 'sketching', reason: '3D 面轮廓绘制 DSL，skip',
+  },
+  {
+    name: 'drawProjection', source: 'sketching/draw3d.js#drawProjection', kind: 'skip', module: 'sketching', reason: '投影绘制 DSL，skip',
+  },
+  {
+    name: 'drawingChamfer', source: 'sketching/drawFns.js#drawingChamfer', kind: 'skip', module: 'sketching', reason: '绘图 DSL 变换（Drawing 状态对象），skip',
+  },
+  {
+    name: 'drawingCut', source: 'sketching/drawFns.js#drawingCut', kind: 'skip', module: 'sketching', reason: '绘图 DSL 布尔（Drawing 状态对象），skip',
+  },
+  {
+    name: 'drawingFillet', source: 'sketching/drawFns.js#drawingFillet', kind: 'skip', module: 'sketching', reason: '绘图 DSL 变换（Drawing 状态对象），skip',
+  },
+  {
+    name: 'drawingFuse', source: 'sketching/drawFns.js#drawingFuse', kind: 'skip', module: 'sketching', reason: '绘图 DSL 布尔（Drawing 状态对象），skip',
+  },
+  {
+    name: 'drawingIntersect', source: 'sketching/drawFns.js#drawingIntersect', kind: 'skip', module: 'sketching', reason: '绘图 DSL 布尔（Drawing 状态对象），skip',
+  },
+  {
+    name: 'drawingToSketchOnPlane', source: 'sketching/drawFns.js#drawingToSketchOnPlane', kind: 'skip', module: 'sketching', reason: 'Drawing → Sketch 状态迁移，skip',
+  },
+  {
+    name: 'mirrorDrawing', source: 'sketching/drawFns.js#mirrorDrawing', kind: 'skip', module: 'sketching', reason: '绘图 DSL 变换（Drawing 状态对象），skip',
+  },
+  {
+    name: 'rotateDrawing', source: 'sketching/drawFns.js#rotateDrawing', kind: 'skip', module: 'sketching', reason: '绘图 DSL 变换（Drawing 状态对象），skip',
+  },
+  {
+    name: 'scaleDrawing', source: 'sketching/drawFns.js#scaleDrawing', kind: 'skip', module: 'sketching', reason: '绘图 DSL 变换（Drawing 状态对象），skip',
+  },
+  {
+    name: 'translateDrawing', source: 'sketching/drawFns.js#translateDrawing', kind: 'skip', module: 'sketching', reason: '绘图 DSL 变换（Drawing 状态对象），skip',
+  },
+  {
+    name: 'deserializeDrawing', source: 'sketching/drawing.js#deserializeDrawing', kind: 'skip', module: 'sketching', reason: '绘图序列化重建（状态对象），skip',
+  },
+  {
+    name: 'drawCircle', source: 'sketching/drawingFactories.js#drawCircle', kind: 'skip', module: 'sketching', reason: '绘图工厂 DSL（Drawing 状态对象），skip',
+  },
+  {
+    name: 'drawEllipse', source: 'sketching/drawingFactories.js#drawEllipse', kind: 'skip', module: 'sketching', reason: '绘图工厂 DSL（Drawing 状态对象），skip',
+  },
+  {
+    name: 'drawParametricFunction', source: 'sketching/drawingFactories.js#drawParametricFunction', kind: 'skip', module: 'sketching', reason: '绘图工厂 DSL，skip',
+  },
+  {
+    name: 'drawPointsInterpolation', source: 'sketching/drawingFactories.js#drawPointsInterpolation', kind: 'skip', module: 'sketching', reason: '绘图工厂 DSL，skip',
+  },
+  {
+    name: 'drawPolysides', source: 'sketching/drawingFactories.js#drawPolysides', kind: 'skip', module: 'sketching', reason: '绘图工厂 DSL，skip',
+  },
+  {
+    name: 'drawRectangle', source: 'sketching/drawingFactories.js#drawRectangle', kind: 'skip', module: 'sketching', reason: '绘图工厂 DSL，skip',
+  },
+  {
+    name: 'drawRoundedRectangle', source: 'sketching/drawingFactories.js#drawRoundedRectangle', kind: 'skip', module: 'sketching', reason: '绘图工厂 DSL，skip',
+  },
+  {
+    name: 'drawSingleCircle', source: 'sketching/drawingFactories.js#drawSingleCircle', kind: 'skip', module: 'sketching', reason: '绘图工厂 DSL，skip',
+  },
+  {
+    name: 'drawSingleEllipse', source: 'sketching/drawingFactories.js#drawSingleEllipse', kind: 'skip', module: 'sketching', reason: '绘图工厂 DSL，skip',
+  },
+  {
+    name: 'drawText', source: 'sketching/drawingFactories.js#drawText', kind: 'skip', module: 'sketching', reason: '文本绘制 DSL，skip',
+  },
+  {
+    name: 'draw', source: 'sketching/drawingPen.js#draw', kind: 'skip', module: 'sketching', reason: 'DrawingPen 状态入口（段落累积），skip',
+  },
+  {
+    name: 'FaceSketcher', source: 'sketching/faceSketcher.js#FaceSketcher', kind: 'skip', module: 'sketching', reason: '面上草图状态类（kernel Face 引用），skip',
+  },
+  {
+    name: 'Sketch', source: 'sketching/sketch.js#Sketch', kind: 'skip', module: 'sketching', reason: '草图状态类（kernel 草绘平面），skip',
+  },
+  {
+    name: 'compoundSketchExtrude', source: 'sketching/sketchFns.js#compoundSketchExtrude', kind: 'skip', module: 'sketching', reason: '草图状态拉伸（CompoundSketch 入参），skip',
+  },
+  {
+    name: 'compoundSketchFace', source: 'sketching/sketchFns.js#compoundSketchFace', kind: 'skip', module: 'sketching', reason: '草图状态取面（CompoundSketch 入参），skip',
+  },
+  {
+    name: 'compoundSketchLoft', source: 'sketching/sketchFns.js#compoundSketchLoft', kind: 'skip', module: 'sketching', reason: '草图状态放样（CompoundSketch 入参），skip',
+  },
+  {
+    name: 'compoundSketchRevolve', source: 'sketching/sketchFns.js#compoundSketchRevolve', kind: 'skip', module: 'sketching', reason: '草图状态旋转（CompoundSketch 入参），skip',
+  },
+  {
+    name: 'sketchExtrude', source: 'sketching/sketchFns.js#sketchExtrude', kind: 'skip', module: 'sketching', reason: '草图状态拉伸（Sketch 入参），skip',
+  },
+  {
+    name: 'sketchFace', source: 'sketching/sketchFns.js#sketchFace', kind: 'skip', module: 'sketching', reason: '草图状态取面（Sketch 入参），skip',
+  },
+  {
+    name: 'sketchLoft', source: 'sketching/sketchFns.js#sketchLoft', kind: 'skip', module: 'sketching', reason: '草图状态放样（Sketch 数组入参），skip',
+  },
+  {
+    name: 'sketchRevolve', source: 'sketching/sketchFns.js#sketchRevolve', kind: 'skip', module: 'sketching', reason: '草图状态旋转（Sketch 入参），skip',
+  },
+  {
+    name: 'sketchSweep', source: 'sketching/sketchFns.js#sketchSweep', kind: 'skip', module: 'sketching', reason: '草图状态扫掠（Sketch + spine），skip',
+  },
+  {
+    name: 'sketchWires', source: 'sketching/sketchFns.js#sketchWires', kind: 'skip', module: 'sketching', reason: '草图取线框（Sketch 入参），skip',
+  },
+  {
+    name: 'Sketcher', source: 'sketching/sketcher.js#Sketcher', kind: 'skip', module: 'sketching', reason: '草图 DSL 状态类（kernel 句柄），skip',
+  },
+  {
+    name: 'Sketches', source: 'sketching/sketches.js#Sketches', kind: 'skip', module: 'sketching', reason: '草图集合状态类（kernel 引用），skip',
+  },
 ]
