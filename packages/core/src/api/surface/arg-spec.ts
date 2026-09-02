@@ -582,4 +582,66 @@ export const ARG_SPEC: ArgSpecEntry[] = [
       '返回带状态链式的线框 finder 对象（builder DSL），同 createDistanceQuery 判例：' +
       'faijs 面无法静态建模，跳过（divergence）',
   },
+
+  // ──── P14 第四片：ns 模块（9 符号）────
+  // 9 个符号均为「命名空间对象」：vendored 根 barrel 以
+  // `export * as booleans from './ns/booleans.js'` 形式聚合子命名空间。
+  // surface 把每个 namespace 记为 value（file 指向子模块），但实际导出名来自
+  // 根 barrel 的 *-as 再导出，故 source 指向 `index.js#<name>`（子文件只有
+  // 逐名导出、无名空间值）。faijs 面以 `pure` 整包 re-export 该命名空间对象
+  // 即可——保持 brepjs 的组织形态（§5.2 pure 判据：纯导出、无 Shape 参数）。
+  {
+    name: 'booleans',
+    source: 'index.js#booleans',
+    kind: 'pure',
+    module: 'ns',
+  },
+  {
+    name: 'construction',
+    source: 'index.js#construction',
+    kind: 'pure',
+    module: 'ns',
+  },
+  {
+    name: 'io',
+    source: 'index.js#io',
+    kind: 'pure',
+    module: 'ns',
+  },
+  {
+    name: 'measurement',
+    source: 'index.js#measurement',
+    kind: 'pure',
+    module: 'ns',
+  },
+  {
+    name: 'modifiers',
+    source: 'index.js#modifiers',
+    kind: 'pure',
+    module: 'ns',
+  },
+  {
+    name: 'patterns',
+    source: 'index.js#patterns',
+    kind: 'pure',
+    module: 'ns',
+  },
+  {
+    name: 'primitives',
+    source: 'index.js#primitives',
+    kind: 'pure',
+    module: 'ns',
+  },
+  {
+    name: 'query',
+    source: 'index.js#query',
+    kind: 'pure',
+    module: 'ns',
+  },
+  {
+    name: 'transforms',
+    source: 'index.js#transforms',
+    kind: 'pure',
+    module: 'ns',
+  },
 ]
