@@ -1,0 +1,31 @@
+# Agent Note: API surface completion — P14 first slice (measurement module full projection, multi-module generator)
+
+Status: implemented
+
+English | [中文](2026-09-02-api-surface-p14-measurement-slice.zh.md)
+
+## Problem
+
+P13 proved the E5 generation mechanism on a 4-symbol sample slice, but the projection pipeline was single-module (`generate()` hard-coded `topology`), the query template only supported one geometry `Shape` argument, and no full module had been projected. P14's job is to expand the mechanism area by area: multi-module artifacts, a positional query template (multi-`Shape` / `Shape[]` / numeric passthrough), and a first fully-projected module as the pattern for every later batch (`operations`, `core`, `sketching`, `2d`, `io`, `gear`, `query`, `projection`, `text`).
+
+## Decision
+
+- **The generator is now multi-module.** `scripts/gen-l3-surface.ts` exposes a pure `generateModule(module)` (shared by CLI `main()` and the test) plus the backward-compatible `generate()` == `topology`. `PROJECTED_MODULES` drives `output/generated/<module>.ts` writes; each module is a slice of `ARG_SPEC` selected by an entry's `module` field (default `topology`, P13-compatible).
+- **The query template generalizes to positional arguments.** A query entry declares `queryParams` (faijs-facing name + type + optional + docs) and `geometryArgs` / `geometryCollectionArgs` (which positional indices are single faijs `Shape`s vs `Shape[]` arrays to be borrowed into brepjs handles). Non-geometry params (numbers, options) pass through untouched. The generated faijs signature mirrors the brepjs positions, and the caller-facing return type is annotated explicitly (`returnType`) to satisfy the export-JSDoc gate's `@param`/`@returns` requirement.
+- **First full-module slice = `measurement`** (21 unexcluded symbols, all data queries + types, no brep-op). `generated/measurement.ts` projects 8 type re-exports (`CurvatureResult`, `DistanceProps`, `InterferencePair`, `InterferenceResult`, `LinearProps`, `PhysicalProps`, `SurfaceProps`, `VolumeProps`) and 12 queries (`measure*`, `checkInterference`, `checkAllInterferences`), whose result `Result`s are unwrapped (err → throw) and whose array input (`checkAllInterferences`) is element-borrowed.
+- **One skip registered**: `createDistanceQuery` is declared `skip` + reason in arg-spec — it returns a stateful closure (`distanceTo`/`dispose`) that a static faijs function cannot model (needs a host adapter, not a pass-through projection).
+- **The adaptation table remains the single manual list.** No hand-written wrappers; every emitted line derives from `ARG_SPEC` (now prototyped for all modules). The sync guard in the extended `surface-mechanism.test.ts` iterates `PROJECTED_MODULES` and asserts `generateModule(m) ===` the committed `generated/<module>.ts` (drift fails), and each entry's emission shape matches its kind.
+- **Independence remains.** The new slice is **not** re-exported from `api/index.ts` / `api-namespace.ts` — wiring the export face is the P14/E12 terminal state; exposing it early would break the U7 key-set equality assertion (C).
+
+## Alternatives considered
+
+- **Project `operations` first (the plan's nominal first batch).** Rejected for the first slice: `operations` is the largest and mixes geometry ops, joints/history/assembly/IO semantics whose classification needs deferred arbitration per §5.2; `measurement` is a small, homogeneous, pure-query module — the right pilot to generalize the mechanism safely before the big modules.
+- **Keep `generate()` single-module, add `operations.ts` as the first artifact.** Rejected: the query position generalization (multi-`Shape`, arrays, numeric passthrough) is what the later batches need; validating it on `measurement` (which exercises both single- and double-`Shape` queries plus an array query) proves the template before the heavy modules.
+- **Put the skip (`createDistanceQuery`) into `upstream-exclusions.json`.** Rejected: it is not an upstream exclusion, it is a declared divergence in the projection layer; keeping it as `ARG_SPEC` kind `skip` with `reason` keeps it visible in the adapter table and reviewable with the rest of the batch.
+- **Add a runtime (OCCT-wasm) suite for measurement now.** Deferred exactly as in P13: runtime execution needs the full host wiring, which lands with the later P14 wiring point; the structural/sync gate is the contract for each batch, with runtime coverage accompanying that wiring.
+
+## Consequences
+
+- `generated/measurement.ts` compiles, passes the repo `export-jsdoc` run (+0 violations: templates emit explicit `@param`/`@returns`), the U8 branding guard is happy, and the full core suite (933 tests) is green; the gate's pre-existing 91-violation baseline (chiefly `packages/sheetmetal` JSDoc debt) is unchanged and orthogonal.
+- The first complete module demonstrates the slice discipline the remaining batches follow: pure-query/type modules need no brep-op-specific work; mixed modules (e.g. `operations`, `io`) reuse the same positional machinery plus their per-module arbitration (§5.2).
+- Progress is tracked in the plan (`P14` first-slice mark).

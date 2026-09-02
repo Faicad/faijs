@@ -1,11 +1,11 @@
 /**
- * generated/topology.ts — 生成文件，禁手改。
- * 由 packages/core/scripts/gen-l3-surface.ts 从 api/surface/arg-spec.ts 生成（E5/P13）。
- * topology 模块 4 个投影符号（ARG_SPEC 首批样本；全量在 P14 扩充）。
+ * generated/topology.ts — 生成文件，勿手改。
+ * 由 packages/core/scripts/gen-l3-surface.ts 依据 api/surface/arg-spec.ts 生成（E5/P14 分片）。
+ * topology 模块：4 个投影符号。
  */
 import { defineOp } from '../../sdk'
-import type { Shape } from '../../mesh/types'
 import { borrowBrepjsShape, adoptBrepjsProduct, callBrepjs } from '../internal/l3-bridge'
+import type { Shape } from '../../mesh/types'
 import { torus as __vendored_torus } from '../../vendored/brepjs/topology/primitiveFns.js'
 import { fuse as __vendored_fuse } from '../../vendored/brepjs/topology/booleanFns.js'
 import { getBounds as __vendored_getBounds } from '../../vendored/brepjs/topology/shapeFns.js'
@@ -43,14 +43,13 @@ export const fuse = defineOp({
 })
 
 /**
- * getBounds — brepjs 投影查询（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
+ * getBounds — 查询（返回纯数据，非 Shape）生成文件，勿手改；来源 api/surface/arg-spec.ts。
  * (shape: AnyShape) -> Bounds3D
- * 输入 faijs Shape 借入 brepjs handle，返回纯数据（consumes 语义由查询表达式承载）。
+ * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（consumes 语义由查询表达式承载）。
  *
- * @param shape - 被测量的 faijs Shape（其 brep 槽位被借入 vendored 树）。
- * @returns Bounds3D 纯数据结果（非 Shape，不进 defineOp）。
+ * @param shape - 可形状参数（原样透传）
+ * @returns Bounds3D — 纯数据结果（非 Shape）。
  */
 export function getBounds(shape: Shape): Bounds3D {
-  const g = borrowBrepjsShape(shape as Shape)
-  return __vendored_getBounds(g as never)
+  return callBrepjs(__vendored_getBounds, [borrowBrepjsShape(shape as Shape)])
 }

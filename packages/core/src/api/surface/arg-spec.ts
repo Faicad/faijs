@@ -34,11 +34,26 @@ export type ProjectionKind = 'brep-op' | 'query' | 'pure' | 'type' | 'skip'
 export type Consume = 'all' | 'none' | number[]
 
 /**
+ * faijs 面 query 形参描述（P14 机器签名：生成器按此产出函数签名 + JSDoc @param）。
+ * 几何位（geometryArgs 索引）在生成器处以 Shape 覆盖；数值/选项位用 `type` 字段原样声明。
+ */
+export interface QueryParam {
+  name: string
+  /** 非几何位的类型（如 `number`）；几何位由生成器覆写为 `Shape`。 */
+  type: string
+  /** 是否为可选参数（faijs 面签名 `?`），函数缺省值由 vendored 承担。 */
+  optional?: boolean
+  /** JSDoc 补充说明。 */
+  docs?: string
+}
+
+/**
  * 单条投影适配。
  *
- * - `name`   faijs 面导出名（= brepjs 符号名；同名冲突已在 §5.1 处置后由本表登记双形态或改名）。
+ * - `name`   faijs 面导出名（= brepjs 符号名；同名冲突已在 §5.1 处置后，寻表登记双形态或改名）。
  * - `source` vendored 树内的来源符号，`<相对 vendored 根的模块路径>#<导出名>`（默认同名）。
  * - `kind`   投影类别（见文件头）。
+ * - `module` 分片归属（缺省 'topology'，P13 兼容；P14 起逐模块登记）。
  * - `args`   brep-op/query：调用约定描述，供生成器产出 JSDoc 与 normalizeArgs 占位；
  *            type/pure：无需 args（直接 re-export）。
  * - `consumes` brep-op/query 的 defineOp consumes 声明；缺省 'all'（构造类显式 'none'）。
@@ -47,7 +62,9 @@ export interface ArgSpecEntry {
   name: string
   source: string
   kind: ProjectionKind
-  /** Human-readable call shape for generated JSDoc; machine mapping lands in P14. */
+  /** 分片归属模块（缺省 'topology'）。 */
+  module?: string
+  /** Human-readable call shape for generated JSDoc. */
   args?: string
   consumes?: Consume
   /** For kind 'skip': divergence reason (must be non-empty, §8 O4). */
@@ -60,8 +77,14 @@ export interface ArgSpecEntry {
    * untouched (numbers / option objects are value params).
    */
   geometryArgs?: number[]
+  /**
+   * P14: 几何数组位（query）——该索引是 Shape 数组形参，逐元素借入 brepjs handle。
+   */
+  geometryCollectionArgs?: number[]
   /** For brep-op/query: whether a bool `Result` must be unwrapped (err → throw). Default true for ops/query. */
   returnsResult?: boolean
+  /** P14: query 侧 faijs 面形参列表（without the case for pure/type；brep-op 保持位置透传 `...args`）。 */
+  queryParams?: QueryParam[]
   /** For query only: the vendored return type name (re-exportable from the entry's module) so the generated function can annotate its return type (the export-JSDoc gate requires an explicit annotation + @returns). */
   returnType?: string
 }
@@ -106,5 +129,222 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     geometryArgs: [0],
     returnsResult: false,
     returnType: 'Bounds3D',
+  },
+
+  // ──── P14 第一片：measurement 模块（21 符号，全 query/type，无 brep-op）────
+  // 归属模块 measurement：产物 api/generated/measurement.ts。
+  // 说明：测量模块全部符号都是「Shape 进 → 纯数据出」的无副作用查询；唯一例外
+  // createDistanceQuery（状态化查询工具，闭包引用外部 referenceShape，faijs 面无法
+  // 静态建模，登记 skip）。type 侧 8 个类型全部 re-export；query 侧返回类型由生成器
+  // `import type` 引入（CurvatureResult 等来自 measureFns / interferenceFns）。
+
+  // 8 × type 基础设施
+  {
+    name: 'CurvatureResult',
+    source: 'measurement/measureFns.js#CurvatureResult',
+    kind: 'type',
+    module: 'measurement',
+  },
+  {
+    name: 'DistanceProps',
+    source: 'measurement/measureFns.js#DistanceProps',
+    kind: 'type',
+    module: 'measurement',
+  },
+  {
+    name: 'InterferencePair',
+    source: 'measurement/interferenceFns.js#InterferencePair',
+    kind: 'type',
+    module: 'measurement',
+  },
+  {
+    name: 'InterferenceResult',
+    source: 'measurement/interferenceFns.js#InterferenceResult',
+    kind: 'type',
+    module: 'measurement',
+  },
+  {
+    name: 'LinearProps',
+    source: 'measurement/measureFns.js#LinearProps',
+    kind: 'type',
+    module: 'measurement',
+  },
+  {
+    name: 'PhysicalProps',
+    source: 'measurement/measureFns.js#PhysicalProps',
+    kind: 'type',
+    module: 'measurement',
+  },
+  {
+    name: 'SurfaceProps',
+    source: 'measurement/measureFns.js#SurfaceProps',
+    kind: 'type',
+    module: 'measurement',
+  },
+  {
+    name: 'VolumeProps',
+    source: 'measurement/measureFns.js#VolumeProps',
+    kind: 'type',
+    module: 'measurement',
+  },
+  // 1 × skip（状态化查询工具）
+  {
+    name: 'createDistanceQuery',
+    source: 'measurement/measureFns.js#createDistanceQuery',
+    kind: 'skip',
+    module: 'measurement',
+    reason:
+      '状态化查询工具：返回带闭包引用（distanceTo/dispose）的 brep 距离工具，faijs 面' +
+      '无法静态建模（查询对象生命周期 + 后续 Shape 参数逐次借入）；跳过，待宿主适配器手工实现',
+  },
+  // 12 × query（volume / area / length / distance / curvature / interference）
+  {
+    name: 'measureVolumeProps',
+    source: 'measurement/measureFns.js#measureVolumeProps',
+    kind: 'query',
+    module: 'measurement',
+    args: '(shape: Shape3D) -> Result<VolumeProps>',
+    geometryArgs: [0],
+    returnsResult: true,
+    returnType: 'VolumeProps',
+  },
+  {
+    name: 'measureSurfaceProps',
+    source: 'measurement/measureFns.js#measureSurfaceProps',
+    kind: 'query',
+    module: 'measurement',
+    args: '(shape: Face | Shape3D) -> Result<SurfaceProps>',
+    geometryArgs: [0],
+    returnsResult: true,
+    returnType: 'SurfaceProps',
+  },
+  {
+    name: 'measureLinearProps',
+    source: 'measurement/measureFns.js#measureLinearProps',
+    kind: 'query',
+    module: 'measurement',
+    args: '(shape: AnyShape) -> Result<LinearProps>',
+    geometryArgs: [0],
+    returnsResult: true,
+    returnType: 'LinearProps',
+  },
+  {
+    name: 'measureVolume',
+    source: 'measurement/measureFns.js#measureVolume',
+    kind: 'query',
+    module: 'measurement',
+    args: '(shape: Shape3D) -> Result<number>',
+    geometryArgs: [0],
+    returnsResult: true,
+    returnType: 'number',
+  },
+  {
+    name: 'measureArea',
+    source: 'measurement/measureFns.js#measureArea',
+    kind: 'query',
+    module: 'measurement',
+    args: '(shape: Face | Shape3D) -> Result<number>',
+    geometryArgs: [0],
+    returnsResult: true,
+    returnType: 'number',
+  },
+  {
+    name: 'measureLength',
+    source: 'measurement/measureFns.js#measureLength',
+    kind: 'query',
+    module: 'measurement',
+    args: '(shape: AnyShape) -> Result<number>',
+    geometryArgs: [0],
+    returnsResult: true,
+    returnType: 'number',
+  },
+  {
+    name: 'measureDistance',
+    source: 'measurement/measureFns.js#measureDistance',
+    kind: 'query',
+    module: 'measurement',
+    args: '(a: AnyShape, b: AnyShape) -> Result<number>',
+    consumes: 'none',
+    geometryArgs: [0, 1],
+    queryParams: [
+      { name: 'a', type: 'Shape', docs: '第一个被查询形状' },
+      { name: 'b', type: 'Shape', docs: '第二个被查询形状' },
+    ],
+    returnsResult: true,
+    returnType: 'number',
+  },
+  {
+    name: 'measureDistanceProps',
+    source: 'measurement/measureFns.js#measureDistanceProps',
+    kind: 'query',
+    module: 'measurement',
+    args: '(a: AnyShape, b: AnyShape) -> Result<DistanceProps>',
+    consumes: 'none',
+    geometryArgs: [0, 1],
+    queryParams: [
+      { name: 'a', type: 'Shape', docs: '第一个被查询形状' },
+      { name: 'b', type: 'Shape', docs: '第二个被查询形状' },
+    ],
+    returnsResult: true,
+    returnType: 'DistanceProps',
+  },
+  {
+    name: 'measureCurvatureAt',
+    source: 'measurement/measureFns.js#measureCurvatureAt',
+    kind: 'query',
+    module: 'measurement',
+    args: '(face: OrientedFace, u: number, v: number) -> Result<CurvatureResult>',
+    consumes: 'none',
+    geometryArgs: [0],
+    queryParams: [
+      { name: 'face', type: 'Shape', docs: '被查询的曲面/面' },
+      { name: 'u', type: 'number', docs: '参数域 u' },
+      { name: 'v', type: 'number', docs: '参数域 v' },
+    ],
+    returnsResult: true,
+    returnType: 'CurvatureResult',
+  },
+  {
+    name: 'measureCurvatureAtMid',
+    source: 'measurement/measureFns.js#measureCurvatureAtMid',
+    kind: 'query',
+    module: 'measurement',
+    args: '(face: Face) -> Result<CurvatureResult>',
+    consumes: 'none',
+    geometryArgs: [0],
+    returnsResult: true,
+    returnType: 'CurvatureResult',
+  },
+  {
+    name: 'checkInterference',
+    source: 'measurement/interferenceFns.js#checkInterference',
+    kind: 'query',
+    module: 'measurement',
+    args: '(a: AnyShape, b: AnyShape, tolerance?: number) -> Result<InterferenceResult>',
+    consumes: 'none',
+    geometryArgs: [0, 1],
+    queryParams: [
+      { name: 'a', type: 'Shape', docs: '第一个形状' },
+      { name: 'b', type: 'Shape', docs: '第二个形状' },
+      { name: 'tolerance', type: 'number', optional: true, docs: '干涉距离阈值（缺省 1e-6）' },
+    ],
+    returnsResult: true,
+    returnType: 'InterferenceResult',
+  },
+  {
+    name: 'checkAllInterferences',
+    source: 'measurement/interferenceFns.js#checkAllInterferences',
+    kind: 'query',
+    module: 'measurement',
+    args: '(shapes: AnyShape[], tolerance?: number) -> InterferencePair[]',
+    consumes: 'none',
+    // 数组输入：geometryCollectionArgs 索引对应的 Shape 数组逐元素借入 brepjs handle。
+    geometryCollectionArgs: [0],
+    queryParams: [
+      { name: 'shapes', type: 'Shape[]', docs: '成对检测的形状数组' },
+      { name: 'tolerance', type: 'number', optional: true, docs: '干涉距离阈值（缺省 1e-6）' },
+    ],
+    returnsResult: false,
+    returnType: 'InterferencePair[]',
   },
 ]

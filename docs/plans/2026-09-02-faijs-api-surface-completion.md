@@ -1,7 +1,7 @@
 # faijs API 面补齐方案
 
 - 日期：2026-09-02
-- 状态：**方案（未实施）**
+- 状态：**实施中**（P10–P13 已落地；P14 分片推进中）
 - 前序：`docs/plans/2026-09-01-layered-api-architecture.md`（P0–P9 已落地；**方向被否决**，本方案重定方向并承接其全部可复用资产）
 - 参照实现：`C:\git\OpenCascade\brepjs`（Apache-2.0，`src` 83528 行 / 381 文件）
 
@@ -709,8 +709,8 @@ packages/core/src/
 | **P10c** | **`fillet` 直连 brepjs（D-FILLET，§5.1.1，实施中）**：faijs `{radius}` 形态已删除（步骤 1 ✅）；待导入 brepjs `modifierFns.ts:265` 全签名（`edges?` / `[r1,r2]` / per-edge 回调）+ 测试迁移 + 符号与 schema 重生成（先修 B1）。（`drill`→`fai_drill`、`extrude`→`fai_extrude`、`split`→`fai_split` 已落地，不在此期） | 低 | P10 |
 | **P11** | **去 brepjs 化（E6）**：删 core 的两条 `vendored` exports；清 86 处字面量（产物串、报错串优先）；mech-lib 重命名 + 改 import；守卫转绿 | 中（会打破 sheetmetal 的深导入 → 与 P15 联动，见 O2） | P10 |
 | **P12** | **vendored 补全（E7）**：搬 `ns/` 9 文件 + 根 barrel（**净 2405 行**，§2.2；`blueprintContourFns.ts` 226 行经 P12 拍板**连带排除**，U9-adjacent，§2.6.1 附注）；`@/` 别名沿用既有机制；upstream 自带测试跑通 + divergence 表登记（cut ×3：csg/blueprintToContour/BlueprintContourOptions）；**U9 边界守卫**落地（断言 `csg/`、`ns/csg.ts` 不存在） | 中 | P10 |
-| **P13** | **生成层（E5）+ 第一批投影**：写 `scripts/gen-l3-surface.ts` + 签名适配表；先投 `topology`（265 符号，最大块）；产物进 `api/generated/topology.ts` | **高**（机制验证点） | P11、P12 |
-| **P14** | **新增符号全量投影**：按模块分批（`operations` 122 → `core` 129 → `sketching` 51 → `2d` 37 → `io`/`measurement`/`gear`/`query`/`projection`/`text`）；每批跑 upstream 测试。**不含 §2.6 排除的四个模块** | 中 | P13 通过 |
+| **P13** | **生成层（E5）+ 第一批投影**：写 `scripts/gen-l3-surface.ts` + 签名适配表；先投 `topology`（265 符号，最大块）；产物进 `api/generated/topology.ts`。**✅ 已落地**（机制验证点通过：P13a 4 样本覆盖四类产出，commit 739e1a1） | **高**（机制验证点） | P11、P12 |
+| **P14** | **新增符号全量投影**：按模块分批（`operations` 122 → `core` 129 → `sketching` 51 → `2d` 37 → `io`/`measurement`/`gear`/`query`/`projection`/`text`）；每批跑 upstream 测试。**不含 §2.6 排除的四个模块**。**✅ 首片已落地**：`measurement`（20 投影符号 + 1 skip，全 query/type；生成器多模块化 + query 位置泛化） | 中 | P13 通过 |
 | **P14b** | **补 TPMS 模板（§2.6.4）**：`sdf/templates.ts` 增 `schwarzP` / `diamond` 两个模板（纯 JS，约 40 行），替代引入 `lattice/` 233 行 + Rust wasm 依赖 | 低 | P13 |
 | **P15** | **sheetmetal 迁移（E8）**：peerDeps 改 `@faicad/faijs`；34 处 compat import 改 `cad.*`；Result 消费点转 throw；删 `compat.ts`；227 个 `it` 保绿 | **高**（用户最关心的验证点） | P14 |
 | **P16** | **第三方库通道（E9）**：mech-lib 迁 L3；`registerLib` 版本协商与 L3 命名空间对齐；mech-lib 测试保绿 | 中 | P15 |
