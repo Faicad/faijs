@@ -21,7 +21,7 @@ import {
   type GrooveParams,
   type DowelOrTenonParams,
 } from './brepjs-mirror/joinery-brep'
-import { computeBasisFromNormal } from '../mesh/split'
+import { computeBasisFromNormal } from '../mesh/fai_split'
 import { getBackends } from '../runtime-state'
 import { solid, fromBrep, brepOf } from '../shape'
 import { defineOp } from '../sdk'
@@ -196,7 +196,7 @@ async function splitMeshPath(input: Shape, params: Record<string, unknown>): Pro
     ? [bboxSize[0] / scale![0], bboxSize[1] / scale![1], bboxSize[2] / scale![2]]
     : bboxSize
 
-  const result = await cad.splitWithParams({
+  const result = await cad.fai_splitWithParams({
     shape: input,
     cutMode: cutMode as 'plane' | 'dovetail' | 'dowel' | 'straight-tenon' | 'tenon' | 'straight',
     normal,
@@ -236,8 +236,8 @@ async function splitMeshPath(input: Shape, params: Record<string, unknown>): Pro
  * @inputs 1
  * @async true
  * @qual warn
- * @name split
- * @returns { front: Shape; back: Shape } 必须用解构 `const { front: partA, back: partB } = await cad.split(...)` 取出两个零件。
+ * @name fai_split
+ * @returns { front: Shape; back: Shape } 必须用解构 `const { front: partA, back: partB } = await cad.fai_split(...)` 取出两个零件。
  * @param input - 目标几何。type:Shape required:true
  * @param params.cutMode - 切割模式。type:'plane' | 'dovetail' | 'dowel' | 'tenon' | 'straight-tenon' | 'straight' 默认 'plane'
  * @param params.normal - 切割面法向。type:[x,y,z] 默认 [0,0,1]
@@ -262,9 +262,9 @@ async function splitMeshPath(input: Shape, params: Record<string, unknown>): Pro
  * @param params.selectedSections - 参与榫卯的截面下标。type:number[]
  * @note 切割面统一用 `normal`/`offset`/`inPlaneAngleDeg` 描述；早期文本层曾与执行层键名断裂（planeRotation/planePosition），已修并统一为上述键名。
  * @example
- * const { front: part1, back: part2 } = await cad.split(part0, { normal: [0, 0, 1], offset: 5, cutMode: 'dovetail', grooveDepth: 3, grooveWidth: 5 })
+ * const { front: part1, back: part2 } = await cad.fai_split(part0, { normal: [0, 0, 1], offset: 5, cutMode: 'dovetail', grooveDepth: 3, grooveWidth: 5 })
   */
-export const split = defineOp({
+export const fai_split = defineOp({
   mesh: (input: Shape, params: Record<string, unknown> = {}) => {
     if (!input) throw new Error('[stdlib/split] no input geometry')
     if (params.normal !== undefined && params.normal !== null) {

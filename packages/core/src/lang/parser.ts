@@ -1,4 +1,4 @@
-/**
+﻿/**
  * parser — 文本 → ScriptIR（合法 JS 子集，设计文档 §2）
  *
  * 执行模型：`.fai.js` 文本先用 acorn 解析（合法性证明 J-1），再 walk AST 还原为 ScriptIR。
@@ -1555,7 +1555,7 @@ export function parseScript(code: string, options?: ParseScriptOptions): ParseRe
             })
             paramNames.add(name)
             paramValues.set(name, value)
-            // F1：参数也可作为 input（cad.drill(p, {...})），加入 varToId 供输入/接收者解析
+            // F1：参数也可作为 input（cad.fai_drill(p, {...})），加入 varToId 供输入/接收者解析
             varToId.set(name, asPartName(name))
           } else {
             throw new ParseError(

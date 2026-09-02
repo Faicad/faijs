@@ -6,8 +6,8 @@
 
 import { describe, it, expect } from 'vitest'
 import { assertBoxParams, assertSphereParams, assertCylinderParams, assertConeParams, assertWedgeParams } from './primitives'
-import { assertDrillParams } from './drill'
-import { assertExtrudeParams } from './extrude'
+import { assertDrillParams } from './fai_drill'
+import { assertExtrudeParams } from './fai_extrude'
 import { assertEngraveParams } from './engrave'
 import { assertTranslateParams, assertRotateParams, assertScaleParams } from './transform'
 import { assertSdfParams } from './sdf'

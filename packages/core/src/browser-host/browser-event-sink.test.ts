@@ -1,4 +1,4 @@
-/**
+﻿/**
  * BrowserEventSink 测试
  *
  * 测试内容：
@@ -59,14 +59,14 @@ describe('BrowserEventSink', () => {
   it('dispatches "part-brep-lost" CustomEvent on window', () => {
     eventSink.emit('part-brep-lost', {
       partName: asPartName('part0'),
-      callee: 'drill',
+      callee: 'fai_drill',
       reason: 'no brep solid in chain',
     })
 
     expect(mockWindow.dispatchEvent).toHaveBeenCalledTimes(1)
     const event = mockWindow.dispatchEvent.mock.calls[0][0] as MockCustomEvent
     expect(event.type).toBe('part-brep-lost')
-    expect(event.detail.callee).toBe('drill')
+    expect(event.detail.callee).toBe('fai_drill')
     expect(event.detail.partName).toBe('part0')
     expect(event.detail.reason).toBe('no brep solid in chain')
   })
@@ -78,7 +78,7 @@ describe('BrowserEventSink', () => {
     expect(() => {
       eventSink.emit('part-brep-lost', {
         partName: asPartName('part0'),
-        callee: 'drill',
+        callee: 'fai_drill',
         reason: 'test',
       })
     }).not.toThrow()

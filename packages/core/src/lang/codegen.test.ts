@@ -1,10 +1,10 @@
-/**
+﻿/**
  * codegen 单元测试 — statementIRToLine / scriptIRToCode (Phase 3)
  *
  * Phase 3 命名规则：
  * - 单入单出 → 复用输入名，`let` 重赋值
  * - 无输入/单输出 → 新名 `partN`，`let` 首次声明
- * - split → `const { front: partN, back: partM } = cad.split(...)`
+ * - split → `const { front: partN, back: partM } = cad.fai_split(...)`
  * - group/assembly → `let partN = cad.group(...)`
  */
 
@@ -71,7 +71,7 @@ describe('codegen: statementIRToLine 钻孔 (Phase 3: 复用输入名)', () => {
   it('drill：IR 里有什么打印什么（A12 消灭默认值省略）', () => {
     const stmt = makeStmt({
       id: 's2',
-      callee: 'drill',
+      callee: 'fai_drill',
       args: {
         diameter: 5,
         depth: 0,
@@ -83,7 +83,7 @@ describe('codegen: statementIRToLine 钻孔 (Phase 3: 复用输入名)', () => {
       inputs: ['part0'],
       outputs: ['part0'],
     })
-    expect(statementIRToLine(stmt)).toBe("let part0 = cad.drill(part0, { diameter:5, depth:0, holeType:'simple', tolerance:0.3, position:[0,0,10], faceNormal:[0,0,1] })")
+    expect(statementIRToLine(stmt)).toBe("let part0 = cad.fai_drill(part0, { diameter:5, depth:0, holeType:'simple', tolerance:0.3, position:[0,0,10], faceNormal:[0,0,1] })")
   })
 })
 
@@ -128,13 +128,13 @@ describe('codegen: scriptIRToCode (Phase 3)', () => {
     const script = makeScript([
       makeStmt({ id: 's1', callee: 'box', args: { size: 20 }, outputs: ['part0'] }),
       makeStmt({ id: 's2', callee: 'translate', args: { offset: [0, 0, 5] }, inputs: ['part0'], outputs: ['part0'] }),
-      makeStmt({ id: 's3', callee: 'drill', args: { diameter: 5, depth: 0 }, inputs: ['part0'], outputs: ['part0'] }),
+      makeStmt({ id: 's3', callee: 'fai_drill', args: { diameter: 5, depth: 0 }, inputs: ['part0'], outputs: ['part0'] }),
     ])
     const code = scriptIRToCode(script)
     expect(code).toBe(
       'let part0 = cad.box({ size:20 })\n' +
       'part0 = cad.translate(part0, { offset:[0,0,5] })\n' +
-      'part0 = cad.drill(part0, { diameter:5, depth:0 })',
+      'part0 = cad.fai_drill(part0, { diameter:5, depth:0 })',
     )
   })
 
@@ -156,7 +156,7 @@ describe('codegen: scriptIRToCode (Phase 3)', () => {
 // ── 多 mesh：split 解构 ──
 
 describe('codegen: split 解构输出 (Phase 3)', () => {
-  it('多输出 split 输出 const { front: part1, back: part2 } = cad.split(...)', () => {
+  it('多输出 split 输出 const { front: part1, back: part2 } = cad.fai_split(...)', () => {
     const script: ScriptIR = {
       params: [],
       statements: [
@@ -164,7 +164,7 @@ describe('codegen: split 解构输出 (Phase 3)', () => {
         makeStmt({ id: 's2', callee: 'translate', args: { offset: [0, 0, 5] }, inputs: ['part0'], outputs: ['part0'] }),
         makeStmt({
           id: 's3',
-          callee: 'split',
+          callee: 'fai_split',
           args: { cutMode: 'plane', normal: [0, 0, 1], offset: 0, inPlaneAngleDeg: 0, side: 'front' },
           inputs: ['part0'],
           outputs: ['part1', 'part2'],
@@ -174,7 +174,7 @@ describe('codegen: split 解构输出 (Phase 3)', () => {
     }
     const code = scriptIRToCode(script)
     // 通用打印机：IR 里有什么打印什么（split 的 args 原样输出，不再省略）
-    expect(code).toContain('const { front: part1, back: part2 } = cad.split(part0, { cutMode:\'plane\', normal:[0,0,1], offset:0, inPlaneAngleDeg:0, side:\'front\' })')
+    expect(code).toContain('const { front: part1, back: part2 } = cad.fai_split(part0, { cutMode:\'plane\', normal:[0,0,1], offset:0, inPlaneAngleDeg:0, side:\'front\' })')
   })
 })
 
@@ -187,7 +187,7 @@ describe('codegen: 外部 st_ id 含冒号时报错', () => {
       statements: [
         makeStmt({
           id: 'st_front_1',
-          callee: 'split',
+          callee: 'fai_split',
           inputs: ['st_prim_panel_1:o1_1'],
           args: { normal: [0, 0, 1], offset: 0, inPlaneAngleDeg: 0, side: 'front', bbCenter: [0, 0, 0], bboxSize: [20, 20, 20] },
           outputs: ['part0', 'part1'],
@@ -204,7 +204,7 @@ describe('codegen: 值格式化', () => {
   it('CallRefIR → cad.faceCenter(of)', () => {
     const stmt = makeStmt({
       id: 's2',
-      callee: 'drill',
+      callee: 'fai_drill',
       args: {
         position: { $call: { callee: 'faceCenter', args: [{ $ref: 'part0' }] } },
         faceNormal: { $call: { callee: 'faceNormal', args: [{ $ref: 'part0' }] } },

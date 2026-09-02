@@ -1,4 +1,4 @@
-/**
+﻿/**
  * F1 — parser 黑名单化：表达式折叠 + 控制流错误码 + 往返稳定（normal-js-subset P1 验收）
  *
  * 设计文档：docs/plans/2026-08-29-faijs-near-term-landing-plan.md §4
@@ -6,7 +6,7 @@
  *
  * 验收判据（normal-js-subset §4 P1）：
  * - `cad.box({ size: base + 20 })`、`cad.box({ name: \`板-${n}\` })`、
- *   `cad.drill(p, { depth: flag ? 5 : 0 })` 全部通过 parse（编译期折叠为字面量）。
+ *   `cad.fai_drill(p, { depth: flag ? 5 : 0 })` 全部通过 parse（编译期折叠为字面量）。
  * - if/for/while/switch/try/动态 import() → 专用错误码 E_CONTROL_FLOW。
  * - 既有合法脚本 parse → codegen → parse 往返逐位相等（含新表达式形态，折叠后稳定）。
  */
@@ -41,12 +41,12 @@ describe('F1: 表达式折叠（parse 期静态求值为字面量）', () => {
     expect(script.statements[0].args.name).toBe('板-3')
   })
 
-  it('三元折叠：cad.drill(p, { depth: flag ? 5 : 0 }) → depth === 5（p 是参数 input）', () => {
+  it('三元折叠：cad.fai_drill(p, { depth: flag ? 5 : 0 }) → depth === 5（p 是参数 input）', () => {
     const code = [
       'const flag = true',
       'const p = [0, 0, 0]',
       'let part0 = cad.box({ size: 10 })',
-      'part0 = cad.drill(p, { depth: flag ? 5 : 0 })',
+      'part0 = cad.fai_drill(p, { depth: flag ? 5 : 0 })',
     ].join('\n')
     const { script } = parseScript(code)
     const drill = script.statements[1]
@@ -114,7 +114,7 @@ describe('F1: 表达式折叠（parse 期静态求值为字面量）', () => {
     // 被降级为只读「查看代码」，点击无法进入钻孔编辑回填。修复后仅参数引用标 computed。
     const code = [
       'let part0 = cad.box({ size: 20 })',
-      'let part1 = cad.drill(part0, { diameter: 5, position: [0, 10, -10], faceNormal: [0, 1, 0] })',
+      'let part1 = cad.fai_drill(part0, { diameter: 5, position: [0, 10, -10], faceNormal: [0, 1, 0] })',
     ].join('\n')
     const { script } = parseScript(code)
     const drill = script.statements[1]
@@ -128,7 +128,7 @@ describe('F1: 表达式折叠（parse 期静态求值为字面量）', () => {
   it('单参数负数字面量（文案标量 -10）不误判为 computed', () => {
     const code = [
       'let part0 = cad.box({ size: 20 })',
-      'let part1 = cad.drill(part0, { offset: -10 })',
+      'let part1 = cad.fai_drill(part0, { offset: -10 })',
     ].join('\n')
     const { script } = parseScript(code)
     expect(script.statements[1].args.offset).toBe(-10)
@@ -139,7 +139,7 @@ describe('F1: 表达式折叠（parse 期静态求值为字面量）', () => {
     const code = [
       'const g = true',
       'let part0 = cad.box({ size: 20 })',
-      'let part1 = cad.drill(part0, { depth: g ? 5 : 0 })',
+      'let part1 = cad.fai_drill(part0, { depth: g ? 5 : 0 })',
     ].join('\n')
     const { script } = parseScript(code)
     expect(script.statements[1].args.depth).toBe(5)
@@ -252,11 +252,11 @@ describe('F1: 语句形态放开（白名单 → 黑名单）', () => {
     expect(script.statements[0].args.size).toBe(3)
   })
 
-  it('参数可直接作为 input（cad.drill(p, ...)）', () => {
+  it('参数可直接作为 input（cad.fai_drill(p, ...)）', () => {
     const code = [
       'const p = [0, 0, 0]',
       'let part0 = cad.box({ size: 10 })',
-      'part0 = cad.drill(part0, { diameter: 3, depth: 0, position: p })',
+      'part0 = cad.fai_drill(part0, { diameter: 3, depth: 0, position: p })',
     ].join('\n')
     const { script } = parseScript(code)
     expect(script.statements[1].args.position).toEqual({ $param: 'p' })
@@ -313,7 +313,7 @@ describe('F1: 表达式折叠后往返稳定', () => {
       'let part0 = cad.box({ size: 20 })',
       'let part1 = cad.sphere({ radius: 10 })',
       'let part2 = cad.union(part0, part1)',
-      'part2 = cad.drill(part2, { diameter: 5, depth: 0 })',
+      'part2 = cad.fai_drill(part2, { diameter: 5, depth: 0 })',
     ].join('\n')
     const { script } = parseScript(code)
     const regenerated = scriptIRToCode(script)
@@ -360,7 +360,7 @@ describe('F1: codeToArgs 表达式折叠', () => {
   })
 
   it('纯字面量行行为不变', () => {
-    const args = codeToArgs('part0 = cad.drill(part0, { diameter: 5, depth: 0 })')
+    const args = codeToArgs('part0 = cad.fai_drill(part0, { diameter: 5, depth: 0 })')
     expect(args.diameter).toBe(5)
     expect(args.depth).toBe(0)
   })

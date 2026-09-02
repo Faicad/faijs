@@ -185,7 +185,7 @@ function printStatement(stmt: StatementIR, declared: Set<string>, varNames: Map<
  * 将单条语句转为可读代码行（用于 TimelinePanel 显示和导出）。
  *
  * 输出格式：`let part0 = cad.op(inputs, { key: value, ... })`
- * - 多输出解构输出 `const { front: out0, back: out1 } = cad.split(input, { ... })`
+ * - 多输出解构输出 `const { front: out0, back: out1 } = cad.fai_split(input, { ... })`
  * - 成员调用输出 `assem1.add_constraint({ ... })` / `assem1.do_assemble()`
  */
 /**

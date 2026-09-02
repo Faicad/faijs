@@ -1,4 +1,4 @@
-/**
+﻿/**
  * B7 — 无 faceEvolution 的退化行为确认
  *
  * 设计文档：docs/plans/2026-08-29-faijs-module-runtime-plan.md §7.3 B7 / §5.8.4
@@ -87,7 +87,7 @@ describe('B7: 第三方 BREP 产物无 faceEvolution（fromHandle）', () => {
       'let part0 = mech.makeHeadstock({ size: 20 })',
       'const anchor = [0, 0, 10]',
       'let f = cad.faceNormal(part0, anchor)',   // anchor 反查 → 正常（mesh 层）
-      'let part1 = cad.drill(part0, { diameter: 4, depth: 10, position: [0, 0, 10], faceNormal: f })',
+      'let part1 = cad.fai_drill(part0, { diameter: 4, depth: 10, position: [0, 0, 10], faceNormal: f })',
     ].join('\n'))
     expect(result.failedAt).toBeUndefined()
     const shape = lastShape(result)

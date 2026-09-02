@@ -74,21 +74,21 @@ export default async (cad) => {
     const code = `// apiVersion: 1
 export default async (cad) => {
   const part0 = cad.box({ size: 20 })
-  const { front: part1, back: part2 } = await cad.split(part0, { normal: [0, 0, 1], offset: 0 })
+  const { front: part1, back: part2 } = await cad.fai_split(part0, { normal: [0, 0, 1], offset: 0 })
   const part3 = cad.translate({ offset: [5, 0, 0] }, part2)
   return { shape: part3 }
 }`
     const result = makeRuntime().check(code)
     expect(result.ok).toBe(true)
     expect(result.errors).toHaveLength(0)
-    expect(result.script!.callees).toEqual(['box', 'split', 'translate'])
+    expect(result.script!.callees).toEqual(['box', 'fai_split', 'translate'])
   })
 
   it('reference precheck: undefined split output id → ok=false', () => {
     const code = `// apiVersion: 1
 export default async (cad) => {
   const part0 = cad.box({ size: 20 })
-  const { front: part1, back: part2 } = await cad.split(part0, { normal: [0, 0, 1], offset: 0 })
+  const { front: part1, back: part2 } = await cad.fai_split(part0, { normal: [0, 0, 1], offset: 0 })
   const part3 = cad.translate({ offset: [5, 0, 0] }, part999)
   return { shape: part3 }
 }`

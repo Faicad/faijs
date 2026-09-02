@@ -1,4 +1,4 @@
-/**
+﻿/**
  * keep.test — keep-syntax 统一内外 keep 机制验收测试（设计 §9 验收提纲）
  *
  * 设计文档：docs/plans/2026-08-28-keep-syntax-design.md
@@ -93,9 +93,9 @@ describe('keep: 编译层剥离（设计 §7.1）', () => {
   it('drill 剥离 keep/keepHidden，其余 params 保留', () => {
     const { code } = compileText(`
       const part0 = await cad.box({ size: [10, 20, 5] })
-      const part1 = await cad.drill(part0, { diameter: 8, keep: ['part0'], keepHidden: true })
+      const part1 = await cad.fai_drill(part0, { diameter: 8, keep: ['part0'], keepHidden: true })
     `)
-    expect(code).toContain('ctx.part1 = await ns.cad.drill(ctx.part0, { diameter: 8 })')
+    expect(code).toContain('ctx.part1 = await ns.cad.fai_drill(ctx.part0, { diameter: 8 })')
     expect(code).not.toContain('keepHidden')
     expect(code).not.toContain('keep')
   })
@@ -114,7 +114,7 @@ describe('keep: statementKey 排除 keep（设计 §7.2，零几何重算）', (
   it('仅 keep 变化 → computeKey 不变', () => {
     const { script, statements } = compileText(`
       const part0 = await cad.box({ size: 20 })
-      const part1 = await cad.drill(part0, { diameter: 8 })
+      const part1 = await cad.fai_drill(part0, { diameter: 8 })
     `)
     const executor = new ModuleExecutor({ cad: createApiNamespace() })
     executor.setCompiled(script, statements)
@@ -207,7 +207,7 @@ describe('keep: 运行时消费判定（设计 §3）', () => {
     expect(result.terminals.map((t) => String(t.id)).sort()).toEqual(['part0', 'part1'])
   })
 
-  it('cad.drill(c, {keep:["c"]}) → c 是终端（调用点覆盖无声明的函数）', async () => {
+  it('cad.fai_drill(c, {keep:["c"]}) → c 是终端（调用点覆盖无声明的函数）', async () => {
     const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
     const result = await rt.execute([
       'let part0 = cad.box({ size: 20 })',
@@ -218,7 +218,7 @@ describe('keep: 运行时消费判定（设计 §3）', () => {
     expect(byId.get('part0')!.hidden).toBeUndefined()
   })
 
-  it('cad.drill(c, {keep:["c"], keepHidden:true}) → c hidden', async () => {
+  it('cad.fai_drill(c, {keep:["c"], keepHidden:true}) → c hidden', async () => {
     const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
     const result = await rt.execute([
       'let part0 = cad.box({ size: 20 })',

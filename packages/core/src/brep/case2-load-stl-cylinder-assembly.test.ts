@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @vitest-environment node
  *
  * Case 2: load STL + cylinder + drill + assembly transforms
@@ -122,7 +122,7 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
       // S1: cylinder → BREP-native → should stay BREP
       makeStmt('cyl_v0', 'cylinder', { radius: 5, height: 20 }, []),
       // S2: drill on cylinder → upstream has solid → should stay BREP
-      makeStmt('drilled_v0', 'drill', {
+      makeStmt('drilled_v0', 'fai_drill', {
         diameter: 6, depth: 20, holeType: 'simple',
         position: [0, 0, 10], direction: 'normal',
         faceNormal: [0, 0, 1],
@@ -171,7 +171,7 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
       makeStmt('cube_v0', 'load', { key: bufferKey, format: 'stl' }, [],
         { }),
       makeStmt('cyl_v0', 'cylinder', { radius: 5, height: 20 }, []),
-      makeStmt('drilled_v0', 'drill', {
+      makeStmt('drilled_v0', 'fai_drill', {
         diameter: 6, depth: 20, holeType: 'simple',
         position: [0, 0, 10], direction: 'normal',
         faceNormal: [0, 0, 1],
@@ -205,7 +205,7 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
       makeStmt('cube_v0', 'load', { key: bufferKey, format: 'stl' }, [],
         { }),
       makeStmt('cyl_v0', 'cylinder', { radius: 5, height: 20 }, []),
-      makeStmt('drilled_v0', 'drill', {
+      makeStmt('drilled_v0', 'fai_drill', {
         diameter: 6, depth: 20, holeType: 'simple',
         position: [0, 0, 10], direction: 'normal',
         faceNormal: [0, 0, 1],
@@ -245,7 +245,7 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
       makeStmt('cube_v0', 'load', { key: bufferKey, format: 'stl' }, [],
         { }),
       makeStmt('cyl_v0', 'cylinder', { radius: 5, height: 20 }, []),
-      makeStmt('drilled_v0', 'drill', {
+      makeStmt('drilled_v0', 'fai_drill', {
         diameter: 6, depth: 20, holeType: 'simple',
         position: [0, 0, 10], direction: 'normal',
         faceNormal: [0, 0, 1],

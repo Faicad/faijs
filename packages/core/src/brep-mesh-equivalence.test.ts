@@ -1,4 +1,4 @@
-/**
+﻿/**
  * BREP 与 Mesh 实现等价性测试
  *
  * 验证原则：
@@ -368,7 +368,7 @@ describe('BREP/Mesh equivalence: boolean operations', () => {
   it('chained: box → drill → union', async () => {
     await runAndCompare([
       makeStmt('s1', 'box', { size: 20 }),
-      makeStmt('s2', 'drill', {
+      makeStmt('s2', 'fai_drill', {
         diameter: 5, depth: 0,
         position: [0, 0, 10], direction: 'normal',
         faceNormal: [0, 0, 1], holeType: 'simple',
@@ -385,7 +385,7 @@ describe('BREP/Mesh equivalence: drill', () => {
   it('simple through hole', async () => {
     await runAndCompare([
       makeStmt('s1', 'box', { size: 20 }),
-      makeStmt('s2', 'drill', {
+      makeStmt('s2', 'fai_drill', {
         diameter: 5, depth: 0,
         position: [0, 0, 10], direction: 'normal',
         faceNormal: [0, 0, 1], holeType: 'simple',
@@ -396,7 +396,7 @@ describe('BREP/Mesh equivalence: drill', () => {
   it('blind hole', async () => {
     await runAndCompare([
       makeStmt('s1', 'box', { size: 20 }),
-      makeStmt('s2', 'drill', {
+      makeStmt('s2', 'fai_drill', {
         diameter: 5, depth: 8,
         position: [0, 0, 10], direction: 'normal',
         faceNormal: [0, 0, 1], holeType: 'simple',
@@ -407,12 +407,12 @@ describe('BREP/Mesh equivalence: drill', () => {
   it('multiple holes', async () => {
     await runAndCompare([
       makeStmt('s1', 'box', { size: 30 }),
-      makeStmt('s2', 'drill', {
+      makeStmt('s2', 'fai_drill', {
         diameter: 5, depth: 0,
         position: [-8, -8, 15], direction: 'normal',
         faceNormal: [0, 0, 1], holeType: 'simple',
       }, ['s1']),
-      makeStmt('s3', 'drill', {
+      makeStmt('s3', 'fai_drill', {
         diameter: 3, depth: 0,
         position: [8, 8, 15], direction: 'normal',
         faceNormal: [0, 0, 1], holeType: 'simple',

@@ -121,19 +121,19 @@ const API_ENTRIES: Record<string, ApiEntry> = {
   },
 
   // ── 分割类 ──
-  split: {
+  fai_split: {
     inputs: 1,
     params: '{ normal?: [number, number, number]; offset?: number; cutMode?: string; inPlaneAngleDeg?: number; side?: string }',
     returns: 'Promise<{ front: Shape; back: Shape; wedge?: Shape | null }>',
   },
 
   // ── 特征类 ──
-  drill: {
+  fai_drill: {
     inputs: 1,
     params: '{ diameter: number; depth?: number; holeType?: string; direction?: string; tolerance?: number; position?: any; faceNormal?: any; screwSystem?: string; screwSpecIdx?: number; screwThread?: string; screwHead?: string }',
     returns: 'Promise<Shape>',
   },
-  extrude: {
+  fai_extrude: {
     inputs: 1,
     params: '{ length: number; mode?: string; normal?: [number, number, number]; originOffset?: number; space?: string }',
     returns: 'Promise<Shape>',
@@ -243,8 +243,8 @@ const ORDER = [
   'text', 'screw', 'svgExtrude', 'sdf', 'load',
   'translate', 'rotate', 'scale',
   'union', 'subtract', 'intersect',
-  'split',
-  'drill', 'extrude', 'engrave', 'chamfer', 'knurl',
+  'fai_split',
+  'fai_drill', 'fai_extrude', 'engrave', 'chamfer', 'knurl',
   'group', 'assembly', 'copy',
   'faceCenter', 'faceNormal', 'bboxCenter', 'bboxMin', 'bboxMax',
   'asset',
@@ -273,9 +273,9 @@ function generate(): string {
     ['创建', ['box', 'sphere', 'cylinder', 'cone', 'wedge', 'text', 'screw', 'svgExtrude', 'sdf', 'load']],
     ['变换', ['translate', 'rotate', 'scale']],
     ['布尔', ['union', 'subtract', 'intersect']],
-    ['分割', ['split']],
-    ['钻孔', ['drill']],
-    ['拉伸', ['extrude']],
+    ['分割', ['fai_split']],
+    ['钻孔', ['fai_drill']],
+    ['拉伸', ['fai_extrude']],
     ['雕刻', ['engrave', 'knurl']],
     ['倒角', ['chamfer']],
     ['结构（不消费成员）', ['group', 'assembly', 'copy']],

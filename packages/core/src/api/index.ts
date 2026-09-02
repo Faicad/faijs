@@ -13,9 +13,9 @@
 
 export { box, sphere, cylinder, cone, wedge } from './primitives'
 export { translate, rotate, scale } from './transform'
-export { extrude } from './extrude'
-export { drill } from './drill'
-export { split } from './split'
+export { fai_extrude } from './fai_extrude'
+export { fai_drill } from './fai_drill'
+export { fai_split } from './fai_split'
 export { union, subtract, intersect } from './boolean'
 export { engrave } from './engrave'
 export { text } from './text'

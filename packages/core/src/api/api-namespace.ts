@@ -12,15 +12,15 @@
 
 import { box, sphere, cylinder, cone, wedge } from './primitives'
 import { translate, rotate, scale } from './transform'
-import { extrude } from './extrude'
+import { fai_extrude } from './fai_extrude'
 import { knurl } from './knurl'
 import { sdf } from './sdf'
 import { text } from './text'
 import { screw } from './screw'
 import { svgExtrude } from './svgExtrude'
 import { load } from './load'
-import { drill } from './drill'
-import { split } from './split'
+import { fai_drill } from './fai_drill'
+import { fai_split } from './fai_split'
 import { union, subtract, intersect } from './boolean'
 import { engrave } from './engrave'
 import { chamfer } from './chamfer'
@@ -45,10 +45,10 @@ export function createApiNamespace(): StdlibNamespace {
     box, sphere, cylinder, cone, wedge,
     text, screw, svgExtrude, sdf, load,
     translate, rotate, scale,
-    drill, extrude, engrave, chamfer, knurl,
+    fai_drill, fai_extrude, engrave, chamfer, knurl,
     fillet,
     union, subtract, intersect,
-    split, group, assembly, copy,
+    fai_split, group, assembly, copy,
     faceCenter, faceNormal, bboxCenter, bboxMin, bboxMax,
     asset,
   } as unknown as StdlibNamespace

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * analyzeCode / codeToArgs — 宿主摘要与编辑回填配套测试（IR 剥离阶段 0）
  *
  * 设计文档：3d_editor docs/plans/2026-08-28-ir-strip-source-code-generation-plan.md §4.2/§4.6
@@ -16,8 +16,8 @@ import { parseScript } from './parser'
 
 const BOX_DRILL_SPLIT = [
   'let part0 = cad.box({ size: 20 })',
-  'part0 = cad.drill(part0, { diameter: 5 })',
-  'const { front: part1, back: part2 } = cad.split(part0, { normal: [0,0,1], offset: 0 })',
+  'part0 = cad.fai_drill(part0, { diameter: 5 })',
+  'const { front: part1, back: part2 } = cad.fai_split(part0, { normal: [0,0,1], offset: 0 })',
 ].join('\n')
 
 describe('analyzeCode: 与 parser 结果逐字段一致', () => {
@@ -41,7 +41,7 @@ describe('analyzeCode: 与 parser 结果逐字段一致', () => {
   it('drill 复用名：outputs=[part0], hasAssignment=true（裸重赋值）', () => {
     const summaries = analyzeCode(BOX_DRILL_SPLIT)
     const drill = summaries[1]
-    expect(drill.callee).toBe('drill')
+    expect(drill.callee).toBe('fai_drill')
     expect(drill.inputs).toEqual(['part0'])
     expect(drill.outputs).toEqual(['part0'])
     expect(drill.hasAssignment).toBe(true)
@@ -50,7 +50,7 @@ describe('analyzeCode: 与 parser 结果逐字段一致', () => {
   it('split 解构：双输出 + outputKeys=[front, back]', () => {
     const summaries = analyzeCode(BOX_DRILL_SPLIT)
     const split = summaries[2]
-    expect(split.callee).toBe('split')
+    expect(split.callee).toBe('fai_split')
     expect(split.inputs).toEqual(['part0'])
     expect(split.outputs).toEqual(['part1', 'part2'])
     expect(split.outputKeys).toEqual(['front', 'back'])
@@ -135,11 +135,11 @@ describe('codeToArgs: 单语句行 args 提取', () => {
   })
 
   it('裸重赋值行', () => {
-    expect(codeToArgs('part0 = cad.drill(part0, { diameter: 5 })')).toEqual({ diameter: 5 })
+    expect(codeToArgs('part0 = cad.fai_drill(part0, { diameter: 5 })')).toEqual({ diameter: 5 })
   })
 
   it('解构行', () => {
-    expect(codeToArgs('const { front: a, back: b } = cad.split(part0, { normal: [0,0,1] })'))
+    expect(codeToArgs('const { front: a, back: b } = cad.fai_split(part0, { normal: [0,0,1] })'))
       .toEqual({ normal: [0, 0, 1] })
   })
 

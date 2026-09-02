@@ -1,4 +1,4 @@
-/**
+﻿/**
  * parser-normalization — 语言正常化新语法形态规格测试（阶段 0，目标 IR 字段）
  *
  * 设计文档：docs/plans/2026-08-27-faijs-language-normalization-design.md §4.1/§4.3
@@ -38,14 +38,14 @@ describe('parser-normalization: boolean 归一取消', () => {
 })
 
 describe('parser-normalization: 任意 callee 的对象解构', () => {
-  it('cad.split 解构 → outputKeys === ["front","back"]', () => {
+  it('cad.fai_split 解构 → outputKeys === ["front","back"]', () => {
     const code = [
       'let part0 = cad.box({ size: 20 })',
-      'const { front, back } = await cad.split(part0, { normal: [0,0,1], offset: 0 })',
+      'const { front, back } = await cad.fai_split(part0, { normal: [0,0,1], offset: 0 })',
     ].join('\n')
     const { script } = parseScript(code)
     const splitStmt = script.statements[1]
-    expect(splitStmt.callee).toBe('split')
+    expect(splitStmt.callee).toBe('fai_split')
     expect(splitStmt.outputKeys).toEqual(['front', 'back'])
     expect(splitStmt.outputs).toHaveLength(2)
   })
@@ -91,11 +91,11 @@ describe('parser-normalization: 任意成员调用', () => {
 })
 
 describe('parser-normalization: args 内嵌套调用 → CallRefIR', () => {
-  it('cad.drill(part0, { at: cad.faceCenter(part2) }) → args.at 是 CallRefIR', () => {
+  it('cad.fai_drill(part0, { at: cad.faceCenter(part2) }) → args.at 是 CallRefIR', () => {
     const code = [
       'let part0 = cad.box({ size: 20 })',
       'let part2 = cad.box({ size: 5 })',
-      'part0 = cad.drill(part0, { at: cad.faceCenter(part2), depth: 2 })',
+      'part0 = cad.fai_drill(part0, { at: cad.faceCenter(part2), depth: 2 })',
     ].join('\n')
     const { script } = parseScript(code)
     const drillStmt = script.statements[2]
@@ -129,7 +129,7 @@ describe('parser-normalization: asset 走 CallRefIR', () => {
   it('cad.asset("cfg") 嵌套在 args 中 → CallRefIR', () => {
     const code = [
       'let part0 = cad.box({ size: 20 })',
-      'part0 = cad.drill(part0, { depth: cad.asset("cfg") })',
+      'part0 = cad.fai_drill(part0, { depth: cad.asset("cfg") })',
     ].join('\n')
     const { script } = parseScript(code)
     const drillStmt = script.statements[1]
@@ -141,14 +141,14 @@ describe('parser-normalization: asset 走 CallRefIR', () => {
 })
 
 describe('parser-normalization: 裸重赋值保留', () => {
-  it('part0 = cad.drill(part0, {...}) → callee==="drill"、inputs=[part0]', () => {
+  it('part0 = cad.fai_drill(part0, {...}) → callee==="fai_drill"、inputs=[part0]', () => {
     const code = [
       'let part0 = cad.box({ size: 20 })',
-      'part0 = cad.drill(part0, { diameter: 5 })',
+      'part0 = cad.fai_drill(part0, { diameter: 5 })',
     ].join('\n')
     const { script } = parseScript(code)
     const drillStmt = script.statements[1]
-    expect(drillStmt.callee).toBe('drill')
+    expect(drillStmt.callee).toBe('fai_drill')
     expect(drillStmt.inputs).toEqual(['part0'])
     expect(drillStmt.outputs).toEqual(['part0'])
   })

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @vitest-environment node
  *
  * CadRuntime 三模式契约测试 + 单元测试 (P2-8)
@@ -562,7 +562,7 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     const runtime = makeRuntime()
     const s0 = makeStmt('s0', 'box', { size: 20 })
     const splitStmt: StatementIR = {
-      id: asStmtId('s1'), callee: 'split',
+      id: asStmtId('s1'), callee: 'fai_split',
       args: { cutMode: 'plane', normal: [0, 0, 1], offset: 0 } as never,
       inputs: [asPartName('s0')],
       outputs: [asPartName('s1'), asPartName('s1b')], // stmt.id === outputs[0]；outputs[1] (back) 需显式持久化
@@ -585,7 +585,7 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     const runtime = makeRuntime()
     const s0 = makeStmt('s0', 'box', { size: 20 })
     const splitStmt: StatementIR = {
-      id: asStmtId('s1'), callee: 'split',
+      id: asStmtId('s1'), callee: 'fai_split',
       args: { cutMode: 'plane', normal: [0, 0, 1], offset: 0 } as never,
       inputs: [asPartName('s0')],
       outputs: [asPartName('s1'), asPartName('s1b')],
@@ -805,7 +805,7 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     const runtime = makeRuntime()
     const s1 = makeStmt('s1', 'box', { size: 10 })
     const s2 = makeStmt('s2', 'box', { size: 10 })
-    const s3 = makeStmt('s3', 'drill', {
+    const s3 = makeStmt('s3', 'fai_drill', {
       diameter: 4, depth: -1,
       position: [0, 5, 0], faceNormal: [0, 1, 0], faceCenter: [0, 5, 0],
     }, ['s2'])
@@ -834,7 +834,7 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     const runtime = makeRuntime()
     const s1 = makeStmt('s1', 'box', { size: 10 })
     const s2 = makeStmt('s2', 'box', { size: 10 })
-    const s3 = makeStmt('s3', 'drill', {
+    const s3 = makeStmt('s3', 'fai_drill', {
       diameter: 4, depth: -1,
       position: [0, 5, 0], faceNormal: [0, 1, 0], faceCenter: [0, 5, 0],
     }, ['s2'])

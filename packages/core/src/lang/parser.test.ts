@@ -1,4 +1,4 @@
-/**
+﻿/**
  * parser 单元测试 — 文本 → ScriptIR（扁平代码格式）
  *
  * 覆盖：
@@ -103,13 +103,13 @@ part0 = cad.translate(part0, { offset:[10,0,0] })`
   it('解析多级依赖（含 await 异步 op）', () => {
     const code = `let part0 = cad.box({ size: 20 })
 part0 = cad.translate(part0, { offset:[0,0,5] })
-part0 = await cad.drill(part0, { diameter:5, depth:0 })`
+part0 = await cad.fai_drill(part0, { diameter:5, depth:0 })`
     const { script } = parseScript(code)
     expect(script.statements).toHaveLength(3)
     // Phase 3: 复用输入名
     expect(script.statements[1].inputs).toEqual(['part0'])
     expect(script.statements[2].inputs).toEqual(['part0'])
-    expect(script.statements[2].callee).toBe('drill')
+    expect(script.statements[2].callee).toBe('fai_drill')
   })
 })
 
@@ -206,7 +206,7 @@ part0 = cad.translate(part0, { offset:[10,0,0] })`
 
   it('split 解构 → 两个 outputs（part1/part2）', () => {
     const code = `let part0 = cad.box({ size: 20 })
-const { front: part1, back: part2 } = await cad.split(part0, { normal:[0,0,1], offset:0 })`
+const { front: part1, back: part2 } = await cad.fai_split(part0, { normal:[0,0,1], offset:0 })`
     const { script } = parseScript(code)
     expect(script.terminalShapes).toBeUndefined()
     // Phase 3: split 分配新名 part1/part2
@@ -217,13 +217,13 @@ const { front: part1, back: part2 } = await cad.split(part0, { normal:[0,0,1], o
 // ── split 解构（A2 消灭后为通用解构：任意 callee、任意键） ──
 
 describe('parser: split 解构', () => {
-  it('解析 const { front: part1, back: part2 } = await cad.split(...)', () => {
+  it('解析 const { front: part1, back: part2 } = await cad.fai_split(...)', () => {
     const code = `let part0 = cad.box({ size: 20 })
-const { front: part1, back: part2 } = await cad.split(part0, { normal:[0,0,1], offset:0 })`
+const { front: part1, back: part2 } = await cad.fai_split(part0, { normal:[0,0,1], offset:0 })`
     const { script, varToId } = parseScript(code)
     expect(script.statements).toHaveLength(2)
     const splitStmt = script.statements[1]
-    expect(splitStmt.callee).toBe('split')
+    expect(splitStmt.callee).toBe('fai_split')
     expect(splitStmt.outputKeys).toEqual(['front', 'back'])
     // Phase 3: split 分配新名 part1/part2；box 是 part0
     expect(splitStmt.outputs).toEqual(['part1', 'part2'])

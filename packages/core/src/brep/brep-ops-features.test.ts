@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @vitest-environment node
  *
  * BREP 特征操作单元测试 (Phase 2)
@@ -569,7 +569,7 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
   it('executeScript(box → drill, brep) → solid in cache', async () => {
     const script = makeScript([
       makeStmt('s1', 'box', { size: 20 }, []),
-      makeStmt('s2', 'drill', {
+      makeStmt('s2', 'fai_drill', {
         diameter: 6, depth: 0,
         position: [0, 0, 10], direction: 'normal',
         faceNormal: [0, 0, 1], holeType: 'simple',
@@ -590,7 +590,7 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
     // 在 BREP 链中遇到 engrave → BREP 路径执行（textToSolid + boolean），链不断裂
     const script = makeScript([
       makeStmt('s1', 'box', { size: 20 }, []),
-      makeStmt('s2', 'drill', {
+      makeStmt('s2', 'fai_drill', {
         diameter: 6, depth: 0,
         position: [0, 0, 10], direction: 'normal',
         faceNormal: [0, 0, 1], holeType: 'simple',
@@ -616,7 +616,7 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
     // 删除 engrave 语句后重放 → solidCache 仍有 drill solid
     const script = makeScript([
       makeStmt('s1', 'box', { size: 20 }, []),
-      makeStmt('s2', 'drill', {
+      makeStmt('s2', 'fai_drill', {
         diameter: 6, depth: 0,
         position: [0, 0, 10], direction: 'normal',
         faceNormal: [0, 0, 1], holeType: 'simple',
@@ -637,7 +637,7 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
     // 验证未断裂的 BREP 链终端 solid 导出为原生 STEP（精确曲面）
     const script = makeScript([
       makeStmt('s1', 'box', { size: 20 }, []),
-      makeStmt('s2', 'drill', {
+      makeStmt('s2', 'fai_drill', {
         diameter: 6, depth: 0,
         position: [0, 0, 10], direction: 'normal',
         faceNormal: [0, 0, 1], holeType: 'simple',

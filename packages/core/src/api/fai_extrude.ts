@@ -52,7 +52,7 @@ function extrudeBrepPath(input: Shape, params: Record<string, unknown>): Shape {
  * @inputs 1
  * @async true
  * @qual ok
- * @name extrude
+ * @name fai_extrude
  * @returns Shape 拉伸后的几何。
  * @param input - 目标几何。type:Shape required:true
  * @param params.length - 总拉伸量（mm）。type:number required:true
@@ -61,15 +61,15 @@ function extrudeBrepPath(input: Shape, params: Record<string, unknown>): Shape {
  * @param params.originOffset - 切面在法向上的偏移。type:number 默认 0
  * @param params.space - 坐标空间声明。type:'local' | 'world'
  * @example
- * const p = await cad.extrude(part0, { length: 10 })
- * const p = await cad.extrude(part0, { length: 10, mode: 'forward' })
- * const p = await cad.extrude(part0, { length: 10, normal: [0,0,1], originOffset: 2 })
+ * const p = await cad.fai_extrude(part0, { length: 10 })
+ * const p = await cad.fai_extrude(part0, { length: 10, mode: 'forward' })
+ * const p = await cad.fai_extrude(part0, { length: 10, normal: [0,0,1], originOffset: 2 })
   */
-export const extrude = defineOp({
+export const fai_extrude = defineOp({
   mesh: async (input: Shape, params: Record<string, unknown>) => {
     if (!input) throw new Error('[stdlib/extrude] no input geometry')
     assertExtrudeParams(params)
-    return cad.extrude(input, {
+    return cad.fai_extrude(input, {
       normal: (params.normal as Vec3 | undefined) ?? [0, 0, 1],
       originOffset: (params.originOffset as number | undefined) ?? 0,
       length: params.length as number,

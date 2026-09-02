@@ -17,9 +17,9 @@ import * as primitives from './primitives'
 import * as brepPrimitives from '../brep/primitives-brep'
 import * as brepOps from '../brep'
 import * as booleanOps from './boolean'
-import * as splitOps from './split'
-import * as drillOps from './drill'
-import * as extrudeOps from './extrude'
+import * as splitOps from './fai_split'
+import * as drillOps from './fai_drill'
+import * as extrudeOps from './fai_extrude'
 import * as engraveOps from './engrave'
 import * as transformOps from './transform'
 import * as queryOps from './query'
@@ -63,17 +63,17 @@ export const cad = {
   intersect: booleanOps.intersect,
 
   // 分割
-  split: splitOps.split,
-  splitWithParams: splitOps.splitWithParams,
+  fai_split: splitOps.split,
+  fai_splitWithParams: splitOps.splitWithParams,
   dovetailSplit: splitOps.dovetailSplit,
   dowelSplit: splitOps.dowelSplit,
   tenonSplit: splitOps.tenonSplit,
 
   // 钻孔
-  drill: drillOps.drill,
+  fai_drill: drillOps.drill,
 
   // 拉伸
-  extrude: extrudeOps.extrude,
+  fai_extrude: extrudeOps.extrude,
 
   // 雕刻
   engrave: engraveOps.engrave,

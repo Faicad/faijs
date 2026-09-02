@@ -1,4 +1,4 @@
-/**
+﻿/**
  * compileToModule 单元测试（VM 执行方案 Phase 1）
  *
  * 验证：
@@ -47,7 +47,7 @@ describe('compileToModule: 模块文本', () => {
   it('CallRefIR 翻译为 await ns.cad.<callee>(...)；嵌套 asset 走 await ns.cad.asset(key)', async () => {
     const { code } = compileText(`
       const part0 = await cad.box({ size: [10, 20, 5] })
-      const part1 = await cad.drill(part0, {
+      const part1 = await cad.fai_drill(part0, {
         depth: 3,
         position: cad.faceCenter(part0, [5, 20, 2.5], 2),
       })
@@ -60,9 +60,9 @@ describe('compileToModule: 模块文本', () => {
   it('split 多输出：解构 { front, back } 并写两个 ctx 键', async () => {
     const { code } = compileText(`
       const part0 = await cad.box({ size: [10, 20, 5] })
-      const { front: part1, back: part2 } = await cad.split(part0, { cutMode: 'plane' })
+      const { front: part1, back: part2 } = await cad.fai_split(part0, { cutMode: 'plane' })
     `)
-    expect(code).toContain('const { front, back } = await ns.cad.split(ctx.part0, { cutMode: "plane" })')
+    expect(code).toContain('const { front, back } = await ns.cad.fai_split(ctx.part0, { cutMode: "plane" })')
     expect(code).toContain('ctx.part1 = front')
     expect(code).toContain('ctx.part2 = back')
   })
@@ -82,7 +82,7 @@ describe('compileToModule: 语句元数据', () => {
     const { statements } = compileText(`
       const r = 20
       const part0 = await cad.box({ size: r })
-      const part1 = await cad.drill(part0, { depth: 3 })
+      const part1 = await cad.fai_drill(part0, { depth: 3 })
     `)
     expect(statements.map((s) => s.id)).toEqual(['s1', 's2', 's3'])
   })
@@ -91,8 +91,8 @@ describe('compileToModule: 语句元数据', () => {
     const { statements } = compileText(`
       const r = 20
       const part0 = await cad.box({ size: r })
-      const part1 = await cad.drill(part0, { depth: 3, position: cad.faceCenter(part0, [5, 20, 2.5], 2) })
-      const { front: part2, back: part3 } = await cad.split(part0, { cutMode: 'plane' })
+      const part1 = await cad.fai_drill(part0, { depth: 3, position: cad.faceCenter(part0, [5, 20, 2.5], 2) })
+      const { front: part2, back: part3 } = await cad.fai_split(part0, { cutMode: 'plane' })
     `)
     const byId = new Map(statements.map((s) => [String(s.id), s]))
     // part0 引用参数 r → deps ['s1']
@@ -108,7 +108,7 @@ describe('compileToModule: 语句元数据', () => {
     const { statements } = compileText(`
       const r = 20
       const part0 = await cad.box({ size: r })
-      const { front: part1, back: part2 } = await cad.split(part0, { cutMode: 'plane' })
+      const { front: part1, back: part2 } = await cad.fai_split(part0, { cutMode: 'plane' })
     `)
     const byId = new Map(statements.map((s) => [String(s.id), s]))
     expect(byId.get('s1')!.writes).toEqual(['r'])

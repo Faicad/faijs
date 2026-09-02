@@ -1,4 +1,4 @@
-/**
+﻿/**
  * derivePartName — 变量名自动推导规格测试（code 文本形态，IR 剥离阶段 0）
  *
  * 设计文档：docs/plans/2026-08-27-faijs-language-normalization-design.md §4.7
@@ -175,7 +175,7 @@ describe('derivePartName: partN 递增（code 词法扫描）', () => {
     const code = [
       'let part0 = cad.box({ size: 1 })',
       'let part5 = cad.cylinder({ diameter: 2, height: 3 })',
-      'part0 = cad.drill(part0, { diameter: 1 })',
+      'part0 = cad.fai_drill(part0, { diameter: 1 })',
     ].join('\n')
     const result = derivePartName({
       inputCount: 0,

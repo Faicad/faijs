@@ -1,4 +1,4 @@
-/**
+﻿/**
  * terminal-dag-consumes — keep 驱动的 consumes() 规格测试（keep-syntax 设计 §3）
  *
  * 原符号表驱动的消费判定（B1/NON_CONSUMING_OPS/readonly 标注）已在 keep-syntax
@@ -59,7 +59,7 @@ function viewWith(internal: InternalKeepRecord | undefined): DagRuntimeView {
 describe('consumes: keep 驱动判定（C0/C1/C3/C5 短路）', () => {
   it('C0：调用点 keep 声明 → 不消费（即使 callee 是消费性 drill）', () => {
     const stmt = makeStmt({
-      callee: 'drill',
+      callee: 'fai_drill',
       inputs: ['part0'],
       args: { diameter: 5, keep: [varRef('part0')] },
     })
@@ -68,7 +68,7 @@ describe('consumes: keep 驱动判定（C0/C1/C3/C5 短路）', () => {
 
   it('C0：keepHidden 不改变"不消费"判定（只影响 hidden）', () => {
     const stmt = makeStmt({
-      callee: 'drill',
+      callee: 'fai_drill',
       inputs: ['part0'],
       args: { diameter: 5, keep: [varRef('part0')], keepHidden: true },
     })
@@ -99,7 +99,7 @@ describe('consumes: keep 驱动判定（C0/C1/C3/C5 短路）', () => {
 
   it('C5：drill(part0, ...) 默认消费 part0', () => {
     const stmt = makeStmt({
-      callee: 'drill',
+      callee: 'fai_drill',
       inputs: ['part0'],
       args: { diameter: 5 },
     })
@@ -108,7 +108,7 @@ describe('consumes: keep 驱动判定（C0/C1/C3/C5 短路）', () => {
 
   it('C5：split(part0, ...) 消费 part0（位置输入）', () => {
     const stmt = makeStmt({
-      callee: 'split',
+      callee: 'fai_split',
       inputs: ['part0'],
       args: { normal: [0, 0, 1], offset: 0 },
       outputs: ['front', 'back'],
@@ -162,7 +162,7 @@ describe('consumes: keep 驱动判定（C0/C1/C3/C5 短路）', () => {
 describe('consumes: 嵌套调用与 args 引用', () => {
   it('CallRefIR 内引用 = 只读查询，不消费', () => {
     const stmt = makeStmt({
-      callee: 'drill',
+      callee: 'fai_drill',
       inputs: ['part0'],
       args: {
         at: callRef('faceCenter', [varRef('part2')]),
@@ -174,7 +174,7 @@ describe('consumes: 嵌套调用与 args 引用', () => {
 
   it('CallRefIR 嵌套多层也不消费', () => {
     const stmt = makeStmt({
-      callee: 'drill',
+      callee: 'fai_drill',
       inputs: ['part0'],
       args: {
         at: callRef('faceCenter', [
@@ -187,7 +187,7 @@ describe('consumes: 嵌套调用与 args 引用', () => {
 
   it('args 中直接出现的 VarRefIR 被消费（非嵌套）', () => {
     const stmt = makeStmt({
-      callee: 'drill',
+      callee: 'fai_drill',
       inputs: ['part0'],
       args: {
         at: varRef('part2'),
@@ -198,7 +198,7 @@ describe('consumes: 嵌套调用与 args 引用', () => {
 
   it('变量不在 stmt 中引用 → false', () => {
     const stmt = makeStmt({
-      callee: 'drill',
+      callee: 'fai_drill',
       inputs: ['part0'],
       args: { diameter: 5 },
     })

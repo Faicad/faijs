@@ -1,4 +1,4 @@
-/**
+﻿/**
  * F2 — 顶层 import 段 + 多命名空间调用（normal-js-subset P2/P3 验收）
  *
  * 设计文档：docs/plans/2026-08-29-faijs-near-term-landing-plan.md §5
@@ -136,7 +136,7 @@ describe('F2: import + 命名空间往返', () => {
     const code = [
       "import * as mech from 'mech-lib'",
       'let part0 = cad.box({ size: 20 })',
-      'let part1 = cad.drill(part0, { at: mech.holeCenter(part0) })',
+      'let part1 = cad.fai_drill(part0, { at: mech.holeCenter(part0) })',
     ].join('\n')
     const { script } = parseScript(code)
     const atArg = script.statements[1].args.at

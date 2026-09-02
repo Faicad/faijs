@@ -1,4 +1,4 @@
-/**
+﻿/**
  * op-set-consistency — 符号表 ↔ stdlib 签名一致性守卫
  *
  * 阶段 1（§3.6）新增：符号表 ↔ stdlib 签名一致性守卫。
@@ -24,9 +24,9 @@ const CAD_NAMESPACE_FUNCTIONS = new Set([
   'box', 'sphere', 'cylinder', 'cone', 'wedge',
   'text', 'screw', 'svgExtrude', 'sdf', 'load',
   'translate', 'rotate', 'scale',
-  'drill', 'extrude', 'engrave', 'chamfer', 'knurl',
+  'fai_drill', 'fai_extrude', 'engrave', 'chamfer', 'knurl',
   'union', 'subtract', 'intersect',
-  'split', 'group', 'assembly', 'copy',
+  'fai_split', 'group', 'assembly', 'copy',
   'faceCenter', 'faceNormal', 'bboxCenter', 'bboxMin', 'bboxMax',
   'asset',
 ])

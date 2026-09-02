@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @vitest-environment node
  *
  * terminal-dag — DAG 叶子终端判定单元测试（keep-syntax 设计 §3 / §6）
@@ -93,7 +93,7 @@ describe('computeLeafTerminals: DAG leaf detection', () => {
   it('保名链: part0 = drill(part0) → 仅 part0 终端 (drilled)', () => {
     const terminals = terminalsFromCode(`
       let part0 = cad.box({ size: 20 })
-      part0 = cad.drill(part0, { diameter: 5, depth: 10 })
+      part0 = cad.fai_drill(part0, { diameter: 5, depth: 10 })
     `)
     expect(terminals).toEqual(['part0'])
   })
@@ -103,12 +103,12 @@ describe('computeLeafTerminals: DAG leaf detection', () => {
     const view = builtinKeepView(parseAndCollectVars(`
       let part0 = cad.box({ size: 20 })
       let part1 = cad.copy(part0)
-      part1 = cad.drill(part1, { diameter: 5, depth: 10 })
+      part1 = cad.fai_drill(part1, { diameter: 5, depth: 10 })
     `).script)
     const terminals = terminalsFromCode(`
       let part0 = cad.box({ size: 20 })
       let part1 = cad.copy(part0)
-      part1 = cad.drill(part1, { diameter: 5, depth: 10 })
+      part1 = cad.fai_drill(part1, { diameter: 5, depth: 10 })
     `, view)
     expect(terminals.sort()).toEqual(['part0', 'part1'])
   })
@@ -203,7 +203,7 @@ describe('computeLeafTerminals: DAG leaf detection', () => {
     const code = `
       let part0 = cad.box({ size: 20 })
       let part1 = cad.copy(part0)
-      part1 = cad.drill(part1, { diameter: 5 })
+      part1 = cad.fai_drill(part1, { diameter: 5 })
     `
     const view = builtinKeepView(parseAndCollectVars(code).script)
     const terminals = terminalsFromCode(code, view)
@@ -215,7 +215,7 @@ describe('computeLeafTerminals: DAG leaf detection', () => {
     const code = `
       let part0 = cad.box({ size: 20 })
       let part1 = cad.assembly({ members: [part0] })
-      part0 = cad.drill(part0, { diameter: 5 })
+      part0 = cad.fai_drill(part0, { diameter: 5 })
     `
     const view = builtinKeepView(parseAndCollectVars(code).script)
     const terminals = terminalsFromCode(code, view)

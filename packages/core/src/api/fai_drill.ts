@@ -202,7 +202,7 @@ async function drillMeshPath(input: Shape, params: Record<string, unknown>): Pro
     ? scale[0]
     : 1
 
-  return cad.drill(input, {
+  return cad.fai_drill(input, {
     diameter: (params.diameter as number) / unitScale,
     depth: (params.depth as number) / unitScale,
     type: (params.depth as number) > 0 ? 'blind' : 'through',
@@ -241,11 +241,11 @@ async function drillMeshPath(input: Shape, params: Record<string, unknown>): Pro
  * @param params.screwThread - 螺丝螺纹类型。type:'coarse' | 'fine' | 'custom' 默认 'coarse'
  * @param params.screwHead - 螺丝头型。type:'hex' | 'chc' | 'none' 默认 'none'
  * @example
- * const p = await cad.drill(part0, { diameter: 5 })
- * const p = await cad.drill(part0, { diameter: 5, depth: 3 })
- * const p = await cad.drill(part0, { diameter: 5.2, depth: 8, holeType: 'screw', screwSystem: 'metric', screwSpecIdx: 4, screwThread: 'coarse', screwHead: 'none' })
+ * const p = await cad.fai_drill(part0, { diameter: 5 })
+ * const p = await cad.fai_drill(part0, { diameter: 5, depth: 3 })
+ * const p = await cad.fai_drill(part0, { diameter: 5.2, depth: 8, holeType: 'screw', screwSystem: 'metric', screwSpecIdx: 4, screwThread: 'coarse', screwHead: 'none' })
   */
-export const drill = defineOp({
+export const fai_drill = defineOp({
   mesh: async (input: Shape, params: Record<string, unknown>) => {
     if (!input) throw new Error('[stdlib/drill] no input geometry')
     assertDrillParams(params)

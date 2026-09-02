@@ -1,4 +1,4 @@
-/**
+﻿/**
  * mesh API 单元测试
  *
  * 验证 mesh 的每个 API 正确包装了底层纯函数。
@@ -264,15 +264,15 @@ describe('mesh-api: API contract', () => {
   })
 
   it('cad 对象包含所有分割 API', () => {
-    expect(typeof cad.split).toBe('function')
+    expect(typeof cad.fai_split).toBe('function')
     expect(typeof cad.dovetailSplit).toBe('function')
     expect(typeof cad.dowelSplit).toBe('function')
     expect(typeof cad.tenonSplit).toBe('function')
   })
 
   it('cad 对象包含钻孔/拉伸/雕刻 API', () => {
-    expect(typeof cad.drill).toBe('function')
-    expect(typeof cad.extrude).toBe('function')
+    expect(typeof cad.fai_drill).toBe('function')
+    expect(typeof cad.fai_extrude).toBe('function')
     expect(typeof cad.engrave).toBe('function')
     expect(typeof cad.knurl).toBe('function')
   })
@@ -333,7 +333,7 @@ describe.skip('mesh-api: boolean (requires Worker)', () => {
 describe.skip('mesh-api: split (requires Worker)', () => {
   it('split: 平面分割立方体', async () => {
     const s = cad.box({ size: 20 })
-    const result = await cad.split(s, { normal: [0, 0, 1], offset: 0 })
+    const result = await cad.fai_split(s, { normal: [0, 0, 1], offset: 0 })
 
     expect(result.front.positions.length).toBeGreaterThan(0)
     expect(result.back.positions.length).toBeGreaterThan(0)
@@ -343,7 +343,7 @@ describe.skip('mesh-api: split (requires Worker)', () => {
 describe.skip('mesh-api: drill (requires Worker)', () => {
   it('drill: 在立方体上钻孔', async () => {
     const box = cad.box({ size: 20 })
-    const result = await cad.drill(box, {
+    const result = await cad.fai_drill(box, {
       diameter: 5,
       type: 'through',
       position: [0, 0, 10],
@@ -358,7 +358,7 @@ describe.skip('mesh-api: drill (requires Worker)', () => {
 describe.skip('mesh-api: extrude (requires Worker)', () => {
   it('extrude: 拉伸立方体中段', async () => {
     const box = cad.box({ size: 20 })
-    const result = await cad.extrude(box, {
+    const result = await cad.fai_extrude(box, {
       normal: [0, 0, 1],
       originOffset: 0,
       length: 10,
