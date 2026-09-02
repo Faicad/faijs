@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-02-api-surface-p14-measurement-slice.md
-2026-09-02-api-surface-p14-measurement-slice.md: e3475aefd492903afd5b1ce81ddc68ee5b4bb6f7
-2026-09-02-api-surface-p14-measurement-slice.zh.md: 5f38f1cc6ba01796b274ed737a8bc7594fab6003
+2026-09-02-api-surface-p14-measurement-slice.md: 352f220e0e60282a5e9aa69e2cdc34935fcb808c
+2026-09-02-api-surface-p14-measurement-slice.zh.md: 97ddb8838bff6580c09565301d874be964dfc3e5
