@@ -30,7 +30,7 @@
  * - 字符串 → 单引号包裹
  * - ParamRefIR → 裸标识符 `name`（无 $ 前缀）
  * - VarRefIR → 裸变量名（members 元素）
- * - CallRefIR → `cad.faceCenter(part0)`（嵌套调用）
+ * - CallRefIR → `cad.faceNormal(part0)`（嵌套调用）
  * - 对象字面量 → `{key:value}`（冒号，合法 JS）
  */
 
@@ -105,7 +105,7 @@ function fmtVarRef(ref: VarRefIR, varNames?: Map<string, string>): string {
   return varNames?.get(ref.$ref) ?? ref.$ref
 }
 
-/** CallRefIR → `<ns>.<callee>(<args>)`（嵌套调用，如 cad.faceCenter(part0)；F2 放开命名空间） */
+/** CallRefIR → `<ns>.<callee>(<args>)`（嵌套调用，如 cad.faceNormal(part0)；F2 放开命名空间） */
 function fmtCallRef(ref: CallRefIR, varNames?: Map<string, string>): string {
   const { callee, args, namespace } = ref.$call
   const inner = args.map((a) => fmtValue(a, varNames)).join(', ')

@@ -33,7 +33,7 @@
 
 | 用户判断 | 实测证据 | 结论 |
 |---|---|---|
-| **① 把 faijs 变成了 brepjs 的包装器** | 全仓 import `vendored/brepjs` 的只有 **3 个文件**：`packages/core/src/api/fillet.ts:27-30`、`api/occt-kernel-bridge.ts`、`packages/sheetmetal/src/compat.ts:23-56`。其余 47k 行 vendored 代码的"消费者"只有**测试专用 facade**：`packages/tests/faijs/p3-vendored-surface/brep-surface.ts:8-10` 与 `p5-vendored-surface/p5-surface.ts:7-8`（文件头自述"刻写 brepjs `src/index.ts` 的公共面，全部重导出至 vendored 树"） | vendored 是"能在 faijs 里跑起来的 brepjs 副本"，**没有进入 faijs 的 API 面** |
+| **① 把 faijs 变成了 brepjs 的包装器** | 全仓 import `vendored/brepjs` 的只有 **2 个文件**：`api/occt-kernel-bridge.ts`、`packages/sheetmetal/src/compat.ts:23-56`（原 `api/fillet.ts` 已随 D-FILLET 删除）。其余 47k 行 vendored 代码的"消费者"只有**测试专用 facade**：`packages/tests/faijs/p3-vendored-surface/brep-surface.ts:8-10` 与 `p5-vendored-surface/p5-surface.ts:7-8`（文件头自述"刻写 brepjs `src/index.ts` 的公共面，全部重导出至 vendored 树"） | vendored 是"能在 faijs 里跑起来的 brepjs 副本"，**没有进入 faijs 的 API 面** |
 | **② 不是让 sheetmetal 长在 faijs 语义上** | `packages/sheetmetal/src/compat.ts` 深导入 `@faicad/faijs-core/vendored/brepjs/*` 数十处（Result / 类型 / op 全部来自 vendored）；`./compat.js` 被包内 **34 处** import；sheetmetal 的 227 个 `it` **没有一处**经过 `cad.*` | sheetmetal 长在 brepjs 语义上 |
 | **③ faijs 的 api 面能力太弱** | `createApiNamespace()`（`api/api-namespace.ts:39-51`）返回 **31 个函数**；brepjs 公开 API 面 **810 个符号**（625 运行时值 + 185 类型，实测统计 `brepjs/src/index.ts`），经 §2.6 盘查裁决后的**目标面 730 符号** | 覆盖率 **31 / 730 ≈ 4.2%** |
 
@@ -81,7 +81,7 @@
 | **③ 库长在 faijs 上** | sheetmetal 删 `compat.ts`，改 `import * as cad from '@faicad/faijs'` | 47 文件 / 227 it 迁移后保绿 |
 | **④ 非 brep 域只搬不冲突的** | 六模块盘查（§2.6）：搬 `ns/` 9 文件，**排除 8379 行 / 80 符号** | 净搬 **2631 行** |
 
-**关键机制**：699 个符号**不手写**。模板已在 `api/fillet.ts`（P7 落地的第一个 brep-only op）跑通——句柄借入 → 调 vendored → Result 翻转 → 所有权转入身份槽。本方案把它抽象为生成层 `scripts/gen-l3-surface.ts` + 人工维护的**签名适配表**。
+**关键机制**：699 个符号**不手写**。模板原型 `api/fillet.ts`（P7 落地的第一个 brep-only op，已随 D-FILLET 删除——faijs `{radius}` 形态废弃，为 brepjs 直连版让路）跑通过句柄借入 → 调 vendored → Result 翻转 → 所有权转入身份槽的完整链路。本方案把它抽象为生成层 `scripts/gen-l3-surface.ts` + 人工维护的**签名适配表**。
 
 **方向性提醒**（来自初稿的教训）：补齐 ≠ 加一层。`cad` 不是"标准库"的门面，**它就是 faijs API 面本身的一个别名**（U10）。衡量本方案成功的标准不是"cad 里多了多少函数"，而是"**还有没有 faijs 能做、但第三方库够不着的能力**"。
 
@@ -99,7 +99,7 @@
 | brepjs 公开 API 面 | **810 符号**（625 运行时值 + 185 类型） | `brepjs/src/index.ts` |
 | **目标 API 面（§2.6 裁决后）** | **730 符号** | 810 − 80 排除 |
 | faijs `cad.*` 面 | **31 个函数** | `api/api-namespace.ts:39-51` |
-| faijs 包导出面 | **30 个函数**（缺 `chamfer`/`fillet`） | `api/index.ts:1-34` |
+| faijs 包导出面 | **29 个函数**（缺 `chamfer`） | `api/index.ts:1-34` |
 | 全仓 import vendored 的文件 | **3 个** | §0.2 |
 
 vendored 各目录行数（实测）：`topology` 11473、`kernel` 12204（其中 `interfaces` 1289 / `occtWasm` 8127 / `occt` 21 / 根 2767）、`2d` 7105、`operations` 4971、`core` 2974、`io` 2948、`sketching` 2343、`gear` 1269、`query` 746、`measurement` 528、`utils` 356、`text` 300、`projection` 218。
@@ -286,7 +286,7 @@ faijs 现有 31 个函数的归属：
 | # | 缺陷 | 证据 |
 |---|---|---|
 | **B1** | **符号表生成脚本已失效**：P6 删 `packages/stdlib` 后未同步 | `packages/core/scripts/gen-symbol-table.ts:26` 仍指向 `../../stdlib/src/internal-stdlib.ts`（该目录已不存在）；产物 `lang/symbol-table.generated.ts`（39 行）无法重新生成 |
-| **B2** | **`cad.*` 面 ≠ 包导出面**：前案 §5.3.4 承诺的不变量未落地 | `chamfer`/`fillet` 在 `api/api-namespace.ts:45-46` 注入 `cad.*`，但 `api/index.ts`（34 行）未导出 ⇒ `import { fillet } from '@faicad/faijs'` 失败 |
+| **B2** | **`cad.*` 面 ≠ 包导出面**：前案 §5.3.4 承诺的不变量未落地 | `chamfer` 在 `api/api-namespace.ts` 注入 `cad.*`，但 `api/index.ts`（34 行）未导出 ⇒ `import { chamfer } from '@faicad/faijs'` 失败（原 `fillet` 已随 D-FILLET 删除，不再适用） |
 | **B3** | **API 手册预算将爆** | `docs/ops-api-inventory.md` 现 3188 词 / 预算 4290 词（`scripts/doc-budgets.manifest.json:5`）。op 数 32 → 643 后按 ~100 词/op 外推 ≈ 64000 词，**超预算 15 倍** |
 | **B4** | 两份手工清单易漂移 | `api-namespace.ts`（31 项）与 `api/index.ts`（30 项）靠人工同步 |
 
@@ -385,7 +385,7 @@ graph TD
 |---|---|
 | 运行时值（730 中） | 全部在 faijs API 面可调用（同名） |
 | 类型（730 中） | 从 `api/` 或 vendored 的 L1 类型面 re-export（TS 消费方需要） |
-| faijs 原有 14 个同名 | 其中 11 个见 E2 双形态重载**不改名**（改名破 U1）；`drill`→`fai_drill`、`extrude`→`fai_extrude`、`split`→`fai_split` 已更名落地（D-DRILL/D-EX/D-SPLIT，faijs 保留导出）；`fillet` 已定直接用 brepjs 版（D-FILLET，待实施） |
+| faijs 原有 14 个同名 | 其中 11 个见 E2 双形态重载**不改名**（改名破 U1）；`drill`→`fai_drill`、`extrude`→`fai_extrude`、`split`→`fai_split` 已更名落地（D-DRILL/D-EX/D-SPLIT，faijs 保留导出）；`fillet` faijs 形态已删除，直接用 brepjs 版（D-FILLET，§5.1.1） |
 | faijs 特有 18 个 | 原样保留并叠加新增 |
 | **排除 80 个** | **逐条登记** `upstream-exclusions.json`，理由引用 §2.6.x 与 U9。**严禁静默跳过**——验收脚本断言"排除项数 == 登记项数" |
 
@@ -445,7 +445,7 @@ export const box = defineOp({
 | 场景 | 行为 | 依据 |
 |---|---|---|
 | **默认（auto / brep 模式，输入在 BREP 链）** | 走 brep | `backend-dispatch.ts:113` `if (impls.brep && inputs.every(hasBrep)) return 'brep'` |
-| **默认（输入已断链到 mesh）** | 抛 `E_MESH_UNSUPPORTED` | `backend-dispatch.ts:115-120`；**与现有 `cad.fillet` 行为完全一致，零变化** |
+| **默认（输入已断链到 mesh）** | 抛 `E_MESH_UNSUPPORTED` | `backend-dispatch.ts:115-120`；brep-only op 在 mesh 链上的行为（原 `cad.fillet` 已删除，brepjs 直连版将继承同样语义） |
 | **op 声明 `lift: 'mesh-to-brep'`（opt-in）** | 执行前把 mesh 输入提升为 BREP | 新增，见下 |
 
 **lift 不是"运行时回退"**：红线（U4/`AGENTS.md`）禁的是"BREP 路径执行失败后 try-catch 回退到 mesh"。lift 是**执行前的输入数据规整**，由 `dispatchPath` 静态判定后触发，与已存在的 `reconcileBrepInputs`（`api/reconcile.ts:32`，brep→mesh 归约）**方向对偶**。
@@ -485,7 +485,7 @@ brepjs/src/index.ts  ──提取──▶  api/surface/upstream-surface.json（
 | **IO**（`exportSTEP`/`importSTEP`/GLB/OBJ/DXF） | 涉及文件/字节 | 走 faijs `node-host`/`browser-host` 端口适配，**不直接搬** |
 | **类型**（185 个） | `type` 导出 | re-export |
 
-**模板来源**：`api/fillet.ts` 全文（句柄借入 `createBorrowedHandle` → 调 vendored → `Result.ok` 翻转 → `unregisterFromCleanup` → `fromBrep` 所有权转入身份槽）。生成器的每条产物与它同构。
+**模板来源**：原 `api/fillet.ts`（已随 D-FILLET 删除）的句柄借入 `createBorrowedHandle` → 调 vendored → `Result.ok` 翻转 → `unregisterFromCleanup` → `fromBrep` 所有权转入身份槽模式。生成器的每条产物与该模式同构。
 
 **适配表是唯一人工维护点**，规模估算：699 个符号中约 200 个需要手写条目（几何/查询类），其余按默认规则推导。
 
@@ -606,19 +606,19 @@ packages/core/src/
 | `cylinder` | `cylinder({radius, height, segments, center})` | `cylinder(radius, height, {at?, axis?, centered?})`（`primitiveFns.ts:111`） | ✅ | 双形态；brepjs `axis`/`centered` 经 brepjs 路径实现 |
 | `cone` | `cone({radiusBottom, radiusTop, height, segments, center})` | `cone(bR, tR, h, {at?, axis?, centered?})`（`primitiveFns.ts:162`） | ✅ | 双形态；同 cylinder |
 | `translate` | `translate(shape, {offset})` | `translate(shape, v: Vec3)`（`transformFns.ts:27`） | ✅ | 双形态；二参 object→faijs / array→brepjs |
-| `rotate` | `rotate(shape, {anglesDeg, pivot})`（欧拉 XYZ，度） | `rotate(shape, angle, pos?, dir?)`（轴角，度）（`transformFns.ts:43`） | ⚠️ | 参数化不同（欧拉 vs 轴角）；判别可行（二参 number vs object），但 brepjs 形态需新增轴角实现——**O-ROTATE-1** |
+| `rotate` | `rotate(shape, {anglesDeg, pivot})`（欧拉 XYZ，度） | `rotate(shape, angle, pos?, dir?)`（轴角，度）（`transformFns.ts:43`） | ✅ | 双形态（D-ROTATE，§5.1.1）；判别：二参 `number`→轴角 / `object`→欧拉；brep 路径复用 vendored rotate，mesh 路径补 `THREE.Matrix4.makeRotationAxis` |
 | `scale` | `scale(shape, {factor})`（number 或 [x,y,z] 非等比） | `scale(shape, factor, center?)`（仅等比）（`transformFns.ts:83`） | ✅ | 双形态；faijs 非等比是超集；brepjs `center` 需补缩放中心支持 |
 | `drill` | （已更名 `fai_drill`，`{diameter, depth, holeType, direction, position, face, faceNormal, screw*}`，CSG 减除打孔） | `drill(shape, {at, radius, axis, depth})`（造圆柱切掉）（`operations/compoundOpsFns.ts:104`） | ✅（已更名避让） | **D-DRILL 已落地**（§5.1.1）：faijs 保留导出 `fai_drill`；`drill` 空出，投影 brepjs |
 | `extrude` | （已更名 `fai_extrude`，语义 = 体沿法向拉伸移动中段） | `extrude(face, height\|Vec3)`（2D 面拉伸成体）（`operations/extrudeFns.ts:36`） | ✅（已更名避让） | **D-EX 已落地**（§5.1.1）：faijs 保留导出 `fai_extrude`；`extrude` 空出，投影 brepjs 面拉伸 |
 | `chamfer` | `chamfer(shape, {edges: EdgeTopoRef[], type, width, width1, width2, angle})` | `chamfer(shape, edges?, distance\|[d1,d2]\|cb)`（`modifierFns.ts:326`） | ⚠️ | 取边模型不同：role 引用（可持久化）vs Edge 句柄；距离语义近似可映射；per-edge 回调缺失——**O-CHAMFER-1** |
-| `fillet` | `fillet(shape, {radius})`（仅全边等半径，调移植 L2） | `fillet(shape, edges?, radius\|[r1,r2]\|cb, opts)`（`modifierFns.ts:265`） | ❌ | **无真实下游**（3d_editor / demo / mech-lib / .fai.js fixture 零命中，唯一消费者是自有测试）→ **直接用 brepjs `fillet`**（决策 D-FILLET，§5.1.1），faijs `{radius}` 形态废弃 |
+| `fillet` | ~~`fillet(shape, {radius})`~~（已删除） | `fillet(shape, edges?, radius\|[r1,r2]\|cb, opts)`（`modifierFns.ts:265`） | ❌ | **无真实下游**（3d_editor / demo / mech-lib / .fai.js fixture 零命中，唯一消费者是自有测试）→ **直接用 brepjs `fillet`**（决策 D-FILLET，§5.1.1），faijs `{radius}` 形态已删除，待导入 brepjs 版 |
 | `intersect` | `intersect(...shapes)`（variadic，throw+Shape） | `intersect(a, b, {simplify?, ...}?) → Result`（`booleanFns.ts:283`） | ✅ | 双形态；二参调用语义天然一致，第三参 options 判别；返回统一 throw（E3），Result 语义经 `@faicad/faijs/result` |
 | `split` | （已更名 `fai_split`，语义 = `{front, back}` 平面二分+榫卯） | `split(shape, tools[])` → Result&lt;compound 碎件&gt;（BRepAlgoAPI_Splitter）（`booleanFns.ts:915`） | ✅（已更名避让） | **D-SPLIT 已落地**（§5.1.1）：faijs 保留导出 `fai_split`；`split` 空出，投影 brepjs 工具切件 |
-| `faceCenter` | `faceCenter(of, anchor?, ordinal?)`（Shape+引用/锚点反查） | `faceCenter(face: Face) → Vec3`（`faceFns.ts:189`） | ⚠️ | 输入类型不同；判别需区分 Shape 与 Face，.fai.js 无法产出 Face，brepjs 形态仅 TS 可用——**O-FACECENTER-1** |
+| `faceCenter` | `faceCenter(of, anchor?, ordinal?)`（Shape+引用/锚点反查查询 op） | `faceCenter(face: Face) → Vec3`（面质心）（`faceFns.ts:189`） | ✅ | 双形态（D-FACECENTER，§5.1.1）；判别：首参运行时类型（`Shape` 包装→查询形态 / `Face` 包装→质心）；brepjs 形态对投影层必供（brepjs 内部 drill/pocket/sketch/mate/wrapper/形状引用打分依赖） |
 
-> **复核结论**：**7 个 ✅**（双形态映射即可：`box`/`sphere`/`cylinder`/`cone`/`translate`/`scale`/`intersect`）、**3 个 ⚠️**（`rotate`/`chamfer`/`faceCenter` 需补能力，范围待用户拍板）、**`drill`/`extrude`/`split` 已更名 `fai_drill`/`fai_extrude`/`fai_split` 并保留导出**（D-DRILL/D-EX/D-SPLIT 已落地，§5.1.1）、**`fillet` 已定用 brepjs 版、待实施**（D-FILLET，§5.1.1）。上表行号为沿用的既有实测行号；brepjs 签名均与本轮 vendored 源复核一致，**不再需要 P13 逐项重查**，直接落签名适配表。§5.1 原「extrude 双形态」判断被实测推翻；更名名 `split_extrude` 是首轮拟定、二轮改为 `fai_extrude`（见 §5.1.1 用户原话）。
+> **复核结论**：**9 个 ✅**（双形态映射即可：`box`/`sphere`/`cylinder`/`cone`/`translate`/`scale`/`rotate`/`intersect`/`faceCenter`）、**1 个 ⚠️**（`chamfer` 待用户拍板）、**`drill`/`extrude`/`split` 已更名 `fai_drill`/`fai_extrude`/`fai_split` 并保留导出**（D-DRILL/D-EX/D-SPLIT 已落地，§5.1.1）、**`fillet` faijs 形态已删除，待导入 brepjs 版**（D-FILLET，§5.1.1）。上表行号为沿用的既有实测行号；brepjs 签名均与本轮 vendored 源复核一致，**不再需要 P13 逐项重查**，直接落签名适配表。§5.1 原「extrude 双形态」判断被实测推翻；更名名 `split_extrude` 是首轮拟定、二轮改为 `fai_extrude`（见 §5.1.1 用户原话）。
 
-#### 5.1.1 决策（用户已定）：D-DRILL / D-EX / D-SPLIT（drill/extrude/split 更名，已落地）、D-FILLET（fillet 直接用 brepjs，待实施）
+#### 5.1.1 决策（用户已定）：D-DRILL / D-EX / D-SPLIT（更名避让，已落地）、D-ROTATE / D-FACECENTER（双形态）、D-FILLET（直接用 brepjs，待实施）
 
 用户原话（第二轮，否决第一轮的 `split_extrude` 命名）：「目前，faijs自己的fillet有真实的下游在用吗，也就是3d_editor有用到吗？没有的话，直接用brepjs的版本。此外，目前3d_editor项目在用的extrude/split两个函数，更名为：fai_extrude、fai_split。而brepjs的extrude/split则保留。」
 
@@ -642,24 +642,31 @@ packages/core/src/
 - 落地范围：faijs `api/drill.ts`→`api/fai_drill.ts`（导出名 + `@name` + 错误文案）；`api/index.ts` 与 `api/api-namespace.ts` **只导出 `fai_drill`**；mesh 键 `drill:`→`fai_drill:`（`mesh/fai_drill.ts`）；`symbol-table.generated.ts` 与 `mesh/api.d.ts` 已是 `fai_drill`；3d_editor feature（`ops:['fai_drill']`、`callee:'fai_drill'`）/ store `fai_drill-store` / `ActiveToolMode 'fai_drill'` / 图标映射 / undo 注册 / 存量脚本随重放迁移，双侧同步完成。
 - 语义归属：空调语义（`{diameter, depth, holeType, direction, position, face, faceNormal, screw*}`）完整保留在 `fai_drill`；`drill` 空出，投影 brepjs `{at, radius, axis, depth}`（`compoundOpsFns.ts:104`）。
 
-**D-FILLET（已定，待实施）：`fillet` 直接用 brepjs 版**
+**双形态（D-ROTATE / D-FACECENTER，已定，实施随 P13）**
 
-实测（无真实下游）：`fillet` 在 3d_editor / demo / mech-lib / `.fai.js` fixture 全部零命中，唯一消费者是自有测试 `packages/tests/faijs/fillet/fillet.test.ts`。按用户决定「直接用brepjs的版本」。
+用户原话（第四轮）：「完全说不通，你一直没说清楚faceCenter到底怎么回事。而且只要brepjs里有用到其faceCenter, faijs就需要支持」
 
-| # | 动作 | 范围 |
-|---|---|---|
-| 1 | 弃 faijs 形态 | `api/fillet.ts` 的 `{radius}` 全边等半径形态废弃；`fillet` 签名改为投影 brepjs `modifierFns.ts:265` 的 `fillet(shape, edges?, radius\|[r1,r2]\|cb, opts)` |
-| 2 | 测试迁移 | `packages/tests/faijs/fillet/fillet.test.ts` 改按 brepjs 签名覆盖（选边 / 变半径 / per-edge 回调） |
-| 3 | 符号与 schema | `mesh/api.d.ts` / `symbol-table.generated.ts` 的 `fillet` 参数映射更新（brep-only）；先修 B1 再重生成 |
-| 4 | divergence 登记 | 无 faijs 独有 `fillet` 形态 |
+规则：**只要 brepjs 内部（vendored 树）用到/依赖该符号，faijs 就必须提供其 brepjs 形态**——公开符号全量投影（P13/P14）后，TS 库与投影操作会产生这些输入值（Face 句柄、轴角 rotate）并直接调用，不供则生态搬不动。`faceCenter` 是 brepjs 面级操作体系的地基：drill/pocket 定位（`compoundOpsFns.ts:52,187,231`）、sketch/blueprint 原点（`cannedSketches.ts:244`、`blueprint.ts:292`）、mate 原点（`mateFns.ts:56`）、面包装器 `.center()`（`wrapperFns.ts:535`）、拓扑引用打分（`scoring.ts:58`/`shapeRefFns.ts:31`/`derivedFaceRefFns.ts:77`）都依赖它；`rotate` 轴角形态被 brepjs 内部依赖（齿轮生成 `gearFns.ts:517,540`、包装器 `wrapperFns.ts:349,357-359`、`topology/api.ts:68`）。
+
+- **D-ROTATE**：faijs 保留欧拉 `rotate(shape, {anglesDeg, pivot})`；新增 brepjs `rotate(shape, angle, position?, direction?)` 轴角形态；判别：二参 `number`→轴角 / `object`→欧拉；brep 路径复用 vendored rotate（`kernel.rotateWithHistory`），mesh 路径补 `THREE.Matrix4.makeRotationAxis`。
+- **D-FACECENTER**：faijs 保留查询形态 `faceCenter(of, anchor?, ordinal?)`；新增 brepjs `faceCenter(face: Face) → Vec3`（薄包 `faceFns.ts:189` 面质心）；判别：首参运行时类型（`Shape` 包装→查询形态 / `Face` 包装→质心）；`.fai.js` 无 Face 值，脚本恒走查询形态，TS 投影层走质心形态。
+
+**D-FILLET（实施中）：`fillet` 直接用 brepjs 版**
+
+实测（无真实下游）：`fillet` 在 3d_editor / demo / mech-lib / `.fai.js` fixture 全部零命中，唯一消费者是自有测试 `packages/tests/faijs/fillet/fillet.test.ts`（已随删除）。按用户决定「直接用brepjs的版本」。
+
+| # | 动作 | 状态 | 范围 |
+|---|---|---|---|
+| 1 | 弃 faijs 形态 | ✅ 已完成 | `api/fillet.ts` 及其测试已删除；`api-namespace.ts` 已移除 fillet 装配；`fillet` 签名待改为投影 brepjs `modifierFns.ts:265` 的 `fillet(shape, edges?, radius\|[r1,r2]\|cb, opts)` |
+| 2 | 测试迁移 | ⏳ 待实施 | 按 brepjs 签名覆盖（选边 / 变半径 / per-edge 回调） |
+| 3 | 符号与 schema | ⏳ 待实施 | `mesh/api.d.ts` / `symbol-table.generated.ts` 的 `fillet` 参数映射更新（brep-only）；先修 B1 再重生成 |
+| 4 | divergence 登记 | ⏳ 待实施 | 无 faijs 独有 `fillet` 形态 |
 
 #### 5.1.2 开放问题（用户拍板后落 P13 签名适配表 / divergence 表）
 
 | # | 符号 | 冲突 | 候选方案 |
 |---|---|---|---|
-| **O-ROTATE-1** | `rotate` | 欧拉 XYZ vs 轴角 | a) 主面双形态（新增 axis-angle 实现路径）；b) brepjs `rotate` 登记 divergence |
 | **O-CHAMFER-1** | `chamfer` | Edge 句柄 vs EdgeTopoRef；per-edge 回调 | a) 双形态 + faijs 命名层接受 Edge 句柄输入；b) 仅 faijs 形态 + brepjs `chamfer` 登记 divergence |
-| **O-FACECENTER-1** | `faceCenter` | Shape+引用 vs Face 对象 | a) 双形态（TS 侧接受 Face）；b) divergence |
 
 ### 5.2 新增符号的分类规则（生成器输入）
 
@@ -675,7 +682,7 @@ packages/core/src/
 
 ```text
 断言 A：upstream-surface.json 的 730 个符号 ⊆ faijs API 面导出符号集合
-断言 B：11 个同名符号双形态均可调用 + `fai_drill`/`fai_extrude`/`fai_split`（已更名保留导出）可调用 + `fillet`（brepjs 形）可用（各一个最小用例，§5.1）
+断言 B：10 个同名符号双形态均可调用 + `fai_drill`/`fai_extrude`/`fai_split`（已更名保留导出）可调用 + `fillet`（brepjs 形）可用（各一个最小用例，§5.1）
 断言 C：`import * as cad from '@faicad/faijs'` 与 `createApiNamespace()` 的键集合相等（B2/R3）
 断言 D：`.fai.js` 的 `check()` 符号表覆盖上述全集合（B1）
 断言 E：upstream-exclusions.json 的条目数 == 80，且每条有非空 reason + §2.6 链接（U9 的反静默跳过）
@@ -692,9 +699,9 @@ packages/core/src/
 
 | 期 | 内容 | 风险 | 依赖 |
 |---|---|---|---|
-| **P10** | **基线锁定**：① 提取 brepjs 公开面清单落 `api/surface/upstream-surface.json`（730）+ `upstream-exclusions.json`（80）；② 修 B1（符号表生成脚本）；③ 补 B2（`chamfer`/`fillet` 进 `api/index.ts`）；④ 建 U8 守卫 `check-vendored-branding.mjs` 并接入 CI；⑤ 全量锚点套件（U6）确认全绿 | 低 | — |
+| **P10** | **基线锁定**：① 提取 brepjs 公开面清单落 `api/surface/upstream-surface.json`（730）+ `upstream-exclusions.json`（80）；② 修 B1（符号表生成脚本）；③ 补 B2（`chamfer` 进 `api/index.ts`）；④ 建 U8 守卫 `check-vendored-branding.mjs` 并接入 CI；⑤ 全量锚点套件（U6）确认全绿 | 低 | — |
 | **P10b** | **`cad` 别名去硬编码（U10/R2）**：① `registerLib(binding, ns, {default: true})` 显式声明默认绑定名；② `runtime.ts:722,736,1279` 与 `parser.ts:365,488,600,1086,1337` 的 5 处 `'cad'` 字面量改读声明；③ 先抽概念不改行为（零风险前置），再开任意绑定名。**解决"名为 `cad` 的第三方库被误判进内部符号表"的既有隐患** | 中（触碰 L0 parser + L2 runtime） | P10 |
-| **P10c** | **`fillet` 直连 brepjs（D-FILLET，§5.1.1，待实施）**：弃 faijs `{radius}` 形态、`fillet` 签名改投影 brepjs `modifierFns.ts:265` 全签名（`edges?` / `[r1,r2]` / per-edge 回调）+ 测试迁移 + 符号与 schema 重生成（先修 B1）。（`drill`→`fai_drill`、`extrude`→`fai_extrude`、`split`→`fai_split` 已落地，不在此期） | 低 | P10 |
+| **P10c** | **`fillet` 直连 brepjs（D-FILLET，§5.1.1，实施中）**：faijs `{radius}` 形态已删除（步骤 1 ✅）；待导入 brepjs `modifierFns.ts:265` 全签名（`edges?` / `[r1,r2]` / per-edge 回调）+ 测试迁移 + 符号与 schema 重生成（先修 B1）。（`drill`→`fai_drill`、`extrude`→`fai_extrude`、`split`→`fai_split` 已落地，不在此期） | 低 | P10 |
 | **P11** | **去 brepjs 化（E6）**：删 core 的两条 `vendored` exports；清 86 处字面量（产物串、报错串优先）；mech-lib 重命名 + 改 import；守卫转绿 | 中（会打破 sheetmetal 的深导入 → 与 P15 联动，见 O2） | P10 |
 | **P12** | **vendored 补全（E7）**：搬 `ns/` 9 文件 + 根 barrel + `blueprintContourFns.ts`（**净 2631 行**，§2.2）；`@/` 别名沿用既有机制；upstream 自带测试跑通 + divergence 表登记；**U9 边界守卫**落地（断言 `csg/`、`ns/csg.ts` 不存在） | 中 | P10 |
 | **P13** | **生成层（E5）+ 第一批投影**：写 `scripts/gen-l3-surface.ts` + 签名适配表；先投 `topology`（265 符号，最大块）；产物进 `api/generated/topology.ts` | **高**（机制验证点） | P11、P12 |
@@ -716,7 +723,7 @@ packages/core/src/
 
 - **符号覆盖**：`upstream-surface.json` 的 625 个运行时值，逐项在 `@faicad/faijs` 导出面存在（机械比对，零遗漏）
 - **类型覆盖**：185 个类型可从 `@faicad/faijs` 以 `import type` 取得
-- **双形态**：11 个同名各有一个 faijs 形态用例 + 一个 brepjs 位置参数形态用例；`fai_drill`/`fai_extrude`/`fai_split`（已更名保留导出）各一调用用例；`fillet` 按 brepjs 签名一用例（D-FILLET）
+- **双形态**：10 个同名各有一个 faijs 形态用例 + 一个 brepjs 位置参数形态用例；`fai_drill`/`fai_extrude`/`fai_split`（已更名保留导出）各一调用用例；`fillet` 按 brepjs 签名一用例（D-FILLET）
 - **不变量**：`import * as cad from '@faicad/faijs'` 的键集合 **≡** `createApiNamespace()` 的键集合 **≡** `check()` 符号表覆盖集合
 - **移植库可搬运**：brepjs 生态的一段源码（取 sheetmetal 任意 3 个文件）改包名后可直接运行（E2 判别器验证）
 
@@ -793,12 +800,12 @@ packages/core/src/
 | vendored 47475 行 / 237 文件 | `packages/core/src/vendored/brepjs/` |
 | vendored 各目录行数 | 同上的分目录统计（§2.1） |
 | `cad.*` 面 31 个函数 | `packages/core/src/api/api-namespace.ts:39-51` |
-| 包导出面 30 个函数（缺 chamfer/fillet） | `packages/core/src/api/index.ts:1-34`（34 行） |
+| 包导出面 29 个函数（缺 chamfer） | `packages/core/src/api/index.ts:1-34`（34 行） |
 | core 主入口导出 api 面 | `packages/core/src/index.ts:242` `export * from './api'` |
 | 根门面薄 re-export + cad 注入 | `src/index.ts:10`（`export * from '@faicad/faijs-core'`）、`:27` `registerLib('cad', createApiNamespace())` |
 | vendored exports 子路径（将删） | `packages/core/package.json:41-42` |
-| 全仓 import vendored 的 3 个文件 | `api/fillet.ts:27-30`、`api/occt-kernel-bridge.ts`、`packages/sheetmetal/src/compat.ts:23-56` |
-| **brep-only op 样板（句柄借入→Result 翻转→所有权转入）** | `packages/core/src/api/fillet.ts:1-70`（`createBorrowedHandle` `:52-53`、Result 翻转 `:56-60`、`unregisterFromCleanup` `:63`） |
+| 全仓 import vendored 的 2 个文件 | `api/occt-kernel-bridge.ts`、`packages/sheetmetal/src/compat.ts:23-56`（原 `api/fillet.ts` 已随 D-FILLET 删除） |
+| **brep-only op 样板（句柄借入→Result 翻转→所有权转入）** | 原 `packages/core/src/api/fillet.ts:1-70`（已随 D-FILLET 删除；模式记录：`createBorrowedHandle` `:52-53`、Result 翻转 `:56-60`、`unregisterFromCleanup` `:63`） |
 | 产物串含 brepjs | `vendored/brepjs/io/gltfExportFns.ts:354,608`；`io/objExportFns.ts:36` |
 | 报错串含 brepjs | `vendored/brepjs/kernel/index.ts:91,110,115,127` |
 | vendored 内 brepjs 字面量 86 处 | 全树 grep |
@@ -825,7 +832,7 @@ packages/core/src/
 | "完全移植 brepjs 的所有能力，所有 api" | **E1 基线 = 810 符号**（§5.1/§7 符号级机械比对）；**E7 补 11010 行**（含 `csg`，**Y1 推翻**前案 D6） |
 | "可以只变包名，但是其他完全一致" | **E2 双形态重载**：brepjs 位置参数形态原样可调用，移植代码只改包名即可运行（§5.1 逐条冲突表 + 验收"移植库可搬运"） |
 | "绝对不能包名中出现 brepjs" | **U8 + E6 三层清理 + 守卫脚本**；目录名保留但只是构建期实现细节（§3.3 论证其不矛盾） |
-| "目前 faijs 的 api 面能力太弱。我要的就是补齐能力" | §2.3 缺口量化（31 / 810 = 3.8%）；**E5 生成层**（不手写 611 个，模板取自已跑通的 `api/fillet.ts`） |
+| "目前 faijs 的 api 面能力太弱。我要的就是补齐能力" | §2.3 缺口量化（31 / 810 = 3.8%）；**E5 生成层**（不手写 611 个，模板取自已跑通的原 `api/fillet.ts` 模式，该文件已随 D-FILLET 删除） |
 | "在 api 全部补齐的基础上，添加 faijs 自己特有的 api" | §3.2 三段结构：原生面 31 + 补齐面 611 + 特有面 18（并继续新增） |
 | "目录 packages\core\src\vendored\brepjs 可以保留…方便升级" | **E11**：目录树一一对应 + divergence 表（扩展前案 P3/P5 模式）+ 锁定 upstream commit + P19 升级演练 |
 | "里面的内容必须修改，至少是包名必须批量换掉" | **E6 ②**：产物串、报错串、86 处注释批量替换（守卫白名单只留 NOTICE 与 `UPSTREAM:` 追踪段落） |

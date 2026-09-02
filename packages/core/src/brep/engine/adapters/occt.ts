@@ -47,7 +47,7 @@ export async function registerOcctBrepEngine(): Promise<void> {
     },
   }))
   // P7-②：同一装配点把移植内核注册表绑定到同一个 occt-wasm 实例（D10 单实例 + 冻结）。
-  // 使 L3 调移植 L2 的 op（如 fillet）在宿主装配后立即可用；幂等，重复调用安全。
+  // 使 L3 调移植 L2 的 op 在宿主装配后立即可用；幂等，重复调用安全。
   bindOcctKernel()
 }
 

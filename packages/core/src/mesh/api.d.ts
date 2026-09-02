@@ -57,7 +57,6 @@ export interface CadAPI {
   copy(shape: Shape, params?: never): Shape  // input is kept via function-body exec.keep (visible); copy does not consume it
 
   // ── 几何查询 ──
-  faceCenter(shape: Shape, params?: never): [number, number, number]  // usage: cad.faceCenter(of, anchor?, faceOrdinal?)
   faceNormal(shape: Shape, params?: never): [number, number, number]  // usage: cad.faceNormal(of, anchor?, faceOrdinal?)
   bboxCenter(shape: Shape, params?: never): [number, number, number]
   bboxMin(shape: Shape, params?: never): [number, number, number]

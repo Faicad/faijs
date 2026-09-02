@@ -232,7 +232,7 @@ async function drillMeshPath(input: Shape, params: Record<string, unknown>): Pro
  * @param params.depth - 孔深（mm）；0 = 通孔，> 0 = 盲孔。type:number 默认 0
  * @param params.holeType - 孔类型：simple 简单孔 / screw 螺丝孔。type:'simple' | 'screw' 默认 'simple'
  * @param params.direction - 钻孔轴向（normal 表示沿面法向）。type:'normal' | 'x' | 'y' | 'z' 默认 'normal'
- * @param params.position - 孔心位置（建议几何引用 cad.faceCenter）。type:[x,y,z] 默认 原点
+ * @param params.position - 孔心位置。type:[x,y,z] 默认 原点
  * @param params.face - 面引用（§6.2 新形态：`FaceTopoRef`，执行期按输入 Shape 解析派生法向；优先于 `faceNormal`）。type:FaceTopoRef
  * @param params.faceNormal - 面法向（决定朝向；历史兜底，§6.2 起宿主不再写，改由 `face` 解析）。type:[x,y,z] 默认 [0,0,1]
  * @param params.tolerance - 公差（mm）。type:number 默认 0.3

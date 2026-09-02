@@ -160,13 +160,13 @@ let part1 = cad.box({ size: cad.bboxCenter(part0) })`
     expect(isVarRef(arg.$call.args[0])).toBe(true)
   })
 
-  it('解析嵌套调用 cad.faceCenter(var, [anchor]) → CallRefIR', () => {
+  it('解析嵌套调用 cad.faceNormal(var, [anchor]) → CallRefIR', () => {
     const code = `let part0 = cad.box({ size: 20 })
-let part1 = cad.box({ size: cad.faceCenter(part0, [0,0,10]) })`
+let part1 = cad.box({ size: cad.faceNormal(part0, [0,0,10]) })`
     const { script } = parseScript(code)
     const arg = script.statements[1].args.size as CallRefIR
     expect(isCallRef(arg)).toBe(true)
-    expect(arg.$call.callee).toBe('faceCenter')
+    expect(arg.$call.callee).toBe('faceNormal')
     expect(arg.$call.args).toHaveLength(2)
     expect(isVarRef(arg.$call.args[0])).toBe(true)
     expect(arg.$call.args[1]).toEqual([0, 0, 10])

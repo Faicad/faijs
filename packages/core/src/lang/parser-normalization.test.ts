@@ -91,18 +91,18 @@ describe('parser-normalization: 任意成员调用', () => {
 })
 
 describe('parser-normalization: args 内嵌套调用 → CallRefIR', () => {
-  it('cad.fai_drill(part0, { at: cad.faceCenter(part2) }) → args.at 是 CallRefIR', () => {
+  it('cad.fai_drill(part0, { at: cad.faceNormal(part2) }) → args.at 是 CallRefIR', () => {
     const code = [
       'let part0 = cad.box({ size: 20 })',
       'let part2 = cad.box({ size: 5 })',
-      'part0 = cad.fai_drill(part0, { at: cad.faceCenter(part2), depth: 2 })',
+      'part0 = cad.fai_drill(part0, { at: cad.faceNormal(part2), depth: 2 })',
     ].join('\n')
     const { script } = parseScript(code)
     const drillStmt = script.statements[2]
     const atArg = drillStmt.args.at
     expect(isCallRef(atArg)).toBe(true)
     const callRef = atArg as CallRefIR
-    expect(callRef.$call.callee).toBe('faceCenter')
+    expect(callRef.$call.callee).toBe('faceNormal')
     expect(callRef.$call.args).toHaveLength(1)
     expect(isVarRef(callRef.$call.args[0])).toBe(true)
   })

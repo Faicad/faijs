@@ -297,9 +297,9 @@ const part1 = cad.copy(part0)
 在几何体上钻孔（CSG 减除）。depth=0 为通孔，>0 为盲孔。
 
 ```js
-const p = await cad.drill(part0, { diameter: 5 })
-const p = await cad.drill(part0, { diameter: 5, depth: 3 })
-const p = await cad.drill(part0, { diameter: 5.2, depth: 8, holeType: 'screw', screwSystem: 'metric', screwSpecIdx: 4, screwThread: 'coarse', screwHead: 'none' })
+const p = await cad.fai_drill(part0, { diameter: 5 })
+const p = await cad.fai_drill(part0, { diameter: 5, depth: 3 })
+const p = await cad.fai_drill(part0, { diameter: 5.2, depth: 8, holeType: 'screw', screwSystem: 'metric', screwSpecIdx: 4, screwThread: 'coarse', screwHead: 'none' })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -308,7 +308,7 @@ const p = await cad.drill(part0, { diameter: 5.2, depth: 8, holeType: 'screw', s
 | `depth` | `number` |  | 0 | 孔深（mm）；0 = 通孔，> 0 = 盲孔 |
 | `holeType` | `'simple' | 'screw'` |  | 'simple' | 孔类型：simple 简单孔 / screw 螺丝孔 |
 | `direction` | `'normal' | 'x' | 'y' | 'z'` |  | 'normal' | 钻孔轴向（normal 表示沿面法向） |
-| `position` | `[x,y,z]` |  | 原点 | 孔心位置（建议几何引用 cad.faceCenter） |
+| `position` | `[x,y,z]` |  | 原点 | 孔心位置 |
 | `face` | `FaceTopoRef` |  | — | 面引用（§6.2 新形态：`FaceTopoRef`，执行期按输入 Shape 解析派生法向；优先于 `faceNormal`） |
 | `faceNormal` | `[x,y,z]` |  | [0,0,1] | 面法向（决定朝向；历史兜底，§6.2 起宿主不再写，改由 `face` 解析） |
 | `tolerance` | `number` |  | 0.3 | 公差（mm） |
@@ -342,16 +342,16 @@ const p = await cad.engrave(part0, { mode: 'concave', depth: 2, text: 'Hello', t
 
 **异步**。Shape 雕刻后的几何。
 
-> 早期 logo 分支用 `svgText`（整份 XML 拷贝 + `svgSize` 文本导出丢失，往返失真）；现已改为 `svg` 资产引用，`engravingType` 冗余键已移除。faceCenter/faceNormal 目前是绝对坐标快照，建议用几何引用 `cad.faceCenter(part0, [锚点])`。
+> 早期 logo 分支用 `svgText`（整份 XML 拷贝 + `svgSize` 文本导出丢失，往返失真）；现已改为 `svg` 资产引用，`engravingType` 冗余键已移除。faceCenter/faceNormal 目前是绝对坐标快照。
 
-### 5.5 `extrude` ✅
+### 5.5 `fai_extrude` ✅
 
 沿法向拉伸几何。
 
 ```js
-const p = await cad.extrude(part0, { length: 10 })
-const p = await cad.extrude(part0, { length: 10, mode: 'forward' })
-const p = await cad.extrude(part0, { length: 10, normal: [0,0,1], originOffset: 2 })
+const p = await cad.fai_extrude(part0, { length: 10 })
+const p = await cad.fai_extrude(part0, { length: 10, mode: 'forward' })
+const p = await cad.fai_extrude(part0, { length: 10, normal: [0,0,1], originOffset: 2 })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -364,21 +364,41 @@ const p = await cad.extrude(part0, { length: 10, normal: [0,0,1], originOffset: 
 
 **异步**。Shape 拉伸后的几何。
 
-### 5.6 `fillet` ✅
+### 5.6 `fai_split` ⚠️
 
-在几何体上做圆角（全部棱边，等半径）。仅 BREP 可用。
+分割几何，返回具名对象 { front, back } 两个独立零件。
 
 ```js
-const p = await cad.fillet(part0, { radius: 2 })
+const { front: part1, back: part2 } = await cad.fai_split(part0, { normal: [0, 0, 1], offset: 5, cutMode: 'dovetail', grooveDepth: 3, grooveWidth: 5 })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
-| `radius` | `number` | ✅ | — | 圆角半径（mm），正数 |
+| `cutMode` | `'plane' | 'dovetail' | 'dowel' | 'tenon' | 'straight-tenon' | 'straight'` |  | 'plane' | 切割模式 |
+| `normal` | `[x,y,z]` |  | [0,0,1] | 切割面法向 |
+| `offset` | `number` |  | 0 | 切割面沿法向偏移（过 bbCenter） |
+| `inPlaneAngleDeg` | `number` |  | 0 | 切割面面内旋转角（度） |
+| `bbCenter` | `[x,y,z]` |  | 自动 | 包围盒中心（缺省自动推导） |
+| `bboxSize` | `[x,y,z]` |  | 自动 | 包围盒尺寸（缺省自动推导） |
+| `applyExplode` | `boolean` |  | true | 是否将两侧沿法向分离位移（bbox 对角线 2% + 榫卯深度一半） |
+| `grooveDepth` | `number` |  | — | 燕尾槽深（cutMode='dovetail'） |
+| `grooveWidth` | `number` |  | — | 燕尾槽宽（cutMode='dovetail'） |
+| `grooveDepthTolerance` | `number` |  | — | 燕尾槽深公差 |
+| `grooveWidthTolerance` | `number` |  | — | 燕尾槽宽公差 |
+| `grooveFlapsAngle` | `number` |  | — | 燕尾槽翼角（度） |
+| `dowelDiameter` | `number` |  | — | 定位销直径（cutMode='dowel'） |
+| `dowelDiameterTolerance` | `number` |  | — | 定位销直径公差 |
+| `dowelHeight` | `number` |  | — | 定位销高度 |
+| `dowelHeightTolerance` | `number` |  | — | 定位销高度公差 |
+| `tenonSideLength` | `number` |  | — | 直榫边长（cutMode='tenon'/'straight-tenon'） |
+| `tenonSideLengthTolerance` | `number` |  | — | 直榫边长公差 |
+| `tenonHeight` | `number` |  | — | 直榫高度 |
+| `tenonHeightTolerance` | `number` |  | — | 直榫高度公差 |
+| `selectedSections` | `number[]` |  | — | 参与榫卯的截面下标 |
 
-**异步**。Shape 圆角后的几何。
+**异步**。{ front: Shape; back: Shape } 必须用解构 `const { front: partA, back: partB } = await cad.fai_split(...)` 取出两个零件。
 
-> 圆角是 BREP-only：非 BREP 输入抛 E_MESH_UNSUPPORTED。调移植 L2（brepjs topology/modifierFns.fillet，D11 缺失能力接线样板）。
+> 切割面统一用 `normal`/`offset`/`inPlaneAngleDeg` 描述；早期文本层曾与执行层键名断裂（planeRotation/planePosition），已修并统一为上述键名。
 
 ### 5.7 `intersect` ✅
 
@@ -417,43 +437,7 @@ const p = await cad.knurl(part0, { knurlTextureHeight: 0.5, knurlScaleU: 0.15, k
 
 > knurl 无 BREP 实现（mesh-only），本质是顶点位移（网格操作），网格参数可接受；brep 模式下调用前抛 BrepUnsupportedError。面锚定建议用几何引用。
 
-### 5.9 `split` ⚠️
-
-分割几何，返回具名对象 { front, back } 两个独立零件。
-
-```js
-const { front: part1, back: part2 } = await cad.split(part0, { normal: [0, 0, 1], offset: 5, cutMode: 'dovetail', grooveDepth: 3, grooveWidth: 5 })
-```
-
-| 参数 | 类型 | 必填 | 默认 | 说明 |
-|---|---|---|---|---|
-| `cutMode` | `'plane' | 'dovetail' | 'dowel' | 'tenon' | 'straight-tenon' | 'straight'` |  | 'plane' | 切割模式 |
-| `normal` | `[x,y,z]` |  | [0,0,1] | 切割面法向 |
-| `offset` | `number` |  | 0 | 切割面沿法向偏移（过 bbCenter） |
-| `inPlaneAngleDeg` | `number` |  | 0 | 切割面面内旋转角（度） |
-| `bbCenter` | `[x,y,z]` |  | 自动 | 包围盒中心（缺省自动推导） |
-| `bboxSize` | `[x,y,z]` |  | 自动 | 包围盒尺寸（缺省自动推导） |
-| `applyExplode` | `boolean` |  | true | 是否将两侧沿法向分离位移（bbox 对角线 2% + 榫卯深度一半） |
-| `grooveDepth` | `number` |  | — | 燕尾槽深（cutMode='dovetail'） |
-| `grooveWidth` | `number` |  | — | 燕尾槽宽（cutMode='dovetail'） |
-| `grooveDepthTolerance` | `number` |  | — | 燕尾槽深公差 |
-| `grooveWidthTolerance` | `number` |  | — | 燕尾槽宽公差 |
-| `grooveFlapsAngle` | `number` |  | — | 燕尾槽翼角（度） |
-| `dowelDiameter` | `number` |  | — | 定位销直径（cutMode='dowel'） |
-| `dowelDiameterTolerance` | `number` |  | — | 定位销直径公差 |
-| `dowelHeight` | `number` |  | — | 定位销高度 |
-| `dowelHeightTolerance` | `number` |  | — | 定位销高度公差 |
-| `tenonSideLength` | `number` |  | — | 直榫边长（cutMode='tenon'/'straight-tenon'） |
-| `tenonSideLengthTolerance` | `number` |  | — | 直榫边长公差 |
-| `tenonHeight` | `number` |  | — | 直榫高度 |
-| `tenonHeightTolerance` | `number` |  | — | 直榫高度公差 |
-| `selectedSections` | `number[]` |  | — | 参与榫卯的截面下标 |
-
-**异步**。{ front: Shape; back: Shape } 必须用解构 `const { front: partA, back: partB } = await cad.split(...)` 取出两个零件。
-
-> 切割面统一用 `normal`/`offset`/`inPlaneAngleDeg` 描述；早期文本层曾与执行层键名断裂（planeRotation/planePosition），已修并统一为上述键名。
-
-### 5.10 `subtract` ✅
+### 5.9 `subtract` ✅
 
 布尔差集：第一个为主体，减去其余输入。
 
@@ -467,7 +451,7 @@ const b = await cad.subtract(part0, part1)
 
 **异步**。Shape part0 减 part1 的差集（第一个为主体）。
 
-### 5.11 `union` ✅
+### 5.10 `union` ✅
 
 布尔并集：合并所有输入几何（≥2 个输入）。
 
@@ -581,23 +565,7 @@ const mn = cad.bboxMin(part0)
 
 **同步**。Vec3 包围盒最小角点 [x,y,z]。
 
-### 7.5 `faceCenter` ✅
-
-查询面上某点（锚点）的中心坐标。faceOrdinal 拓扑引用优先，anchor 几何反查兜底。
-
-```js
-const c = cad.faceCenter(part0, [0, 0, 5])
-```
-
-| 参数 | 类型 | 必填 | 默认 | 说明 |
-|---|---|---|---|---|
-| `of` | `Shape` | ✅ | — | 目标几何（编译产物 ctx.<var> 引用） |
-| `anchor` | `[x,y,z]` |  | — | 锚点（几何反查兜底） |
-| `ordinal` | `number` |  | — | 面序号（BREP 拓扑引用优先） |
-
-**同步**。Vec3 面上锚点处的中心坐标 [x,y,z]。交互式可编辑（参数量引用）。
-
-### 7.6 `faceNormal` ✅
+### 7.5 `faceNormal` ✅
 
 查询面上某点（锚点）的法向。
 
@@ -620,9 +588,9 @@ const n = cad.faceNormal(part0, [0, 0, 5])
 | op | 品质 | 说明 |
 |---|---|---|
 | `assembly` | ⚠️ | 早期文档/示例曾用 `fixedPartId`/`movingPartId`/`faceRowIndex`/`faceId`/`invalid`——这些键在代码中不存在。真实契约是 `fixedPartName`/`movingPartName` + `fixedFace`/`movingFace`。支持两种形态：`{ topoRef: FaceTopoRef }`（§6.2 新形态，几何由 faijs 执行期从面行派生）或旧快照 `{ surfaceType, center, normal }`（兼容历史脚本）。`faceId` 字段随 §6.2 移除，不再写入。 |
+| `fai_split` | ⚠️ | 切割面统一用 `normal`/`offset`/`inPlaneAngleDeg` 描述；早期文本层曾与执行层键名断裂（planeRotation/planePosition），已修并统一为上述键名。 |
 | `knurl` | ⚠️ | knurl 无 BREP 实现（mesh-only），本质是顶点位移（网格操作），网格参数可接受；brep 模式下调用前抛 BrepUnsupportedError。面锚定建议用几何引用。 |
 | `sdf` | ⚠️ | SDF 无 BREP 实现（mesh-only）；brep 模式下 dispatchPath 调用前抛 BrepUnsupportedError。SDF 天生是网格操作，允许网格参数（resolution）。 |
-| `split` | ⚠️ | 切割面统一用 `normal`/`offset`/`inPlaneAngleDeg` 描述；早期文本层曾与执行层键名断裂（planeRotation/planePosition），已修并统一为上述键名。 |
 | `svgExtrude` | ⚠️ | SVG 是外部资产，应优先用资产引用（`cad.asset(key)` 经 CallRefIR）而非整份 XML 内联拷贝。自然尺寸（viewBox）与缩放已显式成参数（mesh/BREP 两条路径都解析 viewBox 并传递 naturalWidth/naturalHeight），尺寸语义不再依赖两套实现各自推导。 |
 | `text` | ⚠️ | font 语义未定（当前只有默认字体），⚠️ 暂不要传。兼容 `cad.text(part0, {...})` 带输入形态（输入被忽略），正常写 `cad.text({...})` 即可。 |
 
@@ -634,7 +602,7 @@ const n = cad.faceNormal(part0, [0, 0, 5])
 ```
 创建: load / box / sphere / cylinder / cone / wedge / screw / sdf / svgExtrude / text
 变换: translate / rotate / scale
-特征: union / subtract / intersect / chamfer / copy / drill / engrave / extrude / fillet / knurl / split
+特征: union / subtract / intersect / chamfer / copy / engrave / drill / fai_extrude / fai_split / knurl
 结构: group / assembly
-查询: asset / faceCenter / faceNormal / bboxCenter / bboxMin / bboxMax
+查询: asset / faceNormal / bboxCenter / bboxMin / bboxMax
 ```

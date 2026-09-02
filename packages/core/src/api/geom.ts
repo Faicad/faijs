@@ -6,7 +6,7 @@
  *
  * `cad.<feature>(of, anchor?, ordinal?)`：
  * - of 是 Shape（编译产物 `ctx.<var>` 引用），非变量名
- * - faceCenter/faceNormal：faceOrdinal + brepOf(of) + kernel（拓扑引用）
+ * - faceNormal：faceOrdinal + brepOf(of) + kernel（拓扑引用）
  *   优先 → anchor 几何反查（兜底）→ 报错
  * - bboxCenter/bboxMin/bboxMax：mesh 包围盒查询
  */
@@ -18,9 +18,8 @@ import { brepOf } from '../shape'
 import type { BrepHandle } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 
-/** 内部实现：faceOrdinal+BREP 优先 → anchor 反查 → 报错（逻辑迁移自 resolveGeomRef）。 */
+/** 内部实现：faceNormal 专用——faceOrdinal+BREP 优先 → anchor 反查 → 报错（逻辑迁移自 resolveGeomRef）。 */
 function geomQuery(
-  feature: 'faceCenter' | 'faceNormal',
   of: Shape,
   anchor: Vec3 | undefined,
   faceOrdinal: number | undefined,
@@ -34,7 +33,6 @@ function geomQuery(
         const faces = kernel.getSubShapes(solid, 'face')
         if (faceOrdinal < faces.length) {
           const face = faces[faceOrdinal]
-          const center = kernel.getSurfaceCenterOfMass(face)
           // 面法向：用 surfaceNormal 在 (0.5, 0.5) 处取
           let normal: Vec3 = [0, 0, 1]
           try {
@@ -47,7 +45,7 @@ function geomQuery(
           for (let i = 0; i < faces.length; i++) {
             if (i !== faceOrdinal) kernel.release(faces[i])
           }
-          return feature === 'faceCenter' ? [center.x, center.y, center.z] : normal
+          return normal
         }
         // ordinal 越界 → 释放并降级到 anchor
         for (const f of faces) kernel.release(f)
@@ -59,31 +57,13 @@ function geomQuery(
 
   // 兜底路径：anchor 几何反查
   if (!anchor) {
-    throw new Error(`[GeomRef] ${feature} requires anchor or faceOrdinal`)
+    throw new Error('[GeomRef] faceNormal requires anchor or faceOrdinal')
   }
   const face = cad.faceAt(of, { point: anchor })
   if (!face) {
     throw new Error(`[GeomRef] faceAt failed for anchor at ${anchor}`)
   }
-  return feature === 'faceCenter' ? face.center : face.normal
-}
-
-/**
- * 查询面上某点（锚点）的中心坐标。faceOrdinal 拓扑引用优先，anchor 几何反查兜底。
- * @group 查询
- * @inputs 1
- * @async false
- * @qual ok
- * @name faceCenter
- * @returns Vec3 面上锚点处的中心坐标 [x,y,z]。交互式可编辑（参数量引用）。
- * @param of - 目标几何（编译产物 ctx.<var> 引用）。type:Shape required:true
- * @param anchor - 锚点（几何反查兜底）。type:[x,y,z]
- * @param ordinal - 面序号（BREP 拓扑引用优先）。type:number
- * @example
- * const c = cad.faceCenter(part0, [0, 0, 5])
-  */
-export function faceCenter(of: Shape, anchor?: Vec3, ordinal?: number): Vec3 {
-  return geomQuery('faceCenter', of, anchor, ordinal)
+  return face.normal
 }
 
 /**
@@ -101,7 +81,7 @@ export function faceCenter(of: Shape, anchor?: Vec3, ordinal?: number): Vec3 {
  * const n = cad.faceNormal(part0, [0, 0, 5])
   */
 export function faceNormal(of: Shape, anchor?: Vec3, ordinal?: number): Vec3 {
-  return geomQuery('faceNormal', of, anchor, ordinal)
+  return geomQuery(of, anchor, ordinal)
 }
 
 /**

@@ -71,7 +71,7 @@ export function volume(shape: Shape): number {
 
 /**
  * Find the face nearest to an anchor (a pick point plus an optional reference
- * normal). Used for GeomRef faceCenter/faceNormal evaluation: faces whose
+ * normal). Used for GeomRef faceNormal evaluation: faces whose
  * normal is closer to the target normal are weighted more favorably.
  *
  * @param shape - the shape to search.

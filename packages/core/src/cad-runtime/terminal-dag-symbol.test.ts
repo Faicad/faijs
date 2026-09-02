@@ -165,7 +165,7 @@ describe('consumes: 嵌套调用与 args 引用', () => {
       callee: 'fai_drill',
       inputs: ['part0'],
       args: {
-        at: callRef('faceCenter', [varRef('part2')]),
+        at: callRef('faceNormal', [varRef('part2')]),
         depth: 2,
       },
     })
@@ -177,7 +177,7 @@ describe('consumes: 嵌套调用与 args 引用', () => {
       callee: 'fai_drill',
       inputs: ['part0'],
       args: {
-        at: callRef('faceCenter', [
+        at: callRef('faceNormal', [
           callRef('bboxCenter', [varRef('part2')]),
         ]),
       },

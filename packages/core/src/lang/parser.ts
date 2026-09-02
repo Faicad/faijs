@@ -10,7 +10,7 @@
  * - `const <name> = <literal>` → ParamDef（参数声明，右侧仅字面量）
  * - `const part<N>_v<M> = [await] cad.<op>(<inputVar>?, { ...args })` → StatementIR
  * - `cad.union/subtract/intersect(inputVar, inputVar)` → boolean op
- * - `cad.faceCenter(var)` / `cad.faceNormal(var)` / `cad.bboxCenter(var)` / ... → GeomRef
+ * - `cad.faceNormal(var)` / `cad.bboxCenter(var)` / ... → GeomRef
  * - `return { shape: part<N>_v<M>, name, color, metalness, roughness }` → ScriptIR.meta
  *
  * 禁止（acorn 抛错或 AST walk 拒绝即 ParseError）：

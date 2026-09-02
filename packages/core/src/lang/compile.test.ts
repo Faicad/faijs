@@ -49,11 +49,11 @@ describe('compileToModule: 模块文本', () => {
       const part0 = await cad.box({ size: [10, 20, 5] })
       const part1 = await cad.fai_drill(part0, {
         depth: 3,
-        position: cad.faceCenter(part0, [5, 20, 2.5], 2),
+        position: cad.bboxCenter(part0),
       })
       const part2 = await cad.svgExtrude({ svg: cad.asset('logo.svg'), depth: 2, targetLongSide: 20 })
     `)
-    expect(code).toContain('position: await ns.cad.faceCenter(ctx.part0, [5, 20, 2.5], 2)')
+    expect(code).toContain('position: await ns.cad.bboxCenter(ctx.part0)')
     expect(code).toContain('await ns.cad.asset("logo.svg")')
   })
 
@@ -91,7 +91,7 @@ describe('compileToModule: 语句元数据', () => {
     const { statements } = compileText(`
       const r = 20
       const part0 = await cad.box({ size: r })
-      const part1 = await cad.fai_drill(part0, { depth: 3, position: cad.faceCenter(part0, [5, 20, 2.5], 2) })
+      const part1 = await cad.fai_drill(part0, { depth: 3, position: cad.bboxCenter(part0) })
       const { front: part2, back: part3 } = await cad.fai_split(part0, { cutMode: 'plane' })
     `)
     const byId = new Map(statements.map((s) => [String(s.id), s]))

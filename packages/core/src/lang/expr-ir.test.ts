@@ -140,11 +140,11 @@ describe('parser: 静态折叠零回归', () => {
   it('嵌套调用仍走 CallRefIR（不进入 ExprIR）', () => {
     const code = [
       'let part0 = cad.box({ size: 20 })',
-      'let part1 = cad.translate(part0, { offset: cad.faceCenter(part0, [5, 20, 2.5], 2) })',
+      'let part1 = cad.translate(part0, { offset: cad.bboxCenter(part0) })',
     ].join('\n')
     const { script } = parseScript(code)
     const offset = script.statements[1].args.offset
-    expect(offset).toMatchObject({ $call: { callee: 'faceCenter' } })
+    expect(offset).toMatchObject({ $call: { callee: 'bboxCenter' } })
   })
 })
 
@@ -154,7 +154,7 @@ describe('parser: ExprIR 白名单边界', () => {
   it('条件表达式内含嵌套调用 → E_VALUE', () => {
     const code = [
       'let part0 = cad.box({ size: 20 })',
-      'let part1 = cad.box({ size: cad.faceCenter(part0, [5,20,2.5], 2) ? 1 : 2 })',
+      'let part1 = cad.box({ size: cad.bboxCenter(part0) ? 1 : 2 })',
     ].join('\n')
     try {
       parseScript(code)

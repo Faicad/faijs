@@ -201,19 +201,19 @@ describe('codegen: 外部 st_ id 含冒号时报错', () => {
 // ── 值格式化 ──
 
 describe('codegen: 值格式化', () => {
-  it('CallRefIR → cad.faceCenter(of)', () => {
+  it('CallRefIR → cad.faceNormal(of)', () => {
     const stmt = makeStmt({
       id: 's2',
       callee: 'fai_drill',
       args: {
-        position: { $call: { callee: 'faceCenter', args: [{ $ref: 'part0' }] } },
+        position: { $call: { callee: 'faceNormal', args: [{ $ref: 'part0' }] } },
         faceNormal: { $call: { callee: 'faceNormal', args: [{ $ref: 'part0' }] } },
       },
       inputs: ['part0'],
       outputs: ['part0'],
     })
     const code = statementIRToLine(stmt)
-    expect(code).toContain('position:cad.faceCenter(part0)')
+    expect(code).toContain('position:cad.faceNormal(part0)')
     expect(code).toContain('faceNormal:cad.faceNormal(part0)')
   })
 
@@ -258,7 +258,7 @@ describe('codegen: CallRefIR with faceOrdinal round-trip', () => {
         args: {
           text: 'test',
           depth: 2,
-          faceCenter: { $call: { callee: 'faceCenter', args: [{ $ref: 'part0' }, [5, 5, 10], 4] } },
+          faceCenter: { $call: { callee: 'faceNormal', args: [{ $ref: 'part0' }, [5, 5, 10], 4] } },
           faceNormal: { $call: { callee: 'faceNormal', args: [{ $ref: 'part0' }, [5, 5, 10], 4] } },
         },
         inputs: ['part0'],
@@ -269,7 +269,7 @@ describe('codegen: CallRefIR with faceOrdinal round-trip', () => {
     const parsed = parseScript(fullCode)
     const parsedStmt = parsed.script.statements[1]
     expect(parsedStmt.args.faceCenter).toEqual({
-      $call: { callee: 'faceCenter', args: [{ $ref: 'part0' }, [5, 5, 10], 4] },
+      $call: { callee: 'faceNormal', args: [{ $ref: 'part0' }, [5, 5, 10], 4] },
     })
   })
 })

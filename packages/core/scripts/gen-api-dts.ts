@@ -177,12 +177,6 @@ const API_ENTRIES: Record<string, ApiEntry> = {
   },
 
   // ── 几何查询 ──
-  faceCenter: {
-    inputs: 1,
-    params: 'never',
-    returns: '[number, number, number]',
-    note: 'usage: cad.faceCenter(of, anchor?, faceOrdinal?)',
-  },
   faceNormal: {
     inputs: 1,
     params: 'never',
@@ -246,7 +240,7 @@ const ORDER = [
   'fai_split',
   'fai_drill', 'fai_extrude', 'engrave', 'chamfer', 'knurl',
   'group', 'assembly', 'copy',
-  'faceCenter', 'faceNormal', 'bboxCenter', 'bboxMin', 'bboxMax',
+  'faceNormal', 'bboxCenter', 'bboxMin', 'bboxMax',
   'asset',
 ]
 
@@ -279,7 +273,7 @@ function generate(): string {
     ['雕刻', ['engrave', 'knurl']],
     ['倒角', ['chamfer']],
     ['结构（不消费成员）', ['group', 'assembly', 'copy']],
-    ['几何查询', ['faceCenter', 'faceNormal', 'bboxCenter', 'bboxMin', 'bboxMax']],
+    ['几何查询', ['faceNormal', 'bboxCenter', 'bboxMin', 'bboxMax']],
     ['资产', ['asset']],
     ['查询方法（mesh/query）', []],
   ]

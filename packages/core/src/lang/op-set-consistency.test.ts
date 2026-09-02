@@ -27,7 +27,7 @@ const CAD_NAMESPACE_FUNCTIONS = new Set([
   'fai_drill', 'fai_extrude', 'engrave', 'chamfer', 'knurl',
   'union', 'subtract', 'intersect',
   'fai_split', 'group', 'assembly', 'copy',
-  'faceCenter', 'faceNormal', 'bboxCenter', 'bboxMin', 'bboxMax',
+  'faceNormal', 'bboxCenter', 'bboxMin', 'bboxMax',
   'asset',
 ])
 

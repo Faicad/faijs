@@ -30,7 +30,6 @@ export default {
   "group": {},
   "assembly": {},
   "copy": {},
-  "faceCenter": {},
   "faceNormal": {},
   "bboxCenter": {},
   "bboxMin": {},
