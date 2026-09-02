@@ -364,7 +364,23 @@ const p = await cad.extrude(part0, { length: 10, normal: [0,0,1], originOffset: 
 
 **异步**。Shape 拉伸后的几何。
 
-### 5.6 `intersect` ✅
+### 5.6 `fillet` ✅
+
+在几何体上做圆角（全部棱边，等半径）。仅 BREP 可用。
+
+```js
+const p = await cad.fillet(part0, { radius: 2 })
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `radius` | `number` | ✅ | — | 圆角半径（mm），正数 |
+
+**异步**。Shape 圆角后的几何。
+
+> 圆角是 BREP-only：非 BREP 输入抛 E_MESH_UNSUPPORTED。调移植 L2（brepjs topology/modifierFns.fillet，D11 缺失能力接线样板）。
+
+### 5.7 `intersect` ✅
 
 布尔交集：所有输入的重叠部分。
 
@@ -378,7 +394,7 @@ const c = await cad.intersect(part0, part1)
 
 **异步**。Shape 所有输入的交集。
 
-### 5.7 `knurl` ⚠️
+### 5.8 `knurl` ⚠️
 
 施加滚花（顶点位移，非布尔）。mesh-only。
 
@@ -401,7 +417,7 @@ const p = await cad.knurl(part0, { knurlTextureHeight: 0.5, knurlScaleU: 0.15, k
 
 > knurl 无 BREP 实现（mesh-only），本质是顶点位移（网格操作），网格参数可接受；brep 模式下调用前抛 BrepUnsupportedError。面锚定建议用几何引用。
 
-### 5.8 `split` ⚠️
+### 5.9 `split` ⚠️
 
 分割几何，返回具名对象 { front, back } 两个独立零件。
 
@@ -437,7 +453,7 @@ const { front: part1, back: part2 } = await cad.split(part0, { normal: [0, 0, 1]
 
 > 切割面统一用 `normal`/`offset`/`inPlaneAngleDeg` 描述；早期文本层曾与执行层键名断裂（planeRotation/planePosition），已修并统一为上述键名。
 
-### 5.9 `subtract` ✅
+### 5.10 `subtract` ✅
 
 布尔差集：第一个为主体，减去其余输入。
 
@@ -451,7 +467,7 @@ const b = await cad.subtract(part0, part1)
 
 **异步**。Shape part0 减 part1 的差集（第一个为主体）。
 
-### 5.10 `union` ✅
+### 5.11 `union` ✅
 
 布尔并集：合并所有输入几何（≥2 个输入）。
 
@@ -618,7 +634,7 @@ const n = cad.faceNormal(part0, [0, 0, 5])
 ```
 创建: load / box / sphere / cylinder / cone / wedge / screw / sdf / svgExtrude / text
 变换: translate / rotate / scale
-特征: union / subtract / intersect / chamfer / copy / drill / engrave / extrude / knurl / split
+特征: union / subtract / intersect / chamfer / copy / drill / engrave / extrude / fillet / knurl / split
 结构: group / assembly
 查询: asset / faceCenter / faceNormal / bboxCenter / bboxMin / bboxMax
 ```

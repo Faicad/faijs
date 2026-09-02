@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeAll } from 'vitest';
+import { describe, expect, it, beforeAll, vi } from 'vitest';
 import { initKernel } from '../kernel-setup.js';
 import {
   sketchCircle,
@@ -26,13 +26,21 @@ describe('sweepFns', () => {
   }, 30000);
 
   it('sweeps a circle along a line', () => {
-    const c = sketchCircle(2);
-    const profile = castShape(c.wire.wrapped) as Wire;
-    const e = line([0, 0, 0], [0, 0, 20]);
-    const spine = castShape(unwrap(wire([e])).wrapped) as Wire;
-    const result = sweep(profile, spine);
-    expect(isOk(result)).toBe(true);
-    expect(isShape3D(unwrap(result))).toBe(true);
+    // occt-wasm 3.8.4 lacks sweepAdvanced → the adapter warns that transitionMode is ignored.
+    // Spy and assert it (CI stderr zero-tolerance; a future occt-wasm upgrade can drop this).
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const c = sketchCircle(2);
+      const profile = castShape(c.wire.wrapped) as Wire;
+      const e = line([0, 0, 0], [0, 0, 20]);
+      const spine = castShape(unwrap(wire([e])).wrapped) as Wire;
+      const result = sweep(profile, spine);
+      expect(isOk(result)).toBe(true);
+      expect(isShape3D(unwrap(result))).toBe(true);
+      expect(warnSpy).toHaveBeenCalled()
+    } finally {
+      warnSpy.mockRestore()
+    }
   });
 
   it('sweeps a circle along a line with transition mode 0 (Transformed)', () => {

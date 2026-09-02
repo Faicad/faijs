@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   drawCircle,
   drawRoundedRectangle,
@@ -37,9 +37,17 @@ describe('sketchOnPlane chainable surface', () => {
   });
 
   it('sweeps a profile from a sketchOnPlane callback', () => {
-    const swept = drawCircle(20)
-      .sketchOnPlane('XY')
-      .sweepSketch((plane) => drawCircle(2).sketchOnPlane(plane));
-    expect(unwrap(measureVolume(swept))).toBeGreaterThan(0);
+    // occt-wasm 3.8.4 lacks sweepAdvanced → the adapter warns that transitionMode is ignored.
+    // Spy and assert it (CI stderr zero-tolerance; a future occt-wasm upgrade can drop this).
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const swept = drawCircle(20)
+        .sketchOnPlane('XY')
+        .sweepSketch((plane) => drawCircle(2).sketchOnPlane(plane));
+      expect(unwrap(measureVolume(swept))).toBeGreaterThan(0);
+      expect(warnSpy).toHaveBeenCalled()
+    } finally {
+      warnSpy.mockRestore()
+    }
   });
 });

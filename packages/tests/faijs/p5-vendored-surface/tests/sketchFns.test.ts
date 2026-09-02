@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeAll } from 'vitest';
+import { describe, expect, it, beforeAll, vi } from 'vitest';
 import { initKernel } from '../kernel-setup.js';
 import Sketcher from '@faicad/faijs-core/vendored/brepjs/sketching/sketcher.js';
 import {
@@ -82,17 +82,25 @@ describe('sketchWires', () => {
 
 describe('sketchSweep', () => {
   it('sweeps a profile along a path', () => {
-    const path = new Sketcher('XZ').movePointerTo([0, 0]).lineTo([0, 20]).done();
-    const solid = sketchSweep(path, (plane, origin) => {
-      return new Sketcher(plane, origin)
-        .movePointerTo([-2, -2])
-        .hLine(4)
-        .vLine(4)
-        .hLine(-4)
-        .close();
-    });
-    expect(solid).toBeDefined();
-    expect(unwrap(measureVolume(solid))).toBeGreaterThan(0);
+    // occt-wasm 3.8.4 lacks sweepAdvanced → the adapter warns that transitionMode is ignored.
+    // Spy and assert it (CI stderr zero-tolerance; a future occt-wasm upgrade can drop this).
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const path = new Sketcher('XZ').movePointerTo([0, 0]).lineTo([0, 20]).done();
+      const solid = sketchSweep(path, (plane, origin) => {
+        return new Sketcher(plane, origin)
+          .movePointerTo([-2, -2])
+          .hLine(4)
+          .vLine(4)
+          .hLine(-4)
+          .close();
+      });
+      expect(solid).toBeDefined();
+      expect(unwrap(measureVolume(solid))).toBeGreaterThan(0);
+      expect(warnSpy).toHaveBeenCalled()
+    } finally {
+      warnSpy.mockRestore()
+    }
   });
 });
 

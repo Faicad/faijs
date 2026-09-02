@@ -8,7 +8,7 @@
  * See also: gridfinity-smoke.test.ts "real lip profile" test for the
  * end-to-end verification of this convention.
  */
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { drawRoundedRectangle, draw, getBounds } from '../p5-surface.js';
 import type { AnyShape } from '@faicad/faijs-core/vendored/brepjs/core/shapeTypes.js';
 import type Sketch from '@faicad/faijs-core/vendored/brepjs/sketching/sketch.js';
@@ -20,26 +20,34 @@ beforeAll(async () => {
 
 describe('sweepSketch orientation', () => {
   it('positive-X profile sweeps outward from spine', () => {
-    // Profile entirely in positive X should sweep outward (away from center).
-    const spine = drawRoundedRectangle(80, 80, 3.75).sketchOnPlane('XY') as Sketch;
-    const spineBounds = getBounds(spine.wire as AnyShape);
+    // occt-wasm 3.8.4 lacks sweepAdvanced → the adapter warns that transitionMode is ignored.
+    // Spy and assert it (CI stderr zero-tolerance; a future occt-wasm upgrade can drop this).
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      // Profile entirely in positive X should sweep outward (away from center).
+      const spine = drawRoundedRectangle(80, 80, 3.75).sketchOnPlane('XY') as Sketch;
+      const spineBounds = getBounds(spine.wire as AnyShape);
 
-    const swept = spine.sweepSketch(
-      (plane, origin) =>
-        draw([0, 0])
-          .lineTo([2, 0])
-          .lineTo([2, 2])
-          .lineTo([0, 2])
-          .close()
-          .sketchOnPlane(plane, origin) as Sketch,
-      { withContact: true }
-    );
+      const swept = spine.sweepSketch(
+        (plane, origin) =>
+          draw([0, 0])
+            .lineTo([2, 0])
+            .lineTo([2, 2])
+            .lineTo([0, 2])
+            .close()
+            .sketchOnPlane(plane, origin) as Sketch,
+        { withContact: true }
+      );
 
-    const sweptBounds = getBounds(swept as AnyShape);
+      const sweptBounds = getBounds(swept as AnyShape);
 
-    // Positive-X = outward, so swept bounds should EXCEED spine bounds
-    expect(sweptBounds.xMax).toBeGreaterThan(spineBounds.xMax);
-    expect(sweptBounds.yMax).toBeGreaterThan(spineBounds.yMax);
+      // Positive-X = outward, so swept bounds should EXCEED spine bounds
+      expect(sweptBounds.xMax).toBeGreaterThan(spineBounds.xMax);
+      expect(sweptBounds.yMax).toBeGreaterThan(spineBounds.yMax);
+      expect(warnSpy).toHaveBeenCalled()
+    } finally {
+      warnSpy.mockRestore()
+    }
   });
 
   it('lip profile with negative-X start has controlled outward extent', () => {

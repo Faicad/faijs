@@ -1,6 +1,6 @@
 {
   "name": "@faicad/faijs",
-  "version": "0.7.5",
+  "version": "0.7.6",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -95,6 +95,7 @@
   "workspaces": [
     "packages/core",
     "packages/mech-lib",
+    "packages/sheetmetal",
     "packages/fixtures",
     "packages/tests",
     "packages/demo"

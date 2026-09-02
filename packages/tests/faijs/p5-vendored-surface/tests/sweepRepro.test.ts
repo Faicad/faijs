@@ -10,7 +10,7 @@
  * sweepSketch assumes a single Sketch with .wire — Sketches lacks .wire,
  * causing "Cannot read properties of undefined (reading 'wrapped')".
  */
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { drawRoundedRectangle, drawRectangle, draw, isSolid } from '../p5-surface.js';
 import type { AnyShape } from '@faicad/faijs-core/vendored/brepjs/core/shapeTypes.js';
 import type Sketch from '@faicad/faijs-core/vendored/brepjs/sketching/sketch.js';
@@ -24,24 +24,32 @@ beforeAll(async () => {
 
 describe('sweepSketch regression #744', () => {
   it('sweepSketch with drawRoundedRectangle spine produces a solid', () => {
-    const spine = drawRoundedRectangle(80, 80, 3.75).sketchOnPlane() as Sketch;
+    // occt-wasm 3.8.4 lacks sweepAdvanced → the adapter warns that transitionMode is ignored.
+    // Spy and assert it (CI stderr zero-tolerance; a future occt-wasm upgrade can drop this).
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const spine = drawRoundedRectangle(80, 80, 3.75).sketchOnPlane() as Sketch;
 
-    const swept = spine.sweepSketch(
-      (plane, origin) =>
-        draw([0, 0])
-          .lineTo([1.5, 0])
-          .lineTo([1.5, 0.5])
-          .lineTo([0.5, 0.5])
-          .lineTo([0.5, 1.8])
-          .lineTo([0, 1.8])
-          .close()
-          .sketchOnPlane(plane, origin) as Sketch,
-      { withContact: true }
-    );
+      const swept = spine.sweepSketch(
+        (plane, origin) =>
+          draw([0, 0])
+            .lineTo([1.5, 0])
+            .lineTo([1.5, 0.5])
+            .lineTo([0.5, 0.5])
+            .lineTo([0.5, 1.8])
+            .lineTo([0, 1.8])
+            .close()
+            .sketchOnPlane(plane, origin) as Sketch,
+        { withContact: true }
+      );
 
-    expect(swept).toBeDefined();
-    expect(isSolid(swept as AnyShape)).toBe(true);
-    expect(unwrap(measureVolume(swept as AnyShape))).toBeGreaterThan(0);
+      expect(swept).toBeDefined();
+      expect(isSolid(swept as AnyShape)).toBe(true);
+      expect(unwrap(measureVolume(swept as AnyShape))).toBeGreaterThan(0);
+      expect(warnSpy).toHaveBeenCalled()
+    } finally {
+      warnSpy.mockRestore()
+    }
   });
 
   it('sweepSketch with profile after 2D boolean cut produces a solid', () => {

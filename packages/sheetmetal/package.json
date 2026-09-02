@@ -1,0 +1,41 @@
+{
+  "name": "@faicad/sheetmetal",
+  "version": "0.1.0",
+  "description": "Sheet-metal CAD domain for faijs — flange authoring, fold/unfold flat patterns (ported from brepjs-sheetmetal)",
+  "keywords": [
+    "sheet-metal",
+    "cad",
+    "faijs",
+    "unfold",
+    "flat-pattern",
+    "bend-allowance"
+  ],
+  "license": "Apache-2.0",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {},
+  "peerDependencies": {
+    "@faicad/faijs-core": "*"
+  },
+  "devDependencies": {
+    "typescript": "*",
+    "vitest": "*"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && node ../../scripts/fix-import-extensions.mjs dist",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "eslint src"
+  }
+}
