@@ -1149,6 +1149,19 @@ describe('P7: 第三方库通道（registerLib / statementKey 包名前缀 / 版
     expect(() => runtime.registerLib('mech', badLib as unknown as StdlibNamespace))
       .toThrow(/contract version mismatch/)
   })
+
+  it('P10b: registerLib(binding, ns, {default:true}) 显式声明默认绑定名（U10/R2）', async () => {
+    const runtime = makeRuntime('mesh')
+    // 声明非缺省名 'geom' 为默认绑定：defaultNs 读声明，不再散落字面量 'cad'
+    runtime.registerLib('geom', { box: () => solid(cubeMesh(20)) }, { default: true })
+    expect(runtime.defaultNs).toBe('geom')
+    // namespace 缺省的语句 key 前缀用声明名（statementKey 判定不再硬编码 'cad'）
+    const stmt = makeStmt('s1', 'box', { size: 20 })
+    const result = await runtime.executeIR(makePartScript([stmt]))
+    expect(result.failedAt).toBeUndefined()
+    const entry = runtime.getStatementCacheEntry(asPartName('s1'))!
+    expect(entry.statementKey).toContain('geom.box')
+  })
 })
 
 describe('V5.3: 第三方库声明实现集（defineOp，dispatchPath 静态判定与内置 op 同机制）', () => {

@@ -66,13 +66,13 @@ describe('上层契约：宿主可读代码文本 API', () => {
     expect(args).toBeTruthy()
   })
 
-  it('D1-⓪ 桥接：drill/engrave 已从根/浏览器门面导出（宿主换来源前提）', async () => {
+  it('D1-⓪ 桥接：fai_drill/engrave 已从根/浏览器门面导出（宿主换来源前提）', async () => {
     const root = await import('@faicad/faijs')
     const browser = await import('@faicad/faijs/browser')
-    expect(typeof root.drill).toBe('function')
+    expect(typeof root.fai_drill).toBe('function')
     expect(typeof root.engrave).toBe('function')
     // 宿主红线：生产代码走 /browser 入口，这两处必须都有
-    expect(typeof browser.drill).toBe('function')
+    expect(typeof browser.fai_drill).toBe('function')
     expect(typeof browser.engrave).toBe('function')
   })
 })

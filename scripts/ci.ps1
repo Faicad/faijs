@@ -118,6 +118,9 @@ Step -Label '5/9  守卫：幽灵依赖 / workspaces 顺序 / 包图无环 / 导
     npx tsc --noEmit -p packages/core/tsconfig.vendored.json
     if ($LASTEXITCODE -ne 0) { return }
     node scripts/check-layer-boundaries.mjs
+    if ($LASTEXITCODE -ne 0) { return }
+    # P10-④：U8 品牌守卫（用户可见面零 brepjs，E6）
+    node scripts/check-vendored-branding.mjs
 }
 
 Step -Label '6/9  demo e2e（dev server 模式，M7 链路）' -Block {

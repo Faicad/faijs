@@ -251,6 +251,21 @@ describe('parser: 错误处理', () => {
     expect(() => parseScript('param size = 20')).toThrow(ParseError)
   })
 
+  it('P10b: 容器形参名与 defaultNs 不一致 → ParseError（默认绑定名须与声明一致，U10/R2）', () => {
+    const code = `export default async (g) => {
+  let part0 = g.box({ size: 20 })
+  return { shape: part0 }
+}`
+    // options 缺省 defaultNs='cad'：容器形参 g ≠ cad → 拒绝（旧行为：恒拒绝 g）
+    expect(() => parseScript(code)).toThrow(/expected `export default async \(cad\)/)
+    // 宿主声明默认绑定名 'g'：容器形参 g 通过，命名空间判定以 g 为准
+    const result = parseScript(code, { defaultNs: 'g' })
+    expect(result.script.statements[0].callee).toBe('box')
+    // 缺省命名空间（g）调用省略 namespace 字段；容器不匹配时错误消息含声明名
+    expect(result.script.statements[0].namespace).toBeUndefined()
+    expect(() => parseScript(code, { defaultNs: 'h' })).toThrow(/expected `export default async \(h\)/)
+  })
+
   it('非 async 箭头函数 → ParseError（旧格式 export default (cad) => {}）', () => {
     expect(() => parseScript('export default (cad) => {}')).toThrow(ParseError)
   })

@@ -1,0 +1,5135 @@
+{
+  "_meta": {
+    "upstream": "brepjs/src/index.ts",
+    "upstreamRef": "C:/git/OpenCascade/brepjs/src/index.ts",
+    "doc": "docs/plans/2026-09-02-faijs-api-surface-completion.md §2.6.6 (E1)",
+    "generated": "2026-09-02",
+    "note": "excludedModules: voxel/implicit/lattice/worker; excludedSymbol: csg (U9)"
+  },
+  "symbols": [
+    {
+      "name": "BaseSketcher2d",
+      "kind": "value",
+      "module": "2d",
+      "file": "./2d/blueprints/baseSketcher2d.js"
+    },
+    {
+      "name": "Blueprint",
+      "kind": "type",
+      "module": "2d",
+      "file": "./2d/blueprints/blueprint.js"
+    },
+    {
+      "name": "Blueprints",
+      "kind": "type",
+      "module": "2d",
+      "file": "./2d/blueprints/blueprints.js"
+    },
+    {
+      "name": "BlueprintSketcher",
+      "kind": "value",
+      "module": "2d",
+      "file": "./2d/blueprints/blueprintSketcher.js"
+    },
+    {
+      "name": "BoundingBox2d",
+      "kind": "type",
+      "module": "2d",
+      "file": "./2d/lib/index.js"
+    },
+    {
+      "name": "CompoundBlueprint",
+      "kind": "type",
+      "module": "2d",
+      "file": "./2d/blueprints/compoundBlueprint.js"
+    },
+    {
+      "name": "createBlueprint",
+      "kind": "value",
+      "module": "2d",
+      "file": "./2d/blueprints/blueprintFns.js"
+    },
+    {
+      "name": "createCompoundBlueprint",
+      "kind": "value",
+      "module": "2d",
+      "file": "./2d/blueprints/blueprintFns.js"
+    },
+    {
+      "name": "Curve2D",
+      "kind": "type",
+      "module": "2d",
+      "file": "./2d/lib/index.js"
+    },
+    {
+      "name": "curve2dBoundingBox",
+      "kind": "value",
+      "module": "2d",
+      "file": "./2d/lib/curve2dFns.js"
+    },
+    {
+      "name": "curve2dDistanceFrom",
+      "kind": "value",
+      "module": "2d",
+      "file": "./2d/lib/curve2dFns.js"
+    },
+    {
+      "name": "curve2dFirstPoint",
+      "kind": "value",
+      "module": "2d",
+      "file": "./2d/lib/curve2dFns.js"
+    },
+    {
+      "name": "curve2dIsOnCurve",
+      "kind": "value",
+      "module": "2d",
+      "file": "./2d/lib/curve2dFns.js"
+    },
+    {
+      "name": "curve2dLastPoint",
+      "kind": "value",
+      "module": "2d",
+      "file": "./2d/lib/curve2dFns.js"
+    },
+    {
+      "name": "curve2dParameter",
+      "kind": "value",
+      "module": "2d",
+      "file": "./2d/lib/curve2dFns.js"
+    },
+    {
+      "name": "curve2dSplitAt",
+      "kind": "value",
+      "module": "2d",
+      "file": "./2d/lib/curve2dFns.js"
+    },
+    {
+      "name": "curve2dTangentAt",
+      "kind": "value",
+      "module": "2d",
+      "file": "./2d/lib/curve2dFns.js"
+    },
+    {
+      "name": "cut2D",
+      "kind": "value",
+      "module": "2d",
+      "file": "./2d/blueprints/boolean2D.js"
+    },
+    {
+      "name": "cutBlueprints",
+      "kind": "value",
+      "module": "2d",
+      "file": "./2d/blueprints/booleanOperations.js"
+    },
+    {
+      "name": "DrawingInterface",
+      "kind": "type",
+      "module": "2d",
+      "file": "./2d/blueprints/lib.js"
+    },
+    {
+      "name": "fuse2D",
+      "kind": "value",
+      "module": "2d",
+      "file": "./2d/blueprints/boolean2D.js"
+    },
+    {
+      "name": "fuseBlueprints",
+      "kind": "value",
+      "module": "2d",
+      "file": "./2d/blueprints/booleanOperations.js"
+    },
+    {
+      "name": "GenericSketcher",
+      "kind": "type",
+      "module": "2d",
+      "file": "./2d/blueprints/genericSketcher.js"
+    },
+    {
+      "name": "getBounds2D",
+      "kind": "value",
+      "module": "2d",
+      "file": "./2d/blueprints/blueprintFns.js"
+    },
+    {
+      "name": "getOrientation2D",
+      "kind": "value",
+      "module": "2d",
+      "file": "./2d/blueprints/blueprintFns.js"
+    },
+    {
+      "name": "intersect2D",
+      "kind": "value",
+      "module": "2d",
+      "file": "./2d/blueprints/boolean2D.js"
+    },
+    {
+      "name": "intersectBlueprints",
+      "kind": "value",
+      "module": "2d",
+      "file": "./2d/blueprints/booleanOperations.js"
+    },
+    {
+      "name": "isInside2D",
+      "kind": "value",
+      "module": "2d",
+      "file": "./2d/blueprints/blueprintFns.js"
+    },
+    {
+      "name": "mirror2D",
+      "kind": "value",
+      "module": "2d",
+      "file": "./2d/blueprints/blueprintFns.js"
+    },
+    {
+      "name": "organiseBlueprints",
+      "kind": "value",
+      "module": "2d",
+      "file": "./2d/blueprints/lib.js"
+    },
+    {
+      "name": "Point2D",
+      "kind": "type",
+      "module": "2d",
+      "file": "./2d/lib/index.js"
+    },
+    {
+      "name": "polysidesBlueprint",
+      "kind": "value",
+      "module": "2d",
+      "file": "./2d/blueprints/cannedBlueprints.js"
+    },
+    {
+      "name": "reverseCurve",
+      "kind": "value",
+      "module": "2d",
+      "file": "./2d/lib/curve2dFns.js"
+    },
+    {
+      "name": "rotate2D",
+      "kind": "value",
+      "module": "2d",
+      "file": "./2d/blueprints/blueprintFns.js"
+    },
+    {
+      "name": "roundedRectangleBlueprint",
+      "kind": "value",
+      "module": "2d",
+      "file": "./2d/blueprints/cannedBlueprints.js"
+    },
+    {
+      "name": "scale2D",
+      "kind": "value",
+      "module": "2d",
+      "file": "./2d/blueprints/blueprintFns.js"
+    },
+    {
+      "name": "ScaleMode",
+      "kind": "type",
+      "module": "2d",
+      "file": "./2d/curves.js"
+    },
+    {
+      "name": "Shape2D",
+      "kind": "type",
+      "module": "2d",
+      "file": "./2d/blueprints/boolean2D.js"
+    },
+    {
+      "name": "SketchData",
+      "kind": "type",
+      "module": "2d",
+      "file": "./2d/blueprints/lib.js"
+    },
+    {
+      "name": "sketchOnFace2D",
+      "kind": "value",
+      "module": "2d",
+      "file": "./2d/blueprints/blueprintFns.js"
+    },
+    {
+      "name": "sketchOnPlane2D",
+      "kind": "value",
+      "module": "2d",
+      "file": "./2d/blueprints/blueprintFns.js"
+    },
+    {
+      "name": "SplineOptions",
+      "kind": "type",
+      "module": "2d",
+      "file": "./2d/blueprints/genericSketcher.js"
+    },
+    {
+      "name": "stretch2D",
+      "kind": "value",
+      "module": "2d",
+      "file": "./2d/blueprints/blueprintFns.js"
+    },
+    {
+      "name": "toSVGPathD",
+      "kind": "value",
+      "module": "2d",
+      "file": "./2d/blueprints/blueprintFns.js"
+    },
+    {
+      "name": "translate2D",
+      "kind": "value",
+      "module": "2d",
+      "file": "./2d/blueprints/blueprintFns.js"
+    },
+    {
+      "name": "all",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/result.js"
+    },
+    {
+      "name": "andThen",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/result.js"
+    },
+    {
+      "name": "AnyShape",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "as2D",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "as3D",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "BrepBugError",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/errors.js"
+    },
+    {
+      "name": "BrepError",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/errors.js"
+    },
+    {
+      "name": "BrepErrorCode",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/errors.js"
+    },
+    {
+      "name": "BrepErrorKind",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/errors.js"
+    },
+    {
+      "name": "bug",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/errors.js"
+    },
+    {
+      "name": "castShape",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "castShape3D",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "closedWire",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "ClosedWire",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "collect",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/result.js"
+    },
+    {
+      "name": "Compound",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "CompSolid",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "computationError",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/errors.js"
+    },
+    {
+      "name": "createCompound",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "createEdge",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "createFace",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "createHandle",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/disposal.js"
+    },
+    {
+      "name": "createKernelHandle",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/disposal.js"
+    },
+    {
+      "name": "createNamedPlane",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/planeOps.js"
+    },
+    {
+      "name": "createPlane",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/planeOps.js"
+    },
+    {
+      "name": "createShell",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "createSolid",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "createVertex",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "createWire",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "Curve2DHandle",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/curve2dHandle.js"
+    },
+    {
+      "name": "CurveLike",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "CurveType",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/typeDiscriminants.js"
+    },
+    {
+      "name": "DEG2RAD",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/constants.js"
+    },
+    {
+      "name": "Deletable",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/disposal.js"
+    },
+    {
+      "name": "Dimension",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "DimensionError",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/dimensionTypes.js"
+    },
+    {
+      "name": "DirectionInput",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/types.js"
+    },
+    {
+      "name": "DisposalScope",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/disposal.js"
+    },
+    {
+      "name": "DisposalStats",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/disposal.js"
+    },
+    {
+      "name": "Edge",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "err",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/result.js"
+    },
+    {
+      "name": "Err",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/result.js"
+    },
+    {
+      "name": "Face",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "flatMap",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/result.js"
+    },
+    {
+      "name": "flatten",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/result.js"
+    },
+    {
+      "name": "fromKernelDir",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/kernelBoundary.js"
+    },
+    {
+      "name": "fromKernelPnt",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/kernelBoundary.js"
+    },
+    {
+      "name": "fromKernelVec",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/kernelBoundary.js"
+    },
+    {
+      "name": "fromNullable",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/result.js"
+    },
+    {
+      "name": "getDisposalStats",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/disposal.js"
+    },
+    {
+      "name": "getShapeKind",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "HASH_CODE_MAX",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/constants.js"
+    },
+    {
+      "name": "ioError",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/errors.js"
+    },
+    {
+      "name": "is2D",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "is3D",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "isClosedWire",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "isCompound",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "isEdge",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "isErr",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/result.js"
+    },
+    {
+      "name": "isFace",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "isLive",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/disposal.js"
+    },
+    {
+      "name": "isManifoldShell",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "isOk",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/result.js"
+    },
+    {
+      "name": "isOrientedFace",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "isPlanarFace",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "isPlanarWire",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "isShape1D",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "isShape3D",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "isShell",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "isSolid",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "isValidSolid",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "isVertex",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "isWire",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "kernelCall",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/kernelCall.js"
+    },
+    {
+      "name": "kernelCallRaw",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/kernelCall.js"
+    },
+    {
+      "name": "kernelCallScoped",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/kernelCall.js"
+    },
+    {
+      "name": "kernelError",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/errors.js"
+    },
+    {
+      "name": "KernelHandle",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/disposal.js"
+    },
+    {
+      "name": "makePlane",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/planeOps.js"
+    },
+    {
+      "name": "manifoldShell",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "ManifoldShell",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "map",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/result.js"
+    },
+    {
+      "name": "mapBoth",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/result.js"
+    },
+    {
+      "name": "mapErr",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/result.js"
+    },
+    {
+      "name": "match",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/result.js"
+    },
+    {
+      "name": "Matrix4x4",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/types.js"
+    },
+    {
+      "name": "MatrixInput",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/types.js"
+    },
+    {
+      "name": "MatrixTransform",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/types.js"
+    },
+    {
+      "name": "moduleInitError",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/errors.js"
+    },
+    {
+      "name": "ok",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/result.js"
+    },
+    {
+      "name": "Ok",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/result.js"
+    },
+    {
+      "name": "OK",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/result.js"
+    },
+    {
+      "name": "or",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/result.js"
+    },
+    {
+      "name": "orElse",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/result.js"
+    },
+    {
+      "name": "orientedFace",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "OrientedFace",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "pipeline",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/result.js"
+    },
+    {
+      "name": "pivotPlane",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/planeOps.js"
+    },
+    {
+      "name": "planarFace",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "PlanarFace",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "planarWire",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "PlanarWire",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "Plane",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/planeTypes.js"
+    },
+    {
+      "name": "PlaneInput",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/planeTypes.js"
+    },
+    {
+      "name": "PlaneName",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/planeTypes.js"
+    },
+    {
+      "name": "PointInput",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/types.js"
+    },
+    {
+      "name": "queryError",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/errors.js"
+    },
+    {
+      "name": "RAD2DEG",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/constants.js"
+    },
+    {
+      "name": "RequireDimension",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/dimensionTypes.js"
+    },
+    {
+      "name": "resetDisposalStats",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/disposal.js"
+    },
+    {
+      "name": "resolveDirection",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/types.js"
+    },
+    {
+      "name": "resolvePlane",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/planeOps.js"
+    },
+    {
+      "name": "Result",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/result.js"
+    },
+    {
+      "name": "ResultPipeline",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/result.js"
+    },
+    {
+      "name": "SameDimension",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/dimensionTypes.js"
+    },
+    {
+      "name": "Shape1D",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "Shape3D",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "ShapeHandle",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/disposal.js"
+    },
+    {
+      "name": "ShapeKind",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "Shell",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "sketcherStateError",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/errors.js"
+    },
+    {
+      "name": "Solid",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "tap",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/result.js"
+    },
+    {
+      "name": "tapErr",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/result.js"
+    },
+    {
+      "name": "toKernelVec",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/kernelBoundary.js"
+    },
+    {
+      "name": "toVec2",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/types.js"
+    },
+    {
+      "name": "toVec3",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/types.js"
+    },
+    {
+      "name": "translatePlane",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/planeOps.js"
+    },
+    {
+      "name": "tryCatch",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/result.js"
+    },
+    {
+      "name": "tryCatchAsync",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/result.js"
+    },
+    {
+      "name": "typeCastError",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/errors.js"
+    },
+    {
+      "name": "Unit",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/result.js"
+    },
+    {
+      "name": "UnknownDimShape",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "unsupportedError",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/errors.js"
+    },
+    {
+      "name": "unwrap",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/result.js"
+    },
+    {
+      "name": "unwrapErr",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/result.js"
+    },
+    {
+      "name": "unwrapOr",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/result.js"
+    },
+    {
+      "name": "unwrapOrElse",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/result.js"
+    },
+    {
+      "name": "validationError",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/errors.js"
+    },
+    {
+      "name": "validSolid",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "ValidSolid",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "Vec2",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/types.js"
+    },
+    {
+      "name": "Vec3",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/types.js"
+    },
+    {
+      "name": "vecAdd",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/vecOps.js"
+    },
+    {
+      "name": "vecAngle",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/vecOps.js"
+    },
+    {
+      "name": "vecCross",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/vecOps.js"
+    },
+    {
+      "name": "vecDistance",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/vecOps.js"
+    },
+    {
+      "name": "vecDot",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/vecOps.js"
+    },
+    {
+      "name": "vecEquals",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/vecOps.js"
+    },
+    {
+      "name": "vecIsZero",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/vecOps.js"
+    },
+    {
+      "name": "vecLength",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/vecOps.js"
+    },
+    {
+      "name": "vecLengthSq",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/vecOps.js"
+    },
+    {
+      "name": "vecNegate",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/vecOps.js"
+    },
+    {
+      "name": "vecNormalize",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/vecOps.js"
+    },
+    {
+      "name": "vecProjectToPlane",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/vecOps.js"
+    },
+    {
+      "name": "vecRepr",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/vecOps.js"
+    },
+    {
+      "name": "vecRotate",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/vecOps.js"
+    },
+    {
+      "name": "vecScale",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/vecOps.js"
+    },
+    {
+      "name": "vecSub",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/vecOps.js"
+    },
+    {
+      "name": "Vertex",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "Wire",
+      "kind": "type",
+      "module": "core",
+      "file": "./core/shapeTypes.js"
+    },
+    {
+      "name": "withKernelDir",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/kernelBoundary.js"
+    },
+    {
+      "name": "withKernelPnt",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/kernelBoundary.js"
+    },
+    {
+      "name": "withKernelVec",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/kernelBoundary.js"
+    },
+    {
+      "name": "withScope",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/disposal.js"
+    },
+    {
+      "name": "withScopeResult",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/disposal.js"
+    },
+    {
+      "name": "withScopeResultAsync",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/disposal.js"
+    },
+    {
+      "name": "zipResults",
+      "kind": "value",
+      "module": "core",
+      "file": "./core/result.js"
+    },
+    {
+      "name": "ExternalGearParams",
+      "kind": "type",
+      "module": "gear",
+      "file": "./gear/index.js"
+    },
+    {
+      "name": "GearDiagnostic",
+      "kind": "type",
+      "module": "gear",
+      "file": "./gear/index.js"
+    },
+    {
+      "name": "GearDiagnosticCode",
+      "kind": "type",
+      "module": "gear",
+      "file": "./gear/index.js"
+    },
+    {
+      "name": "GearDiagnosticSeverity",
+      "kind": "type",
+      "module": "gear",
+      "file": "./gear/index.js"
+    },
+    {
+      "name": "gearGeometry",
+      "kind": "value",
+      "module": "gear",
+      "file": "./gear/index.js"
+    },
+    {
+      "name": "GearGeometry",
+      "kind": "type",
+      "module": "gear",
+      "file": "./gear/index.js"
+    },
+    {
+      "name": "GearResult",
+      "kind": "type",
+      "module": "gear",
+      "file": "./gear/index.js"
+    },
+    {
+      "name": "InternalGearParams",
+      "kind": "type",
+      "module": "gear",
+      "file": "./gear/index.js"
+    },
+    {
+      "name": "makeExternalGear",
+      "kind": "value",
+      "module": "gear",
+      "file": "./gear/index.js"
+    },
+    {
+      "name": "makeInternalGear",
+      "kind": "value",
+      "module": "gear",
+      "file": "./gear/index.js"
+    },
+    {
+      "name": "makePlanetaryGear",
+      "kind": "value",
+      "module": "gear",
+      "file": "./gear/index.js"
+    },
+    {
+      "name": "PlanetaryGearAssembly",
+      "kind": "type",
+      "module": "gear",
+      "file": "./gear/index.js"
+    },
+    {
+      "name": "PlanetaryGearParams",
+      "kind": "type",
+      "module": "gear",
+      "file": "./gear/index.js"
+    },
+    {
+      "name": "PlanetPlacement",
+      "kind": "type",
+      "module": "gear",
+      "file": "./gear/index.js"
+    },
+    {
+      "name": "PlanetPlacementParams",
+      "kind": "type",
+      "module": "gear",
+      "file": "./gear/index.js"
+    },
+    {
+      "name": "planetPlacements",
+      "kind": "value",
+      "module": "gear",
+      "file": "./gear/index.js"
+    },
+    {
+      "name": "validatePlanetary",
+      "kind": "value",
+      "module": "gear",
+      "file": "./gear/index.js"
+    },
+    {
+      "name": "blueprintToDXF",
+      "kind": "value",
+      "module": "io",
+      "file": "./io/dxfExportFns.js"
+    },
+    {
+      "name": "DXFEntity",
+      "kind": "type",
+      "module": "io",
+      "file": "./io/dxfExportFns.js"
+    },
+    {
+      "name": "DXFExportOptions",
+      "kind": "type",
+      "module": "io",
+      "file": "./io/dxfExportFns.js"
+    },
+    {
+      "name": "DXFImportOptions",
+      "kind": "type",
+      "module": "io",
+      "file": "./io/dxfImportFns.js"
+    },
+    {
+      "name": "exportDXF",
+      "kind": "value",
+      "module": "io",
+      "file": "./io/dxfExportFns.js"
+    },
+    {
+      "name": "exportGlb",
+      "kind": "value",
+      "module": "io",
+      "file": "./io/gltfExportFns.js"
+    },
+    {
+      "name": "exportGltf",
+      "kind": "value",
+      "module": "io",
+      "file": "./io/gltfExportFns.js"
+    },
+    {
+      "name": "exportOBJ",
+      "kind": "value",
+      "module": "io",
+      "file": "./io/objExportFns.js"
+    },
+    {
+      "name": "exportSTEPConfigured",
+      "kind": "value",
+      "module": "io",
+      "file": "./io/stepConfigFns.js"
+    },
+    {
+      "name": "exportThreeMF",
+      "kind": "value",
+      "module": "io",
+      "file": "./io/threemfExportFns.js"
+    },
+    {
+      "name": "GltfExportOptions",
+      "kind": "type",
+      "module": "io",
+      "file": "./io/gltfExportFns.js"
+    },
+    {
+      "name": "GltfFace",
+      "kind": "type",
+      "module": "io",
+      "file": "./io/gltfExportFns.js"
+    },
+    {
+      "name": "GltfMaterial",
+      "kind": "type",
+      "module": "io",
+      "file": "./io/gltfExportFns.js"
+    },
+    {
+      "name": "importDXF",
+      "kind": "value",
+      "module": "io",
+      "file": "./io/dxfImportFns.js"
+    },
+    {
+      "name": "importGLB",
+      "kind": "value",
+      "module": "io",
+      "file": "./io/gltfImportFns.js"
+    },
+    {
+      "name": "importIGES",
+      "kind": "value",
+      "module": "io",
+      "file": "./io/importFns.js"
+    },
+    {
+      "name": "importOBJ",
+      "kind": "value",
+      "module": "io",
+      "file": "./io/objImportFns.js"
+    },
+    {
+      "name": "importSTEP",
+      "kind": "value",
+      "module": "io",
+      "file": "./io/importFns.js"
+    },
+    {
+      "name": "importSTL",
+      "kind": "value",
+      "module": "io",
+      "file": "./io/importFns.js"
+    },
+    {
+      "name": "importSVG",
+      "kind": "value",
+      "module": "io",
+      "file": "./io/svgImportFns.js"
+    },
+    {
+      "name": "importSVGPathD",
+      "kind": "value",
+      "module": "io",
+      "file": "./io/svgImportFns.js"
+    },
+    {
+      "name": "importThreeMF",
+      "kind": "value",
+      "module": "io",
+      "file": "./io/threemfImportFns.js"
+    },
+    {
+      "name": "MaterialFn",
+      "kind": "type",
+      "module": "io",
+      "file": "./io/gltfExportFns.js"
+    },
+    {
+      "name": "StepExportOptions",
+      "kind": "type",
+      "module": "io",
+      "file": "./io/stepConfigFns.js"
+    },
+    {
+      "name": "StepExportPart",
+      "kind": "type",
+      "module": "io",
+      "file": "./io/stepConfigFns.js"
+    },
+    {
+      "name": "SVGImportOptions",
+      "kind": "type",
+      "module": "io",
+      "file": "./io/svgImportFns.js"
+    },
+    {
+      "name": "ThreeMFExportOptions",
+      "kind": "type",
+      "module": "io",
+      "file": "./io/threemfExportFns.js"
+    },
+    {
+      "name": "ThreeMFMaterial",
+      "kind": "type",
+      "module": "io",
+      "file": "./io/threemfExportFns.js"
+    },
+    {
+      "name": "BooleanDiagnostics",
+      "kind": "type",
+      "module": "kernel",
+      "file": "@/kernel/types.js"
+    },
+    {
+      "name": "BooleanIssue",
+      "kind": "type",
+      "module": "kernel",
+      "file": "@/kernel/types.js"
+    },
+    {
+      "name": "BooleanOpType",
+      "kind": "type",
+      "module": "kernel",
+      "file": "@/kernel/types.js"
+    },
+    {
+      "name": "BrepkitAdapter",
+      "kind": "value",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "BrepkitHandle",
+      "kind": "type",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "CheckBooleanResult",
+      "kind": "type",
+      "module": "kernel",
+      "file": "@/kernel/types.js"
+    },
+    {
+      "name": "ConstraintSketchCapability",
+      "kind": "type",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "currentQuality",
+      "kind": "value",
+      "module": "kernel",
+      "file": "./kernel/quality.js"
+    },
+    {
+      "name": "DEFAULT_CAPABILITIES",
+      "kind": "value",
+      "module": "kernel",
+      "file": "./kernel/capabilities.js"
+    },
+    {
+      "name": "EXACT_BREP_CAPABILITIES",
+      "kind": "value",
+      "module": "kernel",
+      "file": "./kernel/capabilities.js"
+    },
+    {
+      "name": "getKernel",
+      "kind": "value",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "getKernelCapabilities",
+      "kind": "value",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "getKernelTier",
+      "kind": "value",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "getPerformanceStats",
+      "kind": "value",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "init",
+      "kind": "value",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "initFromManifold",
+      "kind": "value",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "initFromOC",
+      "kind": "value",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "KernelAdapter",
+      "kind": "type",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "KernelBooleanOps",
+      "kind": "type",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "KernelBuilderOps",
+      "kind": "type",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "KernelCapabilities",
+      "kind": "type",
+      "module": "kernel",
+      "file": "./kernel/capabilities.js"
+    },
+    {
+      "name": "KernelCore",
+      "kind": "type",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "KernelCurveOps",
+      "kind": "type",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "KernelEvolutionOps",
+      "kind": "type",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "KernelIOOps",
+      "kind": "type",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "KernelMeasureOps",
+      "kind": "type",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "KernelMeshOps",
+      "kind": "type",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "KernelModifierOps",
+      "kind": "type",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "KernelPrimitiveOps",
+      "kind": "type",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "KernelRepairOps",
+      "kind": "type",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "KernelSurfaceOps",
+      "kind": "type",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "KernelSweepOps",
+      "kind": "type",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "KernelTopologyOps",
+      "kind": "type",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "KernelTransformOps",
+      "kind": "type",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "NurbsCurveData",
+      "kind": "type",
+      "module": "kernel",
+      "file": "@/kernel/types.js"
+    },
+    {
+      "name": "NurbsSurfaceData",
+      "kind": "type",
+      "module": "kernel",
+      "file": "@/kernel/types.js"
+    },
+    {
+      "name": "OcctKernelWasm",
+      "kind": "type",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "OcctWasmAdapter",
+      "kind": "value",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "OcctWasmHandle",
+      "kind": "type",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "OcctWasmModule",
+      "kind": "type",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "PerformanceStats",
+      "kind": "type",
+      "module": "kernel",
+      "file": "./kernel/perfStats.js"
+    },
+    {
+      "name": "prewarm",
+      "kind": "value",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "ProjectionCapability",
+      "kind": "type",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "QualityLevel",
+      "kind": "type",
+      "module": "kernel",
+      "file": "./kernel/quality.js"
+    },
+    {
+      "name": "registerKernel",
+      "kind": "value",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "registerKernelTier",
+      "kind": "value",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "resetPerformanceStats",
+      "kind": "value",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "ShapeEvolution",
+      "kind": "type",
+      "module": "kernel",
+      "file": "./kernel/types.js"
+    },
+    {
+      "name": "ShapeOrientation",
+      "kind": "type",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "ShapeType",
+      "kind": "type",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "supportsConstraintSketch",
+      "kind": "value",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "supportsProjection",
+      "kind": "value",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "SurfaceType",
+      "kind": "type",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "TessellationModel",
+      "kind": "type",
+      "module": "kernel",
+      "file": "./kernel/capabilities.js"
+    },
+    {
+      "name": "withKernel",
+      "kind": "value",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "withQuality",
+      "kind": "value",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "withTier",
+      "kind": "value",
+      "module": "kernel",
+      "file": "./kernel/index.js"
+    },
+    {
+      "name": "checkAllInterferences",
+      "kind": "value",
+      "module": "measurement",
+      "file": "./measurement/interferenceFns.js"
+    },
+    {
+      "name": "checkInterference",
+      "kind": "value",
+      "module": "measurement",
+      "file": "./measurement/interferenceFns.js"
+    },
+    {
+      "name": "createDistanceQuery",
+      "kind": "value",
+      "module": "measurement",
+      "file": "./measurement/measureFns.js"
+    },
+    {
+      "name": "CurvatureResult",
+      "kind": "type",
+      "module": "measurement",
+      "file": "./measurement/measureFns.js"
+    },
+    {
+      "name": "DistanceProps",
+      "kind": "type",
+      "module": "measurement",
+      "file": "./measurement/measureFns.js"
+    },
+    {
+      "name": "InterferencePair",
+      "kind": "type",
+      "module": "measurement",
+      "file": "./measurement/interferenceFns.js"
+    },
+    {
+      "name": "InterferenceResult",
+      "kind": "type",
+      "module": "measurement",
+      "file": "./measurement/interferenceFns.js"
+    },
+    {
+      "name": "LinearProps",
+      "kind": "type",
+      "module": "measurement",
+      "file": "./measurement/measureFns.js"
+    },
+    {
+      "name": "measureArea",
+      "kind": "value",
+      "module": "measurement",
+      "file": "./measurement/measureFns.js"
+    },
+    {
+      "name": "measureCurvatureAt",
+      "kind": "value",
+      "module": "measurement",
+      "file": "./measurement/measureFns.js"
+    },
+    {
+      "name": "measureCurvatureAtMid",
+      "kind": "value",
+      "module": "measurement",
+      "file": "./measurement/measureFns.js"
+    },
+    {
+      "name": "measureDistance",
+      "kind": "value",
+      "module": "measurement",
+      "file": "./measurement/measureFns.js"
+    },
+    {
+      "name": "measureDistanceProps",
+      "kind": "value",
+      "module": "measurement",
+      "file": "./measurement/measureFns.js"
+    },
+    {
+      "name": "measureLength",
+      "kind": "value",
+      "module": "measurement",
+      "file": "./measurement/measureFns.js"
+    },
+    {
+      "name": "measureLinearProps",
+      "kind": "value",
+      "module": "measurement",
+      "file": "./measurement/measureFns.js"
+    },
+    {
+      "name": "measureSurfaceProps",
+      "kind": "value",
+      "module": "measurement",
+      "file": "./measurement/measureFns.js"
+    },
+    {
+      "name": "measureVolume",
+      "kind": "value",
+      "module": "measurement",
+      "file": "./measurement/measureFns.js"
+    },
+    {
+      "name": "measureVolumeProps",
+      "kind": "value",
+      "module": "measurement",
+      "file": "./measurement/measureFns.js"
+    },
+    {
+      "name": "PhysicalProps",
+      "kind": "type",
+      "module": "measurement",
+      "file": "./measurement/measureFns.js"
+    },
+    {
+      "name": "SurfaceProps",
+      "kind": "type",
+      "module": "measurement",
+      "file": "./measurement/measureFns.js"
+    },
+    {
+      "name": "VolumeProps",
+      "kind": "type",
+      "module": "measurement",
+      "file": "./measurement/measureFns.js"
+    },
+    {
+      "name": "booleans",
+      "kind": "value",
+      "module": "ns",
+      "file": "./ns/booleans.js"
+    },
+    {
+      "name": "construction",
+      "kind": "value",
+      "module": "ns",
+      "file": "./ns/construction.js"
+    },
+    {
+      "name": "io",
+      "kind": "value",
+      "module": "ns",
+      "file": "./ns/ioNs.js"
+    },
+    {
+      "name": "measurement",
+      "kind": "value",
+      "module": "ns",
+      "file": "./ns/measurement.js"
+    },
+    {
+      "name": "modifiers",
+      "kind": "value",
+      "module": "ns",
+      "file": "./ns/modifiers.js"
+    },
+    {
+      "name": "patterns",
+      "kind": "value",
+      "module": "ns",
+      "file": "./ns/patterns.js"
+    },
+    {
+      "name": "primitives",
+      "kind": "value",
+      "module": "ns",
+      "file": "./ns/primitives.js"
+    },
+    {
+      "name": "query",
+      "kind": "value",
+      "module": "ns",
+      "file": "./ns/query.js"
+    },
+    {
+      "name": "transforms",
+      "kind": "value",
+      "module": "ns",
+      "file": "./ns/transforms.js"
+    },
+    {
+      "name": "addChild",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/assemblyFns.js"
+    },
+    {
+      "name": "addJoint",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/jointFns.js"
+    },
+    {
+      "name": "addMate",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/mateFns.js"
+    },
+    {
+      "name": "addStep",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/historyFns.js"
+    },
+    {
+      "name": "AssemblyExporter",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/exporters.js"
+    },
+    {
+      "name": "AssemblyNode",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/assemblyFns.js"
+    },
+    {
+      "name": "AssemblyNodeOptions",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/assemblyFns.js"
+    },
+    {
+      "name": "AssemblySolveResult",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/mateFns.js"
+    },
+    {
+      "name": "boss",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/compoundOpsFns.js"
+    },
+    {
+      "name": "circularPattern",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/patternFns.js"
+    },
+    {
+      "name": "CleanLoftOptions",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/api.js"
+    },
+    {
+      "name": "CleanSweepOptions",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/api.js"
+    },
+    {
+      "name": "collectShapes",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/assemblyFns.js"
+    },
+    {
+      "name": "complexExtrude",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/extrudeFns.js"
+    },
+    {
+      "name": "computeStraightSkeleton",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/straightSkeleton.js"
+    },
+    {
+      "name": "convexHull",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/convexHullFns.js"
+    },
+    {
+      "name": "countNodes",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/assemblyFns.js"
+    },
+    {
+      "name": "createAssembly",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/exporters.js"
+    },
+    {
+      "name": "createAssemblyNode",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/assemblyFns.js"
+    },
+    {
+      "name": "createHistory",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/historyFns.js"
+    },
+    {
+      "name": "createRegistry",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/historyFns.js"
+    },
+    {
+      "name": "cylindricalJoint",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/jointFns.js"
+    },
+    {
+      "name": "CylindricalOptions",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/jointFns.js"
+    },
+    {
+      "name": "deserializeHistory",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/historyFns.js"
+    },
+    {
+      "name": "DHOptions",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/dhFns.js"
+    },
+    {
+      "name": "DHRow",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/dhFns.js"
+    },
+    {
+      "name": "drill",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/compoundOpsFns.js"
+    },
+    {
+      "name": "exportAssemblySTEP",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/exporterFns.js"
+    },
+    {
+      "name": "exportURDF",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/urdfFns.js"
+    },
+    {
+      "name": "extrude",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/api.js"
+    },
+    {
+      "name": "extrudeAll",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/extrudeFns.js"
+    },
+    {
+      "name": "ExtrudeAllEntry",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/extrudeFns.js"
+    },
+    {
+      "name": "ExtrusionProfile",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/extrudeFns.js"
+    },
+    {
+      "name": "findNode",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/assemblyFns.js"
+    },
+    {
+      "name": "findStep",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/historyFns.js"
+    },
+    {
+      "name": "forwardKinematics",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/jointFns.js"
+    },
+    {
+      "name": "getHistoryShape",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/historyFns.js"
+    },
+    {
+      "name": "gridPattern",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/patternFns.js"
+    },
+    {
+      "name": "guidedSweep",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/guidedSweepFns.js"
+    },
+    {
+      "name": "GuidedSweepOptions",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/guidedSweepFns.js"
+    },
+    {
+      "name": "HistoryOperationRegistry",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/historyFns.js"
+    },
+    {
+      "name": "IKOptions",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/ikFns.js"
+    },
+    {
+      "name": "IKResult",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/ikFns.js"
+    },
+    {
+      "name": "IKTarget",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/ikFns.js"
+    },
+    {
+      "name": "importURDF",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/urdfFns.js"
+    },
+    {
+      "name": "instance",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/instanceFns.js"
+    },
+    {
+      "name": "instanceCount",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/instanceFns.js"
+    },
+    {
+      "name": "instancedMesh",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/instanceFns.js"
+    },
+    {
+      "name": "InstancedMesh",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/instanceFns.js"
+    },
+    {
+      "name": "InstancedShape",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/instanceFns.js"
+    },
+    {
+      "name": "instanceGrid",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/instanceFns.js"
+    },
+    {
+      "name": "InstanceGridOptions",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/instanceFns.js"
+    },
+    {
+      "name": "inverseKinematics",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/ikFns.js"
+    },
+    {
+      "name": "isInstanced",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/instanceFns.js"
+    },
+    {
+      "name": "Joint",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/jointFns.js"
+    },
+    {
+      "name": "JointAxis",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/jointFns.js"
+    },
+    {
+      "name": "JointDOF",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/jointFns.js"
+    },
+    {
+      "name": "JointOptions",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/jointFns.js"
+    },
+    {
+      "name": "JointPose",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/jointFns.js"
+    },
+    {
+      "name": "jointsFromDH",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/dhFns.js"
+    },
+    {
+      "name": "jointTrajectory",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/ikFns.js"
+    },
+    {
+      "name": "jointTransform",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/jointFns.js"
+    },
+    {
+      "name": "JointType",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/jointFns.js"
+    },
+    {
+      "name": "linearPattern",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/patternFns.js"
+    },
+    {
+      "name": "loft",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/api.js"
+    },
+    {
+      "name": "loftAll",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/loftFns.js"
+    },
+    {
+      "name": "LoftAllEntry",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/loftFns.js"
+    },
+    {
+      "name": "MateConstraint",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/mateFns.js"
+    },
+    {
+      "name": "MateEntity",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/mateFns.js"
+    },
+    {
+      "name": "materialize",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/instanceFns.js"
+    },
+    {
+      "name": "MaterializeOptions",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/instanceFns.js"
+    },
+    {
+      "name": "mechanismDOF",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/jointFns.js"
+    },
+    {
+      "name": "mirrorJoin",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/compoundOpsFns.js"
+    },
+    {
+      "name": "ModelHistory",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/historyFns.js"
+    },
+    {
+      "name": "modifyStep",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/historyFns.js"
+    },
+    {
+      "name": "multiSectionSweep",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/multiSweepFns.js"
+    },
+    {
+      "name": "MultiSweepOptions",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/multiSweepFns.js"
+    },
+    {
+      "name": "OperationFn",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/historyFns.js"
+    },
+    {
+      "name": "OperationStep",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/historyFns.js"
+    },
+    {
+      "name": "planarJoint",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/jointFns.js"
+    },
+    {
+      "name": "PlanarOptions",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/jointFns.js"
+    },
+    {
+      "name": "pocket",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/compoundOpsFns.js"
+    },
+    {
+      "name": "prismaticJoint",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/jointFns.js"
+    },
+    {
+      "name": "rectangularPattern",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/compoundOpsFns.js"
+    },
+    {
+      "name": "registerOperation",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/historyFns.js"
+    },
+    {
+      "name": "registerShape",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/historyFns.js"
+    },
+    {
+      "name": "removeChild",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/assemblyFns.js"
+    },
+    {
+      "name": "replayFrom",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/historyFns.js"
+    },
+    {
+      "name": "replayHistory",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/historyFns.js"
+    },
+    {
+      "name": "revoluteJoint",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/jointFns.js"
+    },
+    {
+      "name": "revolve",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/api.js"
+    },
+    {
+      "name": "RevolveOptions",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/api.js"
+    },
+    {
+      "name": "roof",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/roofFns.js"
+    },
+    {
+      "name": "RoofOptions",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/roofFns.js"
+    },
+    {
+      "name": "SerializedHistory",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/historyFns.js"
+    },
+    {
+      "name": "serializeHistory",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/historyFns.js"
+    },
+    {
+      "name": "setJointValue",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/jointFns.js"
+    },
+    {
+      "name": "setJointValues",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/jointFns.js"
+    },
+    {
+      "name": "ShapeOptions",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/exporterFns.js"
+    },
+    {
+      "name": "SkeletonFace",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/straightSkeleton.js"
+    },
+    {
+      "name": "SkeletonNode",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/straightSkeleton.js"
+    },
+    {
+      "name": "SkPoint2D",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/straightSkeleton.js"
+    },
+    {
+      "name": "solveAssembly",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/mateFns.js"
+    },
+    {
+      "name": "sphericalJoint",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/jointFns.js"
+    },
+    {
+      "name": "SphericalOptions",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/jointFns.js"
+    },
+    {
+      "name": "stepCount",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/historyFns.js"
+    },
+    {
+      "name": "stepsFrom",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/historyFns.js"
+    },
+    {
+      "name": "StraightSkeleton",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/straightSkeleton.js"
+    },
+    {
+      "name": "SupportedUnit",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/exporterFns.js"
+    },
+    {
+      "name": "supportExtrude",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/extrudeFns.js"
+    },
+    {
+      "name": "sweep",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/extrudeFns.js"
+    },
+    {
+      "name": "SweepOptions",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/extrudeFns.js"
+    },
+    {
+      "name": "SweepSectionConfig",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/multiSweepFns.js"
+    },
+    {
+      "name": "thread",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/threadFns.js"
+    },
+    {
+      "name": "ThreadOptions",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/threadFns.js"
+    },
+    {
+      "name": "TrajectorySample",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/ikFns.js"
+    },
+    {
+      "name": "twistExtrude",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/extrudeFns.js"
+    },
+    {
+      "name": "undoLast",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/historyFns.js"
+    },
+    {
+      "name": "updateNode",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/assemblyFns.js"
+    },
+    {
+      "name": "UrdfDocument",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/urdfFns.js"
+    },
+    {
+      "name": "UrdfExportOptions",
+      "kind": "type",
+      "module": "operations",
+      "file": "./operations/urdfFns.js"
+    },
+    {
+      "name": "walkAssembly",
+      "kind": "value",
+      "module": "operations",
+      "file": "./operations/assemblyFns.js"
+    },
+    {
+      "name": "Camera",
+      "kind": "type",
+      "module": "projection",
+      "file": "./projection/cameraFns.js"
+    },
+    {
+      "name": "cameraFromPlane",
+      "kind": "value",
+      "module": "projection",
+      "file": "./projection/cameraFns.js"
+    },
+    {
+      "name": "cameraLookAt",
+      "kind": "value",
+      "module": "projection",
+      "file": "./projection/cameraFns.js"
+    },
+    {
+      "name": "createCamera",
+      "kind": "value",
+      "module": "projection",
+      "file": "./projection/cameraFns.js"
+    },
+    {
+      "name": "CubeFace",
+      "kind": "type",
+      "module": "projection",
+      "file": "./projection/projectionPlanes.js"
+    },
+    {
+      "name": "isProjectionPlane",
+      "kind": "value",
+      "module": "projection",
+      "file": "./projection/projectionPlanes.js"
+    },
+    {
+      "name": "makeProjectedEdges",
+      "kind": "value",
+      "module": "projection",
+      "file": "./projection/makeProjectedEdges.js"
+    },
+    {
+      "name": "projectEdges",
+      "kind": "value",
+      "module": "projection",
+      "file": "./projection/cameraFns.js"
+    },
+    {
+      "name": "ProjectionPlane",
+      "kind": "type",
+      "module": "projection",
+      "file": "./projection/projectionPlanes.js"
+    },
+    {
+      "name": "CornerFilter",
+      "kind": "type",
+      "module": "query",
+      "file": "./query/finderFns.js"
+    },
+    {
+      "name": "cornerFinder",
+      "kind": "value",
+      "module": "query",
+      "file": "./query/finderFns.js"
+    },
+    {
+      "name": "CornerFinderFn",
+      "kind": "type",
+      "module": "query",
+      "file": "./query/finderFns.js"
+    },
+    {
+      "name": "edgeFinder",
+      "kind": "value",
+      "module": "query",
+      "file": "./query/finderFns.js"
+    },
+    {
+      "name": "EdgeFinderFn",
+      "kind": "type",
+      "module": "query",
+      "file": "./query/finderFns.js"
+    },
+    {
+      "name": "faceFinder",
+      "kind": "value",
+      "module": "query",
+      "file": "./query/finderFns.js"
+    },
+    {
+      "name": "FaceFinderFn",
+      "kind": "type",
+      "module": "query",
+      "file": "./query/finderFns.js"
+    },
+    {
+      "name": "getSingleFace",
+      "kind": "value",
+      "module": "query",
+      "file": "./query/helpers.js"
+    },
+    {
+      "name": "ShapeFinder",
+      "kind": "type",
+      "module": "query",
+      "file": "./query/finderFns.js"
+    },
+    {
+      "name": "SingleFace",
+      "kind": "type",
+      "module": "query",
+      "file": "./query/helpers.js"
+    },
+    {
+      "name": "vertexFinder",
+      "kind": "value",
+      "module": "query",
+      "file": "./query/finderFns.js"
+    },
+    {
+      "name": "VertexFinderFn",
+      "kind": "type",
+      "module": "query",
+      "file": "./query/finderFns.js"
+    },
+    {
+      "name": "wireFinder",
+      "kind": "value",
+      "module": "query",
+      "file": "./query/finderFns.js"
+    },
+    {
+      "name": "WireFinderFn",
+      "kind": "type",
+      "module": "query",
+      "file": "./query/finderFns.js"
+    },
+    {
+      "name": "BlueprintContourOptions",
+      "kind": "type",
+      "module": "sketching",
+      "file": "./sketching/blueprintContourFns.js"
+    },
+    {
+      "name": "blueprintToContour",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/blueprintContourFns.js"
+    },
+    {
+      "name": "CompoundSketch",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/compoundSketch.js"
+    },
+    {
+      "name": "compoundSketchExtrude",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/sketchFns.js"
+    },
+    {
+      "name": "compoundSketchFace",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/sketchFns.js"
+    },
+    {
+      "name": "compoundSketchLoft",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/sketchFns.js"
+    },
+    {
+      "name": "compoundSketchRevolve",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/sketchFns.js"
+    },
+    {
+      "name": "deserializeDrawing",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/drawing.js"
+    },
+    {
+      "name": "draw",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/drawingPen.js"
+    },
+    {
+      "name": "drawCircle",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/drawingFactories.js"
+    },
+    {
+      "name": "drawEllipse",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/drawingFactories.js"
+    },
+    {
+      "name": "drawFaceOutline",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/draw3d.js"
+    },
+    {
+      "name": "Drawing",
+      "kind": "type",
+      "module": "sketching",
+      "file": "./sketching/drawing.js"
+    },
+    {
+      "name": "drawingChamfer",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/drawFns.js"
+    },
+    {
+      "name": "drawingCut",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/drawFns.js"
+    },
+    {
+      "name": "drawingFillet",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/drawFns.js"
+    },
+    {
+      "name": "drawingFuse",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/drawFns.js"
+    },
+    {
+      "name": "drawingIntersect",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/drawFns.js"
+    },
+    {
+      "name": "DrawingPen",
+      "kind": "type",
+      "module": "sketching",
+      "file": "./sketching/drawingPen.js"
+    },
+    {
+      "name": "drawingToSketchOnPlane",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/drawFns.js"
+    },
+    {
+      "name": "drawParametricFunction",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/drawingFactories.js"
+    },
+    {
+      "name": "drawPointsInterpolation",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/drawingFactories.js"
+    },
+    {
+      "name": "drawPolysides",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/drawingFactories.js"
+    },
+    {
+      "name": "drawProjection",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/draw3d.js"
+    },
+    {
+      "name": "drawRectangle",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/drawingFactories.js"
+    },
+    {
+      "name": "drawRoundedRectangle",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/drawingFactories.js"
+    },
+    {
+      "name": "drawSingleCircle",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/drawingFactories.js"
+    },
+    {
+      "name": "drawSingleEllipse",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/drawingFactories.js"
+    },
+    {
+      "name": "drawText",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/drawingFactories.js"
+    },
+    {
+      "name": "FaceSketcher",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/faceSketcher.js"
+    },
+    {
+      "name": "makeBaseBox",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/shortcuts.js"
+    },
+    {
+      "name": "mirrorDrawing",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/drawFns.js"
+    },
+    {
+      "name": "polysideInnerRadius",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/cannedSketches.js"
+    },
+    {
+      "name": "rotateDrawing",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/drawFns.js"
+    },
+    {
+      "name": "scaleDrawing",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/drawFns.js"
+    },
+    {
+      "name": "Sketch",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/sketch.js"
+    },
+    {
+      "name": "sketchCircle",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/cannedSketches.js"
+    },
+    {
+      "name": "sketchEllipse",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/cannedSketches.js"
+    },
+    {
+      "name": "Sketcher",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/sketcher.js"
+    },
+    {
+      "name": "Sketches",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/sketches.js"
+    },
+    {
+      "name": "sketchExtrude",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/sketchFns.js"
+    },
+    {
+      "name": "sketchFace",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/sketchFns.js"
+    },
+    {
+      "name": "sketchFaceOffset",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/cannedSketches.js"
+    },
+    {
+      "name": "sketchHelix",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/cannedSketches.js"
+    },
+    {
+      "name": "SketchInterface",
+      "kind": "type",
+      "module": "sketching",
+      "file": "./sketching/sketch.js"
+    },
+    {
+      "name": "sketchLoft",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/sketchFns.js"
+    },
+    {
+      "name": "sketchParametricFunction",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/cannedSketches.js"
+    },
+    {
+      "name": "sketchPolysides",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/cannedSketches.js"
+    },
+    {
+      "name": "sketchRectangle",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/cannedSketches.js"
+    },
+    {
+      "name": "sketchRevolve",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/sketchFns.js"
+    },
+    {
+      "name": "sketchRoundedRectangle",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/cannedSketches.js"
+    },
+    {
+      "name": "sketchSweep",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/sketchFns.js"
+    },
+    {
+      "name": "sketchWires",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/sketchFns.js"
+    },
+    {
+      "name": "translateDrawing",
+      "kind": "value",
+      "module": "sketching",
+      "file": "./sketching/drawFns.js"
+    },
+    {
+      "name": "fontMetrics",
+      "kind": "value",
+      "module": "text",
+      "file": "./text/textMetrics.js"
+    },
+    {
+      "name": "FontMetricsResult",
+      "kind": "type",
+      "module": "text",
+      "file": "./text/textMetrics.js"
+    },
+    {
+      "name": "getFont",
+      "kind": "value",
+      "module": "text",
+      "file": "./text/fontRegistry.js"
+    },
+    {
+      "name": "loadFont",
+      "kind": "value",
+      "module": "text",
+      "file": "./text/fontRegistry.js"
+    },
+    {
+      "name": "sketchText",
+      "kind": "value",
+      "module": "text",
+      "file": "./text/sketchText.js"
+    },
+    {
+      "name": "textBlueprints",
+      "kind": "value",
+      "module": "text",
+      "file": "./text/textBlueprints.js"
+    },
+    {
+      "name": "textMetrics",
+      "kind": "value",
+      "module": "text",
+      "file": "./text/textMetrics.js"
+    },
+    {
+      "name": "TextMetricsResult",
+      "kind": "type",
+      "module": "text",
+      "file": "./text/textMetrics.js"
+    },
+    {
+      "name": "addHoles",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/primitiveFns.js"
+    },
+    {
+      "name": "adjacentFaces",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/adjacencyFns.js"
+    },
+    {
+      "name": "applyGlue",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/index.js"
+    },
+    {
+      "name": "applyMatrix",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/api.js"
+    },
+    {
+      "name": "approximateCurve",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/curveFns.js"
+    },
+    {
+      "name": "ApproximateCurveOptions",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/curveFns.js"
+    },
+    {
+      "name": "assignRoles",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "asTopo",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/index.js"
+    },
+    {
+      "name": "autoHeal",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/healingFns.js"
+    },
+    {
+      "name": "AutoHealOptions",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/healingFns.js"
+    },
+    {
+      "name": "BatchBisectResult",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/booleanBatchFns.js"
+    },
+    {
+      "name": "BatchBisectTelemetry",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/booleanBatchFns.js"
+    },
+    {
+      "name": "bezier",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/primitiveFns.js"
+    },
+    {
+      "name": "BooleanOptions",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/booleanFns.js"
+    },
+    {
+      "name": "booleanPipeline",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/booleanFns.js"
+    },
+    {
+      "name": "BooleanPipelineStep",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/booleanFns.js"
+    },
+    {
+      "name": "BossOptions",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/apiTypes.js"
+    },
+    {
+      "name": "Bounds3D",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/shapeFns.js"
+    },
+    {
+      "name": "box",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/primitiveFns.js"
+    },
+    {
+      "name": "BoxOptions",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/primitiveFns.js"
+    },
+    {
+      "name": "BrepWrapperError",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/wrapperFns.js"
+    },
+    {
+      "name": "BrokenDerivedFaceRef",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "BrokenEdgeRef",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "BrokenReason",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "BrokenRef",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "BrokenVertexRef",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "bsplineApprox",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/primitiveFns.js"
+    },
+    {
+      "name": "BufferGeometryData",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/threeHelpers.js"
+    },
+    {
+      "name": "BufferGeometryGroup",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/threeHelpers.js"
+    },
+    {
+      "name": "captureHint",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "cast",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/index.js"
+    },
+    {
+      "name": "chamfer",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/api.js"
+    },
+    {
+      "name": "ChamferDistance",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/apiTypes.js"
+    },
+    {
+      "name": "chamferDistAngleShape",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/chamferAngleFns.js"
+    },
+    {
+      "name": "ChamferRadius",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/index.js"
+    },
+    {
+      "name": "chamferWithEvolution",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/evolutionFns.js"
+    },
+    {
+      "name": "checkBoolean",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/booleanDiagnosticFns.js"
+    },
+    {
+      "name": "circle",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/primitiveFns.js"
+    },
+    {
+      "name": "CircleOptions",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/primitiveFns.js"
+    },
+    {
+      "name": "classifyPointOnFace",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/faceFns.js"
+    },
+    {
+      "name": "clearMeshCache",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/meshCache.js"
+    },
+    {
+      "name": "clone",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/api.js"
+    },
+    {
+      "name": "Color",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/metadata/colorFns.js"
+    },
+    {
+      "name": "colorFaces",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/metadata/colorFns.js"
+    },
+    {
+      "name": "ColorInput",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/metadata/colorFns.js"
+    },
+    {
+      "name": "colorShape",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/metadata/colorFns.js"
+    },
+    {
+      "name": "ComposedTransform",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/api.js"
+    },
+    {
+      "name": "composeTransforms",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/api.js"
+    },
+    {
+      "name": "compound",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/primitiveFns.js"
+    },
+    {
+      "name": "cone",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/primitiveFns.js"
+    },
+    {
+      "name": "ConeOptions",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/primitiveFns.js"
+    },
+    {
+      "name": "createDerivedFaceRef",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "createEdgeRef",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "createMeshCache",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/meshCache.js"
+    },
+    {
+      "name": "createRef",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "createVertexRef",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "curveAxis",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/curveFns.js"
+    },
+    {
+      "name": "curveEndPoint",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/curveFns.js"
+    },
+    {
+      "name": "curveIsClosed",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/curveFns.js"
+    },
+    {
+      "name": "curveIsPeriodic",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/curveFns.js"
+    },
+    {
+      "name": "curveLength",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/curveFns.js"
+    },
+    {
+      "name": "curvePeriod",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/curveFns.js"
+    },
+    {
+      "name": "curvePointAt",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/curveFns.js"
+    },
+    {
+      "name": "curveStartPoint",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/curveFns.js"
+    },
+    {
+      "name": "curveTangentAt",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/curveFns.js"
+    },
+    {
+      "name": "cut",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/api.js"
+    },
+    {
+      "name": "cutAll",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/api.js"
+    },
+    {
+      "name": "cutAllBisect",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/booleanBatchFns.js"
+    },
+    {
+      "name": "cutWithEvolution",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/evolutionFns.js"
+    },
+    {
+      "name": "cylinder",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/primitiveFns.js"
+    },
+    {
+      "name": "CylinderOptions",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/primitiveFns.js"
+    },
+    {
+      "name": "defaultScorer",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "DerivedFaceHint",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "DerivedFaceRef",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "describe",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/api.js"
+    },
+    {
+      "name": "deserializeShape",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/index.js"
+    },
+    {
+      "name": "downcast",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/index.js"
+    },
+    {
+      "name": "draft",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/api.js"
+    },
+    {
+      "name": "DraftAngle",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/apiTypes.js"
+    },
+    {
+      "name": "DraftOptions",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/apiTypes.js"
+    },
+    {
+      "name": "DrawingLike",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/apiTypes.js"
+    },
+    {
+      "name": "DrillOptions",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/apiTypes.js"
+    },
+    {
+      "name": "EdgeHint",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "EdgeMesh",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/meshFns.js"
+    },
+    {
+      "name": "EdgeRef",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "edgesOfFace",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/adjacencyFns.js"
+    },
+    {
+      "name": "ellipse",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/primitiveFns.js"
+    },
+    {
+      "name": "ellipseArc",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/primitiveFns.js"
+    },
+    {
+      "name": "EllipseArcOptions",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/primitiveFns.js"
+    },
+    {
+      "name": "EllipseOptions",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/primitiveFns.js"
+    },
+    {
+      "name": "ellipsoid",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/primitiveFns.js"
+    },
+    {
+      "name": "EllipsoidOptions",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/primitiveFns.js"
+    },
+    {
+      "name": "EvolutionResult",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/evolutionFns.js"
+    },
+    {
+      "name": "exportIGES",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/meshFns.js"
+    },
+    {
+      "name": "exportSTEP",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/meshFns.js"
+    },
+    {
+      "name": "exportSTL",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/meshFns.js"
+    },
+    {
+      "name": "face",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/primitiveFns.js"
+    },
+    {
+      "name": "faceAxis",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/faceFns.js"
+    },
+    {
+      "name": "faceCenter",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/faceFns.js"
+    },
+    {
+      "name": "faceGeomType",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/faceFns.js"
+    },
+    {
+      "name": "faceOrientation",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/faceFns.js"
+    },
+    {
+      "name": "FaceScorer",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "facesOfEdge",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/adjacencyFns.js"
+    },
+    {
+      "name": "facesOfVertex",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/adjacencyFns.js"
+    },
+    {
+      "name": "fill",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/surfaceBuilders.js"
+    },
+    {
+      "name": "filledFace",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/primitiveFns.js"
+    },
+    {
+      "name": "fillet",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/api.js"
+    },
+    {
+      "name": "FilletRadius",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/apiTypes.js"
+    },
+    {
+      "name": "filletWithEvolution",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/evolutionFns.js"
+    },
+    {
+      "name": "FinderFn",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/apiTypes.js"
+    },
+    {
+      "name": "findFacesByTag",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/metadata/faceTagFns.js"
+    },
+    {
+      "name": "fixSelfIntersection",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/healingFns.js"
+    },
+    {
+      "name": "fixShape",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/healingFns.js"
+    },
+    {
+      "name": "flipFaceOrientation",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/faceFns.js"
+    },
+    {
+      "name": "flipOrientation",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/curveFns.js"
+    },
+    {
+      "name": "fromBREP",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/api.js"
+    },
+    {
+      "name": "fuse",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/api.js"
+    },
+    {
+      "name": "fuseAll",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/api.js"
+    },
+    {
+      "name": "fuseAllBisect",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/booleanBatchFns.js"
+    },
+    {
+      "name": "fuseWithEvolution",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/evolutionFns.js"
+    },
+    {
+      "name": "GenericTopo",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/index.js"
+    },
+    {
+      "name": "GeometricHint",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "getBounds",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeFns.js"
+    },
+    {
+      "name": "getCompSolids",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeFns.js"
+    },
+    {
+      "name": "getCurveType",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/curveFns.js"
+    },
+    {
+      "name": "getEdges",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeFns.js"
+    },
+    {
+      "name": "getFaceColor",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/metadata/colorFns.js"
+    },
+    {
+      "name": "getFaceOrigins",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeFns.js"
+    },
+    {
+      "name": "getFaces",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeFns.js"
+    },
+    {
+      "name": "getFaceTags",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/metadata/faceTagFns.js"
+    },
+    {
+      "name": "getHashCode",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeFns.js"
+    },
+    {
+      "name": "getNurbsCurveData",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/nurbsFns.js"
+    },
+    {
+      "name": "getNurbsSurfaceData",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/nurbsFns.js"
+    },
+    {
+      "name": "getOrientation",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/curveFns.js"
+    },
+    {
+      "name": "getShapeColor",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/metadata/colorFns.js"
+    },
+    {
+      "name": "getShells",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeFns.js"
+    },
+    {
+      "name": "getSolids",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeFns.js"
+    },
+    {
+      "name": "getSurfaceType",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/faceFns.js"
+    },
+    {
+      "name": "getTagMetadata",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/metadata/faceTagFns.js"
+    },
+    {
+      "name": "getVertices",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeFns.js"
+    },
+    {
+      "name": "getWires",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeFns.js"
+    },
+    {
+      "name": "GroupedBufferGeometryData",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/threeHelpers.js"
+    },
+    {
+      "name": "heal",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/api.js"
+    },
+    {
+      "name": "healFace",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/healingFns.js"
+    },
+    {
+      "name": "HealingReport",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/healingFns.js"
+    },
+    {
+      "name": "HealingStepDiagnostic",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/healingFns.js"
+    },
+    {
+      "name": "healSolid",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/healingFns.js"
+    },
+    {
+      "name": "healWire",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/healingFns.js"
+    },
+    {
+      "name": "helix",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/primitiveFns.js"
+    },
+    {
+      "name": "HelixOptions",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/primitiveFns.js"
+    },
+    {
+      "name": "hull",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/hullFns.js"
+    },
+    {
+      "name": "HullOptions",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/hullFns.js"
+    },
+    {
+      "name": "innerWires",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/faceFns.js"
+    },
+    {
+      "name": "interpolateCurve",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/curveFns.js"
+    },
+    {
+      "name": "InterpolateCurveOptions",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/curveFns.js"
+    },
+    {
+      "name": "intersect",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/api.js"
+    },
+    {
+      "name": "intersectWithEvolution",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/evolutionFns.js"
+    },
+    {
+      "name": "invalidateShapeCache",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeFns.js"
+    },
+    {
+      "name": "isChamferRadius",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/index.js"
+    },
+    {
+      "name": "isCompSolid",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/index.js"
+    },
+    {
+      "name": "isDerivedFaceRef",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "isEdgeRef",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "isEmpty",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/api.js"
+    },
+    {
+      "name": "isEqualShape",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeFns.js"
+    },
+    {
+      "name": "isFaceRef",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "isFilletRadius",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/index.js"
+    },
+    {
+      "name": "isLineageRef",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "isNumber",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/index.js"
+    },
+    {
+      "name": "isSameShape",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeFns.js"
+    },
+    {
+      "name": "isValid",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/api.js"
+    },
+    {
+      "name": "isVertexRef",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "iterCompSolids",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeFns.js"
+    },
+    {
+      "name": "iterEdges",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeFns.js"
+    },
+    {
+      "name": "iterFaces",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeFns.js"
+    },
+    {
+      "name": "iterShells",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeFns.js"
+    },
+    {
+      "name": "iterSolids",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeFns.js"
+    },
+    {
+      "name": "iterTopo",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/index.js"
+    },
+    {
+      "name": "iterVertices",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeFns.js"
+    },
+    {
+      "name": "iterWires",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeFns.js"
+    },
+    {
+      "name": "line",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/primitiveFns.js"
+    },
+    {
+      "name": "LineageRef",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "LineageResolution",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "LineGeometryData",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/threeHelpers.js"
+    },
+    {
+      "name": "locate",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/api.js"
+    },
+    {
+      "name": "LODGeometryData",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/threeHelpers.js"
+    },
+    {
+      "name": "LODGeometryLevel",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/threeHelpers.js"
+    },
+    {
+      "name": "LODMesh",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/meshFns.js"
+    },
+    {
+      "name": "mesh",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/api.js"
+    },
+    {
+      "name": "MeshCacheContext",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/meshCache.js"
+    },
+    {
+      "name": "meshEdges",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/api.js"
+    },
+    {
+      "name": "MeshLevelFn",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/meshFns.js"
+    },
+    {
+      "name": "meshLODs",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/meshFns.js"
+    },
+    {
+      "name": "MeshLODsOptions",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/meshFns.js"
+    },
+    {
+      "name": "meshLODsProgressive",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/meshFns.js"
+    },
+    {
+      "name": "MeshLODsProgressiveOptions",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/meshFns.js"
+    },
+    {
+      "name": "meshMultiLOD",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/meshFns.js"
+    },
+    {
+      "name": "MeshOptions",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/meshFns.js"
+    },
+    {
+      "name": "minkowski",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/minkowskiFns.js"
+    },
+    {
+      "name": "MinkowskiOptions",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/minkowskiFns.js"
+    },
+    {
+      "name": "mirror",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/api.js"
+    },
+    {
+      "name": "MirrorJoinOptions",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/apiTypes.js"
+    },
+    {
+      "name": "MirrorOptions",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/api.js"
+    },
+    {
+      "name": "MultiLODMesh",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/meshFns.js"
+    },
+    {
+      "name": "normalAt",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/faceFns.js"
+    },
+    {
+      "name": "offset",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/api.js"
+    },
+    {
+      "name": "offsetFace",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/primitiveFns.js"
+    },
+    {
+      "name": "offsetWire2D",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/curveFns.js"
+    },
+    {
+      "name": "outerWire",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/faceFns.js"
+    },
+    {
+      "name": "PipelineOp",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/booleanFns.js"
+    },
+    {
+      "name": "PocketOptions",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/apiTypes.js"
+    },
+    {
+      "name": "pointOnSurface",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/faceFns.js"
+    },
+    {
+      "name": "PointProjectionResult",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/faceFns.js"
+    },
+    {
+      "name": "polygon",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/primitiveFns.js"
+    },
+    {
+      "name": "polyhedron",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/polyhedronFns.js"
+    },
+    {
+      "name": "PolyhedronOptions",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/polyhedronFns.js"
+    },
+    {
+      "name": "positionOnCurve",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/positionFns.js"
+    },
+    {
+      "name": "projectPointOnFace",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/faceFns.js"
+    },
+    {
+      "name": "RadiusOptions",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/index.js"
+    },
+    {
+      "name": "RectangularPatternOptions",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/apiTypes.js"
+    },
+    {
+      "name": "removeHolesFromFace",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/faceFns.js"
+    },
+    {
+      "name": "resize",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeFns.js"
+    },
+    {
+      "name": "resolve",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/apiTypes.js"
+    },
+    {
+      "name": "resolve3D",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/apiTypes.js"
+    },
+    {
+      "name": "ResolvedDerivedFaceRef",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "ResolvedEdgeRef",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "ResolvedEntity",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "resolveDerivedFaceRef",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "ResolvedRef",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "ResolvedVertexRef",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "resolveEdgeRef",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "resolveLineageRef",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "resolveRef",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "resolveRefIn",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "resolveRefParams",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "resolveVertexRef",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "RoleTable",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "rotate",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/api.js"
+    },
+    {
+      "name": "RotateOptions",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/api.js"
+    },
+    {
+      "name": "scale",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/api.js"
+    },
+    {
+      "name": "ScaleOptions",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/api.js"
+    },
+    {
+      "name": "section",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/api.js"
+    },
+    {
+      "name": "sectionToFace",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/api.js"
+    },
+    {
+      "name": "setShapeOrigin",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeFns.js"
+    },
+    {
+      "name": "setTagMetadata",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/metadata/faceTagFns.js"
+    },
+    {
+      "name": "sewShells",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/primitiveFns.js"
+    },
+    {
+      "name": "shape",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/wrapperFns.js"
+    },
+    {
+      "name": "Shapeable",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/apiTypes.js"
+    },
+    {
+      "name": "ShapeDescription",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/shapeFns.js"
+    },
+    {
+      "name": "ShapeMesh",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/meshFns.js"
+    },
+    {
+      "name": "ShapeRef",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "shapeType",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/index.js"
+    },
+    {
+      "name": "sharedEdges",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/adjacencyFns.js"
+    },
+    {
+      "name": "shell",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/api.js"
+    },
+    {
+      "name": "shellWithEvolution",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/evolutionFns.js"
+    },
+    {
+      "name": "simplify",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/api.js"
+    },
+    {
+      "name": "slice",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/api.js"
+    },
+    {
+      "name": "solid",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/primitiveFns.js"
+    },
+    {
+      "name": "solidFromShell",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/healingFns.js"
+    },
+    {
+      "name": "sphere",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/primitiveFns.js"
+    },
+    {
+      "name": "SphereOptions",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/primitiveFns.js"
+    },
+    {
+      "name": "split",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/api.js"
+    },
+    {
+      "name": "subFace",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/primitiveFns.js"
+    },
+    {
+      "name": "surfaceFromGrid",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/surfaceFns.js"
+    },
+    {
+      "name": "SurfaceFromGridOptions",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/surfaceFns.js"
+    },
+    {
+      "name": "surfaceFromImage",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/surfaceFns.js"
+    },
+    {
+      "name": "SurfaceFromImageOptions",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/surfaceFns.js"
+    },
+    {
+      "name": "tagFaces",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/metadata/faceTagFns.js"
+    },
+    {
+      "name": "tangentArc",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/primitiveFns.js"
+    },
+    {
+      "name": "thicken",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/api.js"
+    },
+    {
+      "name": "threePointArc",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/primitiveFns.js"
+    },
+    {
+      "name": "toBREP",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/api.js"
+    },
+    {
+      "name": "toBufferGeometryData",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/threeHelpers.js"
+    },
+    {
+      "name": "toGroupedBufferGeometryData",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/threeHelpers.js"
+    },
+    {
+      "name": "toLineGeometryData",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/threeHelpers.js"
+    },
+    {
+      "name": "toLODGeometryData",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/threeHelpers.js"
+    },
+    {
+      "name": "toLODGeometryLevels",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/threeHelpers.js"
+    },
+    {
+      "name": "TopoEntity",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/index.js"
+    },
+    {
+      "name": "torus",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/primitiveFns.js"
+    },
+    {
+      "name": "TorusOptions",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/primitiveFns.js"
+    },
+    {
+      "name": "transformCopy",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/api.js"
+    },
+    {
+      "name": "TransformOp",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/api.js"
+    },
+    {
+      "name": "translate",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/api.js"
+    },
+    {
+      "name": "updateRoles",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "uvBounds",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/faceFns.js"
+    },
+    {
+      "name": "UVBounds",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/faceFns.js"
+    },
+    {
+      "name": "uvCoordinates",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/faceFns.js"
+    },
+    {
+      "name": "variableFillet",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/modifierFns.js"
+    },
+    {
+      "name": "VariableFilletRadius",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/modifierFns.js"
+    },
+    {
+      "name": "vertex",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/primitiveFns.js"
+    },
+    {
+      "name": "VertexHint",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "vertexPosition",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/shapeFns.js"
+    },
+    {
+      "name": "VertexRef",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/shapeRef/index.js"
+    },
+    {
+      "name": "verticesOfEdge",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/adjacencyFns.js"
+    },
+    {
+      "name": "verticesOfFace",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/adjacencyFns.js"
+    },
+    {
+      "name": "wire",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/primitiveFns.js"
+    },
+    {
+      "name": "wireLoop",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/primitiveFns.js"
+    },
+    {
+      "name": "wiresOfFace",
+      "kind": "value",
+      "module": "topology",
+      "file": "./topology/adjacencyFns.js"
+    },
+    {
+      "name": "Wrapped",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/wrapperFns.js"
+    },
+    {
+      "name": "Wrapped3D",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/wrapperFns.js"
+    },
+    {
+      "name": "WrappedCurve",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/wrapperFns.js"
+    },
+    {
+      "name": "WrappedFace",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/wrapperFns.js"
+    },
+    {
+      "name": "WrappedMarker",
+      "kind": "type",
+      "module": "topology",
+      "file": "./topology/apiTypes.js"
+    }
+  ]
+}

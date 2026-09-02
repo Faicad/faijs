@@ -22,6 +22,6 @@ import { createApiNamespace } from '@faicad/faijs-core/api/api-namespace'
  */
 export function createRuntime(ports: HostPorts, mode?: ExecutionMode): CadRuntime {
   const rt = createRuntimeCore(ports, mode)
-  rt.registerLib('cad', createApiNamespace())
+  rt.registerLib('cad', createApiNamespace(), { default: true })
   return rt
 }

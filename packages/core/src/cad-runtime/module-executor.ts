@@ -148,6 +148,16 @@ export class ModuleExecutor {
   private metaById = new Map<StmtId, CompiledStatementMeta>()
   private script: ScriptIR = { params: [], statements: [] }
   private lastCode = ''
+  /**
+   * 默认命名空间绑定名（U10/R2）：与 runtime 的 registerLib(…, {default: true}) 声明同步；
+   * statementKey/computeKey 中 namespace 缺省（undefined）的语句按该绑定名计 key。
+   */
+  private defaultNsName = 'cad'
+
+  /** Sync the default namespace binding name (called by runtime.registerLib with {default:true}). */
+  setDefaultNsName(name: string): void {
+    this.defaultNsName = name
+  }
   private namespaces: Namespaces
   /** 本机函数调用嵌套深度（§5.5）：> 0 表示当前在函数体内执行——keep 登记被抑制。 */
   private userFunctionDepth = 0
@@ -581,7 +591,7 @@ export class ModuleExecutor {
     const parts = [
       source.local
         ? `local.${source.callee}#${this.bodyHashOf(source.callee)}`
-        : `${source.namespace ?? 'cad'}.${source.callee}`,
+        : `${source.namespace ?? this.defaultNsName}.${source.callee}`,
     ]
     parts.push(JSON.stringify(withoutKeepDirectives(source.args)))
     for (const dep of meta.deps) {

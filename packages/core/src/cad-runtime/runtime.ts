@@ -315,22 +315,36 @@ export class CadRuntime {
   /** 宿主注册库（含 cad：由根门面 createRuntime 包装注入；注入编译产物 fn 的第二参 ns） */
   private readonly libs: Record<string, StdlibNamespace>
   private readonly namespaces: Namespaces
+  /** 默认命名空间绑定名（U10/R2）：根门面经 registerLib(binding, ns, {default: true}) 显式声明；
+   *  缺省 'cad'（与 parser 缺省 defaultNs 一致）。namespace 字段缺省的语句归属该绑定。 */
+  private defaultNsName = 'cad'
 
   /**
-   * Register a third-party library namespace. A version mismatch throws (no
-   * silent degradation); afterwards compiled products may use the new library
-   * via `ns.<binding>.<callee>`. `cad` is registered the same way: the root
-   * facade injects it through registerLib('cad', createInternalStdlib()).
+   * Register a library namespace. A version mismatch throws (no silent
+   * degradation); afterwards compiled products may use the library via
+   * `ns.<binding>.<callee>`. `cad` is registered the same way: the root facade
+   * injects it through registerLib('cad', createInternalStdlib(), { default: true }).
    * @param binding - the namespace binding name.
    * @param ns - the namespace object to register.
+   * @param options - `{ default: true }` declares this binding as the default
+   *   namespace (host-declared default binding name, U10/R2).
    */
-  registerLib(binding: string, ns: StdlibNamespace): void {
+  registerLib(binding: string, ns: StdlibNamespace, options?: { default?: boolean }): void {
     assertContractVersion(ns as unknown as { contractVersion?: number })
     // D-4 strict assembly check: every exported dual-op must be structurally
     // valid; a library exporting dual-ops must carry a matching contractVersion.
     assertLibConforms(ns as unknown as Record<string, unknown>)
     this.libs[binding] = ns
+    if (options?.default === true) {
+      this.defaultNsName = binding
+      this.executor.setDefaultNsName(binding)
+    }
     this.executor.setNamespaces({ ...this.libs } as Namespaces)
+  }
+
+  /** The runtime's default namespace binding name (host-declared; 'cad' by default). */
+  get defaultNs(): string {
+    return this.defaultNsName
   }
 
   constructor(ports: HostPorts, mode: ExecutionMode = 'auto', libs: Record<string, StdlibNamespace> = {}) {
@@ -435,7 +449,7 @@ export class CadRuntime {
    * @returns promise resolving to the ExecutionResult.
    */
   async execute(code: string, opts?: ExecuteOptions): Promise<ExecutionResult> {
-    const { script } = parseScript(code)
+    const { script } = parseScript(code, { defaultNs: this.defaultNsName })
     // Full replace: the whole scene resets to this text.
     this.accumulatedCode = code
     this.accumulatedIds = new Set(script.statements.map((s) => s.id))
@@ -492,8 +506,8 @@ export class CadRuntime {
    * @returns promise resolving to the ExecutionResult.
    */
   async update(oldCode: string, newCode: string, opts?: ExecuteOptions): Promise<ExecutionResult> {
-    const { script: oldScript } = parseScript(oldCode)
-    const { script } = parseScript(newCode)
+    const { script: oldScript } = parseScript(oldCode, { defaultNs: this.defaultNsName })
+    const { script } = parseScript(newCode, { defaultNs: this.defaultNsName })
     // The scene is now the new code (ids stay position-stable by line).
     this.accumulatedCode = newCode
     this.accumulatedIds = new Set(script.statements.map((s) => s.id))
@@ -552,7 +566,7 @@ export class CadRuntime {
     // as external vars, validated by assertAppendPrefix against the ctx.
     const fullCode = this.accumulatedCode === null ? code : `${this.accumulatedCode}\n${code}`
     this.accumulatedCode = fullCode
-    const { script } = parseScript(fullCode, { looseVars: true })
+    const { script } = parseScript(fullCode, { looseVars: true, defaultNs: this.defaultNsName })
     // New statements = ids not seen in the previous accumulated scene.
     const newIds: (StmtId | PartName)[] = []
     for (const s of script.statements) {
@@ -741,7 +755,7 @@ export class CadRuntime {
     if (!source) return `param|${JSON.stringify(paramByName.get(primary))}`
     const head = source.local
       ? `local.${source.callee}#${this.executor.bodyHashOf(source.callee)}`
-      : `${source.namespace ?? 'cad'}.${source.callee}`
+      : `${source.namespace ?? this.defaultNsName}.${source.callee}`
     return `${head}|${JSON.stringify(withoutKeepDirectives(source.args))}`
   }
 
@@ -762,7 +776,7 @@ export class CadRuntime {
       : ''
     const head = old.local
       ? `local.${old.callee}#${oldHash}`
-      : `${old.namespace ?? 'cad'}.${old.callee}`
+      : `${old.namespace ?? this.defaultNsName}.${old.callee}`
     return `${head}|${JSON.stringify(withoutKeepDirectives(old.args))}`
   }
 
@@ -903,10 +917,10 @@ export class CadRuntime {
       value: (name) => this.executor.getCtxVar(name),
       internalKeep: (stmt) => this.executor.getInternalKeep(stmt.id),
       // C2：语句调用的 op 若带 L3 静态 consumes 声明（D2），以声明为准。
-      // 命名空间缺省 = 'cad'（lang 层 F2 缺省）；本机函数调用（local）无库元数据。
+      // 命名空间缺省 = 默认绑定名（this.defaultNsName，lang 层 F2 缺省 'cad'）；本机函数调用（local）无库元数据。
       opConsumes: (stmt) => {
         if (stmt.local) return undefined
-        const ns = stmt.namespace ?? 'cad'
+        const ns = stmt.namespace ?? this.defaultNsName
         const fn = this.libs[ns]?.[stmt.callee]
         if (typeof fn !== 'function') return undefined
         const fnWithMeta = fn as unknown as { [DUAL_OP_META]?: import('../define-op').DualOpMeta }
@@ -1307,7 +1321,7 @@ export class CadRuntime {
     // ① parse（acorn 闸门；零知识解析）
     let script: ScriptIR
     try {
-      const result = parseScript(code)
+      const result = parseScript(code, { defaultNs: this.defaultNsName })
       script = result.script
     } catch (err) {
       if (err instanceof ParseError) {
@@ -1334,7 +1348,7 @@ export class CadRuntime {
       // 本机函数调用（local）：存在性已在 parse 期校验（§3.4 / D15），不查 stdlib 符号表
       if (stmt.local) continue
       const ns = stmt.namespace
-      if (ns && ns !== 'cad') {
+      if (ns && ns !== this.defaultNsName) {
         const lib = this.libs[ns]
         if (!lib) {
           errors.push({
@@ -1351,6 +1365,19 @@ export class CadRuntime {
             stmtId: stmt.id,
           })
         }
+        continue
+      }
+      // 缺省命名空间调用（namespace 缺省或 === 声明的默认绑定名）：若默认绑定已注册
+      // （libs[defaultNsName] 存在）→ 按注册库校验（修复 U10/R2 隐患：名为默认绑定名的
+      // 第三方库不再被误判进内部符号表、绕过 registerLib 校验）；未注册（K5 引擎零函数
+      // 知识路径）→ 回退 lang 层静态 stdlib 符号表兜底。
+      const defaultLib = this.libs[this.defaultNsName]
+      if (defaultLib && typeof defaultLib[stmt.callee] !== 'function') {
+        errors.push({
+          stage: 'symbol',
+          message: `function "${stmt.callee}" does not exist in namespace "${this.defaultNsName}"`,
+          stmtId: stmt.id,
+        })
         continue
       }
       const fnSymbol = getFunctionSymbol(stmt.callee)

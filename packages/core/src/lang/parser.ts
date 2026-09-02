@@ -420,6 +420,7 @@ function parseValueExpr(
   paramValues: Map<string, JsonValue>,
   varToId: Map<string, PartName>,
   nsNames: ReadonlySet<string>,
+  defaultNsName: string,
   line: number,
   flags?: ValueFlags | null,
   looseVars = false,
@@ -472,7 +473,7 @@ function parseValueExpr(
           if (flags) flags.computed = true
           out.push(...(r.value as ArgIR[]))
         } else {
-          out.push(parseValueExpr(el, paramNames, paramValues, varToId, nsNames, line, flags, looseVars, sourceText))
+          out.push(parseValueExpr(el, paramNames, paramValues, varToId, nsNames, defaultNsName, line, flags, looseVars, sourceText))
         }
       }
       return out as ArgIR
@@ -510,7 +511,7 @@ function parseValueExpr(
             throw new ParseError(`unknown shorthand identifier "${key}" (not a declared param)`, line, 'E_REFERENCE')
           }
         } else {
-          obj[key] = parseValueExpr(prop.value, paramNames, paramValues, varToId, nsNames, line, flags, looseVars, sourceText)
+          obj[key] = parseValueExpr(prop.value, paramNames, paramValues, varToId, nsNames, defaultNsName, line, flags, looseVars, sourceText)
         }
       }
       return obj as ArgIR
@@ -527,12 +528,12 @@ function parseValueExpr(
       ) {
         const nsName = callee.object.name
         const innerCallee = callee.property.name
-        const innerArgs = node.arguments.map((a: ASTNode) => parseValueExpr(a, paramNames, paramValues, varToId, nsNames, line, flags, looseVars, sourceText))
+        const innerArgs = node.arguments.map((a: ASTNode) => parseValueExpr(a, paramNames, paramValues, varToId, nsNames, defaultNsName, line, flags, looseVars, sourceText))
         return {
           $call: {
             callee: innerCallee,
             args: innerArgs,
-            ...(nsName !== 'cad' ? { namespace: nsName } : {}),
+            ...(nsName !== defaultNsName ? { namespace: nsName } : {}),
           },
         } as ArgIR
       }
@@ -632,6 +633,7 @@ function parseCadStatement(
   paramValues: Map<string, JsonValue>,
   varToId: Map<string, PartName>,
   nsNames: ReadonlySet<string>,
+  defaultNsName: string,
   looseVars = false,
   sourceText = '',
   localFnParams?: ReadonlyMap<string, string[]>,
@@ -706,7 +708,7 @@ function parseCadStatement(
       inputs.push(inputId)
     } else if (argNode.type === 'ObjectExpression') {
       // args 对象
-      const parsed = parseValueExpr(argNode, paramNames, paramValues, varToId, nsNames, line, flags, looseVars, sourceText)
+      const parsed = parseValueExpr(argNode, paramNames, paramValues, varToId, nsNames, defaultNsName, line, flags, looseVars, sourceText)
       if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
         args = parsed as Record<string, ArgIR>
       } else {
@@ -731,7 +733,7 @@ function parseCadStatement(
     inputs,
     outputs: [],
     hasAssignment: true,
-    ...(local ? { local: true } : nsName !== 'cad' ? { namespace: nsName } : {}),
+    ...(local ? { local: true } : nsName !== defaultNsName ? { namespace: nsName } : {}),
     ...(flags.computed ? { hasComputedArgs: true } : {}),
   }
 
@@ -760,6 +762,7 @@ function parseDestructuring(
   paramValues: Map<string, JsonValue>,
   varToId: Map<string, PartName>,
   nsNames: ReadonlySet<string>,
+  defaultNsName: string,
   looseVars = false,
   sourceText = '',
   localFnParams?: ReadonlyMap<string, string[]>,
@@ -843,7 +846,7 @@ function parseDestructuring(
       }
       inputs.push(inputId)
     } else if (argNode.type === 'ObjectExpression') {
-      const parsed = parseValueExpr(argNode, paramNames, paramValues, varToId, nsNames, line, flags, looseVars, sourceText)
+      const parsed = parseValueExpr(argNode, paramNames, paramValues, varToId, nsNames, defaultNsName, line, flags, looseVars, sourceText)
       if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
         Object.assign(args, parsed as Record<string, ArgIR>)
       } else {
@@ -869,7 +872,7 @@ function parseDestructuring(
     outputs: [],
     outputKeys: keys,
     hasAssignment: true,
-    ...(local ? { local: true } : nsName !== 'cad' ? { namespace: nsName } : {}),
+    ...(local ? { local: true } : nsName !== defaultNsName ? { namespace: nsName } : {}),
     ...(flags.computed ? { hasComputedArgs: true } : {}),
   }
 
@@ -1283,6 +1286,13 @@ export interface ParseResult {
  */
 export interface ParseScriptOptions {
   /**
+   * 脚本内对「默认注入命名空间」的引用标识符（U10/R2）。缺省 'cad'——
+   * 与根门面 registerLib('cad', …, {default: true}) 声明一致；宿主换默认绑定名
+   * （如 registerLib('g', …, {default: true})）时须传入同名的 defaultNs，容器形参
+   * 与语句命名空间判定才与该声明一致。
+   */
+  defaultNs?: string
+  /**
    * Loose variable resolution for partial code text (CadRuntime.append receives
    * only the newest statements). Unknown references resolve to their physical
    * PartName instead of throwing; the caller validates them against the
@@ -1310,6 +1320,8 @@ export interface ParseScriptOptions {
 export function parseScript(code: string, options?: ParseScriptOptions): ParseResult {
   const looseVars = options?.looseVars === true
   const looseLocalCalls = options?.looseLocalCalls === true
+  // 默认注入命名空间名（U10/R2）：缺省 'cad'；宿主换默认绑定名时经 options.defaultNs 声明。
+  const defaultNsName = options?.defaultNs ?? 'cad'
 
   // ── 0. 顶层 import/export 预扫描（F1 黑名单化 + F2 import 提升） ──
   // 用 module 模式解析原始文本：
@@ -1368,14 +1380,14 @@ export function parseScript(code: string, options?: ParseScriptOptions): ParseRe
       const prefix = code.slice(0, importBlock.start)
       const importText = code.slice(importBlock.start, importBlock.end)
       const rest = code.slice(importBlock.end)
-      parseCode = `${prefix}${importText}\nexport default async (cad) => {\n${rest}\n}`
+      parseCode = `${prefix}${importText}\nexport default async (${defaultNsName}) => {\n${rest}\n}`
       lineOffset = countLines(prefix + importText) + 1
-      // import 段之后的代码（函数定义所在）偏移 = 封装前缀长度（`\nexport default async (cad) => {\n` = 33 字符）
-      codeOffset = 33
+      // import 段之后的代码（函数定义所在）偏移 = 封装前缀长度（`\nexport default async (<ns>) => {\n` = 29 + len）
+      codeOffset = 29 + defaultNsName.length
     } else {
-      parseCode = `export default async (cad) => {\n${code}\n}`
+      parseCode = `export default async (${defaultNsName}) => {\n${code}\n}`
       lineOffset = 1
-      codeOffset = 'export default async (cad) => {\n'.length
+      codeOffset = `export default async (${defaultNsName}) => {\n`.length
     }
   }
 
@@ -1405,16 +1417,18 @@ export function parseScript(code: string, options?: ParseScriptOptions): ParseRe
     throw new ParseError('missing `export default`', 1)
   }
 
-  // export default 必须是 async 箭头函数
+  // export default 必须是 async 箭头函数。
+  // 容器形参名即脚本内对「默认注入命名空间」的引用标识符（U10/R2：缺省约定 'cad'，
+  // 宿主换默认绑定名 g 时经 parseScript options.defaultNs 传入，容器形参须与之一致）。
   const arrowFn = exportDecl.declaration
   if (
     arrowFn?.type !== 'ArrowFunctionExpression' ||
     !arrowFn.async ||
     arrowFn.params.length !== 1 ||
     arrowFn.params[0]?.type !== 'Identifier' ||
-    arrowFn.params[0].name !== 'cad'
+    arrowFn.params[0].name !== defaultNsName
   ) {
-    throw new ParseError('expected `export default async (cad) => { ... }`', getLine(exportDecl))
+    throw new ParseError(`expected \`export default async (${defaultNsName}) => { ... }\``, getLine(exportDecl))
   }
 
   // 箭头函数体必须是 BlockStatement
@@ -1450,9 +1464,9 @@ export function parseScript(code: string, options?: ParseScriptOptions): ParseRe
   }
 
   /** 命名空间判定：'cad'（缺省）或顶层 import 绑定名（F2 消灭硬编码）。 */
-  const isNamespaceName = (name: string): boolean => name === 'cad' || importBindings.has(name)
+  const isNamespaceName = (name: string): boolean => name === defaultNsName || importBindings.has(name)
   /** 合法命名空间名集合（parseValueExpr/parseCadStatement/parseDestructuring 共用）。 */
-  const nsNames: ReadonlySet<string> = new Set(['cad', ...importBindings.keys()])
+  const nsNames: ReadonlySet<string> = new Set([defaultNsName, ...importBindings.keys()])
 
   // ── 3.2 本机函数集预扫描（Phase 2 / §3.4） ──
   // 函数声明**提升**（可被其后语句调用），且未知函数名 parse 期报 E_REFERENCE——
@@ -1494,7 +1508,7 @@ export function parseScript(code: string, options?: ParseScriptOptions): ParseRe
             if (stmtNode.kind !== 'const') {
               throw new ParseError('destructuring requires const', line, 'E_STATEMENT')
             }
-            const { stmt, valueNames } = parseDestructuring(decl, paramNames, paramValues, varToId, nsNames, looseVars, parseCode, localFnParams, looseLocalCalls)
+            const { stmt, valueNames } = parseDestructuring(decl, paramNames, paramValues, varToId, nsNames, defaultNsName, looseVars, parseCode, localFnParams, looseLocalCalls)
             // 命名服务不再由 parser 调用：parser 只做语法分析，保留词法变量名（设计 §5.1）
             stmt.outputs = valueNames.map((n) => asPartName(n))
             statements.push(stmt)
@@ -1528,7 +1542,7 @@ export function parseScript(code: string, options?: ParseScriptOptions): ParseRe
             )
           ) {
             // 语句：const partN = [await] <ns>.op(...) 或 const partN = [await] localFn(...)
-            const { stmt, varName } = parseCadStatement(decl, paramNames, paramValues, varToId, nsNames, looseVars, parseCode, localFnParams, looseLocalCalls)
+            const { stmt, varName } = parseCadStatement(decl, paramNames, paramValues, varToId, nsNames, defaultNsName, looseVars, parseCode, localFnParams, looseLocalCalls)
             // 命名服务不再由 parser 调用：parser 只做语法分析，保留词法变量名（设计 §5.1）
             stmt.outputs = [asPartName(varName)]
             statements.push(stmt)
@@ -1626,7 +1640,7 @@ export function parseScript(code: string, options?: ParseScriptOptions): ParseRe
               init: expr.right,
               loc: stmtNode.loc,
             }
-            const { stmt, varName: parsedVar } = parseCadStatement(fakeDecl, paramNames, paramValues, varToId, nsNames, looseVars, parseCode, localFnParams, looseLocalCalls)
+            const { stmt, varName: parsedVar } = parseCadStatement(fakeDecl, paramNames, paramValues, varToId, nsNames, defaultNsName, looseVars, parseCode, localFnParams, looseLocalCalls)
             // 命名服务不再由 parser 调用：裸重赋值保留词法变量名（设计 §5.1）
             stmt.outputs = [asPartName(parsedVar)]
             statements.push(stmt)
@@ -1662,7 +1676,7 @@ export function parseScript(code: string, options?: ParseScriptOptions): ParseRe
                 }
                 inputs.push(inputId)
               } else if (argNode.type === 'ObjectExpression') {
-                const parsed = parseValueExpr(argNode, paramNames, paramValues, varToId, nsNames, line, flags, looseVars, parseCode)
+                const parsed = parseValueExpr(argNode, paramNames, paramValues, varToId, nsNames, defaultNsName, line, flags, looseVars, parseCode)
                 if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
                   Object.assign(args, parsed as Record<string, ArgIR>)
                 } else {
@@ -1726,7 +1740,7 @@ export function parseScript(code: string, options?: ParseScriptOptions): ParseRe
                 }
                 inputs.push(inputId)
               } else if (argNode.type === 'ObjectExpression') {
-                const parsed = parseValueExpr(argNode, paramNames, paramValues, varToId, nsNames, line, flags, looseVars, parseCode)
+                const parsed = parseValueExpr(argNode, paramNames, paramValues, varToId, nsNames, defaultNsName, line, flags, looseVars, parseCode)
                 if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
                   Object.assign(args, parsed as Record<string, ArgIR>)
                 } else {
@@ -1743,7 +1757,7 @@ export function parseScript(code: string, options?: ParseScriptOptions): ParseRe
               inputs,
               outputs: [],
               hasAssignment: false,
-              ...(nsName !== 'cad' ? { namespace: nsName } : {}),
+              ...(nsName !== defaultNsName ? { namespace: nsName } : {}),
               ...(flags.computed ? { hasComputedArgs: true } : {}),
             }
             statements.push(nsStmt)
@@ -1767,7 +1781,7 @@ export function parseScript(code: string, options?: ParseScriptOptions): ParseRe
           const flags: ValueFlags = { computed: false }
           for (const argNode of expr.arguments) {
             if (argNode.type === 'ObjectExpression') {
-              const parsed = parseValueExpr(argNode, paramNames, paramValues, varToId, nsNames, line, flags, looseVars, parseCode)
+              const parsed = parseValueExpr(argNode, paramNames, paramValues, varToId, nsNames, defaultNsName, line, flags, looseVars, parseCode)
               if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
                 Object.assign(args, parsed as Record<string, ArgIR>)
               } else {

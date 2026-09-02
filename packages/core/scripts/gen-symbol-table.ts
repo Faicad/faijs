@@ -6,8 +6,10 @@
  * 符号表现只承载一个职责：check() 符号检查判定 callee 是否存在
  * （"函数不存在"诊断），因此必须覆盖 cad 命名空间全部函数。
  *
- * 从 src/cad-runtime/internal-stdlib.ts 的 createInternalStdlib() 返回对象
+ * 从 src/api/api-namespace.ts 的 createApiNamespace() 返回对象
  * 字面量提取 cad 命名空间函数名，每个函数记空对象条目。
+ * （B1 修复：原 internal-stdlib.ts 随 P6 删除，单一清单来源改为
+ *   api-namespace.ts —— check() 只对注入的 cad 命名空间做键存在性判定。）
  *
  * 产物：src/lang/symbol-table.generated.ts（生成文件，禁手改）
  *
@@ -22,7 +24,7 @@ import { fileURLToPath } from 'url'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-const INTERNAL_STDLIB_FILE = path.resolve(__dirname, '..', '..', 'stdlib', 'src', 'internal-stdlib.ts')
+const INTERNAL_STDLIB_FILE = path.resolve(__dirname, '..', 'src', 'api', 'api-namespace.ts')
 // 输出为 .generated.ts 而非 .json（实施文档 §6.5）：ESM 下 JSON import 需要
 // import attribute（"type: json"），在 vite/vitest 的 Node ESM 消费方会报错。
 const OUTPUT = path.resolve(__dirname, '..', 'src', 'lang', 'symbol-table.generated.ts')
@@ -30,7 +32,7 @@ const OUTPUT = path.resolve(__dirname, '..', 'src', 'lang', 'symbol-table.genera
 type SymbolTable = Record<string, Record<string, never>>
 
 /**
- * 从 internal-stdlib.ts 的 createInternalStdlib() 返回对象字面量提取 cad 命名空间函数名。
+ * 从 api-namespace.ts 的 createApiNamespace() 返回对象字面量提取 cad 命名空间函数名。
  * 符号表只收录这些函数（每个记空对象条目）——check() 符号检查据此判定
  * "函数不存在"（设计文档 §4.9），必须覆盖全部 cad 函数。
  */
@@ -39,7 +41,7 @@ export function discoverCadNamespaceFunctions(): string[] {
   const sf = ts.createSourceFile(INTERNAL_STDLIB_FILE, source, ts.ScriptTarget.ES2022, true)
   const names: string[] = []
   for (const stmt of sf.statements) {
-    if (!ts.isFunctionDeclaration(stmt) || stmt.name?.text !== 'createInternalStdlib') continue
+    if (!ts.isFunctionDeclaration(stmt) || stmt.name?.text !== 'createApiNamespace') continue
     // 找 return { ... } 对象字面量（可能带 `as unknown as StdlibNamespace` 断言）
     const unwrapObject = (expr: ts.Expression): ts.ObjectLiteralExpression | undefined => {
       let cur: ts.Expression | undefined = expr
@@ -90,7 +92,7 @@ function main(): void {
   const lines: string[] = []
   lines.push(`/**`)
   lines.push(` * symbol-table 生成文件 — 禁手改。`)
-  lines.push(` * 由 scripts/gen-symbol-table.ts 从 internal-stdlib 的 cad 命名空间生成（键存在性）。`)
+  lines.push(` * 由 scripts/gen-symbol-table.ts 从 api-namespace 的 cad 命名空间生成（键存在性）。`)
   lines.push(` * keep-syntax P1 后符号表只承载 check() 符号检查（"函数不存在"判定）；`)
   lines.push(` * 保留语义由 keep 声明表达，不再有 readonly 标注。`)
   lines.push(` */`)

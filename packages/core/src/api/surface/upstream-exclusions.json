@@ -1,0 +1,585 @@
+{
+  "_meta": {
+    "upstream": "brepjs/src/index.ts",
+    "doc": "docs/plans/2026-09-02-faijs-api-surface-completion.md §2.6.1–2.6.5 (E1)",
+    "generated": "2026-09-02"
+  },
+  "entries": [
+    {
+      "name": "ScalarFieldHandle",
+      "module": "implicit",
+      "kind": "type",
+      "reason": "conflicts with faijs sdf — §2.6.3"
+    },
+    {
+      "name": "SdfBounds",
+      "module": "implicit",
+      "kind": "type",
+      "reason": "conflicts with faijs sdf — §2.6.3"
+    },
+    {
+      "name": "sdfBox",
+      "module": "implicit",
+      "kind": "value",
+      "reason": "conflicts with faijs sdf — §2.6.3"
+    },
+    {
+      "name": "sdfCapsule",
+      "module": "implicit",
+      "kind": "value",
+      "reason": "conflicts with faijs sdf — §2.6.3"
+    },
+    {
+      "name": "sdfCone",
+      "module": "implicit",
+      "kind": "value",
+      "reason": "conflicts with faijs sdf — §2.6.3"
+    },
+    {
+      "name": "sdfCylinder",
+      "module": "implicit",
+      "kind": "value",
+      "reason": "conflicts with faijs sdf — §2.6.3"
+    },
+    {
+      "name": "sdfFieldAxialRamp",
+      "module": "implicit",
+      "kind": "value",
+      "reason": "conflicts with faijs sdf — §2.6.3"
+    },
+    {
+      "name": "sdfFieldClamp",
+      "module": "implicit",
+      "kind": "value",
+      "reason": "conflicts with faijs sdf — §2.6.3"
+    },
+    {
+      "name": "sdfFieldConst",
+      "module": "implicit",
+      "kind": "value",
+      "reason": "conflicts with faijs sdf — §2.6.3"
+    },
+    {
+      "name": "sdfFieldFromSdf",
+      "module": "implicit",
+      "kind": "value",
+      "reason": "conflicts with faijs sdf — §2.6.3"
+    },
+    {
+      "name": "sdfFieldRadialRamp",
+      "module": "implicit",
+      "kind": "value",
+      "reason": "conflicts with faijs sdf — §2.6.3"
+    },
+    {
+      "name": "SdfHandle",
+      "module": "implicit",
+      "kind": "type",
+      "reason": "conflicts with faijs sdf — §2.6.3"
+    },
+    {
+      "name": "sdfLattice",
+      "module": "implicit",
+      "kind": "value",
+      "reason": "conflicts with faijs sdf — §2.6.3"
+    },
+    {
+      "name": "SdfLatticeKind",
+      "module": "implicit",
+      "kind": "type",
+      "reason": "conflicts with faijs sdf — §2.6.3"
+    },
+    {
+      "name": "sdfPlane",
+      "module": "implicit",
+      "kind": "value",
+      "reason": "conflicts with faijs sdf — §2.6.3"
+    },
+    {
+      "name": "sdfRoundedBox",
+      "module": "implicit",
+      "kind": "value",
+      "reason": "conflicts with faijs sdf — §2.6.3"
+    },
+    {
+      "name": "sdfSphere",
+      "module": "implicit",
+      "kind": "value",
+      "reason": "conflicts with faijs sdf — §2.6.3"
+    },
+    {
+      "name": "sdfStrutLattice",
+      "module": "implicit",
+      "kind": "value",
+      "reason": "conflicts with faijs sdf — §2.6.3"
+    },
+    {
+      "name": "sdfSweep",
+      "module": "implicit",
+      "kind": "value",
+      "reason": "conflicts with faijs sdf — §2.6.3"
+    },
+    {
+      "name": "SdfSweepOptions",
+      "module": "implicit",
+      "kind": "type",
+      "reason": "conflicts with faijs sdf — §2.6.3"
+    },
+    {
+      "name": "sdfTorus",
+      "module": "implicit",
+      "kind": "value",
+      "reason": "conflicts with faijs sdf — §2.6.3"
+    },
+    {
+      "name": "LatticeBounds",
+      "module": "lattice",
+      "kind": "type",
+      "reason": "covered by faijs sdf gyroid-lattice templates — §2.6.4"
+    },
+    {
+      "name": "latticeInfill",
+      "module": "lattice",
+      "kind": "value",
+      "reason": "covered by faijs sdf gyroid-lattice templates — §2.6.4"
+    },
+    {
+      "name": "latticeInfillShape",
+      "module": "lattice",
+      "kind": "value",
+      "reason": "covered by faijs sdf gyroid-lattice templates — §2.6.4"
+    },
+    {
+      "name": "LatticeOptions",
+      "module": "lattice",
+      "kind": "type",
+      "reason": "covered by faijs sdf gyroid-lattice templates — §2.6.4"
+    },
+    {
+      "name": "LatticeType",
+      "module": "lattice",
+      "kind": "type",
+      "reason": "covered by faijs sdf gyroid-lattice templates — §2.6.4"
+    },
+    {
+      "name": "tpmsLattice",
+      "module": "lattice",
+      "kind": "value",
+      "reason": "covered by faijs sdf gyroid-lattice templates — §2.6.4"
+    },
+    {
+      "name": "csg",
+      "module": "ns",
+      "kind": "value",
+      "reason": "U9 (user-mandated): csg module not ported — §2.6.1"
+    },
+    {
+      "name": "fieldBoolean",
+      "module": "voxel",
+      "kind": "value",
+      "reason": "dependency unavailable (brepjs-voxel-wasm unpublished) — §2.6.2"
+    },
+    {
+      "name": "fieldContour",
+      "module": "voxel",
+      "kind": "value",
+      "reason": "dependency unavailable (brepjs-voxel-wasm unpublished) — §2.6.2"
+    },
+    {
+      "name": "fieldOffset",
+      "module": "voxel",
+      "kind": "value",
+      "reason": "dependency unavailable (brepjs-voxel-wasm unpublished) — §2.6.2"
+    },
+    {
+      "name": "fieldReinit",
+      "module": "voxel",
+      "kind": "value",
+      "reason": "dependency unavailable (brepjs-voxel-wasm unpublished) — §2.6.2"
+    },
+    {
+      "name": "fieldShell",
+      "module": "voxel",
+      "kind": "value",
+      "reason": "dependency unavailable (brepjs-voxel-wasm unpublished) — §2.6.2"
+    },
+    {
+      "name": "getActiveVoxelId",
+      "module": "voxel",
+      "kind": "value",
+      "reason": "dependency unavailable (brepjs-voxel-wasm unpublished) — §2.6.2"
+    },
+    {
+      "name": "getVoxel",
+      "module": "voxel",
+      "kind": "value",
+      "reason": "dependency unavailable (brepjs-voxel-wasm unpublished) — §2.6.2"
+    },
+    {
+      "name": "initVoxel",
+      "module": "voxel",
+      "kind": "value",
+      "reason": "dependency unavailable (brepjs-voxel-wasm unpublished) — §2.6.2"
+    },
+    {
+      "name": "offsetMesh",
+      "module": "voxel",
+      "kind": "value",
+      "reason": "dependency unavailable (brepjs-voxel-wasm unpublished) — §2.6.2"
+    },
+    {
+      "name": "offsetShape",
+      "module": "voxel",
+      "kind": "value",
+      "reason": "dependency unavailable (brepjs-voxel-wasm unpublished) — §2.6.2"
+    },
+    {
+      "name": "pointsInside",
+      "module": "voxel",
+      "kind": "value",
+      "reason": "dependency unavailable (brepjs-voxel-wasm unpublished) — §2.6.2"
+    },
+    {
+      "name": "registerVoxel",
+      "module": "voxel",
+      "kind": "value",
+      "reason": "dependency unavailable (brepjs-voxel-wasm unpublished) — §2.6.2"
+    },
+    {
+      "name": "repairMesh",
+      "module": "voxel",
+      "kind": "value",
+      "reason": "dependency unavailable (brepjs-voxel-wasm unpublished) — §2.6.2"
+    },
+    {
+      "name": "RepairOptions",
+      "module": "voxel",
+      "kind": "type",
+      "reason": "dependency unavailable (brepjs-voxel-wasm unpublished) — §2.6.2"
+    },
+    {
+      "name": "shapeToMeshInput",
+      "module": "voxel",
+      "kind": "value",
+      "reason": "dependency unavailable (brepjs-voxel-wasm unpublished) — §2.6.2"
+    },
+    {
+      "name": "shellMesh",
+      "module": "voxel",
+      "kind": "value",
+      "reason": "dependency unavailable (brepjs-voxel-wasm unpublished) — §2.6.2"
+    },
+    {
+      "name": "shellShape",
+      "module": "voxel",
+      "kind": "value",
+      "reason": "dependency unavailable (brepjs-voxel-wasm unpublished) — §2.6.2"
+    },
+    {
+      "name": "voxelBoolean",
+      "module": "voxel",
+      "kind": "value",
+      "reason": "dependency unavailable (brepjs-voxel-wasm unpublished) — §2.6.2"
+    },
+    {
+      "name": "voxelBooleanField",
+      "module": "voxel",
+      "kind": "value",
+      "reason": "dependency unavailable (brepjs-voxel-wasm unpublished) — §2.6.2"
+    },
+    {
+      "name": "voxelBooleanFieldShapes",
+      "module": "voxel",
+      "kind": "value",
+      "reason": "dependency unavailable (brepjs-voxel-wasm unpublished) — §2.6.2"
+    },
+    {
+      "name": "VoxelBooleanOp",
+      "module": "voxel",
+      "kind": "type",
+      "reason": "dependency unavailable (brepjs-voxel-wasm unpublished) — §2.6.2"
+    },
+    {
+      "name": "voxelBooleanShapes",
+      "module": "voxel",
+      "kind": "value",
+      "reason": "dependency unavailable (brepjs-voxel-wasm unpublished) — §2.6.2"
+    },
+    {
+      "name": "VoxelEngine",
+      "module": "voxel",
+      "kind": "type",
+      "reason": "dependency unavailable (brepjs-voxel-wasm unpublished) — §2.6.2"
+    },
+    {
+      "name": "voxelField",
+      "module": "voxel",
+      "kind": "value",
+      "reason": "dependency unavailable (brepjs-voxel-wasm unpublished) — §2.6.2"
+    },
+    {
+      "name": "voxelFieldFromShape",
+      "module": "voxel",
+      "kind": "value",
+      "reason": "dependency unavailable (brepjs-voxel-wasm unpublished) — §2.6.2"
+    },
+    {
+      "name": "VoxelFieldHandle",
+      "module": "voxel",
+      "kind": "type",
+      "reason": "dependency unavailable (brepjs-voxel-wasm unpublished) — §2.6.2"
+    },
+    {
+      "name": "VoxelFieldOptions",
+      "module": "voxel",
+      "kind": "type",
+      "reason": "dependency unavailable (brepjs-voxel-wasm unpublished) — §2.6.2"
+    },
+    {
+      "name": "VoxelMeshInput",
+      "module": "voxel",
+      "kind": "type",
+      "reason": "dependency unavailable (brepjs-voxel-wasm unpublished) — §2.6.2"
+    },
+    {
+      "name": "VoxelOpOptions",
+      "module": "voxel",
+      "kind": "type",
+      "reason": "dependency unavailable (brepjs-voxel-wasm unpublished) — §2.6.2"
+    },
+    {
+      "name": "VoxelRepairResult",
+      "module": "voxel",
+      "kind": "type",
+      "reason": "dependency unavailable (brepjs-voxel-wasm unpublished) — §2.6.2"
+    },
+    {
+      "name": "windingNumbers",
+      "module": "voxel",
+      "kind": "value",
+      "reason": "dependency unavailable (brepjs-voxel-wasm unpublished) — §2.6.2"
+    },
+    {
+      "name": "BatchItemResult",
+      "module": "worker",
+      "kind": "type",
+      "reason": "not a modeling API; conflicts with faijs host layer — §2.6.5"
+    },
+    {
+      "name": "BatchOperation",
+      "module": "worker",
+      "kind": "type",
+      "reason": "not a modeling API; conflicts with faijs host layer — §2.6.5"
+    },
+    {
+      "name": "BatchRequest",
+      "module": "worker",
+      "kind": "type",
+      "reason": "not a modeling API; conflicts with faijs host layer — §2.6.5"
+    },
+    {
+      "name": "createOperationRegistry",
+      "module": "worker",
+      "kind": "value",
+      "reason": "not a modeling API; conflicts with faijs host layer — §2.6.5"
+    },
+    {
+      "name": "createTaskQueue",
+      "module": "worker",
+      "kind": "value",
+      "reason": "not a modeling API; conflicts with faijs host layer — §2.6.5"
+    },
+    {
+      "name": "createWorkerClient",
+      "module": "worker",
+      "kind": "value",
+      "reason": "not a modeling API; conflicts with faijs host layer — §2.6.5"
+    },
+    {
+      "name": "createWorkerHandler",
+      "module": "worker",
+      "kind": "value",
+      "reason": "not a modeling API; conflicts with faijs host layer — §2.6.5"
+    },
+    {
+      "name": "createWorkerPool",
+      "module": "worker",
+      "kind": "value",
+      "reason": "not a modeling API; conflicts with faijs host layer — §2.6.5"
+    },
+    {
+      "name": "dequeueTask",
+      "module": "worker",
+      "kind": "value",
+      "reason": "not a modeling API; conflicts with faijs host layer — §2.6.5"
+    },
+    {
+      "name": "DisposeRequest",
+      "module": "worker",
+      "kind": "type",
+      "reason": "not a modeling API; conflicts with faijs host layer — §2.6.5"
+    },
+    {
+      "name": "enqueueTask",
+      "module": "worker",
+      "kind": "value",
+      "reason": "not a modeling API; conflicts with faijs host layer — §2.6.5"
+    },
+    {
+      "name": "ErrorResponse",
+      "module": "worker",
+      "kind": "type",
+      "reason": "not a modeling API; conflicts with faijs host layer — §2.6.5"
+    },
+    {
+      "name": "InitRequest",
+      "module": "worker",
+      "kind": "type",
+      "reason": "not a modeling API; conflicts with faijs host layer — §2.6.5"
+    },
+    {
+      "name": "isBatchRequest",
+      "module": "worker",
+      "kind": "value",
+      "reason": "not a modeling API; conflicts with faijs host layer — §2.6.5"
+    },
+    {
+      "name": "isDisposeRequest",
+      "module": "worker",
+      "kind": "value",
+      "reason": "not a modeling API; conflicts with faijs host layer — §2.6.5"
+    },
+    {
+      "name": "isErrorResponse",
+      "module": "worker",
+      "kind": "value",
+      "reason": "not a modeling API; conflicts with faijs host layer — §2.6.5"
+    },
+    {
+      "name": "isInitRequest",
+      "module": "worker",
+      "kind": "value",
+      "reason": "not a modeling API; conflicts with faijs host layer — §2.6.5"
+    },
+    {
+      "name": "isOperationRequest",
+      "module": "worker",
+      "kind": "value",
+      "reason": "not a modeling API; conflicts with faijs host layer — §2.6.5"
+    },
+    {
+      "name": "isQueueEmpty",
+      "module": "worker",
+      "kind": "value",
+      "reason": "not a modeling API; conflicts with faijs host layer — §2.6.5"
+    },
+    {
+      "name": "isSuccessResponse",
+      "module": "worker",
+      "kind": "value",
+      "reason": "not a modeling API; conflicts with faijs host layer — §2.6.5"
+    },
+    {
+      "name": "OperationHandler",
+      "module": "worker",
+      "kind": "type",
+      "reason": "not a modeling API; conflicts with faijs host layer — §2.6.5"
+    },
+    {
+      "name": "OperationRegistry",
+      "module": "worker",
+      "kind": "type",
+      "reason": "not a modeling API; conflicts with faijs host layer — §2.6.5"
+    },
+    {
+      "name": "OperationRequest",
+      "module": "worker",
+      "kind": "type",
+      "reason": "not a modeling API; conflicts with faijs host layer — §2.6.5"
+    },
+    {
+      "name": "pendingCount",
+      "module": "worker",
+      "kind": "value",
+      "reason": "not a modeling API; conflicts with faijs host layer — §2.6.5"
+    },
+    {
+      "name": "PendingTask",
+      "module": "worker",
+      "kind": "type",
+      "reason": "not a modeling API; conflicts with faijs host layer — §2.6.5"
+    },
+    {
+      "name": "registerHandler",
+      "module": "worker",
+      "kind": "value",
+      "reason": "not a modeling API; conflicts with faijs host layer — §2.6.5"
+    },
+    {
+      "name": "rejectAll",
+      "module": "worker",
+      "kind": "value",
+      "reason": "not a modeling API; conflicts with faijs host layer — §2.6.5"
+    },
+    {
+      "name": "SuccessResponse",
+      "module": "worker",
+      "kind": "type",
+      "reason": "not a modeling API; conflicts with faijs host layer — §2.6.5"
+    },
+    {
+      "name": "TaskQueue",
+      "module": "worker",
+      "kind": "type",
+      "reason": "not a modeling API; conflicts with faijs host layer — §2.6.5"
+    },
+    {
+      "name": "WorkerClient",
+      "module": "worker",
+      "kind": "type",
+      "reason": "not a modeling API; conflicts with faijs host layer — §2.6.5"
+    },
+    {
+      "name": "WorkerClientOptions",
+      "module": "worker",
+      "kind": "type",
+      "reason": "not a modeling API; conflicts with faijs host layer — §2.6.5"
+    },
+    {
+      "name": "WorkerOperation",
+      "module": "worker",
+      "kind": "type",
+      "reason": "not a modeling API; conflicts with faijs host layer — §2.6.5"
+    },
+    {
+      "name": "WorkerPool",
+      "module": "worker",
+      "kind": "type",
+      "reason": "not a modeling API; conflicts with faijs host layer — §2.6.5"
+    },
+    {
+      "name": "WorkerPoolOptions",
+      "module": "worker",
+      "kind": "type",
+      "reason": "not a modeling API; conflicts with faijs host layer — §2.6.5"
+    },
+    {
+      "name": "WorkerRequest",
+      "module": "worker",
+      "kind": "type",
+      "reason": "not a modeling API; conflicts with faijs host layer — §2.6.5"
+    },
+    {
+      "name": "WorkerResponse",
+      "module": "worker",
+      "kind": "type",
+      "reason": "not a modeling API; conflicts with faijs host layer — §2.6.5"
+    },
+    {
+      "name": "WorkerResult",
+      "module": "worker",
+      "kind": "type",
+      "reason": "not a modeling API; conflicts with faijs host layer — §2.6.5"
+    }
+  ]
+}
