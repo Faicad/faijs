@@ -2387,4 +2387,1010 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   {
     name: 'Sketches', source: 'sketching/sketches.js#Sketches', kind: 'skip', module: 'sketching', reason: '草图集合状态类（kernel 引用），skip',
   },
+
+  // ──── P14 补批 11：topology 模块（302 = 96 type + 206 value；P13a 4 样本已登）────
+  // topology 是 brepjs 建模核心面（primitive/boolean/transform/modifier/shape 查询）。
+  // 本批按 surface 基线逐符号登记：类型全量 re-export；整件进出的几何 op 投 brep-op；
+  // Shape→纯数据查询投 query；纯函数投 pure；子形状句柄（Face/Edge/Wire/Vertex）入参
+  // 或句柄数组/状态机/宿主渲染 DSL 登记 skip（faijs Shape 面只能表达整件，理由见各条）。
+  // 条目缺省 module='topology'（与 P13a 样本一致；generator moduleOf 缺省同值）。
+  //
+  // 95 × type（96 − P13a Bounds3D）
+  { name: 'ComposedTransform', source: 'topology/api.js#ComposedTransform', kind: 'type' },
+  { name: 'MirrorOptions', source: 'topology/api.js#MirrorOptions', kind: 'type' },
+  { name: 'RotateOptions', source: 'topology/api.js#RotateOptions', kind: 'type' },
+  { name: 'ScaleOptions', source: 'topology/api.js#ScaleOptions', kind: 'type' },
+  { name: 'TransformOp', source: 'topology/api.js#TransformOp', kind: 'type' },
+  { name: 'BossOptions', source: 'topology/apiTypes.js#BossOptions', kind: 'type' },
+  { name: 'ChamferDistance', source: 'topology/apiTypes.js#ChamferDistance', kind: 'type' },
+  { name: 'DraftAngle', source: 'topology/apiTypes.js#DraftAngle', kind: 'type' },
+  { name: 'DraftOptions', source: 'topology/apiTypes.js#DraftOptions', kind: 'type' },
+  { name: 'DrawingLike', source: 'topology/apiTypes.js#DrawingLike', kind: 'type' },
+  { name: 'DrillOptions', source: 'topology/apiTypes.js#DrillOptions', kind: 'type' },
+  { name: 'FilletRadius', source: 'topology/apiTypes.js#FilletRadius', kind: 'type' },
+  { name: 'FinderFn', source: 'topology/apiTypes.js#FinderFn', kind: 'type' },
+  { name: 'MirrorJoinOptions', source: 'topology/apiTypes.js#MirrorJoinOptions', kind: 'type' },
+  { name: 'PocketOptions', source: 'topology/apiTypes.js#PocketOptions', kind: 'type' },
+  { name: 'RectangularPatternOptions', source: 'topology/apiTypes.js#RectangularPatternOptions', kind: 'type' },
+  { name: 'Shapeable', source: 'topology/apiTypes.js#Shapeable', kind: 'type' },
+  { name: 'WrappedMarker', source: 'topology/apiTypes.js#WrappedMarker', kind: 'type' },
+  { name: 'BatchBisectResult', source: 'topology/booleanBatchFns.js#BatchBisectResult', kind: 'type' },
+  { name: 'BatchBisectTelemetry', source: 'topology/booleanBatchFns.js#BatchBisectTelemetry', kind: 'type' },
+  { name: 'BooleanOptions', source: 'topology/booleanFns.js#BooleanOptions', kind: 'type' },
+  { name: 'BooleanPipelineStep', source: 'topology/booleanFns.js#BooleanPipelineStep', kind: 'type' },
+  { name: 'PipelineOp', source: 'topology/booleanFns.js#PipelineOp', kind: 'type' },
+  { name: 'ApproximateCurveOptions', source: 'topology/curveFns.js#ApproximateCurveOptions', kind: 'type' },
+  { name: 'InterpolateCurveOptions', source: 'topology/curveFns.js#InterpolateCurveOptions', kind: 'type' },
+  { name: 'EvolutionResult', source: 'topology/evolutionFns.js#EvolutionResult', kind: 'type' },
+  { name: 'PointProjectionResult', source: 'topology/faceFns.js#PointProjectionResult', kind: 'type' },
+  { name: 'UVBounds', source: 'topology/faceFns.js#UVBounds', kind: 'type' },
+  { name: 'AutoHealOptions', source: 'topology/healingFns.js#AutoHealOptions', kind: 'type' },
+  { name: 'HealingReport', source: 'topology/healingFns.js#HealingReport', kind: 'type' },
+  { name: 'HealingStepDiagnostic', source: 'topology/healingFns.js#HealingStepDiagnostic', kind: 'type' },
+  { name: 'HullOptions', source: 'topology/hullFns.js#HullOptions', kind: 'type' },
+  { name: 'ChamferRadius', source: 'topology/index.js#ChamferRadius', kind: 'type' },
+  { name: 'GenericTopo', source: 'topology/index.js#GenericTopo', kind: 'type' },
+  { name: 'RadiusOptions', source: 'topology/index.js#RadiusOptions', kind: 'type' },
+  { name: 'TopoEntity', source: 'topology/index.js#TopoEntity', kind: 'type' },
+  { name: 'MeshCacheContext', source: 'topology/meshCache.js#MeshCacheContext', kind: 'type' },
+  { name: 'EdgeMesh', source: 'topology/meshFns.js#EdgeMesh', kind: 'type' },
+  { name: 'LODMesh', source: 'topology/meshFns.js#LODMesh', kind: 'type' },
+  { name: 'MeshLevelFn', source: 'topology/meshFns.js#MeshLevelFn', kind: 'type' },
+  { name: 'MeshLODsOptions', source: 'topology/meshFns.js#MeshLODsOptions', kind: 'type' },
+  { name: 'MeshLODsProgressiveOptions', source: 'topology/meshFns.js#MeshLODsProgressiveOptions', kind: 'type' },
+  { name: 'MeshOptions', source: 'topology/meshFns.js#MeshOptions', kind: 'type' },
+  { name: 'MultiLODMesh', source: 'topology/meshFns.js#MultiLODMesh', kind: 'type' },
+  { name: 'ShapeMesh', source: 'topology/meshFns.js#ShapeMesh', kind: 'type' },
+  { name: 'Color', source: 'topology/metadata/colorFns.js#Color', kind: 'type' },
+  { name: 'ColorInput', source: 'topology/metadata/colorFns.js#ColorInput', kind: 'type' },
+  { name: 'MinkowskiOptions', source: 'topology/minkowskiFns.js#MinkowskiOptions', kind: 'type' },
+  { name: 'VariableFilletRadius', source: 'topology/modifierFns.js#VariableFilletRadius', kind: 'type' },
+  { name: 'PolyhedronOptions', source: 'topology/polyhedronFns.js#PolyhedronOptions', kind: 'type' },
+  { name: 'BoxOptions', source: 'topology/primitiveFns.js#BoxOptions', kind: 'type' },
+  { name: 'CircleOptions', source: 'topology/primitiveFns.js#CircleOptions', kind: 'type' },
+  { name: 'ConeOptions', source: 'topology/primitiveFns.js#ConeOptions', kind: 'type' },
+  { name: 'CylinderOptions', source: 'topology/primitiveFns.js#CylinderOptions', kind: 'type' },
+  { name: 'EllipseArcOptions', source: 'topology/primitiveFns.js#EllipseArcOptions', kind: 'type' },
+  { name: 'EllipseOptions', source: 'topology/primitiveFns.js#EllipseOptions', kind: 'type' },
+  { name: 'EllipsoidOptions', source: 'topology/primitiveFns.js#EllipsoidOptions', kind: 'type' },
+  { name: 'HelixOptions', source: 'topology/primitiveFns.js#HelixOptions', kind: 'type' },
+  { name: 'SphereOptions', source: 'topology/primitiveFns.js#SphereOptions', kind: 'type' },
+  { name: 'TorusOptions', source: 'topology/primitiveFns.js#TorusOptions', kind: 'type' },
+  { name: 'ShapeDescription', source: 'topology/shapeFns.js#ShapeDescription', kind: 'type' },
+  { name: 'BrokenDerivedFaceRef', source: 'topology/shapeRef/index.js#BrokenDerivedFaceRef', kind: 'type' },
+  { name: 'BrokenEdgeRef', source: 'topology/shapeRef/index.js#BrokenEdgeRef', kind: 'type' },
+  { name: 'BrokenReason', source: 'topology/shapeRef/index.js#BrokenReason', kind: 'type' },
+  { name: 'BrokenRef', source: 'topology/shapeRef/index.js#BrokenRef', kind: 'type' },
+  { name: 'BrokenVertexRef', source: 'topology/shapeRef/index.js#BrokenVertexRef', kind: 'type' },
+  { name: 'DerivedFaceHint', source: 'topology/shapeRef/index.js#DerivedFaceHint', kind: 'type' },
+  { name: 'DerivedFaceRef', source: 'topology/shapeRef/index.js#DerivedFaceRef', kind: 'type' },
+  { name: 'EdgeHint', source: 'topology/shapeRef/index.js#EdgeHint', kind: 'type' },
+  { name: 'EdgeRef', source: 'topology/shapeRef/index.js#EdgeRef', kind: 'type' },
+  { name: 'FaceScorer', source: 'topology/shapeRef/index.js#FaceScorer', kind: 'type' },
+  { name: 'GeometricHint', source: 'topology/shapeRef/index.js#GeometricHint', kind: 'type' },
+  { name: 'LineageRef', source: 'topology/shapeRef/index.js#LineageRef', kind: 'type' },
+  { name: 'LineageResolution', source: 'topology/shapeRef/index.js#LineageResolution', kind: 'type' },
+  { name: 'ResolvedDerivedFaceRef', source: 'topology/shapeRef/index.js#ResolvedDerivedFaceRef', kind: 'type' },
+  { name: 'ResolvedEdgeRef', source: 'topology/shapeRef/index.js#ResolvedEdgeRef', kind: 'type' },
+  { name: 'ResolvedEntity', source: 'topology/shapeRef/index.js#ResolvedEntity', kind: 'type' },
+  { name: 'ResolvedRef', source: 'topology/shapeRef/index.js#ResolvedRef', kind: 'type' },
+  { name: 'ResolvedVertexRef', source: 'topology/shapeRef/index.js#ResolvedVertexRef', kind: 'type' },
+  { name: 'RoleTable', source: 'topology/shapeRef/index.js#RoleTable', kind: 'type' },
+  { name: 'ShapeRef', source: 'topology/shapeRef/index.js#ShapeRef', kind: 'type' },
+  { name: 'VertexHint', source: 'topology/shapeRef/index.js#VertexHint', kind: 'type' },
+  { name: 'VertexRef', source: 'topology/shapeRef/index.js#VertexRef', kind: 'type' },
+  { name: 'SurfaceFromGridOptions', source: 'topology/surfaceFns.js#SurfaceFromGridOptions', kind: 'type' },
+  { name: 'SurfaceFromImageOptions', source: 'topology/surfaceFns.js#SurfaceFromImageOptions', kind: 'type' },
+  { name: 'BufferGeometryData', source: 'topology/threeHelpers.js#BufferGeometryData', kind: 'type' },
+  { name: 'BufferGeometryGroup', source: 'topology/threeHelpers.js#BufferGeometryGroup', kind: 'type' },
+  { name: 'GroupedBufferGeometryData', source: 'topology/threeHelpers.js#GroupedBufferGeometryData', kind: 'type' },
+  { name: 'LineGeometryData', source: 'topology/threeHelpers.js#LineGeometryData', kind: 'type' },
+  { name: 'LODGeometryData', source: 'topology/threeHelpers.js#LODGeometryData', kind: 'type' },
+  { name: 'LODGeometryLevel', source: 'topology/threeHelpers.js#LODGeometryLevel', kind: 'type' },
+  { name: 'Wrapped', source: 'topology/wrapperFns.js#Wrapped', kind: 'type' },
+  { name: 'Wrapped3D', source: 'topology/wrapperFns.js#Wrapped3D', kind: 'type' },
+  { name: 'WrappedCurve', source: 'topology/wrapperFns.js#WrappedCurve', kind: 'type' },
+  { name: 'WrappedFace', source: 'topology/wrapperFns.js#WrappedFace', kind: 'type' },
+
+  // ── topology value 登记（203 = 206 − P13a 的 torus/fuse/getBounds）──
+  // brep-op：整件 Shape 进出（构造/变换/布尔/修饰，走 defineOp + borrow/adopt）；
+  // query：整件 Shape 进 → 纯数据出；pure：无 Shape 参数；skip：divergence 见 reason
+  // （子形状句柄入参/句柄数组产物/宿主渲染/状态 DSL 等——faijs Shape 面只有整件值）。
+
+  // primitiveFns：box/sphere/cylinder/cone/compound/solid 是 faijs 同名 op（§5.1 双形态
+  // 或手写面已覆盖），生成层不重复投影 → skip；曲线/线框/面类构造产物是 Edge/Wire/Face
+  // 子形状句柄，faijs Shape 面整件模型无法承载 → skip；ellipsoid 是纯数值整件构造 → brep-op。
+  {
+    name: 'box', source: 'topology/primitiveFns.js#box', kind: 'skip',
+    reason: 'faijs 同名 box（§5.1 双形态：对象形态手写面已覆盖 + brepjs 位置形态并入），生成层不重复投影',
+  },
+  {
+    name: 'sphere', source: 'topology/primitiveFns.js#sphere', kind: 'skip',
+    reason: 'faijs 同名 sphere（§5.1 双形态同 box），生成层不重复投影',
+  },
+  {
+    name: 'cylinder', source: 'topology/primitiveFns.js#cylinder', kind: 'skip',
+    reason: 'faijs 同名 cylinder（§5.1 双形态同 box），生成层不重复投影',
+  },
+  {
+    name: 'cone', source: 'topology/primitiveFns.js#cone', kind: 'skip',
+    reason: 'faijs 同名 cone（§5.1 双形态同 box），生成层不重复投影',
+  },
+  {
+    name: 'ellipsoid', source: 'topology/primitiveFns.js#ellipsoid', kind: 'brep-op',
+    consumes: 'none', geometryArgs: [], returnsResult: false,
+    args: 'ellipsoid(rx: number, ry: number, rz: number, options?: EllipsoidOptions): Shape',
+    reason: '纯数值整件构造（rx/ry/rz → ValidSolid），brep-op',
+  },
+  {
+    name: 'addHoles', source: 'topology/primitiveFns.js#addHoles', kind: 'skip',
+    reason: 'Face + ClosedWire[] 子形状句柄入参，faijs Shape 面无法提供，skip',
+  },
+  {
+    name: 'subFace', source: 'topology/primitiveFns.js#subFace', kind: 'skip',
+    reason: 'Face/ClosedWire 子形状句柄入参，skip',
+  },
+  {
+    name: 'offsetFace', source: 'topology/primitiveFns.js#offsetFace', kind: 'skip',
+    reason: 'Face 子形状句柄入参，skip',
+  },
+  {
+    name: 'sewShells', source: 'topology/primitiveFns.js#sewShells', kind: 'skip',
+    reason: 'Face|Shell[] 句柄数组入参，skip',
+  },
+  {
+    name: 'face', source: 'topology/primitiveFns.js#face', kind: 'skip',
+    reason: 'ClosedWire 子形状入参 → Face 子形状产物，faijs 整件面不承载，skip',
+  },
+  {
+    name: 'filledFace', source: 'topology/primitiveFns.js#filledFace', kind: 'skip',
+    reason: 'ClosedWire 入参 → Face 子形状产物，skip',
+  },
+  {
+    name: 'polygon', source: 'topology/primitiveFns.js#polygon', kind: 'skip',
+    reason: '产生 Face 子形状产物（2D 面），faijs 整件面不承载，skip',
+  },
+  {
+    name: 'solid', source: 'topology/primitiveFns.js#solid', kind: 'skip',
+    reason: 'faijs 同名 solid（手写面已覆盖），且入参 Face|Shell[] 句柄数组，skip',
+  },
+  {
+    name: 'compound', source: 'topology/primitiveFns.js#compound', kind: 'skip',
+    reason: 'faijs 同名 compound（手写面已覆盖），且入参 AnyShape[] 句柄数组，skip',
+  },
+  {
+    name: 'wire', source: 'topology/primitiveFns.js#wire', kind: 'skip',
+    reason: 'Edge|Wire[] 句柄数组入参 → Wire 子形状产物，skip',
+  },
+  {
+    name: 'wireLoop', source: 'topology/primitiveFns.js#wireLoop', kind: 'skip',
+    reason: 'Edge|Wire[] 句柄数组入参 → ClosedWire 子形状产物，skip',
+  },
+  {
+    name: 'line', source: 'topology/primitiveFns.js#line', kind: 'skip',
+    reason: '2D 曲线基元（Vec3 → Edge 子形状产物），faijs 整件面不承载，skip',
+  },
+  {
+    name: 'circle', source: 'topology/primitiveFns.js#circle', kind: 'skip',
+    reason: '2D 曲线基元（→ Edge 子形状产物），skip',
+  },
+  {
+    name: 'ellipse', source: 'topology/primitiveFns.js#ellipse', kind: 'skip',
+    reason: '2D 曲线基元（→ Edge 子形状产物），skip',
+  },
+  {
+    name: 'ellipseArc', source: 'topology/primitiveFns.js#ellipseArc', kind: 'skip',
+    reason: '2D 曲线基元（→ Edge 子形状产物），skip',
+  },
+  {
+    name: 'helix', source: 'topology/primitiveFns.js#helix', kind: 'skip',
+    reason: '螺旋线（→ Wire 子形状产物），skip',
+  },
+  {
+    name: 'bezier', source: 'topology/primitiveFns.js#bezier', kind: 'skip',
+    reason: '2D 曲线基元（→ Edge 子形状产物），skip',
+  },
+  {
+    name: 'bsplineApprox', source: 'topology/primitiveFns.js#bsplineApprox', kind: 'skip',
+    reason: '2D 曲线基元（→ Edge 子形状产物），skip',
+  },
+  {
+    name: 'tangentArc', source: 'topology/primitiveFns.js#tangentArc', kind: 'skip',
+    reason: '2D 曲线基元（→ Edge 子形状产物），skip',
+  },
+  {
+    name: 'threePointArc', source: 'topology/primitiveFns.js#threePointArc', kind: 'skip',
+    reason: '2D 曲线基元（→ Edge 子形状产物），skip',
+  },
+  {
+    name: 'vertex', source: 'topology/primitiveFns.js#vertex', kind: 'skip',
+    reason: '点构造（→ Vertex 子形状产物），skip',
+  },
+
+  // api.js：整件进出的变换/布尔/修饰 op；faijs 同名（translate/scale/intersect/chamfer）skip；
+  // rotate 因 faijs 已更名 rotate_euler（§5.1 D-ROTATE）而空出 → 投影 brep-op。
+  {
+    name: 'translate', source: 'topology/api.js#translate', kind: 'skip',
+    reason: 'faijs 同名 translate（§5.1 双形态：对象形态手写面覆盖 + v:Vec3 位置形态并入），生成层不重复投影',
+  },
+  {
+    name: 'rotate', source: 'topology/api.js#rotate', kind: 'brep-op',
+    geometryArgs: [0], returnsResult: false,
+    args: 'rotate(shape: Shape, angle: number, options?: { at?, axis? }): Shape',
+    reason: 'faijs rotate 已更名 rotate_euler，brepjs 轴角 rotate 空出 → brep-op（§5.1 D-ROTATE）',
+  },
+  {
+    name: 'scale', source: 'topology/api.js#scale', kind: 'skip',
+    reason: 'faijs 同名 scale（§5.1 双形态：对象形态手写面覆盖 + 位置形态并入），生成层不重复投影',
+  },
+  {
+    name: 'mirror', source: 'topology/api.js#mirror', kind: 'brep-op',
+    geometryArgs: [0], returnsResult: false,
+    args: 'mirror(shape: Shape, options?: MirrorOptions): Shape',
+    reason: 'faijs 无同名 mirror，整件反射 → brep-op',
+  },
+  {
+    name: 'clone', source: 'topology/api.js#clone', kind: 'brep-op',
+    geometryArgs: [0], returnsResult: true,
+    args: 'clone(shape: Shape): Shape',
+    reason: 'faijs 用 copy（不同名），整件克隆（Result<T>）→ brep-op',
+  },
+  {
+    name: 'applyMatrix', source: 'topology/api.js#applyMatrix', kind: 'brep-op',
+    geometryArgs: [0], returnsResult: true,
+    args: 'applyMatrix(shape: Shape, matrix: unknown): Shape',
+    reason: 'faijs 用 applyTransform（不同名），整件矩阵变换 → brep-op',
+  },
+  {
+    name: 'transformCopy', source: 'topology/api.js#transformCopy', kind: 'brep-op',
+    geometryArgs: [0], returnsResult: false,
+    args: 'transformCopy(shape: Shape, composed: ComposedTransform): Shape',
+    reason: 'faijs 无同名，克隆+复合变换 → brep-op',
+  },
+  {
+    name: 'locate', source: 'topology/api.js#locate', kind: 'brep-op',
+    geometryArgs: [0], returnsResult: false,
+    args: 'locate(shape: Shape, placement: unknown): Shape',
+    reason: 'faijs 无同名，整件定位变换 → brep-op',
+  },
+  {
+    name: 'composeTransforms', source: 'topology/api.js#composeTransforms', kind: 'pure',
+    reason: '变换函数组合器（纯数据，无 Shape 参数）',
+  },
+  {
+    name: 'cut', source: 'topology/api.js#cut', kind: 'brep-op',
+    geometryArgs: [0, 1], returnsResult: true,
+    args: 'cut(base: Shape, tool: Shape, options?: BooleanOptions): Shape',
+    reason: 'faijs 用 subtract（不同名），布尔减 → brep-op',
+  },
+  {
+    name: 'fuseAll', source: 'topology/api.js#fuseAll', kind: 'skip',
+    reason: '入参 Shapeable<T>[]（几何数组），brep-op 模板单柄借入不适用；faijs 用 union 变参，skip',
+  },
+  {
+    name: 'cutAll', source: 'topology/api.js#cutAll', kind: 'skip',
+    reason: '入参 Shapeable<Shape3D>[]（几何数组），skip',
+  },
+  {
+    name: 'intersect', source: 'topology/api.js#intersect', kind: 'skip',
+    reason: 'faijs 同名 intersect（§5.1 双形态：variadic 手写面覆盖 + 二参+options 并入），生成层不重复投影',
+  },
+  {
+    name: 'section', source: 'topology/api.js#section', kind: 'brep-op',
+    geometryArgs: [0], returnsResult: true,
+    args: 'section(shape: Shape, plane: PlaneInput): Shape',
+    reason: 'faijs 无同名截面查询（平面入参非几何）→ brep-op',
+  },
+  {
+    name: 'sectionToFace', source: 'topology/api.js#sectionToFace', kind: 'skip',
+    reason: '返回 Face 子形状产物，faijs 整件面不承载，skip',
+  },
+  {
+    name: 'split', source: 'topology/api.js#split', kind: 'brep-op',
+    geometryArgs: [0], returnsResult: true,
+    args: 'split(shape: Shape, tools: Shape[]): Shape',
+    reason: 'faijs split 已更名 fai_split，brepjs 工具切件 split 空出 → brep-op（§5.1 D-SPLIT；tools 暂登记几何首参，数组切件经 faijs 侧适配）',
+  },
+  {
+    name: 'slice', source: 'topology/api.js#slice', kind: 'skip',
+    reason: 'planes 数组入参且返回 AnyShape[]（多产物），skip',
+  },
+  {
+    name: 'fillet', source: 'topology/api.js#fillet', kind: 'brep-op',
+    geometryArgs: [0], returnsResult: true,
+    args: 'fillet(shape: Shape, edges?, radius | [r1,r2]): Shape',
+    reason: 'D-FILLET：faijs 形态已删，直接用 brepjs fillet → brep-op（edge 选择经 faijs 适配层）',
+  },
+  {
+    name: 'chamfer', source: 'topology/api.js#chamfer', kind: 'skip',
+    reason: 'faijs 同名 chamfer（§5.1 O-CHAMFER-1：role 取边已保留，brepjs Edge 句柄取边形态待处置），生成层不重复投影',
+  },
+  {
+    name: 'shell', source: 'topology/api.js#shell', kind: 'brep-op',
+    geometryArgs: [0], returnsResult: true,
+    args: 'shell(shape: Shape, faces?: Shape[], thickness: number): Shape',
+    reason: 'faijs 无同名抽壳 → brep-op（faces 可选，整件抽壳可表达）',
+  },
+  {
+    name: 'offset', source: 'topology/api.js#offset', kind: 'brep-op',
+    geometryArgs: [0], returnsResult: true,
+    args: 'offset(shape: Shape, distance: number): Shape',
+    reason: 'faijs 无同名偏置 → brep-op',
+  },
+  {
+    name: 'thicken', source: 'topology/api.js#thicken', kind: 'skip',
+    reason: '入参 Face|Shell 子形状句柄，faijs 整件面无法提供，skip',
+  },
+  {
+    name: 'draft', source: 'topology/api.js#draft', kind: 'skip',
+    reason: 'DraftOptions 含 NeutralPlane 等 face 引用，faijs 面引用体系不同，skip',
+  },
+  {
+    name: 'heal', source: 'topology/api.js#heal', kind: 'brep-op',
+    geometryArgs: [0], returnsResult: true,
+    args: 'heal(shape: Shape): Shape',
+    reason: 'faijs 无同名整件修复 → brep-op',
+  },
+  {
+    name: 'simplify', source: 'topology/api.js#simplify', kind: 'brep-op',
+    geometryArgs: [0], returnsResult: true,
+    args: 'simplify(shape: Shape): Shape',
+    reason: 'faijs 无同名整件简化 → brep-op',
+  },
+  {
+    name: 'mesh', source: 'topology/api.js#mesh', kind: 'skip',
+    reason: '返回宿主网格缓冲（ShapeMesh），faijs Shape 自带 mesh 链，宿主渲染数据不入 op 面，skip',
+  },
+  {
+    name: 'meshEdges', source: 'topology/api.js#meshEdges', kind: 'skip',
+    reason: '返回宿主边网格缓冲（EdgeMesh），skip',
+  },
+  {
+    name: 'describe', source: 'topology/api.js#describe', kind: 'skip',
+    reason: '返回 ShapeDescription 结构（宿主描述 DSL），faijs 以自身 Shape 元数据覆盖，skip',
+  },
+  {
+    name: 'toBREP', source: 'topology/api.js#toBREP', kind: 'skip',
+    reason: 'BREP 序列化（string 数据），faijs 无序列化消费面，skip',
+  },
+  {
+    name: 'fromBREP', source: 'topology/api.js#fromBREP', kind: 'skip',
+    reason: 'BREP 反序列化（string 入参 → AnyShape），faijs 以 load/asset 体系承担，skip',
+  },
+  {
+    name: 'isValid', source: 'topology/api.js#isValid', kind: 'query',
+    geometryArgs: [0], returnsResult: false, returnType: 'boolean',
+    args: 'isValid(shape: Shape): boolean',
+    reason: '整件合法性检查（Shape → boolean 纯数据），query',
+  },
+  {
+    name: 'isEmpty', source: 'topology/api.js#isEmpty', kind: 'query',
+    geometryArgs: [0], returnsResult: false, returnType: 'boolean',
+    args: 'isEmpty(shape: Shape): boolean',
+    reason: '整件空判（Shape → boolean 纯数据），query',
+  },
+
+  // shapeFns：整件 Shape 进出的查询/修饰；返回子形状句柄数组（get*/iter*）skip。
+  {
+    name: 'getSolids', source: 'topology/shapeFns.js#getSolids', kind: 'skip',
+    reason: '返回 Solid[] 子形状句柄数组（多产物收养缺位），skip',
+  },
+  {
+    name: 'getShells', source: 'topology/shapeFns.js#getShells', kind: 'skip',
+    reason: '返回 Shell[] 子形状句柄数组，skip',
+  },
+  {
+    name: 'getCompSolids', source: 'topology/shapeFns.js#getCompSolids', kind: 'skip',
+    reason: '返回 CompSolid[] 子形状句柄数组，skip',
+  },
+  {
+    name: 'getEdges', source: 'topology/shapeFns.js#getEdges', kind: 'skip',
+    reason: '返回 Edge[] 子形状句柄数组，faijs 面以 EdgeTopoRef 引用体系表达边，skip',
+  },
+  {
+    name: 'getFaces', source: 'topology/shapeFns.js#getFaces', kind: 'skip',
+    reason: '返回 Face[] 子形状句柄数组，faijs 面以面引用体系表达，skip',
+  },
+  {
+    name: 'getWires', source: 'topology/shapeFns.js#getWires', kind: 'skip',
+    reason: '返回 Wire[] 子形状句柄数组，skip',
+  },
+  {
+    name: 'getVertices', source: 'topology/shapeFns.js#getVertices', kind: 'skip',
+    reason: '返回 Vertex[] 子形状句柄数组，skip',
+  },
+  {
+    name: 'iterSolids', source: 'topology/shapeFns.js#iterSolids', kind: 'skip',
+    reason: '迭代器（子形状句柄流），faijs 面以数组/引用体系表达，skip',
+  },
+  {
+    name: 'iterShells', source: 'topology/shapeFns.js#iterShells', kind: 'skip',
+    reason: '迭代器（子形状句柄流），skip',
+  },
+  {
+    name: 'iterCompSolids', source: 'topology/shapeFns.js#iterCompSolids', kind: 'skip',
+    reason: '迭代器（子形状句柄流），skip',
+  },
+  {
+    name: 'iterEdges', source: 'topology/shapeFns.js#iterEdges', kind: 'skip',
+    reason: '迭代器（子形状句柄流），skip',
+  },
+  {
+    name: 'iterFaces', source: 'topology/shapeFns.js#iterFaces', kind: 'skip',
+    reason: '迭代器（子形状句柄流），skip',
+  },
+  {
+    name: 'iterWires', source: 'topology/shapeFns.js#iterWires', kind: 'skip',
+    reason: '迭代器（子形状句柄流），skip',
+  },
+  {
+    name: 'iterVertices', source: 'topology/shapeFns.js#iterVertices', kind: 'skip',
+    reason: '迭代器（子形状句柄流），skip',
+  },
+  {
+    name: 'resize', source: 'topology/shapeFns.js#resize', kind: 'skip',
+    reason: '非等比 resize（含 edge finder），faijs 以 scale 双形态覆盖语义，skip',
+  },
+  {
+    name: 'setShapeOrigin', source: 'topology/shapeFns.js#setShapeOrigin', kind: 'skip',
+    reason: '原点元数据状态操作（内核 side table），skip',
+  },
+  {
+    name: 'getFaceOrigins', source: 'topology/shapeFns.js#getFaceOrigins', kind: 'skip',
+    reason: 'face 原点元数据表读取（子形状元数据），skip',
+  },
+  {
+    name: 'invalidateShapeCache', source: 'topology/shapeFns.js#invalidateShapeCache', kind: 'skip',
+    reason: '内核形状缓存失效（状态操作），skip',
+  },
+  {
+    name: 'isEqualShape', source: 'topology/shapeFns.js#isEqualShape', kind: 'query',
+    geometryArgs: [0, 1], returnsResult: false, returnType: 'boolean',
+    args: 'isEqualShape(a: Shape, b: Shape): boolean',
+    reason: '两整件几何相等比较（纯数据），query',
+  },
+  {
+    name: 'isSameShape', source: 'topology/shapeFns.js#isSameShape', kind: 'query',
+    geometryArgs: [0, 1], returnsResult: false, returnType: 'boolean',
+    args: 'isSameShape(a: Shape, b: Shape): boolean',
+    reason: '两整件同构比较（纯数据），query',
+  },
+  {
+    name: 'getHashCode', source: 'topology/shapeFns.js#getHashCode', kind: 'skip',
+    reason: '内核句柄 hashCode（KernelShape 内部值），faijs Shape 有自身身份体系，skip',
+  },
+  {
+    name: 'vertexPosition', source: 'topology/shapeFns.js#vertexPosition', kind: 'skip',
+    reason: 'Vertex 子形状句柄入参，skip',
+  },
+
+  // adjacencyFns：子形状句柄导航（Face/Edge/Vertex 入参与返回句柄数组）→ 全 skip
+  {
+    name: 'adjacentFaces', source: 'topology/adjacencyFns.js#adjacentFaces', kind: 'skip',
+    reason: '子形状导航（Face 入参 → Face[]），faijs 整件面不承载，skip',
+  },
+  {
+    name: 'edgesOfFace', source: 'topology/adjacencyFns.js#edgesOfFace', kind: 'skip',
+    reason: '子形状导航（Face → Edge[]），skip',
+  },
+  {
+    name: 'facesOfEdge', source: 'topology/adjacencyFns.js#facesOfEdge', kind: 'skip',
+    reason: '子形状导航（Edge → Face[]），skip',
+  },
+  {
+    name: 'facesOfVertex', source: 'topology/adjacencyFns.js#facesOfVertex', kind: 'skip',
+    reason: '子形状导航（Vertex → Face[]），skip',
+  },
+  {
+    name: 'sharedEdges', source: 'topology/adjacencyFns.js#sharedEdges', kind: 'skip',
+    reason: '子形状导航（Face×2 → Edge[]），skip',
+  },
+  {
+    name: 'verticesOfEdge', source: 'topology/adjacencyFns.js#verticesOfEdge', kind: 'skip',
+    reason: '子形状导航（Edge → Vertex[]），skip',
+  },
+  {
+    name: 'verticesOfFace', source: 'topology/adjacencyFns.js#verticesOfFace', kind: 'skip',
+    reason: '子形状导航（Face → Vertex[]），skip',
+  },
+  {
+    name: 'wiresOfFace', source: 'topology/adjacencyFns.js#wiresOfFace', kind: 'skip',
+    reason: '子形状导航（Face → Wire[]），skip',
+  },
+
+  // curveFns：入参 Edge|Wire 子形状句柄 → 全 skip（faijs 整件面无法提供边/线句柄）
+  {
+    name: 'getCurveType', source: 'topology/curveFns.js#getCurveType', kind: 'skip',
+    reason: '入参 Edge|Wire 子形状句柄，skip',
+  },
+  {
+    name: 'curveStartPoint', source: 'topology/curveFns.js#curveStartPoint', kind: 'skip',
+    reason: '入参 Edge|Wire 子形状句柄，skip',
+  },
+  {
+    name: 'curveEndPoint', source: 'topology/curveFns.js#curveEndPoint', kind: 'skip',
+    reason: '入参 Edge|Wire 子形状句柄，skip',
+  },
+  {
+    name: 'curvePointAt', source: 'topology/curveFns.js#curvePointAt', kind: 'skip',
+    reason: '入参 Edge|Wire 子形状句柄，skip',
+  },
+  {
+    name: 'curveTangentAt', source: 'topology/curveFns.js#curveTangentAt', kind: 'skip',
+    reason: '入参 Edge|Wire 子形状句柄，skip',
+  },
+  {
+    name: 'curveAxis', source: 'topology/curveFns.js#curveAxis', kind: 'skip',
+    reason: '入参 Edge|Wire 子形状句柄，skip',
+  },
+  {
+    name: 'curveLength', source: 'topology/curveFns.js#curveLength', kind: 'skip',
+    reason: '入参 Edge|Wire 子形状句柄，skip',
+  },
+  {
+    name: 'curveIsClosed', source: 'topology/curveFns.js#curveIsClosed', kind: 'skip',
+    reason: '入参 Edge|Wire 子形状句柄，skip',
+  },
+  {
+    name: 'curveIsPeriodic', source: 'topology/curveFns.js#curveIsPeriodic', kind: 'skip',
+    reason: '入参 Edge|Wire 子形状句柄，skip',
+  },
+  {
+    name: 'curvePeriod', source: 'topology/curveFns.js#curvePeriod', kind: 'skip',
+    reason: '入参 Edge|Wire 子形状句柄，skip',
+  },
+  {
+    name: 'getOrientation', source: 'topology/curveFns.js#getOrientation', kind: 'skip',
+    reason: '入参 Edge|Wire 子形状句柄，skip',
+  },
+  {
+    name: 'flipOrientation', source: 'topology/curveFns.js#flipOrientation', kind: 'skip',
+    reason: '入参 Edge|Wire 子形状句柄（翻转朝向），skip',
+  },
+  {
+    name: 'interpolateCurve', source: 'topology/curveFns.js#interpolateCurve', kind: 'skip',
+    reason: '点集 → Edge 子形状产物，skip',
+  },
+  {
+    name: 'approximateCurve', source: 'topology/curveFns.js#approximateCurve', kind: 'skip',
+    reason: '点集 → Edge 子形状产物，skip',
+  },
+  {
+    name: 'offsetWire2D', source: 'topology/curveFns.js#offsetWire2D', kind: 'skip',
+    reason: 'Wire 子形状入参 → Wire 产物（2D 制图体系），skip',
+  },
+
+  // faceFns：入参 Face 子形状句柄 → 全 skip
+  {
+    name: 'faceCenter', source: 'topology/faceFns.js#faceCenter', kind: 'skip',
+    reason: 'faijs 同名 faceCenter 查询形态已手写覆盖（§5.1 D-FACECENTER 双形态：Shape 包装 → 查询 / Face 包装 → 质心），生成层不重复投影',
+  },
+  {
+    name: 'getSurfaceType', source: 'topology/faceFns.js#getSurfaceType', kind: 'skip',
+    reason: '入参 Face 子形状句柄，skip',
+  },
+  {
+    name: 'faceAxis', source: 'topology/faceFns.js#faceAxis', kind: 'skip',
+    reason: '入参 Face 子形状句柄，skip',
+  },
+  {
+    name: 'faceOrientation', source: 'topology/faceFns.js#faceOrientation', kind: 'skip',
+    reason: '入参 Face 子形状句柄，skip',
+  },
+  {
+    name: 'faceGeomType', source: 'topology/faceFns.js#faceGeomType', kind: 'skip',
+    reason: '入参 Face 子形状句柄，skip',
+  },
+  {
+    name: 'flipFaceOrientation', source: 'topology/faceFns.js#flipFaceOrientation', kind: 'skip',
+    reason: '入参 Face 子形状句柄（翻转），skip',
+  },
+  {
+    name: 'outerWire', source: 'topology/faceFns.js#outerWire', kind: 'skip',
+    reason: 'Face → Wire 子形状产物，skip',
+  },
+  {
+    name: 'innerWires', source: 'topology/faceFns.js#innerWires', kind: 'skip',
+    reason: 'Face → Wire[] 句柄数组，skip',
+  },
+  {
+    name: 'removeHolesFromFace', source: 'topology/faceFns.js#removeHolesFromFace', kind: 'skip',
+    reason: 'Face 子形状入参，skip',
+  },
+  {
+    name: 'pointOnSurface', source: 'topology/faceFns.js#pointOnSurface', kind: 'skip',
+    reason: '入参 Face 子形状句柄，skip',
+  },
+  {
+    name: 'normalAt', source: 'topology/faceFns.js#normalAt', kind: 'skip',
+    reason: '入参 Face 子形状句柄，skip',
+  },
+  {
+    name: 'uvBounds', source: 'topology/faceFns.js#uvBounds', kind: 'skip',
+    reason: '入参 Face 子形状句柄，skip',
+  },
+  {
+    name: 'uvCoordinates', source: 'topology/faceFns.js#uvCoordinates', kind: 'skip',
+    reason: '入参 Face 子形状句柄，skip',
+  },
+  {
+    name: 'projectPointOnFace', source: 'topology/faceFns.js#projectPointOnFace', kind: 'skip',
+    reason: '入参 Face 子形状句柄，skip',
+  },
+  {
+    name: 'classifyPointOnFace', source: 'topology/faceFns.js#classifyPointOnFace', kind: 'skip',
+    reason: '入参 Face 子形状句柄，skip',
+  },
+
+  // healingFns：整件修复 brep-op；face/wire 级修复与 shell 组装 skip
+  {
+    name: 'autoHeal', source: 'topology/healingFns.js#autoHeal', kind: 'brep-op',
+    geometryArgs: [0], returnsResult: true,
+    args: 'autoHeal(shape: Shape, options?: AutoHealOptions): Shape',
+    reason: '整件自动修复（Result<Shape>），brep-op',
+  },
+  {
+    name: 'fixShape', source: 'topology/healingFns.js#fixShape', kind: 'brep-op',
+    geometryArgs: [0], returnsResult: true,
+    args: 'fixShape(shape: Shape): Shape',
+    reason: '整件修复（Result<Shape>），brep-op',
+  },
+  {
+    name: 'healSolid', source: 'topology/healingFns.js#healSolid', kind: 'brep-op',
+    geometryArgs: [0], returnsResult: true,
+    args: 'healSolid(solid: Shape): Shape',
+    reason: 'Solid 修复（Result<ValidSolid>），brep-op',
+  },
+  {
+    name: 'fixSelfIntersection', source: 'topology/healingFns.js#fixSelfIntersection', kind: 'brep-op',
+    geometryArgs: [0], returnsResult: true,
+    args: 'fixSelfIntersection(shape: Shape): Shape',
+    reason: '整件自交修复（Result<Shape>），brep-op',
+  },
+  {
+    name: 'healFace', source: 'topology/healingFns.js#healFace', kind: 'skip',
+    reason: 'Face 子形状句柄入参，skip',
+  },
+  {
+    name: 'healWire', source: 'topology/healingFns.js#healWire', kind: 'skip',
+    reason: 'Wire 子形状句柄入参，skip',
+  },
+  {
+    name: 'solidFromShell', source: 'topology/healingFns.js#solidFromShell', kind: 'skip',
+    reason: 'Shell 子形状句柄入参（closed shell → solid），skip',
+  },
+
+  // 布尔/批次/诊断 DSL（复合句柄/遥测），全 skip
+  {
+    name: 'booleanPipeline', source: 'topology/booleanFns.js#booleanPipeline', kind: 'skip',
+    reason: '复合布尔管线 DSL（steps 数组 + 遥测），skip',
+  },
+  {
+    name: 'cutAllBisect', source: 'topology/booleanBatchFns.js#cutAllBisect', kind: 'skip',
+    reason: '批量二分布尔（tools[] + telemetry 复合结果），skip',
+  },
+  {
+    name: 'fuseAllBisect', source: 'topology/booleanBatchFns.js#fuseAllBisect', kind: 'skip',
+    reason: '批量二分布尔（shapes[] + telemetry 复合结果），skip',
+  },
+  {
+    name: 'checkBoolean', source: 'topology/booleanDiagnosticFns.js#checkBoolean', kind: 'skip',
+    reason: '布尔诊断（内部 kernel 校验返回 CheckBooleanResult），skip',
+  },
+
+  // evolutionFns：EvolutionResult 复合（shape + 演化遥测），全 skip
+  {
+    name: 'fuseWithEvolution', source: 'topology/evolutionFns.js#fuseWithEvolution', kind: 'skip',
+    reason: '演化遥测布尔（Result<EvolutionResult<Shape>> 复合产物），skip',
+  },
+  {
+    name: 'cutWithEvolution', source: 'topology/evolutionFns.js#cutWithEvolution', kind: 'skip',
+    reason: '演化遥测布尔（复合产物），skip',
+  },
+  {
+    name: 'intersectWithEvolution', source: 'topology/evolutionFns.js#intersectWithEvolution', kind: 'skip',
+    reason: '演化遥测布尔（复合产物），skip',
+  },
+  {
+    name: 'filletWithEvolution', source: 'topology/evolutionFns.js#filletWithEvolution', kind: 'skip',
+    reason: '演化遥测修饰（edges[] + 复合产物），skip',
+  },
+  {
+    name: 'chamferWithEvolution', source: 'topology/evolutionFns.js#chamferWithEvolution', kind: 'skip',
+    reason: '演化遥测修饰（edges[] + 复合产物），skip',
+  },
+  {
+    name: 'shellWithEvolution', source: 'topology/evolutionFns.js#shellWithEvolution', kind: 'skip',
+    reason: '演化遥测修饰（复合产物），skip',
+  },
+
+  // modifierFns：per-edge 回调/变半径 → skip（faijs 以整件 + EdgeTopoRef 体系选择边）
+  {
+    name: 'variableFillet', source: 'topology/modifierFns.js#variableFillet', kind: 'skip',
+    reason: '变半径圆角（per-edge 回调），faijs 边选择引用体系不同，skip',
+  },
+
+  // apiTypes/index.js：kernel 底层谓词/转换/反序列化 DSL → skip；纯守卫 pure
+  {
+    name: 'resolve', source: 'topology/apiTypes.js#resolve', kind: 'skip',
+    reason: 'brepjs Shapeable 解包内部工具（Shapeable 包装层），skip',
+  },
+  {
+    name: 'resolve3D', source: 'topology/apiTypes.js#resolve3D', kind: 'skip',
+    reason: 'brepjs Shapeable 解包内部工具，skip',
+  },
+  {
+    name: 'applyGlue', source: 'topology/index.js#applyGlue', kind: 'skip',
+    reason: 'kernel 底层粘合 DSL（子形状操作），skip',
+  },
+  {
+    name: 'asTopo', source: 'topology/index.js#asTopo', kind: 'skip',
+    reason: 'KernelShape 类型转换底层工具，skip',
+  },
+  {
+    name: 'cast', source: 'topology/index.js#cast', kind: 'skip',
+    reason: 'KernelShape 句柄 cast 底层工具，skip',
+  },
+  {
+    name: 'downcast', source: 'topology/index.js#downcast', kind: 'skip',
+    reason: 'KernelShape 句柄 downcast 底层工具，skip',
+  },
+  {
+    name: 'deserializeShape', source: 'topology/index.js#deserializeShape', kind: 'skip',
+    reason: 'BREP 字节串 → AnyShape（序列化边界，与 fromBREP 同 skip），skip',
+  },
+  {
+    name: 'iterTopo', source: 'topology/index.js#iterTopo', kind: 'skip',
+    reason: '拓扑迭代器（子形状句柄流），skip',
+  },
+  {
+    name: 'shapeType', source: 'topology/index.js#shapeType', kind: 'skip',
+    reason: 'KernelShape 谓词（返回 TopAbs_ShapeEnum），faijs 以 ShapeKind 体系覆盖，skip',
+  },
+  {
+    name: 'isCompSolid', source: 'topology/index.js#isCompSolid', kind: 'skip',
+    reason: 'KernelShape 谓词，faijs 以 isCompound/ShapeKind 覆盖，skip',
+  },
+  {
+    name: 'isNumber', source: 'topology/index.js#isNumber', kind: 'pure',
+    reason: '纯类型守卫（无 Shape 参数）',
+  },
+  {
+    name: 'isChamferRadius', source: 'topology/index.js#isChamferRadius', kind: 'pure',
+    reason: '纯类型守卫（radius 联合判别，无 Shape 参数）',
+  },
+  {
+    name: 'isFilletRadius', source: 'topology/index.js#isFilletRadius', kind: 'pure',
+    reason: '纯类型守卫（radius 联合判别，无 Shape 参数）',
+  },
+
+  // chamferAngleFns：角-距倒角 DSL → skip（chamfer 同名处置见上）
+  {
+    name: 'chamferDistAngleShape', source: 'topology/chamferAngleFns.js#chamferDistAngleShape', kind: 'skip',
+    reason: '角-距倒角 DSL（上游该名由 chamferDistAngle 别名，属 chamfer 处置 O-CHAMFER-1），skip',
+  },
+
+  // shapeRef/index.js：持久化形状引用/角色打分 DSL（kernel 引用 + 状态）→ 全 skip
+  {
+    name: 'createRef', source: 'topology/shapeRef/index.js#createRef', kind: 'skip',
+    reason: '形状引用创建（role 表 + kernel 引用），faijs 以 EdgeTopoRef/ShapeSlot 体系覆盖，skip',
+  },
+  {
+    name: 'resolveRef', source: 'topology/shapeRef/index.js#resolveRef', kind: 'skip',
+    reason: '形状引用解析（kernel 引用），skip',
+  },
+  {
+    name: 'resolveRefIn', source: 'topology/shapeRef/index.js#resolveRefIn', kind: 'skip',
+    reason: '形状引用解析（句柄 + lineage），skip',
+  },
+  {
+    name: 'resolveRefParams', source: 'topology/shapeRef/index.js#resolveRefParams', kind: 'skip',
+    reason: '引用参数解析（内部），skip',
+  },
+  {
+    name: 'captureHint', source: 'topology/shapeRef/index.js#captureHint', kind: 'skip',
+    reason: '几何提示捕获（子形状哈希），skip',
+  },
+  {
+    name: 'assignRoles', source: 'topology/shapeRef/index.js#assignRoles', kind: 'skip',
+    reason: '角色表分配（kernel 状态 DSL），skip',
+  },
+  {
+    name: 'updateRoles', source: 'topology/shapeRef/index.js#updateRoles', kind: 'skip',
+    reason: '角色表更新（kernel 状态 DSL），skip',
+  },
+  {
+    name: 'createEdgeRef', source: 'topology/shapeRef/index.js#createEdgeRef', kind: 'skip',
+    reason: 'Edge 引用创建（kernel 引用 DSL），faijs 用 EdgeTopoRef，skip',
+  },
+  {
+    name: 'resolveEdgeRef', source: 'topology/shapeRef/index.js#resolveEdgeRef', kind: 'skip',
+    reason: 'Edge 引用解析（kernel 引用），skip',
+  },
+  {
+    name: 'createVertexRef', source: 'topology/shapeRef/index.js#createVertexRef', kind: 'skip',
+    reason: 'Vertex 引用创建（kernel 引用 DSL），skip',
+  },
+  {
+    name: 'resolveVertexRef', source: 'topology/shapeRef/index.js#resolveVertexRef', kind: 'skip',
+    reason: 'Vertex 引用解析（kernel 引用），skip',
+  },
+  {
+    name: 'createDerivedFaceRef', source: 'topology/shapeRef/index.js#createDerivedFaceRef', kind: 'skip',
+    reason: '派生 Face 引用创建（kernel 引用 DSL），skip',
+  },
+  {
+    name: 'resolveDerivedFaceRef', source: 'topology/shapeRef/index.js#resolveDerivedFaceRef', kind: 'skip',
+    reason: '派生 Face 引用解析（kernel 引用），skip',
+  },
+  {
+    name: 'resolveLineageRef', source: 'topology/shapeRef/index.js#resolveLineageRef', kind: 'skip',
+    reason: 'lineage 解析（kernel 引用），skip',
+  },
+  {
+    name: 'isLineageRef', source: 'topology/shapeRef/index.js#isLineageRef', kind: 'pure',
+    reason: '纯类型守卫（引用判别，无 kernel 调用）',
+  },
+  {
+    name: 'isFaceRef', source: 'topology/shapeRef/index.js#isFaceRef', kind: 'pure',
+    reason: '纯类型守卫（引用判别，无 kernel 调用）',
+  },
+  {
+    name: 'isEdgeRef', source: 'topology/shapeRef/index.js#isEdgeRef', kind: 'pure',
+    reason: '纯类型守卫（引用判别，无 kernel 调用）',
+  },
+  {
+    name: 'isVertexRef', source: 'topology/shapeRef/index.js#isVertexRef', kind: 'pure',
+    reason: '纯类型守卫（引用判别，无 kernel 调用）',
+  },
+  {
+    name: 'isDerivedFaceRef', source: 'topology/shapeRef/index.js#isDerivedFaceRef', kind: 'pure',
+    reason: '纯类型守卫（引用判别，无 kernel 调用）',
+  },
+  {
+    name: 'defaultScorer', source: 'topology/shapeRef/index.js#defaultScorer', kind: 'skip',
+    reason: '引用打分器（内核几何求值），skip',
+  },
+
+  // wrapperFns：状态化类型包装 DSL → skip
+  {
+    name: 'shape', source: 'topology/wrapperFns.js#shape', kind: 'skip',
+    reason: 'brepjs 类型包装 DSL（Wrapped* 状态对象），faijs 面为纯值模型，skip',
+  },
+  {
+    name: 'BrepWrapperError', source: 'topology/wrapperFns.js#BrepWrapperError', kind: 'skip',
+    reason: '包装层错误类（宿主 DSL），skip',
+  },
+
+  // mesh 宿主面（缓存/LOD/导出/three helpers）→ 全 skip
+  {
+    name: 'createMeshCache', source: 'topology/meshCache.js#createMeshCache', kind: 'skip',
+    reason: '宿主网格缓存（状态对象），faijs Shape 自带网格链，skip',
+  },
+  {
+    name: 'clearMeshCache', source: 'topology/meshCache.js#clearMeshCache', kind: 'skip',
+    reason: '宿主网格缓存清空（状态操作），skip',
+  },
+  {
+    name: 'meshLODs', source: 'topology/meshFns.js#meshLODs', kind: 'skip',
+    reason: '宿主 LOD 网格（渲染数据），skip',
+  },
+  {
+    name: 'meshLODsProgressive', source: 'topology/meshFns.js#meshLODsProgressive', kind: 'skip',
+    reason: '宿主渐进 LOD（渲染数据），skip',
+  },
+  {
+    name: 'meshMultiLOD', source: 'topology/meshFns.js#meshMultiLOD', kind: 'skip',
+    reason: '宿主多 LOD（渲染数据），skip',
+  },
+  {
+    name: 'exportIGES', source: 'topology/meshFns.js#exportIGES', kind: 'skip',
+    reason: '宿主文件导出（IGES，host ports 边界），skip',
+  },
+  {
+    name: 'exportSTEP', source: 'topology/meshFns.js#exportSTEP', kind: 'skip',
+    reason: '宿主文件导出（STEP，host ports 边界），skip',
+  },
+  {
+    name: 'exportSTL', source: 'topology/meshFns.js#exportSTL', kind: 'skip',
+    reason: '宿主文件导出（STL，host ports 边界），skip',
+  },
+  {
+    name: 'toBufferGeometryData', source: 'topology/threeHelpers.js#toBufferGeometryData', kind: 'skip',
+    reason: 'three.js 宿主缓冲转换（渲染 DSL），skip',
+  },
+  {
+    name: 'toGroupedBufferGeometryData', source: 'topology/threeHelpers.js#toGroupedBufferGeometryData', kind: 'skip',
+    reason: 'three.js 宿主缓冲转换（渲染 DSL），skip',
+  },
+  {
+    name: 'toLineGeometryData', source: 'topology/threeHelpers.js#toLineGeometryData', kind: 'skip',
+    reason: 'three.js 宿主线缓冲转换（渲染 DSL），skip',
+  },
+  {
+    name: 'toLODGeometryData', source: 'topology/threeHelpers.js#toLODGeometryData', kind: 'skip',
+    reason: 'three.js 宿主 LOD 缓冲转换（渲染 DSL），skip',
+  },
+  {
+    name: 'toLODGeometryLevels', source: 'topology/threeHelpers.js#toLODGeometryLevels', kind: 'skip',
+    reason: 'three.js 宿主 LOD 层级转换（渲染 DSL），skip',
+  },
+
+  // metadata：颜色/面标签 元数据 DSL（子形状元数据）→ 全 skip
+  {
+    name: 'colorShape', source: 'topology/metadata/colorFns.js#colorShape', kind: 'skip',
+    reason: '形状颜色元数据（宿主视觉面），skip',
+  },
+  {
+    name: 'colorFaces', source: 'topology/metadata/colorFns.js#colorFaces', kind: 'skip',
+    reason: '面颜色元数据（子形状 + 宿主视觉），skip',
+  },
+  {
+    name: 'getShapeColor', source: 'topology/metadata/colorFns.js#getShapeColor', kind: 'skip',
+    reason: '形状颜色读取（元数据表），skip',
+  },
+  {
+    name: 'getFaceColor', source: 'topology/metadata/colorFns.js#getFaceColor', kind: 'skip',
+    reason: '面颜色读取（子形状元数据），skip',
+  },
+  {
+    name: 'tagFaces', source: 'topology/metadata/faceTagFns.js#tagFaces', kind: 'skip',
+    reason: '面标签写入（子形状元数据 DSL），skip',
+  },
+  {
+    name: 'findFacesByTag', source: 'topology/metadata/faceTagFns.js#findFacesByTag', kind: 'skip',
+    reason: '按标签查面（子形状元数据 DSL），skip',
+  },
+  {
+    name: 'getFaceTags', source: 'topology/metadata/faceTagFns.js#getFaceTags', kind: 'skip',
+    reason: '面标签读取（子形状元数据），skip',
+  },
+  {
+    name: 'setTagMetadata', source: 'topology/metadata/faceTagFns.js#setTagMetadata', kind: 'skip',
+    reason: '标签元数据写入（状态 DSL），skip',
+  },
+  {
+    name: 'getTagMetadata', source: 'topology/metadata/faceTagFns.js#getTagMetadata', kind: 'skip',
+    reason: '标签元数据读取（状态 DSL），skip',
+  },
+
+  // surface 构建/查询：nurbs/网格曲面/位置查询 → skip（曲面/图像宿主 + 子形状入参）
+  {
+    name: 'fill', source: 'topology/surfaceBuilders.js#fill', kind: 'skip',
+    reason: 'Wire 环绕曲面填充（子形状入参），skip',
+  },
+  {
+    name: 'surfaceFromGrid', source: 'topology/surfaceFns.js#surfaceFromGrid', kind: 'skip',
+    reason: '高度网格 → NURBS 曲面（Surface 子形状产物），skip',
+  },
+  {
+    name: 'surfaceFromImage', source: 'topology/surfaceFns.js#surfaceFromImage', kind: 'skip',
+    reason: '图像 → 曲面（Blob 宿主输入 + async），skip',
+  },
+  {
+    name: 'positionOnCurve', source: 'topology/positionFns.js#positionOnCurve', kind: 'skip',
+    reason: 'Edge 子形状入参（曲线位置），skip',
+  },
+  {
+    name: 'getNurbsCurveData', source: 'topology/nurbsFns.js#getNurbsCurveData', kind: 'skip',
+    reason: 'Edge 子形状入参 → NURBS 数据，skip',
+  },
+  {
+    name: 'getNurbsSurfaceData', source: 'topology/nurbsFns.js#getNurbsSurfaceData', kind: 'skip',
+    reason: 'Face 子形状入参 → NURBS 数据，skip',
+  },
+
+  // hull/minkowski/polyhedron：集合/点集构造 DSL → skip（数组入参/内部 kernel 形态）
+  {
+    name: 'hull', source: 'topology/hullFns.js#hull', kind: 'skip',
+    reason: '凸包（点集/形状集数组入参 + 选项 DSL），skip',
+  },
+  {
+    name: 'minkowski', source: 'topology/minkowskiFns.js#minkowski', kind: 'skip',
+    reason: 'Minkowski 和（两形状 + 选项 DSL，内部 kernel 形态），skip',
+  },
+  {
+    name: 'polyhedron', source: 'topology/polyhedronFns.js#polyhedron', kind: 'skip',
+    reason: '多面体构造（面片选项 DSL，返回 ValidSolid 形态待核），skip',
+  },
 ]
