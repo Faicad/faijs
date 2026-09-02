@@ -50,6 +50,8 @@ node scripts/check-ghost-deps.mjs
 node scripts/check-workspaces-order.mjs
 npx madge --circular packages/core/src packages/mech-lib/src
 node scripts/api-surface-snapshot.mjs
+# P1：vendored/brepjs 移植树——D8 层边界（U9 断言：csg/、ns/csg.ts 永不搬入）
+node scripts/check-layer-boundaries.mjs
 # P10-④：U8 品牌守卫（用户可见面零 brepjs，E6）
 node scripts/check-vendored-branding.mjs
 

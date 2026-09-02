@@ -30,7 +30,8 @@ const OUT_DIR = path.resolve(__dirname, '..', 'src', 'api', 'surface')
 
 /** §2.6 排除模块：整模块排除（voxel/implicit/lattice/worker）+ ns/csg 单符号 */
 const EXCLUDED_MODULES = new Set(['voxel', 'implicit', 'lattice', 'worker'])
-const EXCLUDED_SYMBOLS = new Set(['csg']) // ns/csg.ts 命名空间别名（U9）
+// ns/csg.ts 命名空间别名（U9）+ blueprintContourFns 两符号（P12 连带排除，U9-adjacent）
+const EXCLUDED_SYMBOLS = new Set(['csg', 'blueprintToContour', 'BlueprintContourOptions'])
 
 const DOC_EXPECT = {
   total: 810, values: 625, types: 185,
@@ -165,6 +166,8 @@ function main(): void {
         : s.module === 'implicit' ? 'conflicts with faijs sdf — §2.6.3'
         : s.module === 'lattice' ? 'covered by faijs sdf gyroid-lattice templates — §2.6.4'
         : s.module === 'worker' ? 'not a modeling API; conflicts with faijs host layer — §2.6.5'
+        : s.name === 'blueprintToContour' || s.name === 'BlueprintContourOptions'
+          ? 'U9-adjacent (P12): blueprintContourFns.ts depends on csg/segments.ts (not ported) — §2.6.1'
         : 'U9 (user-mandated): csg module not ported — §2.6.1',
     })),
   }, null, 2) + '\n'

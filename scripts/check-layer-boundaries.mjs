@@ -93,6 +93,21 @@ function main() {
   const errors = []
   let bridgeCount = 0
 
+  // U9 boundary guard (E7, P12): excluded modules must never be ported back in.
+  // Assert vendored/brepjs/csg/ never exists and ns/csg.ts is never added
+  // (see docs/plans/2026-09-02-faijs-api-surface-completion.md §2.6.1 / E7).
+  if (existsSync(join(VENDORED_ROOT, 'csg'))) {
+    errors.push('vendored/brepjs/csg/ 目录存在 —— 违反 U9（csg module 从不搬入，§2.6.1）')
+  }
+  if (existsSync(join(VENDORED_ROOT, 'ns', 'csg.ts'))) {
+    errors.push('vendored/brepjs/ns/csg.ts 存在 —— 违反 U9（ns/csg.ts 不搬，§2.6.1/E7）')
+  }
+  // D10 (P12): quick.ts (auto-assembly convenience) depends on the intentionally
+  // unported optionalBackend.ts — never port it back in (§D10 / E7).
+  if (existsSync(join(VENDORED_ROOT, 'quick.ts'))) {
+    errors.push('vendored/brepjs/quick.ts 存在 —— 违反 D10（依赖未搬的 optionalBackend.ts，P12 E7）')
+  }
+
   for (const file of files) {
     const rel = relative(VENDORED_ROOT, file)
     const srcTop = rel.split(sep)[0] // 文件所在顶层目录（不算子目录）

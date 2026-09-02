@@ -110,7 +110,7 @@ vendored 各目录行数（实测）：`topology` 11473、`kernel` 12204（其�
 |---|---:|---|---|
 | `ns/`（9 个文件） | 130 | 命名空间聚合层 | **搬 9 删 1**（`ns/csg.ts` 随 U9 删） |
 | 根 barrel（`index.ts` 1251 + `topology.ts`/`2d.ts`/`core.ts`/`result.ts`/`vectors.ts`/`quick.ts`/`shapeRef.ts`/`io.ts`/`measurement.ts`/`operations.ts`/`projection.ts`/`query.ts`/`sketching.ts`/`text.ts`/`worker.ts`） | 2191 | — | **搬**（`index.ts` 是 API 面定义源；`worker.ts` 分支按 §2.6 删） |
-| `sketching/blueprintContourFns.ts` | 226 | — | **补**（唯一漏掉的单文件） |
+| `sketching/blueprintContourFns.ts` | 226 | `@/csg/index.js`（contour 词汇，连带 `csg/segments.ts`+`expressions.ts`+`hash.ts` 635 行） | **❌ 连带不搬**（P12 拍板，U9-adjacent，§2.6.1 附注） |
 | `kernel/optionalBackend.ts` + `kernel/perfStats.ts` | 84 | — | 评估（`optionalBackend` 按前案 D10 有意未搬） |
 | **`csg/`** | **5570** | 仅相对导入，零外部包 | **❌ 不搬**（**U9**，用户明示。§2.6.1） |
 | **`voxel/`** | **1311** | `@/core/*`、`@/kernel/types.js`、`@/topology/meshFns.js` + **`brepjs-voxel-wasm`（未发布 npm）** | **❌ 不搬**（§2.6.2） |
@@ -118,7 +118,7 @@ vendored 各目录行数（实测）：`topology` 11473、`kernel` 12204（其�
 | **`lattice/`** | **233** | `@/voxel/*`、`@/core/*` | **❌ 不搬**（§2.6.4，与 faijs `sdf` 模板冲突） |
 | **`worker/`** | **685** | 全自包含，零外部包 | **❌ 不搬**（§2.6.5，与 faijs host 层 worker 冲突） |
 
-> **净搬运量**：原 11010 行 → 实际搬 **2631 行**（`ns/` 9 文件 + 根 barrel + `blueprintContourFns.ts` + kernel 2 文件评估）。排除 **8379 行**。
+> **净搬运量**：原 11010 行 → 实际搬 **2405 行**（`ns/` 9 文件 + 根 barrel；`blueprintContourFns.ts` 226 行随 U9 连带排除，kernel 2 文件评估）。排除 **8605 行**（8379 + `blueprintContourFns.ts` 226）。
 >
 > **路径别名**：待搬模块中只有 `ns/` 与根 barrel 用到，量极小。已搬部分大量使用（topology 33、kernel/manifold 23、operations 21 文件命中 `from '@/`），说明 vendored 树**已有别名改写机制**——照搬同一套即可（P12 先确认是脚本改写还是 tsconfig paths）。
 
@@ -157,9 +157,11 @@ brepjs/src/csg/*.ts 内部 export 语句：199 条   ← 但零条进入根 barr
 
 | 项 | 内容 |
 |---|---|
-| 代价 | `import * as faijs from '@faicad/faijs'` 后 **`faijs.csg` 为 `undefined`**（brepjs 下是命名空间对象）。这是 810 符号中唯一因 U9 缺失的 1 个 |
+| 代价 | `import * as faijs from '@faicad/faijs'` 后 **`faijs.csg` 为 `undefined`**（brepjs 下是命名空间对象）。这是 810 符号中因 U9 缺失的 **1 个命名空间别名**（另见下方附注：连带排除 `blueprintContourFns` 的 2 个符号） |
 | 处置 | 登记进 divergence 表 `kind: 'cut'`，理由 `U9 (user-mandated)`。**不允许静默跳过**——验收清单里显式标注 `N/A` 并给出本条链接 |
 | 能力是否已覆盖 | `csg` 的**求值语义**（`fuse`/`cut`/`intersect` 立即求值版）在 `topology/` 与 `operations/api.js` 已有同名实现，且 brepjs 自己的钣金库用的就是后者（前案 §7.4 实测）。**惰性 IR 语义** faijs 不需要——faijs 的语句 DAG 已是声明式 IR，引入第二套 DAG 违反 Y3 的方向 |
+
+> **P12 变更附注（2026-09-02，连带排除）**：搬入盘查时实测 `sketching/blueprintContourFns.ts`（`blueprintToContour` / `BlueprintContourOptions` 的宿主，根 barrel `index.ts:335-337` re-export）从上游引入起就 `import { contour, lineTo, arcTo, bezierTo, ellipseArcTo, type Contour, type Segment2D } from '@/csg/index.js'`——输出类型与全部构造器都是 `csg/segments.ts` 的数据词汇。该桥**唯一消费者是 csg IR 的 Profile 节点**（§2.6.1 同款论证）：faijs 无惰性 CSG IR，即无消费方；其产出的 `Contour` 类型在 faijs 内也无处安放。**裁决：`blueprintContourFns.ts` 随 `csg/` 连带不搬（U9-adjacent，用户 P12 拍板）**。数字口径：① 文档口径目标面 **730 → 728**（−2：`blueprintToContour` + `BlueprintContourOptions` 移入 exclusions）；② surface 产物（854/96 全量口径）**exclusions 96 → 98**；③ §2.2 净搬运量 **2631 → 2405**（−226）。登记 2 条 divergence `kind: 'cut'`，理由 `U9-adjacent (depends on csg/segments.ts)` + 链接 §2.6.1。
 
 ### 2.6.2 `voxel/`：不引入 —— 依赖不可得
 
@@ -510,17 +512,20 @@ brepjs/src/index.ts  ──提取──▶  api/surface/upstream-surface.json（
 
 ### E7 vendored 补全
 
-按 §2.2 表格搬入（`ns/` 9 文件 + 根 barrel + `blueprintContourFns.ts`，**净 2631 行**），**`@/` 别名沿用既有改写机制**。搬入后跑 upstream 自带测试（复用前案 P3/P5 的 harness 模式：facade 重导出 + `initOcctWasm`/`bindOcctKernel` 装配 + divergence 注册表）。
+按 §2.2 表格搬入（`ns/` 9 文件 + 根 barrel，**净 2405 行**），**`@/` 别名沿用既有改写机制**。搬入后跑 upstream 自带测试（复用前案 P3/P5 的 harness 模式：facade 重导出 + `initOcctWasm`/`bindOcctKernel` 装配 + divergence 注册表）。
 
-**U9 的执行细则（`csg` 相关）**：
+**U9 的执行细则（`csg` 相关，含 P12 连带排除）**：
 
 | 位置 | 动作 |
 |---|---|
 | `vendored/brepjs/csg/` | **不存在**（从不搬入，不是"搬了再删"） |
 | `vendored/brepjs/ns/csg.ts` | **不搬**（它是 `export * from '@/csg/index.js'` 的单行文件） |
 | 根 barrel `index.ts:1251` `export * as csg from './ns/csg.js'` | 搬入时**删除该行**，并在同位置留 `// FAIIS-CUT: csg namespace omitted per U9 (see §2.6.1)` |
-| divergence 表 | 登记 1 条 `kind: 'cut'`，理由 `U9 (user-mandated)` + 链接 §2.6.1 |
-| 验收脚本 | 断言 `upstream-exclusions.json` 中 `csg` 项存在且理由非空（**不允许静默跳过**） |
+| 根 barrel `index.ts:335-337` `export { blueprintToContour, type BlueprintContourOptions } from './sketching/blueprintContourFns.js'` | 搬入时**删除该 export 块**（连带排除，U9-adjacent），留 `// FAIIS-CUT: blueprintContourFns omitted (U9-adjacent — depends on csg/segments.ts, see §2.6.1)` |
+| `sketching/blueprintContourFns.ts` | **不搬**（连带排除；产出 `Contour` 是 csg IR 数据词汇，faijs 无消费方） |
+| 根 barrel `index.ts` 内**其余**对排除模块的引用块（实测：`voxel` L238-274、`implicit` L276-302、`lattice` L304-307、`worker` L1052-1061、`kernel/perfStats` L55-56） | 搬入时**逐块删除**并留 `// FAIIS-CUT: <module> omitted per §2.6.x`（符号已在 `upstream-exclusions.json` 登记，不含 kernel/perfStats 则加删 `PerformanceStats` 类型行） |
+| divergence 表 | 登记 3 条 `kind: 'cut'`：`csg` 理由 `U9 (user-mandated)`；`blueprintToContour` + `BlueprintContourOptions` 理由 `U9-adjacent (depends on csg/segments.ts)`，均链接 §2.6.1 |
+| 验收脚本 | 断言 `upstream-exclusions.json` 中 `csg`、`blueprintToContour`、`BlueprintContourOptions` 三项存在且理由非空（**不允许静默跳过**） |
 
 **边界守卫（新增）**：`scripts/check-layer-boundaries.mjs` 增加一条断言——vendored 树内**不得出现 `csg/` 目录**，`ns/` 下**不得出现 `csg.ts`**。防止后续"顺手搬回来"。
 
@@ -566,7 +571,7 @@ packages/core/src/
   vendored/brepjs/          私有实现（目录名保留；exports 不暴露）
     {2d,core,gear,io,kernel,measurement,ns,operations,
      projection,query,sketching,text,topology,utils}
-    index.ts                 ← 新增：对应 brepjs src/index.ts（API 面定义源，csg 行按 U9 删）
+    index.ts                 ← 新增：对应 brepjs src/index.ts（API 面定义源，csg 行按 U9 删；blueprintContourFns export 块连带删，均留 FAIIS-CUT）
     ❌ {csg,voxel,implicit,lattice,worker}   ← 从不搬入（§2.6，守卫断言其不存在）
   api/                       ★ L3 faijs API 面（唯一对外面；cad 只是它的别名）
     index.ts                 ← 生成：导出面
@@ -703,7 +708,7 @@ packages/core/src/
 | **P10b** | **`cad` 别名去硬编码（U10/R2）**：① `registerLib(binding, ns, {default: true})` 显式声明默认绑定名；② `runtime.ts:722,736,1279` 与 `parser.ts:365,488,600,1086,1337` 的 5 处 `'cad'` 字面量改读声明；③ 先抽概念不改行为（零风险前置），再开任意绑定名。**解决"名为 `cad` 的第三方库被误判进内部符号表"的既有隐患** | 中（触碰 L0 parser + L2 runtime） | P10 |
 | **P10c** | **`fillet` 直连 brepjs（D-FILLET，§5.1.1，实施中）**：faijs `{radius}` 形态已删除（步骤 1 ✅）；待导入 brepjs `modifierFns.ts:265` 全签名（`edges?` / `[r1,r2]` / per-edge 回调）+ 测试迁移 + 符号与 schema 重生成（先修 B1）。（`drill`→`fai_drill`、`extrude`→`fai_extrude`、`split`→`fai_split` 已落地，不在此期） | 低 | P10 |
 | **P11** | **去 brepjs 化（E6）**：删 core 的两条 `vendored` exports；清 86 处字面量（产物串、报错串优先）；mech-lib 重命名 + 改 import；守卫转绿 | 中（会打破 sheetmetal 的深导入 → 与 P15 联动，见 O2） | P10 |
-| **P12** | **vendored 补全（E7）**：搬 `ns/` 9 文件 + 根 barrel + `blueprintContourFns.ts`（**净 2631 行**，§2.2）；`@/` 别名沿用既有机制；upstream 自带测试跑通 + divergence 表登记；**U9 边界守卫**落地（断言 `csg/`、`ns/csg.ts` 不存在） | 中 | P10 |
+| **P12** | **vendored 补全（E7）**：搬 `ns/` 9 文件 + 根 barrel（**净 2405 行**，§2.2；`blueprintContourFns.ts` 226 行经 P12 拍板**连带排除**，U9-adjacent，§2.6.1 附注）；`@/` 别名沿用既有机制；upstream 自带测试跑通 + divergence 表登记（cut ×3：csg/blueprintToContour/BlueprintContourOptions）；**U9 边界守卫**落地（断言 `csg/`、`ns/csg.ts` 不存在） | 中 | P10 |
 | **P13** | **生成层（E5）+ 第一批投影**：写 `scripts/gen-l3-surface.ts` + 签名适配表；先投 `topology`（265 符号，最大块）；产物进 `api/generated/topology.ts` | **高**（机制验证点） | P11、P12 |
 | **P14** | **新增符号全量投影**：按模块分批（`operations` 122 → `core` 129 → `sketching` 51 → `2d` 37 → `io`/`measurement`/`gear`/`query`/`projection`/`text`）；每批跑 upstream 测试。**不含 §2.6 排除的四个模块** | 中 | P13 通过 |
 | **P14b** | **补 TPMS 模板（§2.6.4）**：`sdf/templates.ts` 增 `schwarzP` / `diamond` 两个模板（纯 JS，约 40 行），替代引入 `lattice/` 233 行 + Rust wasm 依赖 | 低 | P13 |

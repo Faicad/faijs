@@ -2948,18 +2948,6 @@
       "file": "./query/finderFns.js"
     },
     {
-      "name": "BlueprintContourOptions",
-      "kind": "type",
-      "module": "sketching",
-      "file": "./sketching/blueprintContourFns.js"
-    },
-    {
-      "name": "blueprintToContour",
-      "kind": "value",
-      "module": "sketching",
-      "file": "./sketching/blueprintContourFns.js"
-    },
-    {
       "name": "CompoundSketch",
       "kind": "value",
       "module": "sketching",

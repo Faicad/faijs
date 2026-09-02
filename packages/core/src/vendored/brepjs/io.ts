@@ -1,0 +1,50 @@
+/**
+ * brepjs/io — Import and export in CAD and mesh formats.
+ *
+ * @example
+ * ```typescript
+ * import { importSTEP, exportSTEP, exportGltf } from 'brepjs/io';
+ * ```
+ */
+
+// ── Import ──
+
+export { importSTEP, importSTL, importIGES } from './io/importFns.js';
+
+// ── CAD Export (STEP / STL / IGES) ──
+
+export { exportSTEP, exportSTL, exportIGES } from './topology/meshFns.js';
+
+// ── Mesh & Document Export ──
+
+export { exportOBJ } from './io/objExportFns.js';
+
+export {
+  exportGltf,
+  exportGlb,
+  type GltfMaterial,
+  type GltfExportOptions,
+  type GltfFace,
+  type MaterialFn,
+} from './io/gltfExportFns.js';
+
+export {
+  exportDXF,
+  blueprintToDXF,
+  type DXFEntity,
+  type DXFExportOptions,
+} from './io/dxfExportFns.js';
+
+export {
+  exportThreeMF,
+  type ThreeMFExportOptions,
+  type ThreeMFMaterial,
+} from './io/threemfExportFns.js';
+
+export { importSVGPathD, importSVG, type SVGImportOptions } from './io/svgImportFns.js';
+
+export {
+  exportSTEPConfigured,
+  type StepExportOptions,
+  type StepExportPart,
+} from './io/stepConfigFns.js';
