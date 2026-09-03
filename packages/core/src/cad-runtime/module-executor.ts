@@ -159,6 +159,8 @@ export class ModuleExecutor {
     this.defaultNsName = name
   }
   private namespaces: Namespaces
+  /** 库内容身份表（binding → content hash；增量 key 版控，B2 §7.3） */
+  private libIds: ReadonlyMap<string, string> = new Map()
   /** 本机函数调用嵌套深度（§5.5）：> 0 表示当前在函数体内执行——keep 登记被抑制。 */
   private userFunctionDepth = 0
   private readonly releaseSolid?: (partName: PartName) => void
@@ -182,9 +184,12 @@ export class ModuleExecutor {
    * Hot-update the assembled namespace set (after registerLib mounts a new
    * library).
    * @param namespaces - the new assembled namespaces.
+   * @param libIds - the library content-identity table (binding → libId), used
+   * to version library-branch statement keys (B2, §7.3).
    */
-  setNamespaces(namespaces: Namespaces): void {
+  setNamespaces(namespaces: Namespaces, libIds: ReadonlyMap<string, string> = new Map()): void {
     this.namespaces = namespaces
+    this.libIds = libIds
   }
 
   /**
@@ -591,7 +596,7 @@ export class ModuleExecutor {
     const parts = [
       source.local
         ? `local.${source.callee}#${this.bodyHashOf(source.callee)}`
-        : `${source.namespace ?? this.defaultNsName}.${source.callee}`,
+        : `${source.namespace ?? this.defaultNsName}.${source.callee}#${this.libIdOf(source.namespace ?? this.defaultNsName)}`,
     ]
     parts.push(JSON.stringify(withoutKeepDirectives(source.args)))
     for (const dep of meta.deps) {
@@ -609,6 +614,16 @@ export class ModuleExecutor {
    */
   bodyHashOf(name: string): string {
     return this.script.functions?.find((f) => f.name === name)?.bodyHash ?? 'missing'
+  }
+
+  /**
+   * 按绑定名查 libId（setNamespaces 已存表；本机函数不含——只适用于库分支 key）。
+   * 库未登记或表缺失 → 'missing'，增量会自动失效重算。
+   * @param binding 命名空间绑定名。
+   * @returns 库的内容身份；`'missing'` 表示该绑定无登记身份。
+   */
+  libIdOf(binding: string): string {
+    return this.libIds.get(binding) ?? 'missing'
   }
 
   /** outputContentKey：shape 语句 = mesh 内容哈希；参数语句 = 参数值。 */

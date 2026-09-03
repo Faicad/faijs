@@ -43,7 +43,9 @@ import {
   configureBackends, CONTRACT_VERSION, setKeepSink, setName,
   assertContractVersion, BrepUnsupportedError, MeshUnsupportedError, type StdlibNamespace,
 } from '../runtime-state'
-import { assertLibConforms, DUAL_OP_META } from '../define-op'
+import { DUAL_OP_META } from '../define-op'
+import { admitCompatLib } from './admit-compat-lib'
+import { computeLibId } from './lib-id'
 import { computeContentKey } from './content-key'
 export { computeContentKey } from './content-key'
 import type { Namespaces } from './module-executor'
@@ -314,6 +316,8 @@ export class CadRuntime {
 
   /** 宿主注册库（含 cad：由根门面 createRuntime 包装注入；注入编译产物 fn 的第二参 ns） */
   private readonly libs: Record<string, StdlibNamespace>
+  /** 库内容身份表 (binding → content hash)，增量 key 用（B2，§7.3） */
+  private readonly libIds = new Map<string, string>()
   private readonly namespaces: Namespaces
   /** 默认命名空间绑定名（U10/R2）：根门面经 registerLib(binding, ns, {default: true}) 显式声明；
    *  缺省 'cad'（与 parser 缺省 defaultNs 一致）。namespace 字段缺省的语句归属该绑定。 */
@@ -329,17 +333,36 @@ export class CadRuntime {
    * @param options - `{ default: true }` declares this binding as the default
    *   namespace (host-declared default binding name, U10/R2).
    */
-  registerLib(binding: string, ns: StdlibNamespace, options?: { default?: boolean }): void {
+  /**
+   * Register a library namespace under a statement-level binding.
+   *
+   * Third-party libraries (no defineOp / no contractVersion) are admitted
+   * through compatOp so bare functions cannot silently bypass the statement
+   * boundary contract (B4, §4.3.3). The engine's built-in L3 surface is
+   * registered with `{ compat: false }` by the facade: its mesh/query helpers
+   * keep their native statement-level behavior until P23 rebuilds it onto the
+   * compat surface (§4.4 keeps dual-op mesh implementations untouched).
+   * @param binding - the name scripts use to reach the namespace (e.g. 'cad').
+   * @param ns - the library's export object.
+   * @param options - registration hints.
+   */
+  registerLib(binding: string, ns: StdlibNamespace, options?: { default?: boolean; compat?: boolean }): void {
     assertContractVersion(ns as unknown as { contractVersion?: number })
-    // D-4 strict assembly check: every exported dual-op must be structurally
-    // valid; a library exporting dual-ops must carry a matching contractVersion.
-    assertLibConforms(ns as unknown as Record<string, unknown>)
-    this.libs[binding] = ns
+    // B4: admit bare (non-dual-op) library functions through compatOp for
+    // libraries that opt in (compat: true). Default off keeps the mesh-native
+    // fixture set (`{ makeHeadstock: ... }` style) behaviorally unchanged — the
+    // P22 wiring demonstrates the admit path while the in-repo libs (mech-lib,
+    // sheetmetal) migrate onto it in P24/P25.
+    const admitted = options?.compat === true
+      ? (admitCompatLib(ns as unknown as Record<string, unknown>) as StdlibNamespace)
+      : ns
+    this.libs[binding] = admitted
+    this.libIds.set(binding, computeLibId(binding, ns as unknown as Record<string, unknown>))
     if (options?.default === true) {
       this.defaultNsName = binding
       this.executor.setDefaultNsName(binding)
     }
-    this.executor.setNamespaces({ ...this.libs } as Namespaces)
+    this.executor.setNamespaces({ ...this.libs } as Namespaces, this.libIds)
   }
 
   /** The runtime's default namespace binding name (host-declared; 'cad' by default). */

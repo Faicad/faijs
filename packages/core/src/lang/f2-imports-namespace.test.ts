@@ -1,4 +1,4 @@
-﻿/**
+/**
  * F2 — 顶层 import 段 + 多命名空间调用（normal-js-subset P2/P3 验收）
  *
  * 设计文档：docs/plans/2026-08-29-faijs-near-term-landing-plan.md §5
@@ -256,8 +256,8 @@ describe('F2: mock 库端到端执行', () => {
     expect(result.failedAt).toBeUndefined()
     const key0 = runtime.getStatementCacheEntry(asPartName('part0'))?.statementKey ?? ''
     const key1 = runtime.getStatementCacheEntry(asPartName('part1'))?.statementKey ?? ''
-    expect(key0.startsWith('cad.box|')).toBe(true)
-    expect(key1.startsWith('mech.box|')).toBe(true)
+    expect(key0.startsWith('cad.box#')).toBe(true)
+    expect(key1.startsWith('mech.box#')).toBe(true)
     expect(key0).not.toBe(key1)
     runtime.dispose()
   })

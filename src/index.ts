@@ -26,6 +26,9 @@ import { createApiNamespace } from '@faicad/faijs-core/api/api-namespace'
  */
 export function createRuntime(ports: HostPorts, mode?: ExecutionMode): CadRuntime {
   const rt = createRuntimeCore(ports, mode)
-  rt.registerLib('cad', createApiNamespace(), { default: true })
+  // The built-in L3 surface keeps native statement-level behavior until P23
+  // rebuilds it onto the compat surface (its mesh/query helpers are dual-op
+  // supported; compatOp-wrapping them now would break mesh mode).
+  rt.registerLib('cad', createApiNamespace(), { default: true, compat: false })
   return rt
 }

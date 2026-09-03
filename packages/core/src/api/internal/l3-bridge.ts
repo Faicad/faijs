@@ -25,6 +25,7 @@ import { brepOf } from '../../shape'
 import { fromHandle } from '../../brep/handle-bridge'
 import type { BrepHandle } from '../../brep/engine/types'
 import { createBorrowedHandle } from '../../vendored/brepjs/core/disposal.js'
+import { unregisterFromCleanup } from '../../vendored/brepjs/core/disposal.js'
 import type { ShapeHandle } from '../../vendored/brepjs/core/disposal.js'
 
 /**
@@ -63,7 +64,14 @@ export function adoptBrepjsProduct(product: unknown): Shape {
   if (product === null || typeof product !== 'object' || !('wrapped' in product)) {
     throw new Error('[faijs/l3-bridge] E_BAD_PRODUCT: expected a shape handle from the vendored engine')
   }
-  const wrapped = (product as { wrapped: unknown }).wrapped as BrepHandle
+  // vendored `wrapped` may be an OcctWasmHandle (`{id}`) or a raw numeric id;
+  // faijs' kernel meshShape expects the numeric shape id (helpers.ts:44-49).
+  const wrappedAny = (product as { wrapped: unknown }).wrapped
+  const rawId =
+    typeof wrappedAny === 'object' && wrappedAny !== null && 'id' in wrappedAny
+      ? (wrappedAny as { id: number }).id
+      : (wrappedAny as number)
+  const wrapped = rawId as BrepHandle
   return fromHandle(wrapped)
 }
 
@@ -82,4 +90,45 @@ export function adoptBrepjsProduct(product: unknown): Shape {
  */
 export function callBrepjs<F extends (...a: never[]) => unknown>(fn: F, args: unknown[]): ReturnType<F> {
   return fn(...(args as never[])) as ReturnType<F>
+}
+
+// ─── adoption (compatOp step 5; R1 fix) ──────────────────────────────────────
+
+/** Already-adopted handle dedup table: the same vendored handle adopted twice →
+ *  the same faijs Shape (prevents double ownership / double dispose, R6). */
+const adoptedMap = new WeakMap<object, Shape>()
+
+/**
+ * Adopt a vendored handle as a faijs Shape (compatOp step 5's only adoption
+ * entry point).
+ *
+ * ① pure data (no `.wrapped`) → pass through unchanged (query/data functions);
+ * ② sub-shape kinds (face/edge/wire/vertex/shell) → throw E_SUBSHAPE_BOUNDARY
+ *    (v1 boundary rejection, R4; the brand is a compile-time phantom type —
+ *    shapeTypes.ts:93-95 — so the runtime kind is read from the occt-wasm
+ *    handle's own `type` field, same as the kernel getShapeType helpers.ts:77-79);
+ * ③ entities (solid/compound) → unregisterFromCleanup (★ R1: drop the
+ *    finalizer, otherwise disposal.ts:117-124 disposes the slot faijs has
+ *    already adopted when the wrapping object gets GC'd) → adoptBrepjsProduct.
+ *
+ * @param product - the vendored result (handle or plain data record).
+ * @param opName - the op name (error messages).
+ * @returns the adopted faijs Shape, or the plain data untouched.
+ */
+export function adoptEntity(product: unknown, opName: string): unknown {
+  if (product === null || typeof product !== 'object' || !('wrapped' in product)) return product
+  const h = product as ShapeHandle
+  const prev = adoptedMap.get(h)
+  if (prev) return prev
+  const type = (h.wrapped as { type?: string }).type
+  if (type !== undefined && type !== 'solid' && type !== 'compound') {
+    throw new Error(
+      `[faijs/compat] ${opName}: E_SUBSHAPE_BOUNDARY: sub-shape handle ('${type}') ` +
+        'must not cross the library boundary; return entity solids or plain data',
+    )
+  }
+  unregisterFromCleanup(h) // ★ R1: one-line fix replacing mech-lib's pinned array
+  const s = adoptBrepjsProduct(h) // fromHandle: tessellation + identity + BREP slots (l3-bridge.ts:62)
+  adoptedMap.set(h, s)
+  return s
 }
