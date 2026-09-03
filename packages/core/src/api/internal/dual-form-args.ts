@@ -91,8 +91,15 @@ export function normalizeObjectForm(
  *
  * 根据 args 和 spec 归一化参数：
  * - B2 条目：直接返回原样（两个名字各自固定形态）
+ * - B1 条目：直接返回原样（brepjs options 对象即唯一对象形态，§4.2「无需判别」）
  * - 对象形态：按 params 表映射为位置数组
  * - 位置形态：直接返回原样
+ *
+ * B1 为何原样返回：B1 的 brepjs 位置形态首参本身就是配置对象（如
+ * `thread(options: ThreadOptions)`），对象形态与它在首参上撞型，判别式失效；
+ * 方案 §4.2 B1 的定义即「faijs 侧无独立对象 schema 时，直接以 brepjs options
+ * 对象为唯一对象形态（单名单形态，无需判别）」。若在此处按 params 表归一，
+ * 任何 options 键都会因不在 params 表里而误抛 E_ARGS_FORM。
  *
  * @param args - 调用参数数组
  * @param spec - 参数规格
@@ -102,6 +109,10 @@ export function normalizeObjectForm(
 export function resolveArgs(args: unknown[], spec: ArgSpec): unknown[] {
   // B2 条目不走判别器（两个名字各自固定形态）
   if (spec.formClass === 'B2') {
+    return args
+  }
+  // B1 条目：brepjs options 对象即唯一对象形态，无需判别（§4.2）
+  if (spec.formClass === 'B1') {
     return args
   }
 
@@ -151,7 +162,7 @@ export interface ResolvedArgs {
  * @returns 归一化结果
  */
 export function resolveArgsWithInfo(args: unknown[], spec: ArgSpec): ResolvedArgs {
-  if (spec.formClass === 'B2') {
+  if (spec.formClass === 'B2' || spec.formClass === 'B1') {
     return { args, isObjectForm: false }
   }
 
@@ -176,4 +187,89 @@ export function resolveArgsWithInfo(args: unknown[], spec: ArgSpec): ResolvedArg
   }
 
   return { args, isObjectForm: false }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 反方向：位置形态 → 对象形态（faijs 特有 dual op，impl 原生对象形态）
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * 位置形态声明（D11 反方向，§4.2「归一方向 = 位置→对象」）。
+ *
+ * faijs 特有 dual op 的 impl 是对象形态原生（`box({ size })` /
+ * `translate(shape, { offset })`），brepjs 生态的位置形态
+ * （`box(10, 20, 30)` / `translate(shape, 1, 0, 0)`）需先归一成对象形态。
+ * 声明式而非 if 分支：op 作者只列「哪个键吃几个位置参数」，判别与装箱由
+ * {@link positionalToObject} 统一完成。
+ */
+export interface PositionalForm {
+  /**
+   * 对象形态键名，按位置顺序（只描述 Shape 之后的**非几何**形参）。
+   * 例：`box(10, 20, 30)` → `keys: ['size']`；`cylinder(5, 40)` →
+   * `keys: ['radius', 'height']`。
+   */
+  keys: string[]
+  /**
+   * 哪些键是 vec3 槽位（吃掉最多 3 个连续位置参数）。
+   * 1 个 → 标量（number 或数组原样）；2~3 个 → `[x, y(, z)]` 数组。
+   * 例：`box(10)` → `{ size: 10 }`；`box(10, 20, 30)` → `{ size: [10, 20, 30] }`。
+   */
+  vec3Keys?: string[]
+  /**
+   * 前置 Shape 形参个数（原样透传，不参与装箱），缺省 0。
+   * 例：`translate(shape, 1, 0, 0)` → `shapeArity: 1`。
+   */
+  shapeArity?: number
+}
+
+/** 判定值是否是可作为对象形态形参的 plain object（与 {@link isObjectForm} 同判别式）。 */
+function isPlainObjectValue(v: unknown): boolean {
+  if (v === null || typeof v !== 'object') return false
+  if (Array.isArray(v)) return false
+  if (isShape(v)) return false
+  if (isHandleLike(v)) return false
+  return Object.getPrototypeOf(v) === Object.prototype
+}
+
+/**
+ * 位置形态 → 对象形态归一（faijs 特有 dual op 的 D11 反方向）。
+ *
+ * 触发条件：声明了 positional 且对象槽位（第 `shapeArity` 个实参）不是
+ * plain object。已是对象形态或实参不足时原样返回（交由 op 自身的断言报错）。
+ *
+ * @param args - 调用参数数组
+ * @param form - 位置形态声明
+ * @param name - op 名（错误信息用）
+ * @returns 归一后的参数数组（前置 Shape 原样 + 末尾一个对象形态参数）
+ * @throws E_ARGS_FORM 位置参数个数与声明的槽位不匹配时
+ */
+export function positionalToObject(args: unknown[], form: PositionalForm, name: string): unknown[] {
+  const shapeArity = form.shapeArity ?? 0
+  if (args.length <= shapeArity) return args // 无位置形参可装箱 → 原样（op 断言报错）
+  if (isPlainObjectValue(args[shapeArity])) return args // 已是对象形态
+
+  const rest = args.slice(shapeArity)
+  const obj: Record<string, unknown> = {}
+  let i = 0
+  for (const key of form.keys) {
+    if (i >= rest.length) break
+    if (form.vec3Keys?.includes(key)) {
+      // vec3 槽位：吃掉最多 3 个连续实参（1 个 → 标量，2~3 个 → 数组）
+      const take = Math.min(3, rest.length - i)
+      const chunk = rest.slice(i, i + take)
+      obj[key] = take === 1 ? chunk[0] : chunk
+      i += take
+      continue
+    }
+    obj[key] = rest[i]
+    i += 1
+  }
+  if (i < rest.length) {
+    throw new Error(
+      `[faijs/args] ${name}: E_ARGS_FORM: expected ${form.keys.join(', ')} ` +
+        `(${form.keys.length} positional slot(s)); got ${rest.length} value(s): ` +
+        rest.map((a) => (typeof a === 'object' ? '[object]' : String(a))).join(', ')
+    )
+  }
+  return [...args.slice(0, shapeArity), obj]
 }

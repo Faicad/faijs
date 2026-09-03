@@ -88,38 +88,27 @@ function renderPure(entry: ArgSpecEntry): string {
 }
 
 /**
- * brep-op 模板：defineOp({ brep })。几何输入（geometryArgs 索引）经 borrowBrepjsShape
- * 借入 brepjs handle；vendored 调用经 callBrepjs（Result 保持 .ok/.value，规避 arity）；
- * returnsResult 非 false 时 Result 翻转（err → throw），产物 adoptBrepjsProduct 转入 faijs Shape。
+ * brep-op 模板（P23 起）：`compatOp(projectBrepOp(…), spec)` 一行/符号（§4.3.2）。
+ *
+ * P14 之前是「逐 op 展开 defineOp」；P23 改为走 P21 的双形态投影包装
+ * （{@link projectBrepOp}：单内核断言 + D11 对象形态→位置形态归一 + callBrepjs），
+ * 再由 {@link compatOp} 套上语句边界六步契约（静态分派门 → 借入 → Result
+ * unwrap → 收养）。每符号一行，机制只有一份（§4.2）。
  */
 function renderBrepOp(entry: ArgSpecEntry): string {
   const { exportName } = parseSource(entry.source)
   const vendoredName = `__vendored_${exportName}`
-  const geometry = new Set(entry.geometryArgs ?? [])
-  const borrowLine =
-    geometry.size > 0
-      ? `    const __args = args.map((__a, __i) => (${JSON.stringify([...geometry])}.includes(__i) ? borrowBrepjsShape(__a as Shape) : __a))`
-      : `    const __args = args`
-  const callExpr = `callBrepjs(${vendoredName}, __args)`
-  const unwrap =
-    entry.returnsResult === false
-      ? `    return adoptBrepjsProduct(__r)`
-      : `    if (!__r.ok) throw new Error('[faijs/generated] ${entry.name}: ' + (__r.error?.message ?? 'vendored op failed'))\n    return adoptBrepjsProduct(__r.value)`
-
+  const formClass = entry.formClass ?? 'A'
   return [
     `/**`,
     ` * ${entry.name} — brepjs 投影（生成文件，禁手改；来源 api/surface/arg-spec.ts）。`,
     ` * ${entry.args ?? ''}`,
-    ` * 桥接：几何输入借入 brepjs handle → 调 vendored → ${entry.returnsResult === false ? '产物 adopt' : 'Result 翻转 → adopt'}（E5 模板）。`,
+    ` * 桥接：compatOp(projectBrepOp(…))——单内核断言 + D11 归一 + 语句边界六步契约（§4.3.2）。`,
     ` */`,
-    `export const ${entry.name} = defineOp({`,
-    `  brep: (...args: unknown[]) => {`,
-    borrowLine,
-    `    const __r = ${callExpr}`,
-    unwrap,
-    `  },`,
-    `  consumes: ${JSON.stringify(entry.consumes ?? 'all')}`,
-    `})`,
+    `export const ${entry.name} = compatOp(`,
+    `  projectBrepOp('${entry.name}', ${JSON.stringify(entry.params ?? [])}, '${formClass}', ${vendoredName}),`,
+    `  { name: '${entry.name}', consumes: ${JSON.stringify(entry.consumes ?? 'all')} },`,
+    `)`,
   ].join('\n')
 }
 
@@ -177,19 +166,20 @@ function renderQuery(entry: ArgSpecEntry): string {
   ].join('\n')
 }
 
-/** 组装某模块的 import 区（按需装配，避免未使用 import 触发 lint/tsc）。 */
+/** 组装某模块的 import 区（按需装配，避免未使用 import 触发 lint/tsc）。
+ *  P23 起 brep-op 经 compatOp(projectBrepOp(…)) 包装——借入/收养/调用都收在
+ *  compat-op/compat-projection 内，生成文件自身只需要 query 的桥接工具。 */
 function renderImports(entries: ArgSpecEntry[]): string[] {
   const hasBrep = entries.some((e) => e.kind === 'brep-op')
   const hasQuery = entries.some((e) => e.kind === 'query')
-  const needsBridge = hasBrep || hasQuery
 
   const lines: string[] = []
-  if (hasBrep) lines.push(`import { defineOp } from '../../sdk'`)
-  if (needsBridge) {
-    const bridgeParts = ['borrowBrepjsShape']
-    if (hasBrep) bridgeParts.push('adoptBrepjsProduct')
-    bridgeParts.push('callBrepjs')
-    lines.push(`import { ${bridgeParts.join(', ')} } from '../internal/l3-bridge'`)
+  if (hasBrep) {
+    lines.push(`import { compatOp } from '../internal/compat-op'`)
+    lines.push(`import { projectBrepOp } from '../internal/compat-projection'`)
+  }
+  if (hasQuery) {
+    lines.push(`import { borrowBrepjsShape, callBrepjs } from '../internal/l3-bridge'`)
     lines.push(`import type { Shape } from '../../mesh/types'`)
   }
   const seenValue = new Set<string>()
@@ -250,6 +240,91 @@ export function generateModule(module: string): string {
   return header + (imports.length > 0 ? imports.join('\n') + '\n\n' : '') + chunks.join('\n\n') + '\n'
 }
 
+// ── P23：cad 脚本面同源接线（§4.2 ② / B1 三源一致） ──
+
+/** script-face 生成文件路径。 */
+export const SCRIPT_FACE_FILE = path.join(OUT_DIR, 'script-face.ts')
+/** script-face 清单生成文件路径（gen-symbol-table 的单一数据源）。 */
+export const SCRIPT_FACE_MANIFEST_FILE = path.join(OUT_DIR, 'script-face-manifest.ts')
+
+/** P23 script-face 条目（arg-spec 里标记了 scriptFace 的语句级 op）。 */
+export function scriptFaceEntries(): ArgSpecEntry[] {
+  return ARG_SPEC.filter((e) => e.kind === 'brep-op' && e.scriptFace === true)
+}
+
+/**
+ * 生成 `api/generated/script-face.ts`：脚本面 op 的命名 re-export + 命名空间对象。
+ * `api-namespace.ts` 与 `api/index.ts` 都从这里取（B1：同源）。
+ */
+export function generateScriptFace(): string {
+  const entries = scriptFaceEntries()
+  if (entries.length === 0) throw new Error('[gen-l3-surface] script-face 条目为空（arg-spec 未标记 scriptFace）')
+  const byModule = new Map<string, ArgSpecEntry[]>()
+  for (const e of entries) {
+    const m = moduleOf(e)
+    if (!byModule.has(m)) byModule.set(m, [])
+    byModule.get(m)!.push(e)
+  }
+  const lines: string[] = [
+    '/**',
+    ' * generated/script-face.ts — 生成文件，禁手改。',
+    ' * 由 packages/core/scripts/gen-l3-surface.ts 依据 api/surface/arg-spec.ts 的',
+    ' * `scriptFace: true` 条目生成（P23 §4.2 ②：cad 脚本面 = faijs 特有 dual op + 本清单）。',
+    ' * 单一来源（B1）：api-namespace / api/index / gen-symbol-table 都从这里取，',
+    ' * 不允许手写第二份清单。',
+    ' */',
+    '',
+  ]
+  for (const [m, list] of byModule) {
+    lines.push(`import { ${list.map((e) => e.name).join(', ')} } from './${m}'`)
+    lines.push(`export { ${list.map((e) => e.name).join(', ')} } from './${m}'`)
+  }
+  lines.push('')
+  lines.push('/** cad 脚本面新增 op 的命名空间对象（api-namespace 展开进 cad）。 */')
+  lines.push('export const scriptFaceOps = {')
+  for (const e of entries) lines.push(`  ${e.name},`)
+  lines.push('} as const')
+  lines.push('')
+  return lines.join('\n')
+}
+
+/**
+ * 生成 `api/generated/script-face-manifest.ts`：脚本面清单数据。
+ * `gen-symbol-table.ts` 与三源一致测试都消费它（check() 符号表同源，§6.1 B1）。
+ */
+export function generateScriptFaceManifest(): string {
+  const entries = scriptFaceEntries()
+  const lines: string[] = [
+    '/**',
+    ' * generated/script-face-manifest.ts — 生成文件，禁手改。',
+    ' * 由 packages/core/scripts/gen-l3-surface.ts 依据 api/surface/arg-spec.ts 生成。',
+    ' * cad 脚本面新增 op 清单（P23 B1 三源一致：导出面 ≡ cad 面 ≡ check() 符号表）。',
+    ' */',
+    '',
+    '/** 一条 cad 脚本面新增 op。 */',
+    'export interface ScriptFaceOp {',
+    '  /** faijs 面导出名（= brepjs 符号名）。 */',
+    '  name: string',
+    '  /** 所属分片模块（生成文件名）。 */',
+    '  module: string',
+    '  /** defineOp/compatOp 的 consumes 声明（缺省 \'all\'）。 */',
+    "  consumes: 'all' | 'none'",
+    '}',
+    '',
+    'export const SCRIPT_FACE_OPS: readonly ScriptFaceOp[] = [',
+  ]
+  for (const e of entries) {
+    const consumes = e.consumes ?? 'all'
+    if (consumes !== 'all' && consumes !== 'none') {
+      throw new Error(`[gen-l3-surface] script-face 条目 ${e.name} 的 consumes 必须是 'all'|'none'（got ${JSON.stringify(consumes)}）`)
+    }
+    lines.push(`  { name: '${e.name}', module: '${moduleOf(e)}', consumes: '${consumes}' },`)
+  }
+  lines.push(']')
+  lines.push('')
+  return lines.join('\n')
+}
+
 /** P13 兼容：generate() == topology（顶层模块，旧调用不变）。 */
 export function generate(): string {
   return generateModule('topology')
@@ -266,6 +341,11 @@ function main(): void {
     const projected = ARG_SPEC.filter((e) => (e.module ?? 'topology') === m && e.kind !== 'skip').length
     console.log(`[gen-l3-surface] wrote ${m} (${projected} projections) -> ${path.relative(process.cwd(), out)}`)
   }
+  // P23：cad 脚本面接线产物（§4.2 ② / B1 三源一致）
+  fs.writeFileSync(SCRIPT_FACE_FILE, generateScriptFace(), 'utf-8')
+  console.log(`[gen-l3-surface] wrote script-face -> ${path.relative(process.cwd(), SCRIPT_FACE_FILE)}`)
+  fs.writeFileSync(SCRIPT_FACE_MANIFEST_FILE, generateScriptFaceManifest(), 'utf-8')
+  console.log(`[gen-l3-surface] wrote script-face-manifest -> ${path.relative(process.cwd(), SCRIPT_FACE_MANIFEST_FILE)}`)
 }
 
 // 仅在直接运行时执行（测试 import 时跳过）

@@ -239,8 +239,13 @@ export type { FetchAssetResolverOptions } from './browser-host/fetch-asset-resol
 export { executeScript, type ExecuteOutput } from './test-helpers'
 
 // ── L3 API 面（原 packages/stdlib 迁入，P6/D1）──
+// P23 主导出切换（§4.2 / Q1）：`export * from './api'` 现在同时带来
+// ① faijs 特有 dual op（mesh+brep 双路径，D11 双形态归一）；
+// ② 生成脚本面 op（`api/generated/script-face.ts`，compatOp(projectBrepOp(…)) 包装的
+//    brep-only 语句级 op——`cad.*` 脚本面与此同源，B1 三源一致）；
+// ③ brepjs 形态 TS 兼容面（`api/compat`，以 `compat` 命名空间导出——库作者面，
+//    句柄进出 + Result 语义）及其 Result / 向量 / 平面组合器（顶层平铺）。
+// op 符号不平铺 compat 版：`compat.fuse`（句柄形态）与顶层 `fuse`（faijs 形态）
+// 是同一 vendored 实现的两个投影，按「一个名字一份实现」红线（§6.3）只保留脚本面那份。
 export * from './api'
 export { createApiNamespace } from './api/api-namespace'
-
-// ── compat：BREP TS 兼容面（P21，暂存子路径；P23 切换主导出）──
-export * as compat from './api/compat'

@@ -6,20 +6,23 @@
  * 符号表现只承载一个职责：check() 符号检查判定 callee 是否存在
  * （"函数不存在"诊断），因此必须覆盖 cad 命名空间全部函数。
  *
- * 从 src/api/api-namespace.ts 的 createApiNamespace() 返回对象
- * 字面量提取 cad 命名空间函数名，每个函数记空对象条目。
- * （B1 修复：原 internal-stdlib.ts 随 P6 删除，单一清单来源改为
- *   api-namespace.ts —— check() 只对注入的 cad 命名空间做键存在性判定。）
+ * P23（§4.2 ②，B1 三源一致）单一来源：
+ *   ① faijs 特有 op ← src/api/api-namespace.ts 的 createApiNamespace() 字面量；
+ *   ② 生成脚本面 op ← src/api/generated/script-face-manifest.ts（由
+ *     gen-l3-surface.ts 依据 arg-spec 的 `scriptFace: true` 条目生成）。
+ * 两份并集 = cad 命名空间运行时键集（api-namespace 展开的是同一份 scriptFaceOps）。
+ * 先跑 `npx tsx packages/core/scripts/gen-l3-surface.ts`，再跑本脚本。
  *
  * 产物：src/lang/symbol-table.generated.ts（生成文件，禁手改）
  *
- * 运行：npx tsx scripts/gen-symbol-table.ts
+ * 运行：npx tsx packages/core/scripts/gen-symbol-table.ts
  */
 
 import * as ts from 'typescript'
 import * as path from 'path'
 import * as fs from 'fs'
 import { fileURLToPath } from 'url'
+import { SCRIPT_FACE_OPS } from '../src/api/generated/script-face-manifest'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -83,7 +86,17 @@ export function discoverCadNamespaceFunctions(): string[] {
 // ── 主入口 ──
 
 function main(): void {
-  const cadFunctions = discoverCadNamespaceFunctions()
+  // P23（B1 三源一致）：faijs 特有 op（api-namespace 字面量）∪ 生成脚本面 op
+  //（script-face-manifest）= cad 命名空间运行时键集。
+  const cadFunctions = [
+    ...discoverCadNamespaceFunctions(),
+    ...SCRIPT_FACE_OPS.map((op) => op.name),
+  ]
+  const seen = new Set<string>()
+  for (const name of cadFunctions) {
+    if (seen.has(name)) throw new Error(`[gen-symbol-table] cad 面重名符号: ${name}`)
+    seen.add(name)
+  }
 
   // 生成 .generated.ts：import 无 JSON attribute 需求，vite/vitest/node ESM 均可用
   const table: SymbolTable = {}

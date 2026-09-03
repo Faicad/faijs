@@ -14,7 +14,8 @@
  * ported tree: no reimplementation. The `.js` specifiers are the repo
  * convention (TypeScript maps `.js` → `.ts`).
  *
- * Semantic wraps:
+ * Semantic wraps (P23: both live in `api/internal/compat-projection.ts` so the
+ * generated face and this hand-curated face share one mechanism):
  * - single-kernel assert: every modeling op asserts a bound BREP kernel first
  *   (see `assertKernelBound`); `getBackends()` may throw before configuration,
  *   so it is guarded and falls back to the occt-kernel binding flag.
@@ -28,39 +29,10 @@
  *   `primitiveFns#box`), so every accepted form yields identical geometry.
  */
 
-import { getBackends } from '../../runtime-state'
-import { isOcctKernelBound } from '../occt-kernel-bridge'
-import { resolveArgs, isObjectForm } from '../internal/dual-form-args'
+import { assertKernelBound, projectBrepOp } from '../internal/compat-projection'
+import { isObjectForm } from '../internal/dual-form-args'
 
 import type { ValidSolid } from '../../vendored/brepjs/core/shapeTypes.js'
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Single-kernel assertion (D10)
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Assert that a BREP kernel is bound before invoking a compat op.
- *
- * Reads the configured backend's kernel slot, guarding against the throw that
- * `getBackends()` performs before host configuration. Falls back to the
- * occt-kernel binding flag when nothing is configured.
- *
- * @param name - op name, used in the guiding error message.
- */
-function assertKernelBound(name: string): void {
-  let kernelBound = false
-  try {
-    kernelBound = getBackends().kernel.brep != null
-  } catch {
-    // backends not configured yet — that is not an error, just no kernel
-  }
-  if (!kernelBound && !isOcctKernelBound()) {
-    throw new Error(
-      `[compat:${name}] no BREP kernel bound; run host init/bind (e.g. initOcct + bindOcctKernel) ` +
-        `before the first compat.${name} call. Library code must not install kernels itself.`
-    )
-  }
-}
 
 /** Signature of a compat op projection (inputs normalized before the call). */
 type CompatOp = (...args: unknown[]) => unknown
@@ -69,17 +41,16 @@ type CompatOp = (...args: unknown[]) => unknown
  * Dual-form op wrapper (A-class): asserts the kernel, normalizes object form to
  * positional form via `resolveArgs`, then delegates to the vendored
  * implementation.
+ *
+ * P23: delegates to the shared {@link projectBrepOp} so the hand-curated face
+ * and the generated face share one projection mechanism (§4.3.2).
  */
 function wrapDual<R>(
   name: string,
   params: string[],
   impl: (...args: unknown[]) => R
 ): CompatOp {
-  return (...args: unknown[]) => {
-    assertKernelBound(name)
-    const positional = resolveArgs(args, { name, params, formClass: 'A' })
-    return impl(...positional)
-  }
+  return projectBrepOp(name, params, 'A', impl as (...args: never[]) => unknown)
 }
 
 /**

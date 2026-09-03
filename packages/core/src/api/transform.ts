@@ -100,6 +100,7 @@ function transformBrep(op: string, input: Shape, params: Record<string, unknown>
  * const p1 = cad.translate(part0, { offset: [10, 0, 0] })
   */
 export const translate = defineOp({
+  name: 'translate',
   mesh: (input: Shape, params: Record<string, unknown>) => {
     if (!input) throw new Error('[stdlib/translate] no input geometry')
     assertTranslateParams(params)
@@ -110,6 +111,9 @@ export const translate = defineOp({
     assertTranslateParams(params)
     return transformBrep('translate', input, params)
   },
+  // D11: `translate(p, 10, 0, 0)` == `translate(p, { offset: [10, 0, 0] })`;
+  // `offset` is a vec3 slot sitting after the single leading Shape argument.
+  positional: { keys: ['offset'], vec3Keys: ['offset'], shapeArity: 1 },
 })
 
 /**
@@ -128,6 +132,7 @@ export const translate = defineOp({
  * const p3 = cad.rotate_euler(part0, { anglesDeg: [0, 0, 45], pivot: [0,0,0] })
  */
 export const rotate_euler = defineOp({
+  name: 'rotate_euler',
   mesh: (input: Shape, params: Record<string, unknown>) => {
     if (!input) throw new Error('[stdlib/rotate_euler] no input geometry')
     assertRotateParams(params)
@@ -138,6 +143,8 @@ export const rotate_euler = defineOp({
     assertRotateParams(params)
     return transformBrep('rotate_euler', input, params)
   },
+  // D11: `rotate_euler(p, 0, 0, 45)` == `rotate_euler(p, { anglesDeg: [0, 0, 45] })`.
+  positional: { keys: ['anglesDeg'], vec3Keys: ['anglesDeg'], shapeArity: 1 },
 })
 
 /**
@@ -155,6 +162,7 @@ export const rotate_euler = defineOp({
  * const p5 = cad.scale(part0, { factor: [2, 1, 1] })
   */
 export const scale = defineOp({
+  name: 'scale',
   mesh: (input: Shape, params: Record<string, unknown>) => {
     if (!input) throw new Error('[stdlib/scale] no input geometry')
     assertScaleParams(params)
@@ -165,4 +173,6 @@ export const scale = defineOp({
     assertScaleParams(params)
     return transformBrep('scale', input, params)
   },
+  // D11: `scale(p, 2)` == `scale(p, { factor: 2 })` (vec3 slot accepts 1→scalar).
+  positional: { keys: ['factor'], vec3Keys: ['factor'], shapeArity: 1 },
 })

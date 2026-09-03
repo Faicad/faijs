@@ -62,8 +62,15 @@ export interface Backends {
   readonly cad?: StdlibNamespace
 }
 
-/** 契约版本。破坏性变更 +1。加载第三方库时校验，不兼容即抛错。 */
-export const CONTRACT_VERSION = 2
+/**
+ * 契约版本。破坏性变更 +1。加载第三方库时校验，不兼容即抛错。
+ *
+ * v3（P23，§5.2 / D11）：`defineOp` 的实现边界统一为 Result 语义——实现可返回
+ * `Result`（边界 unwrap，`err` → 抛错）、可抛错（归一为带 op 名的错误），
+ * 也可照旧返回裸产物（透传）；并新增 D11 `positional` 位置形态声明。
+ * v2 → v3 是破坏性变更：按 v2 契约构建的库必须重新构建。
+ */
+export const CONTRACT_VERSION = 3
 
 /** 库函数签名（引擎视角：任意参数的普通函数，信息均匀化，不按名字分支）。 */
 export type StdlibFn = (...args: any[]) => unknown

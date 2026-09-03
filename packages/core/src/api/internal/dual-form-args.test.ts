@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { resolveArgs, resolveArgsWithInfo, isObjectForm, type ArgSpec } from './dual-form-args'
+import { resolveArgs, resolveArgsWithInfo, isObjectForm, positionalToObject, type ArgSpec, type PositionalForm } from './dual-form-args'
 import { getRuntimeState } from '../../runtime-state'
 
 describe('dual-form-args', () => {
@@ -60,7 +60,7 @@ describe('dual-form-args', () => {
 
     const specB1: ArgSpec = {
       name: 'thread',
-      params: ['radius', 'pitch', 'height'],
+      params: ['options'],
       formClass: 'B1',
     }
 
@@ -94,14 +94,14 @@ describe('dual-form-args', () => {
       expect(() => resolveArgs([{ width: 10, unknown: 1 }], specA)).toThrow('E_ARGS_FORM')
     })
 
-    it('B1 class: positional form passes through', () => {
-      const result = resolveArgs([5, 1, 20], specB1)
-      expect(result).toEqual([5, 1, 20])
-    })
-
-    it('B1 class: object form normalizes to positional', () => {
-      const result = resolveArgs([{ radius: 5, pitch: 1 }], specB1)
-      expect(result).toEqual([5, 1, undefined])
+    it('B1 class: brepjs options 对象即唯一对象形态，两个形态都原样透传（§4.2「无需判别」）', () => {
+      // B1（P23 语义修正）：B1 的 brepjs 位置形态首参本身就是配置对象（如
+      // thread(options: ThreadOptions)），对象形态与它在首参上撞型、判别式失效，
+      // 因此 B1 一律原样返回——否则任何 options 键都会被误判成 params 外未知键
+      // 而抛 E_ARGS_FORM（thread 的 params 表是 ['options']）。
+      const obj = { radius: 5, pitch: 1, height: 20 }
+      expect(resolveArgs([obj], specB1)).toEqual([obj])
+      expect(resolveArgs([5, 1, 20], specB1)).toEqual([5, 1, 20])
     })
 
     it('B2 class: always passes through (fixed form)', () => {
@@ -196,6 +196,56 @@ describe('dual-form-args', () => {
     it('plain object with extra keys throws E_ARGS_FORM', () => {
       const spec: ArgSpec = { name: 'test', params: ['safe'], formClass: 'A' }
       expect(() => resolveArgs([{ safe: 1, evil: 2 }], spec)).toThrow('E_ARGS_FORM')
+    })
+  })
+
+  describe('positionalToObject（D11 反方向：faijs 特有 dual op 位置→对象）', () => {
+    const boxForm: PositionalForm = { keys: ['size'], vec3Keys: ['size'] }
+    const cylinderForm: PositionalForm = { keys: ['radius', 'height'] }
+    const translateForm: PositionalForm = { keys: ['offset'], vec3Keys: ['offset'], shapeArity: 1 }
+
+    it('三个标量装箱进一个 vec3 键（box(10,20,30) → {size:[10,20,30]}）', () => {
+      expect(positionalToObject([10, 20, 30], boxForm, 'box')).toEqual([{ size: [10, 20, 30] }])
+    })
+
+    it('单个标量是立方体边（box(20) → {size:20}）', () => {
+      expect(positionalToObject([20], boxForm, 'box')).toEqual([{ size: 20 }])
+    })
+
+    it('数组首参归一为 size 数组（box([10,20,30]) → {size:[10,20,30]}）', () => {
+      expect(positionalToObject([[10, 20, 30]], boxForm, 'box')).toEqual([{ size: [10, 20, 30] }])
+    })
+
+    it('已是对象形态 → 原样返回（box({size:20}) 不动）', () => {
+      const args = [{ size: 20 }]
+      expect(positionalToObject(args, boxForm, 'box')).toBe(args)
+    })
+
+    it('两个标量槽（cylinder(5,40) → {radius:5,height:40}）', () => {
+      expect(positionalToObject([5, 40], cylinderForm, 'cylinder')).toEqual([
+        { radius: 5, height: 40 },
+      ])
+    })
+
+    it('前置 Shape 形参透传（translate(shape,1,0,0) → [shape,{offset:[1,0,0]}]）', () => {
+      const shape = { marker: 'shape' }
+      const out = positionalToObject([shape, 1, 0, 0], translateForm, 'translate')
+      expect(out[0]).toBe(shape)
+      expect(out[1]).toEqual({ offset: [1, 0, 0] })
+    })
+
+    it('translate(shape,{offset}) 对象形态原样返回', () => {
+      const shape = { marker: 'shape' }
+      const args = [shape, { offset: [1, 0, 0] }]
+      expect(positionalToObject(args, translateForm, 'translate')).toBe(args)
+    })
+
+    it('位置参数个数超出槽位 → E_ARGS_FORM', () => {
+      expect(() => positionalToObject([1, 2, 3, 4], boxForm, 'box')).toThrow('E_ARGS_FORM')
+    })
+
+    it('实参不足（box()）→ 原样返回，交由 op 自身断言报错', () => {
+      expect(positionalToObject([], boxForm, 'box')).toEqual([])
     })
   })
 })

@@ -28,10 +28,17 @@
  */
 
 import { dispatchPath, type BrepCapabilityName } from './cad-runtime/backend-dispatch'
-import { getBackends, CONTRACT_VERSION } from './runtime-state'
+import {
+  getBackends,
+  CONTRACT_VERSION,
+  BrepUnsupportedError,
+  MeshUnsupportedError,
+} from './runtime-state'
 import { isShape, solid, fromBrep } from './shape'
 import { isMeshShape } from './mesh/types'
 import { fromHandle, meshHandle } from './brep/handle-bridge'
+import { positionalToObject, type PositionalForm } from './api/internal/dual-form-args'
+import { toOpError, unwrapResult } from './api/internal/result-unwrap'
 import type { Shape } from './mesh/types'
 import type { BrepHandle } from './brep/engine/types'
 
@@ -92,12 +99,20 @@ export type ConsumeSpec = 'all' | 'none' | number[]
 
 /** Optional declaration: capabilities (D5) and named multi-products (split, scheme C). */
 export interface DualOpOptions {
+  /** Op name (error messages); falls back to an anonymous prefix when absent. */
+  name?: string
   capabilities?: BrepCapabilityName[]
   outputs?: string[]
   /** Static timeline consumption declaration (G3/G4 terminals); default `'all'`. */
   consumes?: ConsumeSpec
   /** L3 schema per named parameter (G1 codegen + UI panel, plain string form). */
   schema?: Record<string, string>
+  /**
+   * D11 positional-form declaration (§4.2): how a brepjs-style positional call
+   * maps onto this op's native object form. Ops without it accept only the form
+   * their implementation natively takes.
+   */
+  positional?: PositionalForm
 }
 
 /** Implementation set (at least one of mesh/brep is required, D1/D1b); options are siblings of the implementations. */
@@ -110,10 +125,14 @@ export interface DualOpMeta {
   kind: 'dual-op'
   mesh?: unknown
   brep?: unknown
+  /** Op name (error messages). */
+  name?: string
   capabilities?: BrepCapabilityName[]
   outputs?: string[]
   consumes?: ConsumeSpec
   schema?: Record<string, string>
+  /** D11 positional-form declaration (positional → object normalization). */
+  positional?: PositionalForm
 }
 
 /** Property key carrying DualOpMeta on wrapped functions. */
@@ -140,6 +159,44 @@ function wrapByKeys(r: unknown, keys: string[], wrapOne: (v: unknown) => Shape):
   const out: Record<string, Shape> = {}
   for (const k of keys) out[k] = wrapOne(src[k])
   return out
+}
+
+/** Human-readable op label for error messages (falls back when unnamed). */
+function opLabel(meta: DualOpMeta): string {
+  return meta.name ?? '<anon>'
+}
+
+/**
+ * Run one implementation through the unified Result boundary (§5.2, D1).
+ *
+ * Transition contract: an implementation may
+ *   ① return a `Result`  → unwrapped here (`err` becomes a throw);
+ *   ② throw              → normalized into an op-labelled error;
+ *   ③ return a plain product → passed through untouched.
+ *
+ * The two engine-level routing errors keep their class: `runtime.ts` matches
+ * `BrepUnsupportedError` / `MeshUnsupportedError` by `instanceof` to turn them
+ * into `ExecutionResult.failedAt`, so they must not be re-wrapped.
+ *
+ * @param meta - the op's metadata (name).
+ * @param impl - the implementation to run.
+ * @param args - the normalized argument list.
+ * @returns the (unwrapped) implementation product.
+ */
+async function runImpl(
+  meta: DualOpMeta,
+  impl: ((...a: unknown[]) => unknown) | undefined,
+  args: unknown[],
+): Promise<unknown> {
+  const label = opLabel(meta)
+  let product: unknown
+  try {
+    product = await (impl as (...a: unknown[]) => unknown)(...args)
+  } catch (e) {
+    if (e instanceof BrepUnsupportedError || e instanceof MeshUnsupportedError) throw e
+    throw toOpError(label, e)
+  }
+  return unwrapResult(product, label)
 }
 
 /**
@@ -191,30 +248,38 @@ export function defineOp<A extends unknown[]>(
     kind: 'dual-op',
     mesh: decl.mesh,
     brep: decl.brep,
+    name: decl.name,
     capabilities: decl.capabilities,
     outputs: decl.outputs,
     consumes: decl.consumes,
     schema: decl.schema,
+    positional: decl.positional,
   }
 
   // Async wrapper: implementations may be sync or async (stdlib mesh paths are
   // often async, e.g. drill/engrave/boolean). The compiled .fai.js product always
   // awaits the call, so returning a Promise is transparent.
   const wrapped = async (...args: A): Promise<Shape | Record<string, Shape>> => {
+    // D11 (§4.2): faijs-native ops declare an object-form implementation, so a
+    // brepjs-style positional call is boxed into the object form here — before
+    // dispatch, so geometry inputs are collected from the normalized arg list.
+    const callArgs = (
+      meta.positional ? positionalToObject(args as unknown[], meta.positional, opLabel(meta)) : args
+    ) as A
     // Geometry inputs: identity-or-structure auto collection (execution-time
     // read, same nature as hasBrep — decided before the implementation runs).
     // Compat: bare ManifoldMeshData args (host geoToManifoldMesh output) are
     // geometry inputs too — old form passed [input] so they reached the mesh path.
-    const inputs = args.filter(isGeometryInput) as Shape[]
+    const inputs = (callArgs as unknown[]).filter(isGeometryInput) as Shape[]
     // D5 capability routing: feed the first missing capability to dispatchPath
     // (auto degrades to mesh, brep mode errors).
     const missing = meta.capabilities?.find((cap) => !getBackends().config.brepCapabilities?.[cap])
     const path = dispatchPath(inputs, meta, missing)
     if (path === 'brep') {
-      const r = await (decl.brep as BrepImpl<A>)(...args)
+      const r = await runImpl(meta, decl.brep as unknown as ((...a: unknown[]) => unknown) | undefined, callArgs)
       return meta.outputs ? wrapByKeys(r, meta.outputs, wrapBrepOne) : wrapBrepOne(r)
     }
-    const m = await (decl.mesh as MeshImpl<A>)(...args)
+    const m = await runImpl(meta, decl.mesh as unknown as ((...a: unknown[]) => unknown) | undefined, callArgs)
     return meta.outputs ? wrapByKeys(m, meta.outputs, wrapMeshOne) : wrapMeshOne(m)
   }
 
@@ -272,7 +337,27 @@ export function assertLibConforms(lib: Record<string, unknown>): void {
     if (meta.schema !== undefined && !isValidSchema(meta.schema)) {
       throw new Error(`[faijs] lib function '${name}' declares invalid schema (expected Record<string, string>)`)
     }
+    if (meta.name !== undefined && typeof meta.name !== 'string') {
+      throw new Error(`[faijs] lib function '${name}' declares invalid name (expected string)`)
+    }
+    if (meta.positional !== undefined && !isValidPositionalForm(meta.positional)) {
+      throw new Error(
+        `[faijs] lib function '${name}' declares invalid positional (expected { keys: string[]; vec3Keys?: string[]; shapeArity?: number })`,
+      )
+    }
   }
+}
+
+/** True when the D11 positional declaration has a non-empty string `keys` list. */
+function isValidPositionalForm(form: unknown): form is PositionalForm {
+  if (form === null || typeof form !== 'object') return false
+  const keys = (form as { keys?: unknown }).keys
+  if (!Array.isArray(keys) || keys.some((k) => typeof k !== 'string')) return false
+  const vec3 = (form as { vec3Keys?: unknown }).vec3Keys
+  if (vec3 !== undefined && (!Array.isArray(vec3) || vec3.some((k) => typeof k !== 'string'))) return false
+  const arity = (form as { shapeArity?: unknown }).shapeArity
+  if (arity !== undefined && (typeof arity !== 'number' || !Number.isInteger(arity) || arity < 0)) return false
+  return true
 }
 
 /** True when spec is `'all'`, `'none'`, or an array of non-negative integer input positions. */

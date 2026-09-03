@@ -3,9 +3,8 @@
  * 由 packages/core/scripts/gen-l3-surface.ts 依据 api/surface/arg-spec.ts 生成（E5/P14 分片）。
  * operations 模块：77 个投影符号；另有 45 个 skip 登记。
  */
-import { defineOp } from '../../sdk'
-import { borrowBrepjsShape, adoptBrepjsProduct, callBrepjs } from '../internal/l3-bridge'
-import type { Shape } from '../../mesh/types'
+import { compatOp } from '../internal/compat-op'
+import { projectBrepOp } from '../internal/compat-projection'
 import { extrude as __vendored_extrude } from '../../vendored/brepjs/operations/api.js'
 import { revolve as __vendored_revolve } from '../../vendored/brepjs/operations/api.js'
 import { sweep as __vendored_sweep } from '../../vendored/brepjs/operations/extrudeFns.js'
@@ -148,239 +147,159 @@ export { isInstanced } from '../../vendored/brepjs/operations/instanceFns.js'
 /**
  * extrude — brepjs 投影（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * extrude(face: Shape, height?: number|Vec3) → Shape
- * 桥接：几何输入借入 brepjs handle → 调 vendored → Result 翻转 → adopt（E5 模板）。
+ * 桥接：compatOp(projectBrepOp(…))——单内核断言 + D11 归一 + 语句边界六步契约（§4.3.2）。
  */
-export const extrude = defineOp({
-  brep: (...args: unknown[]) => {
-    const __args = args.map((__a, __i) => ([0].includes(__i) ? borrowBrepjsShape(__a as Shape) : __a))
-    const __r = callBrepjs(__vendored_extrude, __args)
-    if (!__r.ok) throw new Error('[faijs/generated] extrude: ' + (__r.error?.message ?? 'vendored op failed'))
-    return adoptBrepjsProduct(__r.value)
-  },
-  consumes: "all"
-})
+export const extrude = compatOp(
+  projectBrepOp('extrude', ["face","height"], 'A', __vendored_extrude),
+  { name: 'extrude', consumes: "all" },
+)
 
 /**
  * revolve — brepjs 投影（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * revolve(face: Shape, options?: RevolveOptions): Shape
- * 桥接：几何输入借入 brepjs handle → 调 vendored → Result 翻转 → adopt（E5 模板）。
+ * 桥接：compatOp(projectBrepOp(…))——单内核断言 + D11 归一 + 语句边界六步契约（§4.3.2）。
  */
-export const revolve = defineOp({
-  brep: (...args: unknown[]) => {
-    const __args = args.map((__a, __i) => ([0].includes(__i) ? borrowBrepjsShape(__a as Shape) : __a))
-    const __r = callBrepjs(__vendored_revolve, __args)
-    if (!__r.ok) throw new Error('[faijs/generated] revolve: ' + (__r.error?.message ?? 'vendored op failed'))
-    return adoptBrepjsProduct(__r.value)
-  },
-  consumes: "all"
-})
+export const revolve = compatOp(
+  projectBrepOp('revolve', ["face","options"], 'A', __vendored_revolve),
+  { name: 'revolve', consumes: "all" },
+)
 
 /**
  * sweep — brepjs 投影（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * sweep(wire: Shape, spine: Shape, config?: SweepOptions, shellMode?: boolean): Shape
- * 桥接：几何输入借入 brepjs handle → 调 vendored → Result 翻转 → adopt（E5 模板）。
+ * 桥接：compatOp(projectBrepOp(…))——单内核断言 + D11 归一 + 语句边界六步契约（§4.3.2）。
  */
-export const sweep = defineOp({
-  brep: (...args: unknown[]) => {
-    const __args = args.map((__a, __i) => ([0,1].includes(__i) ? borrowBrepjsShape(__a as Shape) : __a))
-    const __r = callBrepjs(__vendored_sweep, __args)
-    if (!__r.ok) throw new Error('[faijs/generated] sweep: ' + (__r.error?.message ?? 'vendored op failed'))
-    return adoptBrepjsProduct(__r.value)
-  },
-  consumes: "all"
-})
+export const sweep = compatOp(
+  projectBrepOp('sweep', ["wire","spine","config","shellMode"], 'A', __vendored_sweep),
+  { name: 'sweep', consumes: "all" },
+)
 
 /**
  * complexExtrude — brepjs 投影（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * complexExtrude(wire: Shape, center: Vec3, normal: Vec3, profile?: ExtrusionProfile): Shape
- * 桥接：几何输入借入 brepjs handle → 调 vendored → Result 翻转 → adopt（E5 模板）。
+ * 桥接：compatOp(projectBrepOp(…))——单内核断言 + D11 归一 + 语句边界六步契约（§4.3.2）。
  */
-export const complexExtrude = defineOp({
-  brep: (...args: unknown[]) => {
-    const __args = args.map((__a, __i) => ([0].includes(__i) ? borrowBrepjsShape(__a as Shape) : __a))
-    const __r = callBrepjs(__vendored_complexExtrude, __args)
-    if (!__r.ok) throw new Error('[faijs/generated] complexExtrude: ' + (__r.error?.message ?? 'vendored op failed'))
-    return adoptBrepjsProduct(__r.value)
-  },
-  consumes: "all"
-})
+export const complexExtrude = compatOp(
+  projectBrepOp('complexExtrude', ["wire","center","normal","profile"], 'A', __vendored_complexExtrude),
+  { name: 'complexExtrude', consumes: "all" },
+)
 
 /**
  * twistExtrude — brepjs 投影（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * twistExtrude(wire: Shape, angleDegrees: number, center: Vec3, normal: Vec3): Shape
- * 桥接：几何输入借入 brepjs handle → 调 vendored → Result 翻转 → adopt（E5 模板）。
+ * 桥接：compatOp(projectBrepOp(…))——单内核断言 + D11 归一 + 语句边界六步契约（§4.3.2）。
  */
-export const twistExtrude = defineOp({
-  brep: (...args: unknown[]) => {
-    const __args = args.map((__a, __i) => ([0].includes(__i) ? borrowBrepjsShape(__a as Shape) : __a))
-    const __r = callBrepjs(__vendored_twistExtrude, __args)
-    if (!__r.ok) throw new Error('[faijs/generated] twistExtrude: ' + (__r.error?.message ?? 'vendored op failed'))
-    return adoptBrepjsProduct(__r.value)
-  },
-  consumes: "all"
-})
+export const twistExtrude = compatOp(
+  projectBrepOp('twistExtrude', ["wire","angleDegrees","center","normal"], 'A', __vendored_twistExtrude),
+  { name: 'twistExtrude', consumes: "all" },
+)
 
 /**
  * linearPattern — brepjs 投影（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * linearPattern(shape: Shape, direction: Vec3, count: number, spacing: number): Shape
- * 桥接：几何输入借入 brepjs handle → 调 vendored → Result 翻转 → adopt（E5 模板）。
+ * 桥接：compatOp(projectBrepOp(…))——单内核断言 + D11 归一 + 语句边界六步契约（§4.3.2）。
  */
-export const linearPattern = defineOp({
-  brep: (...args: unknown[]) => {
-    const __args = args.map((__a, __i) => ([0].includes(__i) ? borrowBrepjsShape(__a as Shape) : __a))
-    const __r = callBrepjs(__vendored_linearPattern, __args)
-    if (!__r.ok) throw new Error('[faijs/generated] linearPattern: ' + (__r.error?.message ?? 'vendored op failed'))
-    return adoptBrepjsProduct(__r.value)
-  },
-  consumes: "all"
-})
+export const linearPattern = compatOp(
+  projectBrepOp('linearPattern', ["shape","direction","count","spacing"], 'A', __vendored_linearPattern),
+  { name: 'linearPattern', consumes: "all" },
+)
 
 /**
  * circularPattern — brepjs 投影（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * circularPattern(shape: Shape, axis: Vec3, count: number, fullAngle?: number, center?: Vec3): Shape
- * 桥接：几何输入借入 brepjs handle → 调 vendored → Result 翻转 → adopt（E5 模板）。
+ * 桥接：compatOp(projectBrepOp(…))——单内核断言 + D11 归一 + 语句边界六步契约（§4.3.2）。
  */
-export const circularPattern = defineOp({
-  brep: (...args: unknown[]) => {
-    const __args = args.map((__a, __i) => ([0].includes(__i) ? borrowBrepjsShape(__a as Shape) : __a))
-    const __r = callBrepjs(__vendored_circularPattern, __args)
-    if (!__r.ok) throw new Error('[faijs/generated] circularPattern: ' + (__r.error?.message ?? 'vendored op failed'))
-    return adoptBrepjsProduct(__r.value)
-  },
-  consumes: "all"
-})
+export const circularPattern = compatOp(
+  projectBrepOp('circularPattern', ["shape","axis","count","fullAngle","center"], 'A', __vendored_circularPattern),
+  { name: 'circularPattern', consumes: "all" },
+)
 
 /**
  * gridPattern — brepjs 投影（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * gridPattern(shape: Shape, directionX: Vec3, directionY: Vec3, countX: number, countY: number, spacingX: number, spacingY: number): Shape
- * 桥接：几何输入借入 brepjs handle → 调 vendored → Result 翻转 → adopt（E5 模板）。
+ * 桥接：compatOp(projectBrepOp(…))——单内核断言 + D11 归一 + 语句边界六步契约（§4.3.2）。
  */
-export const gridPattern = defineOp({
-  brep: (...args: unknown[]) => {
-    const __args = args.map((__a, __i) => ([0].includes(__i) ? borrowBrepjsShape(__a as Shape) : __a))
-    const __r = callBrepjs(__vendored_gridPattern, __args)
-    if (!__r.ok) throw new Error('[faijs/generated] gridPattern: ' + (__r.error?.message ?? 'vendored op failed'))
-    return adoptBrepjsProduct(__r.value)
-  },
-  consumes: "all"
-})
+export const gridPattern = compatOp(
+  projectBrepOp('gridPattern', ["shape","directionX","directionY","countX","countY","spacingX","spacingY"], 'A', __vendored_gridPattern),
+  { name: 'gridPattern', consumes: "all" },
+)
 
 /**
  * roof — brepjs 投影（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * roof(wire: Shape, options?: RoofOptions): Shape
- * 桥接：几何输入借入 brepjs handle → 调 vendored → Result 翻转 → adopt（E5 模板）。
+ * 桥接：compatOp(projectBrepOp(…))——单内核断言 + D11 归一 + 语句边界六步契约（§4.3.2）。
  */
-export const roof = defineOp({
-  brep: (...args: unknown[]) => {
-    const __args = args.map((__a, __i) => ([0].includes(__i) ? borrowBrepjsShape(__a as Shape) : __a))
-    const __r = callBrepjs(__vendored_roof, __args)
-    if (!__r.ok) throw new Error('[faijs/generated] roof: ' + (__r.error?.message ?? 'vendored op failed'))
-    return adoptBrepjsProduct(__r.value)
-  },
-  consumes: "all"
-})
+export const roof = compatOp(
+  projectBrepOp('roof', ["wire","options"], 'A', __vendored_roof),
+  { name: 'roof', consumes: "all" },
+)
 
 /**
  * drill — brepjs 投影（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * drill(shape: Shape, options: DrillOptions): Shape
- * 桥接：几何输入借入 brepjs handle → 调 vendored → Result 翻转 → adopt（E5 模板）。
+ * 桥接：compatOp(projectBrepOp(…))——单内核断言 + D11 归一 + 语句边界六步契约（§4.3.2）。
  */
-export const drill = defineOp({
-  brep: (...args: unknown[]) => {
-    const __args = args.map((__a, __i) => ([0].includes(__i) ? borrowBrepjsShape(__a as Shape) : __a))
-    const __r = callBrepjs(__vendored_drill, __args)
-    if (!__r.ok) throw new Error('[faijs/generated] drill: ' + (__r.error?.message ?? 'vendored op failed'))
-    return adoptBrepjsProduct(__r.value)
-  },
-  consumes: "all"
-})
+export const drill = compatOp(
+  projectBrepOp('drill', ["shape","options"], 'A', __vendored_drill),
+  { name: 'drill', consumes: "all" },
+)
 
 /**
  * pocket — brepjs 投影（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * pocket(shape: Shape, options: PocketOptions): Shape
- * 桥接：几何输入借入 brepjs handle → 调 vendored → Result 翻转 → adopt（E5 模板）。
+ * 桥接：compatOp(projectBrepOp(…))——单内核断言 + D11 归一 + 语句边界六步契约（§4.3.2）。
  */
-export const pocket = defineOp({
-  brep: (...args: unknown[]) => {
-    const __args = args.map((__a, __i) => ([0].includes(__i) ? borrowBrepjsShape(__a as Shape) : __a))
-    const __r = callBrepjs(__vendored_pocket, __args)
-    if (!__r.ok) throw new Error('[faijs/generated] pocket: ' + (__r.error?.message ?? 'vendored op failed'))
-    return adoptBrepjsProduct(__r.value)
-  },
-  consumes: "all"
-})
+export const pocket = compatOp(
+  projectBrepOp('pocket', ["shape","options"], 'A', __vendored_pocket),
+  { name: 'pocket', consumes: "all" },
+)
 
 /**
  * boss — brepjs 投影（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * boss(shape: Shape, options: BossOptions): Shape
- * 桥接：几何输入借入 brepjs handle → 调 vendored → Result 翻转 → adopt（E5 模板）。
+ * 桥接：compatOp(projectBrepOp(…))——单内核断言 + D11 归一 + 语句边界六步契约（§4.3.2）。
  */
-export const boss = defineOp({
-  brep: (...args: unknown[]) => {
-    const __args = args.map((__a, __i) => ([0].includes(__i) ? borrowBrepjsShape(__a as Shape) : __a))
-    const __r = callBrepjs(__vendored_boss, __args)
-    if (!__r.ok) throw new Error('[faijs/generated] boss: ' + (__r.error?.message ?? 'vendored op failed'))
-    return adoptBrepjsProduct(__r.value)
-  },
-  consumes: "all"
-})
+export const boss = compatOp(
+  projectBrepOp('boss', ["shape","options"], 'A', __vendored_boss),
+  { name: 'boss', consumes: "all" },
+)
 
 /**
  * mirrorJoin — brepjs 投影（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * mirrorJoin(shape: Shape, options?: MirrorJoinOptions): Shape
- * 桥接：几何输入借入 brepjs handle → 调 vendored → Result 翻转 → adopt（E5 模板）。
+ * 桥接：compatOp(projectBrepOp(…))——单内核断言 + D11 归一 + 语句边界六步契约（§4.3.2）。
  */
-export const mirrorJoin = defineOp({
-  brep: (...args: unknown[]) => {
-    const __args = args.map((__a, __i) => ([0].includes(__i) ? borrowBrepjsShape(__a as Shape) : __a))
-    const __r = callBrepjs(__vendored_mirrorJoin, __args)
-    if (!__r.ok) throw new Error('[faijs/generated] mirrorJoin: ' + (__r.error?.message ?? 'vendored op failed'))
-    return adoptBrepjsProduct(__r.value)
-  },
-  consumes: "all"
-})
+export const mirrorJoin = compatOp(
+  projectBrepOp('mirrorJoin', ["shape","options"], 'A', __vendored_mirrorJoin),
+  { name: 'mirrorJoin', consumes: "all" },
+)
 
 /**
  * rectangularPattern — brepjs 投影（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * rectangularPattern(shape: Shape, options: RectangularPatternOptions): Shape
- * 桥接：几何输入借入 brepjs handle → 调 vendored → Result 翻转 → adopt（E5 模板）。
+ * 桥接：compatOp(projectBrepOp(…))——单内核断言 + D11 归一 + 语句边界六步契约（§4.3.2）。
  */
-export const rectangularPattern = defineOp({
-  brep: (...args: unknown[]) => {
-    const __args = args.map((__a, __i) => ([0].includes(__i) ? borrowBrepjsShape(__a as Shape) : __a))
-    const __r = callBrepjs(__vendored_rectangularPattern, __args)
-    if (!__r.ok) throw new Error('[faijs/generated] rectangularPattern: ' + (__r.error?.message ?? 'vendored op failed'))
-    return adoptBrepjsProduct(__r.value)
-  },
-  consumes: "all"
-})
+export const rectangularPattern = compatOp(
+  projectBrepOp('rectangularPattern', ["shape","options"], 'A', __vendored_rectangularPattern),
+  { name: 'rectangularPattern', consumes: "all" },
+)
 
 /**
  * thread — brepjs 投影（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * thread(options: ThreadOptions): Shape
- * 桥接：几何输入借入 brepjs handle → 调 vendored → Result 翻转 → adopt（E5 模板）。
+ * 桥接：compatOp(projectBrepOp(…))——单内核断言 + D11 归一 + 语句边界六步契约（§4.3.2）。
  */
-export const thread = defineOp({
-  brep: (...args: unknown[]) => {
-    const __args = args
-    const __r = callBrepjs(__vendored_thread, __args)
-    if (!__r.ok) throw new Error('[faijs/generated] thread: ' + (__r.error?.message ?? 'vendored op failed'))
-    return adoptBrepjsProduct(__r.value)
-  },
-  consumes: "all"
-})
+export const thread = compatOp(
+  projectBrepOp('thread', ["options"], 'B1', __vendored_thread),
+  { name: 'thread', consumes: "all" },
+)
 
 /**
  * convexHull — brepjs 投影（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * convexHull(points: Vec3[]): Shape
- * 桥接：几何输入借入 brepjs handle → 调 vendored → Result 翻转 → adopt（E5 模板）。
+ * 桥接：compatOp(projectBrepOp(…))——单内核断言 + D11 归一 + 语句边界六步契约（§4.3.2）。
  */
-export const convexHull = defineOp({
-  brep: (...args: unknown[]) => {
-    const __args = args
-    const __r = callBrepjs(__vendored_convexHull, __args)
-    if (!__r.ok) throw new Error('[faijs/generated] convexHull: ' + (__r.error?.message ?? 'vendored op failed'))
-    return adoptBrepjsProduct(__r.value)
-  },
-  consumes: "all"
-})
+export const convexHull = compatOp(
+  projectBrepOp('convexHull', ["points"], 'A', __vendored_convexHull),
+  { name: 'convexHull', consumes: "all" },
+)

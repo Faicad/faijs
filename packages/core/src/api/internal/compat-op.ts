@@ -25,6 +25,7 @@ import { dispatchPath } from '../../cad-runtime/backend-dispatch'
 import { DUAL_OP_META, type DualOpMeta, type ConsumeSpec } from '../../define-op'
 import { isShape } from '../../shape'
 import { borrowBrepjsShape, adoptEntity, callBrepjs } from './l3-bridge'
+import { unwrapResult } from './result-unwrap'
 import type { Shape } from '../../mesh/types'
 
 /** compatOp's static spec. The library edge is derived by admitCompatLib; the
@@ -65,20 +66,17 @@ export function borrowDeep(v: unknown, depth: number): unknown {
   return out
 }
 
-/** Result-shape test (aligned to the vendored Ok/Err structures, §result.ts:12-21). */
-function isResultLike(v: unknown): v is
-  { ok: true; value: unknown } | { ok: false; error: { code?: string; message?: string } } {
-  return typeof v === 'object' && v !== null && typeof (v as { ok?: unknown }).ok === 'boolean'
-}
-
-/** Step 4: statement-boundary unwrap — err becomes an execution error carrying
- *  the op name and error code (not silent; the engine's statement-level catch
- *  already exists). */
+/**
+ * Step 4: statement-boundary unwrap — err becomes an execution error carrying
+ * the op name and error code (not silent; the engine's statement-level catch
+ * already exists).
+ *
+ * Delegates to the shared {@link unwrapResult} (P23, §5.1): `defineOp`'s
+ * Result-aware boundary and this bridge must never drift apart, so both call
+ * the one leaf implementation.
+ */
 export function unwrapOrThrow(r: unknown, name: string): unknown {
-  if (!isResultLike(r)) return r
-  if (r.ok) return r.value
-  const e = r.error ?? {}
-  throw new Error(`[faijs/compat] ${name}: ${e.code ?? 'E_OP_FAILED'}: ${e.message ?? 'operation failed'}`)
+  return unwrapResult(r, name)
 }
 
 /** Step 5: outward adoption — top-level handle or geometryFields declared

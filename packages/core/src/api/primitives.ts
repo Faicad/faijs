@@ -98,8 +98,12 @@ function primitiveBrep(op: string, params: Record<string, unknown>): Shape {
  * @example
  * const part0 = cad.box({ size: 20 })
  * const part0 = cad.box({ size: [30, 20, 10], center: [0, 0, 5] })
+ *
+ * D11 双形态：位置形态 `box(10, 20, 30)`（三边）/`box(20)`（立方体）与对象形态
+ * `box({ size: [10, 20, 30] })` 归一到同一实现（§4.2）。
    */
 export const box = defineOp({
+  name: 'box',
   mesh: (params: Record<string, unknown>) => {
     assertBoxParams(params)
     return cad.box(params as never)
@@ -112,6 +116,9 @@ export const box = defineOp({
   // timeline; schema feeds codegen/UI parameter panels.
   consumes: 'none',
   schema: { size: 'number | [n,n,n]', center: 'vec3?' },
+  // D11: positional → object. `size` is a vec3 slot: 1 arg → cube edge,
+  // 2/3 args → [x, y(, z)].
+  positional: { keys: ['size'], vec3Keys: ['size'] },
 })
 
 /**
@@ -130,6 +137,7 @@ export const box = defineOp({
  * const r = cad.sphere({ radius: 10, segments: 64, center: [0,0,10] })
   */
 export const sphere = defineOp({
+  name: 'sphere',
   mesh: (params: Record<string, unknown>) => {
     assertSphereParams(params)
     return cad.sphere(params as never)
@@ -138,6 +146,8 @@ export const sphere = defineOp({
     assertSphereParams(params)
     return primitiveBrep('sphere', params)
   },
+  // D11: `sphere(10)` == `sphere({ radius: 10 })`.
+  positional: { keys: ['radius'] },
 })
 
 /**
@@ -156,6 +166,7 @@ export const sphere = defineOp({
  * const c = cad.cylinder({ radius: 5, height: 40 })
   */
 export const cylinder = defineOp({
+  name: 'cylinder',
   mesh: (params: Record<string, unknown>) => {
     assertCylinderParams(params)
     return cad.cylinder(params as never)
@@ -167,6 +178,8 @@ export const cylinder = defineOp({
   // L3 metadata (D2): creator consumes no shape inputs.
   consumes: 'none',
   schema: { radius: 'number', height: 'number', segments: 'number?', center: 'vec3?' },
+  // D11: `cylinder(5, 40)` == `cylinder({ radius: 5, height: 40 })`.
+  positional: { keys: ['radius', 'height'] },
 })
 
 /**
@@ -186,6 +199,7 @@ export const cylinder = defineOp({
  * const c = cad.cone({ radiusBottom: 10, radiusTop: 4, height: 30 })
   */
 export const cone = defineOp({
+  name: 'cone',
   mesh: (params: Record<string, unknown>) => {
     assertConeParams(params)
     return cad.cone(params as never)
@@ -194,6 +208,8 @@ export const cone = defineOp({
     assertConeParams(params)
     return primitiveBrep('cone', params)
   },
+  // D11: `cone(10, 4, 30)` == `cone({ radiusBottom: 10, radiusTop: 4, height: 30 })`.
+  positional: { keys: ['radiusBottom', 'radiusTop', 'height'] },
 })
 
 /**
@@ -214,6 +230,7 @@ export const cone = defineOp({
  * const w = cad.wedge({ width: 30, height: 20, angle: 45, length: 10 })
   */
 export const wedge = defineOp({
+  name: 'wedge',
   mesh: (params: Record<string, unknown>) => {
     assertWedgeParams(params)
     return cad.wedge(params as never)
@@ -222,4 +239,6 @@ export const wedge = defineOp({
     assertWedgeParams(params)
     return primitiveBrep('wedge', params)
   },
+  // D11: `wedge(30, 20, 45, 10)` == `wedge({ width: 30, height: 20, angle: 45, length: 10 })`.
+  positional: { keys: ['width', 'height', 'angle', 'length'] },
 })

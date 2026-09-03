@@ -33,3 +33,33 @@ export { faceNormal, bboxCenter, bboxMin, bboxMax } from './geom'
 export { asset } from './asset'
 export { solid, compound, isShape, isCompound } from '../shape'
 export type { ShapeSlot, SolidShape, CompoundShape, StdShape, ShapeKind } from '../shape'
+
+// ── P23：brepjs 兼容面接线（§4.2 / B1 三源一致）──
+//
+// ① 生成脚本面 op（与 api-namespace 的 cad 面同源：api/generated/script-face.ts）。
+//    这批 op 经 `compatOp(projectBrepOp(…))` 包装，faijs 形态（Shape 进 / Shape 出、
+//    布尔双形态、brep-only），TS 侧与 `.fai.js` 侧同语义。
+export * from './generated/script-face'
+//
+// ② brepjs 形态的 TS 兼容面（P21）以 `compat` 命名空间整体导出（库作者面：
+//    句柄进出、Result 语义）。**op 符号不在此处平铺**——`compat.fuse`（brepjs
+//    句柄形态）与脚本面 `fuse`（compatOp 包装的 faijs 形态）是同一 vendored
+//    实现的两个投影，按「一个名字一份实现」红线（§6.3），平铺面只保留脚本面
+//    那份；库作者继续 `import { compat } from '@faicad/faijs'` 用上游形态。
+//    此处只平铺**无 op 语义**的组合器与纯工具（Result / 向量 / 平面 / 错误 /
+//    常量），它们在两个面之间语义一致且无同名冲突。
+export {
+  ok, err, isOk, isErr, unwrap, unwrapOr,
+  vecAdd, vecSub, vecScale, vecDot, vecCross, vecLength, vecNormalize,
+  createPlane, createNamedPlane, resolvePlane,
+  kernelError, validationError,
+  DEG2RAD, RAD2DEG,
+} from './compat'
+export type {
+  Result, Ok, Err,
+  Vertex, Edge, Wire, Face, Shell, Solid, CompSolid, Shape3D,
+  Plane, PlaneName, PlaneInput,
+  Vec3, PointInput,
+  Bounds3D,
+} from './compat'
+export * as compat from './compat'

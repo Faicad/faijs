@@ -102,6 +102,13 @@ export interface ArgSpecEntry {
   params?: string[]
   /** P20: D11 形态分类（A 单名双形态 / B1 单名单形态 / B2 双名）。 */
   formClass?: FormClass
+  /**
+   * P23: 是否投进 cad 脚本面（§4.2 ②：`cad.*` = ① 面全量**语句级 op** 经
+   * compatOp 包装）。缺省 false——入参/出参含 Face/Edge/Wire 子形状句柄的
+   * 符号不进脚本面（§6.1），query 返回纯数据也留在 TS 面。
+   * 生成器据此产出 api/generated/script-face.ts + script-face-manifest.ts。
+   */
+  scriptFace?: boolean
 }
 
 /**
@@ -126,6 +133,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     returnsResult: false,
     params: ['majorRadius', 'minorRadius', 'options'],
     formClass: 'A',
+    scriptFace: true,
   },
   {
     name: 'fuse',
@@ -137,6 +145,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     returnsResult: true,
     params: ['a', 'b', 'options'],
     formClass: 'A',
+    scriptFace: true,
   },
   {
     name: 'getBounds',
@@ -1535,18 +1544,21 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     geometryArgs: [0], reason: 'shape → Result(Shape3D)，brep-op',
     args: 'linearPattern(shape: Shape, direction: Vec3, count: number, spacing: number): Shape',
     params: ['shape', 'direction', 'count', 'spacing'], formClass: 'A',
+    scriptFace: true,
   },
   {
     name: 'circularPattern', source: 'operations/patternFns.js#circularPattern', kind: 'brep-op', module: 'operations',
     geometryArgs: [0], reason: 'shape → Result(Shape3D)，brep-op',
     args: 'circularPattern(shape: Shape, axis: Vec3, count: number, fullAngle?: number, center?: Vec3): Shape',
     params: ['shape', 'axis', 'count', 'fullAngle', 'center'], formClass: 'A',
+    scriptFace: true,
   },
   {
     name: 'gridPattern', source: 'operations/patternFns.js#gridPattern', kind: 'brep-op', module: 'operations',
     geometryArgs: [0], reason: 'shape → Result(Shape3D)，brep-op',
     args: 'gridPattern(shape: Shape, directionX: Vec3, directionY: Vec3, countX: number, countY: number, spacingX: number, spacingY: number): Shape',
     params: ['shape', 'directionX', 'directionY', 'countX', 'countY', 'spacingX', 'spacingY'], formClass: 'A',
+    scriptFace: true,
   },
   {
     name: 'roof', source: 'operations/roofFns.js#roof', kind: 'brep-op', module: 'operations',
@@ -1559,30 +1571,35 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     geometryArgs: [0], reason: 'Shapeable<Shape3D> → Result<T>，brep-op',
     args: 'drill(shape: Shape, options: DrillOptions): Shape',
     params: ['shape', 'options'], formClass: 'A',
+    scriptFace: true,
   },
   {
     name: 'pocket', source: 'operations/compoundOpsFns.js#pocket', kind: 'brep-op', module: 'operations',
     geometryArgs: [0], reason: 'Shapeable<Shape3D> → Result<T>，brep-op',
     args: 'pocket(shape: Shape, options: PocketOptions): Shape',
     params: ['shape', 'options'], formClass: 'A',
+    scriptFace: true,
   },
   {
     name: 'boss', source: 'operations/compoundOpsFns.js#boss', kind: 'brep-op', module: 'operations',
     geometryArgs: [0], reason: 'Shapeable<Shape3D> → Result<T>，brep-op',
     args: 'boss(shape: Shape, options: BossOptions): Shape',
     params: ['shape', 'options'], formClass: 'A',
+    scriptFace: true,
   },
   {
     name: 'mirrorJoin', source: 'operations/compoundOpsFns.js#mirrorJoin', kind: 'brep-op', module: 'operations',
     geometryArgs: [0], reason: 'Shapeable<Shape3D> → Result<T>，brep-op',
     args: 'mirrorJoin(shape: Shape, options?: MirrorJoinOptions): Shape',
     params: ['shape', 'options'], formClass: 'A',
+    scriptFace: true,
   },
   {
     name: 'rectangularPattern', source: 'operations/compoundOpsFns.js#rectangularPattern', kind: 'brep-op', module: 'operations',
     geometryArgs: [0], reason: 'Shapeable<Shape3D> → Result<T>，brep-op',
     args: 'rectangularPattern(shape: Shape, options: RectangularPatternOptions): Shape',
     params: ['shape', 'options'], formClass: 'A',
+    scriptFace: true,
   },
   {
     name: 'thread', source: 'operations/threadFns.js#thread', kind: 'brep-op', module: 'operations',
@@ -1595,6 +1612,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     geometryArgs: [], reason: '点集构造 → Result(Solid)，单产物，brep-op',
     args: 'convexHull(points: Vec3[]): Shape',
     params: ['points'], formClass: 'A',
+    scriptFace: true,
   },
   {
     // ---- skip：状态 DSL/多产物/数组入参/host IO/kernel 入参 ----
@@ -2294,6 +2312,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     geometryArgs: [],
     returnsResult: false,
     params: ['xLength', 'yLength', 'zLength'], formClass: 'A',
+    scriptFace: true,
   },
 
   // 47 × skip（状态化草图/绘图 DSL 族）
@@ -2573,6 +2592,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     args: 'ellipsoid(rx: number, ry: number, rz: number, options?: EllipsoidOptions): Shape',
     reason: '纯数值整件构造（rx/ry/rz → ValidSolid），brep-op',
     params: ['rx', 'ry', 'rz', 'options'], formClass: 'A',
+    scriptFace: true,
   },
   {
     name: 'addHoles', source: 'topology/primitiveFns.js#addHoles', kind: 'skip',
@@ -2671,6 +2691,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     args: 'rotate(shape: Shape, angle: number, options?: { at?, axis? }): Shape',
     reason: 'faijs rotate 已更名 rotate_euler，brepjs 轴角 rotate 空出 → brep-op（§5.1 D-ROTATE）',
     params: ['shape', 'angle', 'options'], formClass: 'A',
+    scriptFace: true,
   },
   {
     name: 'scale', source: 'topology/api.js#scale', kind: 'skip',
@@ -2682,6 +2703,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     args: 'mirror(shape: Shape, options?: MirrorOptions): Shape',
     reason: 'faijs 无同名 mirror，整件反射 → brep-op',
     params: ['shape', 'options'], formClass: 'A',
+    scriptFace: true,
   },
   {
     name: 'clone', source: 'topology/api.js#clone', kind: 'brep-op',
@@ -2689,6 +2711,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     args: 'clone(shape: Shape): Shape',
     reason: 'faijs 用 copy（不同名），整件克隆（Result<T>）→ brep-op',
     params: ['shape'], formClass: 'A',
+    scriptFace: true,
   },
   {
     name: 'applyMatrix', source: 'topology/api.js#applyMatrix', kind: 'brep-op',
@@ -2696,6 +2719,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     args: 'applyMatrix(shape: Shape, matrix: unknown): Shape',
     reason: 'faijs 用 applyTransform（不同名），整件矩阵变换 → brep-op',
     params: ['shape', 'matrix'], formClass: 'A',
+    scriptFace: true,
   },
   {
     name: 'transformCopy', source: 'topology/api.js#transformCopy', kind: 'brep-op',
@@ -2703,6 +2727,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     args: 'transformCopy(shape: Shape, composed: ComposedTransform): Shape',
     reason: 'faijs 无同名，克隆+复合变换 → brep-op',
     params: ['shape', 'composed'], formClass: 'A',
+    scriptFace: true,
   },
   {
     name: 'locate', source: 'topology/api.js#locate', kind: 'brep-op',
@@ -2710,6 +2735,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     args: 'locate(shape: Shape, placement: unknown): Shape',
     reason: 'faijs 无同名，整件定位变换 → brep-op',
     params: ['shape', 'placement'], formClass: 'A',
+    scriptFace: true,
   },
   {
     name: 'composeTransforms', source: 'topology/api.js#composeTransforms', kind: 'pure',
@@ -2721,6 +2747,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     args: 'cut(base: Shape, tool: Shape, options?: BooleanOptions): Shape',
     reason: 'faijs 用 subtract（不同名），布尔减 → brep-op',
     params: ['base', 'tool', 'options'], formClass: 'A',
+    scriptFace: true,
   },
   {
     name: 'fuseAll', source: 'topology/api.js#fuseAll', kind: 'skip',
@@ -2751,6 +2778,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     args: 'split(shape: Shape, tools: Shape[]): Shape',
     reason: 'faijs split 已更名 fai_split，brepjs 工具切件 split 空出 → brep-op（§5.1 D-SPLIT；tools 暂登记几何首参，数组切件经 faijs 侧适配）',
     params: ['shape', 'tools'], formClass: 'A',
+    scriptFace: true,
   },
   {
     name: 'slice', source: 'topology/api.js#slice', kind: 'skip',
@@ -2780,6 +2808,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     args: 'offset(shape: Shape, distance: number): Shape',
     reason: 'faijs 无同名偏置 → brep-op',
     params: ['shape', 'distance'], formClass: 'A',
+    scriptFace: true,
   },
   {
     name: 'thicken', source: 'topology/api.js#thicken', kind: 'skip',
@@ -2795,6 +2824,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     args: 'heal(shape: Shape): Shape',
     reason: 'faijs 无同名整件修复 → brep-op',
     params: ['shape'], formClass: 'A',
+    scriptFace: true,
   },
   {
     name: 'simplify', source: 'topology/api.js#simplify', kind: 'brep-op',
@@ -2802,6 +2832,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     args: 'simplify(shape: Shape): Shape',
     reason: 'faijs 无同名整件简化 → brep-op',
     params: ['shape'], formClass: 'A',
+    scriptFace: true,
   },
   {
     name: 'mesh', source: 'topology/api.js#mesh', kind: 'skip',
@@ -3099,6 +3130,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     args: 'autoHeal(shape: Shape, options?: AutoHealOptions): Shape',
     reason: '整件自动修复（Result<Shape>），brep-op',
     params: ['shape', 'options'], formClass: 'A',
+    scriptFace: true,
   },
   {
     name: 'fixShape', source: 'topology/healingFns.js#fixShape', kind: 'brep-op',
@@ -3106,6 +3138,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     args: 'fixShape(shape: Shape): Shape',
     reason: '整件修复（Result<Shape>），brep-op',
     params: ['shape'], formClass: 'A',
+    scriptFace: true,
   },
   {
     name: 'healSolid', source: 'topology/healingFns.js#healSolid', kind: 'brep-op',
@@ -3113,6 +3146,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     args: 'healSolid(solid: Shape): Shape',
     reason: 'Solid 修复（Result<ValidSolid>），brep-op',
     params: ['solid'], formClass: 'A',
+    scriptFace: true,
   },
   {
     name: 'fixSelfIntersection', source: 'topology/healingFns.js#fixSelfIntersection', kind: 'brep-op',

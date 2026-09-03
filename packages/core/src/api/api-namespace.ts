@@ -28,11 +28,19 @@ import { group, assembly } from './compound'
 import { copy } from './copy'
 import { faceNormal, bboxCenter, bboxMin, bboxMax } from './geom'
 import { asset } from './asset'
+import { scriptFaceOps } from './generated/script-face'
 import { CONTRACT_VERSION } from '../runtime-state'
 import type { StdlibNamespace } from '../runtime-state'
 
 /**
  * Assemble stdlib functions into the cad namespace.
+ *
+ * P23（§4.2 ②，B1 三源一致）：cad 面 = faijs 特有 dual op（下方字面量）+
+ * 生成脚本面 op（`scriptFaceOps`——`api/generated/script-face.ts` 按 arg-spec
+ * 的 `scriptFace: true` 条目生成，经 `compatOp(projectBrepOp(…))` 包装的
+ * brep-only 语句级 op）。`check()` 符号表（`gen-symbol-table.ts`）与
+ * `api/index.ts` 导出面同源于同一份清单。
+ *
  * @returns the assembled StdlibNamespace ready for runtime injection.
  */
 export function createApiNamespace(): StdlibNamespace {
@@ -49,5 +57,6 @@ export function createApiNamespace(): StdlibNamespace {
     fai_split, group, assembly, copy,
     faceNormal, bboxCenter, bboxMin, bboxMax,
     asset,
+    ...scriptFaceOps,
   } as unknown as StdlibNamespace
 }
