@@ -89,7 +89,7 @@ function isRelativeSpec(spec) {
 
 // A1：vendored 源码 + core dist 字符串字面量零 brepjs
 {
-  const roots = [resolve('packages/core/src/vendored/brepjs')]
+  const roots = [resolve('packages/core/src/vendored/brepjs'), resolve('packages/core/src/api/compat')]
   if (existsSync(resolve('packages/core/dist'))) roots.push(resolve('packages/core/dist'))
   const files = []
   for (const r of roots) files.push(...walk(r, /\.(ts|js|mjs|mts)$/))

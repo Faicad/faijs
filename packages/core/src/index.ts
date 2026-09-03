@@ -241,3 +241,6 @@ export { executeScript, type ExecuteOutput } from './test-helpers'
 // ── L3 API 面（原 packages/stdlib 迁入，P6/D1）──
 export * from './api'
 export { createApiNamespace } from './api/api-namespace'
+
+// ── compat：BREP TS 兼容面（P21，暂存子路径；P23 切换主导出）──
+export * as compat from './api/compat'
