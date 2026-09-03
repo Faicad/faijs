@@ -48,6 +48,15 @@ export interface QueryParam {
 }
 
 /**
+ * D11 参数双形态分类。
+ *
+ * - A  : 单名双形态（位置形态首参非 plain object，判别式有效，如 box/fuse/torus）。
+ * - B1 : 单名单形态（brepjs options 对象即唯一对象形态，无需拆名，如 thread）。
+ * - B2 : 双名（brepjs 形态占正名，faijs 对象形态加描述性后缀，如 rotate_euler）。
+ */
+export type FormClass = 'A' | 'B1' | 'B2'
+
+/**
  * 单条投影适配。
  *
  * - `name`   faijs 面导出名（= brepjs 符号名；同名冲突已在 §5.1 处置后，寻表登记双形态或改名）。
@@ -57,6 +66,8 @@ export interface QueryParam {
  * - `args`   brep-op/query：调用约定描述，供生成器产出 JSDoc 与 normalizeArgs 占位；
  *            type/pure：无需 args（直接 re-export）。
  * - `consumes` brep-op/query 的 defineOp consumes 声明；缺省 'all'（构造类显式 'none'）。
+ * - `params` P20: 机器参数名表（从 args 人读串提取），供双形态归一化判别器 resolveArgs 使用。
+ * - `formClass` P20: D11 形态分类（A 单名双形态 / B1 单名单形态 / B2 双名）。
  */
 export interface ArgSpecEntry {
   name: string
@@ -87,6 +98,10 @@ export interface ArgSpecEntry {
   queryParams?: QueryParam[]
   /** For query only: the vendored return type name (re-exportable from the entry's module) so the generated function can annotate its return type (the export-JSDoc gate requires an explicit annotation + @returns). */
   returnType?: string
+  /** P20: 机器参数名表（按位置顺序），供 dual-form-args resolveArgs 映射对象形态→位置数组。 */
+  params?: string[]
+  /** P20: D11 形态分类（A 单名双形态 / B1 单名单形态 / B2 双名）。 */
+  formClass?: FormClass
 }
 
 /**
@@ -109,6 +124,8 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     // 构造类：无几何输入（纯数值参数），brepjs 返回裸 ValidSolid（非 Result）。
     geometryArgs: [],
     returnsResult: false,
+    params: ['majorRadius', 'minorRadius', 'options'],
+    formClass: 'A',
   },
   {
     name: 'fuse',
@@ -118,6 +135,8 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     // 两个输入都是 faijs Shape → 借入 brepjs handle；第三参 options 透传。
     geometryArgs: [0, 1],
     returnsResult: true,
+    params: ['a', 'b', 'options'],
+    formClass: 'A',
   },
   {
     name: 'getBounds',
@@ -129,6 +148,8 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     geometryArgs: [0],
     returnsResult: false,
     returnType: 'Bounds3D',
+    params: ['shape'],
+    formClass: 'A',
   },
 
   // ──── P14 第一片：measurement 模块（21 符号，全 query/type，无 brep-op）────
@@ -207,6 +228,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     geometryArgs: [0],
     returnsResult: true,
     returnType: 'VolumeProps',
+    params: ['shape'], formClass: 'A',
   },
   {
     name: 'measureSurfaceProps',
@@ -217,6 +239,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     geometryArgs: [0],
     returnsResult: true,
     returnType: 'SurfaceProps',
+    params: ['shape'], formClass: 'A',
   },
   {
     name: 'measureLinearProps',
@@ -227,6 +250,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     geometryArgs: [0],
     returnsResult: true,
     returnType: 'LinearProps',
+    params: ['shape'], formClass: 'A',
   },
   {
     name: 'measureVolume',
@@ -237,6 +261,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     geometryArgs: [0],
     returnsResult: true,
     returnType: 'number',
+    params: ['shape'], formClass: 'A',
   },
   {
     name: 'measureArea',
@@ -247,6 +272,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     geometryArgs: [0],
     returnsResult: true,
     returnType: 'number',
+    params: ['shape'], formClass: 'A',
   },
   {
     name: 'measureLength',
@@ -257,6 +283,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     geometryArgs: [0],
     returnsResult: true,
     returnType: 'number',
+    params: ['shape'], formClass: 'A',
   },
   {
     name: 'measureDistance',
@@ -272,6 +299,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     ],
     returnsResult: true,
     returnType: 'number',
+    params: ['a', 'b'], formClass: 'A',
   },
   {
     name: 'measureDistanceProps',
@@ -287,6 +315,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     ],
     returnsResult: true,
     returnType: 'DistanceProps',
+    params: ['a', 'b'], formClass: 'A',
   },
   {
     name: 'measureCurvatureAt',
@@ -303,6 +332,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     ],
     returnsResult: true,
     returnType: 'CurvatureResult',
+    params: ['face', 'u', 'v'], formClass: 'A',
   },
   {
     name: 'measureCurvatureAtMid',
@@ -314,6 +344,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     geometryArgs: [0],
     returnsResult: true,
     returnType: 'CurvatureResult',
+    params: ['face'], formClass: 'A',
   },
   {
     name: 'checkInterference',
@@ -330,6 +361,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     ],
     returnsResult: true,
     returnType: 'InterferenceResult',
+    params: ['a', 'b', 'tolerance'], formClass: 'A',
   },
   {
     name: 'checkAllInterferences',
@@ -346,6 +378,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     ],
     returnsResult: false,
     returnType: 'InterferencePair[]',
+    params: ['shapes', 'tolerance'], formClass: 'A',
   },
 
   // ──── P14 第二片：text 模块（8 符号：3 pure + 3 skip + 2 type）────
@@ -1471,81 +1504,97 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     name: 'extrude', source: 'operations/api.js#extrude', kind: 'brep-op', module: 'operations',
     geometryArgs: [0], reason: 'shapeable 面/边 → Result(Shape)，brep-op',
     args: 'extrude(face: Shape, height?: number|Vec3) → Shape',
+    params: ['face', 'height'], formClass: 'A',
   },
   {
     name: 'revolve', source: 'operations/api.js#revolve', kind: 'brep-op', module: 'operations',
     geometryArgs: [0], reason: 'shapeable 面 → Result(Shape3D)，brep-op',
     args: 'revolve(face: Shape, options?: RevolveOptions): Shape',
+    params: ['face', 'options'], formClass: 'A',
   },
   {
     name: 'sweep', source: 'operations/extrudeFns.js#sweep', kind: 'brep-op', module: 'operations',
     geometryArgs: [0, 1], reason: 'wire + spine → Result(Shape3D|tuple)，默认单产物，brep-op',
     args: 'sweep(wire: Shape, spine: Shape, config?: SweepOptions, shellMode?: boolean): Shape',
+    params: ['wire', 'spine', 'config', 'shellMode'], formClass: 'A',
   },
   {
     name: 'complexExtrude', source: 'operations/extrudeFns.js#complexExtrude', kind: 'brep-op', module: 'operations',
     geometryArgs: [0], reason: 'wire → Result(Shape3D)，brep-op',
     args: 'complexExtrude(wire: Shape, center: Vec3, normal: Vec3, profile?: ExtrusionProfile): Shape',
+    params: ['wire', 'center', 'normal', 'profile'], formClass: 'A',
   },
   {
     name: 'twistExtrude', source: 'operations/extrudeFns.js#twistExtrude', kind: 'brep-op', module: 'operations',
     geometryArgs: [0], reason: 'wire → Result(Shape3D)，brep-op',
     args: 'twistExtrude(wire: Shape, angleDegrees: number, center: Vec3, normal: Vec3): Shape',
+    params: ['wire', 'angleDegrees', 'center', 'normal'], formClass: 'A',
   },
   {
     name: 'linearPattern', source: 'operations/patternFns.js#linearPattern', kind: 'brep-op', module: 'operations',
     geometryArgs: [0], reason: 'shape → Result(Shape3D)，brep-op',
     args: 'linearPattern(shape: Shape, direction: Vec3, count: number, spacing: number): Shape',
+    params: ['shape', 'direction', 'count', 'spacing'], formClass: 'A',
   },
   {
     name: 'circularPattern', source: 'operations/patternFns.js#circularPattern', kind: 'brep-op', module: 'operations',
     geometryArgs: [0], reason: 'shape → Result(Shape3D)，brep-op',
     args: 'circularPattern(shape: Shape, axis: Vec3, count: number, fullAngle?: number, center?: Vec3): Shape',
+    params: ['shape', 'axis', 'count', 'fullAngle', 'center'], formClass: 'A',
   },
   {
     name: 'gridPattern', source: 'operations/patternFns.js#gridPattern', kind: 'brep-op', module: 'operations',
     geometryArgs: [0], reason: 'shape → Result(Shape3D)，brep-op',
     args: 'gridPattern(shape: Shape, directionX: Vec3, directionY: Vec3, countX: number, countY: number, spacingX: number, spacingY: number): Shape',
+    params: ['shape', 'directionX', 'directionY', 'countX', 'countY', 'spacingX', 'spacingY'], formClass: 'A',
   },
   {
     name: 'roof', source: 'operations/roofFns.js#roof', kind: 'brep-op', module: 'operations',
     geometryArgs: [0], reason: 'wire → Result(ValidSolid)→solid，brep-op',
     args: 'roof(wire: Shape, options?: RoofOptions): Shape',
+    params: ['wire', 'options'], formClass: 'A',
   },
   {
     name: 'drill', source: 'operations/compoundOpsFns.js#drill', kind: 'brep-op', module: 'operations',
     geometryArgs: [0], reason: 'Shapeable<Shape3D> → Result<T>，brep-op',
     args: 'drill(shape: Shape, options: DrillOptions): Shape',
+    params: ['shape', 'options'], formClass: 'A',
   },
   {
     name: 'pocket', source: 'operations/compoundOpsFns.js#pocket', kind: 'brep-op', module: 'operations',
     geometryArgs: [0], reason: 'Shapeable<Shape3D> → Result<T>，brep-op',
     args: 'pocket(shape: Shape, options: PocketOptions): Shape',
+    params: ['shape', 'options'], formClass: 'A',
   },
   {
     name: 'boss', source: 'operations/compoundOpsFns.js#boss', kind: 'brep-op', module: 'operations',
     geometryArgs: [0], reason: 'Shapeable<Shape3D> → Result<T>，brep-op',
     args: 'boss(shape: Shape, options: BossOptions): Shape',
+    params: ['shape', 'options'], formClass: 'A',
   },
   {
     name: 'mirrorJoin', source: 'operations/compoundOpsFns.js#mirrorJoin', kind: 'brep-op', module: 'operations',
     geometryArgs: [0], reason: 'Shapeable<Shape3D> → Result<T>，brep-op',
     args: 'mirrorJoin(shape: Shape, options?: MirrorJoinOptions): Shape',
+    params: ['shape', 'options'], formClass: 'A',
   },
   {
     name: 'rectangularPattern', source: 'operations/compoundOpsFns.js#rectangularPattern', kind: 'brep-op', module: 'operations',
     geometryArgs: [0], reason: 'Shapeable<Shape3D> → Result<T>，brep-op',
     args: 'rectangularPattern(shape: Shape, options: RectangularPatternOptions): Shape',
+    params: ['shape', 'options'], formClass: 'A',
   },
   {
     name: 'thread', source: 'operations/threadFns.js#thread', kind: 'brep-op', module: 'operations',
     geometryArgs: [], reason: '仅参数构造 → Result(Shape3D)，单产物，brep-op（consumes: none）',
     args: 'thread(options: ThreadOptions): Shape',
+    params: ['options'], formClass: 'B1',
   },
   {
     name: 'convexHull', source: 'operations/convexHullFns.js#convexHull', kind: 'brep-op', module: 'operations',
     geometryArgs: [], reason: '点集构造 → Result(Solid)，单产物，brep-op',
     args: 'convexHull(points: Vec3[]): Shape',
+    params: ['points'], formClass: 'A',
   },
   {
     // ---- skip：状态 DSL/多产物/数组入参/host IO/kernel 入参 ----
@@ -2046,6 +2095,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     geometryArgs: [0],
     returnsResult: false,
     returnType: 'ShapeKind',
+    params: ['shape'], formClass: 'A',
   },
 
   // 53 × skip（裸 kernel 句柄族；faijs 面 Shape 所有权经 l3-bridge 借入/收养，不暴露裸句柄）
@@ -2243,6 +2293,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     consumes: 'none',
     geometryArgs: [],
     returnsResult: false,
+    params: ['xLength', 'yLength', 'zLength'], formClass: 'A',
   },
 
   // 47 × skip（状态化草图/绘图 DSL 族）
@@ -2521,6 +2572,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     consumes: 'none', geometryArgs: [], returnsResult: false,
     args: 'ellipsoid(rx: number, ry: number, rz: number, options?: EllipsoidOptions): Shape',
     reason: '纯数值整件构造（rx/ry/rz → ValidSolid），brep-op',
+    params: ['rx', 'ry', 'rz', 'options'], formClass: 'A',
   },
   {
     name: 'addHoles', source: 'topology/primitiveFns.js#addHoles', kind: 'skip',
@@ -2618,6 +2670,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     geometryArgs: [0], returnsResult: false,
     args: 'rotate(shape: Shape, angle: number, options?: { at?, axis? }): Shape',
     reason: 'faijs rotate 已更名 rotate_euler，brepjs 轴角 rotate 空出 → brep-op（§5.1 D-ROTATE）',
+    params: ['shape', 'angle', 'options'], formClass: 'A',
   },
   {
     name: 'scale', source: 'topology/api.js#scale', kind: 'skip',
@@ -2628,30 +2681,35 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     geometryArgs: [0], returnsResult: false,
     args: 'mirror(shape: Shape, options?: MirrorOptions): Shape',
     reason: 'faijs 无同名 mirror，整件反射 → brep-op',
+    params: ['shape', 'options'], formClass: 'A',
   },
   {
     name: 'clone', source: 'topology/api.js#clone', kind: 'brep-op',
     geometryArgs: [0], returnsResult: true,
     args: 'clone(shape: Shape): Shape',
     reason: 'faijs 用 copy（不同名），整件克隆（Result<T>）→ brep-op',
+    params: ['shape'], formClass: 'A',
   },
   {
     name: 'applyMatrix', source: 'topology/api.js#applyMatrix', kind: 'brep-op',
     geometryArgs: [0], returnsResult: true,
     args: 'applyMatrix(shape: Shape, matrix: unknown): Shape',
     reason: 'faijs 用 applyTransform（不同名），整件矩阵变换 → brep-op',
+    params: ['shape', 'matrix'], formClass: 'A',
   },
   {
     name: 'transformCopy', source: 'topology/api.js#transformCopy', kind: 'brep-op',
     geometryArgs: [0], returnsResult: false,
     args: 'transformCopy(shape: Shape, composed: ComposedTransform): Shape',
     reason: 'faijs 无同名，克隆+复合变换 → brep-op',
+    params: ['shape', 'composed'], formClass: 'A',
   },
   {
     name: 'locate', source: 'topology/api.js#locate', kind: 'brep-op',
     geometryArgs: [0], returnsResult: false,
     args: 'locate(shape: Shape, placement: unknown): Shape',
     reason: 'faijs 无同名，整件定位变换 → brep-op',
+    params: ['shape', 'placement'], formClass: 'A',
   },
   {
     name: 'composeTransforms', source: 'topology/api.js#composeTransforms', kind: 'pure',
@@ -2662,6 +2720,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     geometryArgs: [0, 1], returnsResult: true,
     args: 'cut(base: Shape, tool: Shape, options?: BooleanOptions): Shape',
     reason: 'faijs 用 subtract（不同名），布尔减 → brep-op',
+    params: ['base', 'tool', 'options'], formClass: 'A',
   },
   {
     name: 'fuseAll', source: 'topology/api.js#fuseAll', kind: 'skip',
@@ -2680,6 +2739,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     geometryArgs: [0], returnsResult: true,
     args: 'section(shape: Shape, plane: PlaneInput): Shape',
     reason: 'faijs 无同名截面查询（平面入参非几何）→ brep-op',
+    params: ['shape', 'plane'], formClass: 'A',
   },
   {
     name: 'sectionToFace', source: 'topology/api.js#sectionToFace', kind: 'skip',
@@ -2690,6 +2750,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     geometryArgs: [0], returnsResult: true,
     args: 'split(shape: Shape, tools: Shape[]): Shape',
     reason: 'faijs split 已更名 fai_split，brepjs 工具切件 split 空出 → brep-op（§5.1 D-SPLIT；tools 暂登记几何首参，数组切件经 faijs 侧适配）',
+    params: ['shape', 'tools'], formClass: 'A',
   },
   {
     name: 'slice', source: 'topology/api.js#slice', kind: 'skip',
@@ -2700,6 +2761,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     geometryArgs: [0], returnsResult: true,
     args: 'fillet(shape: Shape, edges?, radius | [r1,r2]): Shape',
     reason: 'D-FILLET：faijs 形态已删，直接用 brepjs fillet → brep-op（edge 选择经 faijs 适配层）',
+    params: ['shape', 'edges', 'radius'], formClass: 'A',
   },
   {
     name: 'chamfer', source: 'topology/api.js#chamfer', kind: 'skip',
@@ -2710,12 +2772,14 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     geometryArgs: [0], returnsResult: true,
     args: 'shell(shape: Shape, faces?: Shape[], thickness: number): Shape',
     reason: 'faijs 无同名抽壳 → brep-op（faces 可选，整件抽壳可表达）',
+    params: ['shape', 'faces', 'thickness'], formClass: 'A',
   },
   {
     name: 'offset', source: 'topology/api.js#offset', kind: 'brep-op',
     geometryArgs: [0], returnsResult: true,
     args: 'offset(shape: Shape, distance: number): Shape',
     reason: 'faijs 无同名偏置 → brep-op',
+    params: ['shape', 'distance'], formClass: 'A',
   },
   {
     name: 'thicken', source: 'topology/api.js#thicken', kind: 'skip',
@@ -2730,12 +2794,14 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     geometryArgs: [0], returnsResult: true,
     args: 'heal(shape: Shape): Shape',
     reason: 'faijs 无同名整件修复 → brep-op',
+    params: ['shape'], formClass: 'A',
   },
   {
     name: 'simplify', source: 'topology/api.js#simplify', kind: 'brep-op',
     geometryArgs: [0], returnsResult: true,
     args: 'simplify(shape: Shape): Shape',
     reason: 'faijs 无同名整件简化 → brep-op',
+    params: ['shape'], formClass: 'A',
   },
   {
     name: 'mesh', source: 'topology/api.js#mesh', kind: 'skip',
@@ -2762,12 +2828,14 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     geometryArgs: [0], returnsResult: false, returnType: 'boolean',
     args: 'isValid(shape: Shape): boolean',
     reason: '整件合法性检查（Shape → boolean 纯数据），query',
+    params: ['shape'], formClass: 'A',
   },
   {
     name: 'isEmpty', source: 'topology/api.js#isEmpty', kind: 'query',
     geometryArgs: [0], returnsResult: false, returnType: 'boolean',
     args: 'isEmpty(shape: Shape): boolean',
     reason: '整件空判（Shape → boolean 纯数据），query',
+    params: ['shape'], formClass: 'A',
   },
 
   // shapeFns：整件 Shape 进出的查询/修饰；返回子形状句柄数组（get*/iter*）skip。
@@ -2848,12 +2916,14 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     geometryArgs: [0, 1], returnsResult: false, returnType: 'boolean',
     args: 'isEqualShape(a: Shape, b: Shape): boolean',
     reason: '两整件几何相等比较（纯数据），query',
+    params: ['a', 'b'], formClass: 'A',
   },
   {
     name: 'isSameShape', source: 'topology/shapeFns.js#isSameShape', kind: 'query',
     geometryArgs: [0, 1], returnsResult: false, returnType: 'boolean',
     args: 'isSameShape(a: Shape, b: Shape): boolean',
     reason: '两整件同构比较（纯数据），query',
+    params: ['a', 'b'], formClass: 'A',
   },
   {
     name: 'getHashCode', source: 'topology/shapeFns.js#getHashCode', kind: 'skip',
@@ -3028,24 +3098,28 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     geometryArgs: [0], returnsResult: true,
     args: 'autoHeal(shape: Shape, options?: AutoHealOptions): Shape',
     reason: '整件自动修复（Result<Shape>），brep-op',
+    params: ['shape', 'options'], formClass: 'A',
   },
   {
     name: 'fixShape', source: 'topology/healingFns.js#fixShape', kind: 'brep-op',
     geometryArgs: [0], returnsResult: true,
     args: 'fixShape(shape: Shape): Shape',
     reason: '整件修复（Result<Shape>），brep-op',
+    params: ['shape'], formClass: 'A',
   },
   {
     name: 'healSolid', source: 'topology/healingFns.js#healSolid', kind: 'brep-op',
     geometryArgs: [0], returnsResult: true,
     args: 'healSolid(solid: Shape): Shape',
     reason: 'Solid 修复（Result<ValidSolid>），brep-op',
+    params: ['solid'], formClass: 'A',
   },
   {
     name: 'fixSelfIntersection', source: 'topology/healingFns.js#fixSelfIntersection', kind: 'brep-op',
     geometryArgs: [0], returnsResult: true,
     args: 'fixSelfIntersection(shape: Shape): Shape',
     reason: '整件自交修复（Result<Shape>），brep-op',
+    params: ['shape'], formClass: 'A',
   },
   {
     name: 'healFace', source: 'topology/healingFns.js#healFace', kind: 'skip',

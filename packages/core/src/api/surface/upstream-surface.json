@@ -3,7 +3,7 @@
     "upstream": "brepjs/src/index.ts",
     "upstreamRef": "C:/git/OpenCascade/brepjs/src/index.ts",
     "doc": "docs/plans/2026-09-02-faijs-api-surface-completion.md §2.6.6 (E1)",
-    "generated": "2026-09-02",
+    "generated": "2026-09-03",
     "note": "excludedModules: voxel/implicit/lattice/worker; excludedSymbol: csg (U9)"
   },
   "symbols": [

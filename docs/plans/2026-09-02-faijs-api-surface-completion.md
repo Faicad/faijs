@@ -1,7 +1,12 @@
 # faijs API 面补齐方案
 
 - 日期：2026-09-02
-- 状态：**实施中**（P10–P13 已落地；P14 分片推进中）
+- 状态：**方向已暂停**（P10–P14 已落地至 commit 64610e1；方向层被取代）
+- **方向层被 `docs/plans/2026-09-03-faijs-brepjs-compat-api.md`（v3）取代**：本方案的「throw 主面 +
+  一切经 defineOp 投影到 `cad.*`」方向被用户否决（应全面采用 brepjs Result 体系、TS 兼容面独立于
+  defineOp 模具、底层封装 defineOp）。**已落地的工程资产全部保留**并在 v3 §3.1 逐项登记复用
+  （vendored 树、生成器与 arg-spec 适配表、符号清单、生成面 441 符号、fai_* 更名、守卫脚本、
+  TPMS 模板）；未接线部分（生成面未接入导出面/cad 面）由 v3 P21–P24 按新方向接线。
 - 前序：`docs/plans/2026-09-01-layered-api-architecture.md`（P0–P9 已落地；**方向被否决**，本方案重定方向并承接其全部可复用资产）
 - 参照实现：`C:\git\OpenCascade\brepjs`（Apache-2.0，`src` 83528 行 / 381 文件）
 
