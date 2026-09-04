@@ -11,7 +11,7 @@
  * export * 会歧义；mock-mech-mesh 由测试直接 import 文件路径（mock-lib.test.ts），
  * 不走包入口。gear 符号无同名冲突，完整 re-export。
  */
-export * from './gear'
-export * as mockBrep from './mock-mech-brep'
-export { contractVersion, makeHeadstock, makeBall } from './mock-mech-brep'
+export * from './gear.js'
+export * as mockBrep from './mock-mech-brep.js'
+export { contractVersion, makeHeadstock, makeBall } from './mock-mech-brep.js'
 export type { SolidShape } from '@faicad/faijs-core/sdk'

@@ -1,8 +1,14 @@
 # AGENTS.md
 
+## ⚠️ 用户全局铁律（最高优先级，优先于本文件一切其它规则）
+
+1. **用户需求永远是第一位的，必须立刻响应。** 用户问进度时，必须**立刻停下手里的所有工作**、如实报告当前状态；永远不准以「让我再跑一个更准确的报告 / 再验证一轮 / 再查一下」为由继续跑任务而不先回应用户。
+2. **分析 bug 不准钻牛角尖。** 遇到难解 bug，必须先给出**全局清单**（总共哪些点可能挂死/出错、各自条件），先报全局再谈单点；不准几个小时死盯一个点、被问「有哪些死锁」却回答不出来。单点长时间无解就上浮问题、如实告知，而不是无限深挖。
+3. **如实汇报一切。** 未解决的 bug 永远不写成「已解决 / implemented」；用户叫停 / 禁跑后立即停手，不在未授权下继续跑任务。
+
 Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadRuntime。
 
-**monorepo（npm workspaces，2026-08-30 P1–P6.6）**：`@faicad/faijs`（根门面，10 个 exports 子路径）、`packages/core`（`@faicad/faijs-core` 引擎；L3 API 面在 `core/src/api/`，P6 起并入 core，原 `packages/stdlib`/`@faicad/faijs-stdlib` 已取消）、`packages/mech-lib`（`@faicad/mech-lib` 第三方库样例）、`packages/fixtures`（数据包）、`packages/tests`（集成测试）、`packages/demo`（private）。构建产物各包 `dist/`；**测试/CLI 直接消费 `src/`**（vitest alias + tsconfig paths，M7 免打包）。
+**monorepo（npm workspaces，2026-08-30 P1–P6.6）**：`@faicad/faijs`（根门面，10 个 exports 子路径）、`packages/core`（`@faicad/faijs-core` 引擎；L3 API 面在 `core/src/api/`，P6 起并入 core，原 `packages/stdlib`/`@faicad/faijs-stdlib` 已取消）、`packages/gear-lib-demo`（`@faicad/gear-lib-demo` 第三方库样例）、`packages/fixtures`（数据包）、`packages/tests`（集成测试）、`packages/demo`（private）。构建产物各包 `dist/`；**测试/CLI 直接消费 `src/`**（vitest alias + tsconfig paths，M7 免打包）。
 
 ## 开发完成后的测试步骤
 
@@ -21,7 +27,7 @@ Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadR
 | `npm run build` | 按序构建：`core` → 根门面（`tsc` 编译各包 src → dist；根门面 build 前 clean） |
 | `npm run build -w <pkg>` | 单包构建，如 `npm run build -w @faicad/faijs-core` |
 | `npm run pack` | build + `npm pack` → 根目录 `faicad-faijs-0.5.8.tgz`（3d_editor 消费；`prepack` 自动 build） |
-| `npm run test -w <pkg>` | 单包测试（`-w @faicad/faijs-core` / `-w @faicad/mech-lib` / `-w @faicad/faijs-tests`；cwd=包目录，fixture 路径已 import.meta.url 化） |
+| `npm run test -w <pkg>` | 单包测试（`-w @faicad/faijs-core` / `-w @faicad/gear-lib-demo` / `-w @faicad/faijs-tests`；cwd=包目录，fixture 路径已 import.meta.url 化） |
 | `npm run test --workspaces` | 全量测试（stderr 零容忍由 CI 检查） |
 | `npm run typecheck` | 根 `tsc --noEmit`（tsconfig paths 跟随检查 core 源码）+ `--workspaces` 逐包 |
 | `npm run lint` | `eslint src packages/*/src`（`scripts/`、`docs/`、`demo/`、`packages/demo/` 被 ignore） |
@@ -52,7 +58,7 @@ Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadR
 - **`packages/core/src/mesh/api.d.ts` 是生成文件**：由 `packages/core/scripts/gen-api-dts.ts` 生成（内嵌函数目录），禁止手改；改 schema 后必须重跑 `npx tsx packages/core/scripts/gen-api-dts.ts`。
 - **测试 stderr 零容忍**（CI 强制）：任何测试输出 `stderr |` 行即判失败。测试若故意触发错误，必须在测试内 spy `console.warn/error` 并断言；禁止全局静默 stderr。
 - **typecheck/lint 不覆盖测试**：各包 `tsc --noEmit` 的 include 含 `src/**/*.ts`（含同目录测试），但 `packages/tests` 的集成测试由 `npm run typecheck -w @faicad/faijs-tests` 单独覆盖——改动后手动跑 vitest 验证。
-- 测试分布：`packages/core/src/**/*.test.ts`（与源码同目录，含原 `packages/stdlib` 迁入的 `api/*.test.ts`）、`packages/mech-lib/src/**`、`packages/tests/faijs/`（按功能分目录，含 `.fai.js` fixture）、`packages/fixtures/data/`（step/stl/3mf/svg 数据）。parity 测试（BREP vs mesh 一致性）在 `beforeAll` 里 `initOcctWasm()`。fixture 路径已 `import.meta.url` 化（与 cwd 无关）。
+- 测试分布：`packages/core/src/**/*.test.ts`（与源码同目录，含原 `packages/stdlib` 迁入的 `api/*.test.ts`）、`packages/gear-lib-demo/src/**`、`packages/tests/faijs/`（按功能分目录，含 `.fai.js` fixture）、`packages/fixtures/data/`（step/stl/3mf/svg 数据）。parity 测试（BREP vs mesh 一致性）在 `beforeAll` 里 `initOcctWasm()`。fixture 路径已 `import.meta.url` 化（与 cwd 无关）。
 - `packages/demo/` 是独立 vite 应用（dev 端口 8899；build 时 three/manifold-3d/occt-wasm 外链 jsdelivr CDN importmap，版本号与 package.json 手写同步）。demo 在 workspace 内通过 `resolve.alias` 直接消费根门面/引擎源码（M7 免打包，`vite.config.ts` 的 alias + `optimizeDeps.exclude` + `server.watch` 反选）；改 faijs 源码 → demo dev server HMR 即生效，**无需 npm pack**。wasm 经 `wasmAssets()` 插件（dev 中间件 `/wasm/*` + build 拷贝）。
 - 仓库文档双语配对（英文 `foo.md` + 中文 `foo.zh.md` + `foo.i18n.yaml`），见 [docs/i18n/README.md](docs/i18n/README.md)。例外：`docs/plans/`、`docs/analysis/`、`AGENTS.md` 不配对。commit message 用 conventional commits（英文）；代码注释用英文。
 
@@ -67,17 +73,11 @@ Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadR
 
 
 
-### 要点
-
-- **只看最后几轮对话写 commit message 是严重错误。** 必须回头看整个 diff 和实际完成的全部工作，找到真正重要的内容
-- header 是核心，正文是辅助。
-
-
 ## ⚠️ Git 操作警戒：永远不准无差别还原目录
 
 **禁止 `git restore <目录>`、`git checkout -- <目录>`、`git reset --hard` 等批量还原操作。**
 
-这些命令会**无差别销毁目录下所有未提交的修改**，包括用户尚未 staging 的代码、调试改动、配置文件调整等。
+这些命令会**无差别销毁目录下所有未提交的修改**。可单个文件处理。
 
 
 ## BREP 术语约定
@@ -109,3 +109,10 @@ Brep链可以切换，没有回退。在链上增加一个brep不支持的操作
 - 双语配对：范围内文档必须配齐 `.md`（英文）、`.zh.md`（中文）、`.i18n.yaml`（一致性记录）。例外：`docs/plans/`、`docs/analysis/`、`AGENTS.md` 不配对。
 - 非 `docs/plans/` 文档严禁引用 `docs/plans/` 文档——plans 是临时性、按月归档的方案文档，不得成为其他文档的引用对象；非 plans 文档必须自包含（权威规定见 `docs/AGENTS.md`）。
 - `docs/plans/` 中的方案文档状态流转：方案（未实施）→实施中→已落地/已废弃。废弃的方案文档标注替代方案链接。每月 1 号归档上月文档到 `yyyy-mm/` 文件夹。
+
+
+## 严厉禁止的行为
+1. 通过rm -rf删除目录。删除目录必须是把文件夹移动到回收站。
+2. 严禁通过junction之类的方式建立目录链接。包括npm link之类的行为。
+
+本项目未上线，且不准发布到npm，待专利申请通过后，才考虑发布。
