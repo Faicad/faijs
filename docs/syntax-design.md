@@ -79,20 +79,20 @@ English | [中文](syntax-design.zh.md)
 ```
 script   = import* function* (comment | param | stmt)*
 param    = const <name> = <literal | foldable expression>
-stmt     = (const|let) <id> = [await] <ns>.<fn>(<input>*, { <k>:<v>, … }?)
-         | const { <k1>: <id1>, … } = [await] <ns>.<fn>(<input>*, {…}?)
-         | <id> = [await] <ns>.<fn>(<input>*, {…}?)
+stmt     = (const|let) <id> = [await] <ns>.<fn>(<expr>*, { <k>:<v>, … }?)
+         | const { <k1>: <id1>, … } = [await] <ns>.<fn>(<expr>*, {…}?)
+         | <id> = [await] <ns>.<fn>(<expr>*, {…}?)
          | <id>.<method>({ <k>:<v>, … }?)
-         | (const|let) <id> = [await] <localFn>(<input>*, { <k>:<v>, … }?)
-         | <id> = [await] <localFn>(<input>*, {…}?)          // re-assignment
-         | const { <k1>: <id1>, … } = [await] <localFn>(<input>*, {…}?)
-         | [await] <localFn>(<input>*, {…}?)                  // side-effect call
+         | (const|let) <id> = [await] <localFn>(<expr>*, { <k>:<v>, … }?)
+         | <id> = [await] <localFn>(<expr>*, {…}?)          // re-assignment
+         | const { <k1>: <id1>, … } = [await] <localFn>(<expr>*, {…}?)
+         | [await] <localFn>(<expr>*, {…}?)                  // side-effect call
          | return { shape: <id>, name?, color?, … }
          | return [ { shape: <id>, … }, … ]
 function = function <name>(<param>, …) { <body> }             // body may contain control flow
 ```
 
-- `<ns>` is `cad` or an imported namespace such as `mech`; positional inputs must be declared variables (zero, one or many), and the trailing options object may be omitted or may carry `keep` / `keepHidden` (§5.1).
+- `<ns>` is `cad` or an imported namespace such as `mech`. Positional arguments are full expressions (§2.4): literals (`cad.box(10, 20, 30)`), declared variables, member access (`cad.hem(p0.solid, …)`), nested namespace calls, and runtime expressions are all accepted. A trailing plain object is the options slot and may carry `keep` / `keepHidden` (§5.1); when several object arguments are passed positionally, every one is kept — no overwrite, no merge.
 - A bare reassignment is an ordinary JS assignment to a declared variable; it is how "modify this model" reads in code.
 - **Local function calls** use a bare-identifier callee from the script's own function set; positional inputs bind to the first `M` parameters, the trailing object's keys to the rest by name (ABI in §6.2). A body may not call another local function (v1).
 - **Function bodies** may contain arbitrary control flow, local `let` / `const` / `var`, conditional expressions, nested functions, and any `return` value; safety red lines (`eval` / `new` / dynamic `import()` / `import` / `export` / `class` / `with`) still apply inside bodies.
@@ -103,14 +103,19 @@ function = function <name>(<param>, …) { <body> }             // body may cont
 | Literal (number / string / boolean / null) | `JsonValue` |
 | Parameter name, or shorthand `{ size }` | `ParamRefIR { $param }` — resolved at execution time, never folded |
 | Declared variable name | `VarRefIR { $ref }` |
+| Member access chain (`p0.solid`) | **`ExprIR { $expr }`** — evaluated at runtime; the walked identifiers become refs |
 | Array / object (recursive) | `JsonValue[]` / `Record<string, ArgIR>` |
 | Nested `<ns>.<fn>(…)` call | `CallRefIR { $call }` — a read-only query, it consumes nothing |
 | Binary / template / ternary / spread over parameters and literals | Folded to a literal; the statement is marked `hasComputedArgs: true` |
 | **Expression referencing a statement variable** (`n > 10 ? 20 : 10`) | **`ExprIR { $expr }`** — kept verbatim, evaluated at runtime via an arrow wrapper; marked `hasComputedArgs: true` |
 
-An `ExprIR` is a whitelisted grammar — `Literal` / `Identifier` / `Unary` / `Binary` / `Logical` / `Conditional` / `Array` (recursive), **no calls, no member access** (nested calls keep using `CallRefIR`); its value may be a Shape, not just JSON. Folding still wins for pure parameter/literal expressions — the runtime form only kicks in when folding fails. A folded statement keeps only the literal, so the host degrades it to read-only; `hasComputedArgs` gives the host the same cue.
+An `ExprIR` is a whitelisted grammar — `Literal` / `Identifier` / `Unary` / `Binary` / `Logical` / `Conditional` / `Array` / `MemberExpression` (object chain only) / `CallExpression` over parameters, variables and literals, evaluated at runtime via an arrow wrapper; its value may be a Shape, not just JSON (this is how `cad.hem(p0.solid, …)` reaches the sheet-metal API). Folding still wins for pure parameter/literal expressions — the runtime form only kicks in when folding fails. A folded statement keeps only the literal, so the host degrades it to read-only; `hasComputedArgs` gives the host the same cue. Explicit red lines remain: `new` expressions, arrow functions, `await` and namespace-rooted calls inside expressions are rejected at parse time (`E_VALUE`), not silently accepted.
 
-### 2.5 Identifiers
+### 2.5 Positional arguments
+
+Positional arguments are first-class: every argument position accepts the full expression table above, in any mix — `cad.box(10, 20, 30)` (literals), `cad.union(part0, part1)` (variable references), `cad.hem(p0.solid, { kFactor: 0.44 })` (member access + options), `cad.box(w * 2, h, d)` (foldable expressions). The last positional argument, when a plain object, is the options slot (`args` projection on the IR); object arguments in non-final positions are preserved as-is.
+
+### 2.6 Identifiers
 
 Identifiers this project emits (codegen variable and parameter names, the fixed vocabulary `cad`, function names, argument names) must not be reserved in JavaScript (strict mode and module reserved words included), Python 3, C11 or Java. AI and hand-written code may use any legal JS identifier.
 
@@ -126,12 +131,14 @@ The field-level contract of `StatementIR` and `ScriptIR` belongs to [`docs/api-c
 |---|---|
 | `const size = 20` | A parameter statement: `params += { name:'size', default:20 }`; a reference is `ParamRefIR { $param:'size' }`, compiling to `ctx.size = 20` |
 | `let part0 = cad.box({ size })` | `{ id:'s2', callee:'box', args:{ size:{ $param:'size' } }, outputs:['part0'] }` |
-| `let part1 = cad.drill(part0, { diameter:5 })` | `{ callee:'drill', inputs:['part0'], outputs:['part1'] }` |
+| `let part1 = cad.drill(part0, { diameter:5 })` | `{ callee:'drill', positional:[{$ref:'part0'},{diameter:5}], args:{diameter:5}, outputs:['part1'] }` — the trailing object is both the last positional element and the `args` projection |
 | `cad.faceCenter(part0)` nested in args | `args.at = CallRefIR { $call:{ callee:'faceCenter', … } }` — the library owns the semantics |
-| `const { front: part1, back: part2 } = cad.split(part0)` | `{ callee:'split', inputs:['part0'], outputs:['part1','part2'], outputKeys:['front','back'] }` |
-| `let part2 = cad.union(part0, part1)` | `{ callee:'union', inputs:['part0','part1'], outputs:['part2'] }` |
-| `let g = cad.group({ members: [part0, part1] })` | `{ callee:'group', inputs:[], args:{ members:[{$ref:'part0'},{$ref:'part1'}] }, outputs:['g'] }` |
-| `asm1.add_constraint({ type:'face_mate' })` | `{ callee:'add_constraint', receiver:'asm1', inputs:[], outputs:[] }` |
+| `const { front: part1, back: part2 } = cad.split(part0)` | `{ callee:'split', positional:[{$ref:'part0'}], outputs:['part1','part2'], outputKeys:['front','back'] }` |
+| `let part2 = cad.union(part0, part1)` | `{ callee:'union', positional:[{$ref:'part0'},{$ref:'part1'}], outputs:['part2'] }` |
+| `let p1 = cad.box(10, 20, 30)` | `{ callee:'box', positional:[10,20,30], outputs:['p1'] }` — literals stay in `positional` |
+| `let h = cad.hem(p0.solid, { kFactor:0.44 })` | `{ callee:'hem', positional:[{$expr:…}, {kFactor:0.44}], outputs:['h'] }` — member access becomes `ExprIR` |
+| `let g = cad.group({ members: [part0, part1] })` | `{ callee:'group', positional:[{members:[{$ref:'part0'},{$ref:'part1'}]}], args:{ members:[{$ref:'part0'},{$ref:'part1'}] }, outputs:['g'] }` |
+| `asm1.add_constraint({ type:'face_mate' })` | `{ callee:'add_constraint', receiver:'asm1', positional:[{type:'face_mate'}], args:{type:'face_mate'}, outputs:[] }` |
 | `let part3 = mech.makeHeadstock({ length:120 })` | `{ namespace:'mech', callee:'makeHeadstock', outputs:['part3'] }` |
 | `return [{ shape: part0 }, { shape: part2 }]` | `terminalShapes = [{ id:'part0' }, { id:'part2' }]` |
 
@@ -155,7 +162,7 @@ The input carries syntax facts only — `inputCount`, `outputCount`, and the cod
 
 ### 4.2 The parser does not name
 
-The parser performs syntax analysis only: it copies lexical names into `inputs` / `outputs` / `receiver` / `$ref` and checks that referenced variables are declared. It never allocates or renames a name, so a UI-generated `partN` and an AI-written `asm1` survive verbatim.
+The parser performs syntax analysis only: it copies lexical names into `positional` (`VarRefIR`) / `outputs` / `receiver` / `$ref` and checks that referenced variables are declared. It never allocates or renames a name, so a UI-generated `partN` and an AI-written `asm1` survive verbatim.
 
 ---
 
@@ -216,13 +223,13 @@ Compilation consumes only the IR, so user text never reaches the VM. The output 
 A library function signature is exactly what the source says — no implicit injection, no trailing context parameter. Compilation emits four forms:
 
 ```
-assignment:      ctx.<out> = await ns.<ns>.<callee>(ctx.<input>, …, { …args })
+assignment:      ctx.<out> = await ns.<ns>.<callee>(<pos1>, …, <posM>, { …options })
 destructuring:   const { <keys> } = await ns.<ns>.<callee>(…); ctx.<out_i> = <key_i>
 member call:     await ctx.<receiver>.<callee>({ …args })
 no assignment:   await ns.<ns>.<callee>(…)
 ```
 
-`$param` and `$ref` both compile to `ctx.<name>`, a nested `$call` to `await ns.<ns>.<callee>(…)`. A parameter declaration is a statement too (`ctx.size = 20`), which is why a parameter change cascades like any other dependency.
+Every positional element is emitted in its IR form: `$param` and `$ref` compile to `ctx.<name>`, a nested `$call` to `await ns.<ns>.<callee>(…)`, an `ExprIR` to an arrow wrapper `((<names>) => <text>)(<args>)` guarded by a module-local `__FaiExprEvalError` marker class (an evaluation failure becomes `E_EXPR` on the owning statement, never a raw throw into unrelated code). The trailing options object is emitted with `keep` / `keepHidden` stripped; a keep-only object disappears entirely. A parameter declaration is a statement too (`ctx.size = 20`), which is why a parameter change cascades like any other dependency.
 
 **Local function ABI** (§2.3): `function <name>(<p1>, …, <pk>)` compiles to `async function <name>(__ctx, __ns, <p1>, …, <pk>)` — user parameters preserved verbatim after two injected engine parameters. A call binds positional-plus-named:
 ```
@@ -243,7 +250,7 @@ The wrapped body injects `const <binding> = __ns.<binding>` for `cad` and each t
 | `append(code, newIds)` | Execute only the new statements — the prefix is already in the persistent ctx |
 | `update(code)` | `plan()` computes the stale set → `reconcileCtx` → recompute from that set in topological order; zero execution when nothing is stale |
 
-All three take code text. `plan()` is content-addressed, not an id diff. `statementKey` is the namespace-qualified callee, the JSON of `args` without `keep` / `keepHidden`, and each dependency's `outputContentKey`; a parameter statement uses `param|JSON(value)`; a local-function call uses `local.<callee>#<bodyHash>` — editing a body changes every caller's key, so downstream recomputes; untouched bodies cost zero. Retention and visibility cost nothing: toggling `keep` recomputes no geometry. A statement is stale when a dependency is stale or its key changed.
+All three take code text. `plan()` is content-addressed, not an id diff. `statementKey` is the namespace-qualified callee, the JSON of the whole `positional` slot with `keep` / `keepHidden` stripped, and each dependency's `outputContentKey`; a parameter statement uses `param|JSON(value)`; a local-function call uses `local.<callee>#<bodyHash>` — editing a body changes every caller's key, so downstream recomputes; untouched bodies cost zero. Retention and visibility cost nothing: toggling `keep` recomputes no geometry. A statement is stale when a dependency is stale or its key changed.
 
 ### 6.4 `check()`
 
@@ -273,7 +280,7 @@ The engine's increment is content-addressed (§6.3); classifying a statement as 
 | Present only in the new script | ADD → `append` |
 | Present only in the old script | DELETE → invalidate its cache and its downstream |
 
-Alignment ignores line position, so renaming `part0` to `p0` reads as "delete part0, add p0" and breaks every downstream `inputs: ['part0']`. A deleted statement whose output is still referenced is an orphan: reject the submission.
+Alignment ignores line position, so renaming `part0` to `p0` reads as "delete part0, add p0" and breaks every downstream `positional: [{$ref:'part0'}]`. A deleted statement whose output is still referenced is an orphan: reject the submission.
 
 ### 7.3 Scenarios
 

@@ -1,4 +1,4 @@
-import { type Result, type Solid, ok, err, validationError } from './compat.js';
+import { type Result, type Solid, ok, err, validationError } from '@faicad/faijs/compat';
 import type {
   BendFeature,
   BendRule,
@@ -48,6 +48,10 @@ interface HemPlan {
  * {@link developedLength}) + the return length, laid out straight past the edge.
  * Four `type`s set the curl/gap geometry (see {@link HemSpec}). Construction stays
  * on the public, OCCT-WASM-safe API; the result is guarded to a valid single solid.
+ *
+ * @param part - the sheet metal part to attach a hem to.
+ * @param spec - the hem specification.
+ * @returns the updated part with the hem feature recorded, or an error.
  */
 export function hem(part: SheetMetalPart, spec: HemSpec): Result<SheetMetalPart> {
   if (part.solid === undefined) {

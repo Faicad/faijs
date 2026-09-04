@@ -144,29 +144,41 @@ export function reconstructSolidFromMesh(
   const faces = kernel.getSubShapes(imported, 'face')
   if (faces.length === 0) {
     kernel.release(imported)
+    try { kernel.release(shape) } catch { /* 已释放 */ }
     throw new Error('The selected object has no closed faces')
   }
 
-  for (const tolerance of [1e-5, 1e-4, 1e-3, 1e-2]) {
-    try {
-      let candidate = kernel.sewAndSolidify(faces, tolerance)
-      candidate = kernel.fixShape(candidate)
-      if (kernel.isSolid(candidate)) candidate = kernel.healSolid(candidate, tolerance)
-      candidate = kernel.fixFaceOrientations(candidate)
-      candidate = kernel.removeDegenerateEdges(candidate)
-      candidate = kernel.unifySameDomain(candidate)
-      if (kernel.isSolid(candidate) && cadShapeIsValid(kernel, candidate)) {
-        kernel.release(imported)
-        return candidate
+  try {
+    for (const tolerance of [1e-5, 1e-4, 1e-3, 1e-2]) {
+      try {
+        let candidate = kernel.sewAndSolidify(faces, tolerance)
+        candidate = kernel.fixShape(candidate)
+        if (kernel.isSolid(candidate)) candidate = kernel.healSolid(candidate, tolerance)
+        candidate = kernel.fixFaceOrientations(candidate)
+        candidate = kernel.removeDegenerateEdges(candidate)
+        candidate = kernel.unifySameDomain(candidate)
+        if (kernel.isSolid(candidate) && cadShapeIsValid(kernel, candidate)) {
+          kernel.release(imported)
+          try { kernel.release(shape) } catch { /* 已释放 */ }
+          return candidate
+        }
+        // 未通过，释放候选
+        try { kernel.release(candidate) } catch { /* ignore */ }
+      } catch {
+        // 尝试下一个更大的容差
       }
-      // 未通过验证，释放候选
-      try { kernel.release(candidate) } catch { /* ignore */ }
-    } catch {
-      // 尝试下一个更大的容差
+    }
+  } finally {
+    // getSubShapes 返回的每个面都是独立 arena 句柄，缝合完成后批量释放——
+    // 否则每次 mesh→brep 重建泄漏 faceCount 个存活句柄（与 compat e2e ⑦
+    // 同类泄漏，getSubShapes 复制产物未回收）。
+    for (const f of faces) {
+      try { kernel.release(f) } catch { /* 已释放 */ }
     }
   }
 
   kernel.release(imported)
+  try { kernel.release(shape) } catch { /* 已释放 */ }
   throw new Error('The selected mesh is open or non-manifold. Repair it before converting to CAD.')
 }
 

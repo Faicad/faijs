@@ -12,6 +12,36 @@
 
 ---
 
+## 1. 三个 API 面
+
+faijs 的 API 分三个面，消费者和形态各不同：
+
+| 面 | 消费者 | 形态 | 位置 |
+|---|---|---|---|
+| ① TS 兼容面 | 第三方库（TS 代码，如 mech-lib / sheetmetal） | brepjs 原样：位置参数 + `Result` 原生；同名同签名；`Sketcher` / `Blueprint` / `draw` DSL；`ok` / `err` / `isErr` / `pipe` 组合子 | `@faicad/faijs` 主导出（`packages/core/src/api/compat/`） |
+| ② cad 脚本面 | `.fai.js`（UI / AI 生成代码） | `cad.*` 对象参数；语句边界 `Result` unwrap（err → 语句失败）；产物 = faijs `Shape`（mesh 载荷 + BREP 槽） | `cad` 命名空间（经门面 `createRuntime` 注入） |
+| ③ 库边界面 | `registerLib` 注册的第三方库导出函数 | 库作者写纯 brepjs 代码；入口 `Shape` → 借入，出口 `Solid` → 收养，`Result` 原样传递 | `runtime.registerLib(binding, ns, { compat: true })` |
+
+**参数双形态（D11）**：① TS 面与 ② 脚本面是同一批函数，位置 / 对象两种形态都可用。明显可区分的参数用单名（如 `box`），人类看来不明显的用两个名字（如 `rotate_euler`）。
+
+> 下方 § 3–§ 7 的逐 op 手册仅覆盖 ② 脚本面（`cad.*` 函数）。① TS 兼容面的符号清单见 `packages/core/src/api/compat/index.ts`；③ 库边界面的使用方法见 `docs/library-dev-guide.md`。
+
+---
+
+## 2. 错误体系
+
+faijs 对外 API 全面采用 `Result` / `BrepError` 体系（`ok` / `err` / `isOk` / `isErr` / `map` / `andThen` / `unwrap`）。在 ② 脚本面，语句边界自动 unwrap：`err` 转为带语句上下文的执行失败（`ExecutionResult.failedAt`），存量 `.fai.js` 脚本零修改。在 ① TS 兼容面，`Result` 原生传递，库作者用 `isErr` / `map` / `andThen` 组合。
+
+| 面 | Result 处置 | 消费者写法 |
+|---|---|---|
+| ① TS 兼容面 | 原样返回 `Result<T>` | `const r = fuse(a, b); if (isErr(r)) …` |
+| ② cad 脚本面 | 语句边界 unwrap | `let p = cad.union(a, b)` — err → 语句失败 |
+| ③ 库边界面 | 库内原样；边界 unwrap | 库内 `err` → 边界 unwrap → 脚本层语句失败 |
+
+> 相关契约：`docs/api-contract.md` § 7.6（三个库契约面）和 § 8（几何契约）定义了 `compatOp` / `defineOp` 的分派规则。
+
+---
+
 ## 3. 创建类操作（无上游输入）
 
 ### 3.1 `box` ✅
@@ -21,6 +51,8 @@
 ```js
 const part0 = cad.box({ size: 20 })
 const part0 = cad.box({ size: [30, 20, 10], center: [0, 0, 5] })
+D11 双形态：位置形态 `box(10, 20, 30)`（三边）/`box(20)`（立方体）与对象形态
+`box({ size: [10, 20, 30] })` 归一到同一实现（§4.2）。
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -209,13 +241,13 @@ const w = cad.wedge({ width: 30, height: 20, angle: 45, length: 10 })
 
 ## 4. 变换类操作（inputs ≥ 1）
 
-### 4.1 `rotate` ✅
+### 4.1 `rotate_euler` ✅
 
 绕轴旋转几何体。anglesDeg 为欧拉角（度，XYZ 顺序）。
 
 ```js
-const p2 = cad.rotate(part0, { anglesDeg: [0, 0, 45] })
-const p3 = cad.rotate(part0, { anglesDeg: [0, 0, 45], pivot: [0,0,0] })
+const p2 = cad.rotate_euler(part0, { anglesDeg: [0, 0, 45] })
+const p3 = cad.rotate_euler(part0, { anglesDeg: [0, 0, 45], pivot: [0,0,0] })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -601,7 +633,7 @@ const n = cad.faceNormal(part0, [0, 0, 5])
 
 ```
 创建: load / box / sphere / cylinder / cone / wedge / screw / sdf / svgExtrude / text
-变换: translate / rotate / scale
+变换: translate / rotate_euler / scale
 特征: union / subtract / intersect / chamfer / copy / engrave / drill / fai_extrude / fai_split / knurl
 结构: group / assembly
 查询: asset / faceNormal / bboxCenter / bboxMin / bboxMax

@@ -13,7 +13,7 @@
  *   auto/brep mode produces a BREP cube (registered via the wrapper's
  *   fromHandle path, hasBrep === true).
  *
- * Difference from a real library: a real one (e.g. a brepjs adapter) injects
+ * Difference from a real library: a real one (e.g. an external adapter) injects
  * the kernel at module load and builds handles via `kernel.makeXxx`; here the
  * brep implementation consumes a handle already built by the kernel (tests
  * initialize the kernel via an auto-mode runtime first).
@@ -72,7 +72,7 @@ function sphereMesh(radius: number): { positions: Float32Array; indices: Uint32A
 
 /**
  * Build a box solid handle via the faijs OCCT kernel (the brep implementation's
- * core capability). Real libraries build handles themselves (e.g. brepjs
+ * core capability). Real libraries build handles themselves (e.g. brep
  * `makeExternalGear`); here we inline one to demo the SDK bridge from a
  * library function.
  * @param size - the cube edge length.

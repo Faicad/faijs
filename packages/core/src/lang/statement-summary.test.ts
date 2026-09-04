@@ -13,6 +13,7 @@ import { describe, it, expect } from 'vitest'
 import { analyzeCode } from './statement-summary'
 import { codeToArgs } from './code-to-args'
 import { parseScript } from './parser'
+import { statementInputs } from './types'
 
 const BOX_DRILL_SPLIT = [
   'let part0 = cad.box({ size: 20 })',
@@ -31,7 +32,7 @@ describe('analyzeCode: 与 parser 结果逐字段一致', () => {
       const ir = script.statements[i]
       expect(s.id).toBe(ir.id)
       expect(s.callee).toBe(ir.callee)
-      expect(s.inputs).toEqual(ir.inputs)
+      expect(s.inputs).toEqual(statementInputs(ir))
       expect(s.outputs).toEqual(ir.outputs)
       expect(s.outputKeys).toEqual(ir.outputKeys)
       expect(s.hasAssignment).toBe(ir.hasAssignment ?? false)
@@ -129,43 +130,69 @@ describe('looseLocalCalls: 单行提取放行本机函数调用（D15 回归）'
   })
 })
 
-describe('codeToArgs: 单语句行 args 提取', () => {
+describe('codeToArgs: 单语句行 args 提取（true-JS-subset §4.6.3 新契约 { positional, args }）', () => {
   it('普通语句行', () => {
-    expect(codeToArgs('let part0 = cad.box({ size: 20 })')).toEqual({ size: 20 })
+    expect(codeToArgs('let part0 = cad.box({ size: 20 })')).toEqual({ positional: [], args: { size: 20 } })
   })
 
   it('裸重赋值行', () => {
-    expect(codeToArgs('part0 = cad.fai_drill(part0, { diameter: 5 })')).toEqual({ diameter: 5 })
+    expect(codeToArgs('part0 = cad.fai_drill(part0, { diameter: 5 })')).toEqual({
+      positional: [{ $ref: 'part0' }],
+      args: { diameter: 5 },
+    })
   })
 
   it('解构行', () => {
     expect(codeToArgs('const { front: a, back: b } = cad.fai_split(part0, { normal: [0,0,1] })'))
-      .toEqual({ normal: [0, 0, 1] })
+      .toEqual({ positional: [{ $ref: 'part0' }], args: { normal: [0, 0, 1] } })
   })
 
   it('成员方法调用行', () => {
-    expect(codeToArgs('asm0.add_constraint({ type: \'flush\' })')).toEqual({ type: 'flush' })
+    expect(codeToArgs('asm0.add_constraint({ type: \'flush\' })')).toEqual({
+      positional: [],
+      args: { type: 'flush' },
+    })
   })
 
-  it('无 args 的语句返回 {}', () => {
-    expect(codeToArgs('asm0.do_assemble()')).toEqual({})
+  it('无 args 的语句返回 { positional: [], args: {} }', () => {
+    expect(codeToArgs('asm0.do_assemble()')).toEqual({ positional: [], args: {} })
   })
 
   it('嵌套值形态保留（数组/对象/字符串）', () => {
     const args = codeToArgs("let part0 = cad.text({ text: 'hi', at: [1, 2, 0], opts: { bold: true } })")
-    expect(args).toEqual({ text: 'hi', at: [1, 2, 0], opts: { bold: true } })
+    expect(args).toEqual({
+      positional: [],
+      args: { text: 'hi', at: [1, 2, 0], opts: { bold: true } },
+    })
+  })
+
+  it('位置实参为字面量（true-JS-subset：`cad.box(10, 20, 30)`）', () => {
+    expect(codeToArgs('let part0 = cad.box(10, 20, 30)')).toEqual({
+      positional: [10, 20, 30],
+      args: {},
+    })
+  })
+
+  it('位置实参为变量引用 → {$ref} 标记（宿主降级只读）', () => {
+    expect(codeToArgs('part0 = cad.union(part0, part1)')).toEqual({
+      positional: [{ $ref: 'part0' }, { $ref: 'part1' }],
+      args: {},
+    })
   })
 
   it('本机函数调用行（looseLocalCalls）', () => {
-    expect(codeToArgs('let part1 = makeArray({ n })')).toEqual({ n: { $param: 'n' } })
+    expect(codeToArgs('let part1 = makeArray({ n })')).toEqual({ positional: [], args: { n: { $param: 'n' } } })
   })
 
   it('本机函数调用行 — 无赋值副作用调用', () => {
-    expect(codeToArgs('myHelper({ x: 1 })')).toEqual({ x: 1 })
+    expect(codeToArgs('myHelper({ x: 1 })')).toEqual({ positional: [], args: { x: 1 } })
   })
 
   it('本机函数调用行 — 复合对象参数', () => {
-    expect(codeToArgs('makeArray({ n: 4, tag: "hello" })')).toEqual({ n: 4, tag: 'hello' })
+    expect(codeToArgs('makeArray({ n: 4, tag: "hello" })')).toEqual({
+      positional: [],
+      args: { n: 4, tag: 'hello' },
+    })
   })
 
   it('非法行抛 ParseError', () => {

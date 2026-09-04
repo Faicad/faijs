@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { initOCCT } from './test-setup.js';
-import { isValid, measureVolume, getEdges, getBounds, isErr } from './compat.js';
+import { isValid, measureVolume, getEdges, getBounds, isErr } from '@faicad/faijs/compat';
 import { author, unfold, report } from './api.js';
 import type { BendRule } from './types.js';
 

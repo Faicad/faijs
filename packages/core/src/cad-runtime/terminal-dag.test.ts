@@ -23,6 +23,7 @@ import { computeLeafTerminals, type DagRuntimeView } from './terminal-dag'
 import { parseScript } from '../lang/parser'
 import type { PartName, StmtId } from '../identity'
 import type { ScriptIR } from '../lang/types'
+import { statementInputs } from '../lang/types'
 import { asPartName } from '../identity'
 import type { InternalKeepRecord } from '../lang/keep'
 
@@ -36,7 +37,7 @@ function builtinKeepView(script: ScriptIR): DagRuntimeView {
   for (const stmt of script.statements) {
     let names: PartName[] = []
     if (stmt.callee === 'copy') {
-      names = stmt.inputs
+      names = statementInputs(stmt)
     } else if (stmt.callee === 'group' || stmt.callee === 'assembly') {
       const members = stmt.args?.members
       if (Array.isArray(members)) {
@@ -170,8 +171,8 @@ describe('computeLeafTerminals: DAG leaf detection', () => {
     const script = {
       params: [],
       statements: [
-        { id: 's1' as never, callee: 'assembly', args: { members: [] }, inputs: [], outputs: [asPartName('asm1')], hasAssignment: true },
-        { id: 's2' as never, callee: 'add_constraint', args: { type: 'face_mate' }, inputs: [], outputs: [], hasAssignment: false, receiver: asPartName('asm1') },
+        { id: 's1' as never, callee: 'assembly', args: { members: [] }, positional: [], outputs: [asPartName('asm1')], hasAssignment: true },
+        { id: 's2' as never, callee: 'add_constraint', args: { type: 'face_mate' }, positional: [], outputs: [], hasAssignment: false, receiver: asPartName('asm1') },
       ],
     } as ScriptIR
     const terminals = computeLeafTerminals(script, new Set<PartName>([asPartName('asm1')]))

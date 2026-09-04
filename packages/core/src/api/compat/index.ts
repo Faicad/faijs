@@ -170,10 +170,14 @@ function safeJson(v: unknown): string {
   }
 }
 
-/** Project the vendored `sphere(radius, options?)` with dual-form input. */
-export const sphere = wrapDual('sphere', ['radius'], primitiveSphere as CompatOp)
-/** Project the vendored `cylinder(radius, height, options?)` with dual-form input. */
-export const cylinder = wrapDual('cylinder', ['radius', 'height'], primitiveCylinder as CompatOp)
+/**
+ * Project the vendored `sphere(radius, options?)` verbatim (P25: the raw
+ * morph form is what portable libraries call — upstream brepjs signatures,
+ * no op projection).
+ */
+export { primitiveSphere as sphere }
+/** Project the vendored `cylinder(radius, height, options?)` verbatim. */
+export { primitiveCylinder as cylinder }
 /** Project the vendored `cone(bottomRadius, topRadius, height, options?)`. */
 export const cone = wrapDual(
   'cone',
@@ -185,7 +189,11 @@ export const torus = wrapDual('torus', ['majorRadius', 'minorRadius'], primitive
 /** Project the vendored `ellipsoid(rx, ry, rz, options?)`. */
 export const ellipsoid = wrapDual('ellipsoid', ['rx', 'ry', 'rz'], primitiveEllipsoid as CompatOp)
 
-import { fuse as vendoredFuse, cut as vendoredCut } from '../../vendored/brepjs/topology/api.js'
+import {
+  fuse as vendoredFuse,
+  cut as vendoredCut,
+  intersect as vendoredIntersect,
+} from '../../vendored/brepjs/topology/api.js'
 import {
   extrude as vendoredExtrude,
   revolve as vendoredRevolve,
@@ -202,6 +210,56 @@ export const extrude = wrapGuarded('extrude', vendoredExtrude)
 export const revolve = wrapGuarded('revolve', vendoredRevolve)
 /** Loft through a set of wire profiles. */
 export const loft = wrapGuarded('loft', vendoredLoft)
+
+/** Intersect two shapeables (common 3D volume). */
+export const intersect = wrapGuarded('intersect', vendoredIntersect)
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ①b library-building factories (P24, §8.1): spur gears, planetary trains, threads.
+// Both morphs of these factories are brep-only builders gated by the single-kernel
+// assert (wrapGuarded); the kernel is bound at the host boundary (D10).
+// ─────────────────────────────────────────────────────────────────────────────
+
+import {
+  makeExternalGear as vendoredMakeExternalGear,
+  makeInternalGear as vendoredMakeInternalGear,
+  makePlanetaryGear as vendoredMakePlanetaryGear,
+} from '../../vendored/brepjs/gear/gearFns.js'
+import { thread as vendoredThread } from '../../vendored/brepjs/operations/threadFns.js'
+
+/**
+ * Build an external spur gear.
+ * @param params - the external-gear parameters (`teeth`, `moduleSize`, `thickness`, …).
+ * @returns `Ok` with the gear solid + geometry, or `Err` for invalid parameters.
+ */
+export const makeExternalGear = wrapGuarded('makeExternalGear', vendoredMakeExternalGear)
+/**
+ * Build an internal (ring) spur gear.
+ * @param params - the internal-gear parameters, including the optional ring wall thickness.
+ * @returns `Ok` with the gear solid + geometry, or `Err` for invalid parameters.
+ */
+export const makeInternalGear = wrapGuarded('makeInternalGear', vendoredMakeInternalGear)
+/**
+ * Build a planetary gear train (sun + planets + ring).
+ * @param params - the planetary-gear parameters.
+ * @returns `Ok` with the sun/planet/ring solids and mesh diagnostics, or `Err`.
+ */
+export const makePlanetaryGear = wrapGuarded('makePlanetaryGear', vendoredMakePlanetaryGear)
+/**
+ * Build a helical screw-thread ridge.
+ * @param options - the thread profile (`radius`, `pitch`, `height`, …).
+ * @returns `Ok` with the thread-ridge solid, or `Err` for invalid parameters.
+ */
+export const thread = wrapGuarded('thread', vendoredThread)
+
+export type {
+  ExternalGearParams,
+  InternalGearParams,
+  PlanetaryGearParams,
+  GearResult,
+  PlanetaryGearAssembly,
+} from '../../vendored/brepjs/gear/gearFns.js'
+export type { ThreadOptions } from '../../vendored/brepjs/operations/threadFns.js'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ② sub-shape queries + measurements
@@ -259,6 +317,8 @@ export {
   isErr,
   unwrap,
   unwrapOr,
+  map,
+  andThen,
 } from '../../vendored/brepjs/core/result.js'
 export type { Result, Ok, Err } from '../../vendored/brepjs/core/result.js'
 
@@ -279,6 +339,7 @@ export {
 } from '../../vendored/brepjs/core/planeOps.js'
 
 export { kernelError, validationError } from '../../vendored/brepjs/core/errors.js'
+export type { BrepError } from '../../vendored/brepjs/core/errors.js'
 
 export { DEG2RAD, RAD2DEG } from '../../vendored/brepjs/core/constants.js'
 
@@ -291,8 +352,90 @@ export type {
   Solid,
   CompSolid,
   Shape3D,
+  ValidSolid,
+  ClosedWire,
+  AnyShape,
 } from '../../vendored/brepjs/core/shapeTypes.js'
+
+export type { GearGeometry } from '../../vendored/brepjs/gear/gearMath.js'
 
 export type { Plane, PlaneName, PlaneInput } from '../../vendored/brepjs/core/planeTypes.js'
 
 export type { Vec3, PointInput } from '../../vendored/brepjs/core/types.js'
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ⑤ raw 2D-morph + transform + face ports (P25: sheetmetal 单一说明符面)
+//
+// The sheetmetal authoring path consumes the vendored morph semantics exactly
+// (handles in, handles out, `Result` only where the vendored chain returns
+// one). These are projected verbatim from the ported tree — same names, same
+// signatures as upstream brepjs — so portable library sources only change the
+// import specifier line (§8.2).
+// ─────────────────────────────────────────────────────────────────────────────
+
+import {
+  line as rawLine,
+  wire as rawWire,
+  wireLoop as rawWireLoop,
+  face as rawFace,
+  polygon as rawPolygon,
+} from '../../vendored/brepjs/topology/primitiveFns.js'
+import {
+  outerWire as rawOuterWire,
+  getSurfaceType as rawSurfaceType,
+  pointOnSurface as rawPointOnSurface,
+  normalAt as rawNormalAt,
+  faceCenter as rawFaceCenter,
+} from '../../vendored/brepjs/topology/faceFns.js'
+import { sharedEdges as rawSharedEdges } from '../../vendored/brepjs/topology/adjacencyFns.js'
+import {
+  curveStartPoint as rawCurveStartPoint,
+  curveEndPoint as rawCurveEndPoint,
+} from '../../vendored/brepjs/topology/curveFns.js'
+import { translate as rawTranslate } from '../../vendored/brepjs/topology/transformFns.js'
+import { rotate as rawRotate } from '../../vendored/brepjs/topology/transformFns.js'
+import { isSolid as rawIsSolid } from '../../vendored/brepjs/core/shapeTypes.js'
+import { isPlanarWire as rawIsPlanarWire } from '../../vendored/brepjs/core/validityTypes.js'
+import { isValid as rawIsValid } from '../../vendored/brepjs/topology/healingFns.js'
+import type { AnyShape } from '../../vendored/brepjs/core/shapeTypes.js'
+import type { Vec3 } from '../../vendored/brepjs/core/types.js'
+
+export {
+  rawLine as line,
+  rawWire as wire,
+  rawWireLoop as wireLoop,
+  rawFace as face,
+  rawPolygon as polygon,
+  rawOuterWire as outerWire,
+  rawSurfaceType as getSurfaceType,
+  rawPointOnSurface as pointOnSurface,
+  rawNormalAt as normalAt,
+  rawFaceCenter as faceCenter,
+  rawSharedEdges as sharedEdges,
+  rawCurveStartPoint as curveStartPoint,
+  rawCurveEndPoint as curveEndPoint,
+  rawTranslate as translate,
+  rawIsSolid as isSolid,
+  rawIsPlanarWire as isPlanarWire,
+  rawIsValid as isValid,
+}
+
+// Upstream brepjs 18's `rotate` takes an axis through an `{ at, axis }` options
+// object; the vendored tree (P5-locked commit) is the four-argument positional
+// form. Export the upstream-aligned wrap so library code written for brepjs
+// rotates with `rotate(shape, angle, { at?, axis? })`.
+/**
+ * Rotate a shape by an angle in degrees around an axis.
+ * @param shape - The shape to rotate.
+ * @param angle - Rotation angle in degrees.
+ * @param options - Axis and pivot (`at`) for the rotation; defaults to the Z
+ * axis through the origin, matching upstream brepjs.
+ * @returns A new rotated shape.
+ */
+export function rotate<T extends AnyShape>(
+  shape: T,
+  angle: number,
+  options: { at?: Vec3; axis?: Vec3 } = {}
+): T {
+  return rawRotate(shape, angle, options.at ?? [0, 0, 0], options.axis ?? [0, 0, 1]);
+}

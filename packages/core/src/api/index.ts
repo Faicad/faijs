@@ -62,4 +62,16 @@ export type {
   Vec3, PointInput,
   Bounds3D,
 } from './compat'
+// ── P24（§8.1）：库建造工厂与 Result 组合器平铺。它们不是脚本面 op（不在
+//    符号表/`cad` 面），也不是 dual op——是库作者面的函数，与 P23 平铺的纯
+//    组合器同一规则（`makeExternalGear`/`thread`/`map` 无同名冲突，§6.3）。
+export {
+  makeExternalGear, makeInternalGear, makePlanetaryGear, thread,
+  map, andThen,
+} from './compat'
+export type {
+  ExternalGearParams, InternalGearParams, PlanetaryGearParams,
+  GearGeometry, GearResult, PlanetaryGearAssembly, ThreadOptions,
+  ValidSolid, ClosedWire,
+} from './compat'
 export * as compat from './compat'

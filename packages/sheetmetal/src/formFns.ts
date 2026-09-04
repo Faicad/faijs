@@ -22,7 +22,7 @@ import {
   vecScale,
   vecCross,
   vecNormalize,
-} from './compat.js';
+} from '@faicad/faijs/compat';
 import type { FormSpec, FormFeature, SheetMetalPart } from './types.js';
 import { normalizeSolid } from './internal.js';
 import type { FlatFrame } from './authorFns.js';
@@ -55,6 +55,10 @@ type Pt2 = [number, number];
  * sides — all but the hinge) plus the hinge fold line; the emboss emits its footprint
  * circle as a marker. Forming removes no net material, so the developed outline and
  * area are unchanged. Guards a valid, single-bodied solid.
+ *
+ * @param part - the sheet metal part to form.
+ * @param spec - the form specification.
+ * @returns the updated part with the form feature recorded, or an error.
  */
 export function addForm(part: SheetMetalPart, spec: FormSpec): Result<SheetMetalPart> {
   const solid = part.solid;
@@ -225,7 +229,12 @@ function embossForm(
   return ok({ ...part, solid, forms: [...(part.forms ?? []), feature] });
 }
 
-/** A louver vent on a region; see {@link addForm}. */
+/**
+ * A louver vent on a region; see {@link addForm}.
+ * @param part - the sheet metal part to form.
+ * @param opts - louver geometry (region, x, y, length, width, height, direction?).
+ * @returns the updated part with the louver feature recorded, or an error.
+ */
 export function louver(
   part: SheetMetalPart,
   opts: {
@@ -241,7 +250,12 @@ export function louver(
   return addForm(part, { kind: 'louver', ...opts });
 }
 
-/** An emboss (raised) or dimple (recessed) round form on a region; see {@link addForm}. */
+/**
+ * An emboss (raised) or dimple (recessed) round form on a region; see {@link addForm}.
+ * @param part - the sheet metal part to form.
+ * @param opts - emboss geometry (region, x, y, diameter, height, direction?).
+ * @returns the updated part with the emboss feature recorded, or an error.
+ */
 export function emboss(
   part: SheetMetalPart,
   opts: { region: string; x: number; y: number; diameter: number; height: number; kind: 'dimple' | 'emboss' }

@@ -15,7 +15,7 @@ import {
   isPlanarWire,
   vecAdd,
   vecScale,
-} from './compat.js';
+} from '@faicad/faijs/compat';
 import type { TabSpec, TabFeature, SheetMetalPart } from './types.js';
 import { normalizeSolid } from './internal.js';
 import type { FlatFrame } from './authorFns.js';
@@ -35,6 +35,10 @@ type Pt2 = [number, number];
  * recorded as a {@link TabFeature} so {@link unfold} extends the OUTER outline by the
  * protrusion (tabs add material, so the developed area grows). Guards a valid,
  * single-bodied solid.
+ *
+ * @param part - the sheet metal part to attach a tab to.
+ * @param spec - the tab specification.
+ * @returns the updated part with the tab feature recorded, or an error.
  */
 export function addTab(part: SheetMetalPart, spec: TabSpec): Result<SheetMetalPart> {
   if (part.solid === undefined) {
@@ -114,6 +118,11 @@ export interface SlotPlacement {
  * long by `thickness + clearance` wide, centred at the mating region's local
  * `(x, y)`. The slot is always strictly larger than the tab cross-section, so the
  * joint mates (verified numerically by callers). Clearance defaults to `0.1` mm.
+ *
+ * @param part - the sheet metal part to process.
+ * @param tab - the tab specification.
+ * @param slot - the slot placement.
+ * @returns the updated part with the tab-and-slot feature recorded, or an error.
  */
 export function tabAndSlot(
   part: SheetMetalPart,

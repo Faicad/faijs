@@ -28,8 +28,8 @@ import type {
   CallRefIR,
   ExprIR,
 } from './types'
-import { isParamRef, isVarRef, isCallRef, isExprRef } from './types'
-import { withoutKeepDirectives } from './keep'
+import { isParamRef, isVarRef, isCallRef, isExprRef, splitPositionalOptions } from './types'
+import { withoutKeepDirectives, withoutKeepDirectivesFromPositional } from './keep'
 import { fmtNum } from './codegen'
 import { asStmtId, type StmtId } from '../identity'
 
@@ -90,12 +90,28 @@ function translateCallRef(ref: CallRefIR): string {
  * `((${names}) => ${text})(${args})`，names = [...params, ...refs]（去重、保持声明顺序），
  * args = `ctx.<name>, ...` 与 names 一一对应。表达式原文 text 不重写，标识符经
  * 箭头参数绑定解析到 ctx.<name>；语法门禁在 parse 期完成（§3.3 白名单文法）。
+ *
+ * 失败语义标记（true-JS-subset D4）：表达式求值包在 try/catch IIFE 内，失败抛
+ * `__FaiExprEvalError`（生成模块内联类，零 import）——ModuleExecutor 据此把
+ * 表达式运行时错误包装为 OpError(E_EXPR) 归并 failedAt，而 op 实现的普通异常
+ * （= bug，Result 体系契约）保持抛穿不受影响。
  */
 function translateExprRef(ref: ExprIR): string {
+  useExprEvalGuard = true
   const names = [...new Set([...ref.$expr.params, ...ref.$expr.refs])]
   const args = names.map((n) => `ctx.${n}`).join(', ')
-  return `((${names.join(', ')}) => ${ref.$expr.text})(${args})`
+  const inner = `((${names.join(', ')}) => ${ref.$expr.text})(${args})`
+  return `(() => { try { return ${inner} } catch (__e) { throw new __FaiExprEvalError(__e) } })()`
 }
+
+/** 本轮 compileToModule 是否发射了 ExprIR（决定是否内联 __FaiExprEvalError 类）。 */
+let useExprEvalGuard = false
+
+/** 生成模块内联的表达式求值错误标记类（零 import；与 module-executor 的识别契约见类名）。 */
+const EXPR_EVAL_ERROR_CLASS =
+  `class __FaiExprEvalError extends Error { constructor(cause) {` +
+  ` super('expression evaluation failed: ' + (cause && cause.message ? cause.message : String(cause)));` +
+  ` this.name = 'FaiExprEvalError'; this.isExprEvalError = true; this.exprCause = cause } }`
 
 /** 递归翻译单个 ArgIR 值为编译产物表达式。 */
 function translateArg(value: ArgIR): string {
@@ -129,12 +145,12 @@ function translateArgs(args: Record<string, ArgIR>): string {
 /**
  * 获取语句引用的变量名集合。
  *
- * 优先用 parser 填充的 stmt.refs（inputs + $param + $ref + 嵌套调用）；
- * 手工构造的 ScriptIR（测试等）无 refs 时，从 inputs + args 扫描兜底计算。
+ * 优先用 parser 填充的 stmt.refs（positional + args + receiver 的全量递归收集）；
+ * 手工构造的 ScriptIR（测试等）无 refs 时，从 positional + args + receiver 兜底扫描计算。
  */
 function getStatementRefs(stmt: StatementIR): string[] {
   if (stmt.refs) return stmt.refs
-  const refs = new Set<string>(stmt.inputs)
+  const refs = new Set<string>()
   // receiver：成员方法调用（do_assemble 等）依赖其 receiver 变量
   if (stmt.receiver) refs.add(stmt.receiver)
   const scan = (value: ArgIR): void => {
@@ -162,7 +178,8 @@ function getStatementRefs(stmt: StatementIR): string[] {
     }
     for (const v of Object.values(value)) scan(v)
   }
-  for (const arg of Object.values(stmt.args)) scan(arg)
+  for (const arg of stmt.positional ?? []) scan(arg)
+  for (const arg of Object.values(stmt.args ?? {})) scan(arg)
   // 兼容旧手工构造 IR：group/assembly members 可能是裸字符串变量名
   if (stmt.callee === 'group' || stmt.callee === 'assembly') {
     const members = stmt.args?.members
@@ -178,15 +195,19 @@ function getStatementRefs(stmt: StatementIR): string[] {
 function buildStatementFnBody(stmt: StatementIR, localParams?: Map<string, string[]>): string {
   // ── 本机函数调用（local，§3.4 / §5.3）：ABI 按形参序发射 ──
   // 发射形态（§3.6）：`await <name>(ctx, ns, <pos1>, …, <posM>, <v_{M+1}>, …, <vk>)`
-  // - 位置实参（inputs）占前 M 位 → `ctx.<input>`
-  // - args 对象键按形参名补到剩余位（缺失形参 → undefined；parse 期 ABI 已拦截未知/占用键）
+  // - 位置实参（splitPositionalOptions 切出的 values，可为任意表达式形态）占前 M 位
+  // - 尾随选项对象（positional 末位纯对象；手工 IR 兜底用 stmt.args）键按形参名补到剩余位
+  //   （缺失形参 → undefined；parse 期 ABI 已拦截未知/占用键）
   // - keep/keepHidden 先剥离（与命名空间调用一致）
   if (stmt.local) {
     const params = localParams?.get(stmt.callee) ?? []
-    const M = stmt.inputs.length
+    const { values, named } = splitPositionalOptions(stmt.positional ?? [])
+    const M = values.length
     const callArgs: string[] = ['ctx', 'ns']
-    for (const inp of stmt.inputs) callArgs.push(`ctx.${inp}`)
-    const runtimeArgs = withoutKeepDirectives(stmt.args)
+    for (const v of values) callArgs.push(translateArg(v))
+    // 尾随对象为空时回退 args 槽（手工构造 IR 只填 args 的兼容路径；解析产物二者一致）
+    const namedSrc = Object.keys(named).length > 0 ? named : withoutKeepDirectives(stmt.args)
+    const runtimeArgs = withoutKeepDirectives(namedSrc)
     for (let i = M; i < params.length; i++) {
       const p = params[i]
       const v = runtimeArgs[p]
@@ -207,21 +228,58 @@ function buildStatementFnBody(stmt: StatementIR, localParams?: Map<string, strin
     return `      ctx.${stmt.outputs[0]} = ${call}`
   }
 
-  const inputs = stmt.inputs.map((inp) => `ctx.${inp}`).join(', ')
-  // 调用点 keep 指令发射前剥离（keep-syntax 设计 §7.1）：keep 透传会挤占
-  // params 槽 / 被当 Shape 传入（union/split 的 ...rest、copy 的双参签名）。
-  // 顺序是硬要求：先剥离再算 hasArgs（cad.union(a,b,{keep:[a,b]}) 剥离后为空
-  // → hasArgs=false → 发射 ns.cad.union(ctx.a, ctx.b)，与现状逐字一致）。
-  const runtimeArgs = withoutKeepDirectives(stmt.args)
-  const argsStr = translateArgs(runtimeArgs)
-  const hasArgs = Object.keys(runtimeArgs).length > 0
   // P7：按命名空间发射（`import * as mech from 'mech-lib'` → ns.mech.<callee>；缺省 cad）
   const nsExpr = `ns.${stmt.namespace ?? 'cad'}`
 
-  // 调用实参序列：有 inputs 则前置；有 args 则后置（空 args 不发射，§5.1 空槽规则）
-  const callArgs = inputs
-    ? (hasArgs ? `${inputs}, ${argsStr}` : inputs)
-    : (hasArgs ? argsStr : '{}')
+  // 位置实参发射（true-JS-subset §4.3.1）：全部位置实参按序翻译；尾随纯对象的
+  // keep/keepHidden 指令发射前剥离（keep-syntax 设计 §7.1）。剥离后若尾随对象为空
+  // （如 `union(a, b, { keep: [a, b] })`），整个对象不再发射——与 `union(a, b)` 无选项槽一致。
+  const positionalStripped = withoutKeepDirectivesFromPositional(stmt.positional ?? [])
+  const lastArg = positionalStripped[positionalStripped.length - 1]
+  if (
+    lastArg !== null &&
+    typeof lastArg === 'object' &&
+    !Array.isArray(lastArg) &&
+    !isVarRef(lastArg) &&
+    !isCallRef(lastArg) &&
+    !isExprRef(lastArg) &&
+    Object.keys(lastArg as Record<string, ArgIR>).length === 0
+  ) {
+    positionalStripped.pop()
+  }
+  const positionalArgs = positionalStripped
+  const positionalStr = positionalArgs.map((v) => translateArg(v)).join(', ')
+
+  // 兼容兜底：positional 为空但 args 非空（手工构造 IR 只填 args 的旧形态）
+  // → 退回 args 槽发射。解析产物中 args 非空 ⇒ positional 必含尾随对象，不会走此分支。
+  const lastIsPlainObject =
+    positionalArgs.length > 0 &&
+    (() => {
+      const a = positionalArgs[positionalArgs.length - 1]
+      return (
+        a !== null && typeof a === 'object' && !Array.isArray(a) &&
+        !isVarRef(a) && !isCallRef(a) && !isExprRef(a)
+      )
+    })()
+  let callArgs: string
+  if (positionalStr !== '') {
+    if (lastIsPlainObject) {
+      // 尾随纯对象已含选项（args 是其投影），不重复发射
+      callArgs = positionalStr
+    } else {
+      // 手工构造 IR 的过渡兼容：positional 尾位不是纯对象而 args 槽非空 → args 作为
+      // 独立选项槽追加（keep 指令同步剥离）
+      const legacyArgs = withoutKeepDirectives(stmt.args)
+      const legacyStr = Object.keys(legacyArgs).length > 0 ? `, ${translateArgs(legacyArgs)}` : ''
+      callArgs = positionalStr + legacyStr
+    }
+  } else if (stmt.receiver) {
+    const legacyArgs = withoutKeepDirectives(stmt.args)
+    callArgs = Object.keys(legacyArgs).length > 0 ? translateArgs(legacyArgs) : ''
+  } else {
+    const legacyArgs = withoutKeepDirectives(stmt.args)
+    callArgs = Object.keys(legacyArgs).length > 0 ? translateArgs(legacyArgs) : '{}'
+  }
 
   // 1) 对象解构赋值：outputKeys 存在（任意 callee）
   if (stmt.outputKeys && stmt.outputKeys.length > 0) {
@@ -236,8 +294,7 @@ function buildStatementFnBody(stmt: StatementIR, localParams?: Map<string, strin
   // 2) 成员调用（表达式语句）：receiver 存在（add_constraint/do_assemble 挂 compound 方法）
   if (stmt.receiver) {
     // 空 args 不发射 `{}`：`do_assemble()` 而不是 `do_assemble({})`（§5.2 成员方法签名）
-    const mArgs = hasArgs ? `${argsStr}` : ''
-    return `      await ctx.${stmt.receiver}.${stmt.callee}(${mArgs})`
+    return `      await ctx.${stmt.receiver}.${stmt.callee}(${callArgs})`
   }
 
   // 3) 无赋值调用（表达式语句，outputs 为空且无 receiver）
@@ -264,6 +321,7 @@ function buildStatementFnBody(stmt: StatementIR, localParams?: Map<string, strin
  * @returns the compiled module code and its statement metadata.
  */
 export function compileToModule(script: ScriptIR): CompiledModule {
+  useExprEvalGuard = false
   const metas: CompiledStatementMeta[] = []
   const varToStmtId = new Map<string, StmtId>()
   // 本机函数名 → 形参表（ABI 发射：位置实参占前 M 位，args 键按形参名补剩余位）
@@ -338,7 +396,9 @@ export function compileToModule(script: ScriptIR): CompiledModule {
       ? `export const localFns = { ${(script.functions ?? []).map((f) => f.name).join(', ')} }\n`
       : ''
   const fnSection = fnLines.length > 0 ? `${fnLines.join('\n')}\n` : ''
+  // D4：发射过 ExprIR 时内联表达式求值错误标记类（零 import；ModuleExecutor 据此包装 E_EXPR）
+  const exprClassSection = useExprEvalGuard ? `${EXPR_EVAL_ERROR_CLASS}\n` : ''
 
-  const code = `${fnSection}${localFnsExport}export const statements = [\n${bodyLines.join('\n')}\n]\n`
+  const code = `${exprClassSection}${fnSection}${localFnsExport}export const statements = [\n${bodyLines.join('\n')}\n]\n`
   return { code, statements: metas }
 }

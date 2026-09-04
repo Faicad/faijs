@@ -28,9 +28,7 @@
     "./occt-kernel/*": { "types": "./dist/occt-kernel/*.d.ts", "default": "./dist/occt-kernel/*.js" },
     "./topology/naming": { "types": "./dist/topology/naming/index.d.ts", "default": "./dist/topology/naming/index.js" },
     "./topology/*": { "types": "./dist/topology/*.d.ts", "default": "./dist/topology/*.js" },
-    "./boolean/*": { "types": "./dist/boolean/*.d.ts", "default": "./dist/boolean/*.js" },
-    "./vendored/*.js": { "types": "./dist/vendored/*.d.ts", "default": "./dist/vendored/*.js" },
-    "./vendored/*": { "types": "./dist/vendored/*.d.ts", "default": "./dist/vendored/*.js" }
+    "./boolean/*": { "types": "./dist/boolean/*.d.ts", "default": "./dist/boolean/*.js" }
   },
   "files": [
     "dist"

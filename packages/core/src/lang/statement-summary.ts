@@ -11,7 +11,27 @@
  */
 
 import type { StmtId, PartName } from '../identity'
+import { isParamRef, isVarRef, isCallRef, isExprRef, statementInputs, type ArgIR } from './types'
 import { parseScript } from './parser'
+
+/** 位置实参形态分类（true-JS-subset D6：宿主据此判断编辑面板可用性）。 */
+export type PositionalKind = 'literal' | 'varRef' | 'paramRef' | 'call' | 'expr' | 'object'
+
+/** 单个位置实参的 strip 投影（JSON 形态）与形态标记。 */
+export interface PositionalSummary {
+  kind: PositionalKind
+  /** 字面量 → 原值；varRef → {$ref}；paramRef → {$param}；call → {$call}；expr → {$expr}；object → 原对象（属性值递归 strip） */
+  value: unknown
+}
+
+function classifyPositional(arg: ArgIR): PositionalKind {
+  if (isVarRef(arg)) return 'varRef'
+  if (isParamRef(arg)) return 'paramRef'
+  if (isCallRef(arg)) return 'call'
+  if (isExprRef(arg)) return 'expr'
+  if (typeof arg === 'object' && arg !== null) return 'object'
+  return 'literal'
+}
 
 /**
  * A flat scalar projection of one statement for host display and orchestration
@@ -33,7 +53,11 @@ export interface StatementSummary {
   packageName?: string
   /** 成员方法调用接收者变量（asm1.do_assemble() → 'asm1'） */
   receiver?: PartName
-  /** 位置输入变量名 */
+  /** 位置实参槽（true-JS-subset §4.6.4，strip 投影：ExprIR/VarRefIR 以标记对象呈现） */
+  positional: unknown[]
+  /** 位置实参形态分类（与 positional 一一对应；宿主据此降级编辑面板） */
+  positionalKinds: PositionalKind[]
+  /** 纯变量引用（VarRefIR 投影，原 inputs 语义） */
   inputs: PartName[]
   /** 产出变量名（split 解构 = 多个；void 语句 = []） */
   outputs: PartName[]
@@ -73,7 +97,9 @@ export function analyzeCode(code: string): StatementSummary[] {
       ? { namespace: s.namespace, ...(nsToPkg.get(s.namespace) !== undefined ? { packageName: nsToPkg.get(s.namespace) } : {}) }
       : {}),
     ...(s.receiver !== undefined ? { receiver: s.receiver } : {}),
-    inputs: [...s.inputs],
+    positional: (s.positional ?? []) as unknown[],
+    positionalKinds: (s.positional ?? []).map((a) => classifyPositional(a as ArgIR)),
+    inputs: statementInputs(s),
     outputs: [...s.outputs],
     ...(s.outputKeys !== undefined ? { outputKeys: [...s.outputKeys] } : {}),
     ...(s.refs !== undefined ? { refs: [...s.refs] } : {}),

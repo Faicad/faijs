@@ -311,6 +311,7 @@ export function generateScriptFaceManifest(): string {
     "  consumes: 'all' | 'none'",
     '}',
     '',
+    '/** Cad script-face op manifest (B1: single source for cad namespace, check() symbol table). */',
     'export const SCRIPT_FACE_OPS: readonly ScriptFaceOp[] = [',
   ]
   for (const e of entries) {

@@ -16,7 +16,7 @@ import {
   vecCross,
   vecDot,
   vecNormalize,
-} from './compat.js';
+} from '@faicad/faijs/compat';
 import type { SheetMetalPart } from './types.js';
 import { normalizeSolid } from './internal.js';
 
@@ -30,6 +30,10 @@ export interface MiterPlane {
  * General miter primitive: cut a sheet-metal part by a plane, removing the
  * material on the `+normal` side. The tool is a half-space block sized to the
  * part's bounding box, so the cut is exact regardless of part extent.
+ *
+ * @param part - the sheet metal part to cut.
+ * @param plane - the miter plane definition.
+ * @returns the updated part with the miter cut applied, or an error.
  */
 export function miterCut(part: SheetMetalPart, plane: MiterPlane): Result<SheetMetalPart> {
   const solid = part.solid;
@@ -50,6 +54,12 @@ export function miterCut(part: SheetMetalPart, plane: MiterPlane): Result<SheetM
  * flanges' fold-up directions at their shared corner and is offset by half the gap,
  * so the cut falls on the flat/flange regions and never crosses a bend patch. The
  * single bisector cut trims both flanges to a clean mitered corner.
+ *
+ * @param part - the sheet metal part to miter.
+ * @param flangeIdA - the first flange ID.
+ * @param flangeIdB - the second flange ID.
+ * @param gap - the gap between flanges (default 0).
+ * @returns the updated part with the miter corner applied, or an error.
  */
 export function autoMiterCorner(
   part: SheetMetalPart,

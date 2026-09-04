@@ -17,14 +17,14 @@ import { asStmtId, asPartName } from '../identity'
 // ── 测试辅助：构造语句 ──
 
 function makeStmt(
-  partial: Omit<Partial<StatementIR>, 'id' | 'inputs' | 'outputs'> & { id?: string; inputs?: string[]; outputs?: string[] },
+  partial: Omit<Partial<StatementIR>, 'id' | 'positional' | 'outputs'> & { id?: string; inputs?: string[]; outputs?: string[] },
 ): StatementIR {
-  const { id, inputs, outputs, ...rest } = partial
+  const { id, inputs, positional, outputs, ...rest } = partial
   return {
     id: asStmtId(id ?? 's1'),
     callee: 'box',
     args: {},
-    inputs: (inputs ?? []).map(asPartName),
+    positional: positional ?? (inputs ?? []).map((s) => ({ $ref: asPartName(String(s)) })),
     outputs: (outputs ?? [id ?? 'part0']).map(asPartName),
     ...rest,
   }
@@ -324,12 +324,12 @@ describe('codegen: 多行字符串参数往返（escapeStr 控制符转义修复
     const { codeToArgs } = await import('./code-to-args')
     const line = formatCodeLine({
       callee: 'text',
-      inputs: [],
+      positional: [],
       outputs: ['part0'],
       args: { text: multiCode, at: [0, 0, 0], opts: {} },
     })
     expect(line).not.toMatch(/\r|\n/)
     const args = codeToArgs(line)
-    expect(args.text).toBe(multiCode)
+    expect(args.args.text).toBe(multiCode)
   })
 })

@@ -15,7 +15,7 @@ import {
   isPlanarWire,
   vecAdd,
   vecScale,
-} from './compat.js';
+} from '@faicad/faijs/compat';
 import type { CutoutSpec, CutoutFeature, SheetMetalPart } from './types.js';
 import { normalizeSolid } from './internal.js';
 import { worldFrames, type FlatFrame } from './authorFns.js';
@@ -39,6 +39,10 @@ type Pt2 = [number, number];
  * mapped through the region's developed {@link Frame2} and recorded as a
  * {@link CutoutFeature}, so {@link unfold} emits the matching loop in the flat
  * pattern and {@link fold} can replay it. Guards a valid, single-bodied solid.
+ *
+ * @param part - the sheet metal part to cut.
+ * @param spec - the cutout specification (kind, region, geometry).
+ * @returns the updated part with the cutout feature recorded, or an error.
  */
 export function addCutout(part: SheetMetalPart, spec: CutoutSpec): Result<SheetMetalPart> {
   if (part.solid === undefined) {
@@ -97,7 +101,15 @@ export function addCutout(part: SheetMetalPart, spec: CutoutSpec): Result<SheetM
   return ok({ ...part, solid, cutouts: [...(part.cutouts ?? []), feature] });
 }
 
-/** Punch a circular hole of `diameter` centred at region-local `(x, y)`. */
+/**
+ * Punch a circular hole of `diameter` centred at region-local `(x, y)`.
+ * @param part - the sheet metal part to cut.
+ * @param region - the region name to cut into.
+ * @param x - the region-local x coordinate of the hole centre.
+ * @param y - the region-local y coordinate of the hole centre.
+ * @param diameter - the hole diameter.
+ * @returns the updated part with the hole feature recorded, or an error.
+ */
 export function addHole(
   part: SheetMetalPart,
   region: string,
@@ -108,7 +120,13 @@ export function addHole(
   return addCutout(part, { kind: 'hole', region, x, y, diameter });
 }
 
-/** Punch a slot centred at `(x, y)`: `length` along the slot axis by `width` across. */
+/**
+ * Punch a slot centred at `(x, y)`: `length` along the slot axis by `width` across.
+ * @param part - the sheet metal part to cut.
+ * @param region - the region name to cut into.
+ * @param opts - slot geometry (x, y, length, width, angleDeg?, round?).
+ * @returns the updated part with the slot feature recorded, or an error.
+ */
 export function addSlot(
   part: SheetMetalPart,
   region: string,
@@ -117,7 +135,13 @@ export function addSlot(
   return addCutout(part, { kind: 'slot', region, ...opts });
 }
 
-/** Punch an arbitrary polygon cutout from its region-local `points` (≥ 3). */
+/**
+ * Punch an arbitrary polygon cutout from its region-local `points` (≥ 3).
+ * @param part - the sheet metal part to cut.
+ * @param region - the region name to cut into.
+ * @param points - the polygon vertices in region-local coordinates (≥ 3).
+ * @returns the updated part with the polygon cutout feature recorded, or an error.
+ */
 export function addPolygonCutout(
   part: SheetMetalPart,
   region: string,
@@ -126,7 +150,11 @@ export function addPolygonCutout(
   return addCutout(part, { kind: 'polygon', region, points });
 }
 
-/** `'base'` is an alias for the base region; everything else passes through. */
+/**
+ * `'base'` is an alias for the base region; everything else passes through.
+ * @param region - the region name to resolve.
+ * @returns the canonical region ID.
+ */
 export function resolveRegionId(region: string): string {
   return region === 'base' || region === 'face-0' ? ROOT_FLAT_ID : region;
 }
@@ -136,6 +164,9 @@ export function resolveRegionId(region: string): string {
  * shared feature-tree walk — the lookup tabs/forms need to place geometry on the
  * correct folded face and emit the matching developed-plane loops. Mirrors the
  * frame resolution {@link addCutout} performs inline.
+ * @param part - the sheet metal part.
+ * @param region - the region name.
+ * @returns the region ID, world frame, and developed frame, or an error.
  */
 export function regionFrames(
   part: SheetMetalPart,
@@ -156,7 +187,13 @@ export function regionFrames(
   return ok({ regionId, world, dev: dev.value });
 }
 
-/** Developed-plane (u, v) extent of a region: base dims, or a flange frame's lengths. */
+/**
+ * Developed-plane (u, v) extent of a region: base dims, or a flange frame's lengths.
+ * @param part - the sheet metal part.
+ * @param regionId - the canonical region ID.
+ * @param world - the region's world frame.
+ * @returns the developed-plane extent.
+ */
 export function regionDevExtent(part: SheetMetalPart, regionId: string, world: FlatFrame): Extent {
   return regionExtent(part, regionId, world);
 }
@@ -295,7 +332,12 @@ function developedFrame(part: SheetMetalPart, regionId: string, tree?: FeatureTr
   return ok(placed.frame);
 }
 
-/** Map a region-local `(x, y)` into developed-plane coordinates via its {@link Frame2}. */
+/**
+ * Map a region-local `(x, y)` into developed-plane coordinates via its {@link Frame2}.
+ * @param p - the region-local point.
+ * @param f - the developed frame.
+ * @returns the developed-plane point.
+ */
 export function mapToFrame2(p: Pt2, f: Frame2): Pt2 {
   return [
     f.origin[0] + f.u[0] * p[0] + f.v[0] * p[1],

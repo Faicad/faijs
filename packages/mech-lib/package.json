@@ -1,5 +1,5 @@
 {
-  "name": "@faicad/mech-lib",
+  "name": "@facad/mech-lib",
   "version": "0.5.12",
   "type": "module",
   "main": "./dist/index.js",
@@ -10,11 +10,9 @@
   "files": [
     "dist"
   ],
-  "dependencies": {
-    "brepjs": "18.119.2"
-  },
+  "dependencies": {},
   "peerDependencies": {
-    "@faicad/faijs-core": "*",
+    "@facad/faijs": "*",
     "occt-wasm": "^3.8.0"
   },
   "devDependencies": {

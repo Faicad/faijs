@@ -17,7 +17,7 @@
  */
 
 import type { ArgIR, CallRefIR, StatementIR, VarRefIR, ExprIR } from './types'
-import { isVarRef, isCallRef, isExprRef } from './types'
+import { isVarRef, isCallRef, isExprRef, statementInputs } from './types'
 import { asPartName, type PartName } from '../identity'
 
 // ── 数据结构（设计契约 §6） ──
@@ -68,6 +68,36 @@ export function withoutKeepDirectives(
   if (!args) return {}
   const { keep: _keep, keepHidden: _keepHidden, ...rest } = args
   return rest
+}
+
+/** 判定 ArgIR 是否为"纯对象"位置实参（非 IR 变体、非数组的普通对象）。 */
+function isPlainObjectArg(arg: ArgIR): boolean {
+  return (
+    arg !== null &&
+    typeof arg === 'object' &&
+    !Array.isArray(arg) &&
+    !isVarRef(arg) &&
+    !isCallRef(arg) &&
+    !isExprRef(arg) &&
+    !('$param' in (arg as object))
+  )
+}
+
+/**
+ * 剥离位置实参槽中的 keep 指令（true-JS-subset 方案 §4.1）：keep/keepHidden 键
+ * 存在于尾随纯对象位置实参（选项槽）中，发射/序列化前从该对象剥离。
+ * 与 withoutKeepDirectives 同语义，只是载体从 args 记录变为 positional 尾随对象。
+ * @param positional - the statement's positional argument slot.
+ * @returns a copy of the positional slot with keep/keepHidden removed from the trailing plain object.
+ */
+export function withoutKeepDirectivesFromPositional(positional: ArgIR[]): ArgIR[] {
+  const last = positional[positional.length - 1]
+  if (!isPlainObjectArg(last)) return positional
+  const obj = last as unknown as Record<string, ArgIR>
+  const stripped = Object.fromEntries(
+    Object.entries(obj).filter(([k]) => k !== 'keep' && k !== 'keepHidden'),
+  )
+  return [...positional.slice(0, -1), stripped as unknown as ArgIR]
 }
 
 // ── 解析 ──
@@ -190,8 +220,8 @@ export function validateKeepDirectives(stmt: StatementIR): string[] {
     if (!Array.isArray(keepArg)) {
       errors.push(`statement "${stmt.id}": keep must be an array of variable references`)
     } else {
-      // 合法引用目标：inputs + args（除 keep/keepHidden 两键）中的 VarRefIR / ExprIR refs
-      const referable = new Set<string>(stmt.inputs.map(String))
+      // 合法引用目标：positional 中的 VarRefIR/ExprIR refs + args（除 keep/keepHidden 两键）中的引用
+      const referable = new Set<string>(statementInputs(stmt).map(String))
       const scan = (value: unknown): void => {
         if (value === null || typeof value !== 'object') return
         if (isVarRef(value as ArgIR)) {
@@ -213,6 +243,7 @@ export function validateKeepDirectives(stmt: StatementIR): string[] {
         }
         for (const v of Object.values(value as Record<string, unknown>)) scan(v)
       }
+      for (const parg of stmt.positional) scan(parg)
       for (const [k, v] of Object.entries(args)) {
         if (k === 'keep' || k === 'keepHidden') continue
         scan(v)

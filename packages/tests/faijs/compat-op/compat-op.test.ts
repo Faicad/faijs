@@ -54,7 +54,7 @@ async function makeBrepRuntime(): Promise<{ runtime: CadRuntime; warm: Shape }> 
 }
 
 describe('① compat-op units', () => {
-  it('borrowDeep: a faijs Shape maps to a borrowed brepjs view', async () => {
+  it('borrowDeep: a faijs Shape maps to a borrowed brepjs view with an object KernelShape (P1)', async () => {
     const { runtime, warm } = await makeBrepRuntime()
     try {
       expect(isShape(warm)).toBe(true)
@@ -62,6 +62,19 @@ describe('① compat-op units', () => {
       expect(view).toBeTruthy()
       expect('wrapped' in (view as object)).toBe(true)
       expect(view.wrapped).toBeDefined()
+      // P1 regression: `wrapped` must be a structurally valid OcctWasmHandle
+      // OBJECT — vendored code uses KernelShape as a WeakMap key
+      // (shapeTypeCache) and reads `shape.type` directly; a raw numeric id
+      // crashed with "Invalid value used as weak map key".
+      const wrapped = view.wrapped as Record<string, unknown> | number
+      expect(typeof wrapped).toBe('object')
+      expect((wrapped as Record<string, unknown>).__occtWasm).toBe(true)
+      expect(typeof (wrapped as Record<string, unknown>).id).toBe('number')
+      expect((wrapped as Record<string, unknown>).type).toBe('solid')
+      // and the object is actually usable as a WeakMap key
+      const cache = new WeakMap<object, string>()
+      cache.set(wrapped as object, 'ok')
+      expect(cache.get(wrapped as object)).toBe('ok')
     } finally {
       runtime.dispose()
     }

@@ -1,4 +1,4 @@
-import { type Result, ok, err, validationError } from './compat.js';
+import { type Result, ok, err, validationError } from '@faicad/faijs/compat';
 import type { BendReport, SheetMetalPart, UnfoldResult } from './types.js';
 import { featureTree } from './featureTreeFns.js';
 import { layoutTree, reportFromLayout } from './unfoldFns.js';

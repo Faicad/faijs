@@ -551,7 +551,7 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
       id: asStmtId(id),
       callee,
       args: args as any,
-      inputs: inputs.map(asPartName),
+      positional: inputs.map((s) => ({ $ref: asPartName(s) })),
       outputs: [asPartName(id)],
       hasAssignment: true,
     }

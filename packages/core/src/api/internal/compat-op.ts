@@ -43,7 +43,12 @@ export interface CompatSpec {
 
 const MAX_WALK_DEPTH = 4
 
-/** Deep-collect geometry inputs (same Shape test as step 3) for the dispatch gate. */
+/**
+ * Deep-collect geometry inputs (same Shape test as step 3) for the dispatch gate.
+ * @param v - the value to traverse (plain object, array, or primitive).
+ * @param out - accumulator array for discovered Shape references.
+ * @param depth - current traversal depth (guard against deep recursion).
+ */
 export function collectShapes(v: unknown, out: Shape[], depth: number): void {
   // Explicit depth guards against deep/hrecursive structures.
   if (depth > MAX_WALK_DEPTH || v === null || typeof v !== 'object') return
@@ -53,9 +58,14 @@ export function collectShapes(v: unknown, out: Shape[], depth: number): void {
   for (const x of Object.values(v)) collectShapes(x, out, depth + 1)
 }
 
-/** Step 3: inward deep walk — any faijs Shape in the structure maps to a
- *  borrowed view; everything else passes through (library-private handles
- *  pass through, §4.3.4). */
+/**
+ * Step 3: inward deep walk — any faijs Shape in the structure maps to a
+ * borrowed view; everything else passes through (library-private handles
+ * pass through, §4.3.4).
+ * @param v - the value to borrow from (plain object, array, or primitive).
+ * @param depth - current traversal depth (guard against deep recursion).
+ * @returns the value with faijs Shapes replaced by borrowed views.
+ */
 export function borrowDeep(v: unknown, depth: number): unknown {
   if (depth > MAX_WALK_DEPTH || v === null || typeof v !== 'object') return v
   if (isShape(v)) return borrowBrepjsShape(v as Shape)
@@ -74,6 +84,10 @@ export function borrowDeep(v: unknown, depth: number): unknown {
  * Delegates to the shared {@link unwrapResult} (P23, §5.1): `defineOp`'s
  * Result-aware boundary and this bridge must never drift apart, so both call
  * the one leaf implementation.
+ *
+ * @param r - the Result-like value to unwrap.
+ * @param name - the op name used in error messages.
+ * @returns the unwrapped ok value.
  */
 export function unwrapOrThrow(r: unknown, name: string): unknown {
   return unwrapResult(r, name)

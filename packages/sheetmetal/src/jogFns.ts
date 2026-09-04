@@ -1,4 +1,4 @@
-import { type Result, type Solid, ok, err, validationError } from './compat.js';
+import { type Result, type Solid, ok, err, validationError } from '@faicad/faijs/compat';
 import type {
   BendFeature,
   BendRule,
@@ -27,6 +27,10 @@ import {
  * table-aware {@link developedLength}). The connecting step run is
  * `offsetHeight / sin(θ)` so the two bends realize the requested perpendicular step;
  * the result is guarded to a valid single solid. OCCT-WASM-safe construction only.
+ *
+ * @param part - the sheet metal part to attach a jog to.
+ * @param spec - the jog specification.
+ * @returns the updated part with the jog feature recorded, or an error.
  */
 export function jog(part: SheetMetalPart, spec: JogSpec): Result<SheetMetalPart> {
   if (part.solid === undefined) {

@@ -8,7 +8,7 @@ import {
   vecAdd,
   vecScale,
   vecCross,
-} from './compat.js';
+} from '@faicad/faijs/compat';
 import type { BendFeature, SheetMetalPart, SheetMetalWarning } from './types.js';
 import { ROOT_FLAT_ID } from './featureTreeFns.js';
 
@@ -25,6 +25,9 @@ const OVERLAP_TOL = 1e-6;
  *    the cheap interference signal for corners that need a miter or relief cut.
  *  - `MIN_RADIUS`: a bend's inner radius is below one material thickness
  *    (`R < 1×T`), the standard minimum-bend-radius rule of thumb.
+ *
+ * @param part - the sheet metal part to validate.
+ * @returns the list of warnings (empty if valid).
  */
 export function validatePart(part: SheetMetalPart): SheetMetalWarning[] {
   const warnings: SheetMetalWarning[] = [];

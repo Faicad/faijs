@@ -41,8 +41,9 @@ function compileText(text: string) {
 
 /** 构造一条语句（terminal-dag 静态测试用）。inputs/outputs 接受裸字符串（自动品牌化）。 */
 function makeStmt(
-  over: { id: string; callee: string } & Omit<Partial<StatementIR>, 'id' | 'callee' | 'inputs' | 'outputs' | 'args'> & {
+  over: { id: string; callee: string } & Omit<Partial<StatementIR>, 'id' | 'callee' | 'positional' | 'outputs' | 'args'> & {
     inputs?: (string | PartName)[]
+    positional?: ArgIR[]
     outputs?: (string | PartName)[]
     args?: Record<string, unknown>
   },
@@ -51,7 +52,7 @@ function makeStmt(
     id: over.id as never,
     callee: over.callee,
     args: (over.args ?? {}) as Record<string, ArgIR>,
-    inputs: (over.inputs ?? []).map((s) => asPartName(String(s))),
+    positional: over.positional ?? (over.inputs ?? []).map((s) => ({ $ref: asPartName(String(s)) })),
     outputs: (over.outputs ?? []).map((s) => asPartName(String(s))),
     hasAssignment: over.hasAssignment ?? true,
     receiver: over.receiver,
@@ -291,7 +292,7 @@ describe('keep: 第三方函数（C1/C3/C5，terminal-dag 静态判定）', () =
   it('C3：第三方测量函数（返回非几何）不消费输入', () => {
     const script = makeScript([
       makeStmt({ id: 's1', callee: 'box', args: { size: 20 }, outputs: ['part0'] }),
-      makeStmt({ id: 's2', callee: 'mech.measure', args: { of: [varRef('part0')] }, inputs: [asPartName('part0')], outputs: [asPartName('m')] }),
+      makeStmt({ id: 's2', callee: 'mech.measure', args: { of: [varRef('part0')] }, inputs: ['part0'], outputs: ['m'] }),
     ])
     // shapeVarNames 只含 part0（m 是 number，非几何）
     const terminals = computeLeafTerminals(script, new Set([asPartName('part0')]))

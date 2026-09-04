@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { initOCCT } from './test-setup.js';
-import { isValid } from './compat.js';
+import { isValid } from '@faicad/faijs/compat';
 import { author, unfold } from './api.js';
-import { isErr } from './compat.js';
+import { isErr } from '@faicad/faijs/compat';
 import type { BendRule, SheetMetalPart } from './types.js';
 
 beforeAll(async () => {

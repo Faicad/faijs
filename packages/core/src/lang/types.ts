@@ -10,7 +10,7 @@
  * L0 边界：此文件仅依赖 TypeScript 内置类型 + identity（零依赖品牌模块）。
  */
 
-import type { StmtId, PartName } from '../identity'
+import { asPartName, type PartName, type StmtId } from '../identity'
 
 // ── 值与引用 ──
 
@@ -124,13 +124,25 @@ export interface StatementIR {
   /** 调用所在命名空间（P7 第三方库通道：`import * as mech from 'mech-lib'` 后 `mech.makeHeadstock(...)` 的 namespace='mech'；缺省 = 'cad'）。 */
   namespace?: string
   /** 本机函数调用：callee 是脚本内函数名（区别于命名空间调用）。缺省 = 命名空间调用。
-   *  local: true 时 namespace 缺省，callee 即函数名；调用约定见 §3.6 ABI（位置实参 → 前 M 形参 + args 对象按名补剩余）。 */
+   *  local: true 时 namespace 缺省，callee 即函数名；调用约定见 §3.6 ABI（位置实参 → 前 M 形参 + 尾随选项对象按名补剩余）。 */
   local?: boolean
   callee: string
+  /**
+   * 位置实参槽（true-JS-subset 方案 §4.1，取代原 inputs: PartName[]）：每个位置实参
+   * 是一个 ArgIR——Identifier → VarRefIR、字面量 → JsonValue、对象 → JsonValue 对象
+   * （属性值递归为 ArgIR）、<ns>.<fn>(...) → CallRefIR、其余白名单表达式 → ExprIR。
+   * 任意顺序/数量混排；多对象实参按位置如实传递（不合并、不覆盖）。
+   * 单一真源：原 inputs 语义由 statementInputs()（VarRefIR 投影）派生。
+   */
+  positional: ArgIR[]
+  /**
+   * 尾随选项对象槽（投影）：解析时最后一个纯对象位置实参同时投影到此
+   * （keep/keepHidden 指令键仍在其中）；无对象尾随实参时为 {}。
+   * 只读便利槽——真源是 positional；宿主面（statement-summary / codeToArgs）读此槽。
+   */
   args: Record<string, ArgIR>
-  inputs: PartName[]
   name?: string
-  /** 本语句引用的变量名集合（inputs + args 中的 $param + $geom.of + group/assembly members）。
+  /** 本语句引用的变量名集合（positional + args 中的 $param / $ref / 嵌套调用 / ExprIR refs + receiver）。
    *  parser 收集，编译期（compileToModule）据此翻译为 deps（定义这些变量的语句 id）。 */
   refs?: string[]
   /** 本语句产出的变量名列表（PartName）。
@@ -270,8 +282,9 @@ export interface ScriptIR {
  * Create a new statement IR with the given identity and content.
  * @param id - the statement's StmtId.
  * @param callee - the operation name being called.
- * @param args - the call's argument object.
- * @param inputs - the positional input variable names.
+ * @param args - the statement's trailing options-object slot (projection of the
+ *               last plain-object positional element when present).
+ * @param positional - the positional argument slot (ArgIR elements in call order).
  * @param outputs - the produced variable names.
  * @param name - an optional statement name.
  * @returns the constructed statement IR.
@@ -280,11 +293,52 @@ export function createStatementIR(
   id: StmtId,
   callee: string,
   args: Record<string, ArgIR>,
-  inputs: PartName[],
+  positional: ArgIR[],
   outputs: PartName[],
   name?: string,
 ): StatementIR {
-  return { id, callee, args, inputs, outputs, name }
+  return { id, callee, args, positional, outputs, name }
+}
+
+/**
+ * 位置实参槽中的纯变量引用投影（原 inputs 语义，true-JS-subset 方案 §4.1）：
+ * 依次取 positional 中的 VarRefIR.$ref（PartName）。ExprIR/CallRefIR 内的引用
+ * 不在此列——它们经 stmt.refs / terminal-dag 的递归扫描参与消费判定（D3）。
+ * @param stmt - the statement to project.
+ * @returns the VarRefIR $ref list in positional order.
+ */
+export function statementInputs(stmt: StatementIR): PartName[] {
+  const out: PartName[] = []
+  for (const arg of stmt.positional) {
+    if (isVarRef(arg)) out.push(asPartName(arg.$ref))
+  }
+  return out
+}
+
+/**
+ * 本机函数 ABI 槽位切分（§3.6 约定）：最后一个"纯对象"位置实参是命名选项槽
+ * （按形参名补位），其余位置实参按序占前 M 个形参。非对象 IR 变体
+ * （ParamRef/VarRef/CallRef/ExprIR）不算对象槽。
+ * @param positional - the positional argument slot.
+ * @returns the positional values and the trailing named-options object ({} when absent).
+ */
+export function splitPositionalOptions(
+  positional: ArgIR[],
+): { values: ArgIR[]; named: Record<string, ArgIR> } {
+  const last = positional[positional.length - 1]
+  if (
+    positional.length > 0 &&
+    last !== null &&
+    typeof last === 'object' &&
+    !Array.isArray(last) &&
+    !isParamRef(last) &&
+    !isVarRef(last) &&
+    !isCallRef(last) &&
+    !isExprRef(last)
+  ) {
+    return { values: positional.slice(0, -1), named: last as Record<string, ArgIR> }
+  }
+  return { values: positional, named: {} }
 }
 
 /**

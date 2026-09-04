@@ -64,7 +64,7 @@ function makeStmt(
   return {
     id: asStmtId(id), callee,
     args: args as any,
-    inputs: inputs.map(asPartName),
+    positional: inputs.map((x) => ({ $ref: asPartName(x) })),
     outputs: noAssignment ? [] : [asPartName(id)],
     hasAssignment: !noAssignment,
   }
@@ -564,7 +564,7 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     const splitStmt: StatementIR = {
       id: asStmtId('s1'), callee: 'fai_split',
       args: { cutMode: 'plane', normal: [0, 0, 1], offset: 0 } as never,
-      inputs: [asPartName('s0')],
+      positional: [{ $ref: asPartName('s0') }],
       outputs: [asPartName('s1'), asPartName('s1b')], // stmt.id === outputs[0]；outputs[1] (back) 需显式持久化
       outputKeys: ['front', 'back'],
       hasAssignment: true,
@@ -587,7 +587,7 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
     const splitStmt: StatementIR = {
       id: asStmtId('s1'), callee: 'fai_split',
       args: { cutMode: 'plane', normal: [0, 0, 1], offset: 0 } as never,
-      inputs: [asPartName('s0')],
+      positional: [{ $ref: asPartName('s0') }],
       outputs: [asPartName('s1'), asPartName('s1b')],
       outputKeys: ['front', 'back'],
       hasAssignment: true,
@@ -632,7 +632,7 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
           movingFace: { surfaceType: 'plane', center: [0, -5, 0], normal: [0, -1, 0] },
         }],
       },
-      inputs: [],
+      positional: [],
       hasAssignment: true,
       outputs: [asPartName('asm1')],
     }
@@ -640,7 +640,7 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
       id: asStmtId('do_asm1'),
       callee: 'do_assemble',
       args: {},
-      inputs: [],
+      positional: [],
       outputs: [],
       receiver: asPartName('asm1'),
     }
@@ -711,7 +711,7 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
           movingFace: { surfaceType: 'plane', center: [0, -5, 0], normal: [0, -1, 0] },
         }],
       },
-      inputs: [],
+      positional: [],
       hasAssignment: true,
       outputs: [asPartName('asm1')],
     }
@@ -719,7 +719,7 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
       id: asStmtId('do_asm1'),
       callee: 'do_assemble',
       args: {},
-      inputs: [],
+      positional: [],
       outputs: [],
       receiver: asPartName('asm1'),
     }
@@ -764,7 +764,7 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
           movingFace: { surfaceType: 'plane', center: [0, -5, 0], normal: [0, -1, 0] },
         }],
       },
-      inputs: [],
+      positional: [],
       hasAssignment: true,
       outputs: [asPartName('asm1')],
     }
@@ -775,7 +775,7 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
       id: asStmtId('do_asm1'),
       callee: 'do_assemble',
       args: {},
-      inputs: [],
+      positional: [],
       outputs: [],
       receiver: asPartName('asm1'),
     }
@@ -886,7 +886,7 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
           movingFace: { surfaceType: 'plane', center: [0, -5, 0], normal: [0, -1, 0] },
         }],
       },
-      inputs: [],
+      positional: [],
       hasAssignment: true,
       outputs: [asPartName('asm1')],
     }
@@ -894,7 +894,7 @@ describe('CadRuntime: Persistent SolidCache 增量执行 (execute/update/append)
       id: asStmtId('do_asm1'),
       callee: 'do_assemble',
       args: {},
-      inputs: [],
+      positional: [],
       outputs: [],
       receiver: asPartName('asm1'),
     }
@@ -975,7 +975,7 @@ describe('CadRuntime: DAG leaf terminal detection', () => {
     const { result } = await run([
       makeStmt('s1', 'box', { size: 20 }),
       makeStmt('s2', 'sphere', { radius: 8 }),
-      { id: asStmtId('s3'), callee: 'subtract', args: {}, inputs: [asPartName('s1'), asPartName('s2')], outputs: [asPartName('s3')], hasAssignment: true } as StatementIR,
+      { id: asStmtId('s3'), callee: 'subtract', args: {}, positional: [{ $ref: asPartName('s1') }, { $ref: asPartName('s2') }], outputs: [asPartName('s3')], hasAssignment: true } as StatementIR,
     ])
     // keep-syntax §2.5：subtract 函数体 exec.keepHidden(inputs) → s1/s2 保留且隐藏（R5）
     const byId = new Map(result.terminals.map((t) => [String(t.id), t]))
@@ -991,7 +991,7 @@ describe('CadRuntime: DAG leaf terminal detection', () => {
     const s1 = makeStmt('part0', 'box', { size: 20 })
     const s2: StatementIR = {
       id: asStmtId('s2'), callee: 'translate', args: { offset: [5, 0, 0] },
-      inputs: [asPartName('part0')], outputs: [asPartName('part0')], hasAssignment: true,
+      positional: [{ $ref: asPartName('part0') }], outputs: [asPartName('part0')], hasAssignment: true,
     }
     const { result } = await run([s1, s2])
     expect(result.terminals.length).toBe(1)

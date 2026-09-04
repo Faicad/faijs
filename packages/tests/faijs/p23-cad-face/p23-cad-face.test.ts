@@ -14,17 +14,17 @@
  *     （`cad.torus` / `cad.fuse` / `cad.cut` / `cad.offset` / `cad.clone`）端到端
  *     跑通；mesh 强制模式按红线抛 E_MESH_UNSUPPORTED（不静默回退）。
  *
- *  ⚠️ 已实测的语言边界（执行卡验证项 ③ 的偏差记录）：`.fai.js` 解析器的调用
- *  实参白名单只有 Identifier（变量引用 → inputs）与 ObjectExpression（args 对象）
- *  —— packages/core/src/lang/parser.ts:706-717。因此 `const p1 = cad.torus(8, 2)`
- *  在语言层不可写（ParseError: unexpected argument type: Literal）。D11 的落点是
- *  **cad 面函数本身**（§4.2「归一化位置：TS 面导出函数内部」），faijs 语言继续
- *  只生成对象形态（§4.4 保留的 faijs 特性，UI/AI 生成代码不受影响）。所以本套件
- *  按两层验证：
+ *  ⚠️ 语言边界历史记录（true-JS-subset 方案 2026-09-04 已放开）：P23 当时
+ *  `.fai.js` 解析器的调用实参白名单只有 Identifier（变量引用 → inputs）与
+ *  ObjectExpression（args 对象），`const p1 = cad.torus(8, 2)` 曾报
+ *  ParseError: unexpected argument type: Literal。true-JS-subset 方案落地后
+ *  位置实参槽（StatementIR.positional）接受任意合法 JS 表达式，该限制已取消。
+ *  D11 的落点是 **cad 面函数本身**（§4.2「归一化位置：TS 面导出函数内部」）。
+ *  所以本套件按两层验证：
  *    a) cad 面函数直接调两种形态 → 几何一致（②）；
  *    b) `.fai.js` 对象形态执行结果 == 位置形态直调结果（② 的跨层等价）。
- *  位置形态进 `.fai.js` 属语言层变更（StatementIR 需新增 positional 槽 + 增量
- *  key 覆盖 + 宿主编辑面板适配），超出 P23 范围，不在本轮实施。
+ *  位置形态已进 `.fai.js`（positional 槽 + 增量 key 覆盖）；宿主编辑面板适配
+ *  在 3d_editor 侧跟进。
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -179,7 +179,9 @@ describe('③ 生成脚本面 op 在 .fai.js 中执行', () => {
     try {
       const res = await meshRt.execute('const p0 = cad.box({ size: 10 })\nconst p1 = cad.torus({ majorRadius: 8, minorRadius: 2 })')
       expect(res.failedAt).toBeDefined()
-      expect(JSON.stringify(res.errors)).toContain('E_MESH_UNSUPPORTED')
+      // ExecutionResult 没有 errors 字段（P23 提交时的笔误）：引擎把模式不支持
+      // 归并为 failedAt（index/callee/message），错误码在 message 里。
+      expect(res.failedAt!.message).toContain('E_MESH_UNSUPPORTED')
     } finally {
       meshRt.dispose()
     }

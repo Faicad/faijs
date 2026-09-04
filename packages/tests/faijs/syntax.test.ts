@@ -15,6 +15,7 @@ import { resolve, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseScript } from '@faicad/faijs-core/lang/parser'
 import { scriptIRToCode } from '@faicad/faijs-core/lang/codegen'
+import { statementInputs } from '@faicad/faijs-core/lang/types'
 
 // PartScript 类型随 parseScript 返回推导（门面不单独导出该类型）
 type PartScript = ReturnType<typeof parseScript>['script']
@@ -46,7 +47,7 @@ function scriptsEqual(a: PartScript, b: PartScript): boolean {
     const sb = b.statements[i]
     if (sa.id !== sb.id) return false
     if (sa.callee !== sb.callee) return false
-    if (JSON.stringify(sa.inputs) !== JSON.stringify(sb.inputs)) return false
+    if (JSON.stringify(statementInputs(sa)) !== JSON.stringify(statementInputs(sb))) return false
     if (JSON.stringify(sa.args) !== JSON.stringify(sb.args)) return false
   }
   return true
@@ -98,8 +99,8 @@ part0 = cad.translate({ offset: [5, 0, 0] }, part0)
 part0 = cad.rotate_euler({ anglesDeg: [0, 0, 45] }, part0)`
     const { script } = parseScript(code)
     expect(script.statements).toHaveLength(3)
-    expect(script.statements[1].inputs).toEqual(['part0'])
-    expect(script.statements[2].inputs).toEqual(['part0'])
+    expect(statementInputs(script.statements[1])).toEqual(['part0'])
+    expect(statementInputs(script.statements[2])).toEqual(['part0'])
   })
 
   it('multi mesh: two independent primitives → two outputs (runtime terminals)', () => {

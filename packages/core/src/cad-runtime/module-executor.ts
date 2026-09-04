@@ -12,8 +12,10 @@
  */
 
 import type { CompiledStatementMeta } from '../lang/compile'
-import type { StatementIR, ScriptIR } from '../lang/types'
-import { withoutKeepDirectives, type InternalKeepRecord } from '../lang/keep'
+import type { StatementIR, ScriptIR, ArgIR } from '../lang/types'
+import { isVarRef, isExprRef, statementInputs } from '../lang/types'
+import { withoutKeepDirectives, withoutKeepDirectivesFromPositional, type InternalKeepRecord } from '../lang/keep'
+import { OpError } from '../api/internal/result-unwrap'
 import type { Shape } from '../mesh/types'
 import type { BrepHandle } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
@@ -154,7 +156,10 @@ export class ModuleExecutor {
    */
   private defaultNsName = 'cad'
 
-  /** Sync the default namespace binding name (called by runtime.registerLib with {default:true}). */
+  /**
+   * Sync the default namespace binding name (called by runtime.registerLib with {default:true}).
+   * @param name - the namespace binding name to use as default.
+   */
   setDefaultNsName(name: string): void {
     this.defaultNsName = name
   }
@@ -267,6 +272,20 @@ export class ModuleExecutor {
       }
       try {
         await compiled.fn(this.ctx, this.namespaces)
+      } catch (err) {
+        // D4（true-JS-subset §4.3.2）：表达式求值失败（编译产物内标记的
+        // __FaiExprEvalError）包装为 OpError(E_EXPR) 重抛，由 runWithFailureHandling
+        // 归并为 ExecutionResult.failedAt（语句归属经 setCurrentStmt 已定位）。
+        // 其余异常原样抛穿：Brep/MeshUnsupported → failedAt；op 实现的普通异常
+        //（= bug，Result 体系契约）不在此处改变语义。
+        if (err instanceof Error && (err as { isExprEvalError?: boolean }).isExprEvalError === true) {
+          throw new OpError(
+            source?.callee ?? String(id),
+            'E_EXPR',
+            err.message,
+          )
+        }
+        throw err
       } finally {
         if (isLocal) {
           this.releaseFunctionBrepDomain(compiled, meta)
@@ -542,7 +561,7 @@ export class ModuleExecutor {
     const names = new Set(memberNames)
     const stale = new Set<StmtId>()
     for (const [id, source] of this.sourceById) {
-      if (source.inputs.some((n) => names.has(String(n)))) stale.add(id)
+      if (statementInputs(source).some((n) => names.has(String(n)))) stale.add(id)
     }
     return stale
   }
@@ -552,14 +571,31 @@ export class ModuleExecutor {
    *
    * 判据：语句有几何输入且**全部**输入都在 BREP 链上，但输出**不在**链上
    * → BREP 链在此断开（mesh-only 函数或 fallthrough）。
+   *
+   * true-JS-subset §4.4.2：几何输入 = positional 中的 VarRefIR + ExprIR.refs
+   * （表达式实参引用的 Shape 变量同样喂进本语句；CallRef 嵌套调用是只读查询不计）。
    */
   private emitBrepLost(id: StmtId, source: StatementIR | undefined): void {
-    if (!source || source.inputs.length === 0) return
+    if (!source) return
+    const inputNames = new Set<string>()
+    const scanPositional = (arg: ArgIR): void => {
+      if (arg === null || typeof arg !== 'object') return
+      if (isVarRef(arg)) {
+        inputNames.add(String(arg.$ref))
+        return
+      }
+      if (isExprRef(arg)) {
+        for (const r of arg.$expr.refs) inputNames.add(r)
+        return
+      }
+    }
+    for (const arg of source.positional ?? []) scanPositional(arg)
+    if (inputNames.size === 0) return
     const sink = getBackends().events as EventSink | undefined
     if (!sink) return
 
-    const inputsOnChain = source.inputs
-      .map((n) => this.ctx[String(n)])
+    const inputsOnChain = [...inputNames]
+      .map((n) => this.ctx[n])
       .filter((v): v is Shape => !!v && typeof v === 'object')
     if (inputsOnChain.length === 0) return
     if (!inputsOnChain.every(hasBrep)) return          // 上游本就不在链上 → 非断开
@@ -575,11 +611,15 @@ export class ModuleExecutor {
   }
 
   /**
-   * Compute a statementKey = op | JSON(args without keep) | each dependency's
-   * output content key (parameter statements use the parameter value). The
-   * keep/keepHidden keys are excluded so toggling retain/hide state triggers no
-   * geometric recompute. plan() uses this with the current cache to compute the
-   * expected key for incremental decisions.
+   * Compute a statementKey = op | JSON(positional + args without keep) | each
+   * dependency's output content key (parameter statements use the parameter
+   * value). The keep/keepHidden keys are excluded so toggling retain/hide state
+   * triggers no geometric recompute. plan() uses this with the current cache to
+   * compute the expected key for incremental decisions.
+   *
+   * true-JS-subset §4.4.1：位置实参槽入 key——ExprIR 可 JSON 化
+   * （text + refs + params），表达式文本变化即触发重算；表达式引用的上游变量
+   * 变化经 deps 的 outputContentKey 传递。
    *
    * 本机函数调用（local）：key 前缀 `local.<callee>#<bodyHash>`（§6.2 / P4 内容寻址）——
    * 编辑函数体文本 → 所有调用该函数的语句 key 变化 → 下游失效重算；不改函数体零重算。
@@ -598,7 +638,10 @@ export class ModuleExecutor {
         ? `local.${source.callee}#${this.bodyHashOf(source.callee)}`
         : `${source.namespace ?? this.defaultNsName}.${source.callee}#${this.libIdOf(source.namespace ?? this.defaultNsName)}`,
     ]
-    parts.push(JSON.stringify(withoutKeepDirectives(source.args)))
+    parts.push(JSON.stringify({
+      positional: withoutKeepDirectivesFromPositional(source.positional ?? []),
+      args: withoutKeepDirectives(source.args),
+    }))
     for (const dep of meta.deps) {
       const ck = this.cache.get(dep)?.outputContentKey
       parts.push(ck ?? 'missing')

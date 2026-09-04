@@ -21,6 +21,7 @@ import { parseScript, ParseError } from './parser'
 import { scriptIRToCode } from './codegen'
 import { compileToModule } from './compile'
 import { analyzeCode } from './statement-summary'
+import { statementInputs } from './types'
 import { computeLeafTerminals } from '../cad-runtime/terminal-dag'
 import { asPartName, type PartName } from '../identity'
 
@@ -179,14 +180,14 @@ describe('Phase2: 本机函数调用四形态 + ABI（§3.4 / §3.6）', () => {
     const stmt1 = script.statements[1]
     expect(stmt1.local).toBe(true)
     expect(stmt1.callee).toBe('makeGear')
-    expect(stmt1.inputs).toEqual([])
+    expect(statementInputs(stmt1)).toEqual([])
     expect(stmt1.args.count).toBe(8)
     expect(stmt1.args.pitch).toBe(5)
     expect(stmt1.outputs).toEqual([asPartName('part1')])
     // let part2 = makeGear(part0, { pitch: 5 })：位置实参 part0 → inputs
     const stmt2 = script.statements[2]
     expect(stmt2.local).toBe(true)
-    expect(stmt2.inputs).toEqual([asPartName('part0')])
+    expect(statementInputs(stmt2)).toEqual([asPartName('part0')])
     expect(stmt2.args).toEqual({ pitch: 5 })
   })
 
@@ -194,7 +195,7 @@ describe('Phase2: 本机函数调用四形态 + ABI（§3.4 / §3.6）', () => {
     const { script } = parseScript(code)
     const stmt3 = script.statements[3]
     expect(stmt3.local).toBe(true)
-    expect(stmt3.inputs).toEqual([asPartName('part2')])
+    expect(statementInputs(stmt3)).toEqual([asPartName('part2')])
     expect(stmt3.args.pitch).toBe(3)
   })
 

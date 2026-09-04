@@ -17,7 +17,9 @@
  *      （meshHandle + 身份槽登记，所有权转入 faijs）。
  *
  * 依赖约束（同 `brep/handle-bridge.ts`）：只允许 import runtime-state / shape /
- * handle-bridge / vendored disposal 的类型与借入工具，保持 dist/sdk.js 零 heavy 依赖。
+ * handle-bridge / vendored disposal 的类型与借入工具 / vendored occtWasm helpers
+ * 的句柄视图工厂（`handle`/`isOcctWasmHandle`，纯对象工厂无 wasm 依赖）/ `api/`
+ * 层的内核桥读取器（`getBrepjsKernel`），保持 dist/sdk.js 零 heavy 依赖。
  */
 
 import type { Shape } from '../../mesh/types'
@@ -27,6 +29,9 @@ import type { BrepHandle } from '../../brep/engine/types'
 import { createBorrowedHandle } from '../../vendored/brepjs/core/disposal.js'
 import { unregisterFromCleanup } from '../../vendored/brepjs/core/disposal.js'
 import type { ShapeHandle } from '../../vendored/brepjs/core/disposal.js'
+import { handle as occtWasmHandleView, isOcctWasmHandle } from '../../vendored/brepjs/kernel/occtWasm/helpers.js'
+import { getBrepjsKernel } from '../occt-kernel-bridge'
+import { OpError } from './result-unwrap'
 
 /**
  * Borrow a faijs Shape's OCCT handle as a vendored brepjs shape handle.
@@ -34,6 +39,16 @@ import type { ShapeHandle } from '../../vendored/brepjs/core/disposal.js'
  * No ownership transfer: the brepjs-side borrow is a no-op-dispose view of the
  * same occt-wasm shape, valid while the faijs Shape owns it. Pass the result to
  * vendored functions that take `Shapeable<T>` / `AnyShape`.
+ *
+ * `brepOf` is a numeric arena id at runtime (occt-wasm's own `ShapeHandle` is a
+ * branded number), but the vendored code consumes `KernelShape` as an *object*
+ * (the shapeTypeCache WeakMap key, `isOcctWasmHandle` discriminant, direct
+ * `shape.type` reads in `topologyOps.shapeType`) — a raw number crashes there
+ * ("Invalid value used as weak map key"). The id is therefore wrapped into a
+ * structurally valid `OcctWasmHandle` view: the type is queried from the bound
+ * kernel through the numeric fallback branch of `topologyOps.shapeType`, and
+ * the `handle()` factory keeps `delete` a no-op (non-owning view — the arena
+ * slot and its ownership are untouched).
  *
  * @param s - the faijs Shape whose brep slot is borrowed.
  * @returns a vendored brepjs ShapeHandle view of the same occt shape.
@@ -47,7 +62,10 @@ export function borrowBrepjsShape(s: Shape): ShapeHandle {
         '(mesh-only input cannot run on the brep path)',
     )
   }
-  return createBorrowedHandle(solid as never)
+  const kernelShape = isOcctWasmHandle(solid)
+    ? solid
+    : occtWasmHandleView(getBrepjsKernel().shapeType(solid as never), solid as never)
+  return createBorrowedHandle(kernelShape as never)
 }
 
 /**
@@ -122,7 +140,9 @@ export function adoptEntity(product: unknown, opName: string): unknown {
   if (prev) return prev
   const type = (h.wrapped as { type?: string }).type
   if (type !== undefined && type !== 'solid' && type !== 'compound') {
-    throw new Error(
+    throw new OpError(
+      opName,
+      'E_SUBSHAPE_BOUNDARY',
       `[faijs/compat] ${opName}: E_SUBSHAPE_BOUNDARY: sub-shape handle ('${type}') ` +
         'must not cross the library boundary; return entity solids or plain data',
     )

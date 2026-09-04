@@ -1,4 +1,4 @@
-import { type Result, type Vec3, type Wire, ok, err, validationError, getEdges, curveStartPoint, curveEndPoint } from './compat.js';
+import { type Result, type Vec3, type Wire, ok, err, validationError, getEdges, curveStartPoint, curveEndPoint } from '@faicad/faijs/compat';
 import type { FlatPattern } from './types.js';
 
 /** Options for the flat-pattern DXF writers. */

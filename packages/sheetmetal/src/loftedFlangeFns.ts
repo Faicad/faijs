@@ -14,7 +14,7 @@ import {
   isPlanarWire,
   isSolid,
   getSolids,
-} from './compat.js';
+} from '@faicad/faijs/compat';
 import type { LoftedFlangeFeature, LoftedFlangeSpec, SheetMetalPart } from './types.js';
 
 type Pt2 = [number, number];
@@ -44,6 +44,10 @@ const DEVELOPABLE_MIN_SCALE = 1e-9;
  * (twisted ruling) the surface is not developable and the flat layout is an
  * approximation; {@link approximate} is set and the unfold emits a
  * `DEVELOPMENT_APPROXIMATE` warning.
+ *
+ * @param part - the sheet metal part to attach a lofted flange to.
+ * @param spec - the lofted flange specification.
+ * @returns the updated part with the lofted flange feature recorded, or an error.
  */
 export function authorLoftedFlange(
   part: SheetMetalPart,
@@ -319,7 +323,7 @@ function planeDistance(p0: Vec3, p1: Vec3, p2: Vec3, q: Vec3): number {
   return Math.abs((w[0] * c[0] + w[1] * c[1] + w[2] * c[2]) / len);
 }
 
-/** Trace a closed developed-plane loop (≥ 3 points) into a brepjs {@link Wire}. */
+/** Trace a closed developed-plane loop (≥ 3 points) into a morph {@link Wire}. */
 function closedLoopWire(loop: Pt2[]): Result<Wire> {
   const deduped: Pt2[] = [];
   for (const p of loop) {

@@ -42,6 +42,8 @@ Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadR
 - **L2 编排** `cad-runtime/`：`CadRuntime` + `HostPorts`（csg/sdf/fonts/assets/events 注入接口）。
 - **L3 Host**：`node-host/`（fs）+ `browser-host/`（worker）。
 - **双链路执行**：每个 op 必支持 mesh（默认路径），可选支持 brep——库函数经 `defineOp` 声明实现集（`@faicad/faijs/sdk`），`cad-runtime/backend-dispatch.ts` 按静态规则分派，无运行时回退；BREP 链状态在 `brep/brep-chain.ts`。单位 mm、+Z 向上、角度用度（契约见 `docs/api-contract.md`）。
+- **op 三分类**：① faijs 特有 dual-op（`defineOp({mesh, brep})`，如 `box`/`union`/`knurl`，mesh+brep 双实现）；② compat op（`compatOp(fn, spec)`，brep-only，如 `fuse`/`cut`/`extrude`——从 vendored brepjs 投影，mesh 模式抛 `E_MESH_UNSUPPORTED`）；③ TS 兼容面纯投影（re-export，非 op——`Sketcher`/`Blueprint`/`draw` DSL、`ok`/`err`/`isErr` 组合子、子形状查询 `getFaces`/`getEdges`）。`compatOp` 和 `admitCompatLib` 的底层封装见 `docs/api-contract.md` § 7.7–7.8。
+- **错误体系 = Result 原生**：对外 API 全面采用 `Result`/`BrepError` 体系（`ok`/`err`/`isOk`/`isErr`/`map`/`andThen`/`unwrap`）。TS 兼容面 Result 原样返回；cad 脚本面语句边界自动 unwrap（err → `ExecutionResult.failedAt`，存量 `.fai.js` 零修改）；库边界面经 `compatOp` 边界 unwrap。
 - **引擎定位（与 brepjs 不同）**：faijs 的引擎切换和 brepjs 项目不同。在 brepjs 项目中，occt 和 manifold 都是实现相同接口的引擎，mesh 的用途是预览。本项目中则明确区分 mesh 引擎与 brep 引擎，且 mesh 是正式数据，不是预览，定位完全不同——比如 sdf 模型，只能以 mesh 表示。至于 UI 层预览，完全可以采用更轻量级的方式实现（如幽灵渲染/叠加层），不应依赖"先用 mesh 拆解重建几何来充当预览"。
 - 入口：根门面 `@faicad/faijs`（`src/index.ts` 等 10 个 exports 子路径，薄 re-export + `createRuntime` 包装注入 cad）；引擎入口在 `packages/core/src/index.ts` / `browser.ts`（不含 node-host）/ `node.ts` / `csg.ts` / `sdf.ts` / `sdk.ts`。浏览器构建里静态 import node-host 会 404——Node 专用代码一律从 `@faicad/faijs/node` 导入。
 
@@ -57,7 +59,7 @@ Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadR
 ## 文档地图
 
 - `docs/AGENTS.md`：文档标准，改文档前必读。
-- `docs/api-contract.md`、`docs/syntax-design.md`、`docs/ops-api-inventory.md`（写 `.fai.js` 的 API 手册）：有效契约，改行为前必读。
+- `docs/api-contract.md`、`docs/syntax-design.md`、`docs/ops-api-inventory.md`（写 `.fai.js` 的 API 手册）、`docs/library-dev-guide.md`（第三方库开发手册）：有效契约，改行为前必读。
 - `docs/plans/YYYY-MM-DD-*.md`：按日期命名的设计/计划文档。每月 1 号归档到 `yyyy-mm/` 文件夹。
 - `docs/analysis/`：技术分析文档。
 - `.agents/notes/`：决策记录（Agent Notes），见 [.agents/notes/README.md](.agents/notes/README.md)。
@@ -101,7 +103,7 @@ Brep链可以切换，没有回退。在链上增加一个brep不支持的操作
 - 非平凡变更必须在同一 PR 中新增或更新至少一份 Agent Note（见 [.agents/notes/README.md](.agents/notes/README.md)）。
 - 代码改动和文档更新在同一 PR 中完成——配置键、默认值、错误码的变更同步更新 README 和 JSDoc。
 - 运行 `npm run doc-sync` 检查文档规范（全部 12 项门禁）。
-- 文档放置规则：方案设计→`docs/plans/`；技术分析→`docs/analysis/`；决策记录→`.agents/notes/`；接口契约→`docs/api-contract.md`；语法契约→`docs/syntax-design.md`；API 手册→`docs/ops-api-inventory.md`。
+- 文档放置规则：方案设计→`docs/plans/`；技术分析→`docs/analysis/`；决策记录→`.agents/notes/`；接口契约→`docs/api-contract.md`；语法契约→`docs/syntax-design.md`；API 手册→`docs/ops-api-inventory.md`；库开发手册→`docs/library-dev-guide.md`。
 - 一个事实一个家：每条规则只有一处权威归属，其他地方只链接不重复。
 - 记录当前状态，不写变更历史——变更历史放在 commit message 和 PR 中。
 - 双语配对：范围内文档必须配齐 `.md`（英文）、`.zh.md`（中文）、`.i18n.yaml`（一致性记录）。例外：`docs/plans/`、`docs/analysis/`、`AGENTS.md` 不配对。

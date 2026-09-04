@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { initOCCT } from './test-setup.js';
-import type { Wire } from './compat.js';
-import { getEdges, curveStartPoint, curveEndPoint, isErr } from './compat.js';
+import type { Wire } from '@faicad/faijs/compat';
+import { getEdges, curveStartPoint, curveEndPoint, isErr } from '@faicad/faijs/compat';
 import { author, miterCorner, unfold } from './api.js';
 import type { BendRule } from './types.js';
 

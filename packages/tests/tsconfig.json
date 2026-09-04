@@ -24,11 +24,13 @@
     "baseUrl": ".",
     "paths": {
       "@faicad/faijs": ["../../src/index.ts"],
+      "@faicad/faijs/*": ["../../src/*"],
       "@faicad/faijs/node": ["../../src/node.ts"],
       "@faicad/faijs/browser": ["../../src/browser.ts"],
       "@faicad/faijs-core": ["../core/src/index.ts"],
       "@faicad/faijs-core/*": ["../core/src/*"],
       "@faicad/mech-lib": ["../mech-lib/src/index.ts"],
+      "@faicad/sheetmetal": ["../sheetmetal/src/index.ts"],
       "@faicad/faijs-fixtures": ["../fixtures/data"]
     }
   },

@@ -164,17 +164,17 @@ describe('parser: ExprIR 白名单边界', () => {
     }
   })
 
-  it('成员访问不在白名单 → E_VALUE', () => {
+  it('成员访问已入白名单（true-JS-subset D2）→ ExprIR，refs 收集到根标识符', () => {
     const code = [
       'let part0 = cad.box({ size: 20 })',
       'let part1 = cad.box({ size: part0.positions ? 1 : 2 })',
     ].join('\n')
-    try {
-      parseScript(code)
-      expect.unreachable()
-    } catch (e) {
-      expect((e as ParseError).code).toBe('E_VALUE')
-    }
+    const { script } = parseScript(code)
+    const size = script.statements[1].args.size
+    expect(isExprRef(size)).toBe(true)
+    const expr = (size as ExprIR).$expr
+    expect(expr.text).toBe('part0.positions ? 1 : 2')
+    expect(expr.refs).toEqual(['part0'])
   })
 
   it('未知标识符 → E_REFERENCE', () => {

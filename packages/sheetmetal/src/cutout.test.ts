@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { initOCCT } from './test-setup.js';
-import { isOk, isErr, unwrap, measureVolume, getEdges, curveStartPoint } from './compat.js';
-import type { Wire } from './compat.js';
+import { isOk, isErr, unwrap, measureVolume, getEdges, curveStartPoint } from '@faicad/faijs/compat';
+import type { Wire } from '@faicad/faijs/compat';
 import { author } from './api.js';
 import { addCutout, addHole, addSlot, addPolygonCutout } from './cutoutFns.js';
 import { unfold } from './unfoldFns.js';

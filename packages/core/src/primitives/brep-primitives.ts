@@ -170,25 +170,26 @@ function wedgeToCadSolid(kernel: BrepEngineApi, params: WedgeParams): BrepHandle
   // 上边半宽 = 底边半宽 - 高 / tan(角度)
   const halfTopWidth = Math.max(0, hw - height / Math.tan(angleRad))
 
-  // 在 YZ 平面创建梯形 wire（X=0）
-  const edges: BrepHandle[] = [
-    kernel.makeLineEdge(
-      { x: 0, y: -hw, z: 0 },
-      { x: 0, y: hw, z: 0 },
-    ),
-    kernel.makeLineEdge(
-      { x: 0, y: hw, z: 0 },
-      { x: 0, y: halfTopWidth, z: height },
-    ),
-    kernel.makeLineEdge(
-      { x: 0, y: halfTopWidth, z: height },
-      { x: 0, y: -halfTopWidth, z: height },
-    ),
-    kernel.makeLineEdge(
-      { x: 0, y: -halfTopWidth, z: height },
-      { x: 0, y: -hw, z: 0 },
-    ),
-  ]
+  // 在 YZ 平面创建梯形 wire（X=0）。顶边塌缩（halfTopWidth≈0，斜坡已在宽度内到顶）
+  // 时退化为三角棱柱——不能再保留零长顶边（两个重合顶点会让 OCCT makeLineEdge
+  // 报 CONSTRUCTION_FAILED，即 P23 实测的 wedge 退化参数失败）。
+  const edges: BrepHandle[] = []
+  if (halfTopWidth > 1e-12) {
+    // 梯形：底边 (±hw,0) + 上边 (±halfTopWidth,height)
+    edges.push(
+      kernel.makeLineEdge({ x: 0, y: -hw, z: 0 }, { x: 0, y: hw, z: 0 }),
+      kernel.makeLineEdge({ x: 0, y: hw, z: 0 }, { x: 0, y: halfTopWidth, z: height }),
+      kernel.makeLineEdge({ x: 0, y: halfTopWidth, z: height }, { x: 0, y: -halfTopWidth, z: height }),
+      kernel.makeLineEdge({ x: 0, y: -halfTopWidth, z: height }, { x: 0, y: -hw, z: 0 }),
+    )
+  } else {
+    // 三角棱柱：(−hw,0) → (hw,0) → (0,height)
+    edges.push(
+      kernel.makeLineEdge({ x: 0, y: -hw, z: 0 }, { x: 0, y: hw, z: 0 }),
+      kernel.makeLineEdge({ x: 0, y: hw, z: 0 }, { x: 0, y: 0, z: height }),
+      kernel.makeLineEdge({ x: 0, y: 0, z: height }, { x: 0, y: -hw, z: 0 }),
+    )
+  }
 
   const wire = kernel.makeWire(edges)
   const face = kernel.makeFace(wire)

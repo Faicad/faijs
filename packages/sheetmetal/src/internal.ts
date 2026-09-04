@@ -1,4 +1,4 @@
-import { type Solid, type Vec3, isSolid, getSolids } from './compat.js';
+import { type Solid, type Vec3, isSolid, getSolids } from '@faicad/faijs/compat';
 import type { FlatSide } from './types.js';
 
 /**

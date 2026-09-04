@@ -14,6 +14,7 @@ export interface ScriptFaceOp {
   consumes: 'all' | 'none'
 }
 
+/** Cad script-face op manifest (B1: single source for cad namespace, check() symbol table). */
 export const SCRIPT_FACE_OPS: readonly ScriptFaceOp[] = [
   { name: 'torus', module: 'topology', consumes: 'none' },
   { name: 'fuse', module: 'topology', consumes: 'all' },

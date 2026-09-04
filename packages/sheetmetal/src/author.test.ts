@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { initOCCT } from './test-setup.js';
-import { measureVolume, isValid, getBounds } from './compat.js';
+import { measureVolume, isValid, getBounds } from '@faicad/faijs/compat';
 import { authorPart } from './authorFns.js';
 import { autoMiterCorner, miterCut } from './miterFns.js';
 

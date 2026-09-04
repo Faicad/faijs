@@ -139,22 +139,51 @@ function primaryOutput(stmt: StatementIR): string {
 /**
  * 按 IR 形态机械打印单条语句（A12 消灭：无 callee 分支）。
  *
+ * 位置实参槽（true-JS-subset §4.6.1）：positional 逐元素按 ArgIR 形态打印
+ * （变量名 / 字面量 / 对象 / 嵌套调用 / ExprIR 原文加括号）——IR 里有什么打印什么。
+ * positional 为空时回退 args 槽打印（手工构造 IR 只填 args 的旧形态兼容路径）。
+ *
  * 1) 解构：outputKeys + outputs 一一对应
  * 2) 成员调用：receiver
  * 3) 无赋值调用
  * 4) 赋值：outputs[0] 已声明 → 裸重赋值；未声明 → let 声明
  */
 function printStatement(stmt: StatementIR, declared: Set<string>, varNames: Map<string, string>): string {
-  const argsParts = buildIRArgsParts(stmt, varNames)
-  const argsObj = argsParts.length > 0 ? `{ ${argsParts.join(', ')} }` : ''
-  const inputVars = stmt.inputs.map((id) => {
-    const mapped = varNames.get(id)
-    if (mapped === undefined) {
-      throw new Error(`[codegen] unresolved input reference "${id}" — ScriptIR is not self-contained`)
+  // 位置实参：VarRefIR 经 varNames 解析（解析失败 = ScriptIR 不自包含，保持原严格性）；
+  // 纯对象位置实参（选项槽）按 args 槽风格打印 `{ k:v, ... }`（大括号内侧空格、键后无空格）。
+  const isPlainObj = (arg: ArgIR): boolean =>
+    arg !== null && typeof arg === 'object' && !Array.isArray(arg) &&
+    !isParamRef(arg) && !isVarRef(arg) && !isCallRef(arg) && !isExprRef(arg)
+  const positionalParts = (stmt.positional ?? []).map((arg) => {
+    if (isVarRef(arg)) {
+      const mapped = varNames.get(arg.$ref)
+      if (mapped === undefined) {
+        throw new Error(`[codegen] unresolved input reference "${arg.$ref}" — ScriptIR is not self-contained`)
+      }
+      return mapped
     }
-    return mapped
-  }).join(', ')
-  const callArgs = [inputVars, argsObj].filter((s) => s.length > 0).join(', ')
+    if (isPlainObj(arg)) {
+      const entries = Object.entries(arg as Record<string, ArgIR>)
+      return `{ ${entries.map(([k, v]) => `${k}:${fmtValue(v, varNames)}`).join(', ')} }`
+    }
+    return fmtValue(arg, varNames)
+  })
+  const argsParts = buildIRArgsParts(stmt, varNames)
+  const positional = stmt.positional ?? []
+  const lastIsPlainObject = positional.length > 0 && isPlainObj(positional[positional.length - 1])
+  let callArgs: string
+  if (positionalParts.length > 0) {
+    callArgs = positionalParts.join(', ')
+    // 手工构造 IR 的过渡兼容：positional 尾位不是纯对象而 args 槽非空 → args 作为
+    // 独立选项槽追加（positional 含尾随纯对象时 args 是其投影，不重复打印）。
+    if (!lastIsPlainObject && argsParts.length > 0) {
+      callArgs = [...positionalParts, `{ ${argsParts.join(', ')} }`].join(', ')
+    }
+  } else if (stmt.receiver) {
+    callArgs = argsParts.length > 0 ? `{ ${argsParts.join(', ')} }` : ''
+  } else {
+    callArgs = argsParts.length > 0 ? `{ ${argsParts.join(', ')} }` : '{}'
+  }
   // F2：命名空间前缀（缺省 cad）；本机函数调用（local）callee 无命名空间前缀（§3.4 / §7.2）
   const nsExpr = stmt.local ? stmt.callee : `${stmt.namespace ?? 'cad'}.${stmt.callee}`
 
@@ -166,7 +195,7 @@ function printStatement(stmt: StatementIR, declared: Set<string>, varNames: Map<
 
   // 2) 成员调用
   if (stmt.receiver) {
-    return `${stmt.receiver}.${stmt.callee}(${argsParts.length > 0 ? `{ ${argsParts.join(', ')} }` : ''})`
+    return `${stmt.receiver}.${stmt.callee}(${callArgs})`
   }
 
   // 3) 无赋值调用
@@ -184,7 +213,7 @@ function printStatement(stmt: StatementIR, declared: Set<string>, varNames: Map<
 /**
  * 将单条语句转为可读代码行（用于 TimelinePanel 显示和导出）。
  *
- * 输出格式：`let part0 = cad.op(inputs, { key: value, ... })`
+ * 输出格式：`let part0 = cad.op(inputs, { key: value, ... })`（positional 逐元素打印）
  * - 多输出解构输出 `const { front: out0, back: out1 } = cad.fai_split(input, { ... })`
  * - 成员调用输出 `assem1.add_constraint({ ... })` / `assem1.do_assemble()`
  */
@@ -198,7 +227,7 @@ export function statementIRToLine(stmt: StatementIR): string {
   return formatCodeLine({
     callee: stmt.callee,
     receiver: stmt.receiver,
-    inputs: stmt.inputs,
+    positional: stmt.positional ?? [],
     outputs: stmt.outputs,
     outputKeys: stmt.outputKeys,
     args: stmt.args,
@@ -215,14 +244,21 @@ export interface FormatCodeLineInput {
   callee: string
   /** 成员方法调用接收者变量名 */
   receiver?: string
-  /** 位置输入变量名 */
-  inputs: string[]
+  /**
+   * 位置实参槽（true-JS-subset §4.6.2，取代原 inputs: string[]）：宿主可传字面量、
+   * 变量引用（{$ref}）、参数引用（{$param}）、嵌套调用（{$call}）、表达式原文
+   * （{$expr:{text,refs,params}}）或纯 JsonValue，按序打印。
+   */
+  positional: ArgIR[]
   /** 产出变量名 */
   outputs: string[]
   /** 解构键（与 outputs 一一对应） */
   outputKeys?: string[]
-  /** 参数对象（纯数据；支持 ParamRef/VarRef/CallRef 形态） */
-  args: Record<string, ArgIR>
+  /**
+   * （过渡兼容）选项对象：positional 末位不是纯对象时追加为尾随选项对象。
+   * 新代码应把选项对象直接放进 positional。
+   */
+  args?: Record<string, ArgIR>
   /** 调用命名空间（F2：第三方库 `mech.makeHeadstock(...)` → 'mech'；缺省 'cad'） */
   namespace?: string
   /**
@@ -246,18 +282,31 @@ export interface FormatCodeLineInput {
  * @returns the printed single-line code text.
  */
 export function formatCodeLine(input: FormatCodeLineInput): string {
+  // 过渡兼容：positional 末位已是纯对象时 args 视为同一对象（其投影，不重复打印）；
+  // 尾位不是纯对象且 args 非空 → args 作为独立选项槽由 printStatement 追加；
+  // positional 为空时 args 走旧兜底路径打印。
+  const positional = [...input.positional]
+  const last = positional[positional.length - 1]
+  const lastIsPlainObject =
+    last !== null && typeof last === 'object' && !Array.isArray(last) &&
+    !isVarRef(last) && !isCallRef(last) && !isExprRef(last) && !isParamRef(last)
+  const argsSlot: Record<string, ArgIR> = lastIsPlainObject
+    ? (last as unknown as Record<string, ArgIR>)
+    : (input.args ?? {})
   const stmt: StatementIR = {
     id: '__fmt__' as never,
     callee: input.callee,
     ...(input.receiver !== undefined ? { receiver: input.receiver as PartName } : {}),
     ...(input.namespace !== undefined ? { namespace: input.namespace } : {}),
-    inputs: input.inputs as PartName[],
+    positional,
     outputs: input.outputs as PartName[],
     ...(input.outputKeys !== undefined ? { outputKeys: input.outputKeys } : {}),
-    args: input.args,
+    args: argsSlot,
   }
   const varNames = new Map<string, string>()
-  for (const id of input.inputs) varNames.set(id, id)
+  for (const arg of positional) {
+    if (isVarRef(arg)) varNames.set(arg.$ref, arg.$ref)
+  }
   const declared = new Set<string>()
   if (input.outputDeclared && input.outputs[0] !== undefined) declared.add(input.outputs[0])
   return printStatement(stmt, declared, varNames)

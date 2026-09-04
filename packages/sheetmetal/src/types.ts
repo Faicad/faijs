@@ -1,4 +1,4 @@
-import type { Solid, Wire, Edge, Bounds3D } from './compat.js';
+import type { Solid, Wire, Edge, Bounds3D } from '@faicad/faijs/compat';
 
 /** Which edge of a flat a child flange folds off. */
 export type FlatSide = 'xmin' | 'xmax' | 'ymin' | 'ymax';

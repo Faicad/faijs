@@ -1,9 +1,9 @@
 /**
  * @faicad/sheetmetal — sheet-metal CAD domain (L5 third-party library)
  *
- * P9 第二/三批：3D author/unfold 全功能面（compat shim D12 桥接 vendored
+ * P9 第二/三批：3D author/unfold 全功能面（compat shim D12 桥接 compat
  * L1/L2）——只依赖 L3 faijs API 面 + compat 桥接点。导出面对齐上游
- * brepjs-sheetmetal index.ts（与上游逐项一致）。
+ * morph-sheetmetal index.ts（与上游逐项一致）。
  */
 
 export {
@@ -128,6 +128,7 @@ export {
   loftedFlange,
   nest,
   nestToDXF,
+  solidOf,
 } from './api.js';
 
 export {

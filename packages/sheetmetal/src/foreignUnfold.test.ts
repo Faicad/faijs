@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { initOCCT } from './test-setup.js';
-import { cylinder, sphere, box, fuse, translate, getFaces, getSurfaceType } from './compat.js';
-import type { Solid, Face } from './compat.js';
+import { cylinder, sphere, box, fuse, translate, getFaces, getSurfaceType } from '@faicad/faijs/compat';
+import type { Solid, Face } from '@faicad/faijs/compat';
 import { authorPart } from './authorFns.js';
 import { unfold } from './unfoldFns.js';
 import { fitCylinder, unfoldForeignSolid } from './foreignUnfoldFns.js';

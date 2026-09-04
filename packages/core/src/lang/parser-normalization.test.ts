@@ -9,7 +9,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { parseScript } from './parser'
-import { isVarRef, isCallRef, type CallRefIR, type ArgIR } from './types'
+import { isVarRef, isCallRef, statementInputs, type CallRefIR, type ArgIR } from './types'
 
 describe('parser-normalization: boolean 归一取消', () => {
   it('cad.union(a,b) → callee === "union"，无 args.operation', () => {
@@ -22,7 +22,7 @@ describe('parser-normalization: boolean 归一取消', () => {
     const unionStmt = script.statements[2]
     expect(unionStmt.callee).toBe('union')
     expect(unionStmt.args.operation).toBeUndefined()
-    expect(unionStmt.inputs).toHaveLength(2)
+    expect(statementInputs(unionStmt)).toHaveLength(2)
   })
 
   it('cad.subtract(a,b) → callee === "subtract"', () => {
@@ -33,7 +33,7 @@ describe('parser-normalization: boolean 归一取消', () => {
     ].join('\n')
     const { script } = parseScript(code)
     expect(script.statements[2].callee).toBe('subtract')
-    expect(script.statements[2].inputs).toHaveLength(2)
+    expect(statementInputs(script.statements[2])).toHaveLength(2)
   })
 })
 
@@ -149,7 +149,7 @@ describe('parser-normalization: 裸重赋值保留', () => {
     const { script } = parseScript(code)
     const drillStmt = script.statements[1]
     expect(drillStmt.callee).toBe('fai_drill')
-    expect(drillStmt.inputs).toEqual(['part0'])
+    expect(statementInputs(drillStmt)).toEqual(['part0'])
     expect(drillStmt.outputs).toEqual(['part0'])
   })
 })

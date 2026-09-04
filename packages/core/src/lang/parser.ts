@@ -34,7 +34,7 @@ import type {
   FunctionDefIR,
   ExprIR,
 } from './types'
-import { isParamRef, isVarRef, isCallRef, isExprRef } from './types'
+import { isParamRef, isVarRef, isCallRef, isExprRef, splitPositionalOptions } from './types'
 import {
   asStmtId,
   asPartName,
@@ -260,14 +260,19 @@ interface ValueFlags {
 // 集合降级为 ExprIR，由编译期箭头包装发射、JS 引擎运行时求值（§5.4）。
 
 /**
- * ExprIR 白名单文法（§3.3）：Literal / Identifier / Unary / Binary / Logical /
- * Conditional / Array（元素递归走白名单）。**不含** CallExpression、MemberExpression、
- * TemplateLiteral、SpreadElement、**ObjectExpression**——这些形态保持现状路径
- * （嵌套调用走 CallRefIR；折叠失败 → E_VALUE）。
+ * ExprIR 白名单文法（§3.3，true-JS-subset 方案 D2 扩展）：Literal / Identifier /
+ * Unary / Binary / Logical / Conditional / Array（元素递归走白名单）/
+ * **MemberExpression**（非可选链的全形态，computed 与否均收）/
+ * **CallExpression**（方法调用 `a.b(c)` 归入 ExprIR；命名空间根调用在调用方
+ * 先被截为 CallRefIR，不会到达此处）。
  *
  * ObjectExpression 不整体降级：对象属性值引用变量时本就是 VarRefIR（现状路径），
  * 属性值为折叠失败的表达式时由属性值递归各自降级为 ExprIR——整体降级语义等价
  * 且会误伤 args 顶层容器（`cad.op({ size: ... })` 的整个 args 对象不能被降级）。
+ *
+ * 命名空间限制（§4.2.2）：ExprIR 文本由箭头包装在语句 fn 体内求值，命名空间
+ * 绑定名（cad / import 绑定名）在该作用域不可见——含命名空间根调用的复合表达式
+ * 由调用方（containsNsRootedCall 守卫）显式报 E_VALUE，不会进入 ExprIR。
  */
 function isExprWhitelist(node: ASTNode): boolean {
   if (!node || typeof node !== 'object') return false
@@ -290,9 +295,71 @@ function isExprWhitelist(node: ASTNode): boolean {
       return node.elements.every(
         (el: ASTNode) => el !== null && el !== undefined && isExprWhitelist(el),
       )
+    case 'MemberExpression':
+      // 可选链（a?.b / a?.[b]）不在子集内
+      if (node.optional) return false
+      if (!isExprWhitelist(node.object)) return false
+      return node.computed ? isExprWhitelist(node.property) : true
+    case 'CallExpression': {
+      if (node.optional) return false
+      if (!isExprWhitelist(node.callee)) return false
+      return (node.arguments as ASTNode[]).every(
+        (a) => a.type !== 'SpreadElement' && isExprWhitelist(a),
+      )
+    }
     default:
       return false
   }
+}
+
+/**
+ * 守卫：表达式树中是否含「命名空间根调用」（callee 链根标识符 ∈ nsNames 的
+ * CallExpression）。这类子表达式无法在语句 fn 体的箭头包装作用域内解析
+ * （命名空间经 ns.<name> 访问，非词法绑定）→ 调用方显式报 E_VALUE；
+ * 整体作为单个实参的命名空间调用仍走 CallRefIR（现状路径，不受影响）。
+ */
+function containsNsRootedCall(node: ASTNode, nsNames: ReadonlySet<string>): boolean {
+  if (!node || typeof node !== 'object') return false
+  switch (node.type) {
+    case 'CallExpression': {
+      const root = rootIdentifierOfCallee(node.callee)
+      if (root !== null && nsNames.has(root)) return true
+      if (containsNsRootedCall(node.callee, nsNames)) return true
+      return (node.arguments as ASTNode[]).some((a) => containsNsRootedCall(a, nsNames))
+    }
+    case 'MemberExpression':
+      return containsNsRootedCall(node.object, nsNames) ||
+        (node.computed ? containsNsRootedCall(node.property, nsNames) : false)
+    case 'UnaryExpression':
+      return containsNsRootedCall(node.argument, nsNames)
+    case 'BinaryExpression':
+    case 'LogicalExpression':
+      return containsNsRootedCall(node.left, nsNames) || containsNsRootedCall(node.right, nsNames)
+    case 'ConditionalExpression':
+      return (
+        containsNsRootedCall(node.test, nsNames) ||
+        containsNsRootedCall(node.consequent, nsNames) ||
+        containsNsRootedCall(node.alternate, nsNames)
+      )
+    case 'ArrayExpression':
+      return (node.elements as ASTNode[]).some((el) => containsNsRootedCall(el, nsNames))
+    default:
+      return false
+  }
+}
+
+/** 取 callee 链（MemberExpression.object 逐层下钻）的根标识符名；非链形态返回 null。 */
+function rootIdentifierOfCallee(callee: ASTNode): string | null {
+  let cur = callee
+  while (cur && typeof cur === 'object') {
+    if (cur.type === 'Identifier') return cur.name
+    if (cur.type === 'MemberExpression') {
+      cur = cur.object
+      continue
+    }
+    return null
+  }
+  return null
 }
 
 /**
@@ -385,12 +452,31 @@ function collectExprIdentifiers(
         collectExprIdentifiers(prop.value, paramNames, varToId, line, params, refs, looseVars)
       }
       return
+    case 'MemberExpression': {
+      // 成员链：沿 .object 走到根标识符收为 ref（p0.solid → refs=['p0']；
+      // p0.holes[0].center → refs=['p0']）；computed 属性表达式递归收集。
+      collectExprIdentifiers(node.object, paramNames, varToId, line, params, refs, looseVars)
+      if (node.computed) {
+        collectExprIdentifiers(node.property, paramNames, varToId, line, params, refs, looseVars)
+      }
+      return
+    }
+    case 'CallExpression': {
+      // 方法调用 a.b(c)：callee 链与实参递归收集（命名空间根调用已被 buildExprIR 守卫拦截）
+      collectExprIdentifiers(node.callee, paramNames, varToId, line, params, refs, looseVars)
+      for (const a of node.arguments as ASTNode[]) {
+        collectExprIdentifiers(a.type === 'SpreadElement' ? a.argument : a, paramNames, varToId, line, params, refs, looseVars)
+      }
+      return
+    }
     default:
       return
   }
 }
 
-/** 构建 ExprIR：原文切片（acorn 坐标相对 sourceText）+ 引用名集合；置 hasComputedArgs。 */
+/** 构建 ExprIR：原文切片（acorn 坐标相对 sourceText）+ 引用名集合；置 hasComputedArgs。
+ *  守卫：含命名空间根调用的表达式显式 E_VALUE（命名空间绑定在语句 fn 体箭头包装
+ *  作用域内不可见，整体单实参的命名空间调用应走 CallRefIR）。 */
 function buildExprIR(
   node: ASTNode,
   paramNames: Set<string>,
@@ -399,7 +485,15 @@ function buildExprIR(
   flags: ValueFlags | null | undefined,
   looseVars: boolean,
   sourceText: string,
+  nsNames: ReadonlySet<string>,
 ): ExprIR {
+  if (containsNsRootedCall(node, nsNames)) {
+    throw new ParseError(
+      'namespace calls are only supported as a whole argument value (CallRefIR), not inside a larger expression',
+      line,
+      'E_VALUE',
+    )
+  }
   const params = new Set<string>()
   const refs = new Set<string>()
   collectExprIdentifiers(node, paramNames, varToId, line, params, refs, looseVars)
@@ -457,7 +551,7 @@ function parseValueExpr(
     case 'ArrayExpression': {
       // ExprIR 降级：数组含折叠失败（引用变量）的白名单表达式元素 → 整体作为运行时表达式
       if (needsExprFallback(node, paramNames, paramValues)) {
-        return buildExprIR(node, paramNames, varToId, line, flags, looseVars, sourceText)
+        return buildExprIR(node, paramNames, varToId, line, flags, looseVars, sourceText, nsNames)
       }
       const out: ArgIR[] = []
       for (const el of node.elements) {
@@ -482,7 +576,7 @@ function parseValueExpr(
     case 'ObjectExpression': {
       // ExprIR 降级：对象含折叠失败（引用变量）的白名单表达式属性值 → 整体作为运行时表达式
       if (needsExprFallback(node, paramNames, paramValues)) {
-        return buildExprIR(node, paramNames, varToId, line, flags, looseVars, sourceText)
+        return buildExprIR(node, paramNames, varToId, line, flags, looseVars, sourceText, nsNames)
       }
       const obj: Record<string, ArgIR> = {}
       for (const prop of node.properties) {
@@ -537,7 +631,20 @@ function parseValueExpr(
           },
         } as ArgIR
       }
-      throw new ParseError('nested calls in args must be <ns>.<ident>(...)', line, 'E_VALUE')
+      // D2 扩展：非命名空间调用（方法调用 a.b(c) / 裸调用）∈ 白名单 → ExprIR；
+      // 白名单外（new/箭头/可选链等红线或语义空白）→ E_VALUE（显式禁止而非默认拒绝）
+      if (isExprWhitelist(node)) {
+        return buildExprIR(node, paramNames, varToId, line, flags, looseVars, sourceText, nsNames)
+      }
+      throw new ParseError('nested calls in args must be <ns>.<ident>(...) or a whitelisted expression', line, 'E_VALUE')
+    }
+
+    // D2 扩展：成员访问（p0.solid / p0.holes[0].center）∈ 白名单 → ExprIR（原文切片运行时求值）
+    case 'MemberExpression': {
+      if (isExprWhitelist(node)) {
+        return buildExprIR(node, paramNames, varToId, line, flags, looseVars, sourceText, nsNames)
+      }
+      throw new ParseError(`unsupported member expression in args: optional chaining is not allowed`, line, 'E_VALUE')
     }
 
     // F1 扩展：可静态折叠的表达式（无控制流 → 参数值已知，编译期求值）
@@ -549,9 +656,9 @@ function parseValueExpr(
       const r = tryFoldConstExpr(node, paramNames, paramValues)
       if (!r.ok) {
         // ExprIR 降级：折叠失败（引用了语句变量等）且节点 ∈ 白名单文法
-        // → 运行时求值（§3.3 / §4.3）；白名单外（含嵌套调用/成员）→ E_VALUE
+        // → 运行时求值（§3.3 / §4.3）；白名单外 → E_VALUE
         if (isExprWhitelist(node)) {
-          return buildExprIR(node, paramNames, varToId, line, flags, looseVars, sourceText)
+          return buildExprIR(node, paramNames, varToId, line, flags, looseVars, sourceText, nsNames)
         }
         throw new ParseError(
           `cannot statically evaluate ${node.type} in args (must reference declared params or literals)`,
@@ -571,6 +678,69 @@ function parseValueExpr(
   }
 }
 
+// ── 位置实参解析（true-JS-subset 方案 §4.2.1：五种顶层调用形态统一入口） ──
+
+/**
+ * 解析一条顶层调用语句的全部位置实参（true-JS-subset 方案 §4.2.1）。
+ *
+ * 位置实参槽接受任意合法 JS 表达式：变量引用（Identifier → VarRefIR，参数也在
+ * varToId 中）、字面量、数组、对象（尾随对象同时投影为 args 选项槽）、
+ * `<ns>.<fn>(...)` 嵌套调用（CallRefIR）、可折叠运算、白名单表达式（ExprIR，
+ * 含 MemberExpression / 方法调用）。SpreadElement 仅接受可静态折叠的数组参数/
+ * 字面量（展开为多个位置实参）。红线形态（new / 箭头函数 / await 等）由
+ * parseValueExpr 的 default 分支显式 E_VALUE。
+ *
+ * @param argNodes - the raw AST argument nodes of the call.
+ * @param label - error-message context (e.g. 'inputs', 'destructuring inputs', 'myFn() call').
+ * @returns the positional ArgIR list in call order.
+ */
+function parsePositionalArgs(
+  argNodes: ASTNode[],
+  paramNames: Set<string>,
+  paramValues: Map<string, JsonValue>,
+  varToId: Map<string, PartName>,
+  nsNames: ReadonlySet<string>,
+  defaultNsName: string,
+  line: number,
+  flags: ValueFlags,
+  looseVars: boolean,
+  sourceText: string,
+  label: string,
+): ArgIR[] {
+  const out: ArgIR[] = []
+  for (const argNode of argNodes) {
+    if (argNode.type === 'Identifier') {
+      // 位置变量引用：varToId 统一解析（参数声明也在表中，与原 inputs 语义一致）
+      const inputId = varToId.get(argNode.name)
+      if (inputId) {
+        out.push({ $ref: inputId } as ArgIR)
+        continue
+      }
+      // Loose mode: external variable passes through as its physical PartName
+      // (the append prefix is validated by the caller against the persistent ctx).
+      if (looseVars) {
+        const external = asPartName(argNode.name)
+        varToId.set(argNode.name, external)
+        out.push({ $ref: external } as ArgIR)
+        continue
+      }
+      throw new ParseError(`unknown variable "${argNode.name}" in ${label}`, getLine(argNode), 'E_REFERENCE')
+    }
+    if (argNode.type === 'SpreadElement') {
+      // [...parts]：parts 须为可折叠的数组参数/字面量（展开为多个位置实参）
+      const r = tryFoldConstExpr(argNode.argument, paramNames, paramValues)
+      if (!r.ok || !Array.isArray(r.value)) {
+        throw new ParseError('cannot statically evaluate spread in arguments (must reference an array param or literal)', line, 'E_VALUE')
+      }
+      flags.computed = true
+      out.push(...(r.value as ArgIR[]))
+      continue
+    }
+    out.push(parseValueExpr(argNode, paramNames, paramValues, varToId, nsNames, defaultNsName, line, flags, looseVars, sourceText))
+  }
+  return out
+}
+
 // ── StatementIR 解析 ──
 
 interface ParsedStatement {
@@ -584,9 +754,10 @@ interface ParsedStatement {
  * 解析一条 `const varName = [await] <ns>.<op>(...)` 语句。
  */
 /**
- * ABI 绑定校验（§3.6 / D11）：本机函数调用 `myFn(a1..aM, { key1: v1, ... })`，
+ * ABI 绑定校验（§3.6 / D11 / true-JS-subset §4.2.4）：本机函数调用 `myFn(a1..aM, { key1: v1, ... })`，
  * 设形参表 [p1..pk]：
- * 1. 位置实参 a1..aM 按序绑定 p1..pM（M ≤ k，超出 → E_ARG）；
+ * 1. 位置实参 a1..aM 按序绑定 p1..pM（M ≤ k，超出 → E_ARG）；位置实参可为任意
+ *    合法 JS 表达式形态（只数个数，不再要求 Identifier——true-JS-subset 放开）；
  * 2. 尾部对象键绑定剩余形参 p_{M+1}..p_k（按名）；未知键 / 与位置占用冲突 → E_ARG；
  * 3. 未被绑定的形参 → undefined（JS 语义，不报错）；
  * 4. keep/keepHidden 键先剥离，不参与形参校验（§3.6 第 4 条）。
@@ -687,42 +858,18 @@ function parseCadStatement(
   const opName = isNsCall ? callee.property.name : callee.name
   const local = isLocalCall || looseLocalCall
 
-  // 普通调用：callee 就是源码里的名字（A1 boolean 改写 / A4 load 收敛已删）
-  let args: Record<string, ArgIR> = {}
-  const inputs: PartName[] = []
+  // 位置实参统一解析（true-JS-subset §4.2.1）：变量/字面量/对象/嵌套调用/表达式任意混排；
+  // 尾随纯对象同时投影为 args 选项槽。不再有"args = parsed 覆盖赋值"静默坑（D5：多对象按位置如实传递）。
   const flags: ValueFlags = { computed: false }
-  for (const argNode of init.arguments) {
-    if (argNode.type === 'Identifier') {
-      // input 变量引用
-      let inputId = varToId.get(argNode.name)
-      if (!inputId) {
-        // Loose mode: external variable passes through as its physical PartName
-        // (the append prefix is validated by the caller against the persistent ctx).
-        if (looseVars) {
-          inputId = asPartName(argNode.name)
-          varToId.set(argNode.name, inputId)
-        } else {
-          throw new ParseError(`unknown variable "${argNode.name}" in inputs`, getLine(argNode), 'E_REFERENCE')
-        }
-      }
-      inputs.push(inputId)
-    } else if (argNode.type === 'ObjectExpression') {
-      // args 对象
-      const parsed = parseValueExpr(argNode, paramNames, paramValues, varToId, nsNames, defaultNsName, line, flags, looseVars, sourceText)
-      if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-        args = parsed as Record<string, ArgIR>
-      } else {
-        throw new ParseError('args must be an object', line, 'E_VALUE')
-      }
-    } else {
-      throw new ParseError(`unexpected argument type: ${argNode.type}`, getLine(argNode), 'E_VALUE')
-    }
-  }
+  const positional = parsePositionalArgs(init.arguments, paramNames, paramValues, varToId, nsNames, defaultNsName, line, flags, looseVars, sourceText, 'inputs')
+  const args = splitPositionalOptions(positional).named
 
   // 本机调用：ABI 绑定校验（§3.6，parse 期拦截 E_ARG）
+  // 位置实参个数校验（形态校验已删——任意合法 JS 表达式均可占位，§4.2.4）。
   // 宽松本机调用（codeToArgs 单行提取）形参未知 → 跳过绑定校验，由调用方在完整上下文校验。
   if (local && localFnParams && !looseLocalCall) {
-    validateLocalAbi(opName, localFnParams.get(opName) ?? [], inputs.length, args, line)
+    const { values, named } = splitPositionalOptions(positional)
+    validateLocalAbi(opName, localFnParams.get(opName) ?? [], values.length, named, line)
   }
 
   // Phase 3：id 不再赋变量名，由最终遍历赋 sN；变量名记录到 declaredOutputs
@@ -730,7 +877,7 @@ function parseCadStatement(
     id: asStmtId('__pending__'),
     callee: opName,
     args,
-    inputs,
+    positional,
     outputs: [],
     hasAssignment: true,
     ...(local ? { local: true } : nsName !== defaultNsName ? { namespace: nsName } : {}),
@@ -827,40 +974,17 @@ function parseDestructuring(
   const nsName = isNsCall ? callee.object.name : undefined
   const opName = isNsCall ? callee.property.name : callee.name
   const local = isLocalCall || looseLocalCall
-  const args: Record<string, ArgIR> = {}
-  const inputs: PartName[] = []
+  // 位置实参统一解析（true-JS-subset §4.2.1）；尾随纯对象同时投影为 args 选项槽。
+  // 旧 Object.assign 合并已删（D5：多对象按位置如实传递，不合并不覆盖）。
   const flags: ValueFlags = { computed: false }
-
-  for (const argNode of init.arguments) {
-    if (argNode.type === 'Identifier') {
-      let inputId = varToId.get(argNode.name)
-      if (!inputId) {
-        // Loose mode: external variable passes through as its physical PartName
-        // (the append prefix is validated by the caller against the persistent ctx).
-        if (looseVars) {
-          inputId = asPartName(argNode.name)
-          varToId.set(argNode.name, inputId)
-        } else {
-          throw new ParseError(`unknown variable "${argNode.name}" in destructuring inputs`, getLine(argNode), 'E_REFERENCE')
-        }
-      }
-      inputs.push(inputId)
-    } else if (argNode.type === 'ObjectExpression') {
-      const parsed = parseValueExpr(argNode, paramNames, paramValues, varToId, nsNames, defaultNsName, line, flags, looseVars, sourceText)
-      if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-        Object.assign(args, parsed as Record<string, ArgIR>)
-      } else {
-        throw new ParseError('destructuring args must be an object', line, 'E_VALUE')
-      }
-    } else {
-      throw new ParseError(`unexpected argument type in destructuring: ${argNode.type}`, getLine(argNode), 'E_VALUE')
-    }
-  }
+  const positional = parsePositionalArgs(init.arguments, paramNames, paramValues, varToId, nsNames, defaultNsName, line, flags, looseVars, sourceText, 'destructuring inputs')
+  const args = splitPositionalOptions(positional).named
 
   // 本机调用：ABI 绑定校验（§3.6，parse 期拦截 E_ARG）
   // 宽松本机调用（codeToArgs 单行提取）形参未知 → 跳过绑定校验，由调用方在完整上下文校验。
   if (local && localFnParams && !looseLocalCall) {
-    validateLocalAbi(opName, localFnParams.get(opName) ?? [], inputs.length, args, line)
+    const { values, named } = splitPositionalOptions(positional)
+    validateLocalAbi(opName, localFnParams.get(opName) ?? [], values.length, named, line)
   }
 
   // Phase 3：id 不再赋变量名；outputs 在最终遍历经 varToId 解析后写入
@@ -868,7 +992,7 @@ function parseDestructuring(
     id: asStmtId('__pending__'),
     callee: opName,
     args,
-    inputs,
+    positional,
     outputs: [],
     outputKeys: keys,
     hasAssignment: true,
@@ -1021,14 +1145,15 @@ function collectRefsFromArg(value: ArgIR, out: Set<string>): void {
 }
 
 /**
- * 收集单条语句引用的全部变量名（inputs + args 中 $param / $ref / 嵌套调用 + receiver）。
+ * 收集单条语句引用的全部变量名（positional + args 中 $param / $ref / 嵌套调用 /
+ * ExprIR refs/params + receiver）。positional 与 args 都扫：args 是尾随对象投影
+ * （真源 positional 已含它，重复扫描幂等）；手工构造 IR 可能只填 args。
  * 存入 stmt.refs，编译期据此翻译为 deps（定义这些变量的语句 id）。
  */
 function collectStatementRefs(stmt: StatementIR): string[] {
-  const refs = new Set<string>(stmt.inputs)
-  for (const arg of Object.values(stmt.args)) {
-    collectRefsFromArg(arg, refs)
-  }
+  const refs = new Set<string>()
+  for (const arg of stmt.positional) collectRefsFromArg(arg, refs)
+  for (const arg of Object.values(stmt.args)) collectRefsFromArg(arg, refs)
   // receiver：成员方法调用（add_constraint/do_assemble 等）依赖其 receiver 变量，
   // 不加入则成员调用对 compound 的依赖边缺失（连带 bug，见命名分层修复文档 §2.4）。
   if (stmt.receiver) refs.add(stmt.receiver)
@@ -1660,41 +1785,19 @@ export function parseScript(code: string, options?: ParseScriptOptions): ParseRe
           const fnName = expr.callee.name
           const looseLocal = looseLocalCalls && !localFnParams.has(fnName)
           if (localFnParams.has(fnName) || looseLocal) {
-            const args: Record<string, ArgIR> = {}
-            const inputs: PartName[] = []
             const flags: ValueFlags = { computed: false }
-            for (const argNode of expr.arguments) {
-              if (argNode.type === 'Identifier') {
-                let inputId = varToId.get(argNode.name)
-                if (!inputId) {
-                  if (looseVars) {
-                    inputId = asPartName(argNode.name)
-                    varToId.set(argNode.name, inputId)
-                  } else {
-                    throw new ParseError(`unknown variable "${argNode.name}" in ${fnName}() call`, getLine(argNode), 'E_REFERENCE')
-                  }
-                }
-                inputs.push(inputId)
-              } else if (argNode.type === 'ObjectExpression') {
-                const parsed = parseValueExpr(argNode, paramNames, paramValues, varToId, nsNames, defaultNsName, line, flags, looseVars, parseCode)
-                if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-                  Object.assign(args, parsed as Record<string, ArgIR>)
-                } else {
-                  throw new ParseError(`${fnName} args must be an object`, line, 'E_VALUE')
-                }
-              } else if (argNode.type !== 'undefined') {
-                throw new ParseError(`unexpected argument type in ${fnName}: ${argNode.type}`, getLine(argNode), 'E_VALUE')
-              }
-            }
+            const positional = parsePositionalArgs(expr.arguments, paramNames, paramValues, varToId, nsNames, defaultNsName, line, flags, looseVars, parseCode, `${fnName}() call`)
+            const args = splitPositionalOptions(positional).named
             // 宽松本机调用（codeToArgs 单行提取）形参未知 → 跳过绑定校验，由调用方在完整上下文校验。
             if (!looseLocal) {
-              validateLocalAbi(fnName, localFnParams.get(fnName) ?? [], inputs.length, args, line)
+              const { values, named } = splitPositionalOptions(positional)
+              validateLocalAbi(fnName, localFnParams.get(fnName) ?? [], values.length, named, line)
             }
             const localStmt: StatementIR = {
               id: asStmtId('__pending__'),
               callee: fnName,
               args,
-              inputs,
+              positional,
               outputs: [],
               local: true,
               hasAssignment: false,
@@ -1723,38 +1826,14 @@ export function parseScript(code: string, options?: ParseScriptOptions): ParseRe
           // 或顶层 import 绑定名（第三方命名空间调用）
           if (isNamespaceName(objName)) {
             const nsName = objName
-            const args: Record<string, ArgIR> = {}
-            const inputs: PartName[] = []
             const flags: ValueFlags = { computed: false }
-            for (const argNode of expr.arguments) {
-              if (argNode.type === 'Identifier') {
-                let inputId = varToId.get(argNode.name)
-                if (!inputId) {
-                  // Loose mode: external variable passes through as its physical PartName
-                  if (looseVars) {
-                    inputId = asPartName(argNode.name)
-                    varToId.set(argNode.name, inputId)
-                  } else {
-                    throw new ParseError(`unknown variable "${argNode.name}" in ${nsName}.${methodName}() call`, getLine(argNode), 'E_REFERENCE')
-                  }
-                }
-                inputs.push(inputId)
-              } else if (argNode.type === 'ObjectExpression') {
-                const parsed = parseValueExpr(argNode, paramNames, paramValues, varToId, nsNames, defaultNsName, line, flags, looseVars, parseCode)
-                if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-                  Object.assign(args, parsed as Record<string, ArgIR>)
-                } else {
-                  throw new ParseError(`${methodName} args must be an object`, line, 'E_VALUE')
-                }
-              } else if (argNode.type !== 'undefined') {
-                throw new ParseError(`unexpected argument type in ${methodName}: ${argNode.type}`, getLine(argNode), 'E_VALUE')
-              }
-            }
+            const positional = parsePositionalArgs(expr.arguments, paramNames, paramValues, varToId, nsNames, defaultNsName, line, flags, looseVars, parseCode, `${nsName}.${methodName}() call`)
+            const args = splitPositionalOptions(positional).named
             const nsStmt: StatementIR = {
               id: asStmtId('__pending__'),
               callee: methodName,
               args,
-              inputs,
+              positional,
               outputs: [],
               hasAssignment: false,
               ...(nsName !== defaultNsName ? { namespace: nsName } : {}),
@@ -1777,25 +1856,14 @@ export function parseScript(code: string, options?: ParseScriptOptions): ParseRe
               throw new ParseError(`unknown variable "${targetVar}" in .${methodName}() call`, line, 'E_REFERENCE')
             }
           }
-          const args: Record<string, ArgIR> = {}
           const flags: ValueFlags = { computed: false }
-          for (const argNode of expr.arguments) {
-            if (argNode.type === 'ObjectExpression') {
-              const parsed = parseValueExpr(argNode, paramNames, paramValues, varToId, nsNames, defaultNsName, line, flags, looseVars, parseCode)
-              if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-                Object.assign(args, parsed as Record<string, ArgIR>)
-              } else {
-                throw new ParseError(`${methodName} args must be an object`, line, 'E_VALUE')
-              }
-            } else if (argNode.type !== 'undefined') {
-              throw new ParseError(`unexpected argument type in ${methodName}: ${argNode.type}`, getLine(argNode), 'E_VALUE')
-            }
-          }
+          const positional = parsePositionalArgs(expr.arguments, paramNames, paramValues, varToId, nsNames, defaultNsName, line, flags, looseVars, parseCode, `.${methodName}() call`)
+          const args = splitPositionalOptions(positional).named
           const memberStmt: StatementIR = {
             id: asStmtId('__pending__'),
             callee: methodName,
             args,
-            inputs: [],
+            positional,
             outputs: [],
             receiver: targetVar,
             hasAssignment: false,

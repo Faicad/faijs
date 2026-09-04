@@ -88,7 +88,7 @@ function makeStmt(
   return {
     id: asStmtId(id), callee,
     args: args as never,
-    inputs: inputs.map(asPartName),
+    positional: inputs.map((s) => ({ $ref: asPartName(s) })),
     outputs: [asPartName(id)],
     hasAssignment: true,
     ...extra,

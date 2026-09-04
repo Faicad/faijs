@@ -1,4 +1,4 @@
-import { type Result, ok, err, validationError } from './compat.js';
+import { type Result, ok, err, validationError } from '@faicad/faijs/compat';
 import type { BendRule, SheetMetalWarning } from './types.js';
 
 const DEG_TO_RAD = Math.PI / 180;
@@ -38,7 +38,15 @@ export interface BendTable {
   rows: BendTableRow[];
 }
 
-const registry = new Map<string, BendTable>();
+/**
+ * The live bend-table registry, explicit as a shared resource object (§7.3):
+ * no hidden module-level mutable state. `registerBendTable`,
+ * {@link getBendTable} and the built-in resource all read/write the same
+ * `byId` map, so hosts can inspect or snapshot the registry directly.
+ */
+export const bendTables: { readonly byId: Map<string, BendTable> } = {
+  byId: new Map<string, BendTable>(),
+};
 
 /**
  * Register (or replace) a bend table under its id, so a {@link BendRule} with a
@@ -77,7 +85,7 @@ export function registerBendTable(table: BendTable): Result<BendTable> {
     }
   }
   const stored = { id: table.id, kind: table.kind, rows: table.rows.map((r) => ({ ...r })) };
-  registry.set(table.id, stored);
+  bendTables.byId.set(table.id, stored);
   return ok(stored);
 }
 
@@ -90,7 +98,7 @@ export function registerBendTable(table: BendTable): Result<BendTable> {
  */
 export function getBendTable(id: string): BendTable | undefined {
   ensureStarterTables();
-  return registry.get(id);
+  return bendTables.byId.get(id);
 }
 
 /**
@@ -397,7 +405,7 @@ function ensureStarterTables(): void {
   starterTablesRegistered = true;
   for (const table of STARTER_TABLES) {
     // Never clobber a table a caller registered under a starter id before first access.
-    if (registry.has(table.id)) continue;
-    registry.set(table.id, { id: table.id, kind: table.kind, rows: table.rows.map((r) => ({ ...r })) });
+    if (bendTables.byId.has(table.id)) continue;
+    bendTables.byId.set(table.id, { id: table.id, kind: table.kind, rows: table.rows.map((r) => ({ ...r })) });
   }
 }

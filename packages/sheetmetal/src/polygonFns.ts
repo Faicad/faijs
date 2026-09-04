@@ -20,8 +20,8 @@ import {
   getEdges,
   curveStartPoint,
   curveEndPoint,
-} from './compat.js';
-import type { Wire } from './compat.js';
+} from '@faicad/faijs/compat';
+import type { Wire } from '@faicad/faijs/compat';
 import type { FlatPattern } from './types.js';
 
 /** A 2D point as a plain `[x, y]` coordinate tuple. */

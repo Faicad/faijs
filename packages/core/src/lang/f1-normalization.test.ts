@@ -15,6 +15,7 @@ import { describe, it, expect } from 'vitest'
 import { parseScript, ParseError } from './parser'
 import { scriptIRToCode } from './codegen'
 import { codeToArgs } from './code-to-args'
+import { statementInputs } from './types'
 import { analyzeCode } from './statement-summary'
 import { isExprRef } from './types'
 import type { ExprIR } from './types'
@@ -51,7 +52,7 @@ describe('F1: 表达式折叠（parse 期静态求值为字面量）', () => {
     const { script } = parseScript(code)
     const drill = script.statements[1]
     expect(drill.args.depth).toBe(5)
-    expect(drill.inputs).toEqual(['p'])
+    expect(statementInputs(drill)).toEqual(['p'])
     expect(drill.hasComputedArgs).toBe(true)
   })
 
@@ -291,7 +292,7 @@ describe('F1: 表达式折叠后往返稳定', () => {
     // 折叠后的字面量再次解析仍是同值（往返稳定，不再重新折叠）
     expect(again.args).toEqual(orig.args)
     expect(again.callee).toBe(orig.callee)
-    expect(again.inputs).toEqual(orig.inputs)
+    expect(statementInputs(again)).toEqual(statementInputs(orig))
     return { args: again.args, callee: again.callee, inputs: again.inputs }
   }
 
@@ -321,7 +322,7 @@ describe('F1: 表达式折叠后往返稳定', () => {
     expect(reparsed.statements.length).toBe(script.statements.length)
     expect(reparsed.statements[2].callee).toBe('union')
     expect(reparsed.statements[2].args).toEqual({})
-    expect(reparsed.statements[2].inputs).toEqual(['part0', 'part1'])
+    expect(statementInputs(reparsed.statements[2])).toEqual(['part0', 'part1'])
     expect(reparsed.statements[3].args.diameter).toBe(5)
   })
 })
@@ -356,17 +357,17 @@ describe('F1: StatementSummary.hasComputedArgs', () => {
 describe('F1: codeToArgs 表达式折叠', () => {
   it('二元表达式 → 折叠为字面值返回，不抛错', () => {
     const args = codeToArgs('cad.box({ size: base + 20 })')
-    expect(args.size).toBe(20) // 哨兵参数 base=0 → 0+20
+    expect(args.args.size).toBe(20) // 哨兵参数 base=0 → 0+20
   })
 
   it('纯字面量行行为不变', () => {
     const args = codeToArgs('part0 = cad.fai_drill(part0, { diameter: 5, depth: 0 })')
-    expect(args.diameter).toBe(5)
-    expect(args.depth).toBe(0)
+    expect(args.args.diameter).toBe(5)
+    expect(args.args.depth).toBe(0)
   })
 
   it('模板字符串 → 折叠', () => {
     const args = codeToArgs('cad.box({ name: `板-${n}` })')
-    expect(args.name).toBe('板-0') // 哨兵参数 n=0
+    expect(args.args.name).toBe('板-0') // 哨兵参数 n=0
   })
 })

@@ -14,21 +14,27 @@
 import { describe, it, expect } from 'vitest'
 import { parseScript, ParseError, getApiVersion } from './parser'
 import { scriptIRToCode } from './codegen'
-import { isVarRef, isCallRef } from './types'
+import { isVarRef, isCallRef, statementInputs } from './types'
 import type { ScriptIR, StatementIR, CallRefIR, ArgIR } from './types'
 import { asStmtId, asPartName } from '../identity'
 
 // ── 测试辅助 ──
 
 function makeStmt(
-  partial: Omit<Partial<StatementIR>, 'id' | 'inputs' | 'outputs'> & { id?: string; inputs?: string[]; outputs?: string[] },
+  partial: Omit<Partial<StatementIR>, 'id' | 'positional' | 'outputs'> & {
+    id?: string
+    /** 便捷形态：字符串按 VarRefIR（{$ref}）入位置实参槽 */
+    inputs?: string[]
+    positional?: ArgIR[]
+    outputs?: string[]
+  },
 ): StatementIR {
-  const { id, inputs, outputs, ...rest } = partial
+  const { id, inputs, positional, outputs, ...rest } = partial
   return {
     id: asStmtId(id ?? 'st_part1_1'),
     callee: 'box',
     args: {},
-    inputs: (inputs ?? []).map(asPartName),
+    positional: positional ?? (inputs ?? []).map((s) => ({ $ref: asPartName(String(s)) })),
     outputs: (outputs ?? [id ?? 'part0']).map(asPartName),
     hasAssignment: true,
     ...rest,
@@ -57,7 +63,7 @@ describe('parser: 基本语句', () => {
     expect(script.statements).toHaveLength(1)
     expect(script.statements[0].callee).toBe('box')
     expect(script.statements[0].args.size).toBe(20)
-    expect(script.statements[0].inputs).toEqual([])
+    expect(statementInputs(script.statements[0])).toEqual([])
     expect(script.statements[0].id).toBe('s1')
     // Phase 3: box 是 creator op，分配新名 part0（而非变量名 part0）
     expect(script.statements[0].outputs).toEqual(['part0'])
@@ -96,7 +102,7 @@ part0 = cad.translate(part0, { offset:[10,0,0] })`
     expect(script.statements).toHaveLength(2)
     expect(script.statements[1].callee).toBe('translate')
     // Phase 3: translate 是单入单出，复用输入名 part0
-    expect(script.statements[1].inputs).toEqual(['part0'])
+    expect(statementInputs(script.statements[1])).toEqual(['part0'])
     expect(varToId.get('part0')).toBe('part0')
   })
 
@@ -107,8 +113,8 @@ part0 = await cad.fai_drill(part0, { diameter:5, depth:0 })`
     const { script } = parseScript(code)
     expect(script.statements).toHaveLength(3)
     // Phase 3: 复用输入名
-    expect(script.statements[1].inputs).toEqual(['part0'])
-    expect(script.statements[2].inputs).toEqual(['part0'])
+    expect(statementInputs(script.statements[1])).toEqual(['part0'])
+    expect(statementInputs(script.statements[2])).toEqual(['part0'])
     expect(script.statements[2].callee).toBe('fai_drill')
   })
 })
@@ -124,7 +130,7 @@ let part2 = await cad.union(part0, part1)`
     // A1 归一取消：callee 就是源码里的名字，无 args.operation
     expect(script.statements[2].callee).toBe('union')
     expect(script.statements[2].args.operation).toBeUndefined()
-    expect(script.statements[2].inputs).toEqual(['part0', 'part1'])
+    expect(statementInputs(script.statements[2])).toEqual(['part0', 'part1'])
   })
 
   it('解析 cad.subtract(a, b)', () => {
@@ -227,7 +233,7 @@ const { front: part1, back: part2 } = await cad.fai_split(part0, { normal:[0,0,1
     expect(splitStmt.outputKeys).toEqual(['front', 'back'])
     // Phase 3: split 分配新名 part1/part2；box 是 part0
     expect(splitStmt.outputs).toEqual(['part1', 'part2'])
-    expect(splitStmt.inputs).toEqual(['part0'])
+    expect(statementInputs(splitStmt)).toEqual(['part0'])
     expect(varToId.get('part1')).toBe('part1')
     expect(varToId.get('part2')).toBe('part2')
   })
@@ -309,7 +315,7 @@ describe('parser: 往返 codegen → parser', () => {
     const { script: parsed } = parseScript(code)
     expect(parsed.statements).toHaveLength(2)
     expect(parsed.statements[1].callee).toBe('translate')
-    expect(parsed.statements[1].inputs).toEqual([parsed.statements[0].outputs[0]])
+    expect(statementInputs(parsed.statements[1])).toEqual([parsed.statements[0].outputs[0]])
     expect(parsed.statements[1].args.offset).toEqual([10, 0, 0])
   })
 
@@ -327,7 +333,7 @@ describe('parser: 往返 codegen → parser', () => {
     expect(parsed.statements).toHaveLength(3)
     expect(parsed.statements[2].callee).toBe('union')
     expect(parsed.statements[2].args.operation).toBeUndefined()
-    expect(parsed.statements[2].inputs).toEqual([
+    expect(statementInputs(parsed.statements[2])).toEqual([
       parsed.statements[0].outputs[0],
       parsed.statements[1].outputs[0],
     ])
@@ -377,7 +383,7 @@ describe('parser: 引用预检与自由引用', () => {
     const { script } = parseScript(code)
     expect(script.statements[1].callee).toBe('copy')
     expect(script.statements[1].outputs[0]).toBe('part1')
-    expect(script.statements[1].inputs).toEqual(['part0'])
+    expect(statementInputs(script.statements[1])).toEqual(['part0'])
   })
 })
 

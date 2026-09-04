@@ -20,6 +20,7 @@
  */
 
 import type { ScriptIR, StatementIR, TerminalShape, FunctionDefIR } from '../lang/types'
+import { statementInputs } from '../lang/types'
 import type { Shape } from '../mesh/types'
 import type { BrepChainState } from '../brep/brep-chain'
 import type { BrepHandle } from '../brep/engine/types'
@@ -40,9 +41,10 @@ import { asPartName, type PartName, type StmtId } from '../identity'
 import { compileToModule, type CompiledStatementMeta } from '../lang/compile'
 import { ModuleExecutor, type ExecBookkeeping } from './module-executor'
 import {
-  configureBackends, CONTRACT_VERSION, setKeepSink, setName,
+  configureBackends, CONTRACT_VERSION, setKeepSink, setName, getCurrentStmt,
   assertContractVersion, BrepUnsupportedError, MeshUnsupportedError, type StdlibNamespace,
 } from '../runtime-state'
+import { OpError } from '../api/internal/result-unwrap'
 import { DUAL_OP_META } from '../define-op'
 import { admitCompatLib } from './admit-compat-lib'
 import { computeLibId } from './lib-id'
@@ -400,7 +402,19 @@ export class CadRuntime {
 
     // P2：装配全局 backends（stdlib 经 getBackends() 取资源）。
     // getter 保证 kernel 异步就绪与 partTransform 运行期变更可见（P5 会细化此装配）。
-    // ⚠️ getter 的 this 指向所在对象字面量，用箭头闭包捕获实例（避免 no-this-alias）。
+    this.claimBackends()
+  }
+
+  /**
+   * 认领全局 backends 配置（P2 修复）：全局 backends 是单例，任何 runtime 创建都会
+   * 覆盖它——后创建的实例（如预览用 mesh runtime）会把 mode/kernel getter 指向自己，
+   * 先前 runtime 的后续 execute 会被静默劫持（dispatch 走错槽、缓存键漂移、
+   * 顶替释放旧 BREP 句柄后拓扑重建撞上悬空句柄）。因此除构造外，每个执行入口
+   * （executeIR，所有执行路径的汇聚点）都必须先重新认领本实例的配置。
+   * 限制：并发交错执行多个 runtime 仍会互踩（与 setCurrentStmt 同级的串行假设）。
+   * ⚠️ getter 的 this 指向所在对象字面量，用箭头闭包捕获实例（避免 no-this-alias）。
+   */
+  private claimBackends(): void {
     const brepChainOf = (): BrepChainState | null => this.brepChain
     const portsOf = (): HostPorts => this.ports
     configureBackends({
@@ -491,6 +505,9 @@ export class CadRuntime {
     script: ScriptIR,
     opts?: ExecuteOptions,
   ): Promise<ExecutionResult> {
+    // P2 修复：执行前重新认领全局 backends（其它 runtime 的创建会覆盖全局单例，
+    // 见 claimBackends 注释）——本实例的 mode/kernel/dispatch 必须以本次执行为准。
+    this.claimBackends()
     const { code, statements } = compileToModule(script)
     this.executor.setCompiled(script, statements)
     await this.executor.load(code)
@@ -843,7 +860,8 @@ export class CadRuntime {
   }
 
   /** 执行并捕获模式不支持失败（BrepUnsupportedError / MeshUnsupportedError → ExecutionResult.failedAt）。
-   *  执行护栏（§6.3 / D8）：设了 executionTimeoutMs 时整轮超时抛 ExecutionLimitError。 */
+   *  库边界 err（compatOp unwrap / E_SUBSHAPE_BOUNDARY 抛出的 OpError）同样归并为语句失败，
+   *  不抛穿 execute()。执行护栏（§6.3 / D8）：设了 executionTimeoutMs 时整轮超时抛 ExecutionLimitError。 */
   private async runWithFailureHandling(
     script: ScriptIR,
     exec: ExecBookkeeping,
@@ -854,14 +872,25 @@ export class CadRuntime {
       try {
         await run()
       } catch (err) {
-        if (err instanceof BrepUnsupportedError || err instanceof MeshUnsupportedError) {
-          const index = err.stmt ? script.statements.indexOf(err.stmt) : -1
+        if (
+          err instanceof BrepUnsupportedError ||
+          err instanceof MeshUnsupportedError ||
+          err instanceof OpError
+        ) {
+          // OpError 自身不携带 stmt；语句执行期间 setCurrentStmt 已指向失败语句
+          // （module-executor.ts 逐语句设置、执行期不清除），以此定位。
+          const stmt =
+            err instanceof BrepUnsupportedError || err instanceof MeshUnsupportedError
+              ? err.stmt
+              : undefined
+          const resolved = stmt ?? getCurrentStmt()
+          const index = resolved ? script.statements.indexOf(resolved) : -1
           return {
             outputs: exec.outputCache,
             brepChain: this.brepChain!,
             terminals: [],
             infos: [],
-            failedAt: { index, callee: err.stmt?.callee ?? '', message: err.message },
+            failedAt: { index, callee: resolved?.callee ?? '', message: err.message },
           }
         }
         throw err
@@ -1187,14 +1216,16 @@ export class CadRuntime {
     return brepSolids
   }
 
-  /** 旧 statementKey 计算（跨 part 子重放用，逻辑与旧解释器一致）。 */
+  /** 旧 statementKey 计算（跨 part 子重放用，逻辑与旧解释器一致）。
+   *  true-JS-subset §4.4.4：位置实参槽按 positional 序列化拼 key；内容依赖沿
+   *  VarRefIR 投影（statementInputs，原 inputs 语义）逐个取上游内容键。 */
   private computeLegacyStatementKey(
     stmt: StatementIR,
     getInputContentKey: (id: PartName) => string | undefined,
   ): string {
     const parts: string[] = [stmt.callee]
-    parts.push(JSON.stringify(stmt.args))
-    for (const inputId of stmt.inputs) {
+    parts.push(JSON.stringify({ positional: stmt.positional ?? [], args: stmt.args }))
+    for (const inputId of statementInputs(stmt)) {
       const ck = getInputContentKey(inputId)
       parts.push(ck ?? 'missing')
     }
@@ -1429,13 +1460,15 @@ export class CadRuntime {
       }
     }
 
-    // ③ 引用预检：每条语句的 inputs 必须能在前面的语句或参数中找到
+    // ③ 引用预检：每条语句引用的变量（refs 为超集：positional VarRefIR + args +
+    //    ExprIR refs/params，true-JS-subset §4.4.3）必须能在前面的语句或参数中找到。
+    //    手工构造 IR 无 refs 时退回 VarRefIR 投影（statementInputs）。
     const definedIds = new Set<string>()
     for (const p of script.params) {
       definedIds.add(p.name)
     }
     for (const stmt of script.statements) {
-      for (const inputRef of stmt.inputs) {
+      for (const inputRef of stmt.refs ?? statementInputs(stmt)) {
         if (!definedIds.has(inputRef)) {
           errors.push({
             stage: 'reference',

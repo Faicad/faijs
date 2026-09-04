@@ -7,7 +7,7 @@ import {
   getEdges,
   curveStartPoint,
   curveEndPoint,
-} from './compat.js';
+} from '@faicad/faijs/compat';
 import type {
   BendRule,
   CutoutSpec,
@@ -47,6 +47,9 @@ export interface FoldResult {
  * BendFeature/FlangeFeature tree consistent with `authorPart`), so
  * `unfold(fold(input))` round-trips. SEAM_CUT-style and min-radius warnings ride
  * inside the Ok payload.
+ *
+ * @param input - the flat pattern input to fold.
+ * @returns the folded sheet metal part, or an error.
  */
 export function fold(input: FlatInput): Result<SheetMetalPart> {
   const result = foldWithWarnings(input);
@@ -54,7 +57,11 @@ export function fold(input: FlatInput): Result<SheetMetalPart> {
   return ok(result.value.part);
 }
 
-/** {@link fold} that also surfaces the fold warnings alongside the part. */
+/**
+ * {@link fold} that also surfaces the fold warnings alongside the part.
+ * @param input - the flat pattern input to fold.
+ * @returns the fold result with warnings, or an error.
+ */
 export function foldWithWarnings(input: FlatInput): Result<FoldResult> {
   const spec: AuthorSpec = {
     thickness: input.thickness,
@@ -163,7 +170,7 @@ export interface PatternToFlatInputOptions {
  * alone — `pattern.outline` (a closed 2D wire) and `pattern.bendLines` (each a 2D
  * segment + fold angle/direction). Nothing is read from a feature tree or a 3D
  * solid: the regions, sides, offsets, spans and flat lengths are all recovered by
- * reading real 2D coordinates back out of the wire/edges via the public brepjs
+ * reading real 2D coordinates back out of the wire/edges via the public morph
  * geometry readers (`getEdges`, `curveStartPoint`, `curveEndPoint`).
  *
  * This is the non-circular round-trip bridge: feeding `unfold(part).pattern` through
@@ -178,6 +185,10 @@ export interface PatternToFlatInputOptions {
  * region's edge spawns a child region whose far edge is the next outward bend line
  * (a grandchild) or the outline boundary; `length = far-extent − dev`, `span` =
  * bend-line length, `offset`/`side` are the bend line's position on the parent edge.
+ *
+ * @param pattern - the flat pattern to convert.
+ * @param opts - options (thickness, ruleFor, material).
+ * @returns the flat input, or an error.
  */
 export function patternToFlatInput(
   pattern: FlatPattern,
@@ -223,6 +234,9 @@ export function patternToFlatInput(
  *
  * Seam bends (closed profiles) are left unfolded by `unfold`, so the recovered part
  * is the open spanning-tree shape, not the re-closed box.
+ *
+ * @param part - the sheet metal part to recover a flat input from.
+ * @returns the flat input, or an error.
  */
 export function partToFlatInput(part: SheetMetalPart): Result<FlatInput> {
   const unfolded = unfold(part);

@@ -8,6 +8,7 @@ export default defineConfig({
       { find: '@faicad/faijs-core', replacement: resolve(__dirname, '../core/src') },
       { find: '@faicad/faijs', replacement: resolve(__dirname, '../../src') },
       { find: '@faicad/mech-lib', replacement: resolve(__dirname, '../mech-lib/src/index.ts') },
+      { find: '@faicad/sheetmetal', replacement: resolve(__dirname, '../sheetmetal/src/index.ts') },
       { find: '@faicad/faijs-fixtures', replacement: resolve(__dirname, '../fixtures/data') },
     ],
   },

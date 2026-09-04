@@ -131,7 +131,7 @@ faijs 是 **npm workspaces monorepo**。根包 `@faicad/faijs` 是**门面薄层
 
 ## 4. 语句与脚本模型
 
-一个 `.fai.js` 脚本是一串语句，一行一个操作（扁平格式，§5）。引擎把文本解析为内部表示；**该表示是实现细节——不属于本接口契约，可随时变更**。契约面对的语句模型就是代码本身：变量名（`PartName`）、被调函数、位置入参、末尾选项对象、声明的输出（§3、§5）。
+一个 `.fai.js` 脚本是一串语句，一行一个操作（扁平格式，§5）。引擎把文本解析为内部表示；**该表示是实现细节——不属于本接口契约，可随时变更**。契约面对的语句模型就是代码本身：变量名（`PartName`）、被调函数、位置实参列表（每个实参位都接受全部表达式形态——字面量、变量引用、成员访问、嵌套查询、运行时表达式）、末尾选项对象、声明的输出（§3、§5）。
 
 `Shape`（`packages/core/src/mesh/types.ts`）是核心几何类型：`{ positions: Float32Array; indices: Uint32Array }`（三角网格，世界空间）。`CompoundShape` 是 `{ kind: 'compound', children: Shape[] }`。
 
@@ -157,7 +157,7 @@ export interface TerminalShape {
 
 **顶层禁止**：控制流（if／for／while／do／switch／try）、动态 `import()`、`eval`／`new Function`／`new`、`export`。越界一律报诊断码 `E_CONTROL_FLOW` / `E_SYNTAX` / `E_VALUE` / `E_REFERENCE` / `E_IMPORT` / `E_ARG`，由 `check()` 透传。
 
-**允许**：顶层 `import`（第三方库，非控制流）、顶层函数定义、**函数体内的控制流**（if／for／while／switch／try／throw／break／continue／labeled，外加 `var`）、**本机函数调用**（callee 是脚本自身函数集的裸标识符，四种形式：赋值／重赋值／解构／副作用）、**运行时表达式**（参数值里的 `ExprIR`，由 JS 引擎求值而非折叠）、可静态折叠的表达式（二元／模板字符串／三元）、任意 callee 解构、成员方法链（`asm1.add_constraint({ … })`）。
+**允许**：顶层 `import`（第三方库，非控制流）、顶层函数定义、**函数体内的控制流**（if／for／while／switch／try／throw／break／continue／labeled，外加 `var`）、**本机函数调用**（callee 是脚本自身函数集的裸标识符，四种形式：赋值／重赋值／解构／副作用）、**位置实参为完整表达式**（字面量 `cad.box(10, 20, 30)`、成员访问 `cad.hem(p0.solid, …)`、多个对象实参原样保留——不覆盖不合并）、**运行时表达式**（参数值里的 `ExprIR`，由 JS 引擎求值而非折叠）、可静态折叠的表达式（二元／模板字符串／三元）、任意 callee 解构、成员方法链（`asm1.add_constraint({ … })`）。
 
 **函数体不透明**：体内控制流合法，但 `eval`／`new`／动态 `import()`／`import`／`export`／`class`／`with` 依旧禁止，且体内不得调用另一个本机函数（v1）。本机调用按「位置 + 按名」ABI 绑定：位置实参映射前 `M` 个形参，末尾对象的键按名映射剩余形参（未知键或占用冲突 → `E_ARG`），未绑定形参为 `undefined`，`keep`／`keepHidden` 在绑定前剥离。编辑函数体经 `bodyHash` 内容键使所有调用者失效（§7.5）。
 
@@ -206,9 +206,9 @@ export function group(params) {
 |---|---|---|
 | **C0/C1** | 变量 ∈ `resolveKeep(stmt).kept`（调用点或函数体声明） | **不消费** |
 | **C3** | 语句有赋值且所有输出都是非几何 | **不消费**任何输入 |
-| **C5** | 默认 | **消费**（inputs 位置引用，或 args 中的变量引用） |
+| **C5** | 默认 | **消费**（positional 槽内任意位置的变量引用——含 `ExprIR` 成员链——或 args 中的变量引用） |
 
-补充规则：嵌套调用内的引用是只读查询，不消费；`receiver`（成员方法调用）不消费接收者变量。
+补充规则：嵌套调用内的引用是只读查询，不消费；`receiver`（成员方法调用）不消费接收者变量；位置字面量与非末位对象实参不消费任何东西（只有变量引用和表达式标识符算消费）。
 
 C3 是**零签名知识**的客观默认：返回非几何的函数不可能把几何吞进结果——第三方测量／查询函数的输入因此不被误吃。
 
@@ -223,7 +223,7 @@ C3 是**零签名知识**的客观默认：返回非几何的函数不可能把�
 
 ### 6.3 静态校验
 
-`validateKeepDirectives(stmt)` 是纯静态校验，对第三方库同样适用：`keep` 必须是数组、条目必须是变量引用或 `{ shape, hidden }`、引用目标必须是本语句 inputs 之一或出现在 args 中、`keepHidden` 必须是 boolean。违反进 `CheckResult.errors`。
+`validateKeepDirectives(stmt)` 是纯静态校验，对第三方库同样适用：`keep` 必须是数组、条目必须是变量引用或 `{ shape, hidden }`、引用目标必须是本语句 positional 中的变量引用之一或出现在 args 中、`keepHidden` 必须是 boolean。违反进 `CheckResult.errors`。
 
 ### 6.4 终端与执行产物
 
@@ -299,7 +299,7 @@ export interface ExecuteOptions {
 
 ### 7.5 增量执行语义
 
-- **按内容寻址**：语句身份键 = 带命名空间的被调函数 + args 的 JSON（去掉 keep）+ 各依赖的内容指纹；参数语句为 `param|JSON(value)`；**本机函数调用为 `local.<callee>#<bodyHash>`**——编辑函数体使所有调用它的语句 key 变化、下游重算，未改动的函数体零重算。`keep`／`keepHidden` 两键被排除——**切换保留／隐藏状态零几何重算**。
+- **按内容寻址**：语句身份键 = 带命名空间的被调函数 + 整个 positional 槽的 JSON（去掉 keep）+ 各依赖的内容指纹；参数语句为 `param|JSON(value)`；**本机函数调用为 `local.<callee>#<bodyHash>`**——编辑函数体使所有调用它的语句 key 变化、下游重算，未改动的函数体零重算。`keep`／`keepHidden` 两键被排除——**切换保留／隐藏状态零几何重算**。
 - **持久 ctx**：脚本变量存于跨执行存活的容器，支持原地重赋值。
 - **重放范围**：`plan` 算出失效集，从首个变更点重放；无失效则零执行。**本机函数调用是单一执行单元**——整个函数体作为一个整体重放（函数体内无语句级 diff）；函数体中间变量永不进入顶层 ctx 或终端判定。
 - **函数 BREP 域**：本机函数运行期间新产生的 OCCT 句柄被登记；返回时除返回值可达句柄外的全部瞬态句柄被释放（`finally`，异常路径同样）。函数体内的 `cad.*` 调用产生几何但永不进入顶层 `solidCache`；只有返回值的句柄进入。
@@ -341,6 +341,45 @@ keepHidden(...shapes): void  // keep but do not render on canvas
 ```
 
 **两条禁令**：库**不得**访问引擎内部可变状态（无 `currentStmt`／`script`／`outputCache`／`brepChain`）；库**不得**查询或修改 DAG（无 `dependentsOf`／`touch`，禁止原地改写已发布的 Shape）。这些能力由引擎侧承担：`changed` 由引擎比对推导，装配变换的下游失效由引擎 `computeDownstream` 完成。
+
+### 7.7 错误体系（Result 原生）
+
+faijs 全面对齐 vendored BREP 树的 `Result`／`BrepError` 体系，作为三个 API 面的**主**错误机制。
+
+| 面 | Result 处置 | 消费者写法 |
+|---|---|---|
+| ① TS 兼容面 | `Result<T>` 原样返回 | `const r = fuse(a, b); if (isErr(r)) …` |
+| ② cad 脚本面 | 语句边界 unwrap：`err` → `ExecutionResult.failedAt`（带语句上下文） | `let p = cad.union(a, b)` — err → 语句失败 |
+| ③ 库边界面 | 库内原样；边界 unwrap | 库内用 `ok`／`err`／`andThen`；`compatOp` 包装器在语句边界 unwrap |
+
+**关键原语**（全部从 `vendored/brepjs/core/result.ts` 和 `core/errors.ts` 投影，经 `@faicad/faijs` 和 `@faicad/faijs-core/api/compat` 导出）：
+
+```ts ignore-check
+ok<T>(value: T): Ok<T>
+err<T>(error: BrepError): Err<T>
+isOk<T>(r: Result<T>): r is Ok<T>
+isErr<T>(r: Result<T>): r is Err<T>
+map<T, U>(r: Result<T>, f: (v: T) => U): Result<U>
+andThen<T, U>(r: Result<T>, f: (v: T) => Result<U>): Result<U>
+unwrap<T>(r: Result<T>): T   // throws if Err
+```
+
+**`BrepError`** 携带 `kind`／`code`／`message`／`suggestion`／`metadata`；`BrepErrorCode` 常量表枚举全部错误类别。完整表见 `vendored/brepjs/core/errors.ts`。
+
+**语句边界 unwrap**：`compatOp` 包装器（和 `defineOp` 的 Result 感知边界）调用共享的 `unwrapResult(r, opName)` 叶子。当结果为 `err` 时，unwrap 抛出携带 op 名和 `BrepError` code 的执行错误——引擎已有的语句级 catch 将其转为 `ExecutionResult.failedAt`。这意味着**存量 `.fai.js` 脚本零修改**：错误面与之前的 throw 行为完全一致。
+
+### 7.8 `compatOp` — 底层边界封装
+
+`compatOp`（`packages/core/src/api/internal/compat-op.ts`）把任意 brepjs 形态函数提升为 faijs 语句级 op。它是 brep-only 的（mesh 模式抛 `E_MESH_UNSUPPORTED`）。六步，全部复用已验证基础设施：
+
+1. **参数透传**：被包装函数内部归一位置/对象形态（D11）；`compatOp` 不做形态映射。
+2. **静态分派门**：深收集几何输入 → `dispatchPath`（brep-only；mesh 模式或链断裂抛异常，不回退）。
+3. **输入借入**：深遍历——faijs `Shape` → `createBorrowedHandle` 视图（零拷贝）；vendored 句柄原样透传（库私有状态）。
+4. **调用 + Result unwrap**：`isResultLike` → `err` 抛出携带 op 名和 `BrepError` code 的执行错误。
+5. **输出收养**：顶层句柄或 `geometryFields` 声明字段 → `adoptEntity`（注销 finalizer + `fromHandle`）。
+6. **返回**：收养的 `Shape` 由与 `defineOp` 相同的消费者接管（`outputCache`／`solidCache`）。
+
+`admitCompatLib`（`packages/core/src/cad-runtime/admit-compat-lib.ts`）是 `compatOp` 的批量应用：`registerLib(binding, ns, { compat: true })` 在包装**之前**运行 `assertLibConforms`（R8：硬顺序约束——DUAL_OP_META 是 `enumerable:false`，先包装会让裸函数静默跳过严格校验）。
 
 ---
 
@@ -546,7 +585,7 @@ export const myOp = defineOp({
 
 ### 13.2 增量保真
 
-`computeContentKey`（positions/indices → 内容指纹）是几何等价的度量手段；语句身份键（callee + 去掉 keep 的 args + 各依赖的内容指纹）决定增量重算范围，`plan` 据此判定。见 §7.5。
+`computeContentKey`（positions/indices → 内容指纹）是几何等价的度量手段；语句身份键（callee + positional 槽 + 去掉 keep 的 args + 各依赖的内容指纹）决定增量重算范围，`plan` 据此判定。见 §7.5。
 
 ### 13.3 「结果一致」的边界（防回潮）
 
@@ -563,7 +602,7 @@ PS：从 IR 重打文本只用于调试，不属于任何契约。
 
 - 顶层禁止控制流（语言约束），保证终端判定等静态规则不被 AI 代码破坏；**控制流允许出现在函数体内**（v1，§5）。
 - 本机函数调用（裸标识符 callee）与运行时表达式（参数里的 `ExprIR`）是新的顶层能力；不含函数的既有脚本解析不变（零回归），参数/字面量表达式依旧按原样折叠。
-- 本机函数调用与其它语句一样是 DAG 节点：`inputs` / `args` / `outputs` 参与 `consumes()` 与终端判定，只有函数体不透明。
+- 本机函数调用与其它语句一样是 DAG 节点：`positional` / `args` / `outputs` 参与 `consumes()` 与终端判定，只有函数体不透明。
 - 函数体是嵌入编译产物的用户源码——对「用户文本不进 VM」（R-3）的已记录例外，边界是 acorn 闸门 + 白名单（见 `docs/syntax-design.md`），与 faqts 通道同构（§10.5）。
 - 旧版带版本后缀的命名不再产生、也不再解析（版本号语义与 `grp_` 前缀均已取消；旧名兼容解析已删除，决策 2，见 `lang/allocate-id.ts`）。
 - `export default async (cad) => {}` 容器与扁平格式均可解析；扁平代码自动封装为合法容器。

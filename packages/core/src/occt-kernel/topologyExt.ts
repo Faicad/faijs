@@ -588,6 +588,26 @@ export function buildSelectorManifest(
   options: SelectorManifestOptions,
   occurrenceId: string = 'o1',
 ): { manifest: Record<string, unknown>; buffers: Record<string, Float32Array | Uint32Array> } {
+  // getSubShapes 返回的每个子形都是独立 arena 句柄，manifest 构建只用它们做
+  // 查询（输出是纯数据），全部登记到 transient 并在 finally 批量释放——否则
+  // 每次构建泄漏 O(faces + edges) 个存活句柄（compat e2e ⑦ 实测 +63/次）。
+  const transient: BrepHandle[] = []
+  try {
+    return buildSelectorManifestCore(kernel, input, options, occurrenceId, transient)
+  } finally {
+    for (const h of transient) {
+      try { kernel.release(h) } catch { /* 已释放 */ }
+    }
+  }
+}
+
+function buildSelectorManifestCore(
+  kernel: BrepEngineApi,
+  input: SelectorManifestInput,
+  options: SelectorManifestOptions,
+  occurrenceId: string,
+  transient: BrepHandle[],
+): { manifest: Record<string, unknown>; buffers: Record<string, Float32Array | Uint32Array> } {
   const { stepHash, cadPath } = options
   const shape = input.shapeHandle
   const mesh = input.meshWithGroups
@@ -602,6 +622,7 @@ export function buildSelectorManifest(
   // consistent with kernel-generated faceGroups/edgeGroups.
   const faceHandles = kernel.getSubShapes(shape, 'face')
   const edgeHandles = kernel.getSubShapes(shape, 'edge')
+  transient.push(...faceHandles, ...edgeHandles)
   const faceCount = faceHandles.length
   const edgeCount = edgeHandles.length
 
@@ -654,6 +675,7 @@ export function buildSelectorManifest(
 
   for (let fi = 0; fi < faceCount; fi++) {
     const faceEdges = kernel.getSubShapes(faceHandles[fi], 'edge')
+    transient.push(...faceEdges)
     const ords: number[] = []
     const seen = new Set<number>()
     for (const fe of faceEdges) {
@@ -674,7 +696,9 @@ export function buildSelectorManifest(
   // parametric direction) — IndexedMap deduplicates, so faceCount=1.
   // This applies to ALL edge types (line, circle, etc.), not just closed curves.
   // In an open shell, boundary edges also have faceCount=1, so we check isSolid.
-  const isSolid = kernel.getSubShapes(shape, 'solid').length > 0
+  const topSolids = kernel.getSubShapes(shape, 'solid')
+  transient.push(...topSolids)
+  const isSolid = topSolids.length > 0
   const seamEdgeSet = new Set<number>()
   for (let ei = 0; ei < edgeCount; ei++) {
     if (isSolid && edgeFaceOrdinals[ei].length === 1) {
@@ -685,6 +709,7 @@ export function buildSelectorManifest(
   // ── 5. Build shape entries (SOLID/SHELL/compound) ──
   const solidHandles = kernel.getSubShapes(shape, 'solid')
   const shellHandles = kernel.getSubShapes(shape, 'shell')
+  transient.push(...solidHandles, ...shellHandles)
   type ShapeEntry = { ordinal: number; shape: BrepHandle; kind: string }
   let shapeEntries: ShapeEntry[]
   if (solidHandles.length > 0) {
@@ -706,11 +731,13 @@ export function buildSelectorManifest(
     const faceSeen = new Set<number>()
     const edgeSeen = new Set<number>()
     const entryFaces = kernel.getSubShapes(entry.shape, 'face')
+    transient.push(...entryFaces)
     for (const f of entryFaces) {
       const ord = findOrdinal(kernel, f, faceHandles, faceOrdLookup)
       if (ord !== undefined && !faceSeen.has(ord)) { faceOrds.push(ord); faceSeen.add(ord) }
     }
     const entryEdges = kernel.getSubShapes(entry.shape, 'edge')
+    transient.push(...entryEdges)
     for (const e of entryEdges) {
       const ord = findOrdinal(kernel, e, edgeHandles, edgeOrdLookup)
       if (ord !== undefined && !edgeSeen.has(ord)) { edgeOrds.push(ord); edgeSeen.add(ord) }

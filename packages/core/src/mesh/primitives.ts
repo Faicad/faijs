@@ -133,26 +133,45 @@ export function wedge(params: WedgeParams): Shape {
   const halfExtrude = length / 2
   const hw = width / 2
   const halfTopWidth = Math.max(0, hw - height / Math.tan(angleRad))
+  // 顶边塌缩（斜坡已在宽度内到顶）→ 三角棱柱（与 brep wedge 的退化处理一致，
+  // 保证 mesh/brep 同参数 bbox 一致；零面积三角形会破坏 manifold）。
+  const degenerate = halfTopWidth <= 1e-12
 
-  const positions = new Float32Array([
-    -halfExtrude, -hw, 0,
-    -halfExtrude,  hw, 0,
-    -halfExtrude,  halfTopWidth, height,
-    -halfExtrude, -halfTopWidth, height,
-     halfExtrude, -hw, 0,
-     halfExtrude,  hw, 0,
-     halfExtrude,  halfTopWidth, height,
-     halfExtrude, -halfTopWidth, height,
-  ])
+  const positions = degenerate
+    ? new Float32Array([
+        -halfExtrude, -hw, 0,
+        -halfExtrude,  hw, 0,
+        -halfExtrude,   0, height,
+         halfExtrude, -hw, 0,
+         halfExtrude,  hw, 0,
+         halfExtrude,   0, height,
+      ])
+    : new Float32Array([
+        -halfExtrude, -hw, 0,
+        -halfExtrude,  hw, 0,
+        -halfExtrude,  halfTopWidth, height,
+        -halfExtrude, -halfTopWidth, height,
+         halfExtrude, -hw, 0,
+         halfExtrude,  hw, 0,
+         halfExtrude,  halfTopWidth, height,
+         halfExtrude, -halfTopWidth, height,
+      ])
 
-  const indices = new Uint32Array([
-    0, 1, 2,  0, 2, 3,
-    4, 6, 5,  4, 7, 6,
-    0, 4, 5,  0, 5, 1,
-    3, 2, 6,  3, 6, 7,
-    0, 3, 7,  0, 7, 4,
-    1, 5, 6,  1, 6, 2,
-  ])
+  const indices = degenerate
+    ? new Uint32Array([
+        0, 1, 2,  3, 5, 4,
+        0, 3, 4,  0, 4, 1,
+        0, 2, 5,  0, 5, 3,
+        1, 4, 5,  1, 5, 2,
+      ])
+    : new Uint32Array([
+        0, 1, 2,  0, 2, 3,
+        4, 6, 5,  4, 7, 6,
+        0, 4, 5,  0, 5, 1,
+        3, 2, 6,  3, 6, 7,
+        0, 3, 7,  0, 7, 4,
+        1, 5, 6,  1, 6, 2,
+      ])
 
   const geo = new THREE.BufferGeometry()
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))

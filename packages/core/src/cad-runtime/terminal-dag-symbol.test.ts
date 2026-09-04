@@ -34,7 +34,7 @@ function makeStmt(opts: {
     id: asStmtId('s1'),
     callee: opts.callee,
     args: (opts.args ?? {}) as Record<string, ArgIR>,
-    inputs: (opts.inputs ?? []).map((s) => asPartName(s)),
+    positional: (opts.inputs ?? []).map((s) => ({ $ref: asPartName(s) })),
     outputs: (opts.outputs ?? []).map((s) => asPartName(s)),
     hasAssignment: opts.hasAssignment ?? true,
     receiver: opts.receiver ? asPartName(opts.receiver) : undefined,

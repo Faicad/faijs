@@ -24,7 +24,7 @@ import {
   vecNormalize,
   line,
   wireLoop,
-} from './compat.js';
+} from '@faicad/faijs/compat';
 import type {
   UnfoldResult,
   FlatPattern,
@@ -93,6 +93,9 @@ function sampleFace(face: Face, n: number): Sample[] {
  * from the axis line to the points. The angular span is the extent of the
  * projected points about the fitted centre. Returns `null` when the surface
  * does not fit a cylinder within {@link FIT_RESIDUAL_TOL}.
+ *
+ * @param face - the B-rep face to fit.
+ * @returns the fitted cylinder, or null if the face is not cylindrical.
  */
 export function fitCylinder(face: Face): FittedCylinder | null {
   const surf = getSurfaceType(face);
@@ -316,6 +319,10 @@ interface DetectedBend {
  *
  * Non-fatal warnings ride inside the Ok payload; the function fails only when the
  * input is not a recognizable sheet-metal solid at all.
+ *
+ * @param solid - the foreign solid to unfold.
+ * @param opts - optional k-factor override.
+ * @returns the unfold result, or an error.
  */
 export function unfoldForeignSolid(
   solid: Solid,

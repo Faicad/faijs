@@ -15,6 +15,7 @@ import { describe, it, expect } from 'vitest'
 import { parseScript, ParseError } from './parser'
 import { scriptIRToCode } from './codegen'
 import { analyzeCode } from './statement-summary'
+import { statementInputs } from './types'
 import { createRuntime } from '@faicad/faijs'
 import type { HostPorts, EventSink } from '../cad-runtime/ports'
 import { solid } from '../shape'
@@ -68,7 +69,7 @@ describe('F2: import + 命名空间往返', () => {
     const headstock = script.statements[1]
     expect(headstock.callee).toBe('makeHeadstock')
     expect(headstock.namespace).toBe('mech')
-    expect(headstock.inputs).toEqual([])
+    expect(statementInputs(headstock)).toEqual([])
 
     const regenerated = scriptIRToCode(script)
     expect(regenerated.startsWith("import * as mech from 'mech-lib'\n")).toBe(true)
@@ -80,7 +81,7 @@ describe('F2: import + 命名空间往返', () => {
     expect(reparsed.statements[1].callee).toBe('makeHeadstock')
     expect(reparsed.statements[1].args).toEqual(script.statements[1].args)
     expect(reparsed.statements[2].callee).toBe('union')
-    expect(reparsed.statements[2].inputs).toEqual(['part0', 'part1'])
+    expect(statementInputs(reparsed.statements[2])).toEqual(['part0', 'part1'])
   })
 
   it('命名空间输入解析：mech.op(part0) 的 input 是已声明变量', () => {
@@ -91,7 +92,7 @@ describe('F2: import + 命名空间往返', () => {
     ].join('\n')
     const { script } = parseScript(code)
     expect(script.statements[1].namespace).toBe('mech')
-    expect(script.statements[1].inputs).toEqual(['part0'])
+    expect(statementInputs(script.statements[1])).toEqual(['part0'])
   })
 
   it('named / default import 往返保真', () => {

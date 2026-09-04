@@ -1,7 +1,7 @@
 # faijs 语言正常化重构：实施细化文档（从设计文档 §7 展开）
 
 - 日期：2026-08-27
-- 状态：待评审（与设计文档同步评审；评审通过后方可实施）
+- 状态：已落地（本文档的 inputs/args 双槽语句模型已被 [2026-09-04-faijs-true-js-subset-call-args-design.md](2026-09-04-faijs-true-js-subset-call-args-design.md) 的单一 `positional` 槽模型取代）
 - 范围：本文件把 `docs/plans/2026-08-27-faijs-language-normalization-design.md` 第 7 节「实施步骤」展开为**可直接执行的逐阶段实施稿**，目标是：交给另一个大模型/工程师，不依赖设计文档以外的推理即可实施。
 - 上级文档：`docs/plans/2026-08-27-faijs-language-normalization-design.md`（设计判定、IR 定义、波及清单以它为准；本文件负责"怎么做"）
 - 关联文档：`docs/plans/2026-08-27-faijs-function-contract.md`（作废，勿参考）；`docs/plans/2026-08-27-restore-dag-terminal-detection.md`（DAG 终端判定历史）

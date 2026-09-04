@@ -7,7 +7,7 @@
  * `sheetMetal()` facade in `./facade.js` is built on top of these.
  */
 
-import type { Result, Solid } from './compat.js';
+import { ok, err, validationError, type Result, type Solid } from '@faicad/faijs/compat';
 import {
   authorPart as authorPartFn,
   type AuthorSpec,
@@ -86,6 +86,21 @@ import type {
  */
 export function author(spec: AuthorSpec): Result<SheetMetalPart> {
   return authorPartFn(spec);
+}
+
+/**
+ * Extract the lone 3D solid of an authored part as its own `Result` terminal.
+ *
+ * `author`/`fold`/`hem` return the data model `SheetMetalPart`; its `.solid`
+ * field is the authored BREP solid. `.fai.js` statements cannot read nested
+ * member expressions (`p1.solid`), so this explicit terminal is the sanctioned
+ * way to pull the geometry out of a part.
+ * @param part - the sheet-metal part carrying the authored solid.
+ * @returns `Ok` with the part's surface, or `Err` (`NO_SOLID`) when the part
+ * has no authored solid yet (e.g. it was only built by `flatPattern`).
+ */
+export function solidOf(part: SheetMetalPart): Result<Solid> {
+  return part.solid ? ok(part.solid) : err(validationError('NO_SOLID', 'part has no authored solid'));
 }
 
 /**
@@ -501,3 +516,6 @@ export function resolveAllowance(
 }
 
 export type { AuthorSpec, FlangeSpec, MiterPlane, DxfOptions, SlotPlacement, NestOptions, NestResult };
+
+/** The live bend-table registry (shared resource, §7.3). */
+export { bendTables } from './bendTableFns.js';

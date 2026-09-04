@@ -37,7 +37,7 @@ function stmtWithOutputs(outputs: string[]): StatementIR {
     id: `s${outputs.length}` as never,
     callee: 'box',
     args: {},
-    inputs: [],
+    positional: [],
     outputs: outputs.map((o) => asPartName(o)),
     hasAssignment: true,
   }

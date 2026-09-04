@@ -91,21 +91,29 @@ export function assignRoles(
   const roles = new Map<string, number[]>()
   const assigner = ROLE_ASSIGNERS[opType]
   const faceHandles = kernel.getSubShapes(shape, 'face')
-  const hashes = kernel.subShapeHashes(shape, 'face', 2147483647)
-  let index = 0
-  for (let i = 0; i < faceHandles.length; i++) {
-    const hint = captureFaceHint(kernel, faceHandles[i])
-    const normal = hint.normal ?? [0, 0, 1]
-    const surfaceType = hint.surfaceType ?? ''
-    const semantic = assigner?.(surfaceType, normal)
-    const role =
-      semantic !== undefined && !roles.has(semantic)
-        ? semantic
-        : `${opType}:face_${index}`
-    roles.set(role, [hashes[i]])
-    index++
+  try {
+    const hashes = kernel.subShapeHashes(shape, 'face', 2147483647)
+    let index = 0
+    for (let i = 0; i < faceHandles.length; i++) {
+      const hint = captureFaceHint(kernel, faceHandles[i])
+      const normal = hint.normal ?? [0, 0, 1]
+      const surfaceType = hint.surfaceType ?? ''
+      const semantic = assigner?.(surfaceType, normal)
+      const role =
+        semantic !== undefined && !roles.has(semantic)
+          ? semantic
+          : `${opType}:face_${index}`
+      roles.set(role, [hashes[i]])
+      index++
+    }
+    return roles
+  } finally {
+    // getSubShapes 返回的每个子形都是独立 arena 句柄——读完几何量即释放，
+    // 否则每次链根建表泄漏 faceCount 个存活句柄（arena 无界增长）。
+    for (const h of faceHandles) {
+      try { kernel.release(h) } catch { /* 已释放 */ }
+    }
   }
-  return roles
 }
 
 /**

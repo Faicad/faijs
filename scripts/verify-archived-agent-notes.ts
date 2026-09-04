@@ -54,7 +54,9 @@ for (const entry of readdirSync(archiveRoot, { withFileTypes: true })) {
   }
 }
 for (const kind of AGENT_NOTE_CLASSES) {
-  if (!kinds.has(kind)) errors.push(`archived/${kind}/: required kind directory is missing`)
+  // Kind directories are required only when the archive has at least one
+  // artifact; an empty archive (no notes archived yet) has no kind dirs.
+  if (artifacts.size > 0 && !kinds.has(kind)) errors.push(`archived/${kind}/: required kind directory is missing`)
 }
 errors.push(...validateArchiveArtifacts(artifacts))
 

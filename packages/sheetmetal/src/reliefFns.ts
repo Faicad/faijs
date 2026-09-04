@@ -20,7 +20,7 @@ import {
   vecCross,
   vecDot,
   vecNormalize,
-} from './compat.js';
+} from '@faicad/faijs/compat';
 import type {
   BendFeature,
   FlangeFeature,
@@ -48,6 +48,11 @@ type NotchRect = [number, number, number, number];
  *
  * A relief is a recorded feature replayed by unfold — exactly the pattern
  * {@link autoMiterCorner} establishes for corner miters.
+ *
+ * @param part - the sheet metal part to cut.
+ * @param flangeId - the flange (bend) ID to relieve.
+ * @param spec - the relief specification (default rectangular).
+ * @returns the updated part with the bend relief recorded, or an error.
  */
 export function addBendRelief(
   part: SheetMetalPart,
@@ -108,6 +113,10 @@ export function addBendRelief(
  * Add a bend relief to every partial-span bend (a flange that does not span its
  * full parent edge). Full-span flanges are skipped — they have no mid-edge bend
  * terminus to relieve. Convenience over calling {@link addBendRelief} per flange.
+ *
+ * @param part - the sheet metal part to process.
+ * @param spec - the relief specification (default rectangular).
+ * @returns the updated part with all needed bend reliefs, or an error.
  */
 export function autoBendReliefs(
   part: SheetMetalPart,
@@ -133,6 +142,12 @@ export function autoBendReliefs(
  * miter for the same corner {@link autoMiterCorner} handles. The notch is cut from
  * the solid and recorded as a {@link ReliefFeature}; the corner is also recorded in
  * `miters` (gap 0) so the collision check treats the interference as resolved.
+ *
+ * @param part - the sheet metal part to cut.
+ * @param flangeIdA - the first flange ID.
+ * @param flangeIdB - the second flange ID.
+ * @param spec - the relief specification (default rectangular).
+ * @returns the updated part with the corner relief recorded, or an error.
  */
 export function cornerRelief(
   part: SheetMetalPart,

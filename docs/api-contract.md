@@ -131,7 +131,7 @@ The model number N is the maximum `partN` found by a lexical scan of the code te
 
 ## 4. Statement and Script Model
 
-A `.fai.js` script is a sequence of statements, one operation per line (the flat format, §5). The engine parses the text into an internal representation; **that representation is an implementation detail — it is not part of this interface contract and may change at any time**. The contract-facing statement model is the code itself: variable names (`PartName`), the called function, positional inputs, the trailing options object, and the declared outputs (§3, §5).
+A `.fai.js` script is a sequence of statements, one operation per line (the flat format, §5). The engine parses the text into an internal representation; **that representation is an implementation detail — it is not part of this interface contract and may change at any time**. The contract-facing statement model is the code itself: variable names (`PartName`), the called function, the positional argument list (every argument position accepts the full expression forms — literals, variable references, member access, nested queries, runtime expressions), the trailing options object, and the declared outputs (§3, §5).
 
 `Shape` (`packages/core/src/mesh/types.ts`) is the core geometry type: `{ positions: Float32Array; indices: Uint32Array }` (triangle mesh, world space). `CompoundShape` is `{ kind: 'compound', children: Shape[] }`.
 
@@ -157,7 +157,7 @@ export interface TerminalShape {
 
 **Forbidden at the top level**: control flow (if/for/while/do/switch/try), dynamic `import()`, `eval`/`new Function`/`new`, `export` — reported as `E_CONTROL_FLOW` / `E_SYNTAX` / `E_VALUE` / `E_REFERENCE` / `E_IMPORT` / `E_ARG`, surfaced through `check()`.
 
-**Allowed**: top-level `import` (third-party libraries, not control flow), top-level function definitions, **control flow inside a function body** (if/for/while/switch/try/throw/break/continue/labeled, plus `var`), **local function calls** (bare-identifier callee from the script's own function set, four forms: assignment / re-assignment / destructuring / side-effect), **runtime expressions** (`ExprIR` in argument values, evaluated at runtime instead of folded), statically foldable expressions (binary / template literal / ternary), arbitrary callee destructuring, member method chains (`asm1.add_constraint({ … })`).
+**Allowed**: top-level `import` (third-party libraries, not control flow), top-level function definitions, **control flow inside a function body** (if/for/while/switch/try/throw/break/continue/labeled, plus `var`), **local function calls** (bare-identifier callee from the script's own function set, four forms: assignment / re-assignment / destructuring / side-effect), **positional arguments as full expressions** (literals `cad.box(10, 20, 30)`, member access `cad.hem(p0.solid, …)`, multiple object arguments kept as-is — no overwrite, no merge), **runtime expressions** (`ExprIR` in argument values, evaluated at runtime instead of folded), statically foldable expressions (binary / template literal / ternary), arbitrary callee destructuring, member method chains (`asm1.add_constraint({ … })`).
 
 **Function bodies** are opaque: control flow is legal inside them, but `eval`/`new`/dynamic `import()`/`import`/`export`/`class`/`with` remain forbidden, and a body may not call another local function (v1). Local calls bind positional-plus-named: positional inputs map to the first `M` parameters, the trailing object's keys to the remaining parameters by name (unknown key or collision → `E_ARG`), unbound parameters are `undefined`, `keep`/`keepHidden` stripped before binding. Editing a body invalidates every caller through the `bodyHash` key (§7.5).
 
@@ -206,9 +206,9 @@ export function group(params) {
 |---|---|---|
 | **C0/C1** | Variable ∈ `resolveKeep(stmt).kept` (call-site or function-body declaration) | **Not consumed** |
 | **C3** | The statement assigns and every output is non-geometric | **Consumes** no input at all |
-| **C5** | Default | **Consumed** (an `inputs` positional reference, or a variable reference in args) |
+| **C5** | Default | **Consumed** (a variable reference anywhere in the positional slot — including `ExprIR` member chains — or in args) |
 
-Additional rules: a reference inside a nested call is a read-only query and does not consume; `receiver` (member method call) does not consume the receiver variable.
+Additional rules: a reference inside a nested call is a read-only query and does not consume; `receiver` (member method call) does not consume the receiver variable; a positional literal or a non-trailing object argument consumes nothing (only variable references and expression identifiers count as consumption).
 
 C3 is an objective default that requires **zero signature knowledge**: a function returning non-geometry cannot have swallowed geometry into its result, so inputs of third-party measurement/query functions are not eaten by mistake.
 
@@ -223,7 +223,7 @@ For each shape variable (compound variables included), take its "last writer P";
 
 ### 6.3 Static validation
 
-`validateKeepDirectives(stmt)` is a purely static validation that applies to third-party libraries as well: `keep` must be an array; entries must be variable references or `{ shape, hidden }`; referenced targets must be one of the statement's inputs or appear in args; `keepHidden` must be a boolean. Violations go into `CheckResult.errors`.
+`validateKeepDirectives(stmt)` is a purely static validation that applies to third-party libraries as well: `keep` must be an array; entries must be variable references or `{ shape, hidden }`; referenced targets must be one of the statement's positional variable references or appear in args; `keepHidden` must be a boolean. Violations go into `CheckResult.errors`.
 
 ### 6.4 Terminals and execution products
 
@@ -298,7 +298,7 @@ There are exactly three public execution entries — `execute(code)` / `append(c
 **Execution guard** (`executionTimeoutMs`, optional, default off): a whole-run timeout over execute/append/update including local-function replays; on expiry it throws `ExecutionLimitError` (`E_EXEC_LIMIT`). A synchronous `while(true)` is a JS single-thread limit the guard cannot interrupt — real protection lives at the host layer (worker terminate / AbortController).
 ### 7.5 Incremental execution semantics
 
-- **Content-addressed**: a statement's identity key combines the namespace-qualified callee, the JSON of its args (keep excluded), and each dependency's content fingerprint; a parameter statement keys on `param|JSON(value)`; **a local-function call keys on `local.<callee>#<bodyHash>`** — editing a body changes every caller's key, so downstream recomputes; untouched bodies cost zero. `keep` / `keepHidden` are excluded — **toggling retention or hidden state triggers zero geometry recomputation**.
+- **Content-addressed**: a statement's identity key combines the namespace-qualified callee, the JSON of its full positional slot (keep excluded), and each dependency's content fingerprint; a parameter statement keys on `param|JSON(value)`; **a local-function call keys on `local.<callee>#<bodyHash>`** — editing a body changes every caller's key, so downstream recomputes; untouched bodies cost zero. `keep` / `keepHidden` are excluded — **toggling retention or hidden state triggers zero geometry recomputation**.
 - **Persistent ctx**: script variables live in a container that survives across executions; in-place reassignment is supported.
 - **Replay scope**: `plan` computes the stale set and replays from the first change point; when nothing is stale, nothing executes. **A local-function call is a single execution unit** — the whole body replays as one unit; body intermediates never enter the top-level ctx or terminal detection.
 - **Function BREP domain**: while a local function runs, newly produced OCCT handles are registered; on return all transient handles except those reachable from the return value are released (`finally`, also on error). Body `cad.*` calls never enter the top-level `solidCache`; only the return value's handle does.
@@ -340,6 +340,45 @@ keepHidden(...shapes): void  // keep but do not render on canvas
 ```
 
 **Two prohibitions**: a library **must not** access engine-internal mutable state (no `currentStmt` / `script` / `outputCache` / `brepChain`); a library **must not** query or modify the DAG (no `dependentsOf` / `touch`, and no in-place mutation of an already published Shape). Those capabilities belong to the engine: `changed` is derived by engine comparison, and downstream invalidation after assembly transforms is done by the engine's `computeDownstream`.
+
+### 7.7 Error system (Result native)
+
+faijs adopts the `Result` / `BrepError` system from the vendored BREP tree as its **primary** error mechanism across all three API surfaces.
+
+| Surface | Result handling | Consumer pattern |
+|---|---|---|
+| ① TS compat face | `Result<T>` returned as-is | `const r = fuse(a, b); if (isErr(r)) …` |
+| ② cad script face | Statement-boundary unwrap: `err` → `ExecutionResult.failedAt` with statement context | `let p = cad.union(a, b)` — errors surface as execution failures |
+| ③ Library edge | Result native inside the library; boundary unwrap at the compat gate | Library code uses `ok`/`err`/`andThen`; the `compatOp` wrapper unwraps at the statement boundary |
+
+**Key primitives** (all projected from `vendored/brepjs/core/result.ts` and `core/errors.ts`, exported via `@faicad/faijs` and `@faicad/faijs-core/api/compat`):
+
+```ts ignore-check
+ok<T>(value: T): Ok<T>
+err<T>(error: BrepError): Err<T>
+isOk<T>(r: Result<T>): r is Ok<T>
+isErr<T>(r: Result<T>): r is Err<T>
+map<T, U>(r: Result<T>, f: (v: T) => U): Result<U>
+andThen<T, U>(r: Result<T>, f: (v: T) => Result<U>): Result<U>
+unwrap<T>(r: Result<T>): T   // throws if Err
+```
+
+**`BrepError`** carries `kind` / `code` / `message` / `suggestion` / `metadata`; `BrepErrorCode` constants enumerate all error categories. See `vendored/brepjs/core/errors.ts` for the full table.
+
+**Statement-boundary unwrap**: the `compatOp` wrapper (and `defineOp`'s Result-aware boundary) call a shared `unwrapResult(r, opName)` leaf. When the result is `err`, the unwrap throws an execution error carrying the op name and the `BrepError` code — the engine's existing statement-level catch converts it to `ExecutionResult.failedAt`. This means **existing `.fai.js` scripts need zero modification**: the error surface is identical to the previous throw-based behavior.
+
+### 7.8 `compatOp` — the low-level boundary wrapper
+
+`compatOp` (`packages/core/src/api/internal/compat-op.ts`) lifts an arbitrary brepjs-shaped function into a faijs statement-level op. It is brep-only (mesh mode raises `E_MESH_UNSUPPORTED`). Six steps, all reusing verified infrastructure:
+
+1. **Argument pass-through**: the wrapped function normalizes positional/object forms internally (D11); `compatOp` does no form mapping.
+2. **Static dispatch gate**: deep-collect geometry inputs → `dispatchPath` (brep-only; mesh mode or broken chain throws, never falls back).
+3. **Input borrow**: deep walk — any faijs `Shape` → `createBorrowedHandle` view (zero-copy); vendored handles pass through (library-private state, §4.3.4 of the design).
+4. **Call + Result unwrap**: `isResultLike` → `err` throws an execution error carrying the op name and `BrepError` code.
+5. **Output adoption**: top-level handle or `geometryFields`-declared fields → `adoptEntity` (unregister finalizer + `fromHandle`).
+6. **Return**: the adopted `Shape` is taken over by the same consumer `defineOp` uses (`outputCache` / `solidCache`).
+
+`admitCompatLib` (`packages/core/src/cad-runtime/admit-compat-lib.ts`) is the batch application of `compatOp` to a namespace: `registerLib(binding, ns, { compat: true })` runs `assertLibConforms` **before** wrapping (R8: hard ordering constraint — DUAL_OP_META is `enumerable:false`, so a wrap-first admission would let bare functions silently skip strict validation).
 
 ---
 
@@ -545,7 +584,7 @@ export const myOp = defineOp({
 
 ### 13.2 Incremental fidelity
 
-`computeContentKey` (positions/indices → content fingerprint) is the measure of geometric equivalence; the statement identity key (callee + args minus keep + each dependency's content fingerprint) decides the incremental recomputation scope, and `plan` uses it. See §7.5.
+`computeContentKey` (positions/indices → content fingerprint) is the measure of geometric equivalence; the statement identity key (callee + positional slot + args minus keep + each dependency's content fingerprint) decides the incremental recomputation scope, and `plan` uses it. See §7.5.
 
 ### 13.3 The boundary of "consistent results" (anti-regression)
 
@@ -562,7 +601,7 @@ PS: Re-printing text from the IR is debug-only, never part of a contract.
 
 - Control flow is forbidden at the top level (a language constraint), which keeps static rules such as terminal detection safe from AI-generated code; **control flow is allowed inside function bodies** (v1, §5).
 - Local function calls (bare-identifier callee) and runtime expressions (`ExprIR` in args) are new top-level capabilities; existing scripts without functions parse unchanged (zero regression), and parameter/literal expressions still fold as before.
-- A local function call is a DAG node like any other: `inputs` / `args` / `outputs` participate in `consumes()` and terminal detection; only the body is opaque.
+- A local function call is a DAG node like any other: `positional` / `args` / `outputs` participate in `consumes()` and terminal detection; only the body is opaque.
 - The function body is user source embedded into the compiled module — a documented exception to "user text never reaches the VM" (R-3), bounded by the acorn gate plus the whitelist (see `docs/syntax-design.md`), isomorphic to the faqts channel (§10.5).
 - Legacy version-suffixed names are no longer produced and no longer parsed (the version suffix and the `grp_` prefix were both removed; compatibility parsing was removed, decision 2, see `lang/allocate-id.ts`).
 - Both the `export default async (cad) => {}` container and the flat format parse; flat code is automatically wrapped into a legal container.

@@ -67,26 +67,40 @@ function declaredByLine(line: string): Set<string> {
 }
 
 /**
- * 解析单条语句行，提取其 args 对象（序列化形态，无 IR 变体语义）。
+ * `codeToArgs` 的返回契约：位置实参槽 + 尾随选项对象（均为序列化 JSON 形态）。
+ */
+export interface CodeToArgsResult {
+  positional: JsonValue[]
+  args: Record<string, JsonValue>
+}
+
+/**
+ * 解析单条语句行，提取其位置实参槽与选项对象（序列化形态，无 IR 变体语义）。
+ *
+ * true-JS-subset §4.6.3 新契约：返回 `{ positional, args }`——
+ * - `positional`: JsonValue[]，按调用顺序的位置实参（字面量原样；VarRefIR/ExprIR/
+ *   CallRefIR 以 strip 后的标记对象呈现，如 `{$ref}` / `{$expr:{text,refs,params}}` /
+ *   `{$call}`，宿主据此降级为只读编辑）；IR strip 红线不变（宿主不接触 IR 类型）。
+ * - `args`: 尾随选项对象（键值序列化形态；无选项对象时为 `{}`）。
+ * 旧契约（只返回对象槽）在位置形态下会静默丢弃非对象实参——本契约显式保留全部信息。
  *
  * 支持的行形态（与 parser 接受的语句一致）：
  * - `const part0 = cad.box({ size: 20 })`
  * - `part0 = cad.fai_drill(part0, { diameter: 5 })`（裸重赋值）
  * - `const { front: a, back: b } = cad.fai_split(part0, { normal: [0,0,1] })`（解构）
  * - `asm0.add_constraint({ ... })`（成员方法调用）
+ * - 位置实参为字面量/变量引用/表达式（`cad.box(10, 20, 30)`、`cad.hem(p0.solid, {...})`）
  * - args 中的裸标识符参数引用（`cad.box({ size: height })`）
  * - args 中的计算表达式（`cad.box({ size: base + 20 })`）→ 折叠为字面值返回
- *
- * 无 args 的语句（如 `asm0.do_assemble()`）返回 `{}`。
  *
  * @param codeLine 单条语句源码行
  * @param opts.namespaces 该脚本顶层 import 的绑定名（F2：`mech.makeHeadstock(...)`
  *   中 `mech` 不得被前置声明为变量）。L0 不感知注册表，由宿主从脚本 imports 提供。
- * @returns the extracted args object in serialized JSON form (`{}` when the
- * statement has no args).
+ * @returns the extracted positional slot and trailing options object (both in
+ * serialized JSON form).
  * @throws ParseError — 行文本不是合法语句时抛出（含行号）
  */
-export function codeToArgs(codeLine: string, opts?: { namespaces?: string[] }): Record<string, JsonValue> {
+export function codeToArgs(codeLine: string, opts?: { namespaces?: string[] }): CodeToArgsResult {
   const namespaces = new Set(opts?.namespaces ?? [])
   const decls = extractIdentifiers(codeLine, namespaces)
     .map((id) => `let ${id} = 0`)
@@ -96,9 +110,30 @@ export function codeToArgs(codeLine: string, opts?: { namespaces?: string[] }): 
   // 的裸 callee 放行（D15 交由调用方在完整脚本上下文校验）；ABI 绑定校验跳过。
   const { script } = parseScript(code, { looseLocalCalls: true })
   const last = script.statements[script.statements.length - 1]
-  if (!last) return {}
-  // Args on the wire are JSON-shaped data (ParamRef/VarRef/CallRef are plain
-  // objects like { $param } / { $ref } / { $call }); the host contract face is
-  // JsonValue — IR types never leak to the host (IR strip red line).
-  return last.args as unknown as Record<string, JsonValue>
+  if (!last) return { positional: [], args: {} }
+  // 尾随选项对象切分（true-JS-subset §4.6.3 / D5）：positional 末位是纯对象（非
+  // {$ref}/{$param}/{$call}/{$expr} 标记）时归入 args 槽返回，宿主编辑回填按
+  // "位置实参 + 选项对象"两槽写回；其余形态 positional 全量返回、args 为空。
+  const MARKER_KEYS = new Set(['$ref', '$param', '$call', '$expr'])
+  const positional = (last.positional ?? []) as unknown as JsonValue[]
+  const lastPos = positional[positional.length - 1]
+  if (
+    lastPos !== null &&
+    typeof lastPos === 'object' &&
+    !Array.isArray(lastPos) &&
+    !Object.keys(lastPos as Record<string, unknown>).some((k) => MARKER_KEYS.has(k))
+  ) {
+    return {
+      positional: positional.slice(0, -1),
+      args: lastPos as unknown as Record<string, JsonValue>,
+    }
+  }
+  // Args on the wire are JSON-shaped data (ParamRef/VarRef/CallRef/ExprIR are
+  // plain objects like { $param } / { $ref } / { $call } / { $expr }); the host
+  // contract face is JsonValue — IR types never leak to the host (IR strip red
+  // line).
+  return {
+    positional,
+    args: last.args as unknown as Record<string, JsonValue>,
+  }
 }

@@ -8,7 +8,7 @@ import {
   line,
   wire,
   wireLoop,
-} from './compat.js';
+} from '@faicad/faijs/compat';
 import type {
   SheetMetalPart,
   UnfoldResult,
@@ -32,7 +32,7 @@ type Pt2 = [number, number];
  * folds from — respecting its offset/span along that edge — then its own flat past
  * the strip, perpendicular to the edge and pointing outward. The developed outline
  * is the rectilinear union of the base and every placed flat/strip rectangle,
- * emitted as a single closed brepjs wire. A recorded corner miter replaces the
+ * emitted as a single closed morph wire. A recorded corner miter replaces the
  * shared reflex corner of two perpendicular base flanges with a 45° chamfer.
  * Closed profiles produce a SEAM_CUT warning (the cycle-closing bend is left
  * unfolded). Warnings ride inside the Ok payload.
@@ -630,7 +630,7 @@ function buildHemJogDevelopments(part: SheetMetalPart, layout: TreeLayout): Resu
   return ok({ strips, bendLines });
 }
 
-/** Trace a closed developed-plane loop (≥ 3 points) into a brepjs {@link Wire}. */
+/** Trace a closed developed-plane loop (≥ 3 points) into a morph {@link Wire}. */
 function closedLoopWire(loop: Pt2[]): Result<Wire> {
   if (loop.length < 3) {
     return err(validationError('FORM_LOOP_TOO_SMALL', `form loop has ${loop.length} points, need ≥ 3`));
@@ -647,7 +647,7 @@ function closedLoopWire(loop: Pt2[]): Result<Wire> {
   return wireLoop(edges);
 }
 
-/** Trace an OPEN developed-plane path (≥ 2 points) into a brepjs {@link Wire}. */
+/** Trace an OPEN developed-plane path (≥ 2 points) into a morph {@link Wire}. */
 function openPathWire(path: Pt2[]): Result<Wire> {
   if (path.length < 2) {
     return err(validationError('FORM_PATH_TOO_SHORT', `form cut path has ${path.length} points, need ≥ 2`));

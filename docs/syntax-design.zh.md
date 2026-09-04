@@ -79,20 +79,20 @@
 ```
 script   = import* function* (comment | param | stmt)*
 param    = const <name> = <literal | foldable expression>
-stmt     = (const|let) <id> = [await] <ns>.<fn>(<input>*, { <k>:<v>, … }?)
-         | const { <k1>: <id1>, … } = [await] <ns>.<fn>(<input>*, {…}?)
-         | <id> = [await] <ns>.<fn>(<input>*, {…}?)
+stmt     = (const|let) <id> = [await] <ns>.<fn>(<expr>*, { <k>:<v>, … }?)
+         | const { <k1>: <id1>, … } = [await] <ns>.<fn>(<expr>*, {…}?)
+         | <id> = [await] <ns>.<fn>(<expr>*, {…}?)
          | <id>.<method>({ <k>:<v>, … }?)
-         | (const|let) <id> = [await] <localFn>(<input>*, { <k>:<v>, … }?)
-         | <id> = [await] <localFn>(<input>*, {…}?)          // re-assignment
-         | const { <k1>: <id1>, … } = [await] <localFn>(<input>*, {…}?)
-         | [await] <localFn>(<input>*, {…}?)                  // side-effect call
+         | (const|let) <id> = [await] <localFn>(<expr>*, { <k>:<v>, … }?)
+         | <id> = [await] <localFn>(<expr>*, {…}?)          // re-assignment
+         | const { <k1>: <id1>, … } = [await] <localFn>(<expr>*, {…}?)
+         | [await] <localFn>(<expr>*, {…}?)                  // side-effect call
          | return { shape: <id>, name?, color?, … }
          | return [ { shape: <id>, … }, … ]
 function = function <name>(<param>, …) { <body> }             // body may contain control flow
 ```
 
-- `<ns>` 是 `cad` 或 `mech` 这类导入的命名空间；位置参数必须是已声明的变量（零个、一个或多个），末尾的选项对象可以省略，也可以带 `keep` / `keepHidden`（§5.1）。
+- `<ns>` 是 `cad` 或 `mech` 这类导入的命名空间。位置实参是完整表达式（§2.4）：字面量（`cad.box(10, 20, 30)`）、已声明变量、成员访问（`cad.hem(p0.solid, …)`）、嵌套命名空间调用、运行时表达式均可。末尾的纯对象是选项槽，可以带 `keep` / `keepHidden`（§5.1）；多个对象实参按位置传递时**全部保留 —— 不覆盖、不合并**。
 - 裸重赋值就是对已声明变量的普通 JS 赋值；"修改这个模型"在代码里就长这样。
 - **本机函数调用**的 callee 是脚本自身函数集的裸标识符（`<localFn>`）。位置实参绑定前 `M` 个形参，末尾选项对象的键按名绑定剩余形参 —— 完整 ABI 契约见 §6.2。函数体内不得调用另一个本机函数（v1）。
 - **函数体**可含任意控制流（`if` / `for` / `while` / `switch` / `try` / `throw` / `break` / `continue` / `labeled`）、局部 `let` / `const` / `var`、条件表达式、嵌套函数，以及任意 `return` 值（Shape / CompoundShape / 数组 / 对象 / 标量）。安全红线依旧适用：函数体内的 `eval` / `new` / 动态 `import()` / `import` / `export` / `class` / `with` 同样被拒。
@@ -104,16 +104,21 @@ function = function <name>(<param>, …) { <body> }             // body may cont
 | 字面量（数字 / 字符串 / 布尔 / null） | `JsonValue` |
 | 参数名，或简写 `{ size }` | `ParamRefIR { $param }` —— 执行时才解析，永不折叠 |
 | 已声明的变量名 | `VarRefIR { $ref }` |
+| 成员访问链（`p0.solid`） | **`ExprIR { $expr }`** —— 运行时求值；链上走到的标识符计入 refs |
 | 数组 / 对象（递归） | `JsonValue[]` / `Record<string, ArgIR>` |
 | 嵌套的 `<ns>.<fn>(…)` 调用 | `CallRefIR { $call }` —— 只读查询，不消费任何东西 |
 | 参数与字面量上的二元 / 模板 / 三元 / 展开 | 折叠为字面量；语句被标记 `hasComputedArgs: true` |
 | **引用语句变量的表达式**（`n > 10 ? 20 : 10`、`[w, h, r * 2 + 1]`） | **`ExprIR { $expr }`** —— 原文保留，经箭头包装由 JS 引擎运行时求值；语句被标记 `hasComputedArgs: true` |
 
-`ExprIR` 是白名单表达式文法 —— `Literal` / `Identifier` / `Unary` / `Binary` / `Logical` / `Conditional` / `Array`（递归），**不含调用与成员访问**（嵌套调用继续走 `CallRefIR`）。它的值不限于 JSON：标识符可以引用 Shape 变量，求值结果原样传给 op。纯参数 / 字面量表达式仍然折叠 —— 运行时形态只在折叠失败（引用了语句变量）时接管，这是最小行为变更。
+`ExprIR` 是白名单表达式文法 —— `Literal` / `Identifier` / `Unary` / `Binary` / `Logical` / `Conditional` / `Array` / `MemberExpression`（仅对象链）/ `CallExpression`，经箭头包装运行时求值；它的值不限于 JSON：标识符可以引用 Shape 变量，求值结果原样传给 op（`cad.hem(p0.solid, …)` 正是经此到达钣金 API）。纯参数 / 字面量表达式仍然折叠 —— 运行时形态只在折叠失败（引用了语句变量）时接管。显式红线保留：表达式内的 `new`、箭头函数、`await` 与命名空间根调用在 parse 期被拒（`E_VALUE`），不是静默接受。
 
 折叠后的语句在 IR 里只留下字面量，因此宿主的编辑面必须把它降级为只读：把值写回去会抹掉原始表达式。`hasComputedArgs` 同样为 `ExprIR` 参数给宿主降级提示。
 
-### 2.5 标识符
+### 2.5 位置实参
+
+位置实参是一等公民：每个实参位都接受上表全部表达式形态，且可任意混排 —— `cad.box(10, 20, 30)`（字面量）、`cad.union(part0, part1)`（变量引用）、`cad.hem(p0.solid, { kFactor: 0.44 })`（成员访问 + 选项）、`cad.box(w * 2, h, d)`（可折叠表达式）。末位纯对象是选项槽（IR 上表现为 `args` 投影）；非末位的对象实参原样保留。
+
+### 2.6 标识符
 
 本项目产出的标识符（codegen 的变量名与参数名、固定词汇 `cad`、函数名、参数名）不得是 JavaScript（含严格模式与模块保留字）、Python 3、C11 或 Java 的保留字。AI 与手写代码可以用任意合法的 JS 标识符。
 
@@ -129,12 +134,14 @@ function = function <name>(<param>, …) { <body> }             // body may cont
 |---|---|
 | `const size = 20` | 参数语句：`params += { name:'size', default:20 }`；引用形式是 `ParamRefIR { $param:'size' }`，编译为 `ctx.size = 20` |
 | `let part0 = cad.box({ size })` | `{ id:'s2', callee:'box', args:{ size:{ $param:'size' } }, outputs:['part0'] }` |
-| `let part1 = cad.drill(part0, { diameter:5 })` | `{ callee:'drill', inputs:['part0'], outputs:['part1'] }` |
+| `let part1 = cad.drill(part0, { diameter:5 })` | `{ callee:'drill', positional:[{$ref:'part0'},{diameter:5}], args:{diameter:5}, outputs:['part1'] }` —— 尾随对象既是末位位置实参，也是 `args` 投影 |
 | 嵌在参数里的 `cad.faceCenter(part0)` | `args.at = CallRefIR { $call:{ callee:'faceCenter', … } }` —— 语义由库解释；引擎并不知道 `faceCenter` |
-| `const { front: part1, back: part2 } = cad.split(part0)` | `{ callee:'split', inputs:['part0'], outputs:['part1','part2'], outputKeys:['front','back'] }` |
-| `let part2 = cad.union(part0, part1)` | `{ callee:'union', inputs:['part0','part1'], outputs:['part2'] }` —— `union` / `subtract` / `intersect` 是三个独立的函数 |
-| `let g = cad.group({ members: [part0, part1] })` | `{ callee:'group', inputs:[], args:{ members:[{$ref:'part0'},{$ref:'part1'}] }, outputs:['g'] }` —— 成员来自通用的 `VarRefIR` 扫描 |
-| `asm1.add_constraint({ type:'face_mate' })` | `{ callee:'add_constraint', receiver:'asm1', inputs:[], outputs:[] }` |
+| `const { front: part1, back: part2 } = cad.split(part0)` | `{ callee:'split', positional:[{$ref:'part0'}], outputs:['part1','part2'], outputKeys:['front','back'] }` |
+| `let part2 = cad.union(part0, part1)` | `{ callee:'union', positional:[{$ref:'part0'},{$ref:'part1'}], outputs:['part2'] }` —— `union` / `subtract` / `intersect` 是三个独立的函数 |
+| `let p1 = cad.box(10, 20, 30)` | `{ callee:'box', positional:[10,20,30], outputs:['p1'] }` —— 字面量留在 `positional` |
+| `let h = cad.hem(p0.solid, { kFactor:0.44 })` | `{ callee:'hem', positional:[{$expr:…}, {kFactor:0.44}], outputs:['h'] }` —— 成员访问成为 `ExprIR` |
+| `let g = cad.group({ members: [part0, part1] })` | `{ callee:'group', positional:[{members:[{$ref:'part0'},{$ref:'part1'}]}], args:{ members:[{$ref:'part0'},{$ref:'part1'}] }, outputs:['g'] }` —— 成员来自通用的 `VarRefIR` 扫描 |
+| `asm1.add_constraint({ type:'face_mate' })` | `{ callee:'add_constraint', receiver:'asm1', positional:[{type:'face_mate'}], args:{type:'face_mate'}, outputs:[] }` |
 | `let part3 = mech.makeHeadstock({ length:120 })` | `{ namespace:'mech', callee:'makeHeadstock', outputs:['part3'] }` —— 命名空间取自 import 说明符 |
 | `return [{ shape: part0 }, { shape: part2 }]` | `terminalShapes = [{ id:'part0' }, { id:'part2' }]` |
 
@@ -158,7 +165,7 @@ function = function <name>(<param>, …) { <body> }             // body may cont
 
 ### 4.2 parser 不命名
 
-parser 只做语法分析：把词法名字抄进 `inputs` / `outputs` / `receiver` / `$ref`，并检查被引用的变量已声明。它既不分配也不改写名字，因此 UI 生成的 `partN` 与 AI 写的 `asm1` 都会原样保留。
+parser 只做语法分析：把词法名字抄进 `positional`（`VarRefIR`）/ `outputs` / `receiver` / `$ref`，并检查被引用的变量已声明。它既不分配也不改写名字，因此 UI 生成的 `partN` 与 AI 写的 `asm1` 都会原样保留。
 
 ---
 
@@ -219,13 +226,13 @@ export function group(params) {
 库函数签名就是源码里写的样子 —— 没有隐式注入，没有尾随的上下文参数。编译发射四种形式：
 
 ```
-assignment:      ctx.<out> = await ns.<ns>.<callee>(ctx.<input>, …, { …args })
+assignment:      ctx.<out> = await ns.<ns>.<callee>(<pos1>, …, <posM>, { …options })
 destructuring:   const { <keys> } = await ns.<ns>.<callee>(…); ctx.<out_i> = <key_i>
 member call:     await ctx.<receiver>.<callee>({ …args })
 no assignment:   await ns.<ns>.<callee>(…)
 ```
 
-`$param` 与 `$ref` 都编译成 `ctx.<name>`，嵌套的 `$call` 编译成 `await ns.<ns>.<callee>(…)`。参数声明本身也是语句（`ctx.size = 20`），所以改一个参数会像其它依赖一样级联。
+每个位置实参按其 IR 形态发射：`$param` 与 `$ref` 编译成 `ctx.<name>`，嵌套的 `$call` 编译成 `await ns.<ns>.<callee>(…)`，`ExprIR` 编译为箭头包装 `((<names>) => <text>)(<args>)`，外罩模块内联的 `__FaiExprEvalError` 标记类（求值失败变成所属语句的 `E_EXPR`，绝不以裸异常穿透到无关代码）。尾随选项对象发射前剥离 `keep` / `keepHidden`；仅含 keep 指令的对象整个消失。参数声明本身也是语句（`ctx.size = 20`），所以改一个参数会像其它依赖一样级联。
 
 **本机函数 ABI**（§2.3）：脚本定义的 `function <name>(<p1>, …, <pk>)` 在编译期被包装为 `async function <name>(__ctx, __ns, <p1>, …, <pk>)` —— 用户的形参表原样保留在两个注入的引擎参数之后。调用 `myFn(a1..aM, { key1: v1, … })` 按「位置 + 按名」契约绑定：
 
@@ -247,7 +254,7 @@ emission:  await localFns.<name>(ctx, ns, <p1>, …, <pM>, <v_{M+1}>, …, <vk>)
 | `append(code, newIds)` | 只执行新语句 —— 前缀已在常驻 ctx 里 |
 | `update(code)` | `plan()` 算出失效集 → `reconcileCtx` → 按拓扑序从该集重算；无失效时零执行 |
 
-三个入口都接收代码文本（引擎内部解析文本为 IR 再执行）。`plan()` 是内容寻址的，不是 id diff。`statementKey` 由带命名空间的被调函数名、剔除 `keep` / `keepHidden` 后的 `args` JSON、以及每个依赖的 `outputContentKey` 组成；参数语句用 `param|JSON(value)`；本机函数调用用 `local.<callee>#<bodyHash>` —— 编辑函数体使所有调用它的语句 key 变化、下游重算，未改动的函数体零重算。因此保留与可见性零成本：切换 `keep` 不重算任何几何。语句失效的条件是某个依赖失效，或自身的 key 变了。
+三个入口都接收代码文本（引擎内部解析文本为 IR 再执行）。`plan()` 是内容寻址的，不是 id diff。`statementKey` 由带命名空间的被调函数名、剔除 `keep` / `keepHidden` 后的整个 `positional` 槽 JSON、以及每个依赖的 `outputContentKey` 组成；参数语句用 `param|JSON(value)`；本机函数调用用 `local.<callee>#<bodyHash>` —— 编辑函数体使所有调用它的语句 key 变化、下游重算，未改动的函数体零重算。因此保留与可见性零成本：切换 `keep` 不重算任何几何。语句失效的条件是某个依赖失效，或自身的 key 变了。
 
 ### 6.4 `check()`
 
@@ -277,7 +284,7 @@ AI 契约：读当前完整的 `.fai.js` 文本，返回完整的新文本 —�
 | 只出现在新脚本里 | ADD → `append` |
 | 只出现在旧脚本里 | DELETE → 作废它及其下游的缓存 |
 
-对齐不看行号，所以把 `part0` 改名成 `p0` 会被读成"删掉 part0、新增 p0"，并打断所有下游的 `inputs: ['part0']`。被删语句的输出若仍被引用，就是孤儿：拒绝这次提交。
+对齐不看行号，所以把 `part0` 改名成 `p0` 会被读成"删掉 part0、新增 p0"，并打断所有下游的 `positional: [{$ref:'part0'}]`。被删语句的输出若仍被引用，就是孤儿：拒绝这次提交。
 
 ### 7.3 场景
 

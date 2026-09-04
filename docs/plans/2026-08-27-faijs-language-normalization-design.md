@@ -1,7 +1,7 @@
 # faijs 语言正常化重构设计：消灭 op 概念，函数即函数
 
 - 日期：2026-08-27
-- 状态：待评审
+- 状态：已落地（本文档的 inputs/args 双槽语句模型已被 [2026-09-04-faijs-true-js-subset-call-args-design.md](2026-09-04-faijs-true-js-subset-call-args-design.md) 的单一 `positional` 槽模型取代——inputs 字段删除，位置实参槽成为唯一数据来源）
 - 范围：faijs 引擎 + 3d_editor 宿主两个项目；本文档只写方案，不包含实施
 - 关联文档：`C:\my\Faicad\3d_editor\Faijs语言的思考.md`（需求来源）；`docs/plans/2026-08-27-faijs-function-contract.md`（旧方案，作废，差异见 §6）；`docs/plans/2026-08-27-restore-dag-terminal-detection.md`（DAG 终端判定）
 

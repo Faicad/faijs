@@ -27,7 +27,7 @@
 
 import type { ScriptIR, TerminalShape, StatementIR, ArgIR } from '../lang/types'
 import type { PartName } from '../identity'
-import { isVarRef, isCallRef, isExprRef } from '../lang/types'
+import { isVarRef, isCallRef, isExprRef, statementInputs } from '../lang/types'
 import { resolveKeep, type InternalKeepRecord } from '../lang/keep'
 import type { ConsumeSpec } from '../define-op'
 
@@ -70,10 +70,13 @@ export function consumes(
   //   'none'   -> this statement consumes no shape inputs (query/creator ops);
   //   number[] -> consume exactly the listed input positions (others not absorbed);
   //   otherwise/missing -> fall through to the C3/C5 inference below.
+  // true-JS-subset §4.5.1：位置下标按 VarRefIR 投影（statementInputs）计——
+  // 字面量/ExprIR/CallRef 占据的位置不构成 C2 下标消费（其引用按 D3 落入 C5 扫描）。
   const declared = view?.opConsumes?.(stmt)
   if (declared === 'none') return false
   if (Array.isArray(declared)) {
-    const pos = stmt.inputs.indexOf(v)
+    const vars = statementInputs(stmt)
+    const pos = vars.indexOf(v)
     if (pos === -1 || !declared.includes(pos)) return false
   }
 
@@ -87,10 +90,12 @@ export function consumes(
     return false
   }
 
-  // C5：默认消费。inputs：位置引用
-  if (stmt.inputs.includes(v)) return true
+  // C5：默认消费。positional 中的 VarRefIR（原 inputs 语义，§4.5.1）
+  if (statementInputs(stmt).includes(v)) return true
 
-  // args：递归扫描 VarRefIR（CallRefIR 内不消费 = 只读查询）；ExprIR refs 按 C5 消费（§4.3）
+  // positional 非变量元素 + args：递归扫描（ExprIR refs 按 C5 消费；CallRefIR 内
+  // 不消费 = 只读查询）。args 是尾随对象投影（真源 positional），重复扫描幂等；
+  // 手工构造 IR 可能只填 args。
   let consumed = false
   const scan = (value: ArgIR, inCallRef: boolean): void => {
     if (consumed) return
@@ -116,6 +121,7 @@ export function consumes(
     }
     for (const vv of Object.values(value)) scan(vv as ArgIR, inCallRef)
   }
+  for (const parg of stmt.positional ?? []) scan(parg, false)
   for (const vv of Object.values(stmt.args ?? {})) scan(vv, false)
   return consumed
 }

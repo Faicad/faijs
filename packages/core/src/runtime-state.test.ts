@@ -18,7 +18,7 @@ function fakeBackends(): Backends {
 }
 
 function stmt(id: string): StatementIR {
-  return { id: id as StmtId, callee: 'box', args: {}, inputs: [], outputs: [] }
+  return { id: id as StmtId, callee: 'box', args: {}, positional: [], outputs: [] }
 }
 
 describe('runtime-state', () => {

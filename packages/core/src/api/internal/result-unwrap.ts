@@ -23,6 +23,34 @@ export type ResultLike =
   | { ok: false; error: { code?: string; message?: string } }
 
 /**
+ * Statement-boundary op failure (D1 unwrap / compat adoption).
+ *
+ * An `err` Result unwrapped at the statement boundary used to be thrown as a
+ * plain `Error`, which `CadRuntime.runWithFailureHandling` (recognizing only
+ * `BrepUnsupportedError`/`MeshUnsupportedError` by `instanceof`) re-threw out
+ * of `execute()` instead of converting it into `ExecutionResult.failedAt`.
+ * This class is the engine-recognizable carrier: defined in this leaf module
+ * (zero imports) so both `define-op` and the compat bridge can throw it while
+ * CadRuntime can catch it without importing anything heavier.
+ *
+ * A thrown `Error` that is *not* an `OpError` keeps its old meaning: an
+ * unexpected implementation bug that must propagate (Result 体系 — expected
+ * failures are `err` values, exceptions are bugs).
+ */
+export class OpError extends Error {
+  /** The op name that produced the failure. */
+  readonly op: string
+  /** The `BrepError.code`, or `'E_OP_FAILED'` when the library sent none. */
+  readonly code: string
+  constructor(op: string, code: string, message: string) {
+    super(message)
+    this.name = 'OpError'
+    this.op = op
+    this.code = code
+  }
+}
+
+/**
  * Structural test for a Result value.
  *
  * Only the `ok: boolean` discriminant is checked — the vendored `Result` is a
@@ -62,21 +90,22 @@ export function toOpError(name: string, err: unknown): Error {
  *
  * - a non-Result product → returned untouched (plain-data ops, mesh products);
  * - `ok`  → `.value`;
- * - `err` → throws an execution error carrying the op name and BrepError code.
- *
- * The engine's existing statement-level catch turns that throw into
- * `ExecutionResult.errors`; no new mechanism is introduced.
+ * - `err` → throws an {@link OpError} carrying the op name and BrepError code
+ *   (the engine converts `OpError` into `ExecutionResult.failedAt`).
  *
  * @param r    - the implementation product.
  * @param name - the op name (error messages).
  * @returns the unwrapped value, or the input when it was not a Result.
- * @throws when `r` is an `Err`.
+ * @throws an {@link OpError} when `r` is an `Err`.
  */
 export function unwrapResult(r: unknown, name: string): unknown {
   if (!isResultLike(r)) return r
   if (r.ok) return r.value
   const e = (r.error ?? {}) as { code?: string; message?: string }
-  throw new Error(
-    `[faijs/compat] ${name}: ${e.code ?? 'E_OP_FAILED'}: ${e.message ?? 'operation failed'}`,
+  const code = e.code ?? 'E_OP_FAILED'
+  throw new OpError(
+    name,
+    code,
+    `[faijs/compat] ${name}: ${code}: ${e.message ?? 'operation failed'}`,
   )
 }
