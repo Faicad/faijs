@@ -3,7 +3,7 @@
  *
  * 设计文档：docs/plans/2026-08-29-faijs-near-term-landing-plan.md §6
  *
- * 第三方库模块（`import * as mech from 'mech-lib'` 的目标）用它开发：
+ * 第三方库模块（`import * as mech from 'gear-lib-demo'` 的目标）用它开发：
  * ```ts
  * import { solid, fromBrep, isShape, keep, getBackends, CONTRACT_VERSION } from '@faicad/faijs/sdk'
  * export const contractVersion = CONTRACT_VERSION

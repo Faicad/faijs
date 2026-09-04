@@ -147,7 +147,7 @@ export function adoptEntity(product: unknown, opName: string): unknown {
         'must not cross the library boundary; return entity solids or plain data',
     )
   }
-  unregisterFromCleanup(h) // ★ R1: one-line fix replacing mech-lib's pinned array
+  unregisterFromCleanup(h) // ★ R1: one-line fix replacing gear-lib-demo's pinned array
   const s = adoptBrepjsProduct(h) // fromHandle: tessellation + identity + BREP slots (l3-bridge.ts:62)
   adoptedMap.set(h, s)
   return s

@@ -87,7 +87,7 @@ This keeps intermediate data flow zero-adoption (no tessellation, no identity-sl
 3. Remove any `pinned` arrays or finalizer workarounds (faijs handles adoption lifecycle — R1 fix in `adoptEntity`).
 4. Register the library: `runtime.registerLib('mylib', myNamespace, { compat: true })`.
 
-### mech-lib porting (7 items, from the design's §8.3)
+### gear-lib-demo porting (7 items, from the design's §8.3)
 
 | # | Change | Rationale |
 |---|---|---|
@@ -115,7 +115,7 @@ This keeps intermediate data flow zero-adoption (no tessellation, no identity-sl
 After registration, the library is callable from `.fai.js`:
 
 ```js
-import * as gear from 'gear-lib'
+import * as gear from 'gear-lib-demo'
 let g1 = gear.external({ teeth: 20, moduleSize: 2, thickness: 10 })
 let b0 = cad.box({ size: [30, 30, 5] })
 let u1 = cad.union(g1, b0)

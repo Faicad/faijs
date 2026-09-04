@@ -1184,7 +1184,7 @@ function countLines(text: string): number {
   return (text.match(/\n/g) ?? []).length + 1
 }
 
-/** 由 specifier 推导包名：@scope/pkg/sub → @scope/pkg；mech-lib → mech-lib。 */
+/** 由 specifier 推导包名：@scope/pkg/sub → @scope/pkg；gear-lib-demo → gear-lib-demo。 */
 function derivePackageName(specifier: string): string {
   if (specifier.startsWith('@')) {
     const parts = specifier.split('/')
@@ -1578,7 +1578,7 @@ export function parseScript(code: string, options?: ParseScriptOptions): ParseRe
   // ── 3.1 顶层 import → ScriptIR.imports + 命名空间绑定表（F2） ──
   // import 已提升到模块顶层（扁平包装之外）；主解析的 ast.body 顶层直接可取。
   const scriptImports: ImportIR[] = []
-  /** 命名空间绑定名 → 包名（`import * as mech from 'mech-lib'` → mech → mech-lib）。
+  /** 命名空间绑定名 → 包名（`import * as mech from 'gear-lib-demo'` → mech → gear-lib-demo）。
    *  只有 namespace 形态的 import 构成语句命名空间（cad 是缺省命名空间）。 */
   const importBindings = new Map<string, string>()
   for (const node of ast.body) {

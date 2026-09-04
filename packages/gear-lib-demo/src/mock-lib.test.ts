@@ -56,7 +56,7 @@ describe('B4: mock 库 fixture — mesh 版', () => {
 
   it('经 ns.mech.makeHeadstock 真正求值 → 非空 mesh、无 BREP 槽', async () => {
     const shape = await executeWithLib('mech', mockMechMesh, [
-      "import * as mech from 'mech-lib'",
+      "import * as mech from 'gear-lib-demo'",
       'let part0 = mech.makeHeadstock({ size: 20 })',
     ].join('\n'))
     expect(shape.positions.length).toBeGreaterThan(0)
@@ -74,7 +74,7 @@ describe('B4: mock 库 fixture — BREP 版', () => {
 
   it('经 ns.mech.makeHeadstock 真正求值 → 非空 mesh、含 BREP 槽（hasBrep === true）', async () => {
     const shape = await executeWithLib('mech', mockMechBrep, [
-      "import * as mech from 'mech-lib'",
+      "import * as mech from 'gear-lib-demo'",
       'let part0 = mech.makeHeadstock({ size: 20 })',
     ].join('\n'))
     expect(shape.positions.length).toBeGreaterThan(0)
@@ -86,7 +86,7 @@ describe('B4: mock 库 fixture — BREP 版', () => {
     const runtime = createRuntime(createNodePorts(), 'auto')
     runtime.registerLib('mech', mockMechBrep as never)
     const result = await runtime.execute([
-      "import * as mech from 'mech-lib'",
+      "import * as mech from 'gear-lib-demo'",
       'let part0 = mech.makeHeadstock({ size: 10 })',
       'let part1 = cad.box({ size: 5 })',
       'let part2 = cad.union(part0, part1)',
@@ -101,7 +101,7 @@ describe('B4: mock 库 fixture — BREP 版', () => {
     const runtime = createRuntime(createNodePorts(), 'mesh')
     runtime.registerLib('mech', mockMechBrep as never)
     const result = await runtime.execute([
-      "import * as mech from 'mech-lib'",
+      "import * as mech from 'gear-lib-demo'",
       'let part0 = mech.makeHeadstock({ size: 20 })',
     ].join('\n'))
     expect(result.failedAt).toBeUndefined()

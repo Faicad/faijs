@@ -142,6 +142,15 @@ export async function cliRun(
     defaultFontPath: opts?.defaultFontPath,
   })
   const runtime = createRuntime(ports, opts?.mode ?? 'auto', opts?.libs)
+  // Part 1.4：cad 经 registerLib 声明 packageName（脚本可 `import * as cad from
+  // '@faicad/faijs'`，check ①.5 据此校验 specifier——不 declare 则 import 被拒）。
+  if (opts?.libs?.cad) {
+    runtime.registerLib('cad', opts.libs.cad, {
+      default: true,
+      compat: false,
+      packageName: '@faicad/faijs',
+    })
+  }
 
   // Execute（内部：直接消费 parseScript 的 IR，走引擎内部版本）
   const execResult = await runtime.executeIR(script)

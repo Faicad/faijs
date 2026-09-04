@@ -4,7 +4,7 @@
  * Design: the 2026-09-03 external-CAD compat plan §8.1 (P24)
  *
  * This is a **third-party library** — it behaves like a real external CAD
- * library (`import * as gear from '@faicad/mech-lib'`), not part of faijs.
+ * library (`import * as gear from '@faicad/gear-lib-demo'`), not part of faijs.
  *
  * Responsibilities after P24 (§8.1):
  * 1. Building happens through the morphology imported from the `@faicad/faijs`

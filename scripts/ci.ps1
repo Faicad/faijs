@@ -68,7 +68,7 @@ $tmpVitest = [System.IO.Path]::GetTempFileName()
 # 其计时器同样被冻结, 见 p23-cad-face)。每个测试工作区单跑, 外层套进程级看门狗:
 # 任一处完不成 5 分钟预算即杀进程树并判失败, CI 绝不被一个死循环测试永久挂起。
 $testBudgetMs = if ($env:FAIJS_TEST_BUDGET_MS) { [int]$env:FAIJS_TEST_BUDGET_MS } else { 300000 } # 5 分钟
-$testPackages = @('@faicad/faijs-core','@faicad/mech-lib','@faicad/sheetmetal','@faicad/faijs-tests')
+$testPackages = @('@faicad/faijs-core','@faicad/gear-lib-demo','@faicad/sheetmetal','@faicad/faijs-tests')
 $stepFail = $false
 foreach ($pkg in $testPackages) {
     Write-Host "    -- $pkg（budget=${testBudgetMs}ms）"
@@ -120,7 +120,7 @@ Step -Label '5/9  守卫：幽灵依赖 / workspaces 顺序 / 包图无环 / 导
     if ($LASTEXITCODE -ne 0) { return }
     node scripts/check-workspaces-order.mjs
     if ($LASTEXITCODE -ne 0) { return }
-    npx madge --circular packages/core/src packages/mech-lib/src
+    npx madge --circular packages/core/src packages/gear-lib-demo/src
     if ($LASTEXITCODE -ne 0) { return }
     # 导出面：10 个子路径必须全部可导入（快照脚本自身断言；有 error 即失败）
     node scripts/api-surface-snapshot.mjs

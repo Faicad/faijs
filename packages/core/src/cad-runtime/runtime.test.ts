@@ -1106,7 +1106,7 @@ describe('P7: 第三方库通道（registerLib / statementKey 包名前缀 / 版
     runtime.registerLib('mech', {
       box: (params: { size: number }) => solid(cubeMesh(params.size)),
     })
-    // 直接构造带 namespace 的 IR（parser 就绪后由 `import * as mech from 'mech-lib'` 产出）
+    // 直接构造带 namespace 的 IR（parser 就绪后由 `import * as mech from 'gear-lib-demo'` 产出）
     const s1 = makeStmt('s1', 'box', { size: 20 })
     const s2 = makeStmt('s2', 'box', { size: 20 })
     const mechStmt: StatementIR = { ...makeStmt('s3', 'box', { size: 20 }), namespace: 'mech' }
@@ -1116,7 +1116,7 @@ describe('P7: 第三方库通道（registerLib / statementKey 包名前缀 / 版
     expect(result.failedAt).toBeUndefined()
     expect(result.outputs.get(asPartName('s3'))).toBeDefined()
 
-    // 同名函数跨库 key 不碰撞（回归锚点：cad.chamfer ≠ mech-lib.chamfer）
+    // 同名函数跨库 key 不碰撞（回归锚点：cad.chamfer ≠ gear-lib-demo.chamfer）
     const keyCad = runtime.getStatementCacheEntry(asPartName('s2'))!.statementKey
     const keyMech = runtime.getStatementCacheEntry(asPartName('s3'))!.statementKey
     expect(keyCad).toContain('cad.box')

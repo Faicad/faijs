@@ -19,12 +19,12 @@ faijs is an **npm workspaces monorepo**. The root package `@faicad/faijs` is a *
 | Package | Package name | Responsibility |
 |---|---|---|
 | `packages/core` | `@faicad/faijs-core` | **Engine + L3 API surface**: parse / validate / schedule / bookkeep / resources, plus every op in the `cad` namespace (assembly and boolean included) in `core/src/api/` |
-| `packages/mech-lib` | `@faicad/mech-lib` | Third-party library sample (peer dependency on `@faicad/faijs-core`) |
+| `packages/gear-lib-demo` | `@faicad/gear-lib-demo` | Third-party library sample (peer dependency on `@faicad/faijs-core`) |
 | `packages/fixtures` | `@faicad/faijs-fixtures` | Private, data only |
 | `packages/tests` | `@faicad/faijs-tests` | Private, integration tests |
 | `packages/demo` | `@faicad/faijs-demo` | Private, vite demo |
 
-Dependencies are one-directional and acyclic: `mech-lib → core`, `tests → mech-lib + fixtures`, `root → core`. **core has no internal dependencies.**
+Dependencies are one-directional and acyclic: `gear-lib-demo → core`, `tests → gear-lib-demo + fixtures`, `root → core`. **core has no internal dependencies.**
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -164,7 +164,7 @@ export interface TerminalShape {
 Flat format (UI recording, one operation per line):
 
 ```js
-import * as mech from 'mech-lib'
+import * as mech from 'gear-lib-demo'
 const size = 20
 function makeGear(count, pitch) {            // body may contain loops/branches
   let parts = []
@@ -535,7 +535,7 @@ export const myOp = defineOp({
 
 ### 10.4 Third-party library channel
 
-- **Registration**: `runtime.registerLib(binding, ns)`; a script writes `import * as mech from 'mech-lib'` and calls `mech.fn(...)`. The engine records the call's origin namespace, and the incremental key carries the package-name prefix.
+- **Registration**: `runtime.registerLib(binding, ns)`; a script writes `import * as mech from 'gear-lib-demo'` and calls `mech.fn(...)`. The engine records the call's origin namespace, and the incremental key carries the package-name prefix.
 - **Validation**: a library exporting defineOp declarations must carry a matching `contractVersion` (= `CONTRACT_VERSION`); `registerLib` validates strictly via `assertLibConforms` (D-4). Plain functions without defineOp are legal but get no mode routing / wrapping / assembly validation.
 - **Resolution**: `@faicad/faijs/module-resolver` provides `resolveImports` and semver checks (`satisfies`), enabling on-demand loading of large library slices.
 

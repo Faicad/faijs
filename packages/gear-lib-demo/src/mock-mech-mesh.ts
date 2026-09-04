@@ -5,7 +5,7 @@
  *         docs/plans/2026-08-30-defineop-library-contract.md §6.3
  *
  * Simulates a third-party library module (the target of
- * `import * as mech from 'mech-lib'`):
+ * `import * as mech from 'gear-lib-demo'`):
  * - carries `contractVersion` (= CONTRACT_VERSION, registerLib check passes);
  * - declares its implementation set via `defineOp({ mesh })` — the mesh-only
  *   legal form (D1: mesh mandatory; no brep slot, hasBrep === false).

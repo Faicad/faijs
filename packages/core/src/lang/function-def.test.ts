@@ -285,7 +285,7 @@ describe('Phase2: 本机函数调用四形态 + ABI（§3.4 / §3.6）', () => {
 describe('Phase2: compile 发射（§5.1 / §5.2 / §5.3）', () => {
   it('模块含包装器（__ctx/__ns/形参按名）+ localFns 导出 + 命名空间绑定', () => {
     const code = [
-      "import * as mech from 'mech-lib'",
+      "import * as mech from 'gear-lib-demo'",
       'function makeGear(count, pitch) {',
       '  let parts = []',
       '  for (let i = 0; i < count; i++) { parts.push(cad.box({ size: pitch })) }',

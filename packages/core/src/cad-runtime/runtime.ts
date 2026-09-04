@@ -320,6 +320,8 @@ export class CadRuntime {
   private readonly libs: Record<string, StdlibNamespace>
   /** 库内容身份表 (binding → content hash)，增量 key 用（B2，§7.3） */
   private readonly libIds = new Map<string, string>()
+  /** import specifier → binding 映射（registerLib 的 packageName 声明；check ①.5 校验 specifier） */
+  private readonly specifierToBinding = new Map<string, string>()
   private readonly namespaces: Namespaces
   /** 默认命名空间绑定名（U10/R2）：根门面经 registerLib(binding, ns, {default: true}) 显式声明；
    *  缺省 'cad'（与 parser 缺省 defaultNs 一致）。namespace 字段缺省的语句归属该绑定。 */
@@ -346,20 +348,25 @@ export class CadRuntime {
    * compat surface (§4.4 keeps dual-op mesh implementations untouched).
    * @param binding - the name scripts use to reach the namespace (e.g. 'cad').
    * @param ns - the library's export object.
-   * @param options - registration hints.
+   * @param options - registration hints. `packageName` declares the npm package
+   *   backing this binding so `check()` can validate script import specifiers
+   *   against registered libraries (specifier mismatch = hard check error).
    */
-  registerLib(binding: string, ns: StdlibNamespace, options?: { default?: boolean; compat?: boolean }): void {
+  registerLib(binding: string, ns: StdlibNamespace, options?: { default?: boolean; compat?: boolean; packageName?: string }): void {
     assertContractVersion(ns as unknown as { contractVersion?: number })
     // B4: admit bare (non-dual-op) library functions through compatOp for
     // libraries that opt in (compat: true). Default off keeps the mesh-native
     // fixture set (`{ makeHeadstock: ... }` style) behaviorally unchanged — the
-    // P22 wiring demonstrates the admit path while the in-repo libs (mech-lib,
+    // P22 wiring demonstrates the admit path while the in-repo libs (gear-lib-demo,
     // sheetmetal) migrate onto it in P24/P25.
     const admitted = options?.compat === true
       ? (admitCompatLib(ns as unknown as Record<string, unknown>) as StdlibNamespace)
       : ns
     this.libs[binding] = admitted
     this.libIds.set(binding, computeLibId(binding, ns as unknown as Record<string, unknown>))
+    if (options?.packageName) {
+      this.specifierToBinding.set(options.packageName, binding)
+    }
     if (options?.default === true) {
       this.defaultNsName = binding
       this.executor.setDefaultNsName(binding)
@@ -1392,6 +1399,27 @@ export class CadRuntime {
         })
       }
       return { ok: false, errors, warnings }
+    }
+
+    // ② 前半：import specifier 校验（每个 namespace import 的 packageName
+    // 必须由某个 registerLib 的 packageName 声明命中——未命中即 specifier 与
+    // 已注册库不匹配，hard error，不回退不静默）。
+    for (const imp of script.imports ?? []) {
+      if (imp.kind !== 'namespace') continue
+      const binding = this.specifierToBinding.get(imp.packageName)
+      if (!binding) {
+        errors.push({
+          stage: 'symbol',
+          message: `import specifier "${imp.specifier}" is not registered (registerLib has no binding for package "${imp.packageName}")`,
+        })
+        continue
+      }
+      if (!this.libs[binding]) {
+        errors.push({
+          stage: 'symbol',
+          message: `import specifier "${imp.specifier}" maps to binding "${binding}" which is not registered`,
+        })
+      }
     }
 
     // ② 符号检查：callee ∈ 符号表（未知 → "函数不存在"）。

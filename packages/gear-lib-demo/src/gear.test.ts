@@ -82,9 +82,9 @@ describe('gear through registerLib({ compat: true })', () => {
   it('script `gear.external(...)` yields a faijs Shape with a brep slot', async () => {
     const rt = createRuntime(createNodePorts(), 'auto')
     try {
-      rt.registerLib('gear', gear as never, { compat: true } as never)
+      rt.registerLib('gear', gear as never, { compat: true, packageName: 'gear-lib-demo' } as never)
       const res = await rt.execute([
-        "import * as gear from 'gear-lib'",
+        "import * as gear from 'gear-lib-demo'",
         'let g = gear.external({ teeth: 24, moduleSize: 2, thickness: 8, bore: 8 })',
       ].join('\n'))
       expect(res.failedAt).toBeUndefined()
@@ -99,9 +99,9 @@ describe('gear through registerLib({ compat: true })', () => {
   it('mesh mode → E_MESH_UNSUPPORTED (no silent mesh fallback)', async () => {
     const meshRt = createRuntime(createNodePorts(), 'mesh')
     try {
-      meshRt.registerLib('gear', gear as never, { compat: true } as never)
+      meshRt.registerLib('gear', gear as never, { compat: true, packageName: 'gear-lib-demo' } as never)
       const res = await meshRt.execute([
-        "import * as gear from 'gear-lib'",
+        "import * as gear from 'gear-lib-demo'",
         'let g0 = gear.external({ teeth: 24, moduleSize: 2, thickness: 8, bore: 8 })',
       ].join('\n'))
       expect(res.failedAt).toBeDefined()

@@ -21,7 +21,7 @@
       "@faicad/faijs/*": ["./src/*"],
       "@faicad/faijs-core": ["./packages/core/src/index.ts"],
       "@faicad/faijs-core/*": ["./packages/core/src/*"],
-      "@faicad/mech-lib": ["./packages/mech-lib/src/index.ts"]
+      "@faicad/gear-lib-demo": ["./packages/gear-lib-demo/src/index.ts"]
     }
   },
   "files": [],

@@ -228,7 +228,7 @@ function buildStatementFnBody(stmt: StatementIR, localParams?: Map<string, strin
     return `      ctx.${stmt.outputs[0]} = ${call}`
   }
 
-  // P7：按命名空间发射（`import * as mech from 'mech-lib'` → ns.mech.<callee>；缺省 cad）
+  // P7：按命名空间发射（`import * as mech from 'gear-lib-demo'` → ns.mech.<callee>；缺省 cad）
   const nsExpr = `ns.${stmt.namespace ?? 'cad'}`
 
   // 位置实参发射（true-JS-subset §4.3.1）：全部位置实参按序翻译；尾随纯对象的

@@ -55,7 +55,7 @@ function lastShape(
 describe('B7: 第三方 BREP 产物无 faceEvolution（fromHandle）', () => {
   it('产物 hasBrep === true 且无 faceEvolution 槽（无历史）', async () => {
     const { result } = await executeScript([
-      "import * as mech from 'mech-lib'",
+      "import * as mech from 'gear-lib-demo'",
       'let part0 = mech.makeHeadstock({ size: 20 })',
     ].join('\n'))
     expect(result.failedAt).toBeUndefined()
@@ -66,7 +66,7 @@ describe('B7: 第三方 BREP 产物无 faceEvolution（fromHandle）', () => {
 
   it('不被降级为 mesh：与内置 box 的布尔仍走精确 BREP 路径', async () => {
     const { result } = await executeScript([
-      "import * as mech from 'mech-lib'",
+      "import * as mech from 'gear-lib-demo'",
       'let part0 = mech.makeHeadstock({ size: 10 })',
       'let part1 = cad.box({ size: 20 })',
       'let part2 = cad.union(part0, part1)',
@@ -83,7 +83,7 @@ describe('B7: 第三方 BREP 产物无 faceEvolution（fromHandle）', () => {
     // 无 faceOrdinal 且无 anchor → 显式抛错（[GeomRef] ... requires anchor or faceOrdinal）。
     // anchor 需先声明为参数（parser 位置参数只接受标识符引用，不接受数组字面量）。
     const { result } = await executeScript([
-      "import * as mech from 'mech-lib'",
+      "import * as mech from 'gear-lib-demo'",
       'let part0 = mech.makeHeadstock({ size: 20 })',
       'const anchor = [0, 0, 10]',
       'let f = cad.faceNormal(part0, anchor)',   // anchor 反查 → 正常（mesh 层）
@@ -98,7 +98,7 @@ describe('B7: 第三方 BREP 产物无 faceEvolution（fromHandle）', () => {
     // geomQuery 抛普通 Error（非 BrepUnsupportedError）→ runWithFailureHandling 不捕获，
     // 错误冒泡暴露（显式报错，符合 §5.8.4"显式报错而非崩溃或静默错误结果"）。
     const code = [
-      "import * as mech from 'mech-lib'",
+      "import * as mech from 'gear-lib-demo'",
       'let part0 = mech.makeHeadstock({ size: 20 })',
       'let f = cad.faceNormal(part0)',
     ].join('\n')

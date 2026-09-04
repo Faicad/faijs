@@ -17,17 +17,17 @@ Faicad CAD 执行引擎——`faijs` 语言 parser、BREP/mesh 双链路几何�
 |---|---|
 | `@faicad/faijs` | 全量 API（L0–L3，含 Node host）；内置 `cad` 库 op 在此重导出（原 `@faicad/faijs/stdlib` 并入 core） |
 | `@faicad/faijs/browser` | 浏览器安全子集（无 `node:*`） |
-| `@facade/faijs/node` | Node host 入口 |
+| `@faicade/faijs/node` | Node host 入口 |
 | `@faicad/faijs/sdk` | **第三方库开发面**（零重依赖） |
 
 ## Developing a third-party library (`@faicad/faijs/sdk`)
 
-`.fai.js` 脚本可以 `import * as mech from 'mech-lib'` 并调用 `mech.makeHeadstock(...)`；宿主加载你的模块（`import(url)`）并在任何 check/execute 之前通过 `CadRuntime.registerLib(binding, module)` 注册。
+`.fai.js` 脚本可以 `import * as mech from 'gear-lib-demo'` 并调用 `mech.makeHeadstock(...)`；宿主加载你的模块（`import(url)`）并在任何 check/execute 之前通过 `CadRuntime.registerLib(binding, module)` 注册。
 
 你的模块是一个导出函数的普通 ESM 文件——通过 SDK 入口编写：
 
 ```ts ignore-check
-// mech-lib.mjs
+// gear-lib-demo.mjs
 import { solid, fromBrep, keep, getBackends, CONTRACT_VERSION } from '@faicad/faijs/sdk'
 
 // Optional but recommended: pin the runtime contract version (registerLib validates it).

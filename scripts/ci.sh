@@ -48,7 +48,7 @@ fi
 echo "==> 5/9  守卫：幽灵依赖 / workspaces 顺序 / 包图无环 / 导出面"
 node scripts/check-ghost-deps.mjs
 node scripts/check-workspaces-order.mjs
-npx madge --circular packages/core/src packages/mech-lib/src
+npx madge --circular packages/core/src packages/gear-lib-demo/src
 node scripts/api-surface-snapshot.mjs
 # P1：vendored/brepjs 移植树——D8 层边界（U9 断言：csg/、ns/csg.ts 永不搬入）
 node scripts/check-layer-boundaries.mjs

@@ -22,7 +22,7 @@ pre-commit:
       run: node_modules/.bin/tsx scripts/verify-export-jsdoc.ts
 
     - name: eslint (staged)
-      glob: '{src,packages/core/src,packages/stdlib/src,packages/mech-lib/src}/**/*.{ts,tsx}'
+      glob: '{src,packages/core/src,packages/stdlib/src,packages/gear-lib-demo/src}/**/*.{ts,tsx}'
       run: node_modules/.bin/eslint --fix {staged_files}
       stage_fixed: true
 

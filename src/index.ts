@@ -30,6 +30,10 @@ export function createRuntime(ports: HostPorts, mode?: ExecutionMode): CadRuntim
   // （mesh+brep 双路径）+ 生成脚本面 op（compatOp(projectBrepOp(…)) 包装的
   // brep-only 语句级 op）。`compat: false` 语义不变：cad 是引擎内置面，函数
   // 已自带 defineOp/compatOp 元数据，无需再经 admitCompatLib 收口。
-  rt.registerLib('cad', createApiNamespace(), { default: true, compat: false })
+  rt.registerLib('cad', createApiNamespace(), {
+    default: true,
+    compat: false,
+    packageName: '@faicad/faijs',
+  })
   return rt
 }

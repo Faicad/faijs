@@ -87,7 +87,7 @@ export function solidOf(part: SheetMetalPart): Result<ValidSolid> {
 3. 删除 `pinned` 数组或 finalizer 变通方案（faijs 处理收养生命周期——R1 修复在 `adoptEntity`）。
 4. 注册库：`runtime.registerLib('mylib', myNamespace, { compat: true })`。
 
-### mech-lib 移植
+### gear-lib-demo 移植
 
 | # | 改动 | 理由 |
 |---|---|---|
@@ -115,7 +115,7 @@ export function solidOf(part: SheetMetalPart): Result<ValidSolid> {
 注册后，库可在 `.fai.js` 中调用：
 
 ```js
-import * as gear from 'gear-lib'
+import * as gear from 'gear-lib-demo'
 let g1 = gear.external({ teeth: 20, moduleSize: 2, thickness: 10 })
 let b0 = cad.box({ size: [30, 30, 5] })
 let u1 = cad.union(g1, b0)

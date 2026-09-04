@@ -19,12 +19,12 @@ faijs 是 **npm workspaces monorepo**。根包 `@faicad/faijs` 是**门面薄层
 | 包 | 包名 | 职责 |
 |---|---|---|
 | `packages/core` | `@faicad/faijs-core` | **引擎 + L3 API 面**：解析／校验／调度／记账／资源，含 `cad` 命名空间全部 op（装配与布尔）于 `core/src/api/` |
-| `packages/mech-lib` | `@faicad/mech-lib` | 第三方库样例（peer 依赖 `@faicad/faijs-core`） |
+| `packages/gear-lib-demo` | `@faicad/gear-lib-demo` | 第三方库样例（peer 依赖 `@faicad/faijs-core`） |
 | `packages/fixtures` | `@faicad/faijs-fixtures` | 私有，纯数据 |
 | `packages/tests` | `@faicad/faijs-tests` | 私有，集成测试 |
 | `packages/demo` | `@faicad/faijs-demo` | 私有，vite 演示 |
 
-依赖方向单向无环：`mech-lib → core`、`tests → mech-lib + fixtures`、`根 → core`。**core 无内部依赖。**
+依赖方向单向无环：`gear-lib-demo → core`、`tests → gear-lib-demo + fixtures`、`根 → core`。**core 无内部依赖。**
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -164,7 +164,7 @@ export interface TerminalShape {
 平铺格式（UI 录制，一行一个操作）：
 
 ```js
-import * as mech from 'mech-lib'
+import * as mech from 'gear-lib-demo'
 const size = 20
 function makeGear(count, pitch) {            // body may contain loops/branches
   let parts = []
@@ -536,7 +536,7 @@ export const myOp = defineOp({
 
 ### 10.4 第三方库通道
 
-- **注册**：`runtime.registerLib(binding, ns)`；脚本中 `import * as mech from 'mech-lib'` 后以 `mech.fn(...)` 调用。引擎记录调用的来源命名空间，增量键带包名前缀。
+- **注册**：`runtime.registerLib(binding, ns)`；脚本中 `import * as mech from 'gear-lib-demo'` 后以 `mech.fn(...)` 调用。引擎记录调用的来源命名空间，增量键带包名前缀。
 - **校验**：导出 defineOp 声明的库必须带匹配的 `contractVersion`（=`CONTRACT_VERSION`）；`registerLib` 经 `assertLibConforms` 严格校验——不匹配即抛错，不静默降级（D-4）。未用 defineOp 声明的普通函数合法，但不享受 mode 路由／自动包装／装配校验。
 - **解析**：`@faicad/faijs/module-resolver` 提供 `resolveImports` 与 semver 判定（`satisfies`），支持按需加载大库分片。
 

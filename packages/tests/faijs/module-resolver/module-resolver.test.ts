@@ -23,43 +23,43 @@ import {
 describe('module-resolver: rewrite 面', () => {
   it('多 import + 重命名 import 一起重写，其余代码原样保留', () => {
     const src = [
-      "import * as gear from 'gear-lib'",
-      "import { makeLathe, tol as t } from 'mech-lib'",
+      "import * as gear from 'gear-lib-demo'",
+      "import { makeLathe, tol as t } from 'sheetmetal'",
       'export const out = [gear, t]',
     ].join('\n')
     const res = resolveImports(src, {
       imports: {
-        'gear-lib': 'https://static.faicad.cn/libs/gear@1.4.0.js',
-        'mech-lib': { url: 'https://static.faicad.cn/libs/mech@2.0.1.js', version: '2.0.1' },
+        'gear-lib-demo': 'https://static.faicad.cn/libs/gear-lib-demo@1.4.0.js',
+        'sheetmetal': { url: 'https://static.faicad.cn/libs/sheetmetal@2.0.1.js', version: '2.0.1' },
       },
     })
-    expect(res.resolved['gear-lib']).toBe('https://static.faicad.cn/libs/gear@1.4.0.js')
-    expect(res.resolved['mech-lib']).toBe('https://static.faicad.cn/libs/mech@2.0.1.js')
+    expect(res.resolved['gear-lib-demo']).toBe('https://static.faicad.cn/libs/gear-lib-demo@1.4.0.js')
+    expect(res.resolved['sheetmetal']).toBe('https://static.faicad.cn/libs/sheetmetal@2.0.1.js')
     // 只替换说明符，import 绑定与别名结构原样
-    expect(res.code).toContain(`import * as gear from 'https://static.faicad.cn/libs/gear@1.4.0.js'`)
-    expect(res.code).toContain(`import { makeLathe, tol as t } from 'https://static.faicad.cn/libs/mech@2.0.1.js'`)
-    expect(res.code).toBe(`import * as gear from 'https://static.faicad.cn/libs/gear@1.4.0.js'\nimport { makeLathe, tol as t } from 'https://static.faicad.cn/libs/mech@2.0.1.js'\nexport const out = [gear, t]`) // no trailing newline (src joined with \n)
+    expect(res.code).toContain(`import * as gear from 'https://static.faicad.cn/libs/gear-lib-demo@1.4.0.js'`)
+    expect(res.code).toContain(`import { makeLathe, tol as t } from 'https://static.faicad.cn/libs/sheetmetal@2.0.1.js'`)
+    expect(res.code).toBe(`import * as gear from 'https://static.faicad.cn/libs/gear-lib-demo@1.4.0.js'\nimport { makeLathe, tol as t } from 'https://static.faicad.cn/libs/sheetmetal@2.0.1.js'\nexport const out = [gear, t]`) // no trailing newline (src joined with \n)
   })
 
   it('字符串/注释里形似 import 的文本不误伤', () => {
     const src = [
-      "// import x from 'mech-lib'",
-      "const s = \"import { y } from 'mech-lib'\"",
-      "import { cad } from 'mech-lib'",
+      "// import x from 'gear-lib-demo'",
+      "const s = \"import { y } from 'gear-lib-demo'\"",
+      "import { cad } from 'gear-lib-demo'",
       'export const z = [s, cad]',
     ].join('\n')
     const res = resolveImports(src, {
-      imports: { 'mech-lib': 'https://cdn/mech.js' },
+      imports: { 'gear-lib-demo': 'https://cdn/mech.js' },
     })
-    expect(res.code).toContain("// import x from 'mech-lib'")
-    expect(res.code).toContain("const s = \"import { y } from 'mech-lib'\"")
+    expect(res.code).toContain("// import x from 'gear-lib-demo'")
+    expect(res.code).toContain("const s = \"import { y } from 'gear-lib-demo'\"")
     expect(res.code).toContain("import { cad } from 'https://cdn/mech.js'")
   })
 
   it('纯函数：相同的输入得到相同的输出（无网络/IO）', () => {
-    const src = "import m from 'mech-lib'\nexport const a = m\n"
-    const a = resolveImports(src, { imports: { 'mech-lib': 'https://cdn/mech.js' } })
-    const b = resolveImports(src, { imports: { 'mech-lib': 'https://cdn/mech.js' } })
+    const src = "import m from 'gear-lib-demo'\nexport const a = m\n"
+    const a = resolveImports(src, { imports: { 'gear-lib-demo': 'https://cdn/mech.js' } })
+    const b = resolveImports(src, { imports: { 'gear-lib-demo': 'https://cdn/mech.js' } })
     expect(a.code).toBe(b.code)
     expect(a.code).toContain("from 'https://cdn/mech.js'")
     expect(a.resolved).toEqual(b.resolved)
@@ -100,12 +100,12 @@ describe('module-resolver: 未登记 / 版本错误面', () => {
 
 describe('module-resolver: V5.2 多版本 scopes', () => {
   it('scope 按 importer 前缀选版本：库 A 用 gear@1、库 B 用 gear@2', () => {
-    const libA = "import g from 'gear-lib'\nexport const a = g\n"
-    const libB = "import g from 'gear-lib'\nexport const a = g\n"
+    const libA = "import g from 'gear-lib-demo'\nexport const a = g\n"
+    const libB = "import g from 'gear-lib-demo'\nexport const a = g\n"
     const opts = {
-      imports: { 'gear-lib': 'https://cdn/gear@1.0.0.js' },
+      imports: { 'gear-lib-demo': 'https://cdn/gear@1.0.0.js' },
       scopes: {
-        'https://cdn/libs/lib-b': { 'gear-lib': 'https://cdn/gear@2.0.0.js' },
+        'https://cdn/libs/lib-b': { 'gear-lib-demo': 'https://cdn/gear@2.0.0.js' },
       },
     }
     const ra = resolveImports(libA, { ...opts, importer: 'https://cdn/libs/lib-a/app.ts' })
@@ -115,12 +115,12 @@ describe('module-resolver: V5.2 多版本 scopes', () => {
   })
 
   it('scope 最长前缀优先于较短 scope', () => {
-    const src = "import g from 'gear-lib'\nexport const a = g\n"
+    const src = "import g from 'gear-lib-demo'\nexport const a = g\n"
     const res = resolveImports(src, {
-      imports: { 'gear-lib': 'https://cdn/gear@1.0.0.js' },
+      imports: { 'gear-lib-demo': 'https://cdn/gear@1.0.0.js' },
       scopes: {
-        'https://cdn/libs': { 'gear-lib': 'https://cdn/gear@1.9.0.js' },
-        'https://cdn/libs/special': { 'gear-lib': 'https://cdn/gear@3.0.0.js' },
+        'https://cdn/libs': { 'gear-lib-demo': 'https://cdn/gear@1.9.0.js' },
+        'https://cdn/libs/special': { 'gear-lib-demo': 'https://cdn/gear@3.0.0.js' },
       },
       importer: 'https://cdn/libs/special/a.ts',
     })

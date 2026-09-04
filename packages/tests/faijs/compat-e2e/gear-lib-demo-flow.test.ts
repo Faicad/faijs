@@ -1,5 +1,5 @@
 /**
- * P26 e2e — mech-lib through the compat boundary, §8.4 scenario.
+ * P26 e2e — gear-lib-demo through the compat boundary, §8.4 scenario.
  *
  * Script (geometry-first flow, verbatim §8.4):
  *   import * as gear from '<gearlib>'
@@ -22,9 +22,9 @@ import { parseScript } from '@faicad/faijs-core/lang/parser'
 import type { CadRuntime } from '@faicad/faijs-core/cad-runtime/runtime'
 import type { StdlibNamespace } from '@faicad/faijs-core/runtime-state'
 import type { Shape } from '@faicad/faijs-core/mesh/types'
-import * as mechPkg from '@faicad/mech-lib'
+import * as mechPkg from '@faicad/gear-lib-demo'
 
-/** Registered library projection: the real @faicad/mech-lib entries. */
+/** Registered library projection: the real @faicad/gear-lib-demo entries. */
 const gearNs: StdlibNamespace = {
   external: mechPkg.external,
   thread: mechPkg.thread,
@@ -40,7 +40,7 @@ const gearV2: StdlibNamespace = {
 }
 
 const SCRIPT = [
-  "import * as gear from 'gear-lib'",
+  "import * as gear from 'gear-lib-demo'",
   'let g1 = gear.external({ teeth: 20, moduleSize: 2, thickness: 10 })',
   'let t1 = gear.thread({ radius: 5, pitch: 1, height: 20 })',
   'let a1 = gear.planetary({ thickness: 8, sunTeeth: 12, planetTeeth: 6, numPlanets: 3 })',
@@ -55,7 +55,7 @@ let result: Awaited<ReturnType<CadRuntime['execute']>>
 beforeAll(async () => {
   await registerOcctBrepEngine()
   runtime = createRuntime(createNodePorts(), 'auto')
-  runtime.registerLib('gear', gearNs, { compat: true })
+  runtime.registerLib('gear', gearNs, { compat: true, packageName: 'gear-lib-demo' })
   result = await runtime.execute(SCRIPT)
 }, 240000)
 
@@ -69,7 +69,7 @@ function activeValue(part: string): unknown {
   return result.activeValues?.get(asPartName(part))
 }
 
-describe('P26 mech-lib §8.4 — seven acceptance assertions', () => {
+describe('P26 gear-lib-demo §8.4 — seven acceptance assertions', () => {
   it('① g1 is a faijs Shape: hasBrep === true and a non-empty mesh payload', () => {
     expect(result.failedAt).toBeUndefined()
     const g1 = shapeOf('g1')
@@ -113,11 +113,11 @@ describe('P26 mech-lib §8.4 — seven acceptance assertions', () => {
       // (a) re-registering the same library keeps the statementKey (no spurious recompute)
       const r = createRuntime(createNodePorts(), 'auto')
       try {
-        r.registerLib('gear', gearNs, { compat: true })
+        r.registerLib('gear', gearNs, { compat: true, packageName: 'gear-lib-demo' })
         await r.execute(SCRIPT)
         const u1Key0 = r.getStatementCacheEntry(asPartName('u1'))?.statementKey
         expect(u1Key0).toBeDefined()
-        r.registerLib('gear', gearNs, { compat: true })
+        r.registerLib('gear', gearNs, { compat: true, packageName: 'gear-lib-demo' })
         await r.execute(SCRIPT)
         const u1Key1 = r.getStatementCacheEntry(asPartName('u1'))?.statementKey
         expect(u1Key1).toBe(u1Key0)
@@ -129,7 +129,7 @@ describe('P26 mech-lib §8.4 — seven acceptance assertions', () => {
       // (b) external-param change: g1 + downstream go stale, cad-independent x1 reused
       const r = createRuntime(createNodePorts(), 'auto')
       try {
-        r.registerLib('gear', gearNs, { compat: true })
+        r.registerLib('gear', gearNs, { compat: true, packageName: 'gear-lib-demo' })
         await r.execute(SCRIPT)
         const changed = SCRIPT.replace('{ teeth: 20', '{ teeth: 24')
         const { script: changedScript } = parseScript(changed, spec)
@@ -146,9 +146,9 @@ describe('P26 mech-lib §8.4 — seven acceptance assertions', () => {
       // (c) same binding, changed library implementation → full lib recompute
       const r = createRuntime(createNodePorts(), 'auto')
       try {
-        r.registerLib('gear', gearNs, { compat: true })
+        r.registerLib('gear', gearNs, { compat: true, packageName: 'gear-lib-demo' })
         await r.execute(SCRIPT)
-        r.registerLib('gear', gearV2, { compat: true })
+        r.registerLib('gear', gearV2, { compat: true, packageName: 'gear-lib-demo' })
         const { script } = parseScript(SCRIPT, spec)
         const { stale, reused } = r.plan(script)
         expect(stale.some((s) => s.outputs.includes(asPartName('g1')))).toBe(true)
@@ -163,7 +163,7 @@ describe('P26 mech-lib §8.4 — seven acceptance assertions', () => {
   it('⑥ mesh mode hits E_MESH_UNSUPPORTED when invoking the gear library (no silent fallback)', async () => {
     const r = createRuntime(createNodePorts(), 'mesh')
     try {
-      r.registerLib('gear', gearNs, { compat: true })
+      r.registerLib('gear', gearNs, { compat: true, packageName: 'gear-lib-demo' })
       const res = await r.execute(SCRIPT)
       expect(res.failedAt).toBeDefined()
       expect(res.failedAt!.message).toMatch(/E_MESH_UNSUPPORTED|not supported|mesh/i)

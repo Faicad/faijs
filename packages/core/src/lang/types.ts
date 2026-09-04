@@ -121,7 +121,7 @@ export interface StatementIR {
    *  fai 语句名空间；与 3d_editor 的 ScopedId（fileId:innerId）是两套命名空间。
    *  Phase 3：id = 顺序 sN（不再是变量名）；变量名只存 outputs。 */
   id: StmtId
-  /** 调用所在命名空间（P7 第三方库通道：`import * as mech from 'mech-lib'` 后 `mech.makeHeadstock(...)` 的 namespace='mech'；缺省 = 'cad'）。 */
+  /** 调用所在命名空间（P7 第三方库通道：`import * as mech from 'gear-lib-demo'` 后 `mech.makeHeadstock(...)` 的 namespace='mech'；缺省 = 'cad'）。 */
   namespace?: string
   /** 本机函数调用：callee 是脚本内函数名（区别于命名空间调用）。缺省 = 命名空间调用。
    *  local: true 时 namespace 缺省，callee 即函数名；调用约定见 §3.6 ABI（位置实参 → 前 M 形参 + 尾随选项对象按名补剩余）。 */
@@ -215,11 +215,11 @@ export interface TerminalShape {
 // ── 顶层 import（F2 / roadmap V1.1） ──
 
 /**
- * 顶层 import 声明（`import * as mech from 'mech-lib'` 等）。
+ * 顶层 import 声明（`import * as mech from 'gear-lib-demo'` 等）。
  * 模块声明非控制流 → 合法子集成员；codegen 打印回文件头（往返保真）。
  */
 export interface ImportIR {
-  /** 原始说明符，如 'mech-lib' / '@scope/pkg/sub' */
+  /** 原始说明符，如 'gear-lib-demo' / '@scope/pkg/sub' */
   specifier: string
   /** import 形态 */
   kind: 'namespace' | 'named' | 'default'
@@ -227,7 +227,7 @@ export interface ImportIR {
   localName: string
   /** named 形态的全部绑定名（`import { a, b } from '...'` → ['a','b']；其余形态 = [localName]） */
   bindings?: string[]
-  /** 由 specifier 推导的包名（@scope/pkg/sub → @scope/pkg；mech-lib → mech-lib）。statementKey 包名前缀 / 宿主 getFeatureByOp 用。 */
+  /** 由 specifier 推导的包名（@scope/pkg/sub → @scope/pkg；gear-lib-demo → gear-lib-demo）。statementKey 包名前缀 / 宿主 getFeatureByOp 用。 */
   packageName: string
 }
 

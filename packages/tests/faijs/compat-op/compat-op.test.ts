@@ -205,7 +205,7 @@ describe('③ incremental lib-content identity', () => {
   }
 
   const CODE =
-    "import * as gear from 'gear-lib'\nconst g = gear.box({ size: 5 })\nconst h = cad.translate(g, { offset: [1, 0, 0] })"
+    "import * as gear from 'gear-lib-demo'\nconst g = gear.box({ size: 5 })\nconst h = cad.translate(g, { offset: [1, 0, 0] })"
 
   it('re-registering the same library keeps statementKey (no recompute)', async () => {
     const runtime = createRuntime(createNodePorts(), 'auto')

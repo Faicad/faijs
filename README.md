@@ -22,12 +22,12 @@ Units: millimeters, +Z up, angles in degrees. Contract docs: `docs/api-contract.
 
 ## Developing a third-party library (`@faicad/faijs/sdk`)
 
-A `.fai.js` script can `import * as mech from 'mech-lib'` and call `mech.makeHeadstock(...)`; the host loads your module (`import(url)`) and registers it via `CadRuntime.registerLib(binding, module)` **before** any check/execute.
+A `.fai.js` script can `import * as mech from 'gear-lib-demo'` and call `mech.makeHeadstock(...)`; the host loads your module (`import(url)`) and registers it via `CadRuntime.registerLib(binding, module)` **before** any check/execute.
 
 Your module is a plain ESM file exporting functions — write it against the SDK entry:
 
 ```ts ignore-check
-// mech-lib.mjs
+// gear-lib-demo.mjs
 import { solid, fromBrep, keep, getBackends, CONTRACT_VERSION } from '@faicad/faijs/sdk'
 
 // Optional but recommended: pin the runtime contract version (registerLib validates it).

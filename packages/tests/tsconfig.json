@@ -29,7 +29,7 @@
       "@faicad/faijs/browser": ["../../src/browser.ts"],
       "@faicad/faijs-core": ["../core/src/index.ts"],
       "@faicad/faijs-core/*": ["../core/src/*"],
-      "@faicad/mech-lib": ["../mech-lib/src/index.ts"],
+      "@faicad/gear-lib-demo": ["../gear-lib-demo/src/index.ts"],
       "@faicad/sheetmetal": ["../sheetmetal/src/index.ts"],
       "@faicad/faijs-fixtures": ["../fixtures/data"]
     }
