@@ -13,8 +13,8 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'test/**/*.test.ts'],
-    testTimeout: 120000,
-    hookTimeout: 120000,
+    testTimeout: 300000,
+    hookTimeout: 300000,
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],

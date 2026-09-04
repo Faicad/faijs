@@ -2572,7 +2572,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   // 子形状句柄，faijs Shape 面整件模型无法承载 → skip；ellipsoid 是纯数值整件构造 → brep-op。
   {
     name: 'box', source: 'topology/primitiveFns.js#box', kind: 'skip',
-    reason: 'faijs 同名 box（§5.1 双形态：对象形态手写面已覆盖 + brepjs 位置形态并入），生成层不重复投影',
+    reason: 'faijs 同名 box（§5.1 双形态：对象形态手写面已覆盖 + 上游位置形态并入），生成层不重复投影',
   },
   {
     name: 'sphere', source: 'topology/primitiveFns.js#sphere', kind: 'skip',
@@ -2689,7 +2689,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     name: 'rotate', source: 'topology/api.js#rotate', kind: 'brep-op',
     geometryArgs: [0], returnsResult: false,
     args: 'rotate(shape: Shape, angle: number, options?: { at?, axis? }): Shape',
-    reason: 'faijs rotate 已更名 rotate_euler，brepjs 轴角 rotate 空出 → brep-op（§5.1 D-ROTATE）',
+    reason: 'faijs rotate 已更名 rotate_euler，上游轴角 rotate 空出 → brep-op（§5.1 D-ROTATE）',
     params: ['shape', 'angle', 'options'], formClass: 'A',
     scriptFace: true,
   },
@@ -2776,7 +2776,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     name: 'split', source: 'topology/api.js#split', kind: 'brep-op',
     geometryArgs: [0], returnsResult: true,
     args: 'split(shape: Shape, tools: Shape[]): Shape',
-    reason: 'faijs split 已更名 fai_split，brepjs 工具切件 split 空出 → brep-op（§5.1 D-SPLIT；tools 暂登记几何首参，数组切件经 faijs 侧适配）',
+    reason: 'faijs split 已更名 fai_split，上游工具切件 split 空出 → brep-op（§5.1 D-SPLIT；tools 暂登记几何首参，数组切件经 faijs 侧适配）',
     params: ['shape', 'tools'], formClass: 'A',
     scriptFace: true,
   },
@@ -2788,12 +2788,12 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     name: 'fillet', source: 'topology/api.js#fillet', kind: 'brep-op',
     geometryArgs: [0], returnsResult: true,
     args: 'fillet(shape: Shape, edges?, radius | [r1,r2]): Shape',
-    reason: 'D-FILLET：faijs 形态已删，直接用 brepjs fillet → brep-op（edge 选择经 faijs 适配层）',
+    reason: 'D-FILLET：faijs 形态已删，直接用上游 fillet → brep-op（edge 选择经 faijs 适配层）',
     params: ['shape', 'edges', 'radius'], formClass: 'A',
   },
   {
     name: 'chamfer', source: 'topology/api.js#chamfer', kind: 'skip',
-    reason: 'faijs 同名 chamfer（§5.1 O-CHAMFER-1：role 取边已保留，brepjs Edge 句柄取边形态待处置），生成层不重复投影',
+    reason: 'faijs 同名 chamfer（§5.1 O-CHAMFER-1：role 取边已保留，上游 Edge 句柄取边形态待处置），生成层不重复投影',
   },
   {
     name: 'shell', source: 'topology/api.js#shell', kind: 'brep-op',
@@ -3221,11 +3221,11 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   // apiTypes/index.js：kernel 底层谓词/转换/反序列化 DSL → skip；纯守卫 pure
   {
     name: 'resolve', source: 'topology/apiTypes.js#resolve', kind: 'skip',
-    reason: 'brepjs Shapeable 解包内部工具（Shapeable 包装层），skip',
+    reason: '上游 Shapeable 解包内部工具（Shapeable 包装层），skip',
   },
   {
     name: 'resolve3D', source: 'topology/apiTypes.js#resolve3D', kind: 'skip',
-    reason: 'brepjs Shapeable 解包内部工具，skip',
+    reason: '上游 Shapeable 解包内部工具，skip',
   },
   {
     name: 'applyGlue', source: 'topology/index.js#applyGlue', kind: 'skip',
@@ -3363,7 +3363,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   // wrapperFns：状态化类型包装 DSL → skip
   {
     name: 'shape', source: 'topology/wrapperFns.js#shape', kind: 'skip',
-    reason: 'brepjs 类型包装 DSL（Wrapped* 状态对象），faijs 面为纯值模型，skip',
+    reason: '上游类型包装 DSL（Wrapped* 状态对象），faijs 面为纯值模型，skip',
   },
   {
     name: 'BrepWrapperError', source: 'topology/wrapperFns.js#BrepWrapperError', kind: 'skip',

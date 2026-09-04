@@ -1,4 +1,4 @@
-﻿/**
+/**
  * F1 — parser 黑名单化：表达式折叠 + 控制流错误码 + 往返稳定（normal-js-subset P1 验收）
  *
  * 设计文档：docs/plans/2026-08-29-faijs-near-term-landing-plan.md §4
@@ -293,7 +293,7 @@ describe('F1: 表达式折叠后往返稳定', () => {
     expect(again.args).toEqual(orig.args)
     expect(again.callee).toBe(orig.callee)
     expect(statementInputs(again)).toEqual(statementInputs(orig))
-    return { args: again.args, callee: again.callee, inputs: again.inputs }
+    return { args: again.args, callee: again.callee, inputs: statementInputs(again) }
   }
 
   it('二元 + 模板 + 三元折叠往返', () => {

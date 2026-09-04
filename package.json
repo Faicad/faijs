@@ -94,7 +94,9 @@
     "archive-plans": "node scripts/archive-plans.mjs",
     "gen-ops-api-inventory": "npx tsx scripts/gen-ops-api-inventory.ts",
     "check-ops-api-inventory": "npx tsx scripts/gen-ops-api-inventory.ts --check",
-    "doc-sync": "npx tsx scripts/gen-ops-api-inventory.ts --check && npx tsx scripts/verify-md-links.ts && npx tsx scripts/verify-md-wrap.ts && npx tsx scripts/verify-doc-budgets.ts && npx tsx scripts/verify-agent-note-format.ts && npx tsx scripts/verify-agent-note-classification.ts && npx tsx scripts/verify-translation-pairing.ts && npx tsx scripts/verify-type-equiv.ts && npx tsx scripts/verify-mermaid.ts && npx tsx scripts/verify-export-jsdoc.ts && npx tsx scripts/doc-typecheck.ts && npx tsx scripts/verify-doc-refs.ts && npx tsx scripts/verify-archived-agent-notes.ts"
+    "doc-sync": "npx tsx scripts/gen-ops-api-inventory.ts --check && npx tsx scripts/verify-md-links.ts && npx tsx scripts/verify-md-wrap.ts && npx tsx scripts/verify-doc-budgets.ts && npx tsx scripts/verify-agent-note-format.ts && npx tsx scripts/verify-agent-note-classification.ts && npx tsx scripts/verify-translation-pairing.ts && npx tsx scripts/verify-type-equiv.ts && npx tsx scripts/verify-mermaid.ts && npx tsx scripts/verify-export-jsdoc.ts && npx tsx scripts/doc-typecheck.ts && npx tsx scripts/verify-doc-refs.ts && npx tsx scripts/verify-archived-agent-notes.ts",
+    "test:watchdog": "node scripts/run-tests-with-watchdog.mjs -- npm run test",
+    "test:workspaces:watchdog": "node scripts/run-tests-with-watchdog.mjs -- npm run test --workspaces --if-present"
   },
   "workspaces": [
     "packages/core",

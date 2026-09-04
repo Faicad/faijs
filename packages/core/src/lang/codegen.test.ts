@@ -1,4 +1,4 @@
-﻿/**
+/**
  * codegen 单元测试 — statementIRToLine / scriptIRToCode (Phase 3)
  *
  * Phase 3 命名规则：
@@ -17,7 +17,7 @@ import { asStmtId, asPartName } from '../identity'
 // ── 测试辅助：构造语句 ──
 
 function makeStmt(
-  partial: Omit<Partial<StatementIR>, 'id' | 'positional' | 'outputs'> & { id?: string; inputs?: string[]; outputs?: string[] },
+  partial: Omit<Partial<StatementIR>, 'id' | 'outputs'> & { id?: string; inputs?: string[]; outputs?: string[] },
 ): StatementIR {
   const { id, inputs, positional, outputs, ...rest } = partial
   return {

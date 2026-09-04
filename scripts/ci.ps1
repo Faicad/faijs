@@ -61,16 +61,27 @@ Step -Label '2/9  npm run typecheck（根 + workspaces）' -Block {
 
 Step -Label '3/9  npm run build（core → 门面）' -Block { npm run build }
 
-Write-Host "==> 4/9  npm run test --workspaces"
+Write-Host "==> 4/9  test workspaces（每包独立 5 分钟硬预算）"
 $start3 = Get-Date
 $tmpVitest = [System.IO.Path]::GetTempFileName()
-npm run test --workspaces --if-present 2>&1 | Tee-Object -FilePath $tmpVitest
-if ($LASTEXITCODE -ne 0) {
-    if ($allMode) {
-        $script:failures.Add('4/9  npm run test --workspaces')
-    } else {
-        exit $LASTEXITCODE
+# 硬看门狗: vitest 的 per-test testTimeout 无法中断同步原生死锁(事件循环被阻塞时
+# 其计时器同样被冻结, 见 p23-cad-face)。每个测试工作区单跑, 外层套进程级看门狗:
+# 任一处完不成 5 分钟预算即杀进程树并判失败, CI 绝不被一个死循环测试永久挂起。
+$testBudgetMs = if ($env:FAIJS_TEST_BUDGET_MS) { [int]$env:FAIJS_TEST_BUDGET_MS } else { 300000 } # 5 分钟
+$testPackages = @('@faicad/faijs-core','@faicad/mech-lib','@faicad/sheetmetal','@faicad/faijs-tests')
+$stepFail = $false
+foreach ($pkg in $testPackages) {
+    Write-Host "    -- $pkg（budget=${testBudgetMs}ms）"
+    node scripts/run-tests-with-watchdog.mjs --budget-ms $testBudgetMs -- npm run test -w $pkg 2>&1 | Tee-Object -FilePath $tmpVitest -Append
+    if ($LASTEXITCODE -ne 0) {
+        $stepFail = $true
+        if ($allMode) {
+            $script:failures.Add("4/9  $pkg tests")
+        }
     }
+}
+if ($stepFail) {
+    if (-not $allMode) { exit 1 }
 }
 # Check for stderr — ANY stderr output fails CI (zero tolerance).
 # Rule: If a test intentionally triggers an error condition, it must

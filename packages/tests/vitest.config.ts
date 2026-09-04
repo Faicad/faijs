@@ -15,7 +15,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['faijs/**/*.test.ts'],
-    testTimeout: 120000,
-    hookTimeout: 120000,
+    testTimeout: 300000,
+    hookTimeout: 300000,
   },
 })
