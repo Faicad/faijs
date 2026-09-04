@@ -91,6 +91,33 @@ test.describe('faijs demo', () => {
     }
   })
 
+  test('gear-demo：libLoader 自动装载，brep 成功、mesh 显式不可用', async ({ page }) => {
+    // gear 库是 brep-only（compatOp）；mesh 模式必须 E_MESH_UNSUPPORTED（无回退）。
+    // 不在 EXAMPLE_SNIPPETS 中做「切换示例」通用断言（mesh 不 OK），单独断言。
+    await page.goto('/')
+    await waitForStatusOk(page)
+
+    await page.locator(SELECTOR.exampleSelect).selectOption('gear-demo')
+    await expect(page.locator(SELECTOR.editor)).toHaveValue(/import \* as gear from 'gear-lib-demo'/)
+    // import specifier + packageName 严格一致 → autoLoadlibs 在 execute 阶段装载 'gear' 绑定
+    await waitForStatusOk(page)
+    const status = await page.locator(SELECTOR.statusBar).textContent()
+    // gear.external + gear.thread + cad.union → union 终端 1 个
+    expect(status).toMatch(/OK — brep: 1 shape\(s\)/)
+    // mesh 链路显式不可用（E_MESH_UNSUPPORTED，非静默回退）
+    expect(status).toMatch(/mesh: (Failed|Mesh unavailable)/i)
+    // BREP 链 alive → STEP 可导出
+    await expect(page.locator(SELECTOR.btnStep)).toBeEnabled()
+    await expect(page.locator(SELECTOR.btnStl)).toBeDisabled()
+    // STEP 文件确实含 ADVANCED_FACE（BREP 真几何）
+    const stepDownload = page.waitForEvent('download')
+    await page.locator(SELECTOR.btnStep).click()
+    const step = await stepDownload
+    const stepText = new TextDecoder().decode(await readFile(await step.path()))
+    expect(stepText.startsWith('ISO-10303-21')).toBe(true)
+    expect(stepText).toContain('ADVANCED_FACE')
+  })
+
   test('打开本地 .fai.js 文件：编辑器载入文件内容并立即执行', async ({ page }) => {
     await page.goto('/')
     await waitForStatusOk(page)

@@ -14,9 +14,33 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { createRuntime, createBrowserPorts, setOcctWasmInitFn, ensureOcctKernel, exportStepFromSolid, exportStep, buildStlBufferFromMesh, deriveNormals, setManifoldWasmUrl, isMeshShape } from '@faicad/faijs/browser'
-import type { ExecutionMode, HostPorts, ShapeHandle, OcctKernel, ExecutionResult } from '@faicad/faijs/browser'
+import type { ExecutionMode, HostPorts, ShapeHandle, OcctKernel, ExecutionResult, LibLoader, StdlibNamespace } from '@faicad/faijs/browser'
 import { OcctKernel as OcctKernelValue } from 'occt-wasm'
 import fontUrl from './assets/fonts/OpenSans-Regular.ttf?url'
+// P 四（4.4）：gear-lib-demo 静态引用——供 LIB_MODULES 映射表引用 + 打包。
+// Vite/Rollup 对变量参数 import(packageName) 做不了静态分析，必须静态字面量。
+import * as gearLib from '@faicad/gear-lib-demo'
+
+// ── 浏览器 libLoader（自动装载注册表） ──
+// key 必须与 registerLib 的 packageName（即脚本 import specifier）严格一致：
+// demo 走自动加载主链路，gear-demo 只有 specifier 与 key 完全一致才能运行；
+// 不一致 → 自动装载失败 → 显式报错（正是本方案根治的「名字不符却能跑」bug 形态）。
+// value 必须是静态字面量 specifier，Vite/Rollup 才能静态分析打包。
+const LIB_MODULES: Record<string, () => Promise<StdlibNamespace>> = {
+  // 静态 import * as gearLib 已引用并参与打包；此处返回同一命名空间。
+  // 断言：gear 包 exports 形状满足 StdlibNamespace（加载后由 libLoader 契约收口）。
+  'gear-lib-demo': async () => gearLib as unknown as StdlibNamespace,
+}
+
+const demoLibLoader: LibLoader = {
+  loadLib: async (name) => {
+    const loader = LIB_MODULES[name]
+    if (!loader) throw new Error(`[faijs] demo: unregistered library "${name}"`)
+    return await loader()
+  },
+  listLibs: () => Object.keys(LIB_MODULES),
+  options: { compat: true },
+}
 
 // ── Example .fai.js files ──
 
@@ -35,6 +59,11 @@ let part1 = cad.text(part0, { text: 'HELLO', size: 8, depth: 2 })`,
 part0 = cad.rotate_euler(part0, { anglesDeg: [0, 0, 30] })
 part0 = cad.translate(part0, { offset: [5, 0, 0] })
 part0 = cad.scale(part0, { factor: [1, 1, 2] })`,
+  'gear-demo': `import * as gear from 'gear-lib-demo'
+
+let g1 = gear.external({ teeth: 24, moduleSize: 2, thickness: 8, bore: 8 })
+let t1 = gear.thread({ radius: 5, pitch: 1, height: 20 })
+let u1 = cad.union(g1, t1)`,
 }
 
 // ── DOM elements ──
@@ -299,10 +328,11 @@ async function runCode() {
   setStatus('Parsing...', 'info')
 
   try {
-    // 每个模式各自 execute(code)（公共文本 API；引擎内部 parse）
+    // 每个模式各自 execute(code)（公共文本 API；引擎内部 parse）。libLoader 注入
+// HostPorts——gear-demo 的 import specifier 由 execute 阶段自动装载，无需手动 registerLib。
     const [portsBrep, portsMesh] = await Promise.all([
-      createBrowserPorts({ fontUrl }),
-      createBrowserPorts({ fontUrl }),
+      createBrowserPorts({ fontUrl, libLoader: demoLibLoader }),
+      createBrowserPorts({ fontUrl, libLoader: demoLibLoader }),
     ])
 
     // 公共校验 API（宿主规范用法）：parse + 符号/引用预检，零几何副作用。

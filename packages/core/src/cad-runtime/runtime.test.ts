@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @vitest-environment node
  *
  * CadRuntime 三模式契约测试 + 单元测试 (P2-8)
@@ -21,7 +21,7 @@ import type { BrepEngineApi } from '../brep/engine/primitives'
 import type { StatementIR, ScriptIR } from '../lang/types'
 import { createRuntime } from '@faicad/faijs'
 import { CadRuntime, computeContentKey } from './runtime'
-import type { HostPorts, EventSink, ExecutionMode } from './ports'
+import type { HostPorts, EventSink, ExecutionMode, LibLoader } from './ports'
 import { ensureTestFontLoader } from '../brep/text/fontTestHelper'
 import { getSolidBoundingBox } from '../brep/brep-utils'
 import { setKnurlTextureLoader } from '../mesh/knurl/textureLoader'
@@ -1161,6 +1161,88 @@ describe('P7: 第三方库通道（registerLib / statementKey 包名前缀 / 版
     expect(result.failedAt).toBeUndefined()
     const entry = runtime.getStatementCacheEntry(asPartName('s1'))!
     expect(entry.statementKey).toContain('geom.box')
+  })
+})
+
+describe('P 四（4.6）: execute 自动装载（libLoader autoLoadLibs）', () => {
+  const libLoaderPorts = (loader: LibLoader): HostPorts => ({
+    events: new TestEventSink(),
+    libLoader: loader,
+  })
+
+  const gearNs: StdlibNamespace = {
+    makeHeadstock: () => solid(cubeMesh(8)),
+  } as unknown as StdlibNamespace
+
+  const GEAR_CODE = "import * as gear from 'gear-lib-demo'\nlet p = gear.makeHeadstock({ teeth: 8 })"
+
+  it('已注册 binding + libLoader 存在 → autoLoadLibs 跳过，不覆盖宿主注入实例（loadLib 不被调用）', async () => {
+    // 手动注入 gear（等价于宿主 registerLib 后来者不覆盖——autoLoadLibs 见 this.libs 已注册即跳过）
+    const runtime = createRuntime(libLoaderPorts({
+      loadLib: async () => { throw new Error('Should not be called: gear already registered') },
+      listLibs: () => ['gear-lib-demo'],
+    }), 'mesh')
+    runtime.registerLib('gear', gearNs, { packageName: 'gear-lib-demo' })
+    // 手动注册后 execute：装载跳过（不调用 loadLib——若调用将抛错 → failedAt 非空）
+    const result = await runtime.execute(GEAR_CODE)
+    expect(result.failedAt).toBeUndefined()
+    expect(result.outputs.size).toBeGreaterThan(0)
+    runtime.dispose()
+  })
+
+  it('未注册 + libLoader 可装载 → execute 后 gear.binding、packageName 自动存档，正常产出', async () => {
+    const runtime = createRuntime(libLoaderPorts({
+      loadLib: async () => gearNs,
+      listLibs: () => ['gear-lib-demo'],
+    }))
+    const result = await runtime.execute(GEAR_CODE)
+    expect(result.failedAt).toBeUndefined()
+    expect(result.outputs.size).toBeGreaterThan(0)
+    // 自动装载后 registerLib 已把 packageName 写入 specifierToBinding（第一部分 1.2 闭环）
+    const specToBinding = (runtime as unknown as { specifierToBinding: Map<string, string> }).specifierToBinding
+    expect(specToBinding.get('gear-lib-demo')).toBe('gear')
+    runtime.dispose()
+  })
+
+  it('未注册 + libLoader 不可装载（loadLib 抛错）→ failedAt 非空且 message 注明 import specifier（不回退不静默）', async () => {
+    const runtime = createRuntime(libLoaderPorts({
+      loadLib: async () => { throw new Error('package not found') },
+      listLibs: () => ['sheet-db'],
+    }))
+    const result = await runtime.execute(GEAR_CODE)
+    expect(result.failedAt).toBeDefined()
+    expect(result.failedAt!.message).toMatch(/import specifier "gear-lib-demo" cannot be auto-loaded/i)
+    expect(result.failedAt!.message).toMatch(/package not found/i)
+    runtime.dispose()
+  })
+
+  it('check() 有 libLoader → 走 listLibs 校验（预检期不实际 loadLib），listLibs 含 specifier 则通过', () => {
+    const runtime = createRuntime(libLoaderPorts({
+      loadLib: async () => gearNs,
+      listLibs: () => ['gear-lib-demo'],
+    }))
+    const res = runtime.check(GEAR_CODE)
+    expect(res.errors.some((e) => /import specifier/.test(e.message))).toBe(false)
+    runtime.dispose()
+  })
+
+  it('check() 有 libLoader → listLibs 不含 specifier → 报「libLoader cannot auto-load package」', () => {
+    const withLoader = createRuntime(libLoaderPorts({
+      loadLib: async () => gearNs,
+      listLibs: () => ['sheet-db'],
+    }))
+    const res = withLoader.check(GEAR_CODE)
+    expect(res.ok).toBe(false)
+    expect(res.errors.some((e) => /host libLoader cannot auto-load package "gear-lib-demo"/.test(e.message))).toBe(true)
+    withLoader.dispose()
+  })
+
+  it('check() 无 libLoader → 走 specifierToBinding（第一部分 1.2 体系）校验', () => {
+    const runtime = makeRuntime()
+    runtime.registerLib('gear', gearNs, { packageName: 'gear-lib-demo' })
+    const res = runtime.check(GEAR_CODE)
+    expect(res.errors.some((e) => /import specifier/.test(e.message))).toBe(false)
+    runtime.dispose()
   })
 })
 

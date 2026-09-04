@@ -1,7 +1,7 @@
 import { type Result, ok, err } from '../core/result.js';
 import { ioError, BrepErrorCode } from '../core/errors.js';
 
-import opentype from 'opentype.js';
+import * as opentype from 'opentype.js';
 import type { OpenTypeFont } from '../kernel/occt/wasmTypes/externals.js';
 
 const FONT_REGISTER: Record<string, OpenTypeFont> = {};

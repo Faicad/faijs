@@ -17,6 +17,17 @@
  * 主线程 CSG/SDF 预览走 previewMeshIntersect / runSdfMain。
  */
 
+export {
+  configureBackends, getBackends, setCurrentStmt, getCurrentStmt,
+  keep, keepHidden, getRuntimeState, nameOf, setName, setKeepSink,
+  setPendingAssemblyTransforms, takePendingAssemblyTransforms, assertContractVersion,
+  CONTRACT_VERSION,
+} from './runtime-state'
+export type {
+  Backends, FaijsRuntimeState, ShapeSlot, KeepSink, RuntimeExecutionMode,
+  AssemblyTransform, StdlibFn, StdlibNamespace,
+} from './runtime-state'
+
 // ═══════════════════════════════════════════════════════════
 // identity：品牌类型 + 信任点（f0，零依赖）
 // ═══════════════════════════════════════════════════════════
@@ -62,7 +73,7 @@ export type { ExecutionResult, ExecuteOptions, CheckResult, CheckError, PartTopo
 export type {
   HostPorts,
   CsgBackend, SdfBackend, FontProvider, TextureSampler,
-  AssetResolver, EventSink, ExecutionMode,
+  AssetResolver, EventSink, ExecutionMode, LibLoader,
   MeshData, PlaneParams, SplitResult as CsgSplitResult,
   DovetailGrooveParams as PortDovetailGrooveParams,
   DowelSplitParams as PortDowelSplitParams,

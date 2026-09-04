@@ -11,6 +11,7 @@
  */
 
 import type { PartName } from '../identity'
+import type { StdlibNamespace } from '../runtime-state'
 
 // ── 共享类型 ──
 
@@ -171,6 +172,27 @@ export interface EventSink {
   emit(event: 'part-brep-lost', detail: { partName: PartName; callee: string; reason: string }): void
 }
 
+// ── LibLoader ──
+
+/**
+ * 库加载器接口 — 按 packageName 自动装载未注册的第三方库。
+ *
+ * 宿主实现：
+ * - node CLI（createNodePorts）：白名单 + Node 原生 `import(name)`（monorepo
+ *   workspace symlink 直接把裸包解析到包源码）。
+ * - browser / demo：静态 `LIB_MODULES` 映射表（value 必须是静态字面量
+ *   specifier，Vite/Rollup 才能静态分析打包；禁止变量传参的 import(name)）。
+ * - vitest：复用浏览器映射表写法 + `await import('@faicad/…')`（alias 落位活源码）。
+ */
+export interface LibLoader {
+  /** 按 packageName 加载库模块，返回其导出命名空间对象（与 registerLib 的 ns 同形）。 */
+  loadLib(packageName: string): Promise<StdlibNamespace>
+  /** 列出当前可加载的 packageName（check 阶段同步校验 import specifier 用）。 */
+  listLibs(): string[]
+  /** 自动装载的注册选项；缺省 { compat: true }（第三方库经 compat 边界收口，与手动注入一致）。 */
+  options?: { compat?: boolean }
+}
+
 // ── HostPorts 汇总 ──
 
 /**
@@ -186,6 +208,8 @@ export interface HostPorts {
   texture?: TextureSampler
   assets?: AssetResolver
   events: EventSink  // events 必填——断链通知是基础能力
+  /** 库加载器（execute 自动装载未注册库；check 用它做 specifier 预检）。可选——无则仅手工 registerLib。 */
+  libLoader?: LibLoader
 }
 
 // ── 执行模式 ──

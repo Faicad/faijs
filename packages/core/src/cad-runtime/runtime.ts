@@ -515,6 +515,8 @@ export class CadRuntime {
     // P2 修复：执行前重新认领全局 backends（其它 runtime 的创建会覆盖全局单例，
     // 见 claimBackends 注释）——本实例的 mode/kernel/dispatch 必须以本次执行为准。
     this.claimBackends()
+    const libLoadFailure = await this.autoLoadLibs(script)
+    if (libLoadFailure) return libLoadFailure
     const { code, statements } = compileToModule(script)
     this.executor.setCompiled(script, statements)
     await this.executor.load(code)
@@ -571,6 +573,8 @@ export class CadRuntime {
    * @returns promise resolving to the ExecutionResult.
    */
   async updateIR(oldScript: ScriptIR, script: ScriptIR, opts?: ExecuteOptions): Promise<ExecutionResult> {
+    const libLoadFailure = await this.autoLoadLibs(script)
+    if (libLoadFailure) return libLoadFailure
     const { code, statements } = compileToModule(script)
     this.executor.setCompiled(script, statements)
     await this.executor.load(code)
@@ -638,6 +642,8 @@ export class CadRuntime {
     newIds: (StmtId | PartName)[],
     opts?: ExecuteOptions,
   ): Promise<ExecutionResult> {
+    const libLoadFailure = await this.autoLoadLibs(script)
+    if (libLoadFailure) return libLoadFailure
     const { code, statements } = compileToModule(script)
     this.executor.setCompiled(script, statements)
     await this.executor.load(code)
@@ -864,6 +870,50 @@ export class CadRuntime {
       if (v !== null && typeof v === 'object') setName(v, name)
     }
     return { outputCache, beforeStatement: opts?.beforeStatement, changed: new Set<PartName>() }
+  }
+
+  /**
+   * P 四（4.2）：execute 阶段自动装载未注册的库。
+   *
+   * parse 之后、编译之前按 script.imports 装载：命名空间 import 的 packageName
+   * 若其绑定名尚未注册（宿主未手动注入），则经 libLoader.loadLib 装载并用
+   * registerLib 落地（packageName 一并存档，与手工注入同一条 specifier 校验体系）。
+   * 已注册 binding（手动注入或本实例先前自动装载）→ 跳过，绝不覆盖宿主注入实例。
+   *
+   * 装载失败（loadLib 抛错 / 返回被拒 promise）：不回退、不静默——返回一个
+   * failedAt 非空的 ExecutionResult（message 注明是哪个 import specifier 无法装载），
+   * 与语句失败共用错误容器，调用方直接短路返回。
+   *
+   * @param script - 解析后的脚本 IR（import 段来自全量脚本文本）。
+   * @returns 装载失败时的 failedAt 结果，成功返回 undefined。
+   */
+  private async autoLoadLibs(script: ScriptIR): Promise<ExecutionResult | undefined> {
+    if (!this.ports.libLoader) return undefined
+    for (const imp of script.imports ?? []) {
+      if (imp.kind !== 'namespace') continue // named/default import 不作语句级绑定，不在此装载
+      if (this.libs[imp.localName]) continue  // 已注册（宿主注入或此前自动装载）→ 不覆盖
+      let ns: StdlibNamespace
+      try {
+        ns = await this.ports.libLoader.loadLib(imp.packageName)
+      } catch (err) {
+        return {
+          outputs: new Map(),
+          brepChain: this.brepChain!,
+          terminals: [],
+          infos: [],
+          failedAt: {
+            index: -1,
+            callee: imp.localName,
+            message: `import specifier "${imp.specifier}" cannot be auto-loaded: ${err instanceof Error ? err.message : String(err)}`,
+          },
+        }
+      }
+      this.registerLib(imp.localName, ns, {
+        compat: this.ports.libLoader.options?.compat ?? true,
+        packageName: imp.packageName,
+      })
+    }
+    return undefined
   }
 
   /** 执行并捕获模式不支持失败（BrepUnsupportedError / MeshUnsupportedError → ExecutionResult.failedAt）。
@@ -1402,10 +1452,20 @@ export class CadRuntime {
     }
 
     // ② 前半：import specifier 校验（每个 namespace import 的 packageName
-    // 必须由某个 registerLib 的 packageName 声明命中——未命中即 specifier 与
-    // 已注册库不匹配，hard error，不回退不静默）。
+    // 必须可解析——hard error，不回退不静默）。
+    // 有 libLoader：查 listLibs() 静态注册表（可自动装载即通过，预检期不实际 loadLib）；
+    // 无 libLoader：每个 specifier 必须由某个 registerLib 的 packageName 声明命中。
     for (const imp of script.imports ?? []) {
       if (imp.kind !== 'namespace') continue
+      if (this.ports.libLoader) {
+        if (!this.ports.libLoader.listLibs().includes(imp.packageName)) {
+          errors.push({
+            stage: 'symbol',
+            message: `import specifier "${imp.specifier}" is not registered (host libLoader cannot auto-load package "${imp.packageName}")`,
+          })
+        }
+        continue
+      }
       const binding = this.specifierToBinding.get(imp.packageName)
       if (!binding) {
         errors.push({
@@ -1425,6 +1485,20 @@ export class CadRuntime {
     // ② 符号检查：callee ∈ 符号表（未知 → "函数不存在"）。
     // 只有无 receiver 的调用才查符号表（成员方法是对象方法，不在表内，见 §6.2）。
     // F2：命名空间调用按已注册库校验（未登记 specifier → 明确报错，不回退不静默）。
+    //
+    // P 四：libLoader 可自动装载的 namespace（import localName → listLibs 命中）在
+    // execute 期装载，check 预检期同步能按 specifier 校验（① 前半），但无法解析其
+    // 成员函数（未装载）——按「可装载」放行 namespace 本体，不误报未注册；成员
+    // resolution 留到装载后由 execute 期暴露（不回退不静默）。
+    const autoLoadableNs = new Set<string>()
+    if (this.ports.libLoader) {
+      const listed = this.ports.libLoader.listLibs()
+      for (const imp of script.imports ?? []) {
+        if (imp.kind === 'namespace' && listed.includes(imp.packageName)) {
+          autoLoadableNs.add(imp.localName)
+        }
+      }
+    }
     for (const stmt of script.statements) {
       if (stmt.receiver) continue
       // 本机函数调用（local）：存在性已在 parse 期校验（§3.4 / D15），不查 stdlib 符号表
@@ -1433,6 +1507,8 @@ export class CadRuntime {
       if (ns && ns !== this.defaultNsName) {
         const lib = this.libs[ns]
         if (!lib) {
+          // P 四：libLoader 可装载的 namespace → 预检通过（成员校验延后到装载后 execute 期）
+          if (autoLoadableNs.has(ns)) continue
           errors.push({
             stage: 'symbol',
             message: `namespace "${ns}" is not registered (missing registerLib or import specifier)`,

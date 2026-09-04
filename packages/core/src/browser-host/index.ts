@@ -58,6 +58,8 @@ export interface CreateBrowserPortsOptions {
   assets?: HostPorts['assets']
   /** Consumer-injectable custom event sink. */
   events?: HostPorts['events']
+  /** Consumer-injectable library loader (auto-load unregistered libs at execute). */
+  libLoader?: HostPorts['libLoader']
 }
 
 /**
@@ -120,5 +122,6 @@ export async function createBrowserPorts(opts?: CreateBrowserPortsOptions): Prom
     fonts: fontProvider,
     assets: opts?.assets ?? new FetchAssetResolver(),
     events: opts?.events ?? new BrowserEventSink(),
+    libLoader: opts?.libLoader,
   }
 }

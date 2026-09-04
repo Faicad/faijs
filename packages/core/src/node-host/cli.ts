@@ -17,7 +17,7 @@ import { resolve, extname } from 'node:path'
 import { parseScript } from '../lang/parser'
 import { createRuntime } from '../cad-runtime/runtime'
 import type { StdlibNamespace } from '../runtime-state'
-import type { ExecutionMode } from '../cad-runtime/ports'
+import type { ExecutionMode, HostPorts, LibLoader } from '../cad-runtime/ports'
 import { createNodePorts } from './index'
 import { buildStlBufferFromMesh } from '../brep/export/stl'
 import { exportStepFromSolid } from '../brep/export/step'
@@ -28,6 +28,36 @@ import type { CompoundShape } from '../shape'
 import type { BrepHandle } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 import { asPartName } from '../identity'
+
+// ── P 四（4.4）：Node CLI 自动装载白名单 ──
+// 脚本 import 的第三方包默认不从网络解析；仅白名单内的包可按需动态装载
+// （monorepo workspace symlink 直接把裸包解析到包源码，无需 URL 构造）。
+// 注意：脚本 specifier（如 'gear-lib-demo'）经 derivePackageName 无 '@' 前缀，
+// 与 CLI 装载的真实包名（'@faicad/gear-lib-demo'）不同——白名单按真实包名登记，
+// 同时收录该包名的短 specifier 别名，loadLib 一律归一到真实包名再 import。
+const CLI_ALLOWED_LIBS = new Set(['@faicad/gear-lib-demo'])
+/** specifier → 真实包名 归一映射（短名与完整 scoped 名都登记为可装载）。 */
+const CLI_LIB_ALIASES: Record<string, string> = {
+  '@faicad/gear-lib-demo': '@faicad/gear-lib-demo',
+  'gear-lib-demo': '@faicad/gear-lib-demo',
+}
+
+const cliPortsLibLoader: LibLoader = {
+  loadLib: async (name) => {
+    const pkg = CLI_LIB_ALIASES[name]
+    if (!pkg || !CLI_ALLOWED_LIBS.has(pkg)) {
+      throw new Error(`package "${name}" is not in the CLI library whitelist`)
+    }
+    return (await import(pkg)) as StdlibNamespace
+  },
+  listLibs: () => Object.keys(CLI_LIB_ALIASES),
+  options: { compat: true },
+}
+
+/** 注入 libLoader 到 node ports（CLI 宿主白名单装载）。 */
+function withCliLibLoader(ports: HostPorts): HostPorts {
+  return { ...ports, libLoader: cliPortsLibLoader }
+}
 
 /** Options accepted by the `check` command. */
 export interface CliCheckOptions {
@@ -86,10 +116,10 @@ export interface CliRunResult {
  */
 export function cliCheck(filePath: string, _opts?: CliCheckOptions): CliCheckResult {
   const code = readFileSync(filePath, 'utf-8')
-  const ports = createNodePorts({
+  const ports = withCliLibLoader(createNodePorts({
     assetsDir: _opts?.assetsDir,
     fontsDir: _opts?.fontsDir,
-  })
+  }))
   const runtime = createRuntime(ports)
   const result = runtime.check(code)
   return {
@@ -136,11 +166,11 @@ export async function cliRun(
   await initOcctWasm()
 
   // Create runtime with node ports
-  const ports = createNodePorts({
+  const ports = withCliLibLoader(createNodePorts({
     assetsDir: opts?.assetsDir,
     fontsDir: opts?.fontsDir,
     defaultFontPath: opts?.defaultFontPath,
-  })
+  }))
   const runtime = createRuntime(ports, opts?.mode ?? 'auto', opts?.libs)
   // Part 1.4：cad 经 registerLib 声明 packageName（脚本可 `import * as cad from
   // '@faicad/faijs'`，check ①.5 据此校验 specifier——不 declare 则 import 被拒）。

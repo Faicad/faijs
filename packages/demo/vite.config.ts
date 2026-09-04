@@ -103,6 +103,9 @@ export default defineConfig({
     alias: [
       { find: '@faicad/faijs-core', replacement: resolve(__dirname, '../core/src') },
       { find: '@faicad/faijs', replacement: resolve(__dirname, '../../src') },
+      // P 三/四：gear-lib 经 alias 落位活源码，浏览器的静态 LIB_MODULES import 才能打包；
+      // dev 与 build（rollup）一致生效。
+      { find: '@faicad/gear-lib-demo', replacement: resolve(__dirname, '../gear-lib-demo/src/index.ts') },
     ],
   },
   plugins: [cdnExternalPlugin(), wasmAssets()],
