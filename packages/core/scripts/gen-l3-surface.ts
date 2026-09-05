@@ -328,12 +328,34 @@ export function generateScriptFaceManifest(): string {
 
 /** P13 兼容：generate() == topology（顶层模块，旧调用不变）。 */
 export function generate(): string {
+  assertIntersectStaysSkip()
   return generateModule('topology')
+}
+
+/**
+ * §4.8 生成期守卫：`topology/api.js#intersect` 永远不允许进入 brep-op /
+ * scriptFace。faijs 的 cad.intersect 是 variadic、async、带 keepHidden 时间线副
+ * 作用、roleTable 合流的 dual-op；brepjs 的 intersect 是二元同步 Result，仅驻留
+ * compat 面。若上游 intersect 被投出，必须先改名 faijs 面（含 UI ops 与存量迁移）。
+ */
+function assertIntersectStaysSkip(): void {
+  for (const e of ARG_SPEC) {
+    if (e.source !== 'topology/api.js#intersect') continue
+    if (e.kind !== 'skip' || e.scriptFace === true) {
+      throw new Error(
+        '[gen-l3-surface] §4.8 守卫被触发：' +
+          'topology/api.js#intersect 被标记为 ' +
+          `${e.kind}${e.scriptFace === true ? ' / scriptFace:true' : ''}。` +
+          'faijs 侧的 intersect 必须先改名为 intersect_all（含 UI ops 与存量迁移）才允许投影。',
+      )
+    }
+  }
 }
 
 function main(): void {
   const args = process.argv.slice(2)
   const requested = args.length > 0 ? new Set(args) : null
+  assertIntersectStaysSkip()
   fs.mkdirSync(OUT_DIR, { recursive: true })
   for (const m of PROJECTED_MODULES) {
     if (requested && !requested.has(m)) continue

@@ -2704,7 +2704,9 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     name: 'rotate', source: 'topology/api.js#rotate', kind: 'brep-op',
     geometryArgs: [0], returnsResult: false,
     args: 'rotate(shape: Shape, angle: number, options?: { at?, axis? }): Shape',
-    reason: 'faijs rotate 已更名 rotate_euler，上游轴角 rotate 空出 → brep-op（§5.1 D-ROTATE）',
+    reason: 'faijs rotate 已更名 rotate_euler（faijs 面只导出 rotate_euler），上游轴角 rotate 空出 → brep-op 进脚本面'
+      + '（§5.1 D-ROTATE / §4.7）。⚠️ cad.rotate 是 brep-only（compatOp 契约：mesh 模式/断链抛错，从不回退），'
+      + '3d_editor UI 不得暴露；将来暴露前必须先补 mesh 实现。',
     params: ['shape', 'angle', 'options'], formClass: 'A',
     scriptFace: true,
   },
@@ -2778,7 +2780,10 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   },
   {
     name: 'intersect', source: 'topology/api.js#intersect', kind: 'skip',
-    reason: 'faijs 同名 intersect（§5.1 双形态：variadic 手写面覆盖 + 二参+options 并入），生成层不重复投影',
+    reason: '禁止投脚本面（§4.8）：faijs 侧 cad.intersect 是 variadic、async、带 keepHidden 时间线副作用、roleTable '
+      + '合流的 dual-op，mesh+brep 双实现；brepjs 的 intersect 是二元同步 Result 契约，仅驻留 compat 面，不共面不投影。'
+      + '任何想把上游 intersect 标为 brep-op / scriptFace 的改动，必须同时把 faijs 的 intersect 改名为 intersect_all'
+      + '（含 UI ops 与存量迁移）——生成期守卫见 gen-l3-surface.ts（§4.8 触发条件）。',
   },
   {
     name: 'section', source: 'topology/api.js#section', kind: 'brep-op',
@@ -3083,7 +3088,9 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   // faceFns：入参 Face 子形状句柄 → 全 skip
   {
     name: 'faceCenter', source: 'topology/faceFns.js#faceCenter', kind: 'skip',
-    reason: 'faijs 同名 faceCenter 查询形态已手写覆盖（§5.1 D-FACECENTER 双形态：Shape 包装 → 查询 / Face 包装 → 质心），生成层不重复投影',
+    reason: 'faijs 无同名 op（§4.9）：faceCenter 仅作为 api/engrave.ts 与 api/knurl.ts 的参数键（绝对坐标快照）存在，'
+      + '不共面、不冲突。若将来要在 cad 面提供质心查询，契约应为 cad.faceCenter(shape, ordinal?)（入参是 faijs Shape + 面'
+      + '序号，与 brepjs 的 Face 入参不同），两面各持各的契约。',
   },
   {
     name: 'getSurfaceType', source: 'topology/faceFns.js#getSurfaceType', kind: 'skip',
