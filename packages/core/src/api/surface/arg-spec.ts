@@ -2577,7 +2577,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     name: 'box', source: 'topology/primitiveFns.js#box', kind: 'brep-op',
     consumes: 'none', geometryArgs: [], returnsResult: false,
     args: 'box(width: number, depth: number, height: number, options?: BoxOptions): Shape',
-    reason: 'faijs 侧由手写 dual-op 覆盖（§4.1 A 决策，mesh+brep 双实现）；本条目仅投影到 brepjs 盒契约，生成模块符号为孤儿 by design，scriptFace 不投（避免与手写 box 撞名）。',
+    reason: 'faijs 侧由手写 dual-op 覆盖（§4.1 A 决策，mesh+brep 双实现）；本条目仅投影到 vendored 盒契约，生成模块符号为孤儿 by design，scriptFace 不投（避免与手写 box 撞名）。',
     params: ['width', 'depth', 'height', 'options'], formClass: 'A',
     scriptFace: false,
   },
@@ -2589,7 +2589,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     name: 'cylinder', source: 'topology/primitiveFns.js#cylinder', kind: 'brep-op',
     consumes: 'none', geometryArgs: [], returnsResult: false,
     args: 'cylinder(radius: number, height: number, options?: CylinderOptions): Shape',
-    reason: 'faijs 侧由手写 dual-op 覆盖（§4.3 A 决策，mesh+brep 双实现，at/centered BASE 语义）；本条目仅投影到 brepjs 圆柱契约，生成模块符号为孤儿 by design，scriptFace 不投（避免与手写 cylinder 撞名）。',
+    reason: 'faijs 侧由手写 dual-op 覆盖（§4.3 A 决策，mesh+brep 双实现，at/centered BASE 语义）；本条目仅投影到 vendored 圆柱契约，生成模块符号为孤儿 by design，scriptFace 不投（避免与手写 cylinder 撞名）。',
     params: ['radius', 'height', 'options'], formClass: 'A',
     scriptFace: false,
   },
@@ -2597,7 +2597,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     name: 'cone', source: 'topology/primitiveFns.js#cone', kind: 'brep-op',
     consumes: 'none', geometryArgs: [], returnsResult: false,
     args: 'cone(radiusBottom: number, radiusTop: number, height: number, options?: ConeOptions): Shape',
-    reason: 'faijs 侧由手写 dual-op 覆盖（§4.1 P 决策，mesh+brep 双实现，at/centered BASE 语义）；本条目仅投影到 brepjs 圆锥契约，生成模块符号为孤儿 by design，scriptFace 不投（避免与手写 cone 撞名）。',
+    reason: 'faijs 侧由手写 dual-op 覆盖（§4.1 P 决策，mesh+brep 双实现，at/centered BASE 语义）；本条目仅投影到 vendored 圆锥契约，生成模块符号为孤儿 by design，scriptFace 不投（避免与手写 cone 撞名）。',
     params: ['radiusBottom', 'radiusTop', 'height', 'options'], formClass: 'A',
     scriptFace: false,
   },
@@ -2714,7 +2714,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     name: 'scale', source: 'topology/api.js#scale', kind: 'brep-op',
     geometryArgs: [0], returnsResult: false,
     args: 'scale(shape: Shape, factor: number, options?: { center?: Vec3 }): Shape',
-    reason: 'faijs 侧由手写 dual-op 覆盖（§4.6 裁决 4/2：scale = brepjs 等比 + center 不动点，mesh+brep 双实现）；本条目仅投影到 brepjs scale 契约，生成模块符号为孤儿 by design，scriptFace 不投（避免与手写 scale 撞名）。',
+    reason: 'faijs 侧由手写 dual-op 覆盖（§4.6 裁决 4/2：scale = vendored 等比 + center 不动点，mesh+brep 双实现）；本条目仅投影到 vendored scale 契约，生成模块符号为孤儿 by design，scriptFace 不投（避免与手写 scale 撞名）。',
     params: ['shape', 'factor', 'options'], formClass: 'A',
     scriptFace: false,
   },
@@ -2781,7 +2781,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   {
     name: 'intersect', source: 'topology/api.js#intersect', kind: 'skip',
     reason: '禁止投脚本面（§4.8）：faijs 侧 cad.intersect 是 variadic、async、带 keepHidden 时间线副作用、roleTable '
-      + '合流的 dual-op，mesh+brep 双实现；brepjs 的 intersect 是二元同步 Result 契约，仅驻留 compat 面，不共面不投影。'
+      + '合流的 dual-op，mesh+brep 双实现；vendored 的 intersect 是二元同步 Result 契约，仅驻留 compat 面，不共面不投影。'
       + '任何想把上游 intersect 标为 brep-op / scriptFace 的改动，必须同时把 faijs 的 intersect 改名为 intersect_all'
       + '（含 UI ops 与存量迁移）——生成期守卫见 gen-l3-surface.ts（§4.8 触发条件）。',
   },
@@ -3090,7 +3090,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     name: 'faceCenter', source: 'topology/faceFns.js#faceCenter', kind: 'skip',
     reason: 'faijs 无同名 op（§4.9）：faceCenter 仅作为 api/engrave.ts 与 api/knurl.ts 的参数键（绝对坐标快照）存在，'
       + '不共面、不冲突。若将来要在 cad 面提供质心查询，契约应为 cad.faceCenter(shape, ordinal?)（入参是 faijs Shape + 面'
-      + '序号，与 brepjs 的 Face 入参不同），两面各持各的契约。',
+      + '序号，与 vendored 的 Face 入参不同），两面各持各的契约。',
   },
   {
     name: 'getSurfaceType', source: 'topology/faceFns.js#getSurfaceType', kind: 'skip',

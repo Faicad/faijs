@@ -46,54 +46,69 @@ faijs 对外 API 全面采用 `Result` / `BrepError` 体系（`ok` / `err` / `is
 
 ### 3.1 `box` ✅
 
-创建长方体（或立方体）。size 给定三条边：传 number 为等边立方体，传 [x,y,z] 为长方体。
+创建长方体（brepjs 契约，§4.1 A 决策）。
 
 ```js
-const part0 = cad.box({ size: 20 })
-const part0 = cad.box({ size: [30, 20, 10], center: [0, 0, 5] })
-D11 双形态：位置形态 `box(10, 20, 30)`（三边）/`box(20)`（立方体）与对象形态
-`box({ size: [10, 20, 30] })` 归一到同一实现（§4.2）。
+const part0 = cad.box(10, 20, 30)
+const part1 = cad.box(30, 20, 10, { centered: true, at: [1, 2, 3], segments: 64 })
+位置原生（§4.1/§6.2）：`box(width, depth, height)` 与 `box(10, 20, 30, {centered:true})`
+归一到同一对象（D11 位置→对象 + 尾参 options 合并）。旧 `{ size }` 对象形态已废弃（裁决 3），
+传入会抛 `E_ARGS_FORM`（错误提示 ≠ 兼容，§4.1）。
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
-| `size` | `number | [x,y,z]` | ✅ | — | 尺寸（[x,y,z] 三边或 number 等边） |
-| `center` | `[x,y,z]` |  | [0,0,0]（原点） | 中心位置 |
+| `width` | `number` | ✅ | — | X 方向边长（mm） |
+| `depth` | `number` | ✅ | — | Y 方向边长（mm） |
+| `height` | `number` | ✅ | — | Z 方向边长（mm） |
+| `at` | `[x,y,z] 可选` |  | — | 中心点（CENTER 语义，优先于 centered） |
+| `centered` | `boolean` |  | false，角点在原点） | 无 at 时是否居中到原点（ |
+| `segments` | `number` |  | 64（= brepjs standard 等效，P0 §5.0/§5.1） | 细分度（影响三角化） |
 
 **同步**。Shape 长方体几何，可作为后续 op 的输入。
 
 ### 3.2 `cone` ✅
 
-创建圆锥体。radiusTop 等于 radiusBottom 时即圆柱。
+创建圆锥体（brepjs 契约，§4.1 P 决策）。radiusTop 等于 radiusBottom 时即圆柱，0 为尖锥。 锚点：`at` 是**底面轴心**（BASE 语义，默认 [0,0,0]，底面在原点、+Z 延伸）；`centered:true` 指底面落到 −h/2（无 at 时居中到原点；与 `at` 同给时以 `at` 为中心）。
 
 ```js
-const c = cad.cone({ radiusBottom: 10, radiusTop: 4, height: 30 })
+const c = cad.cone(10, 4, 30)
+const c = cad.cone(10, 0, 30, { centered: true, at: [0, 0, 20], segments: 64 })
+位置原生（§4.1/§6.2）：`cone(10, 4, 30)` 与 `cone(10, 4, 30, { centered: true })`
+归一到同一对象（D11 位置→装箱 + 尾参 options 合并）。旧 `{ center }`/`{ size }` 对象形态
+已废弃（裁决 3），传入会抛 E_ARGS_FORM（错误提示 ≠ 兼容）。
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
 | `radiusBottom` | `number` | ✅ | — | 底半径（mm） |
-| `radiusTop` | `number` | ✅ | — | 顶半径（mm），可传 0 得尖锥，传等于 radiusBottom 得圆柱 |
-| `height` | `number` | ✅ | — | 高度（mm），沿 Z 轴 |
-| `segments` | `number` |  | 32 | 细分度（影响面数） |
-| `center` | `[x,y,z]` |  | [0,0,0]（原点） | 中心位置 |
+| `radiusTop` | `number` | ✅ | — | 顶半径（mm），0 为尖锥，非负，等于 radiusBottom 得圆柱 |
+| `height` | `number` | ✅ | — | 高度（mm），沿 +Z 轴 |
+| `at` | `[x,y,z] 可选` |  | — | 底面轴心（BASE 语义） |
+| `centered` | `boolean` |  | false | 是否居中（底面 −h/2；与 at 同给时以 at 为中心） |
+| `segments` | `number` |  | 64（= brepjs standard 等效，P0 §5.0/§5.1） | 细分度（影响三角化） |
 
 **同步**。Shape 圆锥体几何，可作为后续 op 的输入。
 
 ### 3.3 `cylinder` ✅
 
-创建圆柱体。
+创建圆柱体（brepjs 契约，§4.3 A 决策）。 锚点：`at` 是**底面轴心**（BASE 语义，默认 [0,0,0]，底面在原点、+Z 延伸）；`centered:true` 指底面落到 −h/2（无 at 时居中到原点；与 `at` 同给时以 `at` 为中心）。
 
 ```js
-const c = cad.cylinder({ radius: 5, height: 40 })
+const c = cad.cylinder(5, 40)
+const c = cad.cylinder(5, 40, { centered: true, at: [0, 0, 20], segments: 64 })
+位置原生（§4.1/§6.2）：`cylinder(5, 40)` 与 `cylinder(5, 40, {centered:true})`
+归一到同一对象（D11 位置→装箱 + 尾参 options 合并）。旧 `{ center }` 对象形态已废弃
+（裁决 3），传入会抛 `E_ARGS_FORM`（错误提示 ≠ 兼容，§4.3）。
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
 | `radius` | `number` | ✅ | — | 底面半径（mm） |
-| `height` | `number` | ✅ | — | 高度（mm），沿 Z 轴 |
-| `segments` | `number` |  | 32 | 细分度（影响面数） |
-| `center` | `[x,y,z]` |  | [0,0,0]（原点） | 中心位置 |
+| `height` | `number` | ✅ | — | 高度（mm），沿 +Z 轴 |
+| `at` | `[x,y,z] 可选` |  | — | 底面中心（BASE 语义） |
+| `centered` | `boolean` |  | false | 是否居中（底面 −h/2；与 at 同给时以 at 为中心） |
+| `segments` | `number` |  | 64（= brepjs standard 等效，P0 §5.0/§5.1） | 细分度（影响三角化） |
 
 **同步**。Shape 圆柱体几何，可作为后续 op 的输入。
 
@@ -170,14 +185,16 @@ const s = await cad.sdf({ code: 'return sphere(10) - sphere(5, [10,0,0])', box: 
 
 ```js
 const r = cad.sphere({ radius: 10 })
+const r = cad.sphere(10, { at: [0, 0, 10], segments: 64 })
 const r = cad.sphere({ radius: 10, segments: 64, center: [0,0,10] })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
 | `radius` | `number` | ✅ | — | 半径（mm） |
-| `segments` | `number` |  | 32 | 细分度（影响面数） |
-| `center` | `[x,y,z]` |  | [0,0,0]（原点） | 球心位置 |
+| `segments` | `number` |  | 64（= brepjs standard 等效，P0 §5.0/§5.1） | 细分度（影响面数） |
+| `center` | `[x,y,z]` |  | [0,0,0]（原点） | 球心位置（at 的同义别名） |
+| `at` | `` |  | — | 球心位置（center 的同义别名，brepjs 契约；裁决 4 双形态合法） |
 
 **同步**。Shape 球体几何，可作为后续 op 的输入。
 
@@ -257,22 +274,39 @@ const p3 = cad.rotate_euler(part0, { anglesDeg: [0, 0, 45], pivot: [0,0,0] })
 
 **同步**。Shape 旋转后的几何。
 
-### 4.2 `scale3d` ✅
+### 4.2 `scale` ✅
 
-缩放几何体。factor 传 number 为等比缩放，传 [x,y,z] 为非等比。
+等比缩放几何体（brepjs 契约，§4.6 裁决 2）。factor 只收 number；不动点默认 原点（与 vendored `scale(shape, factor, { center? })` 一致），`center` 可选。
 
 ```js
-const p4 = cad.scale3d(part0, { factor: 2 })
-const p5 = cad.scale3d(part0, { factor: [2, 1, 1] })
+const p4 = cad.scale(part0, 2)
+const p5 = cad.scale(part0, { factor: 2, center: [10, 0, 0] })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
-| `factor` | `number | [x,y,z]` | ✅ | — | 缩放系数：number（等比）或 [x,y,z]（非等比，> 0） |
+| `factor` | `number` | ✅ | — | 等比缩放系数（> 0） |
+| `center` | `[x,y,z]` |  | [0,0,0]（原点） | 缩放不动点（p 保持不动） |
 
 **同步**。Shape 缩放后的几何。
 
-### 4.3 `translate` ✅
+### 4.3 `scale3d` ✅
+
+非等比缩放几何体（faijs 语义，§1.4.4 裁决 2）。factor 定死 vec3 — 等比缩放请用 `scale(p, s)`，`scale3d(p, [x,y,z])` 才可非等比。`center` 为不动点（默认原点）。
+
+```js
+const p4 = cad.scale3d(part0, { factor: [2, 1, 1] })
+const p5 = cad.scale3d(part0, [2, 1, 1], { center: [10, 0, 0] })
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `factor` | `[x,y,z]` | ✅ | — | 三轴缩放系数（均 > 0） |
+| `center` | `[x,y,z]` |  | [0,0,0]（原点） | 缩放不动点 |
+
+**同步**。Shape 缩放后的几何。
+
+### 4.4 `translate` ✅
 
 平移几何体。
 
@@ -524,7 +558,7 @@ cad.assembly({ name: '装配1', members: [part0, part1], constraints: [{ type: '
 分组：零约束，保持当前布局。结构语句，无几何输出，成员用变量名引用。
 
 ```js
-const part0 = cad.box({ size: [30, 20, 10] })
+const part0 = cad.box(30, 20, 10, { centered: true })
 cad.group({ name: '底板组', members: [part0] })
 ```
 
@@ -633,7 +667,7 @@ const n = cad.faceNormal(part0, [0, 0, 5])
 
 ```
 创建: load / box / sphere / cylinder / cone / wedge / screw / sdf / svgExtrude / text
-变换: translate / rotate_euler / scale3d
+变换: translate / rotate_euler / scale / scale3d
 特征: union / subtract / intersect / chamfer / copy / engrave / drill / fai_extrude / fai_split / knurl
 结构: group / assembly
 查询: asset / faceNormal / bboxCenter / bboxMin / bboxMax
