@@ -42,7 +42,7 @@ import { clampNRad } from '../mesh/types'
  * segments 越大，三角化越精细。
  */
 function segmentsToAngularDeflection(segments?: number): number {
-  const segs = segments ?? 32
+  const segs = segments ?? 64 // 缺省 64（= brepjs standard 等效，§5.0/§5.1）
   return (2 * Math.PI) / Math.max(3, segs)
 }
 

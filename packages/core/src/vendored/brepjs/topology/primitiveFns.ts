@@ -70,6 +70,8 @@ export interface BoxOptions {
   at?: Vec3;
   /** Center the box at the origin (or at the `at` point). Default: false. */
   centered?: boolean;
+  /** faijs 显式超集（裁决 1）：三角化分段密度；本层只透传，消费在 faijs 投影层。 */
+  segments?: number;
 }
 
 /**
@@ -103,6 +105,8 @@ export interface CylinderOptions {
   axis?: Vec3;
   /** Center vertically instead of base at origin. */
   centered?: boolean;
+  /** faijs 显式超集（裁决 1）：三角化分段密度；消费在 faijs 投影层。 */
+  segments?: number;
 }
 
 /**
@@ -128,6 +132,8 @@ export function cylinder(radius: number, height: number, options?: CylinderOptio
 export interface SphereOptions {
   /** Center position. Default: [0, 0, 0]. */
   at?: Vec3;
+  /** faijs 显式超集（裁决 1）：三角化分段密度；消费在 faijs 投影层。 */
+  segments?: number;
 }
 
 /**
@@ -150,6 +156,8 @@ export interface ConeOptions {
   axis?: Vec3;
   /** Center vertically instead of base at origin. */
   centered?: boolean;
+  /** faijs 显式超集（裁决 1）：三角化分段密度；消费在 faijs 投影层。 */
+  segments?: number;
 }
 
 /**
@@ -186,6 +194,8 @@ export interface TorusOptions {
   at?: Vec3;
   /** Torus axis direction. Default: [0, 0, 1]. */
   axis?: Vec3;
+  /** faijs 显式超集（裁决 1）：三角化分段密度；消费在 faijs 投影层。 */
+  segments?: number;
 }
 
 /**
@@ -203,6 +213,8 @@ export function torus(
 export interface EllipsoidOptions {
   /** Center position. Default: [0, 0, 0]. */
   at?: Vec3;
+  /** faijs 显式超集（裁决 1）：三角化分段密度；消费在 faijs 投影层。 */
+  segments?: number;
 }
 
 /**

@@ -76,21 +76,23 @@ export function borrowBrepjsShape(s: Shape): ShapeHandle {
  * wrapper must not dispose it afterwards (projected ops return it directly).
  *
  * @param product - a vendored brepjs shape (ShapeHandle / AnyShape family).
+ * @param segments - optional tessellation segments (brepjs 投影侧 `segments?`，
+ *   裁决 1；透传给 `fromHandle` 的三角化，默认 32 → 64 由 handle-bridge 兜底).
  * @returns the faijs Shape wrapping the same occt solid.
  */
-export function adoptBrepjsProduct(product: unknown): Shape {
+export function adoptBrepjsProduct(product: unknown, segments?: number): Shape {
   if (product === null || typeof product !== 'object' || !('wrapped' in product)) {
     throw new Error('[faijs/l3-bridge] E_BAD_PRODUCT: expected a shape handle from the vendored engine')
   }
-  // vendored `wrapped` may be an OcctWasmHandle (`{id}`) or a raw numeric id;
-  // faijs' kernel meshShape expects the numeric shape id (helpers.ts:44-49).
+  // vendored `wrapped` may be an OcctHandle (`{id}`) or a raw numeric id;
+  // faijs' kernel meshShape expects the numeric shape id (fromHandle).
   const wrappedAny = (product as { wrapped: unknown }).wrapped
   const rawId =
     typeof wrappedAny === 'object' && wrappedAny !== null && 'id' in wrappedAny
       ? (wrappedAny as { id: number }).id
       : (wrappedAny as number)
   const wrapped = rawId as BrepHandle
-  return fromHandle(wrapped)
+  return fromHandle(wrapped, segments === undefined ? undefined : { segments })
 }
 
 /**
@@ -131,9 +133,10 @@ const adoptedMap = new WeakMap<object, Shape>()
  *
  * @param product - the vendored result (handle or plain data record).
  * @param opName - the op name (error messages).
+ * @param segments - optional tessellation segments (compat `segments?`).
  * @returns the adopted faijs Shape, or the plain data untouched.
  */
-export function adoptEntity(product: unknown, opName: string): unknown {
+export function adoptEntity(product: unknown, opName: string, segments?: number): unknown {
   if (product === null || typeof product !== 'object' || !('wrapped' in product)) return product
   const h = product as ShapeHandle
   const prev = adoptedMap.get(h)
@@ -148,7 +151,7 @@ export function adoptEntity(product: unknown, opName: string): unknown {
     )
   }
   unregisterFromCleanup(h) // ★ R1: one-line fix replacing gear-lib-demo's pinned array
-  const s = adoptBrepjsProduct(h) // fromHandle: tessellation + identity + BREP slots (l3-bridge.ts:62)
+  const s = adoptBrepjsProduct(h, segments) // fromHandle: tessellation + identity + BREP slots
   adoptedMap.set(h, s)
   return s
 }

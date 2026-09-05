@@ -247,5 +247,42 @@ describe('dual-form-args', () => {
     it('实参不足（box()）→ 原样返回，交由 op 自身断言报错', () => {
       expect(positionalToObject([], boxForm, 'box')).toEqual([])
     })
+
+    // ── §6.2：尾参 options 合并（brepjs 形态 + options 尾参） ──
+
+    it('vec3 槽装箱后尾参 options 合并（box(10,20,30,{centered:true})）', () => {
+      expect(positionalToObject([10, 20, 30, { centered: true }], boxForm, 'box')).toEqual([
+        { size: [10, 20, 30], centered: true },
+      ])
+    })
+
+    it('单标量 + options（box(20,{centered:true}) → {size:20,centered:true}）', () => {
+      expect(positionalToObject([20, { centered: true }], boxForm, 'box')).toEqual([
+        { size: 20, centered: true },
+      ])
+    })
+
+    it('位置槽 + options（cylinder(5,40,{centered:true}）', () => {
+      expect(positionalToObject([5, 40, { centered: true }], cylinderForm, 'cylinder')).toEqual([
+        { radius: 5, height: 40, centered: true },
+      ])
+    })
+
+    it('单槽 + options（sphere(5,{at:[0,0,10],segments:32})）', () => {
+      const sphereForm: PositionalForm = { keys: ['radius'] }
+      expect(positionalToObject([5, { at: [0, 0, 10], segments: 32 }], sphereForm, 'sphere')).toEqual([
+        { radius: 5, at: [0, 0, 10], segments: 32 },
+      ])
+    })
+
+    it('尾部 options 键与位置槽键冲突 → E_ARGS_FORM', () => {
+      expect(() => positionalToObject([5, 40, { height: 40 }], cylinderForm, 'cylinder')).toThrow(
+        'E_ARGS_FORM',
+      )
+    })
+
+    it('尾部多余实参不是 plain object → 维持 E_ARGS_FORM', () => {
+      expect(() => positionalToObject([1, 2, 3, 4], boxForm, 'box')).toThrow('E_ARGS_FORM')
+    })
   })
 })

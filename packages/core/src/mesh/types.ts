@@ -58,7 +58,7 @@ export function isMeshShape(v: unknown): v is Shape {
 // ── 创建参数 ──
 
 /** Default radial segment count used for rounded geometry. */
-export const NRAD_DEFAULT = 32
+export const NRAD_DEFAULT = 64
 /** Minimum allowed radial segment count. */
 export const NRAD_MIN = 3
 /** Maximum allowed radial segment count. */

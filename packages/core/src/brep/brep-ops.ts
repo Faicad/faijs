@@ -46,7 +46,7 @@ export function solidToShape(
 ): Shape {
   const angularDeflection = segments
     ? (2 * Math.PI) / Math.max(3, segments)
-    : (2 * Math.PI) / 32 // 默认 32 段精度（与 primitives-brep.ts 一致）
+    : (2 * Math.PI) / 64 // 缺省 64 = brepjs standard 等效（§5.0/§5.1）
   const mesh: BrepMeshResult = kernel.meshShape(solid, {
     linearDeflection: 0.1,
     angularDeflection,

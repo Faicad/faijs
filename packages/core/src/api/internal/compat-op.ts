@@ -95,15 +95,42 @@ export function unwrapOrThrow(r: unknown, name: string): unknown {
 
 /** Step 5: outward adoption — top-level handle or geometryFields declared
  *  fields; deduplication of already-adopted handles lives inside adoptEntity.
+ * @param segments - caller-provided `segments` (裁决 1, §5.2), forwarded so the
+ *  adopted handle's tessellation honors it.
+ * @returns the adopted Shape, or the plain data untouched.
  */
-function adoptOut(v: unknown, spec: CompatSpec): unknown {
+function adoptOut(v: unknown, spec: CompatSpec, segments?: number): unknown {
   if (isShape(v)) return v                              // already a faijs Shape: pass through (no double adoption)
   if (spec.geometryFields && typeof v === 'object' && v !== null && !Array.isArray(v)) {
     const rec = v as Record<string, unknown>
-    for (const f of spec.geometryFields) rec[f] = adoptEntity(rec[f], spec.name)
+    for (const f of spec.geometryFields) rec[f] = adoptEntity(rec[f], spec.name, segments)
     return v
   }
-  return adoptEntity(v, spec.name)                       // top level: handle → adopt; pure data → pass through
+  return adoptEntity(v, spec.name, segments)            // top level: handle → adopt; pure data → pass through
+}
+
+/**
+ * Read the caller-supplied tessellation density from a compat op's args.
+ *
+ * 裁决 1：faijs 的 `segments` 显式超集在 brepjs 投影侧也必须可选；这里从调用点
+ * 的尾参 options（或任一 plain-object 实参）抓取 `segments`，在产出句柄被收编为
+ * faijs Shape 时透传给 `fromHandle` 的三角化（§5.2 机制）。默认不传 = 由
+ * handle-bridge 的 64 兜底。
+ */
+function readSegmentsFromArgs(args: unknown[]): number | undefined {
+  for (let i = args.length - 1; i >= 0; i--) {
+    const a = args[i]
+    if (
+      a !== null &&
+      typeof a === 'object' &&
+      !Array.isArray(a) &&
+      Object.getPrototypeOf(a) === Object.prototype
+    ) {
+      const seg = (a as Record<string, unknown>).segments
+      if (typeof seg === 'number' && Number.isFinite(seg)) return seg
+    }
+  }
+  return undefined
 }
 
 /**
@@ -134,8 +161,8 @@ export function compatOp(
     const borrowed = args.map((a) => borrowDeep(a, 0))
     // Step 4: call + Result unwrap.
     const value = unwrapOrThrow(callBrepjs(fn as never, borrowed), spec.name)
-    // Step 5/6: adopt the output and return it.
-    return adoptOut(value, spec)
+    // Step 5/6: adopt the output (with the caller's `segments`, 裁决 1/§5.2) and return it.
+    return adoptOut(value, spec, readSegmentsFromArgs(args))
   }
   // Metadata convention identical to defineOp (kind 'depth-op', brep-only).
   const meta: DualOpMeta = {

@@ -254,8 +254,12 @@ export function positionalToObject(args: unknown[], form: PositionalForm, name: 
   for (const key of form.keys) {
     if (i >= rest.length) break
     if (form.vec3Keys?.includes(key)) {
-      // vec3 槽位：吃掉最多 3 个连续实参（1 个 → 标量，2~3 个 → 数组）
-      const take = Math.min(3, rest.length - i)
+      // vec3 槽位：吃掉最多 3 个连续实参（1 个 → 标量，2~3 个 → 数组）。
+      // 若剩余序列最末是 plain object（候选尾参 options），先为它留位，不让
+      // vec3 槽把它吞进拓扑参数（`box(10,20,30,{centered:true})`、`box(20,{centered:true})`）。
+      const avail = rest.length - i
+      const reserveOptions = avail > 1 && isPlainObjectValue(rest[rest.length - 1]) ? 1 : 0
+      const take = Math.min(3, avail - reserveOptions)
       const chunk = rest.slice(i, i + take)
       obj[key] = take === 1 ? chunk[0] : chunk
       i += take
@@ -264,7 +268,22 @@ export function positionalToObject(args: unknown[], form: PositionalForm, name: 
     obj[key] = rest[i]
     i += 1
   }
+  // D11 尾参 options 合并（§6.2）：位置槽装箱后，若剩余实参恰好 1 个且为
+  // plain object → 作为 options 并入 args。让 `box(10,20,30,{centered:true})`、
+  // `sphere(5,{at,segments})`、`cylinder(5,40,{centered:true})` 在脚本面可用。
   if (i < rest.length) {
+    if (rest.length - i === 1 && isPlainObjectValue(rest[i])) {
+      const opts = rest[i] as Record<string, unknown>
+      const dup = Object.keys(opts).filter((k) => form.keys.includes(k) || k in obj)
+      if (dup.length > 0) {
+        throw new Error(
+          `[faijs/args] ${name}: E_ARGS_FORM: option key(s) ${dup.join(', ')} ` +
+          `conflict with positional slot(s) (${form.keys.join(', ')})`
+        )
+      }
+      Object.assign(obj, opts)
+      return [...args.slice(0, shapeArity), obj]
+    }
     throw new Error(
       `[faijs/args] ${name}: E_ARGS_FORM: expected ${form.keys.join(', ')} ` +
         `(${form.keys.length} positional slot(s)); got ${rest.length} value(s): ` +

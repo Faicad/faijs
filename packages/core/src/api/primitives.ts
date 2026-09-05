@@ -8,6 +8,7 @@
  */
 
 import type { Shape } from '../mesh/types'
+import { clampNRad } from '../mesh/types'
 import { cad } from '../mesh'
 import { primitiveToBrepSolid } from '../primitives/brep-primitives'
 import { solidToShape } from '../brep/brep-ops'
@@ -80,7 +81,7 @@ function primitiveBrep(op: string, params: Record<string, unknown>): Shape {
   const origin = String(getCurrentStmt()?.outputs[0] ?? op)
   const roles = assignRoles(kernel, result.solid, op)
   return fromBrep(
-    solidToShape(kernel, result.solid, params.segments as number | undefined),
+    solidToShape(kernel, result.solid, clampNRad(params.nRad ?? params.segments)),
     { solid: result.solid, roleTable: new Map([[asPartName(origin), roles]]) },
   )
 }
@@ -130,25 +131,40 @@ export const box = defineOp({
  * @name sphere
  * @returns Shape 球体几何，可作为后续 op 的输入。
  * @param params.radius - 半径（mm）。type:number required:true
- * @param params.segments - 细分度（影响面数）。type:number 默认 32
- * @param params.center - 球心位置。type:[x,y,z] 默认 [0,0,0]（原点）。
+ * @param params.segments - 细分度（影响面数）。type:number 默认 64（= brepjs standard 等效，P0 §5.0/§5.1）
+ * @param params.center - 球心位置（at 的同义别名）。type:[x,y,z] 默认 [0,0,0]（原点）。
+ * @param params.at - 球心位置（center 的同义别名，brepjs 契约；裁决 4 双形态合法）。
  * @example
  * const r = cad.sphere({ radius: 10 })
+ * const r = cad.sphere(10, { at: [0, 0, 10], segments: 64 })
  * const r = cad.sphere({ radius: 10, segments: 64, center: [0,0,10] })
-  */
+ */
 export const sphere = defineOp({
   name: 'sphere',
   mesh: (params: Record<string, unknown>) => {
     assertSphereParams(params)
-    return cad.sphere(params as never)
+    return cad.sphere(centerParams(params) as never)
   },
   brep: (params: Record<string, unknown>) => {
     assertSphereParams(params)
-    return primitiveBrep('sphere', params)
+    return primitiveBrep('sphere', centerParams(params))
   },
-  // D11: `sphere(10)` == `sphere({ radius: 10 })`.
+  // L3 metadata (D2): creator consumes no shape inputs.
+  consumes: 'none',
+  schema: { radius: 'number', segments: 'number?', center: 'vec3?', at: 'vec3?' },
+  // D11: `sphere(10)` == `sphere({ radius: 10 })`; 尾参 options（{at, segments}）
+  // 经 dual-form-args 的尾参合并规则归一（裁决 4，§6.2）。
   positional: { keys: ['radius'] },
 })
+
+/**
+ * 位置归一：把 brepjs 契约的 `at`（= faijs 的 `center`，球心语义）归一为一个
+ * `center` 输入，mesh/brep 两条消费路径共用（裁决 1/4，§4.2）。
+ */
+function centerParams(params: Record<string, unknown>): Record<string, unknown> {
+  if (params.at !== undefined) return { ...params, center: params.at }
+  return params
+}
 
 /**
  * 创建圆柱体。
@@ -160,7 +176,7 @@ export const sphere = defineOp({
  * @returns Shape 圆柱体几何，可作为后续 op 的输入。
  * @param params.radius - 底面半径（mm）。type:number required:true
  * @param params.height - 高度（mm），沿 Z 轴。type:number required:true
- * @param params.segments - 细分度（影响面数）。type:number 默认 32
+ * @param params.segments - 细分度（影响面数）。type:number 默认 64（= brepjs standard 等效，P0 §5.0/§5.1）
  * @param params.center - 中心位置。type:[x,y,z] 默认 [0,0,0]（原点）。
  * @example
  * const c = cad.cylinder({ radius: 5, height: 40 })
@@ -193,7 +209,7 @@ export const cylinder = defineOp({
  * @param params.radiusBottom - 底半径（mm）。type:number required:true
  * @param params.radiusTop - 顶半径（mm），可传 0 得尖锥，传等于 radiusBottom 得圆柱。type:number required:true
  * @param params.height - 高度（mm），沿 Z 轴。type:number required:true
- * @param params.segments - 细分度（影响面数）。type:number 默认 32
+ * @param params.segments - 细分度（影响面数）。type:number 默认 64（= brepjs standard 等效，P0 §5.0/§5.1）
  * @param params.center - 中心位置。type:[x,y,z] 默认 [0,0,0]（原点）。
  * @example
  * const c = cad.cone({ radiusBottom: 10, radiusTop: 4, height: 30 })
