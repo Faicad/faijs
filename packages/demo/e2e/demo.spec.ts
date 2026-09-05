@@ -179,12 +179,12 @@ test.describe('faijs demo', () => {
     // 切到内置示例：编辑器变为示例内容
     await page.locator(SELECTOR.exampleSelect).selectOption('drill-test')
     await waitForStatusOk(page)
-    await expect(page.locator(SELECTOR.editor)).toHaveValue(/cad\.cylinder\(\{ radius: 5, height: 20/)
+    await expect(page.locator(SELECTOR.editor)).toHaveValue(/cad\.cylinder\(5, 20, { centered: true, at: \[0, 0, 0\] }\)/)
 
     // 切回 __file__：恢复文件内容，下拉仍显示文件名
     await page.locator(SELECTOR.exampleSelect).selectOption('__file__')
     await waitForStatusOk(page)
-    await expect(page.locator(SELECTOR.editor)).toHaveValue(/cad\.cylinder\(\{ radius: 2, height: 12/)
+    await expect(page.locator(SELECTOR.editor)).toHaveValue(/cad\.cylinder\(2, 12, { centered: true, at: \[0, 0, 0\] }\)/)
     await expect(page.locator(SELECTOR.exampleSelect)).toHaveValue('__file__')
     await expect(page.locator(`${SELECTOR.exampleSelect} option[value="__file__"]`)).toHaveText('custom-part.fai.js')
   })
