@@ -508,11 +508,18 @@ describe('BREP/Mesh equivalence: transforms', () => {
     ], 'box→rotate(30,15,45)')
   })
 
-  it('scale3d (uniform)', async () => {
+  it('scale (uniform)', async () => {
     await runAndCompare([
       makeStmt('s1', 'box', { width: 20, depth: 20, height: 20, centered: true }),
-      makeStmt('s2', 'scale3d', { factor: 2 }, ['s1']),
-    ], 'box→scale3d(2)')
+      makeStmt('s2', 'scale', { factor: 2 }, ['s1']),
+    ], 'box→scale(2)')
+  })
+
+  it('scale (uniform, with center)', async () => {
+    await runAndCompare([
+      makeStmt('s1', 'box', { width: 20, depth: 20, height: 20, centered: true }),
+      makeStmt('s2', 'scale', { factor: 2, center: [5, 0, 0] }, ['s1']),
+    ], 'box→scale(2,center=[5,0,0])')
   })
 
   it('scale3d (non-uniform)', async () => {
@@ -522,13 +529,85 @@ describe('BREP/Mesh equivalence: transforms', () => {
     ], 'box→scale3d([2,1,0.5])')
   })
 
-  it('translate → rotate_euler → scale3d (chained)', async () => {
+  it('scale3d (non-uniform, with center)', async () => {
+    await runAndCompare([
+      makeStmt('s1', 'box', { width: 20, depth: 20, height: 20, centered: true }),
+      makeStmt('s2', 'scale3d', { factor: [2, 1, 0.5], center: [5, 0, 0] }, ['s1']),
+    ], 'box→scale3d([2,1,0.5],center=[5,0,0])')
+  })
+
+  it('translate → rotate_euler → scale (chained)', async () => {
     await runAndCompare([
       makeStmt('s1', 'cylinder', { radius: 10, height: 20 }),
       makeStmt('s2', 'translate', { offset: [5, 0, 0] }, ['s1']),
       makeStmt('s3', 'rotate_euler', { anglesDeg: [0, 90, 0] }, ['s2']),
-      makeStmt('s4', 'scale3d', { factor: 1.5 }, ['s3']),
-    ], 'cyl→translate→rotate→scale3d')
+      makeStmt('s4', 'scale', { factor: 1.5 }, ['s3']),
+    ], 'cyl→translate→rotate→scale')
+  })
+})
+
+// ── P6 契约验收（§4.6 裁决 2：scale=等比+center；scale3d=非等比 vec3-only） ──
+
+describe('P6 scale/scale3d 契约: bbox 黄金值 + 负例（双路径逐点一致）', () => {
+  function assertBBox(shape: Shape, min: [number, number, number], max: [number, number, number], label: string) {
+    const m = computeMetrics(shape)
+    for (let i = 0; i < 3; i++) {
+      expect(m.bboxMin[i]).toBeCloseTo(min[i], 6)
+      expect(m.bboxMax[i]).toBeCloseTo(max[i], 6)
+    }
+    void label
+  }
+
+  for (const mode of ['brep', 'mesh'] as const) {
+    describe(`${mode} 路径`, () => {
+      it('scale(p,2) → 原点不动点（默认 center [0,0,0]）：bbox (0,0,0)..(60,40,20)', async () => {
+        // box：(0,0,0)..(30,20,10)；绕原点×2 → (0,0,0)..(60,40,20)
+        const shape = await runMode(makePartScript([
+          makeStmt('s1', 'box', { width: 30, depth: 20, height: 10 }),
+          makeStmt('s2', 'scale', { factor: 2 }, ['s1']),
+        ]), mode)
+        assertBBox(shape, [0, 0, 0], [60, 40, 20], 'scale(2) default center')
+      })
+
+      it('scale(p,2,{center:[10,10,10]}) → 不动点撑住（等价 brepjs {center}）', async () => {
+        // p' = c+2·(p−c)；min: 10+2·(−10)=−10；max: x 10+2·20=50, y 10+2·10=30, z 10+2·0=10
+        const shape = await runMode(makePartScript([
+          makeStmt('s1', 'box', { width: 30, depth: 20, height: 10 }),
+          makeStmt('s2', 'scale', { factor: 2, center: [10, 10, 10] }, ['s1']),
+        ]), mode)
+        assertBBox(shape, [-10, -10, -10], [50, 30, 10], 'scale about center')
+      })
+
+      it('scale3d(p,[2,1,0.5],{center:[10,10,10]}) → 非等比 + 不动点', async () => {
+        // p' = c + S·(p−c)；x: 10+2·(−10..20)=(−10..50), y: 10+1·(−10..10)=(0..20),
+        // z: 10+0.5·(−10..0)=(5..10)
+        const shape = await runMode(makePartScript([
+          makeStmt('s1', 'box', { width: 30, depth: 20, height: 10 }),
+          makeStmt('s2', 'scale3d', { factor: [2, 1, 0.5], center: [10, 10, 10] }, ['s1']),
+        ]), mode)
+        assertBBox(shape, [-10, 0, 5], [50, 20, 10], 'scale3d about center')
+      })
+    })
+  }
+
+  it('负例: scale3d(p,2)（标量 factor）→ E_ARGS_FORM 提示 scale（mesh+brep 双模式）', async () => {
+    for (const mode of ['mesh', 'brep'] as const) {
+      const script = makePartScript([
+        makeStmt('s1', 'box', { width: 20, depth: 20, height: 20, centered: true }),
+        makeStmt('s2', 'scale3d', { factor: 2 }, ['s1']),
+      ])
+      const runtime = createRuntime(createNodePorts(), mode)
+      await expect(runtime.executeIR(script)).rejects.toThrow(/E_ARGS_FORM/)
+    }
+  })
+
+  it('负例: scale(p,[1,2,3])（数组 factor）→ E_ARGS_FORM 提示 scale3d', async () => {
+    const script = makePartScript([
+      makeStmt('s1', 'box', { width: 20, depth: 20, height: 20, centered: true }),
+      makeStmt('s2', 'scale', { factor: [1, 2, 3] }, ['s1']),
+    ])
+    const runtime = createRuntime(createNodePorts(), 'mesh')
+    await expect(runtime.executeIR(script)).rejects.toThrow(/E_ARGS_FORM/)
   })
 })
 

@@ -69,7 +69,7 @@ describe('Phase2 executor: keep 隔离（§5.5 / D5）', () => {
 describe('Phase2 executor: bodyHash 增量（§6.2 / P4）', () => {
   const base = [
     'function scaleBy(a, k) {',
-    '  return cad.scale3d(a, { factor: k })',
+    '  return cad.scale(a, k)',
     '}',
     'let part0 = cad.box(20, 20, 20, { centered: true })',
     'let part1 = scaleBy(part0, { k: 2 })',
@@ -80,7 +80,7 @@ describe('Phase2 executor: bodyHash 增量（§6.2 / P4）', () => {
     await rt.execute(base)
     const newCode = [
       'function scaleBy(a, k) {',
-      '  return cad.scale3d(a, { factor: k * 3 })',
+      '  return cad.scale(a, k * 3)',
       '}',
       'let part0 = cad.box(20, 20, 20, { centered: true })',
       'let part1 = scaleBy(part0, { k: 2 })',
@@ -146,7 +146,7 @@ describe('Phase2 executor: terminal-dag（本机调用语句消费判定）', ()
   it('本机调用语句按 C5 消费输入（函数体内中间变量不参与终端）', async () => {
     const code = [
       'function double(a) {',
-      '  let mid = cad.scale3d(a, { factor: 2 })',
+      '  let mid = cad.scale(a, 2)',
       '  return mid',
       '}',
       'let part0 = cad.box(20, 20, 20, { centered: true })',
@@ -212,7 +212,7 @@ describe('Phase2 executor: 函数 BREP 域（§5.6 / D13，句柄释放）', () 
 describe('Phase2 executor: 模块结构（localFns 可加载执行）', () => {
   it('编译产物含 localFns 且可被动态 import 执行', async () => {
     const code = [
-      'function f(a) { return cad.scale3d(a, { factor: 2 }) }',
+      'function f(a) { return cad.scale(a, 2) }',
       'let part0 = cad.box(20, 20, 20, { centered: true })',
       'let part1 = f(part0)',
     ].join('\n')

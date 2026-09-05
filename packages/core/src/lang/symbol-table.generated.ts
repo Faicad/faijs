@@ -17,6 +17,7 @@ export default {
   "load": {},
   "translate": {},
   "rotate_euler": {},
+  "scale": {},
   "scale3d": {},
   "fai_drill": {},
   "fai_extrude": {},

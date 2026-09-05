@@ -2709,8 +2709,12 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     scriptFace: true,
   },
   {
-    name: 'scale', source: 'topology/api.js#scale', kind: 'skip',
-    reason: 'faijs 同名 scale（§5.1 双形态：对象形态手写面覆盖 + 位置形态并入），生成层不重复投影',
+    name: 'scale', source: 'topology/api.js#scale', kind: 'brep-op',
+    geometryArgs: [0], returnsResult: false,
+    args: 'scale(shape: Shape, factor: number, options?: { center?: Vec3 }): Shape',
+    reason: 'faijs 侧由手写 dual-op 覆盖（§4.6 裁决 4/2：scale = brepjs 等比 + center 不动点，mesh+brep 双实现）；本条目仅投影到 brepjs scale 契约，生成模块符号为孤儿 by design，scriptFace 不投（避免与手写 scale 撞名）。',
+    params: ['shape', 'factor', 'options'], formClass: 'A',
+    scriptFace: false,
   },
   {
     name: 'mirror', source: 'topology/api.js#mirror', kind: 'brep-op',

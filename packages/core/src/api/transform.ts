@@ -1,5 +1,5 @@
 /**
- * stdlib transform — 变换库函数（translate/rotate_euler/scale3d）
+ * stdlib transform — 变换对象库函数（translate/rotate_euler/scale/scale3d）
  *
  * 设计文档：docs/plans/2026-08-25-faijs-vm-execution-implementation-plan.md §3.11
  * 实施文档：docs/plans/2026-08-29-engine-library-contract-implementation.md P2
@@ -44,15 +44,36 @@ export function assertRotateParams(params: Record<string, unknown>): void {
 }
 
 /**
- * Validate scale3d parameters: `factor` must be a positive number or a vec3.
- * @param params - the raw scale3d operation parameters.
+ * Validate scale parameters (brepjs contract, §4.6 裁决 2): `factor` must be a
+ * positive number (uniform). The non-uniform array form belongs to `scale3d` —
+ * any `scale(p, { factor: [x,y,z] })` call throws an explicit `E_ARGS_FORM`
+ * error pointing at `scale3d` (error hint ≠ compatibility).
+ * @param params - the raw scale operation parameters.
  */
 export function assertScaleParams(params: Record<string, unknown>): void {
-  if (typeof params.factor === 'number') {
-    assertPositiveNumber(params.factor, 'scale3d.factor')
-  } else {
-    assertVec3(params.factor, 'scale3d.factor')
+  if (Array.isArray(params.factor)) {
+    throw new Error(
+      '[faijs/args] scale: E_ARGS_FORM: uniform scaling takes a single number ' +
+      '(scale(p, s, { center? })). Non-uniform scaling uses scale3d(p, [x,y,z]).',
+    )
   }
+  assertPositiveNumber(params.factor, 'scale.factor')
+}
+
+/**
+ * Validate scale3d parameters (P6: factor locked to Vec3): `factor` must be a
+ * vec3. The uniform scalar form belongs to `scale` — any `scale3d(p, 2)` call
+ * throws an explicit `E_ARGS_FORM` error pointing at `scale` (§4.6 裁决 2).
+ * @param params - the raw scale3d operation parameters.
+ */
+export function assertScale3dParams(params: Record<string, unknown>): void {
+  if (typeof params.factor === 'number') {
+    throw new Error(
+      '[faijs/args] scale3d: E_ARGS_FORM: factor must be a vec3 [x, y, z]. ' +
+      'Uniform scaling now uses scale(p, 2) (§4.6 裁决 2).',
+    )
+  }
+  assertVec3(params.factor, 'scale3d.factor')
 }
 
 /** BREP 路径：变换 solid + 恒等面演化 + 恒等 roleTable 传播 + 三角化 + fromBrep 登记。 */
@@ -68,9 +89,9 @@ function transformBrep(op: string, input: Shape, params: Record<string, unknown>
   } else if (op === 'rotate_euler') {
     resultSolid = rotateBrep(kernel, inputSolid, params.anglesDeg as Vec3, params.pivot as Vec3 | undefined)
   } else {
-    resultSolid = scaleBrep(kernel, inputSolid, params.factor as number | Vec3)
+    // op is 'scale' | 'scale3d'：统一走 带不动点的 scaleBrep（factor number|Vec3）。
+    resultSolid = scaleBrep(kernel, inputSolid, params.factor as number | Vec3, params.center as Vec3 | undefined)
   }
-  // op is 'translate' | 'rotate_euler' | 'scale3d'
 
   // §2.4/§3.3：刚体变换面 1:1 保留——hash 恒等传播 roleTable（所有 origin）
   const inputTable = getSlot(input)?.roleTable as RoleTable | undefined
@@ -149,7 +170,44 @@ export const rotate_euler = defineOp({
 })
 
 /**
- * 缩放几何体。factor 传 number 为等比缩放，传 [x,y,z] 为非等比。
+ * 等比缩放几何体（brepjs 契约，§4.6 裁决 2）。factor 只收 number；不动点默认
+ * 原点（与 vendored `scale(shape, factor, { center? })` 一致），`center` 可选。
+ * @group 变换
+ * @inputs 1
+ * @async false
+ * @qual ok
+ * @name scale
+ * @returns Shape 缩放后的几何。
+ * @param input - 目标几何。type:Shape required:true
+ * @param params.factor - 等比缩放系数（> 0）。type:number required:true
+ * @param params.center - 缩放不动点（p 保持不动）。type:[x,y,z] 默认 [0,0,0]（原点）
+ * @example
+ * const p4 = cad.scale(part0, 2)
+ * const p5 = cad.scale(part0, { factor: 2, center: [10, 0, 0] })
+ */
+export const scale = defineOp({
+  name: 'scale',
+  mesh: (input: Shape, params: Record<string, unknown>) => {
+    if (!input) throw new Error('[stdlib/scale] no input geometry')
+    assertScaleParams(params)
+    return cad.scale(input, params.factor as number, params.center as Vec3 | undefined)
+  },
+  brep: (input: Shape, params: Record<string, unknown>) => {
+    if (!input) throw new Error('[stdlib/scale] no input geometry')
+    assertScaleParams(params)
+    return transformBrep('scale', input, params)
+  },
+  // L3 metadata: transforms consume their shape input (timeline terminal).
+  consumes: 'all',
+  schema: { factor: 'number', center: 'vec3?' },
+  // D11（§4.6）：`scale(p, 2)` == `scale(p, { factor: 2 })`（标量槽）；尾参 options
+  // （{center}）经 dual-form-args 尾参合并并入。
+  positional: { keys: ['factor'], shapeArity: 1 },
+})
+
+/**
+ * 非等比缩放几何体（faijs 语义，§1.4.4 裁决 2）。factor 定死 vec3 — 等比缩放请用
+ * `scale(p, s)`，`scale3d(p, [x,y,z])` 才可非等比。`center` 为不动点（默认原点）。
  * @group 变换
  * @inputs 1
  * @async false
@@ -157,23 +215,28 @@ export const rotate_euler = defineOp({
  * @name scale3d
  * @returns Shape 缩放后的几何。
  * @param input - 目标几何。type:Shape required:true
- * @param params.factor - 缩放系数：number（等比）或 [x,y,z]（非等比，> 0）。type:number | [x,y,z] required:true
+ * @param params.factor - 三轴缩放系数（均 > 0）。type:[x,y,z] required:true
+ * @param params.center - 缩放不动点。type:[x,y,z] 默认 [0,0,0]（原点）
  * @example
- * const p4 = cad.scale3d(part0, { factor: 2 })
- * const p5 = cad.scale3d(part0, { factor: [2, 1, 1] })
+ * const p4 = cad.scale3d(part0, { factor: [2, 1, 1] })
+ * const p5 = cad.scale3d(part0, [2, 1, 1], { center: [10, 0, 0] })
  */
 export const scale3d = defineOp({
   name: 'scale3d',
   mesh: (input: Shape, params: Record<string, unknown>) => {
     if (!input) throw new Error('[stdlib/scale3d] no input geometry')
-    assertScaleParams(params)
-    return cad.scale3d(input, params.factor as number | Vec3)
+    assertScale3dParams(params)
+    return cad.scale3d(input, params.factor as Vec3, params.center as Vec3 | undefined)
   },
   brep: (input: Shape, params: Record<string, unknown>) => {
     if (!input) throw new Error('[stdlib/scale3d] no input geometry')
-    assertScaleParams(params)
+    assertScale3dParams(params)
     return transformBrep('scale3d', input, params)
   },
-  // D11: `scale3d(p, 2)` == `scale3d(p, { factor: 2 })` (vec3 slot accepts 1→scalar).
+  // L3 metadata: transforms share their shape input (timeline terminal).
+  consumes: 'all',
+  schema: { factor: 'vec3', center: 'vec3?' },
+  // D11（裁决 2）：`scale3d(p, [1,2,3])` == `scale3d(p, { factor: [1,2,3] })`；
+  // 标量 factor（如 `scale3d(p, 2)`）由 assertScale3dParams 拒绝并提示 `scale`。
   positional: { keys: ['factor'], vec3Keys: ['factor'], shapeArity: 1 },
 })

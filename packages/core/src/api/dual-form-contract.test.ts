@@ -127,6 +127,25 @@ describe('P1/P2 双形态契约（同一几何，两种写法）', () => {
         const objectForm = await runShape('let part0 = cad.sphere({ radius: 5 })\n', mode)
         expectBoxEqual(computeMetrics(objectForm), computeMetrics(positional), 'sphere bare')
       })
+
+      it('scale 位置形态 `scale(p,2,{center})` ≡ 对象形态 `scale(p,{factor:2,center})`（P6 §4.6 裁决 2）', async () => {
+        const base = 'let part0 = cad.box(20, 20, 20, { centered: true })\n'
+        const positional = await runShape(base + 'part0 = cad.scale(part0, 2, { center: [4, 0, 0] })\n', mode)
+        const objectForm = await runShape(base + 'part0 = cad.scale(part0, { factor: 2, center: [4, 0, 0] })\n', mode)
+        expectBoxEqual(computeMetrics(objectForm), computeMetrics(positional), 'scale dual-form')
+      })
+
+      it('scale3d 位置形态 `scale3d(p,[2,1,0.5])` ≡ 对象形态 `scale3d(p,{factor:[2,1,0.5]})`（P6）', async () => {
+        const base = 'let part0 = cad.box(20, 20, 20, { centered: true })\n'
+        const positional = await runShape(base + 'part0 = cad.scale3d(part0, [2, 1, 0.5])\n', mode)
+        const objectForm = await runShape(base + 'part0 = cad.scale3d(part0, { factor: [2, 1, 0.5] })\n', mode)
+        expectBoxEqual(computeMetrics(objectForm), computeMetrics(positional), 'scale3d dual-form')
+      })
+
+      it('负例: scale3d(p,2) 标量 factor → E_ARGS_FORM 提示 scale（P6 裁决 2）', async () => {
+        const base = 'let part0 = cad.box(20, 20, 20, { centered: true })\n'
+        await expect(runShape(base + 'part0 = cad.scale3d(part0, 2)\n', mode)).rejects.toThrow(/E_ARGS_FORM/)
+      })
     })
   }
 })

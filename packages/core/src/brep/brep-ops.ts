@@ -116,21 +116,32 @@ export function rotateBrep(
 /**
  * BREP 缩放：使用 OCCT transform（3x4 仿射矩阵）。
  *
- * 与 mesh 路径 scale3d(shape, factor) 一致：
+ * 与 mesh 路径 scale（P6 §4.6）一致：
  * - factor 为 number（均匀缩放）或 Vec3 [sx, sy, sz]（非均匀）
+ * - center 为缩放不动点（p' = center + S·(p − center)）；缺省 [0,0,0]（原点），
+ *   与 vendored brepjs `scale(shape, factor, { center? })` 的默认一致。
  *
  * @param kernel  OCCT 内核
  * @param solid   输入实体
  * @param factor  缩放因子
+ * @param center  缩放不动点（可选，默认原点）
  * @returns 新实体
  */
 export function scaleBrep(
   kernel: BrepEngineApi,
   solid: BrepHandle,
   factor: number | Vec3,
+  center?: Vec3,
 ): BrepHandle {
   const f = typeof factor === 'number' ? [factor, factor, factor] : factor
-  const matrix = new THREE.Matrix4().makeScale(f[0], f[1], f[2])
+  const scale = new THREE.Matrix4().makeScale(f[0], f[1], f[2])
+  // T(c)·S·T(−c)：不动点为 center；缺省时退化为原点缩放（现状行为）。
+  const matrix = center
+    ? new THREE.Matrix4()
+        .makeTranslation(center[0], center[1], center[2])
+        .multiply(scale)
+        .multiply(new THREE.Matrix4().makeTranslation(-center[0], -center[1], -center[2]))
+    : scale
   const isUniform = f[0] === f[1] && f[1] === f[2]
   // OCCT gp_Trsf (kernel.transform) only supports uniform scaling.
   // Non-uniform scaling requires gp_GTrsf (kernel.generalTransform).

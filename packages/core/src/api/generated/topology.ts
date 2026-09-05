@@ -1,7 +1,7 @@
 /**
  * generated/topology.ts — 生成文件，勿手改。
  * 由 packages/core/scripts/gen-l3-surface.ts 依据 api/surface/arg-spec.ts 生成（E5/P14 分片）。
- * topology 模块：134 个投影符号；另有 168 个 skip 登记。
+ * topology 模块：135 个投影符号；另有 167 个 skip 登记。
  */
 import { compatOp } from '../internal/compat-op'
 import { projectBrepOp } from '../internal/compat-projection'
@@ -16,6 +16,7 @@ import { cylinder as __vendored_cylinder } from '../../vendored/brepjs/topology/
 import { cone as __vendored_cone } from '../../vendored/brepjs/topology/primitiveFns.js'
 import { ellipsoid as __vendored_ellipsoid } from '../../vendored/brepjs/topology/primitiveFns.js'
 import { rotate as __vendored_rotate } from '../../vendored/brepjs/topology/api.js'
+import { scale as __vendored_scale } from '../../vendored/brepjs/topology/api.js'
 import { mirror as __vendored_mirror } from '../../vendored/brepjs/topology/api.js'
 import { clone as __vendored_clone } from '../../vendored/brepjs/topology/api.js'
 import { applyMatrix as __vendored_applyMatrix } from '../../vendored/brepjs/topology/api.js'
@@ -310,6 +311,16 @@ export const ellipsoid = compatOp(
 export const rotate = compatOp(
   projectBrepOp('rotate', ["shape","angle","options"], 'A', __vendored_rotate),
   { name: 'rotate', consumes: "all" },
+)
+
+/**
+ * scale — brepjs 投影（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
+ * scale(shape: Shape, factor: number, options?: { center?: Vec3 }): Shape
+ * 桥接：compatOp(projectBrepOp(…))——单内核断言 + D11 归一 + 语句边界六步契约（§4.3.2）。
+ */
+export const scale = compatOp(
+  projectBrepOp('scale', ["shape","factor","options"], 'A', __vendored_scale),
+  { name: 'scale', consumes: "all" },
 )
 
 /**

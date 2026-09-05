@@ -9,7 +9,7 @@ import { assertBoxParams, assertSphereParams, assertCylinderParams, assertConePa
 import { assertDrillParams } from './fai_drill'
 import { assertExtrudeParams } from './fai_extrude'
 import { assertEngraveParams } from './engrave'
-import { assertTranslateParams, assertRotateParams, assertScaleParams } from './transform'
+import { assertTranslateParams, assertRotateParams, assertScaleParams, assertScale3dParams } from './transform'
 import { assertSdfParams } from './sdf'
 import { assertTextParams } from './text'
 import { assertScrewParams } from './screw'
@@ -90,11 +90,17 @@ describe('stdlib per-op assert: 变换类', () => {
     expect(() => assertRotateParams({ anglesDeg: [0, 0, 90] })).not.toThrow()
   })
 
-  it('scale3d: factor 必填（number > 0 或 vec3）', () => {
-    expect(() => assertScaleParams({})).toThrow(/scale3d\.factor/)
-    expect(() => assertScaleParams({ factor: 0 })).toThrow(/scale3d\.factor/)
+  it('scale: factor 必填 number > 0；非数组 → E_ARGS_FORM 指向 scale3d（P6 §4.6）', () => {
+    expect(() => assertScaleParams({})).toThrow(/scale\.factor/)
+    expect(() => assertScaleParams({ factor: 0 })).toThrow(/scale\.factor/)
     expect(() => assertScaleParams({ factor: 2 })).not.toThrow()
-    expect(() => assertScaleParams({ factor: [1, 2, 3] })).not.toThrow()
+    expect(() => assertScaleParams({ factor: [1, 2, 3] })).toThrow(/E_ARGS_FORM.*scale3d/)
+  })
+
+  it('scale3d: factor 定死 vec3；等比标量 → E_ARGS_FORM 指向 scale（P6 §4.6）', () => {
+    expect(() => assertScale3dParams({})).toThrow(/scale3d\.factor/)
+    expect(() => assertScale3dParams({ factor: 2 })).toThrow(/E_ARGS_FORM.*scale/)
+    expect(() => assertScale3dParams({ factor: [1, 2, 3] })).not.toThrow()
   })
 })
 

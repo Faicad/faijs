@@ -57,12 +57,35 @@ export function rotate_euler(shape: Shape, anglesDeg: Vec3, pivot?: Vec3): Shape
  * Scale a mesh shape by baking the factor into its vertices.
  * @param shape - the mesh shape to scale.
  * @param factor - uniform scale factor or per-axis (x, y, z) factors.
+ * @param center - optional fixed point of the scaling (P6 §4.6; default origin).
  * @returns a new shape with scaled vertices.
  */
-export function scale3d(shape: Shape, factor: number | Vec3): Shape {
-  const f = typeof factor === 'number' ? [factor, factor, factor] : factor
-  const matrix = new THREE.Matrix4().makeScale(f[0], f[1], f[2])
-  return applyMatrix(shape, matrix)
+export function scale3d(shape: Shape, factor: number | Vec3, center?: Vec3): Shape {
+  const f: [number, number, number] =
+    typeof factor === 'number' ? [factor, factor, factor] : [factor[0], factor[1], factor[2]]
+  return applyMatrix(shape, scaleMatrix(f, center))
+}
+
+/**
+ * Uniformly scale a mesh shape (brepjs `scale` 契约，P6 §4.6)。后台用
+ * `scale3d` 的等比参数；`center` 为缩放不动的点，默认原点。
+ * @param shape - the mesh shape to scale.
+ * @param factor - uniform scale factor (> 0).
+ * @param center - optional fixed point of the scaling (default origin).
+ * @returns a new shape with uniformly scaled vertices.
+ */
+export function scale(shape: Shape, factor: number, center?: Vec3): Shape {
+  return applyMatrix(shape, scaleMatrix([factor, factor, factor], center))
+}
+
+/** 缩放矩阵：围绕 `center`（缺省原点）构造 T(c)·S·T(−c)。 */
+function scaleMatrix(f: [number, number, number], center?: Vec3): THREE.Matrix4 {
+  const s = new THREE.Matrix4().makeScale(f[0], f[1], f[2])
+  if (!center) return s
+  return new THREE.Matrix4()
+    .makeTranslation(center[0], center[1], center[2])
+    .multiply(s)
+    .multiply(new THREE.Matrix4().makeTranslation(-center[0], -center[1], -center[2]))
 }
 
 /** 用 THREE.Matrix4 变换几何 */

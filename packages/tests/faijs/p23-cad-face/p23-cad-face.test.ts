@@ -126,14 +126,14 @@ describe('② D11 双形态：位置形态与对象形态归一到同一实现',
     expect(bbox(scripted)).toEqual(bbox(direct))
   })
 
-  it('translate / scale3d 位置形态 ≡ 对象形态（Shape 前置形参透传）', async () => {
+  it('translate / scale 位置形态 ≡ 对象形态（Shape 前置形参透传；P6：等比用 scale）', async () => {
     const warm = await rt.execute('const g = cad.box(10, 10, 10, { centered: true })')
     const base = warm.outputs.get(asPartName('g')) as Shape
     expect(bbox(await cadFn('translate')(base, 10, 0, 0))).toEqual(
       bbox(await cadFn('translate')(base, { offset: [10, 0, 0] })),
     )
-    expect(bbox(await cadFn('scale3d')(base, 2))).toEqual(
-      bbox(await cadFn('scale3d')(base, { factor: 2 })),
+    expect(bbox(await cadFn('scale')(base, 2))).toEqual(
+      bbox(await cadFn('scale')(base, { factor: 2 })),
     )
   })
 
