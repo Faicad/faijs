@@ -76,7 +76,7 @@ function terminalsFromCode(code: string, view?: DagRuntimeView): string[] {
 describe('computeLeafTerminals: DAG leaf detection', () => {
   it('boolean: box + sphere + subtract → 仅 subtract 终端', () => {
     const terminals = terminalsFromCode(`
-      let part0 = cad.box({ size: 20 })
+      let part0 = cad.box(20, 20, 20, { centered: true })
       let part1 = cad.sphere({ radius: 8, center: [5, 0, 0] })
       let part2 = cad.subtract(part0, part1)
     `)
@@ -85,7 +85,7 @@ describe('computeLeafTerminals: DAG leaf detection', () => {
 
   it('链式重赋值: part0 = translate(part0) → 仅 1 个终端 (part0 最终值)', () => {
     const terminals = terminalsFromCode(`
-      let part0 = cad.box({ size: 20 })
+      let part0 = cad.box(20, 20, 20, { centered: true })
       part0 = cad.translate(part0, { offset: [5, 0, 0] })
     `)
     expect(terminals).toEqual(['part0'])
@@ -93,7 +93,7 @@ describe('computeLeafTerminals: DAG leaf detection', () => {
 
   it('保名链: part0 = drill(part0) → 仅 part0 终端 (drilled)', () => {
     const terminals = terminalsFromCode(`
-      let part0 = cad.box({ size: 20 })
+      let part0 = cad.box(20, 20, 20, { centered: true })
       part0 = cad.fai_drill(part0, { diameter: 5, depth: 10 })
     `)
     expect(terminals).toEqual(['part0'])
@@ -102,12 +102,12 @@ describe('computeLeafTerminals: DAG leaf detection', () => {
   it('非保名: part0=box; part1=copy(part0); part1=drill(part1) → part0、part1 终端', () => {
     // copy 函数体 exec.keep(input) → part0 不被 copy 消费（C1 视图）
     const view = builtinKeepView(parseAndCollectVars(`
-      let part0 = cad.box({ size: 20 })
+      let part0 = cad.box(20, 20, 20, { centered: true })
       let part1 = cad.copy(part0)
       part1 = cad.fai_drill(part1, { diameter: 5, depth: 10 })
     `).script)
     const terminals = terminalsFromCode(`
-      let part0 = cad.box({ size: 20 })
+      let part0 = cad.box(20, 20, 20, { centered: true })
       let part1 = cad.copy(part0)
       part1 = cad.fai_drill(part1, { diameter: 5, depth: 10 })
     `, view)
@@ -116,7 +116,7 @@ describe('computeLeafTerminals: DAG leaf detection', () => {
 
   it('group 不消费成员（C1 函数体 exec.keep）: part0 + part1 → group → 三者都是终端', () => {
     const code = `
-      let part0 = cad.box({ size: 20 })
+      let part0 = cad.box(20, 20, 20, { centered: true })
       let part1 = cad.sphere({ radius: 8 })
       let part2 = cad.group({ name: 'G', members: [part0, part1] })
     `
@@ -127,7 +127,7 @@ describe('computeLeafTerminals: DAG leaf detection', () => {
 
   it('group 未声明 keep（纯静态，C5）→ 成员被消费，只剩 group', () => {
     const terminals = terminalsFromCode(`
-      let part0 = cad.box({ size: 20 })
+      let part0 = cad.box(20, 20, 20, { centered: true })
       let part1 = cad.sphere({ radius: 8 })
       let part2 = cad.group({ name: 'G', members: [part0, part1] })
     `)
@@ -136,8 +136,8 @@ describe('computeLeafTerminals: DAG leaf detection', () => {
 
   it('assembly 不消费成员（C1 函数体 exec.keep）: part0 + part1 → assembly → 三者都是终端', () => {
     const code = `
-      let part0 = cad.box({ size: 10 })
-      let part1 = cad.box({ size: 10 })
+      let part0 = cad.box(10, 10, 10, { centered: true })
+      let part1 = cad.box(10, 10, 10, { centered: true })
       let part2 = cad.assembly({ name: 'A', members: [part0, part1] })
     `
     const view = builtinKeepView(parseAndCollectVars(code).script)
@@ -147,7 +147,7 @@ describe('computeLeafTerminals: DAG leaf detection', () => {
 
   it('成员方法调用不消费 compound（真实解析: parser 保留词法名）: asm1=assembly(...); asm1.add_constraint(...) → compound 仍终端', () => {
     const code = `
-      let part0 = cad.box({ size: 20 })
+      let part0 = cad.box(20, 20, 20, { centered: true })
       let asm1 = cad.assembly({ members: [part0] })
       asm1.add_constraint({ type: 'face_mate' })
     `
@@ -158,7 +158,7 @@ describe('computeLeafTerminals: DAG leaf detection', () => {
 
   it('do_assemble 成员方法调用同样不消费 compound（保留词法名）', () => {
     const code = `
-      let part0 = cad.box({ size: 20 })
+      let part0 = cad.box(20, 20, 20, { centered: true })
       let asm1 = cad.assembly({ members: [part0] })
       asm1.do_assemble()
     `
@@ -181,7 +181,7 @@ describe('computeLeafTerminals: DAG leaf detection', () => {
 
   it('copy 不消费源（C1 函数体 exec.keep）: part0=box; part1=copy(part0) → 两者都是终端', () => {
     const code = `
-      let part0 = cad.box({ size: 20 })
+      let part0 = cad.box(20, 20, 20, { centered: true })
       let part1 = cad.copy(part0)
     `
     const view = builtinKeepView(parseAndCollectVars(code).script)
@@ -191,7 +191,7 @@ describe('computeLeafTerminals: DAG leaf detection', () => {
 
   it('copy 一源多副本: part0=box; part1=copy(part0); part2=copy(part0) → 三者都是终端', () => {
     const code = `
-      let part0 = cad.box({ size: 20 })
+      let part0 = cad.box(20, 20, 20, { centered: true })
       let part1 = cad.copy(part0)
       let part2 = cad.copy(part0)
     `
@@ -202,7 +202,7 @@ describe('computeLeafTerminals: DAG leaf detection', () => {
 
   it('copy 副本被消费: part0=box; part1=copy(part0); part1=drill(part1) → part0、part1 终端', () => {
     const code = `
-      let part0 = cad.box({ size: 20 })
+      let part0 = cad.box(20, 20, 20, { centered: true })
       let part1 = cad.copy(part0)
       part1 = cad.fai_drill(part1, { diameter: 5 })
     `
@@ -214,7 +214,7 @@ describe('computeLeafTerminals: DAG leaf detection', () => {
 
   it('assemble + drill 链: x1=box; x2=assemble(x1); x1=drill(x1) → x1 和 x2 都是终端', () => {
     const code = `
-      let part0 = cad.box({ size: 20 })
+      let part0 = cad.box(20, 20, 20, { centered: true })
       let part1 = cad.assembly({ members: [part0] })
       part0 = cad.fai_drill(part0, { diameter: 5 })
     `
@@ -225,14 +225,14 @@ describe('computeLeafTerminals: DAG leaf detection', () => {
 
   it('单 box 无下游消费 → 单终端', () => {
     const terminals = terminalsFromCode(`
-      let part0 = cad.box({ size: 20 })
+      let part0 = cad.box(20, 20, 20, { centered: true })
     `)
     expect(terminals).toEqual(['part0'])
   })
 
   it('三个独立原语互不消费 → 3 个终端', () => {
     const terminals = terminalsFromCode(`
-      let part0 = cad.box({ size: 20 })
+      let part0 = cad.box(20, 20, 20, { centered: true })
       let part1 = cad.sphere({ radius: 8 })
       let part2 = cad.cylinder({ radius: 5, height: 20 })
     `)
@@ -244,8 +244,8 @@ describe('computeLeafTerminals: hidden（D2 最后一次保留声明胜出）', 
   it('union 内置 keepHidden → 成员 hidden', () => {
     // 模拟 union 函数体 exec.keepHidden(inputs) 登记（union 保留且隐藏，R5）
     const { script, shapeVarNames } = parseAndCollectVars(`
-      let part0 = cad.box({ size: 20 })
-      let part1 = cad.box({ size: 5 })
+      let part0 = cad.box(20, 20, 20, { centered: true })
+      let part1 = cad.box(5, 5, 5, { centered: true })
       let part2 = cad.union(part0, part1)
     `)
     const internal = new Map<StmtId, InternalKeepRecord>()
@@ -265,7 +265,7 @@ describe('computeLeafTerminals: hidden（D2 最后一次保留声明胜出）', 
   it('后声明压过先声明：union(keepHidden) 后 group(keep) → 成员可见（hidden undefined）', () => {
     // 同一变量 part0 先后被 union 的 keepHidden 与 group 的 keep 声明 → 后者胜出
     const { script, shapeVarNames } = parseAndCollectVars(`
-      let part0 = cad.box({ size: 20 })
+      let part0 = cad.box(20, 20, 20, { centered: true })
       let part2 = cad.union(part0)
       let part3 = cad.group({ members: [part0] })
     `)
@@ -306,7 +306,7 @@ describe('C2: static consumes declaration (D2 G3/G4) drives terminals', () => {
   it('consumes "none" → 语句不消费输入：part0 → probe → 两者都保持终端', () => {
     // probe 是有几何输入的 op，但声明不消费（如只读测量/查询）→ part0 不被吞
     const code = `
-      let part0 = cad.box({ size: 20 })
+      let part0 = cad.box(20, 20, 20, { centered: true })
       let part1 = cad.probe(part0)
     `
     const view = consumesView({ probe: 'none' })
@@ -316,7 +316,7 @@ describe('C2: static consumes declaration (D2 G3/G4) drives terminals', () => {
 
   it('无 consumes 声明 → C5 默认消费：probe 缺省吞上游', () => {
     const code = `
-      let part0 = cad.box({ size: 20 })
+      let part0 = cad.box(20, 20, 20, { centered: true })
       let part1 = cad.probe(part0)
     `
     const terminals = terminalsFromCode(code)
@@ -325,8 +325,8 @@ describe('C2: static consumes declaration (D2 G3/G4) drives terminals', () => {
 
   it('consumes number[] 只消费列出的位置：只吞第 2 个输入', () => {
     const code = `
-      let part0 = cad.box({ size: 20 })
-      let part1 = cad.box({ size: 5 })
+      let part0 = cad.box(20, 20, 20, { centered: true })
+      let part1 = cad.box(5, 5, 5, { centered: true })
       let part2 = cad.combine(part0, part1)
     `
     const view = consumesView({ combine: [1] }) // 只消费 part1（位置 1）
@@ -336,7 +336,7 @@ describe('C2: static consumes declaration (D2 G3/G4) drives terminals', () => {
 
   it('consumes 声明被调用点 keep 覆盖（C0 优先）', () => {
     const code = `
-      let part0 = cad.box({ size: 20 })
+      let part0 = cad.box(20, 20, 20, { centered: true })
       let part1 = cad.keep_combined(part0) // 调用点显式 keep
     `
     const view: DagRuntimeView = {

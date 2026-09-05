@@ -28,25 +28,38 @@ function geoToShape(geo: THREE.BufferGeometry): Shape {
 // ── 创建 API ──
 
 /**
- * Create a box solid. A numeric `size` yields a cube; a Vec3 yields a box with
- * distinct dimensions (Z-up).
+ * Create a box solid (brepjs contract, §4.1 A 决策).
  *
- * @param params - box parameters (size, optional center).
+ * `box(width, depth, height)` — X=width, Y=depth, Z=height — places the
+ * min-corner at the origin by default (`centered:false`). `centered: true`
+ * centers the box at the origin; `at` is CENTER semantics and takes precedence
+ * over `centered`. The `segments` option is consumed by the tessellation
+ * caller (this mesh builder keeps it via clampNRad when present).
+ *
+ * @param params - box parameters (width/depth/height, optional at/centered/segments).
  * @returns the box shape.
  */
 export function box(params: BoxParams): Shape {
-  let geo: THREE.BufferGeometry
-  if (Array.isArray(params.size)) {
-    // Vec3 size: 创建非等边立方体
-    const [w, h, d] = params.size
-    geo = new THREE.BoxGeometry(w, h, d)
-    geo.applyMatrix4(new THREE.Matrix4().makeRotationX(Math.PI / 2))
-  } else {
-    geo = makePrimitiveGeo('cube', params.size)
+  const { width, depth, height } = params
+  // THREE.BoxGeometry(a, b, c) is Y-up (X=a, Y=b, Z=c); after the +90° rotateX
+  // the dims map to X=a, Y=c, Z=b. To reach X=width, Y=depth, Z=height the
+  // pre-rotation sizes must be (width, height, depth) — 裁决 7 xyz contract.
+  const geo = new THREE.BoxGeometry(width, height, depth)
+  geo.applyMatrix4(new THREE.Matrix4().makeRotationX(Math.PI / 2))
+  // brepjs box semantics: corner at origin by default; centered at origin when
+  // `centered` (no `at`); `at` (CENTER semantics) takes precedence.
+  const at = params.at
+  let tx = 0
+  let ty = 0
+  let tz = 0
+  if (at !== undefined) {
+    ;[tx, ty, tz] = at
+  } else if (!params.centered) {
+    tx = width / 2
+    ty = depth / 2
+    tz = height / 2
   }
-  if (params.center) {
-    geo.translate(params.center[0], params.center[1], params.center[2])
-  }
+  if (tx !== 0 || ty !== 0 || tz !== 0) geo.translate(tx, ty, tz)
   return geoToShape(geo)
 }
 

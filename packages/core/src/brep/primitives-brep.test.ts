@@ -76,7 +76,7 @@ function shapeBoundingBox(s: Shape): { min: [number, number, number]; max: [numb
 
 describe('BREP primitives: basic validity', () => {
   it('boxBrep: returns valid Shape with positions and indices', async () => {
-    const s = await cad.boxBrep({ size: 20 })
+    const s = await cad.boxBrep({ width: 20, depth: 20, height: 20, centered: true })
     expect(s.positions).toBeInstanceOf(Float32Array)
     expect(s.indices).toBeInstanceOf(Uint32Array)
     expect(shapeVertexCount(s)).toBeGreaterThan(0)
@@ -112,7 +112,7 @@ describe('BREP primitives: basic validity', () => {
 
 describe('BREP primitives: bounding box dimensions', () => {
   it('boxBrep: 20×20×20 cube', async () => {
-    const s = await cad.boxBrep({ size: 20 })
+    const s = await cad.boxBrep({ width: 20, depth: 20, height: 20, centered: true })
     const bb = shapeBoundingBox(s)
     expect(bb.max[0] - bb.min[0]).toBeCloseTo(20, 1)
     expect(bb.max[1] - bb.min[1]).toBeCloseTo(20, 1)
@@ -120,7 +120,7 @@ describe('BREP primitives: bounding box dimensions', () => {
   })
 
   it('boxBrep: Vec3 size [10, 20, 30]', async () => {
-    const s = await cad.boxBrep({ size: [10, 20, 30] })
+    const s = await cad.boxBrep({ width: 10, depth: 20, height: 30, centered: true })
     const bb = shapeBoundingBox(s)
     const dims = [bb.max[0] - bb.min[0], bb.max[1] - bb.min[1], bb.max[2] - bb.min[2]].sort((a, b) => a - b)
     expect(dims[0]).toBeCloseTo(10, 1)
@@ -182,7 +182,7 @@ describe('BREP primitives: bounding box dimensions', () => {
 
 describe('BREP primitives: center offset', () => {
   it('boxBrep: center [100, 0, 0] shifts bbox', async () => {
-    const s = await cad.boxBrep({ size: 10, center: [100, 0, 0] })
+    const s = await cad.boxBrep({ width: 10, depth: 10, height: 10, centered: true, at: [100, 0, 0] })
     const bb = shapeBoundingBox(s)
     expect(bb.min[0]).toBeCloseTo(95, 1)
     expect(bb.max[0]).toBeCloseTo(105, 1)
@@ -207,7 +207,7 @@ describe('BREP primitives: center offset', () => {
 
 describe('BREP primitives: centered at origin by default', () => {
   it('boxBrep: centered at origin', async () => {
-    const s = await cad.boxBrep({ size: 20 })
+    const s = await cad.boxBrep({ width: 20, depth: 20, height: 20, centered: true })
     const bb = shapeBoundingBox(s)
     expect(bb.min[0]).toBeCloseTo(-10, 1)
     expect(bb.max[0]).toBeCloseTo(10, 1)
@@ -235,7 +235,7 @@ describe('BREP primitives: centered at origin by default', () => {
 describe('BREP primitives: STEP export has precise surfaces', () => {
   it('boxBrep: underlying solid exports as ADVANCED_FACE with PLANE', async () => {
     // BREP 函数内部用 primitiveToBrepSolid 构造实体，我们直接验证实体导出
-    const result = primitiveToBrepSolid(kernel, 'cube', { size: 20 })
+    const result = primitiveToBrepSolid(kernel, 'box', { width: 20, depth: 20, height: 20, centered: true })
     try {
       const step = brepSolidToStep(kernel, result.solid)
       expect(step).toContain('ADVANCED_FACE')
@@ -284,8 +284,8 @@ describe('BREP primitives: STEP export has precise surfaces', () => {
 
 describe('BREP vs mesh: geometry equivalence', () => {
   it('box: BREP and mesh have same bounding box', async () => {
-    const brepShape = await cad.boxBrep({ size: 20 })
-    const meshShape = cad.box({ size: 20 })
+    const brepShape = await cad.boxBrep({ width: 20, depth: 20, height: 20, centered: true })
+    const meshShape = cad.box({ width: 20, depth: 20, height: 20, centered: true })
     const brepBB = shapeBoundingBox(brepShape)
     const meshBB = shapeBoundingBox(meshShape)
 
@@ -331,8 +331,8 @@ describe('primitiveToBrepSolid: backward compat with size number', () => {
     }
   })
 
-  it('cube with params object { size: 30 } works', () => {
-    const result = primitiveToBrepSolid(kernel, 'cube', { size: 30 })
+  it('box with full params object (width/depth/height) works', () => {
+    const result = primitiveToBrepSolid(kernel, 'box', { width: 30, depth: 30, height: 30, centered: true })
     try {
       const bb = kernel.getBoundingBox(result.solid, false)
       expect(bb.xmax - bb.xmin).toBeCloseTo(30, 1)
@@ -364,7 +364,7 @@ describe('primitiveToBrepSolid: backward compat with size number', () => {
   })
 
   it('cube with center offset via params', () => {
-    const result = primitiveToBrepSolid(kernel, 'cube', { size: 10, center: [50, 0, 0] })
+    const result = primitiveToBrepSolid(kernel, 'box', { width: 10, depth: 10, height: 10, centered: true, at: [50, 0, 0] })
     try {
       const bb = kernel.getBoundingBox(result.solid, false)
       expect(bb.xmin).toBeCloseTo(45, 1)

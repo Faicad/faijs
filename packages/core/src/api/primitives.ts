@@ -17,17 +17,28 @@ import { fromBrep } from '../shape'
 import { assignRoles } from '../topology/naming/roles'
 import { asPartName } from '../identity'
 import { defineOp } from '../sdk'
-import { assertPositiveNumber, assertNonNegativeNumber, assertNumberOrVec3 } from './assert'
+import { assertPositiveNumber, assertNonNegativeNumber } from './assert'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 
 // ── per-op 参数自校验（Phase 2.2；stdlib 被直接 import 时的防御层） ──
 
 /**
- * Validate box parameters: `size` must be a number or vec3 with positive values.
+ * Validate box parameters (brepjs contract, §4.1 A 决策): `width`, `depth` and
+ * `height` must be positive numbers. The legacy `{ size }` object form is
+ * removed — any call still passing `size` throws an explicit `E_ARGS_FORM`
+ * error pointing at the new signature (error hint ≠ compatibility).
  * @param params - the raw box operation parameters.
  */
 export function assertBoxParams(params: Record<string, unknown>): void {
-  assertNumberOrVec3(params.size, 'box.size')
+  if (params.size !== undefined) {
+    throw new Error(
+      '[faijs/args] box: E_ARGS_FORM: the `box({ size })` object form is removed. ' +
+      'box now uses `box(width, depth, height, { at?, centered?, segments? })`.',
+    )
+  }
+  assertPositiveNumber(params.width, 'box.width')
+  assertPositiveNumber(params.depth, 'box.depth')
+  assertPositiveNumber(params.height, 'box.height')
 }
 
 /**
@@ -81,27 +92,32 @@ function primitiveBrep(op: string, params: Record<string, unknown>): Shape {
   const origin = String(getCurrentStmt()?.outputs[0] ?? op)
   const roles = assignRoles(kernel, result.solid, op)
   return fromBrep(
-    solidToShape(kernel, result.solid, clampNRad(params.nRad ?? params.segments)),
+    solidToShape(kernel, result.solid, clampNRad((params.nRad ?? params.segments) as number)),
     { solid: result.solid, roleTable: new Map([[asPartName(origin), roles]]) },
   )
 }
 
 /**
- * 创建长方体（或立方体）。size 给定三条边：传 number 为等边立方体，传 [x,y,z] 为长方体。
+ * 创建长方体（brepjs 契约，§4.1 A 决策）。
  * @group 创建
  * @inputs 0
  * @async false
  * @qual ok
  * @name box
  * @returns Shape 长方体几何，可作为后续 op 的输入。
- * @param params.size - 尺寸（[x,y,z] 三边或 number 等边）。type:number | [x,y,z] required:true
- * @param params.center - 中心位置。type:[x,y,z] 默认 [0,0,0]（原点）。
+ * @param params.width - X 方向边长（mm）。type:number required:true
+ * @param params.depth - Y 方向边长（mm）。type:number required:true
+ * @param params.height - Z 方向边长（mm）。type:number required:true
+ * @param params.at - 中心点（CENTER 语义，优先于 centered）。type:[x,y,z] 可选
+ * @param params.centered - 无 at 时是否居中到原点（type:boolean 默认 false，角点在原点）。
+ * @param params.segments - 细分度（影响三角化）。type:number 默认 64（= brepjs standard 等效，P0 §5.0/§5.1）
  * @example
- * const part0 = cad.box({ size: 20 })
- * const part0 = cad.box({ size: [30, 20, 10], center: [0, 0, 5] })
+ * const part0 = cad.box(10, 20, 30)
+ * const part1 = cad.box(30, 20, 10, { centered: true, at: [1, 2, 3], segments: 64 })
  *
- * D11 双形态：位置形态 `box(10, 20, 30)`（三边）/`box(20)`（立方体）与对象形态
- * `box({ size: [10, 20, 30] })` 归一到同一实现（§4.2）。
+ * 位置原生（§4.1/§6.2）：`box(width, depth, height)` 与 `box(10, 20, 30, {centered:true})`
+ * 归一到同一对象（D11 位置→对象 + 尾参 options 合并）。旧 `{ size }` 对象形态已废弃（裁决 3），
+ * 传入会抛 `E_ARGS_FORM`（错误提示 ≠ 兼容，§4.1）。
    */
 export const box = defineOp({
   name: 'box',
@@ -116,10 +132,17 @@ export const box = defineOp({
   // L3 metadata (D2): a creator consumes no shape inputs → operands stay in the
   // timeline; schema feeds codegen/UI parameter panels.
   consumes: 'none',
-  schema: { size: 'number | [n,n,n]', center: 'vec3?' },
-  // D11: positional → object. `size` is a vec3 slot: 1 arg → cube edge,
-  // 2/3 args → [x, y(, z)].
-  positional: { keys: ['size'], vec3Keys: ['size'] },
+  schema: {
+    width: 'number',
+    depth: 'number',
+    height: 'number',
+    at: 'vec3?',
+    centered: 'boolean?',
+    segments: 'number?',
+  },
+  // D11 位置→对象（§4.1/§6.2）：三个标量装箱成 { width, depth, height }，尾参
+  // options 经 dual-form-args 的尾参合并（§6.2）并入。
+  positional: { keys: ['width', 'depth', 'height'] },
 })
 
 /**

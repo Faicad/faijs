@@ -290,7 +290,7 @@ describe('Pivot parity: rotate_euler(anglesDeg, pivot) — BREP vs mesh path con
     // Create a box offset from origin, then rotate with a pivot
     // If pivot is ignored, the result will be wrong (rotating around origin)
     const stmts: StatementIR[] = [
-      makeStmt('s1', 'box', { size: 10, center: [20, 0, 0] }, []),
+      makeStmt('s1', 'box', { width: 10, depth: 10, height: 10, centered: true, at: [20, 0, 0] }, []),
       makeStmt('s2', 'rotate_euler', { anglesDeg: [0, 0, 90], pivot: [20, 0, 0] }, ['s1'],
         { }),
     ]
@@ -351,7 +351,7 @@ describe('Pivot parity: rotate_euler(anglesDeg, pivot) — BREP vs mesh path con
 
   it('BREP rotate_euler without pivot matches mesh rotate_euler without pivot', async () => {
     const stmts: StatementIR[] = [
-      makeStmt('s1', 'box', { size: 10, center: [20, 0, 0] }, []),
+      makeStmt('s1', 'box', { width: 10, depth: 10, height: 10, centered: true, at: [20, 0, 0] }, []),
       makeStmt('s2', 'rotate_euler', { anglesDeg: [0, 0, 90] }, ['s1'],
         { }),
     ]

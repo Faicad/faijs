@@ -28,7 +28,7 @@ function shapeTriangleCount(s: Shape): number {
 
 describe('mesh-api: primitives', () => {
   it('box: 创建立方体（数值 size）', () => {
-    const s = cad.box({ size: 20 })
+    const s = cad.box({ width: 20, depth: 20, height: 20, centered: true })
     expect(shapeVertexCount(s)).toBeGreaterThan(0)
     expect(shapeTriangleCount(s)).toBeGreaterThan(0)
 
@@ -38,7 +38,7 @@ describe('mesh-api: primitives', () => {
   })
 
   it('box: 支持 Vec3 size（非等边）', () => {
-    const s = cad.box({ size: [10, 20, 30] })
+    const s = cad.box({ width: 10, depth: 20, height: 30, centered: true })
     const bb = cad.boundingBox(s)
     // BoxGeometry(w, h, d) rotated to Z-up: X=w, Y=d, Z=h (after ROT_Y_TO_Z)
     // After rotation X→Y, Y→Z, Z→X swap... let's just check it's not a cube
@@ -53,7 +53,7 @@ describe('mesh-api: primitives', () => {
   })
 
   it('box: 支持 center', () => {
-    const s = cad.box({ size: 10, center: [100, 0, 0] })
+    const s = cad.box({ width: 10, depth: 10, height: 10, centered: true, at: [100, 0, 0] })
     const bb = cad.boundingBox(s)
     expect(bb.min[0]).toBeCloseTo(95, 1)
     expect(bb.max[0]).toBeCloseTo(105, 1)
@@ -105,7 +105,7 @@ describe('mesh-api: primitives', () => {
 
 describe('mesh-api: transform', () => {
   it('translate: 平移几何', () => {
-    const s = cad.box({ size: 10 })
+    const s = cad.box({ width: 10, depth: 10, height: 10, centered: true })
     const translated = cad.translate(s, [100, 0, 0])
 
     const bb = cad.boundingBox(translated)
@@ -118,7 +118,7 @@ describe('mesh-api: transform', () => {
   })
 
   it('rotate_euler: 旋转几何', () => {
-    const s = cad.box({ size: 10 })
+    const s = cad.box({ width: 10, depth: 10, height: 10, centered: true })
     const rotated = cad.rotate_euler(s, [90, 0, 0])
 
     // 旋转后仍然是立方体，包围盒不变
@@ -127,7 +127,7 @@ describe('mesh-api: transform', () => {
   })
 
   it('rotate_euler: 带 pivot 旋转', () => {
-    const s = cad.box({ size: 10, center: [0, 0, 0] })
+    const s = cad.box({ width: 10, depth: 10, height: 10, centered: true, at: [0, 0, 0] })
     const rotated = cad.rotate_euler(s, [0, 0, 90], [100, 0, 0])
 
     // 围绕 (100,0,0) 旋转 90° → 原本在 (5,0,0) 的点变到 (100,5,0)
@@ -137,7 +137,7 @@ describe('mesh-api: transform', () => {
   })
 
   it('scale3d: 缩放几何', () => {
-    const s = cad.box({ size: 10 })
+    const s = cad.box({ width: 10, depth: 10, height: 10, centered: true })
     const scaled = cad.scale3d(s, 2)
 
     const bb = cad.boundingBox(scaled)
@@ -145,7 +145,7 @@ describe('mesh-api: transform', () => {
   })
 
   it('scale3d: 支持 Vec3 factor', () => {
-    const s = cad.box({ size: 10 })
+    const s = cad.box({ width: 10, depth: 10, height: 10, centered: true })
     const scaled = cad.scale3d(s, [2, 3, 4])
 
     const bb = cad.boundingBox(scaled)
@@ -156,7 +156,7 @@ describe('mesh-api: transform', () => {
   })
 
   it('transformMatrix: 用 Matrix4 变换', () => {
-    const s = cad.box({ size: 10 })
+    const s = cad.box({ width: 10, depth: 10, height: 10, centered: true })
     const matrix = new THREE.Matrix4().makeTranslation(50, 0, 0)
     const transformed = cad.transformMatrix(s, matrix)
 
@@ -169,20 +169,20 @@ describe('mesh-api: transform', () => {
 
 describe('mesh-api: query', () => {
   it('boundingBox: 计算包围盒', () => {
-    const s = cad.box({ size: 20 })
+    const s = cad.box({ width: 20, depth: 20, height: 20, centered: true })
     const bb = cad.boundingBox(s)
     expect(bb.min[0]).toBeCloseTo(-10, 1)
     expect(bb.max[0]).toBeCloseTo(10, 1)
   })
 
   it('bboxCenter: 计算包围盒中心', () => {
-    const s = cad.box({ size: 20, center: [100, 0, 0] })
+    const s = cad.box({ width: 20, depth: 20, height: 20, centered: true, at: [100, 0, 0] })
     const center = cad.bboxCenter(s)
     expect(center[0]).toBeCloseTo(100, 1)
   })
 
   it('volume: 计算立方体体积', () => {
-    const s = cad.box({ size: 20 })
+    const s = cad.box({ width: 20, depth: 20, height: 20, centered: true })
     const vol = cad.volume(s)
     expect(vol).toBeCloseTo(8000, 0) // 20^3 = 8000
   })
@@ -196,7 +196,7 @@ describe('mesh-api: query', () => {
   })
 
   it('faceAt: 查找面', () => {
-    const s = cad.box({ size: 20 })
+    const s = cad.box({ width: 20, depth: 20, height: 20, centered: true })
     // 在顶面中心找面
     const face = cad.faceAt(s, { point: [0, 0, 10], normal: [0, 0, 1] })
     expect(face).not.toBeNull()
@@ -205,7 +205,7 @@ describe('mesh-api: query', () => {
   })
 
   it('faceAt: 无法匹配时返回最佳候选', () => {
-    const s = cad.box({ size: 20 })
+    const s = cad.box({ width: 20, depth: 20, height: 20, centered: true })
     const face = cad.faceAt(s, { point: [100, 100, 100] })
     // 仍然返回最近的面（即使距离很远）
     expect(face).not.toBeNull()
@@ -216,21 +216,21 @@ describe('mesh-api: query', () => {
 
 describe('mesh-api: immutability', () => {
   it('translate 不修改输入', () => {
-    const s = cad.box({ size: 10 })
+    const s = cad.box({ width: 10, depth: 10, height: 10, centered: true })
     const original = new Float32Array(s.positions)
     cad.translate(s, [100, 0, 0])
     expect(Array.from(s.positions)).toEqual(Array.from(original))
   })
 
   it('scale3d 不修改输入', () => {
-    const s = cad.box({ size: 10 })
+    const s = cad.box({ width: 10, depth: 10, height: 10, centered: true })
     const original = new Float32Array(s.positions)
     cad.scale3d(s, 2)
     expect(Array.from(s.positions)).toEqual(Array.from(original))
   })
 
   it('rotate_euler 不修改输入', () => {
-    const s = cad.box({ size: 10 })
+    const s = cad.box({ width: 10, depth: 10, height: 10, centered: true })
     const original = new Float32Array(s.positions)
     cad.rotate_euler(s, [45, 30, 60])
     expect(Array.from(s.positions)).toEqual(Array.from(original))
@@ -289,7 +289,7 @@ describe('mesh-api: API contract', () => {
   })
 
   it('Shape 类型包含 positions 和 indices', () => {
-    const s = cad.box({ size: 10 })
+    const s = cad.box({ width: 10, depth: 10, height: 10, centered: true })
     expect(s.positions).toBeInstanceOf(Float32Array)
     expect(s.indices).toBeInstanceOf(Uint32Array)
     expect(s.positions.length).toBeGreaterThan(0)
@@ -301,8 +301,8 @@ describe('mesh-api: API contract', () => {
 
 describe.skip('mesh-api: boolean (requires Worker)', () => {
   it('union: 两个立方体并集', async () => {
-    const a = cad.box({ size: 20 })
-    const b = cad.translate(cad.box({ size: 20 }), [10, 0, 0])
+    const a = cad.box({ width: 20, depth: 20, height: 20, centered: true })
+    const b = cad.translate(cad.box({ width: 20, depth: 20, height: 20, centered: true }), [10, 0, 0])
     const result = await cad.union(a, b)
 
     expect(shapeTriangleCount(result)).toBeGreaterThan(0)
@@ -312,7 +312,7 @@ describe.skip('mesh-api: boolean (requires Worker)', () => {
   })
 
   it('subtract: 立方体减球体', async () => {
-    const box = cad.box({ size: 20 })
+    const box = cad.box({ width: 20, depth: 20, height: 20, centered: true })
     const sph = cad.sphere({ radius: 5 })
     const result = await cad.subtract(box, sph)
 
@@ -321,8 +321,8 @@ describe.skip('mesh-api: boolean (requires Worker)', () => {
   })
 
   it('intersect: 两个立方体交集', async () => {
-    const a = cad.box({ size: 20 })
-    const b = cad.translate(cad.box({ size: 20 }), [10, 0, 0])
+    const a = cad.box({ width: 20, depth: 20, height: 20, centered: true })
+    const b = cad.translate(cad.box({ width: 20, depth: 20, height: 20, centered: true }), [10, 0, 0])
     const result = await cad.intersect(a, b)
 
     const vol = cad.volume(result)
@@ -332,7 +332,7 @@ describe.skip('mesh-api: boolean (requires Worker)', () => {
 
 describe.skip('mesh-api: split (requires Worker)', () => {
   it('split: 平面分割立方体', async () => {
-    const s = cad.box({ size: 20 })
+    const s = cad.box({ width: 20, depth: 20, height: 20, centered: true })
     const result = await cad.fai_split(s, { normal: [0, 0, 1], offset: 0 })
 
     expect(result.front.positions.length).toBeGreaterThan(0)
@@ -342,7 +342,7 @@ describe.skip('mesh-api: split (requires Worker)', () => {
 
 describe.skip('mesh-api: drill (requires Worker)', () => {
   it('drill: 在立方体上钻孔', async () => {
-    const box = cad.box({ size: 20 })
+    const box = cad.box({ width: 20, depth: 20, height: 20, centered: true })
     const result = await cad.fai_drill(box, {
       diameter: 5,
       type: 'through',
@@ -357,7 +357,7 @@ describe.skip('mesh-api: drill (requires Worker)', () => {
 
 describe.skip('mesh-api: extrude (requires Worker)', () => {
   it('extrude: 拉伸立方体中段', async () => {
-    const box = cad.box({ size: 20 })
+    const box = cad.box({ width: 20, depth: 20, height: 20, centered: true })
     const result = await cad.fai_extrude(box, {
       normal: [0, 0, 1],
       originOffset: 0,

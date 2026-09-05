@@ -52,7 +52,7 @@ describe('handle-bridge: meshHandle / fromHandle with real OCCT kernel', () => {
     })
     // 经 L3 api/ 层的 box（原 stdlib 已并入 core）
     const { box } = await import('@faicad/faijs-core/api')
-    const shape = await box({ size: 10 })
+    const shape = await box(10, 10, 10, { centered: true })
     // 从全局 slot 取回句柄
     const { brepOf } = await import('../shape')
     solidHandle = brepOf(shape)

@@ -14,7 +14,7 @@ import type { Shape } from './types'
  */
 export interface CadAPI {
   // ── 创建 ──
-  box(params: { size: number | [number, number, number]; center?: [number, number, number]; nRad?: number }): Shape
+  box(width: number, depth: number, height: number, options?: { at?: [number, number, number]; centered?: boolean; segments?: number }): Shape
   sphere(params: { radius: number; segments?: number; center?: [number, number, number]; nRad?: number }): Shape
   cylinder(params: { radius: number; height: number; segments?: number; center?: [number, number, number]; nRad?: number }): Shape
   cone(params: { radiusBottom: number; radiusTop: number; height: number; segments?: number; center?: [number, number, number]; nRad?: number }): Shape

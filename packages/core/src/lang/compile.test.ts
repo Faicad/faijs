@@ -26,7 +26,7 @@ async function importCompiled(code: string) {
 describe('compileToModule: 模块文本', () => {
   it('生成零 import ESM 文本且可被动态 import 加载', async () => {
     const { code } = compileText(`
-      const part0 = await cad.box({ size: [10, 20, 5] })
+      const part0 = await cad.box(10, 20, 5, { centered: true })
     `)
     expect(code).toContain('export const statements = [')
     expect(code).not.toContain('import ')
@@ -38,15 +38,15 @@ describe('compileToModule: 模块文本', () => {
   it('参数即变量：const r = 20 编译为 ctx.r = 20；$param 翻译为 ctx 引用', async () => {
     const { code } = compileText(`
       const r = 20
-      const part0 = await cad.box({ size: r })
+      const part0 = await cad.box(r, r, r, { centered: true })
     `)
     expect(code).toContain('ctx.r = 20')
-    expect(code).toContain('ctx.part0 = await ns.cad.box({ size: ctx.r })')
+    expect(code).toContain('ctx.part0 = await ns.cad.box(ctx.r, ctx.r, ctx.r, { centered: true })')
   })
 
   it('CallRefIR 翻译为 await ns.cad.<callee>(...)；嵌套 asset 走 await ns.cad.asset(key)', async () => {
     const { code } = compileText(`
-      const part0 = await cad.box({ size: [10, 20, 5] })
+      const part0 = await cad.box(10, 20, 5, { centered: true })
       const part1 = await cad.fai_drill(part0, {
         depth: 3,
         position: cad.bboxCenter(part0),
@@ -59,7 +59,7 @@ describe('compileToModule: 模块文本', () => {
 
   it('split 多输出：解构 { front, back } 并写两个 ctx 键', async () => {
     const { code } = compileText(`
-      const part0 = await cad.box({ size: [10, 20, 5] })
+      const part0 = await cad.box(10, 20, 5, { centered: true })
       const { front: part1, back: part2 } = await cad.fai_split(part0, { cutMode: 'plane' })
     `)
     expect(code).toContain('const { front, back } = await ns.cad.fai_split(ctx.part0, { cutMode: "plane" })')
@@ -69,8 +69,8 @@ describe('compileToModule: 模块文本', () => {
 
   it('boolean 归一取消：cad.union 编译为 ns.cad.union(input1, input2)（空 args 槽不发射）', async () => {
     const { code } = compileText(`
-      const part0 = await cad.box({ size: [10, 20, 5] })
-      const part1 = await cad.box({ size: [5, 5, 5] })
+      const part0 = await cad.box(10, 20, 5, { centered: true })
+      const part1 = await cad.box(5, 5, 5, { centered: true })
       const part2 = await cad.union(part0, part1)
     `)
     expect(code).toContain('ctx.part2 = await ns.cad.union(ctx.part0, ctx.part1)')
@@ -81,7 +81,7 @@ describe('compileToModule: 语句元数据', () => {
   it('id 分配：参数占 s1..sK，语句 s(K+1)..s(K+N)', () => {
     const { statements } = compileText(`
       const r = 20
-      const part0 = await cad.box({ size: r })
+      const part0 = await cad.box(r, r, r, { centered: true })
       const part1 = await cad.fai_drill(part0, { depth: 3 })
     `)
     expect(statements.map((s) => s.id)).toEqual(['s1', 's2', 's3'])
@@ -90,7 +90,7 @@ describe('compileToModule: 语句元数据', () => {
   it('deps：$param 引用 → 参数语句 id；inputs/$geom.of → 定义语句 id', () => {
     const { statements } = compileText(`
       const r = 20
-      const part0 = await cad.box({ size: r })
+      const part0 = await cad.box(r, r, r, { centered: true })
       const part1 = await cad.fai_drill(part0, { depth: 3, position: cad.bboxCenter(part0) })
       const { front: part2, back: part3 } = await cad.fai_split(part0, { cutMode: 'plane' })
     `)
@@ -107,7 +107,7 @@ describe('compileToModule: 语句元数据', () => {
   it('writes：普通语句 [id]、split 双输出、参数 [name]、do_assemble 空', () => {
     const { statements } = compileText(`
       const r = 20
-      const part0 = await cad.box({ size: r })
+      const part0 = await cad.box(r, r, r, { centered: true })
       const { front: part1, back: part2 } = await cad.fai_split(part0, { cutMode: 'plane' })
     `)
     const byId = new Map(statements.map((s) => [String(s.id), s]))
@@ -118,8 +118,8 @@ describe('compileToModule: 语句元数据', () => {
 
   it('group/assembly 语句写入 grp 变量；add_constraint/do_assemble 无写入', () => {
     const text = `
-      const part0 = await cad.box({ size: [10, 20, 5] })
-      const part1 = await cad.box({ size: [5, 5, 5] })
+      const part0 = await cad.box(10, 20, 5, { centered: true })
+      const part1 = await cad.box(5, 5, 5, { centered: true })
       const grp1 = await cad.group({ name: 'G', members: [part0, part1] })
       grp1.add_constraint({ type: 'face_mate' })
       grp1.do_assemble()

@@ -55,7 +55,7 @@ describe('syntax .fai.js tests', () => {
   }
 
   it('single mesh flat code: no terminalShapes', () => {
-    const code = `let part0 = cad.box({ size: 20 })`
+    const code = `let part0 = cad.box(20, 20, 20, { centered: true })`
     const { script } = parseScript(code)
     expect(script.statements).toHaveLength(1)
     // Phase 3: terminalShapes 移入 runtime.collectResult；parser 不再自动计算
@@ -64,7 +64,7 @@ describe('syntax .fai.js tests', () => {
   })
 
   it('multi mesh flat code: two independent outputs (runtime terminals)', () => {
-    const code = `let part0 = cad.box({ size: 20 })
+    const code = `let part0 = cad.box(20, 20, 20, { centered: true })
 let part1 = cad.sphere({ radius: 10, center: [30, 0, 0] })`
     const { script } = parseScript(code)
     expect(script.statements.length).toBeGreaterThan(1)

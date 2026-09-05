@@ -15,7 +15,7 @@
  *
  * 扁平代码格式（无 export default / async / await / return / apiVersion）：
  * ```js
- * let part0 = cad.box({ size: 20 })
+ * let part0 = cad.box(10, 20, 30)
  * part0 = cad.translate(part0, { offset: [1, 2, 3] })
  * ```
  *

@@ -88,7 +88,7 @@ describe('B4: mock 库 fixture — BREP 版', () => {
     const result = await runtime.execute([
       "import * as mech from 'gear-lib-demo'",
       'let part0 = mech.makeHeadstock({ size: 10 })',
-      'let part1 = cad.box({ size: 5 })',
+      'let part1 = cad.box(5, 5, 5, { centered: true })',
       'let part2 = cad.union(part0, part1)',
     ].join('\n'))
     expect(result.failedAt).toBeUndefined()

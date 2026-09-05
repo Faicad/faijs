@@ -8,8 +8,8 @@ import { scriptIRToCode, statementIRToLine } from './codegen'
 describe('E15.1: 装配链式调用解析', () => {
   it('解析 const/let assem1 = cad.assembly({...})', () => {
     const code = `
-      let part0 = cad.box({ size: 20 })
-      let part1 = cad.box({ size: 10 })
+      let part0 = cad.box(20, 20, 20, { centered: true })
+      let part1 = cad.box(10, 10, 10, { centered: true })
       let assem1 = cad.assembly({
         name: 'MyAssembly',
         members: ['part0', 'part1'],
@@ -28,8 +28,8 @@ describe('E15.1: 装配链式调用解析', () => {
 
   it('解析 assem1.add_constraint({...})', () => {
     const code = `
-      let part0 = cad.box({ size: 20 })
-      let part1 = cad.box({ size: 10 })
+      let part0 = cad.box(20, 20, 20, { centered: true })
+      let part1 = cad.box(10, 10, 10, { centered: true })
       let assem1 = cad.assembly({ name: 'A', members: ['part0', 'part1'], constraints: [] })
       assem1.add_constraint({
         type: 'face_mate',
@@ -52,8 +52,8 @@ describe('E15.1: 装配链式调用解析', () => {
 
   it('解析 assem1.do_assemble()', () => {
     const code = `
-      let part0 = cad.box({ size: 20 })
-      let part1 = cad.box({ size: 10 })
+      let part0 = cad.box(20, 20, 20, { centered: true })
+      let part1 = cad.box(10, 10, 10, { centered: true })
       let assem1 = cad.assembly({ name: 'A', members: ['part0', 'part1'], constraints: [] })
       assem1.add_constraint({ type: 'face_mate', fixedPartName: 'part0', movingPartName: 'part1', fixedFace: { surfaceType: 'plane' }, movingFace: { surfaceType: 'plane' } })
       assem1.do_assemble()
@@ -68,7 +68,7 @@ describe('E15.1: 装配链式调用解析', () => {
 
   it('拒绝未声明的装配变量', () => {
     const code = `
-      let part0 = cad.box({ size: 20 })
+      let part0 = cad.box(20, 20, 20, { centered: true })
       unknown_var.add_constraint({ type: 'face_mate' })
     `
     expect(() => parseScript(code)).toThrow(/unknown variable "unknown_var"/)
@@ -76,7 +76,7 @@ describe('E15.1: 装配链式调用解析', () => {
 
   it('Phase 3: let 允许用于普通 cad.op()（单入单出复用名时 codegen 产生 let 重赋值）', () => {
     const code = `
-      let foo = cad.box({ size: 20 })
+      let foo = cad.box(20, 20, 20, { centered: true })
     `
     const { script } = parseScript(code)
     expect(script.statements).toHaveLength(1)
@@ -85,8 +85,8 @@ describe('E15.1: 装配链式调用解析', () => {
 
   it('完整链式调用 roundtrip', () => {
     const code = `
-      let part0 = cad.box({ size: 20 })
-      let part1 = cad.box({ size: 10 })
+      let part0 = cad.box(20, 20, 20, { centered: true })
+      let part1 = cad.box(10, 10, 10, { centered: true })
       let assem1 = cad.assembly({ name: 'A', members: ['part0', 'part1'], constraints: [] })
       assem1.add_constraint({ type: 'face_mate', fixedPartName: 'part0', movingPartName: 'part1', fixedFace: { surfaceType: 'plane' }, movingFace: { surfaceType: 'plane' } })
       assem1.do_assemble()
@@ -104,7 +104,7 @@ describe('E15.1: 装配链式调用解析', () => {
 
   it('statementIRToLine 正确生成链式调用', () => {
     const code = `
-      let part0 = cad.box({ size: 20 })
+      let part0 = cad.box(20, 20, 20, { centered: true })
       let assem1 = cad.assembly({ name: 'A', members: ['part0'] })
       assem1.do_assemble()
     `

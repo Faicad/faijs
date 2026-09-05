@@ -1,4 +1,4 @@
-﻿﻿/**
+﻿/**
  * analyzeCode / codeToArgs — 宿主摘要与编辑回填配套测试（IR 剥离阶段 0）
  *
  * 设计文档：3d_editor docs/plans/2026-08-28-ir-strip-source-code-generation-plan.md §4.2/§4.6
@@ -17,7 +17,7 @@ import { statementInputs } from './types'
 import { isHostVarRef } from './host-arg'
 
 const BOX_DRILL_SPLIT = [
-  'let part0 = cad.box({ size: 20 })',
+  'let part0 = cad.box(20, 20, 20, { centered: true })',
   'part0 = cad.fai_drill(part0, { diameter: 5 })',
   'const { front: part1, back: part2 } = cad.fai_split(part0, { normal: [0,0,1], offset: 0 })',
 ].join('\n')
@@ -81,7 +81,7 @@ describe('analyzeCode: 与 parser 结果逐字段一致', () => {
   it('refs 与 parser 收集一致（$param/VarRef）', () => {
     const code = [
       'const size = 20',
-      'let part0 = cad.box({ size: size })',
+      'let part0 = cad.box(size, size, size, { centered: true })',
     ].join('\n')
     const summaries = analyzeCode(code)
     const { script } = parseScript(code)
@@ -101,7 +101,7 @@ describe('analyzeCode: line 为源码行号', () => {
     const code = [
       'const height = 10',
       '',
-      'let part0 = cad.box({ size: height })',
+      'let part0 = cad.box(height, height, height, { centered: true })',
     ].join('\n')
     const summaries = analyzeCode(code)
     expect(summaries).toHaveLength(1)
@@ -139,7 +139,7 @@ describe('looseLocalCalls: 单行提取放行本机函数调用（D15 回归）'
 
 describe('codeToArgs: 单语句行 args 提取（true-JS-subset §4.6.3 新契约 { positional, args }）', () => {
   it('普通语句行', () => {
-    expect(codeToArgs('let part0 = cad.box({ size: 20 })')).toEqual({ positional: [], args: { size: 20 } })
+    expect(codeToArgs('let part0 = cad.box(20, 20, 20, { centered: true })')).toEqual({ positional: [20, 20, 20], args: { centered: true } })
   })
 
   it('裸重赋值行', () => {
@@ -223,7 +223,7 @@ describe('§7.1-B: codeToArgs/analyzeCode HostArg 形态覆盖 (T3-b / T4-a)', (
   it('T4-a: call-ref in args — analyzeCode 解析嵌套调用（完整脚本上下文）', () => {
     // Use analyzeCode with full script context where part0 is a real var.
     const code = [
-      'let part0 = cad.box({ size: 20 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
       'part0 = cad.chamfer(part0, { edgeLength: 3, faceCenter: cad.faceNormal(part0, [10, 10, 0], 4) })',
     ].join('\n')
     const summary = analyzeCode(code)[1]
@@ -249,7 +249,7 @@ describe('§7.1-B: analyzeCode summary.args 与 codeToArgs 结果一致性', () 
     // codeToArgs with sentinel declarations: part0 becomes param-ref
     // So we only compare args (not positional) for this case
     const codeLine = 'part0 = cad.fai_drill(part0, { diameter: 5, depth: 10 })'
-    const summary = analyzeCode('let part0 = cad.box({ size: 20 })\n' + codeLine)[1]
+    const summary = analyzeCode('let part0 = cad.box(20, 20, 20, { centered: true })\n' + codeLine)[1]
     const cta = codeToArgs(codeLine)
     // args should be consistent (no identifiers in args values)
     expect(summary.args).toEqual(cta.args)
@@ -257,7 +257,7 @@ describe('§7.1-B: analyzeCode summary.args 与 codeToArgs 结果一致性', () 
 
   it('analyzeCode summary.args 含 HostArg 引用形态', () => {
     const code = [
-      'let part0 = cad.box({ size: 20 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
       'part0 = cad.chamfer(part0, { edgeLength: 3, faceCenter: cad.faceNormal(part0, [10, 10, 0], 4) })',
     ].join('\n')
     const summary = analyzeCode(code)[1]

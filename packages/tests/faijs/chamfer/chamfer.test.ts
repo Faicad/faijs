@@ -61,7 +61,7 @@ describe('chamfer e2e (BREP/OCCT)', () => {
 
   it('T-A4 equal width=1: 体积减少 =0.5·1·20=10, 面数 6→7, BREP 未断链', async () => {
     const code = `
-      const part0 = cad.box({ size: 20 })
+      const part0 = cad.box(20, 20, 20, { centered: true })
       const part1 = cad.chamfer(part0, { edges: [${BOX_EDGE}], type: 'equal', width: 1 })
     `
     const result = await runtime.execute(code, { topology: 'auto' })
@@ -74,7 +74,7 @@ describe('chamfer e2e (BREP/OCCT)', () => {
 
   it('T-A5 distanceAngle width=2 angle=30: 体积减少 = ½·dF·dO·L (dO = dF·sinθ/sin(β+θ))', async () => {
     const code = `
-      const part0 = cad.box({ size: 20 })
+      const part0 = cad.box(20, 20, 20, { centered: true })
       const part1 = cad.chamfer(part0, { edges: [${BOX_EDGE}], type: 'distanceAngle', width: 2, angle: 30 })
     `
     const result = await runtime.execute(code, { topology: 'auto' })
@@ -84,7 +84,7 @@ describe('chamfer e2e (BREP/OCCT)', () => {
 
   it('T-A5 twoDistances width1=1 width2=3: 体积减少 = ½·1·3·20 = 30', async () => {
     const code = `
-      const part0 = cad.box({ size: 20 })
+      const part0 = cad.box(20, 20, 20, { centered: true })
       const part1 = cad.chamfer(part0, { edges: [${BOX_EDGE}], type: 'twoDistances', width1: 1, width2: 3 })
     `
     const result = await runtime.execute(code, { topology: 'auto' })
@@ -98,7 +98,7 @@ describe('chamfer e2e (BREP/OCCT)', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const code = `
-      const part0 = cad.box({ size: 20 })
+      const part0 = cad.box(20, 20, 20, { centered: true })
       const part1 = cad.chamfer(part0, { edges: [], type: 'equal', width: 1 })
     `
     try {
@@ -117,7 +117,7 @@ describe('chamfer e2e (BREP/OCCT)', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const code = `
-      const part0 = cad.box({ size: 20 })
+      const part0 = cad.box(20, 20, 20, { centered: true })
       const part1 = cad.chamfer(part0, { edges: [${BOX_EDGE}], type: 'equal', width: 1 })
     `
     try {
@@ -138,7 +138,7 @@ describe('chamfer e2e (BREP/OCCT)', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const code = `
-      const part0 = cad.box({ size: 20 })
+      const part0 = cad.box(20, 20, 20, { centered: true })
       const part1 = cad.chamfer(part0, { edges: [{ kind: 'edge', hint: { kind: 'edge' } }], type: 'equal', width: 1 })
     `
     try {
@@ -155,7 +155,7 @@ describe('chamfer e2e (BREP/OCCT)', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const code = `
-      const part0 = cad.box({ size: 20 })
+      const part0 = cad.box(20, 20, 20, { centered: true })
       const part1 = cad.chamfer(part0, { edges: [${BOX_EDGE}], type: 'equal', width: 0 })
     `
     try {
@@ -172,7 +172,7 @@ describe('chamfer e2e (BREP/OCCT)', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const code = `
-      const part0 = cad.box({ size: 20 })
+      const part0 = cad.box(20, 20, 20, { centered: true })
       const part1 = cad.chamfer(part0, { edges: [${BOX_EDGE}], type: 'distanceAngle', width: 1, angle: 90 })
     `
     try {

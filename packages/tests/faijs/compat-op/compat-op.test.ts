@@ -48,7 +48,7 @@ beforeAll(async () => {
 /** Create a brep-mode runtime and warm its BREP chain (cad.box needs it). */
 async function makeBrepRuntime(): Promise<{ runtime: CadRuntime; warm: Shape }> {
   const runtime = createRuntime(createNodePorts(), 'brep')
-  const res = await runtime.execute('const g = cad.box({ size: 10 })')
+  const res = await runtime.execute('const g = cad.box(10, 10, 10, { centered: true })')
   expect(res.failedAt).toBeUndefined()
   return { runtime, warm: res.outputs.get(asPartName('g')) as Shape }
 }
@@ -259,7 +259,7 @@ describe('④ leak: 50 loopthrough executes keep the arena bounded', () => {
     const kernel = getKernel() as unknown as { shapeCount: number }
 
     const nativeRuntime = createRuntime(createNodePorts(), 'auto')
-    const nativeCode = 'const g = cad.box({ size: 7 })'
+    const nativeCode = 'const g = cad.box(7, 7, 7, { centered: true })'
     await nativeRuntime.execute(nativeCode)
     const nativeBase = kernel.shapeCount
     for (let i = 0; i < 50; i++) await nativeRuntime.execute(nativeCode)

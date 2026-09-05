@@ -78,26 +78,29 @@ function applyCenter(kernel: BrepEngineApi, solid: BrepHandle, center?: [number,
 }
 
 /**
- * 用 OCCT 直接构造一个立方体 Solid。
+ * 用 OCCT 直接构造一个长方体 Solid（brepjs `box(width, depth, height,
+ * {at?, centered?})` 契约，§4.1 A 决策；与 mesh 路径逐点对齐）。
  *
- * 接收完整 BoxParams：size 可以是 number（等边）或 Vec3 [w, h, d]。
- *
- * 与 mesh 路径一致性：mesh 侧 BoxGeometry(w, h, d) 经 ROT_Y_TO_Z 后
- * 轴变为 X=w, Y=d, Z=h（Y/Z 互换），因此 OCCT 的 corners 也按此映射。
+ * 几何语义与 vendored `primitiveFns.box` 完全一致：
+ * 默认 min 角点在原点；`centered:true`（无 at 时）居中到原点；`at` 为中心
+ * 语义且优先于 `centered`。
  */
 function cubeToCadSolid(kernel: BrepEngineApi, params: BoxParams): BrepHandle {
-  let w: number, h: number, d: number
-  if (Array.isArray(params.size)) {
-    [w, h, d] = params.size
-  } else {
-    w = h = d = params.size
-  }
-  // ROT_Y_TO_Z swaps Y and Z: mesh final dims are X=w, Y=d, Z=h
+  const w = params.width
+  const d = params.depth
+  const h = params.height
+  // brepjs box: center = at ?? (centered ? [0,0,0] : undefined)；未给 center →
+  // 构造角点实体不平移（这里统一中心构造 + 平移量，等价）。
+  const center = params.at !== undefined
+    ? params.at
+    : params.centered
+      ? ([0, 0, 0] as [number, number, number])
+      : ([w / 2, d / 2, h / 2] as [number, number, number])
   const solid = kernel.makeBoxFromCorners(
     { x: -w / 2, y: -d / 2, z: -h / 2 },
     { x: w / 2, y: d / 2, z: h / 2 },
   )
-  return applyCenter(kernel, solid, params.center)
+  return applyCenter(kernel, solid, center)
 }
 
 /**
@@ -236,7 +239,7 @@ function sizeToParams(type: PrimitiveType | 'screw' | 'text', size: number): Pri
   switch (type) {
     case 'cube':
     case 'box':
-      return { size }
+      return { width: size, depth: size, height: size }
     case 'sphere':
       return { radius: size / 2 }
     case 'cylinder':
@@ -246,7 +249,7 @@ function sizeToParams(type: PrimitiveType | 'screw' | 'text', size: number): Pri
     case 'wedge':
       return { width: size, height: size / 2, angle: 60, length: 50 }
     default:
-      return { size }
+      throw new Error(`sizeToParams does not support primitive type "${type}" (use geometry data)`)
   }
 }
 

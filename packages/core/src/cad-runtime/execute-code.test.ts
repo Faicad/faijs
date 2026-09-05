@@ -29,13 +29,13 @@ function makeRuntime(): CadRuntime {
 }
 
 const CODE = [
-  'let part0 = cad.box({ size: 20 })',
+  'let part0 = cad.box(20, 20, 20, { centered: true })',
   'let part1 = cad.sphere({ radius: 10 })',
   'let part2 = cad.union(part0, part1)',
 ].join('\n')
 
 const CODE2 = [
-  'let part0 = cad.box({ size: 20 })',
+  'let part0 = cad.box(20, 20, 20, { centered: true })',
   'let part1 = cad.translate(part0, { offset: [1, 0, 0] })',
 ].join('\n')
 
@@ -83,7 +83,7 @@ describe('append(code, opts): 只传新增语句文本', () => {
 
   it('append 多语句：新行间互相引用，全部执行', async () => {
     const rt = makeRuntime()
-    await rt.execute('let part0 = cad.box({ size: 20 })')
+    await rt.execute('let part0 = cad.box(20, 20, 20, { centered: true })')
     const result = await rt.append([
       'let part1 = cad.sphere({ radius: 10 })',
       'let part2 = cad.union(part0, part1)',
@@ -99,7 +99,7 @@ describe('append(code, opts): 只传新增语句文本', () => {
 
   it('append 引用此前已执行的 part（单 runtime 跨语句引用）→ 正常命中', async () => {
     const rt = makeRuntime()
-    await rt.execute('let part0 = cad.box({ size: 20 })')
+    await rt.execute('let part0 = cad.box(20, 20, 20, { centered: true })')
     const result = await rt.append('let part1 = cad.translate(part0, { offset: [1, 2, 3] })')
     expect(result.outputs.has(asPartName('part1'))).toBe(true)
     expect(result.terminals.some((t) => String(t.id) === 'part1')).toBe(true)
@@ -119,7 +119,7 @@ describe('append(code, opts): 只传新增语句文本', () => {
 
   it('append 后持久 ctx 完整：旧语句输出仍出现在结果中（不 reconcile 清空）', async () => {
     const rt = makeRuntime()
-    await rt.execute('let part0 = cad.box({ size: 20 })')
+    await rt.execute('let part0 = cad.box(20, 20, 20, { centered: true })')
     const result = await rt.append('let part1 = cad.sphere({ radius: 10 })')
     expect(result.outputs.has(asPartName('part0'))).toBe(true)
     expect(result.outputs.has(asPartName('part1'))).toBe(true)
@@ -135,7 +135,7 @@ describe('update(oldCode, newCode, opts): 双代码 diff 增量重算', () => {
   it('参数修改（改 args）→ 变更语句 + 下游闭包重算，几何与全量一致', async () => {
     const oldCode = CODE2
     const newCode = [
-      'let part0 = cad.box({ size: 40 })',
+      'let part0 = cad.box(40, 40, 40, { centered: true })',
       'let part1 = cad.translate(part0, { offset: [1, 0, 0] })',
     ].join('\n')
     const executed: string[] = []
@@ -200,7 +200,7 @@ describe('update(oldCode, newCode, opts): 双代码 diff 增量重算', () => {
     const rt = makeRuntime()
     await rt.execute(CODE)
     const newCode = [
-      'let part0 = cad.box({ size: 40 })',
+      'let part0 = cad.box(40, 40, 40, { centered: true })',
       'let part1 = cad.sphere({ radius: 10 })',
       'let part2 = cad.union(part0, part1)',
     ].join('\n')
@@ -216,8 +216,8 @@ describe('update(oldCode, newCode, opts): 双代码 diff 增量重算', () => {
   })
 
   it('参数行修改（const 字面量）→ 依赖参数的语句重算', async () => {
-    const oldCode = ['const size = 20', 'let part0 = cad.box({ size: size })'].join('\n')
-    const newCode = ['const size = 40', 'let part0 = cad.box({ size: size })'].join('\n')
+    const oldCode = ['const size = 20', 'let part0 = cad.box(size, size, size, { centered: true })'].join('\n')
+    const newCode = ['const size = 40', 'let part0 = cad.box(size, size, size, { centered: true })'].join('\n')
     const executed: string[] = []
     const rt = makeRuntime()
     await rt.execute(oldCode)
@@ -237,8 +237,8 @@ describe('update(oldCode, newCode, opts): 双代码 diff 增量重算', () => {
 
 describe('ExprIR 增量（§5.4 箭头包装 / §6.2 key）', () => {
   const CODE_EXPR = [
-    'let part0 = cad.box({ size: 20 })',
-    'let part1 = cad.box({ size: part0 ? 30 : 10 })',
+    'let part0 = cad.box(20, 20, 20, { centered: true })',
+    'let part1 = cad.box(part0 ? 30 : 10, part0 ? 30 : 10, part0 ? 30 : 10, { centered: true })',
   ].join('\n')
 
   it('编辑 ExprIR 表达式文本 → 语句重算；未改 → 零重算', async () => {
@@ -247,8 +247,8 @@ describe('ExprIR 增量（§5.4 箭头包装 / §6.2 key）', () => {
 
     // 改表达式分支值：part0 ? 30 : 10 → part0 ? 40 : 10
     const newCode = [
-      'let part0 = cad.box({ size: 20 })',
-      'let part1 = cad.box({ size: part0 ? 40 : 10 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
+      'let part1 = cad.box(part0 ? 40 : 10, part0 ? 40 : 10, part0 ? 40 : 10, { centered: true })',
     ].join('\n')
     const executed: string[] = []
     const result = await rt.update(CODE_EXPR, newCode, {
@@ -267,8 +267,8 @@ describe('ExprIR 增量（§5.4 箭头包装 / §6.2 key）', () => {
     await rt.execute(CODE_EXPR)
     // 改 part0 的 size：part0 内容变化 → part1 的 deps（part0）变化 → part1 级联重算
     const newCode = [
-      'let part0 = cad.box({ size: 40 })',
-      'let part1 = cad.box({ size: part0 ? 30 : 10 })',
+      'let part0 = cad.box(40, 40, 40, { centered: true })',
+      'let part1 = cad.box(part0 ? 30 : 10, part0 ? 30 : 10, part0 ? 30 : 10, { centered: true })',
     ].join('\n')
     const executed: string[] = []
     const result = await rt.update(CODE_EXPR, newCode, {

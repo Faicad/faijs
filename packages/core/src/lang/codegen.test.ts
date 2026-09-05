@@ -39,13 +39,13 @@ function makeScript(statements: StatementIR[]): ScriptIR {
 
 describe('codegen: statementIRToLine 基本体 (Phase 3)', () => {
   it('box：size 为 vec3 输出数组', () => {
-    const stmt = makeStmt({ id: 's1', callee: 'box', args: { size: [10, 10, 10] }, outputs: ['part0'] })
-    expect(statementIRToLine(stmt)).toBe('let part0 = cad.box({ size:[10,10,10] })')
+    const stmt = makeStmt({ id: 's1', callee: 'box', positional: [10, 10, 10, { centered:true }], outputs: ['part0'] })
+    expect(statementIRToLine(stmt)).toBe('let part0 = cad.box(10, 10, 10, { centered:true })')
   })
 
   it('box：size 为数字输出标量', () => {
-    const stmt = makeStmt({ id: 's1', callee: 'box', args: { size: 20 }, outputs: ['part0'] })
-    expect(statementIRToLine(stmt)).toBe('let part0 = cad.box({ size:20 })')
+    const stmt = makeStmt({ id: 's1', callee: 'box', positional: [20, 20, 20, { centered:true }], outputs: ['part0'] })
+    expect(statementIRToLine(stmt)).toBe('let part0 = cad.box(20, 20, 20, { centered:true })')
   })
 
   it('sphere / cylinder / cone / wedge', () => {
@@ -119,21 +119,21 @@ describe('codegen: statementIRToLine 雕刻 (Phase 3: 复用输入名)', () => {
 describe('codegen: scriptIRToCode (Phase 3)', () => {
   it('单条 box 语句', () => {
     const script = makeScript([
-      makeStmt({ id: 's1', callee: 'box', args: { size: 20 }, outputs: ['part0'] }),
+      makeStmt({ id: 's1', callee: 'box', positional: [20, 20, 20, { centered:true }], outputs: ['part0'] }),
     ])
     const code = scriptIRToCode(script)
-    expect(code).toBe('let part0 = cad.box({ size:20 })')
+    expect(code).toBe('let part0 = cad.box(20, 20, 20, { centered:true })')
   })
 
   it('多级依赖：连续下游复用输入名', () => {
     const script = makeScript([
-      makeStmt({ id: 's1', callee: 'box', args: { size: 20 }, outputs: ['part0'] }),
+      makeStmt({ id: 's1', callee: 'box', positional: [20, 20, 20, { centered:true }], outputs: ['part0'] }),
       makeStmt({ id: 's2', callee: 'translate', args: { offset: [0, 0, 5] }, inputs: ['part0'], outputs: ['part0'] }),
       makeStmt({ id: 's3', callee: 'fai_drill', args: { diameter: 5, depth: 0 }, inputs: ['part0'], outputs: ['part0'] }),
     ])
     const code = scriptIRToCode(script)
     expect(code).toBe(
-      'let part0 = cad.box({ size:20 })\n' +
+      'let part0 = cad.box(20, 20, 20, { centered:true })\n' +
       'part0 = cad.translate(part0, { offset:[0,0,5] })\n' +
       'part0 = cad.fai_drill(part0, { diameter:5, depth:0 })',
     )
@@ -145,7 +145,7 @@ describe('codegen: scriptIRToCode (Phase 3)', () => {
 
   it('boolean op 输出 cad.union(inputs)（归一取消，callee 直写）', () => {
     const script = makeScript([
-      makeStmt({ id: 's1', callee: 'box', args: { size: 20 }, outputs: ['part0'] }),
+      makeStmt({ id: 's1', callee: 'box', positional: [20, 20, 20, { centered:true }], outputs: ['part0'] }),
       makeStmt({ id: 's2', callee: 'sphere', args: { radius: 10 }, outputs: ['part1'] }),
       makeStmt({ id: 's3', callee: 'union', args: {}, inputs: ['part0', 'part1'], outputs: ['part2'] }),
     ])
@@ -161,7 +161,7 @@ describe('codegen: split 解构输出 (Phase 3)', () => {
     const script: ScriptIR = {
       params: [],
       statements: [
-        makeStmt({ id: 's1', callee: 'box', args: { size: 20 }, outputs: ['part0'] }),
+        makeStmt({ id: 's1', callee: 'box', positional: [20, 20, 20, { centered:true }], outputs: ['part0'] }),
         makeStmt({ id: 's2', callee: 'translate', args: { offset: [0, 0, 5] }, inputs: ['part0'], outputs: ['part0'] }),
         makeStmt({
           id: 's3',
@@ -219,8 +219,8 @@ describe('codegen: 值格式化', () => {
   })
 
   it('ParamRefIR → 裸标识符（无 $ 前缀）', () => {
-    const stmt = makeStmt({ id: 's1', callee: 'box', args: { size: { $param: 'boxSize' } }, outputs: ['part0'] })
-    expect(statementIRToLine(stmt)).toBe('let part0 = cad.box({ size:boxSize })')
+    const stmt = makeStmt({ id: 's1', callee: 'box', positional: [{ $param: 'boxSize' }, { $param: 'boxSize' }, { $param: 'boxSize' }, { centered:true }], outputs: ['part0'] })
+    expect(statementIRToLine(stmt)).toBe('let part0 = cad.box(boxSize, boxSize, boxSize, { centered:true })')
   })
 
   it('fmtNum：整数直出、小数去尾零', () => {
@@ -252,7 +252,7 @@ describe('codegen: center 参数往返 (codegen → parser)', () => {
 describe('codegen: CallRefIR with faceOrdinal round-trip', () => {
   it('CallRefIR with faceOrdinal round-trip: codegen → parse → same args', () => {
     const script = makeScript([
-      makeStmt({ id: 's1', callee: 'box', args: { size: [10, 10, 10] }, outputs: ['part0'] }),
+      makeStmt({ id: 's1', callee: 'box', positional: [10, 10, 10, { centered:true }], outputs: ['part0'] }),
       makeStmt({
         id: 's2',
         callee: 'engrave',
@@ -280,7 +280,7 @@ describe('codegen: CallRefIR with faceOrdinal round-trip', () => {
 describe('codegen: transform 语句 (Phase 3: 复用输入名)', () => {
   it('box + translate + rotate_euler + scale3d', () => {
     const script = makeScript([
-      makeStmt({ id: 's1', callee: 'box', args: { size: 20 }, outputs: ['part0'] }),
+      makeStmt({ id: 's1', callee: 'box', positional: [20, 20, 20, { centered:true }], outputs: ['part0'] }),
       makeStmt({ id: 's2', callee: 'translate', args: { offset: [10, 0, 0] }, inputs: ['part0'], outputs: ['part0'] }),
       makeStmt({ id: 's3', callee: 'rotate_euler', args: { anglesDeg: [0, 0, 90] }, inputs: ['part0'], outputs: ['part0'] }),
       makeStmt({ id: 's4', callee: 'scale3d', args: { factor: 2 }, inputs: ['part0'], outputs: ['part0'] }),
@@ -368,7 +368,7 @@ describe('§7.1-C: formatCodeLine(HostArg) → codeToArgs 直接往返', () => {
         },
       },
     })
-    const fullCode = 'let part0 = cad.box({ size: 20 })\n' + line
+    const fullCode = 'let part0 = cad.box(20, 20, 20, { centered:true })\n' + line
     const { script } = parseScript(fullCode)
     const stmt = script.statements[1]
     // Positional var-ref preserved
@@ -388,22 +388,24 @@ describe('§7.1-C: formatCodeLine(HostArg) → codeToArgs 直接往返', () => {
       positional: [],
       outputs: ['part1'],
       args: {
-        size: { kind: 'expr-ref', text: 'base + 20', refs: ['base'], params: [] },
+        width: { kind: 'expr-ref', text: 'base + 20', refs: ['base'], params: [] },
         depth: 3,
+        height: 10,
         at: [10, 0, 0],
       },
     })
     // expr-ref codegen 打印为 (text)
-    expect(line).toContain('size:(base + 20)')
+    expect(line).toContain('width:(base + 20)')
     // Full script context: base is a real shape variable (not a param),
     // so the expression can't be folded and stays as ExprIR
-    const fullCode = 'let base = cad.box({ size: 10 })\n' + line
+    const fullCode = 'let base = cad.box(10, 10, 10, { centered:true })\n' + line
     const { script } = parseScript(fullCode)
     const stmt = script.statements[1]
-    expect(stmt.args.size).toEqual({
+    expect(stmt.args.width).toEqual({
       $expr: { text: 'base + 20', refs: ['base'], params: [] },
     })
     expect(stmt.args.depth).toBe(3)
+    expect(stmt.args.height).toBe(10)
     expect(stmt.args.at).toEqual([10, 0, 0])
   })
 
@@ -428,8 +430,8 @@ describe('§7.1-C: formatCodeLine(HostArg) → codeToArgs 直接往返', () => {
     })
     // Full script context for proper var-ref / expr-ref resolution
     const fullCode = [
-      'let part0 = cad.box({ size: 20 })',
-      'let base_offset = cad.box({ size: 10 })',
+      'let part0 = cad.box(20, 20, 20, { centered:true })',
+      'let base_offset = cad.box(10, 10, 10, { centered:true })',
       line,
     ].join('\n')
     const { script } = parseScript(fullCode)
@@ -449,23 +451,23 @@ describe('§7.1-C: formatCodeLine(HostArg) → codeToArgs 直接往返', () => {
 // ── §7.1-D: $param parse → codegen → parse 往返 (T3-a) ──
 
 describe('§7.1-D: $param parse → codegen → parse 往返 (T3-a)', () => {
-  it('T3-a: cad.box({ size: boxSize }) 往返 — 两次 parse 的 IR deepEqual', () => {
+  it('T3-a: cad.box(boxSize, boxSize, boxSize, { centered:true }) 往返 — 两次 parse 的 IR deepEqual', () => {
     const code = [
       'const boxSize = 20',
-      'let part0 = cad.box({ size: boxSize })',
+      'let part0 = cad.box(boxSize, boxSize, boxSize, { centered:true })',
     ].join('\n')
     const { script: parsed1 } = parseScript(code)
-    const ir1 = parsed1.statements[0].args.size
-    expect(ir1).toEqual({ $param: 'boxSize' })
+    const ir1 = parsed1.statements[0].positional[0]
+    expect(ir1).toEqual({ $ref: 'boxSize' })
 
     // codegen 打印
     const printed = scriptIRToCode(parsed1)
-    expect(printed).toContain('size:boxSize')
+    expect(printed).toContain('boxSize, boxSize, boxSize')
 
     // 再解析
     const { script: parsed2 } = parseScript(printed)
-    const ir2 = parsed2.statements[0].args.size
-    expect(ir2).toEqual({ $param: 'boxSize' })
+    const ir2 = parsed2.statements[0].positional[0]
+    expect(ir2).toEqual({ $ref: 'boxSize' })
     // 两次 parse 的 IR deepEqual
     expect(ir2).toEqual(ir1)
   })

@@ -60,7 +60,7 @@ describe('F2: import + 命名空间往返', () => {
   it('import * as mech + mech.makeHeadstock → 往返保留 import 段与命名空间前缀', () => {
     const code = [
       "import * as mech from 'gear-lib-demo'",
-      'let part0 = cad.box({ size: 20 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
       'let part1 = mech.makeHeadstock({ teeth: 8 })',
       'let part2 = cad.union(part0, part1)',
     ].join('\n')
@@ -87,7 +87,7 @@ describe('F2: import + 命名空间往返', () => {
   it('命名空间输入解析：mech.op(part0) 的 input 是已声明变量', () => {
     const code = [
       "import * as mech from 'gear-lib-demo'",
-      'let part0 = cad.box({ size: 20 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
       'let part1 = mech.engrave(part0, { depth: 2 })',
     ].join('\n')
     const { script } = parseScript(code)
@@ -99,7 +99,7 @@ describe('F2: import + 命名空间往返', () => {
     const code = [
       "import { makeHeadstock, gear } from 'gear-lib-demo'",
       "import spec from 'bearing-db'",
-      'let part0 = cad.box({ size: 20 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
     ].join('\n')
     const { script } = parseScript(code)
     expect(script.imports?.[0]).toEqual({ specifier: 'gear-lib-demo', kind: 'named', localName: 'makeHeadstock', bindings: ['makeHeadstock', 'gear'], packageName: 'gear-lib-demo' })
@@ -126,7 +126,7 @@ describe('F2: import + 命名空间往返', () => {
   it('语句行号偏移：import 占 1 行，首条语句 line = 2', () => {
     const code = [
       "import * as mech from 'gear-lib-demo'",
-      'let part0 = cad.box({ size: 20 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
     ].join('\n')
     const { script, statementLines } = parseScript(code)
     expect(statementLines).toEqual([2])
@@ -136,7 +136,7 @@ describe('F2: import + 命名空间往返', () => {
   it('嵌套第三方调用 → CallRefIR.namespace', () => {
     const code = [
       "import * as mech from 'gear-lib-demo'",
-      'let part0 = cad.box({ size: 20 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
       'let part1 = cad.fai_drill(part0, { at: mech.holeCenter(part0) })',
     ].join('\n')
     const { script } = parseScript(code)
@@ -147,7 +147,7 @@ describe('F2: import + 命名空间往返', () => {
   it('StatementSummary 带 namespace/packageName（timeline「带包名」标识来源）', () => {
     const code = [
       "import * as mech from 'gear-lib-demo'",
-      'let part0 = cad.box({ size: 20 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
       'let part1 = mech.makeHeadstock()',
     ].join('\n')
     const summaries = analyzeCode(code)
@@ -164,7 +164,7 @@ describe('F2: import 约束', () => {
   it('import 不在文件头部 → E_IMPORT', () => {
     let err: ParseError | undefined
     try {
-      parseScript("let part0 = cad.box({ size: 20 })\nimport * as mech from 'gear-lib-demo'")
+      parseScript("let part0 = cad.box(20, 20, 20, { centered: true })\nimport * as mech from 'gear-lib-demo'")
     } catch (e) {
       err = e as ParseError
     }
@@ -175,7 +175,7 @@ describe('F2: import 约束', () => {
   it('import 之间夹语句 → E_IMPORT', () => {
     let err: ParseError | undefined
     try {
-      parseScript("import * as a from 'a'\nlet part0 = cad.box({ size: 20 })\nimport * as b from 'b'")
+      parseScript("import * as a from 'a'\nlet part0 = cad.box(20, 20, 20, { centered: true })\nimport * as b from 'b'")
     } catch (e) {
       err = e as ParseError
     }
@@ -185,7 +185,7 @@ describe('F2: import 约束', () => {
   it('副作用 import（import "x"）→ E_IMPORT', () => {
     let err: ParseError | undefined
     try {
-      parseScript("import 'gear-lib-demo'\nlet part0 = cad.box({ size: 20 })")
+      parseScript("import 'gear-lib-demo'\nlet part0 = cad.box(20, 20, 20, { centered: true })")
     } catch (e) {
       err = e as ParseError
     }
@@ -231,7 +231,7 @@ describe('F2: mock 库端到端执行', () => {
 
     const code = [
       "import * as mech from 'gear-lib-demo'",
-      'let part0 = cad.box({ size: 10 })',
+      'let part0 = cad.box(10, 10, 10, { centered: true })',
       'let part1 = mech.makeHeadstock({ teeth: 8 })',
       'let part2 = cad.union(part0, part1)',
     ].join('\n')
@@ -250,8 +250,8 @@ describe('F2: mock 库端到端执行', () => {
     }, { packageName: 'gear-lib-demo' })
     const code = [
       "import * as mech from 'gear-lib-demo'",
-      'let part0 = cad.box({ size: 10 })',
-      'let part1 = mech.box({ size: 10 })',
+      'let part0 = cad.box(10, 10, 10, { centered: true })',
+      'let part1 = mech.box(10, 10, 10, { centered: true })',
     ].join('\n')
     const result = await runtime.execute(code)
     expect(result.failedAt).toBeUndefined()

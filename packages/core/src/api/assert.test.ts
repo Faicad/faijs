@@ -18,11 +18,16 @@ import { assertKnurlParams } from './knurl'
 import { assertNonZeroVec3 } from './assert'
 
 describe('stdlib per-op assert: 创建类', () => {
-  it('box: size 必填（number 或 vec3）', () => {
-    expect(() => assertBoxParams({})).toThrow(/box\.size/)
-    expect(() => assertBoxParams({ size: 0 })).toThrow(/box\.size/)
-    expect(() => assertBoxParams({ size: [1, 2, 3] })).not.toThrow()
-    expect(() => assertBoxParams({ size: 20 })).not.toThrow()
+  it('box: width/depth/height 必填 > 0；旧 { size } 抛 E_ARGS_FORM（§4.1）', () => {
+    expect(() => assertBoxParams({})).toThrow(/box\.width/)
+    expect(() => assertBoxParams({ width: 1, depth: 2 })).toThrow(/box\.height/)
+    expect(() => assertBoxParams({ width: 0, depth: 2, height: 3 })).toThrow(/box\.width/)
+    expect(() => assertBoxParams({ size: 20 })).toThrow(/E_ARGS_FORM.*box\(width, depth, height/)
+    expect(() => assertBoxParams({ size: [1, 2, 3] })).toThrow(/E_ARGS_FORM/)
+    expect(() => assertBoxParams({ width: 1, depth: 2, height: 3 })).not.toThrow()
+    expect(() =>
+      assertBoxParams({ width: 1, depth: 2, height: 3, centered: true, at: [0, 0, 0], segments: 32 }),
+    ).not.toThrow()
   })
 
   it('sphere: radius 必填 > 0', () => {

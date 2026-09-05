@@ -9,7 +9,7 @@
  *      (`fuse`/`isErr`/`ok`/`Sketcher` are each exercised once), and fusing two
  *      boxes yields an `ok` result (`isOk == true`);
  *   2. the dual-form `box` sample: positional `box(10, 20, 30)` and object-form
- *      `box({ size: [10, 20, 30] })` produce identical geometry (equal bbox),
+ *      `box(10, 20, 30, { centered: true })` produce identical geometry (equal bbox),
  *      and a malformed call (`box('x')`) throws with the shared `E_ARGS_FORM`.
  */
 
@@ -24,7 +24,7 @@ describe('compat facade smoke', () => {
     const { fuse, isErr, ok, Sketcher, isOk } = compat
     // one call, one shape per combinator
     const boxA = compat.box(10, 20, 30)
-    const boxB = compat.box({ size: [10, 20, 30] })
+    const boxB = compat.box({ width: 10, depth: 20, height: 30 })
     expect(boxA).toBeTruthy()
     const result = fuse(boxA, boxB)
     expect(isOk(result)).toBe(true)
@@ -35,9 +35,9 @@ describe('compat facade smoke', () => {
     expect(s).toBeTruthy()
   })
 
-  it('dual-form box(w,h,d) vs box({size:[w,h,d]}) yield identical bbox', () => {
+  it('dual-form box(w,h,d) vs box({width,depth,height}) yield identical bbox', () => {
     const positional = compat.box(10, 20, 30)
-    const objectForm = compat.box({ size: [10, 20, 30] })
+    const objectForm = compat.box({ width: 10, depth: 20, height: 30 })
     const a = compat.getBounds(positional)
     const b = compat.getBounds(objectForm)
     expect(a).toEqual(b)

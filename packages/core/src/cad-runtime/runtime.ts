@@ -29,7 +29,7 @@ import { getBrepEngine, hasBrepEngine, getActiveBrepEngineId } from '../brep/eng
 import { ensureOcctDefaultEngine } from '../brep/engine/adapters/occt'
 import { parseScript, ParseError } from '../lang/parser'
 import { getFunctionSymbol } from '../lang/symbol-table'
-import { validateKeepDirectives, withoutKeepDirectives } from '../lang/keep'
+import { validateKeepDirectives, withoutKeepDirectives, withoutKeepDirectivesFromPositional } from '../lang/keep'
 import type { HostPorts, ExecutionMode } from './ports'
 import type { SelectorRuntimeData } from '../topology/build-selector-runtime'
 import type { SelectorRuntime } from '../topology/types'
@@ -809,7 +809,12 @@ export class CadRuntime {
     const head = source.local
       ? `local.${source.callee}#${this.executor.bodyHashOf(source.callee)}`
       : `${source.namespace ?? this.defaultNsName}.${source.callee}`
-    return `${head}|${JSON.stringify(withoutKeepDirectives(source.args))}`
+    // true-JS-subset §4.4.1：位置实参槽入 key（与 executor.computeKey 同结构），
+    // 否则 `box(20)` → `box(40)` 这类位置维数变更不会触发增量重算。
+    return `${head}|${JSON.stringify({
+      positional: withoutKeepDirectivesFromPositional(source.positional ?? []),
+      args: withoutKeepDirectives(source.args),
+    })}`
   }
 
   /** Own key of the paired old statement; '' when unpaired (ADD) → always stale. */
@@ -830,7 +835,10 @@ export class CadRuntime {
     const head = old.local
       ? `local.${old.callee}#${oldHash}`
       : `${old.namespace ?? this.defaultNsName}.${old.callee}`
-    return `${head}|${JSON.stringify(withoutKeepDirectives(old.args))}`
+    return `${head}|${JSON.stringify({
+      positional: withoutKeepDirectivesFromPositional(old.positional ?? []),
+      args: withoutKeepDirectives(old.args),
+    })}`
   }
 
   // ── 内部：VM 执行编排 ──

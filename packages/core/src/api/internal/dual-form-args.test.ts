@@ -200,24 +200,26 @@ describe('dual-form-args', () => {
   })
 
   describe('positionalToObject（D11 反方向：faijs 特有 dual op 位置→对象）', () => {
-    const boxForm: PositionalForm = { keys: ['size'], vec3Keys: ['size'] }
+    const boxForm: PositionalForm = { keys: ['width', 'depth', 'height'] }
     const cylinderForm: PositionalForm = { keys: ['radius', 'height'] }
     const translateForm: PositionalForm = { keys: ['offset'], vec3Keys: ['offset'], shapeArity: 1 }
 
-    it('三个标量装箱进一个 vec3 键（box(10,20,30) → {size:[10,20,30]}）', () => {
-      expect(positionalToObject([10, 20, 30], boxForm, 'box')).toEqual([{ size: [10, 20, 30] }])
+    it('三个标量装箱为独立键（box(10,20,30) → {width,depth,height}）', () => {
+      expect(positionalToObject([10, 20, 30], boxForm, 'box')).toEqual([
+        { width: 10, depth: 20, height: 30 },
+      ])
     })
 
-    it('单个标量是立方体边（box(20) → {size:20}）', () => {
-      expect(positionalToObject([20], boxForm, 'box')).toEqual([{ size: 20 }])
+    it('单个标量只填 width 键（box(20) → {width:20}，缺 depth/height 由 impl 断言报错）', () => {
+      expect(positionalToObject([20], boxForm, 'box')).toEqual([{ width: 20 }])
     })
 
-    it('数组首参归一为 size 数组（box([10,20,30]) → {size:[10,20,30]}）', () => {
-      expect(positionalToObject([[10, 20, 30]], boxForm, 'box')).toEqual([{ size: [10, 20, 30] }])
+    it('部分标量装箱（box(10, 20) → {width:10, depth:20}）', () => {
+      expect(positionalToObject([10, 20], boxForm, 'box')).toEqual([{ width: 10, depth: 20 }])
     })
 
-    it('已是对象形态 → 原样返回（box({size:20}) 不动）', () => {
-      const args = [{ size: 20 }]
+    it('已是对象形态 → 原样返回（box({width:20}) 不动）', () => {
+      const args = [{ width: 20 }]
       expect(positionalToObject(args, boxForm, 'box')).toBe(args)
     })
 
@@ -250,15 +252,15 @@ describe('dual-form-args', () => {
 
     // ── §6.2：尾参 options 合并（brepjs 形态 + options 尾参） ──
 
-    it('vec3 槽装箱后尾参 options 合并（box(10,20,30,{centered:true})）', () => {
+    it('三个位置槽装箱后尾参 options 合并（box(10,20,30,{centered:true})）', () => {
       expect(positionalToObject([10, 20, 30, { centered: true }], boxForm, 'box')).toEqual([
-        { size: [10, 20, 30], centered: true },
+        { width: 10, depth: 20, height: 30, centered: true },
       ])
     })
 
-    it('单标量 + options（box(20,{centered:true}) → {size:20,centered:true}）', () => {
+    it('单标量 + options（box(20,{centered:true}) → {width:20,centered:true}）', () => {
       expect(positionalToObject([20, { centered: true }], boxForm, 'box')).toEqual([
-        { size: 20, centered: true },
+        { width: 20, centered: true },
       ])
     })
 

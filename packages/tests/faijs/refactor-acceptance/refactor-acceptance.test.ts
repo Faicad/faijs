@@ -34,9 +34,9 @@ const P1 = asPartName('part1')
 const P2 = asPartName('part2')
 
 const CODE_BREP = [
-  'let part0 = cad.box({ size: 20 })',
-  'let part1 = cad.box({ size: [30, 10, 10] })',
-  'let part2 = cad.box({ size: [10, 5, 5] })',
+  'let part0 = cad.box(20, 20, 20, { centered: true })',
+  'let part1 = cad.box(30, 10, 10, { centered: true })',
+  'let part2 = cad.box(10, 5, 5, { centered: true })',
 ].join('\n')
 
 beforeAll(async () => {
@@ -74,7 +74,7 @@ describe('上层契约：宿主可读代码文本 API', () => {
 
   it('U1 链路：codeToArgs 能解析回 cad.box 的参数（UI 面板回填前提）', async () => {
     const facade = await import('@faicad/faijs')
-    const args = facade.codeToArgs('let part0 = cad.box({ size: 20 })')
+    const args = facade.codeToArgs('let part0 = cad.box(20, 20, 20, { centered: true })')
     expect(args).toBeTruthy()
   })
 
@@ -156,12 +156,12 @@ describe('P0：ExecutionResult 十一字段（含 naming）', () => {
   it('U2 增量：append 只重算新增语句，前缀不进循环', async () => {
     const rt = createRuntime(createNodePorts(), 'auto')
     try {
-      const first = await rt.execute('let p = cad.box({ size: 20 })')
+      const first = await rt.execute('let p = cad.box(20, 20, 20, { centered: true })')
       expect(first.brepChain.solidCache.has(asPartName('p'))).toBe(true)
 
       const beforeCalls: string[] = []
       const second = await rt.append(
-        'let q = cad.box({ size: 10 })\nlet q2 = cad.box({ size: 9 })',
+        'let q = cad.box(10, 10, 10, { centered: true })\nlet q2 = cad.box(9, 9, 9, { centered: true })',
         { beforeStatement: (id) => beforeCalls.push(id) },
       )
       // 新增两语句，只执行自己（前缀 p 不重进循环）
@@ -178,7 +178,7 @@ describe('P0：ExecutionResult 十一字段（含 naming）', () => {
     const rt = createRuntime(createNodePorts(), 'auto')
     try {
       // 参数校验（stdlib assert）抛错 → 引擎必须让错误透出，而不是静默吞掉
-      await expect(rt.execute('let bad = cad.box({ size: "oops" })')).rejects.toThrow()
+      await expect(rt.execute('let bad = cad.box("oops", "oops", "oops", { centered: true })')).rejects.toThrow()
       // BREP 模式缺能力 → failedAt（runtime.test.ts:1188 已有精确锚点，此处不重复）
     } finally {
       rt.dispose()

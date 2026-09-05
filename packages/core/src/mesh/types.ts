@@ -75,10 +75,25 @@ export function clampNRad(n: number | undefined): number {
   return Math.max(NRAD_MIN, Math.min(NRAD_MAX, Math.round(n)))
 }
 
-/** Parameters for creating a box. */
+/**
+ * Parameters for creating a box (brepjs `box(width, depth, height, {at?, centered?, segments?})`
+ * contract, §4.1 A 决策). Default: min-corner at the origin. `centered: true` shifts so the
+ * box is centered at the origin; `at` is CENTER semantics and takes precedence over `centered`.
+ */
 export interface BoxParams {
-  size: Vec3 | number
-  center?: Vec3
+  /** Side length along X (mm). */
+  width: number
+  /** Side length along Y (mm). */
+  depth: number
+  /** Side length along Z (mm). */
+  height: number
+  /** Center position (brepjs `at`, CENTER semantics); takes precedence over `centered`. */
+  at?: Vec3
+  /** Center the box at the origin when `at` is absent. Default: false (min-corner at origin). */
+  centered?: boolean
+  /** Tessellation segment count (box: affects only brep/mesh tessellation, not topology). */
+  segments?: number
+  /** Internal historical alias for `segments` (accepted by clampNRad, §5.1). */
   nRad?: number
 }
 

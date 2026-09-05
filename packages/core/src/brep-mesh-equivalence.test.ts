@@ -219,21 +219,21 @@ async function runAndCompare(statements: StatementIR[], label: string) {
 describe('BREP/Mesh equivalence: primitives', () => {
   it('box (cube)', async () => {
     await runAndCompare(
-      [makeStmt('s1', 'box', { size: 20 })],
+      [makeStmt('s1', 'box', { width: 20, depth: 20, height: 20, centered: true })],
       'box(size=20)',
     )
   })
 
   it('box (Vec3 size)', async () => {
     await runAndCompare(
-      [makeStmt('s1', 'box', { size: [10, 20, 30] })],
+      [makeStmt('s1', 'box', { width: 10, depth: 20, height: 30, centered: true })],
       'box([10,20,30])',
     )
   })
 
   it('box with center offset', async () => {
     await runAndCompare(
-      [makeStmt('s1', 'box', { size: 20, center: [50, 0, 0] })],
+      [makeStmt('s1', 'box', { width: 20, depth: 20, height: 20, centered: true, at: [50, 0, 0] })],
       'box(center=[50,0,0])',
     )
   })
@@ -274,40 +274,97 @@ describe('BREP/Mesh equivalence: primitives', () => {
   })
 })
 
+// ── box 契约验收（§4.1：X=width, Y=depth, Z=height，默认 min 角点在原点） ──
+
+describe('box 契约: bbox 黄金值（双路径逐点一致）', () => {
+  function assertBBox(shape: Shape, min: [number, number, number], max: [number, number, number], label: string) {
+    const m = computeMetrics(shape)
+    for (let i = 0; i < 3; i++) {
+      expect(m.bboxMin[i]).toBeCloseTo(min[i], 6)
+      expect(m.bboxMax[i]).toBeCloseTo(max[i], 6)
+    }
+    void label
+  }
+
+  for (const mode of ['brep', 'mesh'] as const) {
+    describe(`${mode} 路径`, () => {
+      it('box(30,20,10) → 默认 min 角点在原点（0,0,0）.. (30,20,10)（X=width,Y=depth,Z=height）', async () => {
+        const shape = await runMode(makePartScript([makeStmt('s1', 'box', { width: 30, depth: 20, height: 10 })]), mode)
+        assertBBox(shape, [0, 0, 0], [30, 20, 10], 'corner-origin')
+      })
+
+      it('box(30,20,10,{centered:true}) → 居中到原点 (-15,-10,-5)..(15,10,5)', async () => {
+        const shape = await runMode(
+          makePartScript([makeStmt('s1', 'box', { width: 30, depth: 20, height: 10, centered: true })]),
+          mode,
+        )
+        assertBBox(shape, [-15, -10, -5], [15, 10, 5], 'centered')
+      })
+
+      it('box(30,20,10,{centered:true,at:[1,2,3]}) → at 优先，中心在 (1,2,3)', async () => {
+        const shape = await runMode(
+          makePartScript([makeStmt('s1', 'box', { width: 30, depth: 20, height: 10, centered: true, at: [1, 2, 3] })]),
+          mode,
+        )
+        assertBBox(shape, [-14, -8, -2], [16, 12, 8], 'at-centers')
+      })
+
+      it('box({ size: 20 }) 旧形态 → E_ARGS_FORM + 新签名提示（该模式抛错）', async () => {
+        const ports = createNodePorts()
+        const runtime = createRuntime(ports, mode)
+        // IR 层旧形态参数直抛（executeIR reject），错误信息含 E_ARGS_FORM + 新签名
+        await expect(
+          runtime.executeIR(makePartScript([{ ...makeStmt('s1', 'box', { size: 20 }), outputs: [] }])),
+        ).rejects.toThrow(/E_ARGS_FORM/)
+        await expect(
+          runtime.executeIR(makePartScript([{ ...makeStmt('s1', 'box', { size: 20 }), outputs: [] }])),
+        ).rejects.toThrow(/box\(width, depth, height/)
+      })
+    })
+  }
+
+  it('box(10,20,30,{centered:true})（不等边）双路径执行成功且逐点一致', async () => {
+    await runAndCompare(
+      [makeStmt('s2', 'box', { width: 10, depth: 20, height: 30, centered: true })],
+      'box(10,20,30,{centered:true})',
+    )
+  })
+})
+
 // ── 变换 ──
 
 describe('BREP/Mesh equivalence: transforms', () => {
   it('translate', async () => {
     await runAndCompare([
-      makeStmt('s1', 'box', { size: 20 }),
+      makeStmt('s1', 'box', { width: 20, depth: 20, height: 20, centered: true }),
       makeStmt('s2', 'translate', { offset: [10, 5, 3] }, ['s1']),
     ], 'box→translate')
   })
 
   it('rotate_euler (Z-axis)', async () => {
     await runAndCompare([
-      makeStmt('s1', 'box', { size: 20 }),
+      makeStmt('s1', 'box', { width: 20, depth: 20, height: 20, centered: true }),
       makeStmt('s2', 'rotate_euler', { anglesDeg: [0, 0, 45] }, ['s1']),
     ], 'box→rotate(Z45)')
   })
 
   it('rotate_euler (multi-axis)', async () => {
     await runAndCompare([
-      makeStmt('s1', 'box', { size: [10, 20, 30] }),
+      makeStmt('s1', 'box', { width: 10, depth: 20, height: 30, centered: true }),
       makeStmt('s2', 'rotate_euler', { anglesDeg: [30, 15, 45] }, ['s1']),
     ], 'box→rotate(30,15,45)')
   })
 
   it('scale3d (uniform)', async () => {
     await runAndCompare([
-      makeStmt('s1', 'box', { size: 20 }),
+      makeStmt('s1', 'box', { width: 20, depth: 20, height: 20, centered: true }),
       makeStmt('s2', 'scale3d', { factor: 2 }, ['s1']),
     ], 'box→scale3d(2)')
   })
 
   it('scale3d (non-uniform)', async () => {
     await runAndCompare([
-      makeStmt('s1', 'box', { size: 20 }),
+      makeStmt('s1', 'box', { width: 20, depth: 20, height: 20, centered: true }),
       makeStmt('s2', 'scale3d', { factor: [2, 1, 0.5] }, ['s1']),
     ], 'box→scale3d([2,1,0.5])')
   })
@@ -327,31 +384,31 @@ describe('BREP/Mesh equivalence: transforms', () => {
 describe('BREP/Mesh equivalence: boolean operations', () => {
   it('union (box + box)', async () => {
     await runAndCompare([
-      makeStmt('s1', 'box', { size: 20 }),
-      makeStmt('s2', 'box', { size: 20, center: [15, 0, 0] }),
+      makeStmt('s1', 'box', { width: 20, depth: 20, height: 20, centered: true }),
+      makeStmt('s2', 'box', { width: 20, depth: 20, height: 20, centered: true, at: [15, 0, 0] }),
       makeStmt('s3', 'union', {}, ['s1', 's2']),
     ], 'box+box union')
   })
 
   it('subtract (box - box)', async () => {
     await runAndCompare([
-      makeStmt('s1', 'box', { size: 20 }),
-      makeStmt('s2', 'box', { size: 10 }),
+      makeStmt('s1', 'box', { width: 20, depth: 20, height: 20, centered: true }),
+      makeStmt('s2', 'box', { width: 10, depth: 10, height: 10, centered: true }),
       makeStmt('s3', 'subtract', {}, ['s1', 's2']),
     ], 'box-box subtract')
   })
 
   it('intersect (box ∩ box)', async () => {
     await runAndCompare([
-      makeStmt('s1', 'box', { size: 20 }),
-      makeStmt('s2', 'box', { size: 20, center: [10, 0, 0] }),
+      makeStmt('s1', 'box', { width: 20, depth: 20, height: 20, centered: true }),
+      makeStmt('s2', 'box', { width: 20, depth: 20, height: 20, centered: true, at: [10, 0, 0] }),
       makeStmt('s3', 'intersect', {}, ['s1', 's2']),
     ], 'box∩box intersect')
   })
 
   it('union (box + sphere)', async () => {
     await runAndCompare([
-      makeStmt('s1', 'box', { size: 20 }),
+      makeStmt('s1', 'box', { width: 20, depth: 20, height: 20, centered: true }),
       makeStmt('s2', 'sphere', { radius: 10, center: [10, 0, 0] }),
       makeStmt('s3', 'union', {}, ['s1', 's2']),
     ], 'box+sphere union')
@@ -367,13 +424,13 @@ describe('BREP/Mesh equivalence: boolean operations', () => {
 
   it('chained: box → drill → union', async () => {
     await runAndCompare([
-      makeStmt('s1', 'box', { size: 20 }),
+      makeStmt('s1', 'box', { width: 20, depth: 20, height: 20, centered: true }),
       makeStmt('s2', 'fai_drill', {
         diameter: 5, depth: 0,
         position: [0, 0, 10], direction: 'normal',
         faceNormal: [0, 0, 1], holeType: 'simple',
       }, ['s1']),
-      makeStmt('s3', 'box', { size: 15, center: [20, 0, 0] }),
+      makeStmt('s3', 'box', { width: 15, depth: 15, height: 15, centered: true, at: [20, 0, 0] }),
       makeStmt('s4', 'union', {}, ['s2', 's3']),
     ], 'box→drill→union')
   })
@@ -384,7 +441,7 @@ describe('BREP/Mesh equivalence: boolean operations', () => {
 describe('BREP/Mesh equivalence: drill', () => {
   it('simple through hole', async () => {
     await runAndCompare([
-      makeStmt('s1', 'box', { size: 20 }),
+      makeStmt('s1', 'box', { width: 20, depth: 20, height: 20, centered: true }),
       makeStmt('s2', 'fai_drill', {
         diameter: 5, depth: 0,
         position: [0, 0, 10], direction: 'normal',
@@ -395,7 +452,7 @@ describe('BREP/Mesh equivalence: drill', () => {
 
   it('blind hole', async () => {
     await runAndCompare([
-      makeStmt('s1', 'box', { size: 20 }),
+      makeStmt('s1', 'box', { width: 20, depth: 20, height: 20, centered: true }),
       makeStmt('s2', 'fai_drill', {
         diameter: 5, depth: 8,
         position: [0, 0, 10], direction: 'normal',
@@ -406,7 +463,7 @@ describe('BREP/Mesh equivalence: drill', () => {
 
   it('multiple holes', async () => {
     await runAndCompare([
-      makeStmt('s1', 'box', { size: 30 }),
+      makeStmt('s1', 'box', { width: 30, depth: 30, height: 30, centered: true }),
       makeStmt('s2', 'fai_drill', {
         diameter: 5, depth: 0,
         position: [-8, -8, 15], direction: 'normal',
@@ -426,7 +483,7 @@ describe('BREP/Mesh equivalence: drill', () => {
 describe('BREP/Mesh equivalence: end-to-end scripts', () => {
   it('box-boolean.fai.js (box - sphere)', async () => {
     await runAndCompare([
-      makeStmt('s1', 'box', { size: 20 }),
+      makeStmt('s1', 'box', { width: 20, depth: 20, height: 20, centered: true }),
       makeStmt('s2', 'sphere', { radius: 8, center: [5, 0, 0] }),
       makeStmt('s3', 'subtract', {}, ['s1', 's2']),
     ], 'box-sphere (box-boolean.fai.js)')
@@ -435,7 +492,7 @@ describe('BREP/Mesh equivalence: end-to-end scripts', () => {
   it('complex chain: primitives + transforms + boolean', async () => {
     await runAndCompare([
       makeStmt('s1', 'cylinder', { radius: 10, height: 30 }),
-      makeStmt('s2', 'box', { size: 25 }),
+      makeStmt('s2', 'box', { width: 25, depth: 25, height: 25, centered: true }),
       makeStmt('s3', 'translate', { offset: [0, 0, 5] }, ['s2']),
       makeStmt('s4', 'intersect', {}, ['s1', 's3']),
       makeStmt('s5', 'sphere', { radius: 8, center: [0, 0, 15] }),

@@ -1,6 +1,6 @@
-let part0 = cad.box({ size:[50,50,20] })
+let part0 = cad.box(50, 50, 20, { centered: true })
 const { front: part1, back: part2 } = cad.fai_split(part0)
-let part3 = cad.box({ size:20 })
+let part3 = cad.box(20, 20, 20, { centered: true })
 let part4 = cad.union(part1, part3)
 let part5 = cad.cylinder({ radius:10, height:20 })
 let part6 = cad.union(part2, part5)

@@ -25,8 +25,8 @@ import { registerBrepMockEngine, BREP_MOCK_ENGINE_ID } from './adapters/brep-moc
 /** 同一段 faijs 脚本：构造（box×2）→ 布尔（union）。
  *  条件分支断言（不统一放宽）：occt 支持 evolution → union 成功（keepHidden 源保留 → 3 个 terminal）；
  *  memory 缺 evolution → 能力路由执行前明确报错（failedAt），已成功的 part0/part1 仍为 terminal（2 个）。 */
-const SCRIPT = `let part0 = cad.box({ size: 10 })
-let part1 = cad.box({ size: 10, center: [15, 0, 0] })
+const SCRIPT = `let part0 = cad.box(10, 10, 10, { centered: true })
+let part1 = cad.box(10, 10, 10, { centered: true, at: [15, 0, 0] })
 let part2 = cad.union(part0, part1)
 `
 

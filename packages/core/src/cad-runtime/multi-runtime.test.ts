@@ -24,7 +24,7 @@ import { createRuntime } from '@faicad/faijs'
 import { CadRuntime } from './runtime'
 import type { EventSink, HostPorts } from './ports'
 
-const BOX = 'const p0 = cad.box({ size: 10 })'
+const BOX = 'const p0 = cad.box(10, 10, 10, { centered: true })'
 const TORUS = 'const t0 = cad.torus({ majorRadius: 8, minorRadius: 2 })'
 
 class TestEventSink implements EventSink {

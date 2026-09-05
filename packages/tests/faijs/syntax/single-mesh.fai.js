@@ -1,1 +1,1 @@
-let part0 = cad.box({ size:20 })
+let part0 = cad.box(20, 20, 20, { centered: true })

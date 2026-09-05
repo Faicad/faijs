@@ -12,20 +12,20 @@ import { parseScript, ParseError } from '@faicad/faijs-core/lang/parser'
 
 describe('faijs source code: parse error handling', () => {
   it('rejects JavaScript syntax errors', () => {
-    const code = `let part0 = cad.box({ size: 20`
+    const code = `let part0 = cad.box(20, 20, 20`
     expect(() => parseScript(code)).toThrow()
   })
 
   it('rejects non-arrow-function export (old format)', () => {
     const code = `export default function(cad) {
-  let part0 = cad.box({ size: 20 })
+  let part0 = cad.box(20, 20, 20, { centered: true })
   return { shape: part0 }
 }`
     expect(() => parseScript(code)).toThrow(ParseError)
   })
 
   it('rejects non-cad expression statements', () => {
-    const code = `let part0 = cad.box({ size: 20 })
+    const code = `let part0 = cad.box(20, 20, 20, { centered: true })
 console.log(part0)`
     expect(() => parseScript(code)).toThrow(ParseError)
   })

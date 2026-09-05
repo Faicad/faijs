@@ -6,7 +6,7 @@
  *   let p0 = sheet.author({ thickness: 2, base: { length: 100, width: 60 }, flanges: [] })
  *   let p1 = sheet.hem(p0, { region: 'base', side: 'xmax', type: 'closed', length: 10, radius: 2, rule: { ... } })
  *   let s1 = sheet.solidOf(p1)                 // explicit geometry terminal ⑦
- *   let b0 = cad.box({ size: [10, 10, 10] })
+ *   let b0 = cad.box(10, 10, 10, { centered: true })
  *   let b1 = cad.union(s1, b0)                 // §8.4's cad.union(s1, cad.box(...))
  *   let u1 = sheet.unfold(p1)                  // multi-output record
  *   let r1 = sheet.report(p1)                  // pure data query
@@ -66,11 +66,11 @@ const SCRIPT = [
   'let p0 = sheet.author({ thickness: 2, base: { length: 100, width: 60 }, flanges: [] })',
   "let p1 = sheet.hem(p0, { region: 'base', side: 'xmax', type: 'closed', length: 10, radius: 2, rule: { innerRadius: 2, kFactor: 0.44 } })",
   'let s1 = sheet.solidOf(p1)',
-  'let b0 = cad.box({ size: [10, 10, 10] })',
+  'let b0 = cad.box(10, 10, 10, { centered: true })',
   'let b1 = cad.union(s1, b0)',
   'let u1 = sheet.unfold(p1)',
   'let r1 = sheet.report(p1)',
-  'let x1 = cad.box({ size: [1, 1, 1] })',
+  'let x1 = cad.box(1, 1, 1, { centered: true })',
 ].join('\n')
 
 let runtime: CadRuntime

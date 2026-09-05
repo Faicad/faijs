@@ -23,7 +23,7 @@ const SELECTOR = {
 }
 
 const EXAMPLE_SNIPPETS: Record<string, string> = {
-  'box-boolean': 'cad.box({ size: 20 })',
+  'box-boolean': 'cad.box(20, 20, 20, { centered: true })',
   'drill-test': 'cad.cylinder({ radius: 5, height: 20',
   'text-engrave': "cad.text(part0, { text: 'HELLO'",
   'transform-chain': 'cad.rotate_euler(part0, { anglesDeg: [0, 0, 30] }',
@@ -43,7 +43,7 @@ test.describe('faijs demo', () => {
   test('页面加载：标题、默认示例代码、初始状态栏', async ({ page }) => {
     await page.goto('/')
     await expect(page).toHaveTitle('faijs — CAD Scripting Demo')
-    await expect(page.locator(SELECTOR.editor)).toHaveValue(/cad\.box\(\{ size: 20 \}\)/)
+    await expect(page.locator(SELECTOR.editor)).toHaveValue(/cad\.box\(20, 20, 20, \{ centered: true \}\)/)
     await expect(page.locator(SELECTOR.exampleSelect)).toHaveValue('box-boolean')
     // 下载按钮初始为 disabled（尚无成功运行结果）
     await expect(page.locator(SELECTOR.btnStep)).toBeDisabled()
@@ -147,7 +147,7 @@ test.describe('faijs demo', () => {
     await page.goto('/')
     await waitForStatusOk(page)
 
-    const snippet = `let part0 = cad.box({ size: 7 })\nlet part1 = cad.cylinder({ radius: 2, height: 12, center: [0, 0, 0] })\nlet part2 = cad.subtract(part0, part1)`
+    const snippet = `let part0 = cad.box(7, 7, 7, { centered: true })\nlet part1 = cad.cylinder({ radius: 2, height: 12, center: [0, 0, 0] })\nlet part2 = cad.subtract(part0, part1)`
     await page.locator(SELECTOR.fileInput).setInputFiles({
       name: 'custom-part.fai.js',
       mimeType: 'text/plain',
@@ -168,7 +168,7 @@ test.describe('faijs demo', () => {
     await page.goto('/')
     await waitForStatusOk(page)
 
-    const snippet = `let part0 = cad.box({ size: 7 })\nlet part1 = cad.cylinder({ radius: 2, height: 12, center: [0, 0, 0] })\nlet part2 = cad.subtract(part0, part1)`
+    const snippet = `let part0 = cad.box(7, 7, 7, { centered: true })\nlet part1 = cad.cylinder({ radius: 2, height: 12, center: [0, 0, 0] })\nlet part2 = cad.subtract(part0, part1)`
     await page.locator(SELECTOR.fileInput).setInputFiles({
       name: 'custom-part.fai.js',
       mimeType: 'text/plain',
@@ -206,7 +206,7 @@ test.describe('faijs demo', () => {
     await page.goto('/')
     await waitForStatusOk(page)
 
-    await page.locator(SELECTOR.editor).fill(`let part0 = cad.box({ size: 10 })
+    await page.locator(SELECTOR.editor).fill(`let part0 = cad.box(10, 10, 10, { centered: true })
 let part1 = cad.sphere({ radius: 4, center: [2, 0, 0] })
 let part2 = cad.subtract(part0, part1)`)
     await page.locator(SELECTOR.runBtn).click()
@@ -227,7 +227,7 @@ let part2 = cad.subtract(part0, part1)`)
     await expect(page.locator(SELECTOR.runBtn)).toBeDisabled()
 
     // 手动修改代码 → 按钮恢复可用
-    await page.locator(SELECTOR.editor).fill(`let part0 = cad.box({ size: 3 })`)
+    await page.locator(SELECTOR.editor).fill(`let part0 = cad.box(3, 3, 3, { centered: true })`)
     await expect(page.locator(SELECTOR.runBtn)).toBeEnabled()
 
     // 点击运行 → 完成后内容无变化 → 再次置灰
@@ -245,7 +245,7 @@ let part2 = cad.subtract(part0, part1)`)
     await page.goto('/')
     await waitForStatusOk(page)
 
-    await page.locator(SELECTOR.editor).fill(`let part0 = cad.box({ size: 6 })`)
+    await page.locator(SELECTOR.editor).fill(`let part0 = cad.box(6, 6, 6, { centered: true })`)
     await page.locator(SELECTOR.editor).press('Control+Enter')
     await waitForStatusOk(page)
 

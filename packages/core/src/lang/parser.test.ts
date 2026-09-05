@@ -1,4 +1,4 @@
-﻿/**
+/**
  * parser 单元测试 — 文本 → ScriptIR（扁平代码格式）
  *
  * 覆盖：
@@ -45,12 +45,12 @@ function makeStmt(
 
 describe('parser: apiVersion', () => {
   it('从文本头部解析 apiVersion', () => {
-    expect(getApiVersion('// apiVersion: 1\nconst part0 = cad.box({ size: 20 })')).toBe(1)
-    expect(getApiVersion('// apiVersion: 2\nconst part0 = cad.box({ size: 20 })')).toBe(2)
+    expect(getApiVersion('// apiVersion: 1\nconst part0 = cad.box(20, 20, 20, { centered: true })')).toBe(1)
+    expect(getApiVersion('// apiVersion: 2\nconst part0 = cad.box(20, 20, 20, { centered: true })')).toBe(2)
   })
 
   it('无 apiVersion 时默认为 1', () => {
-    expect(getApiVersion('const part0 = cad.box({ size: 20 })')).toBe(1)
+    expect(getApiVersion('const part0 = cad.box(20, 20, 20, { centered: true })')).toBe(1)
   })
 })
 
@@ -58,21 +58,22 @@ describe('parser: apiVersion', () => {
 
 describe('parser: 基本语句', () => {
   it('解析单条 box 语句（扁平格式）', () => {
-    const code = `let part0 = cad.box({ size: 20 })`
+    const code = `let part0 = cad.box(20, 20, 20, { centered: true })`
     const { script } = parseScript(code)
     expect(script.statements).toHaveLength(1)
     expect(script.statements[0].callee).toBe('box')
-    expect(script.statements[0].args.size).toBe(20)
+    expect(script.statements[0].positional).toEqual([20, 20, 20, { centered: true }])
+    expect(script.statements[0].args).toEqual({ centered: true })
     expect(statementInputs(script.statements[0])).toEqual([])
     expect(script.statements[0].id).toBe('s1')
     // Phase 3: box 是 creator op，分配新名 part0（而非变量名 part0）
     expect(script.statements[0].outputs).toEqual(['part0'])
   })
 
-  it('解析 vec3 参数', () => {
-    const code = `let part0 = cad.box({ size: [10,20,30] })`
+  it('解析三维位置实参（width/depth/height）', () => {
+    const code = `let part0 = cad.box(10, 20, 30, { centered: true })`
     const { script } = parseScript(code)
-    expect(script.statements[0].args.size).toEqual([10, 20, 30])
+    expect(script.statements[0].positional).toEqual([10, 20, 30, { centered: true }])
   })
 
   it('解析字符串参数', () => {
@@ -96,7 +97,7 @@ describe('parser: 基本语句', () => {
 
 describe('parser: 依赖链', () => {
   it('解析带 input 的语句', () => {
-    const code = `let part0 = cad.box({ size: 20 })
+    const code = `let part0 = cad.box(20, 20, 20, { centered: true })
 part0 = cad.translate(part0, { offset:[10,0,0] })`
     const { script, varToId } = parseScript(code)
     expect(script.statements).toHaveLength(2)
@@ -107,7 +108,7 @@ part0 = cad.translate(part0, { offset:[10,0,0] })`
   })
 
   it('解析多级依赖（含 await 异步 op）', () => {
-    const code = `let part0 = cad.box({ size: 20 })
+    const code = `let part0 = cad.box(20, 20, 20, { centered: true })
 part0 = cad.translate(part0, { offset:[0,0,5] })
 part0 = await cad.fai_drill(part0, { diameter:5, depth:0 })`
     const { script } = parseScript(code)
@@ -123,7 +124,7 @@ part0 = await cad.fai_drill(part0, { diameter:5, depth:0 })`
 
 describe('parser: boolean op', () => {
   it('解析 cad.union(a, b)', () => {
-    const code = `let part0 = cad.box({ size: 20 })
+    const code = `let part0 = cad.box(20, 20, 20, { centered: true })
 let part1 = cad.sphere({ radius: 10 })
 let part2 = await cad.union(part0, part1)`
     const { script } = parseScript(code)
@@ -134,7 +135,7 @@ let part2 = await cad.union(part0, part1)`
   })
 
   it('解析 cad.subtract(a, b)', () => {
-    const code = `let part0 = cad.box({ size: 20 })
+    const code = `let part0 = cad.box(20, 20, 20, { centered: true })
 let part1 = cad.sphere({ radius: 10 })
 let part2 = await cad.subtract(part0, part1)`
     const { script } = parseScript(code)
@@ -147,19 +148,20 @@ let part2 = await cad.subtract(part0, part1)`
 describe('parser: ParamRefIR 与嵌套调用', () => {
   it('解析 ParamRefIR（裸标识符引用参数）', () => {
     const code = `const size = 20
-let part0 = cad.box({ size: size })`
+let part0 = cad.box(size, size, size, { centered: true })`
     const { script } = parseScript(code)
     expect(script.params).toHaveLength(1)
     expect(script.params[0].name).toBe('size')
     expect(script.params[0].value).toBe(20)
-    expect(script.statements[0].args.size).toEqual({ $param: 'size' })
+    expect(script.statements[0].positional[0]).toEqual({ $ref: 'size' })
+    expect(script.statements[0].positional[1]).toEqual({ $ref: 'size' })
   })
 
   it('解析嵌套调用 cad.bboxCenter(var) → CallRefIR', () => {
-    const code = `let part0 = cad.box({ size: 20 })
-let part1 = cad.box({ size: cad.bboxCenter(part0) })`
+    const code = `let part0 = cad.box(20, 20, 20, { centered: true })
+let part1 = cad.box(cad.bboxCenter(part0), cad.bboxCenter(part0), cad.bboxCenter(part0), { centered: true })`
     const { script } = parseScript(code)
-    const arg = script.statements[1].args.size as CallRefIR
+    const arg = script.statements[1].positional[0] as CallRefIR
     expect(isCallRef(arg)).toBe(true)
     expect(arg.$call.callee).toBe('bboxCenter')
     expect(arg.$call.args).toHaveLength(1)
@@ -167,10 +169,10 @@ let part1 = cad.box({ size: cad.bboxCenter(part0) })`
   })
 
   it('解析嵌套调用 cad.faceNormal(var, [anchor]) → CallRefIR', () => {
-    const code = `let part0 = cad.box({ size: 20 })
-let part1 = cad.box({ size: cad.faceNormal(part0, [0,0,10]) })`
+    const code = `let part0 = cad.box(20, 20, 20, { centered: true })
+let part1 = cad.box(cad.faceNormal(part0, [0,0,10]), cad.faceNormal(part0, [0,0,10]), cad.faceNormal(part0, [0,0,10]), { centered: true })`
     const { script } = parseScript(code)
-    const arg = script.statements[1].args.size as CallRefIR
+    const arg = script.statements[1].positional[0] as CallRefIR
     expect(isCallRef(arg)).toBe(true)
     expect(arg.$call.callee).toBe('faceNormal')
     expect(arg.$call.args).toHaveLength(2)
@@ -183,7 +185,7 @@ let part1 = cad.box({ size: cad.faceNormal(part0, [0,0,10]) })`
 
 describe('parser: outputs / 终端语义（Phase 3）', () => {
   it('单条语句 → 无 terminalShapes（parser 不再自动计算；运行期从 outputs 过滤）', () => {
-    const code = `let part0 = cad.box({ size: 20 })`
+    const code = `let part0 = cad.box(20, 20, 20, { centered: true })`
     const { script } = parseScript(code)
     expect(script.terminalShapes).toBeUndefined()
     // outputs 承载变量名（partName），供运行期终端判定
@@ -191,7 +193,7 @@ describe('parser: outputs / 终端语义（Phase 3）', () => {
   })
 
   it('两条独立语句 → 两个独立 outputs（part0/part1，运行期各为终端）', () => {
-    const code = `let part0 = cad.box({ size: 20 })
+    const code = `let part0 = cad.box(20, 20, 20, { centered: true })
 let part1 = cad.sphere({ radius: 10 })`
     const { script } = parseScript(code)
     expect(script.terminalShapes).toBeUndefined()
@@ -201,7 +203,7 @@ let part1 = cad.sphere({ radius: 10 })`
   })
 
   it('依赖链（复用名）→ 单 outputs 条目（part0 始终是同一模型）', () => {
-    const code = `let part0 = cad.box({ size: 20 })
+    const code = `let part0 = cad.box(20, 20, 20, { centered: true })
 part0 = cad.translate(part0, { offset:[10,0,0] })`
     const { script } = parseScript(code)
     expect(script.terminalShapes).toBeUndefined()
@@ -211,7 +213,7 @@ part0 = cad.translate(part0, { offset:[10,0,0] })`
   })
 
   it('split 解构 → 两个 outputs（part1/part2）', () => {
-    const code = `let part0 = cad.box({ size: 20 })
+    const code = `let part0 = cad.box(20, 20, 20, { centered: true })
 const { front: part1, back: part2 } = await cad.fai_split(part0, { normal:[0,0,1], offset:0 })`
     const { script } = parseScript(code)
     expect(script.terminalShapes).toBeUndefined()
@@ -224,7 +226,7 @@ const { front: part1, back: part2 } = await cad.fai_split(part0, { normal:[0,0,1
 
 describe('parser: split 解构', () => {
   it('解析 const { front: part1, back: part2 } = await cad.fai_split(...)', () => {
-    const code = `let part0 = cad.box({ size: 20 })
+    const code = `let part0 = cad.box(20, 20, 20, { centered: true })
 const { front: part1, back: part2 } = await cad.fai_split(part0, { normal:[0,0,1], offset:0 })`
     const { script, varToId } = parseScript(code)
     expect(script.statements).toHaveLength(2)
@@ -239,7 +241,7 @@ const { front: part1, back: part2 } = await cad.fai_split(part0, { normal:[0,0,1
   })
 
   it('通用解构：任意 callee 任意键（A2）', () => {
-    const code = `let part0 = cad.box({ size: 20 })
+    const code = `let part0 = cad.box(20, 20, 20, { centered: true })
 const { a: part1, b: part2 } = cad.decompose(part0)`
     const { script } = parseScript(code)
     expect(script.statements).toHaveLength(2)
@@ -259,7 +261,7 @@ describe('parser: 错误处理', () => {
 
   it('P10b: 容器形参名与 defaultNs 不一致 → ParseError（默认绑定名须与声明一致，U10/R2）', () => {
     const code = `export default async (g) => {
-  let part0 = g.box({ size: 20 })
+  let part0 = g.box(20, 20, 20, { centered: true })
   return { shape: part0 }
 }`
     // options 缺省 defaultNs='cad'：容器形参 g ≠ cad → 拒绝（旧行为：恒拒绝 g）
@@ -277,13 +279,13 @@ describe('parser: 错误处理', () => {
   })
 
   it('未知变量引用 → ParseError', () => {
-    const code = `let part0 = cad.box({ size: 20 })
+    const code = `let part0 = cad.box(20, 20, 20, { centered: true })
 part0 = cad.translate(partUnknown, { offset:[0,0,0] })`
     expect(() => parseScript(code)).toThrow(/unknown variable/)
   })
 
   it('if 语句 → ParseError', () => {
-    const code = `if (true) { let part0 = cad.box({ size: 20 }) }`
+    const code = `if (true) { let part0 = cad.box(20, 20, 20, { centered: true }) }`
     expect(() => parseScript(code)).toThrow(ParseError)
   })
 })
@@ -294,20 +296,20 @@ describe('parser: 往返 codegen → parser', () => {
   it('单条 box 往返', () => {
     const script: ScriptIR = {
       params: [],
-      statements: [makeStmt({ id: 'part0', callee: 'box', args: { size: 20 } })],
+      statements: [makeStmt({ id: 'part0', callee: 'box', positional: [20, 20, 20, { centered: true }] })],
     }
     const code = scriptIRToCode(script)
     const { script: parsed } = parseScript(code)
     expect(parsed.statements).toHaveLength(1)
     expect(parsed.statements[0].callee).toBe('box')
-    expect(parsed.statements[0].args.size).toBe(20)
+    expect(parsed.statements[0].positional).toEqual([20, 20, 20, { centered: true }])
   })
 
   it('带依赖链往返', () => {
     const script: ScriptIR = {
       params: [],
       statements: [
-        makeStmt({ id: 'part0', callee: 'box', args: { size: 20 } }),
+        makeStmt({ id: 'part0', callee: 'box', positional: [20, 20, 20, { centered: true }] }),
         makeStmt({ id: 'part0', callee: 'translate', args: { offset: [10, 0, 0] }, inputs: ['part0'] }),
       ],
     }
@@ -323,7 +325,7 @@ describe('parser: 往返 codegen → parser', () => {
     const script: ScriptIR = {
       params: [],
       statements: [
-        makeStmt({ id: 'part0', callee: 'box', args: { size: 20 } }),
+        makeStmt({ id: 'part0', callee: 'box', positional: [20, 20, 20, { centered: true }] }),
         makeStmt({ id: 'part1', callee: 'sphere', args: { radius: 10 } }),
         makeStmt({ id: 'part2', callee: 'union', args: {}, inputs: ['part0', 'part1'] }),
       ],
@@ -345,7 +347,7 @@ describe('parser: 往返 codegen → parser', () => {
 describe('parser: 引用预检与自由引用', () => {
   it('同一变量可被多个语句引用（合法 JS，不再抛消费错误）', () => {
     const code = `
-      let part0 = cad.box({ size: 20 })
+      let part0 = cad.box(20, 20, 20, { centered: true })
       let part1 = cad.sphere({ radius: 8 })
       let part2 = cad.subtract(part0, part1)
       let part3 = cad.subtract(part0, part2)
@@ -355,7 +357,7 @@ describe('parser: 引用预检与自由引用', () => {
 
   it('成员被其它语句引用也合法（A8 消灭后无规则 B）', () => {
     const code = `
-      let part0 = cad.box({ size: 20 })
+      let part0 = cad.box(20, 20, 20, { centered: true })
       let part1 = cad.sphere({ radius: 8 })
       let part2 = cad.subtract(part0, part1)
       let part3 = cad.group({ name: 'G', members: [part0, part1] })
@@ -365,7 +367,7 @@ describe('parser: 引用预检与自由引用', () => {
 
   it('copy 不消费源（符号表 readonly 语义，阶段 3 由 terminal-dag 处理）', () => {
     const code = `
-      let part0 = cad.box({ size: 20 })
+      let part0 = cad.box(20, 20, 20, { centered: true })
       let part1 = cad.copy(part0)
       let part2 = cad.copy(part0)
     `
@@ -377,7 +379,7 @@ describe('parser: 引用预检与自由引用', () => {
 
   it('copy 分配新名: part0=box; part1=copy(part0) → part1 是新名', () => {
     const code = `
-      let part0 = cad.box({ size: 20 })
+      let part0 = cad.box(20, 20, 20, { centered: true })
       let part1 = cad.copy(part0)
     `
     const { script } = parseScript(code)
@@ -392,7 +394,7 @@ describe('parser: 引用预检与自由引用', () => {
 describe('parser: 命名分层修复（parser 保留词法名，不调 derivePartName）', () => {
   it('单声明保留词法名: let asm1 = cad.assembly(...) → outputs:["asm1"]', () => {
     const code = `
-      let part0 = cad.box({ size: 20 })
+      let part0 = cad.box(20, 20, 20, { centered: true })
       let asm1 = cad.assembly({ name: 'A', members: ['part0'] })
     `
     const { script } = parseScript(code)
@@ -405,7 +407,7 @@ describe('parser: 命名分层修复（parser 保留词法名，不调 derivePar
 
   it('成员调用 receiver 保留词法名且 refs 含 receiver（依赖边不缺失）', () => {
     const code = `
-      let part0 = cad.box({ size: 20 })
+      let part0 = cad.box(20, 20, 20, { centered: true })
       let asm1 = cad.assembly({ name: 'A', members: ['part0'] })
       asm1.add_constraint({ type: 'face_mate' })
     `
@@ -420,7 +422,7 @@ describe('parser: 命名分层修复（parser 保留词法名，不调 derivePar
 
   it('VarRefIR 引用保留词法名: members: [part0] → $ref 为 "part0"', () => {
     const code = `
-      let part0 = cad.box({ size: 20 })
+      let part0 = cad.box(20, 20, 20, { centered: true })
       let g = cad.group({ name: 'G', members: [part0] })
     `
     const { script } = parseScript(code)

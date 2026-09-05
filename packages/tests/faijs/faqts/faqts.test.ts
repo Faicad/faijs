@@ -121,10 +121,10 @@ describe('faqts 执行（Node 临时模块）', () => {
     expect(rework.positions.length).toBeGreaterThan(0)
 
     const bb = computeBBox(plate!.positions)
-    // box 语义按引擎约定 size=[x,w? y?]→实为 [x,y,z] 映射（y 取第三位），
-    // 此处只断言"非退化 + 宿主可复算"，不强绑尺寸顺序。
+    // box 契约（裁决 7）：X=width=size, Y=depth=size, Z=height=4（centered）；plate 为 20×20×4 平板。
+    // 此处只断言"非退化 + 宿主可复算"，不绑定多余尺寸。
     expect(bb.max[0] - bb.min[0]).toBe(20)
-    expect(bb.max[2] - bb.min[2]).toBe(20)
+    expect(bb.max[2] - bb.min[2]).toBe(4)
     expect(bb.max[0]).toBeGreaterThan(bb.min[0])
     expect(bb.max[2]).toBeGreaterThan(bb.min[2])
   })

@@ -33,7 +33,7 @@ describe('CadRuntime.check() — dryRun validation', () => {
   it('valid script: single box → ok', () => {
     const code = `// apiVersion: 1
 export default async (cad) => {
-  const part0 = cad.box({ size: 20 })
+  const part0 = cad.box(20, 20, 20, { centered: true })
   return { shape: part0 }
 }`
     const result = makeRuntime().check(code)
@@ -47,7 +47,7 @@ export default async (cad) => {
   it('valid script: box + sphere boolean subtract → ok', () => {
     const code = `// apiVersion: 1
 export default async (cad) => {
-  const part0 = cad.box({ size: 20 })
+  const part0 = cad.box(20, 20, 20, { centered: true })
   const part1 = cad.sphere({ radius: 8, center: [5, 0, 0] })
   const part2 = cad.subtract(part0, part1)
   return { shape: part2 }
@@ -73,7 +73,7 @@ export default async (cad) => {
     // 文档标准形态：split 解构后引用 back 输出 part2（issue: check() 误报 undefined input）
     const code = `// apiVersion: 1
 export default async (cad) => {
-  const part0 = cad.box({ size: 20 })
+  const part0 = cad.box(20, 20, 20, { centered: true })
   const { front: part1, back: part2 } = await cad.fai_split(part0, { normal: [0, 0, 1], offset: 0 })
   const part3 = cad.translate({ offset: [5, 0, 0] }, part2)
   return { shape: part3 }
@@ -87,7 +87,7 @@ export default async (cad) => {
   it('reference precheck: undefined split output id → ok=false', () => {
     const code = `// apiVersion: 1
 export default async (cad) => {
-  const part0 = cad.box({ size: 20 })
+  const part0 = cad.box(20, 20, 20, { centered: true })
   const { front: part1, back: part2 } = await cad.fai_split(part0, { normal: [0, 0, 1], offset: 0 })
   const part3 = cad.translate({ offset: [5, 0, 0] }, part999)
   return { shape: part3 }
@@ -141,7 +141,7 @@ export default async (cad) => {
   it('member method calls are exempt from symbol check (receiver present)', () => {
     // 成员方法（asm.do_assemble）不在符号表（对象方法），receiver 非空时不查符号表
     const code = `export default async (cad) => {
-  const part0 = cad.box({ size: 20 })
+  const part0 = cad.box(20, 20, 20, { centered: true })
   const asm0 = cad.assembly({ members: [part0] })
   asm0.do_assemble()
   return { shape: part0 }
@@ -153,7 +153,7 @@ export default async (cad) => {
 
   it('check is zero-geometry-side-effect: no OCCT init needed', () => {
     const code = `export default async (cad) => {
-  const part0 = cad.box({ size: 20 })
+  const part0 = cad.box(20, 20, 20, { centered: true })
   return { shape: part0 }
 }`
     const runtime = makeRuntime()
@@ -166,7 +166,7 @@ export default async (cad) => {
   it('check provides structured context for AI self-correction', () => {
     const code = `// apiVersion: 1
 export default async (cad) => {
-  const part0 = cad.box({ size: 20 })
+  const part0 = cad.box(20, 20, 20, { centered: true })
   const part1 = cad.sphere({ radius: 10 })
   const part2 = cad.union(part0, part1)
   return { shape: part2 }

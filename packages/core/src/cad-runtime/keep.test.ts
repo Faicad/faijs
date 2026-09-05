@@ -1,4 +1,4 @@
-﻿/**
+/**
  * keep.test — keep-syntax 统一内外 keep 机制验收测试（设计 §9 验收提纲）
  *
  * 设计文档：docs/plans/2026-08-28-keep-syntax-design.md
@@ -74,8 +74,8 @@ function makeScript(statements: StatementIR[]): ScriptIR {
 describe('keep: 编译层剥离（设计 §7.1）', () => {
   it('cad.union(a,b,{keep:[a,b]}) → ns.cad.union(ctx.a, ctx.b)（剥离后空 args 槽）', () => {
     const { code } = compileText(`
-      const part0 = await cad.box({ size: [10, 20, 5] })
-      const part1 = await cad.box({ size: [5, 5, 5] })
+      const part0 = await cad.box(10, 20, 5, { centered: true })
+      const part1 = await cad.box(5, 5, 5, { centered: true })
       const part2 = await cad.union(part0, part1, { keep: [part0, part1] })
     `)
     expect(code).toContain('ctx.part2 = await ns.cad.union(ctx.part0, ctx.part1)')
@@ -84,7 +84,7 @@ describe('keep: 编译层剥离（设计 §7.1）', () => {
 
   it('cad.copy(a,{keep:[a]}) → ns.cad.copy(ctx.a)（copy 无 params 槽）', () => {
     const { code } = compileText(`
-      const part0 = await cad.box({ size: [10, 20, 5] })
+      const part0 = await cad.box(10, 20, 5, { centered: true })
       const part1 = await cad.copy(part0, { keep: [part0] })
     `)
     expect(code).toContain('ctx.part1 = await ns.cad.copy(ctx.part0)')
@@ -93,7 +93,7 @@ describe('keep: 编译层剥离（设计 §7.1）', () => {
 
   it('drill 剥离 keep/keepHidden，其余 params 保留', () => {
     const { code } = compileText(`
-      const part0 = await cad.box({ size: [10, 20, 5] })
+      const part0 = await cad.box(10, 20, 5, { centered: true })
       const part1 = await cad.fai_drill(part0, { diameter: 8, keep: ['part0'], keepHidden: true })
     `)
     expect(code).toContain('ctx.part1 = await ns.cad.fai_drill(ctx.part0, { diameter: 8 })')
@@ -103,8 +103,8 @@ describe('keep: 编译层剥离（设计 §7.1）', () => {
 
   it('逐条目 {shape, hidden} 形态同样剥离', () => {
     const { code } = compileText(`
-      const part0 = await cad.box({ size: [10, 20, 5] })
-      const part1 = await cad.box({ size: [5, 5, 5] })
+      const part0 = await cad.box(10, 20, 5, { centered: true })
+      const part1 = await cad.box(5, 5, 5, { centered: true })
       const part2 = await cad.union(part0, part1, { keep: [{ shape: part0, hidden: true }] })
     `)
     expect(code).toContain('ctx.part2 = await ns.cad.union(ctx.part0, ctx.part1)')
@@ -114,7 +114,7 @@ describe('keep: 编译层剥离（设计 §7.1）', () => {
 describe('keep: statementKey 排除 keep（设计 §7.2，零几何重算）', () => {
   it('仅 keep 变化 → computeKey 不变', () => {
     const { script, statements } = compileText(`
-      const part0 = await cad.box({ size: 20 })
+      const part0 = await cad.box(20, 20, 20, { centered: true })
       const part1 = await cad.fai_drill(part0, { diameter: 8 })
     `)
     const executor = new ModuleExecutor({ cad: createApiNamespace() })
@@ -131,19 +131,19 @@ describe('keep: statementKey 排除 keep（设计 §7.2，零几何重算）', (
   })
 
   it('keep 剥离后仍与无 keep 版本逐位一致', () => {
-    const a = compileText(`const part0 = await cad.box({ size: 20 })`)
-    const b = compileText(`const part0 = await cad.box({ size: 20, keep: ['part0'] })`)
+    const a = compileText(`const part0 = await cad.box(20, 20, 20, { centered: true })`)
+    const b = compileText(`const part0 = await cad.box(20, 20, 20, { centered: true, keep: ['part0'] })`)
     // box 的 args 剥离 keep 后相同 → 发射一致
-    expect(a.code).toContain('ctx.part0 = await ns.cad.box({ size: 20 })')
-    expect(b.code).toContain('ctx.part0 = await ns.cad.box({ size: 20 })')
+    expect(a.code).toContain('ctx.part0 = await ns.cad.box(20, 20, 20, { centered: true })')
+    expect(b.code).toContain('ctx.part0 = await ns.cad.box(20, 20, 20, { centered: true })')
   })
 })
 
 describe('keep: parse → codegen → parse 往返（设计 §7.3，含 keep/keepHidden）', () => {
   it('keep 数组（标识符 + 字符串）与 keepHidden 往返守恒', () => {
     const code = [
-      'let part0 = cad.box({ size: 20 })',
-      'let part1 = cad.box({ size: 5 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
+      'let part1 = cad.box(5, 5, 5, { centered: true })',
       'let part2 = cad.union(part0, part1, { keep: [part0, "part1"], keepHidden: true })',
     ].join('\n')
     const { script } = parseScript(code)
@@ -163,7 +163,7 @@ describe('keep: 运行时消费判定（设计 §3）', () => {
   it('回归锚点：无任何 keep 声明的消费性 op → 输入被消费，只有产物是终端', async () => {
     const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
     const result = await rt.execute([
-      'let part0 = cad.box({ size: 20 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
       'let part1 = cad.translate(part0, { offset: [1, 0, 0] })',
     ].join('\n'))
     expect(result.terminals.map((t) => String(t.id))).toEqual(['part1'])
@@ -173,8 +173,8 @@ describe('keep: 运行时消费判定（设计 §3）', () => {
   it('cad.union(a,b) → a、b 是终端且 hidden（内置 exec.keepHidden 生效）', async () => {
     const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
     const result = await rt.execute([
-      'let part0 = cad.box({ size: 20 })',
-      'let part1 = cad.box({ size: 5 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
+      'let part1 = cad.box(5, 5, 5, { centered: true })',
       'let part2 = cad.union(part0, part1)',
     ].join('\n'))
     const byId = new Map(result.terminals.map((t) => [String(t.id), t]))
@@ -187,8 +187,8 @@ describe('keep: 运行时消费判定（设计 §3）', () => {
   it('cad.group({members:[a,b]}) → a、b 是终端且可见（函数体 exec.keep 生效）', async () => {
     const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
     const result = await rt.execute([
-      'let part0 = cad.box({ size: 20 })',
-      'let part1 = cad.box({ size: 5 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
+      'let part1 = cad.box(5, 5, 5, { centered: true })',
       'let grp0 = cad.group({ name: "G", members: [part0, part1] })',
     ].join('\n'))
     const byId = new Map(result.terminals.map((t) => [String(t.id), t]))
@@ -202,7 +202,7 @@ describe('keep: 运行时消费判定（设计 §3）', () => {
   it('cad.copy(a) → a 是终端（函数体 exec.keep 生效）', async () => {
     const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
     const result = await rt.execute([
-      'let part0 = cad.box({ size: 20 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
       'let part1 = cad.copy(part0)',
     ].join('\n'))
     expect(result.terminals.map((t) => String(t.id)).sort()).toEqual(['part0', 'part1'])
@@ -211,7 +211,7 @@ describe('keep: 运行时消费判定（设计 §3）', () => {
   it('cad.fai_drill(c, {keep:["c"]}) → c 是终端（调用点覆盖无声明的函数）', async () => {
     const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
     const result = await rt.execute([
-      'let part0 = cad.box({ size: 20 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
       'let part1 = cad.translate(part0, { offset: [1, 0, 0], keep: ["part0"] })',
     ].join('\n'))
     const byId = new Map(result.terminals.map((t) => [String(t.id), t]))
@@ -222,7 +222,7 @@ describe('keep: 运行时消费判定（设计 §3）', () => {
   it('cad.fai_drill(c, {keep:["c"], keepHidden:true}) → c hidden', async () => {
     const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
     const result = await rt.execute([
-      'let part0 = cad.box({ size: 20 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
       'let part1 = cad.translate(part0, { offset: [1, 0, 0], keep: ["part0"], keepHidden: true })',
     ].join('\n'))
     const t = result.terminals.find((t) => String(t.id) === 'part0')!
@@ -234,8 +234,8 @@ describe('keep: 运行时消费判定（设计 §3）', () => {
     // group 函数体 exec.keep 声明成员可见；调用点 keepHidden:true → 成员隐藏
     const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
     const result = await rt.execute([
-      'let part0 = cad.box({ size: 20 })',
-      'let part1 = cad.box({ size: 5 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
+      'let part1 = cad.box(5, 5, 5, { centered: true })',
       'let grp0 = cad.group({ name: "G", members: [part0, part1], keep: ["part0", "part1"], keepHidden: true })',
     ].join('\n'))
     const t = result.terminals.find((t) => String(t.id) === 'part0')!
@@ -245,8 +245,8 @@ describe('keep: 运行时消费判定（设计 §3）', () => {
   it('hidden 最后一次保留声明胜出（D2）：union 隐藏后 group 改可见', async () => {
     const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
     const result = await rt.execute([
-      'let part0 = cad.box({ size: 20 })',
-      'let part1 = cad.box({ size: 5 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
+      'let part1 = cad.box(5, 5, 5, { centered: true })',
       'let part2 = cad.union(part0, part1)',
       'let grp0 = cad.group({ name: "G", members: [part0, part1] })',
     ].join('\n'))
@@ -260,8 +260,8 @@ describe('keep: 运行时消费判定（设计 §3）', () => {
 
 describe('keep: 第三方函数（C1/C3/C5，terminal-dag 静态判定）', () => {
   const boxScript = (): ScriptIR => makeScript([
-    makeStmt({ id: 's1', callee: 'box', args: { size: 20 }, outputs: ['part0'] }),
-    makeStmt({ id: 's2', callee: 'box', args: { size: 5 }, outputs: ['part1'] }),
+    makeStmt({ id: 's1', callee: 'box', args: { width: 20, depth: 20, height: 20, centered: true }, outputs: ['part0'] }),
+    makeStmt({ id: 's2', callee: 'box', args: { width: 5, depth: 5, height: 5, centered: true }, outputs: ['part1'] }),
     makeStmt({
       id: 's3',
       callee: 'mech.makeGroup',
@@ -291,7 +291,7 @@ describe('keep: 第三方函数（C1/C3/C5，terminal-dag 静态判定）', () =
 
   it('C3：第三方测量函数（返回非几何）不消费输入', () => {
     const script = makeScript([
-      makeStmt({ id: 's1', callee: 'box', args: { size: 20 }, outputs: ['part0'] }),
+      makeStmt({ id: 's1', callee: 'box', args: { width: 20, depth: 20, height: 20, centered: true }, outputs: ['part0'] }),
       makeStmt({ id: 's2', callee: 'mech.measure', args: { of: [varRef('part0')] }, inputs: ['part0'], outputs: ['m'] }),
     ])
     // shapeVarNames 只含 part0（m 是 number，非几何）
@@ -314,7 +314,7 @@ describe('keep: activeValues 与 outputs 含 compound（设计 §5）', () => {
   it('查询函数（返回非几何值）→ 进 activeValues、不进 terminals；输入不被消费（C3）', async () => {
     const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
     const result = await rt.execute([
-      'let part0 = cad.box({ size: 20 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
       'let c = cad.bboxCenter(part0)',
     ].join('\n'))
     // c = [x,y,z] 是普通数组（非几何）→ activeValues
@@ -328,7 +328,7 @@ describe('keep: activeValues 与 outputs 含 compound（设计 §5）', () => {
   it('group 产物（compound）进 outputs（keep-syntax §5.1 契约）', async () => {
     const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
     const result = await rt.execute([
-      'let part0 = cad.box({ size: 20 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
       'let grp0 = cad.group({ name: "G", members: [part0] })',
     ].join('\n'))
     const grp = result.outputs.get(asPartName('grp0'))
@@ -344,7 +344,7 @@ describe('keep: check() 静态校验（设计 §7.4）', () => {
   it('合法 keep → ok', () => {
     const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
     const result = rt.check([
-      'let part0 = cad.box({ size: 20 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
       'let part1 = cad.translate(part0, { offset: [1, 0, 0], keep: ["part0"], keepHidden: true })',
     ].join('\n'))
     expect(result.ok).toBe(true)
@@ -354,7 +354,7 @@ describe('keep: check() 静态校验（设计 §7.4）', () => {
   it('keep 元素不是变量引用（字面量）→ stage=keep 报错', () => {
     const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
     const result = rt.check([
-      'let part0 = cad.box({ size: 20 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
       'let part1 = cad.translate(part0, { offset: [1, 0, 0], keep: [42] })',
     ].join('\n'))
     expect(result.ok).toBe(false)
@@ -364,7 +364,7 @@ describe('keep: check() 静态校验（设计 §7.4）', () => {
   it('keep 目标不是本语句 inputs/args 变量 → 报错', () => {
     const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
     const result = rt.check([
-      'let part0 = cad.box({ size: 20 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
       'let part1 = cad.translate(part0, { offset: [1, 0, 0], keep: ["part9"] })',
     ].join('\n'))
     expect(result.ok).toBe(false)
@@ -374,7 +374,7 @@ describe('keep: check() 静态校验（设计 §7.4）', () => {
   it('keepHidden 非 boolean → 报错', () => {
     const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
     const result = rt.check([
-      'let part0 = cad.box({ size: 20 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
       'let part1 = cad.translate(part0, { offset: [1, 0, 0], keep: ["part0"], keepHidden: "yes" })',
     ].join('\n'))
     expect(result.ok).toBe(false)
@@ -384,7 +384,7 @@ describe('keep: check() 静态校验（设计 §7.4）', () => {
   it('E4：keep 拼写错误（keeps）→ warning 而非 error', () => {
     const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
     const result = rt.check([
-      'let part0 = cad.box({ size: 20 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
       'let part1 = cad.translate(part0, { offset: [1, 0, 0], keeps: ["part0"] })',
     ].join('\n'))
     expect(result.ok).toBe(true)
@@ -398,8 +398,8 @@ describe('keep: 增量执行 keep 持久（设计 §2.2）', () => {
   it('union 未重跑（缓存命中）时 internalKeep 仍生效', async () => {
     const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
     await rt.execute([
-      'let part0 = cad.box({ size: 20 })',
-      'let part1 = cad.box({ size: 5 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
+      'let part1 = cad.box(5, 5, 5, { centered: true })',
       'let part2 = cad.union(part0, part1)',
     ].join('\n'))
 

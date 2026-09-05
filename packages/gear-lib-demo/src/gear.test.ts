@@ -29,7 +29,7 @@ beforeAll(async () => {
   runtime = createRuntime(createNodePorts(), 'auto')
   // warm the shared occt kernel + dispatch state; the produced shape is
   // intentionally discarded (the execute() call itself is the warm-up)
-  const warm = await runtime.execute('let a = cad.box({ size: [1, 1, 1] })')
+  const warm = await runtime.execute('let a = cad.box(1, 1, 1, { centered: true })')
   expect(warm.failedAt).toBeUndefined()
 }, 120000)
 

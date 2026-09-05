@@ -63,11 +63,11 @@ describe('topology naming .fai.js integration', () => {
 
   it('box→translate 链：改参重放后 box:top 仍解析到同一语义面', async () => {
     const code1 = `
-      const part0 = cad.box({ size: 20 })
+      const part0 = cad.box(20, 20, 20, { centered: true })
       const part1 = cad.translate(part0, { offset: [10, 0, 0] })
     `
     const code2 = `
-      const part0 = cad.box({ size: 30 })
+      const part0 = cad.box(30, 30, 30, { centered: true })
       const part1 = cad.translate(part0, { offset: [10, 0, 0] })
     `
 
@@ -93,8 +93,8 @@ describe('topology naming .fai.js integration', () => {
 
   it('box→fuse→cut 链：box:bottom 等未受影响面 exact 命中', async () => {
     const code = `
-      const part0 = cad.box({ size: 20 })
-      const part1 = cad.box({ size: [10, 10, 30], center: [5, 5, 15] })
+      const part0 = cad.box(20, 20, 20, { centered: true })
+      const part1 = cad.box(10, 10, 30, { centered: true, at: [5, 5, 15] })
       const part2 = cad.union(part0, part1)
     `
     const result = await runtime.execute(code, { topology: 'auto' })
@@ -116,8 +116,8 @@ describe('topology naming .fai.js integration', () => {
 
   it('布尔跨来源：union 后能解析「来自 tool 侧（part1）」的面', async () => {
     const code = `
-      const part0 = cad.box({ size: 20 })
-      const part1 = cad.box({ size: [10, 10, 30], center: [5, 5, 15] })
+      const part0 = cad.box(20, 20, 20, { centered: true })
+      const part1 = cad.box(10, 10, 30, { centered: true, at: [5, 5, 15] })
       const part2 = cad.union(part0, part1)
     `
     const result = await runtime.execute(code, { topology: 'auto' })
@@ -134,7 +134,7 @@ describe('topology naming .fai.js integration', () => {
 
   it('三态错误码：解析不存在/类型不符的面抛 E_TOPO_NOT_FOUND', async () => {
     const code = `
-      const part0 = cad.box({ size: 20 })
+      const part0 = cad.box(20, 20, 20, { centered: true })
       const part1 = cad.translate(part0, { offset: [10, 0, 0] })
     `
     const result = await runtime.execute(code, { topology: 'auto' })
@@ -170,7 +170,7 @@ describe('topology naming .fai.js integration', () => {
 
   it('三态错误码：对称几何 hint 分不开时抛 E_TOPO_AMBIGUOUS', async () => {
     const code = `
-      const part0 = cad.box({ size: 20 })
+      const part0 = cad.box(20, 20, 20, { centered: true })
     `
     const result = await runtime.execute(code, { topology: 'auto' })
     expect(result.failedAt).toBeUndefined()
@@ -204,7 +204,7 @@ describe('topology naming .fai.js integration', () => {
 
   it('mesh/primitive 命名：mesh 只给 hint（role=""）', async () => {
     const code = `
-      const part0 = cad.box({ size: 20 })
+      const part0 = cad.box(20, 20, 20, { centered: true })
     `
     const result = await runtime.execute(code, { topology: 'auto' })
     expect(result.failedAt).toBeUndefined()
@@ -219,7 +219,7 @@ describe('topology naming .fai.js integration', () => {
     // box 顶面贴到 cylinder 顶面（z=10）→ box 中心落到 z=20，bottom z=10
     const code = `
       const part0 = cad.cylinder({ radius: 10, height: 20, center: [0, 0, 0] })
-      const part1 = cad.box({ size: 20, center: [10, 0, 0] })
+      const part1 = cad.box(20, 20, 20, { centered: true, at: [10, 0, 0] })
       let asm0 = cad.assembly({ name: 'asm1', members: [part0, part1], constraints: [{
         type: 'face_mate',
         fixedPartName: 'part0',
@@ -260,7 +260,7 @@ describe('topology naming .fai.js integration', () => {
 
   it('装配 TopoRef 悬空引用：无法命名上下文 → 显式三态错误（不静默）', async () => {
     const code = `
-      const part0 = cad.box({ size: 20 })
+      const part0 = cad.box(20, 20, 20, { centered: true })
       let asm0 = cad.assembly({ name: 'bogus', members: [part0], constraints: [{
         type: 'face_mate',
         fixedPartName: 'part0',
@@ -290,7 +290,7 @@ describe('topology naming .fai.js integration', () => {
   it('drill TopoRef 驱动：face 用 {topoRef} 时执行期派生法向钻孔（§6.2）', async () => {
     // box 顶面（z=+10 端盖）钻通孔：法向由 face TopoRef 在执行期解析得到 +Z
     const code = `
-      const part0 = cad.box({ size: 20, center: [0, 0, 0] })
+      const part0 = cad.box(20, 20, 20, { centered: true, at: [0, 0, 0] })
       const part1 = cad.fai_drill(part0, {
         diameter: 4, depth: 5, holeType: 'simple',
         position: [0, 0, 10], direction: 'normal',

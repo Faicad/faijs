@@ -196,9 +196,10 @@ export function resolveArgsWithInfo(args: unknown[], spec: ArgSpec): ResolvedArg
 /**
  * 位置形态声明（D11 反方向，§4.2「归一方向 = 位置→对象」）。
  *
- * faijs 特有 dual op 的 impl 是对象形态原生（`box({ size })` /
- * `translate(shape, { offset })`），brepjs 生态的位置形态
- * （`box(10, 20, 30)` / `translate(shape, 1, 0, 0)`）需先归一成对象形态。
+ * faijs 特有 dual op 的 impl 是对象形态原生（`box(width, depth, height)` 经
+ * 装箱为 `{ width, depth, height, ... }`，`translate(shape, { offset })`），brepjs 生态
+ * 的位置形态（`box(10, 20, 30, { centered: true })` / `translate(shape, 1, 0, 0)`）
+ * 需先归一成对象形态。
  * 声明式而非 if 分支：op 作者只列「哪个键吃几个位置参数」，判别与装箱由
  * {@link positionalToObject} 统一完成。
  */
@@ -253,10 +254,14 @@ export function positionalToObject(args: unknown[], form: PositionalForm, name: 
   let i = 0
   for (const key of form.keys) {
     if (i >= rest.length) break
+    // §6.2 尾参 options：当前实参是 plain object（候选尾参 options）→ 停止装箱
+    // 交给下方 options 合并，不让任何槽位把它吞进拓扑参数
+    // （`box(20,{centered:true})` / `cylinder(5,40,{centered:true})`）。
+    if (isPlainObjectValue(rest[i])) break
     if (form.vec3Keys?.includes(key)) {
       // vec3 槽位：吃掉最多 3 个连续实参（1 个 → 标量，2~3 个 → 数组）。
       // 若剩余序列最末是 plain object（候选尾参 options），先为它留位，不让
-      // vec3 槽把它吞进拓扑参数（`box(10,20,30,{centered:true})`、`box(20,{centered:true})`）。
+      // 跨槽 vec3 把 options 吞进拓扑参数（`box(10,20,30,{centered:true})`）。
       const avail = rest.length - i
       const reserveOptions = avail > 1 && isPlainObjectValue(rest[rest.length - 1]) ? 1 : 0
       const take = Math.min(3, avail - reserveOptions)

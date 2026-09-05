@@ -40,7 +40,7 @@ describe('Phase2 executor: keep 隔离（§5.5 / D5）', () => {
       '  let b = cad.copy(a)',
       '  return b',
       '}',
-      'let part0 = cad.box({ size: 20 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
       'let part1 = myFn(part0)',
     ].join('\n')
     const rt = makeRuntime()
@@ -56,7 +56,7 @@ describe('Phase2 executor: keep 隔离（§5.5 / D5）', () => {
       '  let b = cad.copy(a)',
       '  return b',
       '}',
-      'let part0 = cad.box({ size: 20 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
       'let part1 = myFn(part0, { keep: ["part0"] })',
     ].join('\n')
     const rt = makeRuntime()
@@ -71,7 +71,7 @@ describe('Phase2 executor: bodyHash 增量（§6.2 / P4）', () => {
     'function scaleBy(a, k) {',
     '  return cad.scale3d(a, { factor: k })',
     '}',
-    'let part0 = cad.box({ size: 20 })',
+    'let part0 = cad.box(20, 20, 20, { centered: true })',
     'let part1 = scaleBy(part0, { k: 2 })',
   ].join('\n')
 
@@ -82,7 +82,7 @@ describe('Phase2 executor: bodyHash 增量（§6.2 / P4）', () => {
       'function scaleBy(a, k) {',
       '  return cad.scale3d(a, { factor: k * 3 })',
       '}',
-      'let part0 = cad.box({ size: 20 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
       'let part1 = scaleBy(part0, { k: 2 })',
     ].join('\n')
     const executed: string[] = []
@@ -117,7 +117,7 @@ describe('Phase2 executor: 整轮超时护栏（§6.3 / D8）', () => {
   it('executionTimeoutMs 不改变正常（有限）执行的结果', async () => {
     const code = [
       'function f(a) { return a }',
-      'let part0 = cad.box({ size: 20 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
       'let part1 = f(part0)',
     ].join('\n')
     const rt = makeRuntime()
@@ -128,7 +128,7 @@ describe('Phase2 executor: 整轮超时护栏（§6.3 / D8）', () => {
   it('不设 executionTimeoutMs → 无超时（现状行为不变）', async () => {
     const code = [
       'function f(a) { return a }',
-      'let part0 = cad.box({ size: 20 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
       'let part1 = f(part0)',
     ].join('\n')
     const rt = makeRuntime()
@@ -149,7 +149,7 @@ describe('Phase2 executor: terminal-dag（本机调用语句消费判定）', ()
       '  let mid = cad.scale3d(a, { factor: 2 })',
       '  return mid',
       '}',
-      'let part0 = cad.box({ size: 20 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
       'let part1 = double(part0)',
     ].join('\n')
     const rt = makeRuntime()
@@ -165,7 +165,7 @@ describe('Phase2 executor: terminal-dag（本机调用语句消费判定）', ()
       'function boom(a) {',
       '  throw "inner failure"',
       '}',
-      'let part0 = cad.box({ size: 20 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
       'let part1 = boom(part0)',
     ].join('\n')
     const rt = makeRuntime()
@@ -183,11 +183,11 @@ describe('Phase2 executor: 函数 BREP 域（§5.6 / D13，句柄释放）', () 
       'async function gear(count) {',
       '  let parts = []',
       '  for (let i = 0; i < count; i++) {',
-      '    parts.push(await cad.box({ size: i + 1 }))',
+      '    parts.push(await cad.box(i + 1, i + 1, i + 1, { centered: true }))',
       '  }',
       '  return await cad.union(parts[0], parts[1])',
       '}',
-      'let part0 = cad.box({ size: 20 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
       'let part1 = gear({ count: 10 })',
     ].join('\n')
     const rt = makeRuntime('auto')
@@ -213,7 +213,7 @@ describe('Phase2 executor: 模块结构（localFns 可加载执行）', () => {
   it('编译产物含 localFns 且可被动态 import 执行', async () => {
     const code = [
       'function f(a) { return cad.scale3d(a, { factor: 2 }) }',
-      'let part0 = cad.box({ size: 20 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
       'let part1 = f(part0)',
     ].join('\n')
     const { script } = parseScript(code)

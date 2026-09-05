@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @vitest-environment node
  *
  * BREP 特征操作单元测试 (Phase 2)
@@ -83,7 +83,7 @@ function shapeBoundingBox(s: Shape) {
 }
 
 function makeBox(size = 20): BrepHandle {
-  return primitiveToBrepSolid(kernel, 'cube', { size }).solid
+  return primitiveToBrepSolid(kernel, 'box', { width: size, depth: size, height: size, centered: true }).solid
 }
 
 function makeCylinder(radius: number, height: number): BrepHandle {
@@ -107,17 +107,17 @@ describe('BREP transform ops', () => {
   })
 
   it('rotateBrep: rotates solid 90° around Z', () => {
-    // cubeToCadSolid maps size [w,h,d] to X=w, Y=d, Z=h (Y/Z swap)
-    // So size [10, 20, 30] → X=10, Y=30, Z=20
-    const box = primitiveToBrepSolid(kernel, 'cube', { size: [10, 20, 30] }).solid
+    // box 契约：X=width, Y=depth, Z=height（裁决 7）
+    // So box(10, 20, 30, {centered:true}) → X=10, Y=20, Z=30
+    const box = primitiveToBrepSolid(kernel, 'box', { width: 10, depth: 20, height: 30, centered: true }).solid
     try {
       const rotated = rotateBrep(kernel, box, [0, 0, 90])
       const bb = getSolidBoundingBox(kernel, rotated)
       // After 90° Z rotation: X←Y, Y←-X, Z stays
-      // Original: X=10, Y=30, Z=20 → Rotated: X=30, Y=10, Z=20
-      expect(bb.max[0] - bb.min[0]).toBeCloseTo(30, 1)
+      // Original: X=10, Y=20, Z=30 → Rotated: X=20, Y=10, Z=30
+      expect(bb.max[0] - bb.min[0]).toBeCloseTo(20, 1)
       expect(bb.max[1] - bb.min[1]).toBeCloseTo(10, 1)
-      expect(bb.max[2] - bb.min[2]).toBeCloseTo(20, 1)
+      expect(bb.max[2] - bb.min[2]).toBeCloseTo(30, 1)
       kernel.release(rotated)
     } finally {
       kernel.release(box)
@@ -568,7 +568,7 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
 
   it('executeScript(box → drill, brep) → solid in cache', async () => {
     const script = makeScript([
-      makeStmt('s1', 'box', { size: 20 }, []),
+      makeStmt('s1', 'box', { width: 20, depth: 20, height: 20, centered: true }, []),
       makeStmt('s2', 'fai_drill', {
         diameter: 6, depth: 0,
         position: [0, 0, 10], direction: 'normal',
@@ -589,7 +589,7 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
   it('executeScript(box → drill → engrave, brep) → chain stays active (BREP engrave implemented)', async () => {
     // 在 BREP 链中遇到 engrave → BREP 路径执行（textToSolid + boolean），链不断裂
     const script = makeScript([
-      makeStmt('s1', 'box', { size: 20 }, []),
+      makeStmt('s1', 'box', { width: 20, depth: 20, height: 20, centered: true }, []),
       makeStmt('s2', 'fai_drill', {
         diameter: 6, depth: 0,
         position: [0, 0, 10], direction: 'normal',
@@ -615,7 +615,7 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
     // 核心测试：BREP 状态不是持久状态。每次 executeScript 创建新的 BrepChainState，
     // 删除 engrave 语句后重放 → solidCache 仍有 drill solid
     const script = makeScript([
-      makeStmt('s1', 'box', { size: 20 }, []),
+      makeStmt('s1', 'box', { width: 20, depth: 20, height: 20, centered: true }, []),
       makeStmt('s2', 'fai_drill', {
         diameter: 6, depth: 0,
         position: [0, 0, 10], direction: 'normal',
@@ -636,7 +636,7 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
   it('STEP export from unbroken BREP chain contains ADVANCED_FACE (not POLYGONAL_FACE)', async () => {
     // 验证未断裂的 BREP 链终端 solid 导出为原生 STEP（精确曲面）
     const script = makeScript([
-      makeStmt('s1', 'box', { size: 20 }, []),
+      makeStmt('s1', 'box', { width: 20, depth: 20, height: 20, centered: true }, []),
       makeStmt('s2', 'fai_drill', {
         diameter: 6, depth: 0,
         position: [0, 0, 10], direction: 'normal',

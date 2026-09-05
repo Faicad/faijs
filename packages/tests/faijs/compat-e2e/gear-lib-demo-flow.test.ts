@@ -5,7 +5,7 @@
  *   import * as gear from '<gearlib>'
  *   let g1 = gear.external({ teeth: 20, moduleSize: 2, thickness: 10 })
  *   let t1 = gear.thread({ radius: 5, pitch: 1, height: 20 })
- *   let u1 = cad.union(g1, cad.box({ size: [30, 30, 5] }))
+ *   let u1 = cad.union(g1, cad.box(30, 30, 5, { centered: true }))
  *
  * The same seven acceptance assertions as the sheetmetal e2e, with the
  * multi-output record contributed by `planetary` (§8.1 geometryFields).
@@ -44,9 +44,9 @@ const SCRIPT = [
   'let g1 = gear.external({ teeth: 20, moduleSize: 2, thickness: 10 })',
   'let t1 = gear.thread({ radius: 5, pitch: 1, height: 20 })',
   'let a1 = gear.planetary({ thickness: 8, sunTeeth: 12, planetTeeth: 6, numPlanets: 3 })',
-  'let b0 = cad.box({ size: [30, 30, 5] })',
+  'let b0 = cad.box(30, 30, 5, { centered: true })',
   'let u1 = cad.union(g1, b0)',
-  'let x1 = cad.box({ size: [1, 1, 1] })',
+  'let x1 = cad.box(1, 1, 1, { centered: true })',
 ].join('\n')
 
 let runtime: CadRuntime

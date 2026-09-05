@@ -30,11 +30,11 @@ describe('repeated bare cad.box execute keeps the kernel arena bounded', () => {
     const kernel = getKernel() as unknown as { shapeCount: number }
     const runtime = createRuntime(createNodePorts(), 'auto')
     try {
-      const warm = await runtime.execute('const part0 = cad.box({ size: 20 })')
+      const warm = await runtime.execute('const part0 = cad.box(20, 20, 20, { centered: true })')
       expect(warm.failedAt).toBeUndefined()
       const base = kernel.shapeCount
       for (let i = 0; i < 10; i++) {
-        const res = await runtime.execute('const part0 = cad.box({ size: 20 })')
+        const res = await runtime.execute('const part0 = cad.box(20, 20, 20, { centered: true })')
         expect(res.failedAt).toBeUndefined()
       }
       const growth = kernel.shapeCount - base

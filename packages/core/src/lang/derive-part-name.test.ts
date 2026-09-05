@@ -28,7 +28,7 @@ import { asPartName } from '../identity'
 
 /** 构造"已有这些 partN 输出"的代码文本（词法扫描只认 partN 标识符） */
 function codeWith(...partNames: string[]): string {
-  return partNames.map((n) => `let ${n} = cad.box({ size: 1 })`).join('\n')
+  return partNames.map((n) => `let ${n} = cad.box(1, 1, 1, { centered: true })`).join('\n')
 }
 
 /** 构造一条有 outputs 的语句（getMaxModelNum 仍为 statements 形态，faijs 内部服务） */
@@ -173,7 +173,7 @@ describe('derivePartName: partN 递增（code 词法扫描）', () => {
 
   it('输入/args 中出现的 partN 也计入（不只 outputs 行）', () => {
     const code = [
-      'let part0 = cad.box({ size: 1 })',
+      'let part0 = cad.box(1, 1, 1, { centered: true })',
       'let part5 = cad.cylinder({ diameter: 2, height: 3 })',
       'part0 = cad.fai_drill(part0, { diameter: 1 })',
     ].join('\n')
@@ -187,7 +187,7 @@ describe('derivePartName: partN 递增（code 词法扫描）', () => {
 
   it('非 partN 变量名（grp0 等）不影响模型号', () => {
     const code = [
-      'let part0 = cad.box({ size: 1 })',
+      'let part0 = cad.box(1, 1, 1, { centered: true })',
       "let grp0 = cad.group({ name: 'G', members: [part0] })",
     ].join('\n')
     const result = derivePartName({

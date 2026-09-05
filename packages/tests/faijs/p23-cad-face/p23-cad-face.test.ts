@@ -8,7 +8,7 @@
  *     （core 侧静态断言在 src/lang/op-set-consistency.test.ts；这里在
  *     **根门面**上再断言一次，锁住 `@faicad/faijs` 的实际公开面）。
  *  ② D11 双形态（§6.3 box 样本）：`cad.box(10, 20, 30)`（位置形态）与
- *     `cad.box({ size: [10, 20, 30] })`（对象形态）归一到同一实现，产物几何一致；
+ *     `cad.box({ width: 10, depth: 20, height: 30 })`（对象形态）归一到同一实现，产物几何一致；
  *     primitives / transforms 抽样同规则。
  *  ③ 生成脚本面 op 在 `.fai.js` 中可执行：compatOp 包装的 brep-only op
  *     （`cad.torus` / `cad.fuse` / `cad.cut` / `cad.offset` / `cad.clone`）端到端
@@ -46,7 +46,7 @@ beforeAll(async () => {
   // 一个活着的 brep 模式 runtime：既给直调的 cad 面函数提供内核上下文，
   // 又充当 `.fai.js` 执行环境（内核绑定是进程级单例，runtime 只注入库面）。
   rt = createRuntime(createNodePorts(), 'brep')
-  const warm = await rt.execute('const g = cad.box({ size: 10 })')
+  const warm = await rt.execute('const g = cad.box(10, 10, 10, { centered: true })')
   expect(warm.failedAt).toBeUndefined()
 }, 120000)
 
@@ -94,16 +94,16 @@ describe('① 三源一致（根门面公开面）', () => {
 })
 
 describe('② D11 双形态：位置形态与对象形态归一到同一实现', () => {
-  it('cad.box(10,20,30) ≡ cad.box({size:[10,20,30]})（几何一致）', async () => {
+  it('cad.box(10,20,30) ≡ cad.box({width:10,depth:20,height:30})（几何一致）', async () => {
     const a = await cadFn('box')(10, 20, 30)
-    const b = await cadFn('box')({ size: [10, 20, 30] })
+    const b = await cadFn('box')({ width: 10, depth: 20, height: 30 })
     expect(isShape(a)).toBe(true)
     expect(isShape(b)).toBe(true)
     expect(bbox(a)).toEqual(bbox(b))
   })
 
-  it('cad.box(20)（立方体）≡ cad.box({size:20})', async () => {
-    expect(bbox(await cadFn('box')(20))).toEqual(bbox(await cadFn('box')({ size: 20 })))
+  it('cad.box(20,20,20)（立方体）≡ cad.box({width:20,depth:20,height:20})', async () => {
+    expect(bbox(await cadFn('box')(20, 20, 20))).toEqual(bbox(await cadFn('box')({ width: 20, depth: 20, height: 20 })))
   })
 
   it('cylinder / cone / wedge 位置形态 ≡ 对象形态', async () => {
@@ -118,16 +118,16 @@ describe('② D11 双形态：位置形态与对象形态归一到同一实现',
     )
   })
 
-  it('跨层等价：.fai.js 对象形态产物 == 位置形态直调产物', async () => {
-    const res = await rt.execute('const g = cad.box({ size: [10, 20, 30] })')
+  it('跨层等价：.fai.js 位置形态产物 == 对象形态直调产物', async () => {
+    const res = await rt.execute('const g = cad.box(10, 20, 30)')
     expect(res.failedAt).toBeUndefined()
     const scripted = res.outputs.get(asPartName('g')) as Shape
-    const direct = await cadFn('box')(10, 20, 30)
+    const direct = await cadFn('box')({ width: 10, depth: 20, height: 30 })
     expect(bbox(scripted)).toEqual(bbox(direct))
   })
 
   it('translate / scale3d 位置形态 ≡ 对象形态（Shape 前置形参透传）', async () => {
-    const warm = await rt.execute('const g = cad.box({ size: 10 })')
+    const warm = await rt.execute('const g = cad.box(10, 10, 10, { centered: true })')
     const base = warm.outputs.get(asPartName('g')) as Shape
     expect(bbox(await cadFn('translate')(base, 10, 0, 0))).toEqual(
       bbox(await cadFn('translate')(base, { offset: [10, 0, 0] })),
@@ -148,7 +148,7 @@ describe('③ 生成脚本面 op 在 .fai.js 中执行', () => {
   // 分析：docs/analysis/2026-09-04-p23-cad-face-offset-vitest-hang.md
   it.skip('cad.torus / cad.offset / cad.fuse / cad.cut 端到端（brep 模式）', async () => {
     const code = [
-      'const p0 = cad.box({ size: [20, 20, 20] })',
+      'const p0 = cad.box(20, 20, 20, { centered: true })',
       'const p1 = cad.torus({ majorRadius: 8, minorRadius: 2 })',
       'const p2 = cad.offset(p0, { distance: 1 })',
       'const p3 = cad.fuse(p2, p1)',
@@ -168,7 +168,7 @@ describe('③ 生成脚本面 op 在 .fai.js 中执行', () => {
     const auto = createRuntime(createNodePorts(), 'auto')
     try {
       const res = await auto.execute(
-        'const p0 = cad.box({ size: 15 })\nconst p1 = cad.clone(p0)\nconst p2 = cad.fuse(p0, p1)',
+        'const p0 = cad.box(15, 15, 15, { centered: true })\nconst p1 = cad.clone(p0)\nconst p2 = cad.fuse(p0, p1)',
       )
       expect(res.failedAt).toBeUndefined()
       expect(res.outputs.get(asPartName('p2'))).toBeDefined()
@@ -180,7 +180,7 @@ describe('③ 生成脚本面 op 在 .fai.js 中执行', () => {
   it('mesh 强制模式下按红线抛 E_MESH_UNSUPPORTED（不静默回退）', async () => {
     const meshRt = createRuntime(createNodePorts(), 'mesh')
     try {
-      const res = await meshRt.execute('const p0 = cad.box({ size: 10 })\nconst p1 = cad.torus({ majorRadius: 8, minorRadius: 2 })')
+      const res = await meshRt.execute('const p0 = cad.box(10, 10, 10, { centered: true })\nconst p1 = cad.torus({ majorRadius: 8, minorRadius: 2 })')
       expect(res.failedAt).toBeDefined()
       // ExecutionResult 没有 errors 字段（P23 提交时的笔误）：引擎把模式不支持
       // 归并为 failedAt（index/callee/message），错误码在 message 里。
@@ -192,7 +192,7 @@ describe('③ 生成脚本面 op 在 .fai.js 中执行', () => {
 
   it('两个面各自可用：脚本面（faijs Shape）与 compat 面（brepjs 句柄，§6.3）', async () => {
     // 脚本面：cad.clone 收 faijs Shape，返回 faijs Shape
-    const res = await rt.execute('const p0 = cad.box({ size: 10 })\nconst p1 = cad.clone(p0)')
+    const res = await rt.execute('const p0 = cad.box(10, 10, 10, { centered: true })\nconst p1 = cad.clone(p0)')
     expect(res.failedAt).toBeUndefined()
     expect(res.outputs.get(asPartName('p1'))).toBeDefined()
     // 库作者面：compat.box 收数值、返回 vendored ValidSolid；compat.fuse 返回 Result

@@ -48,17 +48,17 @@ const demoLibLoader: LibLoader = {
 // ── Example .fai.js files ──
 
 const EXAMPLES: Record<string, string> = {
-  'box-boolean': `let part0 = cad.box({ size: 20 })
+  'box-boolean': `let part0 = cad.box(20, 20, 20, { centered: true })
 let part1 = cad.sphere({ radius: 8, center: [5, 0, 0] })
 let part2 = cad.subtract(part0, part1)`,
-  'drill-test': `let part0 = cad.box({ size: [30, 20, 15] })
+  'drill-test': `let part0 = cad.box(30, 20, 15, { centered: true })
 let part1 = cad.cylinder({ radius: 5, height: 20, center: [0, 0, 0] })
 let part2 = cad.subtract(part0, part1)
 part2 = cad.translate(part2, { offset: [10, 0, 0] })`,
-  'text-engrave': `let part0 = cad.box({ size: 30 })
+  'text-engrave': `let part0 = cad.box(30, 30, 30, { centered: true })
 part0 = cad.translate(part0, { offset: [0, 0, 14] })
 let part1 = cad.text(part0, { text: 'HELLO', size: 8, depth: 2 })`,
-  'transform-chain': `let part0 = cad.box({ size: [20, 10, 5] })
+  'transform-chain': `let part0 = cad.box(20, 10, 5, { centered: true })
 part0 = cad.rotate_euler(part0, { anglesDeg: [0, 0, 30] })
 part0 = cad.translate(part0, { offset: [5, 0, 0] })
 part0 = cad.scale3d(part0, { factor: [1, 1, 2] })`,

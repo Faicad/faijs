@@ -37,7 +37,7 @@ const sheetNs: StdlibNamespace = {
 
 const BOOM_SCRIPT = [
   "import * as boom from 'boom-lib'",
-  'let b0 = cad.box({ size: [5, 5, 5] })',
+  'let b0 = cad.box(5, 5, 5, { centered: true })',
   'let x1 = boom.boom()',
 ].join('\n')
 

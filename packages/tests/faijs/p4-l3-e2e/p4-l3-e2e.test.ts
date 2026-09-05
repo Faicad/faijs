@@ -52,7 +52,7 @@ describe('P4· 宿主链路 end-to-end（.fai.js → execute → terminals → E
   it('box + cylinder + union 执行成功：terminals/naming/brepSolids/topology 齐全', async () => {
     const rt = createRuntime(createNodePorts(), 'brep')
     const code = [
-      'let part0 = cad.box({ size: 20 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
       'let part1 = cad.cylinder({ radius: 6, height: 30 })',
       'let part2 = cad.union(part0, part1)',
     ].join('\n')
@@ -115,7 +115,7 @@ describe('P4·C2 静态 consumes 经 runtime libs 注册表驱动 terminals', ()
     const probe = defineOp({ mesh: (_s: Shape) => cubeMesh(1), consumes: 'none', schema: { input: 'Shape' } })
     const box = defineOp({ mesh: (_p: Record<string, unknown>) => cubeMesh(20) })
     const rt = coreCreateRuntime(createNodePorts(), 'auto', { cad: lib({ box, probe }) })
-    const result: ExecutionResult = await rt.execute('let part0 = cad.box({ size: 20 })\nlet part1 = cad.probe(part0)')
+    const result: ExecutionResult = await rt.execute('let part0 = cad.box(20, 20, 20, { centered: true })\nlet part1 = cad.probe(part0)')
     try {
       const terms = result.terminals.map((t) => String(t.id)).sort()
       expect(terms).toEqual(['part0', 'part1'])
@@ -128,7 +128,7 @@ describe('P4·C2 静态 consumes 经 runtime libs 注册表驱动 terminals', ()
     const absorb = defineOp({ mesh: (_s) => cubeMesh(1) })
     const box = defineOp({ mesh: (_p: Record<string, unknown>) => cubeMesh(20) })
     const rt = coreCreateRuntime(createNodePorts(), 'auto', { cad: lib({ box, absorb }) })
-    const result: ExecutionResult = await rt.execute('let part0 = cad.box({ size: 20 })\nlet part1 = cad.absorb(part0)')
+    const result: ExecutionResult = await rt.execute('let part0 = cad.box(20, 20, 20, { centered: true })\nlet part1 = cad.absorb(part0)')
     try {
       const terms = result.terminals.map((t) => String(t.id))
       expect(terms).toEqual(['part1'])
@@ -147,7 +147,15 @@ describe('P4·D2 元数据装配（codegen / UI 面板取用面）', () => {
     }
     const boxMeta = metaOf(stdlibBox)
     expect(boxMeta.consumes).toBe('none')
-    expect(boxMeta.schema).toEqual({ size: 'number | [n,n,n]', center: 'vec3?' })
+    // §4.1 新契约：box(width, depth, height, { at?, centered?, segments? })
+    expect(boxMeta.schema).toEqual({
+      width: 'number',
+      depth: 'number',
+      height: 'number',
+      at: 'vec3?',
+      centered: 'boolean?',
+      segments: 'number?',
+    })
 
     const cylMeta = metaOf(stdlibCylinder)
     expect(cylMeta.consumes).toBe('none')

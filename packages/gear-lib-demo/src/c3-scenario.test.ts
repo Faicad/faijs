@@ -5,7 +5,7 @@
  * Scenario:
  *   import * as gear from 'gear-lib-demo'
  *   let part0 = gear.external({ teeth: 24, moduleSize: 2, thickness: 8, bore: 8 })
- *   let part1 = cad.box({ size: [48, 48, 8] })
+ *   let part1 = cad.box(48, 48, 8, { centered: true })
  *   let part2 = cad.union(part0, part1)
  *
  * Assertions:
@@ -41,7 +41,7 @@ beforeAll(async () => {
   result = await runtime.execute([
     "import * as gear from 'gear-lib-demo'",
     'let part0 = gear.external({ teeth: 24, moduleSize: 2, thickness: 8, bore: 8 })',
-    'let part1 = cad.box({ size: [48, 48, 8] })',
+    'let part1 = cad.box(48, 48, 8, { centered: true })',
     'let part2 = cad.union(part0, part1)',
   ].join('\n'))
 }, 120000)

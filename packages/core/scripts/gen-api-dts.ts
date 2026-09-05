@@ -30,13 +30,22 @@ interface ApiEntry {
   returns: string
   /** 可选备注 */
   note?: string
+  /**
+   * 可选的完整源码可见参数列表覆盖（位置原生 op，如
+   * `box(width, depth, height, options?)`——除 options 对象外还有前置位置参数）。
+   * 给定后忽略 inputs/params 的拼接。
+   */
+  args?: string
 }
 
 const API_ENTRIES: Record<string, ApiEntry> = {
   // ── 创建类 ──
   box: {
     inputs: 0,
-    params: '{ size: number | [number, number, number]; center?: [number, number, number]; nRad?: number }',
+    args:
+      'width: number, depth: number, height: number, options?: ' +
+      '{ at?: [number, number, number]; centered?: boolean; segments?: number }',
+    params: 'never',
     returns: 'Shape',
   },
   sphere: {
@@ -212,6 +221,10 @@ const API_ENTRIES: Record<string, ApiEntry> = {
 
 /** 生成单个函数的签名行（源码可见形态：shape 位置参数 + options + 返回类型）。 */
 function genEntry(callee: string, entry: ApiEntry): string {
+  if (entry.args !== undefined) {
+    const sigArgs = `  ${callee}(${entry.args}): ${entry.returns}`
+    return entry.note ? `${sigArgs}  // ${entry.note}` : sigArgs
+  }
   const shapeParams: string[] = []
   for (let i = 0; i < entry.inputs; i++) {
     shapeParams.push(`shape${i === 0 ? '' : i}: Shape`)

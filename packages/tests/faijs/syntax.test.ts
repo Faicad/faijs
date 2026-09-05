@@ -78,23 +78,23 @@ describe('syntax round-trip: parse → codegen → parse', () => {
 
 describe('syntax features', () => {
   it('single mesh flat code', () => {
-    const code = `let part0 = cad.box({ size: 20 })`
+    const code = `let part0 = cad.box(20, 20, 20, { centered: true })`
     const { script } = parseScript(code)
     expect(script.statements).toHaveLength(1)
     expect(script.statements[0].callee).toBe('box')
   })
 
   it('Vec3 parameter forms (array vs number)', () => {
-    const codeScalar = `let part0 = cad.box({ size: 20 })`
-    const codeVec3 = `let part0 = cad.box({ size: [20, 30, 40] })`
+    const codeScalar = `let part0 = cad.box(20, 20, 20, { centered: true })`
+    const codeVec3 = `let part0 = cad.box(20, 30, 40, { centered: true })`
     const { script: s1 } = parseScript(codeScalar)
     const { script: s2 } = parseScript(codeVec3)
-    expect(s1.statements[0].args.size).toBe(20)
-    expect(s2.statements[0].args.size).toEqual([20, 30, 40])
+    expect(s1.statements[0].positional).toEqual([20, 20, 20, { centered: true }])
+    expect(s2.statements[0].positional).toEqual([20, 30, 40, { centered: true }])
   })
 
   it('chained operations preserve input references', () => {
-    const code = `let part0 = cad.box({ size: 20 })
+    const code = `let part0 = cad.box(20, 20, 20, { centered: true })
 part0 = cad.translate({ offset: [5, 0, 0] }, part0)
 part0 = cad.rotate_euler({ anglesDeg: [0, 0, 45] }, part0)`
     const { script } = parseScript(code)
@@ -104,7 +104,7 @@ part0 = cad.rotate_euler({ anglesDeg: [0, 0, 45] }, part0)`
   })
 
   it('multi mesh: two independent primitives → two outputs (runtime terminals)', () => {
-    const code = `let part0 = cad.box({ size: 20 })
+    const code = `let part0 = cad.box(20, 20, 20, { centered: true })
 let part1 = cad.sphere({ radius: 10, center: [30, 0, 0] })`
     const { script } = parseScript(code)
     expect(script.statements).toHaveLength(2)

@@ -14,8 +14,8 @@ import { isVarRef, isCallRef, statementInputs, type CallRefIR, type ArgIR } from
 describe('parser-normalization: boolean 归一取消', () => {
   it('cad.union(a,b) → callee === "union"，无 args.operation', () => {
     const code = [
-      'let part0 = cad.box({ size: 20 })',
-      'let part1 = cad.box({ size: 10 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
+      'let part1 = cad.box(10, 10, 10, { centered: true })',
       'let part2 = cad.union(part0, part1)',
     ].join('\n')
     const { script } = parseScript(code)
@@ -27,8 +27,8 @@ describe('parser-normalization: boolean 归一取消', () => {
 
   it('cad.subtract(a,b) → callee === "subtract"', () => {
     const code = [
-      'let part0 = cad.box({ size: 20 })',
-      'let part1 = cad.box({ size: 10 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
+      'let part1 = cad.box(10, 10, 10, { centered: true })',
       'let part2 = cad.subtract(part0, part1)',
     ].join('\n')
     const { script } = parseScript(code)
@@ -40,7 +40,7 @@ describe('parser-normalization: boolean 归一取消', () => {
 describe('parser-normalization: 任意 callee 的对象解构', () => {
   it('cad.fai_split 解构 → outputKeys === ["front","back"]', () => {
     const code = [
-      'let part0 = cad.box({ size: 20 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
       'const { front, back } = await cad.fai_split(part0, { normal: [0,0,1], offset: 0 })',
     ].join('\n')
     const { script } = parseScript(code)
@@ -52,7 +52,7 @@ describe('parser-normalization: 任意 callee 的对象解构', () => {
 
   it('非 split callee 的解构也合法（如 decompose）', () => {
     const code = [
-      'let part0 = cad.box({ size: 20 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
       'const { a, b } = cad.decompose(part0)',
     ].join('\n')
     const { script } = parseScript(code)
@@ -64,7 +64,7 @@ describe('parser-normalization: 任意 callee 的对象解构', () => {
 describe('parser-normalization: 任意成员调用', () => {
   it('asm1.add_constraint / asm1.do_assemble → receiver/callee', () => {
     const code = [
-      'let part0 = cad.box({ size: 20 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
       'let asm1 = cad.assembly({ name: "A", members: [part0] })',
       'asm1.add_constraint({ type: "coincident" })',
       'asm1.do_assemble()',
@@ -80,7 +80,7 @@ describe('parser-normalization: 任意成员调用', () => {
 
   it('任意方法名（如 asm1.myMethod()）也合法（receiver 须已声明）', () => {
     const code = [
-      'let part0 = cad.box({ size: 20 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
       'let asm1 = cad.assembly({ name: "A", members: [part0] })',
       'asm1.myMethod({ x: 1 })',
     ].join('\n')
@@ -93,8 +93,8 @@ describe('parser-normalization: 任意成员调用', () => {
 describe('parser-normalization: args 内嵌套调用 → CallRefIR', () => {
   it('cad.fai_drill(part0, { at: cad.faceNormal(part2) }) → args.at 是 CallRefIR', () => {
     const code = [
-      'let part0 = cad.box({ size: 20 })',
-      'let part2 = cad.box({ size: 5 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
+      'let part2 = cad.box(5, 5, 5, { centered: true })',
       'part0 = cad.fai_drill(part0, { at: cad.faceNormal(part2), depth: 2 })',
     ].join('\n')
     const { script } = parseScript(code)
@@ -111,8 +111,8 @@ describe('parser-normalization: args 内嵌套调用 → CallRefIR', () => {
 describe('parser-normalization: members 走 VarRefIR', () => {
   it('cad.group({ members: [part0, part1] }) → members 是 VarRefIR 数组', () => {
     const code = [
-      'let part0 = cad.box({ size: 20 })',
-      'let part1 = cad.box({ size: 10 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
+      'let part1 = cad.box(10, 10, 10, { centered: true })',
       'let g = cad.group({ members: [part0, part1] })',
     ].join('\n')
     const { script } = parseScript(code)
@@ -128,7 +128,7 @@ describe('parser-normalization: members 走 VarRefIR', () => {
 describe('parser-normalization: asset 走 CallRefIR', () => {
   it('cad.asset("cfg") 嵌套在 args 中 → CallRefIR', () => {
     const code = [
-      'let part0 = cad.box({ size: 20 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
       'part0 = cad.fai_drill(part0, { depth: cad.asset("cfg") })',
     ].join('\n')
     const { script } = parseScript(code)
@@ -143,7 +143,7 @@ describe('parser-normalization: asset 走 CallRefIR', () => {
 describe('parser-normalization: 裸重赋值保留', () => {
   it('part0 = cad.fai_drill(part0, {...}) → callee==="fai_drill"、inputs=[part0]', () => {
     const code = [
-      'let part0 = cad.box({ size: 20 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
       'part0 = cad.fai_drill(part0, { diameter: 5 })',
     ].join('\n')
     const { script } = parseScript(code)

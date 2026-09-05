@@ -42,7 +42,7 @@ describe('A1: parse top-level function definitions', () => {
   it('collects function name, params and verbatim body', () => {
     const code = [
       'function makeBracket(width) {',
-      '  let part0 = cad.box({ size: [width, 10, 4] })',
+      '  let part0 = cad.box(width, 10, 4, { centered: true })',
       '  return part0',
       '}',
     ].join('\n')
@@ -51,17 +51,17 @@ describe('A1: parse top-level function definitions', () => {
     const fn = script.functions![0]
     expect(fn.name).toBe('makeBracket')
     expect(fn.params).toEqual(['width'])
-    expect(fn.body).toContain('let part0 = cad.box({ size: [width, 10, 4] })')
+    expect(fn.body).toContain('let part0 = cad.box(width, 10, 4, { centered: true })')
   })
 
   it('function definitions are not geometry statements (no DAG pollution)', () => {
     const code = [
       'function helper(w) {',
-      '  let part0 = cad.box({ size: w })',
+      '  let part0 = cad.box(w, w, w, { centered: true })',
       '  return part0',
       '}',
       'let part1 = cad.sphere({ radius: 5 })',
-      'let part2 = cad.box({ size: 1 })',
+      'let part2 = cad.box(1, 1, 1, { centered: true })',
     ].join('\n')
     const { script } = parseScript(code)
     // 函数不进 statements——只产生几何语句
@@ -75,7 +75,7 @@ describe('A1: parse top-level function definitions', () => {
   it('bodyHash is deterministic and bodyRange covers the function body', () => {
     const code = [
       'function f(x) {',
-      '  let p = cad.box({ size: x })',
+      '  let p = cad.box(x, x, x, { centered: true })',
       '  return p',
       '}',
     ].join('\n')
@@ -98,7 +98,7 @@ describe('Phase2: 函数体放行控制流（§3.1 / §3.2）', () => {
       '  let parts = []',
       '  for (let i = 0; i < count; i++) {',
       '    if (i % 2 === 0) {',
-      '      parts.push(cad.box({ size: i }))',
+      '      parts.push(cad.box(i, i, i, { centered: true }))',
       '    } else {',
       '      continue',
       '    }',
@@ -123,7 +123,7 @@ describe('Phase2: 函数体放行控制流（§3.1 / §3.2）', () => {
       '  function inner(y) {',
       '    return y * 2',
       '  }',
-      '  let p = cad.box({ size: x })',
+      '  let p = cad.box(x, x, x, { centered: true })',
       '  return p',
       '}',
     ].join('\n')
@@ -164,10 +164,10 @@ describe('Phase2: 本机函数调用四形态 + ABI（§3.4 / §3.6）', () => {
   const code = [
     'function makeGear(count, pitch) {',
     '  let parts = []',
-    '  for (let i = 0; i < count; i++) { parts.push(cad.box({ size: pitch })) }',
+    '  for (let i = 0; i < count; i++) { parts.push(cad.box(pitch, pitch, pitch, { centered: true })) }',
     '  return parts[0]',
     '}',
-    'let part0 = cad.box({ size: 20 })',
+    'let part0 = cad.box(20, 20, 20, { centered: true })',
     'let part1 = makeGear({ count: 8, pitch: 5 })',
     'let part2 = makeGear(part0, { pitch: 5 })',
     'part2 = makeGear(part2, { pitch: 3 })',
@@ -210,7 +210,7 @@ describe('Phase2: 本机函数调用四形态 + ABI（§3.4 / §3.6）', () => {
   it('无赋值调用形态：裸调用（副作用）', () => {
     const sideEffect = [
       'function sideEffect(a) { cad.sphere({ radius: a }) }',
-      'let part0 = cad.box({ size: 1 })',
+      'let part0 = cad.box(1, 1, 1, { centered: true })',
       'sideEffect(part0)',
     ].join('\n')
     const { script } = parseScript(sideEffect)
@@ -222,7 +222,7 @@ describe('Phase2: 本机函数调用四形态 + ABI（§3.4 / §3.6）', () => {
   it('ABI：位置实参超位 → E_ARG', () => {
     const code = [
       'function f(a, b) { return a }',
-      'let part0 = cad.box({ size: 1 })',
+      'let part0 = cad.box(1, 1, 1, { centered: true })',
       'let part1 = f(part0, part0, part0)',
     ].join('\n')
     expectParseError(code, 'E_ARG', /at most 2 positional/)
@@ -231,7 +231,7 @@ describe('Phase2: 本机函数调用四形态 + ABI（§3.4 / §3.6）', () => {
   it('ABI：对象键不在形参表 → E_ARG', () => {
     const code = [
       'function f(a, b) { return a }',
-      'let part0 = cad.box({ size: 1 })',
+      'let part0 = cad.box(1, 1, 1, { centered: true })',
       'let part1 = f(part0, { nope: 1 })',
     ].join('\n')
     expectParseError(code, 'E_ARG', /no parameter named "nope"/)
@@ -240,7 +240,7 @@ describe('Phase2: 本机函数调用四形态 + ABI（§3.4 / §3.6）', () => {
   it('ABI：对象键与位置实参占用冲突 → E_ARG', () => {
     const code = [
       'function f(a, b) { return a }',
-      'let part0 = cad.box({ size: 1 })',
+      'let part0 = cad.box(1, 1, 1, { centered: true })',
       'let part1 = f(part0, { a: 2 })',
     ].join('\n')
     expectParseError(code, 'E_ARG', /already bound by a positional/)
@@ -249,7 +249,7 @@ describe('Phase2: 本机函数调用四形态 + ABI（§3.4 / §3.6）', () => {
   it('ABI：keep 键不参与校验（可传保留指令）', () => {
     const code = [
       'function f(a) { return a }',
-      'let part0 = cad.box({ size: 1 })',
+      'let part0 = cad.box(1, 1, 1, { centered: true })',
       'let part1 = f(part0, { keep: ["part0"] })',
     ].join('\n')
     const { script } = parseScript(code)
@@ -258,7 +258,7 @@ describe('Phase2: 本机函数调用四形态 + ABI（§3.4 / §3.6）', () => {
   })
 
   it('未知函数名 → parse 期 E_REFERENCE（D15）', () => {
-    const code = 'let part0 = cad.box({ size: 1 })\nlet part1 = noSuchFn(part0)'
+    const code = 'let part0 = cad.box(1, 1, 1, { centered: true })\nlet part1 = noSuchFn(part0)'
     expectParseError(code, 'E_REFERENCE', /does not exist/)
   })
 
@@ -272,7 +272,7 @@ describe('Phase2: 本机函数调用四形态 + ABI（§3.4 / §3.6）', () => {
 
   it('函数提升：定义在语句之后仍可调用', () => {
     const code = [
-      'let part0 = cad.box({ size: 1 })',
+      'let part0 = cad.box(1, 1, 1, { centered: true })',
       'let part1 = laterFn(part0, { k: 2 })',
       'function laterFn(a, k) { return a }',
     ].join('\n')
@@ -288,10 +288,10 @@ describe('Phase2: compile 发射（§5.1 / §5.2 / §5.3）', () => {
       "import * as mech from 'gear-lib-demo'",
       'function makeGear(count, pitch) {',
       '  let parts = []',
-      '  for (let i = 0; i < count; i++) { parts.push(cad.box({ size: pitch })) }',
+      '  for (let i = 0; i < count; i++) { parts.push(cad.box(pitch, pitch, pitch, { centered: true })) }',
       '  return parts[0]',
       '}',
-      'let part0 = cad.box({ size: 20 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
       'let part1 = makeGear({ count: 8, pitch: 5 })',
     ].join('\n')
     const { script } = parseScript(code)
@@ -309,7 +309,7 @@ describe('Phase2: compile 发射（§5.1 / §5.2 / §5.3）', () => {
       'function pattern(input, count) {',
       '  return cad.sphere({ radius: count })',
       '}',
-      'let part0 = cad.box({ size: 20 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
       'let part1 = pattern(part0, { count: 6 })',
     ].join('\n')
     const { script } = parseScript(code)
@@ -322,7 +322,7 @@ describe('Phase2: compile 发射（§5.1 / §5.2 / §5.3）', () => {
       'function splitFn(input, mode) {',
       '  return { front: input, back: input }',
       '}',
-      'let part0 = cad.box({ size: 20 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
       'const { front: part1, back: part2 } = splitFn(part0, { mode: "x" })',
     ].join('\n')
     const { script } = parseScript(code)
@@ -335,7 +335,7 @@ describe('Phase2: compile 发射（§5.1 / §5.2 / §5.3）', () => {
   it('未绑定形参 → undefined', () => {
     const code = [
       'function f(a, b, c) { return a }',
-      'let part0 = cad.box({ size: 1 })',
+      'let part0 = cad.box(1, 1, 1, { centered: true })',
       'let part1 = f(part0, { c: 3 })',
     ].join('\n')
     const { script } = parseScript(code)
@@ -349,7 +349,7 @@ describe('Phase2: analyzeCode / 往返', () => {
   it('analyzeCode 增 local 字段', () => {
     const code = [
       'function f(a) { return a }',
-      'let part0 = cad.box({ size: 1 })',
+      'let part0 = cad.box(1, 1, 1, { centered: true })',
       'let part1 = f(part0)',
     ].join('\n')
     const summaries = analyzeCode(code)
@@ -363,10 +363,10 @@ describe('Phase2: analyzeCode / 往返', () => {
     const code = [
       'function makeGear(count, pitch) {',
       '  let parts = []',
-      '  for (let i = 0; i < count; i++) { parts.push(cad.box({ size: pitch })) }',
+      '  for (let i = 0; i < count; i++) { parts.push(cad.box(pitch, pitch, pitch, { centered: true })) }',
       '  return parts[0]',
       '}',
-      'let part0 = cad.box({ size: 20 })',
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
       'let part1 = makeGear({ count: 8, pitch: 5 })',
       'let part2 = makeGear(part0, { pitch: 5 })',
       'part2 = makeGear(part2, { pitch: 3 })',

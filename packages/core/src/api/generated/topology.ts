@@ -1,7 +1,7 @@
 /**
  * generated/topology.ts — 生成文件，勿手改。
  * 由 packages/core/scripts/gen-l3-surface.ts 依据 api/surface/arg-spec.ts 生成（E5/P14 分片）。
- * topology 模块：131 个投影符号；另有 171 个 skip 登记。
+ * topology 模块：132 个投影符号；另有 170 个 skip 登记。
  */
 import { compatOp } from '../internal/compat-op'
 import { projectBrepOp } from '../internal/compat-projection'
@@ -11,6 +11,7 @@ import { torus as __vendored_torus } from '../../vendored/brepjs/topology/primit
 import { fuse as __vendored_fuse } from '../../vendored/brepjs/topology/booleanFns.js'
 import { getBounds as __vendored_getBounds } from '../../vendored/brepjs/topology/shapeFns.js'
 import type { Bounds3D } from '../../vendored/brepjs/topology/shapeFns.js'
+import { box as __vendored_box } from '../../vendored/brepjs/topology/primitiveFns.js'
 import { ellipsoid as __vendored_ellipsoid } from '../../vendored/brepjs/topology/primitiveFns.js'
 import { rotate as __vendored_rotate } from '../../vendored/brepjs/topology/api.js'
 import { mirror as __vendored_mirror } from '../../vendored/brepjs/topology/api.js'
@@ -258,6 +259,16 @@ export type { Wrapped3D } from '../../vendored/brepjs/topology/wrapperFns.js'
 export type { WrappedCurve } from '../../vendored/brepjs/topology/wrapperFns.js'
 
 export type { WrappedFace } from '../../vendored/brepjs/topology/wrapperFns.js'
+
+/**
+ * box — brepjs 投影（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
+ * box(width: number, depth: number, height: number, options?: BoxOptions): Shape
+ * 桥接：compatOp(projectBrepOp(…))——单内核断言 + D11 归一 + 语句边界六步契约（§4.3.2）。
+ */
+export const box = compatOp(
+  projectBrepOp('box', ["width","depth","height","options"], 'A', __vendored_box),
+  { name: 'box', consumes: "none" },
+)
 
 /**
  * ellipsoid — brepjs 投影（生成文件，禁手改；来源 api/surface/arg-spec.ts）。

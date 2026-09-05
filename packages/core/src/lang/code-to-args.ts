@@ -1,4 +1,4 @@
-﻿﻿/**
+﻿/**
  * code-to-args — 单语句行 args 提取（编辑回填配套）
  *
  * See docs/syntax-design.md §3 (statement model ↔ StatementIR mapping) and §6.4 (check).
@@ -98,13 +98,13 @@ export interface CodeToArgsResult {
  * 旧契约（只返回对象槽）在位置形态下会静默丢弃非对象实参——本契约显式保留全部信息。
  *
  * 支持的行形态（与 parser 接受的语句一致）：
- * - `const part0 = cad.box({ size: 20 })`
+ * - `const part0 = cad.box(10, 20, 30)`
  * - `part0 = cad.fai_drill(part0, { diameter: 5 })`（裸重赋值）
  * - `const { front: a, back: b } = cad.fai_split(part0, { normal: [0,0,1] })`（解构）
  * - `asm0.add_constraint({ ... })`（成员方法调用）
  * - 位置实参为字面量/变量引用/表达式（`cad.box(10, 20, 30)`、`cad.hem(p0.solid, {...})`）
- * - args 中的裸标识符参数引用（`cad.box({ size: height })`）
- * - args 中的计算表达式（`cad.box({ size: base + 20 })`）→ 折叠为字面值返回
+ * - args 中的裸标识符参数引用（`cad.box(10, 20, height)`）
+ * - args 中的计算表达式（`cad.box(10, 20, base + 20)`）→ 折叠为字面值返回
  *
  * @param codeLine 单条语句源码行
  * @param opts.namespaces 该脚本顶层 import 的绑定名（F2：`mech.makeHeadstock(...)`

@@ -19,8 +19,8 @@ import { __resetEngineRegistriesForTests } from './registry'
 import { registerBrepMockEngine } from './adapters/brep-mock'
 import { registerOcctBrepEngine } from './adapters/occt'
 
-const SCRIPT = `let part0 = cad.box({ size: 10 })
-let part1 = cad.box({ size: 10, center: [15, 0, 0] })
+const SCRIPT = `let part0 = cad.box(10, 10, 10, { centered: true })
+let part1 = cad.box(10, 10, 10, { centered: true, at: [15, 0, 0] })
 let part2 = cad.union(part0, part1)
 `
 

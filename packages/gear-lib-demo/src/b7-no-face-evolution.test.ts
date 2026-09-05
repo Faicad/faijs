@@ -68,7 +68,7 @@ describe('B7: 第三方 BREP 产物无 faceEvolution（fromHandle）', () => {
     const { result } = await executeScript([
       "import * as mech from 'gear-lib-demo'",
       'let part0 = mech.makeHeadstock({ size: 10 })',
-      'let part1 = cad.box({ size: 20 })',
+      'let part1 = cad.box(20, 20, 20, { centered: true })',
       'let part2 = cad.union(part0, part1)',
     ].join('\n'))
     expect(result.failedAt).toBeUndefined()

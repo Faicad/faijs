@@ -16,7 +16,7 @@ import { cad } from '@faicad/faq'
 import type { Shape } from '@faicad/faq/sdk'
 
 function makePlate(size: number): Shape {
-  const plate = cad.box({ size: [size, size, 4] })
+  const plate = cad.box({ width: size, depth: size, height: 4, centered: true })
   return plate
 }
 
