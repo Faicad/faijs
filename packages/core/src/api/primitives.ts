@@ -50,10 +50,19 @@ export function assertSphereParams(params: Record<string, unknown>): void {
 }
 
 /**
- * Validate cylinder parameters: `radius` and `height` must be positive numbers.
+ * Validate cylinder parameters (brepjs contract, §4.3 A 决策): `radius` and
+ * `height` must be positive. The legacy `{ center }` object key is removed — any
+ * call still passing `center` throws an explicit `E_ARGS_FORM` error pointing at
+ * the new signature (error hint ≠ compatibility, 裁决 3).
  * @param params - the raw cylinder operation parameters.
  */
 export function assertCylinderParams(params: Record<string, unknown>): void {
+  if (params.center !== undefined || params.size !== undefined) {
+    throw new Error(
+      '[faijs/args] cylinder: E_ARGS_FORM: the legacy object form is removed. ' +
+      'cylinder now uses `cylinder(radius, height, { at?, centered?, segments? })`.',
+    )
+  }
   assertPositiveNumber(params.radius, 'cylinder.radius')
   assertPositiveNumber(params.height, 'cylinder.height')
 }
@@ -199,7 +208,9 @@ function centerParams(params: Record<string, unknown>): Record<string, unknown> 
 }
 
 /**
- * 创建圆柱体。
+ * 创建圆柱体（brepjs 契约，§4.3 A 决策）。
+ * 锚点：`at` 是**底面轴心**（BASE 语义，默认 [0,0,0]，底面在原点、+Z 延伸）；`centered:true`
+ * 指底面落到 −h/2（无 at 时居中到原点；与 `at` 同给时以 `at` 为中心）。
  * @group 创建
  * @inputs 0
  * @async false
@@ -207,11 +218,17 @@ function centerParams(params: Record<string, unknown>): Record<string, unknown> 
  * @name cylinder
  * @returns Shape 圆柱体几何，可作为后续 op 的输入。
  * @param params.radius - 底面半径（mm）。type:number required:true
- * @param params.height - 高度（mm），沿 Z 轴。type:number required:true
- * @param params.segments - 细分度（影响面数）。type:number 默认 64（= brepjs standard 等效，P0 §5.0/§5.1）
- * @param params.center - 中心位置。type:[x,y,z] 默认 [0,0,0]（原点）。
+ * @param params.height - 高度（mm），沿 +Z 轴。type:number required:true
+ * @param params.at - 底面中心（BASE 语义）。type:[x,y,z] 可选
+ * @param params.centered - 是否居中（底面 −h/2；与 at 同给时以 at 为中心）。type:boolean 默认 false
+ * @param params.segments - 细分度（影响三角化）。type:number 默认 64（= brepjs standard 等效，P0 §5.0/§5.1）
  * @example
- * const c = cad.cylinder({ radius: 5, height: 40 })
+ * const c = cad.cylinder(5, 40)
+ * const c = cad.cylinder(5, 40, { centered: true, at: [0, 0, 20], segments: 64 })
+ *
+ * 位置原生（§4.1/§6.2）：`cylinder(5, 40)` 与 `cylinder(5, 40, {centered:true})`
+ * 归一到同一对象（D11 位置→装箱 + 尾参 options 合并）。旧 `{ center }` 对象形态已废弃
+ * （裁决 3），传入会抛 `E_ARGS_FORM`（错误提示 ≠ 兼容，§4.3）。
   */
 export const cylinder = defineOp({
   name: 'cylinder',
@@ -225,8 +242,9 @@ export const cylinder = defineOp({
   },
   // L3 metadata (D2): creator consumes no shape inputs.
   consumes: 'none',
-  schema: { radius: 'number', height: 'number', segments: 'number?', center: 'vec3?' },
-  // D11: `cylinder(5, 40)` == `cylinder({ radius: 5, height: 40 })`.
+  schema: { radius: 'number', height: 'number', at: 'vec3?', centered: 'boolean?', segments: 'number?' },
+  // D11（§4.1/§6.2）：`cylinder(5, 40)` 两个标量装箱成 { radius, height }；尾参 options
+  // 经 dual-form-args 尾参合并并入。
   positional: { keys: ['radius', 'height'] },
 })
 

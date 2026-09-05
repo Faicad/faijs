@@ -53,7 +53,7 @@ describe('P4· 宿主链路 end-to-end（.fai.js → execute → terminals → E
     const rt = createRuntime(createNodePorts(), 'brep')
     const code = [
       'let part0 = cad.box(20, 20, 20, { centered: true })',
-      'let part1 = cad.cylinder({ radius: 6, height: 30 })',
+      'let part1 = cad.cylinder(6, 30, { centered: true })',
       'let part2 = cad.union(part0, part1)',
     ].join('\n')
     const result: ExecutionResult = await rt.execute(code)

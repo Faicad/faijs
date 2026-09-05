@@ -1,2 +1,2 @@
-let part0 = cad.cylinder({ radius:5, height:20 })
-let part1 = cad.cylinder({ radius:8, height:15, center:[0,0,10] })
+let part0 = cad.cylinder(5, 20, { centered: true })
+let part1 = cad.cylinder(8, 15, { centered: true, at: [0, 0, 10] })

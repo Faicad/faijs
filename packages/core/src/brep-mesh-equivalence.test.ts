@@ -416,6 +416,74 @@ describe('cone 契约: bbox 黄金值（双路径逐点一致）', () => {
   })
 })
 
+// ── cylinder 契约验收（§4.3 A：`at` BASE 语义，默认底面在原点、+Z 延伸） ──
+
+describe('cylinder 契约: bbox 黄金值（双路径逐点一致）', () => {
+  function assertBBox(shape: Shape, min: [number, number, number], max: [number, number, number], label: string) {
+    const m = computeMetrics(shape)
+    for (let i = 0; i < 3; i++) {
+      expect(m.bboxMin[i]).toBeCloseTo(min[i], 6)
+      expect(m.bboxMax[i]).toBeCloseTo(max[i], 6)
+    }
+    void label
+  }
+
+  for (const mode of ['brep', 'mesh'] as const) {
+    describe(`${mode} 路径`, () => {
+      it('cylinder(30,20) → 默认底面在原点（BASE），bbox -30..30 × -30..30 × 0..20', async () => {
+        const shape = await runMode(
+          makePartScript([makeStmt('s1', 'cylinder', { radius: 30, height: 20 })]),
+          mode,
+        )
+        assertBBox(shape, [-30, -30, 0], [30, 30, 20], 'base-at-origin')
+      })
+
+      it('cylinder(30,20,{centered:true}) → 居中：z ∈ [-10,10]', async () => {
+        const shape = await runMode(
+          makePartScript([makeStmt('s1', 'cylinder', { radius: 30, height: 20, centered: true })]),
+          mode,
+        )
+        assertBBox(shape, [-30, -30, -10], [30, 30, 10], 'centered')
+      })
+
+      it('cylinder(30,20,{at:[1,2,3]})… → at 为底面轴心，底面落在 (1,2,3)', async () => {
+        const shape = await runMode(
+          makePartScript([makeStmt('s1', 'cylinder', { radius: 30, height: 20, at: [1, 2, 3] })]),
+          mode,
+        )
+        assertBBox(shape, [-29, -28, 3], [31, 32, 23], 'at-base')
+      })
+
+      it('cylinder(30,20,{centered:true,at:[1,2,3]}) → at 变中心语义', async () => {
+        const shape = await runMode(
+          makePartScript([
+            makeStmt('s1', 'cylinder', { radius: 30, height: 20, centered: true, at: [1, 2, 3] }),
+          ]),
+          mode,
+        )
+        assertBBox(shape, [-29, -28, -7], [31, 32, 13], 'at-centred')
+      })
+
+      it('cylinder({ center }) 旧形态 → E_ARGS_FORM + 新签名提示（该模式抛错）', async () => {
+        const ports = createNodePorts()
+        const runtime = createRuntime(ports, mode)
+        const script = makePartScript([
+          { ...makeStmt('s1', 'cylinder', { radius: 10, height: 20, center: [0, 0, 0] }), outputs: [] },
+        ])
+        await expect(runtime.executeIR(script)).rejects.toThrow(/E_ARGS_FORM/)
+        await expect(runtime.executeIR(script)).rejects.toThrow(/cylinder\(radius, height/)
+      })
+    })
+  }
+
+  it('cylinder(30,20,{centered:true,at:[1,2,3]}) 双路径执行成功且逐点一致', async () => {
+    await runAndCompare(
+      [makeStmt('s2', 'cylinder', { radius: 30, height: 20, centered: true, at: [1, 2, 3] })],
+      'cylinder(30,20,{centered:true,at:[1,2,3]})',
+    )
+  })
+})
+
 // ── 变换 ──
 
 describe('BREP/Mesh equivalence: transforms', () => {

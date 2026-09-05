@@ -1,4 +1,4 @@
-﻿/**
+/**
  * topology-naming .fai.js fixture 集成测试（M5 引擎侧，§8）
  *
  * 验证真实 BREP 链路上的 TopoRef 命名/解析：
@@ -218,7 +218,7 @@ describe('topology naming .fai.js integration', () => {
     // 与宿主编排相同：fixed=cylinder（顶面），moving=box（顶面），两法线同向 → 180° 翻转
     // box 顶面贴到 cylinder 顶面（z=10）→ box 中心落到 z=20，bottom z=10
     const code = `
-      const part0 = cad.cylinder({ radius: 10, height: 20, center: [0, 0, 0] })
+      const part0 = cad.cylinder(10, 20, { centered: true, at: [0, 0, 0] })
       const part1 = cad.box(20, 20, 20, { centered: true, at: [10, 0, 0] })
       let asm0 = cad.assembly({ name: 'asm1', members: [part0, part1], constraints: [{
         type: 'face_mate',
@@ -310,7 +310,7 @@ describe('topology naming .fai.js integration', () => {
     // 轴向必须以宿主捕获的 faceNormal（点击点真实法向）为权威。同时给出
     // face（身份引用）与 faceNormal（轴向快照）→ 不抛错且仍走 BREP。
     const code = `
-      const part0 = cad.cylinder({ radius: 10, height: 20, center: [0, 0, 0] })
+      const part0 = cad.cylinder(10, 20, { centered: true, at: [0, 0, 0] })
       const part1 = cad.fai_drill(part0, {
         diameter: 5, depth: 0, holeType: 'simple',
         position: [0, -10, 10], direction: 'normal',

@@ -105,12 +105,19 @@ export interface SphereParams {
   nRad?: number
 }
 
-/** Parameters for creating a cylinder. */
+/** Parameters for creating a cylinder (brepjs contract, §4.3 A). */
 export interface CylinderParams {
+  /** Radius (mm). */
   radius: number
+  /** Height along +Z (mm). */
   height: number
+  /** Base circle center (brepjs `at`, BASE semantics; default [0, 0, 0]). */
+  at?: Vec3
+  /** Center the cylinder (base at −h/2 / center at `at`) instead of base at `at`/origin. */
+  centered?: boolean
+  /** Tessellation segment count (cylinder: affects only tessellation, not topology). */
   segments?: number
-  center?: Vec3
+  /** Internal historical alias for `segments` (accepted by clampNRad, §5.1). */
   nRad?: number
 }
 

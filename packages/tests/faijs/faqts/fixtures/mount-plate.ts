@@ -21,7 +21,7 @@ function makePlate(size: number): Shape {
 }
 
 function makeBoss(): Shape {
-  return cad.cylinder({ radius: 6, height: 10, center: [0, 0, 2] })
+  return cad.cylinder({ radius: 6, height: 10, centered: true, at: [0, 0, 2] })
 }
 
 const multi = 2

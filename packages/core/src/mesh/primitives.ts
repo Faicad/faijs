@@ -79,20 +79,26 @@ export function sphere(params: SphereParams): Shape {
 }
 
 /**
- * Create a cylinder oriented along X (Z-up convention is applied internally).
+ * Create a cylinder along +Z (`cylinder(radius, height, { at?, centered?,
+ * segments? })` brepjs 契约，§4.3 A 决策；与 brep 路径逐点对齐）。
  *
- * @param params - cylinder parameters (radius, height, optional segments, optional center).
+ * 锚点：`at` 是**底面轴心**（BASE）语义（默认 [0,0,0]，底面在原点、+Z 延伸）；
+ * `centered:true` 指底面落到 −h/2（无 at 时居中到原点）——与 `at` 同给时以
+ * `at` 为中心。`segments` 经 clampNRad 消费（P0 §5）。
+ *
+ * @param params - cylinder parameters (radius, height, optional at/centered/segments).
  * @returns the cylinder shape.
  */
 export function cylinder(params: CylinderParams): Shape {
-  // makePrimitiveGeo('cylinder', size) 使用 size 作为直径和高度
-  // mesh API 分离 radius 和 height，需要直接构建
   const segs = clampNRad(params.nRad ?? params.segments)
   const geo = new THREE.CylinderGeometry(params.radius, params.radius, params.height, segs)
   geo.applyMatrix4(new THREE.Matrix4().makeRotationX(Math.PI / 2))
-  if (params.center) {
-    geo.translate(params.center[0], params.center[1], params.center[2])
-  }
+  // geometry（rotateX 后）沿 z ∈ [-h/2, +h/2]（three 默认 Y-up 居中）：
+  // 目标底面中心 in baseZ = (at?.[2] ?? 0) - (centered ? h/2 : 0) → 平移到 baseZ + h/2。
+  const baseX = params.at?.[0] ?? 0
+  const baseY = params.at?.[1] ?? 0
+  const baseZ = (params.at?.[2] ?? 0) - (params.centered === true ? params.height / 2 : 0)
+  geo.translate(baseX, baseY, baseZ + params.height / 2)
   return geoToShape(geo)
 }
 

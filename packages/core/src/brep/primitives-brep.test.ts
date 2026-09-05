@@ -195,8 +195,8 @@ describe('BREP primitives: center offset', () => {
     expect(bb.max[1]).toBeCloseTo(60, 1)
   })
 
-  it('cylinderBrep: center [0, 0, 100] shifts bbox', async () => {
-    const s = await cad.cylinderBrep({ radius: 5, height: 10, center: [0, 0, 100] })
+  it('cylinderBrep: at [0, 0, 100] centered shifts bbox', async () => {
+    const s = await cad.cylinderBrep({ radius: 5, height: 10, centered: true, at: [0, 0, 100] })
     const bb = shapeBoundingBox(s)
     expect(bb.min[2]).toBeCloseTo(95, 1)
     expect(bb.max[2]).toBeCloseTo(105, 1)
@@ -216,7 +216,7 @@ describe('BREP primitives: centered at origin by default', () => {
   })
 
   it('cylinderBrep: centered at origin', async () => {
-    const s = await cad.cylinderBrep({ radius: 10, height: 20 })
+    const s = await cad.cylinderBrep({ radius: 10, height: 20, centered: true })
     const bb = shapeBoundingBox(s)
     expect(bb.min[2]).toBeCloseTo(-10, 1)
     expect(bb.max[2]).toBeCloseTo(10, 1)

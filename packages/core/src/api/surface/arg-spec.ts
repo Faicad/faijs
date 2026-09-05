@@ -2570,8 +2570,9 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   // primitiveFns：box/sphere/cylinder/cone/compound/solid 是 faijs 同名 op（§5.1 双形态
   // 或手写面已覆盖），生成层不重复投影 → skip；曲线/线框/面类构造产物是 Edge/Wire/Face
   // 子形状句柄，faijs Shape 面整件模型无法承载 → skip；ellipsoid 是纯数值整件构造 → brep-op；
-  // box（§4.1 A）与 cone（§4.1 P）自 P3/P4 起由 skip → brep-op：投影到 brepjs 契约，但
-  // **不投 scriptFace**（faijs 侧由手写 dual-op 覆盖，生成模块符号为孤儿 by design）。
+  // box（§4.1 A）、cone（§4.1 P）与 cylinder（§4.3 A）自 P3/P4/P5 起由 skip → brep-op：
+  // 投影到 brepjs 契约，但**不投 scriptFace**（faijs 侧由手写 dual-op 覆盖，生成模块
+  // 符号为孤儿 by design）。
   {
     name: 'box', source: 'topology/primitiveFns.js#box', kind: 'brep-op',
     consumes: 'none', geometryArgs: [], returnsResult: false,
@@ -2585,8 +2586,12 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     reason: 'faijs 同名 sphere（§5.1 双形态同 box），生成层不重复投影',
   },
   {
-    name: 'cylinder', source: 'topology/primitiveFns.js#cylinder', kind: 'skip',
-    reason: 'faijs 同名 cylinder（§5.1 双形态同 box），生成层不重复投影',
+    name: 'cylinder', source: 'topology/primitiveFns.js#cylinder', kind: 'brep-op',
+    consumes: 'none', geometryArgs: [], returnsResult: false,
+    args: 'cylinder(radius: number, height: number, options?: CylinderOptions): Shape',
+    reason: 'faijs 侧由手写 dual-op 覆盖（§4.3 A 决策，mesh+brep 双实现，at/centered BASE 语义）；本条目仅投影到 brepjs 圆柱契约，生成模块符号为孤儿 by design，scriptFace 不投（避免与手写 cylinder 撞名）。',
+    params: ['radius', 'height', 'options'], formClass: 'A',
+    scriptFace: false,
   },
   {
     name: 'cone', source: 'topology/primitiveFns.js#cone', kind: 'brep-op',

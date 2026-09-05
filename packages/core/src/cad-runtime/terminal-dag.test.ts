@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @vitest-environment node
  *
  * terminal-dag — DAG 叶子终端判定单元测试（keep-syntax 设计 §3 / §6）
@@ -234,7 +234,7 @@ describe('computeLeafTerminals: DAG leaf detection', () => {
     const terminals = terminalsFromCode(`
       let part0 = cad.box(20, 20, 20, { centered: true })
       let part1 = cad.sphere({ radius: 8 })
-      let part2 = cad.cylinder({ radius: 5, height: 20 })
+      let part2 = cad.cylinder(5, 20, { centered: true })
     `)
     expect(terminals.sort()).toEqual(['part0', 'part1', 'part2'])
   })

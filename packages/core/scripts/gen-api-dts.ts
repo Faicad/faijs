@@ -55,7 +55,7 @@ const API_ENTRIES: Record<string, ApiEntry> = {
   },
   cylinder: {
     inputs: 0,
-    params: '{ radius: number; height: number; segments?: number; center?: [number, number, number]; nRad?: number }',
+    params: '{ radius: number; height: number; at?: [number, number, number]; centered?: boolean; segments?: number; nRad?: number }',
     returns: 'Shape',
   },
   cone: {

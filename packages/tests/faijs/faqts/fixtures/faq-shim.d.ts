@@ -9,7 +9,7 @@ declare module '@faicad/faq' {
   import type { Shape } from '@faicad/faijs-core/mesh/types'
   export const cad: {
     box: (opts: { width: number; depth: number; height: number; centered?: boolean }) => Shape
-    cylinder: (opts: { radius: number; height: number; center?: [number, number, number] }) => Shape
+    cylinder: (opts: { radius: number; height: number; at?: [number, number, number]; centered?: boolean }) => Shape
     translate: (shape: Shape, offset: [number, number, number]) => Shape
     scale: (shape: Shape, factor: number) => Shape
     union: (...shapes: Shape[]) => Shape

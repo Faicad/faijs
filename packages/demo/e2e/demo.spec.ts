@@ -24,7 +24,7 @@ const SELECTOR = {
 
 const EXAMPLE_SNIPPETS: Record<string, string> = {
   'box-boolean': 'cad.box(20, 20, 20, { centered: true })',
-  'drill-test': 'cad.cylinder({ radius: 5, height: 20',
+  'drill-test': 'cad.cylinder(5, 20, { centered: true',
   'text-engrave': "cad.text(part0, { text: 'HELLO'",
   'transform-chain': 'cad.rotate_euler(part0, { anglesDeg: [0, 0, 30] }',
 }
@@ -147,7 +147,7 @@ test.describe('faijs demo', () => {
     await page.goto('/')
     await waitForStatusOk(page)
 
-    const snippet = `let part0 = cad.box(7, 7, 7, { centered: true })\nlet part1 = cad.cylinder({ radius: 2, height: 12, center: [0, 0, 0] })\nlet part2 = cad.subtract(part0, part1)`
+    const snippet = `let part0 = cad.box(7, 7, 7, { centered: true })\nlet part1 = cad.cylinder(2, 12, { centered: true, at: [0, 0, 0] })\nlet part2 = cad.subtract(part0, part1)`
     await page.locator(SELECTOR.fileInput).setInputFiles({
       name: 'custom-part.fai.js',
       mimeType: 'text/plain',
@@ -168,7 +168,7 @@ test.describe('faijs demo', () => {
     await page.goto('/')
     await waitForStatusOk(page)
 
-    const snippet = `let part0 = cad.box(7, 7, 7, { centered: true })\nlet part1 = cad.cylinder({ radius: 2, height: 12, center: [0, 0, 0] })\nlet part2 = cad.subtract(part0, part1)`
+    const snippet = `let part0 = cad.box(7, 7, 7, { centered: true })\nlet part1 = cad.cylinder(2, 12, { centered: true, at: [0, 0, 0] })\nlet part2 = cad.subtract(part0, part1)`
     await page.locator(SELECTOR.fileInput).setInputFiles({
       name: 'custom-part.fai.js',
       mimeType: 'text/plain',
