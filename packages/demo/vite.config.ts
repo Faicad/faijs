@@ -106,6 +106,8 @@ export default defineConfig({
       // P 三/四：gear-lib 经 alias 落位活源码，浏览器的静态 LIB_MODULES import 才能打包；
       // dev 与 build（rollup）一致生效。
       { find: '@faicad/gear-lib-demo', replacement: resolve(__dirname, '../gear-lib-demo/src/index.ts') },
+      // sheetmetal：与 gear-lib-demo 同理，经 alias 落位活源码。
+      { find: '@faicad/sheetmetal', replacement: resolve(__dirname, '../sheetmetal/src/index.ts') },
     ],
   },
   plugins: [cdnExternalPlugin(), wasmAssets()],

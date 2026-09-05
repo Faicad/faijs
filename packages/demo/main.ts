@@ -20,6 +20,7 @@ import fontUrl from './assets/fonts/OpenSans-Regular.ttf?url'
 // P 四（4.4）：gear-lib-demo 静态引用——供 LIB_MODULES 映射表引用 + 打包。
 // Vite/Rollup 对变量参数 import(packageName) 做不了静态分析，必须静态字面量。
 import * as gearLib from '@faicad/gear-lib-demo'
+import * as sheetmetalLib from '@faicad/sheetmetal'
 
 // ── 浏览器 libLoader（自动装载注册表） ──
 // key 必须与 registerLib 的 packageName（即脚本 import specifier）严格一致：
@@ -30,6 +31,8 @@ const LIB_MODULES: Record<string, () => Promise<StdlibNamespace>> = {
   // 静态 import * as gearLib 已引用并参与打包；此处返回同一命名空间。
   // 断言：gear 包 exports 形状满足 StdlibNamespace（加载后由 libLoader 契约收口）。
   'gear-lib-demo': async () => gearLib as unknown as StdlibNamespace,
+  // sheetmetal：与 gear-lib-demo 同理，静态 import 参与打包，运行时返回命名空间。
+  'sheetmetal': async () => sheetmetalLib as unknown as StdlibNamespace,
 }
 
 const demoLibLoader: LibLoader = {
@@ -64,6 +67,17 @@ part0 = cad.scale(part0, { factor: [1, 1, 2] })`,
 let g1 = gear.external({ teeth: 24, moduleSize: 2, thickness: 8, bore: 8 })
 let t1 = gear.thread({ radius: 5, pitch: 1, height: 20 })
 let u1 = cad.union(g1, t1)`,
+  'sheetmetal-demo': `import * as sm from 'sheetmetal'
+
+let part = sm.author({
+  thickness: 1,
+  base: { length: 40, width: 30 },
+  flanges: [
+    { id: 'fx', length: 15, angleDeg: 90, rule: { innerRadius: 2, kFactor: 0.44 }, side: 'xmax' },
+    { id: 'fy', length: 15, angleDeg: 90, rule: { innerRadius: 2, kFactor: 0.44 }, side: 'ymax' },
+  ],
+})
+let s1 = sm.solidOf(part)`,
 }
 
 // ── DOM elements ──

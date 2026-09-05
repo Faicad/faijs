@@ -35,11 +35,13 @@ import { asPartName } from '../identity'
 // 注意：脚本 specifier（如 'gear-lib-demo'）经 derivePackageName 无 '@' 前缀，
 // 与 CLI 装载的真实包名（'@faicad/gear-lib-demo'）不同——白名单按真实包名登记，
 // 同时收录该包名的短 specifier 别名，loadLib 一律归一到真实包名再 import。
-const CLI_ALLOWED_LIBS = new Set(['@faicad/gear-lib-demo'])
+const CLI_ALLOWED_LIBS = new Set(['@faicad/gear-lib-demo', '@faicad/sheetmetal'])
 /** specifier → 真实包名 归一映射（短名与完整 scoped 名都登记为可装载）。 */
 const CLI_LIB_ALIASES: Record<string, string> = {
   '@faicad/gear-lib-demo': '@faicad/gear-lib-demo',
   'gear-lib-demo': '@faicad/gear-lib-demo',
+  '@faicad/sheetmetal': '@faicad/sheetmetal',
+  'sheetmetal': '@faicad/sheetmetal',
 }
 
 const cliPortsLibLoader: LibLoader = {

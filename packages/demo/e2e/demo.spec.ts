@@ -118,6 +118,31 @@ test.describe('faijs demo', () => {
     expect(stepText).toContain('ADVANCED_FACE')
   })
 
+  test('sheetmetal-demo：libLoader 自动装载，brep 成功、mesh 显式不可用', async ({ page }) => {
+    // sheetmetal 是 brep-only（compatOp）；mesh 模式必须 E_MESH_UNSUPPORTED（无回退）。
+    await page.goto('/')
+    await waitForStatusOk(page)
+
+    await page.locator(SELECTOR.exampleSelect).selectOption('sheetmetal-demo')
+    await expect(page.locator(SELECTOR.editor)).toHaveValue(/import \* as sm from 'sheetmetal'/)
+    await waitForStatusOk(page)
+    const status = await page.locator(SELECTOR.statusBar).textContent()
+    // sm.author + sm.solidOf → solidOf 终端 1 个
+    expect(status).toMatch(/OK — brep: 1 shape\(s\)/)
+    // mesh 链路显式不可用（E_MESH_UNSUPPORTED，非静默回退）
+    expect(status).toMatch(/mesh: (Failed|Mesh unavailable)/i)
+    // BREP 链 alive → STEP 可导出
+    await expect(page.locator(SELECTOR.btnStep)).toBeEnabled()
+    await expect(page.locator(SELECTOR.btnStl)).toBeDisabled()
+    // STEP 文件确实含 ADVANCED_FACE（BREP 真几何）
+    const stepDownload = page.waitForEvent('download')
+    await page.locator(SELECTOR.btnStep).click()
+    const step = await stepDownload
+    const stepText = new TextDecoder().decode(await readFile(await step.path()))
+    expect(stepText.startsWith('ISO-10303-21')).toBe(true)
+    expect(stepText).toContain('ADVANCED_FACE')
+  })
+
   test('打开本地 .fai.js 文件：编辑器载入文件内容并立即执行', async ({ page }) => {
     await page.goto('/')
     await waitForStatusOk(page)

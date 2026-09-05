@@ -19,7 +19,8 @@
       "@faicad/faijs/*": ["../../src/*"],
       "@faicad/faijs-core": ["../core/src/index.ts"],
       "@faicad/faijs-core/*": ["../core/src/*"],
-      "@faicad/gear-lib-demo": ["../gear-lib-demo/src/index.ts"]
+      "@faicad/gear-lib-demo": ["../gear-lib-demo/src/index.ts"],
+      "@faicad/sheetmetal": ["../sheetmetal/src/index.ts"]
     }
   },
   "include": ["**/*.ts"]
