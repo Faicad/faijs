@@ -60,7 +60,7 @@ const API_ENTRIES: Record<string, ApiEntry> = {
   },
   cone: {
     inputs: 0,
-    params: '{ radiusBottom: number; radiusTop: number; height: number; segments?: number; center?: [number, number, number]; nRad?: number }',
+    params: '{ radiusBottom: number; radiusTop: number; height: number; at?: [number, number, number]; centered?: boolean; segments?: number; nRad?: number }',
     returns: 'Shape',
   },
   wedge: {

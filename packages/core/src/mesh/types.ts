@@ -116,11 +116,19 @@ export interface CylinderParams {
 
 /** Parameters for creating a cone (or a truncated cone). */
 export interface ConeParams {
+  /** Radius at the base (mm). */
   radiusBottom: number
+  /** Radius at the top (mm); 0 for a pointed cone, === radiusBottom for a cylinder. */
   radiusTop: number
+  /** Height along +Z (mm). */
   height: number
+  /** Base circle center (brepjs `at`, BASE semantics; default [0, 0, 0]). */
+  at?: Vec3
+  /** Center the cone (base at −h/2 / center at `at`) instead of base at `at`/origin. */
+  centered?: boolean
+  /** Tessellation segment count (cone: affects only mere tessellation, not topology). */
   segments?: number
-  center?: Vec3
+  /** Internal historical alias for `segments` (accepted by clampNRad, §5.1). */
   nRad?: number
 }
 

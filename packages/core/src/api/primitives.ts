@@ -59,11 +59,20 @@ export function assertCylinderParams(params: Record<string, unknown>): void {
 }
 
 /**
- * Validate cone parameters: `radiusBottom` and `height` must be positive,
- * while `radiusTop` must be non-negative.
+ * Validate cone parameters (brepjs contract, §4.1 P 决策): `radiusBottom` and
+ * `height` must be positive, `radiusTop` must be non-negative. The legacy
+ * `{ center }` object key is removed — any call still passing `center` throws an
+ * explicit `E_ARGS_FORM` error pointing at the new signature (error hint ≠
+ * compatibility, 裁决 3).
  * @param params - the raw cone operation parameters.
  */
 export function assertConeParams(params: Record<string, unknown>): void {
+  if (params.center !== undefined || params.size !== undefined) {
+    throw new Error(
+      '[faijs/args] cone: E_ARGS_FORM: the legacy object form is removed. ' +
+      'cone now uses `cone(bottomRadius, topRadius, height, { at?, centered?, segments? })`.',
+    )
+  }
   assertPositiveNumber(params.radiusBottom, 'cone.radiusBottom')
   assertNonNegativeNumber(params.radiusTop, 'cone.radiusTop')
   assertPositiveNumber(params.height, 'cone.height')
@@ -222,7 +231,9 @@ export const cylinder = defineOp({
 })
 
 /**
- * 创建圆锥体。radiusTop 等于 radiusBottom 时即圆柱。
+ * 创建圆锥体（brepjs 契约，§4.1 P 决策）。radiusTop 等于 radiusBottom 时即圆柱，0 为尖锥。
+ * 锚点：`at` 是**底面轴心**（BASE 语义，默认 [0,0,0]，底面在原点、+Z 延伸）；`centered:true`
+ * 指底面落到 −h/2（无 at 时居中到原点；与 `at` 同给时以 `at` 为中心）。
  * @group 创建
  * @inputs 0
  * @async false
@@ -230,12 +241,17 @@ export const cylinder = defineOp({
  * @name cone
  * @returns Shape 圆锥体几何，可作为后续 op 的输入。
  * @param params.radiusBottom - 底半径（mm）。type:number required:true
- * @param params.radiusTop - 顶半径（mm），可传 0 得尖锥，传等于 radiusBottom 得圆柱。type:number required:true
- * @param params.height - 高度（mm），沿 Z 轴。type:number required:true
- * @param params.segments - 细分度（影响面数）。type:number 默认 64（= brepjs standard 等效，P0 §5.0/§5.1）
- * @param params.center - 中心位置。type:[x,y,z] 默认 [0,0,0]（原点）。
+ * @param params.radiusTop - 顶半径（mm），0 为尖锥，非负，等于 radiusBottom 得圆柱。type:number required:true
+ * @param params.height - 高度（mm），沿 +Z 轴。type:number required:true
+ * @param params.at - 底面轴心（BASE 语义）。type:[x,y,z] 可选
+ * @param params.centered - 是否居中（底面 −h/2；与 at 同给时以 at 为中心）。type:boolean 默认 false
+ * @param params.segments - 细分度（影响三角化）。type:number 默认 64（= brepjs standard 等效，P0 §5.0/§5.1）
  * @example
- * const c = cad.cone({ radiusBottom: 10, radiusTop: 4, height: 30 })
+ * const c = cad.cone(10, 4, 30)
+ * const c = cad.cone(10, 0, 30, { centered: true, at: [0, 0, 20], segments: 64 })
+ * 位置原生（§4.1/§6.2）：`cone(10, 4, 30)` 与 `cone(10, 4, 30, { centered: true })`
+ * 归一到同一对象（D11 位置→装箱 + 尾参 options 合并）。旧 `{ center }`/`{ size }` 对象形态
+ * 已废弃（裁决 3），传入会抛 E_ARGS_FORM（错误提示 ≠ 兼容）。
   */
 export const cone = defineOp({
   name: 'cone',
@@ -247,7 +263,18 @@ export const cone = defineOp({
     assertConeParams(params)
     return primitiveBrep('cone', params)
   },
-  // D11: `cone(10, 4, 30)` == `cone({ radiusBottom: 10, radiusTop: 4, height: 30 })`.
+  // L3 metadata (D2): creator consumes no shape inputs.
+  consumes: 'none',
+  schema: {
+    radiusBottom: 'number',
+    radiusTop: 'number',
+    height: 'number',
+    at: 'vec3?',
+    centered: 'boolean?',
+    segments: 'number?',
+  },
+  // D11（§4.1/§6.2）: `cone(10, 4, 30)` 三个标量装箱成 { radiusBottom, radiusTop, height }。
+  // 尾参 options（{at, centered, segments}）经 dual-form-args 尾参合并并入。
   positional: { keys: ['radiusBottom', 'radiusTop', 'height'] },
 })
 

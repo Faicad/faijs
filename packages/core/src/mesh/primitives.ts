@@ -97,9 +97,15 @@ export function cylinder(params: CylinderParams): Shape {
 }
 
 /**
- * Create a cone, or a frustum when the top and bottom radii differ.
+ * Create a cone, or a frustum when the top and bottom radii differ
+ * (`cone(bottomRadius, topRadius, height, { at?, centered?, segments? })` brepjs
+ * 契约，§4.1 P 决策；与 brep 路径逐点对齐）。
  *
- * @param params - cone parameters (radiusBottom, radiusTop, height, optional segments, optional center).
+ * 锚点：`at` 是**底面轴心**（BASE）语义（默认 [0,0,0]，底面在原点、+Z 延伸）；
+ * `centered:true` 指底面落到 −h/2（无 at 时居中到原点）——与 `at` 同给时以
+ * `at` 为中心。`segments` 经 clampNRad 消费（P0 §5）。
+ *
+ * @param params - cone parameters (radiusBottom, radiusTop, height, optional at/centered/segments).
  * @returns the cone shape.
  */
 export function cone(params: ConeParams): Shape {
@@ -110,9 +116,12 @@ export function cone(params: ConeParams): Shape {
     segs,
   )
   geo.applyMatrix4(new THREE.Matrix4().makeRotationX(Math.PI / 2))
-  // ConeGeometry 只支持一个半径；如果 radiusBottom != radiusTop，需要用 CylinderGeometry
+  // radiusTop === 0 → 尖锥（ConeGeometry 顶点在顶）；其余（含 radiusTop ===
+  // radiusBottom 的等径圆柱/圆台）用 CylinderGeometry（radiusTop/bottom 各就各位）。
   let resultGeo: THREE.BufferGeometry
-  if (params.radiusBottom !== params.radiusTop) {
+  if (params.radiusTop === 0) {
+    resultGeo = geo
+  } else {
     const geo2 = new THREE.CylinderGeometry(
       params.radiusTop,
       params.radiusBottom,
@@ -121,12 +130,13 @@ export function cone(params: ConeParams): Shape {
     )
     geo2.applyMatrix4(new THREE.Matrix4().makeRotationX(Math.PI / 2))
     resultGeo = geo2
-  } else {
-    resultGeo = geo
   }
-  if (params.center) {
-    resultGeo.translate(params.center[0], params.center[1], params.center[2])
-  }
+  // geometry（rotateX 后）沿 z ∈ [-h/2, +h/2]（three 默认 Y-up 居中）：
+  // 目标底面中心 in baseZ = (at?.[2] ?? 0) - (centered ? h/2 : 0) → 平坦平移 baseZ + h/2。
+  const baseX = params.at?.[0] ?? 0
+  const baseY = params.at?.[1] ?? 0
+  const baseZ = (params.at?.[2] ?? 0) - (params.centered === true ? params.height / 2 : 0)
+  resultGeo.translate(baseX, baseY, baseZ + params.height / 2)
   return geoToShape(resultGeo)
 }
 

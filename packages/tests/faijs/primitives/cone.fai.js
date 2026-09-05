@@ -1,2 +1,2 @@
-let part0 = cad.cone({ radiusBottom:10, radiusTop:0, height:20 })
-let part1 = cad.cone({ radiusBottom:10, radiusTop:5, height:20 })
+let part0 = cad.cone(10, 0, 20, { centered: true })
+let part1 = cad.cone(10, 5, 20, { centered: true })

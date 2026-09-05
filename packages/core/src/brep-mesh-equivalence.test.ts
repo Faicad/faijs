@@ -254,14 +254,14 @@ describe('BREP/Mesh equivalence: primitives', () => {
 
   it('cone (full cone)', async () => {
     await runAndCompare(
-      [makeStmt('s1', 'cone', { radiusBottom: 10, radiusTop: 0, height: 20 })],
+      [makeStmt('s1', 'cone', { radiusBottom: 10, radiusTop: 0, height: 20, centered: true })],
       'cone(rB=10,rT=0,h=20)',
     )
   })
 
   it('cone (truncated)', async () => {
     await runAndCompare(
-      [makeStmt('s1', 'cone', { radiusBottom: 10, radiusTop: 5, height: 15 })],
+      [makeStmt('s1', 'cone', { radiusBottom: 10, radiusTop: 5, height: 15, centered: true })],
       'cone(rB=10,rT=5,h=15)',
     )
   })
@@ -327,6 +327,91 @@ describe('box 契约: bbox 黄金值（双路径逐点一致）', () => {
     await runAndCompare(
       [makeStmt('s2', 'box', { width: 10, depth: 20, height: 30, centered: true })],
       'box(10,20,30,{centered:true})',
+    )
+  })
+})
+
+// ── cone 契约验收（§4.1 P：`at` BASE 语义，默认底面在原点、+Z 延伸） ──
+
+describe('cone 契约: bbox 黄金值（双路径逐点一致）', () => {
+  function assertBBox(shape: Shape, min: [number, number, number], max: [number, number, number], label: string) {
+    const m = computeMetrics(shape)
+    for (let i = 0; i < 3; i++) {
+      expect(m.bboxMin[i]).toBeCloseTo(min[i], 6)
+      expect(m.bboxMax[i]).toBeCloseTo(max[i], 6)
+    }
+    void label
+  }
+
+  for (const mode of ['brep', 'mesh'] as const) {
+    describe(`${mode} 路径`, () => {
+      it('cone(30,20,10) → 默认底面在原点（BASE），bbox -30..30 × -30..30 × 0..20', async () => {
+        const shape = await runMode(
+          makePartScript([makeStmt('s1', 'cone', { radiusBottom: 30, radiusTop: 20, height: 10 })]),
+          mode,
+        )
+        assertBBox(shape, [-30, -30, 0], [30, 30, 10], 'base-at-origin')
+      })
+
+      it('cone(30,0,20)（尖锥）默认底面在原点：z 0..20', async () => {
+        const shape = await runMode(
+          makePartScript([makeStmt('s1', 'cone', { radiusBottom: 30, radiusTop: 0, height: 20 })]),
+          mode,
+        )
+        assertBBox(shape, [-30, -30, 0], [30, 30, 20], 'pointed-base')
+      })
+
+      it('cone(30,10,20,{centered:true}) → 居中：z ∈ [-10,10]', async () => {
+        const shape = await runMode(
+          makePartScript([makeStmt('s1', 'cone', { radiusBottom: 30, radiusTop: 10, height: 20, centered: true })]),
+          mode,
+        )
+        assertBBox(shape, [-30, -30, -10], [30, 30, 10], 'centered')
+      })
+
+      it('cone(30,10,20,{at:[1,2,3]})… → at 为底面轴心，底面落在 (1,2,3)', async () => {
+        const shape = await runMode(
+          makePartScript([makeStmt('s1', 'cone', { radiusBottom: 30, radiusTop: 10, height: 20, at: [1, 2, 3] })]),
+          mode,
+        )
+        assertBBox(shape, [-29, -28, 3], [31, 32, 23], 'at-base')
+      })
+
+      it('cone(30,10,20,{centered:true,at:[1,2,3]}) → at 变中心语义', async () => {
+        const shape = await runMode(
+          makePartScript([
+            makeStmt('s1', 'cone', { radiusBottom: 30, radiusTop: 10, height: 20, centered: true, at: [1, 2, 3] }),
+          ]),
+          mode,
+        )
+        assertBBox(shape, [-29, -28, -7], [31, 32, 13], 'at-centred')
+      })
+
+      it('cone({ center }) 旧形态 → E_ARGS_FORM + 新签名提示（该模式抛错）', async () => {
+        const ports = createNodePorts()
+        const runtime = createRuntime(ports, mode)
+        await expect(
+          runtime.executeIR(
+            makePartScript([
+              { ...makeStmt('s1', 'cone', { radiusBottom: 10, radiusTop: 0, height: 20, center: [0, 0, 0] }), outputs: [] },
+            ]),
+          ),
+        ).rejects.toThrow(/E_ARGS_FORM/)
+        await expect(
+          runtime.executeIR(
+            makePartScript([
+              { ...makeStmt('s1', 'cone', { radiusBottom: 10, radiusTop: 0, height: 20, center: [0, 0, 0] }), outputs: [] },
+            ]),
+          ),
+        ).rejects.toThrow(/cone\(bottomRadius, topRadius, height/)
+      })
+    })
+  }
+
+  it('cone(30,10,20,{centered:true,at:[1,2,3]}) 双路径执行成功且逐点一致', async () => {
+    await runAndCompare(
+      [makeStmt('s2', 'cone', { radiusBottom: 30, radiusTop: 10, height: 20, centered: true, at: [1, 2, 3] })],
+      'cone(30,10,20,{centered:true,at:[1,2,3]})',
     )
   })
 })

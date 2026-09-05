@@ -223,7 +223,7 @@ describe('BREP primitives: centered at origin by default', () => {
   })
 
   it('coneBrep: centered at origin', async () => {
-    const s = await cad.coneBrep({ radiusBottom: 10, radiusTop: 0, height: 20 })
+    const s = await cad.coneBrep({ radiusBottom: 10, radiusTop: 0, height: 20, centered: true })
     const bb = shapeBoundingBox(s)
     expect(bb.min[2]).toBeCloseTo(-10, 1)
     expect(bb.max[2]).toBeCloseTo(10, 1)

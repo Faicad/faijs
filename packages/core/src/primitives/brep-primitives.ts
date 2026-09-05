@@ -130,18 +130,24 @@ function cylinderToCadSolid(kernel: BrepEngineApi, params: CylinderParams): Brep
 }
 
 /**
- * 用 OCCT 直接构造一个圆锥体 Solid。
+ * 用 OCCT 直接构造一个圆锥体 Solid（brepjs `cone(bottomRadius, topRadius,
+ * height, { at, centered })` 契约，§4.1 P 决策；与 mesh 路径逐点对齐）。
  *
- * 接收完整 ConeParams：radiusBottom/radiusTop/height 独立指定，segments 不影响 BREP。
- *
- * OCCT 的 makeCone(r1, r2, height) 中 r1=底半径、r2=顶半径。
+ * 锚点同 vendored `primitiveFns.cone`：`at` 是底面轴心（BASE）语义（默认
+ * [0,0,0]），OCCT makeCone 原生从 z=0 沿 +Z 建高 → 无需重居中；`centered:true`
+ * 指底面沿轴下移 −h/2（无 at 时居中到原点；与 `at` 同给时以 `at` 为中心）。
  */
 function coneToCadSolid(kernel: BrepEngineApi, params: ConeParams): BrepHandle {
   const solid = kernel.makeCone(params.radiusBottom, params.radiusTop, params.height)
-  // 平移使圆锥以原点为中心
-  const centered = kernel.translate(solid, 0, 0, -params.height / 2)
-  kernel.release(solid)
-  return applyCenter(kernel, centered, params.center)
+  const baseX = params.at?.[0] ?? 0
+  const baseY = params.at?.[1] ?? 0
+  const baseZ = (params.at?.[2] ?? 0) - (params.centered === true ? params.height / 2 : 0)
+  if (baseX !== 0 || baseY !== 0 || baseZ !== 0) {
+    const translated = kernel.translate(solid, baseX, baseY, baseZ)
+    kernel.release(solid)
+    return translated
+  }
+  return solid
 }
 
 /**
