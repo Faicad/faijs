@@ -257,13 +257,13 @@ const p3 = cad.rotate_euler(part0, { anglesDeg: [0, 0, 45], pivot: [0,0,0] })
 
 **同步**。Shape 旋转后的几何。
 
-### 4.2 `scale` ✅
+### 4.2 `scale3d` ✅
 
 缩放几何体。factor 传 number 为等比缩放，传 [x,y,z] 为非等比。
 
 ```js
-const p4 = cad.scale(part0, { factor: 2 })
-const p5 = cad.scale(part0, { factor: [2, 1, 1] })
+const p4 = cad.scale3d(part0, { factor: 2 })
+const p5 = cad.scale3d(part0, { factor: [2, 1, 1] })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -633,7 +633,7 @@ const n = cad.faceNormal(part0, [0, 0, 5])
 
 ```
 创建: load / box / sphere / cylinder / cone / wedge / screw / sdf / svgExtrude / text
-变换: translate / rotate_euler / scale
+变换: translate / rotate_euler / scale3d
 特征: union / subtract / intersect / chamfer / copy / engrave / drill / fai_extrude / fai_split / knurl
 结构: group / assembly
 查询: asset / faceNormal / bboxCenter / bboxMin / bboxMax

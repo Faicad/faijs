@@ -1,4 +1,4 @@
-﻿﻿/**
+/**
  * BREP 与 Mesh 实现等价性测试
  *
  * 验证原则：
@@ -298,27 +298,27 @@ describe('BREP/Mesh equivalence: transforms', () => {
     ], 'box→rotate(30,15,45)')
   })
 
-  it('scale (uniform)', async () => {
+  it('scale3d (uniform)', async () => {
     await runAndCompare([
       makeStmt('s1', 'box', { size: 20 }),
-      makeStmt('s2', 'scale', { factor: 2 }, ['s1']),
-    ], 'box→scale(2)')
+      makeStmt('s2', 'scale3d', { factor: 2 }, ['s1']),
+    ], 'box→scale3d(2)')
   })
 
-  it('scale (non-uniform)', async () => {
+  it('scale3d (non-uniform)', async () => {
     await runAndCompare([
       makeStmt('s1', 'box', { size: 20 }),
-      makeStmt('s2', 'scale', { factor: [2, 1, 0.5] }, ['s1']),
-    ], 'box→scale([2,1,0.5])')
+      makeStmt('s2', 'scale3d', { factor: [2, 1, 0.5] }, ['s1']),
+    ], 'box→scale3d([2,1,0.5])')
   })
 
-  it('translate → rotate_euler → scale (chained)', async () => {
+  it('translate → rotate_euler → scale3d (chained)', async () => {
     await runAndCompare([
       makeStmt('s1', 'cylinder', { radius: 10, height: 20 }),
       makeStmt('s2', 'translate', { offset: [5, 0, 0] }, ['s1']),
       makeStmt('s3', 'rotate_euler', { anglesDeg: [0, 90, 0] }, ['s2']),
-      makeStmt('s4', 'scale', { factor: 1.5 }, ['s3']),
-    ], 'cyl→translate→rotate→scale')
+      makeStmt('s4', 'scale3d', { factor: 1.5 }, ['s3']),
+    ], 'cyl→translate→rotate→scale3d')
   })
 })
 

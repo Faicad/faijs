@@ -61,7 +61,7 @@ let part1 = cad.text(part0, { text: 'HELLO', size: 8, depth: 2 })`,
   'transform-chain': `let part0 = cad.box({ size: [20, 10, 5] })
 part0 = cad.rotate_euler(part0, { anglesDeg: [0, 0, 30] })
 part0 = cad.translate(part0, { offset: [5, 0, 0] })
-part0 = cad.scale(part0, { factor: [1, 1, 2] })`,
+part0 = cad.scale3d(part0, { factor: [1, 1, 2] })`,
   'gear-demo': `import * as gear from 'gear-lib-demo'
 
 let g1 = gear.external({ teeth: 24, moduleSize: 2, thickness: 8, bore: 8 })

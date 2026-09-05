@@ -75,7 +75,7 @@ describe('生成层机制（E5，P13a 机制 / P14 分片）', () => {
     const faijsOps = new Set([
       'box', 'sphere', 'cylinder', 'cone', 'wedge',
       'text', 'screw', 'svgExtrude', 'sdf', 'load',
-      'translate', 'rotate_euler', 'scale',
+      'translate', 'rotate_euler', 'scale3d',
       'fai_drill', 'fai_extrude', 'engrave', 'chamfer', 'knurl',
       'union', 'subtract', 'intersect',
       'fai_split', 'group', 'assembly', 'copy',

@@ -96,7 +96,7 @@ const API_ENTRIES: Record<string, ApiEntry> = {
     params: '{ anglesDeg: [number, number, number]; pivot?: [number, number, number] }',
     returns: 'Shape',
   },
-  scale: {
+  scale3d: {
     inputs: 1,
     params: '{ factor: number | [number, number, number] }',
     returns: 'Shape',
@@ -235,7 +235,7 @@ const QUERY_METHODS = [
 const ORDER = [
   'box', 'sphere', 'cylinder', 'cone', 'wedge',
   'text', 'screw', 'svgExtrude', 'sdf', 'load',
-  'translate', 'rotate_euler', 'scale',
+  'translate', 'rotate_euler', 'scale3d',
   'union', 'subtract', 'intersect',
   'fai_split',
   'fai_drill', 'fai_extrude', 'engrave', 'chamfer', 'knurl',
@@ -265,7 +265,7 @@ function generate(): string {
 
   const sections: Array<[string, string[]]> = [
     ['创建', ['box', 'sphere', 'cylinder', 'cone', 'wedge', 'text', 'screw', 'svgExtrude', 'sdf', 'load']],
-    ['变换', ['translate', 'rotate_euler', 'scale']],
+    ['变换', ['translate', 'rotate_euler', 'scale3d']],
     ['布尔', ['union', 'subtract', 'intersect']],
     ['分割', ['fai_split']],
     ['钻孔', ['fai_drill']],

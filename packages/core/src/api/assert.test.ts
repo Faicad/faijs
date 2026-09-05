@@ -85,9 +85,9 @@ describe('stdlib per-op assert: 变换类', () => {
     expect(() => assertRotateParams({ anglesDeg: [0, 0, 90] })).not.toThrow()
   })
 
-  it('scale: factor 必填（number > 0 或 vec3）', () => {
-    expect(() => assertScaleParams({})).toThrow(/scale\.factor/)
-    expect(() => assertScaleParams({ factor: 0 })).toThrow(/scale\.factor/)
+  it('scale3d: factor 必填（number > 0 或 vec3）', () => {
+    expect(() => assertScaleParams({})).toThrow(/scale3d\.factor/)
+    expect(() => assertScaleParams({ factor: 0 })).toThrow(/scale3d\.factor/)
     expect(() => assertScaleParams({ factor: 2 })).not.toThrow()
     expect(() => assertScaleParams({ factor: [1, 2, 3] })).not.toThrow()
   })

@@ -28,7 +28,7 @@ export interface CadAPI {
   // ── 变换 ──
   translate(shape: Shape, params: { offset: [number, number, number] }): Shape
   rotate_euler(shape: Shape, params: { anglesDeg: [number, number, number]; pivot?: [number, number, number] }): Shape
-  scale(shape: Shape, params: { factor: number | [number, number, number] }): Shape
+  scale3d(shape: Shape, params: { factor: number | [number, number, number] }): Shape
 
   // ── 布尔 ──
   union(shape: Shape, shape1: Shape, params?: never): Promise<Shape>  // variadic: union(a, b, ...rest)

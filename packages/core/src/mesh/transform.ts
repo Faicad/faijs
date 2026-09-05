@@ -6,7 +6,7 @@
  * - engine-store.partTransforms
  *
  * 变换语义（烘焙执行引擎）：
- * - translate/rotate_euler/scale 直接烘焙顶点（修改 positions）
+ * - translate/rotate_euler/scale3d 直接烘焙顶点（修改 positions）
  * - 执行器（dispatcher / runtime.execute）调用这些函数将变换烘焙进几何
  * - 交互拖拽期间的预览仍由 partTransforms（渲染层瞬态）承担
  *   确认后由引擎重放语句完成烘焙（P2）
@@ -59,7 +59,7 @@ export function rotate_euler(shape: Shape, anglesDeg: Vec3, pivot?: Vec3): Shape
  * @param factor - uniform scale factor or per-axis (x, y, z) factors.
  * @returns a new shape with scaled vertices.
  */
-export function scale(shape: Shape, factor: number | Vec3): Shape {
+export function scale3d(shape: Shape, factor: number | Vec3): Shape {
   const f = typeof factor === 'number' ? [factor, factor, factor] : factor
   const matrix = new THREE.Matrix4().makeScale(f[0], f[1], f[2])
   return applyMatrix(shape, matrix)

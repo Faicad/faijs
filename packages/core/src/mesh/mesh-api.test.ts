@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿/**
  * mesh API 单元测试
  *
  * 验证 mesh 的每个 API 正确包装了底层纯函数。
@@ -136,17 +136,17 @@ describe('mesh-api: transform', () => {
     expect(bb.max[0]).toBeCloseTo(105, 0)
   })
 
-  it('scale: 缩放几何', () => {
+  it('scale3d: 缩放几何', () => {
     const s = cad.box({ size: 10 })
-    const scaled = cad.scale(s, 2)
+    const scaled = cad.scale3d(s, 2)
 
     const bb = cad.boundingBox(scaled)
     expect(bb.max[0] - bb.min[0]).toBeCloseTo(20, 1)
   })
 
-  it('scale: 支持 Vec3 factor', () => {
+  it('scale3d: 支持 Vec3 factor', () => {
     const s = cad.box({ size: 10 })
-    const scaled = cad.scale(s, [2, 3, 4])
+    const scaled = cad.scale3d(s, [2, 3, 4])
 
     const bb = cad.boundingBox(scaled)
     const dims = [bb.max[0] - bb.min[0], bb.max[1] - bb.min[1], bb.max[2] - bb.min[2]].sort((a, b) => a - b)
@@ -222,10 +222,10 @@ describe('mesh-api: immutability', () => {
     expect(Array.from(s.positions)).toEqual(Array.from(original))
   })
 
-  it('scale 不修改输入', () => {
+  it('scale3d 不修改输入', () => {
     const s = cad.box({ size: 10 })
     const original = new Float32Array(s.positions)
-    cad.scale(s, 2)
+    cad.scale3d(s, 2)
     expect(Array.from(s.positions)).toEqual(Array.from(original))
   })
 
@@ -254,7 +254,7 @@ describe('mesh-api: API contract', () => {
   it('cad 对象包含所有变换 API', () => {
     expect(typeof cad.translate).toBe('function')
     expect(typeof cad.rotate_euler).toBe('function')
-    expect(typeof cad.scale).toBe('function')
+    expect(typeof cad.scale3d).toBe('function')
   })
 
   it('cad 对象包含所有布尔 API', () => {

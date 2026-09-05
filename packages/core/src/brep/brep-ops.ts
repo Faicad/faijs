@@ -116,7 +116,7 @@ export function rotateBrep(
 /**
  * BREP 缩放：使用 OCCT transform（3x4 仿射矩阵）。
  *
- * 与 mesh 路径 scale(shape, factor) 一致：
+ * 与 mesh 路径 scale3d(shape, factor) 一致：
  * - factor 为 number（均匀缩放）或 Vec3 [sx, sy, sz]（非均匀）
  *
  * @param kernel  OCCT 内核

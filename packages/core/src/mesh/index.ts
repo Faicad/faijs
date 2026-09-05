@@ -54,7 +54,7 @@ export const cad = {
   // 变换
   translate: transformOps.translate,
   rotate_euler: transformOps.rotate_euler,
-  scale: transformOps.scale,
+  scale3d: transformOps.scale3d,
   transformMatrix: transformOps.transformMatrix,
 
   // 布尔

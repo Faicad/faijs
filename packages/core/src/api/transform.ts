@@ -1,5 +1,5 @@
 /**
- * stdlib transform — 变换库函数（translate/rotate_euler/scale）
+ * stdlib transform — 变换库函数（translate/rotate_euler/scale3d）
  *
  * 设计文档：docs/plans/2026-08-25-faijs-vm-execution-implementation-plan.md §3.11
  * 实施文档：docs/plans/2026-08-29-engine-library-contract-implementation.md P2
@@ -44,14 +44,14 @@ export function assertRotateParams(params: Record<string, unknown>): void {
 }
 
 /**
- * Validate scale parameters: `factor` must be a positive number or a vec3.
- * @param params - the raw scale operation parameters.
+ * Validate scale3d parameters: `factor` must be a positive number or a vec3.
+ * @param params - the raw scale3d operation parameters.
  */
 export function assertScaleParams(params: Record<string, unknown>): void {
   if (typeof params.factor === 'number') {
-    assertPositiveNumber(params.factor, 'scale.factor')
+    assertPositiveNumber(params.factor, 'scale3d.factor')
   } else {
-    assertVec3(params.factor, 'scale.factor')
+    assertVec3(params.factor, 'scale3d.factor')
   }
 }
 
@@ -70,6 +70,7 @@ function transformBrep(op: string, input: Shape, params: Record<string, unknown>
   } else {
     resultSolid = scaleBrep(kernel, inputSolid, params.factor as number | Vec3)
   }
+  // op is 'translate' | 'rotate_euler' | 'scale3d'
 
   // §2.4/§3.3：刚体变换面 1:1 保留——hash 恒等传播 roleTable（所有 origin）
   const inputTable = getSlot(input)?.roleTable as RoleTable | undefined
@@ -153,26 +154,26 @@ export const rotate_euler = defineOp({
  * @inputs 1
  * @async false
  * @qual ok
- * @name scale
+ * @name scale3d
  * @returns Shape 缩放后的几何。
  * @param input - 目标几何。type:Shape required:true
  * @param params.factor - 缩放系数：number（等比）或 [x,y,z]（非等比，> 0）。type:number | [x,y,z] required:true
  * @example
- * const p4 = cad.scale(part0, { factor: 2 })
- * const p5 = cad.scale(part0, { factor: [2, 1, 1] })
-  */
-export const scale = defineOp({
-  name: 'scale',
+ * const p4 = cad.scale3d(part0, { factor: 2 })
+ * const p5 = cad.scale3d(part0, { factor: [2, 1, 1] })
+ */
+export const scale3d = defineOp({
+  name: 'scale3d',
   mesh: (input: Shape, params: Record<string, unknown>) => {
-    if (!input) throw new Error('[stdlib/scale] no input geometry')
+    if (!input) throw new Error('[stdlib/scale3d] no input geometry')
     assertScaleParams(params)
-    return cad.scale(input, params.factor as number | Vec3)
+    return cad.scale3d(input, params.factor as number | Vec3)
   },
   brep: (input: Shape, params: Record<string, unknown>) => {
-    if (!input) throw new Error('[stdlib/scale] no input geometry')
+    if (!input) throw new Error('[stdlib/scale3d] no input geometry')
     assertScaleParams(params)
-    return transformBrep('scale', input, params)
+    return transformBrep('scale3d', input, params)
   },
-  // D11: `scale(p, 2)` == `scale(p, { factor: 2 })` (vec3 slot accepts 1→scalar).
+  // D11: `scale3d(p, 2)` == `scale3d(p, { factor: 2 })` (vec3 slot accepts 1→scalar).
   positional: { keys: ['factor'], vec3Keys: ['factor'], shapeArity: 1 },
 })
