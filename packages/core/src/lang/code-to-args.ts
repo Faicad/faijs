@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿/**
  * code-to-args — 单语句行 args 提取（编辑回填配套）
  *
  * See docs/syntax-design.md §3 (statement model ↔ StatementIR mapping) and §6.4 (check).
@@ -14,8 +14,21 @@
  * 不得把折叠值写回源码（会丢失原表达式）。
  */
 
-import type { JsonValue } from './types'
+import type { HostArg } from './host-arg'
+import { argIRToHost } from './host-arg'
+import type { ArgIR } from './types'
 import { parseScript } from './parser'
+
+/**
+ * Map a record of ArgIR values to HostArg values (IR → Host脱壳).
+ */
+function mapIRRecord(record: Record<string, ArgIR>): Record<string, HostArg> {
+  const out: Record<string, HostArg> = {}
+  for (const [k, v] of Object.entries(record)) {
+    out[k] = argIRToHost(v)
+  }
+  return out
+}
 
 /**
  * 单行提取的前置声明规则（确定性静态规则，非 try/catch 兜底）：
@@ -67,11 +80,11 @@ function declaredByLine(line: string): Set<string> {
 }
 
 /**
- * `codeToArgs` 的返回契约：位置实参槽 + 尾随选项对象（均为序列化 JSON 形态）。
+ * `codeToArgs` 的返回契约：位置实参槽 + 尾随选项对象（HostArg 形态，IR 已脱壳）。
  */
 export interface CodeToArgsResult {
-  positional: JsonValue[]
-  args: Record<string, JsonValue>
+  positional: HostArg[]
+  args: Record<string, HostArg>
 }
 
 /**
@@ -115,8 +128,8 @@ export function codeToArgs(codeLine: string, opts?: { namespaces?: string[] }): 
   // {$ref}/{$param}/{$call}/{$expr} 标记）时归入 args 槽返回，宿主编辑回填按
   // "位置实参 + 选项对象"两槽写回；其余形态 positional 全量返回、args 为空。
   const MARKER_KEYS = new Set(['$ref', '$param', '$call', '$expr'])
-  const positional = (last.positional ?? []) as unknown as JsonValue[]
-  const lastPos = positional[positional.length - 1]
+  const rawPositional = last.positional ?? []
+  const lastPos = rawPositional[rawPositional.length - 1]
   if (
     lastPos !== null &&
     typeof lastPos === 'object' &&
@@ -124,16 +137,13 @@ export function codeToArgs(codeLine: string, opts?: { namespaces?: string[] }): 
     !Object.keys(lastPos as Record<string, unknown>).some((k) => MARKER_KEYS.has(k))
   ) {
     return {
-      positional: positional.slice(0, -1),
-      args: lastPos as unknown as Record<string, JsonValue>,
+      positional: rawPositional.slice(0, -1).map(argIRToHost),
+      args: mapIRRecord(lastPos as unknown as Record<string, ArgIR>),
     }
   }
-  // Args on the wire are JSON-shaped data (ParamRef/VarRef/CallRef/ExprIR are
-  // plain objects like { $param } / { $ref } / { $call } / { $expr }); the host
-  // contract face is JsonValue — IR types never leak to the host (IR strip red
-  // line).
+  // IR → HostArg 脱壳：positional 逐项、args 逐值经 argIRToHost 映射
   return {
-    positional,
-    args: last.args as unknown as Record<string, JsonValue>,
+    positional: rawPositional.map(argIRToHost),
+    args: mapIRRecord(last.args),
   }
 }

@@ -55,6 +55,18 @@ describe('上层契约：宿主可读代码文本 API', () => {
     expect(typeof facade.formatCodeLine).toBe('function')
   })
 
+  it('根门面导出 HostArg 辅助函数：isHostVarRef / isHostParamRef / isHostCallRef / isHostExprRef / isHostRef / hostArgToDisplay / hostArgToLiteral / HOST_REF_KINDS', async () => {
+    const facade = await import('@faicad/faijs')
+    expect(typeof facade.isHostVarRef).toBe('function')
+    expect(typeof facade.isHostParamRef).toBe('function')
+    expect(typeof facade.isHostCallRef).toBe('function')
+    expect(typeof facade.isHostExprRef).toBe('function')
+    expect(typeof facade.isHostRef).toBe('function')
+    expect(typeof facade.hostArgToDisplay).toBe('function')
+    expect(typeof facade.hostArgToLiteral).toBe('function')
+    expect(Array.isArray(facade.HOST_REF_KINDS)).toBe(true)
+  })
+
   it('零 IR 依赖红线：parseScript 不在宿主门面', async () => {
     const facade = await import('@faicad/faijs')
     expect('parseScript' in facade).toBe(false)

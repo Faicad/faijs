@@ -9,7 +9,8 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { statementIRToLine, scriptIRToCode, fmtNum } from './codegen'
+import { statementIRToLine, scriptIRToCode, fmtNum, formatCodeLine } from './codegen'
+import { codeToArgs } from './code-to-args'
 import { parseScript } from './parser'
 import type { StatementIR, ScriptIR } from './types'
 import { asStmtId, asPartName } from '../identity'
@@ -331,5 +332,141 @@ describe('codegen: 多行字符串参数往返（escapeStr 控制符转义修复
     expect(line).not.toMatch(/\r|\n/)
     const args = codeToArgs(line)
     expect(args.args.text).toBe(multiCode)
+  })
+})
+
+// ── §7.1-C: formatCodeLine(HostArg) → codeToArgs 直接往返 ──
+
+describe('§7.1-C: formatCodeLine(HostArg) → codeToArgs 直接往返', () => {
+  it('T1-a: literal positional — [10, 20, 30] 往返', () => {
+    const line = formatCodeLine({
+      callee: 'box',
+      positional: [10, 20, 30],
+      outputs: ['part0'],
+    })
+    const result = codeToArgs(line)
+    expect(result.positional).toEqual([10, 20, 30])
+    expect(result.args).toEqual({})
+  })
+
+  it('T4-b: call-ref HostArg 往返 (formatCodeLine → full-script parse)', () => {
+    const line = formatCodeLine({
+      callee: 'chamfer',
+      positional: [{ kind: 'var-ref', name: 'part0' }],
+      outputs: ['part0'],
+      outputDeclared: true,
+      args: {
+        edgeLength: 3,
+        faceCenter: {
+          kind: 'call-ref',
+          callee: 'faceNormal',
+          args: [
+            { kind: 'var-ref', name: 'part0' },
+            [10, 10, 0],
+            4,
+          ],
+        },
+      },
+    })
+    const fullCode = 'let part0 = cad.box({ size: 20 })\n' + line
+    const { script } = parseScript(fullCode)
+    const stmt = script.statements[1]
+    // Positional var-ref preserved
+    expect(stmt.positional[0]).toEqual({ $ref: 'part0' })
+    // args preserved
+    expect(stmt.args.edgeLength).toBe(3)
+    expect(stmt.args.faceCenter).toEqual({
+      $call: { callee: 'faceNormal', args: [{ $ref: 'part0' }, [10, 10, 0], 4] },
+    })
+  })
+
+  it('T5-a: expr-ref HostArg 往返 (formatCodeLine → full-script parse)', () => {
+    // codeToArgs statically folds expressions (let base = 0 → 0 + 20 = 20).
+    // For expr-ref roundtrip, use full-script context where base is a real statement var.
+    const line = formatCodeLine({
+      callee: 'box',
+      positional: [],
+      outputs: ['part1'],
+      args: {
+        size: { kind: 'expr-ref', text: 'base + 20', refs: ['base'], params: [] },
+        depth: 3,
+        at: [10, 0, 0],
+      },
+    })
+    // expr-ref codegen 打印为 (text)
+    expect(line).toContain('size:(base + 20)')
+    // Full script context: base is a real shape variable (not a param),
+    // so the expression can't be folded and stays as ExprIR
+    const fullCode = 'let base = cad.box({ size: 10 })\n' + line
+    const { script } = parseScript(fullCode)
+    const stmt = script.statements[1]
+    expect(stmt.args.size).toEqual({
+      $expr: { text: 'base + 20', refs: ['base'], params: [] },
+    })
+    expect(stmt.args.depth).toBe(3)
+    expect(stmt.args.at).toEqual([10, 0, 0])
+  })
+
+  it('T6-a: 混合形态往返 — positional [var-ref] + args 含 expr/call/literal (full-script parse)', () => {
+    const line = formatCodeLine({
+      callee: 'chamfer',
+      positional: [
+        { kind: 'var-ref', name: 'part0' },
+        ],
+      outputs: ['part0'],
+      outputDeclared: true,
+      args: {
+        edgeLength: { kind: 'expr-ref', text: 'base_offset + 1', refs: ['base_offset'], params: [] },
+        faceCenter: {
+          kind: 'call-ref',
+          callee: 'faceNormal',
+          args: [{ kind: 'var-ref', name: 'part0' }, [10, 10, 0], 4],
+        },
+        distance: 2,
+        keep: ['part0'],
+      },
+    })
+    // Full script context for proper var-ref / expr-ref resolution
+    const fullCode = [
+      'let part0 = cad.box({ size: 20 })',
+      'let base_offset = cad.box({ size: 10 })',
+      line,
+    ].join('\n')
+    const { script } = parseScript(fullCode)
+    const stmt = script.statements[2]
+    expect(stmt.positional[0]).toEqual({ $ref: 'part0' })
+    expect(stmt.args.edgeLength).toEqual({
+      $expr: { text: 'base_offset + 1', refs: ['base_offset'], params: [] },
+    })
+    expect(stmt.args.faceCenter).toEqual({
+      $call: { callee: 'faceNormal', args: [{ $ref: 'part0' }, [10, 10, 0], 4] },
+    })
+    expect(stmt.args.distance).toBe(2)
+    expect(stmt.args.keep).toEqual(['part0'])
+  })
+})
+
+// ── §7.1-D: $param parse → codegen → parse 往返 (T3-a) ──
+
+describe('§7.1-D: $param parse → codegen → parse 往返 (T3-a)', () => {
+  it('T3-a: cad.box({ size: boxSize }) 往返 — 两次 parse 的 IR deepEqual', () => {
+    const code = [
+      'const boxSize = 20',
+      'let part0 = cad.box({ size: boxSize })',
+    ].join('\n')
+    const { script: parsed1 } = parseScript(code)
+    const ir1 = parsed1.statements[0].args.size
+    expect(ir1).toEqual({ $param: 'boxSize' })
+
+    // codegen 打印
+    const printed = scriptIRToCode(parsed1)
+    expect(printed).toContain('size:boxSize')
+
+    // 再解析
+    const { script: parsed2 } = parseScript(printed)
+    const ir2 = parsed2.statements[0].args.size
+    expect(ir2).toEqual({ $param: 'boxSize' })
+    // 两次 parse 的 IR deepEqual
+    expect(ir2).toEqual(ir1)
   })
 })

@@ -606,3 +606,37 @@ PS：从 IR 重打文本只用于调试，不属于任何契约。
 - 函数体是嵌入编译产物的用户源码——对「用户文本不进 VM」（R-3）的已记录例外，边界是 acorn 闸门 + 白名单（见 `docs/syntax-design.md`），与 faqts 通道同构（§10.5）。
 - 旧版带版本后缀的命名不再产生、也不再解析（版本号语义与 `grp_` 前缀均已取消；旧名兼容解析已删除，决策 2，见 `lang/allocate-id.ts`）。
 - `export default async (cad) => {}` 容器与扁平格式均可解析；扁平代码自动封装为合法容器。
+
+---
+
+## 14. HostArg 契约（宿主侧位置实参的 IR 屏蔽）
+
+### 14.1 HostArg 类型
+
+宿主（3d_editor 等）通过 `HostArg` 与位置实参交互，不接触 IR 类型（`ParamRefIR`/`VarRefIR`/`CallRefIR`/`ExprIR`）。
+
+```ts ignore-check
+// packages/core/src/lang/host-arg.ts
+interface HostVarRef   { kind: 'var-ref';   name: string }
+interface HostParamRef { kind: 'param-ref'; name: string }
+interface HostCallRef  { kind: 'call-ref';  callee: string; args: HostArg[]; namespace?: string }
+interface HostExprRef  { kind: 'expr-ref';  text: string; refs: string[]; params: string[] }
+type HostRef = HostVarRef | HostParamRef | HostCallRef | HostExprRef
+type HostArg = JsonValue | HostRef
+```
+
+`HostRef` 在结构上是 `JsonValue` 的子类型——判别依赖**运行时守卫**（`isHostRef` 等），而非类型系统。这是有意为之。
+
+### 14.2 保留字规则
+
+字面量参数对象不得使用 `HOST_REF_KINDS` 中的 `kind` 值（`'var-ref'`、`'param-ref'`、`'call-ref'`、`'expr-ref'`）。一个普通对象的 `kind` 字段若匹配这些值之一且结构匹配对应变体，则在 Host→IR 方向上被确定性地判定为引用形态。
+
+IR→Host 方向只识别 `$` 前缀的标记键（`$ref`、`$param`、`$call`、`$expr`），不识别 `kind`——因此从 `.fai.js` 源码解析产出的字面量对象不会被误分类。
+
+### 14.3 API 变更（0.9.0，破坏性）
+
+- `codeToArgs` 返回 `{ positional: HostArg[]; args: Record<string, HostArg> }`（经 `argIRToHost` 剥离 IR）
+- `formatCodeLine` 输入的 `positional` 和 `args` 使用 `HostArg`（入口处经 `hostArgToIR` 转换）
+- `StatementSummary`：`positional` 现为 `HostArg[]`；**新增** `args: Record<string, HostArg>`；**移除** `inputs`（用 `isHostVarRef` 过滤 `positional` 代替）和 `positionalKinds`（用运行时守卫代替）
+- 导出辅助函数：`isHostVarRef`、`isHostParamRef`、`isHostCallRef`、`isHostExprRef`、`isHostRef`、`hostArgToDisplay`、`hostArgToLiteral`、`HOST_REF_KINDS`
+- **不导出**：`argIRToHost`、`hostArgToIR`（IR 红线）

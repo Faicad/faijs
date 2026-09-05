@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿/**
  * analyzeCode / codeToArgs — 宿主摘要与编辑回填配套测试（IR 剥离阶段 0）
  *
  * 设计文档：3d_editor docs/plans/2026-08-28-ir-strip-source-code-generation-plan.md §4.2/§4.6
@@ -14,6 +14,7 @@ import { analyzeCode } from './statement-summary'
 import { codeToArgs } from './code-to-args'
 import { parseScript } from './parser'
 import { statementInputs } from './types'
+import { isHostVarRef } from './host-arg'
 
 const BOX_DRILL_SPLIT = [
   'let part0 = cad.box({ size: 20 })',
@@ -32,7 +33,9 @@ describe('analyzeCode: 与 parser 结果逐字段一致', () => {
       const ir = script.statements[i]
       expect(s.id).toBe(ir.id)
       expect(s.callee).toBe(ir.callee)
-      expect(s.inputs).toEqual(statementInputs(ir))
+      // inputs is now derived from positional (isHostVarRef projection)
+      const inputsFromSummary = s.positional.filter(isHostVarRef).map(p => p.name)
+      expect(inputsFromSummary).toEqual(statementInputs(ir))
       expect(s.outputs).toEqual(ir.outputs)
       expect(s.outputKeys).toEqual(ir.outputKeys)
       expect(s.hasAssignment).toBe(ir.hasAssignment ?? false)
@@ -43,7 +46,9 @@ describe('analyzeCode: 与 parser 结果逐字段一致', () => {
     const summaries = analyzeCode(BOX_DRILL_SPLIT)
     const drill = summaries[1]
     expect(drill.callee).toBe('fai_drill')
-    expect(drill.inputs).toEqual(['part0'])
+    // inputs derived from positional
+    const drillInputs = drill.positional.filter(isHostVarRef).map(p => p.name)
+    expect(drillInputs).toEqual(['part0'])
     expect(drill.outputs).toEqual(['part0'])
     expect(drill.hasAssignment).toBe(true)
   })
@@ -52,7 +57,9 @@ describe('analyzeCode: 与 parser 结果逐字段一致', () => {
     const summaries = analyzeCode(BOX_DRILL_SPLIT)
     const split = summaries[2]
     expect(split.callee).toBe('fai_split')
-    expect(split.inputs).toEqual(['part0'])
+    // inputs derived from positional
+    const splitInputs = split.positional.filter(isHostVarRef).map(p => p.name)
+    expect(splitInputs).toEqual(['part0'])
     expect(split.outputs).toEqual(['part1', 'part2'])
     expect(split.outputKeys).toEqual(['front', 'back'])
   })
@@ -137,14 +144,14 @@ describe('codeToArgs: 单语句行 args 提取（true-JS-subset §4.6.3 新契�
 
   it('裸重赋值行', () => {
     expect(codeToArgs('part0 = cad.fai_drill(part0, { diameter: 5 })')).toEqual({
-      positional: [{ $ref: 'part0' }],
+      positional: [{ kind: 'var-ref', name: 'part0' }],
       args: { diameter: 5 },
     })
   })
 
   it('解构行', () => {
     expect(codeToArgs('const { front: a, back: b } = cad.fai_split(part0, { normal: [0,0,1] })'))
-      .toEqual({ positional: [{ $ref: 'part0' }], args: { normal: [0, 0, 1] } })
+      .toEqual({ positional: [{ kind: 'var-ref', name: 'part0' }], args: { normal: [0, 0, 1] } })
   })
 
   it('成员方法调用行', () => {
@@ -173,15 +180,15 @@ describe('codeToArgs: 单语句行 args 提取（true-JS-subset §4.6.3 新契�
     })
   })
 
-  it('位置实参为变量引用 → {$ref} 标记（宿主降级只读）', () => {
+  it('位置实参为变量引用 → {kind:"var-ref"} 标记（宿主降级只读）', () => {
     expect(codeToArgs('part0 = cad.union(part0, part1)')).toEqual({
-      positional: [{ $ref: 'part0' }, { $ref: 'part1' }],
+      positional: [{ kind: 'var-ref', name: 'part0' }, { kind: 'var-ref', name: 'part1' }],
       args: {},
     })
   })
 
   it('本机函数调用行（looseLocalCalls）', () => {
-    expect(codeToArgs('let part1 = makeArray({ n })')).toEqual({ positional: [], args: { n: { $param: 'n' } } })
+    expect(codeToArgs('let part1 = makeArray({ n })')).toEqual({ positional: [], args: { n: { kind: 'param-ref', name: 'n' } } })
   })
 
   it('本机函数调用行 — 无赋值副作用调用', () => {
@@ -197,5 +204,71 @@ describe('codeToArgs: 单语句行 args 提取（true-JS-subset §4.6.3 新契�
 
   it('非法行抛 ParseError', () => {
     expect(() => codeToArgs('this is not valid js !!')).toThrow()
+  })
+})
+
+// ── §7.1-B: codeToArgs / StatementSummary 形态覆盖 ──
+
+describe('§7.1-B: codeToArgs/analyzeCode HostArg 形态覆盖 (T3-b / T4-a)', () => {
+  it('T3-b: param-ref in args — codeToArgs 解析参数引用', () => {
+    const result = codeToArgs('part0 = cad.fai_drill(part0, { diameter: hole_diameter, depth: 10 })')
+    // codeToArgs uses sentinel declarations (let part0 = 0) which adds part0 to both
+    // paramNames and varToId. The parser checks paramNames first, so part0 should
+    // be param-ref. However, since let adds to varToId too, part0 may be var-ref.
+    // Either way, hole_diameter (only in args, not declared as sentinel) is param-ref.
+    expect(result.args.diameter).toEqual({ kind: 'param-ref', name: 'hole_diameter' })
+    expect(result.args.depth).toBe(10)
+  })
+
+  it('T4-a: call-ref in args — analyzeCode 解析嵌套调用（完整脚本上下文）', () => {
+    // Use analyzeCode with full script context where part0 is a real var.
+    const code = [
+      'let part0 = cad.box({ size: 20 })',
+      'part0 = cad.chamfer(part0, { edgeLength: 3, faceCenter: cad.faceNormal(part0, [10, 10, 0], 4) })',
+    ].join('\n')
+    const summary = analyzeCode(code)[1]
+    // positional[0] is the var-ref; the trailing options object is the last positional element
+    // but is also projected into args
+    expect(summary.positional[0]).toEqual({ kind: 'var-ref', name: 'part0' })
+    expect(summary.args.edgeLength).toBe(3)
+    expect(summary.args.faceCenter).toEqual({
+      kind: 'call-ref',
+      callee: 'faceNormal',
+      args: [
+        { kind: 'var-ref', name: 'part0' },
+        [10, 10, 0],
+        4,
+      ],
+    })
+  })
+})
+
+describe('§7.1-B: analyzeCode summary.args 与 codeToArgs 结果一致性', () => {
+  it('analyzeCode 产出的 summary.args 与 codeToArgs 结果一致（含输入体）', () => {
+    // analyzeCode in full script context: part0 is a real var (var-ref)
+    // codeToArgs with sentinel declarations: part0 becomes param-ref
+    // So we only compare args (not positional) for this case
+    const codeLine = 'part0 = cad.fai_drill(part0, { diameter: 5, depth: 10 })'
+    const summary = analyzeCode('let part0 = cad.box({ size: 20 })\n' + codeLine)[1]
+    const cta = codeToArgs(codeLine)
+    // args should be consistent (no identifiers in args values)
+    expect(summary.args).toEqual(cta.args)
+  })
+
+  it('analyzeCode summary.args 含 HostArg 引用形态', () => {
+    const code = [
+      'let part0 = cad.box({ size: 20 })',
+      'part0 = cad.chamfer(part0, { edgeLength: 3, faceCenter: cad.faceNormal(part0, [10, 10, 0], 4) })',
+    ].join('\n')
+    const summary = analyzeCode(code)[1]
+    expect(summary.args.faceCenter).toEqual({
+      kind: 'call-ref',
+      callee: 'faceNormal',
+      args: [
+        { kind: 'var-ref', name: 'part0' },
+        [10, 10, 0],
+        4,
+      ],
+    })
   })
 })

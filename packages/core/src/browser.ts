@@ -61,6 +61,15 @@ export type { FormatCodeLineInput } from './lang/codegen'
 export { analyzeCode } from './lang/statement-summary'
 export type { StatementSummary } from './lang/statement-summary'
 export { codeToArgs } from './lang/code-to-args'
+export type { CodeToArgsResult } from './lang/code-to-args'
+// HostArg — 宿主友好位置参数类型（IR 屏蔽层）
+export type {
+  HostArg, HostRef, HostVarRef, HostParamRef, HostCallRef, HostExprRef, HostRefKind,
+} from './lang/host-arg'
+export {
+  isHostVarRef, isHostParamRef, isHostCallRef, isHostExprRef, isHostRef,
+  hostArgToDisplay, hostArgToLiteral, HOST_REF_KINDS,
+} from './lang/host-arg'
 
 // ═══════════════════════════════════════════════════════════
 // B 类：cad-runtime/ + createBrowserPorts + 外部资源注入点

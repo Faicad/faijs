@@ -37,6 +37,8 @@
 import type { ArgIR, StatementIR, ScriptIR, ParamRefIR, VarRefIR, CallRefIR, ImportIR, FunctionDefIR, ExprIR } from './types'
 import type { PartName } from '../identity'
 import { isParamRef, isVarRef, isCallRef, isExprRef } from './types'
+import type { HostArg } from './host-arg'
+import { hostArgToIR } from './host-arg'
 
 // ── 数值格式化 ──
 
@@ -224,13 +226,17 @@ function printStatement(stmt: StatementIR, declared: Set<string>, varNames: Map<
  * @returns the printed single-line code text.
  */
 export function statementIRToLine(stmt: StatementIR): string {
+  // statementIRToLine passes IR directly; formatCodeLine's hostArgToIR will
+  // treat IR marker objects ({$ref}, {$param}, etc.) as plain literals since
+  // they lack `kind` fields — they pass through unchanged, which is correct
+  // because printStatement expects IR.
   return formatCodeLine({
     callee: stmt.callee,
-    receiver: stmt.receiver,
-    positional: stmt.positional ?? [],
+    ...(stmt.receiver !== undefined ? { receiver: stmt.receiver } : {}),
+    positional: (stmt.positional ?? []) as unknown as HostArg[],
     outputs: stmt.outputs,
-    outputKeys: stmt.outputKeys,
-    args: stmt.args,
+    ...(stmt.outputKeys !== undefined ? { outputKeys: stmt.outputKeys } : {}),
+    args: stmt.args as unknown as Record<string, HostArg>,
   })
 }
 
@@ -239,17 +245,22 @@ export function statementIRToLine(stmt: StatementIR): string {
 /**
  * Pure-data input for printing one faijs source line, decoupled from IR types
  * (IR-strip companion for the host code-generation entry point).
+ *
+ * `positional` and `args` use `HostArg` (host-friendly types with `kind`-based
+ * discrimination). The `formatCodeLine` entry converts them to IR via
+ * `hostArgToIR` before delegating to the existing codegen logic.
  */
 export interface FormatCodeLineInput {
   callee: string
   /** 成员方法调用接收者变量名 */
   receiver?: string
   /**
-   * 位置实参槽（true-JS-subset §4.6.2，取代原 inputs: string[]）：宿主可传字面量、
-   * 变量引用（{$ref}）、参数引用（{$param}）、嵌套调用（{$call}）、表达式原文
-   * （{$expr:{text,refs,params}}）或纯 JsonValue，按序打印。
+   * 位置实参槽（HostArg 形态）：宿主可传字面量、
+   * 变量引用（`{kind:'var-ref',name}`）、参数引用（`{kind:'param-ref',name}`）、
+   * 嵌套调用（`{kind:'call-ref',callee,args,namespace?}`）、
+   * 表达式（`{kind:'expr-ref',text,refs,params}`）或纯 JsonValue，按序打印。
    */
-  positional: ArgIR[]
+  positional: HostArg[]
   /** 产出变量名 */
   outputs: string[]
   /** 解构键（与 outputs 一一对应） */
@@ -258,7 +269,7 @@ export interface FormatCodeLineInput {
    * （过渡兼容）选项对象：positional 末位不是纯对象时追加为尾随选项对象。
    * 新代码应把选项对象直接放进 positional。
    */
-  args?: Record<string, ArgIR>
+  args?: Record<string, HostArg>
   /** 调用命名空间（F2：第三方库 `mech.makeHeadstock(...)` → 'mech'；缺省 'cad'） */
   namespace?: string
   /**
@@ -282,17 +293,23 @@ export interface FormatCodeLineInput {
  * @returns the printed single-line code text.
  */
 export function formatCodeLine(input: FormatCodeLineInput): string {
+  // HostArg → IR 脱壳（入口转换，后续 codegen 逻辑零改动）
+  const positional = input.positional.map(hostArgToIR)
+  const argsInput: Record<string, HostArg> = input.args ?? {}
+  const argsSlot: Record<string, ArgIR> = {}
+  for (const [k, v] of Object.entries(argsInput)) {
+    argsSlot[k] = hostArgToIR(v)
+  }
   // 过渡兼容：positional 末位已是纯对象时 args 视为同一对象（其投影，不重复打印）；
   // 尾位不是纯对象且 args 非空 → args 作为独立选项槽由 printStatement 追加；
   // positional 为空时 args 走旧兜底路径打印。
-  const positional = [...input.positional]
   const last = positional[positional.length - 1]
   const lastIsPlainObject =
     last !== null && typeof last === 'object' && !Array.isArray(last) &&
     !isVarRef(last) && !isCallRef(last) && !isExprRef(last) && !isParamRef(last)
-  const argsSlot: Record<string, ArgIR> = lastIsPlainObject
+  const finalArgsSlot: Record<string, ArgIR> = lastIsPlainObject
     ? (last as unknown as Record<string, ArgIR>)
-    : (input.args ?? {})
+    : argsSlot
   const stmt: StatementIR = {
     id: '__fmt__' as never,
     callee: input.callee,
@@ -301,7 +318,7 @@ export function formatCodeLine(input: FormatCodeLineInput): string {
     positional,
     outputs: input.outputs as PartName[],
     ...(input.outputKeys !== undefined ? { outputKeys: input.outputKeys } : {}),
-    args: argsSlot,
+    args: finalArgsSlot,
   }
   const varNames = new Map<string, string>()
   for (const arg of positional) {

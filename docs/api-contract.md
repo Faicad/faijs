@@ -605,3 +605,37 @@ PS: Re-printing text from the IR is debug-only, never part of a contract.
 - The function body is user source embedded into the compiled module — a documented exception to "user text never reaches the VM" (R-3), bounded by the acorn gate plus the whitelist (see `docs/syntax-design.md`), isomorphic to the faqts channel (§10.5).
 - Legacy version-suffixed names are no longer produced and no longer parsed (the version suffix and the `grp_` prefix were both removed; compatibility parsing was removed, decision 2, see `lang/allocate-id.ts`).
 - Both the `export default async (cad) => {}` container and the flat format parse; flat code is automatically wrapped into a legal container.
+
+---
+
+## 14. HostArg Contract (IR shield for host-facing arguments)
+
+### 14.1 HostArg types
+
+Hosts (3d_editor, etc.) interact with positional arguments via `HostArg`, never touching IR types (`ParamRefIR`/`VarRefIR`/`CallRefIR`/`ExprIR`).
+
+```ts ignore-check
+// packages/core/src/lang/host-arg.ts
+interface HostVarRef   { kind: 'var-ref';   name: string }
+interface HostParamRef { kind: 'param-ref'; name: string }
+interface HostCallRef  { kind: 'call-ref';  callee: string; args: HostArg[]; namespace?: string }
+interface HostExprRef  { kind: 'expr-ref';  text: string; refs: string[]; params: string[] }
+type HostRef = HostVarRef | HostParamRef | HostCallRef | HostExprRef
+type HostArg = JsonValue | HostRef
+```
+
+`HostRef` is structurally a subtype of `JsonValue` — discrimination relies on **runtime guards** (`isHostRef`, etc.), not the type system. This is intentional.
+
+### 14.2 Reserved-word rule
+
+Literal parameter objects must not use `kind` values from `HOST_REF_KINDS` (`'var-ref'`, `'param-ref'`, `'call-ref'`, `'expr-ref'`). A plain object whose `kind` field matches one of these values and whose shape matches the corresponding variant is deterministically treated as a reference shape in the Host→IR direction.
+
+The IR→Host direction only recognizes `$`-prefixed marker keys (`$ref`, `$param`, `$call`, `$expr`), not `kind` — so literal objects produced by the parser from `.fai.js` source are never misclassified.
+
+### 14.3 API changes (0.9.0, breaking)
+
+- `codeToArgs` returns `{ positional: HostArg[]; args: Record<string, HostArg> }` (IR stripped via `argIRToHost`)
+- `formatCodeLine` input uses `HostArg` for `positional` and `args` (converted via `hostArgToIR` at entry)
+- `StatementSummary`: `positional` is now `HostArg[]`; **new** `args: Record<string, HostArg>`; **removed** `inputs` (use `isHostVarRef` filter on `positional`) and `positionalKinds` (use runtime guards)
+- Exported helpers: `isHostVarRef`, `isHostParamRef`, `isHostCallRef`, `isHostExprRef`, `isHostRef`, `hostArgToDisplay`, `hostArgToLiteral`, `HOST_REF_KINDS`
+- **Not exported**: `argIRToHost`, `hostArgToIR` (IR red line)

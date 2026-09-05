@@ -8,30 +8,21 @@
  * Timeline 一行一节点、场景树分组推导、FeatureTree 识别、编辑回填定位。
  *
  * 实现直接复用 parser 输出做投影，不引入新解析逻辑（阶段 0 约束）。
+ *
+ * §4.4 变更（2026-09-05 位置实参全形态编辑往返方案）：
+ * - `positional` 改为 `HostArg[]`（IR 已脱壳，宿主不接触 IR 标记对象）
+ * - 新增 `args: Record<string, HostArg>`（原 `positional`/`inputs` 之外的信息缺口）
+ * - 删除 `positionalKinds`/`PositionalKind`/`classifyPositional`（冗余投影，
+ *   宿主可用 `isHostRef` 等守卫自行裁决）
+ * - 删除 `inputs`（`statementInputs` 的投影；宿主从 `positional` 中筛
+ *   `isHostVarRef` 即可得到等价信息）
  */
 
 import type { StmtId, PartName } from '../identity'
-import { isParamRef, isVarRef, isCallRef, isExprRef, statementInputs, type ArgIR } from './types'
+import type { ArgIR } from './types'
+import type { HostArg } from './host-arg'
+import { argIRToHost } from './host-arg'
 import { parseScript } from './parser'
-
-/** 位置实参形态分类（true-JS-subset D6：宿主据此判断编辑面板可用性）。 */
-export type PositionalKind = 'literal' | 'varRef' | 'paramRef' | 'call' | 'expr' | 'object'
-
-/** 单个位置实参的 strip 投影（JSON 形态）与形态标记。 */
-export interface PositionalSummary {
-  kind: PositionalKind
-  /** 字面量 → 原值；varRef → {$ref}；paramRef → {$param}；call → {$call}；expr → {$expr}；object → 原对象（属性值递归 strip） */
-  value: unknown
-}
-
-function classifyPositional(arg: ArgIR): PositionalKind {
-  if (isVarRef(arg)) return 'varRef'
-  if (isParamRef(arg)) return 'paramRef'
-  if (isCallRef(arg)) return 'call'
-  if (isExprRef(arg)) return 'expr'
-  if (typeof arg === 'object' && arg !== null) return 'object'
-  return 'literal'
-}
 
 /**
  * A flat scalar projection of one statement for host display and orchestration
@@ -53,12 +44,17 @@ export interface StatementSummary {
   packageName?: string
   /** 成员方法调用接收者变量（asm1.do_assemble() → 'asm1'） */
   receiver?: PartName
-  /** 位置实参槽（true-JS-subset §4.6.4，strip 投影：ExprIR/VarRefIR 以标记对象呈现） */
-  positional: unknown[]
-  /** 位置实参形态分类（与 positional 一一对应；宿主据此降级编辑面板） */
-  positionalKinds: PositionalKind[]
-  /** 纯变量引用（VarRefIR 投影，原 inputs 语义） */
-  inputs: PartName[]
+  /**
+   * 位置实参槽（HostArg 形态，IR 已脱壳）。
+   * 每个元素是 HostArg——字面量原样；var-ref/param-ref/call-ref/expr-ref
+   * 以 `{kind, ...}` 形态呈现。宿主用 `isHostVarRef` 等守卫判定形态。
+   */
+  positional: HostArg[]
+  /**
+   * 尾随选项对象（HostArg 形态，IR 已脱壳）。
+   * 键值经 argIRToHost 映射；无选项对象时为 `{}`。
+   */
+  args: Record<string, HostArg>
   /** 产出变量名（split 解构 = 多个；void 语句 = []） */
   outputs: PartName[]
   /** 解构键（const {front: a, back: b} → ['front','back']） */
@@ -97,9 +93,8 @@ export function analyzeCode(code: string): StatementSummary[] {
       ? { namespace: s.namespace, ...(nsToPkg.get(s.namespace) !== undefined ? { packageName: nsToPkg.get(s.namespace) } : {}) }
       : {}),
     ...(s.receiver !== undefined ? { receiver: s.receiver } : {}),
-    positional: (s.positional ?? []) as unknown[],
-    positionalKinds: (s.positional ?? []).map((a) => classifyPositional(a as ArgIR)),
-    inputs: statementInputs(s),
+    positional: (s.positional ?? []).map((a: ArgIR) => argIRToHost(a)),
+    args: mapIRRecord(s.args),
     outputs: [...s.outputs],
     ...(s.outputKeys !== undefined ? { outputKeys: [...s.outputKeys] } : {}),
     ...(s.refs !== undefined ? { refs: [...s.refs] } : {}),
@@ -108,3 +103,21 @@ export function analyzeCode(code: string): StatementSummary[] {
     line: statementLines[i] ?? 0,
   }))
 }
+
+/**
+ * Map a record of ArgIR values to HostArg values (IR → Host 脱壳).
+ */
+function mapIRRecord(record: Record<string, ArgIR>): Record<string, HostArg> {
+  const out: Record<string, HostArg> = {}
+  for (const [k, v] of Object.entries(record)) {
+    out[k] = argIRToHost(v)
+  }
+  return out
+}
+
+// ── 向后兼容：statementInputs 仍从 types 导出（parser 内部用）， ──
+// ── 但宿主面不再有 inputs 字段，用 positional 中 isHostVarRef 筛选 ──
+//
+// 如需从 StatementSummary 获取等价 inputs：
+//   import { isHostVarRef } from '@faicad/faijs'
+//   const inputs = summary.positional.filter(isHostVarRef).map(p => p.name)
