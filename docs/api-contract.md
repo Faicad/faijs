@@ -349,7 +349,7 @@ faijs adopts the `Result` / `BrepError` system from the vendored BREP tree as it
 |---|---|---|
 | ① TS compat face | `Result<T>` returned as-is | `const r = fuse(a, b); if (isErr(r)) …` |
 | ② cad script face | Statement-boundary unwrap: `err` → `ExecutionResult.failedAt` with statement context | `let p = cad.union(a, b)` — errors surface as execution failures |
-| ③ Library edge | Result native inside the library; boundary unwrap at the compat gate | Library code uses `ok`/`err`/`andThen`; the `compatOp` wrapper unwraps at the statement boundary |
+| ③ Library edge | Result native inside the library; boundary unwrap at the statement edge | Library code uses `ok`/`err`/`andThen`; the boundary unwraps at the statement edge |
 
 **Key primitives** (all projected from `vendored/brepjs/core/result.ts` and `core/errors.ts`, exported via `@faicad/faijs` and `@faicad/faijs-core/api/compat`):
 
@@ -365,19 +365,11 @@ unwrap<T>(r: Result<T>): T   // throws if Err
 
 **`BrepError`** carries `kind` / `code` / `message` / `suggestion` / `metadata`; `BrepErrorCode` constants enumerate all error categories. See `vendored/brepjs/core/errors.ts` for the full table.
 
-**Statement-boundary unwrap**: the `compatOp` wrapper (and `defineOp`'s Result-aware boundary) call a shared `unwrapResult(r, opName)` leaf. When the result is `err`, the unwrap throws an execution error carrying the op name and the `BrepError` code — the engine's existing statement-level catch converts it to `ExecutionResult.failedAt`. This means **existing `.fai.js` scripts need zero modification**: the error surface is identical to the previous throw-based behavior.
+**Statement-boundary unwrap**: the library-edge wrapper (and `defineOp`'s Result-aware boundary) call a shared `unwrapResult(r, opName)` leaf. When the result is `err`, the unwrap throws an execution error carrying the op name and the `BrepError` code — the engine's existing statement-level catch converts it to `ExecutionResult.failedAt`. This means **existing `.fai.js` scripts need zero modification**: the error surface is identical to the previous throw-based behavior.
 
-### 7.8 `compatOp` — a compat shell over `defineOp`
+### 7.8 Library admission (`compat: true`)
 
-`compatOp` (`packages/core/src/api/internal/compat-op.ts`) lifts an arbitrary brepjs-shaped function into a faijs statement-level op. It is a **single-entry shell over `defineOp`** — there is no second, parallel op path. The adapter (`buildAdapter`) is the only bespoke piece; everything else delegates to `defineOp`:
-
-1. **Adapter — three bridging steps**: ① **borrow**: deep-walk the faijs `Shape` arguments into `createBorrowedHandle` zero-copy views (vendored handles pass through — library-private, unchanged); ② **call**: `callBrepjs(fn, args)` and unwrap the Result at the boundary — `err` becomes an execution error carrying the op `name` and the `BrepError` code; ③ **adopt**: `adoptOut` the adopted products (finalizer unregistration + `fromHandle`) — a single top-level handle or each `outputs`-declared field (array fields adopted element-by-element).
-2. **Spec pass-through**: `name`, `capabilities`, `outputs`, `schema`, `slotMap` are handed to `defineOp` unchanged; `keep` / `keepHidden` are retained by construction.
-3. **Everything else belongs to `defineOp`**: static dispatch (`dispatchPath` + capability gate), the statement Result boundary, product wrapping (`wrapBrepOne` / `wrapByKeys`), and `DUAL_OP_META` mounting. A compat op is therefore an ordinary defineOp product: brep-only (mesh mode raises `E_MESH_UNSUPPORTED`), with off-chain inputs or missing capabilities raising `E_BREP_UNSUPPORTED`, and positional/object-form arguments resolved through the spec's `slotMap`.
-
-The multi-output contract name is **`outputs`** — the same list the `defineOp` spec carries, adopted through the adapter's step ③.
-
-`admitCompatLib` (`packages/core/src/cad-runtime/admit-compat-lib.ts`) is the batch application of `compatOp` to a namespace: `registerLib(binding, ns, { compat: true })` runs `assertLibConforms` **before** wrapping (R8: hard ordering constraint — DUAL_OP_META is `enumerable:false`, so a wrap-first admission would let bare functions silently skip strict validation). On a bare (non-dual-op) library function it recognizes exactly one annotation — `fn.outputs` — and builds the `outputs` spec from it.
+A library namespace registered with `runtime.registerLib(binding, ns, { compat: true })` is admitted into the statement face: functions already declared via `defineOp` pass through with their spec intact; bare library functions are lifted into faijs ops, with `fn.outputs` as the one recognized multi-output annotation on bare functions (it maps to the op's `outputs` spec). The lifting mechanics are engine-internal (`api/internal/compat-op.ts`); library authors only need the behavior contract in `docs/library-dev-guide.md`.
 
 ---
 

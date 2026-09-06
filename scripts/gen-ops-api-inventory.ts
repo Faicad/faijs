@@ -190,7 +190,7 @@ function renderDoc(locale: 'en' | 'zh'): string {
   lines.push('| ② cad 脚本面 | 语句边界 unwrap | `let p = cad.union(a, b)` — err → 语句失败 |')
   lines.push('| ③ 库边界面 | 库内原样；边界 unwrap | 库内 `err` → 边界 unwrap → 脚本层语句失败 |')
   lines.push('')
-  lines.push('> 相关契约：`docs/api-contract.md` § 7.6（三个库契约面）和 § 8（几何契约）定义了 `compatOp` / `defineOp` 的分派规则。')
+  lines.push('> 相关契约：`docs/api-contract.md` § 7（三个库契约面、库接纳）和 § 8（几何契约）定义了 op 与库函数的分派规则。')
   lines.push('')
   lines.push('---')
   lines.push('')

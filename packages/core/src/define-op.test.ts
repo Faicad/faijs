@@ -18,6 +18,7 @@ import { configureBackends, CONTRACT_VERSION, BrepUnsupportedError, MeshUnsuppor
 import { defineOp, assertLibConforms, DUAL_OP_META } from './define-op'
 import { solid, fromBrep, isShape, hasBrep, brepOf } from './shape'
 import { dispatchPath } from './cad-runtime/backend-dispatch'
+import { OpError } from './api/internal/result-unwrap'
 import type { Shape } from './mesh/types'
 import type { BrepHandle } from './brep/engine/types'
 
@@ -276,5 +277,54 @@ describe('assertLibConforms: strict assembly validation (③)', () => {
 
   it('plain libraries (no dual-ops) are untouched, even without contractVersion', () => {
     expect(() => assertLibConforms({ plain: () => 1, data: { a: 1 } })).not.toThrow()
+  })
+})
+
+// ── defineOp 边界契约回归（集成验证 2 处修复） ──
+
+describe('defineOp: brep data-product passthrough (wrapBrepOne)', () => {
+  it('plain data record (no __occtWasm) passes through untouched, never tessellated as a handle', async () => {
+    // 若透传分支失效而误走 fromHandle，throwing kernel 会立即暴露（不再静默崩溃于
+    // OcctError: meshShape: Invalid shape ID 0）。
+    const throwingKernel = {
+      meshShape: () => {
+        throw new Error('must not tessellate a data record')
+      },
+    }
+    configureBackends(makeBackends('auto', undefined, throwingKernel))
+    const record = { partId: 7, bends: [1, 2, 3], name: 'sheet-part' }
+    const op = defineOp({ brep: () => record as unknown as Shape })
+    const result = await op()
+    expect(result).toBe(record) // 原对象透传
+    expect(isShape(result as Shape)).toBe(false)
+    expect(hasBrep(result as Shape)).toBe(false)
+  })
+
+  it('__occtWasm-tagged handle object still tessellates via fromHandle (discriminant leaf)', async () => {
+    const fakeKernel = { meshShape: () => ({ positions: [0, 0, 0, 1, 0, 0, 0, 1, 0], indices: [0, 1, 2] }) }
+    configureBackends(makeBackends('auto', undefined, fakeKernel))
+    const handleObj = { __occtWasm: true, type: 'solid', id: 42 }
+    const op = defineOp({ brep: () => handleObj as unknown as Shape })
+    const result = await op()
+    expect(isShape(result as Shape)).toBe(true)
+    expect(hasBrep(result as Shape)).toBe(true)
+    // fromHandle 的 { solid: handle } 原样登记——对象路径 brepOf 返回句柄对象本身
+    expect(brepOf(result as Shape)).toBe(handleObj)
+  })
+})
+
+describe('defineOp: OpError rethrow (runImpl)', () => {
+  it('impl-thrown OpError propagates unchanged (same instance), not re-wrapped by toOpError', async () => {
+    configureBackends(makeBackends('auto'))
+    const opError = new OpError('mech.fuse', 'E_BAD_INPUT', '[faijs/compat] mech.fuse: E_BAD_INPUT: nope')
+    const op = defineOp({ brep: () => { throw opError } })
+    await expect(op()).rejects.toBe(opError)
+  })
+
+  it('plain impl exceptions are normalized into a plain Error (bug propagation), never OpError', async () => {
+    configureBackends(makeBackends('auto'))
+    const op = defineOp({ brep: () => { throw new Error('boom') } })
+    await expect(op()).rejects.toThrow('[faijs/op]')
+    await expect(op()).rejects.not.toBeInstanceOf(OpError)
   })
 })

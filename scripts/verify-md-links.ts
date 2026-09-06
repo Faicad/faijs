@@ -8,7 +8,7 @@
  */
 
 import { existsSync, readFileSync } from 'node:fs'
-import { dirname, relative, resolve } from 'node:path'
+import { dirname, join, relative, resolve, sep } from 'node:path'
 import type { Nodes } from 'mdast'
 import { markdownHeadingLines, parseMarkdown, visitMarkdown } from './markdown.ts'
 import { isArchivedAgentNotePath, uniqueRepoFiles } from './repo-files.ts'
@@ -197,7 +197,12 @@ export function findViolations(
 // Run only when invoked as a script, not when imported by the spec.
 if (process.argv[1] && import.meta.filename === resolve(process.argv[1])) {
   // Archived notes remain valid link targets, but their historical outbound links are frozen.
-  const files = uniqueRepoFiles(root, PATTERNS, isArchivedAgentNotePath)
+  // docs/plans/ (current + monthly-archived) is scratch design material — its documents
+  // are skipped as link sources; they stay valid as link targets.
+  const plansRoot = join(root, 'docs', 'plans') + sep
+  const files = uniqueRepoFiles(root, PATTERNS, isArchivedAgentNotePath).filter(
+    (f) => !f.abs.startsWith(plansRoot),
+  )
   const anchorsOf = anchorCache()
   const all = files.flatMap(file => findViolations(file.abs, anchorsOf))
   const checked = files.length

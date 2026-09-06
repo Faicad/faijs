@@ -269,11 +269,13 @@ export function compatOp(fn, spec): ((...args: unknown[]) => Promise<Shape>) & M
 | 位置 | 清理动作 |
 |---|---|
 | `packages/gear-lib-demo` | `planetary.geometryFields = [...]` → `planetary.outputs = [...]`（in-repo 样例库迁移） |
-| `docs/library-dev-guide.md` + `.zh.md` | §3 整节重写：`geometryFields` → `fn.outputs`；示例同步 |
-| `docs/api-contract.md` + `.zh.md` | 六步契约第 5 步"`geometryFields`-declared fields" → "`outputs`-declared fields" |
+| `docs/library-dev-guide.md` + `.zh.md` | §3 整节重写：`geometryFields` → `fn.outputs`；**新增「返回结构三分类契约」**（带 `__occtWasm` 标记的对象 = 几何句柄走 `fromHandle`；number = branded id 走 `fromHandle`；不带标记的 plain object = 纯数据记录透传进值存储，绝不三角化）；示例同步 |
+| `docs/api-contract.md` + `.zh.md` | **§7.8 清理**：compatOp 机制（薄壳/三步桥接/spec 透传）是内部实现，从契约文档移除——只保留一句行为说明「裸库函数经 `registerLib(…,{compat:true})` 的 admission 提升为 op，细节见 library-dev-guide 与代码注释」；§7.7 的 Result 边界提及保留为行为说明（非接口） |
 | `api/internal/compat-op.ts` | `CompatSpec` 删 `geometryFields`；`adoptOut` 用 `spec.outputs` |
 | `cad-runtime/admit-compat-lib.ts` | 删 `GeometryFieldsCarrier`；读 `fn.outputs` |
 | 全仓 grep 守卫 | `geometryFields` = 0 命中（docs/plans 历史除外，按 §1.4 不改） |
+
+**文档归属原则（用户裁决，防再犯）**：契约文档只写"库作者 / 宿主必须遵守的规则"，不写"引擎如何实现"。compatOp / admitCompatLib 的**实现细节**（薄壳、adapter 三步、spec 透传）归代码注释与 plans；**行为契约**（`fn.outputs` 标注、返回结构三分类、keep 穿透、compat 提升的入口形态）归 library-dev-guide（库作者手册）。api-contract.md 的 §7.8 机制描述是历史遗留（把实现当契约写），与 geometryFields 文档化同类错误，清理之。
 
 **语义对照**：defineOp `outputs` = "实现返回记录，包装器按 keys 包装产物"；compatOp 侧同一 keys 先被 adapter 逐字段收养（brepjs 句柄 → faijs Shape），再由 defineOp 透传包装。**对外契约一致**：返回 `Record<string, Shape>`，且 `DUAL_OP_META.outputs` 可见。无任何第二名字。
 
@@ -357,8 +359,9 @@ export function admitCompatLib(ns) {
 
 ### 6.3 文档同步（实施 PR 内）
 
-- `docs/api-contract.md` §7.8：compatOp 定位改写为"defineOp 之上的兼容壳"；六步契约改为"adapter 三步桥接 + defineOp 统一承担"；第 5 步"`geometryFields`-declared fields" → "`outputs`-declared fields"（双语同步）。
-- `docs/library-dev-guide.md`（双语）：§3 整节重写——多产物标注键 `geometryFields` → `fn.outputs`；补函数体 keep/keepHidden 示例。
+- `docs/api-contract.md` §7.8（双语）：**清理 compatOp 机制描述**（内部实现不写契约文档）——压缩为「库接纳（compat: true）」行为说明；§7.7 的 Result 边界提及改为中性措辞（§3.6 文档归属原则）。**已实施。**
+- `docs/library-dev-guide.md`（双语）：**全文重构为 faijs 库开发者视角**（用户裁决：主体讲"作为 faijs 库的开发者应该知道的内容"，brepjs 移植只放末尾一小节）——新结构：§1 faijs 库是什么（三面）→ §2 编写库（Result 语义 / 返回三分类契约 / defineOp 双路径与 keep / 裸函数 fn.outputs / solidOf / 硬约束）→ §3 .fai.js 测试 → §4 脚本面调用矩阵 → §5 移植已有 brepjs 库（压缩小节）。brepjs 桥接概念（borrow / adopt / finalizer）全部移出主体。**已实施。**
+- `docs/ops-api-inventory.md`（双语）："定义了 `compatOp` / `defineOp` 的分派规则" → "定义了 op 与库函数的分派规则"。**已实施。**
 - `packages/gear-lib-demo`：`planetary.geometryFields` → `planetary.outputs`。
 
 ---

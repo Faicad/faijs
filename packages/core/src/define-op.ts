@@ -35,7 +35,7 @@ import {
 } from './runtime-state'
 import { isShape, solid, fromBrep } from './shape'
 import { isMeshShape } from './mesh/types'
-import { fromHandle, meshHandle } from './brep/handle-bridge'
+import { fromHandle, meshHandle, isOcctHandle } from './brep/handle-bridge'
 import { positionalToObject, type SlotMap } from './api/internal/dual-form-args'
 import { toOpError, unwrapResult, OpError } from './api/internal/result-unwrap'
 import type { Shape } from './mesh/types'
@@ -138,8 +138,9 @@ function wrapBrepOne(v: unknown): Shape {
   // store instead of being tessellated as if it were a bare handle. Native
   // OCCT handles from an implementation are hand-computed shape numbers
   // (from a branded number return) or objects; only the number path reaches
-  // fromHandle.
-  if (v !== null && typeof v === 'object' && !('__occtWasm' in v)) {
+  // fromHandle. The handle/data distinction must go through the shared
+  // isOcctHandle leaf (handle-bridge) — never a hardcoded '__occtWasm' in v.
+  if (v !== null && typeof v === 'object' && !isOcctHandle(v)) {
     return v as unknown as Shape
   }
   return fromHandle(v)

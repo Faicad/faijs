@@ -11,10 +11,7 @@ Status: implemented
 ## Decision
 
 - `CompatSpec extends Omit<DualOpOptions, 'mesh' | 'brep'>`，其中 `name: string` 收紧为必填。spec 自动继承 `defineOp` 的每一个选项——无手抄字段表，未来 `defineOp` 新增选项零改动即可被 `compatOp` 继承。没有任何自创选项字段（唯一的例外是 `name` 的类型收紧）。
-- adapter 是留在 compat 内部的唯一执行逻辑：
-  ① 用 `borrowDeep` 借入每个输入（faijs `Shape` → brepjs 借入视图），
-  ② `callBrepjs` 调用并用 `unwrapOrThrow` 解包（复用 `unwrapResult` 叶子），
-  ③ 用 `adoptOut` 收养产物（句柄/记录 → 收养，纯数据透传，`outputs` 声明的字段按 key 逐个收养，数组保持）。该产物随后流经 `defineOp` 自己的包装，已收养的 Shape/记录原样透传。
+- adapter 是留在 compat 内部的唯一执行逻辑：① 用 `borrowDeep` 借入每个输入（faijs `Shape` → brepjs 借入视图），② `callBrepjs` 调用并用 `unwrapOrThrow` 解包（复用 `unwrapResult` 叶子），③ 用 `adoptOut` 收养产物（句柄/记录 → 收养，纯数据透传，`outputs` 声明的字段按 key 逐个收养，数组保持）。该产物随后流经 `defineOp` 自己的包装，已收养的 Shape/记录原样透传。
 - `capabilities` / `outputs` / `schema` / `slotMap` 全部原样透传；`keep/keepHidden` 仍走标准 shape 可见性契约（compat 边界不拦截不重写）——借入的 brep 视图是新的 brepjs 对象，所以函数体 `keep()` 对借入 compat 输入保持无声 no-op，与此前设计一致。
 - 多产物标注名只有 `outputs` 一个（`admitCompatLib` 读取被包装函数上的 `fn.outputs`）；旧的 `geometryFields` 名称已从全仓删除。
 - op 层位置形参声明更名：`PositionalForm` / `positional` 字段 → `slotMap` / `SlotMap`；语句层 `StatementIR.positional`（位置实参**值**）名字保留。

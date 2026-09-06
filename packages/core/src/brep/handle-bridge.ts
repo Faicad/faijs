@@ -47,12 +47,51 @@ export interface MeshHandleOptions {
 }
 
 /**
+ * OCC 句柄身份契约判别（单一真源）。
+ *
+ * occt-wasm 的 `handle()` 工厂（vendored occtWasm helpers.ts:25）构造的句柄对象
+ * 统一携带 `__occtWasm: true`。本叶子是 faijs 侧唯一允许的判据：
+ * define-op 的 `wrapBrepOne` 用它区分"几何句柄"与"纯数据记录"，本文件
+ * `fromHandle`/`meshHandle` 入口用它做形态断言。禁止在其他文件硬编码
+ * `'__occtWasm' in v` 字符串直查——句柄/数据判定的任何新消费点都必须引用本叶子。
+ * @param v - 待判别的值。
+ * @returns `true` 当且仅当 `v` 是携带 `__occtWasm: true` 标记的句柄对象。
+ */
+export function isOcctHandle(v: unknown): boolean {
+  return typeof v === 'object' && v !== null && (v as { __occtWasm?: unknown }).__occtWasm === true
+}
+
+/** 合法句柄输入：branded numeric id（occt-wasm 的 `ShapeHandle` 运行时形态）或
+ *  `__occtWasm` 标记对象（`handle()` 工厂产物）。 */
+function isHandleLike(v: unknown): boolean {
+  return typeof v === 'number' || isOcctHandle(v)
+}
+
+/**
+ * 入口形态断言：拒绝把纯数据记录当句柄三角化。
+ * 纯数据记录（无 `__occtWasm` 标记的 plain object，如 sheetmetal part 数据）
+ * 必须在 SDK 边界被显式拒绝（E_BAD_HANDLE），而不是在 kernel 深处以
+ * `OcctError: meshShape: Invalid shape ID 0` 崩溃——define-op 的 wrapBrepOne
+ * 已在第一道透传过滤，本断言是第二道防线（防未来未带标记的新句柄形态漏网）。
+ */
+function requireHandle(handle: unknown, caller: string): void {
+  if (!isHandleLike(handle)) {
+    throw new Error(
+      `[faijs/bridge] ${caller}: E_BAD_HANDLE: expected an OCCT handle (numeric id or ` +
+        `__occtWasm-tagged object); got ${handle === null ? 'null' : typeof handle}. ` +
+        `Plain data records must not be tessellated as handles.`,
+    )
+  }
+}
+
+/**
  * Tessellate an OCCT handle into a Shape (without registering a BREP slot).
- * @param handle - the OCCT solid handle to tessellate.
+ * @param handle - the OCCT solid handle to tessellate (numeric id or `__occtWasm`-tagged object).
  * @param opts - optional tessellation options.
  * @returns the tessellated Shape.
  */
 export function meshHandle(handle: unknown, opts?: MeshHandleOptions): Shape {
+  requireHandle(handle, 'meshHandle')
   const kernel = getKernel() as MeshableKernel
   const mesh = kernel.meshShape(handle, {
     linearDeflection: opts?.linearDeflection ?? 0.1,
@@ -69,10 +108,11 @@ export function meshHandle(handle: unknown, opts?: MeshHandleOptions): Shape {
  * Equivalent to meshHandle(h) + fromBrep(sh, { solid: h }).
  * Library authors only fall back to the meshHandle + fromBrep combination when
  * they need custom tessellation precision.
- * @param handle - the OCCT solid handle to bridge.
+ * @param handle - the OCCT solid handle to bridge (numeric id or `__occtWasm`-tagged object).
  * @param opts - optional tessellation options.
  * @returns the registered Shape, as returned by fromBrep.
  */
 export function fromHandle(handle: unknown, opts?: MeshHandleOptions): ReturnType<typeof fromBrep> {
+  requireHandle(handle, 'fromHandle')
   return fromBrep(meshHandle(handle, opts), { solid: handle })
 }

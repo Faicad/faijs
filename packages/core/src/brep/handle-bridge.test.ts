@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { getKernel, meshHandle, fromHandle } from './handle-bridge'
+import { getKernel, meshHandle, fromHandle, isOcctHandle } from './handle-bridge'
 import { registerOcctBrepEngine } from './engine/adapters/occt'
 import { hasBrep } from '../shape'
 import { configureBackends } from '../runtime-state'
@@ -33,6 +33,37 @@ describe('handle-bridge: getKernel', () => {
       cad: {} as never,
     })
     expect(() => getKernel()).toThrow(/OCCT kernel not available/)
+  })
+})
+
+describe('handle-bridge: OCC handle identity contract (isOcctHandle)', () => {
+  it('discriminates __occtWasm-tagged handles from plain data records', () => {
+    expect(isOcctHandle({ __occtWasm: true, type: 'solid', id: 1 })).toBe(true)
+    expect(isOcctHandle({ partId: 1 })).toBe(false)
+    expect(isOcctHandle(42)).toBe(false)
+    expect(isOcctHandle(null)).toBe(false)
+  })
+
+  it('fromHandle/meshHandle reject plain data records at the boundary (E_BAD_HANDLE), not at kernel depth', () => {
+    // 断言在 getKernel 之前执行；配 fake kernel 让合法路径（number / 标记对象）真实跑通
+    configureBackends({
+      contractVersion: 1,
+      config: { mode: 'auto' },
+      kernel: {
+        brep: { meshShape: () => ({ positions: [0, 0, 0], indices: [0] }) },
+        csg: undefined,
+        sdf: undefined,
+      },
+      fonts: undefined,
+      texture: undefined,
+      assets: undefined,
+      events: undefined,
+      cad: {} as never,
+    })
+    expect(() => meshHandle({ partId: 1 })).toThrow(/E_BAD_HANDLE/)
+    expect(() => fromHandle({ partId: 1 })).toThrow(/E_BAD_HANDLE/)
+    expect(() => meshHandle(42)).not.toThrow()
+    expect(() => meshHandle({ __occtWasm: true, type: 'solid', id: 1 })).not.toThrow()
   })
 })
 

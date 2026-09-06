@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-06-compat-op-shell-on-define-op.md
-2026-09-06-compat-op-shell-on-define-op.md: 0a7e4d0ea0e7243a0368eb304110713a1884100d
-2026-09-06-compat-op-shell-on-define-op.zh.md: 39c276e2c173246c53c3431253e9aac5ebc7a5fa
+2026-09-06-compat-op-shell-on-define-op.md: d9e80470539f032d56e536e0eda0406262c01579
+2026-09-06-compat-op-shell-on-define-op.zh.md: cd97eff628d79d306cb5512994e99a9223f75f7c
