@@ -607,7 +607,11 @@ export class CadRuntime {
       ...(opts?.executionTimeoutMs !== undefined ? { executionTimeoutMs: opts.executionTimeoutMs } : {}),
     })
     if (outcome.failedAt) {
-      const { index, callee, message, lineNo } = outcome.failedAt
+      const { callee, message, lineNo } = outcome.failedAt
+      // E6：failedAt.index = 场景语句序数（meta.lines 内位置；与 module 路径
+      // script.statements.indexOf 同语义——参数行不计入）。行不在 lines（参数/void 单元）
+      // → 回退 DirectExecutor 的单元序数。
+      const index = this.directStmtOrdinal(meta, lineNo) ?? outcome.failedAt.index
       return {
         outputs: this.directShapes(),
         brepChain: this.brepChain!,
@@ -617,6 +621,13 @@ export class CadRuntime {
       }
     }
     return this.collectDirectResult(meta)
+  }
+
+  /** E6：DirectExecutor 失败行 → 场景语句序数（meta.lines 下标）；不在 lines → undefined。 */
+  private directStmtOrdinal(meta: UiMetadata, lineNo: number | undefined): number | undefined {
+    if (lineNo === undefined) return undefined
+    const idx = meta.lines.findIndex((l) => l.line === lineNo)
+    return idx < 0 ? undefined : idx
   }
 
   /**
@@ -665,7 +676,8 @@ export class CadRuntime {
       ...(opts?.executionTimeoutMs !== undefined ? { executionTimeoutMs: opts.executionTimeoutMs } : {}),
     })
     if (outcome.failedAt) {
-      const { index, callee, message, lineNo } = outcome.failedAt
+      const { callee, message, lineNo } = outcome.failedAt
+      const index = this.directStmtOrdinal(meta, lineNo) ?? outcome.failedAt.index
       return {
         outputs: this.directShapes(),
         brepChain: this.brepChain!,
@@ -1729,6 +1741,9 @@ export class CadRuntime {
    * @returns CheckResult
    */
   check(code: string): CheckResult {
+    // P4 guarded direct：check 降级为 acorn 语法门禁（E7；extractMetadata 即语法 +
+    // 引用门禁，无符号表校验——未知 callee 放行，试执行见 execute 的 failedAt）。
+    if (this.executorMode === 'direct') return this.checkDirect(code)
     const errors: CheckError[] = []
     const warnings: string[] = []
 
@@ -1909,6 +1924,35 @@ export class CadRuntime {
         statements: script.statements.length,
         callees: script.statements.map((s) => s.callee),
       } : undefined,
+    }
+  }
+
+  /** E7 direct：语法门禁降级——extractMetadata 全量解析（语法 + 引用），不查符号表。 */
+  private checkDirect(code: string): CheckResult {
+    try {
+      const meta = extractMetadata(code, { defaultNs: this.defaultNsName })
+      return {
+        ok: true,
+        errors: [],
+        warnings: [],
+        script: {
+          statements: meta.lines.length,
+          callees: meta.lines.map((l) => l.callee),
+        },
+      }
+    } catch (err) {
+      if (err instanceof ParseError) {
+        return {
+          ok: false,
+          errors: [{ stage: 'parse', message: err.message, line: err.line, ...(err.code ? { code: err.code } : {}) }],
+          warnings: [],
+        }
+      }
+      return {
+        ok: false,
+        errors: [{ stage: 'parse', message: err instanceof Error ? err.message : String(err) }],
+        warnings: [],
+      }
     }
   }
 

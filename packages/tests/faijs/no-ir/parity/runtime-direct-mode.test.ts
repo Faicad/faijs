@@ -204,7 +204,6 @@ describe('P4/P5：参数引用保真（A-5）— 编辑 height 后 update 全量
   const cadNs = createApiNamespace()
   const mk = (): CadRuntime =>
     new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs }, { executor: 'direct' })
-
   it('改参数值：几何内容 key 变化且 terminals 仍为 bp（引用形态未破坏）', async () => {
     const rt = mk()
     const oldCode = 'const height = 10\nlet bp = cad.box(10, 20, height, { centered: true })'
@@ -222,5 +221,47 @@ describe('P4/P5：参数引用保真（A-5）— 编辑 height 后 update 全量
     expect(fp1.length).toBe(1)
     expect(fp2.length).toBe(1)
     expect(fp2[0]).not.toBe(fp1[0])
+  })
+})
+
+describe('E6/E7：direct 面 failedAt.index 语句序数与 check() 语法门禁降级', () => {
+  const cadNs = createApiNamespace()
+  const directMk = (): CadRuntime =>
+    new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs }, { executor: 'direct' })
+  const moduleMk = (): CadRuntime =>
+    new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs }, { executor: 'module' })
+
+  it('E6：failedAt.index 为场景语句序数（参数行不计入；与 lines 位置一致）', async () => {
+    const code = [
+      'const height = 10',
+      'let okp = cad.box(height, height, height, { centered: true })',
+      'let boom = cad.no_such_op(okp)',
+    ].join('\n')
+    const dr = directMk()
+    await dr.execute('let warmup = cad.box(1, 1, 1, { centered: true })')
+    const direct = await dr.execute(code)
+    expect(direct.failedAt).toBeDefined()
+    expect(direct.failedAt?.callee).toBe('no_such_op')
+    expect(direct.failedAt?.lineNo).toBe(3)
+    // 语句序数 = meta.lines 内位置（参数行 height 不计入）→ boom 是第 2 条语句（下标 1）
+    expect(direct.failedAt?.index).toBe(1)
+  })
+
+  it('E7：direct check = 语法门禁（未知 callee 放行；语法错 ok=false 带行号）', async () => {
+    const direct = directMk()
+    // 语法门禁：未知 callee 不报错（执行期才 failedAt）——与 module 的符号预检不同
+    const loose = direct.check('let x = cad.no_such_op()\nlet ok = cad.box(1, 1, 1)')
+    expect(loose.ok).toBe(true)
+    expect(loose.script?.statements).toBe(2)
+    // 语法错误 → ok=false，stage=parse，带 E_SYNTAX 与行号
+    const bad = direct.check('let x = (')
+    expect(bad.ok).toBe(false)
+    expect(bad.errors[0]?.stage).toBe('parse')
+    expect(bad.errors[0]?.code).toBe('E_SYNTAX')
+    expect(bad.errors[0]?.line ?? 0).toBeGreaterThan(0)
+    // module 路径仍做符号预检（缺省行为不降级）
+    const mod = moduleMk()
+    await mod.execute('let warmup = cad.box(1, 1, 1, { centered: true })')
+    expect(mod.check('let x = cad.no_such_op()').ok).toBe(false)
   })
 })
