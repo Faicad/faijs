@@ -42,6 +42,17 @@ CadRuntime now supports an opt-in IR-free execution channel without touching the
    re-execution must not leak the previous scene's per-line keep registrations (the
    runtime parity suite caught this when a later fixture inherited an earlier fixture's
    `keepHidden` at the same line numbers).
+7. **E4 execution options are wired on the direct path**: `ExecuteOptions.beforeStatement`
+   fires once per actually-executed unit (first argument = unit id `'s'+lineNo`, matching
+   the new StatementSummary id so hosts locate summaries without breaking; second = the
+   line number) and `executionTimeoutMs` is forwarded to `DirectExecutor`, which checks
+   the whole-run deadline between units and throws `ExecutionLimitError` (`E_EXEC_LIMIT`)
+   instead of recording a failedAt. The error class moved to a leaf module
+   (`cad-runtime/execution-limit-error.ts`) so both the module path (`Promise.race`) and
+   the direct path share it without a runtime↔direct-executor import cycle; runtime
+   re-exports it to keep the host import surface unchanged. The keep sink is cleared in a
+   `finally` so an interrupted run (timeout/ParseError) cannot leak the sink to the next
+   execution.
 
 ## Verification
 
@@ -76,5 +87,4 @@ typecheck, and lint are all green.
 - The module mode and all its consumers are untouched: the constructor is additive, the
   default is `'module'`, and no test or host changed its call shape.
 - Known direct-mode gaps, tracked for the full P4/P6 switch: activeValues (keep-syntax
-  §5.2 non-geometry leaves), changed (assembly bookkeeping), auto BREP topology/naming,
-  `ExecuteOptions.beforeStatement` firing, and execution-timeout guard wiring.
+  §5.2 non-geometry leaves), changed (assembly bookkeeping), auto BREP topology/naming.

@@ -36,6 +36,15 @@ CadRuntime 现在支持可选的无 IR 执行通道，缺省路径不动：
 6. **`DirectExecutor.reset()` 现在清空函数体 keep 登记表**——全量重跑不得泄漏上一场景
    的同行号 keep 登记（runtime 对拍套件捕捉到：后一个 fixture 继承了前一个 fixture
    在相同行号的 keepHidden 登记）。
+7. **E4 执行选项已在 direct 路径接通**：`ExecuteOptions.beforeStatement` 对每个实际
+   执行的单元触发一次（第一参数 = 单元 id `'s'+行号`——与新的 StatementSummary id
+   同构，宿主按 id 定位 summaries 不破裂；第二参数 = 行号）；`executionTimeoutMs` 透传
+   给 `DirectExecutor`，单元间逐单元检查整轮 deadline，超时抛 `ExecutionLimitError`
+   （`E_EXEC_LIMIT`），不进 failedAt。错误类抽到叶子文件
+   （`cad-runtime/execution-limit-error.ts`）供 module 路径（Promise.race）与 direct
+   路径共用，避免 runtime↔direct-executor 循环依赖；runtime re-export 保持宿主 import
+   面不变。keep sink 在 `finally` 中清理——中断执行（超时/ParseError）不得把 sink
+   泄漏到下一次执行。
 
 ## Verification
 
@@ -67,5 +76,4 @@ getCachedOutput、box→translate 链的 direct/module 一致性。core 套件�
 - module 模式与其全部消费方零改动：构造参数加法、缺省 `'module'`、无测试/宿主改调用
   形态。
 - 已知 direct 模式缺口（完整 P4/P6 翻转跟踪）：activeValues（keep-syntax §5.2 非几何
-  叶子）、changed（装配记账）、BREP 真拓扑/naming 自动构建、`ExecuteOptions.beforeStatement`
-  触发、执行超时护栏接线。
+  叶子）、changed（装配记账）、BREP 真拓扑/naming 自动构建。

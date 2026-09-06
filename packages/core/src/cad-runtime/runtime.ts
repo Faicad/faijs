@@ -197,18 +197,11 @@ export interface ExecuteOptions {
   executionTimeoutMs?: number
 }
 
-/**
- * 执行护栏超时错误（§6.3 / D8）：整轮执行超过 `executionTimeoutMs` 时抛出。
- * code = 'E_EXEC_LIMIT'（宿主可按 code 识别，区别于普通执行错误）。
- */
-export class ExecutionLimitError extends Error {
-  /** 宿主可按 code 识别的错误码：'E_EXEC_LIMIT'。 */
-  readonly code = 'E_EXEC_LIMIT'
-  constructor(timeoutMs: number) {
-    super(`[faijs] execution timed out after ${timeoutMs}ms`)
-    this.name = 'ExecutionLimitError'
-  }
-}
+// 执行护栏超时错误（§6.3 / D8）定义在独立叶子文件 execution-limit-error.ts，
+// DirectExecutor（direct 路径单元循环内检查）与本文件共用；此处 import + re-export
+// 保持宿主 import 面不变（module 路径 runWithFailureHandling 的 Promise.race 使用）。
+import { ExecutionLimitError } from './execution-limit-error'
+export { ExecutionLimitError } from './execution-limit-error'
 
 /**
  * Thrown by CadRuntime.append when a newly appended statement references a
@@ -597,6 +590,8 @@ export class CadRuntime {
     const outcome = await de.execute(code, {
       params: opts?.params,
       ...(opts?.startIndex !== undefined ? { startLine: opts.startIndex } : {}),
+      ...(opts?.beforeStatement ? { beforeStatement: opts.beforeStatement } : {}),
+      ...(opts?.executionTimeoutMs !== undefined ? { executionTimeoutMs: opts.executionTimeoutMs } : {}),
     })
     if (outcome.failedAt) {
       const { index, callee, message, lineNo } = outcome.failedAt
@@ -647,7 +642,11 @@ export class CadRuntime {
         scale: opts.partTransform.scale,
       }
     }
-    const outcome = await de.append(code, { params: opts?.params })
+    const outcome = await de.append(code, {
+      params: opts?.params,
+      ...(opts?.beforeStatement ? { beforeStatement: opts.beforeStatement } : {}),
+      ...(opts?.executionTimeoutMs !== undefined ? { executionTimeoutMs: opts.executionTimeoutMs } : {}),
+    })
     if (outcome.failedAt) {
       const { index, callee, message, lineNo } = outcome.failedAt
       return {

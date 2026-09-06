@@ -2,7 +2,7 @@
 
 日期：2026-09-06
 基线仓库：`C:\my\Faicad\faijs`、`C:\my\Faicad\3d_editor`
-状态：实施中（P1–P4 guarded 已落地：MetadataExtractor + DirectExecutor + computeLiveShapes，对拍 A-16/A-17/A-14 全绿；CadRuntime 增 `CadRuntimeOptions.executor:'direct'` 可选无 IR 执行通道——execute/append/update 分支 + computeLiveShapes 终端组装 + failedAt.lineNo + AppendPrefixError 语义保留，`packages/tests/faijs/no-ir/parity/runtime-direct-mode.test.ts` 46 例（mesh fixture 全集 + runtime 面语义）绿；**缺省仍为 'module' 未翻转**——direct 组装尚未复刻 BREP topology/naming/changed/activeValues 面，完整 P4 翻转（collectResult 缺省换源 + check 降级语法门禁 + 旧路径停用）与 P5/P6 未实施）
+状态：实施中（P1–P4 guarded 已落地：MetadataExtractor + DirectExecutor + computeLiveShapes，对拍 A-16/A-17/A-14 全绿；CadRuntime 增 `CadRuntimeOptions.executor:'direct'` 可选无 IR 执行通道——execute/append/update 分支 + computeLiveShapes 终端组装 + failedAt.lineNo + AppendPrefixError 语义保留 + E4 执行选项（beforeStatement 逐单元触发、executionTimeoutMs → ExecutionLimitError/E_EXEC_LIMIT），`packages/tests/faijs/no-ir/parity/runtime-direct-mode.test.ts` 49 例（mesh fixture 全集 + runtime 面语义）绿；**缺省仍为 'module' 未翻转**——direct 组装尚未复刻 BREP topology/naming/changed/activeValues 面，完整 P4 翻转（collectResult 缺省换源 + check 降级语法门禁 + 旧路径停用）与 P5/P6 未实施）
 
 > 定位：本文件是「UI 通道与执行通道解耦 + parser 退化为元数据提取器 + 删除中间层 IR」路线的**唯一实施文档**，包含全部实施内容（组件设计、文件级清单、迁移映射、测试、验收、门禁）。shape 存活判断的现状（DAG + keep）与新方案变化的**说明性**介绍见配套文档 [2026-09-06-dual-channel-shape-survival.md](2026-09-06-dual-channel-shape-survival.md)——该文档只做解释，不包含实施内容。
 

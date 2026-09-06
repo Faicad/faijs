@@ -11,7 +11,7 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { CadRuntime, AppendPrefixError } from '@faicad/faijs-core/cad-runtime/runtime'
+import { CadRuntime, AppendPrefixError, ExecutionLimitError } from '@faicad/faijs-core/cad-runtime/runtime'
 import { createApiNamespace } from '@faicad/faijs-core/api/api-namespace'
 import { computeContentKey } from '@faicad/faijs-core/cad-runtime/content-key'
 import { isMeshShape } from '@faicad/faijs-core/mesh/types'
@@ -156,5 +156,46 @@ describe('P4：CadRuntime direct 模式 runtime 面语义', () => {
       outputFingerprint(mr.outputs as unknown as Map<PartName, unknown>),
     )
     expect(terminalKeys(dr.terminals)).toEqual(terminalKeys(mr.terminals))
+  })
+})
+
+describe('P4：CadRuntime direct 模式 E4 执行选项', () => {
+  const cadNs = createApiNamespace()
+  const mk = (): CadRuntime =>
+    new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs }, { executor: 'direct' })
+  const CODE = [
+    'let bp = cad.box(10, 20, 30, { centered: true })',
+    'let t = cad.translate(bp, [5, 0, 0])',
+  ].join('\n')
+
+  it('beforeStatement：execute 每个已执行单元触发（第一参数 s+行号）；append 只对新单元触发', async () => {
+    const rt = mk()
+    const calls: string[] = []
+    const r1 = await rt.execute(CODE, { beforeStatement: (id) => calls.push(id) })
+    expect(r1.failedAt).toBeUndefined()
+    expect(calls).toEqual(['s1', 's2'])
+    const calls2: string[] = []
+    const r2 = await rt.append('let t2 = cad.translate(t, [5, 0, 0])', { beforeStatement: (id) => calls2.push(id) })
+    expect(r2.failedAt).toBeUndefined()
+    expect(calls2).toEqual(['s3'])
+  })
+
+  it('executionTimeoutMs：超时抛 ExecutionLimitError（code = E_EXEC_LIMIT，透传 direct）', async () => {
+    const rt = mk()
+    // 若干廉价单元确保远超 1ms 总耗时（单元循环内 deadline 检查必然触发）
+    const code = Array.from({ length: 600 }, (_, i) => `let v${i} = ${i}`).join('\n')
+    const err = await rt.execute(code, { executionTimeoutMs: 1 }).then(
+      () => null,
+      (e: unknown) => e,
+    )
+    expect(err).toBeInstanceOf(ExecutionLimitError)
+    expect((err as { code?: string }).code).toBe('E_EXEC_LIMIT')
+  })
+
+  it('executionTimeoutMs 未超时：正常完成', async () => {
+    const rt = mk()
+    const r = await rt.execute(CODE, { executionTimeoutMs: 60_000 })
+    expect(r.failedAt).toBeUndefined()
+    expect(terminalKeys(r.terminals)).toEqual(['t'])
   })
 })

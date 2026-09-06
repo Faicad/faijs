@@ -11,7 +11,7 @@
  * runtime 认领全局 backends」的方式提供环境（与 execute-code.test 同构）。
  */
 
-import { describe, it, expect, beforeAll } from 'vitest'
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
 import { CadRuntime } from './runtime'
 import { DirectExecutor } from './direct-executor'
 import { createApiNamespace } from '../api/api-namespace'
@@ -229,5 +229,55 @@ describe('DirectExecutor A-17: fixture 对拍（扁平行式 op 行）', () => {
     // 空脚本 / 纯参数脚本两边都无输出 → 跳过
     if (baselineKeys.length === 0 && directKeys.length === 0) return
     expect(directKeys).toEqual(baselineKeys)
+  })
+})
+
+describe('DirectExecutor: E4 执行选项（beforeStatement / executionTimeoutMs）', () => {
+  // 全局 backends 认领：用一个 mesh runtime 提供环境（与 execute-code 同构）
+  const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
+  const cadNs = createApiNamespace()
+
+  beforeEach(async () => {
+    await rt.execute('let warmup = cad.box(1, 1, 1, { centered: true })')
+  })
+
+  it('beforeStatement：execute 每个已执行单元触发一次（第一参数 s+行号，第二参数行号）', async () => {
+    const ex = new DirectExecutor({ namespaces: { cad: cadNs } })
+    const calls: Array<[string, number]> = []
+    const out = await ex.execute(CODE, { beforeStatement: (id, line) => calls.push([id, line]) })
+    expect(out.failedAt).toBeUndefined()
+    expect(calls).toEqual([
+      ['s1', 1],
+      ['s2', 2],
+      ['s3', 3],
+    ])
+  })
+
+  it('beforeStatement：append 只对新单元触发（旧单元不进钩子）', async () => {
+    const ex = new DirectExecutor({ namespaces: { cad: cadNs } })
+    await ex.execute(CODE)
+    const calls: string[] = []
+    const out = await ex.append('let part3 = cad.translate(part2, [1, 0, 0])', {
+      beforeStatement: (id) => calls.push(id),
+    })
+    expect(out.failedAt).toBeUndefined()
+    expect(calls).toEqual(['s4'])
+  })
+
+  it('executionTimeoutMs：超时抛 ExecutionLimitError（code = E_EXEC_LIMIT）', async () => {
+    const ex = new DirectExecutor({ namespaces: { cad: cadNs } })
+    // 若干廉价单元确保远超 1ms 总耗时；deadline 在单元循环内逐单元检查 → 必然触发
+    const code = Array.from({ length: 600 }, (_, i) => `let v${i} = ${i}`).join('\n')
+    await expect(ex.execute(code, { executionTimeoutMs: 1 })).rejects.toMatchObject({
+      name: 'ExecutionLimitError',
+      code: 'E_EXEC_LIMIT',
+    })
+  })
+
+  it('executionTimeoutMs 未超时：正常完成，failedAt 无', async () => {
+    const ex = new DirectExecutor({ namespaces: { cad: cadNs } })
+    const out = await ex.execute(CODE, { executionTimeoutMs: 60_000 })
+    expect(out.failedAt).toBeUndefined()
+    expect(out.executedLines).toEqual([1, 2, 3])
   })
 })

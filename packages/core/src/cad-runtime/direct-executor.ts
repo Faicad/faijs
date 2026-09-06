@@ -28,6 +28,7 @@ import type { PartName } from '../identity'
 import { asPartName } from '../identity'
 import { ParseError } from '../lang/parse-error'
 import { setCurrentStmt, setKeepSink, setName } from '../runtime-state'
+import { ExecutionLimitError } from './execution-limit-error'
 import type { StatementIR } from '../lang/types'
 
 type ASTNode = any
@@ -58,6 +59,17 @@ export interface DirectExecOpts {
   params?: Record<string, unknown>
   /** 单元序数起始（startIndex 语义：行号之前的单元不执行，产物假定已在 ctx） */
   startLine?: number
+  /**
+   * 单元执行前钩子（undo 逐单元快照；§4.10 E4）：每执行一个单元触发一次。
+   * 第一参数 = 单元 id（`'s'+行号`，与 StatementSummary.id 同构——宿主按 id
+   * 定位 summaries 不破裂）；第二参数 = 行号。append 只对新单元触发。
+   */
+  beforeStatement?: (stmtId: string, lineNo: number) => void
+  /**
+   * 整轮执行超时（§6.3 / D8，E_EXEC_LIMIT）：单元循环内逐单元检查 deadline，
+   * 超时抛 {@link ExecutionLimitError}。不传则无超时（现状行为不变）。
+   */
+  executionTimeoutMs?: number
 }
 
 interface TransformedUnit {
@@ -219,46 +231,57 @@ export class DirectExecutor {
 
     // keep 登记 sink（函数体 exec.keep / exec.keepHidden 执行期登记 → 行号键表；
     // 替代 ModuleExecutor.internalKeep 的 StmtId 键——DirectExecutor 无语句模型）
-    const prevSinkLine = this.activeLine
     setKeepSink((_stmtId, names, hidden) => this.registerKeepByLine(names, hidden))
+    try {
+      const units = this.parseAndTransform(code)
+      const executedLines: number[] = []
+      let failedAt: DirectExecFailedAt | undefined
 
-    const units = this.parseAndTransform(code)
-    const executedLines: number[] = []
-    let failedAt: DirectExecFailedAt | undefined
+      // 整轮超时（§6.3 / D8，E_EXEC_LIMIT）：单元循环内逐单元检查 deadline。
+      // 自由 JS 块内部的单条死循环不在单元间插桩范围内 → 仍会卡死（R-7：v2 用
+      // Worker 终止块内执行）；本次交付覆盖"逐单元执行"路径的超时护栏。
+      const timeoutMs = opts?.executionTimeoutMs
+      const deadline = timeoutMs !== undefined && timeoutMs > 0 ? Date.now() + timeoutMs : undefined
 
-    let order = 0
-    for (const unit of units) {
-      const idx = order++
-      if (opts?.startLine !== undefined && unit.lineNo < opts.startLine) continue
-      if (this.executedLines.has(unit.lineNo)) continue
-      try {
-        this.activeLine = unit.lineNo
-        await this.runUnit(unit)
-        // 写后登记 shape→name（与 ModuleExecutor.afterStatement 的 setName 同构）：
-        // 库函数体 exec.keep/keepHidden 经 nameOf(shape) 反查变量名，缺少登记则输入
-        // 保留声明静默失效（terminal 判定会误把 kept 输入当消费）。
-        for (const w of unit.writes) {
-          const v = this.ctx[w]
-          if (v !== null && typeof v === 'object') setName(v, asPartName(w))
+      let order = 0
+      for (const unit of units) {
+        const idx = order++
+        if (opts?.startLine !== undefined && unit.lineNo < opts.startLine) continue
+        if (this.executedLines.has(unit.lineNo)) continue
+        if (deadline !== undefined && Date.now() >= deadline) {
+          throw new ExecutionLimitError(timeoutMs ?? 0)
         }
-        this.executedLines.add(unit.lineNo)
-        executedLines.push(unit.lineNo)
-      } catch (err) {
-        if (err instanceof ParseError) throw err
-        failedAt = {
-          index: idx,
-          callee: unit.callee ?? '',
-          message: err instanceof Error ? err.message : String(err),
-          lineNo: unit.lineNo,
+        opts?.beforeStatement?.(`s${unit.lineNo}`, unit.lineNo)
+        try {
+          this.activeLine = unit.lineNo
+          await this.runUnit(unit)
+          // 写后登记 shape→name（与 ModuleExecutor.afterStatement 的 setName 同构）：
+          // 库函数体 exec.keep/keepHidden 经 nameOf(shape) 反查变量名，缺少登记则输入
+          // 保留声明静默失效（terminal 判定会误把 kept 输入当消费）。
+          for (const w of unit.writes) {
+            const v = this.ctx[w]
+            if (v !== null && typeof v === 'object') setName(v, asPartName(w))
+          }
+          this.executedLines.add(unit.lineNo)
+          executedLines.push(unit.lineNo)
+        } catch (err) {
+          if (err instanceof ParseError) throw err
+          failedAt = {
+            index: idx,
+            callee: unit.callee ?? '',
+            message: err instanceof Error ? err.message : String(err),
+            lineNo: unit.lineNo,
+          }
+          break
+        } finally {
+          this.activeLine = undefined
         }
-        break
-      } finally {
-        this.activeLine = undefined
       }
+      return { ctxKeys: Object.keys(this.ctx), failedAt, executedLines }
+    } finally {
+      // 任何路径（含 ExecutionLimitError / ParseError 中断）都清 sink，防泄漏到下一执行
+      setKeepSink(undefined)
     }
-    setKeepSink(undefined)
-    void prevSinkLine
-    return { ctxKeys: Object.keys(this.ctx), failedAt, executedLines }
   }
 
   /**
