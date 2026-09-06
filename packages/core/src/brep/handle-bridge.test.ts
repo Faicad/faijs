@@ -1,7 +1,6 @@
 /**
  * handle-bridge 不变量测试（B1）
  *
- * 设计文档：docs/plans/2026-08-29-faijs-module-runtime-plan.md §4.5
  *
  * 四条不变量：
  * 1. `getKernel()` 在 mesh 模式（kernel 为 null）抛错，不返回 null

@@ -1,7 +1,6 @@
 /**
  * B7 — 无 faceEvolution 的退化行为确认
  *
- * 设计文档：docs/plans/2026-08-29-faijs-module-runtime-plan.md §7.3 B7 / §5.8.4
  *
  * 场景：第三方库（如外部 adapter）经 `fromHandle` 造的 BREP 产物**没有**
  * 面演化历史（无 faceEvolution —— 没有逐 op 的 ordinal 映射）。

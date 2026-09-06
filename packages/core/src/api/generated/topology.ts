@@ -48,7 +48,7 @@ export type { Bounds3D } from '../../vendored/brepjs/topology/shapeFns.js'
  */
 export const torus = compatOp(
   projectBrepOp('torus', ["majorRadius","minorRadius","options"], 'A', __vendored_torus),
-  { name: 'torus', consumes: "none" },
+  { name: 'torus' },
 )
 
 /**
@@ -58,13 +58,13 @@ export const torus = compatOp(
  */
 export const fuse = compatOp(
   projectBrepOp('fuse', ["a","b","options"], 'A', __vendored_fuse),
-  { name: 'fuse', consumes: "all" },
+  { name: 'fuse' },
 )
 
 /**
  * getBounds — 查询（返回纯数据，非 Shape）生成文件，勿手改；来源 api/surface/arg-spec.ts。
  * (shape: AnyShape) -> Bounds3D
- * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（consumes 语义由查询表达式承载）。
+ * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（查询表达式承载）。
  *
  * @param shape - 可形状参数（原样透传）
  * @returns Bounds3D — 纯数据结果（非 Shape）。
@@ -270,7 +270,7 @@ export type { WrappedFace } from '../../vendored/brepjs/topology/wrapperFns.js'
  */
 export const box = compatOp(
   projectBrepOp('box', ["width","depth","height","options"], 'A', __vendored_box),
-  { name: 'box', consumes: "none" },
+  { name: 'box' },
 )
 
 /**
@@ -280,7 +280,7 @@ export const box = compatOp(
  */
 export const cylinder = compatOp(
   projectBrepOp('cylinder', ["radius","height","options"], 'A', __vendored_cylinder),
-  { name: 'cylinder', consumes: "none" },
+  { name: 'cylinder' },
 )
 
 /**
@@ -290,7 +290,7 @@ export const cylinder = compatOp(
  */
 export const cone = compatOp(
   projectBrepOp('cone', ["radiusBottom","radiusTop","height","options"], 'A', __vendored_cone),
-  { name: 'cone', consumes: "none" },
+  { name: 'cone' },
 )
 
 /**
@@ -300,7 +300,7 @@ export const cone = compatOp(
  */
 export const ellipsoid = compatOp(
   projectBrepOp('ellipsoid', ["rx","ry","rz","options"], 'A', __vendored_ellipsoid),
-  { name: 'ellipsoid', consumes: "none" },
+  { name: 'ellipsoid' },
 )
 
 /**
@@ -310,7 +310,7 @@ export const ellipsoid = compatOp(
  */
 export const rotate = compatOp(
   projectBrepOp('rotate', ["shape","angle","options"], 'A', __vendored_rotate),
-  { name: 'rotate', consumes: "all" },
+  { name: 'rotate' },
 )
 
 /**
@@ -320,7 +320,7 @@ export const rotate = compatOp(
  */
 export const scale = compatOp(
   projectBrepOp('scale', ["shape","factor","options"], 'A', __vendored_scale),
-  { name: 'scale', consumes: "all" },
+  { name: 'scale' },
 )
 
 /**
@@ -330,7 +330,7 @@ export const scale = compatOp(
  */
 export const mirror = compatOp(
   projectBrepOp('mirror', ["shape","options"], 'A', __vendored_mirror),
-  { name: 'mirror', consumes: "all" },
+  { name: 'mirror' },
 )
 
 /**
@@ -340,7 +340,7 @@ export const mirror = compatOp(
  */
 export const clone = compatOp(
   projectBrepOp('clone', ["shape"], 'A', __vendored_clone),
-  { name: 'clone', consumes: "all" },
+  { name: 'clone' },
 )
 
 /**
@@ -350,7 +350,7 @@ export const clone = compatOp(
  */
 export const applyMatrix = compatOp(
   projectBrepOp('applyMatrix', ["shape","matrix"], 'A', __vendored_applyMatrix),
-  { name: 'applyMatrix', consumes: "all" },
+  { name: 'applyMatrix' },
 )
 
 /**
@@ -360,7 +360,7 @@ export const applyMatrix = compatOp(
  */
 export const transformCopy = compatOp(
   projectBrepOp('transformCopy', ["shape","composed"], 'A', __vendored_transformCopy),
-  { name: 'transformCopy', consumes: "all" },
+  { name: 'transformCopy' },
 )
 
 /**
@@ -370,7 +370,7 @@ export const transformCopy = compatOp(
  */
 export const locate = compatOp(
   projectBrepOp('locate', ["shape","placement"], 'A', __vendored_locate),
-  { name: 'locate', consumes: "all" },
+  { name: 'locate' },
 )
 
 export { composeTransforms } from '../../vendored/brepjs/topology/api.js'
@@ -382,7 +382,7 @@ export { composeTransforms } from '../../vendored/brepjs/topology/api.js'
  */
 export const cut = compatOp(
   projectBrepOp('cut', ["base","tool","options"], 'A', __vendored_cut),
-  { name: 'cut', consumes: "all" },
+  { name: 'cut' },
 )
 
 /**
@@ -392,7 +392,7 @@ export const cut = compatOp(
  */
 export const section = compatOp(
   projectBrepOp('section', ["shape","plane"], 'A', __vendored_section),
-  { name: 'section', consumes: "all" },
+  { name: 'section' },
 )
 
 /**
@@ -402,7 +402,7 @@ export const section = compatOp(
  */
 export const split = compatOp(
   projectBrepOp('split', ["shape","tools"], 'A', __vendored_split),
-  { name: 'split', consumes: "all" },
+  { name: 'split' },
 )
 
 /**
@@ -412,7 +412,7 @@ export const split = compatOp(
  */
 export const fillet = compatOp(
   projectBrepOp('fillet', ["shape","edges","radius"], 'A', __vendored_fillet),
-  { name: 'fillet', consumes: "all" },
+  { name: 'fillet' },
 )
 
 /**
@@ -422,7 +422,7 @@ export const fillet = compatOp(
  */
 export const shell = compatOp(
   projectBrepOp('shell', ["shape","faces","thickness"], 'A', __vendored_shell),
-  { name: 'shell', consumes: "all" },
+  { name: 'shell' },
 )
 
 /**
@@ -432,7 +432,7 @@ export const shell = compatOp(
  */
 export const offset = compatOp(
   projectBrepOp('offset', ["shape","distance"], 'A', __vendored_offset),
-  { name: 'offset', consumes: "all" },
+  { name: 'offset' },
 )
 
 /**
@@ -442,7 +442,7 @@ export const offset = compatOp(
  */
 export const heal = compatOp(
   projectBrepOp('heal', ["shape"], 'A', __vendored_heal),
-  { name: 'heal', consumes: "all" },
+  { name: 'heal' },
 )
 
 /**
@@ -452,13 +452,13 @@ export const heal = compatOp(
  */
 export const simplify = compatOp(
   projectBrepOp('simplify', ["shape"], 'A', __vendored_simplify),
-  { name: 'simplify', consumes: "all" },
+  { name: 'simplify' },
 )
 
 /**
  * isValid — 查询（返回纯数据，非 Shape）生成文件，勿手改；来源 api/surface/arg-spec.ts。
  * isValid(shape: Shape): boolean
- * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（consumes 语义由查询表达式承载）。
+ * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（查询表达式承载）。
  *
  * @param shape - 可形状参数（原样透传）
  * @returns boolean — 纯数据结果（非 Shape）。
@@ -470,7 +470,7 @@ export function isValid(shape: Shape): boolean {
 /**
  * isEmpty — 查询（返回纯数据，非 Shape）生成文件，勿手改；来源 api/surface/arg-spec.ts。
  * isEmpty(shape: Shape): boolean
- * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（consumes 语义由查询表达式承载）。
+ * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（查询表达式承载）。
  *
  * @param shape - 可形状参数（原样透传）
  * @returns boolean — 纯数据结果（非 Shape）。
@@ -482,7 +482,7 @@ export function isEmpty(shape: Shape): boolean {
 /**
  * isEqualShape — 查询（返回纯数据，非 Shape）生成文件，勿手改；来源 api/surface/arg-spec.ts。
  * isEqualShape(a: Shape, b: Shape): boolean
- * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（consumes 语义由查询表达式承载）。
+ * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（查询表达式承载）。
  *
  * @param shape - 可形状参数（原样透传）
  * @returns boolean — 纯数据结果（非 Shape）。
@@ -494,7 +494,7 @@ export function isEqualShape(shape: Shape): boolean {
 /**
  * isSameShape — 查询（返回纯数据，非 Shape）生成文件，勿手改；来源 api/surface/arg-spec.ts。
  * isSameShape(a: Shape, b: Shape): boolean
- * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（consumes 语义由查询表达式承载）。
+ * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（查询表达式承载）。
  *
  * @param shape - 可形状参数（原样透传）
  * @returns boolean — 纯数据结果（非 Shape）。
@@ -510,7 +510,7 @@ export function isSameShape(shape: Shape): boolean {
  */
 export const autoHeal = compatOp(
   projectBrepOp('autoHeal', ["shape","options"], 'A', __vendored_autoHeal),
-  { name: 'autoHeal', consumes: "all" },
+  { name: 'autoHeal' },
 )
 
 /**
@@ -520,7 +520,7 @@ export const autoHeal = compatOp(
  */
 export const fixShape = compatOp(
   projectBrepOp('fixShape', ["shape"], 'A', __vendored_fixShape),
-  { name: 'fixShape', consumes: "all" },
+  { name: 'fixShape' },
 )
 
 /**
@@ -530,7 +530,7 @@ export const fixShape = compatOp(
  */
 export const healSolid = compatOp(
   projectBrepOp('healSolid', ["solid"], 'A', __vendored_healSolid),
-  { name: 'healSolid', consumes: "all" },
+  { name: 'healSolid' },
 )
 
 /**
@@ -540,7 +540,7 @@ export const healSolid = compatOp(
  */
 export const fixSelfIntersection = compatOp(
   projectBrepOp('fixSelfIntersection', ["shape"], 'A', __vendored_fixSelfIntersection),
-  { name: 'fixSelfIntersection', consumes: "all" },
+  { name: 'fixSelfIntersection' },
 )
 
 export { isNumber } from '../../vendored/brepjs/topology/index.js'

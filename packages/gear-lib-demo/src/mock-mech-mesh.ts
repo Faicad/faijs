@@ -1,8 +1,6 @@
 /**
  * B4 — mock library fixture: mesh version (B4), defineOp mesh-only form.
  *
- * Design: docs/plans/2026-08-29-faijs-module-runtime-plan.md §7.3 B4 / §4.4
- *         docs/plans/2026-08-30-defineop-library-contract.md §6.3
  *
  * Simulates a third-party library module (the target of
  * `import * as mech from 'gear-lib-demo'`):

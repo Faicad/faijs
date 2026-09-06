@@ -1,7 +1,6 @@
 /**
  * stdlib compound — group/assembly 库函数（compound Shape + AssemblyBehavior）
  *
- * 设计文档：docs/plans/2026-08-25-faijs-vm-execution-implementation-plan.md §3.10 / §2.4
  *
  * 从 src/ops/assemble.ts 迁出并改写为 stdlib 形态：
  * - `group(params)` → compound Shape（kind='compound'，children 为成员 Shape 引用）

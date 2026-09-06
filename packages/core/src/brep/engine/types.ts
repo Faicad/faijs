@@ -1,7 +1,6 @@
 /**
  * engine/types — BREP 引擎中立类型（零具体实现依赖，不 import 任何内核包）
  *
- * 设计：docs/plans/2026-08-30-brep-engine-switch.md §6.3 / §7.4
  *
  * 契约（对应 brepjs 的 KernelShape 约定）：
  * - L1 及以上代码永远不对句柄调用任何方法，只把它传回产生它的那个引擎；

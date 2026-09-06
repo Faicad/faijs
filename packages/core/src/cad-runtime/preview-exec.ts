@@ -1,7 +1,6 @@
 /**
  * preview-exec — 预览（dry-run）执行上下文
  *
- * 设计文档：docs/plans/2026-08-26-phase2-followup-plan.md §5 T8
  *
  * 供宿主「预览/干跑」直接调用 stdlib 库函数（drill/engrave/...）时使用的兼容上下文：
  * - mode 固定为 'mesh'：dispatchPath 静态判定走 mesh 路径（预览输入是 mesh Shape，非 BREP solid）。

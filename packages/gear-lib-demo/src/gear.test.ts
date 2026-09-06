@@ -5,7 +5,7 @@
  *  - raw factories return `Result` (never throw): ok carries the raw solid,
  *    err carries the validation code (no more module-level error throwing).
  *  - `planetary` returns the structured `{ sun, planets, ring }` record with
- *    the static `geometryFields` annotation (outbound adoption point).
+ *    the static `outputs` annotation (outbound adoption point).
  *  - through `registerLib(…, { compat: true })` the boundary adopts the raw
  *    handles into faijs Shapes (Shape + hasBrep).
  *  - mesh mode → E_MESH_UNSUPPORTED (brep-only, no fallback).
@@ -48,7 +48,7 @@ describe('gear raw Result contract (§8.1)', () => {
     expect((r as { ok: true; value: unknown }).value).toBeDefined()
   })
 
-  it('planetary returns the { sun, planets, ring } record with geometryFields', () => {
+  it('planetary returns the { sun, planets, ring } record with outputs', () => {
     const r = gear.planetary({ thickness: 8, sunTeeth: 12, planetTeeth: 6, numPlanets: 3 })
     expect(isOk(r)).toBe(true)
     const v = (r as { ok: true; value: { sun: unknown; planets: unknown[]; ring: unknown } }).value
@@ -56,8 +56,8 @@ describe('gear raw Result contract (§8.1)', () => {
     expect(Array.isArray(v.planets)).toBe(true)
     expect(v.planets.length).toBeGreaterThanOrEqual(3)
     expect(v.ring).toBeDefined()
-    const gf = (gear.planetary as unknown as { geometryFields?: string[] }).geometryFields
-    expect(gf).toEqual(['planets', 'ring', 'sun'])
+    const outputs = (gear.planetary as unknown as { outputs?: string[] }).outputs
+    expect(outputs).toEqual(['planets', 'ring', 'sun'])
   })
 
   it('thread returns Ok with the thread-ridge solid', () => {

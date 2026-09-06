@@ -1,7 +1,6 @@
 /**
  * handle-bridge — OCCT 句柄 → faijs Shape 的 SDK 桥接（B1）
  *
- * 设计文档：docs/plans/2026-08-29-faijs-module-runtime-plan.md §4.5
  *
  * 第三方库要造 BREP 产物，需要"OCCT handle → mesh"。`src/brep/brep-ops.ts:17`
  * 有 `import * as THREE from 'three'`，SDK 绝不能 import 它（会把 three 拉进

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { resolveArgs, resolveArgsWithInfo, isObjectForm, positionalToObject, type ArgSpec, type PositionalForm } from './dual-form-args'
+import { resolveArgs, resolveArgsWithInfo, isObjectForm, positionalToObject, type ArgSpec, type SlotMap } from './dual-form-args'
 import { getRuntimeState } from '../../runtime-state'
 
 describe('dual-form-args', () => {
@@ -200,9 +200,9 @@ describe('dual-form-args', () => {
   })
 
   describe('positionalToObject（D11 反方向：faijs 特有 dual op 位置→对象）', () => {
-    const boxForm: PositionalForm = { keys: ['width', 'depth', 'height'] }
-    const cylinderForm: PositionalForm = { keys: ['radius', 'height'] }
-    const translateForm: PositionalForm = { keys: ['offset'], vec3Keys: ['offset'], shapeArity: 1 }
+    const boxForm: SlotMap = { keys: ['width', 'depth', 'height'] }
+    const cylinderForm: SlotMap = { keys: ['radius', 'height'] }
+    const translateForm: SlotMap = { keys: ['offset'], vec3Keys: ['offset'], shapeArity: 1 }
 
     it('三个标量装箱为独立键（box(10,20,30) → {width,depth,height}）', () => {
       expect(positionalToObject([10, 20, 30], boxForm, 'box')).toEqual([
@@ -271,7 +271,7 @@ describe('dual-form-args', () => {
     })
 
     it('单槽 + options（sphere(5,{at:[0,0,10],segments:32})）', () => {
-      const sphereForm: PositionalForm = { keys: ['radius'] }
+      const sphereForm: SlotMap = { keys: ['radius'] }
       expect(positionalToObject([5, { at: [0, 0, 10], segments: 32 }], sphereForm, 'sphere')).toEqual([
         { radius: 5, at: [0, 0, 10], segments: 32 },
       ])

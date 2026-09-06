@@ -1,7 +1,6 @@
 /**
  * sdk — 第三方库开发面（F3 / roadmap V2.2）
  *
- * 设计文档：docs/plans/2026-08-29-faijs-near-term-landing-plan.md §6
  *
  * 第三方库模块（`import * as mech from 'gear-lib-demo'` 的目标）用它开发：
  * ```ts
@@ -85,6 +84,5 @@ export type {
   BrepImpl,
   MeshData,
   BrepResult,
-  ConsumeSpec,
 } from './define-op'
 export type { BrepCapabilityName } from './cad-runtime/backend-dispatch'

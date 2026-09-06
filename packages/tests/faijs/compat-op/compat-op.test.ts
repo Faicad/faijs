@@ -16,9 +16,9 @@
  *  ④ leak — 50 looped library calls through one runtime keep the disposal
  *     arena's liveHandles bounded (adoption transfers ownership, no
  *     double-tracking per call);
- *  ⑤ dual-form passthrough — collectShapes finds a Shape input nested under an
- *     object-form argument exactly as it does for the positional arg (the
- *     dispatch gate behaves identically).
+ *  ⑤ dual-form passthrough — the compat op runs under both call forms: the
+ *     positional arg and the object-form arg with a nested Shape reach the
+ *     same adapter borrowing (dispatch + borrow behave identically).
  *
  * The vendored surface asserts a bound occt kernel; registerOcctBrepEngine
  * warms both the faijs brep engine and the vendored kernel (D10 single wasm).
@@ -31,7 +31,6 @@ import { asPartName } from '@faicad/faijs-core/identity'
 import { hasBrep, isShape } from '@faicad/faijs-core/shape'
 import type { Shape } from '@faicad/faijs-core/mesh/types'
 import {
-  collectShapes,
   borrowDeep,
   unwrapOrThrow,
   compatOp,
@@ -285,46 +284,37 @@ describe('④ leak: 50 loopthrough executes keep the arena bounded', () => {
   })
 })
 
-describe('⑤ dual-form passthrough: collectShapes sees object-form args', () => {
-  it('collectShapes finds a Shape nested in an object form exactly like positional', async () => {
+describe('⑤ dual-form passthrough: positional vs object-form borrow', () => {
+  it('compatOp-wrapped op adopts a product under both call forms (positional vs object-form)', async () => {
     const { runtime, warm } = await makeBrepRuntime()
     try {
-      const pos: Shape[] = []
-      collectShapes(warm, pos, 0)
-      expect(pos).toContain(warm)
-
-      const obj: Shape[] = []
-      collectShapes({ base: warm, n: 3 }, obj, 0)
-      expect(obj).toEqual([warm]) // same discovery, object-form
-    } finally {
-      runtime.dispose()
-    }
-  })
-
-  it('compatOp-wrapped op runs under both call forms (positional vs object)', async () => {
-    const { runtime, warm } = await makeBrepRuntime()
-    try {
-      // Borrowed inputs are brepjs handles ({ wrapped, delete }); count them.
+      // Borrowed inputs are brepjs handles ({ wrapped, delete }); the probe
+      // counts the handles it receives, then hands the first one back as its
+      // product so the op outputs a real geometry Shape.
       const isHandle = (v: unknown): boolean =>
         typeof v === 'object' && v !== null && 'wrapped' in v
       const probe = compatOp(
         (input: unknown) => {
           let n = 0
+          let first: unknown
           const walk = (v: unknown, depth: number): void => {
             if (depth > 4 || v === null || typeof v !== 'object') return
-            if (isHandle(v)) { n++; return }
+            if (isHandle(v)) { n++; if (first === undefined) first = v; return }
             if (Array.isArray(v)) { for (const x of v) walk(x, depth + 1); return }
             for (const x of Object.values(v)) walk(x, depth + 1)
           }
           walk(input, 0)
-          return { ok: true, value: n }
+          return { ok: true, value: first }
         },
         { name: 'probe' },
       )
-      const positional = (await probe(warm)) as number
-      const objectForm = (await probe({ base: warm })) as number
-      expect(positional).toBe(1)
-      expect(objectForm).toBe(1) // dispatch gate borrowed the nested Shape identically
+      const positional = (await probe(warm)) as Shape
+      const objectForm = (await probe({ base: warm })) as Shape
+      expect(isShape(positional)).toBe(true)
+      expect(hasBrep(positional)).toBe(true)
+      expect(isShape(objectForm)).toBe(true)
+      expect(hasBrep(objectForm)).toBe(true) // the nested Shape reached the same borrow
+      expect(positional.positions.length).toBe(objectForm.positions.length)
     } finally {
       runtime.dispose()
     }

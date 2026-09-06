@@ -1,7 +1,6 @@
 /**
  * stdlib reconcile — 断链/混合时刻定向归约（P0-1b）
  *
- * 设计文档：docs/plans/2026-08-29-faijs-module-runtime-plan.md §6.1.5 P0-1b
  *
  * 用户纠正（2026-08-29）：brep→mesh 的归约不只在"mesh 与 brep 做布尔"的时刻发生，
  * 而是**任何 BREP 断链时刻**——BREP 输入进入 mesh-only 路径（如 knurl 滚花）即断链，

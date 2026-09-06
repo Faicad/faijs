@@ -2,7 +2,6 @@
  * gen-symbol-table — 生成标准库符号表（keep-syntax 设计 P1 后的精简形态）
  *
  * keep-syntax P1 删除了 readonly 标注提取（保留语义改由 keep 声明表达，
- * 见 docs/plans/2026-08-28-keep-syntax-design.md §2.5/§4.1）。
  * 符号表现只承载一个职责：check() 符号检查判定 callee 是否存在
  * （"函数不存在"诊断），因此必须覆盖 cad 命名空间全部函数。
  *

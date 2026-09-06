@@ -1,8 +1,6 @@
 /**
  * symbol-table — 标准库符号表类型与消费入口（L0 零依赖）
  *
- * 设计文档：docs/plans/2026-08-28-keep-syntax-design.md §P1
- * （历史：docs/plans/2026-08-27-faijs-language-normalization-design.md §4.6）
  *
  * 符号表是"标准库符号表"（正常语言编译器认识 prelude 的同款机制），
  * 机器生成、均匀查询。keep-syntax P1 之后它只承载一个职责：

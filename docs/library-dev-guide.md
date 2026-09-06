@@ -32,15 +32,15 @@ Inward borrowed views (via `createBorrowedHandle`) are valid **only within the c
 
 When a function returns a solid handle and faijs adopts it (via `adoptEntity`), the library must not call `delete()` on it afterward. The brepjs convention is "return = transfer" — upstream libraries naturally satisfy this.
 
-### Rule 3: Only top-level handles and `geometryFields`-declared fields are adopted
+### Rule 3: Only top-level handles and `outputs`-declared fields are adopted
 
-In a return structure, only the top-level handle and fields listed in `geometryFields` are adopted (crossing the boundary into faijs `Shape`). All other embedded handles remain library-private state; cross-call consistency is the library's responsibility.
+In a return structure, only the top-level handle and fields listed in `outputs` are adopted (crossing into faijs `Shape`); other embedded handles stay library-private — cross-call consistency is the library's responsibility.
 
 ---
 
-## 3. `geometryFields` — multi-output declaration
+## 3. `fn.outputs` — multi-output declaration
 
-When a function returns a structure containing multiple geometry handles (not just a single top-level solid), declare `geometryFields` on the function so the compat boundary knows which fields to adopt:
+When a function returns multiple geometry handles in a structure (not a single top-level handle), annotate it with `fn.outputs` so the boundary knows which fields to adopt:
 
 ```ts ignore-check
 import { ok, type Result } from '@faicad/faijs'
@@ -57,10 +57,10 @@ export function planetary(params: PlanetaryParams): Result<PlanetaryOutput> {
   return ok({ sun, planets, ring })
 }
 // Declare which fields carry geometry handles for boundary adoption:
-planetary.geometryFields = ['sun', 'planets', 'ring']
+;(planetary as { outputs?: string[] }).outputs = ['sun', 'planets', 'ring']
 ```
 
-Without `geometryFields`, the boundary adopts only the top-level return value if it is a handle; structures pass through as plain data (embedded handles stay library-private).
+`outputs` is the **only** recognized multi-output contract name — array fields (such as `planets`) are adopted element-by-element; without it, only a top-level handle is adopted and the rest stays data.
 
 ---
 
@@ -105,7 +105,7 @@ This keeps intermediate data flow zero-adoption (no tessellation, no identity-sl
 | 2 | `brepjs` → `@faicad/faijs` in all 27 file imports | Package name migration |
 | 3 | Bend table registration: explicit (no global side effects) | Deterministic registration |
 | 4 | Add `solidOf` terminal function | §4: explicit geometry terminal |
-| 5 | Add `geometryFields` where needed | §3: multi-output adoption |
+| 5 | Add `fn.outputs` where needed | §3: multi-output adoption |
 | 6 | Remove `pinned` / finalizer workarounds | R1: handled by `adoptEntity` |
 
 ---

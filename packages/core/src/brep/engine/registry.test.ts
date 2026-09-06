@@ -1,7 +1,6 @@
 /**
  * engine/registry 测试（§6.2 双槽位注册表 + R8 冻结语义 + 异步 provider）
  *
- * 设计：docs/plans/2026-08-30-brep-engine-switch.md §6.2 / §8 / Phase 4 E2
  */
 
 import { describe, it, expect, beforeEach } from 'vitest'

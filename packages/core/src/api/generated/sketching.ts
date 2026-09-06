@@ -22,5 +22,5 @@ export { polysideInnerRadius } from '../../vendored/brepjs/sketching/cannedSketc
  */
 export const makeBaseBox = compatOp(
   projectBrepOp('makeBaseBox', ["xLength","yLength","zLength"], 'A', __vendored_makeBaseBox),
-  { name: 'makeBaseBox', consumes: "none" },
+  { name: 'makeBaseBox' },
 )

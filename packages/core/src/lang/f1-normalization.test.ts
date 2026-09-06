@@ -1,8 +1,6 @@
 /**
  * F1 — parser 黑名单化：表达式折叠 + 控制流错误码 + 往返稳定（normal-js-subset P1 验收）
  *
- * 设计文档：docs/plans/2026-08-29-faijs-near-term-landing-plan.md §4
- *          docs/plans/2026-08-29-faijs-normal-js-subset.md P1 / O1
  *
  * 验收判据（normal-js-subset §4 P1）：
  * - `cad.box(base + 20, base + 20, base + 20, { centered: true })`、`cad.box(20, 20, 20, { name: \`板-${n}\` })`、

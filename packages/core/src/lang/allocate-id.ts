@@ -1,8 +1,6 @@
 /**
  * allocate-id — 变量名自动推导服务（keep-syntax 设计 §4：命名与保留解耦，总是新名）
  *
- * 设计文档：docs/plans/2026-08-28-keep-syntax-design.md §4
- * 前置文档：docs/plans/2026-08-27-faijs-language-normalization-design.md §4.7
  *
  * `derivePartName` 是命名服务（宿主契约唯一形态，B2 修正）：输入只含语法事实
  * （inputCount/outputCount）+ 当前代码文本（内部扫描已用 partN）。

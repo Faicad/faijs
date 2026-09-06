@@ -1,8 +1,6 @@
 /**
  * stdlib copy — 深拷贝几何（方案 B：独立新对象，源不变）
  *
- * 设计文档：docs/plans/2026-08-27-restore-dag-terminal-detection.md §5.1
- * 实施文档：docs/plans/2026-08-29-engine-library-contract-implementation.md P2
  *
  * copy 是"共享读取"（克隆出新对象，源不变），与 drill/transform 的"独占改写"本质不同：
  * - **copy 不消费其源**（从消费方排除，与 group/assembly 同级）

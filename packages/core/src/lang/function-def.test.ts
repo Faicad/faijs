@@ -1,7 +1,6 @@
 /**
  * A1 / Phase 2 — 顶层函数定义 + 本机函数调用（控制流放松方案）
  *
- * 实施文档：docs/plans/2026-08-29-faijs-module-runtime-plan.md §7.2 A1
  *          docs/plans/2026-09-01-faijs-control-flow-functions-design.md §3 / §4
  *
  * 验收（Phase 2）：

@@ -1388,7 +1388,6 @@ export function buildAssemblySelectorManifest(
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// 拓扑邻接查询（§3.8 of docs/plans/2026-08-31-topology-naming-port-v2.md M3）
 //
 // 供 TopoRef 命名层做 edge/vertex lineage 解析。与 buildSelectorManifest
 // 内部的 face→edge 邻接同源（同一次 TopExp::MapShapes 枚举），选择器

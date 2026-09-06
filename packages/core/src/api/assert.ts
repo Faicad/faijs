@@ -1,7 +1,6 @@
 /**
  * stdlib assert — per-op 参数自校验助手（Phase 2.2）
  *
- * 设计文档：docs/plans/2026-08-26-phase2-completion-plan.md §2.C
  *
  * 阶段 4 起（args-schema/SCHEMAS 已删除），参数校验全部由本模块的 assert 助手
  * 承担（各 stdlib 函数在 dispatchPath 之前调用）；非法即抛 Error（不静默）。

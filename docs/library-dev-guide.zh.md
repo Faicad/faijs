@@ -32,15 +32,15 @@
 
 函数返回的实体句柄被 faijs 收养后（经 `adoptEntity`），库不得再 `delete()` 它。brepjs 惯例本来就是「返回即转移」——上游库天然满足。
 
-### 条款 3：返回结构里只有顶层句柄与 `geometryFields` 声明字段会被收养
+### 条款 3：返回结构里只有顶层句柄与 `outputs` 声明字段会被收养
 
-返回结构中，只有顶层句柄和 `geometryFields` 列出的字段会被收养（跨边界成为 faijs `Shape`）。其余内嵌句柄保持库私有状态，跨调用一致性由库自己保证。
+返回结构中，只有顶层句柄和 `outputs` 列出的字段会被收养（跨边界成为 faijs `Shape`）。其余内嵌句柄保持库私有状态，跨调用一致性由库自己保证。
 
 ---
 
-## 3. `geometryFields` — 多输出声明
+## 3. `fn.outputs` — 多输出声明
 
-当函数返回包含多个几何句柄的结构（非单一顶层 solid）时，在函数上声明 `geometryFields`，让兼容边界知道收养哪些字段：
+当函数返回包含多个几何句柄的结构（非单一顶层句柄）时，在函数上声明 `fn.outputs`，让兼容边界知道收养哪些字段：
 
 ```ts ignore-check
 import { ok, type Result } from '@faicad/faijs'
@@ -57,10 +57,10 @@ export function planetary(params: PlanetaryParams): Result<PlanetaryOutput> {
   return ok({ sun, planets, ring })
 }
 // Declare which fields carry geometry handles for boundary adoption:
-planetary.geometryFields = ['sun', 'planets', 'ring']
+;(planetary as { outputs?: string[] }).outputs = ['sun', 'planets', 'ring']
 ```
 
-不声明 `geometryFields` 时，边界只收养顶层返回值（如果是句柄）；结构作为纯数据透传（内嵌句柄保持库私有）。
+`outputs` 是**唯一**被识别的多产物契约名——没有别名。数组字段（如 `planets`）逐元素收养。不声明 `outputs` 时，边界只收养顶层返回值（如果是句柄）；结构作为纯数据透传（内嵌句柄保持库私有）。
 
 ---
 
@@ -105,7 +105,7 @@ export function solidOf(part: SheetMetalPart): Result<ValidSolid> {
 | 2 | 27 个文件导入中 `brepjs` → `@faicad/faijs` | 包名迁移 |
 | 3 | 折弯表注册：显式化（无全局副作用） | 确定性注册 |
 | 4 | 新增 `solidOf` 终端函数 | §4：显式几何终端 |
-| 5 | 按需添加 `geometryFields` | §3：多输出收养 |
+| 5 | 按需添加 `fn.outputs` | §3：多输出收养 |
 | 6 | 删除 `pinned` / finalizer 变通方案 | R1：由 `adoptEntity` 处理 |
 
 ---

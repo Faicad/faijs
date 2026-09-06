@@ -1,7 +1,6 @@
 /**
  * reconcile 单测 — P0-1c 四步归约的独立断言
  *
- * 设计文档：docs/plans/2026-08-29-faijs-module-runtime-plan.md §6.1.5 P0-1c
  *
  * 四步各有独立用例：
  *   1. weldVertices — 共享边重复顶点合并

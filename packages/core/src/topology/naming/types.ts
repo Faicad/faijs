@@ -1,5 +1,4 @@
 /**
- * TopoRef 命名层类型（§2.2 of docs/plans/2026-08-31-topology-naming-port-v2.md）
  *
  * 跨历史身份层：TopoRef 是纯数据、JSON 安全（写进 .fai.js 的参数），
  * 在改参重放后仍能指认「同一个面/边/点」。序号（FaceId/EdgeId）是

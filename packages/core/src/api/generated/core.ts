@@ -239,7 +239,7 @@ export { vecSub } from '../../vendored/brepjs/core/vecOps.js'
 /**
  * getShapeKind — 查询（返回纯数据，非 Shape）生成文件，勿手改；来源 api/surface/arg-spec.ts。
  * (shape: AnyShape) -> ShapeKind
- * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（consumes 语义由查询表达式承载）。
+ * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（查询表达式承载）。
  *
  * @param shape - 可形状参数（原样透传）
  * @returns ShapeKind — 纯数据结果（非 Shape）。

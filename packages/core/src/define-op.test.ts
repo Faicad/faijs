@@ -1,7 +1,6 @@
 /**
  * define-op — dual-path declaration decorator tests (D-face contract).
  *
- * Design: docs/plans/2026-08-30-defineop-library-contract.md §4.2 / §9
  *
  * Coverage:
  * - ② construction-time validation (at least one implementation)
@@ -261,21 +260,14 @@ describe('assertLibConforms: strict assembly validation (③)', () => {
     expect(() => assertLibConforms({ badOutputs, contractVersion: CONTRACT_VERSION })).toThrow(/outputs/)
   })
 
-  it('L3 metadata (D2): consumes/schema are carried and type-validated', () => {
-    const cleaned = defineOp({ mesh: () => cubeMesh(10), consumes: 'none', schema: { size: 'number | [n,n,n]' } })
-    const m1 = (cleaned as { [DUAL_OP_META]?: { consumes?: unknown; schema?: unknown } })[DUAL_OP_META]
-    expect(m1?.consumes).toBe('none')
+  it('L3 metadata (D2): schema is carried and type-validated', () => {
+    const cleaned = defineOp({ mesh: () => cubeMesh(10), schema: { size: 'number | [n,n,n]' } })
+    const m1 = (cleaned as { [DUAL_OP_META]?: { schema?: unknown } })[DUAL_OP_META]
     expect(m1?.schema).toEqual({ size: 'number | [n,n,n]' })
     expect(() => assertLibConforms({ cleaned, contractVersion: CONTRACT_VERSION })).not.toThrow()
   })
 
-  it('L3 metadata (D2): invalid consumes (number[]) / schema shape throw at assemble time', () => {
-    for (const bad of ['nope', 1, [-1]]) {
-      const op = Object.assign(() => cubeMesh(10), {
-        [DUAL_OP_META]: { kind: 'dual-op', mesh: () => cubeMesh(10), brep: undefined, consumes: bad },
-      })
-      expect(() => assertLibConforms({ op, contractVersion: CONTRACT_VERSION })).toThrow(/consumes/)
-    }
+  it('L3 metadata (D2): invalid schema shape throws at assemble time', () => {
     const badSchema = Object.assign(() => cubeMesh(10), {
       [DUAL_OP_META]: { kind: 'dual-op', mesh: () => cubeMesh(10), brep: undefined, schema: { size: 42 } },
     })

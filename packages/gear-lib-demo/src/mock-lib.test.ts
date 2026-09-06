@@ -1,7 +1,6 @@
 /**
  * B4 — mock 库 fixture 验收测试
  *
- * 设计文档：docs/plans/2026-08-29-faijs-module-runtime-plan.md §7.3 B4
  *
  * 验收：两版（mesh / BREP）均可被 `registerLib` 接受并**真正求值**
  * （经 ns.<binding>.<callee> 调用产出可用的 faijs Shape）。

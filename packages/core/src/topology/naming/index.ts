@@ -1,5 +1,4 @@
 /**
- * topology/naming — TopoRef 命名层（§2 of docs/plans/2026-08-31-topology-naming-port-v2.md）
  *
  * 跨历史身份层：TopoRef（纯数据、写进 .fai.js）+ RoleTable（运行期、不序列化）。
  * 解析方向固定为单向：TopoRef（稳定）→ 解析器 → 当前快照的序号 FaceId/EdgeId

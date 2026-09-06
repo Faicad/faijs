@@ -52,7 +52,6 @@ describe('releaseBrepChainState', () => {
     state.solidCache.set(asPartName('s2'), box2)
 
     // Persistent SolidCache 方案：releaseBrepChainState 语义收窄为全量释放 + 清空
-    // （keepIds 参数已删除，见 docs/plans/2026-08-18-brepchain-persistent-solid-cache.md §9 决策 1）
     releaseBrepChainState(state)
 
     expect(state.solidCache.size).toBe(0)

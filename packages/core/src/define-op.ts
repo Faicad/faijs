@@ -2,7 +2,6 @@
  * define-op — dual-path implementation decorator for geometry functions
  * (D-face contract: mesh mandatory as the default path, BREP optional).
  *
- * Design: docs/plans/2026-08-30-defineop-library-contract.md §4.2
  *
  * `defineOp({ mesh?, brep?, ... })` declares the implementation set of a
  * geometry function (a function whose signature returns `SolidShape`). The
@@ -37,8 +36,8 @@ import {
 import { isShape, solid, fromBrep } from './shape'
 import { isMeshShape } from './mesh/types'
 import { fromHandle, meshHandle } from './brep/handle-bridge'
-import { positionalToObject, type PositionalForm } from './api/internal/dual-form-args'
-import { toOpError, unwrapResult } from './api/internal/result-unwrap'
+import { positionalToObject, type SlotMap } from './api/internal/dual-form-args'
+import { toOpError, unwrapResult, OpError } from './api/internal/result-unwrap'
 import type { Shape } from './mesh/types'
 import type { BrepHandle } from './brep/engine/types'
 
@@ -81,38 +80,21 @@ export type BrepProduct = BrepHandle | BrepResult | Shape | Record<string, BrepH
 /** BREP implementation: sync or async; returns a brep product. */
 export type BrepImpl<A extends unknown[]> = (...args: A) => BrepProduct | Promise<BrepProduct>
 
-/**
- * L3 static consumption declaration (D2, G3/G4): which of the op's shape
- * inputs it consumes at the timeline level.
- * - `'all'` (default): every geometric input is consumed — earlier shapes are
- *   not timeline terminals (a boolean/transform result owns its operands).
- * - `'none'`: the op does not consume any shape input — previous shapes stay
- *   in the timeline (a pure query/creator does not hide its operands).
- * - `number[]`: consume only the listed input positions (variadic ops that
- *   absorb a subset of their operands, e.g. keep-first pathologies).
- *
- * This replaces the runtime body `keep()`/`keepHidden()` call for L3 ops
- * authored on the new API face, moving the timeline semantics to a static,
- * testable, codegen-visible declaration (see layered-api D2 §4.3).
- */
-export type ConsumeSpec = 'all' | 'none' | number[]
-
 /** Optional declaration: capabilities (D5) and named multi-products (split, scheme C). */
 export interface DualOpOptions {
   /** Op name (error messages); falls back to an anonymous prefix when absent. */
   name?: string
   capabilities?: BrepCapabilityName[]
   outputs?: string[]
-  /** Static timeline consumption declaration (G3/G4 terminals); default `'all'`. */
-  consumes?: ConsumeSpec
   /** L3 schema per named parameter (G1 codegen + UI panel, plain string form). */
   schema?: Record<string, string>
   /**
-   * D11 positional-form declaration (§4.2): how a brepjs-style positional call
-   * maps onto this op's native object form. Ops without it accept only the form
-   * their implementation natively takes.
+   * D11 slot-map declaration (§4.2): the positional→object boxing table
+   * (SlotMap) mapping a brepjs-style positional call onto this op's native
+   * object form. Ops without it accept only the form their implementation
+   * natively takes.
    */
-  positional?: PositionalForm
+  slotMap?: SlotMap
 }
 
 /** Implementation set (at least one of mesh/brep is required, D1/D1b); options are siblings of the implementations. */
@@ -129,10 +111,9 @@ export interface DualOpMeta {
   name?: string
   capabilities?: BrepCapabilityName[]
   outputs?: string[]
-  consumes?: ConsumeSpec
   schema?: Record<string, string>
-  /** D11 positional-form declaration (positional → object normalization). */
-  positional?: PositionalForm
+  /** D11 slot-map declaration (positional → object boxing table, §9 naming). */
+  slotMap?: SlotMap
 }
 
 /** Property key carrying DualOpMeta on wrapped functions. */
@@ -151,13 +132,28 @@ function wrapBrepOne(v: unknown): Shape {
     const res = v as BrepResult
     return fromBrep(meshHandle(res.solid), res)
   }
+  // A plain object that is not a Shape and not an OCCT handle is a data
+  // product (e.g. a compat fn returning a sheetmetal-style record), not a
+  // geometry handle — pass it through so it lands in the engine's value
+  // store instead of being tessellated as if it were a bare handle. Native
+  // OCCT handles from an implementation are hand-computed shape numbers
+  // (from a branded number return) or objects; only the number path reaches
+  // fromHandle.
+  if (v !== null && typeof v === 'object' && !('__occtWasm' in v)) {
+    return v as unknown as Shape
+  }
   return fromHandle(v)
 }
 
 function wrapByKeys(r: unknown, keys: string[], wrapOne: (v: unknown) => Shape): Record<string, Shape> {
   const src = (r ?? {}) as Record<string, unknown>
   const out: Record<string, Shape> = {}
-  for (const k of keys) out[k] = wrapOne(src[k])
+  for (const k of keys) {
+    const v = src[k]
+    // An output may be an array (e.g. the compat adapter adopts each element of
+    // an array-valued `outputs` field); wrap element-wise so arrays stay arrays.
+    out[k] = Array.isArray(v) ? (v.map(wrapOne) as unknown as Shape) : wrapOne(v)
+  }
   return out
 }
 
@@ -194,6 +190,11 @@ async function runImpl(
     product = await (impl as (...a: unknown[]) => unknown)(...args)
   } catch (e) {
     if (e instanceof BrepUnsupportedError || e instanceof MeshUnsupportedError) throw e
+    // An OpError is already the engine-recognizable statement failure (thrown
+    // by the compat adapter's Result unwrap, or by impls returning a Result);
+    // re-wrapping it into a plain Error would make CadRuntime treat it as an
+    // uncaught bug instead of a statement failure.
+    if (e instanceof OpError) throw e
     throw toOpError(label, e)
   }
   return unwrapResult(product, label)
@@ -251,9 +252,8 @@ export function defineOp<A extends unknown[]>(
     name: decl.name,
     capabilities: decl.capabilities,
     outputs: decl.outputs,
-    consumes: decl.consumes,
     schema: decl.schema,
-    positional: decl.positional,
+    slotMap: decl.slotMap,
   }
 
   // Async wrapper: implementations may be sync or async (stdlib mesh paths are
@@ -264,7 +264,7 @@ export function defineOp<A extends unknown[]>(
     // brepjs-style positional call is boxed into the object form here — before
     // dispatch, so geometry inputs are collected from the normalized arg list.
     const callArgs = (
-      meta.positional ? positionalToObject(args as unknown[], meta.positional, opLabel(meta)) : args
+      meta.slotMap ? positionalToObject(args as unknown[], meta.slotMap, opLabel(meta)) : args
     ) as A
     // Geometry inputs: identity-or-structure auto collection (execution-time
     // read, same nature as hasBrep — decided before the implementation runs).
@@ -329,27 +329,22 @@ export function assertLibConforms(lib: Record<string, unknown>): void {
     ) {
       throw new Error(`[faijs] lib function '${name}' declares invalid outputs (expected string[])`)
     }
-    if (meta.consumes !== undefined && !isValidConsumeSpec(meta.consumes)) {
-      throw new Error(
-        `[faijs] lib function '${name}' declares invalid consumes (expected 'all' | 'none' | number[])`,
-      )
-    }
     if (meta.schema !== undefined && !isValidSchema(meta.schema)) {
       throw new Error(`[faijs] lib function '${name}' declares invalid schema (expected Record<string, string>)`)
     }
     if (meta.name !== undefined && typeof meta.name !== 'string') {
       throw new Error(`[faijs] lib function '${name}' declares invalid name (expected string)`)
     }
-    if (meta.positional !== undefined && !isValidPositionalForm(meta.positional)) {
+    if (meta.slotMap !== undefined && !isValidSlotMap(meta.slotMap)) {
       throw new Error(
-        `[faijs] lib function '${name}' declares invalid positional (expected { keys: string[]; vec3Keys?: string[]; shapeArity?: number })`,
+        `[faijs] lib function '${name}' declares invalid slotMap (expected { keys: string[]; vec3Keys?: string[]; shapeArity?: number })`,
       )
     }
   }
 }
 
-/** True when the D11 positional declaration has a non-empty string `keys` list. */
-function isValidPositionalForm(form: unknown): form is PositionalForm {
+/** True when the D11 slot-map declaration has a non-empty string `keys` list. */
+function isValidSlotMap(form: unknown): form is SlotMap {
   if (form === null || typeof form !== 'object') return false
   const keys = (form as { keys?: unknown }).keys
   if (!Array.isArray(keys) || keys.some((k) => typeof k !== 'string')) return false
@@ -358,13 +353,6 @@ function isValidPositionalForm(form: unknown): form is PositionalForm {
   const arity = (form as { shapeArity?: unknown }).shapeArity
   if (arity !== undefined && (typeof arity !== 'number' || !Number.isInteger(arity) || arity < 0)) return false
   return true
-}
-
-/** True when spec is `'all'`, `'none'`, or an array of non-negative integer input positions. */
-function isValidConsumeSpec(spec: unknown): spec is ConsumeSpec {
-  if (spec === 'all' || spec === 'none') return true
-  if (!Array.isArray(spec)) return false
-  return spec.every((i) => typeof i === 'number' && Number.isInteger(i) && i >= 0)
 }
 
 /** True when every schema value is a non-empty string. */

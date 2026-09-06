@@ -1,7 +1,6 @@
-﻿/**
+/**
  * analyzeCode / codeToArgs — 宿主摘要与编辑回填配套测试（IR 剥离阶段 0）
  *
- * 设计文档：3d_editor docs/plans/2026-08-28-ir-strip-source-code-generation-plan.md §4.2/§4.6
  *
  * 契约：
  * - analyzeCode 与 parser 结果逐字段一致（id/callee/inputs/outputs/outputKeys/refs/receiver）

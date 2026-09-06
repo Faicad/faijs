@@ -1,7 +1,6 @@
 /**
  * backend-dispatch — BREP/mesh 路径静态判定（引擎侧）
  *
- * 实施文档：docs/plans/2026-08-29-engine-library-contract-implementation.md P4
  *
  * 红线（AGENTS.md）：BREP 链是否可用，由静态规则在执行前判定，
  * **禁止运行时 try-catch 回退**。BREP 路径抛异常 = 设计缺陷或 bug，必须直接报错暴露。

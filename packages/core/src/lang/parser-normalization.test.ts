@@ -1,7 +1,6 @@
-﻿/**
+/**
  * parser-normalization — 语言正常化新语法形态规格测试（阶段 0，目标 IR 字段）
  *
- * 设计文档：docs/plans/2026-08-27-faijs-language-normalization-design.md §4.1/§4.3
  *
  * 这些用例按**目标 IR**（callee/receiver/outputKeys/VarRefIR/CallRefIR）断言。
  * 阶段 2（IR + parser 纯化）落地后转绿；在此之前保持红 = 规格已锁定。

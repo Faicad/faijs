@@ -1,7 +1,6 @@
 /**
  * engine/adapters/memory — 内存模拟 BREP 引擎（第二引擎，引擎切换验证用）
  *
- * 设计：docs/plans/2026-08-30-brep-engine-switch.md §6.2
  *
  * 目的：证明「引擎可切换」——不是生产内核，是注册表机制的验证载体。
  * 与 occt 适配器（adapters/occt.ts）同构注册；同一段 faijs 代码在

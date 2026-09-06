@@ -16,8 +16,9 @@
  *    true })` → `admitCompatLib` → `compatOp`), never via a hand-rolled
  *    `fromHandle`.
  * 3. `planetary` returns a structured multi-geometry record and declares the
- *    handle-bearing fields through the static `geometryFields` annotation
- *    (outbound adoption point for `compatOp`).
+ *    handle-bearing fields through the static `outputs` annotation
+ *    (outbound adoption point for `compatOp`; the only multi-output contract
+ *    name — `fn.outputs`).
  * 4. No module-level pinning: `adoptEntity`'s `unregisterFromCleanup` takes
  *    over handle lifetime (R1 fix); the previous `pinned` array is deleted.
  *
@@ -69,7 +70,7 @@ export const internal = (params: InternalGearParams): Result<ValidSolid> =>
 
 /**
  * Build a planetary gear train (sun + planets + ring).
- * The static `geometryFields` annotation declares which record fields carry
+ * The static `outputs` annotation declares which record fields carry
  * geometry so the compatOp adopts them into faijs Shapes on outbound.
  * @param params - the planetary-gear parameters.
  * @returns `Ok` with the assembly record, or `Err` for invalid parameters.
@@ -78,7 +79,7 @@ export const planetary = (
   params: PlanetaryParams
 ): Result<PlanetaryGearAssembly> => makePlanetaryGear(params)
 // outbound adoption declaration: compatOp reads the static annotation.
-;(planetary as { geometryFields?: string[] }).geometryFields = ['planets', 'ring', 'sun']
+; (planetary as { outputs?: string[] }).outputs = ['planets', 'ring', 'sun']
 
 /**
  * Build a helical screw-thread ridge.

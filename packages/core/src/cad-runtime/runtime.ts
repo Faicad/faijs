@@ -45,7 +45,6 @@ import {
   assertContractVersion, BrepUnsupportedError, MeshUnsupportedError, type StdlibNamespace,
 } from '../runtime-state'
 import { OpError } from '../api/internal/result-unwrap'
-import { DUAL_OP_META } from '../define-op'
 import { admitCompatLib } from './admit-compat-lib'
 import { computeLibId } from './lib-id'
 import { computeContentKey } from './content-key'
@@ -143,7 +142,6 @@ export interface ExecutionResult {
   topology?: Map<PartName, PartTopology>
   /**
    * 拓扑命名数据 — 每个 part 的命名行（§3.7 of
-   * docs/plans/2026-08-31-topology-naming-port-v2.md）。
    *
    * 宿主拾取到 Reference（序号）后 O(1) 反查命名行 → captureTopoRef 造 TopoRef。
    * BREP/primitive 完整（faceNaming 有 origin+role），mesh 只给 hint（role=''）。
@@ -285,7 +283,6 @@ export class CadRuntime {
   private accumulatedIds = new Set<StmtId>()
 
   /**
-   * Persistent SolidCache（docs/plans/2026-08-18-brepchain-persistent-solid-cache.md）：
    * PartName → OCCT 实体句柄，跨 execute 存活，持有所有权（顶替释放/删除/dispose 的唯一操作对象）。
    * op 层通过 brepChain.solidCache 读写——该引用指向此持久 Map（见 ensureBrepChain）。
    */
@@ -1033,16 +1030,6 @@ export class CadRuntime {
     const view: DagRuntimeView = {
       value: (name) => this.executor.getCtxVar(name),
       internalKeep: (stmt) => this.executor.getInternalKeep(stmt.id),
-      // C2：语句调用的 op 若带 L3 静态 consumes 声明（D2），以声明为准。
-      // 命名空间缺省 = 默认绑定名（this.defaultNsName，lang 层 F2 缺省 'cad'）；本机函数调用（local）无库元数据。
-      opConsumes: (stmt) => {
-        if (stmt.local) return undefined
-        const ns = stmt.namespace ?? this.defaultNsName
-        const fn = this.libs[ns]?.[stmt.callee]
-        if (typeof fn !== 'function') return undefined
-        const fnWithMeta = fn as unknown as { [DUAL_OP_META]?: import('../define-op').DualOpMeta }
-        return fnWithMeta[DUAL_OP_META]?.consumes
-      },
     }
     const explicitTerminals = script.terminalShapes ?? []
     let terminals: TerminalShape[]

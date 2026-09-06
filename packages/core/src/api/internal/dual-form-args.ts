@@ -202,8 +202,12 @@ export function resolveArgsWithInfo(args: unknown[], spec: ArgSpec): ResolvedArg
  * 需先归一成对象形态。
  * 声明式而非 if 分支：op 作者只列「哪个键吃几个位置参数」，判别与装箱由
  * {@link positionalToObject} 统一完成。
+ *
+ * 与语句层的 `StatementIR.positional`（位置实参**值**）以及投影侧的
+ * `ArgSpec.params`（对象→位置**参数名表**）是三个不同概念：`SlotMap` 是
+ * 位置槽→对象键的**装箱声明**（位置→对象，D11 反方向；§9 命名区分）。
  */
-export interface PositionalForm {
+export interface SlotMap {
   /**
    * 对象形态键名，按位置顺序（只描述 Shape 之后的**非几何**形参）。
    * 例：`box(10, 20, 30)` → `keys: ['size']`；`cylinder(5, 40)` →
@@ -235,16 +239,16 @@ function isPlainObjectValue(v: unknown): boolean {
 /**
  * 位置形态 → 对象形态归一（faijs 特有 dual op 的 D11 反方向）。
  *
- * 触发条件：声明了 positional 且对象槽位（第 `shapeArity` 个实参）不是
+ * 触发条件：声明了 slotMap 且对象槽位（第 `shapeArity` 个实参）不是
  * plain object。已是对象形态或实参不足时原样返回（交由 op 自身的断言报错）。
  *
  * @param args - 调用参数数组
- * @param form - 位置形态声明
+ * @param form - slotMap 声明（位置槽→对象键装箱表）
  * @param name - op 名（错误信息用）
  * @returns 归一后的参数数组（前置 Shape 原样 + 末尾一个对象形态参数）
  * @throws E_ARGS_FORM 位置参数个数与声明的槽位不匹配时
  */
-export function positionalToObject(args: unknown[], form: PositionalForm, name: string): unknown[] {
+export function positionalToObject(args: unknown[], form: SlotMap, name: string): unknown[] {
   const shapeArity = form.shapeArity ?? 0
   if (args.length <= shapeArity) return args // 无位置形参可装箱 → 原样（op 断言报错）
   if (isPlainObjectValue(args[shapeArity])) return args // 已是对象形态

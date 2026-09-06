@@ -368,18 +368,17 @@ unwrap<T>(r: Result<T>): T   // throws if Err
 
 **语句边界 unwrap**：`compatOp` 包装器（和 `defineOp` 的 Result 感知边界）调用共享的 `unwrapResult(r, opName)` 叶子。当结果为 `err` 时，unwrap 抛出携带 op 名和 `BrepError` code 的执行错误——引擎已有的语句级 catch 将其转为 `ExecutionResult.failedAt`。这意味着**存量 `.fai.js` 脚本零修改**：错误面与之前的 throw 行为完全一致。
 
-### 7.8 `compatOp` — 底层边界封装
+### 7.8 `compatOp` — `defineOp` 之上的兼容壳
 
-`compatOp`（`packages/core/src/api/internal/compat-op.ts`）把任意 brepjs 形态函数提升为 faijs 语句级 op。它是 brep-only 的（mesh 模式抛 `E_MESH_UNSUPPORTED`）。六步，全部复用已验证基础设施：
+`compatOp`（`packages/core/src/api/internal/compat-op.ts`）把任意 brepjs 形态函数提升为 faijs 语句级 op。它是 **`defineOp` 之上的单一入口兼容壳**——不存在第二条平行的实现路径。唯一定制部分是 **adapter**（`buildAdapter`），其余全部归属 `defineOp`：
 
-1. **参数透传**：被包装函数内部归一位置/对象形态（D11）；`compatOp` 不做形态映射。
-2. **静态分派门**：深收集几何输入 → `dispatchPath`（brep-only；mesh 模式或链断裂抛异常，不回退）。
-3. **输入借入**：深遍历——faijs `Shape` → `createBorrowedHandle` 视图（零拷贝）；vendored 句柄原样透传（库私有状态）。
-4. **调用 + Result unwrap**：`isResultLike` → `err` 抛出携带 op 名和 `BrepError` code 的执行错误。
-5. **输出收养**：顶层句柄或 `geometryFields` 声明字段 → `adoptEntity`（注销 finalizer + `fromHandle`）。
-6. **返回**：收养的 `Shape` 由与 `defineOp` 相同的消费者接管（`outputCache`／`solidCache`）。
+1. **adapter——三步桥接**：① **借入（borrow）**：深遍历 faijs `Shape` 参数 → `createBorrowedHandle` 零拷贝视图（vendored 句柄原样透传——库私有，不改）；② **调用（call）**：`callBrepjs(fn, args)` 并在边界 unwrap Result——`err` 转为携带 op `name` 与 `BrepError` code 的执行错误；③ **收养（adopt）**：`adoptOut` 各收养产物（注销 finalizer + `fromHandle`）——单个顶层句柄，或 `outputs` 声明的字段逐一收养（数组字段逐元素收养）。
+2. **spec 透传**：`name`、`capabilities`、`outputs`、`schema`、`slotMap` 原样交给 `defineOp`；`keep`／`keepHidden` 天然保留。
+3. **其余全部归属 `defineOp`**：静态分派（`dispatchPath` + 能力门）、语句边界 Result、产品包装（`wrapBrepOne`／`wrapByKeys`）、`DUAL_OP_META` 挂载。兼容 op 于是就是一个普通 defineOp 产物：brep-only（mesh 模式抛 `E_MESH_UNSUPPORTED`），链下输入或缺失能力抛 `E_BREP_UNSUPPORTED`，位置/对象形态经 spec 的 `slotMap` 归一。
 
-`admitCompatLib`（`packages/core/src/cad-runtime/admit-compat-lib.ts`）是 `compatOp` 的批量应用：`registerLib(binding, ns, { compat: true })` 在包装**之前**运行 `assertLibConforms`（R8：硬顺序约束——DUAL_OP_META 是 `enumerable:false`，先包装会让裸函数静默跳过严格校验）。
+多产物契约名只有 **`outputs`** 一个——与 `defineOp` spec 相同的列表，经 adapter 第 ③ 步收养。
+
+`admitCompatLib`（`packages/core/src/cad-runtime/admit-compat-lib.ts`）是 `compatOp` 的批量应用：`registerLib(binding, ns, { compat: true })` 在包装**之前**运行 `assertLibConforms`（R8：硬顺序约束——DUAL_OP_META 是 `enumerable:false`，先包装会让裸函数静默跳过严格校验）。对裸（非 dual-op）库函数只认一个标注——`fn.outputs`——并用它构建 `outputs` spec。
 
 ---
 

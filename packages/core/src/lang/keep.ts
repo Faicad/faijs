@@ -1,7 +1,6 @@
 /**
  * keep — 统一内外 keep 机制的语义集中点（L0 零依赖）
  *
- * 设计文档：docs/plans/2026-08-28-keep-syntax-design.md §2 / §6 / §7
  *
  * keep 机制的两面：
  * - 调用点声明：`cad.op(input, { keep: [a, b], keepHidden: true })`（UI / AI / 用户）

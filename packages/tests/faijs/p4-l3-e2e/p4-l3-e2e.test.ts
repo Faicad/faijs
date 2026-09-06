@@ -1,18 +1,16 @@
 /**
  * P4 · L3 端到端（docs/plans/2026-09-01-layered-api-architecture.md §8 P4）
  *
- * 首个端到端验证点：「defineOp 扩展 consumes/schema 字段（D2）」+「只接 3 个 op
+ * 首个端到端验证点：「defineOp 扩展 schema 字段（D2）」+「只接 3 个 op
  * （box/cylinder/union）打通 `.fai.js` → 执行 → terminals → 宿主」。
  *
  * 三层验证：
  * 1) 宿主链路（宿主同款消费路径）：CadRuntime.execute(code) 文本执行 3 个 op，
  *    断言 ExecutionResult 关键字段（terminals/naming/brepSolids/topology 等，防静默降级）
  *    与 terminals 推导。union 的输入按既有 R5 语义保留为 hidden 终端。
- * 2) C2 静态 consumes 直通：第三方案 operator（consumes:'none'）经 runtime 注册后，
- *    terminal-dag 的运行时视图（stmt → libs[ns][callee] → DUAL_OP_META.consumes）
- *    读取声明，上游 shape 不被消费 → 独立终端；缺省（C5）则被消费。
- * 3) D2 元数据面：schema/consumes 随 defineOp 挂载，供工具链（codegen/UI 面板）取用；
- *    现网 stdlib 的 box/cylinder/union 已带声明。
+ * 2) C5 默认消费：无 keep/无声明的 operator 消费其 shape 输入 → 上游被吞、只剩末位终端。
+ * 3) D2 元数据面：schema 随 defineOp 挂载，供工具链（codegen/UI 面板）取用；
+ *    现网 stdlib 的 box/cylinder 已带 schema。
  *
  * Run: npx vitest run faijs/p4-l3-e2e/p4-l3-e2e.test.ts
  */
@@ -106,25 +104,12 @@ describe('P4· 宿主链路 end-to-end（.fai.js → execute → terminals → E
   })
 })
 
-describe('P4·C2 静态 consumes 经 runtime libs 注册表驱动 terminals', () => {
+describe('C5 默认消费（无 keep、无声明）', () => {
   function lib(ops: Record<string, unknown>): StdlibNamespace {
     return { ...ops, contractVersion: CONTRACT_VERSION } as unknown as StdlibNamespace
   }
 
-  it('consumes "none"：上游不被吞 → origin 与 probe 都是独立终端', async () => {
-    const probe = defineOp({ mesh: (_s: Shape) => cubeMesh(1), consumes: 'none', schema: { input: 'Shape' } })
-    const box = defineOp({ mesh: (_p: Record<string, unknown>) => cubeMesh(20) })
-    const rt = coreCreateRuntime(createNodePorts(), 'auto', { cad: lib({ box, probe }) })
-    const result: ExecutionResult = await rt.execute('let part0 = cad.box(20, 20, 20, { centered: true })\nlet part1 = cad.probe(part0)')
-    try {
-      const terms = result.terminals.map((t) => String(t.id)).sort()
-      expect(terms).toEqual(['part0', 'part1'])
-    } finally {
-      rt.dispose()
-    }
-  })
-
-  it('缺省（无 consumes / C5）：上游被消费，只剩末位终端', async () => {
+  it('无任何保留声明 → 上游被消费，只剩末位终端', async () => {
     const absorb = defineOp({ mesh: (_s) => cubeMesh(1) })
     const box = defineOp({ mesh: (_p: Record<string, unknown>) => cubeMesh(20) })
     const rt = coreCreateRuntime(createNodePorts(), 'auto', { cad: lib({ box, absorb }) })
@@ -139,14 +124,13 @@ describe('P4·C2 静态 consumes 经 runtime libs 注册表驱动 terminals', ()
 })
 
 describe('P4·D2 元数据装配（codegen / UI 面板取用面）', () => {
-  it('stdlib box/cylinder 声明 consumes "none"+ schema；union 声明 "all"', () => {
-    const metaOf = (fn: unknown): NonNullable<{ [DUAL_OP_META]?: { consumes?: unknown; schema?: unknown } }[typeof DUAL_OP_META]> => {
-      const meta = (fn as { [DUAL_OP_META]?: { consumes?: unknown; schema?: unknown } })[DUAL_OP_META]
+  it('stdlib box/cylinder 携带 schema；union 有 capabilities 元数据', () => {
+    const metaOf = (fn: unknown): NonNullable<{ [DUAL_OP_META]?: { schema?: unknown } }[typeof DUAL_OP_META]> => {
+      const meta = (fn as { [DUAL_OP_META]?: { schema?: unknown } })[DUAL_OP_META]
       expect(meta).toBeDefined()
       return meta!
     }
     const boxMeta = metaOf(stdlibBox)
-    expect(boxMeta.consumes).toBe('none')
     // §4.1 新契约：box(width, depth, height, { at?, centered?, segments? })
     expect(boxMeta.schema).toEqual({
       width: 'number',
@@ -158,10 +142,9 @@ describe('P4·D2 元数据装配（codegen / UI 面板取用面）', () => {
     })
 
     const cylMeta = metaOf(stdlibCylinder)
-    expect(cylMeta.consumes).toBe('none')
     expect(cylMeta.schema).toHaveProperty('radius')
 
-    const unionMeta = metaOf(stdlibUnion)
-    expect(unionMeta.consumes).toBe('all')
+    const unionMeta = (stdlibUnion as { [DUAL_OP_META]?: { capabilities?: string[] } })[DUAL_OP_META]
+    expect(unionMeta?.capabilities).toContain('evolution')
   })
 })

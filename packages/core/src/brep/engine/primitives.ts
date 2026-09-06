@@ -1,7 +1,6 @@
 /**
  * engine/primitives — BREP 引擎契约面（port 面）
  *
- * 设计：docs/plans/2026-08-30-brep-engine-switch.md §7.4
  *
  * ⚠️ Phase 0 落地形态：覆盖 §2.3 实测的 66 个被调方法（BrepHandle 中立签名），
  * 供类型解耦使用。Phase 1 按 §7.4 扩到 83 项分 14 族，并落地编译期完整性守卫

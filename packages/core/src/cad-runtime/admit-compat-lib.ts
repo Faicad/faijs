@@ -3,11 +3,14 @@
  *
  * Design: docs/plans/2026-09-03-faijs-brepjs-compat-api.md §4.3.3
  *
- * Hard ordering constraint: assertLibConforms runs BEFORE wrapping — DUAL_OP_MEta
- * hangs on the function object with enumerable:false (define-op.ts:221) and
+ * Hard ordering constraint: assertLibConforms runs BEFORE wrapping — DUAL_OP_META
+ * hangs on the function object with enumerable:false (define-op.ts) and
  * assertLibConforms iterates values via Object.values to judge metadata; a
  * wrap-first admission would let bare functions silently skip the whole strict
  * validation pass (verified in practice, R8).
+ *
+ * Multi-output annotation: the only contract name is `fn.outputs` (the
+ * `outputs` defineOp option); the legacy name is deleted repo-wide.
  *
  * @module
  */
@@ -15,7 +18,7 @@
 import { assertLibConforms, DUAL_OP_META } from '../define-op'
 import { compatOp } from '../api/internal/compat-op'
 
-type GeometryFieldsCarrier = { geometryFields?: string[] }
+type OutputsCarrier = { outputs?: string[] }
 
 /**
  * Establish an admission-stage wrapper namespace for registerLib.
@@ -36,7 +39,7 @@ export function admitCompatLib(ns: Record<string, unknown>): Record<string, unkn
     if ((v as unknown as Record<string, unknown>)[DUAL_OP_META]) { out[name] = v; continue }
     out[name] = compatOp(v as (...a: unknown[]) => unknown, {
       name,
-      geometryFields: (v as GeometryFieldsCarrier).geometryFields,
+      outputs: (v as OutputsCarrier).outputs, // only fn.outputs; no other annotation name is recognized (§3.6)
     })
   }
   return out

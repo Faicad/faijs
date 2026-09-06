@@ -367,18 +367,17 @@ unwrap<T>(r: Result<T>): T   // throws if Err
 
 **Statement-boundary unwrap**: the `compatOp` wrapper (and `defineOp`'s Result-aware boundary) call a shared `unwrapResult(r, opName)` leaf. When the result is `err`, the unwrap throws an execution error carrying the op name and the `BrepError` code — the engine's existing statement-level catch converts it to `ExecutionResult.failedAt`. This means **existing `.fai.js` scripts need zero modification**: the error surface is identical to the previous throw-based behavior.
 
-### 7.8 `compatOp` — the low-level boundary wrapper
+### 7.8 `compatOp` — a compat shell over `defineOp`
 
-`compatOp` (`packages/core/src/api/internal/compat-op.ts`) lifts an arbitrary brepjs-shaped function into a faijs statement-level op. It is brep-only (mesh mode raises `E_MESH_UNSUPPORTED`). Six steps, all reusing verified infrastructure:
+`compatOp` (`packages/core/src/api/internal/compat-op.ts`) lifts an arbitrary brepjs-shaped function into a faijs statement-level op. It is a **single-entry shell over `defineOp`** — there is no second, parallel op path. The adapter (`buildAdapter`) is the only bespoke piece; everything else delegates to `defineOp`:
 
-1. **Argument pass-through**: the wrapped function normalizes positional/object forms internally (D11); `compatOp` does no form mapping.
-2. **Static dispatch gate**: deep-collect geometry inputs → `dispatchPath` (brep-only; mesh mode or broken chain throws, never falls back).
-3. **Input borrow**: deep walk — any faijs `Shape` → `createBorrowedHandle` view (zero-copy); vendored handles pass through (library-private state, §4.3.4 of the design).
-4. **Call + Result unwrap**: `isResultLike` → `err` throws an execution error carrying the op name and `BrepError` code.
-5. **Output adoption**: top-level handle or `geometryFields`-declared fields → `adoptEntity` (unregister finalizer + `fromHandle`).
-6. **Return**: the adopted `Shape` is taken over by the same consumer `defineOp` uses (`outputCache` / `solidCache`).
+1. **Adapter — three bridging steps**: ① **borrow**: deep-walk the faijs `Shape` arguments into `createBorrowedHandle` zero-copy views (vendored handles pass through — library-private, unchanged); ② **call**: `callBrepjs(fn, args)` and unwrap the Result at the boundary — `err` becomes an execution error carrying the op `name` and the `BrepError` code; ③ **adopt**: `adoptOut` the adopted products (finalizer unregistration + `fromHandle`) — a single top-level handle or each `outputs`-declared field (array fields adopted element-by-element).
+2. **Spec pass-through**: `name`, `capabilities`, `outputs`, `schema`, `slotMap` are handed to `defineOp` unchanged; `keep` / `keepHidden` are retained by construction.
+3. **Everything else belongs to `defineOp`**: static dispatch (`dispatchPath` + capability gate), the statement Result boundary, product wrapping (`wrapBrepOne` / `wrapByKeys`), and `DUAL_OP_META` mounting. A compat op is therefore an ordinary defineOp product: brep-only (mesh mode raises `E_MESH_UNSUPPORTED`), with off-chain inputs or missing capabilities raising `E_BREP_UNSUPPORTED`, and positional/object-form arguments resolved through the spec's `slotMap`.
 
-`admitCompatLib` (`packages/core/src/cad-runtime/admit-compat-lib.ts`) is the batch application of `compatOp` to a namespace: `registerLib(binding, ns, { compat: true })` runs `assertLibConforms` **before** wrapping (R8: hard ordering constraint — DUAL_OP_META is `enumerable:false`, so a wrap-first admission would let bare functions silently skip strict validation).
+The multi-output contract name is **`outputs`** — the same list the `defineOp` spec carries, adopted through the adapter's step ③.
+
+`admitCompatLib` (`packages/core/src/cad-runtime/admit-compat-lib.ts`) is the batch application of `compatOp` to a namespace: `registerLib(binding, ns, { compat: true })` runs `assertLibConforms` **before** wrapping (R8: hard ordering constraint — DUAL_OP_META is `enumerable:false`, so a wrap-first admission would let bare functions silently skip strict validation). On a bare (non-dual-op) library function it recognizes exactly one annotation — `fn.outputs` — and builds the `outputs` spec from it.
 
 ---
 

@@ -2,7 +2,6 @@
  * codegen — IR → 文本 打印工具（宿主编辑器/测试用；L0，仅依赖 ./types）
  *
  * 设计文档：docs/syntax-design.md §2（扁平代码格式）
- *          docs/plans/2026-08-27-faijs-language-normalization-design.md §4.4（通用打印机）
  *
  * 事实方向：代码文本是唯一事实源；IR 是 parser 从文本编译出的内部表示。
  * 本模块只是把 IR 承载的信息机械地打印回扁平文本，供宿主编辑器显示与

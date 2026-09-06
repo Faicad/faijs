@@ -2,7 +2,6 @@
  * L3 API 面（api/）— faijs 库函数命名空间（替代原 packages/stdlib）
  *
  * 设计文档：docs/plans/2026-09-01-layered-api-architecture.md §D1/D2（P6 迁入 core）
- * 实施文档：docs/plans/2026-08-29-engine-library-contract-implementation.md P2
  *
  * 导出全部官方库函数、Shape 构造器与 schema 表。
  * 库函数签名 = .fai.js 源码里的调用形态（无隐式参数）；

@@ -1,7 +1,6 @@
 /**
  * engine/adapters/occt — OCCT BREP 引擎适配器（槽位 1 的默认实现）
  *
- * 设计：docs/plans/2026-08-30-brep-engine-switch.md §6.2 / §9.2
  *
  * 本文件是「occt 引擎实现」的注册入口：把 occt-kernel 的 initOcctWasm 包装为
  * BrepEngine 注册进注册表。业务层（runtime/brep ops/stdlib）只经注册表取引擎，

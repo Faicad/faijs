@@ -1,7 +1,6 @@
 /**
  * stdlib chamfer — chamfer 倒角库函数（BREP-only，directEdit 能力）
  *
- * 设计文档：docs/plans/2026-08-31-chamfer-brep-api-design.md
  *
  * 与 drill/engrave 的差异：没有 mesh 实现（defineOp({ brep })），输入非 BREP
  * 时由 dispatchPath 抛 E_MESH_UNSUPPORTED；mode='brep' 且引擎缺 directEdit 能力

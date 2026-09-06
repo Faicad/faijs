@@ -2,8 +2,6 @@
  * module-resolver — 运行时模块解析（channel ③，V5.2）
  *
  * 设计文档：
- * - docs/plans/2026-08-29-faijs-module-runtime-plan.md §4.1（通道③）、§5.3
- * - docs/plans/2026-08-28-faijs-ecosystem-roadmap.md §10 V5.2（多版本 scopes）
  *
  * 本文件实现**极小 semver 判定子集**，用于 V5.2 版本仲裁的"范围不匹配即抛错"
  * （roadmap 验收 ③：版本校验失败必须明确报错、不静默、不降级）。

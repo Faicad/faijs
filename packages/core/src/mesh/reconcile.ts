@@ -1,7 +1,6 @@
 /**
  * reconcile — BREP 三角汤归约为合法 2-manifold 网格（P0-1c）
  *
- * 设计文档：docs/plans/2026-08-29-faijs-module-runtime-plan.md §6.1.5 P0-1c
  *
  * 职责：把 OCCT 逐面三角化（`kernel.meshShape` 产物：共享边顶点重复、
  * 可能带朝向/退化问题）归约为 manifold-3d 可接受的合法 2-manifold 网格。

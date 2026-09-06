@@ -1,7 +1,6 @@
 /**
  * sdk 入口测试 + 依赖守卫（F3 / roadmap V2.2）
  *
- * 设计文档：docs/plans/2026-08-29-faijs-near-term-landing-plan.md §6.4
  *
  * - 守卫：dist/sdk.js 的静态 import 闭包不含 three / occt-wasm / manifold / node:*
  *   （SDK 零 heavy 运行时依赖的机器验证；CI 在 vitest 前已 build）。

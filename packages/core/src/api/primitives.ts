@@ -1,8 +1,6 @@
 /**
  * stdlib primitives — 基本体创建库函数（box/sphere/cylinder/cone/wedge）
  *
- * 设计文档：docs/plans/2026-08-25-faijs-vm-execution-implementation-plan.md §3.11
- * 实施文档：docs/plans/2026-08-29-engine-library-contract-implementation.md P2
  *
  * dispatchPath 静态判定 brep/mesh，产物经 solid()/fromBrep() 构造器创建。
  */
@@ -147,9 +145,7 @@ export const box = defineOp({
     assertBoxParams(params)
     return primitiveBrep('box', params)
   },
-  // L3 metadata (D2): a creator consumes no shape inputs → operands stay in the
-  // timeline; schema feeds codegen/UI parameter panels.
-  consumes: 'none',
+  // schema feeds codegen/UI parameter panels.
   schema: {
     width: 'number',
     depth: 'number',
@@ -160,7 +156,7 @@ export const box = defineOp({
   },
   // D11 位置→对象（§4.1/§6.2）：三个标量装箱成 { width, depth, height }，尾参
   // options 经 dual-form-args 的尾参合并（§6.2）并入。
-  positional: { keys: ['width', 'depth', 'height'] },
+  slotMap: { keys: ['width', 'depth', 'height'] },
 })
 
 /**
@@ -190,12 +186,10 @@ export const sphere = defineOp({
     assertSphereParams(params)
     return primitiveBrep('sphere', centerParams(params))
   },
-  // L3 metadata (D2): creator consumes no shape inputs.
-  consumes: 'none',
   schema: { radius: 'number', segments: 'number?', center: 'vec3?', at: 'vec3?' },
   // D11: `sphere(10)` == `sphere({ radius: 10 })`; 尾参 options（{at, segments}）
   // 经 dual-form-args 的尾参合并规则归一（裁决 4，§6.2）。
-  positional: { keys: ['radius'] },
+  slotMap: { keys: ['radius'] },
 })
 
 /**
@@ -240,12 +234,10 @@ export const cylinder = defineOp({
     assertCylinderParams(params)
     return primitiveBrep('cylinder', params)
   },
-  // L3 metadata (D2): creator consumes no shape inputs.
-  consumes: 'none',
   schema: { radius: 'number', height: 'number', at: 'vec3?', centered: 'boolean?', segments: 'number?' },
   // D11（§4.1/§6.2）：`cylinder(5, 40)` 两个标量装箱成 { radius, height }；尾参 options
   // 经 dual-form-args 尾参合并并入。
-  positional: { keys: ['radius', 'height'] },
+  slotMap: { keys: ['radius', 'height'] },
 })
 
 /**
@@ -281,8 +273,6 @@ export const cone = defineOp({
     assertConeParams(params)
     return primitiveBrep('cone', params)
   },
-  // L3 metadata (D2): creator consumes no shape inputs.
-  consumes: 'none',
   schema: {
     radiusBottom: 'number',
     radiusTop: 'number',
@@ -293,7 +283,7 @@ export const cone = defineOp({
   },
   // D11（§4.1/§6.2）: `cone(10, 4, 30)` 三个标量装箱成 { radiusBottom, radiusTop, height }。
   // 尾参 options（{at, centered, segments}）经 dual-form-args 尾参合并并入。
-  positional: { keys: ['radiusBottom', 'radiusTop', 'height'] },
+  slotMap: { keys: ['radiusBottom', 'radiusTop', 'height'] },
 })
 
 /**
@@ -324,5 +314,5 @@ export const wedge = defineOp({
     return primitiveBrep('wedge', params)
   },
   // D11: `wedge(30, 20, 45, 10)` == `wedge({ width: 30, height: 20, angle: 45, length: 10 })`.
-  positional: { keys: ['width', 'height', 'angle', 'length'] },
+  slotMap: { keys: ['width', 'height', 'angle', 'length'] },
 })

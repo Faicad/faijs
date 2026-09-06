@@ -1,8 +1,6 @@
 /**
  * api-namespace — 把 L3 API 面（api/ 层的 fp操作）装配为 cad 命名空间（统一 ABI，B2 消灭）
  *
- * 设计文档：docs/plans/2026-08-27-faijs-language-normalization-design.md §4.5-3
- * 实施文档：docs/plans/2026-08-27-faijs-language-normalization-implementation.md §5.2
  *
  * 库函数签名 = .fai.js 源码形态（无隐式参数）；本文件无任何 per-函数逻辑。
  *

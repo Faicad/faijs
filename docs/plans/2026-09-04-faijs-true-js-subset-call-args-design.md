@@ -3,7 +3,6 @@
 - 日期：2026-09-04
 - 状态：已落地（P1–P6 实施完成；P7 3d_editor 跟进为独立后续）
 - 范围：`.fai.js` 顶层调用语句的实参形态（五种调用形态全覆盖）；IR、编译、执行、宿主 API、契约文档的配套改造
-- 关联文档：`docs/syntax-design.md`（语法契约，§2.3/§2.4 将修订）；`docs/api-contract.md`（§4/§6.1/§7.5 将修订）；`docs/plans/2026-08-27-faijs-language-normalization-design.md`（inputs/args 双槽模型的出处）
 
 ---
 
@@ -242,8 +241,7 @@ compile/executor 层（`compile.test.ts`、packages/tests 集成）：
 2. `docs/api-contract.md`（+双语配对）：§4 语句模型（positional args + options）；§6.1 C5（引用即消费的精确化）；§7.5 增量 key（positional 入 key）。
 3. `docs/library-dev-guide.md`（+双语配对）：§7「脚本面调用矩阵」**整节重写**——位置形态/对象形态/成员表达式在脚本面全部可用；"每个脚本面函数都需要对象形态入口"的推论降级为"对象形态仅作为结构化参数的推荐风格"；"第二对象实参静默覆盖"警告删除（改为按位置传递的如实描述）；`solidOf` 的历史由来加注（终端函数仍保留，但脚本面不再必须）。
 4. `docs/ops-api-inventory.md`：生成文件，改生成源后重跑。
-5. `docs/plans/2026-08-27-faijs-language-normalization-{design,implementation}.md`：状态回填"已落地"，并加本节链接说明 inputs/args 双槽模型被本方案取代。
-6. `.agents/notes/`：新增一篇 Agent Note 记录 D1–D6 决策（非平凡变更的强制要求）。
+5. `.agents/notes/`：新增一篇 Agent Note 记录 D1–D6 决策（非平凡变更的强制要求）。
 
 ## 8. 风险与缓解
 

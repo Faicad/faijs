@@ -1,8 +1,6 @@
 /**
  * stdlib shape — 类型化构造器 + 身份槽
  *
- * 设计文档：docs/plans/2026-08-29-engine-library-contract.md §7
- * 实施文档：docs/plans/2026-08-29-engine-library-contract-implementation.md P1
  *
  * 变更要点：
  * - 身份表（created / slots / shapeToName）改读全局锚点 runtime-state，

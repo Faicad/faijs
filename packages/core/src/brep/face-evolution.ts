@@ -112,7 +112,6 @@ export function decodeEvolution(
   return evolution
 }
 
-// ─── hash 键演化解码（§2.4 of docs/plans/2026-08-31-topology-naming-port-v2.md）───
 
 /**
  * Hash 键面演化：输入面 hash → 输出面 hash 列表（1→多分裂时多个）。

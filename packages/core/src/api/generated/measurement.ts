@@ -44,7 +44,7 @@ export type { VolumeProps } from '../../vendored/brepjs/measurement/measureFns.j
 /**
  * measureVolumeProps — 查询（返回纯数据，非 Shape）生成文件，勿手改；来源 api/surface/arg-spec.ts。
  * (shape: Shape3D) -> Result<VolumeProps>
- * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（consumes 语义由查询表达式承载）。
+ * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（查询表达式承载）。
  *
  * @param shape - 可形状参数（原样透传）
  * @returns VolumeProps — 纯数据结果（非 Shape）。
@@ -58,7 +58,7 @@ export function measureVolumeProps(shape: Shape): VolumeProps {
 /**
  * measureSurfaceProps — 查询（返回纯数据，非 Shape）生成文件，勿手改；来源 api/surface/arg-spec.ts。
  * (shape: Face | Shape3D) -> Result<SurfaceProps>
- * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（consumes 语义由查询表达式承载）。
+ * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（查询表达式承载）。
  *
  * @param shape - 可形状参数（原样透传）
  * @returns SurfaceProps — 纯数据结果（非 Shape）。
@@ -72,7 +72,7 @@ export function measureSurfaceProps(shape: Shape): SurfaceProps {
 /**
  * measureLinearProps — 查询（返回纯数据，非 Shape）生成文件，勿手改；来源 api/surface/arg-spec.ts。
  * (shape: AnyShape) -> Result<LinearProps>
- * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（consumes 语义由查询表达式承载）。
+ * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（查询表达式承载）。
  *
  * @param shape - 可形状参数（原样透传）
  * @returns LinearProps — 纯数据结果（非 Shape）。
@@ -86,7 +86,7 @@ export function measureLinearProps(shape: Shape): LinearProps {
 /**
  * measureVolume — 查询（返回纯数据，非 Shape）生成文件，勿手改；来源 api/surface/arg-spec.ts。
  * (shape: Shape3D) -> Result<number>
- * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（consumes 语义由查询表达式承载）。
+ * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（查询表达式承载）。
  *
  * @param shape - 可形状参数（原样透传）
  * @returns number — 纯数据结果（非 Shape）。
@@ -100,7 +100,7 @@ export function measureVolume(shape: Shape): number {
 /**
  * measureArea — 查询（返回纯数据，非 Shape）生成文件，勿手改；来源 api/surface/arg-spec.ts。
  * (shape: Face | Shape3D) -> Result<number>
- * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（consumes 语义由查询表达式承载）。
+ * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（查询表达式承载）。
  *
  * @param shape - 可形状参数（原样透传）
  * @returns number — 纯数据结果（非 Shape）。
@@ -114,7 +114,7 @@ export function measureArea(shape: Shape): number {
 /**
  * measureLength — 查询（返回纯数据，非 Shape）生成文件，勿手改；来源 api/surface/arg-spec.ts。
  * (shape: AnyShape) -> Result<number>
- * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（consumes 语义由查询表达式承载）。
+ * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（查询表达式承载）。
  *
  * @param shape - 可形状参数（原样透传）
  * @returns number — 纯数据结果（非 Shape）。
@@ -128,7 +128,7 @@ export function measureLength(shape: Shape): number {
 /**
  * measureDistance — 查询（返回纯数据，非 Shape）生成文件，勿手改；来源 api/surface/arg-spec.ts。
  * (a: AnyShape, b: AnyShape) -> Result<number>
- * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（consumes 语义由查询表达式承载）。
+ * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（查询表达式承载）。
  *
  * @param a - 可形状参数（第一个被查询形状）
  * @param b - 可形状参数（第二个被查询形状）
@@ -143,7 +143,7 @@ export function measureDistance(a: Shape, b: Shape): number {
 /**
  * measureDistanceProps — 查询（返回纯数据，非 Shape）生成文件，勿手改；来源 api/surface/arg-spec.ts。
  * (a: AnyShape, b: AnyShape) -> Result<DistanceProps>
- * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（consumes 语义由查询表达式承载）。
+ * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（查询表达式承载）。
  *
  * @param a - 可形状参数（第一个被查询形状）
  * @param b - 可形状参数（第二个被查询形状）
@@ -158,7 +158,7 @@ export function measureDistanceProps(a: Shape, b: Shape): DistanceProps {
 /**
  * measureCurvatureAt — 查询（返回纯数据，非 Shape）生成文件，勿手改；来源 api/surface/arg-spec.ts。
  * (face: OrientedFace, u: number, v: number) -> Result<CurvatureResult>
- * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（consumes 语义由查询表达式承载）。
+ * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（查询表达式承载）。
  *
  * @param face - 可形状参数（被查询的曲面/面）
  * @param u - 数值/选项参数（参数域 u）
@@ -174,7 +174,7 @@ export function measureCurvatureAt(face: Shape, u: number, v: number): Curvature
 /**
  * measureCurvatureAtMid — 查询（返回纯数据，非 Shape）生成文件，勿手改；来源 api/surface/arg-spec.ts。
  * (face: Face) -> Result<CurvatureResult>
- * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（consumes 语义由查询表达式承载）。
+ * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（查询表达式承载）。
  *
  * @param shape - 可形状参数（原样透传）
  * @returns CurvatureResult — 纯数据结果（非 Shape）。
@@ -188,7 +188,7 @@ export function measureCurvatureAtMid(shape: Shape): CurvatureResult {
 /**
  * checkInterference — 查询（返回纯数据，非 Shape）生成文件，勿手改；来源 api/surface/arg-spec.ts。
  * (a: AnyShape, b: AnyShape, tolerance?: number) -> Result<InterferenceResult>
- * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（consumes 语义由查询表达式承载）。
+ * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（查询表达式承载）。
  *
  * @param a - 可形状参数（第一个形状）
  * @param b - 可形状参数（第二个形状）
@@ -204,7 +204,7 @@ export function checkInterference(a: Shape, b: Shape, tolerance?: number): Inter
 /**
  * checkAllInterferences — 查询（返回纯数据，非 Shape）生成文件，勿手改；来源 api/surface/arg-spec.ts。
  * (shapes: AnyShape[], tolerance?: number) -> InterferencePair[]
- * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（consumes 语义由查询表达式承载）。
+ * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（查询表达式承载）。
  *
  * @param shapes - Shape 数组（成对检测的形状数组）
  * @param tolerance - 数值/选项参数（干涉距离阈值（缺省 1e-6））

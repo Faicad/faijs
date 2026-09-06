@@ -102,7 +102,6 @@ export interface BrepChainState {
   faceEvolutionCache?: Map<PartName, Map<number, number[]>>
   /**
    * 拓扑命名 RoleTable 持久缓存（PartName → RoleTable，§2.3 of
-   * docs/plans/2026-08-31-topology-naming-port-v2.md）。
    *
    * 与 faceEvolutionCache 完全同生命周期：runtime 实例级持久、按语句增量同步、
    * dispose 一并 clear。RoleTable 是执行内状态，不序列化、不进 .fai.js、不进
@@ -159,7 +158,6 @@ export async function initBrepChainState(): Promise<BrepChainState> {
 /**
  * 释放 BREP 链状态中的所有句柄并清空 solidCache。
  *
- * Persistent SolidCache 方案（docs/plans/2026-08-18-brepchain-persistent-solid-cache.md）：
  * 释放只发生在「重算顶替 / dispose」，不再需要"保留终端、释放中间"的选择性语义，
  * 因此 keepIds 参数已删除——调用方想保留任何 solid 时，不应再调用本函数。
  *

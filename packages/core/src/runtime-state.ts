@@ -1,8 +1,6 @@
 /**
  * runtime-state — 全局运行时状态锚点（零依赖层）
  *
- * 设计文档：docs/plans/2026-08-29-engine-library-contract.md §6 / §7 / §8
- * 实施文档：docs/plans/2026-08-29-engine-library-contract-implementation.md P0
  *
  * 本模块位于 L0+（零运行时依赖），是 L3 API 面（core/src/api，原 stdlib）与
  * cad-runtime（L2）之间唯一的共享状态。**放在这一层是为了避免循环依赖**：

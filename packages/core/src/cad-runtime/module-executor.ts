@@ -1,7 +1,6 @@
 /**
  * module-executor — JS VM 模块加载与增量调度（VM 执行方案 Phase 1）
  *
- * 设计文档：docs/plans/2026-08-25-faijs-vm-execution-implementation-plan.md §3.2
  *
  * ModuleExecutor 是 VM 执行的核心：
  * - `ctx` 持久变量容器（跨 execute/append/update 存活）

@@ -1,9 +1,6 @@
 /**
  * stdlib boolean — 布尔库函数（union/subtract/intersect，多输入）
  *
- * 设计文档：docs/plans/2026-08-25-faijs-vm-execution-implementation-plan.md §3.11
- *          docs/plans/2026-08-27-faijs-language-normalization-implementation.md §3.3
- * 实施文档：docs/plans/2026-08-29-engine-library-contract-implementation.md P2
  *
  * dispatchPath 静态判定 brep/mesh，BREP 路径用 *WithHistory 收集面演化。
  *
@@ -123,10 +120,6 @@ export const union = defineOp({
     return booleanBrep(shapes, 'union')
   },
   capabilities: ['evolution'],
-  // L3 metadata (D2): a boolean absorbs (consumes) its operands; the runtime
-  // keepHidden() above remains authoritative for the current timeline display
-  // (O6 defers the static-declaration takeover to the per-op migration).
-  consumes: 'all',
   schema: { shapes: 'Shape*' },
 })
 

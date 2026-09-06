@@ -1,8 +1,6 @@
-﻿/**
+/**
  * derivePartName — 变量名自动推导规格测试（code 文本形态，IR 剥离阶段 0）
  *
- * 设计文档：docs/plans/2026-08-27-faijs-language-normalization-design.md §4.7
- * 修订：3d_editor docs/plans/2026-08-28-ir-strip-source-code-generation-plan.md §4.2（B2 修正）
  * 修订：keep-syntax 设计 §4（2026-08-28）——命名与保留信息解耦，**一律新名**
  * （R1 readonly 入参、R2 复用名已删；任何 callee 都分配新名 partN）。
  *

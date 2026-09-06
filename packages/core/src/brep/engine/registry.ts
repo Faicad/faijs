@@ -1,7 +1,6 @@
 /**
  * engine/registry — BREP / mesh 双槽位注册表（§6.2，R8 构建时切换）
  *
- * 设计：docs/plans/2026-08-30-brep-engine-switch.md §6.2 / §8
  *
  * 与 brepjs 的 registerKernel 同构（首个注册者为默认），但两张表、两套 getter——
  * 这是 R2（双槽位正交：mesh 引擎与 BREP 引擎独立注册、单独切换）的直接落地。

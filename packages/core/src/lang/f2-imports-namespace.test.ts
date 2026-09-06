@@ -1,7 +1,6 @@
 /**
  * F2 — 顶层 import 段 + 多命名空间调用（normal-js-subset P2/P3 验收）
  *
- * 设计文档：docs/plans/2026-08-29-faijs-near-term-landing-plan.md §5
  *
  * 验收判据（§5.4）：
  * - `import * as mech from 'gear-lib-demo'` + `mech.makeHeadstock(...)` → parse → codegen

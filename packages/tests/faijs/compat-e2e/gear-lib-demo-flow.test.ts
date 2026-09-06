@@ -8,7 +8,7 @@
  *   let u1 = cad.union(g1, cad.box(30, 30, 5, { centered: true }))
  *
  * The same seven acceptance assertions as the sheetmetal e2e, with the
- * multi-output record contributed by `planetary` (§8.1 geometryFields).
+ * multi-output record contributed by `planetary` (§8.1 outputs).
  */
 
 import { beforeAll, describe, expect, it } from 'vitest'

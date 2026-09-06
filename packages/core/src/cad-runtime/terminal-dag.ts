@@ -1,17 +1,14 @@
 /**
  * terminal-dag — DAG 叶子终端判定（keep 驱动，C0/C1/C3/C5）
  *
- * 设计文档：docs/plans/2026-08-28-keep-syntax-design.md §3 / §6
  *
  * 核心语义（keep 统一机制）：
  * - 一个变量是否进终端 = 它「是否被消费」。被消费 → 不进终端。
  * - "被消费" = 存在一条语句 T（位于该变量最后一条赋值语句 P 之后）判定 T 消费了该变量。
  *
- * 单条语句 T 对变量 v 的消费判定（C0 → C2 → C3 → C5，短路）：
+ * 单条语句 T 对变量 v 的消费判定（短路）：
  * - C0/C1：v ∈ resolveKeep(T).kept（调用点 keep 或函数体 exec.keep 声明）→ 不消费。
  *   声明层是「有人表态」：用户/库作者显式声明保留。
- * - C2：op 的 L3 静态 consumes 声明（D2 G3/G4）——`'none'` → 不消费任何输入；
- *   `number[]` → 只消费列出的位置输入；`'all'`/缺省 → 落入 C3/C5。
  * - C3：T 有赋值且所有输出都是非几何（outputs 均不在 shapeVarNames）→ 不消费任何输入。
  *   推断层客观默认：faijs 执行模型是纯函数链，「返回非几何的函数不可能把几何吞进结果」
  *   ——零签名知识，第三方测量/查询函数的输入不被误吃（R9）。
@@ -29,24 +26,21 @@ import type { ScriptIR, TerminalShape, StatementIR, ArgIR } from '../lang/types'
 import type { PartName } from '../identity'
 import { isVarRef, isCallRef, isExprRef, statementInputs } from '../lang/types'
 import { resolveKeep, type InternalKeepRecord } from '../lang/keep'
-import type { ConsumeSpec } from '../define-op'
 
 /**
  * DAG 运行时视图（设计契约 §6）：terminal-dag 从运行时读取函数体 keep 登记。
- * 省略 view → 纯静态判定（C0 + C2 + C3 + C5，无 C1 函数体声明信息）。
+ * 省略 view → 纯静态判定（C0 + C3 + C5，无 C1 函数体声明信息）。
  */
 export interface DagRuntimeView {
   /** 变量当前值（运行时；纯静态场景无值） */
   value(name: PartName): unknown
   /** 函数体 exec.keep 登记（ModuleExecutor.internalKeep，缓存命中时保留上一轮记录） */
   internalKeep(stmt: StatementIR): InternalKeepRecord | undefined
-  /** 语句调用 op 的 L3 静态 consumes 声明（D2 G3/G4；无声明/非 dual-op → undefined） */
-  opConsumes?(stmt: StatementIR): ConsumeSpec | undefined
 }
 
 /**
  * Determine whether statement stmt "consumes" variable v (keep driven, using
- * the C0 → C2 → C3 → C5 short-circuit flow).
+ * the C0 → C3 → C5 short-circuit flow).
  * @param stmt - the statement under test.
  * @param v - the variable name (PartName).
  * @param view - the runtime view; when omitted a purely static pass with no
@@ -64,21 +58,6 @@ export function consumes(
   // C0: keep declarations win — a kept variable is not consumed by this statement
   const resolved = resolveKeep(stmt, view?.internalKeep(stmt))
   if (resolved.kept.has(v)) return false
-
-  // C2: L3 static consumes declaration (D2 G3/G4). An op's declaration is more
-  // precise than the default inference:
-  //   'none'   -> this statement consumes no shape inputs (query/creator ops);
-  //   number[] -> consume exactly the listed input positions (others not absorbed);
-  //   otherwise/missing -> fall through to the C3/C5 inference below.
-  // true-JS-subset §4.5.1：位置下标按 VarRefIR 投影（statementInputs）计——
-  // 字面量/ExprIR/CallRef 占据的位置不构成 C2 下标消费（其引用按 D3 落入 C5 扫描）。
-  const declared = view?.opConsumes?.(stmt)
-  if (declared === 'none') return false
-  if (Array.isArray(declared)) {
-    const vars = statementInputs(stmt)
-    const pos = vars.indexOf(v)
-    if (pos === -1 || !declared.includes(pos)) return false
-  }
 
   // C3：本语句有赋值且所有输出都是非几何 → 纯数据/测量/查询语句，不消费任何输入
   if (

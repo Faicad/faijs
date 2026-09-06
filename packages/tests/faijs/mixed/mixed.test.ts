@@ -2,7 +2,6 @@
  * Mixed-modeling .fai.js tests — P0-1a regression matrix (M1–M5)
  *
  * These are the "test first" baseline for the mixed-modeling contract
- * (docs/plans/2026-08-29-faijs-module-runtime-plan.md §6.1.5):
  *
  *   M1  load(stl) + box      → union   (user-named scenario, mixed → mesh)
  *   M2  load(stl) + cylinder → union   (curved BREP triangulation, mixed → mesh)

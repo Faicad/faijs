@@ -107,7 +107,7 @@ function renderBrepOp(entry: ArgSpecEntry): string {
     ` */`,
     `export const ${entry.name} = compatOp(`,
     `  projectBrepOp('${entry.name}', ${JSON.stringify(entry.params ?? [])}, '${formClass}', ${vendoredName}),`,
-    `  { name: '${entry.name}', consumes: ${JSON.stringify(entry.consumes ?? 'all')} },`,
+    `  { name: '${entry.name}' },`,
     `)`,
   ].join('\n')
 }
@@ -155,7 +155,7 @@ function renderQuery(entry: ArgSpecEntry): string {
     `/**`,
     ` * ${entry.name} — 查询（返回纯数据，非 Shape）生成文件，勿手改；来源 api/surface/arg-spec.ts。`,
     ` * ${entry.args ?? ''}`,
-    ` * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（consumes 语义由查询表达式承载）。`,
+    ` * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（查询表达式承载）。`,
     ` *`,
     ...docParams,
     ` * @returns ${returnType} — 纯数据结果（非 Shape）。`,
@@ -307,19 +307,13 @@ export function generateScriptFaceManifest(): string {
     '  name: string',
     '  /** 所属分片模块（生成文件名）。 */',
     '  module: string',
-    '  /** defineOp/compatOp 的 consumes 声明（缺省 \'all\'）。 */',
-    "  consumes: 'all' | 'none'",
     '}',
     '',
     '/** Cad script-face op manifest (B1: single source for cad namespace, check() symbol table). */',
     'export const SCRIPT_FACE_OPS: readonly ScriptFaceOp[] = [',
   ]
   for (const e of entries) {
-    const consumes = e.consumes ?? 'all'
-    if (consumes !== 'all' && consumes !== 'none') {
-      throw new Error(`[gen-l3-surface] script-face 条目 ${e.name} 的 consumes 必须是 'all'|'none'（got ${JSON.stringify(consumes)}）`)
-    }
-    lines.push(`  { name: '${e.name}', module: '${moduleOf(e)}', consumes: '${consumes}' },`)
+    lines.push(`  { name: '${e.name}', module: '${moduleOf(e)}' },`)
   }
   lines.push(']')
   lines.push('')

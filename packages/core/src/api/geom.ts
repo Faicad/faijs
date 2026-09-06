@@ -1,8 +1,6 @@
 /**
  * stdlib geom — $geom 查询函数族（有形签名）
  *
- * 设计文档：docs/plans/2026-08-25-faijs-vm-execution-implementation-plan.md §3.9
- * 实施文档：docs/plans/2026-08-29-engine-library-contract-implementation.md P2（§5.5）
  *
  * `cad.<feature>(of, anchor?, ordinal?)`：
  * - of 是 Shape（编译产物 `ctx.<var>` 引用），非变量名

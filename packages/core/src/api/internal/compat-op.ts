@@ -1,74 +1,76 @@
 /**
  * compat-op — lift an arbitrary brepjs-shaped function into a faijs statement
- * op (brep-only).
+ * op, built **on top of** defineOp (single implementation entry, v1).
  *
- * Design: docs/plans/2026-09-03-faijs-brepjs-compat-api.md §4.3.2
+ * Design: docs/plans/2026-09-06-compatop-on-defineop.md §3
  *
- * Six-step boundary contract (all steps reuse verified infrastructure):
- *   1. Argument pass-through: the wrapped function normalizes positional /
- *      object forms internally (D11, §4.2); compatOp does no form mapping.
- *   2. Static dispatch gate: deep-collect geometry inputs → dispatchPath
- *      (brep-only; mesh mode / broken chain throws, never falls back).
- *   3. Input borrow: deep walk, any faijs Shape → createBorrowedHandle view
- *      (zero-copy, delete is a no-op).
- *   4. Call + Result unwrap: isResultLike → err throws an execution error
- *      carrying the op name and BrepError code.
- *   5. Output adoption: top-level handle / spec.geometryFields declared fields
- *      → adoptEntity (unregister finalizer + fromHandle).
- *   6. Return: the adopted Shape is taken over by the same consumer defineOp
- *      uses (runtime outputCache / solidCache).
+ * compatOp is NOT a second implementation path parallel to defineOp: every
+ * shared mechanism is owned by defineOp — dispatch (dispatchPath + capability
+ * routing), the Result boundary (runImpl + unwrapResult), product wrapping
+ * (wrapBrepOne / wrapByKeys), `DUAL_OP_META` mounting and
+ * `assertLibConforms` validation. compatOp only does two things:
+ *   - spec pass-through: `CompatSpec` is a combinatorial inheritance of
+ *     `DualOpOptions` (single source of truth, fields auto-sync — §3.1);
+ *   - adapter construction: a brepjs-shaped bridge feeding the brep impl — the
+ *     three bridging steps that cannot be shared (all reuse shared
+ *     infrastructure, §3.2):
+ *       1. borrowDeep — inward borrow: deep walk, any faijs Shape →
+ *          borrowBrepjsShape view (zero-copy; library-private handles pass
+ *          through untouched);
+ *       2. call + unwrap — callBrepjs through the shared unwrapResult
+ *          (`err` throws an OpError carrying the op name + BrepError code);
+ *       3. adoptOut — outward adoption: top-level handle / `outputs`-declared
+ *          fields (single handle or handle array) → adoptEntity
+ *          (unregister finalizer + fromHandle).
+ *
+ * The keep / keepHidden contract is untouched: compatOp neither blocks nor
+ * rewrites it — any function running inside a ModuleExecutor context can use
+ * function-body declarations (C1), and call-site declarations override them
+ * (`lang/keep.ts` resolveKeep). The decorated product therefore behaves like
+ * any defineOp product: `keep`-safe, capability-aware, multi-output
+ * (`DUAL_OP_META.outputs` visible).
+ *
+ * No self-invented fields: `CompatSpec` extends `Omit<DualOpOptions, 'mesh' |
+ * 'brep'>` and declares nothing else; the only tweak is `name` tightened
+ * (inherited field, not a new one).
  *
  * @module
  */
 
-import { dispatchPath } from '../../cad-runtime/backend-dispatch'
-import { DUAL_OP_META, type DualOpMeta, type ConsumeSpec } from '../../define-op'
+import {
+  defineOp,
+  DUAL_OP_META,
+  type DualOpMeta,
+  type DualOpOptions,
+  type BrepImpl,
+  type BrepProduct,
+} from '../../define-op'
 import { isShape } from '../../shape'
 import { borrowBrepjsShape, adoptEntity, callBrepjs } from './l3-bridge'
 import { unwrapResult } from './result-unwrap'
 import type { Shape } from '../../mesh/types'
 
-/** compatOp's static spec. The library edge is derived by admitCompatLib; the
- *  cad edge is the same (form normalization happens inside the wrapped fn, D11). */
-export interface CompatSpec {
-  /** op name (used in error messages). */
+/** compatOp's static spec: combinatorial inheritance (single source of truth). */
+export interface CompatSpec extends Omit<DualOpOptions, 'mesh' | 'brep'> {
+  /** Op name (error messages + metadata; required, unlike defineOp's optional name). */
   name: string
-  /** object fields to adopt (default: only adopt the top level if the return is a handle). */
-  geometryFields?: string[]
-  /** timeline consumption declaration (default 'all', matching defineOp). */
-  consumes?: ConsumeSpec
-  /** L3 schema (codegen + UI panels, pass-through metadata). */
-  schema?: Record<string, string>
 }
 
 const MAX_WALK_DEPTH = 4
 
 /**
- * Deep-collect geometry inputs (same Shape test as step 3) for the dispatch gate.
- * @param v - the value to traverse (plain object, array, or primitive).
- * @param out - accumulator array for discovered Shape references.
- * @param depth - current traversal depth (guard against deep recursion).
- */
-export function collectShapes(v: unknown, out: Shape[], depth: number): void {
-  // Explicit depth guards against deep/hrecursive structures.
-  if (depth > MAX_WALK_DEPTH || v === null || typeof v !== 'object') return
-  if (isShape(v)) { out.push(v as Shape); return }
-  if (Array.isArray(v)) { for (const x of v) collectShapes(x, out, depth + 1); return }
-  if (Object.getPrototypeOf(v) !== Object.prototype) return // class instances are not traversed (defensive)
-  for (const x of Object.values(v)) collectShapes(x, out, depth + 1)
-}
-
-/**
- * Step 3: inward deep walk — any faijs Shape in the structure maps to a
- * borrowed view; everything else passes through (library-private handles
- * pass through, §4.3.4).
+ * Inward bridging step: deep walk with faijs Shapes replaced by borrowed
+ * brepjs views (zero-copy); everything else passes through.
+ * Class instances are not traversed (defensive); library-private handles
+ * pass through (§4.3.4 of the design).
+ *
  * @param v - the value to borrow from (plain object, array, or primitive).
  * @param depth - current traversal depth (guard against deep recursion).
  * @returns the value with faijs Shapes replaced by borrowed views.
  */
 export function borrowDeep(v: unknown, depth: number): unknown {
   if (depth > MAX_WALK_DEPTH || v === null || typeof v !== 'object') return v
-  if (isShape(v)) return borrowBrepjsShape(v as Shape)
+  if (isShape(v)) return borrowBrepjsShape(v)
   if (Array.isArray(v)) return v.map((x) => borrowDeep(x, depth + 1))
   if (Object.getPrototypeOf(v) !== Object.prototype) return v
   const out: Record<string, unknown> = {}
@@ -77,13 +79,10 @@ export function borrowDeep(v: unknown, depth: number): unknown {
 }
 
 /**
- * Step 4: statement-boundary unwrap — err becomes an execution error carrying
- * the op name and error code (not silent; the engine's statement-level catch
- * already exists).
- *
- * Delegates to the shared {@link unwrapResult} (P23, §5.1): `defineOp`'s
- * Result-aware boundary and this bridge must never drift apart, so both call
- * the one leaf implementation.
+ * Statement-boundary unwrap — `err` becomes an execution error carrying the op
+ * name and the `BrepError` code. Delegates to the shared
+ * {@link unwrapResult} so the compat boundary and defineOp's Result boundary
+ * share one leaf implementation (no drift).
  *
  * @param r - the Result-like value to unwrap.
  * @param name - the op name used in error messages.
@@ -93,20 +92,32 @@ export function unwrapOrThrow(r: unknown, name: string): unknown {
   return unwrapResult(r, name)
 }
 
-/** Step 5: outward adoption — top-level handle or geometryFields declared
- *  fields; deduplication of already-adopted handles lives inside adoptEntity.
- * @param segments - caller-provided `segments` (裁决 1, §5.2), forwarded so the
- *  adopted handle's tessellation honors it.
- * @returns the adopted Shape, or the plain data untouched.
+/**
+ * Bridging step: outward adoption — top-level handle or `outputs`-declared
+ * fields → adoptEntity (unregister finalizer + fromHandle). `outputs` may also
+ * name an array field of handles; every element is adopted individually.
+ * Deduplication of already-adopted handles lives inside adoptEntity. A field
+ * already being a faijs Shape passes through untouched (no double adoption).
+ *
+ * @param v - the library product.
+ * @param spec - the compat spec (name + optional `outputs`).
+ * @param segments - caller-provided `segments` (裁决 1,§5.2), forwarded so the
+ *  adopted handles' tessellation honors it.
+ * @returns the adopted record / Shape, or the plain data untouched.
  */
 function adoptOut(v: unknown, spec: CompatSpec, segments?: number): unknown {
-  if (isShape(v)) return v                              // already a faijs Shape: pass through (no double adoption)
-  if (spec.geometryFields && typeof v === 'object' && v !== null && !Array.isArray(v)) {
+  if (isShape(v)) return v
+  if (spec.outputs && typeof v === 'object' && v !== null && !Array.isArray(v)) {
     const rec = v as Record<string, unknown>
-    for (const f of spec.geometryFields) rec[f] = adoptEntity(rec[f], spec.name, segments)
+    for (const f of spec.outputs) {
+      const field = rec[f]
+      rec[f] = Array.isArray(field)
+        ? field.map((x) => adoptEntity(x, spec.name, segments))
+        : adoptEntity(field, spec.name, segments)
+    }
     return v
   }
-  return adoptEntity(v, spec.name, segments)            // top level: handle → adopt; pure data → pass through
+  return adoptEntity(v, spec.name, segments)
 }
 
 /**
@@ -134,43 +145,54 @@ function readSegmentsFromArgs(args: unknown[]): number | undefined {
 }
 
 /**
- * Lift a brepjs-shaped function into a faijs dual-op facade (brep-only).
+ * Build the brep-only adapter: borrow inputs → call the vendor function through
+ * the shared unwrap → adopt the product (with the caller's `segments`,
+ * 裁决 1/§5.2). The adapter never dispatches and never mounts metadata —
+ * those are defineOp's.
  *
- * Returned function is `(…args) => Promise<unknown>`; the engine's compiled
- * products await calls, so a Promise return is transparent.
+ * @param fn   the brepjs-shaped function (dual-form normalization inside, D11).
+ * @param spec the static op spec (name + options pass-through).
+ * @returns a `BrepImpl` compatible with defineOp's brep-only decl.
+ */
+function buildAdapter(fn: (...args: unknown[]) => unknown, spec: CompatSpec): BrepImpl<unknown[]> {
+  return async (...args: unknown[]): Promise<BrepProduct> => {
+    const borrowed = args.map((a) => borrowDeep(a, 0))
+    const value = unwrapOrThrow(callBrepjs(fn as never, borrowed), spec.name)
+    return adoptOut(value, spec, readSegmentsFromArgs(args)) as BrepProduct
+  }
+}
+
+/** Carrier of the DualOpMeta mounted by defineOp (same shape as defineOp's). */
+type MetaCarrier = { [DUAL_OP_META]?: DualOpMeta }
+
+/**
+ * Lift a brepjs-shaped function into a defineOp-decorated op facade (brep-only).
  *
- * @param fn   the brepjs-shaped function (dual-form normalization inside).
- * @param spec the static op spec (name + optional geometry fields).
- * @returns the compat op facade, tagged with DualOpMeta (kind: 'dual-op').
+ * The decorated product is identical to a defineOp product: same `DUAL_OP_META`
+ * field set (kind 'dual-op', brep impl, name, capabilities, outputs, schema,
+ * slotMap), same dispatch semantics, same Result boundary. The adapter carries
+ * only the brepjs bridging (borrow / call / adopt); every other mechanism
+ * belongs to defineOp.
+ *
+ * @param fn   the brepjs-shaped function.
+ * @param spec the static spec (name required; capabilities/outputs/slotMap/
+ *  schema pass through and take effect).
+ * @returns the compat op facade, carrying dual-op metadata.
  */
 export function compatOp(
   fn: (...args: unknown[]) => unknown,
   spec: CompatSpec,
-): (...args: unknown[]) => Promise<unknown> {
-  const impl = async (...args: unknown[]): Promise<unknown> => {
-    // Step 1: args pass through unchanged (D11 normalization happens inside fn).
-    // Step 2: static dispatch gate — brep-only:
-    //   mesh mode → E_MESH_UNSUPPORTED; auto with a broken input chain →
-    //   E_MESH_UNSUPPORTED (no mesh impl to degrade to); brep mode with an
-    //   off-chain input → E_BREP_UNSUPPORTED. Zero inputs (constructors like
-    //   author/torus): [].every(hasBrep) === true → 'brep'.
-    const shapes: Shape[] = []
-    for (const a of args) collectShapes(a, shapes, 0)
-    dispatchPath(shapes, { brep: impl }, undefined)
-    // Step 3: input borrow.
-    const borrowed = args.map((a) => borrowDeep(a, 0))
-    // Step 4: call + Result unwrap.
-    const value = unwrapOrThrow(callBrepjs(fn as never, borrowed), spec.name)
-    // Step 5/6: adopt the output (with the caller's `segments`, 裁决 1/§5.2) and return it.
-    return adoptOut(value, spec, readSegmentsFromArgs(args))
-  }
-  // Metadata convention identical to defineOp (kind 'depth-op', brep-only).
-  const meta: DualOpMeta = {
-    kind: 'dual-op',
-    brep: impl,
-    consumes: spec.consumes ?? 'all',
-    schema: spec.schema,
-  }
-  Object.defineProperty(impl, DUAL_OP_META, { value: meta, enumerable: false })
-  return impl
+): ((...args: unknown[]) => Promise<Shape>) & MetaCarrier {
+  const { outputs, capabilities, schema, slotMap } = spec
+  // `outputs` flows through defineOp's own wrapping path: the adapter adopts
+  // per declared field, then defineOp wraps — isShape passthrough, so no
+  // double wrapping (§3.2).
+  return defineOp({
+    brep: buildAdapter(fn, spec),
+    name: spec.name,
+    capabilities,
+    outputs,
+    schema,
+    slotMap,
+  }) as unknown as ((...args: unknown[]) => Promise<Shape>) & MetaCarrier
 }

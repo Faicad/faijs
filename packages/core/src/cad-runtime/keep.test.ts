@@ -1,7 +1,6 @@
 /**
  * keep.test — keep-syntax 统一内外 keep 机制验收测试（设计 §9 验收提纲）
  *
- * 设计文档：docs/plans/2026-08-28-keep-syntax-design.md
  *
  * 覆盖：
  * - 编译层剥离（§7.1）：keep/keepHidden 发射前剥离，hasArgs 顺序硬要求

@@ -151,7 +151,7 @@ export { isInstanced } from '../../vendored/brepjs/operations/instanceFns.js'
  */
 export const extrude = compatOp(
   projectBrepOp('extrude', ["face","height"], 'A', __vendored_extrude),
-  { name: 'extrude', consumes: "all" },
+  { name: 'extrude' },
 )
 
 /**
@@ -161,7 +161,7 @@ export const extrude = compatOp(
  */
 export const revolve = compatOp(
   projectBrepOp('revolve', ["face","options"], 'A', __vendored_revolve),
-  { name: 'revolve', consumes: "all" },
+  { name: 'revolve' },
 )
 
 /**
@@ -171,7 +171,7 @@ export const revolve = compatOp(
  */
 export const sweep = compatOp(
   projectBrepOp('sweep', ["wire","spine","config","shellMode"], 'A', __vendored_sweep),
-  { name: 'sweep', consumes: "all" },
+  { name: 'sweep' },
 )
 
 /**
@@ -181,7 +181,7 @@ export const sweep = compatOp(
  */
 export const complexExtrude = compatOp(
   projectBrepOp('complexExtrude', ["wire","center","normal","profile"], 'A', __vendored_complexExtrude),
-  { name: 'complexExtrude', consumes: "all" },
+  { name: 'complexExtrude' },
 )
 
 /**
@@ -191,7 +191,7 @@ export const complexExtrude = compatOp(
  */
 export const twistExtrude = compatOp(
   projectBrepOp('twistExtrude', ["wire","angleDegrees","center","normal"], 'A', __vendored_twistExtrude),
-  { name: 'twistExtrude', consumes: "all" },
+  { name: 'twistExtrude' },
 )
 
 /**
@@ -201,7 +201,7 @@ export const twistExtrude = compatOp(
  */
 export const linearPattern = compatOp(
   projectBrepOp('linearPattern', ["shape","direction","count","spacing"], 'A', __vendored_linearPattern),
-  { name: 'linearPattern', consumes: "all" },
+  { name: 'linearPattern' },
 )
 
 /**
@@ -211,7 +211,7 @@ export const linearPattern = compatOp(
  */
 export const circularPattern = compatOp(
   projectBrepOp('circularPattern', ["shape","axis","count","fullAngle","center"], 'A', __vendored_circularPattern),
-  { name: 'circularPattern', consumes: "all" },
+  { name: 'circularPattern' },
 )
 
 /**
@@ -221,7 +221,7 @@ export const circularPattern = compatOp(
  */
 export const gridPattern = compatOp(
   projectBrepOp('gridPattern', ["shape","directionX","directionY","countX","countY","spacingX","spacingY"], 'A', __vendored_gridPattern),
-  { name: 'gridPattern', consumes: "all" },
+  { name: 'gridPattern' },
 )
 
 /**
@@ -231,7 +231,7 @@ export const gridPattern = compatOp(
  */
 export const roof = compatOp(
   projectBrepOp('roof', ["wire","options"], 'A', __vendored_roof),
-  { name: 'roof', consumes: "all" },
+  { name: 'roof' },
 )
 
 /**
@@ -241,7 +241,7 @@ export const roof = compatOp(
  */
 export const drill = compatOp(
   projectBrepOp('drill', ["shape","options"], 'A', __vendored_drill),
-  { name: 'drill', consumes: "all" },
+  { name: 'drill' },
 )
 
 /**
@@ -251,7 +251,7 @@ export const drill = compatOp(
  */
 export const pocket = compatOp(
   projectBrepOp('pocket', ["shape","options"], 'A', __vendored_pocket),
-  { name: 'pocket', consumes: "all" },
+  { name: 'pocket' },
 )
 
 /**
@@ -261,7 +261,7 @@ export const pocket = compatOp(
  */
 export const boss = compatOp(
   projectBrepOp('boss', ["shape","options"], 'A', __vendored_boss),
-  { name: 'boss', consumes: "all" },
+  { name: 'boss' },
 )
 
 /**
@@ -271,7 +271,7 @@ export const boss = compatOp(
  */
 export const mirrorJoin = compatOp(
   projectBrepOp('mirrorJoin', ["shape","options"], 'A', __vendored_mirrorJoin),
-  { name: 'mirrorJoin', consumes: "all" },
+  { name: 'mirrorJoin' },
 )
 
 /**
@@ -281,7 +281,7 @@ export const mirrorJoin = compatOp(
  */
 export const rectangularPattern = compatOp(
   projectBrepOp('rectangularPattern', ["shape","options"], 'A', __vendored_rectangularPattern),
-  { name: 'rectangularPattern', consumes: "all" },
+  { name: 'rectangularPattern' },
 )
 
 /**
@@ -291,7 +291,7 @@ export const rectangularPattern = compatOp(
  */
 export const thread = compatOp(
   projectBrepOp('thread', ["options"], 'B1', __vendored_thread),
-  { name: 'thread', consumes: "all" },
+  { name: 'thread' },
 )
 
 /**
@@ -301,5 +301,5 @@ export const thread = compatOp(
  */
 export const convexHull = compatOp(
   projectBrepOp('convexHull', ["points"], 'A', __vendored_convexHull),
-  { name: 'convexHull', consumes: "all" },
+  { name: 'convexHull' },
 )

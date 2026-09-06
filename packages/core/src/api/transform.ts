@@ -1,8 +1,6 @@
 /**
  * stdlib transform — 变换对象库函数（translate/rotate_euler/scale/scale3d）
  *
- * 设计文档：docs/plans/2026-08-25-faijs-vm-execution-implementation-plan.md §3.11
- * 实施文档：docs/plans/2026-08-29-engine-library-contract-implementation.md P2
  *
  * dispatchPath 静态判定 brep/mesh，
  * BREP 路径用 brepOf(input) 取输入实体、fromBrep 登记输出实体。
@@ -135,7 +133,7 @@ export const translate = defineOp({
   },
   // D11: `translate(p, 10, 0, 0)` == `translate(p, { offset: [10, 0, 0] })`;
   // `offset` is a vec3 slot sitting after the single leading Shape argument.
-  positional: { keys: ['offset'], vec3Keys: ['offset'], shapeArity: 1 },
+  slotMap: { keys: ['offset'], vec3Keys: ['offset'], shapeArity: 1 },
 })
 
 /**
@@ -166,7 +164,7 @@ export const rotate_euler = defineOp({
     return transformBrep('rotate_euler', input, params)
   },
   // D11: `rotate_euler(p, 0, 0, 45)` == `rotate_euler(p, { anglesDeg: [0, 0, 45] })`.
-  positional: { keys: ['anglesDeg'], vec3Keys: ['anglesDeg'], shapeArity: 1 },
+  slotMap: { keys: ['anglesDeg'], vec3Keys: ['anglesDeg'], shapeArity: 1 },
 })
 
 /**
@@ -197,12 +195,11 @@ export const scale = defineOp({
     assertScaleParams(params)
     return transformBrep('scale', input, params)
   },
-  // L3 metadata: transforms consume their shape input (timeline terminal).
-  consumes: 'all',
+  // L3 schema: factor/center for codegen/UI panels.
   schema: { factor: 'number', center: 'vec3?' },
   // D11（§4.6）：`scale(p, 2)` == `scale(p, { factor: 2 })`（标量槽）；尾参 options
   // （{center}）经 dual-form-args 尾参合并并入。
-  positional: { keys: ['factor'], shapeArity: 1 },
+  slotMap: { keys: ['factor'], shapeArity: 1 },
 })
 
 /**
@@ -233,10 +230,9 @@ export const scale3d = defineOp({
     assertScale3dParams(params)
     return transformBrep('scale3d', input, params)
   },
-  // L3 metadata: transforms share their shape input (timeline terminal).
-  consumes: 'all',
+  // L3 schema: factor/center for codegen/UI panels.
   schema: { factor: 'vec3', center: 'vec3?' },
   // D11（裁决 2）：`scale3d(p, [1,2,3])` == `scale3d(p, { factor: [1,2,3] })`；
-  // 标量 factor（如 `scale3d(p, 2)`）由 assertScale3dParams 拒绝并提示 `scale`。
-  positional: { keys: ['factor'], vec3Keys: ['factor'], shapeArity: 1 },
+  // 标量 factor（如 `scale(p, 2)`）由 assertScale3dParams 拒绝并提示 `scale`。
+  slotMap: { keys: ['factor'], vec3Keys: ['factor'], shapeArity: 1 },
 })

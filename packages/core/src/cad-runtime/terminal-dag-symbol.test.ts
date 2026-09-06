@@ -1,4 +1,4 @@
-﻿/**
+/**
  * terminal-dag-consumes — keep 驱动的 consumes() 规格测试（keep-syntax 设计 §3）
  *
  * 原符号表驱动的消费判定（B1/NON_CONSUMING_OPS/readonly 标注）已在 keep-syntax
@@ -10,7 +10,6 @@
  * - 嵌套调用（CallRefIR）内引用 = 只读查询，不消费
  * - receiver（成员方法调用）不消费 receiver 变量
  *
- * 设计文档：docs/plans/2026-08-28-keep-syntax-design.md §3 / §6
  */
 
 import { describe, it, expect } from 'vitest'

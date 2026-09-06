@@ -1,7 +1,6 @@
 /**
  * compile — ScriptIR → 零 import ESM 模块（VM 执行方案 Phase 1）
  *
- * 设计文档：docs/plans/2026-08-25-faijs-vm-execution-implementation-plan.md §3.1 / §3.9
  *
  * `compileToModule(script)` 把校验过的 ScriptIR IR 编译为**不含任何 import 语句**的
  * ESM 文本（`export const statements = [...]`）。产物零 import 是关键决策——Node 的

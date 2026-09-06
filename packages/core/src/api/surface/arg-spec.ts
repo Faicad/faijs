@@ -9,7 +9,7 @@
  * `api/generated/<module>.ts`（E5：不手写 699 个；本表之外符号按默认规则推导）。
  *
  * 产出类别（对齐 §5.2 / E5 分类表；生成器按本类判别产出）：
- *   brep-op : defineOp({ brep }) —— Solid 进出（构造/变换/布尔/修饰，consumes 'none'|'all'）
+ *   brep-op : defineOp({ brep }) —— Solid 进出（构造/变换/布尔/修饰）
  *   query   : 普通导出函数（输入 Shape 借入 brepjs handle → 调 vendored → 返回纯数据；
  *             返回非 Shape，不进 defineOp——先例 api/geom.ts，generated/topology.ts getBounds）
  *   pure    : 无 Shape 参数的纯函数 → 直接 re-export（不进 defineOp，不是 op）
@@ -24,14 +24,13 @@
  *   1. Bounds3D  — type re-export（topology/shapeFns）
  *   2. torus     — brep-op 构造（topology/primitiveFns，faijs 无同名）
  *   3. fuse      — brep-op 布尔（topology/booleanFns，faijs 用 union，fuse 无同名）
- *   4. getBounds — query（topology/shapeFns，consumes:'none'，faijs 用 bbox* 但无同名）
+ *   4. getBounds — query（topology/shapeFns，faijs 用 bbox* 但无同名）
  */
 
 /** 生成器可用的投影方式。 */
 export type ProjectionKind = 'brep-op' | 'query' | 'pure' | 'type' | 'skip'
 
 /** brep-op / query 的时间线消费声明（透传 defineOp 元数据，G3/G4）。 */
-export type Consume = 'all' | 'none' | number[]
 
 /**
  * faijs 面 query 形参描述（P14 机器签名：生成器按此产出函数签名 + JSDoc @param）。
@@ -65,7 +64,6 @@ export type FormClass = 'A' | 'B1' | 'B2'
  * - `module` 分片归属（缺省 'topology'，P13 兼容；P14 起逐模块登记）。
  * - `args`   brep-op/query：调用约定描述，供生成器产出 JSDoc 与 normalizeArgs 占位；
  *            type/pure：无需 args（直接 re-export）。
- * - `consumes` brep-op/query 的 defineOp consumes 声明；缺省 'all'（构造类显式 'none'）。
  * - `params` P20: 机器参数名表（从 args 人读串提取），供双形态归一化判别器 resolveArgs 使用。
  * - `formClass` P20: D11 形态分类（A 单名双形态 / B1 单名单形态 / B2 双名）。
  */
@@ -77,7 +75,6 @@ export interface ArgSpecEntry {
   module?: string
   /** Human-readable call shape for generated JSDoc. */
   args?: string
-  consumes?: Consume
   /** For kind 'skip': divergence reason (must be non-empty, §8 O4). */
   reason?: string
   /**
@@ -127,7 +124,6 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     source: 'topology/primitiveFns.js#torus',
     kind: 'brep-op',
     args: '(majorRadius: number, minorRadius: number, options?: TorusOptions)',
-    consumes: 'none',
     // 构造类：无几何输入（纯数值参数），brepjs 返回裸 ValidSolid（非 Result）。
     geometryArgs: [],
     returnsResult: false,
@@ -152,7 +148,6 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     source: 'topology/shapeFns.js#getBounds',
     kind: 'query',
     args: '(shape: AnyShape) -> Bounds3D',
-    consumes: 'none',
     // 查询：输入 Shape（借入），返回纯数据 Bounds3D → 不进 defineOp（直接导出函数）。
     geometryArgs: [0],
     returnsResult: false,
@@ -300,7 +295,6 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'query',
     module: 'measurement',
     args: '(a: AnyShape, b: AnyShape) -> Result<number>',
-    consumes: 'none',
     geometryArgs: [0, 1],
     queryParams: [
       { name: 'a', type: 'Shape', docs: '第一个被查询形状' },
@@ -316,7 +310,6 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'query',
     module: 'measurement',
     args: '(a: AnyShape, b: AnyShape) -> Result<DistanceProps>',
-    consumes: 'none',
     geometryArgs: [0, 1],
     queryParams: [
       { name: 'a', type: 'Shape', docs: '第一个被查询形状' },
@@ -332,7 +325,6 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'query',
     module: 'measurement',
     args: '(face: OrientedFace, u: number, v: number) -> Result<CurvatureResult>',
-    consumes: 'none',
     geometryArgs: [0],
     queryParams: [
       { name: 'face', type: 'Shape', docs: '被查询的曲面/面' },
@@ -349,7 +341,6 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'query',
     module: 'measurement',
     args: '(face: Face) -> Result<CurvatureResult>',
-    consumes: 'none',
     geometryArgs: [0],
     returnsResult: true,
     returnType: 'CurvatureResult',
@@ -361,7 +352,6 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'query',
     module: 'measurement',
     args: '(a: AnyShape, b: AnyShape, tolerance?: number) -> Result<InterferenceResult>',
-    consumes: 'none',
     geometryArgs: [0, 1],
     queryParams: [
       { name: 'a', type: 'Shape', docs: '第一个形状' },
@@ -378,7 +368,6 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'query',
     module: 'measurement',
     args: '(shapes: AnyShape[], tolerance?: number) -> InterferencePair[]',
-    consumes: 'none',
     // 数组输入：geometryCollectionArgs 索引对应的 Shape 数组逐元素借入 brepjs handle。
     geometryCollectionArgs: [0],
     queryParams: [
@@ -1603,7 +1592,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   },
   {
     name: 'thread', source: 'operations/threadFns.js#thread', kind: 'brep-op', module: 'operations',
-    geometryArgs: [], reason: '仅参数构造 → Result(Shape3D)，单产物，brep-op（consumes: none）',
+    geometryArgs: [], reason: '仅参数构造 → Result(Shape3D)，单产物，brep-op',
     args: 'thread(options: ThreadOptions): Shape',
     params: ['options'], formClass: 'B1',
   },
@@ -2109,7 +2098,6 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   {
     name: 'getShapeKind', source: 'core/shapeTypes.js#getShapeKind', kind: 'query', module: 'core',
     args: '(shape: AnyShape) -> ShapeKind',
-    consumes: 'none',
     geometryArgs: [0],
     returnsResult: false,
     returnType: 'ShapeKind',
@@ -2308,7 +2296,6 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   {
     name: 'makeBaseBox', source: 'sketching/shortcuts.js#makeBaseBox', kind: 'brep-op', module: 'sketching',
     args: '(xLength: number, yLength: number, zLength: number) -> Shape3D',
-    consumes: 'none',
     geometryArgs: [],
     returnsResult: false,
     params: ['xLength', 'yLength', 'zLength'], formClass: 'A',
@@ -2575,7 +2562,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   // 符号为孤儿 by design）。
   {
     name: 'box', source: 'topology/primitiveFns.js#box', kind: 'brep-op',
-    consumes: 'none', geometryArgs: [], returnsResult: false,
+    geometryArgs: [], returnsResult: false,
     args: 'box(width: number, depth: number, height: number, options?: BoxOptions): Shape',
     reason: 'faijs 侧由手写 dual-op 覆盖（§4.1 A 决策，mesh+brep 双实现）；本条目仅投影到 vendored 盒契约，生成模块符号为孤儿 by design，scriptFace 不投（避免与手写 box 撞名）。',
     params: ['width', 'depth', 'height', 'options'], formClass: 'A',
@@ -2587,7 +2574,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   },
   {
     name: 'cylinder', source: 'topology/primitiveFns.js#cylinder', kind: 'brep-op',
-    consumes: 'none', geometryArgs: [], returnsResult: false,
+    geometryArgs: [], returnsResult: false,
     args: 'cylinder(radius: number, height: number, options?: CylinderOptions): Shape',
     reason: 'faijs 侧由手写 dual-op 覆盖（§4.3 A 决策，mesh+brep 双实现，at/centered BASE 语义）；本条目仅投影到 vendored 圆柱契约，生成模块符号为孤儿 by design，scriptFace 不投（避免与手写 cylinder 撞名）。',
     params: ['radius', 'height', 'options'], formClass: 'A',
@@ -2595,7 +2582,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   },
   {
     name: 'cone', source: 'topology/primitiveFns.js#cone', kind: 'brep-op',
-    consumes: 'none', geometryArgs: [], returnsResult: false,
+    geometryArgs: [], returnsResult: false,
     args: 'cone(radiusBottom: number, radiusTop: number, height: number, options?: ConeOptions): Shape',
     reason: 'faijs 侧由手写 dual-op 覆盖（§4.1 P 决策，mesh+brep 双实现，at/centered BASE 语义）；本条目仅投影到 vendored 圆锥契约，生成模块符号为孤儿 by design，scriptFace 不投（避免与手写 cone 撞名）。',
     params: ['radiusBottom', 'radiusTop', 'height', 'options'], formClass: 'A',
@@ -2603,7 +2590,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   },
   {
     name: 'ellipsoid', source: 'topology/primitiveFns.js#ellipsoid', kind: 'brep-op',
-    consumes: 'none', geometryArgs: [], returnsResult: false,
+    geometryArgs: [], returnsResult: false,
     args: 'ellipsoid(rx: number, ry: number, rz: number, options?: EllipsoidOptions): Shape',
     reason: '纯数值整件构造（rx/ry/rz → ValidSolid），brep-op',
     params: ['rx', 'ry', 'rz', 'options'], formClass: 'A',

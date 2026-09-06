@@ -1,8 +1,6 @@
 /**
  * api.d.ts 生成脚本 — 从 stdlib 函数目录 + 签名生成 CadAPI 类型定义
  *
- * 设计文档：docs/plans/2026-08-27-faijs-language-normalization-design.md §4.10
- * 实施文档：docs/plans/2026-08-27-faijs-language-normalization-implementation.md §6.4
  *
  * 输入：stdlib 函数目录（声明式数据，callee → 参数/返回形状，字段与真实 stdlib
  *       契约一致，原 SCHEMAS 数据迁移）—— 无 per-函数代码路径（SPECIAL_OPS /
