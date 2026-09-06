@@ -1,4 +1,4 @@
-﻿/**
+/**
  * parser — 文本 → ScriptIR（合法 JS 子集，设计文档 §2）
  *
  * 执行模型：`.fai.js` 文本先用 acorn 解析（合法性证明 J-1），再 walk AST 还原为 ScriptIR。
@@ -42,44 +42,13 @@ import {
 } from '../identity'
 
 // ── 解析错误 ──
+// ParseError / ParseErrorCode 的唯一家在 parse-error.ts（无 IR 方案下 MetadataExtractor
+// / SyntaxGate 复用同一类；此处重导出保持历史 import 面兼容）。
 
-/**
- * 解析诊断码（F1：黑名单化后拒绝清单收敛，控制流给专用码）。
- * 宿主（CadRuntime.check）把 code 透传给 CheckError，AI 可据此精确修正。
- */
-export type ParseErrorCode =
-  /** 语法错误（acorn 闸门） */
-  | 'E_SYNTAX'
-  /** 控制流语句（if/for/while/do/switch/try/throw/break/continue/labeled/with + 动态 import()） */
-  | 'E_CONTROL_FLOW'
-  /** 不支持的语句形态（函数/类/export/new/eval 等） */
-  | 'E_STATEMENT'
-  /** 参数值表达式不合法（无法静态折叠 / 不支持的表达式节点） */
-  | 'E_VALUE'
-  /** import 声明位置/形态违规（F2） */
-  | 'E_IMPORT'
-  /** 引用错误（未知变量 / 未声明 receiver） */
-  | 'E_REFERENCE'
-  /** 本机函数调用 ABI 违规（§3.6：位置实参超位 / args 对象键不在形参表） */
-  | 'E_ARG'
-
-/**
- * An error raised while parsing faijs source, carrying the offending line
- * number and a diagnostic code the host can forward for precise feedback.
- */
-export class ParseError extends Error {
-  /** The 1-based source line at which the parse error occurred. */
-  line: number
-  /** 诊断码（缺省 E_SYNTAX）。宿主 check() 透传；3d_editor 可据此给 AI 精确反馈。 */
-  code: ParseErrorCode
-
-  constructor(message: string, line: number, code: ParseErrorCode = 'E_SYNTAX') {
-    super(`[parser] line ${line}: ${message}`)
-    this.name = 'ParseError'
-    this.line = line
-    this.code = code
-  }
-}
+import { ParseError } from './parse-error'
+import { fnv1a32 } from './fnv-hash'
+export type { ParseErrorCode } from './parse-error'
+export { ParseError } from './parse-error'
 
 // ── AST 辅助类型（acorn ESTree 兼容） ──
 
@@ -1252,16 +1221,7 @@ function throwUnsupportedStatement(node: ASTNode, line: number): never {
 }
 
 // ── 顶层函数定义（A1 / 控制流放松方案 Phase 2） ──
-
-/** FNV-1a 32-bit 十六进制哈希（L0 零依赖；bodyHash 内容寻址用，增量失效无需抗碰撞）。 */
-function fnv1a32(text: string): string {
-  let h = 0x811c9dc5
-  for (let i = 0; i < text.length; i++) {
-    h ^= text.charCodeAt(i)
-    h = (h * 0x01000193) >>> 0
-  }
-  return h.toString(16).padStart(8, '0')
-}
+// bodyHash 哈希的唯一家在 fnv-hash.ts（无 IR 方案下 metadata-extractor 复用）。
 
 /**
  * 解析顶层 `function name(params) { ... }` 为 FunctionDefIR（A1 / Phase 2）。

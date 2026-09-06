@@ -1,28 +1,21 @@
 /**
  * statement-summary — 语句平铺摘要（宿主展示/编排用，非 IR 类型）
  *
- * See docs/syntax-design.md §3 (statement model ↔ StatementIR mapping).
+ * See docs/syntax-design.md §3 (statement model ↔ StatementSummary mapping).
  *
  * `analyzeCode(code)` 是宿主消费语句信息的唯一形态（IR 剥离后宿主禁止
  * import ScriptIR/StatementIR）。摘要只含展示/编排所需的标量字段：
  * Timeline 一行一节点、场景树分组推导、FeatureTree 识别、编辑回填定位。
  *
- * 实现直接复用 parser 输出做投影，不引入新解析逻辑（阶段 0 约束）。
- *
- * §4.4 变更（2026-09-05 位置实参全形态编辑往返方案）：
- * - `positional` 改为 `HostArg[]`（IR 已脱壳，宿主不接触 IR 标记对象）
- * - 新增 `args: Record<string, HostArg>`（原 `positional`/`inputs` 之外的信息缺口）
- * - 删除 `positionalKinds`/`PositionalKind`/`classifyPositional`（冗余投影，
- *   宿主可用 `isHostRef` 等守卫自行裁决）
- * - 删除 `inputs`（`statementInputs` 的投影；宿主从 `positional` 中筛
- *   `isHostVarRef` 即可得到等价信息）
+ * 无 IR 双通道方案（2026-09-06）后实现换 MetadataExtractor：lines 面直接
+ * 产出 StatementSummary 原样（无投影层），与现状 parseScript 投影逐字相等
+ * （A-16 对拍），仅 id = `'s' + lineNo` 语义变化（append 场景稳定，宿主按
+ * 字符串使用不破裂）。
  */
 
 import type { StmtId, PartName } from '../identity'
-import type { ArgIR } from './types'
 import type { HostArg } from './host-arg'
-import { argIRToHost } from './host-arg'
-import { parseScript } from './parser'
+import { extractMetadata } from './metadata-extractor'
 
 /**
  * A flat scalar projection of one statement for host display and orchestration
@@ -30,7 +23,7 @@ import { parseScript } from './parser'
  * recognition, and edit-backfill navigation all consume this summary.
  */
 export interface StatementSummary {
-  /** 语句 id（sN，parser 顺序分配） */
+  /** 语句 id（'s' + lineNo；append 场景行号稳定） */
   id: StmtId
   /** 调用名（<ns>.<callee> 或成员方法名） */
   callee: string
@@ -72,52 +65,14 @@ export interface StatementSummary {
 
 /**
  * 解析代码文本，返回语句平铺摘要（非 IR 类型）。
- * 与 parser 结果逐字段一致（阶段 0 测试兜底）。
+ *
+ * 实现：MetadataExtractor.lines 直接产出（无投影层），与现状 parseScript
+ * 投影逐字相等（A-16 对拍），id 语义 = `'s' + lineNo`。
  *
  * @param code - the faijs source text to parse and summarize.
  * @returns a flat statement summary for every parsed statement.
  * @throws ParseError — 含行号
  */
 export function analyzeCode(code: string): StatementSummary[] {
-  const { script, statementLines } = parseScript(code)
-  // F2：命名空间绑定名 → 包名（summary.packageName 的推导来源；cad 无包名）
-  const nsToPkg = new Map<string, string>()
-  for (const imp of script.imports ?? []) {
-    if (imp.kind === 'namespace') nsToPkg.set(imp.localName, imp.packageName)
-  }
-  return script.statements.map((s, i) => ({
-    id: s.id,
-    callee: s.callee,
-    ...(s.local ? { local: true } : {}),
-    ...(s.namespace !== undefined
-      ? { namespace: s.namespace, ...(nsToPkg.get(s.namespace) !== undefined ? { packageName: nsToPkg.get(s.namespace) } : {}) }
-      : {}),
-    ...(s.receiver !== undefined ? { receiver: s.receiver } : {}),
-    positional: (s.positional ?? []).map((a: ArgIR) => argIRToHost(a)),
-    args: mapIRRecord(s.args),
-    outputs: [...s.outputs],
-    ...(s.outputKeys !== undefined ? { outputKeys: [...s.outputKeys] } : {}),
-    ...(s.refs !== undefined ? { refs: [...s.refs] } : {}),
-    hasAssignment: s.hasAssignment ?? false,
-    hasComputedArgs: s.hasComputedArgs ?? false,
-    line: statementLines[i] ?? 0,
-  }))
+  return extractMetadata(code).lines
 }
-
-/**
- * Map a record of ArgIR values to HostArg values (IR → Host 脱壳).
- */
-function mapIRRecord(record: Record<string, ArgIR>): Record<string, HostArg> {
-  const out: Record<string, HostArg> = {}
-  for (const [k, v] of Object.entries(record)) {
-    out[k] = argIRToHost(v)
-  }
-  return out
-}
-
-// ── 向后兼容：statementInputs 仍从 types 导出（parser 内部用）， ──
-// ── 但宿主面不再有 inputs 字段，用 positional 中 isHostVarRef 筛选 ──
-//
-// 如需从 StatementSummary 获取等价 inputs：
-//   import { isHostVarRef } from '@faicad/faijs'
-//   const inputs = summary.positional.filter(isHostVarRef).map(p => p.name)

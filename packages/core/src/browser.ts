@@ -62,6 +62,12 @@ export { analyzeCode } from './lang/statement-summary'
 export type { StatementSummary } from './lang/statement-summary'
 export { codeToArgs } from './lang/code-to-args'
 export type { CodeToArgsResult } from './lang/code-to-args'
+// MetadataExtractor — 无 IR 元数据提取器（UI 通道语义源；UiMetadata 全量）
+export { extractMetadata } from './lang/metadata-extractor'
+export type {
+  UiMetadata, ParamEntry, ImportEntry, FunctionEntry, BlockEntry, KeepEntry,
+  ExtractMetadataOptions,
+} from './lang/metadata-extractor'
 // HostArg — 宿主友好位置参数类型（IR 屏蔽层）
 export type {
   HostArg, HostRef, HostVarRef, HostParamRef, HostCallRef, HostExprRef, HostRefKind,

@@ -1,11 +1,16 @@
-﻿/**
+/**
  * code-to-args — 单语句行 args 提取（编辑回填配套）
  *
- * See docs/syntax-design.md §3 (statement model ↔ StatementIR mapping) and §6.4 (check).
+ * See docs/syntax-design.md §3 (statement model ↔ StatementSummary mapping) and §6.4 (check).
  *
  * 宿主编辑回填（FeatureEditor.backfill / editStatement）需要从代码行
  * 反提参数对象。此能力由 faijs 标配提供（与 parse 语义一致），
  * 宿主不得用 acorn 自行解析（B3 修正）。
+ *
+ * 无 IR 双通道方案（2026-09-06）后实现换 MetadataExtractor 行级提取：
+ * 单行文本经哨兵参数前置声明（与现状 parseScript looseLocalCalls 同构）
+ * 交给 extractMetadata，取末条 op 行摘要的 positional/args。函数名、签名与
+ * 返回契约（CodeToArgsResult）不变；HostArg 引用形态保真（A-5）。
  *
  * F1（表达式折叠）：args 含计算表达式（binary/template/conditional/spread）时，
  * 与 parser 折叠语义一致地**求值后返回字面值**，不抛错。
@@ -15,20 +20,8 @@
  */
 
 import type { HostArg } from './host-arg'
-import { argIRToHost } from './host-arg'
-import type { ArgIR } from './types'
-import { parseScript } from './parser'
-
-/**
- * Map a record of ArgIR values to HostArg values (IR → Host脱壳).
- */
-function mapIRRecord(record: Record<string, ArgIR>): Record<string, HostArg> {
-  const out: Record<string, HostArg> = {}
-  for (const [k, v] of Object.entries(record)) {
-    out[k] = argIRToHost(v)
-  }
-  return out
-}
+import { extractMetadata } from './metadata-extractor'
+import { isHostRef } from './host-arg'
 
 /**
  * 单行提取的前置声明规则（确定性静态规则，非 try/catch 兜底）：
@@ -91,10 +84,10 @@ export interface CodeToArgsResult {
  * 解析单条语句行，提取其位置实参槽与选项对象（序列化形态，无 IR 变体语义）。
  *
  * true-JS-subset §4.6.3 新契约：返回 `{ positional, args }`——
- * - `positional`: JsonValue[]，按调用顺序的位置实参（字面量原样；VarRefIR/ExprIR/
- *   CallRefIR 以 strip 后的标记对象呈现，如 `{$ref}` / `{$expr:{text,refs,params}}` /
- *   `{$call}`，宿主据此降级为只读编辑）；IR strip 红线不变（宿主不接触 IR 类型）。
- * - `args`: 尾随选项对象（键值序列化形态；无选项对象时为 `{}`）。
+ * - `positional`: HostArg[]，按调用顺序的位置实参（字面量原样；var-ref/
+ *   param-ref/call-ref/expr-ref 以 `{kind,...}` 标记对象呈现，宿主据此降级为
+ *   只读编辑）；IR strip 红线不变（宿主不接触 IR 类型）。
+ * - `args`: 尾随选项对象（键值 HostArg 形态；无选项对象时为 `{}`）。
  * 旧契约（只返回对象槽）在位置形态下会静默丢弃非对象实参——本契约显式保留全部信息。
  *
  * 支持的行形态（与 parser 接受的语句一致）：
@@ -110,7 +103,7 @@ export interface CodeToArgsResult {
  * @param opts.namespaces 该脚本顶层 import 的绑定名（F2：`mech.makeHeadstock(...)`
  *   中 `mech` 不得被前置声明为变量）。L0 不感知注册表，由宿主从脚本 imports 提供。
  * @returns the extracted positional slot and trailing options object (both in
- * serialized JSON form).
+ *  serialized JSON form).
  * @throws ParseError — 行文本不是合法语句时抛出（含行号）
  */
 export function codeToArgs(codeLine: string, opts?: { namespaces?: string[] }): CodeToArgsResult {
@@ -119,31 +112,24 @@ export function codeToArgs(codeLine: string, opts?: { namespaces?: string[] }): 
     .map((id) => `let ${id} = 0`)
     .join('\n')
   const code = decls ? `${decls}\n${codeLine}` : codeLine
-  // looseLocalCalls：单行提取无函数定义上下文，本机函数调用行（`makeArray(...)`）
-  // 的裸 callee 放行（D15 交由调用方在完整脚本上下文校验）；ABI 绑定校验跳过。
-  const { script } = parseScript(code, { looseLocalCalls: true })
-  const last = script.statements[script.statements.length - 1]
+  // 单行提取语义：前置哨兵参数（let id = 0）在 extractMetadata 中按参数行处理；
+  // 末条 op 行摘要 = 目标行。裸本机函数 callee（makeArray 等）放行（looseLocalCalls，
+  // 与现状 codeToArgs 的 parseScript looseLocalCalls 同语义；ABI 校验延后到完整脚本上下文）。
+  const meta = extractMetadata(code, { namespaces: opts?.namespaces ?? [], looseLocalCalls: true })
+  const last = meta.lines[meta.lines.length - 1]
   if (!last) return { positional: [], args: {} }
-  // 尾随选项对象切分（true-JS-subset §4.6.3 / D5）：positional 末位是纯对象（非
-  // {$ref}/{$param}/{$call}/{$expr} 标记）时归入 args 槽返回，宿主编辑回填按
-  // "位置实参 + 选项对象"两槽写回；其余形态 positional 全量返回、args 为空。
-  const MARKER_KEYS = new Set(['$ref', '$param', '$call', '$expr'])
-  const rawPositional = last.positional ?? []
-  const lastPos = rawPositional[rawPositional.length - 1]
+  // 尾随纯对象（选项槽）从 positional 切出到 args（与现状 splitTrailingOptions
+  // 同构：末位纯数据对象是选项槽；引用形态/字面量留在 positional）。
+  const positional = [...last.positional]
+  const lastArg = positional[positional.length - 1]
   if (
-    lastPos !== null &&
-    typeof lastPos === 'object' &&
-    !Array.isArray(lastPos) &&
-    !Object.keys(lastPos as Record<string, unknown>).some((k) => MARKER_KEYS.has(k))
+    lastArg !== null &&
+    typeof lastArg === 'object' &&
+    !Array.isArray(lastArg) &&
+    !isHostRef(lastArg as HostArg)
   ) {
-    return {
-      positional: rawPositional.slice(0, -1).map(argIRToHost),
-      args: mapIRRecord(lastPos as unknown as Record<string, ArgIR>),
-    }
+    positional.pop()
+    return { positional, args: { ...(lastArg as Record<string, HostArg>) } }
   }
-  // IR → HostArg 脱壳：positional 逐项、args 逐值经 argIRToHost 映射
-  return {
-    positional: rawPositional.map(argIRToHost),
-    args: mapIRRecord(last.args),
-  }
+  return { positional, args: { ...last.args } }
 }

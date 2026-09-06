@@ -40,6 +40,9 @@ import type { BrepMeshResult } from '../brep/engine/types'
 import { asPartName, type PartName, type StmtId } from '../identity'
 import { compileToModule, type CompiledStatementMeta } from '../lang/compile'
 import { ModuleExecutor, type ExecBookkeeping } from './module-executor'
+import { DirectExecutor } from './direct-executor'
+import { computeLiveShapes, type KeepView } from './live-shapes'
+import { extractMetadata, type UiMetadata } from '../lang/metadata-extractor'
 import {
   configureBackends, CONTRACT_VERSION, setKeepSink, setName, getCurrentStmt,
   assertContractVersion, BrepUnsupportedError, MeshUnsupportedError, type StdlibNamespace,
@@ -129,8 +132,8 @@ export interface ExecutionResult {
   terminals: TerminalShape[]
   /** 信息/警告列表 */
   infos: string[]
-  /** 失败信息（如果执行中途出错） */
-  failedAt?: { index: number; callee: string; message: string }
+  /** 失败信息（如果执行中途出错）；lineNo 为 DirectExecutor 路径新增（§4.2 E-add，宿主按现状读前三个字段不破裂） */
+  failedAt?: { index: number; callee: string; message: string; lineNo?: number }
   /** 逐终端的 BREP 实体（仅持有 solid 的终端出现在此表）。key 为终端 PartName。 */
   brepSolids?: Map<PartName, { solid: BrepHandle; kernel: BrepEngineApi }>
   /**
@@ -255,6 +258,19 @@ function runtimeToData(rt: SelectorRuntime): SelectorRuntimeData {
 }
 
 /**
+ * CadRuntime 构造选项（第 4 参；缺省全部可选）。
+ */
+export interface CadRuntimeOptions {
+  /**
+   * 执行器模式（P4 双路径；缺省 'module' = ModuleExecutor 现状路径）。
+   * - 'direct'：DirectExecutor 源码直通执行 + computeLiveShapes 终端判定
+   *   （mesh/扁平行式语料等价由 no-ir/parity 对拍锁定；BREP/topology 侧
+   *   仍在收敛，切默认前须全量回归绿）。
+   */
+  executor?: 'module' | 'direct'
+}
+
+/**
  * CadRuntime is the execution core of the L2 orchestration layer.
  *
  * It executes a ScriptIR statement sequence and produces an ExecutionResult
@@ -269,6 +285,8 @@ export class CadRuntime {
   readonly ports: HostPorts
   /** The execution mode (auto/brep/mesh). */
   readonly mode: ExecutionMode
+  /** 执行器模式（P4 双路径：'module' 现状 / 'direct' 无 IR）。 */
+  readonly executorMode: 'module' | 'direct'
 
   /** 语句缓存（实例级，不再是模块单例）。key = 可命中的 PartName（stmt.id 即其首输出名） */
   private statementCache = new Map<PartName, {
@@ -312,6 +330,8 @@ export class CadRuntime {
 
   /** VM 执行器（持久 ctx + 编译产物缓存） */
   private executor: ModuleExecutor
+  /** 无 IR 执行器（executorMode='direct' 时启用；P4 双路径，缺省 module） */
+  private readonly directExecutor: DirectExecutor | null
 
   /** 宿主注册库（含 cad：由根门面 createRuntime 包装注入；注入编译产物 fn 的第二参 ns） */
   private readonly libs: Record<string, StdlibNamespace>
@@ -369,6 +389,9 @@ export class CadRuntime {
       this.executor.setDefaultNsName(binding)
     }
     this.executor.setNamespaces({ ...this.libs } as Namespaces, this.libIds)
+    if (this.directExecutor) {
+      this.directExecutor.setNamespaces({ ...this.libs } as Namespaces)
+    }
   }
 
   /** The runtime's default namespace binding name (host-declared; 'cad' by default). */
@@ -376,11 +399,18 @@ export class CadRuntime {
     return this.defaultNsName
   }
 
-  constructor(ports: HostPorts, mode: ExecutionMode = 'auto', libs: Record<string, StdlibNamespace> = {}) {
+  constructor(
+    ports: HostPorts,
+    mode: ExecutionMode = 'auto',
+    libs: Record<string, StdlibNamespace> = {},
+    options: CadRuntimeOptions = {},
+  ) {
     this.ports = ports
     this.mode = mode
     this.libs = libs
     this.namespaces = { ...libs } as Namespaces
+    this.executorMode = options.executor ?? 'module'
+    this.directExecutor = this.executorMode === 'direct' ? new DirectExecutor({ namespaces: this.namespaces }) : null
     this.executor = new ModuleExecutor(this.namespaces, {
       releaseSolid: (partName) => {
         const handle = this.solidCache.get(partName)
@@ -490,6 +520,8 @@ export class CadRuntime {
    * @returns promise resolving to the ExecutionResult.
    */
   async execute(code: string, opts?: ExecuteOptions): Promise<ExecutionResult> {
+    // P4 guarded direct：executorMode='direct' 时走无 IR 执行路径（缺省 module 现状）。
+    if (this.executorMode === 'direct') return this.executeDirectText(code, opts)
     const { script } = parseScript(code, { defaultNs: this.defaultNsName })
     // Full replace: the whole scene resets to this text.
     this.accumulatedCode = code
@@ -537,6 +569,200 @@ export class CadRuntime {
     }, opts)
   }
 
+  // ── 无 IR 执行路径（P4 guarded：executorMode='direct' 时启用；缺省 module） ──
+
+  /**
+   * Direct-mode full execution (executorMode='direct'): the code text runs on
+   * the DirectExecutor and outputs/terminals are assembled from the persistent
+   * ctx + extractMetadata + computeLiveShapes. This mirrors the module path's
+   * mesh-mode result shape; BREP/topology/naming/changed/activeValues fidelity
+   * is still converging (parity corpus locked on the mesh flat-op corpus).
+   */
+  private async executeDirectText(code: string, opts?: ExecuteOptions): Promise<ExecutionResult> {
+    const de = this.directExecutor
+    if (!de) throw new Error('[faijs] direct executor is unavailable in module mode')
+    // P2 修复同 executeIR：执行前重新认领全局 backends（本实例配置为准）。
+    this.claimBackends()
+    this.accumulatedCode = code
+    const meta = extractMetadata(code, { defaultNs: this.defaultNsName })
+    const libLoadFailure = await this.autoLoadLibsFromImports(meta.imports)
+    if (libLoadFailure) return libLoadFailure
+    const brepChain = await this.ensureBrepChain()
+    if (opts?.partTransform?.position) {
+      brepChain.partTransform = {
+        position: opts.partTransform.position,
+        scale: opts.partTransform.scale,
+      }
+    }
+    const outcome = await de.execute(code, {
+      params: opts?.params,
+      ...(opts?.startIndex !== undefined ? { startLine: opts.startIndex } : {}),
+    })
+    if (outcome.failedAt) {
+      const { index, callee, message, lineNo } = outcome.failedAt
+      return {
+        outputs: this.directShapes(),
+        brepChain: this.brepChain!,
+        terminals: [],
+        infos: [],
+        failedAt: { index, callee, message, lineNo },
+      }
+    }
+    return this.collectDirectResult(meta)
+  }
+
+  /**
+   * Direct-mode update (executorMode='direct'): R3 语义——清 ctx 全量重跑新文本
+   * （DirectExecutor.update 即 execute；无需 oldCode 差量）。
+   */
+  private async updateDirectText(_oldCode: string, newCode: string, opts?: ExecuteOptions): Promise<ExecutionResult> {
+    this.accumulatedCode = newCode
+    return this.executeDirectText(newCode, opts)
+  }
+
+  /**
+   * Direct-mode append (executorMode='direct'): DirectExecutor 共享 ctx 只执行新单元
+   * （行号即边界）；prefix 校验保留 AppendPrefixError 语义（引用不在持久 ctx → 抛错，
+   * 宿主升级为全量 execute）。
+   */
+  private async appendDirectText(code: string, opts?: ExecuteOptions): Promise<ExecutionResult> {
+    const de = this.directExecutor
+    if (!de) throw new Error('[faijs] direct executor is unavailable in module mode')
+    this.claimBackends()
+    const fullCode = this.accumulatedCode === null ? code : `${this.accumulatedCode}\n${code}`
+    this.accumulatedCode = fullCode
+    // 与 module append 的 parseScript(fullCode, { looseVars: true }) 同语义：引用先前
+    // 已执行产出/其它文件的变量作为外部 var 透传，由 missingPrefixVar 前置校验决定成败。
+    const meta = extractMetadata(fullCode, { defaultNs: this.defaultNsName, looseVars: true })
+    const libLoadFailure = await this.autoLoadLibsFromImports(meta.imports)
+    if (libLoadFailure) return libLoadFailure
+    // Append never reconciles：持久 ctx 中先前已执行语句必须原样保留；缺引用的新单元
+    // 在 DirectExecutor 内会静默拿到 undefined —— 这里按 module 路径语义前置抛错。
+    const missing = de.missingPrefixVar(code)
+    if (missing) throw new AppendPrefixError(`s${missing.unitLine}`, missing.varName)
+    const brepChain = await this.ensureBrepChain()
+    if (opts?.partTransform?.position) {
+      brepChain.partTransform = {
+        position: opts.partTransform.position,
+        scale: opts.partTransform.scale,
+      }
+    }
+    const outcome = await de.append(code, { params: opts?.params })
+    if (outcome.failedAt) {
+      const { index, callee, message, lineNo } = outcome.failedAt
+      return {
+        outputs: this.directShapes(),
+        brepChain: this.brepChain!,
+        terminals: [],
+        infos: [],
+        failedAt: { index, callee, message, lineNo },
+      }
+    }
+    return this.collectDirectResult(meta)
+  }
+
+  /** Direct-mode 失败结果的 outputs 部分：持久 ctx 中已产出的 shape/compound。 */
+  private directShapes(): Map<PartName, Shape | CompoundShape> {
+    const de = this.directExecutor!
+    const outputs = new Map<PartName, Shape | CompoundShape>()
+    for (const name of de.listCtxKeys()) {
+      const v = de.getCtxVar(name)
+      if (isShapeLike(v) || isCompoundLike(v)) outputs.set(asPartName(name), v as Shape | CompoundShape)
+    }
+    return outputs
+  }
+
+  /**
+   * Direct-mode result assembly：ctx → outputs / statementCache / terminals /
+   * brepSolids / compounds（与 collectResult 的 mesh 面同构；输入换源为
+   * DirectExecutor ctx + UiMetadata + computeLiveShapes，§4.2/§4.4）。
+   */
+  private collectDirectResult(meta: UiMetadata): ExecutionResult {
+    const de = this.directExecutor!
+    const outputs = new Map<PartName, Shape | CompoundShape>()
+    const shapeVarNames = new Set<PartName>()
+    const compounds = new Map<PartName, PartName[]>()
+    for (const name of de.listCtxKeys()) {
+      const v = de.getCtxVar(name)
+      if (!isShapeLike(v) && !isCompoundLike(v)) continue
+      outputs.set(asPartName(name), v as Shape | CompoundShape)
+      shapeVarNames.add(asPartName(name))
+      if (isCompoundLike(v)) {
+        const behavior = getSlot(v)?.behavior as { memberNames?: string[] } | undefined
+        compounds.set(asPartName(name), (behavior?.memberNames ?? []).map(asPartName))
+      }
+    }
+    // statementCache 同步（E8 getCachedOutput）：direct 无语句 key——用行级身份键填
+    // content key，宿主继续从实例缓存读几何。
+    for (const name of shapeVarNames) {
+      const v = de.getCtxVar(String(name))
+      if (isShapeLike(v)) {
+        const shape = v as Shape
+        this.statementCache.set(name, {
+          statementKey: `direct:${String(name)}`,
+          outputContentKey: computeContentKey(shape.positions, shape.indices),
+          output: shape,
+        })
+      }
+    }
+    // T3-cond：DAG 叶子终端判定换 computeLiveShapes（§4.4）——输入换源：
+    // 候选 = ctx 键；行内 keep 查 metadata.keep 表；函数体 exec.keep 登记读
+    // DirectExecutor.keepByLine（行号键，与 computeLiveShapes KeepView 对齐）。
+    const keepView: KeepView = {
+      lineEntries: (lineNo) => meta.keep.get(lineNo),
+      functionBody: (lineNo) => de.getKeepByLine(lineNo),
+    }
+    let terminals = computeLiveShapes({
+      lines: meta.lines,
+      blocks: meta.blocks,
+      keep: keepView,
+      shapeVarNames,
+      explicitTerminals: meta.terminalShapes,
+    })
+    // 显式 return 优先（与 collectResult 同）：非显式分支按值判定补 compound kind。
+    if (!meta.terminalShapes || meta.terminalShapes.length === 0) {
+      terminals = terminals.map((t) => {
+        const v = de.getCtxVar(String(t.id))
+        return isCompoundLike(v) ? { ...t, kind: 'compound' } : t
+      })
+    }
+    const brepSolids = this.directBrepSolids(terminals, compounds)
+    // 拓扑：宿主注入（mesh/primitive，setTopology 缓存）原样带出；BREP 真拓扑自动构建
+    // （collectResult 的 topology='auto'/'brep' 面）在 direct 模式尚未接入（solidCache
+    // 同步收敛中）——mesh fixture 语料两边等价由 no-ir/parity 锁定。
+    const topology = new Map<PartName, PartTopology>(this.topologyCache)
+    return {
+      outputs,
+      brepChain: this.brepChain!,
+      terminals,
+      infos: [],
+      brepSolids: brepSolids.size > 0 ? brepSolids : undefined,
+      topology: topology.size > 0 ? topology : undefined,
+      compounds: compounds.size > 0 ? compounds : undefined,
+    }
+  }
+
+  /** Direct-mode 逐终端 BREP solid 提取（终端 + 装配成员；无 kernel → 空）。 */
+  private directBrepSolids(
+    terminals: TerminalShape[],
+    compounds: Map<PartName, PartName[]>,
+  ): Map<PartName, { solid: BrepHandle; kernel: BrepEngineApi }> {
+    const brepSolids = new Map<PartName, { solid: BrepHandle; kernel: BrepEngineApi }>()
+    if (!this.kernel) return brepSolids
+    for (const t of terminals) {
+      const s = this.solidCache.get(t.id)
+      if (s && this.kernel) brepSolids.set(t.id, { solid: s, kernel: this.kernel })
+    }
+    for (const members of compounds.values()) {
+      for (const m of members) {
+        if (brepSolids.has(m)) continue
+        const s = this.solidCache.get(m)
+        if (s && this.kernel) brepSolids.set(m, { solid: s, kernel: this.kernel })
+      }
+    }
+    return brepSolids
+  }
+
   // ── 语义入口：update / append（增量执行） ──
 
   /**
@@ -552,6 +778,8 @@ export class CadRuntime {
    * @returns promise resolving to the ExecutionResult.
    */
   async update(oldCode: string, newCode: string, opts?: ExecuteOptions): Promise<ExecutionResult> {
+    // P4 guarded direct：R3 全量重跑新文本（DirectExecutor.update 即 execute）。
+    if (this.executorMode === 'direct') return this.updateDirectText(oldCode, newCode, opts)
     const { script: oldScript } = parseScript(oldCode, { defaultNs: this.defaultNsName })
     const { script } = parseScript(newCode, { defaultNs: this.defaultNsName })
     // The scene is now the new code (ids stay position-stable by line).
@@ -608,6 +836,8 @@ export class CadRuntime {
    * unexecuted statements are assembled from the persistent ctx).
    */
   async append(code: string, opts?: ExecuteOptions): Promise<ExecutionResult> {
+    // P4 guarded direct：共享 ctx 只执行新单元（行号即边界）；prefix 缺失 → AppendPrefixError。
+    if (this.executorMode === 'direct') return this.appendDirectText(code, opts)
     // Append the newest statement text onto the accumulated scene code so ids
     // stay position-stable and DAG/keep analysis sees the whole scene. The
     // passed text is parsed loose: references to parts defined earlier resolve
@@ -893,13 +1123,25 @@ export class CadRuntime {
    * @returns 装载失败时的 failedAt 结果，成功返回 undefined。
    */
   private async autoLoadLibs(script: ScriptIR): Promise<ExecutionResult | undefined> {
+    return this.autoLoadLibsFromImports(script.imports ?? [])
+  }
+
+  /**
+   * import 表（ScriptIR.imports 或 UiMetadata.imports 同构条目）驱动的自动装载。
+   * 直接模式（executorMode='direct'）走元数据 import 表（不解析 IR）；module 模式
+   * 经 autoLoadLibs 委托到这里，两条路径共享同一装载语义（P 四 §4.2）。
+   */
+  private async autoLoadLibsFromImports(
+    imports: ReadonlyArray<{ kind?: string; localName?: string; packageName?: string; specifier?: string }>,
+  ): Promise<ExecutionResult | undefined> {
     if (!this.ports.libLoader) return undefined
-    for (const imp of script.imports ?? []) {
+    for (const imp of imports) {
       if (imp.kind !== 'namespace') continue // named/default import 不作语句级绑定，不在此装载
+      if (!imp.localName) continue
       if (this.libs[imp.localName]) continue  // 已注册（宿主注入或此前自动装载）→ 不覆盖
       let ns: StdlibNamespace
       try {
-        ns = await this.ports.libLoader.loadLib(imp.packageName)
+        ns = await this.ports.libLoader.loadLib(imp.packageName ?? imp.specifier ?? '')
       } catch (err) {
         return {
           outputs: new Map(),
@@ -1623,6 +1865,7 @@ export class CadRuntime {
     this.brepChain = null
     this.kernel = null
     this.executor.clear()
+    this.directExecutor?.reset()
   }
 }
 
