@@ -66,7 +66,7 @@ Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadR
 
 - `docs/AGENTS.md`：文档标准，改文档前必读。
 - `docs/api-contract.md`、`docs/syntax-design.md`、`docs/ops-api-inventory.md`（写 `.fai.js` 的 API 手册）、`docs/library-dev-guide.md`（第三方库开发手册）：有效契约，改行为前必读。
-- `docs/plans/YYYY-MM-DD-*.md`：按日期命名的设计/计划文档。每月 1 号归档到 `yyyy-mm/` 文件夹。
+- `docs/plans/YYYY-MM-DD-*.md`：按日期命名的设计/计划文档。每月 1 号归档到 `yyyy-mm/` 文件夹。**严禁修改或引用已归档的 plans 子文件夹里的文件。**
 - `docs/analysis/`：技术分析文档。
 - `.agents/notes/`：决策记录（Agent Notes），见 [.agents/notes/README.md](.agents/notes/README.md)。
 - `docs/i18n/`：双语配对约定与翻译规则。

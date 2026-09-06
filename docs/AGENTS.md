@@ -59,6 +59,7 @@ See [docs/i18n/README.md](i18n/README.md) for the pairing contract.
 - Monthly on the 1st, last month's documents are moved into `docs/plans/yyyy-mm/` folders
 - Yearly on January 1st, the previous year's month folders are wrapped into `docs/plans/yyyy/`
 - Archived documents are frozen; only status annotations may be updated
+- **严禁修改或引用已归档的 plans 子文件夹（`docs/plans/yyyy-mm/`）里的文件**
 
 ## Non-`docs/plans/` documents must not reference `docs/plans/`
 
