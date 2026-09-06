@@ -193,6 +193,27 @@ export interface LibLoader {
   options?: { compat?: boolean }
 }
 
+// ── ProjectLoader ──
+
+/**
+ * 项目文件加载器（多文件，§4.5）——按 moduleKey 读取/枚举项目内 .fai.js 模块源码。
+ *
+ * moduleKey 约定：host 决定字符串形态（项目根相对路径等）；引擎只做最小归一
+ * （POSIX 斜杠、去掉 `./`/`../`/前导 `/` 前缀），随后按 `listModules()` 精确匹配。
+ *
+ * host 实现：
+ * - 3d_editor / browser：项目文件表 + session 内缓存；
+ * - node / vitest：内存映射表或 fs 读取（fixture 目录）。
+ */
+export interface ProjectLoader {
+  /** 列出当前可加载的 moduleKey（装载前预检 / 错误提示用）。 */
+  listModules(): string[]
+  /** 按 moduleKey 读取模块源码（.fai.js 文本）。 */
+  readSource(moduleKey: string): Promise<string>
+  /** 模块内容指纹（增量缓存用；不提供则每次全量重读重执行）。 */
+  fingerprint?(moduleKey: string): Promise<string>
+}
+
 // ── HostPorts 汇总 ──
 
 /**
@@ -210,6 +231,8 @@ export interface HostPorts {
   events: EventSink  // events 必填——断链通知是基础能力
   /** 库加载器（execute 自动装载未注册库；check 用它做 specifier 预检）。可选——无则仅手工 registerLib。 */
   libLoader?: LibLoader
+  /** 项目文件加载器（相对 specifier 的多文件模块，§4.5）。可选——不提供则单文件行为不变。 */
+  projectLoader?: ProjectLoader
 }
 
 // ── 执行模式 ──

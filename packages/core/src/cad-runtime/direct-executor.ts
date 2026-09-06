@@ -66,6 +66,11 @@ export interface DirectExecOpts {
   /** 单元序数起始（startIndex 语义：行号之前的单元不执行，产物假定已在 ctx） */
   startLine?: number
   /**
+   * 多文件 import 预置（§4.5）：顶层 import 行不执行，绑定值由 runtime 装载模块后
+   * 预置进 ctx（shape 值 / 模块函数 / 命名空间对象）。先于 params 注入，参数可覆盖。
+   */
+  imports?: Record<string, unknown>
+  /**
    * 单元执行前钩子（undo 逐单元快照；§4.10 E4）：每执行一个单元触发一次。
    * 第一参数 = 单元 id（`'s'+行号`，与 StatementSummary.id 同构——宿主按 id
    * 定位 summaries 不破裂）；第二参数 = 行号。append 只对新单元触发。
@@ -240,6 +245,8 @@ export class DirectExecutor {
   // ── 主流程 ──
 
   private async runCode(code: string, opts?: DirectExecOpts): Promise<DirectExecOutcome> {
+    // import 预置（§4.5：顶层 import 行不执行，绑定值先入 ctx），随后参数预置可覆盖
+    for (const [k, v] of Object.entries(opts?.imports ?? {})) this.ctx[k] = v
     // 参数预置（ExecuteOptions.params → ctx；参数行不执行，与现状语义一致）
     for (const [k, v] of Object.entries(opts?.params ?? {})) this.ctx[k] = v
 
@@ -403,28 +410,54 @@ export class DirectExecutor {
 
   // ── 解析与变换 ──
 
-  /** 顶层 import/export 之外的容器体（扁平/容器归一）：取 export default 箭头体。 */
+  /**
+   * 顶层 import/export 之外的容器体（扁平/容器归一）：优先把源码整体按 ESM module
+   * 解析——顶层 `import` 声明在模块作用域合法（多文件 §4.5：import 行不执行，绑定由
+   * runtime 经 opts.imports 预置 ctx）；无 export default 的扁平代码取顶层语句为单元。
+   * 兼容回退：非容器旧文本（顶层 return/await 的 AI 手写体）按原封装
+   * `export default async (...) => { ... }` 解析（函数作用域放行）。
+   */
   private parseBody(code: string): { nodes: ASTNode[]; lineOffset: number; parseText: string } {
-    let parseCode = code
-    let lineOffset = 0
-    if (!code.includes('export default')) {
-      parseCode = `export default async (__nsArg) => {\n${code}\n}`
-      lineOffset = 1
+    const parseAs = (text: string): ASTNode => {
+      return acornParse(text, { ecmaVersion: 'latest', sourceType: 'module', locations: true, ranges: true }) as unknown as ASTNode
     }
     let ast: ASTNode
     try {
-      ast = acornParse(parseCode, { ecmaVersion: 'latest', sourceType: 'module', locations: true, ranges: true })
+      ast = parseAs(code)
     } catch (err) {
       const e = err as { message?: string; loc?: { line?: number } }
-      throw new ParseError(`SyntaxError: ${e.message ?? String(err)}`, (e.loc?.line ?? 1) - lineOffset, 'E_SYNTAX')
+      // 容器体已在顶层 → 原样上抛；扁平旧文本走封装回退（函数作用域允许 return/await）
+      if (!code.includes('export default')) {
+        const parseCode = `export default async (__nsArg) => {\n${code}\n}`
+        let wrappedAst: ASTNode
+        try {
+          wrappedAst = parseAs(parseCode)
+        } catch {
+          throw new ParseError(
+            `SyntaxError: ${e.message ?? String(err)}`,
+            (e.loc?.line ?? 1) - 1,
+            'E_SYNTAX',
+            err,
+          )
+        }
+        const decl = wrappedAst.body.find((n: ASTNode) => n.type === 'ExportDefaultDeclaration')
+        const arrow = decl?.declaration
+        if (arrow?.type === 'ArrowFunctionExpression' && arrow.body?.type === 'BlockStatement') {
+          return { nodes: arrow.body.body as ASTNode[], lineOffset: 1, parseText: parseCode }
+        }
+      }
+      throw new ParseError(`SyntaxError: ${e.message ?? String(err)}`, (e.loc?.line ?? 1), 'E_SYNTAX', err)
     }
     const exportDecl = ast.body.find((n: ASTNode) => n.type === 'ExportDefaultDeclaration')
-    if (!exportDecl) throw new ParseError('missing `export default`', 1)
-    const arrow = exportDecl.declaration
-    if (arrow?.type !== 'ArrowFunctionExpression' || arrow.body?.type !== 'BlockStatement') {
-      throw new ParseError('expected async arrow container body', 1)
+    if (exportDecl) {
+      const arrow = exportDecl.declaration
+      if (arrow?.type !== 'ArrowFunctionExpression' || arrow.body?.type !== 'BlockStatement') {
+        throw new ParseError('expected async arrow container body', 1, 'E_SYNTAX')
+      }
+      return { nodes: arrow.body.body as ASTNode[], lineOffset: 0, parseText: code }
     }
-    return { nodes: arrow.body.body as ASTNode[], lineOffset, parseText: parseCode }
+    // 扁平 ESM：顶层语句（含 import 声明，unit 生成时跳过）即单元边界。
+    return { nodes: ast.body as ASTNode[], lineOffset: 0, parseText: code }
   }
 
   /** 解析并变换全部顶层单元。 */
@@ -575,7 +608,9 @@ export class DirectExecutor {
     let head: string
     if (callee?.type === 'MemberExpression' && callee.object?.type === 'Identifier' && callee.property?.type === 'Identifier') {
       const objName = callee.object.name
-      head = declared.has(objName)
+      // 优先 __ctx：本机 shape/模块产物（含 import 预置的 shape 与模块命名空间）都是
+      // ctx 键（isMemberOnCtx）或 declared；注册库绑定（cad/第三方 ns）不在 ctx → __ns。
+      head = declared.has(objName) || this.ctxHas(objName)
         ? `await __ctx.${objName}.${callee.property.name}`
         : `await __ns.${objName}.${callee.property.name}`
     } else if (callee?.type === 'Identifier') {
@@ -594,6 +629,10 @@ export class DirectExecutor {
 
   private hasCtxFn(name: string): boolean {
     return typeof this.ctx[name] === 'function'
+  }
+
+  private ctxHas(name: string): boolean {
+    return Object.prototype.hasOwnProperty.call(this.ctx, name)
   }
 
   /** 实参变换：Literal → JSON；Identifier → __ctx.name；调用递归；对象/数组递归；
@@ -645,10 +684,14 @@ export class DirectExecutor {
     }
   }
 
-  /** 文本级自由标识符提升：把已声明变量名替换为 __ctx.<name>（词边界）。 */
+  /** 文本级自由标识符提升：把已声明变量名 + 当前 ctx 键（import 预置/先前执行产出）
+   *  替换为 __ctx.<name>（词边界）。含 ctx 键 → append 跨文件引用（D6）与模块命名空间
+   *  成员（cfg.OUTX）在实参文本中同样可解析。 */
   private hoistText(text: string, declared: Set<string>): string {
     let out = text
-    for (const name of declared) {
+    const names = new Set<string>(declared)
+    for (const key of Object.keys(this.ctx)) names.add(key)
+    for (const name of names) {
       out = out.replace(new RegExp(`\\b${name}\\b`, 'g'), `__ctx.${name}`)
     }
     return out

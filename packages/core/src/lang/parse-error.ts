@@ -33,8 +33,11 @@ export class ParseError extends Error {
   /** 诊断码（缺省 E_SYNTAX）。宿主 check() 透传；3d_editor 可据此给 AI 精确反馈。 */
   code: ParseErrorCode
 
-  constructor(message: string, line: number, code: ParseErrorCode = 'E_SYNTAX') {
-    super(`[parser] line ${line}: ${message}`)
+  constructor(message: string, line: number, code: ParseErrorCode = 'E_SYNTAX', cause?: unknown) {
+    super(
+      `[parser] line ${line}: ${message}`,
+      cause === undefined ? undefined : ({ cause } as unknown as ErrorOptions),
+    )
     this.name = 'ParseError'
     this.line = line
     this.code = code

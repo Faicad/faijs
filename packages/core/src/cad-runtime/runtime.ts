@@ -41,6 +41,8 @@ import { asPartName, type PartName, type StmtId } from '../identity'
 import { compileToModule, type CompiledStatementMeta } from '../lang/compile'
 import { ModuleExecutor, type ExecBookkeeping } from './module-executor'
 import { DirectExecutor } from './direct-executor'
+import { ModuleRegistry, ModuleRegistryError, isRelativeSpecifier } from './module-registry'
+import type { ModuleRunResult } from './module-registry'
 import { computeLiveShapes, type KeepView } from './live-shapes'
 import { extractMetadata, type UiMetadata } from '../lang/metadata-extractor'
 import {
@@ -587,6 +589,9 @@ export class CadRuntime {
     const meta = extractMetadata(code, { defaultNs: this.defaultNsName })
     const libLoadFailure = await this.autoLoadLibsFromImports(meta.imports)
     if (libLoadFailure) return libLoadFailure
+    // 多文件（§4.5）：相对 import 依赖装载 → 绑定 seed；装载错误 → failedAt 短路。
+    const moduleLoad = await this.loadDirectModuleImports(meta)
+    if (!('seed' in moduleLoad)) return moduleLoad
     const brepChain = await this.ensureBrepChain()
     if (opts?.partTransform?.position) {
       brepChain.partTransform = {
@@ -595,6 +600,7 @@ export class CadRuntime {
       }
     }
     const outcome = await de.execute(code, {
+      imports: moduleLoad.seed,
       params: opts?.params,
       ...(opts?.startIndex !== undefined ? { startLine: opts.startIndex } : {}),
       ...(opts?.beforeStatement ? { beforeStatement: opts.beforeStatement } : {}),
@@ -638,6 +644,9 @@ export class CadRuntime {
     const meta = extractMetadata(fullCode, { defaultNs: this.defaultNsName, looseVars: true })
     const libLoadFailure = await this.autoLoadLibsFromImports(meta.imports)
     if (libLoadFailure) return libLoadFailure
+    // 多文件（§4.5）：相对 import 依赖装载 → 绑定 seed（覆盖刷新 ctx 中旧 import 绑定）。
+    const moduleLoad = await this.loadDirectModuleImports(meta)
+    if (!('seed' in moduleLoad)) return moduleLoad
     // Append never reconciles：持久 ctx 中先前已执行语句必须原样保留；缺引用的新单元
     // 在 DirectExecutor 内会静默拿到 undefined —— 这里按 module 路径语义前置抛错。
     const missing = de.missingPrefixVar(code)
@@ -650,6 +659,7 @@ export class CadRuntime {
       }
     }
     const outcome = await de.append(code, {
+      imports: moduleLoad.seed,
       params: opts?.params,
       ...(opts?.beforeStatement ? { beforeStatement: opts.beforeStatement } : {}),
       ...(opts?.executionTimeoutMs !== undefined ? { executionTimeoutMs: opts.executionTimeoutMs } : {}),
@@ -676,6 +686,54 @@ export class CadRuntime {
       if (isShapeLike(v) || isCompoundLike(v)) outputs.set(asPartName(name), v as Shape | CompoundShape)
     }
     return outputs
+  }
+
+  /**
+   * 多文件装载（direct 模式，§4.5）：项目内相对 import 依赖经 ModuleRegistry 装载
+   * （每依赖独立 ctx 执行 + 绑定校验），返回 seed（绑定名 → 值，供 DirectExecutor
+   * opts.imports 预置）。装载错误 → failedAt 短路结果（不抛穿）。
+   */
+  private async loadDirectModuleImports(
+    meta: UiMetadata,
+  ): Promise<{ seed: Record<string, unknown> } | ExecutionResult> {
+    const loader = this.ports.projectLoader
+    if (!loader) return { seed: {} }
+    if (!(meta.imports ?? []).some((imp) => isRelativeSpecifier(imp.specifier))) return { seed: {} }
+    const registry = new ModuleRegistry(loader, (code, imports) => this.runDirectModule(code, imports))
+    try {
+      const seed = await registry.resolveImports(meta.imports ?? [])
+      return { seed }
+    } catch (err) {
+      if (err instanceof ModuleRegistryError) {
+        return {
+          outputs: new Map(),
+          brepChain: this.brepChain!,
+          terminals: [],
+          infos: [],
+          failedAt: {
+            index: -1,
+            callee: err.callee ?? 'import',
+            message: err.message,
+            lineNo: err.lineNo,
+          },
+        }
+      }
+      throw err
+    }
+  }
+
+  /** 依赖模块执行（direct）：独立 DirectExecutor + 独立 ctx；失败抛 ModuleRegistryError。 */
+  private async runDirectModule(code: string, imports: Record<string, unknown>): Promise<ModuleRunResult> {
+    const de = new DirectExecutor({ namespaces: { ...this.libs } as Namespaces })
+    const outcome = await de.execute(code, { imports })
+    if (outcome.failedAt) {
+      throw new ModuleRegistryError(
+        'MODULE_EXEC_FAILED',
+        `dependency module failed at line ${outcome.failedAt.lineNo ?? '?'}: ${outcome.failedAt.message}`,
+        { lineNo: outcome.failedAt.lineNo, callee: outcome.failedAt.callee },
+      )
+    }
+    return de
   }
 
   /**

@@ -334,10 +334,18 @@ function collectExprIdentifiers(
         collectExprIdentifiers(prop.value, symbols, line, params, refs)
       }
       return
-    case 'MemberExpression':
+    case 'MemberExpression': {
+      // 命名空间绑定（import * as cfg / 模块命名空间）的成员 cfg.OUTX：对象名是外部
+      // 命名空间，不收集为变量引用（§4.1 HostArg 引用形态；求值在 __ctx.cfg 侧）。
+      const obj = node.object
+      if (obj?.type === 'Identifier' && symbols.nsBindings.has(obj.name)) {
+        if (node.computed) collectExprIdentifiers(node.property, symbols, line, params, refs)
+        return
+      }
       collectExprIdentifiers(node.object, symbols, line, params, refs)
       if (node.computed) collectExprIdentifiers(node.property, symbols, line, params, refs)
       return
+    }
     case 'CallExpression':
       collectExprIdentifiers(node.callee, symbols, line, params, refs)
       for (const a of node.arguments as ASTNode[]) {

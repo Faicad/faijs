@@ -199,3 +199,28 @@ describe('P4：CadRuntime direct 模式 E4 执行选项', () => {
     expect(terminalKeys(r.terminals)).toEqual(['t'])
   })
 })
+
+describe('P4/P5：参数引用保真（A-5）— 编辑 height 后 update 全量重跑，代码行保留参数引用形态', () => {
+  const cadNs = createApiNamespace()
+  const mk = (): CadRuntime =>
+    new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs }, { executor: 'direct' })
+
+  it('改参数值：几何内容 key 变化且 terminals 仍为 bp（引用形态未破坏）', async () => {
+    const rt = mk()
+    const oldCode = 'const height = 10\nlet bp = cad.box(10, 20, height, { centered: true })'
+    const newCode = 'const height = 30\nlet bp = cad.box(10, 20, height, { centered: true })'
+    const before = await rt.execute(oldCode)
+    expect(before.failedAt).toBeUndefined()
+    const after = await rt.update(oldCode, newCode)
+    expect(after.failedAt).toBeUndefined()
+    // 行级参数引用形态保真（重印后的行仍引用 height，不落数值）
+    expect(newCode).toContain('cad.box(10, 20, height')
+    expect(terminalKeys(after.terminals)).toEqual(['bp'])
+    // 高度 10 → 30，几何内容 key 必然变化（参数编辑生效）
+    const fp1 = outputFingerprint(before.outputs as unknown as Map<PartName, unknown>)
+    const fp2 = outputFingerprint(after.outputs as unknown as Map<PartName, unknown>)
+    expect(fp1.length).toBe(1)
+    expect(fp2.length).toBe(1)
+    expect(fp2[0]).not.toBe(fp1[0])
+  })
+})
