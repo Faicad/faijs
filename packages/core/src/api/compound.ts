@@ -5,20 +5,20 @@
  * 从 src/ops/assemble.ts 迁出并改写为 stdlib 形态：
  * - `group(params)` → compound Shape（kind='compound'，children 为成员 Shape 引用）
  * - `assembly(params)` → compound Shape + AssemblyBehavior（约束列表 + solve 方法）
- * - 装配三件套（solveFaceMate / executeDoAssemble / previewAssembly）迁移并挂到 AssemblyBehavior
+ * - 装配求解（P1 起）委派 api/assembly/（brepjs solverAdapter 内核）：
+ *   solveFaceMate 保留为等价性基准；do_assemble/solve 触发求解 → 引擎应用
+ *   （mesh 顶点烘焙 + BREP 刚体变换 + 下游传播）。
  *
  * compound 自身无独立 mesh——几何由 children 承载，意义是结构（层级）。
- * do_assemble 编译为 `await ctx.<asm>.do_assemble()`：调用 compound 的 solve 方法，
- * 对 moving 成员施加 face_mate 变换（mesh 顶点烘焙 + BREP 刚体变换 + 下游传播）。
+ * do_assemble 编译为 `await ctx.<asm>.do_assemble()`：调用 compound 的求解方法，
+ * 对约束定位的成员施加装配变换（mesh 顶点烘焙 + BREP 刚体变换 + 下游传播）。
  */
 
 import type { Shape } from '../mesh/types'
 import { compound as makeCompound, ensureSlot, type CompoundShape } from '../shape'
-import { keep, nameOf, getBackends, setPendingAssemblyTransforms, type AssemblyTransform } from '../runtime-state'
-import type { PartName } from '../identity'
-import type { FaceTopoRef } from '../topology/naming'
-import type { BrepEngineApi } from '../brep/engine/primitives'
-import { resolveFaceGeometry, type ResolvedFaceGeometry } from './topo-resolve'
+import { keep, nameOf, setPendingAssemblyTransforms, type AssemblyTransform } from '../runtime-state'
+import { solveAssembly, type AssemblySolveResult } from './assembly/solve'
+import type { AssemblyConstraint } from './assembly/types'
 
 // ── 参数类型（keep-syntax 设计 §2.5：成员保留由函数体 keep() 显式声明，不再靠类型标注） ──
 
@@ -35,29 +35,28 @@ export interface AssemblyParams extends GroupParams {
   constraints?: AssemblyConstraint[]
 }
 
-// ── 约束类型 ──
+// ── 约束类型（P1 起定义收口在 api/assembly/types，此处 re-export 保持既有导出面） ──
 
-/**
- * 装配约束的一个面：`{ topoRef: FaceTopoRef }`（§6.2 新形态，执行期解析几何）或
- * 旧快照 `{ surfaceType, center, normal }`（兼容已持久化的历史脚本）。
- */
-export type FaceMateFace = { topoRef: FaceTopoRef } | {
-  surfaceType?: string
-  center: [number, number, number]
-  normal: [number, number, number]
-}
-
-/** A face-mate constraint aligning two faces so the moving face mates against the fixed face. */
-export interface FaceMateConstraint {
-  type: 'face_mate'
-  fixedPartName: PartName
-  movingPartName: PartName
-  fixedFace: FaceMateFace
-  movingFace: FaceMateFace
-}
-
-/** The union of supported assembly constraint types (currently only face_mate). */
-export type AssemblyConstraint = FaceMateConstraint
+export type {
+  AssemblyConstraint,
+  FaceMateConstraint,
+  FaceMateFace,
+  EntityRef,
+  FaceRef,
+  EdgeRef,
+  MateConstraint,
+  AlignConstraint,
+  CoincidentConstraint,
+  ConcentricConstraint,
+  DistanceConstraint,
+  AngleConstraint,
+  ParallelConstraint,
+  PerpendicularConstraint,
+  FixedConstraint,
+  StructuralConstraint,
+  AssemblyVec3,
+} from './assembly/types'
+export type { AssemblySolveResult } from './assembly/solve'
 
 // ── 向量数学（无 three.js 依赖，纯计算） ──
 
@@ -170,61 +169,23 @@ export interface AssemblyBehavior {
   constraints: AssemblyConstraint[]
   /** 只求解（P6）：返回"成员下标 → 变换"列表。不改写入参、不传播；可重复调用（幂等）。 */
   solve(): AssemblyTransform[]
+  /** 只求解并带诊断量（P1）：transforms + dof/converged/unsupported（方案 P1⑤）。 */
+  solveDetailed(): AssemblySolveResult
 }
 
 /**
- * 纯求解（P6：求解 ≠ 传播）：复用 solveFaceMate 的纯计算，产出变换列表。
+ * 纯求解（P6：求解 ≠ 传播）：委派 api/assembly/solveAssembly（P1 起）。
  * 不修改任何输入、不触碰引擎状态——引擎负责应用变换并让下游失效重算（F2）。
  *
- * 面参数支持两种形态（§6.2）：
- * - `{ topoRef: FaceTopoRef }`：执行期解析——按成员当前命名槽（BREP 现场/面行快照）
- *   解析出中心与法向，再喂给 solveFaceMate（接口不变，几何执行派生）；
- * - 旧 `{ center, normal }` 快照：直接使用（兼容已持久化的历史脚本）。
+ * 约束形态（方案 §5）：
+ * - 遗留 face_mate：规范化为 mate 后降级为 brepjs concentric + 轴编码求解（§3.7.2）；
+ * - 新形态 mate/align/coincident/concentric/distance/angle/parallel/perpendicular/fixed；
+ * - 面参数 `{ topoRef }` 执行期解析（BREP 现场/mesh 行快照），旧 `{ center, normal }`
+ *   快照直接使用（兼容已持久化的历史脚本）；
+ * - 输出为 per-member 终态（L6 修复），锚定成员不输出变换。
  */
 function solveTransforms(members: Shape[], behavior: AssemblyBehavior): AssemblyTransform[] {
-  const kernel = getBackends().kernel.brep as BrepEngineApi | null
-  const out: AssemblyTransform[] = []
-  for (const constraint of behavior.constraints) {
-    if (constraint.type !== 'face_mate') {
-      throw new Error(`[compound] unsupported constraint type: ${constraint.type}`)
-    }
-    const movingIndex = behavior.memberNames.indexOf(constraint.movingPartName)
-    if (movingIndex < 0) continue
-    const movingShape = members[movingIndex]
-    if (!movingShape) continue
-    const fixedIndex = behavior.memberNames.indexOf(constraint.fixedPartName)
-    const fixedShape = fixedIndex >= 0 ? members[fixedIndex] : undefined
-    const fixedGeom = geometryOfFace(kernel, fixedShape, constraint.fixedFace)
-    const movingGeom = geometryOfFace(kernel, movingShape, constraint.movingFace)
-    if (!fixedGeom || !movingGeom) continue
-    const transform = solveFaceMate(
-      fixedGeom.center,
-      fixedGeom.normal,
-      movingGeom.center,
-      movingGeom.normal,
-    )
-    out.push({ index: movingIndex, ...transform })
-  }
-  return out
-}
-
-/** 取当前给该行为供内核（null 表示 mesh 路径——解析走行快照）。 */
-function geometryOfFace(
-  kernel: BrepEngineApi | null,
-  shape: Shape | undefined,
-  face: FaceMateFace,
-): ResolvedFaceGeometry | undefined {
-  if (face && typeof face === 'object' && !Array.isArray(face) && (face as { topoRef?: unknown }).topoRef) {
-    if (!shape) return undefined
-    return resolveFaceGeometry(kernel, shape, (face as { topoRef: FaceTopoRef }).topoRef)
-  }
-  const snapshot = face as { center?: [number, number, number]; normal?: [number, number, number]; surfaceType?: string }
-  if (!snapshot?.center || !snapshot?.normal) return undefined
-  return {
-    surfaceType: snapshot.surfaceType,
-    center: snapshot.center,
-    normal: snapshot.normal,
-  }
+  return solveAssembly(members, behavior.memberNames, behavior.constraints).transforms
 }
 
 // ── group / assembly 库函数 ──
@@ -271,30 +232,35 @@ export function group(params: GroupParams): CompoundShape {
   const memberNames = memberNamesOf(params, members)
   const c = makeCompound(members)
   // 挂最小 behavior（memberNames 供 ExecutionResult.compounds 结构输出；group 无约束）
-  ensureSlot(c).behavior = { memberNames, constraints: [], solve: () => [] }
+  ensureSlot(c).behavior = {
+    memberNames,
+    constraints: [],
+    solve: () => [],
+    solveDetailed: () => ({ transforms: [], dof: 0, converged: true, unsupported: [] }),
+  }
   return c
 }
 
 /**
- * `cad.assembly({ name, members, constraints })` → compound Shape + AssemblyBehavior。
- * 挂 do_assemble 方法（编译产物 `ctx.<asm>.do_assemble()` 调用）。
- *
- * 函数体 keep 声明（keep-syntax 设计 §2.5）：assembly 保留其成员且可见（R6）。
- */
-/**
- * 装配：成员 + 面约束（face_mate）。结构语句，无几何输出，成员用变量名引用、约束用拓扑面引用。
+ * 装配：成员 + 约束。结构语句，无几何输出，成员用变量名引用、实体用 EntityRef / 拓扑引用。
+ * 求解内核复用 vendored brepjs solverAdapter.solveConstraints（链式拓扑调度 / DOF / converged /
+ * unsupported 诊断）；输出为 per-member 终态变换（每成员一条，恒等位姿不输出）。
  * @group 结构
  * @inputs 1
  * @async false
  * @qual warn
  * @name assembly
- * @returns CompoundShape + AssemblyBehavior（含 do_assemble 方法）。
- * @note 早期文档/示例曾用 `fixedPartId`/`movingPartId`/`faceRowIndex`/`faceId`/`invalid`——这些键在代码中不存在。真实契约是 `fixedPartName`/`movingPartName` + `fixedFace`/`movingFace`。支持两种形态：`{ topoRef: FaceTopoRef }`（§6.2 新形态，几何由 faijs 执行期从面行派生）或旧快照 `{ surfaceType, center, normal }`（兼容历史脚本）。`faceId` 字段随 §6.2 移除，不再写入。
+ * @returns CompoundShape + AssemblyBehavior（含 do_assemble / solve 方法）。
+ * @note 约束类型（a=参考、b=从动，移动 b 去贴合 a）：`mate` 面对面贴合（法向反向+面中心重合，遗留 face_mate 的新名，求解降级为 concentric + 轴编码）；`align` 同向对齐（法向同向+面中心重合）；`coincident` 共面/共点/共线（保留面内 2 个平移 DOF）；`concentric` 轴重合（孔轴配合，圆柱/圆锥面需 hint.axis，直边/圆边需 EdgeHint.axis）；`distance` 定距（mm，带 value）；`angle` 夹角（deg，带 value）；`parallel`/`perpendicular` 平行/垂直（angle 0°/90° 语法糖）；`fixed` 锚定部件（地基）；`face_mate` 为遗留别名（规范化为 mate，新代码不再使用）。
+ * @note EntityRef 四种形态：`{ part, face: { topoRef } | { surfaceType?, center, normal } }`、`{ part, edge: { topoRef } | { axis: { origin, direction } } }`、`{ part, point: [x,y,z] }`、`{ part, faceIndex }`（1 起，仅调试简写）。
+ * @note 不收敛（实体类型不匹配/环/参考不可达）→ 抛错并带 unsupported 明细；成员名为空串 → 求解前抛错；mesh 快照缺 axis 的圆柱/圆锥面作轴实体 → E_TOPO_NOT_FOUND（绝不静默降级）。`mate`（中心重合）与 `coincident`（只共面）是两种不同语义，不互相映射。
+ * @note 早期文档/示例曾用 `fixedPartId`/`movingPartId`/`faceRowIndex`/`faceId`/`invalid`——这些键在代码中不存在。真实契约是 `fixedPartName`/`movingPartName` + `fixedFace`/`movingFace`（遗留 face_mate）。`faceId` 字段随 §6.2 移除，不再写入。
  * @param params.name - 装配名。type:string
  * @param params.members - 成员（裸变量引用）。type:Shape[]
- * @param params.constraints - 面约束数组（type='face_mate'；fixedPartName/movingPartName + fixedFace/movingFace：`{topoRef: FaceTopoRef}` 或 `{surfaceType, center, normal}`）。type:AssemblyConstraint[]
+ * @param params.constraints - 约束数组（遗留 face_mate 形态或上述新形态 { type, a, b }）。type:AssemblyConstraint[]
  * @example
- * cad.assembly({ name: '装配1', members: [part0, part1], constraints: [{ type: 'face_mate', fixedPartName: part0, movingPartName: part1, fixedFace: { topoRef: { kind: 'face', origin: 'part0', role: 'box:top', hint: { kind: 'face', surfaceType: 'plane' } } }, movingFace: { topoRef: { kind: 'face', origin: 'part1', role: 'cylinder:bottom', hint: { kind: 'face', surfaceType: 'circle' } } } }] })
+ * let asm1 = cad.assembly({ name: '主轴组件', members: [part0, part1, part2], constraints: [ { type: 'fixed', part: 'part0' }, { type: 'mate', a: { part: 'part0', face: { topoRef: { kind: 'face', origin: 'part0', role: 'box:top', hint: { kind: 'face', surfaceType: 'plane' } } } }, b: { part: 'part1', face: { topoRef: { kind: 'face', origin: 'part1', role: 'box:bottom', hint: { kind: 'face', surfaceType: 'plane' } } } } }, { type: 'concentric', a: { part: 'part1', face: { topoRef: { kind: 'face', origin: 'part1', role: '', hint: { kind: 'face', surfaceType: 'cylinder' } } } }, b: { part: 'part2', face: { topoRef: { kind: 'face', origin: 'part2', role: 'cylinder:lateral', hint: { kind: 'face', surfaceType: 'cylinder' } } } } } ] })
+ * asm1.solve()
   */
 export function assembly(params: AssemblyParams): CompoundShape {
   const members = (params.members as Shape[] | undefined) ?? []
@@ -308,13 +274,17 @@ export function assembly(params: AssemblyParams): CompoundShape {
     memberNames,
     constraints,
     solve: () => solveTransforms(members, behavior),
+    solveDetailed: () => solveAssembly(members, behavior.memberNames, behavior.constraints),
   }
   ensureSlot(c).behavior = behavior
-  ;(c as CompoundShape & { do_assemble?: () => void }).do_assemble = () => {
+  // solve / do_assemble 完全同义（方案 §5.5 D2：solve 为新名，do_assemble 保留为别名）
+  const solveAndRegister = (): void => {
     // P6：只求解并登记待应用变换；应用与下游失效由引擎做（F2：库不查询/修改 DAG）
     const transforms = behavior.solve()
     if (transforms.length > 0) setPendingAssemblyTransforms(c, transforms)
   }
+  ;(c as CompoundShape & { do_assemble?: () => void }).do_assemble = solveAndRegister
+  ;(c as CompoundShape & { solve?: () => void }).solve = solveAndRegister
   // 统一成员调用 ABI：add_constraint 是 no-op（现状语义：约束由 assembly 语句 args.constraints 读取，
   // 编译产物机械发射 `ctx.<asm>.add_constraint({...})`，调用此方法不崩）
   ;(c as CompoundShape & { add_constraint?: () => void }).add_constraint = () => {

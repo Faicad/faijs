@@ -27,7 +27,13 @@ import type { Namespaces } from './module-executor'
 import type { PartName } from '../identity'
 import { asPartName } from '../identity'
 import { ParseError } from '../lang/parse-error'
-import { setCurrentStmt, setKeepSink, setName } from '../runtime-state'
+import { setCurrentStmt, setKeepSink, setName, getBackends, takePendingAssemblyTransforms } from '../runtime-state'
+import { getSlot, ensureSlot, brepOf } from '../shape'
+import { applyTransform } from '../mesh/rigid-transform'
+import { applyTransformBrep } from '../brep/brep-ops'
+import type { Shape } from '../mesh/types'
+import type { BrepHandle } from '../brep/engine/types'
+import type { BrepEngineApi } from '../brep/engine/primitives'
 import { ExecutionLimitError } from './execution-limit-error'
 import type { StatementIR } from '../lang/types'
 
@@ -262,6 +268,10 @@ export class DirectExecutor {
             const v = this.ctx[w]
             if (v !== null && typeof v === 'object') setName(v, asPartName(w))
           }
+          // 装配传播（R11②，P1）：do_assemble/solve 求解登记的待应用变换在本单元后
+          // 立即应用（mesh 烘焙 + BREP 刚体变换）。direct 模式无 DAG → 无下游失效重算
+          // （全量重跑语义由 update 的清 ctx 重放保证）。
+          this.applyPendingAssemblyTransforms()
           this.executedLines.add(unit.lineNo)
           executedLines.push(unit.lineNo)
         } catch (err) {
@@ -305,6 +315,36 @@ export class DirectExecutor {
       for (const w of unit.writes) available.add(w)
     }
     return undefined
+  }
+
+  /**
+   * 应用待处理装配变换（R11②，P1）：取走 takePendingAssemblyTransforms 的全部登记，
+   * 对 compound 成员做 mesh 顶点烘焙 + BREP 刚体变换。与 module-executor 的
+   * applyPendingAssemblyTransforms 同数学（p' = R·(p−pivot) + pivot + translation），
+   * 差异：direct 模式无 DAG → 不做 computeDownstream 下游失效重算。
+   */
+  private applyPendingAssemblyTransforms(): void {
+    const pending = takePendingAssemblyTransforms()
+    if (pending.length === 0) return
+    const kernel = getBackends().kernel.brep as BrepEngineApi | null
+    for (const { compound, transforms } of pending) {
+      const behavior = getSlot(compound)?.behavior as { memberNames?: string[] } | undefined
+      if (!behavior?.memberNames) continue
+      const children = (compound as { children?: Shape[] }).children ?? []
+      for (const t of transforms) {
+        const member = children[t.index]
+        if (!member || typeof member !== 'object') continue
+        // mesh 原地变换（保留同一对象引用，ctx 与 compound.children 同步看到变更）
+        Object.assign(member, applyTransform(member, t.quaternion, t.pivot, t.translation, t.rotationMatrix))
+        // BREP 刚体变换（可选）：新 solid 写身份槽
+        const solid = brepOf(member) as BrepHandle | undefined
+        if (kernel && solid) {
+          const transformed = applyTransformBrep(kernel, solid, t.quaternion, t.pivot, t.translation)
+          try { kernel.release(solid) } catch { /* 已释放 */ }
+          ensureSlot(member).solid = transformed
+        }
+      }
+    }
   }
 
   /** 单单元执行：变换文本嵌入 async fn，以 __ctx/__ns 实参调用。 */

@@ -560,8 +560,10 @@ export const myOp = defineOp({
 
 - `group` / `assembly` 的产物是 **compound Shape**（属于 shape、进 terminals、在 UI 显示）；自身无独立 mesh，几何由成员承载。
 - `ExecutionResult.compounds: Map<PartName, PartName[]>` 由引擎收尾时从 compound 的 children 反查 ctx 变量名生成；宿主据此建场景树层级，不对成员做二次活跃性判定。
-- **求解 ≠ 传播**（职责分离）：约束求解在**库**（`solveTransforms` → `setPendingAssemblyTransforms` 登记结果）；变换的**应用与下游失效在引擎**（`takePendingAssemblyTransforms` → 成员 mesh 与 BREP solid 同步变换 → `computeDownstream` 重算下游 → 变量名进 `ExecutionResult.changed`）。
-- **成员方法链**：`assem1.add_constraint({ … })` / `assem1.do_assemble()` 是 void op（`outputs: []`），不消费 receiver 变量。
+- **约束面**：`assembly({ constraints })` 接受遗留 `face_mate` 形态（归一化为 `mate`）以及 `mate` / `align` / `coincident` / `concentric` / `distance` / `angle` / `parallel` / `perpendicular` / `fixed`——全部 JSON 可序列化（C1）、`a` = 参考 / `b` = 依赖（C4）、变换永不存进约束（C6）。实体在执行时经 TopoRef 通道解析（`api/assembly/entities.ts`）；圆柱 / 圆边轴实体需要 `FaceHint.axis` / `EdgeHint.axis`（缺轴 → `E_TOPO_NOT_FOUND`，绝不静默）。`mate`（中心对齐、法向反向）与 `coincident`（仅共面）语义不同，永不互相映射。
+- **求解器**：vendored brepjs 的 `solverAdapter.solveConstraints` 是求解内核（拓扑轮次、链式组合、DOF / `converged` / `unsupported` 诊断——零 vendored 修改）。输出为**每成员终态位姿**（每个被定位成员一条 `AssemblyTransform`；恒等位姿不输出）。不收敛抛错并携带 `unsupported` 明细；成员名为空在求解前抛错。
+- **求解 ≠ 传播**（职责分离）：约束求解在**库**（`solveAssembly` → `setPendingAssemblyTransforms` 登记结果）；变换的**应用与下游失效在引擎**（`takePendingAssemblyTransforms` → 成员 mesh 与 BREP solid 同步变换 → `computeDownstream` 重算下游 → 变量名进 `ExecutionResult.changed`；direct 执行器应用待定变换时无需 DAG 重算）。
+- **成员方法链**：`assem1.add_constraint({ … })` / `assem1.do_assemble()` / `assem1.solve()` 是 void op（`outputs: []`），不消费 receiver 变量；`solve()` 与 `do_assemble()` 完全同义。
 - **group 语义**：原子组、零约束；成员不准单独被修改（修改 group 即整体修改其全部成员）。
 
 ---

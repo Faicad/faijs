@@ -537,21 +537,28 @@ const a = await cad.union(part0, part1)
 
 ### 6.1 `assembly` ⚠️
 
-装配：成员 + 面约束（face_mate）。结构语句，无几何输出，成员用变量名引用、约束用拓扑面引用。
+装配：成员 + 约束。结构语句，无几何输出，成员用变量名引用、实体用 EntityRef / 拓扑引用。 求解内核复用 vendored brepjs solverAdapter.solveConstraints（链式拓扑调度 / DOF / converged / unsupported 诊断）；输出为 per-member 终态变换（每成员一条，恒等位姿不输出）。
 
 ```js
-cad.assembly({ name: '装配1', members: [part0, part1], constraints: [{ type: 'face_mate', fixedPartName: part0, movingPartName: part1, fixedFace: { topoRef: { kind: 'face', origin: 'part0', role: 'box:top', hint: { kind: 'face', surfaceType: 'plane' } } }, movingFace: { topoRef: { kind: 'face', origin: 'part1', role: 'cylinder:bottom', hint: { kind: 'face', surfaceType: 'circle' } } } }] })
+let asm1 = cad.assembly({ name: '主轴组件', members: [part0, part1, part2], constraints: [ { type: 'fixed', part: 'part0' }, { type: 'mate', a: { part: 'part0', face: { topoRef: { kind: 'face', origin: 'part0', role: 'box:top', hint: { kind: 'face', surfaceType: 'plane' } } } }, b: { part: 'part1', face: { topoRef: { kind: 'face', origin: 'part1', role: 'box:bottom', hint: { kind: 'face', surfaceType: 'plane' } } } } }, { type: 'concentric', a: { part: 'part1', face: { topoRef: { kind: 'face', origin: 'part1', role: '', hint: { kind: 'face', surfaceType: 'cylinder' } } } }, b: { part: 'part2', face: { topoRef: { kind: 'face', origin: 'part2', role: 'cylinder:lateral', hint: { kind: 'face', surfaceType: 'cylinder' } } } } } ] })
+asm1.solve()
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
 | `name` | `string` |  | — | 装配名 |
 | `members` | `Shape[]` |  | — | 成员（裸变量引用） |
-| `constraints` | `AssemblyConstraint[]` |  | — | 面约束数组（type='face_mate'；fixedPartName/movingPartName + fixedFace/movingFace：`{topoRef: FaceTopoRef}` 或 `{surfaceType, center, normal}`） |
+| `constraints` | `AssemblyConstraint[]` |  | — | 约束数组（遗留 face_mate 形态或上述新形态 { type, a, b }） |
 
-**同步**。CompoundShape + AssemblyBehavior（含 do_assemble 方法）。
+**同步**。CompoundShape + AssemblyBehavior（含 do_assemble / solve 方法）。
 
-> 早期文档/示例曾用 `fixedPartId`/`movingPartId`/`faceRowIndex`/`faceId`/`invalid`——这些键在代码中不存在。真实契约是 `fixedPartName`/`movingPartName` + `fixedFace`/`movingFace`。支持两种形态：`{ topoRef: FaceTopoRef }`（§6.2 新形态，几何由 faijs 执行期从面行派生）或旧快照 `{ surfaceType, center, normal }`（兼容历史脚本）。`faceId` 字段随 §6.2 移除，不再写入。
+> 约束类型（a=参考、b=从动，移动 b 去贴合 a）：`mate` 面对面贴合（法向反向+面中心重合，遗留 face_mate 的新名，求解降级为 concentric + 轴编码）；`align` 同向对齐（法向同向+面中心重合）；`coincident` 共面/共点/共线（保留面内 2 个平移 DOF）；`concentric` 轴重合（孔轴配合，圆柱/圆锥面需 hint.axis，直边/圆边需 EdgeHint.axis）；`distance` 定距（mm，带 value）；`angle` 夹角（deg，带 value）；`parallel`/`perpendicular` 平行/垂直（angle 0°/90° 语法糖）；`fixed` 锚定部件（地基）；`face_mate` 为遗留别名（规范化为 mate，新代码不再使用）。
+>
+> EntityRef 四种形态：`{ part, face: { topoRef } | { surfaceType?, center, normal } }`、`{ part, edge: { topoRef } | { axis: { origin, direction } } }`、`{ part, point: [x,y,z] }`、`{ part, faceIndex }`（1 起，仅调试简写）。
+>
+> 不收敛（实体类型不匹配/环/参考不可达）→ 抛错并带 unsupported 明细；成员名为空串 → 求解前抛错；mesh 快照缺 axis 的圆柱/圆锥面作轴实体 → E_TOPO_NOT_FOUND（绝不静默降级）。`mate`（中心重合）与 `coincident`（只共面）是两种不同语义，不互相映射。
+>
+> 早期文档/示例曾用 `fixedPartId`/`movingPartId`/`faceRowIndex`/`faceId`/`invalid`——这些键在代码中不存在。真实契约是 `fixedPartName`/`movingPartName` + `fixedFace`/`movingFace`（遗留 face_mate）。`faceId` 字段随 §6.2 移除，不再写入。
 
 ### 6.2 `group` ✅
 
@@ -653,7 +660,7 @@ const n = cad.faceNormal(part0, [0, 0, 5])
 
 | op | 品质 | 说明 |
 |---|---|---|
-| `assembly` | ⚠️ | 早期文档/示例曾用 `fixedPartId`/`movingPartId`/`faceRowIndex`/`faceId`/`invalid`——这些键在代码中不存在。真实契约是 `fixedPartName`/`movingPartName` + `fixedFace`/`movingFace`。支持两种形态：`{ topoRef: FaceTopoRef }`（§6.2 新形态，几何由 faijs 执行期从面行派生）或旧快照 `{ surfaceType, center, normal }`（兼容历史脚本）。`faceId` 字段随 §6.2 移除，不再写入。 |
+| `assembly` | ⚠️ | 约束类型（a=参考、b=从动，移动 b 去贴合 a）：`mate` 面对面贴合（法向反向+面中心重合，遗留 face_mate 的新名，求解降级为 concentric + 轴编码）；`align` 同向对齐（法向同向+面中心重合）；`coincident` 共面/共点/共线（保留面内 2 个平移 DOF）；`concentric` 轴重合（孔轴配合，圆柱/圆锥面需 hint.axis，直边/圆边需 EdgeHint.axis）；`distance` 定距（mm，带 value）；`angle` 夹角（deg，带 value）；`parallel`/`perpendicular` 平行/垂直（angle 0°/90° 语法糖）；`fixed` 锚定部件（地基）；`face_mate` 为遗留别名（规范化为 mate，新代码不再使用）。 |
 | `fai_split` | ⚠️ | 切割面统一用 `normal`/`offset`/`inPlaneAngleDeg` 描述；早期文本层曾与执行层键名断裂（planeRotation/planePosition），已修并统一为上述键名。 |
 | `knurl` | ⚠️ | knurl 无 BREP 实现（mesh-only），本质是顶点位移（网格操作），网格参数可接受；brep 模式下调用前抛 BrepUnsupportedError。面锚定建议用几何引用。 |
 | `sdf` | ⚠️ | SDF 无 BREP 实现（mesh-only）；brep 模式下 dispatchPath 调用前抛 BrepUnsupportedError。SDF 天生是网格操作，允许网格参数（resolution）。 |

@@ -27,7 +27,14 @@ export { sdf } from './sdf'
 export { group, assembly } from './compound'
 export { solveFaceMate, applyTransform } from './compound'
 export { copy } from './copy'
-export type { AssemblyBehavior, AssemblyConstraint, FaceMateConstraint } from './compound'
+export type {
+  AssemblyBehavior, AssemblyConstraint, FaceMateConstraint, FaceMateFace,
+  AssemblySolveResult,
+  EntityRef, FaceRef, EdgeRef, AssemblyVec3,
+  MateConstraint, AlignConstraint, CoincidentConstraint, ConcentricConstraint,
+  DistanceConstraint, AngleConstraint, ParallelConstraint, PerpendicularConstraint,
+  FixedConstraint, StructuralConstraint,
+} from './compound'
 export { faceNormal, bboxCenter, bboxMin, bboxMax } from './geom'
 export { asset } from './asset'
 export { solid, compound, isShape, isCompound } from '../shape'

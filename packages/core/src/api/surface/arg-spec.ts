@@ -1647,19 +1647,19 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     name: 'multiSectionSweep', source: 'operations/multiSweepFns.js#multiSectionSweep', kind: 'skip', module: 'operations', reason: 'sections: SweepSectionConfig[]（每份含 wire）数组入参，skip',
   },
   {
-    name: 'addJoint', source: 'operations/jointFns.js#addJoint', kind: 'skip', module: 'operations', reason: '装配场景（AssemblyNode 输入），skip',
+    name: 'addJoint', source: 'operations/jointFns.js#addJoint', kind: 'skip', module: 'operations', reason: '运动副 DSL（AssemblyNode 输入）：P3 起改由 cad.assembly 的 joints[] 约束面暴露（2026-09-06 装配方案 §5.6），仍不直接暴露',
   },
   {
-    name: 'forwardKinematics', source: 'operations/jointFns.js#forwardKinematics', kind: 'skip', module: 'operations', reason: '装配运动链场景输入，skip',
+    name: 'forwardKinematics', source: 'operations/jointFns.js#forwardKinematics', kind: 'skip', module: 'operations', reason: '运动链正解（纯计算）：P3 起改由 asm.kinematics()/cad 查询面暴露（2026-09-06 装配方案 §5.6），仍不直接暴露',
   },
   {
-    name: 'mechanismDOF', source: 'operations/jointFns.js#mechanismDOF', kind: 'skip', module: 'operations', reason: '装配场景输入，skip',
+    name: 'mechanismDOF', source: 'operations/jointFns.js#mechanismDOF', kind: 'skip', module: 'operations', reason: '机构自由度诊断（AssemblyNode 输入）：P3 起随 joints[] 约束面暴露（2026-09-06 装配方案 §5.6），仍不直接暴露',
   },
   {
-    name: 'addMate', source: 'operations/mateFns.js#addMate', kind: 'skip', module: 'operations', reason: '装配约束 DSL（AssemblyNode+kernel 面/边），skip',
+    name: 'addMate', source: 'operations/mateFns.js#addMate', kind: 'skip', module: 'operations', reason: '装配约束 DSL（MateEntity 持 kernel 活句柄，不可序列化）：P1 起改由 cad.assembly 的 constraints[] 纯数据约束面暴露（2026-09-06 装配方案 §5），仍不直接暴露',
   },
   {
-    name: 'solveAssembly', source: 'operations/mateFns.js#solveAssembly', kind: 'skip', module: 'operations', reason: '约束求解场景（kernel 句柄），skip',
+    name: 'solveAssembly', source: 'operations/mateFns.js#solveAssembly', kind: 'skip', module: 'operations', reason: '命令式求解入口（kernel 句柄输入）：P1 起由 asm.solve()/do_assemble() 替代，求解内核复用 vendored solverAdapter.solveConstraints（2026-09-06 装配方案 §4），仍不直接暴露',
   },
   {
     name: 'createHistory', source: 'operations/historyFns.js#createHistory', kind: 'skip', module: 'operations', reason: '状态化历史 DSL，skip host 适配',

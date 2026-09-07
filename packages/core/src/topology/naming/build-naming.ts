@@ -17,18 +17,20 @@ import type { RoleTable, FaceNaming, EdgeNaming, PartNaming } from './types'
 import { faceRowToHint, edgeRowToHint } from './geom-hint'
 import { roleOfOrdinal, boxRoleFromNormal } from './roles'
 
-/** 面的源行数据（FaceRow 子集，够生成 hint + 反查）。 */
+/** 面的源行数据（FaceRow 子集，够生成 hint + 反查）。axis 为宿主注入的轴快照（装配轴约束用）。 */
 export interface NamingFaceRow {
   readonly surfaceType?: string
   readonly normal?: readonly number[] | null
   readonly center?: readonly number[] | null
   readonly area?: number
+  readonly axis?: { readonly origin?: readonly number[] | null; readonly direction?: readonly number[] | null } | null
 }
 
-/** 边的源行数据（EdgeRow 子集）。 */
+/** 边的源行数据（EdgeRow 子集）。axis 为直边/圆边的轴快照（装配轴约束用）。 */
 export interface NamingEdgeRow {
   readonly length?: number
   readonly center?: readonly number[] | null
+  readonly axis?: { readonly origin?: readonly number[] | null; readonly direction?: readonly number[] | null } | null
 }
 
 /** 生成 PartNaming 的输入。 */

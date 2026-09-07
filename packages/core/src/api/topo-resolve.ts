@@ -27,6 +27,7 @@ import {
   type FaceTopoRef,
   type ResolutionContext,
   type FaceHint,
+  type AxisHint,
   type EdgeCandidateEntry,
   type RoleTable,
 } from '../topology/naming'
@@ -36,6 +37,8 @@ export interface ResolvedFaceGeometry {
   surfaceType?: string
   center: [number, number, number]
   normal: [number, number, number]
+  /** 圆柱/回转面的轴（装配轴约束用；平面/球面缺省，mesh 行快照由宿主注入）。 */
+  axis?: AxisHint
 }
 
 /**
@@ -212,22 +215,24 @@ export function resolveFaceGeometry(
       `resolved ordinal ${entity.ordinal} has no candidate in context (origin=${ref.origin}, role=${ref.role})`,
     )
   }
-  // BREAK 现场：capture 出当前法向/中心
+  // BREAK 现场：capture 出当前法向/中心（圆柱面含轴）
   if (entry.handle && ctx.kernel) {
     const hint = captureFaceHint(ctx.kernel, entry.handle)
     return {
       surfaceType: hint.surfaceType,
       center: hint.center ?? [0, 0, 0],
       normal: hint.normal ?? [0, 0, 1],
+      ...(hint.axis ? { axis: hint.axis } : {}),
     }
   }
-  // mesh/行快照：直接用行几何
+  // mesh/行快照：直接用行几何（axis 由宿主行注入，缺省 undefined）
   const ext = entry.row
   const hint = ext ? faceRowToHint(ext) : undefined
   return {
     surfaceType: hint?.surfaceType,
     center: hint?.center ?? [0, 0, 0],
     normal: hint?.normal ?? [0, 0, 1],
+    ...(hint?.axis ? { axis: hint.axis } : {}),
   }
 }
 

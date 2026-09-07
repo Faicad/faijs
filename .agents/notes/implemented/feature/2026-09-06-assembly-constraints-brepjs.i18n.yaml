@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-06-assembly-constraints-brepjs.md
+2026-09-06-assembly-constraints-brepjs.md: dc92de7cc544a62c87344d7b120682309ba9ce9c
+2026-09-06-assembly-constraints-brepjs.zh.md: faa991189e8d4ed7929086e66d5499dc0e22a66a

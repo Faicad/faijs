@@ -13,6 +13,15 @@ import type { PartName } from '../../identity'
 
 // ── 几何提示（hint）──
 
+/**
+ * 轴几何快照（装配约束 P0 前置）：圆柱/圆锥面与直边/圆边的有向轴。
+ * origin 是轴上一点（圆柱轴点 / 直边起点 / 圆边圆心），direction 是单位轴向。
+ */
+export interface AxisHint {
+  readonly origin: [number, number, number]
+  readonly direction: [number, number, number]
+}
+
 /** 面几何快照：与 SelectorRuntime 的 FaceRow（surfaceType/area/center/normal）同源。 */
 export interface FaceHint {
   readonly kind: 'face'
@@ -20,6 +29,8 @@ export interface FaceHint {
   readonly normal?: [number, number, number]
   readonly center?: [number, number, number]
   readonly area?: number
+  /** 圆柱/回转面的轴（装配 concentric 等轴约束的实体来源；平面/球面缺省）。 */
+  readonly axis?: AxisHint
 }
 
 /** 边几何快照：length/midpoint 作裁决 hint。 */
@@ -27,6 +38,8 @@ export interface EdgeHint {
   readonly kind: 'edge'
   readonly length?: number
   readonly midpoint?: [number, number, number]
+  /** 直边（起点+切向）或圆边（圆心+所在平面法向）的轴（装配轴约束的实体来源）。 */
+  readonly axis?: AxisHint
 }
 
 /** 顶点几何快照：position 作裁决 hint。 */
