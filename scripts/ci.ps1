@@ -139,6 +139,9 @@ Step -Label '5/9  守卫：幽灵依赖 / workspaces 顺序 / 包图无环 / 导
     if ($LASTEXITCODE -ne 0) { return }
     # P10-④：U8 品牌守卫（用户可见面零 brepjs，E6）
     node scripts/check-vendored-branding.mjs
+    if ($LASTEXITCODE -ne 0) { return }
+    # P4：表面产物守卫（源码变了但产物未重生成）
+    npm run gen:surface:check
 }
 
 Step -Label '6/9  demo e2e（dev server 模式，M7 链路）' -Block {
