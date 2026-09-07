@@ -8,7 +8,7 @@ import {
   vecAdd,
   vecScale,
   vecCross,
-} from '@faicad/faijs/compat';
+} from '@faicad/faijs/brepjs-compat';
 import type { BendFeature, SheetMetalPart, SheetMetalWarning } from './types.js';
 import { ROOT_FLAT_ID } from './featureTreeFns.js';
 

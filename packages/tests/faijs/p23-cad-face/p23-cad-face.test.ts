@@ -28,7 +28,7 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createRuntime, registerOcctBrepEngine, compat, createApiNamespace } from '@faicad/faijs'
+import { createRuntime, registerOcctBrepEngine, brepjsCompat, createApiNamespace } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
 import { asPartName } from '@faicad/faijs-core/identity'
 import { isShape, hasBrep } from '@faicad/faijs-core/shape'
@@ -190,14 +190,14 @@ describe('③ 生成脚本面 op 在 .fai.js 中执行', () => {
     }
   })
 
-  it('两个面各自可用：脚本面（faijs Shape）与 compat 面（brepjs 句柄，§6.3）', async () => {
+  it('两个面各自可用：脚本面（faijs Shape）与 brepjsCompat 面（brepjs 句柄，§6.3）', async () => {
     // 脚本面：cad.clone 收 faijs Shape，返回 faijs Shape
     const res = await rt.execute('const p0 = cad.box(10, 10, 10, { centered: true })\nconst p1 = cad.clone(p0)')
     expect(res.failedAt).toBeUndefined()
     expect(res.outputs.get(asPartName('p1'))).toBeDefined()
-    // 库作者面：compat.box 收数值、返回 vendored ValidSolid；compat.fuse 返回 Result
-    const boxA = compat.box(10, 10, 10)
-    const fused = compat.fuse(boxA, boxA)
+// 库作者面：brepjsCompat.box 收数值、返回 vendored ValidSolid；brepjsCompat.fuse 返回 Result
+const boxA = brepjsCompat.box(10, 10, 10)
+const fused = brepjsCompat.fuse(boxA, boxA)
     expect((fused as { ok?: boolean }).ok).toBe(true)
   })
 })

@@ -16,7 +16,7 @@ import {
   vecCross,
   vecDot,
   vecNormalize,
-} from '@faicad/faijs/compat';
+} from '@faicad/faijs/brepjs-compat';
 import type { SheetMetalPart } from './types.js';
 import { normalizeSolid } from './internal.js';
 

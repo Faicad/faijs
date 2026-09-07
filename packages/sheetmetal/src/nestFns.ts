@@ -1,4 +1,4 @@
-import { type Result, ok, err, validationError, getEdges, curveStartPoint } from '@faicad/faijs/compat';
+import { type Result, ok, err, validationError, getEdges, curveStartPoint } from '@faicad/faijs/brepjs-compat';
 import type { FlatPattern, SheetMetalWarning } from './types.js';
 import { multiPatternToDXF, type DxfOptions, type Transform2, type PlacedPattern } from './dxfFns.js';
 import {

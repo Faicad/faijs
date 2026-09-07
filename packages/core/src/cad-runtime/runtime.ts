@@ -44,6 +44,7 @@ import {
   type AssemblyKinematicsPose,
 } from '../runtime-state'
 import { admitCompatLib } from './admit-compat-lib'
+import { hasDualOp } from '../define-op'
 import { computeLibId } from './lib-id'
 import { computeContentKey } from './content-key'
 export { computeContentKey } from './content-key'
@@ -343,24 +344,33 @@ export class CadRuntime {
    *
    * Third-party libraries (no defineOp / no contractVersion) are admitted
    * through compatOp so bare functions cannot silently bypass the statement
-   * boundary contract (B4, §4.3.3). The engine's built-in L3 surface is
-   * registered with `{ compat: false }` by the facade: its mesh/query helpers
-   * keep their native statement-level behavior until P23 rebuilds it onto the
-   * compat surface (§4.4 keeps dual-op mesh implementations untouched).
+   * boundary contract (B4, §4.3.3). The `autoLift` option controls this:
+   *   - `true`  → bare functions are lifted via compatOp (brep-only, B4).
+   *   - `false` → no lifting (the library's functions are used as-is; the
+   *     built-in cad surface uses this since its ops already carry
+   *     `DUAL_OP_META`).
+   *   - omitted → inferred: `!hasDualOp(ns)`. Libraries that already declare
+   *     dual-ops (cad, gear-lib-demo's defineOp mocks) auto-lift `false`;
+   *     all-bare-function libraries (sheetmetal) auto-lift `true`.
+   *
+   * The engine's built-in L3 surface is registered without `autoLift` by the
+   * facade: inferred `false` (all ops carry `DUAL_OP_META`).
    * @param binding - the name scripts use to reach the namespace (e.g. 'cad').
    * @param ns - the library's export object.
    * @param options - registration hints. `packageName` declares the npm package
    *   backing this binding so `check()` can validate script import specifiers
    *   against registered libraries (specifier mismatch = hard check error).
    */
-  registerLib(binding: string, ns: StdlibNamespace, options?: { default?: boolean; compat?: boolean; packageName?: string }): void {
+  registerLib(binding: string, ns: StdlibNamespace, options?: { default?: boolean; autoLift?: boolean; packageName?: string }): void {
     assertContractVersion(ns as unknown as { contractVersion?: number })
-    // B4: admit bare (non-dual-op) library functions through compatOp for
-    // libraries that opt in (compat: true). Default off keeps the mesh-native
-    // fixture set (`{ makeHeadstock: ... }` style) behaviorally unchanged — the
-    // P22 wiring demonstrates the admit path while the in-repo libs (gear-lib-demo,
-    // sheetmetal) migrate onto it in P24/P25.
-    const admitted = options?.compat === true
+    // B4: admit bare (non-dual-op) library functions through compatOp when
+    // autoLift is true (or inferred true — the library has no dual-op).
+    // Hard ordering: assertLibConforms runs inside admitCompatLib BEFORE
+    // wrapping — DUAL_OP_META hangs on the function object with
+    // enumerable:false, and wrapping first would let bare functions silently
+    // skip the strict validation pass (R8).
+    const lift = options?.autoLift ?? !hasDualOp(ns as unknown as Record<string, unknown>)
+    const admitted = lift
       ? (admitCompatLib(ns as unknown as Record<string, unknown>) as StdlibNamespace)
       : ns
     this.libs[binding] = admitted
@@ -901,7 +911,7 @@ export class CadRuntime {
         }
       }
       this.registerLib(imp.localName, ns, {
-        compat: this.ports.libLoader.options?.compat ?? true,
+        autoLift: this.ports.libLoader.options?.autoLift ?? !hasDualOp(ns as unknown as Record<string, unknown>),
         packageName: imp.packageName,
       })
     }

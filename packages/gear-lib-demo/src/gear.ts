@@ -12,7 +12,7 @@
  *    `thread`) — the single-kernel assert at the lib boundary takes over the
  *    engine lifecycle, so this module no longer self-registers a kernel.
  * 2. Every factory returns a `Result` carrying raw shape handles; adoption
- *    into faijs Shapes happens at the boundary (`registerLib(…, { compat:
+ *    into faijs Shapes happens at the boundary (`registerLib(…, { autoLift:
  *    true })` → `admitCompatLib` → `compatOp`), never via a hand-rolled
  *    `fromHandle`.
  * 3. `planetary` returns a structured multi-geometry record and declares the

@@ -189,8 +189,8 @@ export interface LibLoader {
   loadLib(packageName: string): Promise<StdlibNamespace>
   /** 列出当前可加载的 packageName（check 阶段同步校验 import specifier 用）。 */
   listLibs(): string[]
-  /** 自动装载的注册选项；缺省 { compat: true }（第三方库经 compat 边界收口，与手动注入一致）。 */
-  options?: { compat?: boolean }
+  /** 自动装载的注册选项；缺省由推断式决定（有 dual-op 的库不提升，全裸函数库自动提升，与手动注入一致）。 */
+  options?: { autoLift?: boolean }
 }
 
 // ── ProjectLoader ──

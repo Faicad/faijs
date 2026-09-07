@@ -44,7 +44,7 @@ describe('aluminum enclosure — whole-package sheetmetal flow over the compat b
   it('executes end-to-end: brep-backed solid, 4 bend lines, 2 holes, developed area ≈26 826 mm²', async () => {
     const runtime: CadRuntime = createRuntime(createNodePorts(), 'auto')
     try {
-      runtime.registerLib('sheet', sheetNs, { compat: true })
+      runtime.registerLib('sheet', sheetNs, { autoLift: true })
       const res = await runtime.execute(SCRIPT)
       expect(res.failedAt).toBeUndefined()
 

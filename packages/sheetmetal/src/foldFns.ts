@@ -7,7 +7,7 @@ import {
   getEdges,
   curveStartPoint,
   curveEndPoint,
-} from '@faicad/faijs/compat';
+} from '@faicad/faijs/brepjs-compat';
 import type {
   BendRule,
   CutoutSpec,

@@ -6,7 +6,7 @@
  *    err carries the validation code (no more module-level error throwing).
  *  - `planetary` returns the structured `{ sun, planets, ring }` record with
  *    the static `outputs` annotation (outbound adoption point).
- *  - through `registerLib(…, { compat: true })` the boundary adopts the raw
+ *  - through `registerLib(…, { autoLift: true })` the boundary adopts the raw
  *    handles into faijs Shapes (Shape + hasBrep).
  *  - mesh mode → E_MESH_UNSUPPORTED (brep-only, no fallback).
  *
@@ -78,11 +78,11 @@ describe('gear raw Result contract (§8.1)', () => {
   })
 })
 
-describe('gear through registerLib({ compat: true })', () => {
+describe('gear through registerLib({ autoLift: true })', () => {
   it('script `gear.external(...)` yields a faijs Shape with a brep slot', async () => {
     const rt = createRuntime(createNodePorts(), 'auto')
     try {
-      rt.registerLib('gear', gear as never, { compat: true, packageName: 'gear-lib-demo' } as never)
+      rt.registerLib('gear', gear as never, { autoLift: true, packageName: 'gear-lib-demo' } as never)
       const res = await rt.execute([
         "import * as gear from 'gear-lib-demo'",
         'let g = gear.external({ teeth: 24, moduleSize: 2, thickness: 8, bore: 8 })',
@@ -99,7 +99,7 @@ describe('gear through registerLib({ compat: true })', () => {
   it('mesh mode → E_MESH_UNSUPPORTED (no silent mesh fallback)', async () => {
     const meshRt = createRuntime(createNodePorts(), 'mesh')
     try {
-      meshRt.registerLib('gear', gear as never, { compat: true, packageName: 'gear-lib-demo' } as never)
+      meshRt.registerLib('gear', gear as never, { autoLift: true, packageName: 'gear-lib-demo' } as never)
       const res = await meshRt.execute([
         "import * as gear from 'gear-lib-demo'",
         'let g0 = gear.external({ teeth: 24, moduleSize: 2, thickness: 8, bore: 8 })',

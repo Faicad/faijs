@@ -75,7 +75,7 @@ export type { MeshHandleOptions } from './brep/handle-bridge'
 // 第三方库作者用 defineOp 声明实现集合；dispatchPath 不再直接导出——
 // 分派由 defineOp 包装器内部调用（规则仍是引擎 backend-dispatch.ts 单点）。
 
-export { defineOp, assertLibConforms, DUAL_OP_META } from './define-op'
+export { defineOp, assertLibConforms, hasDualOp, DUAL_OP_META } from './define-op'
 export type {
   DualOpMeta,
   DualOpOptions,

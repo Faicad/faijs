@@ -70,7 +70,7 @@ export function isResultLike(v: unknown): v is ResultLike {
  *
  * The op name and the `BrepError.code` (when present) are always kept so the
  * engine's statement-level catch reports the same shape the plan's trace A/B
- * describe (`[faijs/compat] <op>: <CODE>: <message>`).
+ * describe (`[faijs/brepjs-compat] <op>: <CODE>: <message>`).
  *
  * @param name - the op name.
  * @param err  - the thrown value (Error or anything else).
@@ -125,6 +125,6 @@ export function unwrapResult(r: unknown, name: string): unknown {
   throw new OpError(
     name,
     code,
-    `[faijs/compat] ${name}: ${code}: ${e.message ?? 'operation failed'}`,
+    `[faijs/brepjs-compat] ${name}: ${code}: ${e.message ?? 'operation failed'}`,
   )
 }

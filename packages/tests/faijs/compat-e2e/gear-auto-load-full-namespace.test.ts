@@ -20,7 +20,7 @@ import type { LibLoader } from '@faicad/faijs-core/cad-runtime/ports'
 const loader: LibLoader = {
   loadLib: async () => gearPkg as unknown as StdlibNamespace,
   listLibs: () => ['gear-lib-demo'],
-  options: { compat: true },
+  options: { autoLift: true },
 }
 
 const SCRIPT = [

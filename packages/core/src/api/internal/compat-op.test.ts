@@ -16,7 +16,7 @@
  */
 
 import { beforeAll, describe, expect, it } from 'vitest'
-import { createRuntime, compat } from '@faicad/faijs'
+import { createRuntime, brepjsCompat } from '@faicad/faijs'
 import {
   configureBackends,
   CONTRACT_VERSION,
@@ -79,8 +79,8 @@ function brepOfChain(shape: Shape): Shape {
 const onChain = brepOfChain(cubeMesh(5))
 const offChain = solid(cubeMesh(5))
 
-/** compat namespace returns a vendored box handle. */
-const vendorBox = (compat as unknown as { box: (a: number, b: number, c: number) => unknown }).box
+/** brepjsCompat namespace returns a vendored box handle. */
+const vendorBox = (brepjsCompat as unknown as { box: (a: number, b: number, c: number) => unknown }).box
 
 function metaOf(op: unknown): DualOpMeta {
   const m = (op as unknown as Carried)[DUAL_OP_META]
@@ -161,7 +161,7 @@ describe('§4 outputs — 多产物（含数组字段）收养 + meta 可见', (
       r.registerLib(
         'out',
         { contractVersion: CONTRACT_VERSION, planetary } as unknown as StdlibNamespace,
-        { compat: true, packageName: 'out-lib' },
+        { autoLift: true, packageName: 'out-lib' },
       )
       const res = await r.execute("import * as out from 'out-lib'\nconst a1 = out.planetary({ n: 1 })")
       expect(res.failedAt).toBeUndefined()
@@ -197,7 +197,7 @@ describe('§6 slotMap — positional boxing inherited via the spec', () => {
       r.registerLib(
         'sl',
         { contractVersion: CONTRACT_VERSION, slotted: slotted as never } as unknown as StdlibNamespace,
-        { compat: true, packageName: 'slot-lib' },
+        { autoLift: true, packageName: 'slot-lib' },
       )
       const res = await r.execute(
         "import * as sl from 'slot-lib'\nconst m = sl.slotted(5)\nconst n = sl.slotted({ size: 7 })",
@@ -219,7 +219,7 @@ describe('§5 keep — 兼容 op 调用点声明（UI 层显示契约不改）',
   async function run(code: string): Promise<ExecutionResult> {
     const r = createRuntime(ports(), 'auto')
     try {
-      r.registerLib('gear', ns, { compat: true, packageName: 'gear-lib-demo' })
+      r.registerLib('gear', ns, { autoLift: true, packageName: 'gear-lib-demo' })
       return await r.execute(code)
     } finally {
       r.dispose()
@@ -256,7 +256,7 @@ describe('§3 admitCompatLib — bare fn 只认 fn.outputs（多产物契约名�
     const ns = { contractVersion: CONTRACT_VERSION, sorting } as unknown as StdlibNamespace
     const r = createRuntime(ports(), 'auto')
     try {
-      r.registerLib('srt', ns, { compat: true, packageName: 'sort-lib' })
+      r.registerLib('srt', ns, { autoLift: true, packageName: 'sort-lib' })
       const result = await r.execute("import * as srt from 'sort-lib'\nconst r1 = srt.sorting({ n: 4 })")
       expect(result.failedAt).toBeUndefined()
       const rec = result.activeValues?.get(asPartName('r1')) as { a: unknown; b: unknown } | undefined

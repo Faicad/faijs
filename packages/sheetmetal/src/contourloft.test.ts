@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { initOCCT } from './test-setup.js';
-import { measureVolume, isValid, isSolid, getSolids, getEdges } from '@faicad/faijs/compat';
+import { measureVolume, isValid, isSolid, getSolids, getEdges } from '@faicad/faijs/brepjs-compat';
 import { authorPart } from './authorFns.js';
 import { authorContourFlange } from './contourFlangeFns.js';
 import { authorLoftedFlange } from './loftedFlangeFns.js';

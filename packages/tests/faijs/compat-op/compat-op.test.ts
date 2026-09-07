@@ -7,7 +7,7 @@
  *     adoptEntity triple (entity adoption / pure-data pass-through / sub-shape
  *     rejection E_SUBSHAPE_BOUNDARY) and same-handle double-adoption dedup;
  *  ② integration — a bare library (no defineOp, no contractVersion) registered
- *     through `{ compat: true }` runs as a `.fai.js` statement and yields a
+ *     through `{ autoLift: true }` runs as a `.fai.js` statement and yields a
  *     Shape with a live BREP slot (hasBrep);
  *  ③ incremental — statementKey carries the lib binding's content id
  *     (`cart.box#<libId>`); re-registering the same library keeps the key
@@ -25,7 +25,7 @@
  */
 
 import { beforeAll, describe, expect, it } from 'vitest'
-import { createRuntime, registerOcctBrepEngine, compat } from '@faicad/faijs'
+import { createRuntime, registerOcctBrepEngine, brepjsCompat } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
 import { asPartName } from '@faicad/faijs-core/identity'
 import { hasBrep, isShape } from '@faicad/faijs-core/shape'
@@ -125,7 +125,7 @@ describe('① compat-op units', () => {
   it('adoptEntity: entity adoption produces a Shape with a brep slot', async () => {
     const { runtime } = await makeBrepRuntime()
     try {
-      const solid = compat.box(10, 20, 30)
+      const solid = brepjsCompat.box(10, 20, 30)
       const adopted = adoptEntity(solid, 'box') as Shape
       expect(isShape(adopted)).toBe(true)
       expect(hasBrep(adopted)).toBe(true)
@@ -142,8 +142,8 @@ describe('① compat-op units', () => {
   it('adoptEntity: sub-shape handles are rejected at the boundary', async () => {
     const { runtime } = await makeBrepRuntime()
     try {
-      const solid = compat.box(10, 20, 30)
-      const faces = compat.getFaces(solid)
+      const solid = brepjsCompat.box(10, 20, 30)
+      const faces = brepjsCompat.getFaces(solid)
       expect(faces.length).toBeGreaterThan(0)
       const face = faces[0]
       expect(() => adoptEntity(face, 'faceOp')).toThrow(/E_SUBSHAPE_BOUNDARY/)
@@ -155,7 +155,7 @@ describe('① compat-op units', () => {
   it('adoptEntity: the same vendored handle adopted twice yields one Shape', async () => {
     const { runtime } = await makeBrepRuntime()
     try {
-      const solid = compat.box(1, 2, 3)
+      const solid = brepjsCompat.box(1, 2, 3)
       const first = adoptEntity(solid, 'op')
       const second = adoptEntity(solid, 'op')
       expect(first).toBe(second) // adoptedMap dedup: no double ownership
@@ -166,20 +166,20 @@ describe('① compat-op units', () => {
 })
 
 describe('② bare-lib integration through .fai', () => {
-  async function runBareLib(options?: { compat?: boolean; impl?: (p: { size: number }) => unknown }) {
+  async function runBareLib(options?: { autoLift?: boolean; impl?: (p: { size: number }) => unknown }) {
     const runtime = createRuntime(createNodePorts(), 'auto')
     runtime.registerLib('gearbox', {
       make: options?.impl ?? (({ size }: { size: number }) => {
-        return (compat as unknown as { box: (a: number, b: number, c: number) => unknown }).box(size, size, size)
+        return (brepjsCompat as unknown as { box: (a: number, b: number, c: number) => unknown }).box(size, size, size)
       }),
-    }, { compat: options?.compat ?? true })
+    }, { autoLift: options?.autoLift ?? true })
     const code = "import * as gearbox from 'gearbox-lib'\nconst g = gearbox.make({ size: 12 })"
     const result = await runtime.execute(code)
     return { runtime, result }
   }
 
-  it('bare lib through `{ compat: true }`: g is a Shape with a brep slot', async () => {
-    const { runtime, result } = await runBareLib({ compat: true })
+  it('bare lib through `{ autoLift: true }`: g is a Shape with a brep slot', async () => {
+    const { runtime, result } = await runBareLib({ autoLift: true })
     try {
       expect(result.failedAt).toBeUndefined()
       const g = result.outputs.get(asPartName('g')) as Shape | undefined
@@ -194,11 +194,11 @@ describe('② bare-lib integration through .fai', () => {
 
 describe('③ incremental lib-content identity', () => {
   function libA() {
-    return { box: ({ size }: { size: number }) => compat.box(size, size, size) }
+    return { box: ({ size }: { size: number }) => brepjsCompat.box(size, size, size) }
   }
   function libB() {
     // different implementation (varies the width) → different body → different libId
-    return { box: ({ size }: { size: number }) => compat.box(size * 2, size, size) }
+    return { box: ({ size }: { size: number }) => brepjsCompat.box(size * 2, size, size) }
   }
 
   const CODE =
@@ -208,13 +208,13 @@ describe('③ incremental lib-content identity', () => {
     const runtime = createRuntime(createNodePorts(), 'auto')
     try {
       const lib = libA()
-      runtime.registerLib('gear', lib, { compat: true })
+      runtime.registerLib('gear', lib, { autoLift: true })
       const r1 = await runtime.execute(CODE)
       expect(r1.failedAt).toBeUndefined()
       const k1 = runtime.getStatementCacheEntry(asPartName('g'))?.statementKey
       const h1 = runtime.getStatementCacheEntry(asPartName('h'))?.statementKey
 
-      runtime.registerLib('gear', lib, { compat: true }) // same implementation again
+      runtime.registerLib('gear', lib, { autoLift: true }) // same implementation again
       const r2 = await runtime.execute(CODE)
       expect(r2.failedAt).toBeUndefined()
       const k2 = runtime.getStatementCacheEntry(asPartName('g'))?.statementKey
@@ -230,13 +230,13 @@ describe('③ incremental lib-content identity', () => {
   it('changing the library surface causes downstream recompute', async () => {
     const runtime = createRuntime(createNodePorts(), 'auto')
     try {
-      runtime.registerLib('gear', libA(), { compat: true })
+      runtime.registerLib('gear', libA(), { autoLift: true })
       const r1 = await runtime.execute(CODE)
       expect(r1.failedAt).toBeUndefined()
       const g1 = r1.outputs.get(asPartName('g')) as Shape | undefined
 
       // replace with the changed implementation
-      runtime.registerLib('gear', libB(), { compat: true })
+      runtime.registerLib('gear', libB(), { autoLift: true })
       // T5: plan() deleted with IR; use update(full-replay) to verify recompute
       const r2 = await runtime.update(CODE, CODE)
       expect(r2.failedAt).toBeUndefined()
@@ -272,8 +272,8 @@ describe('④ leak: 50 loopthrough executes keep the arena bounded', () => {
 
     const compatRuntime = createRuntime(createNodePorts(), 'auto')
     compatRuntime.registerLib('spin', {
-      box: ({ n }: { n: number }) => compat.box(n, n, n),
-    }, { compat: true })
+      box: ({ n }: { n: number }) => brepjsCompat.box(n, n, n),
+    }, { autoLift: true })
     const code = "import * as spin from 'spin-lib'\nconst g = spin.box({ n: 7 })"
     await compatRuntime.execute(code)
     const compatBase = kernel.shapeCount

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { initOCCT } from './test-setup.js';
-import { isErr } from '@faicad/faijs/compat';
+import { isErr } from '@faicad/faijs/brepjs-compat';
 import { bendAllowance } from './allowanceFns.js';
 import type { BendRule } from './types.js';
 

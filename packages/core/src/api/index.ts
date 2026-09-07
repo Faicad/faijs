@@ -50,11 +50,11 @@ export type { ShapeSlot, SolidShape, CompoundShape, StdShape, ShapeKind } from '
 //    布尔双形态、brep-only），TS 侧与 `.fai.js` 侧同语义。
 export * from './generated/script-face'
 //
-// ② brepjs 形态的 TS 兼容面（P21）以 `compat` 命名空间整体导出（库作者面：
-//    句柄进出、Result 语义）。**op 符号不在此处平铺**——`compat.fuse`（brepjs
+// ② brepjs 形态的 TS 兼容面（P21）以 `brepjsCompat` 命名空间整体导出（库作者面：
+//    句柄进出、Result 语义）。**op 符号不在此处平铺**——`brepjsCompat.fuse`（brepjs
 //    句柄形态）与脚本面 `fuse`（compatOp 包装的 faijs 形态）是同一 vendored
 //    实现的两个投影，按「一个名字一份实现」红线（§6.3），平铺面只保留脚本面
-//    那份；库作者继续 `import { compat } from '@faicad/faijs'` 用上游形态。
+//    那份；库作者继续 `import { brepjsCompat } from '@faicad/faijs'` 用上游形态。
 //    此处只平铺**无 op 语义**的组合器与纯工具（Result / 向量 / 平面 / 错误 /
 //    常量），它们在两个面之间语义一致且无同名冲突。
 export {
@@ -63,24 +63,24 @@ export {
   createPlane, createNamedPlane, resolvePlane,
   kernelError, validationError,
   DEG2RAD, RAD2DEG,
-} from './compat'
+} from './brepjs-compat'
 export type {
   Result, Ok, Err,
   Vertex, Edge, Wire, Face, Shell, Solid, CompSolid, Shape3D,
   Plane, PlaneName, PlaneInput,
   Vec3, PointInput,
   Bounds3D,
-} from './compat'
+} from './brepjs-compat'
 // ── P24（§8.1）：库建造工厂与 Result 组合器平铺。它们不是脚本面 op（不在
 //    符号表/`cad` 面），也不是 dual op——是库作者面的函数，与 P23 平铺的纯
 //    组合器同一规则（`makeExternalGear`/`thread`/`map` 无同名冲突，§6.3）。
 export {
   makeExternalGear, makeInternalGear, makePlanetaryGear, thread,
   map, andThen,
-} from './compat'
+} from './brepjs-compat'
 export type {
   ExternalGearParams, InternalGearParams, PlanetaryGearParams,
   GearGeometry, GearResult, PlanetaryGearAssembly, ThreadOptions,
   ValidSolid, ClosedWire,
-} from './compat'
-export * as compat from './compat'
+} from './brepjs-compat'
+export * as brepjsCompat from './brepjs-compat'

@@ -42,7 +42,7 @@ const demoLibLoader: LibLoader = {
     return await loader()
   },
   listLibs: () => Object.keys(LIB_MODULES),
-  options: { compat: true },
+  options: { autoLift: true },
 }
 
 // ── Example .fai.js files ──

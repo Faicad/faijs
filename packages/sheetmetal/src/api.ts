@@ -7,7 +7,7 @@
  * `sheetMetal()` facade in `./facade.js` is built on top of these.
  */
 
-import { ok, err, validationError, type Result, type Solid } from '@faicad/faijs/compat';
+import { ok, err, validationError, type Result, type Solid } from '@faicad/faijs/brepjs-compat';
 import {
   authorPart as authorPartFn,
   type AuthorSpec,

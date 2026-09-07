@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { initOCCT } from './test-setup.js';
-import { isValid, measureVolume, getEdges, isErr, unwrap } from '@faicad/faijs/compat';
+import { isValid, measureVolume, getEdges, isErr, unwrap } from '@faicad/faijs/brepjs-compat';
 import { author, unfold, validate } from './api.js';
 import { addBendRelief, autoBendReliefs, cornerRelief } from './reliefFns.js';
 import { fold, partToFlatInput } from './foldFns.js';

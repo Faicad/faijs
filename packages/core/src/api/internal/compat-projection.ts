@@ -5,14 +5,14 @@
  *
  * Every symbol on the TS compat face and every generated `compatOp` op funnels
  * through {@link projectBrepOp}. That is what makes the generated face and the
- * hand-curated `api/compat` face one mechanism rather than two:
+ * hand-curated `api/brepjs-compat` face one mechanism rather than two:
  *
  *   1. single-kernel assert (D10) — library code never installs a kernel;
  *   2. D11 dual-form normalization — object form → positional form, in the
  *      exported function (§4.2 「归一化位置」), not in a script-side adapter;
  *   3. the vendored call itself, through `callBrepjs` (Result shape preserved).
  *
- * P21's `api/compat` used a private copy of steps 1–3 (`wrapDual`); P23 lifts it
+ * P21's `api/brepjs-compat` used a private copy of steps 1–3 (`wrapDual`); P23 lifts it
  * here so `gen-l3-surface.ts` can emit one `compatOp(projectBrepOp(…), …)` line
  * per symbol instead of re-expanding the template for each op.
  *

@@ -24,7 +24,7 @@ import {
   vecNormalize,
   line,
   wireLoop,
-} from '@faicad/faijs/compat';
+} from '@faicad/faijs/brepjs-compat';
 import type {
   UnfoldResult,
   FlatPattern,

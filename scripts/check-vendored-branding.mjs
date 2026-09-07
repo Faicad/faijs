@@ -87,9 +87,32 @@ function isRelativeSpec(spec) {
   return spec.startsWith('./') || spec.startsWith('../')
 }
 
+/**
+ * Q5-A 品牌名豁免（2026-09-07）：`brepjsCompat` 命名空间与 `brepjs-compat` 子路径
+ * 是有意为之的品牌名（方案 §11.2 Q5 裁决 A），不是泄露。守卫放行这些特定形式。
+ * 规则：docs/plans/2026-09-07-compat-surface-unified-projection.md §11.2 Q5
+ */
+const BRAND_WHITELIST = [
+  'brepjsCompat',           // 顶层命名空间导出名
+  'brepjs-compat',          // 子路径段
+  '@faicad/faijs/brepjs-compat', // 完整子路径
+  'api/brepjs-compat',      // core exports 键
+  './api/brepjs-compat',    // core exports 键（带前缀）
+]
+function isBrandWhitelisted(s) {
+  // Exact match or the string contains the brand name as a path/identifier segment
+  return BRAND_WHITELIST.some((w) =>
+    s === w ||
+    s === `@faicad/faijs/${w}` ||
+    s.endsWith(`/${w}`) ||
+    s.includes(`brepjs-compat`) || // covers [faijs/brepjs-compat] error prefixes etc.
+    s.includes(`brepjsCompat`),    // covers namespace references in generated code
+  )
+}
+
 // A1：vendored 源码 + core dist 字符串字面量零 brepjs
 {
-  const roots = [resolve('packages/core/src/vendored/brepjs'), resolve('packages/core/src/api/compat')]
+  const roots = [resolve('packages/core/src/vendored/brepjs'), resolve('packages/core/src/api/brepjs-compat')]
   if (existsSync(resolve('packages/core/dist'))) roots.push(resolve('packages/core/dist'))
   const files = []
   for (const r of roots) files.push(...walk(r, /\.(ts|js|mjs|mts)$/))
@@ -100,9 +123,11 @@ function isRelativeSpec(spec) {
     for (const lit of stringLiterals(code)) {
       // 白名单：NOTICE 内容随文件头注释（不含字面量）；UPSTREAM: 注释已剥离。
       // 相对导入路径段（./ ../）是物理目录名，目录名保留合法（§3.3）——放行；
+      // Q5-A 品牌名豁免：brepjsCompat / brepjs-compat 是有意为之的品牌名；
       // 其余字符串字面量含 brepjs 即违规。
       if (!lit.includes('brepjs')) continue
       if (isRelativeSpec(lit.trimStart())) continue
+      if (isBrandWhitelisted(lit.trim())) continue
       offenders.add(rel)
     }
   }
@@ -111,11 +136,11 @@ function isRelativeSpec(spec) {
   }
 }
 
-// A2：core package.json exports 键零 brepjs
+// A2：core package.json exports 键零 brepjs（Q5-A 品牌豁免：api/brepjs-compat）
 {
   const pkg = JSON.parse(readFileSync(resolve('packages/core/package.json'), 'utf-8'))
   const keys = Object.keys(pkg.exports ?? {})
-  const bad = keys.filter((k) => k.includes('brepjs'))
+  const bad = keys.filter((k) => k.includes('brepjs') && !isBrandWhitelisted(k))
   if (bad.length > 0) fail(`A2 core exports 键含 brepjs: ${bad.join(', ')}`)
 }
 
@@ -158,6 +183,7 @@ function isRelativeSpec(spec) {
         const spec = m[1]
         // 相对导入路径段（./ ../）= 物理目录名（§3.3 保留合法，如 api/ 层反向依赖 vendored）——放行
         if (isRelativeSpec(spec)) continue
+        if (isBrandWhitelisted(spec)) continue // Q5-A 品牌豁免
         if (spec.includes('brepjs')) offenders.add(`${rel}: ${spec}`)
       }
     }

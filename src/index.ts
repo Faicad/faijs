@@ -29,11 +29,10 @@ export function createRuntime(ports: HostPorts, mode?: ExecutionMode, options?: 
   const rt = createRuntimeCore(ports, mode, undefined, options)
   // P23（§4.2 ②）：cad 命名空间已重建到兼容面同源清单上——faijs 特有 dual op
   // （mesh+brep 双路径）+ 生成脚本面 op（compatOp(projectBrepOp(…)) 包装的
-  // brep-only 语句级 op）。`compat: false` 语义不变：cad 是引擎内置面，函数
-  // 已自带 defineOp/compatOp 元数据，无需再经 admitCompatLib 收口。
+  // brep-only 语句级 op）。推断式 autoLift 默认 `!hasDualOp(ns)`：cad 全部 op
+  // 自带 DUAL_OP_META，推断为 false，无需再经 admitCompatLib 收口。
   rt.registerLib('cad', createApiNamespace(), {
     default: true,
-    compat: false,
     packageName: '@faicad/faijs',
   })
   return rt

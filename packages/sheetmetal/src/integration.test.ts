@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { initOCCT } from './test-setup.js';
-import { isValid, measureVolume, isErr } from '@faicad/faijs/compat';
+import { isValid, measureVolume, isErr } from '@faicad/faijs/brepjs-compat';
 import { author, miterCorner, unfold, toDXF, report, reportFrom, reportJSON } from './api.js';
 import { sheetMetal } from './facade.js';
 import type { BendRule } from './types.js';

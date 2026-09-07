@@ -1,4 +1,4 @@
-import { type Result, ok, err, validationError } from '@faicad/faijs/compat';
+import { type Result, ok, err, validationError } from '@faicad/faijs/brepjs-compat';
 import type { BendRule, SheetMetalWarning } from './types.js';
 import { resolveBendAllowance } from './bendTableFns.js';
 

@@ -299,10 +299,28 @@ export function defineOp<A extends unknown[]>(
  *
  * @param lib - the library namespace object being registered.
  */
+/**
+ * Detect whether a library namespace exports any dual-op function (carries
+ * `DUAL_OP_META`). Used by `registerLib`'s inferred `autoLift` default: a
+ * library that already declares dual-ops does not need bare-function lifting.
+ *
+ * @param ns - the library namespace object.
+ * @returns `true` if at least one exported value is a dual-op function.
+ */
+export function hasDualOp(ns: Record<string, unknown>): boolean {
+  const values = Object.values(ns)
+  return values.some((v) => typeof v === 'function' && (v as MetaCarrier)[DUAL_OP_META])
+}
+
+/**
+ * Assert that a library conforms to the dual-op contract: if it exports any
+ * dual-op function, it must also export `contractVersion` matching the engine's.
+ *
+ * @param lib - the library namespace object being registered.
+ * @throws {Error} when dual-op functions are present without a matching contract version.
+ */
 export function assertLibConforms(lib: Record<string, unknown>): void {
-  const values = Object.values(lib)
-  const hasDualOp = values.some((v) => typeof v === 'function' && (v as MetaCarrier)[DUAL_OP_META])
-  if (hasDualOp && lib.contractVersion !== CONTRACT_VERSION) {
+  if (hasDualOp(lib) && lib.contractVersion !== CONTRACT_VERSION) {
     throw new Error(
       `[faijs] library with dual-op functions must export contractVersion = ${CONTRACT_VERSION} (got ${String(lib.contractVersion)})`,
     )

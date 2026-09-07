@@ -5,7 +5,7 @@
  * P0 regression context: `unwrapResult` used to throw a plain `Error`, which
  * `runWithFailureHandling` re-threw out of `execute()` — a library `err`
  * never reached `ExecutionResult.failedAt`. These tests pin the carrier class
- * and the message contract (`[faijs/compat] <op>: <CODE>: <message>`).
+ * and the message contract (`[faijs/brepjs-compat] <op>: <CODE>: <message>`).
  *
  * @module
  */
@@ -35,7 +35,7 @@ describe('unwrapResult', () => {
     expect(unwrapResult({ ok: true, value: { n: 7 } }, 'op')).toEqual({ n: 7 })
   })
 
-  it('Err → throws OpError carrying op, code, and the [faijs/compat] message', () => {
+  it('Err → throws OpError carrying op, code, and the [faijs/brepjs-compat] message', () => {
     let caught: unknown
     try {
       unwrapResult(
@@ -49,7 +49,7 @@ describe('unwrapResult', () => {
     const opErr = caught as OpError
     expect(opErr.op).toBe('addCutout')
     expect(opErr.code).toBe('UNKNOWN_REGION')
-    expect(opErr.message).toBe("[faijs/compat] addCutout: UNKNOWN_REGION: region 'x' not found")
+    expect(opErr.message).toBe("[faijs/brepjs-compat] addCutout: UNKNOWN_REGION: region 'x' not found")
   })
 
   it('Err without a code falls back to E_OP_FAILED', () => {
@@ -59,7 +59,7 @@ describe('unwrapResult', () => {
     } catch (e) {
       expect(e).toBeInstanceOf(OpError)
       expect((e as OpError).code).toBe('E_OP_FAILED')
-      expect((e as OpError).message).toBe('[faijs/compat] op: E_OP_FAILED: operation failed')
+      expect((e as OpError).message).toBe('[faijs/brepjs-compat] op: E_OP_FAILED: operation failed')
     }
   })
 })

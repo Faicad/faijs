@@ -16,7 +16,7 @@
  *  4. geometry cross-check: upstream GearResult fields (pitch=48, tip=52) are
  *     consistent with the mesh outer radius (assertions 5/6 live in the host)
  *
- * P24 (§8.1): the lib is registered with `{ compat: true }`; shapes are
+ * P24 (§8.1): the lib is registered with `{ autoLift: true }`; shapes are
  * adopted at the boundary, `makeExternalGear` now comes from the @faicad/faijs
  * facade. The four assertions below are behavior-identical to the pre-P24
  * scenario.
@@ -37,7 +37,7 @@ let result: Awaited<ReturnType<ReturnType<typeof createRuntime>['execute']>>
 beforeAll(async () => {
   await registerOcctBrepEngine()
   runtime = createRuntime(createNodePorts(), 'auto')
-  runtime.registerLib('gear', gear as never, { compat: true, packageName: 'gear-lib-demo' })
+  runtime.registerLib('gear', gear as never, { autoLift: true, packageName: 'gear-lib-demo' })
   result = await runtime.execute([
     "import * as gear from 'gear-lib-demo'",
     'let part0 = gear.external({ teeth: 24, moduleSize: 2, thickness: 8, bore: 8 })',

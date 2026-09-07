@@ -146,7 +146,7 @@ export function adoptEntity(product: unknown, opName: string, segments?: number)
     throw new OpError(
       opName,
       'E_SUBSHAPE_BOUNDARY',
-      `[faijs/compat] ${opName}: E_SUBSHAPE_BOUNDARY: sub-shape handle ('${type}') ` +
+      `[faijs/brepjs-compat] ${opName}: E_SUBSHAPE_BOUNDARY: sub-shape handle ('${type}') ` +
         'must not cross the library boundary; return entity solids or plain data',
     )
   }

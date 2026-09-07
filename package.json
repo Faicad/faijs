@@ -46,9 +46,9 @@
       "types": "./dist/sdk.d.ts",
       "import": "./dist/sdk.js"
     },
-    "./compat": {
-      "types": "./dist/compat.d.ts",
-      "import": "./dist/compat.js"
+    "./brepjs-compat": {
+      "types": "./dist/brepjs-compat.d.ts",
+      "import": "./dist/brepjs-compat.js"
     }
   },
   "files": [

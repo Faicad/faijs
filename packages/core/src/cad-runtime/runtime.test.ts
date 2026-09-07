@@ -815,7 +815,7 @@ describe('P7: 第三方库通道（registerLib / statementKey 包名前缀 / 版
     const runtime = makeRuntime()
     runtime.registerLib('mech', {
       box: (params: { size: number }) => solid(cubeMesh(params.size)),
-    })
+    }, { autoLift: false })
     const code = [
       "import * as mech from 'gear-lib-demo'",
       'const s1 = cad.box(20, 20, 20, { centered: true })',
@@ -839,7 +839,7 @@ describe('P7: 第三方库通道（registerLib / statementKey 包名前缀 / 版
     const mechLib: StdlibNamespace = {
       makeHeadstock: () => solid(cubeMesh(8)),
     }
-    runtime.registerLib('mech', mechLib)
+    runtime.registerLib('mech', mechLib, { autoLift: false })
 
     const result = await runtime.execute('const s1 = cad.box(10, 10, 10, { centered: true })')
     expect(result.failedAt).toBeUndefined()
@@ -854,14 +854,14 @@ describe('P7: 第三方库通道（registerLib / statementKey 包名前缀 / 版
   it('版本不匹配时 registerLib 抛错（不静默降级）', () => {
     const runtime = makeRuntime()
     const badLib = { contractVersion: 999, makeHeadstock: () => null }
-    expect(() => runtime.registerLib('mech', badLib as unknown as StdlibNamespace))
+    expect(() => runtime.registerLib('mech', badLib as unknown as StdlibNamespace, { autoLift: false }))
       .toThrow(/contract version mismatch/)
   })
 
   it('P10b: registerLib(binding, ns, {default:true}) 显式声明默认绑定名（U10/R2）', async () => {
     const runtime = makeRuntime('mesh')
     // 声明非缺省名 'geom' 为默认绑定：defaultNs 读声明，不再散落字面量 'cad'
-    runtime.registerLib('geom', { box: () => solid(cubeMesh(20)) }, { default: true })
+    runtime.registerLib('geom', { box: () => solid(cubeMesh(20)) }, { default: true, autoLift: false })
     expect(runtime.defaultNs).toBe('geom')
     // direct 路径 statementKey 格式为 'direct:sN'（不含 callee/namespace）
     const result = await runtime.execute('const s1 = cad.box(20, 20, 20, { centered: true })')
@@ -889,7 +889,7 @@ describe('P 四（4.6）: execute 自动装载（libLoader autoLoadLibs）', () 
       loadLib: async () => { throw new Error('Should not be called: gear already registered') },
       listLibs: () => ['gear-lib-demo'],
     }), 'mesh')
-    runtime.registerLib('gear', gearNs, { packageName: 'gear-lib-demo' })
+    runtime.registerLib('gear', gearNs, { packageName: 'gear-lib-demo', autoLift: false })
     // 手动注册后 execute：装载跳过（不调用 loadLib——若调用将抛错 → failedAt 非空）
     const result = await runtime.execute(GEAR_CODE)
     expect(result.failedAt).toBeUndefined()
@@ -946,7 +946,7 @@ describe('P 四（4.6）: execute 自动装载（libLoader autoLoadLibs）', () 
 
   it('check() 无 libLoader → 走 specifierToBinding（第一部分 1.2 体系）校验', () => {
     const runtime = makeRuntime()
-    runtime.registerLib('gear', gearNs, { packageName: 'gear-lib-demo' })
+    runtime.registerLib('gear', gearNs, { packageName: 'gear-lib-demo', autoLift: false })
     const res = runtime.check(GEAR_CODE)
     expect(res.errors.some((e) => /import specifier/.test(e.message))).toBe(false)
     runtime.dispose()

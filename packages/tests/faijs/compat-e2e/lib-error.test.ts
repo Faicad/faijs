@@ -56,7 +56,7 @@ describe('P0 — library err becomes a statement failure, not an uncaught throw'
     const r = createRuntime(createNodePorts(), 'auto')
     try {
       // 命名空间键 = 顶层 import 绑定名（parser F2）：绑定名 boom → 注册键必须也是 boom
-      r.registerLib('boom', boomNs, { compat: true })
+      r.registerLib('boom', boomNs, { autoLift: true })
       const res = await r.execute(BOOM_SCRIPT)
       expect(res.failedAt).toBeDefined()
       expect(res.failedAt!.message).toContain('E_TEST_BOOM')
@@ -76,7 +76,7 @@ describe('P0 — library err becomes a statement failure, not an uncaught throw'
     // T5: direct-mode outputs contains all written values including non-Shape compat data.
     const r = createRuntime(createNodePorts(), 'auto')
     try {
-      r.registerLib('sheet', sheetNs, { compat: true })
+      r.registerLib('sheet', sheetNs, { autoLift: true })
       const res = await r.execute(SHEET_SCRIPT)
       expect(res.failedAt).toBeDefined()
       expect(res.failedAt!.message).toContain('UNKNOWN_REGION')
@@ -90,7 +90,7 @@ describe('P0 — library err becomes a statement failure, not an uncaught throw'
   it('C: mesh mode still reports E_MESH_UNSUPPORTED through the same failure path', async () => {
     const r = createRuntime(createNodePorts(), 'mesh')
     try {
-      r.registerLib('boom', boomNs, { compat: true })
+      r.registerLib('boom', boomNs, { autoLift: true })
       const res = await r.execute(BOOM_SCRIPT)
       expect(res.failedAt).toBeDefined()
       expect(res.failedAt!.message).toMatch(/E_MESH_UNSUPPORTED|not supported|mesh/i)

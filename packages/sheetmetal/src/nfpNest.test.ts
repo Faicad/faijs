@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { initOCCT } from './test-setup.js';
-import { polygon, outerWire, unwrap } from '@faicad/faijs/compat';
+import { polygon, outerWire, unwrap } from '@faicad/faijs/brepjs-compat';
 import { authorPart as author } from './authorFns.js';
 import { unfold } from './unfoldFns.js';
 import { nest, nestToDXF } from './nestFns.js';

@@ -25,7 +25,6 @@ export function createRuntime(ports: HostPorts, mode?: ExecutionMode, options?: 
   const rt = createRuntimeCore(ports, mode, undefined, options)
   rt.registerLib('cad', createApiNamespace(), {
     default: true,
-    compat: false,
     packageName: '@faicad/faijs',
   })
   return rt

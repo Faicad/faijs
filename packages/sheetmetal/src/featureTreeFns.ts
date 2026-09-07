@@ -1,4 +1,4 @@
-import { type Result, ok, err, validationError } from '@faicad/faijs/compat';
+import { type Result, ok, err, validationError } from '@faicad/faijs/brepjs-compat';
 import type { BendFeature, FlangeFeature, SheetMetalPart, SheetMetalWarning } from './types.js';
 
 /** Id of the root flat — the part's base flat, present as the root of every graph. */

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { initOCCT } from './test-setup.js';
-import { isValid, measureVolume, isErr, unwrap } from '@faicad/faijs/compat';
+import { isValid, measureVolume, isErr, unwrap } from '@faicad/faijs/brepjs-compat';
 import { author, unfold } from './api.js';
 import { fold, foldWithWarnings, partToFlatInput, patternToFlatInput } from './foldFns.js';
 import type { AuthorSpec } from './authorFns.js';

@@ -54,7 +54,7 @@ let result: Awaited<ReturnType<CadRuntime['execute']>>
 beforeAll(async () => {
   await registerOcctBrepEngine()
   runtime = createRuntime(createNodePorts(), 'auto')
-  runtime.registerLib('gear', gearNs, { compat: true, packageName: 'gear-lib-demo' })
+  runtime.registerLib('gear', gearNs, { autoLift: true, packageName: 'gear-lib-demo' })
   result = await runtime.execute(SCRIPT)
 }, 240000)
 
@@ -111,11 +111,11 @@ describe('P26 gear-lib-demo §8.4 — seven acceptance assertions', () => {
       // (a) re-registering the same library keeps the statementKey (no spurious recompute)
       const r = createRuntime(createNodePorts(), 'auto')
       try {
-        r.registerLib('gear', gearNs, { compat: true, packageName: 'gear-lib-demo' })
+        r.registerLib('gear', gearNs, { autoLift: true, packageName: 'gear-lib-demo' })
         await r.execute(SCRIPT)
         const u1Key0 = r.getStatementCacheEntry(asPartName('u1'))?.statementKey
         expect(u1Key0).toBeDefined()
-        r.registerLib('gear', gearNs, { compat: true, packageName: 'gear-lib-demo' })
+        r.registerLib('gear', gearNs, { autoLift: true, packageName: 'gear-lib-demo' })
         await r.execute(SCRIPT)
         const u1Key1 = r.getStatementCacheEntry(asPartName('u1'))?.statementKey
         expect(u1Key1).toBe(u1Key0)
@@ -128,7 +128,7 @@ describe('P26 gear-lib-demo §8.4 — seven acceptance assertions', () => {
       // T5: plan() deleted; use update() to verify recompute happens.
       const r = createRuntime(createNodePorts(), 'auto')
       try {
-        r.registerLib('gear', gearNs, { compat: true, packageName: 'gear-lib-demo' })
+        r.registerLib('gear', gearNs, { autoLift: true, packageName: 'gear-lib-demo' })
         const r1 = await r.execute(SCRIPT)
         expect(r1.failedAt).toBeUndefined()
         const changed = SCRIPT.replace('{ teeth: 20', '{ teeth: 24')
@@ -148,10 +148,10 @@ describe('P26 gear-lib-demo §8.4 — seven acceptance assertions', () => {
       // T5: plan() deleted; verify recompute via update().
       const r = createRuntime(createNodePorts(), 'auto')
       try {
-        r.registerLib('gear', gearNs, { compat: true, packageName: 'gear-lib-demo' })
+        r.registerLib('gear', gearNs, { autoLift: true, packageName: 'gear-lib-demo' })
         const r1 = await r.execute(SCRIPT)
         expect(r1.failedAt).toBeUndefined()
-        r.registerLib('gear', gearV2, { compat: true, packageName: 'gear-lib-demo' })
+        r.registerLib('gear', gearV2, { autoLift: true, packageName: 'gear-lib-demo' })
         const r2 = await r.update(SCRIPT, SCRIPT)
         expect(r2.failedAt).toBeUndefined()
         const g1 = r2.outputs.get(asPartName('g1')) as Shape | undefined
@@ -165,7 +165,7 @@ describe('P26 gear-lib-demo §8.4 — seven acceptance assertions', () => {
   it('⑥ mesh mode hits E_MESH_UNSUPPORTED when invoking the gear library (no silent fallback)', async () => {
     const r = createRuntime(createNodePorts(), 'mesh')
     try {
-      r.registerLib('gear', gearNs, { compat: true, packageName: 'gear-lib-demo' })
+      r.registerLib('gear', gearNs, { autoLift: true, packageName: 'gear-lib-demo' })
       const res = await r.execute(SCRIPT)
       expect(res.failedAt).toBeDefined()
       expect(res.failedAt!.message).toMatch(/E_MESH_UNSUPPORTED|not supported|mesh/i)

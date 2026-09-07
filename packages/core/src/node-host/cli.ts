@@ -52,7 +52,7 @@ const cliPortsLibLoader: LibLoader = {
     return (await import(pkg)) as StdlibNamespace
   },
   listLibs: () => Object.keys(CLI_LIB_ALIASES),
-  options: { compat: true },
+  options: { autoLift: true },
 }
 
 /** 注入 libLoader 到 node ports（CLI 宿主白名单装载）。 */
@@ -166,7 +166,6 @@ export async function cliRun(
   if (opts?.libs?.cad) {
     runtime.registerLib('cad', opts.libs.cad, {
       default: true,
-      compat: false,
       packageName: '@faicad/faijs',
     })
   }

@@ -316,7 +316,7 @@ describe('defineOp: brep data-product passthrough (wrapBrepOne)', () => {
 describe('defineOp: OpError rethrow (runImpl)', () => {
   it('impl-thrown OpError propagates unchanged (same instance), not re-wrapped by toOpError', async () => {
     configureBackends(makeBackends('auto'))
-    const opError = new OpError('mech.fuse', 'E_BAD_INPUT', '[faijs/compat] mech.fuse: E_BAD_INPUT: nope')
+    const opError = new OpError('mech.fuse', 'E_BAD_INPUT', '[faijs/brepjs-compat] mech.fuse: E_BAD_INPUT: nope')
     const op = defineOp({ brep: () => { throw opError } })
     await expect(op()).rejects.toBe(opError)
   })

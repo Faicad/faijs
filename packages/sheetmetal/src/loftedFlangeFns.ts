@@ -14,7 +14,7 @@ import {
   isPlanarWire,
   isSolid,
   getSolids,
-} from '@faicad/faijs/compat';
+} from '@faicad/faijs/brepjs-compat';
 import type { LoftedFlangeFeature, LoftedFlangeSpec, SheetMetalPart } from './types.js';
 
 type Pt2 = [number, number];

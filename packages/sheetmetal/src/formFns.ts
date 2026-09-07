@@ -22,7 +22,7 @@ import {
   vecScale,
   vecCross,
   vecNormalize,
-} from '@faicad/faijs/compat';
+} from '@faicad/faijs/brepjs-compat';
 import type { FormSpec, FormFeature, SheetMetalPart } from './types.js';
 import { normalizeSolid } from './internal.js';
 import type { FlatFrame } from './authorFns.js';
