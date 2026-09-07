@@ -1,7 +1,7 @@
 # faijs 装配约束：以 brepjs 求解能力取代现有 face_mate 实现
 
 - 日期：2026-09-06
-- 状态：**已落地（P0+P1）**
+- 状态：**已落地（P0+P1）**；P1 第 6/7 条与 §7 R8 已于 2026-09-07 修订——遗留 `solveFaceMate` 与 faijs 自有四元数实现**必须删除**（不再是"可选收敛点"），删除任务落在 [2026-09-07-assembly-p2-syntax-host-p3-joints.md](./2026-09-07-assembly-p2-syntax-host-p3-joints.md) §2.8 **P2-f5**
 - 范围：`packages/core/src/api/`（装配求解）、`packages/core/src/topology/naming/`（hint 扩展）、`packages/core/src/lang/`（语法/schema）、`../3d_editor`（宿主适配）
 - 相关契约：`docs/api-contract.md`、`docs/ops-api-inventory.md` §6.1、`docs/syntax-design.md`
 
@@ -263,7 +263,9 @@ fixedFace: { faceId: 'o1.f6', surfaceType: 'plane', center: [0,0,10], normal: [0
 
 两者解的**不是同一个问题**。若把 `face_mate` 直接改成 `coincident`，3d_editor 里所有已保存的装配在重放后部件会沿面内方向漂移 —— 静默破坏存量数据。
 
-**结论：`mate` 保留为 faijs 的约束类型名；求解按 §3.7.2 降级为单条 `concentric` + 轴编码进 solver（不自写合成器），`solveFaceMate` 纯函数原样保留并作为等价性测试的基准（T3）。`coincident` 作为 brepjs 原语义约束新增。二者并存，由作者显式选择。**
+**结论：`mate` 保留为 faijs 的约束类型名；求解按 §3.7.2 降级为单条 `concentric` + 轴编码进 solver（不自写合成器）。`coincident` 作为 brepjs 原语义约束新增。二者并存，由作者显式选择。**
+
+> ⚠️ **遗留 `solveFaceMate` 的处置（2026-09-07 修订）**：P1 阶段它被**临时保留**为 T3/T4 的等价性基准；它以及 faijs 自有四元数实现**不是长期资产**——P2-f5（09-07 方案 §2.8）先把 G1–G4 的期望值冻结成 golden 基准，再整体删除。此处"保留"仅指 P1 阶段。**任何情况下不允许出现"新旧两套装配算法并存"的终态。**
 
 ### 3.3 判定答案
 
@@ -826,8 +828,10 @@ let poses = asm1.kinematics()  // Map<partName, {position, rotation}>，供宿�
 3. `AssemblyConstraint` 从单类型扩展为并集；`face_mate` 规范化为 `mate`
 4. **修复 L6**：输出从 per-constraint 改为 per-member 终态（`Map<memberIndex, Pose>`）
 5. 引入 `dof` / `converged` / `unsupported` 到 `AssemblyBehavior.solve()` 的返回（或新增 `solveDetailed()`）
-6. **保留 `solveFaceMate` 导出**：签名不变，内部薄封装转发新求解器（R8 第一步）
-7. **四元数实现处置**：faijs 自有的 `quaternionFromUnitVectors` / `quaternionToMatrix3`（`compound.ts:87/:109`，私有未导出）在 P1 后**仍保留且仍被调用**——唯一调用方 `solveFaceMate` 保留为薄封装 + T3 基准，它们随之存活。新求解路径的旋转计算全部走 brepjs `utils/quaternion.ts`（`[w,x,y,z]`），输出端经 §4.3(a) 的 `toFaijsQuat` 重排为 `[x,y,z,w]`。注意 `applyTransform` 的 `quaternion` 形参是 **informational**（实际旋转用 `rotationMatrix`，见 `rigid-transform.ts:25` 注释），`module-executor` 与 `runtime-state.AssemblyTransform` 只是数据透传，均不依赖 faijs 这套四元数算法。其它文件的 quaternion 命中（`brep-ops` / `fai_drill` / `joinery-brep` / `DrillHoleCore` / `engrave`）全是 **three.js `THREE.Quaternion`**，与本实现无关。长期收敛点（P2 后可选）：等价性测试稳定且 3d_editor 预览切换后，`solveFaceMate` 内部可改为直接调用转换层，届时这两个函数可删——但这是删除决策，不是 P1 范围。
+6. **保留 `solveFaceMate` 导出（P1 临时状态）**：签名不变。**实际实现取第 7 条口径——内部保持原数学不动，不转发新求解器**；它与新链路的等价性由 T3/T4 逐分量断言（1e-9）锁死，3d_editor 预览链路 P1 阶段**不改代码**即可继续工作（R8 第一步）。它存在的**唯一理由**是充当 T3/T4 基准 + 给宿主留一个升级窗口，**P2-f5 删除**（见下）。
+7. **四元数实现处置 + 遗留算法删除（2026-09-07 修订为强制项）**：faijs 自有的 `quaternionFromUnitVectors` / `quaternionToMatrix3`（`compound.ts:86/:108`，私有未导出）以及 `solveFaceMate` / `FaceMateTransform` / 私有向量助手块（`compound.ts:60-84` 的 `vec3Normalize`/`vec3Sub`/`vec3Cross`/`vec3Dot`，经核实**仅被这两个函数调用**）——**全部在 P2 阶段删除，没有"可选保留"的余地**。新求解路径的旋转计算一律走 brepjs `utils/quaternion.ts`（`[w,x,y,z]`），输出端经 §4.3(a) 的 `fromBrepjsQuat` 重排为 `[x,y,z,w]`；[P2 方案 §2.8 P2-f5](./2026-09-07-assembly-p2-syntax-host-p3-joints.md) 给出逐文件的删除清单、前置条件（T3/T4 基准 golden 化 + 3d_editor 预览切换）与验收口径（全仓 grep 零命中）。
+   - **删除前必须确认的无关项**：`applyTransform`（`mesh/rigid-transform.ts`）是引擎侧刚体变换应用，**不是装配算法，保留**；它的 `quaternion` 形参是 **informational**（实际旋转用 `rotationMatrix`，见 `rigid-transform.ts:25` 注释），`module-executor` / `runtime-state.AssemblyTransform` 只做数据透传，均不依赖 faijs 这套四元数。其它文件的 quaternion 命中（`brep-ops` / `fai_drill` / `joinery-brep` / `DrillHoleCore` / `engrave`）全是 **three.js `THREE.Quaternion`**，与本实现无关，不得误删。
+   - **`api/assembly/pose.ts` 的 `quaternionToMatrix3` 是新链路的实现**（输入 faijs 顺序 `[x,y,z,w]`），与 `compound.ts` 里待删的同名私有函数**不是同一个东西**——删除时保留前者。
 
 **测试清单（新测试一律与源码同目录，`*.test.ts`）：**
 
@@ -835,8 +839,8 @@ let poses = asm1.kinematics()  // Map<partName, {position, rotation}>，供宿�
 |---|---|---|---|
 | T1 | 四元数转换往返 | `toBrepjsQuat(fromBrepjsQuat(q)) === q`，含非单位四元数 | §4.3(a) |
 | T2 | pivot 换算 | 随机 pose+pivot 下 `applyTransform` 与 brepjs `p'=R·p+position` 逐点相等（1e-9） | §4.3(b) |
-| T3 | **mate ≡ solveFaceMate 等价性** | 对 §3.7.2 给出的 4 组输入对，两条路径的 `AssemblyTransform` 逐分量相等（1e-9） | §3.7.2，存量兼容锁 |
-| T4 | **退化分支** | 三组输入：`n₂ ∥ −n₁`（应 identity）、`n₂ ∥ n₁`（应 180° 翻转）、`n₂ ⊥ n₁`，两条路径四元数逐分量比对 | §3.7.2(a) |
+| T3 | **mate ≡ solveFaceMate 等价性**（P2-f5 后改为**对比冻结 golden 基准**，见 09-07 §2.8） | 对 §3.7.2 给出的 4 组输入对，两条路径的 `AssemblyTransform` 逐分量相等（1e-9） | §3.7.2，存量兼容锁 |
+| T4 | **退化分支**（同 T3，P2-f5 后基准 golden 化） | 三组输入：`n₂ ∥ −n₁`（应 identity）、`n₂ ∥ n₁`（应 180° 翻转）、`n₂ ⊥ n₁`，两条路径四元数逐分量比对 | §3.7.2(a) |
 | T5 | 链式三体 | A→B→C 两次 `mate`，C 的世界位姿 = 手算值 | brepjs 拓扑调度 |
 | T6 | `concentric`/`distance`/`angle` 各一例 | 对照 brepjs `solveConstraints` 直算 | §5.3 直译路径 |
 | T7 | 欠约束 / 环 / 实体类型不匹配 | `converged:false` + `unsupported[]` 明细 | D3 |
@@ -887,7 +891,7 @@ let poses = asm1.kinematics()  // Map<partName, {position, rotation}>，供宿�
 | R5 | **solver 每节点单次定位**，复合约束（flip+共面+中心）无法拆多条表达 | 中 | `mate`/`align` 降级为单条 `concentric` + 轴编码进 solver（§3.7.2）；**禁止**把复合语义拆成多条 SolverConstraint —— 那条路已被 §3.7.1 证明不可行 |
 | R6 | **多约束叠加应用两次**（现存 L6） | 中 | P1 改 per-member 终态；引擎侧改为"先清空该成员变换再应用"或按终态直接 set |
 | R7 | **成员名为空串**：`memberNamesOf` 在 `nameOf` 返回 undefined 时给 `''`，而 `solveConstraints` 按名索引 | 中 | P1 在求解前断言成员名非空，非空即抛明确错误 |
-| R8 | **3d_editor 预览/执行不同源**：预览调 `solveFaceMate`，执行走新求解器 | 中 | **分两步**：P1 保留 `solveFaceMate` 导出、签名不变、内部薄封装转发新求解器（等价性测试保证逐分量一致）→ 预览**不改也能工作**；P2 再把 `assemble-store` 预览切换到新求解入口，此后 `solveFaceMate` 降级为遗留封装 |
+| R8 | **3d_editor 预览/执行不同源**：预览调 `solveFaceMate`，执行走新求解器 | 中 | **分三步（2026-09-07 修订，第三步为强制）**：① P1 保留 `solveFaceMate` 导出与签名、内部保持原数学，等价性由 T3/T4 逐分量断言保证 → 预览**不改也能工作**；② P2-e1 把 `assemble-store` 预览切换到 `solvePreview`（与执行同源）；③ **P2-f5 删除 `solveFaceMate` 与 faijs 自有四元数实现**，此前必须先把 G1–G4 期望值冻结为 golden 基准（[09-07 方案 §2.8](./2026-09-07-assembly-p2-syntax-host-p3-joints.md)）。**终态不允许新旧两套装配算法并存** |
 | R9 | **范围膨胀**：brepjs 还有 URDF / DH /  gear 等，容易越做越大 | 中 | 本方案只做 mate 层 + 运动副；URDF/DH/IK 列为 P3 之后的独立议题 |
 | R10 | **引擎侧 `computeDownstream` 在链式下失效放大**：链式求解一次移动多个成员 → 下游重算面变大 | 低 | 观察；必要时按成员分批失效 |
 | R11 | **no-IR direct 执行器对装配语句零测试覆盖**（提交 `6afbb0e`/`9ede3ed`，2026-09-06）：`direct-executor.test.ts` 无 assembly / `do_assemble()` 用例。机制上支持（`emitCall` 的 receiver 分支发射 `await __ctx.asm1.do_assemble()`，嵌套约束对象走 `transformArg` 的 `ObjectExpression` 递归），但无测试背书；且 `metadata-extractor.ts` 不识别装配语句 | 中 | ① direct 模式是 **guarded opt-in**（`executorMode` 缺省 `'module'`），本方案 P1 全部测试跑缺省 module 路径，**不受阻塞**；② P1 补一条用例：同一装配脚本在 `executorMode='module'` 与 `'direct'` 下重放结果逐分量一致（纳入 T9）；③ 宿主若切换 direct 模式，须先补装配用例再切换；④ metadata 层对装配语句的提取缺位**不在本方案范围**，留作独立议题 |
@@ -911,7 +915,8 @@ let poses = asm1.kinematics()  // Map<partName, {position, rotation}>，供宿�
 ## 9. 验收清单
 
 - [ ] 存量 `.fai.js`（含 `face_mate`）重放结果与改动前逐顶点一致（T10）
-- [ ] `solveFaceMate` 导出保持存在、签名不变；P1 阶段 3d_editor 预览链路**不改代码**即可继续工作（等价性由 T3 保证）；P2 切换预览入口后回归通过（R8）
+- [ ] `solveFaceMate` 导出在 P1 阶段保持存在、签名不变；3d_editor 预览链路**不改代码**即可继续工作（等价性由 T3 保证）
+- [ ] **（P2 强制，09-07 §2.8 P2-f5）** T3/T4 基准已 golden 化、3d_editor 预览已切 `solvePreview` 后，`solveFaceMate` / `FaceMateTransform` / 自有四元数与私有向量助手**全部删除**；全仓（含 `../3d_editor`）grep `solveFaceMate` 零命中；`applyTransform` 与 `api/assembly/pose.ts` 的 `quaternionToMatrix3` **保留**
 - [ ] §4.3 的 G1–G4 四组输入逐分量相等（T3/T4，1e-9）
 - [ ] 新增约束类型各有 ≥1 个几何断言测试（不只用 mock）；`parallel`/`perpendicular` 按 `angle` 语法糖合并验证即可（T6）
 - [ ] 三体链式装配（A→B→C）测试通过（T5）
