@@ -119,8 +119,12 @@ export function lineConsumes(
 /**
  * 块单元词法级引用扫描（§4.3）：块源码文本中出现外部 shape 名 → 保守判为消费。
  * 只扫 range.start 行号 > producerIdx 的块（producer 之前的块不可能消费新值）。
+ * @param blocks - 块元数据数组（UiMetadata.blocks）。
+ * @param v - 被消费的变量名。
+ * @param producerLine - 最后写者的行号。
+ * @returns true 如果有 producer 之后的块词法消费了该变量。
  */
-function blockConsumes(
+export function blockConsumes(
   blocks: UiMetadata['blocks'],
   v: string,
   producerLine: number,
@@ -190,8 +194,18 @@ export function computeLiveShapes(input: LiveShapesInput): TerminalShape[] {
     seen.add(String(partName))
     const s = String(partName)
 
-    const producerIdx =
-      lastProducer.get(s) ?? (blockOutputs?.get(s) !== undefined ? blockIdxOf(lines, blockOutputs.get(s)!) : undefined)
+    // producerIdx：取 lines 中最后写者 与 blockOutputs（块内写者）的较大者。
+    // 块在 lines 之后执行时，块是最后写者——用块的行号作锚点。
+    const lineIdx = lastProducer.get(s)
+    const blockIdx = blockOutputs?.get(s) !== undefined
+      ? blockIdxOf(lines, blockOutputs.get(s)!)
+      : undefined
+    let producerIdx: number | undefined
+    if (lineIdx !== undefined && blockIdx !== undefined) {
+      producerIdx = blockIdx > lineIdx ? blockIdx : lineIdx
+    } else {
+      producerIdx = lineIdx ?? blockIdx
+    }
     if (producerIdx === undefined) {
       // 无生产者（如宿主手工注入 / 跨文件引用）→ 直接终端
       terminals.push(makeTerminal(partName, hiddenOf))
@@ -206,15 +220,22 @@ export function computeLiveShapes(input: LiveShapesInput): TerminalShape[] {
       }
     }
     if (!consumed && blocks.length > 0) {
-      if (blockConsumes(blocks, s, producerLineOf(lines, producerIdx))) consumed = true
+      if (blockConsumes(blocks, s, producerLineOf(lines, producerIdx, blockOutputs, s))) consumed = true
     }
     if (!consumed) terminals.push(makeTerminal(partName, hiddenOf))
   }
   return terminals
 }
 
-/** producer 行号（lines 下标 → 行号；块产出用块起始行）。 */
-function producerLineOf(lines: StatementSummary[], idx: number): number {
+/** producer 行号（lines 下标 → 行号；块产出用块起始行）。
+ * 当 blockIdx == lines.length（块行号 > 所有 lines 行号）时，返回块行号本身
+ * （从 blockOutputs 反查），确保 blockConsumes 跳过该块（producer 块自身的引用
+ * 是对旧值的消费，不应取消新值的终端资格）。 */
+function producerLineOf(lines: StatementSummary[], idx: number, blockOutputs?: Map<string, number>, name?: string): number {
+  if (idx >= lines.length && blockOutputs && name !== undefined) {
+    const blockLine = blockOutputs.get(name)
+    if (blockLine !== undefined) return blockLine
+  }
   return lines[idx]?.line ?? 0
 }
 

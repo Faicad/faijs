@@ -28,28 +28,30 @@ import type { PartName } from '../identity'
 import { asPartName } from '../identity'
 import { ParseError } from '../lang/parse-error'
 import { setCurrentStmt, setKeepSink, setName, getBackends, takePendingAssemblyTransforms, takePendingAssemblyKinematics, type AssemblyKinematicsPose } from '../runtime-state'
+import { ExecutionLimitError } from './execution-limit-error'
+import type { StatementIR } from '../lang/types'
 import { getSlot, ensureSlot, brepOf } from '../shape'
-import { applyTransform } from '../mesh/rigid-transform'
-import { applyTransformBrep } from '../brep/brep-ops'
 import type { Shape } from '../mesh/types'
 import type { BrepHandle } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
-import { ExecutionLimitError } from './execution-limit-error'
-import type { StatementIR } from '../lang/types'
+import { applyTransform } from '../mesh/rigid-transform'
+import { applyTransformBrep } from '../brep/brep-ops'
 
 type ASTNode = any
 
 // ── 结果类型 ──
 
-/** 执行单元失败信息（与现状 failedAt 三字段兼容 + 新增 lineNo）。 */
+/** 执行单元失败信息（与现状 failedAt 三字段兼容 + 新增 lineNo + 原始错误）。 */
 export interface DirectExecFailedAt {
   index: number
   callee: string
   message: string
   lineNo?: number
+  /** 原始错误对象（runtime 层据类型决定重新抛出还是吞入 failedAt）。 */
+  error?: unknown
 }
 
-/** 单轮执行产出：ctx 快照 + 失败信息 + 已执行行号。 */
+/** 单轮执行产出：ctx 快照 + 失败信息 + 已执行行号 + 块产出登记 + changed。 */
 export interface DirectExecOutcome {
   /** 语句执行后 ctx 全部键 */
   ctxKeys: string[]
@@ -57,6 +59,19 @@ export interface DirectExecOutcome {
   failedAt?: DirectExecFailedAt
   /** 本轮新执行的行号（append 增量边界回显） */
   executedLines: number[]
+  /**
+   * 块单元产出登记（T1/A-6）：shape 名 → 块起始行号。
+   * DirectExecutor 执行块单元前后对共享 ctx 做 diff，新增 shape 键
+   * 登记于此——computeLiveShapes 用块起始行作 producerIdx 锚点
+   * （块内产出不在 lines 里，无行级生产者）。
+   */
+  blockOutputs?: Map<string, number>
+  /**
+   * 变更登记（T2）：语句写值前后比对的产出——与 module 路径 exec.changed
+   * 同语义。值变化的写入键收集于此（execute 全量重跑时旧值全 undefined →
+   * 所有写入键都进 changed，与 module 路径行为一致）。
+   */
+  changed?: string[]
 }
 
 /** 单次执行的参数。 */
@@ -92,6 +107,8 @@ interface TransformedUnit {
   /** 本单元引用的变量名（append 前缀校验；来自实参裸标识符） */
   refs: string[]
   callee?: string
+  /** 是否为控制流块单元（T1：for/if/while/do/switch/裸块等） */
+  isBlock?: boolean
 }
 
 /** 函数体 keep 登记（与 module-executor.internalKeep 同构；键 = 单元行号）。 */
@@ -106,6 +123,16 @@ export interface ExecKeepRecord {
 export interface DirectExecutorOptions {
   /** 已装配命名空间（cad + registerLib 注册库）；单元经 __ns.<binding> 访问 */
   namespaces: Namespaces
+  /**
+   * 身份槽 → PartName 键控缓存同步（T3；与 ModuleExecutor.setSolid 同语义）。
+   * 语句执行后把 shape 身份槽里的 BREP solid 写入 runtime solidCache——
+   * buildBrepTopology/directBrepSolids 依赖此缓存命中。
+   */
+  setSolid?: (partName: PartName, solid: BrepHandle) => void
+  /** 身份槽 → faceEvolutionCache 同步（T3；与 ModuleExecutor.setFaceEvolution 同语义）。 */
+  setFaceEvolution?: (partName: PartName, evo: unknown) => void
+  /** 身份槽 → roleTableCache 同步（T3；与 ModuleExecutor.setRoleTable 同语义）。 */
+  setRoleTable?: (partName: PartName, roleTable: unknown) => void
 }
 
 /**
@@ -119,6 +146,10 @@ export class DirectExecutor {
   readonly ctx: Record<string, unknown> = {}
   private executedLines = new Set<number>()
   private namespaces: Namespaces
+  /** T3：身份槽同步钩子（runtime 注入） */
+  private readonly setSolidHook?: (partName: PartName, solid: BrepHandle) => void
+  private readonly setFaceEvolutionHook?: (partName: PartName, evo: unknown) => void
+  private readonly setRoleTableHook?: (partName: PartName, roleTable: unknown) => void
   /** 当前完整源码（append 拼接用） */
   private fullCode = ''
   /** 函数体 keep 登记（exec.keep/exec.keepHidden 执行期登记；键 = 单元行号） */
@@ -135,6 +166,9 @@ export class DirectExecutor {
 
   constructor(options: DirectExecutorOptions) {
     this.namespaces = options.namespaces
+    this.setSolidHook = options.setSolid
+    this.setFaceEvolutionHook = options.setFaceEvolution
+    this.setRoleTableHook = options.setRoleTable
   }
 
   /**
@@ -196,6 +230,12 @@ export class DirectExecutor {
     return [...this.executedLines].sort((a, b) => a - b)
   }
 
+  /** 块单元产出登记（T1/A-6）：shape 名 → 块起始行号；execute 前后 ctx diff 生成。 */
+  private blockOutputs = new Map<string, number>()
+
+  /** 变更登记（T2）：语句写值前后比对的产出——与 module 路径 exec.changed 同语义。 */
+  private changedSet = new Set<string>()
+
   /** 清空 ctx 与状态（execute 全量 / dispose 用）。函数体 keep 登记一并清——全量重跑
    *  后行号键表只应含本场景的登记；不清理会泄漏上一场景的同行号登记（对拍红线）。 */
   reset(): void {
@@ -204,6 +244,8 @@ export class DirectExecutor {
     this.fullCode = ''
     this.keepByLine.clear()
     this.kinematicsOut.clear()
+    this.blockOutputs.clear()
+    this.changedSet.clear()
   }
 
   /**
@@ -275,34 +317,86 @@ export class DirectExecutor {
         opts?.beforeStatement?.(`s${unit.lineNo}`, unit.lineNo)
         try {
           this.activeLine = unit.lineNo
+          // T2：changed 跟踪——执行前捕获写键旧值（与 module 路径 oldWrites 同语义）。
+          const oldWrites = new Map<string, unknown>()
+          for (const w of unit.writes) oldWrites.set(w, this.ctx[w])
+          // 块单元：执行前后做 ctx diff，登记新增 shape 键 → blockOutputs
+          // （块内产出不在 lines 里，computeLiveShapes 用块起始行作 producerIdx）。
+          const ctxBefore = unit.isBlock ? new Set(Object.keys(this.ctx)) : null
           await this.runUnit(unit)
-          // 写后登记 shape→name（与 ModuleExecutor.afterStatement 的 setName 同构）：
-          // 库函数体 exec.keep/keepHidden 经 nameOf(shape) 反查变量名，缺少登记则输入
-          // 保留声明静默失效（terminal 判定会误把 kept 输入当消费）。
+          // T2：changed 登记——执行后比对写键值变化（与 module 路径 exec.changed.add 同语义）。
+          for (const [w, old] of oldWrites) {
+            if (old !== this.ctx[w]) this.changedSet.add(w)
+          }
+          if (ctxBefore) {
+            // 块产出登记：新增键 + 块内重写键（writes 收集了所有 __ctx.<name> = 赋值）
+            for (const key of Object.keys(this.ctx)) {
+              if (!ctxBefore.has(key)) {
+                this.blockOutputs.set(key, unit.lineNo)
+                this.changedSet.add(key)
+                // T3：块产出的新键也需同步身份槽 → solidCache
+                const bv = this.ctx[key]
+                if (bv !== null && typeof bv === 'object') {
+                  setName(bv, asPartName(key))
+                  const bslot = getSlot(bv)
+                  if (bslot?.solid) this.setSolidHook?.(asPartName(key), bslot.solid as BrepHandle)
+                  if (bslot?.faceEvolution) this.setFaceEvolutionHook?.(asPartName(key), bslot.faceEvolution)
+                  if (bslot?.roleTable) this.setRoleTableHook?.(asPartName(key), bslot.roleTable)
+                }
+              }
+            }
+            for (const w of unit.writes) this.blockOutputs.set(w, unit.lineNo)
+          }
           for (const w of unit.writes) {
             const v = this.ctx[w]
-            if (v !== null && typeof v === 'object') setName(v, asPartName(w))
+            if (v !== null && typeof v === 'object') {
+              setName(v, asPartName(w))
+              // T3：身份槽 → PartName 键控缓存同步（与 ModuleExecutor.afterStatement
+              // 的 slot→solidCache/faceEvolutionCache/roleTableCache 同步同语义）。
+              // buildBrepTopology/directBrepSolids/buildNamingInput 依赖此缓存命中。
+              const slot = getSlot(v)
+              if (slot?.solid) this.setSolidHook?.(asPartName(w), slot.solid as BrepHandle)
+              if (slot?.faceEvolution) this.setFaceEvolutionHook?.(asPartName(w), slot.faceEvolution)
+              if (slot?.roleTable) this.setRoleTableHook?.(asPartName(w), slot.roleTable)
+            }
           }
-          // 装配传播（R11②，P1）：do_assemble/solve 求解登记的待应用变换在本单元后
-          // 立即应用（mesh 烘焙 + BREP 刚体变换）。direct 模式无 DAG → 无下游失效重算
-          // （全量重跑语义由 update 的清 ctx 重放保证）。
+          // T3/T4: Assembly transform propagation — same semantics as
+          // ModuleExecutor.applyPendingAssemblyTransforms: take pending transforms
+          // from runtime-state, apply to member shapes (mesh in-place + BREP slot +
+          // solidCache), record changed. Direct path has no deps graph for
+          // downstream recompute, but since execution is sequential, downstream
+          // statements naturally re-read the already-transformed members.
           this.applyPendingAssemblyTransforms()
+
           this.executedLines.add(unit.lineNo)
           executedLines.push(unit.lineNo)
         } catch (err) {
           if (err instanceof ParseError) throw err
+          // DirectExecutor swallows ALL execution errors into failedAt
+          // (including TypeError for no_such_op). The runtime layer
+          // (executeDirectText etc.) inspects failedAt.error to decide
+          // whether to re-throw business errors (matching module path's
+          // runWithFailureHandling: only OpError / BrepUnsupportedError /
+          // MeshUnsupportedError stay in failedAt; others are re-thrown).
           failedAt = {
             index: idx,
             callee: unit.callee ?? '',
             message: err instanceof Error ? err.message : String(err),
             lineNo: unit.lineNo,
+            error: err,
           }
           break
         } finally {
           this.activeLine = undefined
         }
       }
-      return { ctxKeys: Object.keys(this.ctx), failedAt, executedLines }
+      return {
+        ctxKeys: Object.keys(this.ctx),
+        failedAt,
+        executedLines,
+        blockOutputs: this.blockOutputs,
+        changed: this.changedSet.size > 0 ? [...this.changedSet] : undefined,
+      }
     } finally {
       // 任何路径（含 ExecutionLimitError / ParseError 中断）都清 sink，防泄漏到下一执行
       setKeepSink(undefined)
@@ -337,6 +431,8 @@ export class DirectExecutor {
    * 对 compound 成员做 mesh 顶点烘焙 + BREP 刚体变换。与 module-executor 的
    * applyPendingAssemblyTransforms 同数学（p' = R·(p−pivot) + pivot + translation），
    * 差异：direct 模式无 DAG → 不做 computeDownstream 下游失效重算。
+   * T3/T4：变换后同步身份槽 → solidCache（setSolidHook）并登记 changedSet，
+   * 与 ModuleExecutor 路径的 slot→solidCache 同步 / exec.changed 同语义。
    */
   private applyPendingAssemblyTransforms(): void {
     const pending = takePendingAssemblyTransforms()
@@ -347,18 +443,22 @@ export class DirectExecutor {
       const behavior = getSlot(compound)?.behavior as { memberNames?: string[] } | undefined
       if (!behavior?.memberNames) continue
       const children = (compound as { children?: Shape[] }).children ?? []
+      const memberNames = behavior.memberNames
       for (const t of transforms) {
         const member = children[t.index]
+        const name = memberNames[t.index]
         if (!member || typeof member !== 'object') continue
         // mesh 原地变换（保留同一对象引用，ctx 与 compound.children 同步看到变更）
         Object.assign(member, applyTransform(member, t.quaternion, t.pivot, t.translation, t.rotationMatrix))
-        // BREP 刚体变换（可选）：新 solid 写身份槽
+        // BREP 刚体变换（可选）：新 solid 写身份槽 + solidCache（T3）
         const solid = brepOf(member) as BrepHandle | undefined
         if (kernel && solid) {
           const transformed = applyTransformBrep(kernel, solid, t.quaternion, t.pivot, t.translation)
           try { kernel.release(solid) } catch { /* 已释放 */ }
           ensureSlot(member).solid = transformed
+          if (name) this.setSolidHook?.(asPartName(name), transformed)
         }
+        if (name) this.changedSet.add(name)
       }
     }
     // P3：装配运动副位姿（joints 驱动）——成员名 → pose，collectDirectResult 消费。
@@ -491,13 +591,146 @@ export class DirectExecutor {
         // 容器/自由 JS 的顶层 return（AI 手写 .fai.js）：return 只表达 UI meta /
         // 显式终端，不构成执行单元（几何产物都写在 ctx）。忽略执行。
         return null
+      case 'IfStatement':
+      case 'ForStatement':
+      case 'ForInStatement':
+      case 'ForOfStatement':
+      case 'WhileStatement':
+      case 'DoWhileStatement':
+      case 'SwitchStatement':
+      case 'TryStatement':
+      case 'BlockStatement':
+      case 'LabeledStatement':
+        return this.transformBlock(node, code, declared, lineNo)
       default:
-        throw new ParseError(
-          `DirectExecutor v1 supports flat op-line code only; "${node.type}" execution is not supported yet (see P5 free-JS blocks)`,
-          lineNo,
-          'E_CONTROL_FLOW',
-        )
+        // 其余控制流/未知节点（ThrowStatement/BreakStatement/ContinueStatement 等）
+        // 也按块单元处理——整段文本执行，不分析语义。
+        return this.transformBlock(node, code, declared, lineNo)
     }
+  }
+
+  /**
+   * 控制流块单元（T1/A-6）：for/if/while/do/switch/裸块等顶层块整块执行。
+   * - 块起始行 = 单元行号；执行文本 = 原代码整段（node.start..node.end）。
+   * - 块内**顶层**声明提升到 __ctx（`const p = cad.box(...)` → `__ctx.p = ...`）；
+   *   块内**嵌套块与函数体跳过**（局部作用域，不提升）。
+   * - 对外部变量的词法引用按 hoistText 处理（已含 ctx 键）。
+   * - 块产物通过执行前后 ctx diff 登记（runCode 里处理），writes 为空（无法静态确定）。
+   */
+  private transformBlock(
+    node: ASTNode,
+    code: string,
+    declared: Set<string>,
+    lineNo: number,
+  ): TransformedUnit {
+    const rawText = code.slice(node.start, node.end)
+    const body = this.hoistBlockText(rawText, declared)
+    // 收集块内所有 __ctx.<name> = 赋值的写入键（块产出 + 块内重写），
+    // 供 runCode 登记 blockOutputs（块内重写的变量也用块起始行作 producerIdx）。
+    const writes: string[] = []
+    const re = /__ctx\.(\w+)\s*=/g
+    let m: RegExpExecArray | null
+    while ((m = re.exec(body)) !== null) {
+      if (!writes.includes(m[1])) writes.push(m[1])
+    }
+    return { lineNo, body, writes, refs: [], isBlock: true }
+  }
+
+  /**
+   * 块文本提升（T1/v1）：对块整段文本做词法级标识符提升——
+   * - `const/let x = expr` → `__ctx.x = expr`（词边界替换关键字 + LHS）；
+   * - 自由标识符引用 → `__ctx.<name>`（已声明变量 + ctx 键）。
+   *
+   * v1 限制（R-5）：不做嵌套作用域精确区分——嵌套块/函数体内的局部变量
+   * 也会被提升到 `__ctx`，在功能上等价于"块内所有变量都在 ctx 上"（多写了一些
+   * ctx 键，不会导致错误）。v2 可加 AST walk 精确跳过嵌套作用域。
+   *
+   * 实现策略：先收集块内所有声明名（acorn 扫描 VariableDeclarator + 函数名），
+   * 再做两步文本替换：① 声明 LHS 提升写 __ctx 赋值；② 自由引用提升走 hoistText。
+   */
+  private hoistBlockText(text: string, declared: Set<string>): string {
+    // 收集块内所有声明名（用于引用提升与声明改写）
+    const names = new Set<string>(declared)
+    for (const key of Object.keys(this.ctx)) names.add(key)
+
+    // 排除命名空间名称（cad + registerLib 注册的库绑定）——它们在 __ns 上而非 __ctx
+    const nsNames = new Set<string>(Object.keys(this.namespaces).filter((k) => k !== 'contractVersion'))
+
+    let ast: ASTNode
+    try {
+      ast = acornParse(text, {
+        ecmaVersion: 'latest',
+        sourceType: 'module',
+        locations: true,
+        ranges: true,
+      }) as unknown as ASTNode
+    } catch {
+      // 块文本不是合法 module（含 break/continue/return）→ 用函数体解析
+      try {
+        ast = acornParse(`(function(){ ${text} })`, {
+          ecmaVersion: 'latest',
+          sourceType: 'module',
+          locations: true,
+          ranges: true,
+        }) as unknown as ASTNode
+      } catch {
+        // 解析失败 → 原样返回（执行时会自然报错）
+        return text
+      }
+    }
+
+    // 扫描全部 VariableDeclarator + FunctionDeclaration 名
+    const walk = (n: ASTNode): void => {
+      if (!n || typeof n !== 'object') return
+      if (n.type === 'VariableDeclarator' && n.id?.type === 'Identifier') {
+        names.add(n.id.name)
+      }
+      if (n.type === 'FunctionDeclaration' && n.id?.type === 'Identifier') {
+        names.add(n.id.name)
+      }
+      for (const k of Object.keys(n)) {
+        if (k === 'loc' || k === 'start' || k === 'end' || k === 'range' || k === 'parent' || k === 'type') continue
+        const v = n[k]
+        if (Array.isArray(v)) for (const item of v) walk(item)
+        else if (v && typeof v === 'object') walk(v)
+      }
+    }
+    walk(ast)
+
+    // 从提升集合中移除命名空间名（cad 等留在 __ns）
+    for (const nsName of nsNames) names.delete(nsName)
+
+    // 声明 LHS 改写 + 自由引用提升（词法级，两步替换）
+    let out = text
+    // ① const/let x = ... → __ctx.x = ...（去关键字 + LHS 加 __ctx.）
+    out = out.replace(/\b(?:const|let)\s+(\w+)\s*=/g, '__ctx.$1 =')
+    // ② 自由引用提升（与 hoistText 同逻辑，但含块内声明名；排除命名空间名）
+    for (const name of names) {
+      out = out.replace(new RegExp(`\\b${name}\\b`, 'g'), `__ctx.${name}`)
+    }
+    // ③ 命名空间名 → __ns.<name> + await 调用
+    // 块内 cad.xxx(...) 调用需要 await（与扁平行式 emitCall 的 await 语义一致）。
+    // 分两步：先替换调用形态 `<ns>.<member>(` → `await __ns.<ns>.<member>(`，
+    // 再替换裸引用 `<ns>`（非成员访问）→ `__ns.<ns>`。
+    for (const nsName of nsNames) {
+      // 调用形态：`cad.box(` → `await __ns.cad.box(`
+      out = out.replace(
+        new RegExp(`(?<![.\\w])\\b${nsName}\\s*\\.\\s*(\\w+)\\s*\\(`, 'g'),
+        `await __ns.${nsName}.$1(`,
+      )
+      // 裸成员访问（非调用）：`cad.foo` → `__ns.cad.foo`（非调用不加 await）
+      out = out.replace(
+        new RegExp(`(?<![.\\w])\\b${nsName}\\s*\\.`, 'g'),
+        `__ns.${nsName}.`,
+      )
+    }
+    // __ctx.__ctx.x → __ctx.x（双前缀修正：LHS 改写后 name 又被提升替换）
+    out = out.replace(/__ctx\.__ctx\./g, '__ctx.')
+    // __ns.__ns.cad → __ns.cad（命名空间双前缀修正）
+    out = out.replace(/__ns\.__ns\./g, '__ns.')
+    // await await __ns → await __ns（双重 await 修正：块内已有 await 的调用）
+    out = out.replace(/await\s+await\s+__ns\./g, 'await __ns.')
+    return out
   }
 
   /** 顶层函数提升：`__ctx.<name> = async function <name>(...) { 命名空间绑定; 体 }`。 */
@@ -703,6 +936,24 @@ export class DirectExecutor {
     if (c?.type === 'MemberExpression' && c.property?.type === 'Identifier') return c.property.name
     if (c?.type === 'Identifier') return c.name
     return undefined
+  }
+
+  /**
+   * 返回块产出登记（T1）：shape 名 → 块起始行号。
+   * runtime 的 collectDirectResult 用此传给 computeLiveShapes 的 blockOutputs。
+   * @returns 块产出登记的只读视图（Map 迭代序 = 插入序）。
+   */
+  getBlockOutputs(): Map<string, number> {
+    return new Map(this.blockOutputs)
+  }
+
+  /**
+   * 返回变更登记（T2）：写键值变化的产出。
+   * runtime 的 collectDirectResult 用此填充 ExecutionResult.changed。
+   * @returns 变更键名数组（undefined 表示无变更）。
+   */
+  getChanged(): string[] | undefined {
+    return this.changedSet.size > 0 ? [...this.changedSet] : undefined
   }
 
   /** 收集调用实参里的裸标识符（append 前缀校验输入）。 */

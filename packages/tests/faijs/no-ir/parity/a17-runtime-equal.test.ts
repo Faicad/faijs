@@ -55,7 +55,7 @@ function terminalKeys(terminals: Array<{ id: PartName; hidden?: boolean }>): str
 
 describe('P4 前置：DirectExecutor+computeLiveShapes == CadRuntime.execute（fixture 全集）', () => {
   const cadNs = createApiNamespace()
-  const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs })
+  const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs }, { executor: 'module' })
   beforeAll(async () => {
     await rt.execute('let warmup = cad.box(1, 1, 1, { centered: true })')
   }, 120000)

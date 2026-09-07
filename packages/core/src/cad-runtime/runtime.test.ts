@@ -21,6 +21,7 @@ import type { BrepEngineApi } from '../brep/engine/primitives'
 import type { StatementIR, ScriptIR } from '../lang/types'
 import { createRuntime } from '@faicad/faijs'
 import { CadRuntime, computeContentKey } from './runtime'
+import { createApiNamespace } from '../api/api-namespace'
 import type { HostPorts, EventSink, ExecutionMode, LibLoader } from './ports'
 import { ensureTestFontLoader } from '../brep/text/fontTestHelper'
 import { getSolidBoundingBox } from '../brep/brep-utils'
@@ -75,7 +76,8 @@ function makePartScript(statements: StatementIR[]): ScriptIR {
 }
 
 function makeRuntime(mode?: ExecutionMode): CadRuntime {
-  return createRuntime(createNodePorts(), mode)
+  const rt = new CadRuntime(createNodePorts(), mode, { cad: createApiNamespace() }, { executor: 'module' })
+  return rt
 }
 
 async function run(statements: StatementIR[], mode?: ExecutionMode) {
@@ -1227,10 +1229,10 @@ describe('P 四（4.6）: execute 自动装载（libLoader autoLoadLibs）', () 
   })
 
   it('check() 有 libLoader → listLibs 不含 specifier → 报「libLoader cannot auto-load package」', () => {
-    const withLoader = createRuntime(libLoaderPorts({
+    const withLoader = new CadRuntime(libLoaderPorts({
       loadLib: async () => gearNs,
       listLibs: () => ['sheet-db'],
-    }))
+    }), 'auto', { cad: createApiNamespace() }, { executor: 'module' })
     const res = withLoader.check(GEAR_CODE)
     expect(res.ok).toBe(false)
     expect(res.errors.some((e) => /host libLoader cannot auto-load package "gear-lib-demo"/.test(e.message))).toBe(true)

@@ -43,7 +43,7 @@ import { ModuleExecutor, type ExecBookkeeping } from './module-executor'
 import { DirectExecutor } from './direct-executor'
 import { ModuleRegistry, ModuleRegistryError, isRelativeSpecifier } from './module-registry'
 import type { ModuleRunResult } from './module-registry'
-import { computeLiveShapes, type KeepView } from './live-shapes'
+import { computeLiveShapes, lineConsumes, blockConsumes, type KeepView } from './live-shapes'
 import { extractMetadata, type UiMetadata } from '../lang/metadata-extractor'
 import {
   configureBackends, CONTRACT_VERSION, setKeepSink, setName, getCurrentStmt,
@@ -332,7 +332,7 @@ export class CadRuntime {
 
   /** VM 执行器（持久 ctx + 编译产物缓存） */
   private executor: ModuleExecutor
-  /** 无 IR 执行器（executorMode='direct' 时启用；P4 双路径，缺省 module） */
+  /** 无 IR 执行器（executorMode='direct' 时启用；P4 双路径，缺省 direct） */
   private readonly directExecutor: DirectExecutor | null
 
   /** 宿主注册库（含 cad：由根门面 createRuntime 包装注入；注入编译产物 fn 的第二参 ns） */
@@ -411,8 +411,14 @@ export class CadRuntime {
     this.mode = mode
     this.libs = libs
     this.namespaces = { ...libs } as Namespaces
-    this.executorMode = options.executor ?? 'module'
-    this.directExecutor = this.executorMode === 'direct' ? new DirectExecutor({ namespaces: this.namespaces }) : null
+    this.executorMode = options.executor ?? 'direct'
+    this.directExecutor = this.executorMode === 'direct' ? new DirectExecutor({
+      namespaces: this.namespaces,
+      // T3：身份槽 → PartName 键控缓存同步（与 ModuleExecutor.setSolid 等同语义）
+      setSolid: (partName, solid) => { this.solidCache.set(partName, solid) },
+      setFaceEvolution: (partName, evo) => { this.faceEvolutionCache.set(partName, evo as Map<number, number[]>) },
+      setRoleTable: (partName, roleTable) => { this.roleTableCache.set(partName, roleTable) },
+    }) : null
     this.executor = new ModuleExecutor(this.namespaces, {
       releaseSolid: (partName) => {
         const handle = this.solidCache.get(partName)
@@ -607,20 +613,9 @@ export class CadRuntime {
       ...(opts?.executionTimeoutMs !== undefined ? { executionTimeoutMs: opts.executionTimeoutMs } : {}),
     })
     if (outcome.failedAt) {
-      const { callee, message, lineNo } = outcome.failedAt
-      // E6：failedAt.index = 场景语句序数（meta.lines 内位置；与 module 路径
-      // script.statements.indexOf 同语义——参数行不计入）。行不在 lines（参数/void 单元）
-      // → 回退 DirectExecutor 的单元序数。
-      const index = this.directStmtOrdinal(meta, lineNo) ?? outcome.failedAt.index
-      return {
-        outputs: this.directShapes(),
-        brepChain: this.brepChain!,
-        terminals: [],
-        infos: [],
-        failedAt: { index, callee, message, lineNo },
-      }
+      return this.directFailedAtOrThrow(outcome.failedAt, meta)
     }
-    return this.collectDirectResult(meta)
+    return this.collectDirectResult(meta, opts)
   }
 
   /** E6：DirectExecutor 失败行 → 场景语句序数（meta.lines 下标）；不在 lines → undefined。 */
@@ -628,6 +623,42 @@ export class CadRuntime {
     if (lineNo === undefined) return undefined
     const idx = meta.lines.findIndex((l) => l.line === lineNo)
     return idx < 0 ? undefined : idx
+  }
+
+  /**
+   * Direct-mode failedAt handling: mirror module path's runWithFailureHandling —
+   * only OpError / BrepUnsupportedError / MeshUnsupportedError (engine
+   * capability failures + TypeError for no_such_op) stay in failedAt; other
+   * errors (business parameter errors like TopoRefError) are re-thrown so
+   * the caller sees them. TypeError is included because the module path's
+   * compiled code also throws TypeError for missing ops, but direct-mode
+   * tests expect those to land in failedAt (A-3 parity).
+   */
+  private directFailedAtOrThrow(
+    failedAt: { index: number; callee: string; message: string; lineNo?: number; error?: unknown },
+    meta: UiMetadata,
+  ): ExecutionResult {
+    const err = failedAt.error
+    // Re-throw business errors (non-engine-capability errors) — matches
+    // runWithFailureHandling's `throw err` for non-OpError/Brep/Mesh errors.
+    // TypeError is kept in failedAt (no_such_op parity with A-3 test).
+    if (
+      err instanceof Error &&
+      !(err instanceof OpError) &&
+      !(err instanceof BrepUnsupportedError) &&
+      !(err instanceof MeshUnsupportedError) &&
+      !(err instanceof TypeError)
+    ) {
+      throw err
+    }
+    const index = this.directStmtOrdinal(meta, failedAt.lineNo) ?? failedAt.index
+    return {
+      outputs: this.directShapes(),
+      brepChain: this.brepChain!,
+      terminals: [],
+      infos: [],
+      failedAt: { index, callee: failedAt.callee, message: failedAt.message, lineNo: failedAt.lineNo },
+    }
   }
 
   /**
@@ -676,17 +707,9 @@ export class CadRuntime {
       ...(opts?.executionTimeoutMs !== undefined ? { executionTimeoutMs: opts.executionTimeoutMs } : {}),
     })
     if (outcome.failedAt) {
-      const { callee, message, lineNo } = outcome.failedAt
-      const index = this.directStmtOrdinal(meta, lineNo) ?? outcome.failedAt.index
-      return {
-        outputs: this.directShapes(),
-        brepChain: this.brepChain!,
-        terminals: [],
-        infos: [],
-        failedAt: { index, callee, message, lineNo },
-      }
+      return this.directFailedAtOrThrow(outcome.failedAt, meta)
     }
-    return this.collectDirectResult(meta)
+    return this.collectDirectResult(meta, opts)
   }
 
   /** Direct-mode 失败结果的 outputs 部分：持久 ctx 中已产出的 shape/compound。 */
@@ -753,7 +776,7 @@ export class CadRuntime {
    * brepSolids / compounds（与 collectResult 的 mesh 面同构；输入换源为
    * DirectExecutor ctx + UiMetadata + computeLiveShapes，§4.2/§4.4）。
    */
-  private collectDirectResult(meta: UiMetadata): ExecutionResult {
+  private collectDirectResult(meta: UiMetadata, opts?: ExecuteOptions): ExecutionResult {
     const de = this.directExecutor!
     const outputs = new Map<PartName, Shape | CompoundShape>()
     const shapeVarNames = new Set<PartName>()
@@ -793,6 +816,7 @@ export class CadRuntime {
       blocks: meta.blocks,
       keep: keepView,
       shapeVarNames,
+      ...(de.getBlockOutputs().size > 0 ? { blockOutputs: de.getBlockOutputs() } : {}),
       explicitTerminals: meta.terminalShapes,
     })
     // 显式 return 优先（与 collectResult 同）：非显式分支按值判定补 compound kind。
@@ -803,10 +827,39 @@ export class CadRuntime {
       })
     }
     const brepSolids = this.directBrepSolids(terminals, compounds)
-    // 拓扑：宿主注入（mesh/primitive，setTopology 缓存）原样带出；BREP 真拓扑自动构建
-    // （collectResult 的 topology='auto'/'brep' 面）在 direct 模式尚未接入（solidCache
-    // 同步收敛中）——mesh fixture 语料两边等价由 no-ir/parity 锁定。
+    // T3：拓扑——宿主注入（mesh/primitive，setTopology 缓存）原样带出 + BREP 真拓扑
+    // 自动构建（与 collectResult 的 topology='auto'/'brep' 面同构）。solidCache 已由
+    // DirectExecutor 的 setSolid 钩子同步（逐单元执行后写入），此处 buildBrepTopology
+    // 命中缓存构建拓扑。
     const topology = new Map<PartName, PartTopology>(this.topologyCache)
+    const topoMode = opts?.topology ?? 'auto'
+    if (topoMode !== 'off') {
+      const buildFor = (partName: PartName): void => {
+        if (topology.has(partName)) return
+        const rt = this.buildBrepTopology(partName)
+        if (rt) topology.set(partName, { partName, source: 'brep', data: runtimeToData(rt) })
+      }
+      if (topoMode === 'brep') {
+        for (const name of shapeVarNames) {
+          const v = de.getCtxVar(String(name))
+          if (isShapeLike(v)) buildFor(name)
+        }
+      } else {
+        for (const t of terminals) buildFor(t.id)
+      }
+    }
+    // T3：命名——与 topology 同 set（与 collectResult 的 naming 面同构）
+    const naming = new Map<PartName, PartNaming>()
+    for (const [partName, partTopo] of topology) {
+      const input = this.buildNamingInput(partName, partTopo)
+      if (input) naming.set(partName, buildPartNaming(input))
+    }
+    // T2：activeValues —— 镜像 collectActiveValues，输入换 meta.lines + lineConsumes/
+    // blockConsumes。候选 = ctx 中非 shape/compound 键（第三方测量/查询函数返回的
+    // number/普通对象）。DAG 叶子且非几何 → activeValues（不进 terminals，零回归）。
+    const activeValues = this.collectDirectActiveValues(meta, keepView, shapeVarNames)
+    // T2：changed —— DirectExecutor 逐单元写值前后比对（与 module 路径 exec.changed 同语义）。
+    const deChanged = de.getChanged()
     return {
       outputs,
       brepChain: this.brepChain!,
@@ -814,9 +867,83 @@ export class CadRuntime {
       infos: [],
       brepSolids: brepSolids.size > 0 ? brepSolids : undefined,
       topology: topology.size > 0 ? topology : undefined,
+      naming: naming.size > 0 ? naming : undefined,
       compounds: compounds.size > 0 ? compounds : undefined,
       kinematics: de.kinematicsSnapshot.size > 0 ? de.kinematicsSnapshot : undefined,
+      changed: deChanged ? deChanged.map(asPartName) : undefined,
+      activeValues: activeValues.size > 0 ? activeValues : undefined,
     }
+  }
+
+  /** 块起始行 → lines 中第一个 >= 该行的下标（与 live-shapes.blockIdxOf 同逻辑）。 */
+  private static blockIdxOfLine(lines: UiMetadata['lines'], blockLine: number): number {
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].line >= blockLine) return i
+    }
+    return lines.length
+  }
+
+  /**
+   * T2：Direct-mode activeValues 收集——镜像 collectActiveValues（module 路径），
+   * 输入换 meta.lines + lineConsumes/blockConsumes。
+   *
+   * 判定与 computeLiveShapes 同构：变量 v 的最后写者行（lines 下标 + blockOutputs）
+   * 之后没有语句/块消费 v → DAG 叶子。叶子且非 shape/compound → activeValues。
+   * 几何叶子走 terminals（跳过，零回归）。
+   */
+  private collectDirectActiveValues(
+    meta: UiMetadata,
+    keepView: KeepView,
+    shapeVarNames: Set<PartName>,
+  ): Map<PartName, unknown> {
+    const de = this.directExecutor!
+    const active = new Map<PartName, unknown>()
+    // lastProducer：lines 中最后写者下标（与 computeLiveShapes 同逻辑）
+    const lastProducer = new Map<string, number>()
+    for (let i = 0; i < meta.lines.length; i++) {
+      const line = meta.lines[i]
+      if (!line.hasAssignment) continue
+      for (const out of line.outputs) lastProducer.set(String(out), i)
+    }
+    // 候选 = ctx 中非 shape/compound 键
+    for (const name of de.listCtxKeys()) {
+      const v = de.getCtxVar(name)
+      if (v === undefined || isShapeLike(v) || isCompoundLike(v)) continue
+      // producerIdx：lines 中最后写者下标，或 blockOutputs 的块行号锚点
+      const lineIdx = lastProducer.get(name)
+      const blockLine = de.getBlockOutputs().get(name)
+      let producerIdx: number | undefined
+      let producerLine: number
+      if (lineIdx !== undefined && blockLine !== undefined) {
+        // 取较大者：块在 lines 之后时块是最后写者
+        const blockIdx = CadRuntime.blockIdxOfLine(meta.lines, blockLine)
+        producerIdx = blockIdx > lineIdx ? blockIdx : lineIdx
+        producerLine = blockIdx > lineIdx ? blockLine : (meta.lines[lineIdx]?.line ?? 0)
+      } else if (lineIdx !== undefined) {
+        producerIdx = lineIdx
+        producerLine = meta.lines[lineIdx]?.line ?? 0
+      } else if (blockLine !== undefined) {
+        producerIdx = CadRuntime.blockIdxOfLine(meta.lines, blockLine)
+        producerLine = blockLine
+      } else {
+        // 无生产者（宿主注入 / 跨文件引用）→ 不进 activeValues（与 module 路径一致）
+        continue
+      }
+      if (producerIdx === undefined) continue
+      // 消费判定：producer 之后的 lines + blocks
+      let consumed = false
+      for (let i = producerIdx + 1; i < meta.lines.length; i++) {
+        if (lineConsumes(meta.lines[i], asPartName(name), keepView, shapeVarNames)) {
+          consumed = true
+          break
+        }
+      }
+      if (!consumed && meta.blocks.length > 0) {
+        if (blockConsumes(meta.blocks, name, producerLine)) consumed = true
+      }
+      if (!consumed) active.set(asPartName(name), v)
+    }
+    return active
   }
 
   /** Direct-mode 逐终端 BREP solid 提取（终端 + 装配成员；无 kernel → 空）。 */
@@ -1987,8 +2114,9 @@ export class CadRuntime {
  * @param mode - the execution mode (default 'auto').
  * @param libs - the host-injected library namespaces (including `cad`, which the
  * root facade injects automatically; core does not assemble it by default).
+ * @param options - optional runtime options (e.g. `executor: 'direct' | 'module'`).
  * @returns a new CadRuntime.
  */
-export function createRuntime(ports: HostPorts, mode?: ExecutionMode, libs?: Record<string, StdlibNamespace>): CadRuntime {
-  return new CadRuntime(ports, mode, libs)
+export function createRuntime(ports: HostPorts, mode?: ExecutionMode, libs?: Record<string, StdlibNamespace>, options?: CadRuntimeOptions): CadRuntime {
+  return new CadRuntime(ports, mode, libs, options)
 }

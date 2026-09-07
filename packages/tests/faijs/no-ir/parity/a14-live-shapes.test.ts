@@ -55,7 +55,7 @@ function normalizeTerminals(terminals: Array<{ id: PartName; hidden?: boolean }>
 
 describe('A-14: fixture 双路径 — computeLiveShapes == computeLeafTerminals', () => {
   const cadNs = createApiNamespace()
-  const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs })
+  const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs }, { executor: 'module' })
   beforeAll(async () => {
     await rt.execute('let warmup = cad.box(1, 1, 1, { centered: true })')
   }, 120000)

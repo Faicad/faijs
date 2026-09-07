@@ -228,7 +228,7 @@ describe('F1: 控制流专用错误码 E_CONTROL_FLOW', () => {
     const { createRuntime } = await import('../cad-runtime/runtime')
     const { createBrowserPorts } = await import('../browser-host')
     const ports = await createBrowserPorts({} as never)
-    const runtime = createRuntime(ports)
+    const runtime = createRuntime(ports, undefined, undefined, { executor: 'module' })
     const res = runtime.check('if (true) { let part0 = cad.box(1, 1, 1, { centered: true }) }')
     expect(res.ok).toBe(false)
     expect(res.errors[0]?.code).toBe('E_CONTROL_FLOW')

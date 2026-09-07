@@ -52,7 +52,8 @@ describe('chamfer e2e (BREP/OCCT)', () => {
   let runtime: CadRuntime
 
   beforeEach(() => {
-    runtime = createRuntime(createNodePorts(), 'brep')
+    // T4: chamfer param-validation errors must throw (not failedAt) — module path
+    runtime = createRuntime(createNodePorts(), 'brep', { executor: 'module' })
   })
 
   afterEach(() => {

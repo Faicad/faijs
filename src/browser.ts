@@ -2,7 +2,7 @@
  * Browser facade — re-export core's browser entry (no node-host) + cad injection.
  */
 export * from '@faicad/faijs-core/browser'
-import { createRuntime as createRuntimeCore, type HostPorts, type ExecutionMode, type CadRuntime } from '@faicad/faijs-core'
+import { createRuntime as createRuntimeCore, type HostPorts, type ExecutionMode, type CadRuntime, type CadRuntimeOptions } from '@faicad/faijs-core'
 import { createApiNamespace } from '@faicad/faijs-core/api/api-namespace'
 
 // ── D1-⓪ 迁移完成（P6）：原 drill/engrave/applyTransform 由 stdlib 出包，
@@ -18,10 +18,11 @@ import { createApiNamespace } from '@faicad/faijs-core/api/api-namespace'
  *
  * @param ports - Host bindings (CSG engine, fonts, assets, event sink, etc.).
  * @param mode  - Optional execution mode override (auto / brep / mesh).
+ * @param options - Optional runtime options (e.g. executor: 'direct' | 'module').
  * @returns A ready-to-execute CadRuntime instance with the cad library registered.
  */
-export function createRuntime(ports: HostPorts, mode?: ExecutionMode): CadRuntime {
-  const rt = createRuntimeCore(ports, mode)
+export function createRuntime(ports: HostPorts, mode?: ExecutionMode, options?: CadRuntimeOptions): CadRuntime {
+  const rt = createRuntimeCore(ports, mode, undefined, options)
   rt.registerLib('cad', createApiNamespace(), {
     default: true,
     compat: false,

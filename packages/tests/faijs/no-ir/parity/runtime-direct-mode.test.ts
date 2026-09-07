@@ -1,11 +1,12 @@
 /**
- * P4 runtime 切换证据：CadRuntime(executor='direct') 与 CadRuntime(缺省 module)
+ * P4 runtime 切换证据：CadRuntime(executor='direct') 与 CadRuntime(executor='module')
  * 在 mesh fixture 全集上逐条等价（outputs 几何 + terminals + failedAt），并覆盖
  * append/update/AppendPrefixError/failedAt.lineNo 等 runtime 面语义。
  *
+ * T4 后缺省已翻转为 direct——module 路径需显式 { executor: 'module' }。
  * 语料与 A-17 相同：packages/tests/faijs/ 全部 .fai.js（mesh 模式可跑部分）。
  * 需要字体/资产/注册库的 fixture 在此环境 module 路径也失败 → 跳过（宿主注入后
- * 集成测试覆盖）。缺省 executorMode 仍为 'module'——direct 是 guarded 可选模式。
+ * 集成测试覆盖）。
  */
 import { describe, it, expect, beforeAll } from 'vitest'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
@@ -59,8 +60,8 @@ const WARMUP = 'let warmup = cad.box(1, 1, 1, { centered: true })'
 
 describe('P4：CadRuntime direct 模式 == module 模式（fixture 全集，mesh）', () => {
   const cadNs = createApiNamespace()
-  const moduleRt = new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs })
-  const directRt = new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs }, { executor: 'direct' })
+  const moduleRt = new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs }, { executor: 'module' })
+  const directRt = new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs })
 
   beforeAll(async () => {
     await moduleRt.execute(WARMUP)
@@ -87,13 +88,16 @@ describe('P4：CadRuntime direct 模式 == module 模式（fixture 全集，mesh
     )
     expect(terminalKeys(direct.terminals)).toEqual(terminalKeys(baseline.terminals))
     expect(compoundKeys(direct.compounds)).toEqual(compoundKeys(baseline.compounds))
+    // T2：activeValues / changed 存在性一致性（mesh fixture 两边一致为 undefined）
+    expect(direct.activeValues === undefined).toBe(baseline.activeValues === undefined)
+    expect(direct.changed === undefined).toBe(baseline.changed === undefined)
   })
 })
 
 describe('P4：CadRuntime direct 模式 runtime 面语义', () => {
   const cadNs = createApiNamespace()
   const mk = (): CadRuntime =>
-    new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs }, { executor: 'direct' })
+    new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs })
 
   it('A-1：execute 产出 terminals（outputs + terminals 与 module 同形）', async () => {
     const rt = mk()
@@ -162,7 +166,7 @@ describe('P4：CadRuntime direct 模式 runtime 面语义', () => {
 describe('P4：CadRuntime direct 模式 E4 执行选项', () => {
   const cadNs = createApiNamespace()
   const mk = (): CadRuntime =>
-    new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs }, { executor: 'direct' })
+    new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs })
   const CODE = [
     'let bp = cad.box(10, 20, 30, { centered: true })',
     'let t = cad.translate(bp, [5, 0, 0])',
@@ -203,7 +207,7 @@ describe('P4：CadRuntime direct 模式 E4 执行选项', () => {
 describe('P4/P5：参数引用保真（A-5）— 编辑 height 后 update 全量重跑，代码行保留参数引用形态', () => {
   const cadNs = createApiNamespace()
   const mk = (): CadRuntime =>
-    new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs }, { executor: 'direct' })
+    new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs })
   it('改参数值：几何内容 key 变化且 terminals 仍为 bp（引用形态未破坏）', async () => {
     const rt = mk()
     const oldCode = 'const height = 10\nlet bp = cad.box(10, 20, height, { centered: true })'
@@ -227,7 +231,7 @@ describe('P4/P5：参数引用保真（A-5）— 编辑 height 后 update 全量
 describe('E6/E7：direct 面 failedAt.index 语句序数与 check() 语法门禁降级', () => {
   const cadNs = createApiNamespace()
   const directMk = (): CadRuntime =>
-    new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs }, { executor: 'direct' })
+    new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs })
   const moduleMk = (): CadRuntime =>
     new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs }, { executor: 'module' })
 

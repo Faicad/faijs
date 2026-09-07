@@ -8,7 +8,7 @@
  * （引擎零函数知识，K5），由门面注入——3d_editor / demo 零改动。
  */
 export * from '@faicad/faijs-core'
-import { createRuntime as createRuntimeCore, type HostPorts, type ExecutionMode, type CadRuntime } from '@faicad/faijs-core'
+import { createRuntime as createRuntimeCore, type HostPorts, type ExecutionMode, type CadRuntime, type CadRuntimeOptions } from '@faicad/faijs-core'
 import { createApiNamespace } from '@faicad/faijs-core/api/api-namespace'
 
 // ── D1-⓪ 迁移完成（P6）：drill/engrave 已落入 L3 api/ 层，随上方 `export * from core`
@@ -22,10 +22,11 @@ import { createApiNamespace } from '@faicad/faijs-core/api/api-namespace'
  *
  * @param ports - Host bindings (CSG engine, fonts, assets, event sink, etc.).
  * @param mode  - Optional execution mode override (auto / brep / mesh).
+ * @param options - Optional runtime options (e.g. executor: 'direct' | 'module').
  * @returns A ready-to-execute CadRuntime instance with the cad library registered.
  */
-export function createRuntime(ports: HostPorts, mode?: ExecutionMode): CadRuntime {
-  const rt = createRuntimeCore(ports, mode)
+export function createRuntime(ports: HostPorts, mode?: ExecutionMode, options?: CadRuntimeOptions): CadRuntime {
+  const rt = createRuntimeCore(ports, mode, undefined, options)
   // P23（§4.2 ②）：cad 命名空间已重建到兼容面同源清单上——faijs 特有 dual op
   // （mesh+brep 双路径）+ 生成脚本面 op（compatOp(projectBrepOp(…)) 包装的
   // brep-only 语句级 op）。`compat: false` 语义不变：cad 是引擎内置面，函数

@@ -25,7 +25,7 @@ function defaultPorts(): HostPorts {
 }
 
 function makeRuntime(): CadRuntime {
-  return new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
+  return new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() }, { executor: 'module' })
 }
 
 const CODE = [

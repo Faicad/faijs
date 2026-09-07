@@ -24,9 +24,9 @@ class TestEventSink implements EventSink {
   }
 }
 
-function makeRuntime() {
+function makeRuntime(modulePath = false) {
   const ports: HostPorts = { events: new TestEventSink() }
-  return createRuntime(ports)
+  return createRuntime(ports, undefined, undefined, modulePath ? { executor: 'module' } : undefined)
 }
 
 describe('CadRuntime.check() — dryRun validation', () => {
@@ -92,7 +92,9 @@ export default async (cad) => {
   const part3 = cad.translate({ offset: [5, 0, 0] }, part999)
   return { shape: part3 }
 }`
-    const result = makeRuntime().check(code)
+    // T4: direct-mode check() does not catch undefined identifiers (acorn parses them)
+    // — use module path for reference precheck semantics
+    const result = makeRuntime(true).check(code)
     expect(result.ok).toBe(false)
   })
 
@@ -116,22 +118,23 @@ export default async (cad) => {
   })
 
   it('parse error: undefined identifier → ok=false, stage=parse', () => {
-    // Parser catches undefined identifiers (part999 not in scope)
+    // Parser catches undefined identifiers (part999 not in scope) — module path only
     const code = `export default async (cad) => {
   const part0 = cad.translate({ offset: [5, 0, 0] }, part999)
   return { shape: part0 }
 }`
-    const result = makeRuntime().check(code)
+    const result = makeRuntime(true).check(code)
     expect(result.ok).toBe(false)
     expect(result.errors[0].stage).toBe('parse')
   })
 
   it('symbol error: unknown callee → ok=false, stage=symbol', () => {
+    // T4: direct-mode check() does not do symbol checking — use module path
     const code = `export default async (cad) => {
   const part0 = cad.bogusFn({ size: 20 })
   return { shape: part0 }
 }`
-    const result = makeRuntime().check(code)
+    const result = makeRuntime(true).check(code)
     expect(result.ok).toBe(false)
     const symbolErrors = result.errors.filter((e) => e.stage === 'symbol')
     expect(symbolErrors.length).toBeGreaterThan(0)
@@ -139,14 +142,14 @@ export default async (cad) => {
   })
 
   it('member method calls are exempt from symbol check (receiver present)', () => {
-    // 成员方法（asm.do_assemble）不在符号表（对象方法），receiver 非空时不查符号表
+    // 成员方法（asm.do_assemble）不在符号表（对象方法），receiver 非空时不查符号表 — module path
     const code = `export default async (cad) => {
   const part0 = cad.box(20, 20, 20, { centered: true })
   const asm0 = cad.assembly({ members: [part0] })
   asm0.do_assemble()
   return { shape: part0 }
 }`
-    const result = makeRuntime().check(code)
+    const result = makeRuntime(true).check(code)
     expect(result.ok).toBe(true)
     expect(result.errors).toHaveLength(0)
   })

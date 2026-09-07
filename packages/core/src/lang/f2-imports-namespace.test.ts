@@ -219,7 +219,7 @@ describe('F2: mock 库端到端执行', () => {
   // 混合 union 是已知兼容缺口（landing 文档 §5-2 D11），不属于 F2 通道验证范围
   // （与 runtime.test.ts P7 混合用例同款取舍）。
   function makeMeshRuntime() {
-    return createRuntime(createNodePorts(), 'mesh')
+    return createRuntime(createNodePorts(), 'mesh', { executor: 'module' })
   }
 
   it('registerLib + import 脚本 → mech.makeHeadstock 产物与 cad.union 混合成功', async () => {
@@ -263,7 +263,7 @@ describe('F2: mock 库端到端执行', () => {
   })
 
   it('未登记 specifier 的命名空间调用 → check ①.5 明确报错（不回退、不静默）', () => {
-    const runtime = createRuntime(createNodePorts())
+    const runtime = createRuntime(createNodePorts(), undefined, { executor: 'module' })
     const res = runtime.check("import * as mech from 'gear-lib-demo'\nlet part0 = mech.makeHeadstock()")
     expect(res.ok).toBe(false)
     const err = res.errors.find((e) => e.stage === 'symbol')
@@ -273,7 +273,7 @@ describe('F2: mock 库端到端执行', () => {
   })
 
   it('已登记库但 callee 不存在 → check ② 报函数不存在', () => {
-    const runtime = createRuntime(createNodePorts())
+    const runtime = createRuntime(createNodePorts(), undefined, { executor: 'module' })
     runtime.registerLib('mech', { makeHeadstock: () => solid(cubeMesh(1)) }, { packageName: 'gear-lib-demo' })
     const res = runtime.check("import * as mech from 'gear-lib-demo'\nlet part0 = mech.nope()")
     expect(res.ok).toBe(false)

@@ -26,7 +26,7 @@ function defaultPorts(): HostPorts {
 }
 
 function makeRuntime(mode: 'mesh' | 'auto' = 'mesh'): CadRuntime {
-  return new CadRuntime(defaultPorts(), mode, { cad: createApiNamespace() })
+  return new CadRuntime(defaultPorts(), mode, { cad: createApiNamespace() }, { executor: 'module' })
 }
 
 describe('Phase2 executor: keep 隔离（§5.5 / D5）', () => {

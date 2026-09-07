@@ -73,7 +73,10 @@ describe('P0 — library err becomes a statement failure, not an uncaught throw'
   }, 120000)
 
   it('B: real sheetmetal addCutout with an unknown region → failedAt UNKNOWN_REGION; p0 stays in outputs', async () => {
-    const r = createRuntime(createNodePorts(), 'auto')
+    // T4: direct-mode outputs only contains Shape/compound values; p0 is a
+    // SheetMetalPart (non-Shape compat data) — use module path which includes
+    // all written values in the output cache.
+    const r = createRuntime(createNodePorts(), 'auto', { executor: 'module' })
     try {
       r.registerLib('sheet', sheetNs, { compat: true })
       const res = await r.execute(SHEET_SCRIPT)

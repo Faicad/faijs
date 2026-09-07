@@ -111,7 +111,8 @@ describe('P26 gear-lib-demo §8.4 — seven acceptance assertions', () => {
     const spec = { defaultNs: 'cad' }
     {
       // (a) re-registering the same library keeps the statementKey (no spurious recompute)
-      const r = createRuntime(createNodePorts(), 'auto')
+      // T4: uses module-path plan()/getStatementCacheEntry — module executor required
+      const r = createRuntime(createNodePorts(), 'auto', { executor: 'module' })
       try {
         r.registerLib('gear', gearNs, { compat: true, packageName: 'gear-lib-demo' })
         await r.execute(SCRIPT)
@@ -127,7 +128,8 @@ describe('P26 gear-lib-demo §8.4 — seven acceptance assertions', () => {
     }
     {
       // (b) external-param change: g1 + downstream go stale, cad-independent x1 reused
-      const r = createRuntime(createNodePorts(), 'auto')
+      // T4: uses module-path plan() — module executor required
+      const r = createRuntime(createNodePorts(), 'auto', { executor: 'module' })
       try {
         r.registerLib('gear', gearNs, { compat: true, packageName: 'gear-lib-demo' })
         await r.execute(SCRIPT)
@@ -144,7 +146,8 @@ describe('P26 gear-lib-demo §8.4 — seven acceptance assertions', () => {
     }
     {
       // (c) same binding, changed library implementation → full lib recompute
-      const r = createRuntime(createNodePorts(), 'auto')
+      // T4: uses module-path plan() — module executor required
+      const r = createRuntime(createNodePorts(), 'auto', { executor: 'module' })
       try {
         r.registerLib('gear', gearNs, { compat: true, packageName: 'gear-lib-demo' })
         await r.execute(SCRIPT)

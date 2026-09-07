@@ -146,7 +146,8 @@ describe('P26 sheet §8.4 — seven acceptance assertions', () => {
     {
       // (a) re-registering the same library keeps the statement keys (B2:
       //     no spurious recompute for an unchanged lib content).
-      const r = createRuntime(createNodePorts(), 'auto')
+      // T4: uses module-path plan()/getStatementCacheEntry — module executor required
+      const r = createRuntime(createNodePorts(), 'auto', { executor: 'module' })
       try {
         r.registerLib('sheet', sheetNs, { compat: true })
         await r.execute(SCRIPT)
@@ -163,7 +164,7 @@ describe('P26 sheet §8.4 — seven acceptance assertions', () => {
     {
       // (b) author-param change: p0 + everything downstream recomputes, the
       //     independent cad.box is reused — not a full re-run.
-      const r = createRuntime(createNodePorts(), 'auto')
+      const r = createRuntime(createNodePorts(), 'auto', { executor: 'module' })
       try {
         r.registerLib('sheet', sheetNs, { compat: true })
         await r.execute(SCRIPT)
@@ -181,7 +182,7 @@ describe('P26 sheet §8.4 — seven acceptance assertions', () => {
     {
       // (c) same binding, changed library implementation → the sheet-bound
       //     statements are all stale (full lib recompute), cad-bound untouched.
-      const r = createRuntime(createNodePorts(), 'auto')
+      const r = createRuntime(createNodePorts(), 'auto', { executor: 'module' })
       try {
         r.registerLib('sheet', sheetNs, { compat: true })
         await r.execute(SCRIPT)
