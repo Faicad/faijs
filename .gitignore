@@ -36,6 +36,7 @@ test-results/
 build/
 release/
 out/
+packages/cq-compat/gen/
 *.hdr
 diag*.png
 

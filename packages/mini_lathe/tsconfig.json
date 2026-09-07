@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "paths": {
+      "@faicad/faijs": ["../../src/index.ts"],
+      "@faicad/faijs/*": ["../../src/*"],
+      "@faicad/cq-compat": ["../cq-compat/src/index.ts"],
+      "@faicad/cq-compat/*": ["../cq-compat/src/*"]
+    }
+  },
+  "include": ["src/**/*.ts"],
+  "references": [{ "path": "../cq-compat" }]
+}

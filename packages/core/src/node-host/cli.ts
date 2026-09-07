@@ -19,11 +19,12 @@ import type { StdlibNamespace } from '../runtime-state'
 import type { ExecutionMode, HostPorts, LibLoader } from '../cad-runtime/ports'
 import { createNodePorts } from './index'
 import { buildStlBufferFromMesh } from '../brep/export/stl'
-import { exportStepFromSolid } from '../brep/export/step'
+import { exportStepFromSolid, exportStepFromSolids, type StepExportEntry } from '../brep/export/step'
 import { exportStep } from '../occt-kernel/highLevelApi'
 import { initOcctWasm } from '../occt-kernel/occtKernel'
 import type { Shape } from '../mesh/types'
 import type { CompoundShape } from '../shape'
+import { ensureSlot } from '../shape'
 import type { BrepHandle } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 import { asPartName } from '../identity'
@@ -34,13 +35,15 @@ import { asPartName } from '../identity'
 // 注意：脚本 specifier（如 'gear-lib-demo'）经 derivePackageName 无 '@' 前缀，
 // 与 CLI 装载的真实包名（'@faicad/gear-lib-demo'）不同——白名单按真实包名登记，
 // 同时收录该包名的短 specifier 别名，loadLib 一律归一到真实包名再 import。
-const CLI_ALLOWED_LIBS = new Set(['@faicad/gear-lib-demo', '@faicad/sheetmetal'])
+const CLI_ALLOWED_LIBS = new Set(['@faicad/gear-lib-demo', '@faicad/sheetmetal', '@faicad/cq-compat'])
 /** specifier → 真实包名 归一映射（短名与完整 scoped 名都登记为可装载）。 */
 const CLI_LIB_ALIASES: Record<string, string> = {
   '@faicad/gear-lib-demo': '@faicad/gear-lib-demo',
   'gear-lib-demo': '@faicad/gear-lib-demo',
   '@faicad/sheetmetal': '@faicad/sheetmetal',
   'sheetmetal': '@faicad/sheetmetal',
+  '@faicad/cq-compat': '@faicad/cq-compat',
+  'cq-compat': '@faicad/cq-compat',
 }
 
 const cliPortsLibLoader: LibLoader = {
@@ -52,7 +55,7 @@ const cliPortsLibLoader: LibLoader = {
     return (await import(pkg)) as StdlibNamespace
   },
   listLibs: () => Object.keys(CLI_LIB_ALIASES),
-  options: { autoLift: true },
+  options: { autoLift: false },
 }
 
 /** 注入 libLoader 到 node ports（CLI 宿主白名单装载）。 */
@@ -207,15 +210,33 @@ export async function cliRun(
     if (!shape) {
       return { ok: false, error: `No output for terminal "${terminal.id}"` }
     }
+    // Assembly (compound with behavior) → expand members with colors
+    if (!('positions' in shape) || !('indices' in shape)) {
+      const asmResult = writeAssemblyStep(outPath, ext, shape as CompoundShape, execResult)
+      if (asmResult) return asmResult
+    }
     const solidEntry = execResult.brepSolids?.get(terminal.id)
     return writeOutput(outPath, ext, shape, solidEntry ? { solid: solidEntry.solid, kernel: solidEntry.kernel } : undefined)
   }
 
   // Multiple terminals — write each to a separate file
+  // First, check if any terminal is a compound (assembly) — export it as a single STEP
   for (let i = 0; i < terminals.length; i++) {
     const terminal = terminals[i]
     const shape = execResult.outputs.get(terminal.id)
     if (!shape) continue
+    if (!('positions' in shape) || !('indices' in shape)) {
+      // Compound terminal — try assembly STEP export
+      const asmResult = writeAssemblyStep(outPath, ext, shape as CompoundShape, execResult)
+      if (asmResult) return asmResult
+    }
+  }
+  // Then export non-compound terminals
+  for (let i = 0; i < terminals.length; i++) {
+    const terminal = terminals[i]
+    const shape = execResult.outputs.get(terminal.id)
+    if (!shape) continue
+    if (!('positions' in shape) || !('indices' in shape)) continue // skip compounds
 
     const name = terminal.meta?.name ?? terminal.id
     const sep = outPath.endsWith('/') || outPath.endsWith('\\') ? '' : '_'
@@ -271,6 +292,67 @@ function writeOutput(
   }
 
   return { ok: false, error: `Unsupported output format: .${ext} (supported: .stl, .step)` }
+}
+
+/**
+ * Export an assembly (compound with AssemblyBehavior) as a multi-entity STEP
+ * file, preserving member names and colors (from behavior.memberColors).
+ *
+ * Returns null if the compound has no assembly behavior (falls through to
+ * regular writeOutput), or a CliRunResult on success/failure.
+ */
+function writeAssemblyStep(
+  outPath: string,
+  ext: string,
+  compound: CompoundShape,
+  execResult: {
+    outputs: Map<unknown, Shape | CompoundShape>
+    brepSolids?: Map<unknown, { solid: BrepHandle; kernel: BrepEngineApi }>
+  },
+): CliRunResult | null {
+  if (ext !== 'step' && ext !== 'stp') return null
+  const slot = ensureSlot(compound)
+  const behavior = slot.behavior as
+    | { memberNames?: string[]; memberColors?: Record<string, [number, number, number]> }
+    | undefined
+
+  // Find a kernel and collect all exportable solids
+  let kernel: BrepEngineApi | null = null
+  const entries: StepExportEntry[] = []
+
+  // Preferred path: use behavior.memberNames to match colors
+  if (behavior?.memberNames && behavior.memberNames.length > 0) {
+    for (const memberName of behavior.memberNames) {
+      const solidEntry = execResult.brepSolids?.get(asPartName(memberName))
+      if (solidEntry) {
+        if (!kernel) kernel = solidEntry.kernel
+        entries.push({
+          solid: solidEntry.solid,
+          name: memberName,
+          color: behavior.memberColors?.[memberName],
+        })
+      }
+    }
+  }
+
+  // Fallback: export all brepSolids (covers compounds where memberNames wasn't propagated)
+  if (entries.length === 0 && execResult.brepSolids) {
+    for (const [key, solidEntry] of execResult.brepSolids) {
+      if (!kernel) kernel = solidEntry.kernel
+      entries.push({
+        solid: solidEntry.solid,
+        name: typeof key === 'string' ? key : `part_${entries.length}`,
+      })
+    }
+  }
+
+  if (!kernel || entries.length === 0) {
+    return null // Let writeOutput handle the error
+  }
+
+  const buffer = exportStepFromSolids(kernel, entries)
+  writeFileSync(outPath, Buffer.from(buffer))
+  return { ok: true, outputFile: outPath, outputFormat: 'step' }
 }
 
 /**

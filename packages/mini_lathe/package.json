@@ -1,0 +1,26 @@
+{
+  "name": "@faicad/mini-lathe",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "description": "CadQuery mini_lathe project ported to .fai.js scripts using @faicad/cq-compat",
+  "files": [
+    "src"
+  ],
+  "dependencies": {
+    "@faicad/cq-compat": "0.1.0"
+  },
+  "peerDependencies": {
+    "@faicad/faijs": "*",
+    "occt-wasm": "^3.8.0"
+  },
+  "devDependencies": {
+    "@faicad/faijs": "file:../..",
+    "@faicad/cq-compat": "file:../cq-compat",
+    "typescript": "*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "export:all": "pwsh -NoProfile scripts/export-all.ps1"
+  }
+}

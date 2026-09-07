@@ -1,0 +1,29 @@
+{
+  "name": "@faicad/cq-compat",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {},
+  "peerDependencies": {
+    "@faicad/faijs": "*",
+    "occt-wasm": "^3.8.0"
+  },
+  "devDependencies": {
+    "@faicad/faijs": "file:../..",
+    "typescript": "*",
+    "vitest": "*"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && node ../../scripts/fix-import-extensions.mjs dist",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "eslint src"
+  }
+}

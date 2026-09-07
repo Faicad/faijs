@@ -40,6 +40,8 @@ export interface AssemblyParams extends GroupParams {
   joints?: JointSpec[]
   /** P3：驱动值覆盖（键 = child 成员名；值 = 主 DOF 数值或多 DOF 数组）。 */
   drive?: Record<string, number | number[]>
+  /** cq-compat：成员颜色（sRGB 0..1），导出 STEP 时写入 XCAF。 */
+  memberColors?: Record<string, [number, number, number]>
 }
 
 // ── 约束类型（P1 起定义收口在 api/assembly/types，此处 re-export 保持既有导出面） ──
@@ -84,6 +86,8 @@ export interface AssemblyBehavior {
   joints?: JointSpec[]
   /** P3：驱动值覆盖（键 = child 成员名；缺省 undefined = 用 joint 存储值）。 */
   drive?: Record<string, number | number[]>
+  /** cq-compat：成员颜色（sRGB 0..1）。 */
+  memberColors?: Record<string, [number, number, number]>
   /** 只求解（P6）：返回"成员下标 → 变换"列表。不改写入参、不传播；可重复调用（幂等）。 */
   solve(): AssemblyTransform[]
   /** 只求解并带诊断量（P1）：transforms + dof/converged/unsupported（方案 P1⑤）；P3 增 kinematics/warnings。 */
@@ -202,6 +206,7 @@ export function assembly(params: AssemblyParams): CompoundShape {
     constraints,
     joints,
     drive,
+    memberColors: params.memberColors,
     solve: () => solveTransforms(members, behavior),
     solveDetailed: () =>
       solveAssemblyAndKinematics(members, behavior.memberNames, behavior.constraints, behavior.joints ?? [], behavior.drive),

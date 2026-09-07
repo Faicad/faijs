@@ -104,6 +104,8 @@
   "workspaces": [
     "packages/core",
     "packages/gear-lib-demo",
+    "packages/cq-compat",
+    "packages/mini_lathe",
     "packages/sheetmetal",
     "packages/fixtures",
     "packages/tests",
