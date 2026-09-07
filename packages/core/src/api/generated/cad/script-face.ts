@@ -1,5 +1,5 @@
 /**
- * generated/cad/script-face.ts — auto-generated script face (P2 skeleton).
+ * generated/cad/script-face.ts — auto-generated script face (P5 skeleton).
  *
  * Design: docs/plans/2026-09-07-compat-surface-unified-projection.md §5.1 ③
  *
