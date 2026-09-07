@@ -54,3 +54,8 @@ export { compareStepFiles, printCompareReport } from './step-compare'
 export type {
   CompareOptions, StepCompareResult, MetricResult, TopologyStats,
 } from './step-compare'
+
+export { compareAssemblyFiles, printAssemblyReport } from './assembly-compare'
+export type {
+  AssemblyCompareOptions, AssemblyCompareResult, PartCompareResult,
+} from './assembly-compare'
