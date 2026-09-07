@@ -22,7 +22,7 @@ import type { PartName, StmtId } from '../identity'
 import { asPartName } from '../identity'
 import { computeContentKey } from './content-key'
 import { getSlot, hasBrep, brepOf, ensureSlot, isCompoundLike } from '../shape'
-import { setCurrentStmt, setName, getBackends, takePendingAssemblyTransforms, enterFunctionBrep, exitFunctionBrep, takeFunctionBrepDomain, type StdlibNamespace } from '../runtime-state'
+import { setCurrentStmt, setName, getBackends, takePendingAssemblyTransforms, takePendingAssemblyKinematics, enterFunctionBrep, exitFunctionBrep, takeFunctionBrepDomain, type StdlibNamespace, type AssemblyKinematicsPose } from '../runtime-state'
 import { applyTransform } from '../mesh/rigid-transform'
 import { applyTransformBrep } from '../brep/brep-ops'
 import type { EventSink } from './ports'
@@ -47,6 +47,8 @@ export interface ExecBookkeeping {
   outputCache: Map<PartName, Shape>
   /** 变更声明（P6：引擎比对推导 + 装配应用记录），collectResult 消费。 */
   changed: Set<PartName>
+  /** P3：装配运动副位姿（成员名 → pose），collectResult 消费。 */
+  kinematics?: Map<PartName, AssemblyKinematicsPose>
 }
 
 /** 编译产物中的单条语句（模块文本 `{ id, deps, fn }`）。 */
@@ -526,7 +528,8 @@ export class ModuleExecutor {
    */
   private async applyPendingAssemblyTransforms(exec: ExecBookkeeping): Promise<void> {
     const pending = takePendingAssemblyTransforms()
-    if (pending.length === 0) return
+    const pendingKin = takePendingAssemblyKinematics()
+    if (pending.length === 0 && pendingKin.length === 0) return
     const kernel = getBackends().kernel.brep as BrepEngineApi | null
     for (const { compound, transforms } of pending) {
       const behavior = getSlot(compound)?.behavior as { memberNames?: string[] } | undefined
@@ -552,6 +555,18 @@ export class ModuleExecutor {
       // 下游失效重算：依赖成员名的语句（拓扑序由 executeFrom 按 deps 保证）
       const stale = this.computeDownstream(memberNames)
       if (stale.size > 0) await this.executeFrom(stale, exec)
+    }
+    // P3：装配运动副位姿（joints 驱动）——成员名 → pose，collectResult 消费。
+    // 与 transforms 独立收集：全部成员恒等时 transforms 为空但 kinematics 非空。
+    for (const { compound, kinematics } of pendingKin) {
+      const behavior = getSlot(compound)?.behavior as { memberNames?: string[] } | undefined
+      if (!behavior?.memberNames) continue
+      const memberNames = behavior.memberNames
+      if (!exec.kinematics) exec.kinematics = new Map()
+      for (const name of memberNames) {
+        const pose = kinematics[name]
+        if (pose) exec.kinematics.set(asPartName(name), pose)
+      }
     }
   }
 

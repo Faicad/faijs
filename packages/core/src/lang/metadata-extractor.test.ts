@@ -307,3 +307,102 @@ describe('extractMetadata: lines 与 analyzeCode 逐字相等（A-16 抽样）',
     }
   })
 })
+
+describe('extractMetadata: 装配语句识别（P2-f4）', () => {
+  it('cad.assembly + asmN.do_assemble：摘要 {name, memberCount, constraintTypes}，普通行不标记', () => {
+    const code = [
+      'const part0 = cad.box(20, 20, 20, { centered: true })',
+      'const part1 = cad.box(10, 10, 10, { centered: true })',
+      'const asm1 = cad.assembly({',
+      "  name: 'demo',",
+      '  members: [part0, part1],',
+      '  constraints: [',
+      "    { type: 'mate', a: { part: 'part0', face: 0 }, b: { part: 'part1', face: 3 } },",
+      "    { type: 'distance', a: { part: 'part0', face: 1 }, b: { part: 'part1', face: 2 }, value: 5 },",
+      '  ],',
+      '})',
+      'asm1.do_assemble()',
+      'let part2 = cad.translate(part0, { offset: [0, 0, 5] })',
+    ].join('\n')
+    const meta = extractMetadata(code)
+    const asmLine = meta.lines.find((l) => l.callee === 'assembly')!
+    expect(asmLine.namespace).toBeUndefined()
+    expect(asmLine.outputs).toEqual(['asm1'])
+    expect(asmLine.isAssembly).toBe(true)
+    // 摘要不提取约束全文，只给类型名列表
+    expect(asmLine.assembly).toEqual({
+      name: 'demo',
+      memberCount: 2,
+      constraintTypes: ['mate', 'distance'],
+    })
+    // 约束全文仍走 args 通道（宿主 structuralStmtArgs 保留）
+    expect(Array.isArray(asmLine.args.constraints)).toBe(true)
+    // do_assemble 行：receiver 调用 → isAssembly，无 assembly 摘要字段
+    const doLine = meta.lines.find((l) => l.callee === 'do_assemble')!
+    expect(doLine).toMatchObject({ receiver: 'asm1', hasAssignment: false })
+    expect(doLine.isAssembly).toBe(true)
+    expect(doLine.assembly).toBeUndefined()
+    // 普通 op 行不标记
+    const tLine = meta.lines.find((l) => l.callee === 'translate')!
+    expect(tLine.isAssembly).toBeUndefined()
+  })
+
+  it('cad.assembly + asmN.solve()：无 name 摘要；solve 行 isAssembly + outputs', () => {
+    const code = [
+      'const part0 = cad.box(20, 20, 20, { centered: true })',
+      'const part1 = cad.box(10, 10, 10, { centered: true })',
+      'const asm1 = cad.assembly({',
+      '  members: [part0, part1],',
+      '  constraints: [',
+      "    { type: 'align', a: { part: 'part0', face: 0 }, b: { part: 'part1', face: 3 } },",
+      '  ],',
+      '})',
+      'const pose = asm1.solve()',
+    ].join('\n')
+    const meta = extractMetadata(code)
+    const asmLine = meta.lines.find((l) => l.callee === 'assembly')!
+    expect(asmLine.isAssembly).toBe(true)
+    expect(asmLine.assembly).toEqual({
+      memberCount: 2,
+      constraintTypes: ['align'],
+    })
+    expect(asmLine.assembly?.name).toBeUndefined()
+    const solveLine = meta.lines.find((l) => l.callee === 'solve')!
+    expect(solveLine).toMatchObject({ receiver: 'asm1', outputs: ['pose'], hasAssignment: true })
+    expect(solveLine.isAssembly).toBe(true)
+  })
+
+  it('含 face_mate legacy 约束：constraintTypes 收录 face_mate', () => {
+    const code = [
+      'const part0 = cad.box(20, 20, 20, { centered: true })',
+      'const part1 = cad.box(10, 10, 10, { centered: true })',
+      'const asm1 = cad.assembly({',
+      '  members: [part0, part1],',
+      '  constraints: [',
+      "    { type: 'face_mate', a: { part: 'part0', face: 0 }, b: { part: 'part1', face: 3 } },",
+      '  ],',
+      '})',
+      'asm1.do_assemble()',
+    ].join('\n')
+    const meta = extractMetadata(code)
+    const asmLine = meta.lines.find((l) => l.callee === 'assembly')!
+    expect(asmLine.isAssembly).toBe(true)
+    expect(asmLine.assembly?.constraintTypes).toEqual(['face_mate'])
+    expect(asmLine.assembly?.memberCount).toBe(2)
+    // args 通道保留完整约束对象（face_mate 无 value 字段）
+    const c = (asmLine.args.constraints as Record<string, unknown>[])[0]
+    expect(c.type).toBe('face_mate')
+  })
+
+  it('第三方库命名空间 assembly 不标记（归属 cad 缺省命名空间）', () => {
+    const code = [
+      "import * as mech from 'gear-lib-demo'",
+      'let a = mech.assembly({ members: [1, 2], constraints: [] })',
+    ].join('\n')
+    const meta = extractMetadata(code)
+    const l = meta.lines.find((x) => x.callee === 'assembly')!
+    expect(l.namespace).toBe('mech')
+    expect(l.isAssembly).toBeUndefined()
+    expect(l.assembly).toBeUndefined()
+  })
+})

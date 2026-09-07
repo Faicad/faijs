@@ -6,8 +6,9 @@
  * - `group(params)` → compound Shape（kind='compound'，children 为成员 Shape 引用）
  * - `assembly(params)` → compound Shape + AssemblyBehavior（约束列表 + solve 方法）
  * - 装配求解（P1 起）委派 api/assembly/（brepjs solverAdapter 内核）：
- *   solveFaceMate 保留为等价性基准；do_assemble/solve 触发求解 → 引擎应用
+ *   do_assemble/solve 触发求解 → 引擎应用
  *   （mesh 顶点烘焙 + BREP 刚体变换 + 下游传播）。
+ *   P2-f5：旧装配算法与自有四元数实现已删除，求解全链路走 api/assembly。
  *
  * compound 自身无独立 mesh——几何由 children 承载，意义是结构（层级）。
  * do_assemble 编译为 `await ctx.<asm>.do_assemble()`：调用 compound 的求解方法，
@@ -16,8 +17,10 @@
 
 import type { Shape } from '../mesh/types'
 import { compound as makeCompound, ensureSlot, type CompoundShape } from '../shape'
-import { keep, nameOf, setPendingAssemblyTransforms, type AssemblyTransform } from '../runtime-state'
-import { solveAssembly, type AssemblySolveResult } from './assembly/solve'
+import { keep, nameOf, setPendingAssemblyTransforms, setPendingAssemblyKinematics, type AssemblyTransform } from '../runtime-state'
+import { solveAssemblyAndKinematics, type AssemblySolveResult } from './assembly/solve'
+import { validateConstraints } from './assembly/validate'
+import { buildKinematicTree, type JointSpec } from './assembly/joints'
 import type { AssemblyConstraint } from './assembly/types'
 
 // ── 参数类型（keep-syntax 设计 §2.5：成员保留由函数体 keep() 显式声明，不再靠类型标注） ──
@@ -33,6 +36,10 @@ export interface GroupParams {
 /** Parameters for the `assembly` stdlib function: group params plus assembly constraints. */
 export interface AssemblyParams extends GroupParams {
   constraints?: AssemblyConstraint[]
+  /** P3：运动副声明（可选；parent/child 必须是 members 里的名字）。 */
+  joints?: JointSpec[]
+  /** P3：驱动值覆盖（键 = child 成员名；值 = 主 DOF 数值或多 DOF 数组）。 */
+  drive?: Record<string, number | number[]>
 }
 
 // ── 约束类型（P1 起定义收口在 api/assembly/types，此处 re-export 保持既有导出面） ──
@@ -58,103 +65,9 @@ export type {
 } from './assembly/types'
 export type { AssemblySolveResult } from './assembly/solve'
 
-// ── 向量数学（无 three.js 依赖，纯计算） ──
-
-function vec3Normalize(v: [number, number, number]): [number, number, number] {
-  const len = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])
-  if (len < 1e-12) return [0, 0, 0]
-  return [v[0] / len, v[1] / len, v[2] / len]
-}
-
-function vec3Sub(a: [number, number, number], b: [number, number, number]): [number, number, number] {
-  return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
-}
-
-function vec3Cross(a: [number, number, number], b: [number, number, number]): [number, number, number] {
-  return [
-    a[1] * b[2] - a[2] * b[1],
-    a[2] * b[0] - a[0] * b[2],
-    a[0] * b[1] - a[1] * b[0],
-  ]
-}
-
-function vec3Dot(a: [number, number, number], b: [number, number, number]): number {
-  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
-}
-
-/** 从两个单位向量计算旋转四元数 (a → b)，Rodrigues 公式。 */
-function quaternionFromUnitVectors(
-  a: [number, number, number],
-  b: [number, number, number],
-): [number, number, number, number] {
-  const cross = vec3Cross(a, b)
-  const dot = vec3Dot(a, b)
-
-  if (dot > 1 - 1e-9) {
-    return [0, 0, 0, 1]
-  }
-  if (dot < -1 + 1e-9) {
-    const axis = Math.abs(a[0]) < 0.9 ? [1, 0, 0] as [number, number, number] : [0, 1, 0] as [number, number, number]
-    const perp = vec3Normalize(vec3Cross(a, axis))
-    return [perp[0], perp[1], perp[2], 0]
-  }
-
-  const w = 1 + dot
-  const len = Math.sqrt(cross[0] * cross[0] + cross[1] * cross[1] + cross[2] * cross[2] + w * w)
-  return [cross[0] / len, cross[1] / len, cross[2] / len, w / len]
-}
-
-/** 四元数 → 旋转矩阵 (3x3, row-major)。 */
-function quaternionToMatrix3(q: [number, number, number, number]): number[] {
-  const [x, y, z, w] = q
-  const xx = x * x, yy = y * y, zz = z * z
-  const xy = x * y, xz = x * z, yz = y * z
-  const wx = w * x, wy = w * y, wz = w * z
-
-  return [
-    1 - 2 * (yy + zz), 2 * (xy - wz), 2 * (xz + wy),
-    2 * (xy + wz), 1 - 2 * (xx + zz), 2 * (yz - wx),
-    2 * (xz - wy), 2 * (yz + wx), 1 - 2 * (xx + yy),
-  ]
-}
-
 // ── 求解器 ──
-
-/** The rotation and translation that a face-mate constraint resolves to. */
-export interface FaceMateTransform {
-  quaternion: [number, number, number, number]
-  pivot: [number, number, number]
-  translation: [number, number, number]
-  rotationMatrix: number[]
-}
-
-/**
- * Compute the transform that satisfies a face-mate constraint, rotating the
- * moving face so its normal opposes the fixed normal and aligning the centers.
- * @param fixedCenter - the world-space center of the fixed face.
- * @param fixedNormal - the world-space normal of the fixed face.
- * @param movingCenter - the world-space center of the moving face.
- * @param movingNormal - the world-space normal of the moving face.
- * @returns the resolved FaceMateTransform (quaternion, pivot, translation, matrix).
- */
-export function solveFaceMate(
-  fixedCenter: [number, number, number],
-  fixedNormal: [number, number, number],
-  movingCenter: [number, number, number],
-  movingNormal: [number, number, number],
-): FaceMateTransform {
-  const n1 = vec3Normalize(fixedNormal)
-  const p1 = fixedCenter
-  const n2 = vec3Normalize(movingNormal)
-  const p2 = movingCenter
-
-  const targetNormal: [number, number, number] = [-n1[0], -n1[1], -n1[2]]
-  const quaternion = quaternionFromUnitVectors(n2, targetNormal)
-  const rotationMatrix = quaternionToMatrix3(quaternion)
-  const translation = vec3Sub(p1, p2)
-
-  return { quaternion, pivot: p2, translation, rotationMatrix }
-}
+// P2-f5：旧装配算法与自有四元数实现已整体删除——旋转计算一律走
+// brepjs utils/quaternion.ts，输出经 api/assembly/pose.ts fromBrepjsQuat 重排。
 
 // 应用变换（mesh 顶点烘焙）下沉到引擎侧 src/mesh/rigid-transform.ts（E-b：
 // module-executor 不得 import stdlib/compound；公共 API 经本 re-export 保持）。
@@ -167,9 +80,13 @@ export interface AssemblyBehavior {
   name?: string
   memberNames: string[]
   constraints: AssemblyConstraint[]
+  /** P3：运动副声明（无 joints 时为空数组）。 */
+  joints?: JointSpec[]
+  /** P3：驱动值覆盖（键 = child 成员名；缺省 undefined = 用 joint 存储值）。 */
+  drive?: Record<string, number | number[]>
   /** 只求解（P6）：返回"成员下标 → 变换"列表。不改写入参、不传播；可重复调用（幂等）。 */
   solve(): AssemblyTransform[]
-  /** 只求解并带诊断量（P1）：transforms + dof/converged/unsupported（方案 P1⑤）。 */
+  /** 只求解并带诊断量（P1）：transforms + dof/converged/unsupported（方案 P1⑤）；P3 增 kinematics/warnings。 */
   solveDetailed(): AssemblySolveResult
 }
 
@@ -185,7 +102,8 @@ export interface AssemblyBehavior {
  * - 输出为 per-member 终态（L6 修复），锚定成员不输出变换。
  */
 function solveTransforms(members: Shape[], behavior: AssemblyBehavior): AssemblyTransform[] {
-  return solveAssembly(members, behavior.memberNames, behavior.constraints).transforms
+  return solveAssemblyAndKinematics(members, behavior.memberNames, behavior.constraints, behavior.joints ?? [], behavior.drive)
+    .transforms
 }
 
 // ── group / assembly 库函数 ──
@@ -235,6 +153,7 @@ export function group(params: GroupParams): CompoundShape {
   ensureSlot(c).behavior = {
     memberNames,
     constraints: [],
+    joints: [],
     solve: () => [],
     solveDetailed: () => ({ transforms: [], dof: 0, converged: true, unsupported: [] }),
   }
@@ -265,23 +184,37 @@ export function group(params: GroupParams): CompoundShape {
 export function assembly(params: AssemblyParams): CompoundShape {
   const members = (params.members as Shape[] | undefined) ?? []
   const constraints = (params.constraints as AssemblyConstraint[] | undefined) ?? []
+  const joints = (params.joints as JointSpec[] | undefined) ?? []
+  const drive = params.drive as Record<string, number | number[]> | undefined
+
+  // P2-f1：约束参数运行期校验（keep() 之前，fail-fast；规则见 api/assembly/validate.ts V1–V6）
+  const memberNames = memberNamesOf(params, members)
+  validateConstraints(constraints, memberNames)
+  // P3：运动副构造期 fail-fast——parent/child ∈ members、child 唯一驱动、多 DOF 类型
+  // 在 assembly() 构造时暴露（buildJoint/buildKinematicTree 复用同一份校验实现）
+  if (joints.length > 0) buildKinematicTree(memberNames, joints)
 
   if (members.length > 0) keep(...members)
-  const memberNames = memberNamesOf(params, members)
   const c = makeCompound(members)
   const behavior: AssemblyBehavior = {
     name: params.name as string | undefined,
     memberNames,
     constraints,
+    joints,
+    drive,
     solve: () => solveTransforms(members, behavior),
-    solveDetailed: () => solveAssembly(members, behavior.memberNames, behavior.constraints),
+    solveDetailed: () =>
+      solveAssemblyAndKinematics(members, behavior.memberNames, behavior.constraints, behavior.joints ?? [], behavior.drive),
   }
   ensureSlot(c).behavior = behavior
   // solve / do_assemble 完全同义（方案 §5.5 D2：solve 为新名，do_assemble 保留为别名）
   const solveAndRegister = (): void => {
     // P6：只求解并登记待应用变换；应用与下游失效由引擎做（F2：库不查询/修改 DAG）
-    const transforms = behavior.solve()
-    if (transforms.length > 0) setPendingAssemblyTransforms(c, transforms)
+    // P3：约束 + 运动副在库侧一次合并（solveAssemblyAndKinematics），transforms 与
+    // kinematics 一起登记（禁止引擎侧两次求解/两次登记）
+    const result = behavior.solveDetailed()
+    if (result.transforms.length > 0) setPendingAssemblyTransforms(c, result.transforms)
+    if (result.kinematics) setPendingAssemblyKinematics(c, result.kinematics)
   }
   ;(c as CompoundShape & { do_assemble?: () => void }).do_assemble = solveAndRegister
   ;(c as CompoundShape & { solve?: () => void }).solve = solveAndRegister

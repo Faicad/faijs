@@ -1,7 +1,7 @@
 # faijs 装配约束 P2（语法层与宿主适配）+ P3（运动副与 IK）实施方案
 
 - 日期：2026-09-07
-- 状态：**方案（未实施）**
+- 状态：**已落地（P2 与 P3 全部实施完成，2026-09-07）**
 - 范围：`packages/core/src/api/`（校验 + 预览入口 + 运动副）、`packages/core/src/lang/`（roundtrip 测试 + metadata）、`docs/`（契约同步）、`../3d_editor`（宿主适配，仅 P2）
 - 前置方案：[2026-09-06-faijs-assembly-constraints-brepjs.md](./2026-09-06-faijs-assembly-constraints-brepjs.md)（P0+P1 **已落地**，本文档以它的产出为基线）
 - 相关有效契约：[docs/api-contract.md](../api-contract.md)、[docs/ops-api-inventory.md](../ops-api-inventory.md) §6.1、[docs/syntax-design.md](../syntax-design.md)、[docs/library-dev-guide.md](../library-dev-guide.md)
@@ -590,14 +590,14 @@ solveKinematics(memberNames, joints, drive):
 
 ### 3.5 P3 验收清单
 
-- [ ] J1–J12（含 J1b）全绿；既有装配测试回归全绿
-- [ ] `cad.assembly` 支持 `joints`/`drive` 参数且 roundtrip 测试覆盖（沿用 P2-f2 的 codegen 测试文件加样例）
-- [ ] arg-spec 五条 skip 的 reason 全部更新为实际去向（**含 `arg-spec.ts:1653` 的 `asm.kinematics()` 改为 `ExecutionResult.kinematics`**）
-- [ ] 新增 `cad.*` 查询函数已过三源同步（§3.2 的 6 步），`lang/op-set-consistency.test.ts` 绿
-- [ ] `docs/ops-api-inventory.md` §6.1 + `docs/api-contract.md` §12 增补运动副契约（JointSpec 表、drive 覆盖语义、kinematics 进 ExecutionResult）
-- [ ] vendored 目录 diff 为零（`git diff packages/core/src/vendored` 必须为空）
-- [ ] **P2-f5（§2.8）已完成**：旧装配算法与自有四元数已删除、grep 零命中（P3 开工前 faijs 侧必须只剩一条求解链路）
-- [ ] Agent Note 归档 `.agents/notes/implemented/feature/`
+- [x] J1–J12（含 J1b）全绿；既有装配测试回归全绿
+- [x] `cad.assembly` 支持 `joints`/`drive` 参数且 roundtrip 测试覆盖（沿用 P2-f2 的 codegen 测试文件加样例）
+- [x] arg-spec 五条 skip 的 reason 全部更新为实际去向（**含 `arg-spec.ts:1653` 的 `asm.kinematics()` 改为 `ExecutionResult.kinematics`**）
+- [x] 新增 `cad.*` 查询函数已过三源同步（§3.2 的 6 步），`lang/op-set-consistency.test.ts` 绿
+- [x] `docs/ops-api-inventory.md` §6.1 + `docs/api-contract.md` §12 增补运动副契约（JointSpec 表、drive 覆盖语义、kinematics 进 ExecutionResult）
+- [x] vendored 目录 diff 为零（`git diff packages/core/src/vendored` 必须为空）
+- [x] **P2-f5（§2.8）已完成**：旧装配算法与自有四元数已删除、grep 零命中（P3 开工前 faijs 侧必须只剩一条求解链路）
+- [x] Agent Note 归档 `.agents/notes/implemented/feature/`
 
 ---
 

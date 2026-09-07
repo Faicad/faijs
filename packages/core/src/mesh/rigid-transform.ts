@@ -6,7 +6,7 @@
  * applyTransformBrep (p' = R·(p − pivot) + pivot + translation).
  *
  * Ownership (engine-library-contract.md §10.1): constraint solving lives in the
- * library (solveFaceMate); applying the solved transform to member geometry is
+ * library (api/assembly); applying the solved transform to member geometry is
  * done by the engine during replay (F2: libraries must not query/mutate the DAG).
  * This module is the engine-side vertex transform — it must not depend on any
  * stdlib module (E-b: module-executor must not import stdlib/compound).

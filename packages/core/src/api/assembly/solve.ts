@@ -18,6 +18,7 @@ import { normalizeConstraint } from './normalize'
 import { lowerStructuralConstraint } from './lower'
 import { type EntityResolutionEnv } from './entities'
 import { poseToAssemblyTransform, isIdentityPose, type SolverPose } from './pose'
+import { solveKinematics, type JointSpec, type KinematicsPose } from './joints'
 import type { AssemblyConstraint, AssemblyVec3 } from './types'
 
 /** 求解完整结果：per-member 终态变换 + 诊断量。 */
@@ -30,6 +31,15 @@ export interface AssemblySolveResult {
   converged: boolean
   /** 无法求解的约束明细（entity 类型不匹配 / 参考不可达）。 */
   unsupported: string[]
+  /**
+   * P3：运动副解算的全成员位姿表（键 = 成员名；含恒等链根），
+   * 只有该装配声明了 joints 时才存在——宿主从 ExecutionResult.kinematics 消费。
+   */
+  kinematics?: Record<string, KinematicsPose>
+  /**
+   * P3：合并诊断（joints 覆盖约束解时各记一条；D-P3-1，不参与 converged 统计）。
+   */
+  warnings?: string[]
 }
 
 /**
@@ -98,4 +108,65 @@ export function solveAssembly(
     transforms.push(poseToAssemblyTransform(pose, pivot, index))
   }
   return { transforms, dof: result.dof, converged: result.converged, unsupported: result.unsupported }
+}
+
+/**
+ * 求解装配（约束 + 运动副，P3）：先跑约束求解得到 per-member 终态，再跑
+ * solveKinematics 得到 joints 的 per-member 位姿，以**成员名**为键用 joints 结果
+ * 覆盖同名成员的约束解，得到唯一一张表——**在库侧一次合并**，调用方一次性
+ * setPendingAssemblyTransforms（禁止引擎侧两次登记）。
+ *
+ * 诊断不混用：joints 不参与 solveConstraints 的 converged/dof/unsupported 统计；
+ * 覆盖发生时在 warnings 里各记一条（D-P3-1）。kinematics 为全成员位姿表（含
+ * 恒等链根），供宿主从 ExecutionResult.kinematics 消费。
+ *
+ * joints 为空 → 退化为基础 solveAssembly 行为（无 kinematics/warnings 字段）。
+ *
+ * @param members - member shapes (aligned with memberNames).
+ * @param memberNames - member variable names (R7: empty names throw).
+ * @param constraints - raw constraints (may be empty).
+ * @param joints - raw joint declarations (may be empty).
+ * @param drive - per-child DOF value overrides (may be undefined).
+ * @returns the merged solve result (transforms + diagnostics + kinematics/warnings).
+ */
+export function solveAssemblyAndKinematics(
+  members: Shape[],
+  memberNames: string[],
+  constraints: AssemblyConstraint[],
+  joints: JointSpec[] = [],
+  drive?: Record<string, number | number[]>,
+): AssemblySolveResult {
+  const base = solveAssembly(members, memberNames, constraints)
+  if (joints.length === 0) return base
+
+  const kin = solveKinematics(memberNames, joints, drive)
+  // 合并：以成员名为键，joints 结果覆盖同名成员的约束解（唯一一张表）
+  const merged = new Map<string, AssemblyTransform>()
+  for (const t of base.transforms) {
+    const name = memberNames[t.index]
+    if (name) merged.set(name, t)
+  }
+  const warnings: string[] = []
+  for (const t of kin.transforms) {
+    const name = memberNames[t.index]
+    if (!name) continue
+    if (merged.has(name)) {
+      warnings.push(`[assembly] joint '${name}' overrides the constraint solution for member '${name}'`)
+    }
+    merged.set(name, t)
+  }
+  // 按成员下标升序输出（与约束解的 Map 遍历序解耦，输出顺序确定）
+  const transforms = [...merged.entries()]
+    .map(([name, t]) => ({ name, t }))
+    .sort((a, b) => memberNames.indexOf(a.name) - memberNames.indexOf(b.name))
+    .map(({ t }) => t)
+
+  return {
+    transforms,
+    dof: base.dof,
+    converged: base.converged,
+    unsupported: base.unsupported,
+    kinematics: kin.kinematics,
+    warnings: warnings.length > 0 ? warnings : undefined,
+  }
 }

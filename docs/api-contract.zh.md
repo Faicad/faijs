@@ -565,6 +565,9 @@ export const myOp = defineOp({
 - **求解 ≠ 传播**（职责分离）：约束求解在**库**（`solveAssembly` → `setPendingAssemblyTransforms` 登记结果）；变换的**应用与下游失效在引擎**（`takePendingAssemblyTransforms` → 成员 mesh 与 BREP solid 同步变换 → `computeDownstream` 重算下游 → 变量名进 `ExecutionResult.changed`；direct 执行器应用待定变换时无需 DAG 重算）。
 - **成员方法链**：`assem1.add_constraint({ … })` / `assem1.do_assemble()` / `assem1.solve()` 是 void op（`outputs: []`），不消费 receiver 变量；`solve()` 与 `do_assemble()` 完全同义。
 - **group 语义**：原子组、零约束；成员不准单独被修改（修改 group 即整体修改其全部成员）。
+- **运动副**（`assembly({ joints, drive })`）：joint 是 JSON 可序列化的记录 `{ type, parent, child, … }`（C1）。P3 交付单 DOF 的 `revolute` / `prismatic` 类型（`axis: { origin, direction }`、`min` / `max` / `value` 以度为单位、可选 `offset: { position, rotation }`，其中 `rotation` 为 faijs `[x,y,z,w]` 四元数）；多 DOF 的 `cylindrical` / `planar` / `spherical` 声明在装配构造期被 `buildJoint` 以明确错误拒绝——绝不静默降级。`parent` / `child` 必须是成员名、一个 child 只能被一个 joint 驱动、每个 `drive` 键必须命名 joint 的 child；每条违规都带着上下文抛错。
+- **运动学求解 ≠ 约束求解**（合并语义）：`solveAssemblyAndKinematics` 先跑约束求解、再跑 `solveKinematics`；同名成员的 joint 位姿**覆盖**约束解（每条覆盖记录一条警告，D-P3-1）。运动学结果不参与 `converged` / `dof` 统计。
+- **消费通道**：带 joints 的 assembly 执行 `asm.solve()`（R0、无返回值）后，引擎把每成员位姿写入 `ExecutionResult.kinematics: Map<PartName, { position, rotation }>`（`rotation` 为 faijs `[x,y,z,w]`），**两个执行器都写**（module 与 direct，J12 锁定）。**没有** `asm.kinematics()` 方法。`cad.*` 查询面暴露无副作用纯函数（无 receiver）：`cad.jointTrajectory`、`cad.inverseKinematics`、`cad.mechanismDOF`（P3 方案 §3.2）。
 
 ---
 

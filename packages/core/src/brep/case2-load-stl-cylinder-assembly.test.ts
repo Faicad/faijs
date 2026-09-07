@@ -132,9 +132,9 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
         name: 'CubeOnCylinder',
         members: ['cube_v0', 'drilled_v0'],
         constraints: [{
-          fixedScopedId: 'cube_v0', movingScopedId: 'drilled_v0',
-          fixedFace: { surfaceType: 'plane' },
-          movingFace: { surfaceType: 'plane' },
+          type: 'mate',
+          a: { part: 'cube_v0', face: { faceIndex: 1 } },
+          b: { part: 'drilled_v0', face: { faceIndex: 2 } },
         }],
       }, [], { }),
       // S4: rotate_euler with pivot — BREP-native transform
@@ -254,9 +254,9 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
         name: 'CubeOnCylinder',
         members: ['cube_v0', 'drilled_v0'],
         constraints: [{
-          fixedScopedId: 'cube_v0', movingScopedId: 'drilled_v0',
-          fixedFace: { surfaceType: 'plane' },
-          movingFace: { surfaceType: 'plane' },
+          type: 'mate',
+          a: { part: 'cube_v0', face: { faceIndex: 1 } },
+          b: { part: 'drilled_v0', face: { faceIndex: 2 } },
         }],
       }, [], { }),
       makeStmt('rot_v0', 'rotate_euler', { anglesDeg: [180, 0, 0], pivot: [0, 0, 20] }, ['drilled_v0'],

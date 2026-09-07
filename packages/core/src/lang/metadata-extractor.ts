@@ -1246,7 +1246,41 @@ function classifyOpCall(
     hasAssignment: opts.hasAssignment,
   })
   extractKeepEntries(positional, line, vctx.symbols)
+  attachAssemblySummary(summary)
   return summary
+}
+
+/**
+ * P2-f4：装配语句摘要附加（cad.assembly / asmN.do_assemble / asmN.solve）。
+ *
+ * - `cad.assembly`（缺省命名空间，namespace===undefined）→ isAssembly + assembly 摘要。
+ *   摘要只含 {name?, memberCount, constraintTypes}；约束全文不提取（宿主 args 通道
+ *   保留，model-store.ts:973 继续从 structuralStmtArgs(stmt).constraints 取）。
+ * - `asmN.do_assemble` / `asmN.solve`（receiver 调用）→ isAssembly（装配行为语句）。
+ */
+function attachAssemblySummary(summary: StatementSummary): void {
+  if (summary.callee === 'assembly' && summary.namespace === undefined) {
+    const members = summary.args.members
+    const constraints = summary.args.constraints
+    if (!Array.isArray(members) || !Array.isArray(constraints)) return
+    const constraintTypes: string[] = []
+    for (const c of constraints) {
+      if (c && typeof c === 'object' && typeof (c as { type?: unknown }).type === 'string') {
+        constraintTypes.push((c as { type: string }).type)
+      }
+    }
+    const name = summary.args.name
+    summary.isAssembly = true
+    summary.assembly = {
+      ...(typeof name === 'string' ? { name } : {}),
+      memberCount: members.length,
+      constraintTypes,
+    }
+    return
+  }
+  if ((summary.callee === 'do_assemble' || summary.callee === 'solve') && summary.receiver !== undefined) {
+    summary.isAssembly = true
+  }
 }
 
 /** 从解构调用构造 op 行（const { k1: v1, k2 } = <ns>.<op>(...)）。 */

@@ -25,6 +25,7 @@ import { chamfer } from './chamfer'
 import { group, assembly } from './compound'
 import { copy } from './copy'
 import { faceNormal, bboxCenter, bboxMin, bboxMax } from './geom'
+import { jointTrajectory, inverseKinematics, mechanismDOF } from './assembly'
 import { asset } from './asset'
 import { scriptFaceOps } from './generated/script-face'
 import { CONTRACT_VERSION } from '../runtime-state'
@@ -54,6 +55,7 @@ export function createApiNamespace(): StdlibNamespace {
     union, subtract, intersect,
     fai_split, group, assembly, copy,
     faceNormal, bboxCenter, bboxMin, bboxMax,
+    jointTrajectory, inverseKinematics, mechanismDOF,
     asset,
     ...scriptFaceOps,
   } as unknown as StdlibNamespace

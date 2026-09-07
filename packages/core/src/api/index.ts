@@ -25,7 +25,10 @@ export { knurl } from './knurl'
 export { load } from './load'
 export { sdf } from './sdf'
 export { group, assembly } from './compound'
-export { solveFaceMate, applyTransform } from './compound'
+export { applyTransform } from './compound'
+// P2-f3：装配子层全量导出（solvePreview/entityFromGeometry 等经此到门面；
+// 与 ./compound 显式导出重名（assembly/AssemblyConstraint 等）时显式优先，不报错）
+export * from './assembly'
 export { copy } from './copy'
 export type {
   AssemblyBehavior, AssemblyConstraint, FaceMateConstraint, FaceMateFace,

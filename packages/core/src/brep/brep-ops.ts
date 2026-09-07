@@ -159,7 +159,7 @@ export function scaleBrep(
  * 数学公式：p' = R·(p − pivot) + pivot + translation
  * 等价 Matrix4 = T(pivot) · R · T(−pivot) · T(translation)
  *
- * 用四元数而非欧拉角，是因为装配变换源是 solveFaceMate 的四元数；
+ * 用四元数而非欧拉角，是因为装配变换源是 api/assembly 的四元数；
  * 转欧拉会引入顺序/万向锁歧义。与 mesh applyTransform 顶点公式完全等价。
  *
  * @param kernel      OCCT 内核

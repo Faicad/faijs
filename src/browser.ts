@@ -5,7 +5,7 @@ export * from '@faicad/faijs-core/browser'
 import { createRuntime as createRuntimeCore, type HostPorts, type ExecutionMode, type CadRuntime } from '@faicad/faijs-core'
 import { createApiNamespace } from '@faicad/faijs-core/api/api-namespace'
 
-// ── D1-⓪ 迁移完成（P6）：原 drill/engrave/solveFaceMate/applyTransform 由 stdlib 出包，
+// ── D1-⓪ 迁移完成（P6）：原 drill/engrave/applyTransform 由 stdlib 出包，
 //    现已全部并入 core 的 L3 api/ 层，随 `export * from core/browser` 一并导出。
 //    宿主红线：生产代码只 import @faicad/faijs/browser（3d_editor whitelist），
 //    宿主侧 import 已批量迁移，见 3d_editor D1-⓪。

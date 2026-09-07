@@ -27,7 +27,7 @@ import type { Namespaces } from './module-executor'
 import type { PartName } from '../identity'
 import { asPartName } from '../identity'
 import { ParseError } from '../lang/parse-error'
-import { setCurrentStmt, setKeepSink, setName, getBackends, takePendingAssemblyTransforms } from '../runtime-state'
+import { setCurrentStmt, setKeepSink, setName, getBackends, takePendingAssemblyTransforms, takePendingAssemblyKinematics, type AssemblyKinematicsPose } from '../runtime-state'
 import { getSlot, ensureSlot, brepOf } from '../shape'
 import { applyTransform } from '../mesh/rigid-transform'
 import { applyTransformBrep } from '../brep/brep-ops'
@@ -120,6 +120,13 @@ export class DirectExecutor {
   private readonly keepByLine = new Map<number, ExecKeepRecord>()
   /** 当前正在执行的单元行号（keep 登记归属锚点） */
   private activeLine: number | undefined
+  /** P3：装配运动副位姿（成员名 → pose），collectDirectResult 消费。 */
+  private kinematicsOut = new Map<PartName, AssemblyKinematicsPose>()
+
+  /** P3：读取装配运动副位姿快照（collectDirectResult 用；空 Map 表示无 joints）。 */
+  get kinematicsSnapshot(): Map<PartName, AssemblyKinematicsPose> {
+    return this.kinematicsOut
+  }
 
   constructor(options: DirectExecutorOptions) {
     this.namespaces = options.namespaces
@@ -191,6 +198,7 @@ export class DirectExecutor {
     this.executedLines.clear()
     this.fullCode = ''
     this.keepByLine.clear()
+    this.kinematicsOut.clear()
   }
 
   /**
@@ -325,7 +333,8 @@ export class DirectExecutor {
    */
   private applyPendingAssemblyTransforms(): void {
     const pending = takePendingAssemblyTransforms()
-    if (pending.length === 0) return
+    const pendingKin = takePendingAssemblyKinematics()
+    if (pending.length === 0 && pendingKin.length === 0) return
     const kernel = getBackends().kernel.brep as BrepEngineApi | null
     for (const { compound, transforms } of pending) {
       const behavior = getSlot(compound)?.behavior as { memberNames?: string[] } | undefined
@@ -343,6 +352,17 @@ export class DirectExecutor {
           try { kernel.release(solid) } catch { /* 已释放 */ }
           ensureSlot(member).solid = transformed
         }
+      }
+    }
+    // P3：装配运动副位姿（joints 驱动）——成员名 → pose，collectDirectResult 消费。
+    // 与 transforms 独立收集：全部成员恒等时 transforms 为空但 kinematics 非空。
+    for (const { compound, kinematics } of pendingKin) {
+      const behavior = getSlot(compound)?.behavior as { memberNames?: string[] } | undefined
+      if (!behavior?.memberNames) continue
+      const memberNames = behavior.memberNames
+      for (const name of memberNames) {
+        const pose = kinematics[name]
+        if (pose) this.kinematicsOut.set(asPartName(name), pose)
       }
     }
   }

@@ -250,6 +250,52 @@ export function takePendingAssemblyTransforms(): Array<{ compound: object; trans
   return out
 }
 
+// ── P3：运动副位姿登记（ExecutionResult.kinematics）──
+// 与 pendingAssemblyTransforms 同模式：库只把 solveKinematics 的 per-member 位姿
+// 写到这里，引擎在语句执行后取走并放入 ExecutionResult.kinematics（宿主动画/导出
+// 从 ExecutionResult 读取，不新增返回值消费语义）。
+
+/** 单个成员的位姿（position + faijs [x,y,z,w] rotation；与 api/assembly/joints 的 KinematicsPose 结构一致）。 */
+export interface AssemblyKinematicsPose {
+  position: [number, number, number]
+  rotation: [number, number, number, number]
+}
+
+/** 位姿键：成员名 → AssemblyKinematicsPose（含恒等链根；键 = PartName）。 */
+export type AssemblyKinematics = Record<string, AssemblyKinematicsPose>
+
+const pendingKinematicsKeys = new Set<object>()
+const pendingAssemblyKinematics = new WeakMap<object, AssemblyKinematics>()
+
+/**
+ * Register a compound's pending assembly kinematics (P3; called from the
+ * do_assemble/solve method body; accumulates across calls).
+ *
+ * @param c - the compound object that owns the kinematics.
+ * @param kin - per-member poses keyed by member name (all members, incl. identity).
+ */
+export function setPendingAssemblyKinematics(c: object, kin: AssemblyKinematics): void {
+  pendingKinematicsKeys.add(c)
+  pendingAssemblyKinematics.set(c, kin)
+}
+
+/**
+ * Take all pending assembly kinematics and clear them (called by the engine after
+ * an assembly statement; consumed exactly once).
+ *
+ * @returns the list of compounds with their per-member kinematics.
+ */
+export function takePendingAssemblyKinematics(): Array<{ compound: object; kinematics: AssemblyKinematics }> {
+  const out: Array<{ compound: object; kinematics: AssemblyKinematics }> = []
+  for (const c of pendingKinematicsKeys) {
+    const kin = pendingAssemblyKinematics.get(c)
+    if (kin) out.push({ compound: c, kinematics: kin })
+    pendingAssemblyKinematics.delete(c)
+  }
+  pendingKinematicsKeys.clear()
+  return out
+}
+
 const STATE_VERSION = 1
 const KEY = '__FAICAD_FAIJS_RUNTIME__'
 

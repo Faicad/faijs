@@ -4,7 +4,7 @@
  * 全部用快照形态面引用（{ center, normal }），不需要内核——
  * 求解是纯位姿层（方案 D1：装配不参与 BREP/mesh 链判定）。
  *
- * T3：mate ≡ solveFaceMate 等价性（G1–G4 四组输入逐分量相等 1e-9；G3 四元数符号双解）。
+ * T3：mate ≡ golden 基准等价性（G1–G4 四组输入逐分量相等 1e-9；G3 四元数符号双解）。
  * T4：退化分支（已贴合 identity / 反平行 180° / 垂直）。
  * T5：链式三体 A→B→C（手算对照）。
  * T6：concentric/distance/angle 直译路径对照 brepjs solveConstraints 直算。
@@ -16,7 +16,7 @@
 import { describe, it, expect } from 'vitest'
 import { solveAssembly } from './solve'
 import { fromBrepjsQuat } from './pose'
-import { solveFaceMate, type FaceMateTransform } from '../compound'
+import { goldenMateCase } from './golden-mate'
 import { solveConstraints } from '../../vendored/brepjs/kernel/solverAdapter'
 import { TopoRefError } from '../../topology/naming'
 import { asPartName } from '../../identity'
@@ -56,50 +56,48 @@ function expectVecClose(a: ArrayLike<number>, b: ArrayLike<number>, eps = 1e-9):
   for (let i = 0; i < a.length; i++) expect(Math.abs(a[i] - b[i]), `component ${i}`).toBeLessThan(eps)
 }
 
-/** T3/T4 共用：单条 mate（快照面）与 solveFaceMate 基准逐分量比对。 */
-function expectMateEqualsBaseline(
-  p1: AssemblyVec3, n1: AssemblyVec3, p2: AssemblyVec3, n2: AssemblyVec3,
-): void {
-  const baseline: FaceMateTransform = solveFaceMate(p1, n1, p2, n2)
+/** T3 共用：单条 mate（快照面）与 golden 基准（golden-mate.ts）逐分量比对。 */
+function expectMateEqualsGolden(label: string): void {
+  const g = goldenMateCase(label)
   const transforms = solveOne([{
     type: 'mate',
-    a: { part: P('p0'), face: face(p1, n1) },
-    b: { part: P('p1'), face: face(p2, n2) },
+    a: { part: P('p0'), face: face(g.p1, g.n1) },
+    b: { part: P('p1'), face: face(g.p2, g.n2) },
   }])
   expect(transforms.length).toBeLessThanOrEqual(1)
   const t = findMember(transforms, 'p1', ['p0', 'p1'])
   if (!t) {
-    // 恒等位姿不输出变换（P1 设计）：基准也必须是恒等
-    expect(baseline.quaternion).toEqual([0, 0, 0, 1])
-    expectVecClose(baseline.translation, [0, 0, 0])
-    expectVecClose(baseline.rotationMatrix, [1, 0, 0, 0, 1, 0, 0, 0, 1])
+    // 恒等位姿不输出变换（P1 设计）：golden 也必须是恒等
+    expect(g.quaternion).toEqual([0, 0, 0, 1])
+    expectVecClose(g.translation, [0, 0, 0])
+    expectVecClose(g.rotationMatrix, [1, 0, 0, 0, 1, 0, 0, 0, 1])
     return
   }
-  expectQuatEquivalent(Array.from(t.quaternion), baseline.quaternion)
-  expectVecClose(t.pivot, baseline.pivot)
-  expectVecClose(t.translation, baseline.translation)
-  expectVecClose(t.rotationMatrix, baseline.rotationMatrix)
+  expectQuatEquivalent(Array.from(t.quaternion), g.quaternion)
+  expectVecClose(t.pivot, g.pivot)
+  expectVecClose(t.translation, g.translation)
+  expectVecClose(t.rotationMatrix, g.rotationMatrix)
 }
 
-describe('T3: mate ≡ solveFaceMate 等价性（方案 §4.3 验收数据）', () => {
+describe('T3: mate ≡ golden 基准（09-06 方案 §4.3 验收数据，golden-mate.ts 冻结）', () => {
   it('G1 一般：+X 转到 −Z，p2 落到 p1', () => {
-    expectMateEqualsBaseline([0, 0, 10], [0, 0, 1], [5, 0, 0], [1, 0, 0])
+    expectMateEqualsGolden('G1')
   })
 
   it('G2 已贴合：identity（dot=+1 分支）', () => {
-    expectMateEqualsBaseline([0, 0, 10], [0, 0, 1], [0, 0, 10], [0, 0, -1])
+    expectMateEqualsGolden('G2')
   })
 
   it('G3 反平行：180° 翻转（dot=−1 分支；四元数按符号等价类比对）', () => {
-    expectMateEqualsBaseline([0, 0, 10], [0, 0, 1], [0, 0, 10], [0, 0, 1])
+    expectMateEqualsGolden('G3')
   })
 
   it('G4 垂直：+X 转到 −Z，中心不动', () => {
-    expectMateEqualsBaseline([0, 0, 10], [0, 0, 1], [0, 0, 10], [1, 0, 0])
+    expectMateEqualsGolden('G4')
   })
 
-  it('非归一化法向输入与归一化结果一致（solveFaceMate 内部 normalize）', () => {
-    expectMateEqualsBaseline([0, 0, 10], [0, 0, 7], [5, 0, 0], [3, 0, 0])
+  it('非归一化法向输入与 golden 一致（内部 normalize；(0,0,7)/(3,0,0) 归一化后同 G1）', () => {
+    expectMateEqualsGolden('G1')
   })
 })
 
@@ -116,8 +114,8 @@ describe('T4: 退化分支判据对齐（§3.7.2a）', () => {
     expect(t.quaternion).toEqual([0, 0, 0, 1])
   })
 
-  it('n2 ∥ n1 → 180° 翻转（两条路径旋转矩阵一致）', () => {
-    const baseline = solveFaceMate([0, 0, 0], [0, 0, 1], [0, 0, 4], [0, 0, 1])
+  it('n2 ∥ n1 → 180° 翻转（与 golden E1 一致）', () => {
+    const g = goldenMateCase('E1')
     const t = findMember(
       solveOne([{
         type: 'mate',
@@ -126,14 +124,14 @@ describe('T4: 退化分支判据对齐（§3.7.2a）', () => {
       }]),
       'p1', ['p0', 'p1'],
     )!
-    expectVecClose(t.rotationMatrix, baseline.rotationMatrix)
-    expectQuatEquivalent(Array.from(t.quaternion), baseline.quaternion)
+    expectVecClose(t.rotationMatrix, g.rotationMatrix)
+    expectQuatEquivalent(Array.from(t.quaternion), g.quaternion)
     // 180°：旋转后 z 轴反向 → 矩阵 [8] 分量 = −1
     expect(t.rotationMatrix[8]).toBeCloseTo(-1, 9)
   })
 
-  it('n2 ⊥ n1 → 最短弧（两条路径逐分量一致）', () => {
-    const baseline = solveFaceMate([0, 0, 0], [0, 0, 1], [1, 2, 3], [0, 1, 0])
+  it('n2 ⊥ n1 → 最短弧（与 golden E2 一致）', () => {
+    const g = goldenMateCase('E2')
     const t = findMember(
       solveOne([{
         type: 'mate',
@@ -142,8 +140,8 @@ describe('T4: 退化分支判据对齐（§3.7.2a）', () => {
       }]),
       'p1', ['p0', 'p1'],
     )!
-    expectQuatEquivalent(Array.from(t.quaternion), baseline.quaternion)
-    expectVecClose(t.rotationMatrix, baseline.rotationMatrix)
+    expectQuatEquivalent(Array.from(t.quaternion), g.quaternion)
+    expectVecClose(t.rotationMatrix, g.rotationMatrix)
   })
 })
 

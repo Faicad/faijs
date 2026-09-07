@@ -1647,13 +1647,13 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     name: 'multiSectionSweep', source: 'operations/multiSweepFns.js#multiSectionSweep', kind: 'skip', module: 'operations', reason: 'sections: SweepSectionConfig[]（每份含 wire）数组入参，skip',
   },
   {
-    name: 'addJoint', source: 'operations/jointFns.js#addJoint', kind: 'skip', module: 'operations', reason: '运动副 DSL（AssemblyNode 输入）：P3 起改由 cad.assembly 的 joints[] 约束面暴露（2026-09-06 装配方案 §5.6），仍不直接暴露',
+    name: 'addJoint', source: 'operations/jointFns.js#addJoint', kind: 'skip', module: 'operations', reason: '运动副 DSL（AssemblyNode 输入）：P3 起改由 cad.assembly 的 joints[] 约束面暴露（库面 buildJoint 直调，2026-09-07 方案 §3.1），仍不直接暴露',
   },
   {
-    name: 'forwardKinematics', source: 'operations/jointFns.js#forwardKinematics', kind: 'skip', module: 'operations', reason: '运动链正解（纯计算）：P3 起改由 asm.kinematics()/cad 查询面暴露（2026-09-06 装配方案 §5.6），仍不直接暴露',
+    name: 'forwardKinematics', source: 'operations/jointFns.js#forwardKinematics', kind: 'skip', module: 'operations', reason: '运动链正解（纯计算）：P3 起改由 ExecutionResult.kinematics（assembly 带 joints 求解后）+ cad.mechanismDOF/库面 solveKinematics 暴露（2026-09-07 方案 §3.3），仍不直接暴露',
   },
   {
-    name: 'mechanismDOF', source: 'operations/jointFns.js#mechanismDOF', kind: 'skip', module: 'operations', reason: '机构自由度诊断（AssemblyNode 输入）：P3 起随 joints[] 约束面暴露（2026-09-06 装配方案 §5.6），仍不直接暴露',
+    name: 'mechanismDOF', source: 'operations/jointFns.js#mechanismDOF', kind: 'skip', module: 'operations', reason: '机构自由度诊断（AssemblyNode 输入）：P3 起经 cad.mechanismDOF 查询函数暴露（节点输入隐藏于 joints[] 约束面，2026-09-07 方案 §3.2），仍不直接暴露',
   },
   {
     name: 'addMate', source: 'operations/mateFns.js#addMate', kind: 'skip', module: 'operations', reason: '装配约束 DSL（MateEntity 持 kernel 活句柄，不可序列化）：P1 起改由 cad.assembly 的 constraints[] 纯数据约束面暴露（2026-09-06 装配方案 §5），仍不直接暴露',
@@ -1722,10 +1722,10 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     name: 'materialize', source: 'operations/instanceFns.js#materialize', kind: 'skip', module: 'operations', reason: 'InstancedShape→多产物（Compound/fused），单产物收养缺位，skip',
   },
   {
-    name: 'inverseKinematics', source: 'operations/ikFns.js#inverseKinematics', kind: 'skip', module: 'operations', reason: '装配 IK 场景（AssemblyNode 输入），skip',
+    name: 'inverseKinematics', source: 'operations/ikFns.js#inverseKinematics', kind: 'skip', module: 'operations', reason: '装配 IK 场景（AssemblyNode 输入）：P3 起经 cad.inverseKinematics 查询函数暴露（2026-09-07 方案 §3.2），仍不直接暴露',
   },
   {
-    name: 'jointTrajectory', source: 'operations/ikFns.js#jointTrajectory', kind: 'skip', module: 'operations', reason: '装配 IK 场景，skip',
+    name: 'jointTrajectory', source: 'operations/ikFns.js#jointTrajectory', kind: 'skip', module: 'operations', reason: '装配 IK 场景：P3 起经 cad.jointTrajectory 查询函数暴露（2026-09-07 方案 §3.2），仍不直接暴露',
   },
   {
     name: 'exportURDF', source: 'operations/urdfFns.js#exportURDF', kind: 'skip', module: 'operations', reason: 'URDF 字符串 host IO，skip（同 IO 判据）',

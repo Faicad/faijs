@@ -48,6 +48,74 @@ interface PairSpec {
   b: EntityRef
 }
 
+/**
+ * 纯实体降级（P2-f3）：两侧 SolverEntity 已知（预览路径 / 宿主已持有几何）。
+ * 与 lowerStructuralConstraint 共用 axisFromFace 的编码规则，不另写数学。
+ *
+ * mate/align 要求两侧都是 `plane` 实体（贴合语义只接受平面）——把 plane 还原成
+ * {center, normal} 再走 axisFromFace 编码；与执行路径（lowerStructuralConstraint
+ * 的 mate/align 分支）逐位一致。非 plane 输入直接抛错（绝不静默）。
+ *
+ * @param type - the constraint type（parallel/perpendicular 请显式用 angle 0/90）。
+ * @param a - the reference-side entity (node + solver entity).
+ * @param b - the dependent-side entity (node + solver entity).
+ * @param value - distance/angle 用（其它类型忽略）。
+ * @returns the lowered solver constraint with the dependent origin.
+ */
+export function lowerEntities(
+  type: 'mate' | 'align' | 'coincident' | 'concentric' | 'distance' | 'angle',
+  a: { node: string; entity: SolverEntity },
+  b: { node: string; entity: SolverEntity },
+  value?: number,
+): LoweredConstraint {
+  switch (type) {
+    case 'mate':
+    case 'align': {
+      const kindA = a.entity.type
+      const kindB = b.entity.type
+      if (kindA !== 'plane' || kindB !== 'plane') {
+        throw new Error(
+          `[assembly:lower] ${type} requires plane entities on both sides, got ${kindA}/${kindB}`,
+        )
+      }
+      // SolverEntity.origin/normal 是 readonly Vec3；拷贝成可变 AssemblyVec3 再传给
+      // axisFromFace（避免类型断言覆盖 readonly→mutable 的契约警告）。
+      // SolverEntity 是扁平 interface（type 联合非 tagged union），kind 检查后字段必然存在。
+      const normalA = a.entity.normal as readonly [number, number, number]
+      const normalB = b.entity.normal as readonly [number, number, number]
+      const pa = { origin: [...a.entity.origin] as AssemblyVec3, normal: [...normalA] as AssemblyVec3 }
+      const pb = { origin: [...b.entity.origin] as AssemblyVec3, normal: [...normalB] as AssemblyVec3 }
+      const flip = type === 'mate'
+      return {
+        constraint: {
+          type: 'concentric',
+          entityA: { node: a.node, entity: axisFromFace({ center: pa.origin, normal: pa.normal }, false) },
+          entityB: { node: b.node, entity: axisFromFace({ center: pb.origin, normal: pb.normal }, flip) },
+        },
+        depOrigin: pb.origin,
+      }
+    }
+    case 'coincident':
+    case 'concentric':
+    case 'distance':
+    case 'angle': {
+      const constraint: SolverConstraint = {
+        type,
+        entityA: { node: a.node, entity: a.entity },
+        entityB: { node: b.node, entity: b.entity },
+      }
+      if (value !== undefined) constraint.value = value
+      return { constraint, depOrigin: [b.entity.origin[0], b.entity.origin[1], b.entity.origin[2]] }
+    }
+    default:
+      // TS 穷尽分支防御：JS 调用方可能传越界字符串（fixed/parallel/perpendicular/其他）
+      throw new Error(
+        `[assembly:lower] unsupported constraint type for lowerEntities: ${String(type)} ` +
+          `(fixed has no displacement semantics; parallel/perpendicular use 'angle' 0/90)`,
+      )
+  }
+}
+
 /** 直译定位约束：解析两侧实体后原样翻译。 */
 function lowerPair(c: PairSpec, env: EntityResolutionEnv): LoweredConstraint {
   const entityA = resolveSolverEntity(c.a, env)

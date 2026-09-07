@@ -46,6 +46,7 @@ import { extractMetadata, type UiMetadata } from '../lang/metadata-extractor'
 import {
   configureBackends, CONTRACT_VERSION, setKeepSink, setName, getCurrentStmt,
   assertContractVersion, BrepUnsupportedError, MeshUnsupportedError, type StdlibNamespace,
+  type AssemblyKinematicsPose,
 } from '../runtime-state'
 import { OpError } from '../api/internal/result-unwrap'
 import { admitCompatLib } from './admit-compat-lib'
@@ -63,7 +64,7 @@ import { HASH_UPPER_BOUND } from '../brep/face-evolution'
 
 // ── 装配变换死代码已删除 ──
 // v8: applyPrecomputedTransform / eulerDegToMatrix3 / propagateTransform 已删除。
-// 装配 pass 委托 executeDoAssemble（唯一真源），约束只存 face 数据、实时 solveFaceMate 求解。
+// 装配 pass 委托 executeDoAssemble（唯一真源），约束只存 face 数据、由 api/assembly 实时求解。
 
 // ── 类型定义 ──
 
@@ -164,6 +165,12 @@ export interface ExecutionResult {
    * 不进 terminals（terminals 只含几何，零回归）。
    */
   activeValues?: Map<PartName, unknown>
+  /**
+   * P3：装配运动副 per-member 位姿（键 = 成员名；含恒等链根），仅在含 joints 的
+   * assembly solve 语句执行后出现。宿主从本字段读取（动画/导出），不新增返回值
+   * 消费语义（asm.solve() 保持 R0 语句形态，与 do_assemble 现状一致）。
+   */
+  kinematics?: Map<PartName, AssemblyKinematicsPose>
 }
 
 /**
@@ -738,6 +745,7 @@ export class CadRuntime {
       brepSolids: brepSolids.size > 0 ? brepSolids : undefined,
       topology: topology.size > 0 ? topology : undefined,
       compounds: compounds.size > 0 ? compounds : undefined,
+      kinematics: de.kinematicsSnapshot.size > 0 ? de.kinematicsSnapshot : undefined,
     }
   }
 
@@ -1340,6 +1348,7 @@ export class CadRuntime {
       compounds: compounds.size > 0 ? compounds : undefined,
       changed: changed.length > 0 ? changed : undefined,
       activeValues: activeValues.size > 0 ? activeValues : undefined,
+      kinematics: exec.kinematics,
     }
   }
 

@@ -59,6 +59,18 @@ export interface StatementSummary {
   /** 参数是否含计算表达式（F1：parser 折叠时置位）。
    *  true → 宿主编辑面板降级为只读/代码编辑，禁止表单写回（防表达式丢失）。 */
   hasComputedArgs: boolean
+  /**
+   * 装配相关语句标记（P2-f4）：`cad.assembly` / `asmN.do_assemble` / `asmN.solve`
+   * 行为语句。面板据此渲染装配节点；`assembly` 摘要字段只在 `cad.assembly`
+   * 语句上存在（do_assemble/solve 行只有本标记）。
+   */
+  isAssembly?: boolean
+  /** 装配语句摘要（仅 cad.assembly 语句；约束全文仍走 args 通道，此处只给类型名列表）。 */
+  assembly?: {
+    name?: string
+    memberCount: number
+    constraintTypes: string[]
+  }
   /** 源码行号（1-based） */
   line: number
 }
