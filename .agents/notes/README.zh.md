@@ -27,6 +27,11 @@ Agent Notes 是决策记录：为什么做某项变更、放弃了什么、拒�
 
 每次非平凡变更必须包含至少一份 Agent Note。如果完整设计文档已存在于 `docs/plans/`，则 Agent Note 是对该设计的精简摘要，必须**自包含成文**——文档规范禁止任何非 `docs/plans/` 文档引用 `docs/plans/` 文档。
 
+两条硬性规则：
+
+1. **实施前写 note。** 决策定稿的那一刻——也就是用户说"开始实施"时——先把 Agent Note 以 `proposed/` 状态写好，**再**动任何 plan 工作。note 是实施蓝图，实施只是把它落地。验证通过后升为 `implemented/`，只追加 `## Consequences` 章节；`Problem`/`Decision`/`Alternatives considered` 在提案时就冻结。
+2. **一个 PR/plan 只配一份 note，不按 commit 配。** 一个 PR 或 plan 内的多个 commit 共用同一份 Agent Note。纯重构或测试迁移的 commit 不单独产 note（如有决策，归属该 PR 的 note）。
+
 ## The file format
 
 ### Header block (first three lines, exactly)

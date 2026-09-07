@@ -27,6 +27,11 @@ A Chinese counterpart (`foo.zh.md`) and its `.i18n.yaml` record sit beside the E
 
 Every non-trivial change must include at least one Agent Note. If a full design document exists in `docs/plans/`, the Agent Note is a concise summary of the decision — stated so that it stands alone, because the docs standard forbids any non-`docs/plans/` document from referencing a `docs/plans/` document.
 
+Two hard rules:
+
+1. **Write the note before implementing.** Draft the Agent Note as `proposed/` the moment the design is finalized — that is, when the user says "start implementing" — and *before* any plan work begins. The note is the blueprint; implementation only lands it. Promote it to `implemented/` after verification, appending only the `## Consequences` section; `Problem`/`Decision`/`Alternatives considered` are frozen at proposal time.
+2. **One note per PR/plan, not per commit.** Multiple commits inside a single PR or plan share exactly one Agent Note. A commit that is pure refactoring or test migration carries no note of its own (any decision lives in the PR's note).
+
 ## The file format
 
 ### Header block (first three lines, exactly)

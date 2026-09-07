@@ -39,8 +39,8 @@ import type { ModuleRunResult } from './module-registry'
 import { computeLiveShapes, lineConsumes, blockConsumes, type KeepView } from './live-shapes'
 import { extractMetadata, type UiMetadata } from '../lang/metadata-extractor'
 import {
-  configureBackends, CONTRACT_VERSION, setKeepSink, setName, getCurrentStmt,
-  assertContractVersion, BrepUnsupportedError, MeshUnsupportedError, type StdlibNamespace,
+  configureBackends, CONTRACT_VERSION,
+  assertContractVersion, type StdlibNamespace,
   type AssemblyKinematicsPose,
 } from '../runtime-state'
 import { admitCompatLib } from './admit-compat-lib'
@@ -125,8 +125,8 @@ export interface ExecutionResult {
   terminals: TerminalShape[]
   /** 信息/警告列表 */
   infos: string[]
-  /** 失败信息（如果执行中途出错）；lineNo 为 DirectExecutor 路径新增（§4.2 E-add，宿主按现状读前三个字段不破裂） */
-  failedAt?: { index: number; callee: string; message: string; lineNo?: number }
+  /** 失败信息（如果执行中途出错）；lineNo 为 DirectExecutor 路径新增（§4.2 E-add，宿主按现状读前三个字段不破裂）；code 为原始错误码（如有，如 E_TOPO_NOT_FOUND / E_ARGS_FORM） */
+  failedAt?: { index: number; callee: string; message: string; lineNo?: number; code?: string }
   /** 逐终端的 BREP 实体（仅持有 solid 的终端出现在此表）。key 为终端 PartName。 */
   brepSolids?: Map<PartName, { solid: BrepHandle; kernel: BrepEngineApi }>
   /**
@@ -540,30 +540,28 @@ export class CadRuntime {
   }
 
   /**
-   * Direct-mode failedAt handling: mirror module path's runWithFailureHandling —
-   * only OpError / BrepUnsupportedError / MeshUnsupportedError (engine
-   * capability failures + TypeError for no_such_op) stay in failedAt; other
-   * errors (business parameter errors like TopoRefError) are re-thrown so
-   * the caller sees them. TypeError is included because the module path's
-   * compiled code also throws TypeError for missing ops, but direct-mode
-   * tests expect those to land in failedAt (A-3 parity).
+   * Direct-mode failedAt handling (T5 direct-only path): all execution errors
+   * from DirectExecutor's catch block are statement-level failures → keep in
+   * failedAt (no re-throw). This includes OpError / BrepUnsupportedError /
+   * MeshUnsupportedError (engine capability failures), TypeError (no_such_op),
+   * and business parameter errors (e.g. E_ARGS_FORM, E_CHAMFER_NO_EDGES,
+   * E_TOPO_NOT_FOUND). ParseError is re-thrown by DirectExecutor (not here).
+   * The original error's `code` (e.g. E_TOPO_NOT_FOUND) is surfaced on
+   * failedAt.code so hosts can programmatically distinguish error kinds.
    */
   private directFailedAtOrThrow(
     failedAt: { index: number; callee: string; message: string; lineNo?: number; error?: unknown },
     meta: UiMetadata,
   ): ExecutionResult {
-    // T5 direct-only path: all execution errors from DirectExecutor's catch
-    // block are statement-level failures → keep in failedAt (no re-throw).
-    // This includes OpError, BrepUnsupportedError, MeshUnsupportedError,
-    // TypeError (no_such_op), and business parameter errors (e.g. E_ARGS_FORM,
-    // E_CHAMFER_NO_EDGES). ParseError is re-thrown by DirectExecutor (not here).
     const index = this.directStmtOrdinal(meta, failedAt.lineNo) ?? failedAt.index
+    const rawCode = failedAt.error instanceof Error ? (failedAt.error as { code?: unknown }).code : undefined
+    const code = typeof rawCode === 'string' ? rawCode : undefined
     return {
       outputs: this.directShapes(),
       brepChain: this.brepChain!,
       terminals: [],
       infos: [],
-      failedAt: { index, callee: failedAt.callee, message: failedAt.message, lineNo: failedAt.lineNo },
+      failedAt: { index, callee: failedAt.callee, message: failedAt.message, lineNo: failedAt.lineNo, code },
     }
   }
 

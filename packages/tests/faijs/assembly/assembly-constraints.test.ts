@@ -183,11 +183,8 @@ describe('P1 新约束类型 e2e（真内核全链路）', () => {
       ] })
       asm0.do_assemble()
     `
-    try {
-      await runtime.execute(code, { topology: 'auto' })
-      expect.unreachable('should have thrown')
-    } catch (e) {
-      expect((e as { code?: string }).code).toBe('E_TOPO_NOT_FOUND')
-    }
+    const result = await runtime.execute(code, { topology: 'auto' })
+    expect(result.failedAt).toBeDefined()
+    expect(result.failedAt?.code).toBe('E_TOPO_NOT_FOUND')
   })
 })
