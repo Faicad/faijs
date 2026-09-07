@@ -49,3 +49,8 @@ export {
 export type { Workplane as WorkplaneType, RGB } from './workplane'
 
 export { faceRef, constraint, buildAssembly, Color } from './assembly'
+
+export { compareStepFiles, printCompareReport } from './step-compare'
+export type {
+  CompareOptions, StepCompareResult, MetricResult, TopologyStats,
+} from './step-compare'
