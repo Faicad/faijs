@@ -59,7 +59,14 @@ Step -Label '2/9  npm run typecheck（根 + workspaces）' -Block {
     npm run typecheck --workspaces --if-present
 }
 
-Step -Label '3/9  npm run build（core → 门面）' -Block { npm run build }
+Step -Label '3/9  npm run build（core → 门面）' -Block {
+    # Ensure workspace junctions exist (npm workspaces may fail to create them on Windows)
+    if (-not (Test-Path "node_modules/@faicad/faijs-core/package.json")) {
+        Write-Host "    [ci] workspace junction missing — running npm install" -ForegroundColor Yellow
+        npm install
+    }
+    npm run build
+}
 
 Write-Host "==> 4/9  test workspaces（每包独立 5 分钟硬预算）"
 $start3 = Get-Date

@@ -21,6 +21,11 @@ npm run typecheck
 npm run typecheck --workspaces --if-present
 
 echo "==> 3/9  npm run build（core → 门面）"
+# Ensure workspace junctions exist (npm workspaces may fail to create them)
+if [ ! -f "node_modules/@faicad/faijs-core/package.json" ]; then
+    echo "    [ci] workspace junction missing — running npm install"
+    npm install
+fi
 npm run build
 
 echo "==> 4/9  npm run test --workspaces"

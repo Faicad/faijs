@@ -1,6 +1,7 @@
 {
   "name": "@faicad/faijs",
   "version": "0.9.2",
+  "private": true,
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
