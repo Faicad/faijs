@@ -157,7 +157,10 @@ async function makeCylinderAt(
   height: number,
 ): Promise<Shape> {
   const cyl = await cad.cylinder(radius, height, { centered: true })
-  return cad.translate(cyl, { offset: wp.origin })
+  const n = Array.isArray(wp.normal) ? wp.normal : ([0, 0, 1] as [number, number, number])
+  const o = Array.isArray(wp.origin) ? wp.origin : ([0, 0, 0] as [number, number, number])
+  const center: [number, number, number] = [o[0] + n[0] * height / 2, o[1] + n[1] * height / 2, o[2] + n[2] * height / 2]
+  return cad.translate(cyl, { offset: center })
 }
 
 /**
@@ -170,7 +173,10 @@ async function makeBoxAt(
   h: number,
 ): Promise<Shape> {
   const box = await cad.box(w, d, h, { centered: true })
-  return cad.translate(box, { offset: wp.origin })
+  const n = Array.isArray(wp.normal) ? wp.normal : ([0, 0, 1] as [number, number, number])
+  const o = Array.isArray(wp.origin) ? wp.origin : ([0, 0, 0] as [number, number, number])
+  const center: [number, number, number] = [o[0] + n[0] * h / 2, o[1] + n[1] * h / 2, o[2] + n[2] * h / 2]
+  return cad.translate(box, { offset: center })
 }
 
 // ── Public API ─────────────────────────────────────────────────────────────
@@ -277,13 +283,13 @@ export function polygon(wp: Workplane, n: number, d: number): Workplane {
  * @returns Promise<Workplane>
  */
 export async function extrude(wp: Workplane, height: number): Promise<Workplane> {
-  // If there's a pending 2D profile (rect/circle), create the 3D solid
-  if (wp.pendingRect) {
+  // If there's a pending 2D profile (rect/circle) and no existing shape, create the 3D solid
+  if (wp.pendingRect && !wp.shape) {
     const { w, d } = wp.pendingRect
     const shape = await makeBoxAt(wp, w, d, height)
     return clone(wp, { shape, pendingRect: undefined, faceSel: null, edgeSel: null, vertexSel: null, pts: [] })
   }
-  if (wp.pendingCircle) {
+  if (wp.pendingCircle && !wp.shape) {
     const { radius } = wp.pendingCircle
     const shape = await makeCylinderAt(wp, radius, height)
     return clone(wp, { shape, pendingCircle: undefined, faceSel: null, edgeSel: null, vertexSel: null, pts: [] })
@@ -324,18 +330,19 @@ export async function cutBlind(
 ): Promise<Workplane> {
   if (!wp.shape) return wp
   const absDepth = Math.abs(depth)
+  const invNormal: [number, number, number] = [-wp.normal[0], -wp.normal[1], -wp.normal[2]]
+  const cutWp = { ...wp, normal: invNormal }
   let tool: Shape
   if (wp.pendingCircle) {
-    tool = await makeCylinderAt(wp, wp.pendingCircle.radius, absDepth + 2)
+    tool = await makeCylinderAt(cutWp, wp.pendingCircle.radius, absDepth)
   } else if (wp.pendingRect) {
-    tool = await makeBoxAt(wp, wp.pendingRect.w, wp.pendingRect.d, absDepth + 2)
+    tool = await makeBoxAt(cutWp, wp.pendingRect.w, wp.pendingRect.d, absDepth)
   } else if (opts?.radius !== undefined) {
-    tool = await makeCylinderAt(wp, opts.radius, absDepth + 2)
+    tool = await makeCylinderAt(cutWp, opts.radius, absDepth)
   } else if (opts?.w !== undefined && opts?.d !== undefined) {
-    tool = await makeBoxAt(wp, opts.w, opts.d, absDepth + 2)
+    tool = await makeBoxAt(cutWp, opts.w, opts.d, absDepth)
   } else {
-    // Default: use a large box (should not happen with proper transpilation)
-    tool = await makeBoxAt(wp, 1000, 1000, absDepth + 2)
+    tool = await makeBoxAt(cutWp, 1000, 1000, absDepth)
   }
   const result = await cad.subtract(wp.shape, tool)
   return clone(wp, { shape: result, faceSel: null, edgeSel: null, pts: [], pendingRect: undefined, pendingCircle: undefined })
@@ -370,8 +377,9 @@ export async function hole(
       wp.origin[1] + py,
       wp.origin[2],
     ]
+    const invNormal: [number, number, number] = [-wp.normal[0], -wp.normal[1], -wp.normal[2]]
     const cyl = await makeCylinderAt(
-      { ...wp, origin: holeOrigin },
+      { ...wp, origin: holeOrigin, normal: invNormal },
       radius,
       holeHeight,
     )
