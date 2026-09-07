@@ -246,6 +246,10 @@ export class DirectExecutor {
   /** 变更登记（T2）：语句写值前后比对的产出——与 module 路径 exec.changed 同语义。 */
   private changedSet = new Set<string>()
 
+  /** 本机函数形参表（local ABI，§3.4/§3.6）：函数名 → 形参名序。transformFunction
+   *  定义时登记；emitCall 对末尾纯对象实参按名解包（splitPositionalOptions 语义）。 */
+  private fnParams = new Map<string, string[]>()
+
   /** 清空 ctx 与状态（execute 全量 / dispose 用）。函数体 keep 登记一并清——全量重跑
    *  后行号键表只应含本场景的登记；不清理会泄漏上一场景的同行号登记（对拍红线）。 */
   reset(): void {
@@ -256,6 +260,7 @@ export class DirectExecutor {
     this.kinematicsOut.clear()
     this.blockOutputs.clear()
     this.changedSet.clear()
+    this.fnParams.clear()
   }
 
   /**
@@ -756,6 +761,7 @@ export class DirectExecutor {
     ].join('\n')
     // 本机函数体引用其它本机函数/变量走 __ctx（与顶层一致）
     declared.add(name)
+    this.fnParams.set(name, params)
     return { lineNo, body, writes: [name], refs: [], callee: name }
   }
 
@@ -863,8 +869,48 @@ export class DirectExecutor {
     } else {
       throw new ParseError('expected <ns>.<op>(...) or local function call', lineNo, 'E_STATEMENT')
     }
-    const args = (callNode.arguments ?? []).map((a: ASTNode) => this.transformArg(a, code, declared, lineNo))
+    const args = this.emitCallArgs(callNode, code, declared, lineNo)
     return `${head}(${args.join(', ')})`
+  }
+
+  /** 实参发射：本机函数调用（裸 Identifier 且已在 fnParams 登记）应用 §3.4/§3.6 的
+   *  「位置 + 按名」ABI（splitPositionalOptions 语义：末尾纯对象实参的键按形参名映射剩余
+   *  形参，位置实参占前 M 位）；命名空间/成员调用保持对象实参原样传递。 */
+  private emitCallArgs(callNode: ASTNode, code: string, declared: Set<string>, lineNo: number): string[] {
+    const callee = callNode.callee
+    const fnName = callee?.type === 'Identifier' ? callee.name : undefined
+    if (fnName && this.fnParams.has(fnName)) {
+      return this.emitLocalCallArgs(callNode, fnName, code, declared, lineNo)
+    }
+    return (callNode.arguments ?? []).map((a: ASTNode) => this.transformArg(a, code, declared, lineNo))
+  }
+
+  /** 本机函数调用 ABI 解包：位置实参原样占前 M 位；末尾纯对象（无 spread）的键按形参名
+   *  补到剩余位，缺失形参补 undefined；多余位置实参原样保留（JS 宽松实参语义）。 */
+  private emitLocalCallArgs(callNode: ASTNode, fnName: string, code: string, declared: Set<string>, lineNo: number): string[] {
+    const params = this.fnParams.get(fnName) ?? []
+    const rawArgs = callNode.arguments ?? []
+    const last = rawArgs[rawArgs.length - 1]
+    const canSplit = !!last && last.type === 'ObjectExpression'
+      && (last.properties ?? []).every((p: ASTNode) => p.type === 'Property')
+    const values = canSplit ? rawArgs.slice(0, -1) : rawArgs
+    const named = new Map<string, ASTNode>()
+    if (canSplit) {
+      for (const prop of (last as { properties: ASTNode[] }).properties as ASTNode[]) {
+        const key = prop.key?.type === 'Identifier' ? prop.key.name
+          : prop.key?.type === 'Literal' ? String(prop.key.value)
+          : null
+        if (key === null) throw new ParseError('invalid object key', lineNo, 'E_VALUE')
+        named.set(key, prop.shorthand ? { type: 'Identifier', name: key } as ASTNode : (prop as { value: ASTNode }).value)
+      }
+    }
+    const out: string[] = values.map((v: ASTNode) => this.transformArg(v, code, declared, lineNo))
+    for (let i = values.length; i < params.length; i++) {
+      const p = params[i]
+      const v = named.get(p)
+      out.push(v !== undefined ? this.transformArg(v, code, declared, lineNo) : 'undefined')
+    }
+    return out
   }
 
   private hasCtxFn(name: string): boolean {

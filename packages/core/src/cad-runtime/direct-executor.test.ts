@@ -161,6 +161,67 @@ describe('DirectExecutor: 顶层函数 / 解构 / 参数', () => {
   })
 })
 
+describe('DirectExecutor: 本机函数 ABI（§3.4/§3.6 位置 + 按名）', () => {
+  // 全局 backends 认领：用一个 mesh runtime 提供环境（与 execute-code 同构）
+  const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
+  const cadNs = createApiNamespace()
+
+  beforeEach(async () => {
+    await rt.execute('let warmup = cad.box(1, 1, 1, { centered: true })')
+  })
+
+  it('对象实参按形参名解包：makeArray({ n: 3 }) 的 n 是 3 而非对象（ABI 回归）', async () => {
+    const ex = new DirectExecutor({ namespaces: { cad: cadNs } })
+    const code = [
+      'function makeArray(n) { const arr = []; for (let i = 0; i < n; i++) arr.push(i); return arr }',
+      'const result = makeArray({ n: 3 })',
+    ].join('\n')
+    const out = await ex.execute(code)
+    expect(out.failedAt).toBeUndefined()
+    // 修复前：n 收到整个 { n: 3 } 对象 → 循环恒不执行 → result = [] → 断言失败
+    expect(ex.ctx.result).toEqual([0, 1, 2])
+  })
+
+  it('位置实参占前 M 位，尾部对象键映射剩余形参', async () => {
+    const ex = new DirectExecutor({ namespaces: { cad: cadNs } })
+    const code = [
+      'function add(a, b) { return a + b }',
+      'const result = add(1, { b: 2 })',
+    ].join('\n')
+    const out = await ex.execute(code)
+    expect(out.failedAt).toBeUndefined()
+    // 修复前：b 收到 { b: 2 } 对象 → 1 + "[object Object]" → 断言失败
+    expect(ex.ctx.result).toBe(3)
+  })
+
+  it('repro 全链：命名参数驱动循环后 union 不报 input is not BREP', async () => {
+    const ex = new DirectExecutor({ namespaces: { cad: cadNs } })
+    const code = [
+      'async function makeArray(n) {',
+      '  let parts = []',
+      '  for (let i = 0; i < n; i++) {',
+      '    parts.push(await cad.box(10, 10, 10))',
+      '  }',
+      '  return await cad.union(parts[0], parts[1])',
+      '}',
+      'let n = 4',
+      'let part0 = makeArray({ n })',
+    ].join('\n')
+    const out = await ex.execute(code)
+    // 修复前：n 收到对象 → parts 空 → union(undefined, undefined) → boolean input is not BREP
+    expect(out.failedAt).toBeUndefined()
+    expect(isMeshShape(ex.ctx.part0)).toBe(true)
+  })
+
+  it('命名空间调用的对象实参保持对象原样（ABI 不作用于命名空间）', async () => {
+    const ex = new DirectExecutor({ namespaces: { cad: cadNs } })
+    // 尾随 { centered: true } 必须原样到达 cad.box（若被 ABI 误解包会丢 centered 语义）
+    const out = await ex.execute('let part0 = cad.box(10, 10, 10, { centered: true })')
+    expect(out.failedAt).toBeUndefined()
+    expect(isMeshShape(ex.ctx.part0)).toBe(true)
+  })
+})
+
 describe('DirectExecutor A-17: fixture 对拍（扁平行式 op 行）', () => {
   const here = fileURLToPath(new URL('.', import.meta.url))
   const fixturesRoot = join(here, '..', '..', '..', 'tests', 'faijs')
