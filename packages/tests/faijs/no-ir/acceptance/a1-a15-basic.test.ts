@@ -4,8 +4,7 @@
  * 方案：docs/plans/2026-09-06-no-ir-dual-channel-runtime.md §6 验收 A-1/A-2/A-3/A-15
  *
  * 这些验收驱动**无 IR 栈**（extractMetadata → DirectExecutor → computeLiveShapes）
- * 产出的几何与终端，并与现状 CadRuntime.executeIR 的结果（outputs / terminals）
- * 对拍——是 P4 runtime 切换要保住的行为锚点。
+ * 产出的几何与终端——是 runtime 行为锚点。
  *
  * 环境：mesh 模式；用一次 warmup execute 认领全局 backends（与核心测试同构）。
  * 需要字体/资产/注册库的 fixture 在新旧两边都失败 → 不在语料内。

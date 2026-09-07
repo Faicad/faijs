@@ -4,9 +4,6 @@
  * 覆盖：
  * - execute/append/update 基本语义（共享 ctx、行号增量、清 ctx 全量）；
  * - 文本变换产物正确性（ctx 提升 / await / 解构 / 顶层函数）；
- * - A-17 对拍（fixture 扁平行式 op 行）：DirectExecutor.execute 的 outputs
- *   与现状 CadRuntime.executeIR 逐条相等（mesh 模式；内容 key 比对）。
- *
  * 注意：几何 op 依赖全局 backends（mesh 模式），用「先跑一次 reference
  * runtime 认领全局 backends」的方式提供环境（与 execute-code.test 同构）。
  */
@@ -19,7 +16,6 @@ import type { HostPorts } from './ports'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { parseScript } from '../lang/parser'
 import { computeContentKey } from './content-key'
 import { isMeshShape } from '../mesh/types'
 
@@ -62,9 +58,8 @@ describe('DirectExecutor: execute（共享 ctx / 基本产出）', () => {
     expect(isMeshShape(ex.ctx.part2)).toBe(true)
   })
 
-  it('execute 结果与 CadRuntime.executeIR 几何一致（A-17 抽样）', async () => {
-    const { script } = parseScript(CODE)
-    const baseline = await rt.executeIR(script)
+  it('execute 结果与 CadRuntime.execute 几何一致（A-17 抽样）', async () => {
+    const baseline = await rt.execute(CODE)
     const baselineKeys: string[] = []
     for (const [name, shape] of baseline.outputs) {
       if (isMeshShape(shape)) baselineKeys.push(`${name}:${computeContentKey(shape.positions, shape.indices)}`)
@@ -188,18 +183,11 @@ describe('DirectExecutor A-17: fixture 对拍（扁平行式 op 行）', () => {
 
   it.each(files.map((f) => [f]))('parity outputs: %s', async (file: string) => {
     const code = readFileSync(file, 'utf8')
-    // 现状 executeIR 接受（扁平/容器 parse）才纳入对拍；extractor A-16 已锁定行面
-    let script: ReturnType<typeof parseScript>['script']
-    try {
-      script = parseScript(code).script
-    } catch {
-      return // 现状拒绝（块/自由 JS）→ DirectExecutor 块执行属 P5 场景，跳过
-    }
     // 需要字体/资产/注册库的 fixture（text/engrave/load/第三方库）在裸 mesh 环境下
-    // 新旧两条路径都会失败——不在无环境 corpus 内（对拍在宿主注入对应 ports 后验收）。
-    let baseline: Awaited<ReturnType<CadRuntime['executeIR']>>
+    // 两边都会失败——不在无环境 corpus 内（对拍在宿主注入对应 ports 后验收）。
+    let baseline: Awaited<ReturnType<CadRuntime['execute']>>
     try {
-      baseline = await rt.executeIR(script)
+      baseline = await rt.execute(code)
     } catch {
       return
     }

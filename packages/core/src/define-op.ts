@@ -37,7 +37,7 @@ import { isShape, solid, fromBrep } from './shape'
 import { isMeshShape } from './mesh/types'
 import { fromHandle, meshHandle, isOcctHandle } from './brep/handle-bridge'
 import { positionalToObject, type SlotMap } from './api/internal/dual-form-args'
-import { toOpError, unwrapResult, OpError } from './api/internal/result-unwrap'
+import { toOpFailure, unwrapResult, OpError } from './api/internal/result-unwrap'
 import type { Shape } from './mesh/types'
 import type { BrepHandle } from './brep/engine/types'
 
@@ -196,7 +196,7 @@ async function runImpl(
     // re-wrapping it into a plain Error would make CadRuntime treat it as an
     // uncaught bug instead of a statement failure.
     if (e instanceof OpError) throw e
-    throw toOpError(label, e)
+    throw toOpFailure(label, e)
   }
   return unwrapResult(product, label)
 }

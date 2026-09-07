@@ -5,7 +5,7 @@
  *   Node 用：@faicad/faijs/faqts/node
  *   浏览器用：@faicad/faijs/faqts/browser
  *
- * 与 faq 录制管道（parseScript → plan → 逐语句执行）平行的第二条执行路径：
+ * 与 faijs 执行管道（extractMetadata → DirectExecutor → 逐语句执行）平行的第二条执行路径：
  * - `.ts` 整段一次执行（不建 IR、不逐语句、不接入 timeline）
  * - 输出由作者显式 export 声明（无 DAG 自动推导）
  * - 共享同一套 `cad` API 与 Shape 契约（与 faq 侧互通）

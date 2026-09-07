@@ -5,7 +5,7 @@
  *
  * 定位：从 .fai.js 源码（任意合法 JS）提取 **UI 通道需要的全部元数据**。
  * 输入 = 源码文本；输出 = UiMetadata。不生成可执行代码、不求值、不参与执行、
- * 不建执行中介 IR（无 ScriptIR/StatementIR/ArgIR，只产宿主面类型）。
+ * 不建执行中介 IR（已删除，只产宿主面类型）。
  *
  * lines 面 = StatementSummary[]（与现状 analyzeCode 产出逐字相等，A-16 对拍
  * 锁定；唯一语义差异：id = `'s' + lineNo`，append 场景稳定）。行分类：
@@ -609,7 +609,7 @@ interface LineSummarySpec {
   callee: string
   line: number
   ctx: ValueParseCtx
-  /** 位置实参槽（含尾随对象；与现状 StatementIR.positional 同构） */
+  /** 位置实参槽（含尾随对象；positional 与 HostArg 面同构） */
   positional: HostArg[]
   namespace?: string
   local?: boolean
@@ -832,12 +832,12 @@ export interface ExtractMetadataOptions {
  * 从源码文本提取 UI 通道元数据（UiMetadata）。
  *
  * 兼容面：analyzeCode/codeToArgs 实现建立在本函数之上（statement-summary.ts /
- * code-to-args.ts），lines 面与现状 parseScript 投影逐字相等（A-16 对拍，
+ * code-to-args.ts），lines 面与 MetadataExtractor 投影逐字相等（A-16 对拍，
  * id 兼容 's'+lineNo 规则：其余字段逐字相等）。不参与执行、不生成可执行代码。
  *
- * 行号语义与现状 parseScript 完全一致：
+ * 行号语义与 MetadataExtractor 完全一致：
  * - 容器代码（含 export default）→ 取容器箭头函数体，行号 = 原文行号；
- * - 扁平代码 → 按 parseScript 同款封装（import 段提升到 export default 之外，
+ * - 扁平代码 → 按 MetadataExtractor 同款封装（import 段提升到 export default 之外，
  *   `export default async (ns) => {\n...` 包裹），行号扣封装偏移后 = analyzeCode
  *   报告的 line。
  *
@@ -860,7 +860,7 @@ export function extractMetadata(code: string, options?: ExtractMetadataOptions):
     keep: new Map<number, KeepEntry[]>(),
   }
 
-  // ── 0. 顶层 import 预扫描（与 parseScript 同构；容器/扁平都允许头部 import） ──
+  // ── 0. 顶层 import 预扫描（与 MetadataExtractor 同构；容器/扁平都允许头部 import） ──
   let importBlock: { start: number; end: number } | null = null
   {
     const seen: ASTNode[] = []
@@ -887,7 +887,7 @@ export function extractMetadata(code: string, options?: ExtractMetadataOptions):
     }
   }
 
-  // ── 0.5 扁平代码封装（与 parseScript 逐字同款；容器零封装） ──
+  // ── 0.5 扁平代码封装（与 MetadataExtractor 逐字同款；容器零封装） ──
   // lineOffset：封装头占用的行数（语句行号 = acorn loc 行号 − lineOffset）。
   // codeOffset：封装头字符长度（函数体原文区间坐标换算；容器格式为 0）。
   let parseCode = code

@@ -24,27 +24,26 @@ import {
   HOST_REF_KINDS,
 } from './host-arg'
 import type { HostArg, HostVarRef, HostParamRef, HostCallRef, HostExprRef } from './host-arg'
-import type { ArgIR } from './types'
 
 // ── 五变体 IR→Host ──
 
 describe('IR→Host: 五变体精确转换', () => {
   it('$ref (VarRefIR) → HostVarRef', () => {
-    const ir: ArgIR = { $ref: 'part0' }
+    const ir: any = { $ref: 'part0' }
     const host = argIRToHost(ir)
     expect(host).toEqual({ kind: 'var-ref', name: 'part0' })
     expect(isHostVarRef(host)).toBe(true)
   })
 
   it('$param (ParamRefIR) → HostParamRef', () => {
-    const ir: ArgIR = { $param: 'hole_diameter' }
+    const ir: any = { $param: 'hole_diameter' }
     const host = argIRToHost(ir)
     expect(host).toEqual({ kind: 'param-ref', name: 'hole_diameter' })
     expect(isHostParamRef(host)).toBe(true)
   })
 
   it('$call (CallRefIR) → HostCallRef', () => {
-    const ir: ArgIR = { $call: { callee: 'faceNormal', args: [{ $ref: 'part0' }, [10, 10, 0], 4] } }
+    const ir: any = { $call: { callee: 'faceNormal', args: [{ $ref: 'part0' }, [10, 10, 0], 4] } }
     const host = argIRToHost(ir) as HostCallRef
     expect(host.kind).toBe('call-ref')
     expect(host.callee).toBe('faceNormal')
@@ -57,13 +56,13 @@ describe('IR→Host: 五变体精确转换', () => {
   })
 
   it('$call with namespace → HostCallRef with namespace', () => {
-    const ir: ArgIR = { $call: { callee: 'helper', args: [], namespace: 'mech' } }
+    const ir: any = { $call: { callee: 'helper', args: [], namespace: 'mech' } }
     const host = argIRToHost(ir) as HostCallRef
     expect(host.namespace).toBe('mech')
   })
 
   it('$expr (ExprIR) → HostExprRef', () => {
-    const ir: ArgIR = { $expr: { text: 'base + 20', refs: ['base'], params: [] } }
+    const ir: any = { $expr: { text: 'base + 20', refs: ['base'], params: [] } }
     const host = argIRToHost(ir) as HostExprRef
     expect(host.kind).toBe('expr-ref')
     expect(host.text).toBe('base + 20')
@@ -79,7 +78,7 @@ describe('IR→Host: 五变体精确转换', () => {
   })
 
   it('数组 → 递归映射', () => {
-    const ir: ArgIR = [{ $ref: 'part0' }, 5, [10, 20]]
+    const ir: any = [{ $ref: 'part0' }, 5, [10, 20]]
     const host = argIRToHost(ir) as HostArg[]
     expect(host).toEqual([
       { kind: 'var-ref', name: 'part0' },
@@ -89,7 +88,7 @@ describe('IR→Host: 五变体精确转换', () => {
   })
 
   it('普通对象 → 递归映射', () => {
-    const ir: ArgIR = { corner: { $param: 'w' }, at: [{ $ref: 'p0' }, 5] }
+    const ir: any = { corner: { $param: 'w' }, at: [{ $ref: 'p0' }, 5] }
     const host = argIRToHost(ir) as Record<string, HostArg>
     expect(host.corner).toEqual({ kind: 'param-ref', name: 'w' })
     expect(host.at).toEqual([{ kind: 'var-ref', name: 'p0' }, 5])
@@ -115,7 +114,7 @@ describe('Host→IR: 五变体精确转换', () => {
       callee: 'faceNormal',
       args: [{ kind: 'var-ref', name: 'part0' }, [10, 10, 0], 4],
     }
-    const ir = hostArgToIR(host) as ArgIR
+    const ir = hostArgToIR(host) as any
     expect(ir).toEqual({
       $call: { callee: 'faceNormal', args: [{ $ref: 'part0' }, [10, 10, 0], 4] },
     })
@@ -128,7 +127,7 @@ describe('Host→IR: 五变体精确转换', () => {
       args: [],
       namespace: 'mech',
     }
-    const ir = hostArgToIR(host) as ArgIR
+    const ir = hostArgToIR(host) as any
     expect((ir as { $call: { namespace?: string } }).$call.namespace).toBe('mech')
   })
 
@@ -150,7 +149,7 @@ describe('Host→IR: 五变体精确转换', () => {
 // ── 双向恒等 ──
 
 describe('双向恒等: hostArgToIR(argIRToHost(x)) deepEqual', () => {
-  const cases: { name: string; ir: ArgIR }[] = [
+  const cases: { name: string; ir: any }[] = [
     { name: '字面量', ir: 42 },
     { name: '字符串', ir: 'hello' },
     { name: '布尔', ir: true },

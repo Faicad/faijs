@@ -24,7 +24,7 @@
  *          (unregister finalizer + fromHandle).
  *
  * The keep / keepHidden contract is untouched: compatOp neither blocks nor
- * rewrites it — any function running inside a ModuleExecutor context can use
+ * rewrites it — any function running inside a DirectExecutor context can use
  * function-body declarations (C1), and call-site declarations override them
  * (`lang/keep.ts` resolveKeep). The decorated product therefore behaves like
  * any defineOp product: `keep`-safe, capability-aware, multi-output

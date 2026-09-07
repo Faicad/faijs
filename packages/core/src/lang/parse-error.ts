@@ -1,9 +1,9 @@
 /**
  * parse-error — 文本层解析错误的唯一归属（L0 零依赖）
  *
- * 无 IR 双通道方案（2026-09-06）后 parseScript 语义层删除，MetadataExtractor /
+ * 无 IR 双通道方案（2026-09-06）后语义层删除，MetadataExtractor /
  * SyntaxGate 复用同一 ParseError（宿主面 analyzeCode/codeToArgs 抛错契约不变：
- * 含 line 与 code 字段）。本文件是 ParseError 的唯一家，parser.ts 等重导出保持兼容。
+ * 含 line 与 code 字段）。本文件是 ParseError 的唯一家。
  */
 
 /** 解析诊断码（宿主 CadRuntime.check 透传给 CheckError，AI 可据此精确修正）。 */

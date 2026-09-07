@@ -1,13 +1,12 @@
 /**
  * execute / append / update — 代码文本执行入口契约测试
  *
- * 三接口收敛改造（2026-08-31）：
+ * 三接口：
  * ① execute(code) 全量执行
  * ② append(code, opts) — code 只含「最新的一行或多行」（UI 生成的代码）；
  *    全部视为新语句执行，输入从持久 ctx 解析；前缀缺失 → AppendPrefixError
- * ③ update(oldCode, newCode, opts) — 传参数修改前后的两份代码；
- *    变更点判定（位置 id 配对 + 自身 key 比较）→ 下游闭包重算；
- *    无变更 → 零执行
+ * ③ update(oldCode, newCode, opts) — direct 路径 R3 语义：清 ctx 全量重跑新文本；
+ *    几何结果与全量 execute 一致
  *
  * 用 mesh 模式（不依赖 occt-wasm 初始化，manifold 路径快速执行）。
  */
@@ -16,7 +15,6 @@ import { describe, it, expect } from 'vitest'
 import { CadRuntime, AppendPrefixError } from './runtime'
 import { createApiNamespace } from '../api/api-namespace'
 import type { HostPorts } from './ports'
-import { parseScript } from '../lang/parser'
 import { asPartName } from '../identity'
 import { computeContentKey } from './content-key'
 
@@ -25,7 +23,7 @@ function defaultPorts(): HostPorts {
 }
 
 function makeRuntime(): CadRuntime {
-  return new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() }, { executor: 'module' })
+  return new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
 }
 
 const CODE = [
@@ -51,19 +49,17 @@ async function resultFingerprint(rt: CadRuntime, result: Awaited<ReturnType<CadR
   return keys
 }
 
-describe('execute(code): 全量形态与 IR 内部版本对照', () => {
-  it('同一代码文本，outputs 内容 key 一致', async () => {
-    const { script } = parseScript(CODE)
-    const baseline = makeRuntime()
-    const baselineResult = await baseline.executeIR(script)
+describe('execute(code): 全量形态与几何产出', () => {
+  it('同一代码文本两次执行，outputs 内容 key 一致', async () => {
+    const rt1 = makeRuntime()
+    const result1 = await rt1.execute(CODE)
+    const rt2 = makeRuntime()
+    const result2 = await rt2.execute(CODE)
 
-    const codeRt = makeRuntime()
-    const codeResult = await codeRt.execute(CODE)
-
-    expect(await resultFingerprint(codeRt, codeResult))
-      .toEqual(await resultFingerprint(baseline, baselineResult))
-    expect(codeResult.terminals.map((t) => t.id))
-      .toEqual(baselineResult.terminals.map((t) => t.id))
+    expect(await resultFingerprint(rt1, result1))
+      .toEqual(await resultFingerprint(rt2, result2))
+    expect(result1.terminals.map((t) => t.id))
+      .toEqual(result2.terminals.map((t) => t.id))
   })
 })
 
@@ -131,72 +127,55 @@ describe('append(code, opts): 只传新增语句文本', () => {
   })
 })
 
-describe('update(oldCode, newCode, opts): 双代码 diff 增量重算', () => {
-  it('参数修改（改 args）→ 变更语句 + 下游闭包重算，几何与全量一致', async () => {
+describe('update(oldCode, newCode, opts): 全量重跑（R3 语义）', () => {
+  it('参数修改 → 全量重跑，几何与全量 execute 一致', async () => {
     const oldCode = CODE2
     const newCode = [
       'let part0 = cad.box(40, 40, 40, { centered: true })',
       'let part1 = cad.translate(part0, { offset: [1, 0, 0] })',
     ].join('\n')
-    const executed: string[] = []
     const rt = makeRuntime()
     await rt.execute(oldCode)
-    const result = await rt.update(oldCode, newCode, {
-      beforeStatement: (stmtId) => executed.push(stmtId),
-    })
-
-    // 闭包重算：box（改参数）+ translate（下游依赖）都执行
-    expect(executed.sort()).toEqual(['s1', 's2'])
+    const result = await rt.update(oldCode, newCode)
 
     const fullRt = makeRuntime()
     const full = await fullRt.execute(newCode)
     expect(await resultFingerprint(rt, result)).toEqual(await resultFingerprint(fullRt, full))
   })
 
-  it('无变更（两份代码相同）→ 零执行，结果与全量一致', async () => {
-    const executed: string[] = []
+  it('无变更 → 全量重跑，结果与全量 execute 一致', async () => {
     const rt = makeRuntime()
     await rt.execute(CODE2)
-    const result = await rt.update(CODE2, CODE2, {
-      beforeStatement: (stmtId) => executed.push(stmtId),
-    })
-    expect(executed).toEqual([])
+    const result = await rt.update(CODE2, CODE2)
 
     const fullRt = makeRuntime()
     const full = await fullRt.execute(CODE2)
     expect(await resultFingerprint(rt, result)).toEqual(await resultFingerprint(fullRt, full))
   })
 
-  it('删除语句 → 输出被 reconcile 移除，零执行', async () => {
-    const executed: string[] = []
+  it('删除语句 → 输出被移除', async () => {
     const rt = makeRuntime()
     await rt.execute(CODE)
     const result = await rt.update(
       CODE,
       CODE.split('\n').slice(0, 2).join('\n'),
-      { beforeStatement: (stmtId) => executed.push(stmtId) },
     )
     expect(result.outputs.has(asPartName('part2'))).toBe(false)
     expect(result.outputs.has(asPartName('part0'))).toBe(true)
     expect(result.outputs.has(asPartName('part1'))).toBe(true)
-    expect(executed).toEqual([])
   })
 
-  it('新增语句 → 新输出出现并执行', async () => {
-    const executed: string[] = []
+  it('新增语句 → 新输出出现', async () => {
     const rt = makeRuntime()
     await rt.execute(CODE.split('\n').slice(0, 2).join('\n'))
     const result = await rt.update(
       CODE.split('\n').slice(0, 2).join('\n'),
       CODE,
-      { beforeStatement: (stmtId) => executed.push(stmtId) },
     )
     expect(result.outputs.has(asPartName('part2'))).toBe(true)
-    expect(executed).toEqual(['s3'])
   })
 
-  it('级联闭包：编辑 box（s1）→ 依赖它的 union（s3）一并重算，sphere（s2）不执行', async () => {
-    const executed: string[] = []
+  it('级联闭包：编辑 box → union 也重算，几何与全量一致', async () => {
     const rt = makeRuntime()
     await rt.execute(CODE)
     const newCode = [
@@ -204,28 +183,19 @@ describe('update(oldCode, newCode, opts): 双代码 diff 增量重算', () => {
       'let part1 = cad.sphere({ radius: 10 })',
       'let part2 = cad.union(part0, part1)',
     ].join('\n')
-    const result = await rt.update(CODE, newCode, {
-      beforeStatement: (stmtId) => executed.push(stmtId),
-    })
-    // box 改参数 → stale；union 经 deps 级联 → stale；sphere 不变 → 不执行
-    expect(executed.sort()).toEqual(['s1', 's3'])
+    const result = await rt.update(CODE, newCode)
 
     const fullRt = makeRuntime()
     const full = await fullRt.execute(newCode)
     expect(await resultFingerprint(rt, result)).toEqual(await resultFingerprint(fullRt, full))
   })
 
-  it('参数行修改（const 字面量）→ 依赖参数的语句重算', async () => {
+  it('参数行修改（const 字面量）→ 全量重跑，几何与全量一致', async () => {
     const oldCode = ['const size = 20', 'let part0 = cad.box(size, size, size, { centered: true })'].join('\n')
     const newCode = ['const size = 40', 'let part0 = cad.box(size, size, size, { centered: true })'].join('\n')
-    const executed: string[] = []
     const rt = makeRuntime()
     await rt.execute(oldCode)
-    const result = await rt.update(oldCode, newCode, {
-      beforeStatement: (stmtId) => executed.push(stmtId),
-    })
-    // box（s2）因参数变化重算；参数语句 s1 无赋值，不触发 beforeStatement
-    expect(executed).toEqual(['s2'])
+    const result = await rt.update(oldCode, newCode)
 
     const fullRt = makeRuntime()
     const full = await fullRt.execute(newCode)
@@ -233,48 +203,37 @@ describe('update(oldCode, newCode, opts): 双代码 diff 增量重算', () => {
   })
 })
 
-// ── ExprIR 增量（控制流放松方案 Phase 1：编辑表达式 → key 变 → 重算） ──
+// ── 表达式增量（direct 路径：全量重跑，几何一致性验证） ──
 
-describe('ExprIR 增量（§5.4 箭头包装 / §6.2 key）', () => {
+describe('表达式编辑：全量重跑一致性', () => {
   const CODE_EXPR = [
     'let part0 = cad.box(20, 20, 20, { centered: true })',
     'let part1 = cad.box(part0 ? 30 : 10, part0 ? 30 : 10, part0 ? 30 : 10, { centered: true })',
   ].join('\n')
 
-  it('编辑 ExprIR 表达式文本 → 语句重算；未改 → 零重算', async () => {
+  it('编辑表达式分支值 → 全量重跑，几何与全量一致', async () => {
     const rt = makeRuntime()
     await rt.execute(CODE_EXPR)
 
-    // 改表达式分支值：part0 ? 30 : 10 → part0 ? 40 : 10
     const newCode = [
       'let part0 = cad.box(20, 20, 20, { centered: true })',
       'let part1 = cad.box(part0 ? 40 : 10, part0 ? 40 : 10, part0 ? 40 : 10, { centered: true })',
     ].join('\n')
-    const executed: string[] = []
-    const result = await rt.update(CODE_EXPR, newCode, {
-      beforeStatement: (stmtId) => executed.push(stmtId),
-    })
-    // s2（part1）因 key 变化重算；s1（part0）不变
-    expect(executed).toEqual(['s2'])
+    const result = await rt.update(CODE_EXPR, newCode)
 
     const fullRt = makeRuntime()
     const full = await fullRt.execute(newCode)
     expect(await resultFingerprint(rt, result)).toEqual(await resultFingerprint(fullRt, full))
   })
 
-  it('ExprIR 引用的上游变量变化 → 经 deps 级联重算（refs 进 deps）', async () => {
+  it('上游变量变化 → 全量重跑，几何与全量一致', async () => {
     const rt = makeRuntime()
     await rt.execute(CODE_EXPR)
-    // 改 part0 的 size：part0 内容变化 → part1 的 deps（part0）变化 → part1 级联重算
     const newCode = [
       'let part0 = cad.box(40, 40, 40, { centered: true })',
       'let part1 = cad.box(part0 ? 30 : 10, part0 ? 30 : 10, part0 ? 30 : 10, { centered: true })',
     ].join('\n')
-    const executed: string[] = []
-    const result = await rt.update(CODE_EXPR, newCode, {
-      beforeStatement: (stmtId) => executed.push(stmtId),
-    })
-    expect(executed.sort()).toEqual(['s1', 's2'])
+    const result = await rt.update(CODE_EXPR, newCode)
 
     const fullRt = makeRuntime()
     const full = await fullRt.execute(newCode)

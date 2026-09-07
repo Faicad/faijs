@@ -10,7 +10,6 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest'
-import { parseScript } from '../../lang/parser'
 import { createRuntime } from '@faicad/faijs'
 import type { ExecutionResult } from '../../cad-runtime/runtime'
 import type { HostPorts } from '../../cad-runtime/ports'
@@ -30,9 +29,8 @@ function createNodePorts(): HostPorts {
 }
 
 async function run(mode: 'auto' | 'brep'): Promise<ExecutionResult> {
-  const { script } = parseScript(SCRIPT)
   const runtime = createRuntime(createNodePorts(), mode)
-  return runtime.executeIR(script)
+  return runtime.execute(SCRIPT)
 }
 
 describe('能力路由（§8.4）：brep-mock 引擎无 evolution 能力', () => {

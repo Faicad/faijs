@@ -15,7 +15,6 @@
  * 命名不再含版本后缀：模型号 N 在单次脚本内单调递增（partN 新名）。
  */
 
-import type { StatementIR } from './types'
 import { asPartName, type PartName } from '../identity'
 
 const PART_RE = /^part(\d+)$/
@@ -25,10 +24,10 @@ const PART_TOKEN_RE = /\bpart(\d+)\b/g
 /**
  * Extract the largest model number across statement outputs (PartNames are all
  * fresh partN names; legacy-name compatibility was removed, decision 2).
- * @param statements - the IR statements to scan.
+ * @param statements - the statements to scan (only `outputs` is read).
  * @returns the maximum part model number found, or -1 when no output matches.
  */
-export function getMaxModelNum(statements: StatementIR[]): number {
+export function getMaxModelNum(statements: Array<{ outputs: string[] }>): number {
   let max = -1
   for (const stmt of statements) {
     for (const outId of stmt.outputs) {
@@ -54,7 +53,7 @@ export interface DerivePartNameInput {
   /** 当前代码文本：内部扫描已用 partN，取下一个模型号（不 parse，允许生成中代码） */
   code: string
   /** 可选：排除区间（如函数体 [start, end)），扫描 partN 时跳过——
-   *  函数体内的 partN 不污染顶层命名（§7.1，FunctionDefIR.bodyRange 来源）。 */
+   *  函数体内的 partN 不污染顶层命名（§7.1，FunctionEntry.bodyRange 来源）。 */
   excludeRanges?: Array<{ start: number; end: number }>
 }
 

@@ -19,7 +19,6 @@
 
 import { describe, it, expect } from 'vitest'
 import { derivePartName, getMaxModelNum } from './allocate-id'
-import type { StatementIR } from './types'
 import { asPartName } from '../identity'
 
 // ── 辅助构造 ──
@@ -29,16 +28,9 @@ function codeWith(...partNames: string[]): string {
   return partNames.map((n) => `let ${n} = cad.box(1, 1, 1, { centered: true })`).join('\n')
 }
 
-/** 构造一条有 outputs 的语句（getMaxModelNum 仍为 statements 形态，faijs 内部服务） */
-function stmtWithOutputs(outputs: string[]): StatementIR {
-  return {
-    id: `s${outputs.length}` as never,
-    callee: 'box',
-    args: {},
-    positional: [],
-    outputs: outputs.map((o) => asPartName(o)),
-    hasAssignment: true,
-  }
+/** 构造一条有 outputs 的语句（getMaxModelNum 只读 outputs 字段） */
+function stmtWithOutputs(outputs: string[]): { outputs: string[] } {
+  return { outputs: outputs.map((o) => asPartName(o)) }
 }
 
 describe('derivePartName: R0 — 无赋值语句', () => {

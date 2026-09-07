@@ -18,7 +18,7 @@
  *  `.fai.js` 解析器的调用实参白名单只有 Identifier（变量引用 → inputs）与
  *  ObjectExpression（args 对象），`const p1 = cad.torus(8, 2)` 曾报
  *  ParseError: unexpected argument type: Literal。true-JS-subset 方案落地后
- *  位置实参槽（StatementIR.positional）接受任意合法 JS 表达式，该限制已取消。
+ *  位置实参槽（StatementSummary.positional）接受任意合法 JS 表达式，该限制已取消。
  *  D11 的落点是 **cad 面函数本身**（§4.2「归一化位置：TS 面导出函数内部」）。
  *  所以本套件按两层验证：
  *    a) cad 面函数直接调两种形态 → 几何一致（②）；

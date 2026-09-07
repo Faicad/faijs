@@ -2,7 +2,7 @@
  * Boolean .fai.js tests — test boolean ops (union, subtract, intersect)
  *
  * For each .fai.js file in test/faijs/boolean/:
- * 1. Parse with parseScript
+ * 1. Analyze with analyzeCode (syntax check + statement summary)
  * 2. Execute with createRuntime (mesh mode)
  * 3. Verify non-empty mesh, valid bbox
  *
@@ -13,7 +13,7 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { parseScript } from '@faicad/faijs-core/lang/parser'
+import { analyzeCode } from '@faicad/faijs-core/lang/statement-summary'
 import { createRuntime } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
 import { registerOcctBrepEngine } from '@faicad/faijs'
@@ -53,20 +53,19 @@ describe('boolean .fai.js tests', () => {
     const code = readFileSync(filePath, 'utf-8')
 
     it(`${file}: parses successfully`, () => {
-      const { script } = parseScript(code)
-      expect(script.statements.length).toBeGreaterThan(0)
+      const summaries = analyzeCode(code)
+      expect(summaries.length).toBeGreaterThan(0)
     })
 
     it(`${file}: executes in mesh mode → non-empty mesh`, async () => {
-      const { script } = parseScript(code)
       const runtime = createRuntime(createNodePorts(), 'mesh')
-      const result = await runtime.executeIR(script)
+      const result = await runtime.execute(code)
 
       expect(result.failedAt).toBeUndefined()
 
-      const geoStmts = script.statements.filter(s => s.hasAssignment)
+      const geoStmts = analyzeCode(code).filter(s => s.hasAssignment)
       const lastStmt = geoStmts[geoStmts.length - 1]
-      const shape = result.outputs.get(lastStmt.outputs[0]) as Shape | undefined as Shape | undefined
+      const shape = result.outputs.get(lastStmt.outputs[0] as never) as Shape | undefined as Shape | undefined
       expect(shape).toBeDefined()
       expect(shape!.positions.length).toBeGreaterThan(0)
       expect(shape!.indices.length).toBeGreaterThan(0)

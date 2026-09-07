@@ -1,8 +1,7 @@
 /**
  * host-arg — 宿主友好位置参数类型（IR 屏蔽层）
  *
- * 宿主（3d_editor 等）只接触 `HostArg`，不 import 任何 IR 类型
- * （ParamRefIR/VarRefIR/CallRefIR/ExprIR），不手写 `{$ref}` 字面量。
+ * 宿主（3d_editor 等）只接触 `HostArg`，不 import 任何 IR 类型。
  *
  * IR→Host 方向（`argIRToHost`）：只认 `$` 前缀标记键（`$ref`/`$param`/`$call`/`$expr`），
  * 不认 `kind`，因此 parser 从 `.fai.js` 源码产生的字面量对象不会被误判。
@@ -17,8 +16,34 @@
  * 约等于 `JsonValue`，判别依赖运行时守卫而非类型系统——这是有意为之。
  */
 
-import type { ArgIR, JsonValue } from './types'
-import { isCallRef, isExprRef, isParamRef, isVarRef } from './types'
+import type { JsonValue } from './types'
+
+// ── 内联 IR 守卫（原 types.ts 的 IR 类型已删除，守卫逻辑内联于此） ──
+
+/** IR marker: variable reference `{$ref: string}` (legacy IR form, still recognized by argIRToHost). */
+interface IRVarRef { $ref: string }
+/** IR marker: parameter reference `{$param: string}`. */
+interface IRParamRef { $param: string }
+/** IR marker: nested call `{$call: { callee, args, namespace? }}`. */
+interface IRCallRef { $call: { callee: string; args: unknown[]; namespace?: string } }
+/** IR marker: runtime expression `{$expr: { text, refs, params }}`. */
+interface IRExprRef { $expr: { text: string; refs: string[]; params: string[] } }
+
+/** Union of legacy IR marker shapes (used by argIRToHost for backward-compatible conversion). */
+type ArgIR = JsonValue | IRVarRef | IRParamRef | IRCallRef | IRExprRef
+
+function isIRVarRef(arg: unknown): arg is IRVarRef {
+  return arg !== null && typeof arg === 'object' && !Array.isArray(arg) && '$ref' in arg
+}
+function isIRParamRef(arg: unknown): arg is IRParamRef {
+  return arg !== null && typeof arg === 'object' && !Array.isArray(arg) && '$param' in arg
+}
+function isIRCallRef(arg: unknown): arg is IRCallRef {
+  return arg !== null && typeof arg === 'object' && !Array.isArray(arg) && '$call' in arg
+}
+function isIRExprRef(arg: unknown): arg is IRExprRef {
+  return arg !== null && typeof arg === 'object' && !Array.isArray(arg) && '$expr' in arg
+}
 
 // ── 宿主友好位置参数类型 ──
 
@@ -156,26 +181,26 @@ export function isHostRef(a: HostArg): a is HostRef {
 // ── 递归双向转换（core 内部，不导出） ──
 
 /**
- * Convert an `ArgIR` (internal IR) to a `HostArg` (host-friendly).
+ * Convert a legacy IR marker argument (`$`-prefixed) to a `HostArg` (host-friendly).
  *
  * Recursively transforms arrays and plain objects. Recognizes `$`-prefixed
  * marker keys only — `kind` fields are not checked in this direction.
  * @param arg - the IR argument to convert.
  * @returns the host-friendly argument.
  */
-export function argIRToHost(arg: ArgIR): HostArg {
-  if (isVarRef(arg)) return { kind: 'var-ref', name: arg.$ref }
-  if (isParamRef(arg)) return { kind: 'param-ref', name: arg.$param }
-  if (isCallRef(arg)) {
+export function argIRToHost(arg: unknown): HostArg {
+  if (isIRVarRef(arg)) return { kind: 'var-ref', name: arg.$ref }
+  if (isIRParamRef(arg)) return { kind: 'param-ref', name: arg.$param }
+  if (isIRCallRef(arg)) {
     const { callee, args, namespace } = arg.$call
     return {
       kind: 'call-ref',
       callee,
-      args: args.map(argIRToHost),
+      args: args.map(argIRToHost) as HostArg[],
       ...(namespace !== undefined ? { namespace } : {}),
     }
   }
-  if (isExprRef(arg)) {
+  if (isIRExprRef(arg)) {
     return {
       kind: 'expr-ref',
       text: arg.$expr.text,
@@ -184,17 +209,17 @@ export function argIRToHost(arg: ArgIR): HostArg {
     }
   }
   if (Array.isArray(arg)) return arg.map(argIRToHost) as unknown as HostArg
-  if (isPlainObject(arg)) return mapValues(arg as Record<string, ArgIR>, argIRToHost) as unknown as HostArg
-  return arg
+  if (isPlainObject(arg)) return mapValues(arg, argIRToHost) as unknown as HostArg
+  return arg as HostArg
 }
 
 /**
- * Convert a `HostArg` (host-friendly) back to an `ArgIR` (internal IR).
+ * Convert a `HostArg` (host-friendly) back to a legacy IR marker (`$`-prefixed).
  *
  * Uses `kind`-based guards to identify reference shapes. Literal objects
  * that don't match any reference kind are recursively transformed as plain data.
  * @param arg - the host-friendly argument.
- * @returns the IR argument.
+ * @returns the IR marker argument.
  */
 export function hostArgToIR(arg: HostArg): ArgIR {
   if (isHostVarRef(arg)) return { $ref: arg.name }
@@ -203,7 +228,7 @@ export function hostArgToIR(arg: HostArg): ArgIR {
     return {
       $call: {
         callee: arg.callee,
-        args: arg.args.map(hostArgToIR),
+        args: arg.args.map(hostArgToIR) as unknown[],
         ...(arg.namespace !== undefined ? { namespace: arg.namespace } : {}),
       },
     }

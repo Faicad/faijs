@@ -11,10 +11,10 @@
  *
  * 候选集合 = ctx 中 shape/compound 键（与现状 allShapeVarNames 同源）；
  * lastProducer 由行级 outputs 反查（ctx 值天然是最后写者）；
- * 消费判定 = keep 驱动 consumes（C0/C3/C5 短路，逻辑与 terminal-dag 相同，
- * 输入换 StatementSummary 的 HostArg 引用形态）；自由 JS 块做词法级引用扫描。
+ * 消费判定 = keep 驱动 consumes（C0/C3/C5 短路）；
+ * 自由 JS 块做词法级引用扫描。
  *
- * 产出 TerminalShape[]，与现状 computeLeafTerminals 逐字段兼容（A-14 对拍）。
+ * 产出 TerminalShape[]，与已删除的 computeLeafTerminals 逐字段兼容（A-14 对拍）。
  */
 
 import type { StatementSummary } from '../lang/statement-summary'
@@ -54,8 +54,7 @@ export interface LiveShapesInput {
 
 /**
  * 判定 statement 是否消费变量 v（keep 驱动，C0 → C3 → C5 短路）。
- * 输入是 StatementSummary（HostArg 引用形态）——逻辑与 terminal-dag.consumes
- * 逐字相同，仅输入形态换。
+ * 输入是 StatementSummary（HostArg 引用形态）。
  * @param line - 消费检查目标语句（行级摘要）。
  * @param v - 被检查的候选 shape/compound 变量。
  * @param keep - keep 来源视图（行内 + 函数体登记）。
@@ -148,7 +147,7 @@ function wordBoundaryMatch(text: string, name: string): boolean {
  * hidden（D2）：最后一次保留声明胜出——函数体登记先铺，行内调用点按行号序覆盖。
  *
  * @param input - 存活判定输入（lines/blocks/keep 视图/shapeVarNames/块产出/显式终端）。
- * @returns TerminalShape[]（{ id } ∪ hidden），与现状 computeLeafTerminals 形态兼容。
+ * @returns TerminalShape[]（{ id } ∪ hidden），与原 computeLeafTerminals 形态兼容。
  */
 export function computeLiveShapes(input: LiveShapesInput): TerminalShape[] {
   const { lines, blocks, keep, shapeVarNames, blockOutputs } = input

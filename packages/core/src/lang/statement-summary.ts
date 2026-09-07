@@ -3,12 +3,11 @@
  *
  * See docs/syntax-design.md §3 (statement model ↔ StatementSummary mapping).
  *
- * `analyzeCode(code)` 是宿主消费语句信息的唯一形态（IR 剥离后宿主禁止
- * import ScriptIR/StatementIR）。摘要只含展示/编排所需的标量字段：
+ * `analyzeCode(code)` 是宿主消费语句信息的唯一形态（IR 已删除）。摘要只含展示/编排所需的标量字段：
  * Timeline 一行一节点、场景树分组推导、FeatureTree 识别、编辑回填定位。
  *
  * 无 IR 双通道方案（2026-09-06）后实现换 MetadataExtractor：lines 面直接
- * 产出 StatementSummary 原样（无投影层），与现状 parseScript 投影逐字相等
+ * 产出 StatementSummary 原样（无投影层），与 MetadataExtractor 投影逐字相等
  * （A-16 对拍），仅 id = `'s' + lineNo` 语义变化（append 场景稳定，宿主按
  * 字符串使用不破裂）。
  */
@@ -38,14 +37,14 @@ export interface StatementSummary {
   /** 成员方法调用接收者变量（asm1.do_assemble() → 'asm1'） */
   receiver?: PartName
   /**
-   * 位置实参槽（HostArg 形态，IR 已脱壳）。
+   * 位置实参槽（HostArg 形态，纯数据无 IR）。
    * 每个元素是 HostArg——字面量原样；var-ref/param-ref/call-ref/expr-ref
    * 以 `{kind, ...}` 形态呈现。宿主用 `isHostVarRef` 等守卫判定形态。
    */
   positional: HostArg[]
   /**
-   * 尾随选项对象（HostArg 形态，IR 已脱壳）。
-   * 键值经 argIRToHost 映射；无选项对象时为 `{}`。
+   * 尾随选项对象（HostArg 形态，纯数据无 IR）。
+   * 键值经 HostArg 映射；无选项对象时为 `{}`。
    */
   args: Record<string, HostArg>
   /** 产出变量名（split 解构 = 多个；void 语句 = []） */
@@ -78,7 +77,7 @@ export interface StatementSummary {
 /**
  * 解析代码文本，返回语句平铺摘要（非 IR 类型）。
  *
- * 实现：MetadataExtractor.lines 直接产出（无投影层），与现状 parseScript
+ * 实现：MetadataExtractor.lines 直接产出（无投影层），与 MetadataExtractor
  * 投影逐字相等（A-16 对拍），id 语义 = `'s' + lineNo`。
  *
  * @param code - the faijs source text to parse and summarize.

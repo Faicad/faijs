@@ -1,24 +1,17 @@
 /**
- * faijs syntax tests — parse → codegen → parse round-trip.
+ * faijs syntax tests — analyzeCode statement summary features.
  *
- * Verifies that:
- * 1. scriptIRToCode produces valid faijs from a parsed PartScript
- * 2. Re-parsing the generated code produces the same PartScript (for supported ops)
- * 3. Codegen is deterministic (same script → same code)
+ * 用 analyzeCode 验证语句摘要的 callee/outputs/inputs/positional 等字段。
  *
  * Run: npx vitest run test/faijs/syntax.test.ts
  */
 
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
-import { resolve, join } from 'node:path'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { parseScript } from '@faicad/faijs-core/lang/parser'
-import { scriptIRToCode } from '@faicad/faijs-core/lang/codegen'
-import { statementInputs } from '@faicad/faijs-core/lang/types'
-
-// PartScript 类型随 parseScript 返回推导（门面不单独导出该类型）
-type PartScript = ReturnType<typeof parseScript>['script']
+import { analyzeCode } from '@faicad/faijs-core/lang/statement-summary'
+import { isHostVarRef } from '@faicad/faijs-core/lang/host-arg'
 
 const FAIJS_DIR = fileURLToPath(new URL('.', import.meta.url))
 
@@ -39,39 +32,16 @@ function listFaijsFiles(dir: string = FAIJS_DIR): string[] {
   return files.sort()
 }
 
-/** Full deep comparison of args and structure */
-function scriptsEqual(a: PartScript, b: PartScript): boolean {
-  if (a.statements.length !== b.statements.length) return false
-  for (let i = 0; i < a.statements.length; i++) {
-    const sa = a.statements[i]
-    const sb = b.statements[i]
-    if (sa.id !== sb.id) return false
-    if (sa.callee !== sb.callee) return false
-    if (JSON.stringify(statementInputs(sa)) !== JSON.stringify(statementInputs(sb))) return false
-    if (JSON.stringify(sa.args) !== JSON.stringify(sb.args)) return false
-  }
-  return true
-}
-
-describe('syntax round-trip: parse → codegen → parse', () => {
+describe('syntax: analyzeCode on fixture files', () => {
   const files = listFaijsFiles()
 
   for (const filePath of files) {
     const fileName = filePath.replace(FAIJS_DIR + '/', '').replace(/\\/g, '/')
     const code = readFileSync(filePath, 'utf-8')
-    it(`${fileName}: round-trip preserves script structure`, () => {
-      const { script: script1 } = parseScript(code)
-      const generatedCode = scriptIRToCode(script1)
-      const { script: script2 } = parseScript(generatedCode)
 
-      expect(scriptsEqual(script1, script2)).toBe(true)
-    })
-
-    it(`${fileName}: codegen is deterministic`, () => {
-      const { script } = parseScript(code)
-      const code1 = scriptIRToCode(script)
-      const code2 = scriptIRToCode(script)
-      expect(code2).toBe(code1)
+    it(`${fileName}: parses successfully (statements > 0)`, () => {
+      const summaries = analyzeCode(code)
+      expect(summaries.length).toBeGreaterThan(0)
     })
   }
 })
@@ -79,39 +49,39 @@ describe('syntax round-trip: parse → codegen → parse', () => {
 describe('syntax features', () => {
   it('single mesh flat code', () => {
     const code = `let part0 = cad.box(20, 20, 20, { centered: true })`
-    const { script } = parseScript(code)
-    expect(script.statements).toHaveLength(1)
-    expect(script.statements[0].callee).toBe('box')
+    const summaries = analyzeCode(code)
+    expect(summaries).toHaveLength(1)
+    expect(summaries[0].callee).toBe('box')
   })
 
   it('Vec3 parameter forms (array vs number)', () => {
     const codeScalar = `let part0 = cad.box(20, 20, 20, { centered: true })`
     const codeVec3 = `let part0 = cad.box(20, 30, 40, { centered: true })`
-    const { script: s1 } = parseScript(codeScalar)
-    const { script: s2 } = parseScript(codeVec3)
-    expect(s1.statements[0].positional).toEqual([20, 20, 20, { centered: true }])
-    expect(s2.statements[0].positional).toEqual([20, 30, 40, { centered: true }])
+    const s1 = analyzeCode(codeScalar)
+    const s2 = analyzeCode(codeVec3)
+    expect(s1[0].positional).toEqual([20, 20, 20, { centered: true }])
+    expect(s2[0].positional).toEqual([20, 30, 40, { centered: true }])
   })
 
   it('chained operations preserve input references', () => {
     const code = `let part0 = cad.box(20, 20, 20, { centered: true })
 part0 = cad.translate({ offset: [5, 0, 0] }, part0)
 part0 = cad.rotate_euler({ anglesDeg: [0, 0, 45] }, part0)`
-    const { script } = parseScript(code)
-    expect(script.statements).toHaveLength(3)
-    expect(statementInputs(script.statements[1])).toEqual(['part0'])
-    expect(statementInputs(script.statements[2])).toEqual(['part0'])
+    const summaries = analyzeCode(code)
+    expect(summaries).toHaveLength(3)
+    // translate and rotate_euler both consume part0
+    const tInputs = summaries[1].positional.filter(isHostVarRef).map(p => p.name)
+    expect(tInputs).toEqual(['part0'])
+    const rInputs = summaries[2].positional.filter(isHostVarRef).map(p => p.name)
+    expect(rInputs).toEqual(['part0'])
   })
 
-  it('multi mesh: two independent primitives → two outputs (runtime terminals)', () => {
+  it('multi mesh: two independent primitives → two outputs', () => {
     const code = `let part0 = cad.box(20, 20, 20, { centered: true })
 let part1 = cad.sphere({ radius: 10, center: [30, 0, 0] })`
-    const { script } = parseScript(code)
-    expect(script.statements).toHaveLength(2)
-    // Phase 3: parser 不再自动计算 terminalShapes；终端判定在 runtime.collectResult。
-    // 这里断言解析层对 outputs（PartName）的正确产出——运行期终端 = 这些 outputs 里的 Shape。
-    expect(script.terminalShapes).toBeUndefined()
-    expect(script.statements[0].outputs).toEqual(['part0'])
-    expect(script.statements[1].outputs).toEqual(['part1'])
+    const summaries = analyzeCode(code)
+    expect(summaries).toHaveLength(2)
+    expect(summaries[0].outputs).toEqual(['part0'])
+    expect(summaries[1].outputs).toEqual(['part1'])
   })
 })

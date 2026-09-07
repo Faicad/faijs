@@ -1,19 +1,20 @@
 /**
  * Syntax .fai.js tests — test specific syntax features
  *
+ * 用 analyzeCode 验证语句摘要的正确性。
+ *
  * For each .fai.js file in test/faijs/syntax/:
- * 1. Parse with parseScript
- * 2. Verify specific syntax constructs are correctly parsed
+ * 1. Analyze with analyzeCode
+ * 2. Verify statements are correctly parsed
  *
  * Run: npx vitest run test/faijs/syntax/syntax.test.ts
  */
 
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
-import { resolve, join } from 'node:path'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { parseScript } from '@faicad/faijs-core/lang/parser'
-import { scriptIRToCode } from '@faicad/faijs-core/lang/codegen'
+import { analyzeCode } from '@faicad/faijs-core/lang/statement-summary'
 
 const SYNTAX_DIR = fileURLToPath(new URL('.', import.meta.url))
 
@@ -31,46 +32,31 @@ describe('syntax .fai.js tests', () => {
     const code = readFileSync(filePath, 'utf-8')
 
     it(`${file}: parses successfully`, () => {
-      const { script } = parseScript(code)
-      expect(script.statements.length).toBeGreaterThan(0)
+      const summaries = analyzeCode(code)
+      expect(summaries.length).toBeGreaterThan(0)
     })
 
-    it(`${file}: codegen produces valid flat code`, () => {
-      const { script } = parseScript(code)
-      const generatedCode = scriptIRToCode(script)
-      expect(generatedCode).toContain('cad.')
-      // Should NOT contain export default
-      expect(generatedCode).not.toContain('export default')
-    })
-
-    it(`${file}: round-trip is stable`, () => {
-      const { script: script1 } = parseScript(code)
-      const generatedCode = scriptIRToCode(script1)
-      const { script: script2 } = parseScript(generatedCode)
-
-      // Check that statements are preserved
-      expect(script2.statements.length).toBe(script1.statements.length)
-      expect(script2.statements[0].callee).toBe(script1.statements[0].callee)
+    it(`${file}: contains cad.* calls`, () => {
+      const summaries = analyzeCode(code)
+      expect(summaries.length).toBeGreaterThan(0)
+      // All .fai.js files should have at least one cad.* call
+      expect(summaries.some(s => s.callee !== undefined)).toBe(true)
     })
   }
 
-  it('single mesh flat code: no terminalShapes', () => {
+  it('single mesh flat code: one statement with output', () => {
     const code = `let part0 = cad.box(20, 20, 20, { centered: true })`
-    const { script } = parseScript(code)
-    expect(script.statements).toHaveLength(1)
-    // Phase 3: terminalShapes 移入 runtime.collectResult；parser 不再自动计算
-    expect(script.terminalShapes).toBeUndefined()
-    expect(script.statements[0].outputs).toEqual(['part0'])
+    const summaries = analyzeCode(code)
+    expect(summaries).toHaveLength(1)
+    expect(summaries[0].outputs).toEqual(['part0'])
   })
 
-  it('multi mesh flat code: two independent outputs (runtime terminals)', () => {
+  it('multi mesh flat code: two independent outputs', () => {
     const code = `let part0 = cad.box(20, 20, 20, { centered: true })
 let part1 = cad.sphere({ radius: 10, center: [30, 0, 0] })`
-    const { script } = parseScript(code)
-    expect(script.statements.length).toBeGreaterThan(1)
-    // Phase 3: terminalShapes 移入 runtime.collectResult；解析层只产出 outputs（PartName）
-    expect(script.terminalShapes).toBeUndefined()
-    expect(script.statements[0].outputs).toEqual(['part0'])
-    expect(script.statements[1].outputs).toEqual(['part1'])
+    const summaries = analyzeCode(code)
+    expect(summaries.length).toBeGreaterThan(1)
+    expect(summaries[0].outputs).toEqual(['part0'])
+    expect(summaries[1].outputs).toEqual(['part1'])
   })
 })

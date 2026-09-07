@@ -2,7 +2,7 @@
  * Parity .fai.js tests — test BREP/mesh equivalence
  *
  * For each .fai.js file in test/faijs/parity/:
- * 1. Parse with parseScript
+ * 1. Analyze with analyzeCode (syntax check + statement summary)
  * 2. Execute in BREP mode and mesh mode
  * 3. Verify bbox/size are equivalent (within tolerance)
  *
@@ -11,9 +11,9 @@
 
 import { describe, it, expect, beforeAll } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
-import { resolve, join } from 'node:path'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { parseScript } from '@faicad/faijs-core/lang/parser'
+import { analyzeCode } from '@faicad/faijs-core/lang/statement-summary'
 import { createRuntime } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
 import { registerOcctBrepEngine } from '@faicad/faijs'
@@ -70,32 +70,30 @@ describe('parity .fai.js tests (BREP vs mesh)', () => {
     const code = readFileSync(filePath, 'utf-8')
 
     it(`${file}: parses successfully`, () => {
-      const { script } = parseScript(code)
-      expect(script.statements.length).toBeGreaterThan(0)
+      const summaries = analyzeCode(code)
+      expect(summaries.length).toBeGreaterThan(0)
     })
 
     it(`${file}: BREP and mesh modes produce equivalent bbox (1% tolerance)`, async () => {
-      const { script } = parseScript(code)
-
       // Execute in BREP mode
       const brepRuntime = createRuntime(createNodePorts(), 'brep')
-      const brepResult = await brepRuntime.executeIR(script)
+      const brepResult = await brepRuntime.execute(code)
       expect(brepResult.failedAt).toBeUndefined()
 
-      const geoStmts = script.statements.filter(s => s.hasAssignment)
+      const geoStmts = analyzeCode(code).filter(s => s.hasAssignment)
       const lastStmt = geoStmts[geoStmts.length - 1]
 
-      const brepShape = brepResult.outputs.get(lastStmt.outputs[0]) as Shape | undefined
+      const brepShape = brepResult.outputs.get(lastStmt.outputs[0] as never) as Shape | undefined
       expect(brepShape).toBeDefined()
       const brepBBox = computeBBox(brepShape!.positions)
       const brepSize = bboxSize(brepBBox)
 
       // Execute in mesh mode
       const meshRuntime = createRuntime(createNodePorts(), 'mesh')
-      const meshResult = await meshRuntime.executeIR(script)
+      const meshResult = await meshRuntime.execute(code)
       expect(meshResult.failedAt).toBeUndefined()
 
-      const meshShape = meshResult.outputs.get(lastStmt.outputs[0]) as Shape | undefined
+      const meshShape = meshResult.outputs.get(lastStmt.outputs[0] as never) as Shape | undefined
       expect(meshShape).toBeDefined()
       const meshBBox = computeBBox(meshShape!.positions)
       const meshSize = bboxSize(meshBBox)

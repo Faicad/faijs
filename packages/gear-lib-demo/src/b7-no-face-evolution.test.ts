@@ -10,7 +10,7 @@
  * 2. **不得**因此把第三方 BREP 产物降级为 mesh —— 该产物仍 `hasBrep === true`，
  *    与内置 op 的 BREP 布尔仍走精确路径（不产生混合）。
  *
- * 引擎现状（实证）：faceEvolution 全库只有写入方（fromBrep 登记 / module-executor
+ * 引擎现状（实证）：faceEvolution 全库只有写入方（fromBrep 登记 / DirectExecutor
  * 同步到 faceEvolutionCache），**无引擎侧读取消费者**——拓扑构建走
  * `meshShapeCache` + `buildAssemblySelectorManifest`（src/brep/brep-topology.ts），
  * drill 按面选择走 `geomQuery`（src/stdlib/geom.ts）实时 `kernel.getSubShapes`，
@@ -94,8 +94,8 @@ describe('B7: 第三方 BREP 产物无 faceEvolution（fromHandle）', () => {
   })
 
   it('faceNormal 无 anchor 且无 faceOrdinal → 显式抛错（不静默、不返回垃圾值）', async () => {
-    // geomQuery 抛普通 Error（非 BrepUnsupportedError）→ runWithFailureHandling 不捕获，
-    // 错误冒泡暴露（显式报错，符合 §5.8.4"显式报错而非崩溃或静默错误结果"）。
+    // T5 direct-only: execution errors land in failedAt (no re-throw).
+    // The error is not silently swallowed — it appears in the result's failedAt.
     const code = [
       "import * as mech from 'gear-lib-demo'",
       'let part0 = mech.makeHeadstock({ size: 20 })',
@@ -103,6 +103,8 @@ describe('B7: 第三方 BREP 产物无 faceEvolution（fromHandle）', () => {
     ].join('\n')
     const runtime = createRuntime(createNodePorts(), 'auto')
     runtime.registerLib('mech', mockMechBrep as never)
-    await expect(runtime.execute(code)).rejects.toThrow(/faceNormal requires anchor or faceOrdinal/)
+    const result = await runtime.execute(code)
+    expect(result.failedAt).toBeDefined()
+    expect(result.failedAt!.message).toMatch(/faceNormal requires anchor or faceOrdinal/)
   })
 })

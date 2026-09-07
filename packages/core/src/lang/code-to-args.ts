@@ -8,7 +8,7 @@
  * 宿主不得用 acorn 自行解析（B3 修正）。
  *
  * 无 IR 双通道方案（2026-09-06）后实现换 MetadataExtractor 行级提取：
- * 单行文本经哨兵参数前置声明（与现状 parseScript looseLocalCalls 同构）
+ * 单行文本经哨兵参数前置声明（与 MetadataExtractor looseLocalCalls 同构）
  * 交给 extractMetadata，取末条 op 行摘要的 positional/args。函数名、签名与
  * 返回契约（CodeToArgsResult）不变；HostArg 引用形态保真（A-5）。
  *
@@ -73,7 +73,7 @@ function declaredByLine(line: string): Set<string> {
 }
 
 /**
- * `codeToArgs` 的返回契约：位置实参槽 + 尾随选项对象（HostArg 形态，IR 已脱壳）。
+ * `codeToArgs` 的返回契约：位置实参槽 + 尾随选项对象（HostArg 形态，纯数据无 IR）。
  */
 export interface CodeToArgsResult {
   positional: HostArg[]
@@ -86,7 +86,7 @@ export interface CodeToArgsResult {
  * true-JS-subset §4.6.3 新契约：返回 `{ positional, args }`——
  * - `positional`: HostArg[]，按调用顺序的位置实参（字面量原样；var-ref/
  *   param-ref/call-ref/expr-ref 以 `{kind,...}` 标记对象呈现，宿主据此降级为
- *   只读编辑）；IR strip 红线不变（宿主不接触 IR 类型）。
+ *   只读编辑）；宿主不接触内部类型（纯数据面）。
  * - `args`: 尾随选项对象（键值 HostArg 形态；无选项对象时为 `{}`）。
  * 旧契约（只返回对象槽）在位置形态下会静默丢弃非对象实参——本契约显式保留全部信息。
  *
@@ -114,7 +114,7 @@ export function codeToArgs(codeLine: string, opts?: { namespaces?: string[] }): 
   const code = decls ? `${decls}\n${codeLine}` : codeLine
   // 单行提取语义：前置哨兵参数（let id = 0）在 extractMetadata 中按参数行处理；
   // 末条 op 行摘要 = 目标行。裸本机函数 callee（makeArray 等）放行（looseLocalCalls，
-  // 与现状 codeToArgs 的 parseScript looseLocalCalls 同语义；ABI 校验延后到完整脚本上下文）。
+  // 与现状 codeToArgs 的 MetadataExtractor looseLocalCalls 同语义；ABI 校验延后到完整脚本上下文）。
   const meta = extractMetadata(code, { namespaces: opts?.namespaces ?? [], looseLocalCalls: true })
   const last = meta.lines[meta.lines.length - 1]
   if (!last) return { positional: [], args: {} }

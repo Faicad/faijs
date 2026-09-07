@@ -1,6 +1,7 @@
 # 无 IR 双通道执行 —— 后续任务移交清单（开发接力）
 
 日期：2026-09-06
+状态：已落地（T1–T6 全部完成）
 基线：`C:\my\Faicad\faijs` main 分支，commit `f1855ec` 之后的 4 笔功能提交：`6afbb0e`（P1–P4 guarded direct runtime）、`9ede3ed`（E4 执行选项）、`0f7257a`（P5 多文件引擎侧）、`96ad085`（E6/E7）
 主方案：`docs/plans/2026-09-06-no-ir-dual-channel-runtime.md`（P1–P6 全部实施内容；本文件是其**剩余任务执行单**，按依赖排序，可逐项独立交付）
 

@@ -10,6 +10,7 @@ import type { Shape } from '../mesh/types'
 import { cad } from '../mesh'
 import { isCadFormat } from '../brep/brep-chain'
 import { loadBrep } from '../brep/brep-ops'
+import { OpError } from './internal/result-unwrap'
 import { getBackends, BrepUnsupportedError } from '../runtime-state'
 import { solid, fromBrep } from '../shape'
 import type { BrepEngineApi } from '../brep/engine/primitives'
@@ -50,7 +51,7 @@ export async function load(params: Record<string, unknown>): Promise<Shape> {
     resolveUrl(url: string): Promise<ArrayBuffer>
   } | undefined
   if (!assets) {
-    throw new Error('[stdlib/load] assets is required for load op')
+    throw new OpError('load', 'E_OP_FAILED', '[stdlib/load] assets is required for load op')
   }
 
   // 按 key/path/url 分流解析 buffer
@@ -62,7 +63,7 @@ export async function load(params: Record<string, unknown>): Promise<Shape> {
   } else if (params.url !== undefined && params.url !== null) {
     buffer = await assets.resolveUrl(params.url as string)
   } else {
-    throw new Error('[stdlib/load] load op requires exactly one of key/path/url')
+    throw new OpError('load', 'E_OP_FAILED', '[stdlib/load] load op requires exactly one of key/path/url')
   }
 
   // 静态判定路径：mesh 模式 / 无 kernel / 非 CAD 源 → mesh 路径；否则 BREP 路径

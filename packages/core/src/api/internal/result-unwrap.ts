@@ -86,6 +86,25 @@ export function toOpError(name: string, err: unknown): Error {
 }
 
 /**
+ * Wrap an implementation-thrown exception as an {@link OpError} (statement-
+ * level failure carrier). Used by `define-op.ts` `runImpl` so that
+ * `CadRuntime.directFailedAtOrThrow` recognizes the error as an op failure
+ * (not a bug to re-throw).
+ *
+ * @param name - the op name.
+ * @param err  - the thrown value.
+ * @returns an OpError carrying the op context and code.
+ */
+export function toOpFailure(name: string, err: unknown): OpError {
+  if (err instanceof Error) {
+    const code = (err as { code?: unknown }).code
+    const codeStr = typeof code === 'string' ? code : 'E_OP_FAILED'
+    return new OpError(name, codeStr, `[faijs/op] ${name}: ${codeStr}: ${err.message}`)
+  }
+  return new OpError(name, 'E_OP_FAILED', `[faijs/op] ${name}: E_OP_FAILED: ${String(err)}`)
+}
+
+/**
  * Statement-boundary unwrap (D1).
  *
  * - a non-Result product → returned untouched (plain-data ops, mesh products);

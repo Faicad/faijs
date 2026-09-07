@@ -2,7 +2,7 @@
  * BREP 与 Mesh 实现等价性测试
  *
  * 验证原则：
- * 1. 同一 ScriptIR 分别以 'brep' 和 'mesh' 模式执行
+ * 1. 同一代码文本分别以 'brep' 和 'mesh' 模式执行
  * 2. 两个结果的最终 mesh 几何指标偏差 < 1/1000
  * 3. 指标包括：包围盒、体积、表面积
  *
@@ -36,8 +36,6 @@ import { createNodePorts } from './node-host'
 import type { ExecutionMode } from './cad-runtime/ports'
 import type { Shape } from './mesh/types'
 import { ensureTestFontLoader } from './brep/text/fontTestHelper'
-import type { StatementIR, ScriptIR } from './lang/types'
-import { asStmtId, asPartName } from './identity'
 
 beforeAll(async () => {
   await registerOcctBrepEngine()
@@ -46,46 +44,67 @@ beforeAll(async () => {
 
 // ── 测试辅助 ──
 
+/**
+ * Build a single statement code line from callee + args + inputs.
+ * Produces equivalent source text for .fai.js execution.
+ */
 function makeStmt(
   id: string,
   callee: string,
   args: Record<string, unknown>,
   inputs: string[] = [],
-): StatementIR {
-  return {
-    id: asStmtId(id), callee,
-    args: args as any,
-    positional: inputs.map((s) => ({ $ref: asPartName(s) })),
-    outputs: [asPartName(id)],
-    hasAssignment: true,
+): string {
+  const posArgs = inputs.map(s => s).join(', ')
+  const argStr = Object.entries(args).map(([k, v]) => `${k}: ${formatVal(v)}`).join(', ')
+  const objArg = argStr ? `{ ${argStr} }` : ''
+  const argParts = [posArgs, objArg].filter(Boolean).join(', ')
+  // do_assemble has no assignment
+  if (callee === 'do_assemble' || callee === 'add_constraint') {
+    return `${id ? id + '.' : ''}${callee}({ ${argStr} })`
   }
+  if (callee === 'assembly') {
+    return `const ${id} = cad.${callee}({ ${argStr} })`
+  }
+  return `const ${id} = cad.${callee}(${argParts})`
 }
 
-function makePartScript(statements: StatementIR[]): ScriptIR {
-  return {
-    source: { kind: 'load' },
-    params: [],
-    statements,
+/** Format a value for code generation. */
+function formatVal(v: unknown): string {
+  if (v === null || v === undefined) return 'null'
+  if (typeof v === 'string') return JSON.stringify(v)
+  if (typeof v === 'number' || typeof v === 'boolean') return String(v)
+  if (Array.isArray(v)) return `[${v.map(formatVal).join(', ')}]`
+  if (typeof v === 'object') {
+    const entries = Object.entries(v as Record<string, unknown>)
+    return `{ ${entries.map(([k, v2]) => `${k}: ${formatVal(v2)}`).join(', ')} }`
   }
+  return String(v)
+}
+
+/** Join statement code lines into a single script. */
+function makePartScript(statements: string[]): string {
+  return statements.join('\n')
 }
 
 /** 在指定模式下运行脚本，返回最终 Shape */
-async function runMode(script: ScriptIR, mode: ExecutionMode): Promise<Shape> {
+async function runMode(code: string, mode: ExecutionMode): Promise<Shape> {
   const ports = createNodePorts()
   const runtime = createRuntime(ports, mode)
-  const result: ExecutionResult = await runtime.executeIR(script)
+  const result: ExecutionResult = await runtime.execute(code)
 
   if (result.failedAt) {
     throw new Error(`Execution failed at ${result.failedAt.callee}: ${result.failedAt.message}`)
   }
 
-  const geoStmts = script.statements.filter(s => s.hasAssignment)
-  const last = geoStmts[geoStmts.length - 1]
-  const shape = result.outputs.get(last.outputs[0])
-  if (!shape) throw new Error(`No output for terminal statement "${last.id}"`)
+  // 从 outputs 中取最后一个 shape
+  const shapeNames = [...result.outputs.keys()]
+  if (shapeNames.length === 0) throw new Error('No geometry outputs')
+  const last = shapeNames[shapeNames.length - 1]
+  const shape = result.outputs.get(last)
+  if (!shape) throw new Error(`No output for terminal "${last}"`)
   // keep-syntax §5.1：outputs 含 compound；本测试断言的是 mesh 结果
   if (!('positions' in shape) || !('indices' in shape)) {
-    throw new Error(`Output for "${last.id}" is not a mesh shape (compound?)`)
+    throw new Error(`Output for "${last}" is not a mesh shape (compound?)`)
   }
   return shape
 }
@@ -195,10 +214,10 @@ function assertMetricsEquivalent(
 }
 
 /** 辅助：运行并比较两种模式 */
-async function runAndCompare(statements: StatementIR[], label: string) {
-  const script = makePartScript(statements)
-  const brepShape = await runMode(script, 'brep')
-  const meshShape = await runMode(script, 'mesh')
+async function runAndCompare(statements: string[], label: string) {
+  const code = makePartScript(statements)
+  const brepShape = await runMode(code, 'brep')
+  const meshShape = await runMode(code, 'mesh')
 
   const brepMetrics = computeMetrics(brepShape)
   const meshMetrics = computeMetrics(meshShape)
@@ -309,16 +328,14 @@ describe('box 契约: bbox 黄金值（双路径逐点一致）', () => {
         assertBBox(shape, [-14, -8, -2], [16, 12, 8], 'at-centers')
       })
 
-      it('box({ size: 20 }) 旧形态 → E_ARGS_FORM + 新签名提示（该模式抛错）', async () => {
+      it('box({ size: 20 }) 旧形态 → E_ARGS_FORM + 新签名提示（该模式 failedAt）', async () => {
         const ports = createNodePorts()
         const runtime = createRuntime(ports, mode)
-        // IR 层旧形态参数直抛（executeIR reject），错误信息含 E_ARGS_FORM + 新签名
-        await expect(
-          runtime.executeIR(makePartScript([{ ...makeStmt('s1', 'box', { size: 20 }), outputs: [] }])),
-        ).rejects.toThrow(/E_ARGS_FORM/)
-        await expect(
-          runtime.executeIR(makePartScript([{ ...makeStmt('s1', 'box', { size: 20 }), outputs: [] }])),
-        ).rejects.toThrow(/box\(width, depth, height/)
+        // T5: op errors now land in failedAt (OpError → directFailedAtOrThrow keeps it)
+        const r = await runtime.execute('const s1 = cad.box({ size: 20 })')
+        expect(r.failedAt).toBeDefined()
+        expect(r.failedAt!.message).toMatch(/E_ARGS_FORM/)
+        expect(r.failedAt!.message).toMatch(/box\(width, depth, height/)
       })
     })
   }
@@ -387,23 +404,13 @@ describe('cone 契约: bbox 黄金值（双路径逐点一致）', () => {
         assertBBox(shape, [-29, -28, -7], [31, 32, 13], 'at-centred')
       })
 
-      it('cone({ center }) 旧形态 → E_ARGS_FORM + 新签名提示（该模式抛错）', async () => {
+      it('cone({ center }) 旧形态 → E_ARGS_FORM + 新签名提示（该模式 failedAt）', async () => {
         const ports = createNodePorts()
         const runtime = createRuntime(ports, mode)
-        await expect(
-          runtime.executeIR(
-            makePartScript([
-              { ...makeStmt('s1', 'cone', { radiusBottom: 10, radiusTop: 0, height: 20, center: [0, 0, 0] }), outputs: [] },
-            ]),
-          ),
-        ).rejects.toThrow(/E_ARGS_FORM/)
-        await expect(
-          runtime.executeIR(
-            makePartScript([
-              { ...makeStmt('s1', 'cone', { radiusBottom: 10, radiusTop: 0, height: 20, center: [0, 0, 0] }), outputs: [] },
-            ]),
-          ),
-        ).rejects.toThrow(/cone\(bottomRadius, topRadius, height/)
+        const r = await runtime.execute('const s1 = cad.cone({ radiusBottom: 10, radiusTop: 0, height: 20, center: [0, 0, 0] })')
+        expect(r.failedAt).toBeDefined()
+        expect(r.failedAt!.message).toMatch(/E_ARGS_FORM/)
+        expect(r.failedAt!.message).toMatch(/cone\(bottomRadius, topRadius, height/)
       })
     })
   }
@@ -464,14 +471,16 @@ describe('cylinder 契约: bbox 黄金值（双路径逐点一致）', () => {
         assertBBox(shape, [-29, -28, -7], [31, 32, 13], 'at-centred')
       })
 
-      it('cylinder({ center }) 旧形态 → E_ARGS_FORM + 新签名提示（该模式抛错）', async () => {
+      it('cylinder({ center }) 旧形态 → E_ARGS_FORM + 新签名提示（该模式 failedAt）', async () => {
         const ports = createNodePorts()
         const runtime = createRuntime(ports, mode)
-        const script = makePartScript([
-          { ...makeStmt('s1', 'cylinder', { radius: 10, height: 20, center: [0, 0, 0] }), outputs: [] },
+        const code = makePartScript([
+          makeStmt('s1', 'cylinder', { radius: 10, height: 20, center: [0, 0, 0] }),
         ])
-        await expect(runtime.executeIR(script)).rejects.toThrow(/E_ARGS_FORM/)
-        await expect(runtime.executeIR(script)).rejects.toThrow(/cylinder\(radius, height/)
+        const r = await runtime.execute(code)
+        expect(r.failedAt).toBeDefined()
+        expect(r.failedAt!.message).toMatch(/E_ARGS_FORM/)
+        expect(r.failedAt!.message).toMatch(/cylinder\(radius, height/)
       })
     })
   }
@@ -597,7 +606,9 @@ describe('P6 scale/scale3d 契约: bbox 黄金值 + 负例（双路径逐点一�
         makeStmt('s2', 'scale3d', { factor: 2 }, ['s1']),
       ])
       const runtime = createRuntime(createNodePorts(), mode)
-      await expect(runtime.executeIR(script)).rejects.toThrow(/E_ARGS_FORM/)
+      const r = await runtime.execute(script)
+      expect(r.failedAt).toBeDefined()
+      expect(r.failedAt!.message).toMatch(/E_ARGS_FORM/)
     }
   })
 
@@ -607,7 +618,9 @@ describe('P6 scale/scale3d 契约: bbox 黄金值 + 负例（双路径逐点一�
       makeStmt('s2', 'scale', { factor: [1, 2, 3] }, ['s1']),
     ])
     const runtime = createRuntime(createNodePorts(), 'mesh')
-    await expect(runtime.executeIR(script)).rejects.toThrow(/E_ARGS_FORM/)
+    const r = await runtime.execute(script)
+    expect(r.failedAt).toBeDefined()
+    expect(r.failedAt!.message).toMatch(/E_ARGS_FORM/)
   })
 })
 

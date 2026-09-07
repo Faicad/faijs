@@ -203,7 +203,7 @@ export function resolveArgsWithInfo(args: unknown[], spec: ArgSpec): ResolvedArg
  * 声明式而非 if 分支：op 作者只列「哪个键吃几个位置参数」，判别与装箱由
  * {@link positionalToObject} 统一完成。
  *
- * 与语句层的 `StatementIR.positional`（位置实参**值**）以及投影侧的
+ * 与语句层的 `StatementSummary.positional`（位置实参**值**）以及投影侧的
  * `ArgSpec.params`（对象→位置**参数名表**）是三个不同概念：`SlotMap` 是
  * 位置槽→对象键的**装箱声明**（位置→对象，D11 反方向；§9 命名区分）。
  */

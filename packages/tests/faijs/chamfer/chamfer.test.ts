@@ -52,8 +52,7 @@ describe('chamfer e2e (BREP/OCCT)', () => {
   let runtime: CadRuntime
 
   beforeEach(() => {
-    // T4: chamfer param-validation errors must throw (not failedAt) — module path
-    runtime = createRuntime(createNodePorts(), 'brep', { executor: 'module' })
+    runtime = createRuntime(createNodePorts(), 'brep')
   })
 
   afterEach(() => {
@@ -103,8 +102,10 @@ describe('chamfer e2e (BREP/OCCT)', () => {
       const part1 = cad.chamfer(part0, { edges: [], type: 'equal', width: 1 })
     `
     try {
-      // 参数校验类错误是普通异常（仅 Unsupported 系列落入 failedAt）→ execute 直接抛
-      await expect(runtime.execute(code, { topology: 'auto' })).rejects.toThrow(/E_CHAMFER_NO_EDGES/)
+      // T5 direct-only: all execution errors land in failedAt (no re-throw)
+      const result = await runtime.execute(code, { topology: 'auto' })
+      expect(result.failedAt).toBeDefined()
+      expect(result.failedAt!.message).toMatch(/E_CHAMFER_NO_EDGES/)
     } finally {
       warnSpy.mockRestore()
       errorSpy.mockRestore()
@@ -143,7 +144,10 @@ describe('chamfer e2e (BREP/OCCT)', () => {
       const part1 = cad.chamfer(part0, { edges: [{ kind: 'edge', hint: { kind: 'edge' } }], type: 'equal', width: 1 })
     `
     try {
-      await expect(runtime.execute(code, { topology: 'auto' })).rejects.toThrow(/E_CHAMFER_BAD_EDGE_REF/)
+      // T5 direct-only: all execution errors land in failedAt (no re-throw)
+      const result = await runtime.execute(code, { topology: 'auto' })
+      expect(result.failedAt).toBeDefined()
+      expect(result.failedAt!.message).toMatch(/E_CHAMFER_BAD_EDGE_REF/)
     } finally {
       warnSpy.mockRestore()
       errorSpy.mockRestore()
@@ -160,7 +164,10 @@ describe('chamfer e2e (BREP/OCCT)', () => {
       const part1 = cad.chamfer(part0, { edges: [${BOX_EDGE}], type: 'equal', width: 0 })
     `
     try {
-      await expect(runtime.execute(code, { topology: 'auto' })).rejects.toThrow(/E_CHAMFER_BAD_WIDTH/)
+      // T5 direct-only: all execution errors land in failedAt (no re-throw)
+      const result = await runtime.execute(code, { topology: 'auto' })
+      expect(result.failedAt).toBeDefined()
+      expect(result.failedAt!.message).toMatch(/E_CHAMFER_BAD_WIDTH/)
     } finally {
       warnSpy.mockRestore()
       errorSpy.mockRestore()
@@ -177,7 +184,10 @@ describe('chamfer e2e (BREP/OCCT)', () => {
       const part1 = cad.chamfer(part0, { edges: [${BOX_EDGE}], type: 'distanceAngle', width: 1, angle: 90 })
     `
     try {
-      await expect(runtime.execute(code, { topology: 'auto' })).rejects.toThrow(/E_CHAMFER_BAD_ANGLE/)
+      // T5 direct-only: all execution errors land in failedAt (no re-throw)
+      const result = await runtime.execute(code, { topology: 'auto' })
+      expect(result.failedAt).toBeDefined()
+      expect(result.failedAt!.message).toMatch(/E_CHAMFER_BAD_ANGLE/)
     } finally {
       warnSpy.mockRestore()
       errorSpy.mockRestore()

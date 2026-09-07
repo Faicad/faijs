@@ -9,7 +9,7 @@
  * library (api/assembly); applying the solved transform to member geometry is
  * done by the engine during replay (F2: libraries must not query/mutate the DAG).
  * This module is the engine-side vertex transform — it must not depend on any
- * stdlib module (E-b: module-executor must not import stdlib/compound).
+ * stdlib module (E-b: engine must not import stdlib/compound).
  * Public API is unchanged: stdlib/compound still re-exports applyTransform.
  */
 

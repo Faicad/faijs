@@ -2,7 +2,7 @@
  * live-shapes — 无 IR 存活判定测试（P3）
  *
  * 覆盖：C0/C3/C5 消费判定、keep 驱动、hidden 最后一次保留胜出、块词法级扫描、
- * 无生产者 → 直接终端。与 terminal-dag 行为对齐（A-14 对拍见
+ * 无生产者 → 直接终端。与 computeLiveShapes 行为对齐（A-14 对拍见
  * packages/tests/faijs/no-ir/parity/a14-live-shapes.test.ts）。
  */
 

@@ -1,10 +1,9 @@
 /**
- * T3: BREP/topology/naming direct parity — auto 模式下 direct vs module
+ * T3/T5: BREP/topology/naming direct execution — auto 模式验证
  *
- * 验收（handoff T3）：
- * - auto 模式场景 direct == module：
- *   brepSolids 键集、topology.source、naming 逐 part 相等。
- * - solidCache 在 direct 路径经 setSolid 钩子同步（T3 核心）。
+ * T5 后：module 路径已删除，不再做 direct vs module 对拍。
+ * 改为 direct-only 行为验证：brepSolids/topology/naming 在 auto 模式下
+ * 正确产出。
  *
  * 环境：initOcctWasm() + auto 模式（BREP 链活跃）。
  */
@@ -20,111 +19,90 @@ function defaultPorts(): HostPorts {
 
 const WARMUP = 'let warmup = cad.box(1, 1, 1, { centered: true })'
 
-describe('T3: BREP/topology/naming direct parity (auto 模式)', () => {
+describe('T3/T5: BREP/topology/naming direct execution (auto 模式)', () => {
   const cadNs = createApiNamespace()
-  let moduleRt: CadRuntime
-  let directRt: CadRuntime
+  let rt: CadRuntime
 
   beforeAll(async () => {
     await initOcctWasm()
-    moduleRt = new CadRuntime(defaultPorts(), 'auto', { cad: cadNs })
-    directRt = new CadRuntime(defaultPorts(), 'auto', { cad: cadNs }, { executor: 'direct' })
-    await moduleRt.execute(WARMUP)
-    await directRt.execute(WARMUP)
+    rt = new CadRuntime(defaultPorts(), 'auto', { cad: cadNs })
+    await rt.execute(WARMUP)
   }, 120000)
 
-  it('brepSolids 键集两边一致（box→translate 链）', async () => {
+  it('brepSolids 含 box→translate 链的终端', async () => {
     const code = [
       'let bp = cad.box(10, 20, 30, { centered: true })',
-      'let t = cad.translate(bp, [5, 0, 0])',
+      'let t = cad.translate(bp, { offset: [5, 0, 0] })',
     ].join('\n')
 
-    const m = await moduleRt.execute(code)
-    const d = await directRt.execute(code)
+    const result = await rt.execute(code)
 
-    expect(m.failedAt).toBeUndefined()
-    expect(d.failedAt).toBeUndefined()
+    expect(result.failedAt).toBeUndefined()
 
-    const mSolids = m.brepSolids ? [...m.brepSolids.keys()].map(String).sort() : []
-    const dSolids = d.brepSolids ? [...d.brepSolids.keys()].map(String).sort() : []
-    expect(dSolids).toEqual(mSolids)
+    // direct 路径：bp 被 translate 消费不进终端；brepSolids 只含终端 t
+    const solids = result.brepSolids ? [...result.brepSolids.keys()].map(String).sort() : []
+    expect(solids).toEqual(['t'])
   })
 
-  it('topology.source 两边一致（auto 模式 = brep）', async () => {
+  it('topology.source 在 auto 模式为 brep', async () => {
     const code = [
       'let bp = cad.box(20, 20, 20, { centered: true })',
     ].join('\n')
 
-    const m = await moduleRt.execute(code)
-    const d = await directRt.execute(code)
+    const result = await rt.execute(code)
 
-    expect(m.failedAt).toBeUndefined()
-    expect(d.failedAt).toBeUndefined()
+    expect(result.failedAt).toBeUndefined()
 
-    const mTopo = m.topology
-    const dTopo = d.topology
-    expect(mTopo).toBeDefined()
-    expect(dTopo).toBeDefined()
+    const topo = result.topology
+    expect(topo).toBeDefined()
 
-    if (mTopo && dTopo) {
-      const mSources = [...mTopo.entries()].map(([k, v]) => `${String(k)}:${v.source}`).sort()
-      const dSources = [...dTopo.entries()].map(([k, v]) => `${String(k)}:${v.source}`).sort()
-      expect(dSources).toEqual(mSources)
+    if (topo) {
+      const sources = [...topo.entries()].map(([k, v]) => `${String(k)}:${v.source}`).sort()
+      expect(sources.length).toBeGreaterThan(0)
     }
   })
 
-  it('naming 逐 part 两边一致（box terminal）', async () => {
+  it('naming 逐 part 正确产出（box terminal）', async () => {
     const code = [
       'let bp = cad.box(15, 25, 35, { centered: true })',
     ].join('\n')
 
-    const m = await moduleRt.execute(code)
-    const d = await directRt.execute(code)
+    const result = await rt.execute(code)
 
-    expect(m.failedAt).toBeUndefined()
-    expect(d.failedAt).toBeUndefined()
+    expect(result.failedAt).toBeUndefined()
 
-    const mNaming = m.naming
-    const dNaming = d.naming
+    const naming = result.naming
+    expect(naming).toBeDefined()
 
-    // naming 键集合一致
-    const mKeys = mNaming ? [...mNaming.keys()].map(String).sort() : []
-    const dKeys = dNaming ? [...dNaming.keys()].map(String).sort() : []
-    expect(dKeys).toEqual(mKeys)
+    const keys = naming ? [...naming.keys()].map(String).sort() : []
+    expect(keys).toEqual(['bp'])
   })
 
-  it('多终端 BREP 链：brepSolids + topology + naming 两边一致', async () => {
+  it('多终端 BREP 链：brepSolids + topology + naming 正确产出', async () => {
     const code = [
       'let bp = cad.box(10, 10, 10, { centered: true })',
       'let cyl = cad.cylinder(5, 20, { centered: true, segments: 24 })',
       'let result = cad.subtract(bp, cyl)',
     ].join('\n')
 
-    const m = await moduleRt.execute(code)
-    const d = await directRt.execute(code)
+    const result = await rt.execute(code)
 
-    expect(m.failedAt).toBeUndefined()
-    expect(d.failedAt).toBeUndefined()
+    expect(result.failedAt).toBeUndefined()
 
     // brepSolids 键集
-    const mSolids = m.brepSolids ? [...m.brepSolids.keys()].map(String).sort() : []
-    const dSolids = d.brepSolids ? [...d.brepSolids.keys()].map(String).sort() : []
-    expect(dSolids).toEqual(mSolids)
+    const solids = result.brepSolids ? [...result.brepSolids.keys()].map(String).sort() : []
+    expect(solids).toEqual(['bp', 'cyl', 'result'])
 
     // topology 键集 + source
-    const mTopo = m.topology
-    const dTopo = d.topology
-    if (mTopo && dTopo) {
-      const mSources = [...mTopo.entries()].map(([k, v]) => `${String(k)}:${v.source}`).sort()
-      const dSources = [...dTopo.entries()].map(([k, v]) => `${String(k)}:${v.source}`).sort()
-      expect(dSources).toEqual(mSources)
+    const topo = result.topology
+    if (topo) {
+      const sources = [...topo.entries()].map(([k, v]) => `${String(k)}:${v.source}`).sort()
+      expect(sources.length).toBeGreaterThan(0)
     }
 
     // naming 键集
-    const mNaming = m.naming
-    const dNaming = d.naming
-    const mKeys = mNaming ? [...mNaming.keys()].map(String).sort() : []
-    const dKeys = dNaming ? [...dNaming.keys()].map(String).sort() : []
-    expect(dKeys).toEqual(mKeys)
+    const naming = result.naming
+    const keys = naming ? [...naming.keys()].map(String).sort() : []
+    expect(keys).toEqual(['bp', 'cyl', 'result'])
   })
 })

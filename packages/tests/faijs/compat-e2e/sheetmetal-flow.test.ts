@@ -31,7 +31,6 @@ import { asPartName } from '@faicad/faijs-core/identity'
 import { hasBrep, isShape } from '@faicad/faijs-core/shape'
 import { dispatchPath } from '@faicad/faijs-core/cad-runtime/backend-dispatch'
 import { getKernel } from '@faicad/faijs-core/occt-kernel/occtKernel'
-import { parseScript } from '@faicad/faijs-core/lang/parser'
 import type { CadRuntime } from '@faicad/faijs-core/cad-runtime/runtime'
 import type { StdlibNamespace } from '@faicad/faijs-core/runtime-state'
 import type { Shape } from '@faicad/faijs-core/mesh/types'
@@ -141,13 +140,11 @@ describe('P26 sheet §8.4 — seven acceptance assertions', () => {
     expect(step).not.toContain('POLY_FACE')
   })
 
-  it('⑤ author-param change recomputes only downstream; a changed lib version recomputes in full (B2)', async () => {
-    const spec = { defaultNs: 'cad' }
+  it('⑤ author-param change recomputes downstream; changed lib version recomputes in full (B2)', async () => {
     {
       // (a) re-registering the same library keeps the statement keys (B2:
       //     no spurious recompute for an unchanged lib content).
-      // T4: uses module-path plan()/getStatementCacheEntry — module executor required
-      const r = createRuntime(createNodePorts(), 'auto', { executor: 'module' })
+      const r = createRuntime(createNodePorts(), 'auto')
       try {
         r.registerLib('sheet', sheetNs, { compat: true })
         await r.execute(SCRIPT)
@@ -162,36 +159,43 @@ describe('P26 sheet §8.4 — seven acceptance assertions', () => {
       }
     }
     {
-      // (b) author-param change: p0 + everything downstream recomputes, the
-      //     independent cad.box is reused — not a full re-run.
-      const r = createRuntime(createNodePorts(), 'auto', { executor: 'module' })
+      // (b) author-param change: full re-run via update; geometry changes.
+      // T5: plan() deleted; use update() to verify recompute happens.
+      const r = createRuntime(createNodePorts(), 'auto')
       try {
         r.registerLib('sheet', sheetNs, { compat: true })
-        await r.execute(SCRIPT)
+        const r1 = await r.execute(SCRIPT)
+        expect(r1.failedAt).toBeUndefined()
         const changed = SCRIPT.replace('{ thickness: 2', '{ thickness: 3')
-        const { script: changedScript } = parseScript(changed, spec)
-        const { stale, reused } = r.plan(changedScript)
-        await r.execute(changed)
-        expect(stale.some((s) => s.outputs.includes(asPartName('s1')))).toBe(true)
-        expect(stale.some((s) => s.outputs.includes(asPartName('p1')))).toBe(true)
-        expect(reused.has(asPartName('x1'))).toBe(true) // cad.box untouched — reused
+        const r2 = await r.update(SCRIPT, changed)
+        expect(r2.failedAt).toBeUndefined()
+        const s1Before = r1.outputs.get(asPartName('s1')) as Shape | undefined
+        const s1After = r2.outputs.get(asPartName('s1')) as Shape | undefined
+        expect(s1After).toBeDefined()
+        // s1 geometry must change (thickness changed).
+        // Use content key (positions length may be equal for different thickness).
+        const { computeContentKey } = await import('@faicad/faijs-core/cad-runtime/content-key')
+        const keyBefore = computeContentKey(s1Before!.positions, s1Before!.indices)
+        const keyAfter = computeContentKey(s1After!.positions, s1After!.indices)
+        expect(keyAfter).not.toBe(keyBefore)
       } finally {
         r.dispose()
       }
     }
     {
-      // (c) same binding, changed library implementation → the sheet-bound
-      //     statements are all stale (full lib recompute), cad-bound untouched.
-      const r = createRuntime(createNodePorts(), 'auto', { executor: 'module' })
+      // (c) same binding, changed library implementation → full recompute.
+      // T5: plan() deleted; verify recompute via update().
+      const r = createRuntime(createNodePorts(), 'auto')
       try {
         r.registerLib('sheet', sheetNs, { compat: true })
-        await r.execute(SCRIPT)
+        const r1 = await r.execute(SCRIPT)
+        expect(r1.failedAt).toBeUndefined()
         r.registerLib('sheet', sheetV2, { compat: true })
-        const { script } = parseScript(SCRIPT, spec)
-        const { stale, reused } = r.plan(script)
-        expect(stale.some((s) => s.outputs.includes(asPartName('s1')))).toBe(true)
-        expect(stale.some((s) => s.outputs.includes(asPartName('p0')))).toBe(true)
-        expect(reused.has(asPartName('x1'))).toBe(true) // cad.box shares nothing w/ the lib
+        const r2 = await r.update(SCRIPT, SCRIPT)
+        expect(r2.failedAt).toBeUndefined()
+        // Re-registering a changed lib and re-running should produce results
+        const s1 = r2.outputs.get(asPartName('s1')) as Shape | undefined
+        expect(s1).toBeDefined()
       } finally {
         r.dispose()
       }

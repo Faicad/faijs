@@ -38,8 +38,6 @@ import {
 import { adoptEntity } from '@faicad/faijs-core/api/internal/l3-bridge'
 import { getKernel } from '@faicad/faijs-core/occt-kernel/occtKernel'
 import type { CadRuntime } from '@faicad/faijs-core/cad-runtime/runtime'
-import { parseScript } from '@faicad/faijs-core/lang/parser'
-
 beforeAll(async () => {
   await registerOcctBrepEngine()
 }, 120000)
@@ -229,20 +227,27 @@ describe('③ incremental lib-content identity', () => {
     }
   })
 
-  it('changing the library surf causes stale + downstream recompute', async () => {
+  it('changing the library surface causes downstream recompute', async () => {
     const runtime = createRuntime(createNodePorts(), 'auto')
     try {
       runtime.registerLib('gear', libA(), { compat: true })
-      await runtime.execute(CODE)
+      const r1 = await runtime.execute(CODE)
+      expect(r1.failedAt).toBeUndefined()
+      const g1 = r1.outputs.get(asPartName('g')) as Shape | undefined
+
       // replace with the changed implementation
       runtime.registerLib('gear', libB(), { compat: true })
-
-      const { script } = parseScript(CODE) // same text, new library identity available
-      const { stale, reused } = runtime.plan(script)
-      expect(stale.length).toBeGreaterThan(0)
-      // downstream must be re-executed as well (h depends on g)
-      expect(stale.some((s) => s.outputs.includes(asPartName('h')))).toBe(true)
-      expect(reused.size).toBe(0)
+      // T5: plan() deleted with IR; use update(full-replay) to verify recompute
+      const r2 = await runtime.update(CODE, CODE)
+      expect(r2.failedAt).toBeUndefined()
+      const g2 = r2.outputs.get(asPartName('g')) as Shape | undefined
+      expect(g2).toBeDefined()
+      // The geometry must change (libB uses size*2 for width).
+      // Use content key comparison (positions length may be equal for different box dims).
+      const { computeContentKey } = await import('@faicad/faijs-core/cad-runtime/content-key')
+      const key1 = computeContentKey(g1!.positions, g1!.indices)
+      const key2 = computeContentKey(g2!.positions, g2!.indices)
+      expect(key2).not.toBe(key1)
     } finally {
       runtime.dispose()
     }

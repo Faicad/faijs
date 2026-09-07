@@ -5,7 +5,7 @@
  * module-namespace 子对象 `mockBrep`。computeLibId 对任意导出值做 `String()`
  * 时，module-namespace exotic 对象（无 toString/toPrimitive）会抛
  * "Cannot convert object to primitive value"，直接炸掉 registerLib/register 过程。
- * 本测试以完整命名空间走 executeIR → autoLoadLibs → registerLib 链路，
+ * 本测试以完整命名空间走 execute → autoLoadLibs → registerLib 链路，
  * 证明整包装载、库调用、cad.union 全链路可用。
  */
 

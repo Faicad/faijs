@@ -70,7 +70,7 @@ export type { AssemblySolveResult } from './assembly/solve'
 // brepjs utils/quaternion.ts，输出经 api/assembly/pose.ts fromBrepjsQuat 重排。
 
 // 应用变换（mesh 顶点烘焙）下沉到引擎侧 src/mesh/rigid-transform.ts（E-b：
-// module-executor 不得 import stdlib/compound；公共 API 经本 re-export 保持）。
+// 引擎不得 import stdlib/compound；公共 API 经本 re-export 保持）。
 export { applyTransform } from '../mesh/rigid-transform'
 
 // ── AssemblyBehavior ──

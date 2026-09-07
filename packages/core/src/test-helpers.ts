@@ -5,9 +5,9 @@
  * 从 script-engine/replay-validator.ts 迁移（原名 replayScript，已改名对齐 roadmap §3.6）。
  *
  * Phase 2.5：executeScript 改用 CadRuntime（VM 执行），不再依赖 src/ops/dispatcher 的 executeStatement。
+ * executeScript 接受代码文本，走 CadRuntime.execute（无 IR 中间层）。
  */
 
-import type { ScriptIR } from './lang/types'
 import type { Shape } from './mesh/types'
 import type { BrepChainState } from './brep/brep-chain'
 import { createRuntime } from './cad-runtime/runtime'
@@ -37,10 +37,10 @@ function defaultPorts(): HostPorts {
 }
 
 /**
- * Execute a script through the CadRuntime (VM) and return the final shape,
- * its content key, and the resulting BREP chain state.
+ * Execute a script through the CadRuntime (direct path) and return the final
+ * shape, its content key, and the resulting BREP chain state.
  *
- * @param script - the compiled script IR to execute.
+ * @param code - the .fai.js source text to execute.
  * @param params - optional execution parameters.
  * @param ports - optional host ports (defaults to a no-op events sink).
  * @param mode - optional execution mode.
@@ -48,7 +48,7 @@ function defaultPorts(): HostPorts {
  * @returns the final shape, content key, and BREP chain state.
  */
 export async function executeScript(
-  script: ScriptIR,
+  code: string,
   params?: Record<string, unknown>,
   ports?: HostPorts,
   mode?: ExecutionMode,
@@ -56,16 +56,17 @@ export async function executeScript(
 ): Promise<ExecuteOutput> {
   // P5/E-a-1：测试辅助注入 cad 命名空间（core 不默认装配；test-helpers 只被测试消费）
   const runtime = createRuntime(ports ?? defaultPorts(), mode, { cad: await getCadLib() })
-  const result = await runtime.executeIR(script, { params })
+  const result = await runtime.execute(code, { params })
 
-  const newShapeStmts = script.statements.filter((s) => s.hasAssignment)
-  if (newShapeStmts.length === 0) {
-    throw new Error(`[executeScript] empty script — no geometry statements`)
+  // 从 outputs 中取最后一个 shape（与原逻辑一致）
+  const shapeNames = [...result.outputs.keys()]
+  if (shapeNames.length === 0) {
+    throw new Error(`[executeScript] empty result — no geometry outputs`)
   }
-  const lastStmt = newShapeStmts[newShapeStmts.length - 1]
-  const finalShape = result.outputs.get(lastStmt.outputs[0])!
+  const finalName = shapeNames[shapeNames.length - 1]
+  const finalShape = result.outputs.get(finalName)!
   if (!('positions' in finalShape) || !('indices' in finalShape)) {
-    throw new Error(`[executeScript] final output "${lastStmt.outputs[0]}" is not a mesh shape`)
+    throw new Error(`[executeScript] final output "${finalName}" is not a mesh shape`)
   }
   const contentKey = computeContentKey(finalShape.positions, finalShape.indices)
 

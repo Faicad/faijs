@@ -2,7 +2,7 @@
  * Multi-mesh .fai.js tests — test multi-mesh DAG and multiple returns
  *
  * For each .fai.js file in test/faijs/multi-mesh/:
- * 1. Parse with parseScript
+ * 1. Analyze with analyzeCode (syntax check + statement summary)
  * 2. Execute with createRuntime (mesh mode)
  * 3. Verify multiple terminal shapes
  *
@@ -13,7 +13,7 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { parseScript } from '@faicad/faijs-core/lang/parser'
+import { analyzeCode } from '@faicad/faijs-core/lang/statement-summary'
 import { createRuntime } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
 import { registerOcctBrepEngine } from '@faicad/faijs'
@@ -53,14 +53,13 @@ describe('multi-mesh .fai.js tests', () => {
     const code = readFileSync(filePath, 'utf-8')
 
     it(`${file}: parses successfully`, () => {
-      const { script } = parseScript(code)
-      expect(script.statements.length).toBeGreaterThan(0)
+      const summaries = analyzeCode(code)
+      expect(summaries.length).toBeGreaterThan(0)
     })
 
     it(`${file}: executes in mesh mode → multiple terminal shapes`, async () => {
-      const { script } = parseScript(code)
       const runtime = createRuntime(createNodePorts(), 'mesh')
-      const result = await runtime.executeIR(script)
+      const result = await runtime.execute(code)
 
       expect(result.failedAt).toBeUndefined()
 

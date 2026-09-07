@@ -23,13 +23,12 @@
  */
 
 import { parse as acornParse } from 'acorn'
-import type { Namespaces } from './module-executor'
+import type { StdlibNamespace } from '../runtime-state'
 import type { PartName } from '../identity'
 import { asPartName } from '../identity'
 import { ParseError } from '../lang/parse-error'
-import { setCurrentStmt, setKeepSink, setName, getBackends, takePendingAssemblyTransforms, takePendingAssemblyKinematics, type AssemblyKinematicsPose } from '../runtime-state'
+import { setCurrentStmt, setKeepSink, setName, getBackends, takePendingAssemblyTransforms, takePendingAssemblyKinematics, type AssemblyKinematicsPose, type ExecutionAnchor } from '../runtime-state'
 import { ExecutionLimitError } from './execution-limit-error'
-import type { StatementIR } from '../lang/types'
 import { getSlot, ensureSlot, brepOf } from '../shape'
 import type { Shape } from '../mesh/types'
 import type { BrepHandle } from '../brep/engine/types'
@@ -38,6 +37,17 @@ import { applyTransform } from '../mesh/rigid-transform'
 import { applyTransformBrep } from '../brep/brep-ops'
 
 type ASTNode = any
+
+// ── Namespaces ──
+
+/**
+ * 已装配的命名空间集合（标准库 `cad` + 宿主注册的库）。
+ * DirectExecutor 经 ns.<binding>.<callee>() 调用——引擎不区分函数来自哪个库。
+ */
+export interface Namespaces {
+  readonly cad: StdlibNamespace
+  readonly [binding: string]: StdlibNamespace
+}
 
 // ── 结果类型 ──
 
@@ -111,7 +121,7 @@ interface TransformedUnit {
   isBlock?: boolean
 }
 
-/** 函数体 keep 登记（与 module-executor.internalKeep 同构；键 = 单元行号）。 */
+/** 函数体 keep 登记（键 = 单元行号）。 */
 export interface ExecKeepRecord {
   kept: Set<PartName>
   hidden: Map<PartName, boolean>
@@ -406,8 +416,8 @@ export class DirectExecutor {
   /**
    * Append 前缀校验（runtime 层 AppendPrefixError 语义保留，E2）：把待 append 的
    * 新语句拼到 fullCode 后解析，对「尚未执行」的单元逐个校验 refs——引用必须已由
-   * 持久 ctx（先前执行产出）或本批更早单元产出。与 module-executor 的
-   * assertAppendPrefix 同语义；缺引用 → 返回首个 {unitLine, varName}。
+   * 持久 ctx（先前执行产出）或本批更早单元产出。缺引用
+   * → 返回首个 {unitLine, varName}。
    * @param code - 待 append 的新语句文本（runtime 传新行）。
    * @returns 首个缺失引用；无缺失返回 undefined。
    */
@@ -428,11 +438,9 @@ export class DirectExecutor {
 
   /**
    * 应用待处理装配变换（R11②，P1）：取走 takePendingAssemblyTransforms 的全部登记，
-   * 对 compound 成员做 mesh 顶点烘焙 + BREP 刚体变换。与 module-executor 的
-   * applyPendingAssemblyTransforms 同数学（p' = R·(p−pivot) + pivot + translation），
+   * 对 compound 成员做 mesh 顶点烘焙 + BREP 刚体变换（p' = R·(p−pivot) + pivot + translation），
    * 差异：direct 模式无 DAG → 不做 computeDownstream 下游失效重算。
-   * T3/T4：变换后同步身份槽 → solidCache（setSolidHook）并登记 changedSet，
-   * 与 ModuleExecutor 路径的 slot→solidCache 同步 / exec.changed 同语义。
+   * T3/T4：变换后同步身份槽 → solidCache（setSolidHook）并登记 changedSet。
    */
   private applyPendingAssemblyTransforms(): void {
     const pending = takePendingAssemblyTransforms()
@@ -479,13 +487,12 @@ export class DirectExecutor {
     const src = `return (async () => {\n${unit.body}\n})()`
     const fn = new Function('__ctx', '__ns', src)
     // 执行锚点：库函数体 exec.keep / primitive 命名读 getCurrentStmt()?.outputs
-    // ——DirectExecutor 无 StatementIR，用「行号 + 本单元写键」的轻量锚点（P4 过渡，
-    // 不构造 IR 语句；库只读 id/outputs 两个字段，见 runtime-state / api）。
-    const anchor = {
+    // ——用 ExecutionAnchor 轻量锚点（行号 + 写键）。
+    const anchor: ExecutionAnchor = {
       id: `s${unit.lineNo}`,
-      outputs: unit.writes,
+      outputs: unit.writes.map((w) => w as PartName),
       hasAssignment: unit.writes.length > 0,
-    } as unknown as StatementIR
+    }
     setCurrentStmt(anchor)
     try {
       await fn(this.ctx, this.namespaces)

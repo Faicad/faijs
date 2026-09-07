@@ -75,22 +75,20 @@ describe('cliCheck: dryRun validation', () => {
     expect(result.errors[0].stage).toBe('parse')
   })
 
-  it('invalid .fai.js (symbol error: unknown callee) → ok=false (module path)', async () => {
+  it('invalid .fai.js (unknown callee) → check ok=true (syntax gate only, runtime exposes)', async () => {
     const badCode = `export default async (cad) => {
   const part0 = cad.bogusFn({ size: 20 })
   return { shape: part0 }
 }`
     const tmpFile = resolve(TMP_DIR, 'bad-symbol.fai.js')
     writeFileSync(tmpFile, badCode)
-    // T4: check() 缺省走语法门禁（direct），未知 callee 放行 → ok=true。
-    // 保留 module 路径行为对照：显式指定 executor='module' 做符号预检。
+    // T5: check() only does syntax gating (acorn parse + statement summary).
+    // Unknown callees pass check and surface at runtime.
     const { createRuntime } = await import('../cad-runtime/runtime')
     const ports = { events: { emit: () => {} } } as never
-    const runtime = createRuntime(ports, undefined, undefined, { executor: 'module' })
+    const runtime = createRuntime(ports, undefined, undefined)
     const result = runtime.check(badCode)
-    expect(result.ok).toBe(false)
-    const symbolErrors = result.errors.filter((e) => e.stage === 'symbol')
-    expect(symbolErrors.length).toBeGreaterThan(0)
+    expect(result.ok).toBe(true)
     runtime.dispose()
   })
 })

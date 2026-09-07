@@ -13,7 +13,6 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest'
-import { parseScript } from '../../lang/parser'
 import { createRuntime } from '@faicad/faijs'
 import type { ExecutionResult } from '../../cad-runtime/runtime'
 import type { HostPorts } from '../../cad-runtime/ports'
@@ -43,9 +42,8 @@ async function runWithEngine(
   __resetEngineRegistriesForTests()
   await register()
   expect(getActiveBrepEngineId()).toBe(expectedEngineId)
-  const { script } = parseScript(SCRIPT)
   const runtime = createRuntime(createNodePorts(), 'brep')
-  return runtime.executeIR(script)
+  return runtime.execute(SCRIPT)
 }
 
 describe('occt 引擎（默认实现）', () => {

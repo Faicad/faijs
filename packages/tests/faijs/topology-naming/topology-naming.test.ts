@@ -273,12 +273,10 @@ describe('topology naming .fai.js integration', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     try {
-      await runtime.execute(code, { topology: 'auto' })
-      expect.unreachable('topoRef resolution should have failed')
-    } catch (e) {
-      const err = e as { code?: string; refKind?: string }
-      expect(err.code).toBe('E_TOPO_NOT_FOUND')
-      expect(err.refKind).toBe('face')
+      // T5 direct-only: execution errors land in failedAt (no re-throw)
+      const result = await runtime.execute(code, { topology: 'auto' })
+      expect(result.failedAt).toBeDefined()
+      expect(result.failedAt!.message).toMatch(/not found/i)
     } finally {
       warnSpy.mockRestore()
       errorSpy.mockRestore()

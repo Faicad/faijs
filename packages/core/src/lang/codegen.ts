@@ -1,43 +1,27 @@
 /**
- * codegen — IR → 文本 打印工具（宿主编辑器/测试用；L0，仅依赖 ./types）
+ * codegen — 纯数据 → 文本 打印工具（宿主编辑器/测试用；L0，仅依赖 host-arg）
  *
- * 设计文档：docs/syntax-design.md §2（扁平代码格式）
+ * 宿主 buildCode / 编辑重排行（editStatement → replaceCodeAt）统一走此入口。
+ * 输入是纯数据（HostArg 面），不依赖任何 IR 类型。
  *
- * 事实方向：代码文本是唯一事实源；IR 是 parser 从文本编译出的内部表示。
- * 本模块只是把 IR 承载的信息机械地打印回扁平文本，供宿主编辑器显示与
- * 往返测试（S-5 不变式）——它是打印工具，不是文本的来源；文本并不
- * "由 IR 生成"。
- *
- * 职责：
- * - statementIRToLine(stmt)：按 IR 机械打印单行语句（用于 TimelinePanel 显示和导出）
- * - scriptIRToCode(script)：按语句顺序拼接为代码文本（无 export/return 封装）
- *
- * 扁平代码格式（无 export default / async / await / return / apiVersion）：
+ * 扁平代码格式（无 export/async/await/return/参数声明）：
  * ```js
  * let part0 = cad.box(10, 20, 30)
  * part0 = cad.translate(part0, { offset: [1, 2, 3] })
  * ```
  *
- * 约束（语言正常化后）：
- * - 纯函数、无副作用，便于单测
- * - 无 per-callee 分支（A12 消灭）：按 IR 形态机械打印，IR 里有什么打印什么
- * - terminal shapes 自动推导：不被任何其他语句引用的输出即终端
- *
- * 值格式约定（确定性输出，与 parser 的解析方向互补）：
+ * 值格式约定（确定性输出）：
  * - vec3 → `[1,2,3]`（紧凑无空格）
  * - 数字 → 整数直出；小数最多保留 6 位有效小数并去尾零
  * - 字符串 → 单引号包裹
- * - ParamRefIR → 裸标识符 `name`（无 $ 前缀）
- * - VarRefIR → 裸变量名（members 元素）
- * - CallRefIR → `cad.faceNormal(part0)`（嵌套调用）
+ * - HostVarRef → 裸变量名（members 元素）
+ * - HostCallRef → `cad.faceNormal(part0)`（嵌套调用）
+ * - HostExprRef → `(expr text)`（原文加括号）
  * - 对象字面量 → `{key:value}`（冒号，合法 JS）
  */
 
-import type { ArgIR, StatementIR, ScriptIR, ParamRefIR, VarRefIR, CallRefIR, ImportIR, FunctionDefIR, ExprIR } from './types'
-import type { PartName } from '../identity'
-import { isParamRef, isVarRef, isCallRef, isExprRef } from './types'
 import type { HostArg } from './host-arg'
-import { hostArgToIR } from './host-arg'
+import { isHostVarRef, isHostParamRef, isHostCallRef, isHostExprRef, isHostRef } from './host-arg'
 
 // ── 数值格式化 ──
 
@@ -54,28 +38,11 @@ export function fmtNum(n: number): string {
   return s.replace(/\.?0+$/, '')
 }
 
-/** 参数值 → 文本（递归） */
-function fmtValue(value: ArgIR, varNames?: Map<string, string>): string {
-  if (value === null) return 'null'
-  if (typeof value === 'number') return fmtNum(value)
-  if (typeof value === 'boolean') return String(value)
-  if (typeof value === 'string') return `'${escapeStr(value)}'`
-  if (isParamRef(value)) return fmtParamRef(value)
-  if (isVarRef(value)) return fmtVarRef(value, varNames)
-  if (isCallRef(value)) return fmtCallRef(value, varNames)
-  // ExprIR → 原文（往返保真；<text> 是合法 JS 表达式，加括号保证与相邻 tokens 不粘连）
-  if (isExprRef(value)) return `(${(value as ExprIR).$expr.text})`
-  if (Array.isArray(value)) return `[${value.map(v => fmtValue(v, varNames)).join(',')}]`
-  if (typeof value === 'object') {
-    const entries = Object.entries(value as Record<string, ArgIR>)
-    return `{${entries.map(([k, v]) => `${k}:${fmtValue(v, varNames)}`).join(', ')}}`
-  }
-  return String(value)
-}
+// ── 字符串转义 ──
 
 /** 字符串转义：转义反斜杠、单引号与控制字符（多行 SDF code 等字符串参数用）。
  *  逐一字符映射（避开 regex 控制字符字面量，满足 eslint no-control-regex），
- *  保证 fmtValue ⇄ analyzeCode 往返一致：嵌入 '…' 后仍是合法 JS，可被 parser 精确还原。 */
+ *  保证 fmtValue ⇄ analyzeCode 往返一致：嵌入 '…' 后仍是合法 JS，可被精确还原。 */
 const STRING_ESCAPES: Record<string, string> = {
   '\\': '\\\\',
   "'": "\\'",
@@ -96,158 +63,35 @@ function escapeStr(s: string): string {
   return out
 }
 
-/** ParamRefIR → 裸标识符 `name`（文本形式中无 $ 前缀，合法 JS） */
-function fmtParamRef(ref: ParamRefIR): string {
-  return ref.$param
-}
-
-/** VarRefIR → 裸变量名（已声明变量，如 group/assembly 的 members 元素） */
-function fmtVarRef(ref: VarRefIR, varNames?: Map<string, string>): string {
-  return varNames?.get(ref.$ref) ?? ref.$ref
-}
-
-/** CallRefIR → `<ns>.<callee>(<args>)`（嵌套调用，如 cad.faceNormal(part0)；F2 放开命名空间） */
-function fmtCallRef(ref: CallRefIR, varNames?: Map<string, string>): string {
-  const { callee, args, namespace } = ref.$call
-  const inner = args.map((a) => fmtValue(a, varNames)).join(', ')
-  return `${namespace ?? 'cad'}.${callee}(${inner})`
-}
-
-// ── 语句 args → key:value 片段数组 ──
-
-/**
- * 通用 args 打印机（A12 消灭）：IR 里的每个键按原样打印，无 callee 分支、无默认值省略。
- * 设计文档 §4.4：比现状更忠实（现状会把显式写的 nRad: 32 吞掉）。
- */
-/**
- * Generic args printer (A12 removal): print every key in the IR as-is, with no
- * per-callee branching and no default-value omission.
- * @param stmt - the statement whose args to print.
- * @param varNames - optional mapping from IR variable names to printed names.
- * @returns an array of `key:value` fragment strings.
- */
-export function buildIRArgsParts(stmt: StatementIR, varNames?: Map<string, string>): string[] {
-  return Object.entries(stmt.args).map(([k, v]) => `${k}:${fmtValue(v, varNames)}`)
-}
-
-// ── 语句 → 代码行 ──
-
-/** 从语句获取主输出变量名（单输出取 outputs[0]；无输出回退 stmt.id） */
-function primaryOutput(stmt: StatementIR): string {
-  return stmt.outputs[0] ?? stmt.id
-}
-
-/**
- * 按 IR 形态机械打印单条语句（A12 消灭：无 callee 分支）。
- *
- * 位置实参槽（true-JS-subset §4.6.1）：positional 逐元素按 ArgIR 形态打印
- * （变量名 / 字面量 / 对象 / 嵌套调用 / ExprIR 原文加括号）——IR 里有什么打印什么。
- * positional 为空时回退 args 槽打印（手工构造 IR 只填 args 的旧形态兼容路径）。
- *
- * 1) 解构：outputKeys + outputs 一一对应
- * 2) 成员调用：receiver
- * 3) 无赋值调用
- * 4) 赋值：outputs[0] 已声明 → 裸重赋值；未声明 → let 声明
- */
-function printStatement(stmt: StatementIR, declared: Set<string>, varNames: Map<string, string>): string {
-  // 位置实参：VarRefIR 经 varNames 解析（解析失败 = ScriptIR 不自包含，保持原严格性）；
-  // 纯对象位置实参（选项槽）按 args 槽风格打印 `{ k:v, ... }`（大括号内侧空格、键后无空格）。
-  const isPlainObj = (arg: ArgIR): boolean =>
-    arg !== null && typeof arg === 'object' && !Array.isArray(arg) &&
-    !isParamRef(arg) && !isVarRef(arg) && !isCallRef(arg) && !isExprRef(arg)
-  const positionalParts = (stmt.positional ?? []).map((arg) => {
-    if (isVarRef(arg)) {
-      const mapped = varNames.get(arg.$ref)
-      if (mapped === undefined) {
-        throw new Error(`[codegen] unresolved input reference "${arg.$ref}" — ScriptIR is not self-contained`)
-      }
-      return mapped
-    }
-    if (isPlainObj(arg)) {
-      const entries = Object.entries(arg as Record<string, ArgIR>)
-      return `{ ${entries.map(([k, v]) => `${k}:${fmtValue(v, varNames)}`).join(', ')} }`
-    }
-    return fmtValue(arg, varNames)
-  })
-  const argsParts = buildIRArgsParts(stmt, varNames)
-  const positional = stmt.positional ?? []
-  const lastIsPlainObject = positional.length > 0 && isPlainObj(positional[positional.length - 1])
-  let callArgs: string
-  if (positionalParts.length > 0) {
-    callArgs = positionalParts.join(', ')
-    // 手工构造 IR 的过渡兼容：positional 尾位不是纯对象而 args 槽非空 → args 作为
-    // 独立选项槽追加（positional 含尾随纯对象时 args 是其投影，不重复打印）。
-    if (!lastIsPlainObject && argsParts.length > 0) {
-      callArgs = [...positionalParts, `{ ${argsParts.join(', ')} }`].join(', ')
-    }
-  } else if (stmt.receiver) {
-    callArgs = argsParts.length > 0 ? `{ ${argsParts.join(', ')} }` : ''
-  } else {
-    callArgs = argsParts.length > 0 ? `{ ${argsParts.join(', ')} }` : '{}'
+/** 参数值 → 文本（递归，HostArg 面） */
+function fmtValue(value: HostArg): string {
+  if (value === null) return 'null'
+  if (typeof value === 'number') return fmtNum(value)
+  if (typeof value === 'boolean') return String(value)
+  if (typeof value === 'string') return `'${escapeStr(value)}'`
+  if (isHostVarRef(value)) return value.name
+  if (isHostParamRef(value)) return value.name
+  if (isHostCallRef(value)) {
+    const { callee, args, namespace } = value
+    const inner = args.map(fmtValue).join(', ')
+    return `${namespace ?? 'cad'}.${callee}(${inner})`
   }
-  // F2：命名空间前缀（缺省 cad）；本机函数调用（local）callee 无命名空间前缀（§3.4 / §7.2）
-  const nsExpr = stmt.local ? stmt.callee : `${stmt.namespace ?? 'cad'}.${stmt.callee}`
-
-  // 1) 解构：outputKeys + outputs 一一对应
-  if (stmt.outputKeys && stmt.outputKeys.length > 0) {
-    const destructure = stmt.outputKeys.map((k, i) => `${k}: ${stmt.outputs[i]}`).join(', ')
-    return `const { ${destructure} } = ${nsExpr}(${callArgs})`
+  if (isHostExprRef(value)) return `(${value.text})`
+  if (Array.isArray(value)) return `[${value.map(fmtValue).join(',')}]`
+  if (typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, HostArg>)
+    return `{${entries.map(([k, v]) => `${k}:${fmtValue(v)}`).join(', ')}}`
   }
-
-  // 2) 成员调用
-  if (stmt.receiver) {
-    return `${stmt.receiver}.${stmt.callee}(${callArgs})`
-  }
-
-  // 3) 无赋值调用
-  if (stmt.outputs.length === 0) {
-    return `${nsExpr}(${callArgs})`
-  }
-
-  // 4) 赋值：outputs[0] 已声明 → 裸重赋值；未声明 → let 声明
-  const out = stmt.outputs[0]
-  if (declared.has(out)) return `${out} = ${nsExpr}(${callArgs})`
-  declared.add(out)
-  return `let ${out} = ${nsExpr}(${callArgs})`
+  return String(value)
 }
 
-/**
- * 将单条语句转为可读代码行（用于 TimelinePanel 显示和导出）。
- *
- * 输出格式：`let part0 = cad.op(inputs, { key: value, ... })`（positional 逐元素打印）
- * - 多输出解构输出 `const { front: out0, back: out1 } = cad.fai_split(input, { ... })`
- * - 成员调用输出 `assem1.add_constraint({ ... })` / `assem1.do_assemble()`
- */
-/**
- * Convert a single statement into a readable code line (used by the timeline
- * panel display and export).
- * @param stmt - the statement to print.
- * @returns the printed single-line code text.
- */
-export function statementIRToLine(stmt: StatementIR): string {
-  // statementIRToLine passes IR directly; formatCodeLine's hostArgToIR will
-  // treat IR marker objects ({$ref}, {$param}, etc.) as plain literals since
-  // they lack `kind` fields — they pass through unchanged, which is correct
-  // because printStatement expects IR.
-  return formatCodeLine({
-    callee: stmt.callee,
-    ...(stmt.receiver !== undefined ? { receiver: stmt.receiver } : {}),
-    positional: (stmt.positional ?? []) as unknown as HostArg[],
-    outputs: stmt.outputs,
-    ...(stmt.outputKeys !== undefined ? { outputKeys: stmt.outputKeys } : {}),
-    args: stmt.args as unknown as Record<string, HostArg>,
-  })
-}
-
-// ── 纯数据 → 代码行（宿主代码生成入口，IR 剥离配套） ──
+// ── 纯数据 → 代码行（宿主代码生成入口） ──
 
 /**
- * Pure-data input for printing one faijs source line, decoupled from IR types
- * (IR-strip companion for the host code-generation entry point).
+ * Pure-data input for printing one faijs source line, decoupled from IR types.
  *
  * `positional` and `args` use `HostArg` (host-friendly types with `kind`-based
- * discrimination). The `formatCodeLine` entry converts them to IR via
- * `hostArgToIR` before delegating to the existing codegen logic.
+ * discrimination).
  */
 export interface FormatCodeLineInput {
   callee: string
@@ -278,120 +122,68 @@ export interface FormatCodeLineInput {
   outputDeclared?: boolean
 }
 
+/** 检测 HostArg 是否为纯数据对象（非引用形态）。 */
+function isPlainObjArg(arg: HostArg): boolean {
+  return arg !== null && typeof arg === 'object' && !Array.isArray(arg) && !isHostRef(arg)
+}
+
 /**
  * 从纯数据（非 IR 类型）打印一行 faijs 源代码。
  *
- * 宿主 buildCode / 编辑重排行（editStatement → replaceCodeAt）统一走此入口，
- * 与 statementIRToLine/scriptIRToCode 共用同一打印机（单一文本形态真源）。
- */
-/**
- * Print one line of faijs source from pure data (non-IR types). Hosts building
- * code or reflowing edits (editStatement → replaceCodeAt) all route through
- * this entry, sharing the same printer as statementIRToLine/scriptIRToCode.
+ * 宿主 buildCode / 编辑重排行（editStatement → replaceCodeAt）统一走此入口。
  * @param input - the pure-data line description.
  * @returns the printed single-line code text.
  */
 export function formatCodeLine(input: FormatCodeLineInput): string {
-  // HostArg → IR 脱壳（入口转换，后续 codegen 逻辑零改动）
-  const positional = input.positional.map(hostArgToIR)
+  const positional = input.positional
   const argsInput: Record<string, HostArg> = input.args ?? {}
-  const argsSlot: Record<string, ArgIR> = {}
-  for (const [k, v] of Object.entries(argsInput)) {
-    argsSlot[k] = hostArgToIR(v)
-  }
-  // 过渡兼容：positional 末位已是纯对象时 args 视为同一对象（其投影，不重复打印）；
-  // 尾位不是纯对象且 args 非空 → args 作为独立选项槽由 printStatement 追加；
-  // positional 为空时 args 走旧兜底路径打印。
-  const last = positional[positional.length - 1]
-  const lastIsPlainObject =
-    last !== null && typeof last === 'object' && !Array.isArray(last) &&
-    !isVarRef(last) && !isCallRef(last) && !isExprRef(last) && !isParamRef(last)
-  const finalArgsSlot: Record<string, ArgIR> = lastIsPlainObject
-    ? (last as unknown as Record<string, ArgIR>)
-    : argsSlot
-  const stmt: StatementIR = {
-    id: '__fmt__' as never,
-    callee: input.callee,
-    ...(input.receiver !== undefined ? { receiver: input.receiver as PartName } : {}),
-    ...(input.namespace !== undefined ? { namespace: input.namespace } : {}),
-    positional,
-    outputs: input.outputs as PartName[],
-    ...(input.outputKeys !== undefined ? { outputKeys: input.outputKeys } : {}),
-    args: finalArgsSlot,
-  }
-  const varNames = new Map<string, string>()
-  for (const arg of positional) {
-    if (isVarRef(arg)) varNames.set(arg.$ref, arg.$ref)
-  }
-  const declared = new Set<string>()
-  if (input.outputDeclared && input.outputs[0] !== undefined) declared.add(input.outputs[0])
-  return printStatement(stmt, declared, varNames)
-}
 
-// ── 脚本 → 扁平代码 ──
-
-/** ImportIR → 源码 import 行（F2 往返打印）。 */
-function fmtImport(imp: ImportIR): string {
-  switch (imp.kind) {
-    case 'namespace':
-      return `import * as ${imp.localName} from '${imp.specifier}'`
-    case 'default':
-      return `import ${imp.localName} from '${imp.specifier}'`
-    case 'named':
-      return `import { ${(imp.bindings ?? [imp.localName]).join(', ')} } from '${imp.specifier}'`
-  }
-}
-
-/** FunctionDefIR → 源码函数定义（A1 往返打印；body 保留原文切片，含花括号内换行/缩进，
- *  直接夹在 `{` 与 `}` 之间即可逐位还原原始函数定义）。 */
-function fmtFunction(fn: FunctionDefIR): string {
-  const params = fn.params.length > 0 ? fn.params.join(', ') : ''
-  return `function ${fn.name}(${params}) {${fn.body}}`
-}
-
-/**
- * 将整个 ScriptIR 按语句顺序拼接为扁平代码文本。
- *
- * 无 export/async/await/return/参数声明。
- * terminal shapes 自动推导：不被引用的输出即终端（不在代码中标注）。
- * F2：顶层 import 段打印回文件头（往返保真）。
- * A1：顶层函数定义段打印回 import 之后、语句之前（往返保真）。
- */
-/**
- * Concatenate an entire ScriptIR into flat code text in statement order. No
- * export/async/await/return or parameter declarations are emitted; terminal
- * shapes are auto-derived (unreferenced outputs are not annotated in code).
- * @param script - the script IR to print.
- * @returns the assembled flat code text.
- */
-export function scriptIRToCode(script: ScriptIR): string {
-  const bodyLines: string[] = []
-  const varNames = new Map<string, string>()
-  /** 已声明过的变量名集合（用于区分 let 首次声明 vs let 重赋值） */
-  const declared = new Set<string>()
-
-  // 参数声明：输出为 const name = literal
-  for (const p of script.params) {
-    bodyLines.push(`const ${p.name} = ${fmtValue(p.value as ArgIR)}`)
-    varNames.set(p.name, p.name)
-    declared.add(p.name)
-  }
-
-  for (const stmt of script.statements) {
-    bodyLines.push(printStatement(stmt, declared, varNames))
-    // 将 outputs 中的每个 partName 映射到自身，使下游 inputs 能解析
-    for (const outId of stmt.outputs) {
-      varNames.set(outId, outId)
+  // 位置实参按序打印
+  const positionalParts = positional.map((arg) => {
+    if (isPlainObjArg(arg)) {
+      const entries = Object.entries(arg as Record<string, HostArg>)
+      return `{ ${entries.map(([k, v]) => `${k}:${fmtValue(v)}`).join(', ')} }`
     }
-    if (stmt.outputs.length === 0) {
-      varNames.set(stmt.id, primaryOutput(stmt))
+    return fmtValue(arg)
+  })
+
+  // args 槽（过渡兼容：positional 末位非纯对象时追加为独立选项槽）
+  const argsParts = Object.entries(argsInput).map(([k, v]) => `${k}:${fmtValue(v)}`)
+  const lastIsPlainObject = positional.length > 0 && isPlainObjArg(positional[positional.length - 1])
+
+  let callArgs: string
+  if (positionalParts.length > 0) {
+    callArgs = positionalParts.join(', ')
+    if (!lastIsPlainObject && argsParts.length > 0) {
+      callArgs = [...positionalParts, `{ ${argsParts.join(', ')} }`].join(', ')
     }
+  } else if (input.receiver) {
+    callArgs = argsParts.length > 0 ? `{ ${argsParts.join(', ')} }` : ''
+  } else {
+    callArgs = argsParts.length > 0 ? `{ ${argsParts.join(', ')} }` : '{}'
   }
 
-  const body = bodyLines.join('\n')
-  const imports = (script.imports ?? []).map(fmtImport).join('\n')
-  const functions = (script.functions ?? []).map(fmtFunction).join('\n')
-  const head = [imports, functions].filter((s) => s.length > 0).join('\n')
-  if (head) return body ? `${head}\n${body}` : head
-  return body
+  // F2：命名空间前缀（缺省 cad）；本机函数调用 callee 无命名空间前缀
+  const nsExpr = input.namespace === undefined ? `cad.${input.callee}` : `${input.namespace}.${input.callee}`
+
+  // 1) 解构：outputKeys + outputs 一一对应
+  if (input.outputKeys && input.outputKeys.length > 0) {
+    const destructure = input.outputKeys.map((k, i) => `${k}: ${input.outputs[i]}`).join(', ')
+    return `const { ${destructure} } = ${nsExpr}(${callArgs})`
+  }
+
+  // 2) 成员调用
+  if (input.receiver) {
+    return `${input.receiver}.${input.callee}(${callArgs})`
+  }
+
+  // 3) 无赋值调用
+  if (input.outputs.length === 0) {
+    return `${nsExpr}(${callArgs})`
+  }
+
+  // 4) 赋值：outputDeclared → 裸重赋值；否则 let 声明
+  const out = input.outputs[0]
+  if (input.outputDeclared) return `${out} = ${nsExpr}(${callArgs})`
+  return `let ${out} = ${nsExpr}(${callArgs})`
 }

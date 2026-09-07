@@ -1,8 +1,7 @@
 /**
  * content-key — mesh 内容哈希（statementKey / plan 增量判定共用）
  *
- * 从 runtime.ts 提取为独立模块，供 CadRuntime 与 ModuleExecutor 共享，
- * 避免 runtime ↔ module-executor 循环依赖。
+ * 从 runtime.ts 提取为独立模块，供 CadRuntime 与 DirectExecutor 共享。
  */
 
 /** FNV-1a 哈希（typed array 逐元素） */

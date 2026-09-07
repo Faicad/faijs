@@ -11,7 +11,7 @@
  * path freed the old BREP handle, after which topology rebuilding hit a
  * dangling handle (`meshShape: Invalid shape ID`).
  *
- * Fix: every execution entry (executeIR) re-claims the instance's own global
+ * Fix: every execution entry (execute) re-claims the instance's own global
  * configuration before running. Serial multi-runtime hosts (preview ↔ main)
  * are safe again; concurrent interleaved execution remains out of scope
  * (same serial assumption as setCurrentStmt).

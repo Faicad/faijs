@@ -38,7 +38,7 @@ export {
 } from './runtime-state'
 export type {
   Backends, FaijsRuntimeState, ShapeSlot, KeepSink, RuntimeExecutionMode,
-  AssemblyTransform, StdlibFn, StdlibNamespace,
+  AssemblyTransform, StdlibFn, StdlibNamespace, ExecutionAnchor,
 } from './runtime-state'
 
 // ── L0 文本层（IR 是引擎内部实现细节，不导出；公开面只有代码文本工具与结果类型）

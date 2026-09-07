@@ -3,11 +3,13 @@
  *
  * CadRuntime.check() dryRun 测试 (P3-6)
  *
- * 测试内容（阶段 4 三阶段：parse + symbol + reference）：
+ * T5 后：module 路径已删除，check() 只做语法门禁（extractMetadata = acorn parse +
+ * 语句摘要），不做符号检查和引用预检（这些在运行时暴露）。
+ *
+ * 测试内容：
  * 1. 合法脚本 → ok: true
  * 2. parse 错误 → ok: false, stage: 'parse'
- * 3. 符号错误（未知 callee）→ ok: false, stage: 'symbol'
- * 4. 引用预检（安全网，parser 已拦截大多数引用错误）
+ * 3. 未定义引用/未知 callee → acorn 能 parse → ok: true（运行时暴露）
  *
  * Run: npx vitest run src/cad-runtime/check.test.ts
  */
@@ -24,9 +26,9 @@ class TestEventSink implements EventSink {
   }
 }
 
-function makeRuntime(modulePath = false) {
+function makeRuntime() {
   const ports: HostPorts = { events: new TestEventSink() }
-  return createRuntime(ports, undefined, undefined, modulePath ? { executor: 'module' } : undefined)
+  return createRuntime(ports)
 }
 
 describe('CadRuntime.check() — dryRun validation', () => {
@@ -70,7 +72,7 @@ export default async (cad) => {
   })
 
   it('split destructure: referencing an output id later → ok', () => {
-    // 文档标准形态：split 解构后引用 back 输出 part2（issue: check() 误报 undefined input）
+    // 文档标准形态：split 解构后引用 back 输出 part2
     const code = `// apiVersion: 1
 export default async (cad) => {
   const part0 = cad.box(20, 20, 20, { centered: true })
@@ -84,7 +86,8 @@ export default async (cad) => {
     expect(result.script!.callees).toEqual(['box', 'fai_split', 'translate'])
   })
 
-  it('reference precheck: undefined split output id → ok=false', () => {
+  it('reference precheck: undefined identifier → ok=false (extractMetadata catches E_REFERENCE)', () => {
+    // extractMetadata checks references: unknown identifiers throw E_REFERENCE.
     const code = `// apiVersion: 1
 export default async (cad) => {
   const part0 = cad.box(20, 20, 20, { centered: true })
@@ -92,10 +95,9 @@ export default async (cad) => {
   const part3 = cad.translate({ offset: [5, 0, 0] }, part999)
   return { shape: part3 }
 }`
-    // T4: direct-mode check() does not catch undefined identifiers (acorn parses them)
-    // — use module path for reference precheck semantics
-    const result = makeRuntime(true).check(code)
+    const result = makeRuntime().check(code)
     expect(result.ok).toBe(false)
+    expect(result.errors.length).toBeGreaterThan(0)
   })
 
   it('parse error: invalid JS → ok=false, stage=parse', () => {
@@ -117,39 +119,26 @@ export default async (cad) => {
     expect(result.errors[0].stage).toBe('parse')
   })
 
-  it('parse error: undefined identifier → ok=false, stage=parse', () => {
-    // Parser catches undefined identifiers (part999 not in scope) — module path only
-    const code = `export default async (cad) => {
-  const part0 = cad.translate({ offset: [5, 0, 0] }, part999)
-  return { shape: part0 }
-}`
-    const result = makeRuntime(true).check(code)
-    expect(result.ok).toBe(false)
-    expect(result.errors[0].stage).toBe('parse')
-  })
-
-  it('symbol error: unknown callee → ok=false, stage=symbol', () => {
-    // T4: direct-mode check() does not do symbol checking — use module path
+  it('unknown callee: acorn parses → ok=true (runtime exposes)', () => {
+    // T5: direct-only check() does not do symbol checking — acorn parses any valid
+    // function call. Unknown callees surface at runtime.
     const code = `export default async (cad) => {
   const part0 = cad.bogusFn({ size: 20 })
   return { shape: part0 }
 }`
-    const result = makeRuntime(true).check(code)
-    expect(result.ok).toBe(false)
-    const symbolErrors = result.errors.filter((e) => e.stage === 'symbol')
-    expect(symbolErrors.length).toBeGreaterThan(0)
-    expect(symbolErrors[0].message).toContain('bogusFn')
+    const result = makeRuntime().check(code)
+    expect(result.ok).toBe(true)
   })
 
-  it('member method calls are exempt from symbol check (receiver present)', () => {
-    // 成员方法（asm.do_assemble）不在符号表（对象方法），receiver 非空时不查符号表 — module path
+  it('member method calls are valid syntax', () => {
+    // 成员方法（asm.do_assemble）语法合法，check() 放行
     const code = `export default async (cad) => {
   const part0 = cad.box(20, 20, 20, { centered: true })
   const asm0 = cad.assembly({ members: [part0] })
   asm0.do_assemble()
   return { shape: part0 }
 }`
-    const result = makeRuntime(true).check(code)
+    const result = makeRuntime().check(code)
     expect(result.ok).toBe(true)
     expect(result.errors).toHaveLength(0)
   })

@@ -2,10 +2,9 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import {
   getRuntimeState, configureBackends, getBackends, setCurrentStmt,
   keep, keepHidden, setKeepSink, nameOf, setName, CONTRACT_VERSION,
-  type Backends,
+  type Backends, type ExecutionAnchor,
 } from './runtime-state'
-import { asPartName, type StmtId } from './identity'
-import type { StatementIR } from './lang/types'
+import { asPartName } from './identity'
 
 function fakeBackends(): Backends {
   return {
@@ -17,8 +16,8 @@ function fakeBackends(): Backends {
   }
 }
 
-function stmt(id: string): StatementIR {
-  return { id: id as StmtId, callee: 'box', args: {}, positional: [], outputs: [] }
+function stmt(id: string): ExecutionAnchor {
+  return { id, outputs: [] }
 }
 
 describe('runtime-state', () => {

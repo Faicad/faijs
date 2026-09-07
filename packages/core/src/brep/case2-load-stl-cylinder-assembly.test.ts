@@ -21,14 +21,14 @@ import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { registerOcctBrepEngine } from '../brep/engine/adapters/occt'
-import type { StatementIR, ScriptIR } from '../lang/types'
 import { createRuntime } from '@faicad/faijs'
 import type { ExecutionResult } from '../cad-runtime/runtime'
 import type { HostPorts, EventSink, AssetResolver } from '../cad-runtime/ports'
 import { fileBlobStore } from '../test/blob-store'
 import { exportStepFromSolid } from '../brep/export/step'
 import { exportStep } from '../occt-kernel/highLevelApi'
-import { asPartName, asStmtId } from '../identity'
+import { asPartName } from '../identity'
+import { analyzeCode } from '../lang/statement-summary'
 
 let stlBuffer: ArrayBuffer
 
@@ -78,36 +78,44 @@ function createTestPorts(): HostPorts {
   return { events: new TestEventSink(), assets: createTestAssets() }
 }
 
+/** Build a statement code line from callee + args + inputs. */
 function makeStmt(
   id: string,
   callee: string,
   args: Record<string, unknown>,
   inputs: string[] = [],
-  extra?: Partial<StatementIR>,
-): StatementIR {
-  return {
-    id: asStmtId(id), callee,
-    args: args as never,
-    positional: inputs.map((s) => ({ $ref: asPartName(s) })),
-    outputs: [asPartName(id)],
-    hasAssignment: true,
-    ...extra,
+  _extra?: Record<string, unknown>,
+): string {
+  const posArgs = inputs.join(', ')
+  const argStr = Object.entries(args).map(([k, v]) => `${k}: ${formatVal(v)}`).join(', ')
+  const objArg = argStr ? `{ ${argStr} }` : ''
+  const argParts = [posArgs, objArg].filter(Boolean).join(', ')
+  if (callee === 'do_assemble' || callee === 'add_constraint') {
+    return `${id ? id + '.' : ''}${callee}({ ${argStr} })`
   }
+  return `const ${id} = cad.${callee}(${argParts})`
 }
 
-function makePartScript(statements: StatementIR[]): ScriptIR {
-  // Phase 3: parser 不再计算 terminalShapes；终端判定在 runtime.collectResult（从 outputs 过滤）
-  return {
-    source: { kind: 'load' },
-    params: [],
-    statements,
+function formatVal(v: unknown): string {
+  if (v === null || v === undefined) return 'null'
+  if (typeof v === 'string') return JSON.stringify(v)
+  if (typeof v === 'number' || typeof v === 'boolean') return String(v)
+  if (Array.isArray(v)) return `[${v.map(formatVal).join(', ')}]`
+  if (typeof v === 'object') {
+    const entries = Object.entries(v as Record<string, unknown>)
+    return `{ ${entries.map(([k, v2]) => `${k}: ${formatVal(v2)}`).join(', ')} }`
   }
+  return String(v)
 }
 
-async function runScript(statements: StatementIR[]): Promise<ExecutionResult> {
+function makePartScript(statements: string[]): string {
+  return statements.join('\n')
+}
+
+async function runScript(statements: string[]): Promise<ExecutionResult> {
   const runtime = createRuntime(createTestPorts(), 'auto')
-  const script = makePartScript(statements)
-  return runtime.executeIR(script)
+  const code = makePartScript(statements)
+  return runtime.execute(code)
 }
 
 // ─── Case 2: load STL + cylinder + drill + assembly transforms ───
@@ -115,7 +123,7 @@ async function runScript(statements: StatementIR[]): Promise<ExecutionResult> {
 describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP independence', () => {
   it('STL load does not break BREP for subsequent cylinder/drill/transforms', async () => {
     const bufferKey = fileBlobStore.put(stlBuffer)
-    const stmts: StatementIR[] = [
+    const stmts: string[] = [
       // S0: load STL → non-CAD source → mesh only, no solid
       makeStmt('cube_v0', 'load', { key: bufferKey, format: 'stl' }, [],
         { }),
@@ -158,16 +166,16 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
     expect(solidCache.has(asPartName('rot_v0'))).toBe(true)       // rotate_euler → BREP ✅
     expect(solidCache.has(asPartName('mated_v0'))).toBe(true)     // translate → BREP ✅
 
-    // Assembly structural statement is skipped during execution
-    const asmStmt = stmts.find(s => s.callee === 'assembly')
-    expect(asmStmt).toBeDefined()
+    // Assembly structural statement is present in the code metadata
+    const summaries = analyzeCode(makePartScript(stmts))
+    expect(summaries.some(s => s.callee === 'assembly')).toBe(true)
 
     fileBlobStore.release(bufferKey)
   })
 
   it('brepSolids contains mated_v0 (BREP) but not cube_v0 (mesh)', async () => {
     const bufferKey = fileBlobStore.put(stlBuffer)
-    const stmts: StatementIR[] = [
+    const stmts: string[] = [
       makeStmt('cube_v0', 'load', { key: bufferKey, format: 'stl' }, [],
         { }),
       makeStmt('cyl_v0', 'cylinder', { radius: 5, height: 20 }, []),
@@ -201,7 +209,7 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
 
   it('STEP export: mated_v0 is precise (ADVANCED_FACE), cube_v0 is faceted', async () => {
     const bufferKey = fileBlobStore.put(stlBuffer)
-    const stmts: StatementIR[] = [
+    const stmts: string[] = [
       makeStmt('cube_v0', 'load', { key: bufferKey, format: 'stl' }, [],
         { }),
       makeStmt('cyl_v0', 'cylinder', { radius: 5, height: 20 }, []),
@@ -241,7 +249,7 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
 
   it('assembly statement has correct members and is skipped during execution', async () => {
     const bufferKey = fileBlobStore.put(stlBuffer)
-    const stmts: StatementIR[] = [
+    const stmts: string[] = [
       makeStmt('cube_v0', 'load', { key: bufferKey, format: 'stl' }, [],
         { }),
       makeStmt('cyl_v0', 'cylinder', { radius: 5, height: 20 }, []),
@@ -268,10 +276,11 @@ describe('Case 2: load STL + cylinder + drill + assembly — per-part BREP indep
     const result = await runScript(stmts)
     expect(result.failedAt).toBeUndefined()
 
-    // Verify assembly statement metadata
-    const asmStmt = stmts.find(s => s.callee === 'assembly')
-    expect(asmStmt).toBeDefined()
-    expect(asmStmt!.args.members).toEqual(['cube_v0', 'drilled_v0'])
+    // Verify assembly statement metadata via code analysis
+    const summaries = analyzeCode(makePartScript(stmts))
+    const asmSummary = summaries.find(s => s.callee === 'assembly')
+    expect(asmSummary).toBeDefined()
+    expect(asmSummary!.args.members).toEqual(['cube_v0', 'drilled_v0'])
 
     // Assembly statement produces a compound Shape（Phase 2.4）→ 出现在 ExecutionResult.compounds 而非 outputs
     expect(result.compounds?.get(asPartName('grp_asm0'))).toEqual([
@@ -289,7 +298,7 @@ describe('Pivot parity: rotate_euler(anglesDeg, pivot) — BREP vs mesh path con
   it('BREP rotate_euler with pivot produces correct result (not rotating around origin)', async () => {
     // Create a box offset from origin, then rotate with a pivot
     // If pivot is ignored, the result will be wrong (rotating around origin)
-    const stmts: StatementIR[] = [
+    const stmts: string[] = [
       makeStmt('s1', 'box', { width: 10, depth: 10, height: 10, centered: true, at: [20, 0, 0] }, []),
       makeStmt('s2', 'rotate_euler', { anglesDeg: [0, 0, 90], pivot: [20, 0, 0] }, ['s1'],
         { }),
@@ -298,7 +307,7 @@ describe('Pivot parity: rotate_euler(anglesDeg, pivot) — BREP vs mesh path con
     // Run in auto mode (BREP path)
     const brepRuntime = createRuntime(createTestPorts(), 'auto')
     const brepScript = makePartScript(stmts)
-    const brepResult = await brepRuntime.executeIR(brepScript)
+    const brepResult = await brepRuntime.execute(brepScript)
 
     expect(brepResult.failedAt).toBeUndefined()
     expect(brepResult.brepChain.solidCache.has(asPartName('s2'))).toBe(true)
@@ -306,7 +315,7 @@ describe('Pivot parity: rotate_euler(anglesDeg, pivot) — BREP vs mesh path con
     // Run in mesh mode
     const meshRuntime = createRuntime(createTestPorts(), 'mesh')
     const meshScript = makePartScript(stmts)
-    const meshResult = await meshRuntime.executeIR(meshScript)
+    const meshResult = await meshRuntime.execute(meshScript)
 
     expect(meshResult.failedAt).toBeUndefined()
 
@@ -350,7 +359,7 @@ describe('Pivot parity: rotate_euler(anglesDeg, pivot) — BREP vs mesh path con
   })
 
   it('BREP rotate_euler without pivot matches mesh rotate_euler without pivot', async () => {
-    const stmts: StatementIR[] = [
+    const stmts: string[] = [
       makeStmt('s1', 'box', { width: 10, depth: 10, height: 10, centered: true, at: [20, 0, 0] }, []),
       makeStmt('s2', 'rotate_euler', { anglesDeg: [0, 0, 90] }, ['s1'],
         { }),
@@ -358,12 +367,12 @@ describe('Pivot parity: rotate_euler(anglesDeg, pivot) — BREP vs mesh path con
 
     // BREP path
     const brepRuntime = createRuntime(createTestPorts(), 'auto')
-    const brepResult = await brepRuntime.executeIR(makePartScript(stmts))
+    const brepResult = await brepRuntime.execute(makePartScript(stmts))
     expect(brepResult.failedAt).toBeUndefined()
 
     // Mesh path
     const meshRuntime = createRuntime(createTestPorts(), 'mesh')
-    const meshResult = await meshRuntime.executeIR(makePartScript(stmts))
+    const meshResult = await meshRuntime.execute(makePartScript(stmts))
     expect(meshResult.failedAt).toBeUndefined()
 
     function bbox(positions: Float32Array) {

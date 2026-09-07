@@ -22,7 +22,7 @@ import { createApiNamespace } from '@faicad/faijs-core/api/api-namespace'
  *
  * @param ports - Host bindings (CSG engine, fonts, assets, event sink, etc.).
  * @param mode  - Optional execution mode override (auto / brep / mesh).
- * @param options - Optional runtime options (e.g. executor: 'direct' | 'module').
+ * @param options - Optional runtime options.
  * @returns A ready-to-execute CadRuntime instance with the cad library registered.
  */
 export function createRuntime(ports: HostPorts, mode?: ExecutionMode, options?: CadRuntimeOptions): CadRuntime {

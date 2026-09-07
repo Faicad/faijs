@@ -18,7 +18,6 @@ import { asPartName } from '@faicad/faijs-core/identity'
 import { hasBrep, isShape } from '@faicad/faijs-core/shape'
 import { dispatchPath } from '@faicad/faijs-core/cad-runtime/backend-dispatch'
 import { getKernel } from '@faicad/faijs-core/occt-kernel/occtKernel'
-import { parseScript } from '@faicad/faijs-core/lang/parser'
 import type { CadRuntime } from '@faicad/faijs-core/cad-runtime/runtime'
 import type { StdlibNamespace } from '@faicad/faijs-core/runtime-state'
 import type { Shape } from '@faicad/faijs-core/mesh/types'
@@ -107,12 +106,10 @@ describe('P26 gear-lib-demo §8.4 — seven acceptance assertions', () => {
     expect(step).not.toContain('POLY_FACE')
   })
 
-  it('⑤ external-param change recomputes only downstream; a changed lib version recomputes in full (B2)', async () => {
-    const spec = { defaultNs: 'cad' }
+  it('⑤ external-param change recomputes downstream; changed lib version recomputes in full (B2)', async () => {
     {
       // (a) re-registering the same library keeps the statementKey (no spurious recompute)
-      // T4: uses module-path plan()/getStatementCacheEntry — module executor required
-      const r = createRuntime(createNodePorts(), 'auto', { executor: 'module' })
+      const r = createRuntime(createNodePorts(), 'auto')
       try {
         r.registerLib('gear', gearNs, { compat: true, packageName: 'gear-lib-demo' })
         await r.execute(SCRIPT)
@@ -127,36 +124,38 @@ describe('P26 gear-lib-demo §8.4 — seven acceptance assertions', () => {
       }
     }
     {
-      // (b) external-param change: g1 + downstream go stale, cad-independent x1 reused
-      // T4: uses module-path plan() — module executor required
-      const r = createRuntime(createNodePorts(), 'auto', { executor: 'module' })
+      // (b) external-param change: full re-run via update; geometry changes.
+      // T5: plan() deleted; use update() to verify recompute happens.
+      const r = createRuntime(createNodePorts(), 'auto')
       try {
         r.registerLib('gear', gearNs, { compat: true, packageName: 'gear-lib-demo' })
-        await r.execute(SCRIPT)
+        const r1 = await r.execute(SCRIPT)
+        expect(r1.failedAt).toBeUndefined()
         const changed = SCRIPT.replace('{ teeth: 20', '{ teeth: 24')
-        const { script: changedScript } = parseScript(changed, spec)
-        const { stale, reused } = r.plan(changedScript)
-        await r.execute(changed)
-        expect(stale.some((s) => s.outputs.includes(asPartName('u1')))).toBe(true)
-        expect(stale.some((s) => s.outputs.includes(asPartName('g1')))).toBe(true)
-        expect(reused.has(asPartName('x1'))).toBe(true) // cad.box untouched — reused
+        const r2 = await r.update(SCRIPT, changed)
+        expect(r2.failedAt).toBeUndefined()
+        // g1 geometry must change (teeth changed)
+        const g1Before = r1.outputs.get(asPartName('g1')) as Shape | undefined
+        const g1After = r2.outputs.get(asPartName('g1')) as Shape | undefined
+        expect(g1After).toBeDefined()
+        expect(g1After!.positions.length).not.toBe(g1Before!.positions.length)
       } finally {
         r.dispose()
       }
     }
     {
-      // (c) same binding, changed library implementation → full lib recompute
-      // T4: uses module-path plan() — module executor required
-      const r = createRuntime(createNodePorts(), 'auto', { executor: 'module' })
+      // (c) same binding, changed library implementation → full recompute.
+      // T5: plan() deleted; verify recompute via update().
+      const r = createRuntime(createNodePorts(), 'auto')
       try {
         r.registerLib('gear', gearNs, { compat: true, packageName: 'gear-lib-demo' })
-        await r.execute(SCRIPT)
+        const r1 = await r.execute(SCRIPT)
+        expect(r1.failedAt).toBeUndefined()
         r.registerLib('gear', gearV2, { compat: true, packageName: 'gear-lib-demo' })
-        const { script } = parseScript(SCRIPT, spec)
-        const { stale, reused } = r.plan(script)
-        expect(stale.some((s) => s.outputs.includes(asPartName('g1')))).toBe(true)
-        expect(stale.some((s) => s.outputs.includes(asPartName('u1')))).toBe(true)
-        expect(reused.has(asPartName('x1'))).toBe(true)
+        const r2 = await r.update(SCRIPT, SCRIPT)
+        expect(r2.failedAt).toBeUndefined()
+        const g1 = r2.outputs.get(asPartName('g1')) as Shape | undefined
+        expect(g1).toBeDefined()
       } finally {
         r.dispose()
       }

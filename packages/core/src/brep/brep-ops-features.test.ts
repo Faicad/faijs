@@ -49,8 +49,7 @@ import {
 import type { Shape } from '../mesh/types'
 import { executeScript } from '../test-helpers'
 import { ensureTestFontLoader } from '../brep/text/fontTestHelper'
-import type { StatementIR, ScriptIR } from '../lang/types'
-import { asPartName, asStmtId } from '../identity'
+import { asPartName } from '../identity'
 
 let kernel: BrepEngineApi
 
@@ -540,43 +539,13 @@ describe('getSolidBoundingBox', () => {
 // 严禁把"已断裂"作为脱离链的零件状态单独持久化（那会造成"无法回退"）。
 
 describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from statement chain)', () => {
-  // 辅助：构造最小 StatementIR
-  function makeStmt(
-    id: string,
-    callee: string,
-    args: Record<string, unknown>,
-    inputs: string[] = [],
-  ): StatementIR {
-    return {
-      id: asStmtId(id),
-      callee,
-      args: args as any,
-      positional: inputs.map((s) => ({ $ref: asPartName(s) })),
-      outputs: [asPartName(id)],
-      hasAssignment: true,
-    }
-  }
-
-  // 辅助：构造最小 ScriptIR
-  function makeScript(statements: StatementIR[]): ScriptIR {
-    return {
-      params: [],
-      source: { kind: 'load' },
-      statements,
-    }
-  }
-
   it('executeScript(box → drill, brep) → solid in cache', async () => {
-    const script = makeScript([
-      makeStmt('s1', 'box', { width: 20, depth: 20, height: 20, centered: true }, []),
-      makeStmt('s2', 'fai_drill', {
-        diameter: 6, depth: 0,
-        position: [0, 0, 10], direction: 'normal',
-        faceNormal: [0, 0, 1], holeType: 'simple',
-      }, ['s1']),
-    ])
+    const code = [
+      'const s1 = cad.box(20, 20, 20, { centered: true })',
+      'const s2 = cad.fai_drill(s1, { diameter: 6, depth: 0, position: [0, 0, 10], direction: "normal", faceNormal: [0, 0, 1], holeType: "simple" })',
+    ].join('\n')
 
-    const result = await executeScript(script)
+    const result = await executeScript(code)
     expect(result.brepChain.solidCache.has(asPartName('s2'))).toBe(true)
     expect(result.brepChain.kernel).not.toBeNull()
 
@@ -588,19 +557,12 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
 
   it('executeScript(box → drill → engrave, brep) → chain stays active (BREP engrave implemented)', async () => {
     // 在 BREP 链中遇到 engrave → BREP 路径执行（textToSolid + boolean），链不断裂
-    const script = makeScript([
-      makeStmt('s1', 'box', { width: 20, depth: 20, height: 20, centered: true }, []),
-      makeStmt('s2', 'fai_drill', {
-        diameter: 6, depth: 0,
-        position: [0, 0, 10], direction: 'normal',
-        faceNormal: [0, 0, 1], holeType: 'simple',
-      }, ['s1']),
-      makeStmt('s3', 'engrave', {
-        engravingType: 'text', mode: 'concave', depth: 1,
-        text: 'A', textSize: 10,
-      }, ['s2']),
-    ])
-    const result = await executeScript(script)
+    const code = [
+      'const s1 = cad.box(20, 20, 20, { centered: true })',
+      'const s2 = cad.fai_drill(s1, { diameter: 6, depth: 0, position: [0, 0, 10], direction: "normal", faceNormal: [0, 0, 1], holeType: "simple" })',
+      'const s3 = cad.engrave(s2, { engravingType: "text", mode: "concave", depth: 1, text: "A", textSize: 10 })',
+    ].join('\n')
+    const result = await executeScript(code)
 
     // 验证链未断裂（box/drill/engrave 均有 solid）
     expect(result.brepChain.solidCache.has(asPartName('s1'))).toBe(true)
@@ -614,17 +576,13 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
   it('executeScript without engrave → solid still in cache (chain healed, not persistent)', async () => {
     // 核心测试：BREP 状态不是持久状态。每次 executeScript 创建新的 BrepChainState，
     // 删除 engrave 语句后重放 → solidCache 仍有 drill solid
-    const script = makeScript([
-      makeStmt('s1', 'box', { width: 20, depth: 20, height: 20, centered: true }, []),
-      makeStmt('s2', 'fai_drill', {
-        diameter: 6, depth: 0,
-        position: [0, 0, 10], direction: 'normal',
-        faceNormal: [0, 0, 1], holeType: 'simple',
-      }, ['s1']),
+    const code = [
+      'const s1 = cad.box(20, 20, 20, { centered: true })',
+      'const s2 = cad.fai_drill(s1, { diameter: 6, depth: 0, position: [0, 0, 10], direction: "normal", faceNormal: [0, 0, 1], holeType: "simple" })',
       // 没有 engrave — 链应保持活跃
-    ])
+    ].join('\n')
 
-    const result = await executeScript(script)
+    const result = await executeScript(code)
     expect(result.brepChain.solidCache.has(asPartName('s2'))).toBe(true)
 
     // Clean up
@@ -635,16 +593,12 @@ describe('BREP chain reversibility (§1.6: mesh-only op breakage is derived from
 
   it('STEP export from unbroken BREP chain contains ADVANCED_FACE (not POLYGONAL_FACE)', async () => {
     // 验证未断裂的 BREP 链终端 solid 导出为原生 STEP（精确曲面）
-    const script = makeScript([
-      makeStmt('s1', 'box', { width: 20, depth: 20, height: 20, centered: true }, []),
-      makeStmt('s2', 'fai_drill', {
-        diameter: 6, depth: 0,
-        position: [0, 0, 10], direction: 'normal',
-        faceNormal: [0, 0, 1], holeType: 'simple',
-      }, ['s1']),
-    ])
+    const code = [
+      'const s1 = cad.box(20, 20, 20, { centered: true })',
+      'const s2 = cad.fai_drill(s1, { diameter: 6, depth: 0, position: [0, 0, 10], direction: "normal", faceNormal: [0, 0, 1], holeType: "simple" })',
+    ].join('\n')
 
-    const result = await executeScript(script)
+    const result = await executeScript(code)
     expect(result.brepChain.solidCache.has(asPartName('s2'))).toBe(true)
 
     // 获取终端 solid 并导出 STEP

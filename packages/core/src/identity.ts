@@ -16,7 +16,7 @@
  * | `FileId` | 文件身份（3d 场景树），无冒号 | UUID / `prim_1` |
  * | `InnerId` | part 在文件内编号，无冒号 | `o1` / `part-0` |
  * | `ScopedId` | `fileId:innerId`，恰好一个冒号（场景树 key） | `fileId:part-0` |
- * | `StmtId` | 每条语句的 id（`StatementIR.id`），无赋值语句也有 | `s1` / `s<N>` |
+ * | `StmtId` | 每条语句的 id（`ExecutionAnchor.id`），无赋值语句也有 | `s1` / `s<N>` |
  * | `PartName` | 左值变量名（0/1/2 个，split 双值） | `part0` / `part<N>` |
  * | `GroupName` | 装配/组语句的变量名（⊆ PartName） | `grp_<N>` |
  * | `RefId` | 装配成员引用（scopedId 形态） | `fileId:part-0` |
@@ -56,7 +56,7 @@ export type FileId       = string & { readonly [__fileId]:      true }
 export type InnerId      = string & { readonly [__innerId]:     true }
 /** Branded ID: `fileId:innerId` with exactly one colon (scene tree key). */
 export type ScopedId     = string & { readonly [__scopedId]:    true }
-/** Branded ID: a statement's id (StatementIR.id); every statement has one. */
+/** Branded ID: a statement's id (ExecutionAnchor.id); every statement has one. */
 export type StmtId       = string & { readonly [__stmtId]:      true }
 /** Branded ID: a left-hand-side variable name; split outputs yield two values. */
 export type PartName     = string & { readonly [__partName]:    true }
@@ -79,7 +79,7 @@ export type EdgeId       = string & { readonly [__edgeId]:      true }
 /** Branded ID: a scene tree node key (= ScopedId or a fileId root). */
 export type NodeId       = string & { readonly [__nodeId]:      true }
 
-/** Alias for StmtId (= StatementIR.id, distinct from PartName semantics). */
+/** Alias for StmtId (= ExecutionAnchor.id, distinct from PartName semantics). */
 export type StatementId  = StmtId
 /** Alias for FaceId (mesh FaceDescriptor carries no id; currently unused). */
 export type FaceSelector = FaceId

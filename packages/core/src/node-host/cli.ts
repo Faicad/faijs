@@ -14,7 +14,6 @@
 
 import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve, extname } from 'node:path'
-import { parseScript } from '../lang/parser'
 import { createRuntime } from '../cad-runtime/runtime'
 import type { StdlibNamespace } from '../runtime-state'
 import type { ExecutionMode, HostPorts, LibLoader } from '../cad-runtime/ports'
@@ -152,18 +151,6 @@ export async function cliRun(
 ): Promise<CliRunResult> {
   const code = readFileSync(filePath, 'utf-8')
 
-  // Parse
-  let script
-  try {
-    const result = parseScript(code)
-    script = result.script
-  } catch (err) {
-    return {
-      ok: false,
-      error: `Parse error: ${err instanceof Error ? err.message : String(err)}`,
-    }
-  }
-
   // Initialize OCCT
   await initOcctWasm()
 
@@ -184,8 +171,8 @@ export async function cliRun(
     })
   }
 
-  // Execute（内部：直接消费 parseScript 的 IR，走引擎内部版本）
-  const execResult = await runtime.executeIR(script)
+  // Execute（T5 后：direct 路径，源码文本直通执行）
+  const execResult = await runtime.execute(code)
 
   if (execResult.failedAt) {
     return {
@@ -200,16 +187,15 @@ export async function cliRun(
   const terminals = execResult.terminals ?? []
 
   if (terminals.length === 0) {
-    // No terminals — use last statement output
-    const lastStmt = script.statements.filter((s) => s.hasAssignment).pop()
-    if (!lastStmt) {
+    // No terminals — use last output
+    const outputNames = [...execResult.outputs.keys()]
+    if (outputNames.length === 0) {
       return { ok: false, error: 'No statements to export' }
     }
-    // Phase 3: stmt.id 是 sN（StmtId），outputs[0] 才是 PartName（outputs 键）
-    const lastPartName = lastStmt.outputs[0] ?? lastStmt.id
+    const lastPartName = outputNames[outputNames.length - 1]
     const shape = execResult.outputs.get(asPartName(lastPartName))
     if (!shape) {
-      return { ok: false, error: `No output for statement "${lastStmt.id}" (part: ${lastPartName})` }
+      return { ok: false, error: `No output for part "${lastPartName}"` }
     }
     const solidEntry = execResult.brepSolids?.get(asPartName(lastPartName))
     return writeOutput(outPath, ext, shape, solidEntry ? { solid: solidEntry.solid, kernel: solidEntry.kernel } : undefined)

@@ -321,10 +321,10 @@ describe('defineOp: OpError rethrow (runImpl)', () => {
     await expect(op()).rejects.toBe(opError)
   })
 
-  it('plain impl exceptions are normalized into a plain Error (bug propagation), never OpError', async () => {
+  it('plain impl exceptions are wrapped as OpError (statement-level failure carrier)', async () => {
     configureBackends(makeBackends('auto'))
     const op = defineOp({ brep: () => { throw new Error('boom') } })
     await expect(op()).rejects.toThrow('[faijs/op]')
-    await expect(op()).rejects.not.toBeInstanceOf(OpError)
+    await expect(op()).rejects.toBeInstanceOf(OpError)
   })
 })

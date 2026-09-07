@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-06-runtime-direct-mode-p4.md
-2026-09-06-runtime-direct-mode-p4.md: 0d43efc7ca6ecdb14de8bc1429078f8dcfb35128
-2026-09-06-runtime-direct-mode-p4.zh.md: 1a4871626d402cc431fed3ee8439b53442c78226
+2026-09-06-runtime-direct-mode-p4.md: 8ac2ddc5fef9fda0b4652e1e7907614be625688e
+2026-09-06-runtime-direct-mode-p4.zh.md: 27c4e6e48ddac53b50e1e47ccb0726b10c9c0a7f

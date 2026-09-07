@@ -7,17 +7,14 @@
  * 全过程（P1–P11）中，以下契约一旦被破坏，本套件最先红：
  *
  * 1. 宿主可见面（U5）——@faicad/faijs 只暴露「代码文本级」API：
- *    analyzeCode / codeToArgs / formatCodeLine 可用；parseScript 属引擎内部 IR 面，
- *    宿主禁见（对应 3d_editor contract-entry.test.ts 的 FORBIDDEN_SYMBOLS）。
- *    注：v4 方案 §2.7 曾列 parseScript/statementToLine/scriptToCode/buildArgsParts
- *    为宿主导出——这与真实契约有出入（真实清单以 3d_editor contract-entry 的
- *    A/B/C/D 白名单为准：analyzeCode/codeToArgs/formatCodeLine/StatementSummary）。
+ *    analyzeCode / codeToArgs / formatCodeLine 可用；引擎内部符号不外泄
+ *    （对应 3d_editor contract-entry.test.ts 的 FORBIDDEN_SYMBOLS）。
  * 2. ExecutionResult 十一字段（U3 / §2.7）：单次 BREP 执行后 outputs / brepChain /
  *    terminals / infos / failedAt / brepSolids / topology / naming / changed /
  *    activeValues / compounds 逐一断言，防「字段被静默删减」。naming 字段（v3 曾
  *    漏列）是本套件的重点——宿主机拾取 Reference 后 O(1) 反查命名行依赖它。
- * 3. 宿主路径驱动：CadRuntime.execute(code)（文本 → 引擎内部 parse+compile+execute），
- *    与 3d_editor 的消费路径一致，而非直接输入 IR。
+ * 3. 宿主路径驱动：CadRuntime.execute(code)（文本 → 引擎内部 extract+execute），
+ *    与 3d_editor 的消费路径一致。
  *
  * Run: npx vitest run test/faijs/refactor-acceptance/refactor-acceptance.test.ts
  */
@@ -45,7 +42,7 @@ beforeAll(async () => {
 
 /**
  * §2.7 / §9 · 宿主 API 契约面（U5）：宿主只见「一行文本」+ 平铺摘要，
- * IR 解析/生成符号（parseScript 等）不得出现在根门面（V5 · 零 IR 依赖红线）。
+ * 引擎内部符号不得出现在根门面（V5 · 零引擎内部依赖红线）。
  */
 describe('上层契约：宿主可读代码文本 API', () => {
   it('根门面导出文本级 API：analyzeCode / codeToArgs / formatCodeLine', async () => {
@@ -67,7 +64,7 @@ describe('上层契约：宿主可读代码文本 API', () => {
     expect(Array.isArray(facade.HOST_REF_KINDS)).toBe(true)
   })
 
-  it('零 IR 依赖红线：parseScript 不在宿主门面', async () => {
+  it('零引擎内部依赖红线：parseScript 不在宿主门面', async () => {
     const facade = await import('@faicad/faijs')
     expect('parseScript' in facade).toBe(false)
   })
@@ -174,11 +171,14 @@ describe('P0：ExecutionResult 十一字段（含 naming）', () => {
     }
   })
 
-  it('失败语义：业务参数错误 → 直接抛出（引擎不吞掉）；不支持能力才进 failedAt', async () => {
+  it('失败语义：执行错误进入 failedAt（T5 direct-only：所有语句级错误进 failedAt，不抛出）', async () => {
     const rt = createRuntime(createNodePorts(), 'auto')
     try {
-      // 参数校验（stdlib assert）抛错 → 引擎必须让错误透出，而不是静默吞掉
-      await expect(rt.execute('let bad = cad.box("oops", "oops", "oops", { centered: true })')).rejects.toThrow()
+      // T5 direct-only: all execution errors (including parameter validation)
+      // land in failedAt — no re-throw. The runtime does not silently swallow
+      // errors; it returns them in the result's failedAt field.
+      const result = await rt.execute('let bad = cad.box("oops", "oops", "oops", { centered: true })')
+      expect(result.failedAt).toBeDefined()
       // BREP 模式缺能力 → failedAt（runtime.test.ts:1188 已有精确锚点，此处不重复）
     } finally {
       rt.dispose()

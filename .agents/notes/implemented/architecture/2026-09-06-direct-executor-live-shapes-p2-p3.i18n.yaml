@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-06-direct-executor-live-shapes-p2-p3.md
-2026-09-06-direct-executor-live-shapes-p2-p3.md: 7de060a15087a80b0704bf847f5857a2638eae61
-2026-09-06-direct-executor-live-shapes-p2-p3.zh.md: 4729b1375f87af9d53763e52b849321d9aac3761
+2026-09-06-direct-executor-live-shapes-p2-p3.md: 192638c994c7b1c749c9dc48c2683d32361d40f9
+2026-09-06-direct-executor-live-shapes-p2-p3.zh.md: a55c4ec9d646620677283e823e5dab15a7eea111

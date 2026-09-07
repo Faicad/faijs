@@ -14,8 +14,20 @@
  * ⚠️ 依赖方向红线：本文件不得 import 任何 src/ 下的模块（只可 import type）。
  */
 
-import type { StatementIR } from './lang/types'
 import type { PartName } from './identity'
+
+/**
+ * Lightweight execution anchor — carries only the fields consumed by
+ * library functions via getCurrentStmt(): `id` (StmtId), `outputs` (PartName[]),
+ * `callee`, and `hasAssignment`. The DirectExecutor creates these from
+ * line-number + writes.
+ */
+export interface ExecutionAnchor {
+  readonly id: string
+  readonly outputs: PartName[]
+  readonly callee?: string
+  readonly hasAssignment?: boolean
+}
 
 // ── 后端配置（宿主注入的环境资源）──
 
@@ -101,8 +113,8 @@ export function assertContractVersion(lib: { contractVersion?: unknown }): void 
  */
 export class BrepUnsupportedError extends Error {
   /** The statement that triggered the unsupported operation, when available. */
-  readonly stmt?: StatementIR
-  constructor(message: string, stmt?: StatementIR) {
+  readonly stmt?: ExecutionAnchor
+  constructor(message: string, stmt?: ExecutionAnchor) {
     super(message)
     this.name = 'BrepUnsupportedError'
     this.stmt = stmt
@@ -121,8 +133,8 @@ export class BrepUnsupportedError extends Error {
  */
 export class MeshUnsupportedError extends Error {
   /** The statement that triggered the unsupported operation, when available. */
-  readonly stmt?: StatementIR
-  constructor(message: string, stmt?: StatementIR) {
+  readonly stmt?: ExecutionAnchor
+  constructor(message: string, stmt?: ExecutionAnchor) {
     super(message)
     this.name = 'MeshUnsupportedError'
     this.stmt = stmt
@@ -140,8 +152,8 @@ export interface FaijsRuntimeState {
   readonly stateVersion: number
   /** 后端配置（configureBackends 写入） */
   backends: Backends | undefined
-  /** 当前执行语句（引擎在语句 fn 之前设置） */
-  currentStmt: StatementIR | undefined
+  /** 当前执行语句锚点（引擎在语句 fn 之前设置） */
+  currentStmt: ExecutionAnchor | undefined
   /** Shape 构造器登记（isShape 的唯一依据） */
   readonly created: WeakSet<object>
   /** Shape 身份槽 */
@@ -154,12 +166,12 @@ export interface FaijsRuntimeState {
 // 本机函数体内的瞬态 BREP 句柄：进入函数时开启登记域，op 输出句柄写入时经
 // registerFunctionBrep 登记；函数返回后引擎取走域、释放除返回值可到达句柄外的全部
 // （对齐「调用方负责句柄生命周期」brep-ops.ts 与 meshesToStep 的 finally 模式）。
-// 全局计数与 ModuleExecutor.userFunctionDepth 同步（单 runtime 场景，与 setCurrentStmt 同构）。
+// 全局计数与 DirectExecutor.userFunctionDepth 同步（单 runtime 场景，与 setCurrentStmt 同构）。
 
 let functionBrepDepth = 0
 const functionBrepDomain: unknown[] = []
 
-/** 进入函数 BREP 域（ModuleExecutor 执行 local 语句 fn 之前调用）。 */
+/** 进入函数 BREP 域（DirectExecutor 执行 local 语句 fn 之前调用）。 */
 export function enterFunctionBrep(): void {
   if (functionBrepDepth === 0) functionBrepDomain.length = 0
   functionBrepDepth++
@@ -364,7 +376,7 @@ export function getBackends(): Backends {
  *
  * @param stmt - the statement currently being executed.
  */
-export function setCurrentStmt(stmt: StatementIR | undefined): void {
+export function setCurrentStmt(stmt: ExecutionAnchor | undefined): void {
   getRuntimeState().currentStmt = stmt
 }
 
@@ -373,7 +385,7 @@ export function setCurrentStmt(stmt: StatementIR | undefined): void {
  *
  * @returns the currently executing statement, or undefined if none.
  */
-export function getCurrentStmt(): StatementIR | undefined {
+export function getCurrentStmt(): ExecutionAnchor | undefined {
   return getRuntimeState().currentStmt
 }
 
@@ -402,14 +414,14 @@ export function setName(shape: object, name: PartName): void {
 // ── keep 声明（库函数体调用）──
 
 /**
- * 登记回调类型。由 ModuleExecutor 在装配时注入（保持 runtime-state 零依赖）。
+ * 登记回调类型。由 DirectExecutor 在装配时注入（保持 runtime-state 零依赖）。
  */
 export type KeepSink = (stmtId: string, names: PartName[], hidden: boolean) => void
 
 let keepSink: KeepSink | undefined
 
 /**
- * 引擎装配 keep 的落地目标（ModuleExecutor.registerKeep）。
+ * 引擎装配 keep 的落地目标（DirectExecutor.registerKeep）。
  *
  * @param sink - the keep callback registered by the engine, or undefined to clear.
  */
