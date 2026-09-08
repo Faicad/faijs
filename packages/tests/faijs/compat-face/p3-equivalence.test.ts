@@ -1,6 +1,6 @@
 /**
  * P3 equivalence regression test — verifies that the brepjsCompat surface
- * (81 symbols) remains equivalent after the Q5-A rename.
+ * (81 symbols + the 2026-09-08 fillet addition) remains equivalent after the Q5-A rename.
  *
  * Design: docs/plans/2026-09-07-compat-surface-unified-projection.md §8 验收 3/4
  *
@@ -17,6 +17,9 @@ describe('P3 L1 — brepjsCompat surface 81 symbols exist', () => {
     // ① primitives + booleans + evolutions
     'cone', 'torus', 'ellipsoid',
     'fuse', 'cut', 'extrude', 'revolve', 'loft', 'intersect',
+    // 2026-09-08: fillet added for cq-compat edge-selected fillets
+    'fillet',
+    'simplify',
     // BoxDimensions is a type-only export, not in the runtime namespace
     // ①b library-building factories
     'makeExternalGear', 'makeInternalGear', 'makePlanetaryGear', 'thread',

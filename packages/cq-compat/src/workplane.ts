@@ -38,8 +38,12 @@ export interface Workplane {
   plane: string
   /** Workplane origin in world coordinates. */
   origin: [number, number, number]
-  /** Workplane normal (unit vector). */
+  /** Workplane normal (unit vector, local +Z). */
   normal: [number, number, number]
+  /** Workplane local +X in world coordinates (CadQuery Plane.xDir convention). */
+  xDir: [number, number, number]
+  /** Workplane local +Y in world coordinates (= normal × xDir). */
+  yDir: [number, number, number]
   /** Current geometry (faijs Shape), or null for empty workplane. */
   shape: Shape | null
   /** Pending face selector (e.g. ">Z", "<X"). Set by .faces(). */
@@ -58,6 +62,8 @@ export interface Workplane {
   pendingRect?: { w: number; d: number }
   /** Pending 2D circle profile (set by .circle(), consumed by .extrude()/.cutBlind()). */
   pendingCircle?: { radius: number }
+  /** Pending regular polygon profile (set by .polygon(), consumed by .extrude()/.cutBlind()). */
+  pendingPolygon?: { n: number; d: number }
   /** Optional color (sRGB 0..1) for this part. */
   color?: RGB
 }
@@ -75,15 +81,71 @@ function vscale(a: [number, number, number], s: number): [number, number, number
   return [a[0] * s, a[1] * s, a[2] * s]
 }
 
-/** Create an empty workplane on the given plane. */
+function vdot(a: [number, number, number], b: [number, number, number]): number {
+  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+}
+
+function vsub(a: [number, number, number], b: [number, number, number]): [number, number, number] {
+  return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
+}
+
+/**
+ * Local → world mapping for axis-aligned workplane normals, verified against
+ * installed CadQuery 2.8.0 (`faces(sel).workplane(...).plane.xDir`):
+ *
+ *   normal +Z → xDir +X, yDir +Y      normal -Z → xDir +X, yDir -Y
+ *   normal +Y → xDir -X, yDir +Z      normal -Y → xDir +X, yDir +Z
+ *   normal +X → xDir +Y, yDir +Z      normal -X → xDir -Y, yDir +Z
+ */
+const FACE_AXES: Record<string, { x: [number, number, number]; y: [number, number, number] }> = {
+  '0,0,1': { x: [1, 0, 0], y: [0, 1, 0] },
+  '0,0,-1': { x: [1, 0, 0], y: [0, -1, 0] },
+  '0,1,0': { x: [-1, 0, 0], y: [0, 0, 1] },
+  '0,-1,0': { x: [1, 0, 0], y: [0, 0, 1] },
+  '1,0,0': { x: [0, 1, 0], y: [0, 0, 1] },
+  '-1,0,0': { x: [0, -1, 0], y: [0, 0, 1] },
+}
+
+/** Get the local axes for an axis-aligned normal (throws for arbitrary normals). */
+function faceAxes(normal: [number, number, number]): { x: [number, number, number]; y: [number, number, number] } {
+  const key = `${normal[0]},${normal[1]},${normal[2]}`
+  const axes = FACE_AXES[key]
+  if (!axes) {
+    throw new Error(`[cq-compat] unsupported workplane normal ${key} (axis-aligned only)`)
+  }
+  return axes
+}
+
+/** Map workplane-local (px, py) offsets to world coordinates. */
+function localToWorld(
+  wp: Pick<Workplane, 'origin' | 'xDir' | 'yDir'>,
+  px: number,
+  py: number,
+): [number, number, number] {
+  return vadd(wp.origin, vadd(vscale(wp.xDir, px), vscale(wp.yDir, py)))
+}
+
+/** Create an empty workplane on the given plane (CadQuery named-plane axes). */
 function makeWorkplane(plane: string): Workplane {
-  const normal: [number, number, number] =
-    plane === 'XY' ? [0, 0, 1] : plane === 'XZ' ? [0, 1, 0] : [1, 0, 0]
+  // CadQuery named planes: XY (+Z, x +X), XZ (-Y, x +X), YZ (+X, x +Y)
+  const axes: Record<string, { n: [number, number, number]; x: [number, number, number] }> = {
+    XY: { n: [0, 0, 1], x: [1, 0, 0] },
+    XZ: { n: [0, -1, 0], x: [1, 0, 0] },
+    YZ: { n: [1, 0, 0], x: [0, 1, 0] },
+  }
+  const a = axes[plane] ?? axes.XY
+  const yDir: [number, number, number] = [
+    a.n[1] * a.x[2] - a.n[2] * a.x[1],
+    a.n[2] * a.x[0] - a.n[0] * a.x[2],
+    a.n[0] * a.x[1] - a.n[1] * a.x[0],
+  ]
   return Object.assign(Object.create(WP_PROTO), {
     __cq: true as const,
     plane,
     origin: [0, 0, 0] as [number, number, number],
-    normal,
+    normal: a.n,
+    xDir: a.x,
+    yDir,
     shape: null,
     faceSel: null,
     edgeSel: null,
@@ -96,6 +158,70 @@ function makeWorkplane(plane: string): Workplane {
 /** Clone a workplane with overrides (preserves custom prototype). */
 function clone(wp: Workplane, overrides: Partial<Workplane>): Workplane {
   return Object.assign(Object.create(WP_PROTO), wp, overrides) as Workplane
+}
+
+/**
+ * Unwrap a vendored brepjs `Result` into its value, throwing on `Err`.
+ *
+ * The vendored boolean ops return `Result<T>` (`{ ok: true, value }` /
+ * `{ ok: false, error }`). Silently swallowing an `Err` here would leave the
+ * workplane carrying stale geometry, so failures must surface.
+ */
+function unwrapBrepResult(result: unknown): unknown {
+  if (result && typeof result === 'object' && 'ok' in result) {
+    const r = result as { ok: boolean; value?: unknown; error?: unknown }
+    if (!r.ok) {
+      const detail =
+        typeof r.error === 'string'
+          ? r.error
+          : JSON.stringify(r.error, (_k, v) => (typeof v === 'bigint' ? String(v) : v)) ??
+            String(r.error)
+      throw new Error(`[cq-compat] brep boolean op failed: ${detail}`)
+    }
+    return r.value
+  }
+  return result
+}
+
+/** Call a `brepjsCompat` member by name (namespace is typed loosely here). */
+function compatFn(name: string): (...args: unknown[]) => unknown {
+  const fn = (brepjsCompat as Record<string, unknown>)[name] as
+    | ((...args: unknown[]) => unknown)
+    | undefined
+  if (!fn) throw new Error(`[cq-compat] brepjsCompat.${name} is not available`)
+  return fn
+}
+
+/** Merge same-domain faces/edges after a boolean (CadQuery `clean=True`). */
+async function cleanShapes(shape: Shape): Promise<Shape> {
+  const simplified = unwrapBrepResult(compatFn('simplify')(borrowBrepjsShape(shape)))
+  return adoptBrepjsProduct(simplified)
+}
+
+/**
+ * Fuse two shapes into ONE solid via the vendored brepjs fuse.
+ *
+ * Rationale: `cad.union` (defineOp → booleanBrep → fromBrep repack) has been
+ * observed to return a compound of two disjoint solids instead of a fused
+ * single solid (see docs/analysis/2026-09-08-cq-compat-union-compound-bug.md).
+ * The vendored `fuse` preserves the first operand's solid type, so the result
+ * stays a single solid. See docs/analysis/2026-09-08-cq-compat-union-compound-bug.md.
+ */
+async function fuseShapes(a: Shape, b: Shape): Promise<Shape> {
+  const product = unwrapBrepResult(compatFn('fuse')(borrowBrepjsShape(a), borrowBrepjsShape(b)))
+  return cleanShapes(adoptBrepjsProduct(product))
+}
+
+/** Cut a tool shape out of a base shape via the vendored brepjs cut. */
+async function cutShapes(base: Shape, tool: Shape): Promise<Shape> {
+  const product = unwrapBrepResult(compatFn('cut')(borrowBrepjsShape(base), borrowBrepjsShape(tool)))
+  return cleanShapes(adoptBrepjsProduct(product))
+}
+
+/** Intersect two shapes via the vendored brepjs intersect. */
+async function intersectShapes(a: Shape, b: Shape): Promise<Shape> {
+  const product = unwrapBrepResult(compatFn('intersect')(borrowBrepjsShape(a), borrowBrepjsShape(b)))
+  return cleanShapes(adoptBrepjsProduct(product))
 }
 
 /** Get bbox max of a shape (via cad.bboxMax — synchronous). */
@@ -116,13 +242,28 @@ function bboxMin(shape: Shape): [number, number, number] {
  * `centerOption: "CenterOfMass"` (default) uses the face's surface centroid,
  * `"CenterOfBoundBox"` uses the face's bounding-box center.
  *
- * This implementation enumerates the actual BREP faces and picks the one whose
+ * Supported forms: ">Z", "<Z", ">X", "<X", ">Y", "<Y", "+Z"/"-Z" aliases, each
+ * with an optional CadQuery-style index suffix like ">Z[-2]". This
+ * implementation enumerates the actual BREP faces and picks the one whose
  * bbox-center is the extreme along the selector axis (ties broken by larger
  * surface area, so a main face wins over a small coplanar boss face). When the
  * shape has no BREP handle or the kernel is unavailable, it falls back to the
- * whole-shape bounding-box approximation (previous behavior).
+ * whole-shape bounding-box approximation.
+ *
+ * Indexed selectors (`">Z[-2]"`) follow CadQuery's DirectionMinMaxSelector
+ * indexing, verified against the installed cadquery 2.8.0: `">A[k]"` lists all
+ * faces ASCENDING along axis A (`[0]` = lowest, `[-1]` = highest); `"<A[k]"`
+ * lists them DESCENDING (`[0]` = highest). The picked face's normal is the
+ * outward direction (away from the shape bbox center).
+ *
+ * @param shape - Shape whose BREP faces are enumerated for selection.
+ * @param sel - Selector string, e.g. ">Z", "<X", ">Z[-2]".
+ * @param centerOption - Optional center computation option forwarded to the
+ *   face-center evaluation.
+ * @returns Promise resolving to the selected face's center point and outward
+ *   normal.
  */
-async function resolveFaceSelector(
+export async function resolveFaceSelector(
   shape: Shape,
   sel: string,
   centerOption?: string,
@@ -151,26 +292,68 @@ async function resolveFaceSelector(
     const kernel = getKernel() as unknown as OcctKernel
     if (handle && dir) {
       const faces = kernel.getSubShapes(handle as unknown as ShapeHandle, 'face') as unknown as ShapeHandle[]
-      let best: { handle: ShapeHandle; center: [number, number, number] } | null = null
+      const cands: { handle: ShapeHandle; center: [number, number, number] }[] = []
       for (const f of faces) {
         const bb = kernel.getBoundingBox(f)
-        const c: [number, number, number] = [
-          (bb.xmin + bb.xmax) / 2,
-          (bb.ymin + bb.ymax) / 2,
-          (bb.zmin + bb.zmax) / 2,
-        ]
-        const val = c[dir.axis]
-        if (!best) {
-          best = { handle: f, center: c }
-          continue
+        cands.push({
+          handle: f,
+          center: [
+            (bb.xmin + bb.xmax) / 2,
+            (bb.ymin + bb.ymax) / 2,
+            (bb.zmin + bb.zmax) / 2,
+          ],
+        })
+      }
+      let best: { handle: ShapeHandle; center: [number, number, number] } | null = null
+      let normal = fallbackNormal
+      // Extract the index suffix, if any.
+      const idxMatch = /\[(-?\d+)\]$/.exec(sel.trim())
+      if (idxMatch) {
+        // CadQuery DirectionMinMaxSelector indexing (verified vs cadquery
+        // 2.8.0): '>A[k]' → faces ascending along A; '<A[k]' → descending.
+        // Only faces PERPENDICULAR to the axis participate (bbox thin along
+        // the axis), matching CadQuery's normal-direction filter.
+        const perp: typeof cands = cands.filter((cd) => {
+          const bb = kernel.getBoundingBox(cd.handle)
+          const ext = [bb.xmax - bb.xmin, bb.ymax - bb.ymin, bb.zmax - bb.zmin][dir.axis]
+          return ext <= 0.1
+        })
+        const idx = parseInt(idxMatch[1], 10)
+        const sorted = perp
+          .slice()
+          .sort((a, b) =>
+            dir.sign === 1
+              ? a.center[dir.axis] - b.center[dir.axis]
+              : b.center[dir.axis] - a.center[dir.axis],
+          )
+        const pick = idx < 0 ? sorted.length + idx : idx
+        if (pick < 0 || pick >= sorted.length) {
+          throw new Error(
+            `[cq-compat] selector "${sel}": index ${idx} out of range (${sorted.length} faces)`,
+          )
         }
-        const bestVal = best.center[dir.axis]
-        if (dir.sign === 1 ? val > bestVal + 1e-6 : val < bestVal - 1e-6) {
-          best = { handle: f, center: c }
-        } else if (Math.abs(val - bestVal) <= 1e-6) {
-          // Tie (e.g. coplanar faces at the same extreme): prefer the larger face
-          const area = kernel.getSurfaceArea(f)
-          if (area > kernel.getSurfaceArea(best.handle)) best = { handle: f, center: c }
+        best = sorted[pick]
+        // Outward normal: away from the shape bbox center along the axis.
+        const max = bboxMax(shape)
+        const min = bboxMin(shape)
+        const shapeCenter = [(max[0] + min[0]) / 2, (max[1] + min[1]) / 2, (max[2] + min[2]) / 2]
+        normal = [0, 0, 0]
+        normal[dir.axis] = best.center[dir.axis] >= shapeCenter[dir.axis] ? 1 : -1
+      } else {
+        for (const cd of cands) {
+          const val = cd.center[dir.axis]
+          if (!best) {
+            best = cd
+            continue
+          }
+          const bestVal = best.center[dir.axis]
+          if (dir.sign === 1 ? val > bestVal + 1e-6 : val < bestVal - 1e-6) {
+            best = cd
+          } else if (Math.abs(val - bestVal) <= 1e-6) {
+            // Tie (e.g. coplanar faces at the same extreme): prefer the larger face
+            const area = kernel.getSurfaceArea(cd.handle)
+            if (area > kernel.getSurfaceArea(best.handle)) best = cd
+          }
         }
       }
       if (best) {
@@ -178,14 +361,15 @@ async function resolveFaceSelector(
         if (centerOption === 'CenterOfBoundBox') {
           origin = best.center
         } else {
-          // CenterOfMass (CadQuery default): surface (area-weighted) centroid
+          // CenterOfMass: surface (area-weighted) centroid
           const com = kernel.getSurfaceCenterOfMass(best.handle)
           origin = [com.x, com.y, com.z]
         }
-        return { center: origin, normal: fallbackNormal }
+        return { center: origin, normal }
       }
     }
-  } catch {
+  } catch (e) {
+    if (e instanceof Error && e.message.includes('out of range')) throw e
     // No BREP / kernel not ready — fall through to bbox approximation
   }
 
@@ -197,26 +381,115 @@ async function resolveFaceSelector(
     (max[1] + min[1]) / 2,
     (max[2] + min[2]) / 2,
   ]
-  if (baseSel === '>Z' || baseSel === '+Z') {
-    return { center: [center[0], center[1], max[2]], normal: [0, 0, 1] }
+
+  const m = /^([<>+\-])([XYZ])(?:\[(-?\d+)\])?$/.exec(sel.trim())
+  if (!m) {
+    // Default: return center
+    return { center, normal: [0, 0, 1] }
   }
-  if (baseSel === '<Z' || baseSel === '-Z') {
-    return { center: [center[0], center[1], min[2]], normal: [0, 0, -1] }
+  const [, sign, axisChar, idxStr] = m
+  const axis = axisChar === 'X' ? 0 : axisChar === 'Y' ? 1 : 2
+  // '>' and '+' select the max side; '<' and '-' select the min side.
+  const maxDir = sign === '>' || sign === '+'
+  const normal: [number, number, number] = [0, 0, 0]
+  normal[axis] = maxDir ? 1 : -1
+
+  if (idxStr === undefined) {
+    const extreme: [number, number, number] = [center[0], center[1], center[2]]
+    extreme[axis] = maxDir ? max[axis] : min[axis]
+    return { center: extreme, normal }
   }
-  if (baseSel === '>X' || baseSel === '+X') {
-    return { center: [max[0], center[1], center[2]], normal: [1, 0, 0] }
+
+  // Indexed selector — enumerate real faces and sort by bbox center along axis.
+  // CadQuery semantics: '>A[k]' ascending, '<A[k]' descending (see doc above).
+  const idx = parseInt(idxStr, 10)
+  const faces = compatFn('getFaces')(borrowBrepjsShape(shape)) as unknown[]
+  type Entry = { c: [number, number, number]; bounds: Record<string, number> }
+  const entries: Entry[] = faces.map((f) => {
+    const b = compatFn('getBounds')(f) as Record<string, number>
+    return {
+      c: [(b.xMin + b.xMax) / 2, (b.yMin + b.yMax) / 2, (b.zMin + b.zMax) / 2],
+      bounds: b,
+    }
+  })
+  if (entries.length === 0) {
+    throw new Error(`[cq-compat] selector "${sel}": shape has no faces`)
   }
-  if (baseSel === '<X' || baseSel === '-X') {
-    return { center: [min[0], center[1], center[2]], normal: [-1, 0, 0] }
+  entries.sort((a, b) => (maxDir ? a.c[axis] - b.c[axis] : b.c[axis] - a.c[axis]))
+  const pick = idx < 0 ? entries.length + idx : idx
+  if (pick < 0 || pick >= entries.length) {
+    throw new Error(
+      `[cq-compat] selector "${sel}": index ${idx} out of range (${entries.length} faces)`,
+    )
   }
-  if (baseSel === '>Y' || baseSel === '+Y') {
-    return { center: [center[0], max[1], center[2]], normal: [0, 1, 0] }
+  const fb = entries[pick].bounds
+  const faceCenter: [number, number, number] = [
+    (fb.xMin + fb.xMax) / 2,
+    (fb.yMin + fb.yMax) / 2,
+    (fb.zMin + fb.zMax) / 2,
+  ]
+  // Outward normal: away from the shape bbox center along the axis.
+  normal[axis] = faceCenter[axis] >= center[axis] ? 1 : -1
+  return { center: faceCenter, normal }
+}
+
+/**
+ * Build a regular-polygon prism on a workplane (vendored polygon face +
+ * extrude). CadQuery `polygon(n, d)`: n-gon inscribed in a circle of diameter
+ * `d`, first vertex on the workplane local +X.
+ */
+async function makePolygonPrismAt(
+  wp: Workplane,
+  poly: { n: number; d: number },
+  length: number,
+  dir: [number, number, number],
+): Promise<Shape> {
+  const pts: [number, number, number][] = []
+  for (let i = 0; i < poly.n; i++) {
+    const a = (2 * Math.PI * i) / poly.n
+    pts.push(localToWorld(wp, Math.cos(a) * (poly.d / 2), Math.sin(a) * (poly.d / 2)))
   }
-  if (baseSel === '<Y' || baseSel === '-Y') {
-    return { center: [center[0], min[1], center[2]], normal: [0, -1, 0] }
+  const face = unwrapBrepResult(compatFn('polygon')(pts))
+  const vec: [number, number, number] = [dir[0] * length, dir[1] * length, dir[2] * length]
+  const prism = unwrapBrepResult(compatFn('extrude')(face, vec))
+  return adoptBrepjsProduct(prism)
+}
+
+/**
+ * Rotate a Z-axis-aligned primitive so its local +Z maps to `d`
+ * (axis-aligned directions only), for cone countersink tools.
+ */
+async function orientZTo(shape: Shape, d: [number, number, number]): Promise<Shape> {
+  const key = `${d[0]},${d[1]},${d[2]}`
+  if (key === '0,0,1') return shape
+  const rotation: Record<string, [number, number, number]> = {
+    '0,0,-1': [180, 0, 0],
+    '1,0,0': [0, 90, 0],
+    '-1,0,0': [0, -90, 0],
+    '0,1,0': [0, 0, -90],
+    '0,-1,0': [0, 0, 90],
   }
-  // Default: return center
-  return { center, normal: [0, 0, 1] }
+  const anglesDeg = rotation[key]
+  if (!anglesDeg) throw new Error(`[cq-compat] unsupported cut direction ${key}`)
+  return cad.rotate_euler(shape, { anglesDeg }) as unknown as Shape
+}
+
+/**
+ * Create a cone whose base (radius rBase) sits at the workplane origin and
+ * whose apex side extends `height` along `wp.normal`-direction `d`.
+ * Used for the full-cone countersink cut of cskHole (CadQuery semantics:
+ * h = cskRadius / tan(cskAngle/2), cone from rBase to apex).
+ */
+async function makeConeAt(
+  wp: Workplane,
+  rBase: number,
+  height: number,
+  d: [number, number, number],
+): Promise<Shape> {
+  const cone = await cad.cone(rBase, 0, height, { centered: true })
+  const oriented = await orientZTo(cone as unknown as Shape, d)
+  const center = vadd(wp.origin, vscale(d, height / 2))
+  return cad.translate(oriented, { offset: center })
 }
 
 /**
@@ -231,12 +504,17 @@ async function makeCylinderAt(
   const cyl = await cad.cylinder(radius, height, { centered: true })
   const n = Array.isArray(wp.normal) ? wp.normal : ([0, 0, 1] as [number, number, number])
   const o = Array.isArray(wp.origin) ? wp.origin : ([0, 0, 0] as [number, number, number])
+  // Rotate the Z-axis cylinder so its axis aligns with the workplane normal.
+  const oriented = await orientZTo(cyl as unknown as Shape, n)
   const center: [number, number, number] = [o[0] + n[0] * height / 2, o[1] + n[1] * height / 2, o[2] + n[2] * height / 2]
-  return cad.translate(cyl, { offset: center })
+  return cad.translate(oriented, { offset: center })
 }
 
 /**
- * Create a box at the workplane origin.
+ * Create a box at the workplane origin: `w` along the workplane xDir, `d`
+ * along yDir, `h` along the normal (CadQuery rect+extrude tool semantics).
+ * The tool is built axis-aligned with the world extents implied by the
+ * workplane basis, so it is correct for any axis-aligned normal.
  */
 async function makeBoxAt(
   wp: Workplane,
@@ -244,9 +522,14 @@ async function makeBoxAt(
   d: number,
   h: number,
 ): Promise<Shape> {
-  const box = await cad.box(w, d, h, { centered: true })
   const n = Array.isArray(wp.normal) ? wp.normal : ([0, 0, 1] as [number, number, number])
   const o = Array.isArray(wp.origin) ? wp.origin : ([0, 0, 0] as [number, number, number])
+  const axes = faceAxes(n)
+  // World-space extents of a w×d×h box aligned to the (axis-aligned) basis.
+  const sx = w * Math.abs(axes.x[0]) + d * Math.abs(axes.y[0]) + h * Math.abs(n[0])
+  const sy = w * Math.abs(axes.x[1]) + d * Math.abs(axes.y[1]) + h * Math.abs(n[1])
+  const sz = w * Math.abs(axes.x[2]) + d * Math.abs(axes.y[2]) + h * Math.abs(n[2])
+  const box = await cad.box(sx, sy, sz, { centered: true })
   const center: [number, number, number] = [o[0] + n[0] * h / 2, o[1] + n[1] * h / 2, o[2] + n[2] * h / 2]
   return cad.translate(box, { offset: center })
 }
@@ -345,7 +628,10 @@ export function circle(wp: Workplane, radius: number): Workplane {
  * @returns Workplane
  */
 export function polygon(wp: Workplane, n: number, d: number): Workplane {
-  return clone(wp, { forConstruction: false, pendingCircle: { radius: d / 2 } })
+  // CadQuery polygon(nSides, diameter): regular n-gon inscribed in a circle of
+  // the given diameter, first vertex on local +X. The prism is materialized
+  // when consumed by extrude()/cutBlind() (makePolygonPrismAt).
+  return clone(wp, { forConstruction: false, pendingPolygon: { n, d } })
 }
 
 /**
@@ -355,7 +641,11 @@ export function polygon(wp: Workplane, n: number, d: number): Workplane {
  * @returns Promise<Workplane>
  */
 export async function extrude(wp: Workplane, height: number): Promise<Workplane> {
-  // If there's a pending 2D profile (rect/circle) and no existing shape, create the 3D solid
+  // If there's a pending 2D profile (rect/circle/polygon) and no existing shape, create the 3D solid
+  if (wp.pendingPolygon && !wp.shape) {
+    const shape = await makePolygonPrismAt(wp, wp.pendingPolygon, height, wp.normal)
+    return clone(wp, { shape, pendingPolygon: undefined, faceSel: null, edgeSel: null, vertexSel: null, pts: [] })
+  }
   if (wp.pendingRect && !wp.shape) {
     const { w, d } = wp.pendingRect
     const shape = await makeBoxAt(wp, w, d, height)
@@ -372,30 +662,36 @@ export async function extrude(wp: Workplane, height: number): Promise<Workplane>
     // Slight overlap ensures OCCT fuse merges coplanar faces into one solid
     const OVERLAP = 0.1
     // If we have a pending profile on an existing shape, create and union
-    if (wp.pendingRect || wp.pendingCircle) {
+    if (wp.pendingPolygon || wp.pendingRect || wp.pendingCircle) {
       const ptsArr = Array.isArray(wp.pts) ? wp.pts : []
       const points = ptsArr.length > 0 ? ptsArr : ([[0, 0]] as [number, number][])
       let shape = wp.shape
       for (const [px, py] of points) {
-        const bossOrigin: [number, number, number] = [
-          wp.origin[0] + px,
-          wp.origin[1] + py,
-          wp.origin[2],
-        ]
-        const bossWp = { ...wp, origin: bossOrigin }
-        if (wp.pendingRect) {
+        const bossWp: Workplane = { ...wp, origin: localToWorld(wp, px, py) }
+        let boss: Shape
+        if (wp.pendingPolygon) {
+          boss = await makePolygonPrismAt(bossWp, wp.pendingPolygon, height + OVERLAP, wp.normal)
+        } else if (wp.pendingRect) {
           const { w, d } = wp.pendingRect
-          const boss = await makeBoxAt(bossWp, w, d, height + OVERLAP)
-          const shifted = await cad.translate(boss, { offset: [-n[0] * OVERLAP, -n[1] * OVERLAP, -n[2] * OVERLAP] })
-          shape = await cad.union(shape, shifted)
-        } else if (wp.pendingCircle) {
-          const { radius } = wp.pendingCircle
-          const boss = await makeCylinderAt(bossWp, radius, height + OVERLAP)
-          const shifted = await cad.translate(boss, { offset: [-n[0] * OVERLAP, -n[1] * OVERLAP, -n[2] * OVERLAP] })
-          shape = await cad.union(shape, shifted)
+          boss = await makeBoxAt(bossWp, w, d, height + OVERLAP)
+        } else {
+          boss = await makeCylinderAt(bossWp, wp.pendingCircle!.radius, height + OVERLAP)
         }
+        const shifted = await cad.translate(boss, {
+          offset: [-n[0] * OVERLAP, -n[1] * OVERLAP, -n[2] * OVERLAP],
+        })
+        shape = await fuseShapes(shape, shifted as unknown as Shape)
       }
-      return clone(wp, { shape, pendingRect: undefined, pendingCircle: undefined, faceSel: null, edgeSel: null, vertexSel: null, pts: [] })
+      return clone(wp, {
+        shape,
+        pendingPolygon: undefined,
+        pendingRect: undefined,
+        pendingCircle: undefined,
+        faceSel: null,
+        edgeSel: null,
+        vertexSel: null,
+        pts: [],
+      })
     }
     // No pending profile — return unchanged
     return wp
@@ -419,21 +715,23 @@ export async function cutBlind(
   if (!wp.shape) return wp
   const absDepth = Math.abs(depth)
   const invNormal: [number, number, number] = [-wp.normal[0], -wp.normal[1], -wp.normal[2]]
-  const ptsArr = Array.isArray(wp.pts) ? wp.pts : []
-  const points = ptsArr.length > 0 ? ptsArr : ([[0, 0]] as [number, number][])
   let result = wp.shape
-  for (const [px, py] of points) {
-    const cutOrigin: [number, number, number] = [
-      wp.origin[0] + px,
-      wp.origin[1] + py,
-      wp.origin[2],
-    ]
-    const cutWp = { ...wp, origin: cutOrigin, normal: invNormal }
+  // CadQuery semantics: pushPoints() before cutBlind() repeats the cut at every
+  // point. With no pushed points, the cut happens at the workplane origin.
+  const ptsArr = Array.isArray(wp.pts) && wp.pts.length > 0 ? wp.pts : ([[0, 0]] as [number, number][])
+  for (const [px, py] of ptsArr) {
+    const cutWp: Workplane = {
+      ...wp,
+      origin: localToWorld(wp, px, py),
+      normal: invNormal,
+    }
     let tool: Shape
     if (wp.pendingCircle) {
       tool = await makeCylinderAt(cutWp, wp.pendingCircle.radius, absDepth)
     } else if (wp.pendingRect) {
       tool = await makeBoxAt(cutWp, wp.pendingRect.w, wp.pendingRect.d, absDepth)
+    } else if (wp.pendingPolygon) {
+      tool = await makePolygonPrismAt(cutWp, wp.pendingPolygon, absDepth, invNormal)
     } else if (opts?.radius !== undefined) {
       tool = await makeCylinderAt(cutWp, opts.radius, absDepth)
     } else if (opts?.w !== undefined && opts?.d !== undefined) {
@@ -441,9 +739,9 @@ export async function cutBlind(
     } else {
       tool = await makeBoxAt(cutWp, 1000, 1000, absDepth)
     }
-    result = await cad.subtract(result, tool)
+    result = await cutShapes(result, tool)
   }
-  return clone(wp, { shape: result, faceSel: null, edgeSel: null, pts: [], pendingRect: undefined, pendingCircle: undefined })
+  return clone(wp, { shape: result, faceSel: null, edgeSel: null, pts: [], pendingRect: undefined, pendingCircle: undefined, pendingPolygon: undefined })
 }
 
 /**
@@ -462,7 +760,9 @@ export async function hole(
   const radius = diameter / 2
   const max = await bboxMax(wp.shape)
   const min = await bboxMin(wp.shape)
-  const totalHeight = max[2] - min[2] + 4 // through-hole with margin
+  // Through-hole with margin, measured along the workplane normal.
+  const ext: [number, number, number] = [max[0] - min[0], max[1] - min[1], max[2] - min[2]]
+  const totalHeight = Math.abs(vdot(ext, wp.normal)) + 4
   const holeHeight = depth ?? totalHeight
 
   const ptsArr = Array.isArray(wp.pts) ? wp.pts : []
@@ -470,18 +770,14 @@ export async function hole(
   let result = wp.shape
 
   for (const [px, py] of points) {
-    const holeOrigin: [number, number, number] = [
-      wp.origin[0] + px,
-      wp.origin[1] + py,
-      wp.origin[2],
-    ]
+    const holeOrigin = localToWorld(wp, px, py)
     const invNormal: [number, number, number] = [-wp.normal[0], -wp.normal[1], -wp.normal[2]]
     const cyl = await makeCylinderAt(
       { ...wp, origin: holeOrigin, normal: invNormal },
       radius,
       holeHeight,
     )
-    result = await cad.subtract(result, cyl)
+    result = await cutShapes(result, cyl)
   }
 
   return clone(wp, { shape: result, faceSel: null, edgeSel: null, vertexSel: null, pts: [] })
@@ -501,29 +797,20 @@ export async function cboreHole(
   cboreDiameter: number,
   cboreDepth: number,
 ): Promise<Workplane> {
-  // Capture the stack points BEFORE hole() — hole() consumes/clears wp.pts,
-  // but the counterbore must be drilled at the SAME positions (CadQuery
-  // applies both stages at every point of the stack).
-  const cborePts = Array.isArray(wp.pts) && wp.pts.length > 0
-    ? wp.pts
-    : ([[0, 0]] as [number, number][])
-  let result = wp
-  result = await hole(result, diameter)
-  // Counterbore: larger shallow hole — the tool must extend INTO the face
-  // (inverted normal), otherwise the cylinder floats above the surface and
-  // cuts nothing.
+  // hole() consumes and clears wp.pts — snapshot them first so the counterbore
+  // lands on every pushed point, not just the origin fallback [0, 0].
+  const savedPts = Array.isArray(wp.pts) ? [...wp.pts] : []
+  let result = await hole(wp, diameter)
+  // Counterbore: larger shallow hole
   if (result.shape) {
     const cboreRadius = cboreDiameter / 2
-    const invNormal: [number, number, number] = [-result.normal[0], -result.normal[1], -result.normal[2]]
+    const points = savedPts.length > 0 ? savedPts : ([[0, 0]] as [number, number][])
     let shape = result.shape
-    for (const [px, py] of cborePts) {
-      const origin: [number, number, number] = [
-        result.origin[0] + px,
-        result.origin[1] + py,
-        result.origin[2],
-      ]
+    for (const [px, py] of points) {
+      const origin = localToWorld(result, px, py)
+      const invNormal: [number, number, number] = [-result.normal[0], -result.normal[1], -result.normal[2]]
       const cyl = await makeCylinderAt({ ...result, origin, normal: invNormal }, cboreRadius, cboreDepth + 1)
-      shape = await cad.subtract(shape, cyl)
+      shape = await cutShapes(shape, cyl)
     }
     result = clone(result, { shape })
   }
@@ -544,24 +831,21 @@ export async function cskHole(
   cskDiameter: number,
   cskAngle: number,
 ): Promise<Workplane> {
-  // Capture the stack points BEFORE hole() — see cboreHole.
-  const cskPts = Array.isArray(wp.pts) && wp.pts.length > 0
-    ? wp.pts
-    : ([[0, 0]] as [number, number][])
+  // hole() consumes and clears wp.pts — snapshot them first (same as cboreHole).
+  const savedPts = Array.isArray(wp.pts) ? [...wp.pts] : []
   let result = await hole(wp, diameter)
   if (result.shape) {
     const cskRadius = cskDiameter / 2
+    // CadQuery cskHole: full cone from cskRadius at the surface to an apex,
+    // depth h = cskRadius / tan(cskAngle/2).
     const cskDepth = cskRadius / Math.tan((cskAngle * Math.PI) / 360)
-    const invNormal: [number, number, number] = [-result.normal[0], -result.normal[1], -result.normal[2]]
+    const points = savedPts.length > 0 ? savedPts : ([[0, 0]] as [number, number][])
     let shape = result.shape
-    for (const [px, py] of cskPts) {
-      const origin: [number, number, number] = [
-        result.origin[0] + px,
-        result.origin[1] + py,
-        result.origin[2],
-      ]
-      const cyl = await makeCylinderAt({ ...result, origin, normal: invNormal }, cskRadius, cskDepth + 1)
-      shape = await cad.subtract(shape, cyl)
+    for (const [px, py] of points) {
+      const origin = localToWorld(result, px, py)
+      const invNormal: [number, number, number] = [-result.normal[0], -result.normal[1], -result.normal[2]]
+      const cone = await makeConeAt({ ...result, origin }, cskRadius, cskDepth, invNormal)
+      shape = await cutShapes(shape, cone)
     }
     result = clone(result, { shape })
   }
@@ -660,13 +944,25 @@ export async function workplane(
   }
 
   const { center, normal } = await resolveFaceSelector(wp.shape, wp.faceSel, opts?.centerOption)
-  let newOrigin = center
+  // CadQuery default centerOption is "ProjectedOrigin": project the current
+  // origin onto the face plane. "CenterOfBoundBox"/"CenterOfMass" keep the
+  // face centroid returned by resolveFaceSelector.
+  let newOrigin: [number, number, number]
+  if (opts?.centerOption && opts.centerOption !== 'ProjectedOrigin') {
+    newOrigin = center
+  } else {
+    const t = vdot(vsub(center, wp.origin), normal)
+    newOrigin = vadd(wp.origin, vscale(normal, t))
+  }
   if (opts?.offset) {
     newOrigin = vadd(newOrigin, vscale(normal, opts.offset))
   }
+  const axes = faceAxes(normal)
   return clone(wp, {
     origin: newOrigin,
     normal,
+    xDir: axes.x,
+    yDir: axes.y,
     faceSel: null,
     edgeSel: null,
     vertexSel: null,
@@ -682,12 +978,8 @@ export async function workplane(
  * @returns Workplane
  */
 export function center(wp: Workplane, x: number, y: number): Workplane {
-  // Local X/Y axes: for XY plane, x→world X, y→world Y
-  // Simplified: assume XY plane
-  const origin = Array.isArray(wp.origin) ? wp.origin : [0, 0, 0]
-  return clone(wp, {
-    origin: [origin[0] + x, origin[1] + y, origin[2]],
-  })
+  // CadQuery semantics: offset along the workplane LOCAL x/y axes.
+  return clone(wp, { origin: localToWorld(wp, x, y) })
 }
 
 /**
@@ -771,7 +1063,7 @@ export async function union(
   if (!wp.shape) return wp
   const otherShape = 'shape' in other ? (other as Workplane).shape : (other as Shape)
   if (!otherShape) return wp
-  const shape = await cad.union(wp.shape, otherShape)
+  const shape = await fuseShapes(wp.shape, otherShape)
   return clone(wp, { shape })
 }
 
@@ -805,7 +1097,7 @@ export async function intersect(
   if (!wp.shape) return wp
   const otherShape = 'shape' in other ? (other as Workplane).shape : (other as Shape)
   if (!otherShape) return wp
-  const shape = await cad.intersect(wp.shape, otherShape)
+  const shape = await intersectShapes(wp.shape, otherShape)
   return clone(wp, { shape })
 }
 
@@ -815,34 +1107,60 @@ export async function intersect(
  * @param radius - number
  * @returns Promise<Workplane>
  */
+/**
+ * Resolve a CadQuery edge selector string to concrete edge handles.
+ *
+ * Supports CadQuery's parallel-axis selectors "|X" / "|Y" / "|Z" (edges whose
+ * bounding box is thin across the two perpendicular axes) and an empty / absent
+ * selector meaning "all edges". Face/edge geometry beyond axis-parallel lines
+ * is out of scope for this layer.
+ */
+function resolveEdgeSelection(shape: Shape, sel: string | null | undefined): unknown[] {
+  const edges = compatFn('getEdges')(borrowBrepjsShape(shape)) as unknown[]
+  if (!sel || sel === '') return edges
+  const m = /^\|([XYZ])$/.exec(sel.trim())
+  if (!m) {
+    throw new Error(`[cq-compat] unsupported edge selector "${sel}" (supported: |X |Y |Z)`)
+  }
+  const axisIdx = m[1] === 'X' ? 0 : m[1] === 'Y' ? 1 : 2
+  const perp = [0, 1, 2].filter((i) => i !== axisIdx)
+  // The kernel inflates edge bounding boxes by ~0.1mm of tolerance padding, so
+  // an axis-parallel edge is identified RELATIVELY: its extent along the axis
+  // must dominate the two perpendicular extents (which stay padding-sized).
+  const PAD = 0.5 // mm — max perpendicular extent for an axis-parallel edge
+  return edges.filter((e) => {
+    const b = compatFn('getBounds')(e) as Record<string, number>
+    const min = [b.xMin, b.yMin, b.zMin]
+    const max = [b.xMax, b.yMax, b.zMax]
+    const extents = [max[0] - min[0], max[1] - min[1], max[2] - min[2]]
+    const axisExtent = extents[axisIdx]
+    return (
+      perp.every((i) => extents[i] <= PAD) &&
+      axisExtent > 2 * Math.max(extents[perp[0]], extents[perp[1]])
+    )
+  })
+}
+
+/**
+ * Fillet selected edges of the current shape.
+ *
+ * `|Z`-style selectors resolve to concrete edges via `resolveEdgeSelection`;
+ * with no edge selector ALL edges are filleted (matching
+ * `fillet(shape, undefined, r)` semantics). Failures propagate — silently
+ * returning the unfilleted shape previously produced plates whose fillets
+ * were missing entirely (mini_lathe bp/mb/mt/tp diagnosis, 2026-09-08).
+ *
+ * @param wp - Workplane whose current shape is filleted; consumes `edgeSel`.
+ * @param radius - Fillet radius in world units.
+ * @returns Promise resolving to a new Workplane holding the filleted shape.
+ */
 export async function fillet(wp: Workplane, radius: number): Promise<Workplane> {
   if (!wp.shape) return wp
-  try {
-    const handle = borrowBrepjsShape(wp.shape)
-    // brepjsCompat.fillet signature: fillet(shape, edges, radius)
-    // For v1, pass null/undefined edges to fillet all edges,
-    // or pass the shape directly if the API supports it.
-    const filletFn = (brepjsCompat as Record<string, unknown>).fillet as
-      | ((...args: unknown[]) => unknown)
-      | undefined
-    if (!filletFn) {
-      // Fallback: no fillet (should not happen — fillet is in brepjsCompat)
-      return clone(wp, { edgeSel: null })
-    }
-    const result = filletFn(handle, null, radius) as { ok?: boolean; value?: unknown } | unknown
-    // Result may be Result<ValidSolid> or raw handle
-    const product =
-      result && typeof result === 'object' && 'ok' in result
-        ? (result as { ok: boolean; value?: unknown }).value
-        : result
-    if (product) {
-      const shape = adoptBrepjsProduct(product)
-      return clone(wp, { shape, edgeSel: null })
-    }
-  } catch {
-    // Fillet failed — return shape unchanged (v1 tolerance)
-  }
-  return clone(wp, { edgeSel: null })
+  const edges = resolveEdgeSelection(wp.shape, wp.edgeSel)
+  const result = compatFn('fillet')(borrowBrepjsShape(wp.shape), edges, radius)
+  const product = unwrapBrepResult(result)
+  const shape = adoptBrepjsProduct(product)
+  return clone(wp, { shape, edgeSel: null })
 }
 
 /**
@@ -904,7 +1222,11 @@ export async function transformed(
 ): Promise<Workplane> {
   let result = wp
   if (opts.offset) {
-    result = await translate(result, opts.offset)
+    // CadQuery applies the offset in LOCAL coordinates:
+    // world offset = x·xDir + y·yDir + z·normal.
+    const [x, y, z] = opts.offset
+    const world = vadd(wp.origin, vadd(vscale(wp.xDir, x), vadd(vscale(wp.yDir, y), vscale(wp.normal, z))))
+    result = clone(result, { origin: world })
   }
   if (opts.rotate) {
     const [rx, ry, rz] = opts.rotate

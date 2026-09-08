@@ -193,6 +193,8 @@ import {
   fuse as vendoredFuse,
   cut as vendoredCut,
   intersect as vendoredIntersect,
+  fillet as vendoredFillet,
+  simplify as vendoredSimplify,
 } from '../../vendored/brepjs/topology/api.js'
 import {
   extrude as vendoredExtrude,
@@ -213,6 +215,19 @@ export const loft = wrapGuarded('loft', vendoredLoft)
 
 /** Intersect two shapeables (common 3D volume). */
 export const intersect = wrapGuarded('intersect', vendoredIntersect)
+
+/**
+ * Fillet all edges (2-arg form) or selected edges (3-arg form: edge array /
+ * finder) of a valid solid. Selection form:
+ * `fillet(shape, edgeHandles, radius)`.
+ */
+export const fillet = wrapGuarded('fillet', vendoredFillet)
+
+/**
+ * Merge same-domain faces/edges (unifySameDomain) — the analogue of
+ * CadQuery's `clean=True` boolean post-processing.
+ */
+export const simplify = wrapGuarded('simplify', vendoredSimplify)
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ①b library-building factories (P24, §8.1): spur gears, planetary trains, threads.

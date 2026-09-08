@@ -321,7 +321,11 @@ function writeAssemblyStep(
   let kernel: BrepEngineApi | null = null
   const entries: StepExportEntry[] = []
 
-  // Preferred path: use behavior.memberNames to match colors
+  // Preferred path: use behavior.memberNames to match colors.
+  // Member name lookup tries (1) the explicit member name, then (2) the kept
+  // script-variable name of the compound's i-th child — cq-compat's
+  // buildAssembly passes CadQuery-style part names ("axk") while the shapes
+  // are registered under their .fai.js variable names ("shape_axk").
   if (behavior?.memberNames && behavior.memberNames.length > 0) {
     // Member Shape list (same order as memberNames) — when a member name
     // misses in brepSolids (e.g. cq libs register short names like 'axk' while

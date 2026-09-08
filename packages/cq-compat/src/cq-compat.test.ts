@@ -171,11 +171,15 @@ describe('cq-compat workplane stack (pushPoints) semantics — regression 2026-0
     expect(m.solidCount).toBe(1)
   }, 60000)
 
-  it('workplane face-based center (CenterOfMass default) on an asymmetric shape', async () => {
-    // base 60×40×8 + inner boss 20×20×10 (x∈[−10,10], y∈[−10,10], z∈[8,18]).
-    // The "+Y" face is the plain plate face (y=20, z∈[0,8]); its CenterOfMass is
-    // (0,20,4). A blind slot cut from it removes 10×19×8 = 1520 mm³.
-    // (Buggy whole-shape-bbox center was (0,20,9): removes 570+450 = 1020 → 22180)
+  it('workplane face-based center (ProjectedOrigin default) on an asymmetric shape — verified vs cadquery 2.8.0', async () => {
+    // base 60×40×8 + inner boss 20×20×10 (z∈[8,18] in cq-compat's bottom-at-
+    // plane convention). The ">Y" face is the plain plate face (y=20); with
+    // CadQuery's DEFAULT centerOption="ProjectedOrigin" the workplane origin
+    // is the current origin projected onto the face plane: (0,20,0). A blind
+    // slot cut from it removes 10×8×8 = 640 mm³ (verified volume 22560 in the
+    // installed cadquery 2.8.0). NOTE: "+Y" would select BOTH +Y-facing faces
+    // (plate + boss side) and workplane() would raise "must be co-planar" —
+    // CadQuery's direction selector semantics; use the extreme selector ">Y".
     const code = [
       "import * as cq from '@faicad/cq-compat'",
       "let wp = cq.Workplane('XY')",
@@ -183,7 +187,7 @@ describe('cq-compat workplane stack (pushPoints) semantics — regression 2026-0
       "let bwp = cq.workplane(cq.faces(base, '>Z'))",
       'let boss = cq.extrude(cq.rect(cq.center(bwp, 0, 0), 20, 20), 10)',
       'let joined = cq.union(base, boss)',
-      "let side = cq.workplane(cq.faces(joined, '+Y'))",
+      "let side = cq.workplane(cq.faces(joined, '>Y'))",
       'let part = cq.cutBlind(cq.rect(cq.center(side, 0, 0), 10, 30), -8)',
       'let result = cq.val(part)',
     ].join('\n')
@@ -192,8 +196,8 @@ describe('cq-compat workplane stack (pushPoints) semantics — regression 2026-0
     const shape = res.outputs.get(asPartName('result')) as Shape | undefined
     expect(shape).toBeDefined()
     const m = shapeMetrics(shape!)
-    // 19200 + 4000 − 1520 = 21680
-    expect(Math.abs(m.volume - 21680)).toBeLessThan(1)
+    // 19200 + 4000 − 640 = 22560 (matches cadquery 2.8.0 exactly)
+    expect(Math.abs(m.volume - 22560)).toBeLessThan(1)
     expect(m.solidCount).toBe(1)
   }, 60000)
 })
