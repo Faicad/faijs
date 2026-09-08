@@ -51,6 +51,8 @@ export interface RawOcctKernel extends BrepEngineApi {
   /** `BRepBuilderAPI_Sewing`：面 → 缝合壳（cq `make_shell` 的等价物，带 tol）。 */
   sew(shapes: BrepHandle[], tolerance?: number): BrepHandle
   makeSolid(shell: BrepHandle): BrepHandle
+  /** TopAbs_ShapeEnum type name ("solid" / "shell" / "face" …, for diagnostics/assertions). */
+  getShapeType(shape: BrepHandle): string
   buildSolidFromFaces(faces: BrepHandle[], tolerance?: number): BrepHandle
   makeNonPlanarFace(wire: BrepHandle): BrepHandle
   makeFaceOnSurface(face: BrepHandle, wire: BrepHandle): BrepHandle

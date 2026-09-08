@@ -52,7 +52,7 @@ export function planarCapAtZ(
   kernel: RawOcctKernel,
   faces: BrepHandle[],
   z: number,
-  wireCombTol = GEAR_BASE_CONSTANTS.wire_comb_tol,
+  wireCombTol: number = GEAR_BASE_CONSTANTS.wire_comb_tol,
 ): BrepHandle {
   const edges: BrepHandle[] = []
   for (const f of faces) {
