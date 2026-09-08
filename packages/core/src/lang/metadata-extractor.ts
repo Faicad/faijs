@@ -23,6 +23,7 @@ import type { HostArg, HostCallRef, HostRef } from './host-arg'
 import { isHostVarRef, isHostParamRef, isHostCallRef, isHostExprRef } from './host-arg'
 import { ParseError } from './parse-error'
 import { fnv1a32 } from './fnv-hash'
+import { assertSecure, type SecurityPolicy } from './security-scanner'
 
 // ── UiMetadata 类型（§4.1） ──
 
@@ -826,6 +827,10 @@ export interface ExtractMetadataOptions {
   looseLocalCalls?: boolean
   /** 顶层 import 绑定名（单行提取时宿主从脚本 imports 提供） */
   namespaces?: string[]
+  /** 安全策略档位（缺省 'strict'；A1 接入点：extractMetadata 第一行过 Scanner） */
+  security?: SecurityPolicy
+  /** S7 命名空间保护名（缺省 = namespaces；append 场景可指定更小集合仅命名空间名） */
+  nsNames?: string[]
 }
 
 /**
@@ -847,6 +852,15 @@ export interface ExtractMetadataOptions {
  * @throws ParseError — 含行号（analyzeCode 抛错契约不变）。
  */
 export function extractMetadata(code: string, options?: ExtractMetadataOptions): UiMetadata {
+  // A1：安全门禁前置——在 acornParse 之前对原始 code 扫描，行号与用户编辑器一致。
+  // security 与 looseVars 正交：安全规则不受 looseVars 影响。
+  assertSecure(code, {
+    policy: options?.security ?? 'strict',
+    knownNames: [options?.defaultNs ?? 'cad', ...(options?.namespaces ?? [])],
+    ...(options?.nsNames ? { nsNames: options.nsNames } : {}),
+    defaultNs: options?.defaultNs,
+  })
+
   const defaultNsName = options?.defaultNs ?? 'cad'
 
   // 符号表（每行提取共享：参数名/值、已声明变量、命名空间绑定、函数集、keep 表）

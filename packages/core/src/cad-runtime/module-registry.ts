@@ -21,10 +21,12 @@
 
 import { extractMetadata } from '../lang/metadata-extractor'
 import type { UiMetadata } from '../lang/metadata-extractor'
+import { assertSecure, type SecurityPolicy, S6_MAX_DEPTH, S6_MAX_MODULES } from '../lang/security-scanner'
 import { computeLiveShapes, type KeepRegistration } from './live-shapes'
 import type { ExecKeepRecord } from './direct-executor'
 import type { ProjectLoader } from './ports'
 import { asPartName, type PartName } from '../identity'
+import { ParseError } from '../lang/parse-error'
 
 // ── 导出类型 ──
 
@@ -61,6 +63,9 @@ export type ModuleRegistryErrorCode =
   | 'MODULE_CYCLE'
   | 'MODULE_EXEC_FAILED'
   | 'BINDING_NOT_EXPORTED'
+  | 'MODULE_SECURITY'
+  | 'MODULE_DEPTH_EXCEEDED'
+  | 'MODULE_COUNT_EXCEEDED'
 
 /** 多文件装载错误（带 lineNo/callee，供 failedAt 定位 import 行）。 */
 export class ModuleRegistryError extends Error {
@@ -122,10 +127,12 @@ export function normalizeModuleKey(specifier: string, baseKey?: string): string 
  */
 export class ModuleRegistry {
   private cache = new Map<string, FaiModule>()
+  private loadCount = 0
 
   constructor(
     private readonly loader: ProjectLoader,
     private readonly run: ModuleRunner,
+    private readonly securityPolicy: SecurityPolicy = 'strict',
   ) {}
 
   /**
@@ -176,6 +183,20 @@ export class ModuleRegistry {
         `module cycle detected: ${[...stack, key].join(' -> ')}`,
       )
     }
+    // S6：装载深度上限
+    if (stack.length >= S6_MAX_DEPTH) {
+      throw new ModuleRegistryError(
+        'MODULE_DEPTH_EXCEEDED',
+        `module loading depth exceeded ${S6_MAX_DEPTH} (stack: ${stack.join(' -> ')})`,
+      )
+    }
+    // S6：模块总数上限
+    if (this.loadCount >= S6_MAX_MODULES) {
+      throw new ModuleRegistryError(
+        'MODULE_COUNT_EXCEEDED',
+        `total module count exceeded ${S6_MAX_MODULES} limit`,
+      )
+    }
     const available = this.loader.listModules()
     if (!available.includes(key)) {
       throw new ModuleRegistryError(
@@ -184,7 +205,25 @@ export class ModuleRegistry {
       )
     }
     const source = await this.loader.readSource(key)
-    const meta = extractMetadata(source)
+    // A3：子模块安全扫描前置（固定 strict；违规 → MODULE_SECURITY）
+    try {
+      assertSecure(source, {
+        policy: 'strict',
+        knownNames: ['cad'],
+        defaultNs: 'cad',
+      })
+    } catch (err) {
+      if (err instanceof ParseError) {
+        throw new ModuleRegistryError(
+          'MODULE_SECURITY',
+          `module "${key}" failed security check: ${err.message}`,
+          { lineNo: err.line, callee: key },
+        )
+      }
+      throw err
+    }
+    this.loadCount++
+    const meta = extractMetadata(source, { security: 'strict' })
     const seed = await this.resolveImports(meta.imports ?? [], key, [...stack, key])
     const result = await this.run(source, seed) // 执行失败 → runner 抛 ModuleRegistryError
     const module = { key, exports: this.buildExports(meta, result) }

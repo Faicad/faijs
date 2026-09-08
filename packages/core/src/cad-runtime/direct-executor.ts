@@ -29,6 +29,7 @@ import { asPartName } from '../identity'
 import { ParseError } from '../lang/parse-error'
 import { setCurrentStmt, setKeepSink, setName, nameOf, getBackends, takePendingAssemblyTransforms, takePendingAssemblyKinematics, type AssemblyKinematicsPose, type ExecutionAnchor } from '../runtime-state'
 import { ExecutionLimitError } from './execution-limit-error'
+import { assertSecure, type SecurityPolicy } from '../lang/security-scanner'
 import { getSlot, ensureSlot, brepOf } from '../shape'
 import type { Shape } from '../mesh/types'
 import type { BrepHandle } from '../brep/engine/types'
@@ -143,6 +144,8 @@ export interface DirectExecutorOptions {
   setFaceEvolution?: (partName: PartName, evo: unknown) => void
   /** 身份槽 → roleTableCache 同步（T3；与 ModuleExecutor.setRoleTable 同语义）。 */
   setRoleTable?: (partName: PartName, roleTable: unknown) => void
+  /** 安全策略档位（A2 接入点：parseAndTransform 第一行过 Scanner；缺省 'strict'） */
+  security?: SecurityPolicy
 }
 
 /**
@@ -156,6 +159,8 @@ export class DirectExecutor {
   readonly ctx: Record<string, unknown> = {}
   private executedLines = new Set<number>()
   private namespaces: Namespaces
+  /** 安全策略档位（A2 接入点用） */
+  private readonly securityPolicy: SecurityPolicy
   /** T3：身份槽同步钩子（runtime 注入） */
   private readonly setSolidHook?: (partName: PartName, solid: BrepHandle) => void
   private readonly setFaceEvolutionHook?: (partName: PartName, evo: unknown) => void
@@ -179,6 +184,7 @@ export class DirectExecutor {
     this.setSolidHook = options.setSolid
     this.setFaceEvolutionHook = options.setFaceEvolution
     this.setRoleTableHook = options.setRoleTable
+    this.securityPolicy = options.security ?? 'strict'
   }
 
   /**
@@ -311,7 +317,13 @@ export class DirectExecutor {
     // 替代 ModuleExecutor.internalKeep 的 StmtId 键——DirectExecutor 无语句模型）
     setKeepSink((_stmtId, names, hidden) => this.registerKeepByLine(names, hidden))
     try {
-      const units = this.parseAndTransform(code)
+      // params/imports 预置键作为安全扫描器的 knownNames（避免 SEC_FREE_IDENT 误杀）
+      const extraKnown = [
+        ...Object.keys(opts?.params ?? {}),
+        ...Object.keys(opts?.imports ?? {}),
+        ...Object.keys(this.ctx), // append 场景：已执行产出变量名
+      ]
+      const units = this.parseAndTransform(code, extraKnown)
       const executedLines: number[] = []
       let failedAt: DirectExecFailedAt | undefined
 
@@ -428,7 +440,8 @@ export class DirectExecutor {
    */
   missingPrefixVar(code: string): { unitLine: number; varName: string } | undefined {
     const fullCode = this.fullCode === '' ? code : `${this.fullCode}\n${code}`
-    const units = this.parseAndTransform(fullCode)
+    // 预检：跳过安全扫描（append 场景由 runtime 层先做 missingPrefixVar，再做 A1 安全扫描）。
+    const units = this.parseAndTransform(fullCode, undefined, true)
     const available = new Set<string>(Object.keys(this.ctx))
     for (const unit of units) {
       if (!this.executedLines.has(unit.lineNo)) {
@@ -582,7 +595,21 @@ export class DirectExecutor {
   }
 
   /** 解析并变换全部顶层单元。 */
-  private parseAndTransform(code: string): TransformedUnit[] {
+  private parseAndTransform(code: string, extraKnownNames?: string[], skipSecurity = false): TransformedUnit[] {
+    // A2：安全门禁前置——在 parseBody 之前对原始 code 扫描。
+    // extraKnownNames = params/imports 预置键 + ctx 已有键（append 场景）。
+    // skipSecurity = true 仅用于 missingPrefixVar 预检（append 场景：先 prefix 校验，再 A1 安全扫描）。
+    if (!skipSecurity) {
+      const nsNames = Object.keys(this.namespaces).filter((k) => k !== 'contractVersion')
+      const knownNames = extraKnownNames ? [...nsNames, ...extraKnownNames] : nsNames
+      assertSecure(code, {
+        policy: this.securityPolicy,
+        knownNames,
+        // S7 只保护命名空间名，不保护 ctx 中的普通变量（如 let bp = ...）
+        nsNames,
+        defaultNs: 'cad',
+      })
+    }
     const { nodes, lineOffset, parseText } = this.parseBody(code)
     const declared = new Set<string>() // 累积：参数名 + outputs + 函数名
     const units: TransformedUnit[] = []

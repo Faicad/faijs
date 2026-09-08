@@ -62,6 +62,12 @@ export type {
   UiMetadata, ParamEntry, ImportEntry, FunctionEntry, BlockEntry, KeepEntry,
   ExtractMetadataOptions,
 } from './lang/metadata-extractor'
+// SecurityScanner — 静态安全门禁（纵深防御第一层）
+export { scanSource, scanAst, assertSecure } from './lang/security-scanner'
+export type {
+  SecurityPolicy, SecurityRuleId, SecurityViolation,
+  SecurityScanOptions, SecurityScanResult,
+} from './lang/security-scanner'
 // HostArg — 宿主友好位置参数类型（IR 屏蔽层）
 export type {
   HostArg, HostRef, HostVarRef, HostParamRef, HostCallRef, HostExprRef, HostRefKind,
@@ -188,6 +194,7 @@ export type {
   DovetailGrooveParams as PortDovetailGrooveParams,
   DowelSplitParams as PortDowelSplitParams,
   StraightTenonSplitParams as PortStraightTenonSplitParams,
+  LibLoader, ProjectLoader,
 } from './cad-runtime/ports'
 
 // ── OCCT Kernel ──

@@ -22,6 +22,8 @@ export type ParseErrorCode =
   | 'E_REFERENCE'
   /** 本机函数调用 ABI 违规（§3.6：位置实参超位 / args 对象键不在形参表） */
   | 'E_ARG'
+  /** 安全门禁违规（SecurityScanner 命中：危险标识符 / 危险语法 / 自由标识符等） */
+  | 'E_SECURITY'
 
 /**
  * An error raised while parsing faijs source, carrying the offending line
@@ -32,8 +34,10 @@ export class ParseError extends Error {
   line: number
   /** 诊断码（缺省 E_SYNTAX）。宿主 check() 透传；3d_editor 可据此给 AI 精确反馈。 */
   code: ParseErrorCode
+  /** SecurityScanner 规则 ID（仅 code='E_SECURITY' 时有值；见 security-scanner.ts SecurityRuleId 枚举）。 */
+  ruleId?: string
 
-  constructor(message: string, line: number, code: ParseErrorCode = 'E_SYNTAX', cause?: unknown) {
+  constructor(message: string, line: number, code: ParseErrorCode = 'E_SYNTAX', cause?: unknown, ruleId?: string) {
     super(
       `[parser] line ${line}: ${message}`,
       cause === undefined ? undefined : ({ cause } as unknown as ErrorOptions),
@@ -41,5 +45,6 @@ export class ParseError extends Error {
     this.name = 'ParseError'
     this.line = line
     this.code = code
+    if (ruleId !== undefined) this.ruleId = ruleId
   }
 }

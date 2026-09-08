@@ -25,6 +25,7 @@ import type { BrepEngineApi } from '../brep/engine/primitives'
 import { getBrepEngine, hasBrepEngine, getActiveBrepEngineId } from '../brep/engine/registry'
 import { ensureOcctDefaultEngine } from '../brep/engine/adapters/occt'
 import { ParseError } from '../lang/parse-error'
+import type { SecurityPolicy } from '../lang/security-scanner'
 import type { HostPorts, ExecutionMode } from './ports'
 import type { SelectorRuntimeData } from '../topology/build-selector-runtime'
 import type { SelectorRuntime } from '../topology/types'
@@ -66,12 +67,14 @@ import { HASH_UPPER_BOUND } from '../brep/face-evolution'
  */
 export interface CheckError {
   /** The stage that produced the error ('keep' = keep directive validation). */
-  stage: 'parse' | 'symbol' | 'reference' | 'keep'
+  stage: 'parse' | 'symbol' | 'reference' | 'keep' | 'security'
   message: string
   line?: number
   stmtId?: string
   /** Parse diagnostic code (e.g. E_CONTROL_FLOW, passed through from parser ParseError.code). */
   code?: string
+  /** SecurityScanner rule ID (only when stage='security'; e.g. SEC_IDENT / SEC_SYNTAX / ...). */
+  ruleId?: string
 }
 
 /**
@@ -252,10 +255,13 @@ function runtimeToData(rt: SelectorRuntime): SelectorRuntimeData {
 /**
  * CadRuntime 构造选项（第 4 参；缺省全部可选）。
  *
- * direct 是唯一执行路径；此接口保留为空以兼容外部构造签名（第 4 参仍可传对象）。
+ * direct 是唯一执行路径。security 透传给 DirectExecutor 与 extractMetadata
+ * （A1/A2/A3 缺省 'strict'）。
  */
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export interface CadRuntimeOptions {}
+export interface CadRuntimeOptions {
+  /** 安全策略档位（缺省 'strict'；透传给 DirectExecutor 与 extractMetadata） */
+  security?: SecurityPolicy
+}
 
 /**
  * CadRuntime is the execution core of the L2 orchestration layer.
@@ -317,6 +323,9 @@ export class CadRuntime {
 
   /** 无 IR 执行器（DirectExecutor，T5 后唯一执行路径） */
   private readonly directExecutor: DirectExecutor
+
+  /** 安全策略档位（透传给 extractMetadata 与 DirectExecutor；缺省 'strict'） */
+  private readonly securityPolicy: SecurityPolicy
 
   /** 宿主注册库（含 cad：由根门面 createRuntime 包装注入；注入编译产物 fn 的第二参 ns） */
   private readonly libs: Record<string, StdlibNamespace>
@@ -393,17 +402,19 @@ export class CadRuntime {
     ports: HostPorts,
     mode: ExecutionMode = 'auto',
     libs: Record<string, StdlibNamespace> = {},
-    _options: CadRuntimeOptions = {},
+    options: CadRuntimeOptions = {},
   ) {
     this.ports = ports
     this.mode = mode
     this.libs = libs
     this.namespaces = { ...libs } as Namespaces
+    this.securityPolicy = options.security ?? 'strict'
     this.directExecutor = new DirectExecutor({
       namespaces: this.namespaces,
       setSolid: (partName, solid) => { this.solidCache.set(partName, solid) },
       setFaceEvolution: (partName, evo) => { this.faceEvolutionCache.set(partName, evo as Map<number, number[]>) },
       setRoleTable: (partName, roleTable) => { this.roleTableCache.set(partName, roleTable) },
+      security: this.securityPolicy,
     })
 
     // P2：装配全局 backends（stdlib 经 getBackends() 取资源）。
@@ -516,7 +527,7 @@ export class CadRuntime {
     // P2 修复：执行前重新认领全局 backends（本实例配置为准）。
     this.claimBackends()
     this.accumulatedCode = code
-    const meta = extractMetadata(code, { defaultNs: this.defaultNsName })
+    const meta = extractMetadata(code, { defaultNs: this.defaultNsName, security: this.securityPolicy, namespaces: Object.keys(this.libs) })
     const libLoadFailure = await this.autoLoadLibsFromImports(meta.imports)
     if (libLoadFailure) return libLoadFailure
     // 多文件（§4.5）：相对 import 依赖装载 → 绑定 seed；装载错误 → failedAt 短路。
@@ -595,18 +606,21 @@ export class CadRuntime {
     this.claimBackends()
     const fullCode = this.accumulatedCode === null ? code : `${this.accumulatedCode}\n${code}`
     this.accumulatedCode = fullCode
+    // Append never reconciles：持久 ctx 中先前已执行语句必须原样保留；缺引用的新单元
+    // 在 DirectExecutor 内会静默拿到 undefined —— 这里按 module 路径语义前置抛错。
+    // 先做 prefix 校验（skipSecurity=true，预检不触发安全扫描），再做 A1 安全扫描。
+    const missing = de.missingPrefixVar(code)
+    if (missing) throw new AppendPrefixError(`s${missing.unitLine}`, missing.varName)
     // looseVars: true (same semantics as the deleted module append path): references to
     // 已执行产出/其它文件的变量作为外部 var 透传，由 missingPrefixVar 前置校验决定成败。
-    const meta = extractMetadata(fullCode, { defaultNs: this.defaultNsName, looseVars: true })
+    // A1 安全扫描需把 ctx 已有键 + 已注册命名空间都作为 knownNames（避免 SEC_FREE_IDENT 误杀 append 场景）。
+    const appendKnownNames = [...Object.keys(this.libs), ...de.listCtxKeys()]
+    const meta = extractMetadata(fullCode, { defaultNs: this.defaultNsName, looseVars: true, security: this.securityPolicy, namespaces: appendKnownNames, nsNames: Object.keys(this.libs) })
     const libLoadFailure = await this.autoLoadLibsFromImports(meta.imports)
     if (libLoadFailure) return libLoadFailure
     // 多文件（§4.5）：相对 import 依赖装载 → 绑定 seed（覆盖刷新 ctx 中旧 import 绑定）。
     const moduleLoad = await this.loadDirectModuleImports(meta)
     if (!('seed' in moduleLoad)) return moduleLoad
-    // Append never reconciles：持久 ctx 中先前已执行语句必须原样保留；缺引用的新单元
-    // 在 DirectExecutor 内会静默拿到 undefined —— 这里按 module 路径语义前置抛错。
-    const missing = de.missingPrefixVar(code)
-    if (missing) throw new AppendPrefixError(`s${missing.unitLine}`, missing.varName)
     const brepChain = await this.ensureBrepChain()
     if (opts?.partTransform?.position) {
       brepChain.partTransform = {
@@ -648,7 +662,7 @@ export class CadRuntime {
     const loader = this.ports.projectLoader
     if (!loader) return { seed: {} }
     if (!(meta.imports ?? []).some((imp) => isRelativeSpecifier(imp.specifier))) return { seed: {} }
-    const registry = new ModuleRegistry(loader, (code, imports) => this.runDirectModule(code, imports))
+    const registry = new ModuleRegistry(loader, (code, imports) => this.runDirectModule(code, imports), this.securityPolicy)
     try {
       const seed = await registry.resolveImports(meta.imports ?? [])
       return { seed }
@@ -673,7 +687,8 @@ export class CadRuntime {
 
   /** 依赖模块执行（direct）：独立 DirectExecutor + 独立 ctx；失败抛 ModuleRegistryError。 */
   private async runDirectModule(code: string, imports: Record<string, unknown>): Promise<ModuleRunResult> {
-    const de = new DirectExecutor({ namespaces: { ...this.libs } as Namespaces })
+    // A3：子模块固定 strict 策略（不接受降档）
+    const de = new DirectExecutor({ namespaces: { ...this.libs } as Namespaces, security: 'strict' })
     const outcome = await de.execute(code, { imports })
     if (outcome.failedAt) {
       throw new ModuleRegistryError(
@@ -1140,7 +1155,7 @@ export class CadRuntime {
    */
   check(code: string): CheckResult {
     try {
-      const meta = extractMetadata(code, { defaultNs: this.defaultNsName })
+      const meta = extractMetadata(code, { defaultNs: this.defaultNsName, security: this.securityPolicy, namespaces: Object.keys(this.libs) })
       return {
         ok: true,
         errors: [],
@@ -1152,9 +1167,10 @@ export class CadRuntime {
       }
     } catch (err) {
       if (err instanceof ParseError) {
+        const stage = err.code === 'E_SECURITY' ? 'security' : 'parse'
         return {
           ok: false,
-          errors: [{ stage: 'parse', message: err.message, line: err.line, ...(err.code ? { code: err.code } : {}) }],
+          errors: [{ stage, message: err.message, line: err.line, ...(err.code ? { code: err.code } : {}), ...(err.ruleId ? { ruleId: err.ruleId } : {}) }],
           warnings: [],
         }
       }

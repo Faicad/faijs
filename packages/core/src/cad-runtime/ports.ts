@@ -191,6 +191,14 @@ export interface LibLoader {
   listLibs(): string[]
   /** 自动装载的注册选项；缺省由推断式决定（有 dual-op 的库不提升，全裸函数库自动提升，与手动注入一致）。 */
   options?: { autoLift?: boolean }
+  /**
+   * 可选源码扫描钩子（§6.2 ②）：宿主返回库源码时走同一 SecurityScanner（A4，固定 strict）；
+   * 不提供或返回 undefined 则跳过。不改 loadLib 返回值——返回 StdlibNamespace，
+   * 往里挂 source 会被 admitCompatLib 当成导出值并污染命名空间。
+   * @param packageName - the npm package name.
+   * @returns the library source text if available, otherwise undefined.
+   */
+  loadSource?(packageName: string): Promise<string | undefined>
 }
 
 // ── ProjectLoader ──
