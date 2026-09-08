@@ -274,7 +274,7 @@ export interface ExecutionResult {
   brepSolids?: Map<PartName, { solid: BrepHandle; kernel: BrepEngineApi }>
   topology?: Map<PartName, PartTopology>
   compounds?: Map<PartName, PartName[]>           // compound variable -> member names
-  changed?: PartName[]                            // variables whose value changed this run
+  changed?: PartName[]                            // variables whose value changed this run (full & incremental); undefined when zero-change path produces no re-execution
   activeValues?: Map<PartName, unknown>           // live but non-geometric leaf values
 }
 ```
@@ -290,6 +290,7 @@ export interface ExecuteOptions {
   startIndex?: number
   topology?: 'auto' | 'brep' | 'off'
   executionTimeoutMs?: number                      // whole-run guard (optional, default off) → E_EXEC_LIMIT
+  beforeStatement?: (info: { lineNo: number; callee: string }) => void  // pre-statement hook (direct path)
 }
 ```
 

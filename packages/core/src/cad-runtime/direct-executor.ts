@@ -109,6 +109,9 @@ export interface DirectExecOpts {
   executionTimeoutMs?: number
 }
 
+/** 单元行区间（P0 增量用：unitRanges 返回值）。 */
+export interface UnitRange { lineNo: number; endLine: number }
+
 interface TransformedUnit {
   lineNo: number
   /** 变换后的可执行语句文本（嵌入 async wrapper 的 body） */
@@ -120,6 +123,8 @@ interface TransformedUnit {
   callee?: string
   /** 是否为控制流块单元（T1：for/if/while/do/switch/裸块等） */
   isBlock?: boolean
+  /** 单元结束行号（闭区间；transformTopNode 统一填充） */
+  endLine: number
 }
 
 /** 函数体 keep 登记（键 = 单元行号）。 */
@@ -246,6 +251,38 @@ export class DirectExecutor {
     return [...this.executedLines].sort((a, b) => a - b)
   }
 
+  /**
+   * 解析 code 的单元行区间与行偏移（P0 增量用：公共前缀扫描 → 单元行映射）。
+   * 复用 `parseAndTransform` 的解析路径（含 `assertSecure`）。调用方据此
+   * 将物理行号映射到单元起始行，再交给 `replayFrom`。
+   * @param code - .fai.js 源码文本。
+   * @returns `{ ranges, lineOffset }`：ranges = 每个单元的闭区间 `[lineNo, endLine]`；
+   *   lineOffset = parseBody 得到的行偏移（非标准解析基线时 ≠ 0）。
+   */
+  unitRanges(code: string): { ranges: UnitRange[]; lineOffset: number } {
+    const { nodes, lineOffset, parseText } = this.parseBody(code)
+    const declared = new Set<string>()
+    const ranges: UnitRange[] = []
+    for (const node of nodes) {
+      if (node.type === 'ImportDeclaration') continue
+      const rawLine = (node?.loc?.start?.line ?? 1) - lineOffset
+      const unit = this.transformTopNode(node, parseText, declared, rawLine, lineOffset)
+      if (unit) ranges.push({ lineNo: unit.lineNo, endLine: unit.endLine })
+    }
+    return { ranges, lineOffset }
+  }
+
+  /**
+   * 解析 code 的全部单元（含 writes），供增量 replayKeys 计算（P0-5）。
+   * 复用 `parseAndTransform` 的解析路径（含 `assertSecure`）。
+   * @param code - .fai.js 源码文本。
+   * @returns 每个单元的 `{ lineNo, endLine, writes }`。
+   */
+  unitRangesWithWrites(code: string): Array<{ lineNo: number; endLine: number; writes: string[] }> {
+    const units = this.parseAndTransform(code)
+    return units.map((u) => ({ lineNo: u.lineNo, endLine: u.endLine, writes: u.writes }))
+  }
+
   /** 块单元产出登记（T1/A-6）：shape 名 → 块起始行号；execute 前后 ctx diff 生成。 */
   private blockOutputs = new Map<string, number>()
 
@@ -305,9 +342,85 @@ export class DirectExecutor {
     return this.execute(newCode, opts)
   }
 
+  /**
+   * 前缀重放（P0 增量核心）：保留 `[1, startLine)` 的 ctx 与状态不变，
+   * 从 `startLine` 开始重放到末尾。调用方需先用 `unitRanges` 做行映射
+   * 并通过 G0 闸门（`lineOffset === 0`）。
+   *
+   * 步骤（§4.3）：
+   * 1. 解析全部单元（含安全扫描）；
+   * 2. `replayUnits = units.filter(u => u.lineNo >= startLine)`；
+   * 3. 计算待清键 `replayKeys = suffixWrites − prefixWrites`（减去前缀写入键
+   *    是正确性要求——重赋值链中前缀产出不能被删）；
+   * 4. 清理重放区间相关状态（executedLines / keepByLine / blockOutputs / changedSet /
+   *    kinematicsOut / ctx replayKeys / fullCode）；
+   * 5. `runCode(code, opts, units)`——传入已解析 units 避免重复解析与重复安全扫描。
+   *
+   * `ExecutionLimitError` / `ParseError` / 安全扫描异常一律原样上抛，
+   * 不触发失败降级；只有 `outcome.failedAt` 才由调用方降级（§4.7）。
+   * @param code - 变更后的完整 .fai.js 源码文本。
+   * @param startLine - 重放起始单元行号（含）。
+   * @param opts - 执行参数。
+   * @returns 执行产出。
+   */
+  async replayFrom(code: string, startLine: number, opts?: DirectExecOpts): Promise<DirectExecOutcome> {
+    // 1. 解析全部单元（安全扫描对全文执行一次）
+    const units = this.parseAndTransform(code)
+
+    // 2. 区分前缀/后缀单元
+    const replayUnits = units.filter((u) => u.lineNo >= startLine)
+
+    // 3. 计算待清键
+    const suffixWrites = new Set<string>()
+    for (const u of replayUnits) for (const w of u.writes) suffixWrites.add(w)
+    const prefixWrites = new Set<string>()
+    for (const u of units) {
+      if (u.lineNo < startLine) for (const w of u.writes) prefixWrites.add(w)
+    }
+    const replayKeys: string[] = []
+    for (const w of suffixWrites) {
+      if (!prefixWrites.has(w)) replayKeys.push(w)
+    }
+
+    // 4. 清理重放区间相关状态
+    // 4a. executedLines 删除 >= startLine 的行
+    for (const line of [...this.executedLines]) {
+      if (line >= startLine) this.executedLines.delete(line)
+    }
+    // 4b. keepByLine 删除 >= startLine 的登记
+    for (const line of [...this.keepByLine.keys()]) {
+      if (line >= startLine) this.keepByLine.delete(line)
+    }
+    // 4c. blockOutputs 删除值 >= startLine 的条目
+    for (const [key, line] of [...this.blockOutputs]) {
+      if (line >= startLine) this.blockOutputs.delete(key)
+    }
+    // 4d. clearRoundState: changedSet + kinematicsOut
+    this.clearRoundState()
+    // 4e. ctx 删除 replayKeys 中的键
+    for (const key of replayKeys) {
+      delete this.ctx[key]
+    }
+    // 4f. fullCode 更新
+    this.fullCode = code
+
+    // 5. runCode（传入已解析 units 避免重复解析）
+    return this.runCode(code, opts, units)
+  }
+
+  /**
+   * 清空轮次状态（P0 增量用）：`changedSet` + `kinematicsOut`。
+   * 在增量重放前调用，避免上一轮的 `changed` / kinematics 拗留被带入本轮结果。
+   * 零变更路径（§4.6）也需调用——否则会把上一轮的 `changed` 原样带回。
+   */
+  clearRoundState(): void {
+    this.changedSet.clear()
+    this.kinematicsOut.clear()
+  }
+
   // ── 主流程 ──
 
-  private async runCode(code: string, opts?: DirectExecOpts): Promise<DirectExecOutcome> {
+  private async runCode(code: string, opts?: DirectExecOpts, preParsedUnits?: TransformedUnit[]): Promise<DirectExecOutcome> {
     // import 预置（§4.5：顶层 import 行不执行，绑定值先入 ctx），随后参数预置可覆盖
     for (const [k, v] of Object.entries(opts?.imports ?? {})) this.ctx[k] = v
     // 参数预置（ExecuteOptions.params → ctx；参数行不执行，与现状语义一致）
@@ -323,7 +436,7 @@ export class DirectExecutor {
         ...Object.keys(opts?.imports ?? {}),
         ...Object.keys(this.ctx), // append 场景：已执行产出变量名
       ]
-      const units = this.parseAndTransform(code, extraKnown)
+      const units = preParsedUnits ?? this.parseAndTransform(code, extraKnown)
       const executedLines: number[] = []
       let failedAt: DirectExecFailedAt | undefined
 
@@ -616,7 +729,7 @@ export class DirectExecutor {
     for (const node of nodes) {
       if (node.type === 'ImportDeclaration') continue // import 行不执行
       const rawLine = (node?.loc?.start?.line ?? 1) - lineOffset
-      const unit = this.transformTopNode(node, parseText, declared, rawLine)
+      const unit = this.transformTopNode(node, parseText, declared, rawLine, lineOffset)
       if (unit) units.push(unit)
     }
     return units
@@ -627,14 +740,19 @@ export class DirectExecutor {
     code: string,
     declared: Set<string>,
     lineNo: number,
+    lineOffset: number,
   ): TransformedUnit | null {
+    let unit: TransformedUnit | null
     switch (node.type) {
       case 'FunctionDeclaration':
-        return this.transformFunction(node, code, declared, lineNo)
+        unit = this.transformFunction(node, code, declared, lineNo)
+        break
       case 'VariableDeclaration':
-        return this.transformVariable(node, code, declared, lineNo)
+        unit = this.transformVariable(node, code, declared, lineNo)
+        break
       case 'ExpressionStatement':
-        return this.transformExpressionStatement(node, code, declared, lineNo)
+        unit = this.transformExpressionStatement(node, code, declared, lineNo)
+        break
       case 'ReturnStatement':
         // 容器/自由 JS 的顶层 return（AI 手写 .fai.js）：return 只表达 UI meta /
         // 显式终端，不构成执行单元（几何产物都写在 ctx）。忽略执行。
@@ -649,12 +767,21 @@ export class DirectExecutor {
       case 'TryStatement':
       case 'BlockStatement':
       case 'LabeledStatement':
-        return this.transformBlock(node, code, declared, lineNo)
+        unit = this.transformBlock(node, code, declared, lineNo)
+        break
       default:
         // 其余控制流/未知节点（ThrowStatement/BreakStatement/ContinueStatement 等）
         // 也按块单元处理——整段文本执行，不分析语义。
-        return this.transformBlock(node, code, declared, lineNo)
+        unit = this.transformBlock(node, code, declared, lineNo)
+        break
     }
+    // 统一填充 endLine（闭区间）——AST node.loc.end.line 是物理行号，减去
+    // lineOffset 归一化到与 lineNo 相同的基准。
+    if (unit) {
+      const endLine = (node.loc?.end?.line ?? lineNo) - lineOffset
+      unit.endLine = endLine
+    }
+    return unit
   }
 
   /**
@@ -681,7 +808,7 @@ export class DirectExecutor {
     while ((m = re.exec(body)) !== null) {
       if (!writes.includes(m[1])) writes.push(m[1])
     }
-    return { lineNo, body, writes, refs: [], isBlock: true }
+    return { lineNo, body, writes, refs: [], isBlock: true, endLine: 0 }
   }
 
   /**
@@ -798,7 +925,7 @@ export class DirectExecutor {
     // 本机函数体引用其它本机函数/变量走 __ctx（与顶层一致）
     declared.add(name)
     this.fnParams.set(name, params)
-    return { lineNo, body, writes: [name], refs: [], callee: name }
+    return { lineNo, body, writes: [name], refs: [], callee: name, endLine: 0 }
   }
 
   /** const/let 行：参数（字面量）直接进 ctx；op 行变换调用；派生常量求值。 */
@@ -828,7 +955,7 @@ export class DirectExecutor {
       const pair = keys.map((k, i) => `${k}: ${binds[i]}`).join(', ')
       const body = [`const { ${pair} } = ${call}`, ...writes].join('\n')
       for (const b of binds) declared.add(b)
-      return { lineNo, body, writes: binds, refs: this.collectRefs(init), callee: this.calleeOf(init) }
+      return { lineNo, body, writes: binds, refs: this.collectRefs(init), callee: this.calleeOf(init), endLine: 0 }
     }
     if (d?.id?.type !== 'Identifier') {
       throw new ParseError('expected identifier on left side of const declaration', dLine, 'E_STATEMENT')
@@ -840,13 +967,13 @@ export class DirectExecutor {
     if (init?.type === 'CallExpression') {
       const call = this.emitCall(init, code, declared, dLine)
       declared.add(name)
-      return { lineNo, body: `__ctx.${name} = ${call}`, writes: [name], refs: this.collectRefs(init), callee: this.calleeOf(init) }
+      return { lineNo, body: `__ctx.${name} = ${call}`, writes: [name], refs: this.collectRefs(init), callee: this.calleeOf(init), endLine: 0 }
     }
     if (init) {
       // 参数行（字面量/数组/对象）或派生常量：求值后写入 ctx（引用走 __ctx 提升）
       const exprText = this.hoistText(code.slice(init.start, init.end), declared)
       declared.add(name)
-      return { lineNo, body: `__ctx.${name} = ${exprText}`, writes: [name], refs: [], callee: undefined }
+      return { lineNo, body: `__ctx.${name} = ${exprText}`, writes: [name], refs: [], callee: undefined, endLine: 0 }
     }
     throw new ParseError('unsupported const declaration', dLine, 'E_STATEMENT')
   }
@@ -866,17 +993,17 @@ export class DirectExecutor {
       if (init?.type === 'AwaitExpression') init = init.argument
       if (init?.type === 'CallExpression') {
         const call = this.emitCall(init, code, declared, lineNo)
-        return { lineNo, body: `__ctx.${varName} = ${call}`, writes: [varName], refs: this.collectRefs(init), callee: this.calleeOf(init) }
+        return { lineNo, body: `__ctx.${varName} = ${call}`, writes: [varName], refs: this.collectRefs(init), callee: this.calleeOf(init), endLine: 0 }
       }
       // 变量→变量重赋值 / 表达式重赋值（`bp = bp2` / `x = a + b`）：合法 JS，
       // 直接提升自由标识符写回 ctx（A-15 最后写者语义）。
       const rhsText = this.hoistText(code.slice(init?.start ?? expr.right.start, expr.right.end), declared)
-      return { lineNo, body: `__ctx.${varName} = ${rhsText}`, writes: [varName], refs: [], callee: undefined }
+      return { lineNo, body: `__ctx.${varName} = ${rhsText}`, writes: [varName], refs: [], callee: undefined, endLine: 0 }
     }
     if (expr?.type === 'CallExpression') {
       const call = this.emitCall(expr, code, declared, lineNo)
       // 命名空间裸调用 / 成员方法 / 本机函数副作用调用：都 await（无写入）
-      return { lineNo, body: `await ${call}`, writes: [], refs: this.collectRefs(expr), callee: this.calleeOf(expr) }
+      return { lineNo, body: `await ${call}`, writes: [], refs: this.collectRefs(expr), callee: this.calleeOf(expr), endLine: 0 }
     }
     throw new ParseError('bare expression statements not allowed', lineNo, 'E_STATEMENT')
   }

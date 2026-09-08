@@ -34,7 +34,7 @@ import type { SolidTopologyResult } from '../brep/brep-topology'
 import { buildTopologyFromMesh } from '../brep/brep-topology'
 import type { BrepMeshResult } from '../brep/engine/types'
 import { asPartName, type PartName, type StmtId } from '../identity'
-import { DirectExecutor, type Namespaces } from './direct-executor'
+import { DirectExecutor, type Namespaces, type DirectExecOpts } from './direct-executor'
 import { ModuleRegistry, ModuleRegistryError, isRelativeSpecifier } from './module-registry'
 import type { ModuleRunResult } from './module-registry'
 import { computeLiveShapes, lineConsumes, blockConsumes, type KeepView } from './live-shapes'
@@ -47,8 +47,9 @@ import {
 import { admitCompatLib } from './admit-compat-lib'
 import { hasDualOp } from '../define-op'
 import { computeLibId } from './lib-id'
-import { computeContentKey } from './content-key'
+import { computeContentKey, stableFingerprint } from './content-key'
 export { computeContentKey } from './content-key'
+export { stableFingerprint } from './content-key'
 import { isCompoundLike, getSlot, ensureSlot, type CompoundShape } from '../shape'
 import type { PartNaming } from '../topology/naming/types'
 import { buildPartNaming, assignPrimitiveFaceRoles, type PartNamingInput } from '../topology/naming/build-naming'
@@ -292,6 +293,12 @@ export class CadRuntime {
   private accumulatedCode: string | null = null
   /** 已累积场景的语句 id 集（append 据此判定「新增语句」）。 */
   private accumulatedIds = new Set<StmtId>()
+
+  // P0 增量闸门用：上次成功执行的指纹快照
+  private lastParamsFingerprint: string | null = null
+  private lastLibIdsFingerprint: string | null = null
+  private lastPartTransformFingerprint: string | null = null
+  private lastHadKinematics = false
 
   /**
    * PartName → OCCT 实体句柄，跨 execute 存活，持有所有权（顶替释放/删除/dispose 的唯一操作对象）。
@@ -550,7 +557,9 @@ export class CadRuntime {
     if (outcome.failedAt) {
       return this.directFailedAtOrThrow(outcome.failedAt, meta)
     }
-    return this.collectDirectResult(meta, opts)
+    const result = this.collectDirectResult(meta, opts)
+    this.recordFingerprints(opts)
+    return result
   }
 
   /** E6：DirectExecutor 失败行 → 场景语句序数（meta.lines 下标）；不在 lines → undefined。 */
@@ -637,7 +646,9 @@ export class CadRuntime {
     if (outcome.failedAt) {
       return this.directFailedAtOrThrow(outcome.failedAt, meta)
     }
-    return this.collectDirectResult(meta, opts)
+    const result = this.collectDirectResult(meta, opts)
+    this.recordFingerprints(opts)
+    return result
   }
 
   /** Direct-mode 失败结果的 outputs 部分：持久 ctx 中已产出的 shape/compound。 */
@@ -1017,7 +1028,7 @@ export class CadRuntime {
    * @returns promise resolving to the ExecutionResult.
    */
   async update(oldCode: string, newCode: string, opts?: ExecuteOptions): Promise<ExecutionResult> {
-    return this.updateDirectText(oldCode, newCode, opts)
+    return this.updateIncremental(oldCode, newCode, opts)
   }
 
   // ── 公开：缓存访问 ──
@@ -1182,6 +1193,255 @@ export class CadRuntime {
     }
   }
 
+  // ── P0 增量：releasePartCaches / updateIncremental ──
+
+  /**
+   * 派生缓存失效（P0-4）：重放前对 `replayKeys`（经 `asPartName()` 转换）逐一清理
+   * 所有派生缓存，确保重放后几何/拓扑/mesh 不命中旧值。
+   *
+   * 清理清单（§4.4）：
+   * - `solidCache`：先 `kernel.release(handle)`，再删键（参照 dispose 的 try/catch）；
+   * - `brepChain.meshShapeCache`：删键（跨轮保留，不清会返回旧 solid 的三角化）；
+   * - `faceEvolutionCache` / `roleTableCache`：删键（与 runtime 同 Map 引用，删键即生效）；
+   * - `topologyCache` / `statementCache`：删键（collectDirectResult 按新几何重新填充）。
+   */
+  private releasePartCaches(partNames: PartName[]): void {
+    for (const name of partNames) {
+      // solidCache: release OCCT handle first, then delete key
+      const handle = this.solidCache.get(name)
+      if (handle) {
+        try { this.kernel?.release(handle) } catch { /* already released */ }
+        this.solidCache.delete(name)
+      }
+      // brepChain.meshShapeCache
+      this.brepChain?.meshShapeCache?.delete(name)
+      // faceEvolutionCache / roleTableCache (same Map refs as runtime's)
+      this.faceEvolutionCache.delete(name)
+      this.roleTableCache.delete(name)
+      // topologyCache / statementCache
+      this.topologyCache.delete(name)
+      this.statementCache.delete(name)
+    }
+  }
+
+  /**
+   * 前缀重放式 update 增量执行（P0-5）。
+   *
+   * 流程：
+   * 1. 保守闸门 G0–G8 判定——任一命中则退化为全量 `executeDirectText`；
+   * 2. 公共前缀扫描定位首个变更行 → 物理行；
+   * 3. `unitRanges(newCode)` 映射物理行 → 单元起始行 `startLine`；
+   * 4. `releasePartCaches(replayKeys)` 失效派生缓存；
+   * 5. `directExecutor.replayFrom(newCode, startLine, opts)` 重放后缀区间；
+   * 6. `outcome.failedAt` → 降级全量（§4.7）；
+   * 7. `collectDirectResult` 组装结果。
+   *
+   * @param oldCode - 变更前文本（不信任，G3 校验与内部 accumulatedCode 一致）。
+   * @param newCode - 变更后文本。
+   * @param opts - 执行选项。
+   * @returns ExecutionResult。
+   */
+  private async updateIncremental(
+    oldCode: string,
+    newCode: string,
+    opts?: ExecuteOptions,
+  ): Promise<ExecutionResult> {
+    const de = this.directExecutor
+    this.claimBackends()
+
+    // ── 保守闸门 G0–G8 ──
+
+    // G1: 本实例从未执行过
+    if (this.accumulatedCode === null) {
+      return this.executeDirectText(newCode, opts)
+    }
+
+    // G3: 宿主传入的 oldCode 与内部基准不一致
+    if (oldCode.trim() !== this.accumulatedCode.trim()) {
+      return this.executeDirectText(newCode, opts)
+    }
+
+    // 切分行数组（两侧均按 \r?\n 切分）
+    const oldLines = this.accumulatedCode.split(/\r?\n/)
+    const newLines = newCode.split(/\r?\n/)
+
+    // G2: 存在删除（new 比旧短）
+    if (newLines.length < oldLines.length) {
+      return this.executeDirectText(newCode, opts)
+    }
+
+    // G0: 非标准解析基线
+    const { ranges, lineOffset } = de.unitRanges(newCode)
+    if (lineOffset !== 0) {
+      return this.executeDirectText(newCode, opts)
+    }
+
+    // G6: params 变化
+    const paramsFp = stableFingerprint(opts?.params ?? null)
+    if (paramsFp !== this.lastParamsFingerprint) {
+      return this.executeDirectText(newCode, opts)
+    }
+
+    // G7: 注册库集合变化
+    const libIdsEntries = [...this.libIds.entries()].sort((a, b) =>
+      a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0,
+    )
+    const libIdsFp = stableFingerprint(libIdsEntries)
+    if (libIdsFp !== this.lastLibIdsFingerprint) {
+      return this.executeDirectText(newCode, opts)
+    }
+
+    // G8: partTransform 变化
+    const ptFp = stableFingerprint(opts?.partTransform ?? null)
+    if (ptFp !== this.lastPartTransformFingerprint) {
+      return this.executeDirectText(newCode, opts)
+    }
+
+    // G5: 上一轮产生了装配运动学位姿
+    if (this.lastHadKinematics) {
+      return this.executeDirectText(newCode, opts)
+    }
+
+    // G4: 含相对 import 的多文件场景
+    const meta = extractMetadata(newCode, { defaultNs: this.defaultNsName, security: this.securityPolicy, namespaces: Object.keys(this.libs) })
+    if ((meta.imports ?? []).some((imp) => isRelativeSpecifier(imp.specifier))) {
+      return this.executeDirectText(newCode, opts)
+    }
+
+    // ── 公共前缀扫描 ──
+    // 逐行 trim 比较；空行/纯空白行等价
+    let firstDiff = -1
+    const maxLen = Math.max(oldLines.length, newLines.length)
+    for (let i = 0; i < maxLen; i++) {
+      const a = oldLines[i] ?? ''
+      const b = newLines[i] ?? ''
+      if (a.trim() !== b.trim()) {
+        firstDiff = i
+        break
+      }
+    }
+
+    // 零变更路径（§4.6）
+    if (firstDiff === -1) {
+      return this.zeroChangePath(newCode, meta, opts)
+    }
+
+    // ── 映射物理行 → 单元起始行 ──
+    const physicalLine = firstDiff + 1
+    const adjusted = physicalLine - lineOffset
+    let startLine: number | undefined
+    // 找包含该行的单元（物理行落在块单元内部 → 块起始行）
+    for (const r of ranges) {
+      if (r.lineNo <= adjusted && adjusted <= r.endLine) {
+        startLine = r.lineNo
+        break
+      }
+    }
+    if (startLine === undefined) {
+      // 找首个 lineNo > physical 的单元（纯追加场景）
+      for (const r of ranges) {
+        if (r.lineNo > adjusted) {
+          startLine = r.lineNo
+          break
+        }
+      }
+    }
+    // 映射结果为空（改动只落在末尾注释/空行，其后无任何单元）
+    if (startLine === undefined) {
+      return this.zeroChangePath(newCode, meta, opts)
+    }
+
+    // ── 计算 replayKeys（与 DirectExecutor.replayFrom 同逻辑，用于 releasePartCaches） ──
+    const allUnitsParsed = de.unitRangesWithWrites(newCode)
+    const replayUnits = allUnitsParsed.filter((u) => u.lineNo >= startLine)
+    const suffixWrites = new Set<string>()
+    for (const u of replayUnits) for (const w of u.writes) suffixWrites.add(w)
+    const prefixWrites = new Set<string>()
+    for (const u of allUnitsParsed) {
+      if (u.lineNo < startLine!) for (const w of u.writes) prefixWrites.add(w)
+    }
+    const replayKeys: string[] = []
+    for (const w of suffixWrites) {
+      if (!prefixWrites.has(w)) replayKeys.push(w)
+    }
+
+    // ── 派生缓存失效 ──
+    this.releasePartCaches(replayKeys.map((k) => asPartName(k)))
+
+    // ── BREP 链与 partTransform 同步 ──
+    const brepChain = await this.ensureBrepChain()
+    if (opts?.partTransform?.position) {
+      brepChain.partTransform = {
+        position: opts.partTransform.position,
+        scale: opts.partTransform.scale,
+      }
+    }
+
+    // ── 重放 ──
+    // G4 already checked: no relative imports → moduleLoad.seed = {}
+    const libLoadFailure = await this.autoLoadLibsFromImports(meta.imports)
+    if (libLoadFailure) return libLoadFailure
+
+    const execOpts: DirectExecOpts = {
+      params: opts?.params,
+      ...(opts?.beforeStatement ? { beforeStatement: opts.beforeStatement } : {}),
+      ...(opts?.executionTimeoutMs !== undefined ? { executionTimeoutMs: opts.executionTimeoutMs } : {}),
+    }
+
+    // ExecutionLimitError / ParseError / security scan errors propagate
+    // (not degraded — only failedAt triggers degradation below)
+    const outcome = await de.replayFrom(newCode, startLine, execOpts)
+
+    // ── 失败降级（§4.7）──
+    if (outcome.failedAt) {
+      de.reset()
+      return this.executeDirectText(newCode, opts)
+    }
+
+    // ── 组装结果 ──
+    this.accumulatedCode = newCode
+    const result = this.collectDirectResult(meta, opts)
+    // Record fingerprints after successful execution
+    this.recordFingerprints(opts)
+    return result
+  }
+
+  /**
+   * 零变更路径（§4.6）：不执行任何语句，但需重新 collectDirectResult。
+   */
+  private async zeroChangePath(
+    newCode: string,
+    meta: UiMetadata,
+    opts?: ExecuteOptions,
+  ): Promise<ExecutionResult> {
+    const de = this.directExecutor
+    this.claimBackends()
+    this.accumulatedCode = newCode
+    const libLoadFailure = await this.autoLoadLibsFromImports(meta.imports)
+    if (libLoadFailure) return libLoadFailure
+    const brepChain = await this.ensureBrepChain()
+    if (opts?.partTransform?.position) {
+      brepChain.partTransform = {
+        position: opts.partTransform.position,
+        scale: opts.partTransform.scale,
+      }
+    }
+    de.clearRoundState()
+    return this.collectDirectResult(meta, opts)
+  }
+
+  /**
+   * 记录指纹快照（每次成功执行结束时调用）。
+   */
+  private recordFingerprints(opts?: ExecuteOptions): void {
+    this.lastParamsFingerprint = stableFingerprint(opts?.params ?? null)
+    const libIdsEntries = [...this.libIds.entries()].sort((a, b) =>
+      a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0,
+    )
+    this.lastLibIdsFingerprint = stableFingerprint(libIdsEntries)
+    this.lastPartTransformFingerprint = stableFingerprint(opts?.partTransform ?? null)
+    this.lastHadKinematics = this.directExecutor.kinematicsSnapshot.size > 0
+  }
 
   // ── 公开：释放 ──
 
