@@ -203,8 +203,9 @@ describe('cq-compat parity fixes', () => {
     ])
     expect(solidCount(shape)).toBe(1)
     // Per point: through-hole π·2²·8 (cyl spans z -4..8, 8 inside the plate)
-    // + cbore π·3.5²·3 (spans z 5..8) − π·2²·3 already removed by the hole.
-    const perPoint = Math.PI * 4 * 8 + Math.PI * 12.25 * 3 - Math.PI * 4 * 3
+    // + cbore π·3.5²·2 (spans z 6..8, EXACTLY cboreDepth after the +1 fix)
+    // − π·2²·2 already removed by the hole.
+    const perPoint = Math.PI * 4 * 8 + Math.PI * 12.25 * 2 - Math.PI * 4 * 2
     const expected = 60 * 40 * 8 - 2 * perPoint
     expect(volume(shape)).toBeCloseTo(expected, -1)
   }, 60000)

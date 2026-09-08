@@ -18,7 +18,7 @@
  * 用法：npx tsx packages/mini_lathe/scripts/verify-all.ts
  */
 
-import { readFileSync } from 'node:fs'
+import { readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { initOcctWasm, importAssemblyFromStep, collectLeafParts } from '@faicad/faijs-core'
 import { compareAssemblyFiles } from '@faicad/cq-compat'
@@ -27,7 +27,8 @@ const ROOT = join(import.meta.dirname, '..')
 const OUT = join(ROOT, 'out')
 const LEGACY = join(OUT, 'legacy-buggy-2026-09-08')
 
-/** 零件 → 期望 leaf 数。slide_mid 例外：底座+块体无重叠不熔合（既有真实几何，legacy 同）。 */
+/** 零件 → 期望 leaf 数。全部 1：union 熔合修复后 slide_mid 不再裂成 2（与 CadQuery ref 一致，
+ *  STEP 比对 vol Δ=0 / 拓扑 f76,e181,v120 全同；旧断言"slide_mid=2"建立在修复前的 bug 行为上）。 */
 const PARTS: Array<[name: string, expectedLeaves: number]> = [
   ['bottom_plate', 1],
   ['middle_bottom', 1],
@@ -35,13 +36,16 @@ const PARTS: Array<[name: string, expectedLeaves: number]> = [
   ['top_plate', 1],
   ['axk', 1],
   ['slide_top', 1],
-  ['slide_mid', 2],
+  ['slide_mid', 1],
 ]
 const ASM_PARTS = ['axk', 'bp', 'mb', 'mt', 'slide_top', 'tp']
 
-/** slide_top 修复后管线的实测基线（2026-09-08 重导出测量；几何 = 双槽+8沉孔+中心孔+正位 boss+两侧六角+末端槽+底槽）。 */
+/** slide_top 实测基线（2026-09-08 cboreHole 修复后重导出：沉孔深 = 精确 cboreDepth，不再 +1）。
+ *  注意：这只是回归护栏；slide_top 与 CadQuery ref 尚有 2.5% 差（ref 多 3 面/2646mm³，
+ *  移植脚本特征缺口，见 docs/plans/2026-09-08-cq-compat-cadquery-parity.md §11.3），
+ *  与 ref 对齐后需再次更新本基线。 */
 const SLIDE_TOP_EXPECTED = {
-  volume: 88282.5, // 实测：重导出 STEP 单 leaf，v=88282.5（修复前旧导出 88685.4 为 stale 产物）
+  volume: 86262.876, // 实测：cbore 修复后重导出 STEP 单 leaf（旧基线 88282.5 为 cbore+1 时代产物）
   zmax: 21.7, // boss 顶面（8 + 13.7）；boss 未熔合悬浮时也是 21.7，但 leaf 数由第 1 项拦截
 }
 
@@ -103,7 +107,13 @@ async function main(): Promise<void> {
   }
 
   // ── 4/5. 装配一致性比对：新 vs 旧 buggy 工件（必须 DIFFERENT）──
+  // legacy 工件是修复前的一次性快照（out/ 已 gitignore，可能不存在）；
+  // 缺失时跳过并提示，不再让整个验证崩在 ENOENT 上。
   console.log('\n=== 4/5. 装配一致性比对（新 vs 旧 buggy 工件） ===')
+  const legacyDir = join(OUT, 'legacy-buggy-2026-09-08')
+  if (!existsSync(join(legacyDir, 'slide_top.step'))) {
+    console.log(`  (skip) legacy 工件不存在：${legacyDir} — 第 4/5 步跳过（结构性回归由 leaf 数断言覆盖）`)
+  } else {
   const cmp1 = await compareAssemblyFiles(
     join(OUT, 'slide_top.step'),
     join(LEGACY, 'slide_top.step'),
@@ -117,6 +127,7 @@ async function main(): Promise<void> {
   )
   console.log(`  装配(新 ${cmp2.structure.leafCountA} leaf) vs 装配(旧 ${cmp2.structure.leafCountB} leaf): equivalent=${cmp2.equivalent}`)
   assert(!cmp2.equivalent, `新装配(6 leaf) vs 旧装配(7 leaf) 必须不通过`)
+  }
 
   console.log('\n' + (process.exitCode ? '✗ 存在失败项' : '✓ 全部通过'))
 }

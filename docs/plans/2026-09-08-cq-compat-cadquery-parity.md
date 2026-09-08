@@ -1,6 +1,6 @@
 # cq-compat ⇄ CadQuery 对等验证方案（v1）
 
-> 状态：待评审（本文档只写方案，未开始实施）
+> 状态：**实施中**（P0–P3 已落地；P2 首批 16 case / 27 var 端到端跑通，PASS 22 / FAIL 5；P4–P5 未开始。实测记录见 §11）
 > 日期：2026-09-08
 > 范围：`packages/cq-compat`、`packages/mini_lathe`（受影响的消费方）
 
@@ -291,6 +291,62 @@ packages/cq-compat/
 组合上（mini_lathe 已用到的大致就是这个集合）。
 **先跑出覆盖清单，再按 `blockedBy` 频次排序决定 op 补齐顺序**——这是本方案的核心收益。
 
+### 6.5 移植用例清单（2026-09-08 实测，`tests/ref-harness/analyze-coverage.py` 产出）
+
+回答"到底移植哪些测试"：对 CadQuery v2.8.0 全部 305 个建模 case 的函数体做 AST 分析
+（只追每个 case **实际导出 STEP 的变量**的定义链，断言脚手架不计入），并与 cq-compat 已实现的
+30 个 Workplane op + 4 个 Assembly op 做差集。产物入库为 `tests/coverage.json`，
+三态清单 `tests/manifest.json` 由 `tests/gen-manifest.ts` 消费它生成。
+
+**分类结果（305 case）：**
+
+| 类别 | case 数 | 含义 |
+|---|---|---|
+| PORTABLE | 117 | 几何链完全落在已实现 op 内，**可直接移植** |
+| PORTABLE-WITH-STUB | 33 | 几何来自 `tests/__init__.py` 的 helper（`makeUnitCube`/`makeCube` = rect+extrude），镜像里用已实现 op 复原即可 |
+| BLOCKED | 155 | 缺 op，首个缺失 op 已标注（见下表） |
+
+**STEP 级三态（650 个 ref STEP + 47 无产物）：`tests/manifest.json` = 27 ported / 623 blocked / 47 skipped。**
+blocked 中 `pending:mirror` 238 个（op 齐备、只差写镜像脚本），其余按首个缺失 op 排行：
+
+| blockedBy | var 数 | | blockedBy | var 数 |
+|---|---|---|---|---|
+| `op:moved` | 75 | | `op:cylinder` | 14 |
+| `op:importStep` | 23 | | `op:face`（形状工厂） | 13 |
+| `op:sphere` | 22 | | `deps:load/save`（文件 IO） | 13 |
+| `op:close` | 19 | | `op:siblings`（Assembly） | 12 |
+| `op:loft` | 18 | | `op:cutThruAll` | 11 |
+
+**P2 首批 16 个 case / 27 个镜像文件**（已全部落地 `tests/test_cadquery/`，选择标准：
+覆盖全部已实现 op 组合 + 包含 mini_lathe 踩过的所有坑位模式 + 每 case 的 var 数少以便端到端先行）：
+
+| # | 上游 case | var | 首轮判定 | 说明 |
+|---|---|---|---|---|
+| 1 | testBoxDefaults | s | PASS（修复 box 后） | box 基础 |
+| 2 | testBoxPointList | s | FAIL（预期） | `box(combine=)` 未实现 |
+| 3 | testCut | currentS/toCut/resS/sugar | PASS×4 | cut + `__sub__` 糖 |
+| 4 | testIntersect | currentS/toIntersect/b1/b2/resS/sugar | PASS×6 | intersect + `__and__` 糖 + box origin 平移等效 |
+| 5 | testUnionNoArgs | objects1/objects2 | PASS×2 | union 熔合 |
+| 6 | testFillet | c | PASS | makeUnitCube stub + `\|Z` 边圆角 |
+| 7 | testCounterBores | c/c2 | PASS×2 | pushPoints×cboreHole（c 需 depth 参数） |
+| 8 | testCounterSinks | result | PASS | fc 矩形顶点 × cskHole |
+| 9 | testAngledHoles | s | PASS（修复 transformed 后） | named plane `front` + 60° 倾斜孔 |
+| 10 | testSimpleWorkplane | r | PASS | faces→workplane→cutBlind |
+| 11 | testMultiFaceWorkplane | s | FAIL（布尔差 0.100 恰在容差上） | faces 后直接 rect+cutBlind（内部空腔） |
+| 12 | testNestedCircle | s | FAIL（预期） | 双 circle 环形 pending，单值 pendingCircle 未覆盖 |
+| 13 | testTwoWorkplanes | r/t | FAIL（预期） | 连续两个 rect 的 pending-wires 列表语义 |
+| 14 | testRotate | box | PASS | 上游丢弃 rotate 结果，STEP 为未旋转 box |
+| 15 | testTranslateSolid | c/d | PASS×2 | makeUnitCube stub + translate |
+| 16 | testBoxDefaults/…其余 | — | — | 共 27 var，命名 `<Class>__<test>__<var>.fai.js` 与 ref STEP 一一对应 |
+
+**因分析器盲区需人工排除的**：`testIbeam`（polyline/mirrorY 未实现但 `r` 变量因是 2D wire
+未被 harness 导出，静态分析看不到）→ 已标 `blocked(op:polyline)`；
+`testTaperedExtrudeCutBlind` → `blocked(op:extrude.taper)`；
+`test_mirror` / `test_mirror_axis` → `blocked(op:mirror.axisPoint)`。
+
+**分析器盲区（已知，需人工复核）**：helper 内自由函数跨模块引用不展开（仅 `tests/__init__.py`）；
+只追导出变量的定义链，未导出的中间 2D wire 上的 op 不可见——首批 16 个 case 已逐个人工核对过源码。
+
 ---
 
 ## 7. 比对与判定
@@ -328,14 +384,14 @@ parity = PASS 数 / (PASS 数 + BLOCKED 数 + FAIL 数)
 
 ## 8. 实施计划
 
-| 阶段 | 内容 | 产物 | 依赖 |
-|---|---|---|---|
-| P0 | 已在本会话完成：CadQuery 环境 + 导出机制 POC（622 passed / 305 case / 650 step） | 本方案文档、`baseline.json` 草稿 | 无 |
-| P1 | 参考侧落地：`ref-harness/` 插件 + `run-ref.py`（读 baseline，tag 快照导出到缓存目录，整体只读、不改动用户的工作树），跑出首份全量参考资产 | `out/ref/*` + `ref/manifest.json` | P0 |
-| P2 | 镜像骨架：`tests/` 目录 + `manifest.json` 生成器 + `run-cand.ts` + `compare.ts`，**先挑 20 个高价值用例跑通端到端** | 端到端流水线可跑 | P1 |
-| P3 | 首批修复（已知四处，见 §2.3 与 §2.2.1）：选择器索引 / pushPoints 传播 / union compound / **装配体零件命名与 CadQuery `name=` 对齐**；每修一处重跑受影响用例 | 四处定点修复 + 覆盖率回升 | P2 |
-| P4 | 规模化移植：按 `blockedBy` 频次补 op（`chamfer` → `revolve` → `sweep/loft` → 2D wire 面 → 阵列/日记），每批配 unit test（`packages/cq-compat/src/*.test.ts`）与对应 case 解锁 | manifest 大规模转 `ported` | P3 |
-| P5 | 回归治理：把 smoke 子集（≤30 case，参考 STEP 作为 fixture 入库）接入 `vitest`/CI；全量刷新由本地作业定期执行 | CI 门禁 | P4 |
+| 阶段 | 内容 | 产物 | 依赖 | 状态（2026-09-08） |
+|---|---|---|---|---|
+| P0 | 已在本会话完成：CadQuery 环境 + 导出机制 POC（622 passed / 305 case / 650 step） | 本方案文档、`baseline.json` 草稿 | 无 | ✅ |
+| P1 | 参考侧落地：`ref-harness/` 插件 + `run-ref.py`（读 baseline，tag 快照导出到缓存目录，整体只读、不改动用户的工作树），跑出首份全量参考资产 | `out/ref/*` + `ref/manifest.json` | P0 | ✅（650 STEP + manifest；快照在 `out/cache/v2.8.0/tests`） |
+| P2 | 镜像骨架：`tests/` 目录 + `manifest.json` 生成器 + `run-cand.ts` + `compare.ts`，**先挑 20 个高价值用例跑通端到端** | 端到端流水线可跑 | P1 | ✅（16 case / 27 var，清单见 §6.5；`analyze-coverage.py` + `coverage.json` 产出 blockedBy 实测排行） |
+| P3 | 首批修复（已知四处，见 §2.3 与 §2.2.1）：选择器索引 / pushPoints 传播 / union compound / **装配体零件命名与 CadQuery `name=` 对齐**；每修一处重跑受影响用例 | 四处定点修复 + 覆盖率回升 | P2 | ✅（此前已修四处；本轮由镜像比对再修 5 处，见 §11.2） |
+| P4 | 规模化移植：按 `blockedBy` 频次补 op（`chamfer` → `revolve` → `sweep/loft` → 2D wire 面 → 阵列/日记），每批配 unit test（`packages/cq-compat/src/*.test.ts`）与对应 case 解锁 | manifest 大规模转 `ported` | P3 | ⬜ 未开始（238 个 `pending:mirror` var 可先行；op 补齐顺序按 §6.5 排行：moved → sphere → close → loft → cylinder） |
+| P5 | 回归治理：把 smoke 子集（≤30 case，参考 STEP 作为 fixture 入库）接入 `vitest`/CI；全量刷新由本地作业定期执行 | CI 门禁 | P4 | ⬜ 未开始（`scripts/ci.ps1` 的逐包测试列表尚未包含 `@faicad/cq-compat`） |
 
 **CI 取舍**：全量参考资产 20.7 MB、且 CI 里装 Python+CadQuery 代价过大；
 所以 CI 只跑**已入库的 smoke 子集 + fixture STEP**，全量 parity 由本地
@@ -372,6 +428,52 @@ parity = PASS 数 / (PASS 数 + BLOCKED 数 + FAIL 数)
 - Q3：`parity score` 是否作为发版门禁（如要求 ≥ 60% 才可 pack）？
 
 ---
+
+## 11. 实施记录（2026-09-08 P0–P3）
+
+### 11.1 交付物
+
+| 文件 | 说明 |
+|---|---|
+| `tests/ref-harness/cq_step_plugin.py` / `run-ref.py` | 参考 STEP 导出（pytest 插件 + AST 注入），`out/ref/` = 650 STEP + manifest |
+| `tests/ref-harness/analyze-coverage.py` | 上游 case AST 分析 → `tests/coverage.json`（分类 + blockedBy） |
+| `tests/gen-manifest.ts` | 三态清单生成（case+var 粒度；消费 coverage.json；保留人工标注、丢弃机器默认值） |
+| `tests/run-cand.ts` | 遍历 `tests/<module>/*.fai.js` → faijs CLI brep 导出 `out/cand/*.step`（修复 Windows spawnSync npx ENOENT） |
+| `tests/compare.ts` | 按名配对 → `out/report.{md,json}`（PASS/PASS-NT/FAIL/ERROR，parity 计入分母） |
+| `tests/test_cadquery/*.fai.js` ×27 | P2 首批镜像（§6.5 清单） |
+| `tests/manifest.json` / `tests/coverage.json` / `tests/baseline.json` | 三态唯一事实源 + 分类数据 + 版本锁定 |
+
+当前指标：**27 ported → PASS 22 / FAIL 5；parity = 22/650 = 3.38%**（分母 = 全部 ref STEP，诚实口径）。
+cq-compat 单测 16/16 通过。
+
+### 11.2 由镜像比对直接揪出并修复的语义 bug（每处均经 ref STEP 比对验证）
+
+1. **`box()` 不是 centered 语义**：公开 op 沿用了工具体 helper（makeBoxAt）"从面沿 normal 抬 h/2"
+   的行为，而 CadQuery `box` 默认 `centered=(True,True,True)`（三维居中于 origin）。
+   一个 bug 挂了 7 个镜像用例（testBoxDefaults / testIntersect×4 / testRotate），修复后全部解锁。
+2. **`cboreHole` 沉孔多切 1 mm**：工具体高度写成 `cboreDepth + 1`（上游精确 `cboreDepth`）；
+   同时补上上游的 `depth` 参数（`depth=None` 穿透语义）。修复后 testCounterBores c/c2 解锁，
+   且 **mini_lathe slide_mid 从 0.166% 体积差变为完全等价**。
+3. **`transformed(rotate=…)` 完全没生效**：旧实现调用只旋转 shape 的 `rotate()` op（对空 workplane
+   直接 no-op）。按上游 `Plane.rotated` 重写：绕平面自身基轴（x→y→z 复合）旋转方向向量，
+   origin 不动、shape 不动。
+4. **named planes 表只有 3 个**：上游 12 个（XY/YZ/ZX/XZ/YX/ZY/front/back/left/right/top/bottom）。
+   `front` ≠ XZ（= XY！），旧表静默 fallback 会把方向做错。补全全表并对未知名抛错（上游行为）。
+   顺带 `orientZTo` 从轴对齐查表改为通用欧拉分解（任意倾斜 normal 的圆柱/锥工具体可用）。
+5. **比对/清单工具的命名粒度**：manifest 以 case+var 为粒度（§6.2 定义），mirror fileKey =
+   `<module>/<Class>__<test>__<var>`；compare 按 ref manifest 反查配对。
+
+### 11.3 mini_lathe 回归（验收标准 3 进展）
+
+| 零件 | 修复前 | 修复后 |
+|---|---|---|
+| bottom_plate / middle_bottom / middle_top / top_plate / axk | 完全等价 | 完全等价（不变） |
+| slide_mid | 0.166% 体积差、拓扑不同 | **完全等价**（vol Δ=0，f76/e181/v120 全同，布尔差 0） |
+| slide_top | 0.144%（假象：cbore 多切 1mm 恰好补偿缺失特征） | **2.50%**（f73 vs f70，B−A=2646 mm³——cbore 修正后暴露真实缺口） |
+
+slide_top 的余差是移植脚本与上游 `slide_top.py` 的特征差异（ref 多 3 面 21 点），
+下一步按布尔差定位到具体 op 链；`verify-all.ts` 的过期断言（期望 slide_mid=2 leaf、
+依赖未入库的 legacy 工件）需同步改写。
 
 ## 附录：关键命令（均已在本会话实际执行验证）
 

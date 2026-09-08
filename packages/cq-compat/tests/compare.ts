@@ -67,6 +67,19 @@ async function main() {
     : []
   const candSet = new Set(candFiles)
 
+  // ref STEP names carry the module prefix ("tests.<module>__<Class>__<test>__<var>.step")
+  // while candidate files live in tests/<module>/<Class>__<test>__<var>.fai.js →
+  // "<Class>__<test>__<var>.step". Build ref→cand base-name mapping via ref manifest.
+  const caseIdByRefBase = mainRefCases()
+  const candBaseByRef = new Map<string, string>()
+  for (const rf of refFiles) {
+    const refBase = rf.replace(/\.step$/, '')
+    const caseId = caseIdByRefBase.get(refBase)
+    if (!caseId) continue
+    const module = caseId.split('::')[0].replace(/^tests\./, '')
+    candBaseByRef.set(refBase, refBase.replace(new RegExp(`^tests\\.${module}__`), ''))
+  }
+
   const report: Record<string, CaseVerdict> = {}
   let pass = 0
   let passNt = 0
@@ -75,7 +88,9 @@ async function main() {
 
   for (const rf of refFiles) {
     const caseName = rf.replace(/\.step$/, '')
-    const cf = `${caseName}.step`
+    const candBase = candBaseByRef.get(caseName)
+    if (!candBase) continue // not a paired case (defensive; manifest-driven below)
+    const cf = `${candBase}.step`
     if (!candSet.has(cf)) continue // counted as BLOCKED below
     const refStep = join(REF, rf)
     const candStep = join(CAND, cf)

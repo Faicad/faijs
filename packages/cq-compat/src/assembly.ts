@@ -17,7 +17,6 @@ import type { Shape } from '@faicad/faijs-core/mesh/types'
 import type {
   AssemblyConstraint,
   EntityRef,
-  AssemblyVec3,
 } from '@faicad/faijs-core/api/assembly/types'
 import type { CompoundShape } from '@faicad/faijs-core/shape'
 import { getSlot } from '@faicad/faijs-core/shape'

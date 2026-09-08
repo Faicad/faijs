@@ -16,7 +16,6 @@ import { brepOf } from '@faicad/faijs-core/shape'
 import { getKernel } from '@faicad/faijs-core/occt-kernel/occtKernel'
 import type { OcctKernel, ShapeHandle } from 'occt-wasm'
 import type { Shape } from '@faicad/faijs-core/mesh/types'
-import type { BrepHandle } from '@faicad/faijs-core/brep/engine/types'
 
 // ── cad namespace singleton (created once at module load) ──────────────────
 const cad = createApiNamespace() as Record<string, (...args: unknown[]) => Promise<Shape>>
@@ -127,13 +126,28 @@ function localToWorld(
 
 /** Create an empty workplane on the given plane (CadQuery named-plane axes). */
 function makeWorkplane(plane: string): Workplane {
-  // CadQuery named planes: XY (+Z, x +X), XZ (-Y, x +X), YZ (+X, x +Y)
+  // Full named-plane table verified against cadquery 2.8.0 (Plane.named):
+  // 'front' == XY, 'bottom' == XZ, etc. The old 3-entry table silently fell
+  // back to XY for any other name — e.g. "front"→XY was luck, but "top" would
+  // have been wrong. Unknown names now throw like upstream.
   const axes: Record<string, { n: [number, number, number]; x: [number, number, number] }> = {
     XY: { n: [0, 0, 1], x: [1, 0, 0] },
-    XZ: { n: [0, -1, 0], x: [1, 0, 0] },
     YZ: { n: [1, 0, 0], x: [0, 1, 0] },
+    ZX: { n: [0, 1, 0], x: [0, 0, 1] },
+    XZ: { n: [0, -1, 0], x: [1, 0, 0] },
+    YX: { n: [0, 0, -1], x: [0, 1, 0] },
+    ZY: { n: [-1, 0, 0], x: [0, 0, 1] },
+    front: { n: [0, 0, 1], x: [1, 0, 0] },
+    back: { n: [0, 0, -1], x: [-1, 0, 0] },
+    left: { n: [-1, 0, 0], x: [0, 0, 1] },
+    right: { n: [1, 0, 0], x: [0, 0, -1] },
+    top: { n: [0, 1, 0], x: [1, 0, 0] },
+    bottom: { n: [0, -1, 0], x: [1, 0, 0] },
   }
-  const a = axes[plane] ?? axes.XY
+  const a = axes[plane]
+  if (!a) {
+    throw new Error(`[cq-compat] unknown plane "${plane}" (upstream names: XY/YZ/ZX/XZ/YX/ZY/front/back/left/right/top/bottom)`)
+  }
   const yDir: [number, number, number] = [
     a.n[1] * a.x[2] - a.n[2] * a.x[1],
     a.n[2] * a.x[0] - a.n[0] * a.x[2],
@@ -382,7 +396,7 @@ export async function resolveFaceSelector(
     (max[2] + min[2]) / 2,
   ]
 
-  const m = /^([<>+\-])([XYZ])(?:\[(-?\d+)\])?$/.exec(sel.trim())
+  const m = /^([<>+-])([XYZ])(?:\[(-?\d+)\])?$/.exec(sel.trim())
   if (!m) {
     // Default: return center
     return { center, normal: [0, 0, 1] }
@@ -456,21 +470,24 @@ async function makePolygonPrismAt(
 }
 
 /**
- * Rotate a Z-axis-aligned primitive so its local +Z maps to `d`
- * (axis-aligned directions only), for cone countersink tools.
+ * Rotate a Z-axis-aligned primitive so its local +Z maps to `d` — ANY direction,
+ * not just axis-aligned (verified vs cadquery 2.8.0: angled holes drill along
+ * the transformed workplane normal). Euler decomposition that maps +Z onto d:
+ *   θy = asin(dx), θx = atan2(−dy, dz)   (three.js XYZ-intrinsic, R = Rx·Ry)
+ *   Rx(θx)·Ry(θy)·(0,0,1) = (dx, dy, dz)
  */
 async function orientZTo(shape: Shape, d: [number, number, number]): Promise<Shape> {
-  const key = `${d[0]},${d[1]},${d[2]}`
-  if (key === '0,0,1') return shape
-  const rotation: Record<string, [number, number, number]> = {
-    '0,0,-1': [180, 0, 0],
-    '1,0,0': [0, 90, 0],
-    '-1,0,0': [0, -90, 0],
-    '0,1,0': [0, 0, -90],
-    '0,-1,0': [0, 0, 90],
-  }
-  const anglesDeg = rotation[key]
-  if (!anglesDeg) throw new Error(`[cq-compat] unsupported cut direction ${key}`)
+  const len = Math.hypot(d[0], d[1], d[2])
+  const dx = d[0] / len
+  const dy = d[1] / len
+  const dz = d[2] / len
+  const thetaX = Math.atan2(-dy, dz)
+  const thetaY = Math.asin(Math.max(-1, Math.min(1, dx)))
+  const anglesDeg: [number, number, number] = [
+    (thetaX * 180) / Math.PI,
+    (thetaY * 180) / Math.PI,
+    0,
+  ]
   return cad.rotate_euler(shape, { anglesDeg }) as unknown as Shape
 }
 
@@ -562,6 +579,12 @@ export async function add(wp: Workplane, shape: Shape): Promise<Workplane> {
  * @param d - number
  * @param h - number
  * @returns Promise<Workplane>
+ *
+ * CadQuery semantics (verified vs cadquery 2.8.0 `Workplane.box`): with the
+ * default `centered=(True, True, True)` the box is centered on the workplane
+ * origin in ALL three axes — including the normal direction. The old
+ * "sit on the face" behaviour belonged to the makeBoxAt tool-body helper and
+ * leaked into this public op (found by the parity harness, testBoxDefaults).
  */
 export async function box(
   wp: Workplane,
@@ -569,7 +592,16 @@ export async function box(
   d: number,
   h: number,
 ): Promise<Workplane> {
-  const shape = await makeBoxAt(wp, w, d, h)
+  const n = Array.isArray(wp.normal) ? wp.normal : ([0, 0, 1] as [number, number, number])
+  const o = Array.isArray(wp.origin) ? wp.origin : ([0, 0, 0] as [number, number, number])
+  const axes = faceAxes(n)
+  // World-space extents of a w×d×h box aligned to the (axis-aligned) basis.
+  const sx = w * Math.abs(axes.x[0]) + d * Math.abs(axes.y[0]) + h * Math.abs(n[0])
+  const sy = w * Math.abs(axes.x[1]) + d * Math.abs(axes.y[1]) + h * Math.abs(n[1])
+  const sz = w * Math.abs(axes.x[2]) + d * Math.abs(axes.y[2]) + h * Math.abs(n[2])
+  const boxShape = await cad.box(sx, sy, sz, { centered: true })
+  // centered: box center == workplane origin (no lift along the normal)
+  const shape = await cad.translate(boxShape, { offset: o })
   return clone(wp, { shape, faceSel: null, edgeSel: null, vertexSel: null, pts: [] })
 }
 
@@ -789,6 +821,7 @@ export async function hole(
  * @param diameter - number
  * @param cboreDiameter - number
  * @param cboreDepth - number
+ * @param depth - number | undefined (bore depth; undefined drills through, upstream depth=None)
  * @returns Promise<Workplane>
  */
 export async function cboreHole(
@@ -796,12 +829,16 @@ export async function cboreHole(
   diameter: number,
   cboreDiameter: number,
   cboreDepth: number,
+  depth?: number,
 ): Promise<Workplane> {
   // hole() consumes and clears wp.pts — snapshot them first so the counterbore
   // lands on every pushed point, not just the origin fallback [0, 0].
   const savedPts = Array.isArray(wp.pts) ? [...wp.pts] : []
-  let result = await hole(wp, diameter)
-  // Counterbore: larger shallow hole
+  let result = await hole(wp, diameter, depth)
+  // Counterbore: larger shallow hole. Upstream (verified vs cadquery 2.8.0
+  // Workplane.cboreHole) cuts EXACTLY cboreDepth below the workplane — the old
+  // "+1 safety margin" over-cut every counterbore by 1 mm (parity harness,
+  // testCounterBores__c2).
   if (result.shape) {
     const cboreRadius = cboreDiameter / 2
     const points = savedPts.length > 0 ? savedPts : ([[0, 0]] as [number, number][])
@@ -809,7 +846,7 @@ export async function cboreHole(
     for (const [px, py] of points) {
       const origin = localToWorld(result, px, py)
       const invNormal: [number, number, number] = [-result.normal[0], -result.normal[1], -result.normal[2]]
-      const cyl = await makeCylinderAt({ ...result, origin, normal: invNormal }, cboreRadius, cboreDepth + 1)
+      const cyl = await makeCylinderAt({ ...result, origin, normal: invNormal }, cboreRadius, cboreDepth)
       shape = await cutShapes(shape, cyl)
     }
     result = clone(result, { shape })
@@ -1229,10 +1266,42 @@ export async function transformed(
     result = clone(result, { origin: world })
   }
   if (opts.rotate) {
-    const [rx, ry, rz] = opts.rotate
-    if (rx) result = await rotate(result, [1, 0, 0], rx)
-    if (ry) result = await rotate(result, [0, 1, 0], ry)
-    if (rz) result = await rotate(result, [0, 0, 1], rz)
+    // Upstream semantics (cadquery 2.8.0 Plane.rotated, verified): the plane's
+    // DIRECTION vectors are rotated about the plane's own basis axes — x about
+    // xDir, y about yDir, z about the normal — composed as T = Tx·Ty·Tz. The
+    // origin is unaffected and the shape is NOT touched. The previous
+    // implementation called rotate() (an op that rotates the shape with euler
+    // angles) which silently returned the plane unchanged / rotated geometry.
+    const [rxd, ryd, rzd] = opts.rotate
+    const rad = Math.PI / 180
+    const ax: [number, number, number] = [...wp.xDir]
+    const ay: [number, number, number] = [...wp.yDir]
+    const az: [number, number, number] = [...wp.normal]
+    const rotAbout = (v: [number, number, number], a: [number, number, number], ang: number): [number, number, number] => {
+      const c = Math.cos(ang)
+      const s = Math.sin(ang)
+      const cross: [number, number, number] = [
+        a[1] * v[2] - a[2] * v[1],
+        a[2] * v[0] - a[0] * v[2],
+        a[0] * v[1] - a[1] * v[0],
+      ]
+      const dot = a[0] * v[0] + a[1] * v[1] + a[2] * v[2]
+      return [
+        v[0] * c + cross[0] * s + a[0] * dot * (1 - c),
+        v[1] * c + cross[1] * s + a[1] * dot * (1 - c),
+        v[2] * c + cross[2] * s + a[2] * dot * (1 - c),
+      ]
+    }
+    const apply = (v: [number, number, number]): [number, number, number] =>
+      rotAbout(rotAbout(rotAbout(v, az, rzd * rad), ay, ryd * rad), ax, rxd * rad)
+    const newX = apply(ax)
+    const newZ = apply(az)
+    const newY: [number, number, number] = [
+      newZ[1] * newX[2] - newZ[2] * newX[1],
+      newZ[2] * newX[0] - newZ[0] * newX[2],
+      newZ[0] * newX[1] - newZ[1] * newX[0],
+    ]
+    result = clone(result, { xDir: newX, yDir: newY, normal: newZ })
   }
   return result
 }

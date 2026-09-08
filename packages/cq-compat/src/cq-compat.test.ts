@@ -141,10 +141,10 @@ describe('cq-compat workplane stack (pushPoints) semantics — regression 2026-0
     const shape = res.outputs.get(asPartName('result')) as Shape | undefined
     expect(shape).toBeDefined()
     const m = shapeMetrics(shape!)
-    // 19200 − 2×(π·2.5²·8) [through holes] − 2×(π·(5²−2.5²)·3) [counterbore annuli,
-    // center already removed by the through hole] = 19200 − 667.59 = 18532.41
-    // (buggy: counterbore only at center → 18885.84)
-    expect(Math.abs(m.volume - 18532.41)).toBeLessThan(1)
+    // 19200 − 2×(π·2.5²·8) [through holes] − 2×(π·(5²−2.5²)·2) [counterbore annuli,
+    // center already removed by the through hole] = 19200 − 549.78 = 18650.22
+    // (counterbore spans z 6..8 exactly cboreDepth=2 — the old "+1 margin" is fixed)
+    expect(Math.abs(m.volume - 18650.22)).toBeLessThan(1)
     expect(m.solidCount).toBe(1)
   }, 60000)
 

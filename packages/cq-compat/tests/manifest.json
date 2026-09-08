@@ -1,0 +1,3534 @@
+{
+  "tests.test_cadquery::TestCadQuery::test2DDrawing__s": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::test2DDrawing",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::testAngledHoles__s": {
+    "status": "ported",
+    "source": "tests.test_cadquery::TestCadQuery::testAngledHoles",
+    "blockedBy": null
+  },
+  "tests.test_cadquery::TestCadQuery::testBasicLines__s": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::testBasicLines",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::testBasicLines__r": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testBasicLines",
+    "blockedBy": "wire"
+  },
+  "tests.test_cadquery::TestCadQuery::testBasicLines__r1": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testBasicLines",
+    "blockedBy": "wire"
+  },
+  "tests.test_cadquery::TestCadQuery::testBasicLines__r2": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testBasicLines",
+    "blockedBy": "wire"
+  },
+  "tests.test_cadquery::TestCadQuery::testBoundingBox__result": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testBoundingBox",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testBoxCombine__s": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testBoxCombine",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testBoxDefaults__s": {
+    "status": "ported",
+    "source": "tests.test_cadquery::TestCadQuery::testBoxDefaults",
+    "blockedBy": null
+  },
+  "tests.test_cadquery::TestCadQuery::testBoxPointList__s": {
+    "status": "ported",
+    "source": "tests.test_cadquery::TestCadQuery::testBoxPointList",
+    "blockedBy": null
+  },
+  "tests.test_cadquery::TestCadQuery::testBrepImportExport__s": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testBrepImportExport",
+    "blockedBy": "importBrep"
+  },
+  "tests.test_cadquery::TestCadQuery::testBrepImportExport__si": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testBrepImportExport",
+    "blockedBy": "importBrep"
+  },
+  "tests.test_cadquery::TestCadQuery::testCenterOfBoundBox__obj": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testCenterOfBoundBox",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testChamfer__cube": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testChamfer",
+    "blockedBy": "chamfer"
+  },
+  "tests.test_cadquery::TestCadQuery::testChamferAsymmetrical__cube": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testChamferAsymmetrical",
+    "blockedBy": "chamfer"
+  },
+  "tests.test_cadquery::TestCadQuery::testChamferCylinder__cylinder": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testChamferCylinder",
+    "blockedBy": "chamfer"
+  },
+  "tests.test_cadquery::TestCadQuery::testClean__s": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testClean",
+    "blockedBy": "close"
+  },
+  "tests.test_cadquery::TestCadQuery::testClose__a": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testClose",
+    "blockedBy": "close"
+  },
+  "tests.test_cadquery::TestCadQuery::testClose__b": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testClose",
+    "blockedBy": "close"
+  },
+  "tests.test_cadquery::TestCadQuery::testClose__obj1": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testClose",
+    "blockedBy": "close"
+  },
+  "tests.test_cadquery::TestCadQuery::testClose__obj2": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testClose",
+    "blockedBy": "close"
+  },
+  "tests.test_cadquery::TestCadQuery::testClosedShell__s1": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testClosedShell",
+    "blockedBy": "close"
+  },
+  "tests.test_cadquery::TestCadQuery::testClosedShell__s2": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testClosedShell",
+    "blockedBy": "close"
+  },
+  "tests.test_cadquery::TestCadQuery::testClosedShell__s3": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testClosedShell",
+    "blockedBy": "close"
+  },
+  "tests.test_cadquery::TestCadQuery::testClosedShell__s4_shape": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testClosedShell",
+    "blockedBy": "close"
+  },
+  "tests.test_cadquery::TestCadQuery::testClosedShell__s4_shell_1": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testClosedShell",
+    "blockedBy": "close"
+  },
+  "tests.test_cadquery::TestCadQuery::testClosedShell__s4_shell_2": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testClosedShell",
+    "blockedBy": "close"
+  },
+  "tests.test_cadquery::TestCadQuery::testCombine__s": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::testCombine",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::testCombine__objects1": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testCombine",
+    "blockedBy": "combine"
+  },
+  "tests.test_cadquery::TestCadQuery::testCombine__objects2": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testCombine",
+    "blockedBy": "combine"
+  },
+  "tests.test_cadquery::TestCadQuery::testCombineSolidsInLoop__s": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testCombineSolidsInLoop",
+    "blockedBy": "combine"
+  },
+  "tests.test_cadquery::TestCadQuery::testCombineSolidsInLoop__t": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testCombineSolidsInLoop",
+    "blockedBy": "combine"
+  },
+  "tests.test_cadquery::TestCadQuery::testCombineSolidsInLoop__oo": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testCombineSolidsInLoop",
+    "blockedBy": "combine"
+  },
+  "tests.test_cadquery::TestCadQuery::testCompSolid__tool": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testCompSolid",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testCompSolid__result": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::testCompSolid",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::testCone__s": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testCone",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testCone__t": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testCone",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testConsolidateWires__w1": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::testConsolidateWires",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::testConstructionWire__s": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::testConstructionWire",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::testConstructionWire__r": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testConstructionWire",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testCopyWorkplane__obj0": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::testCopyWorkplane",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::testCopyWorkplane__obj1": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testCopyWorkplane",
+    "blockedBy": "copyWorkplane"
+  },
+  "tests.test_cadquery::TestCadQuery::testCounterBores__c": {
+    "status": "ported",
+    "source": "tests.test_cadquery::TestCadQuery::testCounterBores",
+    "blockedBy": null
+  },
+  "tests.test_cadquery::TestCadQuery::testCounterBores__c2": {
+    "status": "ported",
+    "source": "tests.test_cadquery::TestCadQuery::testCounterBores",
+    "blockedBy": null
+  },
+  "tests.test_cadquery::TestCadQuery::testCounterSinks__s": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::testCounterSinks",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::testCounterSinks__result": {
+    "status": "ported",
+    "source": "tests.test_cadquery::TestCadQuery::testCounterSinks",
+    "blockedBy": null
+  },
+  "tests.test_cadquery::TestCadQuery::testCubePlugin__result": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testCubePlugin",
+    "blockedBy": "combine"
+  },
+  "tests.test_cadquery::TestCadQuery::testCup__s1": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testCup",
+    "blockedBy": "loft"
+  },
+  "tests.test_cadquery::TestCadQuery::testCup__s2": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testCup",
+    "blockedBy": "loft"
+  },
+  "tests.test_cadquery::TestCadQuery::testCup__s3": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testCup",
+    "blockedBy": "loft"
+  },
+  "tests.test_cadquery::TestCadQuery::testCut__s": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::testCut",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::testCut__currentS": {
+    "status": "ported",
+    "source": "tests.test_cadquery::TestCadQuery::testCut",
+    "blockedBy": null
+  },
+  "tests.test_cadquery::TestCadQuery::testCut__toCut": {
+    "status": "ported",
+    "source": "tests.test_cadquery::TestCadQuery::testCut",
+    "blockedBy": null
+  },
+  "tests.test_cadquery::TestCadQuery::testCut__resS": {
+    "status": "ported",
+    "source": "tests.test_cadquery::TestCadQuery::testCut",
+    "blockedBy": null
+  },
+  "tests.test_cadquery::TestCadQuery::testCut__sugar": {
+    "status": "ported",
+    "source": "tests.test_cadquery::TestCadQuery::testCut",
+    "blockedBy": null
+  },
+  "tests.test_cadquery::TestCadQuery::testCutBlindUntilFace__wp_ref": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testCutBlindUntilFace",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testCutBlindUntilFace__wp_ref_regular_cut": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testCutBlindUntilFace",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testCutBlindUntilFace__wp": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testCutBlindUntilFace",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testCutBlindUntilFace__wp_last": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testCutBlindUntilFace",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testCutBlindUntilFace__wp_next": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testCutBlindUntilFace",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testCutEach__w": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testCutEach",
+    "blockedBy": "cutEach"
+  },
+  "tests.test_cadquery::TestCadQuery::testCutEach__w0": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testCutEach",
+    "blockedBy": "cutEach"
+  },
+  "tests.test_cadquery::TestCadQuery::testCutEach__c": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testCutEach",
+    "blockedBy": "cutEach"
+  },
+  "tests.test_cadquery::TestCadQuery::testCutThroughAll__s": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::testCutThroughAll",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::testCutThroughAll__r": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testCutThroughAll",
+    "blockedBy": "cutThruAll"
+  },
+  "tests.test_cadquery::TestCadQuery::testCutThroughAll__t": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testCutThroughAll",
+    "blockedBy": "cutThruAll"
+  },
+  "tests.test_cadquery::TestCadQuery::testCutToFaceOffsetNOTIMPLEMENTEDYET__s": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::testCutToFaceOffsetNOTIMPLEMENTEDYET",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::testCutToFaceOffsetNOTIMPLEMENTEDYET__r": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testCutToFaceOffsetNOTIMPLEMENTEDYET",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testCylinderCentering__s": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testCylinderCentering",
+    "blockedBy": "cylinder"
+  },
+  "tests.test_cadquery::TestCadQuery::testCylinderCentering__s0": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testCylinderCentering",
+    "blockedBy": "cylinder"
+  },
+  "tests.test_cadquery::TestCadQuery::testCylinderCentering__s1": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testCylinderCentering",
+    "blockedBy": "cylinder"
+  },
+  "tests.test_cadquery::TestCadQuery::testCylinderCenteringAndDirection__s": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testCylinderCenteringAndDirection",
+    "blockedBy": "cylinder"
+  },
+  "tests.test_cadquery::TestCadQuery::testCylinderDefaults__s": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testCylinderDefaults",
+    "blockedBy": "cylinder"
+  },
+  "tests.test_cadquery::TestCadQuery::testCylinderPlugin__s": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testCylinderPlugin",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testDoubleTwistedLoft__s": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testDoubleTwistedLoft",
+    "blockedBy": "loft"
+  },
+  "tests.test_cadquery::TestCadQuery::testDoubleTwistedLoft__s2": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testDoubleTwistedLoft",
+    "blockedBy": "loft"
+  },
+  "tests.test_cadquery::TestCadQuery::testDoubleTwistedLoft__s3": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testDoubleTwistedLoft",
+    "blockedBy": "loft"
+  },
+  "tests.test_cadquery::TestCadQuery::testEachpoint__ref": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testEachpoint",
+    "blockedBy": "eachpoint"
+  },
+  "tests.test_cadquery::TestCadQuery::testEachpoint__r": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testEachpoint",
+    "blockedBy": "eachpoint"
+  },
+  "tests.test_cadquery::TestCadQuery::testEachpoint__sph": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testEachpoint",
+    "blockedBy": "eachpoint"
+  },
+  "tests.test_cadquery::TestCadQuery::testEachpoint__box": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testEachpoint",
+    "blockedBy": "eachpoint"
+  },
+  "tests.test_cadquery::TestCadQuery::testEnclosure__oshell": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testEnclosure",
+    "blockedBy": "split"
+  },
+  "tests.test_cadquery::TestCadQuery::testEnclosure__ishell": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testEnclosure",
+    "blockedBy": "split"
+  },
+  "tests.test_cadquery::TestCadQuery::testEnclosure__box": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testEnclosure",
+    "blockedBy": "split"
+  },
+  "tests.test_cadquery::TestCadQuery::testEnclosure__lid": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testEnclosure",
+    "blockedBy": "split"
+  },
+  "tests.test_cadquery::TestCadQuery::testEnclosure__bottom": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testEnclosure",
+    "blockedBy": "split"
+  },
+  "tests.test_cadquery::TestCadQuery::testEnclosure__lowerLid": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testEnclosure",
+    "blockedBy": "split"
+  },
+  "tests.test_cadquery::TestCadQuery::testEnclosure__cutlip": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testEnclosure",
+    "blockedBy": "split"
+  },
+  "tests.test_cadquery::TestCadQuery::testEnclosure__topOfLid": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testEnclosure",
+    "blockedBy": "split"
+  },
+  "tests.test_cadquery::TestCadQuery::testEnclosure__result": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testEnclosure",
+    "blockedBy": "split"
+  },
+  "tests.test_cadquery::TestCadQuery::testExplicitClean__s": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testExplicitClean",
+    "blockedBy": "clean"
+  },
+  "tests.test_cadquery::TestCadQuery::testExtrude__r": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testExtrude",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testExtrude__s": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testExtrude",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testExtrude__box": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testExtrude",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testExtrude__wp_ref": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testExtrude",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testExtrude__wp_ref_regular_cut": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testExtrude",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testExtrude__wp": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testExtrude",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testExtrudeUntilFace__wp_ref": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testExtrudeUntilFace",
+    "blockedBy": "move"
+  },
+  "tests.test_cadquery::TestCadQuery::testExtrudeUntilFace__wp_ref_extrude": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testExtrudeUntilFace",
+    "blockedBy": "move"
+  },
+  "tests.test_cadquery::TestCadQuery::testExtrudeUntilFace__part": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testExtrudeUntilFace",
+    "blockedBy": "move"
+  },
+  "tests.test_cadquery::TestCadQuery::testExtrudeUntilFace__part_section": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testExtrudeUntilFace",
+    "blockedBy": "move"
+  },
+  "tests.test_cadquery::TestCadQuery::testFaceIntersectedByLine__shape": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testFaceIntersectedByLine",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testFillet__c": {
+    "status": "ported",
+    "source": "tests.test_cadquery::TestCadQuery::testFillet",
+    "blockedBy": null
+  },
+  "tests.test_cadquery::TestCadQuery::testFindSolid__r": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testFindSolid",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testFindSolid__s": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testFindSolid",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testFluentMethodInheritance__wp": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::testFluentMethodInheritance",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::testFrontReference__s": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::testFrontReference",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::testFrontReference__r": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testFrontReference",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp__box1": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp__box2": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp__box3": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp__res": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp__res_fuzzy": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp__res_fuzzy2": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp__box4": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp__res_fuzzy_intersect": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp__box1_cmp": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp__box4_cmp": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp__res_fuzzy_intersect_cmp": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp__res_fuzzy_intersect_val": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testGlue__box1": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testGlue",
+    "blockedBy": "moveTo"
+  },
+  "tests.test_cadquery::TestCadQuery::testGlue__box2": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testGlue",
+    "blockedBy": "moveTo"
+  },
+  "tests.test_cadquery::TestCadQuery::testGlue__res": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testGlue",
+    "blockedBy": "moveTo"
+  },
+  "tests.test_cadquery::TestCadQuery::testGlue__obj": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testGlue",
+    "blockedBy": "moveTo"
+  },
+  "tests.test_cadquery::TestCadQuery::testIbeam__s": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::testIbeam",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::testIbeam__res": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testIbeam",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testIntersect__s": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::testIntersect",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::testIntersect__currentS": {
+    "status": "ported",
+    "source": "tests.test_cadquery::TestCadQuery::testIntersect",
+    "blockedBy": null
+  },
+  "tests.test_cadquery::TestCadQuery::testIntersect__toIntersect": {
+    "status": "ported",
+    "source": "tests.test_cadquery::TestCadQuery::testIntersect",
+    "blockedBy": null
+  },
+  "tests.test_cadquery::TestCadQuery::testIntersect__resS": {
+    "status": "ported",
+    "source": "tests.test_cadquery::TestCadQuery::testIntersect",
+    "blockedBy": null
+  },
+  "tests.test_cadquery::TestCadQuery::testIntersect__b1": {
+    "status": "ported",
+    "source": "tests.test_cadquery::TestCadQuery::testIntersect",
+    "blockedBy": null
+  },
+  "tests.test_cadquery::TestCadQuery::testIntersect__b2": {
+    "status": "ported",
+    "source": "tests.test_cadquery::TestCadQuery::testIntersect",
+    "blockedBy": null
+  },
+  "tests.test_cadquery::TestCadQuery::testIntersect__sugar": {
+    "status": "ported",
+    "source": "tests.test_cadquery::TestCadQuery::testIntersect",
+    "blockedBy": null
+  },
+  "tests.test_cadquery::TestCadQuery::testIsInside__box1": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testIsInside",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testIsInside__box2": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testIsInside",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testIsInsideSolid__model": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testIsInsideSolid",
+    "blockedBy": "moveTo"
+  },
+  "tests.test_cadquery::TestCadQuery::testIsInsideSolid__solid": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testIsInsideSolid",
+    "blockedBy": "moveTo"
+  },
+  "tests.test_cadquery::TestCadQuery::testIsInsideSolid__void": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testIsInsideSolid",
+    "blockedBy": "moveTo"
+  },
+  "tests.test_cadquery::TestCadQuery::testLargestDimension__r": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::testLargestDimension",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::testLegoBrick__s": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testLegoBrick",
+    "blockedBy": "rarray"
+  },
+  "tests.test_cadquery::TestCadQuery::testLegoBrick__tmp": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testLegoBrick",
+    "blockedBy": "rarray"
+  },
+  "tests.test_cadquery::TestCadQuery::testLocatedMoved__box": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testLocatedMoved",
+    "blockedBy": "located"
+  },
+  "tests.test_cadquery::TestCadQuery::testLocatedMoved__box1": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testLocatedMoved",
+    "blockedBy": "located"
+  },
+  "tests.test_cadquery::TestCadQuery::testLocatedMoved__box2": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testLocatedMoved",
+    "blockedBy": "located"
+  },
+  "tests.test_cadquery::TestCadQuery::testLoft__s": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testLoft",
+    "blockedBy": "loft"
+  },
+  "tests.test_cadquery::TestCadQuery::testLoft__box": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testLoft",
+    "blockedBy": "loft"
+  },
+  "tests.test_cadquery::TestCadQuery::testLoft__cut": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testLoft",
+    "blockedBy": "loft"
+  },
+  "tests.test_cadquery::TestCadQuery::testLoft__add": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testLoft",
+    "blockedBy": "loft"
+  },
+  "tests.test_cadquery::TestCadQuery::testLoftCombine__s": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testLoftCombine",
+    "blockedBy": "loft"
+  },
+  "tests.test_cadquery::TestCadQuery::testMakeShellSolid__solid": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testMakeShellSolid",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testMultiFaceWorkplane__s": {
+    "status": "ported",
+    "source": "tests.test_cadquery::TestCadQuery::testMultiFaceWorkplane",
+    "blockedBy": null
+  },
+  "tests.test_cadquery::TestCadQuery::testMultiFaceWorkplane__w": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::testMultiFaceWorkplane",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::testMultiWireWorkplane__s": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::testMultiWireWorkplane",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::testMultiWireWorkplane__r": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testMultiWireWorkplane",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testMultisectionSweep__defaultSweep": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testMultisectionSweep",
+    "blockedBy": "sweep"
+  },
+  "tests.test_cadquery::TestCadQuery::testMultisectionSweep__recttocircleSweep": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testMultisectionSweep",
+    "blockedBy": "sweep"
+  },
+  "tests.test_cadquery::TestCadQuery::testMultisectionSweep__circletorectSweep": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testMultisectionSweep",
+    "blockedBy": "sweep"
+  },
+  "tests.test_cadquery::TestCadQuery::testMultisectionSweep__specialSweep": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testMultisectionSweep",
+    "blockedBy": "sweep"
+  },
+  "tests.test_cadquery::TestCadQuery::testMultisectionSweep__arcSweep": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testMultisectionSweep",
+    "blockedBy": "sweep"
+  },
+  "tests.test_cadquery::TestCadQuery::testMultisectionSweep__normalSweep": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testMultisectionSweep",
+    "blockedBy": "sweep"
+  },
+  "tests.test_cadquery::TestCadQuery::testNestedCircle__s": {
+    "status": "ported",
+    "source": "tests.test_cadquery::TestCadQuery::testNestedCircle",
+    "blockedBy": null
+  },
+  "tests.test_cadquery::TestCadQuery::testNoClean__s": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testNoClean",
+    "blockedBy": "close"
+  },
+  "tests.test_cadquery::TestCadQuery::testOccBottle__s": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::testOccBottle",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::testOccBottle__p": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testOccBottle",
+    "blockedBy": "mirrorX"
+  },
+  "tests.test_cadquery::TestCadQuery::testOffset2D__w4": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::testOffset2D",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::testOffset2D__s": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testOffset2D",
+    "blockedBy": "offset2D"
+  },
+  "tests.test_cadquery::TestCadQuery::testOpenCornerShell__s": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testOpenCornerShell",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testParametricCurve__res_open": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testParametricCurve",
+    "blockedBy": "parametricCurve"
+  },
+  "tests.test_cadquery::TestCadQuery::testParametricCurve__res_closed": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testParametricCurve",
+    "blockedBy": "parametricCurve"
+  },
+  "tests.test_cadquery::TestCadQuery::testParametricSurface__r2": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testParametricSurface",
+    "blockedBy": "split"
+  },
+  "tests.test_cadquery::TestCadQuery::testPlanes__s": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::testPlanes",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::testPlanes__result": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testPlanes",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testPointList__c": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testPointList",
+    "blockedBy": "cutThruAll"
+  },
+  "tests.test_cadquery::TestCadQuery::testPointList__s": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::testPointList",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::testPointList__body": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testPointList",
+    "blockedBy": "cutThruAll"
+  },
+  "tests.test_cadquery::TestCadQuery::testPointList__r": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::testPointList",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::testPolarArray__s": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testPolarArray",
+    "blockedBy": "polarArray"
+  },
+  "tests.test_cadquery::TestCadQuery::testPolarLines__s": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::testPolarLines",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::testPolygonPlugin__s": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testPolygonPlugin",
+    "blockedBy": "cutThruAll"
+  },
+  "tests.test_cadquery::TestCadQuery::testPopPending__w2": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::testPopPending",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::testPopPending__w4": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testPopPending",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testPopPending__w5": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testPopPending",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testQuickStartXY__s": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testQuickStartXY",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testQuickStartXZ__s": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testQuickStartXZ",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testQuickStartYZ__s": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testQuickStartYZ",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testRectArray__s": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::testRectArray",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::testRectArray__s0": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::testRectArray",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::testRectArray__s1": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::testRectArray",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::testRevolveCone__result": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testRevolveCone",
+    "blockedBy": "revolve"
+  },
+  "tests.test_cadquery::TestCadQuery::testRevolveCut__box": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testRevolveCut",
+    "blockedBy": "revolve"
+  },
+  "tests.test_cadquery::TestCadQuery::testRevolveCut__cut": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testRevolveCut",
+    "blockedBy": "revolve"
+  },
+  "tests.test_cadquery::TestCadQuery::testRevolveCylinder__result": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testRevolveCylinder",
+    "blockedBy": "revolve"
+  },
+  "tests.test_cadquery::TestCadQuery::testRevolveDonut__result": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testRevolveDonut",
+    "blockedBy": "revolve"
+  },
+  "tests.test_cadquery::TestCadQuery::testRotate__box": {
+    "status": "ported",
+    "source": "tests.test_cadquery::TestCadQuery::testRotate",
+    "blockedBy": null
+  },
+  "tests.test_cadquery::TestCadQuery::testRotateAboutCenter__r": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testRotateAboutCenter",
+    "blockedBy": "rotateAboutCenter"
+  },
+  "tests.test_cadquery::TestCadQuery::testSection__box": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testSection",
+    "blockedBy": "section"
+  },
+  "tests.test_cadquery::TestCadQuery::testSection__s1": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testSection",
+    "blockedBy": "section"
+  },
+  "tests.test_cadquery::TestCadQuery::testSection__s2": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testSection",
+    "blockedBy": "section"
+  },
+  "tests.test_cadquery::TestCadQuery::testSimpleMirror__s": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testSimpleMirror",
+    "blockedBy": "mirrorX"
+  },
+  "tests.test_cadquery::TestCadQuery::testSimpleShell__s1": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testSimpleShell",
+    "blockedBy": "ellipse"
+  },
+  "tests.test_cadquery::TestCadQuery::testSimpleShell__s2": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testSimpleShell",
+    "blockedBy": "ellipse"
+  },
+  "tests.test_cadquery::TestCadQuery::testSimpleShell__s3": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testSimpleShell",
+    "blockedBy": "ellipse"
+  },
+  "tests.test_cadquery::TestCadQuery::testSimpleWorkplane__s": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::testSimpleWorkplane",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::testSimpleWorkplane__r": {
+    "status": "ported",
+    "source": "tests.test_cadquery::TestCadQuery::testSimpleWorkplane",
+    "blockedBy": null
+  },
+  "tests.test_cadquery::TestCadQuery::testSketch__r1": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testSketch",
+    "blockedBy": "finalize"
+  },
+  "tests.test_cadquery::TestCadQuery::testSketch__r2": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testSketch",
+    "blockedBy": "finalize"
+  },
+  "tests.test_cadquery::TestCadQuery::testSketch__r3": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testSketch",
+    "blockedBy": "finalize"
+  },
+  "tests.test_cadquery::TestCadQuery::testSketch__r4": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testSketch",
+    "blockedBy": "finalize"
+  },
+  "tests.test_cadquery::TestCadQuery::testSketch__r5": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testSketch",
+    "blockedBy": "finalize"
+  },
+  "tests.test_cadquery::TestCadQuery::testSketch__r6": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testSketch",
+    "blockedBy": "finalize"
+  },
+  "tests.test_cadquery::TestCadQuery::testSlot2D__result": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testSlot2D",
+    "blockedBy": "slot2D"
+  },
+  "tests.test_cadquery::TestCadQuery::testSlot2D__box": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testSlot2D",
+    "blockedBy": "slot2D"
+  },
+  "tests.test_cadquery::TestCadQuery::testSolidReferenceCombineFalse__s": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::testSolidReferenceCombineFalse",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::testSolidReferenceCombineFalse__r": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testSolidReferenceCombineFalse",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testSolidReferenceCombineFalse__t": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testSolidReferenceCombineFalse",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testSolidReferencesCombine__c": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testSolidReferencesCombine",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testSolidReferencesCombine__r": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testSolidReferencesCombine",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testSolidReferencesCombineTrue__s": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::testSolidReferencesCombineTrue",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::testSolidReferencesCombineTrue__r": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testSolidReferencesCombineTrue",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testSolidReferencesCombineTrue__t": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testSolidReferencesCombineTrue",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testSphereCombine__s": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testSphereCombine",
+    "blockedBy": "sphere"
+  },
+  "tests.test_cadquery::TestCadQuery::testSphereCustom__s": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testSphereCustom",
+    "blockedBy": "sphere"
+  },
+  "tests.test_cadquery::TestCadQuery::testSphereCustom__s0": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testSphereCustom",
+    "blockedBy": "sphere"
+  },
+  "tests.test_cadquery::TestCadQuery::testSphereCustom__s1": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testSphereCustom",
+    "blockedBy": "sphere"
+  },
+  "tests.test_cadquery::TestCadQuery::testSphereDefaults__s": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testSphereDefaults",
+    "blockedBy": "sphere"
+  },
+  "tests.test_cadquery::TestCadQuery::testSpherePointList__s": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testSpherePointList",
+    "blockedBy": "sphere"
+  },
+  "tests.test_cadquery::TestCadQuery::testSplineShape__s": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::testSplineShape",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::testSplineShape__r": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testSplineShape",
+    "blockedBy": "close"
+  },
+  "tests.test_cadquery::TestCadQuery::testSplitKeepingBoth__c": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testSplitKeepingBoth",
+    "blockedBy": "cutThruAll"
+  },
+  "tests.test_cadquery::TestCadQuery::testSplitKeepingBoth__result": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testSplitKeepingBoth",
+    "blockedBy": "cutThruAll"
+  },
+  "tests.test_cadquery::TestCadQuery::testSplitKeepingBottom__c": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testSplitKeepingBottom",
+    "blockedBy": "cutThruAll"
+  },
+  "tests.test_cadquery::TestCadQuery::testSplitKeepingBottom__result": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testSplitKeepingBottom",
+    "blockedBy": "cutThruAll"
+  },
+  "tests.test_cadquery::TestCadQuery::testSplitKeepingHalf__c": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testSplitKeepingHalf",
+    "blockedBy": "cutThruAll"
+  },
+  "tests.test_cadquery::TestCadQuery::testSplitKeepingHalf__result": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testSplitKeepingHalf",
+    "blockedBy": "cutThruAll"
+  },
+  "tests.test_cadquery::TestCadQuery::testSweep__result": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testSweep",
+    "blockedBy": "sweep"
+  },
+  "tests.test_cadquery::TestCadQuery::testSweep__box": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testSweep",
+    "blockedBy": "sweep"
+  },
+  "tests.test_cadquery::TestCadQuery::testSweep__cut": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testSweep",
+    "blockedBy": "sweep"
+  },
+  "tests.test_cadquery::TestCadQuery::testSweep__add": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testSweep",
+    "blockedBy": "sweep"
+  },
+  "tests.test_cadquery::TestCadQuery::testTag__result": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testTag",
+    "blockedBy": "tag"
+  },
+  "tests.test_cadquery::TestCadQuery::testTagSelectors__result0": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testTagSelectors",
+    "blockedBy": "sphere"
+  },
+  "tests.test_cadquery::TestCadQuery::testTagSelectors__result1": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testTagSelectors",
+    "blockedBy": "sphere"
+  },
+  "tests.test_cadquery::TestCadQuery::testTagSelectors__result2": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testTagSelectors",
+    "blockedBy": "sphere"
+  },
+  "tests.test_cadquery::TestCadQuery::testTangentArcToPoint__s0": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testTangentArcToPoint",
+    "blockedBy": "close"
+  },
+  "tests.test_cadquery::TestCadQuery::testTangentArcToPoint__s1": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testTangentArcToPoint",
+    "blockedBy": "close"
+  },
+  "tests.test_cadquery::TestCadQuery::testTangentArcToPoint__s2": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testTangentArcToPoint",
+    "blockedBy": "close"
+  },
+  "tests.test_cadquery::TestCadQuery::testTaperedExtrudeCutBlind__s": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testTaperedExtrudeCutBlind",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testTaperedExtrudeHeight__s": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testTaperedExtrudeHeight",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testTaperedExtrudeHeight__s2": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testTaperedExtrudeHeight",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testText__box": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testText",
+    "blockedBy": "text"
+  },
+  "tests.test_cadquery::TestCadQuery::testText__obj1": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testText",
+    "blockedBy": "text"
+  },
+  "tests.test_cadquery::TestCadQuery::testText__obj2": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testText",
+    "blockedBy": "text"
+  },
+  "tests.test_cadquery::TestCadQuery::testText__obj3": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testText",
+    "blockedBy": "text"
+  },
+  "tests.test_cadquery::TestCadQuery::testText__obj4": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testText",
+    "blockedBy": "text"
+  },
+  "tests.test_cadquery::TestCadQuery::testText__obj5": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testText",
+    "blockedBy": "text"
+  },
+  "tests.test_cadquery::TestCadQuery::testTextAlignment__left_bottom": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testTextAlignment",
+    "blockedBy": "text"
+  },
+  "tests.test_cadquery::TestCadQuery::testTextAlignment__centers": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testTextAlignment",
+    "blockedBy": "text"
+  },
+  "tests.test_cadquery::TestCadQuery::testTextAlignment__right_top": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testTextAlignment",
+    "blockedBy": "text"
+  },
+  "tests.test_cadquery::TestCadQuery::testToSVG__r": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testToSVG",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testTopFaceFillet__s": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testTopFaceFillet",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testTranslateSolid__c": {
+    "status": "ported",
+    "source": "tests.test_cadquery::TestCadQuery::testTranslateSolid",
+    "blockedBy": null
+  },
+  "tests.test_cadquery::TestCadQuery::testTranslateSolid__d": {
+    "status": "ported",
+    "source": "tests.test_cadquery::TestCadQuery::testTranslateSolid",
+    "blockedBy": null
+  },
+  "tests.test_cadquery::TestCadQuery::testTriangularPrism__s": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testTriangularPrism",
+    "blockedBy": "close"
+  },
+  "tests.test_cadquery::TestCadQuery::testTwistExtrude__r": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testTwistExtrude",
+    "blockedBy": "twistExtrude"
+  },
+  "tests.test_cadquery::TestCadQuery::testTwistExtrudeCombine__r": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testTwistExtrudeCombine",
+    "blockedBy": "twistExtrude"
+  },
+  "tests.test_cadquery::TestCadQuery::testTwistExtrudeCombineCut__box": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testTwistExtrudeCombineCut",
+    "blockedBy": "twistExtrude"
+  },
+  "tests.test_cadquery::TestCadQuery::testTwistExtrudeCombineCut__cut": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testTwistExtrudeCombineCut",
+    "blockedBy": "twistExtrude"
+  },
+  "tests.test_cadquery::TestCadQuery::testTwistedLoft__s": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testTwistedLoft",
+    "blockedBy": "loft"
+  },
+  "tests.test_cadquery::TestCadQuery::testTwoWorkplanes__s": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::testTwoWorkplanes",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::testTwoWorkplanes__r": {
+    "status": "ported",
+    "source": "tests.test_cadquery::TestCadQuery::testTwoWorkplanes",
+    "blockedBy": null
+  },
+  "tests.test_cadquery::TestCadQuery::testTwoWorkplanes__t": {
+    "status": "ported",
+    "source": "tests.test_cadquery::TestCadQuery::testTwoWorkplanes",
+    "blockedBy": null
+  },
+  "tests.test_cadquery::TestCadQuery::testUnionCompound__box1": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testUnionCompound",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testUnionCompound__box2": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testUnionCompound",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testUnionCompound__shape_to_cut": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testUnionCompound",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testUnionCompound__o": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testUnionCompound",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testUnionCompound__obj": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testUnionCompound",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testUnionNoArgs__s": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::testUnionNoArgs",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::testUnionNoArgs__objects1": {
+    "status": "ported",
+    "source": "tests.test_cadquery::TestCadQuery::testUnionNoArgs",
+    "blockedBy": null
+  },
+  "tests.test_cadquery::TestCadQuery::testUnionNoArgs__objects2": {
+    "status": "ported",
+    "source": "tests.test_cadquery::TestCadQuery::testUnionNoArgs",
+    "blockedBy": null
+  },
+  "tests.test_cadquery::TestCadQuery::testUnions__s": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::testUnions",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::testUnions__t": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testUnions",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testUnions__oo": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testUnions",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testUnions__currentS": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testUnions",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testUnions__toUnion": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testUnions",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testUnions__resS": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testUnions",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testUnions__sugar1": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testUnions",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testUnions__sugar2": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testUnions",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testWedgeCombined__s": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testWedgeCombined",
+    "blockedBy": "wedge"
+  },
+  "tests.test_cadquery::TestCadQuery::testWedgeDefaults__s": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testWedgeDefaults",
+    "blockedBy": "wedge"
+  },
+  "tests.test_cadquery::TestCadQuery::testWedgePointList__s": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testWedgePointList",
+    "blockedBy": "wedge"
+  },
+  "tests.test_cadquery::TestCadQuery::testWorkplaneCenterMove__s": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::testWorkplaneCenterMove",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::testWorkplaneCenterMove__t": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testWorkplaneCenterMove",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testWorkplaneCenterOptions__r": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testWorkplaneCenterOptions",
+    "blockedBy": "close"
+  },
+  "tests.test_cadquery::TestCadQuery::testWorkplaneFromFace__s": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::testWorkplaneFromFace",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::testWorkplaneFromFace__r": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testWorkplaneFromFace",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testWorkplaneFromTagged__result": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testWorkplaneFromTagged",
+    "blockedBy": "workplaneFromTagged"
+  },
+  "tests.test_cadquery::TestCadQuery::testWorkplaneOnExistingSolid__c": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testWorkplaneOnExistingSolid",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testWorkplaneOrientationOnVertex__parent": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testWorkplaneOrientationOnVertex",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::testWorkplaneOrientationOnVertex__child": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::testWorkplaneOrientationOnVertex",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::test_MergeTags__b": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::test_MergeTags",
+    "blockedBy": "end"
+  },
+  "tests.test_cadquery::TestCadQuery::test_bool_operators__w1": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::test_bool_operators",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::test_bool_operators__w2": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::test_bool_operators",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::test_combineWithBase__box": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::test_combineWithBase",
+    "blockedBy": "sphere"
+  },
+  "tests.test_cadquery::TestCadQuery::test_combineWithBase__sphere": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::test_combineWithBase",
+    "blockedBy": "sphere"
+  },
+  "tests.test_cadquery::TestCadQuery::test_combineWithBase__new_box": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::test_combineWithBase",
+    "blockedBy": "sphere"
+  },
+  "tests.test_cadquery::TestCadQuery::test_compound_faces_center__compound": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::test_compound_faces_center",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::test_cutFromBase__box": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::test_cutFromBase",
+    "blockedBy": "sphere"
+  },
+  "tests.test_cadquery::TestCadQuery::test_cutFromBase__sphere": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::test_cutFromBase",
+    "blockedBy": "sphere"
+  },
+  "tests.test_cadquery::TestCadQuery::test_cutFromBase__hoolow_box": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::test_cutFromBase",
+    "blockedBy": "sphere"
+  },
+  "tests.test_cadquery::TestCadQuery::test_export__w": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::test_export",
+    "blockedBy": "export"
+  },
+  "tests.test_cadquery::TestCadQuery::test_extrude_face__c": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::test_extrude_face",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::test_findFromEdge__part2": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::test_findFromEdge",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::test_getitem__w": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::test_getitem",
+    "blockedBy": "rarray"
+  },
+  "tests.test_cadquery::TestCadQuery::test_interpPlate__plate_1": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::test_interpPlate",
+    "blockedBy": "interpPlate"
+  },
+  "tests.test_cadquery::TestCadQuery::test_interpPlate__plate_2": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::test_interpPlate",
+    "blockedBy": "interpPlate"
+  },
+  "tests.test_cadquery::TestCadQuery::test_interpPlate__plate_3": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::test_interpPlate",
+    "blockedBy": "interpPlate"
+  },
+  "tests.test_cadquery::TestCadQuery::test_interpPlate__plate_4": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::test_interpPlate",
+    "blockedBy": "interpPlate"
+  },
+  "tests.test_cadquery::TestCadQuery::test_interpPlate__plate_6": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::test_interpPlate",
+    "blockedBy": "interpPlate"
+  },
+  "tests.test_cadquery::TestCadQuery::test_invoke__w": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::test_invoke",
+    "blockedBy": "rarray"
+  },
+  "tests.test_cadquery::TestCadQuery::test_iterators__w": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::test_iterators",
+    "blockedBy": "combine"
+  },
+  "tests.test_cadquery::TestCadQuery::test_iterators__s": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::test_iterators",
+    "blockedBy": "combine"
+  },
+  "tests.test_cadquery::TestCadQuery::test_iterators__c": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::test_iterators",
+    "blockedBy": "combine"
+  },
+  "tests.test_cadquery::TestCadQuery::test_iterators__fs": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::test_iterators",
+    "blockedBy": "combine"
+  },
+  "tests.test_cadquery::TestCadQuery::test_loft_face__c": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::test_loft_face",
+    "blockedBy": "loft"
+  },
+  "tests.test_cadquery::TestCadQuery::test_loft_face__w1": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::test_loft_face",
+    "blockedBy": "loft"
+  },
+  "tests.test_cadquery::TestCadQuery::test_loft_face__w2": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::test_loft_face",
+    "blockedBy": "loft"
+  },
+  "tests.test_cadquery::TestCadQuery::test_loft_to_vertex__c": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::test_loft_to_vertex",
+    "blockedBy": "loft"
+  },
+  "tests.test_cadquery::TestCadQuery::test_loft_to_vertex__w1": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::test_loft_to_vertex",
+    "blockedBy": "loft"
+  },
+  "tests.test_cadquery::TestCadQuery::test_loft_to_vertex__w2": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::test_loft_to_vertex",
+    "blockedBy": "loft"
+  },
+  "tests.test_cadquery::TestCadQuery::test_map_apply_filter_sort__w": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::test_map_apply_filter_sort",
+    "blockedBy": "moveTo"
+  },
+  "tests.test_cadquery::TestCadQuery::test_plane_repr__wp": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::test_plane_repr",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::test_project__res_ex": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::test_project",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::test_project__res_o_ex": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::test_project",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::test_workplane_iter__s": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::test_workplane_iter",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::test_workplane_iter__w1": {
+    "status": "skipped",
+    "source": "tests.test_cadquery::TestCadQuery::test_workplane_iter",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cadquery::TestCadQuery::test_workplane_iter__w2": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::test_workplane_iter",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cadquery::TestCadQuery::test_workplane_iter__w3": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::test_workplane_iter",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_shapes:::test_isSolid__s": {
+    "status": "blocked",
+    "source": "tests.test_shapes:::test_isSolid",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_shapes:::test_shells__s": {
+    "status": "blocked",
+    "source": "tests.test_shapes:::test_shells",
+    "blockedBy": "moved"
+  },
+  "tests.test_shapes:::test_bin_import_export__b": {
+    "status": "blocked",
+    "source": "tests.test_shapes:::test_bin_import_export",
+    "blockedBy": "importBin"
+  },
+  "tests.test_shapes:::test_bin_import_export__r": {
+    "status": "blocked",
+    "source": "tests.test_shapes:::test_bin_import_export",
+    "blockedBy": "importBin"
+  },
+  "tests.test_shapes:::test_remove__b": {
+    "status": "blocked",
+    "source": "tests.test_shapes:::test_remove",
+    "blockedBy": "moved"
+  },
+  "tests.test_shapes:::test_remove__br": {
+    "status": "blocked",
+    "source": "tests.test_shapes:::test_remove",
+    "blockedBy": "moved"
+  },
+  "tests.test_shapes:::test_addCavity__b1": {
+    "status": "blocked",
+    "source": "tests.test_shapes:::test_addCavity",
+    "blockedBy": "moved"
+  },
+  "tests.test_shapes:::test_addCavity__b2": {
+    "status": "blocked",
+    "source": "tests.test_shapes:::test_addCavity",
+    "blockedBy": "moved"
+  },
+  "tests.test_shapes:::test_addCavity__br": {
+    "status": "blocked",
+    "source": "tests.test_shapes:::test_addCavity",
+    "blockedBy": "moved"
+  },
+  "tests.test_shapes:::test_replace__b": {
+    "status": "blocked",
+    "source": "tests.test_shapes:::test_replace",
+    "blockedBy": "moved"
+  },
+  "tests.test_shapes:::test_replace__f_top_split": {
+    "status": "blocked",
+    "source": "tests.test_shapes:::test_replace",
+    "blockedBy": "moved"
+  },
+  "tests.test_shapes:::test_replace__br1": {
+    "status": "blocked",
+    "source": "tests.test_shapes:::test_replace",
+    "blockedBy": "moved"
+  },
+  "tests.test_shapes:::test_replace__br2": {
+    "status": "blocked",
+    "source": "tests.test_shapes:::test_replace",
+    "blockedBy": "moved"
+  },
+  "tests.test_shapes:::test_single_ent_selector__bs": {
+    "status": "blocked",
+    "source": "tests.test_shapes:::test_single_ent_selector",
+    "blockedBy": "moved"
+  },
+  "tests.test_shapes:::test_single_ent_selector__fs": {
+    "status": "blocked",
+    "source": "tests.test_shapes:::test_single_ent_selector",
+    "blockedBy": "moved"
+  },
+  "tests.test_shapes:::test_special__c": {
+    "status": "blocked",
+    "source": "tests.test_shapes:::test_special",
+    "blockedBy": "filter"
+  },
+  "tests.test_shapes:::test_special__cf": {
+    "status": "blocked",
+    "source": "tests.test_shapes:::test_special",
+    "blockedBy": "filter"
+  },
+  "tests.test_shapes:::test_special__cs": {
+    "status": "blocked",
+    "source": "tests.test_shapes:::test_special",
+    "blockedBy": "filter"
+  },
+  "tests.test_shapes:::test_reverse__simple_box": {
+    "status": "blocked",
+    "source": "tests.test_shapes:::test_reverse",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_shapes:::test_siblings__simple_box": {
+    "status": "blocked",
+    "source": "tests.test_shapes:::test_siblings",
+    "blockedBy": "siblings"
+  },
+  "tests.test_shapes:::test_siblings__siblings_1": {
+    "status": "blocked",
+    "source": "tests.test_shapes:::test_siblings",
+    "blockedBy": "siblings"
+  },
+  "tests.test_shapes:::test_siblings__siblings_12": {
+    "status": "blocked",
+    "source": "tests.test_shapes:::test_siblings",
+    "blockedBy": "siblings"
+  },
+  "tests.test_shapes:::test_siblings__siblings_2": {
+    "status": "blocked",
+    "source": "tests.test_shapes:::test_siblings",
+    "blockedBy": "siblings"
+  },
+  "tests.test_shapes:::test_siblings__siblings_cmp_12": {
+    "status": "blocked",
+    "source": "tests.test_shapes:::test_siblings",
+    "blockedBy": "siblings"
+  },
+  "tests.test_shapes:::test_siblings__siblings_cmp_2": {
+    "status": "blocked",
+    "source": "tests.test_shapes:::test_siblings",
+    "blockedBy": "siblings"
+  },
+  "tests.test_shapes:::test_siblings__siblings_cmp_edges_12": {
+    "status": "blocked",
+    "source": "tests.test_shapes:::test_siblings",
+    "blockedBy": "siblings"
+  },
+  "tests.test_shapes:::test_siblings__stacked_box": {
+    "status": "blocked",
+    "source": "tests.test_shapes:::test_siblings",
+    "blockedBy": "siblings"
+  },
+  "tests.test_shapes:::test_siblings__level_1": {
+    "status": "blocked",
+    "source": "tests.test_shapes:::test_siblings",
+    "blockedBy": "siblings"
+  },
+  "tests.test_shapes:::test_siblings__level_2": {
+    "status": "blocked",
+    "source": "tests.test_shapes:::test_siblings",
+    "blockedBy": "siblings"
+  },
+  "tests.test_shapes:::test_siblings__level_3": {
+    "status": "blocked",
+    "source": "tests.test_shapes:::test_siblings",
+    "blockedBy": "siblings"
+  },
+  "tests.test_shapes:::test_siblings__level_123": {
+    "status": "blocked",
+    "source": "tests.test_shapes:::test_siblings",
+    "blockedBy": "siblings"
+  },
+  "tests.test_shapes:::test_set_ops__simple_box": {
+    "status": "blocked",
+    "source": "tests.test_shapes:::test_set_ops",
+    "blockedBy": "size"
+  },
+  "tests.test_workplanes::TestWorkplanes::test_all_planes__b2": {
+    "status": "blocked",
+    "source": "tests.test_workplanes::TestWorkplanes::test_all_planes",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_workplanes::TestWorkplanes::test_bad_plane_input__b2": {
+    "status": "blocked",
+    "source": "tests.test_workplanes::TestWorkplanes::test_bad_plane_input",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_workplanes::TestWorkplanes::test_mirror__b2": {
+    "status": "blocked",
+    "source": "tests.test_workplanes::TestWorkplanes::test_mirror",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_workplanes::TestWorkplanes::test_mirror_axis__b2": {
+    "status": "blocked",
+    "source": "tests.test_workplanes::TestWorkplanes::test_mirror_axis",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_workplanes::TestWorkplanes::test_mirror_equivalence__boxTmp": {
+    "status": "blocked",
+    "source": "tests.test_workplanes::TestWorkplanes::test_mirror_equivalence",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_workplanes::TestWorkplanes::test_mirror_equivalence__b": {
+    "status": "blocked",
+    "source": "tests.test_workplanes::TestWorkplanes::test_mirror_equivalence",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_workplanes::TestWorkplanes::test_mirror_face__r": {
+    "status": "blocked",
+    "source": "tests.test_workplanes::TestWorkplanes::test_mirror_face",
+    "blockedBy": "close"
+  },
+  "tests.test_workplanes::TestWorkplanes::test_mirror_workplane__b2": {
+    "status": "blocked",
+    "source": "tests.test_workplanes::TestWorkplanes::test_mirror_workplane",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_utils__r4": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_utils",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_constructors__b": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_constructors",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_constructors__c1": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_constructors",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_constructors__c2": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_constructors",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_sewing__b": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_sewing",
+    "blockedBy": "remove"
+  },
+  "tests.test_free_functions:::test_sewing__sh": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_sewing",
+    "blockedBy": "remove"
+  },
+  "tests.test_free_functions:::test_sewing__res3": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_sewing",
+    "blockedBy": "remove"
+  },
+  "tests.test_free_functions:::test_solid__b": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_solid",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_solid__b_large": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_solid",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_solid__b_small": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_solid",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_solid__sphere1": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_solid",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_solid__sphere2": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_solid",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_solid__s1": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_solid",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_solid__s2": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_solid",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_solid__b1": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_solid",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_solid__s3": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_solid",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_solid__s4": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_solid",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_solid__s5": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_solid",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_solid__s6": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_solid",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_faceOn__f2": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_faceOn",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_box__s": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_box",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_cylinder__s": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_cylinder",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_sphere__s": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_sphere",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_torus__s": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_torus",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_cone__s": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_cone",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_text__r1": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_text",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_text__r2": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_text",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_text__r3": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_text",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_text__r4": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_text",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_text__r5": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_text",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_text__c": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_text",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_text__r7": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_text",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_text__r8": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_text",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_text__r9": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_text",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_operators__b1": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_operators",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_operators__b2": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_operators",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_operators__b3": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_operators",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_imprint__b1": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_imprint",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_imprint__b2": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_imprint",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_imprint__b3": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_imprint",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_imprint__res": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_imprint",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_imprint__res_glue_full": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_imprint",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_imprint__res_glue_partial": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_imprint",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_imprint__b1_imp": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_imprint",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_imprint__b3_imp": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_imprint",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_imprint_error__b1": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_imprint_error",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_imprint_error__b2": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_imprint_error",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_imprint_error___": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_imprint_error",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_fuse_multi__b": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_fuse_multi",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_fuse_multi__res": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_fuse_multi",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_moved__b": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_moved",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_moved__s": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_moved",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_moved__bs1": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_moved",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_moved__bs2": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_moved",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_moved__bs3": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_moved",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_moved__bs4": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_moved",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_moved__bs5": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_moved",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_moved__bs6": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_moved",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_moved__bs7": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_moved",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_moved__bs8": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_moved",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_moved__bs9": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_moved",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_moved__s1": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_moved",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_moved__s2": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_moved",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_moved__s3": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_moved",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_moved__s4": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_moved",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_hollow__box_shape": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_hollow",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_hollow__res1": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_hollow",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_hollow__res2": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_hollow",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_hollow_open__box_shape": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_hollow_open",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_hollow_open__res1": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_hollow_open",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_hollow_open__res2": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_hollow_open",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_prism__box_shape": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_prism",
+    "blockedBy": "face"
+  },
+  "tests.test_free_functions:::test_prism__res1": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_prism",
+    "blockedBy": "face"
+  },
+  "tests.test_free_functions:::test_prism__res2": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_prism",
+    "blockedBy": "face"
+  },
+  "tests.test_free_functions:::test_prism__res3": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_prism",
+    "blockedBy": "face"
+  },
+  "tests.test_free_functions:::test_prism__res4": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_prism",
+    "blockedBy": "face"
+  },
+  "tests.test_free_functions:::test_prism__res5": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_prism",
+    "blockedBy": "face"
+  },
+  "tests.test_free_functions:::test_prism__res6": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_prism",
+    "blockedBy": "face"
+  },
+  "tests.test_free_functions:::test_prism_taper__box_shape": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_prism_taper",
+    "blockedBy": "face"
+  },
+  "tests.test_free_functions:::test_prism_taper__res1": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_prism_taper",
+    "blockedBy": "face"
+  },
+  "tests.test_free_functions:::test_prism_taper__res2": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_prism_taper",
+    "blockedBy": "face"
+  },
+  "tests.test_free_functions:::test_prism_taper__res3": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_prism_taper",
+    "blockedBy": "face"
+  },
+  "tests.test_free_functions:::test_prism_taper__res4": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_prism_taper",
+    "blockedBy": "face"
+  },
+  "tests.test_free_functions:::test_prism_taper__res5": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_prism_taper",
+    "blockedBy": "face"
+  },
+  "tests.test_free_functions:::test_draft__box_shape": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_draft",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_draft__res1": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_draft",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_draft__res2": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_draft",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_draft__s": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_draft",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_clean__b1": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_clean",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_clean__b2": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_clean",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_fillet__b": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_fillet",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_fillet__r": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_fillet",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_chamfer__b": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_chamfer",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_chamfer__r": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_chamfer",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_extrude__r4": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_extrude",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_extrude__r5": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_extrude",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_offset__r1": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_offset",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_offset__r2": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_offset",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_offset__r3": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_offset",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_offset__r4": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_offset",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_sweep__r3": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_sweep",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_sweep__r4": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_sweep",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_sweep__r5": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_sweep",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_sweep__r6": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_sweep",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_sweep__r7": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_sweep",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_sweep__r8": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_sweep",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_sweep_aux__r1": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_sweep_aux",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_sweep_aux__r2": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_sweep_aux",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_loft__r4": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_loft",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_loft__r6": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_loft",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_loft_vertex__r2": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_loft_vertex",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_loft_vertex__r3": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_loft_vertex",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_loft_vertex__r4": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_loft_vertex",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_project__res": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_project",
+    "blockedBy": "moved"
+  },
+  "tests.test_free_functions:::test_export__b1": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_export",
+    "blockedBy": "importBrep"
+  },
+  "tests.test_free_functions:::test_export__b2": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_export",
+    "blockedBy": "importBrep"
+  },
+  "tests.test_free_functions:::test_check__s1": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_check",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_history_bool__b1": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_history_bool",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_history_bool__b2": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_history_bool",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_history_bool__res": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_history_bool",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_history_bool__res2": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_history_bool",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_history_extrude__res": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_history_extrude",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_history_extrude__sides": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_history_extrude",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_history_sweep__res": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_history_sweep",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_history_sweep__side": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_history_sweep",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_history_loft__res": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_history_loft",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_history_loft__side": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_history_loft",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_free_functions:::test_history_offset__sides": {
+    "status": "blocked",
+    "source": "tests.test_free_functions:::test_history_offset",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_selectors::TestCQSelectors::testAll__c": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testAll",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_selectors::TestCQSelectors::testAndSelector__c": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testAndSelector",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_selectors::TestCQSelectors::testAreaNthSelector_NonplanarWire__wp": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testAreaNthSelector_NonplanarWire",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_selectors::TestCQSelectors::testAreaNthSelector_Shells__workplane_shells": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testAreaNthSelector_Shells",
+    "blockedBy": "eachpoint"
+  },
+  "tests.test_selectors::TestCQSelectors::testAreaNthSelector_Solids__workplane_solids": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testAreaNthSelector_Solids",
+    "blockedBy": "eachpoint"
+  },
+  "tests.test_selectors::TestCQSelectors::testAreaNthSelector_Solids__selected_solids": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testAreaNthSelector_Solids",
+    "blockedBy": "eachpoint"
+  },
+  "tests.test_selectors::TestCQSelectors::testBaseDirSelector__c": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testBaseDirSelector",
+    "blockedBy": "sphere"
+  },
+  "tests.test_selectors::TestCQSelectors::testBaseDirSelector__c_curves": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testBaseDirSelector",
+    "blockedBy": "sphere"
+  },
+  "tests.test_selectors::TestCQSelectors::testBaseDirSelector__comp": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testBaseDirSelector",
+    "blockedBy": "sphere"
+  },
+  "tests.test_selectors::TestCQSelectors::testBox__c": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testBox",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_selectors::TestCQSelectors::testCenterNthSelector__nothing": {
+    "status": "skipped",
+    "source": "tests.test_selectors::TestCQSelectors::testCenterNthSelector",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_selectors::TestCQSelectors::testCenterNthSelector__c": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testCenterNthSelector",
+    "blockedBy": "move"
+  },
+  "tests.test_selectors::TestCQSelectors::testCenterNthSelector__prism": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testCenterNthSelector",
+    "blockedBy": "move"
+  },
+  "tests.test_selectors::TestCQSelectors::testCenterNthSelector__part": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testCenterNthSelector",
+    "blockedBy": "move"
+  },
+  "tests.test_selectors::TestCQSelectors::testCenterNthSelector__box0": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testCenterNthSelector",
+    "blockedBy": "move"
+  },
+  "tests.test_selectors::TestCQSelectors::testCenterNthSelector__box1": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testCenterNthSelector",
+    "blockedBy": "move"
+  },
+  "tests.test_selectors::TestCQSelectors::testCenterNthSelector__box0_selected": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testCenterNthSelector",
+    "blockedBy": "move"
+  },
+  "tests.test_selectors::TestCQSelectors::testCenterNthSelector__box1_selected": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testCenterNthSelector",
+    "blockedBy": "move"
+  },
+  "tests.test_selectors::TestCQSelectors::testComplexStringSelector__c": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testComplexStringSelector",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_selectors::TestCQSelectors::testEdgeTypesFilter__c": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testEdgeTypesFilter",
+    "blockedBy": "ellipse"
+  },
+  "tests.test_selectors::TestCQSelectors::testFaceCount__c": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testFaceCount",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_selectors::TestCQSelectors::testFaceDirFilter__c": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testFaceDirFilter",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_selectors::TestCQSelectors::testFaceTypesFilter__c": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testFaceTypesFilter",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_selectors::TestCQSelectors::testFirst__c": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testFirst",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_selectors::TestCQSelectors::testInverseSelector__c": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testInverseSelector",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_selectors::TestCQSelectors::testLengthNthSelector_UnsupportedShapes__w0": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testLengthNthSelector_UnsupportedShapes",
+    "blockedBy": "rarray"
+  },
+  "tests.test_selectors::TestCQSelectors::testLengthNthSelector_UnsupportedShapes__val": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testLengthNthSelector_UnsupportedShapes",
+    "blockedBy": "rarray"
+  },
+  "tests.test_selectors::TestCQSelectors::testMaxDistance__c": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testMaxDistance",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_selectors::TestCQSelectors::testMinDistance__c": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testMinDistance",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_selectors::TestCQSelectors::testNearestToPoint__c": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testNearestToPoint",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_selectors::TestCQSelectors::testNearestToShape__b1": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testNearestToShape",
+    "blockedBy": "moved"
+  },
+  "tests.test_selectors::TestCQSelectors::testNearestToShape__b2": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testNearestToShape",
+    "blockedBy": "moved"
+  },
+  "tests.test_selectors::TestCQSelectors::testNearestToShape__b3": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testNearestToShape",
+    "blockedBy": "moved"
+  },
+  "tests.test_selectors::TestCQSelectors::testNearestToShape__res": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testNearestToShape",
+    "blockedBy": "moved"
+  },
+  "tests.test_selectors::TestCQSelectors::testNthDistance__c": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testNthDistance",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_selectors::TestCQSelectors::testNthDistance__twisted_boxes": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testNthDistance",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_selectors::TestCQSelectors::testParallelEdgeFilter__c": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testParallelEdgeFilter",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_selectors::TestCQSelectors::testPerpendicularDirFilter__c": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testPerpendicularDirFilter",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_selectors::TestCQSelectors::testRadiusNthSelector__solid": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testRadiusNthSelector",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_selectors::TestCQSelectors::testShape__w": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testShape",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_selectors::TestCQSelectors::testShape__s": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testShape",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_selectors::TestCQSelectors::testShape__res1": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testShape",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_selectors::TestCQSelectors::testShape__res4": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testShape",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_selectors::TestCQSelectors::testSolid__c": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testSolid",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_selectors::TestCQSelectors::testSubtractSelector__c": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testSubtractSelector",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_selectors::TestCQSelectors::testSumSelector__c": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testSumSelector",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_selectors::TestCQSelectors::testVertexFilter__c": {
+    "status": "blocked",
+    "source": "tests.test_selectors::TestCQSelectors::testVertexFilter",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_selectors::TestCQSelectors::testWorkplaneCenter__s": {
+    "status": "skipped",
+    "source": "tests.test_selectors::TestCQSelectors::testWorkplaneCenter",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_cad_objects::TestCadObjects::testCompoundCenter__s": {
+    "status": "blocked",
+    "source": "tests.test_cad_objects::TestCadObjects::testCompoundCenter",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cad_objects::TestCadObjects::testMatrixOfInertia__cylinder": {
+    "status": "blocked",
+    "source": "tests.test_cad_objects::TestCadObjects::testMatrixOfInertia",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cad_objects::TestCadObjects::testPlaneMethods__local_box": {
+    "status": "blocked",
+    "source": "tests.test_cad_objects::TestCadObjects::testPlaneMethods",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_cad_objects::TestCadObjects::testPlaneMethods__mirror_box": {
+    "status": "blocked",
+    "source": "tests.test_cad_objects::TestCadObjects::testPlaneMethods",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_metadata__metadata_assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_metadata",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_assembly__simple_assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_assembly",
+    "blockedBy": "traverse"
+  },
+  "tests.test_assembly:::test_assembly__nested_assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_assembly",
+    "blockedBy": "traverse"
+  },
+  "tests.test_assembly:::test_assy_root_name__assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_assy_root_name",
+    "blockedBy": "stub:ShapeType"
+  },
+  "tests.test_assembly:::test_step_export__nested_assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_step_export",
+    "blockedBy": "importStep"
+  },
+  "tests.test_assembly:::test_step_export__w": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_step_export",
+    "blockedBy": "importStep"
+  },
+  "tests.test_assembly:::test_step_export__o": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_step_export",
+    "blockedBy": "importStep"
+  },
+  "tests.test_assembly:::test_meta_step_export__subsubassy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_meta_step_export",
+    "blockedBy": "cylinder"
+  },
+  "tests.test_assembly:::test_meta_step_export__cone_1": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_meta_step_export",
+    "blockedBy": "cylinder"
+  },
+  "tests.test_assembly:::test_meta_step_export__cone_2": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_meta_step_export",
+    "blockedBy": "cylinder"
+  },
+  "tests.test_assembly:::test_meta_step_export__subassy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_meta_step_export",
+    "blockedBy": "cylinder"
+  },
+  "tests.test_assembly:::test_meta_step_export__cylinder_1": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_meta_step_export",
+    "blockedBy": "cylinder"
+  },
+  "tests.test_assembly:::test_meta_step_export__cylinder_2": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_meta_step_export",
+    "blockedBy": "cylinder"
+  },
+  "tests.test_assembly:::test_meta_step_export__assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_meta_step_export",
+    "blockedBy": "cylinder"
+  },
+  "tests.test_assembly:::test_meta_step_export__cube_1": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_meta_step_export",
+    "blockedBy": "cylinder"
+  },
+  "tests.test_assembly:::test_meta_step_export__cube_2": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_meta_step_export",
+    "blockedBy": "cylinder"
+  },
+  "tests.test_assembly:::test_meta_step_export_edge_cases__assy": {
+    "status": "skipped",
+    "source": "tests.test_assembly:::test_meta_step_export_edge_cases",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_assembly:::test_meta_step_export_edge_cases__cube": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_meta_step_export_edge_cases",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_step_roundtrip_with_materials__materials_assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_step_roundtrip_with_materials",
+    "blockedBy": "importStep"
+  },
+  "tests.test_assembly:::test_step_roundtrip_with_materials__test_assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_step_roundtrip_with_materials",
+    "blockedBy": "importStep"
+  },
+  "tests.test_assembly:::test_step_export_assembly_unit_default__assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_step_export_assembly_unit_default",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_step_export_assembly_unit_meters__assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_step_export_assembly_unit_meters",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_step_export_meta_unit_meters__assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_step_export_meta_unit_meters",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_step_export_assembly_output_unit__assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_step_export_assembly_output_unit",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_step_roundtrip_unit__assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_step_roundtrip_unit",
+    "blockedBy": "load"
+  },
+  "tests.test_assembly:::test_step_roundtrip_unit__assy3": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_step_roundtrip_unit",
+    "blockedBy": "load"
+  },
+  "tests.test_assembly:::test_step_roundtrip_unit__assy4": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_step_roundtrip_unit",
+    "blockedBy": "load"
+  },
+  "tests.test_assembly:::test_assembly_step_import__subshape_assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_assembly_step_import",
+    "blockedBy": "importStep"
+  },
+  "tests.test_assembly:::test_assembly_step_import__imported_assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_assembly_step_import",
+    "blockedBy": "importStep"
+  },
+  "tests.test_assembly:::test_assembly_step_import__res": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_assembly_step_import",
+    "blockedBy": "importStep"
+  },
+  "tests.test_assembly:::test_assembly_subshape_import__subshape_assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_assembly_subshape_import",
+    "blockedBy": "load"
+  },
+  "tests.test_assembly:::test_assembly_subshape_import__imported_assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_assembly_subshape_import",
+    "blockedBy": "load"
+  },
+  "tests.test_assembly:::test_assembly_multi_subshape_import__multi_subshape_assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_assembly_multi_subshape_import",
+    "blockedBy": "load"
+  },
+  "tests.test_assembly:::test_assembly_multi_subshape_import__imported_assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_assembly_multi_subshape_import",
+    "blockedBy": "load"
+  },
+  "tests.test_assembly:::test_plain_assembly_import__cube_1": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_plain_assembly_import",
+    "blockedBy": "importStep"
+  },
+  "tests.test_assembly:::test_plain_assembly_import__cube_2": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_plain_assembly_import",
+    "blockedBy": "importStep"
+  },
+  "tests.test_assembly:::test_plain_assembly_import__cube_3": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_plain_assembly_import",
+    "blockedBy": "importStep"
+  },
+  "tests.test_assembly:::test_plain_assembly_import__cube_4": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_plain_assembly_import",
+    "blockedBy": "importStep"
+  },
+  "tests.test_assembly:::test_plain_assembly_import__assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_plain_assembly_import",
+    "blockedBy": "importStep"
+  },
+  "tests.test_assembly:::test_plain_assembly_import__imported_assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_plain_assembly_import",
+    "blockedBy": "importStep"
+  },
+  "tests.test_assembly:::test_copied_assembly_import__assy_copy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_copied_assembly_import",
+    "blockedBy": "importStep"
+  },
+  "tests.test_assembly:::test_copied_assembly_import__assy_normal": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_copied_assembly_import",
+    "blockedBy": "importStep"
+  },
+  "tests.test_assembly:::test_nested_subassembly_step_import__assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_nested_subassembly_step_import",
+    "blockedBy": "importStep"
+  },
+  "tests.test_assembly:::test_nested_subassembly_step_import__subassy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_nested_subassembly_step_import",
+    "blockedBy": "importStep"
+  },
+  "tests.test_assembly:::test_nested_subassembly_step_import__imported_assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_nested_subassembly_step_import",
+    "blockedBy": "importStep"
+  },
+  "tests.test_assembly:::test_assembly_step_import_roundtrip__assy_orig": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_assembly_step_import_roundtrip",
+    "blockedBy": "load"
+  },
+  "tests.test_assembly:::test_assembly_step_import_roundtrip__assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_assembly_step_import_roundtrip",
+    "blockedBy": "load"
+  },
+  "tests.test_assembly:::test_assembly_import_step_unit__assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_assembly_import_step_unit",
+    "blockedBy": "importStep"
+  },
+  "tests.test_assembly:::test_assembly_import_step_unit__imported": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_assembly_import_step_unit",
+    "blockedBy": "importStep"
+  },
+  "tests.test_assembly:::test_step_export_loc__assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_step_export_loc",
+    "blockedBy": "importStep"
+  },
+  "tests.test_assembly:::test_step_export_loc__o": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_step_export_loc",
+    "blockedBy": "importStep"
+  },
+  "tests.test_assembly:::test_native_export__simple_assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_native_export",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_vtkjs_export__nested_assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_vtkjs_export",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_vrml_export__simple_assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_vrml_export",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_toJSON__simple_assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_toJSON",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_toJSON__empty_top_assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_toJSON",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_save__nested_assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_save",
+    "blockedBy": "save"
+  },
+  "tests.test_assembly:::test_export__nested_assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_export",
+    "blockedBy": "export"
+  },
+  "tests.test_assembly:::test_export_vtkjs__nested_assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_export_vtkjs",
+    "blockedBy": "export"
+  },
+  "tests.test_assembly:::test_export_errors__nested_assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_export_errors",
+    "blockedBy": "export"
+  },
+  "tests.test_assembly:::test_save_stl_formats__nested_assy_sphere": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_save_stl_formats",
+    "blockedBy": "save"
+  },
+  "tests.test_assembly:::test_save_gltf__nested_assy_sphere": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_save_gltf",
+    "blockedBy": "save"
+  },
+  "tests.test_assembly:::test_exportGLTF__nested_assy_sphere": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_exportGLTF",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_save_gltf_boxes2__boxes2_assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_save_gltf_boxes2",
+    "blockedBy": "save"
+  },
+  "tests.test_assembly:::test_save_vtkjs__nested_assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_save_vtkjs",
+    "blockedBy": "save"
+  },
+  "tests.test_assembly:::test_save_raises__nested_assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_save_raises",
+    "blockedBy": "save"
+  },
+  "tests.test_assembly:::test_leaf_node_count__assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_leaf_node_count",
+    "blockedBy": "stub:ShapeType"
+  },
+  "tests.test_assembly:::test_colors_assy0__assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_colors_assy0",
+    "blockedBy": "load"
+  },
+  "tests.test_assembly:::test_colors_assy0__assy_i": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_colors_assy0",
+    "blockedBy": "load"
+  },
+  "tests.test_assembly:::test_colors_assy1__assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_colors_assy1",
+    "blockedBy": "load"
+  },
+  "tests.test_assembly:::test_colors_assy1__assy_i": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_colors_assy1",
+    "blockedBy": "load"
+  },
+  "tests.test_assembly:::test_materials__wp_1": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_materials",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_materials__wp_2": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_materials",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_materials__wp_3": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_materials",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_materials__assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_materials",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_colors_fused_assy__assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_colors_fused_assy",
+    "blockedBy": "stub:ShapeType"
+  },
+  "tests.test_assembly:::test_constrain__simple_assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_constrain",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_constrain__nested_assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_constrain",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_constrain__subassy1": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_constrain",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_constrain__subassy2": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_constrain",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_constrain__b1": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_constrain",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_constrain__b2": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_constrain",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_constrain__b3": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_constrain",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_constrain_with_tags__nested_assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_constrain_with_tags",
+    "blockedBy": "constrain"
+  },
+  "tests.test_assembly:::test_duplicate_name__nested_assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_duplicate_name",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_empty_solve__nested_assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_empty_solve",
+    "blockedBy": "solve"
+  },
+  "tests.test_assembly:::test_expression_grammar__nested_assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_expression_grammar",
+    "blockedBy": "constrain"
+  },
+  "tests.test_assembly:::test_PointInPlane_constraint__box_and_vertex": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_PointInPlane_constraint",
+    "blockedBy": "constrain"
+  },
+  "tests.test_assembly:::test_PointInPlane_3_parts__box_and_vertex": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_PointInPlane_3_parts",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_PointInPlane_3_parts__cylinder": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_PointInPlane_3_parts",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_PointInPlane_param__box_and_vertex": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_PointInPlane_param",
+    "blockedBy": "constrain"
+  },
+  "tests.test_assembly:::test_toCompound__simple_assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_toCompound",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_toCompound__nested_assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_toCompound",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_toCompound__c0": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_toCompound",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_toCompound__c1": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_toCompound",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_toCompound__box0": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_toCompound",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_toCompound__box1": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_toCompound",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_toCompound__box2": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_toCompound",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_toCompound__box3": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_toCompound",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_toCompound__assy0": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_toCompound",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_toCompound__assy1": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_toCompound",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_toCompound__c2": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_toCompound",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_toCompound__c3": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_toCompound",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_infinite_face_constraint_Plane__assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_infinite_face_constraint_Plane",
+    "blockedBy": "sphere"
+  },
+  "tests.test_assembly:::test_unary_constraints__simple_assy2": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_unary_constraints",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_unary_constraints__assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_unary_constraints",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_unary_constraints__w": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_unary_constraints",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_fixed_rotation__simple_assy2": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_fixed_rotation",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_fixed_rotation__assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_fixed_rotation",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_fixed_rotation__w": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_fixed_rotation",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_constraint_validation__simple_assy2": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_constraint_validation",
+    "blockedBy": "constrain"
+  },
+  "tests.test_assembly:::test_single_unary_constraint__simple_assy2": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_single_unary_constraint",
+    "blockedBy": "constrain"
+  },
+  "tests.test_assembly:::test_point_on_line__simple_assy2": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_point_on_line",
+    "blockedBy": "solve"
+  },
+  "tests.test_assembly:::test_point_on_line__assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_point_on_line",
+    "blockedBy": "solve"
+  },
+  "tests.test_assembly:::test_point_on_line__w": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_point_on_line",
+    "blockedBy": "solve"
+  },
+  "tests.test_assembly:::test_axis_constraint__simple_assy2": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_axis_constraint",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_axis_constraint__assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_axis_constraint",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_point_constraint__simple_assy2": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_point_constraint",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_point_constraint__assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_point_constraint",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_imprinting__touching_assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_imprinting",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_imprinting__disjoint_assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_imprinting",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_imprinting__r": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_imprinting",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_imprinting__s": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_imprinting",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_order_of_transform__marker": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_order_of_transform",
+    "blockedBy": "sphere"
+  },
+  "tests.test_assembly:::test_order_of_transform__assy0": {
+    "status": "skipped",
+    "source": "tests.test_assembly:::test_order_of_transform",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_assembly:::test_order_of_transform__assy1": {
+    "status": "skipped",
+    "source": "tests.test_assembly:::test_order_of_transform",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_assembly:::test_order_of_transform__assy2": {
+    "status": "skipped",
+    "source": "tests.test_assembly:::test_order_of_transform",
+    "blockedBy": null,
+    "reason": "ref-no-step"
+  },
+  "tests.test_assembly:::test_order_of_transform__m1": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_order_of_transform",
+    "blockedBy": "sphere"
+  },
+  "tests.test_assembly:::test_order_of_transform__m2": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_order_of_transform",
+    "blockedBy": "sphere"
+  },
+  "tests.test_assembly:::test_step_export_filesize__part": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_step_export_filesize",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_step_export_filesize__assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_step_export_filesize",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_assembly_remove_no_name_match__assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_assembly_remove_no_name_match",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_assembly_remove_part__assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_assembly_remove_part",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_assembly_remove_subassy__assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_assembly_remove_subassy",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_assembly_remove_subassy__subassy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_assembly_remove_subassy",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_remove_without_parent__assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_remove_without_parent",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_remove_without_parent__part": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_remove_without_parent",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_step_color__assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_step_color",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_special_methods__subshape_assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_special_methods",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_subshape_access__subshape_assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_subshape_access",
+    "blockedBy": "pending:mirror"
+  },
+  "tests.test_assembly:::test_name_geometries__assy": {
+    "status": "blocked",
+    "source": "tests.test_assembly:::test_name_geometries",
+    "blockedBy": "pending:mirror"
+  }
+}

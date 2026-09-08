@@ -22,6 +22,10 @@ const PKG = join(HERE, '..') // packages/cq-compat
 const REPO = join(PKG, '..', '..')
 const OUT_CAND = join(PKG, 'out', 'cand')
 
+// Windows spawnSync cannot resolve the extension-less `npx` shim — route through
+// the shell there (same command line, just resolved via cmd/bash).
+const IS_WIN = process.platform === 'win32'
+
 const args = process.argv.slice(2)
 function argValue(name: string): string | undefined {
   const i = args.indexOf(name)
@@ -66,7 +70,7 @@ async function main() {
       execFileSync(
         'npx',
         ['tsx', CLI, 'run', f, '--out', outStep, '--mode', 'brep'],
-        { cwd: REPO, stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf-8' },
+        { cwd: REPO, stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf-8', shell: IS_WIN },
       )
       pass++
       console.log(`✓ ${name}`)

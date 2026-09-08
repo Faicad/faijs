@@ -32,7 +32,9 @@ function existingMirrors(): Set<string> {
     if (entry === 'ref-harness' || entry === 'out') continue
     for (const f of readdirSync(p)) {
       if (f.endsWith('.fai.js')) {
-        mirrors.add(f.replace(/\.fai\.js$/, ''))
+        // mirror key = "<module>/<Class>__<test>__<var>" — same shape as the
+        // manifest fileKey (module dir + file stem)
+        mirrors.add(`${entry}/${f.replace(/\.fai\.js$/, '')}`)
       }
     }
   }
@@ -48,34 +50,78 @@ function main() {
   const prev = existsSync(OUT_MANIFEST)
     ? (JSON.parse(readFileSync(OUT_MANIFEST, 'utf-8')) as Record<string, unknown>)
     : {}
+  // coverage.json — written by tests/ref-harness/analyze-coverage.py (AST analysis of
+  // the upstream case bodies). Supplies per-case category + first missing op so a
+  // `blocked` entry never falls back to the generic `op:unported` when we know better.
+  const covPath = join(HERE, 'coverage.json')
+  const coverage = existsSync(covPath)
+    ? (JSON.parse(readFileSync(covPath, 'utf-8')) as {
+        cases?: Record<string, { status?: string; blockedBy?: string | null; category?: string }>
+      })
+    : undefined
   const mirrors = existingMirrors()
 
   const out: Record<string, unknown> = {}
   let ported = 0
   let blocked = 0
-  for (const caseId of Object.keys(ref)) {
-    // caseId: "tests.test_cadquery::TestBooleans::testBox::r" → file key
-    const fileKey = caseId.replace(/^tests\./, '').replace(/::/g, '__')
-    const prior = prev[caseId] as { status?: string; blockedBy?: string | null } | undefined
-    if (prior?.status === 'skipped') {
-      out[caseId] = prior
-      continue
-    }
-    if (mirrors.has(fileKey)) {
-      out[caseId] = { status: 'ported', source: caseId, blockedBy: null }
-      ported++
-    } else {
-      out[caseId] = {
+  let skipped = 0
+  // Manifest granularity = case + var (plan §6.2: one entry per exported STEP),
+  // because a single upstream case exports several variables and each mirror
+  // file realises exactly one of them.
+  for (const [caseId, rawEntries] of Object.entries(ref)) {
+    const entries = Array.isArray(rawEntries)
+      ? (rawEntries as Array<{ var: string; file?: string; error?: string }>)
+      : []
+    const covCase = coverage?.cases?.[caseId]
+    for (const e of entries) {
+      const manifestKey = `${caseId}__${e.var}`
+      // fileKey mirrors the on-disk layout "<module>/<Class>__<test>__<var>"
+      const [mod, ...rest] = manifestKey.replace(/^tests\./, '').split('::')
+      const fileKey = `${mod}/${rest.join('__')}`
+      const prior = prev[manifestKey] as { status?: string; blockedBy?: string | null } | undefined
+      if (prior?.status === 'skipped') {
+        out[manifestKey] = prior
+        skipped++
+        continue
+      }
+      if (mirrors.has(fileKey)) {
+        out[manifestKey] = { status: 'ported', source: caseId, blockedBy: null }
+        ported++
+        continue
+      }
+      // No mirror: entries whose ref run produced no STEP can never be paired
+      // (assertion-only locals, Vector results, COMPSOLID export failures…), so
+      // they are skipped rather than blocked.
+      if (e.file === undefined) {
+        out[manifestKey] = {
+          status: 'skipped',
+          source: caseId,
+          blockedBy: null,
+          reason: 'ref-no-step',
+        }
+        skipped++
+        continue
+      }
+      out[manifestKey] = {
         status: 'blocked',
         source: caseId,
-        blockedBy: prior?.blockedBy ?? 'op:unported',
+        // PORTABLE / PORTABLE-WITH-STUB cases have no missing op — they are
+        // blocked only because the mirror script hasn't been written yet.
+        // The generic 'op:unported' from a previous machine-generated run is
+        // NOT preserved (only human-written annotations survive).
+        blockedBy:
+          (prior?.blockedBy && prior.blockedBy !== 'op:unported' ? prior.blockedBy : undefined) ??
+          covCase?.blockedBy ??
+          (covCase?.category === 'PORTABLE' || covCase?.category === 'PORTABLE-WITH-STUB'
+            ? 'pending:mirror'
+            : 'op:unported'),
       }
       blocked++
     }
   }
 
   writeFileSync(OUT_MANIFEST, JSON.stringify(out, null, 2) + '\n')
-  console.log(`gen-manifest: ${ported} ported / ${blocked} blocked / ${Object.keys(prev).length - ported - blocked >= 0 ? Object.values(out).filter((v) => (v as { status: string }).status === 'skipped').length : 0} skipped -> tests/manifest.json`)
+  console.log(`gen-manifest: ${ported} ported / ${blocked} blocked / ${skipped} skipped -> tests/manifest.json`)
 }
 
 main()
