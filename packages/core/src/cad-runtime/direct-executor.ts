@@ -957,12 +957,15 @@ export class DirectExecutor {
         return `{ ${parts.join(', ')} }`
       }
       case 'UnaryExpression':
-        return `${node.operator}${this.transformArg(node.argument, code, declared, lineNo)}`
+        return `${node.operator}(${this.transformArg(node.argument, code, declared, lineNo)})`
       case 'BinaryExpression':
       case 'LogicalExpression':
-        return `${this.transformArg(node.left, code, declared, lineNo)} ${node.operator} ${this.transformArg(node.right, code, declared, lineNo)}`
+        // Parenthesize both operands: the AST emission drops the source's
+        // parentheses, so without explicit parens JS operator precedence
+        // reinterprets nested arithmetic (e.g. -((a+b)/2+c) → -a+b/2+c).
+        return `(${this.transformArg(node.left, code, declared, lineNo)} ${node.operator} ${this.transformArg(node.right, code, declared, lineNo)})`
       case 'ConditionalExpression':
-        return `${this.transformArg(node.test, code, declared, lineNo)} ? ${this.transformArg(node.consequent, code, declared, lineNo)} : ${this.transformArg(node.alternate, code, declared, lineNo)}`
+        return `(${this.transformArg(node.test, code, declared, lineNo)} ? ${this.transformArg(node.consequent, code, declared, lineNo)} : ${this.transformArg(node.alternate, code, declared, lineNo)})`
       case 'MemberExpression':
         return this.hoistText(code.slice(node.start, node.end), declared)
       default:

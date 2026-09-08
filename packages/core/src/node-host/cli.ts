@@ -25,6 +25,7 @@ import { initOcctWasm } from '../occt-kernel/occtKernel'
 import type { Shape } from '../mesh/types'
 import type { CompoundShape } from '../shape'
 import { ensureSlot } from '../shape'
+import { brepOf } from '../shape'
 import type { BrepHandle } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 import { asPartName } from '../identity'
@@ -322,7 +323,13 @@ function writeAssemblyStep(
 
   // Preferred path: use behavior.memberNames to match colors
   if (behavior?.memberNames && behavior.memberNames.length > 0) {
-    for (const memberName of behavior.memberNames) {
+    // Member Shape list (same order as memberNames) — when a member name
+    // misses in brepSolids (e.g. cq libs register short names like 'axk' while
+    // the statement variable is 'shape_axk'), resolve the member shape by index
+    // and extract its BREP solid, keeping the member name and color.
+    const children = (compound as { children?: Shape[] }).children ?? []
+    for (let i = 0; i < behavior.memberNames.length; i++) {
+      const memberName = behavior.memberNames[i]
       const solidEntry = execResult.brepSolids?.get(asPartName(memberName))
       if (solidEntry) {
         if (!kernel) kernel = solidEntry.kernel
@@ -331,6 +338,19 @@ function writeAssemblyStep(
           name: memberName,
           color: behavior.memberColors?.[memberName],
         })
+        continue
+      }
+      const child = children[i]
+      const solid = child ? (brepOf(child) as BrepHandle | undefined) : undefined
+      if (solid) {
+        if (!kernel) kernel = execResult.brepSolids?.values().next().value?.kernel ?? null
+        if (kernel) {
+          entries.push({
+            solid,
+            name: memberName,
+            color: behavior.memberColors?.[memberName],
+          })
+        }
       }
     }
   }

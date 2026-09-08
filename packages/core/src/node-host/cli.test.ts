@@ -185,3 +185,34 @@ describe('parseArgs', () => {
     expect(result.command).toBe(null)
   })
 })
+
+describe('cliRun: assembly STEP export preserves member names', () => {
+  it('cad.assembly with explicit memberNames exports members under those names', async () => {
+    const code = [
+      `let part0 = cad.box(10, 10, 10, { centered: true })`,
+      `let part1 = cad.box(10, 10, 10, { centered: true, at: [20, 0, 0] })`,
+      `let asm = cad.assembly({ name: 'A', members: [part0, part1], memberNames: ['left', 'right'] })`,
+      `let result = asm`,
+    ].join('\n')
+    const tmpFile = resolve(TMP_DIR, 'asm-export.fai.js')
+    writeFileSync(tmpFile, code)
+    const outPath = resolve(TMP_DIR, 'asm-export.step')
+
+    const result = await cliRun(tmpFile, outPath, { mode: 'brep', libs: CAD_LIBS })
+    expect(result.ok).toBe(true)
+    expect(result.outputFormat).toBe('step')
+
+    const { initOcctWasm, importAssemblyFromStep, collectLeafParts, releaseAssemblyTree } = await import('@faicad/faijs-core')
+    const kernel = await initOcctWasm()
+    const buf = readFileSync(outPath)
+    const nodes = await importAssemblyFromStep(buf.buffer as ArrayBuffer)
+    try {
+      const leaves = collectLeafParts(nodes).filter((n) => n.shapeHandle !== null)
+      const names = leaves.map((l) => l.name).sort()
+      expect(names).toEqual(['left', 'right'])
+    } finally {
+      // Release the imported tree (API shape per importAssemblyFromStep contract)
+      releaseAssemblyTree(kernel, nodes)
+    }
+  }, 60000)
+})

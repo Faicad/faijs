@@ -330,3 +330,27 @@ describe('DirectExecutor: E4 执行选项（beforeStatement / executionTimeoutMs
     expect(out.executedLines).toEqual([1, 2, 3])
   })
 })
+
+describe('DirectExecutor: transformArg 保留嵌套算术括号（回归 2026-09-08）', () => {
+  const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
+  const cadNs = createApiNamespace()
+
+  it('op 实参 `-((((15-8)/2)+(10/2))+0.555)` 求值为 -9.055（而非 JS 优先级重解释的 -13.445）', async () => {
+    const ex = new DirectExecutor({ namespaces: { cad: cadNs } })
+    await rt.execute('let warmup = cad.box(1, 1, 1, { centered: true })')
+    const out = await ex.execute([
+      'let a = cad.box(2, 2, 2, { centered: true })',
+      'let b = cad.translate(a, { offset: [-((((15 - 8) / 2) + (10 / 2)) + 0.555), 0, 0] })',
+      'let result = b',
+    ].join('\n'))
+    expect(out.failedAt).toBeUndefined()
+    const mesh = ex.ctx.b as { positions: Float32Array }
+    let minX = Infinity
+    for (let i = 0; i < mesh.positions.length; i += 3) {
+      if (mesh.positions[i] < minX) minX = mesh.positions[i]
+    }
+    // box half-width 1, center x=-9.055 → xmin=-10.055; with parens dropped
+    // the center is -13.445 → xmin=-14.445
+    expect(Math.abs(minX + 10.055)).toBeLessThan(1e-6)
+  })
+})
