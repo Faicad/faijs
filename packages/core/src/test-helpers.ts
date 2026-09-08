@@ -14,14 +14,13 @@ import { createRuntime } from './cad-runtime/runtime'
 import { computeContentKey } from './cad-runtime/runtime'
 import type { StdlibNamespace } from './runtime-state'
 import type { HostPorts, ExecutionMode } from './cad-runtime/ports'
-
-// P6/D1：库函数已并入 core 的 api/ 层（原 packages/stdlib 取消）。
-// 用「变量动态 import」——tsc 不解析非字面量 specifier，vitest 经 alias 解析到 api 源码。
-const API_NAMESPACE_MODULE = '@faicad/faijs-core/api/api-namespace'
+// P6/D1：库函数已并入 core 的 api/ 层（原 packages/stdlib 已取消）。
+// 同包静态导入（tsc/vitest/vite 均能静态解析）——替代原「变量动态 import」，
+// 后者触发 Vite import-analysis 警告，且浏览器侧无法解析裸 specifier。
+import { createApiNamespace } from './api/api-namespace'
 
 async function getCadLib(): Promise<StdlibNamespace> {
-  const mod = (await import(API_NAMESPACE_MODULE)) as { createApiNamespace: () => StdlibNamespace }
-  return mod.createApiNamespace()
+  return createApiNamespace()
 }
 
 /** Result of executing a script via the test helper. */

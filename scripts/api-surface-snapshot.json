@@ -135,7 +135,6 @@
     "entityFromGeometry",
     "entityOrigin",
     "err",
-    "executeScript",
     "exportStepFromSolid",
     "exportStepFromSolids",
     "exportStepFromSolidsHighLevel",

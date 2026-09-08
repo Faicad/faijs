@@ -39,6 +39,8 @@ out/
 packages/cq-compat/gen/
 *.hdr
 diag*.png
+patent
+.preview
 
 # Test coverage
 coverage/
