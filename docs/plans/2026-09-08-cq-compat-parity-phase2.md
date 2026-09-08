@@ -232,6 +232,37 @@ r2 = list(_get_wires(compound(r1, r1.moved(Location(0, 0, 1)))))
 | `sweep` / `split` / `interpPlate` / `twistExtrude` / `wedge` / `text` | 10 / 16 / 5 / 4 / 3 / 9 | 先做**可行性评估**（内核能力是否具备），能做的按 blockedBy 频次挑；不能做的在 manifest 标注为长期 `blocked` |
 | `importStep` / `load` / `save` / `export` / `importBrep` | 23 / 13 / 6 / 4 / 4 | 原方案 §3 已列为一期非目标（测的是 IO 链路本身）；**建议整组标 `skipped`** 并在 manifest 注明原因，等用户裁决 Q2 |
 
+### 阶段 J — 远期：Sketch / nurbs / hull（难度 ★★★★★，不在一期范围）
+
+**2026-09-08 用户裁决**：Sketch 定为**远期阶段（P6+）保留**，不本轮实施，但也不从清单删除。
+
+**范围事实（实测）**：
+
+- 上游 `test_sketch.py` 有 **36 个 test**，全部**不在** ref 基线（650 case）范围内——`run-ref.py` 的
+  `baseline.json targetModules` 只含 7 个模块（test_cadquery / test_shapes / test_workplanes /
+  test_free_functions / test_selectors / test_cad_objects / test_assembly）。
+- ref 范围内与 Sketch 有关的**只有一个** case：`TestCadQuery::testSketch`，coverage 归类
+  `BLOCKED`，`blockedBy = finalize`。
+- 原方案（`2026-09-08-cq-compat-cadquery-parity.md` §6.1）的目录树里**列过** `test_sketch/`、
+  `test_nurbs/`、`test_hull/`，但三者落地 baseline 时均未纳入，`nurbs`/`hull` 同样零覆盖。
+
+**为何排在远期（不是"忘记做"，是成本结构不同）**：
+
+1. **Sketch 是与 `Workplane` 平行的第二套 DSL**，不是一个 op 的工作量：包含 `BuildSketch`
+   上下文管理器风格、`Mode`（ADD/SUBTRACT/REPLACE/INTERSECT）机制、独立约束求解器
+   （`cadquery/occ_impl/sketch_solver.py`）与惰性几何。cq-compat 当前**没有任何类模型**
+   （37 个函数式 op），移植 Sketch 等于再建一层子系统。
+2. **`.fai.js` 承载不了**：Sketch 的 fluent API 依赖 Python 上下文管理器与闭包语义，
+   faijs 的合法 JS 子集无对应结构。
+3. **与 STEP 比对主线匹配度低**：test_sketch 的 36 个 case 多为 2D 几何断言，产出 STEP 极少。
+4. **faijs 已有等价物**：`Sketcher` / `Blueprint` / `draw` DSL（core 的 TS 兼容面）承担 2D 草图职责。
+
+**前置条件（进入本阶段前必须满足）**：
+
+- [ ] cq-compat 建立类模型（`Workplane` 类 + `Shape` 层级），或明确用函数式等价方案表达 Sketch；
+- [ ] 将 `test_sketch` / `test_nurbs` / `test_hull` 加入 ref baseline 并产出 STEP；
+- [ ] 决定与 faijs 自有 `Sketcher` DSL 的关系：**并行两套**还是**单向投影**（CQ Sketch → faijs Sketcher）。
+
 ---
 
 ## 4. 阶段排序总表（先易后难 + 依赖）
@@ -249,6 +280,7 @@ r2 = list(_get_wires(compound(r1, r1.moved(Location(0, 0, 1)))))
 | 9 | G slide_top 定位 | ★★★★ | C | 验收标准 3 闭环 |
 | 10 | H 2D wire 基础 | ★★★ | F | +33 var，解锁后续 |
 | 11 | I 深水 op / IO | ★★★★ | H（部分） | 评估为主，能做的挑着做 |
+| — | **J Sketch / nurbs / hull** | ★★★★★ | 类模型 + ref 扩范围 | **远期（P6+），一期不做** |
 
 > C 与 B 可并行（不同文件，互不干扰）；D 可与 E 并行；G 必须在 C 之后。
 
@@ -294,10 +326,12 @@ r2 = list(_get_wires(compound(r1, r1.moved(Location(0, 0, 1)))))
 |---|---|---|
 | 批次 1 | testIsInside×2、testCenterOfBoundBox、testFindSolid、testBoxCombine | 5/5 PASS（testFindSolid 初版因多体 `val()` 语义 FAIL，按 §README 约定只推首点后 PASS） |
 | 批次 2 | testFaceIntersectedByLine、testExtrude\_\_box、testCutBlindUntilFace\_\_wp_ref | 3 PASS；testLegoBrick / testConstructionWire 降级 blocked |
-| 批次 3 | testFuzzyBoolOp×5（box1–box4、res） | 5 PASS；testFrontReference 新增 FAIL（见 §7.4） |
+| 批次 3 | testFuzzyBoolOp×5（box1–box4、res） | 5 PASS；testFrontReference 新增 FAIL（已修复，见 §7.6） |
+| 批次 4 | testQuickStartXY / XZ / YZ、testMatrixOfInertia\_\_cylinder | 4 PASS（cylinder 首版 `centered:false` 写错，见 §7.6） |
+| 批次 5 | testPopPending\_\_w4 / \_\_w5 | 2 PASS；testPolygonPlugin 触发内核崩溃 → 降级 blocked（U21） |
 
-**指标**：PASS 51 → **63**，FAIL 4 → 5（新增 1 个待查），parity **7.85% → 9.85%**，
-`ported` 55 → **69**。cq-compat 单测 **31/31** 全绿，无回归。
+**指标（截至批次 5）**：PASS 51 → **71**，FAIL 4 → **3**，parity **7.85% → 11.08%**，
+`ported` 55 → **74**。cq-compat 单测 **31/31** 全绿，无回归。
 
 ### 7.3 工具修复与新增（阶段 B 的配套）
 
@@ -307,6 +341,8 @@ r2 = list(_get_wires(compound(r1, r1.moved(Location(0, 0, 1)))))
 | `tests/mark-blocked.ts`（新增） | 集中登记人工 blocked 标注（17 条），带 `manual: true`；未命中的 key 会打印警告 |
 | `tests/README.md` | 补两条约定：重跑 gen-manifest；**多体用例只 push 首点**（ref 的 `val()` = `objects[0]`） |
 | `out/extract-case.py`（新增，gitignored） | 从 `out/cache/v2.8.0/tests` 按 `Class.method` 提取上游用例源码，供写镜像时用 |
+| `out/probe.py`（新增，gitignored） | 取证工具：打印 STEP 的体积 / 质心 / bbox / 面数，用于定位"体积相同但位姿不同"类的 FAIL |
+| `tests/mark-blocked.ts` | 增至 18 条（新增 `kernel:crash-polygon-cutThruAll`，见 U21） |
 
 ### 7.4 新发现（原 U1–U13 清单之外，需并入清单）
 
@@ -320,21 +356,79 @@ r2 = list(_get_wires(compound(r1, r1.moved(Location(0, 0, 1)))))
 | `Solid.makeCone` / `CQ()` / `Workplane` 插件 / `findSolid` | 自由函数与包装器面 | 新 op（U19） |
 | **`faces("front")` 后 `workplane()` origin 抬升错误** | 见下 | 新 bug（U20），**当前唯一新增 FAIL** |
 
-**U20 取证**：CadQuery 2.8.0 实测（`cadquery-env`）——named-view 面选择语义为
-`front→+Z`、`back→−Z`、`left→−X`、`right→+X`、`top→+Y`、`bottom→−Y`，
-即 cq-compat 的 `front: { n: [0,0,1] }` **法向是对的**。
-但 `testFrontReference` 实测 vol Δ=2.58%、B−A=0.025 mm³ ≈ **半个孔的体积**
-（孔体积 π·0.125²·1 = 0.049）→ 说明 `workplane()` 把 origin 抬到了 z≈0.5（形状中心）
-而不是顶面 z=1。`workplane.ts:1254` 的 `t = dot(center − origin, normal)` 依赖
-`resolveFaceSelector` 返回的 center，怀疑该选择器在 named-view 分支未返回单面中心。
-与 testSimpleWorkplane 等 `>Z` 用例 PASS 对照，可确认是 named-view 分支的局部问题。
+**U20 取证与修复（已完成）**：CadQuery 2.8.0 实测（`cadquery-env`）——named-view 面选择语义为
+`front→+Z`、`back→−Z`、`left→−X`、`right→+X`、`top→+Y`、`bottom→−Y`
+（源码依据 `cadquery/selectors.py:687-694`，`namedViews` 是轴向 `DirectionMinMaxSelector` 的别名）；
+`testFrontReference` 实测 vol Δ=2.58%、B−A=0.025 mm³，与"孔体积 π·0.125²·0.5 = 0.0245"
+精确吻合 → origin 被抬到 z=0.5（形状中心）而非顶面 z=1。
 
-### 7.5 下一步
+根因：`resolveFaceSelector` **没有 named-view 条目**（只有 `>Z`/`<X` 等轴向表），
+且未命中时**静默落到整个形状的 bbox 中心**（违反「绝不静默」约定）。
+修复：新增 `NAMED_VIEW_TO_AXIS` 归一化表，在函数入口把 named view 转成轴向选择器。
+修复后 `testFrontReference` 转 PASS（PASS 63 → 64）。
 
-阶段 B 剩余候选中，~30 个 case 属 `test_assembly`（与装配双求解器方案重叠，
-建议等那条线的 P0b 成员配对裁定后再动）；`test_cadquery` 侧剩余高分项：
-testCompoundCenter、testPlanes、testPlaneMethods、testMakeShellSolid、
-testCutBlindUntilFace\_\_wp_ref_regular_cut（需 `faces(">X[2]")` 索引选择器）。
+| 缺口 | 证据 | 归属 |
+|---|---|---|
+| **`polygon` + `cutThruAll` 组合崩溃** | `testPolygonPlugin` 导出时 Node 进程级崩溃（wasm abort，非 JS throw）；同一切割路径下 circle/rect 正常（testCutThroughAll PASS） | 内核缺陷（U21），已标 `kernel:crash-polygon-cutThruAll` |
+
+### 7.5 阶段 C — `testMultiFaceWorkplane` 压线 FAIL 取证 ✅ 完成
+
+**结论：不是容差压线，是真实的语义缺口，已修复。**
+
+| 项 | 数据 |
+|---|---|
+| 症状 | vol Δ = 2.47e-14（体积几乎全等）、com Δ = 5.56e-2、布尔差双向 **0.100 / 0.100** |
+| 关键线索 | 布尔差与 `workplane.ts` 内 `const OVERLAP = 0.1` 数值吻合 → 一度怀疑同源，实测**无关** |
+| `probe.py` 实测 | ref CoM z = **−0.044444**、cand CoM z = **+0.011111**（反号）→ 槽位置相差 0.5 |
+
+反推槽位置（体积 0.9、box 质心 0、槽体积 0.1）：ref 槽质心 z=0.4（槽在 z∈[0.3,0.5]），
+cand 槽质心 z=−0.1（槽在 z∈[−0.2,0]）。CadQuery 对照实验（`cadquery-env` 实测）：
+
+```
+box(1,1,1).rect(1,.5).cutBlind(-0.2)               -> CoM z = +0.011111   (slot z in [-0.2, 0])
+box(1,1,1).faces(">Z").rect(1,.5).cutBlind(-0.2)   -> CoM z = -0.044444   (slot z in [0.3, 0.5])
+box(1,1,1).faces(">Z").rect(1,.5).cutBlind(+0.2)   -> volume 1.0 (unchanged!)
+```
+
+**坐实的语义**：CadQuery 里 `faces(sel)` 后接 2D profile + extrude/cut，工作平面会
+**隐式抬到选中面**，等价于自动插入 `workplane()` —— 尽管 `Workplane.plane.origin`
+打印出来仍是 `(0,0,0)`。`cutBlind(+0.2)` 体积不变是决定性证据：切割起点在 z=0.5，
+向上切完全落空。
+
+修复：新增 `applyPendingFacePlane()`，在 `extrude` / `cutBlind` / `cutThruAll` 检测到
+`wp.faceSel` 时先应用 `workplane()`。修复后 `testMultiFaceWorkplane` 转 PASS
+（PASS 64 → 65），**65 个既有用例零回归**。
+
+> TS 注意：`wp = await applyPendingFacePlane(wp)` 会重置 `wp.shape` 的收窄
+> （非 discriminated union，属性收窄不随变量传递），调用点必须先用局部 `const base = wp.shape`
+> 接住，否则 `wp.shape` 退化成 `Shape | null` 编译报错。
+
+### 7.6 批次 4 记录：`Solid.makeCylinder` 与 `Workplane.cylinder` 语义不同
+
+`testMatrixOfInertia` 的 `cylinder = Solid.makeCylinder(radius=1, height=2)` 首版镜像写成
+`cylinder(wp, 2, 1, { centered: false })`，结果 bbox 变成 `[0,2]×[0,2]×[0,2]`（x/y 也偏移 +radius）。
+
+CadQuery 2.8.0 实测：
+
+```
+centered=True              -> x in [-1, 1], z in [-1, 1]
+centered=False             -> x in [ 0, 2], z in [ 0, 2]     (x/y 同样偏移)
+centered=(True,True,False) -> x in [-1, 1], z in [ 0, 2]
+Solid.makeCylinder(1, 2)   -> x in [-1, 1], z in [ 0, 2]     (自由函数，x/y 恒绕轴对称)
+```
+
+即 **cq-compat 的 `centered` 实现与 `Workplane.cylinder` 一致（正确）**，错的是镜像：
+自由函数 `Solid.makeCylinder` 应写 `centered: [true, true, false]`。
+镜像已修正并在注释中记录该差异（`TestCadObjects__testMatrixOfInertia__cylinder.fai.js`）。
+### 7.7 下一步（更新至批次 5 之后）
+
+1. **阶段 F1**（`pendingWires` 列表化）——**唯一的 3 个 FAIL 全部依赖它**
+   （testNestedCircle、testTwoWorkplanes×2），且是 F3 `loft` 的前置。建议下一个做。
+2. 阶段 B 剩余：testCompoundCenter、testPlanes、testPlaneMethods、testMakeShellSolid、
+   testCutBlindUntilFace\_\_wp_ref_regular_cut（需 `faces(">X[2]")` 索引选择器）、
+   testFuzzyBoolOp 剩余 7 var、testCompSolid（partial sphere）、testOpenCornerShell（`shell`）。
+3. ~30 个 case 属 `test_assembly`，与装配双求解器方案重叠，等那条线 P0b 成员配对裁定后动。
+4. 阶段 D（smoke fixture 入 vitest）待 B 稳定后补。
 
 ---
 
@@ -348,6 +442,9 @@ testCutBlindUntilFace\_\_wp_ref_regular_cut（需 `faces(">X[2]")` 索引选择�
 - **Q4（新）**：阶段 B 的 288 var 是否**全量推进**到"写不出来为止"，还是先只做与 coverage
   PORTABLE 交集的那一批（约 174 case / 318 var）、剩下的等 op 补齐后再说？
 - **Q5（新）**：阶段 F1 的 `pendingWires` 改造若导致旧镜像回归，是**回退改造**还是**修旧镜像**？
+- ~~**Q6（新）**：Sketch（及 nurbs / hull）是正式排除，还是保留为远期阶段？~~
+  → **2026-09-08 已裁决：保留为远期阶段 J（P6+）**，不本轮实施、不从清单删除。
+  理由与前置条件见 §3 阶段 J。
 
 ---
 

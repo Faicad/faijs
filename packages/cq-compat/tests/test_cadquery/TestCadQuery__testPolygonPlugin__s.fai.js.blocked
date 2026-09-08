@@ -1,0 +1,14 @@
+// source: test_cadquery.py::TestCadQuery::testPolygonPlugin (var s)
+// s = Workplane("XY").box(4,4,0.25).faces(">Z").workplane()
+//       .rect(2,2,forConstruction=True).vertices().rPoly(5, 0.5).cutThruAll()
+// rPoly is a user plugin drawing a regular n-gon at each pushed point; the
+// cq-compat equivalent is polygon(5, 0.5) + cutThruAll() consuming the vertices.
+import * as cq from '@faicad/cq-compat'
+let base = await cq.box(cq.Workplane('XY'), 4.0, 4.0, 0.25)
+let top = await cq.faces(base, '>Z')
+let wp = await cq.workplane(top)
+let r = cq.rect(wp, 2.0, 2.0, { forConstruction: true })
+let v = cq.vertices(r)
+let p = cq.polygon(v, 5, 0.5)
+let s = await cq.cutThruAll(p)
+let result = cq.val(s)

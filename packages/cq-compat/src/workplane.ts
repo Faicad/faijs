@@ -257,7 +257,10 @@ function bboxMin(shape: Shape): [number, number, number] {
  * `"CenterOfBoundBox"` uses the face's bounding-box center.
  *
  * Supported forms: ">Z", "<Z", ">X", "<X", ">Y", "<Y", "+Z"/"-Z" aliases, each
- * with an optional CadQuery-style index suffix like ">Z[-2]". This
+ * with an optional CadQuery-style index suffix like ">Z[-2]". The six CadQuery
+ * named views ("front"/"back"/"left"/"right"/"top"/"bottom") are accepted and
+ * normalised to their axis equivalent (front=>">Z", back=>"<Z", left=>"<X",
+ * right=>">X", top=>">Y", bottom=>"<Y"). This
  * implementation enumerates the actual BREP faces and picks the one whose
  * bbox-center is the extreme along the selector axis (ties broken by larger
  * surface area, so a main face wins over a small coplanar boss face). When the
@@ -271,17 +274,57 @@ function bboxMin(shape: Shape): [number, number, number] {
  * outward direction (away from the shape bbox center).
  *
  * @param shape - Shape whose BREP faces are enumerated for selection.
- * @param sel - Selector string, e.g. ">Z", "<X", ">Z[-2]".
+ * @param sel - Selector string, e.g. ">Z", "<X", ">Z[-2]", or a named view
+ *   ("front"/"back"/"left"/"right"/"top"/"bottom").
  * @param centerOption - Optional center computation option forwarded to the
  *   face-center evaluation.
  * @returns Promise resolving to the selected face's center point and outward
  *   normal.
+ */
+/**
+ * CadQuery named views → axis selector (cadquery/selectors.py:687-694).
+ * Verified against installed cadquery 2.8.0 by evaluating
+ * `Workplane().rect(1,1).extrude(1).faces(n).val()` for each name.
+ */
+const NAMED_VIEW_TO_AXIS: Record<string, string> = {
+  front: '>Z',
+  back: '<Z',
+  left: '<X',
+  right: '>X',
+  top: '>Y',
+  bottom: '<Y',
+}
+
+/**
+ * Resolve a CadQuery-style face selector string to the selected face's center
+ * point and outward normal.
+ *
+ * Supported forms: ">Z", "<Z", ">X", "<X", ">Y", "<Y", each with an optional
+ * CadQuery-style index suffix like ">Z[-2]", plus the six named views
+ * ("front"/"back"/"left"/"right"/"top"/"bottom") which are aliases for the
+ * corresponding axis selectors per cadquery/selectors.py:687-694.
+ * @param shape - Shape whose BREP faces are enumerated for selection.
+ * @param sel - Selector string, e.g. ">Z", "front", ">Z[-2]".
+ * @param centerOption - Optional center computation option forwarded to the
+ *   face-center evaluation.
+ * @returns Promise resolving to the selected face's center point and outward
+ *   normal.
+ * @throws Error when the selector matches no face or has unknown syntax
+ *   (never falls back silently).
  */
 export async function resolveFaceSelector(
   shape: Shape,
   sel: string,
   centerOption?: string,
 ): Promise<{ center: [number, number, number]; normal: [number, number, number] }> {
+  // CadQuery named views are aliases for an axis DirectionMinMaxSelector
+  // (cadquery/selectors.py:687-694):
+  //   front=>(0,0,1,max)  back=>(0,0,1,min)   left=>(1,0,0,min)
+  //   right=>(1,0,0,max)  top=>(0,1,0,max)    bottom=>(0,1,0,min)
+  // Normalise once so every branch below sees a plain axis selector; without
+  // this the lookup misses and the whole-shape bbox fallback silently returns
+  // the shape centre instead of the face plane (half-a-hole volume error).
+  sel = NAMED_VIEW_TO_AXIS[sel.trim().toLowerCase()] ?? sel
   // Strip index suffix like [-2]
   const baseSel = sel.replace(/\[-?\d+\]$/, '')
   const axisDir: Record<string, { axis: 0 | 1 | 2; sign: 1 | -1 }> = {
@@ -879,6 +922,34 @@ export function polygon(wp: Workplane, n: number, d: number): Workplane {
 }
 
 /**
+ * Implicit workplane for a pending face selection.
+ *
+ * CadQuery semantics (verified against cadquery 2.8.0): after `faces(sel)`, a
+ * 2D profile followed by extrude/cut operates on the SELECTED face's plane,
+ * exactly as if `workplane()` had been called — even though `Workplane.plane`
+ * still reports the original origin. Measured on `box(1,1,1)`:
+ *   - `box(1,1,1).rect(1,.5).cutBlind(-0.2)`        -> CoM z = +0.011111
+ *     (slot at z in [-0.2, 0])
+ *   - `box(1,1,1).faces(">Z").rect(1,.5).cutBlind(-0.2)` -> CoM z = -0.044444
+ *     (slot at z in [0.3, 0.5])
+ *   - `...faces(">Z")...cutBlind(+0.2)`              -> volume unchanged (1.0):
+ *     the cut starts at z=0.5 and misses the solid entirely.
+ * Without this step the profile is built on the un-lifted workplane and the
+ * feature lands half a body away.
+ *
+ * NOTE ON TYPES: `workplane()` never touches `.shape`, only origin/axes. But
+ * reassigning `wp` resets TypeScript's narrowing of `wp.shape`, so call sites
+ * must capture the shape in a local BEFORE calling this helper.
+ *
+ * @param wp - Workplane possibly carrying a face selection.
+ * @returns Promise<Workplane> with the face plane applied, or `wp` unchanged.
+ */
+async function applyPendingFacePlane(wp: Workplane): Promise<Workplane> {
+  if (!wp.faceSel) return wp
+  return workplane(wp)
+}
+
+/**
  * extrude
  * @param wp - Workplane
  * @param height - number
@@ -902,6 +973,9 @@ export async function extrude(wp: Workplane, height: number): Promise<Workplane>
   }
   // Boss extrude on existing shape: create profile at each workplane point and union
   if (wp.shape) {
+    // A pending faces(sel) lifts the profile plane (CadQuery implicit workplane).
+    const base = wp.shape
+    wp = await applyPendingFacePlane(wp)
     const n = Array.isArray(wp.normal) ? wp.normal : ([0, 0, 1] as [number, number, number])
     // Slight overlap ensures OCCT fuse merges coplanar faces into one solid
     const OVERLAP = 0.1
@@ -909,7 +983,7 @@ export async function extrude(wp: Workplane, height: number): Promise<Workplane>
     if (wp.pendingPolygon || wp.pendingRect || wp.pendingCircle) {
       const ptsArr = Array.isArray(wp.pts) ? wp.pts : []
       const points = ptsArr.length > 0 ? ptsArr : ([[0, 0]] as [number, number][])
-      let shape = wp.shape
+      let shape = base
       for (const [px, py] of points) {
         const bossWp: Workplane = { ...wp, origin: localToWorld(wp, px, py) }
         let boss: Shape
@@ -957,9 +1031,11 @@ export async function cutBlind(
   opts?: { w?: number; d?: number; radius?: number },
 ): Promise<Workplane> {
   if (!wp.shape) return wp
+  const base = wp.shape
+  wp = await applyPendingFacePlane(wp)
   const absDepth = Math.abs(depth)
   const invNormal: [number, number, number] = [-wp.normal[0], -wp.normal[1], -wp.normal[2]]
-  let result = wp.shape
+  let result = base
   // CadQuery semantics: pushPoints() before cutBlind() repeats the cut at every
   // point. With no pushed points, the cut happens at the workplane origin.
   const ptsArr = Array.isArray(wp.pts) && wp.pts.length > 0 ? wp.pts : ([[0, 0]] as [number, number][])
@@ -1001,13 +1077,15 @@ export async function cutBlind(
  */
 export async function cutThruAll(wp: Workplane): Promise<Workplane> {
   if (!wp.shape) return wp
+  const base = wp.shape
+  wp = await applyPendingFacePlane(wp)
   if (!wp.pendingCircle && !wp.pendingRect && !wp.pendingPolygon) {
     throw new Error('[cq-compat] cutThruAll requires a pending 2D profile')
   }
   const n = Array.isArray(wp.normal) ? wp.normal : ([0, 0, 1] as [number, number, number])
   const o = Array.isArray(wp.origin) ? wp.origin : ([0, 0, 0] as [number, number, number])
-  const bmin = bboxMin(wp.shape)
-  const bmax = bboxMax(wp.shape)
+  const bmin = bboxMin(base)
+  const bmax = bboxMax(base)
   // Span: farthest bbox corner from the workplane origin along the normal.
   let span = 0
   for (const cx of [bmin[0], bmax[0]]) {
@@ -1022,7 +1100,7 @@ export async function cutThruAll(wp: Workplane): Promise<Workplane> {
   // every point (mirrors cutBlind). With no pushed points, one cut at the
   // workplane origin.
   const ptsArr = Array.isArray(wp.pts) && wp.pts.length > 0 ? wp.pts : ([[0, 0]] as [number, number][])
-  let shape = wp.shape
+  let shape = base
   for (const [px, py] of ptsArr) {
     // Tool base at point - n·B, extending 2B along +n — covers both directions.
     const thruWp: Workplane = { ...wp, origin: vsub(localToWorld(wp, px, py), vscale(n, B)) }

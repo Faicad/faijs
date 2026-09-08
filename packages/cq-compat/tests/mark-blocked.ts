@@ -24,6 +24,9 @@ const BY_KEY: Record<string, string> = {
   // construction rect + circles: upstream cuts inner wires as holes (10 faces);
   // cq-compat fuses every pending profile (single pendingRect/pendingCircle slot)
   'tests.test_cadquery::TestCadQuery::testConstructionWire__r': 'op:pendingWires',
+  // polygon + cutThruAll: makePolygonPrismAt at the through-cut height aborts the
+  // occt-wasm process (Node-level crash, not a JS throw) — see U21 in the phase2 plan
+  'tests.test_cadquery::TestCadQuery::testPolygonPlugin__s': 'kernel:crash-polygon-cutThruAll',
   // 2-D wire ops not implemented
   'tests.test_cadquery::TestCadQuery::testBoundingBox__result': 'op:threePointArc',
   'tests.test_cadquery::TestCadQuery::testIbeam__res': 'op:polyline',

@@ -933,7 +933,8 @@
   "tests.test_cadquery::TestCadQuery::testPolygonPlugin__s": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testPolygonPlugin",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "kernel:crash-polygon-cutThruAll",
+    "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testPopPending__w2": {
     "status": "skipped",
@@ -942,29 +943,29 @@
     "reason": "ref-no-step"
   },
   "tests.test_cadquery::TestCadQuery::testPopPending__w4": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testPopPending",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testPopPending__w5": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testPopPending",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testQuickStartXY__s": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testQuickStartXY",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testQuickStartXZ__s": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testQuickStartXZ",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testQuickStartYZ__s": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testQuickStartYZ",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testRectArray__s": {
     "status": "skipped",
