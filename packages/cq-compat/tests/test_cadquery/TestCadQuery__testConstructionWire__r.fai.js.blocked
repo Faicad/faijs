@@ -1,0 +1,15 @@
+// source: test_cadquery.py::TestCadQuery::testConstructionWire (var r)
+// s = Workplane(Plane.YZ()); r = s.rect(2,2).rect(1.3,1.3,forConstruction=True)
+//       .vertices().circle(0.125).extrude(0.5)
+// Upstream has 10 faces (6 + 4 holes): the four circles sit INSIDE the 2x2 rect,
+// so CadQuery's extrude cuts them as holes instead of fusing them as bosses.
+// cq-compat currently fuses every pending profile -> expected to DIFFER until
+// op:extrude.inner-wire-as-hole is implemented.
+import * as cq from '@faicad/cq-compat'
+let s = cq.Workplane('YZ')
+let r1 = cq.rect(s, 2.0, 2.0)
+let r2 = cq.rect(r1, 1.3, 1.3, { forConstruction: true })
+let r3 = await cq.vertices(r2)
+let r4 = await cq.circle(r3, 0.125)
+let r = await cq.extrude(r4, 0.5)
+let result = cq.val(r)

@@ -78,10 +78,22 @@ function main() {
       // fileKey mirrors the on-disk layout "<module>/<Class>__<test>__<var>"
       const [mod, ...rest] = manifestKey.replace(/^tests\./, '').split('::')
       const fileKey = `${mod}/${rest.join('__')}`
-      const prior = prev[manifestKey] as { status?: string; blockedBy?: string | null } | undefined
+      const prior = prev[manifestKey] as
+        | { status?: string; blockedBy?: string | null; manual?: boolean }
+        | undefined
       if (prior?.status === 'skipped') {
         out[manifestKey] = prior
         skipped++
+        continue
+      }
+      // Hand-written `blocked` annotations (marked `manual: true`) survive a
+      // regeneration: when a mirror-writing batch hits a case that cannot be
+      // expressed, the writer downgrades it to blocked + a concrete blockedBy.
+      // Without this the next gen-manifest run would silently reset it back to
+      // `pending:mirror` (the machine default) and the finding would be lost.
+      if (prior?.status === 'blocked' && prior.manual === true) {
+        out[manifestKey] = prior
+        blocked++
         continue
       }
       if (mirrors.has(fileKey)) {

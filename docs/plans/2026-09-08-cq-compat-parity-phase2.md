@@ -278,7 +278,67 @@ r2 = list(_get_wires(compound(r1, r1.moved(Location(0, 0, 1)))))
 
 ---
 
-## 7. 待裁决（需用户拍板，不在本计划擅自决定）
+## 7. 实施记录（2026-09-08 晚）
+
+### 7.1 阶段 A — 口径校正 ✅ 完成
+
+| 任务 | 结果 |
+|---|---|
+| A1 重跑 `gen-manifest` | `ported` 27 → **55**（与磁盘一致），口径失真修复 |
+| A2 空 `blockedBy` 检查 | 595 条 blocked，**0 条空 `blockedBy`** |
+| A3 固化进 README | 新增红线"新增镜像后必须重跑 gen-manifest" |
+
+### 7.2 阶段 B — 批量补镜像（进行中，已 3 批）
+
+| 批次 | 新增镜像 | 结果 |
+|---|---|---|
+| 批次 1 | testIsInside×2、testCenterOfBoundBox、testFindSolid、testBoxCombine | 5/5 PASS（testFindSolid 初版因多体 `val()` 语义 FAIL，按 §README 约定只推首点后 PASS） |
+| 批次 2 | testFaceIntersectedByLine、testExtrude\_\_box、testCutBlindUntilFace\_\_wp_ref | 3 PASS；testLegoBrick / testConstructionWire 降级 blocked |
+| 批次 3 | testFuzzyBoolOp×5（box1–box4、res） | 5 PASS；testFrontReference 新增 FAIL（见 §7.4） |
+
+**指标**：PASS 51 → **63**，FAIL 4 → 5（新增 1 个待查），parity **7.85% → 9.85%**，
+`ported` 55 → **69**。cq-compat 单测 **31/31** 全绿，无回归。
+
+### 7.3 工具修复与新增（阶段 B 的配套）
+
+| 项 | 说明 |
+|---|---|
+| `tests/gen-manifest.ts` | **修缺陷**：原实现只保留 `skipped` 的人工标注，人工写的 `blocked` 会被机器默认值（`pending:mirror`）覆盖。改为 `manual: true` 的 blocked 条目跨重建保留——否则 §3-B3「写不出即降级 blocked」无法落地 |
+| `tests/mark-blocked.ts`（新增） | 集中登记人工 blocked 标注（17 条），带 `manual: true`；未命中的 key 会打印警告 |
+| `tests/README.md` | 补两条约定：重跑 gen-manifest；**多体用例只 push 首点**（ref 的 `val()` = `objects[0]`） |
+| `out/extract-case.py`（新增，gitignored） | 从 `out/cache/v2.8.0/tests` 按 `Class.method` 提取上游用例源码，供写镜像时用 |
+
+### 7.4 新发现（原 U1–U13 清单之外，需并入清单）
+
+| 缺口 | 证据 | 归属 |
+|---|---|---|
+| `extrude(both=)` / `extrude(combine="cut"\|"s")` | `workplane.ts:887` `extrude(wp, height)` 只接受 height | 新 op（U14） |
+| `shell` 无内核投影 | `brepjs-compat` 无 `shell` 符号 → `workplane.ts:1582` `if (!shellFn) return wp` **静默 no-op**（违反「绝不静默」约定） | 新 op + 静默缺陷（U15） |
+| `Workplane(plane, origin=)` 不支持 origin | `workplane.ts:602` 只接受 plane 字符串 | 新 op（U16）；当前镜像用 `translate()` 等价绕过 |
+| `pushPoints` 只支持 2D 点 | `workplane.ts:1291` `pts: [number,number][]` | 新 op（U17）；当前用 `translate+union` 绕过 |
+| `cutBlind("last"/"next")` | untilLastFace / untilNextFace 未实现 | 新 op（U18） |
+| `Solid.makeCone` / `CQ()` / `Workplane` 插件 / `findSolid` | 自由函数与包装器面 | 新 op（U19） |
+| **`faces("front")` 后 `workplane()` origin 抬升错误** | 见下 | 新 bug（U20），**当前唯一新增 FAIL** |
+
+**U20 取证**：CadQuery 2.8.0 实测（`cadquery-env`）——named-view 面选择语义为
+`front→+Z`、`back→−Z`、`left→−X`、`right→+X`、`top→+Y`、`bottom→−Y`，
+即 cq-compat 的 `front: { n: [0,0,1] }` **法向是对的**。
+但 `testFrontReference` 实测 vol Δ=2.58%、B−A=0.025 mm³ ≈ **半个孔的体积**
+（孔体积 π·0.125²·1 = 0.049）→ 说明 `workplane()` 把 origin 抬到了 z≈0.5（形状中心）
+而不是顶面 z=1。`workplane.ts:1254` 的 `t = dot(center − origin, normal)` 依赖
+`resolveFaceSelector` 返回的 center，怀疑该选择器在 named-view 分支未返回单面中心。
+与 testSimpleWorkplane 等 `>Z` 用例 PASS 对照，可确认是 named-view 分支的局部问题。
+
+### 7.5 下一步
+
+阶段 B 剩余候选中，~30 个 case 属 `test_assembly`（与装配双求解器方案重叠，
+建议等那条线的 P0b 成员配对裁定后再动）；`test_cadquery` 侧剩余高分项：
+testCompoundCenter、testPlanes、testPlaneMethods、testMakeShellSolid、
+testCutBlindUntilFace\_\_wp_ref_regular_cut（需 `faces(">X[2]")` 索引选择器）。
+
+---
+
+## 8. 待裁决（需用户拍板，不在本计划擅自决定）
 
 沿用原方案 §10 的三个开放问题，并新增两条：
 

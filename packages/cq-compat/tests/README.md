@@ -43,7 +43,18 @@ npx tsx tests/compare.ts
 
 Reference STEP: `tests.test_cadquery__TestBooleans__testBox__r.step`; mirror file: `test_cadquery/TestBooleans__testBox__r.fai.js`; the script must end with `let result = cq.val(...)`, and variable names align to the reference `__var__`.
 
-## Red lines
+### 多体用例约定（combine=False / eachpoint）
 
-- A `blocked` case must fill `blockedBy`; marking a `blocked` case `ported` is forbidden.
-- `FAIL` must not be flipped to `PASS` by widening tolerances (tolerance values live only in tests/compare.ts).
+ref 侧导出的是 `val()` = 上游 `objects[0]`，**只含第一个实体**。
+因此 `combine=False` / 多点 eachpoint 的用例，镜像里**只 push 第一个点**
+（例如 `pushPoints(wp, [[-2, 0]])` 而不是完整点阵），让 `val()` 与 ref 对齐。
+完整 compound 的几何由 `src/*.test.ts` 单测覆盖，不在 STEP 比对里验证。
+违反此约定会表现为 vol Δ 100%、bbox 成倍偏大（实测踩过）。
+
+## 红线
+
+- `blocked` 用例必须填 `blockedBy`；禁止把 `blocked` 记成 `ported`。
+- `FAIL` 不得用放宽容差改成 `PASS`（容差在 compare.ts 集中定义）。
+- **新增镜像文件后必须重跑 `gen-manifest.ts`**（第 3 步）。manifest 是三态唯一事实源，
+  `ported` 只对磁盘上存在 `.fai.js` 的用例成立；漏跑会让 `manifest.json` 与磁盘脱节
+  （2026-09-08 曾出现 manifest 记 27、磁盘实际 55 的口径失真）。

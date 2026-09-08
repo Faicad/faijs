@@ -1,0 +1,14 @@
+// source: test_cadquery.py::TestCadQuery::testLegoBrick (var s)
+// P=8, c=0.1, H=1.2*P=9.6, bumpDiam=4.8, t=(P-2c-bumpDiam)/2=1.5
+// s = box(63.8, 15.8, 9.6).faces("<Z").shell(-1.5)
+//       .faces(">Z").workplane().rarray(8, 8, 8, 2, True).circle(2.4).extrude(1.8)
+import * as cq from '@faicad/cq-compat'
+let base = await cq.box(cq.Workplane('XY'), 63.8, 15.8, 9.6)
+let bot = await cq.faces(base, '<Z')
+let hollow = await cq.shell(bot, -1.5)
+let top = await cq.faces(hollow, '>Z')
+let wp1 = await cq.workplane(top)
+let arr = cq.rarray(wp1, 8, 8, 8, 2, true)
+let bumps = cq.circle(arr, 2.4)
+let s = await cq.extrude(bumps, 1.8)
+let result = cq.val(s)
