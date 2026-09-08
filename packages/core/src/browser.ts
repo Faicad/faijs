@@ -65,9 +65,14 @@ export type { CodeToArgsResult } from './lang/code-to-args'
 // MetadataExtractor — 无 IR 元数据提取器（UI 通道语义源；UiMetadata 全量）
 export { extractMetadata } from './lang/metadata-extractor'
 export type {
-  UiMetadata, ParamEntry, ImportEntry, FunctionEntry, BlockEntry, KeepEntry,
+  UiMetadata, ArgSource, ParamEntry, ImportEntry, FunctionEntry, BlockEntry, KeepEntry,
   ExtractMetadataOptions,
 } from './lang/metadata-extractor'
+// 参数表达式编辑（P0-C/P0-D）：实时校验层 + 编辑面板纯函数
+export { validateExpression } from './lang/expr-validate'
+export type { ExprValidateInput, ExprValidateResult } from './lang/expr-validate'
+export { editArgSource } from './lang/source-edit'
+export type { EditSourceError } from './lang/source-edit'
 // HostArg — 宿主友好位置参数类型（IR 屏蔽层）
 export type {
   HostArg, HostRef, HostVarRef, HostParamRef, HostCallRef, HostExprRef, HostRefKind,

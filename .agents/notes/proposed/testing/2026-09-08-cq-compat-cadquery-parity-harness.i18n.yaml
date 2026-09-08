@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/proposed/testing/2026-09-08-cq-compat-cadquery-parity-harness.md
-2026-09-08-cq-compat-cadquery-parity-harness.md: 684c9aca63a411bd5a948f3a5f1fd522344fa007
-2026-09-08-cq-compat-cadquery-parity-harness.zh.md: 0a2bee3c7c4ee9f899a7bd05d2ecb42a54bd54d1
+2026-09-08-cq-compat-cadquery-parity-harness.md: 2348eff3ac49358fb00803534c66f28e6bebe92c
+2026-09-08-cq-compat-cadquery-parity-harness.zh.md: 30d20aea2414106f34da00625b2a46e3a12be6e7

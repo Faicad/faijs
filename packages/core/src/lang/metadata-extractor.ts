@@ -18,7 +18,7 @@
 import { parse as acornParse } from 'acorn'
 import type { StatementSummary } from './statement-summary'
 import type { ScriptMetaIR, TerminalShape } from './types'
-import { asStmtId, asPartName, type PartName } from '../identity'
+import { asStmtId, asPartName, type PartName, type StmtId } from '../identity'
 import type { HostArg, HostCallRef, HostRef } from './host-arg'
 import { isHostVarRef, isHostParamRef, isHostCallRef, isHostExprRef } from './host-arg'
 import { ParseError } from './parse-error'
@@ -38,7 +38,32 @@ export interface ParamEntry {
   computed: boolean
 }
 
-/** import 表条目（模块图；relative specifier → moduleKey，裸 specifier → libLoader） */
+/**
+ * 单个参数槽的源码来源信息（UI 通道新增，非 IR）。
+ *
+ * Timeline 参数表达式编辑方案（docs/plans/2026-09-08-timeline-param-expression-editing.md）：
+ * 每个参数槽携带自己的源码区间，编辑 = 精确替换该区间（`editArgSource`），
+ * 不重印整行。path 对宿主是不透明标识符——宿主只能从本记录读取后原样回传。
+ */
+export interface ArgSource {
+  /** 所属语句 id（'s' + lineNo）；参数行的 rhs 槽同样使用 's' + lineNo */
+  stmtId: StmtId
+  /** 槽位路径（见 plans 文档 §4.2.1 的路径命名表；对宿主不透明） */
+  path: string
+  /** 该槽的源码原文（字面量 → `40`；表达式 → `w * 2`；引用 → `w`） */
+  text: string
+  /** 字符区间 [start, end)，相对 extractMetadata 的入参 code（含 codeOffset 归一化） */
+  start: number
+  end: number
+  /** 依赖的参数名（命中 paramNames；表达式里的参数引用） */
+  params: string[]
+  /** 依赖的其它变量名（命中 declared，含 op 产出 / 派生常量） */
+  refs: string[]
+  /** 非平凡表达式（非字面量，负字面量视为字面量）→ UI 显示 fx 徽标 */
+  isExpression: boolean
+}
+
+/** import 表条目（相对 specifier → moduleKey，裸 specifier → libLoader） */
 export interface ImportEntry {
   lineNo: number
   specifier: string
@@ -87,6 +112,17 @@ export interface UiMetadata {
   keep: Map<number, KeepEntry[]>
   meta?: ScriptMetaIR
   terminalShapes?: TerminalShape[]
+  /**
+   * 全语句参数槽的源码来源（按语句顺序；参数行的 RHS 槽 path 以 'rhs' 开头）。
+   * 新增字段：P0-B（见 plans/2026-09-08-timeline-param-expression-editing.md）。
+   */
+  argSources: ArgSource[]
+  /**
+   * 本脚本内可被表达式引用的名字（词法序去重）：
+   * paramNames ∪ declared ∪ nsBindings ∪ localFnParams。
+   * `validateExpression` / `editArgSource` 用它做 E_REFERENCE 判定。
+   */
+  names: string[]
 }
 
 // ── AST 辅助 ──
@@ -114,7 +150,11 @@ function derivePackageName(specifier: string): string {
 
 // ── 提取器符号表 ──
 
-interface SymbolTable {
+/**
+ * 提取器符号表：声明过的名字与绑定关系（参数、变量、命名空间、函数形参、keep 指令），
+ * 供解析过程中判定标识符归属并做常量折叠。
+ */
+export interface SymbolTable {
   /** 参数名（const X = <literal>） */
   paramNames: Set<string>
   /** 参数名 → 字面量值（折叠依据） */
@@ -262,8 +302,16 @@ function tryFoldConstExpr(node: ASTNode, symbols: SymbolTable): FoldResult {
 }
 
 // ── Expr 白名单（与现状 parser.isExprWhitelist 同构） ──
+//
+// 本函数与 collectExprIdentifiers 是「唯一实现」——expr-validate.ts / source-edit.ts
+// 直接 import 复用，不复制（见 plans/2026-09-08-timeline-param-expression-editing.md §3.4.1）。
 
-function isExprWhitelist(node: ASTNode): boolean {
+/**
+ * <Ns>.fn(...) 等「白名单表达式」结构判定（无可选链、无 spread、成员非计算）。
+ * @param node 待判定的表达式 AST 节点；nil 或非法输入按非白名单处理。
+ * @returns 节点自身及其全部子表达式均在白名单结构内 → true，否则 false。
+ */
+export function isExprWhitelist(node: ASTNode): boolean {
   if (!node || typeof node !== 'object') return false
   switch (node.type) {
     case 'Literal':
@@ -292,13 +340,32 @@ function isExprWhitelist(node: ASTNode): boolean {
   }
 }
 
-/** 递归收集表达式引用：参数 → params；已声明变量 → refs；未知 → E_REFERENCE。 */
-function collectExprIdentifiers(
+/**
+ * 递归收集表达式引用：参数 → params；已声明变量 → refs；未知 → E_REFERENCE。
+ *
+ * opts（可选扩展；缺省时行为与历史完全一致）：
+ * - `lenient: true`：未知标识符不抛错（静默跳过）——ArgSource 记录路径用，
+ *   保证提取本身绝不抛新错；
+ * - `defaultNs`：把默认命名空间（'cad'）视同 nsBindings 成员——`cad.faceNormal(p)`
+ *   作为参数槽整条记录时，不会把 'cad' 当作未知标识符。
+ *
+ * 本函数与 isExprWhitelist 是「唯一实现」——expr-validate.ts / source-edit.ts
+ * 直接 import 复用，不复制（见 plans/2026-09-08-timeline-param-expression-editing.md §3.4.1）。
+ *
+ * @param node 表达式的 AST 根节点；nil 或非对象直接返回。
+ * @param symbols 提取器符号表（判定 Identifier 是参数/已声明/未知）。
+ * @param line 当前语句行号（未知标识符报错时的行号）。
+ * @param params 收集命中参数名的输出集合。
+ * @param refs 收集命中已声明变量的输出集合。
+ * @param opts 可选扩展；`lenient` 静默跳过未知标识符，`defaultNs` 把默认命名空间视同绑定成员。
+ */
+export function collectExprIdentifiers(
   node: ASTNode,
   symbols: SymbolTable,
   line: number,
   params: Set<string>,
   refs: Set<string>,
+  opts?: { lenient?: boolean; defaultNs?: string },
 ): void {
   if (!node || typeof node !== 'object') return
   switch (node.type) {
@@ -308,49 +375,56 @@ function collectExprIdentifiers(
         params.add(name)
       } else if (symbols.declared.has(name)) {
         refs.add(name)
+      } else if (opts?.lenient === true) {
+        // lenient：未知标识符跳过（ArgSource 记录路径，保证提取不抛新错）
       } else {
         throw new ParseError(`unknown identifier "${name}" in expression`, line, 'E_REFERENCE')
       }
       return
     }
     case 'UnaryExpression':
-      collectExprIdentifiers(node.argument, symbols, line, params, refs)
+      collectExprIdentifiers(node.argument, symbols, line, params, refs, opts)
       return
     case 'BinaryExpression':
     case 'LogicalExpression':
-      collectExprIdentifiers(node.left, symbols, line, params, refs)
-      collectExprIdentifiers(node.right, symbols, line, params, refs)
+      collectExprIdentifiers(node.left, symbols, line, params, refs, opts)
+      collectExprIdentifiers(node.right, symbols, line, params, refs, opts)
       return
     case 'ConditionalExpression':
-      collectExprIdentifiers(node.test, symbols, line, params, refs)
-      collectExprIdentifiers(node.consequent, symbols, line, params, refs)
-      collectExprIdentifiers(node.alternate, symbols, line, params, refs)
+      collectExprIdentifiers(node.test, symbols, line, params, refs, opts)
+      collectExprIdentifiers(node.consequent, symbols, line, params, refs, opts)
+      collectExprIdentifiers(node.alternate, symbols, line, params, refs, opts)
       return
     case 'ArrayExpression':
-      for (const el of node.elements) collectExprIdentifiers(el, symbols, line, params, refs)
+      for (const el of node.elements) collectExprIdentifiers(el, symbols, line, params, refs, opts)
       return
     case 'ObjectExpression':
       for (const prop of node.properties) {
         if (prop?.type !== 'Property') continue
-        collectExprIdentifiers(prop.value, symbols, line, params, refs)
+        collectExprIdentifiers(prop.value, symbols, line, params, refs, opts)
       }
       return
+    case 'TemplateLiteral':
+      for (const expr of node.expressions) collectExprIdentifiers(expr, symbols, line, params, refs, opts)
+      return
     case 'MemberExpression': {
-      // 命名空间绑定（import * as cfg / 模块命名空间）的成员 cfg.OUTX：对象名是外部
-      // 命名空间，不收集为变量引用（§4.1 HostArg 引用形态；求值在 __ctx.cfg 侧）。
+      // 命名空间绑定（import * as cfg / 模块命名空间）的成员 cfg.OutX：对象名是外部
+      // 命名空间，不收集为变量引用（§4.1 HostArg 引用形态；求值在内部 ctx.cfg 侧）。
+      // opts.defaultNs（缺省命名空间 'cad'）同样跳过——cad.faceNormal(p) 整条作为
+      // 参数槽记录时不会把 'cad' 当未知标识符。
       const obj = node.object
-      if (obj?.type === 'Identifier' && symbols.nsBindings.has(obj.name)) {
-        if (node.computed) collectExprIdentifiers(node.property, symbols, line, params, refs)
+      if (obj?.type === 'Identifier' && (symbols.nsBindings.has(obj.name) || obj.name === opts?.defaultNs)) {
+        if (node.computed) collectExprIdentifiers(node.property, symbols, line, params, refs, opts)
         return
       }
-      collectExprIdentifiers(node.object, symbols, line, params, refs)
-      if (node.computed) collectExprIdentifiers(node.property, symbols, line, params, refs)
+      collectExprIdentifiers(node.object, symbols, line, params, refs, opts)
+      if (node.computed) collectExprIdentifiers(node.property, symbols, line, params, refs, opts)
       return
     }
     case 'CallExpression':
-      collectExprIdentifiers(node.callee, symbols, line, params, refs)
+      collectExprIdentifiers(node.callee, symbols, line, params, refs, opts)
       for (const a of node.arguments as ASTNode[]) {
-        collectExprIdentifiers(a.type === 'SpreadElement' ? a.argument : a, symbols, line, params, refs)
+        collectExprIdentifiers(a.type === 'SpreadElement' ? a.argument : a, symbols, line, params, refs, opts)
       }
       return
     default:
@@ -369,11 +443,59 @@ interface ValueParseCtx {
   sourceText: string
   /** 折叠/computed 累积标记：本语句是否引用了参数表达式/spread（hasComputedArgs） */
   computed: { value: boolean }
+  /** P0-B：当前语句 id（'s' + 归一化行号；argSources 记录的 stmtId） */
+  stmtId: StmtId
+  /** P0-B：parseCode 的 codeOffset（ArgSource.start/end 归一化到原 code 坐标） */
+  codeOffset: number
+  /** P0-B：参数槽源码记录累积（语句顺序追加） */
+  argSources: ArgSource[]
 }
 
-function parseValueExpr(node: ASTNode, ctx: ValueParseCtx): HostArg {
+/** 是否非平凡表达式：非 Literal（负字面量视为字面量）→ UI 显示 fx 徽标 */
+function isExpressionNode(node: ASTNode): boolean {
+  if (!node || node.type === 'Literal') return false
+  if (node.type === 'UnaryExpression' && node.operator === '-' && node.argument?.type === 'Literal') return false
+  return true
+}
+
+/**
+ * 在折叠之前记录一条参数槽（ArgSource）。
+ *
+ * - start/end 相对 extractMetadata 的入参 code（减 codeOffset，含封装归一化）；
+ * - text = parseCode 原文切片（E_RANGE_STALE 用 `code.slice(start,end) === text` 断言）；
+ * - params/refs 用 collectExprIdentifiers 的 lenient 模式（未知标识符跳过，
+ *   保证提取不抛新错——与 main parse 的 E_REFERENCE 例外保持解耦）。
+ */
+function recordArgSource(node: ASTNode, ctx: ValueParseCtx, path: string): void {
+  if (!node || typeof node !== 'object' || node.start == null || node.end == null || node.end < node.start) return
+  const isExpr = isExpressionNode(node)
+  const params = new Set<string>()
+  const refs = new Set<string>()
+  if (isExpr) {
+    collectExprIdentifiers(node, ctx.symbols, lineOf(node), params, refs, {
+      lenient: true,
+      defaultNs: ctx.symbols.defaultNsName,
+    })
+  }
+  ctx.argSources.push({
+    stmtId: ctx.stmtId,
+    path,
+    text: ctx.sourceText.slice(node.start, node.end),
+    start: node.start - ctx.codeOffset,
+    end: node.end - ctx.codeOffset,
+    params: [...params],
+    refs: [...refs],
+    isExpression: isExpr,
+  })
+}
+
+function parseValueExpr(node: ASTNode, ctx: ValueParseCtx, path: string | null): HostArg {
   if (!node) throw new ParseError('missing value expression', 1, 'E_VALUE')
   const line = lineOf(node)
+
+  // P0-B：在折叠之前记录一条 ArgSource（path === null 忽略——参数行 RHS 由
+  // recordArgSource 显式记录，不再双记）。
+  if (path !== null) recordArgSource(node, ctx, path)
 
   // 折叠优先：Unary/Binary/Logical/Template/Conditional 可静态折叠（字面量 + 参数）
   if (
@@ -434,15 +556,18 @@ function parseValueExpr(node: ASTNode, ctx: ValueParseCtx): HostArg {
 
     case 'ArrayExpression': {
       const out: HostArg[] = []
-      for (const el of node.elements) {
+      for (let i = 0; i < node.elements.length; i++) {
+        const el = node.elements[i]
         if (el === null || el === undefined) {
           throw new ParseError('array holes are not supported in args', line, 'E_VALUE')
         }
+        const childPath = path === null ? null : `${path}[${i}]`
         if (el.type === 'SpreadElement') {
+          if (childPath !== null) recordArgSource(el.argument, ctx, childPath)
           const r = tryFoldConstExpr(el.argument, ctx.symbols)
           if (!r.ok || !Array.isArray(r.value)) {
             throw new ParseError(
-              'cannot statically evaluate spread in args (must reference an array param or literal)',
+              'cannot statically evaluate spread in args (expected an array param or literal)',
               line,
               'E_VALUE',
             )
@@ -451,48 +576,13 @@ function parseValueExpr(node: ASTNode, ctx: ValueParseCtx): HostArg {
           out.push(...(r.value as HostArg[]))
           continue
         }
-        out.push(parseValueExpr(el, ctx))
+        out.push(parseValueExpr(el, ctx, childPath))
       }
       return out as unknown as HostArg
     }
 
-    case 'ObjectExpression': {
-      const obj: Record<string, HostArg> = {}
-      for (const prop of node.properties) {
-        if (prop.type === 'SpreadElement') {
-          const r = tryFoldConstExpr(prop.argument, ctx.symbols)
-          if (!r.ok || typeof r.value !== 'object' || r.value === null || Array.isArray(r.value)) {
-            throw new ParseError('cannot statically evaluate object spread in args', line, 'E_VALUE')
-          }
-          ctx.computed.value = true
-          Object.assign(obj, r.value as Record<string, unknown>)
-          continue
-        }
-        const key = prop.key?.type === 'Identifier' ? prop.key.name
-          : prop.key?.type === 'Literal' ? String(prop.key.value)
-          : null
-        if (key === null) throw new ParseError('invalid object key', line, 'E_VALUE')
-        if (prop.shorthand) {
-          // shorthand { size } → { size: param-ref }；已声明变量 shorthand 现状报 E_REFERENCE
-          const name = key
-          if (ctx.symbols.paramNames.has(name)) {
-            obj[key] = { kind: 'param-ref', name } as unknown as HostArg
-          } else if (ctx.looseVars) {
-            ctx.symbols.declared.add(name)
-            obj[key] = { kind: 'var-ref', name } as unknown as HostArg
-          } else {
-            throw new ParseError(
-              `unknown shorthand identifier "${key}" (not a declared param)`,
-              line,
-              'E_REFERENCE',
-            )
-          }
-        } else {
-          obj[key] = parseValueExpr(prop.value, ctx)
-        }
-      }
-      return obj as unknown as HostArg
-    }
+    case 'ObjectExpression':
+      return parseObjectValue(node, ctx, path)
 
     case 'CallExpression': {
       const callee = node.callee
@@ -505,7 +595,8 @@ function parseValueExpr(node: ASTNode, ctx: ValueParseCtx): HostArg {
         callee.property?.type === 'Identifier'
       ) {
         const nsName = callee.object.name
-        const args = (node.arguments as ASTNode[]).map((a) => parseValueExpr(a, ctx))
+        const args = (node.arguments as ASTNode[]).map((a, i) =>
+          parseValueExpr(a, ctx, path === null ? null : `${path}[${i}]`))
         const callRef: HostCallRef = {
           kind: 'call-ref',
           callee: callee.property.name,
@@ -554,11 +645,83 @@ function parseValueExpr(node: ASTNode, ctx: ValueParseCtx): HostArg {
   }
 }
 
-/** 位置实参解析（与现状 parsePositionalArgs 同构）。 */
-function parsePositionalArgs(argNodes: ASTNode[], ctx: ValueParseCtx, line: number): HostArg[] {
+/** 对象字面量参数解析 + 参数槽记录（属性值路径 = `<base>.<key>`；shorthand 以来源名为 text 记一条）。 */
+function parseObjectValue(node: ASTNode, ctx: ValueParseCtx, path: string | null): HostArg {
+  const line = lineOf(node)
+  const obj: Record<string, HostArg> = {}
+  for (const prop of node.properties) {
+    if (prop.type === 'SpreadElement') {
+      const r = tryFoldConstExpr(prop.argument, ctx.symbols)
+      if (!r.ok || typeof r.value !== 'object' || r.value === null || Array.isArray(r.value)) {
+        throw new ParseError('cannot statically evaluate object spread in args', line, 'E_VALUE')
+      }
+      ctx.computed.value = true
+      Object.assign(obj, r.value as Record<string, unknown>)
+      continue
+    }
+    const key = prop.key?.type === 'Identifier' ? prop.key.name
+      : prop.key?.type === 'Literal' ? String(prop.key.value)
+      : null
+    if (key === null) throw new ParseError('invalid object key', line, 'E_VALUE')
+    if (prop.shorthand) {
+      // shorthand { size } → { size: param-ref }；已声明变量 shorthand 现状报 E_REFERENCE
+      const name = key
+      let slotParams: string[] = []
+      let slotRefs: string[] = []
+      if (ctx.symbols.paramNames.has(name)) {
+        obj[key] = { kind: 'param-ref', name } as unknown as HostArg
+        slotParams = [name]
+      } else if (ctx.looseVars) {
+        ctx.symbols.declared.add(name)
+        obj[key] = { kind: 'var-ref', name } as unknown as HostArg
+        slotRefs = [name]
+      } else {
+        throw new ParseError(
+          `unknown shorthand identifier "${key}" (not a declared param)`,
+          line,
+          'E_REFERENCE',
+        )
+      }
+      // P0-B：shorthand 槽（以属性名 == 变量名作 text，path = <base>.<key>，isExpression=false）
+      if (path !== null) {
+        ctx.argSources.push({
+          stmtId: ctx.stmtId,
+          path: `${path}.${key}`,
+          text: ctx.sourceText.slice(prop.start, prop.end),
+          start: prop.start - ctx.codeOffset,
+          end: prop.end - ctx.codeOffset,
+          params: slotParams,
+          refs: slotRefs,
+          isExpression: false,
+        })
+      }
+    } else {
+      obj[key] = parseValueExpr(prop.value, ctx, path === null ? null : `${path}.${key}`)
+    }
+  }
+  return obj as unknown as HostArg
+}
+
+/** 位置实参解析（与现状 parsePositionalArgs 同构）；P0-B 附带参数槽记录（pathBase 缺省 'positional'）。 */
+function parsePositionalArgs(
+  argNodes: ASTNode[],
+  ctx: ValueParseCtx,
+  line: number,
+  pathBase = 'positional',
+): HostArg[] {
   const out: HostArg[] = []
-  for (const argNode of argNodes) {
+  for (let i = 0; i < argNodes.length; i++) {
+    const argNode = argNodes[i]
+    const isLast = i === argNodes.length - 1
+    const isTrailingOptions = isLast && argNode?.type === 'ObjectExpression'
+    if (isTrailingOptions) {
+      // 尾随选项对象：只按 'args.<key>' 记录属性值，不把整对象再记一个 positional 槽
+      out.push(parseObjectValue(argNode, ctx, 'args'))
+      continue
+    }
+    const slotPath = `${pathBase}[${i}]`
     if (argNode.type === 'Identifier') {
+      recordArgSource(argNode, ctx, slotPath)
       const name = argNode.name
       if (ctx.symbols.declared.has(name)) {
         out.push({ kind: 'var-ref', name } as unknown as HostArg)
@@ -572,6 +735,7 @@ function parsePositionalArgs(argNodes: ASTNode[], ctx: ValueParseCtx, line: numb
       throw new ParseError(`unknown variable "${name}" in inputs`, lineOf(argNode), 'E_REFERENCE')
     }
     if (argNode.type === 'SpreadElement') {
+      recordArgSource(argNode.argument, ctx, slotPath)
       const r = tryFoldConstExpr(argNode.argument, ctx.symbols)
       if (!r.ok || !Array.isArray(r.value)) {
         throw new ParseError(
@@ -584,7 +748,7 @@ function parsePositionalArgs(argNodes: ASTNode[], ctx: ValueParseCtx, line: numb
       out.push(...(r.value as HostArg[]))
       continue
     }
-    out.push(parseValueExpr(argNode, ctx))
+    out.push(parseValueExpr(argNode, ctx, slotPath))
   }
   return out
 }
@@ -914,7 +1078,10 @@ export function extractMetadata(code: string, options?: ExtractMetadataOptions):
       const rest = code.slice(importBlock.end)
       parseCode = `${prefix}${importText}\nexport default async (${defaultNsName}) => {\n${rest}\n}`
       lineOffset = countLines(prefix + importText) + 1
-      codeOffset = 29 + defaultNsName.length
+      // 字符偏移 = 注入的 '\n'（importText 后）+ 封装头长度。原实现 29+len 少算 1
+      //（未计入 importText 与封装间的换行），导致 import 场景的区间坐标错位——
+      // bodyRange/ArgSource.start/end 等归一化要落到原 code 坐标。
+      codeOffset = 1 + `export default async (${defaultNsName}) => {\n`.length
     } else {
       parseCode = `export default async (${defaultNsName}) => {\n${code}\n}`
       lineOffset = 1
@@ -993,6 +1160,8 @@ export function extractMetadata(code: string, options?: ExtractMetadataOptions):
   const blocks: BlockEntry[] = []
   let meta: ScriptMetaIR | undefined
   let terminalShapes: TerminalShape[] | undefined
+  // P0-B：参数槽记录累积（跨语句共享，语句顺序追加）
+  const argSources: ArgSource[] = []
 
   // ── 逐顶层语句分类 ──
   for (const stmtNode of bodyNodes) {
@@ -1004,6 +1173,9 @@ export function extractMetadata(code: string, options?: ExtractMetadataOptions):
       looseLocalCalls: options?.looseLocalCalls === true,
       sourceText: parseCode,
       computed: { value: false },
+      stmtId: asStmtId(`s${line}`),
+      codeOffset,
+      argSources,
     }
 
     switch (stmtNode.type) {
@@ -1060,6 +1232,13 @@ export function extractMetadata(code: string, options?: ExtractMetadataOptions):
             continue
           }
 
+          // P0-B：参数行 RHS 槽——整条 init 源码区间记一条
+          //（path：单声明行 'rhs'；一行多参声明行 'rhs:<name>' 区分）。
+          if (init) {
+            const rhsPath = stmtNode.declarations.length > 1 ? `rhs:${name}` : 'rhs'
+            recordArgSource(init, vctx, rhsPath)
+          }
+
           // 参数行：const x = <literal> / <纯字面量折叠>（值已知）
           const isLiteral =
             init?.type === 'Literal' ||
@@ -1072,7 +1251,7 @@ export function extractMetadata(code: string, options?: ExtractMetadataOptions):
               ? -init.argument.value as number
               : isLiteralValue(init)
                 ? parseLiteralValue(init)
-                : parseValueExpr(init, vctx) as unknown
+                : parseValueExpr(init, vctx, null) as unknown
             const literalLike = isNegLiteral || init.type === 'Literal'
             params.push({
               name,
@@ -1144,7 +1323,18 @@ export function extractMetadata(code: string, options?: ExtractMetadataOptions):
     }
   }
 
-  return { lines, params, imports, functions, blocks, keep: symbols.keep, meta, terminalShapes }
+  // P0-B：名称集合 = 参数 ∪ 已声明变量 ∪ 命名空间绑定 ∪ 本地函数名（字典序去重）。
+  // 宿主把「参数表达式」中的未知标识符当作参数名（期望名）处理时用它做联想。
+  const names = [
+    ...new Set([
+      ...symbols.paramNames,
+      ...symbols.declared,
+      ...symbols.nsBindings.keys(),
+      ...symbols.localFnParams.keys(),
+    ]),
+  ].sort()
+
+  return { lines, params, imports, functions, blocks, keep: symbols.keep, meta, terminalShapes, argSources, names }
 }
 
 function isLiteralValue(init: ASTNode): boolean {

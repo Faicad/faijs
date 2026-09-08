@@ -1,10 +1,10 @@
-# cq-compat parity tests
+# cq-compat 对等测试
 
-English | [中文](README.zh.md)
+[English](README.md) | 中文
 
-Geometry-equivalence verification between CadQuery and cq-compat. The AST-injection capture harness for upstream test geometry is designed in the `2026-09-08-cq-compat-cadquery-parity-harness` decision note under `.agents/notes/proposed/testing/`.
+CadQuery ⇄ cq-compat 几何等价验证（抓取上游测试几何的 AST 注入 harness 见 `.agents/notes/proposed/testing/` 下的 `2026-09-08-cq-compat-cadquery-parity-harness` 决策记录）。
 
-## Layout
+## 布局
 
 ```
 tests/
@@ -19,7 +19,7 @@ tests/
   test_cadquery/…        # mirror cases (file name = ref STEP name + .fai.js)
 ```
 
-## Commands
+## 命令
 
 ```bash
 # 1. reference STEP (需 C:\Users\ylt\cadquery-env，产物约 650 个文件 / 约 21 MB，已 gitignore)
@@ -39,11 +39,11 @@ npx tsx tests/run-cand.ts
 npx tsx tests/compare.ts
 ```
 
-## Mirror case naming
+## 镜像用例命名
 
-Reference STEP: `tests.test_cadquery__TestBooleans__testBox__r.step`; mirror file: `test_cadquery/TestBooleans__testBox__r.fai.js`; the script must end with `let result = cq.val(...)`, and variable names align to the reference `__var__`.
+参考 STEP：`tests.test_cadquery__TestBooleans__testBox__r.step`；镜像文件：`test_cadquery/TestBooleans__testBox__r.fai.js`；脚本末行必须是 `let result = cq.val(...)`，变量名与参考 `__var__` 对齐。
 
-## Red lines
+## 红线
 
-- A `blocked` case must fill `blockedBy`; marking a `blocked` case `ported` is forbidden.
-- `FAIL` must not be flipped to `PASS` by widening tolerances (tolerance values live only in tests/compare.ts).
+- `blocked` 用例必须填 `blockedBy`；禁止把 `blocked` 记为 `ported`。
+- `FAIL` 不得用放宽容差改成 `PASS`（容差在 compare.ts 集中定义）。

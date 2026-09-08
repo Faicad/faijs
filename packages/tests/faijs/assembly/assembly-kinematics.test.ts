@@ -54,7 +54,7 @@ function moduleRuntime(): CadRuntime {
 }
 
 function directRuntime(): CadRuntime {
-  return new CadRuntime(createNodePorts(), 'mesh', { cad: cadNs }, { executor: 'direct' })
+  return new CadRuntime(createNodePorts(), 'mesh', { cad: cadNs })
 }
 
 /** 与 FIXTURE 装配一致的库面直调预期（成员名全集恒定）。 */

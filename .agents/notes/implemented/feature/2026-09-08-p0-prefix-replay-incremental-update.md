@@ -1,8 +1,8 @@
 # Agent Note: P0 Prefix-Replay Incremental Update
 
-English | [中文](2026-09-08-p0-prefix-replay-incremental-update.zh.md)
-
 Status: implemented
+
+English | [中文](2026-09-08-p0-prefix-replay-incremental-update.zh.md)
 
 ## Problem
 

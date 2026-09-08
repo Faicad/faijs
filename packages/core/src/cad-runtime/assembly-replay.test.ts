@@ -2,7 +2,7 @@
  * 装配重放 e2e（P1，方案 T9 + R11②）
  *
  * mesh 模式（无 OCCT）端到端：快照形态面引用的装配在
- * - executorMode='module'（缺省）与 'direct'（guarded opt-in）下重放结果逐分量一致；
+ * - direct（唯一 executorMode）下连续构造的两次重放结果逐分量一致；
  * - 新形态 mate/fixed 约束 + asm.solve() 成员方法（与 do_assemble 同义）可用；
  * - L6 修复：多条约束打同一成员不再叠加（per-member 终态）。
  */
@@ -20,7 +20,8 @@ function defaultPorts(): HostPorts {
 }
 
 const MODULE = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
-const DIRECT = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() }, { executor: 'direct' })
+// direct 是唯一执行路径（executorMode 恒为 'direct'）；两个实例仅用于对照一致性。
+const DIRECT = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
 
 beforeAll(async () => {
   // 全局 backends 认领（mesh 模式；与 direct-executor.test 同构）

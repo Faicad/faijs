@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-08-security-gate.zh.md)
+
 ## Problem
 
 `.fai.js` scripts execute arbitrary JavaScript in the host runtime (Node.js or browser worker). Without a static security gate, malicious or AI-generated code could access `eval`, `globalThis`, `process`, `fetch`, `setTimeout`, prototype pollution chains, and other escape hatches. The previous parser only validated syntax and control-flow at the top level—it did not recurse into function bodies, blocks, or nested scopes, leaving a blind spot for dangerous identifiers hidden inside control-flow blocks.
