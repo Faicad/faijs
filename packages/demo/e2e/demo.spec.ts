@@ -164,6 +164,28 @@ test.describe('faijs demo', () => {
     expect(status).toMatch(/OK — brep: 1 shape\(s\)/)
   })
 
+  test('打开 mini_lathe axk.fai.js：cq-compat 自动装载，brep 成功、mesh 显式不可用', async ({ page }) => {
+    await page.goto('/')
+    await waitForStatusOk(page)
+
+    const axk = await readFile(new URL('../../mini_lathe/src/parts/axk.fai.js', import.meta.url), 'utf-8')
+    await page.locator(SELECTOR.fileInput).setInputFiles({
+      name: 'axk.fai.js',
+      mimeType: 'text/plain',
+      buffer: Buffer.from(axk),
+    })
+
+    await waitForStatusOk(page)
+    // 文件内容已载入编辑器，import specifier 为完整 scoped 名 '@faicad/cq-compat'
+    await expect(page.locator(SELECTOR.editor)).toHaveValue(/import \* as cq from '@faicad\/cq-compat'/)
+    await expect(page.locator(SELECTOR.exampleSelect)).toHaveValue('__file__')
+    const status = await page.locator(SELECTOR.statusBar).textContent()
+    // cq-compat 自动装载后 brep 链路真实产出几何（不再报 unregistered library）
+    expect(status).toMatch(/OK — brep: 1 shape\(s\)/)
+    // mesh 链路显式不可用（cq-compat fillet 等走 brep-only compatOp，E_MESH_UNSUPPORTED）
+    expect(status).toMatch(/mesh: (Failed|Mesh unavailable)/i)
+  })
+
   test('切到内置示例后，可切回已打开的文件（内容与文件名保留）', async ({ page }) => {
     await page.goto('/')
     await waitForStatusOk(page)

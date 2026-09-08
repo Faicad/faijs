@@ -10,6 +10,7 @@
     "test:e2e:preview": "playwright test --config playwright.preview.config.ts"
   },
   "dependencies": {
+    "@faicad/cq-compat": "file:../cq-compat",
     "manifold-3d": "^3.5.1",
     "occt-wasm": "^3.8.0",
     "three": "^0.184.0"

@@ -108,6 +108,9 @@ export default defineConfig({
       { find: '@faicad/gear-lib-demo', replacement: resolve(__dirname, '../gear-lib-demo/src/index.ts') },
       // sheetmetal：与 gear-lib-demo 同理，经 alias 落位活源码。
       { find: '@faicad/sheetmetal', replacement: resolve(__dirname, '../sheetmetal/src/index.ts') },
+      // cq-compat：浏览器入口（browser.ts 不含 node:fs 的 step/assembly 比对工具），
+      // 经 alias 落位活源码；LIB_MODULES 以 '@faicad/cq-compat' 注册。
+      { find: '@faicad/cq-compat/browser', replacement: resolve(__dirname, '../cq-compat/src/browser.ts') },
     ],
   },
   plugins: [cdnExternalPlugin(), wasmAssets()],

@@ -21,6 +21,9 @@ import fontUrl from './assets/fonts/OpenSans-Regular.ttf?url'
 // Vite/Rollup 对变量参数 import(packageName) 做不了静态分析，必须静态字面量。
 import * as gearLib from '@faicad/gear-lib-demo'
 import * as sheetmetalLib from '@faicad/sheetmetal'
+// cq-compat 经浏览器入口（/browser，不含 node:fs 的 STEP/装配比对工具）静态引用，
+// 供 LIB_MODULES 映射表引用 + 打包——脚本 specifier '@faicad/cq-compat' 与 key 严格一致。
+import * as cqCompatLib from '@faicad/cq-compat/browser'
 
 // ── 浏览器 libLoader（自动装载注册表） ──
 // key 必须与 registerLib 的 packageName（即脚本 import specifier）严格一致：
@@ -33,6 +36,9 @@ const LIB_MODULES: Record<string, () => Promise<StdlibNamespace>> = {
   'gear-lib-demo': async () => gearLib as unknown as StdlibNamespace,
   // sheetmetal：与 gear-lib-demo 同理，静态 import 参与打包，运行时返回命名空间。
   'sheetmetal': async () => sheetmetalLib as unknown as StdlibNamespace,
+  // cq-compat：key 为脚本 import specifier 全名 '@faicad/cq-compat'（demo 装载的
+  // mini_lathe 等 .fai.js 即按此书写）；浏览器入口不含 node:fs，可静态打包。
+  '@faicad/cq-compat': async () => cqCompatLib as unknown as StdlibNamespace,
 }
 
 const demoLibLoader: LibLoader = {
