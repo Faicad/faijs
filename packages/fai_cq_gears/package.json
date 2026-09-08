@@ -1,0 +1,33 @@
+{
+  "name": "@faicad/fai-cq-gears",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {},
+  "peerDependencies": {
+    "@faicad/faijs": "*",
+    "occt-wasm": "^3.8.0"
+  },
+  "devDependencies": {
+    "@faicad/cq-compat": "file:../cq-compat",
+    "@faicad/faijs": "file:../..",
+    "@faicad/faijs-core": "file:../core",
+    "typescript": "*",
+    "vitest": "*"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && node ../../scripts/fix-import-extensions.mjs dist",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:spike": "vitest run src/spike",
+    "lint": "eslint src",
+    "gen-reference": "pwsh -NoProfile scripts/gen-reference.ps1"
+  }
+}
