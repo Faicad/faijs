@@ -1,6 +1,8 @@
 # @faicad/mini-lathe
 
-CadQuery [mini_lathe](https://github.com/) project ported to `.fai.js` scripts, using `@faicad/cq-compat` as the CadQuery compatibility layer.
+English | [中文](README.zh.md)
+
+CadQuery [mini_lathe](https://github.com/yuan-xy/mini_lathe.git) project ported to `.fai.js` scripts, using `@faicad/cq-compat` as the CadQuery compatibility layer.
 
 ## Structure
 

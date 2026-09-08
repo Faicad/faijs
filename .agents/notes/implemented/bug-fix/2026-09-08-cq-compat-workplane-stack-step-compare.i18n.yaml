@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-08-cq-compat-workplane-stack-step-compare.md
+2026-09-08-cq-compat-workplane-stack-step-compare.md: 05fb4b01925fb31b20b8d2a6b9a8bd9bfcf6c50e
+2026-09-08-cq-compat-workplane-stack-step-compare.zh.md: 65a686916f3adbd811274d05117eb3ee2b7ba8c5
