@@ -1,6 +1,17 @@
 #!/usr/bin/env npx tsx
 /**
- * CLI for comparing two STEP files for geometric equivalence.
+ * ⚠️ DEPRECATED — do not use for new comparisons.
+ *
+ * compareStepFiles only compares the whole file's total solid count / volume /
+ * bounding box / boolean difference — it **cannot tell "N independent parts"
+ * apart from "one compound of N solids"** (slide_top case: 2 parts vs 1
+ * compound wrongly passed). All STEP comparisons must use the assembly
+ * consistency comparison:
+ *
+ *   npx tsx packages/cq-compat/scripts/compare-assembly.ts <a.step> <b.step>
+ *
+ * This script is kept only to demonstrate the limitation of compareStepFiles
+ * (regression diagnostics).
  *
  * Usage:
  *   npx tsx packages/cq-compat/scripts/compare-step.ts <a.step> <b.step> [options]
@@ -8,7 +19,7 @@
  * Options:
  *   --linear-tol <n>       Linear tolerance in mm (default: 1e-4)
  *   --volume-tol <n>       Relative volume tolerance (default: 1e-4)
- *   --boolean-tol <n>      Boolean diff volume tolerance in mm³ (default: 1e-3)
+ *   --boolean-tol <n>      Boolean diff volume tolerance in mm^3 (default: 1e-3)
  *   --no-strict-topology   Don't require exact face/edge/vertex count match
  *   --json                 Output JSON instead of human-readable report
  */

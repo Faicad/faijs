@@ -25,6 +25,14 @@ export interface AssemblyCompareOptions {
   volumeRelativeTolerance?: number
   booleanVolumeTolerance?: number
   strictTopology?: boolean
+  /**
+   * Require part names to match between the two files (default true).
+   * Set to false for files whose PRODUCT names are not under our control
+   * (e.g. CadQuery/OCC references named "SOLID" vs our "shape_x") — parts are
+   * then paired by index in sorted order. Structure still requires the same
+   * leaf count, so the compound-vs-parts check remains intact.
+   */
+  matchNames?: boolean
 }
 
 /** Per-part comparison result. */
@@ -74,6 +82,7 @@ const DEFAULT_OPTS: Required<AssemblyCompareOptions> = {
   volumeRelativeTolerance: 1e-3,
   booleanVolumeTolerance: 1e-1,
   strictTopology: false,
+  matchNames: true,
 }
 
 function vmax(a: BrepVec3, b: BrepVec3): number {
@@ -137,17 +146,28 @@ export async function compareAssemblyFiles(
   const namesB = leavesB.map(n => n.name).sort()
   const missingInB = namesA.filter(n => !namesB.includes(n))
   const missingInA = namesB.filter(n => !namesA.includes(n))
-  const structureMatch = namesA.length === namesB.length && missingInB.length === 0 && missingInA.length === 0
-  details.push(`structure: ${leavesA.length} vs ${leavesB.length} leaves, names match=${structureMatch}`)
+  const namesMatch = opts.matchNames && missingInB.length === 0 && missingInA.length === 0
+  const structureMatch = leavesA.length === leavesB.length && (!opts.matchNames || namesMatch)
+  details.push(`structure: ${leavesA.length} vs ${leavesB.length} leaves, names match=${structureMatch} (matchNames=${opts.matchNames})`)
   if (missingInB.length) details.push(`  missing in B: ${missingInB.join(', ')}`)
   if (missingInA.length) details.push(`  missing in A: ${missingInA.join(', ')}`)
 
   // ── Level 2 & 3: Per-part pose + geometry ──
   const partResults: PartCompareResult[] = []
-  const mapB = new Map(leavesB.map(n => [n.name, n]))
+  // With matchNames: pair parts by name. Without (reference files use foreign
+  // PRODUCT names): pair by index in sorted order (safe for single-part files;
+  // the leaf-count equality above still guards the compound-vs-parts case).
+  const sortedA = [...leavesA].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
+  const sortedB = [...leavesB].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
+  const mapB: Map<string, AssemblyPartNode> = opts.matchNames
+    ? new Map(leavesB.map(n => [n.name, n]))
+    : new Map(sortedB.map((n, i) => [String(i), n]))
+  const partKey = (leaf: AssemblyPartNode, index: number): string =>
+    opts.matchNames ? leaf.name : String(index)
 
-  for (const leafA of leavesA) {
-    const leafB = mapB.get(leafA.name)
+  for (let i = 0; i < sortedA.length; i++) {
+    const leafA = sortedA[i]
+    const leafB = mapB.get(partKey(leafA, i))
     if (!leafB) {
       partResults.push({ name: leafA.name, found: false })
       continue

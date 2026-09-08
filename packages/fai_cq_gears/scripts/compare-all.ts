@@ -12,7 +12,7 @@ import { loadManifest, OUT_DIR, stepPath } from '../src/fixtures'
 import {
   compareCase, formatCompareLine, type CaseCompareInput,
 } from '../src/testing/compare'
-import type { StepCompareResult } from '@faicad/cq-compat'
+import type { AssemblyCompareResult } from '@faicad/cq-compat'
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`)
@@ -38,7 +38,7 @@ async function main(): Promise<void> {
       ourStep: `${OUT_DIR}/${c.id}.step`,
       refVolume: c.volume,
     }
-    let r: StepCompareResult
+    let r: AssemblyCompareResult
     try {
       r = await compareCase(input)
     } catch (e) {

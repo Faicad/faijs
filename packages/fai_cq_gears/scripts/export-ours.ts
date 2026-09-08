@@ -1,8 +1,10 @@
 /**
  * export-ours — 用 fai_cq_gears 生成对照 STEP（等价性比对的 B 侧）
  *
- * 与 `scripts/gen-reference.py`（A 侧，CadQuery）成对使用，然后用
- * `@faicad/cq-compat` 的 `compareStepFiles` 比对。
+ * 与 `scripts/gen-reference.py`（A 侧，CadQuery）成对使用，然后由
+ * `scripts/compare-all.ts` 走**装配一致性比对**（compareAssemblyFiles，见
+ * `src/testing/compare.ts`——所有 STEP 比对必须用装配比对，见分析文档
+ * `docs/analysis/2026-09-08-cq-compat-union-compound-bug.md`）。
  *
  * 用法：
  *   npx tsx scripts/export-ours.ts [--case spur-basic] [--strategy row-approx-loft] [--out out]

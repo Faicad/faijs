@@ -12,6 +12,9 @@
 import { createApiNamespace } from '@faicad/faijs-core/api/api-namespace'
 import { brepjsCompat } from '@faicad/faijs-core/api'
 import { borrowBrepjsShape, adoptBrepjsProduct } from '@faicad/faijs-core/api/internal/l3-bridge'
+import { brepOf } from '@faicad/faijs-core/shape'
+import { getKernel } from '@faicad/faijs-core/occt-kernel/occtKernel'
+import type { OcctKernel, ShapeHandle } from 'occt-wasm'
 import type { Shape } from '@faicad/faijs-core/mesh/types'
 import type { BrepHandle } from '@faicad/faijs-core/brep/engine/types'
 
@@ -107,13 +110,86 @@ function bboxMin(shape: Shape): [number, number, number] {
 
 /**
  * Resolve a face selector to a world-space point (face center) and normal.
- * Simplified: supports ">Z", "<Z", ">X", "<X", ">Y", "<Y" and indexed
- * variants like ">Z[-2]" via bbox approximation.
+ *
+ * CadQuery semantics: `faces(">Z")` selects the face(s) at the extreme of the
+ * axis, and `workplane()` places the origin at the selected face's center —
+ * `centerOption: "CenterOfMass"` (default) uses the face's surface centroid,
+ * `"CenterOfBoundBox"` uses the face's bounding-box center.
+ *
+ * This implementation enumerates the actual BREP faces and picks the one whose
+ * bbox-center is the extreme along the selector axis (ties broken by larger
+ * surface area, so a main face wins over a small coplanar boss face). When the
+ * shape has no BREP handle or the kernel is unavailable, it falls back to the
+ * whole-shape bounding-box approximation (previous behavior).
  */
-function resolveFaceSelector(
+async function resolveFaceSelector(
   shape: Shape,
   sel: string,
-): { center: [number, number, number]; normal: [number, number, number] } {
+  centerOption?: string,
+): Promise<{ center: [number, number, number]; normal: [number, number, number] }> {
+  // Strip index suffix like [-2]
+  const baseSel = sel.replace(/\[-?\d+\]$/, '')
+  const axisDir: Record<string, { axis: 0 | 1 | 2; sign: 1 | -1 }> = {
+    '>Z': { axis: 2, sign: 1 }, '+Z': { axis: 2, sign: 1 },
+    '<Z': { axis: 2, sign: -1 }, '-Z': { axis: 2, sign: -1 },
+    '>X': { axis: 0, sign: 1 }, '+X': { axis: 0, sign: 1 },
+    '<X': { axis: 0, sign: -1 }, '-X': { axis: 0, sign: -1 },
+    '>Y': { axis: 1, sign: 1 }, '+Y': { axis: 1, sign: 1 },
+    '<Y': { axis: 1, sign: -1 }, '-Y': { axis: 1, sign: -1 },
+  }
+  const normals: Record<string, [number, number, number]> = {
+    '>Z': [0, 0, 1], '+Z': [0, 0, 1], '<Z': [0, 0, -1], '-Z': [0, 0, -1],
+    '>X': [1, 0, 0], '+X': [1, 0, 0], '<X': [-1, 0, 0], '-X': [-1, 0, 0],
+    '>Y': [0, 1, 0], '+Y': [0, 1, 0], '<Y': [0, -1, 0], '-Y': [0, -1, 0],
+  }
+  const dir = axisDir[baseSel]
+  const fallbackNormal = normals[baseSel] ?? ([0, 0, 1] as [number, number, number])
+
+  // ── Face-based selection (BREP kernel available) ──
+  try {
+    const handle = brepOf(shape)
+    const kernel = getKernel() as unknown as OcctKernel
+    if (handle && dir) {
+      const faces = kernel.getSubShapes(handle as unknown as ShapeHandle, 'face') as unknown as ShapeHandle[]
+      let best: { handle: ShapeHandle; center: [number, number, number] } | null = null
+      for (const f of faces) {
+        const bb = kernel.getBoundingBox(f)
+        const c: [number, number, number] = [
+          (bb.xmin + bb.xmax) / 2,
+          (bb.ymin + bb.ymax) / 2,
+          (bb.zmin + bb.zmax) / 2,
+        ]
+        const val = c[dir.axis]
+        if (!best) {
+          best = { handle: f, center: c }
+          continue
+        }
+        const bestVal = best.center[dir.axis]
+        if (dir.sign === 1 ? val > bestVal + 1e-6 : val < bestVal - 1e-6) {
+          best = { handle: f, center: c }
+        } else if (Math.abs(val - bestVal) <= 1e-6) {
+          // Tie (e.g. coplanar faces at the same extreme): prefer the larger face
+          const area = kernel.getSurfaceArea(f)
+          if (area > kernel.getSurfaceArea(best.handle)) best = { handle: f, center: c }
+        }
+      }
+      if (best) {
+        let origin: [number, number, number]
+        if (centerOption === 'CenterOfBoundBox') {
+          origin = best.center
+        } else {
+          // CenterOfMass (CadQuery default): surface (area-weighted) centroid
+          const com = kernel.getSurfaceCenterOfMass(best.handle)
+          origin = [com.x, com.y, com.z]
+        }
+        return { center: origin, normal: fallbackNormal }
+      }
+    }
+  } catch {
+    // No BREP / kernel not ready — fall through to bbox approximation
+  }
+
+  // ── Fallback: whole-shape bbox (previous behavior) ──
   const max = bboxMax(shape)
   const min = bboxMin(shape)
   const center: [number, number, number] = [
@@ -121,10 +197,6 @@ function resolveFaceSelector(
     (max[1] + min[1]) / 2,
     (max[2] + min[2]) / 2,
   ]
-
-  // Strip index suffix like [-2]
-  const baseSel = sel.replace(/\[-?\d+\]$/, '')
-
   if (baseSel === '>Z' || baseSel === '+Z') {
     return { center: [center[0], center[1], max[2]], normal: [0, 0, 1] }
   }
@@ -294,20 +366,36 @@ export async function extrude(wp: Workplane, height: number): Promise<Workplane>
     const shape = await makeCylinderAt(wp, radius, height)
     return clone(wp, { shape, pendingCircle: undefined, faceSel: null, edgeSel: null, vertexSel: null, pts: [] })
   }
-  // Boss extrude on existing shape: create profile at workplane origin and union
+  // Boss extrude on existing shape: create profile at each workplane point and union
   if (wp.shape) {
+    const n = Array.isArray(wp.normal) ? wp.normal : ([0, 0, 1] as [number, number, number])
+    // Slight overlap ensures OCCT fuse merges coplanar faces into one solid
+    const OVERLAP = 0.1
     // If we have a pending profile on an existing shape, create and union
-    if (wp.pendingRect) {
-      const { w, d } = wp.pendingRect
-      const boss = await makeBoxAt(wp, w, d, height)
-      const shape = await cad.union(wp.shape, boss)
-      return clone(wp, { shape, pendingRect: undefined })
-    }
-    if (wp.pendingCircle) {
-      const { radius } = wp.pendingCircle
-      const boss = await makeCylinderAt(wp, radius, height)
-      const shape = await cad.union(wp.shape, boss)
-      return clone(wp, { shape, pendingCircle: undefined })
+    if (wp.pendingRect || wp.pendingCircle) {
+      const ptsArr = Array.isArray(wp.pts) ? wp.pts : []
+      const points = ptsArr.length > 0 ? ptsArr : ([[0, 0]] as [number, number][])
+      let shape = wp.shape
+      for (const [px, py] of points) {
+        const bossOrigin: [number, number, number] = [
+          wp.origin[0] + px,
+          wp.origin[1] + py,
+          wp.origin[2],
+        ]
+        const bossWp = { ...wp, origin: bossOrigin }
+        if (wp.pendingRect) {
+          const { w, d } = wp.pendingRect
+          const boss = await makeBoxAt(bossWp, w, d, height + OVERLAP)
+          const shifted = await cad.translate(boss, { offset: [-n[0] * OVERLAP, -n[1] * OVERLAP, -n[2] * OVERLAP] })
+          shape = await cad.union(shape, shifted)
+        } else if (wp.pendingCircle) {
+          const { radius } = wp.pendingCircle
+          const boss = await makeCylinderAt(bossWp, radius, height + OVERLAP)
+          const shifted = await cad.translate(boss, { offset: [-n[0] * OVERLAP, -n[1] * OVERLAP, -n[2] * OVERLAP] })
+          shape = await cad.union(shape, shifted)
+        }
+      }
+      return clone(wp, { shape, pendingRect: undefined, pendingCircle: undefined, faceSel: null, edgeSel: null, vertexSel: null, pts: [] })
     }
     // No pending profile — return unchanged
     return wp
@@ -331,20 +419,30 @@ export async function cutBlind(
   if (!wp.shape) return wp
   const absDepth = Math.abs(depth)
   const invNormal: [number, number, number] = [-wp.normal[0], -wp.normal[1], -wp.normal[2]]
-  const cutWp = { ...wp, normal: invNormal }
-  let tool: Shape
-  if (wp.pendingCircle) {
-    tool = await makeCylinderAt(cutWp, wp.pendingCircle.radius, absDepth)
-  } else if (wp.pendingRect) {
-    tool = await makeBoxAt(cutWp, wp.pendingRect.w, wp.pendingRect.d, absDepth)
-  } else if (opts?.radius !== undefined) {
-    tool = await makeCylinderAt(cutWp, opts.radius, absDepth)
-  } else if (opts?.w !== undefined && opts?.d !== undefined) {
-    tool = await makeBoxAt(cutWp, opts.w, opts.d, absDepth)
-  } else {
-    tool = await makeBoxAt(cutWp, 1000, 1000, absDepth)
+  const ptsArr = Array.isArray(wp.pts) ? wp.pts : []
+  const points = ptsArr.length > 0 ? ptsArr : ([[0, 0]] as [number, number][])
+  let result = wp.shape
+  for (const [px, py] of points) {
+    const cutOrigin: [number, number, number] = [
+      wp.origin[0] + px,
+      wp.origin[1] + py,
+      wp.origin[2],
+    ]
+    const cutWp = { ...wp, origin: cutOrigin, normal: invNormal }
+    let tool: Shape
+    if (wp.pendingCircle) {
+      tool = await makeCylinderAt(cutWp, wp.pendingCircle.radius, absDepth)
+    } else if (wp.pendingRect) {
+      tool = await makeBoxAt(cutWp, wp.pendingRect.w, wp.pendingRect.d, absDepth)
+    } else if (opts?.radius !== undefined) {
+      tool = await makeCylinderAt(cutWp, opts.radius, absDepth)
+    } else if (opts?.w !== undefined && opts?.d !== undefined) {
+      tool = await makeBoxAt(cutWp, opts.w, opts.d, absDepth)
+    } else {
+      tool = await makeBoxAt(cutWp, 1000, 1000, absDepth)
+    }
+    result = await cad.subtract(result, tool)
   }
-  const result = await cad.subtract(wp.shape, tool)
   return clone(wp, { shape: result, faceSel: null, edgeSel: null, pts: [], pendingRect: undefined, pendingCircle: undefined })
 }
 
@@ -403,21 +501,28 @@ export async function cboreHole(
   cboreDiameter: number,
   cboreDepth: number,
 ): Promise<Workplane> {
+  // Capture the stack points BEFORE hole() — hole() consumes/clears wp.pts,
+  // but the counterbore must be drilled at the SAME positions (CadQuery
+  // applies both stages at every point of the stack).
+  const cborePts = Array.isArray(wp.pts) && wp.pts.length > 0
+    ? wp.pts
+    : ([[0, 0]] as [number, number][])
   let result = wp
   result = await hole(result, diameter)
-  // Counterbore: larger shallow hole
+  // Counterbore: larger shallow hole — the tool must extend INTO the face
+  // (inverted normal), otherwise the cylinder floats above the surface and
+  // cuts nothing.
   if (result.shape) {
     const cboreRadius = cboreDiameter / 2
-    const cborePts = Array.isArray(result.pts) ? result.pts : []
-    const points = cborePts.length > 0 ? cborePts : [[0, 0]] as [number, number][]
+    const invNormal: [number, number, number] = [-result.normal[0], -result.normal[1], -result.normal[2]]
     let shape = result.shape
-    for (const [px, py] of points) {
+    for (const [px, py] of cborePts) {
       const origin: [number, number, number] = [
         result.origin[0] + px,
         result.origin[1] + py,
         result.origin[2],
       ]
-      const cyl = await makeCylinderAt({ ...result, origin }, cboreRadius, cboreDepth + 1)
+      const cyl = await makeCylinderAt({ ...result, origin, normal: invNormal }, cboreRadius, cboreDepth + 1)
       shape = await cad.subtract(shape, cyl)
     }
     result = clone(result, { shape })
@@ -439,20 +544,23 @@ export async function cskHole(
   cskDiameter: number,
   cskAngle: number,
 ): Promise<Workplane> {
+  // Capture the stack points BEFORE hole() — see cboreHole.
+  const cskPts = Array.isArray(wp.pts) && wp.pts.length > 0
+    ? wp.pts
+    : ([[0, 0]] as [number, number][])
   let result = await hole(wp, diameter)
   if (result.shape) {
     const cskRadius = cskDiameter / 2
     const cskDepth = cskRadius / Math.tan((cskAngle * Math.PI) / 360)
-    const cborePts = Array.isArray(result.pts) ? result.pts : []
-    const points = cborePts.length > 0 ? cborePts : [[0, 0]] as [number, number][]
+    const invNormal: [number, number, number] = [-result.normal[0], -result.normal[1], -result.normal[2]]
     let shape = result.shape
-    for (const [px, py] of points) {
+    for (const [px, py] of cskPts) {
       const origin: [number, number, number] = [
         result.origin[0] + px,
         result.origin[1] + py,
         result.origin[2],
       ]
-      const cyl = await makeCylinderAt({ ...result, origin }, cskRadius, cskDepth + 1)
+      const cyl = await makeCylinderAt({ ...result, origin, normal: invNormal }, cskRadius, cskDepth + 1)
       shape = await cad.subtract(shape, cyl)
     }
     result = clone(result, { shape })
@@ -551,7 +659,7 @@ export async function workplane(
     return clone(wp, { faceSel: null })
   }
 
-  const { center, normal } = resolveFaceSelector(wp.shape, wp.faceSel)
+  const { center, normal } = await resolveFaceSelector(wp.shape, wp.faceSel, opts?.centerOption)
   let newOrigin = center
   if (opts?.offset) {
     newOrigin = vadd(newOrigin, vscale(normal, opts.offset))
