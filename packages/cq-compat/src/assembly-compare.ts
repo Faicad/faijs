@@ -136,8 +136,13 @@ export async function compareAssemblyFiles(
 
   const bufA = readFileSync(fileA)
   const bufB = readFileSync(fileB)
-  const nodesA = await importAssemblyFromStep(bufA.buffer as ArrayBuffer)
-  const nodesB = await importAssemblyFromStep(bufB.buffer as ArrayBuffer)
+  // readFileSync returns pooled Buffers for small files: buf.buffer is the
+  // whole pool with garbage beyond byteLength, which corrupts STEP imports
+  // of files < ~4KB. Pass exact copies.
+  const exact = (buf: Buffer): ArrayBuffer =>
+    buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer
+  const nodesA = await importAssemblyFromStep(exact(bufA))
+  const nodesB = await importAssemblyFromStep(exact(bufB))
   const leavesA = collectLeafParts(nodesA).filter(n => n.shapeHandle !== null)
   const leavesB = collectLeafParts(nodesB).filter(n => n.shapeHandle !== null)
 

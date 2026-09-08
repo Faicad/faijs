@@ -40,10 +40,21 @@ REF_MANIFEST = os.path.join(PKG, "out", "ref", "manifest.json")
 # --------------------------------------------------------------------------
 CQ_COMPAT_OPS = {
     "Workplane", "add", "box", "rect", "circle", "polygon", "extrude", "cutBlind",
-    "hole", "cboreHole", "cskHole", "threadedHole", "faces", "edges", "vertices",
-    "workplane", "center", "pushPoints", "translate", "rotate", "mirror", "union",
-    "cut", "intersect", "fillet", "shell", "val", "vals", "transformed", "setColor",
+    "cutThruAll", "hole", "cboreHole", "cskHole", "threadedHole", "faces", "edges",
+    "vertices", "workplane", "center", "pushPoints", "rarray", "translate", "rotate",
+    "mirror", "union", "cut", "intersect", "combine", "fillet", "chamfer", "shell",
+    "sphere", "cylinder", "val", "vals", "transformed", "setColor",
     "faceRef", "constraint", "buildAssembly", "Color",
+}
+
+# Cases whose calls fall in a deliberately unsupported parameter corner of an
+# otherwise-implemented op (P4 batch 1). Explicit exceptions keep them honest
+# instead of silently "portable then failing at mirror runtime".
+CASE_NARROW_EXCEPTIONS = {
+    # sphere(angle1=0, ...) — partial spheres unsupported (full spheres only)
+    "tests.test_cadquery::TestCadQuery::testSphereCustom": "narrow:sphere-angles",
+    # chamfer(0.1, 0.2) — occt-wasm kernel chamfer is uniform-distance only
+    "tests.test_cadquery::TestCadQuery::testChamferAsymmetrical": "narrow:chamfer-asym",
 }
 
 # Ops that are implemented but with a NARROWER selector grammar than upstream.
@@ -303,6 +314,12 @@ def main() -> int:
         blocked_by = missing[0] if missing else (f"deps:{deps[0]}" if deps else None)
         if category == "PORTABLE-WITH-STUB" and helper_missing:
             blocked_by = f"stub:{helper_missing[0]}"
+        # Explicit parameter-corner exceptions (see CASE_NARROW_EXCEPTIONS):
+        # the op exists but the case's parameter combination is deliberately
+        # unsupported, so the case must stay blocked with a truthful reason.
+        if case_id in CASE_NARROW_EXCEPTIONS and category != "BLOCKED":
+            category = "BLOCKED"
+            blocked_by = CASE_NARROW_EXCEPTIONS[case_id]
         results.append({
             "case": case_id, "module": module, "qual": qual, "status": status,
             "ops": ops, "missing": missing, "deps": deps, "blockedBy": blocked_by,

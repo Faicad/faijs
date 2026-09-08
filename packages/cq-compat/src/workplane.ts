@@ -553,6 +553,47 @@ async function makeBoxAt(
 
 // ── Public API ─────────────────────────────────────────────────────────────
 
+/** CadQuery `centered` parameter: bool or per-axis triple. */
+type Centered3 = boolean | [boolean, boolean, boolean]
+
+/** Normalize a `centered` parameter to a per-axis triple. */
+function resolveCentered(c: Centered3): [boolean, boolean, boolean] {
+  return typeof c === 'boolean' ? [c, c, c] : c
+}
+
+/** Build a compound Shape from several Shapes (brepjs makeCompound projection). */
+function makeCompoundShape(shapes: Shape[]): Shape {
+  if (shapes.length === 1) return shapes[0]
+  const product = unwrapBrepResult(
+    compatFn('makeCompound')(shapes.map((s) => borrowBrepjsShape(s))),
+  )
+  return adoptBrepjsProduct(product)
+}
+
+/**
+ * Finish an eachpoint-style op (box/sphere/cylinder): `combine=True` (CadQuery
+ * default) fuses the created bodies with each other and with the existing
+ * solid on the workplane; `combine=False` leaves them as separate solids in a
+ * compound (verified vs cadquery 2.8.0: testSpherePointList -> 4 solids).
+ */
+async function combineEachpoint(
+  wp: Workplane,
+  shapes: Shape[],
+  combine: boolean,
+): Promise<Workplane> {
+  let shape: Shape
+  if (combine) {
+    shape = shapes[0]
+    for (let i = 1; i < shapes.length; i++) {
+      shape = await fuseShapes(shape, shapes[i])
+    }
+    if (wp.shape) shape = await fuseShapes(wp.shape, shape)
+  } else {
+    shape = makeCompoundShape(shapes)
+  }
+  return clone(wp, { shape, faceSel: null, edgeSel: null, vertexSel: null, pts: [] })
+}
+
 /**
  * Workplane
  * @param plane - string
@@ -578,6 +619,7 @@ export async function add(wp: Workplane, shape: Shape): Promise<Workplane> {
  * @param w - number
  * @param d - number
  * @param h - number
+ * @param opts - { centered?; combine? }
  * @returns Promise<Workplane>
  *
  * CadQuery semantics (verified vs cadquery 2.8.0 `Workplane.box`): with the
@@ -585,24 +627,194 @@ export async function add(wp: Workplane, shape: Shape): Promise<Workplane> {
  * origin in ALL three axes — including the normal direction. The old
  * "sit on the face" behaviour belonged to the makeBoxAt tool-body helper and
  * leaked into this public op (found by the parity harness, testBoxDefaults).
+ *
+ * Each-point semantics (verified vs 2.8.0): box() is eachpoint-based — with
+ * points pushed on the stack a box is created at every point; `combine=True`
+ * (default) fuses them with the existing solid, `combine=False` leaves them
+ * as separate solids in a compound (test_getitem / testBoxPointList).
  */
 export async function box(
   wp: Workplane,
   w: number,
   d: number,
   h: number,
+  opts?: { centered?: Centered3; combine?: boolean },
 ): Promise<Workplane> {
   const n = Array.isArray(wp.normal) ? wp.normal : ([0, 0, 1] as [number, number, number])
-  const o = Array.isArray(wp.origin) ? wp.origin : ([0, 0, 0] as [number, number, number])
   const axes = faceAxes(n)
   // World-space extents of a w×d×h box aligned to the (axis-aligned) basis.
   const sx = w * Math.abs(axes.x[0]) + d * Math.abs(axes.y[0]) + h * Math.abs(n[0])
   const sy = w * Math.abs(axes.x[1]) + d * Math.abs(axes.y[1]) + h * Math.abs(n[1])
   const sz = w * Math.abs(axes.x[2]) + d * Math.abs(axes.y[2]) + h * Math.abs(n[2])
   const boxShape = await cad.box(sx, sy, sz, { centered: true })
-  // centered: box center == workplane origin (no lift along the normal)
-  const shape = await cad.translate(boxShape, { offset: o })
-  return clone(wp, { shape, faceSel: null, edgeSel: null, vertexSel: null, pts: [] })
+  const c = resolveCentered(opts?.centered ?? true)
+  // Uncentered axis: bbox corner sits on the point (offset by half the extent).
+  const off: [number, number, number] = [
+    c[0] ? 0 : (w / 2) * axes.x[0] + (d / 2) * axes.y[0] + (h / 2) * n[0],
+    c[1] ? 0 : (w / 2) * axes.x[1] + (d / 2) * axes.y[1] + (h / 2) * n[1],
+    c[2] ? 0 : (w / 2) * axes.x[2] + (d / 2) * axes.y[2] + (h / 2) * n[2],
+  ]
+  const points = Array.isArray(wp.pts) && wp.pts.length > 0 ? wp.pts : ([[0, 0]] as [number, number][])
+  const shapes: Shape[] = []
+  for (const [px, py] of points) {
+    const center = vadd(localToWorld(wp, px, py), off)
+    shapes.push(await cad.translate(boxShape, { offset: center }))
+  }
+  return combineEachpoint(wp, shapes, opts?.combine ?? true)
+}
+
+/**
+ * sphere
+ * @param wp - Workplane
+ * @param radius - number
+ * @param opts - { centered?; combine? }
+ * @returns Promise<Workplane>
+ *
+ * CadQuery semantics (verified vs cadquery 2.8.0 `Workplane.sphere`): a sphere
+ * is created for every point on the stack (or the workplane origin); per-axis
+ * `centered=false` puts the sphere's bbox corner on the point. Only full
+ * spheres are supported (angle1/angle2/angle3 partial sweeps are not
+ * expressible with the cad.sphere primitive — upstream testSphereCustom stays
+ * blocked on that).
+ */
+export async function sphere(
+  wp: Workplane,
+  radius: number,
+  opts?: { centered?: Centered3; combine?: boolean },
+): Promise<Workplane> {
+  const c = resolveCentered(opts?.centered ?? true)
+  const n = Array.isArray(wp.normal) ? wp.normal : ([0, 0, 1] as [number, number, number])
+  const x = Array.isArray(wp.xDir) ? wp.xDir : ([1, 0, 0] as [number, number, number])
+  const y = Array.isArray(wp.yDir) ? wp.yDir : ([0, 1, 0] as [number, number, number])
+  // Local-frame offset: uncentered axis -> bbox corner on the point.
+  const offLocal: [number, number, number] = [c[0] ? 0 : radius, c[1] ? 0 : radius, c[2] ? 0 : radius]
+  const off = vadd(vadd(vscale(x, offLocal[0]), vscale(y, offLocal[1])), vscale(n, offLocal[2]))
+  const points = Array.isArray(wp.pts) && wp.pts.length > 0 ? wp.pts : ([[0, 0]] as [number, number][])
+  const shapes: Shape[] = []
+  for (const [px, py] of points) {
+    const center = vadd(localToWorld(wp, px, py), off)
+    shapes.push(await cad.sphere({ radius, center }))
+  }
+  return combineEachpoint(wp, shapes, opts?.combine ?? true)
+}
+
+/**
+ * Rotation R mapping local +Z onto `d`, reproducing OCCT `gp_Ax3(P, D)`
+ * auto-XDirection (verified vs cadquery 2.8.0 by measuring
+ * `Workplane.cylinder(..., direct=...)` center offsets for all six axis
+ * directions). Applied to the per-axis `centered` offsets before the
+ * workplane mapping, exactly as upstream `s.moved(Plane(...).location)` does.
+ */
+function ax3Rotation(d: [number, number, number]): [number, number, number][] {
+  const key = `${d[0]},${d[1]},${d[2]}`
+  // rows: R·ex, R·ey, R·ez
+  const table: Record<string, [[number, number, number], [number, number, number], [number, number, number]]> = {
+    '1,0,0': [[0, 0, 1], [0, -1, 0], [1, 0, 0]],
+    '-1,0,0': [[0, 0, -1], [0, -1, 0], [-1, 0, 0]],
+    '0,1,0': [[0, 0, 1], [1, 0, 0], [0, 1, 0]],
+    '0,-1,0': [[0, 0, -1], [1, 0, 0], [0, -1, 0]],
+    '0,0,1': [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+    '0,0,-1': [[-1, 0, 0], [0, 1, 0], [0, 0, -1]],
+  }
+  const r = table[key]
+  if (!r) throw new Error(`[cq-compat] cylinder direct ${key} not supported (axis directions only)`)
+  return r
+}
+
+/**
+ * cylinder
+ * @param wp - Workplane
+ * @param height - number
+ * @param radius - number
+ * @param opts - { direct?; centered?; combine? }
+ * @returns Promise<Workplane>
+ *
+ * CadQuery semantics (verified vs cadquery 2.8.0 `Workplane.cylinder`): a
+ * cylinder for every point on the stack; per-axis `centered` offsets are
+ * applied in the LOCAL frame (xDir/yDir/normal), then rotated by the
+ * `direct` plane orientation (ax3Rotation table), then mapped by the
+ * workplane basis. `angle != 360` pie-slice sweeps are not supported.
+ */
+export async function cylinder(
+  wp: Workplane,
+  height: number,
+  radius: number,
+  opts?: { direct?: [number, number, number]; angle?: number; centered?: Centered3; combine?: boolean },
+): Promise<Workplane> {
+  const c = resolveCentered(opts?.centered ?? true)
+  const d = opts?.direct ?? [0, 0, 1]
+  if (opts?.angle !== undefined && opts.angle !== 360) {
+    throw new Error('[cq-compat] cylinder angle != 360 is not supported')
+  }
+  const R = ax3Rotation(d)
+  const rot = (v: [number, number, number]): [number, number, number] => [
+    R[0][0] * v[0] + R[1][0] * v[1] + R[2][0] * v[2],
+    R[0][1] * v[0] + R[1][1] * v[1] + R[2][1] * v[2],
+    R[0][2] * v[0] + R[1][2] * v[1] + R[2][2] * v[2],
+  ]
+  const n = Array.isArray(wp.normal) ? wp.normal : ([0, 0, 1] as [number, number, number])
+  const x = Array.isArray(wp.xDir) ? wp.xDir : ([1, 0, 0] as [number, number, number])
+  const y = Array.isArray(wp.yDir) ? wp.yDir : ([0, 1, 0] as [number, number, number])
+  // Map a local vector through the workplane basis.
+  const map = (v: [number, number, number]): [number, number, number] =>
+    vadd(vadd(vscale(x, v[0]), vscale(y, v[1])), vscale(n, v[2]))
+  // Uncentered axis -> base offset by half the local extent.
+  const offLocal: [number, number, number] = [
+    c[0] ? 0 : radius,
+    c[1] ? 0 : radius,
+    c[2] ? -height / 2 : 0,
+  ]
+  const off = map(rot(offLocal))
+  const axis = map(d)
+  const axisLen = Math.hypot(axis[0], axis[1], axis[2])
+  const axisUnit: [number, number, number] = [axis[0] / axisLen, axis[1] / axisLen, axis[2] / axisLen]
+  const points = Array.isArray(wp.pts) && wp.pts.length > 0 ? wp.pts : ([[0, 0]] as [number, number][])
+  const shapes: Shape[] = []
+  for (const [px, py] of points) {
+    const base = vadd(localToWorld(wp, px, py), off)
+    const bodyCenter = vadd(base, vscale(axisUnit, height / 2))
+    const cyl = await cad.cylinder({ radius, height, centered: true })
+    const oriented = await orientZTo(cyl as unknown as Shape, axisUnit)
+    shapes.push(await cad.translate(oriented, { offset: bodyCenter }))
+  }
+  return combineEachpoint(wp, shapes, opts?.combine ?? true)
+}
+
+/**
+ * rarray
+ * @param wp - Workplane
+ * @param xSpacing - number
+ * @param ySpacing - number
+ * @param xCount - number
+ * @param yCount - number
+ * @param center - boolean | [boolean, boolean]
+ * @returns Workplane
+ *
+ * CadQuery semantics (verified vs cadquery 2.8.0 `Workplane.rarray`): pushes
+ * an xCount×yCount grid of points; per-axis `center=true` centers the grid on
+ * the workplane origin, `false` puts the lower corner on it.
+ */
+export function rarray(
+  wp: Workplane,
+  xSpacing: number,
+  ySpacing: number,
+  xCount: number,
+  yCount: number,
+  center: boolean | [boolean, boolean] = true,
+): Workplane {
+  if (xCount < 1 || yCount < 1 || (xSpacing <= 0 && ySpacing <= 0)) {
+    throw new Error('[cq-compat] rarray: spacing and count must be > 0 in at least one direction')
+  }
+  const [cx, cy] = typeof center === 'boolean' ? [center, center] : center
+  const ox = cx ? (-(xCount - 1) * xSpacing) / 2 : 0
+  const oy = cy ? (-(yCount - 1) * ySpacing) / 2 : 0
+  const pts: [number, number][] = []
+  for (let i = 0; i < xCount; i++) {
+    for (let j = 0; j < yCount; j++) {
+      pts.push([i * xSpacing + ox, j * ySpacing + oy])
+    }
+  }
+  return clone(wp, { pts })
 }
 
 /**
@@ -774,6 +986,57 @@ export async function cutBlind(
     result = await cutShapes(result, tool)
   }
   return clone(wp, { shape: result, faceSel: null, edgeSel: null, pts: [], pendingRect: undefined, pendingCircle: undefined, pendingPolygon: undefined })
+}
+
+/**
+ * cutThruAll
+ * @param wp - Workplane
+ * @returns Promise<Workplane>
+ *
+ * CadQuery semantics (verified vs cadquery 2.8.0 `Workplane.cutThruAll`):
+ * uses the pending 2D profile to cut through ALL material in BOTH normal
+ * directions of the workplane. The tool body spans the whole solid along
+ * the workplane normal (computed from the shape bounding box), so it is
+ * exact for any profile depth.
+ */
+export async function cutThruAll(wp: Workplane): Promise<Workplane> {
+  if (!wp.shape) return wp
+  if (!wp.pendingCircle && !wp.pendingRect && !wp.pendingPolygon) {
+    throw new Error('[cq-compat] cutThruAll requires a pending 2D profile')
+  }
+  const n = Array.isArray(wp.normal) ? wp.normal : ([0, 0, 1] as [number, number, number])
+  const o = Array.isArray(wp.origin) ? wp.origin : ([0, 0, 0] as [number, number, number])
+  const bmin = bboxMin(wp.shape)
+  const bmax = bboxMax(wp.shape)
+  // Span: farthest bbox corner from the workplane origin along the normal.
+  let span = 0
+  for (const cx of [bmin[0], bmax[0]]) {
+    for (const cy of [bmin[1], bmax[1]]) {
+      for (const cz of [bmin[2], bmax[2]]) {
+        span = Math.max(span, Math.abs((cx - o[0]) * n[0] + (cy - o[1]) * n[1] + (cz - o[2]) * n[2]))
+      }
+    }
+  }
+  const B = span + 1
+  // CadQuery semantics: pushPoints() before cutThruAll() repeats the cut at
+  // every point (mirrors cutBlind). With no pushed points, one cut at the
+  // workplane origin.
+  const ptsArr = Array.isArray(wp.pts) && wp.pts.length > 0 ? wp.pts : ([[0, 0]] as [number, number][])
+  let shape = wp.shape
+  for (const [px, py] of ptsArr) {
+    // Tool base at point - n·B, extending 2B along +n — covers both directions.
+    const thruWp: Workplane = { ...wp, origin: vsub(localToWorld(wp, px, py), vscale(n, B)) }
+    let tool: Shape
+    if (wp.pendingCircle) {
+      tool = await makeCylinderAt(thruWp, wp.pendingCircle.radius, 2 * B)
+    } else if (wp.pendingRect) {
+      tool = await makeBoxAt(thruWp, wp.pendingRect.w, wp.pendingRect.d, 2 * B)
+    } else {
+      tool = await makePolygonPrismAt(thruWp, wp.pendingPolygon!, 2 * B, n)
+    }
+    shape = await cutShapes(shape, tool)
+  }
+  return clone(wp, { shape, faceSel: null, edgeSel: null, pts: [], pendingRect: undefined, pendingCircle: undefined, pendingPolygon: undefined })
 }
 
 /**
@@ -1105,6 +1368,24 @@ export async function union(
 }
 
 /**
+ * combine
+ * @param wp - Workplane
+ * @returns Promise<Workplane>
+ *
+ * CadQuery semantics note (verified vs cadquery 2.8.0): upstream `combine()`
+ * fuses all stack items. cq-compat fuses eagerly inside the building ops
+ * (extrude / eachpoint with combine=True), so by the time combine() runs the
+ * stack holds a single fused solid — the op degenerates to a `clean()` pass
+ * (same-face merge), which matches the upstream test expectations
+ * (testCombine: 11 faces either way).
+ */
+export async function combine(wp: Workplane): Promise<Workplane> {
+  if (!wp.shape) return wp
+  const shape = await cleanShapes(wp.shape)
+  return clone(wp, { shape })
+}
+
+/**
  * cut
  * @param wp - Workplane
  * @param other - Workplane | Shape
@@ -1198,6 +1479,91 @@ export async function fillet(wp: Workplane, radius: number): Promise<Workplane> 
   const product = unwrapBrepResult(result)
   const shape = adoptBrepjsProduct(product)
   return clone(wp, { shape, edgeSel: null })
+}
+
+/**
+ * chamfer
+ * @param wp - Workplane
+ * @param length - number
+ * @param length2 - number | undefined
+ * @returns Promise<Workplane>
+ *
+ * CadQuery semantics (verified vs cadquery 2.8.0 `Workplane.chamfer`):
+ * chamfers the selected edges of the current shape. Edge resolution order:
+ * explicit `edges("|Z")` selector; else, if a face selector is pending
+ * (`.faces(">Z").chamfer(l)`), the edges OF the selected face; else all
+ * edges. LIMITATION: asymmetric `length2` is NOT supported — the occt-wasm
+ * kernel chamfer takes a single uniform distance (resolveUniformRadius
+ * degrades a pair to d1), so length2 throws instead of silently producing a
+ * symmetric chamfer.
+ */
+export async function chamfer(
+  wp: Workplane,
+  length: number,
+  length2?: number,
+): Promise<Workplane> {
+  if (length2 !== undefined) {
+    throw new Error('[cq-compat] chamfer length2 (asymmetric) is not supported by the occt-wasm kernel')
+  }
+  if (!wp.shape) return wp
+  let edges: unknown[]
+  if (wp.edgeSel !== null && wp.edgeSel !== undefined) {
+    edges = resolveEdgeSelection(wp.shape, wp.edgeSel)
+  } else if (wp.faceSel) {
+    edges = resolveFaceEdgeSelection(wp.shape, wp.faceSel)
+  } else {
+    edges = resolveEdgeSelection(wp.shape, undefined)
+  }
+  const result = compatFn('chamfer')(borrowBrepjsShape(wp.shape), edges, length)
+  const product = unwrapBrepResult(result)
+  const shape = adoptBrepjsProduct(product)
+  return clone(wp, { shape, edgeSel: null, faceSel: null })
+}
+
+/**
+ * Resolve the edges belonging to the face picked by a direction selector
+ * (upstream `.faces(">Z").chamfer(l)` chamfers the edges of that face).
+ * Reuses the direction-minimum/maximum rule of resolveFaceSelector: among
+ * faces perpendicular to the axis, the extremal one along it wins; its edges
+ * are those whose bounding box lies inside the face's (kernel pads bounds by
+ * ~0.1mm of tolerance, so a small positive slack is used).
+ */
+function resolveFaceEdgeSelection(shape: Shape, sel: string): unknown[] {
+  const m = /^([<>])([XYZ])(?:\[-?\d+\])?$/.exec(sel.trim())
+  if (!m) {
+    throw new Error(`[cq-compat] unsupported face selector for chamfer "${sel}"`)
+  }
+  const axis = m[2] === 'X' ? 0 : m[2] === 'Y' ? 1 : 2
+  const sign = m[1] === '>' ? 1 : -1
+  const bounds = (h: unknown): Record<string, number> =>
+    compatFn('getBounds')(h) as Record<string, number>
+  const faces = compatFn('getFaces')(borrowBrepjsShape(shape)) as unknown[]
+  const perp = faces.filter((f) => {
+    const b = bounds(f)
+    return [b.xMax - b.xMin, b.yMax - b.yMin, b.zMax - b.zMin][axis] <= 0.1
+  })
+  if (perp.length === 0) {
+    throw new Error(`[cq-compat] no planar face for selector "${sel}"`)
+  }
+  const faceCenter = (b: Record<string, number>): number =>
+    [(b.xMin + b.xMax) / 2, (b.yMin + b.yMax) / 2, (b.zMin + b.zMax) / 2][axis]
+  const target = perp
+    .map((f) => ({ f, b: bounds(f) }))
+    .reduce((best, cur) => (sign * (faceCenter(cur.b) - faceCenter(best.b)) > 0 ? cur : best))
+  const fc = faceCenter(target.b)
+  // Edge bounds carry ±0.1mm kernel tolerance padding (measured: a unit-box
+  // edge reports extents inflated by 0.2), while face bounds are tight. An
+  // edge of the face lies IN its plane, so along the axis it is thin (pure
+  // padding) and its center coincides with the face center.
+  const EDGE_AXIS_MAX = 0.25
+  const EDGE_CENTER_TOL = 0.15
+  const edges = compatFn('getEdges')(borrowBrepjsShape(shape)) as unknown[]
+  return edges.filter((e) => {
+    const b = bounds(e)
+    const ext = [b.xMax - b.xMin, b.yMax - b.yMin, b.zMax - b.zMin][axis]
+    const c = [(b.xMin + b.xMax) / 2, (b.yMin + b.yMax) / 2, (b.zMin + b.zMax) / 2][axis]
+    return ext <= EDGE_AXIS_MAX && Math.abs(c - fc) <= EDGE_CENTER_TOL
+  })
 }
 
 /**

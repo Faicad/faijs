@@ -194,8 +194,10 @@ import {
   cut as vendoredCut,
   intersect as vendoredIntersect,
   fillet as vendoredFillet,
+  chamfer as vendoredChamfer,
   simplify as vendoredSimplify,
 } from '../../vendored/brepjs/topology/api.js'
+import { makeCompound as vendoredMakeCompound } from '../../vendored/brepjs/topology/solidBuilders.js'
 import {
   extrude as vendoredExtrude,
   revolve as vendoredRevolve,
@@ -222,6 +224,19 @@ export const intersect = wrapGuarded('intersect', vendoredIntersect)
  * `fillet(shape, edgeHandles, radius)`.
  */
 export const fillet = wrapGuarded('fillet', vendoredFillet)
+
+/**
+ * Chamfer all edges (2-arg form) or selected edges (3-arg form) of a valid
+ * solid. Selection form: `chamfer(shape, edgeHandles, distance)` where
+ * distance is a symmetric length or an asymmetric `[d1, d2]` pair.
+ */
+export const chamfer = wrapGuarded('chamfer', vendoredChamfer)
+
+/**
+ * Group shapes into a single Compound: `makeCompound(shapeArray)` (the
+ * analogue of CadQuery's multi-solid compounds).
+ */
+export const makeCompound = wrapGuarded('makeCompound', vendoredMakeCompound)
 
 /**
  * Merge same-domain faces/edges (unifySameDomain) — the analogue of

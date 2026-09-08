@@ -1,6 +1,6 @@
 # cq-compat ⇄ CadQuery 对等验证方案（v1）
 
-> 状态：**实施中**（P0–P3 已落地；P2 首批 16 case / 27 var 端到端跑通，PASS 22 / FAIL 5；P4–P5 未开始。实测记录见 §11）
+> 状态：**实施中**（P0–P4 批次1 已落地；P2 镜像 55 var，PASS 50 + PASS-NT 1 / FAIL 4；P5 CI 接入已落地；P4 批次2（loft/revolve/多 pending-wire）未开始。实测记录见 §11）
 > 日期：2026-09-08
 > 范围：`packages/cq-compat`、`packages/mini_lathe`（受影响的消费方）
 
@@ -473,7 +473,47 @@ cq-compat 单测 16/16 通过。
 
 slide_top 的余差是移植脚本与上游 `slide_top.py` 的特征差异（ref 多 3 面 21 点），
 下一步按布尔差定位到具体 op 链；`verify-all.ts` 的过期断言（期望 slide_mid=2 leaf、
-依赖未入库的 legacy 工件）需同步改写。
+依赖未入库的 legacy 工件）已在本轮同步改写（§11.4）。
+
+### 11.4 P4 批次1 + P5（2026-09-08 下午）
+
+**新增 op（全部对照 cadquery 2.8.0 实测语义，配 `src/p4-ops.test.ts` 15 项单测）**：
+
+| op | 语义要点（实测验证） | 解锁用例 |
+|---|---|---|
+| `sphere(r, {centered, combine})` | eachpoint 多体；per-axis centered=角点落点；combine=False → compound | testSphereDefaults / testSphereCombine / test_combineWithBase / test_cutFromBase；testSphereCustom 仍 blocked（partial sphere 不支持，`narrow:sphere-angles`） |
+| `cylinder(h, r, {direct, angle, centered, combine})` | 偏移在局部系、再经 OCCT `gp_Ax3` 自动定向 R 旋转（6 轴向实测建表 `ax3Rotation`）；`angle≠360` 显式抛错 | testCylinderDefaults / testCylinderCentering / testCylinderCenteringAndDirection |
+| `rarray(xs, ys, xc, yc, center)` | 纯点阵推送，per-axis 居中 | testLegoBrick 仍 blocked（shell+多 pending-wire） |
+| `box()` 扩展 | eachpoint 多体 + `centered`/`combine` 参数（`combine=False` → compound） | testBoxPointList / test_getitem / test_invoke |
+| `chamfer(l, l2?)` | 边解析顺序 edgeSel → faceSel 选中面的边 → 全边；**`l2` 不支持**（occt-wasm 内核均匀距离，`resolveUniformRadius` 把 pair 降级为 d1）→ 显式抛错 | testChamfer / testChamferCylinder；testChamferAsymmetrical blocked（`narrow:chamfer-asym`） |
+| `cutThruAll()` | 双向贯穿（bbox 投影跨度 +1）；pushPoints 逐点重复切割（与 cutBlind 一致） | testCutThroughAll / testPointList |
+| `combine()` | cq-compat 在构建 op 内 eager-fuse，combine 退化为 clean（与上游 testCombine 预期一致） | testCombine / testCombineSolidsInLoop / testCubePlugin |
+| core：`brepjsCompat.chamfer` / `makeCompound` 投影 | 补齐 vendored brepjs 投影面缺失符号（与 fillet 同 wrapGuarded 机制） | — |
+
+**工具层修复（由镜像比对直接揪出）**：
+1. `step-compare.ts` / `assembly-compare.ts`：`readFileSync` 小文件走 8KB Buffer 池，
+   `buf.buffer` 把整池垃圾传给 `importStep` → **所有 <4KB 的 STEP 比对必失败**（3 个 sphere 用例 ERROR 的根因）。
+2. `run-cand.ts` 嵌套 `await` 实参不支持（`.fai.js` 语法的 E_VALUE）——镜像脚本一律拆行。
+
+**ref 导出语义澄清（§6.2 补充）**：ref 插件导出 `val()` = upstream `objects[0]`。
+eachpoint `combine=False` 的多体用例（testSpherePointList / test_getitem / test_invoke /
+testBoxPointList），ref STEP 只含**第一个实体**——镜像按此对齐（注释注明完整 compound
+由单测覆盖）。
+
+**当前指标**：镜像 55 var（16+16 case）→ **PASS 50 + PASS-NT 1 / FAIL 4；parity = 51/650 = 7.85%**；
+coverage：PORTABLE 138 / PORTABLE-WITH-STUB 36 / BLOCKED 131；
+manifest：55 ported / 595 blocked（pending:mirror 288）/ 47 skipped。
+cq-compat 单测 **31/31 通过**；mini_lathe verify-all 全部通过（无回归）。
+剩余 4 FAIL 均为预期缺口：testNestedCircle / testTwoWorkplanes×2（多 pending-wire）、
+testMultiFaceWorkplane（布尔差 0.100 恰在容差上，vol/拓扑全等，待查）。
+
+**P5 CI 接入**：`scripts/ci.ps1` `$testPackages` 加入 `@faicad/cq-compat`（ci.sh 走
+`--workspaces` 自动覆盖）；根 package.json 新增 `compat:ref` / `compat:cand` / `compat:report`。
+smoke fixture 入库（P5 的 vitest 接入部分）仍未开始。
+
+**P4 批次2 方向（按 blockedBy 频次）**：loft(18)/revolve(4)——brepjs 投影面已有
+`revolve`/`loft` 符号可接；moved(75) 属 Solid/free-function 面（非 Workplane op），
+需要独立评估；多 pending-wire（nestedCircle/twoWorkplanes）是自研缺口。
 
 ## 附录：关键命令（均已在本会话实际执行验证）
 

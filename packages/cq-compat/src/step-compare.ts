@@ -116,8 +116,13 @@ export async function compareStepFiles(
 
   const bufA = readFileSync(fileA)
   const bufB = readFileSync(fileB)
-  const shapeA = kernel.importStep(bufA.buffer as ArrayBuffer)
-  const shapeB = kernel.importStep(bufB.buffer as ArrayBuffer)
+  // readFileSync returns pooled Buffers for small files: buf.buffer is the
+  // whole 8KB pool (with garbage beyond byteLength), which makes importStep
+  // fail on every STEP < ~4KB (e.g. single-sphere files). Pass an exact copy.
+  const exact = (buf: Buffer): ArrayBuffer =>
+    buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer
+  const shapeA = kernel.importStep(exact(bufA))
+  const shapeB = kernel.importStep(exact(bufB))
 
   // 1. Bounding box
   const bboxA = kernel.getBoundingBox(shapeA)

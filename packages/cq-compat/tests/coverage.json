@@ -2,17 +2,13 @@
   "totalCasesInRefManifest": 305,
   "casesWithStep": 297,
   "casesWithoutStep": 8,
-  "portableNow": 115,
-  "portableWithStub": 33,
-  "blocked": 149,
+  "portableNow": 136,
+  "portableWithStub": 36,
+  "blocked": 125,
   "blockedByTop": [
     [
       "moved",
       16
-    ],
-    [
-      "sphere",
-      10
     ],
     [
       "close",
@@ -27,10 +23,6 @@
       7
     ],
     [
-      "cutThruAll",
-      6
-    ],
-    [
       "load",
       6
     ],
@@ -43,16 +35,8 @@
       6
     ],
     [
-      "combine",
-      4
-    ],
-    [
-      "cylinder",
-      4
-    ],
-    [
-      "rarray",
-      4
+      "split",
+      5
     ],
     [
       "revolve",
@@ -63,11 +47,11 @@
       4
     ],
     [
-      "chamfer",
+      "eachpoint",
       3
     ],
     [
-      "eachpoint",
+      "move",
       3
     ],
     [
@@ -87,14 +71,6 @@
       2
     ],
     [
-      "split",
-      2
-    ],
-    [
-      "move",
-      2
-    ],
-    [
       "sweep",
       2
     ],
@@ -105,6 +81,30 @@
     [
       "ellipse",
       2
+    ],
+    [
+      "tag",
+      2
+    ],
+    [
+      "text",
+      2
+    ],
+    [
+      "face",
+      2
+    ],
+    [
+      "solve",
+      2
+    ],
+    [
+      "wire",
+      1
+    ],
+    [
+      "narrow:chamfer-asym",
+      1
     ]
   ],
   "missingOpTop": [
@@ -113,16 +113,8 @@
       22
     ],
     [
-      "sphere",
-      14
-    ],
-    [
       "close",
       13
-    ],
-    [
-      "cutThruAll",
-      10
     ],
     [
       "importStep",
@@ -135,14 +127,6 @@
     [
       "loft",
       8
-    ],
-    [
-      "cylinder",
-      7
-    ],
-    [
-      "rarray",
-      6
     ],
     [
       "load",
@@ -169,11 +153,11 @@
       5
     ],
     [
-      "move",
+      "tag",
       5
     ],
     [
-      "tag",
+      "move",
       5
     ],
     [
@@ -185,10 +169,6 @@
       4
     ],
     [
-      "combine",
-      4
-    ],
-    [
       "revolve",
       4
     ],
@@ -197,16 +177,36 @@
       4
     ],
     [
-      "chamfer",
-      3
-    ],
-    [
       "interpPlate",
       3
     ],
     [
       "threePointArc",
       3
+    ],
+    [
+      "polyline",
+      3
+    ],
+    [
+      "eachpoint",
+      3
+    ],
+    [
+      "sweep",
+      3
+    ],
+    [
+      "mirrorX",
+      3
+    ],
+    [
+      "twistExtrude",
+      3
+    ],
+    [
+      "importBrep",
+      2
     ]
   ],
   "cases": {
@@ -340,8 +340,8 @@
     },
     "tests.test_cadquery::TestCadQuery::testChamfer": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "chamfer",
+      "category": "PORTABLE-WITH-STUB",
+      "blockedBy": null,
       "ops": [
         "chamfer"
       ],
@@ -352,7 +352,7 @@
     "tests.test_cadquery::TestCadQuery::testChamferAsymmetrical": {
       "status": "exported",
       "category": "BLOCKED",
-      "blockedBy": "chamfer",
+      "blockedBy": "narrow:chamfer-asym",
       "ops": [
         "chamfer"
       ],
@@ -362,8 +362,8 @@
     },
     "tests.test_cadquery::TestCadQuery::testChamferCylinder": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "chamfer",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "chamfer",
         "extrude",
@@ -440,8 +440,8 @@
     },
     "tests.test_cadquery::TestCadQuery::testCombine": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "combine",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "extrude",
         "rect",
@@ -456,8 +456,8 @@
     },
     "tests.test_cadquery::TestCadQuery::testCombineSolidsInLoop": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "combine",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "extrude",
         "rect",
@@ -555,8 +555,8 @@
     },
     "tests.test_cadquery::TestCadQuery::testCubePlugin": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "combine",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "rect",
         "box",
@@ -635,8 +635,8 @@
     },
     "tests.test_cadquery::TestCadQuery::testCutThroughAll": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "cutThruAll",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "extrude",
         "circle",
@@ -666,8 +666,8 @@
     },
     "tests.test_cadquery::TestCadQuery::testCylinderCentering": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "cylinder",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "cylinder"
       ],
@@ -679,8 +679,8 @@
     },
     "tests.test_cadquery::TestCadQuery::testCylinderCenteringAndDirection": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "cylinder",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "cylinder"
       ],
@@ -690,8 +690,8 @@
     },
     "tests.test_cadquery::TestCadQuery::testCylinderDefaults": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "cylinder",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "cylinder"
       ],
@@ -1007,8 +1007,8 @@
     },
     "tests.test_cadquery::TestCadQuery::testLegoBrick": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "rarray",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "box",
         "shell",
@@ -1243,8 +1243,8 @@
     },
     "tests.test_cadquery::TestCadQuery::testPointList": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "cutThruAll",
+      "category": "PORTABLE-WITH-STUB",
+      "blockedBy": null,
       "ops": [
         "cutThruAll",
         "circle"
@@ -1283,8 +1283,8 @@
     },
     "tests.test_cadquery::TestCadQuery::testPolygonPlugin": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "cutThruAll",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "cutThruAll",
         "rect",
@@ -1590,8 +1590,8 @@
     },
     "tests.test_cadquery::TestCadQuery::testSphereCombine": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "sphere",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "sphere",
         "rect"
@@ -1603,7 +1603,7 @@
     "tests.test_cadquery::TestCadQuery::testSphereCustom": {
       "status": "exported",
       "category": "BLOCKED",
-      "blockedBy": "sphere",
+      "blockedBy": "narrow:sphere-angles",
       "ops": [
         "sphere"
       ],
@@ -1615,8 +1615,8 @@
     },
     "tests.test_cadquery::TestCadQuery::testSphereDefaults": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "sphere",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "sphere"
       ],
@@ -1626,8 +1626,8 @@
     },
     "tests.test_cadquery::TestCadQuery::testSpherePointList": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "sphere",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "sphere",
         "rect"
@@ -1653,7 +1653,7 @@
     "tests.test_cadquery::TestCadQuery::testSplitKeepingBoth": {
       "status": "exported",
       "category": "BLOCKED",
-      "blockedBy": "cutThruAll",
+      "blockedBy": "split",
       "ops": [
         "cutThruAll",
         "circle",
@@ -1668,7 +1668,7 @@
     "tests.test_cadquery::TestCadQuery::testSplitKeepingBottom": {
       "status": "exported",
       "category": "BLOCKED",
-      "blockedBy": "cutThruAll",
+      "blockedBy": "split",
       "ops": [
         "cutThruAll",
         "circle",
@@ -1683,7 +1683,7 @@
     "tests.test_cadquery::TestCadQuery::testSplitKeepingHalf": {
       "status": "exported",
       "category": "BLOCKED",
-      "blockedBy": "cutThruAll",
+      "blockedBy": "split",
       "ops": [
         "cutThruAll",
         "circle",
@@ -1730,7 +1730,7 @@
     "tests.test_cadquery::TestCadQuery::testTagSelectors": {
       "status": "exported",
       "category": "BLOCKED",
-      "blockedBy": "sphere",
+      "blockedBy": "tag",
       "ops": [
         "sphere",
         "tag",
@@ -2138,8 +2138,8 @@
     },
     "tests.test_cadquery::TestCadQuery::test_combineWithBase": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "sphere",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "box",
         "sphere"
@@ -2161,8 +2161,8 @@
     },
     "tests.test_cadquery::TestCadQuery::test_cutFromBase": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "sphere",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "box",
         "sphere"
@@ -2207,8 +2207,8 @@
     },
     "tests.test_cadquery::TestCadQuery::test_getitem": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "rarray",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "box",
         "rarray"
@@ -2236,8 +2236,8 @@
     },
     "tests.test_cadquery::TestCadQuery::test_invoke": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "rarray",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "box",
         "rarray"
@@ -2248,8 +2248,8 @@
     },
     "tests.test_cadquery::TestCadQuery::test_iterators": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "combine",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "box",
         "polygon",
@@ -3082,7 +3082,7 @@
     "tests.test_selectors::TestCQSelectors::testBaseDirSelector": {
       "status": "exported",
       "category": "BLOCKED",
-      "blockedBy": "sphere",
+      "blockedBy": "move",
       "ops": [
         "sphere",
         "box",
@@ -3196,8 +3196,8 @@
     },
     "tests.test_selectors::TestCQSelectors::testLengthNthSelector_UnsupportedShapes": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "rarray",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "box",
         "rarray"
@@ -3423,8 +3423,8 @@
     },
     "tests.test_assembly:::test_meta_step_export": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "cylinder",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "cylinder",
         "box"
@@ -3952,8 +3952,8 @@
     },
     "tests.test_assembly:::test_infinite_face_constraint_Plane": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "sphere",
+      "category": "PORTABLE-WITH-STUB",
+      "blockedBy": null,
       "ops": [
         "sphere"
       ],
@@ -4058,8 +4058,8 @@
     },
     "tests.test_assembly:::test_order_of_transform": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "sphere",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "sphere"
       ],
@@ -4226,6 +4226,48 @@
       "fellBack": false
     },
     {
+      "case": "tests.test_cadquery::TestCadQuery::testChamferCylinder",
+      "ops": [
+        "chamfer",
+        "extrude",
+        "circle"
+      ],
+      "vars": [
+        "cylinder"
+      ],
+      "fellBack": false
+    },
+    {
+      "case": "tests.test_cadquery::TestCadQuery::testCombine",
+      "ops": [
+        "extrude",
+        "rect",
+        "translate",
+        "combine",
+        "add"
+      ],
+      "vars": [
+        "objects1",
+        "objects2"
+      ],
+      "fellBack": false
+    },
+    {
+      "case": "tests.test_cadquery::TestCadQuery::testCombineSolidsInLoop",
+      "ops": [
+        "extrude",
+        "rect",
+        "combine",
+        "center"
+      ],
+      "vars": [
+        "s",
+        "t",
+        "oo"
+      ],
+      "fellBack": false
+    },
+    {
       "case": "tests.test_cadquery::TestCadQuery::testCompSolid",
       "ops": [],
       "vars": [
@@ -4268,6 +4310,18 @@
       "fellBack": false
     },
     {
+      "case": "tests.test_cadquery::TestCadQuery::testCubePlugin",
+      "ops": [
+        "rect",
+        "box",
+        "combine"
+      ],
+      "vars": [
+        "result"
+      ],
+      "fellBack": false
+    },
+    {
       "case": "tests.test_cadquery::TestCadQuery::testCut",
       "ops": [
         "extrude",
@@ -4302,6 +4356,23 @@
       "fellBack": false
     },
     {
+      "case": "tests.test_cadquery::TestCadQuery::testCutThroughAll",
+      "ops": [
+        "extrude",
+        "circle",
+        "rect",
+        "cutThruAll",
+        "transformed",
+        "workplane",
+        "sphere"
+      ],
+      "vars": [
+        "r",
+        "t"
+      ],
+      "fellBack": false
+    },
+    {
       "case": "tests.test_cadquery::TestCadQuery::testCutToFaceOffsetNOTIMPLEMENTEDYET",
       "ops": [
         "extrude",
@@ -4310,6 +4381,38 @@
       ],
       "vars": [
         "r"
+      ],
+      "fellBack": false
+    },
+    {
+      "case": "tests.test_cadquery::TestCadQuery::testCylinderCentering",
+      "ops": [
+        "cylinder"
+      ],
+      "vars": [
+        "s",
+        "s0",
+        "s1"
+      ],
+      "fellBack": false
+    },
+    {
+      "case": "tests.test_cadquery::TestCadQuery::testCylinderCenteringAndDirection",
+      "ops": [
+        "cylinder"
+      ],
+      "vars": [
+        "s"
+      ],
+      "fellBack": false
+    },
+    {
+      "case": "tests.test_cadquery::TestCadQuery::testCylinderDefaults",
+      "ops": [
+        "cylinder"
+      ],
+      "vars": [
+        "s"
       ],
       "fellBack": false
     },
@@ -4429,6 +4532,22 @@
       "fellBack": false
     },
     {
+      "case": "tests.test_cadquery::TestCadQuery::testLegoBrick",
+      "ops": [
+        "box",
+        "shell",
+        "extrude",
+        "circle",
+        "rarray",
+        "workplane"
+      ],
+      "vars": [
+        "s",
+        "tmp"
+      ],
+      "fellBack": false
+    },
+    {
       "case": "tests.test_cadquery::TestCadQuery::testMakeShellSolid",
       "ops": [],
       "vars": [
@@ -4493,6 +4612,19 @@
       ],
       "vars": [
         "result"
+      ],
+      "fellBack": false
+    },
+    {
+      "case": "tests.test_cadquery::TestCadQuery::testPolygonPlugin",
+      "ops": [
+        "cutThruAll",
+        "rect",
+        "workplane",
+        "box"
+      ],
+      "vars": [
+        "s"
       ],
       "fellBack": false
     },
@@ -4594,6 +4726,38 @@
       "vars": [
         "r",
         "t"
+      ],
+      "fellBack": false
+    },
+    {
+      "case": "tests.test_cadquery::TestCadQuery::testSphereCombine",
+      "ops": [
+        "sphere",
+        "rect"
+      ],
+      "vars": [
+        "s"
+      ],
+      "fellBack": false
+    },
+    {
+      "case": "tests.test_cadquery::TestCadQuery::testSphereDefaults",
+      "ops": [
+        "sphere"
+      ],
+      "vars": [
+        "s"
+      ],
+      "fellBack": false
+    },
+    {
+      "case": "tests.test_cadquery::TestCadQuery::testSpherePointList",
+      "ops": [
+        "sphere",
+        "rect"
+      ],
+      "vars": [
+        "s"
       ],
       "fellBack": false
     },
@@ -4744,10 +4908,36 @@
       "fellBack": false
     },
     {
+      "case": "tests.test_cadquery::TestCadQuery::test_combineWithBase",
+      "ops": [
+        "box",
+        "sphere"
+      ],
+      "vars": [
+        "box",
+        "sphere",
+        "new_box"
+      ],
+      "fellBack": false
+    },
+    {
       "case": "tests.test_cadquery::TestCadQuery::test_compound_faces_center",
       "ops": [],
       "vars": [
         "compound"
+      ],
+      "fellBack": false
+    },
+    {
+      "case": "tests.test_cadquery::TestCadQuery::test_cutFromBase",
+      "ops": [
+        "box",
+        "sphere"
+      ],
+      "vars": [
+        "box",
+        "sphere",
+        "hoolow_box"
       ],
       "fellBack": false
     },
@@ -4766,6 +4956,44 @@
       ],
       "vars": [
         "part2"
+      ],
+      "fellBack": false
+    },
+    {
+      "case": "tests.test_cadquery::TestCadQuery::test_getitem",
+      "ops": [
+        "box",
+        "rarray"
+      ],
+      "vars": [
+        "w"
+      ],
+      "fellBack": false
+    },
+    {
+      "case": "tests.test_cadquery::TestCadQuery::test_invoke",
+      "ops": [
+        "box",
+        "rarray"
+      ],
+      "vars": [
+        "w"
+      ],
+      "fellBack": false
+    },
+    {
+      "case": "tests.test_cadquery::TestCadQuery::test_iterators",
+      "ops": [
+        "box",
+        "polygon",
+        "pushPoints",
+        "combine"
+      ],
+      "vars": [
+        "w",
+        "s",
+        "c",
+        "fs"
       ],
       "fellBack": false
     },
@@ -5080,6 +5308,18 @@
       "fellBack": false
     },
     {
+      "case": "tests.test_selectors::TestCQSelectors::testLengthNthSelector_UnsupportedShapes",
+      "ops": [
+        "box",
+        "rarray"
+      ],
+      "vars": [
+        "w0",
+        "val"
+      ],
+      "fellBack": false
+    },
+    {
       "case": "tests.test_selectors::TestCQSelectors::testNthDistance",
       "ops": [
         "box",
@@ -5139,6 +5379,25 @@
         "metadata_assy"
       ],
       "fellBack": true
+    },
+    {
+      "case": "tests.test_assembly:::test_meta_step_export",
+      "ops": [
+        "cylinder",
+        "box"
+      ],
+      "vars": [
+        "subsubassy",
+        "cone_1",
+        "cone_2",
+        "subassy",
+        "cylinder_1",
+        "cylinder_2",
+        "assy",
+        "cube_1",
+        "cube_2"
+      ],
+      "fellBack": false
     },
     {
       "case": "tests.test_assembly:::test_meta_step_export_edge_cases",
@@ -5321,6 +5580,18 @@
       "fellBack": false
     },
     {
+      "case": "tests.test_assembly:::test_order_of_transform",
+      "ops": [
+        "sphere"
+      ],
+      "vars": [
+        "marker",
+        "m1",
+        "m2"
+      ],
+      "fellBack": false
+    },
+    {
       "case": "tests.test_assembly:::test_step_export_filesize",
       "ops": [],
       "vars": [
@@ -5400,6 +5671,24 @@
   ],
   "stubCases": [
     {
+      "case": "tests.test_cadquery::TestCadQuery::testChamfer",
+      "ops": [
+        "chamfer"
+      ],
+      "vars": [
+        "cube"
+      ],
+      "helpers": [
+        "makeUnitCube",
+        "makeCube"
+      ],
+      "helperOps": [
+        "extrude",
+        "rect"
+      ],
+      "helperMissing": []
+    },
+    {
       "case": "tests.test_cadquery::TestCadQuery::testCounterBores",
       "ops": [
         "cboreHole",
@@ -5448,6 +5737,26 @@
       ],
       "vars": [
         "r"
+      ],
+      "helpers": [
+        "makeUnitCube",
+        "makeCube"
+      ],
+      "helperOps": [
+        "extrude",
+        "rect"
+      ],
+      "helperMissing": []
+    },
+    {
+      "case": "tests.test_cadquery::TestCadQuery::testPointList",
+      "ops": [
+        "cutThruAll",
+        "circle"
+      ],
+      "vars": [
+        "c",
+        "body"
       ],
       "helpers": [
         "makeUnitCube",
@@ -5958,6 +6267,20 @@
       ],
       "helperOps": [],
       "helperMissing": []
+    },
+    {
+      "case": "tests.test_assembly:::test_infinite_face_constraint_Plane",
+      "ops": [
+        "sphere"
+      ],
+      "vars": [
+        "assy"
+      ],
+      "helpers": [
+        "solve_result_check"
+      ],
+      "helperOps": [],
+      "helperMissing": []
     }
   ],
   "blockedCases": [
@@ -5967,8 +6290,7 @@
       "missing": [
         "wire",
         "close",
-        "lineTo",
-        "cutThruAll"
+        "lineTo"
       ],
       "deps": []
     },
@@ -5981,27 +6303,9 @@
       "deps": []
     },
     {
-      "case": "tests.test_cadquery::TestCadQuery::testChamfer",
-      "blockedBy": "chamfer",
-      "missing": [
-        "chamfer"
-      ],
-      "deps": []
-    },
-    {
       "case": "tests.test_cadquery::TestCadQuery::testChamferAsymmetrical",
-      "blockedBy": "chamfer",
-      "missing": [
-        "chamfer"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_cadquery::TestCadQuery::testChamferCylinder",
-      "blockedBy": "chamfer",
-      "missing": [
-        "chamfer"
-      ],
+      "blockedBy": "narrow:chamfer-asym",
+      "missing": [],
       "deps": []
     },
     {
@@ -6011,9 +6315,6 @@
         "close",
         "line",
         "moveTo",
-        "cutThruAll",
-        "sphere",
-        "cylinder",
         "interpPlate",
         "wedge"
       ],
@@ -6040,34 +6341,10 @@
       "deps": []
     },
     {
-      "case": "tests.test_cadquery::TestCadQuery::testCombine",
-      "blockedBy": "combine",
-      "missing": [
-        "combine"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_cadquery::TestCadQuery::testCombineSolidsInLoop",
-      "blockedBy": "combine",
-      "missing": [
-        "combine"
-      ],
-      "deps": []
-    },
-    {
       "case": "tests.test_cadquery::TestCadQuery::testCopyWorkplane",
       "blockedBy": "copyWorkplane",
       "missing": [
         "copyWorkplane"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_cadquery::TestCadQuery::testCubePlugin",
-      "blockedBy": "combine",
-      "missing": [
-        "combine"
       ],
       "deps": []
     },
@@ -6089,39 +6366,6 @@
       "deps": []
     },
     {
-      "case": "tests.test_cadquery::TestCadQuery::testCutThroughAll",
-      "blockedBy": "cutThruAll",
-      "missing": [
-        "cutThruAll",
-        "sphere"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_cadquery::TestCadQuery::testCylinderCentering",
-      "blockedBy": "cylinder",
-      "missing": [
-        "cylinder"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_cadquery::TestCadQuery::testCylinderCenteringAndDirection",
-      "blockedBy": "cylinder",
-      "missing": [
-        "cylinder"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_cadquery::TestCadQuery::testCylinderDefaults",
-      "blockedBy": "cylinder",
-      "missing": [
-        "cylinder"
-      ],
-      "deps": []
-    },
-    {
       "case": "tests.test_cadquery::TestCadQuery::testDoubleTwistedLoft",
       "blockedBy": "loft",
       "missing": [
@@ -6134,9 +6378,7 @@
       "blockedBy": "eachpoint",
       "missing": [
         "eachpoint",
-        "moved",
-        "cutThruAll",
-        "sphere"
+        "moved"
       ],
       "deps": []
     },
@@ -6187,14 +6429,6 @@
       "deps": []
     },
     {
-      "case": "tests.test_cadquery::TestCadQuery::testLegoBrick",
-      "blockedBy": "rarray",
-      "missing": [
-        "rarray"
-      ],
-      "deps": []
-    },
-    {
       "case": "tests.test_cadquery::TestCadQuery::testLocatedMoved",
       "blockedBy": "located",
       "missing": [
@@ -6235,8 +6469,6 @@
         "close",
         "line",
         "moveTo",
-        "sphere",
-        "cylinder",
         "interpPlate",
         "wedge"
       ],
@@ -6280,26 +6512,10 @@
       "deps": []
     },
     {
-      "case": "tests.test_cadquery::TestCadQuery::testPointList",
-      "blockedBy": "cutThruAll",
-      "missing": [
-        "cutThruAll"
-      ],
-      "deps": []
-    },
-    {
       "case": "tests.test_cadquery::TestCadQuery::testPolarArray",
       "blockedBy": "polarArray",
       "missing": [
         "polarArray"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_cadquery::TestCadQuery::testPolygonPlugin",
-      "blockedBy": "cutThruAll",
-      "missing": [
-        "cutThruAll"
       ],
       "deps": []
     },
@@ -6392,41 +6608,14 @@
       "case": "tests.test_cadquery::TestCadQuery::testSlot2D",
       "blockedBy": "slot2D",
       "missing": [
-        "slot2D",
-        "cutThruAll"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_cadquery::TestCadQuery::testSphereCombine",
-      "blockedBy": "sphere",
-      "missing": [
-        "sphere"
+        "slot2D"
       ],
       "deps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testSphereCustom",
-      "blockedBy": "sphere",
-      "missing": [
-        "sphere"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_cadquery::TestCadQuery::testSphereDefaults",
-      "blockedBy": "sphere",
-      "missing": [
-        "sphere"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_cadquery::TestCadQuery::testSpherePointList",
-      "blockedBy": "sphere",
-      "missing": [
-        "sphere"
-      ],
+      "blockedBy": "narrow:sphere-angles",
+      "missing": [],
       "deps": []
     },
     {
@@ -6441,27 +6630,24 @@
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testSplitKeepingBoth",
-      "blockedBy": "cutThruAll",
+      "blockedBy": "split",
       "missing": [
-        "cutThruAll",
         "split"
       ],
       "deps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testSplitKeepingBottom",
-      "blockedBy": "cutThruAll",
+      "blockedBy": "split",
       "missing": [
-        "cutThruAll",
         "split"
       ],
       "deps": []
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testSplitKeepingHalf",
-      "blockedBy": "cutThruAll",
+      "blockedBy": "split",
       "missing": [
-        "cutThruAll",
         "split"
       ],
       "deps": []
@@ -6484,9 +6670,8 @@
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testTagSelectors",
-      "blockedBy": "sphere",
+      "blockedBy": "tag",
       "missing": [
-        "sphere",
         "tag"
       ],
       "deps": []
@@ -6608,24 +6793,7 @@
       "blockedBy": "end",
       "missing": [
         "end",
-        "tag",
-        "cylinder"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_cadquery::TestCadQuery::test_combineWithBase",
-      "blockedBy": "sphere",
-      "missing": [
-        "sphere"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_cadquery::TestCadQuery::test_cutFromBase",
-      "blockedBy": "sphere",
-      "missing": [
-        "sphere"
+        "tag"
       ],
       "deps": []
     },
@@ -6638,35 +6806,11 @@
       "deps": []
     },
     {
-      "case": "tests.test_cadquery::TestCadQuery::test_getitem",
-      "blockedBy": "rarray",
-      "missing": [
-        "rarray"
-      ],
-      "deps": []
-    },
-    {
       "case": "tests.test_cadquery::TestCadQuery::test_interpPlate",
       "blockedBy": "interpPlate",
       "missing": [
         "interpPlate",
         "close"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_cadquery::TestCadQuery::test_invoke",
-      "blockedBy": "rarray",
-      "missing": [
-        "rarray"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_cadquery::TestCadQuery::test_iterators",
-      "blockedBy": "combine",
-      "missing": [
-        "combine"
       ],
       "deps": []
     },
@@ -6899,8 +7043,7 @@
       "case": "tests.test_selectors::TestCQSelectors::testAreaNthSelector_Shells",
       "blockedBy": "eachpoint",
       "missing": [
-        "eachpoint",
-        "rarray"
+        "eachpoint"
       ],
       "deps": []
     },
@@ -6908,16 +7051,14 @@
       "case": "tests.test_selectors::TestCQSelectors::testAreaNthSelector_Solids",
       "blockedBy": "eachpoint",
       "missing": [
-        "eachpoint",
-        "rarray"
+        "eachpoint"
       ],
       "deps": []
     },
     {
       "case": "tests.test_selectors::TestCQSelectors::testBaseDirSelector",
-      "blockedBy": "sphere",
+      "blockedBy": "move",
       "missing": [
-        "sphere",
         "move"
       ],
       "deps": []
@@ -6935,14 +7076,6 @@
       "blockedBy": "ellipse",
       "missing": [
         "ellipse"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_selectors::TestCQSelectors::testLengthNthSelector_UnsupportedShapes",
-      "blockedBy": "rarray",
-      "missing": [
-        "rarray"
       ],
       "deps": []
     },
@@ -6967,14 +7100,6 @@
       "blockedBy": "importStep",
       "missing": [
         "importStep"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_assembly:::test_meta_step_export",
-      "blockedBy": "cylinder",
-      "missing": [
-        "cylinder"
       ],
       "deps": []
     },
@@ -7198,14 +7323,6 @@
       "deps": []
     },
     {
-      "case": "tests.test_assembly:::test_infinite_face_constraint_Plane",
-      "blockedBy": "sphere",
-      "missing": [
-        "sphere"
-      ],
-      "deps": []
-    },
-    {
       "case": "tests.test_assembly:::test_constraint_validation",
       "blockedBy": "constrain",
       "missing": [
@@ -7227,14 +7344,6 @@
       "blockedBy": "solve",
       "missing": [
         "solve"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_assembly:::test_order_of_transform",
-      "blockedBy": "sphere",
-      "missing": [
-        "sphere"
       ],
       "deps": []
     }

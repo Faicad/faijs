@@ -109,8 +109,10 @@ function main() {
         // blocked only because the mirror script hasn't been written yet.
         // The generic 'op:unported' from a previous machine-generated run is
         // NOT preserved (only human-written annotations survive).
+        // Always recompute from the latest coverage analysis — machine values
+        // must never go stale (a previously-missing op that has since been
+        // implemented flips the case to pending:mirror automatically).
         blockedBy:
-          (prior?.blockedBy && prior.blockedBy !== 'op:unported' ? prior.blockedBy : undefined) ??
           covCase?.blockedBy ??
           (covCase?.category === 'PORTABLE' || covCase?.category === 'PORTABLE-WITH-STUB'
             ? 'pending:mirror'

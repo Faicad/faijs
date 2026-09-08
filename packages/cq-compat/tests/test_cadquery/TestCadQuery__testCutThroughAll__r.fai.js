@@ -1,0 +1,16 @@
+// source: test_cadquery.py::TestCadQuery::testCutThroughAll (var r, FINAL value)
+// r is reassigned to the drilled sphere: Workplane().sphere(10).workplane()
+//   .circle(5).cutThruAll().workplane().transformed(rotate=(90,0,0)).circle(5)
+//   .cutThruAll().workplane().transformed(rotate=(0,90,0)).circle(5).cutThruAll()
+// -> 3 mutually perpendicular Ø10 holes, 7 faces.
+import * as cq from '@faicad/cq-compat'
+let s0 = await cq.sphere(cq.Workplane(), 10)
+let w1 = await cq.workplane(s0)
+let h1 = await cq.cutThruAll(cq.circle(w1, 5))
+let w2 = await cq.workplane(h1)
+let w3 = await cq.transformed(w2, { rotate: [90, 0, 0] })
+let h2 = await cq.cutThruAll(cq.circle(w3, 5))
+let w4 = await cq.workplane(h2)
+let w5 = await cq.transformed(w4, { rotate: [0, 90, 0] })
+let r = await cq.cutThruAll(cq.circle(w5, 5))
+let result = cq.val(r)
