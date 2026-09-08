@@ -27,7 +27,7 @@ import type { StdlibNamespace } from '../runtime-state'
 import type { PartName } from '../identity'
 import { asPartName } from '../identity'
 import { ParseError } from '../lang/parse-error'
-import { setCurrentStmt, setKeepSink, setName, getBackends, takePendingAssemblyTransforms, takePendingAssemblyKinematics, type AssemblyKinematicsPose, type ExecutionAnchor } from '../runtime-state'
+import { setCurrentStmt, setKeepSink, setName, nameOf, getBackends, takePendingAssemblyTransforms, takePendingAssemblyKinematics, type AssemblyKinematicsPose, type ExecutionAnchor } from '../runtime-state'
 import { ExecutionLimitError } from './execution-limit-error'
 import { getSlot, ensureSlot, brepOf } from '../shape'
 import type { Shape } from '../mesh/types'
@@ -461,6 +461,11 @@ export class DirectExecutor {
         const member = children[t.index]
         const name = memberNames[t.index]
         if (!member || typeof member !== 'object') continue
+        // 变量名 = solidCache/faceEvolutionCache 的键（语句产出时 setName 登记，与
+        // 逐单元 setSolid 同步同源）。装配 memberNames 是 CadQuery 风格的短名
+        // （约束 DSL 引用用），不能当缓存键用——否则更新写空、变量名键仍指向
+        // 已 release 的悬空句柄（导出阶段 buildBrepTopology → INVALID_SHAPE_ID）。
+        const varName = nameOf(member) as string | undefined
         // mesh 原地变换（保留同一对象引用，ctx 与 compound.children 同步看到变更）
         Object.assign(member, applyTransform(member, t.quaternion, t.pivot, t.translation, t.rotationMatrix))
         // BREP 刚体变换（可选）：新 solid 写身份槽 + solidCache（T3）
@@ -469,9 +474,13 @@ export class DirectExecutor {
           const transformed = applyTransformBrep(kernel, solid, t.quaternion, t.pivot, t.translation)
           try { kernel.release(solid) } catch { /* 已释放 */ }
           ensureSlot(member).solid = transformed
-          if (name) this.setSolidHook?.(asPartName(name), transformed)
+          const cacheKey = varName ?? name
+          if (cacheKey) this.setSolidHook?.(asPartName(cacheKey), transformed)
         }
+        // changed 以变量名键登记（宿主按变量名刷新 statementCache/场景）；成员名
+        // 不同时也保留，兼容按成员名消费位姿的宿主（P3 kinematics 语义不变）。
         if (name) this.changedSet.add(name)
+        if (varName && varName !== name) this.changedSet.add(varName)
       }
     }
     // P3：装配运动副位姿（joints 驱动）——成员名 → pose，collectDirectResult 消费。

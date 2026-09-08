@@ -216,3 +216,38 @@ describe('cliRun: assembly STEP export preserves member names', () => {
     }
   }, 60000)
 })
+
+describe('cliRun: assembly do_assemble with explicit short memberNames', () => {
+  // 回归：solve/do_assemble 应用变换后，solidCache 必须以成员"变量名"键同步
+  // （shapeToName 反查），不能用 CadQuery 风格短名 memberNames——否则变量名键
+  // 仍指向已 release 的悬空句柄，导出阶段 buildBrepTopology → INVALID_SHAPE_ID。
+  // 修复前本测试 failedAt；修复后求解位姿应用 + STEP 导出成功且成员名保真。
+  it('applies solved transforms and exports without INVALID_SHAPE_ID', async () => {
+    const code = [
+      `let part0 = cad.box(10, 10, 10, { centered: true })`,
+      `let part1 = cad.box(10, 10, 10, { centered: true, at: [0, 0, 20] })`,
+      `let asm = cad.assembly({ name: 'A', members: [part0, part1], memberNames: ['left', 'right'], constraints: [{ type: 'mate', a: { part: 'left', face: { surfaceType: 'plane', center: [0, 0, 5], normal: [0, 0, 1] } }, b: { part: 'right', face: { surfaceType: 'plane', center: [0, 0, 15], normal: [0, 0, -1] } } }] })`,
+      `asm.do_assemble()`,
+      `let result = asm`,
+    ].join('\n')
+    const tmpFile = resolve(TMP_DIR, 'asm-solve-short-names.fai.js')
+    writeFileSync(tmpFile, code)
+    const outPath = resolve(TMP_DIR, 'asm-solve-short-names.step')
+
+    const result = await cliRun(tmpFile, outPath, { mode: 'brep', libs: CAD_LIBS })
+    expect(result.ok).toBe(true)
+    expect(result.outputFormat).toBe('step')
+
+    const { initOcctWasm, importAssemblyFromStep, collectLeafParts, releaseAssemblyTree } = await import('@faicad/faijs-core')
+    const kernel = await initOcctWasm()
+    const buf = readFileSync(outPath)
+    const nodes = await importAssemblyFromStep(buf.buffer as ArrayBuffer)
+    try {
+      const leaves = collectLeafParts(nodes).filter((n) => n.shapeHandle !== null)
+      const names = leaves.map((l) => l.name).sort()
+      expect(names).toEqual(['left', 'right'])
+    } finally {
+      releaseAssemblyTree(kernel, nodes)
+    }
+  }, 60000)
+})
