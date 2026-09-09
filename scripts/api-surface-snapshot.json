@@ -447,7 +447,6 @@
     "convexHull",
     "copy",
     "createBrowserPorts",
-    "createDirectoryProjectLoader",
     "createMixedTextGeometry",
     "createNamedPlane",
     "createPlane",

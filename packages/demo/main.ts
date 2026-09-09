@@ -13,8 +13,14 @@
 
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { createRuntime, createBrowserPorts, setOcctWasmInitFn, ensureOcctKernel, exportStepFromSolid, exportStep, buildStlBufferFromMesh, deriveNormals, setManifoldWasmUrl, isMeshShape, createDirectoryProjectLoader, type DirectoryProjectLoader, type FsDirectoryHandleLike } from '@faicad/faijs/browser'
+import { createRuntime, createBrowserPorts, setOcctWasmInitFn, ensureOcctKernel, exportStepFromSolid, exportStep, buildStlBufferFromMesh, deriveNormals, setManifoldWasmUrl, isMeshShape } from '@faicad/faijs/browser'
 import type { ExecutionMode, HostPorts, ShapeHandle, OcctKernel, ExecutionResult, LibLoader, StdlibNamespace } from '@faicad/faijs/browser'
+// 项目加载器（folder 通道）：自 core 迁入 demo 应用层（§1，P1 搬家）
+import { createFolderProjectLoader } from './src/project/folder-loader'
+import { createZipProjectLoader } from './src/project/zip-loader'
+import { pickEntryKey } from './src/project/shared'
+import { pickProjectDirectory, type PickedDirectory } from './src/project/pick'
+import type { DemoProjectLoader } from './src/project/types'
 import { OcctKernel as OcctKernelValue } from 'occt-wasm'
 import fontUrl from './assets/fonts/OpenSans-Regular.ttf?url'
 // P 四（4.4）：gear-lib-demo 静态引用——供 LIB_MODULES 映射表引用 + 打包。
@@ -98,7 +104,9 @@ const codeEditor = document.getElementById('code-editor') as HTMLTextAreaElement
 const runBtn = document.getElementById('run-btn') as HTMLButtonElement
 const openBtn = document.getElementById('open-btn') as HTMLButtonElement
 const openDirBtn = document.getElementById('open-dir-btn') as HTMLButtonElement
+const openZipBtn = document.getElementById('open-zip-btn') as HTMLButtonElement
 const fileInput = document.getElementById('file-input') as HTMLInputElement
+const zipInput = document.getElementById('zip-input') as HTMLInputElement
 const exampleSelect = document.getElementById('example-select') as HTMLSelectElement
 const statusBar = document.getElementById('status-bar') as HTMLDivElement
 const btnStep = document.getElementById('btn-step') as HTMLButtonElement
@@ -500,8 +508,8 @@ btnStl.addEventListener('click', () => {
 type ProjectState = {
   /** 文件夹名（状态栏显示，如 mini_lathe） */
   rootName: string
-  /** 目录句柄 ProjectLoader（挂载即枚举模块清单） */
-  loader: DirectoryProjectLoader
+  /** 项目加载器（folder/zip 通道共用 DemoProjectLoader；挂载即枚举模块清单） */
+  loader: DemoProjectLoader
   /** 模块清单快照（loader.listModules()） */
   keys: string[]
   /** 当前选中的入口 key；null = 非项目模式（single-file 行为不变） */
@@ -510,20 +518,19 @@ type ProjectState = {
 
 let project: ProjectState | null = null
 
-/** 目录选择结果（含 name 显示；取消/拒绝 → null 并提示）。 */
-type PickedFsDirectory = FsDirectoryHandleLike & { name?: string }
-
-function pickProjectFolder(): Promise<PickedFsDirectory | null> {
-  const w = window as unknown as {
-    showDirectoryPicker?: (opts?: { mode?: 'read' | 'readwrite' }) => Promise<PickedFsDirectory>
-  }
-  if (typeof w.showDirectoryPicker !== 'function') {
-    setStatus('File System Access API 不可用（需要 Chrome/Edge 或 localhost/HTTPS）', 'error')
-    return Promise.resolve(null)
-  }
-  return w.showDirectoryPicker({ mode: 'read' }).catch((err: unknown) => {
+/** 目录选择：FSA 能力缺失/取消/拒绝授权在 pick.ts 内一致处理；此处只呈现文案。 */
+function pickProjectFolder(): Promise<PickedDirectory | null> {
+  return pickProjectDirectory().then((picked) => {
+    // 用户取消 / 拒绝授权：pick 返回 null（不抛）。给出可读文案，页面不崩、不进入项目。
+    if (!picked) {
+      setStatus('未授权访问文件夹: 用户取消或拒绝授权', 'error')
+      return null
+    }
+    return picked
+  }).catch((err: unknown) => {
+    // 能力缺失：pick 抛出的文案即「File System Access API 不可用（…）」，原样呈现
     const msg = err instanceof Error ? err.message : String(err)
-    setStatus(`未授权访问文件夹: ${msg}`, 'error')
+    setStatus(msg, 'error')
     return null
   })
 }
@@ -561,15 +568,15 @@ async function openProjectFolder() {
   if (!handle) return // 取消/API 缺失已 handled（含提示）
   const rootName = typeof handle.name === 'string' && handle.name ? handle.name : 'project'
   try {
-    const loader = await createDirectoryProjectLoader(handle)
+    const loader = await createFolderProjectLoader(handle)
     const keys = loader.listModules()
     if (keys.length === 0) {
       project = null
       setStatus(`目录 "${rootName}" 下没有 .fai.js 文件`, 'error')
       return
     }
-    // 默认入口：src/assembly.fai.js 优先（装配项目约定），否则第一个 key
-    const entryKey = keys.includes('src/assembly.fai.js') ? 'src/assembly.fai.js' : keys[0]
+    // 默认入口：pickEntryKey 优先 src/assembly.fai.js（装配项目约定），否则路径兜底
+    const entryKey = pickEntryKey(keys) ?? ''
     project = { rootName, loader, keys, entryKey }
     populateProjectOptions(keys, entryKey)
     await selectProjectEntry(entryKey)
@@ -581,6 +588,43 @@ async function openProjectFolder() {
 }
 
 openDirBtn.addEventListener('click', () => void openProjectFolder())
+
+// ── 项目压缩包（Open Zip，browser ProjectLoader 多文件 §4.5 / P2 通道）──
+
+/** 打开 zip 项目：读字节 → createZipProjectLoader → 同一套 entryKey 流程执行。 */
+async function openProjectZip(file: File) {
+  // rootName 规则：文件名去掉尾部 `.zip`（不区分大小写），空则回落 'project'
+  const zipName = file.name.replace(/\.zip$/i, '') || 'project'
+  try {
+    const data = await file.arrayBuffer()
+    const loader = await createZipProjectLoader(data)
+    const keys = loader.listModules()
+    if (keys.length === 0) {
+      project = null
+      setStatus(`压缩包 "${zipName}" 内没有 .fai.js 文件`, 'error')
+      return
+    }
+    // 入口启发式与 folder 通道共用（pickEntryKey）
+    const entryKey = pickEntryKey(keys) ?? ''
+    project = { rootName: zipName, loader, keys, entryKey }
+    populateProjectOptions(keys, entryKey)
+    await selectProjectEntry(entryKey)
+  } catch (err) {
+    project = null
+    const msg = err instanceof Error ? err.message : String(err)
+    setStatus(`打开压缩包失败: ${msg}`, 'error')
+  }
+}
+
+openZipBtn.addEventListener('click', () => zipInput.click())
+
+zipInput.addEventListener('change', () => {
+  const file = zipInput.files?.[0]
+  // 允许重复选择同一文件（清空 input 值使其 change 可再次触发）
+  zipInput.value = ''
+  if (!file) return
+  void openProjectZip(file)
+})
 
 // ── Event handlers ──
 

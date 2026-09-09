@@ -78,7 +78,7 @@ $tmpVitest = [System.IO.Path]::GetTempFileName()
 # 其计时器同样被冻结, 见 p23-cad-face)。每个测试工作区单跑, 外层套进程级看门狗:
 # 任一处完不成 5 分钟预算即杀进程树并判失败, CI 绝不被一个死循环测试永久挂起。
 $testBudgetMs = if ($env:FAIJS_TEST_BUDGET_MS) { [int]$env:FAIJS_TEST_BUDGET_MS } else { 300000 } # 5 分钟
-$testPackages = @('@faicad/faijs-core','@faicad/gear-lib-demo','@faicad/sheetmetal','@faicad/cq-compat','@faicad/faijs-tests')
+$testPackages = @('@faicad/faijs-core','@faicad/gear-lib-demo','@faicad/sheetmetal','@faicad/cq-compat','@faicad/faijs-tests','@faicad/faijs-demo')
 $stepFail = $false
 foreach ($pkg in $testPackages) {
     Write-Host "    -- $pkg（budget=${testBudgetMs}ms）"

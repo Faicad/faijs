@@ -6,11 +6,13 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "test": "vitest run",
     "test:e2e": "playwright test",
     "test:e2e:preview": "playwright test --config playwright.preview.config.ts"
   },
   "dependencies": {
     "@faicad/cq-compat": "file:../cq-compat",
+    "fflate": "^0.8.3",
     "manifold-3d": "^3.5.1",
     "occt-wasm": "^3.8.0",
     "three": "^0.184.0"
@@ -19,6 +21,7 @@
     "@playwright/test": "^1.62.1",
     "@types/three": "^0.184.1",
     "typescript": "^5.7.0",
-    "vite": "^6.0.0"
+    "vite": "^6.0.0",
+    "vitest": "*"
   }
 }

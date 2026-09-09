@@ -27,16 +27,6 @@ export { BrowserFontProvider } from './browser-font-provider'
 export type { BrowserFontProviderOptions } from './browser-font-provider'
 export { FetchAssetResolver } from './fetch-asset-resolver'
 export type { FetchAssetResolverOptions } from './fetch-asset-resolver'
-// 浏览器版 ProjectLoader（多文件 §4.5）：与 node-host 的 fs-project-loader 对称，
-// 把目录句柄（showDirectoryPicker / OPFS）当作 faijs 项目根。
-export { createDirectoryProjectLoader } from './directory-project-loader'
-export type {
-  DirectoryProjectLoader,
-  DirectoryProjectLoaderOptions,
-  FsDirectoryHandleLike,
-  FsFileHandleLike,
-  FsEntryHandleLike,
-} from './directory-project-loader'
 
 import type { HostPorts } from '../cad-runtime/ports'
 import { BrowserEventSink } from './browser-event-sink'

@@ -1,14 +1,14 @@
 # Agent Note: 浏览器 ProjectLoader + demo Open Folder — browser host 的多文件 `.fai.js` 支持
 
-Status: implemented
+Status: rejected — 宿主「项目文件从哪来」属应用层策略，不该放进 core（已迁至 packages/demo）；其中第 4 条 autoLiftFor 决策仍然有效，见 implemented/feature/2026-09-09-demo-local-folder-project.md
 
-[English](2026-09-09-browser-project-loader.md) | 中文
+[English](2026-09-09-browser-project-loader-in-core.md) | 中文
 
 ## 问题
 
 多文件能力（ModuleRegistry + `HostPorts.projectLoader`，P5）在 Node 侧接了真实文件系统（fs ProjectLoader + CLI wiring + entryKey），但 browser host 完全没有加载器：`createBrowserPorts` 不接受 `projectLoader`，任何带相对 `.fai.js` import 的脚本（如 mini_lathe 装配）在 demo 里都会因绑定缺失而失败。demo 也没有「打开项目文件夹」的入口，只能打开单文件。
 
-## 决定
+## 提案
 
 1. **`browser-host/directory-project-loader.ts`** —— `createDirectoryProjectLoader(rootHandle, opts?)` 把 File System Access API 目录句柄（`FsDirectoryHandleLike`）包装成 `ProjectLoader`。`listModules()` 同步且有缓存（ModuleRegistry 以不带 await 的方式调用它）；`refresh()` 重新枚举，保证每次 runCode 都看到最新内容。枚举用 `for await (… of handle.entries())`，只保留 `*.fai.js`，跳过 `node_modules`、`.git`、`out`、`dist`、`.wpblock`，key 用 POSIX 相对路径；loader 错误一律 `{ cause }` 包裹抛出（preserve-caught-error 规则）。
 2. **`createBrowserPorts`** —— 接受 `projectLoader` 并在 `HostPorts` 中回吐；缺省 `undefined`（单文件行为不变）。

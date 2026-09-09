@@ -1,7 +1,11 @@
 # Browser Host 多文件（§4.5）ProjectLoader 实现方案 — `.fai.js` 相对 import 的浏览器支持
 
-> 状态：**已落地**
+> 状态：**已废弃 —— 方向错误：把「宿主应用的文件来源策略」放进了引擎包 core**
 > 日期：2026-09-09
+> 替代方案：[2026-09-09-demo-local-folder-project-design.md](2026-09-09-demo-local-folder-project-design.md)
+> 说明：本方案虽已按文落地（commit `3a2a889`），但其核心决策（`createDirectoryProjectLoader`
+> 放进 `packages/core/src/browser-host/`）被否决——该实现在 core 内**零消费者**，唯一消费方是
+> `packages/demo`；浏览器的"项目文件从哪来"是宿主应用策略，不属于引擎。详见替代方案 §2。
 > 范围：`packages/core/src/browser-host`、`packages/demo`；参考 `packages/mini_lathe`、`C:\git\OpenCascade\BREP.io`
 > 上游能力：`1a7cb6e`（fs ProjectLoader + CLI wiring + entryKey）、`3f2b016`（mini_lathe 真实 .fai.js imports）
 

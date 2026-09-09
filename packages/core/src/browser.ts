@@ -115,15 +115,6 @@ export { BrowserFontProvider } from './browser-host/browser-font-provider'
 export type { BrowserFontProviderOptions } from './browser-host/browser-font-provider'
 export { FetchAssetResolver } from './browser-host/fetch-asset-resolver'
 export type { FetchAssetResolverOptions } from './browser-host/fetch-asset-resolver'
-// 浏览器版 ProjectLoader（多文件 §4.5）：目录句柄（showDirectoryPicker / OPFS）→ 项目根
-export { createDirectoryProjectLoader } from './browser-host/directory-project-loader'
-export type {
-  DirectoryProjectLoader,
-  DirectoryProjectLoaderOptions,
-  FsDirectoryHandleLike,
-  FsFileHandleLike,
-  FsEntryHandleLike,
-} from './browser-host/directory-project-loader'
 export { WorkerCsgBackend } from './browser-host/worker-csg-backend'
 export { WorkerSdfBackend } from './browser-host/worker-sdf-backend'
 

@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/rejected/architecture/2026-09-09-browser-project-loader-in-core.md
+2026-09-09-browser-project-loader-in-core.md: 4e4d8a2fa9b939310c5173c798cba8c3745907e3
+2026-09-09-browser-project-loader-in-core.zh.md: 0ee969aa58bfb8e3a1a1141b1618f03285864b7d

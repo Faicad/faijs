@@ -1,14 +1,14 @@
 # Agent Note: Browser ProjectLoader + demo Open Folder — multi-file `.fai.js` support in the browser host
 
-Status: implemented
+Status: rejected — 宿主「项目文件从哪来」属应用层策略，不该放进 core（已迁至 packages/demo）；其中第 4 条 autoLiftFor 决策仍然有效，见 implemented/feature/2026-09-09-demo-local-folder-project.md
 
-English | [中文](2026-09-09-browser-project-loader.zh.md)
+English | [中文](2026-09-09-browser-project-loader-in-core.zh.md)
 
 ## Problem
 
 The engine's multi-file support (ModuleRegistry + `HostPorts.projectLoader`, P5) was wired to the filesystem on the Node side (fs ProjectLoader + CLI + `entryKey`), but the browser host had no loader at all: `createBrowserPorts` accepted no `projectLoader`, so any script with relative `.fai.js` imports (e.g. the mini_lathe assembly) failed in the demo with missing bindings. The demo also had no way to open a project folder, only single files.
 
-## Decision
+## Proposal
 
 1. **`browser-host/directory-project-loader.ts`** — `createDirectoryProjectLoader(rootHandle, opts?)` wraps a File System Access API directory handle (`FsDirectoryHandleLike`) into a `ProjectLoader`. `listModules()` is synchronous and cached (the `ModuleRegistry` calls it without `await`); `refresh()` re-enumerates so every demo run sees current contents. Enumeration walks `for await (… of handle.entries())`, keeps only `*.fai.js` files, skips `node_modules`, `.git`, `out`, `dist`, `.wpblock`, builds POSIX-relative keys, and throws loader errors wrapped with `cause` (lint rule preserve-caught-error).
 2. **`createBrowserPorts`** — accepts `projectLoader` and returns it in `HostPorts`; absent → `undefined` (single-file behavior unchanged).
