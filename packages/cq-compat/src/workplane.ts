@@ -53,6 +53,18 @@ export type PendingWire =
   | { kind: 'rect'; w: number; d: number; cx: number; cy: number; construction: boolean; plane?: WirePlane }
   | { kind: 'circle'; radius: number; cx: number; cy: number; construction: boolean; plane?: WirePlane }
   | { kind: 'polygon'; n: number; d: number; cx: number; cy: number; construction: boolean; plane?: WirePlane }
+  /** Open/closed point ring produced by moveTo/lineTo/polyline + close()/wire(). */
+  | { kind: 'path'; pts: [number, number][]; construction: boolean; plane?: WirePlane }
+
+/**
+ * One drafted 2D edge, in workplane-LOCAL coordinates — the CadQuery
+ * `ctx.pendingEdges` analogue. Only straight segments today; arcs would add a
+ * discriminator here.
+ */
+export interface PendingEdge {
+  from: [number, number]
+  to: [number, number]
+}
 
 /**
  * Workplane carrier — object with a custom prototype so compatOp's
@@ -98,6 +110,23 @@ export interface Workplane {
    * fields above are kept for the (single-wire) legacy path.
    */
   pendingWires?: PendingWire[]
+  /**
+   * Drafted 2D edges waiting to be combined into a wire — CadQuery
+   * `ctx.pendingEdges`. Consumed by `wire()` / `close()`.
+   */
+  pendingEdges?: PendingEdge[]
+  /**
+   * Current drawing point in local coords — end of the last drafted edge, or
+   * the plane origin when nothing has been drawn yet (upstream
+   * `_findFromPoint`: last stack object, else `plane.origin`).
+   */
+  currentPoint?: [number, number]
+  /**
+   * First point of the wire currently being drafted, local coords — CadQuery
+   * `ctx.firstPoint`. Set by the first non-construction edge, cleared by
+   * `close()`.
+   */
+  firstPoint?: [number, number]
   /** Optional color (sRGB 0..1) for this part. */
   color?: RGB
 }
@@ -157,6 +186,19 @@ function localToWorld(
   py: number,
 ): [number, number, number] {
   return vadd(wp.origin, vadd(vscale(wp.xDir, px), vscale(wp.yDir, py)))
+}
+
+/**
+ * Reference points for eachpoint-style ops (box/sphere/cylinder/rect/circle/
+ * polygon). Upstream positions each new object at whatever sits on the stack:
+ * pushPoints() points win, otherwise the CURRENT DRAFTING POINT set by
+ * moveTo/move (e.g. `workplane.rect(1,1).extrude(2).moveTo(0,2).rect(1,1)` —
+ * `Workplane.testGlue`), otherwise the plane origin.
+ */
+function eachPoints(wp: Workplane): [number, number][] {
+  if (Array.isArray(wp.pts) && wp.pts.length > 0) return wp.pts
+  if (wp.currentPoint) return [wp.currentPoint]
+  return [[0, 0]] as [number, number][]
 }
 
 /** Snapshot the current plane so a pending wire survives later workplane() moves. */
@@ -387,6 +429,74 @@ export async function resolveFaceSelector(
   }
   const dir = axisDir[baseSel]
   const fallbackNormal = normals[baseSel] ?? ([0, 0, 1] as [number, number, number])
+
+  // ── Multi-axis direction selectors ("+XY", ">XZ", "-YZ" … cadquery
+  // selectors.py:625 axes table XY=(1,1,0) XZ=(1,0,1) YZ=(0,1,1)) ──
+  // '+'/'-' → DirectionSelector: only faces whose outward normal is PARALLEL
+  // to the (±) direction (angle < 1e-4 rad, selectors.py:234). '>'/'<' →
+  // DirectionMinMaxSelector (selectors.py:399): the face whose center of MASS
+  // is farthest along the direction. Index suffixes mean DirectionNthSelector
+  // there — not supported, throw instead of silently approximating.
+  const multi = /^([<>+-])(XY|XZ|YZ)$/.exec(baseSel)
+  if (multi) {
+    if (/\[-?\d+\]$/.test(sel.trim())) {
+      throw new Error(
+        `[cq-compat] selector "${sel}": indexed multi-axis selectors not supported`,
+      )
+    }
+    const axesTable: Record<string, [number, number, number]> = {
+      XY: [1, 1, 0],
+      XZ: [1, 0, 1],
+      YZ: [0, 1, 1],
+    }
+    let d = axesTable[multi[2]]
+    if (multi[1] === '-') d = [-d[0], -d[1], -d[2]]
+    const dLen = Math.hypot(d[0], d[1], d[2])
+    const dirV: [number, number, number] = [d[0] / dLen, d[1] / dLen, d[2] / dLen]
+    const handleM = brepOf(shape)
+    if (!handleM) {
+      throw new Error(`[cq-compat] selector "${sel}": BREP unavailable`)
+    }
+    const kernelM = getKernel() as unknown as OcctKernel
+    const faceList = kernelM.getSubShapes(handleM as unknown as ShapeHandle, 'face') as unknown as ShapeHandle[]
+    if (faceList.length === 0) {
+      throw new Error(`[cq-compat] selector "${sel}": shape has no faces`)
+    }
+    const faceNormalOf = (f: ShapeHandle): [number, number, number] => {
+      const uv = kernelM.uvBounds(f)
+      const n = kernelM.surfaceNormal(f, (uv.uMin + uv.uMax) / 2, (uv.vMin + uv.vMax) / 2)
+      return [n.x, n.y, n.z]
+    }
+    const comOf = (f: ShapeHandle): [number, number, number] => {
+      const c = kernelM.getSurfaceCenterOfMass(f)
+      return [c.x, c.y, c.z]
+    }
+    const dot = (a: [number, number, number], b: [number, number, number]): number =>
+      a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+
+    if (multi[1] === '+' || multi[1] === '-') {
+      // DirectionSelector: angle(normal, dir) < 1e-4 rad (selectors.py:235).
+      const PAR_TOL = Math.cos(1e-4)
+      const found = faceList.find((f) => dot(faceNormalOf(f), dirV) > PAR_TOL)
+      if (!found) {
+        throw new Error(
+          `[cq-compat] selector "${sel}": no face with normal parallel to the direction`,
+        )
+      }
+      return { center: comOf(found), normal: faceNormalOf(found) }
+    }
+    // '>'/'<': DirectionMinMaxSelector over center-of-mass projections.
+    let bestF: ShapeHandle | null = null
+    let bestVal = 0
+    for (const f of faceList) {
+      const val = dot(comOf(f), dirV)
+      if (!bestF || (multi[1] === '>' ? val > bestVal + 1e-9 : val < bestVal - 1e-9)) {
+        bestF = f
+        bestVal = val
+      }
+    }
+    return { center: comOf(bestF!), normal: faceNormalOf(bestF!) }
+  }
 
   // ── Face-based selection (BREP kernel available) ──
   try {
@@ -742,7 +852,7 @@ export async function box(
     c[1] ? 0 : (w / 2) * axes.x[1] + (d / 2) * axes.y[1] + (h / 2) * n[1],
     c[2] ? 0 : (w / 2) * axes.x[2] + (d / 2) * axes.y[2] + (h / 2) * n[2],
   ]
-  const points = Array.isArray(wp.pts) && wp.pts.length > 0 ? wp.pts : ([[0, 0]] as [number, number][])
+  const points = eachPoints(wp)
   const shapes: Shape[] = []
   for (const [px, py] of points) {
     const center = vadd(localToWorld(wp, px, py), off)
@@ -777,7 +887,7 @@ export async function sphere(
   // Local-frame offset: uncentered axis -> bbox corner on the point.
   const offLocal: [number, number, number] = [c[0] ? 0 : radius, c[1] ? 0 : radius, c[2] ? 0 : radius]
   const off = vadd(vadd(vscale(x, offLocal[0]), vscale(y, offLocal[1])), vscale(n, offLocal[2]))
-  const points = Array.isArray(wp.pts) && wp.pts.length > 0 ? wp.pts : ([[0, 0]] as [number, number][])
+  const points = eachPoints(wp)
   const shapes: Shape[] = []
   for (const [px, py] of points) {
     const center = vadd(localToWorld(wp, px, py), off)
@@ -856,7 +966,7 @@ export async function cylinder(
   const axis = map(d)
   const axisLen = Math.hypot(axis[0], axis[1], axis[2])
   const axisUnit: [number, number, number] = [axis[0] / axisLen, axis[1] / axisLen, axis[2] / axisLen]
-  const points = Array.isArray(wp.pts) && wp.pts.length > 0 ? wp.pts : ([[0, 0]] as [number, number][])
+  const points = eachPoints(wp)
   const shapes: Shape[] = []
   for (const [px, py] of points) {
     const base = vadd(localToWorld(wp, px, py), off)
@@ -977,7 +1087,7 @@ export function rect(
   const [cxOn, cyOn] = Array.isArray(centered) ? centered : [centered, centered]
   const ox = cxOn ? 0 : w / 2
   const oy = cyOn ? 0 : d / 2
-  const at = Array.isArray(wp.pts) && wp.pts.length > 0 ? wp.pts : ([[0, 0]] as [number, number][])
+  const at = eachPoints(wp)
   if (opts?.forConstruction) {
     // Construction rect: store corners for vertices() and edge midpoints for edges()
     return clone(wp, {
@@ -1021,7 +1131,7 @@ export function rect(
 export function circle(wp: Workplane, radius: number): Workplane {
   // CadQuery eachpoint semantics: with pushed points / selected vertices the
   // circle is created at EVERY point, and all of them land in pendingWires.
-  const at = Array.isArray(wp.pts) && wp.pts.length > 0 ? wp.pts : ([[0, 0]] as [number, number][])
+  const at = eachPoints(wp)
   return clone(wp, {
     forConstruction: false,
     pendingCircle: { radius },
@@ -1043,7 +1153,7 @@ export function polygon(wp: Workplane, n: number, d: number): Workplane {
   // CadQuery polygon(nSides, diameter): regular n-gon inscribed in a circle of
   // the given diameter, first vertex on local +X. The prism is materialized
   // when consumed by extrude()/cutBlind() (makePolygonPrismAt).
-  const at = Array.isArray(wp.pts) && wp.pts.length > 0 ? wp.pts : ([[0, 0]] as [number, number][])
+  const at = eachPoints(wp)
   return clone(wp, {
     forConstruction: false,
     pendingPolygon: { n, d },
@@ -1102,6 +1212,19 @@ function wireBBox(w: PendingWire): { minX: number; minY: number; maxX: number; m
       maxY: w.cy + w.d / 2,
     }
   }
+  if (w.kind === 'path') {
+    let minX = Infinity
+    let minY = Infinity
+    let maxX = -Infinity
+    let maxY = -Infinity
+    for (const p of w.pts) {
+      minX = Math.min(minX, p[0])
+      minY = Math.min(minY, p[1])
+      maxX = Math.max(maxX, p[0])
+      maxY = Math.max(maxY, p[1])
+    }
+    return { minX, minY, maxX, maxY }
+  }
   // polygon: circumradius = d/2 (n-gon inscribed in a circle of diameter d)
   const r = w.d / 2
   return { minX: w.cx - r, minY: w.cy - r, maxX: w.cx + r, maxY: w.cy + r }
@@ -1142,6 +1265,201 @@ function groupPendingWires(wires: PendingWire[]): { outer: PendingWire; holes: P
   return groups
 }
 
+// ── 2D drafting (CadQuery moveTo/lineTo/close/wire parity) ─────────────────
+
+/**
+ * Current drawing point in local coordinates.
+ *
+ * Upstream `_findFromPoint` returns the end point of the last stack object, or
+ * `plane.origin` when the stack is empty — hence the `[0, 0]` fallback.
+ */
+function currentLocalPoint(wp: Workplane): [number, number] {
+  return wp.currentPoint ?? ([0, 0] as [number, number])
+}
+
+/**
+ * Draft one straight edge from the current point to `to` and advance there.
+ *
+ * `forConstruction` edges still move the current point (upstream calls
+ * `newObject([edge])` unconditionally) but are NOT queued into `pendingEdges`
+ * and never set `firstPoint` — upstream only queues via `_addPendingEdge`.
+ */
+function draftEdge(wp: Workplane, to: [number, number], forConstruction: boolean): Workplane {
+  const from = currentLocalPoint(wp)
+  if (forConstruction) {
+    return clone(wp, { currentPoint: to })
+  }
+  const edges: PendingEdge[] = [...(wp.pendingEdges ?? []), { from, to }]
+  return clone(wp, {
+    pendingEdges: edges,
+    currentPoint: to,
+    firstPoint: wp.firstPoint ?? from,
+  })
+}
+
+/**
+ * moveTo — move the current point without drawing (CadQuery `Workplane.moveTo`).
+ * @param wp - Workplane
+ * @param x - target x in local coords (default 0)
+ * @param y - target y in local coords (default 0)
+ * @returns Workplane
+ */
+export function moveTo(wp: Workplane, x: number = 0, y: number = 0): Workplane {
+  return clone(wp, { currentPoint: [x, y] as [number, number] })
+}
+
+/**
+ * move2D — relative version of `moveTo` (CadQuery `Workplane.move`).
+ *
+ * NOTE: upstream spells this `move`, but the Shape-level `move` (the in-place
+ * twin of `moved`, which takes `Location` arguments) already owns that name in
+ * cq-compat, so the 2D drafting variant is exported as `move2D`.
+ *
+ * @param wp - Workplane
+ * @param xDist - x offset from the current point (default 0)
+ * @param yDist - y offset from the current point (default 0)
+ * @returns Workplane
+ */
+export function move2D(wp: Workplane, xDist: number = 0, yDist: number = 0): Workplane {
+  const p = currentLocalPoint(wp)
+  return moveTo(wp, p[0] + xDist, p[1] + yDist)
+}
+
+/**
+ * lineTo — draft a straight edge to an absolute local point
+ * (CadQuery `Workplane.lineTo`).
+ * @param wp - Workplane
+ * @param x - target x in local coords
+ * @param y - target y in local coords
+ * @param forConstruction - edge is reference geometry only (default false)
+ * @returns Workplane
+ */
+export function lineTo(wp: Workplane, x: number, y: number, forConstruction: boolean = false): Workplane {
+  return draftEdge(wp, [x, y], forConstruction)
+}
+
+/**
+ * line — draft a straight edge by a relative offset (CadQuery `Workplane.line`).
+ * @param wp - Workplane
+ * @param xDist - x offset from the current point
+ * @param yDist - y offset from the current point
+ * @param forConstruction - edge is reference geometry only (default false)
+ * @returns Workplane
+ */
+export function line(wp: Workplane, xDist: number, yDist: number, forConstruction: boolean = false): Workplane {
+  const p = currentLocalPoint(wp)
+  return draftEdge(wp, [p[0] + xDist, p[1] + yDist], forConstruction)
+}
+
+/** vLine — vertical (local +Y) relative line (CadQuery `Workplane.vLine`). */
+export function vLine(wp: Workplane, distance: number, forConstruction: boolean = false): Workplane {
+  return line(wp, 0, distance, forConstruction)
+}
+
+/** hLine — horizontal (local +X) relative line (CadQuery `Workplane.hLine`). */
+export function hLine(wp: Workplane, distance: number, forConstruction: boolean = false): Workplane {
+  return line(wp, distance, 0, forConstruction)
+}
+
+/** vLineTo — vertical line to an absolute local y (CadQuery `Workplane.vLineTo`). */
+export function vLineTo(wp: Workplane, yCoord: number, forConstruction: boolean = false): Workplane {
+  return lineTo(wp, currentLocalPoint(wp)[0], yCoord, forConstruction)
+}
+
+/** hLineTo — horizontal line to an absolute local x (CadQuery `Workplane.hLineTo`). */
+export function hLineTo(wp: Workplane, xCoord: number, forConstruction: boolean = false): Workplane {
+  return lineTo(wp, xCoord, currentLocalPoint(wp)[1], forConstruction)
+}
+
+/**
+ * polyline — draft a chain of edges through the given local points
+ * (CadQuery `Workplane.polyline`).
+ *
+ * `includeCurrent=false` (upstream default) treats the FIRST point as an
+ * implicit moveTo and only draws from it onward.
+ *
+ * @param wp - Workplane
+ * @param pts - local 2D points
+ * @param forConstruction - edges are reference geometry only (default false)
+ * @param includeCurrent - start from the current point (default false)
+ * @returns Workplane
+ */
+export function polyline(
+  wp: Workplane,
+  pts: [number, number][],
+  forConstruction: boolean = false,
+  includeCurrent: boolean = false,
+): Workplane {
+  if (!Array.isArray(pts) || pts.length === 0) return wp
+  let cur = wp
+  if (includeCurrent) {
+    for (const p of pts) cur = draftEdge(cur, [p[0], p[1]], forConstruction)
+    return cur
+  }
+  // Upstream: startPoint = pts[0] (no edge drawn), then edges to pts[1:].
+  cur = clone(cur, { currentPoint: [pts[0][0], pts[0][1]] as [number, number] })
+  for (const p of pts.slice(1)) cur = draftEdge(cur, [p[0], p[1]], forConstruction)
+  return cur
+}
+
+/**
+ * wire — combine all pending edges into one pending wire
+ * (CadQuery `Workplane.wire`). No-op when there are no free edges (upstream
+ * returns self unchanged in that case).
+ *
+ * @param wp - Workplane
+ * @param forConstruction - keep the wire out of the solid profile (default false)
+ * @returns Workplane
+ */
+export function wire(wp: Workplane, forConstruction: boolean = false): Workplane {
+  const edges = wp.pendingEdges ?? []
+  if (edges.length === 0) return wp
+  const pts: [number, number][] = []
+  for (const e of edges) {
+    if (pts.length === 0) pts.push([e.from[0], e.from[1]])
+    pts.push([e.to[0], e.to[1]])
+  }
+  // close() may already have appended the segment back to the first point;
+  // drop the duplicated vertex so the ring has no zero-length edge.
+  if (pts.length > 1) {
+    const a = pts[0]
+    const b = pts[pts.length - 1]
+    if (Math.hypot(a[0] - b[0], a[1] - b[1]) < 1e-9) pts.pop()
+  }
+  const w: PendingWire = {
+    kind: 'path',
+    pts,
+    construction: forConstruction,
+    plane: planeOf(wp),
+  }
+  return clone(wp, {
+    pendingEdges: [],
+    pendingWires: forConstruction ? wp.pendingWires : [...(wp.pendingWires ?? []), w],
+  })
+}
+
+/**
+ * close — end drafting and build a closed wire (CadQuery `Workplane.close`).
+ * Appends the closing segment when the end point is more than 1e-6 away from
+ * the first point (upstream threshold), then delegates to `wire()`.
+ *
+ * @param wp - Workplane
+ * @returns Workplane
+ */
+export function close(wp: Workplane): Workplane {
+  const end = currentLocalPoint(wp)
+  const start = wp.firstPoint
+  if (!start) {
+    throw new Error('[cq-compat] close: No start point specified - cannot close')
+  }
+  let cur = wp
+  if (Math.hypot(end[0] - start[0], end[1] - start[1]) > 1e-6) {
+    cur = draftEdge(cur, [start[0], start[1]], false)
+  }
+  cur = clone(cur, { firstPoint: undefined })
+  return wire(cur)
+}
+
 /** Build a brepjs wire for a pending 2D profile, in world coordinates. */
 async function buildProfileWire(wp: Workplane, w: PendingWire): Promise<unknown> {
   // Use the wire's own creation-plane snapshot when present (loft sections can
@@ -1157,6 +1475,22 @@ async function buildProfileWire(wp: Workplane, w: PendingWire): Promise<unknown>
     const center = localToWorld(pl, w.cx, w.cy)
     const edge = unwrapBrepResult(compatFn('makeCircle')(w.radius, center, n))
     return unwrapBrepResult(compatFn('assembleWire')([edge]))
+  }
+  if (w.kind === 'path') {
+    // Drafted ring: consecutive points are edges, last closes back to first.
+    // Zero-length segments (a close() that landed exactly on the start point)
+    // are skipped — OCCT rejects them in a wire.
+    const edges: unknown[] = []
+    for (let i = 0; i < w.pts.length; i++) {
+      const a = w.pts[i]
+      const b = w.pts[(i + 1) % w.pts.length]
+      if (Math.hypot(a[0] - b[0], a[1] - b[1]) < 1e-9) continue
+      edges.push(
+        unwrapBrepResult(compatFn('makeLine')(localToWorld(pl, a[0], a[1]), localToWorld(pl, b[0], b[1]))),
+      )
+    }
+    if (edges.length === 0) throw new Error('[cq-compat] buildProfileWire: degenerate path wire')
+    return unwrapBrepResult(compatFn('assembleWire')(edges))
   }
   const ring: [number, number][] =
     w.kind === 'rect'
@@ -1188,16 +1522,39 @@ async function buildProfileWire(wp: Workplane, w: PendingWire): Promise<unknown>
  * and unioned. Only used when more than one solid wire is pending — the
  * single-wire case keeps the legacy prism path (zero regression risk).
  */
-async function extrudePendingWires(wp: Workplane, height: number): Promise<Shape> {
-  const dir = Array.isArray(wp.normal) ? wp.normal : ([0, 0, 1] as [number, number, number])
-  const vec: [number, number, number] = [dir[0] * height, dir[1] * height, dir[2] * height]
+/** Rebuild a pending wire translated by `shift` in world space (used to place cut tools). */
+function shiftWire(w: PendingWire, wp: Workplane, shift: [number, number, number]): PendingWire {
+  const base = w.plane ?? {
+    origin: wp.origin,
+    xDir: wp.xDir,
+    yDir: wp.yDir,
+    normal: wp.normal,
+  }
+  return {
+    ...w,
+    plane: {
+      origin: [base.origin[0] + shift[0], base.origin[1] + shift[1], base.origin[2] + shift[2]],
+      xDir: base.xDir,
+      yDir: base.yDir,
+      normal: base.normal,
+    },
+  } as PendingWire
+}
+
+async function pendingPathPrism(
+  wp: Workplane,
+  vec: [number, number, number],
+  shift?: [number, number, number],
+): Promise<Shape> {
   const all = (wp.pendingWires ?? []).filter((w) => !w.construction)
   const groups = groupPendingWires(all)
   let result: Shape | null = null
   for (const g of groups) {
-    const outer = await buildProfileWire(wp, g.outer)
+    const outer = await buildProfileWire(wp, shift ? shiftWire(g.outer, wp, shift) : g.outer)
     const holeWires: unknown[] = []
-    for (const h of g.holes) holeWires.push(await buildProfileWire(wp, h))
+    for (const h of g.holes) {
+      holeWires.push(await buildProfileWire(wp, shift ? shiftWire(h, wp, shift) : h))
+    }
     const face = unwrapBrepResult(compatFn('makeFace')(outer, holeWires))
     const prism = unwrapBrepResult(compatFn('extrude')(face, vec))
     const solid = adoptBrepjsProduct(prism) as Shape
@@ -1205,6 +1562,17 @@ async function extrudePendingWires(wp: Workplane, height: number): Promise<Shape
   }
   if (!result) throw new Error('[cq-compat] extrude: no pending wire to extrude')
   return result
+}
+
+async function extrudePendingWires(wp: Workplane, height: number): Promise<Shape> {
+  const dir = Array.isArray(wp.normal) ? wp.normal : ([0, 0, 1] as [number, number, number])
+  const vec: [number, number, number] = [dir[0] * height, dir[1] * height, dir[2] * height]
+  return pendingPathPrism(wp, vec)
+}
+
+/** True when a drafted (moveTo/lineTo/close) wire is pending — legacy paths never use it. */
+function hasPathWire(wp: Workplane): boolean {
+  return (wp.pendingWires ?? []).some((w) => !w.construction && w.kind === 'path')
 }
 
 /**
@@ -1225,7 +1593,10 @@ export async function extrude(
   // CadQuery pendingWires LIST: nested wires form one holed face per outermost
   // wire. Single-wire cases fall through to the legacy prism path unchanged.
   const solidWires = (wp.pendingWires ?? []).filter((w) => !w.construction)
-  if (solidWires.length > 1) {
+  // A drafted path wire can never take the legacy single-slot path (there is no
+  // pendingRect/pendingCircle/pendingPolygon for it), so it always goes through
+  // the pendingWires LIST path. Everything else keeps the old condition.
+  if (solidWires.length > 1 || hasPathWire(wp)) {
     const base = wp.shape
     wp = await applyPendingFacePlane(wp)
     const prism = await extrudePendingWires(wp, height)
@@ -1268,8 +1639,7 @@ export async function extrude(
     const OVERLAP = 0.1
     // If we have a pending profile on an existing shape, create and union
     if (wp.pendingPolygon || wp.pendingRect || wp.pendingCircle) {
-      const ptsArr = Array.isArray(wp.pts) ? wp.pts : []
-      const points = ptsArr.length > 0 ? ptsArr : ([[0, 0]] as [number, number][])
+      const points = eachPoints(wp)
       let shape = base
       let separate: Shape | null = null
       for (const [px, py] of points) {
@@ -1516,7 +1886,7 @@ export async function cutBlind(
   let result = base
   // CadQuery semantics: pushPoints() before cutBlind() repeats the cut at every
   // point. With no pushed points, the cut happens at the workplane origin.
-  const ptsArr = Array.isArray(wp.pts) && wp.pts.length > 0 ? wp.pts : ([[0, 0]] as [number, number][])
+  const ptsArr = eachPoints(wp)
   for (const [px, py] of ptsArr) {
     const cutWp: Workplane = {
       ...wp,
@@ -1524,7 +1894,15 @@ export async function cutBlind(
       normal: invNormal,
     }
     let tool: Shape
-    if (wp.pendingCircle) {
+    if (hasPathWire(wp)) {
+      // Drafted wire (moveTo/lineTo/polyline + close): extrude the profile into
+      // the cut tool along the (inverted) workplane normal.
+      tool = await pendingPathPrism(wp, [
+        invNormal[0] * absDepth,
+        invNormal[1] * absDepth,
+        invNormal[2] * absDepth,
+      ])
+    } else if (wp.pendingCircle) {
       tool = await makeCylinderAt(cutWp, wp.pendingCircle.radius, absDepth)
     } else if (wp.pendingRect) {
       tool = await makeBoxAt(cutWp, wp.pendingRect.w, wp.pendingRect.d, absDepth)
@@ -1557,7 +1935,7 @@ export async function cutThruAll(wp: Workplane): Promise<Workplane> {
   if (!wp.shape) return wp
   const base = wp.shape
   wp = await applyPendingFacePlane(wp)
-  if (!wp.pendingCircle && !wp.pendingRect && !wp.pendingPolygon) {
+  if (!wp.pendingCircle && !wp.pendingRect && !wp.pendingPolygon && !hasPathWire(wp)) {
     throw new Error('[cq-compat] cutThruAll requires a pending 2D profile')
   }
   const n = Array.isArray(wp.normal) ? wp.normal : ([0, 0, 1] as [number, number, number])
@@ -1577,13 +1955,23 @@ export async function cutThruAll(wp: Workplane): Promise<Workplane> {
   // CadQuery semantics: pushPoints() before cutThruAll() repeats the cut at
   // every point (mirrors cutBlind). With no pushed points, one cut at the
   // workplane origin.
-  const ptsArr = Array.isArray(wp.pts) && wp.pts.length > 0 ? wp.pts : ([[0, 0]] as [number, number][])
+  const ptsArr = eachPoints(wp)
   let shape = base
   for (const [px, py] of ptsArr) {
     // Tool base at point - n·B, extending 2B along +n — covers both directions.
     const thruWp: Workplane = { ...wp, origin: vsub(localToWorld(wp, px, py), vscale(n, B)) }
     let tool: Shape
-    if (wp.pendingCircle) {
+    if (hasPathWire(wp)) {
+      // Drafted wire: the tool must span the whole solid along the normal and
+      // start B below the workplane — same envelope as the primitive tools.
+      // The profile lives on its own creation plane, so the offset goes into
+      // the prism base, not into wp.origin.
+      tool = await pendingPathPrism(
+        wp,
+        [n[0] * 2 * B, n[1] * 2 * B, n[2] * 2 * B],
+        vscale(n, -B),
+      )
+    } else if (wp.pendingCircle) {
       tool = await makeCylinderAt(thruWp, wp.pendingCircle.radius, 2 * B)
     } else if (wp.pendingRect) {
       tool = await makeBoxAt(thruWp, wp.pendingRect.w, wp.pendingRect.d, 2 * B)
@@ -1616,8 +2004,7 @@ export async function hole(
   const totalHeight = Math.abs(vdot(ext, wp.normal)) + 4
   const holeHeight = depth ?? totalHeight
 
-  const ptsArr = Array.isArray(wp.pts) ? wp.pts : []
-  const points = ptsArr.length > 0 ? ptsArr : [[0, 0]] as [number, number][]
+  const points = eachPoints(wp)
   let result = wp.shape
 
   for (const [px, py] of points) {
@@ -1833,12 +2220,25 @@ export async function workplane(
   if (opts?.offset) {
     newOrigin = vadd(newOrigin, vscale(normal, opts.offset))
   }
-  const axes = faceAxes(normal)
+  // Upstream Workplane.workplane `_computeXdir`: xDir = (0,0,1)×normal, or
+  // (1,0,0) when the face is parallel with the XY plane (degenerate cross);
+  // then yDir = normal×xDir. Verified to reproduce FACE_AXES for all six axis
+  // normals while also supporting arbitrary (e.g. faces("+XY") diagonal) ones.
+  let xDir: [number, number, number] = [1, 0, 0]
+  const crLen = Math.hypot(normal[1], normal[0])
+  if (crLen > 1e-9) {
+    xDir = [-normal[1] / crLen, normal[0] / crLen, 0]
+  }
+  const yDir: [number, number, number] = [
+    normal[1] * xDir[2] - normal[2] * xDir[1],
+    normal[2] * xDir[0] - normal[0] * xDir[2],
+    normal[0] * xDir[1] - normal[1] * xDir[0],
+  ]
   return clone(wp, {
     origin: newOrigin,
     normal,
-    xDir: axes.x,
-    yDir: axes.y,
+    xDir,
+    yDir,
     faceSel: null,
     edgeSel: null,
     vertexSel: null,

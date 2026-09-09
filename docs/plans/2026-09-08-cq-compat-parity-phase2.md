@@ -849,3 +849,43 @@ npx tsx tests/run-cand.ts && npx tsx tests/compare.ts
 # 单用例取证（阶段 C）
 npx tsx packages/cq-compat/scripts/compare-step.ts <ref>.step <cand>.step --json
 ```
+
+### 7.23 阶段 H — 2D wire 基础 ✅ 完成（2026-09-09 晚）
+
+**实现**（`packages/cq-compat/src/workplane.ts`）：
+
+- `Workplane` 新增 `currentPoint` / `firstPoint` / `pendingEdges` 草图状态与
+  `PendingWire` 的 `path` 种类（世界坐标顶点序列 + 创建时平面快照）。
+- 新 op：`moveTo` / `move2D`（上游 `move` 与 Shape 级 `move` 重名，故改名）/
+  `lineTo` / `line` / `vLine` / `hLine` / `vLineTo` / `hLineTo` / `polyline` /
+  `close` / `wire`。`close()` 仅当终点距首点 >1e-6 才补闭合段，语义对齐
+  cadquery `Workplane.close`；`wire()` 无自由边时为 no-op。
+- `buildProfileWire` / `wireBBox` 支持 `path`；`extrude` / `cutBlind` /
+  `cutThruAll` 的 drafted-wire 分支接入（工具体沿法向包络 + OVERLAP 融合）。
+- **eachpoint 口径统一**：新增 `eachPoints(wp)`（pushPoints > currentPoint >
+  plane origin），替换 `rect` / `box` / `sphere` / `cylinder` / `polygon` /
+  `extrude` boss 分支 / `cutBlind` / `cutThruAll` / `hole` 共 10 处取值点——
+  上游这些都是 eachpoint op，`moveTo` 之后必须建在新当前点上
+  （`Workplane.testGlue` 实证：`moveTo(0,2).rect(1,1).extrude(2)` 的第二个
+  rect 建在 (0,2)）。
+- **多轴方向选择器**（`resolveFaceSelector`）：`+XY`/`+XZ`/`+YZ`/`-XY`… =
+  DirectionSelector（法向平行过滤，角容差 1e-4 rad，selectors.py:234）；
+  `>XY`/`<XZ`… = DirectionMinMaxSelector（CoM·dir 最值，selectors.py:399）。
+  带索引后缀的多轴选择器不支持，显式抛错。`workplane()` 的 xDir 改用上游
+  `_computeXdir` 规则（(0,0,1)×normal，退化取 (1,0,0)），六轴法向结果与原
+  `FACE_AXES` 表完全一致，同时支持斜法向。
+
+**新镜像（14 var）**：testTriangularPrism s、testRevolveCone result、
+testBasicLines r/r1/r2（r1/r2 依赖多轴选择器）、testGlue box1/box2/obj/res、
+testIsInsideSolid void/model/solid、test_mirror_face r、
+testWorkplaneCenterOptions r。
+
+**指标**：PASS 171 → **183**（+12），PASS-NT 2 → **4**（testBasicLines r1/r2，
+vol Δ ~3e-7），FAIL 2 → **0**（testGlue obj/res 曾因 eachpoint 口径短暂 FAIL，
+修复后过），parity 26.62% → **28.77%**，`ported` 173 → **187**。
+cq-compat 单测 54 → **62**（新增 `wire2d.test.ts` 8 项）全绿。
+
+**阶段 H 后仍 blocked 的 2D 邻接项**（需阶段 I op）：testClose a/b/obj1/obj2
+（sagittaArc/threePointArc）、testTangentArcToPoint s0–s2（tangentArcPoint）、
+testSplineShape r（spline）、testClean/testNoClean s（clean 语义）、
+testClosedShell s1–s4（shell 组）、test_map_apply_filter_sort w（solids()）。

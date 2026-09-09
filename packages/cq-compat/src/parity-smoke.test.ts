@@ -18,7 +18,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { describe, it, expect } from 'vitest'
-import { compareStepFiles } from './step-compare.ts'
+import { compareStepFiles } from './step-compare'
 
 const execFileAsync = promisify(execFile)
 

@@ -1,0 +1,17 @@
+// source: test_cadquery.py::TestCadQuery::testBasicLines (var r2, FINAL value)
+// r2 = r1.faces("+Z").workplane(centerOption="CenterOfMass")
+//        .circle(0.08).cutThruAll()
+// ref (probed): vol 0.109170, com (0.342, 0.342, 0.125), 9 faces.
+import * as cq from '@faicad/cq-compat'
+let w1 = cq.lineTo(cq.Workplane('XY'), 1, 0)
+let w2 = await cq.lineTo(w1, 0, 1)
+let w3 = await cq.close(w2)
+let w4 = await cq.wire(w3)
+let r = await cq.extrude(w4, 0.25)
+let f1 = cq.faces(r, '+XY')
+let wp1 = await cq.workplane(f1, { centerOption: 'CenterOfMass' })
+let r1 = await cq.cutThruAll(cq.circle(wp1, 0.08))
+let f2 = cq.faces(r1, '+Z')
+let wp2 = await cq.workplane(f2, { centerOption: 'CenterOfMass' })
+let r2 = await cq.cutThruAll(cq.circle(wp2, 0.08))
+let result = cq.val(r2)
