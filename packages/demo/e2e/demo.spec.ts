@@ -1,4 +1,5 @@
-import { readFile } from 'node:fs/promises'
+import { readFile, readdir } from 'node:fs/promises'
+import { join } from 'node:path'
 import { test, expect, type Page } from '@playwright/test'
 
 /**
@@ -13,6 +14,7 @@ const SELECTOR = {
   editor: '#code-editor',
   runBtn: '#run-btn',
   openBtn: '#open-btn',
+  openDirBtn: '#open-dir-btn',
   fileInput: '#file-input',
   exampleSelect: '#example-select',
   statusBar: '#status-bar',
@@ -37,6 +39,63 @@ async function waitForStatusOk(page: Page, timeout = 120_000) {
 async function runCode(page: Page) {
   await page.locator(SELECTOR.runBtn).click()
   await waitForStatusOk(page)
+}
+
+// ── Open Folder（browser ProjectLoader 多文件 §4.5）e2e helpers ──
+// Playwright 无法驱动真实 showDirectoryPicker 系统对话框；OPFS 根与 picker 返回
+// 的目录句柄**接口同构**（kind/entries()/getDirectoryHandle/getFileHandle/getFile）。
+// 方案：addInitScript 把 showDirectoryPicker stub 为返回 OPFS 根，文件树用真实
+// OPFS API（createWritable）写入 → 全链路真实数据流。
+
+/** stub showDirectoryPicker → OPFS 根（须在 page.goto() 之前调用）。 */
+function stubShowDirectoryPickerAsOpfs(page: Page) {
+  return page.addInitScript(() => {
+    Object.defineProperty(window, 'showDirectoryPicker', {
+      value: async () => (navigator as unknown as { storage: { getDirectory(): unknown } }).storage.getDirectory(),
+      configurable: true,
+    })
+  })
+}
+
+/** 在 OPFS 根页面上重建项目树（先清空，再递归建目录 + 写文件）。 */
+async function seedOpfsProject(page: Page, files: Record<string, string>) {
+  await page.evaluate(async (entries) => {
+    const root = await (navigator as any).storage.getDirectory()
+    for await (const [name] of root.entries()) {
+      await root.removeEntry(name, { recursive: true }).catch(() => {})
+    }
+    for (const [rel, text] of Object.entries(entries)) {
+      const segs = rel.split('/')
+      let dir = root
+      for (const seg of segs.slice(0, -1)) {
+        dir = await dir.getDirectoryHandle(seg, { create: true })
+      }
+      const fh = await dir.getFileHandle(segs[segs.length - 1], { create: true })
+      const w = await fh.createWritable()
+      await w.write(text)
+      await w.close()
+    }
+  }, files)
+}
+
+/** 读取某个 .fai.js 项目目录树：相对项目根 POSIX key → 源码文本（供 OPFS 种子）。 */
+async function readFaiProjectTree(dirUrl: URL): Promise<Record<string, string>> {
+  const files: Record<string, string> = {}
+  const walk = async (dir: URL, base: string) => {
+    for (const ent of await readdir(dir, { withFileTypes: true })) {
+      if (ent.isDirectory()) {
+        const sub = new URL(`${ent.name}/`, dir)
+        await walk(sub, base ? `${base}/${ent.name}` : ent.name)
+      } else if (ent.name.endsWith('.fai.js')) {
+        files[base ? `${base}/${ent.name}` : ent.name] = await readFile(new URL(ent.name, dir), 'utf-8')
+      }
+    }
+  }
+  await walk(dirUrl, '')
+  // 排序固定顺序（readdir 顺序不保证）
+  const out: Record<string, string> = {}
+  for (const key of Object.keys(files).sort()) out[key] = files[key]
+  return out
 }
 
 test.describe('faijs demo', () => {
@@ -168,11 +227,22 @@ test.describe('faijs demo', () => {
     await page.goto('/')
     await waitForStatusOk(page)
 
-    const axk = await readFile(new URL('../../mini_lathe/src/parts/axk.fai.js', import.meta.url), 'utf-8')
+    // axk.fai.js 现为多文件项目的一部分（第 2 行 `import * as config from
+    // '../config.fai.js'`），单文件打开没有目录上下文无法解析兄弟模块；多文件
+    // 装配已在下方「Open Folder 装配」用例覆盖。这里保留该用例的原初意图——cq-compat
+    // 自动装载 + brep 产出几何、mesh 显式不可用——用与 axk 等价的自包含段验证：
+    // 同一组 cq-compat 原语（extrude / rect / fillet / val；fillet 为 brep-only，
+    // mesh 链路 E_MESH_UNSUPPORTED）。
+    const snippet = [
+      `import * as cq from '@faicad/cq-compat'`,
+      `let axk_wp = cq.extrude(cq.rect(cq.Workplane('XY'), 30, 20), 4)`,
+      `axk_wp = cq.fillet(cq.edges(axk_wp, '|Z'), 1)`,
+      `let axk = cq.val(axk_wp)`,
+    ].join('\n')
     await page.locator(SELECTOR.fileInput).setInputFiles({
       name: 'axk.fai.js',
       mimeType: 'text/plain',
-      buffer: Buffer.from(axk),
+      buffer: Buffer.from(snippet),
     })
 
     await waitForStatusOk(page)
@@ -333,5 +403,102 @@ let part2 = cad.subtract(part0, part1)`)
     await waitForStatusOk(page)
     const brepDrill = await shot(SELECTOR.canvasBrep)
     expect(brepDrill).not.toBe(brepBox)
+  })
+
+  // ── Open Folder（browser ProjectLoader，多文件相对 import）──
+
+  test('Open Folder：mini_lathe 装配（brep 多文件相对 import）自动运行 + STEP 导出', async ({ page }) => {
+    // OPFS stub 必须早于 page.goto（初始化脚本在首次导航时注入）
+    await stubShowDirectoryPickerAsOpfs(page)
+    await page.goto('/')
+    await waitForStatusOk(page)
+
+    // 从仓库读取 mini_lathe 项目根整树 → OPFS 写入（真实数据流）
+    const miniLathe = await readFaiProjectTree(new URL('../../mini_lathe/', import.meta.url))
+    expect(Object.keys(miniLathe).length).toBeGreaterThan(5)
+    await seedOpfsProject(page, miniLathe)
+
+    // 打开文件夹：默认入口 = src/assembly.fai.js，自动载入并运行
+    await page.locator(SELECTOR.openDirBtn).click()
+    await expect(page.locator(SELECTOR.exampleSelect)).toHaveValue('__proj:src/assembly.fai.js', { timeout: 30_000 })
+    await expect(
+      page.locator(`${SELECTOR.exampleSelect} option[value="__proj:src/assembly.fai.js"]`),
+    ).toContainText('src/assembly.fai.js')
+    await expect(page.locator(SELECTOR.editor)).toHaveValue(/import \* as cq from '@faicad\/cq-compat'/)
+
+    // 自动运行：brep 装配 OK；mesh 链路显式不可用（cq-compat brep-only）
+    await expect(page.locator(SELECTOR.statusBar)).toContainText('Project:', { timeout: 180_000 })
+    await expect(page.locator(SELECTOR.statusBar)).toContainText('OK — brep:', { timeout: 180_000 })
+    const status = await page.locator(SELECTOR.statusBar).textContent()
+    expect(status).toMatch(/Project: \S+ \(src\/assembly\.fai\.js\) — OK — brep: \d+ shape\(s\)/)
+    expect(status).toMatch(/mesh: (Failed|Mesh unavailable)/i)
+
+    // 装配有 BREP solid → STEP 真实 ADVANCED_FACE
+    await expect(page.locator(SELECTOR.btnStep)).toBeEnabled()
+    const stepDownload = page.waitForEvent('download')
+    await page.locator(SELECTOR.btnStep).click()
+    const step = await stepDownload
+    const stepText = new TextDecoder().decode(await readFile(await step.path()))
+    expect(stepText.startsWith('ISO-10303-21')).toBe(true)
+    expect(stepText).toContain('ADVANCED_FACE')
+  })
+
+  test('Open Folder：纯 cad 多文件项目，brep+mesh 双链都 OK', async ({ page }) => {
+    await stubShowDirectoryPickerAsOpfs(page)
+    await page.goto('/')
+    await waitForStatusOk(page)
+
+    const meshProj = await readFaiProjectTree(new URL('fixtures/mesh-project/', import.meta.url))
+    expect(Object.keys(meshProj)).toEqual(['src/assembly.fai.js', 'src/parts/part_a.fai.js', 'src/parts/part_b.fai.js'])
+    await seedOpfsProject(page, meshProj)
+
+    await page.locator(SELECTOR.openDirBtn).click()
+    await expect(page.locator(SELECTOR.exampleSelect)).toHaveValue('__proj:src/assembly.fai.js', { timeout: 30_000 })
+    await expect(page.locator(SELECTOR.statusBar)).toContainText('Project:', { timeout: 180_000 })
+    await expect(page.locator(SELECTOR.statusBar)).toContainText('OK — brep:', { timeout: 180_000 })
+    const status = await page.locator(SELECTOR.statusBar).textContent()
+    // box + box（dual-op）→ 双链都产出几何；mesh 不回退（不再 E_MESH_UNSUPPORTED）
+    expect(status).toMatch(/Project: \S+ \(src\/assembly\.fai\.js\) — OK — brep: \d+ shape\(s\)/)
+    expect(status).not.toMatch(/mesh: (fail|Mesh unavailable)/i)
+    expect(status).toMatch(/mesh: \d+ shape\(s\)/)
+
+    // 渲染：两个 canvas 都有实质内容
+    const shot = async (sel: string) => (await page.locator(sel).screenshot()).length
+    expect(await shot(SELECTOR.canvasBrep)).toBeGreaterThan(1_000)
+    expect(await shot(SELECTOR.canvasMesh)).toBeGreaterThan(1_000)
+  })
+
+  test('Open Folder 空目录：提示“没有 .fai.js”，不进入项目模式', async ({ page }) => {
+    await stubShowDirectoryPickerAsOpfs(page)
+    await page.goto('/')
+    await waitForStatusOk(page)
+
+    await seedOpfsProject(page, {}) // 清空
+    await page.locator(SELECTOR.openDirBtn).click()
+    await expect(page.locator(SELECTOR.statusBar)).toContainText('没有 .fai.js 文件', { timeout: 30_000 })
+    await expect(page.locator(SELECTOR.statusBar)).toHaveClass(/error/)
+  })
+
+  test('Open Folder 后切回内置示例：仍走单文件路径（无 Project 前缀）；再切回恢复项目模式', async ({ page }) => {
+    await stubShowDirectoryPickerAsOpfs(page)
+    await page.goto('/')
+    await waitForStatusOk(page)
+
+    const meshProj = await readFaiProjectTree(new URL('fixtures/mesh-project/', import.meta.url))
+    await seedOpfsProject(page, meshProj)
+    await page.locator(SELECTOR.openDirBtn).click()
+    await expect(page.locator(SELECTOR.statusBar)).toContainText('Project:', { timeout: 180_000 })
+
+    // 切回内置示例 → 单文件模式：无 Project 前缀
+    await page.locator(SELECTOR.exampleSelect).selectOption('drill-test')
+    await waitForStatusOk(page)
+    const single = await page.locator(SELECTOR.statusBar).textContent()
+    expect(single).not.toContain('Project:')
+    expect(single).toMatch(/OK — brep: 1 shape\(s\)/)
+
+    // 再切回项目入口 → 恢复项目模式
+    await page.locator(SELECTOR.exampleSelect).selectOption('__proj:src/assembly.fai.js')
+    await expect(page.locator(SELECTOR.editor)).toHaveValue(/cad\.union/, { timeout: 30_000 })
+    await expect(page.locator(SELECTOR.statusBar)).toContainText('Project:', { timeout: 180_000 })
   })
 })

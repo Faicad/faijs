@@ -20,7 +20,7 @@ import { FetchAssetResolver } from './fetch-asset-resolver'
 import { InlineCsgBackend } from './inline-csg-backend'
 import { InlineSdfBackend } from './inline-sdf-backend'
 import { getFontLoader, clearFonts } from '../brep/text/fontRegistry'
-import type { CsgBackend, SdfBackend, AssetResolver, EventSink } from '../cad-runtime/ports'
+import type { CsgBackend, SdfBackend, AssetResolver, EventSink, ProjectLoader } from '../cad-runtime/ports'
 
 describe('createBrowserPorts', () => {
   beforeEach(() => {
@@ -107,6 +107,20 @@ describe('createBrowserPorts', () => {
     }
     const ports = await createBrowserPorts({ events: customEvents })
     expect(ports.events).toBe(customEvents)
+  })
+
+  it('allows injecting a projectLoader (multi-file §4.5)', async () => {
+    const fakeLoader: ProjectLoader = {
+      listModules: () => ['a.fai.js'],
+      readSource: async () => 'let a = 1',
+    }
+    const ports = await createBrowserPorts({ projectLoader: fakeLoader })
+    expect(ports.projectLoader).toBe(fakeLoader)
+  })
+
+  it('projectLoader absent → not installed (single-file behavior unchanged)', async () => {
+    const ports = await createBrowserPorts()
+    expect(ports.projectLoader).toBeUndefined()
   })
 
   it('connects BrowserFontProvider to fontRegistry', async () => {

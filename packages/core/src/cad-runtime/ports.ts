@@ -190,7 +190,17 @@ export interface LibLoader {
   /** 列出当前可加载的 packageName（check 阶段同步校验 import specifier 用）。 */
   listLibs(): string[]
   /** 自动装载的注册选项；缺省由推断式决定（有 dual-op 的库不提升，全裸函数库自动提升，与手动注入一致）。 */
-  options?: { autoLift?: boolean }
+  options?: {
+    autoLift?: boolean
+    /**
+     * 按 packageName 的逐库 `autoLift` 覆盖（优先于 `options.autoLift`）。
+     * 返回 `undefined` 时回落到全局选项 / 推断式。用于别名库：如 cq-compat 在
+     * 浏览器 host 被全局 autoLift 提升后，compat 边界的 borrowDeep 会把实参里的
+     * faijs Shape 替换成 brepjs 借用视图，破坏其内部「以 Shape 受众」的借面逻辑
+     * （原 CLI 即按 autoLift=false 运行）。逐库关掉提升恢复 CLI 等价行为。
+     */
+    autoLiftFor?: (packageName: string) => boolean | undefined
+  }
   /**
    * 可选源码扫描钩子（§6.2 ②）：宿主返回库源码时走同一 SecurityScanner（A4，固定 strict）；
    * 不提供或返回 undefined 则跳过。不改 loadLib 返回值——返回 StdlibNamespace，

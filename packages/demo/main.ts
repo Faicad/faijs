@@ -13,7 +13,7 @@
 
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { createRuntime, createBrowserPorts, setOcctWasmInitFn, ensureOcctKernel, exportStepFromSolid, exportStep, buildStlBufferFromMesh, deriveNormals, setManifoldWasmUrl, isMeshShape } from '@faicad/faijs/browser'
+import { createRuntime, createBrowserPorts, setOcctWasmInitFn, ensureOcctKernel, exportStepFromSolid, exportStep, buildStlBufferFromMesh, deriveNormals, setManifoldWasmUrl, isMeshShape, createDirectoryProjectLoader, type DirectoryProjectLoader, type FsDirectoryHandleLike } from '@faicad/faijs/browser'
 import type { ExecutionMode, HostPorts, ShapeHandle, OcctKernel, ExecutionResult, LibLoader, StdlibNamespace } from '@faicad/faijs/browser'
 import { OcctKernel as OcctKernelValue } from 'occt-wasm'
 import fontUrl from './assets/fonts/OpenSans-Regular.ttf?url'
@@ -48,7 +48,13 @@ const demoLibLoader: LibLoader = {
     return await loader()
   },
   listLibs: () => Object.keys(LIB_MODULES),
-  options: { autoLift: true },
+  options: {
+    autoLift: true,
+    // cq-compat 的函数以 faijs Shape 为受众（内部自 borrow/adopt），若被 compat
+    // 边界整体提升，实参 Shape 会被 borrowDeep 换成 brepjs 借用视图，导致装配
+    // constraint 的面选取崩溃（CLI 即 autoLift=false 跑通）。逐库关掉提升。
+    autoLiftFor: (name) => (name === '@faicad/cq-compat' ? false : undefined),
+  },
 }
 
 // ── Example .fai.js files ──
@@ -91,6 +97,7 @@ let s1 = sm.solidOf(part)`,
 const codeEditor = document.getElementById('code-editor') as HTMLTextAreaElement
 const runBtn = document.getElementById('run-btn') as HTMLButtonElement
 const openBtn = document.getElementById('open-btn') as HTMLButtonElement
+const openDirBtn = document.getElementById('open-dir-btn') as HTMLButtonElement
 const fileInput = document.getElementById('file-input') as HTMLInputElement
 const exampleSelect = document.getElementById('example-select') as HTMLSelectElement
 const statusBar = document.getElementById('status-bar') as HTMLDivElement
@@ -307,9 +314,10 @@ async function runMode(
   view: Viewer3D,
   code: string,
   ports: HostPorts,
+  entryKey?: string,
 ): Promise<string> {
   const runtime = createRuntime(ports, view.mode)
-  const result = await runtime.execute(code)
+  const result = await runtime.execute(code, entryKey ? { entryKey } : undefined)
 
   if (result.failedAt) {
     clearMeshes(view)
@@ -340,6 +348,7 @@ async function runMode(
 
 async function runCode() {
   const code = codeEditor.value
+  const entryKey = project?.entryKey ?? undefined
 
   runBtn.disabled = true
   // 新一次运行开始前禁用导出按钮，成功产出后再启用
@@ -348,11 +357,16 @@ async function runCode() {
   setStatus('Parsing...', 'info')
 
   try {
+    // 项目模式：每次运行前重新枚举模块清单——子目录文件被外部编辑器新增/删除后
+    // refresh 才能看到；模块源码读取本身是实时的，无需刷新。
+    if (entryKey && project) await project.loader.refresh()
     // 每个模式各自 execute(code)（公共文本 API；引擎内部 parse）。libLoader 注入
 // HostPorts——gear-demo 的 import specifier 由 execute 阶段自动装载，无需手动 registerLib。
+    // 项目模式：注入同一个 DirectoryProjectLoader（无状态可并发，brep/mesh 共享）；
+    // 单文件模式缺省不注入 projectLoader → 多文件行为不变。
     const [portsBrep, portsMesh] = await Promise.all([
-      createBrowserPorts({ fontUrl, libLoader: demoLibLoader }),
-      createBrowserPorts({ fontUrl, libLoader: demoLibLoader }),
+      createBrowserPorts({ fontUrl, libLoader: demoLibLoader, projectLoader: entryKey ? project?.loader : undefined }),
+      createBrowserPorts({ fontUrl, libLoader: demoLibLoader, projectLoader: entryKey ? project?.loader : undefined }),
     ])
 
     // 公共校验 API（宿主规范用法）：parse + 符号/引用预检，零几何副作用。
@@ -379,7 +393,7 @@ async function runCode() {
     // "mesh 视图先出模型、brep 视图随后补齐"，只是不再两条同时跑。
     const meshReport = await (async () => {
       try {
-        return await runMode(meshView, code, portsMesh)
+        return await runMode(meshView, code, portsMesh, entryKey)
       } catch (err) {
         // mesh 后端失败不影响 brep 结果
         const msg = err instanceof Error ? err.message : String(err)
@@ -393,7 +407,7 @@ async function runCode() {
           setStatus('Waiting for OCCT kernel (~22MB)...', 'info')
           await occtReady
         }
-        return await runMode(brepView, code, portsBrep)
+        return await runMode(brepView, code, portsBrep, entryKey)
       } catch (err) {
         // OCCT 失败只影响 brep 链路，不拖累 mesh 结果
         const msg = err instanceof Error ? err.message : String(err)
@@ -401,7 +415,8 @@ async function runCode() {
       }
     })()
 
-    setStatus(`OK — brep: ${brepReport} | mesh: ${meshReport}`, 'success')
+    const projectPrefix = entryKey && project ? `Project: ${project.rootName} (${entryKey}) — ` : ''
+    setStatus(`${projectPrefix}OK — brep: ${brepReport} | mesh: ${meshReport}`, 'success')
 
     // 成功且产出几何时才开放导出（导出格式由用户主动选择）：
     // - STEP：有 BREP solid → 精确 STEP；无 solid → 三角化 STEP
@@ -480,6 +495,93 @@ btnStl.addEventListener('click', () => {
   downloadBlob(new Blob([buffer], { type: 'model/stl' }), 'faijs-model.stl')
 })
 
+// ── 项目文件夹（Open Folder，browser ProjectLoader 多文件 §4.5）──
+
+type ProjectState = {
+  /** 文件夹名（状态栏显示，如 mini_lathe） */
+  rootName: string
+  /** 目录句柄 ProjectLoader（挂载即枚举模块清单） */
+  loader: DirectoryProjectLoader
+  /** 模块清单快照（loader.listModules()） */
+  keys: string[]
+  /** 当前选中的入口 key；null = 非项目模式（single-file 行为不变） */
+  entryKey: string | null
+}
+
+let project: ProjectState | null = null
+
+/** 目录选择结果（含 name 显示；取消/拒绝 → null 并提示）。 */
+type PickedFsDirectory = FsDirectoryHandleLike & { name?: string }
+
+function pickProjectFolder(): Promise<PickedFsDirectory | null> {
+  const w = window as unknown as {
+    showDirectoryPicker?: (opts?: { mode?: 'read' | 'readwrite' }) => Promise<PickedFsDirectory>
+  }
+  if (typeof w.showDirectoryPicker !== 'function') {
+    setStatus('File System Access API 不可用（需要 Chrome/Edge 或 localhost/HTTPS）', 'error')
+    return Promise.resolve(null)
+  }
+  return w.showDirectoryPicker({ mode: 'read' }).catch((err: unknown) => {
+    const msg = err instanceof Error ? err.message : String(err)
+    setStatus(`未授权访问文件夹: ${msg}`, 'error')
+    return null
+  })
+}
+
+/** 填 example-select 的项目入口 option（📁 key），并切到默认入口。 */
+function populateProjectOptions(keys: string[], selectedKey: string) {
+  exampleSelect
+    .querySelectorAll<HTMLOptionElement>('option[value^="__proj:"]')
+    .forEach((opt) => opt.remove())
+  for (const key of keys) {
+    const opt = document.createElement('option')
+    opt.value = `__proj:${key}`
+    opt.textContent = `📁 ${key}`
+    exampleSelect.appendChild(opt)
+  }
+  exampleSelect.value = `__proj:${selectedKey}`
+}
+
+/** 载入项目入口源码进编辑器并运行（entryKey 置为项目模式基准）。 */
+async function selectProjectEntry(moduleKey: string) {
+  if (!project) return
+  project.entryKey = moduleKey
+  try {
+    const source = await project.loader.readSource(moduleKey)
+    codeEditor.value = source
+    await runCode()
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    setStatus(`Error reading project entry "${moduleKey}": ${msg}`, 'error')
+  }
+}
+
+async function openProjectFolder() {
+  const handle = await pickProjectFolder()
+  if (!handle) return // 取消/API 缺失已 handled（含提示）
+  const rootName = typeof handle.name === 'string' && handle.name ? handle.name : 'project'
+  try {
+    const loader = await createDirectoryProjectLoader(handle)
+    const keys = loader.listModules()
+    if (keys.length === 0) {
+      project = null
+      setStatus(`目录 "${rootName}" 下没有 .fai.js 文件`, 'error')
+      return
+    }
+    // 默认入口：src/assembly.fai.js 优先（装配项目约定），否则第一个 key
+    const entryKey = keys.includes('src/assembly.fai.js') ? 'src/assembly.fai.js' : keys[0]
+    project = { rootName, loader, keys, entryKey }
+    populateProjectOptions(keys, entryKey)
+    await selectProjectEntry(entryKey)
+  } catch (err) {
+    project = null
+    const msg = err instanceof Error ? err.message : String(err)
+    setStatus(`打开文件夹失败: ${msg}`, 'error')
+  }
+}
+
+openDirBtn.addEventListener('click', () => void openProjectFolder())
+
 // ── Event handlers ──
 
 // 最近一次打开的本地文件（内容+文件名），下拉框切回 __file__ 时恢复
@@ -499,13 +601,25 @@ runBtn.addEventListener('click', runCode)
 exampleSelect.addEventListener('change', () => {
   const key = exampleSelect.value
   if (key === '__file__') {
+    // 单文件模式：不带 loader（与 Open File 行为一致）
+    if (project) project.entryKey = null
     if (loadedFile) {
       codeEditor.value = loadedFile.content
       runCode()
     }
     return
   }
+  if (key.startsWith('__proj:')) {
+    // 切回某项目入口 → 恢复项目模式（entryKey 重新置基准）
+    const moduleKey = key.slice('__proj:'.length)
+    if (project && project.keys.includes(moduleKey)) {
+      void selectProjectEntry(moduleKey)
+    }
+    return
+  }
   if (EXAMPLES[key]) {
+    // 切回内置示例：单文件模式（无 loader），行为不变
+    if (project) project.entryKey = null
     codeEditor.value = EXAMPLES[key]
     runCode()
   }
@@ -527,6 +641,7 @@ fileInput.addEventListener('change', async () => {
   try {
     const text = await file.text()
     loadedFile = { name: file.name, content: text }
+    if (project) project.entryKey = null // 单文件模式：不带 loader
     codeEditor.value = text
     const fileOption = exampleSelect.querySelector<HTMLOptionElement>('option[value="__file__"]')
     if (fileOption) fileOption.textContent = file.name

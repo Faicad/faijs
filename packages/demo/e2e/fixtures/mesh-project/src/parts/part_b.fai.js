@@ -1,0 +1,1 @@
+let partB = cad.box(12, 8, 30, { centered: true, at: [10, 0, 8] })

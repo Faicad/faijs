@@ -27,6 +27,16 @@ export { BrowserFontProvider } from './browser-font-provider'
 export type { BrowserFontProviderOptions } from './browser-font-provider'
 export { FetchAssetResolver } from './fetch-asset-resolver'
 export type { FetchAssetResolverOptions } from './fetch-asset-resolver'
+// 浏览器版 ProjectLoader（多文件 §4.5）：与 node-host 的 fs-project-loader 对称，
+// 把目录句柄（showDirectoryPicker / OPFS）当作 faijs 项目根。
+export { createDirectoryProjectLoader } from './directory-project-loader'
+export type {
+  DirectoryProjectLoader,
+  DirectoryProjectLoaderOptions,
+  FsDirectoryHandleLike,
+  FsFileHandleLike,
+  FsEntryHandleLike,
+} from './directory-project-loader'
 
 import type { HostPorts } from '../cad-runtime/ports'
 import { BrowserEventSink } from './browser-event-sink'
@@ -60,6 +70,8 @@ export interface CreateBrowserPortsOptions {
   events?: HostPorts['events']
   /** Consumer-injectable library loader (auto-load unregistered libs at execute). */
   libLoader?: HostPorts['libLoader']
+  /** Consumer-injectable project loader (multi-file §4.5 relative imports; absent = single-file behavior unchanged). */
+  projectLoader?: HostPorts['projectLoader']
 }
 
 /**
@@ -72,7 +84,9 @@ export interface CreateBrowserPortsOptions {
  * a Web Worker (Node/tests) it falls back to the inline backends. Consumers may
  * inject custom backends through opts; injecting one prevents the default from
  * loading. It also connects the BrowserFontProvider to the fontRegistry via
- * setFontLoader so brep/text can load fonts through fetch.
+ * setFontLoader so brep/text can load fonts through fetch. Consumers may inject
+ * a projectLoader (multi-file §4.5) through opts; absent → projectLoader is not
+ * installed and single-file behavior is unchanged.
  * @param opts - options controlling font, worker, and backend selection.
  * @returns promise resolving to the assembled HostPorts.
  */
@@ -123,5 +137,6 @@ export async function createBrowserPorts(opts?: CreateBrowserPortsOptions): Prom
     assets: opts?.assets ?? new FetchAssetResolver(),
     events: opts?.events ?? new BrowserEventSink(),
     libLoader: opts?.libLoader,
+    projectLoader: opts?.projectLoader,
   }
 }

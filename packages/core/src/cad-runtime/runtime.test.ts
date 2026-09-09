@@ -911,6 +911,43 @@ describe('P 四（4.6）: execute 自动装载（libLoader autoLoadLibs）', () 
     runtime.dispose()
   })
 
+  it('autoLiftFor 逐库覆盖：返回 false → 该库不被 compat 提升（原函数引用保留，等价 CLI autoLift=false）', async () => {
+    const runtime = createRuntime(libLoaderPorts({
+      loadLib: async () => gearNs,
+      listLibs: () => ['gear-lib-demo'],
+      options: {
+        autoLift: true, // 全局提升开着，但 autoLiftFor 对该库关掉
+        autoLiftFor: (name) => (name === 'gear-lib-demo' ? false : undefined),
+      },
+    }), 'mesh')
+    const result = await runtime.execute(GEAR_CODE)
+    expect(result.failedAt).toBeUndefined()
+    const libs = (runtime as unknown as { libs: Record<string, Record<string, unknown>> }).libs
+    expect(libs.gear).toBeDefined()
+    // 未被 admitCompatLib 的 compatOp 包装 → 同一函数引用（等价 CLI 直接调用）
+    expect(libs.gear.makeHeadstock).toBe(gearNs.makeHeadstock)
+    runtime.dispose()
+  })
+
+  it('autoLiftFor 返回 undefined → 回落到全局 autoLift=true（裸函数被 compatOp 提升，brep-only 契约生效）', async () => {
+    const runtime = createRuntime(libLoaderPorts({
+      loadLib: async () => gearNs,
+      listLibs: () => ['gear-lib-demo'],
+      options: {
+        autoLift: true,
+        autoLiftFor: () => undefined,
+      },
+    }), 'mesh')
+    const result = await runtime.execute(GEAR_CODE)
+    const libs = (runtime as unknown as { libs: Record<string, Record<string, unknown>> }).libs
+    // 全局 autoLift=true 生效 → 裸函数被 compatOp 提升（引用不同）
+    expect(libs.gear.makeHeadstock).not.toBe(gearNs.makeHeadstock)
+    // 提升后的实现是 brep-only compat 边界 → mesh 模式显式拒绝（与 gear/sheetmetal 同合同）
+    expect(result.failedAt).toBeDefined()
+    expect(result.failedAt!.message).toMatch(/E_MESH_UNSUPPORTED/)
+    runtime.dispose()
+  })
+
   it('未注册 + libLoader 不可装载（loadLib 抛错）→ failedAt 非空且 message 注明 import specifier（不回退不静默）', async () => {
     const runtime = createRuntime(libLoaderPorts({
       loadLib: async () => { throw new Error('package not found') },
