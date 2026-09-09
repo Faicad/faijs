@@ -18,6 +18,7 @@ import { createRuntime } from '../cad-runtime/runtime'
 import type { StdlibNamespace } from '../runtime-state'
 import type { ExecutionMode, HostPorts, LibLoader } from '../cad-runtime/ports'
 import { createNodePorts } from './index'
+import { createFsProjectLoader, findProjectRoot, projectKeyOf } from './fs-project-loader'
 import { buildStlBufferFromMesh } from '../brep/export/stl'
 import { exportStepFromSolid, exportStepFromSolids, type StepExportEntry } from '../brep/export/step'
 import { exportStep } from '../occt-kernel/highLevelApi'
@@ -64,6 +65,17 @@ function withCliLibLoader(ports: HostPorts): HostPorts {
   return { ...ports, libLoader: cliPortsLibLoader }
 }
 
+/**
+ * 注入 projectLoader 到 node ports（多文件 §4.5）。
+ *
+ * 项目根缺省由 `findProjectRoot` 从入口文件向上找最近的 `package.json`；
+ * 宿主可用 `--project-root` 覆盖。未提供根（不应发生）时不注入，单文件行为不变。
+ */
+function withCliProjectLoader(ports: HostPorts, root: string | undefined): HostPorts {
+  if (!root) return ports
+  return { ...ports, projectLoader: createFsProjectLoader(root) }
+}
+
 /** Options accepted by the `check` command. */
 export interface CliCheckOptions {
   /** Asset directory used by the node ports. */
@@ -84,6 +96,11 @@ export interface CliRunOptions {
   defaultFontPath?: string
   /** Host-injected library namespace (includes cad — the CLI entry faijs-cli.ts passes createInternalStdlib; core does not assemble it by default). */
   libs?: Record<string, StdlibNamespace>
+  /**
+   * 项目根（多文件 §4.5）：相对 import 的解析基准，moduleKey = 相对它的路径。
+   * 缺省由入口文件向上找最近的 package.json。
+   */
+  projectRoot?: string
 }
 
 /** Result of the `check` (dry-run validation) command. */
@@ -154,16 +171,23 @@ export async function cliRun(
   opts?: CliRunOptions,
 ): Promise<CliRunResult> {
   const code = readFileSync(filePath, 'utf-8')
+  // 多文件（§4.5）：项目根缺省向上找 package.json；入口自身也有 key（相对根的路径），
+  // 否则入口在子目录时它的 `./parts/x.fai.js` 会以根为基准解析而错位。
+  const projectRoot = opts?.projectRoot ? resolve(opts.projectRoot) : findProjectRoot(filePath)
+  const entryKey = projectKeyOf(projectRoot, filePath)
 
   // Initialize OCCT
   await initOcctWasm()
 
   // Create runtime with node ports
-  const ports = withCliLibLoader(createNodePorts({
-    assetsDir: opts?.assetsDir,
-    fontsDir: opts?.fontsDir,
-    defaultFontPath: opts?.defaultFontPath,
-  }))
+  const ports = withCliProjectLoader(
+    withCliLibLoader(createNodePorts({
+      assetsDir: opts?.assetsDir,
+      fontsDir: opts?.fontsDir,
+      defaultFontPath: opts?.defaultFontPath,
+    })),
+    projectRoot,
+  )
   const runtime = createRuntime(ports, opts?.mode ?? 'auto', opts?.libs)
   // Part 1.4：cad 经 registerLib 声明 packageName（脚本可 `import * as cad from
   // '@faicad/faijs'`，check ①.5 据此校验 specifier——不 declare 则 import 被拒）。
@@ -175,7 +199,7 @@ export async function cliRun(
   }
 
   // Execute（T5 后：direct 路径，源码文本直通执行）
-  const execResult = await runtime.execute(code)
+  const execResult = await runtime.execute(code, { entryKey })
 
   if (execResult.failedAt) {
     return {
@@ -392,6 +416,7 @@ export function parseArgs(argv: string[]): {
   mode?: ExecutionMode
   assetsDir?: string
   fontsDir?: string
+  projectRoot?: string
 } {
   const args = argv.slice(2) // skip node + script
   if (args.length === 0) return { command: null }
@@ -404,6 +429,7 @@ export function parseArgs(argv: string[]): {
   let mode: ExecutionMode | undefined
   let assetsDir: string | undefined
   let fontsDir: string | undefined
+  let projectRoot: string | undefined
 
   for (let i = 1; i < args.length; i++) {
     const arg = args[i]
@@ -418,12 +444,14 @@ export function parseArgs(argv: string[]): {
       assetsDir = args[++i]
     } else if (arg === '--fonts') {
       fontsDir = args[++i]
+    } else if (arg === '--project-root') {
+      projectRoot = args[++i]
     } else if (!file && !arg.startsWith('-')) {
       file = arg
     }
   }
 
-  return { command, file, out, mode, assetsDir, fontsDir }
+  return { command, file, out, mode, assetsDir, fontsDir, projectRoot }
 }
 
 /**
@@ -434,7 +462,7 @@ export function parseArgs(argv: string[]): {
  * @returns the process exit code (0 on success, non-zero on failure)
  */
 export async function cliMain(argv: string[], libs?: Record<string, StdlibNamespace>): Promise<number> {
-  const { command, file, out, mode, assetsDir, fontsDir } = parseArgs(argv)
+  const { command, file, out, mode, assetsDir, fontsDir, projectRoot } = parseArgs(argv)
 
   if (!command) {
     process.stderr.write('Usage: faijs-cli <check|run> <file.fai.js> [options]\n')
@@ -443,6 +471,7 @@ export async function cliMain(argv: string[], libs?: Record<string, StdlibNamesp
     process.stderr.write('  --mode <auto|brep|mesh>   Execution mode\n')
     process.stderr.write('  --assets <dir>            Asset directory\n')
     process.stderr.write('  --fonts <dir>             Extra fonts directory\n')
+    process.stderr.write('  --project-root <dir>      Project root for relative .fai.js imports\n')
     return 1
   }
 
@@ -479,7 +508,7 @@ export async function cliMain(argv: string[], libs?: Record<string, StdlibNamesp
     }
 
     const outPath = resolve(out)
-    const result = await cliRun(filePath, outPath, { mode, assetsDir, fontsDir, libs })
+    const result = await cliRun(filePath, outPath, { mode, assetsDir, fontsDir, projectRoot, libs })
 
     if (result.ok) {
       process.stdout.write(`✓ ${filePath} → ${outPath} (${result.outputFormat})\n`)

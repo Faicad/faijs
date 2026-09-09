@@ -10,8 +10,10 @@
  *   A-9：A 内被消费的 shape 不在 liveShapes → B 引用报错）。
  *
  * 名字契约（D6）：A 的 LHS 名 = 导出名；B 的 import 绑定名 = 引用名；绑定必须 ∈
- * A.liveShapes ∪ A.fns（A-8 缺失导出名 → ModuleRegistryError）。跨文件引用 ≠ 消费：
- * B 引用 A 的 shape 不影响 A 的 liveShapes（A 单独执行时计算）。
+ * A.liveShapes ∪ A.fns（A-8 缺失导出名 → ModuleRegistryError）。普通常量不在此列——
+ * 具名 import 常量被拒，见
+ * .agents/notes/rejected/architecture/2026-09-09-named-import-of-constants.md。
+ * 跨文件引用 ≠ 消费：B 引用 A 的 shape 不影响 A 的 liveShapes（A 单独执行时计算）。
  *
  * 装载：DFS 递归（相对 specifier → moduleKey 归一 → readSource → 提取其 import →
  * 先装依赖 → 带 seed 执行自身）；循环依赖 → MODULE_CYCLE（failedAt 带环路径）。

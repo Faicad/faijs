@@ -194,6 +194,12 @@ export interface ExecuteOptions {
    */
   topology?: 'auto' | 'brep' | 'off'
   /**
+   * 主模块 key（相对项目根的路径，如 `src/assembly.fai.js`；多文件 §4.5）。
+   * 宿主执行某个文件时传入——主模块的相对 import 以此为解析基准；不传则视为
+   * 位于项目根（存量单文件行为不变：无 key 时 `./x.fai.js` 相对根解析）。
+   */
+  entryKey?: string
+  /**
    * 执行护栏（§6.3 / D8，v1 可选、默认关闭）：**整轮超时**（覆盖 execute/append/update
    * 全程，含全部函数体重放），超时抛 {@link ExecutionLimitError}（E_EXEC_LIMIT）。
    * 防 `while(true)` 死循环挂死 worker/UI；不传则无超时（现状行为不变）。
@@ -538,7 +544,7 @@ export class CadRuntime {
     const libLoadFailure = await this.autoLoadLibsFromImports(meta.imports)
     if (libLoadFailure) return libLoadFailure
     // 多文件（§4.5）：相对 import 依赖装载 → 绑定 seed；装载错误 → failedAt 短路。
-    const moduleLoad = await this.loadDirectModuleImports(meta)
+    const moduleLoad = await this.loadDirectModuleImports(meta, opts?.entryKey)
     if (!('seed' in moduleLoad)) return moduleLoad
     const brepChain = await this.ensureBrepChain()
     if (opts?.partTransform?.position) {
@@ -628,7 +634,7 @@ export class CadRuntime {
     const libLoadFailure = await this.autoLoadLibsFromImports(meta.imports)
     if (libLoadFailure) return libLoadFailure
     // 多文件（§4.5）：相对 import 依赖装载 → 绑定 seed（覆盖刷新 ctx 中旧 import 绑定）。
-    const moduleLoad = await this.loadDirectModuleImports(meta)
+    const moduleLoad = await this.loadDirectModuleImports(meta, opts?.entryKey)
     if (!('seed' in moduleLoad)) return moduleLoad
     const brepChain = await this.ensureBrepChain()
     if (opts?.partTransform?.position) {
@@ -669,13 +675,14 @@ export class CadRuntime {
    */
   private async loadDirectModuleImports(
     meta: UiMetadata,
+    baseKey?: string,
   ): Promise<{ seed: Record<string, unknown> } | ExecutionResult> {
     const loader = this.ports.projectLoader
     if (!loader) return { seed: {} }
     if (!(meta.imports ?? []).some((imp) => isRelativeSpecifier(imp.specifier))) return { seed: {} }
     const registry = new ModuleRegistry(loader, (code, imports) => this.runDirectModule(code, imports), this.securityPolicy)
     try {
-      const seed = await registry.resolveImports(meta.imports ?? [])
+      const seed = await registry.resolveImports(meta.imports ?? [], baseKey)
       return { seed }
     } catch (err) {
       if (err instanceof ModuleRegistryError) {
@@ -699,7 +706,18 @@ export class CadRuntime {
   /** 依赖模块执行（direct）：独立 DirectExecutor + 独立 ctx；失败抛 ModuleRegistryError。 */
   private async runDirectModule(code: string, imports: Record<string, unknown>): Promise<ModuleRunResult> {
     // A3：子模块固定 strict 策略（不接受降档）
-    const de = new DirectExecutor({ namespaces: { ...this.libs } as Namespaces, security: 'strict' })
+    // BREP kernel 必须在依赖执行前就绪——模块装载排在 ensureBrepChain 之前，
+    // 否则子模块里的 BREP op 会以 "no OCCT kernel" 失败。
+    await this.ensureBrepChain()
+    // 钩子必须复用主 executor 的那套：子模块产出的 BREP solid 要登记进本实例的
+    // solidCache，否则主模块的 brepSolids 查不到它们（装配体 STEP 导不出精确曲面）。
+    const de = new DirectExecutor({
+      namespaces: { ...this.libs } as Namespaces,
+      setSolid: (partName, solid) => { this.solidCache.set(partName, solid) },
+      setFaceEvolution: (partName, evo) => { this.faceEvolutionCache.set(partName, evo as Map<number, number[]>) },
+      setRoleTable: (partName, roleTable) => { this.roleTableCache.set(partName, roleTable) },
+      security: 'strict',
+    })
     const outcome = await de.execute(code, { imports })
     if (outcome.failedAt) {
       throw new ModuleRegistryError(
@@ -918,6 +936,9 @@ export class CadRuntime {
     if (!this.ports.libLoader) return undefined
     for (const imp of imports) {
       if (imp.kind !== 'namespace') continue // named/default import 不作语句级绑定，不在此装载
+      // 相对 specifier 属多文件通道（§4.5），不是库——留给 ModuleRegistry 处理，
+      // 否则会被当作裸包名送进 libLoader 而报"不在白名单"。
+      if (isRelativeSpecifier(imp.specifier ?? '')) continue
       if (!imp.localName) continue
       if (this.libs[imp.localName]) continue  // 已注册（宿主注入或此前自动装载）→ 不覆盖
       let ns: StdlibNamespace
