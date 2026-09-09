@@ -477,29 +477,87 @@ wire 各自成独立实体后 fuse。即 SVG 式的 outer+holes 包含树，而�
 | `extrude` 调用点 | `solidWires.length > 1` 才走新路径；否则原路径不变（零回归保证） |
 | 6 处消费点 | 统一补 `pendingWires: []` 清理（首版遗漏导致 `combine` 单测回归，已修） |
 
-#### F1-d 当前状态（**未完，如实记录**）
+#### F1-d 最终状态（2026-09-09 完成，3 个 FAIL 全部转 PASS）
 
 | 用例 | 状态 | 数据 |
 |---|---|---|
-| `testTwoWorkplanes__r` | ✅ 通过 | groups `[{o:rect,h:4}]`，vol **1.9018252295753182**（ref 1.9018252295753189） |
-| `testNestedCircle__s` | ❌ 未修复 | 分组退化成 **4 组各 h:0**（应 2 组各 h:1），且首个圆面 `makeFace` 报 `FACE_BUILD_FAILED: wire might be non planar` |
-| `testTwoWorkplanes__t` | ❌ 未修复 | 依赖 `r`，随 `r` 修复而修复 |
+| `testTwoWorkplanes__r` | ✅ PASS | groups `[{o:rect,h:4}]`，vol **1.9018252295753182**（ref 1.9018252295753189） |
+| `testNestedCircle__s` | ✅ PASS | vol 8113.097335529232 与 ref 精确一致 |
+| `testTwoWorkplanes__t` | ✅ PASS | 随 `r` 修复而修复 |
 
-调试日志（`buildProfileWire` / `groupPendingWires` 内的临时 `console.error`，尚未清理）显示
-testNestedCircle 的首个 wire 为 `{r:4, cx:10, cy:0, center:[10,0,0], n:[0,0,1]}`，参数正确，
-故怀疑点集中在 **bbox 包含判定** 或 **非原点圆面的 makeFace** 两处，尚未定位。
+全量比对：**PASS=74 / PASS-NT=1 / FAIL=0**，parity 11.08% → **11.54%**。
 
-单测 `npm run test -w @faicad/cq-compat` **31/31 全绿**，无回归。
+`testNestedCircle__s` 曾有两个叠加根因：
 
-> 📌 `core/dist` 曾落后于 src（`AGENTS.md` 明确要求改动 core 后先
-> `npm run build -w @faicad/faijs-core`，否则 `run-cand.ts` 经 node_modules 解析到旧 dist、
-> 新投影不可用）。已补构建。
+1. **镜像脚本缺陷（既有）**：单语句链式 `cq.circle(cq.circle(p, 4), 2)` 中外层 `4` 在
+   参数求值时丢失（`pendingWires` 记到 `radius=undefined`），产出退化为纯 box。
+   镜像已改写为多语句形态（每个 `cq.circle` 独立一行），并在脚本头注释说明。
+2. **`cq-compat/dist` 落后（流程教训）**：CLI 经 `@faicad/cq-compat` 包名 → node_modules
+   软链 → **dist** 解析；只改 src 不构建 dist，新 `pendingWires` 路径完全不生效。
+   需 `npm run build -w @faicad/cq-compat`（与 core 同理，`AGENTS.md` 既有规则）。
 
-### 7.7 下一步（更新至批次 5 之后）
+收尾：调试日志已清理（`grep DBG` 零命中），临时探针测试已删，
+单测 `npm run test -w @faicad/cq-compat` **31/31 全绿**。
 
-1. **阶段 F1**（`pendingWires` 列表化）——**进行中**（见 §7.8）。
-   3 个 FAIL 中的 `testTwoWorkplanes__r` 已达标，`testNestedCircle__s` 与其下游
-   `testTwoWorkplanes__t` 待修（分组判定或 `makeFace` 侧，定位未完成）。
+> 📌 流程修正：本阶段先后踩了 **core/dist** 与 **cq-compat/dist** 两个"dist 落后"坑。
+> 凡改动 `packages/*/src` 后跑 CLI 级验证（`run-cand.ts` / `faijs-cli.ts`），必须先构建对应包。
+
+### 7.9 阶段 F2 — `revolve`（✅ 完成，2026-09-09）
+
+**实现**（`packages/cq-compat/src/workplane.ts`）：
+
+- 新增 `revolve(wp, angleDegrees?, axisStart?, axisEnd?, combine?)`：消费 `pendingWires`
+  列表（与 extrude 同分组逻辑），轴端点为**局部坐标**（上游 `Workplane.revolve` 语义，
+  默认起点=平面原点、终点=(0,start.y) 或 (0,1)），角度 0 归一为 360。
+- `rect` 新增 `centered?: boolean | [boolean, boolean]`（corner 落在参考点，offset 恒为 +len/2）。
+- `brepjs-compat` 既有 `revolve` 投影直接可用（`operations/api` 的 options 形式，弧度）。
+
+**已知内核限制（如实记录）**：面**穿过旋转轴**时（如上游 `rect(10,10).revolve()` 默认轴），
+vendored occt-wasm `revolveVec` 报 `REVOLVE_FAILED`；完整 OCCT 7.x 接受并产出自交实体
+（vol 3141.592654）。探针 3/3 轮确定性复现，JS 层无前置校验，属内核外部依赖限制。
+无镜像依赖该几何（`testRevolveCylinder__result` 对应测试**最后一次**赋值 = 270° 非穿轴版本），
+已单测记录（`src/revolve.test.ts` KNOWN KERNEL LIMIT），不做 workaround。
+
+**镜像 4 个全部 PASS**（首跑即过）：testRevolveCylinder__result（2356.194490）、
+testRevolveDonut__result（12566.370614）、testRevolveCut__box（1000）、
+testRevolveCut__cut（914.159265，`combine='cut'`）。
+testRevolveCone__result 需要 `lineTo`/`close`（H 阶段），保持 blocked。
+`testRevolveCut` 上游 `move(5,0)` ≡ `pushPoints([(5,0)])`（python 实测等价）。
+
+### 7.10 阶段 F3 — `loft`（✅ 完成，2026-09-09）
+
+**实现**：
+
+- 新增 `loft(wp, { ruled?, combine? })`：消费 `pendingWires` 列表为 sections，
+  上游默认 `ruled=False`（smooth）。
+- **`PendingWire` 新增 `plane` 平面快照**（创建时捕获 origin/xDir/yDir/normal）——
+  跨平面 sections 的前提（`workplane(offset)` / `transformed(rotate)` 之后追加的
+  wire 各自映射回自己的平面）；`buildProfileWire` 优先用 wire 自带平面。
+- `workplane()` 新增 `invert` 支持（上游 `Plane.invert`：xDir 不变、zDir 翻转、
+  yDir 随之翻转；offset 沿翻转后法向）。
+- `brepjs-compat` 既有 `loft(wires, {ruled})` 投影直接可用。
+
+**镜像 12 个全部 PASS**：testLoft__s/box/cut/add（4）、testLoftCombine__s（1）、
+testCup__s1/s2/s3（3，含 stacked workplane offset 与 `cut` 组合）、
+testTwistedLoft__s（1）、testDoubleTwistedLoft__s/s2/s3（3，含 `union` 组合）。
+单测 `src/loft.test.ts` 4/4（首跑即过）。
+
+**残留**：`test_loft_face__c/w1/w2`、`test_loft_to_vertex__c/w1/w2`（6 var）仍 blocked
+——需要 CQ **模块级**自由函数族 `plane`/`face`/`vertex`/`compound`/`moved`（E/F 阶段之外），
+且 `analyze-coverage.py` 的 AST 跟踪不识别这些模块级调用（`ops` 只记到 `[loft, add]`，
+blockedBy 停留在 'loft'，属 R1 所述"分析器盲区"）。待该 API 族立项时一并修正分析器。
+
+### 7.7 下一步（更新至 F3 之后）
+
+1. ~~**阶段 F1**~~ ✅ / ~~**F2 revolve**~~ ✅ / ~~**F3 loft**~~ ✅（见 §7.8–§7.10）。
+   F 阶段整体验收达成：3 个既有 FAIL 全部转 PASS；旧镜像零回归（全量重跑确认）；
+   新增 revolve/loft/multi-wire 单测覆盖。
+   **parity 11.08% → 14.00%**（PASS 74 → 90，FAIL=0）。
+2. **阶段 E**（`moved` 系 op，+75 var，下一优先级）：需新建 `Location` 抽象
+   （core 无既有导出，见 R3）；`Shape` 级 API 而非 Workplane op。
+3. **阶段 D**（smoke fixture 入 vitest/CI，≤30 case）可与 E 并行。
+4. **阶段 H**（2D wire：`close`/`moveTo`/`lineTo`/`wire`，+33 var）——
+   `testRevolveCone__result` 等 case 的阻塞项。
 2. 阶段 B 剩余：testCompoundCenter、testPlanes、testPlaneMethods、testMakeShellSolid、
    testCutBlindUntilFace\_\_wp_ref_regular_cut（需 `faces(">X[2]")` 索引选择器）、
    testFuzzyBoolOp 剩余 7 var、testCompSolid（partial sphere）、testOpenCornerShell（`shell`）。

@@ -41,10 +41,18 @@ export type RGB = [number, number, number]
  * or after `vertices()` is already positioned at its point). `group` is the
  * index of the point it was created at, kept only for diagnostics.
  */
+/** Snapshot of the plane a pending wire was created on (world coordinates). */
+export interface WirePlane {
+  origin: [number, number, number]
+  xDir: [number, number, number]
+  yDir: [number, number, number]
+  normal: [number, number, number]
+}
+
 export type PendingWire =
-  | { kind: 'rect'; w: number; d: number; cx: number; cy: number; construction: boolean }
-  | { kind: 'circle'; radius: number; cx: number; cy: number; construction: boolean }
-  | { kind: 'polygon'; n: number; d: number; cx: number; cy: number; construction: boolean }
+  | { kind: 'rect'; w: number; d: number; cx: number; cy: number; construction: boolean; plane?: WirePlane }
+  | { kind: 'circle'; radius: number; cx: number; cy: number; construction: boolean; plane?: WirePlane }
+  | { kind: 'polygon'; n: number; d: number; cx: number; cy: number; construction: boolean; plane?: WirePlane }
 
 /**
  * Workplane carrier — object with a custom prototype so compatOp's
@@ -149,6 +157,16 @@ function localToWorld(
   py: number,
 ): [number, number, number] {
   return vadd(wp.origin, vadd(vscale(wp.xDir, px), vscale(wp.yDir, py)))
+}
+
+/** Snapshot the current plane so a pending wire survives later workplane() moves. */
+function planeOf(wp: Pick<Workplane, 'origin' | 'xDir' | 'yDir' | 'normal'>): WirePlane {
+  return {
+    origin: [...wp.origin] as [number, number, number],
+    xDir: [...wp.xDir] as [number, number, number],
+    yDir: [...wp.yDir] as [number, number, number],
+    normal: [...wp.normal] as [number, number, number],
+  }
 }
 
 /** Create an empty workplane on the given plane (CadQuery named-plane axes). */
@@ -899,8 +917,15 @@ export function rect(
   wp: Workplane,
   w: number,
   d: number,
-  opts?: { forConstruction?: boolean },
+  opts?: { forConstruction?: boolean; centered?: boolean | [boolean, boolean] },
 ): Workplane {
+  // Upstream (cadquery 2.8.0 Workplane.rect): centered may be a bool or a
+  // per-axis 2-tuple; centered=false puts the CORNER on the reference point,
+  // extending in the +x/+y directions (offset is +len/2 even for negatives).
+  const centered = opts?.centered ?? true
+  const [cxOn, cyOn] = Array.isArray(centered) ? centered : [centered, centered]
+  const ox = cxOn ? 0 : w / 2
+  const oy = cyOn ? 0 : d / 2
   const at = Array.isArray(wp.pts) && wp.pts.length > 0 ? wp.pts : ([[0, 0]] as [number, number][])
   if (opts?.forConstruction) {
     // Construction rect: store corners for vertices() and edge midpoints for edges()
@@ -909,19 +934,19 @@ export function rect(
       pendingRect: { w, d },
       pendingWires: [
         ...(wp.pendingWires ?? []),
-        ...at.map(([cx, cy]) => ({ kind: 'rect' as const, w, d, cx, cy, construction: true })),
+        ...at.map(([px, py]) => ({ kind: 'rect' as const, w, d, cx: px + ox, cy: py + oy, construction: true, plane: planeOf(wp) })),
       ],
       pts: [
-        [-w / 2, -d / 2],
-        [w / 2, -d / 2],
-        [w / 2, d / 2],
-        [-w / 2, d / 2],
+        [ox - w / 2, oy - d / 2],
+        [ox + w / 2, oy - d / 2],
+        [ox + w / 2, oy + d / 2],
+        [ox - w / 2, oy + d / 2],
       ],
       edgePts: [
-        [0, -d / 2],
-        [w / 2, 0],
-        [0, d / 2],
-        [-w / 2, 0],
+        [ox, oy - d / 2],
+        [ox + w / 2, oy],
+        [ox, oy + d / 2],
+        [ox - w / 2, oy],
       ],
     })
   }
@@ -931,7 +956,7 @@ export function rect(
     pendingRect: { w, d },
     pendingWires: [
       ...(wp.pendingWires ?? []),
-      ...at.map(([cx, cy]) => ({ kind: 'rect' as const, w, d, cx, cy, construction: false })),
+      ...at.map(([px, py]) => ({ kind: 'rect' as const, w, d, cx: px + ox, cy: py + oy, construction: false, plane: planeOf(wp) })),
     ],
   })
 }
@@ -951,7 +976,7 @@ export function circle(wp: Workplane, radius: number): Workplane {
     pendingCircle: { radius },
     pendingWires: [
       ...(wp.pendingWires ?? []),
-      ...at.map(([cx, cy]) => ({ kind: 'circle' as const, radius, cx, cy, construction: false })),
+      ...at.map(([cx, cy]) => ({ kind: 'circle' as const, radius, cx, cy, construction: false, plane: planeOf(wp) })),
     ],
   })
 }
@@ -973,7 +998,7 @@ export function polygon(wp: Workplane, n: number, d: number): Workplane {
     pendingPolygon: { n, d },
     pendingWires: [
       ...(wp.pendingWires ?? []),
-      ...at.map(([cx, cy]) => ({ kind: 'polygon' as const, n, d, cx, cy, construction: false })),
+      ...at.map(([cx, cy]) => ({ kind: 'polygon' as const, n, d, cx, cy, construction: false, plane: planeOf(wp) })),
     ],
   })
 }
@@ -1068,9 +1093,17 @@ function groupPendingWires(wires: PendingWire[]): { outer: PendingWire; holes: P
 
 /** Build a brepjs wire for a pending 2D profile, in world coordinates. */
 async function buildProfileWire(wp: Workplane, w: PendingWire): Promise<unknown> {
-  const n = Array.isArray(wp.normal) ? wp.normal : ([0, 0, 1] as [number, number, number])
+  // Use the wire's own creation-plane snapshot when present (loft sections can
+  // live on different planes after intermediate workplane()/transformed calls).
+  const pl = w.plane ?? {
+    origin: wp.origin,
+    xDir: wp.xDir,
+    yDir: wp.yDir,
+    normal: wp.normal,
+  }
+  const n = Array.isArray(pl.normal) ? pl.normal : ([0, 0, 1] as [number, number, number])
   if (w.kind === 'circle') {
-    const center = localToWorld(wp, w.cx, w.cy)
+    const center = localToWorld(pl, w.cx, w.cy)
     const edge = unwrapBrepResult(compatFn('makeCircle')(w.radius, center, n))
     return unwrapBrepResult(compatFn('assembleWire')([edge]))
   }
@@ -1093,7 +1126,7 @@ async function buildProfileWire(wp: Workplane, w: PendingWire): Promise<unknown>
   for (let i = 0; i < ring.length; i++) {
     const a = ring[i]
     const b = ring[(i + 1) % ring.length]
-    edges.push(unwrapBrepResult(compatFn('makeLine')(localToWorld(wp, a[0], a[1]), localToWorld(wp, b[0], b[1]))))
+    edges.push(unwrapBrepResult(compatFn('makeLine')(localToWorld(pl, a[0], a[1]), localToWorld(pl, b[0], b[1]))))
   }
   return unwrapBrepResult(compatFn('assembleWire')(edges))
 }
@@ -1211,6 +1244,129 @@ export async function extrude(wp: Workplane, height: number): Promise<Workplane>
   }
   // No shape and no pending profile — return unchanged
   return wp
+}
+
+/**
+ * revolve — CadQuery `Workplane.revolve` parity.
+ *
+ * Consumes the pending wire LIST (same grouping as extrude: one holed face per
+ * outermost wire) and revolves each face around an axis. Axis endpoints are
+ * LOCAL workplane coordinates (verified against cadquery 2.8.0
+ * `Workplane.revolve`): start defaults to the plane origin; when only start is
+ * given, end defaults to `(0, start.y)` if `start.y != 0` else `(0, 1)` — i.e.
+ * the local +Y direction. Angle 0 is normalized to 360 (OCCT cannot do a
+ * 0-degree revolve).
+ *
+ * @param wp - Workplane
+ * @param angleDegrees - revolution angle (default 360)
+ * @param axisStart - axis start point in local 2D coords
+ * @param axisEnd - axis end point in local 2D coords
+ * @param combine - true: fuse with base; "cut": subtract from base; false: keep separate
+ * @returns Promise<Workplane>
+ */
+export async function revolve(
+  wp: Workplane,
+  angleDegrees = 360,
+  axisStart?: [number, number] | [number, number, number],
+  axisEnd?: [number, number] | [number, number, number],
+  combine: boolean | 'cut' = true,
+): Promise<Workplane> {
+  let angle = ((angleDegrees % 360) + 360) % 360
+  if (angle === 0) angle = 360
+
+  const sLocal: [number, number] = axisStart ? [axisStart[0], axisStart[1]] : [0, 0]
+  const eLocal: [number, number] = axisEnd
+    ? [axisEnd[0], axisEnd[1]]
+    : sLocal[1] !== 0
+      ? [0, sLocal[1]]
+      : [0, 1]
+  const startW = localToWorld(wp, sLocal[0], sLocal[1])
+  const endW = localToWorld(wp, eLocal[0], eLocal[1])
+  const axis: [number, number, number] = [endW[0] - startW[0], endW[1] - startW[1], endW[2] - startW[2]]
+  const len = Math.hypot(axis[0], axis[1], axis[2])
+  if (len === 0) throw new Error('[cq-compat] revolve: axis start and end coincide')
+  const dir: [number, number, number] = [axis[0] / len, axis[1] / len, axis[2] / len]
+
+  const all = (wp.pendingWires ?? []).filter((w) => !w.construction)
+  if (all.length === 0) throw new Error('[cq-compat] revolve: no pending wire to revolve')
+
+  wp = await applyPendingFacePlane(wp)
+  const rad = (angle * Math.PI) / 180
+  let result: Shape | null = null
+  for (const g of groupPendingWires(all)) {
+    const outer = await buildProfileWire(wp, g.outer)
+    const holeWires: unknown[] = []
+    for (const h of g.holes) holeWires.push(await buildProfileWire(wp, h))
+    const face = unwrapBrepResult(compatFn('makeFace')(outer, holeWires))
+    const revolved = unwrapBrepResult(compatFn('revolve')(face, { at: startW, axis: dir, angle: rad }))
+    const solid = adoptBrepjsProduct(revolved) as Shape
+    result = result ? await fuseShapes(result, solid) : solid
+  }
+
+  const base = wp.shape
+  let shape = result as Shape
+  if (combine === 'cut' && base) shape = await cutShapes(base, shape)
+  else if (combine === true && base) shape = await fuseShapes(base, shape)
+  // combine === false → keep the revolved solid alone
+
+  return clone(wp, {
+    shape,
+    pendingWires: [],
+    pendingPolygon: undefined,
+    pendingRect: undefined,
+    pendingCircle: undefined,
+    faceSel: null,
+    edgeSel: null,
+    vertexSel: null,
+    pts: [],
+  })
+}
+
+/**
+ * loft — CadQuery `Workplane.loft` parity.
+ *
+ * Consumes the pending wire LIST as loft sections (each wire built on its own
+ * creation-plane snapshot, so intermediate workplane(offset)/transformed moves
+ * are honored). Upstream default is a smooth (ruled=False) loft.
+ *
+ * @param wp - Workplane
+ * @param opts - { ruled?: boolean; combine?: boolean | 'cut' }
+ * @returns Promise<Workplane>
+ */
+export async function loft(
+  wp: Workplane,
+  opts?: { ruled?: boolean; combine?: boolean | 'cut' },
+): Promise<Workplane> {
+  const sections: unknown[] = []
+  for (const w of wp.pendingWires ?? []) {
+    if (w.construction) continue
+    sections.push(await buildProfileWire(wp, w))
+  }
+  if (sections.length === 0) throw new Error('[cq-compat] loft: no pending wire sections')
+
+  wp = await applyPendingFacePlane(wp)
+  const solid = adoptBrepjsProduct(
+    unwrapBrepResult(compatFn('loft')(sections, { ruled: opts?.ruled ?? false })),
+  ) as Shape
+
+  const base = wp.shape
+  let shape = solid
+  const combine = opts?.combine ?? true
+  if (combine === 'cut' && base) shape = await cutShapes(base, shape)
+  else if (combine === true && base) shape = await fuseShapes(base, shape)
+  // combine === false → keep the loft alone
+
+  return clone(wp, {
+    shape,
+    pendingWires: [],
+    pendingPolygon: undefined,
+    pendingRect: undefined,
+    pendingCircle: undefined,
+    faceSel: null,
+    edgeSel: null,
+    vertexSel: null,
+    pts: [],
+  })
 }
 
 /**
@@ -1505,18 +1661,37 @@ export function vertices(
  */
 export async function workplane(
   wp: Workplane,
-  opts?: { centerOption?: string; offset?: number },
+  opts?: { centerOption?: string; offset?: number; invert?: boolean },
 ): Promise<Workplane> {
+  // Upstream (cadquery 2.8.0 Workplane.workplane): invert flips the plane
+  // normal (Plane.invert keeps xDir, flips zDir, yDir = zDir × xDir flips
+  // accordingly); the offset is then applied along the (possibly inverted)
+  // normal.
+  const invert = opts?.invert === true
+  const flip = (n: [number, number, number]): [number, number, number] => [
+    -n[0],
+    -n[1],
+    -n[2],
+  ]
   if (!wp.shape || !wp.faceSel) {
     // No face selected — just apply offset
+    const normal = invert ? flip(wp.normal) : wp.normal
     if (opts?.offset) {
-      const offset = vscale(wp.normal, opts.offset)
+      const offset = vscale(normal, opts.offset)
       return clone(wp, { origin: vadd(wp.origin, offset), faceSel: null })
+    }
+    if (invert) {
+      const yDir: [number, number, number] = [
+        normal[1] * wp.xDir[2] - normal[2] * wp.xDir[1],
+        normal[2] * wp.xDir[0] - normal[0] * wp.xDir[2],
+        normal[0] * wp.xDir[1] - normal[1] * wp.xDir[0],
+      ]
+      return clone(wp, { normal, yDir, faceSel: null })
     }
     return clone(wp, { faceSel: null })
   }
 
-  const { center, normal } = await resolveFaceSelector(wp.shape, wp.faceSel, opts?.centerOption)
+  const { center, normal: faceNormal } = await resolveFaceSelector(wp.shape, wp.faceSel, opts?.centerOption)
   // CadQuery default centerOption is "ProjectedOrigin": project the current
   // origin onto the face plane. "CenterOfBoundBox"/"CenterOfMass" keep the
   // face centroid returned by resolveFaceSelector.
@@ -1524,9 +1699,10 @@ export async function workplane(
   if (opts?.centerOption && opts.centerOption !== 'ProjectedOrigin') {
     newOrigin = center
   } else {
-    const t = vdot(vsub(center, wp.origin), normal)
-    newOrigin = vadd(wp.origin, vscale(normal, t))
+    const t = vdot(vsub(center, wp.origin), faceNormal)
+    newOrigin = vadd(wp.origin, vscale(faceNormal, t))
   }
+  const normal = invert ? flip(faceNormal) : faceNormal
   if (opts?.offset) {
     newOrigin = vadd(newOrigin, vscale(normal, opts.offset))
   }

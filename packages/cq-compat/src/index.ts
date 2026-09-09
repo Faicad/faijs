@@ -25,6 +25,8 @@ export {
   circle,
   polygon,
   extrude,
+  revolve,
+  loft,
   cutBlind,
   cutThruAll,
   hole,

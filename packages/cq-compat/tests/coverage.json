@@ -2,36 +2,32 @@
   "totalCasesInRefManifest": 305,
   "casesWithStep": 297,
   "casesWithoutStep": 8,
-  "portableNow": 136,
-  "portableWithStub": 36,
-  "blocked": 125,
+  "portableNow": 94,
+  "portableWithStub": 32,
+  "blocked": 171,
   "blockedByTop": [
+    [
+      "Assembly",
+      20
+    ],
     [
       "moved",
       16
     ],
     [
       "close",
-      9
-    ],
-    [
-      "importStep",
-      8
+      10
     ],
     [
       "loft",
       7
     ],
     [
-      "load",
-      6
+      "getfixturevalue",
+      7
     ],
     [
-      "save",
-      6
-    ],
-    [
-      "constrain",
+      "raises",
       6
     ],
     [
@@ -39,19 +35,19 @@
       5
     ],
     [
-      "revolve",
+      "move",
       4
     ],
     [
-      "export",
+      "generated",
+      4
+    ],
+    [
+      "save",
       4
     ],
     [
       "eachpoint",
-      3
-    ],
-    [
-      "move",
       3
     ],
     [
@@ -67,7 +63,35 @@
       3
     ],
     [
+      "importStep",
+      3
+    ],
+    [
+      "exists",
+      3
+    ],
+    [
+      "parametrize",
+      3
+    ],
+    [
+      "constrain",
+      3
+    ],
+    [
       "importBrep",
+      2
+    ],
+    [
+      "cyl",
+      2
+    ],
+    [
+      "makeCompound",
+      2
+    ],
+    [
+      "XY",
       2
     ],
     [
@@ -81,30 +105,6 @@
     [
       "ellipse",
       2
-    ],
-    [
-      "tag",
-      2
-    ],
-    [
-      "text",
-      2
-    ],
-    [
-      "face",
-      2
-    ],
-    [
-      "solve",
-      2
-    ],
-    [
-      "wire",
-      1
-    ],
-    [
-      "narrow:chamfer-asym",
-      1
     ]
   ],
   "missingOpTop": [
@@ -113,11 +113,23 @@
       22
     ],
     [
+      "Assembly",
+      20
+    ],
+    [
       "close",
       13
     ],
     [
+      "raises",
+      11
+    ],
+    [
       "importStep",
+      9
+    ],
+    [
+      "exists",
       9
     ],
     [
@@ -127,6 +139,10 @@
     [
       "loft",
       8
+    ],
+    [
+      "getfixturevalue",
+      7
     ],
     [
       "load",
@@ -169,15 +185,19 @@
       4
     ],
     [
-      "revolve",
-      4
-    ],
-    [
       "export",
       4
     ],
     [
+      "generated",
+      4
+    ],
+    [
       "interpPlate",
+      3
+    ],
+    [
+      "XY",
       3
     ],
     [
@@ -187,26 +207,6 @@
     [
       "polyline",
       3
-    ],
-    [
-      "eachpoint",
-      3
-    ],
-    [
-      "sweep",
-      3
-    ],
-    [
-      "mirrorX",
-      3
-    ],
-    [
-      "twistExtrude",
-      3
-    ],
-    [
-      "importBrep",
-      2
     ]
   ],
   "cases": {
@@ -216,18 +216,22 @@
       "blockedBy": "close",
       "ops": [
         "close",
+        "assertEqual",
         "threePointArc",
         "sagittaArc",
         "radiusArc",
+        "XY",
         "size",
         "geomType",
         "lineTo",
         "hLineTo",
         "hLine",
         "wire",
+        "YZ",
         "vLineTo",
         "vLine",
         "move",
+        "NearestToPointSelector",
         "moveTo"
       ],
       "vars": []
@@ -341,7 +345,7 @@
     "tests.test_cadquery::TestCadQuery::testChamfer": {
       "status": "exported",
       "category": "PORTABLE-WITH-STUB",
-      "blockedBy": null,
+      "blockedBy": "stub:makeBox",
       "ops": [
         "chamfer"
       ],
@@ -394,6 +398,7 @@
         "cylinder",
         "interpPlate",
         "pushPoints",
+        "makeCircle",
         "wedge"
       ],
       "vars": [
@@ -408,6 +413,7 @@
         "extrude",
         "close",
         "sagittaArc",
+        "XY",
         "threePointArc",
         "moveTo"
       ],
@@ -427,7 +433,8 @@
         "box",
         "extrude",
         "close",
-        "polyline"
+        "polyline",
+        "hollow"
       ],
       "vars": [
         "s1",
@@ -472,18 +479,22 @@
     },
     "tests.test_cadquery::TestCadQuery::testCompSolid": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
-      "ops": [],
+      "category": "BLOCKED",
+      "blockedBy": "makeSphere",
+      "ops": [
+        "makeSphere"
+      ],
       "vars": [
         "tool"
       ]
     },
     "tests.test_cadquery::TestCadQuery::testCone": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
-      "ops": [],
+      "category": "BLOCKED",
+      "blockedBy": "makeCone",
+      "ops": [
+        "makeCone"
+      ],
       "vars": [
         "s",
         "t"
@@ -495,6 +506,7 @@
       "blockedBy": "consolidateWires",
       "ops": [
         "consolidateWires",
+        "assertEqual",
         "size",
         "lineTo"
       ],
@@ -528,7 +540,7 @@
     "tests.test_cadquery::TestCadQuery::testCounterBores": {
       "status": "exported",
       "category": "PORTABLE-WITH-STUB",
-      "blockedBy": null,
+      "blockedBy": "stub:makeBox",
       "ops": [
         "cboreHole",
         "pushPoints",
@@ -555,11 +567,12 @@
     },
     "tests.test_cadquery::TestCadQuery::testCubePlugin": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
+      "category": "BLOCKED",
+      "blockedBy": "makeCubes",
       "ops": [
         "rect",
         "box",
+        "makeCubes",
         "combine"
       ],
       "vars": [
@@ -701,9 +714,10 @@
     },
     "tests.test_cadquery::TestCadQuery::testCylinderPlugin": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
+      "category": "BLOCKED",
+      "blockedBy": "cyl",
       "ops": [
+        "cyl",
         "rect"
       ],
       "vars": [
@@ -849,7 +863,7 @@
     "tests.test_cadquery::TestCadQuery::testFillet": {
       "status": "exported",
       "category": "PORTABLE-WITH-STUB",
-      "blockedBy": null,
+      "blockedBy": "stub:makeBox",
       "ops": [
         "fillet",
         "extrude",
@@ -878,14 +892,16 @@
       "category": "BLOCKED",
       "blockedBy": "moveTo",
       "ops": [
-        "moveTo"
+        "moveTo",
+        "assertEqual",
+        "nonExistentInWorkplane"
       ],
       "vars": []
     },
     "tests.test_cadquery::TestCadQuery::testFrontReference": {
       "status": "exported",
       "category": "PORTABLE-WITH-STUB",
-      "blockedBy": null,
+      "blockedBy": "stub:makeBox",
       "ops": [
         "cutBlind",
         "circle"
@@ -896,12 +912,13 @@
     },
     "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
+      "category": "BLOCKED",
+      "blockedBy": "makeCompound",
       "ops": [
         "box",
         "union",
-        "intersect"
+        "intersect",
+        "makeCompound"
       ],
       "vars": [
         "box1",
@@ -967,10 +984,11 @@
     },
     "tests.test_cadquery::TestCadQuery::testIsInside": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
+      "category": "BLOCKED",
+      "blockedBy": "XY",
       "ops": [
-        "box"
+        "box",
+        "XY"
       ],
       "vars": [
         "box1",
@@ -1000,6 +1018,7 @@
       "ops": [
         "box",
         "largestDimension",
+        "assertAlmostEqual",
         "extrude",
         "rect"
       ],
@@ -1025,8 +1044,9 @@
     "tests.test_cadquery::TestCadQuery::testLocatedMoved": {
       "status": "exported",
       "category": "BLOCKED",
-      "blockedBy": "located",
+      "blockedBy": "makeBox",
       "ops": [
+        "makeBox",
         "located",
         "moved"
       ],
@@ -1071,9 +1091,11 @@
     },
     "tests.test_cadquery::TestCadQuery::testMakeShellSolid": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
-      "ops": [],
+      "category": "BLOCKED",
+      "blockedBy": "makeSolid",
+      "ops": [
+        "makeSolid"
+      ],
       "vars": [
         "solid"
       ]
@@ -1155,6 +1177,7 @@
         "cylinder",
         "interpPlate",
         "pushPoints",
+        "makeCircle",
         "wedge"
       ],
       "vars": [
@@ -1244,7 +1267,7 @@
     "tests.test_cadquery::TestCadQuery::testPointList": {
       "status": "exported",
       "category": "PORTABLE-WITH-STUB",
-      "blockedBy": null,
+      "blockedBy": "stub:makeBox",
       "ops": [
         "cutThruAll",
         "circle"
@@ -1274,19 +1297,24 @@
       "blockedBy": "close",
       "ops": [
         "close",
+        "assertEqual",
         "polarLineTo",
         "polarLine",
+        "XY",
         "size",
-        "move"
+        "toTuple",
+        "move",
+        "positionAt"
       ],
       "vars": []
     },
     "tests.test_cadquery::TestCadQuery::testPolygonPlugin": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
+      "category": "BLOCKED",
+      "blockedBy": "rPoly",
       "ops": [
         "cutThruAll",
+        "rPoly",
         "rect",
         "workplane",
         "box"
@@ -1310,13 +1338,14 @@
     },
     "tests.test_cadquery::TestCadQuery::testQuickStartXY": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
+      "category": "BLOCKED",
+      "blockedBy": "XY",
       "ops": [
         "cskHole",
         "rect",
         "workplane",
-        "box"
+        "box",
+        "XY"
       ],
       "vars": [
         "s"
@@ -1324,13 +1353,14 @@
     },
     "tests.test_cadquery::TestCadQuery::testQuickStartXZ": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
+      "category": "BLOCKED",
+      "blockedBy": "XZ",
       "ops": [
         "cskHole",
         "rect",
         "workplane",
-        "box"
+        "box",
+        "XZ"
       ],
       "vars": [
         "s"
@@ -1338,13 +1368,14 @@
     },
     "tests.test_cadquery::TestCadQuery::testQuickStartYZ": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
+      "category": "BLOCKED",
+      "blockedBy": "YZ",
       "ops": [
         "cskHole",
         "rect",
         "workplane",
-        "box"
+        "box",
+        "YZ"
       ],
       "vars": [
         "s"
@@ -1353,11 +1384,14 @@
     "tests.test_cadquery::TestCadQuery::testRectArray": {
       "status": "no-step",
       "category": "BLOCKED",
-      "blockedBy": "size",
+      "blockedBy": "saveModel",
       "ops": [
         "extrude",
+        "saveModel",
+        "assertEqual",
         "size",
         "rarray",
+        "assertTrue",
         "circle",
         "workplane",
         "box"
@@ -1367,7 +1401,7 @@
     "tests.test_cadquery::TestCadQuery::testRevolveCone": {
       "status": "exported",
       "category": "BLOCKED",
-      "blockedBy": "revolve",
+      "blockedBy": "close",
       "ops": [
         "revolve",
         "close",
@@ -1380,7 +1414,7 @@
     "tests.test_cadquery::TestCadQuery::testRevolveCut": {
       "status": "exported",
       "category": "BLOCKED",
-      "blockedBy": "revolve",
+      "blockedBy": "move",
       "ops": [
         "box",
         "revolve",
@@ -1395,8 +1429,8 @@
     },
     "tests.test_cadquery::TestCadQuery::testRevolveCylinder": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "revolve",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "revolve",
         "rect"
@@ -1407,8 +1441,8 @@
     },
     "tests.test_cadquery::TestCadQuery::testRevolveDonut": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "revolve",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "revolve",
         "rect"
@@ -1518,7 +1552,8 @@
         "placeSketch",
         "moved",
         "polygon",
-        "sweep"
+        "sweep",
+        "locationAt"
       ],
       "vars": [
         "r1",
@@ -1563,7 +1598,7 @@
     "tests.test_cadquery::TestCadQuery::testSolidReferencesCombine": {
       "status": "exported",
       "category": "PORTABLE-WITH-STUB",
-      "blockedBy": null,
+      "blockedBy": "stub:makeBox",
       "ops": [
         "extrude",
         "circle",
@@ -1721,7 +1756,8 @@
         "union",
         "box",
         "tag",
-        "pushPoints"
+        "pushPoints",
+        "_getTagged"
       ],
       "vars": [
         "result"
@@ -1736,7 +1772,8 @@
         "tag",
         "box",
         "pushPoints",
-        "rect"
+        "rect",
+        "makeCompound"
       ],
       "vars": [
         "result0",
@@ -1849,7 +1886,7 @@
     "tests.test_cadquery::TestCadQuery::testTranslateSolid": {
       "status": "exported",
       "category": "PORTABLE-WITH-STUB",
-      "blockedBy": null,
+      "blockedBy": "stub:makeBox",
       "ops": [
         "translate"
       ],
@@ -2057,7 +2094,7 @@
     "tests.test_cadquery::TestCadQuery::testWorkplaneFromFace": {
       "status": "exported",
       "category": "PORTABLE-WITH-STUB",
-      "blockedBy": null,
+      "blockedBy": "stub:makeBox",
       "ops": [
         "cutBlind",
         "circle"
@@ -2087,7 +2124,7 @@
     "tests.test_cadquery::TestCadQuery::testWorkplaneOnExistingSolid": {
       "status": "exported",
       "category": "PORTABLE-WITH-STUB",
-      "blockedBy": null,
+      "blockedBy": "stub:makeBox",
       "ops": [
         "extrude",
         "circle",
@@ -2138,11 +2175,12 @@
     },
     "tests.test_cadquery::TestCadQuery::test_combineWithBase": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
+      "category": "BLOCKED",
+      "blockedBy": "_combineWithBase",
       "ops": [
         "box",
-        "sphere"
+        "sphere",
+        "_combineWithBase"
       ],
       "vars": [
         "box",
@@ -2152,20 +2190,23 @@
     },
     "tests.test_cadquery::TestCadQuery::test_compound_faces_center": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
-      "ops": [],
+      "category": "BLOCKED",
+      "blockedBy": "makeCompound",
+      "ops": [
+        "makeCompound"
+      ],
       "vars": [
         "compound"
       ]
     },
     "tests.test_cadquery::TestCadQuery::test_cutFromBase": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
+      "category": "BLOCKED",
+      "blockedBy": "_cutFromBase",
       "ops": [
         "box",
-        "sphere"
+        "sphere",
+        "_cutFromBase"
       ],
       "vars": [
         "box",
@@ -2224,6 +2265,7 @@
       "ops": [
         "interpPlate",
         "pushPoints",
+        "makeNSidedSurface",
         "close"
       ],
       "vars": [
@@ -2312,9 +2354,12 @@
     },
     "tests.test_cadquery::TestCadQuery::test_project": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
-      "ops": [],
+      "category": "BLOCKED",
+      "blockedBy": "extrudeLinear",
+      "ops": [
+        "extrudeLinear",
+        "project"
+      ],
       "vars": [
         "res_ex",
         "res_o_ex"
@@ -2370,7 +2415,8 @@
       "blockedBy": "moved",
       "ops": [
         "moved",
-        "remove"
+        "remove",
+        "innerShells"
       ],
       "vars": [
         "b",
@@ -2382,7 +2428,8 @@
       "category": "BLOCKED",
       "blockedBy": "moved",
       "ops": [
-        "moved"
+        "moved",
+        "addCavity"
       ],
       "vars": [
         "b1",
@@ -2708,7 +2755,8 @@
       "category": "BLOCKED",
       "blockedBy": "moved",
       "ops": [
-        "moved"
+        "moved",
+        "images"
       ],
       "vars": [
         "b1",
@@ -2799,7 +2847,8 @@
       "category": "BLOCKED",
       "blockedBy": "face",
       "ops": [
-        "face"
+        "face",
+        "extend"
       ],
       "vars": [
         "box_shape",
@@ -2987,9 +3036,11 @@
     },
     "tests.test_free_functions:::test_history_extrude": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
-      "ops": [],
+      "category": "BLOCKED",
+      "blockedBy": "generated",
+      "ops": [
+        "generated"
+      ],
       "vars": [
         "res",
         "sides"
@@ -2997,9 +3048,12 @@
     },
     "tests.test_free_functions:::test_history_sweep": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
-      "ops": [],
+      "category": "BLOCKED",
+      "blockedBy": "generated",
+      "ops": [
+        "generated",
+        "outerWire"
+      ],
       "vars": [
         "res",
         "side"
@@ -3007,9 +3061,11 @@
     },
     "tests.test_free_functions:::test_history_loft": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
-      "ops": [],
+      "category": "BLOCKED",
+      "blockedBy": "generated",
+      "ops": [
+        "generated"
+      ],
       "vars": [
         "res",
         "side"
@@ -3017,9 +3073,11 @@
     },
     "tests.test_free_functions:::test_history_offset": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
-      "ops": [],
+      "category": "BLOCKED",
+      "blockedBy": "generated",
+      "ops": [
+        "generated"
+      ],
       "vars": [
         "sides"
       ]
@@ -3027,7 +3085,7 @@
     "tests.test_selectors::TestCQSelectors::testAll": {
       "status": "exported",
       "category": "PORTABLE-WITH-STUB",
-      "blockedBy": null,
+      "blockedBy": "stub:makeBox",
       "ops": [],
       "vars": [
         "c"
@@ -3036,7 +3094,7 @@
     "tests.test_selectors::TestCQSelectors::testAndSelector": {
       "status": "exported",
       "category": "PORTABLE-WITH-STUB",
-      "blockedBy": null,
+      "blockedBy": "stub:makeBox",
       "ops": [],
       "vars": [
         "c"
@@ -3072,7 +3130,8 @@
       "blockedBy": "eachpoint",
       "ops": [
         "eachpoint",
-        "rarray"
+        "rarray",
+        "AreaNthSelector"
       ],
       "vars": [
         "workplane_solids",
@@ -3098,7 +3157,7 @@
     "tests.test_selectors::TestCQSelectors::testBox": {
       "status": "exported",
       "category": "PORTABLE-WITH-STUB",
-      "blockedBy": null,
+      "blockedBy": "stub:makeBox",
       "ops": [],
       "vars": [
         "c"
@@ -3130,7 +3189,7 @@
     "tests.test_selectors::TestCQSelectors::testComplexStringSelector": {
       "status": "exported",
       "category": "PORTABLE-WITH-STUB",
-      "blockedBy": null,
+      "blockedBy": "stub:makeBox",
       "ops": [],
       "vars": [
         "c"
@@ -3152,7 +3211,7 @@
     "tests.test_selectors::TestCQSelectors::testFaceCount": {
       "status": "exported",
       "category": "PORTABLE-WITH-STUB",
-      "blockedBy": null,
+      "blockedBy": "stub:makeBox",
       "ops": [],
       "vars": [
         "c"
@@ -3161,7 +3220,7 @@
     "tests.test_selectors::TestCQSelectors::testFaceDirFilter": {
       "status": "exported",
       "category": "PORTABLE-WITH-STUB",
-      "blockedBy": null,
+      "blockedBy": "stub:makeBox",
       "ops": [],
       "vars": [
         "c"
@@ -3170,7 +3229,7 @@
     "tests.test_selectors::TestCQSelectors::testFaceTypesFilter": {
       "status": "exported",
       "category": "PORTABLE-WITH-STUB",
-      "blockedBy": null,
+      "blockedBy": "stub:makeBox",
       "ops": [],
       "vars": [
         "c"
@@ -3179,7 +3238,7 @@
     "tests.test_selectors::TestCQSelectors::testFirst": {
       "status": "exported",
       "category": "PORTABLE-WITH-STUB",
-      "blockedBy": null,
+      "blockedBy": "stub:makeBox",
       "ops": [],
       "vars": [
         "c"
@@ -3188,7 +3247,7 @@
     "tests.test_selectors::TestCQSelectors::testInverseSelector": {
       "status": "exported",
       "category": "PORTABLE-WITH-STUB",
-      "blockedBy": null,
+      "blockedBy": "stub:makeBox",
       "ops": [],
       "vars": [
         "c"
@@ -3210,7 +3269,7 @@
     "tests.test_selectors::TestCQSelectors::testMaxDistance": {
       "status": "exported",
       "category": "PORTABLE-WITH-STUB",
-      "blockedBy": null,
+      "blockedBy": "stub:makeBox",
       "ops": [],
       "vars": [
         "c"
@@ -3219,7 +3278,7 @@
     "tests.test_selectors::TestCQSelectors::testMinDistance": {
       "status": "exported",
       "category": "PORTABLE-WITH-STUB",
-      "blockedBy": null,
+      "blockedBy": "stub:makeBox",
       "ops": [],
       "vars": [
         "c"
@@ -3228,7 +3287,7 @@
     "tests.test_selectors::TestCQSelectors::testNearestToPoint": {
       "status": "exported",
       "category": "PORTABLE-WITH-STUB",
-      "blockedBy": null,
+      "blockedBy": "stub:makeBox",
       "ops": [],
       "vars": [
         "c"
@@ -3239,7 +3298,8 @@
       "category": "BLOCKED",
       "blockedBy": "moved",
       "ops": [
-        "moved"
+        "moved",
+        "NearestToShape"
       ],
       "vars": [
         "b1",
@@ -3265,7 +3325,7 @@
     "tests.test_selectors::TestCQSelectors::testParallelEdgeFilter": {
       "status": "exported",
       "category": "PORTABLE-WITH-STUB",
-      "blockedBy": null,
+      "blockedBy": "stub:makeBox",
       "ops": [],
       "vars": [
         "c"
@@ -3274,7 +3334,7 @@
     "tests.test_selectors::TestCQSelectors::testPerpendicularDirFilter": {
       "status": "exported",
       "category": "PORTABLE-WITH-STUB",
-      "blockedBy": null,
+      "blockedBy": "stub:makeBox",
       "ops": [],
       "vars": [
         "c"
@@ -3283,7 +3343,7 @@
     "tests.test_selectors::TestCQSelectors::testRadiusNthSelector": {
       "status": "exported",
       "category": "PORTABLE-WITH-STUB",
-      "blockedBy": null,
+      "blockedBy": "stub:makeBox",
       "ops": [],
       "vars": [
         "solid"
@@ -3306,7 +3366,7 @@
     "tests.test_selectors::TestCQSelectors::testSolid": {
       "status": "exported",
       "category": "PORTABLE-WITH-STUB",
-      "blockedBy": null,
+      "blockedBy": "stub:makeBox",
       "ops": [],
       "vars": [
         "c"
@@ -3315,7 +3375,7 @@
     "tests.test_selectors::TestCQSelectors::testSubtractSelector": {
       "status": "exported",
       "category": "PORTABLE-WITH-STUB",
-      "blockedBy": null,
+      "blockedBy": "stub:makeBox",
       "ops": [],
       "vars": [
         "c"
@@ -3324,7 +3384,7 @@
     "tests.test_selectors::TestCQSelectors::testSumSelector": {
       "status": "exported",
       "category": "PORTABLE-WITH-STUB",
-      "blockedBy": null,
+      "blockedBy": "stub:makeBox",
       "ops": [],
       "vars": [
         "c"
@@ -3333,7 +3393,7 @@
     "tests.test_selectors::TestCQSelectors::testVertexFilter": {
       "status": "exported",
       "category": "PORTABLE-WITH-STUB",
-      "blockedBy": null,
+      "blockedBy": "stub:makeBox",
       "ops": [],
       "vars": [
         "c"
@@ -3341,18 +3401,22 @@
     },
     "tests.test_selectors::TestCQSelectors::testWorkplaneCenter": {
       "status": "no-step",
-      "category": "PORTABLE",
-      "blockedBy": null,
+      "category": "BLOCKED",
+      "blockedBy": "assertTupleAlmostEquals",
       "ops": [
-        "center"
+        "assertTupleAlmostEquals",
+        "center",
+        "XY",
+        "toTuple"
       ],
       "vars": []
     },
     "tests.test_cad_objects::TestCadObjects::testCompoundCenter": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
+      "category": "BLOCKED",
+      "blockedBy": "cyl",
       "ops": [
+        "cyl",
         "rect"
       ],
       "vars": [
@@ -3361,18 +3425,24 @@
     },
     "tests.test_cad_objects::TestCadObjects::testMatrixOfInertia": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
-      "ops": [],
+      "category": "BLOCKED",
+      "blockedBy": "makeCylinder",
+      "ops": [
+        "makeCylinder"
+      ],
       "vars": [
         "cylinder"
       ]
     },
     "tests.test_cad_objects::TestCadObjects::testPlaneMethods": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
-      "ops": [],
+      "category": "BLOCKED",
+      "blockedBy": "toLocalCoords",
+      "ops": [
+        "toLocalCoords",
+        "makeBox",
+        "mirrorInPlane"
+      ],
       "vars": [
         "local_box",
         "mirror_box"
@@ -3401,9 +3471,11 @@
     },
     "tests.test_assembly:::test_assy_root_name": {
       "status": "exported",
-      "category": "PORTABLE-WITH-STUB",
-      "blockedBy": "stub:ShapeType",
-      "ops": [],
+      "category": "BLOCKED",
+      "blockedBy": "getfixturevalue",
+      "ops": [
+        "getfixturevalue"
+      ],
       "vars": [
         "assy"
       ]
@@ -3423,9 +3495,11 @@
     },
     "tests.test_assembly:::test_meta_step_export": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
+      "category": "BLOCKED",
+      "blockedBy": "Assembly",
       "ops": [
+        "Assembly",
+        "Workplane",
         "cylinder",
         "box"
       ],
@@ -3446,7 +3520,8 @@
       "category": "PORTABLE",
       "blockedBy": null,
       "ops": [
-        "box"
+        "box",
+        "Workplane"
       ],
       "vars": [
         "cube"
@@ -3455,8 +3530,9 @@
     "tests.test_assembly:::test_step_roundtrip_with_materials": {
       "status": "exported",
       "category": "BLOCKED",
-      "blockedBy": "importStep",
+      "blockedBy": "Assembly",
       "ops": [
+        "Assembly",
         "importStep"
       ],
       "vars": [
@@ -3466,36 +3542,44 @@
     },
     "tests.test_assembly:::test_step_export_assembly_unit_default": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
-      "ops": [],
+      "category": "BLOCKED",
+      "blockedBy": "Assembly",
+      "ops": [
+        "Assembly"
+      ],
       "vars": [
         "assy"
       ]
     },
     "tests.test_assembly:::test_step_export_assembly_unit_meters": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
-      "ops": [],
+      "category": "BLOCKED",
+      "blockedBy": "Assembly",
+      "ops": [
+        "Assembly"
+      ],
       "vars": [
         "assy"
       ]
     },
     "tests.test_assembly:::test_step_export_meta_unit_meters": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
-      "ops": [],
+      "category": "BLOCKED",
+      "blockedBy": "Assembly",
+      "ops": [
+        "Assembly"
+      ],
       "vars": [
         "assy"
       ]
     },
     "tests.test_assembly:::test_step_export_assembly_output_unit": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
-      "ops": [],
+      "category": "BLOCKED",
+      "blockedBy": "Assembly",
+      "ops": [
+        "Assembly"
+      ],
       "vars": [
         "assy"
       ]
@@ -3503,8 +3587,9 @@
     "tests.test_assembly:::test_step_roundtrip_unit": {
       "status": "exported",
       "category": "BLOCKED",
-      "blockedBy": "load",
+      "blockedBy": "Assembly",
       "ops": [
+        "Assembly",
         "load"
       ],
       "vars": [
@@ -3519,7 +3604,8 @@
       "blockedBy": "importStep",
       "ops": [
         "importStep",
-        "box"
+        "box",
+        "Workplane"
       ],
       "vars": [
         "subshape_assy",
@@ -3554,9 +3640,12 @@
     "tests.test_assembly:::test_plain_assembly_import": {
       "status": "exported",
       "category": "BLOCKED",
-      "blockedBy": "importStep",
+      "blockedBy": "Assembly",
       "ops": [
         "box",
+        "Workplane",
+        "Assembly",
+        "Location",
         "importStep"
       ],
       "vars": [
@@ -3583,8 +3672,9 @@
     "tests.test_assembly:::test_nested_subassembly_step_import": {
       "status": "exported",
       "category": "BLOCKED",
-      "blockedBy": "importStep",
+      "blockedBy": "Assembly",
       "ops": [
+        "Assembly",
         "importStep"
       ],
       "vars": [
@@ -3596,8 +3686,9 @@
     "tests.test_assembly:::test_assembly_step_import_roundtrip": {
       "status": "exported",
       "category": "BLOCKED",
-      "blockedBy": "load",
+      "blockedBy": "getfixturevalue",
       "ops": [
+        "getfixturevalue",
         "load",
         "importStep"
       ],
@@ -3609,8 +3700,9 @@
     "tests.test_assembly:::test_assembly_import_step_unit": {
       "status": "exported",
       "category": "BLOCKED",
-      "blockedBy": "importStep",
+      "blockedBy": "Assembly",
       "ops": [
+        "Assembly",
         "importStep"
       ],
       "vars": [
@@ -3621,8 +3713,9 @@
     "tests.test_assembly:::test_step_export_loc": {
       "status": "exported",
       "category": "BLOCKED",
-      "blockedBy": "importStep",
+      "blockedBy": "getfixturevalue",
       "ops": [
+        "getfixturevalue",
         "importStep"
       ],
       "vars": [
@@ -3632,27 +3725,33 @@
     },
     "tests.test_assembly:::test_native_export": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
-      "ops": [],
+      "category": "BLOCKED",
+      "blockedBy": "exists",
+      "ops": [
+        "exists"
+      ],
       "vars": [
         "simple_assy"
       ]
     },
     "tests.test_assembly:::test_vtkjs_export": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
-      "ops": [],
+      "category": "BLOCKED",
+      "blockedBy": "exists",
+      "ops": [
+        "exists"
+      ],
       "vars": [
         "nested_assy"
       ]
     },
     "tests.test_assembly:::test_vrml_export": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
-      "ops": [],
+      "category": "BLOCKED",
+      "blockedBy": "exists",
+      "ops": [
+        "exists"
+      ],
       "vars": [
         "simple_assy"
       ]
@@ -3670,9 +3769,11 @@
     "tests.test_assembly:::test_save": {
       "status": "exported",
       "category": "BLOCKED",
-      "blockedBy": "save",
+      "blockedBy": "parametrize",
       "ops": [
-        "save"
+        "parametrize",
+        "save",
+        "exists"
       ],
       "vars": [
         "nested_assy"
@@ -3681,9 +3782,11 @@
     "tests.test_assembly:::test_export": {
       "status": "exported",
       "category": "BLOCKED",
-      "blockedBy": "export",
+      "blockedBy": "parametrize",
       "ops": [
-        "export"
+        "parametrize",
+        "export",
+        "exists"
       ],
       "vars": [
         "nested_assy"
@@ -3694,7 +3797,8 @@
       "category": "BLOCKED",
       "blockedBy": "export",
       "ops": [
-        "export"
+        "export",
+        "exists"
       ],
       "vars": [
         "nested_assy"
@@ -3703,8 +3807,9 @@
     "tests.test_assembly:::test_export_errors": {
       "status": "exported",
       "category": "BLOCKED",
-      "blockedBy": "export",
+      "blockedBy": "raises",
       "ops": [
+        "raises",
         "export"
       ],
       "vars": [
@@ -3716,7 +3821,11 @@
       "category": "BLOCKED",
       "blockedBy": "save",
       "ops": [
-        "save"
+        "save",
+        "exists",
+        "raises",
+        "getsize",
+        "read"
       ],
       "vars": [
         "nested_assy_sphere"
@@ -3727,7 +3836,11 @@
       "category": "BLOCKED",
       "blockedBy": "save",
       "ops": [
-        "save"
+        "save",
+        "exists",
+        "raises",
+        "getsize",
+        "read"
       ],
       "vars": [
         "nested_assy_sphere"
@@ -3735,9 +3848,15 @@
     },
     "tests.test_assembly:::test_exportGLTF": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
-      "ops": [],
+      "category": "BLOCKED",
+      "blockedBy": "exportGLTF",
+      "ops": [
+        "exportGLTF",
+        "raises",
+        "readlines",
+        "startswith",
+        "read"
+      ],
       "vars": [
         "nested_assy_sphere"
       ]
@@ -3747,7 +3866,8 @@
       "category": "BLOCKED",
       "blockedBy": "save",
       "ops": [
-        "save"
+        "save",
+        "readouterr"
       ],
       "vars": [
         "boxes2_assy"
@@ -3758,7 +3878,8 @@
       "category": "BLOCKED",
       "blockedBy": "save",
       "ops": [
-        "save"
+        "save",
+        "exists"
       ],
       "vars": [
         "nested_assy"
@@ -3767,8 +3888,9 @@
     "tests.test_assembly:::test_save_raises": {
       "status": "exported",
       "category": "BLOCKED",
-      "blockedBy": "save",
+      "blockedBy": "raises",
       "ops": [
+        "raises",
         "save"
       ],
       "vars": [
@@ -3777,9 +3899,11 @@
     },
     "tests.test_assembly:::test_leaf_node_count": {
       "status": "exported",
-      "category": "PORTABLE-WITH-STUB",
-      "blockedBy": "stub:ShapeType",
-      "ops": [],
+      "category": "BLOCKED",
+      "blockedBy": "getfixturevalue",
+      "ops": [
+        "getfixturevalue"
+      ],
       "vars": [
         "assy"
       ]
@@ -3787,8 +3911,9 @@
     "tests.test_assembly:::test_colors_assy0": {
       "status": "exported",
       "category": "BLOCKED",
-      "blockedBy": "load",
+      "blockedBy": "getfixturevalue",
       "ops": [
+        "getfixturevalue",
         "load"
       ],
       "vars": [
@@ -3799,8 +3924,9 @@
     "tests.test_assembly:::test_colors_assy1": {
       "status": "exported",
       "category": "BLOCKED",
-      "blockedBy": "load",
+      "blockedBy": "getfixturevalue",
       "ops": [
+        "getfixturevalue",
         "load"
       ],
       "vars": [
@@ -3810,10 +3936,12 @@
     },
     "tests.test_assembly:::test_materials": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
+      "category": "BLOCKED",
+      "blockedBy": "Assembly",
       "ops": [
-        "box"
+        "box",
+        "Workplane",
+        "Assembly"
       ],
       "vars": [
         "wp_1",
@@ -3824,9 +3952,11 @@
     },
     "tests.test_assembly:::test_colors_fused_assy": {
       "status": "exported",
-      "category": "PORTABLE-WITH-STUB",
-      "blockedBy": "stub:ShapeType",
-      "ops": [],
+      "category": "BLOCKED",
+      "blockedBy": "getfixturevalue",
+      "ops": [
+        "getfixturevalue"
+      ],
       "vars": [
         "assy"
       ]
@@ -3852,7 +3982,8 @@
       "blockedBy": "constrain",
       "ops": [
         "add",
-        "constrain"
+        "constrain",
+        "raises"
       ],
       "vars": [
         "nested_assy"
@@ -3860,9 +3991,10 @@
     },
     "tests.test_assembly:::test_duplicate_name": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
+      "category": "BLOCKED",
+      "blockedBy": "raises",
       "ops": [
+        "raises",
         "add"
       ],
       "vars": [
@@ -3872,8 +4004,9 @@
     "tests.test_assembly:::test_empty_solve": {
       "status": "exported",
       "category": "BLOCKED",
-      "blockedBy": "solve",
+      "blockedBy": "raises",
       "ops": [
+        "raises",
         "solve"
       ],
       "vars": [
@@ -3897,7 +4030,12 @@
       "blockedBy": "constrain",
       "ops": [
         "constrain",
-        "solve"
+        "solve",
+        "X",
+        "TranslationPart",
+        "approx",
+        "Y",
+        "Transformation"
       ],
       "vars": [
         "box_and_vertex"
@@ -3909,7 +4047,8 @@
       "blockedBy": null,
       "ops": [
         "extrude",
-        "circle"
+        "circle",
+        "Workplane"
       ],
       "vars": [
         "box_and_vertex",
@@ -3919,10 +4058,16 @@
     "tests.test_assembly:::test_PointInPlane_param": {
       "status": "exported",
       "category": "BLOCKED",
-      "blockedBy": "constrain",
+      "blockedBy": "parametrize",
       "ops": [
+        "parametrize",
         "constrain",
-        "solve"
+        "solve",
+        "TranslationPart",
+        "approx",
+        "Transformation",
+        "Z",
+        "X"
       ],
       "vars": [
         "box_and_vertex"
@@ -3930,10 +4075,12 @@
     },
     "tests.test_assembly:::test_toCompound": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
+      "category": "BLOCKED",
+      "blockedBy": "Assembly",
       "ops": [
-        "box"
+        "box",
+        "Workplane",
+        "Assembly"
       ],
       "vars": [
         "simple_assy",
@@ -3952,10 +4099,12 @@
     },
     "tests.test_assembly:::test_infinite_face_constraint_Plane": {
       "status": "exported",
-      "category": "PORTABLE-WITH-STUB",
-      "blockedBy": null,
+      "category": "BLOCKED",
+      "blockedBy": "Assembly",
       "ops": [
-        "sphere"
+        "Assembly",
+        "sphere",
+        "Workplane"
       ],
       "vars": [
         "assy"
@@ -3966,7 +4115,8 @@
       "category": "PORTABLE",
       "blockedBy": null,
       "ops": [
-        "add"
+        "add",
+        "Workplane"
       ],
       "vars": [
         "simple_assy2",
@@ -3979,7 +4129,8 @@
       "category": "PORTABLE",
       "blockedBy": null,
       "ops": [
-        "add"
+        "add",
+        "Workplane"
       ],
       "vars": [
         "simple_assy2",
@@ -3990,9 +4141,11 @@
     "tests.test_assembly:::test_constraint_validation": {
       "status": "exported",
       "category": "BLOCKED",
-      "blockedBy": "constrain",
+      "blockedBy": "raises",
       "ops": [
-        "constrain"
+        "raises",
+        "constrain",
+        "Constraint"
       ],
       "vars": [
         "simple_assy2"
@@ -4001,8 +4154,9 @@
     "tests.test_assembly:::test_single_unary_constraint": {
       "status": "exported",
       "category": "BLOCKED",
-      "blockedBy": "constrain",
+      "blockedBy": "raises",
       "ops": [
+        "raises",
         "constrain",
         "solve"
       ],
@@ -4016,7 +4170,8 @@
       "blockedBy": "solve",
       "ops": [
         "solve",
-        "add"
+        "add",
+        "Workplane"
       ],
       "vars": [
         "simple_assy2",
@@ -4046,9 +4201,11 @@
     },
     "tests.test_assembly:::test_imprinting": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
-      "ops": [],
+      "category": "BLOCKED",
+      "blockedBy": "imprint",
+      "ops": [
+        "imprint"
+      ],
       "vars": [
         "touching_assy",
         "disjoint_assy",
@@ -4061,7 +4218,8 @@
       "category": "PORTABLE",
       "blockedBy": null,
       "ops": [
-        "sphere"
+        "sphere",
+        "Workplane"
       ],
       "vars": [
         "marker",
@@ -4071,9 +4229,11 @@
     },
     "tests.test_assembly:::test_step_export_filesize": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
-      "ops": [],
+      "category": "BLOCKED",
+      "blockedBy": "Assembly",
+      "ops": [
+        "Assembly"
+      ],
       "vars": [
         "part",
         "assy"
@@ -4081,27 +4241,33 @@
     },
     "tests.test_assembly:::test_assembly_remove_no_name_match": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
-      "ops": [],
+      "category": "BLOCKED",
+      "blockedBy": "Assembly",
+      "ops": [
+        "Assembly"
+      ],
       "vars": [
         "assy"
       ]
     },
     "tests.test_assembly:::test_assembly_remove_part": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
-      "ops": [],
+      "category": "BLOCKED",
+      "blockedBy": "Assembly",
+      "ops": [
+        "Assembly"
+      ],
       "vars": [
         "assy"
       ]
     },
     "tests.test_assembly:::test_assembly_remove_subassy": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
-      "ops": [],
+      "category": "BLOCKED",
+      "blockedBy": "Assembly",
+      "ops": [
+        "Assembly"
+      ],
       "vars": [
         "assy",
         "subassy"
@@ -4109,10 +4275,12 @@
     },
     "tests.test_assembly:::test_remove_without_parent": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
+      "category": "BLOCKED",
+      "blockedBy": "Assembly",
       "ops": [
-        "box"
+        "Assembly",
+        "box",
+        "Workplane"
       ],
       "vars": [
         "assy",
@@ -4121,36 +4289,47 @@
     },
     "tests.test_assembly:::test_step_color": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
-      "ops": [],
+      "category": "BLOCKED",
+      "blockedBy": "Assembly",
+      "ops": [
+        "Assembly"
+      ],
       "vars": [
         "assy"
       ]
     },
     "tests.test_assembly:::test_special_methods": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
-      "ops": [],
+      "category": "BLOCKED",
+      "blockedBy": "__dir__",
+      "ops": [
+        "__dir__",
+        "_ipython_key_completions_",
+        "raises"
+      ],
       "vars": [
         "subshape_assy"
       ]
     },
     "tests.test_assembly:::test_subshape_access": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
-      "ops": [],
+      "category": "BLOCKED",
+      "blockedBy": "__dir__",
+      "ops": [
+        "__dir__",
+        "_ipython_key_completions_"
+      ],
       "vars": [
         "subshape_assy"
       ]
     },
     "tests.test_assembly:::test_name_geometries": {
       "status": "exported",
-      "category": "PORTABLE",
-      "blockedBy": null,
-      "ops": [],
+      "category": "BLOCKED",
+      "blockedBy": "Assembly",
+      "ops": [
+        "Assembly"
+      ],
       "vars": [
         "assy"
       ]
@@ -4268,23 +4447,6 @@
       "fellBack": false
     },
     {
-      "case": "tests.test_cadquery::TestCadQuery::testCompSolid",
-      "ops": [],
-      "vars": [
-        "tool"
-      ],
-      "fellBack": false
-    },
-    {
-      "case": "tests.test_cadquery::TestCadQuery::testCone",
-      "ops": [],
-      "vars": [
-        "s",
-        "t"
-      ],
-      "fellBack": false
-    },
-    {
       "case": "tests.test_cadquery::TestCadQuery::testConstructionWire",
       "ops": [
         "extrude",
@@ -4303,18 +4465,6 @@
         "rect",
         "workplane",
         "extrude"
-      ],
-      "vars": [
-        "result"
-      ],
-      "fellBack": false
-    },
-    {
-      "case": "tests.test_cadquery::TestCadQuery::testCubePlugin",
-      "ops": [
-        "rect",
-        "box",
-        "combine"
       ],
       "vars": [
         "result"
@@ -4417,16 +4567,6 @@
       "fellBack": false
     },
     {
-      "case": "tests.test_cadquery::TestCadQuery::testCylinderPlugin",
-      "ops": [
-        "rect"
-      ],
-      "vars": [
-        "s"
-      ],
-      "fellBack": false
-    },
-    {
       "case": "tests.test_cadquery::TestCadQuery::testExtrude",
       "ops": [
         "extrude",
@@ -4470,29 +4610,6 @@
       "fellBack": false
     },
     {
-      "case": "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp",
-      "ops": [
-        "box",
-        "union",
-        "intersect"
-      ],
-      "vars": [
-        "box1",
-        "box2",
-        "box3",
-        "res",
-        "res_fuzzy",
-        "res_fuzzy2",
-        "box4",
-        "res_fuzzy_intersect",
-        "box1_cmp",
-        "box4_cmp",
-        "res_fuzzy_intersect_cmp",
-        "res_fuzzy_intersect_val"
-      ],
-      "fellBack": false
-    },
-    {
       "case": "tests.test_cadquery::TestCadQuery::testIbeam",
       "ops": [
         "extrude"
@@ -4521,17 +4638,6 @@
       "fellBack": false
     },
     {
-      "case": "tests.test_cadquery::TestCadQuery::testIsInside",
-      "ops": [
-        "box"
-      ],
-      "vars": [
-        "box1",
-        "box2"
-      ],
-      "fellBack": false
-    },
-    {
       "case": "tests.test_cadquery::TestCadQuery::testLegoBrick",
       "ops": [
         "box",
@@ -4544,14 +4650,6 @@
       "vars": [
         "s",
         "tmp"
-      ],
-      "fellBack": false
-    },
-    {
-      "case": "tests.test_cadquery::TestCadQuery::testMakeShellSolid",
-      "ops": [],
-      "vars": [
-        "solid"
       ],
       "fellBack": false
     },
@@ -4616,19 +4714,6 @@
       "fellBack": false
     },
     {
-      "case": "tests.test_cadquery::TestCadQuery::testPolygonPlugin",
-      "ops": [
-        "cutThruAll",
-        "rect",
-        "workplane",
-        "box"
-      ],
-      "vars": [
-        "s"
-      ],
-      "fellBack": false
-    },
-    {
       "case": "tests.test_cadquery::TestCadQuery::testPopPending",
       "ops": [
         "extrude",
@@ -4641,41 +4726,24 @@
       "fellBack": false
     },
     {
-      "case": "tests.test_cadquery::TestCadQuery::testQuickStartXY",
+      "case": "tests.test_cadquery::TestCadQuery::testRevolveCylinder",
       "ops": [
-        "cskHole",
-        "rect",
-        "workplane",
-        "box"
+        "revolve",
+        "rect"
       ],
       "vars": [
-        "s"
+        "result"
       ],
       "fellBack": false
     },
     {
-      "case": "tests.test_cadquery::TestCadQuery::testQuickStartXZ",
+      "case": "tests.test_cadquery::TestCadQuery::testRevolveDonut",
       "ops": [
-        "cskHole",
-        "rect",
-        "workplane",
-        "box"
+        "revolve",
+        "rect"
       ],
       "vars": [
-        "s"
-      ],
-      "fellBack": false
-    },
-    {
-      "case": "tests.test_cadquery::TestCadQuery::testQuickStartYZ",
-      "ops": [
-        "cskHole",
-        "rect",
-        "workplane",
-        "box"
-      ],
-      "vars": [
-        "s"
+        "result"
       ],
       "fellBack": false
     },
@@ -4908,40 +4976,6 @@
       "fellBack": false
     },
     {
-      "case": "tests.test_cadquery::TestCadQuery::test_combineWithBase",
-      "ops": [
-        "box",
-        "sphere"
-      ],
-      "vars": [
-        "box",
-        "sphere",
-        "new_box"
-      ],
-      "fellBack": false
-    },
-    {
-      "case": "tests.test_cadquery::TestCadQuery::test_compound_faces_center",
-      "ops": [],
-      "vars": [
-        "compound"
-      ],
-      "fellBack": false
-    },
-    {
-      "case": "tests.test_cadquery::TestCadQuery::test_cutFromBase",
-      "ops": [
-        "box",
-        "sphere"
-      ],
-      "vars": [
-        "box",
-        "sphere",
-        "hoolow_box"
-      ],
-      "fellBack": false
-    },
-    {
       "case": "tests.test_cadquery::TestCadQuery::test_extrude_face",
       "ops": [],
       "vars": [
@@ -4994,15 +5028,6 @@
         "s",
         "c",
         "fs"
-      ],
-      "fellBack": false
-    },
-    {
-      "case": "tests.test_cadquery::TestCadQuery::test_project",
-      "ops": [],
-      "vars": [
-        "res_ex",
-        "res_o_ex"
       ],
       "fellBack": false
     },
@@ -5262,41 +5287,6 @@
       "fellBack": false
     },
     {
-      "case": "tests.test_free_functions:::test_history_extrude",
-      "ops": [],
-      "vars": [
-        "res",
-        "sides"
-      ],
-      "fellBack": false
-    },
-    {
-      "case": "tests.test_free_functions:::test_history_sweep",
-      "ops": [],
-      "vars": [
-        "res",
-        "side"
-      ],
-      "fellBack": false
-    },
-    {
-      "case": "tests.test_free_functions:::test_history_loft",
-      "ops": [],
-      "vars": [
-        "res",
-        "side"
-      ],
-      "fellBack": false
-    },
-    {
-      "case": "tests.test_free_functions:::test_history_offset",
-      "ops": [],
-      "vars": [
-        "sides"
-      ],
-      "fellBack": false
-    },
-    {
       "case": "tests.test_selectors::TestCQSelectors::testAreaNthSelector_NonplanarWire",
       "ops": [
         "extrude",
@@ -5346,33 +5336,6 @@
       "fellBack": false
     },
     {
-      "case": "tests.test_cad_objects::TestCadObjects::testCompoundCenter",
-      "ops": [
-        "rect"
-      ],
-      "vars": [
-        "s"
-      ],
-      "fellBack": false
-    },
-    {
-      "case": "tests.test_cad_objects::TestCadObjects::testMatrixOfInertia",
-      "ops": [],
-      "vars": [
-        "cylinder"
-      ],
-      "fellBack": false
-    },
-    {
-      "case": "tests.test_cad_objects::TestCadObjects::testPlaneMethods",
-      "ops": [],
-      "vars": [
-        "local_box",
-        "mirror_box"
-      ],
-      "fellBack": false
-    },
-    {
       "case": "tests.test_assembly:::test_metadata",
       "ops": [],
       "vars": [
@@ -5381,89 +5344,15 @@
       "fellBack": true
     },
     {
-      "case": "tests.test_assembly:::test_meta_step_export",
-      "ops": [
-        "cylinder",
-        "box"
-      ],
-      "vars": [
-        "subsubassy",
-        "cone_1",
-        "cone_2",
-        "subassy",
-        "cylinder_1",
-        "cylinder_2",
-        "assy",
-        "cube_1",
-        "cube_2"
-      ],
-      "fellBack": false
-    },
-    {
       "case": "tests.test_assembly:::test_meta_step_export_edge_cases",
       "ops": [
-        "box"
+        "box",
+        "Workplane"
       ],
       "vars": [
         "cube"
       ],
       "fellBack": false
-    },
-    {
-      "case": "tests.test_assembly:::test_step_export_assembly_unit_default",
-      "ops": [],
-      "vars": [
-        "assy"
-      ],
-      "fellBack": false
-    },
-    {
-      "case": "tests.test_assembly:::test_step_export_assembly_unit_meters",
-      "ops": [],
-      "vars": [
-        "assy"
-      ],
-      "fellBack": false
-    },
-    {
-      "case": "tests.test_assembly:::test_step_export_meta_unit_meters",
-      "ops": [],
-      "vars": [
-        "assy"
-      ],
-      "fellBack": false
-    },
-    {
-      "case": "tests.test_assembly:::test_step_export_assembly_output_unit",
-      "ops": [],
-      "vars": [
-        "assy"
-      ],
-      "fellBack": false
-    },
-    {
-      "case": "tests.test_assembly:::test_native_export",
-      "ops": [],
-      "vars": [
-        "simple_assy"
-      ],
-      "fellBack": true
-    },
-    {
-      "case": "tests.test_assembly:::test_vtkjs_export",
-      "ops": [],
-      "vars": [
-        "nested_assy"
-      ],
-      "fellBack": true
-    },
-    {
-      "case": "tests.test_assembly:::test_vrml_export",
-      "ops": [],
-      "vars": [
-        "simple_assy"
-      ],
-      "fellBack": true
     },
     {
       "case": "tests.test_assembly:::test_toJSON",
@@ -5475,61 +5364,10 @@
       "fellBack": true
     },
     {
-      "case": "tests.test_assembly:::test_exportGLTF",
-      "ops": [],
-      "vars": [
-        "nested_assy_sphere"
-      ],
-      "fellBack": true
-    },
-    {
-      "case": "tests.test_assembly:::test_materials",
-      "ops": [
-        "box"
-      ],
-      "vars": [
-        "wp_1",
-        "wp_2",
-        "wp_3",
-        "assy"
-      ],
-      "fellBack": false
-    },
-    {
-      "case": "tests.test_assembly:::test_duplicate_name",
-      "ops": [
-        "add"
-      ],
-      "vars": [
-        "nested_assy"
-      ],
-      "fellBack": true
-    },
-    {
-      "case": "tests.test_assembly:::test_toCompound",
-      "ops": [
-        "box"
-      ],
-      "vars": [
-        "simple_assy",
-        "nested_assy",
-        "c0",
-        "c1",
-        "box0",
-        "box1",
-        "box2",
-        "box3",
-        "assy0",
-        "assy1",
-        "c2",
-        "c3"
-      ],
-      "fellBack": false
-    },
-    {
       "case": "tests.test_assembly:::test_unary_constraints",
       "ops": [
-        "add"
+        "add",
+        "Workplane"
       ],
       "vars": [
         "simple_assy2",
@@ -5541,7 +5379,8 @@
     {
       "case": "tests.test_assembly:::test_fixed_rotation",
       "ops": [
-        "add"
+        "add",
+        "Workplane"
       ],
       "vars": [
         "simple_assy2",
@@ -5569,102 +5408,15 @@
       "fellBack": false
     },
     {
-      "case": "tests.test_assembly:::test_imprinting",
-      "ops": [],
-      "vars": [
-        "touching_assy",
-        "disjoint_assy",
-        "r",
-        "s"
-      ],
-      "fellBack": false
-    },
-    {
       "case": "tests.test_assembly:::test_order_of_transform",
       "ops": [
-        "sphere"
+        "sphere",
+        "Workplane"
       ],
       "vars": [
         "marker",
         "m1",
         "m2"
-      ],
-      "fellBack": false
-    },
-    {
-      "case": "tests.test_assembly:::test_step_export_filesize",
-      "ops": [],
-      "vars": [
-        "part",
-        "assy"
-      ],
-      "fellBack": false
-    },
-    {
-      "case": "tests.test_assembly:::test_assembly_remove_no_name_match",
-      "ops": [],
-      "vars": [
-        "assy"
-      ],
-      "fellBack": false
-    },
-    {
-      "case": "tests.test_assembly:::test_assembly_remove_part",
-      "ops": [],
-      "vars": [
-        "assy"
-      ],
-      "fellBack": false
-    },
-    {
-      "case": "tests.test_assembly:::test_assembly_remove_subassy",
-      "ops": [],
-      "vars": [
-        "assy",
-        "subassy"
-      ],
-      "fellBack": false
-    },
-    {
-      "case": "tests.test_assembly:::test_remove_without_parent",
-      "ops": [
-        "box"
-      ],
-      "vars": [
-        "assy",
-        "part"
-      ],
-      "fellBack": false
-    },
-    {
-      "case": "tests.test_assembly:::test_step_color",
-      "ops": [],
-      "vars": [
-        "assy"
-      ],
-      "fellBack": false
-    },
-    {
-      "case": "tests.test_assembly:::test_special_methods",
-      "ops": [],
-      "vars": [
-        "subshape_assy"
-      ],
-      "fellBack": true
-    },
-    {
-      "case": "tests.test_assembly:::test_subshape_access",
-      "ops": [],
-      "vars": [
-        "subshape_assy"
-      ],
-      "fellBack": true
-    },
-    {
-      "case": "tests.test_assembly:::test_name_geometries",
-      "ops": [],
-      "vars": [
-        "assy"
       ],
       "fellBack": false
     }
@@ -5683,10 +5435,13 @@
         "makeCube"
       ],
       "helperOps": [
+        "makeBox",
         "extrude",
         "rect"
       ],
-      "helperMissing": []
+      "helperMissing": [
+        "makeBox"
+      ]
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testCounterBores",
@@ -5703,10 +5458,13 @@
         "makeCube"
       ],
       "helperOps": [
+        "makeBox",
         "extrude",
         "rect"
       ],
-      "helperMissing": []
+      "helperMissing": [
+        "makeBox"
+      ]
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testFillet",
@@ -5724,10 +5482,13 @@
         "makeCube"
       ],
       "helperOps": [
+        "makeBox",
         "extrude",
         "rect"
       ],
-      "helperMissing": []
+      "helperMissing": [
+        "makeBox"
+      ]
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testFrontReference",
@@ -5743,10 +5504,13 @@
         "makeCube"
       ],
       "helperOps": [
+        "makeBox",
         "extrude",
         "rect"
       ],
-      "helperMissing": []
+      "helperMissing": [
+        "makeBox"
+      ]
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testPointList",
@@ -5763,10 +5527,13 @@
         "makeCube"
       ],
       "helperOps": [
+        "makeBox",
         "extrude",
         "rect"
       ],
-      "helperMissing": []
+      "helperMissing": [
+        "makeBox"
+      ]
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testSolidReferencesCombine",
@@ -5784,10 +5551,13 @@
         "makeCube"
       ],
       "helperOps": [
+        "makeBox",
         "extrude",
         "rect"
       ],
-      "helperMissing": []
+      "helperMissing": [
+        "makeBox"
+      ]
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testTranslateSolid",
@@ -5803,10 +5573,13 @@
         "makeCube"
       ],
       "helperOps": [
+        "makeBox",
         "extrude",
         "rect"
       ],
-      "helperMissing": []
+      "helperMissing": [
+        "makeBox"
+      ]
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testWorkplaneFromFace",
@@ -5822,10 +5595,13 @@
         "makeCube"
       ],
       "helperOps": [
+        "makeBox",
         "extrude",
         "rect"
       ],
-      "helperMissing": []
+      "helperMissing": [
+        "makeBox"
+      ]
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testWorkplaneOnExistingSolid",
@@ -5842,10 +5618,13 @@
         "makeCube"
       ],
       "helperOps": [
+        "makeBox",
         "extrude",
         "rect"
       ],
-      "helperMissing": []
+      "helperMissing": [
+        "makeBox"
+      ]
     },
     {
       "case": "tests.test_free_functions:::test_sweep",
@@ -5888,10 +5667,13 @@
         "makeCube"
       ],
       "helperOps": [
+        "makeBox",
         "extrude",
         "rect"
       ],
-      "helperMissing": []
+      "helperMissing": [
+        "makeBox"
+      ]
     },
     {
       "case": "tests.test_selectors::TestCQSelectors::testAndSelector",
@@ -5904,10 +5686,13 @@
         "makeCube"
       ],
       "helperOps": [
+        "makeBox",
         "extrude",
         "rect"
       ],
-      "helperMissing": []
+      "helperMissing": [
+        "makeBox"
+      ]
     },
     {
       "case": "tests.test_selectors::TestCQSelectors::testBox",
@@ -5920,10 +5705,13 @@
         "makeCube"
       ],
       "helperOps": [
+        "makeBox",
         "extrude",
         "rect"
       ],
-      "helperMissing": []
+      "helperMissing": [
+        "makeBox"
+      ]
     },
     {
       "case": "tests.test_selectors::TestCQSelectors::testComplexStringSelector",
@@ -5936,10 +5724,13 @@
         "makeCube"
       ],
       "helperOps": [
+        "makeBox",
         "extrude",
         "rect"
       ],
-      "helperMissing": []
+      "helperMissing": [
+        "makeBox"
+      ]
     },
     {
       "case": "tests.test_selectors::TestCQSelectors::testFaceCount",
@@ -5952,10 +5743,13 @@
         "makeCube"
       ],
       "helperOps": [
+        "makeBox",
         "extrude",
         "rect"
       ],
-      "helperMissing": []
+      "helperMissing": [
+        "makeBox"
+      ]
     },
     {
       "case": "tests.test_selectors::TestCQSelectors::testFaceDirFilter",
@@ -5968,10 +5762,13 @@
         "makeCube"
       ],
       "helperOps": [
+        "makeBox",
         "extrude",
         "rect"
       ],
-      "helperMissing": []
+      "helperMissing": [
+        "makeBox"
+      ]
     },
     {
       "case": "tests.test_selectors::TestCQSelectors::testFaceTypesFilter",
@@ -5984,10 +5781,13 @@
         "makeCube"
       ],
       "helperOps": [
+        "makeBox",
         "extrude",
         "rect"
       ],
-      "helperMissing": []
+      "helperMissing": [
+        "makeBox"
+      ]
     },
     {
       "case": "tests.test_selectors::TestCQSelectors::testFirst",
@@ -6000,10 +5800,13 @@
         "makeCube"
       ],
       "helperOps": [
+        "makeBox",
         "extrude",
         "rect"
       ],
-      "helperMissing": []
+      "helperMissing": [
+        "makeBox"
+      ]
     },
     {
       "case": "tests.test_selectors::TestCQSelectors::testInverseSelector",
@@ -6016,10 +5819,13 @@
         "makeCube"
       ],
       "helperOps": [
+        "makeBox",
         "extrude",
         "rect"
       ],
-      "helperMissing": []
+      "helperMissing": [
+        "makeBox"
+      ]
     },
     {
       "case": "tests.test_selectors::TestCQSelectors::testMaxDistance",
@@ -6032,10 +5838,13 @@
         "makeCube"
       ],
       "helperOps": [
+        "makeBox",
         "extrude",
         "rect"
       ],
-      "helperMissing": []
+      "helperMissing": [
+        "makeBox"
+      ]
     },
     {
       "case": "tests.test_selectors::TestCQSelectors::testMinDistance",
@@ -6048,10 +5857,13 @@
         "makeCube"
       ],
       "helperOps": [
+        "makeBox",
         "extrude",
         "rect"
       ],
-      "helperMissing": []
+      "helperMissing": [
+        "makeBox"
+      ]
     },
     {
       "case": "tests.test_selectors::TestCQSelectors::testNearestToPoint",
@@ -6064,10 +5876,13 @@
         "makeCube"
       ],
       "helperOps": [
+        "makeBox",
         "extrude",
         "rect"
       ],
-      "helperMissing": []
+      "helperMissing": [
+        "makeBox"
+      ]
     },
     {
       "case": "tests.test_selectors::TestCQSelectors::testParallelEdgeFilter",
@@ -6080,10 +5895,13 @@
         "makeCube"
       ],
       "helperOps": [
+        "makeBox",
         "extrude",
         "rect"
       ],
-      "helperMissing": []
+      "helperMissing": [
+        "makeBox"
+      ]
     },
     {
       "case": "tests.test_selectors::TestCQSelectors::testPerpendicularDirFilter",
@@ -6096,10 +5914,13 @@
         "makeCube"
       ],
       "helperOps": [
+        "makeBox",
         "extrude",
         "rect"
       ],
-      "helperMissing": []
+      "helperMissing": [
+        "makeBox"
+      ]
     },
     {
       "case": "tests.test_selectors::TestCQSelectors::testRadiusNthSelector",
@@ -6112,10 +5933,13 @@
         "makeCube"
       ],
       "helperOps": [
+        "makeBox",
         "extrude",
         "rect"
       ],
-      "helperMissing": []
+      "helperMissing": [
+        "makeBox"
+      ]
     },
     {
       "case": "tests.test_selectors::TestCQSelectors::testSolid",
@@ -6128,10 +5952,13 @@
         "makeCube"
       ],
       "helperOps": [
+        "makeBox",
         "extrude",
         "rect"
       ],
-      "helperMissing": []
+      "helperMissing": [
+        "makeBox"
+      ]
     },
     {
       "case": "tests.test_selectors::TestCQSelectors::testSubtractSelector",
@@ -6144,10 +5971,13 @@
         "makeCube"
       ],
       "helperOps": [
+        "makeBox",
         "extrude",
         "rect"
       ],
-      "helperMissing": []
+      "helperMissing": [
+        "makeBox"
+      ]
     },
     {
       "case": "tests.test_selectors::TestCQSelectors::testSumSelector",
@@ -6160,10 +5990,13 @@
         "makeCube"
       ],
       "helperOps": [
+        "makeBox",
         "extrude",
         "rect"
       ],
-      "helperMissing": []
+      "helperMissing": [
+        "makeBox"
+      ]
     },
     {
       "case": "tests.test_selectors::TestCQSelectors::testVertexFilter",
@@ -6176,62 +6009,12 @@
         "makeCube"
       ],
       "helperOps": [
+        "makeBox",
         "extrude",
         "rect"
       ],
-      "helperMissing": []
-    },
-    {
-      "case": "tests.test_assembly:::test_assy_root_name",
-      "ops": [],
-      "vars": [
-        "assy"
-      ],
-      "helpers": [
-        "get_doc_nodes"
-      ],
-      "helperOps": [
-        "ShapeType",
-        "add"
-      ],
       "helperMissing": [
-        "ShapeType"
-      ]
-    },
-    {
-      "case": "tests.test_assembly:::test_leaf_node_count",
-      "ops": [],
-      "vars": [
-        "assy"
-      ],
-      "helpers": [
-        "get_doc_nodes"
-      ],
-      "helperOps": [
-        "ShapeType",
-        "add"
-      ],
-      "helperMissing": [
-        "ShapeType"
-      ]
-    },
-    {
-      "case": "tests.test_assembly:::test_colors_fused_assy",
-      "ops": [],
-      "vars": [
-        "assy"
-      ],
-      "helpers": [
-        "check_nodes",
-        "get_doc_nodes",
-        "read_step"
-      ],
-      "helperOps": [
-        "ShapeType",
-        "add"
-      ],
-      "helperMissing": [
-        "ShapeType"
+        "makeBox"
       ]
     },
     {
@@ -6256,25 +6039,12 @@
       "case": "tests.test_assembly:::test_PointInPlane_3_parts",
       "ops": [
         "extrude",
-        "circle"
+        "circle",
+        "Workplane"
       ],
       "vars": [
         "box_and_vertex",
         "cylinder"
-      ],
-      "helpers": [
-        "solve_result_check"
-      ],
-      "helperOps": [],
-      "helperMissing": []
-    },
-    {
-      "case": "tests.test_assembly:::test_infinite_face_constraint_Plane",
-      "ops": [
-        "sphere"
-      ],
-      "vars": [
-        "assy"
       ],
       "helpers": [
         "solve_result_check"
@@ -6316,6 +6086,7 @@
         "line",
         "moveTo",
         "interpPlate",
+        "makeCircle",
         "wedge"
       ],
       "deps": []
@@ -6326,6 +6097,7 @@
       "missing": [
         "close",
         "sagittaArc",
+        "XY",
         "threePointArc",
         "moveTo"
       ],
@@ -6336,7 +6108,24 @@
       "blockedBy": "close",
       "missing": [
         "close",
-        "polyline"
+        "polyline",
+        "hollow"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_cadquery::TestCadQuery::testCompSolid",
+      "blockedBy": "makeSphere",
+      "missing": [
+        "makeSphere"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_cadquery::TestCadQuery::testCone",
+      "blockedBy": "makeCone",
+      "missing": [
+        "makeCone"
       ],
       "deps": []
     },
@@ -6345,6 +6134,14 @@
       "blockedBy": "copyWorkplane",
       "missing": [
         "copyWorkplane"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_cadquery::TestCadQuery::testCubePlugin",
+      "blockedBy": "makeCubes",
+      "missing": [
+        "makeCubes"
       ],
       "deps": []
     },
@@ -6362,6 +6159,14 @@
       "missing": [
         "cutEach",
         "located"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_cadquery::TestCadQuery::testCylinderPlugin",
+      "blockedBy": "cyl",
+      "missing": [
+        "cyl"
       ],
       "deps": []
     },
@@ -6413,10 +6218,26 @@
       "deps": []
     },
     {
+      "case": "tests.test_cadquery::TestCadQuery::testFuzzyBoolOp",
+      "blockedBy": "makeCompound",
+      "missing": [
+        "makeCompound"
+      ],
+      "deps": []
+    },
+    {
       "case": "tests.test_cadquery::TestCadQuery::testGlue",
       "blockedBy": "moveTo",
       "missing": [
         "moveTo"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_cadquery::TestCadQuery::testIsInside",
+      "blockedBy": "XY",
+      "missing": [
+        "XY"
       ],
       "deps": []
     },
@@ -6430,8 +6251,9 @@
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testLocatedMoved",
-      "blockedBy": "located",
+      "blockedBy": "makeBox",
       "missing": [
+        "makeBox",
         "located",
         "moved"
       ],
@@ -6454,6 +6276,14 @@
       "deps": []
     },
     {
+      "case": "tests.test_cadquery::TestCadQuery::testMakeShellSolid",
+      "blockedBy": "makeSolid",
+      "missing": [
+        "makeSolid"
+      ],
+      "deps": []
+    },
+    {
       "case": "tests.test_cadquery::TestCadQuery::testMultisectionSweep",
       "blockedBy": "sweep",
       "missing": [
@@ -6470,6 +6300,7 @@
         "line",
         "moveTo",
         "interpPlate",
+        "makeCircle",
         "wedge"
       ],
       "deps": []
@@ -6520,10 +6351,41 @@
       "deps": []
     },
     {
-      "case": "tests.test_cadquery::TestCadQuery::testRevolveCone",
-      "blockedBy": "revolve",
+      "case": "tests.test_cadquery::TestCadQuery::testPolygonPlugin",
+      "blockedBy": "rPoly",
       "missing": [
-        "revolve",
+        "rPoly"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_cadquery::TestCadQuery::testQuickStartXY",
+      "blockedBy": "XY",
+      "missing": [
+        "XY"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_cadquery::TestCadQuery::testQuickStartXZ",
+      "blockedBy": "XZ",
+      "missing": [
+        "XZ"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_cadquery::TestCadQuery::testQuickStartYZ",
+      "blockedBy": "YZ",
+      "missing": [
+        "YZ"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_cadquery::TestCadQuery::testRevolveCone",
+      "blockedBy": "close",
+      "missing": [
         "close",
         "lineTo"
       ],
@@ -6531,26 +6393,9 @@
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testRevolveCut",
-      "blockedBy": "revolve",
+      "blockedBy": "move",
       "missing": [
-        "revolve",
         "move"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_cadquery::TestCadQuery::testRevolveCylinder",
-      "blockedBy": "revolve",
-      "missing": [
-        "revolve"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_cadquery::TestCadQuery::testRevolveDonut",
-      "blockedBy": "revolve",
-      "missing": [
-        "revolve"
       ],
       "deps": []
     },
@@ -6600,7 +6445,8 @@
         "loft",
         "placeSketch",
         "moved",
-        "sweep"
+        "sweep",
+        "locationAt"
       ],
       "deps": []
     },
@@ -6664,7 +6510,8 @@
       "case": "tests.test_cadquery::TestCadQuery::testTag",
       "blockedBy": "tag",
       "missing": [
-        "tag"
+        "tag",
+        "_getTagged"
       ],
       "deps": []
     },
@@ -6672,7 +6519,8 @@
       "case": "tests.test_cadquery::TestCadQuery::testTagSelectors",
       "blockedBy": "tag",
       "missing": [
-        "tag"
+        "tag",
+        "makeCompound"
       ],
       "deps": []
     },
@@ -6798,6 +6646,30 @@
       "deps": []
     },
     {
+      "case": "tests.test_cadquery::TestCadQuery::test_combineWithBase",
+      "blockedBy": "_combineWithBase",
+      "missing": [
+        "_combineWithBase"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_cadquery::TestCadQuery::test_compound_faces_center",
+      "blockedBy": "makeCompound",
+      "missing": [
+        "makeCompound"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_cadquery::TestCadQuery::test_cutFromBase",
+      "blockedBy": "_cutFromBase",
+      "missing": [
+        "_cutFromBase"
+      ],
+      "deps": []
+    },
+    {
       "case": "tests.test_cadquery::TestCadQuery::test_export",
       "blockedBy": "export",
       "missing": [
@@ -6810,6 +6682,7 @@
       "blockedBy": "interpPlate",
       "missing": [
         "interpPlate",
+        "makeNSidedSurface",
         "close"
       ],
       "deps": []
@@ -6839,6 +6712,15 @@
       "deps": []
     },
     {
+      "case": "tests.test_cadquery::TestCadQuery::test_project",
+      "blockedBy": "extrudeLinear",
+      "missing": [
+        "extrudeLinear",
+        "project"
+      ],
+      "deps": []
+    },
+    {
       "case": "tests.test_shapes:::test_shells",
       "blockedBy": "moved",
       "missing": [
@@ -6859,7 +6741,8 @@
       "blockedBy": "moved",
       "missing": [
         "moved",
-        "remove"
+        "remove",
+        "innerShells"
       ],
       "deps": []
     },
@@ -6867,7 +6750,8 @@
       "case": "tests.test_shapes:::test_addCavity",
       "blockedBy": "moved",
       "missing": [
-        "moved"
+        "moved",
+        "addCavity"
       ],
       "deps": []
     },
@@ -6961,7 +6845,8 @@
       "case": "tests.test_free_functions:::test_imprint",
       "blockedBy": "moved",
       "missing": [
-        "moved"
+        "moved",
+        "images"
       ],
       "deps": []
     },
@@ -6994,7 +6879,8 @@
       "case": "tests.test_free_functions:::test_prism",
       "blockedBy": "face",
       "missing": [
-        "face"
+        "face",
+        "extend"
       ],
       "deps": []
     },
@@ -7040,6 +6926,39 @@
       "deps": []
     },
     {
+      "case": "tests.test_free_functions:::test_history_extrude",
+      "blockedBy": "generated",
+      "missing": [
+        "generated"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_free_functions:::test_history_sweep",
+      "blockedBy": "generated",
+      "missing": [
+        "generated",
+        "outerWire"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_free_functions:::test_history_loft",
+      "blockedBy": "generated",
+      "missing": [
+        "generated"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_free_functions:::test_history_offset",
+      "blockedBy": "generated",
+      "missing": [
+        "generated"
+      ],
+      "deps": []
+    },
+    {
       "case": "tests.test_selectors::TestCQSelectors::testAreaNthSelector_Shells",
       "blockedBy": "eachpoint",
       "missing": [
@@ -7051,7 +6970,8 @@
       "case": "tests.test_selectors::TestCQSelectors::testAreaNthSelector_Solids",
       "blockedBy": "eachpoint",
       "missing": [
-        "eachpoint"
+        "eachpoint",
+        "AreaNthSelector"
       ],
       "deps": []
     },
@@ -7083,7 +7003,34 @@
       "case": "tests.test_selectors::TestCQSelectors::testNearestToShape",
       "blockedBy": "moved",
       "missing": [
-        "moved"
+        "moved",
+        "NearestToShape"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_cad_objects::TestCadObjects::testCompoundCenter",
+      "blockedBy": "cyl",
+      "missing": [
+        "cyl"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_cad_objects::TestCadObjects::testMatrixOfInertia",
+      "blockedBy": "makeCylinder",
+      "missing": [
+        "makeCylinder"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_cad_objects::TestCadObjects::testPlaneMethods",
+      "blockedBy": "toLocalCoords",
+      "missing": [
+        "toLocalCoords",
+        "makeBox",
+        "mirrorInPlane"
       ],
       "deps": []
     },
@@ -7096,6 +7043,14 @@
       "deps": []
     },
     {
+      "case": "tests.test_assembly:::test_assy_root_name",
+      "blockedBy": "getfixturevalue",
+      "missing": [
+        "getfixturevalue"
+      ],
+      "deps": []
+    },
+    {
       "case": "tests.test_assembly:::test_step_export",
       "blockedBy": "importStep",
       "missing": [
@@ -7104,17 +7059,59 @@
       "deps": []
     },
     {
-      "case": "tests.test_assembly:::test_step_roundtrip_with_materials",
-      "blockedBy": "importStep",
+      "case": "tests.test_assembly:::test_meta_step_export",
+      "blockedBy": "Assembly",
       "missing": [
+        "Assembly"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_assembly:::test_step_roundtrip_with_materials",
+      "blockedBy": "Assembly",
+      "missing": [
+        "Assembly",
         "importStep"
       ],
       "deps": []
     },
     {
-      "case": "tests.test_assembly:::test_step_roundtrip_unit",
-      "blockedBy": "load",
+      "case": "tests.test_assembly:::test_step_export_assembly_unit_default",
+      "blockedBy": "Assembly",
       "missing": [
+        "Assembly"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_assembly:::test_step_export_assembly_unit_meters",
+      "blockedBy": "Assembly",
+      "missing": [
+        "Assembly"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_assembly:::test_step_export_meta_unit_meters",
+      "blockedBy": "Assembly",
+      "missing": [
+        "Assembly"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_assembly:::test_step_export_assembly_output_unit",
+      "blockedBy": "Assembly",
+      "missing": [
+        "Assembly"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_assembly:::test_step_roundtrip_unit",
+      "blockedBy": "Assembly",
+      "missing": [
+        "Assembly",
         "load"
       ],
       "deps": []
@@ -7145,8 +7142,10 @@
     },
     {
       "case": "tests.test_assembly:::test_plain_assembly_import",
-      "blockedBy": "importStep",
+      "blockedBy": "Assembly",
       "missing": [
+        "Assembly",
+        "Location",
         "importStep"
       ],
       "deps": []
@@ -7161,16 +7160,18 @@
     },
     {
       "case": "tests.test_assembly:::test_nested_subassembly_step_import",
-      "blockedBy": "importStep",
+      "blockedBy": "Assembly",
       "missing": [
+        "Assembly",
         "importStep"
       ],
       "deps": []
     },
     {
       "case": "tests.test_assembly:::test_assembly_step_import_roundtrip",
-      "blockedBy": "load",
+      "blockedBy": "getfixturevalue",
       "missing": [
+        "getfixturevalue",
         "load",
         "importStep"
       ],
@@ -7178,33 +7179,63 @@
     },
     {
       "case": "tests.test_assembly:::test_assembly_import_step_unit",
-      "blockedBy": "importStep",
+      "blockedBy": "Assembly",
       "missing": [
+        "Assembly",
         "importStep"
       ],
       "deps": []
     },
     {
       "case": "tests.test_assembly:::test_step_export_loc",
-      "blockedBy": "importStep",
+      "blockedBy": "getfixturevalue",
       "missing": [
+        "getfixturevalue",
         "importStep"
       ],
       "deps": []
     },
     {
-      "case": "tests.test_assembly:::test_save",
-      "blockedBy": "save",
+      "case": "tests.test_assembly:::test_native_export",
+      "blockedBy": "exists",
       "missing": [
-        "save"
+        "exists"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_assembly:::test_vtkjs_export",
+      "blockedBy": "exists",
+      "missing": [
+        "exists"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_assembly:::test_vrml_export",
+      "blockedBy": "exists",
+      "missing": [
+        "exists"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_assembly:::test_save",
+      "blockedBy": "parametrize",
+      "missing": [
+        "parametrize",
+        "save",
+        "exists"
       ],
       "deps": []
     },
     {
       "case": "tests.test_assembly:::test_export",
-      "blockedBy": "export",
+      "blockedBy": "parametrize",
       "missing": [
-        "export"
+        "parametrize",
+        "export",
+        "exists"
       ],
       "deps": []
     },
@@ -7212,14 +7243,16 @@
       "case": "tests.test_assembly:::test_export_vtkjs",
       "blockedBy": "export",
       "missing": [
-        "export"
+        "export",
+        "exists"
       ],
       "deps": []
     },
     {
       "case": "tests.test_assembly:::test_export_errors",
-      "blockedBy": "export",
+      "blockedBy": "raises",
       "missing": [
+        "raises",
         "export"
       ],
       "deps": []
@@ -7228,7 +7261,11 @@
       "case": "tests.test_assembly:::test_save_stl_formats",
       "blockedBy": "save",
       "missing": [
-        "save"
+        "save",
+        "exists",
+        "raises",
+        "getsize",
+        "read"
       ],
       "deps": []
     },
@@ -7236,7 +7273,23 @@
       "case": "tests.test_assembly:::test_save_gltf",
       "blockedBy": "save",
       "missing": [
-        "save"
+        "save",
+        "exists",
+        "raises",
+        "getsize",
+        "read"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_assembly:::test_exportGLTF",
+      "blockedBy": "exportGLTF",
+      "missing": [
+        "exportGLTF",
+        "raises",
+        "readlines",
+        "startswith",
+        "read"
       ],
       "deps": []
     },
@@ -7244,7 +7297,8 @@
       "case": "tests.test_assembly:::test_save_gltf_boxes2",
       "blockedBy": "save",
       "missing": [
-        "save"
+        "save",
+        "readouterr"
       ],
       "deps": []
     },
@@ -7252,31 +7306,59 @@
       "case": "tests.test_assembly:::test_save_vtkjs",
       "blockedBy": "save",
       "missing": [
-        "save"
+        "save",
+        "exists"
       ],
       "deps": []
     },
     {
       "case": "tests.test_assembly:::test_save_raises",
-      "blockedBy": "save",
+      "blockedBy": "raises",
       "missing": [
+        "raises",
         "save"
       ],
       "deps": []
     },
     {
-      "case": "tests.test_assembly:::test_colors_assy0",
-      "blockedBy": "load",
+      "case": "tests.test_assembly:::test_leaf_node_count",
+      "blockedBy": "getfixturevalue",
       "missing": [
+        "getfixturevalue"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_assembly:::test_colors_assy0",
+      "blockedBy": "getfixturevalue",
+      "missing": [
+        "getfixturevalue",
         "load"
       ],
       "deps": []
     },
     {
       "case": "tests.test_assembly:::test_colors_assy1",
-      "blockedBy": "load",
+      "blockedBy": "getfixturevalue",
       "missing": [
+        "getfixturevalue",
         "load"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_assembly:::test_materials",
+      "blockedBy": "Assembly",
+      "missing": [
+        "Assembly"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_assembly:::test_colors_fused_assy",
+      "blockedBy": "getfixturevalue",
+      "missing": [
+        "getfixturevalue"
       ],
       "deps": []
     },
@@ -7284,14 +7366,24 @@
       "case": "tests.test_assembly:::test_constrain_with_tags",
       "blockedBy": "constrain",
       "missing": [
-        "constrain"
+        "constrain",
+        "raises"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_assembly:::test_duplicate_name",
+      "blockedBy": "raises",
+      "missing": [
+        "raises"
       ],
       "deps": []
     },
     {
       "case": "tests.test_assembly:::test_empty_solve",
-      "blockedBy": "solve",
+      "blockedBy": "raises",
       "missing": [
+        "raises",
         "solve"
       ],
       "deps": []
@@ -7309,31 +7401,61 @@
       "blockedBy": "constrain",
       "missing": [
         "constrain",
-        "solve"
+        "solve",
+        "X",
+        "TranslationPart",
+        "approx",
+        "Y",
+        "Transformation"
       ],
       "deps": []
     },
     {
       "case": "tests.test_assembly:::test_PointInPlane_param",
-      "blockedBy": "constrain",
+      "blockedBy": "parametrize",
       "missing": [
+        "parametrize",
         "constrain",
-        "solve"
+        "solve",
+        "TranslationPart",
+        "approx",
+        "Transformation",
+        "Z",
+        "X"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_assembly:::test_toCompound",
+      "blockedBy": "Assembly",
+      "missing": [
+        "Assembly"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_assembly:::test_infinite_face_constraint_Plane",
+      "blockedBy": "Assembly",
+      "missing": [
+        "Assembly"
       ],
       "deps": []
     },
     {
       "case": "tests.test_assembly:::test_constraint_validation",
-      "blockedBy": "constrain",
+      "blockedBy": "raises",
       "missing": [
-        "constrain"
+        "raises",
+        "constrain",
+        "Constraint"
       ],
       "deps": []
     },
     {
       "case": "tests.test_assembly:::test_single_unary_constraint",
-      "blockedBy": "constrain",
+      "blockedBy": "raises",
       "missing": [
+        "raises",
         "constrain",
         "solve"
       ],
@@ -7344,6 +7466,89 @@
       "blockedBy": "solve",
       "missing": [
         "solve"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_assembly:::test_imprinting",
+      "blockedBy": "imprint",
+      "missing": [
+        "imprint"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_assembly:::test_step_export_filesize",
+      "blockedBy": "Assembly",
+      "missing": [
+        "Assembly"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_assembly:::test_assembly_remove_no_name_match",
+      "blockedBy": "Assembly",
+      "missing": [
+        "Assembly"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_assembly:::test_assembly_remove_part",
+      "blockedBy": "Assembly",
+      "missing": [
+        "Assembly"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_assembly:::test_assembly_remove_subassy",
+      "blockedBy": "Assembly",
+      "missing": [
+        "Assembly"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_assembly:::test_remove_without_parent",
+      "blockedBy": "Assembly",
+      "missing": [
+        "Assembly"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_assembly:::test_step_color",
+      "blockedBy": "Assembly",
+      "missing": [
+        "Assembly"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_assembly:::test_special_methods",
+      "blockedBy": "__dir__",
+      "missing": [
+        "__dir__",
+        "_ipython_key_completions_",
+        "raises"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_assembly:::test_subshape_access",
+      "blockedBy": "__dir__",
+      "missing": [
+        "__dir__",
+        "_ipython_key_completions_"
+      ],
+      "deps": []
+    },
+    {
+      "case": "tests.test_assembly:::test_name_geometries",
+      "blockedBy": "Assembly",
+      "missing": [
+        "Assembly"
       ],
       "deps": []
     }

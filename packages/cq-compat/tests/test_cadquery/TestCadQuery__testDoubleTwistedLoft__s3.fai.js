@@ -1,0 +1,16 @@
+// source: test_cadquery.py::TestCadQuery::testDoubleTwistedLoft (var s3)
+// ref (cadquery 2.8.0): vol 2237.041349, 18 faces, bbox [-10,-10,-4]..[10,10,4]
+//   s3 = s + s2   (fuse of the upward and downward twisted lofts)
+import * as cq from '@faicad/cq-compat'
+let w1 = cq.polygon(cq.Workplane('XY'), 8, 20)
+let w2 = await cq.workplane(w1, { offset: 4 })
+let w3 = await cq.transformed(w2, { rotate: [0, 0, 15] })
+let w4 = cq.polygon(w3, 8, 20)
+let s = await cq.loft(w4)
+let u1 = cq.polygon(cq.Workplane('XY'), 8, 20)
+let u2 = await cq.workplane(u1, { offset: -4 })
+let u3 = await cq.transformed(u2, { rotate: [0, 0, 15] })
+let u4 = cq.polygon(u3, 8, 20)
+let s2 = await cq.loft(u4)
+let s3 = await cq.union(s, s2)
+let result = cq.val(s3)

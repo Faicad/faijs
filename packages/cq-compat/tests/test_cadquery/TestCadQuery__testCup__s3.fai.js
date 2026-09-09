@@ -1,0 +1,15 @@
+// source: test_cadquery.py::TestCadQuery::testCup (var s3)
+// ref (cadquery 2.8.0): vol 7929.379858, 5 faces, bbox [-50,-50,0]..[50,50,10]
+//   s3 = s1.cut(s2)   (s1, s2 as in __s1/__s2)
+import * as cq from '@faicad/cq-compat'
+let w1 = cq.circle(cq.Workplane('XY'), 20)
+let w2 = await cq.workplane(w1, { offset: 10 })
+let w3 = cq.circle(w2, 50)
+let s1 = await cq.loft(w3)
+let u1 = await cq.workplane(cq.Workplane('XY'), { offset: 1 })
+let u2 = cq.circle(u1, 18)
+let u3 = await cq.workplane(u2, { offset: 9 })
+let u4 = cq.circle(u3, 48)
+let s2 = await cq.loft(u4)
+let s3 = await cq.cut(s1, s2)
+let result = cq.val(s3)

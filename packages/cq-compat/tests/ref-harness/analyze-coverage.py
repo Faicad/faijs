@@ -32,14 +32,14 @@ REF_MANIFEST = os.path.join(PKG, "out", "ref", "manifest.json")
 
 # --------------------------------------------------------------------------
 # cq-compat surface (source of truth: packages/cq-compat/src/index.ts)
-# Workplane: Workplane add box rect circle polygon extrude cutBlind hole
+# Workplane: Workplane add box rect circle polygon extrude revolve cutBlind hole
 #   cboreHole cskHole threadedHole faces edges vertices workplane center
 #   pushPoints translate rotate mirror union cut intersect fillet shell
 #   val vals transformed setColor
 # Assembly: faceRef constraint buildAssembly Color
 # --------------------------------------------------------------------------
 CQ_COMPAT_OPS = {
-    "Workplane", "add", "box", "rect", "circle", "polygon", "extrude", "cutBlind",
+    "Workplane", "add", "box", "rect", "circle", "polygon", "extrude", "revolve", "cutBlind",
     "cutThruAll", "hole", "cboreHole", "cskHole", "threadedHole", "faces", "edges",
     "vertices", "workplane", "center", "pushPoints", "rarray", "translate", "rotate",
     "mirror", "union", "cut", "intersect", "combine", "fillet", "chamfer", "shell",
