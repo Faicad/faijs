@@ -20,6 +20,8 @@ export {
   box,
   sphere,
   cylinder,
+  torus,
+  cone,
   rarray,
   rect,
   circle,

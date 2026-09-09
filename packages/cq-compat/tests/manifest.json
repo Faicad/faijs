@@ -2040,29 +2040,29 @@
     "blockedBy": "pending:mirror"
   },
   "tests.test_free_functions:::test_box__s": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_box",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_cylinder__s": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_cylinder",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_sphere__s": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_sphere",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_torus__s": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_torus",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_cone__s": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_cone",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_text__r1": {
     "status": "blocked",
@@ -2110,14 +2110,14 @@
     "blockedBy": "pending:mirror"
   },
   "tests.test_free_functions:::test_operators__b1": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_operators",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_operators__b2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_operators",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_operators__b3": {
     "status": "blocked",
@@ -2180,14 +2180,14 @@
     "blockedBy": "pending:mirror"
   },
   "tests.test_free_functions:::test_fuse_multi__b": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_fuse_multi",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_fuse_multi__res": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_fuse_multi",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_moved__b": {
     "status": "ported",
@@ -2380,34 +2380,34 @@
     "blockedBy": "pending:mirror"
   },
   "tests.test_free_functions:::test_clean__b1": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_clean",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_clean__b2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_clean",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_fillet__b": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_fillet",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_fillet__r": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_fillet",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_chamfer__b": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_chamfer",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_chamfer__r": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_chamfer",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_extrude__r4": {
     "status": "blocked",

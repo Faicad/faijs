@@ -869,6 +869,57 @@ export async function cylinder(
 }
 
 /**
+ * torus — CadQuery free-function analogue (occ_impl.shapes.torus).
+ *
+ * Upstream takes DIAMETERS and builds a full torus centred at the origin,
+ * axis +Z: `torus(d1, d2)` -> R = d1/2, r = d2/2, V = 2π²·R·r²
+ * (`torus(10, 2)` -> 98.696, ref-verified against cadquery 2.8.0).
+ *
+ * @param wp - Workplane carrier (fresh `Workplane()` for the free function).
+ * @param d1 - Major DIAMETER.
+ * @param d2 - Minor DIAMETER.
+ * @returns Promise<Workplane> carrying the torus solid.
+ */
+export async function torus(
+  wp: Workplane,
+  d1: number,
+  d2: number,
+  opts?: { combine?: boolean },
+): Promise<Workplane> {
+  const product = unwrapBrepResult(compatFn('torus')(d1 / 2, d2 / 2))
+  const shape = adoptBrepjsProduct(product)
+  return combineEachpoint(wp, [shape], opts?.combine ?? true)
+}
+
+/**
+ * cone — CadQuery free-function analogue (occ_impl.shapes.cone).
+ *
+ * Upstream takes DIAMETERS with the base centred on the origin at z=0, axis
+ * +Z: `cone(d1, d2, h)` -> R = d1/2, r = d2/2, V = π/3·h·(R²+Rr+r²)
+ * (`cone(2, 1, 1)` -> 1.8326, ref-verified against cadquery 2.8.0). The
+ * 2-arg upstream form `cone(d, h)` is the full cone — pass `d2 = 0`.
+ *
+ * @param wp - Workplane carrier (fresh `Workplane()` for the free function).
+ * @param d1 - Base DIAMETER.
+ * @param d2 - Top DIAMETER (0 for a full cone).
+ * @param h - Height along +Z.
+ * @returns Promise<Workplane> carrying the cone solid.
+ */
+export async function cone(
+  wp: Workplane,
+  d1: number,
+  d2: number,
+  h: number,
+  opts?: { combine?: boolean },
+): Promise<Workplane> {
+  const base = await cad.cone(d1 / 2, d2 / 2, h, { centered: true })
+  // Kernel cone with centered:true is centred at the origin mid-height; lift
+  // by h/2 so the base circle sits on z=0 (upstream free-function semantics).
+  const shape = await cad.translate(base as unknown as Shape, { offset: [0, 0, h / 2] })
+  return combineEachpoint(wp, [shape as Shape], opts?.combine ?? true)
+}
+
+/**
  * rarray
  * @param wp - Workplane
  * @param xSpacing - number

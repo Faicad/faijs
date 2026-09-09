@@ -647,19 +647,53 @@ testWorkplaneOrientationOnVertex parent。`parent` 触发 SEC_IDENT（window.par
   可正常导出。脚本保留为 `test_single_ent_selector__fs.fai.js.blocked`。
   → 属 core 导出链缺口，修复需动 `exportStepFromSolids` 的形状类型分派（单独立项）。
 
-### 7.13 下一步（更新至批次 7 之后）
+### 7.14 批次 8（2026-09-09 下午：test_free_functions 自由函数面）
 
-1. ~~阶段 B 剩余（153 var）~~ → 剩 **122 var**（本批 31：30 PASS + 1 转 blocked）。下一批建议：`testPlanes`（需 `Workplane(Plane.ZX())` 等命名平面构造，
-   U16 族）、`testUnionCompound__obj`（compound 载体 cut 语义）、testFreeFunctions 的
-   `test_offset`（4 var，Shape.offset）、`test_fillet`/`test_chamfer`（shape 级 API）。
-2. **阶段 D**（smoke fixture 入 vitest/CI，≤30 case）—— B 已稳定两个大批次，可以补了。
+**PASS 135 → 149（+14，另 PASS-NT +1），FAIL=0，parity 20.92% → 23.23%；
+`pending:mirror` 122 → 107 var。**
+
+新增 2 个自由函数 op（`workplane.ts` + `index.ts` 导出）：
+
+- `torus(wp, d1, d2)`：上游 `occ_impl.shapes.torus(d1, d2)` 取**直径**（R=d1/2,
+  r=d2/2），居中于原点、轴 +Z；经 brepjsCompat `torus` 投影实现
+  （`compatFn('torus')`，注意不是 `makeTorus`——后者在 brepjsCompat 面上不可见）。
+- `cone(wp, d1, d2, h)`：上游 `cone(d1, d2, h)` 取**直径**，底圆在 z=0；
+  内核 `cad.cone(rB, rT, h, {centered:true})` 居中于中点，需再 translate z+h/2。
+  两参形式 `cone(d, h)` = 全锥（d2=0）。
+
+镜像 15 var：test_box/test_cylinder/test_sphere/test_torus/test_cone（各 1）+
+test_operators（b1/b2）+ test_fuse_multi（b/res）+ test_clean（b1/b2，clean 结果
+未被导出）+ test_fillet（b/r）+ test_chamfer（b/r）。语义要点：
+
+- 自由函数原语全部取**直径**（cylinder(d,h)/sphere(d)/torus(d1,d2)/cone(d,h)），
+  与 Workplane 方法取半径不同——test_moved 批次已有 sphere 结论，本批补齐其余三个。
+- test_operators 的 b1/b2 是平移后的 box（b1: x,y∈[-1,0]；b2: x,y∈[-2,0]），
+  不能写成居中 box（bbox 不匹配）。
+- shape 级 `fillet(b, b.edges(">Z"), 0.1)` / `chamfer` 用 `faces(">Z")` + 面-边
+  路径复现（">Z" 面恰含 4 条顶棱），vol 与 ref 精确一致（0.9917994 / 0.9813333）。
+- faijs parser 限制：**嵌套 await 实参**（`union(await union(...), b2)`）触发
+  `E_VALUE: unsupported value expression: AwaitExpression`，镜像须拆中间变量。
+
+单测 54/54 全绿；gen-manifest 151 ported 与比对一致。本批未动 core/shared 路径
+（仅 cq-compat 新增 op），无额外回归面。
+
+### 7.15 下一步（更新至批次 8 之后）
+
+1. ~~阶段 B 剩余（153 var）~~ → 剩 **107 var**（批次 6-8 合计 46：45 PASS +
+   1 转 blocked）。下一批候选：`test_offset`（4 var，Shape.offset）、
+   `test_extrude`（r4/r5）、`test_constructors__b`（3 var 中 c1/c2 撞 U22）。
+2. **阶段 D**（smoke fixture 入 vitest/CI，≤30 case）—— B 已稳定三个大批次，可以补了。
 3. **阶段 H**（2D wire：`close`/`moveTo`/`lineTo`/`wire`，+33 var）——
    `testRevolveCone__result` 等 case 的阻塞项。
 4. test_selectors 5 var（testShape/testNthDistance 族）与 test_workplanes 剩余 0 ——
    Nth/切片选择器需 `vals()` 列表语义，单独小批。
 5. ~26 个 case 属 `test_assembly`，与装配双求解器方案重叠，等那条线 P0b 成员配对裁定后动。
-6. U22（STEP 导出器支持面 compound）与 U15 遗留的 `shell` 内核投影、U18
+6. U22（STEP 导出器支持面 compound，已压 3 var：test_single_ent_selector__fs、
+   test_constructors__c1/c2）与 U15 遗留的 `shell` 内核投影、U18
    `cutBlind("last"/"next")` 均为 op/内核级缺口，按 blockedBy 频次排期。
+7. test_free_functions 剩余大头：test_sweep（6 var）、test_loft（5 var）、
+   test_text（9 var，字体依赖）、test_history_bool（4 var）、test_imprint_error、
+   test_project、test_check 等。
 
 ---
 
