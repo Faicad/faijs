@@ -111,6 +111,8 @@ const exampleSelect = document.getElementById('example-select') as HTMLSelectEle
 const statusBar = document.getElementById('status-bar') as HTMLDivElement
 const btnStep = document.getElementById('btn-step') as HTMLButtonElement
 const btnStl = document.getElementById('btn-stl') as HTMLButtonElement
+const splitter = document.getElementById('splitter') as HTMLDivElement
+const editorPanel = document.querySelector('.editor-panel') as HTMLElement
 
 // ── 3D viewer factory ──
 
@@ -195,6 +197,42 @@ function resize() {
 
 window.addEventListener('resize', resize)
 resize()
+
+// ── Splitter: drag to resize the editor/viewer split ──
+
+let splitDragging = false
+
+splitter.addEventListener('pointerdown', (e) => {
+  splitDragging = true
+  splitter.classList.add('dragging')
+  // Capture the pointer on the splitter so dragging continues
+  // even when the cursor leaves the 6px strip
+  splitter.setPointerCapture(e.pointerId)
+  e.preventDefault()
+})
+
+splitter.addEventListener('pointermove', (e) => {
+  if (!splitDragging) return
+  // min-width: 240px (CSS) is not readable per-pixel; clamp here too
+  const min = 240
+  const max = document.body.clientWidth - 240
+  const width = Math.min(Math.max(e.clientX, min), max)
+  editorPanel.style.width = `${width}px`
+  // Canvas sizes derive from container width — refresh immediately
+  resize()
+})
+
+splitter.addEventListener('pointerup', (e) => {
+  if (!splitDragging) return
+  splitDragging = false
+  splitter.classList.remove('dragging')
+  splitter.releasePointerCapture(e.pointerId)
+})
+
+splitter.addEventListener('pointercancel', () => {
+  splitDragging = false
+  splitter.classList.remove('dragging')
+})
 
 // ── Animation loop ──
 
