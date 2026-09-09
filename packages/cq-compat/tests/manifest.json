@@ -2123,9 +2123,9 @@
     "blockedBy": null
   },
   "tests.test_free_functions:::test_operators__b3": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_operators",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_imprint__b1": {
     "status": "blocked",
@@ -2527,29 +2527,29 @@
     "blockedBy": "importBrep"
   },
   "tests.test_free_functions:::test_check__s1": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_check",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_history_bool__b1": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_history_bool",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_history_bool__b2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_history_bool",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_history_bool__res": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_history_bool",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_history_bool__res2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_history_bool",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_history_extrude__res": {
     "status": "blocked",

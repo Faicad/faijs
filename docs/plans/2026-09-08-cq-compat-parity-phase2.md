@@ -750,20 +750,41 @@ mark-blocked.ts 移除 4 条 U22 标注（26 → 22），blocked 495 → 491。
 2. **core `exportStepFromSolids` 分派再扩一级 solid → shell → face → edge**：
    边 compound（线框）同样可写 STEP（U22 延伸）。
 
-### 7.19 下一步（更新至批次 10 之后）
+### 7.19 批次 11（test_operators / test_check / test_history_bool）
 
-1. ~~阶段 B 剩余（153 var）~~ → 剩 **84 var**。test_selectors 剩 5 var
+**parity 25.85% → 26.62%**（PASS 166 → 171，PASS-NT 2，FAIL=0），`pending:mirror`
+84 → 78。6 var 落袋：
+
+- `test_operators__b3`：b1 = 自由函数 box(1,1,1)（z∈[0,1]）moved(-0.5,-0.5,-0.5)
+  → x,y∈[-1,0]、z∈[-0.5,0.5]；b3 = b1 平移 z+1e-4（首版写成全居中 box，centroid
+  Δ 0.5 FAIL 后修正 —— 自由函数 box 约定再次生效）。
+- `test_check__s1`：check() 仅校验，导出值 = 自由函数 box(1,1,1)。
+- `test_history_bool__b1/b2/res/res2`：cut 口袋体 vol 0.95；**res2 = imprint(res, b2)
+  的几何 = res 与 b2 两实体的 Compound**（ref vol 1.0 = 0.95 + 0.05）——
+  History/imprint 簿记不被镜像 harness 导出，用新 op `compound()` 几何复现。
+
+新 op：**`compound(...items)`**（cq-compat 自由函数）—— 上游 `compound(*shapes)`，
+把多个 Shape/Workplane 免布尔捆成 Compound（`makeCompoundShape` 直通），null/空
+条目跳过。testUnionCompound 类 case 后续也可消费。
+
+### 7.20 下一步（更新至批次 11 之后）
+
+1. ~~阶段 B 剩余（153 var）~~ → 剩 **78 var**。test_selectors 剩 5 var
    （testAreaNthSelector_NonplanarWire、testLengthNthSelector_UnsupportedShapes×2、
    testNthDistance×2 —— Nth/切片选择器族，需 `vals()` 列表语义，单独小批）。
-   test_free_functions 剩 43 var 大头：`test_sweep`（6 var，sweep op 缺）、
-   `test_loft`（5 var，loft op 已有？待核）、`test_text`（9 var，字体依赖）、
-   `test_history_bool`（4 var）、`test_offset`（4 var，op:shape.offset）。
-2. `test_extrude` r1–r3 是 wire/edge/vertex 域拉伸 —— exporter 分派到 edge 为止
+   test_free_functions 剩 37 var：`test_sweep`（6+2 var，sweep op 缺）、
+   `test_text`（9 var，字体依赖）、`test_imprint_error`（3 var）、
+   `test_hollow`/`test_hollow_open`/`test_draft`（9 var，op:shell/draft）、
+   `test_project`、`test_faceOn`（text 依赖）。
+2. `test_loft` r4/r6、`test_loft_vertex` r2–r4 需要 wire/vertex/face 域 loft 输入
+   （circle/ellipse/plane/vertex 自由函数），当前 loft op 只收 pendingWires ——
+   与阶段 H（2D wire）合并评估。
+3. `test_extrude` r1–r3 是 wire/edge/vertex 域拉伸 —— exporter 分派到 edge 为止
    仍不覆盖 vertex 域，且 pendingWires→prism 的线域拉伸语义需单独立项评估。
-3. **阶段 D**（smoke fixture 入 vitest/CI）—— 继续待排。
-4. **阶段 H**（2D wire：`close`/`moveTo`/`lineTo`/`wire`，+33 var）。
-5. test_assembly ~26 case：等装配双求解器线 P0b 裁定。
-6. op 级缺口汇总（按 blockedBy 频次）：`op:shape.offset`（4）、`op:shell`（2）、
+4. **阶段 D**（smoke fixture 入 vitest/CI）—— 继续待排。
+5. **阶段 H**（2D wire：`close`/`moveTo`/`lineTo`/`wire`，+33 var）。
+6. test_assembly ~26 case：等装配双求解器线 P0b 裁定。
+7. op 级缺口汇总（按 blockedBy 频次）：`op:shape.offset`（4）、`op:shell`（2）、
    `op:pendingWires`、`op:polyline`、`op:threePointArc`、`op:extrude.both`（2）、
    `op:extrude.combine-cut/combine-s`（2）、`op:cutBlind.until-face`（3）、
    `op:Solid.makeCone`、`op:CQ`、`op:findSolid`、`op:Workplane.plugin`、

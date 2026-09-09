@@ -2394,6 +2394,24 @@ export async function cut(
 }
 
 /**
+ * compound — upstream module-level `compound(*shapes)` free function: bundle
+ * several shapes into a single Compound WITHOUT any boolean operation. Needed
+ * by test_history_bool (imprint result = base solid + tool solid as a
+ * compound) and test_union_compound-style cases.
+ *
+ * Accepts Shapes and Workplanes (their current shape is used); null/empty
+ * entries are skipped. Returns a Shape whose value is the compound itself, so
+ * mirrors write `let result = c` directly.
+ */
+export function compound(...items: (Workplane | Shape | null | undefined)[]): Shape | null {
+  const shapes = items
+    .map((it) => (it && typeof it === 'object' && 'shape' in (it as Workplane) ? (it as Workplane).shape : (it as Shape)))
+    .filter((s): s is Shape => Boolean(s))
+  if (shapes.length === 0) return null
+  return makeCompoundShape(shapes)
+}
+
+/**
  * intersect
  * @param wp - Workplane
  * @param other - Workplane | Shape

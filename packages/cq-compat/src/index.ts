@@ -53,6 +53,7 @@ export {
   move,
   union,
   cut,
+  compound,
   intersect,
   combine,
   fillet,
