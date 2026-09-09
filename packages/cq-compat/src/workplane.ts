@@ -1971,10 +1971,22 @@ export async function mirror(
  * returns a Compound of faces — unlike `Workplane.faces()`, which only records
  * the selection). Needed by test_single_ent_selector where the exported var IS
  * the face compound (ref: Compound, area 2 = two unit-box top faces).
+ *
+ * `sel = 'all'` picks EVERY face of the shape — the upstream
+ * `compound(shape.Faces())` free-function form (test_constructors c1/c2).
  */
 export async function faceCompound(wp: Workplane, sel: string): Promise<Workplane> {
   if (!wp.shape) return wp
   const s = NAMED_VIEW_TO_AXIS[sel.trim().toLowerCase()] ?? sel
+  if (s.trim().toLowerCase() === 'all') {
+    const faces = compatFn('getFaces')(borrowBrepjsShape(wp.shape)) as unknown[]
+    if (faces.length === 0) {
+      throw new Error('[cq-compat] faceCompound "all": shape has no faces')
+    }
+    const product = compatFn('makeCompound')(faces) as unknown
+    const shape = adoptBrepjsProduct(unwrapBrepResult(product))
+    return clone(wp, { shape, faceSel: null, edgeSel: null, vertexSel: null })
+  }
   const m = /^([<>])([XYZ])(?:\[-?\d+\])?$/.exec(s.trim())
   if (!m) {
     throw new Error(`[cq-compat] unsupported face selector for faceCompound "${sel}"`)

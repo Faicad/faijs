@@ -14,9 +14,9 @@ import type { BrepHandle } from '../engine/types'
 import type { BrepEngineApi } from '../engine/primitives'
 import { reconstructSolidFromMesh } from '../../occt-kernel/meshReconstruct'
 
-/** STEP 导出条目：一个 part（精确 solid 或三角网格，二选一）。 */
+/** STEP 导出条目：一个 part（精确 BREP 形状或三角网格，二选一）。 */
 export interface StepExportEntry {
-  /** 精确 BREP solid（来自宿主导出缓存）。与 mesh 二选一，solid 优先。 */
+  /** 精确 BREP 形状（solid/shell/face/compound，来自宿主导出缓存）。与 mesh 二选一，solid 优先。 */
   solid?: BrepHandle
   /** 三角网格（世界坐标、已按单位缩放），经 reconstructSolidFromMesh 重建为实体。 */
   mesh?: { positions: Float32Array; indices: Uint32Array }
@@ -75,13 +75,27 @@ export function exportStepFromSolids(
       }
 
       // 2. 展平 Compound（多 solid 导入的 part 其 solid 是 Compound）；
-      //    纯 solid 时 getSubShapes('solid') 返回 [自身]
-      const solids = kernel.getSubShapes(solid, 'solid')
-      for (let si = 0; si < solids.length; si++) {
-        const sub = solids[si]
+      //    纯 solid 时 getSubShapes('solid') 返回 [自身]。
+      //    形状类型分派：solid → shell → face。ref 侧（cadquery
+      //    Shape.exportStep）可导出任意类型的形状，面/壳 compound（如
+      //    Shape.faces('>Z') 的结果）同样要能写进 STEP（U22，2026-09-09）。
+      let subs = kernel.getSubShapes(solid, 'solid')
+      if (subs.length === 0) {
+        subs = kernel.getSubShapes(solid, 'shell')
+      }
+      if (subs.length === 0) {
+        subs = kernel.getSubShapes(solid, 'face')
+      }
+      if (subs.length === 0) {
+        throw new Error(
+          '[exportStepFromSolids] shape contains no solid, shell or face sub-shapes',
+        )
+      }
+      for (let si = 0; si < subs.length; si++) {
+        const sub = subs[si]
         // 展平出的子句柄若不属于调用方缓存，记入 ownedHandles
         if (solid !== sub) ownedHandles.push(sub)
-        const name = solids.length > 1
+        const name = subs.length > 1
           ? `${entry.name ?? 'part'} [${si + 1}]`
           : entry.name
         // sRGB → linear：XCAF 按 linear 存储，STEP writer 输出时线性→sRGB，
@@ -90,9 +104,6 @@ export function exportStepFromSolids(
           ? [srgbToLinear(entry.color[0]), srgbToLinear(entry.color[1]), srgbToLinear(entry.color[2])]
           : undefined
         doc.addShape(sub, { name, color })
-      }
-      if (solids.length === 0) {
-        throw new Error('[exportStepFromSolids] shape contains no solid sub-shapes')
       }
     }
 

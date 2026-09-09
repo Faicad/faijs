@@ -707,14 +707,35 @@ occ_impl 私有工具，导出值 = compound 第一个 Solid = 1³ box）。
 
 单测 54/54 全绿（本批无 src 改动）；gen-manifest 155 ported 与比对一致。
 
-### 7.17 下一步（更新至批次 9 之后）
+### 7.17 U22 修复（2026-09-09 晚：STEP 导出器支持面/壳 compound）
 
-1. ~~阶段 B 剩余（153 var）~~ → 剩 **96 var**（批次 6-9 合计 57：55 PASS +
-   2 转 blocked 案族共 12 var）。下一批候选：test_selectors 5 var（Nth/切片）、
-   test_free_functions 的 `test_extrude`（r1–r3 是 wire/edge/vertex 拉伸 → 面域
-   STEP 导出，撞 U22 或需 shell 投影）、`test_sweep`（需 sweep op，U 级缺口）。
-2. **U22（STEP 导出面 compound）已压 4 var，是最高性价比的单点修复**：
-   `exportStepFromSolids` 的形状类型分派改为支持 face/shell compound。
+**core 级单点修复：`core/src/brep/export/step.ts::exportStepFromSolids` 的形状类型
+分派由「仅 solid」扩展为 solid → shell → face 逐级回退**（`getSubShapes` 按类型
+过滤，compound 内无 solid 时依次尝试 shell/face；全部为空才抛错，错误信息同步
+更新）。`StepExportEntry.solid` 的 JSDoc 同步放宽为「精确 BREP 形状
+（solid/shell/face/compound）」。
+
+解锁 4 var（全部 PASS，parity 23.85% → **24.46%**，PASS 153 → 157，FAIL=0）：
+
+- `test_single_ent_selector__fs`（fs = bs.faces(">Z")，双箱顶面 compound，
+  脚本从 `.fai.js.blocked` 恢复并修正 base box 约定 —— 上游用自由函数 box，
+  z∈[0,1]，顶面在 z=1）
+- `test_constructors__c1/c2`（compound(b.Faces())，全部 6 面 compound）——
+  为此扩展 `faceCompound` op 支持 `sel = 'all'`（跳过方向过滤取全部面）
+- `test_extrude_face__c`（单面 1×1 compound，用自由函数 box 的 `<Z` 底面复现）
+
+回归：core `step-export.test.ts` 9/9 绿；cq-compat 单测 54/54 绿；
+mini_lathe verify-all 全部通过（STEP 导出重路径零回归）；
+mark-blocked.ts 移除 4 条 U22 标注（26 → 22），blocked 495 → 491。
+
+### 7.18 下一步（更新至 U22 修复之后）
+
+1. ~~阶段 B 剩余（153 var）~~ → 剩 **96 var**（批次 6-9 + U22 修复合计 61：
+   59 PASS + 12 var 转 blocked 案族）。下一批候选：test_selectors 5 var（Nth/切片）、
+   test_free_functions 的 `test_extrude`（r1–r3 是 wire/edge/vertex 拉伸 —— 线/点域
+   STEP 导出， exporter 现分派到 face 为止仍不覆盖，需再评估）、`test_sweep`
+   （需 sweep op，U 级缺口）。
+2. ~~**U22（STEP 导出面 compound）**~~ ✅ 已修复（§7.17），解锁 4 var。
 3. **阶段 D**（smoke fixture 入 vitest/CI）—— 继续待排。
 4. **阶段 H**（2D wire：`close`/`moveTo`/`lineTo`/`wire`，+33 var）。
 5. test_assembly ~26 case：等装配双求解器线 P0b 裁定。
