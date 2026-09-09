@@ -767,24 +767,50 @@ mark-blocked.ts 移除 4 条 U22 标注（26 → 22），blocked 495 → 491。
 把多个 Shape/Workplane 免布尔捆成 Compound（`makeCompoundShape` 直通），null/空
 条目跳过。testUnionCompound 类 case 后续也可消费。
 
-### 7.20 下一步（更新至批次 11 之后）
+### 7.21 阶段 D 完成（smoke fixture 入 vitest/CI）
 
-1. ~~阶段 B 剩余（153 var）~~ → 剩 **78 var**。test_selectors 剩 5 var
-   （testAreaNthSelector_NonplanarWire、testLengthNthSelector_UnsupportedShapes×2、
-   testNthDistance×2 —— Nth/切片选择器族，需 `vals()` 列表语义，单独小批）。
-   test_free_functions 剩 37 var：`test_sweep`（6+2 var，sweep op 缺）、
-   `test_text`（9 var，字体依赖）、`test_imprint_error`（3 var）、
-   `test_hollow`/`test_hollow_open`/`test_draft`（9 var，op:shell/draft）、
-   `test_project`、`test_faceOn`（text 依赖）。
-2. `test_loft` r4/r6、`test_loft_vertex` r2–r4 需要 wire/vertex/face 域 loft 输入
-   （circle/ellipse/plane/vertex 自由函数），当前 loft op 只收 pendingWires ——
-   与阶段 H（2D wire）合并评估。
-3. `test_extrude` r1–r3 是 wire/edge/vertex 域拉伸 —— exporter 分派到 edge 为止
-   仍不覆盖 vertex 域，且 pendingWires→prism 的线域拉伸语义需单独立项评估。
-4. **阶段 D**（smoke fixture 入 vitest/CI）—— 继续待排。
-5. **阶段 H**（2D wire：`close`/`moveTo`/`lineTo`/`wire`，+33 var）。
-6. test_assembly ~26 case：等装配双求解器线 P0b 裁定。
-7. op 级缺口汇总（按 blockedBy 频次）：`op:shape.offset`（4）、`op:shell`（2）、
+D1–D4 全部落地：
+
+- **D1**：30 个稳定 PASS 用例的 ref STEP 入库 `packages/cq-compat/tests/fixtures/ref/`
+  （覆盖：test_cadquery 原语/boolean/chamfer/cut/counterbores/cup/combine/fillet/
+  revolve/loft 18 + test_selectors 边 compound 1 + test_shapes 2 +
+  test_free_functions 原语/moved/extrude-both/compound 8 + test_workplanes mirror 1）。
+  fixture 是不可变基线，更新必须重跑 ref-harness 再拷贝。
+- **D2**：新增 `packages/cq-compat/src/parity-smoke.test.ts`（31 it）：每 case 经
+  faijs-cli 导出候选 STEP + `compareStepFiles`（复用 `src/step-compare.ts`）比对，
+  options 与 `tests/compare.ts` 的 PASS 判据一致（strictTopology=false、
+  线性/体积 1e-3、布尔差 0.1mm³）。**实测 31/31 全绿（约 235s，串行 ~8s/case）**。
+  实现要点：spawn 必须用异步 `execFile`（同步阻塞触发 vitest worker
+  onTaskUpdate RPC 超时）；多导出变量时 CLI 产生 `<name>.step_N_<var>.step`，
+  取排序第一个。
+- **D3**：全量 650 case 仍走本地 `tests/compare.ts`，不进 CI（不变）。
+- **D4**：CI 4/9 watchdog 矩阵实测：`node scripts/run-tests-with-watchdog.mjs
+  --budget-ms 300000 -- npm run test -w @faicad/cq-compat` → **85/85 全绿、
+  stderr 零输出**（54 单测 + 31 smoke）。ci.ps1 的 lint/typecheck/build
+  （1–3 步）在 PS 5.1 下实测通过。
+
+**ci.ps1 的 PS 5.1 兼容修复**（本机无 pwsh 7，`pwsh`/`powershell` 嵌套调用均被
+宿主 PATH 拦截）：
+
+1. 加 UTF-8 BOM —— PS 5.1 对无 BOM 的 UTF-8 脚本按 ANSI 解析，中文字符串
+   （累计/预算等）导致 ParserError；pwsh 不受影响。
+2. 脚本头初始化 `$LASTEXITCODE = 0` —— StrictMode 宿主下首个
+   `if ($LASTEXITCODE -ne 0)` 会抛 VariableIsUndefined。
+
+**遗留**：完整 9 步 CI 未在本机一次跑通 —— PowerShell 工具会话 PATH 不含
+托管 node（脚本 4/9 直接调 `node`），需在会话内注入 PATH 或等 pwsh 7 安装后
+按 AGENTS 原命令 `pwsh -NoProfile scripts/ci.ps1` 实测；1–4 步均已单独验证通过。
+
+### 7.22 下一步（更新至阶段 D 完成之后）
+
+1. ~~阶段 B 剩余（153 var）~~ → 剩 **78 var**（多 op 级缺口：sweep 8、text 9、
+   hollow/draft 9、offset 4、imprint_error 3、selectors Nth 族 5 等），
+   单点镜像批次边际收益已收窄。
+2. **阶段 H**（2D wire：`close`/`moveTo`/`lineTo`/`wire`，+33 var）—— 下一优先：
+   同时解锁 `test_loft` r4/r6、`test_loft_vertex` r2–r4（wire/vertex 域 loft 输入）
+   与 `test_extrude` r1–r3 的线域拉伸评估。
+3. **阶段 G**（slide_top）与 test_assembly ~26 case：待装配双求解器线 P0b 裁定。
+4. op 级缺口汇总（按 blockedBy 频次）：`op:shape.offset`（4）、`op:shell`（2）、
    `op:pendingWires`、`op:polyline`、`op:threePointArc`、`op:extrude.both`（2）、
    `op:extrude.combine-cut/combine-s`（2）、`op:cutBlind.until-face`（3）、
    `op:Solid.makeCone`、`op:CQ`、`op:findSolid`、`op:Workplane.plugin`、

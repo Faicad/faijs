@@ -1,10 +1,13 @@
-#!/usr/bin/env pwsh
+﻿#!/usr/bin/env pwsh
 param(
     [Parameter(Position = 0, HelpMessage = '"all" to log full output to ci.log. Default: direct console output.')]
     [string]$Mode
 )
 
 $ErrorActionPreference = 'Stop'
+# StrictMode hosts: $LASTEXITCODE only exists after the first native command.
+# Initialise it so the first `if ($LASTEXITCODE -ne 0)` check doesn't throw.
+$LASTEXITCODE = 0
 
 # Decode external (Node) command stdout as UTF-8 instead of the system
 # default GBK/CP936. Without this, vitest/eslint/tsc output is mis-decoded
