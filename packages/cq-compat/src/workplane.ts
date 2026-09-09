@@ -1160,9 +1160,17 @@ async function extrudePendingWires(wp: Workplane, height: number): Promise<Shape
  * extrude
  * @param wp - Workplane
  * @param height - number
+ * @param combine - true (default): fuse the new solid with the carried shape;
+ *   false: the carrier holds ONLY the freshly extruded solid (upstream
+ *   `extrude(..., False)` — verified: testSolidReferenceCombineFalse exports the
+ *   lone boss, Compound vol 0.03125). The "cut"/"s" modes are NOT supported yet.
  * @returns Promise<Workplane>
  */
-export async function extrude(wp: Workplane, height: number): Promise<Workplane> {
+export async function extrude(
+  wp: Workplane,
+  height: number,
+  combine: boolean = true,
+): Promise<Workplane> {
   // CadQuery pendingWires LIST: nested wires form one holed face per outermost
   // wire. Single-wire cases fall through to the legacy prism path unchanged.
   const solidWires = (wp.pendingWires ?? []).filter((w) => !w.construction)
@@ -1170,7 +1178,8 @@ export async function extrude(wp: Workplane, height: number): Promise<Workplane>
     const base = wp.shape
     wp = await applyPendingFacePlane(wp)
     const prism = await extrudePendingWires(wp, height)
-    const shape = base ? await fuseShapes(base, prism) : prism
+    const shape =
+      combine === false || !base ? prism : await fuseShapes(base, prism)
     return clone(wp, {
       shape,
       pendingWires: [],
@@ -1211,21 +1220,88 @@ export async function extrude(wp: Workplane, height: number): Promise<Workplane>
       const ptsArr = Array.isArray(wp.pts) ? wp.pts : []
       const points = ptsArr.length > 0 ? ptsArr : ([[0, 0]] as [number, number][])
       let shape = base
+      let separate: Shape | null = null
       for (const [px, py] of points) {
         const bossWp: Workplane = { ...wp, origin: localToWorld(wp, px, py) }
+        // combine=false keeps the new solid standalone: no OVERLAP padding (it
+        // exists only to make the fuse merge coplanar faces) and no fuse.
+        const h = combine === false ? height : height + OVERLAP
         let boss: Shape
         if (wp.pendingPolygon) {
-          boss = await makePolygonPrismAt(bossWp, wp.pendingPolygon, height + OVERLAP, wp.normal)
+          boss = await makePolygonPrismAt(bossWp, wp.pendingPolygon, h, wp.normal)
         } else if (wp.pendingRect) {
           const { w, d } = wp.pendingRect
-          boss = await makeBoxAt(bossWp, w, d, height + OVERLAP)
+          boss = await makeBoxAt(bossWp, w, d, h)
         } else {
-          boss = await makeCylinderAt(bossWp, wp.pendingCircle!.radius, height + OVERLAP)
+          boss = await makeCylinderAt(bossWp, wp.pendingCircle!.radius, h)
+        }
+        if (combine === false) {
+          separate = separate ? await fuseShapes(separate, boss) : boss
+          continue
         }
         const shifted = await cad.translate(boss, {
           offset: [-n[0] * OVERLAP, -n[1] * OVERLAP, -n[2] * OVERLAP],
         })
         shape = await fuseShapes(shape, shifted as unknown as Shape)
+        // The OVERLAP padding extends the boss BELOW the face plane so the OCCT
+        // fuse merges the coplanar contact. When the profile overhangs the base
+        // (e.g. a boss centred on a corner, testWorkplaneCenterMove), that
+        // padding leaves stray material OUTSIDE the base under the face plane —
+        // upstream keeps nothing there. Remove exactly that region:
+        // (shifted boss \ base) ∩ half-space below the face plane.
+        // Profiles fully inside the base's cross-section can never overhang,
+        // so the cheap bbox test skips the two extra booleans entirely.
+        const bossB = compatFn('getBounds')(borrowBrepjsShape(boss)) as Record<string, number>
+        const baseB = compatFn('getBounds')(borrowBrepjsShape(base)) as Record<string, number>
+        const PAD_EPS = 1e-6
+        const axisOf = (v: [number, number, number]): number =>
+          Math.abs(v[0]) > 0.5 ? 0 : Math.abs(v[1]) > 0.5 ? 1 : 2
+        // In-plane axes = the two axes perpendicular to the face normal.
+        const overhangs = [0, 1, 2]
+          .filter((i) => i !== axisOf(n))
+          .some((i) => {
+            const key = ['x', 'y', 'z'] as const
+            return (
+              bossB[`${key[i]}Min`] < baseB[`${key[i]}Min`] - PAD_EPS ||
+              bossB[`${key[i]}Max`] > baseB[`${key[i]}Max`] + PAD_EPS
+            )
+          })
+        if (overhangs) {
+          const stray = await cutShapes(shifted as unknown as Shape, base)
+          // Slab covering the half-space below the face plane (local z <= 0).
+          const o = Array.isArray(wp.origin) ? wp.origin : ([0, 0, 0] as [number, number, number])
+          const BIG =
+            2 *
+              Math.max(
+                baseB.xMax - baseB.xMin,
+                baseB.yMax - baseB.yMin,
+                baseB.zMax - baseB.zMin,
+                bossB.xMax - bossB.xMin,
+                bossB.yMax - bossB.yMin,
+                bossB.zMax - bossB.zMin,
+              ) +
+            10
+          const belowWp: Workplane = {
+            ...wp,
+            origin: [o[0] - n[0] * BIG, o[1] - n[1] * BIG, o[2] - n[2] * BIG],
+          }
+          const slab = await makeBoxAt(belowWp, BIG, BIG, BIG)
+          const strayBelow = await intersectShapes(stray, slab)
+          shape = await cutShapes(shape, strayBelow)
+        }
+      }
+      if (combine === false && separate) {
+        return clone(wp, {
+          shape: separate,
+          pendingWires: [],
+          pendingPolygon: undefined,
+          pendingRect: undefined,
+          pendingCircle: undefined,
+          faceSel: null,
+          edgeSel: null,
+          vertexSel: null,
+          pts: [],
+        })
       }
       return clone(wp, {
         shape,
@@ -1780,23 +1856,102 @@ export async function rotate(
 }
 
 /**
- * mirror
- * @param wp - Workplane
- * @param plane - string
- * @returns Promise<Workplane>
+ * Mirror-plane normals for the string form (upstream `Shape.mirror`,
+ * cadquery 2.8.0: both spellings of a plane map to the SAME mirror plane —
+ * 'YX' has normal (0,-1,0) but mirrors through the same y=0 plane as 'XZ').
+ */
+const MIRROR_PLANE_NORMALS: Record<string, [number, number, number]> = {
+  XY: [0, 0, 1],
+  YX: [0, 0, 1],
+  XZ: [0, 1, 0],
+  ZX: [0, 1, 0],
+  YZ: [1, 0, 0],
+  ZY: [1, 0, 0],
+}
+
+/**
+ * mirror — full upstream `Workplane.mirror` semantics (cadquery 2.8.0, verified
+ * against cq.py:1113):
+ *   - string form: 'XY'..'ZY' named mirror planes
+ *   - vector form: plane normal, mirrored about `basePointVector` (default origin)
+ *   - Workplane form (upstream Face form): normal + center of the selected face;
+ *     basePointVector only overrides the center when explicitly given
+ *   - `union`: fuse the mirrored copy with the original (upstream `self.union(newS)`)
+ *
+ * The kernel projection is `cad.mirror(shape, { normal, at })` — the previous
+ * implementation passed `{ plane }`, which MirrorOptions does not know, so every
+ * mirror silently used the default normal [1,0,0] (latent bug, found while
+ * writing the test_mirror mirrors).
  */
 export async function mirror(
   wp: Workplane,
-  plane?: string,
+  mirrorPlane?: string | number[] | Workplane,
+  basePointVector?: [number, number, number],
+  union?: boolean,
 ): Promise<Workplane> {
   if (!wp.shape) return wp
-  try {
-    const shape = await cad.mirror(wp.shape, { plane: plane ?? 'XY' })
-    return clone(wp, { shape })
-  } catch {
-    // mirror may fail for some geometries — return unchanged (v1 tolerance)
-    return wp
+  let normal: [number, number, number]
+  let at: [number, number, number]
+  if (mirrorPlane && typeof mirrorPlane === 'object' && !Array.isArray(mirrorPlane)) {
+    // Workplane carrying a face selection (upstream Face form).
+    const fp = mirrorPlane as Workplane
+    if (!fp.faceSel || !fp.shape) return wp
+    const resolved = await resolveFaceSelector(fp.shape, fp.faceSel)
+    normal = resolved.normal
+    at = basePointVector ?? resolved.center
+  } else if (Array.isArray(mirrorPlane)) {
+    normal = [mirrorPlane[0] ?? 0, mirrorPlane[1] ?? 0, mirrorPlane[2] ?? 0]
+    at = basePointVector ?? [0, 0, 0]
+  } else {
+    const key = String(mirrorPlane ?? 'XY').toUpperCase()
+    normal = MIRROR_PLANE_NORMALS[key] ?? [0, 0, 1]
+    at = basePointVector ?? [0, 0, 0]
   }
+  const mirrored = await cad.mirror(wp.shape, { normal, at })
+  const shape = union ? await fuseShapes(wp.shape, mirrored) : mirrored
+  // Upstream returns a newObject stack holding only the mirrored/unioned
+  // objects — pending selectors do not survive a mirror.
+  return clone(wp, { shape, faceSel: null, edgeSel: null, vertexSel: null })
+}
+
+/**
+ * faceCompound — extract the faces picked by a direction selector as a
+ * standalone compound Shape (upstream module-level `Shape.faces(">Z")`, which
+ * returns a Compound of faces — unlike `Workplane.faces()`, which only records
+ * the selection). Needed by test_single_ent_selector where the exported var IS
+ * the face compound (ref: Compound, area 2 = two unit-box top faces).
+ */
+export async function faceCompound(wp: Workplane, sel: string): Promise<Workplane> {
+  if (!wp.shape) return wp
+  const s = NAMED_VIEW_TO_AXIS[sel.trim().toLowerCase()] ?? sel
+  const m = /^([<>])([XYZ])(?:\[-?\d+\])?$/.exec(s.trim())
+  if (!m) {
+    throw new Error(`[cq-compat] unsupported face selector for faceCompound "${sel}"`)
+  }
+  const axis = m[2] === 'X' ? 0 : m[2] === 'Y' ? 1 : 2
+  const sign = m[1] === '>' ? 1 : -1
+  const bounds = (h: unknown): Record<string, number> =>
+    compatFn('getBounds')(h) as Record<string, number>
+  const faces = compatFn('getFaces')(borrowBrepjsShape(wp.shape)) as unknown[]
+  // DirectionMinMaxSelector: among faces perpendicular to the axis, take ALL
+  // faces whose center sits at the extremum (ties included — the two-boxes
+  // compound exports BOTH top faces).
+  const perp = faces.filter((f) => {
+    const b = bounds(f)
+    return [b.xMax - b.xMin, b.yMax - b.yMin, b.zMax - b.zMin][axis] <= 0.1
+  })
+  if (perp.length === 0) {
+    throw new Error(`[cq-compat] no planar face for selector "${sel}"`)
+  }
+  const center = (b: Record<string, number>): number =>
+    [(b.xMin + b.xMax) / 2, (b.yMin + b.yMax) / 2, (b.zMin + b.zMax) / 2][axis]
+  const extremum = perp
+    .map((f) => center(bounds(f)))
+    .reduce((best, c) => (sign * c > sign * best ? c : best))
+  const picked = perp.filter((f) => Math.abs(center(bounds(f)) - extremum) <= 1e-6)
+  const product = compatFn('makeCompound')(picked) as unknown
+  const shape = adoptBrepjsProduct(unwrapBrepResult(product))
+  return clone(wp, { shape, faceSel: null, edgeSel: null, vertexSel: null })
 }
 
 // ── Location / moved / move (阶段 E) ─────────────────────────────────────
@@ -2200,23 +2355,33 @@ function resolveEdgeSelection(shape: Shape, sel: string | null | undefined): unk
 /**
  * Fillet selected edges of the current shape.
  *
- * `|Z`-style selectors resolve to concrete edges via `resolveEdgeSelection`;
- * with no edge selector ALL edges are filleted (matching
- * `fillet(shape, undefined, r)` semantics). Failures propagate — silently
- * returning the unfilleted shape previously produced plates whose fillets
- * were missing entirely (mini_lathe bp/mb/mt/tp diagnosis, 2026-09-08).
+ * Edge resolution mirrors chamfer: an explicit `|Z`-style / empty edgeSel goes
+ * through `resolveEdgeSelection`; a pending face selection
+ * (`.faces(">Z").fillet(r)`) fillets THE SELECTED FACE's edges via
+ * `resolveFaceEdgeSelection` (upstream `.faces("+Z").edges().fillet(r)`
+ * semantics — the missing faceSel branch made testTopFaceFillet fillet all 12
+ * edges instead of the 4 top ones). Failures propagate — silently returning
+ * the unfilleted shape previously produced plates whose fillets were missing
+ * entirely (mini_lathe bp/mb/mt/tp diagnosis, 2026-09-08).
  *
- * @param wp - Workplane whose current shape is filleted; consumes `edgeSel`.
+ * @param wp - Workplane whose current shape is filleted; consumes `edgeSel`/`faceSel`.
  * @param radius - Fillet radius in world units.
  * @returns Promise resolving to a new Workplane holding the filleted shape.
  */
 export async function fillet(wp: Workplane, radius: number): Promise<Workplane> {
   if (!wp.shape) return wp
-  const edges = resolveEdgeSelection(wp.shape, wp.edgeSel)
+  let edges: unknown[]
+  if (wp.edgeSel !== null && wp.edgeSel !== undefined) {
+    edges = resolveEdgeSelection(wp.shape, wp.edgeSel)
+  } else if (wp.faceSel) {
+    edges = resolveFaceEdgeSelection(wp.shape, wp.faceSel)
+  } else {
+    edges = resolveEdgeSelection(wp.shape, undefined)
+  }
   const result = compatFn('fillet')(borrowBrepjsShape(wp.shape), edges, radius)
   const product = unwrapBrepResult(result)
   const shape = adoptBrepjsProduct(product)
-  return clone(wp, { shape, edgeSel: null })
+  return clone(wp, { shape, edgeSel: null, faceSel: null })
 }
 
 /**
@@ -2267,12 +2432,14 @@ export async function chamfer(
  * ~0.1mm of tolerance, so a small positive slack is used).
  */
 function resolveFaceEdgeSelection(shape: Shape, sel: string): unknown[] {
-  const m = /^([<>])([XYZ])(?:\[-?\d+\])?$/.exec(sel.trim())
+  // '+'/'-' are accepted as aliases of '>'/'<' (CadQuery allows both spellings;
+  // resolveFaceSelector's axis table does the same).
+  const m = /^([<>+\-])([XYZ])(?:\[-?\d+\])?$/.exec(sel.trim())
   if (!m) {
     throw new Error(`[cq-compat] unsupported face selector for chamfer "${sel}"`)
   }
   const axis = m[2] === 'X' ? 0 : m[2] === 'Y' ? 1 : 2
-  const sign = m[1] === '>' ? 1 : -1
+  const sign = m[1] === '>' || m[1] === '+' ? 1 : -1
   const bounds = (h: unknown): Record<string, number> =>
     compatFn('getBounds')(h) as Record<string, number>
   const faces = compatFn('getFaces')(borrowBrepjsShape(shape)) as unknown[]

@@ -595,24 +595,71 @@ blockedBy 停留在 'loft'，属 R1 所述"分析器盲区"）。待该 API 族�
 **结果**：parity **14.00% → 16.31%**（PASS 90 → 105，FAIL=0，ERROR=0）；
 `moved` 不再是任何 case 的首阻塞项，27 var 转为 `pending:mirror`。
 
-### 7.7 下一步（更新至 E 之后）
+### 7.12 阶段 B 批次 6–7（✅ 完成，2026-09-09 下午）：mirror 族 + test_shapes + union 族
 
-1. ~~**阶段 F1**~~ ✅ / ~~**F2 revolve**~~ ✅ / ~~**F3 loft**~~ ✅（见 §7.8–§7.10）。
-   **parity 11.08% → 14.00%**（PASS 74 → 90，FAIL=0）。
-2. ~~**阶段 E**（`moved` 系 op）~~ ✅（见 §7.11）：`Location` / `moved` / `move` /
-   `composeLocations` 落地，15 个 test_moved 镜像全 PASS，**parity → 16.31%**。
-3. **阶段 B 剩余（`pending:mirror` 153 var，★ 最高性价比）**——全部 op 已具备，
-   只差写镜像脚本；建议下一批做（`testCompoundCenter`、`testPlanes`、
-   `testPlaneMethods`、`testMakeShellSolid`、`testCutBlindUntilFace`、
-   `testFuzzyBoolOp` 剩余 7 var、`testCompSolid`、`testOpenCornerShell` 等）。
-3. **阶段 D**（smoke fixture 入 vitest/CI，≤30 case）可与 E 并行。
-4. **阶段 H**（2D wire：`close`/`moveTo`/`lineTo`/`wire`，+33 var）——
+**批次 6（12 var：test_workplanes mirror 族 7 + test_shapes 5）**：
+
+| 用例 | 结果 | 说明 |
+|---|---|---|
+| test_mirror__b2 / test_mirror_axis__b2 | PASS | mirror 升级后首跑即过（见下） |
+| test_all_planes__b2 / test_bad_plane_input__b2 | PASS | union=False 镜像替换 shape；raises 用例导出的是异常前最终值 |
+| test_mirror_equivalence__boxTmp / __b | PASS | harness 在函数**出口**快照 locals → 取 i=2 迭代值（translate [4,0,0.5]） |
+| test_mirror_workplane__b2 | PASS | face 形态 mirror（normal+center）×3 连锁 union |
+| test_isSolid__s / test_reverse__simple_box | PASS | 首版 FAIL：**自由函数 box 落在 z∈[0,1]**，改 `centered:[true,true,false]` 后过 |
+| test_shells__s / test_single_ent_selector__bs | PASS | 同上；bs 用 `moved(loc1, loc2)` 双副本 compound |
+| test_single_ent_selector__fs | **降级 blocked** | 见下（U22） |
+
+**批次 7（19 var：testUnions 7 + testUnionCompound 4 + SolidReference 4 + 单项 4）**：
+testUnions t/oo/currentS/toUnion/resS/sugar1/sugar2、testUnionCompound box1/box2/
+shape_to_cut/o（`o` 经 probe 实测 bbox == box2，即第二个循环的最终循环变量）、
+testSolidReferencesCombineTrue r/t、testSolidReferenceCombineFalse r/t、
+testWorkplaneCenterMove t、testMultiWireWorkplane r、testTopFaceFillet s、
+testWorkplaneOrientationOnVertex parent。`parent` 触发 SEC_IDENT（window.parent 黑名单），
+改名 `parentWp` 解决。
+
+**指标**：parity **16.31% → 20.92%**（PASS 105 → 135，FAIL=0，ERROR=0），
+`ported` 136 与磁盘一致；cq-compat 单测 54/54 全绿；mini_lathe `verify-all.ts` 零回归。
+
+#### 本批修复的 4 个 op 缺陷 / 缺口（均在 `packages/cq-compat/src/workplane.ts`）
+
+1. **mirror 潜伏 bug（静默错误参数）**：旧实现传 `{ plane }` 给内核，而 `MirrorOptions`
+   是 `{ normal, at }` —— `plane` 被忽略、每次都按默认法向 [1,0,0] 镜像。重写为完整上游语义
+   （cq.py:1113 取证）：字符串 named-plane 表（'XY'/'YX'→z 平面等同映射）、向量+basePointVector、
+   Workplane face 形态（resolveFaceSelector 取 normal+center）、`union` 参数（fuse 回原体）。
+   同时删除"失败静默返回原 wp"的 catch（违反绝不静默约定）。
+2. **fillet 缺 faceSel 分支**（U23）：`.faces("+Z").fillet(r)` 退化成全部 12 条棱倒圆
+   （26 faces，vol Δ 1.63）。补 `resolveFaceEdgeSelection` 路径（与 chamfer 同机制），
+   并让该函数接受 `+Z`/`-Z` 拼写（此前只认 `>Z`/`<Z`）。
+3. **extrude 补 `combine` 布尔参数**：`combine=false` 时载体只含新拉伸体、且**不施加
+   OVERLAP**（ref 实测 testSolidReferenceCombineFalse__t = 孤立凸台 vol 0.03125）。
+4. **OVERLAP 融合技巧的悬出残留**（U24）：凸台剖面**部分悬出基体**时（角上凸台，
+   testWorkplaneCenterMove），下沉 0.1 的 padding 在基体外、面平面以下留下
+   ¾·π·r²·OVERLAP 的多余材料（Δvol 0.0147，精确吻合）。修复：仅当凸台 bbox 在面内
+   两轴越出基体 bbox 时（便宜判定，完全在内则跳过、零回归），额外执行
+   `cut(fused, (shiftedBoss \ base) ∩ 面平面下半空间)`。修复后 vol/CoM 与 ref 精确一致。
+
+#### 新缺口（新增 blocked 标注，mark-blocked.ts 18 → 19 条）
+
+- **U22 `step-export:faces-compound`**：`Shape.faces(">Z")` 的面 compound 提取本身已实现
+  （新增 `faceCompound` op，getFaces + makeCompound），但 faijs STEP 导出器
+  （`core/src/brep/export/step.ts::exportStepFromSolids`）只支持含 solid 子形状的形状，
+  对纯面 compound 抛 "shape contains no solid sub-shapes"。ref 侧 `Shape.exportStep`
+  可正常导出。脚本保留为 `test_single_ent_selector__fs.fai.js.blocked`。
+  → 属 core 导出链缺口，修复需动 `exportStepFromSolids` 的形状类型分派（单独立项）。
+
+### 7.13 下一步（更新至批次 7 之后）
+
+1. ~~阶段 B 剩余（153 var）~~ → 剩 **122 var**（本批 31：30 PASS + 1 转 blocked）。下一批建议：`testPlanes`（需 `Workplane(Plane.ZX())` 等命名平面构造，
+   U16 族）、`testUnionCompound__obj`（compound 载体 cut 语义）、testFreeFunctions 的
+   `test_offset`（4 var，Shape.offset）、`test_fillet`/`test_chamfer`（shape 级 API）。
+2. **阶段 D**（smoke fixture 入 vitest/CI，≤30 case）—— B 已稳定两个大批次，可以补了。
+3. **阶段 H**（2D wire：`close`/`moveTo`/`lineTo`/`wire`，+33 var）——
    `testRevolveCone__result` 等 case 的阻塞项。
-2. 阶段 B 剩余：testCompoundCenter、testPlanes、testPlaneMethods、testMakeShellSolid、
-   testCutBlindUntilFace\_\_wp_ref_regular_cut（需 `faces(">X[2]")` 索引选择器）、
-   testFuzzyBoolOp 剩余 7 var、testCompSolid（partial sphere）、testOpenCornerShell（`shell`）。
-3. ~30 个 case 属 `test_assembly`，与装配双求解器方案重叠，等那条线 P0b 成员配对裁定后动。
-4. 阶段 D（smoke fixture 入 vitest）待 B 稳定后补。
+4. test_selectors 5 var（testShape/testNthDistance 族）与 test_workplanes 剩余 0 ——
+   Nth/切片选择器需 `vals()` 列表语义，单独小批。
+5. ~26 个 case 属 `test_assembly`，与装配双求解器方案重叠，等那条线 P0b 成员配对裁定后动。
+6. U22（STEP 导出器支持面 compound）与 U15 遗留的 `shell` 内核投影、U18
+   `cutBlind("last"/"next")` 均为 op/内核级缺口，按 blockedBy 频次排期。
 
 ---
 

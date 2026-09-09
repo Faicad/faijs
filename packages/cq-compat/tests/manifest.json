@@ -800,9 +800,9 @@
     "reason": "ref-no-step"
   },
   "tests.test_cadquery::TestCadQuery::testMultiWireWorkplane__r": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testMultiWireWorkplane",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testMultisectionSweep__defaultSweep": {
     "status": "blocked",
@@ -1113,14 +1113,14 @@
     "reason": "ref-no-step"
   },
   "tests.test_cadquery::TestCadQuery::testSolidReferenceCombineFalse__r": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testSolidReferenceCombineFalse",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testSolidReferenceCombineFalse__t": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testSolidReferenceCombineFalse",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testSolidReferencesCombine__c": {
     "status": "blocked",
@@ -1139,14 +1139,14 @@
     "reason": "ref-no-step"
   },
   "tests.test_cadquery::TestCadQuery::testSolidReferencesCombineTrue__r": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testSolidReferencesCombineTrue",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testSolidReferencesCombineTrue__t": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testSolidReferencesCombineTrue",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testSphereCombine__s": {
     "status": "ported",
@@ -1340,9 +1340,9 @@
     "blockedBy": "pending:mirror"
   },
   "tests.test_cadquery::TestCadQuery::testTopFaceFillet__s": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testTopFaceFillet",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testTranslateSolid__c": {
     "status": "ported",
@@ -1401,24 +1401,24 @@
     "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testUnionCompound__box1": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testUnionCompound",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testUnionCompound__box2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testUnionCompound",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testUnionCompound__shape_to_cut": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testUnionCompound",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testUnionCompound__o": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testUnionCompound",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testUnionCompound__obj": {
     "status": "blocked",
@@ -1448,39 +1448,39 @@
     "reason": "ref-no-step"
   },
   "tests.test_cadquery::TestCadQuery::testUnions__t": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testUnions",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testUnions__oo": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testUnions",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testUnions__currentS": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testUnions",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testUnions__toUnion": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testUnions",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testUnions__resS": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testUnions",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testUnions__sugar1": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testUnions",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testUnions__sugar2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testUnions",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testWedgeCombined__s": {
     "status": "blocked",
@@ -1504,9 +1504,9 @@
     "reason": "ref-no-step"
   },
   "tests.test_cadquery::TestCadQuery::testWorkplaneCenterMove__t": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testWorkplaneCenterMove",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testWorkplaneCenterOptions__r": {
     "status": "blocked",
@@ -1535,9 +1535,9 @@
     "blockedBy": "stub:makeBox"
   },
   "tests.test_cadquery::TestCadQuery::testWorkplaneOrientationOnVertex__parent": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testWorkplaneOrientationOnVertex",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testWorkplaneOrientationOnVertex__child": {
     "status": "skipped",
@@ -1739,14 +1739,14 @@
     "blockedBy": "pending:mirror"
   },
   "tests.test_shapes:::test_isSolid__s": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_shapes:::test_isSolid",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_shapes:::test_shells__s": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_shapes:::test_shells",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_shapes:::test_bin_import_export__b": {
     "status": "blocked",
@@ -1804,14 +1804,15 @@
     "blockedBy": "replace"
   },
   "tests.test_shapes:::test_single_ent_selector__bs": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_shapes:::test_single_ent_selector",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_shapes:::test_single_ent_selector__fs": {
     "status": "blocked",
     "source": "tests.test_shapes:::test_single_ent_selector",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "step-export:faces-compound",
+    "manual": true
   },
   "tests.test_shapes:::test_special__c": {
     "status": "blocked",
@@ -1829,9 +1830,9 @@
     "blockedBy": "filter"
   },
   "tests.test_shapes:::test_reverse__simple_box": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_shapes:::test_reverse",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_shapes:::test_siblings__simple_box": {
     "status": "blocked",
@@ -1899,34 +1900,34 @@
     "blockedBy": "size"
   },
   "tests.test_workplanes::TestWorkplanes::test_all_planes__b2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_workplanes::TestWorkplanes::test_all_planes",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_workplanes::TestWorkplanes::test_bad_plane_input__b2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_workplanes::TestWorkplanes::test_bad_plane_input",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_workplanes::TestWorkplanes::test_mirror__b2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_workplanes::TestWorkplanes::test_mirror",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_workplanes::TestWorkplanes::test_mirror_axis__b2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_workplanes::TestWorkplanes::test_mirror_axis",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_workplanes::TestWorkplanes::test_mirror_equivalence__boxTmp": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_workplanes::TestWorkplanes::test_mirror_equivalence",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_workplanes::TestWorkplanes::test_mirror_equivalence__b": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_workplanes::TestWorkplanes::test_mirror_equivalence",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_workplanes::TestWorkplanes::test_mirror_face__r": {
     "status": "blocked",
@@ -1934,9 +1935,9 @@
     "blockedBy": "close"
   },
   "tests.test_workplanes::TestWorkplanes::test_mirror_workplane__b2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_workplanes::TestWorkplanes::test_mirror_workplane",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_utils__r4": {
     "status": "blocked",

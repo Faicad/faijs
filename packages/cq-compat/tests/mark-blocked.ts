@@ -45,6 +45,11 @@ const BY_KEY: Record<string, string> = {
   'tests.test_cadquery::TestCadQuery::testCutBlindUntilFace__wp': 'op:cutBlind.until-face',
   'tests.test_cadquery::TestCadQuery::testCutBlindUntilFace__wp_last': 'op:cutBlind.until-face',
   'tests.test_cadquery::TestCadQuery::testCutBlindUntilFace__wp_next': 'op:cutBlind.until-face',
+  // Shape.faces(">Z") face-compound extraction WORKS (faceCompound op, script kept
+  // as .fai.js.blocked) but the faijs STEP exporter only handles shapes with solid
+  // sub-shapes — exportStepFromSolids throws "shape contains no solid sub-shapes"
+  // for a compound of faces (ref exports it fine via Shape.exportStep)
+  'tests.test_shapes:::test_single_ent_selector__fs': 'step-export:faces-compound',
 }
 
 const manifest = JSON.parse(readFileSync(MANIFEST, 'utf-8')) as Record<
