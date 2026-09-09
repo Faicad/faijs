@@ -4,8 +4,8 @@
 // -> one fused solid, 26 faces (6 for the base + 4x5 for the corner cubes)
 import * as cq from '@faicad/cq-compat'
 let base = await cq.box(cq.Workplane('XY'), 4, 4, 0.5)
-let top = await cq.faces(base, '>Z')
-let wp1 = await cq.workplane(top)
+let topFace = await cq.faces(base, '>Z')
+let wp1 = await cq.workplane(topFace)
 let corners = await cq.vertices(cq.rect(wp1, 3, 3, { forConstruction: true }))
 let s = await cq.box(corners, 0.25, 0.25, 0.25, { combine: true })
 let result = cq.val(s)

@@ -420,10 +420,86 @@ Solid.makeCylinder(1, 2)   -> x in [-1, 1], z in [ 0, 2]     (自由函数，x/y
 即 **cq-compat 的 `centered` 实现与 `Workplane.cylinder` 一致（正确）**，错的是镜像：
 自由函数 `Solid.makeCylinder` 应写 `centered: [true, true, false]`。
 镜像已修正并在注释中记录该差异（`TestCadObjects__testMatrixOfInertia__cylinder.fai.js`）。
+### 7.8 阶段 F1 — `pendingWires` 列表化（进行中，2026-09-09 上午）
+
+#### F1-a 前置修口（已完成）
+
+| 项 | 结果 |
+|---|---|
+| A1 口径残余 | `TestCadObjects__testMatrixOfInertia__cylinder` 放在 `tests/test_cadquery/` 但 fileKey 属 `test_cad_objects` 模块 → gen-manifest 匹配不到。已移入 `tests/test_cad_objects/`，重跑后 **ported 74 → 75**，与磁盘一致 |
+| 5 个镜像导出失败（既有缺陷，非 F1 引入） | `testBoxCombine__s`、`testFaceIntersectedByLine__shape`、`testQuickStartXY/XZ/YZ__s` 使用变量名 `top` → 触发 security-scanner `SEC_IDENT`（`top` 属浏览器全局对象黑名单，`security-scanner.ts:93`）。已改名 `topFace`，5 个全部恢复导出 |
+
+#### F1-b 语义取证（CadQuery 2.8.0 实测，全部为**独立链**，避免 `ctx` 共享污染）
+
+上游 `pendingWires` 计数：
+
+| 链 | pendingWires |
+|---|---|
+| `pushPoints([p1,p2])` | 0 |
+| `pushPoints([p1,p2]).circle(4)` | 2 |
+| `pushPoints([p1,p2]).circle(4).circle(2)` | **4** |
+| `circle(4).circle(2)` | 2 |
+| `rect(2,2).rect(1.3,1.3,fc).vertices()` | **1** |
+| 同上 + `.circle(0.125)` | **5** |
+
+体积基准（`cadquery-env` 实测）：
+
+| 用例 | 期望值 | 构成 |
+|---|---|---|
+| `testNestedCircle__s` | **8113.097** | box 8000 + 2×annulus 150.796 − 2×重叠 94.248；faces = 14（与上游断言一致） |
+| `testTwoWorkplanes__r` | **1.901825** | 2×2×0.5 板（2.0）− 4 个 Ø0.25 通孔（0.098175） |
+| 纯 annulus `circle(4).circle(2).extrude(4)` | 150.796 | π(4²−2²)·4 |
+
+**坐实的分组语义**：每个最外层 wire 单独成面，被它包含的 wire 成为该面的孔；互相不包含的
+wire 各自成独立实体后 fuse。即 SVG 式的 outer+holes 包含树，而非"全部 wire 合成一个面"。
+
+> ⚠️ 镜像脚本里的旧注释（"第二个 circle 覆盖第一个"）是**错误猜测**，实际根因是
+> cq-compat 根本没有 pending wire 列表。已在本次取证后重写为实测结论。
+
+#### F1-c 实施内容
+
+**core 侧** `packages/core/src/api/brepjs-compat/index.ts` — 新增 5 个 2D 构造投影
+（`wrapGuarded`，与既有 `revolve`/`loft` 同机制）：
+
+`makeCircle(radius, center?, normal?)`、`makeLine(v1, v2)`、`assembleWire(edges)`、
+`makeFace(wire, holes?)`、`addHolesInFace(face, holes)`。
+
+**cq-compat 侧** `packages/cq-compat/src/workplane.ts`：
+
+| 改动 | 说明 |
+|---|---|
+| 新增 `PendingWire` 类型 | `rect`/`circle`/`polygon` 三态，带 **局部坐标 cx/cy** + `construction` 标记 |
+| 新增 `pendingWires: PendingWire[]` 字段 | 旧单槽字段 `pendingRect`/`pendingCircle`/`pendingPolygon` **全部保留**，旧路径语义不变 |
+| `rect`/`circle`/`polygon` | 改为**追加**（按 `wp.pts` 展开成多个带位置 wire，即 CadQuery eachpoint 语义） |
+| `wireBBox` / `groupPendingWires` | 面积降序 + bbox 包含判定 → `{outer, holes}[]` |
+| `buildProfileWire` | circle → `makeCircle`+`assembleWire`；rect/polygon → 点环 + `makeLine`+`assembleWire` |
+| `extrudePendingWires` | 每组一个带孔面 → `extrude` → 组内/跨组 fuse |
+| `extrude` 调用点 | `solidWires.length > 1` 才走新路径；否则原路径不变（零回归保证） |
+| 6 处消费点 | 统一补 `pendingWires: []` 清理（首版遗漏导致 `combine` 单测回归，已修） |
+
+#### F1-d 当前状态（**未完，如实记录**）
+
+| 用例 | 状态 | 数据 |
+|---|---|---|
+| `testTwoWorkplanes__r` | ✅ 通过 | groups `[{o:rect,h:4}]`，vol **1.9018252295753182**（ref 1.9018252295753189） |
+| `testNestedCircle__s` | ❌ 未修复 | 分组退化成 **4 组各 h:0**（应 2 组各 h:1），且首个圆面 `makeFace` 报 `FACE_BUILD_FAILED: wire might be non planar` |
+| `testTwoWorkplanes__t` | ❌ 未修复 | 依赖 `r`，随 `r` 修复而修复 |
+
+调试日志（`buildProfileWire` / `groupPendingWires` 内的临时 `console.error`，尚未清理）显示
+testNestedCircle 的首个 wire 为 `{r:4, cx:10, cy:0, center:[10,0,0], n:[0,0,1]}`，参数正确，
+故怀疑点集中在 **bbox 包含判定** 或 **非原点圆面的 makeFace** 两处，尚未定位。
+
+单测 `npm run test -w @faicad/cq-compat` **31/31 全绿**，无回归。
+
+> 📌 `core/dist` 曾落后于 src（`AGENTS.md` 明确要求改动 core 后先
+> `npm run build -w @faicad/faijs-core`，否则 `run-cand.ts` 经 node_modules 解析到旧 dist、
+> 新投影不可用）。已补构建。
+
 ### 7.7 下一步（更新至批次 5 之后）
 
-1. **阶段 F1**（`pendingWires` 列表化）——**唯一的 3 个 FAIL 全部依赖它**
-   （testNestedCircle、testTwoWorkplanes×2），且是 F3 `loft` 的前置。建议下一个做。
+1. **阶段 F1**（`pendingWires` 列表化）——**进行中**（见 §7.8）。
+   3 个 FAIL 中的 `testTwoWorkplanes__r` 已达标，`testNestedCircle__s` 与其下游
+   `testTwoWorkplanes__t` 待修（分组判定或 `makeFace` 侧，定位未完成）。
 2. 阶段 B 剩余：testCompoundCenter、testPlanes、testPlaneMethods、testMakeShellSolid、
    testCutBlindUntilFace\_\_wp_ref_regular_cut（需 `faces(">X[2]")` 索引选择器）、
    testFuzzyBoolOp 剩余 7 var、testCompSolid（partial sphere）、testOpenCornerShell（`shell`）。

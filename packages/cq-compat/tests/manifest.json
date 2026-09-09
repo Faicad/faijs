@@ -2826,9 +2826,9 @@
     "blockedBy": "pending:mirror"
   },
   "tests.test_cad_objects::TestCadObjects::testMatrixOfInertia__cylinder": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cad_objects::TestCadObjects::testMatrixOfInertia",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_cad_objects::TestCadObjects::testPlaneMethods__local_box": {
     "status": "blocked",

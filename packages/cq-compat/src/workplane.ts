@@ -26,6 +26,27 @@ const cad = createApiNamespace() as Record<string, (...args: unknown[]) => Promi
 export type RGB = [number, number, number]
 
 /**
+ * A pending 2D profile wire (CadQuery `ctx.pendingWires` analogue).
+ *
+ * Upstream keeps a LIST of wires, and `extrude()` turns them into one face per
+ * outermost wire with the enclosed wires punched as holes — verified against
+ * cadquery 2.8.0 (two columns per pushPoint, and a plate with four holes):
+ *
+ *   `circle(4).circle(2).extrude(4)`                 -> annulus, vol 150.796
+ *   `pushPoints([p1,p2]).circle(4).circle(2)`        -> TWO annuli (2 solids)
+ *   `rect(2,2).rect(1.3,1.3,fc).vertices()`
+ *     `.circle(0.125).extrude(0.5)`                  -> ONE plate, vol 1.901825
+ *
+ * `cx`/`cy` are workplane-LOCAL coordinates (a wire created under `pushPoints`
+ * or after `vertices()` is already positioned at its point). `group` is the
+ * index of the point it was created at, kept only for diagnostics.
+ */
+export type PendingWire =
+  | { kind: 'rect'; w: number; d: number; cx: number; cy: number; construction: boolean }
+  | { kind: 'circle'; radius: number; cx: number; cy: number; construction: boolean }
+  | { kind: 'polygon'; n: number; d: number; cx: number; cy: number; construction: boolean }
+
+/**
  * Workplane carrier — object with a custom prototype so compatOp's
  * `borrowDeep` does NOT traverse its fields (it only walks objects whose
  * prototype === Object.prototype). This prevents .shape from being replaced
@@ -63,6 +84,12 @@ export interface Workplane {
   pendingCircle?: { radius: number }
   /** Pending regular polygon profile (set by .polygon(), consumed by .extrude()/.cutBlind()). */
   pendingPolygon?: { n: number; d: number }
+  /**
+   * Pending 2D profile wires — the CadQuery `pendingWires` LIST.
+   * `rect`/`circle`/`polygon` APPEND; `extrude` consumes. The single-slot
+   * fields above are kept for the (single-wire) legacy path.
+   */
+  pendingWires?: PendingWire[]
   /** Optional color (sRGB 0..1) for this part. */
   color?: RGB
 }
@@ -874,11 +901,16 @@ export function rect(
   d: number,
   opts?: { forConstruction?: boolean },
 ): Workplane {
+  const at = Array.isArray(wp.pts) && wp.pts.length > 0 ? wp.pts : ([[0, 0]] as [number, number][])
   if (opts?.forConstruction) {
     // Construction rect: store corners for vertices() and edge midpoints for edges()
     return clone(wp, {
       forConstruction: true,
       pendingRect: { w, d },
+      pendingWires: [
+        ...(wp.pendingWires ?? []),
+        ...at.map(([cx, cy]) => ({ kind: 'rect' as const, w, d, cx, cy, construction: true })),
+      ],
       pts: [
         [-w / 2, -d / 2],
         [w / 2, -d / 2],
@@ -894,7 +926,14 @@ export function rect(
     })
   }
   // Non-construction rect: store profile for extrude()/cutBlind()
-  return clone(wp, { forConstruction: false, pendingRect: { w, d } })
+  return clone(wp, {
+    forConstruction: false,
+    pendingRect: { w, d },
+    pendingWires: [
+      ...(wp.pendingWires ?? []),
+      ...at.map(([cx, cy]) => ({ kind: 'rect' as const, w, d, cx, cy, construction: false })),
+    ],
+  })
 }
 
 /**
@@ -904,7 +943,17 @@ export function rect(
  * @returns Workplane
  */
 export function circle(wp: Workplane, radius: number): Workplane {
-  return clone(wp, { forConstruction: false, pendingCircle: { radius } })
+  // CadQuery eachpoint semantics: with pushed points / selected vertices the
+  // circle is created at EVERY point, and all of them land in pendingWires.
+  const at = Array.isArray(wp.pts) && wp.pts.length > 0 ? wp.pts : ([[0, 0]] as [number, number][])
+  return clone(wp, {
+    forConstruction: false,
+    pendingCircle: { radius },
+    pendingWires: [
+      ...(wp.pendingWires ?? []),
+      ...at.map(([cx, cy]) => ({ kind: 'circle' as const, radius, cx, cy, construction: false })),
+    ],
+  })
 }
 
 /**
@@ -918,7 +967,15 @@ export function polygon(wp: Workplane, n: number, d: number): Workplane {
   // CadQuery polygon(nSides, diameter): regular n-gon inscribed in a circle of
   // the given diameter, first vertex on local +X. The prism is materialized
   // when consumed by extrude()/cutBlind() (makePolygonPrismAt).
-  return clone(wp, { forConstruction: false, pendingPolygon: { n, d } })
+  const at = Array.isArray(wp.pts) && wp.pts.length > 0 ? wp.pts : ([[0, 0]] as [number, number][])
+  return clone(wp, {
+    forConstruction: false,
+    pendingPolygon: { n, d },
+    pendingWires: [
+      ...(wp.pendingWires ?? []),
+      ...at.map(([cx, cy]) => ({ kind: 'polygon' as const, n, d, cx, cy, construction: false })),
+    ],
+  })
 }
 
 /**
@@ -949,6 +1006,123 @@ async function applyPendingFacePlane(wp: Workplane): Promise<Workplane> {
   return workplane(wp)
 }
 
+// ── Pending-wire profiles (CadQuery pendingWires parity) ───────────────────
+
+/** Local-space (workplane 2D) bounding box of a pending wire. */
+function wireBBox(w: PendingWire): { minX: number; minY: number; maxX: number; maxY: number } {
+  if (w.kind === 'circle') {
+    return {
+      minX: w.cx - w.radius,
+      minY: w.cy - w.radius,
+      maxX: w.cx + w.radius,
+      maxY: w.cy + w.radius,
+    }
+  }
+  if (w.kind === 'rect') {
+    return {
+      minX: w.cx - w.w / 2,
+      minY: w.cy - w.d / 2,
+      maxX: w.cx + w.w / 2,
+      maxY: w.cy + w.d / 2,
+    }
+  }
+  // polygon: circumradius = d/2 (n-gon inscribed in a circle of diameter d)
+  const r = w.d / 2
+  return { minX: w.cx - r, minY: w.cy - r, maxX: w.cx + r, maxY: w.cy + r }
+}
+
+/**
+ * Group pending wires into faces: every outermost wire becomes one face and
+ * the wires it encloses become that face's holes.
+ *
+ * Mirrors cadquery 2.8.0 (measured, `sortWiresByBuildOrder`-like behaviour):
+ *   `pushPoints([p1,p2]).circle(4).circle(2)` -> TWO annuli (2 solids)
+ *   `rect(2,2)` + 4 corner circles            -> ONE plate with 4 holes
+ *
+ * Nesting is decided by bbox containment; area ties keep declaration order so
+ * disjoint wires of equal size never swallow each other.
+ */
+function groupPendingWires(wires: PendingWire[]): { outer: PendingWire; holes: PendingWire[] }[] {
+  const boxes = wires.map(wireBBox)
+  const area = (i: number) => (boxes[i].maxX - boxes[i].minX) * (boxes[i].maxY - boxes[i].minY)
+  const order = wires.map((_, i) => i).sort((a, b) => area(b) - area(a) || a - b)
+  const groups: { outer: PendingWire; holes: PendingWire[] }[] = []
+  const claimed = new Set<number>()
+  for (const i of order) {
+    if (claimed.has(i)) continue
+    claimed.add(i)
+    const ob = boxes[i]
+    const holes: PendingWire[] = []
+    for (const j of order) {
+      if (claimed.has(j)) continue
+      const hb = boxes[j]
+      if (hb.minX >= ob.minX && hb.maxX <= ob.maxX && hb.minY >= ob.minY && hb.maxY <= ob.maxY) {
+        claimed.add(j)
+        holes.push(wires[j])
+      }
+    }
+    groups.push({ outer: wires[i], holes })
+  }
+  return groups
+}
+
+/** Build a brepjs wire for a pending 2D profile, in world coordinates. */
+async function buildProfileWire(wp: Workplane, w: PendingWire): Promise<unknown> {
+  const n = Array.isArray(wp.normal) ? wp.normal : ([0, 0, 1] as [number, number, number])
+  if (w.kind === 'circle') {
+    const center = localToWorld(wp, w.cx, w.cy)
+    const edge = unwrapBrepResult(compatFn('makeCircle')(w.radius, center, n))
+    return unwrapBrepResult(compatFn('assembleWire')([edge]))
+  }
+  const ring: [number, number][] =
+    w.kind === 'rect'
+      ? [
+          [w.cx - w.w / 2, w.cy - w.d / 2],
+          [w.cx + w.w / 2, w.cy - w.d / 2],
+          [w.cx + w.w / 2, w.cy + w.d / 2],
+          [w.cx - w.w / 2, w.cy + w.d / 2],
+        ]
+      : Array.from({ length: w.n }, (_, i) => {
+          const a = (2 * Math.PI * i) / w.n
+          return [
+            w.cx + Math.cos(a) * (w.d / 2),
+            w.cy + Math.sin(a) * (w.d / 2),
+          ] as [number, number]
+        })
+  const edges: unknown[] = []
+  for (let i = 0; i < ring.length; i++) {
+    const a = ring[i]
+    const b = ring[(i + 1) % ring.length]
+    edges.push(unwrapBrepResult(compatFn('makeLine')(localToWorld(wp, a[0], a[1]), localToWorld(wp, b[0], b[1]))))
+  }
+  return unwrapBrepResult(compatFn('assembleWire')(edges))
+}
+
+/**
+ * Extrude the pending wire LIST: one face per outermost wire, enclosed wires
+ * punched as holes, all faces extruded by `height` along the workplane normal
+ * and unioned. Only used when more than one solid wire is pending — the
+ * single-wire case keeps the legacy prism path (zero regression risk).
+ */
+async function extrudePendingWires(wp: Workplane, height: number): Promise<Shape> {
+  const dir = Array.isArray(wp.normal) ? wp.normal : ([0, 0, 1] as [number, number, number])
+  const vec: [number, number, number] = [dir[0] * height, dir[1] * height, dir[2] * height]
+  const all = (wp.pendingWires ?? []).filter((w) => !w.construction)
+  const groups = groupPendingWires(all)
+  let result: Shape | null = null
+  for (const g of groups) {
+    const outer = await buildProfileWire(wp, g.outer)
+    const holeWires: unknown[] = []
+    for (const h of g.holes) holeWires.push(await buildProfileWire(wp, h))
+    const face = unwrapBrepResult(compatFn('makeFace')(outer, holeWires))
+    const prism = unwrapBrepResult(compatFn('extrude')(face, vec))
+    const solid = adoptBrepjsProduct(prism) as Shape
+    result = result ? await fuseShapes(result, solid) : solid
+  }
+  if (!result) throw new Error('[cq-compat] extrude: no pending wire to extrude')
+  return result
+}
+
 /**
  * extrude
  * @param wp - Workplane
@@ -956,20 +1130,40 @@ async function applyPendingFacePlane(wp: Workplane): Promise<Workplane> {
  * @returns Promise<Workplane>
  */
 export async function extrude(wp: Workplane, height: number): Promise<Workplane> {
+  // CadQuery pendingWires LIST: nested wires form one holed face per outermost
+  // wire. Single-wire cases fall through to the legacy prism path unchanged.
+  const solidWires = (wp.pendingWires ?? []).filter((w) => !w.construction)
+  if (solidWires.length > 1) {
+    const base = wp.shape
+    wp = await applyPendingFacePlane(wp)
+    const prism = await extrudePendingWires(wp, height)
+    const shape = base ? await fuseShapes(base, prism) : prism
+    return clone(wp, {
+      shape,
+      pendingWires: [],
+      pendingPolygon: undefined,
+      pendingRect: undefined,
+      pendingCircle: undefined,
+      faceSel: null,
+      edgeSel: null,
+      vertexSel: null,
+      pts: [],
+    })
+  }
   // If there's a pending 2D profile (rect/circle/polygon) and no existing shape, create the 3D solid
   if (wp.pendingPolygon && !wp.shape) {
     const shape = await makePolygonPrismAt(wp, wp.pendingPolygon, height, wp.normal)
-    return clone(wp, { shape, pendingPolygon: undefined, faceSel: null, edgeSel: null, vertexSel: null, pts: [] })
+    return clone(wp, { shape, pendingWires: [], pendingPolygon: undefined, faceSel: null, edgeSel: null, vertexSel: null, pts: [] })
   }
   if (wp.pendingRect && !wp.shape) {
     const { w, d } = wp.pendingRect
     const shape = await makeBoxAt(wp, w, d, height)
-    return clone(wp, { shape, pendingRect: undefined, faceSel: null, edgeSel: null, vertexSel: null, pts: [] })
+    return clone(wp, { shape, pendingWires: [], pendingRect: undefined, faceSel: null, edgeSel: null, vertexSel: null, pts: [] })
   }
   if (wp.pendingCircle && !wp.shape) {
     const { radius } = wp.pendingCircle
     const shape = await makeCylinderAt(wp, radius, height)
-    return clone(wp, { shape, pendingCircle: undefined, faceSel: null, edgeSel: null, vertexSel: null, pts: [] })
+    return clone(wp, { shape, pendingWires: [], pendingCircle: undefined, faceSel: null, edgeSel: null, vertexSel: null, pts: [] })
   }
   // Boss extrude on existing shape: create profile at each workplane point and union
   if (wp.shape) {
@@ -1002,6 +1196,7 @@ export async function extrude(wp: Workplane, height: number): Promise<Workplane>
       }
       return clone(wp, {
         shape,
+        pendingWires: [],
         pendingPolygon: undefined,
         pendingRect: undefined,
         pendingCircle: undefined,
@@ -1061,7 +1256,7 @@ export async function cutBlind(
     }
     result = await cutShapes(result, tool)
   }
-  return clone(wp, { shape: result, faceSel: null, edgeSel: null, pts: [], pendingRect: undefined, pendingCircle: undefined, pendingPolygon: undefined })
+  return clone(wp, { shape: result, faceSel: null, edgeSel: null, pts: [], pendingWires: [], pendingRect: undefined, pendingCircle: undefined, pendingPolygon: undefined })
 }
 
 /**
@@ -1114,7 +1309,7 @@ export async function cutThruAll(wp: Workplane): Promise<Workplane> {
     }
     shape = await cutShapes(shape, tool)
   }
-  return clone(wp, { shape, faceSel: null, edgeSel: null, pts: [], pendingRect: undefined, pendingCircle: undefined, pendingPolygon: undefined })
+  return clone(wp, { shape, faceSel: null, edgeSel: null, pts: [], pendingWires: [], pendingRect: undefined, pendingCircle: undefined, pendingPolygon: undefined })
 }
 
 /**

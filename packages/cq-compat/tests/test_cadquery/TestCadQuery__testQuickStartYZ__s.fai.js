@@ -3,8 +3,8 @@
 //       .rect(1.5,3.5,forConstruction=True).vertices().cskHole(0.125,0.25,82,depth=None)
 import * as cq from '@faicad/cq-compat'
 let base = await cq.box(cq.Workplane('YZ'), 2, 4, 0.5)
-let top = await cq.faces(base, '>X')
-let wp = await cq.workplane(top)
+let topFace = await cq.faces(base, '>X')
+let wp = await cq.workplane(topFace)
 let r = cq.rect(wp, 1.5, 3.5, { forConstruction: true })
 let v = cq.vertices(r)
 let s = await cq.cskHole(v, 0.125, 0.25, 82)

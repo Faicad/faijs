@@ -199,6 +199,15 @@ import {
 } from '../../vendored/brepjs/topology/api.js'
 import { makeCompound as vendoredMakeCompound } from '../../vendored/brepjs/topology/solidBuilders.js'
 import {
+  makeCircle as vendoredMakeCircle,
+  makeLine as vendoredMakeLine,
+  assembleWire as vendoredAssembleWire,
+} from '../../vendored/brepjs/topology/curveBuilders.js'
+import {
+  makeFace as vendoredMakeFace,
+  addHolesInFace as vendoredAddHolesInFace,
+} from '../../vendored/brepjs/topology/surfaceBuilders.js'
+import {
   extrude as vendoredExtrude,
   revolve as vendoredRevolve,
   loft as vendoredLoft,
@@ -243,6 +252,24 @@ export const makeCompound = wrapGuarded('makeCompound', vendoredMakeCompound)
  * CadQuery's `clean=True` boolean post-processing.
  */
 export const simplify = wrapGuarded('simplify', vendoredSimplify)
+
+// ── 2D profile construction (CadQuery pending-wire parity) ────────────────
+// Circles/lines → edges → wires → (holed) faces. These are the building blocks
+// CadQuery uses for its `pendingWires` stack: an outer wire plus zero or more
+// inner wires becomes ONE face with holes, which is then extruded. Without
+// `makeFace(wire, holes)` a nested `circle(4).circle(2)` would have to be
+// approximated by a boolean difference and would not match upstream topology.
+
+/** Circular edge: `makeCircle(radius, center?, normal?)` — closed, planar. */
+export const makeCircle = wrapGuarded('makeCircle', vendoredMakeCircle)
+/** Straight edge from `v1` to `v2`. */
+export const makeLine = wrapGuarded('makeLine', vendoredMakeLine)
+/** Assemble edges/wires into a single connected wire. Returns a `Result`. */
+export const assembleWire = wrapGuarded('assembleWire', vendoredAssembleWire)
+/** Planar face from a closed wire, optionally with hole wires. Returns a `Result`. */
+export const makeFace = wrapGuarded('makeFace', vendoredMakeFace)
+/** Punch hole wires into an existing face. */
+export const addHolesInFace = wrapGuarded('addHolesInFace', vendoredAddHolesInFace)
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ①b library-building factories (P24, §8.1): spur gears, planetary trains, threads.
