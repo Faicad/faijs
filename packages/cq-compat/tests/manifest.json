@@ -511,22 +511,22 @@
   "tests.test_cadquery::TestCadQuery::testExtrudeUntilFace__wp_ref": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testExtrudeUntilFace",
-    "blockedBy": "move"
+    "blockedBy": "workplaneFromTagged"
   },
   "tests.test_cadquery::TestCadQuery::testExtrudeUntilFace__wp_ref_extrude": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testExtrudeUntilFace",
-    "blockedBy": "move"
+    "blockedBy": "workplaneFromTagged"
   },
   "tests.test_cadquery::TestCadQuery::testExtrudeUntilFace__part": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testExtrudeUntilFace",
-    "blockedBy": "move"
+    "blockedBy": "workplaneFromTagged"
   },
   "tests.test_cadquery::TestCadQuery::testExtrudeUntilFace__part_section": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testExtrudeUntilFace",
-    "blockedBy": "move"
+    "blockedBy": "workplaneFromTagged"
   },
   "tests.test_cadquery::TestCadQuery::testFaceIntersectedByLine__shape": {
     "status": "ported",
@@ -1746,7 +1746,7 @@
   "tests.test_shapes:::test_shells__s": {
     "status": "blocked",
     "source": "tests.test_shapes:::test_shells",
-    "blockedBy": "moved"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_shapes:::test_bin_import_export__b": {
     "status": "blocked",
@@ -1761,57 +1761,57 @@
   "tests.test_shapes:::test_remove__b": {
     "status": "blocked",
     "source": "tests.test_shapes:::test_remove",
-    "blockedBy": "moved"
+    "blockedBy": "remove"
   },
   "tests.test_shapes:::test_remove__br": {
     "status": "blocked",
     "source": "tests.test_shapes:::test_remove",
-    "blockedBy": "moved"
+    "blockedBy": "remove"
   },
   "tests.test_shapes:::test_addCavity__b1": {
     "status": "blocked",
     "source": "tests.test_shapes:::test_addCavity",
-    "blockedBy": "moved"
+    "blockedBy": "addCavity"
   },
   "tests.test_shapes:::test_addCavity__b2": {
     "status": "blocked",
     "source": "tests.test_shapes:::test_addCavity",
-    "blockedBy": "moved"
+    "blockedBy": "addCavity"
   },
   "tests.test_shapes:::test_addCavity__br": {
     "status": "blocked",
     "source": "tests.test_shapes:::test_addCavity",
-    "blockedBy": "moved"
+    "blockedBy": "addCavity"
   },
   "tests.test_shapes:::test_replace__b": {
     "status": "blocked",
     "source": "tests.test_shapes:::test_replace",
-    "blockedBy": "moved"
+    "blockedBy": "replace"
   },
   "tests.test_shapes:::test_replace__f_top_split": {
     "status": "blocked",
     "source": "tests.test_shapes:::test_replace",
-    "blockedBy": "moved"
+    "blockedBy": "replace"
   },
   "tests.test_shapes:::test_replace__br1": {
     "status": "blocked",
     "source": "tests.test_shapes:::test_replace",
-    "blockedBy": "moved"
+    "blockedBy": "replace"
   },
   "tests.test_shapes:::test_replace__br2": {
     "status": "blocked",
     "source": "tests.test_shapes:::test_replace",
-    "blockedBy": "moved"
+    "blockedBy": "replace"
   },
   "tests.test_shapes:::test_single_ent_selector__bs": {
     "status": "blocked",
     "source": "tests.test_shapes:::test_single_ent_selector",
-    "blockedBy": "moved"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_shapes:::test_single_ent_selector__fs": {
     "status": "blocked",
     "source": "tests.test_shapes:::test_single_ent_selector",
-    "blockedBy": "moved"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_shapes:::test_special__c": {
     "status": "blocked",
@@ -1976,62 +1976,62 @@
   "tests.test_free_functions:::test_solid__b": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_solid",
-    "blockedBy": "moved"
+    "blockedBy": "shells"
   },
   "tests.test_free_functions:::test_solid__b_large": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_solid",
-    "blockedBy": "moved"
+    "blockedBy": "shells"
   },
   "tests.test_free_functions:::test_solid__b_small": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_solid",
-    "blockedBy": "moved"
+    "blockedBy": "shells"
   },
   "tests.test_free_functions:::test_solid__sphere1": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_solid",
-    "blockedBy": "moved"
+    "blockedBy": "shells"
   },
   "tests.test_free_functions:::test_solid__sphere2": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_solid",
-    "blockedBy": "moved"
+    "blockedBy": "shells"
   },
   "tests.test_free_functions:::test_solid__s1": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_solid",
-    "blockedBy": "moved"
+    "blockedBy": "shells"
   },
   "tests.test_free_functions:::test_solid__s2": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_solid",
-    "blockedBy": "moved"
+    "blockedBy": "shells"
   },
   "tests.test_free_functions:::test_solid__b1": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_solid",
-    "blockedBy": "moved"
+    "blockedBy": "shells"
   },
   "tests.test_free_functions:::test_solid__s3": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_solid",
-    "blockedBy": "moved"
+    "blockedBy": "shells"
   },
   "tests.test_free_functions:::test_solid__s4": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_solid",
-    "blockedBy": "moved"
+    "blockedBy": "shells"
   },
   "tests.test_free_functions:::test_solid__s5": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_solid",
-    "blockedBy": "moved"
+    "blockedBy": "shells"
   },
   "tests.test_free_functions:::test_solid__s6": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_solid",
-    "blockedBy": "moved"
+    "blockedBy": "shells"
   },
   "tests.test_free_functions:::test_faceOn__f2": {
     "status": "blocked",
@@ -2066,202 +2066,202 @@
   "tests.test_free_functions:::test_text__r1": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_text",
-    "blockedBy": "moved"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_free_functions:::test_text__r2": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_text",
-    "blockedBy": "moved"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_free_functions:::test_text__r3": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_text",
-    "blockedBy": "moved"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_free_functions:::test_text__r4": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_text",
-    "blockedBy": "moved"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_free_functions:::test_text__r5": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_text",
-    "blockedBy": "moved"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_free_functions:::test_text__c": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_text",
-    "blockedBy": "moved"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_free_functions:::test_text__r7": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_text",
-    "blockedBy": "moved"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_free_functions:::test_text__r8": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_text",
-    "blockedBy": "moved"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_free_functions:::test_text__r9": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_text",
-    "blockedBy": "moved"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_free_functions:::test_operators__b1": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_operators",
-    "blockedBy": "moved"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_free_functions:::test_operators__b2": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_operators",
-    "blockedBy": "moved"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_free_functions:::test_operators__b3": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_operators",
-    "blockedBy": "moved"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_free_functions:::test_imprint__b1": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_imprint",
-    "blockedBy": "moved"
+    "blockedBy": "images"
   },
   "tests.test_free_functions:::test_imprint__b2": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_imprint",
-    "blockedBy": "moved"
+    "blockedBy": "images"
   },
   "tests.test_free_functions:::test_imprint__b3": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_imprint",
-    "blockedBy": "moved"
+    "blockedBy": "images"
   },
   "tests.test_free_functions:::test_imprint__res": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_imprint",
-    "blockedBy": "moved"
+    "blockedBy": "images"
   },
   "tests.test_free_functions:::test_imprint__res_glue_full": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_imprint",
-    "blockedBy": "moved"
+    "blockedBy": "images"
   },
   "tests.test_free_functions:::test_imprint__res_glue_partial": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_imprint",
-    "blockedBy": "moved"
+    "blockedBy": "images"
   },
   "tests.test_free_functions:::test_imprint__b1_imp": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_imprint",
-    "blockedBy": "moved"
+    "blockedBy": "images"
   },
   "tests.test_free_functions:::test_imprint__b3_imp": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_imprint",
-    "blockedBy": "moved"
+    "blockedBy": "images"
   },
   "tests.test_free_functions:::test_imprint_error__b1": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_imprint_error",
-    "blockedBy": "moved"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_free_functions:::test_imprint_error__b2": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_imprint_error",
-    "blockedBy": "moved"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_free_functions:::test_imprint_error___": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_imprint_error",
-    "blockedBy": "moved"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_free_functions:::test_fuse_multi__b": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_fuse_multi",
-    "blockedBy": "moved"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_free_functions:::test_fuse_multi__res": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_fuse_multi",
-    "blockedBy": "moved"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_free_functions:::test_moved__b": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_moved",
-    "blockedBy": "moved"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_moved__s": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_moved",
-    "blockedBy": "moved"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_moved__bs1": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_moved",
-    "blockedBy": "moved"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_moved__bs2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_moved",
-    "blockedBy": "moved"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_moved__bs3": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_moved",
-    "blockedBy": "moved"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_moved__bs4": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_moved",
-    "blockedBy": "moved"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_moved__bs5": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_moved",
-    "blockedBy": "moved"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_moved__bs6": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_moved",
-    "blockedBy": "moved"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_moved__bs7": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_moved",
-    "blockedBy": "moved"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_moved__bs8": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_moved",
-    "blockedBy": "moved"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_moved__bs9": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_moved",
-    "blockedBy": "moved"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_moved__s1": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_moved",
-    "blockedBy": "moved"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_moved__s2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_moved",
-    "blockedBy": "moved"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_moved__s3": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_moved",
-    "blockedBy": "moved"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_moved__s4": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_moved",
-    "blockedBy": "moved"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_hollow__box_shape": {
     "status": "blocked",
@@ -2381,12 +2381,12 @@
   "tests.test_free_functions:::test_clean__b1": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_clean",
-    "blockedBy": "moved"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_free_functions:::test_clean__b2": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_clean",
-    "blockedBy": "moved"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_free_functions:::test_fillet__b": {
     "status": "blocked",
@@ -2421,22 +2421,22 @@
   "tests.test_free_functions:::test_offset__r1": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_offset",
-    "blockedBy": "moved"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_free_functions:::test_offset__r2": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_offset",
-    "blockedBy": "moved"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_free_functions:::test_offset__r3": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_offset",
-    "blockedBy": "moved"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_free_functions:::test_offset__r4": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_offset",
-    "blockedBy": "moved"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_free_functions:::test_sweep__r3": {
     "status": "blocked",
@@ -2506,7 +2506,7 @@
   "tests.test_free_functions:::test_project__res": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_project",
-    "blockedBy": "moved"
+    "blockedBy": "pending:mirror"
   },
   "tests.test_free_functions:::test_export__b1": {
     "status": "blocked",
@@ -2611,17 +2611,17 @@
   "tests.test_selectors::TestCQSelectors::testBaseDirSelector__c": {
     "status": "blocked",
     "source": "tests.test_selectors::TestCQSelectors::testBaseDirSelector",
-    "blockedBy": "move"
+    "blockedBy": "stub:makeBox"
   },
   "tests.test_selectors::TestCQSelectors::testBaseDirSelector__c_curves": {
     "status": "blocked",
     "source": "tests.test_selectors::TestCQSelectors::testBaseDirSelector",
-    "blockedBy": "move"
+    "blockedBy": "stub:makeBox"
   },
   "tests.test_selectors::TestCQSelectors::testBaseDirSelector__comp": {
     "status": "blocked",
     "source": "tests.test_selectors::TestCQSelectors::testBaseDirSelector",
-    "blockedBy": "move"
+    "blockedBy": "stub:makeBox"
   },
   "tests.test_selectors::TestCQSelectors::testBox__c": {
     "status": "blocked",
@@ -2637,37 +2637,37 @@
   "tests.test_selectors::TestCQSelectors::testCenterNthSelector__c": {
     "status": "blocked",
     "source": "tests.test_selectors::TestCQSelectors::testCenterNthSelector",
-    "blockedBy": "move"
+    "blockedBy": "stub:makeBox"
   },
   "tests.test_selectors::TestCQSelectors::testCenterNthSelector__prism": {
     "status": "blocked",
     "source": "tests.test_selectors::TestCQSelectors::testCenterNthSelector",
-    "blockedBy": "move"
+    "blockedBy": "stub:makeBox"
   },
   "tests.test_selectors::TestCQSelectors::testCenterNthSelector__part": {
     "status": "blocked",
     "source": "tests.test_selectors::TestCQSelectors::testCenterNthSelector",
-    "blockedBy": "move"
+    "blockedBy": "stub:makeBox"
   },
   "tests.test_selectors::TestCQSelectors::testCenterNthSelector__box0": {
     "status": "blocked",
     "source": "tests.test_selectors::TestCQSelectors::testCenterNthSelector",
-    "blockedBy": "move"
+    "blockedBy": "stub:makeBox"
   },
   "tests.test_selectors::TestCQSelectors::testCenterNthSelector__box1": {
     "status": "blocked",
     "source": "tests.test_selectors::TestCQSelectors::testCenterNthSelector",
-    "blockedBy": "move"
+    "blockedBy": "stub:makeBox"
   },
   "tests.test_selectors::TestCQSelectors::testCenterNthSelector__box0_selected": {
     "status": "blocked",
     "source": "tests.test_selectors::TestCQSelectors::testCenterNthSelector",
-    "blockedBy": "move"
+    "blockedBy": "stub:makeBox"
   },
   "tests.test_selectors::TestCQSelectors::testCenterNthSelector__box1_selected": {
     "status": "blocked",
     "source": "tests.test_selectors::TestCQSelectors::testCenterNthSelector",
-    "blockedBy": "move"
+    "blockedBy": "stub:makeBox"
   },
   "tests.test_selectors::TestCQSelectors::testComplexStringSelector__c": {
     "status": "blocked",
@@ -2732,22 +2732,22 @@
   "tests.test_selectors::TestCQSelectors::testNearestToShape__b1": {
     "status": "blocked",
     "source": "tests.test_selectors::TestCQSelectors::testNearestToShape",
-    "blockedBy": "moved"
+    "blockedBy": "NearestToShape"
   },
   "tests.test_selectors::TestCQSelectors::testNearestToShape__b2": {
     "status": "blocked",
     "source": "tests.test_selectors::TestCQSelectors::testNearestToShape",
-    "blockedBy": "moved"
+    "blockedBy": "NearestToShape"
   },
   "tests.test_selectors::TestCQSelectors::testNearestToShape__b3": {
     "status": "blocked",
     "source": "tests.test_selectors::TestCQSelectors::testNearestToShape",
-    "blockedBy": "moved"
+    "blockedBy": "NearestToShape"
   },
   "tests.test_selectors::TestCQSelectors::testNearestToShape__res": {
     "status": "blocked",
     "source": "tests.test_selectors::TestCQSelectors::testNearestToShape",
-    "blockedBy": "moved"
+    "blockedBy": "NearestToShape"
   },
   "tests.test_selectors::TestCQSelectors::testNthDistance__c": {
     "status": "blocked",

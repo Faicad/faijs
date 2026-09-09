@@ -77,7 +77,14 @@ async function main() {
     const caseId = caseIdByRefBase.get(refBase)
     if (!caseId) continue
     const module = caseId.split('::')[0].replace(/^tests\./, '')
-    candBaseByRef.set(refBase, refBase.replace(new RegExp(`^tests\\.${module}__`), ''))
+    // Module-level pytest functions have an empty class slot, so the ref name is
+    // "tests.<module>___<test>__<var>" (three underscores) instead of
+    // "tests.<module>__<Class>__<test>__<var>"; drop the extra leading '_' so
+    // both layouts resolve to the mirror file name "<test>__<var>".
+    candBaseByRef.set(
+      refBase,
+      refBase.replace(new RegExp(`^tests\\.${module}__`), '').replace(/^_+/, ''),
+    )
   }
 
   const report: Record<string, CaseVerdict> = {}

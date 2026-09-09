@@ -2,17 +2,13 @@
   "totalCasesInRefManifest": 305,
   "casesWithStep": 297,
   "casesWithoutStep": 8,
-  "portableNow": 94,
-  "portableWithStub": 32,
-  "blocked": 171,
+  "portableNow": 104,
+  "portableWithStub": 35,
+  "blocked": 158,
   "blockedByTop": [
     [
       "Assembly",
       20
-    ],
-    [
-      "moved",
-      16
     ],
     [
       "close",
@@ -33,10 +29,6 @@
     [
       "split",
       5
-    ],
-    [
-      "move",
-      4
     ],
     [
       "generated",
@@ -87,6 +79,10 @@
       2
     ],
     [
+      "workplaneFromTagged",
+      2
+    ],
+    [
       "makeCompound",
       2
     ],
@@ -105,13 +101,13 @@
     [
       "ellipse",
       2
+    ],
+    [
+      "tag",
+      2
     ]
   ],
   "missingOpTop": [
-    [
-      "moved",
-      22
-    ],
     [
       "Assembly",
       20
@@ -173,10 +169,6 @@
       5
     ],
     [
-      "move",
-      5
-    ],
-    [
       "solve",
       5
     ],
@@ -206,6 +198,14 @@
     ],
     [
       "polyline",
+      3
+    ],
+    [
+      "eachpoint",
+      3
+    ],
+    [
+      "makeCompound",
       3
     ]
   ],
@@ -827,7 +827,7 @@
     "tests.test_cadquery::TestCadQuery::testExtrudeUntilFace": {
       "status": "exported",
       "category": "BLOCKED",
-      "blockedBy": "move",
+      "blockedBy": "workplaneFromTagged",
       "ops": [
         "box",
         "center",
@@ -1413,8 +1413,8 @@
     },
     "tests.test_cadquery::TestCadQuery::testRevolveCut": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "move",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "box",
         "revolve",
@@ -2388,8 +2388,8 @@
     },
     "tests.test_shapes:::test_shells": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "moved",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "moved"
       ],
@@ -2412,7 +2412,7 @@
     "tests.test_shapes:::test_remove": {
       "status": "exported",
       "category": "BLOCKED",
-      "blockedBy": "moved",
+      "blockedBy": "remove",
       "ops": [
         "moved",
         "remove",
@@ -2426,7 +2426,7 @@
     "tests.test_shapes:::test_addCavity": {
       "status": "exported",
       "category": "BLOCKED",
-      "blockedBy": "moved",
+      "blockedBy": "addCavity",
       "ops": [
         "moved",
         "addCavity"
@@ -2440,7 +2440,7 @@
     "tests.test_shapes:::test_replace": {
       "status": "exported",
       "category": "BLOCKED",
-      "blockedBy": "moved",
+      "blockedBy": "replace",
       "ops": [
         "moved",
         "replace"
@@ -2454,8 +2454,8 @@
     },
     "tests.test_shapes:::test_single_ent_selector": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "moved",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "moved"
       ],
@@ -2644,7 +2644,7 @@
     "tests.test_free_functions:::test_solid": {
       "status": "exported",
       "category": "BLOCKED",
-      "blockedBy": "moved",
+      "blockedBy": "shells",
       "ops": [
         "moved",
         "shells"
@@ -2720,8 +2720,8 @@
     },
     "tests.test_free_functions:::test_text": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "moved",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "moved"
       ],
@@ -2739,8 +2739,8 @@
     },
     "tests.test_free_functions:::test_operators": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "moved",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "moved"
       ],
@@ -2753,7 +2753,7 @@
     "tests.test_free_functions:::test_imprint": {
       "status": "exported",
       "category": "BLOCKED",
-      "blockedBy": "moved",
+      "blockedBy": "images",
       "ops": [
         "moved",
         "images"
@@ -2771,8 +2771,8 @@
     },
     "tests.test_free_functions:::test_imprint_error": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "moved",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "moved"
       ],
@@ -2784,8 +2784,8 @@
     },
     "tests.test_free_functions:::test_fuse_multi": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "moved",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "moved"
       ],
@@ -2796,8 +2796,8 @@
     },
     "tests.test_free_functions:::test_moved": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "moved",
+      "category": "PORTABLE-WITH-STUB",
+      "blockedBy": "stub:toTuple",
       "ops": [
         "moved",
         "move"
@@ -2891,8 +2891,8 @@
     },
     "tests.test_free_functions:::test_clean": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "moved",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "moved"
       ],
@@ -2933,8 +2933,8 @@
     },
     "tests.test_free_functions:::test_offset": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "moved",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "moved"
       ],
@@ -2992,8 +2992,8 @@
     },
     "tests.test_free_functions:::test_project": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "moved",
+      "category": "PORTABLE",
+      "blockedBy": null,
       "ops": [
         "moved"
       ],
@@ -3140,8 +3140,8 @@
     },
     "tests.test_selectors::TestCQSelectors::testBaseDirSelector": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "move",
+      "category": "PORTABLE-WITH-STUB",
+      "blockedBy": "stub:makeBox",
       "ops": [
         "sphere",
         "box",
@@ -3165,8 +3165,8 @@
     },
     "tests.test_selectors::TestCQSelectors::testCenterNthSelector": {
       "status": "exported",
-      "category": "BLOCKED",
-      "blockedBy": "move",
+      "category": "PORTABLE-WITH-STUB",
+      "blockedBy": "stub:makeBox",
       "ops": [
         "extrude",
         "rect",
@@ -3296,7 +3296,7 @@
     "tests.test_selectors::TestCQSelectors::testNearestToShape": {
       "status": "exported",
       "category": "BLOCKED",
-      "blockedBy": "moved",
+      "blockedBy": "NearestToShape",
       "ops": [
         "moved",
         "NearestToShape"
@@ -4726,6 +4726,21 @@
       "fellBack": false
     },
     {
+      "case": "tests.test_cadquery::TestCadQuery::testRevolveCut",
+      "ops": [
+        "box",
+        "revolve",
+        "rect",
+        "move",
+        "transformed"
+      ],
+      "vars": [
+        "box",
+        "cut"
+      ],
+      "fellBack": false
+    },
+    {
       "case": "tests.test_cadquery::TestCadQuery::testRevolveCylinder",
       "ops": [
         "revolve",
@@ -5051,6 +5066,27 @@
       "fellBack": false
     },
     {
+      "case": "tests.test_shapes:::test_shells",
+      "ops": [
+        "moved"
+      ],
+      "vars": [
+        "s"
+      ],
+      "fellBack": false
+    },
+    {
+      "case": "tests.test_shapes:::test_single_ent_selector",
+      "ops": [
+        "moved"
+      ],
+      "vars": [
+        "bs",
+        "fs"
+      ],
+      "fellBack": false
+    },
+    {
       "case": "tests.test_shapes:::test_reverse",
       "ops": [],
       "vars": [
@@ -5191,6 +5227,59 @@
       "fellBack": false
     },
     {
+      "case": "tests.test_free_functions:::test_text",
+      "ops": [
+        "moved"
+      ],
+      "vars": [
+        "r1",
+        "r2",
+        "r3",
+        "r4",
+        "r5",
+        "c",
+        "r7",
+        "r8",
+        "r9"
+      ],
+      "fellBack": false
+    },
+    {
+      "case": "tests.test_free_functions:::test_operators",
+      "ops": [
+        "moved"
+      ],
+      "vars": [
+        "b1",
+        "b2",
+        "b3"
+      ],
+      "fellBack": false
+    },
+    {
+      "case": "tests.test_free_functions:::test_imprint_error",
+      "ops": [
+        "moved"
+      ],
+      "vars": [
+        "b1",
+        "b2",
+        "_"
+      ],
+      "fellBack": false
+    },
+    {
+      "case": "tests.test_free_functions:::test_fuse_multi",
+      "ops": [
+        "moved"
+      ],
+      "vars": [
+        "b",
+        "res"
+      ],
+      "fellBack": false
+    },
+    {
       "case": "tests.test_free_functions:::test_hollow",
       "ops": [],
       "vars": [
@@ -5222,6 +5311,17 @@
       "fellBack": false
     },
     {
+      "case": "tests.test_free_functions:::test_clean",
+      "ops": [
+        "moved"
+      ],
+      "vars": [
+        "b1",
+        "b2"
+      ],
+      "fellBack": false
+    },
+    {
       "case": "tests.test_free_functions:::test_fillet",
       "ops": [],
       "vars": [
@@ -5249,6 +5349,19 @@
       "fellBack": false
     },
     {
+      "case": "tests.test_free_functions:::test_offset",
+      "ops": [
+        "moved"
+      ],
+      "vars": [
+        "r1",
+        "r2",
+        "r3",
+        "r4"
+      ],
+      "fellBack": false
+    },
+    {
       "case": "tests.test_free_functions:::test_sweep_aux",
       "ops": [],
       "vars": [
@@ -5264,6 +5377,16 @@
         "r2",
         "r3",
         "r4"
+      ],
+      "fellBack": false
+    },
+    {
+      "case": "tests.test_free_functions:::test_project",
+      "ops": [
+        "moved"
+      ],
+      "vars": [
+        "res"
       ],
       "fellBack": false
     },
@@ -5627,6 +5750,39 @@
       ]
     },
     {
+      "case": "tests.test_free_functions:::test_moved",
+      "ops": [
+        "moved",
+        "move"
+      ],
+      "vars": [
+        "b",
+        "s",
+        "bs1",
+        "bs2",
+        "bs3",
+        "bs4",
+        "bs5",
+        "bs6",
+        "bs7",
+        "bs8",
+        "bs9",
+        "s1",
+        "s2",
+        "s3",
+        "s4"
+      ],
+      "helpers": [
+        "vector_equal"
+      ],
+      "helperOps": [
+        "toTuple"
+      ],
+      "helperMissing": [
+        "toTuple"
+      ]
+    },
+    {
       "case": "tests.test_free_functions:::test_sweep",
       "ops": [],
       "vars": [
@@ -5695,10 +5851,69 @@
       ]
     },
     {
+      "case": "tests.test_selectors::TestCQSelectors::testBaseDirSelector",
+      "ops": [
+        "sphere",
+        "box",
+        "move",
+        "workplane"
+      ],
+      "vars": [
+        "c",
+        "c_curves",
+        "comp"
+      ],
+      "helpers": [
+        "makeUnitCube",
+        "makeCube"
+      ],
+      "helperOps": [
+        "makeBox",
+        "extrude",
+        "rect"
+      ],
+      "helperMissing": [
+        "makeBox"
+      ]
+    },
+    {
       "case": "tests.test_selectors::TestCQSelectors::testBox",
       "ops": [],
       "vars": [
         "c"
+      ],
+      "helpers": [
+        "makeUnitCube",
+        "makeCube"
+      ],
+      "helperOps": [
+        "makeBox",
+        "extrude",
+        "rect"
+      ],
+      "helperMissing": [
+        "makeBox"
+      ]
+    },
+    {
+      "case": "tests.test_selectors::TestCQSelectors::testCenterNthSelector",
+      "ops": [
+        "extrude",
+        "rect",
+        "hole",
+        "move",
+        "workplane",
+        "add",
+        "box"
+      ],
+      "vars": [
+        "c",
+        "prism",
+        "part",
+        "box0",
+        "box1",
+        "box0_selected",
+        "box1_selected"
       ],
       "helpers": [
         "makeUnitCube",
@@ -6182,8 +6397,7 @@
       "case": "tests.test_cadquery::TestCadQuery::testEachpoint",
       "blockedBy": "eachpoint",
       "missing": [
-        "eachpoint",
-        "moved"
+        "eachpoint"
       ],
       "deps": []
     },
@@ -6208,9 +6422,8 @@
     },
     {
       "case": "tests.test_cadquery::TestCadQuery::testExtrudeUntilFace",
-      "blockedBy": "move",
+      "blockedBy": "workplaneFromTagged",
       "missing": [
-        "move",
         "workplaneFromTagged",
         "tag",
         "section"
@@ -6254,8 +6467,7 @@
       "blockedBy": "makeBox",
       "missing": [
         "makeBox",
-        "located",
-        "moved"
+        "located"
       ],
       "deps": []
     },
@@ -6392,14 +6604,6 @@
       "deps": []
     },
     {
-      "case": "tests.test_cadquery::TestCadQuery::testRevolveCut",
-      "blockedBy": "move",
-      "missing": [
-        "move"
-      ],
-      "deps": []
-    },
-    {
       "case": "tests.test_cadquery::TestCadQuery::testRotateAboutCenter",
       "blockedBy": "rotateAboutCenter",
       "missing": [
@@ -6444,7 +6648,6 @@
         "offset",
         "loft",
         "placeSketch",
-        "moved",
         "sweep",
         "locationAt"
       ],
@@ -6721,14 +6924,6 @@
       "deps": []
     },
     {
-      "case": "tests.test_shapes:::test_shells",
-      "blockedBy": "moved",
-      "missing": [
-        "moved"
-      ],
-      "deps": []
-    },
-    {
       "case": "tests.test_shapes:::test_bin_import_export",
       "blockedBy": "importBin",
       "missing": [
@@ -6738,9 +6933,8 @@
     },
     {
       "case": "tests.test_shapes:::test_remove",
-      "blockedBy": "moved",
+      "blockedBy": "remove",
       "missing": [
-        "moved",
         "remove",
         "innerShells"
       ],
@@ -6748,27 +6942,17 @@
     },
     {
       "case": "tests.test_shapes:::test_addCavity",
-      "blockedBy": "moved",
+      "blockedBy": "addCavity",
       "missing": [
-        "moved",
         "addCavity"
       ],
       "deps": []
     },
     {
       "case": "tests.test_shapes:::test_replace",
-      "blockedBy": "moved",
+      "blockedBy": "replace",
       "missing": [
-        "moved",
         "replace"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_shapes:::test_single_ent_selector",
-      "blockedBy": "moved",
-      "missing": [
-        "moved"
       ],
       "deps": []
     },
@@ -6785,8 +6969,7 @@
       "case": "tests.test_shapes:::test_siblings",
       "blockedBy": "siblings",
       "missing": [
-        "siblings",
-        "moved"
+        "siblings"
       ],
       "deps": []
     },
@@ -6811,67 +6994,23 @@
       "case": "tests.test_free_functions:::test_sewing",
       "blockedBy": "remove",
       "missing": [
-        "remove",
-        "moved"
+        "remove"
       ],
       "deps": []
     },
     {
       "case": "tests.test_free_functions:::test_solid",
-      "blockedBy": "moved",
+      "blockedBy": "shells",
       "missing": [
-        "moved",
         "shells"
       ],
       "deps": []
     },
     {
-      "case": "tests.test_free_functions:::test_text",
-      "blockedBy": "moved",
-      "missing": [
-        "moved"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_free_functions:::test_operators",
-      "blockedBy": "moved",
-      "missing": [
-        "moved"
-      ],
-      "deps": []
-    },
-    {
       "case": "tests.test_free_functions:::test_imprint",
-      "blockedBy": "moved",
+      "blockedBy": "images",
       "missing": [
-        "moved",
         "images"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_free_functions:::test_imprint_error",
-      "blockedBy": "moved",
-      "missing": [
-        "moved"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_free_functions:::test_fuse_multi",
-      "blockedBy": "moved",
-      "missing": [
-        "moved"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_free_functions:::test_moved",
-      "blockedBy": "moved",
-      "missing": [
-        "moved",
-        "move"
       ],
       "deps": []
     },
@@ -6888,32 +7027,7 @@
       "case": "tests.test_free_functions:::test_prism_taper",
       "blockedBy": "face",
       "missing": [
-        "face",
-        "moved"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_free_functions:::test_clean",
-      "blockedBy": "moved",
-      "missing": [
-        "moved"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_free_functions:::test_offset",
-      "blockedBy": "moved",
-      "missing": [
-        "moved"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_free_functions:::test_project",
-      "blockedBy": "moved",
-      "missing": [
-        "moved"
+        "face"
       ],
       "deps": []
     },
@@ -6976,22 +7090,6 @@
       "deps": []
     },
     {
-      "case": "tests.test_selectors::TestCQSelectors::testBaseDirSelector",
-      "blockedBy": "move",
-      "missing": [
-        "move"
-      ],
-      "deps": []
-    },
-    {
-      "case": "tests.test_selectors::TestCQSelectors::testCenterNthSelector",
-      "blockedBy": "move",
-      "missing": [
-        "move"
-      ],
-      "deps": []
-    },
-    {
       "case": "tests.test_selectors::TestCQSelectors::testEdgeTypesFilter",
       "blockedBy": "ellipse",
       "missing": [
@@ -7001,9 +7099,8 @@
     },
     {
       "case": "tests.test_selectors::TestCQSelectors::testNearestToShape",
-      "blockedBy": "moved",
+      "blockedBy": "NearestToShape",
       "missing": [
-        "moved",
         "NearestToShape"
       ],
       "deps": []
@@ -7145,7 +7242,6 @@
       "blockedBy": "Assembly",
       "missing": [
         "Assembly",
-        "Location",
         "importStep"
       ],
       "deps": []

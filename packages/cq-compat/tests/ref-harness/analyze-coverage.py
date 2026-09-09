@@ -36,6 +36,7 @@ REF_MANIFEST = os.path.join(PKG, "out", "ref", "manifest.json")
 #   cboreHole cskHole threadedHole faces edges vertices workplane center
 #   pushPoints translate rotate mirror union cut intersect fillet shell
 #   val vals transformed setColor
+# Location: Location isLocation composeLocations moved move  (阶段 E)
 # Assembly: faceRef constraint buildAssembly Color
 # --------------------------------------------------------------------------
 CQ_COMPAT_OPS = {
@@ -44,6 +45,7 @@ CQ_COMPAT_OPS = {
     "vertices", "workplane", "center", "pushPoints", "rarray", "translate", "rotate",
     "mirror", "union", "cut", "intersect", "combine", "fillet", "chamfer", "shell",
     "sphere", "cylinder", "val", "vals", "transformed", "setColor",
+    "Location", "isLocation", "composeLocations", "moved", "move",
     "faceRef", "constraint", "buildAssembly", "Color",
 }
 

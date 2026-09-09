@@ -42,6 +42,11 @@ export {
   translate,
   rotate,
   mirror,
+  Location,
+  isLocation,
+  composeLocations,
+  moved,
+  move,
   union,
   cut,
   intersect,
@@ -54,7 +59,7 @@ export {
   transformed,
   setColor,
 } from './workplane'
-export type { Workplane as WorkplaneType, RGB } from './workplane'
+export type { Workplane as WorkplaneType, RGB, CqLocation } from './workplane'
 
 export { faceRef, constraint, buildAssembly, Color } from './assembly'
 

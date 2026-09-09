@@ -547,14 +547,64 @@ testTwistedLoft__s（1）、testDoubleTwistedLoft__s/s2/s3（3，含 `union` 组
 且 `analyze-coverage.py` 的 AST 跟踪不识别这些模块级调用（`ops` 只记到 `[loft, add]`，
 blockedBy 停留在 'loft'，属 R1 所述"分析器盲区"）。待该 API 族立项时一并修正分析器。
 
-### 7.7 下一步（更新至 F3 之后）
+### 7.11 阶段 E — `Location` / `moved` / `move`（✅ 完成，2026-09-09）
+
+**上游语义（源码取证，`cadquery/occ_impl/shapes.py::Shape.moved` 全部重载 +
+`geom.py::Location.__init__`）**：
+
+- `Location(t)` / `Location(x,y,z,rx,ry,rz)` / `Location(Plane)`：平移 + 欧拉角
+  （**度**，`gp_Extrinsic_XYZ`），变换为 `p -> R·p + t`（先转后移）。
+- `Shape.moved(loc)` → 单个副本；`moved(loc1, loc2, …)` / `moved(seq)` →
+  `_compound_or_shape`，即**复合体，不做布尔并**
+  （`test_moved` 断言 `bs1.Volume()==2` 且 `len(bs1.Solids())==2`）。
+- `moved(Shape)` → `Shape.toLocs()`：Compound 递归、Face 取 uv 中心位姿、
+  Edge 取参数中点位姿、其余取 `Center()`。
+- `move` 原地修改，`moved` 返回副本；cq-compat carrier 不可变，二者同实现。
+
+**实现**：
+
+- `packages/cq-compat/src/workplane.ts`：新增 `CqLocation`（`pos` + `rot` 度）+
+  `Location(...)` 构造（vector / 数值 varargs / `{x,y,z,rx,ry,rz}` 关键字三形态）、
+  `isLocation`、`composeLocations(a,b)`（= 上游 `Location.__mul__`，R = Ra·Rb、
+  t = Ra·t_b + t_a，含矩阵→欧拉角还原）、`moved(wp, ...locs)`、`move(wp, ...locs)`。
+- `packages/core/src/api/brepjs-compat/index.ts`：新增 `applyMatrix` 投影
+  （vendored `topology/transformFns.ts`），因为 `cad.translate` / `cad.rotate_euler`
+  是 solid-only，对 compound 直接报 `input is not BREP`。
+- **双路径 `applyLocation`**：载体为单 solid → 走 `cad.rotate_euler` + `cad.translate`
+  （其 OCCT 句柄能跨语句边界存活，导出为真 BREP STEP）；载体为 compound → 走内核
+  `applyMatrix`（该产物跨语句边界会丢 BREP 槽，STEP 退化为 `TESSELLATED_SOLID`，
+  故镜像用 `composeLocations` 折叠后再一次性 `moved`，不把 compound 回喂）。
+- `tests/gen-manifest.ts` / `tests/compare.ts`：修正**无 class 的模块级 pytest 函数**
+  （`test_free_functions`、`test_shapes`）的 fileKey 推导——caseId 为
+  `tests.test_free_functions:::test_moved`（class 槽为空），原先会生成含 `:` 的
+  Windows 非法文件名；两侧统一为 `tests/test_free_functions/test_moved__<var>.fai.js`。
+
+**镜像 15 个（test_moved 全量）全部 PASS**：b / s / bs1–bs9 / s1–s4。
+`func.sphere(d)` 取**直径**（`sphere(0.1)` → r=0.05，vol 0.000524，源码取证），
+`func.box(1,1,1)` 落在 z 0..1，均在镜像头注释中记录。
+
+**如实记录的缺口**：
+
+- `s1`–`s4`（`s.moved(b.faces()/b.edges('|Z')/b.vertices()/b)`）依赖
+  `Shape.toLocs()` 的**子形状枚举**，cq-compat 尚无该能力，镜像内联了
+  cadquery 2.8.0 实测的中心点坐标（头注释已声明）。
+- 未实现 `Location(Plane)` / `TopLoc_Location` 复合语义与 `located`（3 var，需 `eachpoint`）。
+- 多轴 `rx+ry+rz` 组合：上游 `gp_Extrinsic_XYZ` 与 `cad.rotate_euler`（THREE Euler XYZ）
+  在单轴下一致，多轴顺序可能不同；现有用例全部单轴。
+
+**结果**：parity **14.00% → 16.31%**（PASS 90 → 105，FAIL=0，ERROR=0）；
+`moved` 不再是任何 case 的首阻塞项，27 var 转为 `pending:mirror`。
+
+### 7.7 下一步（更新至 E 之后）
 
 1. ~~**阶段 F1**~~ ✅ / ~~**F2 revolve**~~ ✅ / ~~**F3 loft**~~ ✅（见 §7.8–§7.10）。
-   F 阶段整体验收达成：3 个既有 FAIL 全部转 PASS；旧镜像零回归（全量重跑确认）；
-   新增 revolve/loft/multi-wire 单测覆盖。
    **parity 11.08% → 14.00%**（PASS 74 → 90，FAIL=0）。
-2. **阶段 E**（`moved` 系 op，+75 var，下一优先级）：需新建 `Location` 抽象
-   （core 无既有导出，见 R3）；`Shape` 级 API 而非 Workplane op。
+2. ~~**阶段 E**（`moved` 系 op）~~ ✅（见 §7.11）：`Location` / `moved` / `move` /
+   `composeLocations` 落地，15 个 test_moved 镜像全 PASS，**parity → 16.31%**。
+3. **阶段 B 剩余（`pending:mirror` 153 var，★ 最高性价比）**——全部 op 已具备，
+   只差写镜像脚本；建议下一批做（`testCompoundCenter`、`testPlanes`、
+   `testPlaneMethods`、`testMakeShellSolid`、`testCutBlindUntilFace`、
+   `testFuzzyBoolOp` 剩余 7 var、`testCompSolid`、`testOpenCornerShell` 等）。
 3. **阶段 D**（smoke fixture 入 vitest/CI，≤30 case）可与 E 并行。
 4. **阶段 H**（2D wire：`close`/`moveTo`/`lineTo`/`wire`，+33 var）——
    `testRevolveCone__result` 等 case 的阻塞项。

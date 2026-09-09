@@ -1799,6 +1799,295 @@ export async function mirror(
   }
 }
 
+// ── Location / moved / move (阶段 E) ─────────────────────────────────────
+
+/**
+ * Minimal analogue of CadQuery's `Location`.
+ *
+ * Upstream (`cadquery/occ_impl/geom.py::Location`) builds a `gp_Trsf` from a
+ * translation plus an Euler rotation using **degrees** and
+ * `gp_Extrinsic_XYZ` order, then maps `p -> R·p + t` (rotate first, translate
+ * second). We keep exactly those two fields; rotation is stored in degrees so
+ * mirrors can pass upstream angle literals verbatim.
+ *
+ * Not modelled: the `Location(Plane)` / `Location(Plane, VectorLike)` overloads
+ * and `TopLoc_Location` composition — no mirror case needs them yet.
+ */
+export interface CqLocation {
+  readonly __cqLocation: true
+  /** Translation (mm). */
+  readonly pos: [number, number, number]
+  /** Euler rotation in degrees (upstream gp_Extrinsic_XYZ). */
+  readonly rot: [number, number, number]
+}
+
+function locNum(v: unknown): number {
+  return typeof v === 'number' && Number.isFinite(v) ? v : 0
+}
+
+function locVec3(a: unknown): [number, number, number] {
+  if (Array.isArray(a)) return [locNum(a[0]), locNum(a[1]), locNum(a[2])]
+  return [0, 0, 0]
+}
+
+/** Type guard for a `Location` produced by {@link Location}. */
+export function isLocation(v: unknown): v is CqLocation {
+  return typeof v === 'object' && v !== null && (v as { __cqLocation?: unknown }).__cqLocation === true
+}
+
+/**
+ * Location — CadQuery `Location` constructor.
+ *
+ * Accepted forms (all verified against the upstream overloads used by
+ * `tests/test_free_functions.py::test_moved`):
+ *   `Location([x, y, z])`
+ *   `Location([x, y, z], [rx, ry, rz])`
+ *   `Location(x, y, z)` / `Location(x, y, z, rx, ry, rz)`
+ *   `Location({ x, y, z, rx, ry, rz })`   ← the `.moved(z=-1)` keyword form
+ */
+export function Location(...args: unknown[]): CqLocation {
+  const nums = args.filter((a): a is number => typeof a === 'number')
+  const arrs = args.filter((a): a is unknown[] => Array.isArray(a))
+  const obj = args.find((a) => typeof a === 'object' && a !== null && !Array.isArray(a)) as
+    | Record<string, unknown>
+    | undefined
+
+  let pos: [number, number, number] = [0, 0, 0]
+  let rot: [number, number, number] = [0, 0, 0]
+  if (obj) {
+    pos = [locNum(obj.x), locNum(obj.y), locNum(obj.z)]
+    rot = [locNum(obj.rx), locNum(obj.ry), locNum(obj.rz)]
+  } else if (nums.length >= 6) {
+    pos = [nums[0], nums[1], nums[2]]
+    rot = [nums[3], nums[4], nums[5]]
+  } else if (nums.length >= 3) {
+    pos = [nums[0], nums[1], nums[2]]
+  } else if (arrs.length >= 2) {
+    pos = locVec3(arrs[0])
+    rot = locVec3(arrs[1])
+  } else if (arrs.length === 1) {
+    pos = locVec3(arrs[0])
+  }
+  return { __cqLocation: true, pos, rot }
+}
+
+/**
+ * composeLocations(a, b) — the Location product `a * b` (upstream `Location.__mul__`):
+ * apply `b` first, then `a`. Result: R = Ra·Rb, t = Ra·t_b + t_a.
+ *
+ * Mirrors need this because a Workplane whose carried shape is a **compound**
+ * cannot be fed back into `moved` — the faijs runtime only re-attaches the BREP
+ * handle across statement boundaries for solids (see `moved`'s KNOWN LIMITATION
+ * note), so `bs1.moved(l3, l4)` has to be written as one `moved` over the
+ * composed locations instead of two chained ones.
+ */
+export function composeLocations(a: CqLocation, b: CqLocation): CqLocation {
+  const ra = rotationMatrixDeg(a.rot)
+  const rb = rotationMatrixDeg(b.rot)
+  const mul = (m: number[], n: number[]): number[] => {
+    const out = new Array<number>(9).fill(0)
+    for (let i = 0; i < 3; i++) {
+      for (let j = 0; j < 3; j++) {
+        out[i * 3 + j] = m[i * 3] * n[j] + m[i * 3 + 1] * n[3 + j] + m[i * 3 + 2] * n[6 + j]
+      }
+    }
+    return out
+  }
+  const r = mul(ra, rb)
+  const tb = b.pos
+  const t: [number, number, number] = [
+    ra[0] * tb[0] + ra[1] * tb[1] + ra[2] * tb[2] + a.pos[0],
+    ra[3] * tb[0] + ra[4] * tb[1] + ra[5] * tb[2] + a.pos[1],
+    ra[6] * tb[0] + ra[7] * tb[1] + ra[8] * tb[2] + a.pos[2],
+  ]
+  // recover Euler angles from the composed matrix (gp_Extrinsic_XYZ: R = Rz·Ry·Rx)
+  const rot: [number, number, number] = [0, 0, 0]
+  const cy = Math.hypot(r[0], r[3])
+  if (cy > 1e-12) {
+    rot[1] = (Math.atan2(-r[6], cy) * 180) / Math.PI
+    rot[2] = (Math.atan2(r[3], r[0]) * 180) / Math.PI
+    rot[0] = (Math.atan2(r[7], r[8]) * 180) / Math.PI
+  } else {
+    rot[1] = (Math.atan2(-r[6], cy) * 180) / Math.PI
+    rot[2] = 0
+    rot[0] = (Math.atan2(-r[5], r[4]) * 180) / Math.PI
+  }
+  const zero = (v: number): number => (v === 0 ? 0 : v)
+  return {
+    __cqLocation: true,
+    pos: [zero(t[0]), zero(t[1]), zero(t[2])],
+    rot: [zero(rot[0]), zero(rot[1]), zero(rot[2])],
+  }
+}
+
+/**
+ * Normalise the variadic argument list of `moved`/`move` into a Location list.
+ *
+ * Upstream dispatch (`Shape.moved`, cadquery 2.8.0) — the forms a mirror needs:
+ *   `moved(loc)` / `moved(loc1, loc2, …)` / `moved([loc1, loc2])`
+ *   `moved((0,0,1))` / `moved((0,0,1), (0,0,-1))` / `moved([(0,0,1), (0,0,-1)])`
+ *   `moved(0, 0, -1)` / `moved(z=-1)`
+ */
+function toLocations(args: unknown[]): CqLocation[] {
+  if (args.length === 0) return []
+  if (args.every((a) => typeof a === 'number')) {
+    const n = args as number[]
+    return [
+      {
+        __cqLocation: true,
+        pos: [locNum(n[0]), locNum(n[1]), locNum(n[2])],
+        rot: [locNum(n[3]), locNum(n[4]), locNum(n[5])],
+      },
+    ]
+  }
+  const out: CqLocation[] = []
+  for (const a of args) {
+    if (isLocation(a)) {
+      out.push(a)
+    } else if (Array.isArray(a)) {
+      if (a.length > 0 && isLocation(a[0])) {
+        out.push(...(a as CqLocation[]))
+      } else if (a.length > 0 && Array.isArray(a[0])) {
+        for (const v of a) out.push(Location(v as number[]))
+      } else {
+        out.push(Location(a as number[]))
+      }
+    } else if (a && typeof a === 'object') {
+      out.push(Location(a as Record<string, number>))
+    }
+  }
+  return out
+}
+
+/**
+ * Row-major 3x3 rotation for Euler angles in degrees, `gp_Extrinsic_XYZ` order
+ * (rotations about the FIXED axes X, then Y, then Z: R = Rz·Ry·Rx) — the order
+ * upstream `Location` uses.
+ */
+function rotationMatrixDeg(rot: [number, number, number]): number[] {
+  const rad = Math.PI / 180
+  const [rx, ry, rz] = rot.map((d) => d * rad) as [number, number, number]
+  const cx = Math.cos(rx)
+  const sx = Math.sin(rx)
+  const cy = Math.cos(ry)
+  const sy = Math.sin(ry)
+  const cz = Math.cos(rz)
+  const sz = Math.sin(rz)
+  const Rx = [1, 0, 0, 0, cx, -sx, 0, sx, cx]
+  const Ry = [cy, 0, sy, 0, 1, 0, -sy, 0, cy]
+  const Rz = [cz, -sz, 0, sz, cz, 0, 0, 0, 1]
+  const mul = (a: number[], b: number[]): number[] => {
+    const out = new Array<number>(9).fill(0)
+    for (let i = 0; i < 3; i++) {
+      for (let j = 0; j < 3; j++) {
+        out[i * 3 + j] = a[i * 3] * b[j] + a[i * 3 + 1] * b[3 + j] + a[i * 3 + 2] * b[6 + j]
+      }
+    }
+    return out
+  }
+  return mul(Rz, mul(Ry, Rx))
+}
+
+/**
+ * Apply one Location to a shape: rotate about the world origin, then translate
+ * (p -> R·p + t, matching upstream `gp_Trsf.SetRotation` + `SetTranslationPart`).
+ *
+ * Uses the kernel `applyMatrix` projection rather than `cad.translate` /
+ * `cad.rotate_euler`: the latter two are solid-only and throw
+ * "input is not BREP" on a compound, which is exactly what `moved` produces
+ * when it is given more than one location.
+ */
+async function applyLocation(shape: Shape, loc: CqLocation): Promise<Shape> {
+  const [rx, ry, rz] = loc.rot
+  const [x, y, z] = loc.pos
+  if (rx === 0 && ry === 0 && rz === 0 && x === 0 && y === 0 && z === 0) return shape
+
+  // Two paths, chosen by the number of solids in the carrier:
+  //
+  //  - a SINGLE solid goes through the faijs `cad.rotate_euler` / `cad.translate`
+  //    defineOps. Those re-register the OCCT handle in a way that survives a
+  //    statement boundary, so the result exports as a true BREP STEP.
+  //  - a COMPOUND must use the kernel `applyMatrix` projection (the defineOps
+  //    are solid-only and reject it). That product does NOT keep its BREP slot
+  //    across a statement boundary — the STEP then falls back to a
+  //    TESSELLATED_SOLID — so mirrors avoid feeding a compound back into
+  //    `moved` (they fold the locations with composeLocations instead).
+  let solids = 0
+  try {
+    solids = (brepjsCompat.getSolids(borrowBrepjsShape(shape) as never) as unknown[]).length
+  } catch {
+    solids = 0
+  }
+  if (solids <= 1) {
+    let s = shape
+    if (rx !== 0 || ry !== 0 || rz !== 0) {
+      s = await cad.rotate_euler(s, { anglesDeg: [rx, ry, rz] })
+    }
+    if (x !== 0 || y !== 0 || z !== 0) {
+      s = await cad.translate(s, { offset: [x, y, z] })
+    }
+    return s
+  }
+  const product = unwrapBrepResult(
+    compatFn('applyMatrix')(borrowBrepjsShape(shape), {
+      linear: rotationMatrixDeg(loc.rot) as never,
+      translation: [x, y, z] as never,
+    }),
+  )
+  return adoptBrepjsProduct(product)
+}
+
+/**
+ * moved — apply one or more Locations to the carried geometry.
+ *
+ * Upstream is `Shape.moved(*locs)`: one location returns a moved copy, several
+ * return a **compound** holding one copy per location (no boolean union —
+ * `test_moved` asserts `bs1.Volume() == 2` and `len(bs1.Solids()) == 2` for two
+ * disjoint unit boxes, which only holds for a compound).
+ *
+ * @param wp - Workplane
+ * @param locs - Location | [x,y,z] | {x,y,z,rx,ry,rz} | list thereof
+ * @returns Promise<Workplane>
+ */
+export async function moved(wp: Workplane, ...locs: unknown[]): Promise<Workplane> {
+  if (!wp.shape) return wp
+  const resolved = toLocations(locs)
+  const copies: Shape[] = []
+  for (const l of resolved) copies.push(await applyLocation(wp.shape, l))
+  let shape: Shape
+  if (copies.length === 0) {
+    shape = wp.shape
+  } else if (copies.length === 1) {
+    shape = copies[0]
+  } else {
+    // Upstream `_compound_or_shape` groups the copies without any boolean or
+    // clean pass — mirroring that keeps the topology (face/solid counts) equal
+    // to upstream, which the STEP comparison gates on.
+    const handles = copies.map((c) => borrowBrepjsShape(c))
+    shape = adoptBrepjsProduct(unwrapBrepResult(compatFn('makeCompound')(handles)))
+  }
+  return clone(wp, {
+    shape,
+    faceSel: null,
+    edgeSel: null,
+    vertexSel: null,
+    pts: [],
+    pendingWires: [],
+  })
+}
+
+/**
+ * move — upstream mutates the shape in place; cq-compat carriers are immutable
+ * so this is an alias of {@link moved}.
+ *
+ * @param wp - Workplane
+ * @param locs - same forms as {@link moved}
+ * @returns Promise<Workplane>
+ */
+export async function move(wp: Workplane, ...locs: unknown[]): Promise<Workplane> {
+  return moved(wp, ...locs)
+}
+
 /**
  * union
  * @param wp - Workplane

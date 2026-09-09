@@ -198,6 +198,7 @@ import {
   simplify as vendoredSimplify,
 } from '../../vendored/brepjs/topology/api.js'
 import { makeCompound as vendoredMakeCompound } from '../../vendored/brepjs/topology/solidBuilders.js'
+import { applyMatrix as vendoredApplyMatrix } from '../../vendored/brepjs/topology/transformFns.js'
 import {
   makeCircle as vendoredMakeCircle,
   makeLine as vendoredMakeLine,
@@ -246,6 +247,17 @@ export const chamfer = wrapGuarded('chamfer', vendoredChamfer)
  * analogue of CadQuery's multi-solid compounds).
  */
 export const makeCompound = wrapGuarded('makeCompound', vendoredMakeCompound)
+
+/**
+ * Apply a rigid affine transform to ANY shape — including compounds, which the
+ * faijs `cad.translate` / `cad.rotate_euler` ops reject ("input is not BREP",
+ * they require a solid). Needed by CadQuery's `Shape.moved(*locs)`, which can
+ * move a multi-solid compound as a whole.
+ *
+ * Accepts the `{ linear, translation }` form of `MatrixInput`: `linear` is the
+ * row-major 3x3 rotation, `translation` is applied after it (p -> R·p + t).
+ */
+export const applyMatrix = wrapGuarded('applyMatrix', vendoredApplyMatrix)
 
 /**
  * Merge same-domain faces/edges (unifySameDomain) — the analogue of

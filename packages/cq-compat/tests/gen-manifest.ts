@@ -77,7 +77,11 @@ function main() {
       const manifestKey = `${caseId}__${e.var}`
       // fileKey mirrors the on-disk layout "<module>/<Class>__<test>__<var>"
       const [mod, ...rest] = manifestKey.replace(/^tests\./, '').split('::')
-      const fileKey = `${mod}/${rest.join('__')}`
+      // Module-level pytest functions (test_free_functions, test_shapes) have an
+      // EMPTY class slot, so the split leaves a leading ':' (case id
+      // "tests.test_free_functions:::test_moved"). Strip it — a Windows filename
+      // cannot contain ':' and the on-disk layout is "<module>/<test>__<var>".
+      const fileKey = `${mod}/${rest.join('__').replace(/^:+/, '')}`
       const prior = prev[manifestKey] as
         | { status?: string; blockedBy?: string | null; manual?: boolean }
         | undefined
