@@ -728,14 +728,38 @@ occ_impl 私有工具，导出值 = compound 第一个 Solid = 1³ box）。
 mini_lathe verify-all 全部通过（STEP 导出重路径零回归）；
 mark-blocked.ts 移除 4 条 U22 标注（26 → 22），blocked 495 → 491。
 
-### 7.18 下一步（更新至 U22 修复之后）
+### 7.18 批次 10（test_bool_operators / test_iterators / test_workplane_iter / testShape）
 
-1. ~~阶段 B 剩余（153 var）~~ → 剩 **96 var**（批次 6-9 + U22 修复合计 61：
-   59 PASS + 12 var 转 blocked 案族）。下一批候选：test_selectors 5 var（Nth/切片）、
-   test_free_functions 的 `test_extrude`（r1–r3 是 wire/edge/vertex 拉伸 —— 线/点域
-   STEP 导出， exporter 现分派到 face 为止仍不覆盖，需再评估）、`test_sweep`
-   （需 sweep op，U 级缺口）。
-2. ~~**U22（STEP 导出面 compound）**~~ ✅ 已修复（§7.17），解锁 4 var。
+**parity 24.46% → 25.85%**（PASS 157 → 166，PASS-NT 2，FAIL=0），`pending:mirror`
+96 → 84。12 var 全落袋：
+
+- `test_bool_operators__w1/w2`：`Workplane().box(1,1,2)` / `box(2,2,1)`。
+- `test_iterators__s/w/c/fs`：s=首 box；w/c=`pushPoints([(0,0),(2,0)]).box(1,1,1)`
+  两箱 compound；fs=`faces(">Z").combine().val()` 两顶面 compound（`faceCompound`）。
+- `test_workplane_iter__w2/w3`：w2=±10 两箱 compound；w3=**combine=False 时
+  stack 上是多个独立 box，`val()` 只取第一个** → 单个位于 (-10,0) 的 box（ref
+  实测 Solid vol 1 验证）。
+- `testShape__w/s/res1/res4`：box(3,2,1) 三同体 + **res4=4 条顶棱的边 compound**
+  （新 op `edgeCompound`）。
+
+新 op / core 改动：
+
+1. **`edgeCompound(wp, sel)`**（cq-compat）：`shape.edges(">Z")` 的方向极值语义 ——
+   按 center-of-mass 投影取极值簇（并列全取）。centered box 竖直棱 center z=0、
+   顶棱 z=+h/2，故 `>Z` 恰取 4 条顶棱。
+2. **core `exportStepFromSolids` 分派再扩一级 solid → shell → face → edge**：
+   边 compound（线框）同样可写 STEP（U22 延伸）。
+
+### 7.19 下一步（更新至批次 10 之后）
+
+1. ~~阶段 B 剩余（153 var）~~ → 剩 **84 var**。test_selectors 剩 5 var
+   （testAreaNthSelector_NonplanarWire、testLengthNthSelector_UnsupportedShapes×2、
+   testNthDistance×2 —— Nth/切片选择器族，需 `vals()` 列表语义，单独小批）。
+   test_free_functions 剩 43 var 大头：`test_sweep`（6 var，sweep op 缺）、
+   `test_loft`（5 var，loft op 已有？待核）、`test_text`（9 var，字体依赖）、
+   `test_history_bool`（4 var）、`test_offset`（4 var，op:shape.offset）。
+2. `test_extrude` r1–r3 是 wire/edge/vertex 域拉伸 —— exporter 分派到 edge 为止
+   仍不覆盖 vertex 域，且 pendingWires→prism 的线域拉伸语义需单独立项评估。
 3. **阶段 D**（smoke fixture 入 vitest/CI）—— 继续待排。
 4. **阶段 H**（2D wire：`close`/`moveTo`/`lineTo`/`wire`，+33 var）。
 5. test_assembly ~26 case：等装配双求解器线 P0b 裁定。

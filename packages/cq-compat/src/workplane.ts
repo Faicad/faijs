@@ -2017,6 +2017,41 @@ export async function faceCompound(wp: Workplane, sel: string): Promise<Workplan
   return clone(wp, { shape, faceSel: null, edgeSel: null, vertexSel: null })
 }
 
+/**
+ * edgeCompound — extract the edges picked by a direction selector as a
+ * standalone compound Shape (upstream `shape.edges(">Z")` on a Solid, which
+ * returns a Compound of edges). Needed by TestCQSelectors.testShape where the
+ * exported var IS the edge compound (ref: Compound of the 4 top edges).
+ *
+ * Semantics (upstream DirectionMinMaxSelector = CenterNthSelector n=-1):
+ * order ALL edges by their center-of-mass projection onto the axis and take
+ * the extremum cluster (ties included). For a centered box the vertical edges'
+ * centers sit at z=0 while the top edges sit at z=+h/2 — so `">Z"` picks
+ * exactly the 4 top edges.
+ */
+export async function edgeCompound(wp: Workplane, sel: string): Promise<Workplane> {
+  if (!wp.shape) return wp
+  const s = NAMED_VIEW_TO_AXIS[sel.trim().toLowerCase()] ?? sel
+  const m = /^([<>])([XYZ])(?:\[-?\d+\])?$/.exec(s.trim())
+  if (!m) {
+    throw new Error(`[cq-compat] unsupported face selector for edgeCompound "${sel}"`)
+  }
+  const axis = m[2] === 'X' ? 0 : m[2] === 'Y' ? 1 : 2
+  const sign = m[1] === '>' ? 1 : -1
+  const bounds = (h: unknown): Record<string, number> =>
+    compatFn('getBounds')(h) as Record<string, number>
+  const edges = compatFn('getEdges')(borrowBrepjsShape(wp.shape)) as unknown[]
+  const center = (b: Record<string, number>): number =>
+    [(b.xMin + b.xMax) / 2, (b.yMin + b.yMax) / 2, (b.zMin + b.zMax) / 2][axis]
+  const extremum = edges
+    .map((e) => center(bounds(e)))
+    .reduce((best, c) => (sign * c > sign * best ? c : best))
+  const picked = edges.filter((e) => Math.abs(center(bounds(e)) - extremum) <= 1e-6)
+  const product = compatFn('makeCompound')(picked) as unknown
+  const shape = adoptBrepjsProduct(unwrapBrepResult(product))
+  return clone(wp, { shape, faceSel: null, edgeSel: null, vertexSel: null })
+}
+
 // ── Location / moved / move (阶段 E) ─────────────────────────────────────
 
 /**

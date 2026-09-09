@@ -76,9 +76,10 @@ export function exportStepFromSolids(
 
       // 2. 展平 Compound（多 solid 导入的 part 其 solid 是 Compound）；
       //    纯 solid 时 getSubShapes('solid') 返回 [自身]。
-      //    形状类型分派：solid → shell → face。ref 侧（cadquery
-      //    Shape.exportStep）可导出任意类型的形状，面/壳 compound（如
-      //    Shape.faces('>Z') 的结果）同样要能写进 STEP（U22，2026-09-09）。
+      //    形状类型分派：solid → shell → face → edge。ref 侧（cadquery
+      //    Shape.exportStep）可导出任意类型的形状，面/壳/边 compound（如
+      //    Shape.faces('>Z') / shape.edges('>Z') 的结果）同样要能写进
+      //    STEP（U22，2026-09-09）。
       let subs = kernel.getSubShapes(solid, 'solid')
       if (subs.length === 0) {
         subs = kernel.getSubShapes(solid, 'shell')
@@ -87,8 +88,11 @@ export function exportStepFromSolids(
         subs = kernel.getSubShapes(solid, 'face')
       }
       if (subs.length === 0) {
+        subs = kernel.getSubShapes(solid, 'edge')
+      }
+      if (subs.length === 0) {
         throw new Error(
-          '[exportStepFromSolids] shape contains no solid, shell or face sub-shapes',
+          '[exportStepFromSolids] shape contains no solid, shell, face or edge sub-shapes',
         )
       }
       for (let si = 0; si < subs.length; si++) {

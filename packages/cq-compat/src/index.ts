@@ -45,6 +45,7 @@ export {
   rotate,
   mirror,
   faceCompound,
+  edgeCompound,
   Location,
   isLocation,
   composeLocations,
