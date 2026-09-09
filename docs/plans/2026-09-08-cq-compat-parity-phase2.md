@@ -677,23 +677,52 @@ test_operators（b1/b2）+ test_fuse_multi（b/res）+ test_clean（b1/b2，clea
 单测 54/54 全绿；gen-manifest 151 ported 与比对一致。本批未动 core/shared 路径
 （仅 cq-compat 新增 op），无额外回归面。
 
-### 7.15 下一步（更新至批次 8 之后）
+### 7.16 批次 9（2026-09-09 傍晚：test_extrude / 收尾登记）
 
-1. ~~阶段 B 剩余（153 var）~~ → 剩 **107 var**（批次 6-8 合计 46：45 PASS +
-   1 转 blocked）。下一批候选：`test_offset`（4 var，Shape.offset）、
-   `test_extrude`（r4/r5）、`test_constructors__b`（3 var 中 c1/c2 撞 U22）。
-2. **阶段 D**（smoke fixture 入 vitest/CI，≤30 case）—— B 已稳定三个大批次，可以补了。
-3. **阶段 H**（2D wire：`close`/`moveTo`/`lineTo`/`wire`，+33 var）——
-   `testRevolveCone__result` 等 case 的阻塞项。
-4. test_selectors 5 var（testShape/testNthDistance 族）与 test_workplanes 剩余 0 ——
-   Nth/切片选择器需 `vals()` 列表语义，单独小批。
-5. ~26 个 case 属 `test_assembly`，与装配双求解器方案重叠，等那条线 P0b 成员配对裁定后动。
-6. U22（STEP 导出器支持面 compound，已压 3 var：test_single_ent_selector__fs、
-   test_constructors__c1/c2）与 U15 遗留的 `shell` 内核投影、U18
-   `cutBlind("last"/"next")` 均为 op/内核级缺口，按 blockedBy 频次排期。
-7. test_free_functions 剩余大头：test_sweep（6 var）、test_loft（5 var）、
-   test_text（9 var，字体依赖）、test_history_bool（4 var）、test_imprint_error、
-   test_project、test_check 等。
+**PASS 149 → 153（+4），FAIL=0，parity 23.23% → 23.85%；`pending:mirror`
+107 → 96 var（4 PASS + 7 转 blocked）。**
+
+镜像 4 var：`test_extrude__r4`（rect+extrude 复现 fill+extrude）、`test_extrude__r5`
+（both=True 语义取证）、`test_constructors__b`、`test_utils__r4`（`_get_one` 是
+occ_impl 私有工具，导出值 = compound 第一个 Solid = 1³ box）。
+
+语义取证：
+
+- 上游自由函数 `extrude(s, d, both=True)` = `MakePrism(el.moved(-d), 2d)` —— 先把
+  形状平移 -d 再拉伸 2d（不是双向各拉一份）。r5 = box x/y∈[±0.5]、z∈[-1,1]，vol 2。
+  （ref STEP 回读时 probe 的 bbox 显示 x/y ±1.1，经 venv 复现上游代码证实是探针
+  读数噪声，真实几何与 prism 语义一致。）
+- `Workplane(plane)` 构造器**只收平面名**，第二参数 origin 会被静默忽略 ——
+  写镜像时位移必须走 `translate`（本次 r5 首版因此丢了 down box，FAIL 后定位）。
+- 嵌套 await 实参限制（§7.14）再次触发，镜像一律拆中间变量。
+
+新增 blocked（mark-blocked.ts 19 → 26 条）：
+
+- **`op:shape.offset`（test_offset r1–r4，4 var）**：Shape 域 offset 需要
+  `face(wire)` 构造投影 + shell 内缩 ThickSolid（`offset(shell, -0.25)` → 空心
+  实体 vol 0.875）+ both/多体语义；brepjs-compat 仅投影了 `makeOffset(face, offset)`
+  单面形态，覆盖不了该 case 族。
+- **U22 `step-export:faces-compound`（+3 var）**：`test_extrude_face__c`（导出值是
+  单面 compound）、`test_constructors__c1/c2`（6 面 compound）。U22 总计压 4 var。
+
+单测 54/54 全绿（本批无 src 改动）；gen-manifest 155 ported 与比对一致。
+
+### 7.17 下一步（更新至批次 9 之后）
+
+1. ~~阶段 B 剩余（153 var）~~ → 剩 **96 var**（批次 6-9 合计 57：55 PASS +
+   2 转 blocked 案族共 12 var）。下一批候选：test_selectors 5 var（Nth/切片）、
+   test_free_functions 的 `test_extrude`（r1–r3 是 wire/edge/vertex 拉伸 → 面域
+   STEP 导出，撞 U22 或需 shell 投影）、`test_sweep`（需 sweep op，U 级缺口）。
+2. **U22（STEP 导出面 compound）已压 4 var，是最高性价比的单点修复**：
+   `exportStepFromSolids` 的形状类型分派改为支持 face/shell compound。
+3. **阶段 D**（smoke fixture 入 vitest/CI）—— 继续待排。
+4. **阶段 H**（2D wire：`close`/`moveTo`/`lineTo`/`wire`，+33 var）。
+5. test_assembly ~26 case：等装配双求解器线 P0b 裁定。
+6. op 级缺口汇总（按 blockedBy 频次）：`op:shape.offset`（4）、`op:shell`（2）、
+   `op:pendingWires`、`op:polyline`、`op:threePointArc`、`op:extrude.both`（2）、
+   `op:extrude.combine-cut/combine-s`（2）、`op:cutBlind.until-face`（3）、
+   `op:Solid.makeCone`、`op:CQ`、`op:findSolid`、`op:Workplane.plugin`、
+   `kernel:crash-polygon-cutThruAll`。
 
 ---
 

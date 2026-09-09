@@ -1603,7 +1603,8 @@
   "tests.test_cadquery::TestCadQuery::test_extrude_face__c": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::test_extrude_face",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "step-export:faces-compound",
+    "manual": true
   },
   "tests.test_cadquery::TestCadQuery::test_findFromEdge__part2": {
     "status": "blocked",
@@ -1940,24 +1941,26 @@
     "blockedBy": null
   },
   "tests.test_free_functions:::test_utils__r4": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_utils",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_constructors__b": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_constructors",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_constructors__c1": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_constructors",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "step-export:faces-compound",
+    "manual": true
   },
   "tests.test_free_functions:::test_constructors__c2": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_constructors",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "step-export:faces-compound",
+    "manual": true
   },
   "tests.test_free_functions:::test_sewing__b": {
     "status": "blocked",
@@ -2410,34 +2413,38 @@
     "blockedBy": null
   },
   "tests.test_free_functions:::test_extrude__r4": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_extrude",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_extrude__r5": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_extrude",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_offset__r1": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_offset",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "op:shape.offset",
+    "manual": true
   },
   "tests.test_free_functions:::test_offset__r2": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_offset",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "op:shape.offset",
+    "manual": true
   },
   "tests.test_free_functions:::test_offset__r3": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_offset",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "op:shape.offset",
+    "manual": true
   },
   "tests.test_free_functions:::test_offset__r4": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_offset",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "op:shape.offset",
+    "manual": true
   },
   "tests.test_free_functions:::test_sweep__r3": {
     "status": "blocked",

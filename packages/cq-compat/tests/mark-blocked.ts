@@ -50,6 +50,18 @@ const BY_KEY: Record<string, string> = {
   // sub-shapes — exportStepFromSolids throws "shape contains no solid sub-shapes"
   // for a compound of faces (ref exports it fine via Shape.exportStep)
   'tests.test_shapes:::test_single_ent_selector__fs': 'step-export:faces-compound',
+  // Shape-domain offset: brepjs-compat only projects makeOffset(face, offset) —
+  // no `face(wire)` construction, no shell/thick-solid inward offset
+  // (offset(shell, -0.25) -> hollow solid, ref vol 0.875), no both=/moved-
+  // compound semantics. All four test_offset vars need the full projection.
+  'tests.test_free_functions:::test_offset__r1': 'op:shape.offset',
+  'tests.test_free_functions:::test_offset__r2': 'op:shape.offset',
+  'tests.test_free_functions:::test_offset__r3': 'op:shape.offset',
+  'tests.test_free_functions:::test_offset__r4': 'op:shape.offset',
+  // exported var is a compound of one planar face — exporter gap U22
+  'tests.test_cadquery::TestCadQuery::test_extrude_face__c': 'step-export:faces-compound',
+  'tests.test_free_functions:::test_constructors__c1': 'step-export:faces-compound',
+  'tests.test_free_functions:::test_constructors__c2': 'step-export:faces-compound',
 }
 
 const manifest = JSON.parse(readFileSync(MANIFEST, 'utf-8')) as Record<
