@@ -115,7 +115,11 @@ function fakeKernel(faces: Array<{ surfaceType: string; normal: [number, number,
     importXCAFFromSTEP: () => ({ addShape: () => undefined, exportSTEP: () => '', close: () => undefined }),
     chamfer: () => 1 as BrepHandle,
     chamferDistAngle: () => 1 as BrepHandle,
-  } as BrepEngineApi
+    fillet: () => 1 as BrepHandle,
+    filletVariable: () => 1 as BrepHandle,
+    filletWithHistory: () => ({ result: 1 as BrepHandle, modified: [], generated: [], deleted: [] }),
+    chamferWithHistory: () => ({ result: 1 as BrepHandle, modified: [], generated: [], deleted: [] }),
+} as BrepEngineApi
 }
 
 // ── assignPrimitiveFaceRoles ──

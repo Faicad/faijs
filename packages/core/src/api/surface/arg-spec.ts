@@ -2799,8 +2799,9 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     name: 'fillet', source: 'topology/api.js#fillet', kind: 'brep-op',
     geometryArgs: [0], returnsResult: true,
     args: 'fillet(shape: Shape, edges?, radius | [r1,r2]): Shape',
-    reason: 'D-FILLET：faijs 形态已删，直接用上游 fillet → brep-op（edge 选择经 faijs 适配层）',
+    reason: 'D-FILLET：faijs 侧由手写 dual-op 覆盖（§2.1 等半径 + filletWithHistory roleTable 传播）；本条目仅投影到 vendored fillet 契约，生成模块符号为孤儿 by design，scriptFace 不投（避免与手写 fillet 撞名）。',
     params: ['shape', 'edges', 'radius'], formClass: 'A',
+    scriptFace: false,
   },
   {
     name: 'chamfer', source: 'topology/api.js#chamfer', kind: 'skip',

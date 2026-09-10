@@ -38,7 +38,7 @@ faijs 是 **npm workspaces monorepo**。根包 `@faicad/faijs` 是**门面薄层
 ├──────────────────────────────────────────────────────────────┤
 │ L1  geometry library  packages/core/src/api/ (L3 API 面)      │
 │   primitives transform drill extrude engrave knurl           │
-│   boolean split compound copy geom reconcile                 │
+│   chamfer fillet boolean split compound copy geom reconcile  │
 ├──────────────────────────────────────────────────────────────┤
 │ L1' engine core  packages/core/src/{mesh,brep,topology}/     │
 │   mesh path + CSG | brep/engine (two-slot registry) | topo   │
@@ -473,13 +473,13 @@ export interface HostPorts {
 
 ## 10. stdlib 与第三方库
 
-### 10.1 函数目录（`cad` 命名空间，30 个）
+### 10.1 函数目录（`cad` 命名空间，31 个）
 
 | 类别 | 函数 |
 |---|---|
 | 创建类 | `box` `sphere` `cylinder` `cone` `wedge` `text` `screw` `svgExtrude` `sdf` `load` |
 | 变换类 | `translate` `rotate` `scale` |
-| 特征类 | `drill` `extrude` `engrave` `knurl` |
+| 特征类 | `drill` `extrude` `engrave` `knurl` `chamfer` `fillet` |
 | 布尔 | `union` `subtract` `intersect` |
 | 分割 | `split`（双输出，解构 `const { front, back } = …`） |
 | 结构型 | `group` `assembly`（compound 输出） |

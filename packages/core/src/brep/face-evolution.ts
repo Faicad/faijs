@@ -426,3 +426,107 @@ export function identityEvolution(
   }
   return evolution
 }
+
+// ─── directEdit WithHistory 封装（fillet / chamfer：单输入） ───
+
+/**
+ * 单输入 directEdit（fillet/chamfer）+ roleTable 传播封装。
+ *
+ * 与 `booleanWithRoleTable`（双输入）对应：单输入只有一张输入 role 表，
+ * 一次 `*WithHistory` 内核调用产出结果 + 面演化，沿 hash 演化推进所有 origin。
+ *
+ * generated 刻意不进 role 传播（§1.3 事实：generated hash 指向中间形，
+ * 实测 0 存活），过渡面的命名由 DerivedFaceTopoRef 在 M2 处理。
+ *
+ * @param kernel          - the OCCT kernel.
+ * @param op              - the directEdit operation ('fillet' | 'chamfer').
+ * @param solid          - the input solid (single input, unlike boolean's a/b).
+ * @param edgeHandles     - the resolved Edge handles to fillet/chamfer.
+ * @param radius          - the fillet radius or chamfer distance (uniform only).
+ * @param inputRoleTable  - the input's role table.
+ * @param outPart         - the statement's LHS variable name (for new origin allocation).
+ * @returns the result handle, ordinal evolution and propagated role table.
+ */
+export function directEditWithRoleTable(
+  kernel: BrepEngineApi,
+  op: 'fillet' | 'chamfer',
+  solid: BrepHandle,
+  edgeHandles: BrepHandle[],
+  radius: number,
+  inputRoleTable: ReadonlyMap<unknown, unknown>,
+  outPart: string,
+): { result: BrepHandle; faceEvolution: FaceEvolution; roleTable: ReadonlyMap<unknown, unknown> } {
+  const inputHashes = getFaceHashes(kernel, solid)
+  let evo: BrepEvolutionData
+  if (op === 'fillet') {
+    evo = kernel.filletWithHistory(solid, edgeHandles, radius, inputHashes, HASH_UPPER_BOUND)
+  } else {
+    evo = kernel.chamferWithHistory(solid, edgeHandles, radius, inputHashes, HASH_UPPER_BOUND)
+  }
+
+  const faceEvolution = decodeEvolution(kernel, evo, solid, evo.result)
+  const hashEvo = decodeHashEvolution(evo)
+  const roleTable = propagateAllOriginsLocal(inputRoleTable, hashEvo)
+
+  // outPart used for new-origin allocation in M2 (derived faces); M1 does not
+  // generate positional roles for transition faces.
+  void outPart
+
+  return { result: evo.result, faceEvolution, roleTable }
+}
+
+/**
+ * 单输入 directEdit 的便捷别名：fillet。
+ *
+ * @param kernel          - the OCCT kernel.
+ * @param solid          - the input solid.
+ * @param edgeHandles     - the resolved Edge handles.
+ * @param radius          - the fillet radius (uniform).
+ * @param inputRoleTable  - the input's role table.
+ * @param outPart         - the statement's LHS variable name.
+ * @returns the result handle, ordinal evolution and propagated role table.
+ */
+export function filletWithRoleTable(
+  kernel: BrepEngineApi,
+  solid: BrepHandle,
+  edgeHandles: BrepHandle[],
+  radius: number,
+  inputRoleTable: ReadonlyMap<unknown, unknown>,
+  outPart: string,
+): { result: BrepHandle; faceEvolution: FaceEvolution; roleTable: ReadonlyMap<unknown, unknown> } {
+  return directEditWithRoleTable(kernel, 'fillet', solid, edgeHandles, radius, inputRoleTable, outPart)
+}
+
+/**
+ * 单输入 directEdit 的便捷别名：chamfer。
+ *
+ * @param kernel          - the OCCT kernel.
+ * @param solid          - the input solid.
+ * @param edgeHandles     - the resolved Edge handles.
+ * @param distance        - the chamfer distance (uniform).
+ * @param inputRoleTable  - the input's role table.
+ * @param outPart         - the statement's LHS variable name.
+ * @returns the result handle, ordinal evolution and propagated role table.
+ */
+export function chamferWithRoleTable(
+  kernel: BrepEngineApi,
+  solid: BrepHandle,
+  edgeHandles: BrepHandle[],
+  distance: number,
+  inputRoleTable: ReadonlyMap<unknown, unknown>,
+  outPart: string,
+): { result: BrepHandle; faceEvolution: FaceEvolution; roleTable: ReadonlyMap<unknown, unknown> } {
+  return directEditWithRoleTable(kernel, 'chamfer', solid, edgeHandles, distance, inputRoleTable, outPart)
+}
+
+/** 单输入 roleTable 传播（结构等价于 naming/roles.propagateAllOrigins，避免循环依赖）。 */
+function propagateAllOriginsLocal(
+  roles: ReadonlyMap<unknown, unknown>,
+  evolution: HashEvolution,
+): ReadonlyMap<unknown, unknown> {
+  const result = new Map<unknown, unknown>()
+  for (const [origin, originRoles] of roles) {
+    result.set(origin, propagateOriginRoles(originRoles as ReadonlyMap<string, readonly number[]>, evolution))
+  }
+  return result
+}

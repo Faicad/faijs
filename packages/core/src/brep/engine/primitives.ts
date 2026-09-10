@@ -53,7 +53,7 @@ export interface BrepEngineApi {
   section(a: BrepHandle, b: BrepHandle): BrepHandle
   fuseAll(shapes: BrepHandle[]): BrepHandle
 
-  // ── 倒角（directEdit 能力）──
+  // ── 倒角与圆角（directEdit 能力）──
   /** 等距倒角：逐边 `BRepFilletAPI_MakeChamfer::Add(distance, E)`。 */
   chamfer(solid: BrepHandle, edges: BrepHandle[], distance: number): BrepHandle
   /**
@@ -63,6 +63,32 @@ export interface BrepEngineApi {
   chamferDistAngle(
     solid: BrepHandle, edges: BrepHandle[], distance: number, angleDeg: number,
   ): BrepHandle
+  /** 等半径圆角：`BRepFilletAPI_MakeFillet::Add(radius, E)`。 */
+  fillet(solid: BrepHandle, edges: BrepHandle[], radius: number): BrepHandle
+  /** 变半径圆角：单边 `BRepFilletAPI_MakeFillet::Add(startRadius, endRadius, E)`。 */
+  filletVariable(solid: BrepHandle, edge: BrepHandle, startRadius: number, endRadius: number): BrepHandle
+  /**
+   * 等半径圆角（WithHistory）：返回面演化数据，供 roleTable 传播。
+   * modified/generated/deleted 用面 hash 编码（§7.5）。
+   */
+  filletWithHistory(
+    solid: BrepHandle,
+    edges: BrepHandle[],
+    radius: number,
+    inputFaceHashes: number[],
+    hashUpperBound: number,
+  ): BrepEvolutionData
+  /**
+   * 等距倒角（WithHistory）：返回面演化数据，供 roleTable 传播。
+   * modified/generated/deleted 用面 hash 编码（§7.5）。
+   */
+  chamferWithHistory(
+    solid: BrepHandle,
+    edges: BrepHandle[],
+    distance: number,
+    inputFaceHashes: number[],
+    hashUpperBound: number,
+  ): BrepEvolutionData
 
   // ── 变换 ──
   translate(shape: BrepHandle, dx: number, dy: number, dz: number): BrepHandle

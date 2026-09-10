@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-10-fillet-op-and-editor-ui.md
+2026-09-10-fillet-op-and-editor-ui.md: e0612204f91243bbd949f0f6bb8f51b72dfa5852
+2026-09-10-fillet-op-and-editor-ui.zh.md: 345f3d1a220e822605dd25c2d1c7150e1df42893

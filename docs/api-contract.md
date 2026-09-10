@@ -38,7 +38,7 @@ Dependencies are one-directional and acyclic: `gear-lib-demo → core`, `tests �
 ├──────────────────────────────────────────────────────────────┤
 │ L1  geometry library  packages/core/src/api/ (L3 API 面)      │
 │   primitives transform drill extrude engrave knurl           │
-│   boolean split compound copy geom reconcile                 │
+│   chamfer fillet boolean split compound copy geom reconcile  │
 ├──────────────────────────────────────────────────────────────┤
 │ L1' engine core  packages/core/src/{mesh,brep,topology}/     │
 │   mesh path + CSG | brep/engine (two-slot registry) | topo   │
@@ -472,13 +472,13 @@ Everything except `events` is optional — a Node test environment can supply on
 
 ## 10. stdlib and Third-Party Libraries
 
-### 10.1 Function catalog (`cad` namespace, 30 functions)
+### 10.1 Function catalog (`cad` namespace, 31 functions)
 
 | Category | Functions |
 |---|---|
 | Creation | `box` `sphere` `cylinder` `cone` `wedge` `text` `screw` `svgExtrude` `sdf` `load` |
 | Transform | `translate` `rotate` `scale` |
-| Feature | `drill` `extrude` `engrave` `knurl` |
+| Feature | `drill` `extrude` `engrave` `knurl` `chamfer` `fillet` |
 | Boolean | `union` `subtract` `intersect` |
 | Split | `split` (dual output, destructured as `const { front, back } = …`) |
 | Structural | `group` `assembly` (compound output) |

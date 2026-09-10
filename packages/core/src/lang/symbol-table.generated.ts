@@ -23,6 +23,7 @@ export default {
   "fai_extrude": {},
   "engrave": {},
   "chamfer": {},
+  "fillet": {},
   "knurl": {},
   "union": {},
   "subtract": {},

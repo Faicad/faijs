@@ -15,8 +15,9 @@
 
 import type { Shape } from '../mesh/types'
 import { solidToShape } from '../brep/brep-ops'
-import { getBackends } from '../runtime-state'
-import { fromBrep, brepOf } from '../shape'
+import { chamferWithRoleTable, identityEvolution } from '../brep/face-evolution'
+import { getBackends, getCurrentStmt } from '../runtime-state'
+import { fromBrep, brepOf, getSlot } from '../shape'
 import { defineOp } from '../sdk'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 import type { BrepHandle } from '../brep/engine/types'
@@ -199,22 +200,50 @@ function chamferBrep(input: Shape, params: Record<string, unknown>): Shape {
   const ctx = buildEdgeResolutionContext(kernel, input as object)
   if (!ctx) throw new TopoRefError('E_TOPO_NOT_FOUND', 'edge', 'input has no edge naming context')
 
+  // 输入 roleTable + outPart（与 boolean.ts / fillet.ts 同构）
+  const inputRoleTable = getSlot(input)?.roleTable as ReadonlyMap<unknown, unknown> | undefined
+  const outPart = String(getCurrentStmt()?.outputs[0] ?? '')
+
   let resultSolid: BrepHandle
+  let faceEvolution: Map<number, number[]> | undefined
+  let roleTable: ReadonlyMap<unknown, unknown> | undefined
+
   switch (type) {
-    case 'equal':
-      resultSolid = kernel.chamfer(solid, edges.map((e) => resolveEdge(ctx, e).handle), params.width as number)
+    case 'equal': {
+      // P5：改走 chamferWithHistory + roleTable 传播（§3.2 末段）
+      const edgeHandles = edges.map((e) => resolveEdge(ctx, e).handle)
+      const r = chamferWithRoleTable(
+        kernel,
+        solid,
+        edgeHandles,
+        params.width as number,
+        inputRoleTable ?? new Map(),
+        outPart,
+      )
+      resultSolid = r.result
+      faceEvolution = r.faceEvolution
+      roleTable = r.roleTable
       break
+    }
     case 'distanceAngle':
       resultSolid = kernel.chamferDistAngle(solid, edges.map((e) => resolveEdge(ctx, e).handle), params.width as number, params.angle as number)
+      // chamferDistAngle 无 WithHistory 版本——用恒等面演化 + 原表
+      faceEvolution = identityEvolution(kernel, resultSolid)
+      roleTable = inputRoleTable
       break
     case 'twoDistances':
       resultSolid = chamferTwoDistances(kernel, edges, ctx, solid, params.width1 as number, params.width2 as number)
+      faceEvolution = identityEvolution(kernel, resultSolid)
+      roleTable = inputRoleTable
       break
     default:
       throw new Error('E_CHAMFER_BAD_TYPE')
   }
 
-  return fromBrep(solidToShape(kernel, resultSolid), { solid: resultSolid })
+  return fromBrep(
+    solidToShape(kernel, resultSolid),
+    faceEvolution ? { solid: resultSolid, faceEvolution, roleTable } : { solid: resultSolid, roleTable },
+  )
 }
 
 /**

@@ -22,6 +22,7 @@ import { fai_split } from './fai_split'
 import { union, subtract, intersect } from './boolean'
 import { engrave } from './engrave'
 import { chamfer } from './chamfer'
+import { fillet } from './fillet'
 import { group, assembly } from './compound'
 import { copy } from './copy'
 import { faceNormal, bboxCenter, bboxMin, bboxMax } from './geom'
@@ -51,7 +52,7 @@ export function createApiNamespace(): StdlibNamespace {
     box, sphere, cylinder, cone, wedge,
     text, screw, svgExtrude, sdf, load,
     translate, rotate_euler, scale, scale3d,
-    fai_drill, fai_extrude, engrave, chamfer, knurl,
+    fai_drill, fai_extrude, engrave, chamfer, fillet, knurl,
     union, subtract, intersect,
     fai_split, group, assembly, copy,
     faceNormal, bboxCenter, bboxMin, bboxMax,

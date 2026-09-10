@@ -135,7 +135,7 @@ export function createBrepMockApi(): BrepEngineApi {
     },
     loft: () => unsupported('loft'),
 
-    // ── 倒角（mock：只重打标签/复制，不做真几何；引擎切换测试覆盖签名面） ──
+    // ── 倒角与圆角（mock：只重打标签/复制，不做真几何；引擎切换测试覆盖签名面） ──
     chamfer: (solid, edges, distance) => {
       const s = need(solid, 'chamfer')
       return alloc({ kind: 'solid', bbox: { ...s.bbox }, tag: `chamfer(${s.tag},d=${distance},e=${edges.length})` })
@@ -143,6 +143,26 @@ export function createBrepMockApi(): BrepEngineApi {
     chamferDistAngle: (solid, edges, distance, angleDeg) => {
       const s = need(solid, 'chamferDistAngle')
       return alloc({ kind: 'solid', bbox: { ...s.bbox }, tag: `chamferDA(${s.tag},d=${distance},a=${angleDeg},e=${edges.length})` })
+    },
+    fillet: (solid, edges, radius) => {
+      const s = need(solid, 'fillet')
+      return alloc({ kind: 'solid', bbox: { ...s.bbox }, tag: `fillet(${s.tag},r=${radius},e=${edges.length})` })
+    },
+    filletVariable: (solid, edge, startRadius, endRadius) => {
+      const s = need(solid, 'filletVariable')
+      return alloc({ kind: 'solid', bbox: { ...s.bbox }, tag: `filletVar(${s.tag},r=${startRadius}-${endRadius},e=1)` })
+    },
+    filletWithHistory: (solid, edges, radius, _hashes, _upper) => {
+      const s = need(solid, 'filletWithHistory')
+      const result = alloc({ kind: 'solid', bbox: { ...s.bbox }, tag: `filletWH(${s.tag},r=${radius},e=${edges.length})` })
+      const evo: BrepEvolutionData = { result, modified: [], generated: [], deleted: [] }
+      return evo
+    },
+    chamferWithHistory: (solid, edges, distance, _hashes, _upper) => {
+      const s = need(solid, 'chamferWithHistory')
+      const result = alloc({ kind: 'solid', bbox: { ...s.bbox }, tag: `chamferWH(${s.tag},d=${distance},e=${edges.length})` })
+      const evo: BrepEvolutionData = { result, modified: [], generated: [], deleted: [] }
+      return evo
     },
 
     // ── 布尔与分割 ──
