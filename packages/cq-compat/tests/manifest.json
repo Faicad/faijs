@@ -868,9 +868,9 @@
     "blockedBy": "offset2D"
   },
   "tests.test_cadquery::TestCadQuery::testOpenCornerShell__s": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testOpenCornerShell",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testParametricCurve__res_open": {
     "status": "blocked",
@@ -894,9 +894,9 @@
     "reason": "ref-no-step"
   },
   "tests.test_cadquery::TestCadQuery::testPlanes__result": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testPlanes",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testPointList__c": {
     "status": "ported",
@@ -1423,9 +1423,9 @@
     "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testUnionCompound__obj": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testUnionCompound",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testUnionNoArgs__s": {
     "status": "skipped",
@@ -1609,9 +1609,9 @@
     "manual": true
   },
   "tests.test_cadquery::TestCadQuery::test_findFromEdge__part2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::test_findFromEdge",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::test_getitem__w": {
     "status": "ported",
@@ -2451,14 +2451,14 @@
     "manual": true
   },
   "tests.test_free_functions:::test_sweep__r3": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_sweep",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_sweep__r4": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_sweep",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_sweep__r5": {
     "status": "blocked",

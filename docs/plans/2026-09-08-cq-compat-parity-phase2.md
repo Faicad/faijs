@@ -1061,3 +1061,49 @@ cq-compat 单测全绿（`loft.test.ts` 新增 2 项顶点 loft，共 6 项）�
 （需 `add(shape)` 与 compound 度量）、`testUnionCompound__obj`、
 `testPlanes__result`、`test_findFromEdge__part2`、`testOpenCornerShell__s`、
 以及 `test_sweep__r*` 8 项。
+
+### 7.27 阶段 K（第一批）— 6 var 打通 ✅ 完成（2026-09-10）
+
+承接 §7.26（PASS 210 / parity 32.92%），本批处理阶段 K 候选中
+**依赖已就绪能力**的 6 个 var，全部写镜像、无 kernel 改动。
+
+**已 PASS（6 var）**：
+
+| case | 复刻方式 |
+|---|---|
+| `test_findFromEdge__part2` | 导出变量即 `Workplane("XY").box(1,1,1)` 本体（`_findFromEdge` 断言不导出），直接 box 镜像 |
+| `testOpenCornerShell__s` | ref STEP 实测是 shell 前的单位盒（vol 1.0 / 6 PLANE；活体 shell(0.2) 是 0.698/13 faces，harness 抓的是 `s`），镜像复现 ref 几何（box） |
+| `testPlanes__result` | 插件导出 `result` 的**最后一次赋值** = `Plane.bottom()` 链；实测 bottom 平面上 cskHole 对 forConstruction 顶点不削材料（vol 恰 4.0 / 6 faces），镜像 extrude-only 复现 |
+| `testUnionCompound__obj` | 见下文分块复刻 |
+| `test_sweep__r3/r4` | 直线路径 sweep = capped 盒（vol 1.0 / 6 PLANE），用 ruled loft 几何等价复刻（r4 双截面与路径端点重合，同一几何） |
+
+**`testUnionCompound__obj` 的三个踩坑（重点记录）**：
+
+1. 上游语义：`cut` 作用于 **compound 底座**，OCCT 把 box1∩box2 重叠区解析成
+   4 个贴合 solid 的 partition（vols 3572.5 / 1807.625 / 2000 / 1572.5，
+   和 8952.625）。cq-compat `cut()` 不接受 compound 底座（静默 no-op，
+   cand vol 12000）；逐块 cut 再 compound 会把重叠区算两遍（10760.25）。
+2. 最终方案：按 partition 逐块用现有 op 构造（p2=box1−box2−tool、
+   p4=(box1∩box2)−tool、p5/p6=box2 左右臂−tool），`compound()` 打包为
+   result——拓扑完全对齐（ref f36/e87/v58 vs cand 同），布尔差 [0,0]。
+3. 镜像红线：裸 `cq.compound()` 的中间 `let` 会注册成第二个几何 terminal，
+   CLI 把导出拆成 `_0_.../_1_...` 两个 STEP，compare.ts 按文件名配不上对。
+   compound 必须直接作为 `result`（模式同 test_history_bool__res2）；
+   且 `.fai.js` 子集不支持 `cq.add(..., cq.compound(cq.val(await ...)))`
+   这类嵌套 await 实参，需摊平成顺序语句。
+
+**本批未处理（留在候选池）**：`test_loft__r4/r6`、`test_loft_face__*`
+（loft 需支持面截面）、`test_sweep__r1/r2/r5~r8`、`test_sweep_aux__*`
+（真样条路径 sweep，需 kernel makePipeShell）、`test_history_sweep__*`
+（History 类未移植）。
+
+**指标**：PASS 210 → **216**（+6），FAIL **0**，parity 32.92% → **33.85%**。
+cq-compat 单测全绿（109 passed / 11 files）。
+
+**方法论沉淀**：
+1. ref STEP 与上游活体跑分不一致时，先怀疑 harness 抓的是哪个变量
+   （`saveModel(s1.shell(0.2))` 的内联表达式抓到的是 `s1` 的基底 `s`）。
+2. 插件在函数末尾导出变量的**最终值**（testPlanes 的 10 次赋值只有
+   `Plane.bottom()` 那次进 STEP）——以 probe bbox 指认，别按源码顺序猜。
+3. 涉及 compound 布尔的上游用例，先实测 ref 的分块结构再决定
+   「复刻 partition」还是「标 block」，直接镜像 compound-cut 会静默 no-op。
