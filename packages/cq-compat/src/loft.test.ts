@@ -120,4 +120,62 @@ describe('cq-compat F3 loft', () => {
     expect(volume(s)).toBeCloseTo(1.0666666666666667, 6)
     expect(faceCount(s)).toBe(4)
   }, 60000)
+
+  // ---- hole-bearing face sections ----------------------------------------
+  // Upstream `loft(f1, f2)` with faces that carry inner wires lofts the outer
+  // wires into a capped solid, lofts each inner-wire PAIR into its own capped
+  // solid and sews them together (`solid(side, *sides, top, bot)` +
+  // `top -= compound(tops)`), which is exactly a boolean difference of capped
+  // solids. Verified on cadquery 2.8.0: r6 vol 3.047991271384902 / 16 faces vs
+  // the decomposed form 3.0479912713849013 / 16 faces.
+  it('hole-bearing face sections = outer loft minus inner lofts (test_loft__r6)', async () => {
+    const s = await runShape([
+      "let a0 = await cq.rect(cq.Workplane('XY'), 2, 1)",
+      "let pa = await cq.transformed(cq.Workplane('XY'), { offset: [0, 0, 1] })",
+      'let a1 = await cq.rect(pa, 3, 2)',
+      'let outer = await cq.loft(a0, a1)',
+      "let pb0 = await cq.transformed(cq.Workplane('XY'), { offset: [0.5, 0, 0] })",
+      'let b0 = await cq.rect(pb0, 0.5, 0.2)',
+      "let pb1 = await cq.transformed(cq.Workplane('XY'), { offset: [0.7, 0, 1] })",
+      'let b1 = await cq.circle(pb1, 0.5)',
+      'let inner1 = await cq.loft(b0, b1)',
+      "let pc0 = await cq.transformed(cq.Workplane('XY'), { offset: [-0.5, 0, 0] })",
+      'let c0 = await cq.rect(pc0, 0.5, 0.2)',
+      "let pc1 = await cq.transformed(cq.Workplane('XY'), { offset: [-0.7, 0, 1] })",
+      'let c1 = await cq.circle(pc1, 0.5)',
+      'let inner2 = await cq.loft(c0, c1)',
+      'let d1 = await cq.cut(outer, inner1)',
+      'let wp_out = await cq.cut(d1, inner2)',
+    ])
+    expect(volume(s)).toBeCloseTo(3.047991271384902, 5)
+    expect(faceCount(s)).toBe(16)
+  }, 60000)
+})
+
+describe('cq-compat ellipse orientation', () => {
+  // The kernel builds every ellipse with the major axis on GLOBAL X and rejects
+  // major < minor ("gp_Elips: invalid construction parameters"), so a "tall"
+  // ellipse can only be produced by rotating a wide one — and every rotation
+  // entry point re-approximates the curve (applyMatrix: +0.4% volume; plain
+  // transform/rotate: `makeFace` rejects the wire as non-planar). cq-compat
+  // fails loudly instead of emitting an approximated ellipse.
+  it('ellipse with y_radius > x_radius fails loudly (kernel limitation)', async () => {
+    const code = [
+      "import * as cq from '@faicad/cq-compat'",
+      "let w1 = cq.ellipse(cq.Workplane('XY'), 3, 4)",
+      'let wp_out = await cq.extrude(w1, 1)',
+      'let result = cq.val(wp_out)',
+    ].join('\n')
+    const res = await runtime.execute(code)
+    expect(res.failedAt).toBeDefined()
+  })
+
+  it('ellipse with x_radius > y_radius keeps the major axis on X', async () => {
+    const s = await runShape([
+      "let w1 = cq.ellipse(cq.Workplane('XY'), 4, 2)",
+      'let wp_out = await cq.extrude(w1, 1)',
+    ])
+    expect(volume(s)).toBeCloseTo(Math.PI * 4 * 2 * 1, 5)
+    expect(faceCount(s)).toBe(3)
+  }, 60000)
 })

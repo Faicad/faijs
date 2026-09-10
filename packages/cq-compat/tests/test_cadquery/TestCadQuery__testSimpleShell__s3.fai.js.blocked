@@ -1,0 +1,11 @@
+// source: test_cadquery.py::TestCadQuery::testSimpleShell (var s3)
+// s3 = Workplane().ellipse(4, 2).extrude(4).faces(">Z").shell(+2, kind="arc")
+// Elliptical prism (a=4, b=2, h=4), top face removed, 2 mm walls built with
+// the rounded (arc) join — the kernel offset default.
+// ref (cadquery 2.8.0): 6 faces, vol 332.597162
+import * as cq from '@faicad/cq-compat'
+let w1 = await cq.ellipse(cq.Workplane('XY'), 4, 2)
+let w2 = await cq.extrude(w1, 4)
+let w3 = await cq.faces(w2, '>Z')
+let s3 = await cq.shell(w3, 2)
+let result = cq.val(s3)

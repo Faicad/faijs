@@ -50,9 +50,26 @@ export interface WirePlane {
   normal: [number, number, number]
 }
 
+/**
+ * A 2D profile wire queued on a Workplane until a solid op (extrude / revolve /
+ * loft / …) consumes it. Every variant records its local 2D placement plus a
+ * snapshot of the creation plane, so a later `workplane(offset)` or transformed
+ * move does not retro-actively relocate wires that are already queued.
+ */
 export type PendingWire =
   | { kind: 'rect'; w: number; d: number; cx: number; cy: number; construction: boolean; plane?: WirePlane }
   | { kind: 'circle'; radius: number; cx: number; cy: number; construction: boolean; plane?: WirePlane }
+  | {
+      kind: 'ellipse'
+      majorRadius: number
+      minorRadius: number
+      cx: number
+      cy: number
+      construction: boolean
+      plane?: WirePlane
+      /** True when the caller's y_radius exceeds x_radius (see {@link ellipse}). */
+      flip?: boolean
+    }
   | { kind: 'polygon'; n: number; d: number; cx: number; cy: number; construction: boolean; plane?: WirePlane }
   /** Open/closed ring produced by moveTo/lineTo/arcs/polyline + close()/wire(). */
   | { kind: 'path'; pts: [number, number][]; edges?: PendingEdge[]; construction: boolean; plane?: WirePlane }
@@ -918,6 +935,17 @@ export async function sphere(
  * kernel has no makeWedge primitive, and upstream composes the wedge in WORLD
  * axes before the eachpoint location transform — for the default XY plane the
  * two agree; rotated planes are not exercised by any current mirror.
+ *
+ * @param wp - Workplane acting as the eachpoint carrier
+ * @param dx - Bottom-face extent along local X
+ * @param dy - Wedge height along local Y
+ * @param dz - Bottom-face extent along local Z
+ * @param xmin - Top-face minimum along local X
+ * @param zmin - Top-face minimum along local Z
+ * @param xmax - Top-face maximum along local X
+ * @param zmax - Top-face maximum along local Z
+ * @param opts - { centered?: Centered3; combine?: boolean; clean?: boolean }
+ * @returns Promise<Workplane> carrying the wedge solid
  */
 export async function wedge(
   wp: Workplane,
@@ -1066,6 +1094,7 @@ export async function cylinder(
  * @param wp - Workplane carrier (fresh `Workplane()` for the free function).
  * @param d1 - Major DIAMETER.
  * @param d2 - Minor DIAMETER.
+ * @param opts - { combine?: boolean }
  * @returns Promise<Workplane> carrying the torus solid.
  */
 export async function torus(
@@ -1091,6 +1120,7 @@ export async function torus(
  * @param d1 - Base DIAMETER.
  * @param d2 - Top DIAMETER (0 for a full cone).
  * @param h - Height along +Z.
+ * @param opts - { combine?: boolean }
  * @returns Promise<Workplane> carrying the cone solid.
  */
 export async function cone(
@@ -1221,6 +1251,45 @@ export function circle(wp: Workplane, radius: number): Workplane {
 }
 
 /**
+ * ellipse — CadQuery `Workplane.ellipse(x_radius, y_radius)` parity.
+ *
+ * `x_radius` lies on the workplane X axis and `y_radius` on Y — upstream puts
+ * no ordering constraint on them (`testEdgeTypesFilter` uses `ellipse(3, 4)`).
+ * The kernel's `makeEllipseEdge` requires major >= minor, ignores the plane's
+ * own axes and lays the major axis on the global X direction, so a "tall"
+ * ellipse is built as a wide one and then rotated 90° about the workplane
+ * normal through its centre (see `buildProfileWire`).
+ *
+ * @param wp - Workplane
+ * @param x_radius - radius along the workplane X axis
+ * @param y_radius - radius along the workplane Y axis
+ * @returns Workplane
+ */
+export function ellipse(wp: Workplane, x_radius: number, y_radius: number): Workplane {
+  // CadQuery eachpoint semantics, same as circle(): one pending wire per
+  // pushed point / selected vertex.
+  const at = eachPoints(wp)
+  const base = planeOf(wp)
+  const flip = y_radius > x_radius
+  return clone(wp, {
+    forConstruction: false,
+    pendingWires: [
+      ...(wp.pendingWires ?? []),
+      ...at.map(([cx, cy]) => ({
+        kind: 'ellipse' as const,
+        majorRadius: flip ? y_radius : x_radius,
+        minorRadius: flip ? x_radius : y_radius,
+        cx,
+        cy,
+        construction: false,
+        plane: base,
+        flip,
+      })),
+    ],
+  })
+}
+
+/**
  * polygon
  * @param wp - Workplane
  * @param n - number
@@ -1280,6 +1349,18 @@ function wireBBox(w: PendingWire): { minX: number; minY: number; maxX: number; m
       minY: w.cy - w.radius,
       maxX: w.cx + w.radius,
       maxY: w.cy + w.radius,
+    }
+  }
+  if (w.kind === 'ellipse') {
+    // flip: the built ellipse is rotated 90° in plane, so the local X extent is
+    // the minor radius and the local Y extent the major one.
+    const rx = w.flip ? w.minorRadius : w.majorRadius
+    const ry = w.flip ? w.majorRadius : w.minorRadius
+    return {
+      minX: w.cx - rx,
+      minY: w.cy - ry,
+      maxX: w.cx + rx,
+      maxY: w.cy + ry,
     }
   }
   if (w.kind === 'rect') {
@@ -1751,22 +1832,50 @@ export function line(wp: Workplane, xDist: number, yDist: number, forConstructio
   return draftEdge(wp, [p[0] + xDist, p[1] + yDist], forConstruction)
 }
 
-/** vLine — vertical (local +Y) relative line (CadQuery `Workplane.vLine`). */
+/**
+ * vLine — vertical (local +Y) relative line (CadQuery `Workplane.vLine`).
+ *
+ * @param wp - Workplane
+ * @param distance - signed length along local +Y
+ * @param forConstruction - edge is reference geometry only (default false)
+ * @returns Workplane
+ */
 export function vLine(wp: Workplane, distance: number, forConstruction: boolean = false): Workplane {
   return line(wp, 0, distance, forConstruction)
 }
 
-/** hLine — horizontal (local +X) relative line (CadQuery `Workplane.hLine`). */
+/**
+ * hLine — horizontal (local +X) relative line (CadQuery `Workplane.hLine`).
+ *
+ * @param wp - Workplane
+ * @param distance - signed length along local +X
+ * @param forConstruction - edge is reference geometry only (default false)
+ * @returns Workplane
+ */
 export function hLine(wp: Workplane, distance: number, forConstruction: boolean = false): Workplane {
   return line(wp, distance, 0, forConstruction)
 }
 
-/** vLineTo — vertical line to an absolute local y (CadQuery `Workplane.vLineTo`). */
+/**
+ * vLineTo — vertical line to an absolute local y (CadQuery `Workplane.vLineTo`).
+ *
+ * @param wp - Workplane
+ * @param yCoord - absolute local y to end at
+ * @param forConstruction - edge is reference geometry only (default false)
+ * @returns Workplane
+ */
 export function vLineTo(wp: Workplane, yCoord: number, forConstruction: boolean = false): Workplane {
   return lineTo(wp, currentLocalPoint(wp)[0], yCoord, forConstruction)
 }
 
-/** hLineTo — horizontal line to an absolute local x (CadQuery `Workplane.hLineTo`). */
+/**
+ * hLineTo — horizontal line to an absolute local x (CadQuery `Workplane.hLineTo`).
+ *
+ * @param wp - Workplane
+ * @param xCoord - absolute local x to end at
+ * @param forConstruction - edge is reference geometry only (default false)
+ * @returns Workplane
+ */
 export function hLineTo(wp: Workplane, xCoord: number, forConstruction: boolean = false): Workplane {
   return lineTo(wp, xCoord, currentLocalPoint(wp)[1], forConstruction)
 }
@@ -1922,6 +2031,26 @@ async function buildProfileWire(wp: Workplane, w: PendingWire): Promise<unknown>
   if (w.kind === 'circle') {
     const center = localToWorld(pl, w.cx, w.cy)
     const edge = unwrapBrepResult(compatFn('makeCircle')(w.radius, center, n))
+    return unwrapBrepResult(compatFn('assembleWire')([edge]))
+  }
+  if (w.kind === 'ellipse') {
+    const center = localToWorld(pl, w.cx, w.cy)
+    if (w.flip) {
+      // "Tall" ellipse (y_radius > x_radius) — NOT reproducible today.
+      //
+      // The kernel lays the major axis on the GLOBAL X direction, ignores the
+      // plane's own axes, and rejects major < minor ("gp_Elips: invalid
+      // construction parameters"), so the only way to a tall ellipse is to
+      // rotate a wide one. Every rotation path available re-approximates the
+      // curve: `applyMatrix`/`generalTransformWithHistory` drifts 0.4% in
+      // volume (testEdgeTypesFilter), and the plain `transform` / `rotate`
+      // kernel entries produce a wire `makeFace` then rejects as non-planar.
+      // Failing loudly instead of silently emitting an approximated ellipse.
+      throw new Error(
+        '[cq-compat] ellipse: y_radius > x_radius is not reproducible (kernel ellipse is always major-on-X and rotations re-approximate it)',
+      )
+    }
+    const edge = unwrapBrepResult(compatFn('makeEllipseEdge')(w.majorRadius, w.minorRadius, center, n))
     return unwrapBrepResult(compatFn('assembleWire')([edge]))
   }
   if (w.kind === 'path') {
@@ -2091,6 +2220,20 @@ function rawShapeId(shapeWrapper: unknown): number {
   return w as number
 }
 
+/**
+ * extrude — CadQuery `Workplane.extrude` parity.
+ *
+ * Pulls the pending profile wire(s) along the workplane normal by `height`;
+ * a negative height extrudes the other way. `taper` (degrees, default 0)
+ * narrows the section towards the top and is limited to a single
+ * non-construction pending wire.
+ *
+ * @param wp - Workplane
+ * @param height - extrusion distance along the workplane normal
+ * @param combine - fuse the result with the carried shape (default true)
+ * @param opts - { taper?: number } draft angle in degrees
+ * @returns Promise<Workplane>
+ */
 export async function extrude(
   wp: Workplane,
   height: number,
@@ -2148,8 +2291,9 @@ export async function extrude(
   const solidWires = (wp.pendingWires ?? []).filter((w) => !w.construction)
   // A drafted path wire can never take the legacy single-slot path (there is no
   // pendingRect/pendingCircle/pendingPolygon for it), so it always goes through
-  // the pendingWires LIST path. Everything else keeps the old condition.
-  if (solidWires.length > 1 || hasPathWire(wp)) {
+  // the pendingWires LIST path. Ellipse wires likewise have no legacy slot and
+  // are materialized via buildProfileWire. Everything else keeps the old condition.
+  if (solidWires.length > 1 || hasPathWire(wp) || solidWires.some((w) => w.kind === 'ellipse')) {
     const base = wp.shape
     wp = await applyPendingFacePlane(wp)
     const prism = await extrudePendingWires(wp, height)
@@ -2372,6 +2516,42 @@ export async function revolve(
   })
 }
 
+/** Options accepted by {@link loft}. */
+export interface LoftOptions {
+  ruled?: boolean
+  combine?: boolean | 'cut'
+  /** Degenerate start point (upstream `loft(vertex(...), ...)`) — world coordinates. */
+  startPoint?: [number, number, number]
+  /** Degenerate end point (upstream `loft(..., vertex(...))`) — world coordinates. */
+  endPoint?: [number, number, number]
+}
+
+/** True when the carrier holds at least one solid (upstream `findSolid()` gate). */
+function hasSolidBase(shape: Shape): boolean {
+  try {
+    return (brepjsCompat.getSolids(borrowBrepjsShape(shape) as never) as unknown[]).length > 0
+  } catch {
+    return false
+  }
+}
+
+/** Collect loft sections from a workplane: pending wires first, then stacked faces. */
+async function collectLoftSections(wp: Workplane, sections: unknown[]): Promise<void> {
+  const wires = (wp.pendingWires ?? []).filter((w) => !w.construction)
+  for (const w of wires) {
+    sections.push(await buildProfileWire(wp, w))
+  }
+  if (wires.length === 0 && wp.shape) {
+    // Upstream `Workplane().add(face)...loft()` lofts the stacked faces of
+    // wp.shape: each face's outer wire becomes a loft section (holes are
+    // intentionally dropped — upstream section extraction is outerWire-only).
+    const shapeFaces = compatFn('getFaces')(borrowBrepjsShape(wp.shape)) as unknown[]
+    for (const f of shapeFaces) {
+      sections.push(compatFn('outerWire')(f))
+    }
+  }
+}
+
 /**
  * loft — CadQuery `Workplane.loft` parity.
  *
@@ -2379,25 +2559,21 @@ export async function revolve(
  * creation-plane snapshot, so intermediate workplane(offset)/transformed moves
  * are honored). Upstream default is a smooth (ruled=False) loft.
  *
+ * Additional workplanes may be passed positionally (upstream free-function form
+ * `loft(w1, w2, w3)`): each contributes its own pending wires, or — when it
+ * carries no pending wire — the outer wires of its stacked faces.
+ *
  * @param wp - Workplane
- * @param opts - { ruled?: boolean; combine?: boolean | 'cut' }
+ * @param rest - extra section workplanes, plus at most one options object
  * @returns Promise<Workplane>
  */
-export async function loft(
-  wp: Workplane,
-  opts?: {
-    ruled?: boolean
-    combine?: boolean | 'cut'
-    /** Degenerate start point (upstream `loft(vertex(...), ...)`) — world coordinates. */
-    startPoint?: [number, number, number]
-    /** Degenerate end point (upstream `loft(..., vertex(...))`) — world coordinates. */
-    endPoint?: [number, number, number]
-  },
-): Promise<Workplane> {
+export async function loft(wp: Workplane, ...rest: (Workplane | LoftOptions)[]): Promise<Workplane> {
+  const opts = rest.find((x): x is LoftOptions => !(x as Workplane).__cq)
+  const extraWps = rest.filter((x): x is Workplane => (x as Workplane).__cq === true)
   const sections: unknown[] = []
-  for (const w of wp.pendingWires ?? []) {
-    if (w.construction) continue
-    sections.push(await buildProfileWire(wp, w))
+  await collectLoftSections(wp, sections)
+  for (const other of extraWps) {
+    await collectLoftSections(other, sections)
   }
   if (sections.length === 0 && !opts?.startPoint && !opts?.endPoint) {
     throw new Error('[cq-compat] loft: no pending wire sections')
@@ -2415,8 +2591,11 @@ export async function loft(
   let shape = solid
   const combine = opts?.combine ?? true
   if (combine === 'cut' && base) shape = await cutShapes(base, shape)
-  else if (combine === true && base) shape = await fuseShapes(base, shape)
+  else if (combine === true && base && hasSolidBase(base)) shape = await fuseShapes(base, shape)
   // combine === false → keep the loft alone
+  // a non-solid carrier (e.g. `Workplane().add(face)`) is left alone too:
+  // upstream `Workplane.loft` only fuses when the stack holds a solid
+  // (`findSolid()` returns None otherwise — test_loft_face).
 
   return clone(wp, {
     shape,
@@ -2785,6 +2964,9 @@ export function vertices(
  * cq-compat carrier keeps a single `.shape`, so `solids()` mirrors the
  * observable contract: the carrier shape becomes the first solid of the
  * compound (a single-solid shape passes through unchanged).
+ *
+ * @param wp - Workplane
+ * @returns Workplane whose carried shape is the compound's first solid
  */
 export function solids(wp: Workplane): Workplane {
   if (!wp.shape) return wp
@@ -2966,6 +3148,12 @@ const MIRROR_PLANE_NORMALS: Record<string, [number, number, number]> = {
  * implementation passed `{ plane }`, which MirrorOptions does not know, so every
  * mirror silently used the default normal [1,0,0] (latent bug, found while
  * writing the test_mirror mirrors).
+ *
+ * @param wp - Workplane
+ * @param mirrorPlane - 'XY'..'ZY' | plane normal vector | Workplane carrying a face selection (default 'XY')
+ * @param basePointVector - point the mirror plane passes through (default: the selected face centre for the Workplane form, otherwise the world origin)
+ * @param union - fuse the mirrored copy with the original (default false)
+ * @returns Promise<Workplane> carrying the mirrored (or unioned) shape
  */
 export async function mirror(
   wp: Workplane,
@@ -3007,6 +3195,10 @@ export async function mirror(
  *
  * `sel = 'all'` picks EVERY face of the shape — the upstream
  * `compound(shape.Faces())` free-function form (test_constructors c1/c2).
+ *
+ * @param wp - Workplane
+ * @param sel - direction selector (">Z", "<X", …) or 'all' for every face
+ * @returns Promise<Workplane> carrying the face compound
  */
 export async function faceCompound(wp: Workplane, sel: string): Promise<Workplane> {
   if (!wp.shape) return wp
@@ -3061,6 +3253,10 @@ export async function faceCompound(wp: Workplane, sel: string): Promise<Workplan
  * the extremum cluster (ties included). For a centered box the vertical edges'
  * centers sit at z=0 while the top edges sit at z=+h/2 — so `">Z"` picks
  * exactly the 4 top edges.
+ *
+ * @param wp - Workplane
+ * @param sel - direction selector (">Z", "<X", …) picking the extremum edge cluster
+ * @returns Promise<Workplane> carrying the edge compound
  */
 export async function edgeCompound(wp: Workplane, sel: string): Promise<Workplane> {
   if (!wp.shape) return wp
@@ -3116,7 +3312,12 @@ function locVec3(a: unknown): [number, number, number] {
   return [0, 0, 0]
 }
 
-/** Type guard for a `Location` produced by {@link Location}. */
+/**
+ * Type guard for a `Location` produced by {@link Location}.
+ *
+ * @param v - value to test
+ * @returns True when `v` is a cq-compat Location
+ */
 export function isLocation(v: unknown): v is CqLocation {
   return typeof v === 'object' && v !== null && (v as { __cqLocation?: unknown }).__cqLocation === true
 }
@@ -3130,6 +3331,9 @@ export function isLocation(v: unknown): v is CqLocation {
  *   `Location([x, y, z], [rx, ry, rz])`
  *   `Location(x, y, z)` / `Location(x, y, z, rx, ry, rz)`
  *   `Location({ x, y, z, rx, ry, rz })`   ← the `.moved(z=-1)` keyword form
+ *
+ * @param args - overload payload: `[pos]`, `[pos, rot]`, `(x, y, z[, rx, ry, rz])`, or the keyword object
+ * @returns CqLocation (position in mm, rotation in degrees)
  */
 export function Location(...args: unknown[]): CqLocation {
   const nums = args.filter((a): a is number => typeof a === 'number')
@@ -3166,6 +3370,10 @@ export function Location(...args: unknown[]): CqLocation {
  * handle across statement boundaries for solids (see `moved`'s KNOWN LIMITATION
  * note), so `bs1.moved(l3, l4)` has to be written as one `moved` over the
  * composed locations instead of two chained ones.
+ *
+ * @param a - outer location (applied second)
+ * @param b - inner location (applied first)
+ * @returns CqLocation holding the product a·b
  */
 export function composeLocations(a: CqLocation, b: CqLocation): CqLocation {
   const ra = rotationMatrixDeg(a.rot)
@@ -3298,12 +3506,13 @@ async function applyLocation(shape: Shape, loc: CqLocation): Promise<Shape> {
   //    across a statement boundary — the STEP then falls back to a
   //    TESSELLATED_SOLID — so mirrors avoid feeding a compound back into
   //    `moved` (they fold the locations with composeLocations instead).
-  let solids = 0
-  try {
-    solids = (brepjsCompat.getSolids(borrowBrepjsShape(shape) as never) as unknown[]).length
-  } catch {
-    solids = 0
-  }
+  const solids = ((): number => {
+    try {
+      return (brepjsCompat.getSolids(borrowBrepjsShape(shape) as never) as unknown[]).length
+    } catch {
+      return 0
+    }
+  })()
   if (solids <= 1) {
     let s = shape
     if (rx !== 0 || ry !== 0 || rz !== 0) {
@@ -3427,6 +3636,56 @@ export async function cut(
 }
 
 /**
+ * face — materialize the pending wire LIST as one planar face per outermost
+ * wire (upstream module-level `face(*wires)` free function). Enclosed wires
+ * become holes of the enclosing face — the same outer/hole grouping `extrude`
+ * uses. Several disjoint outer wires yield a Compound of faces.
+ *
+ * @param wp - Workplane carrying the pending wires
+ * @returns Promise<Workplane> whose shape is the face (or face compound)
+ */
+export async function face(wp: Workplane): Promise<Workplane> {
+  const all = (wp.pendingWires ?? []).filter((w) => !w.construction)
+  if (all.length === 0) throw new Error('[cq-compat] face: no pending wire to build a face from')
+  const groups = groupPendingWires(all)
+  const faces: Shape[] = []
+  for (const g of groups) {
+    const outer = await buildProfileWire(wp, g.outer)
+    const holeWires: unknown[] = []
+    for (const h of g.holes) {
+      holeWires.push(await buildProfileWire(wp, h))
+    }
+    faces.push(adoptBrepjsProduct(unwrapBrepResult(compatFn('makeFace')(outer, holeWires))) as Shape)
+  }
+  const shape = faces.length === 1 ? faces[0] : makeCompoundShape(faces)
+  return clone(wp, {
+    shape,
+    pendingWires: [],
+    pendingRect: undefined,
+    pendingCircle: undefined,
+    pendingPolygon: undefined,
+    faceSel: null,
+    edgeSel: null,
+    vertexSel: null,
+    pts: [],
+  })
+}
+
+/**
+ * vertex — upstream module-level `vertex(x, y, z)` free function: a single
+ * point shape. Used as a degenerate loft section (`loft(face, vertex(0,0,1))`)
+ * and inside compounds.
+ *
+ * @param x - world x (default 0)
+ * @param y - world y (default 0)
+ * @param z - world z (default 0)
+ * @returns Shape holding the vertex
+ */
+export function vertex(x: number = 0, y: number = 0, z: number = 0): Shape {
+  return adoptBrepjsProduct(unwrapBrepResult(compatFn('makeVertex')([x, y, z]))) as Shape
+}
+
+/**
  * compound — upstream module-level `compound(*shapes)` free function: bundle
  * several shapes into a single Compound WITHOUT any boolean operation. Needed
  * by test_history_bool (imprint result = base solid + tool solid as a
@@ -3435,6 +3694,9 @@ export async function cut(
  * Accepts Shapes and Workplanes (their current shape is used); null/empty
  * entries are skipped. Returns a Shape whose value is the compound itself, so
  * mirrors write `let result = c` directly.
+ *
+ * @param items - Shapes and/or Workplanes to bundle (null/undefined entries are skipped)
+ * @returns Compound Shape, or null when no item carries geometry
  */
 export function compound(...items: (Workplane | Shape | null | undefined)[]): Shape | null {
   const shapes = items
@@ -3583,7 +3845,7 @@ export async function chamfer(
 function resolveFaceEdgeSelection(shape: Shape, sel: string): unknown[] {
   // '+'/'-' are accepted as aliases of '>'/'<' (CadQuery allows both spellings;
   // resolveFaceSelector's axis table does the same).
-  const m = /^([<>+\-])([XYZ])(?:\[-?\d+\])?$/.exec(sel.trim())
+  const m = /^([<>+-])([XYZ])(?:\[-?\d+\])?$/.exec(sel.trim())
   if (!m) {
     throw new Error(`[cq-compat] unsupported face selector for chamfer "${sel}"`)
   }
@@ -3668,6 +3930,13 @@ export async function shell(wp: Workplane, thickness: number): Promise<Workplane
     }
   } else {
     if (facesToRemove.length > 0) {
+      // Walls outward with openings. Upstream routes this through
+      // MakeThickSolidByJoin (offset + remove + join), which the kernel does
+      // not expose: `offset` alone leaves the removed face closed. Cutting the
+      // swept slab off each removed face (the earlier heuristic here) produced
+      // geometry that does not match any upstream reference, so fail loudly
+      // rather than emit an approximation — see testSimpleShell__s1/s3 in
+      // tests/mark-blocked.ts.
       throw new Error(
         '[cq-compat] shell: positive thickness (walls outward) with removed faces is not supported',
       )

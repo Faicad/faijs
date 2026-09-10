@@ -1,0 +1,10 @@
+// source: test_cadquery.py::TestCadQuery::testSimpleShell (var s1)
+// s1 = Workplane("XY").box(2, 2, 2).faces("+Z").shell(0.05)
+// Open the top face (direction selector "+Z", normal-parallel) and give the
+// box a 0.05 wall.
+// ref (cadquery 2.8.0): 23 faces
+import * as cq from '@faicad/cq-compat'
+let w1 = await cq.box(cq.Workplane('XY'), 2, 2, 2)
+let w2 = await cq.faces(w1, '+Z')
+let s1 = await cq.shell(w2, 0.05)
+let result = cq.val(s1)

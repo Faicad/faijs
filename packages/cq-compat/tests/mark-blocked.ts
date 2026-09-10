@@ -61,6 +61,35 @@ const BY_KEY: Record<string, string> = {
   'tests.test_free_functions:::test_offset__r2': 'op:shape.offset',
   'tests.test_free_functions:::test_offset__r3': 'op:shape.offset',
   'tests.test_free_functions:::test_offset__r4': 'op:shape.offset',
+  // ---------------------------------------------------------------------------
+  // Phase 2 stage K (batch 2) — verified unreproducible, 2026-09-10
+  // ---------------------------------------------------------------------------
+  // Loft over COPLANAR sections (w1 = circle(1) and w2 = ellipse(1.5,1).move(0,
+  // y=1) both sit at z=0). occt-wasm's `loft(wires, solid, ruled)` exposes none
+  // of the upstream BRepOffsetAPI_ThruSections knobs (C2 continuity, uniform
+  // parametrization, degree 3, CheckCompatibility), so the two builders diverge
+  // only when sections share a plane: measured non-coplanar controls all match
+  // exactly (3 circles 12.566370; circle/ellipse/circle 16.755155; spread +
+  // tilted 17.320334 vs 17.320002) while the coplanar variant lands at
+  // 19.798698 vs upstream 17.148726.
+  'tests.test_free_functions:::test_loft__r4': 'kernel:loft-coplanar-sections',
+  // The exported value is `compound(plane(1,1), vertex(0,0,1))`; the ref STEP is
+  // a degenerate compound (vol -0.037037, one lone face) and the comparator's
+  // boolean-difference probe fails on it ("cut: boolean operation failed"), so
+  // no candidate can be graded.
+  'tests.test_cadquery::TestCadQuery::test_loft_to_vertex__c': 'ref:degenerate-compound-vertex',
+  // Shell with POSITIVE thickness and removed faces (MakeThickSolidByJoin
+  // outward): the kernel only offers a rounded (arc) offset, and cutting the
+  // removed face's swept slab reproduces neither the opening nor the wall
+  // (s1: vol 1.047647 vs 1.031678, boolean diff 0.016, 30 faces vs 23;
+  //  s3: 410.235431 vs 332.597162). s2 additionally needs intersection join.
+  'tests.test_cadquery::TestCadQuery::testSimpleShell__s1': 'kernel:shell-outward-opening',
+  'tests.test_cadquery::TestCadQuery::testSimpleShell__s2': 'kernel:shell-intersection-join',
+  'tests.test_cadquery::TestCadQuery::testSimpleShell__s3': 'kernel:shell-outward-opening',
+  // "Tall" ellipse (y_radius > x_radius): the kernel lays the major axis on
+  // global X and rejects major < minor ("gp_Elips: invalid construction
+  // parameters"); every rotation entry point re-approximates the curve.
+  'tests.test_selectors::TestCQSelectors::testEdgeTypesFilter__c': 'kernel:ellipse-tall-axis',
 }
 
 const manifest = JSON.parse(readFileSync(MANIFEST, 'utf-8')) as Record<

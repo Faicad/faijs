@@ -1,0 +1,24 @@
+// source: test_free_functions.py::test_loft (var r4)
+// r4 = loft(w1, w2, w3, cap=True)  # capped loft
+// w1 = circle(1); w2 = ellipse(1.5, 1).move(0, y=1); w3 = circle(1).moved(z=4, rx=15)
+// Free-function capped loft over three wire sections. Equivalent Workplane
+// construction: circle at z=0, ellipse centered (0,1), circle on a plane
+// tilted rx=15 deg at z=4. cap=True is loft's default (solid, closed shell).
+// ref (cadquery 2.8.0): Solid, vol 23.7158, 13 faces
+//
+// Mirror notes:
+// - ellipse(1.5, 1) takes x_radius=1.5 / y_radius=1 (upstream signature).
+// - `move(0, y=1)` is a 2D-drafting move: in cq-compat the pending wire is
+//   built at the CURRENT POINT, so moveTo must come BEFORE ellipse.
+// - `moved(z=4, rx=15)` is a plane transform (origin -> (0,0,4), normal tilted
+//   15 deg about X), reproduced with transformed().
+// - `cq.loft(w1, w2, w3)` consumes each workplane's pending wires in order
+//   (upstream free-function varargs form).
+import * as cq from '@faicad/cq-compat'
+let w1 = await cq.circle(cq.Workplane('XY'), 1)
+let w2p = await cq.moveTo(cq.Workplane('XY'), 0, 1)
+let w2 = await cq.ellipse(w2p, 1.5, 1)
+let w3p = await cq.transformed(cq.Workplane('XY'), { rotate: [15, 0, 0], offset: [0, 0, 4] })
+let w3 = await cq.circle(w3p, 1)
+let r4 = await cq.loft(w1, w2, w3)
+let result = cq.val(r4)

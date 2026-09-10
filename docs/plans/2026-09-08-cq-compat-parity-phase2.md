@@ -1107,3 +1107,83 @@ cq-compat 单测全绿（109 passed / 11 files）。
    `Plane.bottom()` 那次进 STEP）——以 probe bbox 指认，别按源码顺序猜。
 3. 涉及 compound 布尔的上游用例，先实测 ref 的分块结构再决定
    「复刻 partition」还是「标 block」，直接镜像 compound-cut 会静默 no-op。
+
+### 7.28 阶段 K（第二批）— 面截面 loft 打通 + 3 类 blocked 精确归因 ✅ 完成（2026-09-10）
+
+承接 §7.27（PASS 216 / parity 33.85%）。本批消化阶段 K 剩下的 loft / shell / ellipse
+席位：新增 3 个 cq-compat op（`face` / `vertex` / `ellipse`）与 2 项 core 侧内核投影，
+把无法复刻的 6 个 var 从泛化的 `blockedBy: "ellipse"` / `"loft"` 细化为带实测数据的
+具体 kernel 归因。
+
+**已 PASS（+4）**：
+
+| case | 复刻方式 |
+|---|---|
+| `test_loft_face__c` | `compound(f1, f2)`（1×1 方 face @z0 + r=1 圆 face @z1）——需新增 `face` op |
+| `test_loft_face__w1` | `Workplane().add(f1).add(f2).loft()`：loft 消费两个 face 的**外**轮廓（孔有意丢弃，同上游） |
+| `test_loft_face__w2` | compound 形态，与 w1 同几何；单独导出 compound 会被 CLI 拆成两个 STEP，故直接以 varargs 形式喂给 `loft` |
+| `test_loft__r6` | 带孔 face 截面 loft 的**等价分解式**（见下） |
+
+**新增 op**：
+
+- `face(wp)` — 把 pending wire 按 `groupPendingWires` 分组建面，逐组 `makeFace(outer, holes)`，
+  多组时打包为 compound。
+- `vertex(x, y, z)` — 单点 shape（`makeVertex` 投影），供退化 loft 截面使用。
+- `ellipse(x_radius, y_radius)` — eachpoint 语义，与上游 `ellipse(x_r, y_r)` 同签名。
+- core 侧 `api/brepjs-compat` 新增两项内核投影：`makeVertex`、`makeEllipseEdge`。
+
+**`test_loft__r6` 的分解式（本批最有价值的结论）**
+
+上游 `loft(f1, f2)` 在截面是 face 时走的**不是**「每截面多 wire」的 loft：它对**外**轮廓建
+一个 `BRepOffsetAPI_ThruSections(cap=True)`，再对**每个内孔索引**各建一个独立 ThruSections，
+最后 `solid(side, *sides, top, bot)` 把外壳与各内壳缝成一个实体，并把内孔的 cap 从外 cap 上减掉
+（`top -= compound(tops)`；源码 `cadquery/func.py::loft`）。「外壳与内壳缝合」在布尔上等价于
+**capped 实体求差**，在 cadquery 2.8.0 实测：
+
+| 构造 | vol | faces |
+|---|---|---|
+| `r6 = loft(f1, f2)` | 3.047991271384902 | 16 |
+| `loft(outer) − loft(inner1) − loft(inner2)` | 3.0479912713849013 | 16 |
+
+因此镜像直接用现成 op 分解构造，**不需要** kernel 支持「每截面多 wire」。
+
+**本批 blocked 归因（4 类，全部带实测数据）**：
+
+1. `kernel:loft-coplanar-sections`（`test_loft__r4`）：w1=circle(1) 与 w2=ellipse(1.5,1).move(0,y=1)
+   **共面**（都在 z=0）。occt-wasm 的 `loft(wires, solid, ruled)` 不暴露上游
+   `BRepOffsetAPI_ThruSections` 的 C2 continuity / uniform parametrization / degree /
+   CheckCompatibility。非共面对照全部吻合（3 圆 12.566370；圆/椭圆/圆 16.755155；
+   分离+倾斜 17.320334 vs 上游 17.320002），共面时 **19.798698 vs 上游 17.148726**。
+2. `kernel:ellipse-tall-axis`（`testEdgeTypesFilter__c`）：内核椭圆**主轴恒在全局 X**
+   （忽略 plane 自身轴），且拒绝 major < minor（`gp_Elips: invalid construction parameters`）。
+   高椭圆（y_radius > x_radius）只能靠旋转一个扁椭圆得到，而每个旋转入口都会重新逼近曲线：
+   `applyMatrix` / `generalTransformWithHistory` 体积漂 **+0.4%**；plain `transform` / `rotate`
+   产出的 wire 被 `makeFace` 判为**非平面**。→ cq-compat **显式抛错**，不静默输出近似椭圆。
+3. `kernel:shell-outward-opening` / `kernel:shell-intersection-join`
+   （`testSimpleShell__s1/s2/s3`）：正厚度 + 移除面（上游 `MakeThickSolidByJoin` 外扩）
+   内核只提供圆角(arc) offset。试过「按移除面外法向切扫掠板」的启发式：s1 vol **1.047647 vs
+   ref 1.031678**（布尔差 0.016，30 faces vs 23）、s3 **410.235431 vs 332.597162** →
+   **回滚为显式抛错**（未通过验证的启发式不留）。另：s1/s3 的 harness ref 与上游活体跑分不一致
+   （ref 1.031678 vs 活体 2.127758），归因见 §7.27 方法论 1。
+4. `ref:degenerate-compound-vertex`（`test_loft_to_vertex__c`）：导出值是
+   `compound(plane(1,1), vertex(0,0,1))`，ref STEP 为退化 compound（vol **−0.037037**，
+   单个孤立面），comparator 的布尔差探针直接失败 → 无候选可评分。
+
+**顺带修掉存量 lint**：`workplane.ts` 在 HEAD 就有 2 个 error
+（`no-useless-assignment` on `solids`、`no-useless-escape` on `[<>+\-]`），已修
+（IIFE 化 / `-` 移到字符类末尾），`npx eslint packages/cq-compat/src` 该包 **0 error**。
+
+**指标**：PASS 216 → **220**（+4），PASS-NT 4，FAIL **0**，ERROR **0**，BLOCKED 426，
+parity 33.85% → **34.46%**。cq-compat 单测全绿（11 files / 113 passed；本批净增 2 项：
+r6 分解式、高椭圆必须显式失败 —— 另有临时内核探针测试 `tmp-ellipse.test.ts` 已删除，
+故文件数由 12 回到 11）。
+
+**方法论沉淀**：
+1. 上游「面截面 loft」用的是**缝合**（`solid(side, *sides, top, bot)`）而不是 kernel 的多 wire
+   截面——先在上游实测「缝合 ≡ capped 实体求差」，再决定值不值得扩 kernel。
+2. 内核椭圆的主轴朝向是硬约束（全局 X + major ≥ minor）。凡是「转一下就好」的想法，
+   都要先验证旋转是否引入重新逼近（applyMatrix 走 generalTransformWithHistory，会重拟合）。
+3. 未通过验证的启发式（shell 外扩开口）必须回滚为显式抛错：项目红线是「失败要大声报错」，
+   静默产出错误几何比不支持更糟。
+4. 泛化的 `blockedBy`（`"ellipse"` / `"loft"`）在依赖项补齐后必须重新归因，否则阻塞清单
+   会掩盖真实原因。

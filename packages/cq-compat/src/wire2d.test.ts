@@ -70,6 +70,17 @@ describe('cq-compat phase H — 2D drafting', () => {
     expect(faceCount(s)).toBe(5)
   })
 
+  it('ellipse drafted + extrude (upstream ellipse(x_r, y_r) eachpoint semantics)', async () => {
+    // cadquery 2.8.0: Workplane("XY").ellipse(1.5, 1).extrude(2)
+    //   -> vol pi*1.5*1*2 = 9.424778, 3 faces
+    const s = await runShape([
+      "let w1 = cq.ellipse(cq.Workplane('XY'), 1.5, 1)",
+      'let wp_out = await cq.extrude(w1, 2)',
+    ])
+    expect(volume(s)).toBeCloseTo(Math.PI * 1.5 * 1 * 2, 5)
+    expect(faceCount(s)).toBe(3)
+  })
+
   it('moveTo starts a new chain (upstream _findFromPoint)', async () => {
     const s = await runShape([
       "let w1 = cq.moveTo(cq.Workplane('XY'), 2, 0)",

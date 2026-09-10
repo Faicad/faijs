@@ -197,10 +197,14 @@ import {
   chamfer as vendoredChamfer,
   simplify as vendoredSimplify,
 } from '../../vendored/brepjs/topology/api.js'
-import { makeCompound as vendoredMakeCompound } from '../../vendored/brepjs/topology/solidBuilders.js'
+import {
+  makeCompound as vendoredMakeCompound,
+  makeVertex as vendoredMakeVertex,
+} from '../../vendored/brepjs/topology/solidBuilders.js'
 import { applyMatrix as vendoredApplyMatrix } from '../../vendored/brepjs/topology/transformFns.js'
 import {
   makeCircle as vendoredMakeCircle,
+  makeEllipse as vendoredMakeEllipse,
   makeLine as vendoredMakeLine,
   makeThreePointArc as vendoredMakeThreePointArc,
   makeTangentArc as vendoredMakeTangentArc,
@@ -254,6 +258,8 @@ export const chamfer = wrapGuarded('chamfer', vendoredChamfer)
  * analogue of CadQuery's multi-solid compounds).
  */
 export const makeCompound = wrapGuarded('makeCompound', vendoredMakeCompound)
+/** Single vertex at a point: `makeVertex([x, y, z])` (upstream `vertex(x, y, z)`). */
+export const makeVertex = wrapGuarded('makeVertex', vendoredMakeVertex)
 
 /**
  * Apply a rigid affine transform to ANY shape — including compounds, which the
@@ -281,6 +287,8 @@ export const simplify = wrapGuarded('simplify', vendoredSimplify)
 
 /** Circular edge: `makeCircle(radius, center?, normal?)` — closed, planar. */
 export const makeCircle = wrapGuarded('makeCircle', vendoredMakeCircle)
+/** Elliptical edge: `makeEllipseEdge(majorRadius, minorRadius, center?, normal?, xDir?)`. Returns a `Result`. */
+export const makeEllipseEdge = wrapGuarded('makeEllipseEdge', vendoredMakeEllipse)
 /** Straight edge from `v1` to `v2`. */
 export const makeLine = wrapGuarded('makeLine', vendoredMakeLine)
 /** Assemble edges/wires into a single connected wire. Returns a `Result`. */

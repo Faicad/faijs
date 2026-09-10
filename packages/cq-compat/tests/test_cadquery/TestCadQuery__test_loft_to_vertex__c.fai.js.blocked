@@ -1,0 +1,10 @@
+// source: test_cadquery.py::TestCadQuery::test_loft_to_vertex (var c)
+// f1 = plane(1, 1); v1 = vertex(0, 0, 1); c = compound(f1, v1)
+// Compound of the loft input face and the apex vertex. The ref STEP carries
+// only the face (vol -0.037037, 1 PLANE area 1.0) — the vertex is a point and
+// contributes no measurable geometry to the export.
+import * as cq from '@faicad/cq-compat'
+let w1r = await cq.rect(cq.Workplane('XY'), 1, 1)
+let f1 = await cq.face(w1r)
+let v1 = cq.vertex(0, 0, 1)
+let result = cq.compound(f1, v1)

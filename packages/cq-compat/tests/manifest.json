@@ -1044,17 +1044,20 @@
   "tests.test_cadquery::TestCadQuery::testSimpleShell__s1": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testSimpleShell",
-    "blockedBy": "ellipse"
+    "blockedBy": "kernel:shell-outward-opening",
+    "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testSimpleShell__s2": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testSimpleShell",
-    "blockedBy": "ellipse"
+    "blockedBy": "kernel:shell-intersection-join",
+    "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testSimpleShell__s3": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testSimpleShell",
-    "blockedBy": "ellipse"
+    "blockedBy": "kernel:shell-outward-opening",
+    "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testSimpleWorkplane__s": {
     "status": "skipped",
@@ -1669,24 +1672,25 @@
     "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::test_loft_face__c": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::test_loft_face",
-    "blockedBy": "loft"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::test_loft_face__w1": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::test_loft_face",
-    "blockedBy": "loft"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::test_loft_face__w2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::test_loft_face",
-    "blockedBy": "loft"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::test_loft_to_vertex__c": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::test_loft_to_vertex",
-    "blockedBy": "loft"
+    "blockedBy": "ref:degenerate-compound-vertex",
+    "manual": true
   },
   "tests.test_cadquery::TestCadQuery::test_loft_to_vertex__w1": {
     "status": "ported",
@@ -2493,12 +2497,13 @@
   "tests.test_free_functions:::test_loft__r4": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_loft",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "kernel:loft-coplanar-sections",
+    "manual": true
   },
   "tests.test_free_functions:::test_loft__r6": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_loft",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_loft_vertex__r2": {
     "status": "ported",
@@ -2689,7 +2694,8 @@
   "tests.test_selectors::TestCQSelectors::testEdgeTypesFilter__c": {
     "status": "blocked",
     "source": "tests.test_selectors::TestCQSelectors::testEdgeTypesFilter",
-    "blockedBy": "ellipse"
+    "blockedBy": "kernel:ellipse-tall-axis",
+    "manual": true
   },
   "tests.test_selectors::TestCQSelectors::testFaceCount__c": {
     "status": "blocked",
