@@ -889,3 +889,175 @@ cq-compat 单测 54 → **62**（新增 `wire2d.test.ts` 8 项）全绿。
 （sagittaArc/threePointArc）、testTangentArcToPoint s0–s2（tangentArcPoint）、
 testSplineShape r（spline）、testClean/testNoClean s（clean 语义）、
 testClosedShell s1–s4（shell 组）、test_map_apply_filter_sort w（solids()）。
+
+### 7.24 阶段 I（第一部分）— 弧线/样条 op ✅ 完成（2026-09-09 深夜）
+
+**实现**（`packages/cq-compat/src/workplane.ts`）：
+
+- `PendingEdge` 扩展为判别联合：`line` / `arc3`（三点弧）/ `tangentArc`
+  （起点+起点切向+终点）/ `spline`（插值点表+内核端切向）。`wire()` 把完整
+  边描述符存入 `path` wire（`pts` 仅作 bbox 顶点环）；`buildProfileWire` 按
+  描述符重建精确曲线（`makeLine`/`makeThreePointArc`/`makeTangentArc`/
+  `makeBSplineInterpolation`）。
+- 新 op：`threePointArc` / `sagittaArc`（上游 sag 向量 ±90° 旋转，正 sag 向
+  行进方向左侧鼓出）/ `radiusArc`（sag = |r| − √(r²−(len/2)²)，半径不足显式
+  抛错）/ `tangentArcPoint`（相对/绝对端点）/ `spline`（includeCurrent 语义
+  对齐上游 `_toVectors`，边在 op 时创建一次并强持有）。
+- **切向链的核心算法**（`lastEdgeEndTangent`）：line 取弦方向；arc3 取外接圆
+  端半径的垂直方向；tangentArc 解析求圆心（center = from + s·n̂，s =
+  |d|²/(2·d·n̂)）。**扫掠方向判据**：圆心在行进方向左侧 ⇒ 逆时针
+  （arc3 用 mid 点定侧、tangentArc 用 s 的符号）——不能用
+  cross(from−C, to−C)，半圆时退化为 0（testTangentArcToPoint s1 的三个连续
+  半圆实证）。
+- **core 侧**：`brepjs-compat` 新增 4 个包装 `makeThreePointArc` /
+  `makeTangentArc` / `makeBSplineInterpolation` / `curveTangentAt` /
+  `curvePointAt`（此前 cq-compat 无法触达内核弧线/样条构造）。
+
+**新发现（bug 与修复）**：
+
+- **U27（已修复）**：vendored `curveTangentAt` 返回**纯数组** `[x,y,z]`（经
+  curveFns → curveOps.curveTangent(...).tangent），不是 `{x,y,z}` 向量——按
+  `.x` 取值得到 undefined → NaN → `makeTangentArc` 收到 NaN 输入产出坏边
+  （curvePointAt 全 null、FACE_BUILD_FAILED "non planar"）。cq-compat 侧已做
+  数组/向量双兼容 + 非有限值显式抛错。排障中曾误判为 GC/arena 句柄回收
+  （FinalizationRegistry），最终以「打印 makeTangentArc 实际输入」定位。
+- **spline 样条边单次创建并强持有**（`builtEdge` 存入描述符，wire 组装时复
+  用）：避免丢弃式临时边；端切向在 op 时测得存 `endTgt`。
+
+**新镜像（7 var）**：testClose a/b/obj1/obj2（obj2 在 YZ 斜面坐标系，U16
+origin 经 translate 变通）、testTangentArcToPoint s0/s1/s2（s1 连续切线弧、
+s2 样条+切线续接）。
+
+**指标**：PASS 183 → **190**（+7），FAIL **0**，parity 28.77% → **29.85%**，
+`ported` 187 → **194**。cq-compat 单测 62 → **70**（新增 `arcs2d.test.ts`
+8 项，含 radiusArc 抛错路径）全绿。
+
+**阶段 I 剩余**：testSplineShape r（上游 spline 与前段线存在**缺口怪癖**——
+BSPLINE 边起点 (2.75,1.5) 与前一线段终点 (3,1) 有 0.35 间隙仍成体，上游
+vol 1.5055；cq-compat assembleWire 拒绝缺口，需专项裁决是否复刻）、
+testClean/testNoClean s（clean 语义）、testClosedShell s1–s4（shell 组）、
+test_map_apply_filter_sort w（solids()）、其余 blockedBy 为深水 op 组。
+
+### 7.25 阶段 I（第二部分）— wedge/shell/solids + 缺口容忍装配 ✅ 完成（2026-09-10）
+
+**实现**（`packages/cq-compat/src/workplane.ts`，另有 core 侧零改动）：
+
+- **`wedge` op**：kernel 无 `makeWedge`，用 `loft(wires, isSolid, ruled=true)`
+  精确构造（底/顶矩形全平面面片，与 OCCT `BRepPrimAPI_MakeWedge` 几何等价，
+  上游实测 vol 5.3333 命中）。`combine`/`clean` 语义对齐上游：
+  `fuseShapes(a, b, clean)` / `combineEachpoint(..., clean)` 加 clean 标志
+  （默认 true 不影响存量）。clean=True 走 `cleanShapes`（kernel
+  unifySameDomain）——实测与上游一致地**非体积守恒**（9.0799 vs
+  clean=False 10.6507，差异 −π/2 系 unify 侧效，双侧同源复刻）。
+- **`shell` op 重写**：原为静默 stub（`brepjsCompat.shell` 不存在）。现走
+  公开 `OcctKernel` 直连 + `selectFaceHandlesForRemoval`（faceSel 支持）：
+  - `t < 0`（内壁，无面删除）= `solid − kernel.shell(solid, [], |t|)`
+    （kernel 正厚度=纯内偏移体）；`t > 0`（外壁）=
+    `kernel.offset(solid, t) − solid`（正距离圆角外偏移体减原体）。
+    双方向体积与上游精确命中（box2: 2.168 / 2.5927）。
+- **`solids()` 选择器**：compound 拆逐 solid 入栈（`getSolids` +
+    `newObject` 语义），支撑 test_map_apply_filter_sort。
+- **wire 装配缺口容忍（复刻上游 MakeWire list-Add 语义）**：
+  - **根因链**：上游 2.8 `Wire.assembleEdges` 用 `BRepBuilderAPI_MakeWire`
+    的 **List 重载**（`Add(TopTools_ListOfShape)`）——实测保留全部边（含
+    非连续边，如 testSplineShape r 的 spline 与前线段 0.35 缺口）；我们
+    wasm `k.makeWire` 是逐边语义——加不进当前开口端的边**静默丢弃**（探针
+    实证：4 边入 → 3 边出，spline 丢失 → 矩形棱柱）。
+  - **修复**（`reorderForWireAssembly`）：kernel 逐边添加只要求新边接到
+    当前开口端（任一端，自动定向）。对边描述符做**基于链尾开口端的 DFS**
+    （共享端点 = 链边，带回溯），找到使每条边入列时都接得上开口端的顺序
+    （如 `[line,line,spline,close]` → `[spline,close,line,line]`）。无全链
+    （多段断链）时回退原序。零长度段先滤除。
+  - **端到端命中**：testSplineShape r 的 ref 是**无效 shell**（缺口面缺失，
+    STEP 往返退化为 Shell，gauss 体积 8.86 为无意义值）——我们的候选体
+    与上游逐字节同构（f6/e13/v8 全对齐），指标 PASS。
+  - 上游自身 BRepCheck invalid（`valid False`）——parity 目标是复刻几何，
+    不是修复上游。
+- **testClosedShell s3 永久 block（manual）**：凹棱柱内壁 shell 需要
+  MakeThickSolidByJoin 的自交处理；occt-wasm `kernel.shell` 对凹轮廓内偏移
+  返回 null，负厚度结果 vol −0.3002（tol 1e-3/1e-6 同值）与上游 0.0991/13
+  面本质不符。manifest 已标 `manual: true` + 具体原因，待 wasm 面暴露忠实
+  的 MakeThickSolidByJoin 再解封。
+
+**新镜像（9 var）**：testClean s、testNoClean s、testClosedShell
+s1/s2/s4_shape/s4_shell_1/s4_shell_2（s3 见上）、test_map_apply_filter_sort
+w、testSplineShape r。
+
+**指标**：PASS 190 → **199**（+9），FAIL **0**，parity 29.85% → **31.23%**，
+`ported` 194 → 203（s3 计入 blocked）。cq-compat 单测 **107** 全绿（新增
+`wedge-shell.test.ts` 6 项）。
+
+**方法论沉淀**：调试内核行为一律用临时 vitest 探针（raw kernel 走
+`getKernel()` from `occt-kernel/occtKernel`，vendored 层走
+`@faicad/faijs-core/vendored/brepjs/kernel/index.js`，KernelShape =
+`{__occtWasm,type,id}`，raw API 收数字 id）；跨上游语义差异先探
+`inspect.getsource` 再实测数值，不凭文档猜。
+
+### 7.26 阶段 J — taper / hollow / shell / wedge / solids / 样条缺口 / loft-顶点 ✅ 完成（2026-09-10）
+
+承接 §7.25（PASS 199 / parity 31.23%），本阶段把「依赖已就绪 kernel 能力」
+的一批 blocked var 打通，并顺带完成上一个阶段遗留的 taper 与 loft 顶点。
+
+**A. taper（extrude / cutBlind）**
+
+- 上游实现（`Solid.extrudeLinear`）用 **`LocOpe_DPrism`**，且高度参数是
+  `h / cos(taper)`（保证用户指定的高度被遵守），角度 `d·taper`
+  （`d = ±1` 由 `vecNormal` 与面法向夹角决定）。
+- cq-compat 侧用 kernel `draftPrism` 复刻（符号约定实测一致：正角收窄）。
+  `extrude(wp, h, combine, { taper })` 与 `cutBlind(wp, d, { taper })` 双通道。
+- **已 PASS**：`testTaperedExtrudeHeight__s`（taper=+20，ref 6 PLANE 尖角
+  棱台 vol 448691.97，cand volDiff 2.6e-11）、`testTaperedExtrudeCutBlind__s`
+  （锥度挖槽，ref f11/e24/v16，cand **逐项对齐**，volDiff 1.3e-12）。
+- **`testTaperedExtrudeHeight__s2` 永久 block（manual）**：负拔模（外扩）
+  时上游 ref 是 **10 面体**——4 个 PLANE 侧面 + 4 个角部 **CONE**
+  （顶点在底角、轴竖直、半角 =|taper| 的 1/4 正圆锥，侧面积
+  `π·r·slant/4 = 3042.08` 与 ref 吻合），即「顶面 = 底面 2D offset
+  (h·tan|taper|, **arc join**) + ruled loft」。wasm 面无等价能力：
+  `offsetWire2D` 对全部 JoinType 均失败；`loft` 拒绝 4 边底 vs 8 边顶；
+  `draft(shape, face, angle, dir)` 直接失败。`draftPrism` 只给尖角 6 面体
+  （vol 1904572.91 vs ref 1866667.26）。
+
+**B. hollow / shell 组**
+
+- 上游 `func.hollow` = `MakeThickSolidByJoin`。实测 kernel 语义：
+  `kernel.shell(solid, [topFace], +0.1)` 与上游 `hollow(box, top, -0.1)`
+  **精确一致**（0.424）；`[], +0.1` 内偏移体（0.512）经 cut 得到
+  `hollow(box, None, -0.1)` 的 0.488。
+- **已 PASS**：`test_hollow__res1`、`test_hollow_open__res1`（+ 两个
+  `box_shape` 基准）。
+- **两个 `res2` block（manual）**：`t>0` 的外偏移需要 **intersection join**
+  （尖角），kernel offset 只有 arc join（圆角），单位方盒上得 0.698/0.565
+  vs 上游 0.728/0.584。
+
+**C. loft 退化顶点截面（`loft(vertex(...))`）**
+
+- vendored `loft` 早已支持 `startPoint` / `endPoint`（内部转
+  `kernel.loftWithVertices`），cq-compat 侧只是没透出——给 `loft` 选项加上
+  这两个字段即可，零 kernel 改动。
+- 语义实测（上游）：face→vertex 是 **ruled 四棱锥**（5 PLANE，vol 0.333333）；
+  vertex→face→vertex 是 **平滑样条体**（4 BSPLINE，vol 1.066667，
+  大于直纹双锥的 0.666667）；带孔中截面被忽略（`r4.Volume() == r3.Volume()`）。
+- **已 PASS 5 var**：`test_loft_vertex__r2/r3/r4`（拓扑 f5/e8/v5、
+  f4/e12/v2 全对齐，volDiff 0）、`test_loft_to_vertex__w1/w2`。
+
+**指标**：PASS 199 → **210**（+11），FAIL **0**，parity 31.23% → **32.92%**。
+cq-compat 单测全绿（`loft.test.ts` 新增 2 项顶点 loft，共 6 项）。
+
+**方法论沉淀**：
+1. 判定「能否复刻」前先**解剖 ref STEP 的逐面几何类型**（PLANE/CONE/BSPLINE
+   + 面积 + 质心），往往一眼看出上游走的是哪条 OCCT 路径（例：CONE
+   面积 `π·r·slant/4` 直接指认正圆锥角部）。
+2. 上游源码用 `inspect.getsource` 逐层追到**具体 OCCT 类**（本阶段
+   `LocOpe_DPrism`、上一阶段 `BRepBuilderAPI_MakeWire` list-Add 重载），
+   不要停留在 CadQuery 的 Python 包装层。
+3. kernel 能力探测先扫 `node_modules/occt-wasm/dist/index.d.ts` 的方法清单，
+   再写临时 vitest 探针实测；**声明存在 ≠ 可用**（`offsetWire2D`/`draft`
+   均在实测中全线失败）。
+4. 确认不可复刻时按既定做法标 `manual: true` + 具体 blockedBy，并**删掉
+   已导出的 cand STEP**（compare 扫 cand 目录，不读 manifest 的 blocked 标记）。
+
+**下一阶段（K）候选**：`test_loft__r4`（capped 多截面：circle/ellipse/
+旋转 circle）、`test_loft__r6`（带孔面 loft）、`test_loft_face__*`
+（需 `add(shape)` 与 compound 度量）、`testUnionCompound__obj`、
+`testPlanes__result`、`test_findFromEdge__part2`、`testOpenCornerShell__s`、
+以及 `test_sweep__r*` 8 项。

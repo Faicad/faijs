@@ -98,4 +98,26 @@ describe('cq-compat F3 loft', () => {
     expect(volume(s)).toBeCloseTo(1118.520674, 2)
     expect(faceCount(s)).toBe(10)
   }, 60000)
+
+  // ---- degenerate (vertex) sections -------------------------------------
+  // Upstream: func.loft(plane(1,1), vertex(0,0,1)) -> ruled pyramid, and
+  // func.loft(vertex(0,0,-1), plane(1,1), vertex(0,0,1)) -> SMOOTH spline body
+  // whose volume (1.066667) exceeds the ruled double pyramid (0.666667).
+  it('loft to a single end vertex is a ruled pyramid (test_loft_vertex__r2)', async () => {
+    const s = await runShape([
+      "let w1 = cq.rect(cq.Workplane('XY'), 1, 1)",
+      'let wp_out = await cq.loft(w1, { endPoint: [0, 0, 1] })',
+    ])
+    expect(volume(s)).toBeCloseTo(0.3333333333333335, 6)
+    expect(faceCount(s)).toBe(5)
+  }, 60000)
+
+  it('loft between two degenerate vertices is smooth, not ruled (test_loft_vertex__r3)', async () => {
+    const s = await runShape([
+      "let w1 = cq.rect(cq.Workplane('XY'), 1, 1)",
+      'let wp_out = await cq.loft(w1, { startPoint: [0, 0, -1], endPoint: [0, 0, 1] })',
+    ])
+    expect(volume(s)).toBeCloseTo(1.0666666666666667, 6)
+    expect(faceCount(s)).toBe(4)
+  }, 60000)
 })

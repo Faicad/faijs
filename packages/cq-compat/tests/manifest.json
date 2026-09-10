@@ -83,59 +83,60 @@
     "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testClean__s": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testClean",
-    "blockedBy": "close"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testClose__a": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testClose",
-    "blockedBy": "close"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testClose__b": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testClose",
-    "blockedBy": "close"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testClose__obj1": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testClose",
-    "blockedBy": "close"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testClose__obj2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testClose",
-    "blockedBy": "close"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testClosedShell__s1": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testClosedShell",
-    "blockedBy": "close"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testClosedShell__s2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testClosedShell",
-    "blockedBy": "close"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testClosedShell__s3": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testClosedShell",
-    "blockedBy": "close"
+    "blockedBy": "kernel: shell(-t) on a concave prism needs MakeThickSolidByJoin intersection handling; occt-wasm kernel.shell returns a null inner-offset for the concave profile and its negative-thickness result (-0.3002) does not match upstream (0.0991). Revisit when the wasm surface exposes a faithful MakeThickSolidByJoin.",
+    "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testClosedShell__s4_shape": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testClosedShell",
-    "blockedBy": "close"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testClosedShell__s4_shell_1": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testClosedShell",
-    "blockedBy": "close"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testClosedShell__s4_shell_2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testClosedShell",
-    "blockedBy": "close"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testCombine__s": {
     "status": "skipped",
@@ -840,9 +841,9 @@
     "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testNoClean__s": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testNoClean",
-    "blockedBy": "close"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testOccBottle__s": {
     "status": "skipped",
@@ -1185,9 +1186,9 @@
     "reason": "ref-no-step"
   },
   "tests.test_cadquery::TestCadQuery::testSplineShape__r": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testSplineShape",
-    "blockedBy": "close"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testSplitKeepingBoth__c": {
     "status": "blocked",
@@ -1260,34 +1261,35 @@
     "blockedBy": "tag"
   },
   "tests.test_cadquery::TestCadQuery::testTangentArcToPoint__s0": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testTangentArcToPoint",
-    "blockedBy": "close"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testTangentArcToPoint__s1": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testTangentArcToPoint",
-    "blockedBy": "close"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testTangentArcToPoint__s2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testTangentArcToPoint",
-    "blockedBy": "close"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testTaperedExtrudeCutBlind__s": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testTaperedExtrudeCutBlind",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testTaperedExtrudeHeight__s": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testTaperedExtrudeHeight",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testTaperedExtrudeHeight__s2": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testTaperedExtrudeHeight",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "kernel: negative (outward) taper needs LocOpe_DPrism corner behaviour - upstream ref is a 10-face body where each corner is a 1/4 right circular cone (apex at the bottom corner, vertical axis, half-angle = |taper|), i.e. the top face is the base profile offset by h*tan|taper| with ARC join. The occt-wasm surface has no equivalent: offsetWire2D fails for every JoinType, loft rejects a 4-edge bottom vs 8-edge top wire, and draft(shape,face,angle,dir) fails outright. draftPrism alone only yields the sharp-corner 6-face frustum (vol 1904572.91 vs ref 1866667.26). Revisit when the wasm surface exposes LocOpe_DPrism / a working 2D arc-join offset.",
+    "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testText__box": {
     "status": "blocked",
@@ -1687,19 +1689,19 @@
     "blockedBy": "loft"
   },
   "tests.test_cadquery::TestCadQuery::test_loft_to_vertex__w1": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::test_loft_to_vertex",
-    "blockedBy": "loft"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::test_loft_to_vertex__w2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::test_loft_to_vertex",
-    "blockedBy": "loft"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::test_map_apply_filter_sort__w": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::test_map_apply_filter_sort",
-    "blockedBy": "moveTo"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::test_plane_repr__wp": {
     "status": "skipped",
@@ -2268,34 +2270,36 @@
     "blockedBy": null
   },
   "tests.test_free_functions:::test_hollow__box_shape": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_hollow",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_hollow__res1": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_hollow",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_hollow__res2": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_hollow",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "upstream free hollow(t>0) uses MakeThickSolidByJoin with Intersection join (sharp outer corners); the occt-wasm kernel offset is arc-join only (rounded), giving 0.698/0.565 vs upstream 0.728/0.584 on the unit box. Revisit when the wasm surface exposes an intersection-join offset.",
+    "manual": true
   },
   "tests.test_free_functions:::test_hollow_open__box_shape": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_hollow_open",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_hollow_open__res1": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_hollow_open",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_hollow_open__res2": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_hollow_open",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "upstream free hollow(t>0) uses MakeThickSolidByJoin with Intersection join (sharp outer corners); the occt-wasm kernel offset is arc-join only (rounded), giving 0.698/0.565 vs upstream 0.728/0.584 on the unit box. Revisit when the wasm surface exposes an intersection-join offset.",
+    "manual": true
   },
   "tests.test_free_functions:::test_prism__box_shape": {
     "status": "blocked",
@@ -2497,19 +2501,19 @@
     "blockedBy": "pending:mirror"
   },
   "tests.test_free_functions:::test_loft_vertex__r2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_loft_vertex",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_loft_vertex__r3": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_loft_vertex",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_loft_vertex__r4": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_loft_vertex",
-    "blockedBy": "pending:mirror"
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_project__res": {
     "status": "blocked",

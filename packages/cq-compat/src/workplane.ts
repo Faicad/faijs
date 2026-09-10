@@ -12,6 +12,7 @@
 import { createApiNamespace } from '@faicad/faijs-core/api/api-namespace'
 import { brepjsCompat } from '@faicad/faijs-core/api'
 import { borrowBrepjsShape, adoptBrepjsProduct } from '@faicad/faijs-core/api/internal/l3-bridge'
+import { fromHandle } from '@faicad/faijs-core/sdk'
 import { brepOf } from '@faicad/faijs-core/shape'
 import { getKernel } from '@faicad/faijs-core/occt-kernel/occtKernel'
 import type { OcctKernel, ShapeHandle } from 'occt-wasm'
@@ -53,18 +54,19 @@ export type PendingWire =
   | { kind: 'rect'; w: number; d: number; cx: number; cy: number; construction: boolean; plane?: WirePlane }
   | { kind: 'circle'; radius: number; cx: number; cy: number; construction: boolean; plane?: WirePlane }
   | { kind: 'polygon'; n: number; d: number; cx: number; cy: number; construction: boolean; plane?: WirePlane }
-  /** Open/closed point ring produced by moveTo/lineTo/polyline + close()/wire(). */
-  | { kind: 'path'; pts: [number, number][]; construction: boolean; plane?: WirePlane }
+  /** Open/closed ring produced by moveTo/lineTo/arcs/polyline + close()/wire(). */
+  | { kind: 'path'; pts: [number, number][]; edges?: PendingEdge[]; construction: boolean; plane?: WirePlane }
 
 /**
  * One drafted 2D edge, in workplane-LOCAL coordinates — the CadQuery
- * `ctx.pendingEdges` analogue. Only straight segments today; arcs would add a
- * discriminator here.
+ * `ctx.pendingEdges` analogue. All descriptors keep `from`/`to` so generic
+ * consumers (vertex ring, close()) can treat every kind uniformly.
  */
-export interface PendingEdge {
-  from: [number, number]
-  to: [number, number]
-}
+export type PendingEdge =
+  | { kind: 'line'; from: [number, number]; to: [number, number] }
+  | { kind: 'arc3'; from: [number, number]; mid: [number, number]; to: [number, number] }
+  | { kind: 'tangentArc'; from: [number, number]; tgt: [number, number]; to: [number, number] }
+  | { kind: 'spline'; from: [number, number]; pts: [number, number][]; to: [number, number]; endTgt?: [number, number]; builtEdge?: unknown }
 
 /**
  * Workplane carrier — object with a custom prototype so compatOp's
@@ -308,9 +310,13 @@ async function cleanShapes(shape: Shape): Promise<Shape> {
  * The vendored `fuse` preserves the first operand's solid type, so the result
  * stays a single solid. See docs/analysis/2026-09-08-cq-compat-union-compound-bug.md.
  */
-async function fuseShapes(a: Shape, b: Shape): Promise<Shape> {
+async function fuseShapes(a: Shape, b: Shape, clean: boolean = true): Promise<Shape> {
   const product = unwrapBrepResult(compatFn('fuse')(borrowBrepjsShape(a), borrowBrepjsShape(b)))
-  return cleanShapes(adoptBrepjsProduct(product))
+  const fused = adoptBrepjsProduct(product)
+  // CadQuery ops take a `clean` flag (default True); clean=False preserves the
+  // boolean splitter faces (verified vs 2.8.0: testNoClean wedge vol 10.650718
+  // vs testClean 9.079922 — the kernel unify pass is NOT volume-preserving).
+  return clean ? cleanShapes(fused) : fused
 }
 
 /** Cut a tool shape out of a base shape via the vendored brepjs cut. */
@@ -778,14 +784,15 @@ async function combineEachpoint(
   wp: Workplane,
   shapes: Shape[],
   combine: boolean,
+  clean: boolean = true,
 ): Promise<Workplane> {
   let shape: Shape
   if (combine) {
     shape = shapes[0]
     for (let i = 1; i < shapes.length; i++) {
-      shape = await fuseShapes(shape, shapes[i])
+      shape = await fuseShapes(shape, shapes[i], clean)
     }
-    if (wp.shape) shape = await fuseShapes(wp.shape, shape)
+    if (wp.shape) shape = await fuseShapes(wp.shape, shape, clean)
   } else {
     shape = makeCompoundShape(shapes)
   }
@@ -894,6 +901,77 @@ export async function sphere(
     shapes.push(await cad.sphere({ radius, center }))
   }
   return combineEachpoint(wp, shapes, opts?.combine ?? true)
+}
+
+/**
+ * wedge — CadQuery `Workplane.wedge` parity.
+ *
+ * OCCT `BRepPrimAPI_MakeWedge(dx, dy, dz, xmin, zmin, xmax, zmax)` geometry:
+ * the bottom face (local y=0) spans the full [0,dx]×[0,dz] rectangle and the
+ * top face (local y=dy) spans [xmin,xmax]×[zmin,zmax]; all six faces are
+ * planar. Built here as a RULED loft between the two rectangles — geometrically
+ * identical to the OCCT primitive (verified vs cadquery 2.8.0: testClean
+ * wedge-with-sphere union vol 9.079922 / testNoClean 10.650718).
+ *
+ * `centered=True` (default) shifts by (−dx/2, −dy/2, −dz/2) along the LOCAL
+ * workplane axes, mirroring upstream's `offset` computation. Limitation: the
+ * kernel has no makeWedge primitive, and upstream composes the wedge in WORLD
+ * axes before the eachpoint location transform — for the default XY plane the
+ * two agree; rotated planes are not exercised by any current mirror.
+ */
+export async function wedge(
+  wp: Workplane,
+  dx: number,
+  dy: number,
+  dz: number,
+  xmin: number,
+  zmin: number,
+  xmax: number,
+  zmax: number,
+  opts?: { centered?: Centered3; combine?: boolean; clean?: boolean },
+): Promise<Workplane> {
+  const pl = {
+    origin: Array.isArray(wp.origin) ? wp.origin : ([0, 0, 0] as [number, number, number]),
+    xDir: Array.isArray(wp.xDir) ? wp.xDir : ([1, 0, 0] as [number, number, number]),
+    yDir: Array.isArray(wp.yDir) ? wp.yDir : ([0, 1, 0] as [number, number, number]),
+    normal: Array.isArray(wp.normal) ? wp.normal : ([0, 0, 1] as [number, number, number]),
+  }
+  const p3 = (x: number, y: number, z: number): [number, number, number] =>
+    vadd(pl.origin, vadd(vadd(vscale(pl.xDir, x), vscale(pl.yDir, y)), vscale(pl.normal, z)))
+  const rectWire = (pts: [number, number, number][]): unknown => {
+    const edges: unknown[] = []
+    for (let i = 0; i < 4; i++) {
+      edges.push(unwrapBrepResult(compatFn('makeLine')(pts[i], pts[(i + 1) % 4])))
+    }
+    return unwrapBrepResult(compatFn('assembleWire')(edges))
+  }
+  const c = resolveCentered(opts?.centered ?? true)
+  const ox = c[0] ? -dx / 2 : 0
+  const oy = c[1] ? -dy / 2 : 0
+  const oz = c[2] ? -dz / 2 : 0
+  // Bottom (local y=0): full [0,dx]×[0,dz]. Top (local y=dy): [xmin,xmax]×[zmin,zmax].
+  // Corner order matches on both rectangles so the ruled loft pairs the right vertices.
+  const bottom = rectWire([
+    p3(ox, oy, oz),
+    p3(ox + dx, oy, oz),
+    p3(ox + dx, oy, oz + dz),
+    p3(ox, oy, oz + dz),
+  ])
+  const top = rectWire([
+    p3(ox + xmin, oy + dy, oz + zmin),
+    p3(ox + xmax, oy + dy, oz + zmin),
+    p3(ox + xmax, oy + dy, oz + zmax),
+    p3(ox + xmin, oy + dy, oz + zmax),
+  ])
+  const solid = adoptBrepjsProduct(
+    unwrapBrepResult(compatFn('loft')([bottom, top], { ruled: true })),
+  ) as Shape
+  const points = eachPoints(wp)
+  const shapes: Shape[] = []
+  for (const [px, py] of points) {
+    shapes.push(await cad.translate(solid, { offset: localToWorld(wp, px, py) }))
+  }
+  return combineEachpoint(wp, shapes, opts?.combine ?? true, opts?.clean ?? true)
 }
 
 /**
@@ -1217,11 +1295,20 @@ function wireBBox(w: PendingWire): { minX: number; minY: number; maxX: number; m
     let minY = Infinity
     let maxX = -Infinity
     let maxY = -Infinity
-    for (const p of w.pts) {
+    const consider = (p: [number, number]): void => {
       minX = Math.min(minX, p[0])
       minY = Math.min(minY, p[1])
       maxX = Math.max(maxX, p[0])
       maxY = Math.max(maxY, p[1])
+    }
+    for (const p of w.pts) consider(p)
+    // Arc bulges: include the through/mid points (for arc3 exact sweep max
+    // needs the circle; the mid point is the standard chord-mid correction and
+    // keeps cut-tool envelopes from under-covering bulged profiles).
+    if (w.edges) {
+      for (const e of w.edges) {
+        if (e.kind === 'arc3') consider(e.mid)
+      }
     }
     return { minX, minY, maxX, maxY }
   }
@@ -1289,12 +1376,325 @@ function draftEdge(wp: Workplane, to: [number, number], forConstruction: boolean
   if (forConstruction) {
     return clone(wp, { currentPoint: to })
   }
-  const edges: PendingEdge[] = [...(wp.pendingEdges ?? []), { from, to }]
+  const edges: PendingEdge[] = [...(wp.pendingEdges ?? []), { kind: 'line', from, to }]
   return clone(wp, {
     pendingEdges: edges,
     currentPoint: to,
     firstPoint: wp.firstPoint ?? from,
   })
+}
+
+/**
+ * Queue one arc edge descriptor (shared by threePointArc/sagittaArc/radiusArc)
+ * with the same forConstruction semantics as draftEdge.
+ */
+function draftArc3(
+  wp: Workplane,
+  mid: [number, number],
+  to: [number, number],
+  forConstruction: boolean,
+): Workplane {
+  const from = currentLocalPoint(wp)
+  if (forConstruction) {
+    return clone(wp, { currentPoint: to })
+  }
+  const edges: PendingEdge[] = [...(wp.pendingEdges ?? []), { kind: 'arc3', from, mid, to }]
+  return clone(wp, {
+    pendingEdges: edges,
+    currentPoint: to,
+    firstPoint: wp.firstPoint ?? from,
+  })
+}
+
+/**
+ * Tangent of the last pending edge at its end point, in local coordinates —
+ * the analytic analogue of upstream `previousEdge.tangentAt(1)`.
+ *
+ * - line: chord direction.
+ * - arc3: perpendicular to the end radius of the circumcircle through
+ *   (from, mid, to), oriented along the travel direction.
+ * - tangentArc: perpendicular to the end radius of the circle through `from`
+ *   with tangent `tgt`, oriented along the travel direction (center side `s`
+ *   selects the sweep orientation).
+ * - spline: uses the stored end tangent (captured from the kernel at creation).
+ */
+function lastEdgeEndTangent(wp: Workplane): [number, number] {
+  const edges = wp.pendingEdges ?? []
+  if (edges.length === 0) {
+    throw new Error('[cq-compat] tangentArcPoint: no previous edge to continue tangentially')
+  }
+  const e = edges[edges.length - 1]
+  if (e.kind === 'line') {
+    const dx = e.to[0] - e.from[0]
+    const dy = e.to[1] - e.from[1]
+    const len = Math.hypot(dx, dy)
+    if (len < 1e-12) throw new Error('[cq-compat] tangentArcPoint: degenerate previous line')
+    return [dx / len, dy / len]
+  }
+  if (e.kind === 'spline') {
+    if (e.endTgt) return e.endTgt
+    throw new Error('[cq-compat] tangentArcPoint: spline edge has no stored end tangent')
+  }
+  // Circumcenter of (from, mid, to) for arc3, or of (from, tangent-constraint)
+  // for tangentArc — both reduce to: circle through `from` and `to` whose
+  // tangent at `from` is known.
+  let cx: number, cy: number
+  if (e.kind === 'arc3') {
+    const [ax, ay] = e.from
+    const [mx, my] = e.mid
+    const [bx, by] = e.to
+    const d = 2 * (ax * (my - by) + mx * (by - ay) + bx * (ay - my))
+    if (Math.abs(d) < 1e-12) {
+      throw new Error('[cq-compat] tangentArcPoint: previous arc is degenerate (collinear)')
+    }
+    const a2 = ax * ax + ay * ay
+    const m2 = mx * mx + my * my
+    const b2 = bx * bx + by * by
+    cx = (a2 * (by - my) + m2 * (ay - by) + b2 * (my - ay)) / d
+    cy = (a2 * (mx - bx) + m2 * (bx - ax) + b2 * (ax - mx)) / d
+  } else {
+    // tangentArc: center = from + s·n̂ with n̂ = perp(tgt), s = |d|²/(2·d·n̂)
+    const tLen = Math.hypot(e.tgt[0], e.tgt[1])
+    const tx = e.tgt[0] / tLen
+    const ty = e.tgt[1] / tLen
+    const nx = -ty
+    const ny = tx
+    const dx = e.to[0] - e.from[0]
+    const dy = e.to[1] - e.from[1]
+    const dn = dx * nx + dy * ny
+    if (Math.abs(dn) < 1e-12) {
+      throw new Error('[cq-compat] tangentArcPoint: previous arc is degenerate (straight)')
+    }
+    const s = (dx * dx + dy * dy) / (2 * dn)
+    cx = e.from[0] + s * nx
+    cy = e.from[1] + s * ny
+  }
+  // End radius → end tangent (perpendicular), oriented along travel. The
+  // sweep orientation comes from where the circle center sits relative to the
+  // travel: center on the LEFT of the direction of motion ⇒ CCW sweep (for
+  // arc3 the mid point breaks the tie; for tangentArc the center side s does).
+  // cross(from−C, to−C) alone is degenerate for half circles.
+  const px = e.to[0] - cx
+  const py = e.to[1] - cy
+  const plen = Math.hypot(px, py)
+  if (plen < 1e-12) throw new Error('[cq-compat] tangentArcPoint: previous arc has zero radius')
+  let ccw: boolean
+  if (e.kind === 'arc3') {
+    ccw = (e.mid[0] - cx) * py - (e.mid[1] - cy) * px >= 0
+  } else {
+    // tangentArc: n̂ = perp(tgt) points LEFT of travel; s > 0 ⇒ center left ⇒ CCW.
+    const tLen2 = Math.hypot(e.tgt[0], e.tgt[1])
+    const nx = -e.tgt[1] / tLen2
+    const ny = e.tgt[0] / tLen2
+    const dx = e.to[0] - e.from[0]
+    const dy = e.to[1] - e.from[1]
+    ccw = dx * nx + dy * ny >= 0
+  }
+  return ccw ? [-py / plen, px / plen] : [py / plen, -px / plen]
+}
+
+/**
+ * Queue one tangent-continuation arc descriptor (tangentArcPoint).
+ */
+function draftTangentArc(
+  wp: Workplane,
+  tgt: [number, number],
+  to: [number, number],
+  forConstruction: boolean,
+): Workplane {
+  const from = currentLocalPoint(wp)
+  if (forConstruction) {
+    return clone(wp, { currentPoint: to })
+  }
+  const edges: PendingEdge[] = [
+    ...(wp.pendingEdges ?? []),
+    { kind: 'tangentArc', from, tgt, to },
+  ]
+  return clone(wp, {
+    pendingEdges: edges,
+    currentPoint: to,
+    firstPoint: wp.firstPoint ?? from,
+  })
+}
+
+/**
+ * threePointArc — draft an arc from the current point through `point1`,
+ * ending at `point2` (CadQuery `Workplane.threePointArc`).
+ * @param wp - Workplane
+ * @param point1 - intermediate point the arc passes through (local 2D)
+ * @param point2 - end point of the arc (local 2D)
+ * @param forConstruction - edge is reference geometry only (default false)
+ * @returns Workplane
+ */
+export function threePointArc(
+  wp: Workplane,
+  point1: [number, number],
+  point2: [number, number],
+  forConstruction: boolean = false,
+): Workplane {
+  return draftArc3(wp, point1, point2, forConstruction)
+}
+
+/**
+ * sagittaArc — arc from the current point to `endPoint` with sagitta `sag`
+ * (CadQuery `Workplane.sagittaArc`). Positive sag bulges to the LEFT of the
+ * start→end direction (convex for a clockwise contour), negative to the right.
+ * Mirrors the upstream sag-vector rotation in cq.py sagittaArc.
+ * @param wp - Workplane
+ * @param endPoint - end point (local 2D)
+ * @param sag - sagitta (perpendicular distance from arc midpoint to the chord)
+ * @param forConstruction - edge is reference geometry only (default false)
+ * @returns Workplane
+ */
+export function sagittaArc(
+  wp: Workplane,
+  endPoint: [number, number],
+  sag: number,
+  forConstruction: boolean = false,
+): Workplane {
+  const start = currentLocalPoint(wp)
+  const dx = endPoint[0] - start[0]
+  const dy = endPoint[1] - start[1]
+  const len = Math.hypot(dx, dy)
+  if (len < 1e-12) {
+    throw new Error('[cq-compat] sagittaArc: start and end points coincide')
+  }
+  const nx = dx / len
+  const ny = dy / len
+  const mag = Math.abs(sag)
+  // sag > 0: rotate unit chord direction +90° (x,y)→(−y,x); sag < 0: −90°.
+  const sx = sag > 0 ? -ny * mag : ny * mag
+  const sy = sag > 0 ? nx * mag : -nx * mag
+  const mid: [number, number] = [(start[0] + endPoint[0]) / 2 + sx, (start[1] + endPoint[1]) / 2 + sy]
+  return draftArc3(wp, mid, endPoint, forConstruction)
+}
+
+/**
+ * radiusArc — arc from the current point to `endPoint` with radius `radius`
+ * (CadQuery `Workplane.radiusArc`). Positive radius = convex arc (for a
+ * clockwise contour), negative = concave. The sagitta is derived exactly as
+ * upstream: sag = |r| − sqrt(r² − (len/2)²).
+ * @param wp - Workplane
+ * @param endPoint - end point (local 2D)
+ * @param radius - arc radius (sign selects the bulge side)
+ * @param forConstruction - edge is reference geometry only (default false)
+ * @returns Workplane
+ */
+export function radiusArc(
+  wp: Workplane,
+  endPoint: [number, number],
+  radius: number,
+  forConstruction: boolean = false,
+): Workplane {
+  const start = currentLocalPoint(wp)
+  const halfLen = Math.hypot(endPoint[0] - start[0], endPoint[1] - start[1]) / 2
+  const TOL = 1e-6
+  const r2l2 = radius * radius - halfLen * halfLen
+  if (r2l2 < -TOL) {
+    throw new Error('[cq-compat] radiusArc: arc radius is not large enough to reach the end point')
+  }
+  let sag = Math.abs(radius)
+  if (Math.abs(r2l2) >= TOL) sag -= Math.sqrt(r2l2)
+  return sagittaArc(wp, endPoint, radius > 0 ? sag : -sag, forConstruction)
+}
+
+/**
+ * tangentArcPoint — arc tangent to the end of the last drafted edge, ending at
+ * `endpoint` (CadQuery `Workplane.tangentArcPoint`).
+ * @param wp - Workplane
+ * @param endpoint - end point (local 2D; relative to the current point when
+ *   `relative` is true)
+ * @param forConstruction - edge is reference geometry only (default false)
+ * @param relative - interpret `endpoint` relative to the current point (default true)
+ * @returns Workplane
+ */
+export function tangentArcPoint(
+  wp: Workplane,
+  endpoint: [number, number],
+  forConstruction: boolean = false,
+  relative: boolean = true,
+): Workplane {
+  const cur = currentLocalPoint(wp)
+  const to: [number, number] = relative ? [cur[0] + endpoint[0], cur[1] + endpoint[1]] : [endpoint[0], endpoint[1]]
+  const tgt = lastEdgeEndTangent(wp)
+  return draftTangentArc(wp, tgt, to, forConstruction)
+}
+
+/**
+ * spline — cubic B-spline edge interpolated exactly through `points`
+ * (CadQuery `Workplane.spline`, includeCurrent=false default: the edge starts
+ * at points[0], NOT at the current point — upstream `_toVectors` only prepends
+ * the current point when includeCurrent is set). The current point becomes the
+ * spline end. `includeCurrent` prepends the current point; the resulting edge
+ * stores its kernel-measured end tangent so a following tangentArcPoint can
+ * continue the curve.
+ * @param wp - Workplane
+ * @param points - interpolation points (local 2D; 3D z=0)
+ * @param opts - { forConstruction?; includeCurrent?; periodic?; makeWire? }
+ * @returns Workplane
+ */
+export function spline(
+  wp: Workplane,
+  points: [number, number][],
+  opts?: { forConstruction?: boolean; includeCurrent?: boolean; periodic?: boolean; makeWire?: boolean },
+): Workplane {
+  if (!Array.isArray(points) || points.length < 2) {
+    throw new Error('[cq-compat] spline: at least 2 points are required')
+  }
+  const includeCurrent = opts?.includeCurrent === true
+  const all: [number, number][] = includeCurrent ? [currentLocalPoint(wp), ...points] : points
+  const end = all[all.length - 1]
+  // Build the spline edge ONCE here and keep a strong reference to it in the
+  // descriptor. Creating a throwaway edge just to measure the tangent and
+  // dropping it is NOT safe: brepjs registers every kernel shape in a
+  // FinalizationRegistry, and when GC collects the discarded wrapper the
+  // arena slot is freed and recycled — the next tangent-arc handle can dangle
+  // (observed as curvePointAt returning nulls + FACE_BUILD_FAILED).
+  if (opts?.forConstruction) {
+    return clone(wp, { currentPoint: end })
+  }
+  const world = all.map(([x, y]) => localToWorld(wp, x, y))
+  const builtEdge = unwrapBrepResult(
+    compatFn('makeBSplineInterpolation')(world, { periodic: false }),
+  )
+  const endTgt = splineEndTangent(builtEdge, wp)
+  const edges: PendingEdge[] = [
+    ...(wp.pendingEdges ?? []),
+    { kind: 'spline', from: all[0], pts: all, to: end, endTgt, builtEdge },
+  ]
+  let next = clone(wp, {
+    pendingEdges: edges,
+    currentPoint: end,
+    firstPoint: wp.firstPoint ?? all[0],
+  })
+  if (opts?.makeWire) {
+    next = wire(next)
+  }
+  return next
+}
+
+/** Kernel-measured end tangent of a built spline edge, in workplane-local 2D. */
+function splineEndTangent(edge: unknown, wp: Workplane): [number, number] {
+  // curveTangentAt returns a plain [x, y, z] ARRAY (vendored curveFns →
+  // curveOps.curveTangent(...).tangent), not an {x,y,z} vector — indexing it
+  // with .x yields undefined → NaN → a corrupt tangent-arc edge downstream.
+  const tRaw = compatFn('curveTangentAt')(edge, 1) as number[] | { x: number; y: number; z: number }
+  const t = Array.isArray(tRaw)
+    ? { x: tRaw[0], y: tRaw[1], z: tRaw[2] }
+    : (tRaw as { x: number; y: number; z: number })
+  if (![t.x, t.y, t.z].every(Number.isFinite)) {
+    throw new Error('[cq-compat] spline: kernel returned a non-finite end tangent')
+  }
+  // Back to workplane-local 2D.
+  const o = wp.origin
+  const bx = t.x - o[0]
+  const by = t.y - o[1]
+  const bz = t.z - o[2]
+  const lx = bx * wp.xDir[0] + by * wp.xDir[1] + bz * wp.xDir[2]
+  const ly = bx * wp.yDir[0] + by * wp.yDir[1] + bz * wp.yDir[2]
+  const len = Math.hypot(lx, ly)
+  if (len < 1e-12) throw new Error('[cq-compat] spline: zero end tangent')
+  return [lx / len, ly / len]
 }
 
 /**
@@ -1429,6 +1829,9 @@ export function wire(wp: Workplane, forConstruction: boolean = false): Workplane
   const w: PendingWire = {
     kind: 'path',
     pts,
+    // Full edge descriptors (incl. arc3/tangentArc/spline) so wire assembly
+    // rebuilds the exact curves; pts is the vertex ring used for bbox only.
+    edges: edges.map((e) => ({ ...e })),
     construction: forConstruction,
     plane: planeOf(wp),
   }
@@ -1460,6 +1863,51 @@ export function close(wp: Workplane): Workplane {
   return wire(cur)
 }
 
+/**
+ * Reorder edge descriptors so the kernel's sequential wire builder accepts all
+ * of them. `makeWire` adds edges one by one and silently DROPS an edge when it
+ * connects to neither open end of the wire built so far — upstream CadQuery
+ * 2.8 avoids this via the MakeWire list-Add overload (BRepBuilderAPI_MakeWire
+ * with TopTools_ListOfShape), which keeps even disconnected edges. We can't
+ * reach that overload from the wasm surface, but when the edge set forms a
+ * single (possibly gappy) chain there is an ordering in which every edge
+ * attaches to an open end when added (e.g. [line,line,spline,line] ->
+ * [spline,closing,line,line]); find it with DFS over shared endpoints. The
+ * kernel auto-orients reversed edges, so no descriptor reversal is needed.
+ * Returns the input order unchanged when no full chain exists (multi-run gap —
+ * the kernel then drops the stray run exactly as before).
+ */
+function reorderForWireAssembly(edges: PendingEdge[]): PendingEdge[] {
+  const n = edges.length
+  if (n < 3) return edges
+  const key = (p: [number, number]) =>
+    `${Math.round(p[0] * 1e6) / 1e6},${Math.round(p[1] * 1e6) / 1e6}`
+  const ends = edges.map((e) => [key(e.from), key(e.to)] as const)
+  const used = new Array<boolean>(n).fill(false)
+  const order: number[] = []
+  const dfs = (tailKey: string): boolean => {
+    if (order.length === n) return true
+    for (let j = 0; j < n; j++) {
+      if (used[j]) continue
+      if (ends[j][0] !== tailKey && ends[j][1] !== tailKey) continue
+      used[j] = true
+      order.push(j)
+      if (dfs(ends[j][0] === tailKey ? ends[j][1] : ends[j][0])) return true
+      used[j] = false
+      order.pop()
+    }
+    return false
+  }
+  for (let s = 0; s < n; s++) {
+    order.length = 0
+    used.fill(false)
+    used[s] = true
+    order.push(s)
+    if (dfs(ends[s][1])) return order.map((i) => edges[i])
+  }
+  return edges
+}
+
 /** Build a brepjs wire for a pending 2D profile, in world coordinates. */
 async function buildProfileWire(wp: Workplane, w: PendingWire): Promise<unknown> {
   // Use the wire's own creation-plane snapshot when present (loft sections can
@@ -1477,17 +1925,66 @@ async function buildProfileWire(wp: Workplane, w: PendingWire): Promise<unknown>
     return unwrapBrepResult(compatFn('assembleWire')([edge]))
   }
   if (w.kind === 'path') {
-    // Drafted ring: consecutive points are edges, last closes back to first.
-    // Zero-length segments (a close() that landed exactly on the start point)
-    // are skipped — OCCT rejects them in a wire.
+    // Drafted ring. When edge descriptors are present (arcs/splines), rebuild
+    // the exact curves; otherwise consecutive ring points are line edges, with
+    // the last one closing back to the first. Zero-length segments (a close()
+    // that landed exactly on the start point) are skipped — OCCT rejects them
+    // in a wire.
     const edges: unknown[] = []
-    for (let i = 0; i < w.pts.length; i++) {
-      const a = w.pts[i]
-      const b = w.pts[(i + 1) % w.pts.length]
-      if (Math.hypot(a[0] - b[0], a[1] - b[1]) < 1e-9) continue
-      edges.push(
-        unwrapBrepResult(compatFn('makeLine')(localToWorld(pl, a[0], a[1]), localToWorld(pl, b[0], b[1]))),
+    if (w.edges && w.edges.length > 0) {
+      // Drop zero-length segments (a close() that landed exactly on the start
+      // point — OCCT rejects them in a wire), then reorder so the sequential
+      // makeWire builder keeps every edge (see reorderForWireAssembly).
+      const descs = reorderForWireAssembly(
+        w.edges.filter(
+          (e) => e.kind !== 'line' || Math.hypot(e.to[0] - e.from[0], e.to[1] - e.from[1]) >= 1e-9,
+        ),
       )
+      for (const e of descs) {
+        if (e.kind === 'line') {
+          edges.push(
+            unwrapBrepResult(compatFn('makeLine')(localToWorld(pl, e.from[0], e.from[1]), localToWorld(pl, e.to[0], e.to[1]))),
+          )
+        } else if (e.kind === 'arc3') {
+          edges.push(
+            compatFn('makeThreePointArc')(
+              localToWorld(pl, e.from[0], e.from[1]),
+              localToWorld(pl, e.mid[0], e.mid[1]),
+              localToWorld(pl, e.to[0], e.to[1]),
+            ),
+          )
+        } else if (e.kind === 'tangentArc') {
+          const tLen = Math.hypot(e.tgt[0], e.tgt[1])
+          const t: [number, number, number] = [
+            (pl.xDir[0] * e.tgt[0] + pl.yDir[0] * e.tgt[1]) / tLen,
+            (pl.xDir[1] * e.tgt[0] + pl.yDir[1] * e.tgt[1]) / tLen,
+            (pl.xDir[2] * e.tgt[0] + pl.yDir[2] * e.tgt[1]) / tLen,
+          ]
+          edges.push(
+            compatFn('makeTangentArc')(
+              localToWorld(pl, e.from[0], e.from[1]),
+              t,
+              localToWorld(pl, e.to[0], e.to[1]),
+            ),
+          )
+        } else if (e.builtEdge) {
+          // Reuse the edge built at op time (strongly held — see spline()).
+          edges.push(e.builtEdge)
+        } else {
+          // spline
+          const world = e.pts.map(([x, y]) => localToWorld(pl, x, y))
+          edges.push(unwrapBrepResult(compatFn('makeBSplineInterpolation')(world, { periodic: false })))
+        }
+      }
+    } else {
+      for (let i = 0; i < w.pts.length; i++) {
+        const a = w.pts[i]
+        const b = w.pts[(i + 1) % w.pts.length]
+        if (Math.hypot(a[0] - b[0], a[1] - b[1]) < 1e-9) continue
+        edges.push(
+          unwrapBrepResult(compatFn('makeLine')(localToWorld(pl, a[0], a[1]), localToWorld(pl, b[0], b[1]))),
+        )
+      }
     }
     if (edges.length === 0) throw new Error('[cq-compat] buildProfileWire: degenerate path wire')
     return unwrapBrepResult(compatFn('assembleWire')(edges))
@@ -1585,11 +2082,67 @@ function hasPathWire(wp: Workplane): boolean {
  *   lone boss, Compound vol 0.03125). The "cut"/"s" modes are NOT supported yet.
  * @returns Promise<Workplane>
  */
+/** Extract the numeric kernel id from a brepjs shape wrapper (or raw handle). */
+function rawShapeId(shapeWrapper: unknown): number {
+  const w = (shapeWrapper as { wrapped?: unknown }).wrapped ?? shapeWrapper
+  if (w && typeof w === 'object' && (w as { __occtWasm?: boolean }).__occtWasm) {
+    return (w as { id: number }).id
+  }
+  return w as number
+}
+
 export async function extrude(
   wp: Workplane,
   height: number,
   combine: boolean = true,
+  opts?: { taper?: number },
 ): Promise<Workplane> {
+  const taper = opts?.taper ?? 0
+  if (taper !== 0) {
+    // Tapered prism via the kernel draftPrism (BRepOffsetAPI_MakeDraft shell
+    // equivalent; sign convention verified: positive angle narrows, matching
+    // upstream `extrude(taper=20)` top-face < bottom-face).
+    const solidWires = (wp.pendingWires ?? []).filter((w) => !w.construction)
+    if (solidWires.length !== 1) {
+      throw new Error('[cq-compat] extrude: taper requires exactly one pending profile wire')
+    }
+    const base = wp.shape
+    wp = await applyPendingFacePlane(wp)
+    const profile = await buildProfileWire(wp, solidWires[0])
+    const face = unwrapBrepResult(compatFn('makeFace')(profile))
+    const kernel = getKernel() as unknown as OcctKernel
+    const n = Array.isArray(wp.normal) ? wp.normal : ([0, 0, 1] as [number, number, number])
+    const raw = (
+      kernel as unknown as {
+        draftPrism: (
+          face: ShapeHandle,
+          dx: number,
+          dy: number,
+          dz: number,
+          angleDeg: number,
+        ) => ShapeHandle
+      }
+    ).draftPrism(
+      rawShapeId(face) as unknown as ShapeHandle,
+      n[0] * height,
+      n[1] * height,
+      n[2] * height,
+      taper,
+    )
+    const prism = fromHandle(raw)
+    const shape = combine === false || !base ? prism : await fuseShapes(base, prism)
+    return clone(wp, {
+      shape,
+      pendingWires: [],
+      pendingPolygon: undefined,
+      pendingRect: undefined,
+      pendingCircle: undefined,
+      faceSel: null,
+      edgeSel: null,
+      vertexSel: null,
+      pts: [],
+    })
+  }
   // CadQuery pendingWires LIST: nested wires form one holed face per outermost
   // wire. Single-wire cases fall through to the legacy prism path unchanged.
   const solidWires = (wp.pendingWires ?? []).filter((w) => !w.construction)
@@ -1832,18 +2385,30 @@ export async function revolve(
  */
 export async function loft(
   wp: Workplane,
-  opts?: { ruled?: boolean; combine?: boolean | 'cut' },
+  opts?: {
+    ruled?: boolean
+    combine?: boolean | 'cut'
+    /** Degenerate start point (upstream `loft(vertex(...), ...)`) — world coordinates. */
+    startPoint?: [number, number, number]
+    /** Degenerate end point (upstream `loft(..., vertex(...))`) — world coordinates. */
+    endPoint?: [number, number, number]
+  },
 ): Promise<Workplane> {
   const sections: unknown[] = []
   for (const w of wp.pendingWires ?? []) {
     if (w.construction) continue
     sections.push(await buildProfileWire(wp, w))
   }
-  if (sections.length === 0) throw new Error('[cq-compat] loft: no pending wire sections')
+  if (sections.length === 0 && !opts?.startPoint && !opts?.endPoint) {
+    throw new Error('[cq-compat] loft: no pending wire sections')
+  }
 
   wp = await applyPendingFacePlane(wp)
+  const loftCfg: Record<string, unknown> = { ruled: opts?.ruled ?? false }
+  if (opts?.startPoint) loftCfg.startPoint = opts.startPoint
+  if (opts?.endPoint) loftCfg.endPoint = opts.endPoint
   const solid = adoptBrepjsProduct(
-    unwrapBrepResult(compatFn('loft')(sections, { ruled: opts?.ruled ?? false })),
+    unwrapBrepResult(compatFn('loft')(sections, loftCfg)),
   ) as Shape
 
   const base = wp.shape
@@ -1876,7 +2441,7 @@ export async function loft(
 export async function cutBlind(
   wp: Workplane,
   depth: number,
-  opts?: { w?: number; d?: number; radius?: number },
+  opts?: { w?: number; d?: number; radius?: number; taper?: number },
 ): Promise<Workplane> {
   if (!wp.shape) return wp
   const base = wp.shape
@@ -1884,6 +2449,49 @@ export async function cutBlind(
   const absDepth = Math.abs(depth)
   const invNormal: [number, number, number] = [-wp.normal[0], -wp.normal[1], -wp.normal[2]]
   let result = base
+  if (opts?.taper) {
+    // Tapered pocket via kernel draftPrism (same sign convention as extrude:
+    // positive angle narrows along the extrusion direction, i.e. the pocket
+    // opening is the profile and the bottom is smaller). Verified vs 2.8.0:
+    // rect(2,2).extrude(2).faces(">Z").workplane().rect(1,1).cutBlind(-1,
+    // taper=5) -> vol 7.2.
+    const solidWires = (wp.pendingWires ?? []).filter((w) => !w.construction)
+    if (solidWires.length !== 1) {
+      throw new Error('[cq-compat] cutBlind: taper requires exactly one pending profile wire')
+    }
+    const profile = await buildProfileWire(wp, solidWires[0])
+    const face = unwrapBrepResult(compatFn('makeFace')(profile))
+    const kernel = getKernel() as unknown as OcctKernel
+    const raw = (
+      kernel as unknown as {
+        draftPrism: (
+          face: ShapeHandle,
+          dx: number,
+          dy: number,
+          dz: number,
+          angleDeg: number,
+        ) => ShapeHandle
+      }
+    ).draftPrism(
+      rawShapeId(face) as unknown as ShapeHandle,
+      invNormal[0] * absDepth,
+      invNormal[1] * absDepth,
+      invNormal[2] * absDepth,
+      opts.taper,
+    )
+    const tool = fromHandle(raw)
+    result = await cutShapes(base, tool)
+    return clone(wp, {
+      shape: result,
+      faceSel: null,
+      edgeSel: null,
+      pts: [],
+      pendingWires: [],
+      pendingRect: undefined,
+      pendingCircle: undefined,
+      pendingPolygon: undefined,
+    })
+  }
   // CadQuery semantics: pushPoints() before cutBlind() repeats the cut at every
   // point. With no pushed points, the cut happens at the workplane origin.
   const ptsArr = eachPoints(wp)
@@ -2165,6 +2773,31 @@ export function vertices(
     }
   }
   return clone(wp, { vertexSel: typeof sel === 'string' ? sel : '', faceSel: null, edgeSel: null, pts: [...pts] })
+}
+
+/**
+ * solids — CadQuery `Workplane.solids(selector)` parity (selector forms not
+ * supported; bare `solids()` only).
+ *
+ * Upstream returns a new Workplane whose stack holds each solid of the current
+ * compound as a separate object, so `val()` is the FIRST solid (verified vs
+ * cadquery 2.8.0: test_map_apply_filter_sort w.val() = vol 1.0 solid). The
+ * cq-compat carrier keeps a single `.shape`, so `solids()` mirrors the
+ * observable contract: the carrier shape becomes the first solid of the
+ * compound (a single-solid shape passes through unchanged).
+ */
+export function solids(wp: Workplane): Workplane {
+  if (!wp.shape) return wp
+  const handle = brepOf(wp.shape)
+  if (handle === undefined) return wp
+  const kernel = getKernel() as unknown as OcctKernel
+  const sub = kernel.getSubShapes(handle as unknown as ShapeHandle, 'solid') as unknown as ShapeHandle[]
+  if (sub.length === 0) return wp
+  // Adopt the first solid into faijs ownership; release the rest (raw kernel
+  // getSubShapes copies each sub-shape into its own arena slot — same contract
+  // the kernel's own makeWireFromMixed wrapper honors).
+  for (let i = 1; i < sub.length; i++) kernel.release(sub[i])
+  return clone(wp, { shape: fromHandle(sub[0]) })
 }
 
 /**
@@ -2989,31 +3622,105 @@ function resolveFaceEdgeSelection(shape: Shape, sel: string): unknown[] {
 
 /**
  * shell
+ *
+ * CadQuery `Workplane.shell(thickness)` parity: shells the solid found on the
+ * stack, removing the faces selected by a preceding `faces(sel)` (empty
+ * selection = `Shape.hollow` — no faces removed, the solid is hollowed into a
+ * closed shell, verified vs cadquery 2.8.0: `box(2,2,2).shell(-0.1)` → 12
+ * faces, vol 2.168). The kernel call is `OcctKernel.shell` =
+ * `BRepOffsetAPI_MakeThickSolidByJoin` (negative thickness → walls inward,
+ * positive → walls outward, mirroring upstream sign semantics).
+ *
+ * Face removal set: single-axis selectors (">Z"/"<Z"/"+Z"/"-Z" …) pick the
+ * faces perpendicular to the axis whose bbox center sits at the extreme —
+ * the same criteria `resolveFaceSelector` uses. Multi-axis and indexed
+ * selectors are not supported here yet (the blocked mirrors that need them
+ * are out of this phase's scope).
+ *
  * @param wp - Workplane
- * @param thickness - number
+ * @param thickness - number (negative: inward hollow)
  * @returns Promise<Workplane>
  */
 export async function shell(wp: Workplane, thickness: number): Promise<Workplane> {
   if (!wp.shape) return wp
-  try {
-    const handle = borrowBrepjsShape(wp.shape)
-    const shellFn = (brepjsCompat as Record<string, unknown>).shell as
-      | ((...args: unknown[]) => unknown)
-      | undefined
-    if (!shellFn) return wp
-    const result = shellFn(handle, thickness) as { ok?: boolean; value?: unknown } | unknown
-    const product =
-      result && typeof result === 'object' && 'ok' in result
-        ? (result as { ok: boolean; value?: unknown }).value
-        : result
-    if (product) {
-      const shape = adoptBrepjsProduct(product)
-      return clone(wp, { shape })
-    }
-  } catch {
-    // Shell failed — return unchanged
+  const handle = brepOf(wp.shape)
+  if (handle === undefined) return wp
+  const kernel = getKernel() as unknown as OcctKernel
+  const facesToRemove: ShapeHandle[] = []
+  if (wp.faceSel) {
+    facesToRemove.push(
+      ...selectFaceHandlesForRemoval(kernel, handle as unknown as ShapeHandle, wp.faceSel),
+    )
   }
-  return wp
+  const h = handle as unknown as ShapeHandle
+  let shape: Shape
+  if (thickness < 0) {
+    if (facesToRemove.length > 0) {
+      // Walls inward with openings: the kernel call IS MakeThickSolidByJoin
+      // semantics (remove faces, offset remaining inward by |thickness|).
+      shape = fromHandle(kernel.shell(h, facesToRemove, -thickness, 1e-3))
+    } else {
+      // Closed hollow (upstream Shape.hollow): kernel.shell with NO removed
+      // faces degenerates to the inward-offset solid (measured: box(2,2,2)
+      // +0.1 -> 1.8^3 = 5.832), so the wall solid is original minus offset.
+      const inner = fromHandle(kernel.shell(h, [], -thickness, 1e-3))
+      shape = await cutShapes(wp.shape, inner)
+    }
+  } else {
+    if (facesToRemove.length > 0) {
+      throw new Error(
+        '[cq-compat] shell: positive thickness (walls outward) with removed faces is not supported',
+      )
+    }
+    // Walls outward: rounded outward offset (arc-joined corners) minus the
+    // original solid (verified vs 2.8.0: box(2,2,2).shell(0.1) -> 32 faces,
+    // vol 2.592684356757526, bbox +-1.1).
+    const outer = fromHandle(kernel.offset(h, thickness, 1e-3))
+    shape = await cutShapes(outer, wp.shape)
+  }
+  return clone(wp, { shape, faceSel: null, edgeSel: null, vertexSel: null })
+}
+
+/**
+ * Enumerate the solid's faces and return the removal set for `shell()` for a
+ * single-axis selector string. A face participates when its bbox is thin along
+ * the axis (perpendicular face) and its bbox center sits at the extreme end
+ * picked by the selector (ties collected, matching upstream's multi-face
+ * `faces("+Z")` selection semantics).
+ */
+function selectFaceHandlesForRemoval(
+  kernel: OcctKernel,
+  handle: ShapeHandle,
+  sel: string,
+): ShapeHandle[] {
+  const m = /^([<>+-])([XYZ])$/.exec(sel.trim())
+  if (!m) {
+    throw new Error(
+      `[cq-compat] shell: face selector "${sel}" not supported (single-axis >Z/<Z/+Z/-Z only)`,
+    )
+  }
+  const axisMap: Record<string, 0 | 1 | 2> = { X: 0, Y: 1, Z: 2 }
+  const axis = axisMap[m[2]]
+  const sign = m[1] === '<' || m[1] === '-' ? -1 : 1
+  const faces = kernel.getSubShapes(handle, 'face') as unknown as ShapeHandle[]
+  const perp: { h: ShapeHandle; c: number }[] = []
+  for (const f of faces) {
+    const bb = kernel.getBoundingBox(f)
+    const ext = [bb.xmax - bb.xmin, bb.ymax - bb.ymin, bb.zmax - bb.zmin][axis]
+    if (ext > 0.1) continue
+    const c = [(bb.xmin + bb.xmax) / 2, (bb.ymin + bb.ymax) / 2, (bb.zmin + bb.zmax) / 2][axis]
+    perp.push({ h: f, c })
+  }
+  if (perp.length === 0) {
+    throw new Error(`[cq-compat] shell: no face perpendicular to axis for selector "${sel}"`)
+  }
+  const best = sign === 1 ? Math.max(...perp.map((p) => p.c)) : Math.min(...perp.map((p) => p.c))
+  const TOL = 1e-6
+  const picked = perp.filter((p) => Math.abs(p.c - best) <= TOL).map((p) => p.h)
+  if (picked.length === faces.length) {
+    throw new Error(`[cq-compat] shell: selector "${sel}" would remove every face`)
+  }
+  return picked
 }
 
 /**

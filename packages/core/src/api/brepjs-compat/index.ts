@@ -202,8 +202,15 @@ import { applyMatrix as vendoredApplyMatrix } from '../../vendored/brepjs/topolo
 import {
   makeCircle as vendoredMakeCircle,
   makeLine as vendoredMakeLine,
+  makeThreePointArc as vendoredMakeThreePointArc,
+  makeTangentArc as vendoredMakeTangentArc,
+  makeBSplineInterpolation as vendoredMakeBSplineInterpolation,
   assembleWire as vendoredAssembleWire,
 } from '../../vendored/brepjs/topology/curveBuilders.js'
+import {
+  curveTangentAt as vendoredCurveTangentAt,
+  curvePointAt as vendoredCurvePointAt,
+} from '../../vendored/brepjs/topology/curveFns.js'
 import {
   makeFace as vendoredMakeFace,
   addHolesInFace as vendoredAddHolesInFace,
@@ -282,6 +289,16 @@ export const assembleWire = wrapGuarded('assembleWire', vendoredAssembleWire)
 export const makeFace = wrapGuarded('makeFace', vendoredMakeFace)
 /** Punch hole wires into an existing face. */
 export const addHolesInFace = wrapGuarded('addHolesInFace', vendoredAddHolesInFace)
+/** Circular arc edge through three points (start, mid, end). */
+export const makeThreePointArc = wrapGuarded('makeThreePointArc', vendoredMakeThreePointArc)
+/** Circular arc edge from a start point + start tangent to an end point. */
+export const makeTangentArc = wrapGuarded('makeTangentArc', vendoredMakeTangentArc)
+/** Interpolated cubic B-spline edge through every input point. Returns a `Result`. */
+export const makeBSplineInterpolation = wrapGuarded('makeBSplineInterpolation', vendoredMakeBSplineInterpolation)
+/** Tangent vector of an edge/wire curve at a normalized position (1 = end). */
+export const curveTangentAt = wrapGuarded('curveTangentAt', vendoredCurveTangentAt)
+/** Point on an edge/wire curve at a normalized position. */
+export const curvePointAt = wrapGuarded('curvePointAt', vendoredCurvePointAt)
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ①b library-building factories (P24, §8.1): spur gears, planetary trains, threads.
