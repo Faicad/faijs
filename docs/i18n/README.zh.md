@@ -14,12 +14,13 @@
 
 在范围内：
 - 根目录 `README.md`
-- `docs/**/*.md`（除 `docs/plans/`、`docs/analysis/`、`docs/AGENTS.md`）
+- `docs/**/*.md`（除 `docs/plans/`、`docs/analysis/`、`docs/handover/`、`docs/AGENTS.md`）
 - `.agents/notes/**/*.md`（除 `AGENTS.md` 文件）
 
 不在范围内（在 `scripts/translation-pairing.manifest.json` 中排除）：
 - `docs/plans/` — 设计文档，单语言（中文）
 - `docs/analysis/` — 技术分析，单语言（中文）
+- `docs/handover/` — 交接记录，单语言（中文）
 - `AGENTS.md`、`docs/AGENTS.md`、`.agents/notes/AGENTS.md` — 指令文件，仅英文
 - `docs/i18n/terminology.md`、`docs/i18n/style-samples.md`、`docs/i18n/translation-prompt.md` — 天然双语或机器消费
 

@@ -14,12 +14,13 @@ Every in-scope document is a trio of files in the same directory:
 
 In-scope:
 - Root `README.md`
-- `docs/**/*.md` (except `docs/plans/`, `docs/analysis/`, `docs/AGENTS.md`)
+- `docs/**/*.md` (except `docs/plans/`, `docs/analysis/`, `docs/handover/`, `docs/AGENTS.md`)
 - `.agents/notes/**/*.md` (except `AGENTS.md` files)
 
 Out of scope (excluded in `scripts/translation-pairing.manifest.json`):
 - `docs/plans/` — design documents, single-language (Chinese)
 - `docs/analysis/` — technical analysis, single-language (Chinese)
+- `docs/handover/` — handover records, single-language (Chinese)
 - `AGENTS.md`, `docs/AGENTS.md`, `.agents/notes/AGENTS.md` — instruction files, English only
 - `docs/i18n/terminology.md`, `docs/i18n/style-samples.md`, `docs/i18n/translation-prompt.md` — bilingual by construction or machine-consumed
 

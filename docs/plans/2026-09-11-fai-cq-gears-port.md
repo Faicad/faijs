@@ -449,10 +449,10 @@ npm run doc-sync
 
 ## 13. 待拍板 / 已知风险（执行方遇到即上报）
 
-1. **cq-compat parity 是硬阻塞（首要风险）**：fai_cq_gears 完成度受 cq-compat 进度约束。当前 cq-compat parity 34.46% / PASS 220（2026-09-10）；齿轮相关核心 op 已 ported 但须在齿轮精度（T1/T2）下复验。E1–E4 必须先合入 cq-compat，fai_cq_gears 才能解锁对应类。**建议并行**：cq-compat 补 E1–E4 + 提 gear-relevant op 精度；fai_cq_gears 同步 1:1 翻译。
+1. **cq-compat parity 是硬阻塞（首要风险）**：fai_cq_gears 完成度受 cq-compat 进度约束。当前 cq-compat parity **35.69% / PASS 228**（2026-09-11；PASS-NT 4 / FAIL 1 / BLOCKED 417）；齿轮相关核心 op 已 ported 但须在齿轮精度（T1/T2）下复验。**E1–E4 已落地并合入**（`splineFace` / `helix` / `splitFace` / `twistExtrude`，见 `docs/plans/2026-09-11-cq-compat-gears-extensions-e1-e4.md`），fai_cq_gears 已可解锁对应类；但删 shim 仍受 E5/E6 阻塞（见本表第 6 条）。**建议并行**：cq-compat 补 E5/E6 + 提 gear-relevant op 精度；fai_cq_gears 同步 1:1 翻译。
 2. **cadquery 版本漂移**：本机 `cadquery-env` 2.8.0 vs 旧机 2.6.dev0；cq_gears 0.62 在 2.8.0 下先 `import cadquery, cq_gears` 干净通过再生成参考。
 3. **齿面 B-spline 走 `loft` 还是 E1 `splineFace`**：**已定案（2026-09-11 实测）**——走 **E1 `cq.splineFace` 的默认 S2 `row-approx-loft`**。理由：cq-compat 的 `loft` op 只吃「pending wire 描述符」或 `wp.shape` 的面外环，**不能**吃外部 3D 行点；`cq.spline` 是 2D 且用 `makeBSplineInterpolation`（= S3 插值），不是 S2 的曲线逼近。E1 内部已实现 S2（`approximatePoints(tol=1e-2)` + `loft`），实测与第 1 版 S2 面积**逐位相同**、对 cq 参考最大距离 2.646e-6 → **直接消费，不要再在 fai_cq_gears 自重写 S2**。
-4. **`twistExtrude` / `helix` / `splitFace` 缺口**：见 §4，属 cq-compat 扩展，fai_cq_gears 不自行实现（除 §4 临时 shim）。
+4. **`twistExtrude` / `helix` / `splitFace` 缺口**：见 §4，属 cq-compat 扩展，fai_cq_gears 不自行实现（除 §4 临时 shim）。**状态：2026-09-11 已落地并合入**（连同 E1 `splineFace`）。
 5. **`gen-reference.ps1` 缺失**（§2.5-4）：补文件或改 package.json 直调 python。
 6. **【新·高】删 shim 还差 2 个 cq-compat 原语（E5/E6）**：把 `spur_gear.ts` 从裸内核迁到 cq-compat 时发现，v1 的装配步骤在 cq-compat **没有对应 op**：
    - **E5 `solidFromFaces`**（sew + makeSolid + fixFaceOrientations）：cq-compat 现有 op 里没有 sew/makeSolid/solidify（`shell` 是抽壳，不是缝合）。v1 `spur_gear.ts:126-132` 依赖 `kernel.sew/makeSolid/fixFaceOrientations`。
@@ -460,5 +460,5 @@ npm run doc-sync
    - 两者都是 occt-wasm 原生方法的薄封装（`sew`/`makeSolid`/`fixFaceOrientations`/`getSubShapes`/`makeWire`/`healWire`/`makeFace` 均在 `index.d.ts`），可仿 E1–E4 模式落进 cq-compat。**API 形态待拍板**（建议 `solidFromFaces(wp, faces[], opts?)` + `capFacesAt`/`boundaryFace(wp, faces[], plane, tol)`）。
 7. **【新·高】cq_gears Python 源在本机不存在**：`C:\git\CADQ\` 只有 `cadquery` 与 `mini_lathe`，`FAI_CQ_GEARS_SRC` 未设；`cadquery-env` 里也没装 `cq_gears`（`site-packages` 无 gear 目录）。⇒ **P2–P5（Ring/Bevel/Rack/Worm/Pairs 等 14 类）无法在本机逐字对照 Python 源翻译**。可用的替代：(a) 拿回 cq_gears 源；(b) 仅靠已入库的 `fixtures/reference/*.step` 做 T2 反推（不足以 1:1 复刻参数语义）。**SpurGear 不受影响**（v1 `spur_gear.ts` 已含映射与注释）。
 8. **【新·中】`src/index.ts` 只应先覆盖已实现的类**：15 函数中目前只有 SpurGear 有构造器；其余在 P2–P5 落地前应返回显式错误（不静默占位），避免 `registerLib` 装载后调用得到假结果。
-6. **mesh 不支持**：齿轮库 brep-only。
-7. **参数域极端值挂死**：靠 §9.3 子进程超时隔离。
+9. **mesh 不支持**：齿轮库 brep-only。
+10. **参数域极端值挂死**：靠 §9.3 子进程超时隔离。

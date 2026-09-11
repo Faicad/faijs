@@ -4,6 +4,8 @@ English | [中文](README.zh.md)
 
 Geometry-equivalence verification between CadQuery and cq-compat. The AST-injection capture harness for upstream test geometry is designed in the `2026-09-08-cq-compat-cadquery-parity-harness` decision note under `.agents/notes/proposed/testing/`.
 
+Taking over this package? Start with the handover document — [`docs/handover/2026-09-10-cq-compat-handover.md`](../../../docs/handover/2026-09-10-cq-compat-handover.md) — environment and paths, the parity pipeline, known pitfalls and red lines, the blocked inventory, the current baseline, and the acceptance checklist.
+
 ## Layout
 
 ```

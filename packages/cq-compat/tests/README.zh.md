@@ -4,6 +4,8 @@
 
 CadQuery ⇄ cq-compat 几何等价验证（抓取上游测试几何的 AST 注入 harness 见 `.agents/notes/proposed/testing/` 下的 `2026-09-08-cq-compat-cadquery-parity-harness` 决策记录）。
 
+接手本包？先读交接文档 —— [`docs/handover/2026-09-10-cq-compat-handover.md`](../../../docs/handover/2026-09-10-cq-compat-handover.md) —— 覆盖环境与路径、parity 链路、已知坑与红线、blocked 清单、当前基线与验收清单。
+
 ## 布局
 
 ```

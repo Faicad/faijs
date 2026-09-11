@@ -9,6 +9,7 @@
     "docs/i18n/translation-prompt.md",
     "docs/plans/",
     "docs/analysis/",
+    "docs/handover/",
     "packages/core/src/vendored/"
   ]
 }
