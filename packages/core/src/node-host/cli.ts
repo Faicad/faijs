@@ -22,7 +22,7 @@ import { createFsProjectLoader, findProjectRoot, projectKeyOf } from './fs-proje
 import { buildStlBufferFromMesh } from '../brep/export/stl'
 import { exportStepFromSolid, exportStepFromSolids, type StepExportEntry } from '../brep/export/step'
 import { exportStep } from '../occt-kernel/highLevelApi'
-import { initOcctWasm } from '../occt-kernel/occtKernel'
+import { registerOcctBrepEngine } from '../brep/engine/adapters/occt'
 import type { Shape } from '../mesh/types'
 import type { CompoundShape } from '../shape'
 import { ensureSlot } from '../shape'
@@ -176,8 +176,10 @@ export async function cliRun(
   const projectRoot = opts?.projectRoot ? resolve(opts.projectRoot) : findProjectRoot(filePath)
   const entryKey = projectKeyOf(projectRoot, filePath)
 
-  // Initialize OCCT
-  await initOcctWasm()
+  // Initialize OCCT and bind the vendored brepjs kernel registry (D10) so that
+  // cq-compat parts (which project ops through compatFn) run end-to-end under
+  // the CLI. registerOcctBrepEngine is idempotent and itself boots initOcctWasm.
+  await registerOcctBrepEngine()
 
   // Create runtime with node ports
   const ports = withCliProjectLoader(

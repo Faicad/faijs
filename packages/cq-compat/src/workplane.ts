@@ -544,23 +544,37 @@ export async function resolveFaceSelector(
       // Extract the index suffix, if any.
       const idxMatch = /\[(-?\d+)\]$/.exec(sel.trim())
       if (idxMatch) {
-        // CadQuery DirectionMinMaxSelector indexing (verified vs cadquery
-        // 2.8.0): '>A[k]' → faces ascending along A; '<A[k]' → descending.
-        // Only faces PERPENDICULAR to the axis participate (bbox thin along
-        // the axis), matching CadQuery's normal-direction filter.
+        // CadQuery face indexing (verified vs cadquery 2.8.0):
+        //   '>A[k]' / '<A[k]'  DirectionMinMaxSelector: '>' ascending, '<' descending
+        //   '+A[k]' / '-A[k]'  DirectionSelector: list the extreme face first, then
+        //                      inward — '-' ascending, '+' descending along A
+        //                      (faces("-Y")[1] is the 2nd -Y face from the -Y extreme,
+        //                      NOT the +Y extreme face).
+        // Only faces PERPENDICULAR to the axis participate (bbox thin along the axis).
+        // For '+'/'-' selectors we additionally keep only faces whose outward normal
+        // is parallel to the selector axis with the matching sign (CadQuery filters
+        // by exact normal direction), so a boss face and its base sibling don't
+        // collide in the index.
+        const sc = baseSel[0]
+        const isDirSelector = sc === '+' || sc === '-'
         const perp: typeof cands = cands.filter((cd) => {
           const bb = kernel.getBoundingBox(cd.handle)
           const ext = [bb.xmax - bb.xmin, bb.ymax - bb.ymin, bb.zmax - bb.zmin][dir.axis]
-          return ext <= 0.1
+          if (ext > 0.1) return false
+          if (isDirSelector) {
+            const uv = kernel.uvBounds(cd.handle)
+            const n = kernel.surfaceNormal(cd.handle, (uv.uMin + uv.uMax) / 2, (uv.vMin + uv.vMax) / 2)
+            const nv: [number, number, number] = [n.x, n.y, n.z]
+            if (Math.abs(nv[dir.axis]) < 0.999) return false
+            if (Math.sign(nv[dir.axis]) !== dir.sign) return false
+          }
+          return true
         })
         const idx = parseInt(idxMatch[1], 10)
+        const asc = sc === '>' || sc === '-'
         const sorted = perp
           .slice()
-          .sort((a, b) =>
-            dir.sign === 1
-              ? a.center[dir.axis] - b.center[dir.axis]
-              : b.center[dir.axis] - a.center[dir.axis],
-          )
+          .sort((a, b) => (asc ? a.center[dir.axis] - b.center[dir.axis] : b.center[dir.axis] - a.center[dir.axis]))
         const pick = idx < 0 ? sorted.length + idx : idx
         if (pick < 0 || pick >= sorted.length) {
           throw new Error(
@@ -568,12 +582,17 @@ export async function resolveFaceSelector(
           )
         }
         best = sorted[pick]
-        // Outward normal: away from the shape bbox center along the axis.
-        const max = bboxMax(shape)
-        const min = bboxMin(shape)
-        const shapeCenter = [(max[0] + min[0]) / 2, (max[1] + min[1]) / 2, (max[2] + min[2]) / 2]
-        normal = [0, 0, 0]
-        normal[dir.axis] = best.center[dir.axis] >= shapeCenter[dir.axis] ? 1 : -1
+        if (isDirSelector) {
+          // DirectionSelector: the outward normal is exactly the selector axis/sign.
+          normal = fallbackNormal
+        } else {
+          // DirectionMinMaxSelector: outward normal from face position vs shape centre.
+          const max = bboxMax(shape)
+          const min = bboxMin(shape)
+          const shapeCenter = [(max[0] + min[0]) / 2, (max[1] + min[1]) / 2, (max[2] + min[2]) / 2]
+          normal = [0, 0, 0]
+          normal[dir.axis] = best.center[dir.axis] >= shapeCenter[dir.axis] ? 1 : -1
+        }
       } else {
         for (const cd of cands) {
           const val = cd.center[dir.axis]

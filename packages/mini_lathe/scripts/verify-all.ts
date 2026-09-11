@@ -40,13 +40,12 @@ const PARTS: Array<[name: string, expectedLeaves: number]> = [
 ]
 const ASM_PARTS = ['axk', 'bp', 'mb', 'mt', 'slide_top', 'tp']
 
-/** slide_top 实测基线（2026-09-08 cboreHole 修复后重导出：沉孔深 = 精确 cboreDepth，不再 +1）。
- *  注意：这只是回归护栏；slide_top 与 CadQuery ref 尚有 2.5% 差（ref 多 3 面/2646mm³，
- *  移植脚本特征缺口，见 docs/plans/2026-09-08-cq-compat-cadquery-parity.md §11.3），
- *  与 ref 对齐后需再次更新本基线。 */
+/** slide_top 实测基线（Stage G 修复后：faces("±Y")[1] 索引选择器正确选 boss 面，
+ *  hex 切 / hole 落在 boss 而非 base 极端面）。与 CadQuery 2.8.0 ref 对齐：
+ *  ref 实跑 slide_top.py = 88421.299 / zmax 21.7（cadquery-env 验证）。 */
 const SLIDE_TOP_EXPECTED = {
-  volume: 86262.876, // 实测：cbore 修复后重导出 STEP 单 leaf（旧基线 88282.5 为 cbore+1 时代产物）
-  zmax: 21.7, // boss 顶面（8 + 13.7）；boss 未熔合悬浮时也是 21.7，但 leaf 数由第 1 项拦截
+  volume: 88421.299, // CadQuery 2.8.0 ref（faces("±Y")[1] boss 面 hex 切）
+  zmax: 21.7, // boss 顶面（8 + 13.7）
 }
 
 function assert(cond: boolean, msg: string): void {

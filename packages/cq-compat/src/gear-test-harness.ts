@@ -15,6 +15,7 @@
 import { registerOcctBrepEngine, configureBackends, CONTRACT_VERSION } from '@faicad/faijs-core'
 import { getKernel } from '@faicad/faijs-core/occt-kernel/occtKernel'
 import { brepOf } from '@faicad/faijs-core/shape'
+export { brepOf }
 import type { OcctKernel, ShapeHandle } from 'occt-wasm'
 import type { Shape } from '@faicad/faijs-core/mesh/types'
 import type { Workplane } from './workplane'
@@ -34,7 +35,21 @@ export async function setupNativeKernel(): Promise<void> {
   const k = getKernel() as unknown as OcctKernel
   configureBackends({
     contractVersion: CONTRACT_VERSION,
-    config: { mode: 'brep', brepEngineId: 'occt' },
+    // Mirror the OCCT engine capabilities declared in registerOcctBrepEngine so
+    // dual-ops that gate on a capability (e.g. cut → 'evolution') dispatch to
+    // brep instead of throwing E_BREP_UNSUPPORTED in the bare-kernel test path.
+    config: {
+      mode: 'brep',
+      brepEngineId: 'occt',
+      brepCapabilities: {
+        evolution: true,
+        heal: true,
+        directEdit: true,
+        advSurface: true,
+        assembly: true,
+        meshLift: true,
+      },
+    },
     kernel: { brep: k, csg: undefined, sdf: undefined },
     fonts: undefined,
     texture: undefined,

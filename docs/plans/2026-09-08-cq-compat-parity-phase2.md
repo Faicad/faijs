@@ -59,7 +59,7 @@
 | U9 | 2D wire 基础：`close` / `moveTo` / `lineTo` / `wire` | 19 / 8 / 3 / 3 | 是 | 否 | 无 | ★★★ |
 | U10 | `sweep` / `split` / `interpPlate` / `twistExtrude` / `wedge` / `text` | 10 / 16 / 5 / 4 / 3 / 9 | 是 | 部分 | 部分内核能力待核 | ★★★★ |
 | U11 | `importStep` / `load` / `save` / `export` / `importBrep` | 23 / 13 / 6 / 4 / 4 | 是 | 否 | 外部文件 IO | ★★★★ |
-| U12 | mini_lathe `slide_top` 2.50% 体积差（验收标准 3 未闭环） | 1 零件 | 待取证 | 待取证 | 无 | ★★★★ |
+| U12 | mini_lathe `slide_top` 2.50% 体积差（验收标准 3 已闭环） | 1 零件 | 已定位 | 已闭环 | 无 | ★★★★ |
 | U13 | 原方案 §10 三个待裁决问题（Q1/Q2/Q3） | — | — | — | 用户拍板 | — |
 
 ### 2.3 难度分级依据（写明判定标准，便于复核）
@@ -81,7 +81,7 @@ graph TD
   A --> C[阶段 C 压线 FAIL 取证]
   B --> D[阶段 D smoke fixture 入 vitest]
   B --> E[阶段 E moved 系 op 75]
-  C --> F[阶段 G slide_top 定位]
+  C --> F[阶段 G slide_top 已闭环 ✓]
   E --> G[阶段 F1 pendingWires 列表化]
   G --> H[阶段 F2 revolve]
   G --> I[阶段 F3 loft]
@@ -212,6 +212,20 @@ r2 = list(_get_wires(compound(r1, r1.moved(Location(0, 0, 1)))))
 **现状**：`slide_top` 体积差 2.50%（f73 vs f70，B−A = 2646 mm³），是原方案 §9 验收标准 3 唯一未闭环项。
 其余 6 个零件已完全等价。
 
+**✅ 状态：已闭环（2026-09-11）**。
+
+根因：`slide_top.fai.js` 移植丢失了 CadQuery 原版 `faces("-Y")[1]` / `faces("+Y")[1]` 的 `[1]` 索引——`cq.faces()` op 本就不支持索引，导致 hex 切与 hole 全部落在 base 极端面（y=±60）而非 boss 面（y≈±14.05/±4.05）。`resolveFaceSelector` 的索引分支对 `+`/`-` 方向选择器排序方向写反（会让 `[1]` 选到 base），且对 boss +Y 面算出的法线是内法线，使 `cutBlind` 的 `invNormal` 把下刀方向指向空腔、不落料。
+
+修复（`packages/cq-compat/src/workplane.ts` `resolveFaceSelector`）：
+- 索引分支排序方向改按选择器首字符判定：`-Y`/`>Z` 升序，`+Y`/`<Z` 降序，使 `[1]`=boss 面；
+- 对 `+`/`-` 选择器，先用面外法线过滤候选（只保留与选择器轴/符号平行的面），并直接以 `fallbackNormal` 作为外法线（修复 boss +Y 面下刀方向）；
+- `slide_top.fai.js` 三处 `faces("±Y")` 补回 `[1]`（对应 CadQuery `faces("±Y")[1]`）。
+
+验收（`packages/mini_lathe/scripts/verify-all.ts`，CLI 内核注册回归同步修复于 `packages/core/src/node-host/cli.ts`）：
+- 复刻几何实测体积 **88421.299**、`zmax` **21.700**，与 CadQuery 2.8.0 ref（cadquery-env 实跑 `slide_top.py`）**零误差**（≤0.01% 达成）；
+- 7 零件各 1 leaf、装配 6 leaf，verify-all 全绿，零回归；
+- 回归测试 `packages/cq-compat/src/slide-top-stage-g.test.ts`（选择器 + 体积双断言）；cq-compat 全量 127 测试通过。
+
 | 任务 | 内容 |
 |---|---|
 | G1 | 复用阶段 C 的布尔差定位方法，把 2646 mm³ 差定位到具体 op 链（优先怀疑与 C 同源：faces→rect→cutBlind/cbore 链） |
@@ -277,7 +291,7 @@ r2 = list(_get_wires(compound(r1, r1.moved(Location(0, 0, 1)))))
 | 6 | F1 pendingWires | ★★★ | E | 3 FAIL 转 PASS；F3 前置 |
 | 7 | F2 `revolve` | ★★ | F1 同批 | +5 var |
 | 8 | F3 `loft` | ★★★ | F1 | +18 var |
-| 9 | G slide_top 定位 | ★★★★ | C | 验收标准 3 闭环 |
+| 9 | G slide_top 定位 | ★★★★ | C | ✅ 验收标准 3 闭环（体积 88421.299=ref） |
 | 10 | H 2D wire 基础 | ★★★ | F | +33 var，解锁后续 |
 | 11 | I 深水 op / IO | ★★★★ | H（部分） | 评估为主，能做的挑着做 |
 | — | **J Sketch / nurbs / hull** | ★★★★★ | 类模型 + ref 扩范围 | **远期（P6+），一期不做** |
