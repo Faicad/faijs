@@ -84,6 +84,10 @@ export {
   vals,
   transformed,
   setColor,
+  splineFace,
+  helix,
+  splitFace,
+  twistExtrude,
 } from './workplane'
 export type { Workplane as WorkplaneType, RGB, CqLocation } from './workplane'
 

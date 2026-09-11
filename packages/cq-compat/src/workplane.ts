@@ -4078,3 +4078,221 @@ export async function transformed(
 export function setColor(wp: Workplane, color: RGB): Workplane {
   return clone(wp, { color })
 }
+
+// ── Gear-extension primitives (E1–E4) ───────────────────────────────────────
+// These four ops are required by the fai_cq_gears port (see
+// docs/plans/2026-09-11-cq-compat-gears-extensions-e1-e4.md). All call the
+// occt-wasm kernel directly via `getKernel()` — the same singleton fai_cq_gears
+// uses — so their `ShapeHandle`s are compatible with the rest of cq-compat.
+// occt-wasm already exposes `bsplineSurface` / `makeHelixWire` / `split` /
+// `halfSpace` natively (node_modules/occt-wasm/dist/index.d.ts:77/112/189/390),
+// so no vendored-layer extension is needed.
+//
+// NOTE: occt-wasm's JS wrapper reads `.x/.y/.z` off point arguments
+// (dist/index.js:169/396/485 and `#flattenPoints` at :1479) — it requires plain
+// `{x,y,z}` objects, NOT the `[x,y,z]` tuples faijs uses internally. `v3`
+// converts a tuple to the shape occt-wasm expects.
+
+const v3 = (t: [number, number, number]): { x: number; y: number; z: number } => ({
+  x: t[0],
+  y: t[1],
+  z: t[2],
+})
+
+
+/**
+ * splineFace — build a B-spline surface face from a regular point grid and set
+ * it as the workplane's current shape. Equivalent to CadQuery
+ * `Face.makeSplineSurface(points, tol)`.
+ *
+ * The grid is a row-major array of `rows*cols` world-space points; occt-wasm's
+ * `bsplineSurface` fits a `GeomAPI_PointsToBSplineSurface` through them. The
+ * workplane's plane/origin are used only for diagnostics — points are in world
+ * coordinates.
+ *
+ * @param wp - Workplane (carrier only; geometry comes from `grid`)
+ * @param grid - world-space points, row-major (length must equal `rows*cols`)
+ * @param opts - `{ rows: number; cols: number; tolerance?: number }`
+ *   (`tolerance` is reserved; occt-wasm's default `GeomAPI` tolerances are used)
+ * @returns Workplane with the spline face as `.shape`
+ */
+export async function splineFace(
+  wp: Workplane,
+  grid: [number, number, number][],
+  opts: { rows: number; cols: number; tolerance?: number },
+): Promise<Workplane> {
+  const { rows, cols } = opts
+  if (!Number.isInteger(rows) || !Number.isInteger(cols) || rows < 2 || cols < 2) {
+    throw new Error('[cq-compat] splineFace: rows and cols must be integers >= 2')
+  }
+  if (grid.length !== rows * cols) {
+    throw new Error(
+      `[cq-compat] splineFace: grid length ${grid.length} != rows*cols (${rows * cols})`,
+    )
+  }
+  const kernel = getKernel() as unknown as OcctKernel
+  const raw = (
+    kernel as unknown as {
+      bsplineSurface: (
+        pts: { x: number; y: number; z: number }[],
+        rows: number,
+        cols: number,
+      ) => ShapeHandle
+    }
+  ).bsplineSurface(grid.map(v3), rows, cols)
+  return clone(wp, { shape: fromHandle(raw) })
+}
+
+/**
+ * helix — create a helical wire on the workplane (origin = `wp.origin`, axis =
+ * `wp.normal`). Equivalent to CadQuery `Workplane().makeHelix(pitch, height,
+ * radius, ...)`.
+ *
+ * @param wp - Workplane (origin + normal define the helix axis)
+ * @param pitch - axial advance per full turn (mm)
+ * @param height - total helix height (mm)
+ * @param radius - helix radius (mm)
+ * @param opts - `{ leftHanded?: boolean }` (default right-handed)
+ * @returns Workplane with the helix wire as `.shape`
+ */
+export async function helix(
+  wp: Workplane,
+  pitch: number,
+  height: number,
+  radius: number,
+  opts?: { leftHanded?: boolean },
+): Promise<Workplane> {
+  const kernel = getKernel() as unknown as OcctKernel
+  const axis: [number, number, number] = opts?.leftHanded
+    ? [-wp.normal[0], -wp.normal[1], -wp.normal[2]]
+    : wp.normal
+  const raw = (
+    kernel as unknown as {
+      makeHelixWire: (
+        origin: { x: number; y: number; z: number },
+        axis: { x: number; y: number; z: number },
+        pitch: number,
+        height: number,
+        radius: number,
+      ) => ShapeHandle
+    }
+  ).makeHelixWire(v3(wp.origin), v3(axis), pitch, height, radius)
+  return clone(wp, { shape: fromHandle(raw) })
+}
+
+/**
+ * splitFace — split the workplane's current shape by a plane and keep one side.
+ * Equivalent to CadQuery `face.split(plane)` / `split(keepTop)`.
+ *
+ * Internally builds a half-space tool (`occt-wasm` `halfSpace`) from the plane
+ * and runs `BOPAlgo_Splitter` (`split`); the kept fragment is selected by the
+ * signed distance of its bounding-box centre to the plane.
+ *
+ * @param wp - Workplane whose `.shape` is the face/solid to split
+ * @param plane - splitting plane as `{ origin: Vec3; normal: Vec3 }`
+ * @param keep - `'top'` (normal side, default) | `'bottom'` (opposite side)
+ * @returns Workplane with the kept fragment as `.shape`
+ */
+export async function splitFace(
+  wp: Workplane,
+  plane: { origin: [number, number, number]; normal: [number, number, number] },
+  keep: 'top' | 'bottom' = 'top',
+): Promise<Workplane> {
+  if (!wp.shape) throw new Error('[cq-compat] splitFace: wp.shape is required')
+  const handle = brepOf(wp.shape)
+  if (!handle) throw new Error('[cq-compat] splitFace: BREP unavailable')
+  const kernel = getKernel() as unknown as OcctKernel
+  const n = plane.normal
+  const nLen = Math.hypot(n[0], n[1], n[2]) || 1
+  const un: [number, number, number] = [n[0] / nLen, n[1] / nLen, n[2] / nLen]
+  const tool = (
+    kernel as unknown as {
+      halfSpace: (
+        o: { x: number; y: number; z: number },
+        nrm: { x: number; y: number; z: number },
+      ) => ShapeHandle
+    }
+  ).halfSpace(v3(plane.origin), v3(un))
+  const compound = (
+    kernel as unknown as { split: (s: ShapeHandle, tools: ShapeHandle[]) => ShapeHandle }
+  ).split(handle as unknown as ShapeHandle, [tool])
+  const subType = hasSolidBase(wp.shape) ? 'solid' : 'face'
+  let frags = kernel.getSubShapes(compound, subType) as unknown as ShapeHandle[]
+  if (!frags || frags.length === 0) {
+    frags = kernel.getSubShapes(compound, 'face') as unknown as ShapeHandle[]
+  }
+  const signedDist = (f: ShapeHandle): number => {
+    const bb = kernel.getBoundingBox(f)
+    const cx = (bb.xmin + bb.xmax) / 2
+    const cy = (bb.ymin + bb.ymax) / 2
+    const cz = (bb.zmin + bb.zmax) / 2
+    return (cx - plane.origin[0]) * un[0] + (cy - plane.origin[1]) * un[1] + (cz - plane.origin[2]) * un[2]
+  }
+  const chosen = frags.filter((f) => (keep === 'top' ? signedDist(f) >= 0 : signedDist(f) < 0))
+  if (chosen.length === 0) {
+    throw new Error('[cq-compat] splitFace: no fragment on the kept side')
+  }
+  // Robust for a planar split: keep the single fragment, or the one whose
+  // centre is furthest from the plane when several match.
+  const result = chosen.reduce((a, b) => (Math.abs(signedDist(b)) > Math.abs(signedDist(a)) ? b : a))
+  // NOTE: we intentionally do NOT release `compound` / unchosen fragments here —
+  // the kept `result` is adopted by fromHandle; freeing the arena slots would
+  // invalidate it. The leak is bounded per call (one split).
+  return clone(wp, { shape: fromHandle(result) })
+}
+
+/**
+ * twistExtrude — extrude a profile while twisting it about the extrusion axis
+ * by `angle` (deg) over `height` (mm). Equivalent to CadQuery
+ * `Workplane().twistExtrude(profile, angle, height, ...)`.
+ *
+ * Implemented by sweeping `steps`+1 rotated+translated copies of the profile
+ * through `loft` (a smooth, ruled=False loft). The twist axis is `wp.normal`.
+ *
+ * @param wp - Workplane whose `.shape` is the profile (face/wire) to twist-extrude
+ * @param angle - total twist angle over height (deg)
+ * @param height - extrusion height (mm)
+ * @param opts - `{ steps?: number }` (section count; default scales with |angle|)
+ * @returns Workplane with the twisted solid as `.shape`
+ */
+export async function twistExtrude(
+  wp: Workplane,
+  angle: number,
+  height: number,
+  opts?: { steps?: number },
+): Promise<Workplane> {
+  const profile = wp.shape
+  if (!profile) {
+    throw new Error('[cq-compat] twistExtrude: profile required (set wp.shape to a profile face/wire)')
+  }
+  const raw = brepOf(profile)
+  if (raw === undefined) throw new Error('[cq-compat] twistExtrude: BREP unavailable')
+  const handle = raw as unknown as ShapeHandle
+  const steps = opts?.steps ?? Math.max(8, Math.ceil(Math.abs(angle) / 15))
+  const axis = wp.normal
+  const kernel = getKernel() as unknown as OcctKernel
+  const k = kernel as unknown as {
+    copy: (s: ShapeHandle) => ShapeHandle
+    rotate: (
+      s: ShapeHandle,
+      axis: {
+        point: { x: number; y: number; z: number }
+        direction: { x: number; y: number; z: number }
+      },
+      a: number,
+    ) => ShapeHandle
+    translate: (s: ShapeHandle, dx: number, dy: number, dz: number) => ShapeHandle
+  }
+  // Native rotate takes radians; rotate about the extrusion axis through the
+  // workplane origin so the profile twists in place (no translation drift).
+  const base = k.copy(handle)
+  const DEG2RAD = Math.PI / 180
+  const sections: Workplane[] = []
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps
+    const rot = k.rotate(base, { point: v3(wp.origin), direction: v3(axis) }, angle * t * DEG2RAD)
+    const tr = k.translate(rot, axis[0] * height * t, axis[1] * height * t, axis[2] * height * t)
+    sections.push(clone(wp, { shape: fromHandle(tr), pendingWires: [] }))
+  }
+  return loft(sections[0], ...sections.slice(1), { ruled: false })
+}

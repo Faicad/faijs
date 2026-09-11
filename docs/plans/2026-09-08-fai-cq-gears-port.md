@@ -1,7 +1,11 @@
 # fai_cq_gears —— 把 cq_gears 移植为 faijs 库（技术实现方案）
 
+> ⚠️ **本文件已废弃**：2026-09-11 实测复核发现包骨架与 SpurGear 裸实体已落地、且多处事实
+> （Python 环境、CLI 白名单、比对工具选型、公开 API 入口缺失）已变化。无歧义的执行规范见
+> **`docs/plans/2026-09-11-fai-cq-gears-port.md`**。本文件仅留作历史，请勿照此执行。
+
 日期：2026-09-08
-状态：**实施中（P0 可行性尖峰已落地，见 `docs/analysis/2026-09-08-fai-cq-gears-spike.md`：齿面定案 S2 `row-approx-loft`，直齿全维 EQUIVALENT，容差建议见尖峰报告 §6）**
+状态：**已废弃（被 2026-09-11-fai-cq-gears-port.md 替代）**
 移植源：`C:\git\CADQ\cq_gears`（cq_gears 0.62，Apache-2.0，作者 meadiode@github）
 基线仓库：`C:\my\Faicad\faijs`
 前置方案：`docs/plans/2026-09-06-cadquery-compat-and-multifile-faijs.md`（mini_lathe → `.fai.js`
