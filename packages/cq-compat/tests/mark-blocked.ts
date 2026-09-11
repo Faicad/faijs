@@ -90,6 +90,31 @@ const BY_KEY: Record<string, string> = {
   // global X and rejects major < minor ("gp_Elips: invalid construction
   // parameters"); every rotation entry point re-approximates the curve.
   'tests.test_selectors::TestCQSelectors::testEdgeTypesFilter__c': 'kernel:ellipse-tall-axis',
+  // ---------------------------------------------------------------------------
+  // Phase 2 stage K (batch 3) — sweep family, 2026-09-11
+  // ---------------------------------------------------------------------------
+  // Multisection sweep along a NON-line path or with path-relative placement:
+  // needs real MakePipeShell multisection (kernel only offers single-profile
+  // sweep / loft-style multisection). specialSweep's ref additionally relies on
+  // B-spline extrapolation beyond the section span (ref bbox exceeds the
+  // sections' span by ~1.09 on each side).
+  'tests.test_cadquery::TestCadQuery::testMultisectionSweep__specialSweep': 'op:sweep.multisection',
+  'tests.test_cadquery::TestCadQuery::testMultisectionSweep__arcSweep': 'op:sweep.multisection',
+  'tests.test_cadquery::TestCadQuery::testMultisectionSweep__normalSweep': 'op:sweep.multisection',
+  // Spline-path sweep with auxiliary spine (binormal rotation): kernel's
+  // sweepPipeShell legacy path silently drops the auxiliary spine, so no
+  // equivalent geometry is reachable.
+  'tests.test_cadquery::TestCadQuery::testSweep__result': 'op:sweep.aux-spine',
+  // test_sweep r5-r8 use the free-function sweep() over faces/inner wires with
+  // B-spline spines: needs the pipeShell path (profile placed BY the spine),
+  // not reproducible via as-is-section lofts.
+  'tests.test_free_functions:::test_sweep__r5': 'op:sweep.pipeshell',
+  'tests.test_free_functions:::test_sweep__r6': 'op:sweep.pipeshell',
+  'tests.test_free_functions:::test_sweep__r7': 'op:sweep.pipeshell',
+  'tests.test_free_functions:::test_sweep__r8': 'op:sweep.pipeshell',
+  // Auxiliary-spine sweep: kernel legacy path drops the auxiliary spine.
+  'tests.test_free_functions:::test_sweep_aux__r1': 'op:sweep.aux-spine',
+  'tests.test_free_functions:::test_sweep_aux__r2': 'op:sweep.aux-spine',
 }
 
 const manifest = JSON.parse(readFileSync(MANIFEST, 'utf-8')) as Record<

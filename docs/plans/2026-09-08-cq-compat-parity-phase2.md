@@ -1187,3 +1187,44 @@ r6 分解式、高椭圆必须显式失败 —— 另有临时内核探针测试
    静默产出错误几何比不支持更糟。
 4. 泛化的 `blockedBy`（`"ellipse"` / `"loft"`）在依赖项补齐后必须重新归因，否则阻塞清单
    会掩盖真实原因。
+
+### 7.29 阶段 K（第三批）— sweep 族直线路径用例打通 + blocked 精确归因 ✅ 完成（2026-09-11）
+
+承接 §7.28（PASS 220 / parity 34.46%），本批处理 sweep 族中**可复刻**的 6 个 var。
+关键判定：这 6 个 case 的 sweep 全部是**直线路径**（或截面已按路径位置摆放），
+几何上等价于现成 op 的组合，**无需新增 sweep op**（与 §7.27 `test_sweep__r3/r4` 同一先例）。
+
+**已 PASS（5 var）+ 近似（1 var）**：
+
+| case | 复刻方式 |
+|---|---|
+| `testSweep__box` | 导出变量就是基底盒 `box(10,10,10, centered=False)`，直接镜像 |
+| `testSweep__cut/add` | 上游 `_sweep` 保持 profile 平面（水平，法向 +Z）并平移到脊线起点，管道 = **斜圆柱**（水平圆 r1.5 平移 (0,10,10)，vol = π·1.5²·10 = 70.6858）→ 两个端圆 ruled loft 精确重建（在 cadquery 2.8.0 实测 cut 966.907084 / add 1037.592919 vs ref 966.907092 / 1037.592928），再 `cut`/`union` |
+| `testMultisectionSweep__defaultSweep/recttocircleSweep` | 直线脊线沿 X、截面已按位摆放 → multisection sweep ≡ smooth loft，as-is loft 精确命中（defaultSweep Δ 1e-11） |
+| `testMultisectionSweep__circletorectSweep` | 同上 loft 复刻，体积相对差 **1.1e-5**（75.5180 vs ref 75.5172，Δ 0.00085 mm³）、质心/bbox 全部过线，但 compare 判 **FAIL**：OCCT 布尔差探针在两个近重合 B 样条体上**确定性失败**（python OCCT 7.9 与 occt-wasm 均复现：common=0、cut 返回全量），真实差异远低于 0.1 mm³ 布尔容差——工具限制而非几何不符，如实保留 FAIL 并在此归因 |
+
+**本批 blocked 精确归因（tests/mark-blocked.ts，3 类）**：
+
+1. `op:sweep.multisection`（`testMultisectionSweep__specialSweep/arcSweep/normalSweep`）：
+   非直线路径或路径相对摆放，需真实 MakePipeShell 多截面（内核只有单 profile sweep +
+   loft 式 multisection 近似）。specialSweep 的 ref 还依赖 B 样条外插（bbox 超出截面跨度
+   ~1.09/侧）。
+2. `op:sweep.aux-spine`（`testSweep__result`、`test_sweep_aux__r1/r2`）：辅助脊线
+   （binormal 旋转）；内核 `sweepPipeShell` legacy 路径**静默丢弃** auxiliary spine，
+   等价几何不可达。
+3. `op:sweep.pipeshell`（`test_sweep__r5~r8`）：自由函数 sweep() 作用于**面**/内 wire、
+   B 样条脊线——profile 由脊线摆放（pipeShell 语义），不能用 as-is 截面 loft 复刻。
+
+**指标**：PASS 220 → **225**（+5），PASS-NT 4，FAIL **1**（circletorectSweep，工具布尔
+限制，见上），ERROR **0**，BLOCKED 413，parity 34.46% → **35.23%**。cq-compat 单测全绿
+（11 files / 113 passed，与本批前一致——镜像走 run-cand/compare 管线，不进 vitest）。
+临时探针 `tmp-sweep-probe.test.ts` / `tmp-sweep-probe2.test.ts` 已删除（移至仓库外）。
+
+**方法论沉淀**：
+1. sweep 镜像判定先问「脊线是直线吗、截面是否已按路径位置摆放」——两者皆是的 multisection
+   sweep ≡ smooth loft，单截面直线路径 sweep ≡ 端截面间 ruled loft（capped 斜柱）；
+   上游 `_sweep` 的 profile 摆放语义（保持原平面、平移到脊线起点）决定端截面朝向。
+2. compare 的 FAIL 不一定是几何不符：先分离数值指标（vol/质心/bbox）与布尔差探针，
+   布尔差=全量体积时怀疑工具在近重合 B 样条面上的失败，用独立实现（python OCCT）交叉验证。
+3. 上游活体跑分是最好的参照系：circletorect 用 cadquery 2.8.0 自己 loft（75.2317）离 ref
+   （75.5172）比 faijs loft（75.5180）更远，说明 faijs 重建已是更准的近似。

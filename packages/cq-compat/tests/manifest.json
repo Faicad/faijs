@@ -806,34 +806,37 @@
     "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testMultisectionSweep__defaultSweep": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testMultisectionSweep",
-    "blockedBy": "sweep"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testMultisectionSweep__recttocircleSweep": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testMultisectionSweep",
-    "blockedBy": "sweep"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testMultisectionSweep__circletorectSweep": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testMultisectionSweep",
-    "blockedBy": "sweep"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testMultisectionSweep__specialSweep": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testMultisectionSweep",
-    "blockedBy": "sweep"
+    "blockedBy": "op:sweep.multisection",
+    "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testMultisectionSweep__arcSweep": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testMultisectionSweep",
-    "blockedBy": "sweep"
+    "blockedBy": "op:sweep.multisection",
+    "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testMultisectionSweep__normalSweep": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testMultisectionSweep",
-    "blockedBy": "sweep"
+    "blockedBy": "op:sweep.multisection",
+    "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testNestedCircle__s": {
     "status": "ported",
@@ -1226,22 +1229,23 @@
   "tests.test_cadquery::TestCadQuery::testSweep__result": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testSweep",
-    "blockedBy": "sweep"
+    "blockedBy": "op:sweep.aux-spine",
+    "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testSweep__box": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testSweep",
-    "blockedBy": "sweep"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testSweep__cut": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testSweep",
-    "blockedBy": "sweep"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testSweep__add": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testSweep",
-    "blockedBy": "sweep"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testTag__result": {
     "status": "blocked",
@@ -2467,32 +2471,38 @@
   "tests.test_free_functions:::test_sweep__r5": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_sweep",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "op:sweep.pipeshell",
+    "manual": true
   },
   "tests.test_free_functions:::test_sweep__r6": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_sweep",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "op:sweep.pipeshell",
+    "manual": true
   },
   "tests.test_free_functions:::test_sweep__r7": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_sweep",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "op:sweep.pipeshell",
+    "manual": true
   },
   "tests.test_free_functions:::test_sweep__r8": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_sweep",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "op:sweep.pipeshell",
+    "manual": true
   },
   "tests.test_free_functions:::test_sweep_aux__r1": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_sweep_aux",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "op:sweep.aux-spine",
+    "manual": true
   },
   "tests.test_free_functions:::test_sweep_aux__r2": {
     "status": "blocked",
     "source": "tests.test_free_functions:::test_sweep_aux",
-    "blockedBy": "pending:mirror"
+    "blockedBy": "op:sweep.aux-spine",
+    "manual": true
   },
   "tests.test_free_functions:::test_loft__r4": {
     "status": "blocked",
