@@ -1,15 +1,21 @@
 /**
- * faijs-cli — CLI 逻辑（可导入、可测试）
+ * faijs-cli — CLI 逻辑（可导入、可测试）。第三方调用入口：packages/core/scripts/faijs-cli.ts。
+ * （仓库自用 doc/ci/开发脚本在根 scripts/ 与 packages/core/scripts/gen-*，见 scripts/README.md。）
  *
  *
  * 命令：
  *   check <file.fai.js>                 — dryRun：parse + schema + 引用预检
  *   run <file.fai.js> --out <file>      — 执行并导出 STL/STEP
+ *   view <file.fai.js> --out <x.svg>    — 执行并投影输出视图 SVG（三视图/等轴测）
  *
  * 选项：
- *   --mode <auto|brep|mesh>             — 执行模式（默认 auto）
+ *   --mode <auto|brep|mesh>             — 执行模式（默认 auto；view 需要 BREP 路径）
  *   --assets <dir>                      — 资产目录
  *   --fonts <dir>                       — 额外字体目录
+ *   --part <name>                       — (view) 指定投影的 shape 变量名；缺省按终端自动选择
+ *   --view <front|back|top|bottom|left|right|iso|"x,y,z">
+ *                                       — (view) 单视图方向（默认 front）
+ *   --sheet <front,top,right,iso>       — (view) 多视图图纸（projectSheet；与 --view 互斥）
  */
 
 import { readFileSync, writeFileSync } from 'node:fs'
@@ -30,6 +36,8 @@ import { brepOf } from '../shape'
 import type { BrepHandle } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 import { asPartName } from '../identity'
+import { projectView, projectSheet } from '../api/view'
+import type { ViewSpec } from '../api/view/view-camera'
 
 // ── P 四（4.4）：Node CLI 自动装载白名单 ──
 // 脚本 import 的第三方包默认不从网络解析；仅白名单内的包可按需动态装载
@@ -125,6 +133,40 @@ export interface CliRunResult {
   outputFile?: string
   /** The written output format ('stl' | 'step'). */
   outputFormat?: string
+  /** A human-readable error message when the command failed. */
+  error?: string
+  /** Informational messages collected during execution. */
+  infos?: string[]
+}
+
+/** Options accepted by the `view` command. */
+export interface CliViewOptions {
+  /** Execution mode ('auto' | 'brep' | 'mesh'). view 需要 BREP 路径（mesh-only 无投影）。 */
+  mode?: ExecutionMode
+  /** Asset directory used by the node ports. */
+  assetsDir?: string
+  /** Extra fonts directory used by the node ports. */
+  fontsDir?: string
+  /** Default font path used by the node ports. */
+  defaultFontPath?: string
+  /** Host-injected library namespace (includes cad). */
+  libs?: Record<string, StdlibNamespace>
+  /** Project root for relative .fai.js imports. */
+  projectRoot?: string
+  /** Shape variable name to project; default resolves terminals like `run`. */
+  part?: string
+  /** Single view direction (default 'front'); mutually exclusive with sheet. */
+  view?: ViewSpec
+  /** Multi-view sheet list (projectSheet); mutually exclusive with view. */
+  sheet?: ViewSpec[]
+}
+
+/** Result of the `view` (execute and project SVG) command. */
+export interface CliViewResult {
+  /** Whether execution and projection succeeded. */
+  ok: boolean
+  /** The written SVG file path(s). */
+  outputFiles?: string[]
   /** A human-readable error message when the command failed. */
   error?: string
   /** Informational messages collected during execution. */
@@ -279,6 +321,139 @@ export async function cliRun(
 }
 
 /**
+ * 解析 `--view` 参数：三数字逗号串 → 方向对象（"1,-1,1" → { dir: [1,-1,1] }），
+ * 否则按视图名字符串处理（未知名由 viewCamera 抛错）。
+ */
+function parseViewArg(v: string): ViewSpec {
+  const parts = v.split(',').map((s) => s.trim())
+  if (parts.length === 3) {
+    const nums = parts.map(Number)
+    if (nums.every((n) => Number.isFinite(n))) return { dir: nums as [number, number, number] }
+  }
+  // 视图名字符串（'front'|'iso'|…）：类型上 CLI 接受任意名称，未知名由 viewCamera 抛错。
+  return v as ViewSpec
+}
+
+/**
+ * 选出待投影的 shape 列表（`--part` 指定，或按终端自动选择，与 `run` 一致）：
+ * 只保留带 mesh 的 shape（compound/assembly 无 mesh，无法投影，跳过）。
+ */
+function selectViewShapes(
+  execResult: {
+    outputs: Map<unknown, Shape | CompoundShape>
+    terminals?: Array<{ id: unknown; meta?: { name?: string } }>
+  },
+  part?: string,
+): Array<{ name: string; shape: Shape }> {
+  const outputs = execResult.outputs
+  const viewable = (s: Shape | CompoundShape | undefined): s is Shape =>
+    !!s && 'positions' in s && 'indices' in s
+
+  if (part) {
+    const shape = outputs.get(asPartName(part)) ?? outputs.get(part)
+    if (viewable(shape)) return [{ name: part, shape }]
+    return []
+  }
+
+  const terminals = execResult.terminals ?? []
+  const ids: unknown[] = terminals.length > 0 ? terminals.map((t) => t.id) : [...outputs.keys()]
+  const out: Array<{ name: string; shape: Shape }> = []
+  for (const id of ids) {
+    const shape = outputs.get(id) ?? outputs.get(asPartName(String(id)))
+    if (viewable(shape)) {
+      const metaName = terminals.find((t) => t.id === id)?.meta?.name
+      out.push({ name: metaName ?? String(id), shape })
+    }
+  }
+  return out
+}
+
+/**
+ * Execute the `view` command: execute a .fai.js file and write view SVG(s).
+ *
+ * 投影在宿主侧进行：脚本只需建模（shape 变量或终端），CLI 调 projectView（--view，
+ * 缺省 front）或 projectSheet（--sheet）把 SVG 字符串写盘。view 需要 BREP 路径——
+ * mesh-only 的 shape 无 brep 槽，projectView 抛 E_BREP_ONLY_INPUT（提示 --mode brep/auto）。
+ *
+ * @param filePath - path to the .fai.js file to execute
+ * @param outPath - output SVG path (multiple shapes get `<out>_<i>_<name>.svg` suffixes)
+ * @param opts - optional view options (mode, part, view/sheet, assets/fonts dirs, libs)
+ * @returns the view result describing success or failure
+ */
+export async function cliView(
+  filePath: string,
+  outPath: string,
+  opts?: CliViewOptions,
+): Promise<CliViewResult> {
+  const code = readFileSync(filePath, 'utf-8')
+  const projectRoot = opts?.projectRoot ? resolve(opts.projectRoot) : findProjectRoot(filePath)
+  const entryKey = projectKeyOf(projectRoot, filePath)
+
+  // Initialize OCCT（投影 HLR 依赖 brep 内核）
+  await initOcctWasm()
+
+  const ports = withCliProjectLoader(
+    withCliLibLoader(createNodePorts({
+      assetsDir: opts?.assetsDir,
+      fontsDir: opts?.fontsDir,
+      defaultFontPath: opts?.defaultFontPath,
+    })),
+    projectRoot,
+  )
+  const runtime = createRuntime(ports, opts?.mode ?? 'auto', opts?.libs)
+  if (opts?.libs?.cad) {
+    runtime.registerLib('cad', opts.libs.cad, {
+      default: true,
+      packageName: '@faicad/faijs',
+    })
+  }
+
+  const execResult = await runtime.execute(code, { entryKey })
+
+  if (execResult.failedAt) {
+    return {
+      ok: false,
+      error: `Execution failed at statement ${execResult.failedAt.index} (callee: ${execResult.failedAt.callee}): ${execResult.failedAt.message}`,
+      infos: execResult.infos,
+    }
+  }
+
+  const shapes = selectViewShapes(execResult, opts?.part)
+  if (shapes.length === 0) {
+    return {
+      ok: false,
+      error: opts?.part
+        ? `No output for part "${opts.part}"`
+        : 'No viewable (mesh-bearing) shapes to project',
+      infos: execResult.infos,
+    }
+  }
+
+  const outFiles: string[] = []
+  const single = shapes.length === 1
+  for (let i = 0; i < shapes.length; i++) {
+    const { name, shape } = shapes[i]
+    const target = single
+      ? outPath
+      : `${outPath}${outPath.endsWith('/') || outPath.endsWith('\\') ? '' : '_'}${i}_${name}.svg`
+    try {
+      const svg = opts?.sheet
+        ? projectSheet(shape, opts.sheet)
+        : projectView(shape, opts?.view ?? 'front')
+      writeFileSync(target, svg, 'utf-8')
+      outFiles.push(target)
+    } catch (e) {
+      return {
+        ok: false,
+        error: `Projection failed for "${name}": ${(e as Error).message}`,
+        infos: execResult.infos,
+      }
+    }
+  }
+  return { ok: true, outputFiles: outFiles, infos: execResult.infos }
+}
+
+/**
  * 写出输出文件。
  *
  * 按零件类型分别处理 STEP 导出：
@@ -414,19 +589,22 @@ function writeAssemblyStep(
  * @returns the parsed command, file, and option values (command is null when unusable)
  */
 export function parseArgs(argv: string[]): {
-  command: 'check' | 'run' | null
+  command: 'check' | 'run' | 'view' | null
   file?: string
   out?: string
   mode?: ExecutionMode
   assetsDir?: string
   fontsDir?: string
   projectRoot?: string
+  view?: string
+  sheet?: string
+  part?: string
 } {
   const args = argv.slice(2) // skip node + script
   if (args.length === 0) return { command: null }
 
-  const command = args[0] as 'check' | 'run' | null
-  if (command !== 'check' && command !== 'run') return { command: null }
+  const command = args[0] as 'check' | 'run' | 'view' | null
+  if (command !== 'check' && command !== 'run' && command !== 'view') return { command: null }
 
   let file: string | undefined
   let out: string | undefined
@@ -434,6 +612,9 @@ export function parseArgs(argv: string[]): {
   let assetsDir: string | undefined
   let fontsDir: string | undefined
   let projectRoot: string | undefined
+  let view: string | undefined
+  let sheet: string | undefined
+  let part: string | undefined
 
   for (let i = 1; i < args.length; i++) {
     const arg = args[i]
@@ -450,12 +631,18 @@ export function parseArgs(argv: string[]): {
       fontsDir = args[++i]
     } else if (arg === '--project-root') {
       projectRoot = args[++i]
+    } else if (arg === '--view') {
+      view = args[++i]
+    } else if (arg === '--sheet') {
+      sheet = args[++i]
+    } else if (arg === '--part') {
+      part = args[++i]
     } else if (!file && !arg.startsWith('-')) {
       file = arg
     }
   }
 
-  return { command, file, out, mode, assetsDir, fontsDir, projectRoot }
+  return { command, file, out, mode, assetsDir, fontsDir, projectRoot, view, sheet, part }
 }
 
 /**
@@ -466,16 +653,20 @@ export function parseArgs(argv: string[]): {
  * @returns the process exit code (0 on success, non-zero on failure)
  */
 export async function cliMain(argv: string[], libs?: Record<string, StdlibNamespace>): Promise<number> {
-  const { command, file, out, mode, assetsDir, fontsDir, projectRoot } = parseArgs(argv)
+  const { command, file, out, mode, assetsDir, fontsDir, projectRoot, view, sheet, part } = parseArgs(argv)
 
   if (!command) {
-    process.stderr.write('Usage: faijs-cli <check|run> <file.fai.js> [options]\n')
+    process.stderr.write('Usage: faijs-cli <check|run|view> <file.fai.js> [options]\n')
     process.stderr.write('  check <file>              DryRun validation\n')
-    process.stderr.write('  run <file> --out <file>   Execute and export\n')
-    process.stderr.write('  --mode <auto|brep|mesh>   Execution mode\n')
+    process.stderr.write('  run <file> --out <file>   Execute and export STL/STEP\n')
+    process.stderr.write('  view <file> --out <svg>   Execute and project view SVG (三视图/等轴测)\n')
+    process.stderr.write('  --mode <auto|brep|mesh>   Execution mode (view 需要 BREP 路径)\n')
     process.stderr.write('  --assets <dir>            Asset directory\n')
     process.stderr.write('  --fonts <dir>             Extra fonts directory\n')
     process.stderr.write('  --project-root <dir>      Project root for relative .fai.js imports\n')
+    process.stderr.write('  --part <name>             (view) shape variable to project (default: terminals)\n')
+    process.stderr.write('  --view <dir>              (view) single view: front|back|top|bottom|left|right|iso|"x,y,z" (default front)\n')
+    process.stderr.write('  --sheet <a,b,c>           (view) multi-view sheet: front,top,right,iso (mutually exclusive with --view)\n')
     return 1
   }
 
@@ -516,6 +707,56 @@ export async function cliMain(argv: string[], libs?: Record<string, StdlibNamesp
 
     if (result.ok) {
       process.stdout.write(`✓ ${filePath} → ${outPath} (${result.outputFormat})\n`)
+      if (result.infos && result.infos.length > 0) {
+        for (const info of result.infos) {
+          process.stderr.write(`  ℹ ${info}\n`)
+        }
+      }
+      return 0
+    } else {
+      process.stderr.write(`✗ ${filePath}: ${result.error}\n`)
+      if (result.infos && result.infos.length > 0) {
+        for (const info of result.infos) {
+          process.stderr.write(`  ℹ ${info}\n`)
+        }
+      }
+      return 1
+    }
+  }
+
+  if (command === 'view') {
+    if (!out) {
+      process.stderr.write('Error: --out is required for "view" command\n')
+      return 1
+    }
+    if (view && sheet) {
+      process.stderr.write('Error: --view and --sheet are mutually exclusive\n')
+      return 1
+    }
+
+    const outPath = resolve(out)
+    const viewSpec = view ? parseViewArg(view) : undefined
+    const sheetSpec = sheet
+      ? (sheet
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean) as ViewSpec[])
+      : undefined
+    const result = await cliView(filePath, outPath, {
+      mode,
+      assetsDir,
+      fontsDir,
+      projectRoot,
+      libs,
+      part,
+      view: viewSpec,
+      sheet: sheetSpec,
+    })
+
+    if (result.ok) {
+      for (const f of result.outputFiles ?? []) {
+        process.stdout.write(`✓ ${filePath} → ${f} (svg)\n`)
+      }
       if (result.infos && result.infos.length > 0) {
         for (const info of result.infos) {
           process.stderr.write(`  ℹ ${info}\n`)

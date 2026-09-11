@@ -17,7 +17,7 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import { readFileSync, existsSync, rmSync, mkdirSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { cliCheck, cliRun, parseArgs } from './cli'
+import { cliCheck, cliRun, cliView, parseArgs } from './cli'
 import { registerOcctBrepEngine } from '../brep/engine/adapters/occt'
 import { ensureTestFontLoader } from '../brep/text/fontTestHelper'
 import { createApiNamespace } from '@faicad/faijs-core/api/api-namespace'
@@ -180,10 +180,141 @@ describe('parseArgs', () => {
     expect(result.command).toBe(null)
   })
 
+  it('parses view command with --view', () => {
+    const result = parseArgs(['node', 'cli.ts', 'view', 'model.fai.js', '--out', 'out.svg', '--view', 'iso'])
+    expect(result.command).toBe('view')
+    expect(result.file).toBe('model.fai.js')
+    expect(result.out).toBe('out.svg')
+    expect(result.view).toBe('iso')
+  })
+
+  it('parses view command with --sheet and --part', () => {
+    const result = parseArgs(['node', 'cli.ts', 'view', 'model.fai.js', '--out', 'out.svg', '--sheet', 'front,top,right,iso', '--part', 'part0'])
+    expect(result.command).toBe('view')
+    expect(result.sheet).toBe('front,top,right,iso')
+    expect(result.part).toBe('part0')
+  })
+
   it('returns null for no args', () => {
     const result = parseArgs(['node', 'cli.ts'])
     expect(result.command).toBe(null)
   })
+})
+
+describe('cliView: execute and project view SVG', () => {
+  // 20×30×40 centered box：front 视图（xz 平面投影）宽 20、高 40，margin=1 → viewBox "-11 -21 22 42"
+  // 单行脚本：part0 是唯一顶层变量 → 唯一终端（顶层未消费变量都是终端）
+  const BOX_CODE = `let part0 = cad.box(20, 30, 40, { centered: true })`
+
+  it('writes single-view SVG (default front) with correct viewBox', async () => {
+    const tmpFile = resolve(TMP_DIR, 'view-box.fai.js')
+    writeFileSync(tmpFile, BOX_CODE)
+    const outPath = resolve(TMP_DIR, 'view-box.svg')
+
+    const result = await cliView(tmpFile, outPath, { libs: CAD_LIBS })
+
+    expect(result.ok).toBe(true)
+    expect(result.outputFiles).toEqual([outPath])
+    const svg = readFileSync(outPath, 'utf-8')
+    expect(svg).toContain('<svg')
+    expect(svg).toContain('viewBox="-11 -21 22 42"')
+    // 可见实线路径存在
+    expect(svg).toContain('<path d=')
+  }, 60000)
+
+  it('writes iso view with hidden dashed lines', async () => {
+    const tmpFile = resolve(TMP_DIR, 'view-iso.fai.js')
+    writeFileSync(tmpFile, BOX_CODE)
+    const outPath = resolve(TMP_DIR, 'view-iso.svg')
+
+    const result = await cliView(tmpFile, outPath, { libs: CAD_LIBS, view: 'iso' })
+
+    expect(result.ok).toBe(true)
+    const svg = readFileSync(outPath, 'utf-8')
+    expect(svg).toContain('stroke-dasharray')
+    expect(svg).toContain('opacity="0.6"')
+  }, 60000)
+
+  it('writes a multi-view sheet (front,top,right,iso) with nested svg cells and labels', async () => {
+    const tmpFile = resolve(TMP_DIR, 'view-sheet.fai.js')
+    writeFileSync(tmpFile, BOX_CODE)
+    const outPath = resolve(TMP_DIR, 'view-sheet.svg')
+
+    const result = await cliView(tmpFile, outPath, { libs: CAD_LIBS, sheet: ['front', 'top', 'right', 'iso'] })
+
+    expect(result.ok).toBe(true)
+    const svg = readFileSync(outPath, 'utf-8')
+    expect(svg).toContain('<svg x=')
+    for (const label of ['front', 'top', 'right', 'iso']) {
+      expect(svg).toContain(`>${label}</text>`)
+    }
+  }, 60000)
+
+  it('supports --part to project a specific shape variable', async () => {
+    const tmpFile = resolve(TMP_DIR, 'view-part.fai.js')
+    writeFileSync(tmpFile, BOX_CODE)
+    const outPath = resolve(TMP_DIR, 'view-part.svg')
+
+    const result = await cliView(tmpFile, outPath, { libs: CAD_LIBS, part: 'part0' })
+
+    expect(result.ok).toBe(true)
+    expect(existsSync(outPath)).toBe(true)
+  }, 60000)
+
+  it('writes one file per terminal for multi-terminal scripts', async () => {
+    const code = [
+      `let part0 = cad.box(10, 10, 10, { centered: true })`,
+      `let part1 = cad.box(20, 20, 20, { centered: true })`,
+      `let result = part1`,
+    ].join('\n')
+    const tmpFile = resolve(TMP_DIR, 'view-multi.fai.js')
+    writeFileSync(tmpFile, code)
+    const outPath = resolve(TMP_DIR, 'view-multi.svg')
+
+    const result = await cliView(tmpFile, outPath, { libs: CAD_LIBS })
+
+    // 顶层未消费变量都是终端：part0 / part1（被 result 引用但非函数消费）/ result → 3 个文件
+    expect(result.ok).toBe(true)
+    expect(result.outputFiles).toHaveLength(3)
+    for (const f of result.outputFiles!) expect(existsSync(f)).toBe(true)
+    // 命名后缀：<out>_<i>_<name>.svg
+    expect(result.outputFiles![0]).toContain('view-multi.svg_0_part0.svg')
+  }, 60000)
+
+  it('reports E_BREP_ONLY_INPUT when the shape has no BREP slot (mesh mode)', async () => {
+    const tmpFile = resolve(TMP_DIR, 'view-mesh.fai.js')
+    writeFileSync(tmpFile, BOX_CODE)
+    const outPath = resolve(TMP_DIR, 'view-mesh.svg')
+
+    const result = await cliView(tmpFile, outPath, { libs: CAD_LIBS, mode: 'mesh' })
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain('E_BREP_ONLY_INPUT')
+    expect(existsSync(outPath)).toBe(false)
+  }, 60000)
+
+  it('reports unknown view direction as an error', async () => {
+    const tmpFile = resolve(TMP_DIR, 'view-bogus.fai.js')
+    writeFileSync(tmpFile, BOX_CODE)
+    const outPath = resolve(TMP_DIR, 'view-bogus.svg')
+
+    const result = await cliView(tmpFile, outPath, { libs: CAD_LIBS, view: 'bogus' as never })
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toBeDefined()
+    expect(existsSync(outPath)).toBe(false)
+  }, 60000)
+
+  it('reports missing --part target as an error', async () => {
+    const tmpFile = resolve(TMP_DIR, 'view-nopart.fai.js')
+    writeFileSync(tmpFile, BOX_CODE)
+    const outPath = resolve(TMP_DIR, 'view-nopart.svg')
+
+    const result = await cliView(tmpFile, outPath, { libs: CAD_LIBS, part: 'nope' })
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain('nope')
+  }, 60000)
 })
 
 describe('cliRun: assembly STEP export preserves member names', () => {
