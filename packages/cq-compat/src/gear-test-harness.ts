@@ -19,6 +19,16 @@ import type { OcctKernel, ShapeHandle } from 'occt-wasm'
 import type { Shape } from '@faicad/faijs-core/mesh/types'
 import type { Workplane } from './workplane'
 
+/**
+ * Initialise the native occt-wasm kernel for the E1–E4 specs.
+ *
+ * Calls `registerOcctBrepEngine()` (which boots the kernel singleton and
+ * registers the OCCT engine) and then wires that SAME instance into the
+ * backend registry via `configureBackends`, so `fromHandle` can resolve a
+ * meshable kernel. Must be awaited in `beforeAll` before any op is invoked.
+ *
+ * @returns a promise that resolves once the kernel and backends are ready
+ */
 export async function setupNativeKernel(): Promise<void> {
   await registerOcctBrepEngine()
   const k = getKernel() as unknown as OcctKernel
@@ -33,10 +43,28 @@ export async function setupNativeKernel(): Promise<void> {
   })
 }
 
+/**
+ * Return the shared native occt-wasm kernel singleton.
+ *
+ * The same instance the E1–E4 ops obtain internally via `getKernel()`, so
+ * fixtures built here and op outputs share one handle space.
+ *
+ * @returns the live `OcctKernel` instance (valid after {@link setupNativeKernel})
+ */
 export function kernel(): OcctKernel {
   return getKernel() as unknown as OcctKernel
 }
 
+/**
+ * Build a minimal valid root `Workplane` without touching the `cad.*` backend.
+ *
+ * Defaults to the XY plane at the origin (normal +Z, xDir +X, yDir +Y) with no
+ * shape and no pending wires; pass `over` to override any field (e.g.
+ * `{ shape }` or `{ normal, origin }`).
+ *
+ * @param over - partial overrides merged onto the default workplane
+ * @returns a `Workplane` literal suitable as the first argument of an op
+ */
 export function mkWP(over: Partial<Workplane> = {}): Workplane {
   return {
     __cq: true,
@@ -55,6 +83,12 @@ export function mkWP(over: Partial<Workplane> = {}): Workplane {
   }
 }
 
+/**
+ * Axis-aligned bounding box of a shape, in the kernel's field naming.
+ *
+ * Mirrors the `BoundingBox` record returned by the native
+ * `getBoundingBox` call (all six min/max fields, no `minX`-style aliases).
+ */
 export type BBox = {
   xmin: number
   xmax: number
@@ -64,6 +98,12 @@ export type BBox = {
   zmax: number
 }
 
+/**
+ * Compute the axis-aligned bounding box of a shape through the native kernel.
+ *
+ * @param shape - a faijs `Shape` carrying a BREP handle (see `brepOf`)
+ * @returns the six-field bounding box
+ */
 export function bbox(shape: Shape): BBox {
   return kernel().getBoundingBox(brepOf(shape) as unknown as ShapeHandle) as BBox
 }

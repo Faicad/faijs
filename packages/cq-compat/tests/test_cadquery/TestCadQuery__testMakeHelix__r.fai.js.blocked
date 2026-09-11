@@ -1,0 +1,20 @@
+// source: tests.test_cadquery.py::TestCadQuery::testMakeHelix (var r)
+// obj = Wire.makeHelix(pitch=1.5, height=10, radius=1.2)   # axis +Z, at origin
+//
+// BLOCKED (kernel:step-export-wire-fidelity — see tests/mark-blocked.ts). The
+// candidate is exact in memory (len 51.250548550 vs CadQuery's 51.250549089),
+// but occt-wasm's STEP writer degrades the helix B-spline (24 poles vs
+// CadQuery's 85): the round-tripped candidate measures 44.1568406 with a bbox
+// 5.4e-3 off, so the comparator cannot grade a lossy wire.
+//
+// Reference recipe (upstream testMakeHelix only asserts the bbox, so the pytest
+// plugin exports nothing; regenerate with cadquery-env if the block is lifted):
+//   from cadquery import Wire, exporters
+//   exporters.export(Wire.makeHelix(1.5, 10, 1.2),
+//       "out/ref/tests.test_cadquery__TestCadQuery__testMakeHelix__r.step")
+//   # then upsert {caseId -> [{var:'r', file:<path>}]} into out/ref/manifest.json
+import * as cq from '@faicad/cq-compat'
+
+let w0 = cq.Workplane('XY')
+let h = await cq.helix(w0, 1.5, 10, 1.2)
+let result = cq.val(h)

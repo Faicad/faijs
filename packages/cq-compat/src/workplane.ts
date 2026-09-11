@@ -4249,7 +4249,8 @@ export async function splitFace(
  * Implemented by sweeping `steps`+1 rotated+translated copies of the profile
  * through `loft` (a smooth, ruled=False loft). The twist axis is `wp.normal`.
  *
- * @param wp - Workplane whose `.shape` is the profile (face/wire) to twist-extrude
+ * @param wp - Workplane carrying the profile: either `.shape` (face/wire) or a
+ *   pending 2D profile (`rect`/`circle`/`pendingWires`), as upstream accepts
  * @param angle - total twist angle over height (deg)
  * @param height - extrusion height (mm)
  * @param opts - `{ steps?: number }` (section count; default scales with |angle|)
@@ -4261,15 +4262,26 @@ export async function twistExtrude(
   height: number,
   opts?: { steps?: number },
 ): Promise<Workplane> {
-  const profile = wp.shape
-  if (!profile) {
-    throw new Error('[cq-compat] twistExtrude: profile required (set wp.shape to a profile face/wire)')
+  // Accept either an explicit profile shape or a pending 2D profile
+  // (rect/circle/polygon/pendingWires) — mirrors upstream
+  // `Workplane().rect(...).twistExtrude(...)`, which reads the pending profile.
+  let src = wp
+  if (!wp.shape) {
+    const hasPendingProfile = (wp.pendingWires ?? []).some((w) => !w.construction)
+    if (!hasPendingProfile) {
+      throw new Error(
+        '[cq-compat] twistExtrude: profile required (set wp.shape or add a pending rect/circle/wire)',
+      )
+    }
+    src = await face(wp)
   }
+  const profile = src.shape
+  if (!profile) throw new Error('[cq-compat] twistExtrude: profile required')
   const raw = brepOf(profile)
   if (raw === undefined) throw new Error('[cq-compat] twistExtrude: BREP unavailable')
   const handle = raw as unknown as ShapeHandle
   const steps = opts?.steps ?? Math.max(8, Math.ceil(Math.abs(angle) / 15))
-  const axis = wp.normal
+  const axis = src.normal
   const kernel = getKernel() as unknown as OcctKernel
   const k = kernel as unknown as {
     copy: (s: ShapeHandle) => ShapeHandle
@@ -4290,9 +4302,9 @@ export async function twistExtrude(
   const sections: Workplane[] = []
   for (let i = 0; i <= steps; i++) {
     const t = i / steps
-    const rot = k.rotate(base, { point: v3(wp.origin), direction: v3(axis) }, angle * t * DEG2RAD)
+    const rot = k.rotate(base, { point: v3(src.origin), direction: v3(axis) }, angle * t * DEG2RAD)
     const tr = k.translate(rot, axis[0] * height * t, axis[1] * height * t, axis[2] * height * t)
-    sections.push(clone(wp, { shape: fromHandle(tr), pendingWires: [] }))
+    sections.push(clone(src, { shape: fromHandle(tr), pendingWires: [] }))
   }
   return loft(sections[0], ...sections.slice(1), { ruled: false })
 }

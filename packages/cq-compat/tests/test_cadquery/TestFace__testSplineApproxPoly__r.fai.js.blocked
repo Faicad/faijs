@@ -1,0 +1,35 @@
+// source: custom reference — Face.makeSplineApprox vs the E1 `splineFace` op.
+//
+// Face.makeSplineApprox fits a <= degree-3 surface within tol=1e-2
+// (GeomAPI_PointsToBSplineSurface), while cq-compat splineFace interpolates the
+// grid (occt-wasm bsplineSurface). The two agree EXACTLY on grids that lie on a
+// polynomial surface, and diverge on general curved grids (interpolation
+// overshoots). This case pins the shared domain: a doubly-curved bilinear sheet
+//   z = A*i*j/N^2   over an (N+1)x(N+1) lattice in the XY plane.
+// Reference recipe (regenerate with cadquery-env if the block is lifted; note
+// the case is not an upstream test, so run-ref.py never produces it):
+//   from cadquery import Face, Vector, exporters
+//   N, A = 40, 5
+//   grid = [[Vector(i, j, A*i*j/(N*N)) for i in range(N+1)] for j in range(N+1)]
+//   exporters.export(Face.makeSplineApprox(grid),
+//       "out/ref/tests.test_cadquery__TestFace__testSplineApproxPoly__r.step")
+//   # then upsert {caseId -> [{var:'r', file:<path>}]} into out/ref/manifest.json
+//
+// BLOCKED (comparator:non-solid-metrics — see tests/mark-blocked.ts): the
+// comparator's volume / centre-of-mass metrics are undefined for a FACE
+// (measured volPct 575 %, centroid 9.5e15) while bbox (4.4e-16) and topology
+// (f1/e4/v4) match exactly.
+import * as cq from '@faicad/cq-compat'
+
+const N = 40
+const A = 5
+const grid = []
+for (let j = 0; j <= N; j++) {
+  for (let i = 0; i <= N; i++) {
+    grid.push([i, j, (A * i * j) / (N * N)])
+  }
+}
+
+let w0 = cq.Workplane('XY')
+let f = await cq.splineFace(w0, grid, { rows: N + 1, cols: N + 1 })
+let result = cq.val(f)

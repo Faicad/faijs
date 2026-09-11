@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-11-cq-compat-gear-extensions-e1-e4.md
-2026-09-11-cq-compat-gear-extensions-e1-e4.md: 5bfb36f1afcc35cab8dd69711b352f82b44a5c2b
-2026-09-11-cq-compat-gear-extensions-e1-e4.zh.md: 88cd59f0f0007106ad230785118f43f7b6e98c5c
+2026-09-11-cq-compat-gear-extensions-e1-e4.md: 5a71bf1da5f570935bbc050e188c1104eb6847db
+2026-09-11-cq-compat-gear-extensions-e1-e4.zh.md: db760a46d2c6c6335e811f36dd4848cdcdb96bae

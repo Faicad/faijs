@@ -1202,9 +1202,9 @@
     "blockedBy": "split"
   },
   "tests.test_cadquery::TestCadQuery::testSplitKeepingBoth__result": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testSplitKeepingBoth",
-    "blockedBy": "split"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testSplitKeepingBottom__c": {
     "status": "blocked",
@@ -1212,9 +1212,9 @@
     "blockedBy": "split"
   },
   "tests.test_cadquery::TestCadQuery::testSplitKeepingBottom__result": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testSplitKeepingBottom",
-    "blockedBy": "split"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testSplitKeepingHalf__c": {
     "status": "blocked",
@@ -1222,9 +1222,9 @@
     "blockedBy": "split"
   },
   "tests.test_cadquery::TestCadQuery::testSplitKeepingHalf__result": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testSplitKeepingHalf",
-    "blockedBy": "split"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testSweep__result": {
     "status": "blocked",
@@ -1371,7 +1371,8 @@
   "tests.test_cadquery::TestCadQuery::testTwistExtrude__r": {
     "status": "blocked",
     "source": "tests.test_cadquery::TestCadQuery::testTwistExtrude",
-    "blockedBy": "twistExtrude"
+    "blockedBy": "kernel:boolean-near-coincident-bspline",
+    "manual": true
   },
   "tests.test_cadquery::TestCadQuery::testTwistExtrudeCombine__r": {
     "status": "blocked",
@@ -3576,5 +3577,15 @@
     "status": "blocked",
     "source": "tests.test_assembly:::test_name_geometries",
     "blockedBy": "Assembly"
+  },
+  "tests.test_cadquery::TestCadQuery::testMakeHelix__r__r": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestCadQuery::testMakeHelix__r",
+    "blockedBy": "op:unported"
+  },
+  "tests.test_cadquery::TestFace::testSplineApproxPoly__r__r": {
+    "status": "blocked",
+    "source": "tests.test_cadquery::TestFace::testSplineApproxPoly__r",
+    "blockedBy": "op:unported"
   }
 }

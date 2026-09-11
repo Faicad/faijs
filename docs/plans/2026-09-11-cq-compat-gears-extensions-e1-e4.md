@@ -1,7 +1,7 @@
 # cq-compat 齿轮扩展原语 E1–E4 开发计划（独立 PR）
 
 日期：2026-09-11
-状态：**已落地 / 已验证**（2026-09-11）—— 4 个 op 已在 `workplane.ts` 实现并导出，9 个单元测试全绿，全包 122 测试无回归。parity（run-cand）镜像按 §8.2 单列，不在本交付阻塞项内（见 §13）。
+状态：**已落地 / 已验证**（2026-09-11）—— 4 个 op 已在 `workplane.ts` 实现并导出，9 个单元测试全绿，全包 122 测试无回归；parity（run-cand 镜像）已执行：E3 `splitFace` 3 用例 PASS，E1/E2/E4 按根因登记 BLOCKED（见 §13 实施记录、§14 parity 结果）。
 上游需求源：`docs/plans/2026-09-11-fai-cq-gears-port.md` §4（fai_cq_gears 移植依赖 cq-compat，本文件是该依赖的 cq-compat 侧落地拆分）
 适用范围：仅 `@faicad/cq-compat` 包内改动，随 cq-compat 独立 PR 合入；fai_cq_gears 侧消费见上游方案。
 
@@ -337,8 +337,46 @@ npx tsx tests/run-cand.ts --only twist_extrude
 - 单元：4 个新 `<op>.test.ts` **9/9 全绿**。
 - 回归：`npm run test -w @faicad/cq-compat` 全包 **122/122 通过**（15 文件），无回归。
 - 内核单例：4 op 全部经 `getKernel()`，无 `initOcctWasm()` 另起实例（grep 核验）。
-- parity（run-cand，§8.2）：未在本交付内执行（参考 STEP 依赖 cq-gears 侧的 CadQuery 2.8.0 env，列为后续独立任务，不阻塞 cq-compat 侧合入）。
+- parity（run-cand，§8.2）：**已执行**（2026-09-11，本机 cadquery-env）。E3 `splitFace` 3 个用例 **PASS**（本包 parity 35.23% → **35.69%**，PASS +3）；E1/E2/E4 经实测**不可由现有比较器判分**，已按框架约定登记 `blocked`（见 §14）。
 
 ### 13.4 给 fai_cq_gears 消费方的提示
 - 消费签名见 `index.ts` 导出：`splineFace(wp,grid,{rows,cols,tolerance?})` / `helix(wp,pitch,height,radius,{leftHanded?})` / `splitFace(wp,plane,{origin,normal},keep?)` / `twistExtrude(wp,angle,height,{steps?})`。
 - 上游方案 §10 的 "临时 shim 删除条款" 现可触发：fai_cq_gears `src/kernel.ts` 的 `// TEMP-SHIM: delete when cq-compat E{n} lands` 桥接应在本 PR 合入后删除，使 `grep -rn "occt-wasm\|initOcctWasm\|RawOcctKernel" packages/fai_cq_gears/src` 零命中。
+
+---
+
+## 14. parity 镜像执行记录（2026-09-11，run-cand + compare）
+
+### 14.1 结果汇总
+
+本包 `out/report.json`：**PASS 228 / PASS-NT 4 / FAIL 1 / ERROR 0 / BLOCKED 417 / refCases 650 → parity 35.69%**（执行前基线 225 / 4 / 1 / 420 → 35.23%）。
+
+| op | 镜像 | 状态 | 本质（实测证据） |
+|---|---|---|---|
+| E3 `splitFace` | `TestCadQuery__testSplitKeeping{Bottom,Half,Both}__result.fai.js` | **PASS ×3** | volDiffPct 1.9e-6、centroid 7e-9、bbox 2e-7、bool [0,0]、拓扑 f8/e18/v12 全等 |
+| E4 `twistExtrude` | `…testTwistExtrude__r.fai.js.blocked` | BLOCKED | 几何机器精度一致（volDiffPct 2.6e-5 %、centroid 3.6e-14、顶点全等、拓扑 f6/e12/v8），但布尔差单向失败 |
+| E2 `helix` | `…testMakeHelix__r.fai.js.blocked` | BLOCKED | 内存中 wire 精确（len 51.250548550 vs ref 51.250549089），导出后劣化 |
+| E1 `splineFace` | `TestFace__testSplineApproxPoly__r.fai.js.blocked` | BLOCKED | 与 `Face.makeSplineApprox` 在多项式网格上逐位一致（area 1608.303209872） |
+
+判定原则：**根因是内核/比较器限制 → `blocked`（根因写进 `blockedBy`）；根因是 cq-compat 几何差异 → `FAIL`**。故 E4 与 E1/E2 一并 blocked 而非 fail（几何本身已证等价）。登记落在 `tests/mark-blocked.ts` 的 `BY_KEY`（`manual:true`），镜像文件改名为 `<name>.fai.js.blocked` 并删除对应 `out/cand/*.step`（与 `test_loft_to_vertex__c` 同一手法，见 `tests/mark-blocked.ts:73` 注释）。
+
+### 14.2 E3 `splitFace` — 真正拿到 PASS 的 3 个用例
+
+镜像复刻上游链 `CQ(makeUnitCube()).faces(">Z").workplane().circle(0.25).cutThruAll()` → `faces(">Y").workplane(-0.5).split(...)`：
+
+- **`makeUnitCube()` 只居中 XY，Z 跨 `[0,1]`**（上游 helpers 参数名是 `xycentered`，Z 不居中）。镜像必须写 `cq.box(w0,1,1,1,{centered:[true,true,false]})`，否则整体沿 Z 偏移 0.5（实测 centroidDiff 0.5、bboxDiff 0.5）。
+- 切分平面 = `>Y` 面（y=0.5）沿其 +Y 法向偏移 −0.5 → **y=0 平面、法向 +Y**；上游 `keepBottom` = 保留 **−法向侧（y<0）**，与 cq-compat `splitFace(...,'bottom')` 语义一致（`'top'` = +法向侧）。
+- **`testSplitKeepingBoth__result` 的 ref 只含 `objects[0]`（top 半边）**：上游 `split(keepTop=True, keepBottom=True)` 把两半入栈，但 ref harness 只导出 `val()=objects[0]`（`tests/README.md`「多体用例约定」）。实测该 ref 与 `testSplitKeepingHalf__result` 几何完全相同（都是 y∈[0,0.5] 的 top 半边），故镜像按 objects[0] 复刻 top 半边。
+
+### 14.3 E1/E2/E4 — 为何不可判分（根因，供后续原生 op 复用）
+
+1. **E4 `twistExtrude`（`kernel:boolean-near-coincident-bspline`）**。上游走 `Solid.extrudeLinearWithRotation` → `BRepOffsetAPI_MakePipeShell(spine).SetMode(auxSpine=helix, False).MakeSolid()`；cq-compat 用「离散旋转截面 + 平滑 loft」逼近（顶点与 ref 逐位一致，体积差 2.6e-7）。两实体近乎重合时 `BRepAlgoAPI_Cut` **单向失败**：`A−B=2.6e-4`（正确），`B−A=999.99`（=整体积，`isValid=true`）。实测与截面数无关（4/8/16/32/64/128 在 in-process 下 0/1000 抖动），且**经 STEP 往返后稳定复现**，故非构造问题。occt-wasm 的 `sweepOriented(..., SweepMode.Auxiliary, ..., auxSpine)` 复刻上游算法反而更差（vol 999.83，偏离 0.17 %），故保留 loft。
+2. **E2 `helix`（`kernel:step-export-wire-fidelity`）**。内存 wire 精确；`kernel.exportStep` 写出的 helix B 样条控制点明显少于 CadQuery（24 vs 85 个 CARTESIAN_POINT），往返后长度 51.2505491 → **44.1568406**、bbox 偏 5.4e-3。**影响面**：所有以裸 wire/曲线为导出对象的 parity 用例（面/实体用例不受影响，因为几何承载在面上）。
+3. **E1 `splineFace`（`comparator:non-solid-metrics`）**。occt-wasm `bsplineSurface(controlPoints, rows, cols)` 文档称「control points」，实测对网格**插值**（3×3 网格中心 pole z=10 → `pointOnSurface(0.5,0.5).z=10`），而 CadQuery `Face.makeSplineApprox` 是 `GeomAPI_PointsToBSplineSurface(DegMin=1, DegMax=3, Tol3D=1e-2)` 的≤3 次**逼近**。二者仅在网格落在多项式曲面上时逐位一致（实测双线性 41×41：两侧 area 均 1608.303209872；2×2 双曲抛物面：均 1.861564180），一般曲面网格会发散（41×41 波状网格：cand 28464 vs ref 2367，z 幅 −138.6~177.7 vs −5.0~5.0）。另外**面是非实体**，比较器的 volume/centre-of-mass 指标无定义（实测 volPct 575 %、centroid 9.5e15），而 bbox（4.4e-16）与拓扑（f1/e4/v4）全等。
+
+### 14.4 对 §1/§5 的更正与遗留
+
+- **更正**：CadQuery 2.8.0 **没有 `Face.makeSplineSurface`**（全仓 grep 零命中）；B 样条曲面只有 `Face.makeSplineApprox`。§1/§5 的「等价 `Face.makeSplineSurface`」表述作废，`splineFace` 的正确对照是 `makeSplineApprox`，且只在多项式网格域内等价（§14.3-3）。
+- **对 fai_cq_gears 的影响**：`splineFace` 是「网格插值 B 样条面」，**不是** `makeSplineApprox` 的替代品；若齿廓需要≤3 次逼近曲面，occt-wasm 当前无对应原语（缺口需向 occt-wasm 或 vendored 层申请 `GeomAPI_PointsToBSplineSurface` 投影）。
+- **复现 E1/E2 ref**：本 PR 未把 E1/E2 的自定义 ref 计入 `refCases`（保持与 `run-ref.py` 上游口径一致，避免口径失真）；配方写在对应 `.fai.js.blocked` 注释里，解除 block 时按配方用 cadquery-env 重新导出 STEP 并 upsert `out/ref/manifest.json`。
+- **未修的内核缺口（跨 PR）**：(a) `BRepAlgoAPI_Cut` 在近重合 B 样条实体上的单向失败；(b) STEP 导出对裸 helix wire 的保真度。

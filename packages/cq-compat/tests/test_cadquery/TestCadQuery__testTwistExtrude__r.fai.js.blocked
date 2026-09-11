@@ -1,0 +1,20 @@
+// source: tests.test_cadquery.py::TestCadQuery::testTwistExtrude (var r)
+// profile = Workplane("XY").rect(10, 10)
+// r = profile.twistExtrude(10, 45, False)   # height=10, angle=45, combine=False
+// Upstream asserts r.faces().size() == 6 (4 twisted side faces + 2 caps).
+// ref (probed): out/ref/tests.test_cadquery__TestCadQuery__testTwistExtrude__r.step
+//
+// BLOCKED (kernel:boolean-near-coincident-bspline — see tests/mark-blocked.ts):
+// the candidate matches the reference to machine precision (volDiffPct 2.6e-5 %,
+// centroid 3.6e-14, identical vertices, topology f6/e12/v8, both valid) but
+// BRepAlgoAPI_Cut on the two near-coincident twisted B-spline solids fails
+// asymmetrically (A-B 2.6e-4, B-A 999.99 = the whole solid), so the comparator's
+// boolean probe cannot grade it.
+import * as cq from '@faicad/cq-compat'
+
+// cq-compat twistExtrude takes (wp, angle, height, opts); upstream is
+// twistExtrude(height, angle, ...) — so angle=45, height=10 here.
+let w0 = cq.Workplane('XY')
+let w1 = cq.rect(w0, 10, 10)
+let r = await cq.twistExtrude(w1, 45, 10, { steps: 32 })
+let result = cq.val(r)
