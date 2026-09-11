@@ -142,6 +142,52 @@ const BY_KEY: Record<string, string> = {
   // B-A 999.99 = the whole solid; stable across 8..128 loft sections, with or
   // without a STEP round-trip), so the comparator's boolean probe cannot grade it.
   'tests.test_cadquery::TestCadQuery::testTwistExtrude__r': 'kernel:boolean-near-coincident-bspline',
+  // ---------------------------------------------------------------------------
+  // pending:mirror cleanup batch (2026-09-11) — verified unreproducible
+  // ---------------------------------------------------------------------------
+  // Free-function text(): cadquery text() needs a font engine (fontTools
+  // glyph outlines) cq-compat does not have. test_faceOn additionally engraves
+  // text onto a spherical face (faceOn(f, text("CQ", 1)), 2 faces @ vol 0.1998).
+  'tests.test_free_functions:::test_faceOn__f2': 'op:text',
+  'tests.test_free_functions:::test_text__r1': 'op:text',
+  'tests.test_free_functions:::test_text__r2': 'op:text',
+  'tests.test_free_functions:::test_text__r3': 'op:text',
+  'tests.test_free_functions:::test_text__r4': 'op:text',
+  'tests.test_free_functions:::test_text__r5': 'op:text',
+  'tests.test_free_functions:::test_text__c': 'op:text',
+  'tests.test_free_functions:::test_text__r7': 'op:text',
+  'tests.test_free_functions:::test_text__r8': 'op:text',
+  'tests.test_free_functions:::test_text__r9': 'op:text',
+  // Free-function draft(): applies taper to an EXISTING solid's faces
+  // (draft(box, fbot, fside, 5)); occt-wasm's draft(shape, face, angle, dir)
+  // fails outright (same kernel gap as §7.26 testTaperedExtrudeHeight__s2 —
+  // offsetWire2D / loft with 4-vs-8-edge sections / draft all fail).
+  'tests.test_free_functions:::test_draft__res1': 'kernel:draft-existing-solid',
+  'tests.test_free_functions:::test_draft__res2': 'kernel:draft-existing-solid',
+  // project(): edge-to-surface projection (project(e, base) onto a cylinder
+  // face). No cq-compat op or kernel projection exists.
+  'tests.test_free_functions:::test_project__res': 'op:project',
+  // Solved-assembly compounds: the Plane-constraint solver produces rotations
+  // that are not clean angles (measured: constrain simple_assy s1 = 1x1x2 box
+  // tilted ~4.25 deg, com (1,-4.5,0.5); subassy1/subassy2/nested_assy solved
+  // placements likewise). The assembly solver is out of scope for mirrors
+  // (handover doc §8.1 Assembly group, remote-phase item).
+  'tests.test_assembly:::test_constrain__simple_assy': 'op:assembly-solve',
+  'tests.test_assembly:::test_constrain__nested_assy': 'op:assembly-solve',
+  'tests.test_assembly:::test_constrain__subassy1': 'op:assembly-solve',
+  'tests.test_assembly:::test_constrain__subassy2': 'op:assembly-solve',
+  // FixedAxis (0,1,1) solver output is not the minimal rotation: measured ref
+  // bbox x ±1.026 / y,z ±0.745 for a 2x1x1 box (a pure -45 deg x rotation
+  // would give exactly ±1 / ±0.7071 like test_fixed_rotation does) — the
+  // solver's rotation cannot be reconstructed without the solver itself.
+  'tests.test_assembly:::test_unary_constraints__simple_assy2': 'op:assembly-solve',
+  'tests.test_assembly:::test_unary_constraints__assy': 'op:assembly-solve',
+  'tests.test_assembly:::test_unary_constraints__w': 'op:assembly-solve',
+  // box_and_vertex: solved compound of box + cylinder + a VERTEX whose exact
+  // PointInPlane position is underdetermined (only plane distances are
+  // asserted; the vertex contributes to the ref compound but its solved
+  // position cannot be pinned without the solver).
+  'tests.test_assembly:::test_PointInPlane_3_parts__box_and_vertex': 'op:assembly-solve',
 }
 
 const manifest = JSON.parse(readFileSync(MANIFEST, 'utf-8')) as Record<

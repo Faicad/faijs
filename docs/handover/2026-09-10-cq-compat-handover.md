@@ -19,27 +19,28 @@
 | 指标 | 值 |
 |---|---|
 | 参考用例（ref STEP） | 650 |
-| 已导出候选（cand STEP） | 241 |
-| PASS | 228 |
+| 已导出候选（cand STEP） | 282 |
+| PASS | 247 |
 | PASS-NT（数值过、拓扑不同，记录不卡门） | 4 |
 | FAIL | 1（已精确归因，见 §6.1） |
 | ERROR | 0 |
-| BLOCKED（无候选） | 417 |
-| **parity** | **35.69%** |
+| BLOCKED（无候选） | 398 |
+| **parity** | **38.62%** |
 | cq-compat 单元测试 | 124 passed（15 files）全绿 |
-| `tests/manifest.json` 条目 | 699（ported 233 / blocked 419 / skipped 47；其中手工 block 47） |
+| `tests/manifest.json` 条目 | 699（ported 264 / blocked 388 / skipped 47；其中手工 block 60） |
 
-**一句话给接手方**：当前唯一 1 个 FAIL 的几何本身是对的（体积相对差 1.1e-5、拓扑逐位相同），失败的是比较器的布尔差探针在近重合 B 样条体上的鲁棒性；剩余 417 个 BLOCKED 是**还没写镜像脚本或 cq-compat 还缺算子**，不是回归。**最高性价比的下一步是把 `blockedBy: pending:mirror` 的 52 个用例写出来**（见 §8）。
+**一句话给接手方**：当前唯一 1 个 FAIL 的几何本身是对的（体积相对差 1.1e-5、拓扑逐位相同），失败的是比较器的布尔差探针在近重合 B 样条体上的鲁棒性；剩余 398 个 BLOCKED 是**cq-compat 还缺算子/内核能力或需装配求解器**，不是回归——**`pending:mirror`（只差写镜像）已于 2026-09-11 全部清零**（phase2 计划 §7.30）。
 
 ### 0.1 本版相对首版的变更（2026-09-11）
 
 | 项 | 首版（09-10） | 本版（09-11） |
 |---|---|---|
 | HEAD | `1df8cdb` | `651fb4e` |
-| PASS / FAIL / parity | 220 / 0 / 34.46% | 228 / 1 / 35.69% |
-| cand STEP | 232 | 241 |
+| PASS / FAIL / parity | 220 / 0 / 34.46% | 247 / 1 / 38.62% |
+| cand STEP | 232 | 282 |
 | 单测 | 113 passed（11 files） | 124 passed（15 files） |
 | 新增 cq-compat op | — | `splineFace` / `helix` / `splitFace` / `twistExtrude`（E1–E4，齿轮扩展） |
+| `pending:mirror` | 52 | **0**（52 var 全部处置：19 转 PASS、21 降级 manual blocked，见 phase2 §7.30） |
 | 新发现缺口 | — | E5 `solidFromFaces` / E6 平面盖面（阻塞 `fai_cq_gears` 删 shim，见 §11） |
 
 > ❗ **`out/` 是 gitignored 的**：接手后 `out/ref`、`out/cand`、`out/report.json` 都是空的，**第一件事是重跑参考导出**（见 §4.1）。上面的基线数字来自交付机的本地 `out/`，用于对照验收。
@@ -422,24 +423,24 @@ E1–E4 已实现并导出（`splineFace` / `helix` / `splitFace` / `twistExtrud
 
 阶段 A–K 全部完成，记录在 `docs/plans/2026-09-08-cq-compat-parity-phase2.md` §7.1–§7.29；**齿轮扩展 E1–E4 也已落地**，记录在 `docs/plans/2026-09-11-cq-compat-gears-extensions-e1-e4.md` §13–§14。
 
-### 8.1 剩余 BLOCKED 的自动归因分布（gen-manifest 从 coverage 推导，交付机实测）
+### 8.1 剩余 BLOCKED 的自动归因分布（gen-manifest 从 coverage 推导，交付机实测 2026-09-11）
 
 | blockedBy | 条数 | 说明 |
 |---|---|---|
 | `Assembly` | 56 | Assembly 类未移植（依赖装配求解器，远期） |
-| **`pending:mirror`** | **52** | **上游用例的 op 已齐、只差写镜像——最高性价比，建议优先** |
 | `stub:makeBox` | 33 | 上游测试基类 helper（`makeBox` 等）未支持 |
 | `split` / `face` | 13 / 13 | 需对应 op 语义补齐（如 `split` 平面裁切扩展、`face` 构造入口） |
 | `siblings` / `shells` | 12 / 12 | 选择器/构造器语义缺口 |
 | `getfixturevalue` | 11 | 依赖 pytest fixture，无法 AST 导出 |
-| `text` / `images` / `importStep` | 9 / 8 / 8 | 字体、贴图、文件 IO（**需裁决是否整组 skipped**，见 §11 Q2） |
+| `op:text` / `text` / `images` / `importStep` | 10 / 9 / 8 / 8 | 字体、贴图、文件 IO（**需裁决是否整组 skipped**，见 §11 Q2） |
+| `op:assembly-solve` | 8 | 求解器输出几何无法反推（2026-09-11 新增，见 phase2 §7.30） |
 | `makeCompound` / `eachpoint` / `generated` | 8 / 7 / 7 | compound 构造、多点语义、生成式用例 |
 | `finalize` / `raises` | 6 / 6 | 上游 helper 语义（异常路径用例） |
-| `interpPlate` / `remove` / `importBrep` / `tag` / `replace` | 5 / 5 / 4 / 4 / 4 | 各缺一个 op |
-| `step-export:faces-compound` | 4 | candid 导出面 compound 时的 STEP 保真度 |
+| `workplaneFromTagged` / `interpPlate` / `remove` | 5 / 5 / 5 | 各缺一个 op / 语义 |
+| `importBrep` / `tag` / `replace` / `step-export:faces-compound` | 4 / 4 / 4 / 4 | 文件 IO / tag 语义 / 导出保真 |
 | `op:shape.offset` / `op:sweep.pipeshell` | 4 / 4 | 内核 offset / sweep 能力缺口 |
 
-> `pending:mirror` 的例子：`testCutBlindUntilFace__wp_ref_regular_cut`、`testToSVG__r`、`test_faceOn__f2` 等。做法就是从 `out/cache/v2.8.0/tests` 抠出上游源码 → 写 `.fai.js` → `gen-manifest` → `run-cand --only <子串>` → `compare`。
+> ~~`pending:mirror`（只差写镜像）~~ **已于 2026-09-11 清零**（52 var 全部处置：19 转 PASS、21 降级 manual blocked，记录见 phase2 计划 §7.30）。
 
 ### 8.2 推荐工作节奏
 
@@ -477,8 +478,8 @@ E1–E4 已实现并导出（`splineFace` / `helix` / `splitFace` / `twistExtrud
 - [ ] `npm run build -w @faicad/faijs-core && npm run build && npm run build -w @faicad/cq-compat` 无错误
 - [ ] `C:/Users/ylt/cadquery-env/Scripts/python.exe packages/cq-compat/tests/ref-harness/run-ref.py` → `out/ref` 有 **650** 个 `.step`
 - [ ] `npx tsx packages/cq-compat/tests/gen-manifest.ts` → `tests/manifest.json` 条目数不减少（基线 699）
-- [ ] `npx tsx packages/cq-compat/tests/run-cand.ts` → `out/cand` 有 **241** 个 `.step`（全量约 20 分钟）
-- [ ] `npx tsx packages/cq-compat/tests/compare.ts` → 输出 `PASS=228 PASS-NT=4 FAIL=1 ERROR=0 BLOCKED=417 parity=35.69%`
+- [ ] `npx tsx packages/cq-compat/tests/run-cand.ts` → `out/cand` 有 **282** 个 `.step`（全量约 20 分钟）
+- [ ] `npx tsx packages/cq-compat/tests/compare.ts` → 输出 `PASS=247 PASS-NT=4 FAIL=1 ERROR=0 BLOCKED=398 parity=38.62%`
 - [ ] `npm run test -w @faicad/cq-compat` → **124 passed / 0 failed（15 files）**
 - [ ] `npm run typecheck -w @faicad/cq-compat` 无错误
 - [ ] `npm run doc-sync` 全绿
@@ -529,6 +530,6 @@ block 分类原则：内核/比较器限制 → blocked（写清根因）；几�
   3) 新增镜像后必须重跑 gen-manifest.ts
   4) 直接调原生 kernel op 前必须 configureBackends（否则 "backends not configured"）
 
-当前基线（2026-09-11）：PASS 228 / PASS-NT 4 / FAIL 1 / ERROR 0 / BLOCKED 417 / parity 35.69%
-                       单测 124 passed（15 files）
+当前基线（2026-09-11）：PASS 247 / PASS-NT 4 / FAIL 1 / ERROR 0 / BLOCKED 398 / parity 38.62%
+                       单测 124 passed（15 files）；pending:mirror = 0（§7.30 清零）
 ```

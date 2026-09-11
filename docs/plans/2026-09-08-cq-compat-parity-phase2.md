@@ -1228,3 +1228,64 @@ r6 分解式、高椭圆必须显式失败 —— 另有临时内核探针测试
    布尔差=全量体积时怀疑工具在近重合 B 样条面上的失败，用独立实现（python OCCT）交叉验证。
 3. 上游活体跑分是最好的参照系：circletorect 用 cadquery 2.8.0 自己 loft（75.2317）离 ref
    （75.5172）比 faijs loft（75.5180）更远，说明 faijs 重建已是更准的近似。
+
+### 7.30 批次 12–13 — `pending:mirror` 清零 ✅ 完成（2026-09-11）
+
+交接基线（§0.1）后最高性价比项：把 manifest 中 **52 个 `pending:mirror`** 全部处置完毕，
+`pending:mirror` 归零，不再有任何"只差写脚本"的欠账。分两批落地，无 src/op 改动。
+
+**批次 12（+9 PASS）：testCutBlindUntilFace__wp_ref_regular_cut、testToSVG__r、
+test_imprint_error__b1/b2/unnamed、testNthDistance__c/twisted_boxes、
+testLengthNthSelector_UnsupportedShapes__w0/val、testAreaNthSelector_NonplanarWire__wp**
+
+- `>X[2]` 索引选择器：cq-compat `resolveFaceSelector` 只剥离 `[N]` 后缀不实现第 N 选
+  语义（代码注释明言不支持多轴索引）。活体实测该用例 `>X[2]` 选中 x=−15 处面
+  （cadquery 探针：face center (−15, 0, 5.5)），cutBlind(−10) 在 x=−20 盒内切穿
+  全部 10mm——镜像用显式 cut 棱柱（box 10×2×2 @ (−25,−1,4.5)）精确复刻。
+- `rarray(2,2,2,1)`（LengthNthSelector 用例）：上游 box 默认全居中（z∈[−0.5,0.5]）；
+  首版误写 `centered:[true,true,false]` 被 compare 抓出（com/bbox Δ 0.5）。
+- `testNthDistance__c` 三段堆叠链：每个 `.faces(sel).box(centered=(True,True,False))`
+  落在**选中面平面**上并以面心对中（mid @(0.5,0,0) 在 <Z 面 z=0、top @(0.5,0,2) 在
+  >Z 面 z=2）——首版按工作平面原点堆叠 FAIL（vol Δ 9.09%），修正后过。
+- `twisted_boxes`：`transformed(rotate=(45,0,0), offset=(0,0,3))` 后的 box 实测为
+  **全居中**盒旋转 +45° 后平移（bbox y/z ±0.7071 对称于 z=3）；且 cq-compat `box`
+  只支持轴对齐平面（斜法向显式抛错），镜像改为「box → rotate → translate」。
+- 踩坑复现：`top` 变量名触发 SEC_IDENT（`window.top` 黑名单）→ 改名 `topBox`；
+  `cylinder(wp, height, radius)` 是**高度在前**——首版参数写反被 compare 抓出
+  （布尔差 = 全量体积的典型形态：40×的圆柱差）。
+
+**批次 13（+10 PASS，pending:mirror 清零）：testCutToFaceOffsetNOTIMPLEMENTEDYET__r、
+test_draft__box_shape/s、test_constrain__b1/b2/b3、test_metadata__metadata_assy、
+test_toJSON__simple_assy/empty_top_assy、test_meta_step_export_edge_cases__cube、
+test_PointInPlane_3_parts__cylinder、test_order_of_transform__marker/m1/m2、
+test_point_constraint__simple_assy2/assy、test_fixed_rotation__simple_assy2/assy/w、
+test_axis_constraint__simple_assy2/assy**
+
+- 装配类可复刻判定：harness 导出的是**约束求解前/后的确定性几何**——约束/JSON/
+  metadata 簿记不进 STEP。逐个用 cadquery 探针枚举 ref STEP 内每个 solid 的
+  bbox/质心后按「box → translate/rotate → compound()」复刻（compound 必须直接赋给
+  result，避免双 terminal 拆分，同 §7.27 红线）。
+- `test_fixed_rotation`：FixedRotation(45,0,0) ≡ 绕 x +45°（ref bbox x±1.000 精确、
+  y/z ±0.7071）；`test_axis_constraint`：>Z 对齐 + >X 面 45° ≡ 绕 z +45° 于 z=4
+  （ref x/y ±1.0607 = (2·cos45+1·sin45)/... 旋转 2×1 足迹的解析值，活体复算吻合）。
+- `test_unary_constraints`（FixedAxis (0,1,1)）**不可复刻**：ref bbox x ±1.026 /
+  y,z ±0.745 与纯 −45° x 旋转的解析值（±1.000/±0.7071）不符，求解器旋转无法
+  反推 → 降级 `op:assembly-solve`。
+- `testCutToFaceOffsetNOTIMPLEMENTEDYET__r`：上游 `cutToOffsetFromFace` 本身
+  try/except 包裹（NOT IMPLEMENTED EITHER），导出的 r = 挤出板，与已 PASS 的
+  testTwoWorkplanes__r 完全同构（vol 1.901825，10 faces），直接复用其镜像链。
+
+**降级 blocked（21 var，mark-blocked.ts 47 → 60 条，均 manual: true）**：
+
+| blockedBy | var | 依据 |
+|---|---|---|
+| `op:text` | test_text r1–r5/c/r7–r9（9）+ test_faceOn__f2（1） | 自由函数 text() 需字体引擎；faceOn 还要在球面上刻字 |
+| `kernel:draft-existing-solid` | test_draft res1/res2（2） | draft() 作用于已有实体面族，occt-wasm `draft` 直接失败（同 §7.26 内核缺口） |
+| `op:project` | test_project__res（1） | 边到曲面投影，无 op 无内核投影 |
+| `op:assembly-solve` | constrain simple/nested/sub1/sub2（4）、unary_constraints ×3、PointInPlane box_and_vertex（1） | 求解器输出非整角度/欠定位，无法反推 |
+
+**指标**：PASS 228 → **247**（+19），PASS-NT 4，FAIL **1**（存量 circletorectSweep
+工具限制，未新增），ERROR 0，BLOCKED 417 → 398，parity 35.69% → **38.62%**。
+manifest 699 条：ported 233 → **264** / blocked 419 → 388 / skipped 47；
+`pending:mirror` **52 → 0**。cq-compat 单测 124/124（15 files）全绿；全程零 src 改动
+（纯镜像 + manifest），无回归面。
