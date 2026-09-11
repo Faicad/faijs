@@ -4102,24 +4102,42 @@ const v3 = (t: [number, number, number]): { x: number; y: number; z: number } =>
 
 /**
  * splineFace — build a B-spline surface face from a regular point grid and set
- * it as the workplane's current shape. Equivalent to CadQuery
- * `Face.makeSplineSurface(points, tol)`.
+ * it as the workplane's current shape. CadQuery analog: `Face.makeSplineApprox`
+ * (`Part.makeSplineSurface`) over the same `rows × cols` point grid.
  *
- * The grid is a row-major array of `rows*cols` world-space points; occt-wasm's
- * `bsplineSurface` fits a `GeomAPI_PointsToBSplineSurface` through them. The
- * workplane's plane/origin are used only for diagnostics — points are in world
- * coordinates.
+ * Two strategies are available via `opts.strategy`:
  *
- * @param wp - Workplane (carrier only; geometry comes from `grid`)
+ * - `'row-approx-loft'` (**default**): each grid row becomes a curve through
+ *   `approximatePoints(row, tolerance)`, the row wires are skinned with
+ *   `loft(wires, false, false)`, and the single resulting face is returned.
+ *   This matches CadQuery `makeSplineApprox` to 4.2e-11 (straight) / 5.6e-7
+ *   (helical) relative area on gear tooth grids — ≈3 orders better than
+ *   `'grid'` — because the curve-level tolerance carries the same meaning as
+ *   CadQuery's `spline_approx_tol`.
+ * - `'grid'`: one-shot `bsplineSurface(flat, rows, cols)` over the whole grid.
+ *   occt-wasm exposes no DegMin/DegMax/Tol3D arguments here, so it runs with
+ *   kernel defaults; that measurably diverges from CadQuery's explicit
+ *   `(3, 8, 1e-2)` (≈2.3e-4 relative area on a gear tooth grid).
+ *
+ * Points are world-space and row-major (length `rows * cols`); the workplane's
+ * plane/origin are not consulted — it is only the returned carrier.
+ *
+ * @param wp - Workplane carrier
  * @param grid - world-space points, row-major (length must equal `rows*cols`)
- * @param opts - `{ rows: number; cols: number; tolerance?: number }`
- *   (`tolerance` is reserved; occt-wasm's default `GeomAPI` tolerances are used)
+ * @param opts - `{ rows; cols; tolerance?; strategy? }`. `tolerance` is the
+ *   per-row curve approximation tolerance (default `1e-2`, matching CadQuery's
+ *   `spline_approx_tol`); `strategy` defaults to `'row-approx-loft'`
  * @returns Workplane with the spline face as `.shape`
  */
 export async function splineFace(
   wp: Workplane,
   grid: [number, number, number][],
-  opts: { rows: number; cols: number; tolerance?: number },
+  opts: {
+    rows: number
+    cols: number
+    tolerance?: number
+    strategy?: 'row-approx-loft' | 'grid'
+  },
 ): Promise<Workplane> {
   const { rows, cols } = opts
   if (!Number.isInteger(rows) || !Number.isInteger(cols) || rows < 2 || cols < 2) {
@@ -4131,16 +4149,46 @@ export async function splineFace(
     )
   }
   const kernel = getKernel() as unknown as OcctKernel
-  const raw = (
-    kernel as unknown as {
-      bsplineSurface: (
-        pts: { x: number; y: number; z: number }[],
-        rows: number,
-        cols: number,
-      ) => ShapeHandle
+  const k = kernel as unknown as {
+    bsplineSurface: (
+      pts: { x: number; y: number; z: number }[],
+      rows: number,
+      cols: number,
+    ) => ShapeHandle
+    approximatePoints: (
+      pts: { x: number; y: number; z: number }[],
+      tol?: number,
+    ) => ShapeHandle
+    makeWire: (edges: ShapeHandle[]) => ShapeHandle
+    loft: (wires: ShapeHandle[], isSolid: boolean, ruled: boolean) => ShapeHandle
+    isFace: (s: ShapeHandle) => boolean
+    getSubShapes: (s: ShapeHandle, type: 'face') => ShapeHandle[]
+  }
+
+  if (opts.strategy === 'grid') {
+    return clone(wp, { shape: fromHandle(k.bsplineSurface(grid.map(v3), rows, cols)) })
+  }
+
+  const tol = opts.tolerance ?? 1e-2
+  const wires: ShapeHandle[] = []
+  for (let r = 0; r < rows; r++) {
+    const row = grid.slice(r * cols, (r + 1) * cols).map(v3)
+    wires.push(k.makeWire([k.approximatePoints(row, tol)]))
+  }
+  const skinned = k.loft(wires, false, false)
+  let face: ShapeHandle
+  if (k.isFace(skinned)) {
+    face = skinned
+  } else {
+    const faces = k.getSubShapes(skinned, 'face')
+    if (faces.length !== 1) {
+      throw new Error(
+        `[cq-compat] splineFace: expected a single face from the row loft, got ${faces.length}`,
+      )
     }
-  ).bsplineSurface(grid.map(v3), rows, cols)
-  return clone(wp, { shape: fromHandle(raw) })
+    face = faces[0]
+  }
+  return clone(wp, { shape: fromHandle(face) })
 }
 
 /**

@@ -122,12 +122,12 @@ const BY_KEY: Record<string, string> = {
   // ---------------------------------------------------------------------------
   // E1 splineFace produces a FACE. The comparator's volume / centre-of-mass
   // metrics are undefined for a non-solid (measured volPct 575 %, centroid
-  // 9.5e15) while bbox (4.4e-16) and topology (f1/e4/v4) match exactly. vs
-  // CadQuery Face.makeSplineApprox the surface is bit-identical on polynomial
-  // grids (area 1608.303209872) and only diverges on general curved grids
-  // because occt-wasm exposes no points-approximation surface (its
-  // `bsplineSurface` interpolates the grid; makeSplineApprox fits <=deg-3 @ tol
-  // 1e-2).
+  // 9.5e15) while bbox (4.4e-16) and topology (f1/e4/v4) match exactly. The
+  // default `row-approx-loft` strategy matches CadQuery Face.makeSplineApprox
+  // to 4.2e-11 (straight) / 5.6e-7 (helical) on gear grids and bit-identically
+  // on polynomial grids (area 1608.303209872); the opt-in `grid` strategy
+  // diverges (≈2.3e-4) because occt-wasm exposes no DegMin/DegMax/Tol3D surface
+  // fit — it can only fit the whole grid with kernel defaults.
   'tests.test_cadquery::TestFace::testSplineApproxPoly__r': 'comparator:non-solid-metrics',
   // E2 helix produces a WIRE. The in-memory wire is exact (len 51.250548550 vs
   // ref 51.250549089), but occt-wasm's STEP writer degrades the helix B-spline

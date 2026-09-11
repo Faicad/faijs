@@ -10,7 +10,7 @@ Status: implemented
 
 ## 决策
 
-在 cq-compat 内以薄封装补齐四个原语，使 fai_cq_gears 经 cq-compat API 消费而非直接触碰 `occt-wasm`。每个 op 作为 `export async function` 落在 `packages/cq-compat/src/workplane.ts`，通过共享单例 `getKernel()`（`getKernel() as unknown as OcctKernel`）调用原生内核，并从 `index.ts` 导出：`splineFace`→`bsplineSurface`、`helix`→`makeHelixWire`、`splitFace`→`halfSpace`+`split`+`getSubShapes`、`twistExtrude`→原生 `rotate`/`translate` 扫截面经 `loft`。四个 op 均有完整 JSDoc（repo-wide `verify-export-jsdoc` 门禁）。单元测试（4 文件 9 例）经原生内核构造基类几何并断言尺寸/体积，全部通过；cq-compat 全包 122 测试无回归。
+在 cq-compat 内以薄封装补齐四个原语，使 fai_cq_gears 经 cq-compat API 消费而非直接触碰 `occt-wasm`。每个 op 作为 `export async function` 落在 `packages/cq-compat/src/workplane.ts`，通过共享单例 `getKernel()`（`getKernel() as unknown as OcctKernel`）调用原生内核，并从 `index.ts` 导出：`helix`→`makeHelixWire`、`splitFace`→`halfSpace`+`split`+`getSubShapes`、`twistExtrude`→原生 `rotate`/`translate` 扫截面经 `loft`。`splineFace` 经过两轮：第一版对整块网格调 `bsplineSurface`，但 occt-wasm 此处不给 DegMin/DegMax/Tol3D，只能按内核默认拟合，对 CadQuery `makeSplineApprox` 的相对面积偏差实测 2.269e-4——比计划要求的 4.2e-11 差 7 个数量级。现改为**默认 `row-approx-loft`**（逐行 `approximatePoints(tol=1e-2)` + `loft`），实测 4.2e-11（直齿）/ 5.6e-7（斜齿），一次性整块拟合作保留为 opt-in `strategy: 'grid'`。四个 op 均有完整 JSDoc（repo-wide `verify-export-jsdoc` 门禁）。单元测试（4 文件 11 例）经原生内核构造基类几何并断言尺寸/面积，全部通过；cq-compat 全包 122 测试无回归。
 
 ## 考虑的替代方案
 

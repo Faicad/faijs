@@ -1,7 +1,7 @@
 # cq-compat 齿轮扩展原语 E1–E4 开发计划（独立 PR）
 
 日期：2026-09-11
-状态：**已落地 / 已验证**（2026-09-11）—— 4 个 op 已在 `workplane.ts` 实现并导出，9 个单元测试全绿，全包 122 测试无回归；parity（run-cand 镜像）已执行：E3 `splitFace` 3 用例 PASS，E1/E2/E4 按根因登记 BLOCKED（见 §13 实施记录、§14 parity 结果）。
+状态：**已落地 / 已验证**（2026-09-11）—— 4 个 op 已在 `workplane.ts` 实现并导出，11 个单元测试全绿，全包 122 测试无回归；parity（run-cand 镜像）已执行：E3 `splitFace` 3 用例 PASS，E1/E2/E4 按根因登记 BLOCKED（见 §13 实施记录、§14 parity 结果）。**E1 `splineFace` 已按其 §4.5 验收补齐（默认 S2 `row-approx-loft`，实测 4.2e-11 / 5.6e-7），详见 §4.6。**
 上游需求源：`docs/plans/2026-09-11-fai-cq-gears-port.md` §4（fai_cq_gears 移植依赖 cq-compat，本文件是该依赖的 cq-compat 侧落地拆分）
 适用范围：仅 `@faicad/cq-compat` 包内改动，随 cq-compat 独立 PR 合入；fai_cq_gears 侧消费见上游方案。
 
@@ -108,6 +108,25 @@ const faceHandle = k.bsplineSurface(grid, opts.rows, opts.cols)  // index.d.ts:3
 ### 4.5 验收（量化）
 - **单元测试**：用 `spur-basic` 齿面点阵（来自 fai_cq_gears `fixtures/reference/`）构造 `splineFace`，面积与 CadQuery `Face.makeSplineSurface` 参考面积偏差：直齿 ≤ 4.2e-11、斜齿(helix15) ≤ 5.6e-7。
 - **parity**：`run-cand --only face_spline` 对照 CadQuery 标准库 `Face.makeSplineSurface` 输出，目标 PASS（或 PASS-NT）。
+
+### 4.6 实施结果（as-built，2026-09-11）
+
+> **§4.2/§4.4 的「直接调 `bsplineSurface`」路线未达 §4.5 验收**，已改为双策略并默认 S2。
+
+实测：occt-wasm `bsplineSurface` 只收 `(points, rows, cols)`，**没有** DegMin/DegMax/Tol3D 入口，只能按内核默认拟合；对 `spur-basic` 齿面网格相对面积偏差 **2.269e-4**，比 §4.5 要求的 4.2e-11 差 7 个数量级（§11 风险 1 命中）。
+
+因此 `splineFace` 现支持 `opts.strategy`：
+
+| strategy | 实现 | 实测（齿面网格 vs `makeSplineApprox`） |
+|---|---|---|
+| `'row-approx-loft'`（**默认**） | 每行 `approximatePoints(row, tol=1e-2)` → `makeWire` → `loft(wires,false,false)` → 取唯一 face | **直齿 4.2e-11 / 斜齿 5.6e-7**，采样点最大距离 2.646e-6 mm ✅ 满足 §4.5 |
+| `'grid'`（opt-in） | `bsplineSurface(flat, rows, cols)` | 相对面积偏差 2.269e-4 ❌ 不满足 |
+
+**验证证据（2026-09-11，`packages/fai_cq_gears` 内一次性探针）**：对 `spur-basic` + `spur-helix15` 的全部齿面段，`cq.splineFace`（S2 默认）与 fai_cq_gears 第 1 版已验证的 `buildSplineFace(..., 'row-approx-loft')` **面积逐位相同**（`areaRel = 0.00e+0`），对 cq 参考采样点的最大距离 `2.646e-6`（= 尖峰 §3 的 S2 值）。即 E1 现在**继承 S2 的标定精度**。
+
+**为何这不是「换语义」而是「补齐验收」**：§4 的 E1 验收数字（4.2e-11 / 5.6e-7）本就是尖峰报告 §3 的 **S2** 实测值，§4 的「裸内核实现线索」也已列 `approximatePoints` / `interpolatePoints`。原实现只取了 `bsplineSurface`（≈S1），是未走完 §4 的线索。
+
+**parity 归因不变**：E1 的镜像仍登记 `blocked`，但 `blockedBy` 的**主因是 `comparator:non-solid-metrics`**（face 无体积/质心），而非曲面算法差异——S2 在齿面网格上已与 `makeSplineApprox` 等价；`grid` 策略的 ≈2.3e-4 偏差是它自己的 opt-in 行为。
 
 ---
 
@@ -281,7 +300,7 @@ export function twistExtrude(
 
 ## 11. 风险与待拍板
 
-1. **【高】`bsplineSurface` Deg/Tol 默认值**：occt-wasm 默认是否与 CadQuery 显式 `(3,8,1e-2)` 一致，须 E1 实施第一步实测；不一致则 E1 需扩 vendored 层显式传参（工作量上升）。
+1. **【已证实→已解】`bsplineSurface` Deg/Tol 默认值**：实测 occt-wasm **没有** DegMin/DegMax/Tol3D 入口，只按内核默认拟合 → 齿面网格偏差 2.269e-4，达不到 §4.5。**解法**：E1 默认改为 S2 `row-approx-loft`（每行 `approximatePoints(tol=1e-2)` + `loft`），实测 4.2e-11 / 5.6e-7 ✅；`bsplineSurface` 保留为 opt-in `strategy:'grid'`。不需要扩 vendored 层。详见 §4.6。
 2. **【中】E3 plane 构造方法**：occt-wasm 是否提供无限平面 face（`makePlaneFace`/`makeInfinitePlane`）须先 grep `index.d.ts` 确认；无则用大 box 近似，T2 可能需 `strictTopology:false`。
 3. **【中】E4 路线 A 精度**：loft 逼近 `twistExtrude` 是否达 CadQuery 精度，不达标则走路线 B（自构扭转面，工作量更大）。
 4. **【低】cadquery-env 版本**：2.8.0 下 cq_gears 0.62 须先验证可 import（上游方案 §1.5 红线）；重生成 reference 须同版本并记 sha。
@@ -372,7 +391,7 @@ npx tsx tests/run-cand.ts --only twist_extrude
 
 1. **E4 `twistExtrude`（`kernel:boolean-near-coincident-bspline`）**。上游走 `Solid.extrudeLinearWithRotation` → `BRepOffsetAPI_MakePipeShell(spine).SetMode(auxSpine=helix, False).MakeSolid()`；cq-compat 用「离散旋转截面 + 平滑 loft」逼近（顶点与 ref 逐位一致，体积差 2.6e-7）。两实体近乎重合时 `BRepAlgoAPI_Cut` **单向失败**：`A−B=2.6e-4`（正确），`B−A=999.99`（=整体积，`isValid=true`）。实测与截面数无关（4/8/16/32/64/128 在 in-process 下 0/1000 抖动），且**经 STEP 往返后稳定复现**，故非构造问题。occt-wasm 的 `sweepOriented(..., SweepMode.Auxiliary, ..., auxSpine)` 复刻上游算法反而更差（vol 999.83，偏离 0.17 %），故保留 loft。
 2. **E2 `helix`（`kernel:step-export-wire-fidelity`）**。内存 wire 精确；`kernel.exportStep` 写出的 helix B 样条控制点明显少于 CadQuery（24 vs 85 个 CARTESIAN_POINT），往返后长度 51.2505491 → **44.1568406**、bbox 偏 5.4e-3。**影响面**：所有以裸 wire/曲线为导出对象的 parity 用例（面/实体用例不受影响，因为几何承载在面上）。
-3. **E1 `splineFace`（`comparator:non-solid-metrics`）**。occt-wasm `bsplineSurface(controlPoints, rows, cols)` 文档称「control points」，实测对网格**插值**（3×3 网格中心 pole z=10 → `pointOnSurface(0.5,0.5).z=10`），而 CadQuery `Face.makeSplineApprox` 是 `GeomAPI_PointsToBSplineSurface(DegMin=1, DegMax=3, Tol3D=1e-2)` 的≤3 次**逼近**。二者仅在网格落在多项式曲面上时逐位一致（实测双线性 41×41：两侧 area 均 1608.303209872；2×2 双曲抛物面：均 1.861564180），一般曲面网格会发散（41×41 波状网格：cand 28464 vs ref 2367，z 幅 −138.6~177.7 vs −5.0~5.0）。另外**面是非实体**，比较器的 volume/centre-of-mass 指标无定义（实测 volPct 575 %、centroid 9.5e15），而 bbox（4.4e-16）与拓扑（f1/e4/v4）全等。
+3. **E1 `splineFace`（`comparator:non-solid-metrics`，主因改判）**。**主因是比较器**：面是非实体，`volume`/`centre-of-mass` 无定义（实测 volPct 575 %、centroid 9.5e15），而 bbox（4.4e-16）与拓扑（f1/e4/v4）全等。**曲面算法差异已不再是主因**：E1 默认改用 S2 `row-approx-loft` 后，在齿面网格上与 `Face.makeSplineApprox` 等价到 4.2e-11 / 5.6e-7（§4.6）。历史背景（保留备查）：`grid` 策略走的 occt-wasm `bsplineSurface` 文档称「control points」、实测对网格**插值**（3×3 中心 pole z=10 → `pointOnSurface(0.5,0.5).z=10`），而 `makeSplineApprox` 是 `GeomAPI_PointsToBSplineSurface(DegMin=1, DegMax=3, Tol3D=1e-2)` 的≤3 次**逼近**；二者仅在网格落在多项式曲面上逐位一致（双线性 41×41 两侧 area 均 1608.303209872；2×2 双曲抛物面均 1.861564180），一般波状网格发散（41×41：cand 28464 vs ref 2367）。这正是定 S2 为默认的依据。
 
 ### 14.4 对 §1/§5 的更正与遗留
 

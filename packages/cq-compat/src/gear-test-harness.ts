@@ -107,3 +107,14 @@ export type BBox = {
 export function bbox(shape: Shape): BBox {
   return kernel().getBoundingBox(brepOf(shape) as unknown as ShapeHandle) as BBox
 }
+
+/**
+ * Surface area of a face (or total area of a shell/solid), via the native
+ * kernel's `getSurfaceArea`.
+ *
+ * @param shape - a faijs `Shape` carrying a BREP handle (see `brepOf`)
+ * @returns the area in model units squared
+ */
+export function area(shape: Shape): number {
+  return kernel().getSurfaceArea(brepOf(shape) as unknown as ShapeHandle)
+}

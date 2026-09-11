@@ -1,10 +1,13 @@
 // source: custom reference — Face.makeSplineApprox vs the E1 `splineFace` op.
 //
 // Face.makeSplineApprox fits a <= degree-3 surface within tol=1e-2
-// (GeomAPI_PointsToBSplineSurface), while cq-compat splineFace interpolates the
-// grid (occt-wasm bsplineSurface). The two agree EXACTLY on grids that lie on a
-// polynomial surface, and diverge on general curved grids (interpolation
-// overshoots). This case pins the shared domain: a doubly-curved bilinear sheet
+// (GeomAPI_PointsToBSplineSurface). cq-compat splineFace defaults to
+// `row-approx-loft` (per-row approximatePoints + loft), which matches
+// makeSplineApprox on gear grids to 4.2e-11 / 5.6e-7; its opt-in `grid`
+// strategy instead fits the whole grid with kernel defaults (occt-wasm exposes
+// no DegMin/DegMax/Tol3D), which diverges ≈2.3e-4 on curved grids. Both
+// strategies agree EXACTLY on grids that lie on a polynomial surface, which is
+// the shared domain this case pins: a doubly-curved bilinear sheet
 //   z = A*i*j/N^2   over an (N+1)x(N+1) lattice in the XY plane.
 // Reference recipe (regenerate with cadquery-env if the block is lifted; note
 // the case is not an upstream test, so run-ref.py never produces it):
