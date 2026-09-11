@@ -48,6 +48,13 @@ export interface LiveShapesInput {
   shapeVarNames: Set<PartName>
   /** 块单元产出：shape 名 → 块起始行（DirectExecutor 执行块前后 ctx diff 登记） */
   blockOutputs?: Map<string, number>
+  /**
+   * 原地写回登记（P25 §3.7.4 规则 2）：裸调用行 → 写回目标变量名。
+   * DirectExecutor 执行期登记（修改类裸调用 `fai_drill(part0)` 把结果写回首参）；
+   * lastProducer 叠加时把该变量的最后写者锚到裸调用行——写回行之前的旧消费
+   * 不误伤写回后的新值（producer 精确化，见方案 §3.7.4）。
+   */
+  inplaceWrites?: Map<number, string>
   /** 显式 return 终端（metadata.terminalShapes，非空优先——与现状一致） */
   explicitTerminals?: TerminalShape[]
 }
@@ -72,6 +79,11 @@ export function lineConsumes(
   if (fnKeep && fnKeep.kept.has(v)) return false
   const lineKeep = keep.lineEntries(line.line)
   if (lineKeep?.some((e) => e.target === String(v))) return false
+
+  // C4（P25 §3.7 规则 1）：无赋值裸调用默认不消费——无论自赋值还是只读，
+  // 没有赋值绑定的语句不构成对输入的消费。覆盖 projectView(part)/fai_drill(part0)/
+  // volume(part) 等裸调用；修改类裸调用的写回经 inplaceWrites 登记（producer 精确化）。
+  if (!line.hasAssignment) return false
 
   // C3：本语句有赋值且所有输出都是非几何 → 纯数据/测量/查询语句，不消费任何输入
   if (
@@ -150,7 +162,7 @@ function wordBoundaryMatch(text: string, name: string): boolean {
  * @returns TerminalShape[]（{ id } ∪ hidden），与原 computeLeafTerminals 形态兼容。
  */
 export function computeLiveShapes(input: LiveShapesInput): TerminalShape[] {
-  const { lines, blocks, keep, shapeVarNames, blockOutputs } = input
+  const { lines, blocks, keep, shapeVarNames, blockOutputs, inplaceWrites } = input
 
   // 显式 return 终端优先（与现状一致）
   const explicit = input.explicitTerminals ?? []
@@ -183,6 +195,19 @@ export function computeLiveShapes(input: LiveShapesInput): TerminalShape[] {
     const line = lines[i]
     if (!line.hasAssignment) continue
     for (const out of line.outputs) lastProducer.set(String(out), i)
+  }
+  // P25 §3.7.4：原地写回登记（DirectExecutor 执行期；行号 → 写回变量名）。
+  // 修改类裸调用（fai_drill(part0) 等）把结果写回首参——把该变量的最后写者锚到
+  // 裸调用行（producer 精确化）：写回行之前的旧消费只作用于旧值，不误伤新值。
+  if (inplaceWrites && inplaceWrites.size > 0) {
+    const lineIdxOf = new Map<number, number>()
+    lines.forEach((l, i) => {
+      if (!lineIdxOf.has(l.line)) lineIdxOf.set(l.line, i)
+    })
+    for (const [lineNo, name] of inplaceWrites) {
+      const idx = lineIdxOf.get(lineNo)
+      if (idx !== undefined) lastProducer.set(name, idx)
+    }
   }
 
   // 2. 逐个候选名判定

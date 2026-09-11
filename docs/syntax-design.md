@@ -198,8 +198,10 @@ export function group(params) {
 | `let g = cad.group({ members: [part0, part1] })` | `part0`, `part1`, `g` |
 | `let a = cad.assembly({ members: [part0] })` then `a.do_assemble()` | `part0`, `a` — a member call never consumes its receiver |
 | `let c = cad.bboxCenter(part0)` | `part0`, `c` — all outputs non-geometric, so nothing is consumed |
+| `cad.projectView(part0, 'front')` | `part0` — a bare call without assignment never consumes, read-only or self-assigning alike |
+| `cad.fai_drill(part0, …)` | `part0` — the drilled result is written back into `part0` (rule 2), and `part0` stays a terminal |
 
-The decision chain behind this table — retention first, then "every output is non-geometric", then the default — and the leaf-terminal algorithm are owned by [`docs/api-contract.md`](api-contract.md). **Local function calls** (§2.3) follow the same chain with an opaque body: body-internal `cad.*` calls never register keeps (call-site `keep` is the only retention channel) and body intermediates never become terminals.
+The decision chain behind this table — retention first, "no-assignment bare call never consumes" (rule 1), then "every output is non-geometric", then the default — and the leaf-terminal algorithm are owned by [`docs/api-contract.md`](api-contract.md). **Local function calls** (§2.3) follow the same chain with an opaque body: body-internal `cad.*` calls never register keeps (call-site `keep` is the only retention channel) and body intermediates never become terminals.
 
 ---
 
@@ -228,6 +230,8 @@ destructuring:   const { <keys> } = await ns.<ns>.<callee>(…); ctx.<out_i> = <
 member call:     await ctx.<receiver>.<callee>({ …args })
 no assignment:   await ns.<ns>.<callee>(…)
 ```
+
+The `no assignment` form is **dual-semantic** (P25 rule 2): a read-only result passes through unwritten, while a geometry result writes back into the first shape-position argument (a member call writes back into its receiver), under a runtime guard that both values are geometry. The bare call never consumes its input (rule 1) and the write-back line is recorded so producer anchoring stays precise.
 
 Every positional element is emitted in its IR form: `$param` and `$ref` compile to `ctx.<name>`, a nested `$call` to `await ns.<ns>.<callee>(…)`, an `ExprIR` to an arrow wrapper `((<names>) => <text>)(<args>)` guarded by a module-local `__FaiExprEvalError` marker class (an evaluation failure becomes `E_EXPR` on the owning statement, never a raw throw into unrelated code). The trailing options object is emitted with `keep` / `keepHidden` stripped; a keep-only object disappears entirely. A parameter declaration is a statement too (`ctx.size = 20`), which is why a parameter change cascades like any other dependency.
 

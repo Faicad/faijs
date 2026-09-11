@@ -671,6 +671,64 @@ const n = cad.faceNormal(part0, [0, 0, 5])
 
 **同步**。Vec3 面上锚点处的法向 [x,y,z]。
 
+### 7.6 `projectSheet` ✅
+
+多视图投影图纸 → 组合 SVG 字符串（纯数据，不消费/修改 shape）。
+
+```js
+const sheet = cad.projectSheet(part0, ['front', 'top', 'right', 'iso'])
+const sheet = cad.projectSheet(part0, [{ view: 'front', label: '主视图' }], { cols: 2, gap: 40, labels: true })
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `part` | `Shape` | ✅ | — | 目标几何（必须有 BREP 槽；mesh-only 抛 E_BREP_ONLY_INPUT） |
+| `views` | `(string|{view,label?})[]` | ✅ | — | 视图列表：视图规格字符串，或 { view, label? } 对象（方向对象自动生成 x,y,z 标签） |
+| `cols` | `number` |  | 2 | 网格列数 |
+| `gap` | `number` |  | 30 | 格间距（px） |
+| `labels` | `boolean` |  | true | 是否渲染 <text> 标签 |
+| `cellWidth` | `number` |  | 400 | 每格画布宽度 |
+| `cellHeight` | `number` |  | 300 | 每格画布高度 |
+
+**同步**。SVG 字符串（嵌套 <svg x y width height viewBox preserveAspectRatio> + <text> 标签）。空列表返回空 SVG 不抛错。
+
+### 7.7 `projectView` ✅
+
+单视图投影 → SVG 线稿字符串（纯数据，不消费/修改 shape；规则 1 下裸调用不消费输入）。
+
+```js
+const svg = cad.projectView(part0, 'front')
+const svg = cad.projectView(part0, 'iso', { strokeWidth: 1, dash: '4,4', hiddenOpacity: 0.6 })
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `part` | `Shape` | ✅ | — | 目标几何（必须有 BREP 槽；mesh-only 抛 E_BREP_ONLY_INPUT） |
+| `view` | `string|{dir,xAxis?}` | ✅ | — | 视图规格（同 viewCamera：标准视图名 / iso / 轴对平面 / 方向对象） |
+| `strokeWidth` | `number` |  | 1 | 可见线宽（stroke-width） |
+| `dash` | `string` |  | '4,4' | 隐藏线虚线样式（stroke-dasharray） |
+| `hiddenOpacity` | `number` |  | 0.6 | 隐藏线透明度 |
+| `margin` | `number` |  | 10 | viewBox 外扩边距 |
+| `width` | `number` |  | — | 输出宽度（缺省 = viewBox 宽度） |
+| `height` | `number` |  | — | 输出高度（缺省 = viewBox 高度） |
+
+**同步**。SVG 字符串（<svg viewBox="…"> + 可见实线 <path> + 隐藏虚线 <path>）。裸调用 cad.projectView(part0, 'front') 不消费 part0（规则 1），part 仍留在 canvas。
+
+### 7.8 `viewCamera` ✅
+
+解析视图规格为投影相机（纯数据，无 Shape 输入；不消费任何几何）。
+
+```js
+const cam = cad.viewCamera('iso')
+const cam = cad.viewCamera({ dir: [1, -1, 1] })
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `view` | `string|{dir,xAxis?}` | ✅ | — | 视图规格：标准视图名（front/back/top/bottom/left/right/iso（=isometric）/XY/XZ/YZ/YX/ZX/ZY）或方向对象 |
+
+**同步**。{ direction, xAxis? } 归一化方向向量（iso = (1,-1,1)/√3，与 FreeCAD/OCCT 惯例一致）。未知视图名抛错；零方向向量抛错。用于 3d_editor 侧三轴相机渲染（mesh/SDF 形状的截图通道）。
+
 ---
 
 ## 8. 接口品质状态（自动派生自 @qual）
@@ -694,5 +752,5 @@ const n = cad.faceNormal(part0, [0, 0, 5])
 变换: translate / rotate_euler / scale / scale3d
 特征: union / subtract / intersect / chamfer / copy / engrave / drill / fai_extrude / fai_split / fillet / knurl
 结构: group / assembly
-查询: asset / faceNormal / bboxCenter / bboxMin / bboxMax
+查询: asset / faceNormal / bboxCenter / bboxMin / bboxMax / viewCamera / projectView / projectSheet
 ```

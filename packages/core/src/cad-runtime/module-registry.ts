@@ -54,6 +54,8 @@ export interface ModuleRunResult {
   getCtxVar(name: string): unknown
   listKeepLines(): number[]
   getKeepByLine(lineNo: number): ExecKeepRecord | undefined
+  /** P25 §3.7.4：原地写回登记（裸调用行 → 写回目标变量名；DirectExecutor 提供）。 */
+  getInplaceWrites?(): Map<number, string>
 }
 
 /** 模块执行回调：独立 ctx 执行模块源码（imports = 该模块自己的 seed）。 */
@@ -250,6 +252,7 @@ export class ModuleRegistry {
       }
     }
     // 模块自身的存活终端：函数体 keep 登记读 ModuleRunResult（DirectExecutor.keepByLine）
+    const ipw = result.getInplaceWrites?.()
     const terminals = computeLiveShapes({
       lines: meta.lines,
       blocks: meta.blocks,
@@ -258,6 +261,7 @@ export class ModuleRegistry {
         functionBody: (lineNo): KeepRegistration | undefined => result.getKeepByLine(lineNo),
       },
       shapeVarNames,
+      ...(ipw && ipw.size > 0 ? { inplaceWrites: ipw } : {}),
     })
     const liveShapes = new Set<string>(terminals.map((t) => String(t.id)))
     return { values, fns, liveShapes }

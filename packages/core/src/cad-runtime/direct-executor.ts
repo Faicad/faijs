@@ -30,14 +30,23 @@ import { ParseError } from '../lang/parse-error'
 import { setCurrentStmt, setKeepSink, setName, nameOf, getBackends, takePendingAssemblyTransforms, takePendingAssemblyKinematics, type AssemblyKinematicsPose, type ExecutionAnchor } from '../runtime-state'
 import { ExecutionLimitError } from './execution-limit-error'
 import { assertSecure, type SecurityPolicy } from '../lang/security-scanner'
-import { getSlot, ensureSlot, brepOf } from '../shape'
-import type { Shape } from '../mesh/types'
+import { getSlot, ensureSlot, brepOf, isShape } from '../shape'
+import { isMeshShape, type Shape } from '../mesh/types'
 import type { BrepHandle } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 import { applyTransform } from '../mesh/rigid-transform'
 import { applyTransformBrep } from '../brep/brep-ops'
 
 type ASTNode = any
+
+/**
+ * 几何值判定（isShape ∨ isMeshShape；与 define-op.isGeometryInput 同构）——
+ * 裸调用原地写回（§3.7 规则 2）的运行时守卫：只有「返回值是几何 且 目标原值也是
+ * 几何」才写回首参。projectView/volume 等返回纯数据的裸调用天然不写回。
+ */
+function isGeomValue(v: unknown): boolean {
+  return isShape(v) || isMeshShape(v)
+}
 
 // ── Namespaces ──
 
@@ -83,6 +92,12 @@ export interface DirectExecOutcome {
    * 所有写入键都进 changed，与 module 路径行为一致）。
    */
   changed?: string[]
+  /**
+   * 原地写回登记（P25 §3.7.4 规则 2）：裸调用行 → 写回目标变量名。
+   * 修改类裸调用（fai_drill(part0) 等）把结果写回首参——computeLiveShapes 用它
+   * 做 producer 精确化（行号键，与 blockOutputs 同形态）。
+   */
+  inplaceWrites?: Map<number, string>
 }
 
 /** 单次执行的参数。 */
@@ -286,6 +301,9 @@ export class DirectExecutor {
   /** 块单元产出登记（T1/A-6）：shape 名 → 块起始行号；execute 前后 ctx diff 生成。 */
   private blockOutputs = new Map<string, number>()
 
+  /** 原地写回登记（P25 §3.7.4 规则 2）：裸调用行 → 写回目标变量名（行号键）。 */
+  private readonly inplaceWrites = new Map<number, string>()
+
   /** 变更登记（T2）：语句写值前后比对的产出——与 module 路径 exec.changed 同语义。 */
   private changedSet = new Set<string>()
 
@@ -304,6 +322,7 @@ export class DirectExecutor {
     this.blockOutputs.clear()
     this.changedSet.clear()
     this.fnParams.clear()
+    this.inplaceWrites.clear()
   }
 
   /**
@@ -535,6 +554,7 @@ export class DirectExecutor {
         failedAt,
         executedLines,
         blockOutputs: this.blockOutputs,
+        inplaceWrites: this.inplaceWrites,
         changed: this.changedSet.size > 0 ? [...this.changedSet] : undefined,
       }
     } finally {
@@ -622,10 +642,12 @@ export class DirectExecutor {
     }
   }
 
-  /** 单单元执行：变换文本嵌入 async fn，以 __ctx/__ns 实参调用。 */
+  /** 单单元执行：变换文本嵌入 async fn，以 __ctx/__ns/__isGeom 实参调用。 */
   private async runUnit(unit: TransformedUnit): Promise<void> {
     const src = `return (async () => {\n${unit.body}\n})()`
-    const fn = new Function('__ctx', '__ns', src)
+    // P25 §3.7 规则 2：第三参数 '__isGeom'（几何值守卫）——裸调用原地写回的
+    // 双条件运行时判定（返回值/原值都是几何才写回）。
+    const fn = new Function('__ctx', '__ns', '__isGeom', src)
     // 执行锚点：库函数体 exec.keep / primitive 命名读 getCurrentStmt()?.outputs
     // ——用 ExecutionAnchor 轻量锚点（行号 + 写键）。
     const anchor: ExecutionAnchor = {
@@ -635,7 +657,7 @@ export class DirectExecutor {
     }
     setCurrentStmt(anchor)
     try {
-      await fn(this.ctx, this.namespaces)
+      await fn(this.ctx, this.namespaces, isGeomValue)
     } finally {
       setCurrentStmt(undefined)
     }
@@ -1002,6 +1024,19 @@ export class DirectExecutor {
     }
     if (expr?.type === 'CallExpression') {
       const call = this.emitCall(expr, code, declared, lineNo)
+      // P25 §3.7 规则 2（双语义）：裸调用按返回值区分——只读查询（返回纯数据）
+      // 放行不写回；修改类 op（返回几何 且 首位置实参/receiver 是几何变量）写回
+      // 第一个 shape 位置实参（或成员 receiver）。静态选出候选写回目标，运行时
+      // 双条件守卫兜底（__isGeom(__r) && __isGeom(__ctx.<target>)）——projectView/
+      // volume 等返回非几何的调用永不写回。
+      const target = this.writebackTarget(expr, declared)
+      if (target !== undefined) {
+        const body =
+          `const __r = await ${call}; ` +
+          `if (__isGeom(__r) && __isGeom(__ctx.${target})) __ctx.${target} = __r`
+        this.inplaceWrites.set(lineNo, target)
+        return { lineNo, body, writes: [target], refs: this.collectRefs(expr), callee: this.calleeOf(expr), endLine: 0 }
+      }
       // 命名空间裸调用 / 成员方法 / 本机函数副作用调用：都 await（无写入）
       return { lineNo, body: `await ${call}`, writes: [], refs: this.collectRefs(expr), callee: this.calleeOf(expr), endLine: 0 }
     }
@@ -1009,8 +1044,7 @@ export class DirectExecutor {
   }
 
   /** 调用发射：<ns>.<fn>(args) / <receiver>.<method>(args) / <localFn>(args) → await 形态。 */
-  private emitCall(callNode: ASTNode, code: string, declared: Set<string>, lineNo: number): string {
-    if (callNode?.type !== 'CallExpression') {
+  private emitCall(callNode: ASTNode, code: string, declared: Set<string>, lineNo: number): string {    if (callNode?.type !== 'CallExpression') {
       throw new ParseError('expected call expression', lineNo, 'E_STATEMENT')
     }
     const callee = callNode.callee
@@ -1034,6 +1068,38 @@ export class DirectExecutor {
     }
     const args = this.emitCallArgs(callNode, code, declared, lineNo)
     return `${head}(${args.join(', ')})`
+  }
+
+  /**
+   * 裸调用写回候选目标（P25 §3.7 规则 2 静态选择）：
+   * - 成员方法调用 `obj.method(...)`：receiver 是 ctx 对象（declared 或 ctx 键）→ 写回 receiver；
+   * - 命名空间/本机函数调用 `cad.op(a0, ...)`：首位置实参是已声明/ctx 标识符 → 写回 a0
+   *   （多 shape 参数写回第一个——方案 §3.7.3）；
+   * - 其他（首参非简单标识符、receiver 是 __ns 命名空间）→ 无候选（放行不写回）。
+   *
+   * 静态选择只定「候选」，写回是否真正发生由运行时双条件守卫决定
+   * （__isGeom(__r) && __isGeom(__ctx.<target>)）——返回值非几何（projectView/volume）
+   * 或目标原值非几何（模块命名空间 receiver）都不写回。
+   *
+   * @param callNode - 裸调用表达式。
+   * @param declared - 已声明变量集（参数名 + 产出 + 函数名）。
+   * @returns 写回目标变量名；无候选返回 undefined。
+   */
+  private writebackTarget(callNode: ASTNode, declared: Set<string>): string | undefined {
+    if (callNode?.type !== 'CallExpression') return undefined
+    const callee = callNode.callee
+    if (callee?.type === 'MemberExpression' && callee.object?.type === 'Identifier') {
+      const obj = callee.object.name
+      // 成员方法调用（receiver 是 ctx/declared 对象）→ 写回 receiver；命名空间调用
+      // （cad.op → __ns）走首位置实参候选（emitCall 同判定：ctx 对象走 __ctx，否则 __ns）。
+      if (declared.has(obj) || this.ctxHas(obj)) return obj
+    }
+    const first = callNode.arguments?.[0]
+    if (first?.type === 'Identifier') {
+      const name = first.name
+      return declared.has(name) || this.ctxHas(name) ? name : undefined
+    }
+    return undefined
   }
 
   /** 实参发射：本机函数调用（裸 Identifier 且已在 fnParams 登记）应用 §3.4/§3.6 的
@@ -1164,6 +1230,16 @@ export class DirectExecutor {
    */
   getBlockOutputs(): Map<string, number> {
     return new Map(this.blockOutputs)
+  }
+
+  /**
+   * 返回原地写回登记（P25 §3.7.4）：裸调用行 → 写回目标变量名。
+   * runtime 的 collectDirectResult 用此传给 computeLiveShapes 的 inplaceWrites
+   * （producer 精确化）。
+   * @returns 原地写回登记的只读视图。
+   */
+  getInplaceWrites(): Map<number, string> {
+    return new Map(this.inplaceWrites)
   }
 
   /**

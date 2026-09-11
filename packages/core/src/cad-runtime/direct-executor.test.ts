@@ -354,3 +354,121 @@ describe('DirectExecutor: transformArg 保留嵌套算术括号（回归 2026-09
     expect(Math.abs(minX + 10.055)).toBeLessThan(1e-6)
   })
 })
+
+describe('DirectExecutor: P25 裸调用原地写回（§3.7 规则 2）', () => {
+  const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
+  const cadNs = createApiNamespace()
+
+  it('修改类裸调用 fai_drill(part0) 无赋值 → 结果落在 part0（几何变化 + inplaceWrites 登记）', async () => {
+    const ex = new DirectExecutor({ namespaces: { cad: cadNs } })
+    await rt.execute('let warmup = cad.box(1, 1, 1, { centered: true })')
+    const before = new DirectExecutor({ namespaces: { cad: cadNs } })
+    await before.execute('let part0 = cad.box(20, 20, 20, { centered: true })')
+    const out = await ex.execute([
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
+      'cad.fai_drill(part0, { diameter: 4, depth: 0, position: [0, 0, 0] })',
+    ].join('\n'))
+    expect(out.failedAt).toBeUndefined()
+    expect(out.inplaceWrites?.get(2)).toBe('part0')
+    // 只有 part0 一个 shape；钻孔后几何与原始 box 不同
+    const fp = fingerprint(ex.ctx)
+    expect(fp).toHaveLength(1)
+    expect(fp[0]).not.toContain(fingerprint(before.ctx)[0].split(':')[1])
+  })
+
+  it('裸调用写回几何 = 显式赋值几何（双语义一致）', async () => {
+    await rt.execute('let warmup = cad.box(1, 1, 1, { centered: true })')
+    const bare = new DirectExecutor({ namespaces: { cad: cadNs } })
+    await bare.execute([
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
+      'cad.fai_drill(part0, { diameter: 4, depth: 0, position: [0, 0, 0] })',
+    ].join('\n'))
+    const assigned = new DirectExecutor({ namespaces: { cad: cadNs } })
+    await assigned.execute([
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
+      'part0 = cad.fai_drill(part0, { diameter: 4, depth: 0, position: [0, 0, 0] })',
+    ].join('\n'))
+    expect(fingerprint(bare.ctx)).toEqual(fingerprint(assigned.ctx))
+  })
+
+  it('只读裸调用（bboxCenter 返回纯数据）不写回：登记候选但值不变（运行时守卫）', async () => {
+    const ex = new DirectExecutor({ namespaces: { cad: cadNs } })
+    await rt.execute('let warmup = cad.box(1, 1, 1, { centered: true })')
+    const before = new DirectExecutor({ namespaces: { cad: cadNs } })
+    await before.execute('let part0 = cad.box(20, 20, 20, { centered: true })')
+    const out = await ex.execute([
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
+      'cad.bboxCenter(part0)',
+    ].join('\n'))
+    expect(out.failedAt).toBeUndefined()
+    // 静态候选登记了 part0（首参），但 bboxCenter 返回 Vec3 非几何 → 运行时守卫不写回
+    expect(out.inplaceWrites?.get(2)).toBe('part0')
+    // part0 仍是原始 box（值未被替换）
+    expect(fingerprint(ex.ctx)).toEqual(fingerprint(before.ctx))
+  })
+
+  it('裸调用写回参与后续语句（新值被消费）', async () => {
+    const ex = new DirectExecutor({ namespaces: { cad: cadNs } })
+    await rt.execute('let warmup = cad.box(1, 1, 1, { centered: true })')
+    const out = await ex.execute([
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
+      'cad.fai_drill(part0, { diameter: 4, depth: 0, position: [0, 0, 0] })',
+      'let part1 = cad.scale(part0, 2)',
+    ].join('\n'))
+    expect(out.failedAt).toBeUndefined()
+    expect(fingerprint(ex.ctx)).toHaveLength(2)
+    expect(out.changed).toContain('part0')
+  })
+
+  it('本机函数裸调用返回 shape → 写回首参', async () => {
+    const ex = new DirectExecutor({ namespaces: { cad: cadNs } })
+    await rt.execute('let warmup = cad.box(1, 1, 1, { centered: true })')
+    const out = await ex.execute([
+      'function scale2(x) { return cad.scale(x, 2) }',
+      'let part0 = cad.box(10, 10, 10, { centered: true })',
+      'scale2(part0)',
+    ].join('\n'))
+    expect(out.failedAt).toBeUndefined()
+    expect(out.inplaceWrites?.get(3)).toBe('part0')
+    const mesh = ex.ctx.part0 as { positions: Float32Array }
+    let maxAbs = 0
+    for (let i = 0; i < mesh.positions.length; i += 3) {
+      maxAbs = Math.max(
+        maxAbs,
+        Math.abs(mesh.positions[i]),
+        Math.abs(mesh.positions[i + 1]),
+        Math.abs(mesh.positions[i + 2]),
+      )
+    }
+    // scale 2：box 半宽 5 → 10（centered）
+    expect(Math.abs(maxAbs - 10)).toBeLessThan(1e-4)
+  })
+
+  it('多 shape 参数裸调用写回第一个（subtract(part0, part1) → part0）', async () => {
+    const ex = new DirectExecutor({ namespaces: { cad: cadNs } })
+    await rt.execute('let warmup = cad.box(1, 1, 1, { centered: true })')
+    const out = await ex.execute([
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
+      'let part1 = cad.box(10, 10, 10, { centered: true })',
+      'cad.subtract(part0, part1)',
+    ].join('\n'))
+    expect(out.failedAt).toBeUndefined()
+    expect(out.inplaceWrites?.get(3)).toBe('part0')
+    // part0 被减除（非原始 box），part1 保留
+    expect(fingerprint(ex.ctx)).toHaveLength(2)
+  })
+
+  it('receiver 非几何对象（本机对象方法）不写回：值不变（运行时守卫兜底）', async () => {
+    const ex = new DirectExecutor({ namespaces: { cad: cadNs } })
+    await rt.execute('let warmup = cad.box(1, 1, 1, { centered: true })')
+    const out = await ex.execute([
+      'let part0 = cad.box(10, 10, 10, { centered: true })',
+      'let meta = { label: "x", touch() { return "touched" } }',
+      'meta.touch()',
+    ].join('\n'))
+    expect(out.failedAt).toBeUndefined()
+    // touch 返回字符串（非几何）→ 运行时守卫不写回 meta（值保持不变）
+    expect((ex.ctx.meta as { label: string }).label).toBe('x')
+    expect(fingerprint(ex.ctx)).toHaveLength(1)
+  })
+})

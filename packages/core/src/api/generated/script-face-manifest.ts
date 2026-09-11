@@ -16,6 +16,9 @@ export interface ScriptFaceOp {
 export const SCRIPT_FACE_OPS: readonly ScriptFaceOp[] = [
   { name: 'torus', module: 'topology' },
   { name: 'fuse', module: 'topology' },
+  { name: 'viewCamera', module: 'view' },
+  { name: 'projectView', module: 'view' },
+  { name: 'projectSheet', module: 'view' },
   { name: 'linearPattern', module: 'operations' },
   { name: 'circularPattern', module: 'operations' },
   { name: 'gridPattern', module: 'operations' },

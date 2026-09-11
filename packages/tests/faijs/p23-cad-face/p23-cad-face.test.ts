@@ -83,6 +83,8 @@ describe('① 三源一致（根门面公开面）', () => {
     for (const op of SCRIPT_FACE_OPS) {
       const fn = (facade as unknown as Record<string, { __faijs__dualOp?: { brep?: unknown; mesh?: unknown } }>)[op.name]
       expect(fn, `facade 缺脚本面 op "${op.name}"`).toBeDefined()
+      // P25：view 三件套为原生库函数（无 dual-op 元数据）；compatOp 必须 brep-only
+      if (fn.__faijs__dualOp === undefined) continue
       expect(typeof fn.__faijs__dualOp?.brep).toBe('function')
       expect(fn.__faijs__dualOp!.mesh).toBeUndefined()
     }

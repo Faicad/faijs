@@ -53,7 +53,10 @@ describe('生成层机制（E5，P13a 机制 / P14 分片）', () => {
     for (const m of PROJECTED_MODULES) {
       if (!MODULES.has(m)) continue
       const base = new Set(raw.symbols.filter((s) => s.module === m).map((s) => s.name))
-      const projected = ARG_SPEC.filter((e) => e.kind !== 'skip' && (e.module ?? 'topology') === m)
+      // P25：kind 'faijs' 是 faijs 自研符号（api/view 视图投影），上游 surface 无此符号——跳过基线。
+      const projected = ARG_SPEC.filter(
+        (e) => e.kind !== 'skip' && e.kind !== 'faijs' && (e.module ?? 'topology') === m,
+      )
       for (const e of projected) {
         expect(base.has(e.name), `arg-spec 条目 ${m}:${e.name} 不在 surface 基线中`).toBe(true)
       }
@@ -67,7 +70,7 @@ describe('生成层机制（E5，P13a 机制 / P14 分片）', () => {
     expect(generateScriptFaceManifest()).toBe(manifest)
   })
 
-  it('P23：script-face 条目必须是 brep-op 且不在 faijs 特有 op 集合中（防同名二义）', () => {
+  it('P23/P25：script-face 条目是 brep-op 或 faijs 自研视图投影，且不在 faijs 特有 op 集合中（防同名二义）', () => {
     const index = readFileSync(fileURLToPath(new URL('../index.ts', import.meta.url)), 'utf-8')
     const ns = readFileSync(fileURLToPath(new URL('../api-namespace.ts', import.meta.url)), 'utf-8')
     expect(index).toMatch(/from '\.\/generated\/script-face'/)
@@ -83,7 +86,7 @@ describe('生成层机制（E5，P13a 机制 / P14 分片）', () => {
       'asset',
     ])
     for (const e of scriptFaceEntries()) {
-      expect(e.kind, `${e.name}`).toBe('brep-op')
+      expect(['brep-op', 'faijs'].includes(e.kind), `${e.name}（kind=${e.kind}）`).toBe(true)
       expect(faijsOps.has(e.name), `${e.name} 与 faijs 特有 op 同名（§6.3 红线：一个名字一份实现）`).toBe(false)
     }
   })
@@ -103,6 +106,9 @@ describe('生成层机制（E5，P13a 机制 / P14 分片）', () => {
           expect(artifact, `${m}:${e.name}`).toMatch(/'A'|'B1'|'B2'/)
         } else if (e.kind === 'query') {
           expect(artifact, `${m}:${e.name}`).toMatch(new RegExp(`export function ${esc}\\(`))
+        } else if (e.kind === 'faijs') {
+          // P25：faijs 自研符号 re-export 自手写 api/view 模块（非 vendored）
+          expect(artifact, `${m}:${e.name}`).toMatch(new RegExp(`export \\{ ${esc} \\} from '\\.\\./view/index\\.js'`))
         }
       }
     }

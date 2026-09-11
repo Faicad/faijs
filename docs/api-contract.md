@@ -200,17 +200,20 @@ export function group(params) {
 }
 ```
 
-### 6.1 The `consumes()` decision chain (C0 → C3 → C5, short-circuiting)
+### 6.1 The `consumes()` decision chain (C0 → C4 → C3 → C5, short-circuiting)
 
 | Rule | Condition | Result |
 |---|---|---|
 | **C0/C1** | Variable ∈ `resolveKeep(stmt).kept` (call-site or function-body declaration) | **Not consumed** |
+| **C4** | The statement has no assignment (`hasAssignment === false`) | **Consumes** nothing — a bare call, read-only or self-assigning alike, never consumes (P25 rule 1) |
 | **C3** | The statement assigns and every output is non-geometric | **Consumes** no input at all |
 | **C5** | Default | **Consumed** (a variable reference anywhere in the positional slot — including `ExprIR` member chains — or in args) |
 
 Additional rules: a reference inside a nested call is a read-only query and does not consume; `receiver` (member method call) does not consume the receiver variable; a positional literal or a non-trailing object argument consumes nothing (only variable references and expression identifiers count as consumption).
 
-C3 is an objective default that requires **zero signature knowledge**: a function returning non-geometry cannot have swallowed geometry into its result, so inputs of third-party measurement/query functions are not eaten by mistake.
+C3 is an objective default that requires **zero signature knowledge**: a function returning non-geometry cannot have swallowed geometry into its result, so inputs of third-party measurement/query functions are not eaten by mistake. C4 sits before C3 because a bare call has no outputs to inspect: measurement/screenshot calls written without assignment (`cad.projectView(part0, 'front')`) must not eat their input.
+
+**In-place writeback registration (rule 2).** A modification-class bare call (`cad.fai_drill(part0, …)`) writes its geometry result back into the first shape-position argument (a member call into its receiver) under a runtime guard (both the return value and the target's current value are geometry). The executed line is recorded (`inplaceWrites`, line → target name) and moves that variable's **last writer** to the bare-call line: a consumption *before* the bare call (of the old value) cannot cancel the new value's terminal status, while a consumption *after* it still does.
 
 `resolveKeep` merges function-body registration (`internalKeep`) with call-site `parseUserKeep`; **hidden follows "the last retention declaration wins"** (in statement order, a later declaration overrides an earlier one).
 

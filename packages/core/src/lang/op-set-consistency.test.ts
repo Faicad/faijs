@@ -53,11 +53,14 @@ describe('op-set-consistency: 三源一致（check() 符号表 ≡ cad 面 ⊆ �
     for (const op of SCRIPT_FACE_OPS) {
       expect(cadKeys.has(op.name), `脚本面 op "${op.name}" 未进 cad 命名空间`).toBe(true)
     }
-    // 生成脚本面 op 全部是 compatOp 产物（kind 'dual-op'，brep-only：无 mesh 实现）
+    // 生成脚本面条目两类：
+    // ① compatOp 产物（kind 'dual-op'，brep-only：无 mesh 实现）→ 必须带 dual-op 元数据；
+    // ② 原生库函数（P25 view 三件套，kind 'faijs'）→ 自实现函数，无 dual-op 元数据（跳过）。
     const ns = createApiNamespace() as unknown as Record<string, { __faijs__dualOp?: { mesh?: unknown; brep?: unknown } }>
     for (const op of SCRIPT_FACE_OPS) {
       const meta = ns[op.name]?.__faijs__dualOp
-      expect(meta, `脚本面 op "${op.name}" 缺 dual-op 元数据`).toBeDefined()
+      if (meta === undefined) continue // 原生库函数（view 三件套）
+      expect(meta, `compatOp "${op.name}" 缺 dual-op 元数据`).toBeDefined()
       expect(typeof meta!.brep, `脚本面 op "${op.name}" 缺 brep 实现`).toBe('function')
       expect(meta!.mesh, `脚本面 op "${op.name}" 不应是 mesh 路径`).toBeUndefined()
     }

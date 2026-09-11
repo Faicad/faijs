@@ -775,6 +775,8 @@ export class CadRuntime {
       keep: keepView,
       shapeVarNames,
       ...(de.getBlockOutputs().size > 0 ? { blockOutputs: de.getBlockOutputs() } : {}),
+      // P25 §3.7.4：修改类裸调用原地写回的 producer 精确化（行号 → 写回变量名）
+      ...(de.getInplaceWrites().size > 0 ? { inplaceWrites: de.getInplaceWrites() } : {}),
       explicitTerminals: meta.terminalShapes,
     })
     // 显式 return 优先（与 collectResult 同）：非显式分支按值判定补 compound kind。

@@ -31,7 +31,7 @@ const VENDORED_ROOT_REL = '../../vendored/brepjs/' // from api/generated/ -> src
 const OUT_DIR = path.resolve(__dirname, '..', 'src', 'api', 'generated')
 
 /** 已登记分片的模块名（写产物 + 机制测试遍历对象）。 */
-export const PROJECTED_MODULES = ['topology', 'measurement', 'text', 'projection', 'query', 'ns', 'gear', '2d', 'io', 'operations', 'core', 'sketching', 'kernel'] as const
+export const PROJECTED_MODULES = ['topology', 'measurement', 'text', 'projection', 'query', 'ns', 'gear', '2d', 'io', 'operations', 'core', 'sketching', 'kernel', 'view'] as const
 
 /** 模块 → 产物文件路径。 */
 export function generatedOutputPath(module: string): string {
@@ -85,6 +85,20 @@ function renderType(entry: ArgSpecEntry): string {
 function renderPure(entry: ArgSpecEntry): string {
   const { file, exportName } = parseSource(entry.source)
   return `export { ${exportName} } from '${vendoredImportSpec(file)}'`
+}
+
+/**
+ * faijs 自研符号（P25，kind 'faijs'）：手写实现模块（api/view/）re-export 进 L3 面。
+ *
+ * 与 type/pure 的差异：source 指向**手写 API 模块**（api/view/index.js）而非 vendored
+ * 树——生成器不产实现、不做 vendored import；条目也不进 upstream-surface 基线
+ * （faijs 自研符号，generateModule 的 U7 反向护栏对 'faijs' 跳过）。
+ *
+ * 相对路径：api/generated/<module>.ts -> api/view/index.js（同一 api/ 层）。
+ */
+function renderFaijs(entry: ArgSpecEntry): string {
+  const { file, exportName } = parseSource(entry.source)
+  return `export { ${exportName} } from '../${file}'`
 }
 
 /**
@@ -185,7 +199,7 @@ function renderImports(entries: ArgSpecEntry[]): string[] {
   const seenValue = new Set<string>()
   const seenType = new Set<string>()
   for (const e of entries) {
-    if (e.kind === 'skip') continue
+    if (e.kind === 'skip' || e.kind === 'faijs') continue
     const { file, exportName } = parseSource(e.source)
     if (e.kind !== 'type' && e.kind !== 'pure') {
       const vk = `${file}#${exportName}`
@@ -219,7 +233,11 @@ export function generateModule(module: string): string {
   const base = new Map(inModule.map((s) => [s.name, s]))
   // 只取本模块条目（缺省 module=topology），skip 不产出
   const entries = ARG_SPEC.filter((e) => moduleOf(e) === module)
-  const missing = entries.filter((e) => e.kind !== 'skip' && !base.has(e.name))
+  // U7 反向护栏：非 skip 条目必须存在于 surface 基线。faijs 自研符号（kind 'faijs'，
+  // 如 api/view 的视图投影 op）是 faijs 面新增、上游 surface 无此符号——跳过基线检查。
+  const missing = entries.filter(
+    (e) => e.kind !== 'skip' && e.kind !== 'faijs' && !base.has(e.name),
+  )
   if (missing.length > 0) {
     throw new Error(`[gen-l3-surface] ${module} 中条目缺失: ${missing.map((m) => m.name).join(', ')}`)
   }
@@ -234,6 +252,7 @@ export function generateModule(module: string): string {
       case 'pure': chunks.push(renderPure(e)); break
       case 'brep-op': chunks.push(renderBrepOp(e)); break
       case 'query': chunks.push(renderQuery(e)); break
+      case 'faijs': chunks.push(renderFaijs(e)); break
     }
   }
   const imports = renderImports(projected)
@@ -247,9 +266,10 @@ export const SCRIPT_FACE_FILE = path.join(OUT_DIR, 'script-face.ts')
 /** script-face 清单生成文件路径（gen-symbol-table 的单一数据源）。 */
 export const SCRIPT_FACE_MANIFEST_FILE = path.join(OUT_DIR, 'script-face-manifest.ts')
 
-/** P23 script-face 条目（arg-spec 里标记了 scriptFace 的语句级 op）。 */
+/** P23/P25 script-face 条目（arg-spec 里标记了 scriptFace 的 op：语句级 brep-op +
+ *  faijs 自研视图投影 op（返回纯数据的查询类，如 projectView/projectSheet/viewCamera）。 */
 export function scriptFaceEntries(): ArgSpecEntry[] {
-  return ARG_SPEC.filter((e) => e.kind === 'brep-op' && e.scriptFace === true)
+  return ARG_SPEC.filter((e) => e.scriptFace === true)
 }
 
 /**

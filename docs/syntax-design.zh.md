@@ -201,8 +201,10 @@ export function group(params) {
 | `let g = cad.group({ members: [part0, part1] })` | `part0`、`part1`、`g` |
 | `let a = cad.assembly({ members: [part0] })` 然后 `a.do_assemble()` | `part0`、`a` —— 成员调用永不消费它的接收者 |
 | `let c = cad.bboxCenter(part0)` | `part0`、`c` —— 所有输出都是非几何，因此什么都不消费 |
+| `cad.projectView(part0, 'front')` | `part0` —— 无赋值裸调用永不消费，自赋值与只读一视同仁 |
+| `cad.fai_drill(part0, …)` | `part0` —— 钻孔结果写回 `part0`（规则 2），`part0` 仍是终端 |
 
-这张表背后的判定链 —— 先保留，再"所有输出都是非几何"，最后默认消费 —— 以及叶子终端算法，属于 [`docs/api-contract.zh.md`](api-contract.zh.md)。
+这张表背后的判定链 —— 先保留，再"无赋值裸调用永不消费"（规则 1），再"所有输出都是非几何"，最后默认消费 —— 以及叶子终端算法，属于 [`docs/api-contract.zh.md`](api-contract.zh.md)。
 
 ---
 
@@ -231,6 +233,8 @@ destructuring:   const { <keys> } = await ns.<ns>.<callee>(…); ctx.<out_i> = <
 member call:     await ctx.<receiver>.<callee>({ …args })
 no assignment:   await ns.<ns>.<callee>(…)
 ```
+
+`no assignment` 形态是**双语义**（P25 规则 2）：只读结果放行不写回；几何结果在运行时守卫（两侧都是几何）下写回第一个 shape 位置实参（成员调用写回其 receiver）。裸调用永不消费输入（规则 1），写回行被登记以保证 producer 锚定精确。
 
 每个位置实参按其 IR 形态发射：`$param` 与 `$ref` 编译成 `ctx.<name>`，嵌套的 `$call` 编译成 `await ns.<ns>.<callee>(…)`，`ExprIR` 编译为箭头包装 `((<names>) => <text>)(<args>)`，外罩模块内联的 `__FaiExprEvalError` 标记类（求值失败变成所属语句的 `E_EXPR`，绝不以裸异常穿透到无关代码）。尾随选项对象发射前剥离 `keep` / `keepHidden`；仅含 keep 指令的对象整个消失。参数声明本身也是语句（`ctx.size = 20`），所以改一个参数会像其它依赖一样级联。
 

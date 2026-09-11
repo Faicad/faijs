@@ -16,6 +16,8 @@ import { CadRuntime } from '@faicad/faijs-core/cad-runtime/runtime'
 import { createApiNamespace } from '@faicad/faijs-core/api/api-namespace'
 import { asPartName, type PartName } from '@faicad/faijs-core/identity'
 import type { HostPorts } from '@faicad/faijs-core/cad-runtime/ports'
+import { extractMetadata } from '@faicad/faijs-core/lang/metadata-extractor'
+import { computeLiveShapes, keepViewFromMetadata } from '@faicad/faijs-core/cad-runtime/live-shapes'
 
 const here = fileURLToPath(new URL('.', import.meta.url))
 const fixturesRoot = join(here, '..', '..', '..')
@@ -71,5 +73,59 @@ describe('A-14: fixture — direct terminals 行为基线', () => {
     // 终端 id 集排序后非空
     const termKeys = normalizeTerminals(result.terminals)
     expect(termKeys.length).toBeGreaterThan(0)
+  })
+})
+
+describe('A-14b: P25 C4 —— 无赋值裸调用不消费（静态/运行时对拍）', () => {
+  const cadNs = createApiNamespace()
+  const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs })
+  beforeAll(async () => {
+    await rt.execute('let warmup = cad.box(1, 1, 1, { centered: true })')
+  }, 120000)
+
+  it('只读裸调用（bboxCenter）：输入仍终端，静态与运行时一致', async () => {
+    const code = [
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
+      'cad.bboxCenter(part0)',
+    ].join('\n')
+    const result = await rt.execute(code)
+    expect(result.failedAt).toBeUndefined()
+    // 运行时终端：part0（bboxCenter 返回纯数据，守卫不写回）
+    expect(normalizeTerminals(result.terminals)).toEqual(['part0'])
+    // 静态判定一致（无 inplaceWrites 时 C4 不消费）
+    const meta = extractMetadata(code)
+    const shapeVarNames = new Set<PartName>()
+    for (const l of meta.lines) for (const o of l.outputs) shapeVarNames.add(o)
+    const terminals = computeLiveShapes({
+      lines: meta.lines,
+      blocks: meta.blocks,
+      keep: keepViewFromMetadata(meta),
+      shapeVarNames,
+    })
+    expect(normalizeTerminals(terminals)).toEqual(['part0'])
+  })
+
+  it('修改类裸调用（fai_drill）：写回登记 → 输入仍终端（producer 锚到裸调用行）', async () => {
+    const code = [
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
+      'cad.fai_drill(part0, { diameter: 4, depth: 0, position: [0, 0, 0] })',
+      'const p1 = cad.scale(part0, 2)',
+    ].join('\n')
+    const result = await rt.execute(code)
+    expect(result.failedAt).toBeUndefined()
+    // part0 被行2 写回（新值），行3 消费新值 → part0 不终端，p1 终端
+    expect(normalizeTerminals(result.terminals)).toEqual(['p1'])
+    // 静态：带 inplaceWrites（行2→part0）判定一致
+    const meta = extractMetadata(code)
+    const shapeVarNames = new Set<PartName>()
+    for (const l of meta.lines) for (const o of l.outputs) shapeVarNames.add(o)
+    const terminals = computeLiveShapes({
+      lines: meta.lines,
+      blocks: meta.blocks,
+      keep: keepViewFromMetadata(meta),
+      shapeVarNames,
+      inplaceWrites: new Map([[2, 'part0']]),
+    })
+    expect(normalizeTerminals(terminals)).toEqual(['p1'])
   })
 })

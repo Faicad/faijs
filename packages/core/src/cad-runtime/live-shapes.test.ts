@@ -12,7 +12,11 @@ import { computeLiveShapes, keepViewFromMetadata, type LiveShapesInput, type Kee
 import { asPartName, type PartName } from '../identity'
 import type { StatementSummary } from '../lang/statement-summary'
 
-function liveShapeNames(code: string, fnKeep?: Map<number, KeepRegistration>): string[] {
+function liveShapeNames(
+  code: string,
+  fnKeep?: Map<number, KeepRegistration>,
+  inplaceWrites?: Map<number, string>,
+): string[] {
   const meta = extractMetadata(code)
   const shapeVarNames = new Set<PartName>()
   for (const l of meta.lines) for (const o of l.outputs) shapeVarNames.add(o)
@@ -25,6 +29,7 @@ function liveShapeNames(code: string, fnKeep?: Map<number, KeepRegistration>): s
       functionBody: (lineNo) => fnKeep?.get(lineNo),
     },
     shapeVarNames,
+    ...(inplaceWrites ? { inplaceWrites } : {}),
   }
   const terminals = computeLiveShapes(input)
   return terminals.map((t) => String(t.id)).sort()
@@ -147,5 +152,71 @@ describe('computeLiveShapes: 消费判定', () => {
       shapeVarNames: new Set([asPartName('external_part') as PartName, asPartName('part1')]),
     })
     expect(terminals.map((t) => String(t.id)).sort()).toEqual(['external_part', 'part1'])
+  })
+})
+
+describe('P25 §3.7 规则 1：无赋值裸调用默认不消费（C4）', () => {
+  it('C4：只读裸调用（projectView）不消费输入 → 输入仍终端', () => {
+    const code = [
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
+      'cad.projectView(part0, "front")',
+    ].join('\n')
+    expect(liveShapeNames(code)).toEqual(['part0'])
+  })
+
+  it('C4：修改类裸调用（fai_drill）本身不消费 → 输入仍终端（写回由 inplaceWrites 登记）', () => {
+    const code = [
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
+      'cad.fai_drill(part0, { diameter: 3 })',
+    ].join('\n')
+    expect(liveShapeNames(code)).toEqual(['part0'])
+  })
+
+  it('C4：多行裸调用都不消费（自赋值与只读一视同仁）', () => {
+    const code = [
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
+      'cad.projectView(part0, "front")',
+      'cad.faceNormal(part0, 0)',
+    ].join('\n')
+    expect(liveShapeNames(code)).toEqual(['part0'])
+  })
+
+  it('C4 不破坏 C5：赋值语句（const/重赋值）仍按原规则消费', () => {
+    const code = [
+      'let part0 = cad.box(20, 20, 20, { centered: true })',
+      'let part1 = cad.subtract(part0, { keep: [] })',
+    ].join('\n')
+    // part0 被 subtract 赋值行消费 → 仅 part1 终端
+    expect(liveShapeNames(code)).toEqual(['part1'])
+  })
+
+  it('inplaceWrites：修改类裸调用把 producer 锚到该行——写回前的旧消费不误伤新值', () => {
+    const code = [
+      'let part0 = cad.box(20, 20, 20, { centered: true })', // 行1 producer
+      'const p1 = cad.subtract(part0, { keep: [] })',        // 行2 消费旧 part0
+      'cad.fai_drill(part0, { diameter: 3 })',               // 行3 裸调用写回
+    ].join('\n')
+    // 无登记：part0 producer=行1 → 行2 消费 → part0 不终端
+    expect(liveShapeNames(code)).toEqual(['p1'])
+    // 有登记（DirectExecutor 执行期产生）：part0 producer=行3 → 行2 旧消费不误伤 → part0 终端
+    expect(liveShapeNames(code, undefined, new Map([[3, 'part0']]))).toEqual(['p1', 'part0'])
+  })
+
+  it('inplaceWrites：登记行之后的真实消费仍取消终端资格', () => {
+    const code = [
+      'let part0 = cad.box(20, 20, 20, { centered: true })', // 行1
+      'cad.fai_drill(part0, { diameter: 3 })',               // 行2 写回
+      'const p1 = cad.scale(part0, 2)',                      // 行3 消费新值
+    ].join('\n')
+    expect(liveShapeNames(code, undefined, new Map([[2, 'part0']]))).toEqual(['p1'])
+  })
+
+  it('inplaceWrites：只读裸调用行即使有登记也不会被 producer 误用（行号无对应 line 则忽略）', () => {
+    const code = [
+      'let part0 = cad.box(20, 20, 20, { centered: true })', // 行1
+      'cad.projectView(part0, "front")',                     // 行2 只读
+    ].join('\n')
+    // 即使外部误传了不存在的行号登记，也不影响（找不到 line 时忽略）
+    expect(liveShapeNames(code, undefined, new Map([[99, 'part0']]))).toEqual(['part0'])
   })
 })

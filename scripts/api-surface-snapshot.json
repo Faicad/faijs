@@ -254,6 +254,8 @@
     "poseToAssemblyTransform",
     "primitiveToBrepSolid",
     "primitiveToBrepStep",
+    "projectSheet",
+    "projectView",
     "propagateAllOrigins",
     "propagateRoles",
     "quatRotate",
@@ -339,6 +341,7 @@
     "vecNormalize",
     "vecScale",
     "vecSub",
+    "viewCamera",
     "wedge",
     "weldPositionsWorker",
     "weldVertices"
@@ -590,6 +593,8 @@
     "previewMeshIntersect",
     "primitiveToBrepSolid",
     "primitiveToBrepStep",
+    "projectSheet",
+    "projectView",
     "propagateAllOrigins",
     "propagateRoles",
     "quatRotate",
@@ -669,6 +674,7 @@
     "vecNormalize",
     "vecScale",
     "vecSub",
+    "viewCamera",
     "wedge",
     "weldPositionsWorker",
     "weldVertices"

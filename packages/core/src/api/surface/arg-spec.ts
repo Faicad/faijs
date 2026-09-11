@@ -28,7 +28,7 @@
  */
 
 /** 生成器可用的投影方式。 */
-export type ProjectionKind = 'brep-op' | 'query' | 'pure' | 'type' | 'skip'
+export type ProjectionKind = 'brep-op' | 'query' | 'pure' | 'type' | 'skip' | 'faijs'
 
 /** brep-op / query 的时间线消费声明（透传 defineOp 元数据，G3/G4）。 */
 
@@ -503,6 +503,37 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     module: 'projection',
     reason:
       '同 makeProjectedEdges：返回 Edge 句柄数组 + 所有权生命周期，无法静态收养，跳过（divergence）',
+  },
+
+  // ──── 视图投影能力（P25）：view 模块（3 符号，全部 scriptFace=true）────
+  // faijs 自研视图投影 op（方案 docs/plans/2026-09-10-faijs-view-projection-and-screenshot.md
+  // §3.2，路径 A）：工程线稿，只返回纯数据（SVG 字符串 / 相机对象），不产出 Shape。
+  // 实现是手写模块（api/view/，内部借入 brepjs handle → vendored HLR → SVG 序列化），
+  // 生成器只负责 re-export 进 L3 面与 cad 脚本面——kind 'faijs' 不入 upstream-surface
+  // 基线（faijs 自研符号），也不走 vendored import 模板。
+  {
+    name: 'viewCamera',
+    source: 'view/index.js#viewCamera',
+    kind: 'faijs',
+    module: 'view',
+    args: '(view: ViewSpec) -> Camera',
+    scriptFace: true,
+  },
+  {
+    name: 'projectView',
+    source: 'view/index.js#projectView',
+    kind: 'faijs',
+    module: 'view',
+    args: '(shape: Shape, view: ViewSpec, opts?: ProjectViewOptions) -> string(SVG)',
+    scriptFace: true,
+  },
+  {
+    name: 'projectSheet',
+    source: 'view/index.js#projectSheet',
+    kind: 'faijs',
+    module: 'view',
+    args: '(shape: Shape, views: (ViewSpec | SheetView)[], opts?: ProjectSheetOptions) -> string(SVG)',
+    scriptFace: true,
   },
 
   // ──── P14 第二片：query 模块（14 符号：7 type + 7 skip）────

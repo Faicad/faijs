@@ -135,11 +135,18 @@ function parseParam(raw: string): Param | null {
 const GROUP_ORDER = ['创建', '变换', '特征', '结构', '查询']
 
 function renderDoc(locale: 'en' | 'zh'): string {
-  const files = readdirSync(API_SRC)
-    .filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts'))
-    .sort()
+  // 递归收集 api/ 下全部源码（含子目录模块，如 api/view/）——P25 视图投影三件套
+  const files: string[] = []
+  const walk = (dir: string): void => {
+    for (const ent of readdirSync(dir, { withFileTypes: true })) {
+      const p = join(dir, ent.name)
+      if (ent.isDirectory()) walk(p)
+      else if (ent.name.endsWith('.ts') && !ent.name.endsWith('.test.ts')) files.push(p)
+    }
+  }
+  walk(API_SRC)
   const allOps: Op[] = []
-  for (const f of files) allOps.push(...collectOps(join(API_SRC, f)))
+  for (const f of files) allOps.push(...collectOps(f))
   const grouped = new Map<string, Op[]>()
   for (const op of allOps) {
     if (!grouped.has(op.group)) grouped.set(op.group, [])
