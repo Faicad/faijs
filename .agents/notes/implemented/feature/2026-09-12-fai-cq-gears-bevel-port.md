@@ -1,0 +1,35 @@
+# Agent Note: fai_cq_gears ports BevelGear (spherical involute flanks, split-trimmed end faces)
+
+Status: implemented
+
+English | [中文](2026-09-12-fai-cq-gears-bevel-port.zh.md)
+
+## Problem
+
+`fai_cq_gears` had ported eight of the nine cq_gears single-body gear classes (SpurGear, HerringboneGear, RingGear, HerringboneRingGear, CrossedHelicalGear, RackGear, HerringboneRackGear, Worm). BevelGear remained, and it is the only class whose teeth do not live on a cylinder: its flanks are **spherical involutes**, its end faces come from splitting a doubly-curved B-spline patch with two z-constant planes, and its back and top are then boolean-cut by solids of revolution. Six of the 31 upstream regression cases (`case08`–`case13`, 16–138 teeth, helix 0/±30–42°) exercise it, and they were the largest un-ported block of the reference set.
+
+## Decision
+
+Port BevelGear into the existing v1 raw-kernel path of `fai_cq_gears`, mirroring `bevel_gear.py::BevelGear` step for step:
+
+- **Math** — `bevelGearGeometry()` in `src/profile.ts` computes the cone angles (`gamma_p/b/f/r`), the great-sphere radius `gs_r = rp/sin(gamma_p)`, the twist angle, and the four tooth-curve point sets **on the unit sphere**. Supporting helpers (`sphereToCartesian`, `sInv`, `sArc`, `angleBetween`) moved into `src/math.ts` as literal ports of `utils.py`. Measured against the Python reference arrays: worst coordinate deviation 3.1e-15 over all six cases.
+- **Solid** — `src/bevel_gear.ts` builds four tooth patches (unit-sphere curve × cone distance per station row → `buildSplineFace`), trims each with `kernel.split` at `z = tc_h` (keep the fragment with the largest `zmax`) and `z = pc_h` (keep the smallest `zmax`), replicates them around Z for `z` teeth, caps both ends, then `sew` → `makeSolid` → `fixFaceOrientations`, cuts the two revolved trimmers (`_trim_bottom`/`_trim_top`), reorients the gear onto its back face, and bores it.
+- **Surface strategy** — `row-approx-loft` (the package default). The alternative `grid-approx` — the same `GeomAPI_PointsToBSplineSurface` family that CadQuery's `Face.makeSplineApprox` calls — measured **2.47e-1** relative volume error on `case11-BevelGear` versus `1.93e-4` for `row-approx-loft`, so it was rejected on measurement, matching the SpurGear spike conclusion.
+- **Two deliberate implementation substitutions**, both geometrically equivalent to the Python original: end-cap boundary edges are selected by an **analytic plane test** (sampled edge points within ±1e-6 of `z = tc_h` / `z = pc_h`) instead of CadQuery's `edges('<Z')` / `edges('>Z')` centroid-extreme selector with its 1e-4 clustering tolerance; and the bore is an axis-aligned through-cylinder spanning the solid's own z-range instead of `faces('<Z').workplane().circle(bore_d/2).cutThruAll()` (the default `ProjectedOrigin` centre option puts the circle centre on the gear axis, so both are the same hole).
+- **Reference data** — `case08`–`case13` were merged into `fixtures/reference/manifest.json` (now 35 entries) with their STEP files, so T1 (`volume`/`bbox`) and T2 (`compareAssemblyFiles`) both cover the class.
+
+## Alternatives considered
+
+- **`grid-approx` for the flank patches (one global B-spline fit, the closest analogue of `Face.makeSplineApprox`).** Rejected: measured 2.47e-1 relative volume error on `case11` — three orders of magnitude worse than `row-approx-loft`. occt-wasm exposes no DegMin/DegMax/Tol3D for `bsplineSurface`, so it runs with kernel defaults that fit the doubly-curved bevel patch poorly.
+- **Porting CadQuery's `edges('<Z')` selector literally** (cluster edges by centre of mass, tolerance 1e-4). Rejected: the two trim edges are produced by `face.split` and lie exactly on their planes, so an analytic plane test is both simpler and exact; a centroid heuristic would only add a tolerance knob that is not needed.
+- **Trimming by splitting the cap planes a second time instead of boolean-cutting revolved solids.** Rejected: `_trim_bottom`/`_trim_top` cut with *surfaces of revolution* through the flank patches (they shape the back cone), not with planes, so a split cannot express them.
+- **Reusing `features.ts::applyBore` unchanged.** Rejected: that helper hardcodes the `[0, width]` band of the spur-family solid; the bevel body is reoriented before boring, so the bore is derived from the body's own bounding box instead.
+
+## Consequences
+
+- All six `case08`–`case13` build to a valid solid. Measured against the CadQuery reference: **volume relative error ≤ 1.93e-4** (case08 5.1e-5, case09 1.0e-13, case10 3.1e-12, case11 1.9e-4, case12 1.6e-4, case13 4.6e-5) and **bbox absolute error ≤ 6.6e-3 mm** (case12 `zlen`, relative 8.3e-4; the other five cases stay at 1e-13…5.4e-4). The package test suite covers `case08` (helix 0) and `case11` (helix 30) — the two `surface_splines` branches — in about 50 s; the large cases are covered by the T2 export/compare pipeline.
+- The residual deviation is the **cross-kernel surface approximation gap**, not a porting error, and the evidence is structural: with `surface_splines = 2` both the CadQuery global fit and our two-row loft degenerate to a ruled surface and the results agree to 1e-13, while with `surface_splines = 12` the two approximations diverge by ~1e-4 in the enclosed volume — well inside the 1e-2 surface tolerance envelope both sides are allowed. `docs/analysis/2026-09-12-fai-cq-gears-bevel-precision.md` records the per-case table and the envelope arithmetic.
+- T2 was run end to end for `case08`: `export-ours.ts` then `compare-all.ts` reports `DIFFERENT | bbox 1.000e-12 | vol 5.916e-3% | com 4.484e-5`. The control case on the same harness, `case00-SpurGear`, reports `EQUIVALENT | bbox 2.000e-7 | vol 2.639e-7% | com 7.605e-10 | bool A-B 0`, so the harness and its tolerances work — the volume term alone is over budget.
+- Two thresholds are therefore **left as written and reported rather than loosened**: T1's absolute `1e-3` bbox gate is exceeded by `case12` (a 58 mm part whose 1e-4 relative deviation is necessarily larger than 1e-3 absolute), and T2's `volumeRelativeTolerance = 1e-6` — calibrated on straight spur gears at 2.6e-9 — is exceeded by **every** bevel case, 59× for the spur-toothed `case08` and up to 190× for the helical ones. (Only the volume term is over budget; `bbox` agrees to 1e-12 on both sides.) Both need a call on whether to add a per-class tolerance (allowed by the port plan's degradation ladder, recorded in the analysis document) or to treat the geometric differences as the primary criterion.
+- Cost and weight: one build takes 25 s (16 teeth) to 290 s (138 teeth); the six committed reference STEP files add 17 MB to the repository (the port plan permits trimming a class to a two-case smoke set if that is preferred).
+- Verified while working in the package: `npx tsc --noEmit` and `npx eslint src` are clean. Four pre-existing lint errors in `src/features.ts` and `src/worm_gear.ts` (two `prefer-const`, two unused imports) were fixed, since the pre-commit hook only lints staged files and had let them through.

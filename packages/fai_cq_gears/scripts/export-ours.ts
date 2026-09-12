@@ -21,8 +21,9 @@ import {
 } from '../src/ring_gear'
 import { buildCrossedHelicalSolid } from '../src/crossed_helical_gear'
 import { buildRackGearSolid, type BuildRackGearOptions } from '../src/rack_gear'
+import { buildBevelGearSolid, type BuildBevelGearOptions } from '../src/bevel_gear'
 import type {
-  SpurGearParams, RingGearParams, CrossedHelicalGearParams, RackGearParams,
+  SpurGearParams, RingGearParams, CrossedHelicalGearParams, RackGearParams, BevelGearParams,
 } from '../src/profile'
 import type { SplineFaceStrategy } from '../src/spline-face'
 import type { GearFeatureOptions } from '../src/features'
@@ -90,6 +91,14 @@ export function buildOurShape(
     case 'HerringboneRackGear':
       return buildRackGearSolid(kernel, c.args as unknown as RackGearParams,
         { strategy, herringbone: true } as BuildRackGearOptions)
+    case 'BevelGear': {
+      // BevelGear 的 `_build` 只认 bore_d / trim_bottom / trim_top（无 chamfer/hub/spokes）。
+      const bevel: BuildBevelGearOptions = { strategy }
+      if (typeof a.bore_d === 'number') bevel.boreD = a.bore_d
+      if (a.trim_bottom === false) bevel.trimBottom = false
+      if (a.trim_top === false) bevel.trimTop = false
+      return buildBevelGearSolid(kernel, c.args as unknown as BevelGearParams, bevel)
+    }
     default:
       throw new Error(`export-ours: 尚未支持的类 ${c.class}`)
   }

@@ -24,12 +24,12 @@
 import type { BrepHandle } from '@faicad/faijs-core'
 import type { RawOcctKernel } from './kernel'
 import {
-  GEAR_BASE_CONSTANTS, wormGeometry,
+  wormGeometry,
   type ToothGrid, type WormGeometry, type WormParams,
 } from './profile'
 import { rotateRows, vec3 } from './math'
 import {
-  buildSplineFace, DEFAULT_SPLINE_FACE_STRATEGY,
+  buildSplineFace,
   type SplineFaceOptions, type SplineFaceStrategy,
 } from './spline-face'
 import { connectEdgesToWires } from './geom-build'

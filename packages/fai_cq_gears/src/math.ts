@@ -198,6 +198,92 @@ export function rotatePoints(points: Vec3[], axis: Vec3, alpha: number): Vec3[] 
 }
 
 /**
+ * `cq_gears.utils.sphere_to_cartesian` 的逐字移植：球坐标 → 笛卡尔。
+ *
+ * ⚠️ 注意极点角 `gamma` 是**从 +Z 轴量起**（`z = r·cos(gamma)`），
+ * 而不是数学习惯里从 XY 平面量起的仰角——BevelGear 的整套公式都建立在这个约定上。
+ *
+ * @param r 球半径
+ * @param gamma 极角（弧度，自 +Z 轴）
+ * @param theta 方位角（弧度）
+ * @returns 笛卡尔坐标
+ */
+export function sphereToCartesian(r: number, gamma: number, theta: number): Vec3 {
+  return {
+    x: r * Math.sin(gamma) * Math.sin(theta),
+    y: r * Math.sin(gamma) * Math.cos(theta),
+    z: r * Math.cos(gamma),
+  }
+}
+
+/**
+ * `cq_gears.utils.s_inv` 的逐字移植：球面渐开线（给定极角 → 方位角）。
+ *
+ * `phi = arccos(tan(gamma0)/tan(gamma))`；
+ * `return arccos(cos(gamma)/cos(gamma0))/sin(gamma0) − phi`。
+ *
+ * 定义域外（`|tan(gamma0)/tan(gamma)| > 1`）与 Python 的 numpy 一样返回 NaN——
+ * 由调用方决定是否报错，本函数不静默替换。
+ *
+ * @param gamma0 基锥极角（弧度）
+ * @param gamma 曲线上点的极角（弧度）
+ * @returns 该点的方位角（弧度）
+ */
+export function sInv(gamma0: number, gamma: number): number {
+  const phi = Math.acos(Math.tan(gamma0) / Math.tan(gamma))
+  return Math.acos(Math.cos(gamma) / Math.cos(gamma0)) / Math.sin(gamma0) - phi
+}
+
+/**
+ * `cq_gears.utils.s_arc` 的逐字移植：球面上的一段圆弧。
+ *
+ * Python 侧是 `cos(t)·a + sin(t)·(k×a) + (k·a)(1−cos t)·k`（`a` = 球心到弧心方向
+ * 偏移 `r_delta` 后的单位向量，`k` = 弧心的单位向量），再整体乘球半径。
+ *
+ * @param sr 球半径
+ * @param cGamma 弧心的极角（弧度）
+ * @param cTheta 弧心的方位角（弧度）
+ * @param rDelta 弧心与弧上任一点的夹角（弧度）
+ * @param start 起始角（弧度）
+ * @param end 终止角（弧度）
+ * @param n 点数（含两端）
+ * @returns 弧上 n 个点
+ */
+export function sArc(
+  sr: number, cGamma: number, cTheta: number,
+  rDelta: number, start: number, end: number, n = 32,
+): Vec3[] {
+  const a = sphereToCartesian(1.0, cGamma + rDelta, cTheta)
+  const k = sphereToCartesian(1.0, cGamma, cTheta)
+  const ka = cross(k, a)
+  const kdota = dot(k, a)
+  return linspace(start, end, n).map((t) => {
+    const ct = Math.cos(t)
+    const st = Math.sin(t)
+    const w = 1 - ct
+    return vec3(
+      sr * (ct * a.x + st * ka.x + kdota * w * k.x),
+      sr * (ct * a.y + st * ka.y + kdota * w * k.y),
+      sr * (ct * a.z + st * ka.z + kdota * w * k.z),
+    )
+  })
+}
+
+/**
+ * `cq_gears.utils.angle_between` 的移植：向量 OA 与 OB 的夹角。
+ *
+ * @param o 公共起点
+ * @param a 向量 OA 的终点
+ * @param b 向量 OB 的终点
+ * @returns 夹角（弧度）
+ */
+export function angleBetween(o: Vec3, a: Vec3, b: Vec3): number {
+  const p = sub(a, o)
+  const q = sub(b, o)
+  return Math.acos(dot(p, q) / (norm(p) * norm(q)))
+}
+
+/**
  * `cq_gears.utils.circle3d_by3points` 的移植：三点定圆。
  *
  * @param a 第一点

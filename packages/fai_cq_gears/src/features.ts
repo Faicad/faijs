@@ -104,7 +104,20 @@ function chamferProfile(
   return [p[0], p[1], p[2], p[0]]
 }
 
-/** 生成单个倒角 cutter 旋转体（A1 已验证的几何）。 */
+/**
+ * 生成单个倒角 cutter 旋转体（A1 已验证的几何）。
+ *
+ * 轮廓取自 {@link chamferProfile}，绕全局 Z 转 360° 成体，供 `applyChamfer` 布尔差。
+ *
+ * @param kernel 原始 OCCT 内核
+ * @param ra 齿顶圆半径（外部齿=齿尖、内齿=内齿尖）
+ * @param width 齿宽
+ * @param wx 沿半径方向的去除量
+ * @param wy 沿 z 方向的去除量
+ * @param which 顶面 / 底面（决定用哪一支轮廓）
+ * @param isRing 内齿（true）使用与 cq `ring_gear.py` 一致的相反轮廓
+ * @returns 绕 Z 轴 360° 回转得到的 cutter 实体句柄
+ */
 export function makeChamferCutter(
   kernel: RawOcctKernel,
   ra: number, width: number, wx: number, wy: number,
@@ -359,8 +372,8 @@ export function applySpokes(
     // 的凸向约定几何等价），中点角 = (a1 + a4) / 2。
     kernel.makeArcEdge(p4, pt(r1, (a1 + a4) / 2), p1),
   ]
-  let wire = kernel.makeWire(edges)
-  let face = kernel.makeFace(wire)
+  const wire = kernel.makeWire(edges)
+  const face = kernel.makeFace(wire)
   let cutter = kernel.extrude(face, 0, 0, width + 1.0)
   cutter = kernel.translate(cutter, 0, 0, -0.1)
 

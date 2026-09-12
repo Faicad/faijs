@@ -9,7 +9,8 @@
  */
 
 import {
-  circle3dBy3points, linspace, rotateRows, vec3, type Vec3,
+  angleBetween, circle3dBy3points, dot, linspace, norm, rotateRows, sArc, sInv,
+  sphereToCartesian, vec3, type Vec3,
 } from './math'
 
 /** `GearBase` 的类级常量（cq_gears `spur_gear.py:27-39`），逐字保留。 */
@@ -436,6 +437,188 @@ export function crossedHelicalGearGeometry(params: CrossedHelicalGearParams): Sp
   }
 }
 
+/** BevelGear 构造参数（逐字沿用 `bevel_gear.py::BevelGear.__init__`）。
+ *
+ * ⚠️ 与 SpurGear 不同：用 `cone_angle`（分度锥角，度）而不是 `width`；
+ * 且 `cone_angle` / `face_width` 是**位置参数**（Python 签名里排在压力角之前）。 */
+export interface BevelGearParams {
+  module: number
+  teeth_number: number
+  /** 分度锥角（度） */
+  cone_angle: number
+  /** 齿宽（沿分度锥母线的长度） */
+  face_width: number
+  pressure_angle?: number
+  helix_angle?: number
+  clearance?: number
+  backlash?: number
+}
+
+/** `BevelGear` 覆写 `GearBase` 的类常量（`bevel_gear.py:32`；`helix_angle = 0` 时被改成 2）。 */
+export const BEVEL_SURFACE_SPLINES = 12
+
+/** BevelGear 的全部派生几何量与四段齿廓点集（`BevelGear.__init__` 的产物）。
+ *
+ * ⚠️ 四段点集与 SpurGear 不同：它们是**单位球面上的点**（`r = 1`），
+ * 真正落到齿面上要乘以每行的锥距 `r ∈ [tc_f, pc_f]`（见 `bevel_gear.ts`）。 */
+export interface BevelGearGeometry {
+  /** 模数 m */
+  m: number
+  /** 齿数 z */
+  z: number
+  /** 压力角（弧度） */
+  a0: number
+  clearance: number
+  backlash: number
+  /** 螺旋角（弧度） */
+  helixAngle: number
+  /** 齿宽（锥距方向） */
+  faceWidth: number
+  ka: number
+  kd: number
+  /** 分度圆半径 rp = m·z/2 */
+  rp: number
+  /** 大球半径（= 分度锥母线长）gs_r = rp / sin(gamma_p) */
+  gsR: number
+  /** 分度锥角（弧度） */
+  gammaP: number
+  /** 基锥角（弧度） */
+  gammaB: number
+  /** 面锥角（弧度） */
+  gammaF: number
+  /** 根锥角（弧度） */
+  gammaR: number
+  /** 齿距角 2π/z */
+  tau: number
+  /** 锥顶到齿轮底面的距离 cone_h = cos(gamma_r)·gs_r */
+  coneH: number
+  /** 齿镜像点方位角 mp_theta = π/z + 2·s_inv(gamma_b, gamma_p) */
+  mpTheta: number
+  /** 扭转角（弧度；helix_angle = 0 时为 0） */
+  twistAngle: number
+  /** 齿面点阵行数（helix_angle = 0 时为 2，否则 12） */
+  surfaceSplines: number
+  curvePoints: number
+  /** 左齿廓渐开线点集（**单位球面**） */
+  t_lflank_pts: Vec3[]
+  /** 齿顶圆弧点集（**单位球面**） */
+  t_tip_pts: Vec3[]
+  /** 右齿廓渐开线点集（**单位球面**） */
+  t_rflank_pts: Vec3[]
+  /** 齿根圆弧点集（**单位球面**） */
+  t_root_pts: Vec3[]
+}
+
+/**
+ * 计算 BevelGear（锥齿轮）的全部几何量（`BevelGear.__init__` 的移植）。
+ *
+ * 与 SpurGear 的根本差异：齿廓画在**单位球面**上（球面渐开线），
+ * 齿面是「球面齿廓 × 锥距」的直纹面；`gamma_b/_f/_r` 分别是基/面/根锥角，
+ * 高度一律用 `r·cos(gamma)` 折算到齿轮轴（+Z）上。
+ *
+ * @throws `gs_r <= face_width` 时抛 RangeError（Python 同款 assert）；
+ *   `twist_angle` 为 NaN 时抛 Error（Python 同款 assert）。
+ *
+ * @param params 锥齿轮参数（模数/齿数/锥角/齿宽等）
+ * @returns 全部派生几何量
+ */
+export function bevelGearGeometry(params: BevelGearParams): BevelGearGeometry {
+  const ka = GEAR_BASE_CONSTANTS.ka
+  const kd = GEAR_BASE_CONSTANTS.kd
+
+  const m = params.module
+  const z = params.teeth_number
+  const a0 = ((params.pressure_angle ?? 20.0) * Math.PI) / 180.0
+  const clearance = params.clearance ?? 0.0
+  const backlash = params.backlash ?? 0.0
+  const helixAngle = ((params.helix_angle ?? 0.0) * Math.PI) / 180.0
+  const faceWidth = params.face_width
+
+  const gammaP = (params.cone_angle * Math.PI) / 180.0
+
+  const rp = (m * z) / 2.0
+  const gsR = rp / Math.sin(gammaP)
+  if (!(gsR > faceWidth)) {
+    throw new RangeError(
+      `face_width value is too big, it should be < ${gsR.toFixed(3)}`,
+    )
+  }
+
+  const gammaB = Math.asin(Math.cos(a0) * Math.sin(gammaP))
+  const gammaF = gammaP + Math.atan((ka * m) / gsR)
+  const gammaR = gammaP - Math.atan((kd * m) / gsR)
+
+  const tau = (Math.PI * 2.0) / z
+
+  let twistAngle: number
+  let surfaceSplines: number
+  if (helixAngle !== 0.0) {
+    // 扭转（torsion）角
+    const beta = Math.atan((faceWidth * Math.tan(helixAngle)) / (2.0 * gsR - faceWidth))
+    twistAngle = Math.asin((gsR / rp) * Math.sin(beta)) * 2.0
+    surfaceSplines = BEVEL_SURFACE_SPLINES
+  } else {
+    surfaceSplines = 2
+    twistAngle = 0.0
+  }
+  if (Number.isNaN(twistAngle)) {
+    throw new Error('Twist angle is NaN')
+  }
+
+  const coneH = Math.cos(gammaR) * gsR
+
+  const phiR = sInv(gammaB, gammaP)
+  const mpTheta = Math.PI / z + 2.0 * phiR
+
+  const n = GEAR_BASE_CONSTANTS.curve_points
+
+  // 左齿廓：球面渐开线
+  const gammaTr = Math.max(gammaB, gammaR)
+  const gamma = linspace(gammaTr, gammaF, n)
+  const theta = gamma.map((g) => sInv(gammaB, g) + backlash / (m * z))
+  const t_lflank_pts = gamma.map((g, i) => sphereToCartesian(1.0, g, theta[i]))
+
+  // 齿顶圆弧（恒在 gamma_f）
+  const thetaTip = linspace(theta[n - 1], mpTheta - theta[n - 1], n)
+  const t_tip_pts = thetaTip.map((t) => sphereToCartesian(1.0, gammaF, t))
+
+  // 右齿廓 = 左齿廓的镜像（方位角取 mp_theta − theta）并反向
+  const t_rflank_pts: Vec3[] = []
+  for (let i = n - 1; i >= 0; i--) {
+    t_rflank_pts.push(sphereToCartesian(1.0, gamma[i], mpTheta - theta[i]))
+  }
+
+  // 齿根圆弧
+  let t_root_pts: Vec3[]
+  if (gammaR < gammaB) {
+    // 根锥在基锥之内：过右齿廓末点、基锥上的齿槽中点、根锥上的齿槽中点三点定圆
+    const p1 = t_rflank_pts[n - 1]
+    const p2 = sphereToCartesian(1.0, gammaB, theta[0] + tau)
+    const p3 = sphereToCartesian(1.0, gammaR, (tau + mpTheta) / 2.0)
+    const { center: rcc } = circle3dBy3points(p1, p2, p3)
+    const rccGamma = Math.acos(
+      dot(p3, rcc) / (norm(p3) * norm(rcc)),
+    )
+    const p1p3 = angleBetween(rcc, p1, p3)
+    const aStart = (Math.PI - p1p3 * 2.0) / 2.0
+    const aEnd = -aStart + Math.PI
+    t_root_pts = sArc(
+      1.0, gammaR + rccGamma, (tau + mpTheta) / 2.0, rccGamma,
+      Math.PI / 2.0 + aStart, Math.PI / 2.0 + aEnd, n,
+    )
+  } else {
+    const rTheta = linspace(mpTheta - theta[0], theta[0] + tau, n)
+    t_root_pts = rTheta.map((t) => sphereToCartesian(1.0, gammaTr, t))
+  }
+
+  return {
+    m, z, a0, clearance, backlash, helixAngle, faceWidth, ka, kd,
+    rp, gsR, gammaP, gammaB, gammaF, gammaR, tau, coneH, mpTheta,
+    twistAngle, surfaceSplines, curvePoints: n,
+    t_lflank_pts, t_tip_pts, t_rflank_pts, t_root_pts,
+  }
+}
+
 /** 四段齿廓的名字（`_build_tooth_faces` 的迭代顺序，勿改）。 */
 export const TOOTH_SEGMENTS = ['lflank', 'tip', 'rflank', 'root'] as const
 /** 单个齿廓段的名字。 */
@@ -448,7 +631,9 @@ export type ToothSegment = typeof TOOTH_SEGMENTS[number]
  * @param seg 齿廓段名
  * @returns 该段的点集
  */
-export function segmentPoints(g: SpurGearGeometry | WormGeometry, seg: ToothSegment): Vec3[] {
+export function segmentPoints(
+  g: SpurGearGeometry | WormGeometry | BevelGearGeometry, seg: ToothSegment,
+): Vec3[] {
   switch (seg) {
     case 'lflank': return g.t_lflank_pts
     case 'tip': return g.t_tip_pts
@@ -519,7 +704,7 @@ export function toothFaceGrids(
 export function gearGeometryForClass(
   className: string,
   args: Record<string, unknown>,
-): SpurGearGeometry | WormGeometry {
+): SpurGearGeometry | WormGeometry | BevelGearGeometry {
   switch (className) {
     case 'SpurGear':
     case 'HerringboneGear':
@@ -531,6 +716,8 @@ export function gearGeometryForClass(
       return crossedHelicalGearGeometry(args as unknown as CrossedHelicalGearParams)
     case 'Worm':
       return wormGeometry(args as unknown as WormParams)
+    case 'BevelGear':
+      return bevelGearGeometry(args as unknown as BevelGearParams)
     default:
       throw new Error(`gearGeometryForClass: unsupported gear class '${className}'`)
   }
