@@ -37,6 +37,8 @@ build/
 release/
 out/
 packages/cq-compat/gen/
+# fai_cq_gears 参考 STEP 生成物（gen-reference.py 可重新生成，约 7 分钟）
+packages/fai_cq_gears/fixtures/reference/regression/
 *.hdr
 diag*.png
 patent

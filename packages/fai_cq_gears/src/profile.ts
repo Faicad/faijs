@@ -533,3 +533,92 @@ export function gearGeometryForClass(
       throw new Error(`gearGeometryForClass: unsupported gear class '${className}'`)
   }
 }
+
+/** RackGear 构造参数（参数名逐字沿用 Python `RackGear.__init__`）。 */
+export interface RackGearParams {
+  module: number
+  length: number
+  width: number
+  height: number
+  pressure_angle?: number
+  helix_angle?: number
+  clearance?: number
+  backlash?: number
+}
+
+/** RackGear 的全部派生几何量与四段齿廓点集（`RackGear.__init__` 的产物）。 */
+export interface RackGearGeometry {
+  m: number
+  /** 压力角（弧度） */
+  a0: number
+  clearance: number
+  backlash: number
+  /** 螺旋角（弧度） */
+  helixAngle: number
+  width: number
+  length: number
+  height: number
+  /** 齿顶线（+y） */
+  la: number
+  /** 齿根线（−y） */
+  ld: number
+  /** 分度线上的齿厚（x 向） */
+  s0: number
+  /** 齿廓总高（la − ld） */
+  toothHeight: number
+  /** 齿数 z = ceil(length / (π·m)) */
+  z: number
+  t_lflank_pts: Vec3[]
+  t_tip_pts: Vec3[]
+  t_rflank_pts: Vec3[]
+  t_root_pts: Vec3[]
+}
+
+/**
+ * 计算 RackGear 的全部几何量（`RackGear.__init__` 的移植）。
+ *
+ * 齿条齿廓是**梯形直线段**（每段只有 2 个点），沿 X 以 π·m 为周期重复；
+ * 齿深方向是 +y（la 在上、ld 在下），实体沿 Z 挤出 width。
+ * `ka`/`kd` 沿用 GearBase 类常量（RackGear 构造函数不接受 addendum/dedendum 覆盖）。
+ *
+ * @param params 齿条参数（模数/长度/宽/高/螺旋角等）
+ * @returns 全部派生几何量
+ */
+export function rackGearGeometry(params: RackGearParams): RackGearGeometry {
+  const ka = GEAR_BASE_CONSTANTS.ka
+  const kd = GEAR_BASE_CONSTANTS.kd
+  const m = params.module
+  const a0 = ((params.pressure_angle ?? 20.0) * Math.PI) / 180.0
+  const clearance = params.clearance ?? 0.0
+  const backlash = params.backlash ?? 0.0
+  const helixAngle = ((params.helix_angle ?? 0.0) * Math.PI) / 180.0
+  const width = params.width
+  const length = params.length
+  const height = params.height
+
+  const la = ka * m
+  const ld = -(kd * m + clearance)
+
+  const s0 = (m * (Math.PI / 2.0 - backlash * Math.tan(a0))) / 2.0
+
+  const p1x = Math.tan(a0) * Math.abs(ld)
+  const p1p2 = (Math.abs(la) + Math.abs(ld)) / Math.cos(a0)
+
+  const p1 = vec3(-s0 - p1x, ld, 0.0)
+  const p2 = vec3(Math.sin(a0) * p1p2 + p1.x, Math.cos(a0) * p1p2 + p1.y, 0.0)
+  const p3 = vec3(-p2.x, p2.y, 0.0)
+  const p4 = vec3(-p1.x, p1.y, 0.0)
+  const p5 = vec3(p4.x + (Math.PI * m - p4.x * 2.0), p4.y, 0.0)
+
+  const toothHeight = Math.abs(la) + Math.abs(ld)
+  const z = Math.ceil(length / (Math.PI * m))
+
+  return {
+    m, a0, clearance, backlash, helixAngle, width, length, height,
+    la, ld, s0, toothHeight, z,
+    t_lflank_pts: [p1, p2],
+    t_tip_pts: [p2, p3],
+    t_rflank_pts: [p3, p4],
+    t_root_pts: [p4, p5],
+  }
+}
