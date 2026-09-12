@@ -214,22 +214,24 @@ def build_case(entry, out_dir: Path):
             "ka": float(gear.ka),
             "kd": float(gear.kd),
         },
-        "derived": {
-            "twist_angle": float(gear.twist_angle),
-            "r0": float(gear.r0),
-            "ra": float(gear.ra),
-            "rd": float(gear.rd),
-            "rb": float(gear.rb),
-            "rr": float(gear.rr),
-            "tau": float(gear.tau),
-        },
-        "profile": {
-            "t_lflank_pts": [[float(v) for v in p] for p in gear.t_lflank_pts],
-            "t_tip_pts": [[float(v) for v in p] for p in gear.t_tip_pts],
-            "t_rflank_pts": [[float(v) for v in p] for p in gear.t_rflank_pts],
-            "t_root_pts": [[float(v) for v in p] for p in gear.t_root_pts],
-        },
     }
+    # `derived` / `profile` 是 **best-effort**：只有存在该属性的类才写。
+    # BevelGear 没有 r0/ra/rd/rb/rr，Worm/RackGear 没有 twist_angle——这属于「该类本来就
+    # 不用这些 SpurGear 专有字段」，不是构造失败。此前无条件读取导致 build() 明明成功了
+    # 却被记成 15 个 FAILED（2026-09-12 修正）。缺失字段显式记录，不静默。
+    derived_all = ["twist_angle", "r0", "ra", "rd", "rb", "rr", "tau"]
+    item["derived"] = {k: float(getattr(gear, k)) for k in derived_all if hasattr(gear, k)}
+    derived_missing = [k for k in derived_all if k not in item["derived"]]
+    if derived_missing:
+        item["derived_missing"] = derived_missing
+
+    profile_all = ["t_lflank_pts", "t_tip_pts", "t_rflank_pts", "t_root_pts"]
+    if all(hasattr(gear, k) for k in profile_all):
+        item["profile"] = {
+            k: [[float(v) for v in p] for p in getattr(gear, k)] for k in profile_all
+        }
+    else:
+        item["profile_missing"] = [k for k in profile_all if not hasattr(gear, k)]
 
     # 齿面点阵只在齿轮族上抓（Box 没有）
     try:
