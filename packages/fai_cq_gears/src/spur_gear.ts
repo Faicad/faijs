@@ -25,7 +25,7 @@ import {
 } from './spline-face'
 import { connectEdgesToWires } from './geom-build'
 import {
-  applyChamfer, applyBore, type GearFeatureOptions,
+  applyChamfer, applyBore, applyRecess, applyHub, applySpokes, type GearFeatureOptions,
 } from './features'
 
 /** 判定「边是否落在某个 z 平面上」的容差（远小于 wire_comb_tol）。 */
@@ -181,14 +181,28 @@ export function buildGearSolid(
     )
   }
 
-  // 镀铬特征（倒角 / 轴孔）：cq `_make_chamfer` / `_make_bore`，A1 已验证。
-  // 这些是在完整体上的布尔差，故放在 sew+makeSolid 之后。
+  // 镀铬特征：cq `_build` 顺序 chamfer → bore → recess → hub → spokes，
+  // 全部是在完整体上的布尔差/并，故放在 sew+makeSolid 之后。
   let result = oriented
   if (build.chamfer !== undefined || build.chamferTop !== undefined || build.chamferBottom !== undefined) {
     result = applyChamfer(kernel, result, geom.ra, geom.width, build, false)
   }
   if (build.boreD !== undefined) {
     result = applyBore(kernel, result, build.boreD, geom.width)
+  }
+  if (build.recess !== undefined || build.bottomRecess !== undefined) {
+    result = applyRecess(kernel, result, geom.width, build)
+  }
+  if (build.hubLength !== undefined) {
+    result = applyHub(kernel, result, geom.width, build)
+  }
+  if (build.nSpokes !== undefined) {
+    // cq 语义：spokes_id 缺省 = hub_d、spokes_od 缺省 = recess_d
+    result = applySpokes(kernel, result, geom.width, {
+      ...build,
+      spokesId: build.spokesId ?? build.hubD,
+      spokesOd: build.spokesOd ?? build.recessD,
+    })
   }
   if (!kernel.isSolid(result)) {
     throw new Error(

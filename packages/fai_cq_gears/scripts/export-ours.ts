@@ -53,6 +53,18 @@ export function buildOurShape(
   const build: BuildSpurGearOptions = { strategy }
   if (typeof a.chamfer === 'number') (build as GearFeatureOptions).chamfer = a.chamfer
   if (typeof a.bore_d === 'number') (build as GearFeatureOptions).boreD = a.bore_d
+  if (typeof a.hub_d === 'number') (build as GearFeatureOptions).hubD = a.hub_d
+  if (typeof a.hub_length === 'number') (build as GearFeatureOptions).hubLength = a.hub_length
+  if (typeof a.recess === 'number') (build as GearFeatureOptions).recess = a.recess
+  if (typeof a.recess_d === 'number') (build as GearFeatureOptions).recessD = a.recess_d
+  if (typeof a.bottom_recess === 'number') (build as GearFeatureOptions).bottomRecess = a.bottom_recess
+  if (typeof a.bottom_recess_d === 'number') (build as GearFeatureOptions).bottomRecessD = a.bottom_recess_d
+  if (typeof a.bottom_hub_d === 'number') (build as GearFeatureOptions).bottomHubD = a.bottom_hub_d
+  if (typeof a.n_spokes === 'number') (build as GearFeatureOptions).nSpokes = a.n_spokes
+  if (typeof a.spoke_width === 'number') (build as GearFeatureOptions).spokeWidth = a.spoke_width
+  if (typeof a.spokes_id === 'number') (build as GearFeatureOptions).spokesId = a.spokes_id
+  if (typeof a.spokes_od === 'number') (build as GearFeatureOptions).spokesOd = a.spokes_od
+  if (typeof a.spoke_fillet === 'number') (build as GearFeatureOptions).spokeFillet = a.spoke_fillet
   switch (c.class) {
     case 'Box': {
       const { width = 10, depth = 20, height = 30 } = c.args as Record<string, number>
