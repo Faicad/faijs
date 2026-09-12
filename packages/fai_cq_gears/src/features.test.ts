@@ -45,6 +45,7 @@ function featureBuild(a: Record<string, unknown>): BuildSpurGearOptions {
   if (typeof a.spokes_id === 'number') build.spokesId = a.spokes_id
   if (typeof a.spokes_od === 'number') build.spokesOd = a.spokes_od
   if (typeof a.spoke_fillet === 'number') build.spokeFillet = a.spoke_fillet
+  if (Array.isArray(a.missing_teeth)) build.missingTeeth = a.missing_teeth as Array<[number, number]>
   return build
 }
 
@@ -116,14 +117,14 @@ describe('features: hub + recess + spokes', () => {
   })
 
   it('SpurGear spokes+fillet matches cq_gears case04 (n=3)', () => {
-    // ⚠️ case04 的 manifest volume 含 missing_teeth 特征（[[0,10],[20,30]]，属后续
-    // 移植项）；本机 cq（cadquery-env）验证「无 missing_teeth」体积 = 6020.6931，
-    // 以它为基准锁定 spokes+fillet 几何。
+    // case04 的 manifest volume 含 missing_teeth 特征（[[0,10],[20,30]]）——
+    // applyMissingTeeth 已移植（斜齿走多站旋转截面 loft 逼近 cq twistExtrude），
+    // 直接锁定完整体体积。
     const c = loadManifest().cases.find((x) => x.id === 'case04-SpurGear')!
     const solid = buildSpurGearSolid(kernel, c.args as unknown as SpurGearParams, featureBuild(c.args))
     const vol = kernel.getVolume(solid)
     expect(kernel.isSolid(solid)).toBe(true)
-    expect(rel(vol, 6020.6931)).toBeLessThan(1e-5)
+    expect(rel(vol, c.volume!)).toBeLessThan(1e-5)
   })
 
   it('HerringboneGear full features matches cq_gears case05 (n=5, fillet=5)', () => {
@@ -135,13 +136,14 @@ describe('features: hub + recess + spokes', () => {
   })
 
   it('HerringboneGear full features matches cq_gears case06 (n=3, fillet=10)', () => {
-    // ⚠️ case06 的 manifest volume 含 missing_teeth 特征（[[0,2],[20,50]]，属后续
-    // 移植项）；本机 cq 验证「无 missing_teeth」体积 = 101399.4648，以此锁定。
+    // case06 的 manifest volume 含 missing_teeth 特征（[[0,2],[20,50]]）——
+    // applyMissingTeeth 已移植（人字齿 twistAngle≠0 走多站旋转截面 loft），
+    // 直接锁定完整体体积。
     const c = loadManifest().cases.find((x) => x.id === 'case06-HerringboneGear')!
     const solid = buildHerringboneGearSolid(kernel, c.args as unknown as SpurGearParams, featureBuild(c.args))
     const vol = kernel.getVolume(solid)
     expect(kernel.isSolid(solid)).toBe(true)
-    expect(rel(vol, 101399.4648)).toBeLessThan(1e-5)
+    expect(rel(vol, c.volume!)).toBeLessThan(1e-5)
   })
 
   it('CrossedHelicalGear hub+recess matches cq_gears case29 / case30 full volumes', () => {

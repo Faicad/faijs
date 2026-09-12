@@ -65,6 +65,7 @@ export function buildOurShape(
   if (typeof a.spokes_id === 'number') (build as GearFeatureOptions).spokesId = a.spokes_id
   if (typeof a.spokes_od === 'number') (build as GearFeatureOptions).spokesOd = a.spokes_od
   if (typeof a.spoke_fillet === 'number') (build as GearFeatureOptions).spokeFillet = a.spoke_fillet
+  if (Array.isArray(a.missing_teeth)) (build as GearFeatureOptions).missingTeeth = a.missing_teeth as Array<[number, number]>
   switch (c.class) {
     case 'Box': {
       const { width = 10, depth = 20, height = 30 } = c.args as Record<string, number>

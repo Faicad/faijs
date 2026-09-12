@@ -36,6 +36,8 @@ export interface GearFeatureOptions {
   chamferBottom?: ChamferValue
   /** 轴孔直径（cq `bore_d`）。 */
   boreD?: number
+  /** 删齿区间集合（cq `missing_teeth`，如 `[[0,10],[20,30]]`）。 */
+  missingTeeth?: MissingTeethSpec
   /** 顶面轮毂直径（cq `hub_d`）。 */
   hubD?: number
   /** 轮毂自顶面向上的高度（cq `hub_length`，None=不建轮毂）。 */
@@ -394,4 +396,117 @@ export function applySpokes(
 function edgeEndsOf(kernel: RawOcctKernel, edge: BrepHandle): { a: BrepVec3; b: BrepVec3 } {
   const { first, last } = kernel.curveParameters(edge)
   return { a: kernel.curvePointAtParam(edge, first), b: kernel.curvePointAtParam(edge, last) }
+}
+
+/** cq `_make_missing_teeth` 的删齿区间集合：`[[起始齿, 结束齿], …]`（含两端）。 */
+export type MissingTeethSpec = Array<[number, number]>
+
+/** applyMissingTeeth 所需的齿轮几何量（避免对 profile 的类型耦合）。 */
+export interface MissingTeethGeom {
+  /** 齿顶圆半径 */
+  ra: number
+  /** 齿根圆半径 */
+  rd: number
+  /** 齿距角 2π/z */
+  tau: number
+  /** 齿宽 */
+  width: number
+  /** 扭转角（弧度，helix_angle=0 时为 0） */
+  twistAngle: number
+}
+
+/**
+ * 复刻 cq `_make_teeth_cutout_wire`：删齿窗口的截面 wire（XY 平面，z=0）。
+ *
+ * cq 语义（`spur_gear.py::_make_teeth_cutout_wire`，角度逐字一致）：
+ * - at1/at2 = 齿位角 + tau/2（窗口以齿槽中心对称），中点角 atm=(at1+at2)/2；
+ * - 外径 rc = ra + 1.0（超出齿顶）、内径 rin = rd − 0.01（略低于齿根）；
+ * - 轮廓 = 内弧(at1→at2, rin) − 直边(rin@at2 → rc@at2) − 外弧(at2→at1, rc) −
+ *   直边(rc@at1 → rin@at1)；内外弧都走各自圆上的短弧（经 atm）。
+ */
+function missingTeethCutoutWire(
+  kernel: RawOcctKernel, ra: number, rd: number, tau: number, t1: number, t2: number,
+): BrepHandle {
+  const at1 = t1 * tau + tau / 2
+  const at2 = t2 * tau + tau / 2
+  const atm = (at1 + at2) / 2
+  const rc = ra + 1.0
+  const rin = rd - 0.01
+  const pt = (r: number, a: number): BrepVec3 => ({ x: Math.cos(a) * r, y: Math.sin(a) * r, z: 0 })
+  const edges: BrepHandle[] = [
+    kernel.makeArcEdge(pt(rin, at1), pt(rin, atm), pt(rin, at2)),
+    kernel.makeLineEdge(pt(rin, at2), pt(rc, at2)),
+    kernel.makeArcEdge(pt(rc, at2), pt(rc, atm), pt(rc, at1)),
+    kernel.makeLineEdge(pt(rc, at1), pt(rin, at1)),
+  ]
+  return kernel.makeWire(edges)
+}
+
+/**
+ * 扭转扫掠 cutter 的多站截面（逼近 cq `twistExtrude` 的螺旋扫掠）。
+ *
+ * cq `twistExtrude(distance, angle)` 沿线性扭转律把截面从 z0 扫到 z0+distance：
+ * 高度 h 处的截面绕 Z 轴旋转 angle·(h−z0)/distance。这里取 N 个站点，每站放一份
+ * 「旋转 + 平移」的截面 wire 副本，`loft(ruled=false)` 平滑蒙皮。
+ * case04/06 的总扭转仅 16°/8°，站距 ≤1° 时对切出体积的偏差远小于齿面 B-spline
+ * 近似本身的误差。
+ */
+function twistCutoutSolid(
+  kernel: RawOcctKernel, wire0: BrepHandle, z0: number, height: number, totalAngleRad: number,
+): BrepHandle {
+  const n = Math.min(64, Math.max(8, Math.ceil((Math.abs(totalAngleRad) * 180) / Math.PI)))
+  const axis = { point: { x: 0, y: 0, z: 0 }, direction: { x: 0, y: 0, z: 1 } }
+  const stations: BrepHandle[] = []
+  for (let i = 0; i <= n; i++) {
+    const f = i / n
+    let w = kernel.copy(wire0)
+    if (f !== 0) w = kernel.rotate(w, axis, totalAngleRad * f)
+    const z = z0 + height * f
+    if (z !== 0) w = kernel.translate(w, 0, 0, z)
+    stations.push(w)
+  }
+  return kernel.loft(stations, true, false)
+}
+
+/**
+ * 复刻 cq `_make_missing_teeth` / `_remove_teeth`：按删齿区间切掉轮齿。
+ *
+ * cq 语义（`spur_gear.py`，逐字一致）：
+ * - 每个区间 (t1, t2) 生成窗口 cutter（z=-0.1 起、高 width+0.2 完全穿透），逐个 cut；
+ * - twist_angle = 0（直齿）：截面 `extrude` 直棱柱；
+ * - twist_angle ≠ 0（斜齿/人字齿）：截面 `twistExtrude(width+0.2, degrees(-twist))`，
+ *   本实现用多站旋转截面 loft 逼近（见 `twistCutoutSolid`）。
+ *
+ * @param kernel 原始 OCCT 内核
+ * @param body 实体（cq `_build` 中位于 bore 之后、recess 之前）
+ * @param geom 删齿所需几何量（ra/rd/tau/width/twistAngle）
+ * @param spec 删齿区间集合
+ * @returns 删齿后的 solid
+ */
+export function applyMissingTeeth(
+  kernel: RawOcctKernel,
+  body: BrepHandle,
+  geom: MissingTeethGeom,
+  spec: MissingTeethSpec,
+): BrepHandle {
+  const z0 = -0.1
+  const height = geom.width + 0.2
+  let result = body
+  for (const [t1, t2] of spec) {
+    const wire = missingTeethCutoutWire(kernel, geom.ra, geom.rd, geom.tau, t1, t2)
+    let cutter: BrepHandle
+    if (geom.twistAngle === 0) {
+      const face = kernel.makeFace(wire)
+      cutter = kernel.extrude(face, 0, 0, height)
+      cutter = kernel.translate(cutter, 0, 0, z0)
+    } else {
+      // cq `degrees(-self.twist_angle)`：负号 = 沿齿的螺旋方向扭转
+      cutter = twistCutoutSolid(kernel, wire, z0, height, -geom.twistAngle)
+    }
+    if (!kernel.isValid(cutter)) {
+      throw new Error(`applyMissingTeeth: cutter invalid (t1=${t1}, t2=${t2})`)
+    }
+    result = asSolid(kernel, kernel.cut(result, cutter))
+  }
+  return result
 }

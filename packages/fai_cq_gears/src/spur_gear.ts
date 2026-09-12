@@ -25,7 +25,8 @@ import {
 } from './spline-face'
 import { connectEdgesToWires } from './geom-build'
 import {
-  applyChamfer, applyBore, applyRecess, applyHub, applySpokes, type GearFeatureOptions,
+  applyChamfer, applyBore, applyRecess, applyHub, applySpokes, applyMissingTeeth,
+  type GearFeatureOptions,
 } from './features'
 
 /** 判定「边是否落在某个 z 平面上」的容差（远小于 wire_comb_tol）。 */
@@ -181,7 +182,7 @@ export function buildGearSolid(
     )
   }
 
-  // 镀铬特征：cq `_build` 顺序 chamfer → bore → recess → hub → spokes，
+  // 镀铬特征：cq `_build` 顺序 chamfer → bore → missing_teeth → recess → hub → spokes，
   // 全部是在完整体上的布尔差/并，故放在 sew+makeSolid 之后。
   let result = oriented
   if (build.chamfer !== undefined || build.chamferTop !== undefined || build.chamferBottom !== undefined) {
@@ -189,6 +190,11 @@ export function buildGearSolid(
   }
   if (build.boreD !== undefined) {
     result = applyBore(kernel, result, build.boreD, geom.width)
+  }
+  if (build.missingTeeth !== undefined && build.missingTeeth.length > 0) {
+    result = applyMissingTeeth(kernel, result, {
+      ra: geom.ra, rd: geom.rd, tau: geom.tau, width: geom.width, twistAngle: geom.twistAngle,
+    }, build.missingTeeth)
   }
   if (build.recess !== undefined || build.bottomRecess !== undefined) {
     result = applyRecess(kernel, result, geom.width, build)
