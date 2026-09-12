@@ -11,13 +11,23 @@ export default defineConfig({
     ],
   },
   test: {
-    environment: 'node',
-    include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'test/**/*.test.ts'],
+    // Monorepo：测试分布在各 workspace 包内（根 src/ 无测试），各包 alias 不同
+    // （sheetmetal/cq-compat/fai_cq_gears/tests 均有自定义解析），根配置只做
+    // projects 分发，让每个包按自己的配置（含 alias）跑。
+    projects: [
+      'packages/core',
+      'packages/gear-lib-demo',
+      'packages/sheetmetal',
+      'packages/demo',
+      'packages/tests',
+      // 注意：不包含 packages/cq-compat 与 packages/fai_cq_gears —— 两者较重，
+      // 用户明确要求根目录测试忽略它们（各包仍可单独 `npm test -w <pkg>` 运行）。
+    ],
     testTimeout: 300000,
     hookTimeout: 300000,
     coverage: {
       provider: 'v8',
-      include: ['src/**/*.ts'],
+      include: ['src/**/*.ts', 'packages/*/src/**/*.ts'],
       exclude: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'src/index.ts', 'src/browser.ts', 'src/node.ts', 'src/csg.ts', 'src/sdf.ts'],
       reporter: ['text', 'html'],
     },
