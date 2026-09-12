@@ -12,9 +12,9 @@
  * ```
  *
  * 与 SpurGear 的关键差异：端面是**环形**（外 rim 圆 + 内齿廓孔），不是实心圆盘；
- * 多了外圈 rim 圆柱面。倒角（chamfer）属于 `_make_chamfer`，需要布尔差，
- * 暂未实现（occt-wasm 对 B-spline 实体布尔差是已知限制，见 cq-compat E 类 blocked），
- * 故本构建产出的是**非倒角**实体，体积对照 Python `build(chamfer=None)`。
+ * 多了外圈 rim 圆柱面。倒角（chamfer）/ 轴孔（bore）属于 `_make_chamfer` / `_make_bore`，
+ * 在 sew 之后以旋转体 cutter 布尔差实现（见 `features.ts`，A1 已验证几何），
+ * 由 `BuildRingGearOptions.chamfer` / `boreD` 驱动。
  */
 
 import type { BrepHandle } from '@faicad/faijs-core'
@@ -26,12 +26,15 @@ import {
 } from './spline-face'
 import { buildToothFaces, buildHerringboneToothFaces } from './spur_gear'
 import { connectEdgesToWires, faceFromWires } from './geom-build'
+import {
+  applyChamfer, applyBore, type GearFeatureOptions,
+} from './features'
 
 /** 判定「边是否落在某个 z 平面上」的容差（远小于 wire_comb_tol）。 */
 const PLANAR_PICK_TOL = 1e-6
 
-/** RingGear 实体构造选项（在 `SplineFaceOptions` 上加容差与策略覆盖）。 */
-export interface BuildRingGearOptions extends SplineFaceOptions {
+/** RingGear 实体构造选项（在 `SplineFaceOptions` 上加容差、策略与镀铬特征覆盖）。 */
+export interface BuildRingGearOptions extends SplineFaceOptions, GearFeatureOptions {
   strategy?: SplineFaceStrategy
   /** 缝合容差（cq `shell_sewing_tol`）。 */
   shellSewingTol?: number
@@ -141,7 +144,21 @@ export function buildRingGearSolid(
       `buildRingGearSolid: result is not a solid (got ${String(kernel.getShapeType(oriented))})`,
     )
   }
-  return oriented
+
+  // 镀铬特征（倒角 / 轴孔）：cq RingGear `_make_chamfer` 用内齿版 cutter 轮廓（isRing=true）。
+  let result = oriented
+  if (build.chamfer !== undefined || build.chamferTop !== undefined || build.chamferBottom !== undefined) {
+    result = applyChamfer(kernel, result, geom.ra, geom.width, build, true)
+  }
+  if (build.boreD !== undefined) {
+    result = applyBore(kernel, result, build.boreD, geom.width)
+  }
+  if (!kernel.isSolid(result)) {
+    throw new Error(
+      `buildRingGearSolid: result is not a solid after features (got ${String(kernel.getShapeType(result))})`,
+    )
+  }
+  return result
 }
 
 /** ①–④：完整 HerringboneRingGear 实体（人字内齿，裸齿轮）。

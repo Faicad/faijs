@@ -15,16 +15,17 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { exportStepFromSolid } from '@faicad/faijs-core'
 import { loadManifest, OUT_DIR, type ReferenceCase } from '../src/fixtures'
 import { getRawKernel } from '../src/kernel'
-import { buildSpurGearSolid, buildHerringboneGearSolid } from '../src/spur_gear'
+import { buildSpurGearSolid, buildHerringboneGearSolid, type BuildSpurGearOptions } from '../src/spur_gear'
 import {
   buildRingGearSolid, buildHerringboneRingGearSolid,
 } from '../src/ring_gear'
 import { buildCrossedHelicalSolid } from '../src/crossed_helical_gear'
-import { buildRackGearSolid } from '../src/rack_gear'
+import { buildRackGearSolid, type BuildRackGearOptions } from '../src/rack_gear'
 import type {
   SpurGearParams, RingGearParams, CrossedHelicalGearParams, RackGearParams,
 } from '../src/profile'
 import type { SplineFaceStrategy } from '../src/spline-face'
+import type { GearFeatureOptions } from '../src/features'
 import type { RawOcctKernel } from '../src/kernel'
 import type { BrepHandle } from '@faicad/faijs-core'
 
@@ -47,7 +48,11 @@ export function buildOurShape(
   c: ReferenceCase,
   strategy: SplineFaceStrategy,
 ): BrepHandle {
-  const build = { strategy }
+  // 从 manifest 抽镀铬特征参数，复刻 cq_gears `gear.build()` 的完整体。
+  const a = c.args as Record<string, unknown>
+  const build: BuildSpurGearOptions = { strategy }
+  if (typeof a.chamfer === 'number') (build as GearFeatureOptions).chamfer = a.chamfer
+  if (typeof a.bore_d === 'number') (build as GearFeatureOptions).boreD = a.bore_d
   switch (c.class) {
     case 'Box': {
       const { width = 10, depth = 20, height = 30 } = c.args as Record<string, number>
@@ -67,9 +72,11 @@ export function buildOurShape(
     case 'CrossedHelicalGear':
       return buildCrossedHelicalSolid(kernel, c.args as unknown as CrossedHelicalGearParams, build)
     case 'RackGear':
-      return buildRackGearSolid(kernel, c.args as unknown as RackGearParams, build)
+      // 齿条无倒角 / 轴孔（cq_gears `RackGear` 不建模这些特征），用独立 options。
+      return buildRackGearSolid(kernel, c.args as unknown as RackGearParams, { strategy } as BuildRackGearOptions)
     case 'HerringboneRackGear':
-      return buildRackGearSolid(kernel, c.args as unknown as RackGearParams, { ...build, herringbone: true })
+      return buildRackGearSolid(kernel, c.args as unknown as RackGearParams,
+        { strategy, herringbone: true } as BuildRackGearOptions)
     default:
       throw new Error(`export-ours: 尚未支持的类 ${c.class}`)
   }

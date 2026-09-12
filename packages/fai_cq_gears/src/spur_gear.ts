@@ -24,12 +24,15 @@ import {
   type SplineFaceOptions, type SplineFaceStrategy,
 } from './spline-face'
 import { connectEdgesToWires } from './geom-build'
+import {
+  applyChamfer, applyBore, type GearFeatureOptions,
+} from './features'
 
 /** 判定「边是否落在某个 z 平面上」的容差（远小于 wire_comb_tol）。 */
 const PLANAR_PICK_TOL = 1e-6
 
-/** SpurGear 实体构造选项（在 `SplineFaceOptions` 上加容差与策略覆盖）。 */
-export interface BuildSpurGearOptions extends SplineFaceOptions {
+/** SpurGear 实体构造选项（在 `SplineFaceOptions` 上加容差、策略与镀铬特征覆盖）。 */
+export interface BuildSpurGearOptions extends SplineFaceOptions, GearFeatureOptions {
   strategy?: SplineFaceStrategy
   /** 缝合容差（cq `shell_sewing_tol`）。 */
   shellSewingTol?: number
@@ -177,7 +180,22 @@ export function buildGearSolid(
       `buildGearSolid: result is not a solid (got ${String(kernel.getShapeType(oriented))})`,
     )
   }
-  return oriented
+
+  // 镀铬特征（倒角 / 轴孔）：cq `_make_chamfer` / `_make_bore`，A1 已验证。
+  // 这些是在完整体上的布尔差，故放在 sew+makeSolid 之后。
+  let result = oriented
+  if (build.chamfer !== undefined || build.chamferTop !== undefined || build.chamferBottom !== undefined) {
+    result = applyChamfer(kernel, result, geom.ra, geom.width, build, false)
+  }
+  if (build.boreD !== undefined) {
+    result = applyBore(kernel, result, build.boreD, geom.width)
+  }
+  if (!kernel.isSolid(result)) {
+    throw new Error(
+      `buildGearSolid: result is not a solid after features (got ${String(kernel.getShapeType(result))})`,
+    )
+  }
+  return result
 }
 
 /** ①–④：完整 SpurGear 实体（裸齿轮）。

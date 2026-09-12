@@ -64,6 +64,8 @@ export interface RawOcctKernel extends BrepEngineApi {
 
   // ── 变换 / 布尔 ──
   rotate(shape: BrepHandle, axis: RawAxis, angleRad: number): BrepHandle
+  /** `BRepPrimAPI_MakeRevol`：面/线绕轴旋转 `angleRad`（cq `Workplane.revolve`，360°=2π）。 */
+  revolve(shape: BrepHandle, axis: RawAxis, angleRad: number): BrepHandle
   mirror(shape: BrepHandle, point: BrepVec3, normal: BrepVec3): BrepHandle
   reverseShape(shape: BrepHandle): BrepHandle
   vertexPosition(vertex: BrepHandle): BrepVec3
@@ -110,6 +112,7 @@ export const RAW_KERNEL_METHODS: ReadonlyArray<keyof RawOcctKernel> = [
   'healWire',
   'healFace',
   'rotate',
+  'revolve',
   'mirror',
   'reverseShape',
   'vertexPosition',
