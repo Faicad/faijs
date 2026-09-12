@@ -21,7 +21,7 @@ import type { BrepHandle } from '@faicad/faijs-core'
 import type { RawOcctKernel } from './kernel'
 import { ringGearGeometry, GEAR_BASE_CONSTANTS, type RingGearParams } from './profile'
 import {
-  buildSplineFace, DEFAULT_SPLINE_FACE_STRATEGY,
+  DEFAULT_SPLINE_FACE_STRATEGY,
   soleFace, type SplineFaceOptions, type SplineFaceStrategy,
 } from './spline-face'
 import { buildToothFaces } from './spur_gear'
@@ -82,7 +82,7 @@ function ringCapAtZ(
   toothFaces: BrepHandle[],
   rimR: number,
   z: number,
-  wireCombTol: number,
+  wireCombTol: number | undefined,
 ): BrepHandle {
   const edges: BrepHandle[] = []
   for (const f of toothFaces) {

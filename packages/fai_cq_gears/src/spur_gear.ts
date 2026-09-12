@@ -103,20 +103,22 @@ export function buildToothFaces(
   return faces
 }
 
-/** ①–④：完整 SpurGear 实体（裸齿轮）。
+/** ③–④：由**已算好**的齿廓几何量构造裸齿轮实体（SpurGear 全族共用）。
+ *
+ * 与类无关：只吃 `SpurGearGeometry`（Spur / Herringbone / CrossedHelical 的齿廓布局
+ * 同构），所以子类（如 CrossedHelical）只要先用自己的公式算出 `geom`，即可复用它。
  *
  * @param kernel 原始 OCCT 内核
- * @param params 齿轮参数
+ * @param geom 齿廓几何量（`spurGearGeometry` / `crossedHelicalGearGeometry` 的产物）
  * @param build 构造选项（策略/容差覆盖）
  * @returns 朝向归一化后的 solid
  */
-export function buildSpurGearSolid(
+export function buildGearSolid(
   kernel: RawOcctKernel,
-  params: SpurGearParams,
+  geom: SpurGearGeometry,
   build: BuildSpurGearOptions = {},
 ): BrepHandle {
   const strategy = build.strategy ?? DEFAULT_SPLINE_FACE_STRATEGY
-  const geom = spurGearGeometry(params)
   const faces = buildToothFaces(kernel, geom, strategy, build)
 
   const bottom = planarCapAtZ(kernel, faces, 0, build.wireCombTol)
@@ -132,8 +134,23 @@ export function buildSpurGearSolid(
   const oriented = kernel.fixFaceOrientations(solid)
   if (!kernel.isSolid(oriented)) {
     throw new Error(
-      `buildSpurGearSolid: result is not a solid (got ${String(kernel.getShapeType(oriented))})`,
+      `buildGearSolid: result is not a solid (got ${String(kernel.getShapeType(oriented))})`,
     )
   }
   return oriented
+}
+
+/** ①–④：完整 SpurGear 实体（裸齿轮）。
+ *
+ * @param kernel 原始 OCCT 内核
+ * @param params 齿轮参数
+ * @param build 构造选项（策略/容差覆盖）
+ * @returns 朝向归一化后的 solid
+ */
+export function buildSpurGearSolid(
+  kernel: RawOcctKernel,
+  params: SpurGearParams,
+  build: BuildSpurGearOptions = {},
+): BrepHandle {
+  return buildGearSolid(kernel, spurGearGeometry(params), build)
 }

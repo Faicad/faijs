@@ -12,18 +12,23 @@ import { getRawKernel, type RawOcctKernel } from './kernel'
 import { buildRingGearSolid } from './ring_gear'
 import type { RingGearParams } from './profile'
 
-/** Python `RingGear(...).build(chamfer=None)` 实算体积（cadquery-env，2026-09-12 标定）。 */
+/** Python `RingGear(...).build(chamfer=None)` 实算体积（cadquery-env，2026-09-12 标定）。
+ *
+ * 参数与参考值均取自 manifest 的同名 case（`fixtures/reference/manifest.json`）——
+ * 二者必须同源。历史上曾「用错参数的构造去撞对的参考值」，再反过来改参考值迎合错参数，
+ * 造成 green 的假通过；回归时务必核对 args 与 manifest 一致。 */
 const NON_CHAMFERED_VOLUME: Record<string, number> = {
   'case14-RingGear': 1858.9145,
   'case15-RingGear': 94578.9611,
-  'case16-RingGear': 458222.4344,
+  'case16-RingGear': 2078309.597,
   'case19-RingGear': 1001732.2795,
 }
 
+/** 与 manifest 同名 case 的 `args` 逐字一致（case16 的齿数/螺旋角/轮缘宽尤其易错）。 */
 const CASE_ARGS: Record<string, RingGearParams> = {
   'case14-RingGear': { module: 1.0, teeth_number: 19, width: 6.0, rim_width: 3.0 },
   'case15-RingGear': { module: 2.5, teeth_number: 44, width: 16.0, helix_angle: 30.0, rim_width: 12.0 },
-  'case16-RingGear': { module: 4.0, teeth_number: 68, width: 30.0, rim_width: 12.0 },
+  'case16-RingGear': { module: 3.0, teeth_number: 154, width: 30.0, helix_angle: -55.0, rim_width: 40.0 },
   'case19-RingGear': { module: 2.0, teeth_number: 48, width: 200.0, helix_angle: 45.0, rim_width: 12.0 },
 }
 

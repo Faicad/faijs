@@ -10,7 +10,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { loadManifest, type ReferenceCase } from './fixtures'
-import { spurGearGeometry, toothFaceGrids, segmentPoints, TOOTH_SEGMENTS } from './profile'
+import { gearGeometryForClass, toothFaceGrids, segmentPoints, TOOTH_SEGMENTS } from './profile'
 import type { Vec3 } from './math'
 
 function toVec3(rows: number[][]): Vec3[] {
@@ -34,10 +34,12 @@ function expectPointsClose(actual: Vec3[], expected: Vec3[], label: string) {
 const gearCases = (): ReferenceCase[] =>
   loadManifest().cases.filter((c) => c.profile && !c.error)
 
-describe('SpurGear 齿廓数学 vs cq_gears', () => {
+describe('齿轮齿廓数学 vs cq_gears', () => {
   for (const c of gearCases()) {
     describe(c.id, () => {
-      const geom = spurGearGeometry(c.args as never)
+      // 按 manifest 的 class 分派：Spur/Herringbone→spur、Ring/HerringboneRing→ring、
+      // CrossedHelical→crossed。三者的齿廓公式不同（内/外齿、端面模数），不可混用。
+      const geom = gearGeometryForClass(c.class, c.args)
 
       it('派生几何量与 Python 一致', () => {
         const d = c.derived!

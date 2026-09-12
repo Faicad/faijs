@@ -24,8 +24,7 @@ import {
   type SplineFaceMeasurement,
   type SplineFaceStrategy,
 } from './spline-face'
-import { spurGearGeometry, toothFaceGrids } from './profile'
-import type { SpurGearParams } from './profile'
+import { gearGeometryForClass, toothFaceGrids } from './profile'
 
 /**
  * 实测标定阈值（2026-09-08 首次实测后写入）。
@@ -57,7 +56,9 @@ describe('B-spline 齿面三方案 vs cq makeSplineApprox', () => {
     const rows: Row[] = []
 
     for (const c of cases) {
-      const geom = spurGearGeometry(c.args as unknown as SpurGearParams)
+      // 按 manifest 的 class 分派（RingGear 用内部齿公式；混用 SpurGear 公式会让
+      // 齿顶/齿根圆弧落在错误半径上，面积偏差高达 0.8）。
+      const geom = gearGeometryForClass(c.class, c.args)
       const grids = toothFaceGrids(geom)
       for (const strategy of SPLINE_FACE_STRATEGIES) {
         for (let i = 0; i < grids.length; i++) {

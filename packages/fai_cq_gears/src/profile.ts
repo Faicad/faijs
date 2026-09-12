@@ -9,8 +9,7 @@
  */
 
 import {
-  circle3dBy3points, cross, dot, linspace, normalize, norm,
-  rotateRows, sub, vec3, type Vec3,
+  circle3dBy3points, linspace, rotateRows, vec3, type Vec3,
 } from './math'
 
 /** `GearBase` 的类级常量（cq_gears `spur_gear.py:27-39`），逐字保留。 */
@@ -231,7 +230,8 @@ export function spurGearGeometry(params: SpurGearParams): SpurGearGeometry {
 export function ringGearGeometry(params: RingGearParams): SpurGearGeometry {
   const ka = GEAR_BASE_CONSTANTS.ka
   const kd = GEAR_BASE_CONSTANTS.kd
-  if (params.addendum_coeff !== undefined) {
+  // 防御性守卫：RingGear 不接受 addendum_coeff，但 JS 调用方可能多传字段——显式拒绝而不是静默忽略。
+  if ((params as { addendum_coeff?: unknown }).addendum_coeff !== undefined) {
     throw new Error('RingGear does not support addendum_coeff at this source revision (e73874c).')
   }
 
@@ -242,7 +242,8 @@ export function ringGearGeometry(params: RingGearParams): SpurGearGeometry {
   const backlash = params.backlash ?? 0.0
   const helixAngle = (params.helix_angle ?? 0.0) * Math.PI / 180
   const width = params.width
-  const rimWidth = params.rim_width
+  // 注意：`rim_width` 只用于实体构造阶段的 rim 半径（`ring_gear.ts`），
+  // 齿廓几何量本身与它无关，故此函数不读该字段。
 
   const d0 = m * z
   const adn = ka / (z / d0)
@@ -306,6 +307,123 @@ export function ringGearGeometry(params: RingGearParams): SpurGearGeometry {
   // 注意：内部齿 `ring_gear.py` 用 **递减** 采样 `linspace(t2 + 2π, t1 + 2π)`（与外齿
   // `spur_gear.py` 的递增相反）。必须保持同向，否则大齿数非对称齿根弧整段错开（实测 ~2.6mm）。
   const tRoot = linspace(tb + Math.PI * 2, ta + Math.PI * 2, n)
+  const t_root_pts = tRoot.map((t) =>
+    vec3(bcxy.x + bcr * Math.cos(t), bcxy.y + bcr * Math.sin(t), 0))
+
+  return {
+    m, z, a0, clearance, backlash, helixAngle, width, ka, kd,
+    d0, adn, ddn, da, dd, s0, invA0,
+    r0, ra, rd, rb, rr, tau,
+    twistAngle, surfaceSplines, curvePoints: n,
+    t_lflank_pts, t_tip_pts, t_rflank_pts, t_root_pts,
+  }
+}
+
+/** CrossedHelicalGear 构造参数（逐字沿用 `crossed_helical_gear.py::CrossedHelicalGear.__init__`）。
+ *
+ * 与 `SpurGear` 不同：**不接受** `addendum_coeff` / `dedendum_coeff`（源码该构造函数没有这两个形参）。 */
+export interface CrossedHelicalGearParams {
+  module: number
+  teeth_number: number
+  width: number
+  pressure_angle?: number
+  helix_angle?: number
+  clearance?: number
+  backlash?: number
+}
+
+/**
+ * 计算 CrossedHelicalGear（交错轴斜齿轮）的全部几何量
+ * （`crossed_helical_gear.py::CrossedHelicalGear.__init__` 的移植）。
+ *
+ * 与 SpurGear 的**根本差异**是「端面模数」而非「法向模数」：
+ * - 端面压力角 `at0 = arctan(a0 / cos(helix))`——⚠️ 源码里 `a0` 是**弧度值**直接除以
+ *   `cos(helix)`（并非 `tan(a0)`），这是 cq_gears 的原始写法，必须逐字复刻，
+ *   否则 `rb` 会偏（实测 case30 rb 由 20.2898 偏到 20.1227）；
+ * - 端面模数 `mt = m / cos(helix)`，分度圆直径 `d0 = mt·z`（SpurGear 是 `m·z`）；
+ * - 分度圆齿厚 `s0 = r0·π/z`（SpurGear 是 `m·(π/2 − backlash·tan(a0))`）；
+ * - 基圆半径 `rb = cos(at0)·r0`。
+ *
+ * 其余（渐开线采样、齿顶/齿根圆弧、扭转角、齿面行数）与 SpurGear 同构，返回的仍是
+ * `SpurGearGeometry`，可直接喂给 `toothFaceGrids` / `buildToothFaces`。
+ *
+ * 源码此处**没有**齿根圆直径校验（与 SpurGear 不同），故不复刻该抛错。
+ *
+ * @param params 交错轴斜齿轮参数（模数/齿数/宽度/螺旋角等）
+ * @returns 全部派生几何量（与 `SpurGearGeometry` 同构）
+ */
+export function crossedHelicalGearGeometry(params: CrossedHelicalGearParams): SpurGearGeometry {
+  const ka = GEAR_BASE_CONSTANTS.ka
+  const kd = GEAR_BASE_CONSTANTS.kd
+
+  const m = params.module
+  const z = params.teeth_number
+  const a0 = (params.pressure_angle ?? 20.0) * Math.PI / 180
+  const clearance = params.clearance ?? 0.0
+  const backlash = params.backlash ?? 0.0
+  const helixAngle = (params.helix_angle ?? 0.0) * Math.PI / 180
+  const width = params.width
+
+  // ⚠️ 源码写法：a0（弧度）直接除以 cos(helix)，不是 tan(a0)。
+  const at0 = Math.atan(a0 / Math.cos(helixAngle))
+  const mt = m / Math.cos(helixAngle)
+
+  const d0 = mt * z
+  const adn = ka / (z / d0)
+  const ddn = kd / (z / d0)
+
+  const da = d0 + 2 * adn
+  const dd = d0 - 2 * ddn - 2 * clearance
+  const invA0 = Math.tan(at0) - at0
+
+  const r0 = d0 / 2
+  const ra = da / 2
+  const rd = dd / 2
+  const rb = Math.cos(at0) * r0
+  const rr = Math.max(rb, rd)
+  const tau = Math.PI * 2 / z
+
+  const s0 = r0 * Math.PI / z
+
+  const twistAngle = helixAngle !== 0
+    ? width / (r0 * Math.tan(Math.PI / 2 - helixAngle))
+    : 0.0
+  const surfaceSplines = helixAngle !== 0 ? GEAR_BASE_CONSTANTS.surface_splines : 2
+
+  const n = GEAR_BASE_CONSTANTS.curve_points
+
+  // 左齿廓渐开线（用端面压力角 at0）
+  const r = linspace(rr, ra, n)
+  const phi = r.map((ri) => {
+    const cosA = (r0 / ri) * Math.cos(at0)
+    const a = Math.acos(Math.min(1, Math.max(-1, cosA)))
+    const invA = Math.tan(a) - a
+    const s = ri * (s0 / d0 + invA0 - invA)
+    return s / ri
+  })
+  const t_lflank_pts = r.map((ri, i) => vec3(Math.cos(phi[i]) * ri, Math.sin(phi[i]) * ri, 0))
+
+  // 齿顶圆弧
+  const bTip = linspace(phi[n - 1], -phi[n - 1], n)
+  const t_tip_pts = bTip.map((bi) => vec3(Math.cos(bi) * ra, Math.sin(bi) * ra, 0))
+
+  // 右齿廓 = 左齿廓镜像并反向
+  const t_rflank_pts = r.map((ri, i) => vec3(Math.cos(-phi[i]) * ri, Math.sin(-phi[i]) * ri, 0)).reverse()
+
+  // 齿根圆弧（与外齿一致：p2 在 rd、p3 在 rr，递增采样）
+  const rho = tau - phi[0] * 2
+  const p1 = vec3(t_rflank_pts[n - 1].x, t_rflank_pts[n - 1].y, 0)
+  const p2 = vec3(Math.cos(-phi[0] - rho / 2) * rd, Math.sin(-phi[0] - rho / 2) * rd, 0)
+  const p3 = vec3(Math.cos(-phi[0] - rho) * rr, Math.sin(-phi[0] - rho) * rr, 0)
+
+  const { radius: bcr, center: bcxy } = circle3dBy3points(p1, p2, p3)
+  let t1 = Math.atan2(p1.y - bcxy.y, p1.x - bcxy.x)
+  let t2 = Math.atan2(p3.y - bcxy.y, p3.x - bcxy.x)
+  if (t1 < 0) t1 += Math.PI * 2
+  if (t2 < 0) t2 += Math.PI * 2
+  const ta = Math.min(t1, t2)
+  const tb = Math.max(t1, t2)
+  const tRoot = linspace(ta + Math.PI * 2, tb + Math.PI * 2, n)
   const t_root_pts = tRoot.map((t) =>
     vec3(bcxy.x + bcr * Math.cos(t), bcxy.y + bcr * Math.sin(t), 0))
 
@@ -383,4 +501,35 @@ export function toothFaceGrids(
     }
     return { segment: seg, rows: surfSplines, cols: base.length, points }
   })
+}
+
+/**
+ * 按 cq_gears 类名分派到对应的齿廓几何计算（manifest 的 `class` 字段直接驱动）。
+ *
+ * `HerringboneGear` 继承 `SpurGear`、`HerringboneRingGear` 继承 `RingGear`，
+ * 其**齿廓数学**与父类相同（人字形的差异只体现在建面阶段的 `_build_tooth_faces` 覆盖），
+ * 故分派到同一函数。
+ *
+ * @throws 未支持的类名直接抛错（不静默退回 SpurGear，避免掩盖分派错误）
+ *
+ * @param className cq_gears 类名（`SpurGear` / `RingGear` / `CrossedHelicalGear` …）
+ * @param args 该类构造函数的参数（逐字取自 manifest）
+ * @returns 全部派生几何量
+ */
+export function gearGeometryForClass(
+  className: string,
+  args: Record<string, unknown>,
+): SpurGearGeometry {
+  switch (className) {
+    case 'SpurGear':
+    case 'HerringboneGear':
+      return spurGearGeometry(args as unknown as SpurGearParams)
+    case 'RingGear':
+    case 'HerringboneRingGear':
+      return ringGearGeometry(args as unknown as RingGearParams)
+    case 'CrossedHelicalGear':
+      return crossedHelicalGearGeometry(args as unknown as CrossedHelicalGearParams)
+    default:
+      throw new Error(`gearGeometryForClass: unsupported gear class '${className}'`)
+  }
 }
