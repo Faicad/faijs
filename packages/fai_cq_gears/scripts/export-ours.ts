@@ -15,8 +15,15 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { exportStepFromSolid } from '@faicad/faijs-core'
 import { loadManifest, OUT_DIR, type ReferenceCase } from '../src/fixtures'
 import { getRawKernel } from '../src/kernel'
-import { buildSpurGearSolid } from '../src/spur_gear'
-import type { SpurGearParams } from '../src/profile'
+import { buildSpurGearSolid, buildHerringboneGearSolid } from '../src/spur_gear'
+import {
+  buildRingGearSolid, buildHerringboneRingGearSolid,
+} from '../src/ring_gear'
+import { buildCrossedHelicalSolid } from '../src/crossed_helical_gear'
+import { buildRackGearSolid } from '../src/rack_gear'
+import type {
+  SpurGearParams, RingGearParams, CrossedHelicalGearParams, RackGearParams,
+} from '../src/profile'
 import type { SplineFaceStrategy } from '../src/spline-face'
 import type { RawOcctKernel } from '../src/kernel'
 import type { BrepHandle } from '@faicad/faijs-core'
@@ -26,23 +33,46 @@ function arg(name: string): string | undefined {
   return i >= 0 ? process.argv[i + 1] : undefined
 }
 
-/** 按用例构造我们这一侧的形状（目前只支持 SpurGear 与 Box 对照体）。 */
+/**
+ * 按用例的 `class` 分派到对应的实体构造（T2：全类接入）。
+ *
+ * 注意：参考 STEP 是 cq_gears `gear.build()` 的**完整体**（含 chamfer/bore/hub/spokes/
+ * recess），而我们当前只建模**裸齿轮**（齿 + 顶底盖面，Ring 另加 rim 与环形盖面）。
+ * 因此带特征的用例（绝大多数 regression 用例）比对会因未建模特征而 DIFFERENT——
+ * 这是已知的特性缺口（见后续倒角/特征工作），不是建体 bug；纯裸用例（spike 与 Rack
+ * 族，其参数不含特征字段）应 EQUIVALENT。
+ */
 export function buildOurShape(
   kernel: RawOcctKernel,
   c: ReferenceCase,
   strategy: SplineFaceStrategy,
 ): BrepHandle {
-  if (c.class === 'Box') {
-    const { width = 10, depth = 20, height = 30 } = c.args as Record<string, number>
-    return kernel.makeBoxFromCorners(
-      { x: -width / 2, y: -depth / 2, z: -height / 2 },
-      { x: width / 2, y: depth / 2, z: height / 2 },
-    )
+  const build = { strategy }
+  switch (c.class) {
+    case 'Box': {
+      const { width = 10, depth = 20, height = 30 } = c.args as Record<string, number>
+      return kernel.makeBoxFromCorners(
+        { x: -width / 2, y: -depth / 2, z: -height / 2 },
+        { x: width / 2, y: depth / 2, z: height / 2 },
+      )
+    }
+    case 'SpurGear':
+      return buildSpurGearSolid(kernel, c.args as unknown as SpurGearParams, build)
+    case 'HerringboneGear':
+      return buildHerringboneGearSolid(kernel, c.args as unknown as SpurGearParams, build)
+    case 'RingGear':
+      return buildRingGearSolid(kernel, c.args as unknown as RingGearParams, build)
+    case 'HerringboneRingGear':
+      return buildHerringboneRingGearSolid(kernel, c.args as unknown as RingGearParams, build)
+    case 'CrossedHelicalGear':
+      return buildCrossedHelicalSolid(kernel, c.args as unknown as CrossedHelicalGearParams, build)
+    case 'RackGear':
+      return buildRackGearSolid(kernel, c.args as unknown as RackGearParams, build)
+    case 'HerringboneRackGear':
+      return buildRackGearSolid(kernel, c.args as unknown as RackGearParams, { ...build, herringbone: true })
+    default:
+      throw new Error(`export-ours: 尚未支持的类 ${c.class}`)
   }
-  if (c.class === 'SpurGear') {
-    return buildSpurGearSolid(kernel, c.args as unknown as SpurGearParams, { strategy })
-  }
-  throw new Error(`export-ours: 尚未支持的类 ${c.class}`)
 }
 
 async function main(): Promise<void> {

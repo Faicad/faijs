@@ -35,6 +35,8 @@ export interface BuildSpurGearOptions extends SplineFaceOptions {
   shellSewingTol?: number
   /** 组线容差（cq `wire_comb_tol`）。 */
   wireCombTol?: number
+  /** 人字齿：齿面沿宽度方向拆成上下两半、各以相反螺旋扭转（V 形）。 */
+  herringbone?: boolean
 }
 
 /**
@@ -103,6 +105,42 @@ export function buildToothFaces(
   return faces
 }
 
+/**
+ * ①+②：人字齿（Herringbone）的 8z 个齿面（上下两半 V 形）。
+ *
+ * 对应 cq_gears `HerringboneGear._build_tooth_faces`：调父类两次，
+ * 上半 `(0, +twist, 0, w/2)`、下半 `(+twist, 0, w/2, w/2)`，两半在 z=w/2 处
+ * 以相同扭转角衔接（点集重合，sew 自动并合）。
+ *
+ * @param kernel 原始 OCCT 内核
+ * @param geom 齿廓几何量
+ * @param strategy 齿面建面策略
+ * @param options 容差/次数选项
+ * @returns 齿面列表（8z 个 Face：4 段 × 2 半 × z 齿）
+ */
+export function buildHerringboneToothFaces(
+  kernel: RawOcctKernel,
+  geom: SpurGearGeometry,
+  strategy: SplineFaceStrategy,
+  options: SplineFaceOptions = {},
+): BrepHandle[] {
+  const w = geom.width
+  // 上半：z ∈ [0, w/2]，扭转 0 → +twist；下半：z ∈ [w/2, w]，扭转 +twist → 0。
+  const grids1 = toothFaceGrids(geom, 0, geom.twistAngle, 0, w / 2)
+  const grids2 = toothFaceGrids(geom, geom.twistAngle, 0, w / 2, w / 2)
+  const base1 = grids1.map((grid) => buildSplineFace(kernel, grid, strategy, options))
+  const base2 = grids2.map((grid) => buildSplineFace(kernel, grid, strategy, options))
+
+  const faces: BrepHandle[] = []
+  const axis = { point: { x: 0, y: 0, z: 0 }, direction: { x: 0, y: 0, z: 1 } }
+  for (let i = 0; i < geom.z; i++) {
+    const angle = geom.tau * i
+    for (const f of base1) faces.push(i === 0 ? f : kernel.rotate(f, axis, angle))
+    for (const f of base2) faces.push(i === 0 ? f : kernel.rotate(f, axis, angle))
+  }
+  return faces
+}
+
 /** ③–④：由**已算好**的齿廓几何量构造裸齿轮实体（SpurGear 全族共用）。
  *
  * 与类无关：只吃 `SpurGearGeometry`（Spur / Herringbone / CrossedHelical 的齿廓布局
@@ -119,7 +157,9 @@ export function buildGearSolid(
   build: BuildSpurGearOptions = {},
 ): BrepHandle {
   const strategy = build.strategy ?? DEFAULT_SPLINE_FACE_STRATEGY
-  const faces = buildToothFaces(kernel, geom, strategy, build)
+  const faces = build.herringbone
+    ? buildHerringboneToothFaces(kernel, geom, strategy, build)
+    : buildToothFaces(kernel, geom, strategy, build)
 
   const bottom = planarCapAtZ(kernel, faces, 0, build.wireCombTol)
   const top = planarCapAtZ(kernel, faces, geom.width, build.wireCombTol)
@@ -153,4 +193,24 @@ export function buildSpurGearSolid(
   build: BuildSpurGearOptions = {},
 ): BrepHandle {
   return buildGearSolid(kernel, spurGearGeometry(params), build)
+}
+
+/** ①–④：完整 HerringboneGear 实体（人字齿，裸齿轮）。
+ *
+ * 齿廓数学与 SpurGear 同构（`gearGeometryForClass` 已分派到 `spurGearGeometry`），
+ * 差异只在建面阶段：齿面沿宽度拆成上下两半、反向螺旋形成 V 形，由
+ * `buildHerringboneToothFaces` 实现；顶/底盖面与 SpurGear 一致（z=0 与 z=width 处
+ * 截面均为基准渐开线，净扭转回零）。
+ *
+ * @param kernel 原始 OCCT 内核
+ * @param params 齿轮参数（逐字沿用 Python 构造参数名）
+ * @param build 构造选项（策略/容差覆盖）
+ * @returns 朝向归一化后的 solid
+ */
+export function buildHerringboneGearSolid(
+  kernel: RawOcctKernel,
+  params: SpurGearParams,
+  build: BuildSpurGearOptions = {},
+): BrepHandle {
+  return buildGearSolid(kernel, spurGearGeometry(params), { ...build, herringbone: true })
 }

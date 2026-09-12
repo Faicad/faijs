@@ -24,7 +24,7 @@ import {
   DEFAULT_SPLINE_FACE_STRATEGY,
   soleFace, type SplineFaceOptions, type SplineFaceStrategy,
 } from './spline-face'
-import { buildToothFaces } from './spur_gear'
+import { buildToothFaces, buildHerringboneToothFaces } from './spur_gear'
 import { connectEdgesToWires, faceFromWires } from './geom-build'
 
 /** 判定「边是否落在某个 z 平面上」的容差（远小于 wire_comb_tol）。 */
@@ -37,6 +37,8 @@ export interface BuildRingGearOptions extends SplineFaceOptions {
   shellSewingTol?: number
   /** 组线容差（cq `wire_comb_tol`）。 */
   wireCombTol?: number
+  /** 人字齿：齿面沿宽度方向拆成上下两半、各以相反螺旋扭转（V 形）。 */
+  herringbone?: boolean
 }
 
 /**
@@ -120,7 +122,9 @@ export function buildRingGearSolid(
 ): BrepHandle {
   const strategy = build.strategy ?? DEFAULT_SPLINE_FACE_STRATEGY
   const geom = ringGearGeometry(params)
-  const toothFaces = buildToothFaces(kernel, geom, strategy, build)
+  const toothFaces = build.herringbone
+    ? buildHerringboneToothFaces(kernel, geom, strategy, build)
+    : buildToothFaces(kernel, geom, strategy, build)
 
   const rimR = geom.rd + params.rim_width
   const rimFace = buildRimFace(kernel, rimR, geom.width)
@@ -138,4 +142,23 @@ export function buildRingGearSolid(
     )
   }
   return oriented
+}
+
+/** ①–④：完整 HerringboneRingGear 实体（人字内齿，裸齿轮）。
+ *
+ * 齿廓数学与 RingGear 同构（`gearGeometryForClass` 已分派到 `ringGearGeometry`），
+ * 差异只在建面阶段：齿面拆成上下两半、反向螺旋形成 V 形（复用
+ * `buildHerringboneToothFaces`）；rim 圆柱面与环形盖面与 RingGear 一致。
+ *
+ * @param kernel 原始 OCCT 内核
+ * @param params 内齿参数（逐字沿用 Python 构造参数名）
+ * @param build 构造选项（策略/容差覆盖）
+ * @returns 朝向归一化后的 solid
+ */
+export function buildHerringboneRingGearSolid(
+  kernel: RawOcctKernel,
+  params: RingGearParams,
+  build: BuildRingGearOptions = {},
+): BrepHandle {
+  return buildRingGearSolid(kernel, params, { ...build, herringbone: true })
 }
