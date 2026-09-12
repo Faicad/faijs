@@ -40,6 +40,22 @@ export interface SpurGearParams {
   dedendum_coeff?: number | null
 }
 
+/** RingGear 构造参数（参数名逐字沿用 Python `RingGear.__init__`）。
+ *
+ * 注意：内部齿（ring）在 `e73874c` 沿用固定的 `ka=1.0 / kd=1.25`
+ * （`addendum_coeff` 仅 `SpurGear` 支持，见 commit `a6bedc0` 之后的改动），
+ * 所以这里没有 `addendum_coeff` / `dedendum_coeff`。 */
+export interface RingGearParams {
+  module: number
+  teeth_number: number
+  width: number
+  rim_width: number
+  pressure_angle?: number
+  helix_angle?: number
+  clearance?: number
+  backlash?: number
+}
+
 /** SpurGear 的全部派生几何量与四段齿廓点集（`SpurGear.__init__` 的产物）。 */
 export interface SpurGearGeometry {
   /** 模数 m */
@@ -182,6 +198,114 @@ export function spurGearGeometry(params: SpurGearParams): SpurGearGeometry {
   const ta = Math.min(t1, t2)
   const tb = Math.max(t1, t2)
   const tRoot = linspace(ta + Math.PI * 2, tb + Math.PI * 2, n)
+  const t_root_pts = tRoot.map((t) =>
+    vec3(bcxy.x + bcr * Math.cos(t), bcxy.y + bcr * Math.sin(t), 0))
+
+  return {
+    m, z, a0, clearance, backlash, helixAngle, width, ka, kd,
+    d0, adn, ddn, da, dd, s0, invA0,
+    r0, ra, rd, rb, rr, tau,
+    twistAngle, surfaceSplines, curvePoints: n,
+    t_lflank_pts, t_tip_pts, t_rflank_pts, t_root_pts,
+  }
+}
+
+/**
+ * 计算 RingGear（内部齿）的全部几何量（`RingGear.__init__` 的移植）。
+ *
+ * 与 SpurGear 的关键差异（内部齿）：
+ * - 齿顶圆 `da = d0 − 2·adn`（比分度圆小）、齿根圆 `dd = d0 + 2·ddn + 2·clearance`（比分度圆大）；
+ * - 齿厚 `s0 = m·(π/2 + backlash·tan(a0))`（注意是 **+**，外齿是 −）；
+ * - 渐开线 `r = linspace(ra, rr)`：从齿顶圆（内）走向齿根圆（外），与外齿方向相反；
+ * - 齿顶圆弧落在 `rd`（外齿是 `ra`）、齿根圆弧落在 `ra`（外齿是 `rd`）——齿尖朝外、齿根朝内。
+ *
+ * `ka` / `kd` 固定取 `GEAR_BASE_CONSTANTS`（内部齿在 `e73874c` 不支持 `addendum_coeff`）。
+ * 返回的仍是 `SpurGearGeometry`（点集布局一致），可直接喂给 `toothFaceGrids` /
+ * `buildToothFaces`，无需为 RingGear 另写齿面构造。
+ *
+ * @throws 与 Python 同款校验：齿根圆直径 <= 0。
+ *
+ * @param params 内部齿参数（模数/齿数/宽度/轮缘宽等）
+ * @returns 全部派生几何量（与 `SpurGearGeometry` 同构）
+ */
+export function ringGearGeometry(params: RingGearParams): SpurGearGeometry {
+  const ka = GEAR_BASE_CONSTANTS.ka
+  const kd = GEAR_BASE_CONSTANTS.kd
+  if (params.addendum_coeff !== undefined) {
+    throw new Error('RingGear does not support addendum_coeff at this source revision (e73874c).')
+  }
+
+  const m = params.module
+  const z = params.teeth_number
+  const a0 = (params.pressure_angle ?? 20.0) * Math.PI / 180
+  const clearance = params.clearance ?? 0.0
+  const backlash = params.backlash ?? 0.0
+  const helixAngle = (params.helix_angle ?? 0.0) * Math.PI / 180
+  const width = params.width
+  const rimWidth = params.rim_width
+
+  const d0 = m * z
+  const adn = ka / (z / d0)
+  const ddn = kd / (z / d0)
+  if (2 * ddn + 2 * clearance >= d0) {
+    throw new RangeError(
+      'Invalid dedendum or clearance: resulting dedendum circle diameter is negative or zero.',
+    )
+  }
+
+  const da = d0 - 2 * adn
+  const dd = d0 + 2 * ddn + 2 * clearance
+  const s0 = m * (Math.PI / 2 + backlash * Math.tan(a0)) // 内部齿：+
+  const invA0 = Math.tan(a0) - a0
+
+  const r0 = d0 / 2
+  const ra = da / 2
+  const rd = dd / 2
+  const rb = Math.cos(a0) * d0 / 2
+  const rr = Math.max(rb, rd)
+  const tau = Math.PI * 2 / z
+
+  const twistAngle = helixAngle !== 0
+    ? width / (r0 * Math.tan(Math.PI / 2 - helixAngle))
+    : 0.0
+  const surfaceSplines = helixAngle !== 0 ? GEAR_BASE_CONSTANTS.surface_splines : 2
+
+  const n = GEAR_BASE_CONSTANTS.curve_points
+
+  // 左齿廓渐开线：r 从齿顶圆 ra（内）到 rr（外）
+  const r = linspace(ra, rr, n)
+  const phi = r.map((ri) => {
+    const cosA = (r0 / ri) * Math.cos(a0)
+    const a = Math.acos(Math.min(1, Math.max(-1, cosA)))
+    const invA = Math.tan(a) - a
+    const s = ri * (s0 / d0 + invA0 - invA)
+    return s / ri
+  })
+  const t_lflank_pts = r.map((ri, i) => vec3(Math.cos(phi[i]) * ri, Math.sin(phi[i]) * ri, 0))
+
+  // 齿顶圆弧：落在 rd（外齿落在 ra）
+  const bTip = linspace(phi[n - 1], -phi[n - 1], n)
+  const t_tip_pts = bTip.map((bi) => vec3(Math.cos(bi) * rd, Math.sin(bi) * rd, 0))
+
+  // 右齿廓 = 左齿廓镜像并反向
+  const t_rflank_pts = r.map((ri, i) => vec3(Math.cos(-phi[i]) * ri, Math.sin(-phi[i]) * ri, 0)).reverse()
+
+  // 齿根圆弧：过右齿廓末点、齿根圆（ra）中点、左齿廓起点三点定圆
+  const rho = tau - phi[0] * 2
+  const p1 = vec3(t_rflank_pts[n - 1].x, t_rflank_pts[n - 1].y, 0)
+  const p2 = vec3(Math.cos(-phi[0] - rho / 2) * ra, Math.sin(-phi[0] - rho / 2) * ra, 0)
+  const p3 = vec3(Math.cos(-phi[0] - rho) * ra, Math.sin(-phi[0] - rho) * ra, 0)
+
+  const { radius: bcr, center: bcxy } = circle3dBy3points(p1, p2, p3)
+  let t1 = Math.atan2(p1.y - bcxy.y, p1.x - bcxy.x)
+  let t2 = Math.atan2(p3.y - bcxy.y, p3.x - bcxy.x)
+  if (t1 < 0) t1 += Math.PI * 2
+  if (t2 < 0) t2 += Math.PI * 2
+  const ta = Math.min(t1, t2)
+  const tb = Math.max(t1, t2)
+  // 注意：内部齿 `ring_gear.py` 用 **递减** 采样 `linspace(t2 + 2π, t1 + 2π)`（与外齿
+  // `spur_gear.py` 的递增相反）。必须保持同向，否则大齿数非对称齿根弧整段错开（实测 ~2.6mm）。
+  const tRoot = linspace(tb + Math.PI * 2, ta + Math.PI * 2, n)
   const t_root_pts = tRoot.map((t) =>
     vec3(bcxy.x + bcr * Math.cos(t), bcxy.y + bcr * Math.sin(t), 0))
 

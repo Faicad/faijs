@@ -122,6 +122,8 @@ export const RAW_KERNEL_METHODS: ReadonlyArray<keyof RawOcctKernel> = [
   'getSurfaceArea',
   'projectPointOnFace',
   'surfaceType',
+  'curveParameters',
+  'curvePointAtParam',
   'subShapeCount',
   'isFace',
   'isWire',

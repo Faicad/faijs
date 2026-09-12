@@ -28,18 +28,33 @@ function dist(a: Vec3, b: Vec3): number {
 /**
  * 取一条边的两个端点坐标。
  *
+ * ⚠️ 端点取法红线（2026-09-11 实测）：`getSubShapes(edge, 'vertex')` 对 **B-spline 曲线边**
+ * 返回的定点数 < 2（OCCT 不为曲线边存显式顶点），导致 `connectEdgesToWires` 把每条边当成
+ * 独立 wire。正确做法是走曲线参数域：`curveParameters(edge)` 给出
+ * `{first, last}`，`curvePointAtParam(edge, param)` 取该参数下的空间点——这适用于**所有**边类
+ * 型（直线 / 圆弧 / B-spline），故作为主路径；顶点取法仅作退化兜底。
+ *
  * @param kernel 原始 OCCT 内核
  * @param edge 边句柄
- * @returns 边的两个端点（退化闭合边首末同点）
+ * @returns 边的两个端点（闭合边首末同点）
  */
 export function edgeEnds(kernel: RawOcctKernel, edge: BrepHandle): EdgeEnds {
-  const vs = kernel.getSubShapes(edge, 'vertex')
-  if (vs.length < 2) {
-    // 退化边（闭合曲线，如整圆）：首末同点
-    const p = kernel.vertexPosition(vs[0])
-    return { edge, a: p, b: p }
+  try {
+    const { first, last } = kernel.curveParameters(edge)
+    return {
+      edge,
+      a: kernel.curvePointAtParam(edge, first),
+      b: kernel.curvePointAtParam(edge, last),
+    }
+  } catch {
+    // 兜底：极少数无底层曲线的退化边，退回顶点端点取法
+    const vs = kernel.getSubShapes(edge, 'vertex')
+    if (vs.length < 2) {
+      const p = kernel.vertexPosition(vs[0])
+      return { edge, a: p, b: p }
+    }
+    return { edge, a: kernel.vertexPosition(vs[0]), b: kernel.vertexPosition(vs[1]) }
   }
-  return { edge, a: kernel.vertexPosition(vs[0]), b: kernel.vertexPosition(vs[1]) }
 }
 
 /**
@@ -55,6 +70,9 @@ export function connectEdgesToWires(
   edges: BrepHandle[],
   tol: number,
 ): BrepHandle[] {
+  if (!Number.isFinite(tol) || tol <= 0) {
+    throw new Error(`connectEdgesToWires: tol must be a positive finite number, got ${String(tol)}`)
+  }
   const pool: EdgeEnds[] = edges.map((e) => edgeEnds(kernel, e))
   const used = new Array<boolean>(pool.length).fill(false)
   const wires: BrepHandle[] = []
