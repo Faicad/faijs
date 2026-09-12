@@ -65,7 +65,6 @@
 
 > ⚠️ **安全提示（仍成立）**：`.git/config` 里 `gitcode` remote 的 URL 内嵌了一个 OAuth2 token（`https://oauth2:<token>@gitcode.com/...`）。交接给第三方前请**轮换该 token**或改用凭据管理器。
 >
-> ⚠️ **`cq_gears` Python 源在本机不存在**：`C:\git\CADQ\` 只有 `cadquery` 与 `mini_lathe`，`cadquery-env` 的 `site-packages` 也没有 gear 包。因此 `fai_cq_gears` 的 P2–P5（14 个齿轮类）**无法在本机逐字对照 Python 源翻译**；SpurGear 不受影响（v1 已有映射与注释）。详见 §11。
 
 ### 1.2 环境（版本全部实测）
 
