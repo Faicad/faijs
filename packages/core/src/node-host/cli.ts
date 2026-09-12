@@ -389,8 +389,10 @@ export async function cliView(
   const projectRoot = opts?.projectRoot ? resolve(opts.projectRoot) : findProjectRoot(filePath)
   const entryKey = projectKeyOf(projectRoot, filePath)
 
-  // Initialize OCCT（投影 HLR 依赖 brep 内核）
-  await initOcctWasm()
+  // Initialize OCCT（投影 HLR 依赖 brep 内核）。registerOcctBrepEngine is
+  // idempotent and itself boots initOcctWasm, and also binds the vendored
+  // brepjs kernel registry (D10) — same boot path as cliRun above.
+  await registerOcctBrepEngine()
 
   const ports = withCliProjectLoader(
     withCliLibLoader(createNodePorts({
