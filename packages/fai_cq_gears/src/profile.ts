@@ -448,7 +448,7 @@ export type ToothSegment = typeof TOOTH_SEGMENTS[number]
  * @param seg 齿廓段名
  * @returns 该段的点集
  */
-export function segmentPoints(g: SpurGearGeometry, seg: ToothSegment): Vec3[] {
+export function segmentPoints(g: SpurGearGeometry | WormGeometry, seg: ToothSegment): Vec3[] {
   switch (seg) {
     case 'lflank': return g.t_lflank_pts
     case 'tip': return g.t_tip_pts
@@ -519,7 +519,7 @@ export function toothFaceGrids(
 export function gearGeometryForClass(
   className: string,
   args: Record<string, unknown>,
-): SpurGearGeometry {
+): SpurGearGeometry | WormGeometry {
   switch (className) {
     case 'SpurGear':
     case 'HerringboneGear':
@@ -529,6 +529,8 @@ export function gearGeometryForClass(
       return ringGearGeometry(args as unknown as RingGearParams)
     case 'CrossedHelicalGear':
       return crossedHelicalGearGeometry(args as unknown as CrossedHelicalGearParams)
+    case 'Worm':
+      return wormGeometry(args as unknown as WormParams)
     default:
       throw new Error(`gearGeometryForClass: unsupported gear class '${className}'`)
   }
@@ -616,6 +618,108 @@ export function rackGearGeometry(params: RackGearParams): RackGearGeometry {
   return {
     m, a0, clearance, backlash, helixAngle, width, length, height,
     la, ld, s0, toothHeight, z,
+    t_lflank_pts: [p1, p2],
+    t_tip_pts: [p2, p3],
+    t_rflank_pts: [p3, p4],
+    t_root_pts: [p4, p5],
+  }
+}
+
+/** Worm 构造参数（参数名逐字沿用 Python `Worm.__init__`）。 */
+export interface WormParams {
+  module: number
+  /** 导程角（度） */
+  lead_angle: number
+  /** 蜗杆头数 */
+  n_threads: number
+  /** 蜗杆长度（轴向，沿 X） */
+  length: number
+  pressure_angle?: number
+  clearance?: number
+  backlash?: number
+}
+
+/** Worm 的全部派生几何量与四段齿廓点集（`Worm.__init__` 的产物）。 */
+export interface WormGeometry {
+  m: number
+  /** 压力角（弧度） */
+  a0: number
+  clearance: number
+  backlash: number
+  /** 导程角（弧度） */
+  leadAngle: number
+  length: number
+  /** 头数 */
+  nThreads: number
+  /** 分度圆半径 */
+  r0: number
+  /** 齿顶圆半径 */
+  ra: number
+  /** 齿根圆半径 */
+  rd: number
+  /** 齿顶线（+y） */
+  la: number
+  /** 齿根线（−y） */
+  ld: number
+  /** 分度线上的齿厚（x 向，半齿距） */
+  s0: number
+  /** 齿廓总高（la − ld，Python `self.tooth_height`） */
+  toothHeight: number
+  t_lflank_pts: Vec3[]
+  t_tip_pts: Vec3[]
+  t_rflank_pts: Vec3[]
+  t_root_pts: Vec3[]
+}
+
+/**
+ * 计算 Worm 的全部几何量（`Worm.__init__` 的移植）。
+ *
+ * 齿廓公式与 `RackGear.__init__` **逐字同构**（梯形直线段 p1–p5）——cq 里 Worm
+ * 的齿廓本来就是「展开到分度圆柱切平面上的齿条」。差异只在分度半径：
+ * `d0 = n_threads·m / |tan(lead_angle)|`，以及半径向的 ra/rd。
+ *
+ * @param params 蜗杆参数（模数/导程角/头数/长度等）
+ * @returns 全部派生几何量
+ */
+export function wormGeometry(params: WormParams): WormGeometry {
+  const ka = GEAR_BASE_CONSTANTS.ka
+  const kd = GEAR_BASE_CONSTANTS.kd
+  const m = params.module
+  const a0 = ((params.pressure_angle ?? 20.0) * Math.PI) / 180.0
+  const clearance = params.clearance ?? 0.0
+  const backlash = params.backlash ?? 0.0
+  const leadAngle = (params.lead_angle * Math.PI) / 180.0
+  const length = params.length
+  const nThreads = params.n_threads
+
+  const d0 = (nThreads * m) / Math.abs(Math.tan(leadAngle))
+  const r0 = d0 / 2.0
+
+  const adn = ka * m
+  const ddn = kd * m
+
+  const la = adn
+  const ld = -(ddn + clearance)
+
+  const ra = r0 + adn
+  const rd = r0 - ddn
+
+  const s0 = (m * (Math.PI / 2.0 - backlash * Math.tan(a0))) / 2.0
+
+  const p1x = Math.tan(a0) * Math.abs(ld)
+  const p1p2 = (Math.abs(la) + Math.abs(ld)) / Math.cos(a0)
+
+  const p1 = vec3(-s0 - p1x, ld, 0.0)
+  const p2 = vec3(Math.sin(a0) * p1p2 + p1.x, Math.cos(a0) * p1p2 + p1.y, 0.0)
+  const p3 = vec3(-p2.x, p2.y, 0.0)
+  const p4 = vec3(-p1.x, p1.y, 0.0)
+  const p5 = vec3(p4.x + (Math.PI * m - p4.x * 2.0), p4.y, 0.0)
+
+  const toothHeight = Math.abs(la) + Math.abs(ld)
+
+  return {
+    m, a0, clearance, backlash, leadAngle, length, nThreads,
+    r0, ra, rd, la, ld, s0, toothHeight,
     t_lflank_pts: [p1, p2],
     t_tip_pts: [p2, p3],
     t_rflank_pts: [p3, p4],

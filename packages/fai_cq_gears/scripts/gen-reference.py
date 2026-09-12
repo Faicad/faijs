@@ -53,6 +53,17 @@ SPIKE_CASES = [
         "class": "SpurGear",
         "args": {"module": 1.0, "teeth_number": 17, "width": 5.0, "helix_angle": 15.0},
     },
+    # Worm（蜗杆）：单头 + 双头，覆盖 lead_angle 正负两支
+    {
+        "id": "worm-basic",
+        "class": "Worm",
+        "args": {"module": 1.0, "lead_angle": 20.0, "n_threads": 1, "length": 10.0},
+    },
+    {
+        "id": "worm-2threads",
+        "class": "Worm",
+        "args": {"module": 1.0, "lead_angle": 15.0, "n_threads": 2, "length": 10.0},
+    },
     # 全链路工具链的对照组：与齿轮实现无关，只证明 ref→our→compare 管道可用
     {
         "id": "control-box",

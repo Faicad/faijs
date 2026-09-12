@@ -39,6 +39,8 @@ export interface ReferenceCase {
   bbox?: number[]
   constants?: Record<string, number>
   derived?: Record<string, number>
+  /** Python 侧取不到的派生量名（如 Worm 无 twist_angle/rb/rr/tau）。 */
+  derived_missing?: string[]
   profile?: {
     t_lflank_pts: number[][]
     t_tip_pts: number[][]

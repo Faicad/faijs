@@ -65095,6 +65095,184 @@
         109.0000002,
         16.000000200000006
       ]
+    },
+    {
+      "id": "worm-basic",
+      "class": "Worm",
+      "args": {
+        "module": 1.0,
+        "lead_angle": 20.0,
+        "n_threads": 1,
+        "length": 10.0
+      },
+      "volume": 79.92859128513547,
+      "bbox": [
+        10.000000200000002,
+        4.747477619454623,
+        4.73320064830847
+      ],
+      "constants": {
+        "curve_points": 20,
+        "surface_splines": 8,
+        "wire_comb_tol": 0.1,
+        "spline_approx_tol": 0.01,
+        "spline_approx_min_deg": 3,
+        "spline_approx_max_deg": 8,
+        "shell_sewing_tol": 0.01,
+        "ka": 1.0,
+        "kd": 1.25
+      },
+      "derived": {
+        "r0": 1.3737387097273113,
+        "ra": 2.373738709727311,
+        "rd": 0.12373870972731127
+      },
+      "derived_missing": [
+        "twist_angle",
+        "rb",
+        "rr",
+        "tau"
+      ],
+      "profile": {
+        "t_lflank_pts": [
+          [
+            -1.2403609562302012,
+            -1.25,
+            0.0
+          ],
+          [
+            -0.42142792913124594,
+            1.0,
+            0.0
+          ]
+        ],
+        "t_tip_pts": [
+          [
+            -0.42142792913124594,
+            1.0,
+            0.0
+          ],
+          [
+            0.42142792913124594,
+            1.0,
+            0.0
+          ]
+        ],
+        "t_rflank_pts": [
+          [
+            0.42142792913124594,
+            1.0,
+            0.0
+          ],
+          [
+            1.2403609562302012,
+            -1.25,
+            0.0
+          ]
+        ],
+        "t_root_pts": [
+          [
+            1.2403609562302012,
+            -1.25,
+            0.0
+          ],
+          [
+            1.901231697359592,
+            -1.25,
+            0.0
+          ]
+        ]
+      },
+      "tooth_face_grids_error": "AttributeError: 'Worm' object has no attribute 'twist_angle'"
+    },
+    {
+      "id": "worm-2threads",
+      "class": "Worm",
+      "args": {
+        "module": 1.0,
+        "lead_angle": 15.0,
+        "n_threads": 2,
+        "length": 10.0
+      },
+      "volume": 449.6362755819415,
+      "bbox": [
+        10.000000200000002,
+        9.468843700599795,
+        9.476778813266035
+      ],
+      "constants": {
+        "curve_points": 20,
+        "surface_splines": 8,
+        "wire_comb_tol": 0.1,
+        "spline_approx_tol": 0.01,
+        "spline_approx_min_deg": 3,
+        "spline_approx_max_deg": 8,
+        "shell_sewing_tol": 0.01,
+        "ka": 1.0,
+        "kd": 1.25
+      },
+      "derived": {
+        "r0": 3.7320508075688776,
+        "ra": 4.732050807568878,
+        "rd": 2.4820508075688776
+      },
+      "derived_missing": [
+        "twist_angle",
+        "rb",
+        "rr",
+        "tau"
+      ],
+      "profile": {
+        "t_lflank_pts": [
+          [
+            -1.2403609562302012,
+            -1.25,
+            0.0
+          ],
+          [
+            -0.42142792913124594,
+            1.0,
+            0.0
+          ]
+        ],
+        "t_tip_pts": [
+          [
+            -0.42142792913124594,
+            1.0,
+            0.0
+          ],
+          [
+            0.42142792913124594,
+            1.0,
+            0.0
+          ]
+        ],
+        "t_rflank_pts": [
+          [
+            0.42142792913124594,
+            1.0,
+            0.0
+          ],
+          [
+            1.2403609562302012,
+            -1.25,
+            0.0
+          ]
+        ],
+        "t_root_pts": [
+          [
+            1.2403609562302012,
+            -1.25,
+            0.0
+          ],
+          [
+            1.901231697359592,
+            -1.25,
+            0.0
+          ]
+        ]
+      },
+      "tooth_face_grids_error": "AttributeError: 'Worm' object has no attribute 'twist_angle'"
     }
   ]
 }

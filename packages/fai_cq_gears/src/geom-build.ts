@@ -102,11 +102,24 @@ export function connectEdgesToWires(
       if (found < 0) break
       used[found] = true
       const e = pool[found]
+      const flip = dist(e.a, tail) <= dist(e.b, tail)
+      // 边与边之间的间隙若超过 OCCT 精度（~1e-7），kernel.makeWire 会静默
+      // 丢弃后继边——插入一条桥接线段补齐（cq ConnectEdgesToWires 同样自动
+      // 补齐容差内间隙）。
+      if (best > 1e-7) {
+        chain.push(kernel.makeLineEdge(tail, flip ? e.a : e.b))
+      }
       // 需要反向才首尾相接时，用 reverseShape 造一条反向副本
-      chain.push(dist(e.a, tail) <= dist(e.b, tail) ? e.edge : kernel.reverseShape(e.edge))
-      tail = dist(e.a, tail) <= dist(e.b, tail) ? e.b : e.a
+      chain.push(flip ? e.edge : kernel.reverseShape(e.edge))
+      tail = flip ? e.b : e.a
       // 回到起点 ⇒ 闭环，停止
       if (dist(tail, head) <= tol) break
+    }
+
+    // 闭环尾部与起点的间隙同样补齐
+    const endGap = dist(tail, head)
+    if (chain.length > 1 && endGap > 1e-7 && endGap <= tol) {
+      chain.push(kernel.makeLineEdge(tail, head))
     }
 
     wires.push(kernel.makeWire(chain))
