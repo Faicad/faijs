@@ -1,39 +1,41 @@
 /**
- * spline-face — CadQuery `Face.makeSplineApprox` 的 faijs 等价物（三方案）
+ * spline-face — thin adapter over cq-compat's gear spline-face primitives.
  *
- * ## 背景（2026-09-08 实测）
+ * The three B-spline face strategies (probed in the v1 spike, 2026-09-08) moved
+ * INTO cq-compat per the port plan (§4/§5): raw kernel knowledge lives there,
+ * fai_cq_gears only consumes. This file preserves the v1 import names for
+ * existing call sites and keeps the measurement helpers (they are test/report
+ * tooling, not geometry ops — they stay in this package but consume the
+ * cq-compat kernel type).
  *
- * cq 的实现（`C:\git\CADQ\cadquery\cadquery\occ_impl\shapes.py:3618`）：
- * ```
- * GeomAPI_PointsToBSplineSurface(TColgp_HArray2OfPnt, DegMin=3, DegMax=8, Tol3D=1e-2)
- *   → BRepBuilderAPI_MakeFace(surface, Precision::Confusion())
- * ```
- * faijs **没有** `Face.makeSplineApprox`；`occt-wasm` 是预编译 wasm，不能加内核方法。
- * 因此只能组合现有绑定，本文件把候选方案固化成可切换、可实测的实现：
- *
- * | 策略 | 做法 | 与 cq 的语义差 |
+ * | strategy | how | semantic delta vs cq |
  * |---|---|---|
- * | `grid-approx` | `kernel.bsplineSurface(flat, rows, cols)`（内部同样是 `GeomAPI_PointsToBSplineSurface`） | 用 OCCT **默认** DegMin/DegMax/Tol3D，cq 显式传 3/8/1e-2 |
- * | `row-approx-loft` | 逐行 `approximatePoints(row, tol)` → `loft(wires, false, false)` | 曲线级 tol 与 cq 同名同义；曲面是蒙皮而非一次性拟合 |
- * | `row-interp-loft` | 逐行 `interpolatePoints(row)` → `loft` | 过所有采样点（插值而非逼近） |
- *
- * 选哪个由 `spline-face.test.ts` 的**实测偏差**决定（面积 + 采样点距离），不靠推理。
+ * | `grid-approx` | `kernel.bsplineSurface(flat, rows, cols)` | OCCT default DegMin/DegMax/Tol3D; cq passes 3/8/1e-2 explicitly |
+ * | `row-approx-loft` | per-row `approximatePoints(row, tol)` → `loft(wires, false, false)` | curve-level tol same name/meaning; surface is skinned, not fitted at once |
+ * | `row-interp-loft` | per-row `interpolatePoints(row)` → `loft` | passes through every sample point (interpolation) |
  */
 
 import type { BrepHandle } from '@faicad/faijs-core'
-import type { RawOcctKernel } from './kernel'
+import {
+  buildGearSplineFace,
+  gearDistanceToFace,
+  gearFaceDeviation,
+  soleGearFace as soleFace,
+  DEFAULT_GEAR_SPLINE_FACE_STRATEGY,
+  GEAR_SPLINE_FACE_STRATEGIES,
+  type GearDeviationStats,
+  type GearKernel,
+  type GearSplineFaceOptions,
+  type GearSplineFaceStrategy,
+} from '@faicad/cq-compat'
 import type { Vec3 } from './math'
 import type { ToothGrid } from './profile'
 
-/** 齿面 B-spline 建面策略（与文件头表格一一对应）。 */
-export type SplineFaceStrategy = 'grid-approx' | 'row-approx-loft' | 'row-interp-loft'
+export { soleFace }
 
-/** 全部可选策略（测试按此顺序遍历出偏差表）。 */
-export const SPLINE_FACE_STRATEGIES: readonly SplineFaceStrategy[] = [
-  'grid-approx',
-  'row-approx-loft',
-  'row-interp-loft',
-]
+export type SplineFaceStrategy = GearSplineFaceStrategy
+export type SplineFaceOptions = GearSplineFaceOptions
+export type DeviationStats = GearDeviationStats
 
 /**
  * P0 实测选定的默认策略（2026-09-08）。
@@ -42,83 +44,29 @@ export const SPLINE_FACE_STRATEGIES: readonly SplineFaceStrategy[] = [
  * 2.6e-6 mm，比 S1、S3 好约 3 个数量级。详见
  * `docs/analysis/2026-09-08-fai-cq-gears-spike.md`。
  */
-export const DEFAULT_SPLINE_FACE_STRATEGY: SplineFaceStrategy = 'row-approx-loft'
+export const DEFAULT_SPLINE_FACE_STRATEGY = DEFAULT_GEAR_SPLINE_FACE_STRATEGY
 
-/** 建面选项（容差与次数，语义对齐 cq `makeSplineApprox` 的入参）。 */
-export interface SplineFaceOptions {
-  /** 逼近容差（mm）。cq 的 `spline_approx_tol`，默认 1e-2。 */
-  tolerance?: number
-  /** 曲面最小次数（cq: 3）——仅 `grid-approx`/`row-approx-loft` 语义相关。 */
-  minDeg?: number
-  /** 曲面最大次数（cq: 8）。 */
-  maxDeg?: number
-}
+/** 全部可选策略（测试按此顺序遍历出偏差表）。 */
+export const SPLINE_FACE_STRATEGIES = GEAR_SPLINE_FACE_STRATEGIES
 
 /**
  * 用给定策略把一个 row×col 点阵建成面。
  *
  * @throws 内核抛错时原样上抛（不吞错误——这是红线）
  *
- * @param kernel 原始 OCCT 内核
+ * @param kernel 原始 OCCT 内核（经 cq-compat 的 `GearKernel`）
  * @param grid row×col 点阵
  * @param strategy 建面策略
  * @param options 容差/次数选项
  * @returns 单个面句柄（Face）
  */
 export function buildSplineFace(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   grid: ToothGrid,
   strategy: SplineFaceStrategy,
   options: SplineFaceOptions = {},
 ): BrepHandle {
-  const tol = options.tolerance ?? 1e-2
-  switch (strategy) {
-    case 'grid-approx':
-      return buildGridApprox(kernel, grid)
-    case 'row-approx-loft':
-      return buildRowLoft(kernel, grid, (row) => kernel.approximatePoints(row, tol))
-    case 'row-interp-loft':
-      return buildRowLoft(kernel, grid, (row) => kernel.interpolatePoints(row, false))
-  }
-}
-
-/** S1：整块点阵一次性拟合成 B-spline 曲面。 */
-function buildGridApprox(kernel: RawOcctKernel, grid: ToothGrid): BrepHandle {
-  const flat: Vec3[] = []
-  for (const row of grid.points) for (const p of row) flat.push(p)
-  return kernel.bsplineSurface(flat, grid.rows, grid.cols)
-}
-
-/** S2/S3：逐行建曲线 → `loft` 蒙皮。 */
-function buildRowLoft(
-  kernel: RawOcctKernel,
-  grid: ToothGrid,
-  makeCurve: (row: Vec3[]) => BrepHandle,
-): BrepHandle {
-  const wires = grid.points.map((row) => kernel.makeWire([makeCurve(row)]))
-  // `loft(wires, isSolid=false, ruled=false)` 返回的是 **shell**（实测 2026-09-08），
-  // 而 cq 的齿面是 TopoDS_Face；下游 sew / projectPointOnFace 都要求 Face，故取出唯一面。
-  return soleFace(kernel, kernel.loft(wires, false, false))
-}
-
-/**
- * 把「单面 shell」规约为 Face；本来就是 Face 则原样返回。
- *
- * @throws 面数不为 1 时抛错（不静默取第一个——那是掩盖问题的做法）
- *
- * @param kernel 原始 OCCT 内核
- * @param shape 任意 shape（Face / 单面 shell / …）
- * @returns 唯一的那个 Face
- */
-export function soleFace(kernel: RawOcctKernel, shape: BrepHandle): BrepHandle {
-  if (kernel.isFace(shape)) return shape
-  const faces = kernel.getSubShapes(shape, 'face')
-  if (faces.length !== 1) {
-    throw new Error(
-      `soleFace: expected a single face, got ${faces.length} (shapeType=${String(kernel.getShapeType(shape))})`,
-    )
-  }
-  return faces[0]
+  return buildGearSplineFace(kernel, grid, strategy, options)
 }
 
 /** 点到面的最近距离（`projectPointOnFace`）。
@@ -128,17 +76,11 @@ export function soleFace(kernel: RawOcctKernel, shape: BrepHandle): BrepHandle {
  * @param p 查询点
  * @returns 欧氏距离（mm）
  */
-export function distanceToFace(kernel: RawOcctKernel, face: BrepHandle, p: Vec3): number {
-  const q = kernel.projectPointOnFace(face, p)
-  return Math.hypot(q.x - p.x, q.y - p.y, q.z - p.z)
+export function distanceToFace(kernel: GearKernel, face: BrepHandle, p: Vec3): number {
+  return gearDistanceToFace(kernel, face, p)
 }
 
 /** 距离统计（最大值 / RMS / 样本数）。 */
-export interface DeviationStats {
-  max: number
-  rms: number
-  n: number
-}
 
 /**
  * 参考采样点到本面的距离统计。
@@ -151,18 +93,11 @@ export interface DeviationStats {
  * @returns 最大距离 / RMS / 样本数
  */
 export function faceDeviation(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   face: BrepHandle,
   samplePoints: Vec3[],
 ): DeviationStats {
-  let max = 0
-  let sumSq = 0
-  for (const p of samplePoints) {
-    const d = distanceToFace(kernel, face, p)
-    if (d > max) max = d
-    sumSq += d * d
-  }
-  return { max, rms: Math.sqrt(sumSq / samplePoints.length), n: samplePoints.length }
+  return gearFaceDeviation(kernel, face, samplePoints)
 }
 
 /** 单个齿面的实测结果（面积 + 偏差 + 拓扑计数），供测试与报告使用。 */
@@ -192,7 +127,7 @@ export interface SplineFaceMeasurement {
  * @returns 实测结果（面积、偏差、拓扑计数）
  */
 export function measureSplineFace(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   grid: ToothGrid,
   strategy: SplineFaceStrategy,
   ref: { area: number; sample_points: number[][] },

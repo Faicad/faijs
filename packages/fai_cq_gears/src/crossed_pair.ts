@@ -30,7 +30,7 @@
  */
 
 import type { BrepHandle } from '@faicad/faijs-core'
-import type { RawOcctKernel, RawAxis } from './kernel'
+import type { GearKernel, GearAxis } from '@faicad/cq-compat'
 import {
   crossedHelicalGearGeometry, hyperbolicGearGeometry,
   type CrossedHelicalGearParams, type HyperbolicGearParams, type HyperbolicGearGeometry,
@@ -38,8 +38,8 @@ import {
 import { buildCrossedHelicalSolid } from './crossed_helical_gear'
 import { buildHyperbolicGearSolid, type BuildSpurGearOptions } from './spur_gear'
 
-const Z_AXIS: RawAxis = { point: { x: 0, y: 0, z: 0 }, direction: { x: 0, y: 0, z: 1 } }
-const X_AXIS: RawAxis = { point: { x: 0, y: 0, z: 0 }, direction: { x: 1, y: 0, z: 0 } }
+const Z_AXIS: GearAxis = { point: { x: 0, y: 0, z: 0 }, direction: { x: 0, y: 0, z: 1 } }
+const X_AXIS: GearAxis = { point: { x: 0, y: 0, z: 0 }, direction: { x: 1, y: 0, z: 0 } }
 
 /** 装配定位链的输入量（拆出来便于单测直接验证定位本身）。 */
 export interface SecondGearPlacement {
@@ -67,7 +67,7 @@ export interface SecondGearPlacement {
  * @returns 定位后的第二齿轮 solid
  */
 export function placeSecondGear(
-  kernel: RawOcctKernel, g2: BrepHandle, place: SecondGearPlacement,
+  kernel: GearKernel, g2: BrepHandle, place: SecondGearPlacement,
 ): BrepHandle {
   let s = g2
   s = kernel.rotate(s, Z_AXIS, place.alignAngleRad) // D
@@ -153,7 +153,7 @@ export interface CrossedGearPairBuild {
  * @returns 两件 solid（gear2 默认已定位）与两件几何量
  */
 export function buildCrossedGearPair(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   params: CrossedGearPairParams,
   options: BuildCrossedGearPairOptions = {},
 ): CrossedGearPairBuild {
@@ -270,7 +270,7 @@ export interface HyperbolicGearPairBuild {
  * @returns 两件 solid（gear2 默认已定位）与两件几何量
  */
 export function buildHyperbolicGearPair(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   params: HyperbolicGearPairParams,
   options: BuildCrossedGearPairOptions = {},
 ): HyperbolicGearPairBuild {

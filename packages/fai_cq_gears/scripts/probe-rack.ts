@@ -8,13 +8,13 @@
  * 用法：node ../../node_modules/tsx/dist/cli.mjs scripts/probe-rack.ts
  */
 
-import { getRawKernel } from '../src/kernel'
+import { getGearKernel } from '@faicad/cq-compat'
 import { buildSplineFace } from '../src/spline-face'
 import type { ToothGrid } from '../src/profile'
 import type { Vec3 } from '../src/math'
 
 async function main(): Promise<void> {
-  const kernel = await getRawKernel()
+  const kernel = await getGearKernel()
 
   // ① 2 点列 approximatePoints
   const two: Vec3[] = [

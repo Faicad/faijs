@@ -1,13 +1,13 @@
 /**
  * probe-worm3.ts — 诊断 grid-approx 下 Worm 端盖两条 wire 的形态与 sew 结果
  */
-import { getRawKernel } from '../src/kernel'
+import { getGearKernel } from '@faicad/cq-compat'
 import { wormGeometry } from '../src/profile'
 import { buildWormToothFaces } from '../src/worm_gear'
 import { connectEdgesToWires } from '../src/geom-build'
 
 async function main(): Promise<void> {
-  const kernel = await getRawKernel()
+  const kernel = await getGearKernel()
   const geom = wormGeometry({ module: 1.0, lead_angle: 20.0, n_threads: 1, length: 10.0 })
 
   const step = Math.PI * geom.m * geom.nThreads

@@ -9,7 +9,7 @@
  */
 
 import { loadManifest } from '../src/fixtures'
-import { getRawKernel } from '../src/kernel'
+import { getGearKernel } from '@faicad/cq-compat'
 import { buildSplineFace, SPLINE_FACE_STRATEGIES, type SplineFaceStrategy } from '../src/spline-face'
 import { spurGearGeometry, toothFaceGrids } from '../src/profile'
 import type { SpurGearParams } from '../src/profile'
@@ -20,7 +20,7 @@ function arg(name: string): string | undefined {
 }
 
 async function main(): Promise<void> {
-  const kernel = await getRawKernel()
+  const kernel = await getGearKernel()
   const caseId = arg('case') ?? 'spur-basic'
   const strategy = arg('strategy') as SplineFaceStrategy | undefined
 

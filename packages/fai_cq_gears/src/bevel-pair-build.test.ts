@@ -21,7 +21,7 @@
 
 import { beforeAll, describe, expect, it } from 'vitest'
 import type { BrepHandle } from '@faicad/faijs-core'
-import { getRawKernel, type RawOcctKernel } from './kernel'
+import { getGearKernel, type GearKernel } from '@faicad/cq-compat'
 import { buildBevelGearPair, type BevelGearPairParams } from './pairs'
 import { bevelPairOptionsFromArgs } from './testing/reference-options'
 import { loadManifest, type ReferenceCase, type ReferencePart } from './fixtures'
@@ -38,10 +38,10 @@ const VOLUME_REL_TOL = 1e-3
 /** bbox 绝对差门禁（mm）。 */
 const BBOX_ABS_TOL = 1e-3
 
-let kernel: RawOcctKernel
+let kernel: GearKernel
 
 beforeAll(async () => {
-  kernel = await getRawKernel()
+  kernel = await getGearKernel()
 })
 
 function refOf(id: string): ReferenceCase {

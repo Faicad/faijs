@@ -9,7 +9,7 @@
  */
 
 import { loadManifest, type ReferenceCase } from '../src/fixtures'
-import { getRawKernel } from '../src/kernel'
+import { getGearKernel } from '@faicad/cq-compat'
 import { planarCapAtZ, buildToothFaces } from '../src/spur_gear'
 import { spurGearGeometry } from '../src/profile'
 import type { SpurGearParams } from '../src/profile'
@@ -21,7 +21,7 @@ function arg(name: string): string | undefined {
   return i >= 0 ? process.argv[i + 1] : undefined
 }
 
-function info(k: ReturnType<typeof getRawKernel> extends Promise<infer T> ? T : never, s: BrepHandle, label: string): void {
+function info(k: ReturnType<typeof getGearKernel> extends Promise<infer T> ? T : never, s: BrepHandle, label: string): void {
   const bb = k.getBoundingBox(s)
   console.log(
     `   ${label.padEnd(22)} type=${String(k.getShapeType(s)).padEnd(8)} valid=${k.isValid(s)} ` +
@@ -31,7 +31,7 @@ function info(k: ReturnType<typeof getRawKernel> extends Promise<infer T> ? T : 
 }
 
 async function main(): Promise<void> {
-  const kernel = await getRawKernel()
+  const kernel = await getGearKernel()
   const caseId = arg('case') ?? 'spur-basic'
   const strategy = (arg('strategy') ?? 'row-approx-loft') as SplineFaceStrategy
   const c = loadManifest().cases.find((x) => x.id === caseId) as ReferenceCase

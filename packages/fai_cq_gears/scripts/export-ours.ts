@@ -14,7 +14,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { exportStepFromSolids, type StepExportEntry } from '@faicad/faijs-core'
 import { loadManifest, OUT_DIR, type ReferenceCase } from '../src/fixtures'
-import { getRawKernel } from '../src/kernel'
+import { getGearKernel } from '@faicad/cq-compat'
 import { buildSpurGearSolid, buildHerringboneGearSolid, buildHyperbolicGearSolid, type BuildSpurGearOptions } from '../src/spur_gear'
 import {
   buildRingGearSolid, buildHerringboneRingGearSolid,
@@ -40,7 +40,7 @@ import type {
   HyperbolicGearParams, WormParams,
 } from '../src/profile'
 import type { SplineFaceStrategy } from '../src/spline-face'
-import type { RawOcctKernel } from '../src/kernel'
+import type { GearKernel } from '@faicad/cq-compat'
 import type { BrepHandle } from '@faicad/faijs-core'
 
 function arg(name: string): string | undefined {
@@ -60,7 +60,7 @@ function arg(name: string): string | undefined {
  * @returns 具名实体列表（名字进 STEP 产品名）
  */
 export function buildOurParts(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   c: ReferenceCase,
   strategy: SplineFaceStrategy,
 ): Array<{ name: string; solid: BrepHandle }> {
@@ -114,7 +114,7 @@ export function buildOurParts(
  * @returns 单体 solid 句柄
  */
 export function buildOurShape(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   c: ReferenceCase,
   strategy: SplineFaceStrategy,
 ): BrepHandle {
@@ -169,7 +169,7 @@ export function buildOurShape(
 }
 
 async function main(): Promise<void> {
-  const kernel = await getRawKernel()
+  const kernel = await getGearKernel()
   const outDir = arg('out') ?? OUT_DIR
   const strategy = (arg('strategy') ?? 'row-approx-loft') as SplineFaceStrategy
   const only = arg('case')

@@ -5,13 +5,13 @@
  *   chamfer+bore → +recess → +hub → +spokes(无 fillet) → +spokes(fillet)
  * 与 cq 参考（manifest volume）对照，定位误差来自 spokes 还是 fillet。
  */
-import { getRawKernel, type RawOcctKernel } from '../src/kernel'
+import { getGearKernel, type GearKernel } from '@faicad/cq-compat'
 import { buildSpurGearSolid } from '../src/spur_gear'
 import { applyRecess, applyHub, applySpokes, type GearFeatureOptions } from '../src/features'
 import { spurGearGeometry } from '../src/profile'
 import { loadManifest } from '../src/fixtures'
 
-function stageVol(kernel: RawOcctKernel, label: string, fn: () => BrepHandleType, ref: number): void {
+function stageVol(kernel: GearKernel, label: string, fn: () => BrepHandleType, ref: number): void {
   try {
     const s = fn()
     const v = kernel.getVolume(s)
@@ -21,10 +21,10 @@ function stageVol(kernel: RawOcctKernel, label: string, fn: () => BrepHandleType
   }
 }
 
-type BrepHandleType = Awaited<ReturnType<typeof getRawKernel>> extends never ? never : Parameters<RawOcctKernel['getVolume']>[0]
+type BrepHandleType = Awaited<ReturnType<typeof getGearKernel>> extends never ? never : Parameters<GearKernel['getVolume']>[0]
 
 async function main(): Promise<void> {
-  const kernel = await getRawKernel()
+  const kernel = await getGearKernel()
   const m = loadManifest()
   for (const id of ['case04-SpurGear', 'case06-HerringboneGear', 'case02-SpurGear']) {
     const c = m.cases.find((x) => x.id === id)!

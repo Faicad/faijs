@@ -11,7 +11,7 @@
  */
 
 import { loadManifest } from '../src/fixtures'
-import { getRawKernel } from '../src/kernel'
+import { getGearKernel } from '@faicad/cq-compat'
 import { buildSpurGearSolid } from '../src/spur_gear'
 import { spurGearGeometry } from '../src/profile'
 import type { SpurGearParams } from '../src/profile'
@@ -30,7 +30,7 @@ const E = 0.01
  * cadquery 里是 XZ 平面（法向 -Y）上的轮廓 revolve 360°。
  */
 function chamferCutter(
-  kernel: Awaited<ReturnType<typeof getRawKernel>>,
+  kernel: Awaited<ReturnType<typeof getGearKernel>>,
   ra: number, width: number, wx: number, wy: number, which: 'top' | 'bottom',
 ): BrepHandle {
   // cq XZ 工作面局部坐标 (u, v) → 世界 (u, 0, v)（XZ 面 normal=-Y，v 轴即 +Z）
@@ -48,7 +48,7 @@ function chamferCutter(
 }
 
 async function main(): Promise<void> {
-  const kernel = await getRawKernel()
+  const kernel = await getGearKernel()
   const caseId = arg('case') ?? 'case00-SpurGear'
   const strategy = (arg('strategy') ?? 'row-approx-loft') as SplineFaceStrategy
   const c = loadManifest().cases.find((x) => x.id === caseId)

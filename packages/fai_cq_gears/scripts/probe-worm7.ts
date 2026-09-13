@@ -1,7 +1,7 @@
 /**
  * probe-worm7.ts — 三种建面策略下的 Worm 体积 vs manifest 参考
  */
-import { getRawKernel } from '../src/kernel'
+import { getGearKernel } from '@faicad/cq-compat'
 import { wormGeometry } from '../src/profile'
 import { buildWormSolid } from '../src/worm_gear'
 import { SPLINE_FACE_STRATEGIES } from '../src/spline-face'
@@ -9,7 +9,7 @@ import { SPLINE_FACE_STRATEGIES } from '../src/spline-face'
 const REF = { 'worm-basic': 79.9286, 'worm-2threads': 449.6363 }
 
 async function main(): Promise<void> {
-  const kernel = await getRawKernel()
+  const kernel = await getGearKernel()
   const cases = [
     { id: 'worm-basic', params: { module: 1.0, lead_angle: 20.0, n_threads: 1, length: 10.0 } },
     { id: 'worm-2threads', params: { module: 1.0, lead_angle: 15.0, n_threads: 2, length: 10.0 } },

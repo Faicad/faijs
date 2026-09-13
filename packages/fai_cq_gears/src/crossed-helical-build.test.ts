@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { getRawKernel, type RawOcctKernel } from './kernel'
+import { getGearKernel, type GearKernel } from '@faicad/cq-compat'
 import { buildCrossedHelicalSolid } from './crossed_helical_gear'
 import type { CrossedHelicalGearParams } from './profile'
 
@@ -23,9 +23,9 @@ const CASE_ARGS: Record<string, CrossedHelicalGearParams> = {
 }
 
 describe('CrossedHelicalGear 实体构造 vs cq_gears（裸齿轮体积）', () => {
-  let kernel: RawOcctKernel
+  let kernel: GearKernel
   it('内核就绪', async () => {
-    kernel = await getRawKernel()
+    kernel = await getGearKernel()
     expect(kernel).toBeDefined()
   })
 

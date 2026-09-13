@@ -11,17 +11,17 @@
  * - HerringboneGear + 全套特征（case05 / case06）
  */
 import { describe, it, expect, beforeAll } from 'vitest'
-import { getRawKernel, type RawOcctKernel } from './kernel'
+import { getGearKernel, type GearKernel } from '@faicad/cq-compat'
 import { buildSpurGearSolid, buildHerringboneGearSolid, type BuildSpurGearOptions } from './spur_gear'
 import { buildRingGearSolid, type BuildRingGearOptions } from './ring_gear'
 import { buildCrossedHelicalSolid } from './crossed_helical_gear'
 import { loadManifest } from './fixtures'
 import type { SpurGearParams, RingGearParams, CrossedHelicalGearParams } from './profile'
 
-let kernel: RawOcctKernel
+let kernel: GearKernel
 
 beforeAll(async () => {
-  kernel = await getRawKernel()
+  kernel = await getGearKernel()
 })
 
 function rel(a: number, b: number): number {

@@ -19,13 +19,13 @@
  */
 
 import type { BrepHandle } from '@faicad/faijs-core'
-import type { RawOcctKernel } from './kernel'
+import type { GearKernel } from '@faicad/cq-compat'
 import {
   GEAR_BASE_CONSTANTS, rackGearGeometry,
   type RackGearGeometry, type RackGearParams, type ToothGrid, type ToothSegment,
 } from './profile'
 import { buildSplineFace, DEFAULT_SPLINE_FACE_STRATEGY, type SplineFaceStrategy } from './spline-face'
-import { connectEdgesToWires, edgeEnds, shellToSolid } from './geom-build'
+import { connectEdgesToWires, gearEdgeEnds as edgeEnds, gearShellToSolid as shellToSolid } from '@faicad/cq-compat'
 import { vec3, type Vec3 } from './math'
 
 /** 侧端裁剪平面比齿廓超出的余量（Python `cp_ext`）。 */
@@ -79,7 +79,7 @@ function rackFaceGrid(
  * @returns 基础齿面数组（4 或 8 个面）
  */
 export function rackToothFaces(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   geom: RackGearGeometry,
   herringbone: boolean,
   strategy: SplineFaceStrategy,
@@ -126,7 +126,7 @@ export function rackToothFaces(
  * @returns 保留的面；完全被裁掉时返回空数组
  */
 export function toothAtPosition(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   base: BrepHandle[],
   dx: number,
   i: number,
@@ -184,7 +184,7 @@ export function toothAtPosition(
  * @returns 矩形平面 Face
  */
 export function cutPlane(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   length: number, width: number,
   basePnt: Vec3, dir: Vec3,
 ): BrepHandle {
@@ -223,7 +223,7 @@ export function cutPlane(
  * @returns 中心落在极值 ±容差内的边
  */
 export function extremeXEdges(
-  kernel: RawOcctKernel, faces: BrepHandle[], side: 'left' | 'right',
+  kernel: GearKernel, faces: BrepHandle[], side: 'left' | 'right',
 ): BrepHandle[] {
   let extreme = side === 'left' ? Infinity : -Infinity
   const centers: Array<{ e: BrepHandle; cx: number }> = []
@@ -254,7 +254,7 @@ export function extremeXEdges(
  * @returns 端面 Face
  */
 export function endCapFace(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   toothFaces: BrepHandle[],
   side: 'left' | 'right',
   geom: RackGearGeometry,
@@ -295,7 +295,7 @@ export function endCapFace(
  * @param geom 齿条几何量
  * @returns 背面 Face
  */
-export function backFace(kernel: RawOcctKernel, geom: RackGearGeometry): BrepHandle {
+export function backFace(kernel: GearKernel, geom: RackGearGeometry): BrepHandle {
   const y = geom.ld - geom.height
   const p = (a: number, b: number): Vec3 => vec3(a, y, b)
   const es = [
@@ -317,7 +317,7 @@ export function backFace(kernel: RawOcctKernel, geom: RackGearGeometry): BrepHan
  * @returns 盖面 Face（开环 wire 建面，与 cq 语义一致）
  */
 export function planarCapAtZ(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   faces: BrepHandle[],
   z: number,
 ): BrepHandle {
@@ -351,7 +351,7 @@ export function planarCapAtZ(
  * @returns solid
  */
 export function buildRackGearSolid(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   params: RackGearParams,
   build: BuildRackGearOptions = {},
 ): BrepHandle {

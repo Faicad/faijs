@@ -104,3 +104,29 @@ export { compareAssemblyFiles, printAssemblyReport } from './assembly-compare'
 export type {
   AssemblyCompareOptions, AssemblyCompareResult, PartCompareResult,
 } from './assembly-compare'
+
+// Gear primitive layer (raw-handle kernel access for the cq_gears port;
+// see gears.ts header). fai_cq_gears consumes these instead of occt-wasm.
+export {
+  getGearKernel,
+  connectEdgesToWires,
+  gearFaceFromWires,
+  gearShellToSolid,
+  gearEdgeEnds,
+  buildGearSplineFace,
+  soleGearFace,
+  gearDistanceToFace,
+  gearFaceDeviation,
+  DEFAULT_GEAR_SPLINE_FACE_STRATEGY,
+  GEAR_SPLINE_FACE_STRATEGIES,
+} from './gears'
+export type {
+  GearKernel,
+  GearAxis,
+  GearEdgeEnds,
+  GearSplineFaceStrategy,
+  GearSplineFaceOptions,
+  GearSplineGrid,
+  GearDeviationStats,
+} from './gears'
+export type { Vec3 } from './geom-types'

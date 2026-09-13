@@ -3,11 +3,11 @@
  * （左平面 section 完整、右平面只出 2 条边；试法向反转 + 递归提边 + common 对照）
  */
 import type { BrepHandle } from '@faicad/faijs-core'
-import { getRawKernel } from '../src/kernel'
+import { getGearKernel } from '@faicad/cq-compat'
 import { wormGeometry } from '../src/profile'
 import { buildWormToothFaces } from '../src/worm_gear'
 
-function collectEdges(kernel: ReturnType<typeof getRawKernel> extends Promise<infer K> ? K : never, s: BrepHandle, out: BrepHandle[], depth = 0): void {
+function collectEdges(kernel: ReturnType<typeof getGearKernel> extends Promise<infer K> ? K : never, s: BrepHandle, out: BrepHandle[], depth = 0): void {
   const type = kernel.getShapeType(s)
   if (type === 'edge') { out.push(s); return }
   if (depth > 4) return
@@ -18,7 +18,7 @@ function collectEdges(kernel: ReturnType<typeof getRawKernel> extends Promise<in
 }
 
 async function main(): Promise<void> {
-  const kernel = await getRawKernel()
+  const kernel = await getGearKernel()
   const geom = wormGeometry({ module: 1.0, lead_angle: 20.0, n_threads: 1, length: 10.0 })
 
   const step = Math.PI * geom.m * geom.nThreads

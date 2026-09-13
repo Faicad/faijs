@@ -15,7 +15,7 @@
  */
 
 import { beforeAll, describe, expect, it } from 'vitest'
-import { getRawKernel, type RawOcctKernel } from './kernel'
+import { getGearKernel, type GearKernel } from '@faicad/cq-compat'
 import { buildBevelGearSolid } from './bevel_gear'
 import { loadManifest } from './fixtures'
 import { bevelGearOptionsFromArgs } from './testing/reference-options'
@@ -24,10 +24,10 @@ import { bevelGearGeometry, type BevelGearParams } from './profile'
 /** 默认套件覆盖的用例（小件、两条路径各一）。 */
 const CASES = ['case08-BevelGear', 'case11-BevelGear'] as const
 
-let kernel: RawOcctKernel
+let kernel: GearKernel
 
 beforeAll(async () => {
-  kernel = await getRawKernel()
+  kernel = await getGearKernel()
 })
 
 describe('BevelGear 实体构造 vs cq_gears（体积 + bbox）', () => {

@@ -18,14 +18,14 @@
  */
 
 import type { BrepHandle } from '@faicad/faijs-core'
-import type { RawOcctKernel } from './kernel'
+import type { GearKernel } from '@faicad/cq-compat'
 import { ringGearGeometry, GEAR_BASE_CONSTANTS, type RingGearParams } from './profile'
 import {
   DEFAULT_SPLINE_FACE_STRATEGY,
   soleFace, type SplineFaceOptions, type SplineFaceStrategy,
 } from './spline-face'
 import { buildToothFaces, buildHerringboneToothFaces } from './spur_gear'
-import { connectEdgesToWires, faceFromWires } from './geom-build'
+import { connectEdgesToWires, gearFaceFromWires as faceFromWires } from '@faicad/cq-compat'
 import {
   applyChamfer, applyBore, type GearFeatureOptions,
 } from './features'
@@ -52,7 +52,7 @@ export interface BuildRingGearOptions extends SplineFaceOptions, GearFeatureOpti
  * @param z 圆所在高度
  * @returns 闭合圆 wire
  */
-function circleWire(kernel: RawOcctKernel, radius: number, z: number): BrepHandle {
+function circleWire(kernel: GearKernel, radius: number, z: number): BrepHandle {
   const arc = kernel.makeCircleArc({ x: 0, y: 0, z }, { x: 0, y: 0, z: 1 }, radius, 0, Math.PI * 2)
   return kernel.makeWire([arc])
 }
@@ -65,7 +65,7 @@ function circleWire(kernel: RawOcctKernel, radius: number, z: number): BrepHandl
  * @param width 齿宽
  * @returns 圆柱侧面（Face）
  */
-function buildRimFace(kernel: RawOcctKernel, rimR: number, width: number): BrepHandle {
+function buildRimFace(kernel: GearKernel, rimR: number, width: number): BrepHandle {
   const w0 = circleWire(kernel, rimR, 0)
   const w1 = circleWire(kernel, rimR, width)
   // `loft(wires, isSolid=false, ruled=true)` 在两圈之间蒙出 ruled 圆柱面
@@ -83,7 +83,7 @@ function buildRimFace(kernel: RawOcctKernel, rimR: number, width: number): BrepH
  * @returns 环形盖面（外 rim 圆、内齿廓孔）
  */
 function ringCapAtZ(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   toothFaces: BrepHandle[],
   rimR: number,
   z: number,
@@ -119,7 +119,7 @@ function ringCapAtZ(
  * @returns 朝向归一化后的 solid
  */
 export function buildRingGearSolid(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   params: RingGearParams,
   build: BuildRingGearOptions = {},
 ): BrepHandle {
@@ -173,7 +173,7 @@ export function buildRingGearSolid(
  * @returns 朝向归一化后的 solid
  */
 export function buildHerringboneRingGearSolid(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   params: RingGearParams,
   build: BuildRingGearOptions = {},
 ): BrepHandle {

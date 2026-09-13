@@ -10,7 +10,7 @@
  */
 
 import type { BrepHandle } from '@faicad/faijs-core'
-import type { RawOcctKernel } from './kernel'
+import type { GearKernel } from '@faicad/cq-compat'
 import {
   crossedHelicalGearGeometry, type CrossedHelicalGearParams,
 } from './profile'
@@ -25,7 +25,7 @@ import { buildGearSolid, type BuildSpurGearOptions } from './spur_gear'
  * @returns 朝向归一化后的 solid
  */
 export function buildCrossedHelicalSolid(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   params: CrossedHelicalGearParams,
   build: BuildSpurGearOptions = {},
 ): BrepHandle {

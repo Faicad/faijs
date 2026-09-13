@@ -6,10 +6,10 @@
  *   n=3 sw=8  id=16 od=32 → 135.627591
  *   n=3 sw=20 id=40 od=100 → 1588.455195
  */
-import { getRawKernel } from '../src/kernel'
+import { getGearKernel } from '@faicad/cq-compat'
 
 async function main(): Promise<void> {
-  const kernel = await getRawKernel()
+  const kernel = await getGearKernel()
   const cases: Array<[number, number, number, number]> = [
     [5, 3, 16, 32],
     [3, 8, 16, 32],

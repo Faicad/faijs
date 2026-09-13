@@ -18,7 +18,7 @@
  */
 
 import type { BrepHandle, BrepVec3 } from '@faicad/faijs-core'
-import type { RawOcctKernel } from './kernel'
+import type { GearKernel } from '@faicad/cq-compat'
 
 /** cq `_make_chamfer` 的小偏移量（避免共面自交）。 */
 export const CHAMFER_E = 0.01
@@ -119,7 +119,7 @@ function chamferProfile(
  * @returns 绕 Z 轴 360° 回转得到的 cutter 实体句柄
  */
 export function makeChamferCutter(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   ra: number, width: number, wx: number, wy: number,
   which: 'top' | 'bottom', isRing: boolean,
 ): BrepHandle {
@@ -137,13 +137,13 @@ function resolveChamfer(spec: ChamferValue | undefined): [number, number] | unde
 }
 
 /**
- * occt-wasm `BRepAlgoAPI_Cut` 有时会多包一层 compound 外壳（即使结果只是单个实体，
+ * 内核 `BRepAlgoAPI_Cut` 有时会多包一层 compound 外壳（即使结果只是单个实体，
  * 内齿 cutter 即此情况；外部齿则直接返回 solid）。这里把「仅含 1 个 solid 的 compound」
  * 解包成 solid，与 `fixFaceOrientations` 的思路一致，避免调用方无谓地判非 solid。
  *
  * @returns 解包后的 solid；若本就不是 compound 或含多块实体则原样返回（交给调用方校验）。
  */
-function asSolid(kernel: RawOcctKernel, shape: BrepHandle): BrepHandle {
+function asSolid(kernel: GearKernel, shape: BrepHandle): BrepHandle {
   if (kernel.isSolid(shape)) return shape
   if (kernel.getShapeType(shape) === 'compound') {
     const solids = kernel.getSubShapes(shape, 'solid')
@@ -164,7 +164,7 @@ function asSolid(kernel: RawOcctKernel, shape: BrepHandle): BrepHandle {
  * @returns 倒角后的 solid（cutter 无效时显式抛错，不静默吞掉）
  */
 export function applyChamfer(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   body: BrepHandle,
   ra: number,
   width: number,
@@ -201,7 +201,7 @@ export function applyChamfer(
  * @returns 带轴孔的 solid
  */
 export function applyBore(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   body: BrepHandle,
   boreD: number,
   width: number,
@@ -229,7 +229,7 @@ export function applyBore(
  * @returns 挖槽后的 solid
  */
 export function applyRecess(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   body: BrepHandle,
   width: number,
   opts: GearFeatureOptions,
@@ -281,7 +281,7 @@ export function applyRecess(
  * @returns fuse 轮毂后的 solid
  */
 export function applyHub(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   body: BrepHandle,
   width: number,
   opts: GearFeatureOptions,
@@ -325,7 +325,7 @@ export function applyHub(
  * @returns 挖去全部轮辐窗口后的 solid
  */
 export function applySpokes(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   body: BrepHandle,
   width: number,
   opts: GearFeatureOptions,
@@ -406,7 +406,7 @@ export function applySpokes(
 }
 
 /** 取边的两个端点（applySpokes 圆角竖直棱边识别用）。 */
-function edgeEndsOf(kernel: RawOcctKernel, edge: BrepHandle): { a: BrepVec3; b: BrepVec3 } {
+function edgeEndsOf(kernel: GearKernel, edge: BrepHandle): { a: BrepVec3; b: BrepVec3 } {
   const { first, last } = kernel.curveParameters(edge)
   return { a: kernel.curvePointAtParam(edge, first), b: kernel.curvePointAtParam(edge, last) }
 }
@@ -438,7 +438,7 @@ export interface MissingTeethGeom {
  *   直边(rc@at1 → rin@at1)；内外弧都走各自圆上的短弧（经 atm）。
  */
 function missingTeethCutoutWire(
-  kernel: RawOcctKernel, ra: number, rd: number, tau: number, t1: number, t2: number,
+  kernel: GearKernel, ra: number, rd: number, tau: number, t1: number, t2: number,
 ): BrepHandle {
   const at1 = t1 * tau + tau / 2
   const at2 = t2 * tau + tau / 2
@@ -465,7 +465,7 @@ function missingTeethCutoutWire(
  * 近似本身的误差。
  */
 function twistCutoutSolid(
-  kernel: RawOcctKernel, wire0: BrepHandle, z0: number, height: number, totalAngleRad: number,
+  kernel: GearKernel, wire0: BrepHandle, z0: number, height: number, totalAngleRad: number,
 ): BrepHandle {
   const n = Math.min(64, Math.max(8, Math.ceil((Math.abs(totalAngleRad) * 180) / Math.PI)))
   const axis = { point: { x: 0, y: 0, z: 0 }, direction: { x: 0, y: 0, z: 1 } }
@@ -497,7 +497,7 @@ function twistCutoutSolid(
  * @returns 删齿后的 solid
  */
 export function applyMissingTeeth(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   body: BrepHandle,
   geom: MissingTeethGeom,
   spec: MissingTeethSpec,

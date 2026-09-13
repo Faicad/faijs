@@ -1,12 +1,12 @@
 /**
  * probe-worm4.ts — 定位 Worm 壳不封闭的自由边（只被一个面使用的边）
  */
-import { getRawKernel } from '../src/kernel'
+import { getGearKernel } from '@faicad/cq-compat'
 import { wormGeometry } from '../src/profile'
 import { buildWormGearFaces } from '../src/worm_gear'
 
 async function main(): Promise<void> {
-  const kernel = await getRawKernel()
+  const kernel = await getGearKernel()
   const geom = wormGeometry({ module: 1.0, lead_angle: 20.0, n_threads: 1, length: 10.0 })
   const faces = buildWormGearFaces(kernel, geom, 'grid-approx')
   console.log('total faces:', faces.length)

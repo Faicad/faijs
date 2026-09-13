@@ -26,7 +26,7 @@
  */
 
 import type { BrepHandle } from '@faicad/faijs-core'
-import type { RawOcctKernel, RawAxis } from './kernel'
+import type { GearKernel, GearAxis } from '@faicad/cq-compat'
 import {
   spurGearGeometry, ringGearGeometry, type SpurGearGeometry, type RingGearParams,
 } from './profile'
@@ -35,7 +35,7 @@ import {
 } from './spur_gear'
 import { buildRingGearSolid, buildHerringboneRingGearSolid } from './ring_gear'
 
-const Z_AXIS: RawAxis = { point: { x: 0, y: 0, z: 0 }, direction: { x: 0, y: 0, z: 1 } }
+const Z_AXIS: GearAxis = { point: { x: 0, y: 0, z: 0 }, direction: { x: 0, y: 0, z: 1 } }
 
 /** 行星轮系参数（逐字沿用 `PlanetaryGearset.__init__`）。 */
 export interface PlanetaryGearsetParams {
@@ -86,7 +86,7 @@ export interface PlanetaryGearsetBuild {
  * @returns 太阳 / 行星数组 / 内齿圈 solid 与几何量
  */
 export function buildPlanetaryGearset(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   params: PlanetaryGearsetParams,
   options: BuildPlanetaryGearsetOptions = {},
 ): PlanetaryGearsetBuild {
@@ -180,7 +180,7 @@ export function buildPlanetaryGearset(
  * @returns sun + planets[] + ring 的构建记录
  */
 export function buildHerringbonePlanetaryGearset(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   params: PlanetaryGearsetParams,
   options: BuildPlanetaryGearsetOptions = {},
 ): PlanetaryGearsetBuild {

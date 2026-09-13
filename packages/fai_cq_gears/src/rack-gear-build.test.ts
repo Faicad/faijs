@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { getRawKernel, type RawOcctKernel } from './kernel'
+import { getGearKernel, type GearKernel } from '@faicad/cq-compat'
 import { buildRackGearSolid } from './rack_gear'
 import type { RackGearParams } from './profile'
 
@@ -28,9 +28,9 @@ const CASES: Array<{ id: string; herringbone: boolean; args: RackGearParams; vol
 ]
 
 describe('RackGear 实体构造 vs cq_gears', () => {
-  let kernel: RawOcctKernel
+  let kernel: GearKernel
   it('内核就绪', async () => {
-    kernel = await getRawKernel()
+    kernel = await getGearKernel()
     expect(kernel).toBeDefined()
   })
 

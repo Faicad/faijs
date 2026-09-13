@@ -46,7 +46,7 @@
  */
 
 import type { BrepHandle } from '@faicad/faijs-core'
-import type { RawOcctKernel, RawAxis } from './kernel'
+import type { GearKernel, GearAxis } from '@faicad/cq-compat'
 import { bevelGearGeometry, type BevelGearGeometry, type BevelGearParams } from './profile'
 import { buildBevelGearSolid, type BuildBevelGearOptions } from './bevel_gear'
 import type { SplineFaceStrategy } from './spline-face'
@@ -85,8 +85,8 @@ export interface BuildBevelGearPairOptions {
   buildPinion?: boolean
 }
 
-const Z_AXIS: RawAxis = { point: { x: 0, y: 0, z: 0 }, direction: { x: 0, y: 0, z: 1 } }
-const Y_AXIS: RawAxis = { point: { x: 0, y: 0, z: 0 }, direction: { x: 0, y: 1, z: 0 } }
+const Z_AXIS: GearAxis = { point: { x: 0, y: 0, z: 0 }, direction: { x: 0, y: 0, z: 1 } }
+const Y_AXIS: GearAxis = { point: { x: 0, y: 0, z: 0 }, direction: { x: 0, y: 1, z: 0 } }
 
 /** pinion 定位链的输入量（拆出来便于单测直接验证定位本身）。 */
 export interface PinionPlacement {
@@ -169,7 +169,7 @@ export function bevelPairConeAngles(params: BevelGearPairParams): { gearDeg: num
  * @returns 定位后的小轮 solid
  */
 export function placePinion(
-  kernel: RawOcctKernel, pinion: BrepHandle, place: PinionPlacement,
+  kernel: GearKernel, pinion: BrepHandle, place: PinionPlacement,
 ): BrepHandle {
   let s = pinion
   if (place.pinionTeeth % 2 === 0) {
@@ -195,7 +195,7 @@ export function placePinion(
  * @returns 两件 solid（pinion 默认已定位）与两件几何量
  */
 export function buildBevelGearPair(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   params: BevelGearPairParams,
   options: BuildBevelGearPairOptions = {},
 ): BevelGearPairBuild {

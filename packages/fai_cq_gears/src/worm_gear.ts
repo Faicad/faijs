@@ -22,7 +22,7 @@
  */
 
 import type { BrepHandle } from '@faicad/faijs-core'
-import type { RawOcctKernel } from './kernel'
+import type { GearKernel } from '@faicad/cq-compat'
 import {
   wormGeometry,
   type ToothGrid, type WormGeometry, type WormParams,
@@ -32,7 +32,7 @@ import {
   buildSplineFace,
   type SplineFaceOptions, type SplineFaceStrategy,
 } from './spline-face'
-import { connectEdgesToWires } from './geom-build'
+import { connectEdgesToWires } from '@faicad/cq-compat'
 
 /** Worm 覆写 GearBase 的类常量（`worm_gear.py` 类属性）。 */
 const WORM_SURFACE_SPLINES = 8
@@ -80,7 +80,7 @@ function segmentPoints(geom: WormGeometry, seg: (typeof WORM_SEGMENTS)[number]) 
  * @returns 8 张齿面（Face）
  */
 export function buildWormToothFaces(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   geom: WormGeometry,
   strategy: SplineFaceStrategy,
   options: SplineFaceOptions = {},
@@ -144,7 +144,7 @@ export function buildWormToothFaces(
  * @returns 修剪后的全部面（含两端盖）
  */
 export function buildWormGearFaces(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   geom: WormGeometry,
   strategy: SplineFaceStrategy,
   options: SplineFaceOptions = {},
@@ -264,7 +264,7 @@ export function buildWormGearFaces(
  * @returns 朝向归一化后的 solid
  */
 export function buildWormSolid(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   params: WormParams,
   build: BuildWormOptions = {},
 ): BrepHandle {

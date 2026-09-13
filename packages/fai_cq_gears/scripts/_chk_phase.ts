@@ -1,5 +1,5 @@
 import { writeFileSync } from 'node:fs'
-import { getRawKernel } from '../src/kernel'
+import { getGearKernel } from '@faicad/cq-compat'
 import { buildCrossedHelicalSolid } from '../src/crossed_helical_gear'
 import { placeSecondGear } from '../src/crossed_pair'
 import { crossedHelicalGearGeometry } from '../src/profile'
@@ -8,7 +8,7 @@ import { compareAssemblyFiles } from '@faicad/cq-compat'
 import { loadManifest } from '../src/fixtures'
 
 async function main() {
-  const kernel = await getRawKernel()
+  const kernel = await getGearKernel()
   const c = loadManifest().cases.find((x) => x.id === 'cgp-basic')!
   const p: any = c.args
   const shaftAngleDeg: number = p.shaft_angle ?? 90

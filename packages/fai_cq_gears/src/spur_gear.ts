@@ -15,7 +15,7 @@
  */
 
 import type { BrepHandle } from '@faicad/faijs-core'
-import type { RawOcctKernel } from './kernel'
+import type { GearKernel } from '@faicad/cq-compat'
 import { GEAR_BASE_CONSTANTS } from './profile'
 import { toothFaceGrids, type SpurGearGeometry, type SpurGearParams } from './profile'
 import { spurGearGeometry, hyperbolicGearGeometry, type HyperbolicGearParams } from './profile'
@@ -23,7 +23,7 @@ import {
   buildSplineFace, DEFAULT_SPLINE_FACE_STRATEGY,
   type SplineFaceOptions, type SplineFaceStrategy,
 } from './spline-face'
-import { connectEdgesToWires } from './geom-build'
+import { connectEdgesToWires } from '@faicad/cq-compat'
 import {
   applyChamfer, applyBore, applyRecess, applyHub, applySpokes, applyMissingTeeth,
   type GearFeatureOptions,
@@ -55,7 +55,7 @@ export interface BuildSpurGearOptions extends SplineFaceOptions, GearFeatureOpti
  * @returns 平面盖面（Face）
  */
 export function planarCapAtZ(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   faces: BrepHandle[],
   z: number,
   wireCombTol: number = GEAR_BASE_CONSTANTS.wire_comb_tol,
@@ -90,7 +90,7 @@ export function planarCapAtZ(
  * @returns 齿面列表（4z 个 Face）
  */
 export function buildToothFaces(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   geom: SpurGearGeometry,
   strategy: SplineFaceStrategy,
   options: SplineFaceOptions = {},
@@ -123,7 +123,7 @@ export function buildToothFaces(
  * @returns 齿面列表（8z 个 Face：4 段 × 2 半 × z 齿）
  */
 export function buildHerringboneToothFaces(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   geom: SpurGearGeometry,
   strategy: SplineFaceStrategy,
   options: SplineFaceOptions = {},
@@ -156,7 +156,7 @@ export function buildHerringboneToothFaces(
  * @returns 朝向归一化后的 solid
  */
 export function buildGearSolid(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   geom: SpurGearGeometry,
   build: BuildSpurGearOptions = {},
 ): BrepHandle {
@@ -226,7 +226,7 @@ export function buildGearSolid(
  * @returns 朝向归一化后的 solid
  */
 export function buildSpurGearSolid(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   params: SpurGearParams,
   build: BuildSpurGearOptions = {},
 ): BrepHandle {
@@ -246,7 +246,7 @@ export function buildSpurGearSolid(
  * @returns 朝向归一化后的 solid
  */
 export function buildHerringboneGearSolid(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   params: SpurGearParams,
   build: BuildSpurGearOptions = {},
 ): BrepHandle {
@@ -266,7 +266,7 @@ export function buildHerringboneGearSolid(
  * @returns 朝向归一化后的 solid
  */
 export function buildHyperbolicGearSolid(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   params: HyperbolicGearParams,
   build: BuildSpurGearOptions = {},
 ): BrepHandle {

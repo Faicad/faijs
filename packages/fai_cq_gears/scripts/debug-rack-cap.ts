@@ -5,7 +5,7 @@
  * connectEdgesToWires 分组结果，定位 3 环成因。
  */
 
-import { getRawKernel } from '../src/kernel'
+import { getGearKernel } from '@faicad/cq-compat'
 import {
   rackToothFaces, toothAtPosition, cutPlane, endCapFace, backFace, planarCapAtZ,
 } from '../src/rack_gear'
@@ -19,7 +19,7 @@ function vec3(x: number, y: number, z: number): Vec3 {
 }
 
 async function main(): Promise<void> {
-  const kernel = await getRawKernel()
+  const kernel = await getGearKernel()
   const geom = rackGearGeometry({ module: 4, length: 300, width: 20, height: 18, helix_angle: -60 })
   const tol = GEAR_BASE_CONSTANTS.wire_comb_tol
   const CP_EXT = 10

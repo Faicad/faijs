@@ -1,12 +1,12 @@
 /**
  * probe-worm2.ts — 诊断 Worm 端盖 section 边的端点间隙（为何组不成一条闭环）
  */
-import { getRawKernel } from '../src/kernel'
+import { getGearKernel } from '@faicad/cq-compat'
 import { wormGeometry } from '../src/profile'
 import { buildWormToothFaces } from '../src/worm_gear'
 
 async function main(): Promise<void> {
-  const kernel = await getRawKernel()
+  const kernel = await getGearKernel()
   const geom = wormGeometry({ module: 1.0, lead_angle: 20.0, n_threads: 1, length: 10.0 })
 
   const step = Math.PI * geom.m * geom.nThreads

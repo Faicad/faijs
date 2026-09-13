@@ -36,7 +36,7 @@ export const CALIBRATED_COMPARE: AssemblyCompareOptions = {
   volumeRelativeTolerance: 1e-6,
   booleanVolumeTolerance: 1e-3,
   matchNames: false,
-  // 方案 §9.2：布尔差是绝对量、**不进门禁主判据**；且 occt-wasm 对近重合 B 样条面
+  // 方案 §9.2：布尔差是绝对量、**不进门禁主判据**；且内核对近重合 B 样条面
   // 的融合 cut 既可能返回反向实体（bp-angled-helix B−A=−1.319、cgp-basic ≈整件体积，
   // 见 docs/analysis/2026-09-13-fai-cq-gears-crossed-pair-phase-scan.md）又可能挂死
   // wasm（case03 后 30+ 分钟无输出，进程只能强杀）。故比对一律跳过融合布尔，
@@ -174,7 +174,7 @@ export function formatCompareLine(r: AssemblyCompareResult): string {
 }
 
 /**
- * 判定一个 DIFFERENT 是否为「融合布尔差数值伪差」（已知 occt-wasm 缺陷）。
+ * 判定一个 DIFFERENT 是否为「融合布尔差数值伪差」（已知内核缺陷）。
  *
  * 判据（全部满足才算，缺一不可）：
  * 1. 结构匹配（leaf 数一致）；

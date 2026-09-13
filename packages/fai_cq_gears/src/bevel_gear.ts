@@ -27,7 +27,7 @@
  */
 
 import type { BrepHandle, BrepVec3 } from '@faicad/faijs-core'
-import type { RawOcctKernel } from './kernel'
+import type { GearKernel } from '@faicad/cq-compat'
 import {
   GEAR_BASE_CONSTANTS, bevelGearGeometry,
   type BevelGearGeometry, type BevelGearParams, type ToothGrid,
@@ -37,7 +37,7 @@ import {
   buildSplineFace, DEFAULT_SPLINE_FACE_STRATEGY,
   type SplineFaceOptions, type SplineFaceStrategy,
 } from './spline-face'
-import { connectEdgesToWires } from './geom-build'
+import { connectEdgesToWires } from '@faicad/cq-compat'
 
 /** 判定「边上所有采样点是否落在 z 平面内」的容差（mm）。 */
 const PLANE_PICK_TOL = 1e-6
@@ -102,7 +102,7 @@ function faceFrames(geom: BevelGearGeometry): BevelFaceFrames {
 }
 
 /** z = const、边长 `size` 的正方形平面（cq `Face.makePlane(length=size, width=size)` 的等价物）。 */
-function squarePlaneAtZ(kernel: RawOcctKernel, z: number, size: number): BrepHandle {
+function squarePlaneAtZ(kernel: GearKernel, z: number, size: number): BrepHandle {
   const half = size / 2
   const c = [
     { x: -half, y: -half, z },
@@ -118,13 +118,13 @@ function squarePlaneAtZ(kernel: RawOcctKernel, z: number, size: number): BrepHan
  * 复刻 cq `Face.split(plane)` + 「按 zmax 取片」的选择规则。
  *
  * cq 侧：`cpd = face.split(plane)`，若返回 Compound 则取 `max/min(list(cpd), key=zmax)`，
- * 否则（平面没切到面）直接用原面。occt-wasm 的 `split` 同样在「没切到」时原样返回该面。
+ * 否则（平面没切到面）直接用原面。内核的 `split` 同样在「没切到」时原样返回该面。
  *
  * @param which `'top'` 取 zmax 最大的片（裁顶）、`'bottom'` 取 zmax 最小的片（裁底）
  * @returns 保留的那一片
  */
 function splitFaceKeep(
-  kernel: RawOcctKernel, face: BrepHandle, plane: BrepHandle, which: 'top' | 'bottom',
+  kernel: GearKernel, face: BrepHandle, plane: BrepHandle, which: 'top' | 'bottom',
 ): BrepHandle {
   const res = kernel.split(face, [plane])
   if (kernel.isFace(res)) return res
@@ -158,7 +158,7 @@ function splitFaceKeep(
  * @returns 4 张裁切后的齿面
  */
 export function buildBevelToothFaces(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   geom: BevelGearGeometry,
   strategy: SplineFaceStrategy,
   options: SplineFaceOptions = {},
@@ -210,7 +210,7 @@ export function buildBevelToothFaces(
  * @returns 平面端盖
  */
 export function capBevelAtZ(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   faces: BrepHandle[],
   z: number,
   wireCombTol: number = GEAR_BASE_CONSTANTS.wire_comb_tol,
@@ -256,7 +256,7 @@ export function capBevelAtZ(
  * @returns 全部面（含两端盖）
  */
 export function buildBevelGearFaces(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   geom: BevelGearGeometry,
   strategy: SplineFaceStrategy,
   options: BuildBevelGearOptions = {},
@@ -279,7 +279,7 @@ export function buildBevelGearFaces(
 
 /** XZ 平面轮廓（世界坐标 (u, 0, v)）→ wire → face → 绕 Z 回转 360° 的旋转体。 */
 function revolveProfile(
-  kernel: RawOcctKernel, pts: BrepVec3[], arcMid: number,
+  kernel: GearKernel, pts: BrepVec3[], arcMid: number,
 ): BrepHandle {
   // pts = [起点, 弧中点, 弧终点, 拐点1, 拐点2]，最后自动闭合回起点。
   const edges: BrepHandle[] = [
@@ -303,7 +303,7 @@ function revolveProfile(
  * @returns cutter（旋转体）
  */
 export function makeTrimBottomCutter(
-  kernel: RawOcctKernel, geom: BevelGearGeometry,
+  kernel: GearKernel, geom: BevelGearGeometry,
 ): BrepHandle {
   const r = geom.gsR
   const p1 = sphereToCartesian(r, geom.gammaR * 0.99, Math.PI / 2)
@@ -327,7 +327,7 @@ export function makeTrimBottomCutter(
  * @returns cutter（旋转体）
  */
 export function makeTrimTopCutter(
-  kernel: RawOcctKernel, geom: BevelGearGeometry,
+  kernel: GearKernel, geom: BevelGearGeometry,
 ): BrepHandle {
   const r = geom.gsR - geom.faceWidth
   const p1 = sphereToCartesian(r, geom.gammaR, Math.PI / 2)
@@ -342,10 +342,10 @@ export function makeTrimTopCutter(
 }
 
 /**
- * occt-wasm 布尔差有时返回「仅含 1 个 solid 的 compound」外壳，
+ * 内核布尔差有时返回「仅含 1 个 solid 的 compound」外壳，
  * 解包成 solid（与 `features.ts::asSolid` 同思路）。
  */
-function asSolid(kernel: RawOcctKernel, shape: BrepHandle): BrepHandle {
+function asSolid(kernel: GearKernel, shape: BrepHandle): BrepHandle {
   if (kernel.isSolid(shape)) return shape
   if (kernel.getShapeType(shape) === 'compound') {
     const solids = kernel.getSubShapes(shape, 'solid')
@@ -363,7 +363,7 @@ function asSolid(kernel: RawOcctKernel, shape: BrepHandle): BrepHandle {
  * @returns 朝向归一化（齿轮轴 = +Z、底面 z = 0）后的 solid
  */
 export function buildBevelGearSolid(
-  kernel: RawOcctKernel,
+  kernel: GearKernel,
   params: BevelGearParams,
   build: BuildBevelGearOptions = {},
 ): BrepHandle {

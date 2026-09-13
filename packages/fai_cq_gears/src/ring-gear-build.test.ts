@@ -2,13 +2,13 @@
  * ring-gear-build — RingGear 实体构造 vs cq_gears（非倒角体积）
  *
  * 对照 Python `RingGear(...).build(chamfer=None)` 的体积（已用 cadquery-env 实算，
- * 入库为回归基线）。倒角（chamfer）需要布尔差，occt-wasm 对 B-spline 实体布尔差是
+ * 入库为回归基线）。倒角（chamfer）需要布尔差，内核对 B-spline 实体布尔差是
  * 已知限制，故本测试只验证**非倒角**实体；倒角体积是 manifest 里 chamfered 的参考值，
  * 与本构建产出不同（差的就是倒角那点料），不在本测试范围。
  */
 
 import { describe, expect, it } from 'vitest'
-import { getRawKernel, type RawOcctKernel } from './kernel'
+import { getGearKernel, type GearKernel } from '@faicad/cq-compat'
 import { buildRingGearSolid } from './ring_gear'
 import type { RingGearParams } from './profile'
 
@@ -33,9 +33,9 @@ const CASE_ARGS: Record<string, RingGearParams> = {
 }
 
 describe('RingGear 实体构造 vs cq_gears（非倒角体积）', () => {
-  let kernel: RawOcctKernel
+  let kernel: GearKernel
   it('内核就绪', async () => {
-    kernel = await getRawKernel()
+    kernel = await getGearKernel()
     expect(kernel).toBeDefined()
   })
 
