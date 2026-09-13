@@ -456,7 +456,8 @@ npm run doc-sync
 
 > **现状标注（2026-09-13）**：5 已解决（ps1 已补）；7 已解决（cq_gears 源已回归本机，
 > 见 handover 文档）；8 已解决（`src/index.ts` 15 函数全量落地，装载自检 `index.test.ts`）；
-> **6 仍开放（E5/E6，阻塞架构迁移）**；其余 1/2/3/4/9/10 维持原状。
+> **6 已解决（E5 `solidFromFaces` / E6 `planarCap` 已落 cq-compat，测试 5/5 通过）**，
+> 架构迁移（15 类改写为 cq-compat 编排）已解锁、进行中；其余 1/2/3/4/9/10 维持原状。
 > T1/T2 容差门槛已拍板并落地（逐类覆盖，见 `src/testing/compare.ts` 与
 > `docs/analysis/2026-09-13-fai-cq-gears-t2-full-rerun.md`）。
 

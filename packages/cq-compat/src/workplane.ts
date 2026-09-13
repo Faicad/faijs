@@ -4375,3 +4375,215 @@ export async function twistExtrude(
   }
   return loft(sections[0], ...sections.slice(1), { ruled: false })
 }
+
+/**
+ * solidFromFaces — sew a closed set of faces into a solid on the workplane.
+ * Equivalent to CadQuery `cq.Shell.makeShell(faces)` + `Solid.makeSolid(...)`
+ * (BRepBuilderAPI_Sewing + BRepBuilderAPI_MakeSolid + orientation fix).
+ *
+ * This is cq-compat extension E5 (fai_cq_gears port plan §13-6): the existing
+ * `shell` op is hollowing (thickening a solid), not sewing face patches into
+ * a solid, and gears need the latter after their tooth-face/cap faces are built.
+ *
+ * @param wp - Workplane providing the result's coordinate frame (origin/normal)
+ * @param faces - Workplanes whose `.shape` are the faces to sew (each must be a face)
+ * @param opts - `{ sewingTolerance?: number (default 1e-2, cq shell_sewing_tol);
+ *   fixOrientations?: boolean (default true) }`. `sew` does not guarantee
+ *   consistent face orientation — a loft-skinned tooth face can come out
+ *   inward-facing, making the sewn solid carry negative volume — so
+ *   `fixFaceOrientations` runs by default. If the fixed shape degrades back to
+ *   a shell (observed on micro-gap shells that only close via the sewing
+ *   tolerance), the pre-fix `makeSolid` result is kept instead.
+ * @returns Workplane with the sewn solid as `.shape`
+ */
+export async function solidFromFaces(
+  wp: Workplane,
+  faces: Workplane[],
+  opts?: { sewingTolerance?: number; fixOrientations?: boolean },
+): Promise<Workplane> {
+  if (faces.length === 0) throw new Error('[cq-compat] solidFromFaces: faces must be non-empty')
+  const handles: ShapeHandle[] = faces.map((f, i) => {
+    if (!f.shape) throw new Error(`[cq-compat] solidFromFaces: faces[${i}].shape is required`)
+    const h = brepOf(f.shape)
+    if (h === undefined) throw new Error(`[cq-compat] solidFromFaces: faces[${i}] BREP unavailable`)
+    return h as unknown as ShapeHandle
+  })
+  const kernel = getKernel() as unknown as OcctKernel
+  const k = kernel as unknown as {
+    sew: (shapes: ShapeHandle[], tolerance?: number) => ShapeHandle
+    makeSolid: (shell: ShapeHandle) => ShapeHandle
+    fixFaceOrientations: (shape: ShapeHandle) => ShapeHandle
+    isSolid: (s: ShapeHandle) => boolean
+    isShell: (s: ShapeHandle) => boolean
+    getShapeType: (s: ShapeHandle) => string
+  }
+  const tol = opts?.sewingTolerance ?? 1e-2
+  const shell = k.sew(handles, tol)
+  if (!k.isShell(shell) && !k.isSolid(shell)) {
+    throw new Error(
+      `[cq-compat] solidFromFaces: sew did not produce a shell (got ${k.getShapeType(shell)})`,
+    )
+  }
+  const solid = k.makeSolid(shell)
+  let result = solid
+  if (opts?.fixOrientations !== false && k.isSolid(solid)) {
+    const fixed = k.fixFaceOrientations(solid)
+    if (k.isSolid(fixed)) result = fixed
+  }
+  if (!k.isSolid(result)) {
+    throw new Error(
+      `[cq-compat] solidFromFaces: result is not a solid (got ${k.getShapeType(result)})`,
+    )
+  }
+  return clone(wp, { shape: fromHandle(result), pendingWires: [] })
+}
+
+/** Endpoints of a curve edge (parameter-space — B-spline edges carry no
+ * explicit vertices, so `curveParameters` + `curvePointAtParam` is the only
+ * reliable endpoint path; the vertex fallback covers degenerate edges). */
+function edgeEndsRaw(
+  k: OcctKernel,
+  edge: ShapeHandle,
+): { edge: ShapeHandle; a: { x: number; y: number; z: number }; b: { x: number; y: number; z: number } } {
+  try {
+    const { first, last } = k.curveParameters(edge)
+    return { edge, a: k.curvePointAtParam(edge, first), b: k.curvePointAtParam(edge, last) }
+  } catch {
+    const vs = k.getSubShapes(edge, 'vertex')
+    if (vs.length < 2) {
+      const p = k.vertexPosition(vs[0])
+      return { edge, a: p, b: p }
+    }
+    return { edge, a: k.vertexPosition(vs[0]), b: k.vertexPosition(vs[1]) }
+  }
+}
+
+/**
+ * planarCap — build a planar cap face from the boundary edges of the given
+ * faces that lie on the plane `origin · normal = d`, then set it as the
+ * workplane shape. Equivalent to CadQuery gears' `planarCapAtZ` /
+ * `Face.makeFromWires(Wire.combine(boundaryEdges, tol))`.
+ *
+ * This is cq-compat extension E6 (fai_cq_gears port plan §13-6): the existing
+ * `wire`/`face` ops only consume pending drawing descriptors, not edges that
+ * already exist inside kernel shapes — gears need to close their tooth-face
+ * patches with end caps built from those edges.
+ *
+ * Edge chaining ports the proven TS re-implementation of OCCT's
+ * `ShapeAnalysis_FreeBounds::ConnectEdgesToWires`: unordered edges are chained
+ * by endpoint proximity within `tol` (kernel `makeWire` silently drops edges
+ * when gaps exceed OCCT precision, so in-tolerance gaps are bridged with a
+ * line segment — same as upstream).
+ *
+ * @param wp - Workplane providing the result's coordinate frame
+ * @param faces - Workplanes whose `.shape` are the faces supplying boundary edges
+ * @param plane - cap plane: `{ origin, normal }`; the plane offset is taken
+ *   from `origin` (edges whose bounding box lies within `pickTolerance` of the
+ *   plane are collected)
+ * @param opts - `{ combineTolerance?: number (default 1e-2, cq wire_comb_tol);
+ *   pickTolerance?: number (default 1e-6) }`
+ * @returns Workplane with the cap face as `.shape`
+ */
+export async function planarCap(
+  wp: Workplane,
+  faces: Workplane[],
+  plane: { origin: [number, number, number]; normal: [number, number, number] },
+  opts?: { combineTolerance?: number; pickTolerance?: number },
+): Promise<Workplane> {
+  if (faces.length === 0) throw new Error('[cq-compat] planarCap: faces must be non-empty')
+  const kernel = getKernel() as unknown as OcctKernel
+  const k = kernel as unknown as {
+    getSubShapes: (s: ShapeHandle, type: 'edge' | 'vertex') => ShapeHandle[]
+    getBoundingBox: (s: ShapeHandle) => { xmin: number; xmax: number; ymin: number; ymax: number; zmin: number; zmax: number }
+    curveParameters: (e: ShapeHandle) => { first: number; last: number }
+    curvePointAtParam: (e: ShapeHandle, p: number) => { x: number; y: number; z: number }
+    vertexPosition: (v: ShapeHandle) => { x: number; y: number; z: number }
+    makeLineEdge: (a: { x: number; y: number; z: number }, b: { x: number; y: number; z: number }) => ShapeHandle
+    makeWire: (edges: ShapeHandle[]) => ShapeHandle
+    makeFace: (wire: ShapeHandle) => ShapeHandle
+    healWire: (wire: ShapeHandle, tol: number) => ShapeHandle
+    reverseShape: (s: ShapeHandle) => ShapeHandle
+  }
+  const n = plane.normal
+  const nLen = Math.hypot(n[0], n[1], n[2]) || 1
+  const un = [n[0] / nLen, n[1] / nLen, n[2] / nLen]
+  const d = plane.origin[0] * un[0] + plane.origin[1] * un[1] + plane.origin[2] * un[2]
+  const pickTol = opts?.pickTolerance ?? 1e-6
+  const tol = opts?.combineTolerance ?? 1e-2
+
+  // 1) Collect boundary edges lying on the plane (signed distance of the
+  //    edge bbox centre within pickTol). Faces share their common edges, so
+  //    deduplicate by the numeric kernel handle.
+  const seen = new Set<number>()
+  const onPlane: ShapeHandle[] = []
+  for (const f of faces) {
+    if (!f.shape) throw new Error('[cq-compat] planarCap: faces[i].shape is required')
+    const fh = brepOf(f.shape)
+    if (fh === undefined) throw new Error('[cq-compat] planarCap: faces[i] BREP unavailable')
+    for (const e of k.getSubShapes(fh as unknown as ShapeHandle, 'edge')) {
+      const id = e as unknown as number
+      if (seen.has(id)) continue
+      const bb = k.getBoundingBox(e)
+      const cx = (bb.xmin + bb.xmax) / 2
+      const cy = (bb.ymin + bb.ymax) / 2
+      const cz = (bb.zmin + bb.zmax) / 2
+      // Max plane distance over the whole bbox = |centre·n − d| + projection
+      // of the half-extents onto the normal. Requiring this ≤ pickTol keeps
+      // only edges that lie entirely flat on the plane (a merely-centred or
+      // crossing vertical edge is rejected).
+      const hx = (bb.xmax - bb.xmin) / 2
+      const hy = (bb.ymax - bb.ymin) / 2
+      const hz = (bb.zmax - bb.zmin) / 2
+      const dist = Math.abs(cx * un[0] + cy * un[1] + cz * un[2] - d)
+        + hx * Math.abs(un[0]) + hy * Math.abs(un[1]) + hz * Math.abs(un[2])
+      if (dist <= pickTol) {
+        seen.add(id)
+        onPlane.push(e)
+      }
+    }
+  }
+  if (onPlane.length === 0) throw new Error('[cq-compat] planarCap: no boundary edges found on plane')
+
+  // 2) Chain unordered edges into closed wires (ConnectEdgesToWires port).
+  const pool = onPlane.map((e) => edgeEndsRaw(k, e))
+  const dist3 = (a: { x: number; y: number; z: number }, b: { x: number; y: number; z: number }) =>
+    Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z)
+  const used = new Array<boolean>(pool.length).fill(false)
+  const wires: ShapeHandle[] = []
+  for (let start = 0; start < pool.length; start++) {
+    if (used[start]) continue
+    used[start] = true
+    const chain: ShapeHandle[] = [pool[start].edge]
+    let tail = pool[start].b
+    const head = pool[start].a
+    for (;;) {
+      let found = -1
+      let best = Infinity
+      for (let j = 0; j < pool.length; j++) {
+        if (used[j]) continue
+        const dj = Math.min(dist3(pool[j].a, tail), dist3(pool[j].b, tail))
+        if (dj <= tol && dj < best) { best = dj; found = j }
+      }
+      if (found < 0) break
+      used[found] = true
+      const e = pool[found]
+      const flip = dist3(e.a, tail) <= dist3(e.b, tail)
+      if (best > 1e-7) chain.push(k.makeLineEdge(tail, flip ? e.a : e.b))
+      chain.push(flip ? e.edge : k.reverseShape(e.edge))
+      tail = flip ? e.b : e.a
+      if (dist3(tail, head) <= tol) break
+    }
+    const endGap = dist3(tail, head)
+    if (chain.length > 1 && endGap > 1e-7 && endGap <= tol) chain.push(k.makeLineEdge(tail, head))
+    wires.push(k.makeWire(chain))
+  }
+  if (wires.length !== 1) {
+    throw new Error(
+      `[cq-compat] planarCap: expected one closed loop on plane, got ${wires.length} wires from ${onPlane.length} edges`,
+    )
+  }
+
+  // 3) Heal + make the cap face.
+  const face = k.makeFace(k.healWire(wires[0], tol))
+  return clone(wp, { shape: fromHandle(face), pendingWires: [] })
+}

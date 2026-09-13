@@ -88,6 +88,8 @@ export {
   helix,
   splitFace,
   twistExtrude,
+  solidFromFaces,
+  planarCap,
 } from './workplane'
 export type { Workplane as WorkplaneType, RGB, CqLocation } from './workplane'
 
