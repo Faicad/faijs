@@ -26,7 +26,7 @@
     "build": "tsc -p tsconfig.build.json && node ../../scripts/fix-import-extensions.mjs dist",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:spike": "vitest run src/spike",
+    "test:spike": "vitest run src/profile.test.ts",
     "lint": "eslint src",
     "gen-reference": "pwsh -NoProfile scripts/gen-reference.ps1"
   }

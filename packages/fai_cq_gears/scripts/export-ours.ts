@@ -22,6 +22,7 @@ import {
 import { buildCrossedHelicalSolid } from '../src/crossed_helical_gear'
 import { buildRackGearSolid, type BuildRackGearOptions } from '../src/rack_gear'
 import { buildBevelGearSolid } from '../src/bevel_gear'
+import { buildWormSolid } from '../src/worm_gear'
 import {
   bevelPairExportParts, buildBevelGearPair, type BevelGearPairParams,
 } from '../src/pairs'
@@ -36,7 +37,7 @@ import {
 import { bevelGearOptionsFromArgs, bevelPairOptionsFromArgs, gearFeatureOptionsFromArgs } from '../src/testing/reference-options'
 import type {
   SpurGearParams, RingGearParams, CrossedHelicalGearParams, RackGearParams, BevelGearParams,
-  HyperbolicGearParams,
+  HyperbolicGearParams, WormParams,
 } from '../src/profile'
 import type { SplineFaceStrategy } from '../src/spline-face'
 import type { RawOcctKernel } from '../src/kernel'
@@ -155,6 +156,10 @@ export function buildOurShape(
         kernel, c.args as unknown as BevelGearParams, bevelGearOptionsFromArgs(c.args, strategy),
       )
     }
+    case 'Worm':
+      // Worm 的 options 全有类内默认（grid-approx 策略 / wire_comb_tol 0.1），
+      // 参考用例参数（module/lead_angle/n_threads/length）不含特征字段，直接透传。
+      return buildWormSolid(kernel, c.args as unknown as WormParams)
     case 'BevelGearPair':
       // 装配体是多件，单实体路径表达不了——见 buildOurParts。
       throw new Error('export-ours: BevelGearPair 是多件装配，请走 buildOurParts')

@@ -2,7 +2,7 @@
 
 日期：2026-09-11
 修订：2026-09-11 第 2 版（架构反转：从「裸 occt-wasm 内核自建」改为「依赖 `@faicad/cq-compat` 建模层」）
-状态：**执行中（基线已于 2026-09-11 实测复核，见 §1；包骨架 + SpurGear 裸实体已存在，但需按本版重构）**
+状态：**15 类功能移植全部已落地（2026-09-13，见 §8 各类标注与 §13 风险表现状列）；架构迁移（cq-compat 化，§1/§4）与 T3 稳定性测试（§9.3）未实施**
 移植源（交由执行方持有，本机可不可用不影响本规范）：`C:\git\CADQ\cq_gears`（cq_gears 0.62，Apache-2.0）
 基线仓库：`D:\Faicad\faijs`
 前置资产：`docs/analysis/2026-09-08-fai-cq-gears-spike.md`（P0 定案）、`docs/analysis/2026-09-08-cq-compat-union-compound-bug.md`（比对工具红线）、`docs/plans/2026-09-08-cq-compat-parity-phase2.md`（cq-compat 进度与阻塞）
@@ -289,6 +289,11 @@ npm run test    -w @faicad/fai-cq-gears        # 现有 test 全绿（spline-fac
 
 ## 8. 逐类移植配方（P2–P5，每类给 cq_gears 源 op → cq-compat op）
 
+> **状态（2026-09-13）：本节全部 15 类已落地**——但走的是 v1 裸内核路径（§13-6 阻塞
+> cq-compat 化未解），非本节的 cq-compat op 编排。落地证据：`src/*.ts` 各构造器 +
+> `docs/analysis/2026-09-13-fai-cq-gears-t2-full-rerun.md`（43 例 T2 复跑报表）。
+> 本节其余内容保留为 cq-compat 化迁移（未实施）时的对照配方。
+
 > 每类：源文件/类/方法（执行方打开 `C:\git\CADQ\cq_gears`）→ **cq-compat op 映射（§3）** → faijs 侧做法 → 验证。参数名逐字沿用 Python。
 
 ### 8.1 A 族·直纹/扭纹齿面（网格样条曲面）
@@ -448,6 +453,12 @@ npm run doc-sync
 ---
 
 ## 13. 待拍板 / 已知风险（执行方遇到即上报）
+
+> **现状标注（2026-09-13）**：5 已解决（ps1 已补）；7 已解决（cq_gears 源已回归本机，
+> 见 handover 文档）；8 已解决（`src/index.ts` 15 函数全量落地，装载自检 `index.test.ts`）；
+> **6 仍开放（E5/E6，阻塞架构迁移）**；其余 1/2/3/4/9/10 维持原状。
+> T1/T2 容差门槛已拍板并落地（逐类覆盖，见 `src/testing/compare.ts` 与
+> `docs/analysis/2026-09-13-fai-cq-gears-t2-full-rerun.md`）。
 
 1. **cq-compat parity 是硬阻塞（首要风险）**：fai_cq_gears 完成度受 cq-compat 进度约束。当前 cq-compat parity **35.69% / PASS 228**（2026-09-11；PASS-NT 4 / FAIL 1 / BLOCKED 417）；齿轮相关核心 op 已 ported 但须在齿轮精度（T1/T2）下复验。**E1–E4 已落地并合入**（`splineFace` / `helix` / `splitFace` / `twistExtrude`，见 `docs/plans/2026-09-11-cq-compat-gears-extensions-e1-e4.md`），fai_cq_gears 已可解锁对应类；但删 shim 仍受 E5/E6 阻塞（见本表第 6 条）。**建议并行**：cq-compat 补 E5/E6 + 提 gear-relevant op 精度；fai_cq_gears 同步 1:1 翻译。
 2. **cadquery 版本漂移**：本机 `cadquery-env` 2.8.0 vs 旧机 2.6.dev0；cq_gears 0.62 在 2.8.0 下先 `import cadquery, cq_gears` 干净通过再生成参考。

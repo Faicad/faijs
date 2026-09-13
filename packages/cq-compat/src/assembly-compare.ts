@@ -33,6 +33,15 @@ export interface AssemblyCompareOptions {
    * leaf count, so the compound-vs-parts check remains intact.
    */
   matchNames?: boolean
+  /**
+   * Skip the fused (A∪B → cut) boolean-difference computation entirely
+   * (default false). The fused cut is expensive on near-coincident B-spline
+   * faces and the occt-wasm kernel can return inverted/garbage solids for it
+   * (documented in fai_cq_gears analysis docs); per-part volume/CoM/bbox
+   * checks remain the verdict. When true, `booleanDiff` is reported as
+   * {aMinusB: NaN, bMinusA: NaN, match: true}.
+   */
+  skipFusedBoolean?: boolean
 }
 
 /** Per-part comparison result. */
@@ -83,6 +92,7 @@ const DEFAULT_OPTS: Required<AssemblyCompareOptions> = {
   booleanVolumeTolerance: 1e-1,
   strictTopology: false,
   matchNames: true,
+  skipFusedBoolean: false,
 }
 
 function vmax(a: BrepVec3, b: BrepVec3): number {
@@ -242,13 +252,19 @@ export async function compareAssemblyFiles(
     overallBboxDiff = bbmax(fbbA, fbbB)
     overallBboxMatch = overallBboxDiff <= opts.linearTolerance
 
-    const cutAB = kernel.cut(fusedA, fusedB)
-    const cutBA = kernel.cut(fusedB, fusedA)
-    boolAB = kernel.getVolume(cutAB)
-    boolBA = kernel.getVolume(cutBA)
-    boolMatch = boolAB <= opts.booleanVolumeTolerance && boolBA <= opts.booleanVolumeTolerance
-    kernel.release(cutAB)
-    kernel.release(cutBA)
+    if (opts.skipFusedBoolean) {
+      boolAB = NaN
+      boolBA = NaN
+      boolMatch = true
+    } else {
+      const cutAB = kernel.cut(fusedA, fusedB)
+      const cutBA = kernel.cut(fusedB, fusedA)
+      boolAB = kernel.getVolume(cutAB)
+      boolBA = kernel.getVolume(cutBA)
+      boolMatch = boolAB <= opts.booleanVolumeTolerance && boolBA <= opts.booleanVolumeTolerance
+      kernel.release(cutAB)
+      kernel.release(cutBA)
+    }
   }
 
   details.push(`overall: vol ${overallVolumeA.toFixed(1)} vs ${overallVolumeB.toFixed(1)} (${overallVolDiffPct.toFixed(3)}%), bbox diff=${overallBboxDiff.toExponential(2)}, bool A-B=${boolAB.toExponential(2)}, B-A=${boolBA.toExponential(2)}`)

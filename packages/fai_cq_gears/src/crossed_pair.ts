@@ -213,7 +213,12 @@ export function buildCrossedGearPair(
   return out
 }
 
-/** 一对交错轴斜齿轮的导出条目（gear1 → gear2）。 */
+/**
+ * 一对交错轴斜齿轮的导出条目（gear1 → gear2）。
+ *
+ * @param build 交叉轴齿轮对构建结果（gear2 可能为空——只有 `shafts_connected` 时存在）
+ * @returns 具名实体数组（名字进 STEP 产品名，供逐件等价比对）
+ */
 export function crossedPairExportParts(
   build: CrossedGearPairBuild,
 ): Array<{ name: string; solid: BrepHandle }> {
@@ -330,7 +335,12 @@ export function buildHyperbolicGearPair(
   return out
 }
 
-/** 一对双曲面齿轮的导出条目（gear1 → gear2）。 */
+/**
+ * 一对双曲面齿轮的导出条目（gear1 → gear2）。
+ *
+ * @param build 双曲面齿轮对构建结果（gear2 可能为空——只有 `shafts_connected` 时存在）
+ * @returns 具名实体数组（名字进 STEP 产品名，供逐件等价比对）
+ */
 export function hyperbolicPairExportParts(
   build: HyperbolicGearPairBuild,
 ): Array<{ name: string; solid: BrepHandle }> {

@@ -1,7 +1,7 @@
 # fai_cq_gears BevelGear / BevelGearPair 移植实测：几何偏差来源与量级
 
 日期：2026-09-12
-状态：**实测完成；T1 bbox 绝对门禁与 T2 体积容差两项待拍板**
+状态：**实测完成；两项门槛已拍板（2026-09-13，见 §7）**
 关联方案：`docs/plans/2026-09-11-fai-cq-gears-port.md`（§8.2 BevelGear、§8.4 齿轮对、§9.1 T1、§9.2 T2、§10 降级阶梯）
 代码位置：`packages/fai_cq_gears/src/bevel_gear.ts`、`src/pairs.ts`、`src/profile.ts::bevelGearGeometry`
 
@@ -134,3 +134,21 @@ cq_gears 自身没有 `BevelGearPair` 的回归数据，故按方案 §9.4 用 `
 
 另记一处**照抄上游的不对称**：`BevelGearPair.__init__` 给 gear 传了 `clearance`，给 pinion
 **没传**（落回默认 0.0）；且 pinion 的螺旋角取负。本实现逐字保持，不"修正"。
+
+## 7. 门槛拍板（2026-09-13）
+
+按方案 §10 第 3 步**逐类设容差**（而非全局放宽），落地在
+`packages/fai_cq_gears/src/testing/compare.ts` 的 `toleranceOverridesFor()`：
+
+1. **T1 bbox 门禁：维持绝对 1e-3，不改。** case12 的 zlen 差 6.59e-3 属 T2 链路
+   覆盖范围（`linearTolerance` 1e-3 对 com/bbox 的实测最坏是 3.61e-4，余量 30 倍），
+   单测套件只跑 case08/case11 小件，不受影响。
+2. **T2 `volumeRelativeTolerance`：Bevel 族逐类放宽到 5e-4**（match
+   `/^(case\d+-BevelGear|bp-)/`）。依据：实测最坏单体 1.9e-4（case11）、齿轮对逐件
+   1.415e-5，门禁 5e-4 = 最坏值 ×2.6；根因是齿面 B-spline 逼近方法不同（§3），其余
+   维度全部在标定容差内。**其它 14 类维持 1e-6 不变**（实测全部 ≪1e-6）。
+3. cgp-basic 的融合布尔伪差按
+   `docs/analysis/2026-09-13-fai-cq-gears-crossed-pair-phase-scan.md` 单独处理
+   （该例禁用融合布尔判据，逐件指标为准），不在本文范围。
+
+该决策**只对收录的类生效、每条注明实测依据与文档链接**，未触碰全局标定值。

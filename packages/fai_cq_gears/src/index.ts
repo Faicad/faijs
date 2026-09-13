@@ -72,42 +72,78 @@ async function run<T>(fn: (kernel: RawOcctKernel) => T): Promise<Result<T, strin
 
 // ── A 族：直纹/扭纹齿面（网格样条曲面）──────────────────────────────────────────
 
-/** SpurGear（直齿圆柱齿轮）。 */
+/**
+ * SpurGear（直齿圆柱齿轮）。
+ *
+ * @param params 齿轮参数（逐字沿用 Python `SpurGear.__init__`）
+ * @param options 构建选项（齿面策略 / 特征字段）
+ * @returns `Result<BrepHandle>`——solid 句柄，失败转 `err`
+ */
 export function spurGear(
   params: SpurGearParams, options: BuildSpurGearOptions = {},
 ): Promise<Result<BrepHandle, string>> {
   return run((k) => buildSpurGearSolid(k, params, options))
 }
 
-/** HerringboneGear（人字齿圆柱齿轮）。 */
+/**
+ * HerringboneGear（人字齿圆柱齿轮）。
+ *
+ * @param params 齿轮参数（逐字沿用 Python `HerringboneGear.__init__`）
+ * @param options 构建选项（齿面策略 / 特征字段）
+ * @returns `Result<BrepHandle>`——solid 句柄，失败转 `err`
+ */
 export function herringboneGear(
   params: SpurGearParams, options: BuildSpurGearOptions = {},
 ): Promise<Result<BrepHandle, string>> {
   return run((k) => buildHerringboneGearSolid(k, params, options))
 }
 
-/** RingGear（内齿圈）。 */
+/**
+ * RingGear（内齿圈）。
+ *
+ * @param params 齿轮参数（逐字沿用 Python `RingGear.__init__`）
+ * @param options 构建选项（齿面策略 / 特征字段）
+ * @returns `Result<BrepHandle>`——solid 句柄，失败转 `err`
+ */
 export function ringGear(
   params: RingGearParams, options: BuildRingGearOptions = {},
 ): Promise<Result<BrepHandle, string>> {
   return run((k) => buildRingGearSolid(k, params, options))
 }
 
-/** HerringboneRingGear（人字内齿圈）。 */
+/**
+ * HerringboneRingGear（人字内齿圈）。
+ *
+ * @param params 齿轮参数（逐字沿用 Python `HerringboneRingGear.__init__`）
+ * @param options 构建选项（齿面策略 / 特征字段）
+ * @returns `Result<BrepHandle>`——solid 句柄，失败转 `err`
+ */
 export function herringboneRingGear(
   params: RingGearParams, options: BuildRingGearOptions = {},
 ): Promise<Result<BrepHandle, string>> {
   return run((k) => buildHerringboneRingGearSolid(k, params, options))
 }
 
-/** CrossedHelicalGear（交错轴斜齿轮，单体）。 */
+/**
+ * CrossedHelicalGear（交错轴斜齿轮，单体）。
+ *
+ * @param params 齿轮参数（逐字沿用 Python `CrossedHelicalGear.__init__`）
+ * @param options 构建选项（齿面策略 / 特征字段）
+ * @returns `Result<BrepHandle>`——solid 句柄，失败转 `err`
+ */
 export function crossedHelicalGear(
   params: CrossedHelicalGearParams, options: BuildSpurGearOptions = {},
 ): Promise<Result<BrepHandle, string>> {
   return run((k) => buildCrossedHelicalSolid(k, params, options))
 }
 
-/** HyperbolicGear（双曲面齿轮，单体）。 */
+/**
+ * HyperbolicGear（双曲面齿轮，单体）。
+ *
+ * @param params 齿轮参数（逐字沿用 Python `HyperbolicGear.__init__`）
+ * @param options 构建选项（齿面策略 / 特征字段）
+ * @returns `Result<BrepHandle>`——solid 句柄，失败转 `err`
+ */
 export function hyperbolicGear(
   params: HyperbolicGearParams, options: BuildSpurGearOptions = {},
 ): Promise<Result<BrepHandle, string>> {
@@ -116,14 +152,26 @@ export function hyperbolicGear(
 
 // ── B 族：球面渐开线（BevelGear）───────────────────────────────────────────────
 
-/** BevelGear（锥齿轮，单体）。 */
+/**
+ * BevelGear（锥齿轮，单体）。
+ *
+ * @param params 齿轮参数（逐字沿用 Python `BevelGear.__init__`）
+ * @param options 构建选项（齿面策略 / bore_d / trim）
+ * @returns `Result<BrepHandle>`——solid 句柄，失败转 `err`
+ */
 export function bevelGear(
   params: BevelGearParams, options: BuildBevelGearOptions = {},
 ): Promise<Result<BrepHandle, string>> {
   return run((k) => buildBevelGearSolid(k, params, options))
 }
 
-/** BevelGearPair（锥齿轮副，装配体）。 */
+/**
+ * BevelGearPair（锥齿轮副，装配体）。
+ *
+ * @param params 齿轮副参数（逐字沿用 Python `BevelGearPair.__init__`）
+ * @param options 构建选项（齿面策略 / bore_d / trim）
+ * @returns `Result<GearAssembly>`——`{name, solid}[]` 逐件条目，失败转 `err`
+ */
 export function bevelGearPair(
   params: BevelGearPairParams, options: BuildBevelGearPairOptions = {},
 ): Promise<Result<GearAssembly, string>> {
@@ -132,21 +180,39 @@ export function bevelGearPair(
 
 // ── C 族：齿条 / 蜗杆 ───────────────────────────────────────────────────────────
 
-/** RackGear（齿条）。 */
+/**
+ * RackGear（齿条）。
+ *
+ * @param params 齿条参数（逐字沿用 Python `RackGear.__init__`）
+ * @param options 构建选项（齿面策略）
+ * @returns `Result<BrepHandle>`——solid 句柄，失败转 `err`
+ */
 export function rackGear(
   params: RackGearParams, options: BuildRackGearOptions = {},
 ): Promise<Result<BrepHandle, string>> {
   return run((k) => buildRackGearSolid(k, params, options))
 }
 
-/** HerringboneRackGear（人字齿条）。 */
+/**
+ * HerringboneRackGear（人字齿条）。
+ *
+ * @param params 齿条参数（逐字沿用 Python `HerringboneRackGear.__init__`）
+ * @param options 构建选项（齿面策略；内部强制 `herringbone: true`）
+ * @returns `Result<BrepHandle>`——solid 句柄，失败转 `err`
+ */
 export function herringboneRackGear(
   params: RackGearParams, options: BuildRackGearOptions = {},
 ): Promise<Result<BrepHandle, string>> {
   return run((k) => buildRackGearSolid(k, params, { ...options, herringbone: true }))
 }
 
-/** Worm（蜗杆）。 */
+/**
+ * Worm（蜗杆）。
+ *
+ * @param params 蜗杆参数（逐字沿用 Python `Worm.__init__`）
+ * @param options 构建选项（策略默认 grid-approx / 缝合与组线容差 / boreD）
+ * @returns `Result<BrepHandle>`——solid 句柄，失败转 `err`
+ */
 export function worm(
   params: WormParams, options: BuildWormOptions = {},
 ): Promise<Result<BrepHandle, string>> {
@@ -155,28 +221,52 @@ export function worm(
 
 // ── 齿轮对 / 轮系（返回装配）────────────────────────────────────────────────────
 
-/** CrossedGearPair（交错轴斜齿轮副）。 */
+/**
+ * CrossedGearPair（交错轴斜齿轮副，装配体）。
+ *
+ * @param params 齿轮副参数（逐字沿用 Python `CrossedGearPair.__init__`）
+ * @param options 构建选项（齿面策略 / 特征字段）
+ * @returns `Result<GearAssembly>`——`{name, solid}[]` 逐件条目，失败转 `err`
+ */
 export function crossedGearPair(
   params: CrossedGearPairParams, options: BuildCrossedGearPairOptions = {},
 ): Promise<Result<GearAssembly, string>> {
   return run((k) => crossedPairExportParts(buildCrossedGearPair(k, params, options)))
 }
 
-/** HyperbolicGearPair（双曲面齿轮副）。 */
+/**
+ * HyperbolicGearPair（双曲面齿轮副，装配体）。
+ *
+ * @param params 齿轮副参数（逐字沿用 Python `HyperbolicGearPair.__init__`）
+ * @param options 构建选项（齿面策略 / 特征字段）
+ * @returns `Result<GearAssembly>`——`{name, solid}[]` 逐件条目，失败转 `err`
+ */
 export function hyperbolicGearPair(
   params: HyperbolicGearPairParams, options: BuildCrossedGearPairOptions = {},
 ): Promise<Result<GearAssembly, string>> {
   return run((k) => hyperbolicPairExportParts(buildHyperbolicGearPair(k, params, options)))
 }
 
-/** PlanetaryGearset（行星轮系）。 */
+/**
+ * PlanetaryGearset（行星轮系，装配体）。
+ *
+ * @param params 轮系参数（逐字沿用 Python `PlanetaryGearset.__init__`）
+ * @param options 构建选项（齿面策略 / 特征字段）
+ * @returns `Result<GearAssembly>`——sun → planet_NN → ring 逐件条目，失败转 `err`
+ */
 export function planetaryGearset(
   params: PlanetaryGearsetParams, options: BuildPlanetaryGearsetOptions = {},
 ): Promise<Result<GearAssembly, string>> {
   return run((k) => planetaryExportParts(buildPlanetaryGearset(k, params, options)))
 }
 
-/** HerringbonePlanetaryGearset（人字行星轮系）。 */
+/**
+ * HerringbonePlanetaryGearset（人字行星轮系，装配体）。
+ *
+ * @param params 轮系参数（逐字沿用 Python `HerringbonePlanetaryGearset.__init__`）
+ * @param options 构建选项（齿面策略 / 特征字段）
+ * @returns `Result<GearAssembly>`——sun → planet_NN → ring 逐件条目，失败转 `err`
+ */
 export function herringbonePlanetaryGearset(
   params: PlanetaryGearsetParams, options: BuildPlanetaryGearsetOptions = {},
 ): Promise<Result<GearAssembly, string>> {

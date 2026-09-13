@@ -171,7 +171,14 @@ export function buildPlanetaryGearset(
   return out
 }
 
-/** 人字行星轮系（HerringbonePlanetaryGearset）——三件全部人字齿。 */
+/**
+ * 人字行星轮系（HerringbonePlanetaryGearset）——三件全部人字齿。
+ *
+ * @param kernel 原始 OCCT 内核
+ * @param params 行星轮系参数（逐字沿用 Python `HerringbonePlanetaryGearset.__init__`）
+ * @param options 构建选项（strategy / 特征字段，透传单体构造）
+ * @returns sun + planets[] + ring 的构建记录
+ */
 export function buildHerringbonePlanetaryGearset(
   kernel: RawOcctKernel,
   params: PlanetaryGearsetParams,
@@ -180,7 +187,12 @@ export function buildHerringbonePlanetaryGearset(
   return buildPlanetaryGearset(kernel, params, { ...options, herringbone: true })
 }
 
-/** 行星轮系的导出条目（sun → planet_00.. → ring）。 */
+/**
+ * 行星轮系的导出条目（sun → planet_00.. → ring）。
+ *
+ * @param build 行星轮系构建结果（成员可能为空——只有 `shafts_connected` 时存在）
+ * @returns 具名实体数组（名字进 STEP 产品名，供逐件等价比对）
+ */
 export function planetaryExportParts(
   build: PlanetaryGearsetBuild,
 ): Array<{ name: string; solid: BrepHandle }> {
