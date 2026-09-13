@@ -18,7 +18,7 @@ import type { BrepHandle } from '@faicad/faijs-core'
 import type { RawOcctKernel } from './kernel'
 import { GEAR_BASE_CONSTANTS } from './profile'
 import { toothFaceGrids, type SpurGearGeometry, type SpurGearParams } from './profile'
-import { spurGearGeometry } from './profile'
+import { spurGearGeometry, hyperbolicGearGeometry, type HyperbolicGearParams } from './profile'
 import {
   buildSplineFace, DEFAULT_SPLINE_FACE_STRATEGY,
   type SplineFaceOptions, type SplineFaceStrategy,
@@ -251,4 +251,24 @@ export function buildHerringboneGearSolid(
   build: BuildSpurGearOptions = {},
 ): BrepHandle {
   return buildGearSolid(kernel, spurGearGeometry(params), { ...build, herringbone: true })
+}
+
+/**
+ * ①–④：完整 HyperbolicGear 实体（双曲面齿轮，裸齿轮）。
+ *
+ * 齿廓数学与 SpurGear 同构，差异只在 `twist_angle` 来自显式构造参数（见
+ * `hyperbolicGearGeometry`）、`surfaceSplines=2`；实体构造完全复用通用的
+ * `buildGearSolid`。
+ *
+ * @param kernel 原始 OCCT 内核
+ * @param params 双曲面齿轮参数（逐字沿用 Python 构造参数名）
+ * @param build 构造选项（策略/容差覆盖）
+ * @returns 朝向归一化后的 solid
+ */
+export function buildHyperbolicGearSolid(
+  kernel: RawOcctKernel,
+  params: HyperbolicGearParams,
+  build: BuildSpurGearOptions = {},
+): BrepHandle {
+  return buildGearSolid(kernel, hyperbolicGearGeometry(params), build)
 }

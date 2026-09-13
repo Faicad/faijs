@@ -16,8 +16,9 @@
 
 import { beforeAll, describe, expect, it } from 'vitest'
 import { getRawKernel, type RawOcctKernel } from './kernel'
-import { buildBevelGearSolid, type BuildBevelGearOptions } from './bevel_gear'
+import { buildBevelGearSolid } from './bevel_gear'
 import { loadManifest } from './fixtures'
+import { bevelGearOptionsFromArgs } from './testing/reference-options'
 import { bevelGearGeometry, type BevelGearParams } from './profile'
 
 /** 默认套件覆盖的用例（小件、两条路径各一）。 */
@@ -37,8 +38,9 @@ describe('BevelGear 实体构造 vs cq_gears（体积 + bbox）', () => {
       expect(c.volume, `${id} 缺参考体积`).toBeDefined()
 
       const args = c.args as unknown as BevelGearParams
-      const build: BuildBevelGearOptions = {}
-      if (typeof c.args.bore_d === 'number') build.boreD = c.args.bore_d
+      // 特征抽取走单一真源（与 export-ours 共用），避免「一边抽了 bore_d、一边没抽」
+      // 造成的假偏差——2026-09-12 一天内踩过两次。
+      const build = bevelGearOptionsFromArgs(c.args, 'row-approx-loft')
 
       const solid = buildBevelGearSolid(kernel, args, build)
       expect(kernel.isSolid(solid), `${id}: 结果不是 solid`).toBe(true)

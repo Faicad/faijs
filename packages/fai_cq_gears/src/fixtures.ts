@@ -30,6 +30,39 @@ export interface ReferenceGrid {
   sample_points: number[][]
 }
 
+/** 齿轮对里单个成员（`gear` / `pinion`）的实测几何（`parts[]`）。 */
+export interface ReferencePart {
+  name: string
+  /** 该件在**装配位姿**下的体积（mm³）。 */
+  volume: number
+  /** 该件在装配位姿下的包围盒边长 `[xlen, ylen, zlen]`。 */
+  bbox: number[]
+  bbox_min: number[]
+  bbox_max: number[]
+  center: number[]
+  /** 齿数。 */
+  z: number
+  /** 锥顶到底面的距离 `BevelGear.cone_h`。 */
+  cone_h: number
+  /** 分度锥角（度）。 */
+  cone_angle_deg: number
+  /** 大球半径 `gs_r`。 */
+  gs_r: number
+  /** 齿面点阵行数（helix = 0 → 2，否则 12）。 */
+  surface_splines: number
+  has_twist_angle: boolean
+}
+
+/** 齿轮对装配参数（`assembly`）。 */
+export interface ReferenceAssembly {
+  /** 轴交角（弧度）。 */
+  axis_angle_rad: number
+  gear_cone_h: number
+  pinion_cone_h: number
+  gear_cone_angle_deg: number
+  pinion_cone_angle_deg: number
+}
+
 /** 单个参考用例（manifest.json 的 `cases[]` 元素）。 */
 export interface ReferenceCase {
   id: string
@@ -41,6 +74,12 @@ export interface ReferenceCase {
   derived?: Record<string, number>
   /** Python 侧取不到的派生量名（如 Worm 无 twist_angle/rb/rr/tau）。 */
   derived_missing?: string[]
+  /** 多件类（`*Pair`）的逐件实测几何。 */
+  parts?: ReferencePart[]
+  /** 多件类（`*Pair`）的装配参数。 */
+  assembly?: ReferenceAssembly
+  /** 多件类为何没有齿面点阵（当前恒为「对类无单 twist_angle」）。 */
+  tooth_face_grids_skipped?: string
   profile?: {
     t_lflank_pts: number[][]
     t_tip_pts: number[][]

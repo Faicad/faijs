@@ -1,0 +1,184 @@
+/**
+ * index — fai_cq_gears 公共 API 入口（15 个齿轮类 + contractVersion）
+ *
+ * ## 现状（2026-09-13）
+ *
+ * 本包当前走 **v1 裸内核路径**（直接 `import` `@faicad/faijs-core` 的 occt-wasm 内核，
+ * 经 `getRawKernel()` 取得），与 `cq-compat` 迁移目标（计划 §1 反转）尚**未切换**——
+ * 切换被 cq-compat 的 E5 `solidFromFaces` / E6 平面盖面两个原语阻塞（见 `docs/plans/
+ * 2026-09-11-fai-cq-gears-port.md` §13-6）。届时本文件的函数体改为编排 cq-compat op，
+ * 入口签名（参数名逐字沿用 Python、返回 `Result`）保持不变。
+ *
+ * 每个导出函数：
+ * - 参数名**逐字沿用 Python**（module / teeth_number / width / helix_angle …），见 `profile.ts`；
+ * - 返回 `Promise<Result<…>>`：单体齿轮返回 `BrepHandle`，齿轮对/轮系返回
+ *   `GearAssembly`（`{name, solid}[]`，供逐件导出 STEP 做逐件等价比对）。
+ */
+
+import type { BrepHandle } from '@faicad/faijs-core'
+import { ok, err, type Result, CONTRACT_VERSION } from '@faicad/faijs-core'
+import { getRawKernel, type RawOcctKernel } from './kernel'
+
+import {
+  buildSpurGearSolid, buildHerringboneGearSolid, buildHyperbolicGearSolid,
+  type BuildSpurGearOptions,
+} from './spur_gear'
+import {
+  buildRingGearSolid, buildHerringboneRingGearSolid, type BuildRingGearOptions,
+} from './ring_gear'
+import { buildCrossedHelicalSolid } from './crossed_helical_gear'
+import { buildRackGearSolid, type BuildRackGearOptions } from './rack_gear'
+import { buildWormSolid, type BuildWormOptions } from './worm_gear'
+import { buildBevelGearSolid, type BuildBevelGearOptions } from './bevel_gear'
+import {
+  buildBevelGearPair, bevelPairExportParts,
+  type BevelGearPairParams, type BuildBevelGearPairOptions,
+} from './pairs'
+import {
+  buildCrossedGearPair, buildHyperbolicGearPair,
+  crossedPairExportParts, hyperbolicPairExportParts,
+  type CrossedGearPairParams, type HyperbolicGearPairParams, type BuildCrossedGearPairOptions,
+} from './crossed_pair'
+import {
+  buildPlanetaryGearset, buildHerringbonePlanetaryGearset, planetaryExportParts,
+  type PlanetaryGearsetParams, type BuildPlanetaryGearsetOptions,
+} from './planetary'
+
+import type {
+  SpurGearParams, RingGearParams, CrossedHelicalGearParams, RackGearParams,
+  WormParams, BevelGearParams, HyperbolicGearParams,
+} from './profile'
+
+/** 库契约版本（与 faijs 引擎对齐，勿硬编码）。 */
+export const contractVersion = CONTRACT_VERSION
+
+/** 齿轮对/轮系的逐件导出条目（名字进 STEP 产品名，供逐件等价比对）。 */
+export type GearAssembly = Array<{ name: string; solid: BrepHandle }>
+
+/**
+ * 统一内核执行包装：取单例内核、运行构建、失败转 `err`。
+ *
+ * @param fn 接收原始内核、返回 solid 或装配
+ * @returns `Result<T>`
+ */
+async function run<T>(fn: (kernel: RawOcctKernel) => T): Promise<Result<T, string>> {
+  try {
+    const kernel = await getRawKernel()
+    return ok(fn(kernel))
+  } catch (e) {
+    return err(e instanceof Error ? e.message : String(e))
+  }
+}
+
+// ── A 族：直纹/扭纹齿面（网格样条曲面）──────────────────────────────────────────
+
+/** SpurGear（直齿圆柱齿轮）。 */
+export function spurGear(
+  params: SpurGearParams, options: BuildSpurGearOptions = {},
+): Promise<Result<BrepHandle, string>> {
+  return run((k) => buildSpurGearSolid(k, params, options))
+}
+
+/** HerringboneGear（人字齿圆柱齿轮）。 */
+export function herringboneGear(
+  params: SpurGearParams, options: BuildSpurGearOptions = {},
+): Promise<Result<BrepHandle, string>> {
+  return run((k) => buildHerringboneGearSolid(k, params, options))
+}
+
+/** RingGear（内齿圈）。 */
+export function ringGear(
+  params: RingGearParams, options: BuildRingGearOptions = {},
+): Promise<Result<BrepHandle, string>> {
+  return run((k) => buildRingGearSolid(k, params, options))
+}
+
+/** HerringboneRingGear（人字内齿圈）。 */
+export function herringboneRingGear(
+  params: RingGearParams, options: BuildRingGearOptions = {},
+): Promise<Result<BrepHandle, string>> {
+  return run((k) => buildHerringboneRingGearSolid(k, params, options))
+}
+
+/** CrossedHelicalGear（交错轴斜齿轮，单体）。 */
+export function crossedHelicalGear(
+  params: CrossedHelicalGearParams, options: BuildSpurGearOptions = {},
+): Promise<Result<BrepHandle, string>> {
+  return run((k) => buildCrossedHelicalSolid(k, params, options))
+}
+
+/** HyperbolicGear（双曲面齿轮，单体）。 */
+export function hyperbolicGear(
+  params: HyperbolicGearParams, options: BuildSpurGearOptions = {},
+): Promise<Result<BrepHandle, string>> {
+  return run((k) => buildHyperbolicGearSolid(k, params, options))
+}
+
+// ── B 族：球面渐开线（BevelGear）───────────────────────────────────────────────
+
+/** BevelGear（锥齿轮，单体）。 */
+export function bevelGear(
+  params: BevelGearParams, options: BuildBevelGearOptions = {},
+): Promise<Result<BrepHandle, string>> {
+  return run((k) => buildBevelGearSolid(k, params, options))
+}
+
+/** BevelGearPair（锥齿轮副，装配体）。 */
+export function bevelGearPair(
+  params: BevelGearPairParams, options: BuildBevelGearPairOptions = {},
+): Promise<Result<GearAssembly, string>> {
+  return run((k) => bevelPairExportParts(buildBevelGearPair(k, params, options)))
+}
+
+// ── C 族：齿条 / 蜗杆 ───────────────────────────────────────────────────────────
+
+/** RackGear（齿条）。 */
+export function rackGear(
+  params: RackGearParams, options: BuildRackGearOptions = {},
+): Promise<Result<BrepHandle, string>> {
+  return run((k) => buildRackGearSolid(k, params, options))
+}
+
+/** HerringboneRackGear（人字齿条）。 */
+export function herringboneRackGear(
+  params: RackGearParams, options: BuildRackGearOptions = {},
+): Promise<Result<BrepHandle, string>> {
+  return run((k) => buildRackGearSolid(k, params, { ...options, herringbone: true }))
+}
+
+/** Worm（蜗杆）。 */
+export function worm(
+  params: WormParams, options: BuildWormOptions = {},
+): Promise<Result<BrepHandle, string>> {
+  return run((k) => buildWormSolid(k, params, options))
+}
+
+// ── 齿轮对 / 轮系（返回装配）────────────────────────────────────────────────────
+
+/** CrossedGearPair（交错轴斜齿轮副）。 */
+export function crossedGearPair(
+  params: CrossedGearPairParams, options: BuildCrossedGearPairOptions = {},
+): Promise<Result<GearAssembly, string>> {
+  return run((k) => crossedPairExportParts(buildCrossedGearPair(k, params, options)))
+}
+
+/** HyperbolicGearPair（双曲面齿轮副）。 */
+export function hyperbolicGearPair(
+  params: HyperbolicGearPairParams, options: BuildCrossedGearPairOptions = {},
+): Promise<Result<GearAssembly, string>> {
+  return run((k) => hyperbolicPairExportParts(buildHyperbolicGearPair(k, params, options)))
+}
+
+/** PlanetaryGearset（行星轮系）。 */
+export function planetaryGearset(
+  params: PlanetaryGearsetParams, options: BuildPlanetaryGearsetOptions = {},
+): Promise<Result<GearAssembly, string>> {
+  return run((k) => planetaryExportParts(buildPlanetaryGearset(k, params, options)))
+}
+
+/** HerringbonePlanetaryGearset（人字行星轮系）。 */
+export function herringbonePlanetaryGearset(
+  params: PlanetaryGearsetParams, options: BuildPlanetaryGearsetOptions = {},
+): Promise<Result<GearAssembly, string>> {
+  return run((k) => planetaryExportParts(buildHerringbonePlanetaryGearset(k, params, options)))
+}

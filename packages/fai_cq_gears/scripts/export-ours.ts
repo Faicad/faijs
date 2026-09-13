@@ -12,27 +12,88 @@
  */
 
 import { mkdirSync, writeFileSync } from 'node:fs'
-import { exportStepFromSolid } from '@faicad/faijs-core'
+import { exportStepFromSolids, type StepExportEntry } from '@faicad/faijs-core'
 import { loadManifest, OUT_DIR, type ReferenceCase } from '../src/fixtures'
 import { getRawKernel } from '../src/kernel'
-import { buildSpurGearSolid, buildHerringboneGearSolid, type BuildSpurGearOptions } from '../src/spur_gear'
+import { buildSpurGearSolid, buildHerringboneGearSolid, buildHyperbolicGearSolid, type BuildSpurGearOptions } from '../src/spur_gear'
 import {
   buildRingGearSolid, buildHerringboneRingGearSolid,
 } from '../src/ring_gear'
 import { buildCrossedHelicalSolid } from '../src/crossed_helical_gear'
 import { buildRackGearSolid, type BuildRackGearOptions } from '../src/rack_gear'
-import { buildBevelGearSolid, type BuildBevelGearOptions } from '../src/bevel_gear'
+import { buildBevelGearSolid } from '../src/bevel_gear'
+import {
+  bevelPairExportParts, buildBevelGearPair, type BevelGearPairParams,
+} from '../src/pairs'
+import {
+  buildCrossedGearPair, crossedPairExportParts,
+  buildHyperbolicGearPair, hyperbolicPairExportParts,
+  type CrossedGearPairParams, type HyperbolicGearPairParams,
+} from '../src/crossed_pair'
+import {
+  buildPlanetaryGearset, planetaryExportParts, type PlanetaryGearsetParams,
+} from '../src/planetary'
+import { bevelGearOptionsFromArgs, bevelPairOptionsFromArgs, gearFeatureOptionsFromArgs } from '../src/testing/reference-options'
 import type {
   SpurGearParams, RingGearParams, CrossedHelicalGearParams, RackGearParams, BevelGearParams,
+  HyperbolicGearParams,
 } from '../src/profile'
 import type { SplineFaceStrategy } from '../src/spline-face'
-import type { GearFeatureOptions } from '../src/features'
 import type { RawOcctKernel } from '../src/kernel'
 import type { BrepHandle } from '@faicad/faijs-core'
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`)
   return i >= 0 ? process.argv[i + 1] : undefined
+}
+
+/**
+ * 按 class 分派到一个或多个实体。
+ *
+ * 绝大多数类是单体；齿轮对（`*Pair`）是多件装配，必须**一件一个 XCAF 产品**导出，
+ * 才能与参考侧（`asm.toCompound()` → 2 个 `MANIFOLD_SOLID_BREP`）逐件对齐。
+ *
+ * @param kernel 原始 OCCT 内核
+ * @param c 参考用例
+ * @param strategy 齿面建面策略
+ * @returns 具名实体列表（名字进 STEP 产品名）
+ */
+export function buildOurParts(
+  kernel: RawOcctKernel,
+  c: ReferenceCase,
+  strategy: SplineFaceStrategy,
+): Array<{ name: string; solid: BrepHandle }> {
+  if (c.class === 'BevelGearPair') {
+    const build = buildBevelGearPair(
+      kernel, c.args as unknown as BevelGearPairParams, bevelPairOptionsFromArgs(c.args, strategy),
+    )
+    return bevelPairExportParts(build)
+  }
+  // 交错轴斜齿轮对（CrossedGearPair）：两件各走 CrossedHelical 实体，gear2 按轴交角定位。
+  if (c.class === 'CrossedGearPair') {
+    const build = buildCrossedGearPair(
+      kernel, c.args as unknown as CrossedGearPairParams,
+      { strategy, ...gearFeatureOptionsFromArgs(c.args) },
+    )
+    return crossedPairExportParts(build)
+  }
+  // 双曲面齿轮对（HyperbolicGearPair）：两件各走 HyperbolicGear 实体（throat_r 偏移）。
+  if (c.class === 'HyperbolicGearPair') {
+    const build = buildHyperbolicGearPair(
+      kernel, c.args as unknown as HyperbolicGearPairParams,
+      { strategy, ...gearFeatureOptionsFromArgs(c.args) },
+    )
+    return hyperbolicPairExportParts(build)
+  }
+  // 行星轮系（PlanetaryGearset / HerringbonePlanetaryGearset）：sun+planets+ring 装配。
+  if (c.class === 'PlanetaryGearset' || c.class === 'HerringbonePlanetaryGearset') {
+    const build = buildPlanetaryGearset(
+      kernel, c.args as unknown as PlanetaryGearsetParams,
+      { strategy, ...gearFeatureOptionsFromArgs(c.args) },
+    )
+    return planetaryExportParts(build)
+  }
+  return [{ name: c.id, solid: buildOurShape(kernel, c, strategy) }]
 }
 
 /**
@@ -43,6 +104,13 @@ function arg(name: string): string | undefined {
  * 因此带特征的用例（绝大多数 regression 用例）比对会因未建模特征而 DIFFERENT——
  * 这是已知的特性缺口（见后续倒角/特征工作），不是建体 bug；纯裸用例（spike 与 Rack
  * 族，其参数不含特征字段）应 EQUIVALENT。
+ *
+ * 多件类见 {@link buildOurParts}。
+ *
+ * @param kernel 原始 OCCT 内核
+ * @param c 参考用例
+ * @param strategy 齿面建面策略
+ * @returns 单体 solid 句柄
  */
 export function buildOurShape(
   kernel: RawOcctKernel,
@@ -50,23 +118,10 @@ export function buildOurShape(
   strategy: SplineFaceStrategy,
 ): BrepHandle {
   // 从 manifest 抽镀铬特征参数，复刻 cq_gears `gear.build()` 的完整体。
-  const a = c.args as Record<string, unknown>
-  const build: BuildSpurGearOptions = { strategy }
-  if (typeof a.chamfer === 'number') (build as GearFeatureOptions).chamfer = a.chamfer
-  if (typeof a.bore_d === 'number') (build as GearFeatureOptions).boreD = a.bore_d
-  if (typeof a.hub_d === 'number') (build as GearFeatureOptions).hubD = a.hub_d
-  if (typeof a.hub_length === 'number') (build as GearFeatureOptions).hubLength = a.hub_length
-  if (typeof a.recess === 'number') (build as GearFeatureOptions).recess = a.recess
-  if (typeof a.recess_d === 'number') (build as GearFeatureOptions).recessD = a.recess_d
-  if (typeof a.bottom_recess === 'number') (build as GearFeatureOptions).bottomRecess = a.bottom_recess
-  if (typeof a.bottom_recess_d === 'number') (build as GearFeatureOptions).bottomRecessD = a.bottom_recess_d
-  if (typeof a.bottom_hub_d === 'number') (build as GearFeatureOptions).bottomHubD = a.bottom_hub_d
-  if (typeof a.n_spokes === 'number') (build as GearFeatureOptions).nSpokes = a.n_spokes
-  if (typeof a.spoke_width === 'number') (build as GearFeatureOptions).spokeWidth = a.spoke_width
-  if (typeof a.spokes_id === 'number') (build as GearFeatureOptions).spokesId = a.spokes_id
-  if (typeof a.spokes_od === 'number') (build as GearFeatureOptions).spokesOd = a.spokes_od
-  if (typeof a.spoke_fillet === 'number') (build as GearFeatureOptions).spokeFillet = a.spoke_fillet
-  if (Array.isArray(a.missing_teeth)) (build as GearFeatureOptions).missingTeeth = a.missing_teeth as Array<[number, number]>
+  // ⚠️ 这份映射的单真源在 `src/testing/reference-options.ts`——不要在这里另写一份。
+  const build: BuildSpurGearOptions = {
+    strategy, ...gearFeatureOptionsFromArgs(c.args),
+  }
   switch (c.class) {
     case 'Box': {
       const { width = 10, depth = 20, height = 30 } = c.args as Record<string, number>
@@ -85,6 +140,9 @@ export function buildOurShape(
       return buildHerringboneRingGearSolid(kernel, c.args as unknown as RingGearParams, build)
     case 'CrossedHelicalGear':
       return buildCrossedHelicalSolid(kernel, c.args as unknown as CrossedHelicalGearParams, build)
+    case 'HyperbolicGear':
+      // 双曲面齿轮（单体）：twist_angle 直接给定，throat_r 由几何反算（见 profile.ts）。
+      return buildHyperbolicGearSolid(kernel, c.args as unknown as HyperbolicGearParams, build)
     case 'RackGear':
       // 齿条无倒角 / 轴孔（cq_gears `RackGear` 不建模这些特征），用独立 options。
       return buildRackGearSolid(kernel, c.args as unknown as RackGearParams, { strategy } as BuildRackGearOptions)
@@ -93,12 +151,13 @@ export function buildOurShape(
         { strategy, herringbone: true } as BuildRackGearOptions)
     case 'BevelGear': {
       // BevelGear 的 `_build` 只认 bore_d / trim_bottom / trim_top（无 chamfer/hub/spokes）。
-      const bevel: BuildBevelGearOptions = { strategy }
-      if (typeof a.bore_d === 'number') bevel.boreD = a.bore_d
-      if (a.trim_bottom === false) bevel.trimBottom = false
-      if (a.trim_top === false) bevel.trimTop = false
-      return buildBevelGearSolid(kernel, c.args as unknown as BevelGearParams, bevel)
+      return buildBevelGearSolid(
+        kernel, c.args as unknown as BevelGearParams, bevelGearOptionsFromArgs(c.args, strategy),
+      )
     }
+    case 'BevelGearPair':
+      // 装配体是多件，单实体路径表达不了——见 buildOurParts。
+      throw new Error('export-ours: BevelGearPair 是多件装配，请走 buildOurParts')
     default:
       throw new Error(`export-ours: 尚未支持的类 ${c.class}`)
   }
@@ -117,22 +176,32 @@ async function main(): Promise<void> {
 
   for (const c of cases) {
     const t0 = Date.now()
-    const shape = buildOurShape(kernel, c, strategy)
-    const volume = kernel.getVolume(shape)
-    const bb = kernel.getBoundingBox(shape)
-    const bbox = [bb.xmax - bb.xmin, bb.ymax - bb.ymin, bb.zmax - bb.zmin]
-    const step = exportStepFromSolid(shape, kernel)
+    const parts = buildOurParts(kernel, c, strategy)
+    // 多件类的**整体**量：体积 = 各件之和（与 Compound 的 Volume() 同定义），
+    // bbox = 各件的并集（与 Compound.BoundingBox() 同定义）。
+    let volume = 0
+    const boxes = parts.map((p) => {
+      const v = kernel.getVolume(p.solid)
+      volume += v
+      return kernel.getBoundingBox(p.solid)
+    })
+    const bbox = [
+      Math.max(...boxes.map((b) => b.xmax)) - Math.min(...boxes.map((b) => b.xmin)),
+      Math.max(...boxes.map((b) => b.ymax)) - Math.min(...boxes.map((b) => b.ymin)),
+      Math.max(...boxes.map((b) => b.zmax)) - Math.min(...boxes.map((b) => b.zmin)),
+    ]
+    const step = exportStepFromSolids(kernel, parts)
     const file = `${outDir}/${c.id}.step`
     writeFileSync(file, Buffer.from(step))
     const ms = Date.now() - t0
     const dVol = c.volume !== undefined ? volume - c.volume : NaN
     summary.push({
-      id: c.id, strategy, volume, refVolume: c.volume, dVolume: dVol,
+      id: c.id, strategy, parts: parts.length, volume, refVolume: c.volume, dVolume: dVol,
       relVolumeDiff: c.volume ? Math.abs(dVol) / c.volume : NaN,
       bbox, refBbox: c.bbox, ms, stepFile: file,
     })
     console.log(
-      `${c.id.padEnd(15)} vol=${volume.toFixed(6).padStart(14)} ref=${String(c.volume).padStart(14)} ` +
+      `${c.id.padEnd(15)} [${parts.length}p] vol=${volume.toFixed(6).padStart(14)} ref=${String(c.volume).padStart(14)} ` +
       `Δ=${dVol.toExponential(3).padStart(12)} rel=${Math.abs(dVol / (c.volume || 1)).toExponential(3)}  ${ms}ms`,
     )
   }

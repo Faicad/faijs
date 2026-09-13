@@ -40,6 +40,24 @@ export interface SpurGearParams {
   dedendum_coeff?: number | null
 }
 
+/** HyperbolicGear 构造参数（参数名逐字沿用 `crossed_helical_gear.py::HyperbolicGear.__init__`）。
+ *
+ * 与 `SpurGear` 不同：把 `helix_angle` 换成**显式** `twist_angle`（度），其余齿轮几何
+ * 仍是标准渐开线（它继承 `SpurGear`，`__init__` 内部以 `helix_angle=0.0` 调用父类）。 */
+export interface HyperbolicGearParams {
+  module: number
+  teeth_number: number
+  width: number
+  /** 喉部扭转角（度，cq `twist_angle`）。 */
+  twist_angle: number
+  pressure_angle?: number
+  clearance?: number
+  backlash?: number
+}
+
+/** HyperbolicGear 的全部派生几何量（复用 `SpurGearGeometry` 布局 + `throatR`）。 */
+export type HyperbolicGearGeometry = SpurGearGeometry & { throatR: number }
+
 /** RingGear 构造参数（参数名逐字沿用 Python `RingGear.__init__`）。
  *
  * 注意：内部齿（ring）在 `e73874c` 沿用固定的 `ka=1.0 / kd=1.25`
@@ -208,6 +226,47 @@ export function spurGearGeometry(params: SpurGearParams): SpurGearGeometry {
     twistAngle, surfaceSplines, curvePoints: n,
     t_lflank_pts, t_tip_pts, t_rflank_pts, t_root_pts,
   }
+}
+
+/**
+ * 计算 HyperbolicGear（双曲面齿轮）的全部几何量
+ * （`crossed_helical_gear.py::HyperbolicGear.__init__` 的移植）。
+ *
+ * 它继承 `SpurGear`，**齿廓数学与 SpurGear 同构**——父类以 `helix_angle=0.0` 构造
+ * （故 `twistAngle=0` / `surfaceSplines=2`），然后本函数**覆盖**两处：
+ * - `self.twist_angle = radians(twist_angle)`：扭转角来自显式构造参数，而非 helix 推导；
+ * - `throat_r`（`throat_r = sqrt(rpx² + rpy²)`，`rpx=(r0+ln)/2`、`rpy=ht/2`、
+ *   `ln=cos(twist)·r0`、`ht=sin(twist)·r0`）：喉部半径，用于齿轮对装配的 X 向偏移。
+ *
+ * 返回的仍是 `SpurGearGeometry`（点集布局一致），可直接喂给 `buildGearSolid` /
+ * `toothFaceGrids`；`throatR` 作为扩展字段附带。
+ *
+ * @throws `twist_angle` 缺失（无默认值，与 Python 同款签名）由调用方负责。
+ *
+ * @param params 双曲面齿轮参数（模数/齿数/宽度/扭转角等）
+ * @returns `SpurGearGeometry` + `throatR`
+ */
+export function hyperbolicGearGeometry(params: HyperbolicGearParams): HyperbolicGearGeometry {
+  const base = spurGearGeometry({
+    module: params.module,
+    teeth_number: params.teeth_number,
+    width: params.width,
+    pressure_angle: params.pressure_angle,
+    clearance: params.clearance,
+    backlash: params.backlash,
+    helix_angle: 0.0,
+  })
+  const twistAngle = (params.twist_angle * Math.PI) / 180.0
+  base.twistAngle = twistAngle
+  base.surfaceSplines = 2
+
+  const ln = Math.cos(twistAngle) * base.r0
+  const ht = Math.sin(twistAngle) * base.r0
+  const rpx = (base.r0 + ln) / 2.0
+  const rpy = ht / 2.0
+  const throatR = Math.sqrt(rpx * rpx + rpy * rpy)
+
+  return { ...base, throatR }
 }
 
 /**
@@ -704,11 +763,13 @@ export function toothFaceGrids(
 export function gearGeometryForClass(
   className: string,
   args: Record<string, unknown>,
-): SpurGearGeometry | WormGeometry | BevelGearGeometry {
+): SpurGearGeometry | WormGeometry | BevelGearGeometry | HyperbolicGearGeometry {
   switch (className) {
     case 'SpurGear':
     case 'HerringboneGear':
       return spurGearGeometry(args as unknown as SpurGearParams)
+    case 'HyperbolicGear':
+      return hyperbolicGearGeometry(args as unknown as HyperbolicGearParams)
     case 'RingGear':
     case 'HerringboneRingGear':
       return ringGearGeometry(args as unknown as RingGearParams)
