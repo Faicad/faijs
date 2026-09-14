@@ -14,8 +14,8 @@
  * | 上游 | 本包 | 依据 |
  * |---|---|---|
  * | `Wire.makeHelix` / `parametricCurve` | 解析采样点列（helix / fade 公式直写） | 内核 `makeHelixWire` 无 lefthand 参数；解析式可控且免内核往返 |
- * | `Face.makeRuledSurface(a, b)` | `primitives.ruledFace(a, b)` = `bsplineSurface([...a,...b], 2, N)` | probe：rows=2 ⇒ 该方向次数退化为 1 ⇒ 直纹且精确过两曲线 |
- * | `Shell.makeShell` + `Solid.makeSolid` | `primitives.solidFromFaces(faces, 1e-3)` | probe：**容差必须 ≥1e-3**（1e-6 下完全不缝合）；实体朝向不可靠 → 自动翻正 |
+ * | `Face.makeRuledSurface(a, b)` | `primitives.ruledFace(a, b)` = 逐行 `approximatePoints` + `loft(ruled)` | probe：`bsplineSurface(rows=2)` 是**逼近**且系统性外扩 Δ=3.70e-4（与采样密度无关），换路后 Δ=9.8e-7（紧 375×）——见 `kernel-conformance.test.ts` 陷阱回归 |
+ * | `Shell.makeShell` + `Solid.makeSolid` | `primitives.solidFromFaces(faces, 1e-3)` | probe：**makeSolid 朝向不可靠（实测 −8）→ 自动翻正**；容差 1e-3 对齐上游（旧注释「1e-6 不缝合」未复现，已订正） |
  *
  * ## 与上游一致的三处「怪癖」（照抄，不修）
  *

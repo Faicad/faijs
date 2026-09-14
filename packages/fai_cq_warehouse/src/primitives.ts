@@ -91,13 +91,15 @@ export function bsplineFace(points: BrepVec3[], rows: number, cols: number): Bre
 
 /** faces → sew → shell → solid（thread 螺纹体的封壳步骤）。
  *
- *  ⚠️ 两条实测约束（W3 probe，`docs/analysis/2026-09-14-cq-warehouse-thread-probe.md`）：
- *  1. **容差不能用 1e-6**：本内核的 sew 在 1e-6 下完全不缝合（shells=0），
- *     随后 makeSolid 报 "compound has no valid shell"，getVolume 返回仅侧面贡献
- *     的伪值。1e-3 起可靠单壳（端帽是精确圆弧时）。
- *  2. sew 出来的实体**朝向不可靠**——朝向随侧面行序变化（±），必须翻正。
+ *  ⚠️ 两条实测结论（W3 probe；回归锁 `kernel-pitfalls.test.ts`，复现台
+ *  `scripts/kernel-pitfalls-probe.ts`）：
+ *  1. **makeSolid 的朝向不可保证**：sew 6 张平面 face 成单壳后 makeSolid 实测体积
+ *     为 **−8**（朝内）——朝向随面序变化，故本函数**必须**经 orientOutward 翻正。
+ *  2. **容差**：默认 1e-3 与上游 `make_shell` 对齐。旧注释曾声称「1e-6 下完全不缝合
+ *     （shells=0）」——**已订正**：平面壳与螺纹实体面集实测在 1e-6..1e-2 均可缝成单壳，
+ *     该说法未复现，故不再作为选 1e-3 的理由（保留仅为对齐上游 + 给 B 样条端帽留余量）。
  * @param faces - 构成闭合壳的面列。
- * @param tolerance - sew 容差（mm），默认 1e-3（1e-6 下内核完全不缝合）。
+ * @param tolerance - sew 容差（mm），默认 1e-3（与上游 make_shell 对齐）。
  * @returns 缝合后朝向已翻正的实体句柄。
  */
 export function solidFromFaces(faces: BrepHandle[], tolerance = 1e-3): BrepHandle {
@@ -159,8 +161,9 @@ export function polygonWire(points: BrepVec3[]): BrepHandle {
 }
 
 /**
- * 去掉与首点重合的末点（闭合点列 → 唯一点列）；退化边会让 makeFace 报
- * `BRepAdaptor_Curve::No geometry`（W3 probe 实测）。
+ * 去掉与首点重合的末点（闭合点列 → 唯一点列）。
+ * ⚠️ 不去重会生成一条**零长边**，`makeLineEdge` 直接抛 `construction failed`
+ * （W3 probe 实测；此处订正旧注释所说的 makeFace `No geometry` 报错点）。
  * @param points - 顶点列（末点可与首点重合）。
  * @returns 去掉退化末点后的点列（点数 <2 时原样返回）。
  */
