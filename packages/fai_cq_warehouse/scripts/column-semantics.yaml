@@ -1,0 +1,557 @@
+# column-semantics.yaml — 列语义分派表（方案 §5.3.1：列语义的唯一真源）
+# 生成自上游 34 张 CSV 的实测表头（2026-09-14），语义依据 fastener.py/bearing.py 实测：
+#   参数表全列统一 is_safe→eval（metric 原值 / imperial ×25.4），否则原样字符串；
+#   recess/part/Designation/drill 等字符串列不是特例——同一规则自然产出字符串。
+# columns 按列序排列（list 而非 map：tapered 轴承表有重复列名 SKT:B/SKT:C，
+#   上游 csv.DictReader 语义是后者覆盖前者，gen-data 按同样规则合并）。
+# 求值器 id：
+#   key                       行键（同时决定该行 is_metric）
+#   safe_eval                 统一求值（is_metric 按行键首字符）
+#   safe_eval_metric          统一求值（强制公制，不乘 25.4）
+#   clearance_hole_ref        原样钻头引用，运行期经 drill_sizes 解析
+#   tap_hole_ref              同上（tap 表）
+#   drill_diameter_imperial   英制直径 float×25.4（drill_sizes 专用）
+#   nominal_unit / nominal_sizes  nominal_screw_lengths 专用
+
+brad_tee_nut_parameters:
+  source: brad_tee_nut_parameters.csv
+  mode: parameters
+  columns:
+    - key  # Size
+    - safe_eval  # Hilitchi:s
+    - safe_eval  # Hilitchi:m
+    - safe_eval  # Hilitchi:dc
+    - safe_eval  # Hilitchi:c
+    - safe_eval  # Hilitchi:bcd
+    - safe_eval  # Hilitchi:brad_size
+    - safe_eval  # Hilitchi:brad_num
+
+button_head_parameters:
+  source: button_head_parameters.csv
+  mode: parameters
+  columns:
+    - key  # Size
+    - safe_eval  # iso7380_1:dk
+    - safe_eval  # iso7380_1:dl
+    - safe_eval  # iso7380_1:k
+    - safe_eval  # iso7380_1:rf
+    - safe_eval  # iso7380_1:s
+    - safe_eval  # iso7380_1:t
+    - safe_eval  # iso7380_1:short
+    - safe_eval  # iso7380_1:long
+
+button_head_with_collar_parameters:
+  source: button_head_with_collar_parameters.csv
+  mode: parameters
+  columns:
+    - key  # Size
+    - safe_eval  # iso7380_2:dk
+    - safe_eval  # iso7380_2:dl
+    - safe_eval  # iso7380_2:dc
+    - safe_eval  # iso7380_2:k
+    - safe_eval  # iso7380_2:rf
+    - safe_eval  # iso7380_2:c
+    - safe_eval  # iso7380_2:s
+    - safe_eval  # iso7380_2:t
+    - safe_eval  # iso7380_2:short
+    - safe_eval  # iso7380_2:long
+
+chamfered_washer_parameters:
+  source: chamfered_washer_parameters.csv
+  mode: parameters
+  columns:
+    - key  # Size
+    - safe_eval  # iso7090:d1
+    - safe_eval  # iso7090:d2
+    - safe_eval  # iso7090:h
+
+cheese_head_parameters:
+  source: cheese_head_parameters.csv
+  mode: parameters
+  columns:
+    - key  # 第一列为空表头（cheese_head/pan_head）
+    - safe_eval  # iso1207:dk
+    - safe_eval  # iso1207:k
+    - safe_eval  # iso1207:n
+    - safe_eval  # iso1207:t
+    - safe_eval  # iso1207:short
+    - safe_eval  # iso1207:long
+    - safe_eval  # iso7048:dk
+    - safe_eval  # iso7048:k
+    - safe_eval  # iso7048:recess
+    - safe_eval  # iso7048:short
+    - safe_eval  # iso7048:long
+    - safe_eval  # iso14580:dk
+    - safe_eval  # iso14580:k
+    - safe_eval  # iso14580:recess
+    - safe_eval  # iso14580:short
+    - safe_eval  # iso14580:long
+
+cheese_head_washer_parameters:
+  source: cheese_head_washer_parameters.csv
+  mode: parameters
+  columns:
+    - key  # Size
+    - safe_eval  # iso7092:d1
+    - safe_eval  # iso7092:d2
+    - safe_eval  # iso7092:h
+
+clearance_hole_sizes:
+  source: clearance_hole_sizes.csv
+  mode: clearance_holes
+  columns:
+    - key  # Size
+    - clearance_hole_ref  # Close
+    - clearance_hole_ref  # Normal
+    - clearance_hole_ref  # Loose
+
+countersunk_head_parameters:
+  source: countersunk_head_parameters.csv
+  mode: parameters
+  columns:
+    - key  # Size
+    - safe_eval  # iso10642:a
+    - safe_eval  # iso10642:dk
+    - safe_eval  # iso10642:k
+    - safe_eval  # iso10642:s
+    - safe_eval  # iso10642:t
+    - safe_eval  # iso10642:short
+    - safe_eval  # iso10642:long
+    - safe_eval  # iso14581:a
+    - safe_eval  # iso14581:dk
+    - safe_eval  # iso14581:k
+    - safe_eval  # iso14581:recess
+    - safe_eval  # iso14581:short
+    - safe_eval  # iso14581:long
+    - safe_eval  # iso14582:a
+    - safe_eval  # iso14582:dk
+    - safe_eval  # iso14582:k
+    - safe_eval  # iso14582:recess
+    - safe_eval  # iso14582:short
+    - safe_eval  # iso14582:long
+    - safe_eval  # iso2009:a
+    - safe_eval  # iso2009:b
+    - safe_eval  # iso2009:dk
+    - safe_eval  # iso2009:k
+    - safe_eval  # iso2009:n
+    - safe_eval  # iso2009:t
+    - safe_eval  # iso2009:short
+    - safe_eval  # iso2009:long
+    - safe_eval  # iso7046:a
+    - safe_eval  # iso7046:dk
+    - safe_eval  # iso7046:k
+    - safe_eval  # iso7046:recess
+    - safe_eval  # iso7046:short
+    - safe_eval  # iso7046:long
+
+domed_cap_nut_parameters:
+  source: domed_cap_nut_parameters.csv
+  mode: parameters
+  columns:
+    - key  # Size
+    - safe_eval  # din1587:dk
+    - safe_eval  # din1587:m
+    - safe_eval  # din1587:s
+
+drill_sizes:
+  source: drill_sizes.csv
+  mode: drill_sizes
+  columns:
+    - key  # Size
+    - drill_diameter_imperial  # Diameter
+
+heatset_nut_parameters:
+  source: heatset_nut_parameters.csv
+  mode: parameters
+  columns:
+    - key  # Size
+    - safe_eval  # McMaster-Carr:s
+    - safe_eval  # McMaster-Carr:m
+    - safe_eval  # McMaster-Carr:dc
+    - safe_eval  # McMaster-Carr:knurls
+    - safe_eval  # McMaster-Carr:material_thickness
+    - safe_eval  # McMaster-Carr:drill
+    - safe_eval  # McMaster-Carr:part
+    - safe_eval  # Hilitchi:s
+    - safe_eval  # Hilitchi:m
+    - safe_eval  # Hilitchi:dc
+    - safe_eval  # Hilitchi:knurls
+    - safe_eval  # Hilitchi:material_thickness
+    - safe_eval  # Hilitchi:drill
+    - safe_eval  # Hilitchi:part
+
+hex_head_parameters:
+  source: hex_head_parameters.csv
+  mode: parameters
+  columns:
+    - key  # Size
+    - safe_eval  # din931:k
+    - safe_eval  # din931:s
+    - safe_eval  # din931:short
+    - safe_eval  # din931:long
+    - safe_eval  # iso4014:k
+    - safe_eval  # iso4014:s
+    - safe_eval  # iso4014:short
+    - safe_eval  # iso4014:long
+    - safe_eval  # iso4017:k
+    - safe_eval  # iso4017:s
+    - safe_eval  # iso4017:short
+    - safe_eval  # iso4017:long
+
+hex_head_with_flange_parameters:
+  source: hex_head_with_flange_parameters.csv
+  mode: parameters
+  columns:
+    - key  # Size
+    - safe_eval  # din1662:c
+    - safe_eval  # din1662:dc
+    - safe_eval  # din1662:k
+    - safe_eval  # din1662:s
+    - safe_eval  # din1662:short
+    - safe_eval  # din1662:long
+    - safe_eval  # din1665:c
+    - safe_eval  # din1665:dc
+    - safe_eval  # din1665:k
+    - safe_eval  # din1665:s
+    - safe_eval  # din1665:short
+    - safe_eval  # din1665:long
+
+hex_nut_parameters:
+  source: hex_nut_parameters.csv
+  mode: parameters
+  columns:
+    - key  # Size
+    - safe_eval  # iso4032:m
+    - safe_eval  # iso4032:s
+    - safe_eval  # iso4033:m
+    - safe_eval  # iso4033:s
+    - safe_eval  # iso4035:m
+    - safe_eval  # iso4035:s
+
+hex_nut_with_flange_parameters:
+  source: hex_nut_with_flange_parameters.csv
+  mode: parameters
+  columns:
+    - key  # Size
+    - safe_eval  # din1665:c
+    - safe_eval  # din1665:dc
+    - safe_eval  # din1665:m
+    - safe_eval  # din1665:s
+
+imperial_set_screw_parameters:
+  source: imperial_set_screw_parameters.csv
+  mode: parameters
+  referencedByUpstream: false
+  columns:
+    - key  # Size
+    - safe_eval  # Socket_Size
+    - safe_eval  # Socket_Depth
+
+iso10664def:
+  source: iso10664def.csv
+  mode: parameters_metric
+  columns:
+    - key  # Size
+    - safe_eval_metric  # A
+    - safe_eval_metric  # B
+    - safe_eval_metric  # Re
+
+metric_set_screw_parameters:
+  source: metric_set_screw_parameters.csv
+  mode: parameters
+  referencedByUpstream: false
+  columns:
+    - key  # Size
+    - safe_eval  # Socket_Size
+    - safe_eval  # Socket_Depth
+
+nominal_screw_lengths:
+  source: nominal_screw_lengths.csv
+  mode: nominal_screw_lengths
+  columns:
+    - key  # Screw_Type
+    - nominal_unit  # Unit
+    - nominal_sizes  # Nominal_Sizes
+
+pan_head_parameters:
+  source: pan_head_parameters.csv
+  mode: parameters
+  columns:
+    - key  # 第一列为空表头（cheese_head/pan_head）
+    - safe_eval  # iso14583:dk
+    - safe_eval  # iso14583:k
+    - safe_eval  # iso14583:recess
+    - safe_eval  # iso14583:short
+    - safe_eval  # iso14583:long
+    - safe_eval  # iso1580:dk
+    - safe_eval  # iso1580:k
+    - safe_eval  # iso1580:n
+    - safe_eval  # iso1580:t
+    - safe_eval  # iso1580:short
+    - safe_eval  # iso1580:long
+    - safe_eval  # asme_b_18.6.3:dk
+    - safe_eval  # asme_b_18.6.3:k
+    - safe_eval  # asme_b_18.6.3:recess
+
+pan_head_with_collar_parameters:
+  source: pan_head_with_collar_parameters.csv
+  mode: parameters
+  columns:
+    - key  # Size
+    - safe_eval  # din967:dk
+    - safe_eval  # din967:k
+    - safe_eval  # din967:c
+    - safe_eval  # din967:rf
+    - safe_eval  # din967:recess
+    - safe_eval  # din967:short
+    - safe_eval  # din967:long
+
+plain_washer_parameters:
+  source: plain_washer_parameters.csv
+  mode: parameters
+  columns:
+    - key  # Size
+    - safe_eval  # iso7089:d1
+    - safe_eval  # iso7089:d2
+    - safe_eval  # iso7089:h
+    - safe_eval  # iso7091:d1
+    - safe_eval  # iso7091:d2
+    - safe_eval  # iso7091:h
+    - safe_eval  # iso7093:d1
+    - safe_eval  # iso7093:d2
+    - safe_eval  # iso7093:h
+    - safe_eval  # iso7094:d1
+    - safe_eval  # iso7094:d2
+    - safe_eval  # iso7094:h
+
+raised_cheese_head_parameters:
+  source: raised_cheese_head_parameters.csv
+  mode: parameters
+  columns:
+    - key  # Size
+    - safe_eval  # iso7045:dk
+    - safe_eval  # iso7045:k
+    - safe_eval  # iso7045:rf
+    - safe_eval  # iso7045:recess
+    - safe_eval  # iso7045:short
+    - safe_eval  # iso7045:long
+
+raised_countersunk_oval_head_parameters:
+  source: raised_countersunk_oval_head_parameters.csv
+  mode: parameters
+  columns:
+    - key  # Size
+    - safe_eval  # iso2010:a
+    - safe_eval  # iso2010:dk
+    - safe_eval  # iso2010:k
+    - safe_eval  # iso2010:n
+    - safe_eval  # iso2010:rf
+    - safe_eval  # iso2010:t
+    - safe_eval  # iso2010:short
+    - safe_eval  # iso2010:long
+    - safe_eval  # iso7047:a
+    - safe_eval  # iso7047:dk
+    - safe_eval  # iso7047:k
+    - safe_eval  # iso7047:rf
+    - safe_eval  # iso7047:recess
+    - safe_eval  # iso7047:short
+    - safe_eval  # iso7047:long
+    - safe_eval  # iso14584:a
+    - safe_eval  # iso14584:dk
+    - safe_eval  # iso14584:k
+    - safe_eval  # iso14584:rf
+    - safe_eval  # iso14584:recess
+    - safe_eval  # iso14584:short
+    - safe_eval  # iso14584:long
+
+setscrew_parameters:
+  source: setscrew_parameters.csv
+  mode: parameters
+  columns:
+    - key  # Size
+    - safe_eval  # iso4026:s
+    - safe_eval  # iso4026:t
+    - safe_eval  # iso4026:short
+    - safe_eval  # iso4026:long
+
+single_row_angular_contact_ball_bearing_parameters:
+  source: single_row_angular_contact_ball_bearing_parameters.csv
+  mode: parameters
+  columns:
+    - key  # Size
+    - safe_eval  # SKT:d
+    - safe_eval  # SKT:D
+    - safe_eval  # SKT:B
+    - safe_eval  # SKT:C
+    - safe_eval  # SKT:C0
+    - safe_eval  # SKT:Pu
+    - safe_eval  # SKT:speed-reference
+    - safe_eval  # SKT:speed-limit
+    - safe_eval  # SKT:mass
+    - safe_eval  # SKT:Designation
+    - safe_eval  # SKT:d1
+    - safe_eval  # SKT:d2
+    - safe_eval  # SKT:D1
+    - safe_eval  # SKT:r12
+    - safe_eval  # SKT:r34
+    - safe_eval  # SKT:a
+    - safe_eval  # SKT:da
+    - safe_eval  # SKT:Da
+    - safe_eval  # SKT:Db
+    - safe_eval  # SKT:ra
+    - safe_eval  # SKT:rb
+
+single_row_capped_deep_groove_ball_bearing_parameters:
+  source: single_row_capped_deep_groove_ball_bearing_parameters.csv
+  mode: parameters
+  columns:
+    - key  # Size
+    - safe_eval  # SKT:d
+    - safe_eval  # SKT:D
+    - safe_eval  # SKT:B
+    - safe_eval  # SKT:C
+    - safe_eval  # SKT:C0
+    - safe_eval  # SKT:Pu
+    - safe_eval  # SKT:Speed-reference
+    - safe_eval  # SKT:Speed-limit
+    - safe_eval  # SKT:mass
+    - safe_eval  # SKT:Designation
+    - safe_eval  # SKT:d1
+    - safe_eval  # SKT:D1
+    - safe_eval  # SKT:r12
+    - safe_eval  # SKT:damin
+    - safe_eval  # SKT:damax
+    - safe_eval  # SKT:Da
+    - safe_eval  # SKT:ra
+    - safe_eval  # SKT:kr
+    - safe_eval  # SKT:f0
+
+single_row_cylindrical_roller_bearing_parameters:
+  source: single_row_cylindrical_roller_bearing_parameters.csv
+  mode: parameters
+  columns:
+    - key  # Size
+    - safe_eval  # SKT:d
+    - safe_eval  # SKT:D
+    - safe_eval  # SKT:B
+    - safe_eval  # SKT:C
+    - safe_eval  # SKT:C0
+    - safe_eval  # SKT:Pu
+    - safe_eval  # SKT:Speed-reference
+    - safe_eval  # SKT:Speed-limit
+    - safe_eval  # SKT:mass
+    - safe_eval  # SKT:Designation
+    - safe_eval  # SKT:d1
+    - safe_eval  # SKT:D1
+    - safe_eval  # SKT:FE
+    - safe_eval  # SKT:r12
+    - safe_eval  # SKT:r34
+    - safe_eval  # SKT:s
+    - safe_eval  # SKT:damin
+    - safe_eval  # SKT:damax
+    - safe_eval  # SKT:db
+    - safe_eval  # SKT:Da
+    - safe_eval  # SKT:ra
+    - safe_eval  # SKT:rb
+    - safe_eval  # SKT:kr
+
+single_row_deep_groove_ball_bearing_parameters:
+  source: single_row_deep_groove_ball_bearing_parameters.csv
+  mode: parameters
+  columns:
+    - key  # Size
+    - safe_eval  # SKT:d
+    - safe_eval  # SKT:D
+    - safe_eval  # SKT:B
+    - safe_eval  # SKT:C
+    - safe_eval  # SKT:C0
+    - safe_eval  # SKT:Pu
+    - safe_eval  # SKT:Speed-reference
+    - safe_eval  # SKT:Speed-limit
+    - safe_eval  # SKT:mass
+    - safe_eval  # SKT:Designation
+    - safe_eval  # SKT:d1
+    - safe_eval  # SKT:D1
+    - safe_eval  # SKT:D2
+    - safe_eval  # SKT:r12
+    - safe_eval  # SKT:da
+    - safe_eval  # SKT:Da
+    - safe_eval  # SKT:ra
+    - safe_eval  # SKT:kr
+    - safe_eval  # SKT:f0
+
+single_row_tapered_roller_bearing_parameters:
+  source: single_row_tapered_roller_bearing_parameters.csv
+  mode: parameters
+  columns:
+    - key  # Size
+    - safe_eval  # SKT:d
+    - safe_eval  # SKT:D
+    - safe_eval  # SKT:T
+    - safe_eval  # SKT:C
+    - safe_eval  # SKT:C0
+    - safe_eval  # SKT:Pu
+    - safe_eval  # SKT:Speed-reference
+    - safe_eval  # SKT:Speed-limit
+    - safe_eval  # SKT:kg
+    - safe_eval  # SKT:Designation
+    - safe_eval  # SKT:d1
+    - safe_eval  # SKT:B
+    - safe_eval  # SKT:C
+    - safe_eval  # SKT:r12
+    - safe_eval  # SKT:r34
+    - safe_eval  # SKT:a
+    - safe_eval  # SKT:da
+    - safe_eval  # SKT:db
+    - safe_eval  # SKT:Damin
+    - safe_eval  # SKT:Damax
+    - safe_eval  # SKT:Dbmin
+    - safe_eval  # SKT:Camin
+    - safe_eval  # SKT:Cbmin
+    - safe_eval  # SKT:ra
+    - safe_eval  # SKT:rb
+    - safe_eval  # SKT:e
+    - safe_eval  # SKT:Y
+    - safe_eval  # SKT:Y0
+
+socket_head_cap_parameters:
+  source: socket_head_cap_parameters.csv
+  mode: parameters
+  columns:
+    - key  # Size
+    - safe_eval  # iso4762:dk
+    - safe_eval  # iso4762:k
+    - safe_eval  # iso4762:s
+    - safe_eval  # iso4762:t
+    - safe_eval  # iso4762:short
+    - safe_eval  # iso4762:long
+    - safe_eval  # asme_b18.3:dk
+    - safe_eval  # asme_b18.3:k
+    - safe_eval  # asme_b18.3:s
+    - safe_eval  # asme_b18.3:t
+    - safe_eval  # asme_b18.3:short
+    - safe_eval  # asme_b18.3:long
+
+square_nut_parameters:
+  source: square_nut_parameters.csv
+  mode: parameters
+  columns:
+    - key  # Size
+    - safe_eval  # din557:m
+    - safe_eval  # din557:s
+
+tap_hole_sizes:
+  source: tap_hole_sizes.csv
+  mode: tap_holes
+  columns:
+    - key  # Size
+    - tap_hole_ref  # Soft
+    - tap_hole_ref  # Hard
+
+unchamfered_hex_nut_parameters:
+  source: unchamfered_hex_nut_parameters.csv
+  mode: parameters
+  columns:
+    - key  # Size
+    - safe_eval  # iso4036:m
+    - safe_eval  # iso4036:s

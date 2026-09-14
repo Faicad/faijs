@@ -109,6 +109,7 @@
     "packages/cq-compat",
     "packages/mini_lathe",
     "packages/fai_cq_gears",
+    "packages/fai_cq_warehouse",
     "packages/sheetmetal",
     "packages/fixtures",
     "packages/tests",

@@ -33,8 +33,11 @@ import type { ToothGrid } from './profile'
 
 export { soleFace }
 
+/** 齿面样条生成策略（cq-compat `Workplane.splineFace` 的 `strategy` 取值）。 */
 export type SplineFaceStrategy = GearSplineFaceStrategy
+/** `splineFace` 的构造选项（行/列策略与容差）。 */
 export type SplineFaceOptions = GearSplineFaceOptions
+/** 与解析齿面的偏差统计（面积相对偏差 + 采样点最大距离）。 */
 export type DeviationStats = GearDeviationStats
 
 /**

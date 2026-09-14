@@ -1,0 +1,150 @@
+{
+ "#0-80": {
+  "Socket_Size": 0.7111999999999999,
+  "Socket_Depth": 1.27
+ },
+ "#1-64": {
+  "Socket_Size": 0.7111999999999999,
+  "Socket_Depth": 1.5239999999999998
+ },
+ "#1-72": {
+  "Socket_Size": 0.7111999999999999,
+  "Socket_Depth": 1.5239999999999998
+ },
+ "#2-56": {
+  "Socket_Size": 0.889,
+  "Socket_Depth": 1.5239999999999998
+ },
+ "#2-64": {
+  "Socket_Size": 0.889,
+  "Socket_Depth": 1.5239999999999998
+ },
+ "#3-48": {
+  "Socket_Size": 1.27,
+  "Socket_Depth": 1.778
+ },
+ "#3-56": {
+  "Socket_Size": 1.27,
+  "Socket_Depth": 1.778
+ },
+ "#4-36": {
+  "Socket_Size": 1.27,
+  "Socket_Depth": 1.778
+ },
+ "#4-40": {
+  "Socket_Size": 1.27,
+  "Socket_Depth": 1.778
+ },
+ "#4-48": {
+  "Socket_Size": 1.27,
+  "Socket_Depth": 1.778
+ },
+ "#5-40": {
+  "Socket_Size": 1.5875,
+  "Socket_Depth": 2.032
+ },
+ "#5-44": {
+  "Socket_Size": 1.5875,
+  "Socket_Depth": 2.032
+ },
+ "#6-32": {
+  "Socket_Size": 1.5875,
+  "Socket_Depth": 2.032
+ },
+ "#6-40": {
+  "Socket_Size": 1.5875,
+  "Socket_Depth": 2.032
+ },
+ "#8-32": {
+  "Socket_Size": 1.984375,
+  "Socket_Depth": 2.2859999999999996
+ },
+ "#8-36": {
+  "Socket_Size": 1.984375,
+  "Socket_Depth": 2.2859999999999996
+ },
+ "#10-24": {
+  "Socket_Size": 2.3812499999999996,
+  "Socket_Depth": 2.54
+ },
+ "#10-32": {
+  "Socket_Size": 2.3812499999999996,
+  "Socket_Depth": 2.54
+ },
+ "1/4-20": {
+  "Socket_Size": 3.175,
+  "Socket_Depth": 3.175
+ },
+ "1/4-28": {
+  "Socket_Size": 3.175,
+  "Socket_Depth": 3.175
+ },
+ "5/16-18": {
+  "Socket_Size": 3.96875,
+  "Socket_Depth": 3.9623999999999997
+ },
+ "5/16-24": {
+  "Socket_Size": 3.96875,
+  "Socket_Depth": 3.9623999999999997
+ },
+ "3/8-16": {
+  "Socket_Size": 4.762499999999999,
+  "Socket_Depth": 4.7752
+ },
+ "3/8-24": {
+  "Socket_Size": 4.762499999999999,
+  "Socket_Depth": 4.7752
+ },
+ "7/16-14": {
+  "Socket_Size": 5.5562499999999995,
+  "Socket_Depth": 5.5626
+ },
+ "7/16-20": {
+  "Socket_Size": 5.5562499999999995,
+  "Socket_Depth": 5.5626
+ },
+ "1/2-13": {
+  "Socket_Size": 6.35,
+  "Socket_Depth": 6.35
+ },
+ "1/2-20": {
+  "Socket_Size": 6.35,
+  "Socket_Depth": 6.35
+ },
+ "5/8-11": {
+  "Socket_Size": 7.9375,
+  "Socket_Depth": 7.924799999999999
+ },
+ "5/8-18": {
+  "Socket_Size": 7.9375,
+  "Socket_Depth": 7.924799999999999
+ },
+ "3/4-10": {
+  "Socket_Size": 9.524999999999999,
+  "Socket_Depth": 9.524999999999999
+ },
+ "3/4-16": {
+  "Socket_Size": 9.524999999999999,
+  "Socket_Depth": 9.524999999999999
+ },
+ "7/8-14": {
+  "Socket_Size": 12.7,
+  "Socket_Depth": 12.7
+ },
+ "7/8-9": {
+  "Socket_Size": 12.7,
+  "Socket_Depth": 12.7
+ },
+ "1-8": {
+  "Socket_Size": 14.2875,
+  "Socket_Depth": 14.2748
+ },
+ "1-12": {
+  "Socket_Size": 14.2875,
+  "Socket_Depth": 14.2748
+ },
+ "1-14": {
+  "Socket_Size": 14.2875,
+  "Socket_Depth": 14.2748
+ }
+}

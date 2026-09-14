@@ -1,0 +1,56 @@
+{
+ "M3-0.5": {
+  "din967:dk": 7.5,
+  "din967:k": 2.35,
+  "din967:c": 0.8,
+  "din967:rf": 3.8,
+  "din967:recess": "PH1",
+  "din967:short": 4,
+  "din967:long": 30
+ },
+ "M3.5-0.6": {
+  "din967:dk": 9,
+  "din967:k": 2.6,
+  "din967:c": 0.9,
+  "din967:rf": 4.6,
+  "din967:recess": "PH2",
+  "din967:short": 5,
+  "din967:long": 35
+ },
+ "M4-0.7": {
+  "din967:dk": 10,
+  "din967:k": 3.05,
+  "din967:c": 1.1,
+  "din967:rf": 5.8,
+  "din967:recess": "PH2",
+  "din967:short": 5,
+  "din967:long": 40
+ },
+ "M5-0.8": {
+  "din967:dk": 11.5,
+  "din967:k": 3.55,
+  "din967:c": 1.35,
+  "din967:rf": 6.6,
+  "din967:recess": "PH2",
+  "din967:short": 6,
+  "din967:long": 45
+ },
+ "M6-1": {
+  "din967:dk": 14.5,
+  "din967:k": 4.55,
+  "din967:c": 1.8,
+  "din967:rf": 8.2,
+  "din967:recess": "PH3",
+  "din967:short": 8,
+  "din967:long": 60
+ },
+ "M8-1.25": {
+  "din967:dk": 19,
+  "din967:k": 5.9,
+  "din967:c": 2.2,
+  "din967:rf": 11,
+  "din967:recess": "PH4",
+  "din967:short": 10,
+  "din967:long": 60
+ }
+}

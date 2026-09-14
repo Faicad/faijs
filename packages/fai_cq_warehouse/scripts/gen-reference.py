@@ -1,0 +1,369 @@
+#! /usr/bin/env python3
+"""
+gen-reference.py — 生成 cq_warehouse（CadQuery / OCP）侧的参考数据，供
+fai_cq_warehouse 的一致性测试使用（A 侧真值管线，照 fai_cq_gears 同名脚本范式）。
+
+产出（默认写到 <pkg>/fixtures/reference/）：
+  * manifest.json   —— 每个用例的 volume / bbox / 质心 / 零件树（parts[]，含顺序）
+                       / 构造参数 / 环境版本 / 上游 git HEAD
+  * <case-id>.step  —— CadQuery 导出的 STEP（等价性比对的 A 侧）
+
+用法：
+    python scripts/gen-reference.py [--set smoke|full] [--out DIR] [--ids id1,id2]
+环境变量：
+    FAI_CQ_PYTHON    解释器路径（由 gen-reference.ps1 设置）
+    FAI_CQ_UPSTREAM  cq_warehouse 源码目录（默认 C:\\git\\CADQ\\cq_warehouse\\src）
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import platform
+import subprocess
+import sys
+import traceback
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+PKG_ROOT = HERE.parent
+DEFAULT_OUT = PKG_ROOT / "fixtures" / "reference"
+DEFAULT_CQ_WAREHOUSE_SRC = Path(r"C:\git\CADQ\cq_warehouse\src")
+
+# ── smoke 用例集（W0：每类 1–2 例，日常回归）────────────────────────────────
+# 体积真值来自方案 §2.6 的实测（2026-09-13）：
+#   HexNut  M6-1/iso4032          → 302.297726
+#   Sprocket 16T                  → 6552.2962
+SMOKE_CASES = [
+    {
+        "id": "hexnut-m6-iso4032",
+        "class": "HexNut",
+        "args": {"size": "M6-1", "fastener_type": "iso4032"},
+        "expect_volume": 302.297726,
+    },
+    {
+        "id": "sprocket-16t",
+        "class": "Sprocket",
+        "args": {"num_teeth": 16, "chain_pitch": 12.7, "roller_diameter": 7.9375},
+        "expect_volume": 6552.2962,
+    },
+]
+
+# ── W3 螺纹用例集（方案 §8 W3 验收：四类各 2–3 规格 + external / hand 各 1 例）──
+# 参数逐字取自上游 signature（thread.py:68 Thread / :471 IsoThread /
+# :583 TrapezoidalThread / :926 PlasticBottleThread）；默认值不写进 args，
+# 由 B 侧 reference-options.ts 用同一份默认值补齐（args→options 唯一真源）。
+THREAD_CASES = [
+    # IsoThread：默认 end_finishes=("fade","square")，四类端部组合各覆盖一例
+    {"id": "iso-m6x1-fade-square", "class": "IsoThread",
+     "args": {"major_diameter": 6, "pitch": 1, "length": 10}},
+    {"id": "iso-m6x1-fade-fade", "class": "IsoThread",
+     "args": {"major_diameter": 6, "pitch": 1, "length": 10, "end_finishes": ["fade", "fade"]}},
+    {"id": "iso-m6x1-square-square", "class": "IsoThread",
+     "args": {"major_diameter": 6, "pitch": 1, "length": 10, "end_finishes": ["square", "square"]}},
+    {"id": "iso-m6x1-raw-raw", "class": "IsoThread",
+     "args": {"major_diameter": 6, "pitch": 1, "length": 10, "end_finishes": ["raw", "raw"]}},
+    {"id": "iso-m10x1.5-fade-square", "class": "IsoThread",
+     "args": {"major_diameter": 10, "pitch": 1.5, "length": 20}},
+    {"id": "iso-m30x3.5-fade-square", "class": "IsoThread",
+     "args": {"major_diameter": 30, "pitch": 3.5, "length": 25}},
+    {"id": "iso-m6x1-internal", "class": "IsoThread",
+     "args": {"major_diameter": 6, "pitch": 1, "length": 10, "external": False}},
+    {"id": "iso-m6x1-lefthand", "class": "IsoThread",
+     "args": {"major_diameter": 6, "pitch": 1, "length": 10, "hand": "left"}},
+    # AcmeThread：默认 end_finishes=("fade","fade")，thread_angle=29
+    {"id": "acme-1_2-fade-fade", "class": "AcmeThread",
+     "args": {"size": "1/2", "length": 10}},
+    {"id": "acme-3_4-fade-fade", "class": "AcmeThread",
+     "args": {"size": "3/4", "length": 16}},
+    {"id": "acme-1-fade-fade", "class": "AcmeThread",
+     "args": {"size": "1", "length": 25}},
+    # MetricTrapezoidalThread：thread_angle=30
+    {"id": "mtrap-20x4-fade-fade", "class": "MetricTrapezoidalThread",
+     "args": {"size": "20x4", "length": 20}},
+    {"id": "mtrap-40x7-fade-fade", "class": "MetricTrapezoidalThread",
+     "args": {"size": "40x7", "length": 40}},
+    # PlasticBottleThread：end_finishes 恒为 ("fade","fade")，length 由 finish_data 推出
+    {"id": "pbt-M38SP444", "class": "PlasticBottleThread",
+     "args": {"size": "M38SP444"}},
+    {"id": "pbt-L38SP444", "class": "PlasticBottleThread",
+     "args": {"size": "L38SP444"}},
+    {"id": "pbt-M38SP444-internal", "class": "PlasticBottleThread",
+     "args": {"size": "M38SP444", "external": False}},
+    # Thread 通用类（apex/root 半径直接给定）
+    {"id": "thread-generic-raw-raw", "class": "Thread",
+     "args": {"apex_radius": 3.0, "apex_width": 0.125, "root_radius": 2.458734122634726,
+              "root_width": 0.75, "pitch": 1.0, "length": 10.0,
+              "end_finishes": ["raw", "raw"]}},
+]
+
+# 类名 → 模块（上游所有类都在 cq_warehouse.<模块>）
+CLASS_MODULES = {
+    "HexNut": "cq_warehouse.fastener",
+    "Sprocket": "cq_warehouse.sprocket",
+    "Thread": "cq_warehouse.thread",
+    "IsoThread": "cq_warehouse.thread",
+    "AcmeThread": "cq_warehouse.thread",
+    "MetricTrapezoidalThread": "cq_warehouse.thread",
+    "PlasticBottleThread": "cq_warehouse.thread",
+}
+
+CASE_SETS = {"smoke": SMOKE_CASES, "thread": THREAD_CASES}
+
+
+def bootstrap_sys_path() -> str:
+    """把 cq_warehouse 源码目录插进 sys.path（免 pip install，照 fai_cq_gears 先例）。"""
+    src = Path(os.environ.get("FAI_CQ_UPSTREAM", str(DEFAULT_CQ_WAREHOUSE_SRC)))
+    if not src.exists():
+        print(f"[gen-reference] upstream src not found: {src}", file=sys.stderr)
+        sys.exit(2)
+    sys.path.insert(0, str(src))
+    return str(src)
+
+
+def git_sha_of(path: Path) -> str | None:
+    try:
+        return (
+            subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], cwd=str(path), stderr=subprocess.DEVNULL
+            )
+            .decode()
+            .strip()
+        )
+    except Exception:
+        return None
+
+
+def exact_bbox(shape):
+    """精确包围盒（**不**读三角化），返回 (xmin, ymin, zmin, xmax, ymax, zmax)。
+
+    ⚠️ 不要用 `shape.BoundingBox()`：cadquery 的实现是
+    `BRepBndLib::AddOptimal(shape, box, useTriangulation=True, ...)`——只要 shape
+    上已有三角化（`tessellate()` **原地**建三角化），它就改读三角化包围盒，
+    实测比精确几何**大** 0.1%–0.2%（M6 螺纹 +0.0126、40×7 梯形螺纹 +0.0828、
+    M6 螺母 +0.0156）。精确量与调用顺序因此必须解耦：本函数显式
+    `useTriangulation=False`，与 `volume_mesh` 谁先谁后无关。
+    见 docs/analysis/2026-09-14-cq-warehouse-thread-probe.md。
+    """
+    from OCP.Bnd import Bnd_Box  # noqa: PLC0415 — 延迟 import，让 --help 不依赖环境
+    from OCP.BRepBndLib import BRepBndLib  # noqa: PLC0415
+
+    box = Bnd_Box()
+    BRepBndLib.AddOptimal_s(shape.wrapped, box, False, False)
+    return box.Get()
+
+
+def bbox_of(shape) -> list[float]:
+    xmin, ymin, zmin, xmax, ymax, zmax = exact_bbox(shape)
+    return [float(xmax - xmin), float(ymax - ymin), float(zmax - zmin)]
+
+
+def mesh_volume_of(shape, tol: float = 0.002) -> float:
+    """三角化体积（独立于 `BRepGProp`）。
+
+    ⚠️ 为什么需要第二条体积基准（2026-09-14 实测，docs/analysis/
+    2026-09-14-cq-warehouse-thread-probe.md）：上游 `Thread` 的实体由
+    `Face.makeRuledSurface`（实为 `BRepFill::Shell`）的 4 条带 + 2 端帽缝成，
+    其 **GProps 解析体积与自身三角化体积可差 0.001%–6.6%**，且随圈数非单调
+    （长度扫描 raw：L=10→34.97、L=11→49.96、L=12→39.18）。三角化 + 解析
+    螺旋扫掠积分 + 我方构造三者一致，GProps 是离群值，故以 `volume_mesh` 为准。
+    """
+    verts, tris = shape.tessellate(tol)
+    pts = [(p.x, p.y, p.z) for p in verts]
+    total = 0.0
+    for a, b, c in tris:
+        ax, ay, az = pts[a]
+        bx, by, bz = pts[b]
+        cx, cy, cz = pts[c]
+        total += (
+            ax * (by * cz - bz * cy) - ay * (bx * cz - bz * cx) + az * (bx * cy - by * cx)
+        ) / 6.0
+    return float(total)
+
+
+def part_info(name: str, obj) -> dict:
+    """逐件真值（volume/bbox/质心），保持零件树顺序（W6 比对硬约束）。
+
+    bbox 走 `exact_bbox`（不用 `obj.BoundingBox()`）——同 `bbox_of` 的理由：
+    零件与整件共享同一 `TopoDS_Shape`，整件一旦被三角化，逐件 bbox 也会被污染。
+    """
+    bb = exact_bbox(obj)
+    c = obj.Center()
+    return {
+        "name": name,
+        "volume": float(obj.Volume()),
+        "bbox": [float(bb[3] - bb[0]), float(bb[4] - bb[1]), float(bb[5] - bb[2])],
+        "bbox_min": [float(bb[0]), float(bb[1]), float(bb[2])],
+        "bbox_max": [float(bb[3]), float(bb[4]), float(bb[5])],
+        "center": [float(c.x), float(c.y), float(c.z)],
+    }
+
+
+def build_case(entry: dict, out_dir: Path) -> dict:
+    """构建一个用例：实例化 → 导出 STEP → 记 manifest。"""
+    import cadquery as cq  # noqa: PLC0415 — 延迟 import，让 --help 不依赖环境
+
+    import cq_warehouse  # noqa: F401,PLC0415 — 触发包初始化
+    import importlib  # noqa: PLC0415
+
+    mod = CLASS_MODULES[entry["class"]]
+    cls = getattr(importlib.import_module(mod), entry["class"])
+    obj = cls(**entry["args"])
+
+    step_path = out_dir / f"{entry['id']}.step"
+    # 上游对象都是 cadquery Shape（Solid/Compound）→ 统一 exportStep
+    cq.exporters.export(obj, str(step_path), exportType="STEP")
+
+    item = {
+        "id": entry["id"],
+        "class": entry["class"],
+        "args": entry["args"],
+        "volume": float(obj.Volume()),
+        "bbox": bbox_of(obj),
+        "shapeType": obj.ShapeType(),
+        "step": step_path.name,
+    }
+    if "expect_volume" in entry:
+        item["expect_volume"] = entry["expect_volume"]
+        diff = abs(item["volume"] - entry["expect_volume"])
+        item["expect_diff"] = diff
+    # Compound → 逐件记录（零件顺序即遍历顺序，B 侧必须逐字照抄）
+    if obj.ShapeType() == "Compound":
+        item["parts"] = [
+            part_info(f"part{i}", s) for i, s in enumerate(obj.Solids(), start=1)
+        ]
+    # ⚠️ `volume_mesh` 必须放**最后**：`tessellate()` 原地给 shape 建三角化。
+    # 上面所有字段已改用与三角化无关的精确取值（`exact_bbox`），这里再兜一层顺序保证。
+    item["volume_mesh"] = mesh_volume_of(obj)
+    return item
+
+
+def dump_data_snapshot(out_dir: Path) -> dict:
+    """W1 数值快照（方案 §5.3 / W1 验收 3）：逐表逐规格逐单元格求值，
+    供 TS 侧 measure/params 与 Python eval 语义逐值比对（容差 1e-12）。"""
+    import csv as _csv
+    import importlib
+
+    fw = importlib.import_module("cq_warehouse.fastener")
+
+    # CSV 与 .py 同目录（.../src/cq_warehouse/）；FAI_CQ_UPSTREAM 指 src 时下钻一级
+    upstream = Path(os.environ.get("FAI_CQ_UPSTREAM", str(DEFAULT_CQ_WAREHOUSE_SRC)))
+    csv_dir = upstream if (upstream / "hex_nut_parameters.csv").exists() else upstream / "cq_warehouse"
+    snap: dict = {"tables": {}}
+    for csv_path in sorted(csv_dir.glob("*.csv")):
+        table: dict = {}
+        # iso10664def 的键是 T6/T8（非 M 开头），但上游消费它是
+        # evaluate_parameter_dict_of_dict 默认 is_metric=True（fastener.py:275）；
+        # 按 key[0]=='M' 判会错乘 25.4。此表固定公制。
+        is_metric_table = csv_path.name == "iso10664def.csv"
+        with open(csv_path, encoding="utf-8", newline="") as fh:
+            reader = _csv.DictReader(fh)
+            fieldnames = reader.fieldnames
+            for row in reader:
+                key = row[fieldnames[0]]
+                row.pop(fieldnames[0])
+                # 上游 isolate_fastener_type（fastener.py:148）在求值前过滤空串；
+                # 空串直接 eval 会 SyntaxError，必须先滤（与上游类内路径同构）
+                non_empty = {k: v for k, v in row.items() if v is not None and v.strip() != ""}
+                # 与上游类内路径同构：per-cell evaluate（is_metric 按键首字符）
+                table[key] = fw.evaluate_parameter_dict(
+                    non_empty, is_metric=is_metric_table or key[0] == "M"
+                )
+        snap["tables"][csv_path.name] = table
+
+    # 上游已解析的工艺表（Python 权威结果，TS 侧 lookupDrillDiameters 等直接对齐）
+    snap["resolved"] = {
+        "clearance_hole_data": fw.Nut.clearance_hole_data,
+        "tap_hole_data": fw.Nut.tap_hole_data,
+        "drill_sizes": fw.read_drill_sizes(),
+        "nominal_screw_lengths": fw.lookup_nominal_screw_lengths(),
+    }
+    return snap
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--set", dest="case_set", default="smoke", choices=sorted(CASE_SETS))
+    ap.add_argument("--out", default=str(DEFAULT_OUT))
+    ap.add_argument("--ids", default=None, help="只跑指定 id（逗号分隔）")
+    ap.add_argument(
+        "--dump-data",
+        dest="dump_data",
+        action="store_true",
+        help="附带逐表逐值数据快照 data-snapshot.json（W1 数值比对 A 侧）",
+    )
+    args = ap.parse_args()
+
+    out_dir = Path(args.out)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    upstream_src = bootstrap_sys_path()
+    cases = list(CASE_SETS[args.case_set])
+    if args.ids:
+        wanted = set(args.ids.split(","))
+        cases = [c for c in cases if c["id"] in wanted]
+        missing = wanted - {c["id"] for c in cases}
+        if missing:
+            print(f"[gen-reference] unknown ids: {sorted(missing)}", file=sys.stderr)
+            return 2
+
+    import cadquery as cq  # noqa: PLC0415
+
+    # 与既有 manifest 合并（按 id upsert）：新增用例不丢历史用例——
+    # 与 fai_cq_gears 的 merge-reference.ts 同一条约定（一个事实一个家）
+    manifest_path = out_dir / "manifest.json"
+    if manifest_path.exists():
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except Exception:
+            manifest = {}
+    else:
+        manifest = {}
+    merged: dict[str, dict] = {c["id"]: c for c in manifest.get("cases", [])}
+
+    manifest.update(
+        {
+            "generator": "fai_cq_warehouse/scripts/gen-reference.py",
+            "set": args.case_set,
+            "environment": {
+                "python": platform.python_version(),
+                "cadquery": cq.__version__,
+                "cq_warehouse_git_head": git_sha_of(Path(upstream_src)),
+            },
+        }
+    )
+
+    failures = 0
+    for entry in cases:
+        print(f"[gen-reference] building {entry['id']} ...", flush=True)
+        try:
+            item = build_case(entry, out_dir)
+        except Exception:
+            failures += 1
+            traceback.print_exc()
+            continue
+        merged[entry["id"]] = item
+        print(f"     volume={item['volume']}")
+    manifest["cases"] = [merged[k] for k in sorted(merged)]
+
+    if args.dump_data:
+        snap_path = out_dir / "data-snapshot.json"
+        snap_path.write_text(
+            json.dumps(dump_data_snapshot(out_dir), indent=1, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        print(f"[gen-reference] data snapshot -> {snap_path}")
+
+    (out_dir / "manifest.json").write_text(
+        json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+    print(
+        f"[gen-reference] done: {len(manifest['cases'])} ok, {failures} failed"
+        f" -> {out_dir / 'manifest.json'}"
+    )
+    return 1 if failures else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

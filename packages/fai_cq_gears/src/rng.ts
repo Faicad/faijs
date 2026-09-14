@@ -19,9 +19,10 @@ export class Rng {
 
   /**
    * Uniform float in [0, 1) (numpy `rng.random()` analogue).
+   * @returns 下一个 [0, 1) 区间的确定性浮点数。
    */
   next(): number {
-    let t = (this.s + 0x6d2b79f5) >>> 0
+    const t = (this.s + 0x6d2b79f5) >>> 0
     this.s = t
     let r = Math.imul(t ^ (t >>> 15), t | 1)
     r ^= r + Math.imul(r ^ (r >>> 7), r | 61)
@@ -30,6 +31,9 @@ export class Rng {
 
   /**
    * Uniform float in [min, max) (the `MIN + (MAX-MIN) * rng.random(n)` idiom).
+   * @param min - 区间下界（含）。
+   * @param max - 区间上界（不含）。
+   * @returns [min, max) 区间内的确定性浮点数。
    */
   uniform(min: number, max: number): number {
     return min + (max - min) * this.next()
@@ -37,6 +41,9 @@ export class Rng {
 
   /**
    * Uniform integer in [min, max] inclusive (numpy `rng.integers(min, max+1)`).
+   * @param min - 区间下界（含）。
+   * @param max - 区间上界（含）。
+   * @returns [min, max] 区间内的确定性整数。
    */
   intInclusive(min: number, max: number): number {
     return min + Math.floor(this.next() * (max - min + 1))

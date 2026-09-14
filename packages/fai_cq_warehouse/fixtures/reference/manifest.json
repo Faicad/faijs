@@ -1,0 +1,367 @@
+{
+  "generator": "fai_cq_warehouse/scripts/gen-reference.py",
+  "set": "thread",
+  "environment": {
+    "python": "3.13.14",
+    "cadquery": "2.8.0",
+    "cq_warehouse_git_head": "daa46507ecc429c0e2dce11d9d5ffd09b12a42af"
+  },
+  "cases": [
+    {
+      "id": "acme-1-fade-fade",
+      "class": "AcmeThread",
+      "args": {
+        "size": "1",
+        "length": 25
+      },
+      "volume": 1889.6540000741888,
+      "bbox": [
+        25.40000024181005,
+        25.400000168647317,
+        24.343111537299734
+      ],
+      "shapeType": "Solid",
+      "step": "acme-1-fade-fade.step",
+      "volume_mesh": 1874.5411256807438
+    },
+    {
+      "id": "acme-1_2-fade-fade",
+      "class": "AcmeThread",
+      "args": {
+        "size": "1/2",
+        "length": 10
+      },
+      "volume": 177.93357667237348,
+      "bbox": [
+        12.700000489209927,
+        12.700000464662955,
+        9.671555868691588
+      ],
+      "shapeType": "Solid",
+      "step": "acme-1_2-fade-fade.step",
+      "volume_mesh": 177.92051379166227
+    },
+    {
+      "id": "acme-3_4-fade-fade",
+      "class": "AcmeThread",
+      "args": {
+        "size": "3/4",
+        "length": 16
+      },
+      "volume": 693.9038889415299,
+      "bbox": [
+        19.050000290235026,
+        19.050000402882432,
+        15.452592981413769
+      ],
+      "shapeType": "Solid",
+      "step": "acme-3_4-fade-fade.step",
+      "volume_mesh": 693.4784629139338
+    },
+    {
+      "id": "hexnut-m6-iso4032",
+      "class": "HexNut",
+      "args": {
+        "size": "M6-1",
+        "fastener_type": "iso4032"
+      },
+      "volume": 302.2977262431188,
+      "bbox": [
+        11.545005383792514,
+        10.000000000000004,
+        5.200000000000001
+      ],
+      "shapeType": "Solid",
+      "step": "hexnut-m6-iso4032.step",
+      "expect_volume": 302.297726,
+      "expect_diff": 2.4311879087690613e-07,
+      "volume_mesh": 302.3505408014078
+    },
+    {
+      "id": "iso-m10x1.5-fade-square",
+      "class": "IsoThread",
+      "args": {
+        "major_diameter": 10,
+        "pitch": 1.5,
+        "length": 20
+      },
+      "volume": 194.5215957284105,
+      "bbox": [
+        10.000000299467423,
+        10.000000313493977,
+        19.812500200000155
+      ],
+      "shapeType": "Solid",
+      "step": "iso-m10x1.5-fade-square.step",
+      "volume_mesh": 194.49677482974178
+    },
+    {
+      "id": "iso-m30x3.5-fade-square",
+      "class": "IsoThread",
+      "args": {
+        "major_diameter": 30,
+        "pitch": 3.5,
+        "length": 25
+      },
+      "volume": 1693.3449564053763,
+      "bbox": [
+        30.000001082104433,
+        30.00000108210451,
+        24.56250020000006
+      ],
+      "shapeType": "Solid",
+      "step": "iso-m30x3.5-fade-square.step",
+      "volume_mesh": 1693.050609238765
+    },
+    {
+      "id": "iso-m6x1-fade-fade",
+      "class": "IsoThread",
+      "args": {
+        "major_diameter": 6,
+        "pitch": 1,
+        "length": 10,
+        "end_finishes": [
+          "fade",
+          "fade"
+        ]
+      },
+      "volume": 34.0642627406028,
+      "bbox": [
+        6.000000643442737,
+        6.000000643442553,
+        9.7500002
+      ],
+      "shapeType": "Solid",
+      "step": "iso-m6x1-fade-fade.step",
+      "volume_mesh": 36.31202342126994
+    },
+    {
+      "id": "iso-m6x1-fade-square",
+      "class": "IsoThread",
+      "args": {
+        "major_diameter": 6,
+        "pitch": 1,
+        "length": 10
+      },
+      "volume": 38.01631748560898,
+      "bbox": [
+        6.000000256928872,
+        6.000000216155103,
+        9.875000200000015
+      ],
+      "shapeType": "Solid",
+      "step": "iso-m6x1-fade-square.step",
+      "volume_mesh": 38.01019575790631
+    },
+    {
+      "id": "iso-m6x1-internal",
+      "class": "IsoThread",
+      "args": {
+        "major_diameter": 6,
+        "pitch": 1,
+        "length": 10,
+        "external": false
+      },
+      "volume": 51.04020824176183,
+      "bbox": [
+        6.002000239284227,
+        6.002000246201542,
+        9.937500199999999
+      ],
+      "shapeType": "Solid",
+      "step": "iso-m6x1-internal.step",
+      "volume_mesh": 51.010102742055224
+    },
+    {
+      "id": "iso-m6x1-lefthand",
+      "class": "IsoThread",
+      "args": {
+        "major_diameter": 6,
+        "pitch": 1,
+        "length": 10,
+        "hand": "left"
+      },
+      "volume": 38.016596500721946,
+      "bbox": [
+        6.000000256928872,
+        6.000000216155103,
+        9.875000200000015
+      ],
+      "shapeType": "Solid",
+      "step": "iso-m6x1-lefthand.step",
+      "volume_mesh": 38.010196115922156
+    },
+    {
+      "id": "iso-m6x1-raw-raw",
+      "class": "IsoThread",
+      "args": {
+        "major_diameter": 6,
+        "pitch": 1,
+        "length": 10,
+        "end_finishes": [
+          "raw",
+          "raw"
+        ]
+      },
+      "volume": 49.9615319880013,
+      "bbox": [
+        6.000000895378744,
+        6.000000895378764,
+        11.750000199999999
+      ],
+      "shapeType": "Solid",
+      "step": "iso-m6x1-raw-raw.step",
+      "volume_mesh": 43.680000231856084
+    },
+    {
+      "id": "iso-m6x1-square-square",
+      "class": "IsoThread",
+      "args": {
+        "major_diameter": 6,
+        "pitch": 1,
+        "length": 10,
+        "end_finishes": [
+          "square",
+          "square"
+        ]
+      },
+      "volume": 41.7011958441897,
+      "bbox": [
+        6.000000895378757,
+        6.000000895378777,
+        10.87500020000004
+      ],
+      "shapeType": "Solid",
+      "step": "iso-m6x1-square-square.step",
+      "volume_mesh": 41.69433625289046
+    },
+    {
+      "id": "mtrap-20x4-fade-fade",
+      "class": "MetricTrapezoidalThread",
+      "args": {
+        "size": "20x4",
+        "length": 20
+      },
+      "volume": 941.1052423216353,
+      "bbox": [
+        20.000000064095154,
+        20.000000170243414,
+        19.46410181638254
+      ],
+      "shapeType": "Solid",
+      "step": "mtrap-20x4-fade-fade.step",
+      "volume_mesh": 932.4506739839485
+    },
+    {
+      "id": "mtrap-40x7-fade-fade",
+      "class": "MetricTrapezoidalThread",
+      "args": {
+        "size": "40x7",
+        "length": 40
+      },
+      "volume": 6493.874330276745,
+      "bbox": [
+        40.00000059226862,
+        40.000000506817855,
+        39.06217802806508
+      ],
+      "shapeType": "Solid",
+      "step": "mtrap-40x7-fade-fade.step",
+      "volume_mesh": 6793.230600101919
+    },
+    {
+      "id": "pbt-L38SP444",
+      "class": "PlasticBottleThread",
+      "args": {
+        "size": "L38SP444"
+      },
+      "volume": 234.54557600157113,
+      "bbox": [
+        36.880000345961484,
+        36.88000072107138,
+        6.8367398975786156
+      ],
+      "shapeType": "Solid",
+      "step": "pbt-L38SP444.step",
+      "volume_mesh": 234.61153691442803
+    },
+    {
+      "id": "pbt-M38SP444",
+      "class": "PlasticBottleThread",
+      "args": {
+        "size": "M38SP444"
+      },
+      "volume": 232.63579688979058,
+      "bbox": [
+        36.880000345961484,
+        36.88000072107138,
+        7.301089875227032
+      ],
+      "shapeType": "Solid",
+      "step": "pbt-M38SP444.step",
+      "volume_mesh": 232.7040254915085
+    },
+    {
+      "id": "pbt-M38SP444-internal",
+      "class": "PlasticBottleThread",
+      "args": {
+        "size": "M38SP444",
+        "external": false
+      },
+      "volume": 239.48348009502604,
+      "bbox": [
+        37.49200025150976,
+        37.4920007297182,
+        7.301089873904259
+      ],
+      "shapeType": "Solid",
+      "step": "pbt-M38SP444-internal.step",
+      "volume_mesh": 239.3163460687574
+    },
+    {
+      "id": "sprocket-16t",
+      "class": "Sprocket",
+      "args": {
+        "num_teeth": 16,
+        "chain_pitch": 12.7,
+        "roller_diameter": 7.9375
+      },
+      "volume": 6552.296150300499,
+      "bbox": [
+        69.06680257263424,
+        69.06680257263424,
+        2.1336002000000143
+      ],
+      "shapeType": "Solid",
+      "step": "sprocket-16t.step",
+      "expect_volume": 6552.2962,
+      "expect_diff": 4.969950077793328e-05,
+      "volume_mesh": 6551.753902410736
+    },
+    {
+      "id": "thread-generic-raw-raw",
+      "class": "Thread",
+      "args": {
+        "apex_radius": 3.0,
+        "apex_width": 0.125,
+        "root_radius": 2.458734122634726,
+        "root_width": 0.75,
+        "pitch": 1.0,
+        "length": 10.0,
+        "end_finishes": [
+          "raw",
+          "raw"
+        ]
+      },
+      "volume": 49.961531988009824,
+      "bbox": [
+        6.000000895378744,
+        6.000000895378764,
+        11.750000199999999
+      ],
+      "shapeType": "Solid",
+      "step": "thread-generic-raw-raw.step",
+      "volume_mesh": 43.680000231857555
+    }
+  ]
+}

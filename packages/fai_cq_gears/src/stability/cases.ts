@@ -323,7 +323,11 @@ export const STABILITY_SUITES: StabilitySuite[] = [
   },
 ]
 
-/** Find a suite by class id. */
+/**
+ * Find a suite by class id.
+ * @param id - 齿轮类标识（如 `spur` / `bevel`）。
+ * @returns 对应的稳定性套件；无匹配时 `undefined`。
+ */
 export function stabilitySuite(id: string): StabilitySuite | undefined {
   return STABILITY_SUITES.find((s) => s.id === id)
 }

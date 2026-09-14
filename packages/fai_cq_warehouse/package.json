@@ -1,0 +1,37 @@
+{
+  "name": "@faicad/fai-cq-warehouse",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {},
+  "peerDependencies": {
+    "@faicad/faijs": "*",
+    "occt-wasm": "^3.8.0"
+  },
+  "devDependencies": {
+    "@faicad/cq-compat": "file:../cq-compat",
+    "@faicad/faijs": "file:../..",
+    "@faicad/faijs-core": "file:../core",
+    "typescript": "*",
+    "vitest": "*",
+    "yaml": "^2.4.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && node ../../scripts/fix-import-extensions.mjs dist",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "eslint src",
+    "gen-data": "tsx scripts/gen-data.ts",
+    "check-column-semantics": "tsx scripts/check-column-semantics.ts",
+    "gen-reference": "pwsh -NoProfile scripts/gen-reference.ps1",
+    "export-ours": "tsx scripts/export-ours.ts",
+    "compare:all": "tsx scripts/compare-all.ts"
+  }
+}
