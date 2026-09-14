@@ -5,8 +5,10 @@
  * 不感知具体 fastener 类。
  *
  * 实测行为备注（kernel-conformance.test.ts probe 结论）：
- *  - revolve(wire) 内核直接闭合成实体（与 cq「wire 旋转得旋转面」不同）——
- *    revolveProfile 直接吃 wire，不再先 makeFace。
+ *  - revolve(wire) 内核直接闭合（与 cq「wire 旋转得旋转面」不同）——revolveProfile
+ *    直接吃 wire，不再先 makeFace。**订正（W4 实测）**：闭合出的拓扑是 **shell 非 solid**，
+ *    故 revolveProfile 内部补 `makeSolid`（详见其 JSDoc 与
+ *    `scripts/kernel-nut-probe.ts` 段 7）。
  *  - loft(wires, isSolid, ruled) 可用——makeRuledSurface 缺失期的 §6 退化路径。
  */
 
@@ -44,18 +46,33 @@ export function makeHelix(
 
 /**
  * 轮廓 wire 绕轴旋转（nut/screw/bearing 的主体构造）。
- * ⚠️ 本内核对 wire 旋转直接闭合为实体（probe 实测），调用方传含轴平面轮廓即可。
+ *
+ * ⚠️ **内核 `revolve` 返回的是 SHELL，不是 SOLID**（`scripts/kernel-nut-probe.ts` 段 7 实测：
+ * 闭合 4 点轮廓旋转后 `getSubShapes(shape,'solid').length === 0`、`'shell'` 为 1）。
+ * 上游 cq `Workplane.revolve()` 返回的是 Solid —— 本函数**必须补 `makeSolid`**，
+ * 否则：
+ *  1. 后续 `common` / `fuse` 拿 shell 当操作数会**静默给出错误实体**
+ *     （实测 `common(nutShell, blank)` = 108.5043，而 `common(nutSolid, blank)` =
+ *     302.2977 ＝ A 侧解析值 302.2977262431188，逐位一致）；
+ *  2. 导出的 STEP 是 SHELL 而非 SOLID（A 侧 manifest `shapeType` 全是 `Solid`）。
+ *
+ * 定向经 {@link orientOutward} 兜底（`makeSolid` 的朝向不保证，与 {@link solidFromFaces}
+ * 同款处理）。
+ *
+ * ⚠️ 本内核对 wire 旋转不校验闭合性（probe 段 3h：未闭合 wire 也被静默接受）——
+ * 轮廓闭合由调用方保证；未闭合时 `makeSolid` 会抛错，这正是期望的响亮失败。
  * @param profile - 含轴平面内的闭合轮廓 wire。
  * @param axis - 旋转轴（{@link WarehouseAxis}）。
  * @param angleRad - 旋转角（弧度）。
- * @returns 旋转得到的实体句柄。
+ * @returns 旋转得到的**实体（solid）**句柄，朝向已翻正。
  */
 export function revolveProfile(
   profile: BrepHandle,
   axis: WarehouseAxis,
   angleRad: number,
 ): BrepHandle {
-  return k().revolve(profile, axis, angleRad)
+  const kern = k()
+  return orientOutward(kern.makeSolid(kern.revolve(profile, axis, angleRad)))
 }
 
 /**
@@ -142,6 +159,40 @@ export function faceFromWire(wire: BrepHandle): BrepHandle {
 }
 
 // ── 基础 wire 构造（各类 fastener 轮廓共用）────────────────────────────────
+
+/**
+ * 直线边（薄封装，语义与内核一致）。
+ * @param a - 起点。
+ * @param b - 终点。
+ * @returns 直线边句柄。
+ */
+export function lineEdge(a: BrepVec3, b: BrepVec3): BrepHandle {
+  return k().makeLineEdge(a, b)
+}
+
+/**
+ * 三点圆弧边（起点 / 弧上一点 / 终点）—— cq `sagittaArc` / `threePointArc` 的落点。
+ * @param a - 起点。
+ * @param mid - 弧上一点（决定弧的凸向与半径）。
+ * @param b - 终点。
+ * @returns 圆弧边句柄。
+ */
+export function arcEdge(a: BrepVec3, mid: BrepVec3, b: BrepVec3): BrepHandle {
+  return k().makeArcEdge(a, mid, b)
+}
+
+/**
+ * 边列 → wire（**不**做去重与自动闭合，交给调用方控制）。
+ *
+ * ⚠️ 内核 `makeWire` **不校验连通性**：边序接不上时静默丢弃（`kernel-pitfalls.test.ts`
+ * 陷阱 1 实测乱序 4 边 → 3 边），未闭合 wire 也被 `revolve` 静默接受（`kernel-nut-probe.ts`
+ * 段 3h）。故轮廓闭合必须由调用方保证（见 {@link polygonWire} / nut 的 `profileWire`）。
+ * @param edges - 首尾相接的边列。
+ * @returns 由这些边构成的 wire 句柄。
+ */
+export function wireFromEdges(edges: BrepHandle[]): BrepHandle {
+  return k().makeWire(edges)
+}
 
 /**
  * 折线闭合 wire（点列首尾自动闭合；若末点与首点重合则不复用该退化边）。
@@ -302,6 +353,94 @@ export function cut(a: BrepHandle, b: BrepHandle): BrepHandle {
  */
 export function intersect(a: BrepHandle, b: BrepHandle): BrepHandle {
   return k().common(a, b)
+}
+
+/**
+ * 布尔并 `a ∪ b`。
+ * @param a - 第一个体。
+ * @param b - 第二个体。
+ * @returns 并集实体句柄。
+ */
+export function fuse(a: BrepHandle, b: BrepHandle): BrepHandle {
+  return k().fuse(a, b)
+}
+
+// ── W4（nut / screw 头型）所需的拉伸与钻孔原语 ──────────────────────────────
+
+/**
+ * 闭合平面 wire → 填充 face（`nut_plan` 拉伸前的必要一步）。
+ *
+ * ⚠️ 必须传 **face** 给 {@link extrudeFace}：probe 实测（`scripts/kernel-nut-probe.ts`
+ * 段 1）`extrude(wire, 0,0,3)` 对 4×2 矩形返回体积 **−16**（错误），传 face 才得 24
+ * （正确）。内核不校验输入拓扑，传错不抛错、只给错几何。
+ * @param wire - 位于 XY 平面（或法向为 +Z）的闭合平面 wire。
+ * @returns 填充后的平面 face 句柄。
+ */
+export function planarFace(wire: BrepHandle): BrepHandle {
+  return k().makeFace(wire)
+}
+
+/**
+ * 平面 face 沿 **+Z** 拉伸高度 `dz`（`cq .toPending().extrude(h)`）。
+ *
+ * ⚠️ 只支持沿面法向拉伸：probe 段 1 实测 `extrude(face, 1,0,0)`（XY 面沿面内 X 拉）与
+ * `extrude(XZ wire, 0,0,3)`（面内 Z 拉）都退化为体积 0。nut_plan 在 XY 平面 + 沿 Z
+ * 拉伸，正好落在有效路径上。
+ * @param face - 位于 XY 平面（或法向为 +Z）的填充面。
+ * @param dz - 拉伸高度（mm，可为负）。
+ * @returns 拉伸实体句柄。
+ */
+export function extrudeFace(face: BrepHandle, dz: number): BrepHandle {
+  return k().extrude(face, 0, 0, dz)
+}
+
+/**
+ * 圆柱（底面在 z=0，轴向 +Z）—— probe 段 5 实测 `makeCylinder(3,10)` 的 bbox z = 0→10、
+ * 体积 = π·9·10。
+ * @param radius - 半径（mm）。
+ * @param height - 高度（mm）。
+ * @returns 圆柱实体句柄。
+ */
+export function cylinder(radius: number, height: number): BrepHandle {
+  return k().makeCylinder(radius, height)
+}
+
+/**
+ * 指定 z 区间内的圆柱（钻孔用；`zTo < zFrom` 时自动反向建体）。
+ * @param radius - 半径（mm）。
+ * @param zFrom - 起始高度（mm）。
+ * @param zTo - 结束高度（mm）。
+ * @returns 该 z 区间的圆柱实体句柄。
+ */
+export function cylinderBetween(radius: number, zFrom: number, zTo: number): BrepHandle {
+  const c = k().makeCylinder(radius, Math.abs(zTo - zFrom))
+  return translate(c, 0, 0, Math.min(zFrom, zTo))
+}
+
+/**
+ * 圆锥/圆台（底面半径 `r1` 于 z=0，顶面半径 `r2` 于 z=height，轴 +Z）。
+ * @param r1 - 底面半径（mm）。
+ * @param r2 - 顶面半径（mm），取 0 得尖锥。
+ * @param height - 高度（mm）。
+ * @returns 圆台实体句柄。
+ */
+export function cone(r1: number, r2: number, height: number): BrepHandle {
+  return k().makeCone(r1, r2, height)
+}
+
+/**
+ * 包围盒对角线长度 —— cq `Workplane.largestDimension()` 的等价物。
+ *
+ * ⚠️ cq 的实现是 `shape.BoundingBox().DiagonalLength`（cadquery `cq.py`），即**盒子对角线**
+ * 而非「最大边长」。BradTeeNut 的钻孔深度取此值（fastener 的 `_fastenerHole` 在
+ * `depth=None` 时用 `self.largestDimension()`），实测 nut 侧 = √(36.3²+36.3²+16.5²)
+ * = 53.922444（`scripts/probe-bradtee-decomposition.py`）。
+ * @param shape - 待测体。
+ * @returns 包围盒对角线长度（mm）。
+ */
+export function bboxDiagonal(shape: BrepHandle): number {
+  const b = bboxOf(shape)
+  return Math.hypot(b.xmax - b.xmin, b.ymax - b.ymin, b.zmax - b.zmin)
 }
 
 // ── 量测 ───────────────────────────────────────────────────────────────────

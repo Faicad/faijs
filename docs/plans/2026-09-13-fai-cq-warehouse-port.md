@@ -1,9 +1,11 @@
 # fai_cq_warehouse 移植开发计划（cq_warehouse → TypeScript）
 
-状态：**实施中**（W1 数据层 / W2 内核层 / W3 Thread 已落地；W4–W9 未开始） | 日期：2026-09-13 | 上游：`C:\git\CADQ\cq_warehouse` v0.8.0（git HEAD `daa4650`）
+状态：**实施中**（W1 数据层 / W2 内核层 / W3 Thread / W4 Nut+Washer 已落地；W5–W9 未开始） | 日期：2026-09-13 | 上游：`C:\git\CADQ\cq_warehouse` v0.8.0（git HEAD `daa4650`）
 
 > W3 落地时的偏差与容差标定见 `docs/analysis/2026-09-14-cq-warehouse-thread-probe.md`；决策记录见 `.agents/notes/implemented/feature/2026-09-14-fai-cq-warehouse-thread-geometry.md`。
 > W3 已知缺口：`end_finishes="chamfer"` 未实现（内核只有等距 chamfer），`buildThread` 显式抛错，且参考用例集内不含 chamfer 用例。
+> W4 落地时的偏差与容差标定见 `docs/analysis/2026-09-14-cq-warehouse-nut-washer-probe.md`；决策记录见 `.agents/notes/implemented/feature/2026-09-14-fai-cq-warehouse-nut-washer-geometry.md`。
+> W4 已知缺口：`HeatSetNut` 未实现（内核无 `Face.makeNSidedSurface`，`makeNonPlanarFace` 实测把 4 边扭面退化为 3 边面），`heatSetNut()` 显式抛错；`BradTeeNut` 的 `clearanceHole` 走 `src/recess.ts` 的 `Temp*` 临时实现，待 W9·P1-b 替换（§8-W4 去重表）。
 
 ---
 
@@ -615,6 +617,9 @@ export function requireKernel(): BrepEngineApi {
   | W9 · P1-b | 落 `src/holes.ts` 正式版，语义对齐 `extensions.py:865–1363` |
   | W9 收口 | **必须**把 W4 的临时实现替换为正式版调用，删除Temp 实现；该替换是 P1-b 验收项之一 |
   | P1-b 不做时 | 临时实现保留，但仍在 JSDoc 里保留上述标注，并在 W8 的 Agent Note 中记为已知技术债 |
+
+- **落地结果（2026-09-14）**：`src/nut.ts`（7 类；`BradTeeNut` 复用 `src/recess.ts` 的 `Temp*` 沉孔；`HeatSetNut` 显式抛错）、`src/washer.ts`（3 类）+ 三种截面轮廓、`src/primitives.ts` 新增 `cone` / `bboxDiagonal`。参考用例 21 例中 **19 例 STEP 等价**（六角族 10 + BradTeeNut 2 + washer 6 + threaded 1（逐例 override）），**2 例 HeatSetNut 为显式缺口**（测试断言其抛错）。验收项对照：M6-1 iso4032 实测 `302.297726`（= A 侧 `302.2977262431188`）；`HexNutWithFlange` 2 例、`BradTeeNut` 2 例。
+- **最重要的一条内核修法**：`revolve` 返回 **shell 非 solid**（`getVolume` 在闭合壳上恰好正确，掩盖问题；`common(shell, blank)` 静默掉到 1/3）。`primitives.revolveProfile` 内补 `makeSolid` + `orientOutward` 后逐位一致。回归锁：`src/kernel-pitfalls.test.ts` 陷阱 8、`src/nut.test.ts` 几何回归锁。
 
 ### W5 — Screw（12 类）
 

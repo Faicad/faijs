@@ -33,6 +33,7 @@
     "gen-reference": "pwsh -NoProfile scripts/gen-reference.ps1",
     "export-ours": "tsx scripts/export-ours.ts",
     "compare:all": "tsx scripts/compare-all.ts",
-    "probe:pitfalls": "tsx scripts/kernel-pitfalls-probe.ts"
+    "probe:pitfalls": "tsx scripts/kernel-pitfalls-probe.ts",
+    "probe:nut": "tsx scripts/kernel-nut-probe.ts"
   }
 }

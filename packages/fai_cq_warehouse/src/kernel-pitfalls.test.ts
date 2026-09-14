@@ -6,9 +6,11 @@
  * 后人重蹈覆辙。本文件把这些发现固化成**永久回归锁**：每条用例的标题就是
  * 「错误认知 → 实测真相」，断言红 = 有人（或内核升级）又踩回去了。
  *
- * 数据来源：`scripts/kernel-pitfalls-probe.ts`（可复跑重采样，只打印不 assert）。
+ * 数据来源：`scripts/kernel-pitfalls-probe.ts`（可复跑重采样，只打印不 assert）；
+ * W4 的陷阱 8 来自 `scripts/kernel-nut-probe.ts` 段 7。
  * 相关分析：docs/analysis/2026-09-14-cq-warehouse-thread-probe.md、
- *           docs/analysis/2026-09-14-cq-warehouse-kernel-probe.md。
+ *           docs/analysis/2026-09-14-cq-warehouse-kernel-probe.md、
+ *           docs/analysis/2026-09-14-cq-warehouse-nut-washer-probe.md。
  *
  * ⚠️ 与 `kernel-conformance.test.ts` 的分工：
  *   - conformance = 「成员在不在、签名对不对」（正向契约）；
@@ -19,7 +21,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { execFile } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
-import type { BrepHandle } from '@faicad/faijs-core'
+import type { BrepHandle, BrepVec3 } from '@faicad/faijs-core'
 import { requireKernel, type WarehouseKernel } from './kernel'
 import { setupWarehouseKernel } from './test-setup'
 import { circleWireXY, circleWireXZ, closeLoop, meshVolume, orientOutward, polygonWire } from './primitives'
@@ -209,5 +211,73 @@ describe('陷阱 7：线程实体的面在 1e-6 也能重缝（旧注释「1e-6 
       expect(Number.isFinite(vol), `tol=${tol} makeSolid 可用`).toBe(true)
       expect(Math.abs(vol)).toBeGreaterThan(0)
     }
+  })
+})
+
+describe('陷阱 8：revolve 的拓扑是 SHELL 不是 SOLID —— 布尔会静默给错几何', () => {
+  // 复现台：scripts/kernel-nut-probe.ts 段 7。W4 实测。
+  const AXIS_Z = { point: V(0, 0, 0), direction: V(0, 0, 1) }
+
+  it('revolve(闭合轮廓) → solids=0 / shells=1；而 extrude / makeCylinder 给 solids=1', () => {
+    // 错误认知（W4 初版即按此写）：`revolve(闭合 wire)` 得到实体 —— 因为
+    // `getVolume` 对闭合壳给出的值**恰好正确**（实心柱 π·9·5 = 141.371669），
+    // 掩盖了拓扑是壳而非体。
+    const rev = k.revolve(
+      polygonWire([V(0, 0, 0), V(3, 0, 0), V(3, 0, 5), V(0, 0, 5)]),
+      AXIS_Z,
+      2 * Math.PI,
+    )
+    expect(k.getVolume(rev), '体积看起来完全正确').toBeCloseTo(141.371669, 5)
+    expect(k.getSubShapes(rev, 'solid').length, '真相：不是实体').toBe(0)
+    expect(k.getSubShapes(rev, 'shell').length, '真相：是一个壳').toBe(1)
+
+    // 对照：非 revolve 的构造原语给的是实体
+    expect(k.getSubShapes(k.makeCylinder(3, 5), 'solid').length).toBe(1)
+    expect(k.getSubShapes(k.makeBox(6, 6, 5), 'solid').length).toBe(1)
+
+    // 补 makeSolid 后才是实体 —— primitives.revolveProfile 已内建这一步
+    const solid = k.makeSolid(rev)
+    expect(k.getSubShapes(solid, 'solid').length).toBe(1)
+    expect(k.getVolume(solid)).toBeCloseTo(141.371669, 5)
+  })
+
+  it('拿壳当 common 的操作数：体积错到 1/3（nut 形态 108.504 vs 302.298），且结果仍是壳', () => {
+    // nut 形态：六角 plan 棱柱（含 Ø6 中心孔）∩ 双倒角旋转体（M6-1 iso4032 常数）
+    const cs = ((11.547005383792515 - 10) * Math.tan(Math.PI / 12)) / 2
+    const profile = polygonWire([
+      V(0, 0, 0), V(5, 0, 0), V(5.772502691896257, 0, cs),
+      V(5.772502691896257, 0, 5.2 - cs), V(5, 0, 5.2), V(0, 0, 5.2),
+    ])
+    const hex: BrepVec3[] = []
+    for (let i = 0; i < 6; i++) {
+      const o = (2 * Math.PI * i) / 6
+      hex.push(V((11.547005383792515 / 2) * Math.cos(o), (11.547005383792515 / 2) * Math.sin(o), 0))
+    }
+    const blank = k.cut(
+      k.extrude(k.makeFace(polygonWire(hex)), 0, 0, 5.2),
+      k.makeCylinder(3, 5.2),
+    )
+    const shell = k.revolve(profile, AXIS_Z, 2 * Math.PI)
+
+    // 错误路径：壳直接进 common
+    const wrong = k.common(shell, blank)
+    expect(k.getVolume(wrong), '壳路径：静默错到约 1/3').toBeCloseTo(108.50429, 3)
+    expect(k.getSubShapes(wrong, 'solid').length, '壳路径的结果甚至不是实体').toBe(0)
+
+    // 正确路径：先 makeSolid（= primitives.revolveProfile 的行为）
+    const right = k.common(k.makeSolid(shell), blank)
+    expect(k.getVolume(right), 'A 侧解析值 302.2977262431188').toBeCloseTo(302.297726, 5)
+    expect(k.getSubShapes(right, 'solid').length, '正确路径给实体').toBe(1)
+  })
+
+  it('拿壳当 fuse 的操作数会直接抛错（不是静默）', () => {
+    const rev = k.revolve(
+      polygonWire([V(0, 0, 0), V(3, 0, 0), V(3, 0, 5), V(0, 0, 5)]),
+      AXIS_Z,
+      2 * Math.PI,
+    )
+    const big = k.translate(k.makeBox(40, 40, 40), -20, -20, -10)
+    expect(() => k.fuse(rev, big), 'fuse(壳, 体) 抛 boolean operation failed').toThrow()
+    expect(k.getVolume(k.fuse(k.makeSolid(rev), big))).toBeCloseTo(64000, 3)
   })
 })

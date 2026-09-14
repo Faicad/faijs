@@ -13,6 +13,18 @@
 
 import type { EndFinish, ThreadResult, Hand } from '../thread'
 import { buildThread, isoThread, acmeThread, metricTrapezoidalThread, plasticBottleThread } from '../thread'
+import type { NutResult } from '../nut'
+import {
+  bradTeeNut,
+  domedCapNut,
+  heatSetNut,
+  hexNut,
+  hexNutWithFlange,
+  squareNut,
+  unchamferedHexagonNut,
+} from '../nut'
+import type { WasherResult } from '../washer'
+import { chamferedWasher, cheeseHeadWasher, plainWasher } from '../washer'
 
 /** manifest 中一条用例的形状（gen-reference.py 的 `build_case` 产出）。 */
 export interface ManifestCase {
@@ -45,6 +57,11 @@ export interface Manifest {
   cases: ManifestCase[]
 }
 
+/** 螺母类 args 白名单（`Nut.__init__` 签名，fastener.py:520）。 */
+const NUT_ARGS: readonly string[] = ['size', 'fastener_type', 'hand', 'simple']
+/** 垫圈类 args 白名单（`Washer.__init__` 签名，fastener.py:2235）。 */
+const WASHER_ARGS: readonly string[] = ['size', 'fastener_type']
+
 /** 每个类的合法 args 键（上游 signature 的并集；含只影响参数、不影响几何的项）。 */
 const ALLOWED_ARGS: Readonly<Record<string, readonly string[]>> = {
   Thread: [
@@ -55,10 +72,42 @@ const ALLOWED_ARGS: Readonly<Record<string, readonly string[]>> = {
   AcmeThread: ['size', 'length', 'external', 'hand', 'end_finishes'],
   MetricTrapezoidalThread: ['size', 'length', 'external', 'hand', 'end_finishes'],
   PlasticBottleThread: ['size', 'external', 'hand', 'manufacturingCompensation'],
+  // ── W4：螺母 7 类（`Nut.__init__` 签名：size / fastener_type / hand / simple）──
+  HexNut: NUT_ARGS,
+  HexNutWithFlange: NUT_ARGS,
+  DomedCapNut: NUT_ARGS,
+  UnchamferedHexagonNut: NUT_ARGS,
+  SquareNut: NUT_ARGS,
+  BradTeeNut: NUT_ARGS,
+  HeatSetNut: NUT_ARGS,
+  // ── W4：垫圈 3 类（`Washer.__init__` 签名：size / fastener_type）──
+  PlainWasher: WASHER_ARGS,
+  ChamferedWasher: WASHER_ARGS,
+  CheeseHeadWasher: WASHER_ARGS,
 }
 
 /** 白名单覆盖的全部螺纹类名（= `ALLOWED_ARGS` 的键，按声明序）。 */
-export const THREAD_CLASSES = Object.keys(ALLOWED_ARGS)
+export const THREAD_CLASSES = [
+  'Thread',
+  'IsoThread',
+  'AcmeThread',
+  'MetricTrapezoidalThread',
+  'PlasticBottleThread',
+]
+
+/** 白名单覆盖的全部螺母类名（W4）。 */
+export const NUT_CLASSES = [
+  'HexNut',
+  'HexNutWithFlange',
+  'DomedCapNut',
+  'UnchamferedHexagonNut',
+  'SquareNut',
+  'BradTeeNut',
+  'HeatSetNut',
+]
+
+/** 白名单覆盖的全部垫圈类名（W4）。 */
+export const WASHER_CLASSES = ['PlainWasher', 'ChamferedWasher', 'CheeseHeadWasher']
 
 function pick<T>(args: Record<string, unknown>, key: string, fallback: T): T {
   return (args[key] as T | undefined) ?? fallback
@@ -80,11 +129,11 @@ function finishes(args: Record<string, unknown>): [EndFinish, EndFinish] | undef
 }
 
 /** 白名单校验：manifest 里出现的每个键都必须被本文件消费（反之亦然）。 */
-function assertArgsKnown(c: ManifestCase): void {
+function assertArgsKnown(c: ManifestCase, family: 'thread' | 'nut' | 'washer'): void {
   const allowed = ALLOWED_ARGS[c.class]
   if (!allowed)
     throw new Error(
-      `reference-options: class ${c.class} is not a thread class ` +
+      `reference-options: class ${c.class} is not a ${family} class ` +
         `(known: ${THREAD_CLASSES.join(', ')})`,
     )
   for (const key of Object.keys(c.args))
@@ -101,7 +150,7 @@ function assertArgsKnown(c: ManifestCase): void {
  * @returns 该用例的螺纹构造结果。
  */
 export function buildThreadReference(c: ManifestCase): ThreadResult {
-  assertArgsKnown(c)
+  assertArgsKnown(c, 'thread')
   const hand = pick<Hand>(c.args, 'hand', 'right')
   const ef = finishes(c.args)
   switch (c.class) {
@@ -158,4 +207,71 @@ export function buildThreadReference(c: ManifestCase): ThreadResult {
  */
 export function relativeDiff(a: number, b: number): number {
   return a > 0 ? Math.abs(a - b) / a : Math.abs(a - b)
+}
+
+// ── W4：Nut / Washer 的 (class, args) → TS 建模调用 ─────────────────────────
+
+/** `Nut.__init__` / `Washer.__init__` 的公共入参形状（args 逐字取自 manifest）。 */
+function nutParamsOf(c: ManifestCase): { size: string; fastener_type: string; hand: Hand; simple: boolean } {
+  return {
+    size: String(c.args['size']),
+    fastener_type: String(c.args['fastener_type']),
+    hand: pick<Hand>(c.args, 'hand', 'right'),
+    simple: pick(c.args, 'simple', true),
+  }
+}
+
+/**
+ * 把一条 manifest 用例构造成 TS 侧螺母几何（W4）。
+ *
+ * ⚠️ `BradTeeNut` / `HeatSetNut` 是 **W4 内的已知缺口**，本函数会**如实抛出**
+ * 各自缺失依赖的错（见 `src/nut.ts` 的 JSDoc 与分析文档），不做静默降级。
+ * 测试侧对这两类只断言「抛错且信息含缺口说明」，不比对几何。
+ * @param c - manifest 用例（`class` 决定分派）。
+ * @returns 螺母实体与上游派生量。
+ */
+export function buildNutReference(c: ManifestCase): NutResult {
+  assertArgsKnown(c, 'nut')
+  const p = nutParamsOf(c)
+  switch (c.class) {
+    case 'HexNut':
+      return hexNut(p)
+    case 'HexNutWithFlange':
+      return hexNutWithFlange(p)
+    case 'DomedCapNut':
+      return domedCapNut(p)
+    case 'UnchamferedHexagonNut':
+      return unchamferedHexagonNut(p)
+    case 'SquareNut':
+      return squareNut(p)
+    case 'BradTeeNut':
+      return bradTeeNut(p)
+    case 'HeatSetNut':
+      return heatSetNut(p)
+    default:
+      throw new Error(`reference-options: unhandled nut class ${c.class}`)
+  }
+}
+
+/**
+ * 把一条 manifest 用例构造成 TS 侧垫圈几何（W4）。
+ *
+ * ⚠️ 垫圈的 A 侧 `volume` 字段是解析值的 **2×**（OCP BRepGProp 对 revolve 原生
+ * 内孔管的病理），读真值必须用 `volume_mesh`——见 `src/washer.ts` 文件头。
+ * @param c - manifest 用例（`class` 决定分派）。
+ * @returns 垫圈实体与上游派生量。
+ */
+export function buildWasherReference(c: ManifestCase): WasherResult {
+  assertArgsKnown(c, 'washer')
+  const p = { size: String(c.args['size']), fastener_type: String(c.args['fastener_type']) }
+  switch (c.class) {
+    case 'PlainWasher':
+      return plainWasher(p)
+    case 'ChamferedWasher':
+      return chamferedWasher(p)
+    case 'CheeseHeadWasher':
+      return cheeseHeadWasher(p)
+    default:
+      throw new Error(`reference-options: unhandled washer class ${c.class}`)
+  }
 }

@@ -1,6 +1,6 @@
 {
   "generator": "fai_cq_warehouse/scripts/gen-reference.py",
-  "set": "thread",
+  "set": "nut",
   "environment": {
     "python": "3.13.14",
     "cadquery": "2.8.0",
@@ -270,6 +270,247 @@
       "volume_mesh": 6793.230600101919
     },
     {
+      "id": "nut-bradtee-m6-hilitchi",
+      "class": "BradTeeNut",
+      "args": {
+        "size": "M6-1",
+        "fastener_type": "Hilitchi"
+      },
+      "volume": 3389.1752874338977,
+      "bbox": [
+        36.3,
+        36.3,
+        16.5
+      ],
+      "shapeType": "Solid",
+      "step": "nut-bradtee-m6-hilitchi.step",
+      "expect_volume": 3389.175287,
+      "expect_diff": 4.338976395956706e-07,
+      "volume_mesh": 3387.9055661019443
+    },
+    {
+      "id": "nut-bradtee-m8-hilitchi",
+      "class": "BradTeeNut",
+      "args": {
+        "size": "M8-1.25",
+        "fastener_type": "Hilitchi"
+      },
+      "volume": 2641.8595101832652,
+      "bbox": [
+        36.0,
+        36.0,
+        16.5
+      ],
+      "shapeType": "Solid",
+      "step": "nut-bradtee-m8-hilitchi.step",
+      "volume_mesh": 2640.89947198264
+    },
+    {
+      "id": "nut-domed-m4-din1587",
+      "class": "DomedCapNut",
+      "args": {
+        "size": "M4-0.7",
+        "fastener_type": "din1587"
+      },
+      "volume": 143.2749804505537,
+      "bbox": [
+        8.08290376865476,
+        7.000000000000002,
+        6.45
+      ],
+      "shapeType": "Solid",
+      "step": "nut-domed-m4-din1587.step",
+      "volume_mesh": 143.20450501050118
+    },
+    {
+      "id": "nut-domed-m6-din1587",
+      "class": "DomedCapNut",
+      "args": {
+        "size": "M6-1",
+        "fastener_type": "din1587"
+      },
+      "volume": 404.64707239585516,
+      "bbox": [
+        11.547005383792516,
+        10.000000000000002,
+        9.75
+      ],
+      "shapeType": "Solid",
+      "step": "nut-domed-m6-din1587.step",
+      "volume_mesh": 404.4973903192907
+    },
+    {
+      "id": "nut-heatset-m2-mcmaster",
+      "class": "HeatSetNut",
+      "args": {
+        "size": "M2-0.4-Short",
+        "fastener_type": "McMaster-Carr"
+      },
+      "volume": 10.725311500006057,
+      "bbox": [
+        3.600001050066698,
+        3.600001050066698,
+        2.5000001
+      ],
+      "shapeType": "Solid",
+      "step": "nut-heatset-m2-mcmaster.step",
+      "volume_mesh": 10.732349387528778
+    },
+    {
+      "id": "nut-heatset-m3-mcmaster",
+      "class": "HeatSetNut",
+      "args": {
+        "size": "M3-0.5-Standard",
+        "fastener_type": "McMaster-Carr"
+      },
+      "volume": 30.49259965989255,
+      "bbox": [
+        4.700001309809299,
+        4.700001309809299,
+        5.700000100000001
+      ],
+      "shapeType": "Solid",
+      "step": "nut-heatset-m3-mcmaster.step",
+      "volume_mesh": 30.483170105808796
+    },
+    {
+      "id": "nut-hex-m3-iso4032",
+      "class": "HexNut",
+      "args": {
+        "size": "M3-0.5",
+        "fastener_type": "iso4032"
+      },
+      "volume": 45.74078806994256,
+      "bbox": [
+        6.348852961085884,
+        5.500000000000002,
+        2.4000000000000004
+      ],
+      "shapeType": "Solid",
+      "step": "nut-hex-m3-iso4032.step",
+      "volume_mesh": 45.74646331807789
+    },
+    {
+      "id": "nut-hex-m6-iso4032-threaded",
+      "class": "HexNut",
+      "args": {
+        "size": "M6-1",
+        "fastener_type": "iso4032",
+        "simple": false
+      },
+      "volume": 325.6836417366476,
+      "bbox": [
+        11.545005383792514,
+        10.000000000000004,
+        5.200000200000001
+      ],
+      "shapeType": "Solid",
+      "step": "nut-hex-m6-iso4032-threaded.step",
+      "volume_mesh": 325.48077752648055
+    },
+    {
+      "id": "nut-hexflange-m6-din1665",
+      "class": "HexNutWithFlange",
+      "args": {
+        "size": "M6-1",
+        "fastener_type": "din1665"
+      },
+      "volume": 440.1076343062627,
+      "bbox": [
+        14.2000002,
+        14.2000002,
+        6.0
+      ],
+      "shapeType": "Solid",
+      "step": "nut-hexflange-m6-din1665.step",
+      "volume_mesh": 440.00423394616354
+    },
+    {
+      "id": "nut-hexflange-m8-din1665",
+      "class": "HexNutWithFlange",
+      "args": {
+        "size": "M8-1.25",
+        "fastener_type": "din1665"
+      },
+      "volume": 916.0713634765818,
+      "bbox": [
+        17.9000001,
+        17.9000002,
+        8.0
+      ],
+      "shapeType": "Solid",
+      "step": "nut-hexflange-m8-din1665.step",
+      "volume_mesh": 915.920666060917
+    },
+    {
+      "id": "nut-square-m5-din557",
+      "class": "SquareNut",
+      "args": {
+        "size": "M5-0.8",
+        "fastener_type": "din557"
+      },
+      "volume": 175.60732214209798,
+      "bbox": [
+        8.0,
+        8.000000000000124,
+        4.0
+      ],
+      "shapeType": "Solid",
+      "step": "nut-square-m5-din557.step",
+      "volume_mesh": 175.63199245104641
+    },
+    {
+      "id": "nut-square-m6-din557",
+      "class": "SquareNut",
+      "args": {
+        "size": "M6-1",
+        "fastener_type": "din557"
+      },
+      "volume": 355.0099074816303,
+      "bbox": [
+        10.000000000000178,
+        10.0,
+        5.0
+      ],
+      "shapeType": "Solid",
+      "step": "nut-square-m6-din557.step",
+      "volume_mesh": 355.05311194136175
+    },
+    {
+      "id": "nut-unchamfer-m3-iso4036",
+      "class": "UnchamferedHexagonNut",
+      "args": {
+        "size": "M3-0.5",
+        "fastener_type": "iso4036"
+      },
+      "volume": 34.43161427697855,
+      "bbox": [
+        6.348852961085882,
+        5.500000000000066,
+        1.8
+      ],
+      "shapeType": "Solid",
+      "step": "nut-unchamfer-m3-iso4036.step",
+      "volume_mesh": 34.436886796379675
+    },
+    {
+      "id": "nut-unchamfer-m6-iso4036",
+      "class": "UnchamferedHexagonNut",
+      "args": {
+        "size": "M6-1",
+        "fastener_type": "iso4036"
+      },
+      "volume": 186.6502275264963,
+      "bbox": [
+        11.545005383792514,
+        10.000000000000323,
+        3.2
+      ],
+      "shapeType": "Solid",
+      "step": "nut-unchamfer-m6-iso4036.step",
+      "volume_mesh": 186.6877210058332
+    },
+    {
       "id": "pbt-L38SP444",
       "class": "PlasticBottleThread",
       "args": {
@@ -362,6 +603,108 @@
       "shapeType": "Solid",
       "step": "thread-generic-raw-raw.step",
       "volume_mesh": 43.680000231857555
+    },
+    {
+      "id": "washer-chamfer-m6-iso7090",
+      "class": "ChamferedWasher",
+      "args": {
+        "size": "M6",
+        "fastener_type": "iso7090"
+      },
+      "volume": 283.89551792878547,
+      "bbox": [
+        12.0,
+        12.0,
+        1.8
+      ],
+      "shapeType": "Solid",
+      "step": "washer-chamfer-m6-iso7090.step",
+      "volume_mesh": 141.8694084035922
+    },
+    {
+      "id": "washer-chamfer-m8-iso7090",
+      "class": "ChamferedWasher",
+      "args": {
+        "size": "M8",
+        "fastener_type": "iso7090"
+      },
+      "volume": 514.3313390695967,
+      "bbox": [
+        16.0,
+        16.0,
+        1.8
+      ],
+      "shapeType": "Solid",
+      "step": "washer-chamfer-m8-iso7090.step",
+      "volume_mesh": 257.0591016390925
+    },
+    {
+      "id": "washer-cheese-m4-iso7092",
+      "class": "CheeseHeadWasher",
+      "args": {
+        "size": "M4",
+        "fastener_type": "iso7092"
+      },
+      "volume": 38.79612490903378,
+      "bbox": [
+        8.0,
+        8.0,
+        0.55
+      ],
+      "shapeType": "Solid",
+      "step": "washer-cheese-m4-iso7092.step",
+      "volume_mesh": 19.390024014936966
+    },
+    {
+      "id": "washer-cheese-m6-iso7092",
+      "class": "CheeseHeadWasher",
+      "args": {
+        "size": "M6",
+        "fastener_type": "iso7092"
+      },
+      "volume": 217.78305672847836,
+      "bbox": [
+        11.0,
+        11.0,
+        1.8
+      ],
+      "shapeType": "Solid",
+      "step": "washer-cheese-m6-iso7092.step",
+      "volume_mesh": 108.8601419763503
+    },
+    {
+      "id": "washer-plain-m6-iso7089",
+      "class": "PlainWasher",
+      "args": {
+        "size": "M6",
+        "fastener_type": "iso7089"
+      },
+      "volume": 291.33873632330307,
+      "bbox": [
+        12.0,
+        12.0,
+        1.8
+      ],
+      "shapeType": "Solid",
+      "step": "washer-plain-m6-iso7089.step",
+      "volume_mesh": 145.60900365785926
+    },
+    {
+      "id": "washer-plain-m6-iso7094",
+      "class": "PlainWasher",
+      "args": {
+        "size": "M6",
+        "fastener_type": "iso7094"
+      },
+      "volume": 1591.2355285991518,
+      "bbox": [
+        22.0,
+        22.0,
+        2.3
+      ],
+      "shapeType": "Solid",
+      "step": "washer-plain-m6-iso7094.step",
+      "volume_mesh": 795.2880651173991
     }
   ]
 }

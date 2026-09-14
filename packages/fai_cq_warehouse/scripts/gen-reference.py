@@ -33,15 +33,11 @@ DEFAULT_CQ_WAREHOUSE_SRC = Path(r"C:\git\CADQ\cq_warehouse\src")
 
 # ── smoke 用例集（W0：每类 1–2 例，日常回归）────────────────────────────────
 # 体积真值来自方案 §2.6 的实测（2026-09-13）：
-#   HexNut  M6-1/iso4032          → 302.297726
 #   Sprocket 16T                  → 6552.2962
+# ⚠️ 原 `hexnut-m6-iso4032`（HexNut M6-1/iso4032，实测 302.297726）已**移入**
+#    NUT_CASES —— 一个事实一个家：该用例归螺母族，跑 `--set nut` 时一并生成；
+#    manifest 按 id upsert，历史 STEP 不丢。
 SMOKE_CASES = [
-    {
-        "id": "hexnut-m6-iso4032",
-        "class": "HexNut",
-        "args": {"size": "M6-1", "fastener_type": "iso4032"},
-        "expect_volume": 302.297726,
-    },
     {
         "id": "sprocket-16t",
         "class": "Sprocket",
@@ -98,10 +94,85 @@ THREAD_CASES = [
               "end_finishes": ["raw", "raw"]}},
 ]
 
+# ── W4 螺母 + 垫圈用例集（方案 §8 W4 验收：7 类螺母 × 2 规格 + 3 类垫圈）──
+# 参数逐字取自上游 signature（fastener.py:520 `Nut.__init__` / :2235 `Washer.__init__`）；
+# `simple` 默认 True（不建螺纹）→ 主体用例不带螺纹，螺纹复用例单列末尾。
+# 每类的 (fastener_type, size) 组合均按上游 `Nut.sizes()` 语义实测存在性。
+NUT_CASES = [
+    # HexNut：方案指定 M6-1/iso4032 必过（实测 302.297726）
+    {"id": "hexnut-m6-iso4032", "class": "HexNut",
+     "args": {"size": "M6-1", "fastener_type": "iso4032"}, "expect_volume": 302.297726},
+    {"id": "nut-hex-m3-iso4032", "class": "HexNut",
+     "args": {"size": "M3-0.5", "fastener_type": "iso4032"}},
+    # HexNutWithFlange：带法兰分支（`flange_profile`，fastener.py:1139）
+    {"id": "nut-hexflange-m6-din1665", "class": "HexNutWithFlange",
+     "args": {"size": "M6-1", "fastener_type": "din1665"}},
+    {"id": "nut-hexflange-m8-din1665", "class": "HexNutWithFlange",
+     "args": {"size": "M8-1.25", "fastener_type": "din1665"}},
+    # DomedCapNut：球顶轮廓（`radiusArc` 双弧收口，fastener.py:699-703）
+    {"id": "nut-domed-m6-din1587", "class": "DomedCapNut",
+     "args": {"size": "M6-1", "fastener_type": "din1587"}},
+    {"id": "nut-domed-m4-din1587", "class": "DomedCapNut",
+     "args": {"size": "M4-0.7", "fastener_type": "din1587"}},
+    # UnchamferedHexagonNut：无倒角矩形轮廓
+    {"id": "nut-unchamfer-m6-iso4036", "class": "UnchamferedHexagonNut",
+     "args": {"size": "M6-1", "fastener_type": "iso4036"}},
+    {"id": "nut-unchamfer-m3-iso4036", "class": "UnchamferedHexagonNut",
+     "args": {"size": "M3-0.5", "fastener_type": "iso4036"}},
+    # SquareNut：四方轮廓（`polygon_diagonal(s, 4)`）
+    {"id": "nut-square-m6-din557", "class": "SquareNut",
+     "args": {"size": "M6-1", "fastener_type": "din557"}},
+    {"id": "nut-square-m5-din557", "class": "SquareNut",
+     "args": {"size": "M5-0.8", "fastener_type": "din557"}},
+    # BradTeeNut：唯一走 `custom_make`（polarArray + clearanceHole）
+    # 两规格（方案 §8-W4 验收要求 7 类各 ≥2 规格）；M8 的 brad_size 同为 M4-0.7、c 不同
+    {"id": "nut-bradtee-m6-hilitchi", "class": "BradTeeNut",
+     "args": {"size": "M6-1", "fastener_type": "Hilitchi"}, "expect_volume": 3389.175287},
+    {"id": "nut-bradtee-m8-hilitchi", "class": "BradTeeNut",
+     "args": {"size": "M8-1.25", "fastener_type": "Hilitchi"}},
+    # HeatSetNut：唯一走 makeNSidedSurface knurl + Shell.makeShell 的路径
+    {"id": "nut-heatset-m3-mcmaster", "class": "HeatSetNut",
+     "args": {"size": "M3-0.5-Standard", "fastener_type": "McMaster-Carr"}},
+    {"id": "nut-heatset-m2-mcmaster", "class": "HeatSetNut",
+     "args": {"size": "M2-0.4-Short", "fastener_type": "McMaster-Carr"}},
+    # simple=False（带螺纹）—— 验证 W3 螺纹在 nut 内的复用（`union(IsoThread(...))`）
+    {"id": "nut-hex-m6-iso4032-threaded", "class": "HexNut",
+     "args": {"size": "M6-1", "fastener_type": "iso4032", "simple": False}},
+]
+
+WASHER_CASES = [
+    # PlainWasher：4 个 fastener_type 取 2（本体 + 特大系列）
+    {"id": "washer-plain-m6-iso7089", "class": "PlainWasher",
+     "args": {"size": "M6", "fastener_type": "iso7089"}},
+    {"id": "washer-plain-m6-iso7094", "class": "PlainWasher",
+     "args": {"size": "M6", "fastener_type": "iso7094"}},
+    # ChamferedWasher：单类型，取 2 规格
+    {"id": "washer-chamfer-m6-iso7090", "class": "ChamferedWasher",
+     "args": {"size": "M6", "fastener_type": "iso7090"}},
+    {"id": "washer-chamfer-m8-iso7090", "class": "ChamferedWasher",
+     "args": {"size": "M8", "fastener_type": "iso7090"}},
+    # CheeseHeadWasher：单类型，取 2 规格
+    {"id": "washer-cheese-m6-iso7092", "class": "CheeseHeadWasher",
+     "args": {"size": "M6", "fastener_type": "iso7092"}},
+    {"id": "washer-cheese-m4-iso7092", "class": "CheeseHeadWasher",
+     "args": {"size": "M4", "fastener_type": "iso7092"}},
+]
+
 # 类名 → 模块（上游所有类都在 cq_warehouse.<模块>）
 CLASS_MODULES = {
-    "HexNut": "cq_warehouse.fastener",
     "Sprocket": "cq_warehouse.sprocket",
+    # 螺母 7 类 + 垫圈 3 类（W4）——上游全部定义在 fastener.py
+    "HexNut": "cq_warehouse.fastener",
+    "HexNutWithFlange": "cq_warehouse.fastener",
+    "DomedCapNut": "cq_warehouse.fastener",
+    "UnchamferedHexagonNut": "cq_warehouse.fastener",
+    "SquareNut": "cq_warehouse.fastener",
+    "BradTeeNut": "cq_warehouse.fastener",
+    "HeatSetNut": "cq_warehouse.fastener",
+    "PlainWasher": "cq_warehouse.fastener",
+    "ChamferedWasher": "cq_warehouse.fastener",
+    "CheeseHeadWasher": "cq_warehouse.fastener",
+    # 螺纹 5 类（W3）
     "Thread": "cq_warehouse.thread",
     "IsoThread": "cq_warehouse.thread",
     "AcmeThread": "cq_warehouse.thread",
@@ -109,7 +180,12 @@ CLASS_MODULES = {
     "PlasticBottleThread": "cq_warehouse.thread",
 }
 
-CASE_SETS = {"smoke": SMOKE_CASES, "thread": THREAD_CASES}
+CASE_SETS = {
+    "smoke": SMOKE_CASES,
+    "thread": THREAD_CASES,
+    "nut": NUT_CASES,
+    "washer": WASHER_CASES,
+}
 
 
 def bootstrap_sys_path() -> str:
@@ -205,6 +281,13 @@ def build_case(entry: dict, out_dir: Path) -> dict:
     import cadquery as cq  # noqa: PLC0415 — 延迟 import，让 --help 不依赖环境
 
     import cq_warehouse  # noqa: F401,PLC0415 — 触发包初始化
+    # ⚠️ W4：`BradTeeNut.custom_make`（fastener.py:747）调 `Workplane.clearanceHole`，
+    # 该方法由 extensions.py 在 **import 时** monkey-patch（extensions.py:1324）；
+    # 上游 tests 同样依赖这个副作用。不加载 → `AttributeError: 'Workplane' object
+    # has no attribute 'clearanceHole'`（首轮生成 BradTeeNut 时实测踩到）。
+    # 平台侧不移植 extensions.py（方案 §1：4110 行 Workplane/Sketch/Assembly
+    # monkey-patch，依赖 cadquery 私有结构），此处只让 A 侧参考环境完整。
+    import cq_warehouse.extensions  # noqa: F401,PLC0415
     import importlib  # noqa: PLC0415
 
     mod = CLASS_MODULES[entry["class"]]

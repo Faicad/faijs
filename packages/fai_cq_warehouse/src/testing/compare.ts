@@ -66,6 +66,28 @@ const CASE_TOLERANCE_OVERRIDES: Array<{
     options: { volumeRelativeTolerance: 1e-4 },
     reason: 'Thread helical-face B-spline approximation difference (measured worst 2.289e-5, gate 1e-4)',
   },
+  {
+    // threaded nut：**短内螺纹**上的同一族问题，但求积混叠被放大一个量级。
+    // W4 实测（2026-09-14，两侧 STEP 导入同一 occt-wasm 内核；复现台
+    // scripts/kernel-nut-probe.ts 段 8，断言在 src/nut.test.ts 反向守卫）：
+    //   | 量 | A 侧 | B 侧 | 两侧差 |
+    //   |---|---|---|---|
+    //   | GProps 体积 | 325.683642 | 324.193032 | 4.577e-3（相对）|
+    //   | GProps 质心 | — | — | 5.107e-3 mm |
+    //   | **三角化体积** | 325.482500 | 325.482618 | 3.636e-7（相对）|
+    //   | **三角化质心** | (0.009951622, 0.007238889, 2.599999332) | (0.009966681, 0.007230606, 2.600000606) | **1.506e-5 mm** |
+    // GProps 自偏差：A 6.176e-4 / B 3.978e-3 —— **两侧都不自洽**，故体积与质心两项都不可信。
+    // 混叠根源在螺纹面而非融合：B 侧独立内螺纹 M6x1 L=5.2 的 GProps=23.391955 /
+    // mesh=23.210013（自偏差 7.778e-3），A 侧同名用例仅 5.902e-4（L=10）——L=5.2 只有
+    // 约 5 牙且两端 fade，螺旋面 B 样条逼近的求积在该长度上明显不收敛。
+    // 门禁 2e-2：体积 4.577e-3 × 4.37、质心 5.107e-3 × 3.9（与线程族的 4.4× 同政策）。
+    // ⚠️ 线性门禁（bbox 与质心共用）在此例被一并放宽——本例 bbox 实测 1.013e-13，
+    // 有 11 个数量级余量，放宽不构成风险；几何等价由上面的三角化三项直接证明。
+    match: /^nut-hex-m6-iso4032-threaded$/,
+    options: { volumeRelativeTolerance: 2e-2, linearTolerance: 2e-2 },
+    reason:
+      'Short internal thread (L=5.2, fade/fade) GProps quadrature aliasing — both sides evaluate a different helical B-spline approximation, and both are self-inconsistent (A 6.180e-4 / B 3.962e-3). Geometry is equivalent: tessellated volume differs 3.636e-7 and tessellated CoM 1.506e-5 mm',
+  },
 ]
 
 /**
