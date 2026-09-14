@@ -36,6 +36,9 @@ import type { BrepHandle } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 import { applyTransform } from '../mesh/rigid-transform'
 import { applyTransformBrep } from '../brep/brep-ops'
+import type { TransformedUnit, ExecBackend, ExecBackendChoice } from './exec-backend'
+import { VmBackend } from './exec-backends/vm-backend'
+import { InterpBackend } from './exec-backends/interp-backend'
 
 type ASTNode = any
 
@@ -46,6 +49,14 @@ type ASTNode = any
  */
 function isGeomValue(v: unknown): boolean {
   return isShape(v) || isMeshShape(v)
+}
+
+/**
+ * 执行后端解析（静态选定，无运行时回退）。
+ */
+function resolveExecBackend(choice: ExecBackendChoice): ExecBackend {
+  if (choice === 'interpreter') return new InterpBackend()
+  return new VmBackend()
 }
 
 // ── Namespaces ──
@@ -127,21 +138,6 @@ export interface DirectExecOpts {
 /** 单元行区间（P0 增量用：unitRanges 返回值）。 */
 export interface UnitRange { lineNo: number; endLine: number }
 
-interface TransformedUnit {
-  lineNo: number
-  /** 变换后的可执行语句文本（嵌入 async wrapper 的 body） */
-  body: string
-  /** 本单元写入的 ctx 键 */
-  writes: string[]
-  /** 本单元引用的变量名（append 前缀校验；来自实参裸标识符） */
-  refs: string[]
-  callee?: string
-  /** 是否为控制流块单元（T1：for/if/while/do/switch/裸块等） */
-  isBlock?: boolean
-  /** 单元结束行号（闭区间；transformTopNode 统一填充） */
-  endLine: number
-}
-
 /** 函数体 keep 登记（键 = 单元行号）。 */
 export interface ExecKeepRecord {
   kept: Set<PartName>
@@ -166,6 +162,11 @@ export interface DirectExecutorOptions {
   setRoleTable?: (partName: PartName, roleTable: unknown) => void
   /** 安全策略档位（A2 接入点：parseAndTransform 第一行过 Scanner；缺省 'strict'） */
   security?: SecurityPolicy
+  /**
+   * 执行后端（静态选定，无运行时回退；缺省 'vm'）。'interpreter' 在禁 eval
+   * 环境（weapp / 严格 CSP）使用——见 docs/plans/2026-09-14-no-eval-interpreter-backend-design.md。
+   */
+  execBackend?: ExecBackendChoice
 }
 
 /**
@@ -193,6 +194,8 @@ export class DirectExecutor {
   private activeLine: number | undefined
   /** P3：装配运动副位姿（成员名 → pose），collectDirectResult 消费。 */
   private kinematicsOut = new Map<PartName, AssemblyKinematicsPose>()
+  /** 执行后端（静态选定；缺省 vm） */
+  private readonly execBackend: ExecBackend
 
   /** P3：读取装配运动副位姿快照（collectDirectResult 用；空 Map 表示无 joints）。 */
   get kinematicsSnapshot(): Map<PartName, AssemblyKinematicsPose> {
@@ -205,6 +208,7 @@ export class DirectExecutor {
     this.setFaceEvolutionHook = options.setFaceEvolution
     this.setRoleTableHook = options.setRoleTable
     this.securityPolicy = options.security ?? 'strict'
+    this.execBackend = resolveExecBackend(options.execBackend ?? 'vm')
   }
 
   /**
@@ -642,12 +646,8 @@ export class DirectExecutor {
     }
   }
 
-  /** 单单元执行：变换文本嵌入 async fn，以 __ctx/__ns/__isGeom 实参调用。 */
+  /** 单单元执行：委托注入的执行后端（锚点/keep-sink 在调用前设置）。 */
   private async runUnit(unit: TransformedUnit): Promise<void> {
-    const src = `return (async () => {\n${unit.body}\n})()`
-    // P25 §3.7 规则 2：第三参数 '__isGeom'（几何值守卫）——裸调用原地写回的
-    // 双条件运行时判定（返回值/原值都是几何才写回）。
-    const fn = new Function('__ctx', '__ns', '__isGeom', src)
     // 执行锚点：库函数体 exec.keep / primitive 命名读 getCurrentStmt()?.outputs
     // ——用 ExecutionAnchor 轻量锚点（行号 + 写键）。
     const anchor: ExecutionAnchor = {
@@ -657,7 +657,11 @@ export class DirectExecutor {
     }
     setCurrentStmt(anchor)
     try {
-      await fn(this.ctx, this.namespaces, isGeomValue)
+      await this.execBackend.runUnit(unit, {
+        ctx: this.ctx,
+        namespaces: this.namespaces,
+        isGeom: isGeomValue,
+      })
     } finally {
       setCurrentStmt(undefined)
     }
@@ -802,6 +806,7 @@ export class DirectExecutor {
     if (unit) {
       const endLine = (node.loc?.end?.line ?? lineNo) - lineOffset
       unit.endLine = endLine
+      unit.node = node
     }
     return unit
   }
@@ -899,6 +904,10 @@ export class DirectExecutor {
 
     // 声明 LHS 改写 + 自由引用提升（词法级，两步替换）
     let out = text
+    // ⓪ for-of/in 头部声明：`for (const x of/in ...)` → `for (__ctx.x of/in ...)`。
+    //   步骤①的 `\w+\s*=` 形态匹配不到 of/in 头部，若不先行改写，步骤②会把
+    //   声明名提升为 `const __ctx.x` → SyntaxError。双前缀由下方修正兜底。
+    out = out.replace(/\bfor\s*\(\s*(?:const|let)\s+(\w+)\s+(of|in)\b/g, 'for (__ctx.$1 $2 ')
     // ① const/let x = ... → __ctx.x = ...（去关键字 + LHS 加 __ctx.）
     out = out.replace(/\b(?:const|let)\s+(\w+)\s*=/g, '__ctx.$1 =')
     // ② 自由引用提升（与 hoistText 同逻辑，但含块内声明名；排除命名空间名）
@@ -1053,6 +1062,12 @@ export class DirectExecutor {
       const objName = callee.object.name
       // 优先 __ctx：本机 shape/模块产物（含 import 预置的 shape 与模块命名空间）都是
       // ctx 键（isMemberOnCtx）或 declared；注册库绑定（cad/第三方 ns）不在 ctx → __ns。
+      // 既非 declared/ctx 也非已装配命名空间的成员对象（如 Math）→ 保留裸全局调用，
+      // 不误重写为 __ns.<name>（S4 白名单在 vm 包装内自然解析）。
+      if (!declared.has(objName) && !this.ctxHas(objName) && !Object.hasOwn(this.namespaces, objName)) {
+        const args = this.emitCallArgs(callNode, code, declared, lineNo)
+        return `${code.slice(callee.start, callee.end)}(${args.join(', ')})`
+      }
       head = declared.has(objName) || this.ctxHas(objName)
         ? `await __ctx.${objName}.${callee.property.name}`
         : `await __ns.${objName}.${callee.property.name}`

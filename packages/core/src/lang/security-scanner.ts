@@ -140,8 +140,9 @@ const S3_MEMBERS = new Set<string>([
 /**
  * S4 安全全局白名单（固定清单，strict 与 balanced 相同）。
  * 不在此名单且不在已声明/knownNames 中的标识符 → SEC_FREE_IDENT 拒绝。
+ * 导出供解释器后端（cad-runtime/interp/env.ts）做同序解析。
  */
-const S4_SAFE_GLOBALS = new Set<string>([
+export const S4_SAFE_GLOBALS = new Set<string>([
   'Math', 'Number', 'String', 'Boolean', 'Array', 'Object', 'JSON', 'Date',
   'Map', 'Set', 'Promise', 'Symbol', 'RegExp', 'Error',
   'Infinity', 'NaN', 'undefined',

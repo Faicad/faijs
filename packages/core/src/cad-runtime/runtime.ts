@@ -35,6 +35,7 @@ import { buildTopologyFromMesh } from '../brep/brep-topology'
 import type { BrepMeshResult } from '../brep/engine/types'
 import { asPartName, type PartName, type StmtId } from '../identity'
 import { DirectExecutor, type Namespaces, type DirectExecOpts } from './direct-executor'
+import type { ExecBackendChoice } from './exec-backend'
 import { ModuleRegistry, ModuleRegistryError, isRelativeSpecifier } from './module-registry'
 import type { ModuleRunResult } from './module-registry'
 import { computeLiveShapes, lineConsumes, blockConsumes, type KeepView } from './live-shapes'
@@ -268,6 +269,12 @@ function runtimeToData(rt: SelectorRuntime): SelectorRuntimeData {
 export interface CadRuntimeOptions {
   /** 安全策略档位（缺省 'strict'；透传给 DirectExecutor 与 extractMetadata） */
   security?: SecurityPolicy
+  /**
+   * 执行后端（缺省 'vm'；静态选定，无运行时回退）。'interpreter' 为无
+   * `new Function`/eval 的 AST 解释器后端，供禁 eval 环境（weapp / 严格 CSP）
+   * 使用——见 docs/plans/2026-09-14-no-eval-interpreter-backend-design.md。
+   */
+  execBackend?: ExecBackendChoice
 }
 
 /**
@@ -428,6 +435,7 @@ export class CadRuntime {
       setFaceEvolution: (partName, evo) => { this.faceEvolutionCache.set(partName, evo as Map<number, number[]>) },
       setRoleTable: (partName, roleTable) => { this.roleTableCache.set(partName, roleTable) },
       security: this.securityPolicy,
+      ...(options.execBackend !== undefined ? { execBackend: options.execBackend } : {}),
     })
 
     // P2：装配全局 backends（stdlib 经 getBackends() 取资源）。
