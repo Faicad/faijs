@@ -34,6 +34,7 @@
     "export-ours": "tsx scripts/export-ours.ts",
     "compare:all": "tsx scripts/compare-all.ts",
     "probe:pitfalls": "tsx scripts/kernel-pitfalls-probe.ts",
-    "probe:nut": "tsx scripts/kernel-nut-probe.ts"
+    "probe:nut": "tsx scripts/kernel-nut-probe.ts",
+    "probe:screw": "tsx scripts/kernel-screw-probe.ts"
   }
 }

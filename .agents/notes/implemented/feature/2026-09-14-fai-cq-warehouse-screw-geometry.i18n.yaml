@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-14-fai-cq-warehouse-screw-geometry.md
+2026-09-14-fai-cq-warehouse-screw-geometry.md: 1406e572bd87622f6a1ec70790bf6103041a0ddc
+2026-09-14-fai-cq-warehouse-screw-geometry.zh.md: d1d3f8cc11e1ad74dc0aa87515773987b2e97937

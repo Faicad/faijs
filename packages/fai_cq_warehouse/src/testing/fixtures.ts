@@ -106,3 +106,55 @@ export function nutCases(manifest: Manifest): ManifestCase[] {
 export function washerCases(manifest: Manifest): ManifestCase[] {
   return manifest.cases.filter((c) => WASHER_CLASS_NAMES.includes(c.class))
 }
+
+/** W5 的螺钉 12 类（与 `screw.ts` 的 `SCREW_TABLES` 同序，此处复制以避免循环依赖）。 */
+const SCREW_CLASS_NAMES = [
+  'ButtonHeadScrew',
+  'ButtonHeadWithCollarScrew',
+  'CheeseHeadScrew',
+  'CounterSunkScrew',
+  'HexHeadScrew',
+  'HexHeadWithFlangeScrew',
+  'PanHeadScrew',
+  'PanHeadWithCollarScrew',
+  'RaisedCheeseHeadScrew',
+  'RaisedCounterSunkOvalHeadScrew',
+  'SetScrew',
+  'SocketHeadCapScrew',
+]
+
+/** 过滤出螺钉族用例（W5）。
+ *
+ * @param manifest manifest
+ * @returns 十二个螺钉类的全部用例
+ */
+export function screwCases(manifest: Manifest): ManifestCase[] {
+  return manifest.cases.filter((c) => SCREW_CLASS_NAMES.includes(c.class))
+}
+
+/** CLI 可选的用例集名（`scripts/export-ours.ts` 与 `compare-all.ts` 的 `--set`）。 */
+export const CASE_SET_NAMES = ['thread', 'nut', 'washer', 'screw', 'all'] as const
+
+/**
+ * 按集合名取 manifest 用例（CLI 用；测试各自直接调对应族函数）。
+ * @param set - 集合名（见 {@link CASE_SET_NAMES}）。
+ * @param manifest - manifest。
+ * @returns 该集合的用例；`all` 返回全部。
+ * @throws 集合名未知时（不静默返回空集）。
+ */
+export function casesForSet(set: string, manifest: Manifest): ManifestCase[] {
+  switch (set) {
+    case 'thread':
+      return threadCases(manifest)
+    case 'nut':
+      return nutCases(manifest)
+    case 'washer':
+      return washerCases(manifest)
+    case 'screw':
+      return screwCases(manifest)
+    case 'all':
+      return manifest.cases
+    default:
+      throw new Error(`fixtures: unknown case set ${JSON.stringify(set)} (one of ${CASE_SET_NAMES.join(', ')})`)
+  }
+}

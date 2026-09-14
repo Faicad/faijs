@@ -535,3 +535,156 @@ export function bboxOf(shape: BrepHandle): {
 } {
   return k().getBoundingBox(shape)
 }
+
+// ── W5 screw 原语扩展（rotate / mirror / vertexPosition / draftPrism）───────
+
+/**
+ * 绕任意轴旋转（内核 `rotate`，弧度、右手）。
+ * 实测：box 绕 Z 转 π/2 精确落位；edge 同样可旋转（hexalobular 六分之一轮廓
+ * 的 polarArray 合成，上游 `edge.rotate` 等价）。
+ * @param shape - 任意 shape/edge/vertex。
+ * @param axis - 旋转轴（点 + 方向）。
+ * @param angleRad - 弧度。
+ * @returns 旋转后的新 handle。
+ */
+export function rotateAbout(shape: BrepHandle, axis: WarehouseAxis, angleRad: number): BrepHandle {
+  return k().rotate(shape, axis, angleRad)
+}
+
+/**
+ * 关于平面镜像（内核 `mirror`，点 + 法向）。
+ * 锥度沉孔切割器 = draftPrism 向上收锥后关于 XY 面镜像翻转（上游
+ * `extrude(-depth, taper)` 的语义等价替换，探针 §W5-probe11/12）。
+ * @param shape - 待镜像 shape。
+ * @param point - 镜像平面上一点。
+ * @param normal - 镜像平面法向。
+ * @returns 镜像后的新 handle。
+ */
+export function mirrorAbout(shape: BrepHandle, point: BrepVec3, normal: BrepVec3): BrepHandle {
+  return k().mirror(shape, point, normal)
+}
+
+/**
+ * 顶点坐标（内核 `vertexPosition`）。
+ * @param vertex - 顶点 handle。
+ * @returns 世界坐标。
+ */
+export function vertexAt(vertex: BrepHandle): BrepVec3 {
+  return k().vertexPosition(vertex)
+}
+
+/**
+ * 带拔模角的棱柱拉伸（内核 `draftPrism`，角度**度**）。
+ * ⚠️ 截面随锥度收缩到自交时内核直接抛错（A 侧 LocOpe_DPrism 容忍退化）——
+ * taper=30° 的 cross/R 沉孔因此是 W5 显式缺口（见 recess.ts 文件头）。
+ * @param face - 拉伸截面（平面 face）。
+ * @param dz - 拉伸高度（mm，正负皆可）。
+ * @param angleDeg - 拔模角（度，0 = 直棱柱）。
+ * @returns 拉伸实体。
+ */
+export function draftPrismFace(face: BrepHandle, dz: number, angleDeg: number): BrepHandle {
+  return k().draftPrism(face, 0, 0, dz, angleDeg)
+}
+
+/**
+ * 点列 → 插值 B 样条边（内核 `interpolatePoints`，cq `Workplane.spline` 等价：
+ * 过点插值，非逼近）。
+ * @param points - 插值点列（世界坐标）。
+ * @returns B 样条 edge handle。
+ */
+export function interpolateEdge(points: BrepVec3[]): BrepHandle {
+  return k().interpolatePoints(points)
+}
+
+/**
+ * 点列 + 端点切向 → 插值三次 B 样条（`GeomAPI_Interpolate.Load(t0, t1, scale=True)`）。
+ * A 侧实证（probe73 vs probe72）：PanHead M6/M4/M2.5 三规格极点逐位一致——
+ * cq `Workplane.spline(tangents=…)` 对两点输入正是这条路径。
+ * @param points - 两个插值点（起点、终点，世界坐标）。
+ * @param startTangent - 起点切向（内核按 scale=True 处理，无需归一化）。
+ * @param endTangent - 终点切向。
+ * @returns B 样条 edge handle。
+ */
+export function interpolateEdgeWithTangents(
+  points: [BrepVec3, BrepVec3],
+  startTangent: BrepVec3,
+  endTangent: BrepVec3,
+): BrepHandle {
+  return k().interpolatePointsWithTangents(points, startTangent, endTangent)
+}
+
+// ── cq 轮廓原语的纯几何复刻（全部 2D 平面点算术，零内核往返）──────────────
+
+/**
+ * cq `radiusArc` 的三点弧中点（`cq.py sagittaArc` 公式逐字复刻）。
+ * 约定（上游 docstring）：闭合轮廓顺时针绘制；radius>0 = 凸弧，<0 = 凹弧。
+ * @param p0 - 弧起点（2D）。
+ * @param p1 - 弧终点（2D）。
+ * @param radius - 半径（带符号，同 cq 约定）。
+ * @returns 弧上中点（2D）——喂给内核 `makeArcEdge(start, mid, end)`。
+ * @throws 当半径小于半弦长（弧够不着终点，同上游 ValueError）。
+ */
+export function radiusArcMidpoint(
+  p0: { x: number; y: number },
+  p1: { x: number; y: number },
+  radius: number,
+): { x: number; y: number } {
+  const dx = p1.x - p0.x
+  const dy = p1.y - p0.y
+  const length = Math.hypot(dx, dy) / 2
+  if (Math.abs(radius) < length)
+    throw new Error(`radiusArc: radius ${radius} too small for chord ${2 * length}`)
+  // sag = |r| − √(r²−l²)（r²−l² 因浮点略负时按 0 处理，同上游 TOL 分支）
+  const r2l2 = radius * radius - length * length
+  let sag = Math.abs(radius)
+  if (Math.abs(r2l2) >= 1e-7) sag -= Math.sqrt(Math.max(0, r2l2))
+  // sagittaArc：mid = 弦中点 ± 弦向旋转 90° × |sag|。
+  // ⚠️ 符号分支必须用 **radius** 的符号（cq radiusArc 按 radius>0/<0 向
+  // sagittaArc 传 +sag/−sag），不是恒正的 |sag|——否则凹弧（负半径，如
+  // hexalobular 的 −Ri 内弧）全部外凸，面积偏差 +28%（T30 实测 22.35 vs 17.52）。
+  const ux = dx / (2 * length)
+  const uy = dy / (2 * length)
+  const sx = radius > 0 ? -uy * sag : uy * sag
+  const sy = radius > 0 ? ux * sag : -ux * sag
+  return { x: (p0.x + p1.x) / 2 + sx, y: (p0.y + p1.y) / 2 + sy }
+}
+
+/**
+ * 两直线夹角处的圆角化（`Wire.fillet2D` 的线-线角几何复刻，§6 第 ② 类）。
+ * 给定顶点 B 及其前后点 A、C，计算半径 r 的相切圆角：
+ * 切点距 B 沿两边各 t = r/tan(θ/2)，圆心在角平分线上距 B 为 r/sin(θ/2)。
+ * 凹角（材料在外）时圆弧向 B 鼓出 → 面积**增加**（A 侧 cross 沉孔
+ * 11.262240 实证）。
+ * @param a - 前一点。
+ * @param b - 圆角顶点。
+ * @param c - 后一点。
+ * @param radius - 圆角半径。
+ * @returns 切点 P1/P2 与弧中点 mid（2D）。
+ * @throws 当半径超过任一边可用长度。
+ */
+export function filletCorner2D(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+  c: { x: number; y: number },
+  radius: number,
+): { p1: { x: number; y: number }; p2: { x: number; y: number }; mid: { x: number; y: number } } {
+  const v1 = { x: a.x - b.x, y: a.y - b.y }
+  const v2 = { x: c.x - b.x, y: c.y - b.y }
+  const l1 = Math.hypot(v1.x, v1.y)
+  const l2 = Math.hypot(v2.x, v2.y)
+  const u1 = { x: v1.x / l1, y: v1.y / l1 }
+  const u2 = { x: v2.x / l2, y: v2.y / l2 }
+  const cosT = u1.x * u2.x + u1.y * u2.y
+  const theta = Math.acos(Math.max(-1, Math.min(1, cosT)))
+  const t = radius / Math.tan(theta / 2)
+  if (t > l1 || t > l2)
+    throw new Error(`fillet2D: radius ${radius} too large for corner edges (${l1}, ${l2})`)
+  const p1 = { x: b.x + u1.x * t, y: b.y + u1.y * t }
+  const p2 = { x: b.x + u2.x * t, y: b.y + u2.y * t }
+  const bis = { x: u1.x + u2.x, y: u1.y + u2.y }
+  const bl = Math.hypot(bis.x, bis.y)
+  const d = radius / Math.sin(theta / 2)
+  const ctr = { x: b.x + (bis.x / bl) * d, y: b.y + (bis.y / bl) * d }
+  const mid = { x: ctr.x - (bis.x / bl) * radius, y: ctr.y - (bis.y / bl) * radius }
+  return { p1, p2, mid }
+}

@@ -1,6 +1,6 @@
 # fai_cq_warehouse 移植开发计划（cq_warehouse → TypeScript）
 
-状态：**实施中**（W1 数据层 / W2 内核层 / W3 Thread / W4 Nut+Washer 已落地；W5–W9 未开始） | 日期：2026-09-13 | 上游：`C:\git\CADQ\cq_warehouse` v0.8.0（git HEAD `daa4650`）
+状态：**实施中**（W1 数据层 / W2 内核层 / W3 Thread / W4 Nut+Washer / W5 Screw 已落地；W6–W9 未开始） | 日期：2026-09-13 | 上游：`C:\git\CADQ\cq_warehouse` v0.8.0（git HEAD `daa4650`）
 
 > W3 落地时的偏差与容差标定见 `docs/analysis/2026-09-14-cq-warehouse-thread-probe.md`；决策记录见 `.agents/notes/implemented/feature/2026-09-14-fai-cq-warehouse-thread-geometry.md`。
 > W3 已知缺口：`end_finishes="chamfer"` 未实现（内核只有等距 chamfer），`buildThread` 显式抛错，且参考用例集内不含 chamfer 用例。
@@ -625,6 +625,13 @@ export function requireKernel(): BrepEngineApi {
 
 - 任务：头型轮廓（`spline` + `radiusArc` + `polarLine` 组合）、杆部、螺纹段（复用 W3）、`socket_clearance`、`min_hole_depth` 相关派生量。
 - 验收：12 类 × 2 规格 STEP 比对；`simple=True/False` 各覆盖；`CounterSunkScrew` 与 `SetScrew` 单列（端部与锥角最易错）。
+- **落地结果（2026-09-14）**：`src/screw.ts`（12 类头型钩子逐位复刻 + `Seg` 段系统 + 精确 `filletAt`）、`src/screw.test.ts`（70 测试）。参考用例 **32 例**（每类 ≥2 规格），**28 / 28 STEP 等价**，**4 例为显式缺口**（PH 沉孔的 30° 锥度切割器，抛 `E_RECESS_TAPER_UNSUPPORTED`）。验收项对照：`screw-shcs-m6-iso4762` 实测 `900.6842796`；`simple=false` 覆盖 1 例（杆内 override）；`CounterSunkScrew` 5 例（含 `hand=left` 1 例）、`SetScrew` 2 例单列。
+- **两条新的内核/语义坑（本阶段首次定位）**：
+  1. **cq 的 `>Z` / `>X` 排序键是 `Edge.Center()` ＝ 圆弧**质心**不是圆心**。RCOS 的 `edges(">Z")` 因此选的是弧（质心 z = 2.386）而不是别的边；拿圆心（z = −9.165）当键会把圆角倒到轴线角点上。
+  2. **`fillet2D` 的圆弧邻边不能用直线近似**（`t = r/tan(θ/2)` 只对两直线角精确）。RCOS 的弧-线角上弦近似把切点放到**弧外**（`|p1−Q| = 12.00099`，误差 2.0e-3）；精确解（`|C−Q| = R∓r` + `(C−a)·n = r`）与 A 侧六位全等。
+- **容差标定**：螺钉族唯一越界例 `screw-shcs-m6-iso4762-threaded`（螺旋外螺纹）逐例 override（`compare.ts`：`vol 2e-3` / `linear 2e-1`），依据＝网格收敛（弦高 2e-3→8e-4 时体积差 2.133e-4→5.818e-6、质心 1.554e-3→4.203e-5 mm，同比例收敛）+ 两侧自偏差（A 1.221e-2 / B 5.779e-2 mm）+ 光杆对照（1.010e-15 / 5.135e-11 mm）。
+- 证据载体：`scripts/kernel-screw-probe.ts`（三段）、`scripts/probe-screw-head-profiles.py`（A 侧边序列）；分析文档 `docs/analysis/2026-09-14-cq-warehouse-screw-probe.md`。
+- **留给 W6/W7 的一条告诫**：`primitives.filletCorner2D`（W4，recess 在用）与本包 `screw.filletAt` 是两份圆角实现，本次只修了后者；W6/W7 遇到带圆弧邻边的倒圆角，先查 `filletCorner2D`，需要时把精确解法上收到 `primitives` 并合并两份。
 
 ### W6 — Bearing（5 类）
 

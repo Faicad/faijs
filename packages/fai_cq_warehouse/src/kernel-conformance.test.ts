@@ -36,6 +36,12 @@ const PROBED = [
   'reverseShape',
   'tessellate', // 体积真值基准：GProps 对螺旋 B 样条面求积混叠（W3 仲裁），mesh 才是真值
   'loft', // §6：makeRuledSurface 缺失期的退化路径——存在与否直接决定 W3 路线
+  'vertexPosition', // W5：fillet2D / edge 级 rotate 定位
+  'rotate', // W5：绕任意轴旋转（弧度，右手）；hexalobular polarArray 合成
+  'mirror', // W5：锥度切割器向上收锥后镜像翻转
+  'draftPrism', // W5：沉孔锥度切割器（taper 退化时抛错 → cross/R 沉孔显式缺口）
+  'interpolatePointsWithTangents', // W5：PanHead 头型样条（GeomAPI_Interpolate scale=True 语义，极点已与 A 侧逐位对表）
+  'getNurbsCurveData', // W5：样条极点提取（PanHead 对表探针用）
 ] as const
 
 function assertHandle(h: unknown, where: string): BrepHandle {
@@ -282,5 +288,31 @@ describe('第 2 级：契约 smoke（每个方法真调一次，验返回形态�
     expect(k.getVolume(box)).toBeCloseTo(8, 6)
     const rev = assertHandle(k.reverseShape(box), 'reverseShape')
     expect(k.getVolume(rev)).toBeCloseTo(-8, 6)
+  })
+
+  it('interpolatePointsWithTangents：两点 + 单位切向 → 极点与 A 侧 GeomAPI_Interpolate scale=True 逐位一致', () => {
+    // A 侧实证（probe72/73）：PanHead M6 样条极点 (6,0)→(5.82301,2.02301)→(5.2,3.6)→(3,3.6)
+    const DEG = Math.PI / 180
+    const edge = assertHandle(
+      k.interpolatePointsWithTangents(
+        [
+          { x: 6, y: 0, z: 0 },
+          { x: 3, y: 0, z: 3.6 },
+        ],
+        { x: -Math.sin(5 * DEG), y: 0, z: Math.cos(5 * DEG) },
+        { x: -1, y: 0, z: 0 },
+      ),
+      'interpolatePointsWithTangents',
+    )
+    const d = k.getNurbsCurveData(edge)
+    if (!d) throw new Error('getNurbsCurveData returned null for the PanHead spline edge')
+    const poles = d.poles
+    expect(poles.length).toBe(12) // 4 极点 × xyz
+    expect(poles[0]).toBeCloseTo(6, 6)
+    expect(poles[3]).toBeCloseTo(5.823009594, 6)
+    expect(poles[5]).toBeCloseTo(2.023009594, 6)
+    expect(poles[6]).toBeCloseTo(5.2, 6)
+    expect(poles[8]).toBeCloseTo(3.6, 6)
+    expect(poles[9]).toBeCloseTo(3, 6)
   })
 })

@@ -1,6 +1,6 @@
 {
   "generator": "fai_cq_warehouse/scripts/gen-reference.py",
-  "set": "nut",
+  "set": "screw",
   "environment": {
     "python": "3.13.14",
     "cadquery": "2.8.0",
@@ -558,6 +558,584 @@
       "shapeType": "Solid",
       "step": "pbt-M38SP444-internal.step",
       "volume_mesh": 239.3163460687574
+    },
+    {
+      "id": "screw-button-m4-iso7380_1",
+      "class": "ButtonHeadScrew",
+      "args": {
+        "size": "M4-0.7",
+        "length": 12,
+        "fastener_type": "iso7380_1"
+      },
+      "volume": 158.22449545182315,
+      "bbox": [
+        7.600000199999999,
+        7.600000199999999,
+        14.2000001
+      ],
+      "shapeType": "Solid",
+      "step": "screw-button-m4-iso7380_1.step",
+      "volume_mesh": 157.91620205813774
+    },
+    {
+      "id": "screw-button-m6-iso7380_1",
+      "class": "ButtonHeadScrew",
+      "args": {
+        "size": "M6-1",
+        "length": 16,
+        "fastener_type": "iso7380_1"
+      },
+      "volume": 478.1922117264521,
+      "bbox": [
+        10.500000200000004,
+        10.500000200000004,
+        19.3000001
+      ],
+      "shapeType": "Solid",
+      "step": "screw-button-m6-iso7380_1.step",
+      "volume_mesh": 477.28005466430886
+    },
+    {
+      "id": "screw-buttoncollar-m4-iso7380_2",
+      "class": "ButtonHeadWithCollarScrew",
+      "args": {
+        "size": "M4-0.7",
+        "length": 12,
+        "fastener_type": "iso7380_2"
+      },
+      "volume": 183.24900556970357,
+      "bbox": [
+        9.4,
+        9.4,
+        14.2000001
+      ],
+      "shapeType": "Solid",
+      "step": "screw-buttoncollar-m4-iso7380_2.step",
+      "volume_mesh": 183.06589643838598
+    },
+    {
+      "id": "screw-buttoncollar-m6-iso7380_2",
+      "class": "ButtonHeadWithCollarScrew",
+      "args": {
+        "size": "M6-1",
+        "length": 16,
+        "fastener_type": "iso7380_2"
+      },
+      "volume": 559.0465437366931,
+      "bbox": [
+        13.6,
+        13.6,
+        19.3000001
+      ],
+      "shapeType": "Solid",
+      "step": "screw-buttoncollar-m6-iso7380_2.step",
+      "volume_mesh": 558.5258736203348
+    },
+    {
+      "id": "screw-cheese-m4-iso1207",
+      "class": "CheeseHeadScrew",
+      "args": {
+        "size": "M4-0.7",
+        "length": 16,
+        "fastener_type": "iso1207"
+      },
+      "volume": 231.22965575504458,
+      "bbox": [
+        7.0,
+        7.0,
+        19.125401379326853
+      ],
+      "shapeType": "Solid",
+      "step": "screw-cheese-m4-iso1207.step",
+      "volume_mesh": 231.05329438162383
+    },
+    {
+      "id": "screw-cheese-m6-iso1207",
+      "class": "CheeseHeadScrew",
+      "args": {
+        "size": "M6-1",
+        "length": 25,
+        "fastener_type": "iso1207"
+      },
+      "volume": 781.3876232351159,
+      "bbox": [
+        10.0,
+        10.0,
+        29.68810201899028
+      ],
+      "shapeType": "Solid",
+      "step": "screw-cheese-m6-iso1207.step",
+      "volume_mesh": 780.8065211698458
+    },
+    {
+      "id": "screw-cheese-m6-iso14580",
+      "class": "CheeseHeadScrew",
+      "args": {
+        "size": "M6-1",
+        "length": 25,
+        "fastener_type": "iso14580"
+      },
+      "volume": 788.3269527430799,
+      "bbox": [
+        10.0,
+        10.0,
+        30.289140626553138
+      ],
+      "shapeType": "Solid",
+      "step": "screw-cheese-m6-iso14580.step",
+      "volume_mesh": 787.6741434103784
+    },
+    {
+      "id": "screw-csk-m4-iso10642",
+      "class": "CounterSunkScrew",
+      "args": {
+        "size": "M4-0.7",
+        "length": 16,
+        "fastener_type": "iso10642"
+      },
+      "volume": 163.56537687389172,
+      "bbox": [
+        7.512096520981281,
+        7.512096520981281,
+        16.0
+      ],
+      "shapeType": "Solid",
+      "step": "screw-csk-m4-iso10642.step",
+      "volume_mesh": 163.45001849866244
+    },
+    {
+      "id": "screw-csk-m6-iso10642",
+      "class": "CounterSunkScrew",
+      "args": {
+        "size": "M6-1",
+        "length": 20,
+        "fastener_type": "iso10642"
+      },
+      "volume": 483.2718513063563,
+      "bbox": [
+        11.299964486625317,
+        11.299964486625317,
+        20.0
+      ],
+      "shapeType": "Solid",
+      "step": "screw-csk-m6-iso10642.step",
+      "volume_mesh": 482.92513256737857
+    },
+    {
+      "id": "screw-csk-m6-iso10642-left",
+      "class": "CounterSunkScrew",
+      "args": {
+        "size": "M6-1",
+        "length": 20,
+        "fastener_type": "iso10642",
+        "hand": "left"
+      },
+      "volume": 483.2718513063563,
+      "bbox": [
+        11.299964486625317,
+        11.299964486625317,
+        20.0
+      ],
+      "shapeType": "Solid",
+      "step": "screw-csk-m6-iso10642-left.step",
+      "volume_mesh": 482.92513256737857
+    },
+    {
+      "id": "screw-csk-m6-iso14582",
+      "class": "CounterSunkScrew",
+      "args": {
+        "size": "M6-1",
+        "length": 20,
+        "fastener_type": "iso14582"
+      },
+      "volume": 517.0193455505462,
+      "bbox": [
+        12.20480291501783,
+        12.20480301501783,
+        20.0
+      ],
+      "shapeType": "Solid",
+      "step": "screw-csk-m6-iso14582.step",
+      "volume_mesh": 516.5695474959338
+    },
+    {
+      "id": "screw-csk-m6-iso2009",
+      "class": "CounterSunkScrew",
+      "args": {
+        "size": "M6-1",
+        "length": 20,
+        "fastener_type": "iso2009"
+      },
+      "volume": 454.03701490831656,
+      "bbox": [
+        10.229794222001745,
+        10.363604096932107,
+        20.0000001
+      ],
+      "shapeType": "Solid",
+      "step": "screw-csk-m6-iso2009.step",
+      "volume_mesh": 453.73882514776096
+    },
+    {
+      "id": "screw-hexflange-m6-din1665",
+      "class": "HexHeadWithFlangeScrew",
+      "args": {
+        "size": "M6-1",
+        "length": 25,
+        "fastener_type": "din1665"
+      },
+      "volume": 1136.5183816367435,
+      "bbox": [
+        14.2000002,
+        14.2000002,
+        31.6
+      ],
+      "shapeType": "Solid",
+      "step": "screw-hexflange-m6-din1665.step",
+      "volume_mesh": 1136.146406016442
+    },
+    {
+      "id": "screw-hexflange-m8-din1665",
+      "class": "HexHeadWithFlangeScrew",
+      "args": {
+        "size": "M8-1.25",
+        "length": 30,
+        "fastener_type": "din1665"
+      },
+      "volume": 2379.033912172214,
+      "bbox": [
+        18.0000001,
+        18.000000200000002,
+        38.1
+      ],
+      "shapeType": "Solid",
+      "step": "screw-hexflange-m8-din1665.step",
+      "volume_mesh": 2378.2738153735095
+    },
+    {
+      "id": "screw-hexhead-m4-iso4017",
+      "class": "HexHeadScrew",
+      "args": {
+        "size": "M4-0.7",
+        "length": 20,
+        "fastener_type": "iso4017"
+      },
+      "volume": 292.25568477108834,
+      "bbox": [
+        8.08290376865476,
+        7.000000000000001,
+        23.0
+      ],
+      "shapeType": "Solid",
+      "step": "screw-hexhead-m4-iso4017.step",
+      "volume_mesh": 292.1858739695948
+    },
+    {
+      "id": "screw-hexhead-m6-iso4014",
+      "class": "HexHeadScrew",
+      "args": {
+        "size": "M6-1",
+        "length": 30,
+        "fastener_type": "iso4014"
+      },
+      "volume": 915.6693927080483,
+      "bbox": [
+        11.547005383792516,
+        10.000000000000002,
+        34.0
+      ],
+      "shapeType": "Solid",
+      "step": "screw-hexhead-m6-iso4014.step",
+      "volume_mesh": 915.429248654362
+    },
+    {
+      "id": "screw-hexhead-m6-iso4017",
+      "class": "HexHeadScrew",
+      "args": {
+        "size": "M6-1",
+        "length": 30,
+        "fastener_type": "iso4017"
+      },
+      "volume": 936.4540023973116,
+      "bbox": [
+        11.547005383792516,
+        10.000000000000002,
+        34.24
+      ],
+      "shapeType": "Solid",
+      "step": "screw-hexhead-m6-iso4017.step",
+      "volume_mesh": 936.2138583451879
+    },
+    {
+      "id": "screw-pan-m4-iso1580",
+      "class": "PanHeadScrew",
+      "args": {
+        "size": "M4-0.7",
+        "length": 16,
+        "fastener_type": "iso1580"
+      },
+      "volume": 222.260452885983,
+      "bbox": [
+        8.0000002,
+        8.0000002,
+        18.4000001
+      ],
+      "shapeType": "Solid",
+      "step": "screw-pan-m4-iso1580.step",
+      "volume_mesh": 222.04572028282206
+    },
+    {
+      "id": "screw-pan-m6-iso14583",
+      "class": "PanHeadScrew",
+      "args": {
+        "size": "M6-1",
+        "length": 20,
+        "fastener_type": "iso14583"
+      },
+      "volume": 756.8092783982534,
+      "bbox": [
+        12.0000002,
+        12.0000002,
+        24.6000001
+      ],
+      "shapeType": "Solid",
+      "step": "screw-pan-m6-iso14583.step",
+      "volume_mesh": 755.4935967888985
+    },
+    {
+      "id": "screw-pan-m6-iso1580",
+      "class": "PanHeadScrew",
+      "args": {
+        "size": "M6-1",
+        "length": 20,
+        "fastener_type": "iso1580"
+      },
+      "volume": 691.296138940925,
+      "bbox": [
+        12.0000002,
+        12.0000002,
+        23.6000001
+      ],
+      "shapeType": "Solid",
+      "step": "screw-pan-m6-iso1580.step",
+      "volume_mesh": 690.6627742854148
+    },
+    {
+      "id": "screw-pancollar-m4-din967",
+      "class": "PanHeadWithCollarScrew",
+      "args": {
+        "size": "M4-0.7",
+        "length": 16,
+        "fastener_type": "din967"
+      },
+      "volume": 273.8903047232116,
+      "bbox": [
+        10.0,
+        10.0,
+        18.90822914961952
+      ],
+      "shapeType": "Solid",
+      "step": "screw-pancollar-m4-din967.step",
+      "volume_mesh": 273.6025416147007
+    },
+    {
+      "id": "screw-pancollar-m6-din967",
+      "class": "PanHeadWithCollarScrew",
+      "args": {
+        "size": "M6-1",
+        "length": 16,
+        "fastener_type": "din967"
+      },
+      "volume": 760.9688301808932,
+      "bbox": [
+        14.5,
+        14.5,
+        20.38348182839328
+      ],
+      "shapeType": "Solid",
+      "step": "screw-pancollar-m6-din967.step",
+      "volume_mesh": 760.2253824904982
+    },
+    {
+      "id": "screw-raisedcheese-m4-iso7045",
+      "class": "RaisedCheeseHeadScrew",
+      "args": {
+        "size": "M4-0.7",
+        "length": 16,
+        "fastener_type": "iso7045"
+      },
+      "volume": 248.4316237845335,
+      "bbox": [
+        8.000000010246959,
+        8.000000010246959,
+        18.972199882883988
+      ],
+      "shapeType": "Solid",
+      "step": "screw-raisedcheese-m4-iso7045.step",
+      "volume_mesh": 248.19109040468228
+    },
+    {
+      "id": "screw-raisedcheese-m6-iso7045",
+      "class": "RaisedCheeseHeadScrew",
+      "args": {
+        "size": "M6-1",
+        "length": 20,
+        "fastener_type": "iso7045"
+      },
+      "volume": 777.5360956157201,
+      "bbox": [
+        12.000000016000012,
+        12.000000016000012,
+        24.461231733937858
+      ],
+      "shapeType": "Solid",
+      "step": "screw-raisedcheese-m6-iso7045.step",
+      "volume_mesh": 776.7347513151801
+    },
+    {
+      "id": "screw-rcos-m4-iso2010",
+      "class": "RaisedCounterSunkOvalHeadScrew",
+      "args": {
+        "size": "M4-0.7",
+        "length": 16,
+        "fastener_type": "iso2010"
+      },
+      "volume": 175.01937164149675,
+      "bbox": [
+        7.176659624235191,
+        7.276293246013467,
+        16.910821357520366
+      ],
+      "shapeType": "Solid",
+      "step": "screw-rcos-m4-iso2010.step",
+      "volume_mesh": 174.8159029860221
+    },
+    {
+      "id": "screw-rcos-m6-iso14584",
+      "class": "RaisedCounterSunkOvalHeadScrew",
+      "args": {
+        "size": "M6-1",
+        "length": 20,
+        "fastener_type": "iso14584"
+      },
+      "volume": 607.5325359395148,
+      "bbox": [
+        12.296227448877467,
+        12.296227548877468,
+        21.614680001186883
+      ],
+      "shapeType": "Solid",
+      "step": "screw-rcos-m6-iso14584.step",
+      "volume_mesh": 606.7218028656487
+    },
+    {
+      "id": "screw-rcos-m6-iso2010",
+      "class": "RaisedCounterSunkOvalHeadScrew",
+      "args": {
+        "size": "M6-1",
+        "length": 20,
+        "fastener_type": "iso2010"
+      },
+      "volume": 484.3282879750841,
+      "bbox": [
+        10.677058926337583,
+        10.846551866090884,
+        21.296574193216177
+      ],
+      "shapeType": "Solid",
+      "step": "screw-rcos-m6-iso2010.step",
+      "volume_mesh": 483.75860364315406
+    },
+    {
+      "id": "screw-setscrew-m6-iso4026",
+      "class": "SetScrew",
+      "args": {
+        "size": "M6-1",
+        "length": 12,
+        "fastener_type": "iso4026"
+      },
+      "volume": 200.62541095545478,
+      "bbox": [
+        4.917468245269451,
+        4.917468245269451,
+        12.0
+      ],
+      "shapeType": "Solid",
+      "step": "screw-setscrew-m6-iso4026.step",
+      "volume_mesh": 200.53096841645035
+    },
+    {
+      "id": "screw-setscrew-m8-iso4026",
+      "class": "SetScrew",
+      "args": {
+        "size": "M8-1.25",
+        "length": 16,
+        "fastener_type": "iso4026"
+      },
+      "volume": 485.9054941993838,
+      "bbox": [
+        6.646835306586814,
+        6.646835306586814,
+        16.0
+      ],
+      "shapeType": "Solid",
+      "step": "screw-setscrew-m8-iso4026.step",
+      "volume_mesh": 485.67542785137687
+    },
+    {
+      "id": "screw-shcs-m4-iso4762",
+      "class": "SocketHeadCapScrew",
+      "args": {
+        "size": "M4-0.7",
+        "length": 16,
+        "fastener_type": "iso4762"
+      },
+      "volume": 279.8459857120449,
+      "bbox": [
+        7.22,
+        7.22,
+        20.0
+      ],
+      "shapeType": "Solid",
+      "step": "screw-shcs-m4-iso4762.step",
+      "volume_mesh": 279.7229353644688
+    },
+    {
+      "id": "screw-shcs-m6-iso4762",
+      "class": "SocketHeadCapScrew",
+      "args": {
+        "size": "M6-1",
+        "length": 25,
+        "fastener_type": "iso4762"
+      },
+      "volume": 900.6842795801012,
+      "bbox": [
+        10.22,
+        10.22,
+        31.0
+      ],
+      "shapeType": "Solid",
+      "step": "screw-shcs-m6-iso4762.step",
+      "volume_mesh": 900.2821417785005
+    },
+    {
+      "id": "screw-shcs-m6-iso4762-threaded",
+      "class": "SocketHeadCapScrew",
+      "args": {
+        "size": "M6-1",
+        "length": 25,
+        "fastener_type": "iso4762",
+        "simple": false
+      },
+      "volume": 997.8416701579398,
+      "bbox": [
+        10.220000200000001,
+        10.220000200000001,
+        31.0000001
+      ],
+      "shapeType": "Solid",
+      "step": "screw-shcs-m6-iso4762-threaded.step",
+      "volume_mesh": 997.5055760217354
     },
     {
       "id": "sprocket-16t",

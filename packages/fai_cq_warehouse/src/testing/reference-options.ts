@@ -25,6 +25,8 @@ import {
 } from '../nut'
 import type { WasherResult } from '../washer'
 import { chamferedWasher, cheeseHeadWasher, plainWasher } from '../washer'
+import type { ScrewResult } from '../screw'
+import { buildScrew, SCREW_CLASSES } from '../screw'
 
 /** manifest 中一条用例的形状（gen-reference.py 的 `build_case` 产出）。 */
 export interface ManifestCase {
@@ -61,6 +63,8 @@ export interface Manifest {
 const NUT_ARGS: readonly string[] = ['size', 'fastener_type', 'hand', 'simple']
 /** 垫圈类 args 白名单（`Washer.__init__` 签名，fastener.py:2235）。 */
 const WASHER_ARGS: readonly string[] = ['size', 'fastener_type']
+/** 螺钉类 args 白名单（`Screw.__init__` 签名，fastener.py:176）。 */
+const SCREW_ARGS: readonly string[] = ['size', 'length', 'fastener_type', 'hand', 'simple']
 
 /** 每个类的合法 args 键（上游 signature 的并集；含只影响参数、不影响几何的项）。 */
 const ALLOWED_ARGS: Readonly<Record<string, readonly string[]>> = {
@@ -84,6 +88,20 @@ const ALLOWED_ARGS: Readonly<Record<string, readonly string[]>> = {
   PlainWasher: WASHER_ARGS,
   ChamferedWasher: WASHER_ARGS,
   CheeseHeadWasher: WASHER_ARGS,
+  // ── W5：螺钉 12 类（`Screw.__init__` 签名：size / length / fastener_type /
+  //         hand / simple；`socket_clearance` 上游默认 6mm，manifest 未传）──
+  ButtonHeadScrew: SCREW_ARGS,
+  ButtonHeadWithCollarScrew: SCREW_ARGS,
+  CheeseHeadScrew: SCREW_ARGS,
+  CounterSunkScrew: SCREW_ARGS,
+  HexHeadScrew: SCREW_ARGS,
+  HexHeadWithFlangeScrew: SCREW_ARGS,
+  PanHeadScrew: SCREW_ARGS,
+  PanHeadWithCollarScrew: SCREW_ARGS,
+  RaisedCheeseHeadScrew: SCREW_ARGS,
+  RaisedCounterSunkOvalHeadScrew: SCREW_ARGS,
+  SetScrew: SCREW_ARGS,
+  SocketHeadCapScrew: SCREW_ARGS,
 }
 
 /** 白名单覆盖的全部螺纹类名（= `ALLOWED_ARGS` 的键，按声明序）。 */
@@ -106,8 +124,13 @@ export const NUT_CLASSES = [
   'HeatSetNut',
 ]
 
-/** 白名单覆盖的全部垫圈类名（W4）。 */
+/**
+ * 白名单覆盖的全部垫圈类名（W4）。
+ */
 export const WASHER_CLASSES = ['PlainWasher', 'ChamferedWasher', 'CheeseHeadWasher']
+
+/** 白名单覆盖的全部螺钉类名（W5）；由 `src/screw.ts` 的 `SCREW_TABLES` 派生，避免两处清单漂移。 */
+export { SCREW_CLASSES }
 
 function pick<T>(args: Record<string, unknown>, key: string, fallback: T): T {
   return (args[key] as T | undefined) ?? fallback
@@ -129,7 +152,10 @@ function finishes(args: Record<string, unknown>): [EndFinish, EndFinish] | undef
 }
 
 /** 白名单校验：manifest 里出现的每个键都必须被本文件消费（反之亦然）。 */
-function assertArgsKnown(c: ManifestCase, family: 'thread' | 'nut' | 'washer'): void {
+function assertArgsKnown(
+  c: ManifestCase,
+  family: 'thread' | 'nut' | 'washer' | 'screw',
+): void {
   const allowed = ALLOWED_ARGS[c.class]
   if (!allowed)
     throw new Error(
@@ -274,4 +300,25 @@ export function buildWasherReference(c: ManifestCase): WasherResult {
     default:
       throw new Error(`reference-options: unhandled washer class ${c.class}`)
   }
+}
+
+/**
+ * 把一条 manifest 用例构造成 TS 侧螺钉几何（W5）。
+ *
+ * ⚠️ `PanHeadWithCollarScrew`（din967）与 `RaisedCheeseHeadScrew`（iso7045）各自的
+ * **唯一** `fastener_type` 是 PH（cross）沉孔，本内核 `draftPrism` 在 30° 锥度下
+ * 截面自交即抛错（`E_RECESS_TAPER_UNSUPPORTED`，见 `src/recess.ts` 文件头）——
+ * 这是 **W5 内的已知缺口**，本函数**如实抛出**，测试侧只断言「抛错且信息含缺口说明」。
+ * @param c - manifest 用例（`class` 决定分派，`args` 逐字取自参考数据）。
+ * @returns 螺钉实体与上游派生量。
+ */
+export function buildScrewReference(c: ManifestCase): ScrewResult {
+  assertArgsKnown(c, 'screw')
+  return buildScrew(c.class as (typeof SCREW_CLASSES)[number], {
+    size: String(c.args['size']),
+    length: num(c.args, 'length'),
+    fastener_type: String(c.args['fastener_type']),
+    hand: pick<Hand>(c.args, 'hand', 'right'),
+    simple: pick(c.args, 'simple', true),
+  })
 }

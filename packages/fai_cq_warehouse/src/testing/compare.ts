@@ -88,6 +88,32 @@ const CASE_TOLERANCE_OVERRIDES: Array<{
     reason:
       'Short internal thread (L=5.2, fade/fade) GProps quadrature aliasing — both sides evaluate a different helical B-spline approximation, and both are self-inconsistent (A 6.180e-4 / B 3.962e-3). Geometry is equivalent: tessellated volume differs 3.636e-7 and tessellated CoM 1.506e-5 mm',
   },
+  {
+    // screw 族唯一越界例：`simple=false` → 真实螺旋外螺纹 + 圆柱头（杆长 25，螺纹段 ~20）。
+    // W5 实测（2026-09-14，复现台 scripts/kernel-screw-probe.ts，断言在 src/screw.test.ts）：
+    //   | 量 | A 侧 | B 侧 | 两侧差 |
+    //   |---|---|---|---|
+    //   | GProps 体积 | 997.839734 | 997.425683 | 4.149e-4（相对，= 判据 vol）|
+    //   | GProps 质心 | (−0.000879, −0.000584, −5.952414) | (0.013434, −0.055304, −5.974063) | **5.472e-2 mm**（= 判据 com）|
+    //   | 三角化体积（弦高 2e-3） | 997.408197 | 997.195434 | 2.133e-4 |
+    //   | 三角化质心（弦高 2e-3） | (0.000875, 0.002425, −5.964625) | (0.000816, 0.002484, −5.963071) | 1.554e-3 mm |
+    //   | **自偏差：GProps 质心 vs 自身三角化质心** | **1.221e-2 mm** | **5.779e-2 mm** | 两侧都大 |
+    // 关键反驳：**同一侧、同一 shape**，GProps 质心与三角化质心就差了 1.2e-2 / 5.8e-2 mm
+    // （B 侧 y 分量 −0.055304 vs +0.002484）→ 一阶矩在螺旋 B 样条面上不可信，不是几何差。
+    // 网格收敛（scripts/kernel-screw-probe.ts 段 3）：
+    //   弦高 2e-3 → 体积相对差 2.133e-4、质心 1.554e-3 mm；
+    //   弦高 8e-4 → 体积相对差 5.818e-6（↓37×）、质心 4.203e-5 mm（↓37×）
+    //   → 差随弦高**收敛**，是网格/求积伪差，几何本身一致。
+    // 对照（同族 simple=true 光杆，screw-shcs-m6-iso4762）：体积相对差 1.010e-15、
+    // 质心 5.135e-11 mm → 差异**全部**来自螺纹段，与头/杆无关。
+    // 门禁政策同线程族：实测最坏 ×~4。
+    //   volumeRelativeTolerance 2e-3 = 4.149e-4 × 4.8
+    //   linearTolerance 2e-1 = 5.472e-2 × 3.7（该量自身自偏差就有 5.8e-2，再紧无意义）
+    match: /^screw-shcs-m6-iso4762-threaded$/,
+    options: { volumeRelativeTolerance: 2e-3, linearTolerance: 2e-1 },
+    reason:
+      'Helical external-thread GProps quadrature aliasing: each side is self-inconsistent by 1.221e-2 (A) / 5.779e-2 (B) mm between its own GProps and tessellated CoM; tessellated metrics converge with mesh refinement (2.133e-4 → 5.818e-6 rel. volume; 1.554e-3 → 4.203e-5 mm CoM), while the unthreaded control case agrees to 1.010e-15 / 5.135e-11 mm',
+  },
 ]
 
 /**

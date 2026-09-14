@@ -140,6 +140,93 @@ NUT_CASES = [
      "args": {"size": "M6-1", "fastener_type": "iso4032", "simple": False}},
 ]
 
+# ── W5 螺钉用例集（方案 §8 W5 验收：12 类 × 2 规格，simple=True/False 各覆盖，
+#    CounterSunkScrew 与 SetScrew 单列）────────────────────────────────────────
+# 参数逐字取自上游 signature（fastener.py:1416 `Screw.__init__`）。
+# fastener_type 的选择刻意避开 PH（cross）沉孔——该路径需要 30° 锥度切割器，
+# 在截面臂宽退化为 0 后内核（LocOpe_DPrism）才能继续，本包 draftPrism 无法复刻
+# （W5 已知缺口，见 screw.ts 文件头）。PH-only 的两类照 W4·HeatSetNut 先例，
+# 保留 A 侧用例、B 侧断言抛错。
+SCREW_CASES = [
+    # ButtonHeadScrew（rf 圆弧头 + hex 沉孔）
+    {"id": "screw-button-m6-iso7380_1", "class": "ButtonHeadScrew",
+     "args": {"size": "M6-1", "length": 16, "fastener_type": "iso7380_1"}},
+    {"id": "screw-button-m4-iso7380_1", "class": "ButtonHeadScrew",
+     "args": {"size": "M4-0.7", "length": 12, "fastener_type": "iso7380_1"}},
+    # ButtonHeadWithCollarScrew（fillet2D + 自定义 countersink，读 dc）
+    {"id": "screw-buttoncollar-m6-iso7380_2", "class": "ButtonHeadWithCollarScrew",
+     "args": {"size": "M6-1", "length": 16, "fastener_type": "iso7380_2"}},
+    {"id": "screw-buttoncollar-m4-iso7380_2", "class": "ButtonHeadWithCollarScrew",
+     "args": {"size": "M4-0.7", "length": 12, "fastener_type": "iso7380_2"}},
+    # CheeseHeadScrew：iso1207（slot）/ iso14580（T）——5° 收顶 + fillet2D
+    {"id": "screw-cheese-m6-iso1207", "class": "CheeseHeadScrew",
+     "args": {"size": "M6-1", "length": 25, "fastener_type": "iso1207"}},
+    {"id": "screw-cheese-m4-iso1207", "class": "CheeseHeadScrew",
+     "args": {"size": "M4-0.7", "length": 16, "fastener_type": "iso1207"}},
+    {"id": "screw-cheese-m6-iso14580", "class": "CheeseHeadScrew",
+     "args": {"size": "M6-1", "length": 25, "fastener_type": "iso14580"}},
+    # CounterSunkScrew（单列：length_offset=k，头含在 length 内；a/dk/k 锥角最易错）
+    {"id": "screw-csk-m6-iso10642", "class": "CounterSunkScrew",
+     "args": {"size": "M6-1", "length": 20, "fastener_type": "iso10642"}},
+    {"id": "screw-csk-m4-iso10642", "class": "CounterSunkScrew",
+     "args": {"size": "M4-0.7", "length": 16, "fastener_type": "iso10642"}},
+    {"id": "screw-csk-m6-iso2009", "class": "CounterSunkScrew",
+     "args": {"size": "M6-1", "length": 20, "fastener_type": "iso2009"}},
+    {"id": "screw-csk-m6-iso14582", "class": "CounterSunkScrew",
+     "args": {"size": "M6-1", "length": 20, "fastener_type": "iso14582"}},
+    {"id": "screw-csk-m6-iso10642-left", "class": "CounterSunkScrew",
+     "args": {"size": "M6-1", "length": 20, "fastener_type": "iso10642", "hand": "left"}},
+    # HexHeadScrew（head_plan 六角 + socket_clearance）
+    {"id": "screw-hexhead-m6-iso4017", "class": "HexHeadScrew",
+     "args": {"size": "M6-1", "length": 30, "fastener_type": "iso4017"}},
+    {"id": "screw-hexhead-m4-iso4017", "class": "HexHeadScrew",
+     "args": {"size": "M4-0.7", "length": 20, "fastener_type": "iso4017"}},
+    {"id": "screw-hexhead-m6-iso4014", "class": "HexHeadScrew",
+     "args": {"size": "M6-1", "length": 30, "fastener_type": "iso4014"}},
+    # HexHeadWithFlangeScrew（flange_profile 25° 切线弧）
+    {"id": "screw-hexflange-m6-din1665", "class": "HexHeadWithFlangeScrew",
+     "args": {"size": "M6-1", "length": 25, "fastener_type": "din1665"}},
+    {"id": "screw-hexflange-m8-din1665", "class": "HexHeadWithFlangeScrew",
+     "args": {"size": "M8-1.25", "length": 30, "fastener_type": "din1665"}},
+    # PanHeadScrew（spline 头型：iso1580 slot / iso14583 T）
+    {"id": "screw-pan-m6-iso1580", "class": "PanHeadScrew",
+     "args": {"size": "M6-1", "length": 20, "fastener_type": "iso1580"}},
+    {"id": "screw-pan-m4-iso1580", "class": "PanHeadScrew",
+     "args": {"size": "M4-0.7", "length": 16, "fastener_type": "iso1580"}},
+    {"id": "screw-pan-m6-iso14583", "class": "PanHeadScrew",
+     "args": {"size": "M6-1", "length": 20, "fastener_type": "iso14583"}},
+    # PanHeadWithCollarScrew：唯一类型 din967 是 PH（cross）——W5 已知缺口（B 侧抛错）
+    # 取 2 规格（M6 / M4）：验收要求「12 类 × ≥2 规格」，缺口类也得凑齐才算覆盖
+    {"id": "screw-pancollar-m6-din967", "class": "PanHeadWithCollarScrew",
+     "args": {"size": "M6-1", "length": 16, "fastener_type": "din967"}},
+    {"id": "screw-pancollar-m4-din967", "class": "PanHeadWithCollarScrew",
+     "args": {"size": "M4-0.7", "length": 16, "fastener_type": "din967"}},
+    # RaisedCheeseHeadScrew：唯一类型 iso7045 是 PH（cross）——W5 已知缺口（B 侧抛错）
+    {"id": "screw-raisedcheese-m6-iso7045", "class": "RaisedCheeseHeadScrew",
+     "args": {"size": "M6-1", "length": 20, "fastener_type": "iso7045"}},
+    {"id": "screw-raisedcheese-m4-iso7045", "class": "RaisedCheeseHeadScrew",
+     "args": {"size": "M4-0.7", "length": 16, "fastener_type": "iso7045"}},
+    # RaisedCounterSunkOvalHeadScrew（length_offset=k + 椭圆顶；iso2010 slot / iso14584 T）
+    {"id": "screw-rcos-m6-iso2010", "class": "RaisedCounterSunkOvalHeadScrew",
+     "args": {"size": "M6-1", "length": 20, "fastener_type": "iso2010"}},
+    {"id": "screw-rcos-m4-iso2010", "class": "RaisedCounterSunkOvalHeadScrew",
+     "args": {"size": "M4-0.7", "length": 16, "fastener_type": "iso2010"}},
+    {"id": "screw-rcos-m6-iso14584", "class": "RaisedCounterSunkOvalHeadScrew",
+     "args": {"size": "M6-1", "length": 20, "fastener_type": "iso14584"}},
+    # SetScrew（单列：custom_make 无头螺钉；core=带 hex 孔的管 + 镜像）
+    {"id": "screw-setscrew-m6-iso4026", "class": "SetScrew",
+     "args": {"size": "M6-1", "length": 12, "fastener_type": "iso4026"}},
+    {"id": "screw-setscrew-m8-iso4026", "class": "SetScrew",
+     "args": {"size": "M8-1.25", "length": 16, "fastener_type": "iso4026"}},
+    # SocketHeadCapScrew（圆柱头 + hex 沉孔）；simple=False 复用 W3 螺纹
+    {"id": "screw-shcs-m6-iso4762", "class": "SocketHeadCapScrew",
+     "args": {"size": "M6-1", "length": 25, "fastener_type": "iso4762"}},
+    {"id": "screw-shcs-m4-iso4762", "class": "SocketHeadCapScrew",
+     "args": {"size": "M4-0.7", "length": 16, "fastener_type": "iso4762"}},
+    {"id": "screw-shcs-m6-iso4762-threaded", "class": "SocketHeadCapScrew",
+     "args": {"size": "M6-1", "length": 25, "fastener_type": "iso4762", "simple": False}},
+]
+
 WASHER_CASES = [
     # PlainWasher：4 个 fastener_type 取 2（本体 + 特大系列）
     {"id": "washer-plain-m6-iso7089", "class": "PlainWasher",
@@ -172,6 +259,19 @@ CLASS_MODULES = {
     "PlainWasher": "cq_warehouse.fastener",
     "ChamferedWasher": "cq_warehouse.fastener",
     "CheeseHeadWasher": "cq_warehouse.fastener",
+    # 螺钉 12 类（W5）——上游全部定义在 fastener.py
+    "ButtonHeadScrew": "cq_warehouse.fastener",
+    "ButtonHeadWithCollarScrew": "cq_warehouse.fastener",
+    "CheeseHeadScrew": "cq_warehouse.fastener",
+    "CounterSunkScrew": "cq_warehouse.fastener",
+    "HexHeadScrew": "cq_warehouse.fastener",
+    "HexHeadWithFlangeScrew": "cq_warehouse.fastener",
+    "PanHeadScrew": "cq_warehouse.fastener",
+    "PanHeadWithCollarScrew": "cq_warehouse.fastener",
+    "RaisedCheeseHeadScrew": "cq_warehouse.fastener",
+    "RaisedCounterSunkOvalHeadScrew": "cq_warehouse.fastener",
+    "SetScrew": "cq_warehouse.fastener",
+    "SocketHeadCapScrew": "cq_warehouse.fastener",
     # 螺纹 5 类（W3）
     "Thread": "cq_warehouse.thread",
     "IsoThread": "cq_warehouse.thread",
@@ -185,6 +285,7 @@ CASE_SETS = {
     "thread": THREAD_CASES,
     "nut": NUT_CASES,
     "washer": WASHER_CASES,
+    "screw": SCREW_CASES,
 }
 
 
