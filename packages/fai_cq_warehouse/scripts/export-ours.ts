@@ -12,7 +12,7 @@ import { exportStepFromSolids } from '@faicad/faijs-core'
 import { setupWarehouseKernel } from '../src/test-setup'
 import { requireKernel } from '../src/kernel'
 import { casesForSet, loadManifest, ourStepPath, OUT_DIR } from '../src/testing/fixtures'
-import { buildBearingReference, buildNutReference, buildScrewReference, buildThreadReference, buildWasherReference } from '../src/testing/reference-options'
+import { buildBearingReference, buildNutReference, buildScrewReference, buildSprocketReference, buildThreadReference, buildWasherReference } from '../src/testing/reference-options'
 import type { BrepHandle } from '@faicad/faijs-core'
 import type { ManifestCase } from '../src/testing/reference-options'
 
@@ -72,6 +72,8 @@ export function buildOurSolid(c: ManifestCase): BrepHandle | null {
     case 'SingleRowCylindricalRollerBearing':
     case 'SingleRowTaperedRollerBearing':
       return buildBearingReference(c).handle
+    case 'Sprocket':
+      return buildSprocketReference(c).handle
     default:
       throw new Error(`export-ours: 尚未支持的类 ${c.class}`)
   }

@@ -1,6 +1,6 @@
 {
   "generator": "fai_cq_warehouse/scripts/gen-reference.py",
-  "set": "bearing",
+  "set": "sprocket",
   "environment": {
     "python": "3.13.14",
     "cadquery": "2.8.0",
@@ -1588,6 +1588,48 @@
       "expect_volume": 6552.2962,
       "expect_diff": 4.969950077793328e-05,
       "volume_mesh": 6551.753902410736
+    },
+    {
+      "id": "sprocket-16t-inch",
+      "class": "Sprocket",
+      "args": {
+        "num_teeth": 16,
+        "chain_pitch": 12.7,
+        "roller_diameter": 12.446
+      },
+      "volume": 5124.246302618558,
+      "bbox": [
+        66.39987995776296,
+        66.39987995776296,
+        2.1336
+      ],
+      "shapeType": "Solid",
+      "step": "sprocket-16t-inch.step",
+      "expect_volume": 5124.246302618558,
+      "expect_diff": 0.0,
+      "volume_mesh": 5124.652488137593
+    },
+    {
+      "id": "sprocket-32t-mount",
+      "class": "Sprocket",
+      "args": {
+        "num_teeth": 32,
+        "bolt_circle_diameter": 104.0,
+        "num_mount_bolts": 4,
+        "mount_bolt_diameter": 8.0,
+        "bore_diameter": 80.0
+      },
+      "volume": 15852.685019471652,
+      "bbox": [
+        133.53792511470468,
+        133.53792511470468,
+        2.1336002000000374
+      ],
+      "shapeType": "Solid",
+      "step": "sprocket-32t-mount.step",
+      "expect_volume": 15851.936489869417,
+      "expect_diff": 0.7485296022350667,
+      "volume_mesh": 15856.747066320919
     },
     {
       "id": "thread-generic-raw-raw",

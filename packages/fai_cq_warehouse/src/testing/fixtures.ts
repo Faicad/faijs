@@ -150,8 +150,20 @@ export function bearingCases(manifest: Manifest): ManifestCase[] {
   return manifest.cases.filter((c) => BEARING_CLASS_NAMES.includes(c.class))
 }
 
+/** W7 的链轮类（单类）。 */
+const SPROCKET_CLASS_NAMES = ['Sprocket']
+
+/** 过滤出链轮族用例（W7）。
+ *
+ * @param manifest manifest
+ * @returns 链轮的全部用例
+ */
+export function sprocketCases(manifest: Manifest): ManifestCase[] {
+  return manifest.cases.filter((c) => SPROCKET_CLASS_NAMES.includes(c.class))
+}
+
 /** CLI 可选的用例集名（`scripts/export-ours.ts` 与 `compare-all.ts` 的 `--set`）。 */
-export const CASE_SET_NAMES = ['thread', 'nut', 'washer', 'screw', 'bearing', 'all'] as const
+export const CASE_SET_NAMES = ['thread', 'nut', 'washer', 'screw', 'bearing', 'sprocket', 'all'] as const
 
 /**
  * 按集合名取 manifest 用例（CLI 用；测试各自直接调对应族函数）。
@@ -172,6 +184,8 @@ export function casesForSet(set: string, manifest: Manifest): ManifestCase[] {
       return screwCases(manifest)
     case 'bearing':
       return bearingCases(manifest)
+    case 'sprocket':
+      return sprocketCases(manifest)
     case 'all':
       return manifest.cases
     default:

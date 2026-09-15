@@ -29,6 +29,8 @@ import type { ScrewResult } from '../screw'
 import { buildScrew, SCREW_CLASSES } from '../screw'
 import type { BearingResult } from '../bearing'
 import { buildBearing, BEARING_CLASSES } from '../bearing'
+import type { SprocketResult } from '../sprocket'
+import { buildSprocket } from '../sprocket'
 
 /** manifest 中一条用例的形状（gen-reference.py 的 `build_case` 产出）。 */
 export interface ManifestCase {
@@ -110,6 +112,13 @@ const ALLOWED_ARGS: Readonly<Record<string, readonly string[]>> = {
   SingleRowAngularContactBallBearing: ['size', 'bearing_type'],
   SingleRowCylindricalRollerBearing: ['size', 'bearing_type'],
   SingleRowTaperedRollerBearing: ['size', 'bearing_type'],
+  // ── W7：链轮（`Sprocket.__init__` 签名：num_teeth / chain_pitch /
+  //         roller_diameter / clearance / thickness / bolt_circle_diameter /
+  //         num_mount_bolts / mount_bolt_diameter / bore_diameter）──
+  Sprocket: [
+    'num_teeth', 'chain_pitch', 'roller_diameter', 'clearance', 'thickness',
+    'bolt_circle_diameter', 'num_mount_bolts', 'mount_bolt_diameter', 'bore_diameter',
+  ],
 }
 
 /** 白名单覆盖的全部螺纹类名（= `ALLOWED_ARGS` 的键，按声明序）。 */
@@ -143,6 +152,9 @@ export { SCREW_CLASSES }
 /** 白名单覆盖的全部轴承类名（W6）；由 `src/bearing.ts` 的 `BEARING_CLASSES` 派生。 */
 export { BEARING_CLASSES }
 
+/** 白名单覆盖的全部链轮类名（W7）。 */
+export const SPROCKET_CLASSES = ['Sprocket'] as const
+
 function pick<T>(args: Record<string, unknown>, key: string, fallback: T): T {
   return (args[key] as T | undefined) ?? fallback
 }
@@ -165,7 +177,7 @@ function finishes(args: Record<string, unknown>): [EndFinish, EndFinish] | undef
 /** 白名单校验：manifest 里出现的每个键都必须被本文件消费（反之亦然）。 */
 function assertArgsKnown(
   c: ManifestCase,
-  family: 'thread' | 'nut' | 'washer' | 'screw' | 'bearing',
+  family: 'thread' | 'nut' | 'washer' | 'screw' | 'bearing' | 'sprocket',
 ): void {
   const allowed = ALLOWED_ARGS[c.class]
   if (!allowed)
@@ -177,6 +189,7 @@ function assertArgsKnown(
           ...WASHER_CLASSES,
           ...SCREW_CLASSES,
           ...BEARING_CLASSES,
+          ...SPROCKET_CLASSES,
         ].join(', ')})`,
     )
   for (const key of Object.keys(c.args))
@@ -352,5 +365,26 @@ export function buildBearingReference(c: ManifestCase): BearingResult {
   return buildBearing(c.class as (typeof BEARING_CLASSES)[number], {
     size: String(c.args['size']),
     bearingType: String(c.args['bearing_type']),
+  })
+}
+
+/**
+ * 把一条 manifest 用例构造成 TS 侧链轮几何（W7）。
+ *
+ * @param c - manifest 用例（`class` 决定分派，`args` 逐字取自参考数据）。
+ * @returns 链轮实体与上游派生量。
+ */
+export function buildSprocketReference(c: ManifestCase): SprocketResult {
+  assertArgsKnown(c, 'sprocket')
+  return buildSprocket({
+    numTeeth: num(c.args, 'num_teeth'),
+    chainPitch: pick(c.args, 'chain_pitch', 12.7),
+    rollerDiameter: pick(c.args, 'roller_diameter', (5 / 16) * 25.4),
+    clearance: pick(c.args, 'clearance', 0),
+    thickness: pick(c.args, 'thickness', 0.084 * 25.4),
+    boltCircleDiameter: pick(c.args, 'bolt_circle_diameter', 0),
+    numMountBolts: pick(c.args, 'num_mount_bolts', 0),
+    mountBoltDiameter: pick(c.args, 'mount_bolt_diameter', 0),
+    boreDiameter: pick(c.args, 'bore_diameter', 0),
   })
 }

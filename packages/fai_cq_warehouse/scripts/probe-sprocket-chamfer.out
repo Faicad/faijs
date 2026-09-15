@@ -1,0 +1,8 @@
+selected edges: 64
+(radius, z_center) census: {(66.76896, 2.1336): 32, (66.76896, 0.0): 32}
+top=32 bottom=32
+unchamfered        = 27084.638320146
+top-only chamfered = 27045.850469912  diff=38.787850
+bot-only chamfered = 27045.101940308  diff=39.536380
+both (probe ref)   = 27006.314090075  diff=78.324230
+theory top diff = 2525.755713 (arc_len=133.3118)

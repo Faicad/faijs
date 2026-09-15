@@ -148,6 +148,20 @@ const CASE_TOLERANCE_OVERRIDES: Array<{
     reason:
       'Near-tangent cone raceway/roller/cage GProps quadrature aliasing (same family as thread/screw): vol 2.086e-4 rel, CoM 1.383e-2 mm after the polarArray-rotation and cup-fillet-drop fixes; the structurally identical m15 case passes at defaults (<1e-6), proving construction equality',
   },
+  {
+    // sprocket 平齿例（16t / 32t-mount；尖齿例 16t-inch 在默认容差下即过，vol 3.4e-12%）。
+    // W7 实测（2026-09-15，两侧 STEP 同一 occt-wasm 内核）：
+    //   16t        vol 相对差 7.112e-5、com 5.731e-4 mm、bbox 1.4e-7；
+    //   32t-mount  vol 相对差 4.851e-5、com 4.766e-4 mm、bbox 1.3e-7。
+    // 根因：cq 的 BRepFilletAPI_MakeChamfer 在 32×2 个弧-弧交点角部有近似处理
+    // （角部三角扇），本实现用解析锥环切割（圆柱−圆锥），倒角面本身精确重合
+    // （无倒角基体逐位一致：A/B 6590.2887 vs 6590.2887）；残差全部来自角部。
+    // 门禁政策同线程族（实测最坏 ×~4）：vol 3e-4 = 7.1e-5 ×4.2、linear 2.5e-3 = 5.7e-4 ×4.4。
+    match: /^sprocket-(16t|32t-mount)$/,
+    options: { volumeRelativeTolerance: 3e-4, linearTolerance: 2.5e-3 },
+    reason:
+      'cq chamfer corner approximation at arc-arc junctions vs analytical cone-ring cut: unchamfered base matches bit-exact (6590.2887 both sides), residual is corner-only (measured worst vol 7.112e-5 rel, CoM 5.731e-4 mm; spiky case with no chamfer passes at 3.4e-12)',
+  },
 ]
 
 /**

@@ -10,7 +10,7 @@
  */
 
 import { writeFileSync } from 'node:fs'
-import { loadManifest, stepPath, ourStepPath, threadCases, OUT_DIR } from '../src/testing/fixtures'
+import { loadManifest, stepPath, ourStepPath, casesForSet, OUT_DIR } from '../src/testing/fixtures'
 import {
   classifyKnownArtifact,
   compareCase,
@@ -28,7 +28,8 @@ async function main(): Promise<void> {
   const only = arg('case')
   const asJson = process.argv.includes('--json')
   const manifest = loadManifest()
-  const cases = threadCases(manifest).filter((c) => !only || c.id === only)
+  const setName = arg('set') ?? 'thread'
+  const cases = casesForSet(setName, manifest).filter((c) => !only || c.id === only)
 
   const results: Array<{
     id: string

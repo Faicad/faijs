@@ -258,6 +258,26 @@ SCREW_CASES = [
      "args": {"size": "M6-1", "length": 25, "fastener_type": "iso4762", "simple": False}},
 ]
 
+# ── W7 链轮用例集（方案 §8 W7 验收：3 规格，含安装孔变体）──
+# 参数逐字取自上游 signature（sprocket.py:41 Sprocket.__init__）。
+# 后两例的期望值来自上游 sprocket_and_chain_tests.py:138/:157 的硬编码断言
+#（flat: Volume=15851.936489869417；spiky: Volume=5124.246302618558）。
+SPROCKET_CASES = [
+    # 基础 16T（默认齿距 12.7 / 滚子 7.9375；smoke 同款，分母独立计数）
+    {"id": "sprocket-16t", "class": "Sprocket",
+     "args": {"num_teeth": 16, "chain_pitch": 12.7, "roller_diameter": 7.9375},
+     "expect_volume": 6552.2962},
+    # 32T + 安装孔 + 大孔径（上游 test_flat_sprocket_shape 同参数）
+    {"id": "sprocket-32t-mount", "class": "Sprocket",
+     "args": {"num_teeth": 32, "bolt_circle_diameter": 104.0, "num_mount_bolts": 4,
+              "mount_bolt_diameter": 8.0, "bore_diameter": 80.0},
+     "expect_volume": 15851.936489869417},
+    # 英制齿距尖齿（上游 test_spiky_sprocket_shape 同参数：无平顶/倒角）
+    {"id": "sprocket-16t-inch", "class": "Sprocket",
+     "args": {"num_teeth": 16, "chain_pitch": 12.7, "roller_diameter": 12.446},
+     "expect_volume": 5124.246302618558},
+]
+
 WASHER_CASES = [
     # PlainWasher：4 个 fastener_type 取 2（本体 + 特大系列）
     {"id": "washer-plain-m6-iso7089", "class": "PlainWasher",
@@ -324,6 +344,7 @@ CASE_SETS = {
     "washer": WASHER_CASES,
     "screw": SCREW_CASES,
     "bearing": BEARING_CASES,
+    "sprocket": SPROCKET_CASES,
 }
 
 
