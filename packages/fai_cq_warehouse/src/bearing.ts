@@ -57,7 +57,6 @@ import {
   isolateFastenerType,
   type BearingClassName,
 } from './params'
-import { requireKernel } from './kernel'
 import TAPERED_FILLET_DROP from './data/tapered-fillet-drop.json'
 
 /** XZ 平面轮廓点：局部 (x, y)，revolve 后局部 x→世界半径、局部 y→世界 +Z。 */
