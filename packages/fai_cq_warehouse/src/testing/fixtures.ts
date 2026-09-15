@@ -123,6 +123,15 @@ const SCREW_CLASS_NAMES = [
   'SocketHeadCapScrew',
 ]
 
+/** W6 的轴承 5 类（与 `bearing.ts` 的 `BEARING_CLASSES` 同序，此处复制以避免循环依赖）。 */
+const BEARING_CLASS_NAMES = [
+  'SingleRowDeepGrooveBallBearing',
+  'SingleRowCappedDeepGrooveBallBearing',
+  'SingleRowAngularContactBallBearing',
+  'SingleRowCylindricalRollerBearing',
+  'SingleRowTaperedRollerBearing',
+]
+
 /** 过滤出螺钉族用例（W5）。
  *
  * @param manifest manifest
@@ -132,8 +141,17 @@ export function screwCases(manifest: Manifest): ManifestCase[] {
   return manifest.cases.filter((c) => SCREW_CLASS_NAMES.includes(c.class))
 }
 
+/** 过滤出轴承族用例（W6）。
+ *
+ * @param manifest manifest
+ * @returns 五个轴承类的全部用例
+ */
+export function bearingCases(manifest: Manifest): ManifestCase[] {
+  return manifest.cases.filter((c) => BEARING_CLASS_NAMES.includes(c.class))
+}
+
 /** CLI 可选的用例集名（`scripts/export-ours.ts` 与 `compare-all.ts` 的 `--set`）。 */
-export const CASE_SET_NAMES = ['thread', 'nut', 'washer', 'screw', 'all'] as const
+export const CASE_SET_NAMES = ['thread', 'nut', 'washer', 'screw', 'bearing', 'all'] as const
 
 /**
  * 按集合名取 manifest 用例（CLI 用；测试各自直接调对应族函数）。
@@ -152,6 +170,8 @@ export function casesForSet(set: string, manifest: Manifest): ManifestCase[] {
       return washerCases(manifest)
     case 'screw':
       return screwCases(manifest)
+    case 'bearing':
+      return bearingCases(manifest)
     case 'all':
       return manifest.cases
     default:

@@ -1,0 +1,109 @@
+{
+ "_comment": "Tapered cup fillet-drop table: upstream cq Sketch.vertices().fillet(r34) silently drops the (r=D/2, h=C) corner for these sizes (OCC MakeFillet2d quirk, no closed-form boundary \u2014 see W6 analysis doc). Measured A-side truth; consumed verbatim by src/bearing.ts. Regenerate with scripts/gen-fillet-drop.py.",
+ "sizes": [
+  {
+   "size": "M15-42-14.25",
+   "drop_top_outer": false
+  },
+  {
+   "size": "M17-40-13.25",
+   "drop_top_outer": true
+  },
+  {
+   "size": "M17-47-15.25",
+   "drop_top_outer": false
+  },
+  {
+   "size": "M17-47-20.25",
+   "drop_top_outer": false
+  },
+  {
+   "size": "M20-42-15",
+   "drop_top_outer": false
+  },
+  {
+   "size": "M20-47-15.25",
+   "drop_top_outer": false
+  },
+  {
+   "size": "M20-52-16.25",
+   "drop_top_outer": true
+  },
+  {
+   "size": "M20-52-22.25",
+   "drop_top_outer": true
+  },
+  {
+   "size": "M22-44-15",
+   "drop_top_outer": false
+  },
+  {
+   "size": "M25-47-15",
+   "drop_top_outer": false
+  },
+  {
+   "size": "M25-52-16.25",
+   "drop_top_outer": false
+  },
+  {
+   "size": "M25-52-19.25",
+   "drop_top_outer": true
+  },
+  {
+   "size": "M25-52-22",
+   "drop_top_outer": true
+  },
+  {
+   "size": "M25-62-18.25",
+   "drop_top_outer": true
+  },
+  {
+   "size": "M25-62-25.25",
+   "drop_top_outer": true
+  },
+  {
+   "size": "M28-52-16",
+   "drop_top_outer": true
+  },
+  {
+   "size": "M28-58-17.25",
+   "drop_top_outer": false
+  },
+  {
+   "size": "M28-58-20.25",
+   "drop_top_outer": true
+  },
+  {
+   "size": "M30-55-17",
+   "drop_top_outer": true
+  },
+  {
+   "size": "M30-62-17.25",
+   "drop_top_outer": false
+  },
+  {
+   "size": "M30-62-21.25",
+   "drop_top_outer": true
+  },
+  {
+   "size": "M30-62-25",
+   "drop_top_outer": true
+  },
+  {
+   "size": "M30-72-20.75",
+   "drop_top_outer": false
+  },
+  {
+   "size": "M30-72-28.75",
+   "drop_top_outer": false
+  },
+  {
+   "size": "M32-53-14.5",
+   "drop_top_outer": true
+  },
+  {
+   "size": "M32-58-17",
+   "drop_top_outer": true
+  }
+ ]
+}

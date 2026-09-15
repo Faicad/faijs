@@ -114,6 +114,40 @@ const CASE_TOLERANCE_OVERRIDES: Array<{
     reason:
       'Helical external-thread GProps quadrature aliasing: each side is self-inconsistent by 1.221e-2 (A) / 5.779e-2 (B) mm between its own GProps and tessellated CoM; tessellated metrics converge with mesh refinement (2.133e-4 → 5.818e-6 rel. volume; 1.554e-3 → 4.203e-5 mm CoM), while the unthreaded control case agrees to 1.010e-15 / 5.135e-11 mm',
   },
+  {
+    // 深沟球（无盖）两例：**A 侧 STEP 写出即损坏**——球面片与圆角滚道（torus）的
+    // 裁剪交集在 STEP roundtrip 后丢失（W6 实测，2026-09-14）：
+    //   | 量 | A live（Python） | A STEP 重导入（同一 occt-wasm） | B（本包） |
+    //   |---|---|---|---|
+    //   | dgb-m6 体积 | 1133.613019 | **1218.8194**（+7.5%） | 1133.629（对 A live 差 1.4e-5 相对）|
+    //   | dgb-m8 体积 | 1644.749126 | **1825.9880**（+11.0%） | 1644.757（差 4.9e-6 相对）|
+    //   | 球面片面积 | 14×16.517（被滚道裁剪）| 7/14 片变 **20.992**（≈完整球，丢裁剪）| 14×16.517 |
+    // 证据链：① Python 侧自身 roundtrip 同样损坏（live 1133.6130 → reimport 1218.8194，
+    // `BRepCheck_Analyzer(reimport).IsValid() = False`）——损坏发生在 A 侧写出器/读回器，
+    // 与我方内核无关；② A live 体积与 B 差 1.4e-5/4.9e-6 相对（远小于任何合理门禁）；
+    // ③ 补救实验全数无效：`write.surfacecurve.mode=0`（更差 1240.12）、读侧
+    // `read.precision.mode/val`、`read.minprecision`、`ShapeFix_Shape` 均不恢复。
+    // 门禁政策同线程族（实测最坏 ×~4）：vol 0.4 = 9.925e-2 ×4.0、linear 1e-1 = 2.715e-2 ×3.7。
+    // 几何等价由「B ≈ A live」直接证明；重导入体积差全部来自 A 侧 STEP 损坏。
+    match: /^bearing-dgb-(m6-19-6|m8-22-7)$/,
+    options: { volumeRelativeTolerance: 0.4, linearTolerance: 1e-1 },
+    reason:
+      'A-side STEP writer corrupts sphere-torus trimmed intersections on roundtrip: A live 1133.6130/1644.7491, A STEP reimport 1218.8194/1825.9880 (7/14 sphere patches lose their trimming, area 16.517→20.992, BRepCheck invalid — reproduced in pure Python), while B matches A live to 1.4e-5/4.9e-6 relative',
+  },
+  {
+    // taper m17：滚子自旋（polarArray Rz）与 cup 丢角修复后的唯一残余例。
+    // W6 实测（2026-09-14，两侧 STEP 同一 occt-wasm 内核）：
+    //   vol 相对差 2.086e-4、com 1.383e-2 mm、bbox 1e-7。
+    // 该件滚道/滚子/保持架全是近切线锥面（raceway semi=7.903°），GProps 一阶矩对
+    // 这类几何的求积混叠与 thread/screw 同族（两侧各自的 GProps vs 自身三角化
+    // 自偏差都在 0.5% 量级，远大于两侧差）。m15 同构例在默认容差下即过
+    // （vol < 1e-6），证明几何构造一致，残差是求积伪差而非几何差。
+    // 门禁政策同线程族（实测最坏 ×~4）：vol 1e-3 = 2.086e-4 ×4.8、linear 6e-2 = 1.383e-2 ×4.3。
+    match: /^bearing-taper-m17-40-13\.25$/,
+    options: { volumeRelativeTolerance: 1e-3, linearTolerance: 6e-2 },
+    reason:
+      'Near-tangent cone raceway/roller/cage GProps quadrature aliasing (same family as thread/screw): vol 2.086e-4 rel, CoM 1.383e-2 mm after the polarArray-rotation and cup-fillet-drop fixes; the structurally identical m15 case passes at defaults (<1e-6), proving construction equality',
+  },
 ]
 
 /**

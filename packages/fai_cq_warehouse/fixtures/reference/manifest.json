@@ -1,6 +1,6 @@
 {
   "generator": "fai_cq_warehouse/scripts/gen-reference.py",
-  "set": "screw",
+  "set": "bearing",
   "environment": {
     "python": "3.13.14",
     "cadquery": "2.8.0",
@@ -57,6 +57,438 @@
       "shapeType": "Solid",
       "step": "acme-3_4-fade-fade.step",
       "volume_mesh": 693.4784629139338
+    },
+    {
+      "id": "bearing-acb-m10-30-9",
+      "class": "SingleRowAngularContactBallBearing",
+      "args": {
+        "size": "M10-30-9",
+        "bearing_type": "SKT"
+      },
+      "volume": 3638.964844635072,
+      "bbox": [
+        30.0000002,
+        30.0,
+        9.0000002
+      ],
+      "shapeType": "Compound",
+      "step": "bearing-acb-m10-30-9.step",
+      "parts": [
+        {
+          "name": "part1",
+          "volume": 3638.964844635072,
+          "bbox": [
+            30.0000002,
+            30.0,
+            9.0000002
+          ],
+          "bbox_min": [
+            -15.0000001,
+            -15.0,
+            -1.000000003330669e-07
+          ],
+          "bbox_max": [
+            15.0000001,
+            15.0,
+            9.0000001
+          ],
+          "center": [
+            -2.7483604189427063e-07,
+            -1.2655822604746337e-06,
+            4.5077464406887175
+          ]
+        }
+      ],
+      "volume_mesh": 3637.5078322256763
+    },
+    {
+      "id": "bearing-acb-m15-35-11",
+      "class": "SingleRowAngularContactBallBearing",
+      "args": {
+        "size": "M15-35-11",
+        "bearing_type": "SKT"
+      },
+      "volume": 5259.980452032663,
+      "bbox": [
+        35.0000001,
+        35.0000001,
+        11.0
+      ],
+      "shapeType": "Compound",
+      "step": "bearing-acb-m15-35-11.step",
+      "parts": [
+        {
+          "name": "part1",
+          "volume": 5259.980452032663,
+          "bbox": [
+            35.0000001,
+            35.0000001,
+            11.0
+          ],
+          "bbox_min": [
+            -17.5,
+            -17.5,
+            -7.771561172376096e-16
+          ],
+          "bbox_max": [
+            17.5000001,
+            17.5000001,
+            11.0
+          ],
+          "center": [
+            -6.537996825373424e-07,
+            -7.813640763201524e-07,
+            5.452963817752602
+          ]
+        }
+      ],
+      "volume_mesh": 5258.2162342433085
+    },
+    {
+      "id": "bearing-capped-m6-19-6",
+      "class": "SingleRowCappedDeepGrooveBallBearing",
+      "args": {
+        "size": "M6-19-6",
+        "bearing_type": "SKT"
+      },
+      "volume": 893.0421647253336,
+      "bbox": [
+        19.0,
+        19.0000002,
+        6.0
+      ],
+      "shapeType": "Compound",
+      "step": "bearing-capped-m6-19-6.step",
+      "parts": [
+        {
+          "name": "part1",
+          "volume": 893.0421647253336,
+          "bbox": [
+            19.0,
+            19.0000002,
+            6.0
+          ],
+          "bbox_min": [
+            -9.5,
+            -9.5000001,
+            -1.6653345369377348e-16
+          ],
+          "bbox_max": [
+            9.5,
+            9.5000001,
+            6.0
+          ],
+          "center": [
+            1.5276345356873293e-15,
+            -1.2612363138964187e-16,
+            2.999999999999998
+          ]
+        }
+      ],
+      "volume_mesh": 892.6627166711096
+    },
+    {
+      "id": "bearing-capped-m8-22-7",
+      "class": "SingleRowCappedDeepGrooveBallBearing",
+      "args": {
+        "size": "M8-22-7",
+        "bearing_type": "SKT"
+      },
+      "volume": 1202.0356575227597,
+      "bbox": [
+        22.0,
+        22.0000001,
+        7.0
+      ],
+      "shapeType": "Compound",
+      "step": "bearing-capped-m8-22-7.step",
+      "parts": [
+        {
+          "name": "part1",
+          "volume": 1202.0356575227597,
+          "bbox": [
+            22.0,
+            22.0000001,
+            7.0
+          ],
+          "bbox_min": [
+            -11.0,
+            -11.0,
+            -1.6653345369377348e-16
+          ],
+          "bbox_max": [
+            11.0,
+            11.0000001,
+            7.0
+          ],
+          "center": [
+            -3.783143603440514e-16,
+            -1.2076237374293459e-15,
+            3.499999999999998
+          ]
+        }
+      ],
+      "volume_mesh": 1201.5266135228621
+    },
+    {
+      "id": "bearing-cyl-m15-35-11",
+      "class": "SingleRowCylindricalRollerBearing",
+      "args": {
+        "size": "M15-35-11",
+        "bearing_type": "SKT"
+      },
+      "volume": 7381.261614787301,
+      "bbox": [
+        35.0000001,
+        35.0,
+        11.0
+      ],
+      "shapeType": "Compound",
+      "step": "bearing-cyl-m15-35-11.step",
+      "parts": [
+        {
+          "name": "part1",
+          "volume": 7381.261614787301,
+          "bbox": [
+            35.0000001,
+            35.0,
+            11.0
+          ],
+          "bbox_min": [
+            -17.5,
+            -17.5,
+            -3.3306690738754696e-16
+          ],
+          "bbox_max": [
+            17.5000001,
+            17.5,
+            11.0
+          ],
+          "center": [
+            -8.163106408767057e-16,
+            -5.050721082420645e-17,
+            5.500000000000001
+          ]
+        }
+      ],
+      "volume_mesh": 7378.498777364512
+    },
+    {
+      "id": "bearing-cyl-m17-40-12",
+      "class": "SingleRowCylindricalRollerBearing",
+      "args": {
+        "size": "M17-40-12",
+        "bearing_type": "SKT"
+      },
+      "volume": 10447.006948848182,
+      "bbox": [
+        40.0000001,
+        40.0,
+        12.0
+      ],
+      "shapeType": "Compound",
+      "step": "bearing-cyl-m17-40-12.step",
+      "parts": [
+        {
+          "name": "part1",
+          "volume": 10447.006948848182,
+          "bbox": [
+            40.0000001,
+            40.0,
+            12.0
+          ],
+          "bbox_min": [
+            -20.0,
+            -20.0,
+            -3.3306690738754696e-16
+          ],
+          "bbox_max": [
+            20.0000001,
+            20.0,
+            12.0
+          ],
+          "center": [
+            -3.689079386692375e-15,
+            1.1908005552938018e-15,
+            5.999999999999998
+          ]
+        }
+      ],
+      "volume_mesh": 10442.435978190448
+    },
+    {
+      "id": "bearing-dgb-m6-19-6",
+      "class": "SingleRowDeepGrooveBallBearing",
+      "args": {
+        "size": "M6-19-6",
+        "bearing_type": "SKT"
+      },
+      "volume": 1133.6130193210352,
+      "bbox": [
+        19.0,
+        19.0000002,
+        6.0
+      ],
+      "shapeType": "Compound",
+      "step": "bearing-dgb-m6-19-6.step",
+      "parts": [
+        {
+          "name": "part1",
+          "volume": 1133.6130193210352,
+          "bbox": [
+            19.0,
+            19.0000002,
+            6.0
+          ],
+          "bbox_min": [
+            -9.5,
+            -9.5000001,
+            -1.6653345369377348e-16
+          ],
+          "bbox_max": [
+            9.5,
+            9.5000001,
+            6.0
+          ],
+          "center": [
+            2.140755221122422e-06,
+            -1.3104585305799725e-05,
+            2.999999722440046
+          ]
+        }
+      ],
+      "volume_mesh": 1132.8975953031957
+    },
+    {
+      "id": "bearing-dgb-m8-22-7",
+      "class": "SingleRowDeepGrooveBallBearing",
+      "args": {
+        "size": "M8-22-7",
+        "bearing_type": "SKT"
+      },
+      "volume": 1644.7491261120433,
+      "bbox": [
+        22.0,
+        22.0000001,
+        7.0
+      ],
+      "shapeType": "Compound",
+      "step": "bearing-dgb-m8-22-7.step",
+      "expect_volume": 1644.7491,
+      "expect_diff": 2.6112043315151823e-05,
+      "parts": [
+        {
+          "name": "part1",
+          "volume": 1644.7491261120433,
+          "bbox": [
+            22.0,
+            22.0000001,
+            7.0
+          ],
+          "bbox_min": [
+            -11.0,
+            -11.0,
+            -1.6653345369377348e-16
+          ],
+          "bbox_max": [
+            11.0,
+            11.0000001,
+            7.0
+          ],
+          "center": [
+            7.884764621481778e-07,
+            -4.468037992087272e-06,
+            3.500000304928035
+          ]
+        }
+      ],
+      "volume_mesh": 1643.7335355206012
+    },
+    {
+      "id": "bearing-taper-m15-42-14.25",
+      "class": "SingleRowTaperedRollerBearing",
+      "args": {
+        "size": "M15-42-14.25",
+        "bearing_type": "SKT"
+      },
+      "volume": 10872.061053485444,
+      "bbox": [
+        42.0,
+        42.0,
+        14.2500001
+      ],
+      "shapeType": "Compound",
+      "step": "bearing-taper-m15-42-14.25.step",
+      "parts": [
+        {
+          "name": "part1",
+          "volume": 10872.061053485444,
+          "bbox": [
+            42.0,
+            42.0,
+            14.2500001
+          ],
+          "bbox_min": [
+            -21.0,
+            -21.0,
+            -1e-07
+          ],
+          "bbox_max": [
+            21.0,
+            21.0,
+            14.25
+          ],
+          "center": [
+            -3.966237588985408e-05,
+            3.592009463523435e-07,
+            6.600046472566599
+          ]
+        }
+      ],
+      "volume_mesh": 10867.796133856273
+    },
+    {
+      "id": "bearing-taper-m17-40-13.25",
+      "class": "SingleRowTaperedRollerBearing",
+      "args": {
+        "size": "M17-40-13.25",
+        "bearing_type": "SKT"
+      },
+      "volume": 8955.83911535237,
+      "bbox": [
+        40.0,
+        40.0000001,
+        13.2500001
+      ],
+      "shapeType": "Compound",
+      "step": "bearing-taper-m17-40-13.25.step",
+      "parts": [
+        {
+          "name": "part1",
+          "volume": 8955.83911535237,
+          "bbox": [
+            40.0,
+            40.0000001,
+            13.2500001
+          ],
+          "bbox_min": [
+            -20.0,
+            -20.0,
+            -1e-07
+          ],
+          "bbox_max": [
+            20.0,
+            20.0000001,
+            13.25
+          ],
+          "center": [
+            -0.013764040041961556,
+            -0.0005623334611470222,
+            6.304770709364102
+          ]
+        }
+      ],
+      "volume_mesh": 8908.452854888883
     },
     {
       "id": "hexnut-m6-iso4032",

@@ -27,6 +27,8 @@ import type { WasherResult } from '../washer'
 import { chamferedWasher, cheeseHeadWasher, plainWasher } from '../washer'
 import type { ScrewResult } from '../screw'
 import { buildScrew, SCREW_CLASSES } from '../screw'
+import type { BearingResult } from '../bearing'
+import { buildBearing, BEARING_CLASSES } from '../bearing'
 
 /** manifest 中一条用例的形状（gen-reference.py 的 `build_case` 产出）。 */
 export interface ManifestCase {
@@ -102,6 +104,12 @@ const ALLOWED_ARGS: Readonly<Record<string, readonly string[]>> = {
   RaisedCounterSunkOvalHeadScrew: SCREW_ARGS,
   SetScrew: SCREW_ARGS,
   SocketHeadCapScrew: SCREW_ARGS,
+  // ── W6：轴承 5 类（`Bearing.__init__` 签名：size / bearing_type）──
+  SingleRowDeepGrooveBallBearing: ['size', 'bearing_type'],
+  SingleRowCappedDeepGrooveBallBearing: ['size', 'bearing_type'],
+  SingleRowAngularContactBallBearing: ['size', 'bearing_type'],
+  SingleRowCylindricalRollerBearing: ['size', 'bearing_type'],
+  SingleRowTaperedRollerBearing: ['size', 'bearing_type'],
 }
 
 /** 白名单覆盖的全部螺纹类名（= `ALLOWED_ARGS` 的键，按声明序）。 */
@@ -132,6 +140,9 @@ export const WASHER_CLASSES = ['PlainWasher', 'ChamferedWasher', 'CheeseHeadWash
 /** 白名单覆盖的全部螺钉类名（W5）；由 `src/screw.ts` 的 `SCREW_TABLES` 派生，避免两处清单漂移。 */
 export { SCREW_CLASSES }
 
+/** 白名单覆盖的全部轴承类名（W6）；由 `src/bearing.ts` 的 `BEARING_CLASSES` 派生。 */
+export { BEARING_CLASSES }
+
 function pick<T>(args: Record<string, unknown>, key: string, fallback: T): T {
   return (args[key] as T | undefined) ?? fallback
 }
@@ -154,13 +165,19 @@ function finishes(args: Record<string, unknown>): [EndFinish, EndFinish] | undef
 /** 白名单校验：manifest 里出现的每个键都必须被本文件消费（反之亦然）。 */
 function assertArgsKnown(
   c: ManifestCase,
-  family: 'thread' | 'nut' | 'washer' | 'screw',
+  family: 'thread' | 'nut' | 'washer' | 'screw' | 'bearing',
 ): void {
   const allowed = ALLOWED_ARGS[c.class]
   if (!allowed)
     throw new Error(
       `reference-options: class ${c.class} is not a ${family} class ` +
-        `(known: ${THREAD_CLASSES.join(', ')})`,
+        `(known: ${[
+          ...THREAD_CLASSES,
+          ...NUT_CLASSES,
+          ...WASHER_CLASSES,
+          ...SCREW_CLASSES,
+          ...BEARING_CLASSES,
+        ].join(', ')})`,
     )
   for (const key of Object.keys(c.args))
     if (!allowed.includes(key))
@@ -320,5 +337,20 @@ export function buildScrewReference(c: ManifestCase): ScrewResult {
     fastener_type: String(c.args['fastener_type']),
     hand: pick<Hand>(c.args, 'hand', 'right'),
     simple: pick(c.args, 'simple', true),
+  })
+}
+
+/**
+ * 把一条 manifest 用例构造成 TS 侧轴承几何（W6）。
+ *
+ * 轴承 5 类均为 B 侧完整复刻（无已知内核缺口），逐例比对体积/bbox/质心。
+ * @param c - manifest 用例（`class` 决定分派，`args` 逐字取自参考数据）。
+ * @returns 轴承实体与上游派生量。
+ */
+export function buildBearingReference(c: ManifestCase): BearingResult {
+  assertArgsKnown(c, 'bearing')
+  return buildBearing(c.class as (typeof BEARING_CLASSES)[number], {
+    size: String(c.args['size']),
+    bearingType: String(c.args['bearing_type']),
   })
 }

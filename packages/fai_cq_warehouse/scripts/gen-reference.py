@@ -140,6 +140,37 @@ NUT_CASES = [
      "args": {"size": "M6-1", "fastener_type": "iso4032", "simple": False}},
 ]
 
+# ── W6 轴承用例集（方案 §8 W6 验收：5 类 × ≥2 规格；M8-22-7/SKT 必过）──
+# 参数逐字取自上游 signature（bearing.py:194 `Bearing.__init__`：size / bearing_type）。
+# 所有类的唯一 bearing_type 均为 "SKT"（实测 `Bearing.types()`）。
+BEARING_CASES = [
+    # SingleRowDeepGrooveBallBearing：球滚子 + 默认矩形圆角滚道；M8-22-7 为方案指定必过例
+    {"id": "bearing-dgb-m8-22-7", "class": "SingleRowDeepGrooveBallBearing",
+     "args": {"size": "M8-22-7", "bearing_type": "SKT"}, "expect_volume": 1644.7491},
+    {"id": "bearing-dgb-m6-19-6", "class": "SingleRowDeepGrooveBallBearing",
+     "args": {"size": "M6-19-6", "bearing_type": "SKT"}},
+    # SingleRowCappedDeepGrooveBallBearing：deep groove + 两端密封盖（cap × 2）
+    {"id": "bearing-capped-m8-22-7", "class": "SingleRowCappedDeepGrooveBallBearing",
+     "args": {"size": "M8-22-7", "bearing_type": "SKT"}},
+    {"id": "bearing-capped-m6-19-6", "class": "SingleRowCappedDeepGrooveBallBearing",
+     "args": {"size": "M6-19-6", "bearing_type": "SKT"}},
+    # SingleRowAngularContactBallBearing：自定义 spline+arc 滚道 + cap（D2/d2）
+    {"id": "bearing-acb-m10-30-9", "class": "SingleRowAngularContactBallBearing",
+     "args": {"size": "M10-30-9", "bearing_type": "SKT"}},
+    {"id": "bearing-acb-m15-35-11", "class": "SingleRowAngularContactBallBearing",
+     "args": {"size": "M15-35-11", "bearing_type": "SKT"}},
+    # SingleRowCylindricalRollerBearing：圆柱滚子 + 默认矩形圆角滚道
+    {"id": "bearing-cyl-m15-35-11", "class": "SingleRowCylindricalRollerBearing",
+     "args": {"size": "M15-35-11", "bearing_type": "SKT"}},
+    {"id": "bearing-cyl-m17-40-12", "class": "SingleRowCylindricalRollerBearing",
+     "args": {"size": "M17-40-12", "bearing_type": "SKT"}},
+    # SingleRowTaperedRollerBearing：trapezoid 旋转滚道 + 圆锥滚子 + cage
+    {"id": "bearing-taper-m15-42-14.25", "class": "SingleRowTaperedRollerBearing",
+     "args": {"size": "M15-42-14.25", "bearing_type": "SKT"}},
+    {"id": "bearing-taper-m17-40-13.25", "class": "SingleRowTaperedRollerBearing",
+     "args": {"size": "M17-40-13.25", "bearing_type": "SKT"}},
+]
+
 # ── W5 螺钉用例集（方案 §8 W5 验收：12 类 × 2 规格，simple=True/False 各覆盖，
 #    CounterSunkScrew 与 SetScrew 单列）────────────────────────────────────────
 # 参数逐字取自上游 signature（fastener.py:1416 `Screw.__init__`）。
@@ -278,6 +309,12 @@ CLASS_MODULES = {
     "AcmeThread": "cq_warehouse.thread",
     "MetricTrapezoidalThread": "cq_warehouse.thread",
     "PlasticBottleThread": "cq_warehouse.thread",
+    # 轴承 5 类（W6）——上游全部定义在 bearing.py
+    "SingleRowDeepGrooveBallBearing": "cq_warehouse.bearing",
+    "SingleRowCappedDeepGrooveBallBearing": "cq_warehouse.bearing",
+    "SingleRowAngularContactBallBearing": "cq_warehouse.bearing",
+    "SingleRowCylindricalRollerBearing": "cq_warehouse.bearing",
+    "SingleRowTaperedRollerBearing": "cq_warehouse.bearing",
 }
 
 CASE_SETS = {
@@ -286,6 +323,7 @@ CASE_SETS = {
     "nut": NUT_CASES,
     "washer": WASHER_CASES,
     "screw": SCREW_CASES,
+    "bearing": BEARING_CASES,
 }
 
 

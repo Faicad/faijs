@@ -4,7 +4,7 @@
  * 前置：先跑 `scripts/gen-reference.py`（A 侧 manifest + STEP 入库）。
  *
  * 用法：
- *   npx tsx scripts/export-ours.ts [--set <thread|nut|washer|screw|all>] [--case <id>] [--out out]
+ *   npx tsx scripts/export-ours.ts [--set <thread|nut|washer|screw|bearing|all>] [--case <id>] [--out out]
  */
 
 import { mkdirSync, writeFileSync } from 'node:fs'
@@ -12,7 +12,7 @@ import { exportStepFromSolids } from '@faicad/faijs-core'
 import { setupWarehouseKernel } from '../src/test-setup'
 import { requireKernel } from '../src/kernel'
 import { casesForSet, loadManifest, ourStepPath, OUT_DIR } from '../src/testing/fixtures'
-import { buildNutReference, buildScrewReference, buildThreadReference, buildWasherReference } from '../src/testing/reference-options'
+import { buildBearingReference, buildNutReference, buildScrewReference, buildThreadReference, buildWasherReference } from '../src/testing/reference-options'
 import type { BrepHandle } from '@faicad/faijs-core'
 import type { ManifestCase } from '../src/testing/reference-options'
 
@@ -66,6 +66,12 @@ export function buildOurSolid(c: ManifestCase): BrepHandle | null {
     case 'SetScrew':
     case 'SocketHeadCapScrew':
       return buildScrewReference(c).handle
+    case 'SingleRowDeepGrooveBallBearing':
+    case 'SingleRowCappedDeepGrooveBallBearing':
+    case 'SingleRowAngularContactBallBearing':
+    case 'SingleRowCylindricalRollerBearing':
+    case 'SingleRowTaperedRollerBearing':
+      return buildBearingReference(c).handle
     default:
       throw new Error(`export-ours: 尚未支持的类 ${c.class}`)
   }
