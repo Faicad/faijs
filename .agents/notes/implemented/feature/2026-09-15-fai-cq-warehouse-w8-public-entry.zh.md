@@ -12,7 +12,7 @@ English | [中文](2026-09-15-fai-cq-warehouse-w8-public-entry.md)
 
 ### 公共入口（`src/index.ts` + `src/contract.ts`）
 
-照 `fai_cq_gears` 入口形状做 barrel 导出：各模块的工厂函数与派生尺寸函数（thread ×5 / nut ×7 / screw ×12 / washer ×3 / bearing ×5 / sprocket ×1）、参数表查询面（`nutTypes`/`nutSizes` 等，即 `types()`/`sizes()` 类方法的函数式等价物）、度量解析器。`contractVersion` 放在 `src/contract.ts`，别名引用 core 的 `CONTRACT_VERSION`（不硬编码），与 gears 包约定一致。`Chain`（P1-a）与孔系列函数（P1-b）**刻意不导出**——它们是未实现的 P1 项，状态记录在下方 Consequences。
+照 `fai_cq_gears` 入口形状做 barrel 导出：各模块的工厂函数与派生尺寸函数（thread ×5 / nut ×7 / screw ×12 / washer ×3 / bearing ×5 / sprocket ×1）、参数表查询面（`nutTypes`/`nutSizes` 等，即 `types()`/`sizes()` 类方法的函数式等价物）、度量解析器。`contractVersion` 放在 `src/contract.ts`，别名引用 core 的 `CONTRACT_VERSION`（不硬编码），与 gears 包约定一致。`Chain`（P1-a）与孔系列函数（P1-b）在 W8 收口时**未导出**——当时是未实现的 P1 项；两者已在 W9 落地（见 2026-09-15-fai-cq-warehouse-w9-p1-chain-holes）。
 
 ### workspaces 注册
 
@@ -40,7 +40,7 @@ English | [中文](2026-09-15-fai-cq-warehouse-w8-public-entry.md)
 
 - 消费方经 `@faicad/fai-cq-warehouse` 导入；`npm run test --workspaces` 与 workspace 工具链现在能看到该包。
 - 分层规则有机械守卫；回退成直接碰内核会让 CI 变红。
-- P1 状态：本包内 **Chain（P1-a）与孔系列（P1-b）未实现**，属方案的 W9 可选项。两者依赖不同（Chain 依赖多产品 STEP + 装配 Location；孔系列依赖 W1 参数表 + W3 IsoThread），可各自独立取舍。任一项日后落地必须回改本 note。
+- P1 状态：~~本包内 Chain（P1-a）与孔系列（P1-b）未实现~~ **两者已在 W9 落地**——决策、A/B 真值锚与剩余范围（斜面链）见 2026-09-15-fai-cq-warehouse-w9-p1-chain-holes。
 
 ## Verification
 

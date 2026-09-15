@@ -12,7 +12,7 @@ The cq_warehouse port's P0 body (33 instantiable classes across thread / nut / s
 
 ### Public entry (`src/index.ts` + `src/contract.ts`)
 
-Barrel export mirroring `fai_cq_gears`'s entry shape: per-module factory functions and derived-dimension helpers (thread ×5, nut ×7, screw ×12, washer ×3, bearing ×5, sprocket ×1), the params query surface (`nutTypes`/`nutSizes`/…, the `types()`/`sizes()` method equivalents), and the measure parsers. `contractVersion` lives in `src/contract.ts` and aliases core's `CONTRACT_VERSION` (not hardcoded), matching the gears package convention. `Chain` (P1-a) and the hole-series functions (P1-b) are deliberately **not** exported — they are unimplemented P1 items, recorded as such below.
+Barrel export mirroring `fai_cq_gears`'s entry shape: per-module factory functions and derived-dimension helpers (thread ×5, nut ×7, screw ×12, washer ×3, bearing ×5, sprocket ×1), the params query surface (`nutTypes`/`nutSizes`/…, the `types()`/`sizes()` method equivalents), and the measure parsers. `contractVersion` lives in `src/contract.ts` and aliases core's `CONTRACT_VERSION` (not hardcoded), matching the gears package convention. `Chain` (P1-a) and the hole-series functions (P1-b) were **not** exported at W8 close — they were unimplemented P1 items; both landed in W9 (see 2026-09-15-fai-cq-warehouse-w9-p1-chain-holes).
 
 ### Workspace registration
 
@@ -40,7 +40,7 @@ Rules run on comment/string-stripped source so documentation mentions don't fals
 
 - Consumers import via `@faicad/fai-cq-warehouse`; `npm run test --workspaces` and workspace tooling now see the package.
 - The layering rules are mechanically enforced; regressing to direct kernel access turns CI red.
-- P1 status: **Chain (P1-a) and hole-series (P1-b) are unimplemented** in this package, per the plan's W9 option. Their dependencies differ (Chain needs multi-product STEP + assembly Location; hole-series needs the W1 param tables + W3 IsoThread), so each may be picked up or dropped independently. If either lands later, this note must be updated.
+- P1 status: ~~Chain (P1-a) and hole-series (P1-b) are unimplemented~~ **both landed in W9** — see 2026-09-15-fai-cq-warehouse-w9-p1-chain-holes for the decisions, A/B anchors, and remaining scope (non-planar chains).
 
 ## Verification
 

@@ -73,9 +73,9 @@ import {
   wireFromEdges,
 } from './primitives'
 import {
-  tempClearanceHoleCutter,
   tempCounterSunkCountersinkProfile,
 } from './recess'
+import { fastenerHoleCutter } from './holes'
 import { isoThread, type Hand } from './thread'
 
 /** 旋转轴（+Z）。 */
@@ -865,8 +865,8 @@ export function polarArrayLocations(
  * 上游步骤：`make_nut()` → `faces(">Z").workplane()` → `polarArray(bcd/2, 0, 360, brad_num)`
  * → `clearanceHole(fastener=CounterSunkScrew(brad_size, 2c, "iso10642"))`。
  *
- * 本包把 `clearanceHole` 走 {@link recess.tempClearanceHoleCutter}（**W4 临时**，
- * W9·P1-b 落地后替换为 `src/holes.ts`）。解析验证（`scripts/probe-bradtee-decomposition.py`
+ * 本包把 `clearanceHole` 走 {@link holes.fastenerHoleCutter}（W9·P1-b 正式实现，
+ * 原 `recess.ts` 的 W4 临时切割器已删除；沉头轮廓仍用 `tempCounterSunkCountersinkProfile`）。解析验证（`scripts/probe-bradtee-decomposition.py`
  * 出 A 侧中间量；B 侧 STEP 等价由 `src/nut.test.ts` 锁定）：
  *  - `make_nut()` = 3585.465923（与前剖面/plan 模型解析值一致）；
  *  - 每孔切除 65.4292（截锥 ∪ 杆部 ∪ 钻尖 在法兰板内的并集），3 孔共 196.290；
@@ -906,8 +906,10 @@ export function bradTeeNut(p: NutParams): NutResult {
     throw new Error(`BradTeeNut: no iso10642 countersunk data for ${bradSize}`)
 
   // `depth=None` → 上游取 `self.largestDimension()`（包围盒对角线）
-  const cutter = tempClearanceHoleCutter({
-    countersinkProfile: tempCounterSunkCountersinkProfile(screwData, 'Normal'),
+  // W9·P1-b：孔切割器走 src/holes.ts 正式实现（原 recess.ts Temp* 已删）。
+  const countersinkProfile = tempCounterSunkCountersinkProfile(screwData, 'Normal')
+  const cutter = fastenerHoleCutter({
+    countersinkProfile,
     holeRadius: clearance / 2,
     depth: bboxDiagonal(nut),
   })

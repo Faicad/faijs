@@ -35,18 +35,13 @@ import type { BrepHandle, BrepVec3 } from '@faicad/faijs-core'
 import { requireKernel } from './kernel'
 import {
   arcEdge,
-  cone,
-  cylinder,
   draftPrismFace,
   filletCorner2D,
-  fuse,
   lineEdge,
   mirrorAbout,
   polygonWire,
   radiusArcMidpoint,
-  revolveProfile,
   rotateAbout,
-  translate,
   wireFromEdges,
 } from './primitives'
 import { iso10664Def, type ParamRow } from './params'
@@ -318,16 +313,12 @@ export { SQUARE_DEPTHS, CROSS_DEPTHS }
 
 // ── W4：`extensions._fastenerHole` 的最小等价路径（BradTeeNut 用）────────────
 //
-// 本节是 W4 引入的**临时**实现（`Temp` 前缀），W5 重构本文件时**必须保留**——
-// `src/nut.ts` 的 `bradTeeNut` 依赖它。替换目标是 W9·P1-b 的 `src/holes.ts`
-// （`extensions.clearanceHole` 整支移植），届时随切割器装配一并迁走，本节与
-// 上面的 W5 沉孔模块无依赖关系，**也不得被 W5 的代码反向引用**。
-
-/** 旋转轴（+Z）。 */
-const AXIS_Z = { point: { x: 0, y: 0, z: 0 }, direction: { x: 0, y: 0, z: 1 } }
+// W9·P1-b 已落地：孔切割器迁入 `src/holes.ts`（`fastenerHoleCutter`），本文件
+// 仅保留 `tempCounterSunkCountersinkProfile`（沉头轮廓，BradTeeNut 仍在用）。
+// 原 `TempClearanceHoleCutterParams` / `tempClearanceHoleCutter` 已随迁移删除。
 
 /** 钻尖角（度）—— 上游 `_fastenerHole` 的 `cskAngle = 82`（extensions.py:975）。 */
-export const DRILL_TIP_ANGLE = 82
+export { DRILL_TIP_ANGLE } from './holes'
 
 /** 沉头轮廓（XZ 平面 `{r,z}` 点列，闭合，`r` 为到轴距离）。 */
 export interface TempProfilePoint {
@@ -371,50 +362,4 @@ export function tempCounterSunkCountersinkProfile(
     { r: dk / 2, z: k },
     { r: endR, z: endZ },
   ]
-}
-
-/** 沉孔切割器参数（上游 `_fastenerHole` 该路径的全部自由度）。 */
-export interface TempClearanceHoleCutterParams {
-  /** 沉头轮廓点列（{@link tempCounterSunkCountersinkProfile} 或等价的闭式轮廓）。 */
-  countersinkProfile: TempProfilePoint[]
-  /** 杆部（间隙）孔半径（mm）= `clearance_hole_diameters[fit] / 2`。 */
-  holeRadius: number
-  /** 孔深（mm）= 上游 `self.largestDimension()`（包围盒对角线，见 `bboxDiagonal`）。 */
-  depth: number
-  /** 钻尖角（度），默认 {@link DRILL_TIP_ANGLE}。 */
-  cskAngle?: number
-}
-
-function toWorldPoint(p: TempProfilePoint): BrepVec3 {
-  return { x: p.r, y: 0, z: p.z }
-}
-
-/**
- * 组装 `_fastenerHole` 的孔切割器实体（**局部坐标**：孔口在 z=0，孔轴向 −Z）。
- *
- * 调用方负责把它平移到每个孔位再 `cut`（上游 `cutEach(...)`）。
- * @param p - 切割器参数。
- * @returns 切割器实体句柄（沉头 + 杆部 + 钻尖三段的并集）。
- */
-export function tempClearanceHoleCutter(p: TempClearanceHoleCutterParams): BrepHandle {
-  const { countersinkProfile, holeRadius, depth } = p
-  const cskAngle = p.cskAngle ?? DRILL_TIP_ANGLE
-  const headOffset = Math.max(...countersinkProfile.map((q) => q.z))
-
-  // ① 沉头：轮廓绕 +Z 旋转，再下移 head_offset → z ∈ [−headOffset, 0]
-  const csk = translate(
-    revolveProfile(polygonWire(countersinkProfile.map(toWorldPoint)), AXIS_Z, 2 * Math.PI),
-    0,
-    0,
-    -headOffset,
-  )
-
-  // ② 杆部：自 z=0 向 −Z 长 depth（上游 makeCylinder(dir=(0,0,-1)) → z ∈ [−depth, 0]）
-  const shank = translate(cylinder(holeRadius, depth), 0, 0, -depth)
-
-  // ③ 钻尖：底半径 holeRadius 于 z=−depth，尖顶在 z=−depth−h
-  const h = holeRadius / Math.tan(((cskAngle / 2) * Math.PI) / 180)
-  const tip = translate(cone(0, holeRadius, h), 0, 0, -depth - h)
-
-  return fuse(fuse(csk, shank), tip)
 }

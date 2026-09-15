@@ -9,7 +9,8 @@
  * - `types()`/`sizes()` 类方法转 `nutTypes()`/`nutSizes()` 等函数式形态（params.ts）。
  * - `contractVersion` 语义见方案 §4.2.1：本包 API 形状 + 参数表来源 + STEP 输出
  *   形态的行为契约版本；与内核契约对齐（照 fai_cq_gears，勿硬编码）。
- * - `Chain`（P1-a）与孔系列（P1-b）未实现，见 Agent Note。
+ * - P1 增项已落地：孔系列（holes.ts，函数式）与 Chain（chain.ts，平面 2+ 链轮），
+ *   见 Agent Note 2026-09-15-fai-cq-warehouse-w9-p1-chain-holes。
  */
 
 export { contractVersion } from './contract'
@@ -117,7 +118,7 @@ export {
   buildBearing,
 } from './bearing'
 
-// ── sprocket：链轮（Chain 归 P1-a，未实现）────────────────────────────────────
+// ── sprocket：链轮 ────────────────────────────────────────────────────────────
 export {
   type SprocketParams,
   type SprocketResult,
@@ -125,3 +126,36 @@ export {
   sprocketPitchRadius,
   sprocketCircumference,
 } from './sprocket'
+
+// ── holes：P1-b 孔系列（函数式，不做 monkey-patch）────────────────────────────
+export {
+  DRILL_TIP_ANGLE,
+  type ProfilePoint,
+  type HoleLocation,
+  type FastenerHoleCutterParams,
+  fastenerHoleCutter,
+  internalThreadSolid,
+  type ClearanceHoleParams,
+  clearanceHole,
+  type TapHoleParams,
+  tapHole,
+  type ThreadedHoleParams,
+  threadedHole,
+  type InsertHoleParams,
+  insertHole,
+  type PressFitHoleParams,
+  pressFitHole,
+  type FastenerHoleParams,
+  fastenerHole,
+  pushFastenerLocations,
+} from './holes'
+
+// ── chain：P1-a 滚子链（平面 2 链轮形态）──────────────────────────────────────
+export {
+  type ChainParams,
+  type ChainPart,
+  type ChainResult,
+  buildChain,
+  makeLink,
+  placeSprocket,
+} from './chain'

@@ -1,6 +1,6 @@
 # fai_cq_warehouse 移植开发计划（cq_warehouse → TypeScript）
 
-状态：**实施中**（W1 数据层 / W2 内核层 / W3 Thread / W4 Nut+Washer / W5 Screw 已落地；W6–W9 未开始） | 日期：2026-09-13 | 上游：`C:\git\CADQ\cq_warehouse` v0.8.0（git HEAD `daa4650`）
+状态：**已落地**（W1–W8 全部完成；W9 的 P1-a Chain + P1-b 孔系列已于 2026-09-15 落地，斜面链为后续增量） | 日期：2026-09-13 | 上游：`C:\git\CADQ\cq_warehouse` v0.8.0（git HEAD `daa4650`）
 
 > W3 落地时的偏差与容差标定见 `docs/analysis/2026-09-14-cq-warehouse-thread-probe.md`；决策记录见 `.agents/notes/implemented/feature/2026-09-14-fai-cq-warehouse-thread-geometry.md`。
 > W3 已知缺口：`end_finishes="chamfer"` 未实现（内核只有等距 chamfer），`buildThread` 显式抛错，且参考用例集内不含 chamfer 用例。
@@ -620,6 +620,7 @@ export function requireKernel(): BrepEngineApi {
 
 - **落地结果（2026-09-14）**：`src/nut.ts`（7 类；`BradTeeNut` 复用 `src/recess.ts` 的 `Temp*` 沉孔；`HeatSetNut` 显式抛错）、`src/washer.ts`（3 类）+ 三种截面轮廓、`src/primitives.ts` 新增 `cone` / `bboxDiagonal`。参考用例 21 例中 **19 例 STEP 等价**（六角族 10 + BradTeeNut 2 + washer 6 + threaded 1（逐例 override）），**2 例 HeatSetNut 为显式缺口**（测试断言其抛错）。验收项对照：M6-1 iso4032 实测 `302.297726`（= A 侧 `302.2977262431188`）；`HexNutWithFlange` 2 例、`BradTeeNut` 2 例。
 - **最重要的一条内核修法**：`revolve` 返回 **shell 非 solid**（`getVolume` 在闭合壳上恰好正确，掩盖问题；`common(shell, blank)` 静默掉到 1/3）。`primitives.revolveProfile` 内补 `makeSolid` + `orientOutward` 后逐位一致。回归锁：`src/kernel-pitfalls.test.ts` 陷阱 8、`src/nut.test.ts` 几何回归锁。
+- **W9 落地结果（2026-09-15）**：P1-b `src/holes.ts` 正式版落地（7 入口共享 `fastenerHoleCutter` 核心，语义对齐 extensions.py:865–1363）；BradTeeNut 已切换到正式版并删除 Temp 实现（上表「W9 收口」验收项完成）。P1-a `src/chain.ts` 落地（`buildChain` 函数式形态 + `placeSprocket`，仅平面链；A/B 体积锚 35/35 对齐上游，参考 STEP 在 `fixtures/reference/transmission-16t-16t.step`）。详见 Agent Note 2026-09-15-fai-cq-warehouse-w9-p1-chain-holes。
 
 ### W5 — Screw（12 类）
 
