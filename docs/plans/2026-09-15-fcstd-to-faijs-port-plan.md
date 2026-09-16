@@ -1,7 +1,7 @@
 # FCStd → faijs 单向移植开发计划
 
 > 日期：2026-09-15
-> 状态：**部分实施** —— M0–M6 草图→cad 面接线 + Pad/Pocket/Extrusion/Revolution/LinearPattern/PolarPattern 已落地（commit 8e782e6）；Fillet/Chamfer（12 个）待 M6.1 元素引用锚点（edge 选择）。
+> 状态：**部分实施** —— M0–M6 草图→cad 面接线 + Pad/Pocket/Extrusion/Revolution/LinearPattern/PolarPattern 已落地（commit 8e782e6）；**Fillet/Chamfer（12 个）已随 M6.1 接线**（`cad.edgeRef` 边锚点 + `cad.fillet`/`cad.chamfer`）。
 > 依赖分析：
 > - `docs/analysis/2026-09-15-fcstd-to-fai-zip-feasibility.md`（下称「前文 A」）
 > - `docs/analysis/2026-09-15-sketch-constraint-solver-port-feasibility.md`（下称「前文 B」）
@@ -436,7 +436,7 @@ M2 阶段从文档属性读取单位设置并归一到 mm，写进 `mapping.json
 | M4.2 | 基本体 → `cad.box/cylinder/cone/sphere/torus` |
 | M4.3 | 布尔 → `cad.union/subtract/intersect` |
 | M4.4 | 变换 / 阵列 → `cad.translate/rotate/linearPattern/circularPattern/mirrorJoin` |
-| M4.5 | 圆角倒角 → `cad.fillet/chamfer`（选边语义依赖 M6.1 元素引用锚点，尚未接线；样本 Chamfer 7 + Fillet 5 暂烘焙） |
+| M4.5 | 圆角倒角 → `cad.fillet`/`cad.chamfer`：选边经 M6.1 的 `cad.edgeRef` 边锚点；样本 Chamfer 7 + Fillet 5 全部翻译 |
 | M4.6 | **Pad/Pocket/Extrusion/Revolution 接入 M3 草图轮廓** → 新增 `cad.sketch` 构面 op + `cad.extrude` / `cad.revolve`（commit 8e782e6；原 `cad.fai_extrude` 路线废弃） |
 | M4.7 | **LinearPattern/PolarPattern 阵列** → `cad.linearPattern` / `cad.circularPattern`（标准轴方向/轴直接接线；edge/vertex 引用降级烘焙，依赖 M6.1） |
 
@@ -459,7 +459,7 @@ M2 阶段从文档属性读取单位设置并归一到 mm，写进 `mapping.json
 | 步骤 | 内容 | 进度 |
 |---|---|---|
 | M6（草图→cad 面） | M3 求解轮廓经 M5 生成 `cad.sketch({contours})` 真实面变量，Pad/Pocket/Extrusion/Revolution 接 `cad.extrude`/`cad.revolve` | **已落地**（commit 8e782e6） |
-| M6.1 | 元素引用几何锚点：面中心+法向、边端点、bbox → `topology/naming/geom-hint.ts` 重解析（前文 A R1）；Fillet/Chamfer 选边的前置 | 未做（阻塞 Fillet/Chamfer 接线） |
+| M6.1 | 元素引用边锚点：`cad.edgeRef(shape, N)` 按内核枚举序（`getSubShapes(solid,'edge')` == 同用 TopExp::MapShapes 的 `wireframe()` == FreeCAD `EdgeN`）解析成 `EdgeTopoRef` | **已落地**（`api/edge-ref.ts`；Fillet/Chamfer 已接线） |
 | M6.2 | 表达式降级：`<ExpressionEngine>` → JS 常量 / `const`（前文 A R4） | 已实现（`expressions.ts`） |
 | M6.3 | **解锁 M3 的外部几何**（D4）→ L2 转 L0 | 锚点研究就绪（`external-geo.test.ts` GOTCHA：wireframe edgeGroups[k] == FreeCAD "Edge(k+1)"），未全量解锁 |
 

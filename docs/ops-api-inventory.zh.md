@@ -179,7 +179,21 @@ const s = await cad.sdf({ code: 'return sphere(10) - sphere(5, [10,0,0])', box: 
 
 > SDF 无 BREP 实现（mesh-only）；brep 模式下 dispatchPath 调用前抛 BrepUnsupportedError。SDF 天生是网格操作，允许网格参数（resolution）。
 
-### 3.7 `sphere` ✅
+### 3.7 `sketch` ✅
+
+从 2D 轮廓构造平面（creator，无输入）。仅 BREP 可用。
+
+```js
+const f = cad.sketch({ contours: [{ segments: [{ kind:'line', x1:0,y1:0,x2:10,y2:0 }, ...] }] })
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `contours` | `SketchLoop[]` | ✅ | — | 有序 2D 轮廓（线段/圆弧；外环 + 孔） |
+
+**同步**。Shape 平面几何（mesh 三角化 + BREP 句柄）。
+
+### 3.8 `sphere` ✅
 
 创建球体。
 
@@ -198,7 +212,7 @@ const r = cad.sphere({ radius: 10, segments: 64, center: [0,0,10] })
 
 **同步**。Shape 球体几何，可作为后续 op 的输入。
 
-### 3.8 `svgExtrude` ⚠️
+### 3.9 `svgExtrude` ⚠️
 
 从二维 SVG 轮廓挤出零件（拓扑操作）。
 
@@ -216,7 +230,7 @@ const s = await cad.svgExtrude({ svg: 'logo.svg', depth: 5, targetLongSide: 20 }
 
 > SVG 是外部资产，应优先用资产引用（`cad.asset(key)` 经 CallRefIR）而非整份 XML 内联拷贝。自然尺寸（viewBox）与缩放已显式成参数（mesh/BREP 两条路径都解析 viewBox 并传递 naturalWidth/naturalHeight），尺寸语义不再依赖两套实现各自推导。
 
-### 3.9 `text` ⚠️
+### 3.10 `text` ⚠️
 
 生成文字零件（文字轮廓挤出，X/Z 居中、Y 底部对齐原点）。
 
@@ -235,7 +249,7 @@ const t = await cad.text({ text: 'Hello', size: 20, depth: 5 })
 
 > font 语义未定（当前只有默认字体），⚠️ 暂不要传。兼容 `cad.text(part0, {...})` 带输入形态（输入被忽略），正常写 `cad.text({...})` 即可。
 
-### 3.10 `wedge` ✅
+### 3.11 `wedge` ✅
 
 创建楔形体。唯一契约是 width/height/angle/length（width/height/angle 为正数，length 沿切割方向）， 旧文档的 size 形态已废弃，传 { size } 会抛错。
 
@@ -655,7 +669,24 @@ const mn = cad.bboxMin(part0)
 
 **同步**。Vec3 包围盒最小角点 [x,y,z]。
 
-### 7.5 `faceNormal` ✅
+### 7.5 `edgeRef` ✅
+
+查询几何体第 N 条边的 `EdgeTopoRef`，供 `cad.fillet` / `cad.chamfer` 的 `edges` 使用： `cad.fillet(base, { edges: [cad.edgeRef(base, 17)], radius: 2 })`。 定不了案（无 BREP / 序号越界 / 邻面不足两面 / 邻面无 role 血统）抛 `TopoRefError`。
+
+```js
+const part1 = cad.fillet(part0, { edges: [cad.edgeRef(part0, 1)], radius: 2 })
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `of` | `Shape` | ✅ | — | 目标几何（BREP 实体所在的 Shape） |
+| `edgeOrdinal` | `number` | ✅ | — | 边序号（1 起；等于 FreeCAD 的 `EdgeN`） |
+
+**同步**。EdgeTopoRef 该边的拓扑引用（相邻两面 role 对 + length/midpoint hint）。
+
+> 序号 1 起，与命名层 `TopoRef.ordinal` 及 FreeCAD `EdgeN` 同序（`getSubShapes(solid,'edge')` 用 TopExp::MapShapes + IndexedMap 枚举）。
+
+### 7.6 `faceNormal` ✅
 
 查询面上某点（锚点）的法向。
 
@@ -671,7 +702,7 @@ const n = cad.faceNormal(part0, [0, 0, 5])
 
 **同步**。Vec3 面上锚点处的法向 [x,y,z]。
 
-### 7.6 `projectSheet` ✅
+### 7.7 `projectSheet` ✅
 
 多视图投影图纸 → 组合 SVG 字符串（纯数据，不消费/修改 shape）。
 
@@ -692,7 +723,7 @@ const sheet = cad.projectSheet(part0, [{ view: 'front', label: '主视图' }], {
 
 **同步**。SVG 字符串（嵌套 <svg x y width height viewBox preserveAspectRatio> + <text> 标签）。空列表返回空 SVG 不抛错。
 
-### 7.7 `projectView` ✅
+### 7.8 `projectView` ✅
 
 单视图投影 → SVG 线稿字符串（纯数据，不消费/修改 shape；规则 1 下裸调用不消费输入）。
 
@@ -714,7 +745,7 @@ const svg = cad.projectView(part0, 'iso', { strokeWidth: 1, dash: '4,4', hiddenO
 
 **同步**。SVG 字符串（<svg viewBox="…"> + 可见实线 <path> + 隐藏虚线 <path>）。裸调用 cad.projectView(part0, 'front') 不消费 part0（规则 1），part 仍留在 canvas。
 
-### 7.8 `viewCamera` ✅
+### 7.9 `viewCamera` ✅
 
 解析视图规格为投影相机（纯数据，无 Shape 输入；不消费任何几何）。
 
@@ -748,9 +779,9 @@ const cam = cad.viewCamera({ dir: [1, -1, 1] })
 ## 9. 写给 AI 的速查（一句话总结每个可用 op）
 
 ```
-创建: load / box / sphere / cylinder / cone / wedge / screw / sdf / svgExtrude / text
+创建: load / box / sphere / cylinder / cone / wedge / screw / sdf / sketch / svgExtrude / text
 变换: translate / rotate_euler / scale / scale3d
 特征: union / subtract / intersect / chamfer / copy / engrave / drill / fai_extrude / fai_split / fillet / knurl
 结构: group / assembly
-查询: asset / faceNormal / bboxCenter / bboxMin / bboxMax / viewCamera / projectView / projectSheet
+查询: asset / edgeRef / faceNormal / bboxCenter / bboxMin / bboxMax / viewCamera / projectView / projectSheet
 ```

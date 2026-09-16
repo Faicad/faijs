@@ -9,7 +9,7 @@
  */
 import type { FcstdDocument } from './document.js';
 import type { CadCall, TranslateVerdict } from './feature-translate.js';
-import { translateObject } from './feature-translate.js';
+import { translateObject, isJsExpr } from './feature-translate.js';
 import type { Contour } from './contour.js';
 
 export interface GenObjectResult {
@@ -199,15 +199,44 @@ function lower(calls: CadCall[], baseName: string): string {
   return lines.join('\n') + '\n';
 }
 
+/**
+ * M5.2 — render one IR value as JS. Plain values JSON-encode (byte-identical to
+ * the pre-JsExpr output); a `JsExpr` marker renders verbatim, and a container
+ * holding one renders element-wise so the expression survives into the source.
+ */
+function renderValue(v: unknown): string {
+  if (isJsExpr(v)) return v.__jsExpr;
+  if (Array.isArray(v)) {
+    if (v.some(isJsExpr)) return `[${v.map(renderValue).join(', ')}]`;
+    return JSON.stringify(v);
+  }
+  if (v && typeof v === 'object') {
+    const entries = Object.entries(v as Record<string, unknown>);
+    if (entries.some(([, val]) => containsJsExpr(val))) {
+      return `{ ${entries.map(([k, val]) => `${k}: ${renderValue(val)}`).join(', ')} }`;
+    }
+    return JSON.stringify(v);
+  }
+  return JSON.stringify(v);
+}
+
+/** True when a value is or (recursively) contains a `JsExpr` marker. */
+function containsJsExpr(v: unknown): boolean {
+  if (isJsExpr(v)) return true;
+  if (Array.isArray(v)) return v.some(containsJsExpr);
+  if (v && typeof v === 'object') return Object.values(v as Record<string, unknown>).some(containsJsExpr);
+  return false;
+}
+
 function renderArgs(call: CadCall): string {
   const positional: string[] = [
     ...call.inputs.map((i) => i),
-    ...(call.literals ?? []).map((l) => JSON.stringify(l)),
+    ...(call.literals ?? []).map((l) => renderValue(l)),
   ];
   const named: string[] = [];
   for (const [k, v] of Object.entries(call.params ?? {})) {
     if (v === undefined) continue;
-    named.push(`${k}: ${JSON.stringify(v)}`);
+    named.push(`${k}: ${renderValue(v)}`);
   }
   const rest = named.length ? `, { ${named.join(', ')} }` : '';
   return `${positional.join(', ')}${rest}`;

@@ -39,6 +39,7 @@ export default {
   "bboxCenter": {},
   "bboxMin": {},
   "bboxMax": {},
+  "edgeRef": {},
   "jointTrajectory": {},
   "inverseKinematics": {},
   "mechanismDOF": {},

@@ -3,7 +3,7 @@
  * M4.3 booleans, M4.6 Pad/Pocket).
  */
 import { describe, it, expect } from 'vitest';
-import { translateObject, isWhitelisted, placementPos } from './feature-translate.js';
+import { translateObject, isWhitelisted, placementPos, isJsExpr } from './feature-translate.js';
 import type { FcstdObject, FcstdProperty } from './document.js';
 
 function prop(name: string, child: { name: string; attrs: Record<string, string> } | null = null): [string, FcstdProperty] {
@@ -22,6 +22,42 @@ function prop(name: string, child: { name: string; attrs: Record<string, string>
 
 function obj(type: string, name: string, props: [string, FcstdProperty][]): FcstdObject {
   return { type, name, properties: new Map(props) };
+}
+
+/**
+ * An `App::PropertyLinkSub` with sub-element names, exactly as FreeCAD saves it:
+ * `<LinkSub value="Pad001" count="2"><Sub value="Edge17"/><Sub value="Edge18"/></LinkSub>`.
+ */
+function linkSubProp(name: string, target: string, subs: string[]): [string, FcstdProperty] {
+  return [
+    name,
+    {
+      name,
+      type: 'App::PropertyLinkSub',
+      tagName: 'Property',
+      children: [{
+        name: 'LinkSub',
+        type: '',
+        tagName: 'LinkSub',
+        children: subs.map((s) => ({
+          name: 'Sub', type: '', tagName: 'Sub', children: [], valueXml: '', valueText: '', attributes: { value: s },
+        })),
+        valueXml: '',
+        valueText: '',
+        attributes: { value: target, count: String(subs.length) },
+      }],
+      valueXml: '',
+      valueText: '',
+      attributes: {},
+    },
+  ];
+}
+
+/** Raw `cad.edgeRef(...)` expressions carried in a call's params (M6.1 edge anchors). */
+function edgeExprs(call: { params: Record<string, unknown> }): string[] {
+  const edges = call.params['edges'];
+  if (!Array.isArray(edges)) throw new Error('edges param is not an array');
+  return edges.map((e) => (isJsExpr(e) ? e.__jsExpr : JSON.stringify(e)));
 }
 
 describe('M4.1 whitelist', () => {
@@ -235,5 +271,139 @@ describe('M4.7 patterns (LinearPattern / PolarPattern)', () => {
     ]);
     const v = translateObject(pp, (dep) => (dep === 'Pad' ? 'part2' : undefined));
     expect(v).toMatchObject({ kind: 'baked', reason: 'polar-pattern-edge-axis-unsupported' });
+  });
+});
+
+describe('M6.1 Fillet / Chamfer (edge anchors via cad.edgeRef)', () => {
+  const base = (target: string, subs: string[]): [string, FcstdProperty] => linkSubProp('Base', target, subs);
+  const dep = (d: string): string | undefined => (d === 'Pad001' ? 'part3' : undefined);
+
+  it('translates Fillet into cad.fillet over cad.edgeRef anchors', () => {
+    const f = obj('PartDesign::Fillet', 'Fillet', [
+      base('Pad001', ['Edge17', 'Edge18']),
+      prop('Radius', { name: 'Float', attrs: { value: '4' } }),
+    ]);
+    const v = translateObject(f, dep);
+    expect(v.kind).toBe('translated');
+    if (v.kind === 'translated') {
+      const call = v.calls[0]!;
+      expect(call.op).toBe('cad.fillet');
+      expect(call.inputs).toEqual(['part3']);
+      expect(edgeExprs(call)).toEqual(['cad.edgeRef(part3, 17)', 'cad.edgeRef(part3, 18)']);
+      expect(call.params['radius']).toBe(4);
+    }
+  });
+
+  it('translates Chamfer (no ChamferType → Equal distance) with Size as width', () => {
+    const c = obj('PartDesign::Chamfer', 'Chamfer', [
+      base('Pad001', ['Edge11']),
+      prop('Size', { name: 'Float', attrs: { value: '1' } }),
+    ]);
+    const v = translateObject(c, dep);
+    expect(v.kind).toBe('translated');
+    if (v.kind === 'translated') {
+      const call = v.calls[0]!;
+      expect(call.op).toBe('cad.chamfer');
+      expect(edgeExprs(call)).toEqual(['cad.edgeRef(part3, 11)']);
+      expect(call.params).toMatchObject({ type: 'equal', width: 1 });
+    }
+  });
+
+  it('translates ChamferType=1 as twoDistances (Size + Size2)', () => {
+    const c = obj('PartDesign::Chamfer', 'Chamfer', [
+      base('Pad001', ['Edge10', 'Edge4']),
+      prop('ChamferType', { name: 'Integer', attrs: { value: '1' } }),
+      prop('Size', { name: 'Float', attrs: { value: '1' } }),
+      prop('Size2', { name: 'Float', attrs: { value: '3' } }),
+    ]);
+    const v = translateObject(c, dep);
+    expect(v.kind).toBe('translated');
+    if (v.kind === 'translated') {
+      expect(edgeExprs(v.calls[0]!)).toEqual(['cad.edgeRef(part3, 10)', 'cad.edgeRef(part3, 4)']);
+      expect(v.calls[0]!.params).toMatchObject({ type: 'twoDistances', width1: 1, width2: 3 });
+    }
+  });
+
+  it('translates ChamferType=2 as distanceAngle (Size + Angle in degrees)', () => {
+    const c = obj('PartDesign::Chamfer', 'Chamfer', [
+      base('Pad001', ['Edge7']),
+      prop('ChamferType', { name: 'Integer', attrs: { value: '2' } }),
+      prop('Size', { name: 'Float', attrs: { value: '2' } }),
+      prop('Angle', { name: 'Float', attrs: { value: '30' } }),
+    ]);
+    const v = translateObject(c, dep);
+    expect(v.kind).toBe('translated');
+    if (v.kind === 'translated') {
+      expect(v.calls[0]!.params).toMatchObject({ type: 'distanceAngle', width: 2, angle: 30 });
+    }
+  });
+
+  it('bakes Chamfer with Angle outside cad.chamfer (0, 90)', () => {
+    const c = obj('PartDesign::Chamfer', 'Chamfer', [
+      base('Pad001', ['Edge7']),
+      prop('ChamferType', { name: 'Integer', attrs: { value: '2' } }),
+      prop('Size', { name: 'Float', attrs: { value: '2' } }),
+      prop('Angle', { name: 'Float', attrs: { value: '90' } }),
+    ]);
+    expect(translateObject(c, dep)).toMatchObject({ kind: 'baked', reason: 'chamfer-bad-distance-angle' });
+  });
+
+  it('bakes UseAllEdges for both Fillet and Chamfer', () => {
+    const f = obj('PartDesign::Fillet', 'Fillet', [
+      base('Pad001', ['Edge1']),
+      prop('Radius', { name: 'Float', attrs: { value: '1' } }),
+      prop('UseAllEdges', { name: 'Bool', attrs: { value: 'true' } }),
+    ]);
+    expect(translateObject(f, dep)).toMatchObject({ kind: 'baked', reason: 'fillet-all-edges-unsupported' });
+    const c = obj('PartDesign::Chamfer', 'Chamfer', [
+      base('Pad001', ['Edge1']),
+      prop('Size', { name: 'Float', attrs: { value: '1' } }),
+      prop('UseAllEdges', { name: 'Bool', attrs: { value: 'true' } }),
+    ]);
+    expect(translateObject(c, dep)).toMatchObject({ kind: 'baked', reason: 'chamfer-all-edges-unsupported' });
+  });
+
+  it('bakes Fillet/Chamfer referencing a non-edge sub-element', () => {
+    const f = obj('PartDesign::Fillet', 'Fillet', [
+      base('Pad001', ['Face1']),
+      prop('Radius', { name: 'Float', attrs: { value: '1' } }),
+    ]);
+    expect(translateObject(f, dep)).toMatchObject({ kind: 'baked', reason: 'fillet-non-edge-sub' });
+    const c = obj('PartDesign::Chamfer', 'Chamfer', [
+      base('Pad001', ['Vertex1']),
+      prop('Size', { name: 'Float', attrs: { value: '1' } }),
+    ]);
+    expect(translateObject(c, dep)).toMatchObject({ kind: 'baked', reason: 'chamfer-non-edge-sub' });
+  });
+
+  it('bakes Fillet/Chamfer with an unresolved base or a bad size', () => {
+    const orphan = obj('PartDesign::Fillet', 'Fillet', [
+      base('Ghost', ['Edge1']),
+      prop('Radius', { name: 'Float', attrs: { value: '1' } }),
+    ]);
+    expect(translateObject(orphan, dep)).toMatchObject({ kind: 'baked', reason: 'fillet-missing-base' });
+
+    const zeroRadius = obj('PartDesign::Fillet', 'Fillet', [
+      base('Pad001', ['Edge1']),
+      prop('Radius', { name: 'Float', attrs: { value: '0' } }),
+    ]);
+    expect(translateObject(zeroRadius, dep)).toMatchObject({ kind: 'baked', reason: 'fillet-bad-radius' });
+
+    const zeroSize = obj('PartDesign::Chamfer', 'Chamfer', [
+      base('Pad001', ['Edge1']),
+      prop('Size', { name: 'Float', attrs: { value: '0' } }),
+    ]);
+    expect(translateObject(zeroSize, dep)).toMatchObject({ kind: 'baked', reason: 'chamfer-bad-size' });
+
+    const emptySubs = obj('PartDesign::Chamfer', 'Chamfer', [
+      base('Pad001', []),
+      prop('Size', { name: 'Float', attrs: { value: '1' } }),
+    ]);
+    expect(translateObject(emptySubs, dep)).toMatchObject({ kind: 'baked', reason: 'chamfer-no-edges' });
+  });
+
+  it('whitelists Fillet/Chamfer', () => {
+    expect(isWhitelisted('PartDesign::Fillet')).toBe(true);
+    expect(isWhitelisted('PartDesign::Chamfer')).toBe(true);
   });
 });

@@ -25,6 +25,39 @@ export interface CadCall {
   source: string;
 }
 
+/**
+ * A raw JS expression argument that M5 renders verbatim instead of JSON-encoding.
+ *
+ * Needed when a call argument is itself a function call against a variable that
+ * only exists at run time — e.g. `cad.edgeRef(part3, 17)` for the edge selection
+ * of a Fillet/Chamfer (the EdgeTopoRef must be resolved against the live base
+ * shape, so it cannot be baked into the IR as a literal).
+ */
+export interface JsExpr {
+  /** the JS source to emit in the argument position */
+  readonly __jsExpr: string;
+}
+
+/**
+ * Wrap raw JS source as a verbatim argument (`JsExpr`).
+ *
+ * @param code - the JS expression source to emit in the argument position.
+ * @returns the `JsExpr` marker carrying that source.
+ */
+export function jsExpr(code: string): JsExpr {
+  return { __jsExpr: code };
+}
+
+/**
+ * True for a `JsExpr` marker (used by M5 to render verbatim).
+ *
+ * @param v - the value to test.
+ * @returns true when `v` is a `JsExpr` marker.
+ */
+export function isJsExpr(v: unknown): v is JsExpr {
+  return typeof v === 'object' && v !== null && typeof (v as { __jsExpr?: unknown }).__jsExpr === 'string';
+}
+
 export type TranslateVerdict =
   | { kind: 'translated'; calls: CadCall[] }
   | { kind: 'baked'; reason: string }
@@ -42,6 +75,8 @@ const WHITELIST = new Set([
   'PartDesign::Revolution',
   'PartDesign::LinearPattern',
   'PartDesign::PolarPattern',
+  'PartDesign::Fillet',
+  'PartDesign::Chamfer',
 ]);
 
 export function isWhitelisted(type: string): boolean {
@@ -81,6 +116,51 @@ function propVec(obj: FcstdObject, name: string): [number, number, number] | und
   const parts = raw.trim().split(/\s+/).map(Number);
   if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) return undefined;
   return [parts[0]!, parts[1]!, parts[2]!];
+}
+
+/**
+ * Read an `App::PropertyLinkSub`: the target object name plus its sub-element
+ * names. FreeCAD serializes this as
+ * `<LinkSub value="Pad001" count="2"><Sub value="Edge17"/><Sub value="Edge18"/></LinkSub>`.
+ */
+function propLinkSub(obj: FcstdObject, name: string): { obj: string; subs: string[] } | undefined {
+  const el = obj.properties.get(name)?.children[0];
+  if (!el) return undefined;
+  const target = el.attributes['value'];
+  if (!target || target.length === 0) return undefined;
+  const subs: string[] = [];
+  for (const sub of el.children) {
+    const v = sub.attributes['value'];
+    if (v) subs.push(v);
+  }
+  return { obj: target, subs };
+}
+
+/**
+ * Parse FreeCAD edge sub-element names (`Edge17`) into 1-based ordinals.
+ * Returns undefined when any entry is not an `EdgeN` reference (a Face/Vertex
+ * selection cannot be expressed as a faijs `EdgeTopoRef`).
+ */
+function parseEdgeSubs(subs: readonly string[]): number[] | undefined {
+  const out: number[] = [];
+  for (const s of subs) {
+    const m = /^Edge(\d+)$/.exec(s);
+    if (!m) return undefined;
+    const n = Number(m[1]);
+    if (!Number.isInteger(n) || n < 1) return undefined;
+    out.push(n);
+  }
+  return out;
+}
+
+/**
+ * Build the `edges` argument for a fillet/chamfer call: one `cad.edgeRef(base, N)`
+ * expression per FreeCAD edge ordinal. The refs must be resolved against the
+ * live base shape at run time (an `EdgeTopoRef` is a two-face role pair, which
+ * only the runtime naming layer knows), so they enter the IR as `JsExpr`.
+ */
+function edgeRefArgs(baseVar: string, ordinals: readonly number[]): JsExpr[] {
+  return ordinals.map((n) => jsExpr(`cad.edgeRef(${baseVar}, ${n})`));
 }
 
 /**
@@ -300,6 +380,76 @@ export function translateObject(
         calls: [{
           out, op: 'cad.circularPattern', source: obj.name, inputs: [sourceVar],
           literals: [axisInfo.axis, occ, angle], params: {},
+        }],
+      };
+    }
+    case 'PartDesign::Fillet': {
+      const base = propLinkSub(obj, 'Base');
+      const baseVar = base ? inputVar(base.obj) : undefined;
+      if (!baseVar) return { kind: 'baked', reason: 'fillet-missing-base' };
+      if (propBool(obj, 'UseAllEdges')) return { kind: 'baked', reason: 'fillet-all-edges-unsupported' };
+      if (!base || base.subs.length === 0) return { kind: 'baked', reason: 'fillet-no-edges' };
+      const ordinals = parseEdgeSubs(base.subs);
+      if (!ordinals) return { kind: 'baked', reason: 'fillet-non-edge-sub' };
+      const radius = propNum(obj, 'Radius');
+      if (radius === undefined || !(radius > 0)) return { kind: 'baked', reason: 'fillet-bad-radius' };
+      return {
+        kind: 'translated',
+        calls: [{
+          out, op: 'cad.fillet', source: obj.name, inputs: [baseVar],
+          params: { edges: edgeRefArgs(baseVar, ordinals), radius },
+        }],
+      };
+    }
+    case 'PartDesign::Chamfer': {
+      const base = propLinkSub(obj, 'Base');
+      const baseVar = base ? inputVar(base.obj) : undefined;
+      if (!baseVar) return { kind: 'baked', reason: 'chamfer-missing-base' };
+      if (propBool(obj, 'UseAllEdges')) return { kind: 'baked', reason: 'chamfer-all-edges-unsupported' };
+      if (!base || base.subs.length === 0) return { kind: 'baked', reason: 'chamfer-no-edges' };
+      const ordinals = parseEdgeSubs(base.subs);
+      if (!ordinals) return { kind: 'baked', reason: 'chamfer-non-edge-sub' };
+      const edges = edgeRefArgs(baseVar, ordinals);
+      // ChamferType enum (FeatureChamfer.cpp:55): 0 "Equal distance" (the
+      // default when the property is absent, i.e. files predating it),
+      // 1 "Two distances", 2 "Distance and Angle".
+      const type = Math.round(propNum(obj, 'ChamferType') ?? 0);
+      const size = propNum(obj, 'Size');
+      if (type === 1) {
+        const size2 = propNum(obj, 'Size2');
+        if (size === undefined || !(size > 0) || size2 === undefined || !(size2 > 0)) {
+          return { kind: 'baked', reason: 'chamfer-bad-two-distances' };
+        }
+        return {
+          kind: 'translated',
+          calls: [{
+            out, op: 'cad.chamfer', source: obj.name, inputs: [baseVar],
+            params: { edges, type: 'twoDistances', width1: size, width2: size2 },
+          }],
+        };
+      }
+      if (type === 2) {
+        // FreeCAD's Angle is degrees, range 0–180 (floatAngle); cad.chamfer
+        // accepts degrees in the open interval (0, 90) only.
+        const angle = propNum(obj, 'Angle');
+        if (size === undefined || !(size > 0) || angle === undefined || !(angle > 0 && angle < 90)) {
+          return { kind: 'baked', reason: 'chamfer-bad-distance-angle' };
+        }
+        return {
+          kind: 'translated',
+          calls: [{
+            out, op: 'cad.chamfer', source: obj.name, inputs: [baseVar],
+            params: { edges, type: 'distanceAngle', width: size, angle },
+          }],
+        };
+      }
+      if (type !== 0) return { kind: 'baked', reason: `chamfer-unknown-type: ${type}` };
+      if (size === undefined || !(size > 0)) return { kind: 'baked', reason: 'chamfer-bad-size' };
+      return {
+        kind: 'translated',
+        calls: [{
+          out, op: 'cad.chamfer', source: obj.name, inputs: [baseVar],
+          params: { edges, type: 'equal', width: size },
         }],
       };
     }

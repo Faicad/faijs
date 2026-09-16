@@ -27,6 +27,7 @@ import { fillet } from './fillet'
 import { group, assembly } from './compound'
 import { copy } from './copy'
 import { faceNormal, bboxCenter, bboxMin, bboxMax } from './geom'
+import { edgeRef } from './edge-ref'
 import { jointTrajectory, inverseKinematics, mechanismDOF } from './assembly'
 import { asset } from './asset'
 import { scriptFaceOps } from './generated/script-face'
@@ -59,6 +60,7 @@ export function createApiNamespace(): StdlibNamespace {
     extrude, revolve,
     fai_split, group, assembly, copy,
     faceNormal, bboxCenter, bboxMin, bboxMax,
+    edgeRef,
     jointTrajectory, inverseKinematics, mechanismDOF,
     asset,
     ...scriptFaceOps,

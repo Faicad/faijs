@@ -6,11 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import { generateModel } from './codegen.js';
 import type { Contour } from './contour.js';
-import type { FcstdDocument, FcstdObject } from './document.js';
-
-function prop(name: string, childAttrs: Record<string, string>, childTag = 'Link'): [string, { name: string; type: string; tagName: string; children: never[]; valueXml: string; valueText: string; attributes: Record<string, string> }, Record<string, string>] {
-  return [name, { name, type: '', tagName: childTag, children: [], valueXml: '', valueText: '', attributes: childAttrs }, {}] as never;
-}
+import type { FcstdDocument, FcstdObject, FcstdProperty } from './document.js';
 
 function simpleObj(type: string, name: string, props: Record<string, Record<string, string>> = {}): FcstdObject {
   const properties = new Map(
@@ -28,6 +24,26 @@ function simpleObj(type: string, name: string, props: Record<string, Record<stri
     ]),
   );
   return { type, name, properties };
+}
+
+/** An App::PropertyLinkSub (with `<Sub>` children) as FreeCAD saves it. */
+function withLinkSub(obj: FcstdObject, name: string, target: string, subs: string[]): FcstdObject {
+  const linkSub: FcstdProperty = {
+    name: 'LinkSub',
+    type: '',
+    tagName: 'LinkSub',
+    children: subs.map((s) => ({
+      name: 'Sub', type: '', tagName: 'Sub', children: [], valueXml: '', valueText: '', attributes: { value: s },
+    })),
+    valueXml: '',
+    valueText: '',
+    attributes: { value: target, count: String(subs.length) },
+  };
+  obj.properties.set(name, {
+    name, type: 'App::PropertyLinkSub', tagName: 'Property',
+    children: [linkSub], valueXml: '', valueText: '', attributes: {},
+  });
+  return obj;
 }
 
 /** A unit square contour (closed loop of 4 lines) used for sketch wiring. */
@@ -144,5 +160,34 @@ describe('M5 codegen', () => {
     expect(r.code).toContain('cad.extrude');
     expect(r.code).toContain('cad.subtract');
     expect(r.code).not.toContain('cad.fai_extrude');
+  });
+
+  it('renders JsExpr edge anchors verbatim for Fillet/Chamfer (M6.1)', () => {
+    const fillet = withLinkSub(
+      simpleObj('PartDesign::Fillet', 'Fillet', { Radius: { value: '4' } }),
+      'Base', 'Box', ['Edge17', 'Edge18'],
+    );
+    const doc: FcstdDocument = {
+      objects: [simpleObj('Part::Box', 'Box', {}), fillet],
+      typeIndex: new Map(),
+      meta: new Map(),
+    };
+    const r = generateModel(doc, new Map(), NO_CONTOURS, 't');
+    const f = r.objects.find((o) => o.name === 'Fillet');
+    expect(f).toMatchObject({ disposition: 'translated' });
+    // the edge refs must survive as live calls against the base variable,
+    // not as JSON-encoded literals.
+    expect(r.code).toContain('let part1 = cad.fillet(part0, { edges: [cad.edgeRef(part0, 17), cad.edgeRef(part0, 18)], radius: 4 });');
+    expect(r.code).not.toContain('"__jsExpr"');
+  });
+
+  it('keeps plain array params byte-identical (no JsExpr present)', () => {
+    const doc: FcstdDocument = {
+      objects: [simpleObj('Part::Box', 'A', {}), simpleObj('Part::Box', 'B', {})],
+      typeIndex: new Map(),
+      meta: new Map(),
+    };
+    const r = generateModel(doc, new Map(), NO_CONTOURS, 't');
+    expect(r.code).toContain('cad.group({ members: [part0, part1] })');
   });
 });
