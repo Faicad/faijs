@@ -1,7 +1,7 @@
 # FCStd → faijs 单向移植开发计划
 
 > 日期：2026-09-15
-> 状态：**方案（未实施）**
+> 状态：**部分实施** —— M0–M6 草图→cad 面接线 + Pad/Pocket/Extrusion/Revolution/LinearPattern/PolarPattern 已落地（commit 8e782e6）；Fillet/Chamfer（12 个）待 M6.1 元素引用锚点（edge 选择）。
 > 依赖分析：
 > - `docs/analysis/2026-09-15-fcstd-to-fai-zip-feasibility.md`（下称「前文 A」）
 > - `docs/analysis/2026-09-15-sketch-constraint-solver-port-feasibility.md`（下称「前文 B」）
@@ -436,8 +436,9 @@ M2 阶段从文档属性读取单位设置并归一到 mm，写进 `mapping.json
 | M4.2 | 基本体 → `cad.box/cylinder/cone/sphere/torus` |
 | M4.3 | 布尔 → `cad.union/subtract/intersect` |
 | M4.4 | 变换 / 阵列 → `cad.translate/rotate/linearPattern/circularPattern/mirrorJoin` |
-| M4.5 | 圆角倒角 → `cad.fillet/chamfer`（选边语义依赖 M6，M4 阶段按几何锚点粗解） |
-| M4.6 | **Pad/Pocket 接入 M3 的草图轮廓** → `cad.fai_extrude` / `cad.pocket` |
+| M4.5 | 圆角倒角 → `cad.fillet/chamfer`（选边语义依赖 M6.1 元素引用锚点，尚未接线；样本 Chamfer 7 + Fillet 5 暂烘焙） |
+| M4.6 | **Pad/Pocket/Extrusion/Revolution 接入 M3 草图轮廓** → 新增 `cad.sketch` 构面 op + `cad.extrude` / `cad.revolve`（commit 8e782e6；原 `cad.fai_extrude` 路线废弃） |
+| M4.7 | **LinearPattern/PolarPattern 阵列** → `cad.linearPattern` / `cad.circularPattern`（标准轴方向/轴直接接线；edge/vertex 引用降级烘焙，依赖 M6.1） |
 
 **出口判据**：白名单内特征 100% 出 `cad.*` 调用；回退集 100% 有 `assets/` 产物。
 
@@ -455,11 +456,12 @@ M2 阶段从文档属性读取单位设置并归一到 mm，写进 `mapping.json
 
 ### M6 — 元素引用锚点与表达式降级（= 前文 A P4）
 
-| 步骤 | 内容 |
-|---|---|
-| M6.1 | 元素引用几何锚点：面中心+法向、边端点、bbox → `topology/naming/geom-hint.ts` 重解析（前文 A R1） |
-| M6.2 | 表达式降级：`<ExpressionEngine>` → JS 常量 / `const`（前文 A R4） |
-| M6.3 | **解锁 M3 的外部几何**（D4）→ L2 转 L0 |
+| 步骤 | 内容 | 进度 |
+|---|---|---|
+| M6（草图→cad 面） | M3 求解轮廓经 M5 生成 `cad.sketch({contours})` 真实面变量，Pad/Pocket/Extrusion/Revolution 接 `cad.extrude`/`cad.revolve` | **已落地**（commit 8e782e6） |
+| M6.1 | 元素引用几何锚点：面中心+法向、边端点、bbox → `topology/naming/geom-hint.ts` 重解析（前文 A R1）；Fillet/Chamfer 选边的前置 | 未做（阻塞 Fillet/Chamfer 接线） |
+| M6.2 | 表达式降级：`<ExpressionEngine>` → JS 常量 / `const`（前文 A R4） | 已实现（`expressions.ts`） |
+| M6.3 | **解锁 M3 的外部几何**（D4）→ L2 转 L0 | 锚点研究就绪（`external-geo.test.ts` GOTCHA：wireframe edgeGroups[k] == FreeCAD "Edge(k+1)"），未全量解锁 |
 
 **出口判据**：样本集上圆角选边、`UpToFace` 引用不再错位。
 
@@ -495,7 +497,7 @@ M2 阶段从文档属性读取单位设置并归一到 mm，写进 `mapping.json
 | R4'' | **表达式数量超预期**：`<ExpressionEngine>` 1,709 个 | 中 | M6.2 需提前评估：是否在 M4 就做最简降级（常量化），否则大量特征因依赖表达式而回退 | 新增 |
 | R5 | 外部几何需 OCCT 投影 | 中 | D4：M3 阶段整草图降级 L2，M6.3 解锁 | 已规划 |
 | R6 | 双链路：草图轮廓必须在 mesh 链也可用 | 中 | `Blueprint` 不依赖 OCCT（前文 B §6）；照 `api/svgExtrude.ts` 的 dual-op 范式实现 | M4.6 |
-| R7 | `revolve`/`sweep` 未挂 `cad` 脚本面（前文 A G2） | 中 | 实测 `PartDesign::Revolution` **17 个** > `Chamfer`(7)+`Fillet`(5)。**建议 M4 同批挂上 `cad` 面** | 待拍板（§11 ①，数据已支持「挂」） |
+| R7 | `revolve` 已挂 `cad` 脚本面（commit 8e782e6）；`sweep` 样本为 0，暂不强求 | 低 | 实测 `PartDesign::Revolution` **17 个** > `Chamfer`(7)+`Fillet`(5)；revolve 已在 M4 同批挂上。sweep 无样本 | 已解决（revolve）/ 搁置（sweep，零样本） |
 | R8 | 单位走样（D7） | 低 | M2.4 归一 + `mapping.json` 记录 | 已规划 |
 | R9 | 数值求解收敛到错误分支 | 中 | D2 用落盘几何作初值 + V2 比对；不通过即降级 L1 | 已规划 |
 
@@ -521,7 +523,7 @@ M0（探针，1–2 天）
 
 ## 11. 待定项（需用户拍板）
 
-1. **R7 / 前文 A G2**：`revolve` / `sweep` 是否在 M4 同批挂上 `cad` 脚本面？
+1. **R7 / 前文 A G2**：`revolve` / `sweep` 是否在 M4 同批挂上 `cad` 脚本面？ **（已拍板：挂 —— revolve 已落地 commit 8e782e6；sweep 零样本搁置）**
    - 挂：草图能覆盖 Revolution / Groove，翻译覆盖率显著提升，但扩大 M4 范围。
    - 不挂：这些特征全部回退烘焙，M4 范围收窄。
    - **本计划默认「挂」**，因为草图做出来了却只能拉伸，投入产出比不划算。

@@ -180,3 +180,60 @@ describe('M4.6 Pad/Pocket', () => {
     if (v.kind === 'baked') expect(v.reason).toContain('type-not-whitelisted');
   });
 });
+
+describe('M4.7 patterns (LinearPattern / PolarPattern)', () => {
+  it('translates LinearPattern over a source with axis + spacing', () => {
+    const lp = obj('PartDesign::LinearPattern', 'LP', [
+      prop('Source', { name: 'Link', attrs: { value: 'Pad' } }),
+      prop('Direction', { name: 'LinkSub', attrs: { value: 'X_Axis' } }),
+      prop('Length', { name: 'Float', attrs: { value: '20' } }),
+      prop('Occurrences', { name: 'Integer', attrs: { value: '3' } }),
+    ]);
+    const v = translateObject(lp, (dep) => (dep === 'Pad' ? 'part2' : undefined));
+    expect(v.kind).toBe('translated');
+    if (v.kind === 'translated') {
+      expect(v.calls[0]!.op).toBe('cad.linearPattern');
+      expect(v.calls[0]!.inputs).toEqual(['part2']);
+      // X axis, count 3, spacing = length/(occ-1) = 20/2 = 10
+      expect(v.calls[0]!.literals).toEqual([[1, 0, 0], 3, 10]);
+    }
+  });
+
+  it('bakes LinearPattern referencing an edge direction (unsupported)', () => {
+    const lp = obj('PartDesign::LinearPattern', 'LP', [
+      prop('Source', { name: 'Link', attrs: { value: 'Pad' } }),
+      prop('Direction', { name: 'LinkSub', attrs: { value: 'Edge12' } }),
+      prop('Length', { name: 'Float', attrs: { value: '20' } }),
+      prop('Occurrences', { name: 'Integer', attrs: { value: '3' } }),
+    ]);
+    const v = translateObject(lp, (dep) => (dep === 'Pad' ? 'part2' : undefined));
+    expect(v).toMatchObject({ kind: 'baked', reason: 'linear-pattern-edge-dir-unsupported' });
+  });
+
+  it('translates PolarPattern over a source around the Z axis', () => {
+    const pp = obj('PartDesign::PolarPattern', 'PP', [
+      prop('Source', { name: 'Link', attrs: { value: 'Pad' } }),
+      prop('Axis', { name: 'LinkSub', attrs: { value: 'V_Axis' } }),
+      prop('Angle', { name: 'Float', attrs: { value: '360' } }),
+      prop('Occurrences', { name: 'Integer', attrs: { value: '4' } }),
+    ]);
+    const v = translateObject(pp, (dep) => (dep === 'Pad' ? 'part2' : undefined));
+    expect(v.kind).toBe('translated');
+    if (v.kind === 'translated') {
+      expect(v.calls[0]!.op).toBe('cad.circularPattern');
+      expect(v.calls[0]!.inputs).toEqual(['part2']);
+      expect(v.calls[0]!.literals).toEqual([[0, 0, 1], 4, 360]);
+    }
+  });
+
+  it('bakes PolarPattern referencing an edge/vertex axis (unsupported)', () => {
+    const pp = obj('PartDesign::PolarPattern', 'PP', [
+      prop('Source', { name: 'Link', attrs: { value: 'Pad' } }),
+      prop('Axis', { name: 'LinkSub', attrs: { value: 'Vertex1' } }),
+      prop('Angle', { name: 'Float', attrs: { value: '360' } }),
+      prop('Occurrences', { name: 'Integer', attrs: { value: '4' } }),
+    ]);
+    const v = translateObject(pp, (dep) => (dep === 'Pad' ? 'part2' : undefined));
+    expect(v).toMatchObject({ kind: 'baked', reason: 'polar-pattern-edge-axis-unsupported' });
+  });
+});

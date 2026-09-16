@@ -40,6 +40,8 @@ const WHITELIST = new Set([
   'PartDesign::Pad',
   'PartDesign::Pocket',
   'PartDesign::Revolution',
+  'PartDesign::LinearPattern',
+  'PartDesign::PolarPattern',
 ]);
 
 export function isWhitelisted(type: string): boolean {
@@ -94,9 +96,13 @@ export function parseReferenceAxis(ref: string | undefined): { axis: [number, nu
   const at: [number, number, number] = [0, 0, 0];
   if (!ref) return { axis: [0, 0, 1], at };
   if (/Edge|Vertex/i.test(ref)) return undefined; // geometry-referenced axis: unsupported
-  if (/H_Axis/i.test(ref)) return { axis: [0, 1, 0], at };
-  if (/N_Axis/i.test(ref)) return { axis: [1, 0, 0], at };
-  // V_Axis, the generic "Axis", or anything else defaults to +Z (sketch normal)
+  // Standard body axes. PartDesign LinearPattern stores Direction as a LinkSub
+  // naming X_Axis/Y_Axis/Z_Axis; older ReferenceAxis uses V_Axis/H_Axis/N_Axis.
+  if (/X_Axis|H_Axis/i.test(ref)) return { axis: [1, 0, 0], at };
+  if (/Y_Axis/i.test(ref)) return { axis: [0, 1, 0], at };
+  if (/Z_Axis|V_Axis/i.test(ref)) return { axis: [0, 0, 1], at };
+  if (/N_Axis/i.test(ref)) return { axis: [1, 0, 0], at }; // legacy mapping, keep stable
+  // The generic "Axis" or anything else defaults to +Z (sketch normal)
   return { axis: [0, 0, 1], at };
 }
 
@@ -261,6 +267,39 @@ export function translateObject(
         calls: [{
           out, op: 'cad.revolve', source: obj.name, inputs: [profileVar],
           params: { axis: axisInfo.axis, at: axisInfo.at, angle },
+        }],
+      };
+    }
+    case 'PartDesign::LinearPattern': {
+      const source = propLink(obj, 'Source');
+      const sourceVar = source ? inputVar(source) : undefined;
+      if (!sourceVar) return { kind: 'baked', reason: 'linear-pattern-missing-source' };
+      const dirInfo = parseReferenceAxis(propStr(obj, 'Direction'));
+      if (!dirInfo) return { kind: 'baked', reason: 'linear-pattern-edge-dir-unsupported' };
+      const occ = Math.max(2, Math.round(propNum(obj, 'Occurrences') ?? 2));
+      const length = propNum(obj, 'Length') ?? 0;
+      const spacing = occ > 1 ? length / (occ - 1) : 0;
+      return {
+        kind: 'translated',
+        calls: [{
+          out, op: 'cad.linearPattern', source: obj.name, inputs: [sourceVar],
+          literals: [dirInfo.axis, occ, spacing], params: {},
+        }],
+      };
+    }
+    case 'PartDesign::PolarPattern': {
+      const source = propLink(obj, 'Source');
+      const sourceVar = source ? inputVar(source) : undefined;
+      if (!sourceVar) return { kind: 'baked', reason: 'polar-pattern-missing-source' };
+      const axisInfo = parseReferenceAxis(propStr(obj, 'Axis'));
+      if (!axisInfo) return { kind: 'baked', reason: 'polar-pattern-edge-axis-unsupported' };
+      const occ = Math.max(2, Math.round(propNum(obj, 'Occurrences') ?? 2));
+      const angle = propNum(obj, 'Angle') ?? 360;
+      return {
+        kind: 'translated',
+        calls: [{
+          out, op: 'cad.circularPattern', source: obj.name, inputs: [sourceVar],
+          literals: [axisInfo.axis, occ, angle], params: {},
         }],
       };
     }
