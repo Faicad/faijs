@@ -26,10 +26,6 @@ Documentation describes the current state of the system. Change history lives in
 
 Prose paragraphs must not span multiple physical lines (hard wraps). Each paragraph is one long line. Code blocks and tables are exempt.
 
-## Word budgets
-
-Standing docs have word-count ceilings in `scripts/doc-budgets.manifest.json`. Exceeding a ceiling requires justification in the PR. Relocate bloated content to a more specific tier instead of raising the ceiling.
-
 ## Slop checklist
 
 Avoid:

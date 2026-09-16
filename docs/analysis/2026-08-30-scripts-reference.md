@@ -38,14 +38,6 @@
 - **能否主动调用**：✅ 能。`npx tsx scripts/verify-md-wrap.ts`
 - **依赖**：`markdown.ts`、`repo-files.ts`
 
-### `scripts/verify-doc-budgets.ts`
-
-- **用途**：从 `doc-budgets.manifest.json` 读取字数预算上限，检查每个列出的常驻文档的 `wc -w` 式单词数是否超限。`--list` 模式报告当前用量。超限即失败；提高上限需要 PR 中的理由说明。
-- **调用方**：`npm run verify-doc-budgets`；被 `doc-sync` 第 3 步调用。
-- **使用场合**：文档膨胀检查。
-- **能否主动调用**：✅ 能。`npx tsx scripts/verify-doc-budgets.ts` 或 `--list` 查看用量。
-- **依赖**：无（独立脚本，读取 JSON manifest）
-
 ### `scripts/verify-agent-note-format.ts`
 
 - **用途**：检查 Agent Note 的头部格式（前三行严格为 `# Agent Note: <title>` / 空行 / `Status: <status>`）、lifecycle 特定章节（proposed 有 `## Proposal`、`## Acceptance criteria`、`## Risks`；implemented 有 `## Decision`、`## Consequences`）、`## Alternatives considered` 必需、banned headings 等。
@@ -244,12 +236,6 @@
 
 ## 四、配置文件
 
-### `scripts/doc-budgets.manifest.json`
-
-- **用途**：常驻文档的字数预算清单。键为仓库相对路径，值为单词数上限。`verify-doc-budgets.ts` 读取此文件。超限即失败；提高上限需要 PR 中的理由说明。
-- **编辑方式**：手动编辑。新增常驻文档时添加条目。
-- **被读取方**：`verify-doc-budgets.ts`
-
 ### `scripts/type-equiv.manifest.json`
 
 - **用途**：类型等价注册清单。将文档中每个 `ts type-equiv` 代码块映射到它必须匹配的源代码声明。`verify-type-equiv.ts` 读取此文件。初始为空（faijs 文档暂无 `ts type-equiv` 块）。
@@ -269,9 +255,9 @@
 ### `npm run doc-sync`（12 步链式调用）
 
 ```
-1.  verify-md-links
-2.  verify-md-wrap
-3.  verify-doc-budgets
+1.  gen-ops-api-inventory --check
+2.  verify-md-links
+3.  verify-md-wrap
 4.  verify-agent-note-format
 5.  verify-agent-note-classification
 6.  verify-translation-pairing
@@ -292,7 +278,6 @@
 ```
 verify-md-links ─→ markdown, repo-files
 verify-md-wrap  ─→ markdown, repo-files
-verify-doc-budgets ─→ (独立)
 verify-agent-note-format ─→ agent-note-tree
 verify-agent-note-classification ─→ agent-note-tree
 verify-translation-pairing ─→ translation-pairing-git, translation-pairing-record,

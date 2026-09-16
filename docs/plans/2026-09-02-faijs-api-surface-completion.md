@@ -294,7 +294,7 @@ faijs 现有 31 个函数的归属：
 |---|---|---|
 | **B1** | **符号表生成脚本已失效**：P6 删 `packages/stdlib` 后未同步 | `packages/core/scripts/gen-symbol-table.ts:26` 仍指向 `../../stdlib/src/internal-stdlib.ts`（该目录已不存在）；产物 `lang/symbol-table.generated.ts`（39 行）无法重新生成 |
 | **B2** | **`cad.*` 面 ≠ 包导出面**：前案 §5.3.4 承诺的不变量未落地 | `chamfer` 在 `api/api-namespace.ts` 注入 `cad.*`，但 `api/index.ts`（34 行）未导出 ⇒ `import { chamfer } from '@faicad/faijs'` 失败（原 `fillet` 已随 D-FILLET 删除，不再适用） |
-| **B3** | **API 手册预算将爆** | `docs/ops-api-inventory.md` 现 3188 词 / 预算 4290 词（`scripts/doc-budgets.manifest.json:5`）。op 数 32 → 643 后按 ~100 词/op 外推 ≈ 64000 词，**超预算 15 倍** |
+| **B3** | ~~API 手册预算将爆~~ **已作废** | 字数预算门禁从未接线（不在 `package.json` / `doc-sync` / `lefthook.yml` / CI），`verify-doc-budgets.ts` 与 `doc-budgets.manifest.json` 已删除；手册长度不受任何字数上限约束 |
 | **B4** | 两份手工清单易漂移 | `api-namespace.ts`（31 项）与 `api/index.ts`（30 项）靠人工同步 |
 
 ---
@@ -776,7 +776,7 @@ packages/core/src/
 | **O4** | 611 个符号中部分语义 faijs 无法表达（如依赖 brepjs 惰性 DAG 的 csg 节点、`withKernel` 相关） | 逐项登记进 divergence 表的 `faijs-adapt` 项；无法投影的在验收清单里标注 `N/A` + 理由，**不允许静默跳过** |
 | **O5** | 双形态判别（E2）在少数签名上可能歧义（如 `translate(shape, {...})` vs `translate(shape, [...])` 已可判别，但嵌套 Shape 的场景需逐项验证） | 适配表逐项人工确认（约 200 项）；判别失败时 **抛明确错误**，不做启发式猜测 |
 | **O6** | API 面从 31 涨到 643，`check()` 符号检查与 codegen 的性能/体积影响 | P13 后实测；符号表仍只存键存在性（前案 P1 后的精简形态），预期无性能问题 |
-| **O7** | B3 手册预算：新增生成索引文件是否触发 `verify-doc-budgets` | 确认 `docs/*.generated.md` 不在 `doc-budgets.manifest.json` 名单内（现名单只有 5 项，故不受限） |
+| **O7** | ~~B3 手册预算：新增生成索引文件是否触发 `verify-doc-budgets`~~ **已作废** | 字数预算门禁已删除，生成索引不受任何字数限制 |
 | **O8** | E3 的 Result 镜像子路径是否要做 | 建议**先不做**（默认不安装）；若 P15 迁移遇到不可克服的困难再启用，并明确它只是过渡通道而非第二主面 |
 | **O9** | License：brepjs Apache-2.0，faijs 根包已升 Apache-2.0（前案 O13 已定夺） | 移植文件保留 Apache-2.0 头与 `NOTICE`（NOTICE 是 E6 守卫白名单项） |
 | **O10** | upstream 演进 | 锁定 commit `8685273a`；divergence 表支撑后续合并（E11） |
@@ -824,7 +824,7 @@ packages/core/src/
 | sheetmetal peerDeps 指向 core（待改） | `packages/sheetmetal/package.json:29-31` |
 | mech-lib 的 brepjs 残留 | `packages/mech-lib/src/brepjs-gear.ts`（文件名）；3 处 `from 'brepjs'` |
 | **符号表生成脚本失效（B1）** | `packages/core/scripts/gen-symbol-table.ts:26`（指向已删除的 `packages/stdlib`） |
-| 手册预算（B3） | `scripts/doc-budgets.manifest.json:5`（4290 词）；`docs/ops-api-inventory.md` 现 3188 词 |
+| ~~手册预算（B3）~~ **已作废** | 字数预算门禁未接线，`verify-doc-budgets.ts` + `doc-budgets.manifest.json` 已删除 |
 | 分派器现状（默认分支） | `packages/core/src/cad-runtime/backend-dispatch.ts:67-118`（mesh `:71-77`、brep `:81-99`、auto `:101-121`） |
 | 默认 `mode='auto'`，auto 优先 brep | `packages/core/src/cad-runtime/runtime.ts:336`；`backend-dispatch.ts:113` |
 | brep→mesh 归约（lift 的对偶） | `packages/core/src/api/reconcile.ts:32` `reconcileBrepInputs` |

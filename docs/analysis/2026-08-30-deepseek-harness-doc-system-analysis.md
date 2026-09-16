@@ -154,7 +154,6 @@ DSH 将所有文档检查整合为一个 `doc-sync` 门禁聚合（通过 `scrip
 | `agent-note-classification` | `scripts/verify-agent-note-classification.ts` | Agent Note 路径/分类合闭集 |
 | `agent-note-format` | `scripts/verify-agent-note-format.ts` | Agent Note 文件格式（头部/骨架/替代方案） |
 | `archived-agent-notes` | `scripts/verify-archived-agent-notes.ts` | 归档 Agent Note 冻结检查 |
-| `doc-budgets` | `scripts/verify-doc-budgets.ts` | 常驻文档字数预算 |
 | `doc-refs` | `scripts/verify-doc-refs.ts` | TS 源码注释中的文档引用可达 |
 | `mermaid` | `scripts/verify-mermaid.ts` | Mermaid 图可渲染 |
 | ... | | 共约 25 个叶子门禁 |
@@ -179,10 +178,9 @@ DSH 通过以下机制确保文档不过时：
 4. **类型等价门禁：** `verify-type-equiv` 检查文档中粘贴的类型声明是否与源码漂移。
 5. **Markdown 链接门禁：** `verify-md-links` 确保所有相对链接可达——移动或删除文档后断链会立即失败。
 6. **文档引用门禁：** `verify-doc-refs` 确保 TS 源码注释中引用的文档路径可达。
-7. **字数预算门禁：** `verify-doc-budgets` 确保常驻文档不超出预算上限，防止文档膨胀。
-8. **slop 检查清单：** `docs/AGENTS.md` 定义了手工审计清单，包括"同一规则多处重复""叙事历史""实现状态注释"等检查项，通过 `dsh-doc-standards` skill 执行。
-9. **pre-commit hooks：** `lefthook.yml` 配置了 pre-commit 和 pre-push 阶段的文档检查。
-10. **CLAUDE.md 符号链接：** 根、packages/、examples/ 的 CLAUDE.md 都指向 AGENTS.md，编辑时只能编辑真实文件。
+7. **slop 检查清单：** `docs/AGENTS.md` 定义了手工审计清单，包括"同一规则多处重复""叙事历史""实现状态注释"等检查项，通过 `dsh-doc-standards` skill 执行。
+8. **pre-commit hooks：** `lefthook.yml` 配置了 pre-commit 和 pre-push 阶段的文档检查。
+9. **CLAUDE.md 符号链接：** 根、packages/、examples/ 的 CLAUDE.md 都指向 AGENTS.md，编辑时只能编辑真实文件。
 
 ### 2.4 文档"打包"
 
@@ -332,7 +330,6 @@ Package README 不复述 JSDoc、不复述生成的目录、不写其他包的�
 | `scripts/verify-archived-agent-notes.ts` | `archived-agent-notes` | 归档三文件完整性 + 内容冻结 |
 | `scripts/verify-md-links.ts` | `markdown-links` | 相对链接可达 + 锚点可达 |
 | `scripts/verify-md-wrap.ts` | `markdown-wrap` | 一段一行，不硬换行 |
-| `scripts/verify-doc-budgets.ts` | `doc-budgets` | 常驻文档字数预算 |
 | `scripts/verify-doc-refs.ts` | `doc-refs` | TS 注释中的文档引用可达 |
 | `scripts/verify-translation-pairing.ts` | `translation-pairing` | 双语配对完整性 + hash + 结构签名 |
 | `scripts/translation-pairing.ts` | — | 配对解析、结构签名、范围谓词 |
@@ -352,7 +349,6 @@ Package README 不复述 JSDoc、不复述生成的目录、不写其他包的�
 
 | 文件 | 作用 |
 |---|---|
-| `scripts/doc-budgets.manifest.json` | 常驻文档字数预算清单 |
 | `scripts/translation-pairing.manifest.json` | 双语配对排除清单（只含显式排除项） |
 | `scripts/type-equiv.manifest.json` | 类型等价注册清单 |
 
@@ -378,7 +374,6 @@ Package README 不复述 JSDoc、不复述生成的目录、不写其他包的�
 pnpm run doc-sync          # 全量文档门禁
 pnpm run verify-md-wrap    # 单独运行
 pnpm run verify-md-links
-pnpm run verify-doc-budgets
 pnpm run verify-agent-note-format
 pnpm run verify-agent-note-classification
 pnpm run verify-archived-agent-notes
