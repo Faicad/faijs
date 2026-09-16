@@ -11,6 +11,7 @@ import { parseSketchObject } from '../src/fcstd/sketch-parse.ts';
 import { createPlanegcsSolver } from '../src/fcstd/planegcs-backend.ts';
 import { classifySketch, maxPointDistance } from '../src/fcstd/sketch-verify.ts';
 import { extractContours } from '../src/fcstd/contour.ts';
+import type { Contour } from '../src/fcstd/contour.ts';
 import { generateModel } from '../src/fcstd/codegen.ts';
 import { isOk } from '../src/vendored/brepjs/core/result.ts';
 import { strToU8 } from 'fflate';
@@ -43,6 +44,8 @@ if (!isOk(doc)) {
 const solver = await createPlanegcsSolver();
 const sketchVerdict = new Map<string, { level: 'L0' | 'L1' | 'L2'; reason?: string; loopCount?: number }>();
 const solvedGeoms = new Map<string, ReturnType<typeof parseSketchObject>['geoms']>();
+/** Resolved 2D contours per solved sketch (M6 wiring → cad.sketch input). */
+const sketchContours = new Map<string, Contour[]>();
 for (const obj of doc.value.objects) {
   if (obj.type !== 'Sketcher::SketchObject') continue;
   const sk = parseSketchObject(obj.properties.get('Geometry'), obj.properties.get('Constraints'), false);
@@ -61,9 +64,13 @@ for (const obj of doc.value.objects) {
       continue;
     }
     const verdict = classifySketch(r.value, sk.geoms, T1);
-    const loops = verdict.level === 'L0' ? extractContours(r.value.geoms).length : 0;
+    const contours = verdict.level === 'L0' ? extractContours(r.value.geoms) : [];
+    const loops = contours.length;
     sketchVerdict.set(obj.name, { ...verdict, loopCount: loops });
-    if (verdict.level === 'L0') solvedGeoms.set(obj.name, r.value.geoms);
+    if (verdict.level === 'L0') {
+      solvedGeoms.set(obj.name, r.value.geoms);
+      sketchContours.set(obj.name, contours);
+    }
   } catch (e) {
     sketchVerdict.set(obj.name, { level: 'L2', reason: `solver-throw: ${(e as Error).message.slice(0, 60)}` });
   }
@@ -71,7 +78,7 @@ for (const obj of doc.value.objects) {
 
 // M4/M5: translate + codegen
 const baseName = input.replace(/^.*[/\\]/, '').replace(/\.fcstd$/i, '');
-const gen = generateModel(doc.value, sketchVerdict, baseName);
+const gen = generateModel(doc.value, sketchVerdict, sketchContours, baseName);
 
 // M5.4: build container with model/ included
 const { zipSync } = await import('fflate');

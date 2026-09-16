@@ -24,7 +24,6 @@ function geomProp(children: string): FcstdProperty {
       children: [parseInner(m[2]!)],
       valueXml: m[2]!,
       valueText: '',
-      attributes: { type: m[1]! },
     }),
   );
   return {
@@ -38,7 +37,6 @@ function geomProp(children: string): FcstdProperty {
         children: geometryChildren,
         valueXml: `<GeometryList count="${geometryChildren.length}">${children}</GeometryList>`,
         valueText: '',
-        attributes: { count: String(geometryChildren.length) },
       },
     ],
     valueXml: `<GeometryList count="${geometryChildren.length}">${children}</GeometryList>`,
@@ -53,7 +51,7 @@ function parseInner(tag: string): FcstdProperty {
   if (!m) throw new Error(`bad fixture tag: ${tag}`);
   const attrs: Record<string, string> = {};
   for (const pair of m[2]!.matchAll(/(\w+)="([^"]*)"/g)) attrs[pair[1]!] = pair[2]!;
-  return { name: m[1]!, type: '', attributes: attrs, children: [], valueXml: tag, valueText: '', attributes: attrs };
+  return { name: m[1]!, type: '', attributes: attrs, children: [], valueXml: tag, valueText: '' };
 }
 
 describe('sketch solver channel (M3)', () => {

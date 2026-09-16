@@ -16,6 +16,7 @@ import { sdf } from './sdf'
 import { text } from './text'
 import { screw } from './screw'
 import { svgExtrude } from './svgExtrude'
+import { sketch } from './sketch'
 import { load } from './load'
 import { fai_drill } from './fai_drill'
 import { fai_split } from './fai_split'
@@ -29,6 +30,7 @@ import { faceNormal, bboxCenter, bboxMin, bboxMax } from './geom'
 import { jointTrajectory, inverseKinematics, mechanismDOF } from './assembly'
 import { asset } from './asset'
 import { scriptFaceOps } from './generated/script-face'
+import { extrude, revolve } from './generated/operations'
 import { CONTRACT_VERSION } from '../runtime-state'
 import type { StdlibNamespace } from '../runtime-state'
 
@@ -50,10 +52,11 @@ export function createApiNamespace(): StdlibNamespace {
   return {
     contractVersion: CONTRACT_VERSION,
     box, sphere, cylinder, cone, wedge,
-    text, screw, svgExtrude, sdf, load,
+    text, screw, svgExtrude, sketch, sdf, load,
     translate, rotate_euler, scale, scale3d,
     fai_drill, fai_extrude, engrave, chamfer, fillet, knurl,
     union, subtract, intersect,
+    extrude, revolve,
     fai_split, group, assembly, copy,
     faceNormal, bboxCenter, bboxMin, bboxMax,
     jointTrajectory, inverseKinematics, mechanismDOF,

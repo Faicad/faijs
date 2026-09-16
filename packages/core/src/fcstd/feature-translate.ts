@@ -4,7 +4,7 @@
  * M4.1 whitelist: anything not listed → baked (S3, no silent loss).
  * M4.2 primitives → cad.box/cylinder/cone/sphere
  * M4.3 booleans   → cad.union/subtract/intersect
- * M4.6 Pad/Pocket → fai_extrude/subtract over the M3 sketch contour
+ * M4.6 Pad/Pocket → cad.extrude/cad.subtract over the M3 sketch contour (M6: sketch is a cad.sketch face)
  *
  * The call plan is an intermediate representation: M5 lowers it to .fai.js
  * (statements sN, variables partN). Geometry values are already mm (D7).
@@ -17,8 +17,10 @@ export interface CadCall {
   op: string;
   /** positional + named params, JSON-serializable */
   params: Record<string, unknown>;
-  /** variable names this call consumes */
+  /** variable names this call consumes (rendered positionally before literals) */
   inputs: string[];
+  /** positional literal values appended after `inputs` (e.g. a direction Vec3) */
+  literals?: unknown[];
   /** FCStd object this call came from */
   source: string;
 }
@@ -37,6 +39,7 @@ const WHITELIST = new Set([
   'Part::Extrusion',
   'PartDesign::Pad',
   'PartDesign::Pocket',
+  'PartDesign::Revolution',
 ]);
 
 export function isWhitelisted(type: string): boolean {
@@ -60,6 +63,41 @@ function propLink(obj: FcstdObject, name: string): string | undefined {
   const el = obj.properties.get(name)?.children[0];
   const v = el?.attributes['value'];
   return v && v.length > 0 ? v : undefined;
+}
+
+/** Read a string-valued property (e.g. ReferenceAxis). */
+function propStr(obj: FcstdObject, name: string): string | undefined {
+  const el = obj.properties.get(name)?.children[0];
+  const v = el?.attributes['value'];
+  return v && v.length > 0 ? v : undefined;
+}
+
+/** Read an App::PropertyVector (`value="x y z"`) as a Vec3. */
+function propVec(obj: FcstdObject, name: string): [number, number, number] | undefined {
+  const raw = propStr(obj, name);
+  if (!raw) return undefined;
+  const parts = raw.trim().split(/\s+/).map(Number);
+  if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) return undefined;
+  return [parts[0]!, parts[1]!, parts[2]!];
+}
+
+/**
+ * Parse a PartDesign ReferenceAxis reference into a 3D axis + pivot point.
+ *
+ * FreeCAD stores this as an `App::PropertyLinkSub` string that either names a
+ * standard body axis (`V_Axis` / `H_Axis` / `N_Axis`, or the generic `Axis`
+ * that PartDesign revolves around = +Z) or an edge/vertex of another feature.
+ * Edge/vertex axes require resolving referenced geometry, which the port does
+ * not yet do (explicit downgrade, no silent loss).
+ */
+export function parseReferenceAxis(ref: string | undefined): { axis: [number, number, number]; at: [number, number, number] } | undefined {
+  const at: [number, number, number] = [0, 0, 0];
+  if (!ref) return { axis: [0, 0, 1], at };
+  if (/Edge|Vertex/i.test(ref)) return undefined; // geometry-referenced axis: unsupported
+  if (/H_Axis/i.test(ref)) return { axis: [0, 1, 0], at };
+  if (/N_Axis/i.test(ref)) return { axis: [1, 0, 0], at };
+  // V_Axis, the generic "Axis", or anything else defaults to +Z (sketch normal)
+  return { axis: [0, 0, 1], at };
 }
 
 /**
@@ -154,18 +192,23 @@ export function translateObject(
       const midplane = propBool(obj, 'Midplane');
       const profileVar = profile ? inputVar(profile) : undefined;
       if (!profileVar) return { kind: 'baked', reason: 'pad-missing-profile' };
-      // fai_extrude extrudes along the profile normal; length sign encodes
-      // direction, midplane handled by mode.
-      const length = reversed ? -len : len;
+      // cad.extrude extrudes the sketch face into a prism along +Z (the sketch
+      // normal in body-local frame); length sign encodes direction.
+      if (midplane) {
+        // symmetric about the sketch plane: two half-prisms fused
+        const pos = `${out}__pos`;
+        const neg = `${out}__neg`;
+        const calls: CadCall[] = [
+          { out: pos, op: 'cad.extrude', source: obj.name, inputs: [profileVar], literals: [[0, 0, len / 2]], params: {} },
+          { out: neg, op: 'cad.extrude', source: obj.name, inputs: [profileVar], literals: [[0, 0, -len / 2]], params: {} },
+          { out, op: 'cad.union', source: obj.name, inputs: [pos, neg], params: {} },
+        ];
+        return { kind: 'translated', calls };
+      }
+      const signed = reversed ? -len : len;
       return {
         kind: 'translated',
-        calls: [{
-          out, op: 'cad.fai_extrude', source: obj.name, inputs: [profileVar],
-          params: {
-            length,
-            ...(midplane ? { mode: 'midplane' } : {}),
-          },
-        }],
+        calls: [{ out, op: 'cad.extrude', source: obj.name, inputs: [profileVar], literals: [[0, 0, signed]], params: {} }],
       };
     }
     case 'PartDesign::Pocket': {
@@ -177,16 +220,49 @@ export function translateObject(
       const profileVar = profile ? inputVar(profile) : undefined;
       const baseVar = base ? inputVar(base) : undefined;
       if (!profileVar || !baseVar) return { kind: 'baked', reason: 'pocket-missing-dependency' };
-      // Pocket cuts INTO the material: extrude the profile opposite the
-      // normal (or along it when Reversed), then subtract from base.
-      const length = (reversed ? len : -len);
+      if (midplane) return { kind: 'baked', reason: 'pocket-midplane-unsupported' };
+      // Pocket cuts INTO the material: extrude the profile opposite the normal
+      // (or along it when Reversed), then subtract from base.
+      const signed = reversed ? len : -len;
       const cutVar = `${out}_cut`;
       const calls: CadCall[] = [{
-        out: cutVar, op: 'cad.fai_extrude', source: obj.name, inputs: [profileVar],
-        params: { length, ...(midplane ? { mode: 'midplane' } : {}) },
+        out: cutVar, op: 'cad.extrude', source: obj.name, inputs: [profileVar], literals: [[0, 0, signed]], params: {},
       }];
       calls.push({ out, op: 'cad.subtract', source: obj.name, inputs: [baseVar, cutVar], params: {} });
       return { kind: 'translated', calls };
+    }
+    case 'Part::Extrusion': {
+      const base = propLink(obj, 'Base');
+      const baseVar = base ? inputVar(base) : undefined;
+      if (!baseVar) return { kind: 'baked', reason: 'extrusion-missing-base' };
+      const len = propNum(obj, 'Length') ?? 0;
+      const dir = propVec(obj, 'Dir') ?? [0, 0, 1];
+      const reversed = propBool(obj, 'Reverse');
+      const vec: [number, number, number] = [dir[0] * len, dir[1] * len, dir[2] * len];
+      const s = reversed ? -1 : 1;
+      return {
+        kind: 'translated',
+        calls: [{
+          out, op: 'cad.extrude', source: obj.name, inputs: [baseVar],
+          literals: [[s * vec[0], s * vec[1], s * vec[2]]], params: {},
+        }],
+      };
+    }
+    case 'PartDesign::Revolution': {
+      const profile = profileLink(obj);
+      const profileVar = profile ? inputVar(profile) : undefined;
+      if (!profileVar) return { kind: 'baked', reason: 'revolution-missing-profile' };
+      const angleDeg = propNum(obj, 'Angle') ?? 360;
+      const angle = (angleDeg * Math.PI) / 180;
+      const axisInfo = parseReferenceAxis(propStr(obj, 'ReferenceAxis'));
+      if (!axisInfo) return { kind: 'baked', reason: 'revolution-edge-axis-unsupported' };
+      return {
+        kind: 'translated',
+        calls: [{
+          out, op: 'cad.revolve', source: obj.name, inputs: [profileVar],
+          params: { axis: axisInfo.axis, at: axisInfo.at, angle },
+        }],
+      };
     }
     default:
       return { kind: 'baked', reason: `type-not-implemented: ${obj.type}` };

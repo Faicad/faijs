@@ -10,6 +10,7 @@
 import type { FcstdDocument } from './document.js';
 import type { CadCall, TranslateVerdict } from './feature-translate.js';
 import { translateObject } from './feature-translate.js';
+import type { Contour } from './contour.js';
 
 export interface GenObjectResult {
   name: string;
@@ -66,6 +67,7 @@ function depsOf(obj: FcstdDocument['objects'][number]): string[] {
 export function generateModel(
   doc: FcstdDocument,
   sketchVerdict: Map<string, { level: 'L0' | 'L1' | 'L2'; reason?: string; loopCount?: number }>,
+  sketchContours: Map<string, Contour[]>,
   baseName: string,
 ): GenResult {
   const byName = new Map(doc.objects.map((o) => [o.name, o]));
@@ -103,20 +105,31 @@ export function generateModel(
 
     if (obj.type === 'Sketcher::SketchObject') {
       const verdict = sketchVerdict.get(name);
-      const usable = verdict && verdict.level !== 'L2' && (verdict.loopCount ?? 0) > 0;
+      const contours = sketchContours.get(name);
+      const usable =
+        !!verdict &&
+        verdict.level !== 'L2' &&
+        (verdict.loopCount ?? 0) > 0 &&
+        !!contours &&
+        contours.length > 0;
       if (usable) {
-        // D1: solved contour is recorded in mapping.json (gcs field) for the
-        // future editable-sketch upgrade. The script surface has no sketch
-        // declaration syntax yet (M6 wiring), so no variable is emitted.
-        variables.set(name, `@sketch:${name}`);
+        // M6 wiring: emit a real `cad.sketch({contours})` creator so the
+        // solved contour becomes a face variable the Pad/Pocket/Extrusion/
+        // Revolution features below can consume.
+        const v = newVar();
+        variables.set(name, v);
+        const sketchCall: CadCall = {
+          out: v, op: 'cad.sketch', source: name, inputs: [], params: { contours },
+        };
+        calls.push(sketchCall);
         results.push({
-          name, type: obj.type, calls: [], disposition: 'translated',
+          name, type: obj.type, variable: v, calls: [sketchCall], disposition: 'translated',
           sketch: verdict,
         });
       } else {
         results.push({
           name, type: obj.type, calls: [], disposition: 'baked',
-          reason: verdict?.reason ?? 'sketch-not-solved', sketch: verdict,
+          reason: verdict?.reason ?? (contours ? 'sketch-not-solved' : 'sketch-no-contours'), sketch: verdict,
         });
       }
       continue;
@@ -127,12 +140,11 @@ export function generateModel(
       continue;
     }
 
-    // '@sketch:' entries are M3 records, not script-surface variables —
-    // a Pad/Pocket profile referencing them stays baked until M6 wires
-    // sketch contours into the cad face.
+    // Sketches are now real face variables (see the Sketcher::SketchObject
+    // branch above), so every dependency that resolves to one flows through.
     const verdict = translateObject(obj, (dep) => {
       const v = variables.get(dep);
-      return v !== undefined && !v.startsWith('@sketch:') ? v : undefined;
+      return v !== undefined ? v : undefined;
     });
     node.verdict = verdict;
     if (verdict.kind === 'translated') {
@@ -188,9 +200,12 @@ function lower(calls: CadCall[], baseName: string): string {
 }
 
 function renderArgs(call: CadCall): string {
-  const positional: string[] = call.inputs.map((i) => i);
+  const positional: string[] = [
+    ...call.inputs.map((i) => i),
+    ...(call.literals ?? []).map((l) => JSON.stringify(l)),
+  ];
   const named: string[] = [];
-  for (const [k, v] of Object.entries(call.params)) {
+  for (const [k, v] of Object.entries(call.params ?? {})) {
     if (v === undefined) continue;
     named.push(`${k}: ${JSON.stringify(v)}`);
   }

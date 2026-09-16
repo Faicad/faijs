@@ -1,9 +1,11 @@
 /**
  * M5 tests — dependency ordering (M5.1), code lowering (M5.2), statement
- * ids sN / variables partN, and multi-root grouping.
+ * ids sN / variables partN, multi-root grouping, and M6 sketch→cad.sketch
+ * wiring (Pad/Pocket become real cad.extrude / cad.subtract calls).
  */
 import { describe, it, expect } from 'vitest';
 import { generateModel } from './codegen.js';
+import type { Contour } from './contour.js';
 import type { FcstdDocument, FcstdObject } from './document.js';
 
 function prop(name: string, childAttrs: Record<string, string>, childTag = 'Link'): [string, { name: string; type: string; tagName: string; children: never[]; valueXml: string; valueText: string; attributes: Record<string, string> }, Record<string, string>] {
@@ -28,6 +30,22 @@ function simpleObj(type: string, name: string, props: Record<string, Record<stri
   return { type, name, properties };
 }
 
+/** A unit square contour (closed loop of 4 lines) used for sketch wiring. */
+function square(): Contour[] {
+  return [{
+    closed: true,
+    segments: [
+      { kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0 },
+      { kind: 'line', x1: 10, y1: 0, x2: 10, y2: 10 },
+      { kind: 'line', x1: 10, y1: 10, x2: 0, y2: 10 },
+      { kind: 'line', x1: 0, y1: 10, x2: 0, y2: 0 },
+    ],
+  }];
+}
+
+/** Empty contour map (no sketch wired). */
+const NO_CONTOURS = new Map<string, Contour[]>();
+
 describe('M5 codegen', () => {
   it('orders Box → Cut in dependency order and lowers to sN/partN', () => {
     const doc: FcstdDocument = {
@@ -41,7 +59,7 @@ describe('M5 codegen', () => {
       typeIndex: new Map(),
       meta: new Map(),
     };
-    const result = generateModel(doc, new Map(), 'test');
+    const result = generateModel(doc, new Map(), NO_CONTOURS, 'test');
     expect(result.calls.map((c) => c.op)).toEqual(['cad.box', 'cad.cylinder', 'cad.subtract']);
     expect(result.calls[2]!.inputs).toEqual(['part0', 'part1']);
     expect(result.code).toContain('let part0 = cad.box(');
@@ -52,7 +70,7 @@ describe('M5 codegen', () => {
     expect(origin).toMatchObject({ disposition: 'preserved-only' });
   });
 
-  it('bakes sketches without verdicts; sketch variables do not reach the script surface', () => {
+  it('bakes sketches without verdicts/contours; wires them to cad.sketch when solved', () => {
     const doc: FcstdDocument = {
       objects: [
         simpleObj('Sketcher::SketchObject', 'Sketch', {}),
@@ -61,18 +79,25 @@ describe('M5 codegen', () => {
       typeIndex: new Map(),
       meta: new Map(),
     };
-    // no verdict → sketch baked, Pad can't resolve profile → baked
-    const r1 = generateModel(doc, new Map(), 't');
+    // no verdict, no contours → sketch baked, Pad can't resolve profile → baked
+    const r1 = generateModel(doc, new Map(), NO_CONTOURS, 't');
     const pad1 = r1.objects.find((o) => o.name === 'Pad');
     expect(pad1).toMatchObject({ disposition: 'baked' });
 
-    // L0 verdict: sketch is recorded (D1) but the script surface has no
-    // sketch declaration syntax yet (M6) — Pad profile stays unresolvable.
-    const r2 = generateModel(doc, new Map([['Sketch', { level: 'L0', loopCount: 1 }]]), 't');
+    // L0 verdict + contours → sketch emits cad.sketch, Pad resolves the
+    // profile face and becomes a real cad.extrude call (M6 wiring).
+    const r2 = generateModel(
+      doc,
+      new Map([['Sketch', { level: 'L0', loopCount: 1 }]]),
+      new Map([['Sketch', square()]]),
+      't',
+    );
     const sketch2 = r2.objects.find((o) => o.name === 'Sketch');
     expect(sketch2).toMatchObject({ disposition: 'translated' });
     const pad2 = r2.objects.find((o) => o.name === 'Pad');
-    expect(pad2).toMatchObject({ disposition: 'baked', reason: 'pad-missing-profile' });
+    expect(pad2).toMatchObject({ disposition: 'translated' });
+    expect(r2.code).toContain('cad.sketch');
+    expect(r2.code).toContain('cad.extrude');
     expect(r2.code).not.toContain('cad.fai_extrude');
   });
 
@@ -82,11 +107,11 @@ describe('M5 codegen', () => {
       typeIndex: new Map(),
       meta: new Map(),
     };
-    const r = generateModel(doc, new Map(), 't');
+    const r = generateModel(doc, new Map(), NO_CONTOURS, 't');
     expect(r.code).toContain('cad.group({ members: [part0, part1] })');
   });
 
-  it('emits Pocket as two calls when base solid resolves; sketches stay out of script surface', () => {
+  it('emits Pad + Pocket as real cad.extrude / cad.subtract when sketch contours are wired', () => {
     const doc: FcstdDocument = {
       objects: [
         simpleObj('Sketcher::SketchObject', 'Sketch', {}),
@@ -101,13 +126,23 @@ describe('M5 codegen', () => {
       ['Sketch', { level: 'L0' as const, loopCount: 1 }],
       ['Sketch001', { level: 'L0' as const, loopCount: 1 }],
     ]);
-    const r = generateModel(doc, verdicts, 't');
-    // sketch contours are recorded (D1) but not yet wired to the cad face
-    // (M6) — both Pad and Pocket degrade to baked with reasons.
+    const contours = new Map([
+      ['Sketch', square()],
+      ['Sketch001', square()],
+    ]);
+    const r = generateModel(doc, verdicts, contours, 't');
+    const sketch = r.objects.find((o) => o.name === 'Sketch');
+    const sketch001 = r.objects.find((o) => o.name === 'Sketch001');
     const pad = r.objects.find((o) => o.name === 'Pad');
     const pocket = r.objects.find((o) => o.name === 'Pocket');
-    expect(pad).toMatchObject({ disposition: 'baked', reason: 'pad-missing-profile' });
-    expect(pocket).toMatchObject({ disposition: 'baked', reason: 'pocket-missing-dependency' });
+    expect(sketch).toMatchObject({ disposition: 'translated' });
+    expect(sketch001).toMatchObject({ disposition: 'translated' });
+    expect(pad).toMatchObject({ disposition: 'translated' });
+    expect(pocket).toMatchObject({ disposition: 'translated' });
+    // both sketches become faces; Pad extrudes, Pocket extrudes+cuts
+    expect(r.code).toContain('cad.sketch');
+    expect(r.code).toContain('cad.extrude');
+    expect(r.code).toContain('cad.subtract');
     expect(r.code).not.toContain('cad.fai_extrude');
   });
 });

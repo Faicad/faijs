@@ -29,7 +29,8 @@ describe('M4.1 whitelist', () => {
     expect(isWhitelisted('Part::Box')).toBe(true);
     expect(isWhitelisted('PartDesign::Pad')).toBe(true);
     expect(isWhitelisted('Part::FeaturePython')).toBe(false);
-    expect(isWhitelisted('PartDesign::Revolution')).toBe(false);
+    expect(isWhitelisted('PartDesign::Revolution')).toBe(true);
+    expect(isWhitelisted('Part::Extrusion')).toBe(true);
   });
 });
 
@@ -106,10 +107,53 @@ describe('M4.6 Pad/Pocket', () => {
     const v = translateObject(pad, (dep) => (dep === 'Sketch' ? 'sketch0' : undefined));
     expect(v.kind).toBe('translated');
     if (v.kind === 'translated') {
-      expect(v.calls[0]!.op).toBe('cad.fai_extrude');
+      expect(v.calls[0]!.op).toBe('cad.extrude');
       expect(v.calls[0]!.inputs).toEqual(['sketch0']);
-      expect(v.calls[0]!.params).toMatchObject({ length: 12 });
+      // length is carried as a directional literal (Vec3 along +Z)
+      expect(v.calls[0]!.literals).toEqual([[0, 0, 12]]);
+      expect(v.calls[0]!.params).toEqual({});
     }
+  });
+
+  it('translates Part::Extrusion over a base with directional length', () => {
+    const ext = obj('Part::Extrusion', 'Ext', [
+      prop('Base', { name: 'Link', attrs: { value: 'Sketch' } }),
+      prop('Length', { name: 'Float', attrs: { value: '10' } }),
+      prop('Dir', { name: 'Vector', attrs: { value: '0 0 1' } }),
+      prop('Reverse', { name: 'Bool', attrs: { value: 'false' } }),
+    ]);
+    const v = translateObject(ext, (dep) => (dep === 'Sketch' ? 'sketch0' : undefined));
+    expect(v.kind).toBe('translated');
+    if (v.kind === 'translated') {
+      expect(v.calls[0]!.op).toBe('cad.extrude');
+      expect(v.calls[0]!.inputs).toEqual(['sketch0']);
+      expect(v.calls[0]!.literals).toEqual([[0, 0, 10]]);
+    }
+  });
+
+  it('translates PartDesign::Revolution around the body Z axis', () => {
+    const rev = obj('PartDesign::Revolution', 'Rev', [
+      prop('Profile', { name: 'Link', attrs: { value: 'Sketch' } }),
+      prop('Angle', { name: 'Float', attrs: { value: '360' } }),
+      prop('ReferenceAxis', { name: 'LinkSub', attrs: { value: 'V_Axis' } }),
+    ]);
+    const v = translateObject(rev, (dep) => (dep === 'Sketch' ? 'sketch0' : undefined));
+    expect(v.kind).toBe('translated');
+    if (v.kind === 'translated') {
+      expect(v.calls[0]!.op).toBe('cad.revolve');
+      expect(v.calls[0]!.inputs).toEqual(['sketch0']);
+      expect(v.calls[0]!.params).toMatchObject({ axis: [0, 0, 1], at: [0, 0, 0] });
+    }
+  });
+
+  it('bakes Revolution referencing an edge/vertex axis (unsupported)', () => {
+    const rev = obj('PartDesign::Revolution', 'Rev', [
+      prop('Profile', { name: 'Link', attrs: { value: 'Sketch' } }),
+      prop('Angle', { name: 'Float', attrs: { value: '360' } }),
+      prop('ReferenceAxis', { name: 'LinkSub', attrs: { value: 'Edge1' } }),
+    ]);
+    const v = translateObject(rev, (dep) => (dep === 'Sketch' ? 'sketch0' : undefined));
+    expect(v).toMatchObject({ kind: 'baked', reason: 'revolution-edge-axis-unsupported' });
   });
 
   it('translates Pocket as extrude + subtract from base', () => {
