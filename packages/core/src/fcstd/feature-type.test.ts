@@ -101,3 +101,58 @@ describe('M9.3 UpTo* / ThroughAll / unknown → explicit bake with reason', () =
     expect(v.kind).toBe('translated');
   });
 });
+
+// M11.1/M11.2 — ExpressionEngine bindings: constant values override the
+// stored <Float>; non-constant expressions (references/arithmetic) bake
+// explicitly with reason, never estimated.
+describe('M11 expression bindings', () => {
+  /** object with an ExpressionEngine property */
+  function withEngine(type: string, name: string, expr: string, props: Record<string, string | number> = {}): FcstdObject {
+    const o = obj(type, name, props);
+    o.properties.set('ExpressionEngine', {
+      name: 'ExpressionEngine', type: 'App::PropertyExpressionEngine', tagName: 'Property',
+      children: [{
+        name: 'ExpressionEngine', type: '', tagName: 'ExpressionEngine',
+        children: [{
+          name: 'Expression', type: '', tagName: 'Expression', children: [],
+          valueXml: '', valueText: '', attributes: { path: 'Length', expression: expr },
+        }],
+        valueXml: '', valueText: '', attributes: { count: '1' },
+      }],
+      valueXml: '', valueText: '', attributes: {},
+    });
+    return o;
+  }
+
+  it('M11.1: constant binding (10 mm) overrides stored Length', () => {
+    // stored <Float> says 999 — the expression wins
+    const pad = withEngine('PartDesign::Pad', 'Pad', '10 mm', { Length: 999, Profile: 'Sketch' });
+    const v = translateObject(pad, PROFILE_VAR);
+    expect(v.kind).toBe('translated');
+    if (v.kind !== 'translated') return;
+    expect(v.calls.at(-1)!.literals).toEqual([[0, 0, 10]]);
+  });
+
+  it('M11.2: non-constant binding (cross-object reference) → bake with reason', () => {
+    const pad = withEngine('PartDesign::Pad', 'Pad', 'Sketch.Constraints[3]', { Length: 10, Profile: 'Sketch' });
+    const v = translateObject(pad, PROFILE_VAR);
+    expect(v.kind).toBe('baked');
+    if (v.kind === 'baked') expect(v.reason).toBe('pad-length-expression-non-constant');
+  });
+
+  it('M11.2: arithmetic with identifiers → bake with reason (Pocket)', () => {
+    const pocket = withEngine('PartDesign::Pocket', 'Pocket', 'Pad.Length / 2', {
+      Length: 5, Profile: 'Sketch', BaseFeature: 'Pad',
+    });
+    const v = translateObject(pocket, PROFILE_VAR);
+    expect(v.kind).toBe('baked');
+    if (v.kind === 'baked') expect(v.reason).toBe('pocket-length-expression-non-constant');
+  });
+
+  it('M11.1: constant arithmetic expression still not estimated — only bare constants pass', () => {
+    // '2 * 5' is not a bare number-with-unit → non-constant → bake
+    const pad = withEngine('PartDesign::Pad', 'Pad', '2 * 5', { Length: 10, Profile: 'Sketch' });
+    const v = translateObject(pad, PROFILE_VAR);
+    expect(v.kind).toBe('baked');
+  });
+});

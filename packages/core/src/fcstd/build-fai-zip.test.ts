@@ -117,4 +117,26 @@ describe('fcstd container (M2)', () => {
     const manifest = JSON.parse(Buffer.from(round['manifest.json']!).toString('utf-8'));
     expect(manifest.requiresBrep).toBe(true);
   });
+
+  // G7 (M11.3 / D-B): assets/ entries must exactly match the asset artifacts
+  // recorded in mapping.json — a .brp copied without a ledger entry (or the
+  // reverse) would break V3 zero-silent-loss accounting.
+  it('assets/ members correspond 1:1 with mapping artifacts (G7)', () => {
+    const source = unpackFcstd(makeFakeFcstd());
+    if (!isOk(source)) return;
+    const built = buildFaiZip(source.value, 'fake.FCStd');
+    if (!built.result) return;
+    const round = unzipSync(built.result.zip);
+    const assetMembers = Object.keys(round).filter((p) => p.startsWith('assets/')).sort();
+    const artifactAssets = built.result.mapping.objects
+      .flatMap((o) => o.artifacts)
+      .filter((a) => a.startsWith('assets/'))
+      .sort();
+    expect(assetMembers).toEqual(artifactAssets);
+    // byte-exact against the freecad/ shadow (D-B: .brp stored as-is)
+    for (const asset of assetMembers) {
+      const brpName = asset.slice('assets/'.length);
+      expect(Buffer.from(round[asset]!)).toEqual(Buffer.from(round[`freecad/${brpName}`]!));
+    }
+  });
 });

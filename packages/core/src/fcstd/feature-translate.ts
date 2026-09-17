@@ -10,6 +10,7 @@
  * (statements sN, variables partN). Geometry values are already mm (D7).
  */
 import type { FcstdObject } from './document.js';
+import { parseExpressionEngine, type ExpressionBinding } from './expressions.js';
 
 export interface CadCall {
   /** target variable name (partN, assigned by M5) */
@@ -84,11 +85,34 @@ export function isWhitelisted(type: string): boolean {
 }
 
 function propNum(obj: FcstdObject, name: string): number | undefined {
+  // M11.1: an ExpressionEngine binding overrides the stored <Float> value
+  // (FreeCAD recomputes bound properties from expressions on load). A
+  // non-constant binding is reported via exprBindingOf, not guessed here.
+  const bound = expressionBindingOf(obj, name);
+  if (bound && bound.value !== undefined) return bound.value;
   const p = obj.properties.get(name);
   if (!p) return undefined;
   const el = p.children[0];
   const v = el?.attributes['value'];
   return v === undefined ? undefined : Number(v);
+}
+
+/**
+ * M11.1/M11.2: the ExpressionEngine binding for `name`, if any. `value` is
+ * undefined for non-constant expressions (references/arithmetic) — the caller
+ * must bake with an explicit reason instead of estimating.
+ */
+export function expressionBindingOf(obj: FcstdObject, name: string): ExpressionBinding | undefined {
+  const bindings = parseExpressionEngine(obj.properties.get('ExpressionEngine') as never);
+  if (bindings.length === 0) return undefined;
+  const norm = (p: string): string => (p.startsWith('.') ? p.slice(1) : p);
+  return bindings.find((b) => norm(b.path) === name);
+}
+
+/** M11.2: true when `name` has a binding that is NOT a constant expression. */
+export function hasNonConstantBinding(obj: FcstdObject, name: string): boolean {
+  const b = expressionBindingOf(obj, name);
+  return b !== undefined && b.value === undefined;
 }
 
 function propBool(obj: FcstdObject, name: string): boolean {
@@ -306,6 +330,12 @@ export function translateObject(
       const midplane = propBool(obj, 'Midplane');
       const profileVar = profile ? inputVar(profile) : undefined;
       if (!profileVar) return { kind: 'baked', reason: 'pad-missing-profile' };
+      // M11.2: a non-constant expression binding (cross-object reference /
+      // identifier arithmetic) leaves the length unknown — explicit bake,
+      // never estimate (plan §12).
+      if (hasNonConstantBinding(obj, 'Length')) {
+        return { kind: 'baked', reason: 'pad-length-expression-non-constant' };
+      }
       // M9.1/M9.2: Type-driven semantics — no silent Length fallback.
       const ftype = featureTypeOf(obj, 'pad');
       if (ftype === 'TwoLengths') {
@@ -354,6 +384,9 @@ export function translateObject(
       const profileVar = profile ? inputVar(profile) : undefined;
       const baseVar = base ? inputVar(base) : undefined;
       if (!profileVar || !baseVar) return { kind: 'baked', reason: 'pocket-missing-dependency' };
+      if (hasNonConstantBinding(obj, 'Length')) {
+        return { kind: 'baked', reason: 'pocket-length-expression-non-constant' };
+      }
       // M9.1/M9.2/M9.3: Type-driven semantics — explicit bake for anything
       // beyond plain Length / TwoLengths (no silent downgrade).
       const ftype = featureTypeOf(obj, 'pocket');

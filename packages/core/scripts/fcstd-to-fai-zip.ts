@@ -134,6 +134,30 @@ for (const o of gen.objects) {
 }
 members['mapping.json'] = strToU8(JSON.stringify(mapping, null, 2));
 
+// M11.4 (G9): L1/L2 sketches have no cad.sketch call — persist their raw
+// (unsolved) geometry as a contour asset so V3 zero-silent-loss has a
+// concrete artifact per sketch, not just a mapping entry.
+let mappingUpdated = false;
+for (const obj of doc.value.objects) {
+  if (obj.type !== 'Sketcher::SketchObject') continue;
+  const verdict = sketchVerdict.get(obj.name);
+  if (!verdict || verdict.level === 'L0') continue; // L0 sketches emit cad.sketch
+  const sk = parseSketchObject(obj.properties.get('Geometry'), obj.properties.get('Constraints'), false);
+  const asset = {
+    sketch: obj.name,
+    level: verdict.level,
+    reason: verdict.reason,
+    geoms: sk.geoms,
+    constraints: sk.constraints.map((c) => ({ index: c.index, type: c.type, refs: c.refs, value: c.value, isDriving: c.isDriving })),
+  };
+  const path = `assets/${obj.name}.contour.json`;
+  members[path] = strToU8(JSON.stringify(asset, null, 2));
+  const entry = mapping.objects.find((e) => e.name === obj.name);
+  if (entry && !entry.artifacts.includes(path)) entry.artifacts.push(path);
+  mappingUpdated = true;
+}
+if (mappingUpdated) members['mapping.json'] = strToU8(JSON.stringify(mapping, null, 2));
+
 const finalZip = zipSync(members, { level: 6 });
 writeFileSync(output, finalZip);
 
