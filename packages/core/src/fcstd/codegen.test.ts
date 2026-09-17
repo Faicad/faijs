@@ -190,4 +190,23 @@ describe('M5 codegen', () => {
     const r = generateModel(doc, new Map(), NO_CONTOURS, 't');
     expect(r.code).toContain('cad.group({ members: [part0, part1] })');
   });
+
+  // GOTCHA: renderArgs used to emit `cad.sketch(, { ... })` for calls with no
+  // positional args (inputs+literals empty) — a leading comma → SyntaxError.
+  // Correct form: named-only params render as the first argument, no comma.
+  it('emits no leading comma for calls with only named params (M7.1b)', () => {
+    const doc: FcstdDocument = {
+      objects: [simpleObj('Sketcher::SketchObject', 'Sketch', {})],
+      typeIndex: new Map(),
+      meta: new Map(),
+    };
+    const r = generateModel(
+      doc,
+      new Map([['Sketch', { level: 'L0' as const, loopCount: 1 }]]),
+      new Map([['Sketch', square()]]),
+      't',
+    );
+    expect(r.code).toContain('cad.sketch({ contours:');
+    expect(r.code).not.toContain('(, ');
+  });
 });

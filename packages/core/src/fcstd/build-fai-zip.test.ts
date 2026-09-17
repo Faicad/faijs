@@ -105,4 +105,16 @@ describe('fcstd container (M2)', () => {
     const box = built.result.mapping.objects.find((o) => o.name === 'Box')!;
     expect(box.artifacts).toContain('assets/Box.brp');
   });
+
+  // D-A: the FCStd port output is BREP-chain-only; the manifest must declare
+  // it so executors know `--mode brep` is required (never rely on `auto`).
+  it('manifest declares requiresBrep: true (D-A)', () => {
+    const source = unpackFcstd(makeFakeFcstd());
+    if (!isOk(source)) return;
+    const built = buildFaiZip(source.value, 'fake.FCStd');
+    if (!built.result) return;
+    const round = unzipSync(built.result.zip);
+    const manifest = JSON.parse(Buffer.from(round['manifest.json']!).toString('utf-8'));
+    expect(manifest.requiresBrep).toBe(true);
+  });
 });

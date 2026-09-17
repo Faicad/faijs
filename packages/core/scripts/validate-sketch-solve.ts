@@ -17,8 +17,11 @@ function walk(dir: string, out: string[]): void {
   }
 }
 const solver = await createPlanegcsSolver();
+// M7.4: sample root is a parameter (argv[2] or FAIJS_FCSTD_CORPUS env),
+// defaulting to the local FreeCAD corpus — no more hardcoded path.
+const root = process.argv[2] ?? process.env.FAIJS_FCSTD_CORPUS ?? 'D:/Faicad/FreeCAD';
 const files: string[] = [];
-walk('D:/Faicad/FreeCAD', files);
+walk(root, files);
 files.sort();
 const levels = { L0: 0, L1: 0, L2: 0 };
 const reasons = new Map<string, number>();

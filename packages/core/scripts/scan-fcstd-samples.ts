@@ -56,21 +56,25 @@ for (const file of files) {
     failures++;
     continue;
   }
-  let geoCount = 0;
-  let conCount = 0;
+  // M7.5 (G10): file-level geo/con must sum over ALL sketches in the file —
+  // the old code printed (and effectively reported) only the last sketch's counts.
+  let fileGeo = 0;
+  let fileCon = 0;
   for (const obj of doc.value.objects) {
     typeCounts.set(obj.type, (typeCounts.get(obj.type) ?? 0) + 1);
     if (obj.type === 'Sketcher::SketchObject') {
       sketchObjects++;
       const geo = obj.properties.get('Geometry');
-      if (geo) geoCount = geo.children[0] ? Number(geo.children[0].attributes['count'] ?? 0) : 0;
+      const geoCount = geo?.children[0] ? Number(geo.children[0].attributes['count'] ?? 0) : 0;
       const cons = obj.properties.get('Constraints');
-      if (cons) conCount = cons.children[0] ? Number(cons.children[0].attributes['count'] ?? 0) : 0;
+      const conCount = cons?.children[0] ? Number(cons.children[0].attributes['count'] ?? 0) : 0;
+      fileGeo += geoCount;
+      fileCon += conCount;
       geometryTotal += geoCount;
       constraintTotal += conCount;
     }
   }
-  console.log(`${file}  objects=${doc.value.objects.length} geo=${geoCount} con=${conCount}`);
+  console.log(`${file}  objects=${doc.value.objects.length} geo=${fileGeo} con=${fileCon}`);
 }
 
 console.log('\n=== SUMMARY ===');

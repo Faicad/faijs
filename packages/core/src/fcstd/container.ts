@@ -21,6 +21,9 @@ export interface FaiManifest {
   };
   /** unit normalization applied to all coordinates (D7); always "mm" */
   units: 'mm';
+  /** D-A: FCStd port output is BREP-chain-only (sketch/extrude/... are brep
+   * impls without mesh); execution must use `--mode brep`. */
+  requiresBrep: true;
   /** entry script inside model/ */
   entry: string;
 }
@@ -66,6 +69,7 @@ export function buildManifest(
       schemaVersion: Number(doc.meta.get('SchemaVersion')?.valueText ?? 4),
     },
     units: 'mm',
+    requiresBrep: true,
     entry: 'model/main.fai.js',
   };
 }

@@ -93,7 +93,7 @@
   │                            M5 代码生成 + 打包
   │                                    │
   │                            model/*.fai.js
-  │                            assets/*.step（回退集）
+  │                            assets/*.brp（回退集，OCCT BREP 文本原样直存）
   │                            freecad/*（影子）
   │                            mapping.json
   ▼
@@ -320,7 +320,9 @@ FCStd 里 `<GeometryList>` 存的坐标，就是 **FreeCAD 上次求解的结果
 |---|---|---|---|
 | L0 参数化 | 求解成功且比对通过 | 轮廓（可复算） | `sketch: solved` |
 | L1 初值直用 | 求解失败/不收敛/比对超限 | 轮廓（落盘坐标直出） | `sketch: initial-value` + 失败原因 |
-| L2 烘焙 | 几何类型不支持 / 含外部几何（D4） | `assets/<Sketch>.step` | `sketch: baked` + 原因 |
+| L2 烘焙 | 几何类型不支持 / 含外部几何（D4） | `assets/<Sketch>.brp` | `sketch: baked` + 原因 |
+
+> **口径订正（2026-09-17，二阶段决策 D-B）**：`assets/` 保存 FCStd ZIP 内的 `.brp`（OCCT BREP 文本）原始字节，**不重命名、不转 STEP**。本节原写的 `*.step` 与上方架构图均已修订。依据见 `docs/plans/2026-09-17-fcstd-port-phase2-plan.md` §2 D-B。
 
 **三级都必须出几何，不存在「转换失败」这一档**——只有保真度不同。这与前文 A「P1 结束时就有可用产物」的原则一致。
 

@@ -1,6 +1,6 @@
 /**
- * M5.4 — end-to-end CLI: .FCStd → .fai.zip (M1 unpack → M3 sketch solve →
- * M4 translate → M5 codegen → container build).
+ * M5.4 - end-to-end CLI: .FCStd -> .fai.zip (M1 unpack -> M3 sketch solve ->
+ * M4 translate -> M5 codegen -> container build).
  *
  * Run: tsx packages/core/scripts/fcstd-to-fai-zip.ts <in.FCStd> <out.fai.zip>
  */

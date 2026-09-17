@@ -56,6 +56,9 @@
     "build": "tsc -p tsconfig.build.json && node ../../scripts/fix-import-extensions.mjs dist",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "lint": "eslint src"
+    "lint": "eslint src",
+    "fcstd:scan": "tsx scripts/scan-fcstd-samples.ts",
+    "fcstd:validate": "tsx scripts/validate-sketch-solve.ts",
+    "fcstd:convert": "tsx scripts/fcstd-to-fai-zip.ts"
   }
 }

@@ -232,12 +232,15 @@ function renderArgs(call: CadCall): string {
   const positional: string[] = [
     ...call.inputs.map((i) => i),
     ...(call.literals ?? []).map((l) => renderValue(l)),
-  ];
+  ].filter((s) => s.length > 0); // M7.1: drop empty entries so we never emit `(, `
   const named: string[] = [];
   for (const [k, v] of Object.entries(call.params ?? {})) {
     if (v === undefined) continue;
     named.push(`${k}: ${renderValue(v)}`);
   }
-  const rest = named.length ? `, { ${named.join(', ')} }` : '';
+  const namedBlock = named.length ? `{ ${named.join(', ')} }` : '';
+  // M7.1: no leading comma when there are no positional args — a call with only
+  // named params must render as `cad.sketch({ ... })`, never `cad.sketch(, {...})`.
+  const rest = namedBlock ? (positional.length ? `, ${namedBlock}` : namedBlock) : '';
   return `${positional.join(', ')}${rest}`;
 }
