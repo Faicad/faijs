@@ -10,6 +10,7 @@ import { parseDocumentXml } from '../src/fcstd/document.ts';
 import { parseSketchObject } from '../src/fcstd/sketch-parse.ts';
 import { createPlanegcsSolver } from '../src/fcstd/planegcs-backend.ts';
 import { classifySketch, maxPointDistance } from '../src/fcstd/sketch-verify.ts';
+import { resolveExternalGeometry } from '../src/fcstd/external-geo.ts';
 import { extractContours } from '../src/fcstd/contour.ts';
 import type { Contour } from '../src/fcstd/contour.ts';
 import { generateModel } from '../src/fcstd/codegen.ts';
@@ -61,15 +62,32 @@ for (const obj of doc.value.objects) {
   });
   const preBlocked =
     offPlane ? 'sketch-geometry-off-plane'
-    : sk.externalGeoIds.length > 0 ? 'external-geometry'
     : sk.geoms.some((g) => !Number.isFinite((g as { x?: number }).x ?? 0)) ? 'unsupported-geometry'
     : undefined;
   if (preBlocked) {
     sketchVerdict.set(obj.name, { level: 'L2', reason: preBlocked });
     continue;
   }
+  // M13.3: external geometry is RESOLVED, not pre-blocked — the source
+  // object's .brp edges are projected into sketch-local 2D and handed to the
+  // solver as immutable targets (M6.3). Failures to resolve still bake.
+  let external: { geoId: number; polyline: [number, number][] }[] | undefined;
+  if (sk.externalGeoIds.length > 0) {
+    const ext = await resolveExternalGeometry(
+      obj.properties.get('ExternalGeometry'), doc.value, unpacked.value, obj.properties.get('Placement'),
+    );
+    const usable = ext.links.filter((l) => l.polyline.length === 2);
+    if (usable.length === 0) {
+      sketchVerdict.set(obj.name, {
+        level: 'L2',
+        reason: `external-geometry-unresolved: ${ext.failures[0]?.reason ?? 'no links'}`,
+      });
+      continue;
+    }
+    external = usable.map((l, i) => ({ geoId: -3 - i, polyline: l.polyline }));
+  }
   try {
-    const r = await solver.solve(sk.geoms, sk.constraints);
+    const r = await solver.solve(sk.geoms, sk.constraints, external);
     if (!isOk(r)) {
       sketchVerdict.set(obj.name, { level: 'L2', reason: 'solver-error' });
       continue;
