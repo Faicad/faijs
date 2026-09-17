@@ -264,4 +264,94 @@ describe('M5 codegen', () => {
     expect(chainOps[1]!.inputs).toContain(pocketOut);
     expect(r.code).not.toContain('cad.group({ members: [part0');
   });
+
+  // M10.3: two Bodies with geometry → one file per Body + aggregate main
+  // referencing <Body>_out terminals via cad.group.
+  it('splits multi-Body models into per-Body files + aggregate main (M10.3)', () => {
+    const mkBody = (name: string, members: string[]): FcstdObject => {
+      const b = simpleObj('PartDesign::Body', name);
+      b.properties.set('Group', {
+        name: 'Group', type: 'App::PropertyLinkList', tagName: 'Property',
+        children: [{
+          name: 'LinkList', type: '', tagName: 'LinkList',
+          children: members.map((m) => ({
+            name: 'Link', type: '', tagName: 'Link', children: [], valueXml: '', valueText: '', attributes: { value: m },
+          })),
+          valueXml: '', valueText: '', attributes: { count: String(members.length) },
+        }],
+        valueXml: '', valueText: '', attributes: {},
+      });
+      return b;
+    };
+    const doc: FcstdDocument = {
+      objects: [
+        mkBody('Body', ['Pad']),
+        mkBody('Body001', ['Pad001']),
+        simpleObj('Sketcher::SketchObject', 'Sketch', {}),
+        simpleObj('PartDesign::Pad', 'Pad', { Profile: { value: 'Sketch' }, Length: { value: '10' } }),
+        simpleObj('Sketcher::SketchObject', 'Sketch001', {}),
+        simpleObj('PartDesign::Pad', 'Pad001', { Profile: { value: 'Sketch001' }, Length: { value: '5' } }),
+      ],
+      typeIndex: new Map(),
+      meta: new Map(),
+    };
+    const verdicts = new Map([
+      ['Sketch', { level: 'L0' as const, loopCount: 1 }],
+      ['Sketch001', { level: 'L0' as const, loopCount: 1 }],
+    ]);
+    const contours = new Map([
+      ['Sketch', square()],
+      ['Sketch001', square()],
+    ]);
+    const r = generateModel(doc, verdicts, contours, 't');
+    expect(r.files.length).toBe(2);
+    const paths = r.files.map((f) => f.path).sort();
+    expect(paths).toEqual(['model/Body.fai.js', 'model/Body001.fai.js']);
+    for (const f of r.files) {
+      expect(f.code).toContain(`let ${f.body}_out =`);
+    }
+    // aggregate entry groups both Body terminals
+    expect(r.code).toContain('let part_out = cad.group({ members: [Body_out, Body001_out] });');
+    expect(r.rootVar).toBe('part_out');
+  });
+
+  // M10.5: loose Part features (no Body) stay in main.fai.js even when
+  // Bodies exist.
+  it('keeps loose non-Body features in main alongside the aggregate (M10.5)', () => {
+    const mkBody = (name: string, members: string[]): FcstdObject => {
+      const b = simpleObj('PartDesign::Body', name);
+      b.properties.set('Group', {
+        name: 'Group', type: 'App::PropertyLinkList', tagName: 'Property',
+        children: [{
+          name: 'LinkList', type: '', tagName: 'LinkList',
+          children: members.map((m) => ({
+            name: 'Link', type: '', tagName: 'Link', children: [], valueXml: '', valueText: '', attributes: { value: m },
+          })),
+          valueXml: '', valueText: '', attributes: { count: String(members.length) },
+        }],
+        valueXml: '', valueText: '', attributes: {},
+      });
+      return b;
+    };
+    const doc: FcstdDocument = {
+      objects: [
+        mkBody('Body', ['Pad']),
+        simpleObj('Sketcher::SketchObject', 'Sketch', {}),
+        simpleObj('PartDesign::Pad', 'Pad', { Profile: { value: 'Sketch' }, Length: { value: '10' } }),
+        simpleObj('Part::Box', 'LooseBox', {}),
+      ],
+      typeIndex: new Map(),
+      meta: new Map(),
+    };
+    const r = generateModel(
+      doc,
+      new Map([['Sketch', { level: 'L0' as const, loopCount: 1 }]]),
+      new Map([['Sketch', square()]]),
+      't',
+    );
+    expect(r.files.length).toBe(1);
+    expect(r.files[0]!.path).toBe('model/Body.fai.js');
+    // LooseBox call remains in main
+    expect(r.code).toContain('cad.box');
+  });
 });

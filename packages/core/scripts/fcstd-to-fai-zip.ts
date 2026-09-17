@@ -110,6 +110,10 @@ const roundtrip = await import('fflate');
 const srcEntries = roundtrip.unzipSync(built.result.zip);
 for (const [k, v] of Object.entries(srcEntries)) members[k] = v;
 members['model/main.fai.js'] = strToU8(gen.code);
+// M10.3: multi-Body mode — one script per Body with geometry
+for (const f of gen.files) {
+  members[f.path] = strToU8(f.code);
+}
 // update mapping with translated dispositions
 const mapping = built.result.mapping;
 for (const o of gen.objects) {
