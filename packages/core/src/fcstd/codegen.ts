@@ -11,6 +11,7 @@ import type { FcstdDocument } from './document.js';
 import type { CadCall, TranslateVerdict } from './feature-translate.js';
 import { translateObject, isJsExpr } from './feature-translate.js';
 import type { Contour } from './contour.js';
+import { type Placement, isIdentityPlacement, quatToEulerXYZDeg } from './placement.js';
 
 export interface GenObjectResult {
   name: string;
@@ -69,6 +70,8 @@ export function generateModel(
   sketchVerdict: Map<string, { level: 'L0' | 'L1' | 'L2'; reason?: string; loopCount?: number }>,
   sketchContours: Map<string, Contour[]>,
   baseName: string,
+  /** M8.3: per-object Placement (sketches + features); missing → identity */
+  placements?: Map<string, Placement>,
 ): GenResult {
   const byName = new Map(doc.objects.map((o) => [o.name, o]));
   const nodes = new Map<string, Node>();
@@ -156,6 +159,32 @@ export function generateModel(
         call.inputs = call.inputs.map((i) => variables.get(i) ?? i);
         call.out = v;
         calls.push(call);
+      }
+      // M8.3: features build in sketch-local coordinates (cad.sketch lays the
+      // face on local XY; extrude runs along local +Z). Re-orient the final
+      // solid by the OBJECT's own Placement: rotate_euler then translate, so
+      // the result lands where FreeCAD puts it. Identity placements emit nothing.
+      const lastVar = verdict.calls.at(-1)?.out;
+      const pl = placements?.get(name);
+      if (lastVar && pl && !isIdentityPlacement(pl)) {
+        let cur = lastVar;
+        const euler = quatToEulerXYZDeg(pl.q);
+        const isRotation = Math.abs(euler[0]) > 1e-9 || Math.abs(euler[1]) > 1e-9 || Math.abs(euler[2]) > 1e-9;
+        if (isRotation) {
+          const rv = newVar();
+          variables.set(cur, rv); // map old name → rotated var for consumers
+          calls.push({ out: rv, op: 'cad.rotate_euler', source: name, inputs: [cur], params: { anglesDeg: euler } });
+          cur = rv;
+        }
+        const needsTranslate = Math.abs(pl.p[0]) > 1e-9 || Math.abs(pl.p[1]) > 1e-9 || Math.abs(pl.p[2]) > 1e-9;
+        if (needsTranslate) {
+          const tv = newVar();
+          variables.set(cur, tv);
+          calls.push({ out: tv, op: 'cad.translate', source: name, inputs: [cur], params: { offset: [...pl.p] } });
+          cur = tv;
+        }
+        // the object's variable is now the fully placed result
+        variables.set(name, cur);
       }
       results.push({ name, type: obj.type, variable: verdict.calls.at(-1)?.out, calls: verdict.calls, disposition: 'translated' });
     } else if (verdict.kind === 'baked') {

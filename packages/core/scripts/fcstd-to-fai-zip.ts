@@ -13,6 +13,7 @@ import { classifySketch, maxPointDistance } from '../src/fcstd/sketch-verify.ts'
 import { extractContours } from '../src/fcstd/contour.ts';
 import type { Contour } from '../src/fcstd/contour.ts';
 import { generateModel } from '../src/fcstd/codegen.ts';
+import { placementOf } from '../src/fcstd/placement.ts';
 import { isOk } from '../src/vendored/brepjs/core/result.ts';
 import { strToU8 } from 'fflate';
 
@@ -49,8 +50,18 @@ const sketchContours = new Map<string, Contour[]>();
 for (const obj of doc.value.objects) {
   if (obj.type !== 'Sketcher::SketchObject') continue;
   const sk = parseSketchObject(obj.properties.get('Geometry'), obj.properties.get('Constraints'), false);
+  // M8.2: sketch-local Z must be 0 (FreeCAD keeps geometry on the sketch
+  // plane; 3D orientation comes from Placement). Non-zero Z is never silently
+  // dropped — the sketch is downgraded to L2 with an explicit reason.
+  const offPlane = sk.geoms.some((g) => {
+    const zs = g.kind === 'point' ? [g.z]
+      : g.kind === 'line' ? [g.z1, g.z2]
+      : [g.cz];
+    return zs.some((z) => Math.abs(z) > 1e-9);
+  });
   const preBlocked =
-    sk.externalGeoIds.length > 0 ? 'external-geometry'
+    offPlane ? 'sketch-geometry-off-plane'
+    : sk.externalGeoIds.length > 0 ? 'external-geometry'
     : sk.geoms.some((g) => !Number.isFinite((g as { x?: number }).x ?? 0)) ? 'unsupported-geometry'
     : undefined;
   if (preBlocked) {
@@ -78,7 +89,12 @@ for (const obj of doc.value.objects) {
 
 // M4/M5: translate + codegen
 const baseName = input.replace(/^.*[/\\]/, '').replace(/\.fcstd$/i, '');
-const gen = generateModel(doc.value, sketchVerdict, sketchContours, baseName);
+// M8.3: collect per-object Placements so codegen can re-orient features
+const placements = new Map<string, import('../src/fcstd/placement.ts').Placement>();
+for (const obj of doc.value.objects) {
+  placements.set(obj.name, placementOf(obj));
+}
+const gen = generateModel(doc.value, sketchVerdict, sketchContours, baseName, placements);
 
 // M5.4: build container with model/ included
 const { zipSync } = await import('fflate');

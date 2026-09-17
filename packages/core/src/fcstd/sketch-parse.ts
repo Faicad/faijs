@@ -63,28 +63,32 @@ export const PointPos = {
 } as const;
 
 export type SketchGeom =
-  | { kind: 'point'; index: number; x: number; y: number }
-  | { kind: 'line'; index: number; x1: number; y1: number; x2: number; y2: number }
-  | { kind: 'circle'; index: number; cx: number; cy: number; radius: number }
+  | { kind: 'point'; index: number; x: number; y: number; z: number }
+  | { kind: 'line'; index: number; x1: number; y1: number; z1: number; x2: number; y2: number; z2: number }
+  | { kind: 'circle'; index: number; cx: number; cy: number; cz: number; radius: number }
   | {
       kind: 'arc';
       index: number;
       cx: number;
       cy: number;
+      cz: number;
       radius: number;
       startAngle: number; // radians
       endAngle: number;
       /** arc endpoints derived from angles (kept for solver wiring) */
       x1: number;
       y1: number;
+      z1: number;
       x2: number;
       y2: number;
+      z2: number;
     }
   | {
       kind: 'ellipse';
       index: number;
       cx: number;
       cy: number;
+      cz: number;
       majorRadius: number;
       minorRadius: number;
       /** rotation of major axis, radians */
@@ -153,8 +157,8 @@ export function parseGeometryList(prop: FcstdProperty): SketchGeom[] {
         geoms.push({
           kind: 'line',
           index,
-          x1: num(a, 'StartX'), y1: num(a, 'StartY'),
-          x2: num(a, 'EndX'), y2: num(a, 'EndY'),
+          x1: num(a, 'StartX'), y1: num(a, 'StartY'), z1: num(a, 'StartZ'),
+          x2: num(a, 'EndX'), y2: num(a, 'EndY'), z2: num(a, 'EndZ'),
         });
         break;
       }
@@ -162,7 +166,7 @@ export function parseGeometryList(prop: FcstdProperty): SketchGeom[] {
         geoms.push({
           kind: 'circle',
           index,
-          cx: num(a, 'CenterX'), cy: num(a, 'CenterY'),
+          cx: num(a, 'CenterX'), cy: num(a, 'CenterY'), cz: num(a, 'CenterZ'),
           radius: num(a, 'Radius'),
         });
         break;
@@ -170,19 +174,20 @@ export function parseGeometryList(prop: FcstdProperty): SketchGeom[] {
       case tag === 'ArcOfCircle' || gtype.includes('GeomArcOfCircle'): {
         const cx = num(a, 'CenterX');
         const cy = num(a, 'CenterY');
+        const cz = num(a, 'CenterZ');
         const r = num(a, 'Radius');
         const sa = num(a, 'StartAngle');
         const ea = num(a, 'EndAngle');
         geoms.push({
           kind: 'arc',
-          index, cx, cy, radius: r, startAngle: sa, endAngle: ea,
-          x1: cx + r * Math.cos(sa), y1: cy + r * Math.sin(sa),
-          x2: cx + r * Math.cos(ea), y2: cy + r * Math.sin(ea),
+          index, cx, cy, cz, radius: r, startAngle: sa, endAngle: ea,
+          x1: cx + r * Math.cos(sa), y1: cy + r * Math.sin(sa), z1: cz,
+          x2: cx + r * Math.cos(ea), y2: cy + r * Math.sin(ea), z2: cz,
         });
         break;
       }
       case tag === 'GeomPoint' || tag === 'Point' || gtype.includes('GeomPoint'): {
-        geoms.push({ kind: 'point', index, x: num(a, 'X'), y: num(a, 'Y') });
+        geoms.push({ kind: 'point', index, x: num(a, 'X'), y: num(a, 'Y'), z: num(a, 'Z') });
         break;
       }
       case tag === 'Ellipse' || gtype.includes('GeomEllipse'): {
@@ -195,7 +200,7 @@ export function parseGeometryList(prop: FcstdProperty): SketchGeom[] {
         const ca = Math.cos(ang);
         const sa2 = Math.sin(ang);
         geoms.push({
-          kind: 'ellipse', index, cx, cy,
+          kind: 'ellipse', index, cx, cy, cz: num(a, 'CenterZ'),
           majorRadius: major, minorRadius: minor, angleXU: ang,
           fx1: cx + f * ca, fy1: cy + f * sa2,
           fx2: cx - f * ca, fy2: cy - f * sa2,
