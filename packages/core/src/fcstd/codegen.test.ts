@@ -209,4 +209,59 @@ describe('M5 codegen', () => {
     expect(r.code).toContain('cad.sketch({ contours:');
     expect(r.code).not.toContain('(, ');
   });
+
+  // M9.4 (D-C): features inside one Body fuse cumulatively in Body.Group
+  // order — Pad unions onto the chain, Pocket subtracts from it. cad.group
+  // is assembly semantics and must NOT appear for a single Body's chain.
+  it('chains same-Body features via union/subtract, no cad.group (M9.4)', () => {
+    const body = simpleObj('PartDesign::Body', 'Body');
+    body.properties.set('Group', {
+      name: 'Group', type: 'App::PropertyLinkList', tagName: 'Property',
+      // real FCStd shape: Property > LinkList > Link*
+      children: [{
+        name: 'LinkList', type: '', tagName: 'LinkList',
+        children: [
+          { name: 'Link', type: '', tagName: 'Link', children: [], valueXml: '', valueText: '', attributes: { value: 'Pad' } },
+          { name: 'Link', type: '', tagName: 'Link', children: [], valueXml: '', valueText: '', attributes: { value: 'Pocket' } },
+          { name: 'Link', type: '', tagName: 'Link', children: [], valueXml: '', valueText: '', attributes: { value: 'Pad001' } },
+        ],
+        valueXml: '', valueText: '', attributes: { count: '3' },
+      }],
+      valueXml: '', valueText: '', attributes: {},
+    });
+    const doc: FcstdDocument = {
+      objects: [
+        body,
+        simpleObj('Sketcher::SketchObject', 'Sketch', {}),
+        simpleObj('PartDesign::Pad', 'Pad', { Profile: { value: 'Sketch' }, Length: { value: '10' } }),
+        simpleObj('Sketcher::SketchObject', 'Sketch001', {}),
+        simpleObj('PartDesign::Pocket', 'Pocket', { Profile: { value: 'Sketch001' }, BaseFeature: { value: 'Pad' }, Length: { value: '5' } }),
+        simpleObj('Sketcher::SketchObject', 'Sketch002', {}),
+        simpleObj('PartDesign::Pad', 'Pad001', { Profile: { value: 'Sketch002' }, BaseFeature: { value: 'Pocket' }, Length: { value: '3' } }),
+      ],
+      typeIndex: new Map(),
+      meta: new Map(),
+    };
+    const verdicts = new Map([
+      ['Sketch', { level: 'L0' as const, loopCount: 1 }],
+      ['Sketch001', { level: 'L0' as const, loopCount: 1 }],
+      ['Sketch002', { level: 'L0' as const, loopCount: 1 }],
+    ]);
+    const contours = new Map([
+      ['Sketch', square()],
+      ['Sketch001', square()],
+      ['Sketch002', square()],
+    ]);
+    const r = generateModel(doc, verdicts, contours, 't');
+    // Exactly 2 chain-level ops, no double-subtract: Pocket's own subtract
+    // (base − cut, BaseFeature resolved to the chain head) advances the chain,
+    // then Pad001 unions onto the new head. The Pocket base feature does NOT
+    // get a second cad.subtract against the chain.
+    const chainOps = r.calls.filter((c) => (c.op === 'cad.union' || c.op === 'cad.subtract') && !c.out.includes('__'));
+    expect(chainOps.map((c) => c.op)).toEqual(['cad.subtract', 'cad.union']);
+    // Pad001's union consumes the Pocket output (chain head), not the raw Pad
+    const pocketOut = chainOps[0]!.out;
+    expect(chainOps[1]!.inputs).toContain(pocketOut);
+    expect(r.code).not.toContain('cad.group({ members: [part0');
+  });
 });

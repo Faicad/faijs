@@ -109,6 +109,34 @@ function propStr(obj: FcstdObject, name: string): string | undefined {
   return v && v.length > 0 ? v : undefined;
 }
 
+/**
+ * M9.1 — Pad/Pocket `Type` enumeration (App::PropertyEnumeration, stored as
+ * the string enum label OR its integer index — both seen in the corpus).
+ * FreeCAD sources: Pad.h / Pocket.h TypeEnum lists (differs between the two):
+ *   Pad:    0=Length 1=UpToLast 2=UpToFirst 3=UpToFace 4=TwoLengths
+ *   Pocket: 0=Length 1=ThroughAll 2=UpToFirst 3=UpToFace 4=TwoLengths
+ * A missing Type property means Length (0) — the FreeCAD default.
+ */
+export type FeatureType =
+  | 'Length' | 'ThroughAll' | 'UpToFirst' | 'UpToFace' | 'TwoLengths' | 'unknown';
+
+const PAD_TYPES: Record<string, FeatureType> = {
+  '0': 'Length', '1': 'UpToLast', '2': 'UpToFirst', '3': 'UpToFace', '4': 'TwoLengths',
+  Length: 'Length', UpToLast: 'UpToLast', UpToFirst: 'UpToFirst', UpToFace: 'UpToFace', TwoLengths: 'TwoLengths',
+};
+const POCKET_TYPES: Record<string, FeatureType> = {
+  '0': 'Length', '1': 'ThroughAll', '2': 'UpToFirst', '3': 'UpToFace', '4': 'TwoLengths',
+  Length: 'Length', ThroughAll: 'ThroughAll', UpToFirst: 'UpToFirst', UpToFace: 'UpToFace', TwoLengths: 'TwoLengths',
+};
+
+export function featureTypeOf(obj: FcstdObject, kind: 'pad' | 'pocket'): FeatureType {
+  const el = obj.properties.get('Type')?.children[0];
+  const raw = el?.attributes['value'];
+  if (raw === undefined || raw === '') return 'Length';
+  const table = kind === 'pad' ? PAD_TYPES : POCKET_TYPES;
+  return table[raw] ?? 'unknown';
+}
+
 /** Read an App::PropertyVector (`value="x y z"`) as a Vec3. */
 function propVec(obj: FcstdObject, name: string): [number, number, number] | undefined {
   const raw = propStr(obj, name);
@@ -278,6 +306,26 @@ export function translateObject(
       const midplane = propBool(obj, 'Midplane');
       const profileVar = profile ? inputVar(profile) : undefined;
       if (!profileVar) return { kind: 'baked', reason: 'pad-missing-profile' };
+      // M9.1/M9.2: Type-driven semantics — no silent Length fallback.
+      const ftype = featureTypeOf(obj, 'pad');
+      if (ftype === 'TwoLengths') {
+        const len2 = propNum(obj, 'Length2') ?? 0;
+        // TwoLengths: Length forward + Length2 backward, fused. Named
+        // intermediate vars so mapping/debug can locate each segment.
+        const pos = `${out}__pos`;
+        const neg = `${out}__neg`;
+        const calls: CadCall[] = [
+          { out: pos, op: 'cad.extrude', source: obj.name, inputs: [profileVar], literals: [[0, 0, len]], params: {} },
+          { out: neg, op: 'cad.extrude', source: obj.name, inputs: [profileVar], literals: [[0, 0, -len2]], params: {} },
+          { out, op: 'cad.union', source: obj.name, inputs: [pos, neg], params: {} },
+        ];
+        return { kind: 'translated', calls };
+      }
+      if (ftype !== 'Length') {
+        // UpToLast / UpToFirst / UpToFace need face-reference anchoring (M9.3):
+        // explicit bake with reason, never guess a bbox-derived length.
+        return { kind: 'baked', reason: `pad-type-${ftype}-unsupported` };
+      }
       // cad.extrude extrudes the sketch face into a prism along +Z (the sketch
       // normal in body-local frame); length sign encodes direction.
       if (midplane) {
@@ -306,6 +354,12 @@ export function translateObject(
       const profileVar = profile ? inputVar(profile) : undefined;
       const baseVar = base ? inputVar(base) : undefined;
       if (!profileVar || !baseVar) return { kind: 'baked', reason: 'pocket-missing-dependency' };
+      // M9.1/M9.2/M9.3: Type-driven semantics — explicit bake for anything
+      // beyond plain Length / TwoLengths (no silent downgrade).
+      const ftype = featureTypeOf(obj, 'pocket');
+      if (ftype !== 'Length' && ftype !== 'TwoLengths') {
+        return { kind: 'baked', reason: `pocket-type-${ftype}-unsupported` };
+      }
       if (midplane) return { kind: 'baked', reason: 'pocket-midplane-unsupported' };
       // Pocket cuts INTO the material: extrude the profile opposite the normal
       // (or along it when Reversed), then subtract from base.

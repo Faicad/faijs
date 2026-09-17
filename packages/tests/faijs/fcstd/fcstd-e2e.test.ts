@@ -5,7 +5,10 @@
  * output is BREP-chain-only; never rely on `auto`).
  *
  * Baseline (plan §6 M7 table; update explicitly with a written reason):
- *   PadTest.fcstd       translated=6  baked=4  preserved-only=3
+ *   PadTest.fcstd       translated=4  baked=6  preserved-only=3
+ *     (M9 update: was 6/4 — Pad001=UpToFace and Pad002=UpToLast were silently
+ *      translated as plain Length before M9 (G4 violation); they now bake
+ *      explicitly with reason pad-type-*-unsupported.)
  *   Crank.fcstd         translated=0  baked=16 preserved-only=0
  *   ProjectTest.FCStd   translated=0  baked=1  preserved-only=0
  *
@@ -26,7 +29,9 @@ const REPO_ROOT = resolve(__dirname, '../../../..');
 const CONVERTER = resolve(REPO_ROOT, 'packages/core/scripts/fcstd-to-fai-zip.ts');
 
 const SAMPLES = [
-  { file: 'data/tests/PadTest.fcstd', translated: 6, baked: 4, preservedOnly: 3 },
+  // M9 baseline update: Pad001 (UpToFace) / Pad002 (UpToLast) bake explicitly
+  // with reason instead of silently translating as Length (G4 fix) — 6/4→4/6.
+  { file: 'data/tests/PadTest.fcstd', translated: 4, baked: 6, preservedOnly: 3 },
   { file: 'data/tests/Crank.fcstd', translated: 0, baked: 16, preservedOnly: 0 },
   { file: 'data/tests/ProjectTest.FCStd', translated: 0, baked: 1, preservedOnly: 0 },
 ] as const;

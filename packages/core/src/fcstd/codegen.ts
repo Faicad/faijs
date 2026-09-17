@@ -102,6 +102,22 @@ export function generateModel(
   let partCounter = 0;
   const newVar = (): string => `part${partCounter++}`;
 
+  // D-C (M9.4): same-Body features fuse cumulatively in Body.Group order —
+  // the first translated feature is the base, every later additive feature
+  // (Pad/…) unions with the chain, every subtractive one (Pocket/Cut)
+  // subtracts. cad.group is NOT used inside a Body (that is assembly
+  // semantics); cross-Body grouping stays in lower()'s root handling (M10).
+  const memberToBody = new Map<string, string>();
+  for (const obj of doc.objects) {
+    if (obj.type !== 'PartDesign::Body') continue;
+    const list = obj.properties.get('Group')?.children[0];
+    for (const link of list?.children ?? []) {
+      const m = link.attributes['value'];
+      if (m && !memberToBody.has(m)) memberToBody.set(m, obj.name);
+    }
+  }
+  const chainVar = new Map<string, string>(); // body name → accumulated var
+
   for (const name of order) {
     const node = nodes.get(name)!;
     const obj = node.obj;
@@ -159,6 +175,33 @@ export function generateModel(
         call.inputs = call.inputs.map((i) => variables.get(i) ?? i);
         call.out = v;
         calls.push(call);
+      }
+      // M9.4 (D-C): fold the feature into its Body's chain. Pocket/Cut
+      // subtract from the chain; everything else unions onto it. The first
+      // feature in Body.Group order becomes the chain base — no cad.group
+      // inside a Body. Body itself is not a translated object here, so the
+      // chain var is just carried; consumers (M10) will read chainVar.
+      const body = memberToBody.get(name);
+      const isSubtractive = obj.type === 'PartDesign::Pocket' || obj.type === 'Part::Cut';
+      if (body) {
+        const featureVar = verdict.calls.at(-1)!.out;
+        const prev = chainVar.get(body);
+        if (!prev) {
+          chainVar.set(body, featureVar); // base feature
+        } else if (isSubtractive && verdict.calls.at(-1)!.op === 'cad.subtract' && verdict.calls.at(-1)!.inputs.includes(prev)) {
+          // Pocket already subtracted from the chain var itself (BaseFeature
+          // resolved to the chain) — its output IS the new chain head; no
+          // extra subtract (would cut twice).
+          chainVar.set(body, featureVar);
+        } else if (isSubtractive) {
+          const nv = newVar();
+          calls.push({ out: nv, op: 'cad.subtract', source: name, inputs: [prev, featureVar], params: {} });
+          chainVar.set(body, nv);
+        } else {
+          const nv = newVar();
+          calls.push({ out: nv, op: 'cad.union', source: name, inputs: [prev, featureVar], params: {} });
+          chainVar.set(body, nv);
+        }
       }
       // M8.3: features build in sketch-local coordinates (cad.sketch lays the
       // face on local XY; extrude runs along local +Z). Re-orient the final
