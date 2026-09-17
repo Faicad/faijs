@@ -93,7 +93,7 @@ export {
 } from './workplane'
 export type { Workplane as WorkplaneType, RGB, CqLocation } from './workplane'
 
-export { faceRef, constraint, buildAssembly, Color } from './assembly'
+export { faceRef, pointRef, axisRef, constraint, constraintEx, buildAssembly, Color } from './assembly'
 
 export { compareStepFiles, printCompareReport } from './step-compare'
 export type {

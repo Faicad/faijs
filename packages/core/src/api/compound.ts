@@ -22,6 +22,7 @@ import { solveAssemblyAndKinematics, type AssemblySolveResult } from './assembly
 import { validateConstraints } from './assembly/validate'
 import { buildKinematicTree, type JointSpec } from './assembly/joints'
 import type { AssemblyConstraint } from './assembly/types'
+import type { SolverStyle } from './assembly/solvers/types'
 
 // ── 参数类型（keep-syntax 设计 §2.5：成员保留由函数体 keep() 显式声明，不再靠类型标注） ──
 
@@ -42,6 +43,8 @@ export interface AssemblyParams extends GroupParams {
   drive?: Record<string, number | number[]>
   /** cq-compat：成员颜色（sRGB 0..1），导出 STEP 时写入 XCAF。 */
   memberColors?: Record<string, [number, number, number]>
+  /** P1：求解风格。'chain'（默认，vendored brepjs 解析链式）| 'global'（CadQuery 兼容全局最小二乘）。 */
+  solver?: SolverStyle
 }
 
 // ── 约束类型（P1 起定义收口在 api/assembly/types，此处 re-export 保持既有导出面） ──
@@ -88,6 +91,8 @@ export interface AssemblyBehavior {
   drive?: Record<string, number | number[]>
   /** cq-compat：成员颜色（sRGB 0..1）。 */
   memberColors?: Record<string, [number, number, number]>
+  /** P1：求解风格。 */
+  solver?: SolverStyle
   /** 只求解（P6）：返回"成员下标 → 变换"列表。不改写入参、不传播；可重复调用（幂等）。 */
   solve(): AssemblyTransform[]
   /** 只求解并带诊断量（P1）：transforms + dof/converged/unsupported（方案 P1⑤）；P3 增 kinematics/warnings。 */
@@ -106,8 +111,14 @@ export interface AssemblyBehavior {
  * - 输出为 per-member 终态（L6 修复），锚定成员不输出变换。
  */
 function solveTransforms(members: Shape[], behavior: AssemblyBehavior): AssemblyTransform[] {
-  return solveAssemblyAndKinematics(members, behavior.memberNames, behavior.constraints, behavior.joints ?? [], behavior.drive)
-    .transforms
+  return solveAssemblyAndKinematics(
+    members,
+    behavior.memberNames,
+    behavior.constraints,
+    behavior.joints ?? [],
+    behavior.drive,
+    { solver: behavior.solver, name: behavior.name },
+  ).transforms
 }
 
 // ── group / assembly 库函数 ──
@@ -207,9 +218,17 @@ export function assembly(params: AssemblyParams): CompoundShape {
     joints,
     drive,
     memberColors: params.memberColors,
+    solver: params.solver,
     solve: () => solveTransforms(members, behavior),
     solveDetailed: () =>
-      solveAssemblyAndKinematics(members, behavior.memberNames, behavior.constraints, behavior.joints ?? [], behavior.drive),
+      solveAssemblyAndKinematics(
+        members,
+        behavior.memberNames,
+        behavior.constraints,
+        behavior.joints ?? [],
+        behavior.drive,
+        { solver: behavior.solver, name: behavior.name },
+      ),
   }
   ensureSlot(c).behavior = behavior
   // solve / do_assemble 完全同义（方案 §5.5 D2：solve 为新名，do_assemble 保留为别名）

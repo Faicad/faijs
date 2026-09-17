@@ -100,3 +100,52 @@ print(f"assembly zlen: {bbox.zlen:.3f}")
 asm_path = os.path.join(OUT, "mini_lathe.step")
 lathe.save(asm_path, exportType="STEP")
 print(f"assembly -> {asm_path}")
+
+# ── Per-member world poses (P0 baseline for global-solver parity) ──
+# After solve() each child node's `.loc` is the world Location (flat assembly:
+# root loc = identity). We accumulate the parent chain so nesting still yields
+# true world transforms. Exported as a 4x4 row-major matrix so the faijs side
+# can diff against it without reproducing Euler/quaternion conventions.
+import json as _json
+import numpy as _np
+
+
+def _location_to_world4x4(loc):
+    trsf = loc.wrapped.Transformation()      # gp_Trsf
+    R = trsf.GetRotation().GetMatrix()       # gp_Mat (3x3, unit scale)
+    tt = trsf.TranslationPart()             # gp_XYZ
+    M = _np.eye(4)
+    for i in range(3):
+        for j in range(3):
+            M[i, j] = R.Value(i + 1, j + 1)
+        M[i, 3] = [tt.X(), tt.Y(), tt.Z()][i]
+    return M
+
+
+def _collect(node, parent_world, out):
+    world = parent_world @ _location_to_world4x4(node.loc)
+    if node.obj is not None:  # leaf member (a part shape), not an Assembly container
+        out.append({
+            "name": node.name,
+            "translation": [float(world[i, 3]) for i in range(3)],
+            "matrix": [[float(world[i, j]) for j in range(4)] for i in range(4)],
+        })
+        print(f"  {node.name:10s} transl=({world[0,3]:.4f},{world[1,3]:.4f},{world[2,3]:.4f})")
+    for child in node.children:
+        _collect(child, world, out)
+
+
+members = []
+_root = _location_to_world4x4(lathe.loc) if lathe.loc is not None else _np.eye(4)
+for child in lathe.children:
+    _collect(child, _root, members)
+
+pose_path = os.path.join(OUT, "mini_lathe_poses.json")
+with open(pose_path, "w", encoding="utf-8") as f:
+    _json.dump({
+        "schema": "cq-assembly-poses-v1",
+        "cadquery": cq.__version__,
+        "source": "CadQuery mini_lathe project (export-cadquery-ref.py)",
+        "members": members,
+    }, f, indent=2)
+print(f"poses ({len(members)} members) -> {pose_path}")

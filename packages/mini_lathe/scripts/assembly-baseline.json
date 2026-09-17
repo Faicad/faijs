@@ -1,0 +1,51 @@
+{
+  "schema": "assembly-global-solver-baseline-v1",
+  "generated": "2026-09-17",
+  "cadquery": "2.8.0",
+  "subject": "mini_lathe assembly — CadQuery reference vs faijs chain-solver status",
+  "purpose": "P0 基线定标：为纯 TS global 求解器（docs/plans/2026-09-17-assembly-global-solver-plan.md）提供 CQ 参考位姿 + faijs chain 现状量化 + 验收公差目标。",
+
+  "reference_poses": {
+    "file": "out/ref/mini_lathe_poses.json",
+    "generated_by": "python packages/mini_lathe/scripts/export-cadquery-ref.py",
+    "format": "per-member world Location as 4x4 row-major matrix + translation; flat assembly (root loc = identity), each child node.loc is world",
+    "members": {
+      "axk": "(5.7717, 6.2517, -10.0)",
+      "bp": "(0.0, 0.0, 0.0)",
+      "mb": "(0.0, 0.0, 6.1)",
+      "mt": "(0.0, 0.0, 16.1)",
+      "tp": "(0.0, 0.0, 19.2)",
+      "slide_top": "(0.0, 0.0, 0.0)  [无约束，自由部件]"
+    }
+  },
+
+  "faijs_chain_status": {
+    "method": "importAssemblyFromStep(out/mini_lathe.step) -> collectLeafParts; each leaf.transform is NULL (transform baked into vertices), so pose read back from leaf bounding box center",
+    "finding": "chain 求解器对 mini_lathe 带约束部件未产生有效位移：所有带约束部件停在各自设计原点局部坐标，未按约束堆叠。与 CQ 参考差异为整体平移错位（最大 19.2mm），非细微偏差。",
+    "per_member_world_bbox_min_diff_mm": {
+      "bp": [0.0, 0.0, 0.0],
+      "mb": [0.0, 0.0, 6.1],
+      "mt": [0.0, 0.0, 16.1],
+      "tp": [0.0, 0.0, 19.2],
+      "axk": [0.0, 0.0, 10.0],
+      "slide_top": [0.0, 0.0, 0.0]
+    },
+    "max_abs_diff_mm": 19.2,
+    "max_abs_diff_incl_rotation_mm": 23.745,
+    "note": "slide_top 无约束（assembly.fai.js 8 约束均不涉及 slide_top），自由部件位置本就与 CQ 一致。其余部件按 Plane/Axis 约束本应堆叠平移，但 faijs chain 求解未生效。根因待查（疑似 chain 求解器对该约束集未解出位移，或导出未应用 transforms）。axk 在 x/y 另有旋转分量差异（CQ 将 axk 旋转后放置），z 方向差 10mm 体现平移错位。",
+    "source_of_numbers": "out/mini_lathe.step leaf bbox (export-all.ps1 -> faijs-cli run assembly.fai.js --mode brep) vs out/ref/mini_lathe.step (CQ 参考) 的 world bbox_min 之差；local bbox_min 抵消，精确反映堆叠平移差"
+  },
+
+  "tolerance_target_for_global_solver": {
+    "translation_mm": 1e-3,
+    "rotation_rad": 1e-4,
+    "rationale": "plan §1 目标；chain 现状偏差 6-19mm，global 须把每成员位姿收敛到 CQ 参考的该公差内（平移≤1e-3mm、旋转≤1e-4rad，最终以本基线 repro 为准）。",
+    "acceptance": "global 求解器输出 AssemblyTransform 直接 vs mini_lathe_poses.json 的 4x4 matrix（translation + quaternion），逐成员进公差即验收通过；chain 现状（未堆叠）不作为 global 验收门槛。"
+  },
+
+  "repro": {
+    "cq_reference": "C:\\Users\\ylt\\cadquery-env\\Scripts\\python.exe packages/mini_lathe/scripts/export-cadquery-ref.py  ->  out/ref/mini_lathe_poses.json",
+    "faijs_chain_export": "pwsh -NoProfile packages/mini_lathe/scripts/export-all.ps1  ->  out/mini_lathe.step",
+    "diff_tool": "node_modules/.bin/tsx packages/mini_lathe/scripts/compare-poses.ts  ->  out/ref/pose-diff.json"
+  }
+}

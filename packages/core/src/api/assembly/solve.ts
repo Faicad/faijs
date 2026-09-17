@@ -20,6 +20,8 @@ import { type EntityResolutionEnv } from './entities'
 import { poseToAssemblyTransform, isIdentityPose, type SolverPose } from './pose'
 import { solveKinematics, type JointSpec, type KinematicsPose } from './joints'
 import type { AssemblyConstraint, AssemblyVec3 } from './types'
+import type { SolveOptions } from './solvers/types'
+import { solveGlobal } from './solvers/global-solver'
 
 /** 求解完整结果：per-member 终态变换 + 诊断量。 */
 export interface AssemblySolveResult {
@@ -40,6 +42,10 @@ export interface AssemblySolveResult {
    * P3：合并诊断（joints 覆盖约束解时各记一条；D-P3-1，不参与 converged 统计）。
    */
   warnings?: string[]
+  /**
+   * P1（global 求解器）：逐约束最终残差（CQ 代价的逐约束平方和）。chain 路径不填。
+   */
+  residuals?: number[]
 }
 
 /**
@@ -55,7 +61,13 @@ export function solveAssembly(
   members: Shape[],
   memberNames: string[],
   constraints: AssemblyConstraint[],
+  opts?: SolveOptions,
 ): AssemblySolveResult {
+  // P1：global 求解器分派（CadQuery 兼容全局最小二乘；零额外依赖）
+  if (opts?.solver === 'global') {
+    return solveGlobal(members, memberNames, constraints, opts)
+  }
+
   // R7：成员名是 solver 的节点键，空串会让多成员互相覆盖——求解前断言
   memberNames.forEach((name, i) => {
     if (!name) {
@@ -135,8 +147,9 @@ export function solveAssemblyAndKinematics(
   constraints: AssemblyConstraint[],
   joints: JointSpec[] = [],
   drive?: Record<string, number | number[]>,
+  opts?: SolveOptions,
 ): AssemblySolveResult {
-  const base = solveAssembly(members, memberNames, constraints)
+  const base = solveAssembly(members, memberNames, constraints, opts)
   if (joints.length === 0) return base
 
   const kin = solveKinematics(memberNames, joints, drive)

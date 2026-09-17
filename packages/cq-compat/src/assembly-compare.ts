@@ -34,6 +34,19 @@ export interface AssemblyCompareOptions {
    */
   matchNames?: boolean
   /**
+   * Part-pairing strategy for the per-part comparison (P0b):
+   * - `'names'` (default): exact PRODUCT-name match — faijs-vs-faijs.
+   * - `'order-index'`: pair leaves by index after sorting both lists by name
+   *   (legacy fallback for foreign PRODUCT names; safe only when leaf count
+   *   matches and parts line up in the same sorted order).
+   * - `'order-centroid'`: pair each A-leaf to the nearest B-leaf by assembly
+   *   centroid (greedy nearest-first); robust to arbitrary naming/ordering,
+   *   used for CadQuery-reference vs faijs-candidate cross-naming compare.
+   * When `pairing` is omitted it is derived from `matchNames`
+   * (`true` → `'names'`, `false` → `'order-index'`).
+   */
+  pairing?: 'names' | 'order-index' | 'order-centroid'
+  /**
    * Skip the fused (A∪B → cut) boolean-difference computation entirely
    * (default false). The fused cut is expensive on near-coincident B-spline
    * faces and the occt-wasm kernel can return inverted/garbage solids for it
@@ -86,7 +99,9 @@ export interface AssemblyCompareResult {
   details: string[]
 }
 
-const DEFAULT_OPTS: Required<AssemblyCompareOptions> = {
+// pairing 由 matchNames 推导（见 compareAssemblyFiles 内部），不进 DEFAULT_OPTS，
+// 否则会覆盖「matchNames:false 但缺 pairing」的推定语义。
+const DEFAULT_OPTS = {
   linearTolerance: 1e-3,
   volumeRelativeTolerance: 1e-3,
   booleanVolumeTolerance: 1e-1,
@@ -161,28 +176,51 @@ export async function compareAssemblyFiles(
   const namesB = leavesB.map(n => n.name).sort()
   const missingInB = namesA.filter(n => !namesB.includes(n))
   const missingInA = namesB.filter(n => !namesA.includes(n))
-  const namesMatch = opts.matchNames && missingInB.length === 0 && missingInA.length === 0
-  const structureMatch = leavesA.length === leavesB.length && (!opts.matchNames || namesMatch)
-  details.push(`structure: ${leavesA.length} vs ${leavesB.length} leaves, names match=${structureMatch} (matchNames=${opts.matchNames})`)
+  // P0b：pairing 模式（缺省由 matchNames 推导）
+  const pairing: 'names' | 'order-index' | 'order-centroid' =
+    opts.pairing ?? (opts.matchNames ? 'names' : 'order-index')
+  const namesMatch = pairing === 'names' && missingInB.length === 0 && missingInA.length === 0
+  const structureMatch = leavesA.length === leavesB.length && (pairing !== 'names' || namesMatch)
+  details.push(`structure: ${leavesA.length} vs ${leavesB.length} leaves, names match=${structureMatch} (pairing=${pairing})`)
   if (missingInB.length) details.push(`  missing in B: ${missingInB.join(', ')}`)
   if (missingInA.length) details.push(`  missing in A: ${missingInA.join(', ')}`)
 
   // ── Level 2 & 3: Per-part pose + geometry ──
   const partResults: PartCompareResult[] = []
-  // With matchNames: pair parts by name. Without (reference files use foreign
-  // PRODUCT names): pair by index in sorted order (safe for single-part files;
-  // the leaf-count equality above still guards the compound-vs-parts case).
-  const sortedA = [...leavesA].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
-  const sortedB = [...leavesB].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
-  const mapB: Map<string, AssemblyPartNode> = opts.matchNames
-    ? new Map(leavesB.map(n => [n.name, n]))
-    : new Map(sortedB.map((n, i) => [String(i), n]))
-  const partKey = (leaf: AssemblyPartNode, index: number): string =>
-    opts.matchNames ? leaf.name : String(index)
 
-  for (let i = 0; i < sortedA.length; i++) {
-    const leafA = sortedA[i]
-    const leafB = mapB.get(partKey(leafA, i))
+  // 配对：按 pairing 模式生成 (A-leaf, B-leaf) 对。
+  const byName = (a: AssemblyPartNode, b: AssemblyPartNode): number =>
+    a.name < b.name ? -1 : a.name > b.name ? 1 : 0
+  const centroidOf = (leaf: AssemblyPartNode): BrepVec3 =>
+    kernel.getCenterOfMass(leaf.shapeHandle as unknown as BrepHandle)
+
+  const pairs: Array<[AssemblyPartNode, AssemblyPartNode | null]> = []
+  if (pairing === 'names') {
+    const mapB = new Map(leavesB.map(n => [n.name, n]))
+    for (const a of leavesA) pairs.push([a, mapB.get(a.name) ?? null])
+  } else if (pairing === 'order-index') {
+    const sortedA = [...leavesA].sort(byName)
+    const sortedB = [...leavesB].sort(byName)
+    for (let i = 0; i < sortedA.length; i++) pairs.push([sortedA[i], sortedB[i] ?? null])
+  } else {
+    // order-centroid：贪心最近质心配对（leaf 数相等由 structureMatch 保证）
+    const centB = leavesB.map(centroidOf)
+    const usedB = new Set<number>()
+    for (const a of leavesA) {
+      const ca = centroidOf(a)
+      let best = -1
+      let bestD = Infinity
+      for (let j = 0; j < leavesB.length; j++) {
+        if (usedB.has(j)) continue
+        const d = vmax(ca, centB[j])
+        if (d < bestD) { bestD = d; best = j }
+      }
+      if (best >= 0) { usedB.add(best); pairs.push([a, leavesB[best]]) }
+      else pairs.push([a, null])
+    }
+  }
+
+  for (const [leafA, leafB] of pairs) {
     if (!leafB) {
       partResults.push({ name: leafA.name, found: false })
       continue
