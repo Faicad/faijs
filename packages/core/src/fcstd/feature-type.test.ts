@@ -156,3 +156,63 @@ describe('M11 expression bindings', () => {
     expect(v.kind).toBe('baked');
   });
 });
+
+// M13.1 — whitelist extensions probed on the real corpus
+// (scripts/probe-m13-types.ts): Part::Compound (Links list → cad.group),
+// Part::Sphere (Radius → cad.sphere).
+describe('M13 whitelist extensions', () => {
+  function withLinkList(type: string, name: string, prop: string, members: string[]): FcstdObject {
+    const o = obj(type, name, {});
+    o.properties.set(prop, {
+      name: prop, type: 'App::PropertyLinkList', tagName: 'Property',
+      children: [{
+        name: prop, type: '', tagName: 'LinkList',
+        children: members.map((m) => ({
+          name: 'Link', type: '', tagName: 'Link', children: [], valueXml: '', valueText: '', attributes: { value: m },
+        })),
+        valueXml: '', valueText: '', attributes: { count: String(members.length) },
+      }],
+      valueXml: '', valueText: '', attributes: {},
+    });
+    return o;
+  }
+
+  it('Part::Compound with resolvable Links → cad.group (M13.1)', () => {
+    const c = withLinkList('Part::Compound', 'C', 'Links', ['A', 'B']);
+    const v = translateObject(c, (d) => (d === 'A' ? 'part0' : d === 'B' ? 'part1' : undefined));
+    expect(v.kind).toBe('translated');
+    if (v.kind !== 'translated') return;
+    expect(v.calls[0]!.op).toBe('cad.group');
+    expect(v.calls[0]!.inputs).toEqual(['part0', 'part1']);
+  });
+
+  it('Part::Compound with unresolvable member → bake compound-missing-members', () => {
+    const c = withLinkList('Part::Compound', 'C', 'Links', ['Ghost']);
+    const v = translateObject(c, () => undefined);
+    expect(v.kind).toBe('baked');
+    if (v.kind === 'baked') expect(v.reason).toBe('compound-missing-members');
+  });
+
+  it('Part::Sphere with Radius → cad.sphere at Placement', () => {
+    const s = obj('Part::Sphere', 'S', { Radius: 12 });
+    const v = translateObject(s, () => undefined);
+    expect(v.kind).toBe('translated');
+    if (v.kind !== 'translated') return;
+    expect(v.calls[0]!.op).toBe('cad.sphere');
+    expect(v.calls[0]!.params.radius).toBe(12);
+  });
+
+  it('Part::Sphere partial angles → explicit bake (no silent full sphere)', () => {
+    const s = obj('Part::Sphere', 'S', { Radius: 12, Angle1: 0 });
+    const v = translateObject(s, () => undefined);
+    expect(v.kind).toBe('baked');
+    if (v.kind === 'baked') expect(v.reason).toBe('sphere-partial-angle');
+  });
+
+  it('Part::Sphere without Radius → bake sphere-missing-radius', () => {
+    const s = obj('Part::Sphere', 'S', {});
+    const v = translateObject(s, () => undefined);
+    expect(v.kind).toBe('baked');
+    if (v.kind === 'baked') expect(v.reason).toBe('sphere-missing-radius');
+  });
+});

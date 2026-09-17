@@ -78,6 +78,11 @@ const WHITELIST = new Set([
   'PartDesign::PolarPattern',
   'PartDesign::Fillet',
   'PartDesign::Chamfer',
+  // M13.1 (probed on real corpus — scripts/probe-m13-types.ts):
+  // Part::Compound carries a Links PropertyLinkList; Part::Sphere carries
+  // Radius (+ optional Angle like Cylinder).
+  'Part::Compound',
+  'Part::Sphere',
 ]);
 
 export function isWhitelisted(type: string): boolean {
@@ -297,6 +302,46 @@ export function translateObject(
         calls: [{
           out, op: 'cad.cylinder', source: obj.name, inputs: [],
           params: { radius: r, height: h, at: [x, y, z], centered: false },
+        }],
+      };
+    }
+    case 'Part::Compound': {
+      // M13.1 probe (ArchDetail.FCStd): members live in a `Links`
+      // PropertyLinkList; every corpus instance also stores a baked .brp,
+      // but translating the member group keeps the chain explicit.
+      const linksEl = obj.properties.get('Links')?.children[0];
+      const members: string[] = [];
+      for (const link of linksEl?.children ?? []) {
+        const v = link.attributes['value'];
+        if (v) members.push(v);
+      }
+      const vars = members.map((m) => inputVar(m));
+      if (vars.length === 0 || vars.some((v) => v === undefined)) {
+        return { kind: 'baked', reason: 'compound-missing-members' };
+      }
+      return {
+        kind: 'translated',
+        calls: [{
+          out, op: 'cad.group', source: obj.name, inputs: vars as string[],
+          params: { members: vars },
+        }],
+      };
+    }
+    case 'Part::Sphere': {
+      const r = propNum(obj, 'Radius');
+      if (r === undefined || r <= 0) return { kind: 'baked', reason: 'sphere-missing-radius' };
+      const angle1 = propNum(obj, 'Angle1') ?? -90;
+      const angle2 = propNum(obj, 'Angle2') ?? 90;
+      const angle3 = propNum(obj, 'Angle3') ?? 360;
+      if (angle1 !== -90 || angle2 !== 90 || angle3 !== 360) {
+        return { kind: 'baked', reason: 'sphere-partial-angle' };
+      }
+      const [x, y, z] = placementPos(obj);
+      return {
+        kind: 'translated',
+        calls: [{
+          out, op: 'cad.sphere', source: obj.name, inputs: [],
+          params: { radius: r, at: [x, y, z] },
         }],
       };
     }
