@@ -310,7 +310,10 @@ describe('M5 codegen', () => {
     for (const f of r.files) {
       expect(f.code).toContain(`let ${f.body}_out =`);
     }
-    // aggregate entry groups both Body terminals
+    // M10c: aggregate entry imports each Body's terminal via the standard
+    // relative-import contract, then groups them
+    expect(r.code).toContain(`import { Body_out } from './Body.fai.js';`);
+    expect(r.code).toContain(`import { Body001_out } from './Body001.fai.js';`);
     expect(r.code).toContain('let part_out = cad.group({ members: [Body_out, Body001_out] });');
     expect(r.rootVar).toBe('part_out');
   });
