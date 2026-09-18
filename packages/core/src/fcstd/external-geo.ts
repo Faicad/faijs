@@ -31,15 +31,20 @@ function makeInverseTransformer(q: [number, number, number, number], p: [number,
   const n = Math.hypot(q[0], q[1], q[2], q[3]);
   const [qx, qy, qz, qw] = [-q[0] / n, -q[1] / n, -q[2] / n, q[3] / n]; // conjugate
   return (w: [number, number, number]): [number, number, number] => {
-    // rotate v by quaternion (qw,qx,qy,qz)
-    const [vx, vy, vz] = w;
+    // local = R⁻¹ · (world − P): subtract the translation FIRST, then rotate
+    // by the conjugate quaternion. GOTCHA (probe-hole-ext.ts): rotating first
+    // and subtracting after (R⁻¹·v − P) is only correct for identity rotation
+    // — with Sketch005's 90° placement it shifted projected points by the
+    // rotated translation (−140,30 instead of (−40,40)) and the solver chased
+    // the wrong frame (delta 1.0e2).
+    const [vx, vy, vz] = [w[0] - p[0], w[1] - p[1], w[2] - p[2]];
     const tx = 2 * (qy * vz - qz * vy);
     const ty = 2 * (qz * vx - qx * vz);
     const tz = 2 * (qx * vy - qy * vx);
     const rx = vx + qw * tx + (qy * tz - qz * ty);
     const ry = vy + qw * ty + (qz * tx - qx * tz);
     const rz = vz + qw * tz + (qx * ty - qy * tx);
-    return [rx - p[0], ry - p[1], rz - p[2]];
+    return [rx, ry, rz];
   };
 }
 

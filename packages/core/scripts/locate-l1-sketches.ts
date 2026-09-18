@@ -39,7 +39,10 @@ for (const file of files) {
     let external;
     if (sk.externalGeoIds.length > 0 && !badGeom) {
       const ext = await resolveExternalGeometry(obj.properties.get('ExternalGeometry'), doc.value, unpacked.value, obj.properties.get('Placement'));
-      external = ext.links.filter((l) => l.polyline.length === 2).map((l, i) => ({ geoId: -3 - i, polyline: l.polyline }));
+      // geoId follows LINK ORDER (RefExt -3, -4, ...), including curve links —
+      // filtering two-point segments first then renumbering misaligns ids
+      // (GOTCHA, probe-carbon-ext.ts: CarbonCopy Sketch001 #3 references g-7).
+      external = ext.links.map((l, i) => ({ geoId: -3 - i, polyline: l.polyline }));
     }
     let outcome;
     try {

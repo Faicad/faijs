@@ -77,6 +77,17 @@ export class PlanegcsSolver implements SketchSolver {
 
     // --- M3.3: implicit fixed frame (root point + H/V axes) ---
     w.push_primitive({ type: 'point', id: P(-1, 1), x: 0, y: 0, fixed: true });
+    // GOTCHA (probe-sym-min.ts / probe-l1-ablation.ts): FreeCAD models HAxis/
+    // VAxis as real Line entries in Geoms (geoId -1/-2), so constraints may
+    // reference axis points (pos 1/2) or the axis edge (pos 0) — e.g.
+    // DistanceX(line-point, VAxis) fixes an x coordinate. planegcs has no
+    // implicit axes, so we materialize both axes as fixed point+line pairs
+    // and register them in `lines` (below) so all constraint shapes see them.
+    w.push_primitive({ type: 'point', id: P(-1, 2), x: 1, y: 0, fixed: true });
+    w.push_primitive({ type: 'point', id: P(-2, 1), x: 0, y: 0, fixed: true });
+    w.push_primitive({ type: 'point', id: P(-2, 2), x: 0, y: 1, fixed: true });
+    w.push_primitive({ type: 'line', id: 'L-1', p1_id: P(-1, 1), p2_id: P(-1, 2) });
+    w.push_primitive({ type: 'line', id: 'L-2', p1_id: P(-2, 1), p2_id: P(-2, 2) });
 
     // --- M6.3: external fixed geometry (geoId -3, -4, ... in link order) ---
     const externalLines = new Map<number, { p1: PtKey; p2: PtKey }>();
@@ -106,6 +117,10 @@ export class PlanegcsSolver implements SketchSolver {
     const circles = new Map<number, { center: PtKey }>();
     const ellipses = new Map<number, { center: PtKey; focus1: PtKey }>();
     const standalone = new Map<number, PtKey>();
+    // implicit axes are first-class lines for constraint resolution (see
+    // the GOTCHA block above): geoId -1 = HAxis, -2 = VAxis
+    lines.set(-1, { p1: P(-1, 1), p2: P(-1, 2) });
+    lines.set(-2, { p1: P(-2, 1), p2: P(-2, 2) });
 
     // pass 1: standalone points that are constraint anchors
     const anchorNeedsStandalone = new Set<string>();
@@ -253,7 +268,7 @@ export class PlanegcsSolver implements SketchSolver {
     const pt = (ref: { geoId: number; pos: number } | undefined): PtKey | undefined => {
       if (!ref) return undefined;
       if (ref.geoId === -1) return P(-1, 1); // root point
-      if (ref.geoId === -2) return undefined; // VAxis handled via vertical lines
+      if (ref.geoId === -2) return P(-2, ref.pos === 0 ? 1 : ref.pos); // VAxis point
       if (ref.geoId <= -3 && ref.geoId > -2000) {
         // M6.3 external geometry: endpoint/point refs onto fixed segments
         const ext = ctx.externalLines.get(ref.geoId);
@@ -316,19 +331,40 @@ export class PlanegcsSolver implements SketchSolver {
         break;
       }
       case ConstraintType.Distance: {
-        // p2p / p2l / p2c / c2c variants by ref shapes
+        // p2p / p2l / p2c / c2c variants by ref shapes.
+        // GOTCHA (probe-l1-ablation.ts): a second ref that is an AXIS EDGE
+        // (geoId -1/-2, pos=0) is a point-to-LINE distance against the axis
+        // (FreeCAD Sketch.cpp addDistanceConstraint(point, line)) — e.g.
+        // Distance(p, HAxis) = |y|. Resolving the axis edge to the root point
+        // and emitting p2p_distance instead drags the point onto a circle
+        // around the origin (taperedballnose collapse, delta 2.3e1).
         const p1 = pt(r[0]!);
-        const p2 = pt(r[1]!);
-        if (p1 && p2) {
-          out.push({ type: 'p2p_distance', id, p1_id: p1, p2_id: p2, distance: c.value });
-        } else if (r[0]!.pos === PointPos.none && ctx.lines.has(r[0]!.geoId) && p2) {
-          out.push({ type: 'p2l_distance', id, p_id: p2, l_id: `L${r[0]!.geoId}`, distance: c.value });
+        const axisEdgeDist = r.length >= 2 && r[1]!.pos === PointPos.none && (r[1]!.geoId === -1 || r[1]!.geoId === -2);
+        if (axisEdgeDist && p1) {
+          out.push({ type: 'p2l_distance', id, p_id: p1, l_id: `L${r[1]!.geoId}`, distance: c.value });
+        } else if (p1 && r[1] && r[1].pos === PointPos.none && ctx.lines.has(r[1].geoId)) {
+          out.push({ type: 'p2l_distance', id, p_id: p1, l_id: `L${r[1]!.geoId}`, distance: c.value });
+        } else if (p1 && r[1]) {
+          const p2 = pt(r[1]);
+          if (p2) out.push({ type: 'p2p_distance', id, p1_id: p1, p2_id: p2, distance: c.value });
         }
         break;
       }
       case ConstraintType.DistanceX: {
         // planegcs 'difference' semantics: param2 - param1 = difference
         // (verified empirically). FCStd DistanceX value = second.x - first.x.
+        // GOTCHA (probe-l1-ablation.ts, Sketch.cpp:2053): when the second ref
+        // is an AXIS EDGE (geoId -1/-2, pos=0) FreeCAD treats it as GeoUndef —
+        // an ABSOLUTE coordinate constraint (coordinate_x), not a difference
+        // against the axis point. Mapping it to 'difference' forces x = -value
+        // and produced the taperedballnose wrong solution (delta 2.3e1).
+        const axisEdge = r.length >= 2 && r[1]!.pos === PointPos.none && (r[1]!.geoId === -1 || r[1]!.geoId === -2);
+        const firstIsPoint = r[0]!.pos !== PointPos.none || r[0]!.geoId < 0;
+        if (axisEdge && firstIsPoint) {
+          const p = pt(r[0]!);
+          if (p) out.push({ type: 'coordinate_x', id, p_id: p, x: c.value });
+          break;
+        }
         const p1 = pt(r[0]!);
         const p2 = pt(r[1]!);
         if (p1 && p2) {
@@ -343,6 +379,14 @@ export class PlanegcsSolver implements SketchSolver {
         break;
       }
       case ConstraintType.DistanceY: {
+        // symmetric case to DistanceX: axis-edge second ref → absolute y
+        const axisEdge = r.length >= 2 && r[1]!.pos === PointPos.none && (r[1]!.geoId === -1 || r[1]!.geoId === -2);
+        const firstIsPoint = r[0]!.pos !== PointPos.none || r[0]!.geoId < 0;
+        if (axisEdge && firstIsPoint) {
+          const p = pt(r[0]!);
+          if (p) out.push({ type: 'coordinate_y', id, p_id: p, y: c.value });
+          break;
+        }
         const p1 = pt(r[0]!);
         const p2 = pt(r[1]!);
         if (p1 && p2) {
@@ -357,13 +401,42 @@ export class PlanegcsSolver implements SketchSolver {
         break;
       }
       case ConstraintType.Angle: {
-        if (r.length === 2 && ctx.lines.has(r[0]!.geoId) && ctx.lines.has(r[1]!.geoId)) {
-          out.push({
-            type: 'l2l_angle_ll', id,
-            l1_id: `L${r[0]!.geoId}`, l2_id: `L${r[1]!.geoId}`,
-            angle: c.value,
-            internalalignment: 0,
-          });
+        // FreeCAD Sketch.cpp case Angle — 4 shapes by ref count/pos:
+        // ① Third != GeoUndef → angle-via-point (not needed by corpus P0 set;
+        //    dropped explicitly below if encountered)
+        // ② SecondPos != none → l2l_angle_pppp (lines with explicit start points:
+        //    pos==start keeps direction, pos==end swaps the point pair)
+        // ③ Second set, both pos none → l2l_angle_ll (line-level)
+        // ④ only First → p2p_angle on the line's own points (orientation)
+        // refs may carry a Third = -2000 (GeoUndef sentinel) — filter it.
+        const refs = r.filter((x) => x.geoId !== -2000);
+        if (refs.length >= 3) {
+          // ① via-point angle: not in the P0 mapping set — record as dropped
+          break;
+        }
+        if (refs.length === 2) {
+          const [a, b] = refs as [{ geoId: number; pos: number }, { geoId: number; pos: number }];
+          const lineA = ctx.lines.has(a.geoId);
+          const lineB = ctx.lines.has(b.geoId);
+          if (lineA && lineB && a.pos !== PointPos.none && b.pos !== PointPos.none) {
+            // ② explicit start points; pos=end reverses that line's direction
+            const a1 = a.pos === PointPos.start ? P(a.geoId, 1) : P(a.geoId, 2);
+            const a2 = a.pos === PointPos.start ? P(a.geoId, 2) : P(a.geoId, 1);
+            const b1 = b.pos === PointPos.start ? P(b.geoId, 1) : P(b.geoId, 2);
+            const b2 = b.pos === PointPos.start ? P(b.geoId, 2) : P(b.geoId, 1);
+            out.push({ type: 'l2l_angle_pppp', id, l1p1_id: a1, l1p2_id: a2, l2p1_id: b1, l2p2_id: b2, angle: c.value });
+          } else if (lineA && lineB) {
+            // ③ line-level angle
+            out.push({
+              type: 'l2l_angle_ll', id,
+              l1_id: `L${a.geoId}`, l2_id: `L${b.geoId}`,
+              angle: c.value,
+              internalalignment: 0,
+            });
+          }
+        } else if (refs.length === 1 && ctx.lines.has(refs[0]!.geoId)) {
+          // ④ orientation angle of a single line (p2p_angle on its points)
+          out.push({ type: 'p2p_angle', id, p1_id: P(refs[0]!.geoId, 1), p2_id: P(refs[0]!.geoId, 2), angle: c.value });
         }
         break;
       }
@@ -427,7 +500,7 @@ export class PlanegcsSolver implements SketchSolver {
             out.push({ type: 'p2p_symmetric_ppl', id, p1_id: p1, p2_id: p2, l_id: `L${r[2]!.geoId}` });
           } else {
             const p3 = pt(r[2]!);
-            if (p3) out.push({ type: 'p2p_symmetric_ppp', id, p1_id: p1, p2_id: p2, p3_id: p3 });
+            if (p3) out.push({ type: 'p2p_symmetric_ppp', id, p1_id: p1, p2_id: p2, p_id: p3 });
           }
         }
         break;
