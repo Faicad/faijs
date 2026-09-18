@@ -45,6 +45,7 @@ export type {
 } from './compound'
 export { faceNormal, bboxCenter, bboxMin, bboxMax } from './geom'
 export { edgeRef } from './edge-ref'
+export { faceRef } from './face-ref'
 export { asset } from './asset'
 export { solid, compound, isShape, isCompound } from '../shape'
 export type { ShapeSlot, SolidShape, CompoundShape, StdShape, ShapeKind } from '../shape'
