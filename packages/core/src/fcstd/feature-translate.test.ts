@@ -217,6 +217,82 @@ describe('M4.6 Pad/Pocket', () => {
   });
 });
 
+describe('M4.6b UpToFace datum-plane (extrude-upto-face §4.3-C1)', () => {
+  // PadTest Pad001 geometry: sketch normal = +X, datum plane is TILTED
+  // (normal ≈ [0.705, 0.071, 0.705]); the signed distance to it along the
+  // sketch normal is +10 (the naive (Δp·dir) form wrongly yields −50).
+  function placementProp(px: number, py: number, pz: number, q0: number, q1: number, q2: number, q3: number): [string, FcstdProperty] {
+    return ['Placement', {
+      name: 'Placement', type: 'App::PropertyPlacement', tagName: 'Property',
+      children: [{ name: 'PropertyPlacement', type: '', tagName: 'PropertyPlacement', children: [], valueXml: '', valueText: '', attributes: { Px: String(px), Py: String(py), Pz: String(pz), Q0: String(q0), Q1: String(q1), Q2: String(q2), Q3: String(q3) } }],
+      valueText: '', attributes: {},
+    }];
+  }
+  function linkProp(name: string, target: string): [string, FcstdProperty] {
+    return [name, {
+      name, type: 'App::PropertyLink', tagName: 'Property',
+      children: [{ name: 'Link', type: '', tagName: 'Link', children: [], valueXml: '', valueText: '', attributes: { value: target } }],
+      valueText: '', attributes: {},
+    }];
+  }
+  // App::PropertyEnumeration as a `[name, prop]` tuple (NOT a bare object —
+  // `obj()` does `new Map(props)`, so a bare object is silently dropped and
+  // featureTypeOf falls back to the Length default).
+  function enumProp(name: string, value: string): [string, FcstdProperty] {
+    return [name, {
+      name, type: 'App::PropertyEnumeration', tagName: 'Property',
+      children: [{ name: 'Integer', type: '', tagName: 'Integer', children: [], valueXml: '', valueText: '', attributes: { value } }],
+      valueText: '', attributes: {},
+    }];
+  }
+  const datumPlane = obj('PartDesign::Plane', 'DatumPlane', [placementProp(-40, 100, 50, -0.038192735828, 0.381927358277, 0, 0.923402841629)]);
+  const sketch001 = obj('Sketcher::SketchObject', 'Sketch001', [placementProp(10, 0, 0, 0, 0.707106781187, 0, 0.707106781187)]);
+  const pad001 = obj('PartDesign::Pad', 'Pad001', [
+    linkProp('Profile', 'Sketch001'),
+    enumProp('Type', '3'),
+    linkSubProp('UpToFace', 'DatumPlane', ['Plane']),
+  ]);
+
+  it('translates UpToFace→datum plane as cad.extrude with the plane-distance length (+10)', () => {
+    const v = translateObject(pad001, (dep) => (dep === 'Sketch001' ? 'sketch0' : undefined), [pad001, datumPlane, sketch001]);
+    expect(v.kind).toBe('translated');
+    if (v.kind === 'translated') {
+      const call = v.calls[0]!;
+      expect(call.op).toBe('cad.extrude');
+      expect(call.inputs).toEqual(['sketch0']);
+      // signed distance from the sketch plane to the (tilted) datum plane
+      // along the sketch normal — NOT the naive (Δp·dir) which gives −50.
+      expect(call.literals[0]![0]).toBe(0);
+      expect(call.literals[0]![1]).toBe(0);
+      expect(call.literals[0]![2]).toBeCloseTo(10, 1);
+      expect(v.reason).toBe('uptoface-via-datum-plane-distance');
+    }
+  });
+
+  it('bakes with uptoface-datum-plane-parallel when the datum plane is parallel to the extrude dir', () => {
+    // datum plane normal = +Y, sketch normal = +X → dir·n = 0
+    const parallelPlane = obj('PartDesign::Plane', 'DatumPlane', [placementProp(0, 0, 0, -0.707106781187, 0, 0, 0.707106781187)]);
+    const p = obj('PartDesign::Pad', 'Pad001', [
+      linkProp('Profile', 'Sketch001'),
+      enumProp('Type', '3'),
+      linkSubProp('UpToFace', 'DatumPlane', ['Plane']),
+    ]);
+    const v = translateObject(p, (dep) => (dep === 'Sketch001' ? 'sketch0' : undefined), [p, parallelPlane, sketch001]);
+    expect(v).toMatchObject({ kind: 'baked', reason: 'uptoface-datum-plane-parallel' });
+  });
+
+  it('bakes with uptoface-solid-face-unsupported when the UpToFace target is a solid, not a datum plane', () => {
+    const solid = obj('PartDesign::Pad', 'OtherPad', []);
+    const p = obj('PartDesign::Pad', 'Pad001', [
+      linkProp('Profile', 'Sketch001'),
+      enumProp('Type', '3'),
+      linkSubProp('UpToFace', 'OtherPad', ['Face1']),
+    ]);
+    const v = translateObject(p, (dep) => (dep === 'Sketch001' ? 'sketch0' : undefined), [p, solid, sketch001]);
+    expect(v).toMatchObject({ kind: 'baked', reason: 'uptoface-solid-face-unsupported' });
+  });
+});
+
 describe('M4.7 patterns (LinearPattern / PolarPattern)', () => {
   it('translates LinearPattern over a source with axis + spacing', () => {
     const lp = obj('PartDesign::LinearPattern', 'LP', [

@@ -11,6 +11,7 @@
  */
 import type { FcstdObject } from './document.js';
 import { parseExpressionEngine, type ExpressionBinding } from './expressions.js';
+import { placementOf, quatToMatrix } from './placement.js';
 
 export interface CadCall {
   /** target variable name (partN, assigned by M5) */
@@ -60,7 +61,7 @@ export function isJsExpr(v: unknown): v is JsExpr {
 }
 
 export type TranslateVerdict =
-  | { kind: 'translated'; calls: CadCall[] }
+  | { kind: 'translated'; calls: CadCall[]; reason?: string }
   | { kind: 'baked'; reason: string }
   | { kind: 'preserved-only'; reason: string };
 
@@ -267,10 +268,15 @@ export function placementPos(obj: FcstdObject): [number, number, number] {
 /**
  * M4 translate one object. `inputVar` maps a dependency object name to the
  * variable holding its geometry (sketch contours or prior solid).
+ *
+ * `docObjects` (optional) is the full document object list — needed by the
+ * UpToFace datum-plane path to read the target plane's Placement (plan
+ * extrude-upto-face §4.3-C1). When absent, UpToFace keeps the explicit bake.
  */
 export function translateObject(
   obj: FcstdObject,
   inputVar: (depName: string) => string | undefined,
+  docObjects?: readonly FcstdObject[],
 ): TranslateVerdict {
   if (!isWhitelisted(obj.type)) {
     return { kind: 'baked', reason: `type-not-whitelisted: ${obj.type}` };
@@ -396,8 +402,60 @@ export function translateObject(
         ];
         return { kind: 'translated', calls };
       }
+      if (ftype === 'UpToFace') {
+        // extrude-upto-face plan §4.3-C1: when the target is a datum plane
+        // (PartDesign::Plane — an infinite plane, not a solid face), the
+        // extrude length is the exact signed distance from the profile plane
+        // to the datum plane. Zero bake, no faceRef needed.
+        const upTo = propLinkSub(obj, 'UpToFace');
+        if (upTo && docObjects) {
+          const plane = docObjects.find((o) => o.name === upTo.obj);
+          if (plane && plane.type === 'PartDesign::Plane') {
+            const pl = placementOf(plane);
+            // datum plane normal = placement R * local +Z
+            const m = quatToMatrix(pl.q);
+            const normal: [number, number, number] = [m[2]!, m[5]!, m[8]!];
+            // sketch normal (the extrude direction); the profile sketch lies on
+            // its own placement, and the feature extrudes along it.
+            const skPl = placementOf(docObjects.find((o) => o.name === (profile ?? '')) ?? plane);
+            const skM = quatToMatrix(skPl.q);
+            const dir: [number, number, number] = [skM[2]!, skM[5]!, skM[8]!];
+            // GOTCHA (probe-upto-padtest-verify.ts, PadTest Pad001): the datum
+            // plane is an arbitrary plane, NOT axis-aligned to the extrude
+            // direction. The signed distance to reach it along `dir` is
+            //   t = ((pl.p - skPl.p) · n) / (dir · n)
+            // where n is the datum plane normal — NOT the naive (Δp · dir),
+            // which only works when n ∥ dir (axis-aligned). The naive form
+            // yields −50 for PadTest while the true distance is +10; the
+            // corrected form matches FreeCAD's Tip bbox exactly (diag 156.84).
+            const denom = dir[0] * normal[0] + dir[1] * normal[1] + dir[2] * normal[2];
+            // plane parallel to the extrude direction → no finite intersection
+            if (!Number.isFinite(denom) || Math.abs(denom) < 1e-9) {
+              return { kind: 'baked', reason: 'uptoface-datum-plane-parallel' };
+            }
+            const dpn =
+              (pl.p[0] - skPl.p[0]) * normal[0] +
+              (pl.p[1] - skPl.p[1]) * normal[1] +
+              (pl.p[2] - skPl.p[2]) * normal[2];
+            const t = dpn / denom;
+            if (Number.isFinite(t) && Math.abs(t) > 1e-9) {
+              const signed = reversed ? -t : t;
+              return {
+                kind: 'translated',
+                reason: 'uptoface-via-datum-plane-distance',
+                calls: [{
+                  out, op: 'cad.extrude', source: obj.name, inputs: [profileVar],
+                  literals: [[0, 0, signed]], params: {},
+                }],
+              };
+            }
+            return { kind: 'baked', reason: 'uptoface-datum-plane-degenerate-distance' };
+          }
+        }
+        return { kind: 'baked', reason: 'uptoface-solid-face-unsupported' };
+      }
       if (ftype !== 'Length') {
-        // UpToLast / UpToFirst / UpToFace need face-reference anchoring (M9.3):
+        // UpToLast / UpToFirst need face-reference anchoring (M9.3, plan C2):
         // explicit bake with reason, never guess a bbox-derived length.
         return { kind: 'baked', reason: `pad-type-${ftype}-unsupported` };
       }

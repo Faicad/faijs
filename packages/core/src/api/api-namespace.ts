@@ -28,6 +28,7 @@ import { group, assembly } from './compound'
 import { copy } from './copy'
 import { faceNormal, bboxCenter, bboxMin, bboxMax } from './geom'
 import { edgeRef } from './edge-ref'
+import { faceRef } from './face-ref'
 import { jointTrajectory, inverseKinematics, mechanismDOF } from './assembly'
 import { asset } from './asset'
 import { scriptFaceOps } from './generated/script-face'
@@ -61,6 +62,7 @@ export function createApiNamespace(): StdlibNamespace {
     fai_split, group, assembly, copy,
     faceNormal, bboxCenter, bboxMin, bboxMax,
     edgeRef,
+    faceRef,
     jointTrajectory, inverseKinematics, mechanismDOF,
     asset,
     ...scriptFaceOps,

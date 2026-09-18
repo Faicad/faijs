@@ -138,7 +138,11 @@ for (const o of gen.objects) {
   const entry = mapping.objects.find((e) => e.name === o.name);
   if (!entry) continue;
   entry.disposition = o.disposition;
-  if (o.disposition !== 'translated' && o.reason) entry.reason = o.reason;
+  // propagate reason whenever present — translated objects (e.g. UpToFace→
+  // datum-plane distance) now record their specific reason too, not just the
+  // baked/preserved ones. Plain Length pads have reason === undefined, so the
+  // buildFaiZip default ("feature-translation-pending") is left intact.
+  if (o.reason) entry.reason = o.reason;
   if (o.sketch) {
     entry.sketch = {
       level: o.sketch.level === 'L0' ? 'solved' : o.sketch.level === 'L1' ? 'initial-value' : 'baked',

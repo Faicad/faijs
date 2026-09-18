@@ -186,7 +186,7 @@ export function generateModel(
     const verdict = translateObject(obj, (dep) => {
       const v = variables.get(dep);
       return v !== undefined ? v : undefined;
-    });
+    }, doc.objects);
     node.verdict = verdict;
     if (verdict.kind === 'translated') {
       // rename output vars to partN sequence
@@ -251,7 +251,7 @@ export function generateModel(
         // the object's variable is now the fully placed result
         variables.set(name, cur);
       }
-      results.push({ name, type: obj.type, variable: verdict.calls.at(-1)?.out, calls: verdict.calls, disposition: 'translated' });
+      results.push({ name, type: obj.type, variable: verdict.calls.at(-1)?.out, calls: verdict.calls, disposition: 'translated', reason: verdict.reason });
     } else if (verdict.kind === 'baked') {
       results.push({ name, type: obj.type, calls: [], disposition: 'baked', reason: verdict.reason });
     } else {

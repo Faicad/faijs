@@ -74,19 +74,21 @@ describe('M9.2 TwoLengths Pad → two extrudes + union', () => {
 });
 
 describe('M9.3 UpTo* / ThroughAll / unknown → explicit bake with reason', () => {
-  const cases: [string, number | string, string][] = [
-    ['pad UpToLast', 'UpToLast', 'pad-type-UpToLast-unsupported'],
-    ['pad UpToFirst (index)', 2, 'pad-type-UpToFirst-unsupported'],
-    ['pad UpToFace (index)', 3, 'pad-type-UpToFace-unsupported'],
-    ['pad unknown index', 99, 'pad-type-unknown-unsupported'],
-    ['pocket ThroughAll (index)', 1, 'pocket-type-ThroughAll-unsupported'],
-    ['pocket UpToFace', 'UpToFace', 'pocket-type-UpToFace-unsupported'],
-    ['pocket unknown', 'Bogus', 'pocket-type-unknown-unsupported'],
+  const cases: [string, 'pad' | 'pocket', number | string, string][] = [
+    ['pad UpToLast', 'pad', 'UpToLast', 'pad-type-UpToLast-unsupported'],
+    ['pad UpToFirst (index)', 'pad', 2, 'pad-type-UpToFirst-unsupported'],
+    // UpToFace with no datum-plane target (or no docObjects) bakes with the
+    // solid-face reason — the datum-plane translation path is exercised in
+    // feature-translate.test.ts, not here.
+    ['pad UpToFace no datum-plane target', 'pad', 3, 'uptoface-solid-face-unsupported'],
+    ['pad unknown index', 'pad', 99, 'pad-type-unknown-unsupported'],
+    ['pocket ThroughAll (index)', 'pocket', 1, 'pocket-type-ThroughAll-unsupported'],
+    ['pocket UpToFace', 'pocket', 'UpToFace', 'pocket-type-UpToFace-unsupported'],
+    ['pocket unknown', 'pocket', 'Bogus', 'pocket-type-unknown-unsupported'],
   ];
-  for (const [label, typeVal, expectedReason] of cases) {
+  for (const [label, kind, typeVal, expectedReason] of cases) {
     it(label, () => {
-      const isPad = expectedReason.startsWith('pad');
-      const o = isPad
+      const o = kind === 'pad'
         ? obj('PartDesign::Pad', 'Pad', { Type: typeVal as number, Length: 10, Profile: 'Sketch' })
         : obj('PartDesign::Pocket', 'Pocket', { Type: typeVal as number, Length: 10, Profile: 'Sketch', BaseFeature: 'Pad' });
       const v = translateObject(o, PROFILE_VAR);
