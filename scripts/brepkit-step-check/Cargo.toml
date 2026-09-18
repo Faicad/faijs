@@ -1,0 +1,16 @@
+[package]
+name = "brepkit-step-check"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+brepkit-topology = { path = "C:/git/OpenCascade/brepkit/crates/topology" }
+brepkit-operations = { path = "C:/git/OpenCascade/brepkit/crates/operations" }
+brepkit-io = { path = "C:/git/OpenCascade/brepkit/crates/io" }
+brepkit-math = { path = "C:/git/OpenCascade/brepkit/crates/math" }
+serde_json = "1"
+
+[profile.release]
+opt-level = 2
+debug = false
