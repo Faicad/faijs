@@ -212,6 +212,22 @@ function parseEdgeSubs(subs: readonly string[]): number[] | undefined {
 }
 
 /**
+ * Parse a FreeCAD face sub-element name (`Face3`) into a 1-based ordinal.
+ * Returns undefined when the selection is not a plain `FaceN` reference (e.g. a
+ * TNaming-modified name `"Face__20f_..."`, an `Edge*`/`Vertex*` selection, or a
+ * multi-face set) so the caller can bake with an explicit reason instead of
+ * guessing. The ordinal is consumed by `cad.faceRef`, whose face enumeration
+ * order is calibrated to match FreeCAD's `FaceN` (plan §4.3-C2 / R-A).
+ */
+function parseFaceSub(subs: readonly string[]): number | undefined {
+  if (subs.length !== 1) return undefined;
+  const m = /^Face(\d+)$/.exec(subs[0]!);
+  if (!m) return undefined;
+  const n = Number(m[1]);
+  return Number.isInteger(n) && n >= 1 ? n : undefined;
+}
+
+/**
  * Build the `edges` argument for a fillet/chamfer call: one `cad.edgeRef(base, N)`
  * expression per FreeCAD edge ordinal. The refs must be resolved against the
  * live base shape at run time (an `EdgeTopoRef` is a two-face role pair, which
@@ -409,15 +425,17 @@ export function translateObject(
         // to the datum plane. Zero bake, no faceRef needed.
         const upTo = propLinkSub(obj, 'UpToFace');
         if (upTo && docObjects) {
-          const plane = docObjects.find((o) => o.name === upTo.obj);
-          if (plane && plane.type === 'PartDesign::Plane') {
-            const pl = placementOf(plane);
+          const target = docObjects.find((o) => o.name === upTo.obj);
+          // C1 (extrude-upto-face §4.3-C1): datum plane (infinite plane) →
+          // exact signed distance → cad.extrude({ length }). No faceRef needed.
+          if (target && target.type === 'PartDesign::Plane') {
+            const pl = placementOf(target);
             // datum plane normal = placement R * local +Z
             const m = quatToMatrix(pl.q);
             const normal: [number, number, number] = [m[2]!, m[5]!, m[8]!];
             // sketch normal (the extrude direction); the profile sketch lies on
             // its own placement, and the feature extrudes along it.
-            const skPl = placementOf(docObjects.find((o) => o.name === (profile ?? '')) ?? plane);
+            const skPl = placementOf(docObjects.find((o) => o.name === (profile ?? '')) ?? target);
             const skM = quatToMatrix(skPl.q);
             const dir: [number, number, number] = [skM[2]!, skM[5]!, skM[8]!];
             // GOTCHA (probe-upto-padtest-verify.ts, PadTest Pad001): the datum
@@ -450,6 +468,30 @@ export function translateObject(
               };
             }
             return { kind: 'baked', reason: 'uptoface-datum-plane-degenerate-distance' };
+          }
+          // C2.2 (extrude-upto-face §4.3-C2 point 2): solid-feature target →
+          // reference its face by ordinal via `cad.fai_extrude({ upTo:
+          // cad.faceRef(targetVar, N) })`. faceRef's ordinal is calibrated to
+          // match FreeCAD's `FaceN` (R-A, same TopExp::MapShapes + IndexedMap
+          // enumeration as edgeRef); the runtime naming layer resolves the ref
+          // against the live target shape, so it enters the IR as a JsExpr.
+          if (target) {
+            const targetVar = inputVar(upTo.obj);
+            if (targetVar) {
+              const faceN = parseFaceSub(upTo.subs);
+              if (faceN !== undefined) {
+                return {
+                  kind: 'translated',
+                  reason: 'uptoface-via-faceRef',
+                  calls: [{
+                    out, op: 'cad.fai_extrude', source: obj.name, inputs: [profileVar],
+                    params: { upTo: jsExpr(`cad.faceRef(${targetVar}, ${faceN})`) },
+                  }],
+                };
+              }
+              // sub present but not a plain FaceN reference → explicit bake
+              return { kind: 'baked', reason: 'uptoface-sub-unparseable' };
+            }
           }
         }
         return { kind: 'baked', reason: 'uptoface-solid-face-unsupported' };

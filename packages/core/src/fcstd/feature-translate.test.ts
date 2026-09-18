@@ -367,6 +367,80 @@ describe('M4.6c Pad UpToLast/UpToFirst (extrude-upto-face §4.3-C2)', () => {
   });
 });
 
+describe('M4.6d Pad UpToFace solid-face (extrude-upto-face §4.3-C2.2)', () => {
+  // Helpers (kept local; M4.6b/M4.6c define their own copies).
+  function linkProp(name: string, target: string): [string, FcstdProperty] {
+    return [name, {
+      name, type: 'App::PropertyLink', tagName: 'Property',
+      children: [{ name: 'Link', type: '', tagName: 'Link', children: [], valueXml: '', valueText: '', attributes: { value: target } }],
+      valueText: '', attributes: {},
+    }];
+  }
+  function enumProp(name: string, value: string): [string, FcstdProperty] {
+    return [name, {
+      name, type: 'App::PropertyEnumeration', tagName: 'Property',
+      children: [{ name: 'Integer', type: '', tagName: 'Integer', children: [], valueXml: '', valueText: '', attributes: { value } }],
+      valueText: '', attributes: {},
+    }];
+  }
+  // linkSubProp is module-level (defined near the top of this file).
+
+  it('translates Pad UpToFace solid-face as cad.fai_extrude upTo: cad.faceRef(targetVar, N)', () => {
+    const target = obj('PartDesign::Pad', 'OtherPad', [enumProp('Type', '0'), linkProp('Profile', 'Sketch0')]);
+    const pad = obj('PartDesign::Pad', 'Pad001', [
+      linkProp('Profile', 'Sketch001'),
+      enumProp('Type', '3'),
+      linkSubProp('UpToFace', 'OtherPad', ['Face3']),
+    ]);
+    const v = translateObject(
+      pad,
+      (dep) => (dep === 'Sketch001' ? 'sketch0' : dep === 'OtherPad' ? 'other0' : undefined),
+      [pad, target],
+    );
+    expect(v.kind).toBe('translated');
+    if (v.kind === 'translated') {
+      const call = v.calls[0]!;
+      expect(call.op).toBe('cad.fai_extrude');
+      expect(call.inputs).toEqual(['sketch0']);
+      // FaceN ordinal passes through verbatim into the faceRef argument;
+      // faceRef's enum order is calibrated to FreeCAD's FaceN (plan R-A).
+      const upTo = call.params.upTo;
+      expect(isJsExpr(upTo) ? upTo.__jsExpr : upTo).toBe('cad.faceRef(other0, 3)');
+      expect(v.reason).toBe('uptoface-via-faceRef');
+    }
+  });
+
+  it('bakes uptoface-sub-unparseable when the sub is not a plain FaceN reference', () => {
+    // FreeCAD TNaming-modified face names (e.g. "Face__20f_...") are not a
+    // stable ordinal → explicit bake, never guess.
+    const target = obj('PartDesign::Pad', 'OtherPad', []);
+    const pad = obj('PartDesign::Pad', 'Pad001', [
+      linkProp('Profile', 'Sketch001'),
+      enumProp('Type', '3'),
+      linkSubProp('UpToFace', 'OtherPad', ['Face__20f_']),
+    ]);
+    const v = translateObject(
+      pad,
+      (dep) => (dep === 'Sketch001' ? 'sketch0' : dep === 'OtherPad' ? 'other0' : undefined),
+      [pad, target],
+    );
+    expect(v).toMatchObject({ kind: 'baked', reason: 'uptoface-sub-unparseable' });
+  });
+
+  it('still bakes uptoface-solid-face-unsupported when the target var is unresolvable', () => {
+    // regression: target is a solid but its var cannot be resolved → bake the
+    // same reason as before C2.2 (no silent faceRef against an unknown shape).
+    const solid = obj('PartDesign::Pad', 'OtherPad', []);
+    const pad = obj('PartDesign::Pad', 'Pad001', [
+      linkProp('Profile', 'Sketch001'),
+      enumProp('Type', '3'),
+      linkSubProp('UpToFace', 'OtherPad', ['Face1']),
+    ]);
+    const v = translateObject(pad, (dep) => (dep === 'Sketch001' ? 'sketch0' : undefined), [pad, solid]);
+    expect(v).toMatchObject({ kind: 'baked', reason: 'uptoface-solid-face-unsupported' });
+  });
+});
+
 describe('M4.7 patterns (LinearPattern / PolarPattern)', () => {
   it('translates LinearPattern over a source with axis + spacing', () => {
     const lp = obj('PartDesign::LinearPattern', 'LP', [
