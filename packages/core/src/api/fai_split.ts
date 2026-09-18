@@ -235,6 +235,7 @@ async function splitMeshPath(input: Shape, params: Record<string, unknown>): Pro
  * @async true
  * @qual warn
  * @name fai_split
+ * @deprecated `fai_` 前缀 op 是 ../3d_editor 项目特有的操作，不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
  * @returns { front: Shape; back: Shape } 必须用解构 `const { front: partA, back: partB } = await cad.fai_split(...)` 取出两个零件。
  * @param input - 目标几何。type:Shape required:true
  * @param params.cutMode - 切割模式。type:'plane' | 'dovetail' | 'dowel' | 'tenon' | 'straight-tenon' | 'straight' 默认 'plane'

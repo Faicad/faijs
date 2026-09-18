@@ -38,6 +38,8 @@ interface Op {
   returns?: string
   note?: string[]
   example: string[]
+  /** `@deprecated` 说明（存在即视为已废弃）。 */
+  deprecated?: string
 }
 
 const QUAL_LABEL: Record<Op['qual'], string> = {
@@ -94,6 +96,7 @@ function collectOps(file: string): Op[] {
       returns: tags['returns']?.[0]?.trim(),
       note: tags['note']?.map((s) => s.trim()).filter(Boolean),
       example: tags['example']?.map((s) => s.replace(/^`/, '').trim()) ?? [],
+      deprecated: tags['deprecated']?.[0]?.trim() || undefined,
     })
   }
   return ops
@@ -164,6 +167,9 @@ function renderDoc(locale: 'en' | 'zh'): string {
   lines.push('> - ✅ = 此接口正确、可放心使用')
   lines.push('> - ⚠️ = 可用，但参数有已知缺陷')
   lines.push('> - ❌ = 接口错误，**禁止使用**，等重做')
+  lines.push('> - 🚫 = **已废弃（deprecated）**，勿在新代码中使用')
+  lines.push('>')
+  lines.push('> 🚫 标记的 op 是 `../3d_editor` 项目特有的操作，不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。')
   lines.push('>')
   lines.push('> 相关文档：`docs/syntax-design.md`（语法与执行契约）、`docs/api-contract.md`（语句层内部契约）。')
   lines.push('')
@@ -221,10 +227,14 @@ function renderDoc(locale: 'en' | 'zh'): string {
     lines.push('')
     for (let i = 0; i < ops.length; i++) {
       const op = ops[i]
-      lines.push(`### ${num}.${i + 1} \`${op.name}\` ${QUAL_LABEL[op.qual]}`)
+      lines.push(`### ${num}.${i + 1} \`${op.name}\` ${QUAL_LABEL[op.qual]}${op.deprecated ? ' 🚫' : ''}`)
       lines.push('')
       if (op.desc) {
         lines.push(op.desc)
+        lines.push('')
+      }
+      if (op.deprecated) {
+        lines.push(`> 🚫 **已废弃（deprecated）**：${op.deprecated}`)
         lines.push('')
       }
       for (const ex of op.example) {
@@ -272,13 +282,15 @@ function renderDoc(locale: 'en' | 'zh'): string {
   lines.push('## 9. 写给 AI 的速查（一句话总结每个可用 op）')
   lines.push('')
   lines.push('```')
-  lines.push('创建: ' + allOps.filter((o) => o.group === '创建' && o.qual !== 'error').map((o) => o.name).join(' / '))
-  lines.push('变换: ' + allOps.filter((o) => o.group === '变换' && o.qual !== 'error').map((o) => o.name).join(' / '))
-  lines.push('特征: ' + allOps.filter((o) => o.group === '特征' && o.qual !== 'error').map((o) => o.name).join(' / '))
-  lines.push('结构: ' + allOps.filter((o) => o.group === '结构' && o.qual !== 'error').map((o) => o.name).join(' / '))
-  lines.push('查询: ' + allOps.filter((o) => o.group === '查询' && o.qual !== 'error').map((o) => o.name).join(' / '))
+  lines.push('创建: ' + allOps.filter((o) => o.group === '创建' && o.qual !== 'error' && !o.deprecated).map((o) => o.name).join(' / '))
+  lines.push('变换: ' + allOps.filter((o) => o.group === '变换' && o.qual !== 'error' && !o.deprecated).map((o) => o.name).join(' / '))
+  lines.push('特征: ' + allOps.filter((o) => o.group === '特征' && o.qual !== 'error' && !o.deprecated).map((o) => o.name).join(' / '))
+  lines.push('结构: ' + allOps.filter((o) => o.group === '结构' && o.qual !== 'error' && !o.deprecated).map((o) => o.name).join(' / '))
+  lines.push('查询: ' + allOps.filter((o) => o.group === '查询' && o.qual !== 'error' && !o.deprecated).map((o) => o.name).join(' / '))
   const errNames = allOps.filter((o) => o.qual === 'error').map((o) => o.name)
   if (errNames.length) lines.push('禁止: ' + errNames.join('、'))
+  const depNames = allOps.filter((o) => o.deprecated).map((o) => o.name)
+  if (depNames.length) lines.push('废弃（勿用，`fai_` 前缀 / ../3d_editor 特有，将迁出）: ' + depNames.join('、'))
   lines.push('```')
   lines.push('')
   return lines.join('\n').trimEnd() + '\n'

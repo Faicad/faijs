@@ -222,7 +222,8 @@ async function drillMeshPath(input: Shape, params: Record<string, unknown>): Pro
  * @inputs 1
  * @async true
  * @qual ok
- * @name drill
+ * @name fai_drill
+ * @deprecated `fai_` 前缀 op 是 ../3d_editor 项目特有的操作，不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
  * @note 键名以本表为准：`type: 'through'|'blind'` 与 `direction` 为向量的旧素材是无效写法——孔型由 `depth`（0=通孔）推导，`direction` 是 'normal'|'x'|'y'|'z' 枚举。
  * @returns Shape 钻孔后的几何。
  * @param input - 目标几何。type:Shape required:true

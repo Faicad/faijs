@@ -29,12 +29,21 @@ interface ApiEntry {
   /** 可选备注 */
   note?: string
   /**
+   * 已废弃说明（deprecated）。给定后在该签名前输出一段带 `@deprecated` 的 JSDoc
+   * 注释块，让 AI / IDE 看到废弃标记；`fai_` 前缀 op 走此字段。
+   */
+  deprecated?: string
+  /**
    * 可选的完整源码可见参数列表覆盖（位置原生 op，如
    * `box(width, depth, height, options?)`——除 options 对象外还有前置位置参数）。
    * 给定后忽略 inputs/params 的拼接。
    */
   args?: string
 }
+
+/** `fai_` 前缀 op 的废弃说明（../3d_editor 项目特有，将来迁出并从 faijs 删除）。 */
+const FAI_DEPRECATED =
+  '`fai_` 前缀 op 是 ../3d_editor 项目特有的操作，不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。'
 
 const API_ENTRIES: Record<string, ApiEntry> = {
   // ── 创建类 ──
@@ -139,6 +148,7 @@ const API_ENTRIES: Record<string, ApiEntry> = {
     inputs: 1,
     params: '{ normal?: [number, number, number]; offset?: number; cutMode?: string; inPlaneAngleDeg?: number; side?: string }',
     returns: 'Promise<{ front: Shape; back: Shape; wedge?: Shape | null }>',
+    deprecated: FAI_DEPRECATED,
   },
 
   // ── 特征类 ──
@@ -146,11 +156,13 @@ const API_ENTRIES: Record<string, ApiEntry> = {
     inputs: 1,
     params: '{ diameter: number; depth?: number; holeType?: string; direction?: string; tolerance?: number; position?: any; faceNormal?: any; screwSystem?: string; screwSpecIdx?: number; screwThread?: string; screwHead?: string }',
     returns: 'Promise<Shape>',
+    deprecated: FAI_DEPRECATED,
   },
   fai_extrude: {
     inputs: 1,
     params: '{ length: number; mode?: string; normal?: [number, number, number]; originOffset?: number; space?: string }',
     returns: 'Promise<Shape>',
+    deprecated: FAI_DEPRECATED,
   },
   extrude: {
     inputs: 1,
@@ -229,11 +241,18 @@ const API_ENTRIES: Record<string, ApiEntry> = {
 
 // ── 生成签名 ──
 
-/** 生成单个函数的签名行（源码可见形态：shape 位置参数 + options + 返回类型）。 */
+/** 生成单个函数的签名行（源码可见形态：shape 位置参数 + options + 返回类型）；带 `deprecated` 时在签名前输出 `@deprecated` JSDoc 块。 */
 function genEntry(callee: string, entry: ApiEntry): string {
+  const lines: string[] = []
+  if (entry.deprecated) {
+    lines.push('  /**')
+    lines.push(`   * @deprecated ${entry.deprecated}`)
+    lines.push('   */')
+  }
   if (entry.args !== undefined) {
     const sigArgs = `  ${callee}(${entry.args}): ${entry.returns}`
-    return entry.note ? `${sigArgs}  // ${entry.note}` : sigArgs
+    lines.push(entry.note ? `${sigArgs}  // ${entry.note}` : sigArgs)
+    return lines.join('\n')
   }
   const shapeParams: string[] = []
   for (let i = 0; i < entry.inputs; i++) {
@@ -241,7 +260,8 @@ function genEntry(callee: string, entry: ApiEntry): string {
   }
   const paramsPart = entry.params === 'never' ? 'params?: never' : `params: ${entry.params}`
   const sig = `  ${callee}(${[...shapeParams, paramsPart].join(', ')}): ${entry.returns}`
-  return entry.note ? `${sig}  // ${entry.note}` : sig
+  lines.push(entry.note ? `${sig}  // ${entry.note}` : sig)
+  return lines.join('\n')
 }
 
 // ── 查询方法（mesh/query，非 stdlib；设计文档 §4.10 保留硬编码） ──

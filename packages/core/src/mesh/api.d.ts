@@ -37,13 +37,22 @@ export interface CadAPI {
   intersect(shape: Shape, shape1: Shape, params?: never): Promise<Shape>
 
   // ── 分割 ──
+  /**
+   * @deprecated `fai_` 前缀 op 是 ../3d_editor 项目特有的操作，不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
+   */
   fai_split(shape: Shape, params: { normal?: [number, number, number]; offset?: number; cutMode?: string; inPlaneAngleDeg?: number; side?: string }): Promise<{ front: Shape; back: Shape; wedge?: Shape | null }>
 
   // ── 钻孔 ──
+  /**
+   * @deprecated `fai_` 前缀 op 是 ../3d_editor 项目特有的操作，不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
+   */
   fai_drill(shape: Shape, params: { diameter: number; depth?: number; holeType?: string; direction?: string; tolerance?: number; position?: any; faceNormal?: any; screwSystem?: string; screwSpecIdx?: number; screwThread?: string; screwHead?: string }): Promise<Shape>
 
   // ── 拉伸 ──
   extrude(shape: Shape, params: { length?: number; normal?: [number, number, number]; mode?: string; upTo?: any; baseFeature?: Shape; offset?: number }): Promise<Shape>
+  /**
+   * @deprecated `fai_` 前缀 op 是 ../3d_editor 项目特有的操作，不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
+   */
   fai_extrude(shape: Shape, params: { length: number; mode?: string; normal?: [number, number, number]; originOffset?: number; space?: string }): Promise<Shape>
 
   // ── 雕刻 ──

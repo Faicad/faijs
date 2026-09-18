@@ -10,6 +10,7 @@
 
 import { box, sphere, cylinder, cone, wedge } from './primitives'
 import { translate, rotate_euler, scale, scale3d } from './transform'
+// DEPRECATED（../3d_editor 特有，将来迁出并从 faijs 删除；见各 op 的 @deprecated）。
 import { fai_extrude } from './fai_extrude'
 // cad.extrude 是平台手写 op（承载 upTo；长度形态委托 generated/operations 的投影），
 // 见 api/extrude.ts 的分层说明——up-to 不落在 fai_extrude。
@@ -59,6 +60,8 @@ export function createApiNamespace(): StdlibNamespace {
     box, sphere, cylinder, cone, wedge,
     text, screw, svgExtrude, sketch, sdf, load,
     translate, rotate_euler, scale, scale3d,
+    // fai_drill / fai_extrude（本行）与 fai_split（下方）均 DEPRECATED：../3d_editor
+    // 项目特有，将来迁出并从 faijs 删除。
     fai_drill, fai_extrude, engrave, chamfer, fillet, knurl,
     union, subtract, intersect,
     extrude, revolve,

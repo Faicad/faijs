@@ -51,6 +51,7 @@ function extrudeBrepPath(input: Shape, params: Record<string, unknown>): Shape {
  * @async true
  * @qual ok
  * @name fai_extrude
+ * @deprecated `fai_` 前缀 op 是 ../3d_editor 项目特有的操作，不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
  * @returns Shape 拉伸后的几何。
  * @param input - 目标几何。type:Shape required:true
  * @param params.length - 总拉伸量（mm）。type:number required:true

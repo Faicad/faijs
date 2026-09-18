@@ -12,6 +12,9 @@
 
 export { box, sphere, cylinder, cone, wedge } from './primitives'
 export { translate, rotate_euler, scale, scale3d } from './transform'
+// DEPRECATED: `fai_` 前缀 op（fai_extrude / fai_drill / fai_split）是 ../3d_editor
+// 项目特有的操作，不属于 faijs 平台面。将来会迁往该项目并从 faijs 删除；各 op 的
+// JSDoc 已带 @deprecated。新代码请勿使用。
 export { fai_extrude } from './fai_extrude'
 export { fai_drill } from './fai_drill'
 export { fai_split } from './fai_split'

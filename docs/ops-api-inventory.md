@@ -7,6 +7,9 @@ English | [中文](ops-api-inventory.zh.md)
 > - ✅ = 此接口正确、可放心使用
 > - ⚠️ = 可用，但参数有已知缺陷
 > - ❌ = 接口错误，**禁止使用**，等重做
+> - 🚫 = **已废弃（deprecated）**，勿在新代码中使用
+>
+> 🚫 标记的 op 是 `../3d_editor` 项目特有的操作，不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。
 >
 > 相关文档：`docs/syntax-design.md`（语法与执行契约）、`docs/api-contract.md`（语句层内部契约）。
 
@@ -372,9 +375,56 @@ const part1 = cad.copy(part0)
 
 **同步**。Shape 源几何的深拷贝。copy 不消费其源（画布显示 box 和副本两份），改副本不影响源。
 
-### 5.3 `drill` ✅
+### 5.3 `engrave` ✅
+
+在几何表面雕刻文字或 SVG（文字分支与 logo 分支都可用）。
+
+```js
+const p = await cad.engrave(part0, { mode: 'concave', depth: 2, text: 'Hello', textSize: 10, faceCenter: [0, 0, 0], faceNormal: [0, 0, -1] })
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `mode` | `'concave' | 'convex'` |  | 'concave' | 雕刻方式：concave 凹陷（减法）/ convex 凸出（加法） |
+| `depth` | `number` |  | 0 | 深度 / 凸出高度（mm） |
+| `text` | `string` |  | — | 文字内容（与 svg 二选一） |
+| `textSize` | `number` |  | 10 | 字号（mm） |
+| `svg` | `string` |  | — | SVG 资产引用（与 text 二选一；经 cad.asset 解析） |
+| `svgSize` | `number` |  | — | SVG 长边目标尺寸 |
+| `faceCenter` | `[x,y,z]` |  | [0,0,0] | 面位置（绝对坐标） |
+| `faceNormal` | `[x,y,z]` |  | [0,0,1] | 面法向 |
+
+**异步**。Shape 雕刻后的几何。
+
+> 早期 logo 分支用 `svgText`（整份 XML 拷贝 + `svgSize` 文本导出丢失，往返失真）；现已改为 `svg` 资产引用，`engravingType` 冗余键已移除。faceCenter/faceNormal 目前是绝对坐标快照。
+
+### 5.4 `extrude` ✅
+
+沿 normal 拉伸几何（面 → 棱柱）。 up-to 模式（`upTo`）与长度模式（`length`）二选一；长度模式委托生成投影 （vendored extrude 为唯一引擎），up-to 模式走半空间组合。
+
+```js
+const p = await cad.extrude(part0, [0, 0, 10])
+const p = await cad.extrude(part0, { length: 10 })
+const p = await cad.extrude(sk, { upTo: cad.faceRef(part0, 3) })
+const p = await cad.extrude(sk, { upTo: 'last', baseFeature: part0 })
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `length` | `number` |  | — | 总拉伸量（mm，>0）。up-to 模式下无需给 |
+| `normal` | `[x,y,z]` |  | [0,0,1] | 拉伸方向（世界坐标） |
+| `mode` | `'forward' | 'backward'` |  | 'forward' | 沿 normal 的前进方向：forward 正向 / backward 反向 |
+| `upTo` | `'last' | 'first' | FaceTopoRef` |  | — | 拉伸到面：FaceTopoRef 指定面 / 'last' 支持体远端面 / 'first' 近端面（需 baseFeature）。提供时忽略 length |
+| `baseFeature` | `Shape` |  | — | upTo 'last'/'first' 的支持体几何（累积支持体） |
+| `offset` | `number` |  | 0 | 截断面沿其法向的偏移（mm） |
+
+**异步**。Shape 拉伸后的几何。
+
+### 5.5 `fai_drill` ✅ 🚫
 
 在几何体上钻孔（CSG 减除）。depth=0 为通孔，>0 为盲孔。
+
+> 🚫 **已废弃（deprecated）**：`fai_` 前缀 op 是 ../3d_editor 项目特有的操作，不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
 
 ```js
 const p = await cad.fai_drill(part0, { diameter: 5 })
@@ -401,32 +451,11 @@ const p = await cad.fai_drill(part0, { diameter: 5.2, depth: 8, holeType: 'screw
 
 > 键名以本表为准：`type: 'through'|'blind'` 与 `direction` 为向量的旧素材是无效写法——孔型由 `depth`（0=通孔）推导，`direction` 是 'normal'|'x'|'y'|'z' 枚举。
 
-### 5.4 `engrave` ✅
-
-在几何表面雕刻文字或 SVG（文字分支与 logo 分支都可用）。
-
-```js
-const p = await cad.engrave(part0, { mode: 'concave', depth: 2, text: 'Hello', textSize: 10, faceCenter: [0, 0, 0], faceNormal: [0, 0, -1] })
-```
-
-| 参数 | 类型 | 必填 | 默认 | 说明 |
-|---|---|---|---|---|
-| `mode` | `'concave' | 'convex'` |  | 'concave' | 雕刻方式：concave 凹陷（减法）/ convex 凸出（加法） |
-| `depth` | `number` |  | 0 | 深度 / 凸出高度（mm） |
-| `text` | `string` |  | — | 文字内容（与 svg 二选一） |
-| `textSize` | `number` |  | 10 | 字号（mm） |
-| `svg` | `string` |  | — | SVG 资产引用（与 text 二选一；经 cad.asset 解析） |
-| `svgSize` | `number` |  | — | SVG 长边目标尺寸 |
-| `faceCenter` | `[x,y,z]` |  | [0,0,0] | 面位置（绝对坐标） |
-| `faceNormal` | `[x,y,z]` |  | [0,0,1] | 面法向 |
-
-**异步**。Shape 雕刻后的几何。
-
-> 早期 logo 分支用 `svgText`（整份 XML 拷贝 + `svgSize` 文本导出丢失，往返失真）；现已改为 `svg` 资产引用，`engravingType` 冗余键已移除。faceCenter/faceNormal 目前是绝对坐标快照。
-
-### 5.5 `fai_extrude` ✅
+### 5.6 `fai_extrude` ✅ 🚫
 
 沿法向拉伸几何。
+
+> 🚫 **已废弃（deprecated）**：`fai_` 前缀 op 是 ../3d_editor 项目特有的操作，不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
 
 ```js
 const p = await cad.fai_extrude(part0, { length: 10 })
@@ -444,9 +473,11 @@ const p = await cad.fai_extrude(part0, { length: 10, normal: [0,0,1], originOffs
 
 **异步**。Shape 拉伸后的几何。
 
-### 5.6 `fai_split` ⚠️
+### 5.7 `fai_split` ⚠️ 🚫
 
 分割几何，返回具名对象 { front, back } 两个独立零件。
+
+> 🚫 **已废弃（deprecated）**：`fai_` 前缀 op 是 ../3d_editor 项目特有的操作，不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
 
 ```js
 const { front: part1, back: part2 } = await cad.fai_split(part0, { normal: [0, 0, 1], offset: 5, cutMode: 'dovetail', grooveDepth: 3, grooveWidth: 5 })
@@ -480,7 +511,7 @@ const { front: part1, back: part2 } = await cad.fai_split(part0, { normal: [0, 0
 
 > 切割面统一用 `normal`/`offset`/`inPlaneAngleDeg` 描述；早期文本层曾与执行层键名断裂（planeRotation/planePosition），已修并统一为上述键名。
 
-### 5.7 `fillet` ✅
+### 5.8 `fillet` ✅
 
 在几何体上做圆角（等半径）。仅 BREP 可用。
 
@@ -497,7 +528,7 @@ const p = await cad.fillet(part0, { edges: [{ kind:'edge', faces:[{ origin:'box'
 
 > 圆角是 BREP-only：非 BREP 输入抛 E_MESH_UNSUPPORTED。`radius` 为正数（mm）。 圆角后 roleTable 经 filletWithHistory 传播，保证后续特征仍可按 role 选面/选边。
 
-### 5.8 `intersect` ✅
+### 5.9 `intersect` ✅
 
 布尔交集：所有输入的重叠部分。
 
@@ -511,7 +542,7 @@ const c = await cad.intersect(part0, part1)
 
 **异步**。Shape 所有输入的交集。
 
-### 5.9 `knurl` ⚠️
+### 5.10 `knurl` ⚠️
 
 施加滚花（顶点位移，非布尔）。mesh-only。
 
@@ -534,7 +565,7 @@ const p = await cad.knurl(part0, { knurlTextureHeight: 0.5, knurlScaleU: 0.15, k
 
 > knurl 无 BREP 实现（mesh-only），本质是顶点位移（网格操作），网格参数可接受；brep 模式下调用前抛 BrepUnsupportedError。面锚定建议用几何引用。
 
-### 5.10 `subtract` ✅
+### 5.11 `subtract` ✅
 
 布尔差集：第一个为主体，减去其余输入。
 
@@ -548,7 +579,7 @@ const b = await cad.subtract(part0, part1)
 
 **异步**。Shape part0 减 part1 的差集（第一个为主体）。
 
-### 5.11 `union` ✅
+### 5.12 `union` ✅
 
 布尔并集：合并所有输入几何（≥2 个输入）。
 
@@ -702,7 +733,24 @@ const n = cad.faceNormal(part0, [0, 0, 5])
 
 **同步**。Vec3 面上锚点处的法向 [x,y,z]。
 
-### 7.7 `projectSheet` ✅
+### 7.7 `faceRef` ✅
+
+查询几何体第 N 张面的 `FaceTopoRef`，供 `cad.extrude` 的 `upTo` 等参数使用： `cad.extrude(part0, { upTo: cad.faceRef(part0, 3) })`。 定不了案（无 BREP / 序号越界 / 面无 role 血统）抛 `TopoRefError`。
+
+```js
+const part1 = cad.extrude(sk, { upTo: cad.faceRef(part0, 3) })
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `of` | `Shape` | ✅ | — | 目标几何（BREP 实体所在的 Shape） |
+| `faceOrdinal` | `number` | ✅ | — | 面序号（1 起；等于 FreeCAD 的 `FaceN`） |
+
+**同步**。FaceTopoRef 该面的拓扑引用（origin/role 血统 + 几何 hint）。
+
+> 序号 1 起，与命名层 `TopoRef.ordinal` 及 FreeCAD `FaceN` 同序（`getSubShapes(solid,'face')` 用 TopExp::MapShapes + IndexedMap 枚举）。
+
+### 7.8 `projectSheet` ✅
 
 多视图投影图纸 → 组合 SVG 字符串（纯数据，不消费/修改 shape）。
 
@@ -723,7 +771,7 @@ const sheet = cad.projectSheet(part0, [{ view: 'front', label: '主视图' }], {
 
 **同步**。SVG 字符串（嵌套 <svg x y width height viewBox preserveAspectRatio> + <text> 标签）。空列表返回空 SVG 不抛错。
 
-### 7.8 `projectView` ✅
+### 7.9 `projectView` ✅
 
 单视图投影 → SVG 线稿字符串（纯数据，不消费/修改 shape；规则 1 下裸调用不消费输入）。
 
@@ -745,7 +793,7 @@ const svg = cad.projectView(part0, 'iso', { strokeWidth: 1, dash: '4,4', hiddenO
 
 **同步**。SVG 字符串（<svg viewBox="…"> + 可见实线 <path> + 隐藏虚线 <path>）。裸调用 cad.projectView(part0, 'front') 不消费 part0（规则 1），part 仍留在 canvas。
 
-### 7.9 `viewCamera` ✅
+### 7.10 `viewCamera` ✅
 
 解析视图规格为投影相机（纯数据，无 Shape 输入；不消费任何几何）。
 
@@ -781,7 +829,8 @@ const cam = cad.viewCamera({ dir: [1, -1, 1] })
 ```
 创建: load / box / sphere / cylinder / cone / wedge / screw / sdf / sketch / svgExtrude / text
 变换: translate / rotate_euler / scale / scale3d
-特征: union / subtract / intersect / chamfer / copy / engrave / drill / fai_extrude / fai_split / fillet / knurl
+特征: union / subtract / intersect / chamfer / copy / engrave / extrude / fillet / knurl
 结构: group / assembly
-查询: asset / edgeRef / faceNormal / bboxCenter / bboxMin / bboxMax / viewCamera / projectView / projectSheet
+查询: asset / edgeRef / faceRef / faceNormal / bboxCenter / bboxMin / bboxMax / viewCamera / projectView / projectSheet
+废弃（勿用，`fai_` 前缀 / ../3d_editor 特有，将迁出）: fai_drill、fai_extrude、fai_split
 ```
