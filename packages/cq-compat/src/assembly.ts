@@ -19,9 +19,12 @@ import type {
   EntityRef,
 } from '@faicad/faijs-core/api/assembly/types'
 import type { CompoundShape } from '@faicad/faijs-core/shape'
-import { getSlot, brepOf } from '@faicad/faijs-core/shape'
+import { getSlot, brepOf, ensureSlot } from '@faicad/faijs-core/shape'
 import { getBackends } from '@faicad/faijs-core/runtime-state'
+import { applyTransform } from '@faicad/faijs-core/mesh/rigid-transform'
+import { applyTransformBrep } from '@faicad/faijs-core/brep/brep-ops'
 import type { BrepEngineApi } from '@faicad/faijs-core/brep/engine/primitives'
+import type { BrepHandle } from '@faicad/faijs-core/brep/engine/types'
 import type { RGB } from './workplane'
 import { resolveFaceSelector, asBrepShape } from './workplane'
 
@@ -371,11 +374,52 @@ export function buildAssembly(
 
   // CadQuery's Assembly.save() solves constraints implicitly before export —
   // mirror that here so CLI STEP export sees the solved part poses.
-  // NOTE: cad.assembly attaches solve() to the slot BEHAVIOR, not to the
-  // compound object itself — a plain compound.solve lookup is always
-  // undefined and the solve silently never ran.
-  const behavior = getSlot(compound)?.behavior as { solve?: () => unknown } | undefined
-  if (typeof behavior?.solve === 'function') behavior.solve()
+  // GOTCHA (2026-09-18)：引擎只有 direct-executor 路径消费 pending transforms
+  // （applyPendingAssemblyTransforms）；CLI brep 模块路径无人消费 → 登记 pending
+  // 也没用，成员停在恒等位姿。因此这里直接 solveDetailed() 拿到 transforms，
+  // 在库侧把位姿烘焙进成员：mesh 顶点原地变换 + BREP slot.solid 刚体变换
+  // （与 direct-executor 同语义）。behavior.solve/compound.solve 的 pending 登记
+  // 保留（direct 路径仍走引擎烘焙），但本函数不再依赖它。
+  const behavior = getSlot(compound)?.behavior as
+    | { memberNames?: string[]; solveDetailed?: () => { transforms: Array<{ index: number; quaternion: [number, number, number, number]; pivot: [number, number, number]; translation: [number, number, number]; rotationMatrix: number[] }> } }
+    | undefined
+  const transforms = behavior?.solveDetailed?.().transforms ?? []
+  // CQ 语义对齐：无约束成员（如 assemb.py 里仅 .add 的 slide_top）在 CQ 求解器
+  // 中固定在初始位姿（不被拉入最小化）；我方 global 求解器会给自由成员漂移解，
+  // 烘焙前按「是否被约束引用」过滤，未引用成员保持恒等。
+  const referenced = new Set<string>()
+  for (const c of constraints) {
+    // StructuralConstraint 形态是 { a: EntityRef, b: EntityRef }（EntityRef.part
+    // = 成员名）；cq-compat 的 constraint() 只产出该形态。FaceMateConstraint 无
+    // a/b，用 in 收窄跳过。
+    if ('a' in c && 'b' in c) {
+      for (const ref of [c.a, c.b] as Array<{ part?: string }>) {
+        if (ref && typeof ref.part === 'string') referenced.add(ref.part)
+      }
+    }
+  }
+  const baked = transforms.filter((t) => referenced.has(behavior?.memberNames?.[t.index] ?? ''))
+  if (baked.length > 0) {
+    const kernel = getBackends().kernel.brep as BrepEngineApi | null
+    const children = (compound as unknown as { children?: Shape[] }).children ?? []
+    for (const t of baked) {
+      const member = children[t.index]
+      if (!member || typeof member !== 'object') continue
+      // mesh 顶点原地变换（保留对象引用，ctx 与 compound.children 同步看到变更）
+      Object.assign(member, applyTransform(member, t.quaternion, t.pivot, t.translation, t.rotationMatrix))
+      // BREP 刚体变换：新 solid 写回身份槽（STEP 导出读 slot.solid）。
+      // GOTCHA：旧 solid 句柄**不能 release**——solidCache（partName 键）仍指向
+      // 它，库侧无法同步该缓存（setSolidHook 是宿主注入），release 后拓扑构建
+      // 读到悬空句柄报 INVALID_SHAPE_ID；保留旧句柄仅浪费少量内存。
+      if (kernel) {
+        const solid = brepOf(member) as BrepHandle | undefined
+        if (solid) {
+          const transformed = applyTransformBrep(kernel, solid, t.quaternion, t.pivot, t.translation)
+          ensureSlot(member).solid = transformed
+        }
+      }
+    }
+  }
   return compound
 }
 

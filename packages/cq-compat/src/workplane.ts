@@ -4592,7 +4592,7 @@ export async function planarCap(
   if (onPlane.length === 0) throw new Error('[cq-compat] planarCap: no boundary edges found on plane')
 
   // 2) Chain unordered edges into closed wires (ConnectEdgesToWires port).
-  const pool = onPlane.map((e) => edgeEndsRaw(k, e))
+  const pool = onPlane.map((e) => edgeEndsRaw(k as unknown as OcctKernel, e))
   const dist3 = (a: { x: number; y: number; z: number }, b: { x: number; y: number; z: number }) =>
     Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z)
   const used = new Array<boolean>(pool.length).fill(false)

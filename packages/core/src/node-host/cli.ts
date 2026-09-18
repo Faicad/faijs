@@ -539,6 +539,25 @@ function writeAssemblyStep(
     const children = (compound as { children?: Shape[] }).children ?? []
     for (let i = 0; i < behavior.memberNames.length; i++) {
       const memberName = behavior.memberNames[i]
+      // Preferred: read the member's LIVE identity slot (brepOf) — assembly
+      // transforms are baked into slot.solid by the executor's
+      // applyPendingAssemblyTransforms AFTER this statement, so the brepSolids
+      // snapshot (registered at member creation) may hold the PRE-transform
+      // handle. GOTCHA: don't reorder — brepSolids entries are stale for
+      // transformed members.
+      const child = children[i]
+      const liveSolid = child ? (brepOf(child) as BrepHandle | undefined) : undefined
+      if (liveSolid) {
+        if (!kernel) kernel = execResult.brepSolids?.values().next().value?.kernel ?? null
+        if (kernel) {
+          entries.push({
+            solid: liveSolid,
+            name: memberName,
+            color: behavior.memberColors?.[memberName],
+          })
+          continue
+        }
+      }
       const solidEntry = execResult.brepSolids?.get(asPartName(memberName))
       if (solidEntry) {
         if (!kernel) kernel = solidEntry.kernel
@@ -547,19 +566,6 @@ function writeAssemblyStep(
           name: memberName,
           color: behavior.memberColors?.[memberName],
         })
-        continue
-      }
-      const child = children[i]
-      const solid = child ? (brepOf(child) as BrepHandle | undefined) : undefined
-      if (solid) {
-        if (!kernel) kernel = execResult.brepSolids?.values().next().value?.kernel ?? null
-        if (kernel) {
-          entries.push({
-            solid,
-            name: memberName,
-            color: behavior.memberColors?.[memberName],
-          })
-        }
       }
     }
   }

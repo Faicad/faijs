@@ -43,6 +43,14 @@
     "acceptance": "global 求解器输出 AssemblyTransform 直接 vs mini_lathe_poses.json 的 4x4 matrix（translation + quaternion），逐成员进公差即验收通过；chain 现状（未堆叠）不作为 global 验收门槛。"
   },
 
+  "global_solver_performance": {
+    "measured": "2026-09-18",
+    "subject": "mini_lathe 6 成员 / 8 约束，behavior.solveDetailed()（global 路径，纯 TS 求解器）",
+    "mean_per_solve_ms": 5.206,
+    "method": "warmup 5 次后连续 50 次计时取均值（Node 22.22.2-3，Windows）",
+    "repro": "node_modules/.bin/tsx packages/mini_lathe/scripts/dbg-time-solve.ts（临时探针脚本，计时逻辑见 git 历史）"
+  },
+
   "repro": {
     "cq_reference": "C:\\Users\\ylt\\cadquery-env\\Scripts\\python.exe packages/mini_lathe/scripts/export-cadquery-ref.py  ->  out/ref/mini_lathe_poses.json",
     "faijs_chain_export": "pwsh -NoProfile packages/mini_lathe/scripts/export-all.ps1  ->  out/mini_lathe.step",
