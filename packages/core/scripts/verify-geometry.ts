@@ -73,9 +73,16 @@ async function main(): Promise<void> {
     console.error('no PartDesign::Body Tip found in Document.xml');
     process.exit(1);
   }
-  // the Tip object's Shape property references its .brp member
+  // The Tip object's `Shape` property references its .brp member. GOTCHA: a
+  // PartDesign feature carries BOTH `AddShape` (the feature's own additive
+  // contribution) and `Shape` (the final fused result) as PropertyPartShape —
+  // they are different .brp files. Taking the FIRST `file="...brp"` in the
+  // object block (alphabetical property order puts `AddShape` first) silently
+  // compares against the wrong solid (PadTest: AddShape diag 81.01 vs Shape
+  // diag 159.35). Always select the `Shape` property explicitly.
   const tipRe = new RegExp(`<Object name="${tipObj}">(.*?)</Object>`, 's');
-  const tipBrp = /file="([^"]+\.brp)"/.exec(tipRe.exec(docXml)?.[1] ?? '')?.[1];
+  const tipBlock = tipRe.exec(docXml)?.[1] ?? '';
+  const tipBrp = /<Property name="Shape"[^>]*>\s*<Part file="([^"]+\.brp)"/.exec(tipBlock)?.[1];
   if (!tipBrp) {
     console.error(`Tip "${tipObj}" has no .brp shape member`);
     process.exit(1);
