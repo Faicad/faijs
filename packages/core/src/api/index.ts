@@ -52,11 +52,14 @@ export type { ShapeSlot, SolidShape, CompoundShape, StdShape, ShapeKind } from '
 //    这批 op 经 `compatOp(projectBrepOp(…))` 包装，faijs 形态（Shape 进 / Shape 出、
 //    布尔双形态、brep-only），TS 侧与 `.fai.js` 侧同语义。
 export * from './generated/script-face'
-// P25: compat extrude/revolve (brep-only, face→prism / face→lathe) are pulled
-// from generated/operations so the TS surface and the cad scripting surface
-// share one definition. The fcstd codegen wires Pad/Pocket/Extrusion/Revolution
-// through these (sketch face → cad.extrude / cad.revolve).
-export { extrude, revolve } from './generated/operations'
+// P25: compat extrude/revolve (brep-only, face→prism / face→lathe) share one
+// definition between the TS surface and the cad scripting surface. The fcstd
+// codegen wires Pad/Pocket/Extrusion/Revolution through these (sketch face →
+// cad.extrude / cad.revolve).
+// extrude 是平台手写 op（承载 upTo；长度形态委托生成投影）——见 api/extrude.ts；
+// revolve 仍直接取生成投影。
+export { extrude } from './extrude'
+export { revolve } from './generated/operations'
 //
 // ② brepjs 形态的 TS 兼容面（P21）以 `brepjsCompat` 命名空间整体导出（库作者面：
 //    句柄进出、Result 语义）。**op 符号不在此处平铺**——`brepjsCompat.fuse`（brepjs

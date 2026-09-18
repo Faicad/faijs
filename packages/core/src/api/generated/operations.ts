@@ -146,7 +146,7 @@ export { isInstanced } from '../../vendored/brepjs/operations/instanceFns.js'
 
 /**
  * extrude — brepjs 投影（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
- * extrude(face: Shape, height?: number|Vec3) → Shape
+ * extrude(face: Shape, height: number|Vec3) → Shape｜extrude(face: Shape, params: { length? | upTo, normal?, mode?, baseFeature?, offset? }) → Shape
  * 桥接：compatOp(projectBrepOp(…))——单内核断言 + D11 归一 + 语句边界六步契约（§4.3.2）。
  */
 export const extrude = compatOp(

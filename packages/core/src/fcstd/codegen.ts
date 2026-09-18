@@ -9,7 +9,7 @@
  */
 import type { FcstdDocument } from './document.js';
 import type { CadCall, TranslateVerdict } from './feature-translate.js';
-import { translateObject, isJsExpr } from './feature-translate.js';
+import { translateObject, isJsExpr, jsExpr } from './feature-translate.js';
 import type { Contour } from './contour.js';
 import { type Placement, isIdentityPlacement, quatToEulerXYZDeg } from './placement.js';
 
@@ -66,6 +66,30 @@ function depsOf(obj: FcstdDocument['objects'][number]): string[] {
 }
 
 /**
+ * GOTCHA (PadTest V6 failure): a `PartDesign::Body`'s feature list lives in
+ * DIFFERENT properties depending on the FreeCAD version —
+ *   - modern (0.19+): `Model` (App::PropertyLinkList), ordered
+ *   - legacy: `Group` (App::PropertyLinkList)
+ * The Tip is `Body.Tip`. Reading only `Group` on a modern document yields an
+ * empty list → no same-Body chaining → features degrade to a loose
+ * `cad.group` of overlapping siblings (PadTest rebuilt volume ≈ 5.2× the Tip's,
+ * bboxDiag ≈ 2×). Prefer `Model`, fall back to `Group`.
+ */
+function bodyFeatureNames(obj: FcstdDocument['objects'][number]): string[] {
+  for (const prop of ['Model', 'Group']) {
+    const list = obj.properties.get(prop)?.children[0];
+    if (!list) continue;
+    const names: string[] = [];
+    for (const link of list.children) {
+      const v = link.attributes['value'];
+      if (v) names.push(v);
+    }
+    if (names.length > 0) return names;
+  }
+  return [];
+}
+
+/**
  * M5.1/M5.2 — translate every object in dependency order and lower to JS.
  * `sketchVerdict` supplies the M3 outcome per sketch object name; sketches
  * whose contour feeds a Pad/Pocket appear as inputs.
@@ -92,10 +116,8 @@ export function generateModel(
   const groupSeq: string[] = [];
   for (const obj of doc.objects) {
     if (obj.type !== 'PartDesign::Body') continue;
-    const list = obj.properties.get('Group')?.children[0];
-    for (const link of list?.children ?? []) {
-      const m = link.attributes['value'];
-      if (m && byName.has(m) && !groupSeq.includes(m)) groupSeq.push(m);
+    for (const m of bodyFeatureNames(obj)) {
+      if (byName.has(m) && !groupSeq.includes(m)) groupSeq.push(m);
     }
   }
   const iterationOrder = [
@@ -132,10 +154,8 @@ export function generateModel(
   const memberToBody = new Map<string, string>();
   for (const obj of doc.objects) {
     if (obj.type !== 'PartDesign::Body') continue;
-    const list = obj.properties.get('Group')?.children[0];
-    for (const link of list?.children ?? []) {
-      const m = link.attributes['value'];
-      if (m && !memberToBody.has(m)) memberToBody.set(m, obj.name);
+    for (const m of bodyFeatureNames(obj)) {
+      if (!memberToBody.has(m)) memberToBody.set(m, obj.name);
     }
   }
   const chainVar = new Map<string, string>(); // body name → accumulated var
@@ -198,33 +218,6 @@ export function generateModel(
         call.out = v;
         calls.push(call);
       }
-      // M9.4 (D-C): fold the feature into its Body's chain. Pocket/Cut
-      // subtract from the chain; everything else unions onto it. The first
-      // feature in Body.Group order becomes the chain base — no cad.group
-      // inside a Body. Body itself is not a translated object here, so the
-      // chain var is just carried; consumers (M10) will read chainVar.
-      const body = memberToBody.get(name);
-      const isSubtractive = obj.type === 'PartDesign::Pocket' || obj.type === 'Part::Cut';
-      if (body) {
-        const featureVar = verdict.calls.at(-1)!.out;
-        const prev = chainVar.get(body);
-        if (!prev) {
-          chainVar.set(body, featureVar); // base feature
-        } else if (isSubtractive && verdict.calls.at(-1)!.op === 'cad.subtract' && verdict.calls.at(-1)!.inputs.includes(prev)) {
-          // Pocket already subtracted from the chain var itself (BaseFeature
-          // resolved to the chain) — its output IS the new chain head; no
-          // extra subtract (would cut twice).
-          chainVar.set(body, featureVar);
-        } else if (isSubtractive) {
-          const nv = newVar();
-          calls.push({ out: nv, op: 'cad.subtract', source: name, inputs: [prev, featureVar], params: {} });
-          chainVar.set(body, nv);
-        } else {
-          const nv = newVar();
-          calls.push({ out: nv, op: 'cad.union', source: name, inputs: [prev, featureVar], params: {} });
-          chainVar.set(body, nv);
-        }
-      }
       // M8.3: features build in sketch-local coordinates (cad.sketch lays the
       // face on local XY; extrude runs along local +Z). Re-orient the final
       // solid by the OBJECT's own Placement: rotate_euler then translate, so
@@ -250,6 +243,50 @@ export function generateModel(
         }
         // the object's variable is now the fully placed result
         variables.set(name, cur);
+      }
+      // M9.4 (D-C): fold the feature into its Body's chain — AFTER the placement
+      // step so the chain accumulates the PLACED feature shape. Pocket/Cut
+      // subtract from the chain; everything else unions onto it. The first
+      // feature in the Body's feature list (Model/Group) order becomes the
+      // chain base — no cad.group inside a Body; consumers (M10) read chainVar.
+      // GOTCHA (PadTest V6): folding the UNPLACED feature var (the old order)
+      // left the chain head in sketch-local space while each feature's Placement
+      // was applied to a separate, unused variable → the exported body spanned
+      // both the local and the placed copies (~2× bboxDiag, ~5× volume).
+      const body = memberToBody.get(name);
+      const isSubtractive = obj.type === 'PartDesign::Pocket' || obj.type === 'Part::Cut';
+      if (body) {
+        const prev = chainVar.get(body);
+        // UpToLast/UpToFirst: FreeCAD's "up to" support is the Body's ACCUMULATED
+        // shape, NOT only the immediate BaseFeature link — retarget the kernel
+        // ref at the chain head (prev). GOTCHA (PadTest V6): truncating against
+        // the immediate BaseFeature (a small Pad001 disc) left an 8.06% volume
+        // deficit vs the Tip; against the accumulated chain it drops to 3.20%
+        // (bbox already exact at delta 0).
+        if (prev) {
+          for (const c of verdict.calls) {
+            if (c.op === 'cad.extrude' && c.params.baseFeature !== undefined) {
+              c.params.baseFeature = jsExpr(prev);
+            }
+          }
+        }
+        const featureVar = variables.get(name) ?? verdict.calls.at(-1)!.out;
+        if (!prev) {
+          chainVar.set(body, featureVar); // base feature
+        } else if (isSubtractive && verdict.calls.at(-1)!.op === 'cad.subtract' && verdict.calls.at(-1)!.inputs.includes(prev)) {
+          // Pocket already subtracted from the chain var itself (BaseFeature
+          // resolved to the chain) — its output IS the new chain head; no
+          // extra subtract (would cut twice).
+          chainVar.set(body, featureVar);
+        } else if (isSubtractive) {
+          const nv = newVar();
+          calls.push({ out: nv, op: 'cad.subtract', source: name, inputs: [prev, featureVar], params: {} });
+          chainVar.set(body, nv);
+        } else {
+          const nv = newVar();
+          calls.push({ out: nv, op: 'cad.union', source: name, inputs: [prev, featureVar], params: {} });
+          chainVar.set(body, nv);
+        }
       }
       results.push({ name, type: obj.type, variable: verdict.calls.at(-1)?.out, calls: verdict.calls, disposition: 'translated', reason: verdict.reason });
     } else if (verdict.kind === 'baked') {
@@ -286,32 +323,25 @@ export function generateModel(
   if (bodiesWithGeo.size > 0) {
     const mainCalls: CadCall[] = [];
     const perBody = new Map<string, CadCall[]>();
+    // M10c partition in DEPENDENCY ORDER: `calls` is already topologically
+    // sorted, so ONE forward pass assigns each call — to its own source's Body
+    // when known (`callBody`), else to the Body its first body-owned input went
+    // to. GOTCHA (PadTest V6): the previous implementation re-assigned such
+    // calls by APPENDING them to the end of the Body file, which broke
+    // dependency order — a Body file ended up referencing a variable declared
+    // further down (`let` TDZ ReferenceError at run time: `part8` used `part6`).
+    // Filtering `calls` in place preserves the topological order.
+    const assigned = new Map<string, string>(); // call.out → Body file name
     for (const c of calls) {
-      const b = callBody.get(c.out) ?? (c.op === 'cad.union' || c.op === 'cad.subtract' ? callBody.get(c.inputs[0] ?? '') : undefined);
-      if (b && bodiesWithGeo.has(b)) {
+      const own = callBody.get(c.out);
+      const viaInput = c.inputs.map((inp) => assigned.get(inp)).find((b) => b !== undefined);
+      const b = own !== undefined && bodiesWithGeo.has(own) ? own : viaInput;
+      if (b !== undefined && bodiesWithGeo.has(b)) {
         if (!perBody.has(b)) perBody.set(b, []);
         perBody.get(b)!.push(c);
+        assigned.set(c.out, b);
       } else {
         mainCalls.push(c);
-      }
-    }
-    // M10c closure: a main call consuming a Body-file variable must move into
-    // that Body file, otherwise main references an undeclared identifier
-    // (SEC_FREE_IDENT). Repeat until stable (chains can cross several calls).
-    let moved = true;
-    while (moved) {
-      moved = false;
-      const outs = new Map<string, string>();
-      for (const [b, cs] of perBody) for (const c of cs) outs.set(c.out, b);
-      for (let i = mainCalls.length - 1; i >= 0; i--) {
-        const c = mainCalls[i]!;
-        const target = c.inputs.map((inp) => outs.get(inp)).find((b) => b !== undefined);
-        if (target !== undefined) {
-          perBody.get(target)!.push(c);
-          outs.set(c.out, target);
-          mainCalls.splice(i, 1);
-          moved = true;
-        }
       }
     }
     for (const b of bodiesWithGeo) {
@@ -333,7 +363,12 @@ export function generateModel(
     lines.push(`// Generated by faijs FCStd port — ${baseName} (aggregate entry)`);
     lines.push(`// Units: mm (faijs contract; FCStd internal units are mm)`);
     const members = [...bodiesWithGeo].map((b) => `${b}_out`);
-    if (members.length > 1 || mainCalls.some((c) => c.op === 'cad.group')) {
+    // Always import the per-Body terminals: the aggregate entry references
+    // `<Body>_out` in BOTH the cad.group (multi-Body) and the single-Body alias
+    // path, so a missing import is a SEC_FREE_IDENT parse error (GOTCHA: the
+    // single-Body branch previously emitted `let part_out = <Body>_out;` with
+    // no import). `mainCalls` may still be empty here.
+    if (members.length >= 1) {
       for (const b of bodiesWithGeo) {
         lines.push(`import { ${b}_out } from './${b}.fai.js'; // module ${b}`);
       }

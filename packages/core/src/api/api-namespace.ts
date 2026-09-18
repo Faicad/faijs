@@ -11,6 +11,9 @@
 import { box, sphere, cylinder, cone, wedge } from './primitives'
 import { translate, rotate_euler, scale, scale3d } from './transform'
 import { fai_extrude } from './fai_extrude'
+// cad.extrude 是平台手写 op（承载 upTo；长度形态委托 generated/operations 的投影），
+// 见 api/extrude.ts 的分层说明——up-to 不落在 fai_extrude。
+import { extrude } from './extrude'
 import { knurl } from './knurl'
 import { sdf } from './sdf'
 import { text } from './text'
@@ -32,7 +35,7 @@ import { faceRef } from './face-ref'
 import { jointTrajectory, inverseKinematics, mechanismDOF } from './assembly'
 import { asset } from './asset'
 import { scriptFaceOps } from './generated/script-face'
-import { extrude, revolve } from './generated/operations'
+import { revolve } from './generated/operations'
 import { CONTRACT_VERSION } from '../runtime-state'
 import type { StdlibNamespace } from '../runtime-state'
 

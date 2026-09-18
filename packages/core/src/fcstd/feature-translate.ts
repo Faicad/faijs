@@ -470,7 +470,7 @@ export function translateObject(
             return { kind: 'baked', reason: 'uptoface-datum-plane-degenerate-distance' };
           }
           // C2.2 (extrude-upto-face §4.3-C2 point 2): solid-feature target →
-          // reference its face by ordinal via `cad.fai_extrude({ upTo:
+          // reference its face by ordinal via `cad.extrude({ upTo:
           // cad.faceRef(targetVar, N) })`. faceRef's ordinal is calibrated to
           // match FreeCAD's `FaceN` (R-A, same TopExp::MapShapes + IndexedMap
           // enumeration as edgeRef); the runtime naming layer resolves the ref
@@ -484,7 +484,7 @@ export function translateObject(
                   kind: 'translated',
                   reason: 'uptoface-via-faceRef',
                   calls: [{
-                    out, op: 'cad.fai_extrude', source: obj.name, inputs: [profileVar],
+                    out, op: 'cad.extrude', source: obj.name, inputs: [profileVar],
                     params: { upTo: jsExpr(`cad.faceRef(${targetVar}, ${faceN})`) },
                   }],
                 };
@@ -498,9 +498,10 @@ export function translateObject(
       }
       if (ftype === 'UpToLast' || ftype === 'UpToFirst') {
         // plan §4.3-C2: UpToLast/UpToFirst extrude to the far/near face of the
-        // support (BaseFeature). The kernel up-to ('last'/'first' mode) does the
-        // truncation; baseFeature must be resolvable or we bake explicitly — no
-        // silent bbox-derived length guess.
+        // support (BaseFeature) via `cad.extrude({ upTo: 'last' | 'first' })`
+        // (up-to lives on the platform op cad.extrude, never on fai_extrude).
+        // The kernel up-to does the truncation; baseFeature must be resolvable
+        // or we bake explicitly — no silent bbox-derived length guess.
         const base = propLink(obj, 'BaseFeature');
         const baseVar = base ? inputVar(base) : undefined;
         if (!baseVar) return { kind: 'baked', reason: 'pad-upTo-missing-base' };
@@ -509,7 +510,7 @@ export function translateObject(
           kind: 'translated',
           reason: `pad-${ftype}-via-baseFeature`,
           calls: [{
-            out, op: 'cad.fai_extrude', source: obj.name, inputs: [profileVar],
+            out, op: 'cad.extrude', source: obj.name, inputs: [profileVar],
             params: { upTo, baseFeature: jsExpr(baseVar) },
           }],
         };

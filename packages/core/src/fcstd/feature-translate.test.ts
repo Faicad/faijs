@@ -310,7 +310,7 @@ describe('M4.6c Pad UpToLast/UpToFirst (extrude-upto-face §4.3-C2)', () => {
     }];
   }
 
-  it('translates Pad UpToLast as cad.fai_extrude upTo:"last" with baseFeature ref', () => {
+  it('translates Pad UpToLast as cad.extrude upTo:"last" with baseFeature ref', () => {
     const base = obj('PartDesign::Pad', 'BasePad', [enumProp('Type', '0'), linkProp('Profile', 'Sketch0')]);
     const pad = obj('PartDesign::Pad', 'Pad002', [
       linkProp('Profile', 'Sketch001'),
@@ -325,7 +325,7 @@ describe('M4.6c Pad UpToLast/UpToFirst (extrude-upto-face §4.3-C2)', () => {
     expect(v.kind).toBe('translated');
     if (v.kind === 'translated') {
       const call = v.calls[0]!;
-      expect(call.op).toBe('cad.fai_extrude');
+      expect(call.op).toBe('cad.extrude');
       expect(call.inputs).toEqual(['sketch0']);
       expect(call.params.upTo).toBe('last');
       const bf = call.params.baseFeature;
@@ -334,7 +334,7 @@ describe('M4.6c Pad UpToLast/UpToFirst (extrude-upto-face §4.3-C2)', () => {
     }
   });
 
-  it('translates Pad UpToFirst as cad.fai_extrude upTo:"first"', () => {
+  it('translates Pad UpToFirst as cad.extrude upTo:"first"', () => {
     const base = obj('PartDesign::Pad', 'BasePad', [enumProp('Type', '0'), linkProp('Profile', 'Sketch0')]);
     const pad = obj('PartDesign::Pad', 'Pad001', [
       linkProp('Profile', 'Sketch001'),
@@ -349,7 +349,7 @@ describe('M4.6c Pad UpToLast/UpToFirst (extrude-upto-face §4.3-C2)', () => {
     expect(v.kind).toBe('translated');
     if (v.kind === 'translated') {
       const call = v.calls[0]!;
-      expect(call.op).toBe('cad.fai_extrude');
+      expect(call.op).toBe('cad.extrude');
       expect(call.params.upTo).toBe('first');
       const bf = call.params.baseFeature;
       expect(isJsExpr(bf) ? bf.__jsExpr : bf).toBe('base0');
@@ -385,7 +385,7 @@ describe('M4.6d Pad UpToFace solid-face (extrude-upto-face §4.3-C2.2)', () => {
   }
   // linkSubProp is module-level (defined near the top of this file).
 
-  it('translates Pad UpToFace solid-face as cad.fai_extrude upTo: cad.faceRef(targetVar, N)', () => {
+  it('translates Pad UpToFace solid-face as cad.extrude upTo: cad.faceRef(targetVar, N)', () => {
     const target = obj('PartDesign::Pad', 'OtherPad', [enumProp('Type', '0'), linkProp('Profile', 'Sketch0')]);
     const pad = obj('PartDesign::Pad', 'Pad001', [
       linkProp('Profile', 'Sketch001'),
@@ -400,7 +400,7 @@ describe('M4.6d Pad UpToFace solid-face (extrude-upto-face §4.3-C2.2)', () => {
     expect(v.kind).toBe('translated');
     if (v.kind === 'translated') {
       const call = v.calls[0]!;
-      expect(call.op).toBe('cad.fai_extrude');
+      expect(call.op).toBe('cad.extrude');
       expect(call.inputs).toEqual(['sketch0']);
       // FaceN ordinal passes through verbatim into the faceRef argument;
       // faceRef's enum order is calibrated to FreeCAD's FaceN (plan R-A).

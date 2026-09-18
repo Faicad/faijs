@@ -1,8 +1,9 @@
 # Extrude UpToFace/UpToLast 支持方案（打通 Pad up-to 链路，V6 翻绿）
 
 > 日期：2026-09-18
-> 状态：方案（未实施）
+> 状态：实施中。A / B / C1 / C2（C2.1 UpToLast+UpToFirst、C2.2 实体面 faceRef）已落地；C2.3（Pocket 的 UpToFirst/UpToFace）在本地语料零覆盖、未接线；D 未达标（PadTest relErr 3.20%、bboxDiag delta 0，门槛 <1%）。
 > 前置：M9 已落地 `Length`/`TwoLengths`（`feature-translate.ts`），UpToFace/UpToLast 显式烘焙（reason `pad-type-*-unsupported`）
+> 落点订正（2026-09-18，见 §4.2 订正块）：B 阶段曾把 up-to 实现落在 `api/fai_extrude.ts`，与 §4.2/§4.3 约定的 `cad.extrude` 及 2026-09-15 port plan M4.6「原 `cad.fai_extrude` 路线废弃」冲突；已回退并迁到 `api/extrude.ts`（`cad.extrude` 提升为手写平台 op）。
 
 ## 1. 用户原始要求（原文引用）
 
@@ -60,10 +61,17 @@
 参数形态（具名参数新增一项，向后兼容）：
 
 ```js
-cad.extrude(sketch, { length: 10 })                 // 现有：不变
+cad.extrude(sketch, [0, 0, 10])                     // 现有位置形态（产物在用）：方向 × 长度
+cad.extrude(sketch, { length: 10 })                 // 对象形态（新增，与位置形态同几何）
 cad.extrude(sketch, { upTo: cad.faceRef(p0, 3) })   // 新：拉伸到 p0 的第 3 面
 cad.extrude(sketch, { upTo: 'last' })               // 新：拉伸到沿线方向遇到的最后一个面（UpToLast）
 ```
+
+**订正（2026-09-18 实测）**：本节原稿写「现有：`cad.extrude(sketch, { length: 10 })` 不变」——**该前提不成立**。实测 `cad.extrude` 是生成投影 `compatOp(projectBrepOp('extrude', ['face','height'], 'A', vendoredExtrude))`，vendored 签名为 `extrude(face, extrusionVec: Vec3)`，即只有**位置形态**；`api/internal/dual-form-args.ts` 的 D11 归一化只在「单 plain-object 形态」下按 params 表映射，`(face, { length })` 属位置形态 → 原样喂给 vendored → `vecLength({length:3})` 得 NaN → 报错。产物里能跑的只有 `cad.extrude(part0, [0,0,100])`。
+
+由此还有第二个硬约束：compatOp 的入参先经 `borrowDeep` 借成 brepjs 视图（`api/internal/compat-op.ts`），在那一层 `brepOf()` 取不到——依赖 `faceRef` / `brepOf` / 内核直调的 up-to 实现在该层**必然走空**（同 AGENTS.md 记录的「compatOp 自动提升边界」）。
+
+**落点订正**：因此 B 的落点是「把 `cad.extrude` 从生成投影提升为**手写平台 op**」（`api/extrude.ts`，`defineOp` 形态），长度形态**委托**生成投影（vendored 仍是唯一拉伸引擎，`cad.extrude(face, [x,y,z])` 语义零漂移），up-to 组合实现在本 op 内。先例现成：arg-spec 的 `fillet` 条目即「faijs 侧由手写 dual-op 覆盖，生成模块符号为孤儿 by design」。up-to **不得**落在 `fai_extrude`——`fai_` 前缀是 faijs 扩展 op（与 `fai_drill` / `fai_split` 同族，mesh+brep 双实现），FCStd 移植已在 M4.6 明确废弃该路线。
 
 内核实现（`cad` 命名空间 `extrude` 的 brep 实现，新增分支）：
 
@@ -95,11 +103,11 @@ cad.extrude(sketch, { upTo: 'last' })               // 新：拉伸到沿线方�
 
 | 阶段 | 内容 | 完成定义（DoD） |
 |---|---|---|
-| A | `cad.faceRef` + `getFaces` 序数标定探针 | 单测：faceRef→fillet/extrude 引用同一面；探针脚本留档 |
-| B | 内核 up-to 组合实现 + `extrude` 参数面 | 单测：平面 UpToFace/UpToLast/UpToFirst/Offset 四用例；非平面显式报错用例 |
-| C1 | 转换器：UpToFace→基准面距离路径（PadTest Pad001） | PadTest 转换产物含该 Pad 的 extrude 语句，check 零错误 |
-| C2 | 转换器：实体面引用路径 + UpToLast/UpToFirst + Pocket 同批 | 白名单样本 UpTo 类 zero-bake；e2e golden 基线更新 |
-| D | V6 验收 | `verify-geometry.ts` PadTest relErr < 1% + bboxDiag delta < 0.5（V6 门槛）；fcstd 单测全绿；e2e 全绿 |
+| A | `cad.faceRef` + `getFaces` 序数标定探针 | 已落地（`api/face-ref.ts` + `face-ref.test.ts` 3 用例） |
+| B | 内核 up-to 组合实现 + `cad.extrude` 参数面（落点见 §4.2 订正：手写平台 op） | 已落地：`api/extrude.ts`（up-to 半空间组合 + 长度形态委托生成投影）；`api/extrude-upto.test.ts` 7 用例（faceRef / UpToLast / offset / 缺 baseFeature 显式报错 / 位置-对象形态同几何 / backward） |
+| C1 | 转换器：UpToFace→基准面距离路径（PadTest Pad001） | 已落地：产物含 `cad.extrude(part3, [0,0,10.0])`，mapping 记 `uptoface-via-datum-plane-distance`，check 零错误 |
+| C2 | 转换器：实体面引用路径 + UpToLast/UpToFirst + Pocket 同批 | C2.1（UpToLast/UpToFirst → `cad.extrude({ upTo, baseFeature })`）与 C2.2（实体面 → `cad.faceRef`）已落地；**C2.3（Pocket 的 UpToFirst/UpToFace）未接线**——本地 56 样本里 Pocket 只有 Length(14) 与 ThroughAll(5)，UpTo 变体零覆盖，无可端到端验证的样本 |
+| D | V6 验收 | **未达标**：PadTest relErr 3.20%（门槛 <1%）、bboxDiag delta 0（达标）、centroid 1.67；fcstd 套件 118/118 绿、e2e 跑通出 STEP |
 
 验证命令（复现）：
 
@@ -120,7 +128,8 @@ npx tsx packages/core/scripts/verify-geometry.ts D:/Faicad/FreeCAD/data/tests/Pa
 | R-D | 白名单外的 Pocket Type 变体（ThroughAll 已烘焙） | 本方案不动 ThroughAll 口径 |
 | R-E | 基准面距离路径与 faceRef 路径语义重叠 | 优先基准面距离路径（更稳），实体面路径仅在其不可用时启用 |
 
-## 7. 待定项（需用户拍板）
+## 7. 待定项
 
-1. 阶段顺序按 A→B→C1→C2→D 串行执行是否可以（建议：可以，C1 先独立翻掉 PadTest 的 Pad001）。
-2. `upTo: 'last'` 的字符串字面量形态 vs `upToLast: true` 布尔形态——方案倾向字符串字面量（与 faceRef 同参数位，语义集中）。
+1. 阶段顺序 A→B→C1→C2→D 串行执行——已按此执行。
+2. `upTo: 'last'` 字符串字面量 vs `upToLast: true` 布尔——**已定为字符串字面量**（`api/extrude.ts`，与 `faceRef` 同参数位，语义集中）。
+3. **未决（D 未达标的根因）**：PadTest 重建体积偏小 3.20%（bbox 已精确吻合）。已知线索：Pad001 的真值贡献是「沿 X 轴、从草图面 x=10 向 −X 拉伸」的圆柱，而草图/特征的 Placement 帧与此不一致（特征放置语义），需单独定位；在本项解决前 D 不可宣称达标。

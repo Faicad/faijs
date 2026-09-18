@@ -114,6 +114,9 @@ describe('M5 codegen', () => {
     expect(pad2).toMatchObject({ disposition: 'translated' });
     expect(r2.code).toContain('cad.sketch');
     expect(r2.code).toContain('cad.extrude');
+    // 分层红线：FCStd 链路一律落 cad.extrude（up-to 亦在平台 op 上）。历史上
+    // 曾把 up-to 落到已废弃的 cad.fai_extrude 路线（M4.6 明确废弃），这条断言
+    // 就是防它回流。
     expect(r2.code).not.toContain('cad.fai_extrude');
   });
 

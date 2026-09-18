@@ -43,6 +43,7 @@ export interface CadAPI {
   fai_drill(shape: Shape, params: { diameter: number; depth?: number; holeType?: string; direction?: string; tolerance?: number; position?: any; faceNormal?: any; screwSystem?: string; screwSpecIdx?: number; screwThread?: string; screwHead?: string }): Promise<Shape>
 
   // ── 拉伸 ──
+  extrude(shape: Shape, params: { length?: number; normal?: [number, number, number]; mode?: string; upTo?: any; baseFeature?: Shape; offset?: number }): Promise<Shape>
   fai_extrude(shape: Shape, params: { length: number; mode?: string; normal?: [number, number, number]; originOffset?: number; space?: string }): Promise<Shape>
 
   // ── 雕刻 ──
