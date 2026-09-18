@@ -23,7 +23,7 @@ import { getSlot, brepOf } from '@faicad/faijs-core/shape'
 import { getBackends } from '@faicad/faijs-core/runtime-state'
 import type { BrepEngineApi } from '@faicad/faijs-core/brep/engine/primitives'
 import type { RGB } from './workplane'
-import { resolveFaceSelector } from './workplane'
+import { resolveFaceSelector, asBrepShape } from './workplane'
 
 const cad = createApiNamespace() as Record<string, (...args: unknown[]) => Promise<unknown>>
 
@@ -129,6 +129,7 @@ function parseCoords(sel: string): [number, number, number] | null {
  * 返回第一条足够圆的边的轴。无内核/无圆边时抛错。
  */
 async function resolveAxisRef(part: string, shape: Shape): Promise<EntityRef> {
+  shape = asBrepShape(shape) // 提升边界：实参可能是借用视图
   const handle = brepOf(shape)
   const kernel = getBackends().kernel.brep as BrepEngineApi | null
   if (!handle || !kernel) throw new Error(`[cq-compat] axisRef: BREP unavailable for part "${part}"`)
@@ -247,13 +248,21 @@ function det3(m: number[][]): number {
  *
  * 映射（对齐 global 求解器 consuming 的 AssemblyConstraint）：
  * - 'Plane'    → [mate]（faceRef→plane）
- * - 'Axis'     → [align]（faceRef→plane，轴编码）
+ * - 'Axis'     → [angle:180]（纯方向反平行、无点项——CQ 2.8.0 `axis_cost` 缺省语义）
  * - 'Point'    → [coincident]（selector 为字面坐标 "x,y,z"）
  * - 'Cylinder' → [concentric, coincident(point_on_line)]（圆边解析轴）
  * - 'Distance' → [distance(value)]（point-point 或 plane-plane）
  * - 'Fixed'    → [fixed]（aPart 锁定）
  * - 'Revolute' → [fixed]（暂降级为锚定占位；旋转 DOF 后续走 joints 机制）
  *
+ * @param aPart A 侧成员名。
+ * @param aSelector A 侧面选择器字符串（如 ">Z[-2]"）。
+ * @param aShape A 侧成员几何（真实 Shape 或借用视图）。
+ * @param bPart B 侧成员名。
+ * @param bSelector B 侧面选择器字符串。
+ * @param bShape B 侧成员几何（真实 Shape 或借用视图）。
+ * @param kind 约束种类（Plane/Axis/Point/Cylinder/Distance/Fixed/Revolute）。
+ * @param param 可选参数（Distance 的距离值等）。
  * @returns AssemblyConstraint[]（Cylinder 拆两条，其余单条）
  */
 export async function constraintEx(
@@ -269,15 +278,23 @@ export async function constraintEx(
   switch (kind) {
     case 'Plane': {
       if (!aShape || !bShape) throw new Error(`constraintEx Plane: shapes required`)
-      const a = await faceRef(aPart, aSelector, aShape)
-      const b = await faceRef(bPart, bSelector, bShape)
+      // 提升边界归一：实参可能是借用视图（见 asBrepShape 注释）。faceRef 内部
+      // 亦归一，入口再归一保证直接调用路径（不经 compatOp 提升）行为一致。
+      const a = await faceRef(aPart, aSelector, asBrepShape(aShape))
+      const b = await faceRef(bPart, bSelector, asBrepShape(bShape))
       return [{ type: 'mate', a, b } as AssemblyConstraint]
     }
     case 'Axis': {
       if (!aShape || !bShape) throw new Error(`constraintEx Axis: shapes required`)
-      const a = await faceRef(aPart, aSelector, aShape)
-      const b = await faceRef(bPart, bSelector, bShape)
-      return [{ type: 'align', a, b } as AssemblyConstraint]
+      const a = await faceRef(aPart, aSelector, asBrepShape(aShape))
+      const b = await faceRef(bPart, bSelector, asBrepShape(bShape))
+      // GOTCHA (2026-09-17，对照 CQ 2.8.0 `occ_impl/solver.py` 标定)：CQ 独立 Axis 约束是
+      // **纯方向约束**——`ConstraintInvariants["Axis"]` 只收两个 gp_Dir（无点项），
+      // `axis_cost` 缺省 `val = pi`（反平行）。此前误映射为 'align'（同向 val=0 + 面心
+      // 重合）属双重分歧：mini_lathe e2e 的 c4 被拖向 mb z=-1（参考 +6.1），且凭空多出一
+      // 个 CQ 没有的面心重合项。'angle' 在求解器里正是纯方向项（global-solver.ts
+      // case 'angle'：axis 成本、无点项），value 单位 deg（180 = 反平行）。
+      return [{ type: 'angle', value: 180, a, b } as AssemblyConstraint]
     }
     case 'Point': {
       const pa = parseCoords(aSelector)
@@ -328,7 +345,11 @@ export function buildAssembly(
   constraints: AssemblyConstraint[],
   opts?: { solver?: 'chain' | 'global' },
 ): CompoundShape {
-  const shapes = members.map((m) => m.shape)
+  // 提升边界归一：经 runtime.execute 时 members[].shape 是借用 brepjs 视图
+  // （borrowDeep 产物），不是 faijs Shape。compound 的 children 必须持有 mesh
+  // （引擎 applyTransform 做顶点烘焙）+ BREP 身份槽（STEP 导出/刚体变换读
+  // slot.solid），借用视图两者皆无 → 必须还原为真实 Shape 再进 assembly。
+  const shapes = members.map((m) => asBrepShape(m.shape))
   const memberNames = members.map((m) => m.name)
   const memberColors: Record<string, [number, number, number]> = {}
   for (const m of members) {

@@ -123,25 +123,27 @@ describe('cq-compat: buildAssembly 默认 global 端到端', () => {
     expect(tB).toBeDefined()
   })
 
-  it('align：B 绕 Y 转 180° 使法向同向、面心重合（global 旋转路径）', async () => {
-    // A 的 +X 面（法向 +X，中心 (50,0,0)）对齐 B 的 -X 面（法向 -X，中心 (-50,0,0)）。
-    // align = 法向平行 + 面心重合 → B 绕 Y 轴转 180°，B 的 -X 面心落到 (50,0,0)。
+  it('Axis→angle:180：B 法向反平行、无位置约束（global 纯方向路径，CQ 语义）', async () => {
+    // GOTCHA (2026-09-17，对照 CQ 2.8.0 `occ_impl/solver.py` 标定)：CQ 独立 Axis 约束是
+    // **纯方向约束**（axis_cost 缺省 val=pi 反平行，无点项）。旧映射 'align'（同向 + 面心
+    // 重合）已推翻——本用例即防回归：断言 type==='angle'、无面心重合要求、法向反平行。
+    // A 的 +X 面（法向 +X）与 B 的 -X 面（法向 -X）：反平行解下 B 恒等位姿即满足方向
+    // 约束；位置无任何约束（初始 0 保持 0），**不得**断言面心重合。
     const cons = await cq.constraintEx('A', '>X', boxA, 'B', '<X', boxB, 'Axis')
     expect(cons).toHaveLength(1)
-    const align = cons[0]
-    expect(align.type).toBe('align')
+    const ang = cons[0] as Extract<AssemblyConstraint, { type: 'angle' }>
+    expect(ang.type).toBe('angle')
+    expect(ang.value).toBe(180)
 
-    const aFace = (align.a as { face: { center: [number, number, number]; normal: [number, number, number] } }).face
-    const bFace = (align.b as { face: { center: [number, number, number]; normal: [number, number, number] } }).face
-    const cA = aFace.center
+    const aFace = (ang.a as { face: { center: [number, number, number]; normal: [number, number, number] } }).face
+    const bFace = (ang.b as { face: { center: [number, number, number]; normal: [number, number, number] } }).face
     const nA = aFace.normal
-    const cB = bFace.center
     const nB = bFace.normal
 
     const compound = cq.buildAssembly('asm3', [
       { name: 'A', shape: boxA },
       { name: 'B', shape: boxB },
-    ], [align] as AssemblyConstraint[])
+    ], [ang] as AssemblyConstraint[])
 
     const behavior = getSlot(compound)?.behavior as { solveDetailed: () => { transforms: AssemblyTransform[]; residuals?: number[] } }
     const res = behavior.solveDetailed()
@@ -151,15 +153,12 @@ describe('cq-compat: buildAssembly 默认 global 端到端', () => {
     const tB = res.transforms.find((t) => t.index === 1)
     expect(tB).toBeDefined()
 
-    // align 绕接触法向（此处 +X）有自由旋转 DOF，故不断言具体四元数；
-    // 只验证几何语义：面心重合 + 法向平行（同向）。
-    // 面心重合：B 的 -X 面心变换后 == A 的 +X 面心
-    const worldB = applyAt(tB!, cB)
-    for (let i = 0; i < 3; i++) expect(worldB[i]).toBeCloseTo(cA[i], 3)
-    // 法向平行（同向）：R·nB == nA
+    // 方向约束：nB 经旋转后 == -nA（反平行）
     const rnB = rotAt(tB!, nB)
-    for (let i = 0; i < 3; i++) expect(rnB[i]).toBeCloseTo(nA[i], 3)
-    // 残差 ~0
+    for (let i = 0; i < 3; i++) expect(rnB[i]).toBeCloseTo(-nA[i], 3)
+    // 无点项：位置无约束，B 停在初值（平移 ≈ 0）
+    for (let i = 0; i < 3; i++) expect(tB!.translation[i]).toBeCloseTo(0, 3)
+    // 残差 ~0（方向约束被满足）
     expect(res.residuals![0]).toBeLessThan(1e-6)
   })
 })

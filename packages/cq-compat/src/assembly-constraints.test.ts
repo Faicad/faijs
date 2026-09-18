@@ -1,7 +1,8 @@
 /**
  * cq-compat 约束翻译层单测（P1.5，对齐 assembly-global-solver-plan §4.4）
  *
- * 覆盖 constraintEx 的 7 类映射：Plane→mate / Axis→align / Point→coincident /
+ * 覆盖 constraintEx 的 7 类映射：Plane→mate / Axis→angle:180（纯方向反平行，
+ * 2026-09-17 对照 CQ 2.8.0 solver.py 标定修正，原误映射 align）/ Point→coincident /
  * Cylinder→[concentric,coincident] / Distance→distance / Fixed→fixed /
  * Revolute→fixed（降级占位）。pointRef/axisRef 为字面引用构造（无内核）。
  */
@@ -67,10 +68,17 @@ describe('cq-compat: constraintEx 映射', () => {
     expect('face' in m.b).toBe(true)
   })
 
-  it('Axis → [align]，两侧为 face 引用', async () => {
+  it('Axis → [angle:180]，两侧为 face 引用', async () => {
     const out = await cq.constraintEx('A', '>Z', boxShape, 'B', '>Z', boxShape, 'Axis')
     expect(out).toHaveLength(1)
-    expect(out[0].type).toBe('align')
+    // GOTCHA (2026-09-17)：错误映射是 'align'（同向 val=0 + 面心重合）——CQ 2.8.0 的独立
+    // Axis 约束是**纯方向反平行**（axis_cost 缺省 val=pi，无点项），对齐后为 angle:180。
+    // 误映射会凭空引入 CQ 没有的面心重合项（mini_lathe e2e c4 被拖向 mb z=-1）。
+    expect(out[0].type).toBe('angle')
+    const ang = out[0] as Extract<AssemblyConstraint, { type: 'angle' }>
+    expect(ang.value).toBe(180)
+    expect('face' in ang.a).toBe(true)
+    expect('face' in ang.b).toBe(true)
   })
 
   it('Point → [coincident]，两侧为 point 引用', async () => {
@@ -123,8 +131,9 @@ describe('cq-compat: constraint() 向后兼容', () => {
     const single = await cq.constraint('A', '>Z', boxShape, 'B', '>Z', boxShape, 'Plane')
     expect(single.type).toBe('mate')
   })
-  it('Axis 走 constraint() 等价于 constraintEx', async () => {
+  it('Axis 走 constraint() 等价于 constraintEx（angle:180，非 align）', async () => {
     const single = await cq.constraint('A', '>Z', boxShape, 'B', '>Z', boxShape, 'Axis')
-    expect(single.type).toBe('align')
+    expect(single.type).toBe('angle')
+    expect((single as { value?: number }).value).toBe(180)
   })
 })

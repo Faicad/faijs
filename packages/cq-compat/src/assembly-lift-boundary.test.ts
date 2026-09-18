@@ -1,135 +1,169 @@
 /**
- * cq-compat 装配函数的 op 提升边界 —— 已知缺陷回归守卫（BLOCKED）
+ * cq-compat 装配函数 op 提升边界 —— 回归守卫（缺陷已修复 2026-09-17）
  *
- * GOTCHA（2026-09-17 实测确证）：`runtime.registerLib('cq', cq, …)` 时 cq-compat
- * 命名空间不含任何 dual-op（无 `defineOp` 导出）→ `hasDualOp`=false →
- * `runtime.ts:401` 推断 `lift = true` → `admitCompatLib` 用 `compatOp` 提升**每个**
- * 裸导出函数（brep-only）。`compatOp` 的适配器（`api/internal/compat-op.ts`
- * `buildAdapter`）在调用实现前先 `borrowDeep` 实参：
+ * 历史缺陷（实测确证）：`runtime.registerLib('cq', cq, …)` 时 cq-compat 命名空间
+ * 无 dual-op → lift=true → compatOp 适配器先 `borrowDeep` 实参，把 faijs Shape
+ * 换成借用 brepjs 视图（`isShape=false`、`brepOf=undefined`）→ `resolveFaceSelector`
+ * 落到整形状 bbox 兜底 → `cad.bboxMax` 读 `shape.vertices` undefined
+ * → `TypeError: reading 'length'`。mini_lathe P3 e2e 在第一条约束（c1）即因此失败。
  *
- *     faijs Shape → 借用视图 { wrapped, disposed, delete, onDispose }
+ * 修复：`asBrepShape`（workplane.ts）入口归一——借用视图经 `fromHandle` 还原为
+ * 真实 Shape（三角化 + BREP 身份槽），按视图对象 WeakMap 缓存；调用点：
+ * `resolveFaceSelector` / `constraintEx`(Plane/Axis) / `resolveAxisRef` /
+ * `buildAssembly` members。
  *
- * 该视图 `isShape`=false、`brepOf`=undefined（实测日志见下），于是
- * `resolveFaceSelector` 跳过 BREP 分支，落到 `workplane.ts:631` 的整形状 bbox 兜底
- * → `cad.bboxMax` → `mesh/query.ts:20` 读 `shape.vertices` 为 undefined
- * → `TypeError: Cannot read properties of undefined (reading 'length')`，
- * 再由 `define-op.ts:199 toOpFailure` 包成
- * `[faijs/op] constraint: E_OP_FAILED: Cannot read properties of undefined (reading 'length')`。
- *
- * 实测证据（diag 输出）：
- *     A. real Shape   -> OK center=[0.000, 0.000, 8.000]
- *     B. borrowed view: isShape=false brepOf=false keys=wrapped,disposed,delete,onDispose
- *     B. borrowed view -> FAIL: TypeError … reading 'length'
- *         at Object.boundingBox (packages/core/src/mesh/query.ts:20:39)
- *         at Object.bboxMax (packages/core/src/api/geom.ts:130:14)
- *         at bboxMax (packages/cq-compat/src/workplane.ts:353:14)
- *         at resolveFaceSelector (packages/cq-compat/src/workplane.ts:631:15)
- *
- * 影响：真实 `assembly.fai.js` 经 `runtime.execute` 跑时，**第一条约束**（c1，源文件
- * 第 10 行 `cq.constraint("bp", ">Z", bottom_plate, "mb", "<Z", middle_bottom, "Plane")`）
- * 即失败（`failedAt = { index: 6, lineNo: 10, callee: 'constraint', code: 'E_OP_FAILED' }`），
- * 因此 mini_lathe 的 P3 端到端验收无法通过。
- * **直接调用**（不经 op 提升，如 `cq.constraint(...)` 在测试进程内）则完全正常——这正是
- * 「单测全绿、e2e 红」的根因。
- *
- * 本文件断言的是**当前（有缺陷）行为**：修好之后这两个用例会转为失败，届时请翻转断言
- * 并删除本守卫。修法方向见
- * `docs/handover/2026-09-17-assembly-global-solver-handover.md`。
+ * 测试策略（直接调用陷阱）：
+ * 测试进程内直接调用（不经 compatOp 提升）拿到的是真实 Shape，不会触发提升
+ * 路径——因此本文件用 `borrowBrepjsShape` 手工构造借用视图（borrowDeep 对
+ * Shape 的产物形态完全一致），直接喂给装配函数，确定性模拟提升路径，无需
+ * .fai.js 脚本。真实端到端（runtime.execute → 提升 → 求解 → 与 CQ 2.8.0
+ * 参考位姿比对）在 `assembly-mini-lathe-e2e.test.ts`（P3 验收，已解除 skip）。
  */
 
 import { describe, it, expect, beforeAll } from 'vitest'
-import { readFileSync, existsSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
-import { resolve, join } from 'node:path'
 import { createRuntime, registerOcctBrepEngine } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs-core/node'
-import { isShape, brepOf } from '@faicad/faijs-core/shape'
+import { isShape, hasBrep, getSlot } from '@faicad/faijs-core/shape'
 import { asPartName } from '@faicad/faijs-core/identity'
 import type { Shape } from '@faicad/faijs-core/mesh/types'
-import { createFsProjectLoader, projectKeyOf } from '../../core/src/node-host/fs-project-loader'
-import { borrowBrepjsShape } from '../../core/src/api/internal/l3-bridge'
-import { resolveFaceSelector } from './workplane'
+import type { CompoundShape } from '@faicad/faijs-core/shape'
+import type { AssemblyConstraint } from '@faicad/faijs-core/api/assembly/types'
+import { borrowBrepjsShape } from '@faicad/faijs-core/api/internal/l3-bridge'
+import { asBrepShape, resolveFaceSelector } from './workplane'
 import * as cq from './index'
 
-/** 定位 mini_lathe 项目根（vitest 下 import.meta.url 解析基准不定，故多候选探测）。 */
-function findMiniLatteRoot(): string {
-  const here = fileURLToPath(new URL('.', import.meta.url))
-  const candidates = [
-    resolve(process.cwd(), '../mini_lathe'),
-    resolve(here, '../../mini_lathe'),
-    resolve(here, '../../../mini_lathe'),
-  ]
-  for (const c of candidates) {
-    if (existsSync(join(c, 'out/ref/mini_lathe_poses.json'))) return c
-  }
-  throw new Error(`mini_lathe root not found; candidates: ${candidates.join(', ')}`)
-}
+type V3 = [number, number, number]
 
-let ML: string | null = null
-try {
-  ML = findMiniLatteRoot()
-} catch {
-  ML = null
-}
-const ASM_FILE = ML ? join(ML, 'src/assembly.fai.js') : ''
-/** mini_lathe 是仓内固定语料，缺失即跳过（本守卫非 CI 关键路径）。 */
-const skip = ML === null
-
-let bp: Shape
-let mb: Shape
+let runtime: ReturnType<typeof createRuntime>
+let boxA: Shape
+let boxB: Shape
 
 beforeAll(async () => {
-  if (skip) return
   await registerOcctBrepEngine()
-  const ports = { ...createNodePorts(), projectLoader: createFsProjectLoader(ML!) }
-  const runtime = createRuntime(ports, 'brep')
+  runtime = createRuntime(createNodePorts(), 'brep')
   runtime.registerLib('cq', cq as never, { packageName: '@faicad/cq-compat' } as never)
-  const code = [
-    "import * as cq from '@faicad/cq-compat'",
-    "import { bottom_plate } from './parts/bottom_plate.fai.js'",
-    "import { middle_bottom } from './parts/middle_bottom.fai.js'",
-  ].join('\n')
-  const r = await runtime.execute(code, { entryKey: projectKeyOf(ML!, ASM_FILE) })
-  if (r.failedAt) throw new Error(`load parts failed: ${r.failedAt.message}`)
-  bp = r.outputs.get(asPartName('bottom_plate')) as Shape
-  mb = r.outputs.get(asPartName('middle_bottom')) as Shape
+
+  // 经 runtime 执行（brep 链）产出带 BREP 槽的真实 Shape —— 与 mini_lathe 的
+  // parts 产物同形态。100×100×50 中心在原点 → 顶面 [0,0,25]/法向 +Z。
+  const res = await runtime.execute(
+    [
+      "import * as cq from '@faicad/cq-compat'",
+      "let wpA = cq.Workplane('XY')",
+      'let bA = cq.box(wpA, 100, 100, 50)',
+      "let wpB = cq.Workplane('XY')",
+      'let bB = cq.box(wpB, 100, 100, 50)',
+      'let boxA = cq.val(bA)',
+      'let boxB = cq.val(bB)',
+    ].join('\n'),
+  )
+  expect(res.failedAt).toBeUndefined()
+  boxA = res.outputs.get(asPartName('boxA')) as Shape
+  boxB = res.outputs.get(asPartName('boxB')) as Shape
+  expect(boxA).toBeDefined()
+  expect(hasBrep(boxA)).toBe(true)
+  expect(boxB).toBeDefined()
+  expect(hasBrep(boxB)).toBe(true)
 }, 240000)
 
-describe.skipIf(skip)('cq-compat 装配 op 提升边界（已知缺陷守卫）', () => {
-  it('对照：真实 faijs Shape 走 BREP 分支并解析成功', async () => {
-    const { center } = await resolveFaceSelector(bp, '>Z')
-    expect(center[2]).toBeCloseTo(8, 6)
-    const low = await resolveFaceSelector(mb, '<Z')
-    expect(low.normal).toEqual([0, 0, -1])
+/** 与 p3 测试同款：从 mate/align 约束里取出 face 快照。 */
+function faceOf(c: AssemblyConstraint): { center: V3; normal: V3 } {
+  const f = (c as unknown as { a: { face: { center: V3; normal: V3 } } }).a.face
+  return { center: f.center, normal: f.normal }
+}
+function faceBOf(c: AssemblyConstraint): { center: V3; normal: V3 } {
+  const f = (c as unknown as { b: { face: { center: V3; normal: V3 } } }).b.face
+  return { center: f.center, normal: f.normal }
+}
+
+describe('cq-compat: 提升边界借用视图归一（回归守卫）', () => {
+  it('asBrepShape：真实 Shape 原样透传；借用视图 → 真实 Shape（WeakMap 缓存）', () => {
+    expect(asBrepShape(boxA)).toBe(boxA)
+
+    const view = borrowBrepjsShape(boxA)
+    // 视图本身不是 Shape（缺陷的形态特征）
+    expect(isShape(view)).toBe(false)
+
+    const s1 = asBrepShape(view)
+    expect(isShape(s1)).toBe(true)
+    // BREP 身份槽已登记（STEP 导出 / 刚体变换读 slot.solid 的前提）
+    expect(hasBrep(s1)).toBe(true)
+    // 缓存：同视图二次调用返回同一 Shape 实例（不重复三角化）
+    expect(asBrepShape(view)).toBe(s1)
   })
 
-  it('借用的 brepjs 视图不是 faijs Shape（isShape=false / brepOf=undefined）', () => {
-    const bv = borrowBrepjsShape(bp)
-    expect(isShape(bv as never)).toBe(false)
-    expect(brepOf(bv as never)).toBeFalsy()
+  it('resolveFaceSelector 接受借用视图：走 BREP 分支，不崩溃（历史崩溃点）', async () => {
+    const view = borrowBrepjsShape(boxA)
+    const r = await resolveFaceSelector(view as never, '>Z')
+    expect(r.center[0]).toBeCloseTo(0, 3)
+    expect(r.center[1]).toBeCloseTo(0, 3)
+    expect(r.center[2]).toBeCloseTo(25, 3)
+    expect(r.normal).toEqual([0, 0, 1])
   })
 
-  it('已知缺陷守卫：借用视图喂给 resolveFaceSelector → 落到 bbox 兜底并崩溃（修复后本用例应失败）', async () => {
-    const bv = borrowBrepjsShape(bp)
-    await expect(resolveFaceSelector(bv as never, '>Z')).rejects.toThrow(/reading 'length'/)
+  it('cq.constraint（视图实参，模拟提升路径）：mate 几何与直接调用一致', async () => {
+    const viewA = borrowBrepjsShape(boxA)
+    const viewB = borrowBrepjsShape(boxB)
+
+    // 历史崩溃路径：mini_lathe c1 = cq.constraint("bp",">Z",bp,"mb","<Z",mb,"Plane")
+    const lifted = await cq.constraint('bp', '>Z', viewA as never, 'mb', '<Z', viewB as never, 'Plane')
+    expect(lifted.type).toBe('mate')
+    const la = faceOf(lifted)
+    const lb = faceBOf(lifted)
+    expect(la.center).toEqual([expect.any(Number), expect.any(Number), expect.any(Number)])
+    expect(la.center[2]).toBeCloseTo(25, 3)
+    expect(la.normal).toEqual([0, 0, 1])
+    expect(lb.center[2]).toBeCloseTo(-25, 3)
+    expect(lb.normal).toEqual([0, 0, -1])
+
+    // 直接路径（真实 Shape）与提升路径（借用视图）产出等价 face 几何
+    const direct = await cq.constraint('bp', '>Z', boxA, 'mb', '<Z', boxB, 'Plane')
+    expect(faceOf(direct)).toEqual(la)
+    expect(faceBOf(direct)).toEqual(lb)
   })
 
-  it('已知缺陷守卫：runtime.execute 下真实装配在 c1 处失败（修复后本用例应失败）', async () => {
-    await registerOcctBrepEngine()
-    const ports = { ...createNodePorts(), projectLoader: createFsProjectLoader(ML!) }
-    const runtime = createRuntime(ports, 'brep')
-    runtime.registerLib('cq', cq as never, { packageName: '@faicad/cq-compat' } as never)
-    // 等价于 assembly.fai.js 的 c1：经 op 提升路径调用 constraint。
-    const code = [
-      "import * as cq from '@faicad/cq-compat'",
-      "import { bottom_plate } from './parts/bottom_plate.fai.js'",
-      "import { middle_bottom } from './parts/middle_bottom.fai.js'",
-      "let c1 = cq.constraint(\"bp\", \">Z\", bottom_plate, \"mb\", \"<Z\", middle_bottom, \"Plane\")",
-      'let result = c1',
-    ].join('\n')
-    const r = await runtime.execute(code, { entryKey: projectKeyOf(ML!, ASM_FILE) })
-    if (!r.failedAt) throw new Error('BUG FIXED: constraint 已能经 op 提升路径执行——请翻转本守卫')
-    expect(r.failedAt.callee).toBe('constraint')
-    expect(r.failedAt.message).toMatch(/reading 'length'/)
-  }, 240000)
+  it('cq.buildAssembly（视图成员）：children 为真实 Shape 且 global 求解收敛', async () => {
+    const viewB = borrowBrepjsShape(boxB)
+    // fixed(bp) + mate(bp>mb)：与 p3 测试同型，验证归一成员可被求解器消费
+    const fixed = await cq.constraintEx('bp', '>Z', boxA, 'mb', '<Z', viewB as never, 'Fixed')
+    const mate = await cq.constraintEx('bp', '>Z', boxA, 'mb', '<Z', viewB as never, 'Plane')
+    const constraints: AssemblyConstraint[] = [...fixed, ...mate] as AssemblyConstraint[]
+
+    const compound = cq.buildAssembly(
+      'asm',
+      [
+        { name: 'bp', shape: boxA },
+        { name: 'mb', shape: viewB as never },
+      ],
+      constraints,
+    )
+    expect(compound.kind).toBe('compound')
+    // 提升路径成员归一后 children 必须是真实 Shape（持 mesh + BREP 槽），
+    // 否则引擎 applyTransform 顶点烘焙 / STEP 导出断裂
+    const children = (compound as CompoundShape).children
+    expect(children).toHaveLength(2)
+    for (const ch of children) {
+      expect(isShape(ch)).toBe(true)
+      expect(hasBrep(ch)).toBe(true)
+    }
+
+    // 归一后的 compound 仍可求解：global 残差收敛，mb 底面贴合 bp 顶面
+    const behavior = getSlot(compound)?.behavior as {
+      solveDetailed: () => {
+        transforms: Array<{ index: number; translation: V3; rotationMatrix: number[]; pivot: V3 }>
+        residuals?: number[]
+      }
+    }
+    const solved = behavior!.solveDetailed()
+    expect(solved.residuals?.length).toBe(2)
+    for (const r of solved.residuals!) expect(r).toBeLessThan(1e-6)
+    // bp（fixed，index 0）不输出变换；mb（index 1）有变换
+    expect(solved.transforms).toHaveLength(1)
+    const t = solved.transforms.find((x) => x.index === 1)!
+    const m = t.rotationMatrix
+    const d: V3 = [0 - t.pivot[0], 0 - t.pivot[1], -25 - t.pivot[2]]
+    const rx = m[0] * d[0] + m[1] * d[1] + m[2] * d[2]
+    const rz = m[6] * d[0] + m[7] * d[1] + m[8] * d[2]
+    expect(rx + t.pivot[0] + t.translation[0]).toBeCloseTo(0, 3)
+    expect(rz + t.pivot[2] + t.translation[2]).toBeCloseTo(25, 3)
+  })
 })

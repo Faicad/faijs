@@ -101,15 +101,18 @@ function closeToV3(a: V3, b: V3, eps = 1e-3): void {
 }
 
 describe('cq-compat: 多成员 global 端到端回归（P3）', () => {
-  it('三部件混合：fixed(A) + mate(A>B) + align(A>C)', async () => {
+  it('三部件混合：fixed(A) + mate(A>B) + Axis(A>C)→angle:180', async () => {
     const fixedA = await cq.constraintEx('A', '>Z', boxA, 'B', '<Z', boxB, 'Fixed')
     const mateAB = await cq.constraintEx('A', '>Z', boxA, 'B', '<Z', boxB, 'Plane')
-    const alignAC = await cq.constraintEx('A', '>X', boxA, 'C', '<X', boxC, 'Axis')
+    const axisAC = await cq.constraintEx('A', '>X', boxA, 'C', '<X', boxC, 'Axis')
     expect(fixedA[0].type).toBe('fixed')
     expect(mateAB[0].type).toBe('mate')
-    expect(alignAC[0].type).toBe('align')
+    // GOTCHA (2026-09-17)：CQ 独立 Axis 约束 = 纯方向反平行（无点项），映射为 angle:180，
+    // 不再是 'align'（旧映射会凭空引入面心重合项，与 CQ 语义不符）。
+    expect(axisAC[0].type).toBe('angle')
+    expect((axisAC[0] as { value?: number }).value).toBe(180)
 
-    const constraints: AssemblyConstraint[] = [...fixedA, ...mateAB, ...alignAC] as AssemblyConstraint[]
+    const constraints: AssemblyConstraint[] = [...fixedA, ...mateAB, ...axisAC] as AssemblyConstraint[]
     const compound = cq.buildAssembly('asm3', [
       { name: 'A', shape: boxA },
       { name: 'B', shape: boxB },
@@ -140,11 +143,11 @@ describe('cq-compat: 多成员 global 端到端回归（P3）', () => {
     closeToV3(applyAt(tB!, bBot.center), aTop.center)
     closeToV3(rotAt(tB!, bBot.normal), [-aTop.normal[0], -aTop.normal[1], -aTop.normal[2]])
 
-    // align(A>C)：C 的 -X 面心重合 A 的 +X 面心，法向同向
-    const aX = faceOf(alignAC[0])
-    const cX = faceBOf(alignAC[0])
-    closeToV3(applyAt(tC!, cX.center), aX.center)
-    closeToV3(rotAt(tC!, cX.normal), aX.normal)
+    // Axis(A>C)→angle:180：仅方向约束——C 的 -X 面法向经旋转后与 A 的 +X 面法向**反平行**；
+    // 无点项，C 位置不被钉住（停在初值 0），不得断言面心重合。
+    const aX = faceOf(axisAC[0])
+    const cX = faceBOf(axisAC[0])
+    closeToV3(rotAt(tC!, cX.normal), [-aX.normal[0], -aX.normal[1], -aX.normal[2]])
   })
 
   it('圆柱 concentric 全链路：A=fixed 圆柱，B=圆柱 Cylinder 配合', async () => {

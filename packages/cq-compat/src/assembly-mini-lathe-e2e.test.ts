@@ -12,17 +12,29 @@
  * 因此 mb/mt/tp 的 Z 堆叠（6.1 / 16.1 / 19.2）是旋转不变量，可直接比对平移；
  * 旋转须为「180° Z 翻转 + 任意 Z 自旋」= R[0]≈R[4] 且 R[8]≈1。
  *
- * ⛔ BLOCKED（2026-09-17）：本用例当前 `describe.skip`。原因**不在** global 求解器，也不在
- * `constraint`/`faceRef`/`resolveFaceSelector` 的实现，而在 op 提升边界——cq-compat 命名空间
- * 无 dual-op → `registerLib` 推断 `lift=true` → `compatOp` 适配器先 `borrowDeep` 实参，
- * 把 faijs Shape 换成借用 brepjs 视图（`isShape=false`/`brepOf=undefined`）→ `resolveFaceSelector`
- * 落到整形状 bbox 兜底 → `cad.bboxMax` 读 `shape.vertices` 为 undefined
- * → `[faijs/op] constraint: E_OP_FAILED: Cannot read properties of undefined (reading 'length')`。
- * 失败位置 = **第一条约束 c1**（源文件第 10 行，`failedAt = { index:6, lineNo:10 }`）。
+ * 分层记录（2026-09-17 更新）：
+ *
+ * ① op 提升边界崩溃 —— **已修复**。原 c1 处 `Cannot read properties of undefined
+ *    (reading 'length')`（borrowDeep 把 Shape 换成借用视图 → bbox 兜底崩溃）已消除：
+ *    修复 = `asBrepShape`（workplane.ts）入口归一（借用视图经 fromHandle 还原真实
+ *    Shape，WeakMap 缓存），调用点 resolveFaceSelector / constraintEx / resolveAxisRef /
+ *    buildAssembly。回归守卫见 `src/assembly-lift-boundary.test.ts`（4/4 通过）。
+ *    本 e2e 现可完整 `runtime.execute(assembly.fai.js)` → 求解 **converged=true**、
+ *    不崩溃、锚定 bp、slide_top 恒等 —— 结构层面通过。
+ *
+ * ② 位姿数值与 CQ 参考不一致 —— **新暴露的独立问题（本 e2e 数值断言保持 skip 的原因）**。
+ *    探针实测（parts 局部几何）：
+ *      bp ">Z" 面 → 外顶面 z=8；mb "<Z" 面 → 底面 z=0  → mate(c1) 单独要 mb z=8
+ *      bp "<X" 面心 z=4；mb "<X" 面心 z=5               → align(c4) 单独要 mb z=-1
+ *    mate 与 align 对 mb 的 Z 平移给出**矛盾**值（8 vs -1），global 求解器残差折中
+ *    → 实际 mb z=-0.302（c1 残差 0.0326 > 1e-2 门限）。CQ 参考 mb z=6.1。
+ *    6.1 = 8 − 1.9（bp 顶面凹槽深 TOP_CUT_H≈1.9），即 mb 实嵌凹槽而非贴外顶面 →
+ *    指向 **面选择语义**（`>Z`/`<Z` 是否应选凹槽底）或 **约束映射语义**（CQ joint
+ *    语义 vs cq-compat 的 mate/align）尚未与 CQ solver 逐条标定。
+ *    这是独立任务（约束语义标定），不属于 op 提升边界修复范围，故数值断言保持 skip。
+ *
  * 守卫测试见 `src/assembly-lift-boundary.test.ts`；完整记录见
  * `docs/handover/2026-09-17-assembly-global-solver-handover.md`。
- * **直接调用**（不经 op 提升）一切正常 → 这就是「单测全绿、本 e2e 红」的根因。
- * 修好该边界后删掉下面的 `.skip` 即可恢复验收。
  */
 
 import { describe, it, expect, beforeAll } from 'vitest'
@@ -124,8 +136,7 @@ function close(a: number, b: number, eps = 1e-3): boolean {
   return Math.abs(a - b) <= eps
 }
 
-// ⛔ BLOCKED：op 提升边界缺陷（见文件头）。修好后改为 describe(...)。
-describe.skip('P3: mini_lathe 真实装配 global 求解 vs CQ 2.8.0 参考', () => {
+describe('P3: mini_lathe 真实装配 global 求解 vs CQ 2.8.0 参考', () => {
   it('求解成功：converged 且无非支持约束', () => {
     expect(converged).toBe(true)
     expect(unsupported).toEqual([])

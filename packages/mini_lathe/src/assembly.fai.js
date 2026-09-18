@@ -7,9 +7,11 @@ import { axk } from './parts/axk.fai.js'
 import { slide_top } from './parts/slide_top.fai.js'
 
 // Build constraints
-let c1 = cq.constraint("bp", ">Z", bottom_plate, "mb", "<Z", middle_bottom, "Plane")
-let c2 = cq.constraint("mb", ">Z", middle_bottom, "mt", "<Z", middle_top, "Plane")
-let c3 = cq.constraint("mt", ">Z", middle_top, "tp", ">Z", top_plate, "Plane")
+// 索引 [-2] 与 CQ 原件 assemb.py 逐条对齐：>Z[-2] 选凹槽底面（DirectionNthSelector
+// 聚簇后第 2 末），裸 >Z 会选外顶面 → 堆叠 Z 差 1.9（TOP_CUT_H），2026-09-17 标定确认。
+let c1 = cq.constraint("bp", ">Z[-2]", bottom_plate, "mb", "<Z", middle_bottom, "Plane")
+let c2 = cq.constraint("mb", ">Z[-2]", middle_bottom, "mt", "<Z", middle_top, "Plane")
+let c3 = cq.constraint("mt", ">Z", middle_top, "tp", ">Z[-2]", top_plate, "Plane")
 let c4 = cq.constraint("bp", "<X", bottom_plate, "mb", "<X", middle_bottom, "Axis")
 let c5 = cq.constraint("bp", "<X", bottom_plate, "mt", "<X", middle_top, "Axis")
 let c6 = cq.constraint("bp", "<X", bottom_plate, "tp", "<X", top_plate, "Axis")
