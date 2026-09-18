@@ -454,9 +454,26 @@ export function translateObject(
         }
         return { kind: 'baked', reason: 'uptoface-solid-face-unsupported' };
       }
+      if (ftype === 'UpToLast' || ftype === 'UpToFirst') {
+        // plan §4.3-C2: UpToLast/UpToFirst extrude to the far/near face of the
+        // support (BaseFeature). The kernel up-to ('last'/'first' mode) does the
+        // truncation; baseFeature must be resolvable or we bake explicitly — no
+        // silent bbox-derived length guess.
+        const base = propLink(obj, 'BaseFeature');
+        const baseVar = base ? inputVar(base) : undefined;
+        if (!baseVar) return { kind: 'baked', reason: 'pad-upTo-missing-base' };
+        const upTo = ftype === 'UpToLast' ? 'last' : 'first';
+        return {
+          kind: 'translated',
+          reason: `pad-${ftype}-via-baseFeature`,
+          calls: [{
+            out, op: 'cad.fai_extrude', source: obj.name, inputs: [profileVar],
+            params: { upTo, baseFeature: jsExpr(baseVar) },
+          }],
+        };
+      }
       if (ftype !== 'Length') {
-        // UpToLast / UpToFirst need face-reference anchoring (M9.3, plan C2):
-        // explicit bake with reason, never guess a bbox-derived length.
+        // anything still non-Length (e.g. 'unknown') → explicit bake, never guess
         return { kind: 'baked', reason: `pad-type-${ftype}-unsupported` };
       }
       // cad.extrude extrudes the sketch face into a prism along +Z (the sketch

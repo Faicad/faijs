@@ -3,7 +3,7 @@
  * M4.3 booleans, M4.6 Pad/Pocket).
  */
 import { describe, it, expect } from 'vitest';
-import { translateObject, isWhitelisted, placementPos, isJsExpr } from './feature-translate.js';
+import { translateObject, isWhitelisted, placementPos, isJsExpr, jsExpr } from './feature-translate.js';
 import type { FcstdObject, FcstdProperty } from './document.js';
 
 function prop(name: string, child: { name: string; attrs: Record<string, string> } | null = null): [string, FcstdProperty] {
@@ -290,6 +290,80 @@ describe('M4.6b UpToFace datum-plane (extrude-upto-face §4.3-C1)', () => {
     ]);
     const v = translateObject(p, (dep) => (dep === 'Sketch001' ? 'sketch0' : undefined), [p, solid, sketch001]);
     expect(v).toMatchObject({ kind: 'baked', reason: 'uptoface-solid-face-unsupported' });
+  });
+});
+
+describe('M4.6c Pad UpToLast/UpToFirst (extrude-upto-face §4.3-C2)', () => {
+  // Helpers (kept local; M4.6b defines its own copies).
+  function linkProp(name: string, target: string): [string, FcstdProperty] {
+    return [name, {
+      name, type: 'App::PropertyLink', tagName: 'Property',
+      children: [{ name: 'Link', type: '', tagName: 'Link', children: [], valueXml: '', valueText: '', attributes: { value: target } }],
+      valueText: '', attributes: {},
+    }];
+  }
+  function enumProp(name: string, value: string): [string, FcstdProperty] {
+    return [name, {
+      name, type: 'App::PropertyEnumeration', tagName: 'Property',
+      children: [{ name: 'Integer', type: '', tagName: 'Integer', children: [], valueXml: '', valueText: '', attributes: { value } }],
+      valueText: '', attributes: {},
+    }];
+  }
+
+  it('translates Pad UpToLast as cad.fai_extrude upTo:"last" with baseFeature ref', () => {
+    const base = obj('PartDesign::Pad', 'BasePad', [enumProp('Type', '0'), linkProp('Profile', 'Sketch0')]);
+    const pad = obj('PartDesign::Pad', 'Pad002', [
+      linkProp('Profile', 'Sketch001'),
+      linkProp('BaseFeature', 'BasePad'),
+      enumProp('Type', '1'),
+    ]);
+    const v = translateObject(
+      pad,
+      (dep) => (dep === 'Sketch001' ? 'sketch0' : dep === 'BasePad' ? 'base0' : undefined),
+      [pad, base],
+    );
+    expect(v.kind).toBe('translated');
+    if (v.kind === 'translated') {
+      const call = v.calls[0]!;
+      expect(call.op).toBe('cad.fai_extrude');
+      expect(call.inputs).toEqual(['sketch0']);
+      expect(call.params.upTo).toBe('last');
+      const bf = call.params.baseFeature;
+      expect(isJsExpr(bf) ? bf.__jsExpr : bf).toBe('base0');
+      expect(v.reason).toBe('pad-UpToLast-via-baseFeature');
+    }
+  });
+
+  it('translates Pad UpToFirst as cad.fai_extrude upTo:"first"', () => {
+    const base = obj('PartDesign::Pad', 'BasePad', [enumProp('Type', '0'), linkProp('Profile', 'Sketch0')]);
+    const pad = obj('PartDesign::Pad', 'Pad001', [
+      linkProp('Profile', 'Sketch001'),
+      linkProp('BaseFeature', 'BasePad'),
+      enumProp('Type', '2'),
+    ]);
+    const v = translateObject(
+      pad,
+      (dep) => (dep === 'Sketch001' ? 'sketch0' : dep === 'BasePad' ? 'base0' : undefined),
+      [pad, base],
+    );
+    expect(v.kind).toBe('translated');
+    if (v.kind === 'translated') {
+      const call = v.calls[0]!;
+      expect(call.op).toBe('cad.fai_extrude');
+      expect(call.params.upTo).toBe('first');
+      const bf = call.params.baseFeature;
+      expect(isJsExpr(bf) ? bf.__jsExpr : bf).toBe('base0');
+      expect(v.reason).toBe('pad-UpToFirst-via-baseFeature');
+    }
+  });
+
+  it('bakes UpToLast/UpToFirst without a resolvable BaseFeature (no silent fallback)', () => {
+    const pad = obj('PartDesign::Pad', 'Pad002', [
+      linkProp('Profile', 'Sketch001'),
+      enumProp('Type', '1'),
+    ]);
+    const v = translateObject(pad, (dep) => (dep === 'Sketch001' ? 'sketch0' : undefined), [pad]);
+    expect(v).toMatchObject({ kind: 'baked', reason: 'pad-upTo-missing-base' });
   });
 });
 

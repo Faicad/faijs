@@ -75,8 +75,11 @@ describe('M9.2 TwoLengths Pad → two extrudes + union', () => {
 
 describe('M9.3 UpTo* / ThroughAll / unknown → explicit bake with reason', () => {
   const cases: [string, 'pad' | 'pocket', number | string, string][] = [
-    ['pad UpToLast', 'pad', 'UpToLast', 'pad-type-UpToLast-unsupported'],
-    ['pad UpToFirst (index)', 'pad', 2, 'pad-type-UpToFirst-unsupported'],
+    // UpToLast/UpToFirst are now supported (translate) when a BaseFeature is
+    // present (plan §4.3-C2); without one they bake with the precise
+    // missing-dependency reason rather than the blanket "unsupported".
+    ['pad UpToLast (no base)', 'pad', 'UpToLast', 'pad-upTo-missing-base'],
+    ['pad UpToFirst (index, no base)', 'pad', 2, 'pad-upTo-missing-base'],
     // UpToFace with no datum-plane target (or no docObjects) bakes with the
     // solid-face reason — the datum-plane translation path is exercised in
     // feature-translate.test.ts, not here.
