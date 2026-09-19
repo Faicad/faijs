@@ -36,7 +36,16 @@ export function initBrepkitWasm(): Promise<BrepKitKernel> {
     // node 环境（单测 / CLI）：npm 包默认装载路径
 
     if (typeof process !== 'undefined' && process.versions?.node) {
-      const mod = await import('brepkit-wasm')
+      // Non-literal specifier: brepkit-wasm is an optional runtime injection, not
+      // a declared dependency — a literal would make tsc fail with TS2307 when
+      // the package is absent. A missing package surfaces at runtime (below).
+      const specifier = 'brepkit-wasm'
+      const mod = (await import(/* @vite-ignore */ specifier)) as {
+        BrepKernel: new () => BrepKitKernel
+      }
+      if (!mod?.BrepKernel) {
+        throw new Error('initBrepkitWasm: brepkit-wasm is not installed; install it or call setBrepkitWasmInitFn() first.')
+      }
       return new mod.BrepKernel() as BrepKitKernel
     }
     throw new Error('initBrepkitWasm: no init function set and not in Node environment. Call setBrepkitWasmInitFn() first.')
