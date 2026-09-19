@@ -44,9 +44,18 @@ param(
 $ErrorActionPreference = 'Stop'
 
 # Resolve npm invoker (default "npm"; sandbox/CI may override via env vars to a
-# managed node + npm-cli.js).
+# managed node + npm-cli.js). Windows note: resolve to npm.cmd, not the
+# PowerShell shim (npm.ps1) — invoking `& npm run build` from pwsh with only the
+# node dir on PATH can land on the .ps1 shim which drops script args, printing
+# the npm help text instead of running the script.
 if ($env:NPM_CLI_NODE -and $env:NPM_CLI_PATH) {
   $npm = { & $env:NPM_CLI_NODE $env:NPM_CLI_PATH @args }
+} elseif ($IsWindows -or $env:OS -eq 'Windows_NT') {
+  $npmCmd = Get-Command npm.cmd -ErrorAction SilentlyContinue
+  if (-not $npmCmd) { $npmCmd = Get-Command npm -ErrorAction SilentlyContinue }
+  if (-not $npmCmd) { throw 'npm not found on PATH' }
+  $npmExe = $npmCmd.Source
+  $npm = { & $npmExe @args }
 } else {
   $npm = { & npm @args }
 }

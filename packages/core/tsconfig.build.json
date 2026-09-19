@@ -20,6 +20,7 @@
     "dist",
     "src/test/",
     "src/test-helpers.ts",
+    "src/brep/text/fontTestHelper.ts",
     "**/*.test.ts",
     "**/*.test-d.ts",
     "src/fcstd"
