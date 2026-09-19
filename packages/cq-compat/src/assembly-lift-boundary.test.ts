@@ -17,7 +17,8 @@
  * 路径——因此本文件用 `borrowBrepjsShape` 手工构造借用视图（borrowDeep 对
  * Shape 的产物形态完全一致），直接喂给装配函数，确定性模拟提升路径，无需
  * .fai.js 脚本。真实端到端（runtime.execute → 提升 → 求解 → 与 CQ 2.8.0
- * 参考位姿比对）在 `assembly-mini-lathe-e2e.test.ts`（P3 验收，已解除 skip）。
+ * 参考位姿比对）随 mini_lathe 案例迁出本仓库，见
+ * `cadquery-port/mini_lathe/tests/assembly-e2e.test.ts`。
  */
 
 import { describe, it, expect, beforeAll } from 'vitest'
