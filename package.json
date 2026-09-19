@@ -107,7 +107,6 @@
     "packages/core",
     "packages/gear-lib-demo",
     "packages/cq-compat",
-    "packages/mini_lathe",
     "packages/fai_cq_gears",
     "packages/fai_cq_warehouse",
     "packages/sheetmetal",

@@ -10,7 +10,7 @@
  *   所以这里产出的 key 必须是最终形态（反斜杠一律转 `/`，无 `./` 前缀）。
  *
  * 项目根的判定（`findProjectRoot`）：从入口文件向上找最近的 `package.json`。
- * 与 faijs 的包布局一致（mini_lathe 等示例项目的根就是包根）。
+ * 与 faijs 的包布局一致（多文件脚本项目的根就是项目包根，如移植项目）。
  */
 
 import { readdirSync, readFileSync, statSync } from 'node:fs'
