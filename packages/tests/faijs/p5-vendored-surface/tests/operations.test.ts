@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeAll } from 'vitest';
 import { initKernel } from '../kernel-setup.js';
 import { expectClose } from '../../p3-vendored-surface/kernel-divergences.js';
-import Sketcher from '@faicad/faijs-core/vendored/brepjs/sketching/sketcher.js';
+import Sketcher from '@faicad/faijs/vendored/brepjs/sketching/sketcher.js';
 import {
   box,
   sphere,

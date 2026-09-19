@@ -13,8 +13,8 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { createRuntime, registerOcctBrepEngine } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
 import * as gearPkg from '@faicad/gear-lib-demo'
-import type { StdlibNamespace } from '@faicad/faijs-core/runtime-state'
-import type { LibLoader } from '@faicad/faijs-core/cad-runtime/ports'
+import type { StdlibNamespace } from '@faicad/faijs/runtime-state'
+import type { LibLoader } from '@faicad/faijs/cad-runtime/ports'
 
 /** 与浏览器 demo 等价的 libLoader：完整命名空间，不走手工投影。 */
 const loader: LibLoader = {

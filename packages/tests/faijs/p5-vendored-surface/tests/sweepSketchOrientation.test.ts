@@ -10,8 +10,8 @@
  */
 import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { drawRoundedRectangle, draw, getBounds } from '../p5-surface.js';
-import type { AnyShape } from '@faicad/faijs-core/vendored/brepjs/core/shapeTypes.js';
-import type Sketch from '@faicad/faijs-core/vendored/brepjs/sketching/sketch.js';
+import type { AnyShape } from '@faicad/faijs/vendored/brepjs/core/shapeTypes.js';
+import type Sketch from '@faicad/faijs/vendored/brepjs/sketching/sketch.js';
 import { initKernel } from '../kernel-setup.js';
 
 beforeAll(async () => {

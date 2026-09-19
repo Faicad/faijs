@@ -23,8 +23,8 @@
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
-      "@faicad/faijs-core": ["./packages/core/src/index.ts"],
-      "@faicad/faijs-core/*": ["./packages/core/src/*"]
+      "@faicad/faijs": ["./packages/core/src/index.ts"],
+      "@faicad/faijs/*": ["./packages/core/src/*"]
     }
   },
   "include": [

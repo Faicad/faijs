@@ -398,7 +398,7 @@ export interface ChamferParams {
 `packages/stdlib/src/chamfer.ts` 不再自实现 `EDGE_ID_RE` / `edgeOrdinalOf`，而是把 `edges` 交给命名方案交付的解析器（§2.4）：
 
 ```ts
-import { resolveEdgeTopo, type EdgeTopoRef } from '@faicad/faijs-core'   // 命名方案 API
+import { resolveEdgeTopo, type EdgeTopoRef } from '@faicad/faijs'   // 命名方案 API
 
 /** 对 params.edges 逐条解析，返回 OCCT 边句柄数组；任一条失败 → 整体抛错。 */
 function resolveEdgeHandles(

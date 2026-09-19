@@ -20,9 +20,9 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import { createRuntime, registerOcctBrepEngine } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
-import { asPartName } from '@faicad/faijs-core/identity'
-import type { CadRuntime } from '@faicad/faijs-core/cad-runtime/runtime'
-import type { StdlibNamespace } from '@faicad/faijs-core/runtime-state'
+import { asPartName } from '@faicad/faijs/identity'
+import type { CadRuntime } from '@faicad/faijs/cad-runtime/runtime'
+import type { StdlibNamespace } from '@faicad/faijs/runtime-state'
 import * as sheetPkg from '@faicad/sheetmetal'
 
 const boomNs: StdlibNamespace = {

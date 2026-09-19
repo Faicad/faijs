@@ -6,7 +6,7 @@
  * 本文件让 tests 包的 typecheck 能解析该 fixture（运行时不参与，rewrite 处理）。
  */
 declare module '@faicad/faq' {
-  import type { Shape } from '@faicad/faijs-core/mesh/types'
+  import type { Shape } from '@faicad/faijs/mesh/types'
   export const cad: {
     box: (opts: { width: number; depth: number; height: number; centered?: boolean }) => Shape
     cylinder: (opts: { radius: number; height: number; at?: [number, number, number]; centered?: boolean }) => Shape
@@ -18,6 +18,6 @@ declare module '@faicad/faq' {
 }
 
 declare module '@faicad/faq/sdk' {
-  import type { Shape } from '@faicad/faijs-core/mesh/types'
+  import type { Shape } from '@faicad/faijs/mesh/types'
   export type { Shape }
 }

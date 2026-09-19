@@ -55,7 +55,7 @@
 |---|---|---|
 | 主仓库（faijs monorepo） | `D:\Faicad\faijs` | branch `main`，HEAD `651fb4e`；remote `origin`=github、`gitcode`=gitcode 镜像 |
 | 兼容层包 | `D:\Faicad\faijs\packages\cq-compat` | 本次交接的核心 |
-| 引擎包 | `D:\Faicad\faijs\packages\core` | `@faicad/faijs-core`，BREP 链 + faijs CLI |
+| 引擎包 | `D:\Faicad\faijs\packages\core` | `@faicad/faijs`，BREP 链 + faijs CLI |
 | 齿轮库（cq-compat 的下游消费者） | `D:\Faicad\faijs\packages\fai_cq_gears` | 移植目标；因 E5/E6 缺口尚未切换，见 §11 |
 | CadQuery Python 源码检出 | `C:\git\CADQ\cadquery` | **只用来 `git archive` 取 tag 快照，不用来运行** |
 | mini_lathe 原始 Python 源码 | `C:\git\CADQ\mini_lathe` | origin `yuan-xy/mini_lathe`；faijs 侧移植在 `packages/mini_lathe` |
@@ -258,7 +258,7 @@ cand : out/cand/TestCadQuery__testBox__r.step
 npm install --registry=https://registry.npmmirror.com
 
 # 构建（顺序很重要：core → 门面 → cq-compat）
-npm run build -w @faicad/faijs-core
+npm run build -w @faicad/faijs
 npm run build                 # 根门面（会先 clean dist）
 npm run build -w @faicad/cq-compat
 ```
@@ -474,7 +474,7 @@ E1–E4 已实现并导出（`splineFace` / `helix` / `splitFace` / `twistExtrud
 
 按顺序跑完，全部通过才算环境接住了：
 
-- [ ] `npm run build -w @faicad/faijs-core && npm run build && npm run build -w @faicad/cq-compat` 无错误
+- [ ] `npm run build -w @faicad/faijs && npm run build && npm run build -w @faicad/cq-compat` 无错误
 - [ ] `C:/Users/ylt/cadquery-env/Scripts/python.exe packages/cq-compat/tests/ref-harness/run-ref.py` → `out/ref` 有 **650** 个 `.step`
 - [ ] `npx tsx packages/cq-compat/tests/gen-manifest.ts` → `tests/manifest.json` 条目数不减少（基线 699）
 - [ ] `npx tsx packages/cq-compat/tests/run-cand.ts` → `out/cand` 有 **282** 个 `.step`（全量约 20 分钟）

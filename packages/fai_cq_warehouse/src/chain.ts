@@ -18,7 +18,7 @@
  * `spkt_normal` 仅支持 (0,0,1)。多链轮/斜面为后续增量。
  */
 
-import type { BrepHandle, BrepVec3 } from '@faicad/faijs-core'
+import type { BrepHandle, BrepVec3 } from '@faicad/faijs'
 import { requireKernel } from './kernel'
 import {
   arcEdge,

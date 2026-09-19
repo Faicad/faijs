@@ -38,7 +38,7 @@
  *    （make_tooth_outline 的分支条件），本实现直接用后者，免拓扑查询。
  */
 
-import type { BrepHandle, BrepVec3 } from '@faicad/faijs-core'
+import type { BrepHandle, BrepVec3 } from '@faicad/faijs'
 import {
   arcEdge,
   cone,

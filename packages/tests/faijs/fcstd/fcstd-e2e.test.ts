@@ -21,8 +21,8 @@ import { readFileSync, writeFileSync, rmSync, existsSync, mkdtempSync, readdirSy
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { unzipSync } from 'fflate';
-import { cliCheck, cliRun } from '@faicad/faijs-core/node-host/cli';
-import { createApiNamespace } from '@faicad/faijs-core/api/api-namespace';
+import { cliCheck, cliRun } from '@faicad/faijs/node-host/cli';
+import { createApiNamespace } from '@faicad/faijs/api/api-namespace';
 
 const CORPUS = process.env.FAIJS_FCSTD_CORPUS ?? 'D:/Faicad/FreeCAD';
 // __dirname = packages/tests/faijs/fcstd → repo root is 4 levels up

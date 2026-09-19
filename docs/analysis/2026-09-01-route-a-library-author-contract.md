@@ -26,7 +26,7 @@
 | D 双路径声明 | `defineOp({ mesh, brep })`（`define-op.ts:153`） | **完全不变** | 零 |
 | 契约版本 | `export const contractVersion = CONTRACT_VERSION` | **不变，但校验时机改变**（§5.1） | 零 |
 
-**为什么几乎不变**：库作者面对的是 `@faicad/faijs-core/sdk` 这个**模块导出面**（`sdk.ts` 全文 4 组导出），而 parser 处理的是 `.fai.js` **脚本文本**。二者从来没有耦合——mech-lib 全文没有任何一处与 parser 相关。
+**为什么几乎不变**：库作者面对的是 `@faicad/faijs/sdk` 这个**模块导出面**（`sdk.ts` 全文 4 组导出），而 parser 处理的是 `.fai.js` **脚本文本**。二者从来没有耦合——mech-lib 全文没有任何一处与 parser 相关。
 
 **唯一实质变化在引擎侧**：路线 A 下用户代码可以直接 `import * as mech from '...'`，绕过 `registerLib`，引擎失去唯一的库准入钩子。§5.1 给出替代方案，结论是 **`defineOp` 与 `solid()` 本身就是钩子，不需要外层 Proxy 包装**——这修正了前置文档 §4.4 的说法。
 
@@ -41,18 +41,18 @@
 ```ts
 // 组 1：构造器与身份表（契约面 B）
 import { solid, fromBrep, compound, isShape, isCompound, hasBrep, brepOf,
-         nameOfShapes, getSlot, ensureSlot } from '@faicad/faijs-core/sdk'
+         nameOfShapes, getSlot, ensureSlot } from '@faicad/faijs/sdk'
 
 // 组 2：运行时状态锚点（契约面 A + C）
 import { keep, keepHidden, getBackends, configureBackends,
          assertContractVersion, CONTRACT_VERSION,
-         BrepUnsupportedError, MeshUnsupportedError } from '@faicad/faijs-core/sdk'
+         BrepUnsupportedError, MeshUnsupportedError } from '@faicad/faijs/sdk'
 
 // 组 3：BREP 桥接（造 BREP 产物）
-import { getKernel, meshHandle, fromHandle } from '@faicad/faijs-core/sdk'
+import { getKernel, meshHandle, fromHandle } from '@faicad/faijs/sdk'
 
 // 组 4：双路径实现声明（契约面 D）
-import { defineOp, assertLibConforms, DUAL_OP_META } from '@faicad/faijs-core/sdk'
+import { defineOp, assertLibConforms, DUAL_OP_META } from '@faicad/faijs/sdk'
 ```
 
 `sdk.ts` 的自述约束：**零 heavy 运行时依赖**——值导入闭包不含 three / occt-wasm / manifold / node:*，由 `dist/sdk.js` 静态 import 扫描守卫。库作者依赖 sdk 不会把重依赖拖进构建图。
@@ -122,7 +122,7 @@ mesh 与 brep 都不是函数  → 'at least one implementation (mesh or brep) i
 ### 4.1 最小完整库（三行核心）
 
 ```ts
-import { defineOp, CONTRACT_VERSION } from '@faicad/faijs-core/sdk'
+import { defineOp, CONTRACT_VERSION } from '@faicad/faijs/sdk'
 
 export const contractVersion = CONTRACT_VERSION
 
@@ -138,8 +138,8 @@ export const makeBall = defineOp({
 ### 4.2 双路径 op（mesh + BREP）
 
 ```ts
-import { defineOp, CONTRACT_VERSION, getBackends } from '@faicad/faijs-core/sdk'
-import type { BrepHandle } from '@faicad/faijs-core/brep/engine/types'
+import { defineOp, CONTRACT_VERSION, getBackends } from '@faicad/faijs/sdk'
+import type { BrepHandle } from '@faicad/faijs/brep/engine/types'
 
 export const contractVersion = CONTRACT_VERSION
 

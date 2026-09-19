@@ -29,7 +29,7 @@
  * - HyperbolicGearPair：用两齿轮**喉部半径**之和 `throat_r1 + throat_r2`。
  */
 
-import type { BrepHandle } from '@faicad/faijs-core'
+import type { BrepHandle } from '@faicad/faijs'
 import type { GearKernel, GearAxis } from '@faicad/cq-compat'
 import {
   crossedHelicalGearGeometry, hyperbolicGearGeometry,

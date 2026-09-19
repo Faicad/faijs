@@ -27,12 +27,12 @@ import {
   trimCurve2d,
   copyCurve2d,
   splitCurve2d,
-} from '@faicad/faijs-core/vendored/brepjs/2d/curve2dGeometryFns.js';
-import { getKernel2D } from '@faicad/faijs-core/vendored/brepjs/kernel/index.js';
-import { unwrap, isOk, isErr } from '@faicad/faijs-core/vendored/brepjs/core/result.js';
-import { makePlane } from '@faicad/faijs-core/vendored/brepjs/core/planeOps.js';
-import { box } from '@faicad/faijs-core/vendored/brepjs/topology/primitiveFns.js';
-import { getFaces, getEdges } from '@faicad/faijs-core/vendored/brepjs/topology/shapeFns.js';
+} from '@faicad/faijs/vendored/brepjs/2d/curve2dGeometryFns.js';
+import { getKernel2D } from '@faicad/faijs/vendored/brepjs/kernel/index.js';
+import { unwrap, isOk, isErr } from '@faicad/faijs/vendored/brepjs/core/result.js';
+import { makePlane } from '@faicad/faijs/vendored/brepjs/core/planeOps.js';
+import { box } from '@faicad/faijs/vendored/brepjs/topology/primitiveFns.js';
+import { getFaces, getEdges } from '@faicad/faijs/vendored/brepjs/topology/shapeFns.js';
 
 beforeAll(async () => {
   await initKernel();

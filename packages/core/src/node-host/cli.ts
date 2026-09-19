@@ -19,6 +19,7 @@
  */
 
 import { readFileSync, writeFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { resolve, extname } from 'node:path'
 import { createRuntime } from '../cad-runtime/runtime'
 import type { StdlibNamespace } from '../runtime-state'
@@ -58,6 +59,25 @@ const CLI_LIB_ALIASES: Record<string, string> = {
   'fai-cq-gears': '@faicad/fai-cq-gears',
 }
 
+/**
+ * 读库 package.json 的 `faijs.autoLift` 字段（D3-autoLift 外置，§9.4）：
+ * 逐库 autoLift 约定从 host 写死改为由各库自身 package.json 声明，loader 此处读取。
+ * 未声明 → 返回 undefined（回落到 runtime 的推断式 `!hasDualOp(ns)`）；
+ * 声明为布尔 → 直接采用（如 cq-compat 声明 false，因其函数以 faijs Shape 为受众，
+ * 被 compat 边界整体提升会破坏内部借面逻辑）。
+ */
+const requireNode = createRequire(import.meta.url)
+function readLibAutoLift(pkg: string): boolean | undefined {
+  try {
+    const pjPath = requireNode.resolve(`${pkg}/package.json`)
+    const pj = JSON.parse(readFileSync(pjPath, 'utf8')) as { faijs?: { autoLift?: boolean } }
+    const v = pj.faijs?.autoLift
+    return typeof v === 'boolean' ? v : undefined
+  } catch {
+    return undefined
+  }
+}
+
 const cliPortsLibLoader: LibLoader = {
   loadLib: async (name) => {
     const pkg = CLI_LIB_ALIASES[name]
@@ -67,7 +87,14 @@ const cliPortsLibLoader: LibLoader = {
     return (await import(pkg)) as StdlibNamespace
   },
   listLibs: () => Object.keys(CLI_LIB_ALIASES),
-  options: { autoLift: false },
+  // 默认不提升（与历史 CLI 行为一致）；各库用 package.json "faijs.autoLift" 逐库覆盖。
+  options: {
+    autoLift: false,
+    autoLiftFor: (name) => {
+      const pkg = CLI_LIB_ALIASES[name]
+      return pkg ? readLibAutoLift(pkg) : undefined
+    },
+  },
 }
 
 /** 注入 libLoader 到 node ports（CLI 宿主白名单装载）。 */

@@ -10,8 +10,8 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { analyzeCode } from '@faicad/faijs-core/lang/statement-summary'
-import { isHostVarRef } from '@faicad/faijs-core/lang/host-arg'
+import { analyzeCode } from '@faicad/faijs/lang/statement-summary'
+import { isHostVarRef } from '@faicad/faijs/lang/host-arg'
 
 const FAIJS_DIR = fileURLToPath(new URL('.', import.meta.url))
 

@@ -13,7 +13,7 @@
  * full registerLib → ns.<binding>.<callee> pipeline.
  */
 
-import { defineOp, CONTRACT_VERSION } from '@faicad/faijs-core/sdk'
+import { defineOp, CONTRACT_VERSION } from '@faicad/faijs/sdk'
 
 /** Adapter contract version, checked against CONTRACT_VERSION by registerLib. */
 export const contractVersion = CONTRACT_VERSION

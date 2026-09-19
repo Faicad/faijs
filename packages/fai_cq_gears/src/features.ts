@@ -17,7 +17,7 @@
  *   逐个旋转 n_spokes 次布尔差；spoke_fillet 对 cutter 的竖直棱边做圆角。
  */
 
-import type { BrepHandle, BrepVec3 } from '@faicad/faijs-core'
+import type { BrepHandle, BrepVec3 } from '@faicad/faijs'
 import type { GearKernel } from '@faicad/cq-compat'
 
 /** cq `_make_chamfer` 的小偏移量（避免共面自交）。 */

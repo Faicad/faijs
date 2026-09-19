@@ -20,7 +20,7 @@ import { fileURLToPath } from 'node:url'
 import { cliCheck, cliRun, cliView, parseArgs } from './cli'
 import { registerOcctBrepEngine } from '../brep/engine/adapters/occt'
 import { ensureTestFontLoader } from '../brep/text/fontTestHelper'
-import { createApiNamespace } from '@faicad/faijs-core/api/api-namespace'
+import { createApiNamespace } from '@faicad/faijs/api/api-namespace'
 
 // P6/D1：CLI 测试注入 cad（L3 api/ 层，原 stdlib 取消）
 const CAD_LIBS = { cad: createApiNamespace() }
@@ -333,7 +333,7 @@ describe('cliRun: assembly STEP export preserves member names', () => {
     expect(result.ok).toBe(true)
     expect(result.outputFormat).toBe('step')
 
-    const { initOcctWasm, importAssemblyFromStep, collectLeafParts, releaseAssemblyTree } = await import('@faicad/faijs-core')
+    const { initOcctWasm, importAssemblyFromStep, collectLeafParts, releaseAssemblyTree } = await import('@faicad/faijs')
     const kernel = await initOcctWasm()
     const buf = readFileSync(outPath)
     const nodes = await importAssemblyFromStep(buf.buffer as ArrayBuffer)
@@ -369,7 +369,7 @@ describe('cliRun: assembly do_assemble with explicit short memberNames', () => {
     expect(result.ok).toBe(true)
     expect(result.outputFormat).toBe('step')
 
-    const { initOcctWasm, importAssemblyFromStep, collectLeafParts, releaseAssemblyTree } = await import('@faicad/faijs-core')
+    const { initOcctWasm, importAssemblyFromStep, collectLeafParts, releaseAssemblyTree } = await import('@faicad/faijs')
     const kernel = await initOcctWasm()
     const buf = readFileSync(outPath)
     const nodes = await importAssemblyFromStep(buf.buffer as ArrayBuffer)

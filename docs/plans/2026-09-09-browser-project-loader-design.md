@@ -261,7 +261,7 @@ async function mountOpfsProject(page: Page, files: Record<string, string>) {
 
 ### 6.3 CI 集成
 
-- core 单测随 `npm run test -w @faicad/faijs-core` 自动纳入（`src/**/*.test.ts`）；
+- core 单测随 `npm run test -w @faicad/faijs` 自动纳入（`src/**/*.test.ts`）；
 - demo e2e 随现有 `demo.spec.ts` 一起跑（playwright 已在 CI 流程）；stderr 零容忍约束照常。
 
 ---
@@ -270,7 +270,7 @@ async function mountOpfsProject(page: Page, files: Record<string, string>) {
 
 | # | 步骤 | 验证 |
 |---|---|---|
-| 1 | core：新增 `directory-project-loader.ts` + 单测（§6.1） | `npm run test -w @faicad/faijs-core`（新增用例全绿）；`npm run lint` / `npx tsc --noEmit`（core 路径） |
+| 1 | core：新增 `directory-project-loader.ts` + 单测（§6.1） | `npm run test -w @faicad/faijs`（新增用例全绿）；`npm run lint` / `npx tsc --noEmit`（core 路径） |
 | 2 | `createBrowserPorts` 注入 projectLoader 选项 | 同包单测回归 |
 | 3 | demo：Open Folder UI + 项目入口选择 + entryKey 执行 | `npm run dev`（:8899）手工全流程跑 mini_lathe assembly |
 | 4 | demo e2e 新用例（§6.2，先 build 再单跑 `npx playwright test demo.spec.ts`） | 新增用例通过，存量用例不回归 |

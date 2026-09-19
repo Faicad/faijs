@@ -5,10 +5,10 @@
  */
 
 import { describe, it, expect, beforeAll } from 'vitest'
-import { fromHandle } from '@faicad/faijs-core/sdk'
-import { brepOf } from '@faicad/faijs-core/shape'
+import { fromHandle } from '@faicad/faijs/sdk'
+import { brepOf } from '@faicad/faijs/shape'
 import type { ShapeHandle } from 'occt-wasm'
-import type { Shape } from '@faicad/faijs-core/mesh/types'
+import type { Shape } from '@faicad/faijs/mesh/types'
 import * as cq from './index'
 import { setupNativeKernel, kernel, mkWP, bbox } from './gear-test-harness'
 

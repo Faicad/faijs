@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeAll, vi } from 'vitest';
 import { initKernel } from '../kernel-setup.js';
-import Sketcher from '@faicad/faijs-core/vendored/brepjs/sketching/sketcher.js';
+import Sketcher from '@faicad/faijs/vendored/brepjs/sketching/sketcher.js';
 import {
   sketchRectangle,
   sketchCircle,
@@ -22,7 +22,7 @@ import {
   compoundSketchFace,
   compoundSketchRevolve,
   compoundSketchLoft,
-} from '@faicad/faijs-core/vendored/brepjs/sketching/sketchFns.js';
+} from '@faicad/faijs/vendored/brepjs/sketching/sketchFns.js';
 
 beforeAll(async () => {
   await initKernel();

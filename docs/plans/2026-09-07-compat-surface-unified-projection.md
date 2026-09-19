@@ -272,7 +272,7 @@ v1 §5.3 的那条推导规则会误杀 `split` 一类符号。
 
 | 入口 | 形态 | 定义位置 |
 |---|---|---|
-| 扁平子路径 `@faicad/faijs/compat` | `import { box, fuse, ok } from '@faicad/faijs/compat'` | `src/compat.ts`（一行 `export * from '@faicad/faijs-core/api/compat'`） |
+| 扁平子路径 `@faicad/faijs/compat` | `import { box, fuse, ok } from '@faicad/faijs/compat'` | `src/compat.ts`（一行 `export * from '@faicad/faijs/api/compat'`） |
 | 顶层命名空间 `compat` | `import { compat } from '@faicad/faijs'` → `compat.box` | `core/src/api/index.ts:86` `export * as compat from './compat'`，经 `core/src/index.ts:264` `export * from './api'` 与 `browser.ts:267` 上浮到门面 |
 
 **实测使用方（grep 全仓，2026-09-07）**：
@@ -288,7 +288,7 @@ v1 §5.3 的那条推导规则会误杀 `split` 一类符号。
 - **顶层命名空间 `compat`：零外部消费者**。仓内无任何 `compat.xxx` 的业务调用，
   只有 `lang/op-set-consistency.test.ts` 经 `import * as apiIndex` 做三源一致断言。
 - `packages/gear-lib-demo` **不走 compat 面**：它 import `@faicad/faijs` 顶层 +
-  `@faicad/faijs-core/sdk`（`defineOp` 作者面），与 brepjs 移植路径无关。
+  `@faicad/faijs/sdk`（`defineOp` 作者面），与 brepjs 移植路径无关。
 
 ⇒ **Q4 的硬数据**：一个已移植完成的真实钣金库只用 **53 个**符号，而库层面目标是 799。
 这是"按调用集驱动"最直接的证据（见 §11.2 Q4）。

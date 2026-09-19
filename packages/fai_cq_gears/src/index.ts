@@ -15,8 +15,8 @@
  * - `GearAssembly`（`{name, solid}[]`）保留为脚本侧逐件导出的形态（`*ExportParts`）。
  */
 
-import type { BrepHandle } from '@faicad/faijs-core'
-import { ok, err, type Result, CONTRACT_VERSION } from '@faicad/faijs-core'
+import type { BrepHandle } from '@faicad/faijs'
+import { ok, err, type Result, CONTRACT_VERSION } from '@faicad/faijs'
 import { getGearKernel, type GearKernel } from '@faicad/cq-compat'
 
 import {

@@ -183,7 +183,9 @@ export type {
 export * from './topology/naming'
 
 // ── L2 编排�?──
-export { CadRuntime, createRuntime, computeContentKey, AppendPrefixError } from './cad-runtime/runtime'
+// D1（2026-09-19）：createRuntime 自注册 cad 默认命名空间（引擎 + 标准库定位）。
+// 需要纯引擎（不带 cad）的宿主可直接 import { createRuntime } from './cad-runtime/runtime'。
+export { CadRuntime, createRuntime, computeContentKey, AppendPrefixError } from './cad-runtime/createRuntimeWithCad'
 export { createPreviewExec } from './cad-runtime/preview-exec'
 export type { PreviewExec } from './cad-runtime/preview-exec'
 export type { ExecutionResult, ExecuteOptions, CheckResult, CheckError, CadRuntimeOptions } from './cad-runtime/runtime'

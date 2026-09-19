@@ -4,11 +4,11 @@
 
 import { describe, it, expect, beforeAll } from 'vitest'
 import { createRuntime, registerOcctBrepEngine } from '@faicad/faijs'
-import { createNodePorts } from '@faicad/faijs-core/node'
-import { hasBrep, brepOf } from '@faicad/faijs-core/shape'
-import { getKernel } from '@faicad/faijs-core/occt-kernel/occtKernel'
-import { asPartName } from '@faicad/faijs-core/identity'
-import type { Shape } from '@faicad/faijs-core/mesh/types'
+import { createNodePorts } from '@faicad/faijs/node'
+import { hasBrep, brepOf } from '@faicad/faijs/shape'
+import { getKernel } from '@faicad/faijs/occt-kernel/occtKernel'
+import { asPartName } from '@faicad/faijs/identity'
+import type { Shape } from '@faicad/faijs/mesh/types'
 import * as cq from './index'
 
 let runtime: ReturnType<typeof createRuntime>

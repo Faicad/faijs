@@ -677,7 +677,7 @@ record({ fn: wrapped, inputs, output, path })
 
 ### 7.3 执行顺序
 
-`npm run lint` → `npx tsc --noEmit` → `npm run test -w @faicad/faijs-core` → `npm run test -w @faicad/faijs-tests` → 相关的 `--workspaces`。**不跑全量 CI**（AGENTS.md 明令：严禁通过跑 CI 找 bug）。
+`npm run lint` → `npx tsc --noEmit` → `npm run test -w @faicad/faijs` → `npm run test -w @faicad/faijs-tests` → 相关的 `--workspaces`。**不跑全量 CI**（AGENTS.md 明令：严禁通过跑 CI 找 bug）。
 
 ---
 
@@ -693,7 +693,7 @@ record({ fn: wrapped, inputs, output, path })
 | AC-6 | `ExecutionResult` 形状零变化（I-1） | api-surface 快照 + 类型等价 |
 | AC-7 | `keep.test.ts` 断言**一行不改**且全通过 | 直接跑 |
 | AC-8 | 代码**净减 ≥ 1,600 行**（删除 parser 1469 + codegen/compile/terminal-dag/相关测试，扣除 P1 新增 `vm/` 与 P4a 迁出） | `git diff --stat`，见 P4b 估算 |
-| AC-12 | **4 个宿主工具函数去 parser 化后行为不变**：`formatCodeLine` / `codeToArgs` / `analyzeCode` / `derivePartName` 现有断言不改且通过 | `npm run test -w @faicad/faijs-core` + api-surface 快照 |
+| AC-12 | **4 个宿主工具函数去 parser 化后行为不变**：`formatCodeLine` / `codeToArgs` / `analyzeCode` / `derivePartName` 现有断言不改且通过 | `npm run test -w @faicad/faijs` + api-surface 快照 |
 | AC-13 | 导出面契约（`browser.ts:43-52` / `index.ts:48-57` 的 4 个工具）在 P4a 前后**完全一致** | `scripts/api-surface-snapshot.mjs` 基线 diff |
 | AC-9 | `eval` / `new Function` / 动态 `import()` 全仓仅出现在 `vm/vm-exec.ts` | grep 守卫 |
 | AC-10 | 无 stderr 输出（I-6） | CI 检查 |

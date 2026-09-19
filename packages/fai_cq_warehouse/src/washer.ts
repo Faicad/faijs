@@ -30,7 +30,7 @@
  * 但读 A 侧真值必须用 manifest 的 `volume_mesh`，**不要**用 `volume`。
  */
 
-import type { BrepHandle, BrepVec3 } from '@faicad/faijs-core'
+import type { BrepHandle, BrepVec3 } from '@faicad/faijs'
 import {
   clearanceHoleData,
   isolateFastenerType,

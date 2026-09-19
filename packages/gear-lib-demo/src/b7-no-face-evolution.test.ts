@@ -22,10 +22,10 @@
 
 import { describe, it, expect, beforeAll } from 'vitest'
 import { createRuntime } from '@faicad/faijs'
-import { createNodePorts } from '@faicad/faijs-core/node'
-import { initOcctWasm } from '@faicad/faijs-core'
-import { hasBrep, getSlot } from '@faicad/faijs-core/shape'
-import type { Shape } from '@faicad/faijs-core/mesh/types'
+import { createNodePorts } from '@faicad/faijs/node'
+import { initOcctWasm } from '@faicad/faijs'
+import { hasBrep, getSlot } from '@faicad/faijs/shape'
+import type { Shape } from '@faicad/faijs/mesh/types'
 import * as mockMechBrep from './mock-mech-brep'
 
 beforeAll(async () => {

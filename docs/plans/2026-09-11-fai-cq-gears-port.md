@@ -227,7 +227,7 @@ cq 导出的参考 STEP 是 N 个独立 PRODUCT/solid，faijs 导出可能是 1 
 
 ```ts
 import { CONTRACT_VERSION } from '@faicad/faijs/sdk'        // 值=3，勿硬编码
-import type { BrepHandle } from '@faicad/faijs-core'
+import type { BrepHandle } from '@faicad/faijs'
 import * as cq from '@faicad/cq-compat'                      // 唯一建模地基
 import { spurGear, type SpurGearParams } from './spur_gear'
 import { ok, type Result } from '@faicad/faijs/sdk'

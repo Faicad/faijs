@@ -260,7 +260,7 @@ B. borrowed view -> FAIL: TypeError: Cannot read properties of undefined (readin
 ## 6. 接手必读的坑
 
 - **compatOp lift 语义（本阶段最大坑）**：`registerLib` 的 `autoLift` 缺省 = `!hasDualOp(ns)`。库命名空间只要没有 dual-op，**所有**裸函数都会被 `compatOp` 提升为 brep-only op，且实参照例先经 `borrowDeep`（faijs Shape → 借用视图）。**推论：直接调用（测试进程内）正常 ≠ 经 `runtime.execute` 正常。** 写「吃 Shape 的库函数」时必须按这个边界设计。详见 §4.3。
-- **CLI 链路陷阱**：`assembly.fai.js` import `@faicad/cq-compat` → 解析到 **stale dist**；cq-compat dist 又 import `@faicad/faijs-core` → **stale dist**。用 CLI 跑真实装配前必须先 `npm run build`（core + root）+ `npm run build -w @faicad/cq-compat`；否则 global 默认不生效、P3 看不到改进。**本阶段的 e2e 因此改为在 vitest 内直接消费 `src/`**（`createFsProjectLoader` + `projectKeyOf` 装载多文件 `assembly.fai.js`，绕过 dist）。
+- **CLI 链路陷阱**：`assembly.fai.js` import `@faicad/cq-compat` → 解析到 **stale dist**；cq-compat dist 又 import `@faicad/faijs` → **stale dist**。用 CLI 跑真实装配前必须先 `npm run build`（core + root）+ `npm run build -w @faicad/cq-compat`；否则 global 默认不生效、P3 看不到改进。**本阶段的 e2e 因此改为在 vitest 内直接消费 `src/`**（`createFsProjectLoader` + `projectKeyOf` 装载多文件 `assembly.fai.js`，绕过 dist）。
 - **多文件 `.fai.js` 执行姿势**（本阶段验证有效的写法）：`runtime.execute(code, { entryKey })`，`entryKey = projectKeyOf(root, entryFile)`（相对项目根的 POSIX key）。`ports.projectLoader` 只负责**相对/绝对** specifier；**裸 specifier（如 `@faicad/cq-compat`）由 `registerLib` 的 libLoader 解析**，所以必须 `runtime.registerLib('cq', cq, { packageName: '@faicad/cq-compat' })`。`createFsProjectLoader`/`projectKeyOf` 不在 `node-host/index.ts` 的导出面里，要从 `core/src/node-host/fs-project-loader` 直接引。
 - **occt-wasm teardown segfault**：整 suite 退出码可能为 1，属噪音（输出完整）；按文件单跑可确认真假。
 - **vitest 日志可读性**：PowerShell 重定向出的 log 含 ANSI/NUL，`Read` 会拒读；用 `tr -d '\000' | tr -cd '\11\12\15\40-\176'` 清洗后再看。

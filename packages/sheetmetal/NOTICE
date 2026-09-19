@@ -8,7 +8,7 @@ which is licensed under the Apache License 2.0.
 Ported as of brepjs commit 8685273a (locked upstream reference, O10; no
 two-way sync). Ported source files retain their original Apache-2.0
 attribution; only the import source lines were rewritten to the local
-compat shim (D12). The faijs root package and `@faicad/faijs-core` are
+compat shim (D12). The faijs root package and `@faicad/faijs` are
 licensed under the Apache License 2.0.
 
 Full license text: https://www.apache.org/licenses/LICENSE-2.0

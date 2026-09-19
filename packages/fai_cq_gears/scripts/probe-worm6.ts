@@ -2,7 +2,7 @@
  * probe-worm6.ts — 右端盖边界边的端点坐标与组线行为（按容差扫描）
  * 输出写 stdout，由调用方重定向到文件读取，避免工具截断。
  */
-import type { BrepHandle } from '@faicad/faijs-core'
+import type { BrepHandle } from '@faicad/faijs'
 import { getGearKernel } from '@faicad/cq-compat'
 import { wormGeometry } from '../src/profile'
 import { buildWormToothFaces } from '../src/worm_gear'

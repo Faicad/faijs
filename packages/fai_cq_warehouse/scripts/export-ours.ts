@@ -8,12 +8,12 @@
  */
 
 import { mkdirSync, writeFileSync } from 'node:fs'
-import { exportStepFromSolids } from '@faicad/faijs-core'
+import { exportStepFromSolids } from '@faicad/faijs'
 import { setupWarehouseKernel } from '../src/test-setup'
 import { requireKernel } from '../src/kernel'
 import { casesForSet, loadManifest, ourStepPath, OUT_DIR } from '../src/testing/fixtures'
 import { buildBearingReference, buildNutReference, buildScrewReference, buildSprocketReference, buildThreadReference, buildWasherReference } from '../src/testing/reference-options'
-import type { BrepHandle } from '@faicad/faijs-core'
+import type { BrepHandle } from '@faicad/faijs'
 import type { ManifestCase } from '../src/testing/reference-options'
 
 /** 已知缺口的类（W4 `HeatSetNut` 需 `makeNSidedSurface`；W5 两个 PH 沉孔类的 30° 锥度切割器）。

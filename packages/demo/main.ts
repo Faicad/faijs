@@ -30,6 +30,12 @@ import * as sheetmetalLib from '@faicad/sheetmetal'
 // cq-compat 经浏览器入口（/browser，不含 node:fs 的 STEP/装配比对工具）静态引用，
 // 供 LIB_MODULES 映射表引用 + 打包——脚本 specifier '@faicad/cq-compat' 与 key 严格一致。
 import * as cqCompatLib from '@faicad/cq-compat/browser'
+// D3-autoLift 外置（§9.4）：逐库 autoLift 约定读自各库自身 package.json 的
+// "faijs.autoLift" 字段，不再 host 写死判定。用相对路径 import 以避开 @faicad/* 的 Vite alias
+// （alias 会把 '@faicad/x/package.json' 误改写为源码路径）。
+import gearPkg from '../gear-lib-demo/package.json' with { type: 'json' }
+import sheetmetalPkg from '../sheetmetal/package.json' with { type: 'json' }
+import cqCompatPkg from '../cq-compat/package.json' with { type: 'json' }
 
 // ── 浏览器 libLoader（自动装载注册表） ──
 // key 必须与 registerLib 的 packageName（即脚本 import specifier）严格一致：
@@ -47,6 +53,15 @@ const LIB_MODULES: Record<string, () => Promise<StdlibNamespace>> = {
   '@faicad/cq-compat': async () => cqCompatLib as unknown as StdlibNamespace,
 }
 
+// D3-autoLift 外置：逐库 autoLift 取自各库 package.json "faijs.autoLift" 字段；
+// 未声明 → undefined，回落到 demo 全局 autoLift=true 与 runtime 推断式。
+type FaijsPkg = { faijs?: { autoLift?: boolean } }
+const LIB_AUTO_LIFT: Record<string, boolean | undefined> = {
+  'gear-lib-demo': (gearPkg as unknown as FaijsPkg).faijs?.autoLift,
+  'sheetmetal': (sheetmetalPkg as unknown as FaijsPkg).faijs?.autoLift,
+  '@faicad/cq-compat': (cqCompatPkg as unknown as FaijsPkg).faijs?.autoLift,
+}
+
 const demoLibLoader: LibLoader = {
   loadLib: async (name) => {
     const loader = LIB_MODULES[name]
@@ -56,10 +71,8 @@ const demoLibLoader: LibLoader = {
   listLibs: () => Object.keys(LIB_MODULES),
   options: {
     autoLift: true,
-    // cq-compat 的函数以 faijs Shape 为受众（内部自 borrow/adopt），若被 compat
-    // 边界整体提升，实参 Shape 会被 borrowDeep 换成 brepjs 借用视图，导致装配
-    // constraint 的面选取崩溃（CLI 即 autoLift=false 跑通）。逐库关掉提升。
-    autoLiftFor: (name) => (name === '@faicad/cq-compat' ? false : undefined),
+    // 逐库 autoLift 读自 package.json（已在 LIB_AUTO_LIFT 解析）；不再 host 写死判定。
+    autoLiftFor: (name) => LIB_AUTO_LIFT[name],
   },
 }
 

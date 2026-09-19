@@ -71,7 +71,7 @@ Step -Label '2/9  npm run typecheck（根 + workspaces）' -Block {
 
 Step -Label '3/9  npm run build（core → 门面）' -Block {
     # Ensure workspace junctions exist (npm workspaces may fail to create them on Windows)
-    if (-not (Test-Path "node_modules/@faicad/faijs-core/package.json")) {
+    if (-not (Test-Path "node_modules/@faicad/faijs/package.json")) {
         Write-Host "    [ci] workspace junction missing — running npm install" -ForegroundColor Yellow
         npm install
     }
@@ -85,7 +85,7 @@ $tmpVitest = [System.IO.Path]::GetTempFileName()
 # 其计时器同样被冻结, 见 p23-cad-face)。每个测试工作区单跑, 外层套进程级看门狗:
 # 任一处完不成 5 分钟预算即杀进程树并判失败, CI 绝不被一个死循环测试永久挂起。
 $testBudgetMs = if ($env:FAIJS_TEST_BUDGET_MS) { [int]$env:FAIJS_TEST_BUDGET_MS } else { 300000 } # 5 分钟
-$testPackages = @('@faicad/faijs-core','@faicad/gear-lib-demo','@faicad/sheetmetal','@faicad/cq-compat','@faicad/faijs-tests','@faicad/faijs-demo')
+$testPackages = @('@faicad/faijs','@faicad/gear-lib-demo','@faicad/sheetmetal','@faicad/cq-compat','@faicad/faijs-tests','@faicad/faijs-demo')
 $stepFail = $false
 foreach ($pkg in $testPackages) {
     Write-Host "    -- $pkg（budget=${testBudgetMs}ms）"

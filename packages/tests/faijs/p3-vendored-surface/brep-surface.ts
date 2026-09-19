@@ -4,7 +4,7 @@
  * 来源：docs/plans/2026-09-01-layered-api-architecture.md §P3（搬 L2 第一批、用 brepjs 自己的测试跑通）。
  *
  * 本 facade 刻写 brepjs `src/index.ts` 对 P3 批的公共面，全部重导出至 vendored 树
- * （`@faicad/faijs-core/vendored/brepjs/…`）。sketch 层 fixture（sketchCircle /
+ * （`@faicad/faijs/vendored/brepjs/…`）。sketch 层 fixture（sketchCircle /
  * sketchRectangle）因属 P5 的 2d/blueprints + sketching，此处以 vendored 已移植的
  * topology 原语（line/circle/wire/face）实现最小兼容对象 `{ wire, face() }`——这正对
  * topology/query/measurement 测试对 `.wire` / `.face()` 的调用面。
@@ -41,7 +41,7 @@ export {
   offsetFace,
   sewShells,
   addHoles,
-} from '@faicad/faijs-core/vendored/brepjs/topology/primitiveFns.js'
+} from '@faicad/faijs/vendored/brepjs/topology/primitiveFns.js'
 
 // ── 变换 / 布尔 / 修饰（admin API 层）──
 export {
@@ -65,7 +65,7 @@ export {
   simplify,
   toBREP,
   isEmpty,
-} from '@faicad/faijs-core/vendored/brepjs/topology/api.js'
+} from '@faicad/faijs/vendored/brepjs/topology/api.js'
 
 // ── shape 查询（shapeFns）──
 export {
@@ -87,7 +87,7 @@ export {
   vertexPosition,
   isSameShape,
   isEqualShape,
-} from '@faicad/faijs-core/vendored/brepjs/topology/shapeFns.js'
+} from '@faicad/faijs/vendored/brepjs/topology/shapeFns.js'
 
 // ── curve 查询 ──
 export {
@@ -104,7 +104,7 @@ export {
   getOrientation,
   flipOrientation,
   offsetWire2D,
-} from '@faicad/faijs-core/vendored/brepjs/topology/curveFns.js'
+} from '@faicad/faijs/vendored/brepjs/topology/curveFns.js'
 
 // ── surface/face 查询 ──
 export {
@@ -121,7 +121,7 @@ export {
   innerWires,
   removeHolesFromFace,
   projectPointOnFace,
-} from '@faicad/faijs-core/vendored/brepjs/topology/faceFns.js'
+} from '@faicad/faijs/vendored/brepjs/topology/faceFns.js'
 
 // ── 测量 ──
 export {
@@ -136,7 +136,7 @@ export {
   measureLinearProps,
   measureCurvatureAt,
   measureCurvatureAtMid,
-} from '@faicad/faijs-core/vendored/brepjs/measurement/measureFns.js'
+} from '@faicad/faijs/vendored/brepjs/measurement/measureFns.js'
 
 // ── core：result + shape 类型判定 ──
 export {
@@ -144,7 +144,7 @@ export {
   unwrapErr,
   isOk,
   isErr,
-} from '@faicad/faijs-core/vendored/brepjs/core/result.js'
+} from '@faicad/faijs/vendored/brepjs/core/result.js'
 export {
   createFace,
   createSolid,
@@ -157,7 +157,7 @@ export {
   isShape3D,
   castShape,
   getShapeKind,
-} from '@faicad/faijs-core/vendored/brepjs/core/shapeTypes.js'
+} from '@faicad/faijs/vendored/brepjs/core/shapeTypes.js'
 export type {
   Wire,
   Face,
@@ -169,24 +169,24 @@ export type {
   AnyShape,
   Shape3D,
   Shape1D,
-} from '@faicad/faijs-core/vendored/brepjs/core/shapeTypes.js'
+} from '@faicad/faijs/vendored/brepjs/core/shapeTypes.js'
 
 // ── query 查找器 ──
-export { getSingleFace } from '@faicad/faijs-core/vendored/brepjs/query/helpers.js'
-export { edgeFinder, faceFinder } from '@faicad/faijs-core/vendored/brepjs/query/finderFns.js'
+export { getSingleFace } from '@faicad/faijs/vendored/brepjs/query/helpers.js'
+export { edgeFinder, faceFinder } from '@faicad/faijs/vendored/brepjs/query/finderFns.js'
 
 // ── kernel registry（null-shape 预检测试用）──
-export { getKernel } from '@faicad/faijs-core/vendored/brepjs/kernel/index.js'
+export { getKernel } from '@faicad/faijs/vendored/brepjs/kernel/index.js'
 
 // ── 修饰参数判定 ──
 export {
   isNumber,
   isChamferRadius,
   isFilletRadius,
-} from '@faicad/faijs-core/vendored/brepjs/topology/shapeModifiers.js'
+} from '@faicad/faijs/vendored/brepjs/topology/shapeModifiers.js'
 
 // ── 包装表面（wrapper）──
-export { shape, BrepWrapperError } from '@faicad/faijs-core/vendored/brepjs/topology/wrapperFns.js'
+export { shape, BrepWrapperError } from '@faicad/faijs/vendored/brepjs/topology/wrapperFns.js'
 
 // ── P3 测试侧最小 sketch 兼容（P5 sketching 层落地前）──
 import {
@@ -194,8 +194,8 @@ import {
   circle,
   wire,
   face,
-} from '@faicad/faijs-core/vendored/brepjs/topology/primitiveFns.js'
-import { unwrap } from '@faicad/faijs-core/vendored/brepjs/core/result.js'
+} from '@faicad/faijs/vendored/brepjs/topology/primitiveFns.js'
+import { unwrap } from '@faicad/faijs/vendored/brepjs/core/result.js'
 
 /**
  * 最小 `Sketch`-兼容对象：只承诺 P3 批次测试用到的 `.wire` 与 `.face()`，

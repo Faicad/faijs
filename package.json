@@ -1,60 +1,9 @@
 {
-  "name": "@faicad/faijs",
+  "name": "@faicad/faijs-monorepo",
   "version": "0.12.2",
   "private": true,
   "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    },
-    "./browser": {
-      "types": "./dist/browser.d.ts",
-      "import": "./dist/browser.js"
-    },
-    "./csg": {
-      "types": "./dist/csg.d.ts",
-      "import": "./dist/csg.js"
-    },
-    "./sdf": {
-      "types": "./dist/sdf.d.ts",
-      "import": "./dist/sdf.js"
-    },
-    "./node": {
-      "types": "./dist/node.d.ts",
-      "import": "./dist/node.js"
-    },
-    "./faqts": {
-      "types": "./dist/faqts/index.d.ts",
-      "import": "./dist/faqts/index.js"
-    },
-    "./faqts/node": {
-      "types": "./dist/faqts/node.d.ts",
-      "import": "./dist/faqts/node.js"
-    },
-    "./faqts/browser": {
-      "types": "./dist/faqts/browser.d.ts",
-      "import": "./dist/faqts/browser.js"
-    },
-    "./module-resolver": {
-      "types": "./dist/module-resolver/index.d.ts",
-      "import": "./dist/module-resolver/index.js"
-    },
-    "./sdk": {
-      "types": "./dist/sdk.d.ts",
-      "import": "./dist/sdk.js"
-    },
-    "./brepjs-compat": {
-      "types": "./dist/brepjs-compat.d.ts",
-      "import": "./dist/brepjs-compat.js"
-    }
-  },
-  "files": [
-    "dist/"
-  ],
-  "description": "Faicad CAD execution engine — faijs language parser, BREP/mesh geometry ops, CadRuntime",
+  "description": "Faicad faijs monorepo — CAD execution engine (@faicad/faijs) and companion libraries",
   "license": "Apache-2.0",
   "keywords": [
     "cad",
@@ -71,15 +20,13 @@
     "url": "https://gitcode.com/Faicad/faijs.git"
   },
   "scripts": {
-    "build": "npm run clean && npm run build -w @faicad/faijs-core && tsc -p tsconfig.build.json && node scripts/fix-import-extensions.mjs",
+    "build": "npm run build -w @faicad/faijs",
     "clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
-    "pack": "npm run build && npm pack",
-    "prepack": "npm run build",
     "prepare": "node scripts/install-lefthook.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src packages/core/src packages/gear-lib-demo/src",
+    "lint": "eslint packages/core/src packages/gear-lib-demo/src",
     "verify-md-links": "npx tsx scripts/verify-md-links.ts",
     "verify-md-wrap": "npx tsx scripts/verify-md-wrap.ts",
     "verify-agent-note-format": "npx tsx scripts/verify-agent-note-format.ts",
@@ -114,10 +61,6 @@
     "packages/tests",
     "packages/demo"
   ],
-  "dependencies": {
-    "@faicad/faijs-core": "*",
-    "occt-wasm": "3.8.4"
-  },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/mdast": "^4.0.4",

@@ -21,7 +21,7 @@
  *   右端取 xmin 最小片）。
  */
 
-import type { BrepHandle } from '@faicad/faijs-core'
+import type { BrepHandle } from '@faicad/faijs'
 import type { GearKernel } from '@faicad/cq-compat'
 import {
   wormGeometry,

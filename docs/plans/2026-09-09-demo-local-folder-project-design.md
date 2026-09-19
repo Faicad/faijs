@@ -461,7 +461,7 @@ e2e 用 `addInitScript` 把 `showDirectoryPicker` stub 成 OPFS 根——句柄�
 | 4 | main.ts 接线 P1（§5.4） | 只改 4 处 | 除这 4 处外 `main.ts` 无其它 diff |
 | 5 | 单测装配（§5.8） | 加 test 脚本 + vitest/fflate 依赖 + `vitest.config.ts` + ci.ps1 包名 | `npm run test -w @faicad/faijs-demo` 全绿且无 stderr；`node scripts/check-ghost-deps.mjs` OK |
 | 6 | 类型回归（§5.9） | `npx tsc -p packages/demo/tsconfig.json --noEmit` | 错误集合不增（允许既有 3 条，行号可漂移） |
-| 7 | core 回归 | `npm run test -w @faicad/faijs-core` | 全绿 |
+| 7 | core 回归 | `npm run test -w @faicad/faijs` | 全绿 |
 | 8 | **P1 闸门：e2e 零 diff** | `npx playwright test demo.spec.ts`（cwd `packages/demo`） | 既有 20 个用例全绿，且 `git diff --stat packages/demo/e2e/demo.spec.ts` 为空 |
 | 9 | zip 实现（§5.5） | 新建 `zip-loader.ts` + `zip-loader.test.ts` | §6.2 的 8 组覆盖全绿 |
 | 10 | zip 接线（§5.6） | `index.html` 2 元素 + `main.ts` 5 处 | 除这 5 处外 `main.ts` 无其它 diff；`index.html` 只有新增 2 行 |
@@ -500,7 +500,7 @@ e2e 用 `addInitScript` 把 `showDirectoryPicker` stub 成 OPFS 根——句柄�
 - [ ] `packages/demo/main.ts` P1 仅 4 处改动、**P1 阶段 `e2e/demo.spec.ts` 零 diff**；
       P2 zip 接线仅 §5.6 的 5 处 + `index.html` 新增 2 行。
 - [ ] `packages/demo/package.json` 声明 `fflate ^0.8.3` 与 `vitest *`；`package-lock.json` 已提交。
-- [ ] `npm run test -w @faicad/faijs-demo` 全绿、无 stderr；`npm run test -w @faicad/faijs-core` 全绿；
+- [ ] `npm run test -w @faicad/faijs-demo` 全绿、无 stderr；`npm run test -w @faicad/faijs` 全绿；
       `node scripts/check-ghost-deps.mjs` OK。
 - [ ] `npx tsc -p packages/demo/tsconfig.json --noEmit` 错误集合不增。
 - [ ] demo e2e 全部用例全绿：既有 20 个 + 新增 Z1–Z4；§6.5 人工验收 5 项全部勾选。

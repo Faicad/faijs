@@ -70,7 +70,7 @@ const part1 = cad.chamfer(part0, { edges: [{ kind:'edge', faces:[{ origin:'part0
 
 ### 1.4 3d_editor 的倒角 UI（fillet UI 的模板）
 
-3d_editor 位于 `C:\my\Faicad\3d_editor`，通过 `package.json:22-23` 的 `file:` tgz 依赖 faijs **两个包**（`@faicad/faijs` 与 `@faicad/faijs-core`，当前 `0.11.1`），不是 workspace。已有设施：
+3d_editor 位于 `C:\my\Faicad\3d_editor`，通过 `package.json:22-23` 的 `file:` tgz 依赖 faijs **两个包**（`@faicad/faijs` 与 `@faicad/faijs`，当前 `0.11.1`），不是 workspace。已有设施：
 
 - 视口点选边：`chamfer-store.ts:177-182` 进入工具时 `setSelectionMode('edge')`，`ViewportContainer.tsx:1665` 的 `TopologyPicker` 对 `activeToolMode==='chamfer'` 启用
 - 点选 → `naming/capture-topo-ref.ts:37` 经 `ExecutionResult.naming` 的 `edgeNaming` 行 → `captureTopoRef(row)` → `EdgeTopoRef`，直接塞进 args
@@ -296,7 +296,7 @@ cq-compat 现状（`packages/cq-compat/src/workplane.ts`）：`resolveEdgeSelect
 12. `src/locales/zh.json`、`en.json` — `fillet.*` 文案（参照 `zh.json:457-461` 的 chamfer 五键：label / tooltip / tooltipSelectEdge / tooltipBrepOnly / brepOnly）
 13. 选边链路**完全复用** `naming/capture-topo-ref.ts`（`edgeTopoRefFromReferenceId`），M1 不需要新机制；M2b 落地后若要点选圆角产生的新边，此处才需扩消费 `derivedFaceNaming`
 
-**联调与发布**（3d_editor 消费 tgz，非 workspace）：faijs 侧改完 → `npm run pack` → 版本号 `0.11.1` → **`0.12.0`**（新增 op，minor）→ 3d_editor `package.json:22-23` 两个依赖（`@faicad/faijs`、`@faicad/faijs-core`）同步改版本号与文件名。
+**联调与发布**（3d_editor 消费 tgz，非 workspace）：faijs 侧改完 → `npm run pack` → 版本号 `0.11.1` → **`0.12.0`**（新增 op，minor）→ 3d_editor `package.json:22-23` 两个依赖（`@faicad/faijs`、`@faicad/faijs`）同步改版本号与文件名。
 
 ## 7. 测试计划（提纲）
 

@@ -10,15 +10,15 @@
  * 需要字体/资产/注册库的 fixture 在新旧两边都失败 → 不在语料内。
  */
 import { describe, it, expect, beforeAll } from 'vitest'
-import { CadRuntime } from '@faicad/faijs-core/cad-runtime/runtime'
-import { DirectExecutor } from '@faicad/faijs-core/cad-runtime/direct-executor'
-import { computeLiveShapes, keepViewFromMetadata } from '@faicad/faijs-core/cad-runtime/live-shapes'
-import { extractMetadata } from '@faicad/faijs-core/lang/metadata-extractor'
-import { createApiNamespace } from '@faicad/faijs-core/api/api-namespace'
-import { computeContentKey } from '@faicad/faijs-core/cad-runtime/content-key'
-import { isMeshShape } from '@faicad/faijs-core/mesh/types'
-import { asPartName, type PartName } from '@faicad/faijs-core/identity'
-import type { HostPorts } from '@faicad/faijs-core/cad-runtime/ports'
+import { CadRuntime } from '@faicad/faijs/cad-runtime/runtime'
+import { DirectExecutor } from '@faicad/faijs/cad-runtime/direct-executor'
+import { computeLiveShapes, keepViewFromMetadata } from '@faicad/faijs/cad-runtime/live-shapes'
+import { extractMetadata } from '@faicad/faijs/lang/metadata-extractor'
+import { createApiNamespace } from '@faicad/faijs/api/api-namespace'
+import { computeContentKey } from '@faicad/faijs/cad-runtime/content-key'
+import { isMeshShape } from '@faicad/faijs/mesh/types'
+import { asPartName, type PartName } from '@faicad/faijs/identity'
+import type { HostPorts } from '@faicad/faijs/cad-runtime/ports'
 
 function defaultPorts(): HostPorts {
   return { events: { emit: () => {} } } as HostPorts

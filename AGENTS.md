@@ -8,7 +8,9 @@
 
 Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadRuntime。
 
-**monorepo（npm workspaces，2026-08-30 P1–P6.6）**：`@faicad/faijs`（根门面，10 个 exports 子路径）、`packages/core`（`@faicad/faijs-core` 引擎；L3 API 面在 `core/src/api/`，P6 起并入 core，原 `packages/stdlib`/`@faicad/faijs-stdlib` 已取消）、`packages/gear-lib-demo`（`@faicad/gear-lib-demo` 第三方库样例）、`packages/fixtures`（数据包）、`packages/tests`（集成测试）、`packages/demo`（private）。构建产物各包 `dist/`；**测试/CLI 直接消费 `src/`**（vitest alias + tsconfig paths，M7 免打包）。
+**monorepo（npm workspaces，2026-08-30 P1–P6.6）**：根 `package.json` 为 `@faicad/faijs-monorepo`（private 聚合器，原根门面已废弃、见下）、`packages/core`（`@faicad/faijs` 引擎，2026-09-19 D2-A 升格为公开包名；L3 API 面在 `core/src/api/`，P6 起并入 core，原 `packages/stdlib`/`@faicad/faijs-stdlib` 已取消）、`packages/gear-lib-demo`（`@faicad/gear-lib-demo` 第三方库样例，不发布）、`packages/fixtures`（数据包）、`packages/tests`（集成测试）、`packages/demo`（private）。构建产物各包 `dist/`；**测试/CLI 直接消费 `src/`**（vitest alias + tsconfig paths，M7 免打包）。
+
+> 包架构再设计（2026-09-19）：原根门面 `@faicad/faijs`（仅注入 cad + `export *`）已删除，其公开名 `@faicad/faijs` 由 core 升格继承（D2-A）；`cad` 默认命名空间内置引擎（D1，`createRuntime` 自带注册，不违反 K5）。详见 `docs/plans/2026-09-19-npm-publish-plan.md`。
 
 ## 开发完成后的测试步骤
 
@@ -31,9 +33,9 @@ Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadR
 | 命令 | 说明 |
 |---|---|
 | `npm run build` | 按序构建：`core` → 根门面（`tsc` 编译各包 src → dist；根门面 build 前 clean） |
-| `npm run build -w <pkg>` | 单包构建，如 `npm run build -w @faicad/faijs-core` |
+| `npm run build -w <pkg>` | 单包构建，如 `npm run build -w @faicad/faijs` |
 | `npm run pack` | build + `npm pack` → 根目录 `faicad-faijs-0.5.8.tgz`（3d_editor 消费；`prepack` 自动 build） |
-| `npm run test -w <pkg>` | 单包测试（`-w @faicad/faijs-core` / `-w @faicad/gear-lib-demo` / `-w @faicad/faijs-tests`；cwd=包目录，fixture 路径已 import.meta.url 化） |
+| `npm run test -w <pkg>` | 单包测试（`-w @faicad/faijs` / `-w @faicad/gear-lib-demo` / `-w @faicad/faijs-tests`；cwd=包目录，fixture 路径已 import.meta.url 化） |
 | `npm run test --workspaces` | 全量测试（stderr 零容忍由 CI 检查） |
 | `npm run typecheck` | 根 `tsc --noEmit`（tsconfig paths 跟随检查 core 源码）+ `--workspaces` 逐包 |
 | `npm run lint` | `eslint src packages/*/src`（`scripts/`、`docs/`、`demo/`、`packages/demo/` 被 ignore） |
@@ -50,7 +52,7 @@ Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadR
 ## 架构（L0–L3 分层，全部位于 `packages/core/src/`）
 
 - **L0 文本层** `lang/`：parser（acorn，**先解析后编译，执行交给 JS 虚拟机**）、codegen、args-schema。`.fai.js` 是合法 JS 子集，语句 id 用 `sN`（StmtId），产出变量名用词法名（UI 自动生成代码采用 `partN` 形式，见 `lang/allocate-id.ts`）。
-- **L1 几何层**：`brep/`（OCCT brep 链）、`mesh/`（manifold-3d mesh 路径 + `cad` API）、`boolean/`、`primitives/`、`sdf/`、`topology/`；**L3 API 库面在 `api/`（core 内，原 `packages/stdlib` 已取消）——库函数经 `@faicad/faijs-core/api` 导入，`cad` 命名空间经门面 `createRuntime` 注入**。
+- **L1 几何层**：`brep/`（OCCT brep 链）、`mesh/`（manifold-3d mesh 路径 + `cad` API）、`boolean/`、`primitives/`、`sdf/`、`topology/`；**L3 API 库面在 `api/`（core 内，原 `packages/stdlib` 已取消）——库函数经 `@faicad/faijs/api` 导入，`cad` 命名空间经门面 `createRuntime` 注入**。
 - **L2 编排** `cad-runtime/`：`CadRuntime` + `HostPorts`（csg/sdf/fonts/assets/events 注入接口）。
 - **L3 Host**：`node-host/`（fs）+ `browser-host/`（worker）。
 - **双链路执行**：每个 op 必支持 mesh（默认路径），可选支持 brep——库函数经 `defineOp` 声明实现集（`@faicad/faijs/sdk`），`cad-runtime/backend-dispatch.ts` 按静态规则分派，无运行时回退；BREP 链状态在 `brep/brep-chain.ts`。单位 mm、+Z 向上、角度用度（契约见 `docs/api-contract.md`）。
@@ -121,4 +123,4 @@ Brep链可以切换，没有回退。在链上增加一个brep不支持的操作
 1. 通过rm -rf删除目录。删除目录必须是把文件夹移动到回收站。
 2. 严禁通过junction之类的方式建立目录链接。包括npm link之类的行为。
 
-本项目未上线，且不准发布到npm，待专利申请通过后，才考虑发布。
+本项目已进入正式发布准备阶段（禁令「不准发布到 npm」已撤销）。发布范围、拓扑序、门禁与 npm 自动加载方案见 `docs/plans/2026-09-19-npm-publish-plan.md`：faijs 及其可发布子包（`@faicad/faijs`(原 core) / cq-compat / fai_cq_gears / fai_cq_warehouse / sheetmetal）正式发布到公开 npm registry；demo 相关子包（gear-lib-demo / demo / fixtures / tests / mini_lathe）除外。

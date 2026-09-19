@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, beforeAll } from 'vitest'
-import { fromHandle } from '@faicad/faijs-core/sdk'
+import { fromHandle } from '@faicad/faijs/sdk'
 import * as cq from './index'
 import { setupNativeKernel, kernel, mkWP, bbox } from './gear-test-harness'
 

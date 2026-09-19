@@ -18,8 +18,8 @@
     "baseUrl": ".",
     "paths": {
       "@faicad/faijs": ["../../src/index.ts"],
-      "@faicad/faijs-core": ["../core/src/index.ts"],
-      "@faicad/faijs-core/*": ["../core/src/*"]
+      "@faicad/faijs": ["../core/src/index.ts"],
+      "@faicad/faijs/*": ["../core/src/*"]
     }
   },
   "include": ["src/**/*.ts"],

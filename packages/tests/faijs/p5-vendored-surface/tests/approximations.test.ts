@@ -4,7 +4,7 @@ import {
   approximateAsBSpline,
   BSplineToBezier,
   approximateAsSvgCompatibleCurve,
-} from '@faicad/faijs-core/vendored/brepjs/2d/lib/approximations.js';
+} from '@faicad/faijs/vendored/brepjs/2d/lib/approximations.js';
 import {
   make2dSegmentCurve,
   make2dCircle,
@@ -13,9 +13,9 @@ import {
   make2dEllipse,
   make2dEllipseArc,
   make2dInerpolatedBSplineCurve,
-} from '@faicad/faijs-core/vendored/brepjs/2d/lib/makeCurves.js';
-import { unwrap } from '@faicad/faijs-core/vendored/brepjs/core/result.js';
-import type { Curve2D } from '@faicad/faijs-core/vendored/brepjs/2d/lib/curve2D.js';
+} from '@faicad/faijs/vendored/brepjs/2d/lib/makeCurves.js';
+import { unwrap } from '@faicad/faijs/vendored/brepjs/core/result.js';
+import type { Curve2D } from '@faicad/faijs/vendored/brepjs/2d/lib/curve2D.js';
 
 beforeAll(async () => {
   await initKernel();

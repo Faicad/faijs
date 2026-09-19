@@ -35,6 +35,6 @@ Three root causes, diagnosed in `docs/analysis/2026-09-08-cq-compat-union-compou
 
 ## Verification
 
-- `npm run test -w @faicad/cq-compat` 8/8; `npm run test -w @faicad/faijs-core` 1074 passed (incl. the transformArg paren regression).
+- `npm run test -w @faicad/cq-compat` 8/8; `npm run test -w @faicad/faijs` 1074 passed (incl. the transformArg paren regression).
 - CI-equivalent run on Windows (pwsh unavailable — Access denied — so the 9 `scripts/ci.ps1` steps were executed manually): lint, typecheck (root + all workspaces, incl. the scaffold type fixes), build, workspace tests (core 1074 / gear-lib-demo 21 / sheetmetal / faijs-tests, zero stderr), guards (ghost-deps, workspaces-order, madge, api-surface, vendored tsc, layer-boundaries, branding, gen:surface), demo e2e dev 15 + preview 2, doc-sync 12 gates (after adding the `packages/mini_lathe` README bilingual pair), and `npm pack` — all green.
 - `packages/mini_lathe/scripts/verify-all.ts` re-runs clean against the re-exported artifacts.

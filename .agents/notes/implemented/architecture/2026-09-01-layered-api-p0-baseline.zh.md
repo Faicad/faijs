@@ -41,5 +41,5 @@ Status: implemented
 
 - 验收套件是全程移植的主要回归护栏：在 `packages/tests` 下运行 `npx vitest run faijs/refactor-acceptance/refactor-acceptance.test.ts`。
 - 在宿主切换时（下一次 faijs 打包后），`drill` 与 `engrave` 必须加入宿主契约白名单（`contract-entry.test.ts` 的 `WHITELIST_D`），并随切换一并落地。
-- `npm run build -w @faicad/faijs-core` 现阶段保持原样；vendored 两阶段编译将在 P1 接入。
+- `npm run build -w @faicad/faijs` 现阶段保持原样；vendored 两阶段编译将在 P1 接入。
 - License（根包 `LGPL-2.0-only` 与 Apache-2.0 移植代码的兼容）与 brepjs 上游提交锁定仍是开放的主人决策，需在 P1 落代码前收口。

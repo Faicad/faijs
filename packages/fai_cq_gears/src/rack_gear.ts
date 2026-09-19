@@ -18,7 +18,7 @@
  * 所以回归体积直接对照 regression json 的 expected。
  */
 
-import type { BrepHandle } from '@faicad/faijs-core'
+import type { BrepHandle } from '@faicad/faijs'
 import type { GearKernel } from '@faicad/cq-compat'
 import {
   GEAR_BASE_CONSTANTS, rackGearGeometry,

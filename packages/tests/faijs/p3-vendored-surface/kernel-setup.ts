@@ -11,9 +11,9 @@
  */
 
 import { beforeAll } from 'vitest'
-import { initOcctWasm } from '@faicad/faijs-core/occt-kernel/occtKernel'
-import { bindOcctKernel, getBrepjsKernel, isOcctKernelBound } from '@faicad/faijs-core/api/occt-kernel-bridge'
-import { getKernel } from '@faicad/faijs-core/vendored/brepjs/kernel/index'
+import { initOcctWasm } from '@faicad/faijs/occt-kernel/occtKernel'
+import { bindOcctKernel, getBrepjsKernel, isOcctKernelBound } from '@faicad/faijs/api/occt-kernel-bridge'
+import { getKernel } from '@faicad/faijs/vendored/brepjs/kernel/index'
 // 真实 divergence 注册表（按 occt-wasm 分支咨询），见同目录 kernel-divergences.ts
 export {
   currentKernelId,

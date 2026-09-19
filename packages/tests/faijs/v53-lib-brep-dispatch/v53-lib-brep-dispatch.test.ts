@@ -6,7 +6,7 @@
  * mode='brep' 下由 dispatchPath 抛 BrepUnsupportedError → failedAt"）。
  *
  * 契约变化（2026-08-30 defineOp 双路径契约）：`dispatchPath` 不再从
- * `@faicad/faijs-core/sdk` 导出——分派由 `defineOp` 包装器内部调用同一个引擎判定
+ * `@faicad/faijs/sdk` 导出——分派由 `defineOp` 包装器内部调用同一个引擎判定
  * （backend-dispatch.ts 单点），库作者只声明实现集。D-4 严格装配校验由
  * `assertLibConforms` 在 registerLib 时执行。
  *
@@ -18,12 +18,12 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import * as sdk from '@faicad/faijs-core/sdk'
-import { configureBackends, CONTRACT_VERSION, BrepUnsupportedError, MeshUnsupportedError } from '@faicad/faijs-core/runtime-state'
-import type { Backends } from '@faicad/faijs-core/runtime-state'
-import { defineOp, assertLibConforms } from '@faicad/faijs-core/sdk'
-import { solid, fromBrep, isShape, hasBrep } from '@faicad/faijs-core/shape'
-import type { Shape } from '@faicad/faijs-core/mesh/types'
+import * as sdk from '@faicad/faijs/sdk'
+import { configureBackends, CONTRACT_VERSION, BrepUnsupportedError, MeshUnsupportedError } from '@faicad/faijs/runtime-state'
+import type { Backends } from '@faicad/faijs/runtime-state'
+import { defineOp, assertLibConforms } from '@faicad/faijs/sdk'
+import { solid, fromBrep, isShape, hasBrep } from '@faicad/faijs/shape'
+import type { Shape } from '@faicad/faijs/mesh/types'
 
 // ── 工具：fake backends（只喂 dispatchPath 需要读的 config.mode） ──
 
@@ -90,7 +90,7 @@ describe('V5.3 静态矩阵：auto / brep / mesh × 实现集 × 输入在链', 
 
   it('auto：双路径但输入不在链 → 降级 mesh（并非回退，静态规则）', async () => {
     setMode('auto')
-    const op = defineOp({ mesh: (input: Shape) => cubeMesh(1), brep: () => 1 as unknown as import('@faicad/faijs-core/brep/engine/types').BrepHandle })
+    const op = defineOp({ mesh: (input: Shape) => cubeMesh(1), brep: () => 1 as unknown as import('@faicad/faijs/brep/engine/types').BrepHandle })
     const r = (await op(offChain)) as Shape
     expect(hasBrep(r)).toBe(false)
   })

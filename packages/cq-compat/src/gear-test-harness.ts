@@ -12,12 +12,12 @@
  * This file is NOT a test (no `*.test.ts`); it is imported by the E1–E4 specs.
  */
 
-import { registerOcctBrepEngine, configureBackends, CONTRACT_VERSION } from '@faicad/faijs-core'
-import { getKernel } from '@faicad/faijs-core/occt-kernel/occtKernel'
-import { brepOf } from '@faicad/faijs-core/shape'
+import { registerOcctBrepEngine, configureBackends, CONTRACT_VERSION } from '@faicad/faijs'
+import { getKernel } from '@faicad/faijs/occt-kernel/occtKernel'
+import { brepOf } from '@faicad/faijs/shape'
 export { brepOf }
 import type { OcctKernel, ShapeHandle } from 'occt-wasm'
-import type { Shape } from '@faicad/faijs-core/mesh/types'
+import type { Shape } from '@faicad/faijs/mesh/types'
 import type { Workplane } from './workplane'
 
 /**

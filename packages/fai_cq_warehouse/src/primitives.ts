@@ -12,7 +12,7 @@
  *  - loft(wires, isSolid, ruled) 可用——makeRuledSurface 缺失期的 §6 退化路径。
  */
 
-import type { BrepHandle, BrepVec3 } from '@faicad/faijs-core'
+import type { BrepHandle, BrepVec3 } from '@faicad/faijs'
 import {
   requireKernel,
   type TessellateOptionsLite,

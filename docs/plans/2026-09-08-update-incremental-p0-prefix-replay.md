@@ -206,7 +206,7 @@ outputs / terminals 与上一轮一致（ctx 未动）。
 | P0-7 | 零变更路径（§4.6，含 `clearRoundState`） | `runtime.ts` | 单测：`executedLines` 空、`changed` 空、outputs 与上轮相同 |
 | P0-8 | 契约文档：`changed` 与 `beforeStatement` 的增量语义 | `docs/api-contract.md` + `.zh.md` + `.i18n.yaml` | `npm run doc-sync` 通过 |
 | P0-9 | Agent Note：记录「P0 选择前缀重放而非依赖图方案」的决策与放弃项 | `.agents/notes/`（目录与命名见 `.agents/notes/README.md`） | 格式校验通过 |
-| P0-10 | 测试落点：新建 `packages/core/src/cad-runtime/update-incremental.test.ts`（单元级 + 等价对拍，直接 `new DirectExecutor(...)` 与 `new CadRuntime(...)`，可访问公开 getter `executedUnitLines`）；集成 fixture 场景放 `packages/tests/faijs/no-ir/` 下新建目录 | 见左 | `npm run test -w @faicad/faijs-core` 与 `-w @faicad/faijs-tests` 全绿 |
+| P0-10 | 测试落点：新建 `packages/core/src/cad-runtime/update-incremental.test.ts`（单元级 + 等价对拍，直接 `new DirectExecutor(...)` 与 `new CadRuntime(...)`，可访问公开 getter `executedUnitLines`）；集成 fixture 场景放 `packages/tests/faijs/no-ir/` 下新建目录 | 见左 | `npm run test -w @faicad/faijs` 与 `-w @faicad/faijs-tests` 全绿 |
 
 重放行数的断言放在 **core 包内单测**（`DirectExecutor.executedUnitLines` 是公开 getter），不为此新增任何对外 API。
 
@@ -219,7 +219,7 @@ outputs / terminals 与上一轮一致（ctx 未动）。
 5. **keep 隔离**：重放区间的 `keepByLine` 被正确清理，不因残留登记让 terminals 多出零件。
 6. **拓扑与 mesh 缓存刷新**：重放后 `topologyCache` 与 `brepChain.meshShapeCache` 中该 part 的条目被删除并按新几何重建（不得命中旧值）。
 7. **失败降级**：重放区间内注入失败语句 → 最终结果与全量失败一致（`failedAt` 相同）；注入 `ExecutionLimitError` → 原样上抛，不被降级吞掉。
-8. **回归**：`npm run test -w @faicad/faijs-core` 与 `npm run test -w @faicad/faijs-tests` 全绿，stderr 零容忍。
+8. **回归**：`npm run test -w @faicad/faijs` 与 `npm run test -w @faicad/faijs-tests` 全绿，stderr 零容忍。
 9. **句柄基线**：沿用 `packages/core/src/cad-runtime/arena-bounded.test.ts` 的存活计数方式，记录 update 前后 occt 存活 shape 计数增量，与全量路径基线对比，不得显著恶化。
 
 测试代码风格参照 `packages/core/src/cad-runtime/function-execute.test.ts`（内联代码字符串 + `makeRuntime()`），不新增 fixture 文件。

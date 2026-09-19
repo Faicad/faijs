@@ -14,8 +14,8 @@
  * ⚠️ 本脚本只**打印**、不 assert —— 它是证据生成器；断言在测试里。
  */
 
-import type { BrepHandle, BrepVec3 } from '@faicad/faijs-core'
-import { exportStepFromSolids } from '@faicad/faijs-core'
+import type { BrepHandle, BrepVec3 } from '@faicad/faijs'
+import { exportStepFromSolids } from '@faicad/faijs'
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'

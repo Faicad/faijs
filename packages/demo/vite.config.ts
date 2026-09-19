@@ -99,9 +99,9 @@ export default defineConfig({
     dedupe: ['occt-wasm'],
     // M7：免打包联动——@faicad/faijs（及 core）解析到活源码，不经 dist。
     // 前缀匹配（@rollup/plugin-alias）：'@faicad/faijs/browser' → ../../src/browser.ts，
-    // '@faicad/faijs-core/browser' → ../core/src/browser.ts。
+    // '@faicad/faijs/browser' → ../core/src/browser.ts。
     alias: [
-      { find: '@faicad/faijs-core', replacement: resolve(__dirname, '../core/src') },
+      { find: '@faicad/faijs', replacement: resolve(__dirname, '../core/src') },
       { find: '@faicad/faijs', replacement: resolve(__dirname, '../../src') },
       // P 三/四：gear-lib 经 alias 落位活源码，浏览器的静态 LIB_MODULES import 才能打包；
       // dev 与 build（rollup）一致生效。

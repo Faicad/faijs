@@ -111,7 +111,7 @@ R4 的来源（用户纠正，2026-09-01）：
 补充证据：
 
 - **全部 `.faijs` fixture 中没有任何一条 import 语句**（实测 `grep -rn "^import" packages/tests/faijs packages/fixtures --include=*.faijs` 返回空）。F2 的 import 能力目前只被单元测试覆盖（`lang/f2-imports-namespace.test.ts`），未被真实脚本使用。
-- 第三方库是 **TS 库而非 `.faijs` 库**：`packages/mech-lib/src/mock-mech-brep.ts:21-24` 直接 `import { defineOp, CONTRACT_VERSION, getBackends } from '@faicad/faijs-core/sdk'`。即第三方库**直接依赖宿主包**拿几何能力（与 brepjs 的"模块级注册器 + 库 import 宿主包"同款）。
+- 第三方库是 **TS 库而非 `.faijs` 库**：`packages/mech-lib/src/mock-mech-brep.ts:21-24` 直接 `import { defineOp, CONTRACT_VERSION, getBackends } from '@faicad/faijs/sdk'`。即第三方库**直接依赖宿主包**拿几何能力（与 brepjs 的"模块级注册器 + 库 import 宿主包"同款）。
 
 ### 3.2b `cad` 只是随意的 binding 名（用户纠正，必读）
 
@@ -479,7 +479,7 @@ faijs 就是 JS，`.faijs` 文件就是一个 ESM 模块，`import` 它就是动
 - **路线 A**：库文件就是普通 ESM（`export function makeGear(...)`），脚本文件是顶层语句。**天然区分**，靠约定即可。
 - **路线 B**：需要新增形态标记（如文件头声明，或扩展名区分 `.faijs` / `.failib`），并让 parser 按形态走不同的校验规则——这又是一条子集规则。
 
-附带问题：**库里的几何能力从哪来？** 现成答案是 mech-lib 的模式（§3.2）：库直接 `import { defineOp } from '@faicad/faijs-core/sdk'`，自己声明实现集。即**库依赖宿主包拿几何能力**，而非由调用方注入。
+附带问题：**库里的几何能力从哪来？** 现成答案是 mech-lib 的模式（§3.2）：库直接 `import { defineOp } from '@faicad/faijs/sdk'`，自己声明实现集。即**库依赖宿主包拿几何能力**，而非由调用方注入。
 
 注意这里与 §3.2b 的关系：`cad` 只是**脚本侧**引用 stdlib 的 binding 名（可任意命名）；而在**库侧**，mech-lib 根本不经过 `cad`，它直接 import 宿主包的 `defineOp`。也就是说「库拿几何能力」这件事**从来不依赖 `cad` 这个名字**——这进一步印证 `cad` 只是脚本层的一个随意别名，把它硬编码成关键字（L0）或赋予"缺省命名空间"语义（L2 `?? 'cad'`/`ns !== 'cad'`）都是多余的耦合。两条路线都可沿用 mech-lib 这个约定。
 

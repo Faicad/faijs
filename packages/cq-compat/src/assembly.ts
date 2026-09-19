@@ -12,19 +12,19 @@
  *             entity, not axis)
  */
 
-import { createApiNamespace } from '@faicad/faijs-core/api/api-namespace'
-import type { Shape } from '@faicad/faijs-core/mesh/types'
+import { createApiNamespace } from '@faicad/faijs/api/api-namespace'
+import type { Shape } from '@faicad/faijs/mesh/types'
 import type {
   AssemblyConstraint,
   EntityRef,
-} from '@faicad/faijs-core/api/assembly/types'
-import type { CompoundShape } from '@faicad/faijs-core/shape'
-import { getSlot, brepOf, ensureSlot } from '@faicad/faijs-core/shape'
-import { getBackends } from '@faicad/faijs-core/runtime-state'
-import { applyTransform } from '@faicad/faijs-core/mesh/rigid-transform'
-import { applyTransformBrep } from '@faicad/faijs-core/brep/brep-ops'
-import type { BrepEngineApi } from '@faicad/faijs-core/brep/engine/primitives'
-import type { BrepHandle } from '@faicad/faijs-core/brep/engine/types'
+} from '@faicad/faijs/api/assembly/types'
+import type { CompoundShape } from '@faicad/faijs/shape'
+import { getSlot, brepOf, ensureSlot } from '@faicad/faijs/shape'
+import { getBackends } from '@faicad/faijs/runtime-state'
+import { applyTransform } from '@faicad/faijs/mesh/rigid-transform'
+import { applyTransformBrep } from '@faicad/faijs/brep/brep-ops'
+import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
+import type { BrepHandle } from '@faicad/faijs/brep/engine/types'
 import type { RGB } from './workplane'
 import { resolveFaceSelector, asBrepShape } from './workplane'
 

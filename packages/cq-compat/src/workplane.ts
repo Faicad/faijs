@@ -9,14 +9,14 @@
  * Design doc: docs/plans/2026-09-06-cadquery-compat-and-multifile-faijs.md
  */
 
-import { createApiNamespace } from '@faicad/faijs-core/api/api-namespace'
-import { brepjsCompat } from '@faicad/faijs-core/api'
-import { borrowBrepjsShape, adoptBrepjsProduct } from '@faicad/faijs-core/api/internal/l3-bridge'
-import { fromHandle } from '@faicad/faijs-core/sdk'
-import { brepOf, isShape } from '@faicad/faijs-core/shape'
-import { getKernel } from '@faicad/faijs-core/occt-kernel/occtKernel'
+import { createApiNamespace } from '@faicad/faijs/api/api-namespace'
+import { brepjsCompat } from '@faicad/faijs/api'
+import { borrowBrepjsShape, adoptBrepjsProduct } from '@faicad/faijs/api/internal/l3-bridge'
+import { fromHandle } from '@faicad/faijs/sdk'
+import { brepOf, isShape } from '@faicad/faijs/shape'
+import { getKernel } from '@faicad/faijs/occt-kernel/occtKernel'
 import type { OcctKernel, ShapeHandle } from 'occt-wasm'
-import type { Shape } from '@faicad/faijs-core/mesh/types'
+import type { Shape } from '@faicad/faijs/mesh/types'
 
 // ── cad namespace singleton (created once at module load) ──────────────────
 const cad = createApiNamespace() as Record<string, (...args: unknown[]) => Promise<Shape>>

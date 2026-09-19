@@ -18,8 +18,8 @@ faijs is an **npm workspaces monorepo**. The root package `@faicad/faijs` is a *
 
 | Package | Package name | Responsibility |
 |---|---|---|
-| `packages/core` | `@faicad/faijs-core` | **Engine + L3 API surface**: parse / validate / schedule / bookkeep / resources, plus every op in the `cad` namespace (assembly and boolean included) in `core/src/api/` |
-| `packages/gear-lib-demo` | `@faicad/gear-lib-demo` | Third-party library sample (peer dependency on `@faicad/faijs-core`) |
+| `packages/core` | `@faicad/faijs` | **Engine + L3 API surface**: parse / validate / schedule / bookkeep / resources, plus every op in the `cad` namespace (assembly and boolean included) in `core/src/api/` |
+| `packages/gear-lib-demo` | `@faicad/gear-lib-demo` | Third-party library sample (peer dependency on `@faicad/faijs`) |
 | `packages/fixtures` | `@faicad/faijs-fixtures` | Private, data only |
 | `packages/tests` | `@faicad/faijs-tests` | Private, integration tests |
 | `packages/demo` | `@faicad/faijs-demo` | Private, vite demo |
@@ -59,7 +59,7 @@ The root package `@faicad/faijs` has **11 subpath exports** (the `exports` field
 
 | Entry | Contents | Notes |
 |---|---|---|
-| `@faicad/faijs` | Facade: `export * from '@faicad/faijs-core'` plus a wrapped `createRuntime` | Unified host entry; **the package name must not change** |
+| `@faicad/faijs` | Facade: `export * from '@faicad/faijs'` plus a wrapped `createRuntime` | Unified host entry; **the package name must not change** |
 | `/browser` | Browser-safe surface (no node-host) | Preferred entry for hosts (3d_editor) |
 | `/sdk` | **Third-party library authoring surface**, zero heavy dependencies | The only entry a library author should depend on |
 | `/stdlib` | Geometry library namespace | `cad` must be injected by the caller |
@@ -69,7 +69,7 @@ The root package `@faicad/faijs` has **11 subpath exports** (the `exports` field
 | `/faqts`, `/faqts/node`, `/faqts/browser` | Whole-module `.ts` execution channel (second execution path) | See §10.5 |
 | `/module-resolver` | Third-party library version resolution | See §10.4 |
 
-The engine package also exposes fine-grained subpaths (`@faicad/faijs-core/runtime-state`, `/shape`, `/identity`, `/lang/*`, `/brep/*`, and so on) for library authors to import on demand.
+The engine package also exposes fine-grained subpaths (`@faicad/faijs/runtime-state`, `/shape`, `/identity`, `/lang/*`, `/brep/*`, and so on) for library authors to import on demand.
 
 **Rule**: a static import of node-host inside a browser build 404s — Node-only code must be imported from `/node`. The runtime export surface of the 11 entries is guarded by snapshot comparison between `scripts/api-surface-snapshot.mjs` and `scripts/api-surface-snapshot.json`.
 
@@ -355,7 +355,7 @@ faijs adopts the `Result` / `BrepError` system from the vendored BREP tree as it
 | ② cad script face | Statement-boundary unwrap: `err` → `ExecutionResult.failedAt` with statement context | `let p = cad.union(a, b)` — errors surface as execution failures |
 | ③ Library edge | Result native inside the library; boundary unwrap at the statement edge | Library code uses `ok`/`err`/`andThen`; the boundary unwraps at the statement edge |
 
-**Key primitives** (all projected from `vendored/brepjs/core/result.ts` and `core/errors.ts`, exported via `@faicad/faijs` and `@faicad/faijs-core/api/compat`):
+**Key primitives** (all projected from `vendored/brepjs/core/result.ts` and `core/errors.ts`, exported via `@faicad/faijs` and `@faicad/faijs/api/compat`):
 
 ```ts ignore-check
 ok<T>(value: T): Ok<T>
@@ -510,7 +510,7 @@ Library functions declare implementations with `defineOp` (`@faicad/faijs/sdk`);
 ```ts
 import { defineOp } from '@faicad/faijs/sdk'
 import type { Shape } from '@faicad/faijs/sdk'
-import type { BrepHandle } from '@faicad/faijs-core/brep/engine/types'
+import type { BrepHandle } from '@faicad/faijs/brep/engine/types'
 
 interface MyParams { size: number }
 declare function myOpMesh(input: Shape, params: MyParams): { positions: Float32Array; indices: Uint32Array }

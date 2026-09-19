@@ -26,7 +26,7 @@
  * `revolve()` 缺省轴 = 工作面原点沿法向 → 即**全局 Z 轴**。故回转体一律绕 Z。
  */
 
-import type { BrepHandle, BrepVec3 } from '@faicad/faijs-core'
+import type { BrepHandle, BrepVec3 } from '@faicad/faijs'
 import type { GearKernel } from '@faicad/cq-compat'
 import {
   GEAR_BASE_CONSTANTS, bevelGearGeometry,

@@ -14,12 +14,12 @@ import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vite
 import { createRuntime } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
 import { registerOcctBrepEngine } from '@faicad/faijs'
-import { asPartName, type PartName } from '@faicad/faijs-core/identity'
-import { HASH_UPPER_BOUND } from '@faicad/faijs-core/brep/face-evolution'
-import { resolveTopoRef, type ResolutionContext } from '@faicad/faijs-core/topology/naming'
-import type { FaceTopoRef, PartNaming, RoleTable } from '@faicad/faijs-core/topology/naming/types'
-import type { CadRuntime, ExecutionResult } from '@faicad/faijs-core/cad-runtime/runtime'
-import type { BrepEngineApi } from '@faicad/faijs-core/brep/engine/primitives'
+import { asPartName, type PartName } from '@faicad/faijs/identity'
+import { HASH_UPPER_BOUND } from '@faicad/faijs/brep/face-evolution'
+import { resolveTopoRef, type ResolutionContext } from '@faicad/faijs/topology/naming'
+import type { FaceTopoRef, PartNaming, RoleTable } from '@faicad/faijs/topology/naming/types'
+import type { CadRuntime, ExecutionResult } from '@faicad/faijs/cad-runtime/runtime'
+import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
 
 beforeAll(async () => {
   await registerOcctBrepEngine()

@@ -14,7 +14,7 @@
  */
 
 export { contractVersion } from './contract'
-export type { Result } from '@faicad/faijs-core'
+export type { Result } from '@faicad/faijs'
 
 // ── 参数表查询（types()/sizes()/select_by_size 等价面）────────────────────────
 export {

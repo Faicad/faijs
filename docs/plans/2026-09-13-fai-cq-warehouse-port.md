@@ -23,7 +23,7 @@
 
 ## 1. 结论摘要
 
-- 建议新建 **`packages/fai_cq_warehouse`**（包名 `@faicad/fai-cq-warehouse`），依赖 `@faicad/cq-compat`（dev + peer）与 `@faicad/faijs-core`。
+- 建议新建 **`packages/fai_cq_warehouse`**（包名 `@faicad/fai-cq-warehouse`），依赖 `@faicad/cq-compat`（dev + peer）与 `@faicad/faijs`。
 - **分层定位（§4.3）**：`cq-compat` ≈ CadQuery（平台），`fai_cq_warehouse` ≈ cq_warehouse（第三方库）。**平台不为一个第三方库写专属代码**——本移植对 `cq-compat` 与 `core` **零改动**；CadQuery 已有而 cq-compat 未实现的（`polarArray` / `consolidateWires` / `makeRuledSurface` / `makeNSidedSurface` …）是平台的 parity 欠账，本包只提 backlog 并在自己包内临时兜；CadQuery 也没有的（`Workplane.fillet2D` 等）本包自己写，正如上游 `extensions.py` 那样。
 - **可移植主体是 5 个几何模块**：`thread` / `fastener` / `bearing` / `sprocket` / `chain`。数量以 §2.7 的**实测清单**为准：**可实例化类 34 个**（P0 范围 33 个——`Chain` 归 P1，见 §3.2）+ **抽象基类 5 个** + **参数表 34 张**（其中 2 张在上游源码零引用，见附录 A）。
   > ⚠️ 本方案初稿写的「6 个基类 + 26 个具体类」**已作废**：实测 `__subclasses__` 与 `__abstractmethods__` 对不上（27 与 26 都不对）。所有验收判据一律引用 §2.7 的清单表，不再引用裸数字。
@@ -300,7 +300,7 @@ export const contractVersion = 1
 
 | Python 世界 | 本项目 | 性质 |
 |---|---|---|
-| CadQuery | `@faicad/cq-compat`（+ `@faicad/faijs-core`） | **平台 / 公共能力层** |
+| CadQuery | `@faicad/cq-compat`（+ `@faicad/faijs`） | **平台 / 公共能力层** |
 | cq_warehouse | `@faicad/fai-cq-warehouse` | **第三方库** |
 
 **推论：平台不得为一个第三方库写专属代码。** 原提议「在 cq-compat 新建 `src/warehouse.ts` 存放本包专有的螺旋面 / 滚花 / 放样原语」，等价于要求 CadQuery 内置 cq_warehouse 的实现——**作废**。否则每移植一个 CadQuery 生态库（下一个可能是 cq_warehouse 之外的任何库），平台都要改一次，这不可能成立。
@@ -436,8 +436,8 @@ cadquery 2.8.0（`cadquery-env/Lib/site-packages/cadquery`）：
 
 ```ts
 // packages/fai_cq_warehouse/src/kernel.ts
-import { getBackends } from '@faicad/faijs-core'
-import type { BrepEngineApi } from '@faicad/faijs-core'
+import { getBackends } from '@faicad/faijs'
+import type { BrepEngineApi } from '@faicad/faijs'
 
 /**
  * Get the BREP kernel injected by the host.

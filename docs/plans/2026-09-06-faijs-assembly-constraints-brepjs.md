@@ -851,8 +851,8 @@ let poses = asm1.kinematics()  // Map<partName, {position, rotation}>，供宿�
 **测试运行纪律（遵守 AGENTS.md，严禁通过跑 CI 找 bug）：**
 
 ```
-1. 先跑新写的测试:        npm run test -w @faicad/faijs-core
-2. 再跑可能受影响的存量:   npm run test -w @faicad/faijs-core -- <改动相关的既有测试文件>
+1. 先跑新写的测试:        npm run test -w @faicad/faijs
+2. 再跑可能受影响的存量:   npm run test -w @faicad/faijs -- <改动相关的既有测试文件>
                           npm run test -w @faicad/faijs-tests   （集成/parity）
 3. 全绿后才跑一次 CI:      pwsh -NoProfile scripts/ci.ps1
 4. CI 后只重跑失败项，不重复跑 CI

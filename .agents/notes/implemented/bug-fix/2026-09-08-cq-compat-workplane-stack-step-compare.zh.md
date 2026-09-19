@@ -35,6 +35,6 @@ Status: implemented
 
 ## Verification
 
-- `npm run test -w @faicad/cq-compat` 8/8；`npm run test -w @faicad/faijs-core` 1074 passed（含 transformArg 括号回归）。
+- `npm run test -w @faicad/cq-compat` 8/8；`npm run test -w @faicad/faijs` 1074 passed（含 transformArg 括号回归）。
 - CI 等价运行（Windows 上 pwsh 不可用——Access denied——故 `scripts/ci.ps1` 的 9 步手工执行）：lint、typecheck（根 + 全部 workspaces，含脚手架类型修复）、build、workspace 测试（core 1074 / gear-lib-demo 21 / sheetmetal / faijs-tests，零 stderr）、守卫（ghost-deps、workspaces-order、madge、api-surface、vendored tsc、layer-boundaries、branding、gen:surface）、demo e2e dev 15 + preview 2、doc-sync 12 项门禁（补了 `packages/mini_lathe` README 双语配对后）、`npm pack`——全绿。
 - `packages/mini_lathe/scripts/verify-all.ts` 对重导出的产物重跑干净。

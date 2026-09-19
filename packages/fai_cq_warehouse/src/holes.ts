@@ -16,7 +16,7 @@
  * 改调本文件（`fastenerHole` 路径），Temp 节随替换删除（方案 §8-W4 去重表）。
  */
 
-import type { BrepHandle } from '@faicad/faijs-core'
+import type { BrepHandle } from '@faicad/faijs'
 import { requireKernel } from './kernel'
 import {
   cone,

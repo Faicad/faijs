@@ -15,9 +15,9 @@ import {
   initOcctWasm,
   importAssemblyFromStep,
   collectLeafParts,
-} from '@faicad/faijs-core'
-import type { BrepEngineApi, BrepHandle, BrepBoundingBox, BrepVec3 } from '@faicad/faijs-core'
-import type { AssemblyPartNode } from '@faicad/faijs-core'
+} from '@faicad/faijs'
+import type { BrepEngineApi, BrepHandle, BrepBoundingBox, BrepVec3 } from '@faicad/faijs'
+import type { AssemblyPartNode } from '@faicad/faijs'
 
 /** Tolerance options. */
 export interface AssemblyCompareOptions {

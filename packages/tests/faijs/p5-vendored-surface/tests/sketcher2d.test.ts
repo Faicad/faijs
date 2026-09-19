@@ -1,8 +1,8 @@
 import { describe, expect, it, beforeAll } from 'vitest';
 import { initKernel } from '../kernel-setup.js';
-import FaceSketcher from '@faicad/faijs-core/vendored/brepjs/sketching/faceSketcher.js';
-import { BlueprintSketcher } from '@faicad/faijs-core/vendored/brepjs/2d/blueprints/blueprintSketcher.js';
-import { Drawing } from '@faicad/faijs-core/vendored/brepjs/sketching/drawing.js';
+import FaceSketcher from '@faicad/faijs/vendored/brepjs/sketching/faceSketcher.js';
+import { BlueprintSketcher } from '@faicad/faijs/vendored/brepjs/2d/blueprints/blueprintSketcher.js';
+import { Drawing } from '@faicad/faijs/vendored/brepjs/sketching/drawing.js';
 import {
   draw,
   drawRectangle,

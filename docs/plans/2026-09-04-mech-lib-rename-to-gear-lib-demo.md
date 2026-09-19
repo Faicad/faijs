@@ -336,7 +336,7 @@ import specifier 使用 `gear-lib-demo`（与 `registerLib` 的 packageName 一�
 
 ```ts
 alias: [
-  { find: '@faicad/faijs-core', replacement: resolve(__dirname, '../core/src') },
+  { find: '@faicad/faijs', replacement: resolve(__dirname, '../core/src') },
   { find: '@faicad/faijs', replacement: resolve(__dirname, '../../src') },
   { find: '@faicad/gear-lib-demo', replacement: resolve(__dirname, '../gear-lib-demo/src/index.ts') },
 ],

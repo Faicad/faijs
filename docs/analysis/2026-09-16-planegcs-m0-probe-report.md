@@ -52,5 +52,5 @@ max error vs analytic: 0.000e+0  (< 1e-6 出口判据 ✓)
 
 ## 遗留事项
 
-1. `npm install` 对 workspace 的解析被 `@faicad/faijs-core` E404 卡死（根 package.json `"@faicad/faijs-core": "*"` 被当注册表依赖）。planegcs 目前是手动解包的「幽灵依赖」，需修 lockfile 链路（`node scripts/check-ghost-deps.mjs` 会拦截）。
+1. `npm install` 对 workspace 的解析被 `@faicad/faijs` E404 卡死（根 package.json `"@faicad/faijs": "*"` 被当注册表依赖）。planegcs 目前是手动解包的「幽灵依赖」，需修 lockfile 链路（`node scripts/check-ghost-deps.mjs` 会拦截）。
 2. M1 需要定位 56 个 `.FCStd` 样本的实际路径（计划假定 FreeCAD 仓库本地存在）。

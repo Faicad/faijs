@@ -9,7 +9,7 @@
  * 因此这里只需「用自己的公式算 geom，再交给共用的 `buildGearSolid`」。
  */
 
-import type { BrepHandle } from '@faicad/faijs-core'
+import type { BrepHandle } from '@faicad/faijs'
 import type { GearKernel } from '@faicad/cq-compat'
 import {
   crossedHelicalGearGeometry, type CrossedHelicalGearParams,

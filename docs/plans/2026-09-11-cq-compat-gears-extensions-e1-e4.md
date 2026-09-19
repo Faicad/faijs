@@ -43,7 +43,7 @@
 > 注：fai_cq_gears 第 1 版 `src/kernel.ts:41-92` 已把这三个方法封装进 `RawOcctKernel` 接口并逐条 `assertRawKernel()` 验证存在性（`RAW_KERNEL_METHODS`，kernel.ts:100-130）。本计划复用同一组内核方法，但**在 cq-compat 内**经 `getKernel()` 调用，而非 fai_cq_gears 自己 `initOcctWasm()`。
 
 ### 2.2 内核单例约定（必须遵守，否则 ShapeHandle 不兼容）
-- cq-compat 统一用 `getKernel()` from `@faicad/faijs-core/occt-kernel/occtKernel`（workplane.ts:17 导入，workplane.ts:483/527/2256/2643/2975/3910 等多处 `getKernel() as unknown as OcctKernel`）。
+- cq-compat 统一用 `getKernel()` from `@faicad/faijs/occt-kernel/occtKernel`（workplane.ts:17 导入，workplane.ts:483/527/2256/2643/2975/3910 等多处 `getKernel() as unknown as OcctKernel`）。
 - **禁止**在 E1–E4 里 `initOcctWasm()` 另起实例（fai_cq_gears kernel.ts:22-23 已论证：ShapeHandle 是实例 arena 下标，跨实例句柄失效）。
 - fai_cq_gears 第 2 版方案 §6.3 明确：wasm 初始化与单例归 cq-compat 负责，fai_cq_gears 只经 cq-compat API 取内核。
 

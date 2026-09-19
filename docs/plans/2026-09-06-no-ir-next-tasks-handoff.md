@@ -84,7 +84,7 @@
 ```
 npx vitest run faijs/no-ir            # no-ir 全套（parity/acceptance/multifile/blocks…）
 npx vitest run src/cad-runtime src/lang  # core 受影响子集
-npm run test -w @faicad/faijs-core   # core 全套
+npm run test -w @faicad/faijs   # core 全套
 npm run test -w @faicad/faijs-tests  # 集成全套
 npm run typecheck && npm run lint
 npx tsx scripts/verify-export-jsdoc.ts

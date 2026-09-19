@@ -30,14 +30,14 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createRuntime, registerOcctBrepEngine, brepjsCompat, createApiNamespace } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
-import { asPartName } from '@faicad/faijs-core/identity'
-import { isShape, hasBrep } from '@faicad/faijs-core/shape'
-import { SYMBOL_TABLE } from '@faicad/faijs-core/lang/symbol-table'
-import { CONTRACT_VERSION } from '@faicad/faijs-core/runtime-state'
-import { SCRIPT_FACE_OPS } from '@faicad/faijs-core/api/generated/script-face-manifest'
+import { asPartName } from '@faicad/faijs/identity'
+import { isShape, hasBrep } from '@faicad/faijs/shape'
+import { SYMBOL_TABLE } from '@faicad/faijs/lang/symbol-table'
+import { CONTRACT_VERSION } from '@faicad/faijs/runtime-state'
+import { SCRIPT_FACE_OPS } from '@faicad/faijs/api/generated/script-face-manifest'
 import * as facade from '@faicad/faijs'
-import type { Shape } from '@faicad/faijs-core/mesh/types'
-import type { CadRuntime } from '@faicad/faijs-core/cad-runtime/runtime'
+import type { Shape } from '@faicad/faijs/mesh/types'
+import type { CadRuntime } from '@faicad/faijs/cad-runtime/runtime'
 
 let rt: CadRuntime
 

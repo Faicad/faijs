@@ -32,7 +32,7 @@
  *    {@link filletAt}。
  */
 
-import type { BrepHandle, BrepVec3 } from '@faicad/faijs-core'
+import type { BrepHandle, BrepVec3 } from '@faicad/faijs'
 import {
   arcEdge,
   bboxOf,

@@ -27,17 +27,17 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import { createRuntime, registerOcctBrepEngine, brepjsCompat } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
-import { asPartName } from '@faicad/faijs-core/identity'
-import { hasBrep, isShape } from '@faicad/faijs-core/shape'
-import type { Shape } from '@faicad/faijs-core/mesh/types'
+import { asPartName } from '@faicad/faijs/identity'
+import { hasBrep, isShape } from '@faicad/faijs/shape'
+import type { Shape } from '@faicad/faijs/mesh/types'
 import {
   borrowDeep,
   unwrapOrThrow,
   compatOp,
-} from '@faicad/faijs-core/api/internal/compat-op'
-import { adoptEntity } from '@faicad/faijs-core/api/internal/l3-bridge'
-import { getKernel } from '@faicad/faijs-core/occt-kernel/occtKernel'
-import type { CadRuntime } from '@faicad/faijs-core/cad-runtime/runtime'
+} from '@faicad/faijs/api/internal/compat-op'
+import { adoptEntity } from '@faicad/faijs/api/internal/l3-bridge'
+import { getKernel } from '@faicad/faijs/occt-kernel/occtKernel'
+import type { CadRuntime } from '@faicad/faijs/cad-runtime/runtime'
 beforeAll(async () => {
   await registerOcctBrepEngine()
 }, 120000)
@@ -244,7 +244,7 @@ describe('③ incremental lib-content identity', () => {
       expect(g2).toBeDefined()
       // The geometry must change (libB uses size*2 for width).
       // Use content key comparison (positions length may be equal for different box dims).
-      const { computeContentKey } = await import('@faicad/faijs-core/cad-runtime/content-key')
+      const { computeContentKey } = await import('@faicad/faijs/cad-runtime/content-key')
       const key1 = computeContentKey(g1!.positions, g1!.indices)
       const key2 = computeContentKey(g2!.positions, g2!.indices)
       expect(key2).not.toBe(key1)

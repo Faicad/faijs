@@ -11,12 +11,12 @@
  * 环境：mesh 模式 + 内存 projectLoader（moduleKey → 源码文本）；direct 为 guarded 可选。
  */
 import { describe, it, expect, beforeAll } from 'vitest'
-import { CadRuntime } from '@faicad/faijs-core/cad-runtime/runtime'
-import type { ProjectLoader } from '@faicad/faijs-core/cad-runtime/ports'
-import { createApiNamespace } from '@faicad/faijs-core/api/api-namespace'
-import { isMeshShape } from '@faicad/faijs-core/mesh/types'
-import type { HostPorts } from '@faicad/faijs-core/cad-runtime/ports'
-import type { ExecutionResult } from '@faicad/faijs-core/cad-runtime/runtime'
+import { CadRuntime } from '@faicad/faijs/cad-runtime/runtime'
+import type { ProjectLoader } from '@faicad/faijs/cad-runtime/ports'
+import { createApiNamespace } from '@faicad/faijs/api/api-namespace'
+import { isMeshShape } from '@faicad/faijs/mesh/types'
+import type { HostPorts } from '@faicad/faijs/cad-runtime/ports'
+import type { ExecutionResult } from '@faicad/faijs/cad-runtime/runtime'
 
 function memLoader(map: Record<string, string>): ProjectLoader {
   return {

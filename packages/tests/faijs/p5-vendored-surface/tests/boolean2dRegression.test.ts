@@ -13,8 +13,8 @@ import {
   cutBlueprints,
   intersectBlueprints,
 } from '../p5-surface.js';
-import Blueprint from '@faicad/faijs-core/vendored/brepjs/2d/blueprints/blueprint.js';
-import type { Drawing } from '@faicad/faijs-core/vendored/brepjs/sketching/drawing.js';
+import Blueprint from '@faicad/faijs/vendored/brepjs/2d/blueprints/blueprint.js';
+import type { Drawing } from '@faicad/faijs/vendored/brepjs/sketching/drawing.js';
 
 beforeAll(async () => {
   await initKernel();

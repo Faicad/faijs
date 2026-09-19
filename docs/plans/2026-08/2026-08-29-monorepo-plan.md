@@ -131,7 +131,7 @@
 |---|---|
 | **可以做** | M1–M7 全部可达成。本机 npm 10.9.7 / Node 22.22.2 可用 |
 | **包管理器** | **npm workspaces**。不是因为 WASM（那个说法被证伪），而是同域先例 + 迁移风险（§2） |
-| **包划分** | **3 个可发布核心包 + 3 个 private 包**：`@faicad/faijs`（根，门面）、`@faicad/faijs-core`（引擎）、`@faicad/faijs-stdlib`（几何库）；`demo` / `tests` / `mech-lib`（含 `fixtures`）。详见 §5 |
+| **包划分** | **3 个可发布核心包 + 3 个 private 包**：`@faicad/faijs`（根，门面）、`@faicad/faijs`（引擎）、`@faicad/faijs-stdlib`（几何库）；`demo` / `tests` / `mech-lib`（含 `fixtures`）。详见 §5 |
 | **装配归库** | `compound.ts` 整体留在 stdlib（§4.3）。引擎里唯一用到它的 `applyTransform`（`module-executor.ts:24,348`）是**现状病灶**，按 `engine-library-contract.md` §10.1 由"标记 stale → 重算"取代，**不是**把函数上移 |
 | **循环只剩两条边** | E-a：`internal-stdlib.ts:10-26` 静态 import **30 个函数**（17 行）；E-b：`module-executor.ts:24` import `applyTransform`。其余 **8 个文件 / 11 条** core→stdlib import 中，9 条是 `stdlib/shape`（shape 上移即消失）、2 条是 `browser.ts:106-107` 对 `stdlib/compound` 的门面再导出（合法，留在根包）。§4.4 逐行对账 |
 | **循环的解法** | E-a：把 `internal-stdlib.ts` 从引擎搬到**根门面包**（brepjs 布局：根包即主库）；E-b：按 contract §10.1 传播收归引擎。两条边都消失后包图是 **DAG** |
@@ -241,7 +241,7 @@ node packages/b/index.js  →  resolved: a
 
 ⚠️ `"*"` 在 **publish 后**会匹配 registry 上的任意版本。mitigation：
 - **private 包**（demo / tests / mech-lib）用 `"*"` 无风险；
-- **可发布包**（stdlib）的内部依赖写锁定范围（如 `"@faicad/faijs-core": "^0.5.8"`），发版时统一 bump（§11.3）。
+- **可发布包**（stdlib）的内部依赖写锁定范围（如 `"@faicad/faijs": "^0.5.8"`），发版时统一 bump（§11.3）。
 
 **② 构建顺序靠 `workspaces` 数组顺序，不是自动拓扑**
 
@@ -319,7 +319,7 @@ brepjs/                          ← git 仓库根
 
 **为什么用 peer**：保证整棵树里**只有一份 `brepjs`**（根包 + npm hoisting）。这直接对应 faijs 的 `module-runtime-plan.md` §4.3「单例共享三层保障」——同一份 `WeakSet`、同一个 OCCT wasm 实例。
 
-**对本项目的映射**（§6 采用）：`@faicad/faijs-stdlib` 与 `mech-lib` 对 `@faicad/faijs-core` 用 **peerDependencies** + devDependencies 用 `"*"`。
+**对本项目的映射**（§6 采用）：`@faicad/faijs-stdlib` 与 `mech-lib` 对 `@faicad/faijs` 用 **peerDependencies** + devDependencies 用 `"*"`。
 
 ### 3.3 构建：vite lib mode + external + dts
 
@@ -662,7 +662,7 @@ const stale = this.computeDownstream(memberNames)   // ← 引擎自己的下游
 
 ```
                     ┌──────────────────────────────────────┐
-                    │  packages/core   @faicad/faijs-core  │
+                    │  packages/core   @faicad/faijs  │
                     │  引擎：lang/ cad-runtime/ mesh/       │
                     │  brep/（除 brepjs-mirror）/ topology/ │
                     │  boolean/ primitives/ sdf/           │
@@ -694,10 +694,10 @@ const stale = this.computeDownstream(memberNames)   // ← 引擎自己的下游
 
 **DAG 验证**：`faijs → stdlib → core`，`demo/tests/mech-lib → faijs`，`* → fixtures`。无环。
 
-**关于 M6 的命名取舍**（需知悉，不必再裁）：用户原话是"这些包**引用主的 faijs 库**"。上图中 stdlib 引用的是 `@faicad/faijs-core`（引擎包）而非 `@faicad/faijs`（门面包）。这是**必需的**——如果 stdlib 引用门面，而门面又引用 stdlib，就成环。取舍说明：
+**关于 M6 的命名取舍**（需知悉，不必再裁）：用户原话是"这些包**引用主的 faijs 库**"。上图中 stdlib 引用的是 `@faicad/faijs`（引擎包）而非 `@faicad/faijs`（门面包）。这是**必需的**——如果 stdlib 引用门面，而门面又引用 stdlib，就成环。取舍说明：
 
 - "主 faijs 库"在本方案里 = **`@faicad/faijs` 这个包名**（3d_editor / 外部用户的唯一入口，279 处引用不变）；
-- stdlib 引用的是它的**引擎层** `@faicad/faijs-core`，这是同一主库的内部拆分，不是另一个项目；
+- stdlib 引用的是它的**引擎层** `@faicad/faijs`，这是同一主库的内部拆分，不是另一个项目；
 - 若坚持字面（stdlib 必须引用名为 `@faicad/faijs` 的包），则必须走 E-a-2（宿主显式注册 `cad`），代价是 3d_editor 的每处 runtime 创建点加 2 行。
 
 ---
@@ -722,7 +722,7 @@ faijs/                                   ← 单 git 仓库
 ├── scripts/                             ← 仓库级脚本（ci.ps1 / ci.sh / gen-api-dts.ts）
 │
 ├── packages/
-│   ├── core/                            ← @faicad/faijs-core（引擎，可发布）
+│   ├── core/                            ← @faicad/faijs（引擎，可发布）
 │   │   ├── package.json
 │   │   ├── tsconfig.json
 │   │   ├── src/                         ← git mv 自根 src/（保留历史）
@@ -740,7 +740,7 @@ faijs/                                   ← 单 git 仓库
 │   │   └── scripts/           ← faijs-cli.ts / gen-symbol-table.ts
 │   │
 │   ├── stdlib/                          ← @faicad/faijs-stdlib（几何库，可发布）
-│   │   ├── package.json                 ← peerDependencies: { "@faicad/faijs-core": "^0.5.8" }
+│   │   ├── package.json                 ← peerDependencies: { "@faicad/faijs": "^0.5.8" }
 │   │   ├── tsconfig.json
 │   │   └── src/                         ← 现 src/stdlib/（除 shape.ts）+ src/brep/brepjs-mirror/
 │   │
@@ -764,7 +764,7 @@ faijs/                                   ← 单 git 仓库
 │       └── vitest.config.ts
 │
 └── src/                                 ← 根门面的薄 src（仅 re-export + cad 绑定）
-    ├── index.ts                         ← re-export @faicad/faijs-core + @faicad/faijs-stdlib
+    ├── index.ts                         ← re-export @faicad/faijs + @faicad/faijs-stdlib
     ├── browser.ts                       ← 浏览器门面（含 §4.4 那 3 条 compound/shape 再导出）
     ├── node.ts
     ├── csg.ts
@@ -821,7 +821,7 @@ faijs/                                   ← 单 git 仓库
     "./sdk":             { "types": "./dist/sdk.d.ts",              "import": "./dist/sdk.js" }
   },
   "dependencies": {
-    "@faicad/faijs-core": "^0.5.8",
+    "@faicad/faijs": "^0.5.8",
     "@faicad/faijs-stdlib": "^0.5.8",
     "acorn": "^8.18.0",
     "manifold-3d": "^3.5.1",
@@ -831,7 +831,7 @@ faijs/                                   ← 单 git 仓库
     "three": "^0.184.0"
   },
   "scripts": {
-    "build": "npm run build -w @faicad/faijs-core && npm run build -w @faicad/faijs-stdlib && npm run build:facade",
+    "build": "npm run build -w @faicad/faijs && npm run build -w @faicad/faijs-stdlib && npm run build:facade",
     "build:facade": "tsc -p tsconfig.build.json && node scripts/fix-import-extensions.mjs",
     "typecheck": "tsc -b --verbose",
     "test": "vitest run",
@@ -845,11 +845,11 @@ faijs/                                   ← 单 git 仓库
 >
 > ⚠️ **`pack` 不能用 `npm pack -w @faicad/faijs`**（上一版写错了）：`-w` 只对 `workspaces` 数组成员生效，根包不在其中。现状是 `"pack": "npm run build && npm pack"`，**保持不变即可**——但它依赖下面 §6.2 的 `prepack`/`prepare` 处理。
 
-### 6.2 `packages/core/package.json` → `@faicad/faijs-core`
+### 6.2 `packages/core/package.json` → `@faicad/faijs`
 
 ```jsonc
 {
-  "name": "@faicad/faijs-core",
+  "name": "@faicad/faijs",
   "version": "0.5.8",
   "type": "module",
   "main": "./dist/index.js",
@@ -941,14 +941,14 @@ npm ls occt-wasm --workspaces   # 断言：只出现一个版本，且无 nested
   },
   "files": ["dist"],
   "peerDependencies": {
-    "@faicad/faijs-core": "^0.5.8",   // ← brepjs 模式，保证单一实例
+    "@faicad/faijs": "^0.5.8",   // ← brepjs 模式，保证单一实例
     "occt-wasm": "^3.7.0"             // ⚠️ 必须 peer：wasm 实例只能有一份
   },
   "dependencies": {
     "three": "^0.184.0"               // ⚠️ 第 4 版实测：brepjs-mirror/joinery-brep.ts:19 用到
   },
   "devDependencies": {
-    "@faicad/faijs-core": "*",       // workspace 内解析到本地
+    "@faicad/faijs": "*",       // workspace 内解析到本地
     "@types/node": "*", "typescript": "*", "vitest": "*"     // 从根 hoist
   },
   "scripts": {
@@ -1007,7 +1007,7 @@ npm ls occt-wasm --workspaces   # 断言：只出现一个版本，且无 nested
 
 | 包 | name | private | 依赖 |
 |---|---|---|---|
-| mech-lib | `@faicad/mech-lib` | false（但 H5 禁 publish） | `peerDependencies: { "@faicad/faijs-core": "^0.5.8", "occt-wasm": "^3.7.0" }`<br>`dependencies: { "brepjs": "18.119.2" }`<br>`devDependencies: { "vitest": "*" }` |
+| mech-lib | `@faicad/mech-lib` | false（但 H5 禁 publish） | `peerDependencies: { "@faicad/faijs": "^0.5.8", "occt-wasm": "^3.7.0" }`<br>`dependencies: { "brepjs": "18.119.2" }`<br>`devDependencies: { "vitest": "*" }` |
 | tests | `@faicad/faijs-tests` | true | `@faicad/faijs: "*"` / `@faicad/mech-lib: "*"` / `@faicad/faijs-fixtures: "*"` |
 | fixtures | `@faicad/faijs-fixtures` | true | 无（纯数据） |
 
@@ -1026,7 +1026,7 @@ npm ls occt-wasm --workspaces   # 断言：只出现一个版本，且无 nested
 
 | 场景 | 机制 | 配置文件 |
 |---|---|---|
-| vitest（全部包） | `resolve.alias`：`@faicad/faijs` → `<root>/src/index.ts`，`@faicad/faijs-core` → `packages/core/src/index.ts`，`@faicad/faijs-stdlib` → `packages/stdlib/src/index.ts` | 根 `vitest.config.ts` |
+| vitest（全部包） | `resolve.alias`：`@faicad/faijs` → `<root>/src/index.ts`，`@faicad/faijs` → `packages/core/src/index.ts`，`@faicad/faijs-stdlib` → `packages/stdlib/src/index.ts` | 根 `vitest.config.ts` |
 | vite dev（demo） | 同上 alias + `optimizeDeps.exclude` + `server.watch.ignored` 反选 | `packages/demo/vite.config.ts` |
 | TypeScript | 根 `tsconfig.json` 的 `paths` + project `references` | 根 `tsconfig.json` |
 
@@ -1043,7 +1043,7 @@ export default defineConfig({
     alias: {
       // 与 brepjs vitest.config.ts 同构：bare specifier → 活源码，不经 dist。
       '@faicad/faijs':        r('src/index.ts'),
-      '@faicad/faijs-core':   r('packages/core/src/index.ts'),
+      '@faicad/faijs':   r('packages/core/src/index.ts'),
       '@faicad/faijs-stdlib': r('packages/stdlib/src/index.ts'),
       '@faicad/mech-lib':     r('packages/mech-lib/src/index.ts'),
       '@faicad/faijs-fixtures': r('packages/fixtures'),
@@ -1071,13 +1071,13 @@ export default defineConfig({
     dedupe: ['occt-wasm', 'three', 'manifold-3d'],
     alias: {
       '@faicad/faijs':        resolve(__dirname, '../../src/index.ts'),
-      '@faicad/faijs-core':   resolve(__dirname, '../core/src/index.ts'),
+      '@faicad/faijs':   resolve(__dirname, '../core/src/index.ts'),
       '@faicad/faijs-stdlib': resolve(__dirname, '../stdlib/src/index.ts'),
     },
   },
   optimizeDeps: {
     exclude: [
-      '@faicad/faijs', '@faicad/faijs-core', '@faicad/faijs-stdlib',  // 源码包不预打包
+      '@faicad/faijs', '@faicad/faijs', '@faicad/faijs-stdlib',  // 源码包不预打包
       'occt-wasm', 'manifold-3d',                                     // brepjs：Emscripten glue 经 esbuild 会损坏
     ],
     esbuildOptions: { target: 'esnext' },                             // 现状已有，保留
@@ -1113,7 +1113,7 @@ export default defineConfig({
   "compilerOptions": {
     "paths": {
       "@faicad/faijs":            ["./src/index.ts"],
-      "@faicad/faijs-core":       ["./packages/core/src/index.ts"],
+      "@faicad/faijs":       ["./packages/core/src/index.ts"],
       "@faicad/faijs-stdlib":     ["./packages/stdlib/src/index.ts"],
       "@faicad/mech-lib":         ["./packages/mech-lib/src/index.ts"],
       "@faicad/faijs-fixtures/*": ["./packages/fixtures/*"]
@@ -1275,7 +1275,7 @@ test/faijs/faqts/faqts.test.ts:29             pathToFileURL(resolve(process.cwd(
 test/faijs/faqts/faqts.test.ts:87             pathToFileURL(resolve(process.cwd()) + '/').href                    ← 上一版漏
 ```
 
-> ⚠️ **`faqts.test.ts:29` 格外难处理**：它 cwd 相对地指向 **`src/mesh/index.ts`** —— 迁移后 `src/` 进了 `packages/core/`，这条路径**同时跨包又跨目录层级**。它不能简单改成 `new URL('.', import.meta.url)`，必须改为**包导入**（`import { ... } from '@faicad/faijs-core'`）或走 tsconfig `paths` 的别名。
+> ⚠️ **`faqts.test.ts:29` 格外难处理**：它 cwd 相对地指向 **`src/mesh/index.ts`** —— 迁移后 `src/` 进了 `packages/core/`，这条路径**同时跨包又跨目录层级**。它不能简单改成 `new URL('.', import.meta.url)`，必须改为**包导入**（`import { ... } from '@faicad/faijs'`）或走 tsconfig `paths` 的别名。
 
 迁移后 cwd 可能是仓库根或 `packages/tests`，这 **13 处全部会挂**。统一改为相对 `import.meta.url`：
 
@@ -1347,10 +1347,10 @@ faijs 脚本
 3. `mkdir -p packages/core && git mv src test packages/core/`（`git mv` 保留历史）
    - ⚠️ `docs/` **留在根**（§5）
    - ⚠️ **`scripts/` 不整体搬**（第 4 版更正 §5）：只有 `faijs-cli.ts` / `gen-symbol-table.ts` 随 `src/` 进 `packages/core/scripts/`；`ci.ps1` / `ci.sh` / `gen-api-dts.ts` / `bump-version.mjs` / `fix-import-extensions.mjs` **留根**
-4. 新建根 `src/`（门面薄层：先只做 `export * from '@faicad/faijs-core'`，**暂不接 stdlib**）
+4. 新建根 `src/`（门面薄层：先只做 `export * from '@faicad/faijs'`，**暂不接 stdlib**）
 5. `rm -rf demo/package-lock.json demo/node_modules`（C14：`demo/node_modules` 实测已存在）
 6. `npm install`
-7. **验收**：`npm run test -w @faicad/faijs-core` / `typecheck` / `lint` / `build` 全通过 —— **这一步结束时功能零变化**，只是换了目录位置
+7. **验收**：`npm run test -w @faicad/faijs` / `typecheck` / `lint` / `build` 全通过 —— **这一步结束时功能零变化**，只是换了目录位置
    - ⚠️ 附加验收：`npx tsc --noEmit` 在**根**也通过（根 `src/` 的 re-export 类型已接上）
 
 ### P2 — demo 入 workspace，打通 M7（**本阶段交付 M7 的核心价值**）
@@ -1367,7 +1367,7 @@ faijs 脚本
 
 1. `git mv src/stdlib/shape.ts` → `packages/core/src/shape/`（K2/§5.4 判据，126 行）
 2. 修正 core 侧 8 处 import（`handle-bridge.ts:17`、`backend-dispatch.ts:19`、`module-executor.ts:22`、`preview-exec.ts:19`、`runtime.ts:47`、`node-host/cli.ts:26`、`sdk.ts:35,42`）
-3. **验收**：`npm run test -w @faicad/faijs-core` / `typecheck` / `lint` 全绿；**公开导出面 diff 为空**
+3. **验收**：`npm run test -w @faicad/faijs` / `typecheck` / `lint` 全绿；**公开导出面 diff 为空**
 4. ⚠️ **本阶段不动 `compound.ts`** —— 它整体留在 stdlib（§4.3）
 
 ### P4 — 消除边 E-b（依赖 `engine-library-contract.md` P6）
@@ -1421,7 +1421,7 @@ faijs 脚本
 |---|---|---|
 | 1 | `npm run lint --workspaces --if-present` | 根 eslint flat config 覆盖全部包 |
 | 2 | `npm run typecheck --workspaces --if-present` | `tsc -b`，靠 `paths` 免 build |
-| 3 | **按序** build：`npm run build -w @faicad/faijs-core` → `-w @faicad/faijs-stdlib` → 根 `npm run build` | 顺序由 `workspaces` 数组 + 显式编排保证（§2.4） |
+| 3 | **按序** build：`npm run build -w @faicad/faijs` → `-w @faicad/faijs-stdlib` → 根 `npm run build` | 顺序由 `workspaces` 数组 + 显式编排保证（§2.4） |
 | 4 | `npm run test --workspaces --if-present` | vitest workspace；**stderr 零容忍保留**（项目红线 H2） |
 | 5 | `npm run test:e2e -w @faicad/faijs-demo` | dev server 模式，验证 M7 链路 |
 | 6 | `npm run test:e2e:preview -w @faicad/faijs-demo` | build + preview，验证 CDN/importmap |
@@ -1450,7 +1450,7 @@ faijs 脚本
   **faijs 不照抄，理由是耦合强度不同**：brepjs 的域库（bim/sheetmetal）与引擎是**可选组合**，用户可自由搭配版本；faijs 的 core / stdlib / 门面是**同一次执行必须版本对齐的三件套**（错版本 → 两份 WeakSet / 两份 wasm，§6.2 已论证）。因此统一版本 + 锁定范围是**正确性要求**，不是偷懒。
 - **每个可发布包**用 `"prepack": "npm run build"`（不是 `prepare`/`prepublishOnly` —— 只有 `prepack` 能同时覆盖 `npm pack` 与 `npm publish`；`prepare` 在 workspace 下每次 install 都跑，见 §6.2 的表）。
 - **private 包**（demo / fixtures / tests）设 `"private": true`，npm 自动跳过。
-- **内部依赖**：可发布包写锁定范围（`"@faicad/faijs-core": "^0.5.8"`），发版时统一 bump（§2.4）。
+- **内部依赖**：可发布包写锁定范围（`"@faicad/faijs": "^0.5.8"`），发版时统一 bump（§2.4）。
 - 与 `module-runtime-plan.md` §9.1 一致：**只 pack 不 publish**。
 
 ---
@@ -1491,7 +1491,7 @@ faijs 脚本
 | O7 | npm 的幽灵依赖会掩盖缺声明的跨包 import | 中 | §2.5 的工具链必做 |
 | O8 | P1 的 `git mv src packages/core/src` 是一次大移动（**204 个** `.ts`，第 4 版更正 C11） | 中 | `git mv` 保历史；分两个 commit（移动 + 配置调整）便于 review |
 | O9 | 用户原话是"独立的 **repo**"，本方案是"单仓多包" | 语义 | **已裁定**（第三轮 D1）：单 git 仓 + 多 package |
-| O10 | M6 字面：stdlib 引用的是 `@faicad/faijs-core` 而非 `@faicad/faijs` | 语义 | §4.7 已说明取舍。若要字面满足 → 改走 E-a-2，代价是 3d_editor 每处 runtime 创建点加 2 行 |
+| O10 | M6 字面：stdlib 引用的是 `@faicad/faijs` 而非 `@faicad/faijs` | 语义 | §4.7 已说明取舍。若要字面满足 → 改走 E-a-2，代价是 3d_editor 每处 runtime 创建点加 2 行 |
 | O11 | 专利约束：`Faijs语言的思考.md` 第 90 条要求"语言核心思想"不进 faijs 仓 | **高** | 该文件留在 3d_editor；monorepo 化**不得**把它搬入；新增文档同理审查 |
 | **O12** | **（第 4 版新增）`brepjs` 不能删** —— 上一版把它判为死依赖，实测是 `test/faijs/libs/brepjs-gear.ts:32` 的真依赖 | **高**（若照上一版做，C1 回归测试直接消失） | P6 随 `mech-lib` **下沉**为该包 `dependencies`（§6.5），不是删除。验收加一条 `npm run test -w @faicad/mech-lib` 全绿 |
 | **O13** | **（第 4 版新增）`occt-wasm` 改 peer 后，3d_editor 装 tarball 时可能解析出另一个版本** | 中 | §12 的附加验收项：装一次 tarball 断言 `npm ls occt-wasm` 单版本 = 3.7.0。若失败，退路是 core/stdlib 改回 `dependencies`（放弃 peer 的严格性） |

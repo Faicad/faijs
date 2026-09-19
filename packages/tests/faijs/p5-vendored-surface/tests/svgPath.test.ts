@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeAll } from 'vitest';
 import { initKernel } from '../kernel-setup.js';
-import { adaptedCurveToPathElem } from '@faicad/faijs-core/vendored/brepjs/2d/lib/svgPath.js';
-import { approximateAsSvgCompatibleCurve } from '@faicad/faijs-core/vendored/brepjs/2d/lib/approximations.js';
+import { adaptedCurveToPathElem } from '@faicad/faijs/vendored/brepjs/2d/lib/svgPath.js';
+import { approximateAsSvgCompatibleCurve } from '@faicad/faijs/vendored/brepjs/2d/lib/approximations.js';
 import {
   make2dSegmentCurve,
   make2dCircle,
@@ -9,7 +9,7 @@ import {
   make2dThreePointArc,
   make2dBezierCurve,
   make2dEllipseArc,
-} from '@faicad/faijs-core/vendored/brepjs/2d/lib/makeCurves.js';
+} from '@faicad/faijs/vendored/brepjs/2d/lib/makeCurves.js';
 
 beforeAll(async () => {
   await initKernel();

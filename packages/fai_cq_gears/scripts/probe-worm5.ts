@@ -2,7 +2,7 @@
  * probe-worm5.ts — 诊断右端平面 section 缺交线的原因
  * （左平面 section 完整、右平面只出 2 条边；试法向反转 + 递归提边 + common 对照）
  */
-import type { BrepHandle } from '@faicad/faijs-core'
+import type { BrepHandle } from '@faicad/faijs'
 import { getGearKernel } from '@faicad/cq-compat'
 import { wormGeometry } from '../src/profile'
 import { buildWormToothFaces } from '../src/worm_gear'

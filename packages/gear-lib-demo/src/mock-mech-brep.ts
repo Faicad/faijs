@@ -21,8 +21,8 @@ import {
   defineOp,
   CONTRACT_VERSION,
   getBackends,
-} from '@faicad/faijs-core/sdk'
-import type { BrepHandle } from '@faicad/faijs-core/brep/engine/types'
+} from '@faicad/faijs/sdk'
+import type { BrepHandle } from '@faicad/faijs/brep/engine/types'
 
 /** Adapter contract version, checked against CONTRACT_VERSION by registerLib. */
 export const contractVersion = CONTRACT_VERSION

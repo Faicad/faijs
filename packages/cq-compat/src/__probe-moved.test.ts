@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { createRuntime, registerOcctBrepEngine } from '@faicad/faijs'
-import { createNodePorts } from '@faicad/faijs-core/node'
-import { brepOf } from '@faicad/faijs-core/shape'
-import type { Shape } from '@faicad/faijs-core/mesh/types'
+import { createNodePorts } from '@faicad/faijs/node'
+import { brepOf } from '@faicad/faijs/shape'
+import type { Shape } from '@faicad/faijs/mesh/types'
 import * as cq from './index'
 
 let runtime: ReturnType<typeof createRuntime>

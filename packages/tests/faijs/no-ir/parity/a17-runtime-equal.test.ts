@@ -14,12 +14,12 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { CadRuntime } from '@faicad/faijs-core/cad-runtime/runtime'
-import { createApiNamespace } from '@faicad/faijs-core/api/api-namespace'
-import { computeContentKey } from '@faicad/faijs-core/cad-runtime/content-key'
-import { isMeshShape } from '@faicad/faijs-core/mesh/types'
-import { asPartName, type PartName } from '@faicad/faijs-core/identity'
-import type { HostPorts } from '@faicad/faijs-core/cad-runtime/ports'
+import { CadRuntime } from '@faicad/faijs/cad-runtime/runtime'
+import { createApiNamespace } from '@faicad/faijs/api/api-namespace'
+import { computeContentKey } from '@faicad/faijs/cad-runtime/content-key'
+import { isMeshShape } from '@faicad/faijs/mesh/types'
+import { asPartName, type PartName } from '@faicad/faijs/identity'
+import type { HostPorts } from '@faicad/faijs/cad-runtime/ports'
 
 const here = fileURLToPath(new URL('.', import.meta.url))
 const fixturesRoot = join(here, '..', '..', '..')

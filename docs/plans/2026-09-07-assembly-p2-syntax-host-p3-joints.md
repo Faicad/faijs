@@ -250,7 +250,7 @@ export function entityFromGeometry(g:
 
 1. `api/assembly/index.ts` 加 `export * from './preview'`；
 2. **`api/index.ts` 加 `export * from './assembly'`** —— 该文件目前只从 `./compound` 导出（`api/index.ts:27-35`），不做这一步 `solvePreview` 到不了门面。注意 `EntityRef`/`FaceRef`/`AssemblyVec3` 等类型已有**显式**导出（`:31-35`），与星号导出重名时显式优先、不报错，但必须跑 `lang/op-set-consistency.test.ts` 与 typecheck 验证；
-3. `packages/core/src/browser.ts` 末尾已有 `export * from './api'` → `src/browser.ts` 再 `export * from '@faicad/faijs-core/browser'`，故 `@faicad/faijs/browser` 自动可见，**无需改动**。
+3. `packages/core/src/browser.ts` 末尾已有 `export * from './api'` → `src/browser.ts` 再 `export * from '@faicad/faijs/browser'`，故 `@faicad/faijs/browser` 自动可见，**无需改动**。
 
 **测试**（`packages/core/src/api/assembly/preview.test.ts`）：
 

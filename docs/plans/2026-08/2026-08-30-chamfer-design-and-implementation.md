@@ -704,14 +704,14 @@ export async function chamfer(shape: Shape, params: ChamferParams): Promise<Shap
  * ⚠️ 本 op 双链齐备，**不会造成 BREP 断链**（与 knurl 等 mesh-only op 不同）。
  */
 
-import type { Shape } from '@faicad/faijs-core/mesh/types'
-import { cad } from '@faicad/faijs-core/mesh'
-import { chamferBrep, solidToShape } from '@faicad/faijs-core/brep/brep-ops'
-import { getBackends } from '@faicad/faijs-core/runtime-state'
-import { fromBrep, brepOf } from '@faicad/faijs-core/shape'
-import { defineOp } from '@faicad/faijs-core/sdk'
-import type { BrepHandle } from '@faicad/faijs-core/brep/engine/types'
-import type { BrepEngineApi } from '@faicad/faijs-core/brep/engine/primitives'
+import type { Shape } from '@faicad/faijs/mesh/types'
+import { cad } from '@faicad/faijs/mesh'
+import { chamferBrep, solidToShape } from '@faicad/faijs/brep/brep-ops'
+import { getBackends } from '@faicad/faijs/runtime-state'
+import { fromBrep, brepOf } from '@faicad/faijs/shape'
+import { defineOp } from '@faicad/faijs/sdk'
+import type { BrepHandle } from '@faicad/faijs/brep/engine/types'
+import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
 import { assertNumber, assertOneOf, assertVec3, assertNonZeroVec3 } from './assert'
 
 export type { EdgeAnchor, ChamferType, ChamferParams } from './chamfer-types'

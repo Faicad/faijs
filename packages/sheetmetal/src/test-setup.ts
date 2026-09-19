@@ -9,8 +9,8 @@
  * 但保留同一装配以与原版测试形态一致。
  */
 
-import { initOcctWasm } from '@faicad/faijs-core/occt-kernel/occtKernel'
-import { bindOcctKernel } from '@faicad/faijs-core/api/occt-kernel-bridge'
+import { initOcctWasm } from '@faicad/faijs/occt-kernel/occtKernel'
+import { bindOcctKernel } from '@faicad/faijs/api/occt-kernel-bridge'
 
 /** 与原版 morph tests/setup.ts 同名：初始化内核（幂等）。 */
 export async function initOCCT(): Promise<void> {

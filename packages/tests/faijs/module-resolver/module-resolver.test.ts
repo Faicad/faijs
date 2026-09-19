@@ -18,7 +18,7 @@ import {
   splitVersionRange,
   satisfies,
   assertSatisfies,
-} from '@faicad/faijs-core/module-resolver'
+} from '@faicad/faijs/module-resolver'
 
 describe('module-resolver: rewrite 面', () => {
   it('多 import + 重命名 import 一起重写，其余代码原样保留', () => {

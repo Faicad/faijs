@@ -14,8 +14,8 @@
 
 import { beforeAll, describe, expect, it } from 'vitest'
 import { mkdirSync, writeFileSync } from 'node:fs'
-import { exportStepFromSolids } from '@faicad/faijs-core'
-import type { BrepHandle } from '@faicad/faijs-core'
+import { exportStepFromSolids } from '@faicad/faijs'
+import type { BrepHandle } from '@faicad/faijs'
 import { requireKernel, type WarehouseKernel } from './kernel'
 import { setupWarehouseKernel } from './test-setup'
 import {

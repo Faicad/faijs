@@ -10,7 +10,7 @@
  */
 
 import { beforeAll, describe, expect, it } from 'vitest'
-import type { BrepHandle, BrepVec3 } from '@faicad/faijs-core'
+import type { BrepHandle, BrepVec3 } from '@faicad/faijs'
 import { requireKernel, type WarehouseKernel } from './kernel'
 import { setupWarehouseKernel } from './test-setup'
 import {

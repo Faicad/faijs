@@ -8,10 +8,10 @@
  * 环境：mesh 模式；warmup 认领全局 backends。
  */
 import { describe, it, expect, beforeAll } from 'vitest'
-import { CadRuntime } from '@faicad/faijs-core/cad-runtime/runtime'
-import { createApiNamespace } from '@faicad/faijs-core/api/api-namespace'
-import { asPartName, type PartName } from '@faicad/faijs-core/identity'
-import type { HostPorts } from '@faicad/faijs-core/cad-runtime/ports'
+import { CadRuntime } from '@faicad/faijs/cad-runtime/runtime'
+import { createApiNamespace } from '@faicad/faijs/api/api-namespace'
+import { asPartName, type PartName } from '@faicad/faijs/identity'
+import type { HostPorts } from '@faicad/faijs/cad-runtime/ports'
 
 function defaultPorts(): HostPorts {
   return { events: { emit: () => {} } } as HostPorts

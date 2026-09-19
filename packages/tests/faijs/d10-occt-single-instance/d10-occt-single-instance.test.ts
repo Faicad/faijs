@@ -18,9 +18,9 @@
  */
 
 import { describe, it, expect, beforeAll } from 'vitest'
-import { initOcctWasm, getKernel as getHostKernel } from '@faicad/faijs-core/occt-kernel/occtKernel'
-import { bindOcctKernel, getBrepjsKernel, isOcctKernelBound } from '@faicad/faijs-core/api/occt-kernel-bridge'
-import { getKernel as getBrepjsRegistry, registerKernel, getActiveKernelId } from '@faicad/faijs-core/vendored/brepjs/kernel/index'
+import { initOcctWasm, getKernel as getHostKernel } from '@faicad/faijs/occt-kernel/occtKernel'
+import { bindOcctKernel, getBrepjsKernel, isOcctKernelBound } from '@faicad/faijs/api/occt-kernel-bridge'
+import { getKernel as getBrepjsRegistry, registerKernel, getActiveKernelId } from '@faicad/faijs/vendored/brepjs/kernel/index'
 
 describe('D10 · occt-wasm 单实例绑定 + 冻结', () => {
   beforeAll(async () => {

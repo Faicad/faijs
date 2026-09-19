@@ -14,7 +14,7 @@ import { planarCapAtZ, buildToothFaces } from '../src/spur_gear'
 import { spurGearGeometry } from '../src/profile'
 import type { SpurGearParams } from '../src/profile'
 import type { SplineFaceStrategy } from '../src/spline-face'
-import type { BrepHandle } from '@faicad/faijs-core'
+import type { BrepHandle } from '@faicad/faijs'
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`)

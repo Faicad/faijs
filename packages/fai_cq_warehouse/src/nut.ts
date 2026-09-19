@@ -43,7 +43,7 @@
  * `src/recess.ts` 的 **W4 临时**等价实现承担（按方案 §8-W4 去重表，W9·P1-b 落地后替换）。
  */
 
-import type { BrepHandle, BrepVec3 } from '@faicad/faijs-core'
+import type { BrepHandle, BrepVec3 } from '@faicad/faijs'
 import {
   clearanceHoleData,
   isolateFastenerType,

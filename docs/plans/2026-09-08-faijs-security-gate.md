@@ -602,8 +602,8 @@ warnings 复用同一枚举（目前只有无界循环 → `SEC_LIMIT`，但 `ok
 
 | 阶段 | 内容 | 退出标准 | 验证命令 |
 |---|---|---|---|
-| **P1 扫描器 + 单测** | `security-scanner.ts` + 规则表 + 三档策略；§8.1 全部单测 | 全表拒绝且**合法 fixture 全放行**（无误杀） | `npm run test -w @faicad/faijs-core -- security-scanner` |
-| **P2 三处接入** | A1 / A2 / A3 | 端到端：危险 `.fai.js` 在 `check` 与 `execute` 两种入口都被拒 | `npm run test -w @faicad/faijs-core -- check execute-code direct-executor` |
+| **P1 扫描器 + 单测** | `security-scanner.ts` + 规则表 + 三档策略；§8.1 全部单测 | 全表拒绝且**合法 fixture 全放行**（无误杀） | `npm run test -w @faicad/faijs -- security-scanner` |
+| **P2 三处接入** | A1 / A2 / A3 | 端到端：危险 `.fai.js` 在 `check` 与 `execute` 两种入口都被拒 | `npm run test -w @faicad/faijs -- check execute-code direct-executor` |
 | **P3 无误杀回归** | 全量 `.fai.js` fixture + 手工合法代码集（S-17~S-22） | 全绿，stderr 零输出 | `npm run test --workspaces` |
 | **P4 库边界** | `LibLoader.loadSource?` 可选源码扫描钩子（**不做能力清单**，§6.2.1）+ `docs/library-dev-guide.md` 信任边界章节 | 信任边界文档落地；有源码的库可走 Scanner | `npm run test -w @faicad/gear-lib-demo` |
 | **P5 门禁与文档** | lint / typecheck / doc-sync / Agent Note | CI 绿 | `npm run lint && npm run typecheck && npm run doc-sync` |

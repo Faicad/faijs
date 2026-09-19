@@ -17,12 +17,12 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { transformFaqts } from '@faicad/faijs-core/faqts/transform'
-import { findImports, rewriteImports } from '@faicad/faijs-core/faqts/imports'
-import { runFaqts } from '@faicad/faijs-core/faqts/run'
-import { executeFaqtsModuleInNode } from '@faicad/faijs-core/faqts/exec-node'
-import { cad as hostCad } from '@faicad/faijs-core/mesh/index'
-import type { Shape } from '@faicad/faijs-core/mesh/types'
+import { transformFaqts } from '@faicad/faijs/faqts/transform'
+import { findImports, rewriteImports } from '@faicad/faijs/faqts/imports'
+import { runFaqts } from '@faicad/faijs/faqts/run'
+import { executeFaqtsModuleInNode } from '@faicad/faijs/faqts/exec-node'
+import { cad as hostCad } from '@faicad/faijs/mesh/index'
+import type { Shape } from '@faicad/faijs/mesh/types'
 
 const FIXTURE = fileURLToPath(new URL('./fixtures/mount-plate.ts', import.meta.url))
 // faits 脚本经 rewrite 指向 core 的 mesh 入口（与宿主 cad 同源；纯 mesh 无需 OCCT）

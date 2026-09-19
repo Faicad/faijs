@@ -4,8 +4,12 @@
  *
  * 库函数签名 = .fai.js 源码形态（无隐式参数）；本文件无任何 per-函数逻辑。
  *
- * 归属（monorepo P5/E-a-1）：本文件随 stdlib 出包。core 不再 import 本文件
- * （引擎零函数知识，K5）；cad 注入由根门面在 createRuntime 包装中完成。
+ * 归属（monorepo P5/E-a-1）：本文件随 stdlib 出包，是 faijs 默认标准库
+ * （cad 命名空间）的装配点。K5（引擎零函数知识）的准确含义是：parser / compile /
+ * runtime 不按函数名分支、不区分函数类别，函数信息统一以 defineOp 元数据（均匀数据）
+ * 承载。把 cad 这套库数据内置进引擎，与第三方库走完全相同的 registerLib 路径，
+ * 引擎并未对 cad 特判，因此不构成 K5 违反。cad 在 core 的 createRuntime 包装中
+ * 被注册为 default 命名空间（见 cad-runtime/createRuntimeWithCad.ts）。
  */
 
 import { box, sphere, cylinder, cone, wedge } from './primitives'

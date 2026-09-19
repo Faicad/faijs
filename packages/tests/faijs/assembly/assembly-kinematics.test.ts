@@ -13,11 +13,11 @@
 
 import { describe, it, expect, afterEach } from 'vitest'
 import { createNodePorts } from '@faicad/faijs/node'
-import { CadRuntime } from '@faicad/faijs-core/cad-runtime/runtime'
-import { createApiNamespace } from '@faicad/faijs-core/api/api-namespace'
-import { solveKinematics, type JointSpec, type KinematicsPose } from '@faicad/faijs-core/api/assembly/joints'
-import { asPartName, type PartName } from '@faicad/faijs-core/identity'
-import type { ExecutionResult } from '@faicad/faijs-core/cad-runtime/runtime'
+import { CadRuntime } from '@faicad/faijs/cad-runtime/runtime'
+import { createApiNamespace } from '@faicad/faijs/api/api-namespace'
+import { solveKinematics, type JointSpec, type KinematicsPose } from '@faicad/faijs/api/assembly/joints'
+import { asPartName, type PartName } from '@faicad/faijs/identity'
+import type { ExecutionResult } from '@faicad/faijs/cad-runtime/runtime'
 
 /** 单 revolute：part0 固定，part1 绕原点 Z 轴转 90°（与 J5 同一场景）。 */
 const FIXTURE = `let part0 = cad.box(60, 40, 10, { centered: true })

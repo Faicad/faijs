@@ -34,7 +34,7 @@
  * 不做启发式实现（方案 §5.4 红线）。
  */
 
-import type { BrepHandle, BrepVec3 } from '@faicad/faijs-core'
+import type { BrepHandle, BrepVec3 } from '@faicad/faijs'
 import {
   orientOutward,
   quadFace,

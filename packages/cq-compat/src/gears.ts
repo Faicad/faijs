@@ -14,8 +14,8 @@
  * kernel call sequence → bit-identical geometry).
  */
 
-import { initOcctWasm } from '@faicad/faijs-core'
-import type { BrepEngineApi, BrepHandle, BrepVec3 } from '@faicad/faijs-core'
+import { initOcctWasm } from '@faicad/faijs'
+import type { BrepEngineApi, BrepHandle, BrepVec3 } from '@faicad/faijs'
 import type { Vec3 } from './geom-types'
 
 /** Rotation/mirror axis (occt-wasm shape). */

@@ -18,13 +18,13 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { createRuntime, registerOcctBrepEngine } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
-import { createRuntime as coreCreateRuntime } from '@faicad/faijs-core/cad-runtime/runtime'
-import type { ExecutionResult } from '@faicad/faijs-core/cad-runtime/runtime'
-import { DUAL_OP_META, CONTRACT_VERSION, defineOp } from '@faicad/faijs-core/sdk'
-import type { StdlibNamespace } from '@faicad/faijs-core/runtime-state'
-import { box as stdlibBox, cylinder as stdlibCylinder, union as stdlibUnion } from '@faicad/faijs-core/api'
-import { asPartName } from '@faicad/faijs-core/identity'
-import type { Shape } from '@faicad/faijs-core/mesh/types'
+import { createRuntime as coreCreateRuntime } from '@faicad/faijs/cad-runtime/runtime'
+import type { ExecutionResult } from '@faicad/faijs/cad-runtime/runtime'
+import { DUAL_OP_META, CONTRACT_VERSION, defineOp } from '@faicad/faijs/sdk'
+import type { StdlibNamespace } from '@faicad/faijs/runtime-state'
+import { box as stdlibBox, cylinder as stdlibCylinder, union as stdlibUnion } from '@faicad/faijs/api'
+import { asPartName } from '@faicad/faijs/identity'
+import type { Shape } from '@faicad/faijs/mesh/types'
 
 /** 最小 cube mesh（测试专用轻量实现，不启动内核）。 */
 function cubeMesh(size: number): Shape {

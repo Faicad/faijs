@@ -3,7 +3,7 @@
 - 日期：2026-09-01（**v4**；v3/v2/v1 同日，v1 前提被否决）
 - 状态：**已废弃**（P0–P9 已落地，代码资产保留；方向被否决；接替方案 `docs/plans/2026-09-02-faijs-api-surface-completion.md` 亦已废弃；最终接替方案 `docs/plans/2026-09-03-faijs-brepjs-compat-api.md` 已落地 P20–P27）
 - 参照实现：`C:\git\OpenCascade\brepjs`（Apache-2.0，83528 行 src / 380 文件，L0–L3 分层 + 可插拔内核 + 三个领域扩展包）
-- ⚠️ **方向已被否决（2026-09-02 用户判定）**：P0–P9 落地的**代码资产保留**，但"把 brepjs 搬进来、让它能跑"这个方向是错的——它没把 vendored 的 47475 行能力投影到 faijs 的 API 面上（实测 `cad.*` 仅 31 个函数，相对 brepjs 公开面 810 符号覆盖率 3.8%），导致 sheetmetal 长在 `@faicad/faijs-core/vendored/brepjs/*` 深导入上，faijs 沦为 brepjs 的包装器。**接替方案：`docs/plans/2026-09-02-faijs-api-surface-completion.md`**（亦已废弃，最终由 `docs/plans/2026-09-03-faijs-brepjs-compat-api.md` 取代并落地）
+- ⚠️ **方向已被否决（2026-09-02 用户判定）**：P0–P9 落地的**代码资产保留**，但"把 brepjs 搬进来、让它能跑"这个方向是错的——它没把 vendored 的 47475 行能力投影到 faijs 的 API 面上（实测 `cad.*` 仅 31 个函数，相对 brepjs 公开面 810 符号覆盖率 3.8%），导致 sheetmetal 长在 `@faicad/faijs/vendored/brepjs/*` 深导入上，faijs 沦为 brepjs 的包装器。**接替方案：`docs/plans/2026-09-02-faijs-api-surface-completion.md`**（亦已废弃，最终由 `docs/plans/2026-09-03-faijs-brepjs-compat-api.md` 取代并落地）
 - v3 变更：**① 不移植 `csg` 模块；② 取消 stdlib 包与"标准库"概念；③ 补齐 `cad` 前缀与命名空间设计；④ 新增钣金库移植作为 API 能力验证**
 - v4 变更（全仓代码核查后的纠错与补缺）：**① 新增 D10（内核单实例 + `getKernel` 冻结而非砍除——v3 砍掉它会让全部移植 L2 无法运行）；② 新增 D11（既有几何层去向表 + L3 双链实现来源规则，`kernel/manifold` 移出 P2）；③ 新增 D12（钣金 Result 兼容 shim，保住"<5% 改动量"判据）；④ 修正事实错误：`ExecutionResult` 实为 11 字段（漏 `naming`）、`registerLib('cad')` 在门面而非 runtime.ts、钣金为 40 函数/227 it、`./stdlib` 有 3d_editor 生产消费者需先迁移、screw-db 在 core 不在 stdlib、`./csg` 是 faijs 自有导出勿与 brepjs csg 混淆、`.fai.js` 扩展名、D2 与已有 `defineOp` 对齐**
 

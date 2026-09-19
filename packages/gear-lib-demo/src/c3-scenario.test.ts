@@ -24,12 +24,12 @@
 
 import { describe, it, expect, beforeAll } from 'vitest'
 import { createRuntime, registerOcctBrepEngine, makeExternalGear } from '@faicad/faijs'
-import { createNodePorts } from '@faicad/faijs-core/node'
-import { hasBrep } from '@faicad/faijs-core/shape'
-import { dispatchPath } from '@faicad/faijs-core/cad-runtime/backend-dispatch'
+import { createNodePorts } from '@faicad/faijs/node'
+import { hasBrep } from '@faicad/faijs/shape'
+import { dispatchPath } from '@faicad/faijs/cad-runtime/backend-dispatch'
 import * as gear from './gear'
-import type { Shape } from '@faicad/faijs-core/mesh/types'
-import type { PartName } from '@faicad/faijs-core/identity'
+import type { Shape } from '@faicad/faijs/mesh/types'
+import type { PartName } from '@faicad/faijs/identity'
 
 let runtime: ReturnType<typeof createRuntime>
 let result: Awaited<ReturnType<ReturnType<typeof createRuntime>['execute']>>

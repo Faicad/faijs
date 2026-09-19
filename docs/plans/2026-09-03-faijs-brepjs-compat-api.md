@@ -24,7 +24,7 @@
 
 > 「brepjs库里还有大量非brep建模的部分，完全无关，本项目不支持。」
 
-> 「sheetmetal必须是一个第三方库，怎么可能允许访问@faicad/faijs-core/vendored/brepjs？这不彻底
+> 「sheetmetal必须是一个第三方库，怎么可能允许访问@faicad/faijs/vendored/brepjs？这不彻底
 > 违反了项目的前提？……第三方库，不准出现任何的brepjs的内容。用mech-lib、sheetmetal这两个库来测试。
 > 它们就是第三方库，只是为了演示的原因，和faijs放在了一起。要求能在fai.js脚本里，调用这些第三方库。
 > 把这个流程走通。」
@@ -83,7 +83,7 @@
 | 维度 | 9-02（已实施到 P14，方向暂停） | 9-03 v2（同日，被本版取代） | **本版（v3.2）** |
 |---|---|---|---|
 | 错误体系 | throw 主面 + 可选 Result 镜像（E3） | 库边界 Result→throw 翻转（`adaptBrepLib`） | **Result 原生到底**；脚本边界 unwrap（D1） |
-| TS 面形态 | `cad.*` 对象参数 + throw（faijs 形态为尊，brepjs 形态靠双形态判别器挤入） | 独立子路径 `@faicad/faijs-core/brep`（brepjs 形态） | **主导出即 brepjs 兼容面**（位置参数 + Result）；参数双形态——可判别单名、不可判别双名（D11，用户拍板） |
+| TS 面形态 | `cad.*` 对象参数 + throw（faijs 形态为尊，brepjs 形态靠双形态判别器挤入） | 独立子路径 `@faicad/faijs/brep`（brepjs 形态） | **主导出即 brepjs 兼容面**（位置参数 + Result）；参数双形态——可判别单名、不可判别双名（D11，用户拍板） |
 | 投影目标 | 一切经 `defineOp` 投影到 `cad.*` | 库作者面 + `adaptBrepLib` | TS 面全量（含 DSL/组合子/子形状），脚本面只接语句级 op（D4） |
 | 兼容覆盖率 | 441/852 投影、399 skip（52%） | 未量化 | TS 面接近全量（§6.1 重估） |
 | 第三方库语义 | sheetmetal 的 350 处 Result 消费点要改 throw（E8） | Result→throw 由边界翻转 | **库内 Result 零改动**（D1） |
@@ -128,7 +128,7 @@ P14 把 441 个符号投进了 `api/generated/`，但**没有接到任何消费�
 
 - `packages/core/src/index.ts:242` 只有 `export * from './api'`，而 `api/index.ts`（35 行）只导出 30 个 faijs 特有 op，**不含 `generated/*` 的任何符号**；
 - `api/api-namespace.ts:39-51` 装配的 `cad.*` 仍只有 31 个函数，不含生成面；
-- 生成面只能经深路径 `@faicad/faijs-core/api/generated/topology` 摸到（靠 `./api/*` 通配 exports），无任何文档、无符号表、无手册。
+- 生成面只能经深路径 `@faicad/faijs/api/generated/topology` 摸到（靠 `./api/*` 通配 exports），无任何文档、无符号表、无手册。
 
 即：**能力已投影，但没有门**。这恰好意味着方向反转的沉没成本很低——生成面还没被任何消费者依赖，
 我们可以按新方向决定它接什么门，而不是拆旧门。
@@ -527,7 +527,7 @@ compatOp 的 inward/outward 规则表：
 
 | 规则 | 内容 |
 |---|---|
-| 库只 import `@faicad/faijs` | 第三方库 `dependencies` 零 brepjs、零 `@faicad/faijs-core/vendored/**` 深路径；peer 依赖 `@faicad/faijs` + `occt-wasm`（单实例） |
+| 库只 import `@faicad/faijs` | 第三方库 `dependencies` 零 brepjs、零 `@faicad/faijs/vendored/**` 深路径；peer 依赖 `@faicad/faijs` + `occt-wasm`（单实例） |
 | vendored 是 core 私有实现 | 删 `packages/core/package.json:32-33` 两条 `./vendored/*` exports（B5①；与 sheetmetal 迁移同期，避免中间态） |
 | 面与实现可替换 | vendored 是当前实现；中期换 Remus/自研时 ① 面契约不变（Q3 已拍板） |
 
@@ -786,7 +786,7 @@ P25（sheetmetal 是否真的只改包名 + 删桥就能跑）。
 - 测：`dual-form-args` 单测（plain object / Shape / 数组 / number / 未知键 / 空对象六路）。
 - 交付：`arg-spec.ts` 的 A/B 分类清单（A 单名双形态 / B1 单名单形态 / B2 双名 + 两个名字），
   首个 B 类候选 `thread`（`arg-spec.ts:1543`）默认标 B1。
-- 验证：`npm run typecheck`；`npm run test -w @faicad/faijs-core`（基线全绿）；
+- 验证：`npm run typecheck`；`npm run test -w @faicad/faijs`（基线全绿）；
   `npx tsx packages/core/scripts/gen-l3-surface.ts` 重跑确认生成面零 diff（params/formClass 只进元数据）。
 
 ### P21 执行卡

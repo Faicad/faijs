@@ -86,7 +86,8 @@ export {
 // B 类：cad-runtime/ + createBrowserPorts + 外部资源注入点
 // ═══════════════════════════════════════════════════════════
 
-export { CadRuntime, createRuntime, AppendPrefixError } from './cad-runtime/runtime'
+// D1（2026-09-19）：浏览器入口同样自注册 cad（与 index.ts 同源包装，避免门面注入）。
+export { CadRuntime, createRuntime, AppendPrefixError } from './cad-runtime/createRuntimeWithCad'
 export { createPreviewExec } from './cad-runtime/preview-exec'
 export type { PreviewExec } from './cad-runtime/preview-exec'
 export type { ExecutionResult, ExecuteOptions, CheckResult, CheckError, PartTopology, TopologySource } from './cad-runtime/runtime'

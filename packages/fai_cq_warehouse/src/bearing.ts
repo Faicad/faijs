@@ -36,7 +36,7 @@
  *    否则圆锥几何整体偏移。已写入本文件并在探针中数字比对一致。
  */
 
-import type { BrepHandle, BrepVec3 } from '@faicad/faijs-core'
+import type { BrepHandle, BrepVec3 } from '@faicad/faijs'
 import {
   arcEdge,
   cone,

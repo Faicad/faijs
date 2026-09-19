@@ -45,7 +45,7 @@
  * - **pinion 的螺旋角取负**：`-helix_angle`（一对锥齿轮的旋向相反）。
  */
 
-import type { BrepHandle } from '@faicad/faijs-core'
+import type { BrepHandle } from '@faicad/faijs'
 import type { GearKernel, GearAxis } from '@faicad/cq-compat'
 import { bevelGearGeometry, type BevelGearGeometry, type BevelGearParams } from './profile'
 import { buildBevelGearSolid, type BuildBevelGearOptions } from './bevel_gear'

@@ -9,8 +9,8 @@
  *  - 不 import occt-wasm / GearKernel（那是另一个第三方库的私有接口）。
  */
 
-import { getBackends } from '@faicad/faijs-core'
-import type { BrepEngineApi, BrepHandle, BrepVec3 } from '@faicad/faijs-core'
+import { getBackends } from '@faicad/faijs'
+import type { BrepEngineApi, BrepHandle, BrepVec3 } from '@faicad/faijs'
 
 /**
  * Get the BREP kernel injected by the host.

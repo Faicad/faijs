@@ -16,10 +16,10 @@ import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vite
 import { createRuntime } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
 import { registerOcctBrepEngine } from '@faicad/faijs'
-import { asPartName, type PartName } from '@faicad/faijs-core/identity'
-import type { CadRuntime, ExecutionResult } from '@faicad/faijs-core/cad-runtime/runtime'
-import type { BrepEngineApi } from '@faicad/faijs-core/brep/engine/primitives'
-import type { BrepHandle } from '@faicad/faijs-core/brep/engine/types'
+import { asPartName, type PartName } from '@faicad/faijs/identity'
+import type { CadRuntime, ExecutionResult } from '@faicad/faijs/cad-runtime/runtime'
+import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
+import type { BrepHandle } from '@faicad/faijs/brep/engine/types'
 
 beforeAll(async () => {
   await registerOcctBrepEngine()

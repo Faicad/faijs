@@ -17,7 +17,7 @@
  * 由 `BuildRingGearOptions.chamfer` / `boreD` 驱动。
  */
 
-import type { BrepHandle } from '@faicad/faijs-core'
+import type { BrepHandle } from '@faicad/faijs'
 import type { GearKernel } from '@faicad/cq-compat'
 import { ringGearGeometry, GEAR_BASE_CONSTANTS, type RingGearParams } from './profile'
 import {

@@ -39,7 +39,7 @@
 | 用户判断 | 实测证据 | 结论 |
 |---|---|---|
 | **① 把 faijs 变成了 brepjs 的包装器** | 全仓 import `vendored/brepjs` 的只有 **2 个文件**：`api/occt-kernel-bridge.ts`、`packages/sheetmetal/src/compat.ts:23-56`（原 `api/fillet.ts` 已随 D-FILLET 删除）。其余 47k 行 vendored 代码的"消费者"只有**测试专用 facade**：`packages/tests/faijs/p3-vendored-surface/brep-surface.ts:8-10` 与 `p5-vendored-surface/p5-surface.ts:7-8`（文件头自述"刻写 brepjs `src/index.ts` 的公共面，全部重导出至 vendored 树"） | vendored 是"能在 faijs 里跑起来的 brepjs 副本"，**没有进入 faijs 的 API 面** |
-| **② 不是让 sheetmetal 长在 faijs 语义上** | `packages/sheetmetal/src/compat.ts` 深导入 `@faicad/faijs-core/vendored/brepjs/*` 数十处（Result / 类型 / op 全部来自 vendored）；`./compat.js` 被包内 **34 处** import；sheetmetal 的 227 个 `it` **没有一处**经过 `cad.*` | sheetmetal 长在 brepjs 语义上 |
+| **② 不是让 sheetmetal 长在 faijs 语义上** | `packages/sheetmetal/src/compat.ts` 深导入 `@faicad/faijs/vendored/brepjs/*` 数十处（Result / 类型 / op 全部来自 vendored）；`./compat.js` 被包内 **34 处** import；sheetmetal 的 227 个 `it` **没有一处**经过 `cad.*` | sheetmetal 长在 brepjs 语义上 |
 | **③ faijs 的 api 面能力太弱** | `createApiNamespace()`（`api/api-namespace.ts:39-51`）返回 **31 个函数**；brepjs 公开 API 面 **810 个符号**（625 运行时值 + 185 类型，实测统计 `brepjs/src/index.ts`），经 §2.6 盘查裁决后的**目标面 730 符号** | 覆盖率 **31 / 730 ≈ 4.2%** |
 
 **根因**：前一版把"移植"定义成了"把代码搬进来、让它能跑"（P1–P5 全部围绕这个目标），**没有把"搬进来的能力投影到 faijs 的 API 面上"当作独立工程**。P6 取消 stdlib 后，`cad.*` 停留在原 stdlib 的 31 个函数，与移植的 47k 行是两条平行线——这就是"包装器"的成因：vendored 能跑，但 faijs 用户（含第三方库）够不着。
@@ -282,7 +282,7 @@ faijs 现有 31 个函数的归属：
 
 | 违规面 | 位置 | 严重度 |
 |---|---|---|
-| **对外 import 子路径含 brepjs** | `packages/core/package.json:41-42` `"./vendored/*.js"`、`"./vendored/*"` → 实际路径 `@faicad/faijs-core/vendored/brepjs/topology/booleanFns.js` | **高** |
+| **对外 import 子路径含 brepjs** | `packages/core/package.json:41-42` `"./vendored/*.js"`、`"./vendored/*"` → 实际路径 `@faicad/faijs/vendored/brepjs/topology/booleanFns.js` | **高** |
 | **导出产物文件内容含 brepjs** | `vendored/brepjs/io/gltfExportFns.ts:354,608` `generator: 'brepjs'`；`io/objExportFns.ts:36` `'# brepjs OBJ export'` | **高**（用户导出的 GLB/OBJ 里写着 brepjs） |
 | **运行时报错文案含 brepjs** | `kernel/index.ts:91` `brepjs kernel registry frozen…`、`:110` `brepjs kernel not initialized…`、`:115` `brepjs: kernel '…' is not registered.`、`:127` `brepjs: current kernel does not support 2D operations.` | **高** |
 | 注释/文档中的 brepjs | vendored 内 **86 处**命中（含 `README.md`、`NOTICE`、`ambient.d.ts`） | 中 |
@@ -322,7 +322,7 @@ graph TD
 
 | 规则 | 内容 |
 |---|---|
-| **L5 只依赖 L3** | 第三方库 `import * as cad from '@faicad/faijs'`，**禁止 import `@faicad/faijs-core` 的任何子路径**（含 `vendored/*`） |
+| **L5 只依赖 L3** | 第三方库 `import * as cad from '@faicad/faijs'`，**禁止 import `@faicad/faijs` 的任何子路径**（含 `vendored/*`） |
 | **vendored 是 core 私有** | 删除 `packages/core/package.json` 的 `"./vendored/*"` 与 `"./vendored/*.js"` 两条 exports（Y4）。core 内部仍可相对导入 |
 | **反向只允许 L3** | faijs 既有代码 import vendored 只发生在 `api/`（`fillet.ts` 先例）与 `api/occt-kernel-bridge.ts` |
 
@@ -538,7 +538,7 @@ brepjs/src/index.ts  ──提取──▶  api/surface/upstream-surface.json（
 
 | 步 | 动作 |
 |---|---|
-| 1 | 包 `peerDependencies` 从 `@faicad/faijs-core` 改为 `@faicad/faijs`（现状 `packages/sheetmetal/package.json:29-31` 依赖 core，是深导入的入口） |
+| 1 | 包 `peerDependencies` 从 `@faicad/faijs` 改为 `@faicad/faijs`（现状 `packages/sheetmetal/package.json:29-31` 依赖 core，是深导入的入口） |
 | 2 | 全部 `./compat.js` import 改为 `import * as cad from '@faicad/faijs'` |
 | 3 | Result 消费点迁移到 throw 语义：`if (!r.ok) return r` → 直接删除（异常自动冒泡）；`err(validationError(...))` → `throw new Error(...)` |
 | 4 | 删除 `src/compat.ts`（Y2） |
@@ -812,7 +812,7 @@ packages/core/src/
 | `cad.*` 面 31 个函数 | `packages/core/src/api/api-namespace.ts:39-51` |
 | 包导出面 29 个函数（缺 chamfer） | `packages/core/src/api/index.ts:1-34`（34 行） |
 | core 主入口导出 api 面 | `packages/core/src/index.ts:242` `export * from './api'` |
-| 根门面薄 re-export + cad 注入 | `src/index.ts:10`（`export * from '@faicad/faijs-core'`）、`:27` `registerLib('cad', createApiNamespace())` |
+| 根门面薄 re-export + cad 注入 | `src/index.ts:10`（`export * from '@faicad/faijs'`）、`:27` `registerLib('cad', createApiNamespace())` |
 | vendored exports 子路径（将删） | `packages/core/package.json:41-42` |
 | 全仓 import vendored 的 2 个文件 | `api/occt-kernel-bridge.ts`、`packages/sheetmetal/src/compat.ts:23-56`（原 `api/fillet.ts` 已随 D-FILLET 删除） |
 | **brep-only op 样板（句柄借入→Result 翻转→所有权转入）** | 原 `packages/core/src/api/fillet.ts:1-70`（已随 D-FILLET 删除；模式记录：`createBorrowedHandle` `:52-53`、Result 翻转 `:56-60`、`unregisterFromCleanup` `:63`） |

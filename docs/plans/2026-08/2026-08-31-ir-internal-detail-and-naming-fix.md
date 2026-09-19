@@ -104,13 +104,13 @@
 用户裁定：**选 B——IR API 一律不导出、引擎私有**。靠宿主侧 FORBIDDEN_SYMBOLS 契约测试约束"自己不 import IR"不是正常做法（那只是宿主自觉）；正常做法是引擎从公开导出面移除 IR，第三方宿主在根上就拿不到，无需任何宿主侧契约测试兜底。
 
 **落地机制：结构性隔离，而非宿主契约测试。** 已核实的关键事实：
-- `@faicad/faijs-core` 的 `exports` map **没有 `/lang/*` 子路径**——IR 所在路径（`packages/core/src/lang/`）对 npm 消费者结构性不可达（`import '@faicad/faijs-core/lang/parser'` 报 `ERR_PACKAGE_PATH_NOT_EXPORTED`）。此机制保持。
+- `@faicad/faijs` 的 `exports` map **没有 `/lang/*` 子路径**——IR 所在路径（`packages/core/src/lang/`）对 npm 消费者结构性不可达（`import '@faicad/faijs/lang/parser'` 报 `ERR_PACKAGE_PATH_NOT_EXPORTED`）。此机制保持。
 - 真正的泄漏面是 `packages/core/src/index.ts` / `browser.ts` 的**命名导出**：它们 re-export 了 IR 符号，经 `"."` 与 `"./browser"` 入口暴露给所有消费者。3d_editor 的 FORBIDDEN_SYMBOLS 契约测试正是在防这个泄漏——它是"宿主自觉"，不是"引擎强制"。
 
 实施清单：
 - `packages/core/src/index.ts` / `browser.ts`：**删除 IR 符号导出**（IR 类型 `ScriptIR/StatementIR/ArgIR/ParamRefIR/VarRefIR/CallRefIR/ScriptMetaIR`、`parseScript`、`createStatementIR/createScriptIR`、`isVarRef/isParamRef/isCallRef`、`statementToLine/scriptToCode/buildArgsParts`、`SYMBOL_TABLE/getFunctionSymbol` 等）
 - 保留文本面：`execute(code)` / `append(code, newIds)` / `update(code)` / `check(code)` / `analyzeCode` / `codeToArgs` / `formatCodeLine` / `derivePartName` / `StatementSummary` / `ExecutionResult` / `Shape` 等
-- 项目自身测试（正常使用 IR）：`packages/core/src/**/*.test.ts` 走相对路径 import `./lang/...`（现状已是）；`packages/tests` 走 vitest alias / tsconfig paths 直接消费 `packages/core/src`（M7 免打包，无需 `@faicad/faijs-core/lang/*` 子路径）
+- 项目自身测试（正常使用 IR）：`packages/core/src/**/*.test.ts` 走相对路径 import `./lang/...`（现状已是）；`packages/tests` 走 vitest alias / tsconfig paths 直接消费 `packages/core/src`（M7 免打包，无需 `@faicad/faijs/lang/*` 子路径）
 - **三个执行入口 `execute` / `append` / `update` 是公开接口，输入必须是代码文本**（用户 2026-08-31 裁定）；引擎内部解析文本为 IR 再执行。签名从 `execute(script: ScriptIR)` 改为 `execute(code: string)`（`append(code, newIds)` / `update(code)` 同理）；IR 参数版本降为内部实现
 - **`executeCode` 删除**（用户 2026-08-31 裁定，方案明确而非"合并/保留"）：它的职责并入三个公开入口——`execute(code)` 全量、`append(code, newIds)` 增量追加（`newIds` 覆盖原 `executeCode` 的 `stmtIds` 子集语义）、`update(code)` 增量更新；`incremental` 开关由调用哪个入口表达，不再需要独立参数；`sceneCode` 并入 `ExecuteOptions`（跨 part 引用的整场景代码文本）。内部私有实现保留 IR 版本（如 `executeIR` / `appendIR` / `updateIR`）供引擎内部与项目测试使用
 - 3d_editor 侧 `contract-entry.test.ts`：FORBIDDEN_SYMBOLS **降级为可选附加防线**（引擎不再导出后自然无法再被违反），或删除；白名单中已允许的 IR 符号（`ParseError`/`getApiVersion`/`SYMBOL_TABLE` 等）随引擎导出移除同步从白名单剔除
@@ -124,7 +124,7 @@
 
 ## 5. 验证步骤（实施后）
 
-1. `npm run test -w @faicad/faijs-core`（lang/codegen/parser/cad-runtime 相关）
+1. `npm run test -w @faicad/faijs`（lang/codegen/parser/cad-runtime 相关）
 2. `npm run test -w @faicad/faijs-tests`（integration，含 syntax fixtures）
 3. `npm run doc-sync`（12 项门禁 + 预算）
 4. 3d_editor 侧 `contract-entry.test.ts`（宿主零 IR 红线不回归）

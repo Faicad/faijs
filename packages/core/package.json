@@ -1,5 +1,5 @@
 {
-  "name": "@faicad/faijs-core",
+  "name": "@faicad/faijs",
   "version": "0.12.2",
   "type": "module",
   "main": "./dist/index.js",
@@ -14,6 +14,10 @@
       "default": "./dist/api/index.js"
     },
     "./api/brepjs-compat": {
+      "types": "./dist/api/brepjs-compat/index.d.ts",
+      "default": "./dist/api/brepjs-compat/index.js"
+    },
+    "./brepjs-compat": {
       "types": "./dist/api/brepjs-compat/index.d.ts",
       "default": "./dist/api/brepjs-compat/index.js"
     },

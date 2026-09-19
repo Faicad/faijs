@@ -8,6 +8,9 @@
  *   import { createNodePorts } from '@faicad/faijs/node'
  */
 
+// D1（2026-09-19）：/node 入口与 /.、/browser 同源暴露 createRuntime（自带 cad 注册）。
+export * from './index'
+
 export { createNodePorts } from './node-host'
 export {
   createFsProjectLoader,

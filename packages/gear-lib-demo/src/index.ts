@@ -14,4 +14,4 @@
 export * from './gear.js'
 export * as mockBrep from './mock-mech-brep.js'
 export { contractVersion, makeHeadstock, makeBall } from './mock-mech-brep.js'
-export type { SolidShape } from '@faicad/faijs-core/sdk'
+export type { SolidShape } from '@faicad/faijs/sdk'

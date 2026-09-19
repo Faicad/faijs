@@ -22,9 +22,9 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { createRuntime, registerOcctBrepEngine } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
-import type { ExecutionResult } from '@faicad/faijs-core/cad-runtime/runtime'
-import type { PartNaming } from '@faicad/faijs-core/topology/naming/types'
-import { asPartName } from '@faicad/faijs-core/identity'
+import type { ExecutionResult } from '@faicad/faijs/cad-runtime/runtime'
+import type { PartNaming } from '@faicad/faijs/topology/naming/types'
+import { asPartName } from '@faicad/faijs/identity'
 
 const P0 = asPartName('part0')
 const P1 = asPartName('part1')

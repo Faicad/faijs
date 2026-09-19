@@ -14,7 +14,7 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { analyzeCode } from '@faicad/faijs-core/lang/statement-summary'
+import { analyzeCode } from '@faicad/faijs/lang/statement-summary'
 
 const SYNTAX_DIR = fileURLToPath(new URL('.', import.meta.url))
 

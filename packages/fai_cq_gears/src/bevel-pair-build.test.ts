@@ -20,7 +20,7 @@
  */
 
 import { beforeAll, describe, expect, it } from 'vitest'
-import type { BrepHandle } from '@faicad/faijs-core'
+import type { BrepHandle } from '@faicad/faijs'
 import { getGearKernel, type GearKernel } from '@faicad/cq-compat'
 import { buildBevelGearPair, type BevelGearPairParams } from './pairs'
 import { bevelPairOptionsFromArgs } from './testing/reference-options'

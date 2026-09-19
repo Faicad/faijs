@@ -17,9 +17,9 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { extractMetadata, type UiMetadata } from '@faicad/faijs-core/lang/metadata-extractor'
-import { analyzeCode } from '@faicad/faijs-core/lang/statement-summary'
-import type { StatementSummary } from '@faicad/faijs-core/lang/statement-summary'
+import { extractMetadata, type UiMetadata } from '@faicad/faijs/lang/metadata-extractor'
+import { analyzeCode } from '@faicad/faijs/lang/statement-summary'
+import type { StatementSummary } from '@faicad/faijs/lang/statement-summary'
 
 const here = fileURLToPath(new URL('.', import.meta.url))
 const fixturesRoot = join(here, '..', '..', '..')

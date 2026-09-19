@@ -161,7 +161,7 @@
 
 - [ ] **A1**：删除 `lang/types.ts` L18 的 `export type Vec3 = [number, number, number]`
 - [ ] **A2**：检查根门面 `src/index.ts`、`src/browser.ts` 对 Vec3 的 re-export；若存在，改为从 `mesh/types.ts`（内部层）或 vendored `core/types`（对外兼容层）重新导出
-- [ ] **A3**：跑 `npm run typecheck` + `npm run test -w @faicad/faijs-core` 全绿
+- [ ] **A3**：跑 `npm run typecheck` + `npm run test -w @faicad/faijs` 全绿
 
 ### 阶段 B — 后续改进（可选，不影响对外）
 

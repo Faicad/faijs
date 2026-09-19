@@ -14,8 +14,8 @@
  */
 
 import { readFileSync } from 'node:fs'
-import { initOcctWasm } from '@faicad/faijs-core'
-import type { BrepEngineApi, BrepHandle, BrepBoundingBox, BrepVec3 } from '@faicad/faijs-core'
+import { initOcctWasm } from '@faicad/faijs'
+import type { BrepEngineApi, BrepHandle, BrepBoundingBox, BrepVec3 } from '@faicad/faijs'
 
 /** Tolerance options for comparison. */
 export interface CompareOptions {

@@ -15,7 +15,7 @@
  * | `row-interp-loft` | per-row `interpolatePoints(row)` → `loft` | passes through every sample point (interpolation) |
  */
 
-import type { BrepHandle } from '@faicad/faijs-core'
+import type { BrepHandle } from '@faicad/faijs'
 import {
   buildGearSplineFace,
   gearDistanceToFace,

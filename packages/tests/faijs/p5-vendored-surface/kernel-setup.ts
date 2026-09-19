@@ -10,9 +10,9 @@
  */
 
 import { beforeAll } from 'vitest'
-import { initOcctWasm } from '@faicad/faijs-core/occt-kernel/occtKernel'
-import { bindOcctKernel, getBrepjsKernel, isOcctKernelBound } from '@faicad/faijs-core/api/occt-kernel-bridge'
-import { getKernel } from '@faicad/faijs-core/vendored/brepjs/kernel/index'
+import { initOcctWasm } from '@faicad/faijs/occt-kernel/occtKernel'
+import { bindOcctKernel, getBrepjsKernel, isOcctKernelBound } from '@faicad/faijs/api/occt-kernel-bridge'
+import { getKernel } from '@faicad/faijs/vendored/brepjs/kernel/index'
 
 export { bindOcctKernel, getBrepjsKernel, isOcctKernelBound, getKernel }
 

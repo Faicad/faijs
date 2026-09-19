@@ -7,9 +7,9 @@
  * texture/assets/events 必填；本包用不到的端口置 null 并注明）。
  */
 
-import { initOcctWasm } from '@faicad/faijs-core/occt-kernel/occtKernel'
-import { configureBackends, CONTRACT_VERSION } from '@faicad/faijs-core'
-import type { Backends } from '@faicad/faijs-core'
+import { initOcctWasm } from '@faicad/faijs/occt-kernel/occtKernel'
+import { configureBackends, CONTRACT_VERSION } from '@faicad/faijs'
+import type { Backends } from '@faicad/faijs'
 
 let configured = false
 

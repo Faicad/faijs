@@ -25,7 +25,7 @@
  * `ring_gear_cls = HerringboneRingGear`——即三件全部走人字齿构建。
  */
 
-import type { BrepHandle } from '@faicad/faijs-core'
+import type { BrepHandle } from '@faicad/faijs'
 import type { GearKernel, GearAxis } from '@faicad/cq-compat'
 import {
   spurGearGeometry, ringGearGeometry, type SpurGearGeometry, type RingGearParams,

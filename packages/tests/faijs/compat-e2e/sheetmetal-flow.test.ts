@@ -27,13 +27,13 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import { createRuntime, registerOcctBrepEngine } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
-import { asPartName } from '@faicad/faijs-core/identity'
-import { hasBrep, isShape } from '@faicad/faijs-core/shape'
-import { dispatchPath } from '@faicad/faijs-core/cad-runtime/backend-dispatch'
-import { getKernel } from '@faicad/faijs-core/occt-kernel/occtKernel'
-import type { CadRuntime } from '@faicad/faijs-core/cad-runtime/runtime'
-import type { StdlibNamespace } from '@faicad/faijs-core/runtime-state'
-import type { Shape } from '@faicad/faijs-core/mesh/types'
+import { asPartName } from '@faicad/faijs/identity'
+import { hasBrep, isShape } from '@faicad/faijs/shape'
+import { dispatchPath } from '@faicad/faijs/cad-runtime/backend-dispatch'
+import { getKernel } from '@faicad/faijs/occt-kernel/occtKernel'
+import type { CadRuntime } from '@faicad/faijs/cad-runtime/runtime'
+import type { StdlibNamespace } from '@faicad/faijs/runtime-state'
+import type { Shape } from '@faicad/faijs/mesh/types'
 import * as sheetPkg from '@faicad/sheetmetal'
 
 /**
@@ -174,7 +174,7 @@ describe('P26 sheet §8.4 — seven acceptance assertions', () => {
         expect(s1After).toBeDefined()
         // s1 geometry must change (thickness changed).
         // Use content key (positions length may be equal for different thickness).
-        const { computeContentKey } = await import('@faicad/faijs-core/cad-runtime/content-key')
+        const { computeContentKey } = await import('@faicad/faijs/cad-runtime/content-key')
         const keyBefore = computeContentKey(s1Before!.positions, s1Before!.indices)
         const keyAfter = computeContentKey(s1After!.positions, s1After!.indices)
         expect(keyAfter).not.toBe(keyBefore)

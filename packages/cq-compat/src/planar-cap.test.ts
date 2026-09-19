@@ -9,8 +9,8 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import { planarCap, solidFromFaces } from './index'
 import { setupNativeKernel, mkWP, kernel } from './gear-test-harness'
-import { fromHandle } from '@faicad/faijs-core/sdk'
-import { brepOf } from '@faicad/faijs-core/shape'
+import { fromHandle } from '@faicad/faijs/sdk'
+import { brepOf } from '@faicad/faijs/shape'
 import type { Workplane } from './workplane'
 
 beforeAll(async () => {

@@ -31,7 +31,7 @@
  *    `src/holes.ts`。两节之间**禁止互相引用**。
  */
 
-import type { BrepHandle, BrepVec3 } from '@faicad/faijs-core'
+import type { BrepHandle, BrepVec3 } from '@faicad/faijs'
 import { requireKernel } from './kernel'
 import {
   arcEdge,

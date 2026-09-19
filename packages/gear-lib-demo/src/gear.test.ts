@@ -16,10 +16,10 @@
 
 import { describe, it, expect, beforeAll } from 'vitest'
 import { createRuntime, registerOcctBrepEngine, isOk } from '@faicad/faijs'
-import { createNodePorts } from '@faicad/faijs-core/node'
-import { hasBrep } from '@faicad/faijs-core/shape'
-import { asPartName } from '@faicad/faijs-core/identity'
-import type { Shape } from '@faicad/faijs-core/mesh/types'
+import { createNodePorts } from '@faicad/faijs/node'
+import { hasBrep } from '@faicad/faijs/shape'
+import { asPartName } from '@faicad/faijs/identity'
+import type { Shape } from '@faicad/faijs/mesh/types'
 import * as gear from './gear'
 
 let runtime: ReturnType<typeof createRuntime>

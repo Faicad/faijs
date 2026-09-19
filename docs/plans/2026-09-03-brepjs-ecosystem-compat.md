@@ -9,7 +9,7 @@
 > 以下为历史存档，勿再引用。
 > 取代：`docs/plans/2026-09-02-faijs-api-surface-completion.md` 中关于库侧 API 面的设计（该文件未改动）
 > 修订记录：本文档第二版。第一版（同日早些时候）的 P1 让第三方库 import
-> `@faicad/faijs-core/vendored/brepjs`，与 9.1 号被否决的方案同源，已推翻重写。
+> `@faicad/faijs/vendored/brepjs`，与 9.1 号被否决的方案同源，已推翻重写。
 
 ---
 
@@ -20,7 +20,7 @@
 > 「brepjs-sheetmetal只是一个样本，我的需求是，brepjs库的任何brep相关的api，faijs要尽量兼容。
 > brepjs库里还有大量非brep建模的部分，完全无关，本项目不支持。」
 
-> 「sheetmetal必须是一个第三方库，怎么可能允许访问@faicad/faijs-core/vendored/brepjs？
+> 「sheetmetal必须是一个第三方库，怎么可能允许访问@faicad/faijs/vendored/brepjs？
 > 这不彻底违反了项目的前提？9.1号的方案被否决，就是因为它让第三方库绕过faijs直接访问brepjs的api。
 > 结果9.2号的方案，还偷偷这么干？必须纠正过来。」
 
@@ -44,7 +44,7 @@
 | 问题 | 结论 |
 |---|---|
 | 第三方库能不能碰 brepjs？ | **不能**。零 `brepjs` 依赖、零 `vendored/**` 深路径 import。库只 import faijs 官方声明的面。 |
-| 怎么做到「只改包名」？ | 新增 faijs 官方 **BREP 建模面** `@faicad/faijs-core/brep`（根门面转发为 `@faicad/faijs/brep`）。库把 `from 'brepjs'` 换成 `from '@faicad/faijs-core/brep'`，其余不动。 |
+| 怎么做到「只改包名」？ | 新增 faijs 官方 **BREP 建模面** `@faicad/faijs/brep`（根门面转发为 `@faicad/faijs/brep`）。库把 `from 'brepjs'` 换成 `from '@faicad/faijs/brep'`，其余不动。 |
 | 这和「绕过 faijs 访问 brepjs」有何区别？ | 库访问的是 **faijs 官方契约面**，faijs 对其承担稳定性与语义责任；vendored brepjs 是 faijs 的**私有实现**，可整体替换（自研 / Remus），替换时官方面不变。区别在于契约层，不在实现层。 |
 | `.fai.js` 里怎么调用？ | 五步链路，**已有可运行样本**（`packages/mech-lib/src/c3-brepjs-scenario.test.ts`）。见 §3。 |
 | 符号会不会出现两份？ | 不会。判定标准是**同一调用面上两个同名实现**。`cad.box`（脚本面）与 brep 面的 `box`（库作者面）不在同一作用域；faijs 的几何实现全局仍只有一套。 |
@@ -61,14 +61,14 @@
 **错误一（原则性）**：P1 设计的新增子路径内容是
 
 ```
-export * from '@faicad/faijs-core/vendored/brepjs/index.js'
+export * from '@faicad/faijs/vendored/brepjs/index.js'
 ```
 
 这等于把 faijs 的**私有实现目录**提升为第三方库的公共契约。它与 9.1 号被否决的方案是同一个错，只是换了个路径：
 
 | | 9.1 号（被否决） | 第一版（本日早些时候） |
 |---|---|---|
-| 库写什么 | `from 'brepjs'` | `from '@faicad/faijs-core/vendored/brepjs'` |
+| 库写什么 | `from 'brepjs'` | `from '@faicad/faijs/vendored/brepjs'` |
 | 实质 | 直接吃 brepjs 的实现 | 直接吃 faijs 私有目录里的同一份 brepjs 实现 |
 | 后果 | faijs 换引擎 → 库全部崩 | 同 |
 
@@ -85,11 +85,11 @@ export * from '@faicad/faijs-core/vendored/brepjs/index.js'
 | `packages/mech-lib/package.json` | `"dependencies": { "brepjs": "18.119.2" }` | 第三方库**直接依赖 brepjs 包** |
 | `packages/mech-lib/src/brepjs-gear.ts:32` | `} from 'brepjs'`（导入 `registerKernel` / `OcctWasmAdapter` / `makeExternalGear` / `thread` / `isErr`） | 库代码里出现 brepjs 具名导入 |
 | `packages/mech-lib/src/brepjs-gear.ts:64` | 库自己调 `registerKernel('occt-wasm', OcctWasmAdapter.fromKernel(k))` | **库自行注册内核**，绕过 faijs 的引擎管理 |
-| `packages/sheetmetal/src/compat.ts` | import 20 处 `@faicad/faijs-core/vendored/**` 深路径 | 等价于穿透 faijs 内部 |
+| `packages/sheetmetal/src/compat.ts` | import 20 处 `@faicad/faijs/vendored/**` 深路径 | 等价于穿透 faijs 内部 |
 
 两种违规形态不同，但性质一致：**第三方库与 faijs 的内部实现耦合**。
 
-`packages/sheetmetal/package.json` 的 `dependencies` 是空的（只有 peer `@faicad/faijs-core`）——它的问题不在包依赖，而在 `compat.ts` 的深路径 import。
+`packages/sheetmetal/package.json` 的 `dependencies` 是空的（只有 peer `@faicad/faijs`）——它的问题不在包依赖，而在 `compat.ts` 的深路径 import。
 
 > 这两个库在本方案里既是**待改造对象**，也是**验收样本**（用户指定）。
 
@@ -183,20 +183,20 @@ result = await runtime.execute([
 
 ---
 
-## 4. 兼容面设计：`@faicad/faijs-core/brep`
+## 4. 兼容面设计：`@faicad/faijs/brep`
 
 ### 4.1 命名与落点
 
 | 项 | 决定 | 理由 |
 |---|---|---|
-| 权威面 | `@faicad/faijs-core/brep`（core 新增 exports 子路径） | `mech-lib/src/index.ts` 注释确立的既有约定：「只依赖 `@faicad/faijs-core`」 |
-| 转发面 | `@faicad/faijs/brep`（根门面薄 re-export） | 与 `src/sdk.ts` 一致的模式（根门面 sdk 就是 `export * from '@faicad/faijs-core/sdk'`） |
+| 权威面 | `@faicad/faijs/brep`（core 新增 exports 子路径） | `mech-lib/src/index.ts` 注释确立的既有约定：「只依赖 `@faicad/faijs`」 |
+| 转发面 | `@faicad/faijs/brep`（根门面薄 re-export） | 与 `src/sdk.ts` 一致的模式（根门面 sdk 就是 `export * from '@faicad/faijs/sdk'`） |
 | 不并入 | `./sdk` 面、根导出面、`cad` 命名空间 | 见 §6 符号唯一性 |
 | 不开放 | 任何 `vendored/**` 深路径给第三方库（库作者侧） | §2.1 错误一的直接纠正 |
 
 ### 4.2 这个面「不是」裸 re-export
 
-如果 `@faicad/faijs-core/brep` 只是 `export * from './vendored/brepjs/index.js'` 换了个门牌，
+如果 `@faicad/faijs/brep` 只是 `export * from './vendored/brepjs/index.js'` 换了个门牌，
 那就是换汤不换药的错误一。它必须是**筛选 + 语义封装**：
 
 1. **筛选**：只纳入 brep 建模相关符号，明确排除非 brep 部分（§5）。
@@ -216,8 +216,8 @@ result = await runtime.execute([
 
 | 面 | 定位 | 内容 | 消费者 |
 |---|---|---|---|
-| `@faicad/faijs-core/sdk` | **机制面**（怎么声明 op） | `defineOp` / `fromHandle` / `solid` / `fromBrep` / `getBackends` / `CONTRACT_VERSION` | 所有第三方库 |
-| `@faicad/faijs-core/brep`（新增） | **能力面**（用什么建形） | brepjs 形态的建模/查询/测量/数学 op | brepjs 血统的第三方库 |
+| `@faicad/faijs/sdk` | **机制面**（怎么声明 op） | `defineOp` / `fromHandle` / `solid` / `fromBrep` / `getBackends` / `CONTRACT_VERSION` | 所有第三方库 |
+| `@faicad/faijs/brep`（新增） | **能力面**（用什么建形） | brepjs 形态的建模/查询/测量/数学 op | brepjs 血统的第三方库 |
 | `cad` 命名空间 | **脚本面** | dual-op，`.fai.js` 的 `cad.*` | `.fai.js` 脚本 |
 
 第三个面不对外（库作者不 import `cad`），第一个面不含几何能力（保持零 heavy 依赖守卫），
@@ -279,7 +279,7 @@ faijs 在 D10 移植 brepjs 时**已经做过一次 brep 筛选**——vendored 
 
 ### 5.3 兼容的验收口径
 
-「尽量兼容」的可判定标准：对 brepjs 生态库源码执行 `sed "s|from 'brepjs'|from '@faicad/faijs-core/brep'|"`，
+「尽量兼容」的可判定标准：对 brepjs 生态库源码执行 `sed "s|from 'brepjs'|from '@faicad/faijs/brep'|"`，
 若其 import 的符号全部落在 §5.2 的「纳入」族内，则**除这一行替换外零改动**通过类型检查。
 
 ---
@@ -304,7 +304,7 @@ faijs 在 D10 移植 brepjs 时**已经做过一次 brep 筛选**——vendored 
 
 1. **brep 面的裸符号禁止并入根导出面**。`packages/core/src/index.ts` 末行是 `export * from './api'`，
    而 `api/index.ts` 已导出裸 `box` / `cylinder` / `translate` / `intersect`——
-   brep 面若并入会立刻造成真冲突。brep 面**只能**经 `@faicad/faijs-core/brep` 子路径访问。
+   brep 面若并入会立刻造成真冲突。brep 面**只能**经 `@faicad/faijs/brep` 子路径访问。
 2. **brep 面禁止进入 `cad` 命名空间**。`cad` 是 `.fai.js` 的脚本面，其成员必须是 dual-op
    （`defineOp` 产物），形态与 brepjs op 不同，混入会破坏 `assertLibConforms` 与分派。
 3. **faijs 的几何实现全局只有一套**。brep 面的 `cut` 与 `cad.cut` 底层最终都调到同一个 OCCT
@@ -385,7 +385,7 @@ runtime.registerLib('sheet', adaptBrepLib(sheetmetal))
 
 | 宿主 | 库加载方式 | 约束 |
 |---|---|---|
-| Node（`node-host`） | 真 `import()`，走 node_modules | 库 peer 依赖 `@faicad/faijs-core` |
+| Node（`node-host`） | 真 `import()`，走 node_modules | 库 peer 依赖 `@faicad/faijs` |
 | 浏览器（`browser-host`） | bundler 打进同一 chunk，或 CDN + importmap | ⚠️ 见下 |
 
 **浏览器下的硬约束**：OCCT 不在 worker 里（`browser-host/` 零 occt 引用，worker 只跑 CSG/SDF），
@@ -423,8 +423,8 @@ BREP 路径与脚本执行同处一个同步上下文，这是好消息。但相
 
 | 项 | 现状 | 改造后 |
 |---|---|---|
-| `package.json` deps | `"brepjs": "18.119.2"` | 删除，只留 peer `@faicad/faijs-core` |
-| `brepjs-gear.ts:32` | `from 'brepjs'` | `from '@faicad/faijs-core/brep'` |
+| `package.json` deps | `"brepjs": "18.119.2"` | 删除，只留 peer `@faicad/faijs` |
+| `brepjs-gear.ts:32` | `from 'brepjs'` | `from '@faicad/faijs/brep'` |
 | `brepjs-gear.ts:64` | 库自己 `registerKernel(...)` | 删除（faijs 统一绑定） |
 | `brepjs-gear.ts:71` | 模块级 `pinned` 数组 | 删除（引擎函数 BREP 域接管） |
 | `brepjs-gear.ts:122` | 手写 `fromHandle(rawIdOf(...))` | 由 `adaptBrepLib` 出口统一收养 |
@@ -439,7 +439,7 @@ STEP 含 `ADVANCED_FACE` / 几何交叉校验）**零改动继续通过**，
 | 项 | 现状 | 改造后 |
 |---|---|---|
 | `compat.ts` | 20 处 `vendored/**` 深路径 import + 手工签名对齐 | **整文件删除** |
-| 27 个源文件的 import | `from '@faicad/faijs-core/vendored/**'` | `from '@faicad/faijs-core/brep'`（单一说明符） |
+| 27 个源文件的 import | `from '@faicad/faijs/vendored/**'` | `from '@faicad/faijs/brep'`（单一说明符） |
 | 签名对齐 | 散落在 `compat.ts`（如 `rotate` 手工包装） | 由 brep 面官方承担（P2） |
 
 验收：`grep -rn vendored packages/sheetmetal/src` = 0；`compat.ts` 不存在；

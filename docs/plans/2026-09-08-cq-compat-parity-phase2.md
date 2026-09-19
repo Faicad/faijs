@@ -1003,7 +1003,7 @@ w、testSplineShape r。
 
 **方法论沉淀**：调试内核行为一律用临时 vitest 探针（raw kernel 走
 `getKernel()` from `occt-kernel/occtKernel`，vendored 层走
-`@faicad/faijs-core/vendored/brepjs/kernel/index.js`，KernelShape =
+`@faicad/faijs/vendored/brepjs/kernel/index.js`，KernelShape =
 `{__occtWasm,type,id}`，raw API 收数字 id）；跨上游语义差异先探
 `inspect.getsource` 再实测数值，不凭文档猜。
 

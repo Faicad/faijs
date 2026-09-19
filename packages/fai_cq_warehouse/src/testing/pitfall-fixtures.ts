@@ -5,7 +5,7 @@
  * 这些夹具对应 `scripts/kernel-pitfalls-probe.ts` 里各段陷阱的最小复现体。
  */
 
-import type { BrepHandle, BrepVec3 } from '@faicad/faijs-core'
+import type { BrepHandle, BrepVec3 } from '@faicad/faijs'
 import type { WarehouseKernel } from '../kernel'
 import { polygonWire } from '../primitives'
 

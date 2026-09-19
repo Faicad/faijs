@@ -14,7 +14,7 @@
  * `makeWire(edges)` + `healWire(wire, tol)` 复现，容差取同一个 `wire_comb_tol`。
  */
 
-import type { BrepHandle } from '@faicad/faijs-core'
+import type { BrepHandle } from '@faicad/faijs'
 import type { GearKernel } from '@faicad/cq-compat'
 import { GEAR_BASE_CONSTANTS } from './profile'
 import { toothFaceGrids, type SpurGearGeometry, type SpurGearParams } from './profile'

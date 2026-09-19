@@ -18,8 +18,8 @@ faijs 是 **npm workspaces monorepo**。根包 `@faicad/faijs` 是**门面薄层
 
 | 包 | 包名 | 职责 |
 |---|---|---|
-| `packages/core` | `@faicad/faijs-core` | **引擎 + L3 API 面**：解析／校验／调度／记账／资源，含 `cad` 命名空间全部 op（装配与布尔）于 `core/src/api/` |
-| `packages/gear-lib-demo` | `@faicad/gear-lib-demo` | 第三方库样例（peer 依赖 `@faicad/faijs-core`） |
+| `packages/core` | `@faicad/faijs` | **引擎 + L3 API 面**：解析／校验／调度／记账／资源，含 `cad` 命名空间全部 op（装配与布尔）于 `core/src/api/` |
+| `packages/gear-lib-demo` | `@faicad/gear-lib-demo` | 第三方库样例（peer 依赖 `@faicad/faijs`） |
 | `packages/fixtures` | `@faicad/faijs-fixtures` | 私有，纯数据 |
 | `packages/tests` | `@faicad/faijs-tests` | 私有，集成测试 |
 | `packages/demo` | `@faicad/faijs-demo` | 私有，vite 演示 |
@@ -59,7 +59,7 @@ faijs 是 **npm workspaces monorepo**。根包 `@faicad/faijs` 是**门面薄层
 
 | 入口 | 内容 | 说明 |
 |---|---|---|
-| `@faicad/faijs` | 门面：`export * from '@faicad/faijs-core'` + 包装后的 `createRuntime` | 宿主统一入口；**包名不可改** |
+| `@faicad/faijs` | 门面：`export * from '@faicad/faijs'` + 包装后的 `createRuntime` | 宿主统一入口；**包名不可改** |
 | `/browser` | 浏览器安全面（不含 node-host） | 宿主（3d_editor）首选 |
 | `/sdk` | **第三方库开发面**，零 heavy 依赖 | 库作者唯一应依赖的入口 |
 | `/stdlib` | 几何库命名空间 | 需自行注入 `cad` |
@@ -69,7 +69,7 @@ faijs 是 **npm workspaces monorepo**。根包 `@faicad/faijs` 是**门面薄层
 | `/faqts`、`/faqts/node`、`/faqts/browser` | `.ts` 源码整段执行通道（第二条执行路径） | 见 §10.5 |
 | `/module-resolver` | 第三方库版本解析 | 见 §10.4 |
 
-引擎包另有细粒度子路径（`@faicad/faijs-core/runtime-state`、`/shape`、`/identity`、`/lang/*`、`/brep/*` 等），供库作者按需导入。
+引擎包另有细粒度子路径（`@faicad/faijs/runtime-state`、`/shape`、`/identity`、`/lang/*`、`/brep/*` 等），供库作者按需导入。
 
 **规则**：浏览器构建里静态 import node-host 会 404——Node 专用代码一律从 `/node` 导入。11 个入口的运行时导出面由 `scripts/api-surface-snapshot.mjs` 与 `scripts/api-surface-snapshot.json` 快照比对守卫。
 
@@ -77,7 +77,7 @@ faijs 是 **npm workspaces monorepo**。根包 `@faicad/faijs` 是**门面薄层
 
 - **引擎 = 解析 + 校验 + 调度 + 记账 + 资源；库 = 一切几何。**
 - **判别一个函数归谁，问的是"它是几何算法吗"，不是"现在谁在 import 它"。** 引擎当前调用了某个几何函数，那是待清理的病灶，不是把它迁进引擎的理由。
-- **引擎零函数知识**：parser／compile／runtime 不得按函数名分支、不得区分函数类别。引擎里只有"库函数"这一均匀概念，函数信息只能是数据（`StdlibNamespace`）。
+- **引擎不按函数名特判（K5「引擎零函数知识」的准确含义）**：parser／compile／runtime 不得按函数名分支、不得区分函数类别；函数信息统一以 `defineOp` 元数据（均匀数据）承载，引擎里只有"库函数"这一均匀概念，函数信息只能是数据（`StdlibNamespace`）。
 - faijs 的职责只有一个：执行脚本，生成 3D 模型（`ExecutionResult`）。宿主的职责只有两个：生成正确的脚本、调用 faijs 执行。
 - 🔴 **所有几何变更必须走脚本语句**；宿主只消费 `ExecutionResult`，不得重复推导终端判定、不得自行实现 DAG 叶子过滤。
 
@@ -93,7 +93,7 @@ faijs 是 **npm workspaces monorepo**。根包 `@faicad/faijs` 是**门面薄层
 - **R-6 BREP 链是逐 part 的。** 一个 part 是否仍为 BREP，由 `solidCache` 中是否有它的句柄唯一决定；不存在全局标志，兄弟 part 互不污染。
 - **R-7 静态分派，禁止运行时回退。** BREP 路径执行抛异常 = bug，直接报错暴露，绝不 try-catch 后改走 mesh；能力缺失按静态规则降级或明确报错，**绝不伪造 API**。
 - **R-8 keep 是 faijs 与 UI 的唯一耦合点。** faijs 不定义 feature／UI 表单／图标／编辑面板——它们属于上层应用（3d_editor）。
-- **R-9 op 与特征（feature）的术语约定。** 用户原话（逐字）："关于op的定义，在faijs里就是返回几何实体的操作。而在上层应用如3d_editor中，op默认指任何操作，或者说任何函数调用，而特征则对应到通用CAD术语，可以通过1个到多个op/函数调用实现。"——因此：**faijs 层**，op = 返回几何实体（`Shape`／`CompoundShape`）的操作；**宿主层（3d_editor）**，op = 任何操作／任何函数调用，特征（feature）= 通用 CAD 术语，由 1 到多个 op／函数调用实现。引擎零函数知识（§1.2）只认识"返回几何实体的库函数调用"这一均匀概念；特征的语义与 UI 表单／图标／编辑面板一样属于上层应用（见 R-8）。
+- **R-9 op 与特征（feature）的术语约定。** 用户原话（逐字）："关于op的定义，在faijs里就是返回几何实体的操作。而在上层应用如3d_editor中，op默认指任何操作，或者说任何函数调用，而特征则对应到通用CAD术语，可以通过1个到多个op/函数调用实现。"——因此：**faijs 层**，op = 返回几何实体（`Shape`／`CompoundShape`）的操作；**宿主层（3d_editor）**，op = 任何操作／任何函数调用，特征（feature）= 通用 CAD 术语，由 1 到多个 op／函数调用实现。引擎不按函数名特判（K5，§1.2）只认识"返回几何实体的库函数调用"这一均匀概念；特征的语义与 UI 表单／图标／编辑面板一样属于上层应用（见 R-8）。
 
 ---
 
@@ -247,7 +247,7 @@ export type ExecutionMode = 'auto' | 'brep' | 'mesh'
 - `brep`：强制 BREP，不支持即报错（`BrepUnsupportedError` → `failedAt`），**不自动切换**。
 - `mesh`：全部走 mesh 路径。
 
-**门面与引擎的差别**：core 的 `createRuntime` **不装配 `cad`**（引擎零函数知识）；根门面 `src/index.ts` 包装它并注入 `registerLib('cad', createInternalStdlib())`。第三方库一律经 `runtime.registerLib(binding, ns)` 注册。
+**cad 默认命名空间内置引擎**：`createRuntime`（core 入口）自注册 `cad` 为默认命名空间（`registerLib('cad', createApiNamespace(), { default: true })`）。这与 K5 不冲突——cad 经 `defineOp` 注册为均匀库数据，与第三方库走完全相同的 `registerLib` 路径，引擎并未对其特判。第三方库一律经 `runtime.registerLib(binding, ns)` 注册，库作者无需依赖任何门面包。
 
 ### 7.2 `CadRuntime` API
 
@@ -356,7 +356,7 @@ faijs 全面对齐 vendored BREP 树的 `Result`／`BrepError` 体系，作为�
 | ② cad 脚本面 | 语句边界 unwrap：`err` → `ExecutionResult.failedAt`（带语句上下文） | `let p = cad.union(a, b)` — err → 语句失败 |
 | ③ 库边界面 | 库内原样；边界 unwrap | 库内用 `ok`／`err`／`andThen`；边界在语句边界 unwrap |
 
-**关键原语**（全部从 `vendored/brepjs/core/result.ts` 和 `core/errors.ts` 投影，经 `@faicad/faijs` 和 `@faicad/faijs-core/api/compat` 导出）：
+**关键原语**（全部从 `vendored/brepjs/core/result.ts` 和 `core/errors.ts` 投影，经 `@faicad/faijs` 和 `@faicad/faijs/api/compat` 导出）：
 
 ```ts ignore-check
 ok<T>(value: T): Ok<T>
@@ -511,7 +511,7 @@ export interface HostPorts {
 ```ts
 import { defineOp } from '@faicad/faijs/sdk'
 import type { Shape } from '@faicad/faijs/sdk'
-import type { BrepHandle } from '@faicad/faijs-core/brep/engine/types'
+import type { BrepHandle } from '@faicad/faijs/brep/engine/types'
 
 interface MyParams { size: number }
 declare function myOpMesh(input: Shape, params: MyParams): { positions: Float32Array; indices: Uint32Array }

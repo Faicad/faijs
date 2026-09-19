@@ -13,11 +13,11 @@
 
 import { describe, it, expect, beforeAll } from 'vitest'
 import { createRuntime, registerOcctBrepEngine } from '@faicad/faijs'
-import { createNodePorts } from '@faicad/faijs-core/node'
-import { brepjsCompat } from '@faicad/faijs-core/api'
-import { borrowBrepjsShape } from '@faicad/faijs-core/api/internal/l3-bridge'
-import { asPartName } from '@faicad/faijs-core/identity'
-import type { Shape } from '@faicad/faijs-core/mesh/types'
+import { createNodePorts } from '@faicad/faijs/node'
+import { brepjsCompat } from '@faicad/faijs/api'
+import { borrowBrepjsShape } from '@faicad/faijs/api/internal/l3-bridge'
+import { asPartName } from '@faicad/faijs/identity'
+import type { Shape } from '@faicad/faijs/mesh/types'
 import * as cq from './index'
 
 let runtime: ReturnType<typeof createRuntime>
