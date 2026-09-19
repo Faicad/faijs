@@ -21,6 +21,7 @@
     "src/test/",
     "src/test-helpers.ts",
     "**/*.test.ts",
-    "**/*.test-d.ts"
+    "**/*.test-d.ts",
+    "src/fcstd"
   ]
 }
