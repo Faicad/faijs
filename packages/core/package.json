@@ -90,6 +90,10 @@
       "types": "./dist/brep/*.d.ts",
       "default": "./dist/brep/*.js"
     },
+    "./brepkit-kernel/*": {
+      "types": "./dist/brepkit-kernel/*.d.ts",
+      "default": "./dist/brepkit-kernel/*.js"
+    },
     "./primitives/*": {
       "types": "./dist/primitives/*.d.ts",
       "default": "./dist/primitives/*.js"

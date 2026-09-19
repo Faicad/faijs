@@ -225,6 +225,10 @@ export type { SelectorManifestInput, PartTopologyInput, AssemblyTopologyResult, 
 // ── BREP 引擎注册（宿主装配；引擎可切换——occt 只是默认实现） ──
 export { registerOcctBrepEngine, OCCT_BREP_ENGINE_ID } from './brep/engine/adapters/occt'
 export { registerBrepMockEngine, BREP_MOCK_ENGINE_ID, createBrepMockApi } from './brep/engine/adapters/brep-mock'
+// brepkit 端侧 BREP 引擎（微信小程序等无 OCCT 环境）：由宿主注入 wasm init 并抢先注册，
+// 使 ensureBrepChain 不回退 OCCT。setBrepkitWasmInitFn 注入自定义初始化（如 WXWebAssembly 实例化）。
+export { registerBrepkitBrepEngine, BREPKIT_BREP_ENGINE_ID, ensureBrepkitDefaultEngine } from './brep/engine/adapters/brepkit'
+export { setBrepkitWasmInitFn, initBrepkitWasm, isBrepkitInitialized } from './brepkit-kernel/brepkitWasm'
 export {
   registerBrepEngine, getBrepEngine, hasBrepEngine, getActiveBrepEngineId,
   registerMeshEngine, getMeshEngine, getActiveMeshEngineId, freezeEngineRegistries,

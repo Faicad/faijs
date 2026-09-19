@@ -104,6 +104,7 @@ export type {
 // 外部资源注入点
 export { setManifoldWasmUrl, getManifoldWasmUrl } from './mesh/manifold-loader'
 export { setOcctWasmInitFn } from './occt-kernel/occtKernel'
+export { setBrepkitWasmInitFn, initBrepkitWasm, isBrepkitInitialized } from './brepkit-kernel/brepkitWasm'
 export { setFontLoader, getFontLoader, loadFont, ensureDefaultFont, getFont, clearFonts } from './brep/text/fontRegistry'
 export type { FontLoader } from './brep/text/fontRegistry'
 export { setKnurlTextureLoader } from './mesh/knurl/textureLoader'
@@ -133,6 +134,7 @@ export type { OcctKernel, ShapeHandle, WasmTessellatedMesh, Mesh, MeshDeflection
 
 // ── BREP 引擎注册（宿主装配；引擎可切换——occt 只是默认实现） ──
 export { registerOcctBrepEngine, OCCT_BREP_ENGINE_ID } from './brep/engine/adapters/occt'
+export { registerBrepkitBrepEngine, BREPKIT_BREP_ENGINE_ID, ensureBrepkitDefaultEngine } from './brep/engine/adapters/brepkit'
 export {
   registerBrepEngine, getBrepEngine, hasBrepEngine, getActiveBrepEngineId, freezeEngineRegistries,
 } from './brep/engine/registry'
