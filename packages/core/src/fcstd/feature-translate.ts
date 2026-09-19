@@ -576,8 +576,70 @@ export function translateObject(
         return { kind: 'baked', reason: 'pocket-length-expression-non-constant' };
       }
       // M9.1/M9.2/M9.3: Type-driven semantics — explicit bake for anything
-      // beyond plain Length / TwoLengths (no silent downgrade).
+      // beyond the supported set (no silent downgrade).
       const ftype = featureTypeOf(obj, 'pocket');
+      if (ftype === 'UpToFace') {
+        // C2.3 (extrude-upto-face §4.3-C2 point 4): Pocket UpToFace — same
+        // datum-plane path as Pad (plane target in sketch-local frame); the
+        // cut direction is handled by the kernel's auto-orientation toward
+        // the plane (GOTCHA: Pocket cuts INTO the material, the plane lies
+        // on the far side, and the kernel flips the extrude direction).
+        const upTo = propLinkSub(obj, 'UpToFace');
+        if (upTo && docObjects) {
+          const target = docObjects.find((o) => o.name === upTo.obj);
+          if (target && target.type === 'PartDesign::Plane') {
+            const pl = placementOf(target);
+            const m = quatToMatrix(pl.q);
+            const normal: [number, number, number] = [m[2]!, m[5]!, m[8]!];
+            const skPl = placementOf(docObjects.find((o) => o.name === (profile ?? '')) ?? target);
+            const skM = quatToMatrix(skPl.q);
+            const dir: [number, number, number] = [skM[2]!, skM[5]!, skM[8]!];
+            const denom = dir[0] * normal[0] + dir[1] * normal[1] + dir[2] * normal[2];
+            if (!Number.isFinite(denom) || Math.abs(denom) < 1e-9) {
+              return { kind: 'baked', reason: 'pocket-uptoface-datum-plane-parallel' };
+            }
+            // plane → sketch-local frame (p_local = R⁻¹(p_g − sk.p), n_local = R⁻¹ n)
+            const inv = [0, 1, 2].map((c) => [skM[c]!, skM[3 + c]!, skM[6 + c]!]);
+            const d = [pl.p[0] - skPl.p[0], pl.p[1] - skPl.p[1], pl.p[2] - skPl.p[2]] as [number, number, number];
+            const ptLocal: [number, number, number] = [
+              inv[0]![0]! * d[0] + inv[0]![1]! * d[1] + inv[0]![2]! * d[2],
+              inv[1]![0]! * d[0] + inv[1]![1]! * d[1] + inv[1]![2]! * d[2],
+              inv[2]![0]! * d[0] + inv[2]![1]! * d[1] + inv[2]![2]! * d[2],
+            ];
+            const nLocal: [number, number, number] = [
+              inv[0]![0]! * normal[0] + inv[0]![1]! * normal[1] + inv[0]![2]! * normal[2],
+              inv[1]![0]! * normal[0] + inv[1]![1]! * normal[1] + inv[1]![2]! * normal[2],
+              inv[2]![0]! * normal[0] + inv[2]![1]! * normal[1] + inv[2]![2]! * normal[2],
+            ];
+            const cutVar = `${out}_cut`;
+            const calls: CadCall[] = [
+              {
+                out: cutVar, op: 'cad.extrude', source: obj.name, inputs: [profileVar],
+                params: { upTo: { plane: { point: ptLocal, normal: nLocal } } },
+              },
+              { out, op: 'cad.subtract', source: obj.name, inputs: [baseVar, cutVar], params: {} },
+            ];
+            return { kind: 'translated', reason: 'pocket-uptoface-via-datum-plane', calls };
+          }
+          return { kind: 'baked', reason: 'pocket-uptoface-solid-face-unsupported' };
+        }
+        return { kind: 'baked', reason: 'pocket-uptoface-sub-unparseable' };
+      }
+      if (ftype === 'UpToFirst') {
+        // C2.3: Pocket UpToFirst — cut prism to the support's NEAR face along
+        // the cut direction; the kernel truncates the prism against the
+        // baseFeature (chain head), then the result is subtracted.
+        const baseVarUp = baseVar;
+        const cutVar = `${out}_cut`;
+        const calls: CadCall[] = [
+          {
+            out: cutVar, op: 'cad.extrude', source: obj.name, inputs: [profileVar],
+            params: { upTo: 'first', baseFeature: jsExpr(baseVarUp) },
+          },
+          { out, op: 'cad.subtract', source: obj.name, inputs: [baseVarUp, cutVar], params: {} },
+        ];
+        return { kind: 'translated', reason: 'pocket-uptofirst-via-baseFeature', calls };
+      }
       if (ftype !== 'Length' && ftype !== 'TwoLengths') {
         return { kind: 'baked', reason: `pocket-type-${ftype}-unsupported` };
       }

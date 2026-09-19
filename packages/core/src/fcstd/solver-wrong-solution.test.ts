@@ -30,43 +30,11 @@ import { describe, it, expect } from 'vitest';
 import { parseSketchObject, ConstraintType, PointPos } from './sketch-parse.js';
 import { createPlanegcsSolver } from './planegcs-backend.js';
 import { maxPointDistance } from './sketch-verify.js';
-import type { FcstdProperty } from './document.js';
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 
 const T1 = 1e-6;
 
-/** Build a two-point line SketchGeom pair for synthetic sketches. */
-function lineProps(x1: number, y1: number, x2: number, y2: number): FcstdProperty {
-  // minimal synthetic property shaped like parseGeometryList expects
-  return {
-    name: 'Geometry',
-    type: 'App::PropertyGeometryList',
-    value: '',
-    children: [
-      {
-        name: 'GeometryList',
-        children: [
-          {
-            name: 'Geometry',
-            attrs: { type: 'Part::GeomLineSegment' },
-            children: [
-              { name: 'X1', attrs: {}, children: [], value: String(x1) },
-              { name: 'Y1', attrs: {}, children: [], value: String(y1) },
-              { name: 'Z1', attrs: {}, children: [], value: '0' },
-              { name: 'X2', attrs: {}, children: [], value: String(x2) },
-              { name: 'Y2', attrs: {}, children: [], value: String(y2) },
-              { name: 'Z2', attrs: {}, children: [], value: '0' },
-            ],
-            value: '',
-          },
-        ],
-        value: '',
-      },
-    ],
-  } as unknown as FcstdProperty;
-}
 
 describe('GOTCHA: planegcs-backend Symmetric/Angle/axis-ref mapping', () => {
   it('G-A: p2p_symmetric_ppp uses p_id (not p3_id) and actually constrains', async () => {
@@ -146,7 +114,6 @@ describe('GOTCHA: planegcs-backend Symmetric/Angle/axis-ref mapping', () => {
 });
 
 describe('GOTCHA: real-corpus L1 wrong solutions (delta-exceeds)', () => {
-  const here = dirname(fileURLToPath(import.meta.url));
   const corpusRoot = process.env.FAIJS_FCSTD_CORPUS ?? 'D:/Faicad/FreeCAD';
 
   interface Case { file: string; sketch: string; }

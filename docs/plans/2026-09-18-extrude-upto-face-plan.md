@@ -1,7 +1,7 @@
 # Extrude UpToFace/UpToLast 支持方案（打通 Pad up-to 链路，V6 翻绿）
 
 > 日期：2026-09-18
-> 状态：实施中。A / B / C1 / C2（C2.1 UpToLast+UpToFirst、C2.2 实体面 faceRef）已落地；C2.3（Pocket 的 UpToFirst/UpToFace）在本地语料零覆盖、未接线；D 未达标（PadTest relErr 3.20%、bboxDiag delta 0，门槛 <1%）。
+> 状态：已完成（2026-09-19）。A / B / C1 / C2（含 C2.3 Pocket UpToFirst/UpToFace 接线）/ D 全部落地：PadTest V6 relErr 0.0032%（门槛 <1%，根因链见 §8.6）、PocketTest V6 relErr 0.9887% PASS。
 > 前置：M9 已落地 `Length`/`TwoLengths`（`feature-translate.ts`），UpToFace/UpToLast 显式烘焙（reason `pad-type-*-unsupported`）
 > 落点订正（2026-09-18，见 §4.2 订正块）：B 阶段曾把 up-to 实现落在 `api/fai_extrude.ts`，与 §4.2/§4.3 约定的 `cad.extrude` 及 2026-09-15 port plan M4.6「原 `cad.fai_extrude` 路线废弃」冲突；已回退并迁到 `api/extrude.ts`（`cad.extrude` 提升为手写平台 op）。
 
@@ -175,3 +175,19 @@ npx tsx packages/core/scripts/verify-geometry.ts D:/Faicad/FreeCAD/data/tests/Pa
 ### 8.5 结论
 
 方案 A/B/C1/C2.1/C2.2 已全部落地，且有单测（10/10）与端到端（STEP 1774 实体）证据；fai_ deprecated 收尾已完成。唯一硬验收 D 仍卡 relErr 3.20%（几何 bbox 已精确吻合，体积差根因待定位），C2.3 因缺样本未接线。整体进度：**6/7 阶段完成，1 项验收未达 + 1 项因缺样本未接线**。下一步建议优先攻克 §8.4-1（D 根因），其次补样本推进 C2.3。
+
+### 8.6 D 根因链与最终达标（2026-09-19 后续排障）
+
+三层根因逐一定位（探针脚本保留在 `packages/core/scripts/probe-padtest-*.ts`、`probe-pad002-*.ts`、`probe-step-volume.ts`）：
+
+1. **特征 Placement 帧错位**：codegen 按**特征自身** Placement 重定向，但特征几何构建在**草图帧**（Pad001: sketch P=(10,0,0) Q=(0,.707,0,.707) vs feature P=0 Q=(0,.707,.707,0)）。修复：`codegen.ts` 改取 profile 草图的 Placement（sketchless 特征回退自身）。
+2. **UpToLast baseFeature 帧错位**：up-to 棱柱在草图局部帧构建，链头在全局帧 → 截断面错位（真值棱柱长 70，重建 50）。修复：codegen 在 extrude 之前发射逆变换链（translate(−p) → rotate(−euler)），把链头变回草图帧再作 baseFeature。注意：逆变换调用必须插在 extrude 语句**之前**（faijs 前向引用 → E_REFERENCE）。
+3. **斜置基准面语义错误**（残差 3.02% 的来源）：C1 的「基准面→定长」路径只对法向 ∥ 拉伸方向成立；Pad001 的基准面斜置，FreeCAD 真值顶面是斜面（AddShape 4860.42），定长只能给平顶圆盘（1874.83）。修复三件套：
+   - `cad.extrude` 新增 `upTo: { plane: { point, normal } }` 显式平面目标（`api/extrude.ts`）；
+   - `farSideBox` 改为**定向半空间盒**（`makeBasis(u,v,n)` + `kernel.transform`）——轴对齐盒截不出斜面（台阶 7076），且 reach 必须 ≥ 平面点到轮廓中心距离 + 轮廓对角线（否则 common 为空 KERNEL_ERROR）；
+   - **自动定向**：平面交点参数 tAuto < 0 时翻转拉伸方向（FreeCAD UpToFace 朝平面所在方向拉伸，Pocket 凹切同理由此覆盖）。
+   - 转换器基准面路径改发草图局部帧平面目标（`feature-translate.ts`，Pad + Pocket 共用）。
+
+**C2.3**：PocketTest.fcstd 提供 2 个 Type=3（UpToFace→DatumPlane）Pocket 样本，Pocket 分支已接 UpToFace（基准面平面目标 + subtract）与 UpToFirst（`upTo:'first'` + baseFeature）路径；端到端 V6：**relErr 0.9887% PASS**（bboxDiag delta 0.000003）。
+
+**D 最终结果**：PadTest V6 **relErr 0.0032%、bboxDiag delta 0、centroid dist 0.0011 → PASS**。GOTCHA 已留档 `api/extrude-upto.test.ts`（9 用例，含斜平面体积钉真值 4860.423±2%）。

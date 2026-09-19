@@ -3,7 +3,7 @@
  * M4.3 booleans, M4.6 Pad/Pocket).
  */
 import { describe, it, expect } from 'vitest';
-import { translateObject, isWhitelisted, placementPos, isJsExpr, jsExpr } from './feature-translate.js';
+import { translateObject, isWhitelisted, placementPos, isJsExpr } from './feature-translate.js';
 import type { FcstdObject, FcstdProperty } from './document.js';
 
 function prop(name: string, child: { name: string; attrs: Record<string, string> } | null = null): [string, FcstdProperty] {

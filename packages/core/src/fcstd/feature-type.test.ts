@@ -11,7 +11,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { translateObject, featureTypeOf } from './feature-translate.js';
-import type { FcstdDocument, FcstdObject } from './document.js';
+import type { FcstdObject } from './document.js';
 
 function obj(type: string, name: string, props: Record<string, string | number>): FcstdObject {
   const properties = new Map(
@@ -86,7 +86,7 @@ describe('M9.3 UpTo* / ThroughAll / unknown → explicit bake with reason', () =
     ['pad UpToFace no datum-plane target', 'pad', 3, 'uptoface-solid-face-unsupported'],
     ['pad unknown index', 'pad', 99, 'pad-type-unknown-unsupported'],
     ['pocket ThroughAll (index)', 'pocket', 1, 'pocket-type-ThroughAll-unsupported'],
-    ['pocket UpToFace', 'pocket', 'UpToFace', 'pocket-type-UpToFace-unsupported'],
+    ['pocket UpToFace', 'pocket', 'UpToFace', 'pocket-uptoface-sub-unparseable'],
     ['pocket unknown', 'pocket', 'Bogus', 'pocket-type-unknown-unsupported'],
   ];
   for (const [label, kind, typeVal, expectedReason] of cases) {

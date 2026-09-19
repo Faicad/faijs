@@ -25,7 +25,7 @@
 
 import { extrude as projectedExtrude } from './generated/operations'
 import * as THREE from 'three'
-import { solidToShape } from '../brep/brep-ops'
+import { solidToShape, matrixToArray } from '../brep/brep-ops'
 import { getSolidBoundingBox } from '../brep/brep-utils'
 import { getBackends } from '../runtime-state'
 import { fromBrep, brepOf } from '../shape'
@@ -110,18 +110,18 @@ function bboxDiag(bbox: { min: Vec3; max: Vec3 }): number {
 }
 
 /**
- * 目标面法向负侧的半空间覆盖盒（截断长拉伸用）。
+ * 目标面法向负侧的半空间覆盖盒（截断长拉伸用）——定向版。
  *
- * GOTCHA（探针实测，旧 probe-upto-steps.ts）：不能用「面中心 ± 1」当面 bbox——
- * span 只剩 6，侧向盖不住长拉伸体，common 结果为空（getBoundingBox 报 no geometry）。
- * 正确做法：以目标面中心为基准，沿法向反方向伸出 R、沿与 n 正交的两个基向量各
- * ±R，取 8 个角点的包围盒——侧向与深度全覆盖。
+ * GOTCHA（PadTest Pad001 斜置基准面实测）：轴对齐盒的边界不是斜面本身，
+ * 截断呈台阶而非精确斜平面（体积 7076 vs 真值 4860）。正确做法：在局部基
+ * (u, v, n) 里构造盒（深度沿 −n 伸出 R、横向 ±R），再用 kernel.transform
+ * 旋到世界系——盒的 n=R 端面就是精确的目标平面。
  *
  * @param kernel - BREP 内核。
- * @param faceCenter - 目标面中心。
- * @param faceNormal - 目标面法向。
+ * @param faceCenter - 目标面中心（世界坐标，盒的 n=0 端面过此点）。
+ * @param faceNormal - 目标面法向（半空间保留 −n 侧…即盒占据 −n 侧深度）。
  * @param reach - 覆盖半径 R。
- * @returns 半空间盒的 brep 句柄。
+ * @returns 定向半空间盒的 brep 句柄。
  */
 function farSideBox(kernel: BrepEngineApi, faceCenter: Vec3, faceNormal: Vec3, reach: number): BrepHandle {
   const unit = new THREE.Vector3(...faceNormal).normalize()
@@ -131,26 +131,14 @@ function farSideBox(kernel: BrepEngineApi, faceCenter: Vec3, faceNormal: Vec3, r
   const u = new THREE.Vector3().crossVectors(unit, aux).normalize()
   const v = new THREE.Vector3().crossVectors(unit, u).normalize()
   const R = reach
-  const corners: THREE.Vector3[] = []
-  for (const deep of [0, -1]) {
-    for (const su of [-1, 1]) {
-      for (const sv of [-1, 1]) {
-        corners.push(
-          center.clone()
-            .addScaledVector(unit, deep * R)
-            .addScaledVector(u, su * R)
-            .addScaledVector(v, sv * R),
-        )
-      }
-    }
-  }
-  const xs = corners.map((c) => c.x)
-  const ys = corners.map((c) => c.y)
-  const zs = corners.map((c) => c.z)
-  return kernel.makeBoxFromCorners(
-    { x: Math.min(...xs), y: Math.min(...ys), z: Math.min(...zs) },
-    { x: Math.max(...xs), y: Math.max(...ys), z: Math.max(...zs) },
+  // 局部系盒：x∈[−R,R] (u), y∈[−R,R] (v), z∈[−R,0] (n 深度侧)
+  const box = kernel.makeBoxFromCorners(
+    { x: -R, y: -R, z: -R },
+    { x: R, y: R, z: 0 },
   )
+  // 旋转矩阵：列 = u, v, n；平移 = center（局部 z=0 端面落到过 center 的目标平面）
+  const m = new THREE.Matrix4().makeBasis(u, v, unit).setPosition(center)
+  return kernel.transform(box, matrixToArray(m))
 }
 
 /**
@@ -241,7 +229,10 @@ function extrudeUpToSolid(kernel: BrepEngineApi, inputSolid: BrepHandle, o: Extr
       (c0[0] - shiftedCenter0[0]) * tnAuto.x +
       (c0[1] - shiftedCenter0[1]) * tnAuto.y +
       (c0[2] - shiftedCenter0[2]) * tnAuto.z
-    if (dAuto * normal.dot(tnAuto) < 0) {
+    // 沿拉伸方向到平面的有向交点参数：t = −((c0−plane)·n) / (dir·n)。
+    // t<0 → 平面在行进反方向 → 翻转（FreeCAD UpToFace 朝平面拉伸）。
+    const tAuto = -dAuto / normal.dot(tnAuto)
+    if (tAuto < 0) {
       normal.multiplyScalar(-1)
     }
   }

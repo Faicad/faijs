@@ -343,7 +343,6 @@ export function solveGlobal(
   let lambda = LM_LAMBDA0
   let current = residual(x)
   let obj = 0.5 * dot(current, current)
-  let converged = false
 
   for (let iter = 0; iter < LM_MAXITER; iter++) {
     const m = current.length
@@ -363,7 +362,6 @@ export function solveGlobal(
 
     // 梯度范数收敛（与步长早停互补，避免 λ 放大时误判收敛）
     if (maxAbs(Jtr) < 1e-8) {
-      converged = true
       break
     }
 
@@ -393,11 +391,9 @@ export function solveGlobal(
 
     // 步长收敛仅在信任域健康（λ 小）时认定——λ 大时的微小步长只是阻尼，非真收敛
     if (acceptedStep && maxAbs(acceptedStep) < LM_TOL_STEP && lambda < 1e-2) {
-      converged = true
       break
     }
     if (Math.abs(objBefore - obj) < LM_TOL_OBJ * Math.max(1, Math.abs(objBefore))) {
-      converged = true
       break
     }
   }

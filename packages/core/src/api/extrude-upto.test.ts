@@ -148,3 +148,55 @@ describe('cad.extrude 长度形态向后兼容（生成投影委托不变语义�
     expect(bb.min[2]).toBeCloseTo(-10, 3)
   })
 })
+
+describe('cad.extrude upTo { plane } 显式平面目标（PadTest Pad001 斜置基准面 GOTCHA 留档）', () => {
+  // GOTCHA（PadTest V6 排障，2026-09-19）：斜置基准面不能转成定长拉伸——
+  // 定长给平顶（1874.83），FreeCAD 真值是斜顶（4860.42）。必须发显式平面
+  // 目标，由内核半空间求交产生斜截。三个错误用法均已实测踩坑：
+  //   ① 轴对齐半空间盒（farSideBox 旧实现）→ 截断呈台阶（7076）
+  //   ② reach 只按投影距离取 → 半空间盒横向盖不住 → common 为空 KERNEL_ERROR
+  //   ③ 固定沿 +Z 拉 → 平面在反方向（t<0）→ 体积 597
+  // 正确用法：定向盒（makeBasis(u,v,n) + transform）+ reach 覆盖全向 +
+  // 自动定向（tAuto<0 时翻转拉伸方向）。
+  it('斜平面目标产生斜顶棱柱（自动朝平面方向拉伸）', async () => {
+    // 圆轮廓（PadTest Sketch001，r=7.728，面积 187.6）；斜平面法向
+    // n=(−0.705,0.071,0.705)，圆心处交点 z=−26.06 → 真值体积 4860.42。
+    const outputs = await runCode(`
+      let sk = cad.sketch({ contours: [{"segments":[{"kind":"arc","cx":-33.057236,"cy":30.001772,"radius":7.728417011119,"startAngle":0,"endAngle":6.283185307179586,"ccw":true,"x1":-25.328818988881004,"y1":30.001772,"x2":-25.328818988881004,"y2":30.001772}],"closed":true}] })
+      let part1 = cad.extrude(sk, { upTo: { plane: { point: [-50, 100, -49.99999999999997], normal: [-0.7053456158587508, 0.07053456158639328, 0.7053456158583923] } } })
+    `)
+    const p1 = outputs.get(asPartName('part1'))
+    expect(p1).toBeDefined()
+    if (!p1) return
+    const kernel = getBackends().kernel.brep!
+    const mesh = kernel.tessellate(brepOf(p1), 0.01)
+    const pos = mesh.positions as Float32Array
+    const idx = mesh.indices as Uint32Array
+    let v6 = 0
+    for (let t = 0; t < idx.length; t += 3) {
+      const a = idx[t]! * 3, b = idx[t + 1]! * 3, c = idx[t + 2]! * 3
+      v6 += pos[a]! * (pos[b + 1]! * pos[c + 2]! - pos[b + 2]! * pos[c + 1]!)
+        - pos[a + 1]! * (pos[b]! * pos[c + 2]! - pos[b + 2]! * pos[c]!)
+        + pos[a + 2]! * (pos[b]! * pos[c + 1]! - pos[b + 1]! * pos[c]!)
+    }
+    const vol = Math.abs(v6 / 6)
+    // 真值（FreeCAD PadTest Pad001.AddShape）= 4860.423；斜截圆台无解析
+    // 闭式（斜平面截圆柱为椭圆柱段），用 tessellate 噪声容忍度 2% 钉住。
+    expect(vol).toBeGreaterThan(4860.423 * 0.98)
+    expect(vol).toBeLessThan(4860.423 * 1.02)
+  })
+
+  it('平面目标在拉伸正方向时不翻转方向（正常 UpToFace）', async () => {
+    // 平面 z=10（法向 +Z），轮廓 [0,2]² 沿 +Z 拉：体积 = 4×10 = 40
+    const outputs = await runCode(`
+      let sk = cad.sketch({ contours: [${SQUARE_2X2}] })
+      let part1 = cad.extrude(sk, { upTo: { plane: { point: [0, 0, 10], normal: [0, 0, 1] } } })
+    `)
+    const p1 = outputs.get(asPartName('part1'))
+    expect(p1).toBeDefined()
+    if (!p1) return
+    const bb = bboxOf(p1)
+    expect(bb.max[2]).toBeCloseTo(10, 3)
+    expect(bb.min[2]).toBeCloseTo(0, 3)
+  })
+})
