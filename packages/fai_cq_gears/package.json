@@ -1,7 +1,22 @@
 {
   "name": "@faicad/fai-cq-gears",
-  "version": "0.1.0",
+  "version": "0.13.0",
   "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitcode.com/Faicad/faijs.git"
+  },
+  "description": "CadQuery gear extensions (spur, bevel, worm, rack, planetary) ported to faijs",
+  "keywords": [
+    "cad",
+    "faijs",
+    "cadquery",
+    "gear",
+    "spur",
+    "bevel",
+    "worm"
+  ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {

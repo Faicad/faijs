@@ -48,7 +48,7 @@
 |---|---|---|---|
 | M1 | 根包 `private: true` | 根 package.json | 删除该字段；core/库包无此字段已可发 |
 | M2 | mini_lathe 无 `exports`、`files: ["src"]`、无 build script——它目前是「源码直发」形态，与其它包的 dist 形态不一致 | `packages/mini_lathe/package.json` | 按 gear-lib-demo 范式补：tsconfig.build + `files: ["dist"]` + exports + build script（或暂缓，见 Q3） |
-| M3 | `repository.url` 指向 `gitcode.com/Faicad/faijs.git`，各库包**没有** repository/license/keywords/description | 各子包 | 补齐 npm 包页必需字段；license 需用户拍板（见 Q4） |
+| M3 | `repository.url` 指向 `gitcode.com/Faicad/faijs.git`，各库包**没有** repository/license/keywords/description | 各子包 | **已补（2026-09-19）**：5 个发布包统一加 `license=MIT`、`repository`、`description`、`keywords` |
 | M4 | core 的 `peerDependencies: occt-wasm 3.8.4` 为**精确锁版**——npm 上 peer 过严会与宿主冲突 | `packages/core/package.json` | 建议放宽为 `^3.8.4`（wasm 二进制兼容性需实测后定，见 R-N3） |
 | M5 | 根包 dependencies 里有 `@faicad/faijs: "*"`——发布后必须改为确定版本（`^0.13.0` 等），`*` 在 registry 上无法解析到 workspace 语义 | 根 package.json | 采 §9 D2-A 后根门面删除，本行作废；否则发布脚本统一注入 workspace 实际版本 |
 
@@ -134,7 +134,7 @@ scripts/publish-all.ps1 [--dry-run] [--tag next]
 | Q5 | 是否引入 changesets（版本日志工具） | 建议首期不上，手工 CHANGELOG 起步 |
 | Q6 | 首发版本号：统一升 `0.13.0` 还是维持各包现版 | 建议统一 0.13.0（lockstep 起步） |
 | Q7 | 门面折叠采 D2-A（core 改名 `@faicad/faijs`）还是 D2-B（保留门面纯透传） | 推荐 D2-A，彻底消除冗余 |
-| Q8 | 浏览器 importmap 采 esm.sh scope（§9.4-a）还是 versions.json 直链（§9.4-b） | **已定稿为 a/b 混合**（dev 走 a 省维护、release 走 b pin 精确版，见 §9.4）；剩余待定项转为「CDN 后端选型」：`CDN_BASE` 取 jsDelivr 国内镜像 还是 自建/内网托管 `@faicad/*` ESM 构建（约束 C-CDN） |
+| Q8 | 浏览器 importmap 采 esm.sh scope（§9.4-a）还是 versions.json 直链（§9.4-b） | **已定稿为 a/b 混合 + CDN_BASE 拍板（2026-09-19）：`CDN_BASE` = jsDelivr 国内镜像 `https://cdn.jsdelivr.net/npm/`**（ESM 取 `+esm`）；dev 走 a（scope）、release 走 b（versions.json pin），共用此 base |
 | Q9 | K5（引擎零函数知识）在 cad 内置 core 后是否仍成立 | 已澄清：cad 经 `registerLib` 同构注册，引擎不特判，K5 不被违反；§9.2 已纠正「放弃 K5」的误读 |
 
 ---
@@ -189,7 +189,7 @@ runtime 已支持自动装载（§9.1 证据），缺口是 host 端 `libLoader`
 
 - **D3-Node**：`loadLib = (pkg) => import(pkg)`。Node 从 `node_modules` 解析已装包，零额外工作。
 - **D3-Browser**：按 specifier 动态 `import()`，由 importmap 把 `@faicad/*` 映射到 CDN。
-  - **⚠️ 约束 C-CDN（国内可达性）**：本环境（中国、GitHub 间歇阻断、npm 走国内镜像）下，裸 `esm.sh`（Cloudflare CDN）在大陆常慢/被墙。a/b 两份方案都隐含依赖公网 CDN，必须把取版后端换成**对国内更稳的源**——优先 jsDelivr（含国内镜像）/ 自建或内网托管的 `@faicad/*` ESM 构建，**不得裸用 esm.sh**。下文中 `CDN_BASE` 即指 C-CDN 选定的源（建议在 Q8 拍板时一并定）。
+  - **⚠️ 约束 C-CDN（国内可达性）**：本环境（中国、GitHub 间歇阻断、npm 走国内镜像）下，裸 `esm.sh`（Cloudflare CDN）在大陆常慢/被墙。a/b 两份方案都隐含依赖公网 CDN，必须把取版后端换成**对国内更稳的源**——优先 jsDelivr（含国内镜像）/ 自建或内网托管的 `@faicad/*` ESM 构建，**不得裸用 esm.sh**。下文中 `CDN_BASE` 即指 C-CDN 选定的源（建议在 Q8 拍板时一并定）。**【已拍板 2026-09-19】`CDN_BASE` = jsDelivr 国内镜像 `https://cdn.jsdelivr.net/npm/`；ESM 经 `+esm` 取（如 `https://cdn.jsdelivr.net/npm/@faicad/faijs@0.13.0/+esm`）；dev 走 a（scope）、release 走 b（versions.json pin），共用此 base。**
   - 方案 a（默认；dev / playground 用）：构建期扫描已装 `@faicad/*`，生成 importmap 的 scope 条目 `"@faicad/": "CDN_BASE/*@faicad/"`（后端按依赖图自动取版），取代 demo 手写 three/manifold/occt 版本与逐库 alias（`vite.config.ts:103-114`）。
   - 方案 b（release 兜底；pin 精确版）：构建期生成 `versions.json`（列出已装 `@faicad/*` 的 resolved 版本），loader 拼 `import(CDN_BASE + pkg + '@' + versions[pkg])`，版本精确 pin 到 installed 版本，保证可复现与缓存命中。
   - **混合策略（采纳）**：dev/playground 走 a 省维护（零版本表）；**CI 发包渠道走 b**，由构建期生成 `versions.json` 精确 pin，作为 release 产物。两者共用同一 `CDN_BASE`（C-CDN）。
@@ -214,5 +214,5 @@ runtime 已支持自动装载（§9.1 证据），缺口是 host 端 `libLoader`
 | 编号 | 问题 | 建议 |
 |---|---|---|
 | Q7 | 门面折叠采 D2-A（core 改名 `@faicad/faijs`）还是 D2-B（保留门面纯透传） | 推荐 D2-A，彻底消除冗余 |
-| Q8 | 浏览器 importmap 采 esm.sh scope（§9.4-a）还是 versions.json 直链（§9.4-b） | **已定稿为 a/b 混合**（dev 走 a 省维护、release 走 b pin 精确版，见 §9.4）；剩余待定项转为「CDN 后端选型」：`CDN_BASE` 取 jsDelivr 国内镜像 还是 自建/内网托管 `@faicad/*` ESM 构建（约束 C-CDN） |
+| Q8 | 浏览器 importmap 采 esm.sh scope（§9.4-a）还是 versions.json 直链（§9.4-b） | **已定稿为 a/b 混合 + CDN_BASE 拍板（2026-09-19）：`CDN_BASE` = jsDelivr 国内镜像 `https://cdn.jsdelivr.net/npm/`**（ESM 取 `+esm`）；dev 走 a（scope）、release 走 b（versions.json pin），共用此 base |
 | Q9 | K5（引擎零函数知识）在 cad 内置 core 后是否仍成立 | 已澄清：cad 经 `registerLib` 同构注册，引擎不特判，K5 不被违反；§9.2 已纠正「放弃 K5」的误读 |

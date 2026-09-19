@@ -1,7 +1,21 @@
 {
   "name": "@faicad/cq-compat",
-  "version": "0.1.0",
+  "version": "0.13.0",
   "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitcode.com/Faicad/faijs.git"
+  },
+  "description": "CadQuery 2.8.0 geometry parity and assembly solver port for faijs",
+  "keywords": [
+    "cad",
+    "faijs",
+    "cadquery",
+    "geometry",
+    "brep",
+    "assembly"
+  ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {

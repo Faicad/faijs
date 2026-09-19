@@ -1,7 +1,23 @@
 {
   "name": "@faicad/fai-cq-warehouse",
-  "version": "0.1.0",
+  "version": "0.13.0",
   "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitcode.com/Faicad/faijs.git"
+  },
+  "description": "CadQuery fasteners and hardware (nuts, screws, washers, bearings, sprockets) ported to faijs",
+  "keywords": [
+    "cad",
+    "faijs",
+    "cadquery",
+    "fastener",
+    "hardware",
+    "nut",
+    "screw",
+    "bearing"
+  ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
