@@ -13,6 +13,7 @@ import { solveGlobal } from './global-solver'
 import { rotateByR, quatFromR } from './pose-from-delta'
 import { quatRotate } from '../../../vendored/brepjs/utils/quaternion'
 import type { AssemblyTransform } from '../../../runtime-state'
+import { asPartName } from '../../../identity'
 
 const dummy: Shape = { __dummy: true } as unknown as Shape
 const members: Shape[] = [dummy, dummy]
@@ -21,13 +22,13 @@ const memberNames = ['A', 'B']
 type V3 = [number, number, number]
 
 function faceRef(part: string, center: V3, normal: V3): EntityRef {
-  return { part, face: { surfaceType: 'plane', center, normal } }
+  return { part: asPartName(part), face: { surfaceType: 'plane', center, normal } }
 }
 function pointRef(part: string, p: V3): EntityRef {
-  return { part, point: p }
+  return { part: asPartName(part), point: p }
 }
 function axisRef(part: string, origin: V3, direction: V3): EntityRef {
-  return { part, edge: { axis: { origin, direction } } }
+  return { part: asPartName(part), edge: { axis: { origin, direction } } }
 }
 
 const OPTS: SolveOptions = { solver: 'global' }
@@ -62,10 +63,9 @@ function solveOne(constraints: AssemblyConstraint[]): AssemblyTransform[] {
 function expectNear(a: number, b: number, eps = 1e-5): void {
   expect(Math.abs(a - b)).toBeLessThan(eps)
 }
-function expectVecNear(a: V3, b: V3, eps = 1e-5): void {
-  expectNear(a[0], b[0], eps)
-  expectNear(a[1], b[1], eps)
-  expectNear(a[2], b[2], eps)
+function expectVecNear(a: readonly number[], b: readonly number[], eps = 1e-5): void {
+  expect(a.length).toBe(b.length)
+  for (let i = 0; i < a.length; i++) expectNear(a[i]!, b[i]!, eps)
 }
 
 describe('global-solver: mate / align 平面贴合', () => {
@@ -165,7 +165,7 @@ describe('global-solver: distance / angle / fixed', () => {
 
   it('fixed：锁定 B，约束驱动 A 移动（锚定翻转到 A）', () => {
     const c: AssemblyConstraint[] = [
-      { type: 'fixed', part: 'B' },
+      { type: 'fixed', part: asPartName('B') },
       { type: 'mate', a: faceRef('A', [0, 0, 0], [0, 0, 1]), b: faceRef('B', [0, 0, 5], [0, 0, -1]) },
     ]
     const res = solveGlobal(members, memberNames, c, OPTS)

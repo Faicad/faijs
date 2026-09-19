@@ -45,7 +45,7 @@ function makeFakeFcstd(): Uint8Array {
       'GuiDocument.xml': strToU8('<GuiDocument/>'),
       'Box.brp': strToU8('CASCADE Topology V1 (c) fake brep bytes'),
     },
-    { comment: strToU8('FreeCAD Document') },
+    { comment: 'FreeCAD Document' },
   );
 }
 

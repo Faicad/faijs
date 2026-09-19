@@ -210,7 +210,7 @@ export function parseGeometryList(prop: FcstdProperty): SketchGeom[] {
       default:
         // ArcOfEllipse / BSpline / hyperbola / parabola: not supported in M3
         // (sample set: 0 occurrences, plan §5.5.3); caller downgrades to L2.
-        geoms.push({ kind: 'point', index, x: NaN, y: NaN });
+        geoms.push({ kind: 'point', index, x: NaN, y: NaN, z: NaN });
         break;
     }
     index++;

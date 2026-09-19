@@ -6,6 +6,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { parseSketchObject } from './sketch-parse.js';
 import { createPlanegcsSolver } from './planegcs-backend.js';
 import type { SketchSolver } from './sketch-solver.js';
+import { isOk } from '../vendored/brepjs/core/result.js';
 import { maxPointDistance, classifySketch } from './sketch-verify.js';
 import type { FcstdProperty } from './document.js';
 
@@ -18,6 +19,7 @@ function geomProp(children: string): FcstdProperty {
   // build real child structure so parseGeometryList can walk it
   const geometryChildren = [...children.matchAll(/<Geometry type="([^"]+)">(<\w+[^>]*\/>)<\/Geometry>/g)].map(
     (m) => ({
+      tagName: 'Geometry',
       name: 'Geometry',
       type: m[1]!,
       attributes: { type: m[1]! },
@@ -27,10 +29,12 @@ function geomProp(children: string): FcstdProperty {
     }),
   );
   return {
+    tagName: 'Geometry',
     name: 'Geometry',
     type: 'Part::PropertyGeometryList',
     children: [
       {
+        tagName: 'GeometryList',
         name: 'GeometryList',
         type: '',
         attributes: { count: String(geometryChildren.length) },
@@ -51,7 +55,7 @@ function parseInner(tag: string): FcstdProperty {
   if (!m) throw new Error(`bad fixture tag: ${tag}`);
   const attrs: Record<string, string> = {};
   for (const pair of m[2]!.matchAll(/(\w+)="([^"]*)"/g)) attrs[pair[1]!] = pair[2]!;
-  return { name: m[1]!, type: '', attributes: attrs, children: [], valueXml: tag, valueText: '' };
+  return { tagName: m[1]!, name: m[1]!, type: '', attributes: attrs, children: [], valueXml: tag, valueText: '' };
 }
 
 describe('sketch solver channel (M3)', () => {
@@ -78,7 +82,7 @@ describe('sketch solver channel (M3)', () => {
       { index: 4, type: 7, refs: [{ geoId: 0, pos: 1 }, { geoId: 0, pos: 2 }], value: 40, isDriving: true, name: '' }, // DistanceX
       { index: 5, type: 8, refs: [{ geoId: 3, pos: 1 }, { geoId: 3, pos: 2 }], value: -30, isDriving: true, name: '' }, // DistanceY (signed: downward)
     ]);
-    expect(result.isOk ?? true).toBe(true);
+    expect(isOk(result)).toBe(true);
     const outcome = (result as { value: { geoms: typeof geoms; converged: boolean; reason?: string } }).value;
     expect(outcome.converged, `reason: ${outcome.reason}`).toBe(true);
     // D2: re-solve must reproduce the stored geometry

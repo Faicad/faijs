@@ -59,7 +59,10 @@ function firstElementChild(el: Element): Element | undefined {
 }
 
 function serialize(el: Element): string {
-  return new XMLSerializer().serializeToString(el);
+  // @xmldom/xmldom ships its own Node/Element types that conflict with lib: DOM;
+  // the parser/serializer boundary is the only place the two universes meet.
+  type SerNode = Parameters<XMLSerializer['serializeToString']>[0];
+  return new XMLSerializer().serializeToString(el as unknown as SerNode);
 }
 
 function parseProperty(propEl: Element): FcstdProperty {
@@ -90,7 +93,8 @@ function parseProperty(propEl: Element): FcstdProperty {
 export function parseDocumentXml(xml: string): Result<FcstdDocument, ParseError> {
   let doc: Document;
   try {
-    doc = new DOMParser().parseFromString(xml, 'application/xml');
+    // xmldom's Document type conflicts with lib: DOM; cast across the boundary.
+    doc = new DOMParser().parseFromString(xml, 'application/xml') as unknown as Document;
   } catch (e) {
     return err({ kind: 'xml', message: `Document.xml parse failed: ${e instanceof Error ? e.message : String(e)}` });
   }

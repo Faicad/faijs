@@ -24,6 +24,8 @@
     "baseUrl": ".",
     "paths": {
       "@faicad/faijs": ["../../src/index.ts"],
+      "@faicad/faijs/browser": ["../../src/browser.ts"],
+      "@faicad/faijs/node": ["../../src/node.ts"],
       "@faicad/faijs-core": ["./src/index.ts"],
       "@faicad/faijs-core/*": ["./src/*"]
     }

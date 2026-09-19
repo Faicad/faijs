@@ -148,7 +148,7 @@ function propStr(obj: FcstdObject, name: string): string | undefined {
  * A missing Type property means Length (0) — the FreeCAD default.
  */
 export type FeatureType =
-  | 'Length' | 'ThroughAll' | 'UpToFirst' | 'UpToFace' | 'TwoLengths' | 'unknown';
+  | 'Length' | 'ThroughAll' | 'UpToLast' | 'UpToFirst' | 'UpToFace' | 'TwoLengths' | 'unknown';
 
 const PAD_TYPES: Record<string, FeatureType> = {
   '0': 'Length', '1': 'UpToLast', '2': 'UpToFirst', '3': 'UpToFace', '4': 'TwoLengths',

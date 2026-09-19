@@ -32,6 +32,7 @@ import { createPlanegcsSolver } from './planegcs-backend.js';
 import { maxPointDistance } from './sketch-verify.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const T1 = 1e-6;
 
@@ -114,23 +115,19 @@ describe('GOTCHA: planegcs-backend Symmetric/Angle/axis-ref mapping', () => {
 });
 
 describe('GOTCHA: real-corpus L1 wrong solutions (delta-exceeds)', () => {
-  const corpusRoot = process.env.FAIJS_FCSTD_CORPUS ?? 'D:/Faicad/FreeCAD';
+  // 真实语料已入库 packages/fixtures/data/fcstd/（原引用本机克隆的 FreeCAD 源码，
+  // 外部路径 + console.warn 跳过会触发 CI stderr 零容忍——见 2026-09-19 修复）。
+  const FIXTURES = fileURLToPath(new URL('../../../fixtures/data/fcstd/', import.meta.url));
 
   interface Case { file: string; sketch: string; }
   const CASES: Case[] = [
-    { file: join(corpusRoot, 'src/Mod/CAM/Tools/Shape/taperedballnose.fcstd'), sketch: 'Sketch' },
-    { file: join(corpusRoot, 'src/Mod/Sketcher/SketcherTests/TestSketchCarbonCopyReverseMapping.FCStd'), sketch: 'Sketch001' },
+    { file: join(FIXTURES, 'taperedballnose.fcstd'), sketch: 'Sketch' },
+    { file: join(FIXTURES, 'TestSketchCarbonCopyReverseMapping.FCStd'), sketch: 'Sketch001' },
   ];
 
   for (const c of CASES) {
-    it(`solves to L0: ${c.sketch} in ${c.file.split('/').pop()}`, async () => {
-      let raw: Buffer;
-      try {
-        raw = readFileSync(c.file);
-      } catch {
-        console.warn(`skipping corpus case (missing): ${c.file}`);
-        return;
-      }
+    it(`solves to L0: ${c.sketch} in ${c.file.split(/[\\/]/).pop()}`, async () => {
+      const raw = readFileSync(c.file);
       const { unpackFcstd, memberText } = await import('./unpack.js');
       const { parseDocumentXml } = await import('./document.js');
       const zip = unpackFcstd(new Uint8Array(raw));
@@ -155,14 +152,8 @@ describe('GOTCHA: real-corpus L1 wrong solutions (delta-exceeds)', () => {
   it('hole_puzzle Sketch005 stays at delta 0 with external geometry present', async () => {
     // refs may carry Third=-2000 sentinel; PointPos import pins the enum values
     expect(PointPos.none).toBe(0);
-    const file = join(corpusRoot, 'src/Mod/CAM/DemoParts/hole_puzzle.fcstd');
-    let raw: Buffer;
-    try {
-      raw = readFileSync(file);
-    } catch {
-      console.warn(`skipping corpus case (missing): ${file}`);
-      return;
-    }
+    const file = join(FIXTURES, 'hole_puzzle.fcstd');
+    const raw = readFileSync(file);
     const { unpackFcstd, memberText } = await import('./unpack.js');
     const { parseDocumentXml } = await import('./document.js');
     const { resolveExternalGeometry } = await import('./external-geo.js');

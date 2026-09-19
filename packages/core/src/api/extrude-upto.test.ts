@@ -20,6 +20,8 @@ import { getSolidBoundingBox } from '../brep/brep-utils'
 import { getBackends } from '../runtime-state'
 import { brepOf } from '../shape'
 import type { Shape } from '../mesh/types'
+import type { BrepEngineApi } from '../brep/engine/primitives'
+import type { BrepHandle } from '../brep/engine/types'
 
 beforeAll(async () => {
   await initOcctWasm()
@@ -35,12 +37,12 @@ async function runCode(code: string): Promise<Map<string, Shape>> {
   if (result.failedAt) {
     throw new Error(`execution failed at ${result.failedAt.callee}: ${result.failedAt.message}`)
   }
-  return result.outputs
+  return result.outputs as unknown as Map<string, Shape>
 }
 
 function bboxOf(shape: Shape): { min: [number, number, number]; max: [number, number, number] } {
-  const kernel = getBackends().kernel.brep!
-  const solid = brepOf(shape)
+  const kernel = getBackends().kernel.brep! as BrepEngineApi
+  const solid = brepOf(shape) as BrepHandle | undefined
   if (!solid) throw new Error('no brep solid')
   const bb = getSolidBoundingBox(kernel, solid)
   return { min: bb.min as [number, number, number], max: bb.max as [number, number, number] }
@@ -168,8 +170,8 @@ describe('cad.extrude upTo { plane } 显式平面目标（PadTest Pad001 斜置�
     const p1 = outputs.get(asPartName('part1'))
     expect(p1).toBeDefined()
     if (!p1) return
-    const kernel = getBackends().kernel.brep!
-    const mesh = kernel.tessellate(brepOf(p1), 0.01)
+    const kernel = getBackends().kernel.brep! as BrepEngineApi
+    const mesh = kernel.meshShape(brepOf(p1) as BrepHandle, { linearDeflection: 0.01, angularDeflection: 0.5 })
     const pos = mesh.positions as Float32Array
     const idx = mesh.indices as Uint32Array
     let v6 = 0

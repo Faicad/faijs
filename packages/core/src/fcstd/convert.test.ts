@@ -11,7 +11,7 @@
 import { describe, it, expect } from 'vitest';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { convertFcstdFile, ALLOWED_DISPOSITIONS } from './convert.ts';
+import { convertFcstdFile, ALLOWED_DISPOSITIONS } from './convert.js';
 
 const CORPUS = process.env.FAIJS_FCSTD_CORPUS ?? 'D:/Faicad/FreeCAD';
 const PAD = join(CORPUS, 'data/tests/PadTest.fcstd');

@@ -30,7 +30,7 @@ async function runCode(code: string, part: string): Promise<Shape> {
   }
   const shape = result.outputs.get(asPartName(part))
   if (!shape) throw new Error(`no output ${part}`)
-  return shape
+  return shape as Shape
 }
 
 describe('faceRef', () => {

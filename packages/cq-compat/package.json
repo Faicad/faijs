@@ -24,6 +24,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json && node ../../scripts/fix-import-extensions.mjs dist",
     "typecheck": "tsc --noEmit",
+    "pretest": "npm run build",
     "test": "vitest run",
     "lint": "eslint src"
   }

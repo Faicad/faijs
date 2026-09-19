@@ -11,6 +11,7 @@
  * arithmetic with identifiers, functions) is NOT evaluated: the consumer must
  * treat the property as unknown and degrade (no heuristic fallback, plan §12).
  */
+import type { FcstdProperty } from './document.js';
 
 export type ExprValue = number | undefined;
 
@@ -44,8 +45,8 @@ export function evalConstantExpression(expr: string): ExprValue {
   return value * factor;
 }
 
+
 export interface ExpressionBinding {
-  /** property path, e.g. "Length" or ".Length" */
   path: string;
   /** raw expression string */
   expression: string;
@@ -59,7 +60,7 @@ export interface ExpressionBinding {
  * values can be overridden); otherwise the engine is only partially readable.
  */
 export function parseExpressionEngine(
-  prop: { children: { children: { attributes: Record<string, string> }[] }[] } | undefined,
+  prop: FcstdProperty | undefined,
 ): ExpressionBinding[] {
   const engineEl = prop?.children[0];
   if (!engineEl) return [];

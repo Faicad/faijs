@@ -25,7 +25,7 @@ describe('planegcs API traps (M3.4)', () => {
     // param1=first, param2=second. The system is underconstrained (no fixed
     // anchor), so only the SIGNED DELTA is asserted, not absolute position.
     const r = await solver.solve(
-      [{ kind: 'line', index: 0, x1: 0, y1: 0, x2: 10, y2: 0 }],
+      [{ kind: 'line', index: 0, x1: 0, y1: 0, z1: 0, x2: 10, y2: 0, z2: 0 }],
       [
         { index: 0, type: 2, refs: [{ geoId: 0, pos: 0 }], value: 0, isDriving: true, name: '' },
         { index: 1, type: 7, refs: [{ geoId: 0, pos: 1 }, { geoId: 0, pos: 2 }], value: 40, isDriving: true, name: '' },
@@ -42,7 +42,7 @@ describe('planegcs API traps (M3.4)', () => {
     // DistanceY = −30; assuming unsigned 30 mirrors the rectangle.
     // Underconstrained again: assert the signed delta only.
     const r = await solver.solve(
-      [{ kind: 'line', index: 0, x1: 10, y1: 50, x2: 10, y2: 20 }],
+      [{ kind: 'line', index: 0, x1: 10, y1: 50, z1: 0, x2: 10, y2: 20, z2: 0 }],
       [
         { index: 0, type: 3, refs: [{ geoId: 0, pos: 0 }], value: 0, isDriving: true, name: '' },
         { index: 1, type: 8, refs: [{ geoId: 0, pos: 1 }, { geoId: 0, pos: 2 }], value: -30, isDriving: true, name: '' },

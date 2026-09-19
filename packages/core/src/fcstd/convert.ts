@@ -9,18 +9,18 @@
  * written (final check `auditMapping`).
  */
 import { readFileSync } from 'node:fs';
-import { unpackFcstd, memberText } from './unpack.ts';
-import { parseDocumentXml } from './document.ts';
-import { parseSketchObject } from './sketch-parse.ts';
-import { createPlanegcsSolver } from './planegcs-backend.ts';
-import { classifySketch } from './sketch-verify.ts';
-import { resolveExternalGeometry } from './external-geo.ts';
-import { extractContours } from './contour.ts';
-import type { Contour } from './contour.ts';
-import { generateModel } from './codegen.ts';
-import { placementOf, type Placement } from './placement.ts';
-import { buildFaiZip } from './build-fai-zip.ts';
-import { isOk } from '../vendored/brepjs/core/result.ts';
+import { unpackFcstd, memberText } from './unpack.js';
+import { parseDocumentXml } from './document.js';
+import { parseSketchObject } from './sketch-parse.js';
+import { createPlanegcsSolver } from './planegcs-backend.js';
+import { classifySketch } from './sketch-verify.js';
+import { resolveExternalGeometry } from './external-geo.js';
+import { extractContours } from './contour.js';
+import type { Contour } from './contour.js';
+import { generateModel } from './codegen.js';
+import { placementOf, type Placement } from './placement.js';
+import { buildFaiZip } from './build-fai-zip.js';
+import { isOk } from '../vendored/brepjs/core/result.js';
 import { zipSync, unzipSync, strToU8 } from 'fflate';
 
 /** V2 tolerance: solver must reproduce stored geometry (single source). */
@@ -167,7 +167,7 @@ export async function convertFcstdFile(input: string): Promise<ConvertSummary> {
 
   // M2: container with shadow, then inject model/ + updated mapping
   const built = buildFaiZip(unpacked.value, baseName + '.FCStd');
-  if (built.error || !built.result) return fail(`container build failed: ${built.error?.message ?? 'unknown'}`);
+  if (built.error || !built.result) return fail(`container build failed: ${built.error ?? 'unknown'}`);
   const members: Record<string, Uint8Array> = {};
   for (const [k, v] of Object.entries(unzipSync(built.result.zip))) members[k] = v;
   members['model/main.fai.js'] = strToU8(gen.code);
@@ -216,9 +216,10 @@ export async function convertFcstdFile(input: string): Promise<ConvertSummary> {
 
   const counts = { translated: 0, pythonBaked: 0, preservedOnly: 0, baked: 0 };
   for (const o of mapping.objects) {
-    if (o.disposition === 'translated') counts.translated++;
-    else if (o.disposition === 'python-baked') counts.pythonBaked++;
-    else if (o.disposition === 'preserved-only') counts.preservedOnly++;
+    const d = o.disposition as string; // auditMapping may rename baked -> python-baked
+    if (d === 'translated') counts.translated++;
+    else if (d === 'python-baked') counts.pythonBaked++;
+    else if (d === 'preserved-only') counts.preservedOnly++;
     else counts.baked++;
   }
   const sketches = { total: sketchVerdict.size, l0: 0, l1: 0, l2: 0 };

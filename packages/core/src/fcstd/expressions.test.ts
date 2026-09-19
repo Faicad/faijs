@@ -3,6 +3,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { evalConstantExpression, parseExpressionEngine, allConstant } from './expressions.js';
+import type { FcstdProperty } from './document.js';
 
 describe('evalConstantExpression (M6.2)', () => {
   it('evaluates bare numbers', () => {
@@ -35,7 +36,7 @@ describe('parseExpressionEngine (M6.2)', () => {
         ],
       }],
     };
-    const bindings = parseExpressionEngine(prop);
+    const bindings = parseExpressionEngine(prop as unknown as FcstdProperty);
     expect(bindings.length).toBe(2);
     expect(bindings[0]).toMatchObject({ path: 'Length', value: 10 });
     expect(allConstant(bindings)).toBe(true);
@@ -47,6 +48,6 @@ describe('parseExpressionEngine (M6.2)', () => {
         children: [{ attributes: { path: 'Length', expression: 'Sketch.Constraints[3]' } }],
       }],
     };
-    expect(allConstant(parseExpressionEngine(prop))).toBe(false);
+    expect(allConstant(parseExpressionEngine(prop as unknown as FcstdProperty))).toBe(false);
   });
 });
