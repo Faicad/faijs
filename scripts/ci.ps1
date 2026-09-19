@@ -4,7 +4,14 @@ param(
     [string]$Mode
 )
 
-$ErrorActionPreference = 'Stop'
+# NOTE: Must be 'Continue', NOT 'Stop'. The script checks $LASTEXITCODE explicitly
+# after every npm/node call (see Step and the 4/9 watchdog loop). With 'Stop', Windows
+# PowerShell 5.1 turns *any* stderr line from a native command (npm writes "npm error
+# ..." to stderr on failure) into a terminating NativeCommandError. That exception
+# jumps out of Step BEFORE $script:failures.Add($Label) runs — so a failing step is
+# never recorded and the final summary wrongly prints "All CI checks passed". Keep
+# 'Continue' and rely on the explicit $LASTEXITCODE checks below.
+$ErrorActionPreference = 'Continue'
 # StrictMode hosts: $LASTEXITCODE only exists after the first native command.
 # Initialise it so the first `if ($LASTEXITCODE -ne 0)` check doesn't throw.
 $LASTEXITCODE = 0
