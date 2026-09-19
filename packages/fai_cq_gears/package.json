@@ -27,12 +27,11 @@
   ],
   "dependencies": {},
   "peerDependencies": {
-    "@faicad/faijs": "*",
+    "@faicad/faijs": "^0.13.0",
     "occt-wasm": "^3.8.0"
   },
   "devDependencies": {
     "@faicad/cq-compat": "file:../cq-compat",
-    "@faicad/faijs": "file:../..",
     "@faicad/faijs": "file:../core",
     "typescript": "*",
     "vitest": "*"

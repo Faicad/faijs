@@ -23,8 +23,6 @@
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
-      "@faicad/faijs": ["../../src/index.ts"],
-      "@faicad/faijs/*": ["../../src/*"],
       "@faicad/faijs": ["../core/src/index.ts"],
       "@faicad/faijs/*": ["../core/src/*"]
     }

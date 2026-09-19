@@ -97,12 +97,11 @@ export default defineConfig({
     // （manifold-3d 不再需要 dedupe：demo 不再直接 import 它，
     //  仅 faijs 经 loader 根裸导入，Workder/Inline 后端共用。）
     dedupe: ['occt-wasm'],
-    // M7：免打包联动——@faicad/faijs（及 core）解析到活源码，不经 dist。
-    // 前缀匹配（@rollup/plugin-alias）：'@faicad/faijs/browser' → ../../src/browser.ts，
-    // '@faicad/faijs/browser' → ../core/src/browser.ts。
+    // M7：免打包联动——@faicad/faijs 解析到 core 活源码，不经 dist。
+    // 前缀匹配（@rollup/plugin-alias）：'@faicad/faijs/browser' → ../core/src/browser.ts
+    // （D2-A 后门面已折叠进 core，旧根 src/ 别名已移除）。
     alias: [
       { find: '@faicad/faijs', replacement: resolve(__dirname, '../core/src') },
-      { find: '@faicad/faijs', replacement: resolve(__dirname, '../../src') },
       // P 三/四：gear-lib 经 alias 落位活源码，浏览器的静态 LIB_MODULES import 才能打包；
       // dev 与 build（rollup）一致生效。
       { find: '@faicad/gear-lib-demo', replacement: resolve(__dirname, '../gear-lib-demo/src/index.ts') },

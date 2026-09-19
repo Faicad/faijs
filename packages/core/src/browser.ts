@@ -111,6 +111,12 @@ export { setKnurlTextureLoader } from './mesh/knurl/textureLoader'
 // L3 Browser Host 工厂
 export { createBrowserPorts } from './browser-host'
 export type { CreateBrowserPortsOptions } from './browser-host'
+// D3-Browser（§9.4）：CDN 通用 libLoader 工厂（a/b 混合）。**不**被 createBrowserPorts
+// 默认装配——demo 的源码 alias HMR 路径必须零网络；CDN 装载由主机显式注入。
+export { createBrowserLibLoader, DEFAULT_CDN_BASE } from './cad-runtime/browser-lib-loader'
+export type {
+  BrowserLibLoader, BrowserLibMeta, CreateBrowserLibLoaderOptions,
+} from './cad-runtime/browser-lib-loader'
 export { BrowserEventSink } from './browser-host/browser-event-sink'
 export { BrowserFontProvider } from './browser-host/browser-font-provider'
 export type { BrowserFontProviderOptions } from './browser-host/browser-font-provider'

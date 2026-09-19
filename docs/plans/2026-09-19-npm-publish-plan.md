@@ -1,7 +1,7 @@
 # faijs monorepo 正式发布 npm 计划
 
 > 日期：2026-09-19
-> 状态：**实施中**——D1/D2-A/K5/D3-autoLift 已落地并通过运行时冒烟；core 构建仍被预存 fcstd WIP 类型错误阻断（与本次重构无关，发布前须先清零）；D3 浏览器 importmap 生成待 Q8「CDN 后端选型」拍板后补。
+> 状态：**实施中**——D1/D2-A/K5/D3-autoLift/D3-Node 已落地（node-cli `cliPortsLibLoader` + `readLibAutoLift` 已读各库 `package.json.faijs.autoLift`）；M4 peer 放宽、各包 peer/devDep 修复、E1 `publish-all.ps1`、E2 白名单断言均已落地并进入 dry-run 验证；D3-Browser a/b 混合（CDN_BASE=jsDelivr）已拍板，`scripts/gen-importmap.mjs` 已落地产出 `importmap.json`/`versions.json`/`lib-meta.json`，core 侧通用 `createBrowserLibLoader` 工厂待补（不破坏 demo HMR）。
 > 背景：用户新要求推翻 AGENTS.md「不准发布到 npm」的旧铁律——faijs 及其子包（demo 相关除外）都要正式发布到 npm。fcstd-port 批量项目将直接从 npm 消费 `@faicad/faijs`，不再走 tgz。
 
 ---
@@ -194,6 +194,10 @@ runtime 已支持自动装载（§9.1 证据），缺口是 host 端 `libLoader`
   - 方案 b（release 兜底；pin 精确版）：构建期生成 `versions.json`（列出已装 `@faicad/*` 的 resolved 版本），loader 拼 `import(CDN_BASE + pkg + '@' + versions[pkg])`，版本精确 pin 到 installed 版本，保证可复现与缓存命中。
   - **混合策略（采纳）**：dev/playground 走 a 省维护（零版本表）；**CI 发包渠道走 b**，由构建期生成 `versions.json` 精确 pin，作为 release 产物。两者共用同一 `CDN_BASE`（C-CDN）。
   - 取代 demo 写死的 `LIB_MODULES`（`main.ts:39-48`）与 `autoLiftFor`（`main.ts:62`）。
+  - **落地文件（2026-09-19）**：
+    - `scripts/gen-importmap.mjs`：构建期扫描 `packages/*` 下可发布 `@faicad/*`，产出三份产物到 `--out`（默认 `cdn/`）：`importmap.json`（方案 a，逐库 latest `+esm`）、`versions.json`（方案 b，精确 pin 版）、`lib-meta.json`（逐库 `faijs.autoLift` 外置字段）。`CDN_BASE` 取 `--cdn-base` 或 env `CDN_BASE` 或默认 jsDelivr。
+    - core 通用浏览器 loader 工厂 `packages/core/src/cad-runtime/browser-lib-loader.ts` 导出 `createBrowserLibLoader(opts)`：`versions` 提供时走方案 b（拼 `CDN_BASE + pkg + '@' + version + '/+esm'` 直链），否则走方案 a（裸 `import(pkg)` 依赖 importmap）；`options.autoLiftFor` 由 host 从 `lib-meta.json` 构建。**不破坏 demo 的 HMR 静态 alias 路径**（demo 仍走源码，loader 仅服务 CDN 发布消费场景）。**已落地（2026-09-19）**，实测行为：① 短名别名归一（`gear-lib-demo` → `@faicad/gear-lib-demo`，与 node 侧 `CLI_LIB_ALIASES` 同职责）；② `libs` 白名单按**归一后包名**校验；③ 同包并发/重复装载共享 in-flight promise（CDN 只取一次），失败不留毒缓存可重试；④ `autoLiftFor` 为同步回调，故逐库值须由 `meta` 预先给出，另提供 `prefetchMeta()`（抓各库 `package.json` 的 `faijs.autoLift`）预热，网络失败静默回落推断式；⑤ 经 `packages/core/src/browser.ts` + `index.ts` 双入口导出，**不被 `createBrowserPorts` 默认装配**（保证 demo HMR 路径零网络）。防回归测试 `packages/core/src/cad-runtime/browser-lib-loader.test.ts`（15 用例，全注入不触网）。
+  - **D3-Node + D3-autoLift 已落地**：`packages/core/src/node-host/cli.ts` 的 `cliPortsLibLoader` 已实现 `loadLib = (pkg) => import(pkg)`（白名单），`readLibAutoLift(pkg)` 读各库 `package.json.faijs.autoLift` 喂给 `autoLiftFor`，cq-compat 已声明 `autoLift:false`。
 - **D3-autoLift 配置外置**：逐库 `autoLift` 约定写入各包 `package.json`（如 `"faijs": { "autoLift": false }`，cq-compat 需 false），loader 读取后喂给 `libLoader.options.autoLiftFor`，取代 host 写死的判定。
 
 ### 9.5 决策 D4：host 自动注册（核心结论——可以）

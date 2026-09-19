@@ -28,11 +28,13 @@
     }
   },
   "include": [
-    "src/**/*.ts"
+    "packages/*/src/**/*.ts"
   ],
   "exclude": [
     "node_modules",
     "dist",
+    "**/dist",
+    "packages/core/src/vendored",
     "vitest.config.ts"
   ]
 }

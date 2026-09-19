@@ -23,10 +23,6 @@
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
-      "@faicad/faijs": ["../../src/index.ts"],
-      "@faicad/faijs/*": ["../../src/*"],
-      "@faicad/faijs/node": ["../../src/node.ts"],
-      "@faicad/faijs/browser": ["../../src/browser.ts"],
       "@faicad/faijs": ["../core/src/index.ts"],
       "@faicad/faijs/*": ["../core/src/*"],
       "@faicad/gear-lib-demo": ["../gear-lib-demo/src/index.ts"],
