@@ -133,3 +133,45 @@ npx tsx packages/core/scripts/verify-geometry.ts D:/Faicad/FreeCAD/data/tests/Pa
 1. 阶段顺序 A→B→C1→C2→D 串行执行——已按此执行。
 2. `upTo: 'last'` 字符串字面量 vs `upToLast: true` 布尔——**已定为字符串字面量**（`api/extrude.ts`，与 `faceRef` 同参数位，语义集中）。
 3. **未决（D 未达标的根因）**：PadTest 重建体积偏小 3.20%（bbox 已精确吻合）。已知线索：Pad001 的真值贡献是「沿 X 轴、从草图面 x=10 向 −X 拉伸」的圆柱，而草图/特征的 Placement 帧与此不一致（特征放置语义），需单独定位；在本项解决前 D 不可宣称达标。
+
+## 8. 完成情况小结（2026-09-19 复核）
+
+> 复核目标：确认本方案各子任务的真实落地状态，供后续排期。结论：A/B/C1/C2.1/C2.2 五项子任务已全部落地（单测 + 端到端证据）；唯一硬验收 D 仍卡在 relErr 3.20%（门槛 <1%）；C2.3 因本地语料零覆盖未接线；前序收尾任务（fai_ op 全量 deprecated）已完成。
+
+### 8.1 复核方法与环境
+
+- **基准**：`git HEAD = 0638a52`，`git status --porcelain` 干净（0 改动）。最近相关提交链：`f21eab1`(C1) → `c10e9bd`(C2.1) → `96b3429`(C2.2) → `702f7ed`(up-to 迁 `cad.extrude`) → `e2f045b`(V6 真值改取 Tip 的 `Shape`) → `f963d97`(fai_ deprecated) → `0638a52`(faceRef 导出 + 符号表)。
+- **单元测试**（cwd=`packages/core`，托管 Node 直跑 vitest）：`extrude-upto.test.ts`(7) + `face-ref.test.ts`(3) → **10/10 通过**。
+- **端到端链路**：`PadTest.FCStd → fcstd-to-fai-zip → faijs-cli run --mode brep → STEP` 全程跑通。转译结果 `translated=6 / baked=4 / preserved-only=3`；CLI 导出 STEP 含 1774 实体、无报错——证明 `cad.extrude` up-to 路径经 `runtime.execute` 端到端可用，fai_ deprecated 提交未引入回归。
+- **V6 数值已重新实测（2026-09-19）**：完整链路 `fcstd-to-fai-zip → faijs-cli run --mode brep → verify-geometry.ts`，真值 `Tip:Pad002`，结果 **relErr = 3.2004%、bboxDiag delta = 0.000000、centroid dist = 1.6747、V6: FAIL**。注：沙箱 `genie-safe-delete` shim 隔离了主 `out-padtest.step`，但按 terminal 拆分的 `out-padtest.step_1_part_out.step` 仍落盘，据此完成复核；数字与上次验证（commit `e2f045b`）一致，确认 D 仍未达标（门槛 <1%）。
+
+### 8.2 任务完成矩阵（对照 §5 DoD）
+
+| 阶段 | DoD | 状态 | 证据 |
+|---|---|---|---|
+| A | `cad.faceRef` + `getFaces` 序数标定探针 | ✅ 已完成 | `api/face-ref.ts` + `face-ref.test.ts`(3 用例) |
+| B | 内核 up-to 组合实现 + `cad.extrude` 参数面 | ✅ 已完成 | `api/extrude.ts`（手写平台 op；长度形态委托生成投影、up-to 走半空间组合）+ `extrude-upto.test.ts`(7 用例) |
+| C1 | Pad UpToFace→基准面距离路径（Pad001） | ✅ 已完成 | 产物含 `cad.extrude(part3, [0,0,10.0])`，mapping 记 `uptoface-via-datum-plane-distance`，check 零错误 |
+| C2.1 | Pad UpToLast / UpToFirst | ✅ 已完成 | `feature-translate.ts` 产 `cad.extrude(profile, { upTo: 'last'/'first', baseFeature })` |
+| C2.2 | Pad 实体面 → `cad.faceRef` | ✅ 已完成 | `cad.extrude(profile, { upTo: cad.faceRef(targetVar, n) })` |
+| C2.3 | Pocket UpToFirst / UpToFace | ⚠️ 未接线 | 本地 56 样本 Pocket 仅 Length(14) + ThroughAll(5)，UpTo 变体零覆盖，无可端到端验证的样本 |
+| D | V6 验收 relErr < 1% | ❌ 未达标 | relErr 3.2004%（门槛 <1%）、bboxDiag delta 0、centroid dist 1.6747；根因见 §7.3 |
+
+### 8.3 前序收尾任务：fai_ op 全量 deprecated（已完成）
+
+- ✅ 三个 `fai_` 前缀 op 均加 `@deprecated`，说明统一为「`fai_` 前缀 op 是 ../3d_editor 项目特有的操作，将来迁往该项目并从 faijs 删除，新代码请勿使用」：`fai_extrude.ts:54`、`fai_drill.ts:226`、`fai_split.ts:238`。
+- 连带修复（同批 commit `f963d97` / `0638a52`）：
+  - `fai_drill` 的 `@name` 由 `drill` 改为 `fai_drill`（原与上游 `cad.drill` 撞名）；
+  - `api/index.ts:48` 补 `export { faceRef }`，并写入生成符号表（69→70 项），消除 `op-set-consistency` 4 例红。
+- 说明：仅静态标记 + 文档/符号表同步，未加运行时告警（避免波及大量既有测试），符合「未来删除」的迁移意图。
+
+### 8.4 遗留项
+
+1. **D 未达标（最高优先）**：PadTest relErr 3.20% 超门槛。bbox 已精确吻合，体积差根因在 Pad001 特征 Placement 帧与草图帧不一致，需单独定位；定位前 D 不可宣称达标。
+2. **C2.3 缺样本**：Pocket 的 UpToFirst/UpToFace 实现（半空间盒取相反侧）已随 B 的 up-to 组合就绪，但本地语料零覆盖，未接线、未端到端验证。需补充含该变体的样本（PartDesignTests / CAM 测试集）后再行接线。
+3. **运行时告警缺位**：`fai_` op 仅静态标记，无运行时 deprecated 告警（接受，待迁移时统一处理）。
+4. **未推送**：自 C2.2 起本地领先 `origin/main` 累计 67 提交，待用户决定是否推送。
+
+### 8.5 结论
+
+方案 A/B/C1/C2.1/C2.2 已全部落地，且有单测（10/10）与端到端（STEP 1774 实体）证据；fai_ deprecated 收尾已完成。唯一硬验收 D 仍卡 relErr 3.20%（几何 bbox 已精确吻合，体积差根因待定位），C2.3 因缺样本未接线。整体进度：**6/7 阶段完成，1 项验收未达 + 1 项因缺样本未接线**。下一步建议优先攻克 §8.4-1（D 根因），其次补样本推进 C2.3。

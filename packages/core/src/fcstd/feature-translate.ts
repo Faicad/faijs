@@ -457,13 +457,38 @@ export function translateObject(
               (pl.p[2] - skPl.p[2]) * normal[2];
             const t = dpn / denom;
             if (Number.isFinite(t) && Math.abs(t) > 1e-9) {
-              const signed = reversed ? -t : t;
+              // GOTCHA (PadTest V6 residual, relErr 3.02%): the datum plane may
+              // be TILTED relative to the extrude direction (Pad001: datum
+              // normal (−0.038·…) not parallel to the sketch normal). A fixed
+              // length `signed` gives a FLAT top; FreeCAD's Pad reaches the
+              // PLANE, producing a slanted top (truth AddShape 4860.42 vs flat
+              // disc 1874.83). Emit an explicit plane target instead and let
+              // the kernel's half-space intersection produce the slanted cut.
+              // The extrude runs in sketch-local coords, so transform the
+              // global plane into the sketch frame: p_local = R⁻¹(p_g − sk.p),
+              // n_local = R⁻¹(n_g) (R⁻¹ = Rᵀ).
+              const inv = [0, 1, 2].map((c) => [
+                skM[c]!, skM[3 + c]!, skM[6 + c]!,
+              ]);
+              const d = [
+                pl.p[0] - skPl.p[0], pl.p[1] - skPl.p[1], pl.p[2] - skPl.p[2],
+              ] as [number, number, number];
+              const ptLocal: [number, number, number] = [
+                inv[0]![0]! * d[0] + inv[0]![1]! * d[1] + inv[0]![2]! * d[2],
+                inv[1]![0]! * d[0] + inv[1]![1]! * d[1] + inv[1]![2]! * d[2],
+                inv[2]![0]! * d[0] + inv[2]![1]! * d[1] + inv[2]![2]! * d[2],
+              ];
+              const nLocal: [number, number, number] = [
+                inv[0]![0]! * normal[0] + inv[0]![1]! * normal[1] + inv[0]![2]! * normal[2],
+                inv[1]![0]! * normal[0] + inv[1]![1]! * normal[1] + inv[1]![2]! * normal[2],
+                inv[2]![0]! * normal[0] + inv[2]![1]! * normal[1] + inv[2]![2]! * normal[2],
+              ];
               return {
                 kind: 'translated',
                 reason: 'uptoface-via-datum-plane-distance',
                 calls: [{
                   out, op: 'cad.extrude', source: obj.name, inputs: [profileVar],
-                  literals: [[0, 0, signed]], params: {},
+                  params: { upTo: { plane: { point: ptLocal, normal: nLocal } } },
                 }],
               };
             }

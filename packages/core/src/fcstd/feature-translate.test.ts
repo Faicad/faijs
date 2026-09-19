@@ -253,18 +253,29 @@ describe('M4.6b UpToFace datum-plane (extrude-upto-face §4.3-C1)', () => {
     linkSubProp('UpToFace', 'DatumPlane', ['Plane']),
   ]);
 
-  it('translates UpToFace→datum plane as cad.extrude with the plane-distance length (+10)', () => {
+  it('translates UpToFace→datum plane as cad.extrude with an explicit plane target (tilted-datum GOTCHA)', () => {
     const v = translateObject(pad001, (dep) => (dep === 'Sketch001' ? 'sketch0' : undefined), [pad001, datumPlane, sketch001]);
     expect(v.kind).toBe('translated');
     if (v.kind === 'translated') {
       const call = v.calls[0]!;
       expect(call.op).toBe('cad.extrude');
       expect(call.inputs).toEqual(['sketch0']);
-      // signed distance from the sketch plane to the (tilted) datum plane
-      // along the sketch normal — NOT the naive (Δp·dir) which gives −50.
-      expect(call.literals[0]![0]).toBe(0);
-      expect(call.literals[0]![1]).toBe(0);
-      expect(call.literals[0]![2]).toBeCloseTo(10, 1);
+      // GOTCHA (PadTest V6): a TILTED datum plane must NOT become a fixed
+      // length (flat top disc 1874.83 vs truth slanted 4860.42) — it becomes
+      // an explicit plane target; the kernel half-space cut yields the slant.
+      // The plane is expressed in SKETCH-LOCAL coords (extrude frame).
+      const upTo = (call.params as { upTo?: { plane?: { point: number[]; normal: number[] } } }).upTo;
+      expect(upTo?.plane).toBeDefined();
+      // GOTCHA: the sketch origin is NOT on the tilted datum plane (signed
+      // distance along local +Z is t = 10, the old flat-length value). Any
+      // point ON the plane is valid for a plane spec — verify semantics via
+      // the axis intersection: t = (point·n)/n[2] must be +10.
+      const pt = upTo!.plane!.point!;
+      const n = upTo!.plane!.normal!;
+      expect(Math.hypot(n[0]!, n[1]!, n[2]!)).toBeCloseTo(1, 6);
+      expect(n[2]!).toBeGreaterThan(0);
+      const t = (pt[0]! * n[0]! + pt[1]! * n[1]! + pt[2]! * n[2]!) / n[2]!;
+      expect(t).toBeCloseTo(10, 3);
       expect(v.reason).toBe('uptoface-via-datum-plane-distance');
     }
   });

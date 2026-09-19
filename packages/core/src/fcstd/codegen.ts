@@ -220,10 +220,20 @@ export function generateModel(
       }
       // M8.3: features build in sketch-local coordinates (cad.sketch lays the
       // face on local XY; extrude runs along local +Z). Re-orient the final
-      // solid by the OBJECT's own Placement: rotate_euler then translate, so
-      // the result lands where FreeCAD puts it. Identity placements emit nothing.
+      // solid by the PROFILE SKETCH's Placement: rotate_euler then translate,
+      // so the result lands where FreeCAD puts it. Identity placements emit
+      // nothing.
+      // GOTCHA (PadTest V6, relErr 3.20%): a PartDesign feature's geometry is
+      // built in the SKETCH frame, but FreeCAD may store a DIFFERENT Placement
+      // on the feature object itself (Pad001: sketch P=(10,0,0)
+      // Q=(0,.7071,0,.7071) vs feature P=0 Q=(0,.7071,.7071,0)) — re-orienting
+      // by the feature's own frame drops the sketch origin offset and rotates
+      // the extrude axis into the wrong direction (−3.20% volume, centroid
+      // off 1.67). The sketch's Placement is the authoritative frame for the
+      // built geometry; fall back to the feature's own for sketchless features.
       const lastVar = verdict.calls.at(-1)?.out;
-      const pl = placements?.get(name);
+      const sketchLink = obj.properties.get('Sketch')?.children[0]?.attributes['value'];
+      const pl = (sketchLink ? placements?.get(sketchLink) : undefined) ?? placements?.get(name);
       if (lastVar && pl && !isIdentityPlacement(pl)) {
         let cur = lastVar;
         const euler = quatToEulerXYZDeg(pl.q);
@@ -266,7 +276,39 @@ export function generateModel(
         if (prev) {
           for (const c of verdict.calls) {
             if (c.op === 'cad.extrude' && c.params.baseFeature !== undefined) {
-              c.params.baseFeature = jsExpr(prev);
+              // GOTCHA (PadTest V6 residual): the up-to extrude builds its
+              // prism in the SKETCH-LOCAL frame, but the chain head (prev)
+              // lives in the PLACED (global) frame. FreeCAD's boolean runs in
+              // one frame — so transform prev back into the sketch frame
+              // first: local = R^-1(global - p). Feeding the placed chain var
+              // directly silently truncates at the wrong face (Pad002 truth
+              // AddShape 48199 vs rebuilt deficit ~9108 mm^3 → 3.2% total).
+              const needsInverse =
+                pl !== undefined && !isIdentityPlacement(pl);
+              if (needsInverse && pl) {
+                const invQ: [number, number, number, number] = [
+                  -pl.q[0]!, -pl.q[1]!, -pl.q[2]!, pl.q[3]!,
+                ];
+                const invEuler = quatToEulerXYZDeg(invQ);
+                const tv = newVar();
+                const tvCall: CadCall = {
+                  out: tv, op: 'cad.translate', source: name,
+                  inputs: [prev], params: { offset: [-pl.p[0]!, -pl.p[1]!, -pl.p[2]!] },
+                };
+                const rv = newVar();
+                const rvCall: CadCall = {
+                  out: rv, op: 'cad.rotate_euler', source: name,
+                  inputs: [tv], params: { anglesDeg: invEuler },
+                };
+                // insert BEFORE the extrude call: faijs is a statement
+                // language — `baseFeature: partN` referencing a later
+                // statement is E_REFERENCE (parser rejects forward refs).
+                const at = calls.indexOf(c);
+                calls.splice(at < 0 ? calls.length : at, 0, tvCall, rvCall);
+                c.params.baseFeature = jsExpr(rv);
+              } else {
+                c.params.baseFeature = jsExpr(prev);
+              }
             }
           }
         }

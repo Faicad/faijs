@@ -37,8 +37,16 @@ import type { BrepEngineApi } from '../brep/engine/primitives'
 import type { FaceTopoRef } from '../topology/naming'
 import { TopoRefError } from '../topology/naming'
 
-/** up-to 目标：显式面引用，或支持体沿拉伸方向的远端（last）/近端（first）端面。 */
-export type ExtrudeUpTo = FaceTopoRef | 'last' | 'first'
+/** 显式平面目标（up-to 截断面）：点 + 法向（点在平面上即可，无需共面于面边界）。 */
+export interface UpToPlaneSpec {
+  /** 平面上一点（世界坐标）。type:[x,y,z] */
+  point: Vec3
+  /** 平面法向（世界坐标，方向仅定半空间语义，截断取两侧之一）。type:[x,y,z] */
+  normal: Vec3
+}
+
+/** up-to 目标：显式面引用 / 显式平面 / 支持体沿拉伸方向的远端（last）/近端（first）端面。 */
+export type ExtrudeUpTo = FaceTopoRef | 'last' | 'first' | { plane: UpToPlaneSpec }
 
 /** `cad.extrude` 的对象形态参数（位置形态由 {@link normalizeExtrudeOptions} 归一到这里）。 */
 export interface ExtrudeOptions {
@@ -191,6 +199,11 @@ function extrudeUpToSolid(kernel: BrepEngineApi, inputSolid: BrepHandle, o: Extr
     }
     targetCenter = pick(upTo === 'last' ? 'max' : 'min')
     targetNormal = [normal.x, normal.y, normal.z]
+  } else if (upTo && typeof upTo === 'object' && 'plane' in upTo) {
+    // 显式平面目标（datum plane 等无限平面：截断面由平面方程决定，不受
+    // 目标面边界限制——斜置基准面时顶面是斜的，定长路径语义错误）。
+    targetCenter = [...upTo.plane.point] as Vec3
+    targetNormal = [...upTo.plane.normal] as Vec3
   } else {
     // GOTCHA（探针实测）：FaceTopoRef 携带的 hint 是 faceRef 现场捕获的
     // center/normal 快照，直接使用；不要对拉伸轮廓（sketch 面）做二次
@@ -212,6 +225,26 @@ function extrudeUpToSolid(kernel: BrepEngineApi, inputSolid: BrepHandle, o: Extr
     targetCenter[1] + targetNormal[1] * offset,
     targetCenter[2] + targetNormal[2] * offset,
   ]
+  // 自动定向（仅 { plane } 目标）：FreeCAD UpToFace 朝目标面所在方向拉伸。
+  // GOTCHA（PadTest Pad001 实测，probe 探针）：斜置基准面在草图局部坐标里
+  // 位于轮廓的反方向（圆心处平面交点 t=−26 而非 +26），固定沿 +Z 拉截不到
+  // 平面（体积 597 ≠ 真值 4860）。轮廓 bbox 中心到截断平面的有向投影与
+  // 拉伸方向异号 → 翻转拉伸方向（就地翻转 Vector3，后续 tMax/keepSide 自洽）。
+  if (upTo && typeof upTo === 'object' && 'plane' in upTo) {
+    const c0: Vec3 = [
+      (bbox.min[0] + bbox.max[0]) / 2,
+      (bbox.min[1] + bbox.max[1]) / 2,
+      (bbox.min[2] + bbox.max[2]) / 2,
+    ]
+    const tnAuto = new THREE.Vector3(...targetNormal).normalize()
+    const dAuto =
+      (c0[0] - shiftedCenter0[0]) * tnAuto.x +
+      (c0[1] - shiftedCenter0[1]) * tnAuto.y +
+      (c0[2] - shiftedCenter0[2]) * tnAuto.z
+    if (dAuto * normal.dot(tnAuto) < 0) {
+      normal.multiplyScalar(-1)
+    }
+  }
   const cornerProjections = [
     [bbox.min[0], bbox.min[1], bbox.min[2]],
     [bbox.max[0], bbox.min[1], bbox.min[2]],
@@ -249,7 +282,15 @@ function extrudeUpToSolid(kernel: BrepEngineApi, inputSolid: BrepHandle, o: Extr
   // 保留侧法向：起点所在侧（d 与 tn 同号 → 正侧；异号 → 负侧）；d≈0 时退化为
   // 拉伸方向（起点在面上时按拉伸方向截）
   const keepSide = Math.abs(d) < 1e-9 ? normal.clone() : tn.clone().multiplyScalar(Math.sign(d))
-  const halfspace = farSideBox(kernel, shiftedCenter0, [-keepSide.x, -keepSide.y, -keepSide.z], L)
+  // GOTCHA（PadTest Pad001 斜置基准面实测）：targetCenter 可以是平面上离轮廓
+  // 很远的任意一点（基准面 point 在草图局部坐标里横向偏 ~100），reach 若只取
+  // L（按轮廓到截断面的投影距离）则半空间盒横向盖不住长拉伸体 → common 为空。
+  // reach 必须 ≥ 平面点到拉伸体的距离 + 体对角线（全方向覆盖）。
+  const reach =
+    new THREE.Vector3(...shiftedCenter0).distanceTo(
+      new THREE.Vector3((bbox.min[0] + bbox.max[0]) / 2, (bbox.min[1] + bbox.max[1]) / 2, (bbox.min[2] + bbox.max[2]) / 2),
+    ) + bboxDiag(bbox) + Math.abs(offset) + 1
+  const halfspace = farSideBox(kernel, shiftedCenter0, [-keepSide.x, -keepSide.y, -keepSide.z], reach)
 
   // 4) 求交：长拉伸 ∩ 半空间盒
   const clipped = kernel.common(longSolid, halfspace)

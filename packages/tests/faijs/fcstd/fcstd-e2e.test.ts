@@ -5,10 +5,11 @@
  * output is BREP-chain-only; never rely on `auto`).
  *
  * Baseline (plan §6 M7 table; update explicitly with a written reason):
- *   PadTest.fcstd       translated=4  baked=6  preserved-only=3
- *     (M9 update: was 6/4 — Pad001=UpToFace and Pad002=UpToLast were silently
- *      translated as plain Length before M9 (G4 violation); they now bake
- *      explicitly with reason pad-type-*-unsupported.)
+ *   PadTest.fcstd       translated=6  baked=4  preserved-only=3
+ *     (2026-09-19 update: was 4/6 after M9 — but commit 0638a52 exported
+ *      `faceRef` and wired UpToFace/UpToLast real translation, so Pad001 and
+ *      Pad002 translate again instead of baking; manually verified: check
+ *      zero errors and `run --mode brep` exports STEP.)
  *   Crank.fcstd         translated=0  baked=16 preserved-only=0
  *   ProjectTest.FCStd   translated=0  baked=1  preserved-only=0
  *
@@ -16,7 +17,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { readFileSync, writeFileSync, rmSync, existsSync, mkdtempSync } from 'node:fs';
+import { readFileSync, writeFileSync, rmSync, existsSync, mkdtempSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { unzipSync } from 'fflate';
@@ -29,9 +30,8 @@ const REPO_ROOT = resolve(__dirname, '../../../..');
 const CONVERTER = resolve(REPO_ROOT, 'packages/core/scripts/fcstd-to-fai-zip.ts');
 
 const SAMPLES = [
-  // M9 baseline update: Pad001 (UpToFace) / Pad002 (UpToLast) bake explicitly
-  // with reason instead of silently translating as Length (G4 fix) — 6/4→4/6.
-  { file: 'data/tests/PadTest.fcstd', translated: 4, baked: 6, preservedOnly: 3 },
+  // 2026-09-19: UpToFace/UpToLast translated again (faceRef export, 0638a52)
+  { file: 'data/tests/PadTest.fcstd', translated: 6, baked: 4, preservedOnly: 3 },
   { file: 'data/tests/Crank.fcstd', translated: 0, baked: 16, preservedOnly: 0 },
   { file: 'data/tests/ProjectTest.FCStd', translated: 0, baked: 1, preservedOnly: 0 },
 ] as const;
@@ -72,12 +72,19 @@ describe.skipIf(!corpusAvailable)('FCStd port e2e (requires local corpus)', () =
         const manifest = JSON.parse(text(members, 'manifest.json'));
         expect(manifest.requiresBrep).toBe(true);
 
+        // M10.3: multi-Body samples emit model/<BodyName>.fai.js modules —
+        // write ALL model scripts to disk so relative imports resolve.
+        for (const [name, entry] of Object.entries(members)) {
+          if (name.startsWith('model/') && name.endsWith('.fai.js')) {
+            writeFileSync(join(dir, name.slice('model/'.length)), Buffer.from(entry).toString('utf-8'));
+          }
+        }
+
         const script = text(members, 'model/main.fai.js');
         // M7: the G1 regression — empty positional arg slot
         expect(script, `${s.file} no leading-comma args`).not.toContain('(, ');
 
         const jsPath = join(dir, 'main.fai.js');
-        writeFileSync(jsPath, script);
 
         const check = cliCheck(jsPath);
         expect(check.errors, `${s.file} check errors`).toEqual([]);
@@ -90,7 +97,11 @@ describe.skipIf(!corpusAvailable)('FCStd port e2e (requires local corpus)', () =
           const outPath = join(dir, 'out.step');
           const run = await cliRun(jsPath, outPath, { mode: 'brep', libs: { cad: createApiNamespace() } });
           expect(run.ok, `${s.file} run --mode brep: ${'error' in run ? run.error : ''}`).toBe(true);
-          expect(existsSync(outPath), `${s.file} STEP written`).toBe(true);
+          // Multi-terminal entries export to variant files (`out.step_0_<name>.step`);
+          // accept the exact file or any sibling variant (GOTCHA: cli.ts §multiple
+          // terminals writes `${outPath}_${i}_${name}.${ext}`, never plain out.step).
+          const written = readdirSync(dir).some((f) => f === 'out.step' || f.startsWith('out.step_'));
+          expect(written, `${s.file} STEP written`).toBe(true);
         }
       }
     } finally {
