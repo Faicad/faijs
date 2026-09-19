@@ -1,35 +1,110 @@
 {
   "name": "@faicad/faijs-core",
-  "version": "0.12.1",
+  "version": "0.12.2",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
-    "./api": { "types": "./dist/api/index.d.ts", "default": "./dist/api/index.js" },
-    "./api/brepjs-compat": { "types": "./dist/api/brepjs-compat/index.d.ts", "default": "./dist/api/brepjs-compat/index.js" },
-    "./api/*": { "types": "./dist/api/*.d.ts", "default": "./dist/api/*.js" },
-    "./sdk": { "types": "./dist/sdk.d.ts", "default": "./dist/sdk.js" },
-    "./csg": { "types": "./dist/csg.d.ts", "default": "./dist/csg.js" },
-    "./sdf": { "types": "./dist/sdf.d.ts", "default": "./dist/sdf.js" },
-    "./node": { "types": "./dist/node.d.ts", "default": "./dist/node.js" },
-    "./browser": { "types": "./dist/browser.d.ts", "default": "./dist/browser.js" },
-    "./runtime-state": { "types": "./dist/runtime-state.d.ts", "default": "./dist/runtime-state.js" },
-    "./identity": { "types": "./dist/identity.d.ts", "default": "./dist/identity.js" },
-    "./shape": { "types": "./dist/shape.d.ts", "default": "./dist/shape.js" },
-    "./faqts": { "types": "./dist/faqts/index.d.ts", "default": "./dist/faqts/index.js" },
-    "./faqts/*": { "types": "./dist/faqts/*.d.ts", "default": "./dist/faqts/*.js" },
-    "./module-resolver": { "types": "./dist/module-resolver/index.d.ts", "default": "./dist/module-resolver/index.js" },
-    "./module-resolver/*": { "types": "./dist/module-resolver/*.d.ts", "default": "./dist/module-resolver/*.js" },
-    "./mesh": { "types": "./dist/mesh/index.d.ts", "default": "./dist/mesh/index.js" },
-    "./mesh/*": { "types": "./dist/mesh/*.d.ts", "default": "./dist/mesh/*.js" },
-    "./brep/*": { "types": "./dist/brep/*.d.ts", "default": "./dist/brep/*.js" },
-    "./primitives/*": { "types": "./dist/primitives/*.d.ts", "default": "./dist/primitives/*.js" },
-    "./cad-runtime/*": { "types": "./dist/cad-runtime/*.d.ts", "default": "./dist/cad-runtime/*.js" },
-    "./occt-kernel/*": { "types": "./dist/occt-kernel/*.d.ts", "default": "./dist/occt-kernel/*.js" },
-    "./topology/naming": { "types": "./dist/topology/naming/index.d.ts", "default": "./dist/topology/naming/index.js" },
-    "./topology/*": { "types": "./dist/topology/*.d.ts", "default": "./dist/topology/*.js" },
-    "./boolean/*": { "types": "./dist/boolean/*.d.ts", "default": "./dist/boolean/*.js" }
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./api": {
+      "types": "./dist/api/index.d.ts",
+      "default": "./dist/api/index.js"
+    },
+    "./api/brepjs-compat": {
+      "types": "./dist/api/brepjs-compat/index.d.ts",
+      "default": "./dist/api/brepjs-compat/index.js"
+    },
+    "./api/*": {
+      "types": "./dist/api/*.d.ts",
+      "default": "./dist/api/*.js"
+    },
+    "./sdk": {
+      "types": "./dist/sdk.d.ts",
+      "default": "./dist/sdk.js"
+    },
+    "./csg": {
+      "types": "./dist/csg.d.ts",
+      "default": "./dist/csg.js"
+    },
+    "./sdf": {
+      "types": "./dist/sdf.d.ts",
+      "default": "./dist/sdf.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "default": "./dist/node.js"
+    },
+    "./browser": {
+      "types": "./dist/browser.d.ts",
+      "default": "./dist/browser.js"
+    },
+    "./runtime-state": {
+      "types": "./dist/runtime-state.d.ts",
+      "default": "./dist/runtime-state.js"
+    },
+    "./identity": {
+      "types": "./dist/identity.d.ts",
+      "default": "./dist/identity.js"
+    },
+    "./shape": {
+      "types": "./dist/shape.d.ts",
+      "default": "./dist/shape.js"
+    },
+    "./faqts": {
+      "types": "./dist/faqts/index.d.ts",
+      "default": "./dist/faqts/index.js"
+    },
+    "./faqts/*": {
+      "types": "./dist/faqts/*.d.ts",
+      "default": "./dist/faqts/*.js"
+    },
+    "./module-resolver": {
+      "types": "./dist/module-resolver/index.d.ts",
+      "default": "./dist/module-resolver/index.js"
+    },
+    "./module-resolver/*": {
+      "types": "./dist/module-resolver/*.d.ts",
+      "default": "./dist/module-resolver/*.js"
+    },
+    "./mesh": {
+      "types": "./dist/mesh/index.d.ts",
+      "default": "./dist/mesh/index.js"
+    },
+    "./mesh/*": {
+      "types": "./dist/mesh/*.d.ts",
+      "default": "./dist/mesh/*.js"
+    },
+    "./brep/*": {
+      "types": "./dist/brep/*.d.ts",
+      "default": "./dist/brep/*.js"
+    },
+    "./primitives/*": {
+      "types": "./dist/primitives/*.d.ts",
+      "default": "./dist/primitives/*.js"
+    },
+    "./cad-runtime/*": {
+      "types": "./dist/cad-runtime/*.d.ts",
+      "default": "./dist/cad-runtime/*.js"
+    },
+    "./occt-kernel/*": {
+      "types": "./dist/occt-kernel/*.d.ts",
+      "default": "./dist/occt-kernel/*.js"
+    },
+    "./topology/naming": {
+      "types": "./dist/topology/naming/index.d.ts",
+      "default": "./dist/topology/naming/index.js"
+    },
+    "./topology/*": {
+      "types": "./dist/topology/*.d.ts",
+      "default": "./dist/topology/*.js"
+    },
+    "./boolean/*": {
+      "types": "./dist/boolean/*.d.ts",
+      "default": "./dist/boolean/*.js"
+    }
   },
   "files": [
     "dist"

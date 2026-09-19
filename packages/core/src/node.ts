@@ -9,6 +9,12 @@
  */
 
 export { createNodePorts } from './node-host'
+export {
+  createFsProjectLoader,
+  findProjectRoot,
+  projectKeyOf,
+} from './node-host/fs-project-loader'
+export type { ProjectLoader } from './cad-runtime/ports'
 export { setManifoldWasmUrl, getManifoldWasmUrl, getManifoldModule } from './mesh/manifold-loader'
 export { InlineCsgBackend } from './browser-host/inline-csg-backend'
 export { InlineSdfBackend } from './browser-host/inline-sdf-backend'
