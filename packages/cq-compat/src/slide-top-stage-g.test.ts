@@ -125,7 +125,7 @@ describe('slide_top Stage G (boss-face hex cuts)', () => {
   it('full geometry volume ≈ CadQuery ref 88421.299 (±1%), zmax = 21.7', async () => {
     const shape = await buildSlideTop()
     const k = kernel()
-    const handle = brepOf(shape) as never
+    const handle = brepOf(shape!) as never
     const vol = k.getVolume(handle)
     const bb = k.getBoundingBox(handle)
     console.log(`[SLIDE_TOP] volume=${vol.toFixed(3)} zmax=${bb.zmax.toFixed(3)}`)

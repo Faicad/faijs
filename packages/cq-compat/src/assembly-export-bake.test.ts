@@ -90,9 +90,9 @@ beforeAll(async () => {
   expect(memberNames.length, 'behavior.memberNames must be present').toBe(6)
   for (let i = 0; i < children.length; i++) {
     const name = memberNames[i]
-    const solid = brepOf(children[i]) as number | undefined
+    const solid = brepOf(children[i] as never) as number | undefined
     expect(solid, `member ${name} must have a live BREP solid`).toBeDefined()
-    bboxes.set(name, kernel!.getBoundingBox(solid))
+    bboxes.set(name, (kernel as unknown as { getBoundingBox: (h: unknown) => BBox }).getBoundingBox(solid))
   }
 }, 240000)
 

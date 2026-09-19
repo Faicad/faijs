@@ -489,11 +489,11 @@ function exportedTargets(value: unknown): string[] {
 }
 
 function sourceEntry(target: string): string | undefined {
-  if (target.startsWith('./lib/types/') && target.endsWith('.d.ts')) {
-    return `src/${target.slice('./lib/types/'.length, -'.d.ts'.length)}.ts`
+  if (target.startsWith('./dist/') && target.endsWith('.d.ts')) {
+    return `src/${target.slice('./dist/'.length, -'.d.ts'.length)}.ts`
   }
-  if (target.startsWith('./lib/') && target.endsWith('.js')) {
-    return `src/${target.slice('./lib/'.length, -'.js'.length)}.ts`
+  if (target.startsWith('./dist/') && target.endsWith('.js')) {
+    return `src/${target.slice('./dist/'.length, -'.js'.length)}.ts`
   }
   return undefined
 }
