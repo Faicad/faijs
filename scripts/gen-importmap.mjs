@@ -38,7 +38,6 @@ if (!cdnBase.endsWith('/')) cdnBase += '/'
 
 // 不发布 / 非引擎包（见 plans/2026-09-19-npm-publish-plan.md §2 C1/Q2/Q3）。
 const EXCLUDE = new Set([
-  '@faicad/gear-lib-demo', // Q2：属 demo，排除
   '@faicad/faijs-fixtures', // private：测试数据
   '@faicad/faijs-tests', // private：集成测试
   '@faicad/faijs-demo', // private：demo

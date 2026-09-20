@@ -150,7 +150,7 @@ The Host (a Node host or browser worker) assembles the engine and makes librarie
 
 ```ts ignore-check
 import { createRuntime, createNodePorts } from '@faicad/faijs'
-import * as gear from 'gear-lib-demo'
+import * as gear from 'my-gear-lib'
 
 const runtime = createRuntime(createNodePorts(), 'auto')
 runtime.registerLib('gear', gear, { compat: true })
@@ -194,7 +194,7 @@ Top-level call arguments are full expressions (`lang/parser.ts`) — **`.fai.js`
 - **Multiple object arguments are kept as-is**: `tabAndSlot(p, tabSpec, slotSpec)` works — no overwrite, no merge. The *last* plain object is the options slot (carrying `keep` / `keepHidden`); earlier objects are positional data.
 
 ```js
-import * as gear from 'gear-lib-demo'
+import * as gear from 'my-gear-lib'
 let g1 = gear.external({ teeth: 20, moduleSize: 2, thickness: 10 })
 let b0 = cad.box({ size: [30, 30, 5] })
 let u1 = cad.union(g1, b0)

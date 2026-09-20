@@ -67,16 +67,11 @@ function fail(msg) { errors.push(msg) }
 
 /**
  * 迁移豁免登记（P15/P16 前过渡态，迁移完成后删除对应条目）：
- *  - sheetmetal/src/compat.ts —— P15（E8）删除 compat.ts 后移除；
- *  - gear-lib-demo/src/brepjs-gear* / c3-brepjs-scenario —— P16（E9）gear-lib-demo 迁 L3 后移除。
+ *  - sheetmetal/src/compat.ts —— P15（E8）删除 compat.ts 后移除。
  * 守卫对这些文件跳过 A3/A4 检查；文件名本身含 brepjs 属于 P16 重命名范围。
  */
 const MIGRATION_EXEMPT = [
   'packages/sheetmetal/src/compat.ts',
-  'packages/gear-lib-demo/package.json',
-  'packages/gear-lib-demo/src/brepjs-gear.ts',
-  'packages/gear-lib-demo/src/brepjs-gear.test.ts',
-  'packages/gear-lib-demo/src/c3-brepjs-scenario.test.ts',
 ]
 function isExempt(rel) {
   const norm = rel.split(sep).join('/')
@@ -166,7 +161,7 @@ function isBrandWhitelisted(s) {
 // A4：packages/*/src/** import 说明符零 brepjs（除 vendored 树内相对导入）
 {
   const srcDirs = []
-  for (const pkg of ['core', 'gear-lib-demo', 'sheetmetal', 'tests', 'fixtures', 'demo']) {
+  for (const pkg of ['core', 'sheetmetal', 'tests', 'fixtures', 'demo']) {
     const d = resolve(`packages/${pkg}/src`)
     if (existsSync(d)) srcDirs.push(d)
   }

@@ -102,10 +102,8 @@ export default defineConfig({
     // （D2-A 后门面已折叠进 core，旧根 src/ 别名已移除）。
     alias: [
       { find: '@faicad/faijs', replacement: resolve(__dirname, '../core/src') },
-      // P 三/四：gear-lib 经 alias 落位活源码，浏览器的静态 LIB_MODULES import 才能打包；
-      // dev 与 build（rollup）一致生效。
-      { find: '@faicad/gear-lib-demo', replacement: resolve(__dirname, '../gear-lib-demo/src/index.ts') },
-      // sheetmetal：与 gear-lib-demo 同理，经 alias 落位活源码。
+      // sheetmetal：经 alias 落位活源码（dev 与 rollup build 一致生效）。
+      // 注：gear-lib-demo 已删除，'gear-demo' 示例改为真走 CDN（库不存在 → 显式报错）。
       { find: '@faicad/sheetmetal', replacement: resolve(__dirname, '../sheetmetal/src/index.ts') },
       // cq-compat：浏览器入口（browser.ts 不含 node:fs 的 step/assembly 比对工具），
       // 经 alias 落位活源码；LIB_MODULES 以 '@faicad/cq-compat' 注册。

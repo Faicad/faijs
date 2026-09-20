@@ -150,7 +150,7 @@ Host（Node 宿主或浏览器 worker）装配引擎并让库可被调用：
 
 ```ts ignore-check
 import { createRuntime, createNodePorts } from '@faicad/faijs'
-import * as gear from 'gear-lib-demo'
+import * as gear from 'my-gear-lib'
 
 const runtime = createRuntime(createNodePorts(), 'auto')
 runtime.registerLib('gear', gear, { compat: true })
@@ -194,7 +194,7 @@ parser 顶层调用实参是完整表达式（`lang/parser.ts`）——**`.fai.j
 - **多个对象实参原样保留**：`tabAndSlot(p, tabSpec, slotSpec)` 可用——不覆盖、不合并。*末位*纯对象是选项槽（承载 `keep` / `keepHidden`），更早的对象是位置数据。
 
 ```js
-import * as gear from 'gear-lib-demo'
+import * as gear from 'my-gear-lib'
 let g1 = gear.external({ teeth: 20, moduleSize: 2, thickness: 10 })
 let b0 = cad.box({ size: [30, 30, 5] })
 let u1 = cad.union(g1, b0)

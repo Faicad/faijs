@@ -12,7 +12,7 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import { createRuntime, registerOcctBrepEngine } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
-import * as gearPkg from '@faicad/gear-lib-demo'
+import * as gearPkg from './_support/gear-lib-demo/index.js'
 import type { StdlibNamespace } from '@faicad/faijs/runtime-state'
 import type { LibLoader } from '@faicad/faijs/cad-runtime/ports'
 

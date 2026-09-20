@@ -23,7 +23,7 @@ import { createRuntime, registerOcctBrepEngine } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
 import type { CadRuntime } from '@faicad/faijs/cad-runtime/runtime'
 import type { StdlibNamespace } from '@faicad/faijs/runtime-state'
-import * as mechPkg from '@faicad/gear-lib-demo'
+import * as mechPkg from './_support/gear-lib-demo/index.js'
 
 /**
  * §8.4 scenario script (geometry-first flow), verbatim:
@@ -45,7 +45,7 @@ export const SCRIPT = [
   'let x1 = cad.box(1, 1, 1, { centered: true })',
 ].join('\n')
 
-/** Registered library projection: the real @faicad/gear-lib-demo entries. */
+/** Registered library projection: the gear-lib-demo fixture entries (in-repo). */
 export const gearNs: StdlibNamespace = {
   external: mechPkg.external,
   thread: mechPkg.thread,

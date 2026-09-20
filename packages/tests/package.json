@@ -4,7 +4,6 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@faicad/gear-lib-demo": "*",
     "@faicad/faijs-fixtures": "*"
   },
   "devDependencies": {

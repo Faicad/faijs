@@ -52,7 +52,6 @@
   },
   "workspaces": [
     "packages/core",
-    "packages/gear-lib-demo",
     "packages/cq-compat",
     "packages/fai_cq_gears",
     "packages/fai_cq_warehouse",

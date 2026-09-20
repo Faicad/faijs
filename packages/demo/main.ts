@@ -131,6 +131,9 @@ let part1 = cad.text(part0, { text: 'HELLO', size: 8, depth: 2 })`,
 part0 = cad.rotate_euler(part0, { anglesDeg: [0, 0, 30] })
 part0 = cad.translate(part0, { offset: [5, 0, 0] })
 part0 = cad.scale3d(part0, { factor: [1, 1, 2] })`,
+  // ⚠️ 刻意保留：@faicad/gear-lib-demo 已随包删除，本示例现真走 CDN → npm 404，
+  // 用于验证「CDN 上没有的库必须显式报错」（不静默、不回退）——demo.spec.ts 有对应
+  // 防回归用例，勿改脚本文本。
   'gear-demo': `import * as gear from '@faicad/gear-lib-demo'
 
 let g1 = gear.external({ teeth: 24, moduleSize: 2, thickness: 8, bore: 8 })
