@@ -1,9 +1,9 @@
 # FreeCAD-library 全量 FCStd → .fai.zip 批量转换方案
 
 > 日期：2026-09-19（2026-09-20 更新：回填实测进展，删除已被实测推翻的论断）
-> 状态：**方案 + 部分落地**。B0（CLI / H1 / H2 部分 / H3 部分）、B1（全库画像）、H4 / H5 / H8 已落地；H6 常量路径已接线、非常量仍 bake；**H7 / H10 未动**。
+> 状态：**方案 + 部分落地**。B0（CLI / H1 / H2 部分 / H3 部分）、B1（全库画像）、H4 / H5 / H8 已落地；H6 常量路径已接线、非常量仍 bake；**H10 已接线（2026-09-20，含 App::Point/App::Annotation 口径修复）；H7 未动**。
 > 前置文档：`docs/analysis/2026-09-15-fcstd-to-fai-zip-feasibility.md`（可行性）、`docs/plans/2026-09-15-fcstd-to-faijs-port-plan.md`（一阶段 M0–M6）、`docs/plans/2026-09-17-fcstd-port-phase2-plan.md`（二阶段 M7–M13，已被本方案吸收）
-> 归属：库/语料分析代码在 `D:/Faicad/fcstd-port`；本仓库只保留通用 FCStd→`.fai.zip` 能力 + 自动测试（见 §5.4）
+> 归属：库/语料分析代码在 `D:/Faicad/fcstd-port`；本仓库只保留通用 FCStd→`.fai.zip` 能力（2026-09-20 起语料依赖测试也已迁至 fcstd-port `test/FreeCAD/`，见 §5.4）
 
 ---
 
@@ -66,9 +66,9 @@ packages/core/scripts/scan-fcstd-library.ts这样的文件明显是错误的。
 | **H7** | 白名单外特征类型 | ❌ 未动 | 白名单 14 类；全库缺口 **4,256 对象 / 41 类型（9.2%）** |
 | **H8** | 外部几何投影 | ✅ 已接线 | `convert.ts:159-175`；失败 → 显式 gap `external-geometry-unresolved` |
 | **H9** | XLink 跨文档引用 | ✅ 已定论（0 个） | 画像：`<XLink>` 1,159 个 / 15 文件，`file` 全空 |
-| **H10** | Python 特征 → `python-baked` | ❌ **未落地**（见下） | `feature-translate.ts` 全文零 "python" 字样 |
+| **H10** | Python 特征 → `python-baked` | ✅ 已接线（2026-09-20） | 产生端 `feature-translate.ts` `isPythonOpaque()`：按**属性存在**判定（`Python`/`Proxy` 属性名或 `App::PropertyPythonObject` 属性类型），非类型名后缀；产出 `python-opaque` → `auditMapping` 改名 `python-baked`（消费端原已存在）。`App::Point`/`App::Annotation` 已入 `STRUCTURAL_TYPES`。测试：`feature-translate.test.ts` H10 组（含 V-C6 防搭车、后缀非充分条件 GOTCHA）+ `convert.test.ts` 正向锁定（gaps 中不再出现 `*Python` 类型） |
 
-**⚠️ H10 的更正（重要，此前记录有误导）**：`python-baked` / `python-opaque` **在管线里没有产生者**。全仓只有 `convert.ts:95-97` 的**改名消费**（`python-opaque` → `python-baked`）和若干注释；`feature-translate.ts:347` 对一切未知类型（**包括** `Part::FeaturePython` 这类 Python 对象）统一返回 `baked` + `type-not-whitelisted`。因此 **Python 特征当前 100% 被判为翻译缺口**，C4 允许的例外尚未接线。`convert.test.ts:42` 的断言 `reason !== 'python-opaque'` 目前是**空真**（永远不会命中）。
+**⚠️ H10 的更正（重要，此前记录有误导；✅ 已于 2026-09-20 接线，以下为历史诊断保留）**：`python-baked` / `python-opaque` **在管线里没有产生者**。全仓只有 `convert.ts:95-97` 的**改名消费**（`python-opaque` → `python-baked`）和若干注释；`feature-translate.ts:347` 对一切未知类型（**包括** `Part::FeaturePython` 这类 Python 对象）统一返回 `baked` + `type-not-whitelisted`。因此 **Python 特征当前 100% 被判为翻译缺口**，C4 允许的例外尚未接线。`convert.test.ts:42` 的断言 `reason !== 'python-opaque'` 目前是**空真**（永远不会命中）。
 **接线时的判定依据必须是「属性存在」而不是「类型名后缀」**：C4 的例外是 `PropertyPythonObject` **属性**（以及 `Python`/`Proxy`/`ProxyPython`），对象类型名里带 `Python` 只是常见伴随特征。画像的 `pythonObjects: 4,514 / 647 文件` 即按属性口径统计（`definitions.pythonObjects` 已写明）。
 
 ### 3.2 56 样本实测失败分布（`D:/Faicad/FreeCAD` 源码树，ok=9 / gap=47）
@@ -350,4 +350,5 @@ B1 结束时**不承诺**有产物（C4 下不达标不出包）；画像 + gap 
 5. **H4 尾部 bake 分支**（`ThroughAll`、`uptoface-solid-face-unsupported`、`pad-type-<type>-unsupported` 等）+ **H6 非常量表达式**（16,277 条 / 94.8%）——H6 是 `Part` 参数化零件库的刚需，需在 H7 头部类型之间穿插推进。
 
 - **归属铁律（2026-09-20 用户确认）**：库分析代码只存在于 `D:/Faicad/fcstd-port`；faijs 只保留通用 FCStd→`.fai.zip` 能力与其**公开读层/转换层 API** + 自动测试。faijs 侧出现 `FreeCAD-library` 相关脚本一律视为越界。
+- **测试归属（2026-09-20 二次确认）**：**依赖外部语料的测试**（`convert.test.ts`、`placement-corpus.test.ts`、`external-geo.test.ts`、`solver-wrong-solution.test.ts`、`fcstd-e2e.test.ts`、`fcstd-g9-contour.test.ts` 共 6 个）及 `packages/fixtures/data/fcstd/` 的 3 个 `.FCStd` 样本已迁至 **`fcstd-port/test/FreeCAD/`**（vitest alias 指向 faijs 源码树，免打包；fixture 在其 `fixtures/` 子目录）。faijs 内只保留**合成 fixture 的单元测试**（parser/codegen/placement/容器/白名单翻译等 11 文件 112 用例），CI 防回归不丢。
 - 批量项目是纯消费方，依赖面收敛为一个 CLI + 一份 tgz（发布后为一个 npm 包）。

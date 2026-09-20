@@ -9,8 +9,9 @@
  *
  * 序号语义（GOTCHA）：faijs 的 `getSubShapes(solid,'edge')` 与 `wireframe()` 同用
  * `TopExp::MapShapes` + `NCollection_IndexedMap`（`occt-kernel/topologyExt.ts` 已
- * 记档），故第 N 条边 == FreeCAD 的 `EdgeN`（`fcstd/external-geo.test.ts` 实测
- * `wireframe.edgeGroups[k] == FreeCAD "Edge(k+1)"`）。这是 FCStd 移植选边的锚点。
+ * 记档），故第 N 条边 == FreeCAD 的 `EdgeN`（fcstd-port/test/FreeCAD 的
+ * external-geo corpus 测试实测 `wireframe.edgeGroups[k] == FreeCAD "Edge(k+1)"`；
+ * 2026-09-20 随语料依赖测试迁至 fcstd-port）。这是 FCStd 移植选边的锚点。
  *
  * 与 `faceNormal`（`api/geom.ts`）的差异：`faceNormal` 的 `ordinal` 是 0 起
  * （直接下标 `faces[ordinal]`），而本函数是 1 起——与命名层 `TopoRef` 序号

@@ -78,6 +78,9 @@ const STRUCTURAL_TYPES = new Set([
   'PartDesign::Body', 'App::Origin', 'App::Plane', 'App::Line',
   'App::DocumentObjectGroup', 'App::Part', 'PartDesign::Plane', 'PartDesign::Line',
   'PartDesign::CoordinateSystem',
+  // H10 companion fix (plan §3.5): datum/annotation types, not modeling
+  // features — previously misclassified as translation gaps.
+  'App::Point', 'App::Annotation',
 ]);
 
 /**

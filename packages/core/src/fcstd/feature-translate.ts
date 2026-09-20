@@ -104,6 +104,24 @@ export function isWhitelisted(type: string): boolean {
   return WHITELIST.has(type);
 }
 
+/**
+ * H10 (plan §3.1/§3.5): C4's Python exception, decided by PROPERTY presence —
+ * NOT by the `Python` type-name suffix. Matches the library profile's
+ * pythonObjects口径 (profile.mjs: type contains "Python" or carries
+ * Python/Proxy properties); here only the property evidence qualifies, so a
+ * Python-suffixed type without the property stays a plain translation gap.
+ * @param obj - the FCStd object to inspect.
+ * @returns true when the object is a Python-scripted feature whose serialized
+ *   shape is opaque (legitimate `python-baked` under C4).
+ */
+export function isPythonOpaque(obj: FcstdObject): boolean {
+  for (const [name, prop] of obj.properties) {
+    if (name === 'Python' || name === 'Proxy') return true;
+    if (prop.type === 'App::PropertyPythonObject') return true;
+  }
+  return false;
+}
+
 function propNum(obj: FcstdObject, name: string): number | undefined {
   // M11.1: an ExpressionEngine binding overrides the stored <Float> value
   // (FreeCAD recomputes bound properties from expressions on load). A
@@ -344,6 +362,10 @@ export function translateObject(
   docObjects?: readonly FcstdObject[],
 ): TranslateVerdict {
   if (!isWhitelisted(obj.type)) {
+    // H10: property-evidenced Python features bake legitimately (C4) —
+    // auditMapping renames this reason to `python-baked`. Everything else is
+    // a plain translation gap.
+    if (isPythonOpaque(obj)) return { kind: 'baked', reason: 'python-opaque' };
     return { kind: 'baked', reason: `type-not-whitelisted: ${obj.type}` };
   }
   const out = obj.name; // M5 renames to partN

@@ -642,3 +642,59 @@ describe('M6.1 Fillet / Chamfer (edge anchors via cad.edgeRef)', () => {
     expect(isWhitelisted('PartDesign::Chamfer')).toBe(true);
   });
 });
+
+// H10 (plan §3.1 correction + §3.5): Python-opaque objects are C4-legitimate
+// bakes, decided by PROPERTY presence (App::PropertyPythonObject type attr, or
+// Python/Proxy property name) — never by the `Python` type-name suffix alone.
+// Before H10 the producer was missing and every Python object fell into the
+// `type-not-whitelisted` gap (convert.ts:95-97 rename consumer was dead code).
+describe('H10 python-opaque verdict (property-based)', () => {
+  // local dep: these Python objects reference nothing translatable
+  const dep = (d: string): string | undefined => (d === 'Pad001' ? 'part3' : undefined);
+
+  function pythonProp(name: string, attrType: string): [string, FcstdProperty] {
+    return [
+      name,
+      {
+        name,
+        type: attrType,
+        tagName: 'Property',
+        children: [],
+        valueXml: name === 'Proxy' ? '<Python module="foo" class="Bar"/>' : undefined,
+        valueText: '',
+        attributes: {},
+      },
+    ];
+  }
+
+  it('GOTCHA: Part::FeaturePython carries PropertyPythonObject → baked python-opaque, NOT type-not-whitelisted', () => {
+    const o = obj('Part::FeaturePython', 'Legacy', [
+      pythonProp('Proxy', 'App::PropertyPythonObject'),
+    ]);
+    expect(translateObject(o, dep)).toMatchObject({ kind: 'baked', reason: 'python-opaque' });
+  });
+
+  it('type name ending in Python but WITHOUT the property is still a plain gap (suffix alone never qualifies)', () => {
+    const o = obj('Some::FeaturePython', 'Suspicious', [
+      prop('Length', { name: 'Float', attrs: { value: '1' } }),
+    ]);
+    const r = translateObject(o, dep);
+    expect(r.kind).toBe('baked');
+    if (r.kind === 'baked') expect(r.reason).toContain('type-not-whitelisted');
+  });
+
+  it('Proxy property with non-PythonObject storage type also qualifies (FreeCAD saves Proxy as App::PropertyPythonObject; older files may differ)', () => {
+    const o = obj('App::FeaturePython', 'Dyn', [pythonProp('Proxy', '')]);
+    expect(translateObject(o, dep)).toMatchObject({ kind: 'baked', reason: 'python-opaque' });
+  });
+
+  it('V-C6 no free ride: a whitelisted Part::Box WITH a stray Proxy property stays translated', () => {
+    const o = obj('Part::Box', 'Box', [
+      prop('Length', { name: 'Float', attrs: { value: '30' } }),
+      prop('Width', { name: 'Float', attrs: { value: '20' } }),
+      prop('Height', { name: 'Float', attrs: { value: '10' } }),
+      pythonProp('Proxy', 'App::PropertyPythonObject'),
+    ]);
+    expect(translateObject(o, dep)).toMatchObject({ kind: 'translated' });
+  });
+});
