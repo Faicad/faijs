@@ -81,7 +81,7 @@ packages/core/scripts/scan-fcstd-library.ts这样的文件明显是错误的。
 | gap reason | 次数 | 涉及文件 | 归属 |
 |---|---|---|---|
 | `type-not-whitelisted` | 117 | 43 | **H7 + H10** |
-| `sketch-not-solved` | 14 | 12 | H2 / H3 / 几何种类（见下） |
+| `sketch-not-solved` | 14 | 12 | H2 / H3 / 几何种类（见下）⚠️ **2026-09-20 更新：主因不是求解失败而是轮廓提取 bug**——13 个首因文件里 11 个的草图实际已 L0（`loopCount=0`），根因是 `extractContours` 的贪心链接在 tail 漂移后不重扫池子，被后索引的同端点线段抢链断环（tool-bit 系 11 文件的旋转轴/自由段触发）。修复后 ok 23→**32**，`sketch-not-solved` 首因 13→**4**（残留：BIM 的 WallTrace 开放墙轮廓、TestTangentMode 的真实缺口）。见 `.agents/notes/implemented/feature/2026-09-20-contour-greedy-chain-fix.md` |
 | `revolution-missing-profile` | 10 | 10 | H7（依赖链） |
 | `pocket-missing-dependency` | 7 | 4 | H7（依赖链） |
 | `cut-missing-dependency` | 4 | 1 | H7（依赖链） |

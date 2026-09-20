@@ -83,6 +83,11 @@ export function extractContours(geoms: SketchGeom[]): Contour[] {
     let extended = true;
     while (extended) {
       extended = false;
+      // GOTCHA (ballend corpus, 2026-09-20): restart the scan from the pool
+      // start after EVERY match. Scanning on with the drifted tail let a
+      // later-indexed segment touching the new tail steal the chain before
+      // the correct earlier-indexed continuation was reached, breaking a
+      // perfectly closed loop (extractContours returned 0).
       for (const cand of pool) {
         if (cand.used) continue;
         if (near(tail, cand.a)) {
@@ -90,11 +95,13 @@ export function extractContours(geoms: SketchGeom[]): Contour[] {
           segments.push(cand.seg);
           tail = cand.b;
           extended = true;
+          break;
         } else if (near(tail, cand.b)) {
           cand.used = true;
           segments.push(reverseSeg(cand.seg));
           tail = cand.a;
           extended = true;
+          break;
         }
       }
     }
