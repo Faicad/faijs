@@ -19,6 +19,8 @@
  *          through untouched);
  *       2. call + unwrap — callBrepjs through the shared unwrapResult
  *          (`err` throws an OpError carrying the op name + BrepError code);
+ *          async library fns are awaited first, so `Promise<Result<…>>` —
+ *          the shape every kernel-awaiting library returns — unwraps too;
  *       3. adoptOut — outward adoption: top-level handle / `outputs`-declared
  *          fields (single handle or handle array) → adoptEntity
  *          (unregister finalizer + fromHandle).
@@ -157,7 +159,12 @@ function readSegmentsFromArgs(args: unknown[]): number | undefined {
 function buildAdapter(fn: (...args: unknown[]) => unknown, spec: CompatSpec): BrepImpl<unknown[]> {
   return async (...args: unknown[]): Promise<BrepProduct> => {
     const borrowed = args.map((a) => borrowDeep(a, 0))
-    const value = unwrapOrThrow(callBrepjs(fn as never, borrowed), spec.name)
+    // Async library fns are supported: a library that awaits its kernel (every
+    // `@faicad/fai-cq-gears` factory does — `await getGearKernel()`) returns
+    // `Promise<Result<…>>`, and the shared unwrap is a sync leaf that only
+    // recognizes settled Result records. Awaiting a non-promise product is a
+    // no-op, so sync libraries are unaffected.
+    const value = unwrapOrThrow(await callBrepjs(fn as never, borrowed), spec.name)
     return adoptOut(value, spec, readSegmentsFromArgs(args)) as BrepProduct
   }
 }

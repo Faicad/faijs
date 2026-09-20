@@ -10,3 +10,9 @@
  */
 export * from './workplane'
 export * from './assembly'
+// Gear primitives: browser-safe (gears.ts imports only `@faicad/faijs`'s
+// initOcctWasm + types — no node builtins), so they belong in this entry just
+// as much as workplane/assembly do. Without this line `@faicad/fai-cq-gears`
+// (which imports `getGearKernel` from `@faicad/cq-compat`) has no browser
+// resolution and every gear factory throws at call time.
+export * from './gears'

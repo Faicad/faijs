@@ -268,3 +268,46 @@ describe('§3 admitCompatLib — bare fn 只认 fn.outputs（多产物契约名�
     }
   })
 })
+describe('§7 async library fn — Promise<Result<…>> is awaited before unwrap', () => {
+  // GOTCHA: every kernel-awaiting library (all `@faicad/fai-cq-gears` factories
+  // do `await getGearKernel()`) returns `Promise<Result<…>>`. `unwrapResult` is a
+  // deliberately sync leaf, so an un-awaited promise is NOT ResultLike: it used
+  // to fall through to `adoptOut` untouched and the statement produced a
+  // promise instead of a Shape. The adapter awaits before unwrapping.
+  it('async factory returning Result → Shape terminal', async () => {
+    const asyncBox = async (params: unknown) => {
+      await Promise.resolve()
+      const n = (params as { size: number }).size
+      return { ok: true, value: vendorBox(n, n, n) }
+    }
+    const ns = { contractVersion: CONTRACT_VERSION, asyncBox } as unknown as StdlibNamespace
+    const r = createRuntime(ports(), 'auto')
+    try {
+      r.registerLib('alib', ns, { autoLift: true, packageName: 'async-lib' })
+      const res = await r.execute(
+        "import * as alib from 'async-lib'\nconst p = alib.asyncBox({ size: 6 })",
+      )
+      expect(res.failedAt).toBeUndefined()
+      // A Shape terminal (not a promise): `outputs` is the geometry map.
+      const p = res.outputs.get(asPartName('p'))
+      expect(isShape(p as Shape)).toBe(true)
+      expect(hasBrep(p as Shape)).toBe(true)
+    } finally {
+      r.dispose()
+    }
+  })
+
+  it('async factory returning err → statement failure (not a raw throw)', async () => {
+    const failing = async () => ({ ok: false, error: { code: 'E_GEAR', message: 'boom' } })
+    const ns = { contractVersion: CONTRACT_VERSION, failing } as unknown as StdlibNamespace
+    const r = createRuntime(ports(), 'auto')
+    try {
+      r.registerLib('flib', ns, { autoLift: true, packageName: 'fail-lib' })
+      const res = await r.execute("import * as flib from 'fail-lib'\nconst p = flib.failing({})")
+      expect(res.failedAt).toBeDefined()
+      expect(String(res.failedAt?.message ?? res.failedAt)).toMatch(/E_GEAR/)
+    } finally {
+      r.dispose()
+    }
+  })
+})

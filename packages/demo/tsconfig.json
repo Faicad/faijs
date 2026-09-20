@@ -18,7 +18,9 @@
       "@faicad/faijs": ["../core/src/index.ts"],
       "@faicad/faijs/*": ["../core/src/*"],
       "@faicad/sheetmetal": ["../sheetmetal/src/index.ts"],
-      "@faicad/cq-compat/browser": ["../cq-compat/src/browser.ts"]
+      "@faicad/cq-compat/browser": ["../cq-compat/src/browser.ts"],
+      "@faicad/cq-compat": ["../cq-compat/src/browser.ts"],
+      "@faicad/fai-cq-gears": ["../fai_cq_gears/src/index.ts"]
     }
   },
   "include": ["**/*.ts"]

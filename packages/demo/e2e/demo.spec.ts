@@ -32,6 +32,7 @@ const EXAMPLE_SNIPPETS: Record<string, string> = {
   'drill-test': 'cad.cylinder(5, 20, { centered: true',
   'text-engrave': "cad.text(part0, { text: 'HELLO'",
   'transform-chain': 'cad.rotate_euler(part0, { anglesDeg: [0, 0, 30] }',
+  'gear-demo': "gears.spurGear({ module: 2, teeth_number: 24",
 }
 
 async function waitForStatusOk(page: Page, timeout = 120_000) {
@@ -160,19 +161,45 @@ test.describe('faijs demo', () => {
     }
   })
 
-  test('gear-demo：CDN 无此包 → 显式报错（gear-lib-demo 按发布拍板不发 npm）', async ({ page }) => {
-    // @faicad/gear-lib-demo 属 demo 包，未发布到 npm（发布计划 §2 拍板）。
-    // CDN 加载方案下 loader 查 npm registry 报 404 → 必须显式报错（不静默、
-    // 不回退）——本用例同时是「CDN 没有的包一定要报错」需求的防回归断言。
+  test('gear-demo：真齿轮库 fai_cq_gears 出 brep 几何（本地活源码，不走 CDN）', async ({ page }) => {
+    // `@faicad/fai-cq-gears` 是 workspace 活源码库（LOCAL_LIBS 命中，不经 CDN）：
+    // 它的工厂全是 async（await getGearKernel），走 compat 边界收养为 faijs Shape。
     await page.goto('/')
     await waitForStatusOk(page)
 
     await page.locator(SELECTOR.exampleSelect).selectOption('gear-demo')
-    await expect(page.locator(SELECTOR.editor)).toHaveValue(/import \* as gear from '@faicad\/gear-lib-demo'/)
+    await expect(page.locator(SELECTOR.editor)).toHaveValue(/import \* as gears from '@faicad\/fai-cq-gears'/)
     await waitForStatusOk(page)
     const status = await page.locator(SELECTOR.statusBar).textContent()
-    expect(status).toMatch(/not found on npm registry/)
-    // 报错不产生几何 → STEP 不可导出
+    // spurGear ×2 + translate + union → 终端 1 个（u1）
+    expect(status).toMatch(/OK — brep: 1 shape\(s\)/)
+    // 齿轮工厂是 brep-only compat op → mesh 链路显式不可用（非静默回退）
+    expect(status).toMatch(/mesh: (Failed|Mesh unavailable)/i)
+    await expect(page.locator(SELECTOR.btnStep)).toBeEnabled()
+    await expect(page.locator(SELECTOR.btnStl)).toBeDisabled()
+    // STEP 确实含 ADVANCED_FACE（BREP 真几何）
+    const stepDownload = page.waitForEvent('download')
+    await page.locator(SELECTOR.btnStep).click()
+    const step = await stepDownload
+    const stepText = new TextDecoder().decode(await readFile(await step.path()))
+    expect(stepText.startsWith('ISO-10303-21')).toBe(true)
+    expect(stepText).toContain('ADVANCED_FACE')
+  })
+
+  test('CDN 上没有的库 → 装载阶段显式报错（不静默、不回退）', async ({ page }) => {
+    // 该防回归原挂在已删除的 @faicad/gear-lib-demo 示例上；现在直接喂一段
+    // 引用不存在包的脚本，保证「CDN 查不到必须报错」这条契约仍有载体。
+    await page.goto('/')
+    await waitForStatusOk(page)
+
+    await page.locator(SELECTOR.editor).fill(
+      `import * as none from '@faicad/no-such-lib-demo'\nlet part0 = cad.box(10, 10, 10, { centered: true })`,
+    )
+    await page.locator(SELECTOR.runBtn).click()
+    // 装载是异步的：点 Run 后状态栏先是 "Executing…"，必须等最终态再断言。
+    await expect(page.locator(SELECTOR.statusBar)).toContainText('not found on npm registry', {
+      timeout: 60_000,
+    })
     await expect(page.locator(SELECTOR.btnStep)).toBeDisabled()
   })
 

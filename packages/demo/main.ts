@@ -60,6 +60,22 @@ async function bindKernelToCdnFaijs(): Promise<void> {
   }
 }
 
+/**
+ * 本地（workspace 活源码）库表——命中则不经 CDN。
+ *
+ * 收录条件：CDN 上的已发布版本当前不可用，或必须跟着源码改动即时生效。
+ * ① `@faicad/fai-cq-gears`：它的 `getGearKernel` 来自 `@faicad/cq-compat`，
+ *    而后者只声明在 devDependencies（值 `file:../cq-compat`），jsDelivr 会把
+ *    该 specifier 打成 `/npm/@faicad/cq-compat@file%3A..%2Fcq-compat/+esm`
+ *    （实测 404），装进来的库一调用就抛错。
+ * ② 走本地还顺带免去「CDN 份 faijs 与本地份两个模块实例」的内核绑定问题。
+ */
+const LOCAL_LIBS: Record<string, () => Promise<StdlibNamespace>> = {
+  // 断言：库的导出面（含非函数的 contractVersion）与 StdlibNamespace 的索引签名
+  // 不兼容，装载后的命名空间只经 registerLib 逐项读取，此处不逐个收窄。
+  '@faicad/fai-cq-gears': () => import('@faicad/fai-cq-gears') as unknown as Promise<StdlibNamespace>,
+}
+
 type FaijsPkg = { faijs?: { autoLift?: boolean } }
 /** 装载结果缓存（含 in-flight promise；CDN 每包只取一次，失败不留毒缓存可重试）。 */
 const libNsCache = new Map<string, Promise<StdlibNamespace>>()
@@ -74,6 +90,12 @@ const demoLibLoader: LibLoader = {
       )
     }
     let p = libNsCache.get(name)
+    // 本地活源码优先：命中即不经 CDN（LOCAL_LIBS 注释说明收录条件）。
+    if (!p && LOCAL_LIBS[name]) {
+      p = LOCAL_LIBS[name]()
+      libNsCache.set(name, p)
+      p.catch(() => libNsCache.delete(name))
+    }
     if (!p) {
       p = (async () => {
         // CDN 库包的 peer 依赖解析到 CDN 上另一份 faijs 实例，必须先把内核挂点
@@ -131,14 +153,14 @@ let part1 = cad.text(part0, { text: 'HELLO', size: 8, depth: 2 })`,
 part0 = cad.rotate_euler(part0, { anglesDeg: [0, 0, 30] })
 part0 = cad.translate(part0, { offset: [5, 0, 0] })
 part0 = cad.scale3d(part0, { factor: [1, 1, 2] })`,
-  // ⚠️ 刻意保留：@faicad/gear-lib-demo 已随包删除，本示例现真走 CDN → npm 404，
-  // 用于验证「CDN 上没有的库必须显式报错」（不静默、不回退）——demo.spec.ts 有对应
-  // 防回归用例，勿改脚本文本。
-  'gear-demo': `import * as gear from '@faicad/gear-lib-demo'
+  // 真齿轮库 `@faicad/fai-cq-gears`（15 类，CadQuery 逐字移植）：参数名沿用
+  // Python（module / teeth_number / width）。中心距 = module·(z1+z2)/2 = 36。
+  'gear-demo': `import * as gears from '@faicad/fai-cq-gears'
 
-let g1 = gear.external({ teeth: 24, moduleSize: 2, thickness: 8, bore: 8 })
-let t1 = gear.thread({ radius: 5, pitch: 1, height: 20 })
-let u1 = cad.union(g1, t1)`,
+let g1 = gears.spurGear({ module: 2, teeth_number: 24, width: 8 })
+let g2 = gears.spurGear({ module: 2, teeth_number: 12, width: 8 })
+let m1 = cad.translate(g2, { offset: [36, 0, 0] })
+let u1 = cad.union(g1, m1)`,
   'sheetmetal-demo': `import * as sm from '@faicad/sheetmetal'
 
 let part = sm.author({
