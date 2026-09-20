@@ -8,6 +8,7 @@
  */
 import type { SketchGeom } from './sketch-parse.js';
 
+/** One segment of a 2D contour: either a straight line or a circular arc (planar, sketch-local coordinates). */
 export type ContourSeg =
   | { kind: 'line'; x1: number; y1: number; x2: number; y2: number }
   | {
@@ -24,8 +25,11 @@ export type ContourSeg =
       y2: number;
     };
 
+/** A chained run of segments; `closed` when the chain's ends meet (R6: pure data, no OCCT dependency). */
 export interface Contour {
+  /** chained segments in traversal order */
   segments: ContourSeg[];
+  /** true when the chain's endpoints meet within JOIN_TOL */
   closed: boolean;
 }
 
@@ -54,7 +58,11 @@ function segEnds(g: SketchGeom): [ContourSeg, { x: number; y: number }, { x: num
   }
 }
 
-/** Extract closed contours (chains of segments whose endpoints meet). */
+/**
+ * Extract closed contours (chains of segments whose endpoints meet).
+ * @param geoms solved sketch geometry to chain (non-construction segments only)
+ * @returns closed loops plus self-closed circles (open chains are dropped)
+ */
 export function extractContours(geoms: SketchGeom[]): Contour[] {
   const pool: { seg: ContourSeg; a: { x: number; y: number }; b: { x: number; y: number }; used: boolean }[] = [];
   for (const g of geoms) {

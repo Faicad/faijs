@@ -10,35 +10,83 @@
 
 export type Vec3 = [number, number, number]
 
+/**
+ * Component-wise vector sum `a + b`.
+ * @param a - left operand.
+ * @param b - right operand.
+ * @returns the sum vector.
+ */
 export function vadd(a: Vec3, b: Vec3): Vec3 {
   return [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
 }
+/**
+ * Component-wise vector difference `a - b`.
+ * @param a - left operand.
+ * @param b - right operand.
+ * @returns the difference vector.
+ */
 export function vsub(a: Vec3, b: Vec3): Vec3 {
   return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
 }
+/**
+ * Dot product `⟨a, b⟩`.
+ * @param a - left operand.
+ * @param b - right operand.
+ * @returns the dot product.
+ */
 export function vdot(a: Vec3, b: Vec3): number {
   return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 }
+/**
+ * Cross product `a × b`.
+ * @param a - left operand.
+ * @param b - right operand.
+ * @returns the cross-product vector.
+ */
 export function vcross(a: Vec3, b: Vec3): Vec3 {
   return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
 }
+/**
+ * Scalar multiple `a * s`.
+ * @param a - the vector.
+ * @param s - the scalar factor.
+ * @returns the scaled vector.
+ */
 export function vscale(a: Vec3, s: number): Vec3 {
   return [a[0] * s, a[1] * s, a[2] * s]
 }
+/**
+ * Euclidean norm `‖a‖`.
+ * @param a - the vector.
+ * @returns the norm.
+ */
 export function vnorm(a: Vec3): number {
   return Math.hypot(a[0], a[1], a[2])
 }
-/** 原地归一化（零向量安全：返回 [0,0,0]）。 */
+/**
+ * 原地归一化（零向量安全：返回 [0,0,0]）。
+ * @param a - the vector to normalize (not mutated).
+ * @returns the unit vector along `a`, or `[0, 0, 0]` for a near-zero vector.
+ */
 export function vnormalize(a: Vec3): Vec3 {
   const l = vnorm(a)
   return l < 1e-15 ? [0, 0, 0] : [a[0] / l, a[1] / l, a[2] / l]
 }
+/**
+ * Sum of squared components `‖a‖²`.
+ * @param a - the vector.
+ * @returns the sum of squares.
+ */
 export function vsumsqr(a: Vec3): number {
   return a[0] * a[0] + a[1] * a[1] + a[2] * a[2]
 }
 
 /**
  * AᵀA（n×m 矩阵 → n×n 对称）与 Aᵀb。矩阵按行主序扁平存于 `A`（len = rows*cols）。
+ * @param a - row-major `rows × cols` matrix A (flat array, length rows*cols).
+ * @param rows - number of rows of A.
+ * @param cols - number of columns of A.
+ * @returns the `cols × cols` symmetric matrix AᵀA (row-major, flat).
  */
 export function ata(a: number[], rows: number, cols: number): number[] {
   const out = new Array(cols * cols).fill(0)
@@ -51,6 +99,14 @@ export function ata(a: number[], rows: number, cols: number): number[] {
   }
   return out
 }
+/**
+ * Aᵀb for the row-major `rows × cols` matrix `a` and length-`rows` vector `b`.
+ * @param a - row-major `rows × cols` matrix A (flat array, length rows*cols).
+ * @param b - right-hand-side vector of length rows.
+ * @param rows - number of rows of A.
+ * @param cols - number of columns of A.
+ * @returns the length-`cols` vector Aᵀb.
+ */
 export function atb(a: number[], b: number[], rows: number, cols: number): number[] {
   const out = new Array(cols).fill(0)
   for (let j = 0; j < cols; j++) {
@@ -65,6 +121,10 @@ export function atb(a: number[], b: number[], rows: number, cols: number): numbe
  * 解 (M + λI) x = b，M 为 n×n 对称正定（此处 M = JᵀJ）。
  * 先尝试 Cholesky(M + λI)；若非正定，逐步放大 λ 重试；最终回落带部分主元 Gauss-Jordan。
  *
+ * @param m - row-major `n × n` symmetric positive-definite matrix M (flat array).
+ * @param b - right-hand-side vector of length n.
+ * @param n - system dimension.
+ * @param lambda - initial damping coefficient (progressively amplified on retry).
  * @returns 解向量 x，或退化时 null。
  */
 export function solveDampedNormal(

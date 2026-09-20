@@ -147,6 +147,8 @@ type BrepkitEngineExtras = BrepEngineApi & { getMeshFallbackCount(): number }
 /**
  * 创建 brepkit BrepEngineApi 实现（v1 白名单）。
  * 与 occt 的 initOcctWasm 同位：返回满足引擎契约的原语集合。
+ * @returns a promise resolving to the BrepEngineApi implementation plus brepkit-specific
+ * diagnostics (`getMeshFallbackCount`).
  */
 export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
   const kernel = await initBrepkitWasm()

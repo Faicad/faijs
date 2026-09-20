@@ -169,23 +169,46 @@ Step -Label '9/9  npm pack（3d_editor tarball）' -Block {
 }
 }
 
-# Execute — pipe all streams (6=&1) to Tee-Object in allMode for log capture
+# Execute — pipe all streams (6=&1) to console; in allMode also persist to ci.log.
+# NOTE: Tee-Object writes UTF-16LE on PS 5.1 and UTF-8 (no BOM) on PS 7+, so the
+# log encoding would silently depend on the host. Use an explicit UTF-8 StreamWriter
+# instead so ci.log is always UTF-8 regardless of the PowerShell version.
 if ($allMode) {
-    & $ciMain *>&1 | Tee-Object -FilePath $script:ciLogPath
+    $sw = [System.IO.StreamWriter]::new($script:ciLogPath, $false, [System.Text.UTF8Encoding]::new($false))
+    try {
+        & $ciMain *>&1 | ForEach-Object {
+            $_                       # keep native stream rendering on console
+            $sw.WriteLine([string]$_)
+        }
+    } finally {
+        $sw.Dispose()
+    }
 } else {
     & $ciMain
 }
 
 $total = (Get-Date) - $script:globalStart
 if ($script:failures.Count -gt 0) {
-    Write-Host "`n============================================" -ForegroundColor Red
-    Write-Host "  FAILED STEPS:" -ForegroundColor Red
+    $summary = New-Object System.Collections.Generic.List[string]
+    $summary.Add('')
+    $summary.Add('============================================')
+    $summary.Add('  FAILED STEPS:')
     foreach ($f in $script:failures) {
-        Write-Host "    - $f" -ForegroundColor Red
+        $summary.Add("    - $f")
     }
-    Write-Host "============================================" -ForegroundColor Red
-    Write-Host "==> CI checks completed with $($script:failures.Count) failure(s) (总耗时 $($total.TotalSeconds.ToString('0.0'))s)" -ForegroundColor Red
+    $summary.Add('============================================')
+    $summary.Add("==> CI checks completed with $($script:failures.Count) failure(s) (总耗时 $($total.TotalSeconds.ToString('0.0'))s)")
+    foreach ($l in $summary) { Write-Host $l -ForegroundColor Red }
+    if ($allMode) {
+        # Summary lives OUTSIDE the captured pipeline above; persist it explicitly
+        # so ci.log contains the final verdict (previously only on console).
+        Add-Content -Path $script:ciLogPath -Value $summary -Encoding utf8
+    }
     exit 1
 } else {
-    Write-Host "==> All CI checks passed (总耗时 $($total.TotalSeconds.ToString('0.0'))s)"
+    $msg = "==> All CI checks passed (总耗时 $($total.TotalSeconds.ToString('0.0'))s)"
+    Write-Host $msg
+    if ($allMode) {
+        Add-Content -Path $script:ciLogPath -Value $msg -Encoding utf8
+    }
 }

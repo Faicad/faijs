@@ -29,7 +29,9 @@ export const SKETCH_T1 = 1e-6;
 /** Dispositions allowed in a conforming container (C4). */
 export const ALLOWED_DISPOSITIONS = new Set(['translated', 'python-baked', 'preserved-only']);
 
+/** Structured result of one FCStd → .fai.zip conversion; the caller decides exit codes and formatting. */
 export interface ConvertSummary {
+  /** input file path */
   file: string;
   /** conversion succeeded AND mapping final check passed */
   ok: boolean;
@@ -80,6 +82,12 @@ function auditMapping(
   return gaps;
 }
 
+/**
+ * Convert one FCStd file through the full pipeline (unpack → parse → sketch
+ * solving → codegen → container build) and return a structured summary.
+ * @param input path to the .FCStd file to convert
+ * @returns a summary with ok=false (no zip) on any pipeline failure or translation gap
+ */
 export async function convertFcstdFile(input: string): Promise<ConvertSummary> {
   const t0 = Date.now();
   const baseName = input.replace(/^.*[/\\]/, '').replace(/\.fcstd$/i, '');

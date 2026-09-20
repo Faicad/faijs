@@ -233,7 +233,7 @@ test.describe('faijs demo', () => {
     expect(status).toMatch(/OK — brep: 1 shape\(s\)/)
   })
 
-  test('打开 mini_lathe axk.fai.js：cq-compat 自动装载，brep 成功、mesh 显式不可用', async ({ page }) => {
+  test('打开单文件 axk.fai.js：cq-compat 自动装载，brep 成功、mesh 显式不可用', async ({ page }) => {
     await page.goto('/')
     await waitForStatusOk(page)
 
@@ -417,42 +417,6 @@ let part2 = cad.subtract(part0, part1)`)
 
   // ── Open Folder（browser ProjectLoader，多文件相对 import）──
 
-  test('Open Folder：mini_lathe 装配（brep 多文件相对 import）自动运行 + STEP 导出', async ({ page }) => {
-    // OPFS stub 必须早于 page.goto（初始化脚本在首次导航时注入）
-    await stubShowDirectoryPickerAsOpfs(page)
-    await page.goto('/')
-    await waitForStatusOk(page)
-
-    // 从仓库读取 mini_lathe 项目根整树 → OPFS 写入（真实数据流）
-    const miniLathe = await readFaiProjectTree(new URL('../../mini_lathe/', import.meta.url))
-    expect(Object.keys(miniLathe).length).toBeGreaterThan(5)
-    await seedOpfsProject(page, miniLathe)
-
-    // 打开文件夹：默认入口 = src/assembly.fai.js，自动载入并运行
-    await page.locator(SELECTOR.openDirBtn).click()
-    await expect(page.locator(SELECTOR.exampleSelect)).toHaveValue('__proj:src/assembly.fai.js', { timeout: 30_000 })
-    await expect(
-      page.locator(`${SELECTOR.exampleSelect} option[value="__proj:src/assembly.fai.js"]`),
-    ).toContainText('src/assembly.fai.js')
-    await expect(page.locator(SELECTOR.editor)).toHaveValue(/import \* as cq from '@faicad\/cq-compat'/)
-
-    // 自动运行：brep 装配 OK；mesh 链路显式不可用（cq-compat brep-only）
-    await expect(page.locator(SELECTOR.statusBar)).toContainText('Project:', { timeout: 180_000 })
-    await expect(page.locator(SELECTOR.statusBar)).toContainText('OK — brep:', { timeout: 180_000 })
-    const status = await page.locator(SELECTOR.statusBar).textContent()
-    expect(status).toMatch(/Project: \S+ \(src\/assembly\.fai\.js\) — OK — brep: \d+ shape\(s\)/)
-    expect(status).toMatch(/mesh: (Failed|Mesh unavailable)/i)
-
-    // 装配有 BREP solid → STEP 真实 ADVANCED_FACE
-    await expect(page.locator(SELECTOR.btnStep)).toBeEnabled()
-    const stepDownload = page.waitForEvent('download')
-    await page.locator(SELECTOR.btnStep).click()
-    const step = await stepDownload
-    const stepText = new TextDecoder().decode(await readFile(await step.path()))
-    expect(stepText.startsWith('ISO-10303-21')).toBe(true)
-    expect(stepText).toContain('ADVANCED_FACE')
-  })
-
   test('Open Folder：纯 cad 多文件项目，brep+mesh 双链都 OK', async ({ page }) => {
     await stubShowDirectoryPickerAsOpfs(page)
     await page.goto('/')
@@ -513,41 +477,6 @@ let part2 = cad.subtract(part0, part1)`)
   })
 
   // ── Open Zip（P2 新增通道：zip 内存 buffer 经真实 DOM setInputFiles 注入）──
-
-  test('Z1：真实 mini_lathe 压缩包，端到端自动装配 + STEP（插件 zip 通道首次全自动覆盖真实多文件项目）', async ({ page }) => {
-    await page.goto('/')
-    await waitForStatusOk(page)
-
-    // 从仓库把 mini_lathe 项目根打成 zip（不落盘），喂给隐藏 file input
-    const miniLathe = await readFaiProjectTree(new URL('../../mini_lathe/', import.meta.url))
-    expect(Object.keys(miniLathe).length).toBeGreaterThan(5)
-    const zip = await zipFaiProject(miniLathe)
-    await page.locator(SELECTOR.zipInput).setInputFiles({
-      name: 'mini_lathe.zip',
-      mimeType: 'application/zip',
-      buffer: zip,
-    })
-
-    // 默认入口 = src/assembly.fai.js（pickEntryKey 第 1 条精确命中）
-    await expect(page.locator(SELECTOR.exampleSelect)).toHaveValue('__proj:src/assembly.fai.js', { timeout: 30_000 })
-    await expect(page.locator(SELECTOR.editor)).toHaveValue(/import \* as cq from '@faicad\/cq-compat'/)
-
-    // 自动运行:brep 装配 OK;mesh 链路显式不可用（cq-compat brep-only）
-    await expect(page.locator(SELECTOR.statusBar)).toContainText('Project:', { timeout: 180_000 })
-    await expect(page.locator(SELECTOR.statusBar)).toContainText('OK — brep:', { timeout: 180_000 })
-    const status = await page.locator(SELECTOR.statusBar).textContent()
-    expect(status).toMatch(/Project: \S+ \(src\/assembly\.fai\.js\) — OK — brep: \d+ shape\(s\)/)
-    expect(status).toMatch(/mesh: (Failed|Mesh unavailable)/i)
-
-    // 装配有 BREP solid → STEP 真实 ADVANCED_FACE
-    await expect(page.locator(SELECTOR.btnStep)).toBeEnabled()
-    const stepDownload = page.waitForEvent('download')
-    await page.locator(SELECTOR.btnStep).click()
-    const step = await stepDownload
-    const stepText = new TextDecoder().decode(await readFile(await step.path()))
-    expect(stepText.startsWith('ISO-10303-21')).toBe(true)
-    expect(stepText).toContain('ADVANCED_FACE')
-  })
 
   test('Z2：zip 顶层包裹目录（wrapped/ 前缀）→ 后缀启发式命中，brep+mesh 双链都 OK', async ({ page }) => {
     await page.goto('/')

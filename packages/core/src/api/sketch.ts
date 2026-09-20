@@ -24,6 +24,7 @@ import { defineOp } from '../sdk'
 
 // ── 参数形状（与 fcstd Contour 结构相同，避免引擎依赖端口层）──
 
+/** 直线段（2D，z=0；端点为绝对坐标）。 */
 export interface SketchLineSeg {
   kind: 'line'
   x1: number
@@ -32,6 +33,7 @@ export interface SketchLineSeg {
   y2: number
 }
 
+/** 圆弧段（圆心 + 半径 + 起止角，弧度；z=0）。 */
 export interface SketchArcSeg {
   kind: 'arc'
   cx: number
@@ -48,12 +50,15 @@ export interface SketchArcSeg {
   y2: number
 }
 
+/** 一条有序 2D 轮廓段（直线或圆弧）。 */
 export type SketchSeg = SketchLineSeg | SketchArcSeg
 
+/** 单个轮廓环：有序段序列（首尾相接）。 */
 export interface SketchLoop {
   segments: SketchSeg[]
 }
 
+/** `cad.sketch` 参数：轮廓环集合（第一个为外环，其余为孔）。 */
 export interface SketchContoursParams {
   contours: SketchLoop[]
 }

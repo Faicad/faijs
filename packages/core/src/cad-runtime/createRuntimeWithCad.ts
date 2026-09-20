@@ -14,6 +14,13 @@ import { createApiNamespace } from '../api/api-namespace'
 
 export { CadRuntime, computeContentKey, AppendPrefixError } from './runtime'
 
+/**
+ * 创建带内置 `cad` 库的 CadRuntime（D1）。
+ * @param ports - host ports (io/env/kernel backends) supplied by the embedding host.
+ * @param mode - execution mode ('auto' | 'brep' | 'mesh'); defaults to the runtime's own logic.
+ * @param options - additional CadRuntime options (forwarded to the core runtime).
+ * @returns a CadRuntime with the `cad` namespace pre-registered as the default lib.
+ */
 export function createRuntime(ports: HostPorts, mode?: ExecutionMode, options?: CadRuntimeOptions): CadRuntime {
   const rt = createRuntimeCore(ports, mode, undefined, options)
   rt.registerLib('cad', createApiNamespace(), {

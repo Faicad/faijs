@@ -13,8 +13,11 @@ import { translateObject, isJsExpr, jsExpr } from './feature-translate.js';
 import type { Contour } from './contour.js';
 import { type Placement, isIdentityPlacement, quatToEulerXYZDeg } from './placement.js';
 
+/** Per-object codegen outcome: what was emitted for one FCStd object. */
 export interface GenObjectResult {
+  /** FCStd object name */
   name: string;
+  /** FCStd type id */
   type: string;
   /** variable name bound in generated code (partN) or undefined when baked */
   variable?: string;
@@ -25,6 +28,7 @@ export interface GenObjectResult {
   sketch?: { level: 'L0' | 'L1' | 'L2'; reason?: string; loopCount?: number };
 }
 
+/** Full codegen output: lowered calls, per-object ledger and generated script(s). */
 export interface GenResult {
   /** ordered translated calls (dependency order) */
   calls: CadCall[];
@@ -93,6 +97,13 @@ function bodyFeatureNames(obj: FcstdDocument['objects'][number]): string[] {
  * M5.1/M5.2 — translate every object in dependency order and lower to JS.
  * `sketchVerdict` supplies the M3 outcome per sketch object name; sketches
  * whose contour feeds a Pad/Pocket appear as inputs.
+ *
+ * @param doc parsed FCStd object graph to translate
+ * @param sketchVerdict per-sketch M3 verdict keyed by object name
+ * @param sketchContours solved contours per L0 sketch, keyed by object name
+ * @param baseName source base name used in generated file headers/labels
+ * @param placements per-object Placement used to re-orient placed geometry; missing → identity
+ * @returns the lowered call plan, per-object dispositions and generated code
  */
 export function generateModel(
   doc: FcstdDocument,

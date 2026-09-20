@@ -8,6 +8,7 @@
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 import { err, ok, type Result } from '../api/result.js';
 
+/** One parsed XML node from Document.xml: a property element (or nested value element) with its children. */
 export interface FcstdProperty {
   /** property name attribute ('' for non-property elements like <Geometry>) */
   name: string;
@@ -24,6 +25,7 @@ export interface FcstdProperty {
   attributes: Record<string, string>;
 }
 
+/** One object from <ObjectData>: name, resolved type and its property map. */
 export interface FcstdObject {
   /** object name, e.g. "Sketch" or "Pad" */
   name: string;
@@ -32,6 +34,7 @@ export interface FcstdObject {
   properties: Map<string, FcstdProperty>;
 }
 
+/** Parsed Document.xml: objects, the <Objects> type index and document-level meta. */
 export interface FcstdDocument {
   objects: FcstdObject[];
   /** from <Objects>: name → type (index only, not authoritative) */
@@ -40,6 +43,7 @@ export interface FcstdDocument {
   meta: Map<string, FcstdProperty>;
 }
 
+/** Parse failure detail; currently only XML-level errors (`kind: 'xml'`). */
 export type ParseError = { kind: 'xml'; message: string };
 
 function attrs(el: Element): Record<string, string> {
@@ -89,6 +93,9 @@ function parseProperty(propEl: Element): FcstdProperty {
  * Parse Document.xml into the object graph. Only `<ObjectData>` entries are
  * returned as objects; `<Objects>` feeds `typeIndex`; document meta from
  * `<Document ...>` attributes' sibling properties.
+ *
+ * @param xml raw Document.xml content
+ * @returns the parsed object graph, or an xml ParseError
  */
 export function parseDocumentXml(xml: string): Result<FcstdDocument, ParseError> {
   let doc: Document;

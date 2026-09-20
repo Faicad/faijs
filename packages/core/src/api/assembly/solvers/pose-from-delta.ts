@@ -16,7 +16,13 @@
 import type { Vec3 } from './linalg'
 import { vcross, vdot } from './linalg'
 
-/** 由 ΔR=(a,b,c) 计算四元数分量（实部 s、虚部 u）。 */
+/**
+ * 由 ΔR=(a,b,c) 计算四元数分量（实部 s、虚部 u）。
+ * @param a - first magnitude-parameterized rotation component.
+ * @param b - second magnitude-parameterized rotation component.
+ * @param c - third magnitude-parameterized rotation component.
+ * @returns the quaternion parts: scalar part `s` and imaginary part `u` (Vec3).
+ */
 export function quatPartsFromR(a: number, b: number, c: number): { s: number; u: Vec3 } {
   const m = a * a + b * b + c * c
   const denom = 1 + m
@@ -47,6 +53,10 @@ export function rotateByR(v: Vec3, r: Vec3): Vec3 {
 /**
  * 由 ΔR 生成 brepjs 序四元数 [w,x,y,z]（即 CQ 的 (s,u)）。
  * 供 `poseToAssemblyTransform` 的 SolverPose.rotation 使用。
+ * @param a - first magnitude-parameterized rotation component.
+ * @param b - second magnitude-parameterized rotation component.
+ * @param c - third magnitude-parameterized rotation component.
+ * @returns the quaternion as `[w, x, y, z]` (brepjs order).
  */
 export function quatFromR(a: number, b: number, c: number): [number, number, number, number] {
   const m = a * a + b * b + c * c

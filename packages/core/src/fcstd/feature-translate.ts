@@ -13,9 +13,13 @@ import type { FcstdObject } from './document.js';
 import { parseExpressionEngine, type ExpressionBinding } from './expressions.js';
 import { placementOf, quatToMatrix } from './placement.js';
 
+/**
+ * One cad-op call in the M4 call plan (lowered to .fai.js by M5).
+ */
 export interface CadCall {
   /** target variable name (partN, assigned by M5) */
   out: string;
+  /** cad-op name, e.g. "cad.box" */
   op: string;
   /** positional + named params, JSON-serializable */
   params: Record<string, unknown>;
@@ -60,6 +64,10 @@ export function isJsExpr(v: unknown): v is JsExpr {
   return typeof v === 'object' && v !== null && typeof (v as { __jsExpr?: unknown }).__jsExpr === 'string';
 }
 
+/**
+ * Outcome of translating one FCStd object: a cad-op call plan, an explicit
+ * bake with reason, or preserved-only (no geometry emitted).
+ */
 export type TranslateVerdict =
   | { kind: 'translated'; calls: CadCall[]; reason?: string }
   | { kind: 'baked'; reason: string }
@@ -86,6 +94,12 @@ const WHITELIST = new Set([
   'Part::Sphere',
 ]);
 
+/**
+ * True when the object type is on the M4.1 translation whitelist.
+ *
+ * @param type - the FCStd object type, e.g. "Part::Box".
+ * @returns true when the type is whitelisted for translation.
+ */
 export function isWhitelisted(type: string): boolean {
   return WHITELIST.has(type);
 }
@@ -107,6 +121,11 @@ function propNum(obj: FcstdObject, name: string): number | undefined {
  * M11.1/M11.2: the ExpressionEngine binding for `name`, if any. `value` is
  * undefined for non-constant expressions (references/arithmetic) — the caller
  * must bake with an explicit reason instead of estimating.
+ *
+ * @param obj - the FCStd object whose ExpressionEngine to inspect.
+ * @param name - the property name to look up.
+ * @returns the binding for `name`, or undefined when the object has no
+ *   ExpressionEngine binding for it.
  */
 export function expressionBindingOf(obj: FcstdObject, name: string): ExpressionBinding | undefined {
   const bindings = parseExpressionEngine(obj.properties.get('ExpressionEngine') as never);
@@ -115,7 +134,13 @@ export function expressionBindingOf(obj: FcstdObject, name: string): ExpressionB
   return bindings.find((b) => norm(b.path) === name);
 }
 
-/** M11.2: true when `name` has a binding that is NOT a constant expression. */
+/**
+ * M11.2: detect a non-constant expression binding on a property.
+ *
+ * @param obj - the FCStd object whose ExpressionEngine to inspect.
+ * @param name - the property name to look up.
+ * @returns true when `name` has a binding that is NOT a constant expression.
+ */
 export function hasNonConstantBinding(obj: FcstdObject, name: string): boolean {
   const b = expressionBindingOf(obj, name);
   return b !== undefined && b.value === undefined;
@@ -159,6 +184,14 @@ const POCKET_TYPES: Record<string, FeatureType> = {
   Length: 'Length', ThroughAll: 'ThroughAll', UpToFirst: 'UpToFirst', UpToFace: 'UpToFace', TwoLengths: 'TwoLengths',
 };
 
+/**
+ * Read the Pad/Pocket `Type` enumeration of an object (M9.1).
+ *
+ * @param obj - the FCStd Pad or Pocket object.
+ * @param kind - which type-enum table to apply (Pad vs Pocket labels differ).
+ * @returns the parsed feature type; 'Length' when Type is missing, 'unknown'
+ *   when the stored label/index is not recognized.
+ */
 export function featureTypeOf(obj: FcstdObject, kind: 'pad' | 'pocket'): FeatureType {
   const el = obj.properties.get('Type')?.children[0];
   const raw = el?.attributes['value'];
@@ -245,6 +278,10 @@ function edgeRefArgs(baseVar: string, ordinals: readonly number[]): JsExpr[] {
  * that PartDesign revolves around = +Z) or an edge/vertex of another feature.
  * Edge/vertex axes require resolving referenced geometry, which the port does
  * not yet do (explicit downgrade, no silent loss).
+ *
+ * @param ref - the ReferenceAxis (or Direction) LinkSub string, may be undefined.
+ * @returns a unit axis and pivot point, or undefined when the reference names
+ *   edge/vertex geometry (unsupported).
  */
 export function parseReferenceAxis(ref: string | undefined): { axis: [number, number, number]; at: [number, number, number] } | undefined {
   const at: [number, number, number] = [0, 0, 0];
@@ -269,7 +306,12 @@ function profileLink(obj: FcstdObject): string | undefined {
   return propLink(obj, 'Profile') ?? propLink(obj, 'Sketch');
 }
 
-/** Placement position (Px/Py/Pz) of an object. */
+/**
+ * Placement position (translation) of an object.
+ *
+ * @param obj - the FCStd object to read.
+ * @returns the (Px, Py, Pz) translation from its Placement, or (0,0,0) when absent.
+ */
 export function placementPos(obj: FcstdObject): [number, number, number] {
   // Property → <PropertyPlacement Px=... Py=... Pz=.../>
   const pp = obj.properties.get('Placement')?.children[0];
@@ -288,6 +330,13 @@ export function placementPos(obj: FcstdObject): [number, number, number] {
  * `docObjects` (optional) is the full document object list — needed by the
  * UpToFace datum-plane path to read the target plane's Placement (plan
  * extrude-upto-face §4.3-C1). When absent, UpToFace keeps the explicit bake.
+ *
+ * @param obj - the FCStd object to translate.
+ * @param inputVar - resolves a dependency object name to the variable holding
+ *   its geometry (sketch contours or prior solid).
+ * @param docObjects - the full document object list, needed by the UpToFace
+ *   datum-plane path; optional.
+ * @returns the cad-op call plan, or an explicit bake/preserve verdict with reason.
  */
 export function translateObject(
   obj: FcstdObject,

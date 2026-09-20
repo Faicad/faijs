@@ -12,6 +12,9 @@ import { initOcctWasm } from '../occt-kernel/occtKernel.js';
 import { memberText, type FcstdArchive } from './unpack.js';
 import type { FcstdDocument, FcstdObject, FcstdProperty } from './document.js';
 
+/**
+ * One resolved external-geometry link of a sketch.
+ */
 export interface ExternalLink {
   /** source object name, e.g. "Chamfer002" */
   obj: string;
@@ -21,6 +24,10 @@ export interface ExternalLink {
   polyline: [number, number][];
 }
 
+/**
+ * Result of external-geometry resolution: successfully projected links plus
+ * per-link failures (with a human-readable reason) for the caller to report.
+ */
 export interface ExternalGeoResult {
   links: ExternalLink[];
   failures: { obj: string; sub: string; reason: string }[];
@@ -59,7 +66,14 @@ function placementOf(obj: FcstdObject): { q: [number, number, number, number]; p
 
 /**
  * Resolve every external link of a sketch to sketch-local 2D polylines.
- * `externalGeoProp` is the sketch's ExternalGeometry property.
+ *
+ * @param externalGeoProp - the sketch's ExternalGeometry property.
+ * @param doc - the parsed FCStd document, used to locate source objects and their shapes.
+ * @param archive - the FCStd container, used to read the source `.brp` shape files.
+ * @param sketchPlacement - the sketch's Placement property, whose inverse maps
+ *   source geometry into sketch-local coordinates.
+ * @returns the resolved sketch-local polylines per link, plus a failure entry
+ *   (with reason) for every link that could not be resolved.
  */
 export async function resolveExternalGeometry(
   externalGeoProp: FcstdProperty | undefined,

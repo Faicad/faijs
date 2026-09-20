@@ -38,6 +38,10 @@ export const ConstraintType = {
   Text: 21,
 } as const;
 
+/**
+ * Human-readable names for the ConstraintType enum integers (debugging/
+ * diagnostics only).
+ */
 export const CONSTRAINT_NAMES: Record<number, string> = {
   1: 'Coincident', 2: 'Horizontal', 3: 'Vertical', 4: 'Parallel', 5: 'Tangent',
   6: 'Distance', 7: 'DistanceX', 8: 'DistanceY', 9: 'Angle', 10: 'Perpendicular',
@@ -62,6 +66,10 @@ export const PointPos = {
   mid: 3, // center of circle/ellipse
 } as const;
 
+/**
+ * One parsed sketch geometry element (point, line, circle, arc or ellipse),
+ * in 3D sketch-local coordinates.
+ */
 export type SketchGeom =
   | { kind: 'point'; index: number; x: number; y: number; z: number }
   | { kind: 'line'; index: number; x1: number; y1: number; z1: number; x2: number; y2: number; z2: number }
@@ -100,11 +108,20 @@ export type SketchGeom =
       fy2: number;
     };
 
+/**
+ * One (geometry, point) reference inside a constraint: a geoId plus a
+ * PointPos selector.
+ */
 export interface GeoRef {
+  /** geometry id: >= 0 own geometry; -1 HAxis/RtPnt; -2 VAxis; <= -3 external */
   geoId: number;
+  /** PointPos selector (0 = edge itself, 1/2 = start/end, 3 = center) */
   pos: number; // PointPos
 }
 
+/**
+ * One parsed sketch constraint (`<Constrain>` element).
+ */
 export interface SketchCon {
   /** index in the ConstraintList */
   index: number;
@@ -122,6 +139,10 @@ export interface SketchCon {
   internalAlignmentType?: number;
 }
 
+/**
+ * The fully parsed sketch: geometry, constraints, constrainedness and the set
+ * of referenced external geoIds.
+ */
 export interface ParsedSketch {
   geoms: SketchGeom[];
   constraints: SketchCon[];
@@ -135,6 +156,13 @@ function num(attrs: Record<string, string>, key: string): number {
   return v === undefined ? 0 : Number(v);
 }
 
+/**
+ * Parse a sketch's `<GeometryList>` property into typed geometry elements.
+ *
+ * @param prop - the sketch's Geometry property.
+ * @returns the parsed geometry list; unsupported element kinds degrade to a
+ *   NaN point so the caller can downgrade the sketch.
+ */
 export function parseGeometryList(prop: FcstdProperty): SketchGeom[] {
   // <GeometryList count="N"><Geometry type="...">...</Geometry>...</GeometryList>
   const listEl = prop.children[0];
@@ -222,6 +250,13 @@ function parseGeoRef(attrs: Record<string, string>, prefix: string): GeoRef {
   return { geoId: Math.trunc(num(attrs, prefix)), pos: Math.trunc(num(attrs, `${prefix}Pos`)) };
 }
 
+/**
+ * Parse a sketch's `<ConstraintList>` property into constraint records.
+ *
+ * @param prop - the sketch's Constraints property.
+ * @returns the parsed constraints, with element refs resolved from
+ *   ElementIds/ElementPositions or the old First/Second/Third fallback.
+ */
 export function parseConstraintList(prop: FcstdProperty): SketchCon[] {
   // <ConstraintList count="N"><Constrain .../>...</ConstraintList>
   const listEl = prop.children[0];
@@ -268,6 +303,14 @@ export function parseConstraintList(prop: FcstdProperty): SketchCon[] {
   return cons;
 }
 
+/**
+ * Parse a sketch object's geometry and constraint properties (M3.1 entry).
+ *
+ * @param geometryProp - the sketch's Geometry property (may be undefined).
+ * @param constraintsProp - the sketch's Constraints property (may be undefined).
+ * @param fullyConstrained - the sketch's FullyConstrained flag.
+ * @returns the parsed sketch, including external geoIds referenced by constraints.
+ */
 export function parseSketchObject(
   geometryProp: FcstdProperty | undefined,
   constraintsProp: FcstdProperty | undefined,

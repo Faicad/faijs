@@ -9,6 +9,10 @@
 import type { Result } from '../api/result.js';
 import type { SketchGeom, SketchCon } from './sketch-parse.js';
 
+/**
+ * Result of one solver run: the solved geometry plus convergence status and
+ * diagnostics for the caller's L0/L1/L2 decision (D2).
+ */
 export interface SolveOutcome {
   /** geometry after solve, same order/index as input */
   geoms: SketchGeom[];
@@ -22,12 +26,21 @@ export interface SolveOutcome {
   droppedConstraints: number[];
 }
 
+/**
+ * One pre-projected external geometry segment passed to the solver as fixed
+ * (immutable) geometry.
+ */
 export interface ExternalFixedSeg {
   /** negative geoId in link order: -3, -4, ... (GeoEnum.RefExt downward) */
   geoId: number;
+  /** the projected sketch-local 2D polyline (immutable to the solver) */
   polyline: [number, number][];
 }
 
+/**
+ * Solver abstraction (D5): faijs depends only on this interface; the WASM
+ * implementation is swappable.
+ */
 export interface SketchSolver {
   /**
    * Solve constraints against the given geometry. The input geometry's stored
@@ -65,7 +78,12 @@ export const SUPPORTED_CONSTRAINT_TYPES = new Set<number>([
   18, // Diameter
 ]);
 
-/** Returns true when every constraint in the sketch is expressible. */
+/**
+ * Check whether every constraint in a sketch is expressible by the backend.
+ *
+ * @param constraints - the parsed sketch constraints.
+ * @returns true when every constraint's type is in SUPPORTED_CONSTRAINT_TYPES.
+ */
 export function allConstraintsSupported(constraints: SketchCon[]): boolean {
   return constraints.every((c) => SUPPORTED_CONSTRAINT_TYPES.has(c.type));
 }

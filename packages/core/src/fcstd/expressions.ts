@@ -13,6 +13,7 @@
  */
 import type { FcstdProperty } from './document.js';
 
+/** Evaluated expression result in mm (angles keep their own unit): a number, or undefined when unsupported. */
 export type ExprValue = number | undefined;
 
 const UNIT_TO_MM: Record<string, number> = {
@@ -30,6 +31,9 @@ const UNIT_TO_MM: Record<string, number> = {
  * Evaluate a constant expression. Returns undefined when the expression is
  * not a bare constant (reference/arithmetic/function) — explicit unsupported,
  * no guessing.
+ *
+ * @param expr raw expression string (e.g. "10 mm")
+ * @returns the value in mm, or undefined when not a constant expression
  */
 export function evalConstantExpression(expr: string): ExprValue {
   const s = expr.trim();
@@ -46,7 +50,9 @@ export function evalConstantExpression(expr: string): ExprValue {
 }
 
 
+/** One <Expression path=... expression=...> binding with its optional constant value. */
 export interface ExpressionBinding {
+  /** property path the expression drives (e.g. "Length") */
   path: string;
   /** raw expression string */
   expression: string;
@@ -58,6 +64,9 @@ export interface ExpressionBinding {
  * Extract expression bindings from a parsed ExpressionEngine property.
  * `bindable` = every expression evaluated to a constant (then the property
  * values can be overridden); otherwise the engine is only partially readable.
+ *
+ * @param prop the parsed <ExpressionEngine> property (undefined → no bindings)
+ * @returns one binding per <Expression> child, values evaluated
  */
 export function parseExpressionEngine(
   prop: FcstdProperty | undefined,
@@ -74,7 +83,11 @@ export function parseExpressionEngine(
   return out;
 }
 
-/** True when all bindings are constants → safe to override property values. */
+/**
+ * True when all bindings are constants → safe to override property values.
+ * @param bindings bindings extracted by parseExpressionEngine
+ * @returns true when there is at least one binding and every value is defined
+ */
 export function allConstant(bindings: ExpressionBinding[]): boolean {
   return bindings.length > 0 && bindings.every((b) => b.value !== undefined);
 }

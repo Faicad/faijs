@@ -21,6 +21,11 @@ import { dirname, join } from 'node:path';
 const require = createRequire(import.meta.url);
 
 let wasmPathCache: string | undefined;
+/**
+ * Resolve the planegcs WASM binary path from the installed package.
+ *
+ * @returns the absolute path of `planegcs.wasm` inside `@salusoft89/planegcs`.
+ */
 export function planegcsWasmPath(): string {
   if (!wasmPathCache) {
     const pkgDir = dirname(require.resolve('@salusoft89/planegcs/package.json'));
@@ -29,6 +34,11 @@ export function planegcsWasmPath(): string {
   return wasmPathCache;
 }
 
+/**
+ * Instantiate the planegcs WASM solver.
+ *
+ * @returns a `SketchSolver` backed by the planegcs WASM module.
+ */
 export async function createPlanegcsSolver(): Promise<SketchSolver> {
   const wrapper = await make_gcs_wrapper(planegcsWasmPath());
   return new PlanegcsSolver(wrapper);
@@ -39,6 +49,11 @@ type PtKey = string;
 
 const P = (geoId: number, pos: number): PtKey => `g${geoId}p${pos}`;
 
+/**
+ * planegcs WASM implementation of the `SketchSolver` interface (M3.2–M3.4):
+ * pushes geometry/constraints into the GCS, solves, and pulls the solved
+ * parameters back into `SketchGeom` values.
+ */
 export class PlanegcsSolver implements SketchSolver {
   constructor(private wrapper: GcsWrapper) {}
 

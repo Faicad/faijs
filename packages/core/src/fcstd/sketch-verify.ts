@@ -24,7 +24,14 @@ function anchorPoints(g: SketchGeom): { x: number; y: number }[] {
   }
 }
 
-/** Maximum anchor-point distance between two geometry lists (same indexing). */
+/**
+ * Maximum anchor-point distance between two geometry lists (same indexing).
+ *
+ * @param a - first geometry list (e.g. the solver result).
+ * @param b - second geometry list (e.g. the stored geometry).
+ * @returns the maximum Euclidean distance between corresponding anchor points
+ *   (0 when the lists have no comparable points).
+ */
 export function maxPointDistance(a: SketchGeom[], b: SketchGeom[]): number {
   let max = 0;
   const n = Math.min(a.length, b.length);
@@ -40,8 +47,13 @@ export function maxPointDistance(a: SketchGeom[], b: SketchGeom[]): number {
   return max;
 }
 
+/**
+ * Three-level downgrade verdict (D3) for one sketch.
+ */
 export interface SketchVerdict {
+  /** solved quality level: L0 = solved & matches, L1 = flagged, L2 = baked */
   level: 'L0' | 'L1' | 'L2';
+  /** human-readable reason for a non-L0 verdict */
   reason?: string;
   /** max anchor distance between re-solved and stored geometry */
   maxDelta?: number;
@@ -51,6 +63,12 @@ export interface SketchVerdict {
  * Three-level downgrade (D3). L0 = solved & matches stored (delta <= T1).
  * L1 = solver result kept but flagged, stored coords used instead.
  * L2 = baked (unsupported geometry/constraints, external geometry).
+ *
+ * @param outcome - the solver result, or undefined when none was produced.
+ * @param stored - the on-disk (stored) geometry to compare against.
+ * @param t1 - the calibrated distance tolerance for the L0/L1 split.
+ * @param preBlocked - pre-solve downgrade reason; when set the sketch is L2.
+ * @returns the classification verdict for the sketch.
  */
 export function classifySketch(
   outcome: SolveOutcome | undefined,

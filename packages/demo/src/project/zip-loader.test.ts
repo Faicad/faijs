@@ -37,13 +37,13 @@ describe('createZipProjectLoader: 基础枚举', () => {
   it('顶层包裹目录 → key 保留前缀不剥离（B3），pickEntryKey 后台规则命中', async () => {
     const loader = await createZipProjectLoader(
       zipBytes({
-        'mini_lathe/src/assembly.fai.js': 'let a = 1',
-        'mini_lathe/src/parts/a.fai.js': 'let b = 2',
+        'proj/src/assembly.fai.js': 'let a = 1',
+        'proj/src/parts/a.fai.js': 'let b = 2',
       }),
     )
-    expect(loader.listModules()).toEqual(['mini_lathe/src/assembly.fai.js', 'mini_lathe/src/parts/a.fai.js'])
+    expect(loader.listModules()).toEqual(['proj/src/assembly.fai.js', 'proj/src/parts/a.fai.js'])
     // §5.5-C 第 2 条（后缀 '/src/assembly.fai.js'）命中，不剥离也选中正确入口
-    expect(pickEntryKey(loader.listModules())).toBe('mini_lathe/src/assembly.fai.js')
+    expect(pickEntryKey(loader.listModules())).toBe('proj/src/assembly.fai.js')
   })
 
   it('跳过 node_modules/dist/.git/点目录 与非 .fai.js；目录条目（/ 结尾）不进入清单', async () => {
@@ -121,8 +121,8 @@ describe('pickEntryKey（§5.5-C，folder 与 zip 共用）', () => {
   })
 
   it('第 2 条：后缀 /src/assembly.fai.js（zip 顶层包裹目录）', () => {
-    const keys = sorted(['mini_lathe/src/parts/a.fai.js', 'mini_lathe/src/assembly.fai.js'])
-    expect(pickEntryKey(keys)).toBe('mini_lathe/src/assembly.fai.js')
+    const keys = sorted(['proj/src/parts/a.fai.js', 'proj/src/assembly.fai.js'])
+    expect(pickEntryKey(keys)).toBe('proj/src/assembly.fai.js')
   })
 
   it('第 3 条：精确或后缀 assembly.fai.js 兜底', () => {

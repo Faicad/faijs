@@ -10,24 +10,37 @@
 import { unzipSync } from 'fflate';
 import { err, ok, type Result } from '../api/result.js';
 
+/**
+ * One raw file inside the FCStd ZIP container.
+ */
 export interface FcstdMember {
   /** path inside the ZIP, e.g. "Document.xml", "PartShape.brp" */
   path: string;
+  /** the member's raw bytes */
   bytes: Uint8Array;
 }
 
+/**
+ * The unpacked FCStd container: all ZIP members plus the advisory comment.
+ */
 export interface FcstdArchive {
   members: Map<string, Uint8Array>;
   /** advisory ZIP comment; may be empty (2/56 samples have empty comments) */
   zipComment: string;
 }
 
+/**
+ * Structured unpack failure: not a valid ZIP, or missing root `Document.xml`.
+ */
 export type UnpackError =
   | { kind: 'not-zip'; message: string }
   | { kind: 'no-document-xml'; message: string };
 
 /**
  * Unpack an FCStd file. Only requirement: valid ZIP + root `Document.xml`.
+ *
+ * @param data - the raw FCStd file bytes.
+ * @returns the unpacked archive, or a structured UnpackError.
  */
 export function unpackFcstd(data: Uint8Array): Result<FcstdArchive, UnpackError> {
   let entries: Record<string, Uint8Array>;
@@ -64,7 +77,13 @@ function readZipComment(data: Uint8Array): string | null {
   return null;
 }
 
-/** UTF-8 text decode helper for XML members. */
+/**
+ * UTF-8 text decode helper for XML members.
+ *
+ * @param archive - the unpacked FCStd container.
+ * @param path - member path inside the ZIP, e.g. "Document.xml".
+ * @returns the member decoded as UTF-8 text, or undefined when absent.
+ */
 export function memberText(archive: FcstdArchive, path: string): string | undefined {
   const bytes = archive.members.get(path);
   if (!bytes) return undefined;

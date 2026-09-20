@@ -10,6 +10,7 @@
  */
 import type { FcstdDocument, FcstdObject } from './document.js';
 
+/** manifest.json schema: source provenance, units and entry point for the .fai.zip container. */
 export interface FaiManifest {
   /** container format version */
   format: 1;
@@ -34,6 +35,7 @@ export interface FaiManifest {
  */
 export type ObjectDisposition = 'translated' | 'baked' | 'preserved-only';
 
+/** One mapping.json entry: a single object's fidelity disposition, reason and produced artifacts. */
 export interface ObjectMappingEntry {
   /** FCStd object name */
   name: string;
@@ -52,10 +54,19 @@ export interface ObjectMappingEntry {
   };
 }
 
+/** mapping.json schema: the per-object fidelity ledger (zero silent loss, V3). */
 export interface FaiMapping {
+  /** one entry per <ObjectData> object */
   objects: ObjectMappingEntry[];
 }
 
+/**
+ * Assemble the container manifest.json from the parsed document.
+ * @param doc parsed FCStd document (SchemaVersion read from meta)
+ * @param sourceFile original FCStd file name (not full path)
+ * @param programVersion FreeCAD program version that wrote the document
+ * @returns the manifest with format 1, mm units and the BREP-chain entry point
+ */
 export function buildManifest(
   doc: FcstdDocument,
   sourceFile: string,
@@ -74,7 +85,11 @@ export function buildManifest(
   };
 }
 
-/** Default disposition for an object type before feature translation (M4). */
+/**
+ * Default disposition for an object type before feature translation (M4).
+ * @param obj the FCStd object to classify
+ * @returns `baked` for sketches and non-datum objects, `preserved-only` for datum types
+ */
 export function initialDisposition(obj: FcstdObject): { disposition: ObjectDisposition; reason?: string } {
   if (obj.type === 'Sketcher::SketchObject') {
     return { disposition: 'baked', reason: 'pending-sketch-channel' };

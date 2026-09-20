@@ -54,6 +54,7 @@ export interface AssemblySolveResult {
  * @param members - member shapes (compound children, aligned with memberNames).
  * @param memberNames - member variable names (R7: empty names throw before solving).
  * @param constraints - raw constraints from `cad.assembly({ constraints })`.
+ * @param opts - optional solver options (e.g. `solver: 'global'` selects the global least-squares path).
  * @returns the solve result (transforms + diagnostics).
  * @throws Error on empty member names, unknown constraint parts, or non-convergence.
  */
@@ -139,6 +140,7 @@ export function solveAssembly(
  * @param constraints - raw constraints (may be empty).
  * @param joints - raw joint declarations (may be empty).
  * @param drive - per-child DOF value overrides (may be undefined).
+ * @param opts - optional solver options (forwarded to the base constraint solve).
  * @returns the merged solve result (transforms + diagnostics + kinematics/warnings).
  */
 export function solveAssemblyAndKinematics(

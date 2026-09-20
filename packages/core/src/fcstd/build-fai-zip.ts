@@ -20,8 +20,11 @@ import {
   type ObjectMappingEntry,
 } from './container.js';
 
+/** Build output: the .fai.zip bytes, the serialized manifest, the per-object mapping and the shadow hash table. */
 export interface FaiZipResult {
+  /** the produced .fai.zip archive bytes */
   zip: Uint8Array;
+  /** serialized manifest.json content */
   manifest: unknown;
   mapping: FaiMapping;
   /** sha256 verification table for the freecad/ shadow (V1) */
@@ -34,6 +37,14 @@ function sha256(bytes: Uint8Array): string {
 
 const FREECAD_SHADOW_PREFIX = 'freecad/';
 
+/**
+ * Build the .fai.zip container: byte-exact freecad/ shadow of every source
+ * member, baked .brp-derived assets, mapping ledger and manifest.
+ * Returns `{ error }` when Document.xml is missing or unparseable.
+ * @param source unpacked FCStd archive (ZIP members + metadata)
+ * @param sourceFileName original FCStd file name recorded in the manifest
+ * @returns the built archive or an error message
+ */
 export function buildFaiZip(
   source: FcstdArchive,
   sourceFileName: string,
