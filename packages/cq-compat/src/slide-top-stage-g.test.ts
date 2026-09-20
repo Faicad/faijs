@@ -1,7 +1,7 @@
 /**
  * Stage G acceptance — slide_top 体积缺口修复验证。
  *
- * 复刻 mini_lathe slide_top 几何（CadQuery 2.8.0 原版语义），验证：
+ * 复刻 slide_top 几何（CadQuery 2.8.0 原版语义），验证：
  *  1. faces("±Y")[1] 索引选择器返回 boss 面（center/normal），而非 base 极端面；
  *  2. 完整几何体积 ≈ CadQuery ref 88421.299（±1%），zmax = 21.7。
  *

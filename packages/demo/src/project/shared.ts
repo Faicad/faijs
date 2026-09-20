@@ -36,7 +36,7 @@ export function isSkippedDir(name: string, skipDirs: Set<string>): boolean {
  * 5) keys 为空 → null
  *
  * keys 已排序，`find` 返回字典序第一个 → 结果确定。
- * folder 通道现有行为不变：OPFS 根 = mini_lathe 根时 key 恰为 `src/assembly.fai.js`，命中第 1 条。
+ * folder 通道现有行为不变：OPFS 根 = 项目根时 key 恰为 `src/assembly.fai.js`，命中第 1 条。
  * @param keys - the sorted module keys (may be empty).
  * @returns the chosen entry key, or null when keys is empty.
  */

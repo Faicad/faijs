@@ -1,7 +1,7 @@
 /**
- * CadQuery Python → .fai.js transpiler (mini_lathe target).
+ * CadQuery Python → .fai.js transpiler.
  *
- * Handles the patterns found in mini_lathe:
+ * Handles the patterns found in real-world CadQuery projects:
  * - import cadquery as cq / import config / import math
  * - chained Workplane calls: wp.faces(">Z").workplane().hole(d)
  * - config constant references (inlined from config.py)
@@ -176,7 +176,7 @@ function transpileIf(stmt: AstNode, ctx: TranspileCtx): string | null {
   if (isMainCheck(test) || isTrueLiteral(test) || isShowObjectGuard(test)) {
     return null
   }
-  // Generic if (rare in mini_lathe)
+  // Generic if (rare in practice)
   const body = (stmt.body as AstNode[]).map((s) => transpileStmt(s, ctx)).filter((l) => l !== null) as string[]
   const testStr = transpileExpr(test, ctx)
   return [`if (${testStr}) {`, ...body.map((l) => `  ${l}`), '}'].join('\n')

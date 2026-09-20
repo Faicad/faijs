@@ -2,7 +2,7 @@
  * Parity-fix regression tests — selector indexing, pushPoints cut repetition,
  * single-solid union, and cboreHole point propagation.
  *
- * Each test mirrors a bug found by the mini_lathe ⇄ CadQuery comparison
+ * Each test mirrors a bug found by the real-world project ⇄ CadQuery comparison
  * (docs/analysis/2026-09-08-cq-compat-union-compound-bug.md and
  * docs/plans/2026-09-08-cq-compat-cadquery-parity.md §2.3).
  */

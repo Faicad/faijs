@@ -294,7 +294,7 @@ export async function constraintEx(
       // GOTCHA (2026-09-17，对照 CQ 2.8.0 `occ_impl/solver.py` 标定)：CQ 独立 Axis 约束是
       // **纯方向约束**——`ConstraintInvariants["Axis"]` 只收两个 gp_Dir（无点项），
       // `axis_cost` 缺省 `val = pi`（反平行）。此前误映射为 'align'（同向 val=0 + 面心
-      // 重合）属双重分歧：mini_lathe e2e 的 c4 被拖向 mb z=-1（参考 +6.1），且凭空多出一
+      // 重合）属双重分歧：真实 e2e 的 c4 被拖向 mb z=-1（参考 +6.1），且凭空多出一
       // 个 CQ 没有的面心重合项。'angle' 在求解器里正是纯方向项（global-solver.ts
       // case 'angle'：axis 成本、无点项），value 单位 deg（180 = 反平行）。
       return [{ type: 'angle', value: 180, a, b } as AssemblyConstraint]

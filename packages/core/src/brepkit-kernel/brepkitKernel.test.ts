@@ -5,12 +5,31 @@
  * 断言口径：体积/bbox/面组数按解析值容差对齐；拓扑分组必须完整覆盖三角形。
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { createRequire } from 'node:module'
 import { createBrepkitPrimitives, disposeBrepkit, type BrepkitPrimitives } from './brepkitKernel'
 
-let api: BrepkitPrimitives
+// GOTCHA: brepkit-wasm 是有意的可选运行时注入（非声明依赖，见 brepkitWasm.ts 注释）——
+// 未安装时套件必须整体 skip 而非 suite FAIL。但探测须在收集期同步完成：
+// describe.skipIf 的条件在收集时求值，不能依赖 beforeAll 的异步结果（那时条件恒为 false）。
+// 装了但初始化失败（真 bug）时 beforeAll 重新抛错，如实 FAIL，不静默掩盖。
+const require = createRequire(import.meta.url)
+let brepkitAvailable = false
+try {
+  require.resolve('brepkit-wasm')
+  brepkitAvailable = true
+} catch {
+  brepkitAvailable = false
+}
+
+let api!: BrepkitPrimitives
 
 beforeAll(async () => {
-  api = await createBrepkitPrimitives()
+  try {
+    api = await createBrepkitPrimitives()
+  } catch (e) {
+    // 未安装 → 套件 skip；已安装但初始化失败 → 原样抛出暴露。
+    if (brepkitAvailable) throw e
+  }
 })
 
 afterAll(() => {
@@ -19,7 +38,9 @@ afterAll(() => {
 
 const EPS = 1e-3
 
-describe('brepkit 基本体', () => {
+const suite = describe.skipIf(!brepkitAvailable)
+
+suite('brepkit 基本体', () => {
   it('makeBox 体积与 bbox 解析值一致（10×20×30 = 6000）', () => {
     const h = api.makeBox(10, 20, 30)
     expect(h).toBeGreaterThanOrEqual(0)
@@ -44,7 +65,7 @@ describe('brepkit 基本体', () => {
   })
 })
 
-describe('brepkit 三角化（拓扑红线：几何与拓扑同源）', () => {
+suite('brepkit 三角化（拓扑红线：几何与拓扑同源）', () => {
   it('meshShape 返回 positions/indices/faceGroups 且 faceGroups 完整覆盖三角形', () => {
     const h = api.makeBox(10, 20, 30)
     const m = api.meshShape(h, { linearDeflection: 0.5 })
@@ -73,7 +94,7 @@ describe('brepkit 三角化（拓扑红线：几何与拓扑同源）', () => {
   })
 })
 
-describe('brepkit 布尔与面溯源', () => {
+suite('brepkit 布尔与面溯源', () => {
   it('cut：长方体切穿心圆柱，体积 = 1000 − 90π（圆柱 z 居中全贯穿）', () => {
     const box = api.makeBox(10, 10, 10)
     const cyl = api.makeCylinder(3, 20)
@@ -115,7 +136,7 @@ describe('brepkit 布尔与面溯源', () => {
   })
 })
 
-describe('brepkit 变换与查询', () => {
+suite('brepkit 变换与查询', () => {
   it('translate 后 bbox 平移', () => {
     const h = api.makeBox(10, 10, 10)
     const moved = api.translate(h, 100, 0, 0)
@@ -143,7 +164,7 @@ describe('brepkit 变换与查询', () => {
   })
 })
 
-describe('brepkit IO', () => {
+suite('brepkit IO', () => {
   it('exportStep 产出含 MANIFOLD_SOLID_BREP 的 STEP 文本', () => {
     const h = api.makeBox(10, 10, 10)
     const step = api.exportStep(h)
@@ -151,7 +172,7 @@ describe('brepkit IO', () => {
   })
 })
 
-describe('brepkit 几何求值（Float64Array 返回归一化，2026-09-19 修复）', () => {
+suite('brepkit 几何求值（Float64Array 返回归一化，2026-09-19 修复）', () => {
   // 回归：这些方法曾误以为返回 JSON 字符串而 JSON.parse，实际返回 Float64Array，
   // String(Float64Array) 变逗号拼接数字串导致 JSON.parse 在第一个逗号处崩溃。
   it('uvBounds 不抛错且返回有限值', () => {
@@ -195,7 +216,7 @@ describe('brepkit 几何求值（Float64Array 返回归一化，2026-09-19 修�
   })
 })
 
-describe('brepkit 网格布尔回退检测（§5.4 链纪律）', () => {
+suite('brepkit 网格布尔回退检测（§5.4 链纪律）', () => {
   it('v1 白名单操作不触发 meshFallback（计数差为 0）', () => {
     const a = api.makeBox(10, 10, 10)
     const b = api.translate(api.makeCylinder(3, 20), 5, 5, 0)

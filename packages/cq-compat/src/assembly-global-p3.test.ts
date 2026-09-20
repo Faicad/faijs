@@ -1,7 +1,7 @@
 /**
  * cq-compat 端到端多成员回归（P3，对齐 assembly-global-solver-plan.md §5/P3）。
  *
- * 不依赖 CQ 参考基线（mini_lathe 尚未生成）：纯 faijs 多部件装配，走完整管线
+ * 不依赖 CQ 参考基线：纯 faijs 多部件装配，走完整管线
  *   buildAssembly(默认 global) → cad.assembly({solver:'global'}) →
  *   solveAssemblyAndKinematics → solveGlobal
  * 覆盖三场景：

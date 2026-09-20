@@ -16,7 +16,6 @@
     "occt-wasm": "^3.8.0"
   },
   "devDependencies": {
-    "@faicad/faijs": "file:../..",
     "typescript": "*",
     "vitest": "*"
   },

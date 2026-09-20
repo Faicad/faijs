@@ -5,7 +5,7 @@
  * 无 dual-op → lift=true → compatOp 适配器先 `borrowDeep` 实参，把 faijs Shape
  * 换成借用 brepjs 视图（`isShape=false`、`brepOf=undefined`）→ `resolveFaceSelector`
  * 落到整形状 bbox 兜底 → `cad.bboxMax` 读 `shape.vertices` undefined
- * → `TypeError: reading 'length'`。mini_lathe P3 e2e 在第一条约束（c1）即因此失败。
+ * → `TypeError: reading 'length'`。真实 e2e 在第一条约束（c1）即因此失败。
  *
  * 修复：`asBrepShape`（workplane.ts）入口归一——借用视图经 `fromHandle` 还原为
  * 真实 Shape（三角化 + BREP 身份槽），按视图对象 WeakMap 缓存；调用点：
@@ -17,8 +17,7 @@
  * 路径——因此本文件用 `borrowBrepjsShape` 手工构造借用视图（borrowDeep 对
  * Shape 的产物形态完全一致），直接喂给装配函数，确定性模拟提升路径，无需
  * .fai.js 脚本。真实端到端（runtime.execute → 提升 → 求解 → 与 CQ 2.8.0
- * 参考位姿比对）随 mini_lathe 案例迁出本仓库，见
- * `cadquery-port/mini_lathe/tests/assembly-e2e.test.ts`。
+ * 参考位姿比对）已随外部案例项目迁出本仓库。
  */
 
 import { describe, it, expect, beforeAll } from 'vitest'
@@ -44,7 +43,7 @@ beforeAll(async () => {
   runtime = createRuntime(createNodePorts(), 'brep')
   runtime.registerLib('cq', cq as never, { packageName: '@faicad/cq-compat' } as never)
 
-  // 经 runtime 执行（brep 链）产出带 BREP 槽的真实 Shape —— 与 mini_lathe 的
+  // 经 runtime 执行（brep 链）产出带 BREP 槽的真实 Shape —— 与真实装配
   // parts 产物同形态。100×100×50 中心在原点 → 顶面 [0,0,25]/法向 +Z。
   const res = await runtime.execute(
     [
@@ -105,7 +104,7 @@ describe('cq-compat: 提升边界借用视图归一（回归守卫）', () => {
     const viewA = borrowBrepjsShape(boxA)
     const viewB = borrowBrepjsShape(boxB)
 
-    // 历史崩溃路径：mini_lathe c1 = cq.constraint("bp",">Z",bp,"mb","<Z",mb,"Plane")
+    // 历史崩溃路径：cq.constraint("bp",">Z",bp,"mb","<Z",mb,"Plane")
     const lifted = await cq.constraint('bp', '>Z', viewA as never, 'mb', '<Z', viewB as never, 'Plane')
     expect(lifted.type).toBe('mate')
     const la = faceOf(lifted)

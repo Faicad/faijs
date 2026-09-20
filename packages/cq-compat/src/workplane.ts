@@ -3839,7 +3839,7 @@ function resolveEdgeSelection(shape: Shape, sel: string | null | undefined): unk
  * semantics — the missing faceSel branch made testTopFaceFillet fillet all 12
  * edges instead of the 4 top ones). Failures propagate — silently returning
  * the unfilleted shape previously produced plates whose fillets were missing
- * entirely (mini_lathe bp/mb/mt/tp diagnosis, 2026-09-08).
+ * entirely (bp/mb/mt/tp diagnosis, 2026-09-08).
  *
  * @param wp - Workplane whose current shape is filleted; consumes `edgeSel`/`faceSel`.
  * @param radius - Fillet radius in world units.

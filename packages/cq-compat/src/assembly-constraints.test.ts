@@ -73,7 +73,7 @@ describe('cq-compat: constraintEx 映射', () => {
     expect(out).toHaveLength(1)
     // GOTCHA (2026-09-17)：错误映射是 'align'（同向 val=0 + 面心重合）——CQ 2.8.0 的独立
     // Axis 约束是**纯方向反平行**（axis_cost 缺省 val=pi，无点项），对齐后为 angle:180。
-    // 误映射会凭空引入 CQ 没有的面心重合项（mini_lathe e2e c4 被拖向 mb z=-1）。
+    // 误映射会凭空引入 CQ 没有的面心重合项（真实 e2e 观测 c4 被拖向 mb z=-1）。
     expect(out[0].type).toBe('angle')
     const ang = out[0] as Extract<AssemblyConstraint, { type: 'angle' }>
     expect(ang.value).toBe(180)

@@ -2,7 +2,7 @@
  * cq-compat 端到端：buildAssembly 默认 global 求解器（P2，对齐
  * assembly-global-solver-plan.md §4.4 / P2）。
  *
- * 不依赖 CQ 参考基线（mini_lathe 尚未生成）：用两个 faijs 盒子构造 mate
+ * 不依赖 CQ 参考基线：用两个 faijs 盒子构造 mate
  * 约束，走完整管线 buildAssembly → cad.assembly({solver:'global'}) →
  * solveAssemblyAndKinematics → solveGlobal，断言：
  *   1) solveDetailed 返回 residuals（证明 global 路径被选中）；

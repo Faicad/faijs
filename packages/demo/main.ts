@@ -48,8 +48,8 @@ const LIB_MODULES: Record<string, () => Promise<StdlibNamespace>> = {
   'gear-lib-demo': async () => gearLib as unknown as StdlibNamespace,
   // sheetmetal：与 gear-lib-demo 同理，静态 import 参与打包，运行时返回命名空间。
   'sheetmetal': async () => sheetmetalLib as unknown as StdlibNamespace,
-  // cq-compat：key 为脚本 import specifier 全名 '@faicad/cq-compat'（demo 装载的
-  // mini_lathe 等 .fai.js 即按此书写）；浏览器入口不含 node:fs，可静态打包。
+  // cq-compat：key 为脚本 import specifier 全名 '@faicad/cq-compat'（外部项目
+  // .fai.js 即按此书写）；浏览器入口不含 node:fs，可静态打包。
   '@faicad/cq-compat': async () => cqCompatLib as unknown as StdlibNamespace,
 }
 
@@ -557,7 +557,7 @@ btnStl.addEventListener('click', () => {
 // ── 项目文件夹（Open Folder，browser ProjectLoader 多文件 §4.5）──
 
 type ProjectState = {
-  /** 文件夹名（状态栏显示，如 mini_lathe） */
+  /** 文件夹名（状态栏显示，如 my-project） */
   rootName: string
   /** 项目加载器（folder/zip 通道共用 DemoProjectLoader；挂载即枚举模块清单） */
   loader: DemoProjectLoader

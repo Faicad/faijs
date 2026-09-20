@@ -22,7 +22,7 @@ import { compareAssemblyFiles, type AssemblyCompareOptions, type AssemblyCompare
  *
  * | 维度 | 值 | 依据 |
  * |---|---|---|
- * | `strictTopology` | **false** | 齿面是 B-spline 曲面，两侧表示（次数/节点/面数）必然不同；mini_lathe 的做法同此 |
+ * | `strictTopology` | **false** | 齿面是 B-spline 曲面，两侧表示（次数/节点/面数）必然不同；真实项目验证的做法同此 |
  * | `linearTolerance` | 1e-3 mm | 实测 bbox/质心差 ≪ 1e-6；留 3 个数量级余量 |
  * | `volumeRelativeTolerance` | 1e-6 | 实测体积相对差 4e-12（直齿）/ 1.4e-7（斜齿） |
  * | `booleanVolumeTolerance` | `max(1e-3, vol×1e-6)` | 布尔差是绝对量，随件体缩放 |
