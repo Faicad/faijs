@@ -18,7 +18,7 @@ Status: implemented
 
 **规则。** `packages/core/scripts/` 下**能在 CI 跑**的工具必须落成 `*.test.ts`；**不能跑**的（需要磁盘上的语料，或需要人工给输入文件）归语料所属项目，离开本仓库。语料画像永远只有一份实现。
 
-**迁入 `fcstd-port/tools/`**（12 个工具，import 改走公开子路径 `@faicad/faijs/fcstd`、`/fcstd-convert`、`/occt-kernel/*`、`/brep/*`、`/api/*`、`/node`）：`coverage-report`、`validate-sketch-solve`、`locate-l1-sketches`、`calibrate-t1`、`probe-m13-types`、`probe-offset2d-feasibility`、`probe-padtest-brp-bbox`、`probe-padtest-brp-volumes`、`probe-pad002-chain`、`probe-pad002-upto`、`probe-step-volume`、`verify-geometry`；第 13 个 `scan-fcstd-samples` 则直接删除——`fcstd-port/lib/profile.mjs` 已经报了它的每一个数字（对象类型、草图、几何、约束、失败数、非零退出码），而且口径更准：解析几何/约束列表，而不是读 XML 的 `count` 属性。
+**迁入 `fcstd-port/tools/`**（13 个工具，import 改走公开子路径 `@faicad/faijs/fcstd`、`/fcstd-convert`、`/occt-kernel/*`、`/brep/*`、`/api/*`、`/node`）：`coverage-report`、`validate-sketch-solve`、`locate-l1-sketches`、`calibrate-t1`、`probe-m13-types`、`probe-offset2d-feasibility`、`probe-padtest-brp-bbox`、`probe-padtest-brp-volumes`、`probe-pad002-chain`、`probe-pad002-upto`、`probe-step-volume`、`verify-geometry`、`probe-planegcs`；第 14 个 `scan-fcstd-samples` 则直接删除——`fcstd-port/lib/profile.mjs` 已经报了它的每一个数字（对象类型、草图、几何、约束、失败数、非零退出码），而且口径更准：解析几何/约束列表，而不是读 XML 的 `count` 属性。`probe-planegcs` 起初被漏下——它位于仓库根 `scripts/` 而非 `packages/core/scripts/`，所以归属清查的章节没覆盖到它；它虽不依赖语料，但同样是无法在 CI 跑的开发辅助工具，而且是清查后全仓最后一个直接 import `@salusoft89/planegcs` 的文件。
 
 **faijs 侧删除：**
 
@@ -48,4 +48,4 @@ Status: implemented
 - faijs `packages/core/scripts/` 只剩 9 个文件：`faijs-cli.ts` + 8 个 `gen-*.ts` 代码生成器（导出面/op 一致性门禁接线于此）。其余要么是测试，要么在 fcstd-port。
 - **`./fcstd-convert` 仅限 Node。** `planegcs-backend.ts` 经 `createRequire(import.meta.url)` 从 `node_modules` 定位求解器 wasm，`external-geo.ts` 还要 occt 内核（仍是 peerDependency）。主入口不引用它，故浏览器打包不受影响——但浏览器侧转换需要另一套 WASM 投递方式。
 - 公开面净增 1 个子路径（快照 12 个）与 9 个此前内部的运行时导出。`isWhitelisted` 也在其中：它定义翻译范围，语料覆盖率报表必须与被转换器实际执行的范围同源。
-- **验证证据**（均于 2026-09-20 实测）：`tsc -p tsconfig.build.json` exit 0；`api-surface-snapshot.mjs` 12/12 子路径可导入；`check-ghost-deps` / `check-layer-boundaries` / `check-workspaces-order` 全过（`@salusoft89/planegcs` 现在是显式依赖，幽灵依赖守卫是「按构造满足」而非豁免）；`createRuntimeWithCad.test.ts` 2/2；`src/fcstd` 121/121；`fcstd-e2e.test.ts` 2/2（真语料）。消费侧：`npm pack` → 在 `fcstd-port` 安装 tgz → `planegcs` 随包落地、`node_modules/.bin/faijs-fcstd-convert` 跑 PadTest 得 exit 0 且容器写出；对 12 个迁入工具 `tsc --noEmit` 针对已发布面 0 错误。
+- **验证证据**（均于 2026-09-20 实测）：`tsc -p tsconfig.build.json` exit 0；`api-surface-snapshot.mjs` 12/12 子路径可导入；`check-ghost-deps` / `check-layer-boundaries` / `check-workspaces-order` 全过（`@salusoft89/planegcs` 现在是显式依赖，幽灵依赖守卫是「按构造满足」而非豁免）；`createRuntimeWithCad.test.ts` 2/2；`src/fcstd` 121/121；`fcstd-e2e.test.ts` 2/2（真语料）。消费侧：`npm pack` → 在 `fcstd-port` 安装 tgz → `planegcs` 随包落地、`node_modules/.bin/faijs-fcstd-convert` 跑 PadTest 得 exit 0 且容器写出；对 13 个迁入工具 `tsc --noEmit` 针对已发布面 0 错误，`probe:planegcs` 实跑 exit 0，结果与原 M0 报告一致（`[10,20,50,20,50,50,10,50,40,30]`、最大误差 0）。

@@ -44,7 +44,7 @@ solved params: [10,20,50,20,50,50,10,50,40,30]
 max error vs analytic: 0.000e+0  (< 1e-6 出口判据 ✓)
 ```
 
-探针脚本：`scripts/probe-planegcs.ts`（可重跑）。
+探针脚本：`D:/Faicad/fcstd-port/tools/probe-planegcs.ts`（可重跑；2026-09-20 从 faijs `scripts/probe-planegcs.ts` 迁出，wasm 路径改由 `@faicad/faijs/fcstd-convert` 的 `planegcsWasmPath()` 提供）。
 
 ## M0.4 约束清单差异比对
 

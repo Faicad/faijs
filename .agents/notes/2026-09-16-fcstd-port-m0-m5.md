@@ -17,7 +17,7 @@
 
 全部在 `packages/core/src/fcstd/`：`unpack.ts`（M1.1）、`document.ts`（M1.2）、`container.ts`+`build-fai-zip.ts`（M2）、`sketch-parse.ts`（M3.1）、`sketch-solver.ts`+`planegcs-backend.ts`（M3.2–M3.4）、`sketch-verify.ts`（M3.5/D2/D3）、`contour.ts`（M3.6）、`feature-translate.ts`（M4）、`codegen.ts`（M5）。
 
-脚本：`packages/core/scripts/` 下 `scan-fcstd-samples.ts`（M1.3/1.4）、`validate-sketch-solve.ts`（V2）、`fcstd-to-fai-zip.ts`（端到端）、`probe-planegcs.ts`（M0）。
+脚本（2026-09-20 归属调整后）：CLI 为 `packages/core/src/fcstd/cli.ts`（端到端，`faijs-fcstd-convert`）；其余开发辅助/语料探针（`validate-sketch-solve.ts` V2、`probe-planegcs.ts` M0、`scan-fcstd-samples.ts` M1.3/1.4 已判重删除）已迁 `D:/Faicad/fcstd-port/tools/`——它们依赖外接 FCStd 语料，无法在 faijs CI 中跑。
 
 ## 遗留 / 后续
 
