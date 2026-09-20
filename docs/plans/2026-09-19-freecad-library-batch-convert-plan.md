@@ -18,6 +18,9 @@ packages/core/scripts/scan-fcstd-library.ts这样的文件明显是错误的。
 
 开发之前,必须读D:\Faicad\fcstd-port项目的代码. 
 
+还有一点要求, 未来如果测试的文档在fcstd-port项目, 那么测试的代码就写在fcstd-port项目.
+两个项目联合调试.
+
 
 拆解为约束：
 
@@ -116,26 +119,54 @@ packages/core/scripts/scan-fcstd-library.ts这样的文件明显是错误的。
 - 与既有 M7–M13 计划的关系：H1=M7、H3=M8、H4+H5=M9/M10、H6=M11、H7/M13.3+M13.1/M13.2=H7/H8 扩容版。**二阶段计划被本方案吸收并收紧**（其「显式烘焙 + reason」条款全部废止，替换为「实现它」）；
 - 白名单判定规则从「白名单外即回退」改为「白名单外即 FAIL」：`feature-translate.ts` 的未知类型分支从生成 baked 改为返回结构化错误，**禁止静默降级升级为禁止降级**。
 
-### 5.2 公开面：读层已落地，转换面待解依赖
+### 5.2 公开面：读层 + 转换面均已落地
 
 **已落地（2026-09-20）**：新增公开子路径 **`@faicad/faijs/fcstd`**（读层），导出 `unpackFcstd`/`memberText`/`parseDocumentXml`/`parseSketchObject`/`parseGeometryList`/`parseConstraintList`/`parseExpressionEngine`/`CONSTRAINT_NAMES` 及相关类型。实现要点：新增 `src/fcstd/index.ts` 桶文件；`tsconfig.build.json` 解除对 `src/fcstd` 的 exclude（实测该目录在构建配置下 **0 类型错误**，此前的排除只是 WIP 范围，不是类型问题）；`scripts/api-surface-snapshot.mjs` 的子路径表加入 `./fcstd` 并重生成快照（11 个子路径）。**读层不含 solver/occt 依赖**，故可被 fcstd-port 直接 `npm install <tgz>` 消费（profile 脚本即第一个消费者）。
 
-现有 `fcstd-convert-cli.ts` 是 scripts/ 下开发脚本，批量项目没法用。目标：随包发布的稳定 CLI。
+**已落地（2026-09-20，本轮）**：转换面 **`@faicad/faijs/fcstd-convert`** 公开，导出 `convertFcstdFile`/`ConvertSummary`/`SKETCH_T1`/`ALLOWED_DISPOSITIONS` + 求解器与分类器（`createPlanegcsSolver`/`planegcsWasmPath`/`classifySketch`/`maxPointDistance`/`resolveExternalGeometry`/`isWhitelisted`）。**清点：管线共有两份实现，已收敛为一份** —— `scripts/fcstd-to-fai-zip.ts`（无 C4 终检、无退出码契约）与 `scripts/fcstd-convert-cli.ts` 均已删除；唯一 CLI 收进 `src/fcstd/cli.ts`，`package.json` 声明 `bin: { "faijs-fcstd-convert": "./dist/fcstd/cli.js" }`，`fcstd:convert` 脚本指向 `tsx src/fcstd/cli.ts`。e2e 测试 `packages/tests/faijs/fcstd/fcstd-e2e.test.ts` 从旧 dev 脚本改指本 CLI，并按 C4 契约重定基线（PadTest preserved-only 3→7 = 结构性 baked 被审计改名；Crank/ProjectTest 由「写出容器」改为断言 **exit 2 + gap 列表 + 无产物**）。
 
-> **已知冗余（待拍板清理）**：`scripts/fcstd-to-fai-zip.ts`（M5.4 期的端到端 dev CLI，185 行）与 `src/fcstd/convert.ts` + `scripts/fcstd-convert-cli.ts` 是同一条管线的两份实现——前者缺 C4 终检、无退出码契约、stdout 直接打印模型代码。`convert.ts` 头部注释已声明自己「extracted from scripts/fcstd-to-fai-zip.ts」。建议删除并把 `packages/core/package.json` 的 `fcstd:convert` 指向 `fcstd-convert-cli.ts`。
+**依赖归属的实测结论（原 5.2 阻塞项已解）**：`planegcs` 是**转换能力**（L0 轮廓提取必须先求解）的硬依赖，而非 faijs 运行时草图能力的依赖——`cad.sketch` 吃的是已解算的轮廓（见 `api/extrude.ts` 的输入形态），因此不需要在浏览器侧引入 solver。结论：`@salusoft89/planegcs` 由 devDependencies **提为 dependencies**（1.2.0，含 wasm 共约 1MB，无传递依赖），occt-wasm 维持 peerDependency。已在消费侧实测：fcstd-port 经 tgz 安装后 `planegcs` 随包自动落地，`faijs-fcstd-convert` 直接可跑（PadTest → exit 0 + 3 草图 L0 + 容器写出）。
 
 | 项 | 要求 |
 |---|---|
-| 入口 | `@faicad/faijs` 新增 exports 子路径（如 `./fcstd-convert`），编译后 JS；`package.json` 声明 `bin` |
-| 契约 | `faijs-fcstd-convert <in.FCStd> <out.fai.zip>`；退出码：0=成功且 mapping 终检通过（无非 Python baked）、2=含翻译缺口（H 清单命中，产物不写出）、非 0=内部错误 |
-| 输出 | stdout 一行 JSON 摘要（对象计数、草图 L0 数、耗时、失败 reason）；stderr 零容忍 |
-| 隔离 | 单文件任何异常（ZIP 损坏、XML 失败、solver throw）捕获为结构化错误，绝不崩批量进程 |
+| 入口 | `@faicad/faijs` exports 子路径 `./fcstd-convert`（编译后 JS）+ `bin: faijs-fcstd-convert` ✅ 已落地 |
+| 契约 | `faijs-fcstd-convert <in.FCStd> <out.fai.zip>`；退出码：0=成功且 mapping 终检通过（无非 Python baked）、2=含翻译缺口（H 清单命中，产物不写出）、1=内部错误 ✅ 已落地 |
+| 输出 | stdout 一行 JSON 摘要（对象计数、草图 L0 数、耗时、失败 reason）；stderr 零成功路径零输出 ✅ 已落地 |
+| 隔离 | 单文件任何异常（ZIP 损坏、XML 失败、solver throw）捕获为结构化错误，绝不崩批量进程 ✅ `convert.ts` 返回结构化 summary；批量驱动的「逐文件隔离 + 断点」在 B2 |
 
-> **⚠️ 转换面导出前的阻塞项（实测发现）**：全链路入口 `convert.ts` 依赖 `@salusoft89/planegcs`（当前在 **devDependencies**）与 occt 内核（`external-geo.ts` → `occt-kernel/occtKernel.js`，occt-wasm 是 **peerDependency**）。若原样导出 `./fcstd-convert`，消费方装不上 solver；须先决定：把 planegcs 提升为 dependencies，或让 CLI 自带 wasm 资产/在启动时校验并给出可操作报错。此项并入 B0。
 
 ### 5.3 版本发布
 
 本项目禁发 npm：批量项目经 `npm run pack` 产出的 tgz 安装（`npm install ../faijs/faicad-faijs-<ver>.tgz`），报表记录 faijs 版本。严禁 `npm link` / junction。
+
+### 5.4 脚本归属：faijs 只留「能力 + 自动测试」（2026-09-20 落地）
+
+**判定规则（本轮确定）**：`packages/core/scripts/` 下的脚本，凡是**能在 CI 跑**的，应当落成 `*.test.ts`（自动测试代码留在 faijs）；**不能在 CI 跑**的（依赖语料在磁盘、依赖人工给输入文件），连同 FreeCAD-library 相关分析代码，全部迁出到 fcstd-port。语料画像必须只有一份实现。
+
+faijs 侧现存脚本只剩两类：`faijs-cli.ts`（运行时 CLI，被测试调用）与 8 个 `gen-*.ts` 代码生成器（被 `gen:surface:check` / op 一致性门禁接线）。迁出清单（→ `fcstd-port/tools/`，import 改走公开子路径）：
+
+| 迁出 | 说明 |
+|---|---|
+| `coverage-report.ts` | V5 翻译覆盖率（按对象类型 × 白名单） |
+| `validate-sketch-solve.ts` | 全语料草图求解扫描 L0/L1/L2 |
+| `locate-l1-sketches.ts` | L1 草图定位（含约束类型明细） |
+| `calibrate-t1.ts` | T1 容差标定（delta 分布 P50/P90/P99/max） |
+| `probe-m13-types.ts` / `probe-offset2d-feasibility.ts` | M13 候选类型属性形态 / Offset2D 可行性 |
+| `probe-padtest-brp-bbox.ts` / `probe-padtest-brp-volumes.ts` | PadTest 各特征 `.brp` 真值 bbox / 体积 |
+| `probe-pad002-chain.ts` / `probe-pad002-upto.ts` | Pad002 子链路 up-to 体积复现 |
+| `probe-step-volume.ts` / `verify-geometry.ts` | STEP 网格体积 / V6 保真度（FCStd Tip vs 回导 STEP） |
+
+同步删除（不留重复实现）：
+
+| 删除 | 依据 |
+|---|---|
+| `scan-fcstd-samples.ts` | 与 `fcstd-port/lib/profile.mjs` 完全重叠，且计数口径更差（读 XML `count` 属性而非解析列表） |
+| `probe-upto-circle.ts` | 唯一用例（圆形草图 upTo 斜平面）已被 `src/api/extrude-upto.test.ts` 覆盖，常量逐字相同 |
+| `smoke-cad-builtin.ts` | 检查项不需要语料 → 按规则转成自动测试：新增 `src/cad-runtime/createRuntimeWithCad.test.ts`（D1 此前**零测试覆盖**，而它是已发布契约） |
+| `fcstd-to-fai-zip.ts` + `fcstd-convert-cli.ts` | 同一条管线的两份实现，收敛为 `src/fcstd/cli.ts`（见 §5.2） |
+
+`packages/core/package.json` 的 `fcstd:scan` / `fcstd:validate` 随脚本删除；`fcstd:convert` 改指 `tsx src/fcstd/cli.ts`。历史 plans（09-17 / 09-18）里出现的旧路径以 `fcstd-port/tools/README.md` 的对照表为准。
+
 
 ---
 

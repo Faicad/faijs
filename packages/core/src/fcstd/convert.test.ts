@@ -1,7 +1,7 @@
 /**
  * B0 — convertFcstdFile contract tests (the reusable pipeline behind
- * scripts/fcstd-convert-cli.ts). Locks the C4 final check and the exit-code
- * inputs the batch driver relies on:
+ * `src/fcstd/cli.ts`, published as `./fcstd-convert`). Locks the C4 final check
+ * and the exit-code inputs the batch driver relies on:
  *   ok=true  → mapping contains only translated / python-baked / preserved-only
  *   ok=false → gaps[] names every non-Python baked object, zip NOT produced
  *   internal error (not a zip) → error set, no throw

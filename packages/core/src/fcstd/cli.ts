@@ -1,5 +1,6 @@
+#!/usr/bin/env node
 /**
- * fcstd-port B0 — batch CLI: .FCStd → .fai.zip with machine contract.
+ * fcstd CLI — batch driver entry: .FCStd → .fai.zip with a machine contract.
  *
  * Exit codes (plan §5.2):
  *   0 = converted; mapping final check passed (only translated /
@@ -10,15 +11,16 @@
  * stdout: exactly one JSON line (the summary). Human chatter is forbidden on
  * stdout; diagnostics go to stderr (which must stay empty on success).
  *
- * Run: node --import tsx packages/core/scripts/fcstd-convert-cli.ts <in.FCStd> [out.fai.zip]
+ * Run (published):  faijs-fcstd-convert <in.FCStd> [out.fai.zip]
+ * Run (in-repo):    npm run fcstd:convert -w @faicad/faijs -- <in.FCStd> [out.fai.zip]
  * With no <out>, acts as a dry audit (no file written).
  */
 import { writeFileSync } from 'node:fs';
-import { convertFcstdFile } from '../src/fcstd/convert.ts';
+import { convertFcstdFile } from './convert.js';
 
 const [input, output] = process.argv.slice(2);
 if (!input) {
-  console.error('usage: fcstd-convert-cli <in.FCStd> [out.fai.zip]');
+  console.error('usage: faijs-fcstd-convert <in.FCStd> [out.fai.zip]');
   process.exit(1);
 }
 

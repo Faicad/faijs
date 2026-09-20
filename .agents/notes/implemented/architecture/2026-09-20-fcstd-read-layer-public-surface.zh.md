@@ -32,5 +32,5 @@ Status: implemented
 
 - 数字**有意**变化，方案已同步：表达式改按**绑定条数**计（17,166 条，其中非常量 16,277 条 = 94.8%），而非「携带 engine 的对象数」（旧的 38,015 / 43% 把空 engine 也算进去了）；XLink 为 1,159 处 / 15 文件 / **跨文档 0**，故 H9 降级为非阻塞，`App::Link*`（149 个对象，文档内链接语义）移入 P2 排序。
 - 消费方无需安装求解器即可画像/检查 FCStd：读层只依赖 `fflate` 与 `@xmldom/xmldom`。
-- **转换**入口仍不可导出：`convert.ts` 拉 `@salusoft89/planegcs`（当前是 devDependency），`external-geo.ts` 拉 occt 内核。发布 `./fcstd-convert` 前必须先定这个依赖归属，已作为 B0 阻塞项写进方案。
+- **转换**入口当时不可导出：`convert.ts` 拉 `@salusoft89/planegcs`（当时是 devDependency），`external-geo.ts` 拉 occt 内核。**2026-09-20 已解** —— `planegcs` 现为 `dependencies`，`./fcstd-convert` 与 `faijs-fcstd-convert` 均已发布；详见 Agent Note `2026-09-20-script-ownership-and-fcstd-convert-surface`。
 - `@faicad/faijs/fcstd` 是新的公开子路径：此后读层的任何改动都是 API 变更，且改导出面后必须先建 dist 再重生成快照。

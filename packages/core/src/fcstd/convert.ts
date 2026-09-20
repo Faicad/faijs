@@ -1,8 +1,13 @@
 /**
- * fcstd-port B0 — reusable FCStd → .fai.zip conversion (extracted from
- * scripts/fcstd-to-fai-zip.ts so the batch CLI and the dev script share one
- * pipeline). Returns a structured summary; the caller decides exit codes and
- * output formatting (C4: batch driver must never absorb failures).
+ * B0 — THE FCStd → .fai.zip conversion pipeline (batch CLI and tests share it;
+ * `src/fcstd/cli.ts` is its only CLI). Returns a structured summary; the caller
+ * decides exit codes and output formatting (C4: batch driver must never absorb
+ * failures).
+ *
+ * 2026-09-20: the M5.4-era dev script `scripts/fcstd-to-fai-zip.ts` was a second
+ * implementation of this same pipeline (no C4 audit, no exit-code contract) and
+ * has been deleted. Whether the conversion entry is published or not, this file
+ * is the single implementation.
  *
  * Dispositions (plan §2, C4): translated | python-baked | preserved-only.
  * Any other baked reason = translation gap → result.ok = false, no zip
@@ -29,6 +34,25 @@ export const SKETCH_T1 = 1e-6;
 /** Dispositions allowed in a conforming container (C4). */
 export const ALLOWED_DISPOSITIONS = new Set(['translated', 'python-baked', 'preserved-only']);
 
+/**
+ * Optional knobs for `convertFcstdFile`.
+ */
+export interface ConvertOptions {
+  /**
+   * Return the container bytes even when the mapping audit reports gaps.
+   *
+   * Diagnostics only. C4 requires that a gapped document produces **no
+   * product**, and the CLI never sets this — `ok` stays false and the exit
+   * code stays 2 regardless. It exists because everything the pipeline built
+   * before the audit is otherwise unobservable for exactly the documents that
+   * need triage: gaps and non-L0 sketches usually co-occur (a sketch the
+   * solver cannot handle usually starves the features built on it), so
+   * "which contour assets / mapping entries would this document have had"
+   * cannot be answered from `gaps[]` alone.
+   */
+  keepGappedContainer?: boolean;
+}
+
 /** Structured result of one FCStd → .fai.zip conversion; the caller decides exit codes and formatting. */
 export interface ConvertSummary {
   /** input file path */
@@ -39,7 +63,7 @@ export interface ConvertSummary {
   gaps: { name: string; type: string; reason: string }[];
   counts: { translated: number; pythonBaked: number; preservedOnly: number; baked: number };
   sketches: { total: number; l0: number; l1: number; l2: number };
-  /** container bytes (undefined when ok=false: no zip produced) */
+  /** container bytes (undefined when ok=false, unless `keepGappedContainer`) */
   zip?: Uint8Array;
   /** human-readable failure when the pipeline itself failed */
   error?: string;
@@ -86,9 +110,10 @@ function auditMapping(
  * Convert one FCStd file through the full pipeline (unpack → parse → sketch
  * solving → codegen → container build) and return a structured summary.
  * @param input path to the .FCStd file to convert
- * @returns a summary with ok=false (no zip) on any pipeline failure or translation gap
+ * @param opts optional knobs (see {@link ConvertOptions}); defaults keep the C4 contract
+ * @returns a summary with ok=false (and no zip, unless `keepGappedContainer`) on any pipeline failure or translation gap
  */
-export async function convertFcstdFile(input: string): Promise<ConvertSummary> {
+export async function convertFcstdFile(input: string, opts?: ConvertOptions): Promise<ConvertSummary> {
   const t0 = Date.now();
   const baseName = input.replace(/^.*[/\\]/, '').replace(/\.fcstd$/i, '');
   const fail = (error: string): ConvertSummary => ({
@@ -234,8 +259,13 @@ export async function convertFcstdFile(input: string): Promise<ConvertSummary> {
   for (const v of sketchVerdict.values()) sketches[v.level.toLowerCase() as 'l0' | 'l1' | 'l2']++;
 
   if (gaps.length > 0) {
-    // C4: translation gaps → no container produced (exit contract: 2)
-    return { file: input, ok: false, gaps, counts, sketches, elapsedMs: Date.now() - t0 };
+    // C4: translation gaps → no container produced (exit contract: 2).
+    // `keepGappedContainer` is a diagnostics-only escape hatch (see ConvertOptions).
+    if (!opts?.keepGappedContainer) {
+      return { file: input, ok: false, gaps, counts, sketches, elapsedMs: Date.now() - t0 };
+    }
+    const gappedZip = zipSync(members, { level: 6 });
+    return { file: input, ok: false, gaps, counts, sketches, zip: gappedZip, elapsedMs: Date.now() - t0 };
   }
 
   const zip = zipSync(members, { level: 6 });

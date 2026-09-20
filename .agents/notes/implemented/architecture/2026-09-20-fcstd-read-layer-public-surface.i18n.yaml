@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-20-fcstd-read-layer-public-surface.md
-2026-09-20-fcstd-read-layer-public-surface.md: 828b7f91487b95f1dac5619789b44f2ff28754f4
-2026-09-20-fcstd-read-layer-public-surface.zh.md: 7d843732ab90a5f9818597a5fde29b220336ba2d
+2026-09-20-fcstd-read-layer-public-surface.md: 94f516b8ab108087238b9d0e9abf339f7f2569c4
+2026-09-20-fcstd-read-layer-public-surface.zh.md: bc7886791bb52b40b198a74c9c06420f9b3d9b0d

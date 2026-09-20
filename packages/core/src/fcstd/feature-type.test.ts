@@ -163,7 +163,7 @@ describe('M11 expression bindings', () => {
 });
 
 // M13.1 — whitelist extensions probed on the real corpus
-// (scripts/probe-m13-types.ts): Part::Compound (Links list → cad.group),
+// (fcstd-port/tools/probe-m13-types.ts): Part::Compound (Links list → cad.group),
 // Part::Sphere (Radius → cad.sphere).
 describe('M13 whitelist extensions', () => {
   function withLinkList(type: string, name: string, prop: string, members: string[]): FcstdObject {

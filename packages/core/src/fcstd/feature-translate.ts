@@ -87,7 +87,7 @@ const WHITELIST = new Set([
   'PartDesign::PolarPattern',
   'PartDesign::Fillet',
   'PartDesign::Chamfer',
-  // M13.1 (probed on real corpus — scripts/probe-m13-types.ts):
+  // M13.1 (probed on real corpus — fcstd-port/tools/probe-m13-types.ts):
   // Part::Compound carries a Links PropertyLinkList; Part::Sphere carries
   // Radius (+ optional Angle like Cylinder).
   'Part::Compound',

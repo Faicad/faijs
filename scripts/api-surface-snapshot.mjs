@@ -14,7 +14,7 @@ import { writeFileSync } from 'node:fs'
 // core package.json exports 的键（P6 起取消 ./stdlib 子路径；D2-A 起 facade
 // 折入 core；2026-09-20 新增 ./fcstd 读层）。漏一个 = 迁移后消费方 import 断
 const SUBPATHS = [
-  '.', './browser', './csg', './sdf', './node', './fcstd',
+  '.', './browser', './csg', './sdf', './node', './fcstd', './fcstd-convert',
   './faqts', './faqts/node', './faqts/browser', './module-resolver', './sdk',
 ]
 

@@ -1112,6 +1112,17 @@
     "parseSketchObject",
     "unpackFcstd"
   ],
+  "./fcstd-convert": [
+    "ALLOWED_DISPOSITIONS",
+    "SKETCH_T1",
+    "classifySketch",
+    "convertFcstdFile",
+    "createPlanegcsSolver",
+    "isWhitelisted",
+    "maxPointDistance",
+    "planegcsWasmPath",
+    "resolveExternalGeometry"
+  ],
   "./faqts": [
     "findImports",
     "rewriteImports",

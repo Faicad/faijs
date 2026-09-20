@@ -9,6 +9,9 @@
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "faijs-fcstd-convert": "./dist/fcstd/cli.js"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -45,6 +48,10 @@
     "./fcstd": {
       "types": "./dist/fcstd/index.d.ts",
       "default": "./dist/fcstd/index.js"
+    },
+    "./fcstd-convert": {
+      "types": "./dist/fcstd-convert.d.ts",
+      "default": "./dist/fcstd-convert.js"
     },
     "./node": {
       "types": "./dist/node.d.ts",
@@ -129,6 +136,7 @@
     "LICENSE"
   ],
   "dependencies": {
+    "@salusoft89/planegcs": "1.2.0",
     "@xmldom/xmldom": "^0.9.8",
     "acorn": "^8.18.0",
     "fflate": "^0.8.2",
@@ -142,7 +150,6 @@
     "occt-wasm": "^3.8.4"
   },
   "devDependencies": {
-    "@salusoft89/planegcs": "1.2.0",
     "typescript": "*",
     "vitest": "*"
   },
@@ -151,8 +158,6 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "lint": "eslint src",
-    "fcstd:scan": "tsx scripts/scan-fcstd-samples.ts",
-    "fcstd:validate": "tsx scripts/validate-sketch-solve.ts",
-    "fcstd:convert": "tsx scripts/fcstd-to-fai-zip.ts"
+    "fcstd:convert": "tsx src/fcstd/cli.ts"
   }
 }
