@@ -73,6 +73,9 @@ packages/core/scripts/scan-fcstd-library.ts这样的文件明显是错误的。
 
 ### 3.2 56 样本实测失败分布（`D:/Faicad/FreeCAD` 源码树，ok=9 / gap=47）
 
+> **✅ H10 接线后复测（2026-09-20，`fcstd-port/out/sweep-report.json`）**：**ok 9→22、gap 47→34**，Python 型 gap **清零**（34 个含 Python 文件全部转出）。首因分布变为：`type-not-whitelisted` 14（原 30，几乎全剩 `Part::Feature` 等 H7 范畴）、`sketch-not-solved` 13、`pocket-missing-dependency` 2、其余 5 类各 1。头部 gap 类型变为 `Part::Feature` 21 / `revolution-missing-profile` 11 / `Fem::ConstraintFixed` 5——H7 的 Part 工作台特征系是下一个大头。V-C3 复核：22 个 ok 产物 `cliCheck` 失败 0。
+> （下表为 H10 接线前的原始基线，保留供对照。）
+
 口径：`out/sweep-report.json`（`fcstd-port/out/`，gitignore，重跑即得）。**注意：每文件只记录前 4 条 gap reason**，故下表「次数」是下界。
 
 | gap reason | 次数 | 涉及文件 | 归属 |
