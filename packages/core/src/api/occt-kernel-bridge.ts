@@ -26,6 +26,8 @@ import {
   getActiveKernelId,
   getKernel as getVendoredKernel,
   registerKernel,
+  syncRegistryFromGlobal,
+  syncRegistryToGlobal,
 } from '../vendored/brepjs/kernel/index.js'
 import type { KernelAdapter } from '../vendored/brepjs/kernel/types.js'
 
@@ -42,6 +44,11 @@ let _bound = false
  * @returns the registered kernel adapter.
  */
 export function bindOcctKernel(): KernelAdapter {
+  // Check the SHARED registry first (globalThis singleton): a CDN-bundled faijs
+  // instance has its own module-level `_bound = false`, but the host bundle may
+  // already have registered+bound 'occt-wasm'. Re-registering would throw
+  // "registry frozen" — treat an existing binding as bound instead.
+  syncRegistryFromGlobal();
   if (_bound) return getVendoredKernel('occt-wasm')
 
   const faijsKernel = getFaijsKernel() as unknown as OcctKernelOwner
@@ -49,6 +56,7 @@ export function bindOcctKernel(): KernelAdapter {
   registerKernel('occt-wasm', adapter)
   freezeKernels()
   _bound = true
+  syncRegistryToGlobal()
   return adapter
 }
 

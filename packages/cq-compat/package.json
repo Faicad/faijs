@@ -1,6 +1,6 @@
 {
   "name": "@faicad/cq-compat",
-  "version": "0.13.0",
+  "version": "0.13.1",
   "type": "module",
   "license": "MIT",
   "repository": {
@@ -19,8 +19,14 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
-    "./browser": { "types": "./dist/browser.d.ts", "default": "./dist/browser.js" }
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./browser": {
+      "types": "./dist/browser.d.ts",
+      "default": "./dist/browser.js"
+    }
   },
   "files": [
     "dist"

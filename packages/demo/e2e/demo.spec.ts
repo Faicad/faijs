@@ -167,7 +167,7 @@ test.describe('faijs demo', () => {
     await waitForStatusOk(page)
 
     await page.locator(SELECTOR.exampleSelect).selectOption('gear-demo')
-    await expect(page.locator(SELECTOR.editor)).toHaveValue(/import \* as gear from 'gear-lib-demo'/)
+    await expect(page.locator(SELECTOR.editor)).toHaveValue(/import \* as gear from '@faicad\/gear-lib-demo'/)
     // import specifier + packageName 严格一致 → autoLoadlibs 在 execute 阶段装载 'gear' 绑定
     await waitForStatusOk(page)
     const status = await page.locator(SELECTOR.statusBar).textContent()
@@ -193,7 +193,7 @@ test.describe('faijs demo', () => {
     await waitForStatusOk(page)
 
     await page.locator(SELECTOR.exampleSelect).selectOption('sheetmetal-demo')
-    await expect(page.locator(SELECTOR.editor)).toHaveValue(/import \* as sm from 'sheetmetal'/)
+    await expect(page.locator(SELECTOR.editor)).toHaveValue(/import \* as sm from '@faicad\/sheetmetal'/)
     await waitForStatusOk(page)
     const status = await page.locator(SELECTOR.statusBar).textContent()
     // sm.author + sm.solidOf → solidOf 终端 1 个

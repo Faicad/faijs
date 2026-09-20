@@ -40,23 +40,20 @@ import { asPartName } from '../identity'
 import { projectView, projectSheet } from '../api/view'
 import type { ViewSpec } from '../api/view/view-camera'
 
-// ── P 四（4.4）：Node CLI 自动装载白名单 ──
-// 脚本 import 的第三方包默认不从网络解析；仅白名单内的包可按需动态装载
-// （monorepo workspace symlink 直接把裸包解析到包源码，无需 URL 构造）。
-// 注意：脚本 specifier（如 'gear-lib-demo'）经 derivePackageName 无 '@' 前缀，
-// 与 CLI 装载的真实包名（'@faicad/gear-lib-demo'）不同——白名单按真实包名登记，
-// 同时收录该包名的短 specifier 别名，loadLib 一律归一到真实包名再 import。
-const CLI_ALLOWED_LIBS = new Set(['@faicad/gear-lib-demo', '@faicad/sheetmetal', '@faicad/cq-compat', '@faicad/fai-cq-gears'])
-/** specifier → 真实包名 归一映射（短名与完整 scoped 名都登记为可装载）。 */
-const CLI_LIB_ALIASES: Record<string, string> = {
-  '@faicad/gear-lib-demo': '@faicad/gear-lib-demo',
+// ── P 四（4.4）：Node CLI 自动装载（D3-Node，§9.4）──
+// 脚本 import 的第三方库按 specifier 动态解析，host 不再写死任何包清单：
+// - scoped 包名（`@faicad/...`）直接动态 import；
+// - 短名（如 `gear-lib-demo`）先归一为 scoped 全名再装载（避免误装同名陌生人包）。
+// 包未安装 → 动态 import 抛 ERR_MODULE_NOT_FOUND，由 runtime 报明确装载失败信息。
+/** scoped 包名前缀：CLI 允许动态装载的库范围。 */
+const CLI_SCOPED_PREFIX = '@faicad/'
+/** 已登记短名 → scoped 全名归一表（仅收录 `@faicad/` 范围内的库，防同名陌生人包）。 */
+const CLI_SHORT_NAMES: Record<string, string> = {
   'gear-lib-demo': '@faicad/gear-lib-demo',
-  '@faicad/sheetmetal': '@faicad/sheetmetal',
   'sheetmetal': '@faicad/sheetmetal',
-  '@faicad/cq-compat': '@faicad/cq-compat',
   'cq-compat': '@faicad/cq-compat',
-  '@faicad/fai-cq-gears': '@faicad/fai-cq-gears',
   'fai-cq-gears': '@faicad/fai-cq-gears',
+  'fai-cq-warehouse': '@faicad/fai-cq-warehouse',
 }
 
 /**
@@ -78,21 +75,26 @@ function readLibAutoLift(pkg: string): boolean | undefined {
   }
 }
 
+/** specifier → scoped 全名归一：scoped 名原样，已登记短名映射，其余原样交 import 解析。 */
+function normalizeCliSpecifier(name: string): string {
+  return CLI_SHORT_NAMES[name] ?? name
+}
+
 const cliPortsLibLoader: LibLoader = {
   loadLib: async (name) => {
-    const pkg = CLI_LIB_ALIASES[name]
-    if (!pkg || !CLI_ALLOWED_LIBS.has(pkg)) {
-      throw new Error(`package "${name}" is not in the CLI library whitelist`)
+    const pkg = normalizeCliSpecifier(name)
+    if (!pkg.startsWith(CLI_SCOPED_PREFIX)) {
+      throw new Error(`package "${name}" is not a scoped @faicad/ library`)
     }
     return (await import(pkg)) as StdlibNamespace
   },
-  listLibs: () => Object.keys(CLI_LIB_ALIASES),
+  listLibs: () => [...Object.keys(CLI_SHORT_NAMES), '@faicad/'],
   // 默认不提升（与历史 CLI 行为一致）；各库用 package.json "faijs.autoLift" 逐库覆盖。
   options: {
     autoLift: false,
     autoLiftFor: (name) => {
-      const pkg = CLI_LIB_ALIASES[name]
-      return pkg ? readLibAutoLift(pkg) : undefined
+      const pkg = normalizeCliSpecifier(name)
+      return pkg.startsWith(CLI_SCOPED_PREFIX) ? readLibAutoLift(pkg) : undefined
     },
   },
 }

@@ -15,7 +15,7 @@
  *
  * 别名归一：脚本 specifier 常是短名（demo 的 `.fai.js` 写 `gear-lib-demo` /
  * `sheetmetal`），而 CDN 上是 npm 全名（`@faicad/gear-lib-demo`）。`aliases` 把
- * specifier 映到包名后再装载，与 node 侧 `CLI_LIB_ALIASES` 同一职责。
+ * specifier 映到包名后再装载，与 node 侧 `CLI_SHORT_NAMES` 归一同一职责。
  *
  * `autoLiftFor` 是**同步**回调（`runtime.ts` 在装载后立即取值），所以逐库
  * `faijs.autoLift` 必须**预先**可用：主机从构建期产物 `lib-meta.json`

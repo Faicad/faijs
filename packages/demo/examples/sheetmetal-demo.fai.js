@@ -1,4 +1,4 @@
-import * as sm from 'sheetmetal'
+import * as sm from '@faicad/sheetmetal'
 
 let part = sm.author({
   thickness: 1,

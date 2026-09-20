@@ -66,10 +66,56 @@ export type { Kernel2DCapability } from './kernel2dTypes.js';
 export type { KernelCapabilities } from './capabilities.js';
 export { supportsKernel2D, supportsProjection, supportsConstraintSketch };
 
+// Kernel registry lives on globalThis (same pattern as runtime-state
+// '__FAICAD_FAIJS_RUNTIME__'): a CDN-bundled faijs subpath (e.g.
+// `/npm/@faicad/faijs@x/brepjs-compat/+esm`) is a SEPARATE module instance from
+// the host bundle, so module-level `const _kernels` would give the CDN copy an
+// empty registry even though the host already bound occt-wasm — every BREP op
+// then fails with "kernel not initialized". Sharing via globalThis keeps one
+// registry across all faijs instances (D10 single-instance holds: all copies
+// see the same occt-wasm adapter).
+const GLOBAL_KEY = '__FAICAD_FAIJS_KERNEL_REGISTRY__';
+type KernelRegistryState = {
+  stateVersion: 1;
+  kernels: Map<string, KernelAdapter>;
+  defaultKernelId: string | null;
+  cachedDefault: KernelAdapter | null;
+  frozen: boolean;
+};
+function registryState(): KernelRegistryState {
+  const g = globalThis as unknown as Record<string, KernelRegistryState | undefined>;
+  let st = g[GLOBAL_KEY];
+  if (!st) {
+    st = { stateVersion: 1, kernels: new Map<string, KernelAdapter>(), defaultKernelId: null, cachedDefault: null, frozen: false };
+    g[GLOBAL_KEY] = st;
+  } else if (st.stateVersion !== 1) {
+    throw new Error(`[faijs] kernel registry state version mismatch: loaded=${st.stateVersion}, expected=1`);
+  }
+  return st;
+}
 const _kernels = new Map<string, KernelAdapter>();
 let _defaultKernelId: string | null = null;
 let _cachedDefault: KernelAdapter | null = null;
 let _frozen = false;
+
+// Sync pass-through accessors over the global registry state. Every exported
+// function calls syncFromGlobal() first so a host-bundle bind is visible to a
+// CDN subpath instance and vice versa; mutations call syncToGlobal().
+function syncFromGlobal(): void {
+  const st = registryState();
+  _kernels.clear();
+  for (const [k, v] of st.kernels) _kernels.set(k, v);
+  _defaultKernelId = st.defaultKernelId;
+  _cachedDefault = st.cachedDefault;
+  _frozen = st.frozen;
+}
+function syncToGlobal(): void {
+  const st = registryState();
+  st.kernels = new Map(_kernels);
+  st.defaultKernelId = _defaultKernelId;
+  st.cachedDefault = _cachedDefault;
+  st.frozen = _frozen;
+}
 
 /**
  * Freeze the kernel registry (D10 冻结，同 `freezeEngineRegistries` 时机）。
@@ -77,7 +123,9 @@ let _frozen = false;
  * `registerKernel` throws.
  */
 export function freezeKernels(): void {
+  syncFromGlobal();
   _frozen = true;
+  syncToGlobal();
 }
 
 /**
@@ -86,6 +134,7 @@ export function freezeKernels(): void {
  * @throws If the registry is frozen (post-assembly, D10).
  */
 export function registerKernel(id: string, adapter: KernelAdapter): void {
+  syncFromGlobal();
   if (_frozen) {
     throw new Error(
       `faijs kernel registry frozen — cannot register '${id}' after assembly (D10)`
@@ -94,6 +143,7 @@ export function registerKernel(id: string, adapter: KernelAdapter): void {
   _kernels.set(id, adapter);
   if (_defaultKernelId === null) _defaultKernelId = id;
   if (id === _defaultKernelId) _cachedDefault = adapter;
+  syncToGlobal();
 }
 
 /**
@@ -103,6 +153,7 @@ export function registerKernel(id: string, adapter: KernelAdapter): void {
  *         (D10: bound by the faijs host at assembly, then frozen).
  */
 export function getKernel(id?: string): KernelAdapter {
+  syncFromGlobal();
   if (!id && _cachedDefault) return _cachedDefault;
   const targetId = id ?? _defaultKernelId;
   if (!targetId) {
@@ -136,7 +187,20 @@ export function getKernelCapabilities(id?: string): KernelCapabilities {
 
 /** Return the id of the currently active default kernel, or `null` if none. */
 export function getActiveKernelId(): string | null {
+  syncFromGlobal();
   return _defaultKernelId;
+}
+
+/**
+ * Cross-instance sync hooks (globalThis registry singleton): exported for the
+ * L3 bridge (`api/occt-kernel-bridge.ts`) so a CDN-bundled faijs instance with
+ * its own module-level `_bound = false` can observe a host-bundle binding.
+ */
+export function syncRegistryFromGlobal(): void {
+  syncFromGlobal();
+}
+export function syncRegistryToGlobal(): void {
+  syncToGlobal();
 }
 
 /** Current tessellation quality tier. */

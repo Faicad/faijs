@@ -23,56 +23,87 @@ import { pickProjectDirectory, type PickedDirectory } from './src/project/pick'
 import type { DemoProjectLoader } from './src/project/types'
 import { OcctKernel as OcctKernelValue } from 'occt-wasm'
 import fontUrl from './assets/fonts/OpenSans-Regular.ttf?url'
-// P 四（4.4）：gear-lib-demo 静态引用——供 LIB_MODULES 映射表引用 + 打包。
-// Vite/Rollup 对变量参数 import(packageName) 做不了静态分析，必须静态字面量。
-import * as gearLib from '@faicad/gear-lib-demo'
-import * as sheetmetalLib from '@faicad/sheetmetal'
-// cq-compat 经浏览器入口（/browser，不含 node:fs 的 STEP/装配比对工具）静态引用，
-// 供 LIB_MODULES 映射表引用 + 打包——脚本 specifier '@faicad/cq-compat' 与 key 严格一致。
-import * as cqCompatLib from '@faicad/cq-compat/browser'
-// D3-autoLift 外置（§9.4）：逐库 autoLift 约定读自各库自身 package.json 的
-// "faijs.autoLift" 字段，不再 host 写死判定。用相对路径 import 以避开 @faicad/* 的 Vite alias
-// （alias 会把 '@faicad/x/package.json' 误改写为源码路径）。
-import gearPkg from '../gear-lib-demo/package.json' with { type: 'json' }
-import sheetmetalPkg from '../sheetmetal/package.json' with { type: 'json' }
-import cqCompatPkg from '../cq-compat/package.json' with { type: 'json' }
+// ── 浏览器 libLoader（D3-Browser 方案 B：CDN 动态装载） ──
+// 库包不经 host 静态打包，运行时从 jsDelivr CDN 拉 +esm ESM 构建（CDN_BASE 已在
+// 发布计划 §9.4/Q8 拍板）。`.fai.js` 可 import 任何 `@faicad/*` 包名——包括 host
+// 从未见过的未知新包；CDN 上不存在的包在装载阶段显式报错（不静默、不回退）。
+const CDN_BASE = 'https://cdn.jsdelivr.net/npm/'
+/** 允许 CDN 装载的 scope：非 `@faicad/*` 的 specifier 一律拒绝（防任意包加载）。 */
+const DEMO_SCOPED_PREFIX = '@faicad/'
 
-// ── 浏览器 libLoader（自动装载注册表） ──
-// key 必须与 registerLib 的 packageName（即脚本 import specifier）严格一致：
-// demo 走自动加载主链路，gear-demo 只有 specifier 与 key 完全一致才能运行；
-// 不一致 → 自动装载失败 → 显式报错（正是本方案根治的「名字不符却能跑」bug 形态）。
-// value 必须是静态字面量 specifier，Vite/Rollup 才能静态分析打包。
-const LIB_MODULES: Record<string, () => Promise<StdlibNamespace>> = {
-  // 静态 import * as gearLib 已引用并参与打包；此处返回同一命名空间。
-  // 断言：gear 包 exports 形状满足 StdlibNamespace（加载后由 libLoader 契约收口）。
-  'gear-lib-demo': async () => gearLib as unknown as StdlibNamespace,
-  // sheetmetal：与 gear-lib-demo 同理，静态 import 参与打包，运行时返回命名空间。
-  'sheetmetal': async () => sheetmetalLib as unknown as StdlibNamespace,
-  // cq-compat：key 为脚本 import specifier 全名 '@faicad/cq-compat'（外部项目
-  // .fai.js 即按此书写）；浏览器入口不含 node:fs，可静态打包。
-  '@faicad/cq-compat': async () => cqCompatLib as unknown as StdlibNamespace,
+// CDN 库包（如 sheetmetal）的 peer 依赖由 jsDelivr 打包时解析为 CDN 上另一份
+// @faicad/faijs——与 demo 本地（源码/dist）那份 faijs 是两个模块实例。occt 内核
+// init 只绑在本地份上，CDN 份第一次跑 BREP op 会报 "faijs kernel not initialized"。
+// 因此首次 CDN 装载成功后，把 init/wasm 挂点同步绑到 CDN 份（其 +esm 导出同名函数）。
+type CdnFaijsBindings = {
+  setOcctWasmInitFn: (fn: () => Promise<never>) => void
+  setManifoldWasmUrl: (url: string) => void
+}
+let cdnFaijsBound = false
+async function bindKernelToCdnFaijs(): Promise<void> {
+  if (cdnFaijsBound) return
+  cdnFaijsBound = true // 单飞：并发装载只绑一次；失败允许重试
+  const faijsUrl = `${CDN_BASE}@faicad/faijs/+esm`
+  try {
+    const cdnFaijs = (await import(/* @vite-ignore */ faijsUrl)) as unknown as CdnFaijsBindings
+    cdnFaijs.setOcctWasmInitFn(initOcct)
+    cdnFaijs.setManifoldWasmUrl(
+      import.meta.env.DEV
+        ? '/wasm/manifold.wasm'
+        : 'https://cdn.jsdelivr.net/npm/manifold-3d@3.5.1/manifold.wasm',
+    )
+  } catch (err) {
+    cdnFaijsBound = false
+    throw new Error(
+      `failed to bind OCCT kernel to CDN @faicad/faijs (${faijsUrl}): ${err instanceof Error ? err.message : String(err)}`,
+    )
+  }
 }
 
-// D3-autoLift 外置：逐库 autoLift 取自各库 package.json "faijs.autoLift" 字段；
-// 未声明 → undefined，回落到 demo 全局 autoLift=true 与 runtime 推断式。
 type FaijsPkg = { faijs?: { autoLift?: boolean } }
-const LIB_AUTO_LIFT: Record<string, boolean | undefined> = {
-  'gear-lib-demo': (gearPkg as unknown as FaijsPkg).faijs?.autoLift,
-  'sheetmetal': (sheetmetalPkg as unknown as FaijsPkg).faijs?.autoLift,
-  '@faicad/cq-compat': (cqCompatPkg as unknown as FaijsPkg).faijs?.autoLift,
-}
+/** 装载结果缓存（含 in-flight promise；CDN 每包只取一次，失败不留毒缓存可重试）。 */
+const libNsCache = new Map<string, Promise<StdlibNamespace>>()
+/** 逐库 autoLift 约定缓存（loadLib 时从 CDN package.json 抓取，autoLiftFor 同步读）。 */
+const libAutoLiftCache = new Map<string, boolean | undefined>()
 
 const demoLibLoader: LibLoader = {
-  loadLib: async (name) => {
-    const loader = LIB_MODULES[name]
-    if (!loader) throw new Error(`[faijs] demo: unregistered library "${name}"`)
-    return await loader()
+  loadLib: (name) => {
+    if (!name.startsWith(DEMO_SCOPED_PREFIX)) {
+      return Promise.reject(
+        new Error(`[faijs] demo: library "${name}" is not a scoped ${DEMO_SCOPED_PREFIX} package`),
+      )
+    }
+    let p = libNsCache.get(name)
+    if (!p) {
+      p = (async () => {
+        // CDN 库包的 peer 依赖解析到 CDN 上另一份 faijs 实例，必须先把内核挂点
+        // 绑过去（否则 CDN 份跑 BREP op 报 kernel not initialized）。
+        await bindKernelToCdnFaijs()
+        // 先取 package.json：404 → 包不在 CDN，显式报错；成功则顺手读 faijs.autoLift。
+        const pjRes = await fetch(`${CDN_BASE}${name}/package.json`)
+        if (pjRes.status === 404) {
+          throw new Error(`package "${name}" not found on CDN (${CDN_BASE})`)
+        }
+        if (!pjRes.ok) {
+          throw new Error(`CDN probe for "${name}" failed: HTTP ${pjRes.status}`)
+        }
+        const pj = (await pjRes.json()) as FaijsPkg
+        libAutoLiftCache.set(name, pj.faijs?.autoLift)
+        // 再动态 import ESM 构建（@vite-ignore：真 CDN 运行时加载，不经打包器解析）。
+        const mod = await import(/* @vite-ignore */ `${CDN_BASE}${name}/+esm`)
+        return mod as unknown as StdlibNamespace
+      })()
+      libNsCache.set(name, p)
+      p.catch(() => libNsCache.delete(name))
+    }
+    return p
   },
-  listLibs: () => Object.keys(LIB_MODULES),
+  listLibs: () => [...libNsCache.keys()],
   options: {
     autoLift: true,
-    // 逐库 autoLift 读自 package.json（已在 LIB_AUTO_LIFT 解析）；不再 host 写死判定。
-    autoLiftFor: (name) => LIB_AUTO_LIFT[name],
+    // 逐库 autoLift 取自 CDN package.json 的 "faijs.autoLift" 字段（loadLib 时已缓存）；
+    // 未缓存/未声明 → undefined，回落到 demo 全局 autoLift=true 与 runtime 推断式。
+    autoLiftFor: (name) => libAutoLiftCache.get(name),
   },
 }
 
@@ -93,12 +124,12 @@ let part1 = cad.text(part0, { text: 'HELLO', size: 8, depth: 2 })`,
 part0 = cad.rotate_euler(part0, { anglesDeg: [0, 0, 30] })
 part0 = cad.translate(part0, { offset: [5, 0, 0] })
 part0 = cad.scale3d(part0, { factor: [1, 1, 2] })`,
-  'gear-demo': `import * as gear from 'gear-lib-demo'
+  'gear-demo': `import * as gear from '@faicad/gear-lib-demo'
 
 let g1 = gear.external({ teeth: 24, moduleSize: 2, thickness: 8, bore: 8 })
 let t1 = gear.thread({ radius: 5, pitch: 1, height: 20 })
 let u1 = cad.union(g1, t1)`,
-  'sheetmetal-demo': `import * as sm from 'sheetmetal'
+  'sheetmetal-demo': `import * as sm from '@faicad/sheetmetal'
 
 let part = sm.author({
   thickness: 1,
