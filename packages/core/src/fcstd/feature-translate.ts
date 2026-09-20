@@ -360,12 +360,24 @@ export function translateObject(
   obj: FcstdObject,
   inputVar: (depName: string) => string | undefined,
   docObjects?: readonly FcstdObject[],
+  /** H7: names of objects whose Shape is stored as a .brp member (probed from the ZIP). */
+  shapeCarriers?: ReadonlySet<string>,
 ): TranslateVerdict {
   if (!isWhitelisted(obj.type)) {
     // H10: property-evidenced Python features bake legitimately (C4) —
     // auditMapping renames this reason to `python-baked`. Everything else is
     // a plain translation gap.
     if (isPythonOpaque(obj)) return { kind: 'baked', reason: 'python-opaque' };
+    // H7 first cut: a Part::Feature is a pure Shape carrier (corpus probe:
+    // property surface is Shape [+ShapeMaterial] only; geometry lives in the
+    // ZIP's .brp member). With shape evidence there is nothing to translate —
+    // the geometry is delivered via assets/ (build-fai-zip M2.3 already copies
+    // it), so record `translated` with no cad calls. Without evidence it is an
+    // explicit gap, never a silent bake.
+    if (obj.type === 'Part::Feature') {
+      if (shapeCarriers?.has(obj.name)) return { kind: 'translated', calls: [], reason: 'shape-asset' };
+      return { kind: 'baked', reason: 'shape-asset-missing' };
+    }
     return { kind: 'baked', reason: `type-not-whitelisted: ${obj.type}` };
   }
   const out = obj.name; // M5 renames to partN

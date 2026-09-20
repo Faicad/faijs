@@ -698,3 +698,40 @@ describe('H10 python-opaque verdict (property-based)', () => {
     expect(translateObject(o, dep)).toMatchObject({ kind: 'translated' });
   });
 });
+
+// H7 first cut (2026-09-20 corpus probe): Part::Feature in the 56-sample
+// corpus is ALWAYS a pure Shape carrier — property surface is Shape
+// (+ShapeMaterial) only, geometry lives in the ZIP's .brp member
+// (`file="Face005.Shape.brp"`). There is no parameter semantics to
+// translate; the shape is an existing fact delivered via assets/.
+// Contract: translateObject with a shape-bearing signal → translated
+// (no cad calls, reason 'shape-asset'); without it → explicit gap
+// (never a silent bake).
+describe('H7 Part::Feature pure-Shape carrier', () => {
+  const dep = (): string | undefined => undefined;
+
+  function shapeCarrier(name: string, withMaterial = false): FcstdObject {
+    const shape = prop('Shape', { name: 'Part', attrs: { file: `${name}.Shape.brp` } });
+    return obj('Part::Feature', name, withMaterial ? [shape, prop('ShapeMaterial', { name: 'Mat', attrs: {} })] : [shape]);
+  }
+
+  it('GOTCHA: Part::Feature with a Shape property → translated with NO cad calls (shape delivered via assets/, not parameters)', () => {
+    const r = translateObject(shapeCarrier('Face005'), dep, undefined, new Set(['Face005']));
+    expect(r).toMatchObject({ kind: 'translated', reason: 'shape-asset' });
+    if (r.kind === 'translated') expect(r.calls).toEqual([]);
+  });
+
+  it('Part::Feature WITHOUT shape evidence → explicit gap, never silent bake', () => {
+    const bare = obj('Part::Feature', 'Ghost', []);
+    const r = translateObject(bare, dep, undefined, new Set());
+    expect(r.kind).toBe('baked');
+    if (r.kind === 'baked') expect(r.reason).toContain('shape-asset-missing');
+  });
+
+  it('works for both plain and ShapeMaterial variants (corpus shapes 41× / 29×)', () => {
+    for (const carrier of [shapeCarrier('Face001'), shapeCarrier('Face002', true)]) {
+      const r = translateObject(carrier, dep, undefined, new Set([carrier.name]));
+      expect(r).toMatchObject({ kind: 'translated', reason: 'shape-asset' });
+    }
+  });
+});

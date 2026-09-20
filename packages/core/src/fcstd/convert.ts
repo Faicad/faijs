@@ -199,9 +199,18 @@ export async function convertFcstdFile(input: string, opts?: ConvertOptions): Pr
   for (const obj of doc.value.objects) {
     placements.set(obj.name, effectivePlacement(obj, placements));
   }
+  // H7: objects whose Shape is stored as a ZIP .brp member (pure-Shape
+  // carriers, e.g. Part::Feature) — collected from the archive members so the
+  // translator can record `shape-asset` instead of a translation gap.
+  const shapeCarriers = new Set<string>();
+  for (const obj of doc.value.objects) {
+    const fileAttr = obj.properties.get('Shape')?.children[0]?.attributes['file'];
+    if (fileAttr && memberText(unpacked.value, fileAttr) !== undefined) shapeCarriers.add(obj.name);
+  }
+
   let gen;
   try {
-    gen = generateModel(doc.value, sketchVerdict, sketchContours, baseName, placements);
+    gen = generateModel(doc.value, sketchVerdict, sketchContours, baseName, placements, shapeCarriers);
   } catch (e) {
     return fail(`codegen failed: ${(e as Error).message}`);
   }

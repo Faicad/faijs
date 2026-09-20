@@ -112,6 +112,8 @@ export function generateModel(
   baseName: string,
   /** M8.3: per-object Placement (sketches + features); missing → identity */
   placements?: Map<string, Placement>,
+  /** H7: objects whose Shape is a ZIP .brp member (pure-Shape carriers → shape-asset). */
+  shapeCarriers?: ReadonlySet<string>,
 ): GenResult {
   const byName = new Map(doc.objects.map((o) => [o.name, o]));
   const nodes = new Map<string, Node>();
@@ -217,7 +219,7 @@ export function generateModel(
     const verdict = translateObject(obj, (dep) => {
       const v = variables.get(dep);
       return v !== undefined ? v : undefined;
-    }, doc.objects);
+    }, doc.objects, shapeCarriers);
     node.verdict = verdict;
     if (verdict.kind === 'translated') {
       // rename output vars to partN sequence
