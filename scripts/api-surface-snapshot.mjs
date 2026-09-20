@@ -11,10 +11,10 @@
  */
 import { writeFileSync } from 'node:fs'
 
-// 与根 package.json exports 的 10 个键一一对应（P6 起取消 ./stdlib 子路径；
-// 漏一个 = 迁移后 3d_editor import 断）
+// core package.json exports 的键（P6 起取消 ./stdlib 子路径；D2-A 起 facade
+// 折入 core；2026-09-20 新增 ./fcstd 读层）。漏一个 = 迁移后消费方 import 断
 const SUBPATHS = [
-  '.', './browser', './csg', './sdf', './node',
+  '.', './browser', './csg', './sdf', './node', './fcstd',
   './faqts', './faqts/node', './faqts/browser', './module-resolver', './sdk',
 ]
 

@@ -1102,6 +1102,16 @@
     "weldPositionsWorker",
     "weldVertices"
   ],
+  "./fcstd": [
+    "CONSTRAINT_NAMES",
+    "memberText",
+    "parseConstraintList",
+    "parseDocumentXml",
+    "parseExpressionEngine",
+    "parseGeometryList",
+    "parseSketchObject",
+    "unpackFcstd"
+  ],
   "./faqts": [
     "findImports",
     "rewriteImports",

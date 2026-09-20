@@ -42,6 +42,10 @@
       "types": "./dist/sdf.d.ts",
       "default": "./dist/sdf.js"
     },
+    "./fcstd": {
+      "types": "./dist/fcstd/index.d.ts",
+      "default": "./dist/fcstd/index.js"
+    },
     "./node": {
       "types": "./dist/node.d.ts",
       "default": "./dist/node.js"
