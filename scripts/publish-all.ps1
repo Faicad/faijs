@@ -38,7 +38,9 @@ param(
   [string]$Tag = 'latest',
   [switch]$SkipCI,
   [switch]$SkipBuild,
-  [switch]$Provenance
+  [switch]$Provenance,
+  [string]$Otp,
+  [int]$From = 1
 )
 
 $ErrorActionPreference = 'Stop'
@@ -147,6 +149,10 @@ $record = [ordered]@{
 }
 
 foreach ($p in $Packages) {
+  if ($Packages.IndexOf($p) -lt ($From - 1)) {
+    Write-Host "-- skipping $($p.Name) (-From $From)" -ForegroundColor DarkGray
+    continue
+  }
   $dir = Join-Path $RepoRoot $p.Path
   Write-Host "-> [3/5] processing $($p.Name) ..." -ForegroundColor Cyan
 
@@ -174,6 +180,8 @@ foreach ($p in $Packages) {
     $pubArgs = @('publish', '--access', 'public')
     if ($Tag -ne 'latest') { $pubArgs += '--tag'; $pubArgs += $Tag }
     if ($Provenance) { $pubArgs += '--provenance' }
+    $pubArgs += '--registry'; $pubArgs += 'https://registry.npmjs.org/'
+    if ($Otp) { $pubArgs += '--otp'; $pubArgs += $Otp }
     Write-Host "   -> publish (tag=$Tag) ..." -ForegroundColor DarkGray
     Push-Location $dir
     try {
@@ -182,7 +190,29 @@ foreach ($p in $Packages) {
       Pop-Location
     }
     if ($LASTEXITCODE -ne 0) { throw "[$($p.Name)] publish failed" }
-    $published = & $npm view "$($p.Name)@$Version" version 2>$null
+    # Verify against the official registry — the local default may be a mirror
+    # (npmmirror) that lags behind and would report a false mismatch. Query the
+    # version-specific REST endpoint directly instead of `npm view`: for a
+    # freshly published scoped package the packument (which `npm view` resolves
+    # through) can 404 on the CDN for several minutes, while the version doc is
+    # immediately available. Retry a few times to absorb transient hiccups.
+    $encoded = [uri]::EscapeDataString($p.Name)
+    $verUrl = "https://registry.npmjs.org/$encoded/$Version"
+    $published = $null
+    for ($attempt = 1; $attempt -le 5; $attempt++) {
+      # curl the version doc and pull name/version out of the JSON body. We do
+      # NOT use Invoke-RestMethod here: for these freshly published scoped
+      # packages the endpoint hangs (>90s) under .NET HttpClient while curl
+      # returns in ~1s (suspected transfer-encoding interaction with the CDN).
+      $json = & curl.exe -s --max-time 30 -H 'Accept-Encoding: identity' $verUrl 2>$null
+      if ($LASTEXITCODE -eq 0 -and $json) {
+        try {
+          $resp = $json | ConvertFrom-Json
+          if ($resp.name -eq $p.Name -and $resp.version -eq $Version) { $published = $Version; break }
+        } catch { }
+      }
+      Start-Sleep -Seconds 5
+    }
     if ($published -ne $Version) { throw "[$($p.Name)] post-publish npm view mismatch: want $Version got $published" }
     Write-Host "   OK published and verified $($p.Name)@$Version" -ForegroundColor Green
   }
