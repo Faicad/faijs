@@ -24,6 +24,7 @@ import { extractContours } from './contour.js';
 import type { Contour } from './contour.js';
 import { generateModel } from './codegen.js';
 import { placementOf, type Placement } from './placement.js';
+import { effectivePlacement } from './attachment.js';
 import { buildFaiZip } from './build-fai-zip.js';
 import { isOk } from '../api/result.js';
 import { zipSync, unzipSync, strToU8 } from 'fflate';
@@ -190,9 +191,13 @@ export async function convertFcstdFile(input: string, opts?: ConvertOptions): Pr
   }
 
   // M4/M5: translate + codegen
+  // H3: attachment-resolved placements — an attached sketch's stored Placement
+  // is recomputed by FreeCAD from Support ∘ AttachmentOffset; resolve the chain
+  // so non-XY-plane sketches land on their support frame (fall back to the
+  // stored value when the attachment is deactivated or unresolvable).
   const placements = new Map<string, Placement>();
   for (const obj of doc.value.objects) {
-    placements.set(obj.name, placementOf(obj));
+    placements.set(obj.name, effectivePlacement(obj, placements));
   }
   let gen;
   try {
