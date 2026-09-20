@@ -6,7 +6,7 @@ import { describe, it, expect } from 'vitest';
 import { zipSync, strToU8, unzipSync } from 'fflate';
 import { unpackFcstd, memberText } from './unpack.js';
 import { buildFaiZip } from './build-fai-zip.js';
-import { isOk } from '../vendored/brepjs/core/result.js';
+import { isOk } from '../api/result.js';
 
 function makeFakeFcstd(): Uint8Array {
   const doc = `<?xml version='1.0' encoding='utf-8'?>

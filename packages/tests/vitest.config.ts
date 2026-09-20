@@ -17,5 +17,11 @@ export default defineConfig({
     include: ['faijs/**/*.test.ts'],
     testTimeout: 300000,
     hookTimeout: 300000,
+    // Yields the worker after every busy test: vitest's between-test bookkeeping
+    // never returns to the event loop, so consecutive geometry-heavy tests
+    // accumulate into one stretch that can exceed birpc's hard-coded 60s
+    // `onTaskUpdate` RPC timeout (= unhandled error + exit 1 on a green run).
+    // Mechanism and measurements: faijs/_support/worker-yield.ts
+    setupFiles: ['./faijs/_support/setup-worker-yield.ts'],
   },
 })

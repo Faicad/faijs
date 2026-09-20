@@ -19,6 +19,7 @@ import { createNodePorts } from '@faicad/faijs/node'
 import { registerOcctBrepEngine } from '@faicad/faijs'
 import type { Shape } from '@faicad/faijs/mesh/types'
 import { ensureTestFontLoader } from '@faicad/faijs/brep/text/fontTestHelper'
+import { yieldWorkerRpc } from '../_support/worker-yield.js'
 
 beforeAll(async () => {
   await registerOcctBrepEngine()
@@ -87,6 +88,15 @@ describe('parity .fai.js tests (BREP vs mesh)', () => {
       expect(brepShape).toBeDefined()
       const brepBBox = computeBBox(brepShape!.positions)
       const brepSize = bboxSize(brepBBox)
+
+      // The BREP execute above is the longest un-yielding stretch in this file
+      // (35s for parity-screw in isolation). Hand the worker back to the event
+      // loop before the mesh phase so two heavy phases cannot accumulate into
+      // birpc's hard-coded 60s `onTaskUpdate` budget — see
+      // `faijs/_support/worker-yield.ts`. This file also runs in its own vitest
+      // pass (packages/tests/package.json), because contention is what pushes
+      // that single atomic execute past 60s.
+      await yieldWorkerRpc()
 
       // Execute in mesh mode
       const meshRuntime = createRuntime(createNodePorts(), 'mesh')

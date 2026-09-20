@@ -12,7 +12,7 @@ import { unpackFcstd, memberText } from './unpack.js';
 import { parseDocumentXml } from './document.js';
 import { parseSketchObject } from './sketch-parse.js';
 import { placementOf, applyPlacement, planeBasis } from './placement.js';
-import { isOk } from '../vendored/brepjs/core/result.js';
+import { isOk } from '../api/result.js';
 
 const CORPUS = process.env.FAIJS_FCSTD_CORPUS ?? 'D:/Faicad/FreeCAD';
 const SAMPLE = join(CORPUS, 'data/tests/PadTest.fcstd');

@@ -6,7 +6,7 @@
  * `_Property` elements are skipped.
  */
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
-import { err, ok, type Result } from '../vendored/brepjs/core/result.js';
+import { err, ok, type Result } from '../api/result.js';
 
 export interface FcstdProperty {
   /** property name attribute ('' for non-property elements like <Geometry>) */

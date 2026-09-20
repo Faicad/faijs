@@ -20,7 +20,7 @@ import type { Contour } from './contour.js';
 import { generateModel } from './codegen.js';
 import { placementOf, type Placement } from './placement.js';
 import { buildFaiZip } from './build-fai-zip.js';
-import { isOk } from '../vendored/brepjs/core/result.js';
+import { isOk } from '../api/result.js';
 import { zipSync, unzipSync, strToU8 } from 'fflate';
 
 /** V2 tolerance: solver must reproduce stored geometry (single source). */

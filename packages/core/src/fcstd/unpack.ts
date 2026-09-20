@@ -8,7 +8,7 @@
  * faijs contract: unit mm, errors via Result (ok/err).
  */
 import { unzipSync } from 'fflate';
-import { err, ok, type Result } from '../vendored/brepjs/core/result.js';
+import { err, ok, type Result } from '../api/result.js';
 
 export interface FcstdMember {
   /** path inside the ZIP, e.g. "Document.xml", "PartShape.brp" */

@@ -22,7 +22,7 @@ import { parseSketchObject } from './sketch-parse.js';
 import { createPlanegcsSolver } from './planegcs-backend.js';
 import { resolveExternalGeometry } from './external-geo.js';
 import { classifySketch } from './sketch-verify.js';
-import { isOk } from '../vendored/brepjs/core/result.js';
+import { isOk } from '../api/result.js';
 import { initOcctWasm } from '../occt-kernel/occtKernel.js';
 
 // sample corpus lives outside the repo (local FreeCAD checkout) — skip

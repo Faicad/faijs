@@ -6,7 +6,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { parseSketchObject } from './sketch-parse.js';
 import { createPlanegcsSolver } from './planegcs-backend.js';
 import type { SketchSolver } from './sketch-solver.js';
-import { isOk } from '../vendored/brepjs/core/result.js';
+import { isOk } from '../api/result.js';
 import { maxPointDistance, classifySketch } from './sketch-verify.js';
 import type { FcstdProperty } from './document.js';
 

@@ -10,7 +10,7 @@
  */
 import { make_gcs_wrapper, Algorithm } from '@salusoft89/planegcs';
 import type { GcsWrapper } from '@salusoft89/planegcs';
-import { ok, type Result } from '../vendored/brepjs/core/result.js';
+import { ok, type Result } from '../api/result.js';
 import type { SketchGeom, SketchCon } from './sketch-parse.js';
 import { ConstraintType, PointPos } from './sketch-parse.js';
 import type { SolveOutcome, SketchSolver } from './sketch-solver.js';

@@ -1,60 +1,38 @@
 /**
  * P26 e2e — gear-lib-demo through the compat boundary, §8.4 scenario.
  *
- * Script (geometry-first flow, verbatim §8.4):
- *   import * as gear from '<gearlib>'
- *   let g1 = gear.external({ teeth: 20, moduleSize: 2, thickness: 10 })
- *   let t1 = gear.thread({ radius: 5, pitch: 1, height: 20 })
- *   let u1 = cad.union(g1, cad.box(30, 30, 5, { centered: true }))
+ * The §8.4 script lives in `./gear-flow-fixture.js` (shared verbatim with the
+ * sibling recompute files), and the acceptance set is split across files so no
+ * single vitest worker stays busy past birpc's hard-coded 60s `onTaskUpdate`
+ * RPC timeout — see the fixture header for the full rationale.
  *
- * The same seven acceptance assertions as the sheetmetal e2e, with the
- * multi-output record contributed by `planetary` (§8.1 outputs).
+ * This file: the scenario build plus the acceptance assertions that only need
+ * the one built result.
+ *   ① g1 is a faijs Shape (hasBrep === true, mesh payload non-empty)
+ *   ② the cad.union boolean runs on the BREP chain ("brep" path, no degrade)
+ *   ③ the planetary multi-output record { sun, planets, ring } keeps structure
+ *   ④ STEP export of the union carries ADVANCED_FACE (exact, not faceting)
+ *   ⑥ mesh-mode invocation → E_MESH_UNSUPPORTED (no silent fallback)
+ *   ⑦ repeated same-code executions keep the kernel arena bounded
+ * ⑤ (incremental recompute policy) lives in `gear-lib-demo-recompute.test.ts`
+ * and `gear-lib-demo-recompute-lib-change.test.ts`.
  */
 
 import { beforeAll, describe, expect, it } from 'vitest'
-import { createRuntime, registerOcctBrepEngine } from '@faicad/faijs'
-import { createNodePorts } from '@faicad/faijs/node'
 import { asPartName } from '@faicad/faijs/identity'
 import { hasBrep, isShape } from '@faicad/faijs/shape'
 import { dispatchPath } from '@faicad/faijs/cad-runtime/backend-dispatch'
 import { getKernel } from '@faicad/faijs/occt-kernel/occtKernel'
 import type { CadRuntime } from '@faicad/faijs/cad-runtime/runtime'
-import type { StdlibNamespace } from '@faicad/faijs/runtime-state'
 import type { Shape } from '@faicad/faijs/mesh/types'
-import * as mechPkg from '@faicad/gear-lib-demo'
-
-/** Registered library projection: the real @faicad/gear-lib-demo entries. */
-const gearNs: StdlibNamespace = {
-  external: mechPkg.external,
-  thread: mechPkg.thread,
-  planetary: mechPkg.planetary,
-}
-
-/** Different `external` body for the B2 "new library version" check. */
-const gearV2: StdlibNamespace = {
-  external: ((p: Parameters<typeof mechPkg.external>[0]) =>
-    mechPkg.external(p)) as (...args: any[]) => unknown,
-  thread: mechPkg.thread,
-  planetary: mechPkg.planetary,
-}
-
-const SCRIPT = [
-  "import * as gear from 'gear-lib-demo'",
-  'let g1 = gear.external({ teeth: 20, moduleSize: 2, thickness: 10 })',
-  'let t1 = gear.thread({ radius: 5, pitch: 1, height: 20 })',
-  'let a1 = gear.planetary({ thickness: 8, sunTeeth: 12, planetTeeth: 6, numPlanets: 3 })',
-  'let b0 = cad.box(30, 30, 5, { centered: true })',
-  'let u1 = cad.union(g1, b0)',
-  'let x1 = cad.box(1, 1, 1, { centered: true })',
-].join('\n')
+import { SCRIPT, bootGearRuntime } from './gear-flow-fixture.js'
+import { yieldWorkerRpc } from '../_support/worker-yield.js'
 
 let runtime: CadRuntime
 let result: Awaited<ReturnType<CadRuntime['execute']>>
 
 beforeAll(async () => {
-  await registerOcctBrepEngine()
-  runtime = createRuntime(createNodePorts(), 'auto')
-  runtime.registerLib('gear', gearNs, { autoLift: true, packageName: 'gear-lib-demo' })
+  runtime = await bootGearRuntime('auto')
   result = await runtime.execute(SCRIPT)
 }, 240000)
 
@@ -68,7 +46,7 @@ function activeValue(part: string): unknown {
   return result.activeValues?.get(asPartName(part))
 }
 
-describe('P26 gear-lib-demo §8.4 — seven acceptance assertions', () => {
+describe('P26 gear-lib-demo §8.4 — build, acceptance ①②③④⑥ and kernel arena ⑦', () => {
   it('① g1 is a faijs Shape: hasBrep === true and a non-empty mesh payload', () => {
     expect(result.failedAt).toBeUndefined()
     const g1 = shapeOf('g1')
@@ -106,66 +84,9 @@ describe('P26 gear-lib-demo §8.4 — seven acceptance assertions', () => {
     expect(step).not.toContain('POLY_FACE')
   })
 
-  it('⑤ external-param change recomputes downstream; changed lib version recomputes in full (B2)', async () => {
-    {
-      // (a) re-registering the same library keeps the statementKey (no spurious recompute)
-      const r = createRuntime(createNodePorts(), 'auto')
-      try {
-        r.registerLib('gear', gearNs, { autoLift: true, packageName: 'gear-lib-demo' })
-        await r.execute(SCRIPT)
-        const u1Key0 = r.getStatementCacheEntry(asPartName('u1'))?.statementKey
-        expect(u1Key0).toBeDefined()
-        r.registerLib('gear', gearNs, { autoLift: true, packageName: 'gear-lib-demo' })
-        await r.execute(SCRIPT)
-        const u1Key1 = r.getStatementCacheEntry(asPartName('u1'))?.statementKey
-        expect(u1Key1).toBe(u1Key0)
-      } finally {
-        r.dispose()
-      }
-    }
-    {
-      // (b) external-param change: full re-run via update; geometry changes.
-      // T5: plan() deleted; use update() to verify recompute happens.
-      const r = createRuntime(createNodePorts(), 'auto')
-      try {
-        r.registerLib('gear', gearNs, { autoLift: true, packageName: 'gear-lib-demo' })
-        const r1 = await r.execute(SCRIPT)
-        expect(r1.failedAt).toBeUndefined()
-        const changed = SCRIPT.replace('{ teeth: 20', '{ teeth: 24')
-        const r2 = await r.update(SCRIPT, changed)
-        expect(r2.failedAt).toBeUndefined()
-        // g1 geometry must change (teeth changed)
-        const g1Before = r1.outputs.get(asPartName('g1')) as Shape | undefined
-        const g1After = r2.outputs.get(asPartName('g1')) as Shape | undefined
-        expect(g1After).toBeDefined()
-        expect(g1After!.positions.length).not.toBe(g1Before!.positions.length)
-      } finally {
-        r.dispose()
-      }
-    }
-    {
-      // (c) same binding, changed library implementation → full recompute.
-      // T5: plan() deleted; verify recompute via update().
-      const r = createRuntime(createNodePorts(), 'auto')
-      try {
-        r.registerLib('gear', gearNs, { autoLift: true, packageName: 'gear-lib-demo' })
-        const r1 = await r.execute(SCRIPT)
-        expect(r1.failedAt).toBeUndefined()
-        r.registerLib('gear', gearV2, { autoLift: true, packageName: 'gear-lib-demo' })
-        const r2 = await r.update(SCRIPT, SCRIPT)
-        expect(r2.failedAt).toBeUndefined()
-        const g1 = r2.outputs.get(asPartName('g1')) as Shape | undefined
-        expect(g1).toBeDefined()
-      } finally {
-        r.dispose()
-      }
-    }
-  }, 120_000)
-
   it('⑥ mesh mode hits E_MESH_UNSUPPORTED when invoking the gear library (no silent fallback)', async () => {
-    const r = createRuntime(createNodePorts(), 'mesh')
+    const r = await bootGearRuntime('mesh')
     try {
-      r.registerLib('gear', gearNs, { autoLift: true, packageName: 'gear-lib-demo' })
       const res = await r.execute(SCRIPT)
       expect(res.failedAt).toBeDefined()
       expect(res.failedAt!.message).toMatch(/E_MESH_UNSUPPORTED|not supported|mesh/i)
@@ -179,6 +100,10 @@ describe('P26 gear-lib-demo §8.4 — seven acceptance assertions', () => {
     const base = kernel.shapeCount
     for (let i = 0; i < 4; i++) {
       await runtime.execute(SCRIPT) // same code: cache hit, no rebuild
+      // Four chained executes are ~40s of synchronous geometry: yield between
+      // them so the worker keeps servicing birpc's 60s `onTaskUpdate` window
+      // (`faijs/_support/worker-yield.ts`).
+      await yieldWorkerRpc()
     }
     const growth = kernel.shapeCount - base
     expect(growth).toBeLessThanOrEqual(400)

@@ -12,7 +12,7 @@
     "vitest": "*"
   },
   "scripts": {
-    "test": "vitest run",
+    "test": "vitest run --exclude \"faijs/parity/**\" && vitest run faijs/parity",
     "typecheck": "tsc --noEmit"
   }
 }
