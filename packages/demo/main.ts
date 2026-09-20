@@ -79,18 +79,25 @@ const demoLibLoader: LibLoader = {
         // CDN 库包的 peer 依赖解析到 CDN 上另一份 faijs 实例，必须先把内核挂点
         // 绑过去（否则 CDN 份跑 BREP op 报 kernel not initialized）。
         await bindKernelToCdnFaijs()
-        // 先取 package.json：404 → 包不在 CDN，显式报错；成功则顺手读 faijs.autoLift。
-        const pjRes = await fetch(`${CDN_BASE}${name}/package.json`)
-        if (pjRes.status === 404) {
-          throw new Error(`package "${name}" not found on CDN (${CDN_BASE})`)
+        // 版本探测不能用 jsDelivr 的无版本 package.json：该 URL 有 CDN 缓存，
+        // 新版发布后仍返回旧版本（实测发布 0.13.1 后仍回 0.13.0），导致 loader
+        // "精确" pin 到旧版 bundle（其内联 peer faijs@0.13.0，无内核注册表共享
+        // 修复）。改查 npm registry 的 /latest 文档（无 CDN 缓存，带 CORS 头）。
+        const regRes = await fetch(`https://registry.npmjs.org/${name}/latest`)
+        if (!regRes.ok) {
+          if (regRes.status === 404) {
+            throw new Error(`package "${name}" not found on npm registry`)
+          }
+          throw new Error(`npm registry probe for "${name}" failed: HTTP ${regRes.status}`)
         }
-        if (!pjRes.ok) {
-          throw new Error(`CDN probe for "${name}" failed: HTTP ${pjRes.status}`)
-        }
-        const pj = (await pjRes.json()) as FaijsPkg
+        const pj = (await regRes.json()) as FaijsPkg & { version?: string }
         libAutoLiftCache.set(name, pj.faijs?.autoLift)
-        // 再动态 import ESM 构建（@vite-ignore：真 CDN 运行时加载，不经打包器解析）。
-        const mod = await import(/* @vite-ignore */ `${CDN_BASE}${name}/+esm`)
+        // 用精确版本 URL 动态 import（@vite-ignore：真 CDN 运行时加载）。
+        // 不能用不带版本的 latest URL：jsDelivr 对 latest 的 +esm 打包有缓存，
+        // 会把库包 peer 依赖（@faicad/faijs）内联成旧版实例（无 globalThis 内核
+        // 注册表共享修复 → "kernel not initialized"）。精确版本首次打包即取最新。
+        const version = pj.version ?? 'latest'
+        const mod = await import(/* @vite-ignore */ `${CDN_BASE}${name}@${version}/+esm`)
         return mod as unknown as StdlibNamespace
       })()
       libNsCache.set(name, p)
