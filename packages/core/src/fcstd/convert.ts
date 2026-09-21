@@ -116,6 +116,12 @@ export const FEM_STRUCTURAL_TYPES = new Set([
   'Fem::ConstraintContact',
   'Fem::ConstraintBearing',
   'Fem::ConstraintDisplacement',
+  // 2026-09-20 sweep triage (all_objects corpus): remaining constraint
+  // families — same simulation semantics as the constraints above.
+  'Fem::ConstraintFluidBoundary',
+  'Fem::ConstraintGear',
+  'Fem::ConstraintHeatflux',
+  'Fem::ConstraintInitialTemperature',
   'Fem::FemAnalysisPython',
   'Fem::FemMeshObjectPython',
   'Fem::FemResultObjectPython',
@@ -127,6 +133,23 @@ export const FEM_STRUCTURAL_TYPES = new Set([
 export function isFemStructural(type: string): boolean {
   return FEM_STRUCTURAL_TYPES.has(type);
 }
+
+/**
+ * 2026-09-20 sweep triage: assembly/import container types — links, assembly
+ * containers, import placeholders (Inventor/VRML). They reference or embed
+ * external/other geometry but produce no modeling semantics of their own;
+ * preserved-only. Modeling features (Part::Mirroring,
+ * PartDesign::AdditiveSphere, …) are deliberately NOT here — they stay
+ * explicit H7 gaps until translated.
+ */
+export const STRUCTURAL_TYPES_EXTENDED = new Set([
+  'App::Link',
+  'App::LinkElement',
+  'Assembly::AssemblyObject',
+  'Assembly::JointGroup',
+  'App::InventorObject',
+  'App::VRMLObject',
+]);
 
 /**
  * C4 final check: reclassify `baked` entries. A baked disposition is only
@@ -143,9 +166,11 @@ function auditMapping(
       // python-opaque stays legitimate but is renamed for the ledger
       if (o.reason === 'python-opaque') {
         o.disposition = 'python-baked';
-      } else if (STRUCTURAL_TYPES.has(o.type) || FEM_STRUCTURAL_TYPES.has(o.type)) {
+      } else if (STRUCTURAL_TYPES.has(o.type) || FEM_STRUCTURAL_TYPES.has(o.type) || STRUCTURAL_TYPES_EXTENDED.has(o.type)) {
         o.disposition = 'preserved-only';
-        o.reason = o.reason ?? (FEM_STRUCTURAL_TYPES.has(o.type) ? 'fem-simulation' : 'structural');
+        o.reason = o.reason
+          ?? (FEM_STRUCTURAL_TYPES.has(o.type) ? 'fem-simulation'
+            : STRUCTURAL_TYPES_EXTENDED.has(o.type) ? 'container-link' : 'structural');
       } else {
         gaps.push({ name: o.name, type: o.type, reason: o.reason ?? 'unspecified' });
       }

@@ -21,7 +21,7 @@
  * change only stops FEM objects from blocking conversion.
  */
 import { describe, it, expect } from 'vitest';
-import { isFemStructural, FEM_STRUCTURAL_TYPES } from './convert.js';
+import { isFemStructural, FEM_STRUCTURAL_TYPES, STRUCTURAL_TYPES_EXTENDED } from './convert.js';
 
 describe('H7-FEM: simulation objects are structured non-modeling, not gaps', () => {
   it('GOTCHA: native FEM classes WITHOUT Proxy are the gap source — all must be recognized', () => {
@@ -48,5 +48,40 @@ describe('H7-FEM: simulation objects are structured non-modeling, not gaps', () 
     // Python subclasses carry Proxy → H10 python-opaque takes them; the set
     // may also list them, but they must never fall into type-not-whitelisted
     expect(isFemStructural('Fem::FemMeshObjectPython')).toBe(true);
+  });
+
+  it('2026-09-20 sweep triage: remaining FEM constraint/result families are structural too', () => {
+    // surfaced after earlier blockers fell (all_objects corpus file)
+    for (const t of [
+      'Fem::ConstraintFluidBoundary',
+      'Fem::ConstraintGear',
+      'Fem::ConstraintHeatflux',
+      'Fem::ConstraintInitialTemperature',
+      'Fem::FemPostWarpVectorFilter',
+    ]) {
+      expect(isFemStructural(t), t).toBe(true);
+    }
+  });
+});
+
+describe('2026-09-20 triage: assembly/import container types are structured non-modeling', () => {
+  it('GOTCHA: App::Link, Assembly containers, import placeholders → preserved-only, never gaps', () => {
+    // AssemblyExample (Assembly::AssemblyObject + JointGroup + App::Link),
+    // ProjectTest (App::InventorObject), TestVRMLTextures (App::VRMLObject).
+    // Containers/links/import placeholders produce no geometry; they must
+    // not block files whose modeling content converts fine.
+    for (const t of [
+      'App::Link',
+      'App::LinkElement',
+      'Assembly::AssemblyObject',
+      'Assembly::JointGroup',
+      'App::InventorObject',
+      'App::VRMLObject',
+    ]) {
+      expect(STRUCTURAL_TYPES_EXTENDED.has(t), t).toBe(true);
+    }
+    // modeling features must NOT be captured
+    expect(STRUCTURAL_TYPES_EXTENDED.has('Part::Mirroring')).toBe(false);
+    expect(STRUCTURAL_TYPES_EXTENDED.has('PartDesign::AdditiveSphere')).toBe(false);
   });
 });
