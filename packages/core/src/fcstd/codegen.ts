@@ -9,7 +9,7 @@
  */
 import type { FcstdDocument } from './document.js';
 import type { CadCall, TranslateVerdict } from './feature-translate.js';
-import { translateObject, isJsExpr, jsExpr } from './feature-translate.js';
+import { translateObject, isJsExpr, jsExpr, BODY_CHAIN_BASE } from './feature-translate.js';
 import type { Contour } from './contour.js';
 import { type Placement, isIdentityPlacement, quatToEulerXYZDeg } from './placement.js';
 
@@ -288,6 +288,14 @@ export function generateModel(
         // (bbox already exact at delta 0).
         if (prev) {
           for (const c of verdict.calls) {
+            // H7 (hole_puzzle corpus): the Pocket had NO BaseFeature property —
+            // the translator emitted BODY_CHAIN_BASE as the subtract's base
+            // input; retarget it at the chain head here (after the earlier
+            // inputs remap, which leaves the marker untouched since it is not
+            // a variable name).
+            if (c.inputs) {
+              c.inputs = c.inputs.map((i) => (i === BODY_CHAIN_BASE ? prev : i));
+            }
             if (c.op === 'cad.extrude' && c.params.baseFeature !== undefined) {
               // GOTCHA (PadTest V6 residual): the up-to extrude builds its
               // prism in the SKETCH-LOCAL frame, but the chain head (prev)

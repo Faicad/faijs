@@ -209,6 +209,41 @@ describe('M4.6 Pad/Pocket', () => {
     }
   });
 
+  it('GOTCHA (hole_puzzle corpus 2026-09-20): Pocket WITHOUT a BaseFeature property must NOT be a dependency gap — codegen resolves the base from the Body chain', () => {
+    // FreeCAD 0.20+ PartDesign files routinely omit BaseFeature on interior
+    // features: the base is implied by the Body's feature order (chain head).
+    // hole_puzzle has 9 Pockets, ALL without BaseFeature — every one gapped
+    // with pocket-missing-dependency even though their Profile sketches were
+    // translated + solved. The translator must treat a missing BaseFeature
+    // property as "no explicit base" (kind of translated), NOT as a missing
+    // dependency; codegen then retargets the subtract at the chain head.
+    const pocket = obj('PartDesign::Pocket', 'Pocket', [
+      prop('Profile', { name: 'Link', attrs: { value: 'Sketch001' } }),
+      prop('Length', { name: 'Float', attrs: { value: '5' } }),
+      prop('Reversed', { name: 'Bool', attrs: { value: 'true' } }),
+      prop('Midplane', { name: 'Bool', attrs: { value: 'false' } }),
+    ]);
+    const v = translateObject(pocket, (dep) => (dep === 'Sketch001' ? 'sketch1' : undefined));
+    expect(v.kind).toBe('translated');
+    if (v.kind === 'translated') {
+      expect(v.calls.length).toBe(2);
+      expect(v.calls[1]!.op).toBe('cad.subtract');
+      // the subtract's base input must carry the chain-head marker so codegen
+      // can retarget it; it must NOT be the profile var
+      expect(v.calls[1]!.inputs[0]).not.toBe('sketch1');
+    }
+  });
+
+  it('Pocket with a BaseFeature property whose target is unresolvable is STILL a gap (explicit base must resolve)', () => {
+    const pocket = obj('PartDesign::Pocket', 'Pocket', [
+      prop('Profile', { name: 'Link', attrs: { value: 'Sketch001' } }),
+      prop('Length', { name: 'Float', attrs: { value: '5' } }),
+      prop('BaseFeature', { name: 'Link', attrs: { value: 'Ghost' } }),
+    ]);
+    const v = translateObject(pocket, (dep) => (dep === 'Sketch001' ? 'sketch1' : undefined));
+    expect(v).toMatchObject({ kind: 'baked', reason: 'pocket-missing-dependency' });
+  });
+
   it('bakes Python-feature types with reason', () => {
     const py = obj('Part::FeaturePython', 'Py1', []);
     const v = translateObject(py, () => undefined);

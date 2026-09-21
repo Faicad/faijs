@@ -73,6 +73,15 @@ export type TranslateVerdict =
   | { kind: 'baked'; reason: string }
   | { kind: 'preserved-only'; reason: string };
 
+/**
+ * H7 (hole_puzzle corpus, 2026-09-20): marker input for a subtract whose base
+ * is implied by the Body's feature order (no explicit BaseFeature property).
+ * Codegen retargets this at the chain head when folding the feature into its
+ * Body chain. Never a legal variable name (contains `::`), so it cannot be
+ * confused with a real input.
+ */
+export const BODY_CHAIN_BASE = '::body-chain-base::';
+
 /** M4.1 whitelist (plan §5.5.5 measurable types only). */
 const WHITELIST = new Set([
   'Part::Box',
@@ -653,7 +662,13 @@ export function translateObject(
       const midplane = propBool(obj, 'Midplane');
       const base = propLink(obj, 'BaseFeature');
       const profileVar = profile ? inputVar(profile) : undefined;
-      const baseVar = base ? inputVar(base) : undefined;
+      // GOTCHA (hole_puzzle corpus, 2026-09-20): FreeCAD 0.20+ PartDesign
+      // files routinely OMIT BaseFeature on interior features — the base is
+      // implied by the Body's feature order (chain head). A MISSING property
+      // is "no explicit base" → emit the subtract with the BODY_CHAIN_BASE
+      // marker; codegen retargets it at the chain head when folding. Only an
+      // EXPLICIT base that fails to resolve is a dependency gap.
+      const baseVar = base ? inputVar(base) : BODY_CHAIN_BASE;
       if (!profileVar || !baseVar) return { kind: 'baked', reason: 'pocket-missing-dependency' };
       if (hasNonConstantBinding(obj, 'Length')) {
         return { kind: 'baked', reason: 'pocket-length-expression-non-constant' };
