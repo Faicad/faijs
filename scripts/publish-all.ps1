@@ -190,20 +190,29 @@ foreach ($p in $Packages) {
       Pop-Location
     }
     if ($LASTEXITCODE -ne 0) { throw "[$($p.Name)] publish failed" }
-    # Verify against the official registry — the local default may be a mirror
-    # (npmmirror) that lags behind and would report a false mismatch. Query the
-    # version-specific REST endpoint directly instead of `npm view`: for a
-    # freshly published scoped package the packument (which `npm view` resolves
-    # through) can 404 on the CDN for several minutes, while the version doc is
-    # immediately available. Retry a few times to absorb transient hiccups.
+    # Verification is deferred: the npm CDN takes minutes to serve fresh docs,
+    # and blocking the loop here aborts the remaining packages. All packages
+    # are published first; verification runs at the end (Step 4) and only
+    # warns — it must never abort an already-completed publish run.
+  }
+
+  $record.packages += [ordered]@{ name = $p.Name; version = $Version; dryRun = [bool]$DryRun }
+}
+
+# Step 4: post-publish verification (AFTER all packages are published; warn-only).
+# The npm CDN takes minutes to serve fresh docs for newly published versions —
+# both the packument and the version-specific endpoint. By now (all packages
+# published) propagation has had time to settle, and a remaining lag is still
+# not a publish failure, so mismatches only warn. curl.exe is used because
+# Invoke-RestMethod hangs >90s under .NET HttpClient on these endpoints.
+if (-not $DryRun) {
+  Write-Host "-> [4/5] verifying published packages ..." -ForegroundColor Cyan
+  foreach ($p in $Packages) {
+    if ($Packages.IndexOf($p) -lt ($From - 1)) { continue }
     $encoded = [uri]::EscapeDataString($p.Name)
     $verUrl = "https://registry.npmjs.org/$encoded/$Version"
     $published = $null
     for ($attempt = 1; $attempt -le 5; $attempt++) {
-      # curl the version doc and pull name/version out of the JSON body. We do
-      # NOT use Invoke-RestMethod here: for these freshly published scoped
-      # packages the endpoint hangs (>90s) under .NET HttpClient while curl
-      # returns in ~1s (suspected transfer-encoding interaction with the CDN).
       $json = & curl.exe -s --max-time 30 -H 'Accept-Encoding: identity' $verUrl 2>$null
       if ($LASTEXITCODE -eq 0 -and $json) {
         try {
@@ -213,11 +222,12 @@ foreach ($p in $Packages) {
       }
       Start-Sleep -Seconds 5
     }
-    if ($published -ne $Version) { throw "[$($p.Name)] post-publish npm view mismatch: want $Version got $published" }
-    Write-Host "   OK published and verified $($p.Name)@$Version" -ForegroundColor Green
+    if ($published -eq $Version) {
+      Write-Host "   OK verified $($p.Name)@$Version" -ForegroundColor Green
+    } else {
+      Write-Warning "[$($p.Name)] could not verify $Version on the registry yet (CDN lag); publish itself reported success. Check later: npm view $($p.Name) version"
+    }
   }
-
-  $record.packages += [ordered]@{ name = $p.Name; version = $Version; dryRun = [bool]$DryRun }
 }
 
 # Step 5: publish record.
