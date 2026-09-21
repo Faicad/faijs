@@ -775,10 +775,16 @@ describe('H7 Part::Feature pure-Shape carrier', () => {
     return obj('Part::Feature', name, withMaterial ? [shape, prop('ShapeMaterial', { name: 'Mat', attrs: {} })] : [shape]);
   }
 
-  it('GOTCHA: Part::Feature with a Shape property → translated with NO cad calls (shape delivered via assets/, not parameters)', () => {
+  it('GOTCHA: Part::Feature with a Shape property → translated via cad.import_shape (shape delivered via assets/, addressable variable)', () => {
     const r = translateObject(shapeCarrier('Face005'), dep, undefined, new Set(['Face005']));
     expect(r).toMatchObject({ kind: 'translated', reason: 'shape-asset' });
-    if (r.kind === 'translated') expect(r.calls).toEqual([]);
+    // 2026-09-20 update: the asset became an addressable solid — one
+    // cad.import_shape call (was: zero calls; downstream consumers could not
+    // resolve the variable and gapped with cut-missing-dependency).
+    if (r.kind === 'translated') {
+      expect(r.calls.length).toBe(1);
+      expect(r.calls[0]!.op).toBe('cad.import_shape');
+    }
   });
 
   it('Part::Feature WITHOUT shape evidence → explicit gap, never silent bake', () => {
@@ -861,6 +867,19 @@ describe('H7 Part::Feature pure-Shape carrier', () => {
     const rb = translateObject(box, () => undefined, undefined, new Set(['Box']));
     expect(rb.kind).toBe('translated');
     if (rb.kind === 'translated') expect(rb.reason).not.toBe('shape-asset');
+  });
+
+  it('GOTCHA (EngineBlock 2026-09-20): Shape-asset evidence PRECEDES python-opaque — a Proxy-bearing Draft circle with a Shape asset imports, not bakes', () => {
+    // Draft circles carry Proxy (python-opaque evidence) AND a real Shape
+    // .brp member. python-opaque baked them silently, downstream
+    // Part::Extrusion got no variable → extrusion-missing-base. The asset
+    // check must run first: geometry is an existing fact.
+    const circle = obj('Part::Part2DObjectPython', 'Circle003', [
+      prop('Proxy', { name: 'PythonObject' }),
+      prop('Shape', { name: 'Part', attrs: { file: 'Circle003.Shape.brp' } }),
+    ]);
+    const r = translateObject(circle, () => undefined, undefined, new Set(['Circle003']));
+    expect(r).toMatchObject({ kind: 'translated', reason: 'shape-asset' });
   });
 
   it('GOTCHA (hole_puzzle 2026-09-20): a shape-asset feature is a REAL variable — consumers (Fillet Base→Pocket) must resolve it', () => {
