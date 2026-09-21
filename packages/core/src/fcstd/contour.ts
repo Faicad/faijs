@@ -77,40 +77,33 @@ export function extractContours(geoms: SketchGeom[]): Contour[] {
   for (const start of pool) {
     if (start.used) continue;
     start.used = true;
-    const segments: ContourSeg[] = [start.seg];
-    let tail = start.b;
     const head = start.a;
-    let extended = true;
-    while (extended) {
-      extended = false;
-      // GOTCHA (slittingsaw/tap corpus, 2026-09-20): once the chain closes at
-      // the head, STOP. Free segments often touch the head too (tap: a
-      // 0,0→-4,4 line at the profile apex); extending past closure let one
-      // steal the chain and the closed loop was dropped. Also GOTCHA
-      // (ballend corpus, 2026-09-20): restart the scan from the pool start
-      // after EVERY match — scanning on with the drifted tail let a
-      // later-indexed segment touching the new tail steal the chain.
-      if (segments.length > 1 && near(tail, head)) break;
+    // GOTCHA (slittingsaw corpus, 2026-09-20): junction points with free
+    // branches (three+ segments sharing an endpoint) defeat first-come
+    // chaining — a branch to a dead end consumed the segments and the real
+    // loop never closed. DFS with backtracking: try each candidate
+    // continuation; the FIRST chain that closes at the head wins; a dead
+    // branch returns its segments to the pool. Closure-stop (tap GOTCHA) and
+    // pool-restart are both subsumed by the DFS ordering.
+    const dfs = (tail: { x: number; y: number }, walk: ContourSeg[]): ContourSeg[] | undefined => {
+      if (walk.length > 0 && near(tail, head)) return walk;
       for (const cand of pool) {
         if (cand.used) continue;
+        cand.used = true;
         if (near(tail, cand.a)) {
-          cand.used = true;
-          segments.push(cand.seg);
-          tail = cand.b;
-          extended = true;
-          break;
+          const r = dfs(cand.b, [...walk, cand.seg]);
+          if (r) return r;
         } else if (near(tail, cand.b)) {
-          cand.used = true;
-          segments.push(reverseSeg(cand.seg));
-          tail = cand.a;
-          extended = true;
-          break;
+          const r = dfs(cand.a, [...walk, reverseSeg(cand.seg)]);
+          if (r) return r;
         }
+        cand.used = false; // dead branch — return the segment to the pool
       }
-    }
-    const closed = near(tail, head);
-    if (segments.length > 0 && closed) {
-      contours.push({ segments, closed: true });
+      return undefined;
+    };
+    const solved = dfs(start.b, [start.seg]);
+    if (solved && solved.length > 1) {
+      contours.push({ segments: solved, closed: true });
     }
   }
 

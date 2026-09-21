@@ -59,6 +59,31 @@ describe('contour extraction (M3.6)', () => {
     expect(contours[0]!.segments.length).toBe(6);
   });
 
+  it('GOTCHA (slittingsaw corpus 2026-09-20): a dead-end branch must not sink the chain — the seed enumerates alternatives until a loop closes', () => {
+    // slittingsaw's 11-line profile: several segments share the y=0 axis with
+    // free branches (seg2 spans the whole axis; seg7/seg8 form a notch).
+    // First-come chaining picked seg2's far endpoint (-50,0) — a dead end —
+    // and the whole chain died open. The linker must retry alternative
+    // continuations at junction points until one branch closes the loop.
+    const geoms: SketchGeom[] = [
+      { kind: 'line', index: 0, x1: 0, y1: 50, z1: 0, x2: 0, y2: -3, z2: 0 },
+      { kind: 'line', index: 1, x1: 7.5, y1: 50, z1: 0, x2: 0, y2: 50, z2: 0 },
+      { kind: 'line', index: 2, x1: 50, y1: 0, z1: 0, x2: -50, y2: 0, z2: 0 },
+      { kind: 'line', index: 3, x1: 7.5, y1: 3, z1: 0, x2: 50, y2: 3, z2: 0 },
+      { kind: 'line', index: 4, x1: 7.5, y1: 50, z1: 0, x2: 7.5, y2: 3, z2: 0 },
+      { kind: 'line', index: 5, x1: -7.5, y1: 49.99999999999999, z1: 0, x2: 7.5, y2: 50, z2: 0 },
+      { kind: 'line', index: 6, x1: 50, y1: 3, z1: 0, x2: 50, y2: 0, z2: 0 },
+      { kind: 'line', index: 7, x1: 50, y1: 0, z1: 0, x2: 4, y2: 0, z2: 0 },
+      { kind: 'line', index: 8, x1: 4, y1: 0, z1: 0, x2: 4, y2: -3, z2: 0 },
+      { kind: 'line', index: 9, x1: 4, y1: -3, z1: 0, x2: 0, y2: -3, z2: 0 },
+      { kind: 'line', index: 10, x1: -4, y1: -3, z1: 0, x2: 4, y2: -3, z2: 0 },
+    ];
+    const contours = extractContours(geoms);
+    const loop = contours.find((c) => c.segments.length >= 8);
+    expect(loop).toBeDefined();
+    expect(loop!.closed).toBe(true);
+  });
+
   it('chains a line+arc contour regardless of segment order', () => {
     const geoms: SketchGeom[] = [
       // arc from (10,0) to (0,0), semicircle over the line

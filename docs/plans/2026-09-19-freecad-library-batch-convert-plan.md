@@ -79,6 +79,7 @@ packages/core/scripts/scan-fcstd-library.ts这样的文件明显是错误的。
 > **✅ 当日六连修终态（+SubShape 结果缓存 → shape-asset + 结构类型回归类 triage）**：**ok 9→39、gap 56→17**，`cliCheck` 失败 0。motor_mount_inch 完整转出、strange_part_with_holes/FEMExample 转出；hole_puzzle 推进到自己的 fillet 链。剩余首因：`type-not-whitelisted` 6（Draft/Assembly/VRML，批量阶段）、`sketch-not-solved` 4、单例 7。
 > **✅ 当日七连修终态（+装配/导入容器口径 + FEM 约束系补全）**：**ok 9→42、gap 56→14**，`cliCheck` 失败 0。`App::Link`/`Assembly::AssemblyObject`/`JointGroup`/`App::InventorObject`/`App::VRMLObject` → preserved-only（reason `container-link`）；FEM 约束族补全（FluidBoundary/Gear/Heatflux/InitialTemperature）。**真实建模特征（Part::Mirroring、PartDesign::AdditiveSphere 等）刻意不入结构集，保持显式缺口**。剩余 14 文件全部是真实几何/求解工作：sketch-not-solved 4、type-not-whitelisted 3（draft_test_objects 的 Draft 对象、EngineBlock、all_objects 聚合件）、单例 7（compound/external-geo/unsupported-constraint/cut/fillet/delta/PocketTest 待查）。
 > **✅ 当日八连修终态（+轮廓闭合即停）**：**ok 9→43**、`cliCheck` 失败 0。tap 转出（6 段闭环曾因自由段触及顶点被抢断）；BIM WallTrace 开放轮廓**策略定案**：消费者全是 python-baked 的 Wall 对象，无轮廓消费需求，不阻塞文件（无需改码）。剩余 13 文件均为真实几何/求解工作。
+> **✅ 当日九连修终态（+轮廓 DFS 回溯链接）**：**ok 9→44、gap 56→12**，`cliCheck` 失败 0。slittingsaw 转出（分支死路经回溯绕过，8 段环找到）；`sketch-not-solved` 降至 2（BIMExample 按策略、TestTangentMode 真实拓扑）。剩余 12 文件全部是真实特征/几何工作（Draft 对象、EngineBlock、compound/external-geo/fillet/cut 链、delta-exceeds-t1、PocketTest 待 triage）。
 > （下表为 H10 接线前的原始基线，保留供对照。）
 
 口径：`out/sweep-report.json`（`fcstd-port/out/`，gitignore，重跑即得）。**注意：每文件只记录前 4 条 gap reason**，故下表「次数」是下界。
