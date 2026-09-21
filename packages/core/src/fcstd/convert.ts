@@ -23,6 +23,7 @@ import { resolveExternalGeometry } from './external-geo.js';
 import { extractContours } from './contour.js';
 import type { Contour } from './contour.js';
 import { generateModel } from './codegen.js';
+import { brepTextHasSolid } from '../brep/brep-topology-text.js';
 import { placementOf, type Placement } from './placement.js';
 import { effectivePlacement } from './attachment.js';
 import { buildFaiZip } from './build-fai-zip.js';
@@ -212,17 +213,36 @@ export async function convertFcstdFile(input: string, opts?: ConvertOptions): Pr
   // plane into the part (and `cad.load` rejects it: no solid sub-shapes). A
   // datum's shape is support geometry for attachment/up-to resolution.
   const shapeCarriers = new Set<string>();
+  // Non-solid carriers: the frozen .brp holds no `So` record, so it is a Draft
+  // wire / face / shell, not a solid. `cad.load` used to reject those outright
+  // (`no solid sub-shapes`) — 346 of 698 load sites in the 56-sample corpus.
+  // The verdict is read from the asset TEXT (`brepTextHasSolid`), so the
+  // conversion layer stays kernel-free; measured 2026-09-21 against OCCT on 681
+  // loadable sites: 681 agree, 0 disagree. `null` (not a CASCADE file) is
+  // deliberately NOT treated as non-solid — an unreadable asset is a different
+  // failure and should keep failing as a solid import.
+  const nonSolidAssets = new Set<string>();
   for (const obj of doc.value.objects) {
     if (isNonModelingType(obj.type)) continue;
     const shapeFile = obj.properties.get('Shape')?.children[0]?.attributes['file'];
-    if (shapeFile && memberText(unpacked.value, shapeFile) !== undefined) shapeCarriers.add(obj.name);
+    const shapeText = shapeFile ? memberText(unpacked.value, shapeFile) : undefined;
+    if (shapeText !== undefined) {
+      shapeCarriers.add(obj.name);
+      if (brepTextHasSolid(shapeText) === false) nonSolidAssets.add(obj.name);
+    }
     const subFile = obj.properties.get('SubShape')?.children[0]?.attributes['file'];
-    if (subFile && memberText(unpacked.value, subFile) !== undefined) shapeCarriers.add(obj.name);
+    const subText = subFile ? memberText(unpacked.value, subFile) : undefined;
+    if (subText !== undefined) {
+      shapeCarriers.add(obj.name);
+      if (brepTextHasSolid(subText) === false) nonSolidAssets.add(obj.name);
+    }
   }
 
   let gen;
   try {
-    gen = generateModel(doc.value, sketchVerdict, sketchContours, baseName, placements, shapeCarriers);
+    gen = generateModel(
+      doc.value, sketchVerdict, sketchContours, baseName, placements, shapeCarriers, nonSolidAssets,
+    );
   } catch (e) {
     return fail(`codegen failed: ${(e as Error).message}`);
   }

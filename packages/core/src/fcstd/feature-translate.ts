@@ -373,13 +373,18 @@ export function placementPos(obj: FcstdObject): [number, number, number] {
  *
  * @param obj - the FCStd object whose frozen shape is being imported.
  * @param assetFile - the `.brp` member name recorded on the object's Shape/SubShape property.
- * @returns the `cad.load` call binding `obj.name` to the imported solid.
+ * @param allowNonSolid - true when the frozen asset holds no solid (probed by
+ *   `brepTextHasSolid` in the conversion layer); the load then relaxes its
+ *   solid requirement instead of failing on `no solid sub-shapes`.
+ * @returns the `cad.load` call binding `obj.name` to the imported geometry.
  */
-function shapeAssetCall(obj: FcstdObject, assetFile: string): CadCall {
+function shapeAssetCall(obj: FcstdObject, assetFile: string, allowNonSolid: boolean): CadCall {
   const key = assetFile.replace(/^.*[/\\]/, '').replace(/\.brp$/i, '');
   return {
     out: obj.name, op: 'cad.load', source: obj.name, inputs: [],
-    params: { key, format: 'brep' },
+    // Keep the params object minimal for the solid case so existing products
+    // (and their golden assertions) are byte-identical.
+    params: allowNonSolid ? { key, format: 'brep', allowNonSolid: true } : { key, format: 'brep' },
   };
 }
 
@@ -396,6 +401,9 @@ function shapeAssetCall(obj: FcstdObject, assetFile: string): CadCall {
  *   its geometry (sketch contours or prior solid).
  * @param docObjects - the full document object list, needed by the UpToFace
  *   datum-plane path; optional.
+ * @param shapeCarriers - objects whose Shape is stored as a .brp member; optional.
+ * @param nonSolidAssets - subset whose frozen .brp holds no solid (a Draft wire,
+ *   a face, a shell), so the emitted load must relax its solid requirement; optional.
  * @returns the cad-op call plan, or an explicit bake/preserve verdict with reason.
  */
 export function translateObject(
@@ -404,6 +412,8 @@ export function translateObject(
   docObjects?: readonly FcstdObject[],
   /** H7: names of objects whose Shape is stored as a .brp member (probed from the ZIP). */
   shapeCarriers?: ReadonlySet<string>,
+  /** Objects whose frozen asset is not a solid — the load call must allow it. */
+  nonSolidAssets?: ReadonlySet<string>,
 ): TranslateVerdict {
   // H7 follow-up (Body-less CAM corpus, 2026-09-20): a SubShape property whose
   // .brp member exists is the feature's own RESULT cache — the pocketed/
@@ -420,7 +430,7 @@ export function translateObject(
     const assetFile = obj.properties.get('SubShape')?.children[0]?.attributes['file'] ?? `${obj.name}.SubShape.brp`;
     return {
       kind: 'translated',
-      calls: [shapeAssetCall(obj, assetFile)],
+      calls: [shapeAssetCall(obj, assetFile, nonSolidAssets?.has(obj.name) ?? false)],
       reason: 'shape-asset',
     };
   }
@@ -434,7 +444,7 @@ export function translateObject(
       const assetFile = shapeBrpFile(obj) ?? `${obj.name}.Shape.brp`;
       return {
         kind: 'translated',
-        calls: [shapeAssetCall(obj, assetFile)],
+        calls: [shapeAssetCall(obj, assetFile, nonSolidAssets?.has(obj.name) ?? false)],
         reason: 'shape-asset',
       };
     }

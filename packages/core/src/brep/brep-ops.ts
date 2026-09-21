@@ -672,6 +672,11 @@ export function extrudeBrep(
  * @param stmtId     optional - the part this solid belongs to, paired with brepChain as the cache key.
  * @param partIndex  optional - for multi-solid files, return the N-th sub-solid
  *                   (host emits one load statement per part with its index).
+ * @param opts       optional - `allowNonSolid` relaxes the solid requirement so
+ *                   a frozen wireframe/surface asset (a Draft wire, a face, a
+ *                   shell) can be imported as addressable geometry. Callers
+ *                   must decide this STATICALLY from the asset itself (see
+ *                   `brepTextHasSolid`), never by retrying after a failure.
  * @returns { solid: the OCCT solid handle, shape: the display tessellated mesh }
  */
 export function loadBrep(
@@ -680,6 +685,7 @@ export function loadBrep(
   brepChain?: BrepChainState,
   stmtId?: PartName,
   partIndex?: number,
+  opts?: { allowNonSolid?: boolean },
 ): { solid: BrepHandle; shape: Shape } {
   // BREP 文件（CASCADE Topology 文本格式）必须用 kernel.fromBREP 解析；
   // 误用 STEP 解析器（importStep）读 BREP 会抛 "failed to read STEP data"。
@@ -692,10 +698,20 @@ export function loadBrep(
   // 校验：含至少一个 solid 子形即合法（不调用 isValid，见上文设计决策）
   const solids = kernel.getSubShapes(top, 'solid')
   if (solids.length < 1) {
+    // 非实体导入（allowNonSolid）：冻结资产是 wireframe/surface（Draft 线/面/壳）
+    // 时仍可作为可寻址几何导入——顶点/边/线/面/壳都算有内容。此时返回 top 本身，
+    // 它独立持有几何，不能释放。
+    // 注意：这类 Shape 进不了布尔运算（OCCT fuse/cut 抛 "boolean operation
+    // failed"），调用方必须自己保证它只流向变换/聚合。
+    if (opts?.allowNonSolid && hasAnyTopology(kernel, top)) {
+      const shape = solidToShape(kernel, top, undefined, brepChain, stmtId)
+      return { solid: top, shape }
+    }
     kernel.release(top)
     throw new Error(
       `[loadBrep] imported shape contains no solid sub-shapes ` +
-      `(solidCount=0) — wireframe/surface/invalid shapes are not supported`
+      `(solidCount=0) — wireframe/surface/invalid shapes are not supported ` +
+      `unless allowNonSolid is set`
     )
   }
 
@@ -730,6 +746,24 @@ export function loadBrep(
   }
   const shape = solidToShape(kernel, top, undefined, brepChain, stmtId)
   return { solid: top, shape }
+}
+
+/** Sub-shape kinds that make an imported shape "addressable but not a solid". */
+const NON_SOLID_KINDS = ['vertex', 'edge', 'wire', 'face', 'shell'] as const
+
+/**
+ * Does a freshly imported shape hold any sub-shape at all?
+ *
+ * Guards the `allowNonSolid` path: a file whose TShapes table is empty (or that
+ * holds only a bare compound with nothing inside) is a broken asset, not a
+ * wireframe one, and must still fail loudly.
+ *
+ * @param kernel - the initialized OCCT kernel.
+ * @param top - the imported top-level shape handle.
+ * @returns true when at least one non-solid sub-shape exists.
+ */
+function hasAnyTopology(kernel: BrepEngineApi, top: BrepHandle): boolean {
+  return NON_SOLID_KINDS.some((kind) => kernel.getSubShapes(top, kind).length > 0)
 }
 
 // ─── 辅助函数 ───

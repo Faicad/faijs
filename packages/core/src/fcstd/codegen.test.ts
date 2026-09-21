@@ -497,6 +497,36 @@ describe('M5 codegen', () => {
     expect(r.calls.indexOf(group)).toBe(r.calls.length - 1);
   });
 
+  // The frozen asset of a Draft wire is a wireframe, not a solid. Emitting a
+  // plain `cad.load` for it makes the product convert cleanly (`ok=true`, a
+  // clean cliCheck) and then die the moment it runs, on
+  // `no solid sub-shapes` — 346 of the corpus's 698 load sites. The verdict is
+  // read from the asset TEXT at conversion time (`brepTextHasSolid`), so the
+  // call carries it explicitly instead of probing at run time.
+  it('flags a non-solid frozen asset so the load relaxes its solid requirement', () => {
+    const doc: FcstdDocument = {
+      objects: [
+        simpleObj('Part::Part2DObjectPython', 'Wire045', { Shape: { file: 'Wire045.Shape.brp' } }),
+        simpleObj('Part::Part2DObjectPython', 'Structure119', { Shape: { file: 'Structure119.Shape.brp' } }),
+      ],
+      typeIndex: new Map(),
+      meta: new Map(),
+    };
+    const r = generateModel(
+      doc, new Map(), NO_CONTOURS, 't', undefined,
+      new Set(['Wire045', 'Structure119']),
+      new Set(['Wire045']), // only the wire's .brp has no So record
+    );
+    const loads = r.calls.filter((c) => c.op === 'cad.load');
+    expect(loads.length).toBe(2);
+    const wire = loads.find((c) => c.source === 'Wire045')!;
+    const solid = loads.find((c) => c.source === 'Structure119')!;
+    expect(wire.params).toEqual({ key: 'Wire045.Shape', format: 'brep', allowNonSolid: true });
+    // The solid case must stay byte-identical to the historical call, so
+    // existing products and their golden assertions are untouched.
+    expect(solid.params).toEqual({ key: 'Structure119.Shape', format: 'brep' });
+  });
+
   // GOTCHA (PadTest, 2026-09-21): a Body's `Model` list contains its datum
   // planes, and a `PartDesign::Plane` stores a `Shape` .brp — the plane FACE,
   // not a solid. The "any object with shape evidence is a shape asset" rule

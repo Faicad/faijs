@@ -93,9 +93,18 @@ packages/core/scripts/scan-fcstd-library.ts这样的文件明显是错误的。
 > ① codegen 对 shape-asset 发的是 **`cad.import_shape`——该 op 在 cad 命名空间根本不存在**（真名 `cad.load`，且是 **SOLID 加载器**，需 `params:{key, format:'brep'}`）；42/50 产物 `cliCheck` 干净却必然 run 失败。
 > ② 「有 Shape 证据即 shape-asset」把 **Body 自身**与 **`PartDesign::Plane` 基准面**也当资产导入，平面 FACE 被 `cad.union` 进 Body 链 → 产物不可运行。PadTest 计数一度误读为 9/4，修复后回到 **6/7**（其 main 与各 Body 模块**零** `cad.load`）。
 >
-> **⚠️ 新增设计级遗留（已钉为回归测试，非本轮可修）**：冻结 `.brp` **不保证含实体**。普查 698 个 `cad.load` 站点：**335 可加载 / 363 不可加载**（346 零实体——Draft 线/面/壳；15 manifest 缺 key；2 occt 读不了），分布在 **21 个发 load 的样本中的 14 个**。
+> **⚠️ 当时记录的设计级遗留（下一段终态中已按「方案 a：新增非实体导入能力」修掉，此处保留原始测量以供对照）**：冻结 `.brp` **不保证含实体**。普查 698 个 `cad.load` 站点：**335 可加载 / 363 不可加载**（346 零实体——Draft 线/面/壳；15 manifest 缺 key；2 occt 读不了），分布在 **21 个发 load 的样本中的 14 个**。
 > **按产物口径（`fcstd-port/out/probe-runnable.log`）：50 个可转换样本 → 32 能真正 run、18 run 失败、0 抛异常。** 18 个失败分 6 类：`asset-empty` 8（即上述零实体，含 **ArchDetail**——它本轮只拿到「可转换」，**产物仍不可执行**）、`asset-resolver` 2、`asset-unreadable` 1、`nameless-shape` 2（装载后无名形状 → `edgeRef` 无 role table）、`dep-module-revolve` 2、`no-geometry` 3（无几何终端，属正确行为）。
 > 修法二选一：**新增非实体导入能力**，或**把 shape-asset 限制为实体、其余转显式 gap**。回归载体：`fcstd-port/test/FreeCAD/fcstd-e2e.test.ts`（`ASSET_RUNNABLE` + `KNOWN_UNRUNNABLE`、跨模块扫描断言）+ 新增 `fcstd-port/test/FreeCAD/run-census.test.ts`（全语料 run 普查，32/18 逐样本钉死）。
+>
+> **✅ 2026-09-21 第三段终态（+非实体 BREP 导入能力；执行侧）**：**run 32→36、fail 18→14**（口径 `fcstd-port/out/probe-runnable2.log`）。转换侧不变：**ok 50、gap 6、`cliCheck` 失败 0**（`sweep3.log`，56 文件 / 82 模块 / 1,075 语句）——这是执行侧缺陷，转换侧数字不应动。
+> - **能力**：`cad.load` 新增 `params.allowNonSolid`（缺省 false，既有产物**逐字节不变**——只有置位时 params 对象才扩展）→ 透传 `loadBrep(…, { allowNonSolid })`。放宽路径仍要求**至少一个非实体子形**（真损坏的资产照旧响亮失败，不产生静默空 Shape）。
+> - **静态判据（本轮的要点）**：新增 `brep/brep-topology-text.ts` 的 `brepTextHasSolid(text)`，扫 CASCADE `TShapes` 段的裸 `So` 记录；声明数量界定扫描范围，故形状像类型码的数据行无法拖长扫描。**转换层零内核**。**与内核对拍 681/681 一致、0 不一致**（`fcstd-port/out/probe-brp-predicate.mjs`；335 含实体 / 346 零实体）；非 CASCADE 返回 `null` 且**不**折算成「无实体」——读不了的资产必须继续以实体身份失败。
+> - **接线**：`convert.ts` 在本来就要遍历归档收集 `shapeCarriers` 的同一趟里收集 `nonSolidAssets` → `generateModel` → `translateObject` → `shapeAssetCall`，判决**写进产出脚本**（`allowNonSolid: true`），不是运行时探——遵守本仓「静态规则、禁运行时回退」红线。
+> - **收益**：Crank / thermomech_flow1D / InternalInvoluteGear_v0-20 / InvoluteGear_v0-20 四个原 `asset-empty` 样本转为可跑；**Crank 退出 `KNOWN_UNRUNNABLE` 槽位**。
+> - **⚠️ 露出的下一层（`KNOWN_UNRUNNABLE` 槽位改钉它）**：ArchDetail 293 个导入全部放行后，死在 s652 `rotate_euler: E_BREP_UNSUPPORTED: input is not BREP`——`cad.group` 产出的是**结构 compound（不带 OCCT 句柄）**，不能再进变换。另有 2 例死在导出侧的镜像问题：`exportStepFromSolids` 在全线框链里找不到可导出子形。
+> - **已知限制（已钉进 `load-nonsolid.test.ts`）**：无面的纯线框三角化为空 → **能导入、能查询，但不贡献显示网格**；渲染需内核 `wireframe()` 边通道，`Shape` 尚不承载。
+> - 剩余 14 个 run 失败的分组与失败片段见 `run-census.test.ts`（9 类：`compound-transform` 1、`export-no-exportable-shape` 2、`extrude-zero-vector` 1、`asset-resolver` 2、`asset-unreadable` 1、`nameless-shape` 2、`dep-module-revolve` 2、`no-geometry` 3——其中 `no-geometry` 属正确行为）。
 >
 > 剩余 6 个 gap 文件（均为真实几何/求解工作）：BIMExample `sketch-not-solved`、PartDesignExample `external-geometry-unresolved: no links` + `pocket-missing-dependency`×2、Drilling_1 `unsupported-constraint` + `pad-missing-profile` + `pocket-missing-dependency` + `linear-pattern-missing-source`、hole_puzzle `external-geometry-unresolved: no links`、TestTangentMode3-0.21 `sketch-not-solved`、TestSketchCarbonCopyReverseMapping `delta-exceeds-t1` + `sketch-not-solved`×3。
 > （下表为 H10 接线前的原始基线，保留供对照。）

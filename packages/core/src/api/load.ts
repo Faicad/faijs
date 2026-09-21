@@ -38,11 +38,14 @@ import type { BrepEngineApi } from '../brep/engine/primitives'
  * @param params.path - 本地绝对路径（非 web 环境）。type:string
  * @param params.url - 网络地址。type:string
  * @param params.format - 格式提示（如 'step'/'stl'；CAD 源走 BREP 精确路径，STL 等三角化源走 mesh 路径）。type:string
+ * @param params.allowNonSolid - 允许导入不含实体的 BREP 拓扑（冻结的 Draft 线/面/壳）。type:boolean
  * @note key/path/url 是优先级分流（key 优先，其次 path，最后 url），三者只需其一；同时给多个时按优先级取。`format` 是提示而非强约束——CAD 源（step/stp/brep 等）与三角化源（stl 等）由 `isCadFormat` 静态判定路径。
+ * @note `allowNonSolid` 缺省 false，即保持「必须含实体」的历史契约；置 true 后 wire/face/shell 也能导入。这个开关必须由**调用方静态决定**（依据资产本身，如 `brepTextHasSolid`），不允许「先按实体试、失败再放宽」的运行期回退。放宽导入的 Shape 仍可变换与聚合，但**不可参与布尔运算**（OCCT 抛 `boolean operation failed`）。
  * @example
  * const p = await cad.load({ key: 'file_abc123' })
  * const p = await cad.load({ path: 'D:/models/box.step', format: 'step' })
  * const p = await cad.load({ url: 'https://…/box.3mf' })
+ * const p = await cad.load({ key: 'Array001.Shape', format: 'brep', allowNonSolid: true })
   */
 export async function load(params: Record<string, unknown>): Promise<Shape> {
   const assets = getBackends().assets as {
@@ -86,6 +89,11 @@ export async function load(params: Record<string, unknown>): Promise<Shape> {
   // partIndex：多 part 文件（如多 solid STEP）逐 part 加载——宿主为每个 part
   // 生成独立 load 语句并携带 partIndex，提取 Compound 中对应子 solid。
   const partIndex = typeof params.partIndex === 'number' ? params.partIndex : undefined
-  const { solid: solidHandle, shape } = loadBrep(kernel!, buffer, undefined, undefined, partIndex)
+  // allowNonSolid 是静态契约的一部分（脚本里写死），不是重试策略：调用方从
+  // 资产本身判定（`brepTextHasSolid`），据此选择是否放宽。缺省 false = 历史行为。
+  const allowNonSolid = params.allowNonSolid === true
+  const { solid: solidHandle, shape } = loadBrep(
+    kernel!, buffer, undefined, undefined, partIndex, { allowNonSolid },
+  )
   return fromBrep(shape, { solid: solidHandle })
 }

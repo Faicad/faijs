@@ -115,6 +115,9 @@ function bodyFeatureNames(obj: FcstdDocument['objects'][number]): string[] {
  * @param sketchContours solved contours per L0 sketch, keyed by object name
  * @param baseName source base name used in generated file headers/labels
  * @param placements per-object Placement used to re-orient placed geometry; missing → identity
+ * @param shapeCarriers objects whose Shape is a ZIP .brp member (pure-Shape carriers → shape-asset)
+ * @param nonSolidAssets subset of shapeCarriers whose frozen .brp holds no solid (wire/face/shell),
+ *   so the emitted load must relax its solid requirement
  * @returns the lowered call plan, per-object dispositions and generated code
  */
 export function generateModel(
@@ -126,6 +129,8 @@ export function generateModel(
   placements?: Map<string, Placement>,
   /** H7: objects whose Shape is a ZIP .brp member (pure-Shape carriers → shape-asset). */
   shapeCarriers?: ReadonlySet<string>,
+  /** Objects whose frozen asset is not a solid — the load call must allow it. */
+  nonSolidAssets?: ReadonlySet<string>,
 ): GenResult {
   const byName = new Map(doc.objects.map((o) => [o.name, o]));
   // GOTCHA (test_geomop corpus, 2026-09-20): a dependency on a Body
@@ -258,7 +263,7 @@ export function generateModel(
       // accumulated chain head, not `variables` — the container name is
       // never registered there (its result lives in chainVar).
       return variables.get(dep) ?? chainVar.get(dep);
-    }, doc.objects, shapeCarriers);
+    }, doc.objects, shapeCarriers, nonSolidAssets);
     node.verdict = verdict;
     if (verdict.kind === 'translated') {
       // rename output vars to partN sequence
