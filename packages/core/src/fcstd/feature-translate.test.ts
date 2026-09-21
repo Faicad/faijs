@@ -794,4 +794,44 @@ describe('H7 Part::Feature pure-Shape carrier', () => {
       expect(r).toMatchObject({ kind: 'translated', reason: 'shape-asset' });
     }
   });
+
+  it('GOTCHA (Body-less CAM corpus 2026-09-20): a feature with SubShape cache evidence → shape-asset (result cache, no cad calls)', () => {
+    // Body-less PartDesign files (motor_mount_inch etc.) carry SubShape
+    // result caches on their Pockets — the pocketed geometry already exists
+    // as a .brp member. shape-asset beats an honest-but-useless
+    // pocket-missing-dependency gap.
+    const pocket = obj('PartDesign::Pocket', 'Pocket', [
+      prop('Profile', { name: 'Link', attrs: { value: 'Sketch001' } }),
+      prop('Type', { name: 'String', attrs: { value: 'ThroughAll' } }),
+      prop('SubShape', { name: 'Part', attrs: { file: 'PartShape5.brp' } }),
+    ]);
+    const r = translateObject(pocket, () => undefined, undefined, new Set(['Pocket']));
+    expect(r).toMatchObject({ kind: 'translated', reason: 'shape-asset' });
+    if (r.kind === 'translated') expect(r.calls).toEqual([]);
+  });
+
+  it('GOTCHA: a Shape-carrier WITHOUT SubShape (e.g. a Pad) is NOT hijacked into shape-asset — normal translation path applies', () => {
+    // Pads also carry a Shape property in Body-less files; only SubShape
+    // (the feature's own result cache) qualifies as shape-asset evidence.
+    const pad = obj('PartDesign::Pad', 'Pad', [
+      prop('Profile', { name: 'Link', attrs: { value: 'Sketch' } }),
+      prop('Length', { name: 'Float', attrs: { value: '10' } }),
+      prop('Shape', { name: 'Part', attrs: { file: 'PartShape1.brp' } }),
+    ]);
+    const r = translateObject(pad, (d) => (d === 'Sketch' ? 'sketch0' : undefined), undefined, new Set(['Pad']));
+    expect(r.kind).toBe('translated');
+    if (r.kind === 'translated') {
+      expect(r.reason).not.toBe('shape-asset');
+      expect(r.calls.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('SubShape evidence ABSENT from the carriers set → normal path (Pocket still gaps on missing base)', () => {
+    const pocket = obj('PartDesign::Pocket', 'Pocket', [
+      prop('Profile', { name: 'Link', attrs: { value: 'Sketch001' } }),
+      prop('SubShape', { name: 'Part', attrs: { file: 'Ghost.brp' } }),
+    ]);
+    const r = translateObject(pocket, () => undefined, undefined, new Set());
+    expect(r).toMatchObject({ kind: 'baked', reason: 'pocket-missing-dependency' });
+  });
 });

@@ -82,6 +82,11 @@ const STRUCTURAL_TYPES = new Set([
   // H10 companion fix (plan §3.5): datum/annotation types, not modeling
   // features — previously misclassified as translation gaps.
   'App::Point', 'App::Annotation',
+  // 2026-09-20 sweep regression triage: Part workbench datum plane (same
+  // semantics as App::Plane) and a document text record — non-modeling.
+  'Part::Plane', 'App::TextDocument',
+  // Part workbench datum line (FEMExample) — same semantics as App::Line.
+  'Part::Line',
 ]);
 
 /**
@@ -104,6 +109,7 @@ export const FEM_STRUCTURAL_TYPES = new Set([
   'Fem::FemMeshObject',
   'Fem::FemResultObject',
   'Fem::FemPostPipeline',
+  'Fem::FemPostWarpVectorFilter',
   'Fem::ConstraintFixed',
   'Fem::ConstraintForce',
   'Fem::ConstraintPressure',
@@ -240,10 +246,15 @@ export async function convertFcstdFile(input: string, opts?: ConvertOptions): Pr
   // H7: objects whose Shape is stored as a ZIP .brp member (pure-Shape
   // carriers, e.g. Part::Feature) — collected from the archive members so the
   // translator can record `shape-asset` instead of a translation gap.
+  // H7 follow-up: SubShape carriers (feature result caches in Body-less
+  // PartDesign files) join the same set — the translator only honors SubShape
+  // evidence for features whose SubShape .brp member exists.
   const shapeCarriers = new Set<string>();
   for (const obj of doc.value.objects) {
-    const fileAttr = obj.properties.get('Shape')?.children[0]?.attributes['file'];
-    if (fileAttr && memberText(unpacked.value, fileAttr) !== undefined) shapeCarriers.add(obj.name);
+    const shapeFile = obj.properties.get('Shape')?.children[0]?.attributes['file'];
+    if (shapeFile && memberText(unpacked.value, shapeFile) !== undefined) shapeCarriers.add(obj.name);
+    const subFile = obj.properties.get('SubShape')?.children[0]?.attributes['file'];
+    if (subFile && memberText(unpacked.value, subFile) !== undefined) shapeCarriers.add(obj.name);
   }
 
   let gen;

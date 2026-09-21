@@ -372,6 +372,15 @@ export function translateObject(
   /** H7: names of objects whose Shape is stored as a .brp member (probed from the ZIP). */
   shapeCarriers?: ReadonlySet<string>,
 ): TranslateVerdict {
+  // H7 follow-up (Body-less CAM corpus, 2026-09-20): a SubShape property whose
+  // .brp member exists is the feature's own RESULT cache — the pocketed/
+  // filleted geometry is already a fact delivered via assets/. shape-asset
+  // beats an honest-but-useless dependency gap for Body-less files. Only
+  // SubShape qualifies (Pads also carry Shape in these files — they must keep
+  // the normal translation path).
+  if (shapeCarriers?.has(obj.name) && obj.properties.has('SubShape')) {
+    return { kind: 'translated', calls: [], reason: 'shape-asset' };
+  }
   if (!isWhitelisted(obj.type)) {
     // H10: property-evidenced Python features bake legitimately (C4) —
     // auditMapping renames this reason to `python-baked`. Everything else is
