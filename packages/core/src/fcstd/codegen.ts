@@ -6,6 +6,13 @@
  * heuristics — explicit downgrade per plan §12).
  * M5.2 lowering: params → JS constants; calls → `const partN = await cad.x(...)`;
  * statement ids sN. Sketch contours enter as blueprint literals.
+ *
+ * ⚠️ 过渡态（2026-09-21，见 .agents/notes「editor-owned ops」）：本文件为 Placement
+ * 发射 `cad.rotate_euler` + `cad.translate`、为产物聚合发射 `cad.group`，但这三个 op
+ * 已被裁定为 `../3d_editor` 项目特有的**编辑器交互** op（JSDoc 已带 @deprecated），
+ * 不属于 faijs 平台面。FCStd 转换是平台能力，正解是平台自有的几何 compound 与放置
+ * 语义（内核 `makeCompound` / `located` 已具备）。替代 API 落地前维持借用；
+ * **不要**据此推断这三个 op 属于平台面。
  */
 import type { FcstdDocument } from './document.js';
 import type { CadCall, TranslateVerdict } from './feature-translate.js';

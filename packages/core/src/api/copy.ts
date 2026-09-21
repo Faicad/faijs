@@ -63,6 +63,7 @@ function copyBrep(input: Shape): Shape {
  * @async false
  * @qual ok
  * @name copy
+ * @deprecated `../3d_editor` 项目特有的 op（语义含编辑器画布显示——源与副本各显示一份），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
  * @param input - 源几何。type:Shape required:true
  * @returns Shape 源几何的深拷贝。copy 不消费其源（画布显示 box 和副本两份），改副本不影响源。
  * @example

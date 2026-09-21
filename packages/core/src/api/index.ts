@@ -11,6 +11,9 @@
  */
 
 export { box, sphere, cylinder, cone, wedge } from './primitives'
+// DEPRECATED: transform 家族（translate/rotate_euler/scale/scale3d）是 ../3d_editor
+// 项目特有的编辑器交互 op（拖拽 / 时间线语句），不属于 faijs 平台面。将来会迁往该
+// 项目并从 faijs 删除；各 op 的 JSDoc 已带 @deprecated。新代码请勿使用。
 export { translate, rotate_euler, scale, scale3d } from './transform'
 // DEPRECATED: `fai_` 前缀 op（fai_extrude / fai_drill / fai_split）是 ../3d_editor
 // 项目特有的操作，不属于 faijs 平台面。将来会迁往该项目并从 faijs 删除；各 op 的
@@ -29,11 +32,14 @@ export { sketch } from './sketch'
 export { knurl } from './knurl'
 export { load } from './load'
 export { sdf } from './sdf'
+// DEPRECATED: group/assembly 是 ../3d_editor 项目特有的 op（无几何输出的结构分组 /
+// 以编辑器结构语句声明的装配），不属于 faijs 平台面；将来迁出并从 faijs 删除。
 export { group, assembly } from './compound'
 export { applyTransform } from './compound'
 // P2-f3：装配子层全量导出（solvePreview/entityFromGeometry 等经此到门面；
 // 与 ./compound 显式导出重名（assembly/AssemblyConstraint 等）时显式优先，不报错）
 export * from './assembly'
+// DEPRECATED: copy 同上（语义含编辑器画布显示——源与副本各显示一份）。
 export { copy } from './copy'
 export type {
   AssemblyBehavior, AssemblyConstraint, FaceMateConstraint, FaceMateFace,

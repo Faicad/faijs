@@ -508,6 +508,10 @@ export function translateObject(
       if (vars.length === 0 || vars.some((v) => v === undefined)) {
         return { kind: 'baked', reason: 'compound-missing-members' };
       }
+      // ⚠️ 过渡态：`cad.group` 是 ../3d_editor 的编辑器结构分组 op（无几何输出、
+      // 不带 OCCT 句柄，JSDoc 已 @deprecated）。FCStd 的 `Part::Compound` 是几何对象
+      // （`Part::Feature` 子类，带 Shape + Placement），正解是平台自有的几何 compound
+      // （内核 `makeCompound` 已具备）；替代 API 落地前维持借用。
       return {
         kind: 'translated',
         calls: [{

@@ -26,9 +26,21 @@ export interface CadAPI {
   load(params: { key?: string; path?: string; url?: string; format?: string }): Promise<Shape>
 
   // ── 变换 ──
+  /**
+   * @deprecated `../3d_editor` 项目特有的 op（编辑器交互模型：画布显示 / 拖拽 / 时间线语句 / 结构分组），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
+   */
   translate(shape: Shape, params: { offset: [number, number, number] }): Shape
+  /**
+   * @deprecated `../3d_editor` 项目特有的 op（编辑器交互模型：画布显示 / 拖拽 / 时间线语句 / 结构分组），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
+   */
   rotate_euler(shape: Shape, params: { anglesDeg: [number, number, number]; pivot?: [number, number, number] }): Shape
+  /**
+   * @deprecated `../3d_editor` 项目特有的 op（编辑器交互模型：画布显示 / 拖拽 / 时间线语句 / 结构分组），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
+   */
   scale(shape: Shape, factor: number, options?: { center?: [number, number, number] }): Shape
+  /**
+   * @deprecated `../3d_editor` 项目特有的 op（编辑器交互模型：画布显示 / 拖拽 / 时间线语句 / 结构分组），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
+   */
   scale3d(shape: Shape, factor: [number, number, number], options?: { center?: [number, number, number] }): Shape
 
   // ── 布尔 ──
@@ -63,8 +75,17 @@ export interface CadAPI {
   chamfer(shape: Shape, params: { edges: any[]; type?: string; width?: number; width1?: number; width2?: number; angle?: number }): Promise<Shape>
 
   // ── 结构（不消费成员） ──
+  /**
+   * @deprecated `../3d_editor` 项目特有的 op（编辑器交互模型：画布显示 / 拖拽 / 时间线语句 / 结构分组），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
+   */
   group(params: { name?: string; members?: readonly Shape[] }): Shape  // members are kept via function-body exec.keep (visible); group does not consume them
+  /**
+   * @deprecated `../3d_editor` 项目特有的 op（编辑器交互模型：画布显示 / 拖拽 / 时间线语句 / 结构分组），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
+   */
   assembly(params: { name?: string; members?: readonly Shape[]; constraints?: any[] }): Shape  // members are kept via function-body exec.keep (visible); assembly does not consume them
+  /**
+   * @deprecated `../3d_editor` 项目特有的 op（编辑器交互模型：画布显示 / 拖拽 / 时间线语句 / 结构分组），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
+   */
   copy(shape: Shape, params?: never): Shape  // input is kept via function-body exec.keep (visible); copy does not consume it
 
   // ── 几何查询 ──

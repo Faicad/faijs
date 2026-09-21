@@ -279,9 +279,11 @@ const w = cad.wedge({ width: 30, height: 20, angle: 45, length: 10 })
 
 ## 4. 变换类操作（inputs ≥ 1）
 
-### 4.1 `rotate_euler` ✅
+### 4.1 `rotate_euler` ✅ 🚫
 
 绕轴旋转几何体。anglesDeg 为欧拉角（度，XYZ 顺序）。
+
+> 🚫 **已废弃（deprecated）**：`../3d_editor` 项目特有的变换 op（承载编辑器拖拽与时间线语句），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
 
 ```js
 const p2 = cad.rotate_euler(part0, { anglesDeg: [0, 0, 45] })
@@ -295,9 +297,11 @@ const p3 = cad.rotate_euler(part0, { anglesDeg: [0, 0, 45], pivot: [0,0,0] })
 
 **同步**。Shape 旋转后的几何。
 
-### 4.2 `scale` ✅
+### 4.2 `scale` ✅ 🚫
 
 等比缩放几何体（brepjs 契约，§4.6 裁决 2）。factor 只收 number；不动点默认 原点（与 vendored `scale(shape, factor, { center? })` 一致），`center` 可选。
+
+> 🚫 **已废弃（deprecated）**：`../3d_editor` 项目特有的变换 op（承载编辑器拖拽与时间线语句），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
 
 ```js
 const p4 = cad.scale(part0, 2)
@@ -311,9 +315,11 @@ const p5 = cad.scale(part0, { factor: 2, center: [10, 0, 0] })
 
 **同步**。Shape 缩放后的几何。
 
-### 4.3 `scale3d` ✅
+### 4.3 `scale3d` ✅ 🚫
 
 非等比缩放几何体（faijs 语义，§1.4.4 裁决 2）。factor 定死 vec3 — 等比缩放请用 `scale(p, s)`，`scale3d(p, [x,y,z])` 才可非等比。`center` 为不动点（默认原点）。
+
+> 🚫 **已废弃（deprecated）**：`../3d_editor` 项目特有的变换 op（承载编辑器拖拽与时间线语句），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
 
 ```js
 const p4 = cad.scale3d(part0, { factor: [2, 1, 1] })
@@ -327,9 +333,11 @@ const p5 = cad.scale3d(part0, [2, 1, 1], { center: [10, 0, 0] })
 
 **同步**。Shape 缩放后的几何。
 
-### 4.4 `translate` ✅
+### 4.4 `translate` ✅ 🚫
 
 平移几何体。
+
+> 🚫 **已废弃（deprecated）**：`../3d_editor` 项目特有的变换 op（承载编辑器拖拽与时间线语句），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
 
 ```js
 const p1 = cad.translate(part0, { offset: [10, 0, 0] })
@@ -366,9 +374,11 @@ const p = await cad.chamfer(part0, { edges: [{ kind:'edge', faces:[{ origin:'box
 
 > 倒角是 BREP-only：非 BREP 输入抛 E_MESH_UNSUPPORTED。参考面由内核自选，`width1` 沿 faces[0] 侧、`width2` 沿 faces[1] 侧。
 
-### 5.2 `copy` ✅
+### 5.2 `copy` ✅ 🚫
 
 深拷贝几何为独立新对象（源不变，源与副本都显示）。
+
+> 🚫 **已废弃（deprecated）**：`../3d_editor` 项目特有的 op（语义含编辑器画布显示——源与副本各显示一份），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
 
 ```js
 const part1 = cad.copy(part0)
@@ -601,9 +611,11 @@ const a = await cad.union(part0, part1)
 
 ## 6. 结构类操作（结构语句，无几何输出）
 
-### 6.1 `assembly` ⚠️
+### 6.1 `assembly` ⚠️ 🚫
 
 装配：成员 + 约束。结构语句，无几何输出，成员用变量名引用、实体用 EntityRef / 拓扑引用。 求解内核复用 vendored brepjs solverAdapter.solveConstraints（链式拓扑调度 / DOF / converged / unsupported 诊断）；输出为 per-member 终态变换（每成员一条，恒等位姿不输出）。
+
+> 🚫 **已废弃（deprecated）**：`../3d_editor` 项目特有的装配 op（成员以编辑器结构语句形态声明，服务于画布与时间线），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
 
 ```js
 let asm1 = cad.assembly({ name: '主轴组件', members: [part0, part1, part2], constraints: [ { type: 'fixed', part: 'part0' }, { type: 'mate', a: { part: 'part0', face: { topoRef: { kind: 'face', origin: 'part0', role: 'box:top', hint: { kind: 'face', surfaceType: 'plane' } } } }, b: { part: 'part1', face: { topoRef: { kind: 'face', origin: 'part1', role: 'box:bottom', hint: { kind: 'face', surfaceType: 'plane' } } } } }, { type: 'concentric', a: { part: 'part1', face: { topoRef: { kind: 'face', origin: 'part1', role: '', hint: { kind: 'face', surfaceType: 'cylinder' } } } }, b: { part: 'part2', face: { topoRef: { kind: 'face', origin: 'part2', role: 'cylinder:lateral', hint: { kind: 'face', surfaceType: 'cylinder' } } } } } ] })
@@ -626,9 +638,11 @@ asm1.solve()
 >
 > 早期文档/示例曾用 `fixedPartId`/`movingPartId`/`faceRowIndex`/`faceId`/`invalid`——这些键在代码中不存在。真实契约是 `fixedPartName`/`movingPartName` + `fixedFace`/`movingFace`（遗留 face_mate）。`faceId` 字段随 §6.2 移除，不再写入。
 
-### 6.2 `group` ✅
+### 6.2 `group` ✅ 🚫
 
 分组：零约束，保持当前布局。结构语句，无几何输出，成员用变量名引用。
+
+> 🚫 **已废弃（deprecated）**：`../3d_editor` 项目特有的结构分组 op（无几何输出，服务于编辑器画布与时间线），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
 
 ```js
 const part0 = cad.box(30, 20, 10, { centered: true })
@@ -832,9 +846,9 @@ const cam = cad.viewCamera({ dir: [1, -1, 1] })
 
 ```
 创建: load / box / sphere / cylinder / cone / wedge / screw / sdf / sketch / svgExtrude / text
-变换: translate / rotate_euler / scale / scale3d
-特征: union / subtract / intersect / chamfer / copy / engrave / extrude / fillet / knurl
-结构: group / assembly
+变换: 
+特征: union / subtract / intersect / chamfer / engrave / extrude / fillet / knurl
+结构: 
 查询: asset / edgeRef / faceRef / faceNormal / bboxCenter / bboxMin / bboxMax / viewCamera / projectView / projectSheet
-废弃（勿用，`fai_` 前缀 / ../3d_editor 特有，将迁出）: fai_drill、fai_extrude、fai_split
+废弃（勿用，`fai_` 前缀 / ../3d_editor 特有，将迁出）: group、assembly、copy、fai_drill、fai_extrude、fai_split、translate、rotate_euler、scale、scale3d
 ```

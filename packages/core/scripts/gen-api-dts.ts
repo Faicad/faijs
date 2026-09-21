@@ -45,6 +45,14 @@ interface ApiEntry {
 const FAI_DEPRECATED =
   '`fai_` 前缀 op 是 ../3d_editor 项目特有的操作，不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。'
 
+/**
+ * `../3d_editor` 项目特有的**编辑器交互** op（transform 家族 / group / assembly /
+ * copy）的废弃说明。它们的形态服务编辑器——画布显示、拖拽、时间线语句、结构分组
+ * ——而非几何语义，因此不属于 faijs 平台面，将来迁出并从 faijs 删除。
+ */
+const EDITOR_OWNED_DEPRECATED =
+  '`../3d_editor` 项目特有的 op（编辑器交互模型：画布显示 / 拖拽 / 时间线语句 / 结构分组），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。'
+
 const API_ENTRIES: Record<string, ApiEntry> = {
   // ── 创建类 ──
   box: {
@@ -101,28 +109,32 @@ const API_ENTRIES: Record<string, ApiEntry> = {
     returns: 'Promise<Shape>',
   },
 
-  // ── 变换类 ──
+  // ── 变换类（DEPRECATED: ../3d_editor 编辑器交互 op） ──
   translate: {
     inputs: 1,
     params: '{ offset: [number, number, number] }',
     returns: 'Shape',
+    deprecated: EDITOR_OWNED_DEPRECATED,
   },
   rotate_euler: {
     inputs: 1,
     params: '{ anglesDeg: [number, number, number]; pivot?: [number, number, number] }',
     returns: 'Shape',
+    deprecated: EDITOR_OWNED_DEPRECATED,
   },
   scale: {
     inputs: 1,
     args: 'shape: Shape, factor: number, options?: { center?: [number, number, number] }',
     params: 'never',
     returns: 'Shape',
+    deprecated: EDITOR_OWNED_DEPRECATED,
   },
   scale3d: {
     inputs: 1,
     args: 'shape: Shape, factor: [number, number, number], options?: { center?: [number, number, number] }',
     params: 'never',
     returns: 'Shape',
+    deprecated: EDITOR_OWNED_DEPRECATED,
   },
 
   // ── 布尔类 ──
@@ -185,26 +197,29 @@ const API_ENTRIES: Record<string, ApiEntry> = {
     returns: 'Promise<Shape>',
   },
 
-  // ── 结构类 ──
+  // ── 结构类（DEPRECATED: ../3d_editor 编辑器交互 op） ──
   group: {
     inputs: 0,
     params: '{ name?: string; members?: readonly Shape[] }',
     returns: 'Shape',
     note: 'members are kept via function-body exec.keep (visible); group does not consume them',
+    deprecated: EDITOR_OWNED_DEPRECATED,
   },
   assembly: {
     inputs: 0,
     params: '{ name?: string; members?: readonly Shape[]; constraints?: any[] }',
     returns: 'Shape',
     note: 'members are kept via function-body exec.keep (visible); assembly does not consume them',
+    deprecated: EDITOR_OWNED_DEPRECATED,
   },
 
-  // ── 克隆 ──
+  // ── 克隆（DEPRECATED: ../3d_editor 编辑器交互 op） ──
   copy: {
     inputs: 1,
     params: 'never',
     returns: 'Shape',
     note: 'input is kept via function-body exec.keep (visible); copy does not consume it',
+    deprecated: EDITOR_OWNED_DEPRECATED,
   },
 
   // ── 几何查询 ──
