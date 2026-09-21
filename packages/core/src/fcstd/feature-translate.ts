@@ -379,7 +379,22 @@ export function translateObject(
   // SubShape qualifies (Pads also carry Shape in these files — they must keep
   // the normal translation path).
   if (shapeCarriers?.has(obj.name) && obj.properties.has('SubShape')) {
-    return { kind: 'translated', calls: [], reason: 'shape-asset' };
+    // The result cache is a real, addressable solid: downstream features
+    // (Fillet Base→Pocket, Cut Base→…) must resolve it as a variable, so the
+    // verdict emits cad.import_shape instead of zero calls (hole_puzzle
+    // GOTCHA: zero-call objects got no codegen variable and consumers gapped
+    // with fillet-missing-base / cut-missing-dependency).
+    const assetFile = obj.properties.get('SubShape')?.children[0]?.attributes['file'];
+    return {
+      kind: 'translated',
+      calls: [{
+        // out is declared later in the function; codegen renames outputs
+        // anyway, so the object name is a safe placeholder here.
+        out: obj.name, op: 'cad.import_shape', source: obj.name, inputs: [],
+        params: { asset: assetFile ?? `${obj.name}.SubShape.brp` },
+      }],
+      reason: 'shape-asset',
+    };
   }
   if (!isWhitelisted(obj.type)) {
     // H10: property-evidenced Python features bake legitimately (C4) —

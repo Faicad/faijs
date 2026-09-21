@@ -807,7 +807,14 @@ describe('H7 Part::Feature pure-Shape carrier', () => {
     ]);
     const r = translateObject(pocket, () => undefined, undefined, new Set(['Pocket']));
     expect(r).toMatchObject({ kind: 'translated', reason: 'shape-asset' });
-    if (r.kind === 'translated') expect(r.calls).toEqual([]);
+    if (r.kind === 'translated') {
+      // 2026-09-20 update: the result cache is an addressable solid —
+      // cad.import_shape call (was: zero calls; consumers could not resolve
+      // the variable and gapped with fillet-missing-base).
+      expect(r.calls.length).toBe(1);
+      expect(r.calls[0]!.op).toBe('cad.import_shape');
+      expect(r.calls[0]!.params.asset).toBe('PartShape5.brp');
+    }
   });
 
   it('GOTCHA: a Shape-carrier WITHOUT SubShape (e.g. a Pad) is NOT hijacked into shape-asset — normal translation path applies', () => {
@@ -833,5 +840,26 @@ describe('H7 Part::Feature pure-Shape carrier', () => {
     ]);
     const r = translateObject(pocket, () => undefined, undefined, new Set());
     expect(r).toMatchObject({ kind: 'baked', reason: 'pocket-missing-dependency' });
+  });
+
+  it('GOTCHA (hole_puzzle 2026-09-20): a shape-asset feature is a REAL variable — consumers (Fillet Base→Pocket) must resolve it', () => {
+    // codegen registers variables only from calls (or non-identity
+    // placements); a zero-call shape-asset object had NO variable, so a
+    // downstream Fillet with Base→Pocket gapped fillet-missing-base even
+    // though the dependency exists. The verdict must emit an
+    // cad.import_shape call so the asset becomes an addressable solid.
+    const pocket = obj('PartDesign::Pocket', 'Pocket', [
+      prop('Profile', { name: 'Link', attrs: { value: 'Sketch001' } }),
+      prop('SubShape', { name: 'Part', attrs: { file: 'PartShape5.brp' } }),
+    ]);
+    const r = translateObject(pocket, () => undefined, undefined, new Set(['Pocket']));
+    expect(r).toMatchObject({ kind: 'translated', reason: 'shape-asset' });
+    if (r.kind === 'translated') {
+      expect(r.calls.length).toBe(1);
+      expect(r.calls[0]!.op).toBe('cad.import_shape');
+      // source carries the object identity; asset is the .brp member path
+      expect(r.calls[0]!.source).toBe('Pocket');
+      expect(r.calls[0]!.params.asset).toBe('PartShape5.brp');
+    }
   });
 });
