@@ -212,21 +212,28 @@ export async function convertFcstdFile(input: string, opts?: ConvertOptions): Pr
   // plane into the part (a bare face cannot take part in the boolean). A
   // datum's shape is support geometry for attachment/up-to resolution.
   const shapeCarriers = new Set<string>();
-  // H7: pure-Shape carriers — objects whose Shape/SubShape is delivered as a
-  // ZIP .brp member. The translator records these as `shape-asset` (imported
-  // via the platform `cad.import_brep` op, which always allows non-solid
-  // wire/face/shell — C6). No solid-probe is needed: import is first-class for
-  // non-solids and booleans still fail at the **use site**, not the import.
+  // E4: objects whose Shape/SubShape `file` attribute points at a missing or
+  // ZERO-BYTE member (FC_site_simple-102: `Site.Shape.brp` exists but is 0
+  // bytes). They must surface as an explicit convert-time gap — without this
+  // the object falls through to python-opaque and the broken-asset fact is
+  // silently swallowed into `python-baked` (the product then reports no
+  // geometry instead of naming the defect).
+  const brokenShapeAssets = new Set<string>();
   for (const obj of doc.value.objects) {
     if (isNonModelingType(obj.type)) continue;
-    if (obj.properties.get('Shape')?.children[0]?.attributes['file']) shapeCarriers.add(obj.name);
-    if (obj.properties.get('SubShape')?.children[0]?.attributes['file']) shapeCarriers.add(obj.name);
+    const shapeFile = obj.properties.get('Shape')?.children[0]?.attributes['file'];
+    const subShapeFile = obj.properties.get('SubShape')?.children[0]?.attributes['file'];
+    const shapeOk = shapeFile !== undefined && !!memberText(unpacked.value, shapeFile);
+    const subShapeOk = subShapeFile !== undefined && !!memberText(unpacked.value, subShapeFile);
+    if (shapeOk || subShapeOk) shapeCarriers.add(obj.name);
+    else if (shapeFile !== undefined || subShapeFile !== undefined) brokenShapeAssets.add(obj.name);
   }
 
   let gen;
   try {
     gen = generateModel(
       doc.value, sketchVerdict, sketchContours, baseName, placements, shapeCarriers,
+      brokenShapeAssets,
     );
   } catch (e) {
     return fail(`codegen failed: ${(e as Error).message}`);

@@ -763,9 +763,15 @@ export class CadRuntime {
       const v = de.getCtxVar(String(name))
       if (isShapeLike(v)) {
         const shape = v as Shape
+        // 非实体导入（C6 线框/面/壳）不携带显示网格——positions/indices 为
+        // undefined 是已知限制（load-nonsolid.test.ts），content key 退化为
+        // 占位值而不是崩溃。
+        const hasMesh = shape.positions instanceof Float32Array && shape.indices instanceof Uint32Array
         this.statementCache.set(name, {
           statementKey: `direct:${String(name)}`,
-          outputContentKey: computeContentKey(shape.positions, shape.indices),
+          outputContentKey: hasMesh
+            ? computeContentKey(shape.positions, shape.indices)
+            : `direct:nomesh:${String(name)}`,
           output: shape,
         })
       }

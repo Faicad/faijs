@@ -19,6 +19,8 @@ import { getBackends, BrepUnsupportedError } from '../runtime-state'
 import { OpError } from './internal/result-unwrap'
 import { loadBrep } from '../brep/brep-ops'
 import { fromBrep } from '../shape'
+import { asPartName } from '../identity'
+import { assignRoles } from '../topology/naming/roles'
 import type { BrepEngineApi } from '../brep/engine/types'
 
 /**
@@ -66,5 +68,12 @@ export async function import_brep(params: Record<string, unknown>): Promise<Shap
   const { solid: solidHandle, shape } = loadBrep(
     kernel, buffer, undefined, undefined, undefined, { allowNonSolid: true },
   )
-  return fromBrep(shape, { solid: solidHandle })
+  // E3（H12）：链根建 roleTable（与 primitives.ts 同源机制）——冻结资产是
+  // 无名形状，没有这张表下游 edgeRef/faceRef 无法解析（nameless-shape 缺陷）。
+  // origin 用资产名，保证同名资产链与其它链根不撞 origin。
+  const roles = assignRoles(kernel, solidHandle, 'import_brep')
+  return fromBrep(shape, {
+    solid: solidHandle,
+    roleTable: new Map([[asPartName(asset), roles]]),
+  })
 }

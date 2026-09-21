@@ -126,18 +126,19 @@
 
 BIMExample `sketch-not-solved`；PartDesignExample `external-geometry-unresolved: no links` + `pocket-missing-dependency`×2；Drilling_1 `unsupported-constraint` + `pad-missing-profile` + `pocket-missing-dependency` + `linear-pattern-missing-source`；hole_puzzle `external-geometry-unresolved: no links`；TestTangentMode3-0.21 `sketch-not-solved`；TestSketchCarbonCopyReverseMapping `delta-exceeds-t1` + `sketch-not-solved`×3。
 
-### 3.6 剩余 14 个 run 失败（9 类，`run-census.test.ts` 逐样本钉死）
+### 3.6 剩余 11 个 run 失败（6 类，`run-census.test.ts` 逐样本钉死；2026-09-21 平台 op 切换 + E1/E3/E4 落地后复测）
 
 | 类 | 数量 | 性质 | 归属 |
 |---|---|---|---|
-| `compound-transform` | 1 | **本轮 P0 的靶心**（ArchDetail：`cad.group` 产物无 OCCT 句柄） | H11 |
-| `export-no-exportable-shape` | 2 | `exportStepFromSolids` 在全线框链找不到可导出子形，且**抛异常而非返回 error** | H12/E1 |
+| `compound-chain-members` | 1 | ArchDetail 越过 s652 后的下一层：`cad.compound` 拒绝构建——293 个导入成员中约 5 个未注册到 BREP 链 | H12 |
 | `asset-resolver` | 2 | manifest 缺 key | H12/E4 |
-| `asset-unreadable` | 1 | 资产 occt 读不了 | H12/E4 |
-| `nameless-shape` | 2 | 装载后无名形状 → `edgeRef` 无 role table | H12/E3 |
+| `nameless-shape` | 2 | 装载后无名形状 → `edgeRef` 无 role table | H12/E3（roleTable 已建，待语料复测确认） |
 | `extrude-zero-vector` | 1 | 退化输入 | H4/H8 |
 | `dep-module-revolve` | 2 | 跨模块 Revolve 依赖 | H4 |
 | `no-geometry` | 3 | 无几何终端 —— **属正确行为** | — |
+
+> E1/E3/E4 落地（2026-09-21）：E1 导出异常在 `cliRun` 边界收敛为结构化 `{ok:false,error}`（不再向普查抛异常）；E3 `import_brep` 链根建 roleTable（origin=资产名，与 primitives 同源）；E4 资产前置校验——Shape/SubShape 指向缺失/零字节成员的对象转换期落显式 gap `shape-asset-broken`（exit 2），`FC_site_simple-102` 从 run 期 `asset-unreadable` 崩溃改为转换期 gap。基线：**49 convert / 38 run / 11 fail**（口径 `fcstd-port/out/e4-verify3.log`）。
+> 平台 op 切换红利（同日复测）：`export-no-exportable-shape`（2 例）整类消除——`constraint_contact_shell_shell`、`draft_test_objects` 转为可跑；ArchDetail 从 `compound-transform`（rotate_euler 拒结构 compound）推进到 `compound-chain-members`。
 
 ### 3.7 ArchDetail 卡点（P0 的验收靶）
 

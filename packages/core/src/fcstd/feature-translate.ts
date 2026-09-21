@@ -416,7 +416,16 @@ export function translateObject(
   docObjects?: readonly FcstdObject[],
   /** H7: names of objects whose Shape is stored as a .brp member (probed from the ZIP). */
   shapeCarriers?: ReadonlySet<string>,
+  /** E4: objects whose Shape `file` attribute points at a missing/empty member. */
+  brokenShapeAssets?: ReadonlySet<string>,
 ): TranslateVerdict {
+  // E4 (H12): a Shape/SubShape `file` attribute whose member is missing or
+  // zero-bytes in the archive is a BROKEN asset, not a shape-asset — surface
+  // it as an explicit convert-time gap instead of letting the object fall
+  // through to python-opaque (which would silently swallow the defect).
+  if (brokenShapeAssets?.has(obj.name)) {
+    return { kind: 'baked', reason: 'shape-asset-broken: frozen .brp member missing or empty' };
+  }
   // H7 follow-up (Body-less CAM corpus, 2026-09-20): a SubShape property whose
   // .brp member exists is the feature's own RESULT cache — the pocketed/
   // filleted geometry is already a fact delivered via assets/. shape-asset

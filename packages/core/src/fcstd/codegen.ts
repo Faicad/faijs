@@ -132,6 +132,8 @@ export function generateModel(
   placements?: Map<string, Placement>,
   /** H7: objects whose Shape is a ZIP .brp member (pure-Shape carriers → shape-asset). */
   shapeCarriers?: ReadonlySet<string>,
+  /** E4: objects whose Shape `file` attribute points at a missing/empty member (explicit gap). */
+  brokenShapeAssets?: ReadonlySet<string>,
 ): GenResult {
   const byName = new Map(doc.objects.map((o) => [o.name, o]));
   // GOTCHA (test_geomop corpus, 2026-09-20): a dependency on a Body
@@ -264,7 +266,7 @@ export function generateModel(
       // accumulated chain head, not `variables` — the container name is
       // never registered there (its result lives in chainVar).
       return variables.get(dep) ?? chainVar.get(dep);
-    }, doc.objects, shapeCarriers);
+    }, doc.objects, shapeCarriers, brokenShapeAssets);
     node.verdict = verdict;
     if (verdict.kind === 'translated') {
       // rename output vars to partN sequence

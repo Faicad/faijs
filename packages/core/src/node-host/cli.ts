@@ -22,6 +22,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { resolve, extname } from 'node:path'
 import { createRuntime } from '../cad-runtime/runtime'
+import type { CadRuntime } from '../cad-runtime/runtime'
 import type { StdlibNamespace } from '../runtime-state'
 import type { ExecutionMode, HostPorts, LibLoader } from '../cad-runtime/ports'
 import { createNodePorts } from './index'
@@ -288,6 +289,27 @@ export async function cliRun(
   const ext = extname(outPath).toLowerCase().slice(1)
   const terminals = execResult.terminals ?? []
 
+  // E1 (H12): export-side failures must surface as a structured result, not an
+  // exception — the census and batch driver treat a throw as a process crash,
+  // while `{ ok: false, error }` keeps it a per-file, classifiable failure.
+  try {
+    return await exportExecutionResult(outPath, ext, execResult, terminals)
+  } catch (e) {
+    return {
+      ok: false,
+      error: `Export failed: ${String((e as Error)?.message ?? e)}`,
+      infos: execResult.infos,
+    }
+  }
+}
+
+/** Export an executed result to `outPath` (shared body of cliRun's export path). */
+async function exportExecutionResult(
+  outPath: string,
+  ext: string,
+  execResult: Awaited<ReturnType<CadRuntime['execute']>>,
+  terminals: NonNullable<Awaited<ReturnType<CadRuntime['execute']>>['terminals']>,
+): Promise<{ ok: boolean; error?: string; outputFile?: string; outputFormat?: string; infos?: string[] }> {
   if (terminals.length === 0) {
     // No terminals — use last output
     const outputNames = [...execResult.outputs.keys()]

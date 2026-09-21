@@ -17,20 +17,22 @@ import { import_brep } from './import-brep'
 
 // ── helpers ──
 
-function makeBackends(mode: 'auto' | 'brep' | 'mesh', assets?: unknown): Backends {
+function makeBackends(mode: 'auto' | 'brep' | 'mesh', kernelBrep?: unknown, assets?: unknown): Backends {
   return {
     contractVersion: CONTRACT_VERSION,
     config: { mode, brepCapabilities: undefined },
-    kernel: { brep: null, csg: undefined, sdf: undefined },
+    kernel: { brep: kernelBrep ?? null, csg: undefined, sdf: undefined },
     fonts: undefined,
     texture: undefined,
-    assets: assets as Backends['assets'],
+    assets: (assets ?? undefined) as Backends['assets'],
     events: { emit: () => undefined },
   } as unknown as Backends
 }
 
 const fakeAssets = {
-  resolveByKey: async (_key: string) => ({ bytes: new ArrayBuffer(8) }),
+  resolveByKey: async (_key: string) => ({
+    bytes: new TextEncoder().encode('CASCADE Topology 1, (ASCII)').buffer,
+  }),
 }
 
 // ── 契约层错误路径 ──
@@ -43,18 +45,59 @@ describe('import_brep: contract errors', () => {
   })
 
   it('mesh mode (no OCCT kernel) → BrepUnsupportedError', async () => {
-    configureBackends(makeBackends('mesh', fakeAssets))
+    configureBackends(makeBackends('mesh', undefined, fakeAssets))
     await expect(import_brep({ asset: 'Array001.Shape' })).rejects.toThrow(BrepUnsupportedError)
   })
 
   it('invalid asset arg (non-string) → OpError E_ARGS', async () => {
-    configureBackends(makeBackends('auto', fakeAssets))
+    configureBackends(makeBackends('auto', undefined, fakeAssets))
     await expect(import_brep({ asset: 123 })).rejects.toThrow(OpError)
     await expect(import_brep({ asset: 123 })).rejects.toThrow(/asset name \(string\) is required/)
   })
 
   it('empty asset name → OpError E_ARGS', async () => {
-    configureBackends(makeBackends('auto', fakeAssets))
+    configureBackends(makeBackends('auto', undefined, fakeAssets))
     await expect(import_brep({ asset: '' })).rejects.toThrow(/asset name \(string\) is required/)
+  })
+})
+
+// ── E3: chain-root roleTable ──
+
+// GOTCHA（E3 / nameless-shape，2026-09-21）：冻结资产导入后必须带链根
+// roleTable，否则下游 edgeRef/faceRef 报 "input shape has no role table
+// (nameless shape)"（56 样本普查的 nameless-shape 缺陷 ×2）。表 origin 用
+// 资产名，opType 用 'import_brep'（位置名兜底，与 primitives 链根建表同源）。
+// WASM 端到端（真内核 assignRoles + edgeRef 解析）由 fcstd-port 语料普查钉。
+describe('import_brep: chain-root roleTable (E3)', () => {
+  it('registers a roleTable keyed by the asset name', async () => {
+    const faceHandles = [{}] as unknown[]
+    const fakeKernel = {
+      // loadBrep: CASCADE head + one solid sub-shape
+      fromBREP: () => ({ h: 1 }),
+      importStep: () => { throw new Error('not a STEP') },
+      getSubShapes: (_shape: unknown, kind: string) => (kind === 'solid' ? [{}] : kind === 'face' ? faceHandles : []),
+      release: () => undefined,
+      subShapeHashes: (_s: unknown, kind: string) => (kind === 'face' ? [101, 102] : []),
+      meshShape: () => ({ positions: [0, 0, 0], indices: [] }),
+      // captureFaceHint（assignRoles → 语义命名）需要的几何量 stub
+      surfaceType: () => 'plane',
+      surfaceNormal: () => [0, 0, 1],
+      getSurfaceCenterOfMass: () => ({ x: 0, y: 0, z: 0 }),
+      uvBounds: () => ({ uMin: 0, uMax: 0, vMin: 0, vMax: 0 }),
+      area: () => 1,
+      centerOfMass: () => ({ x: 0, y: 0, z: 0 }),
+    }
+    configureBackends(makeBackends('brep', { ...fakeKernel }, fakeAssets))
+
+    const out = await import_brep({ asset: 'Sketch001.Shape' })
+    const { getSlot } = await import('../shape')
+    const slot = getSlot(out)
+    const table = slot?.roleTable as ReadonlyMap<string, readonly number[]> | undefined
+    expect(table, 'roleTable registered on the imported shape').toBeDefined()
+    const origins = [...(table?.keys() ?? [])]
+    expect(origins).toEqual(['Sketch001.Shape'])
+    // position-named fallback roles keyed to face hashes
+    const roles = table?.get('Sketch001.Shape')
+    expect(roles?.size).toBeGreaterThan(0)
   })
 })
