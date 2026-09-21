@@ -85,6 +85,44 @@ const STRUCTURAL_TYPES = new Set([
 ]);
 
 /**
+ * H7 companion (2026-09-20): FEM workbench objects carry SIMULATION semantics
+ * (analysis containers, meshes, solver settings, boundary conditions, result
+ * pipelines) — no modeling geometry. Native classes without a Proxy property
+ * used to fall into `type-not-whitelisted` and block whole files whose
+ * modeling part was a single box. Like structural types they are
+ * `preserved-only`; their regenerable field data (FemMesh / result Data
+ * properties) is deliberately NOT carried into the container.
+ *
+ * Remote task on record (user decision, 2026-09-20): faijs will port
+ * FreeCAD's FEM analysis capability in the future — separate feature; this
+ * classification only stops simulation objects from blocking conversion.
+ * Python subclasses (*Python with Proxy) never reach this set — H10's
+ * python-opaque handles them.
+ */
+export const FEM_STRUCTURAL_TYPES = new Set([
+  'Fem::FemAnalysis',
+  'Fem::FemMeshObject',
+  'Fem::FemResultObject',
+  'Fem::FemPostPipeline',
+  'Fem::ConstraintFixed',
+  'Fem::ConstraintForce',
+  'Fem::ConstraintPressure',
+  'Fem::ConstraintContact',
+  'Fem::ConstraintBearing',
+  'Fem::ConstraintDisplacement',
+  'Fem::FemAnalysisPython',
+  'Fem::FemMeshObjectPython',
+  'Fem::FemResultObjectPython',
+  'Fem::FemSolverObjectPython',
+  'Fem::FemMeshShapeBaseObjectPython',
+]);
+
+/** True when the type is a FEM simulation object (structured non-modeling). */
+export function isFemStructural(type: string): boolean {
+  return FEM_STRUCTURAL_TYPES.has(type);
+}
+
+/**
  * C4 final check: reclassify `baked` entries. A baked disposition is only
  * legitimate for Python-opaque objects (python-baked), structural/datum
  * containers (preserved-only), or preserved display members. Everything
@@ -99,9 +137,9 @@ function auditMapping(
       // python-opaque stays legitimate but is renamed for the ledger
       if (o.reason === 'python-opaque') {
         o.disposition = 'python-baked';
-      } else if (STRUCTURAL_TYPES.has(o.type)) {
+      } else if (STRUCTURAL_TYPES.has(o.type) || FEM_STRUCTURAL_TYPES.has(o.type)) {
         o.disposition = 'preserved-only';
-        o.reason = o.reason ?? 'structural';
+        o.reason = o.reason ?? (FEM_STRUCTURAL_TYPES.has(o.type) ? 'fem-simulation' : 'structural');
       } else {
         gaps.push({ name: o.name, type: o.type, reason: o.reason ?? 'unspecified' });
       }
