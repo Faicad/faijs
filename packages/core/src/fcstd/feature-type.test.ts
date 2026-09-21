@@ -85,7 +85,10 @@ describe('M9.3 UpTo* / ThroughAll / unknown → explicit bake with reason', () =
     // feature-translate.test.ts, not here.
     ['pad UpToFace no datum-plane target', 'pad', 3, 'uptoface-solid-face-unsupported'],
     ['pad unknown index', 'pad', 99, 'pad-type-unknown-unsupported'],
-    ['pocket ThroughAll (index)', 'pocket', 1, 'pocket-type-ThroughAll-unsupported'],
+    // 2026-09-20 ThroughAll support (hole_puzzle corpus): Pocket ThroughAll
+    // now TRANSLATES like Length with a deep prism (the subtract truncates
+    // against the base) — its positive-path coverage lives in
+    // feature-translate.test.ts (GOTCHA test), not in this bake table.
     ['pocket UpToFace', 'pocket', 'UpToFace', 'pocket-uptoface-sub-unparseable'],
     ['pocket unknown', 'pocket', 'Bogus', 'pocket-type-unknown-unsupported'],
   ];

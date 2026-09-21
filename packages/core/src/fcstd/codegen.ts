@@ -351,6 +351,14 @@ export function generateModel(
           chainVar.set(body, nv);
         }
       }
+      // H7 guard (motor_mount_inch corpus): a feature outside a Body (or with
+      // no chain head yet) never gets its BODY_CHAIN_BASE retargeted — the
+      // marker would leak into the generated JS as an illegal identifier
+      // (parser kills the whole file). Downgrade to an explicit gap instead.
+      if (verdict.calls.some((c) => c.inputs?.includes(BODY_CHAIN_BASE))) {
+        results.push({ name, type: obj.type, calls: [], disposition: 'baked', reason: 'pocket-missing-dependency' });
+        continue;
+      }
       results.push({ name, type: obj.type, variable: verdict.calls.at(-1)?.out, calls: verdict.calls, disposition: 'translated', reason: verdict.reason });
     } else if (verdict.kind === 'baked') {
       results.push({ name, type: obj.type, calls: [], disposition: 'baked', reason: verdict.reason });

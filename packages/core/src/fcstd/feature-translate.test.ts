@@ -244,6 +244,31 @@ describe('M4.6 Pad/Pocket', () => {
     expect(v).toMatchObject({ kind: 'baked', reason: 'pocket-missing-dependency' });
   });
 
+  it('GOTCHA (hole_puzzle corpus 2026-09-20): Pocket Type=ThroughAll translates like Length with a deep prism, not a gap', () => {
+    // ThroughAll means "cut through the whole base" — FreeCAD truncates the
+    // prism against the base solid, so a depth larger than the base bbox is
+    // safe. The corpus CAM demo parts (hole_puzzle ×9, motor_mount_inch ×2,
+    // strange_part_with_holes ×2) use ThroughAll exclusively; without this
+    // they gap with pocket-type-ThroughAll-unsupported.
+    const pocket = obj('PartDesign::Pocket', 'Pocket', [
+      prop('Profile', { name: 'Link', attrs: { value: 'Sketch001' } }),
+      prop('Type', { name: 'String', attrs: { value: 'ThroughAll' } }),
+      prop('BaseFeature', { name: 'Link', attrs: { value: 'Pad' } }),
+      prop('Reversed', { name: 'Bool', attrs: { value: 'true' } }),
+    ]);
+    const v = translateObject(pocket, (dep) => (dep === 'Sketch001' ? 'sketch1' : dep === 'Pad' ? 'part2' : undefined));
+    expect(v.kind).toBe('translated');
+    if (v.kind === 'translated') {
+      expect(v.calls.length).toBe(2);
+      expect(v.calls[0]!.op).toBe('cad.extrude');
+      // the through prism must be deep in the cut direction (Reversed → +Z)
+      const lit = v.calls[0]!.literals?.[0];
+      expect(lit?.[2]).toBeGreaterThan(0);
+      expect(v.calls[1]!.op).toBe('cad.subtract');
+      expect(v.calls[1]!.inputs).toEqual(['part2', 'Pocket_cut']);
+    }
+  });
+
   it('bakes Python-feature types with reason', () => {
     const py = obj('Part::FeaturePython', 'Py1', []);
     const v = translateObject(py, () => undefined);

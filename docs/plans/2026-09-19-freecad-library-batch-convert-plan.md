@@ -75,6 +75,7 @@ packages/core/scripts/scan-fcstd-library.ts这样的文件明显是错误的。
 
 > **✅ H10 接线后复测（2026-09-20，`fcstd-port/out/sweep-report.json`）**：**ok 9→22、gap 47→34**，Python 型 gap **清零**（34 个含 Python 文件全部转出）。首因分布变为：`type-not-whitelisted` 14（原 30，几乎全剩 `Part::Feature` 等 H7 范畴）、`sketch-not-solved` 13、`pocket-missing-dependency` 2、其余 5 类各 1。头部 gap 类型变为 `Part::Feature` 21 / `revolution-missing-profile` 11 / `Fem::ConstraintFixed` 5——H7 的 Part 工作台特征系是下一个大头。V-C3 复核：22 个 ok 产物 `cliCheck` 失败 0。
 > **✅ 当日三连修后终态（轮廓贪心链接修复 + H7 Part::Feature shape-asset + FEM 结构化处置）**：**ok 9→37、gap 47→19**，`cliCheck` 失败 0。首因：`type-not-whitelisted` 7（Draft/Assembly/VRML 系，批量阶段）、`sketch-not-solved` 4（BIM 开放轮廓策略 ×1、真实拓扑 ×2、待查 ×1）、`pocket-missing-dependency` 3（依赖链）、其余 5 类各 1。
+> **✅ 当日五连修终态（+Pocket Body 链回退 + ThroughAll 支持）**：ok 维持 **37**、`cliCheck` 失败 0。依赖链失效类消除；3 个 CAM demo 文件（hole_puzzle/motor_mount_inch/strange_part_with_holes）**无 PartDesign::Body**、带 `SubShape` 结果缓存——标记泄漏守卫将其诚实降级回 `pocket-missing-dependency`，出路是 shape-asset 式解析（同 H7 Part::Feature，后续）。
 > （下表为 H10 接线前的原始基线，保留供对照。）
 
 口径：`out/sweep-report.json`（`fcstd-port/out/`，gitignore，重跑即得）。**注意：每文件只记录前 4 条 gap reason**，故下表「次数」是下界。
@@ -123,7 +124,7 @@ packages/core/scripts/scan-fcstd-library.ts这样的文件明显是错误的。
 
 | 编号 | 硬骨头 | 现状（证据） | 处置方案 |
 |---|---|---|---|
-| **H4** | Pad/Pocket 类型枚举 | 🟡 **主干已实现**（`feature-translate.ts:442-595`）：`TwoLengths`（前段 + `Length2` 反向段 + union，`:457-469`）、`UpToFace`（datum plane → 精确有向距离 → `plane` 目标；实体面 → `cad.faceRef`；`:470-571`）、`UpToLast`/`UpToFirst`（经 `BaseFeature` → `cad.extrude({upTo})`；`:573-591`）。**已无「静默按 Length 处理」**——未知类型走显式 `pad-type-<x>-unsupported` bake。<br>仍在 bake 的分支（Pad 路径的全部 bake reason，共 8 条）：`pad-missing-profile`、`pad-length-expression-non-constant`、`pad-upTo-missing-base`、`pad-type-<type>-unsupported`（现仅 `unknown` 可达）、`uptoface-solid-face-unsupported`、`uptoface-sub-unparseable`、`uptoface-datum-plane-parallel`、`uptoface-datum-plane-degenerate-distance` | ① 按样本实测逐条消掉上列 bake 分支；`ThroughAll` 仍缺（求剖面沿法向与全体实体的精确相交深度，OCCT 可算，不猜 bbox）；② **Pocket 的类型枚举表已就位但需按同样口径复测**（`Pocket: 0=Length 1=ThroughAll 2=UpToFirst 3=UpToFace 4=TwoLengths`，`feature-translate.ts:183-184`） |
+| **H4** | Pad/Pocket 类型枚举 | 🟡 **主干已实现**（`feature-translate.ts:442-595`）：`TwoLengths`（前段 + `Length2` 反向段 + union，`:457-469`）、`UpToFace`（datum plane → 精确有向距离 → `plane` 目标；实体面 → `cad.faceRef`；`:470-571`）、`UpToLast`/`UpToFirst`（经 `BaseFeature` → `cad.extrude({upTo})`；`:573-591`）。**已无「静默按 Length 处理」**——未知类型走显式 `pad-type-<x>-unsupported` bake。<br>仍在 bake 的分支（Pad 路径的全部 bake reason，共 8 条）：`pad-missing-profile`、`pad-length-expression-non-constant`、`pad-upTo-missing-base`、`pad-type-<type>-unsupported`（现仅 `unknown` 可达）、`uptoface-solid-face-unsupported`、`uptoface-sub-unparseable`、`uptoface-datum-plane-parallel`、`uptoface-datum-plane-degenerate-distance`。<br>**✅ 2026-09-20 更新**：Pocket `ThroughAll` 已支持（= Length 同路径 + 1e6 mm 深棱柱，subtract 对基准截断，精确）；Pocket 另增 Body 链回退（无 `BaseFeature` 属性 → `BODY_CHAIN_BASE` 标记 → codegen 重定向链头，泄漏守卫兜底） | ① 按样本实测逐条消掉上列 bake 分支；~~`ThroughAll` 仍缺~~ **已支持**；② ~~Pocket 类型枚举需复测~~ **已复测** |
 | **H5** | Body 语义与多 Body 拆分 | ✅ **已实现（M10）**：迭代顺序 `Model` 优先、回退 `Group`（`codegen.ts:76-83`）；Body 内按 Group 顺序做 D-C 累加、**不用 `cad.group`**（`:124-136`、`:160-164`）；跨 Body 由 `cad.group` 聚合（`:435`）、多文件拆分 + `main.fai.js` 聚合（`:411-420`）。实测 PadTest 单 Body → `part_out` 别名，Volume 与 Tip 一致 | 已完成。剩余：多 Body 文件的抽样验真（并入 §7 V-C3） |
 | **H6** | 表达式引擎 | 🟡 **常量已接线**：`propNum` 优先取 `expressionBindingOf(...).value`（常量表达式覆盖落盘 Float，`feature-translate.ts:107-118`）。<br>❌ **非常量仍 bake**：`hasNonConstantBinding` 命中即显式 bake（`pad-length-expression-non-constant` 等，`:144-147`、`:452`、`:624`）。全库仍有**非常量绑定 16,277 条（94.8%）** | 引入具名参数/常量图：`const` 声明 + 引用代入，拓扑排序处理依赖环（FreeCAD 表达式本身禁环，遇环报错不猜）。Spreadsheet `<Cells>` → JS 常量表 + 别名映射。分类口径以 `expressions.ts` 的 `evalConstantExpression` 为准（`value === undefined` 即非常量），禁止另立启发式 |
 
@@ -297,7 +298,7 @@ B1 结束时**不承诺**有产物（C4 下不达标不出包）；画像 + gap 
 |---|---|---|---|
 | R-CA | ~~零件库特征/约束类型全集未知~~ **已消解（2026-09-20 画像）**：91 类 / 41 类缺口 / 4,256 对象，规模已量化为 9.2% | 中 | 按 §10 频次排序逐类攻克；每轮小批量复测后重排 |
 | R-CB | planegcs 后端对某些约束类型求解不收敛（非映射缺失，是求解器本身能力） | 中 | H2 ②先区分「映射缺失」与「求解失败」；求解失败的逐例分析，必要时升级 planegcs 或补初值策略；逐例留档测试。**当前 L1 只有 1 例（`delta-exceeds-t1`）** |
-| R-CC | ~~`ThroughAll`/`UpToFace` 需要 OCCT 级查询而内核缺 API~~ **已消解**：`UpToFace` 两条路（datum plane 精确距离 / `cad.faceRef`）与 `UpToLast`/`UpToFirst`（`BaseFeature`）均已实现；`ThroughAll` 仍待做 | 低 | `ThroughAll` 走 OCCT 相交深度；仍属 C3「先补齐本项目」范围 |
+| R-CC | ~~`ThroughAll`/`UpToFace` 需要 OCCT 级查询而内核缺 API~~ **已消解**：`UpToFace` 两条路（datum plane 精确距离 / `cad.faceRef`）与 `UpToLast`/`UpToFirst`（`BaseFeature`）均已实现；`ThroughAll` 已支持（2026-09-20，1e6 mm 深棱柱 + subtract 截断，无需 OCCT 相交深度） | 低 | ~~`ThroughAll` 走 OCCT 相交深度~~ **已按超深棱柱方案落地**；仍属 C3「先补齐本项目」范围 |
 | R-CD | Draft/装配类对象的语义映射存在设计争议（如 Draft Array vs PartDesign Pattern） | 中 | 逐类拍板一次、留档 Agent Note，不逐文件即兴 |
 | R-CE | ~~XLink 环引用 / 引用文件不在库内~~ **已消解**：跨文档 XLink 为 0 | 低 | 保留运行时检测：遇非空 `file` 属性即判 gap 带 reason，不静默 |
 | R-CF | 3,201 文件全量时长未知 | 低 | 画像已实测：单次全库只读遍历 105.8 s；批量支持分目录分批 |

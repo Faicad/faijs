@@ -738,13 +738,18 @@ export function translateObject(
         ];
         return { kind: 'translated', reason: 'pocket-uptofirst-via-baseFeature', calls };
       }
-      if (ftype !== 'Length' && ftype !== 'TwoLengths') {
+      if (ftype !== 'Length' && ftype !== 'TwoLengths' && ftype !== 'ThroughAll') {
         return { kind: 'baked', reason: `pocket-type-${ftype}-unsupported` };
       }
       if (midplane) return { kind: 'baked', reason: 'pocket-midplane-unsupported' };
       // Pocket cuts INTO the material: extrude the profile opposite the normal
       // (or along it when Reversed), then subtract from base.
-      const signed = reversed ? len : -len;
+      // ThroughAll (hole_puzzle corpus, 2026-09-20): FreeCAD truncates the
+      // prism against the base solid, so a depth far beyond any realistic
+      // base extent is safe — the subtract is exact either way.
+      const THROUGH_ALL_DEPTH = 1e6;
+      const depth = ftype === 'ThroughAll' ? THROUGH_ALL_DEPTH : len;
+      const signed = reversed ? depth : -depth;
       const cutVar = `${out}_cut`;
       const calls: CadCall[] = [{
         out: cutVar, op: 'cad.extrude', source: obj.name, inputs: [profileVar], literals: [[0, 0, signed]], params: {},
