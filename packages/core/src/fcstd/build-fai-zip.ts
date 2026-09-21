@@ -67,15 +67,20 @@ export function buildFaiZip(
   }
 
   // M2.3 — baked assets: copy .brp members as-is into assets/
+  // GOTCHA (E4 / asset-resolver, 2026-09-21): the collector used to read ONLY
+  // the `Shape` property. SubShape carriers (feature result caches in
+  // Body-less CAM files, e.g. motor_mount_inch PartShape5/PartShape8) point
+  // their `cad.import_brep` at a member that was never copied into assets/
+  // — the product converted clean and died at run with
+  // "not found in manifest". SubShape joins the same collection.
   const brpOwners = new Map<string, string[]>();
   for (const obj of doc.objects) {
-    const shapeProp = obj.properties.get('Shape');
-    if (!shapeProp) continue;
-    // brp file names appear as <File ...> inside the Part::PropertyPartShape
-    const fileEl = shapeProp.children[0]?.attributes['file'];
-    void fileEl; // file attribute lives on the wrapping element in some schemas
     const files: string[] = [];
-    collectBrpRefs(shapeProp.valueXml ?? '', files);
+    for (const propName of ['Shape', 'SubShape']) {
+      const shapeProp = obj.properties.get(propName);
+      if (!shapeProp) continue;
+      collectBrpRefs(shapeProp.valueXml ?? '', files);
+    }
     if (files.length) brpOwners.set(obj.name, files);
   }
 

@@ -126,19 +126,18 @@
 
 BIMExample `sketch-not-solved`；PartDesignExample `external-geometry-unresolved: no links` + `pocket-missing-dependency`×2；Drilling_1 `unsupported-constraint` + `pad-missing-profile` + `pocket-missing-dependency` + `linear-pattern-missing-source`；hole_puzzle `external-geometry-unresolved: no links`；TestTangentMode3-0.21 `sketch-not-solved`；TestSketchCarbonCopyReverseMapping `delta-exceeds-t1` + `sketch-not-solved`×3。
 
-### 3.6 剩余 11 个 run 失败（6 类，`run-census.test.ts` 逐样本钉死；2026-09-21 平台 op 切换 + E1/E3/E4 落地后复测）
+### 3.6 剩余 8 个 run 失败（4 类，`run-census.test.ts` 逐样本钉死；2026-09-21 E3/E4/E5 执行侧修复后复测）
 
 | 类 | 数量 | 性质 | 归属 |
 |---|---|---|---|
-| `compound-chain-members` | 1 | ArchDetail 越过 s652 后的下一层：`cad.compound` 拒绝构建——293 个导入成员中约 5 个未注册到 BREP 链 | H12 |
-| `asset-resolver` | 2 | manifest 缺 key | H12/E4 |
-| `nameless-shape` | 2 | 装载后无名形状 → `edgeRef` 无 role table | H12/E3（roleTable 已建，待语料复测确认） |
-| `extrude-zero-vector` | 1 | 退化输入 | H4/H8 |
+| `nameless-shape` | 2 | `edgeRef` 无 role table——E3 已在 `import_brep` 链根建表，但这两例的缺口在 **op 间传播**（fillet/chamfer 的输入是布尔/特征 op 的产物，仍无名）。复测：strange_part_with_holes 报 `fillet: input shape has no role table`；ModelFromV021 报 `chamfer: edge ordinal out of range`（同族，演化链断裂） | H12/E3 后续 |
+| `extrude-zero-vector` | 1 | 退化输入（EngineBlock） | H4/H8 |
 | `dep-module-revolve` | 2 | 跨模块 Revolve 依赖 | H4 |
 | `no-geometry` | 3 | 无几何终端 —— **属正确行为** | — |
 
-> E1/E3/E4 落地（2026-09-21）：E1 导出异常在 `cliRun` 边界收敛为结构化 `{ok:false,error}`（不再向普查抛异常）；E3 `import_brep` 链根建 roleTable（origin=资产名，与 primitives 同源）；E4 资产前置校验——Shape/SubShape 指向缺失/零字节成员的对象转换期落显式 gap `shape-asset-broken`（exit 2），`FC_site_simple-102` 从 run 期 `asset-unreadable` 崩溃改为转换期 gap。基线：**49 convert / 38 run / 11 fail**（口径 `fcstd-port/out/e4-verify3.log`）。
-> 平台 op 切换红利（同日复测）：`export-no-exportable-shape`（2 例）整类消除——`constraint_contact_shell_shell`、`draft_test_objects` 转为可跑；ArchDetail 从 `compound-transform`（rotate_euler 拒结构 compound）推进到 `compound-chain-members`。
+> E5（本轮修复，2026-09-21）：ArchDetail 的 `compound-chain-members` 根因不在内核而在**lowering**——`cad.compound` 的 `params.members` 是词法变量名，`renderArgs` 把它们当数据字符串加了引号，op 收到的是无句柄的字符串。修复：members 渲染为裸标识符 + codegen 经 `variables` 重映射（GOTCHA 已留档 codegen.ts）。ArchDetail 转可跑（STEP 导出成功）。
+> E4 补刀（同日）：`buildFaiZip` 的 `.brp` 资产收集器原来只读 `Shape` 属性，SubShape 载体（motor_mount_inch 的 PartShape5/8）的资产从未拷进 `assets/` → `asset-resolver` 2 例全消（PocketTest、motor_mount_inch 转可跑，GOTCHA 已留档 build-fai-zip.ts）。
+> 基线：**49 convert / 41 run / 8 fail**（口径 `fcstd-port/out/census10.log`）。此前的平台 op 切换红利：`export-no-exportable-shape` 2 例消除；E1/E4 已落地（导出结构化错误、零字节资产转换期 gap）。
 
 ### 3.7 ArchDetail 卡点（P0 的验收靶）
 

@@ -275,6 +275,17 @@ export function generateModel(
         variables.set(call.out, v);
         // remap inputs that were intermediate (Pocket_cut) or named outputs
         call.inputs = call.inputs.map((i) => variables.get(i) ?? i);
+        // GOTCHA (ArchDetail s444, 2026-09-21): `cad.compound` passes its
+        // members as LEXICAL VARIABLE NAMES inside `params.members` — they
+        // must be remapped like `inputs`, otherwise renderArgs emits them as
+        // string literals and the op receives strings (no BREP handle) and
+        // throws "compound members are not all on the BREP chain".
+        const members = (call.params as { members?: unknown } | undefined)?.members;
+        if (Array.isArray(members)) {
+          call.params!.members = members.map((m) =>
+            typeof m === 'string' ? (variables.get(m) ?? m) : m,
+          );
+        }
         call.out = v;
         calls.push(call);
       }
@@ -611,6 +622,15 @@ function renderArgs(call: CadCall): string {
   const named: string[] = [];
   for (const [k, v] of Object.entries(call.params ?? {})) {
     if (v === undefined) continue;
+    // GOTCHA (ArchDetail s444, 2026-09-21): `cad.compound`'s `members` are
+    // LEXICAL VARIABLE NAMES, not data strings — render them bare, like
+    // positional inputs. renderValue would quote them and the op would
+    // receive strings with no BREP handle
+    // ("compound members are not all on the BREP chain").
+    if (k === 'members' && Array.isArray(v)) {
+      named.push(`members: [${v.join(', ')}]`);
+      continue;
+    }
     named.push(`${k}: ${renderValue(v)}`);
   }
   const namedBlock = named.length ? `{ ${named.join(', ')} }` : '';
