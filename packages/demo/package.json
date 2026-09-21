@@ -11,8 +11,6 @@
     "test:e2e:preview": "playwright test --config playwright.preview.config.ts"
   },
   "dependencies": {
-    "@faicad/cq-compat": "file:../cq-compat",
-    "@faicad/fai-cq-gears": "file:../fai_cq_gears",
     "fflate": "^0.8.3",
     "manifold-3d": "^3.5.1",
     "occt-wasm": "^3.8.0",

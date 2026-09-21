@@ -161,9 +161,10 @@ test.describe('faijs demo', () => {
     }
   })
 
-  test('gear-demo：真齿轮库 fai_cq_gears 出 brep 几何（本地活源码，不走 CDN）', async ({ page }) => {
-    // `@faicad/fai-cq-gears` 是 workspace 活源码库（LOCAL_LIBS 命中，不经 CDN）：
-    // 它的工厂全是 async（await getGearKernel），走 compat 边界收养为 faijs Shape。
+  test('gear-demo：真齿轮库 fai_cq_gears 出 brep 几何（走 CDN）', async ({ page }) => {
+    // `@faicad/fai-cq-gears` 现从 jsDelivr CDN 加载（0.13.2 起已修复 cq-compat
+    // 依赖解析，+esm 不再 404）；它的工厂全是 async（await getGearKernel），
+    // 走 compat 边界收养为 faijs Shape。
     await page.goto('/')
     await waitForStatusOk(page)
 

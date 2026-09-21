@@ -60,22 +60,6 @@ async function bindKernelToCdnFaijs(): Promise<void> {
   }
 }
 
-/**
- * 本地（workspace 活源码）库表——命中则不经 CDN。
- *
- * 收录条件：CDN 上的已发布版本当前不可用，或必须跟着源码改动即时生效。
- * ① `@faicad/fai-cq-gears`：它的 `getGearKernel` 来自 `@faicad/cq-compat`，
- *    而后者只声明在 devDependencies（值 `file:../cq-compat`），jsDelivr 会把
- *    该 specifier 打成 `/npm/@faicad/cq-compat@file%3A..%2Fcq-compat/+esm`
- *    （实测 404），装进来的库一调用就抛错。
- * ② 走本地还顺带免去「CDN 份 faijs 与本地份两个模块实例」的内核绑定问题。
- */
-const LOCAL_LIBS: Record<string, () => Promise<StdlibNamespace>> = {
-  // 断言：库的导出面（含非函数的 contractVersion）与 StdlibNamespace 的索引签名
-  // 不兼容，装载后的命名空间只经 registerLib 逐项读取，此处不逐个收窄。
-  '@faicad/fai-cq-gears': () => import('@faicad/fai-cq-gears') as unknown as Promise<StdlibNamespace>,
-}
-
 type FaijsPkg = { faijs?: { autoLift?: boolean } }
 /** 装载结果缓存（含 in-flight promise；CDN 每包只取一次，失败不留毒缓存可重试）。 */
 const libNsCache = new Map<string, Promise<StdlibNamespace>>()
@@ -90,12 +74,6 @@ const demoLibLoader: LibLoader = {
       )
     }
     let p = libNsCache.get(name)
-    // 本地活源码优先：命中即不经 CDN（LOCAL_LIBS 注释说明收录条件）。
-    if (!p && LOCAL_LIBS[name]) {
-      p = LOCAL_LIBS[name]()
-      libNsCache.set(name, p)
-      p.catch(() => libNsCache.delete(name))
-    }
     if (!p) {
       p = (async () => {
         // CDN 库包的 peer 依赖解析到 CDN 上另一份 faijs 实例，必须先把内核挂点

@@ -105,18 +105,6 @@ export default defineConfig({
       // sheetmetal：经 alias 落位活源码（dev 与 rollup build 一致生效）。
       // 注：gear-lib-demo 已删除，'gear-demo' 示例改为真走 CDN（库不存在 → 显式报错）。
       { find: '@faicad/sheetmetal', replacement: resolve(__dirname, '../sheetmetal/src/index.ts') },
-      // fai_cq_gears：真正的齿轮库（15 类，取代已删除的 gear-lib-demo）。
-      // 与 sheetmetal 同理经 alias 落位活源码：它的运行时依赖
-      // `@faicad/cq-compat` 目前只声明在 devDependencies（值为 file:../cq-compat），
-      // jsDelivr 打包会把该 specifier 解析成 `/npm/@faicad/cq-compat@file%3A..%2Fcq-compat/+esm`
-      // （实测 404），所以在修复并重新发布之前，浏览器侧只能走本地活源码。
-      { find: '@faicad/fai-cq-gears', replacement: resolve(__dirname, '../fai_cq_gears/src/index.ts') },
-      // cq-compat：fai_cq_gears 从根 specifier 导入 `getGearKernel`；
-      // 根入口含 node:fs 的比对工具，浏览器侧一律解析到 browser 入口。
-      { find: '@faicad/cq-compat', replacement: resolve(__dirname, '../cq-compat/src/browser.ts') },
-      // cq-compat：浏览器入口（browser.ts 不含 node:fs 的 step/assembly 比对工具），
-      // 经 alias 落位活源码；LIB_MODULES 以 '@faicad/cq-compat' 注册。
-      { find: '@faicad/cq-compat/browser', replacement: resolve(__dirname, '../cq-compat/src/browser.ts') },
     ],
   },
   plugins: [cdnExternalPlugin(), wasmAssets()],
