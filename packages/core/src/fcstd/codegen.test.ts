@@ -360,4 +360,50 @@ describe('M5 codegen', () => {
     // LooseBox call remains in main
     expect(r.code).toContain('cad.box');
   });
+
+  // GOTCHA (test_geomop corpus, 2026-09-20): a Part::Cut whose Tool is a
+  // PartDesign::Body container — the dependency resolver used to look only
+  // at `variables`, which never holds a Body name (Body results live in
+  // chainVar), so the Cut gapped with cut-missing-dependency even though
+  // both Base and Tool were translatable.
+  it('resolves a dependency on a Body container against its chain head', () => {
+    const mkBody = (name: string, members: string[]): FcstdObject => {
+      const b = simpleObj('PartDesign::Body', name);
+      b.properties.set('Group', {
+        name: 'Group', type: 'App::PropertyLinkList', tagName: 'Property',
+        children: [{
+          name: 'LinkList', type: '', tagName: 'LinkList',
+          children: members.map((m) => ({
+            name: 'Link', type: '', tagName: 'Link', children: [], valueXml: '', valueText: '', attributes: { value: m },
+          })),
+          valueXml: '', valueText: '', attributes: { count: String(members.length) },
+        }],
+        valueXml: '', valueText: '', attributes: {},
+      });
+      return b;
+    };
+    const doc: FcstdDocument = {
+      objects: [
+        mkBody('Body', ['Pad']),
+        simpleObj('Sketcher::SketchObject', 'Sketch', {}),
+        simpleObj('PartDesign::Pad', 'Pad', { Profile: { value: 'Sketch' }, Length: { value: '10' } }),
+        simpleObj('Part::Box', 'Box', {}),
+        simpleObj('Part::Cut', 'Cut', { Base: { value: 'Box' }, Tool: { value: 'Body' } }),
+      ],
+      typeIndex: new Map(),
+      meta: new Map(),
+    };
+    const r = generateModel(
+      doc,
+      new Map([['Sketch', { level: 'L0' as const, loopCount: 1 }]]),
+      new Map([['Sketch', square()]]),
+      't',
+    );
+    const cut = r.calls.find((c) => c.source === 'Cut');
+    expect(cut, 'Cut must translate, not gap').toBeDefined();
+    expect(cut!.op).toBe('cad.subtract');
+    // the Tool input resolves to the Body's chain head variable
+    expect(cut!.inputs.length).toBe(2);
+    expect(cut!.inputs[1]).not.toBe('Body');
+  });
 });

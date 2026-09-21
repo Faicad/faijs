@@ -116,9 +116,24 @@ export function generateModel(
   shapeCarriers?: ReadonlySet<string>,
 ): GenResult {
   const byName = new Map(doc.objects.map((o) => [o.name, o]));
+  // GOTCHA (test_geomop corpus, 2026-09-20): a dependency on a Body
+  // CONTAINER (Part::Cut with Tool→Body) really waits for the Body's
+  // features to have built the chain — expand the dep to the member
+  // features so Kahn orders the consumer AFTER the chain exists (and
+  // chainVar.get(Body) resolves). Treating the container itself as
+  // satisfiable instead let the Cut run before the chain was built.
   const nodes = new Map<string, Node>();
   for (const obj of doc.objects) {
-    nodes.set(obj.name, { name: obj.name, obj, deps: new Set(depsOf(obj)) });
+    const deps = new Set<string>();
+    for (const d of depsOf(obj)) {
+      const target = byName.get(d);
+      if (target?.type === 'PartDesign::Body') {
+        for (const m of bodyFeatureNames(target)) if (byName.has(m)) deps.add(m);
+      } else {
+        deps.add(d);
+      }
+    }
+    nodes.set(obj.name, { name: obj.name, obj, deps });
   }
 
   // Kahn topological sort; objects with unbuilt deps fall back to insertion
@@ -145,7 +160,7 @@ export function generateModel(
     for (const name of iterationOrder) {
       const node = nodes.get(name)!;
       if (built.has(node.name)) continue;
-      if ([...node.deps].every((d) => built.has(d) || !byName.has(d))) {
+      if ([...node.deps].every((d) => built.has(d) || !byName.has(d) || byName.get(d)!.type === 'PartDesign::Body')) {
         built.add(node.name);
         order.push(node.name);
         progress = true;
@@ -217,8 +232,11 @@ export function generateModel(
     // Sketches are now real face variables (see the Sketcher::SketchObject
     // branch above), so every dependency that resolves to one flows through.
     const verdict = translateObject(obj, (dep) => {
-      const v = variables.get(dep);
-      return v !== undefined ? v : undefined;
+      // GOTCHA (test_geomop corpus, 2026-09-20): a dependency on a Body
+      // CONTAINER (Part::Cut with Tool→Body) resolves against the Body's
+      // accumulated chain head, not `variables` — the container name is
+      // never registered there (its result lives in chainVar).
+      return variables.get(dep) ?? chainVar.get(dep);
     }, doc.objects, shapeCarriers);
     node.verdict = verdict;
     if (verdict.kind === 'translated') {
@@ -403,17 +421,46 @@ export function generateModel(
     // further down (`let` TDZ ReferenceError at run time: `part8` used `part6`).
     // Filtering `calls` in place preserves the topological order.
     const assigned = new Map<string, string>(); // call.out → Body file name
+    // chain-head var → terminal alias (and owning Body) — needed DURING
+    // routing: a foreign chain head is never in `assigned` (it is a Body's
+    // accumulated var, not a call output), so input-body checks must consult
+    // this map to detect cross-Body references.
+    const headToTerminal = new Map<string, string>();
+    const headToBody = new Map<string, string>();
+    for (const b of bodiesWithGeo) {
+      headToTerminal.set(chainVar.get(b)!, `${b}_out`);
+      headToBody.set(chainVar.get(b)!, b);
+    }
+    const mainPending: CadCall[] = [];
+    const mainOuts = new Set<string>();
     for (const c of calls) {
       const own = callBody.get(c.out);
-      const viaInput = c.inputs.map((inp) => assigned.get(inp)).find((b) => b !== undefined);
+      const inputBodies = c.inputs.map((inp) => assigned.get(inp) ?? headToBody.get(inp)).filter((b): b is string => b !== undefined);
+      const viaInput = inputBodies[0];
       const b = own !== undefined && bodiesWithGeo.has(own) ? own : viaInput;
-      if (b !== undefined && bodiesWithGeo.has(b)) {
+      // GOTCHA (test_geomop corpus, 2026-09-20): a call whose own Body
+      // differs from an input's Body (Part::Cut with Base in another Body's
+      // chain) must NOT be emitted into its own Body file — the input
+      // variable lives in ANOTHER module and is not declared there
+      // (SEC_FREE_IDENT at check time). Same for inputs that will live in
+      // MAIN (loose Part boxes): routing is a forward pass over the
+      // topologically sorted calls, so main outputs are already known.
+      // NOTE: Body-chain fold calls (union/subtract emitted during folding)
+      // are NOT in `results`, so `own` is undefined for them — the main-input
+      // check must not depend on `own`.
+      const mixed = inputBodies.some((ib) => ib !== b) || (own !== undefined && viaInput !== undefined && viaInput !== own);
+      const touchesMain = c.inputs.some((i) => mainOuts.has(i));
+      if (b !== undefined && bodiesWithGeo.has(b) && !mixed && !touchesMain && (own === undefined || own === b)) {
         if (!perBody.has(b)) perBody.set(b, []);
         perBody.get(b)!.push(c);
         assigned.set(c.out, b);
       } else {
-        mainCalls.push(c);
+        mainPending.push(c);
+        mainOuts.add(c.out);
       }
+    }
+    for (const c of mainPending) {
+      mainCalls.push({ ...c, inputs: c.inputs.map((i) => headToTerminal.get(i) ?? i) });
     }
     for (const b of bodiesWithGeo) {
       const bodyCalls = perBody.get(b) ?? [];
