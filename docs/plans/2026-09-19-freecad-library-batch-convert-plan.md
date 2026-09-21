@@ -82,6 +82,7 @@ packages/core/scripts/scan-fcstd-library.ts这样的文件明显是错误的。
 > **✅ 当日九连修终态（+轮廓 DFS 回溯链接）**：**ok 9→44、gap 56→12**，`cliCheck` 失败 0。slittingsaw 转出（分支死路经回溯绕过，8 段环找到）；`sketch-not-solved` 降至 2（BIMExample 按策略、TestTangentMode 真实拓扑）。剩余 12 文件全部是真实特征/几何工作（Draft 对象、EngineBlock、compound/external-geo/fillet/cut 链、delta-exceeds-t1、PocketTest 待 triage）。
 > **✅ 当日十连修终态（+shape-asset 可寻址实体化）**：**ok 9→45、gap 56→11**，`cliCheck` 失败 0。shape-asset 对象改发 `cad.import_shape`（结果缓存成为可寻址变量，下游 Fillet/Cut 的显式 Base 引用可解析）；hole_puzzle 越过 fillet 链推进到 `external-geometry-unresolved`。剩余 11 文件全部是真实特征/几何工作。
 > **✅ 当日十一连修终态（+Body 容器依赖解析 + 跨文件调用路由）**：**ok 9→46、gap 56→10、`cliCheck` 失败 0**。test_geomop 转出（Part::Cut 的 Tool→Body 容器：依赖解析回退 chainVar 链头、Kahn 将 Body 依赖展开为成员特征、路由守卫拦截跨 Body/main 引用入 main 并重映射 `<Body>_out` 终端别名——三层修复，Agent Note 全档）。剩余 10 文件全部是真实特征/几何工作：type-not-whitelisted 3（Draft/EngineBlock/all_objects）、sketch-not-solved 2（策略/拓扑）、external-geometry 2、compound 1、unsupported-constraint 1、delta-exceeds-t1 1。
+> **✅ 当日十二连修终态（+外部几何 SubShape 源回退）**：ok 维持 **46**、`cliCheck` 失败 0。`shapeBrpFile()`：外部引用源为 PartDesign 特征（Chamfer/Pocket 等）时其形状在 `SubShape` 属性——查找回退后 hole_puzzle 的**直线**外参考（Sketch003/004/005/006）全部解析成功；剩余 Sketch011 的 Edge110 为**弧线**（630 点采样 polyline），`length===2` 直线过滤按设计丢弃——外部曲线投影为已留档能力缺口（下一阶段候选）。PartDesignExample 的 `ExternalGeo` 迁移版格式（含 shadow 几何）为另一族，留档不动。
 > （下表为 H10 接线前的原始基线，保留供对照。）
 
 口径：`out/sweep-report.json`（`fcstd-port/out/`，gitignore，重跑即得）。**注意：每文件只记录前 4 条 gap reason**，故下表「次数」是下界。

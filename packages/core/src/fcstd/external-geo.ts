@@ -65,6 +65,18 @@ function placementOf(obj: FcstdObject): { q: [number, number, number, number]; p
 }
 
 /**
+ * The `.brp` member holding an object's shape: the `Shape` property when
+ * present, else `SubShape` (GOTCHA, hole_puzzle corpus 2026-09-20: PartDesign
+ * features like Chamfer002/Pocket002 store their result cache in SubShape and
+ * have NO Shape property — external links pointing at them failed with
+ * "source shape not loadable" before the fallback existed).
+ */
+export function shapeBrpFile(obj: FcstdObject): string | undefined {
+  return obj.properties.get('Shape')?.children[0]?.attributes['file']
+    ?? obj.properties.get('SubShape')?.children[0]?.attributes['file'];
+}
+
+/**
  * Resolve every external link of a sketch to sketch-local 2D polylines.
  *
  * @param externalGeoProp - the sketch's ExternalGeometry property.
@@ -98,7 +110,7 @@ export async function resolveExternalGeometry(
   const wireframeOf = (objName: string) => {
     if (brpCache.has(objName)) return brpCache.get(objName);
     const src = doc.objects.find((o) => o.name === objName);
-    const brpFile = src?.properties.get('Shape')?.children[0]?.attributes['file'];
+    const brpFile = src ? shapeBrpFile(src) : undefined;
     if (!brpFile) {
       brpCache.set(objName, undefined);
       return undefined;
