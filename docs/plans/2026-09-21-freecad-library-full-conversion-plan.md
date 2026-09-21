@@ -54,8 +54,8 @@
 
 | 语料 | 规模 | 用途 |
 |---|---|---|
-| `D:/Faicad/FreeCAD`（FreeCAD 源码树样本） | **56** 文件 | 快速把关（不依赖零件库）；本文所有「实测」均指这批 |
-| `D:/Faicad/FreeCAD-library` | **3,201** 文件 | 最终验收语料（C1） |
+| `D:/Faicad/FreeCAD`（FreeCAD 源码树样本） | **56** 文件 | 快速把关（不依赖零件库）；§3.1–§3.7 的「实测」均指这批 |
+| `D:/Faicad/FreeCAD-library` | **3,201** 文件 | 最终验收语料（C1）；**§3.8–§3.11 的「实测」指这批**（B2 全量，2026-09-21） |
 
 转换侧口径：`fcstd-port/out/sweep3.log`（56 文件 / 82 模块 / 1,075 语句）；执行侧口径：`fcstd-port/out/probe-runnable2.log`。
 
@@ -145,6 +145,90 @@ BIMExample `sketch-not-solved`；PartDesignExample `external-geometry-unresolved
 - 机制：`cad.group` 产出 `{kind:'compound', children}` 结构壳（`shape.ts:88`），OCCT 句柄只由 `fromBrep` 写入（`shape.ts:62`）→ `brepOf` 空（`shape.ts:173`）→ `api/transform.ts:82` 抛错。
 - 资产普查（`out/nonsolid-kernel.log`）：302 个资产 = 132 有实体 / **170 零实体**。零实体资产的 `meshShape` 与 `translate` **都成功**，只有 `fuse(solid, …)` 抛 `boolean operation failed`。
   → **结论：非实体子形完全能进 compound、能整体放置；做不到的只有布尔。** 与 C6 的表述一致。
+
+### 3.8 全库文件级 reason 分布（B2 实测，2026-09-21，**本节是 P1 排序的唯一依据**）
+
+口径：`fcstd-port` 批量驱动，引擎 `@faicad/faijs@0.13.2`（cli sha256 `627ecc91…`），语料 `D:/Faicad/FreeCAD-library`，
+产物 `fcstd-port/reports/batch-report.{json,md}`（逐文件 + 170 个缺口组合桶）与 `reports/reason-cascade.md`（排序与级联分析）。
+驱动/分析代码：`tools/batch-convert.ts`、`tools/reason-cascade.ts`、`tools/probe-param-cells.ts`（均有单测）。
+
+| 指标 | 数值 |
+|---|---|
+| 扫描 `.FCStd` | **3,201**（跳过 `.FCStd1` 备份 102 个） |
+| 三态 | **ok 2,323（72.6%）/ gap 878（27.4%）/ failed 0 / timeout 0** |
+| 耗时 | 2,785 s（约 870 ms/文件，串行） |
+| 缺口组合桶 | 170 种（文件级整组 reasonKey） |
+
+**⚠️ reason 频次 ≠ 工作量**——这是本节最重要的口径，已被两处反例钉死：
+
+| reason | 含该原因的文件 | 单独修它解封的文件 | 作为「最后一个缺口」出现在 |
+|---|---|---|---|
+| `type-not-whitelisted` | 586 | 40 | 第 2 轮（50） |
+| `pocket-missing-dependency` | 541 | 7 | 第 5 轮（16） |
+| `pad-length-expression-non-constant` | 502 | **2** | **第 6 轮（438）** |
+| `polar-pattern-missing-source` | 172 | 16 | 第 4 轮（23） |
+| `sketch-not-solved` | 95 | 45 | 第 1 轮（45） |
+
+按 reason 家族做贪心排序会出现**断崖**：前 5 轮合计只解封 ~162 个，第 6 轮一次 438 个。
+原因是级联——上游特征被 bake，下游每个特征各自报一条「缺依赖」，于是**同一批文件被记成 3~4 条不同 reason**。
+
+### 3.9 主根因：参数载体（Spreadsheet / VarSet）与其求值（B2 实测，**P1 第一项**）
+
+代表性文件 `Mechanical Parts/Chains/Sprocket/ISO 606/Simplex ½x¼/Sprocket ANSI simplex ½x¼ z08.FCStd`：
+
+| 对象 | 类型 | reason |
+|---|---|---|
+| `Spreadsheet` | `Spreadsheet::Sheet` | `type-not-whitelisted: Spreadsheet::Sheet` |
+| `Pad` / `Pad001` | `PartDesign::Pad` | `pad-length-expression-non-constant` |
+| `Pocket` | `PartDesign::Pocket` | `pocket-missing-dependency` |
+
+因果链（代码级）：`Spreadsheet::Sheet` 不在白名单（`feature-translate.ts:476`）→ 但同一个 Spreadsheet 正是 Pad 长度的**数据源**：
+`Pad.Length` 绑定 `<<Data>>.Wt`，而求值器只认「数字+单位」（`expressions.ts:41`）→ `b.value === undefined`
+→ `hasNonConstantBinding` 为真 → Pad 被 bake（`feature-translate.ts:587`）→ Pocket 的 `BaseFeature` 指向那个被 bake 的 Pad
+→ `inputVar` 取不到变量 → `pocket-missing-dependency`（`feature-translate.ts:763`）。
+**三条 reason 名是同一件事的三个面。**
+
+实测收益（组合枚举，不是顺序）：
+
+| 做到哪一步 | 解封文件数 | 占 gap |
+|---|---|---|
+| 只让 `Spreadsheet::Sheet` / `App::VarSet` 过类型检查 | 17 | 1.9% |
+| 只让 `<<Label>>.Alias` 可求值 | 2 | 0.2% |
+| 两者都做 | 21 | 2.4% |
+| 两者 + 下游 `pocket-missing-dependency` 清算 | **347** | **39.5%** |
+
+**`expr-reference-eval` 不是「实现表达式引擎」**——`probe-param-cells.ts` 按文档实测（抽样 150 文件）：
+2,346 条 `<Expression>` 中 1,377 条是整条 `<<Label>>.Alias`、657 条是引用参与的算术、220 条是 `Object.Alias`、
+其余 ~4% 是 `cells[...]`/`tuple()`/`Constraints[i]`/函数族；
+2,033 个带别名的参数单元格里 **1,725 个（84.8%）就是「常量+单位」（`=5.9mm`）**，283 个是同表地址，25 个是别的。
+即**现有的 `evalConstantExpression` 已经能算这些值**，缺的只是三跳解析：
+`<<Data>>` → 按 **Label** 找对象 → 按 `alias` 找单元格 → 去掉前导 `=`（同表地址再跳一次）→ 交给已有求值器。
+
+### 3.10 `pocket-missing-dependency` 是症状名，不是原因名（实测归属）
+
+同一 reason 名在 `feature-translate.ts:763`（`!profileVar || !baseVar`）与 `codegen.ts:409`（Body 链头不可解）两处产出，
+抽样 150 文件 / 357 occurrence 按对象的两个上游链接归因：
+
+| profile（草图） | base（BaseFeature） | 条数 | 归属 |
+|---|---|---|---|
+| ok | FAILED `pad-length-expression-non-constant` | 90 | 参数工作项的下游 |
+| ok | FAILED `pocket-missing-dependency` | 36 | 同上（第二代级联） |
+| ok | absent（Body 链头不可解） | 21 | 同上 |
+| FAILED `unsupported-constraint` | FAILED `pocket-missing-dependency` | 36 | **独立成因（profile 侧）** |
+| FAILED `external-geometry-unresolved` | ok | 32 | **独立成因（profile 侧）** |
+| FAILED `unsupported-constraint` | ok | 29 | **独立成因（profile 侧）** |
+| FAILED `delta-exceeds-t1` | ok | 13 | **独立成因（profile 侧）** |
+
+→ 约 **41% 是参数工作项的下游清账，约 24% 是 profile 侧独立缺口**。
+所以「`pocket-missing-dependency` 出现在 541 个文件」**不能**读成「有一个 541 文件大小的 pocket 缺陷可修」。
+`reason-cascade.ts` 用 `requires: [expr-reference-eval, data-carrier-types]` 把「后果型修复项」钉在真修复上，
+避免它借用无关修复项的功劳；`requires` 未满足的组合会被跳过，不会以「挂着已被丢弃的 id」的重复行出现。
+
+### 3.11 口径提醒：`failed` 是求解器状态，不是文件状态
+
+`reasonKeys` 里的 `failed` / `conflicting` / `redundant` 来自 **sketch 求解器**（`planegcs-backend.ts:254`、`sketch-solver.ts:22`），
+与批量驱动的**文件级状态** `failed` 同名不同层。本轮文件级失败为 **0**，含求解器 `failed` 这一 reason 的文件为 2 个。
+报表里两者必须分开读；**建议上游改名（如 `solver-failed`）以消除歧义**（API 清晰度信号，见 §10 R-CO）。
 
 ---
 
@@ -266,6 +350,11 @@ BIMExample `sketch-not-solved`；PartDesignExample `external-geometry-unresolved
 
 > 未拍板前不擅自扩大改造：`revolve` 当前的无名行为已由 `packages/tests/faijs/edge-ref/edge-ref.test.ts` 的**绊线测试**钉住（修好后该断言应翻转，不是删除）。
 
+> ⚠️ **B2 看不到这一类缺口**：批量驱动只做**转换**（`cli convert` + 产物终检 `verifyProduct` 读 `mapping.json`），
+> **从不执行产物**。而命名链断掉是在**执行期**才暴露（`edgeRef` 抛 `E_TOPO_NOT_FOUND`）。
+> 所以 §3.8 的 **ok 2,323 只说明「转换成功」，不说明「产物能跑」**——`failed 0` 与本类缺口无关。
+> 执行侧的全量普查（V-C3 的全量版）是**独立一步**，见 §9 第 5.1 项。
+
 ---
 
 ## 6. faijs 侧交付与归属（C3）
@@ -298,8 +387,8 @@ C4 之下，批量项目的职责是**忠实地暴露失败**，不是吸收失�
 |---|---|---|
 | **B0** | faijs P0 硬骨头（H1–H3）+ CLI | ✅ 基本完成（H2 剩 3 类、H3 曲线/面附着未做） |
 | **B1** | 批量骨架 + 全库画像 | ✅ 画像 ✅、批量骨架 ✅（`fcstd-port/tools/batch-convert.ts` + `test/unit/batch-convert.test.ts`） |
-| **B2** | 全量试跑，暴露文件级 reason 分布 | 🟡 正在跑（3,201 串行）；分布见 §3 |
-| **B3** | 硬骨头迭代（每轮小批量复测） | ❌ |
+| **B2** | 全量试跑，暴露文件级 reason 分布 | ✅ 3,201 → **ok 2,323 / gap 878 / failed 0 / timeout 0**（46 min，串行）。报表 `reports/batch-report.{json,md}` + 排序分析 `reports/reason-cascade.md`；结论见 §3.8–§3.11 |
+| **B3** | 硬骨头迭代（每轮小批量复测） | ❌ 下一项 = §3.9 参数工作项（实测解封 347 文件） |
 | **B4** | 全量 + 抽样验收 | ❌ |
 
 ---
@@ -326,15 +415,28 @@ C4 之下，批量项目的职责是**忠实地暴露失败**，不是吸收失�
 1. ✅ **H11：平台三个 op 落地**——实发名 `cad.import_brep` / `cad.compound` / `cad.place`（方案原写 `cad.asset`，落地时改名）；含四元数→矩阵标定测试、非实体放行测试、mesh 路径测试。
 2. ✅ **翻译层切换**（§4.7 清单）+ **删除 `allowNonSolid` 与 `brepTextHasSolid`**（§4.6）+ 守卫测试改为「借用点归零 + callee ⊆ 平台 op 集」。
 3. **ArchDetail 复跑**：目标是越过 s652。越过后再跑一次 56 样本执行侧普查，用实测数据刷新 §3.6（预期落到 E1/E2/E3/E4）。
-4. **E1/E3/E4**：导出返回结构化错误、导入资产建 roleTable、资产缺失前置 gap。E2（线框显示）可后置。
+4. **E1/E3/E4**：导出返回结构化错误（✅ E1）、导入资产建 roleTable（✅ E3 链根，另有 `extrude` 已补）、资产缺失前置 gap（✅ E4）。E2（线框显示）可后置。
+   E3 的**其余无名产形 op**（`revolve`/`sketch` 面/`compound-geom`/`engrave`/`screw`/`svgExtrude`/`text`）需在 **Q13** 拍板后再动（§5.1）。
 
-### P1（P0 之后，按收益排序）
+### P1（按 B2 实测收益排序；不是按 reason 频次，理由见 §3.8）
 
-5. **B2 全量试跑**（3,201）——**排序的唯一依据是文件级 reason 分布**；在拿到它之前不排 H7 的攻坚顺序。
-6. **H7 头部类型**：`Part::Feature`(1,359 已做) → Part 工作台特征系（`Part::Revolution/Fillet/Chamfer`，注意与 PartDesign **同名异构**）→ `PartDesign::Groove`(726) → 扫掠/放样/螺旋系(455，内核 op 补齐) → `App::Link*`(149) → 镜像系(461) → 跨引用系(150) → 布尔系(96)。
-7. **H6 非常量表达式**(16,277 条)——参数化零件库的刚需，与 H7 穿插推进。
-8. **H3 曲线/Frenet/面支撑**、**H4 尾部 8 条 bake 分支**、**H2 补 15/17/19**、**H8 弧线投影**。
-9. **R-CH 的几何静默降级**（`ArcOfEllipse`/`BSpline`/`Hyperbola`/`Parabola` → NaN → L2）：要么实现 B 样条/椭圆弧轮廓，要么改为**显式 gap**。**不允许继续静默 L2**（见 Q10）。
+5. ✅ **B2 全量试跑**（3,201）——已完成，文件级分布见 §3.8。**排序依据已拿到。**
+5.1. **产物全量执行侧普查**（新增，从 B2 的产物读，**无需重新转换**）——B2 只做转换、不跑产物（见 §5.1 末注），
+   而 C5（编辑器 op 归零，V-C7）与命名链类缺口都只在执行期暴露。做法：对 `out/batch/*.fai.zip`（2,323 个）
+   逐个 materialize + `cliRun --mode brep` 导出 STEP，**必须 catch 异常**（`exportStepFromSolids` 在全线框链上抛而非返回 error）。
+   这一步同时是 V-C3（36/50 → 50/50）的全量版基线。
+6. **参数工作项（= H6 非常量表达式的头部，且已在文件级证明它就是头部）**（§3.9，实测解封 **347 / 878 = 39.5%**，是第二名的 4 倍）——三件必须一起做：
+   a. 让 `Spreadsheet::Sheet` / `App::VarSet` 这类**无几何的数据载体**通过类型检查（不是加入「结构类型」当 preserved-only，而是承认它是**被引用的数据源**）；
+   b. `<<Label>>.Alias` / `Object.Alias` 的三跳解析（Label→对象→alias→单元格→去 `=`；同表地址再跳一次），值交给**已有**的 `evalConstantExpression`；
+   c. 下游 `pocket-missing-dependency` 随上游 Pad 转译而消失（**做 a+b 才成立**，单独做任一项解封数为 2 / 17）。
+   顺带做掉引用参与的算术（657 条，28%）；函数族与 `cells[...]` 区间按 `no heuristic fallback` **显式 bake**。
+   ⚠️ **不要**把它排成「先修 `type-not-whitelisted`（586 文件）再修别的」——它单独修只解封 40 个，与 `pad-length-*` 是同一件事。
+7. **其余按实测组合收益**（`reports/reason-cascade.md` §2）：`data-carrier-types + solve-sketches + polar-pattern-source` 89 个 →
+   `data-carrier-types + solve-sketches + linear-pattern-source` 85 个 → …（≤3 项的组合上限就是 347，即第 6 项吃掉了头部）。
+8. **H7 头部类型**：`Part::Feature`(1,359 已做) → Part 工作台特征系（`Part::Revolution/Fillet/Chamfer`，注意与 PartDesign **同名异构**）→ `PartDesign::Groove`(726) → 扫掠/放样/螺旋系(455，内核 op 补齐) → `App::Link*`(149) → 镜像系(461) → 跨引用系(150) → 布尔系(96)。
+9. **H3 曲线/Frenet/面支撑**、**H4 尾部 8 条 bake 分支**、**H2 补 15/17/19**、**H8 弧线投影**。
+10. **R-CH 的几何静默降级**（`ArcOfEllipse`/`BSpline`/`Hyperbola`/`Parabola` → NaN → L2）：要么实现 B 样条/椭圆弧轮廓，要么改为**显式 gap**。**不允许继续静默 L2**（见 Q10）。
+    B2 给出的文件级输入：`unsupported-geometry` 29 文件（单独修解封 3）、`delta-exceeds-t1` 36 文件（单独修解封 1）。
 
 ---
 
@@ -346,8 +448,11 @@ C4 之下，批量项目的职责是**忠实地暴露失败**，不是吸收失�
 | R-CJ | 新 op 命名与既有 `group`/`load` 语义易混（`compound` vs `group`、`asset` vs `load`） | 中 | 命名在 Q8 拍板后写进 `docs/api-contract.md`；`cad.group`/`cad.load` 的 JSDoc 补「编辑器 op，平台请用 `cad.compound`/`cad.asset`」的反向指引 |
 | R-CK | `located` 的矩阵约定（行/列主序）标定错误会导致**全部放置静默错位** | 高 | 先写标定测试（已知 Placement 的样本 → 变换后 bbox 逐轴比对），再接线；禁止凭记忆 |
 | R-CL | 非实体子形参与布尔时错误信息是 OCCT 裸文本（`boolean operation failed`） | 中 | 在平台 op 边界包一层：带 op 名 + 输入资产名 + cause 的显式错误（V-C8） |
-| R-CM | 3,201 全量时长未知 | 低 | 画像实测全库只读遍历 105.8 s；批量串行 + 硬超时，支持分目录分批 |
-| R-CN | 「不允许回退」在损坏文件上客观不可达成 | 低 | 判 `failed` 并如实报告不算违背 C4（C4 约束 faijs 能力，不约束数据完好性）；画像实测 3,201 文件 0 失败 |
+| R-CM | 3,201 全量时长未知 | 低 | **已测**：串行 2,785 s（870 ms/文件），无超时、无失败。批量驱动支持 `--subdir` 分批与断点续跑 |
+| R-CN | 「不允许回退」在损坏文件上客观不可达成 | 低 | 判 `failed` 并如实报告不算违背 C4（C4 约束 faijs 能力，不约束数据完好性）；全量实测 3,201 文件 **failed 0 / timeout 0** |
+| **R-CO** | **同一 reason 名对应多个互不相干的成因**，报表按 reason 名分桶会**系统性高估**某项工作量 | **高** | 实例：`pocket-missing-dependency` 的 41% 是上游 bake 的下游清账、24% 是 profile 草图失败（§3.10）。对策已落地：报表按**文件整组** reasonKey 分桶，排序按**修复项组合**而非 reason 频次，后果型修复项带 `requires` 守卫（§3.10 末段） |
+| **R-CP** | **reason 命名歧义**：求解器状态 `failed` / `conflicting` / `redundant` 与驱动文件级状态 `failed` 同名 | 中 | 已在 `reports/reason-cascade.md` §7 标注；**建议上游改名 `solver-failed` 等**（属 API 清晰度问题，§AGENTS 铁律 3） |
+| R-CQ | 批量结果**跨引擎不可比**：驱动每次 spawn 都读 `node_modules/@faicad/faijs/dist/fcstd/cli.js`，中途重打包/重装会让同一份报表混两个引擎 | 中 | 已落地：state 记 `faijsVersion` + cli `sha256`，对不上**拒绝续跑**。操作纪律：全量跑期间不 repack 不重装 |
 
 > 09-19 方案的 R-CA/R-CB/R-CC/R-CE/R-CG 仍有效，未变；R-CD（Draft/装配语义映射争议）并入 Q9。
 
@@ -359,9 +464,10 @@ C4 之下，批量项目的职责是**忠实地暴露失败**，不是吸收失�
 |---|---|---|
 | **Q8** | 三个新 op 的命名 | **已定（用户拍板）**：`cad.import_brep` / `cad.compound` / `cad.place` —— 即取下方备选，未采用本栏倾向的 `cad.asset`（`locate` 亦未采用） |
 | **Q9** | `cad.place` 是否也吸收 `Part::Mirroring`、sweep 定向等后续需求，还是各自独立 op | 先只做「刚体放置」；镜像等按需另立 op（避免一个 op 承载多种几何语义） |
-| **Q10** | B 样条/椭圆弧轮廓：实现，还是改判显式 gap | 倾向**实现**（1,630 条/24 文件不算长尾），但要先看 B2 的文件级数据；在实现前**不允许静默 L2** |
+| **Q10** | B 样条/椭圆弧轮廓：实现，还是改判显式 gap | **B2 已给出输入**（§3.8）：`unsupported-geometry` 29 文件 / 单独修解封 3；`delta-exceeds-t1` 36 文件 / 单独修解封 1。相对参数工作项（347）属**尾部**。倾向仍是**实现**（符合「不允许静默 L2」），但**排在参数工作项之后**；实现前**不允许静默 L2** |
 | **Q11** | 3,201 全量产物的存放（本地磁盘 / 是否入库） | 产物不入库（体积大）；报表与状态入库，产物留 `out/`（gitignore） |
 | **Q12** | `.FCStd1` 备份（102 个）与多 Body 文档的产物组织是否维持现口径 | 维持 Q1（跳过）与「每 Body 一模块 + `main.fai.js` 聚合」 |
+| **Q13** | **命名链缺口的两条岔路**（§5.1）：①逐个 op 手写建表（`extrude` 已按此修；`revolve` 要改就得从生成投影改成手写 `defineOp`）；②调度层统一兜底（在 brep 产物登记处对「无表的产物」统一建表） | **倾向 ②**，理由：E3 的形态是「**有名字是逐 op 自愿的，忘了没人吭声**」（§5.1 表里有 7 个 op 忘了），逐个补是同一类疏漏的 7 次重复；但 ② 需要先评估两件事：每个产物的逐面 hash/hint 成本（`getSubShapes` 调用次数），以及**非实体产物**（170/302 资产是零实体）的空表语义。**在拍板前不擅自扩大改造**，`revolve` 的无名行为由 `edge-ref.test.ts` 的绊线测试钉住 |
 
 ---
 
