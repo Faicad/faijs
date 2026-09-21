@@ -842,6 +842,27 @@ describe('H7 Part::Feature pure-Shape carrier', () => {
     expect(r).toMatchObject({ kind: 'baked', reason: 'pocket-missing-dependency' });
   });
 
+  it('GOTCHA (ArchDetail 2026-09-20): a NON-whitelisted type with a Shape asset resolves to shape-asset import, not a gap', () => {
+    // Draft wires (Part::Part2DObjectPython) as Compound members carry real
+    // Shape .brp members — same "geometry is an existing fact" rationale as
+    // H7 Part::Feature. Whitelisted types (Box/Pad…) are unaffected: they
+    // keep the normal translation path.
+    const wire = obj('Part::Part2DObjectPython', 'Wire045', [
+      prop('Shape', { name: 'Part', attrs: { file: 'Wire045.Shape.brp' } }),
+    ]);
+    const r = translateObject(wire, () => undefined, undefined, new Set(['Wire045']));
+    expect(r).toMatchObject({ kind: 'translated', reason: 'shape-asset' });
+    if (r.kind === 'translated') {
+      expect(r.calls[0]!.op).toBe('cad.import_shape');
+      expect(r.calls[0]!.params.asset).toBe('Wire045.Shape.brp');
+    }
+    // whitelisted type stays on the normal path (no hijack)
+    const box = obj('Part::Box', 'Box', [prop('Shape', { name: 'Part', attrs: { file: 'Box.brp' } })]);
+    const rb = translateObject(box, () => undefined, undefined, new Set(['Box']));
+    expect(rb.kind).toBe('translated');
+    if (rb.kind === 'translated') expect(rb.reason).not.toBe('shape-asset');
+  });
+
   it('GOTCHA (hole_puzzle 2026-09-20): a shape-asset feature is a REAL variable — consumers (Fillet Base→Pocket) must resolve it', () => {
     // codegen registers variables only from calls (or non-identity
     // placements); a zero-call shape-asset object had NO variable, so a

@@ -83,6 +83,7 @@ packages/core/scripts/scan-fcstd-library.ts这样的文件明显是错误的。
 > **✅ 当日十连修终态（+shape-asset 可寻址实体化）**：**ok 9→45、gap 56→11**，`cliCheck` 失败 0。shape-asset 对象改发 `cad.import_shape`（结果缓存成为可寻址变量，下游 Fillet/Cut 的显式 Base 引用可解析）；hole_puzzle 越过 fillet 链推进到 `external-geometry-unresolved`。剩余 11 文件全部是真实特征/几何工作。
 > **✅ 当日十一连修终态（+Body 容器依赖解析 + 跨文件调用路由）**：**ok 9→46、gap 56→10、`cliCheck` 失败 0**。test_geomop 转出（Part::Cut 的 Tool→Body 容器：依赖解析回退 chainVar 链头、Kahn 将 Body 依赖展开为成员特征、路由守卫拦截跨 Body/main 引用入 main 并重映射 `<Body>_out` 终端别名——三层修复，Agent Note 全档）。剩余 10 文件全部是真实特征/几何工作：type-not-whitelisted 3（Draft/EngineBlock/all_objects）、sketch-not-solved 2（策略/拓扑）、external-geometry 2、compound 1、unsupported-constraint 1、delta-exceeds-t1 1。
 > **✅ 当日十二连修终态（+外部几何 SubShape 源回退）**：ok 维持 **46**、`cliCheck` 失败 0。`shapeBrpFile()`：外部引用源为 PartDesign 特征（Chamfer/Pocket 等）时其形状在 `SubShape` 属性——查找回退后 hole_puzzle 的**直线**外参考（Sketch003/004/005/006）全部解析成功；剩余 Sketch011 的 Edge110 为**弧线**（630 点采样 polyline），`length===2` 直线过滤按设计丢弃——外部曲线投影为已留档能力缺口（下一阶段候选）。PartDesignExample 的 `ExternalGeo` 迁移版格式（含 shadow 几何）为另一族，留档不动。
+> **✅ 当日十三连修终态（+shape-asset 扩展到任意非白名单类型）**：**ok 9→47、gap 56→9、`cliCheck` 失败 0**。ArchDetail 转出（Compound 成员 Draft 线带真实 Shape 资产 → `cad.import_shape`；白名单类型不劫持，测试锁定）。单例 triage 留档：Drilling_1 Type=15 InternalAlignment（椭圆极点对齐，特性级）、CarbonCopy delta-exceeds-t1（真实求解器工作）。剩余 9 文件：sketch-not-solved 2（策略/拓扑）、external-geometry 2（曲线投影/迁移格式）、单例 5。
 > （下表为 H10 接线前的原始基线，保留供对照。）
 
 口径：`out/sweep-report.json`（`fcstd-port/out/`，gitignore，重跑即得）。**注意：每文件只记录前 4 条 gap reason**，故下表「次数」是下界。

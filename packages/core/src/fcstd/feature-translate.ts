@@ -411,6 +411,22 @@ export function translateObject(
       if (shapeCarriers?.has(obj.name)) return { kind: 'translated', calls: [], reason: 'shape-asset' };
       return { kind: 'baked', reason: 'shape-asset-missing' };
     }
+    // GOTCHA (ArchDetail corpus, 2026-09-20): non-whitelisted types carrying
+    // a real Shape asset (Draft wires Part::Part2DObjectPython as Compound
+    // members) are "geometry is an existing fact" too — same rationale as
+    // H7 Part::Feature. Whitelisted types are unaffected: they keep the
+    // normal translation path, so no hijack of parametric features.
+    if (shapeCarriers?.has(obj.name)) {
+      const assetFile = obj.properties.get('Shape')?.children[0]?.attributes['file'];
+      return {
+        kind: 'translated',
+        calls: [{
+          out: obj.name, op: 'cad.import_shape', source: obj.name, inputs: [],
+          params: { asset: assetFile ?? `${obj.name}.Shape.brp` },
+        }],
+        reason: 'shape-asset',
+      };
+    }
     return { kind: 'baked', reason: `type-not-whitelisted: ${obj.type}` };
   }
   const out = obj.name; // M5 renames to partN
