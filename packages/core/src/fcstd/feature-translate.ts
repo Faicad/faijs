@@ -30,6 +30,14 @@ export interface CadCall {
   literals?: unknown[];
   /** FCStd object this call came from */
   source: string;
+  /**
+   * When true, `inputs` is bookkeeping-only (dependency tracking / variable
+   * remapping / consumed-set) and must NOT be rendered as positional args —
+   * the real args come from `params`. Used by params-only ops like
+   * `cad.compound` whose members live in `params.members` (rendering `inputs`
+   * positionally would shadow `params`).
+   */
+  noPositionalArgs?: boolean;
 }
 
 /**
@@ -353,9 +361,9 @@ export function placementPos(obj: FcstdObject): [number, number, number] {
 
 /**
  * A frozen `.brp` shape delivered through the container's `assets/` becomes an
- * addressable solid via `cad.load` — the stdlib asset-loading op
- * (`api/load.ts`), which reads through the host asset resolver and returns a
- * BREP-backed Shape the rest of the chain can consume.
+ * addressable Shape via `cad.import_brep` — the **platform** BREP-asset import
+ * op (`api/import-brep.ts`), which reads through the host asset resolver and
+ * returns a BREP-backed Shape the rest of the chain can consume.
  *
  * GOTCHA (2026-09-21, found while verifying ArchDetail): the shape-asset rounds
  * used to emit a made-up `cad.import_shape`, which is **not** in the cad
@@ -364,27 +372,25 @@ export function placementPos(obj: FcstdObject): [number, number, number] {
  * callee's existence, so only a real `run --mode brep` exposes this.
  *
  * Contract details:
- * - key: the asset file name WITHOUT extension — that is the key rule of the
+ * - asset: the asset file name WITHOUT extension — that is the key rule of the
  *   documented directory mode of `FsAssetResolver` (`key = basename(file)`),
  *   which is how a container's `assets/` directory is exposed.
- * - format: `'brep'` is REQUIRED. `isCadFormat` only recognizes
- *   step/stp/brep, and the `.brp` extension is not in `CAD_FORMATS`, so
- *   without the hint the load would take the mesh path and fail in brep mode.
+ *
+ * C6 (non-solid first-class): `cad.import_brep` always imports with
+ * `allowNonSolid` (wire/face/shell are first-class). There is no `format`
+ * hint — the op goes straight to `loadBrep` on the OCCT kernel, which needs
+ * no format detection. Booleans / up-to targets that require a solid still
+ * fail at the **use site**, never at the import site.
  *
  * @param obj - the FCStd object whose frozen shape is being imported.
  * @param assetFile - the `.brp` member name recorded on the object's Shape/SubShape property.
- * @param allowNonSolid - true when the frozen asset holds no solid (probed by
- *   `brepTextHasSolid` in the conversion layer); the load then relaxes its
- *   solid requirement instead of failing on `no solid sub-shapes`.
- * @returns the `cad.load` call binding `obj.name` to the imported geometry.
+ * @returns the `cad.import_brep` call binding `obj.name` to the imported geometry.
  */
-function shapeAssetCall(obj: FcstdObject, assetFile: string, allowNonSolid: boolean): CadCall {
-  const key = assetFile.replace(/^.*[/\\]/, '').replace(/\.brp$/i, '');
+function shapeAssetCall(obj: FcstdObject, assetFile: string): CadCall {
+  const asset = assetFile.replace(/^.*[/\\]/, '').replace(/\.brp$/i, '');
   return {
-    out: obj.name, op: 'cad.load', source: obj.name, inputs: [],
-    // Keep the params object minimal for the solid case so existing products
-    // (and their golden assertions) are byte-identical.
-    params: allowNonSolid ? { key, format: 'brep', allowNonSolid: true } : { key, format: 'brep' },
+    out: obj.name, op: 'cad.import_brep', source: obj.name, inputs: [],
+    params: { asset },
   };
 }
 
@@ -402,8 +408,6 @@ function shapeAssetCall(obj: FcstdObject, assetFile: string, allowNonSolid: bool
  * @param docObjects - the full document object list, needed by the UpToFace
  *   datum-plane path; optional.
  * @param shapeCarriers - objects whose Shape is stored as a .brp member; optional.
- * @param nonSolidAssets - subset whose frozen .brp holds no solid (a Draft wire,
- *   a face, a shell), so the emitted load must relax its solid requirement; optional.
  * @returns the cad-op call plan, or an explicit bake/preserve verdict with reason.
  */
 export function translateObject(
@@ -412,8 +416,6 @@ export function translateObject(
   docObjects?: readonly FcstdObject[],
   /** H7: names of objects whose Shape is stored as a .brp member (probed from the ZIP). */
   shapeCarriers?: ReadonlySet<string>,
-  /** Objects whose frozen asset is not a solid — the load call must allow it. */
-  nonSolidAssets?: ReadonlySet<string>,
 ): TranslateVerdict {
   // H7 follow-up (Body-less CAM corpus, 2026-09-20): a SubShape property whose
   // .brp member exists is the feature's own RESULT cache — the pocketed/
@@ -430,7 +432,7 @@ export function translateObject(
     const assetFile = obj.properties.get('SubShape')?.children[0]?.attributes['file'] ?? `${obj.name}.SubShape.brp`;
     return {
       kind: 'translated',
-      calls: [shapeAssetCall(obj, assetFile, nonSolidAssets?.has(obj.name) ?? false)],
+      calls: [shapeAssetCall(obj, assetFile)],
       reason: 'shape-asset',
     };
   }
@@ -444,7 +446,7 @@ export function translateObject(
       const assetFile = shapeBrpFile(obj) ?? `${obj.name}.Shape.brp`;
       return {
         kind: 'translated',
-        calls: [shapeAssetCall(obj, assetFile, nonSolidAssets?.has(obj.name) ?? false)],
+        calls: [shapeAssetCall(obj, assetFile)],
         reason: 'shape-asset',
       };
     }
@@ -508,15 +510,16 @@ export function translateObject(
       if (vars.length === 0 || vars.some((v) => v === undefined)) {
         return { kind: 'baked', reason: 'compound-missing-members' };
       }
-      // ⚠️ 过渡态：`cad.group` 是 ../3d_editor 的编辑器结构分组 op（无几何输出、
-      // 不带 OCCT 句柄，JSDoc 已 @deprecated）。FCStd 的 `Part::Compound` 是几何对象
-      // （`Part::Feature` 子类，带 Shape + Placement），正解是平台自有的几何 compound
-      // （内核 `makeCompound` 已具备）；替代 API 落地前维持借用。
+      // `Part::Compound` 是几何对象（`Part::Feature` 子类，带 Shape + Placement）。
+      // 用平台几何 compound（`cad.compound`，内核 `makeCompound`，持 OCCT 句柄，
+      // 可变换/可导出），不再借用 ../3d_editor 的结构分组 op `cad.group`。
+      // members 经 `params.members` 传递；`inputs` 仅作依赖登记（consumed / 变量重映射），
+      // 由 `noPositionalArgs` 保证不被 renderArgs 当作位置参数渲染。
       return {
         kind: 'translated',
         calls: [{
-          out, op: 'cad.group', source: obj.name, inputs: vars as string[],
-          params: { members: vars },
+          out, op: 'cad.compound', source: obj.name, inputs: vars as string[],
+          noPositionalArgs: true, params: { members: vars },
         }],
       };
     }

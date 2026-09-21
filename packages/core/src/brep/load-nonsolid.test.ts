@@ -2,10 +2,10 @@
  * `loadBrep` with `allowNonSolid` — importing frozen geometry that is not a solid.
  *
  * A FreeCAD `.brp` asset is a frozen BREP and is NOT guaranteed to hold a solid:
- * Draft wires, faces and shells are frozen the same way. `cad.load` used to
- * reject every one of them (`no solid sub-shapes`) — 346 of the corpus's 698
- * load sites. The relaxed path is opted into per call from a STATIC verdict
- * (`brepTextHasSolid`), never by retrying after a failure.
+ * Draft wires, faces and shells are frozen the same way. The platform import op
+ * `cad.import_brep` always opts into this relaxed path (C6: non-solid is
+ * first-class), so a wire/face/shell imports cleanly and only fails later at a
+ * use site that requires a solid (e.g. a boolean).
  *
  * The pair of fixtures is the point: the same code path must keep importing a
  * real solid unchanged, so a mis-classified asset degrades into "slightly too

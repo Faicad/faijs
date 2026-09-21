@@ -62,13 +62,21 @@ FCStd 移植借用了兄弟项目 `../3d_editor` 交互模型里的三个 op 来
 
 ## Consequences
 
-- **这是过渡态，不是终态。** `fcstd/codegen.ts` 仍为 Placement 发射
-  `cad.rotate_euler` + `cad.translate`（4 处）、为产物聚合发射 `cad.group`
-  （2 处）；`fcstd/feature-translate.ts` 为 `Part::Compound` 发射 `cad.group`
-  （1 处）。两个文件现已各带一条 ⚠️ 注释，声明该借用是临时的，**不得**被读作
-  这些 op 属于平台面的证据。
+- **已落地：借用点归零。** 平台自有了迁移所需的三个 op——`cad.import_brep`
+  （冻结 BREP 资产 → Shape，非实体一等）、`cad.compound`（内核
+  `makeCompound` 上的几何 compound，持 OCCT 句柄）、`cad.place`（由四元数做
+  刚性放置，把 Placement 原先的 `rotate_euler` + `translate` 两条并成一条）。
+  lower 已改写到它们之上：`feature-translate.ts` 发 `cad.import_brep` /
+  `cad.compound`，`codegen.ts` 发 `cad.place` 与两处产物聚合的 `cad.compound`。
+- `cad.load` 的 `allowNonSolid` 参数与 `brepTextHasSolid` 资产探针**已删除**：
+  非实体导入是平台 op 的一等能力，限制因此从**导入点**移到**使用点**（布尔需要
+  实体）。
+- `fcstd/editor-op-boundary.test.ts` 从三个方向双向钉住：`@deprecated` 标记不
+  得丢、借用计数必须为 0、lower 发出的每个 callee 必须存在于 cad 命名空间——
+  后者是 `cad.import_shape` 那个 bug 的静态可检形式，该 bug 曾令 50 个语料产物
+  中 42 个语法检查全绿、却在运行时才死。
 - **替代品不需要任何新内核能力。** `kernel.makeCompound`
   （`packages/core/src/brep/engine/primitives.ts:109`）与
-  `kernel.located`/`transform`/`generalTransform`（:96-98）都已存在。缺的是一个
-  表达**几何** compound 与**放置**的 faijs API。
-- 在该 API 落地、lower 改写过来之前，`ArchDetail` 仍然跑不起来。
+  `kernel.located`/`transform`/`generalTransform`（:96-98）都已存在。
+- **仍未完成。** 方案步骤 3（验收靶）：复跑 `ArchDetail` 越过 s652，再跑一次
+  56 样本执行侧普查，取 V-C7 的语料级那一半（编辑器 op callee 计数 914 → 0）。

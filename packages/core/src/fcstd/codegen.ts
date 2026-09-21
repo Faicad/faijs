@@ -7,18 +7,16 @@
  * M5.2 lowering: params → JS constants; calls → `const partN = await cad.x(...)`;
  * statement ids sN. Sketch contours enter as blueprint literals.
  *
- * ⚠️ 过渡态（2026-09-21，见 .agents/notes「editor-owned ops」）：本文件为 Placement
- * 发射 `cad.rotate_euler` + `cad.translate`、为产物聚合发射 `cad.group`，但这三个 op
- * 已被裁定为 `../3d_editor` 项目特有的**编辑器交互** op（JSDoc 已带 @deprecated），
- * 不属于 faijs 平台面。FCStd 转换是平台能力，正解是平台自有的几何 compound 与放置
- * 语义（内核 `makeCompound` / `located` 已具备）。替代 API 落地前维持借用；
- * **不要**据此推断这三个 op 属于平台面。
+ * 本文件为 Placement 发射平台 `cad.place`（旋转四元数 + 平移，单点）、为产物聚合发射
+ * 平台 `cad.compound`（几何复合体，内核 `makeCompound`，持 OCCT 句柄）。这两个是 faijs
+ * 平台几何 op（H11，方案 §4），不再借用 `../3d_editor` 的 `cad.group` /
+ * `cad.translate` / `cad.rotate_euler`（编辑器交互 op，JSDoc 已 @deprecated）。
  */
 import type { FcstdDocument } from './document.js';
 import type { CadCall, TranslateVerdict } from './feature-translate.js';
 import { translateObject, isJsExpr, jsExpr, BODY_CHAIN_BASE } from './feature-translate.js';
 import type { Contour } from './contour.js';
-import { type Placement, isIdentityPlacement, quatToEulerXYZDeg } from './placement.js';
+import { type Placement, isIdentityPlacement, invertApplyPlacement } from './placement.js';
 import { isNonModelingType } from './structural-types.js';
 
 /** Per-object codegen outcome: what was emitted for one FCStd object. */
@@ -123,8 +121,6 @@ function bodyFeatureNames(obj: FcstdDocument['objects'][number]): string[] {
  * @param baseName source base name used in generated file headers/labels
  * @param placements per-object Placement used to re-orient placed geometry; missing → identity
  * @param shapeCarriers objects whose Shape is a ZIP .brp member (pure-Shape carriers → shape-asset)
- * @param nonSolidAssets subset of shapeCarriers whose frozen .brp holds no solid (wire/face/shell),
- *   so the emitted load must relax its solid requirement
  * @returns the lowered call plan, per-object dispositions and generated code
  */
 export function generateModel(
@@ -136,8 +132,6 @@ export function generateModel(
   placements?: Map<string, Placement>,
   /** H7: objects whose Shape is a ZIP .brp member (pure-Shape carriers → shape-asset). */
   shapeCarriers?: ReadonlySet<string>,
-  /** Objects whose frozen asset is not a solid — the load call must allow it. */
-  nonSolidAssets?: ReadonlySet<string>,
 ): GenResult {
   const byName = new Map(doc.objects.map((o) => [o.name, o]));
   // GOTCHA (test_geomop corpus, 2026-09-20): a dependency on a Body
@@ -270,7 +264,7 @@ export function generateModel(
       // accumulated chain head, not `variables` — the container name is
       // never registered there (its result lives in chainVar).
       return variables.get(dep) ?? chainVar.get(dep);
-    }, doc.objects, shapeCarriers, nonSolidAssets);
+    }, doc.objects, shapeCarriers);
     node.verdict = verdict;
     if (verdict.kind === 'translated') {
       // rename output vars to partN sequence
@@ -299,24 +293,17 @@ export function generateModel(
       const sketchLink = obj.properties.get('Sketch')?.children[0]?.attributes['value'];
       const pl = (sketchLink ? placements?.get(sketchLink) : undefined) ?? placements?.get(name);
       if (lastVar && pl && !isIdentityPlacement(pl)) {
-        let cur = lastVar;
-        const euler = quatToEulerXYZDeg(pl.q);
-        const isRotation = Math.abs(euler[0]) > 1e-9 || Math.abs(euler[1]) > 1e-9 || Math.abs(euler[2]) > 1e-9;
-        if (isRotation) {
-          const rv = newVar();
-          variables.set(cur, rv); // map old name → rotated var for consumers
-          calls.push({ out: rv, op: 'cad.rotate_euler', source: name, inputs: [cur], params: { anglesDeg: euler } });
-          cur = rv;
-        }
-        const needsTranslate = Math.abs(pl.p[0]) > 1e-9 || Math.abs(pl.p[1]) > 1e-9 || Math.abs(pl.p[2]) > 1e-9;
-        if (needsTranslate) {
-          const tv = newVar();
-          variables.set(cur, tv);
-          calls.push({ out: tv, op: 'cad.translate', source: name, inputs: [cur], params: { offset: [...pl.p] } });
-          cur = tv;
-        }
+        // 单个刚性放置：旋转（四元数，绕局部原点）+ 平移 = FreeCAD Placement(P,Q)。
+        // 直接发 cad.place，避免 euler 往返损失精度（方案 §4.7：两语句合一）。
+        const cur = lastVar;
+        const rv = newVar();
+        variables.set(cur, rv); // map old name → placed var for consumers
+        calls.push({
+          out: rv, op: 'cad.place', source: name, inputs: [cur],
+          params: { rotation: [...pl.q], position: [...pl.p] },
+        });
         // the object's variable is now the fully placed result
-        variables.set(name, cur);
+        variables.set(name, rv);
       }
       // M9.4 (D-C): fold the feature into its Body's chain — AFTER the placement
       // step so the chain accumulates the PLACED feature shape. Pocket/Cut
@@ -355,32 +342,31 @@ export function generateModel(
               // first: local = R^-1(global - p). Feeding the placed chain var
               // directly silently truncates at the wrong face (Pad002 truth
               // AddShape 48199 vs rebuilt deficit ~9108 mm^3 → 3.2% total).
-              const needsInverse =
-                pl !== undefined && !isIdentityPlacement(pl);
-              if (needsInverse && pl) {
-                const invQ: [number, number, number, number] = [
-                  -pl.q[0]!, -pl.q[1]!, -pl.q[2]!, pl.q[3]!,
-                ];
-                const invEuler = quatToEulerXYZDeg(invQ);
-                const tv = newVar();
-                const tvCall: CadCall = {
-                  out: tv, op: 'cad.translate', source: name,
-                  inputs: [prev], params: { offset: [-pl.p[0]!, -pl.p[1]!, -pl.p[2]!] },
-                };
-                const rv = newVar();
-                const rvCall: CadCall = {
-                  out: rv, op: 'cad.rotate_euler', source: name,
-                  inputs: [tv], params: { anglesDeg: invEuler },
-                };
-                // insert BEFORE the extrude call: faijs is a statement
-                // language — `baseFeature: partN` referencing a later
-                // statement is E_REFERENCE (parser rejects forward refs).
-                const at = calls.indexOf(c);
-                calls.splice(at < 0 ? calls.length : at, 0, tvCall, rvCall);
-                c.params.baseFeature = jsExpr(rv);
-              } else {
-                c.params.baseFeature = jsExpr(prev);
-              }
+                const needsInverse =
+                  pl !== undefined && !isIdentityPlacement(pl);
+                if (needsInverse && pl) {
+                  // 逆向刚性放置（单点发射，方案 §4.7）：rotation 取共轭四元数、
+                  // position 取 invertApplyPlacement(pl, 0) = -(invQ·p)，合成为
+                  // 一个 cad.place，避免 euler 往返。语义 = invertApplyPlacement(pl, prev)。
+                  const invQ: [number, number, number, number] = [
+                    -pl.q[0]!, -pl.q[1]!, -pl.q[2]!, pl.q[3]!,
+                  ];
+                  const invPos = invertApplyPlacement(pl, [0, 0, 0]);
+                  const rv = newVar();
+                  const rvCall: CadCall = {
+                    out: rv, op: 'cad.place', source: name,
+                    inputs: [prev],
+                    params: { rotation: invQ, position: invPos },
+                  };
+                  // insert BEFORE the extrude call: faijs is a statement
+                  // language — `baseFeature: partN` referencing a later
+                  // statement is E_REFERENCE (parser rejects forward refs).
+                  const at = calls.indexOf(c);
+                  calls.splice(at < 0 ? calls.length : at, 0, rvCall);
+                  c.params.baseFeature = jsExpr(rv);
+                } else {
+                  c.params.baseFeature = jsExpr(prev);
+                }
             }
           }
         }
@@ -429,7 +415,7 @@ export function generateModel(
   // (including the chain union/subtract calls emitted for it) go to
   // model/<BodyName>.fai.js; everything else (loose Part features) stays in
   // main.fai.js. When no Body has geometry, everything lands in main (the
-  // single-file shape). Aggregate entry groups per-file roots via cad.group.
+  // single-file shape). Aggregate entry compounds per-file roots via cad.compound.
   const callBody = new Map<string, string>();
   for (const r of results) {
     const b = memberToBody.get(r.name);
@@ -506,7 +492,7 @@ export function generateModel(
       ];
       files.push({ path: `model/${b}.fai.js`, code: lowerBody(withTerminal, `${baseName}/${b}`, b), body: b });
     }
-    // main.fai.js: aggregate the per-Body terminals via cad.group. M10c:
+    // main.fai.js: aggregate the per-Body terminals via cad.compound. M10c:
     // cross-file references close through the standard relative-import
     // contract (module-registry D6) — each Body module's terminal alias
     // `<Body>_out` is its live shape, so a named import binds it.
@@ -515,7 +501,7 @@ export function generateModel(
     lines.push(`// Units: mm (faijs contract; FCStd internal units are mm)`);
     const members = [...bodiesWithGeo].map((b) => `${b}_out`);
     // Always import the per-Body terminals: the aggregate entry references
-    // `<Body>_out` in BOTH the cad.group (multi-Body) and the single-Body alias
+    // `<Body>_out` in BOTH the cad.compound (multi-Body) and the single-Body alias
     // path, so a missing import is a SEC_FREE_IDENT parse error (GOTCHA: the
     // single-Body branch previously emitted `let part_out = <Body>_out;` with
     // no import). `mainCalls` may still be empty here.
@@ -530,7 +516,7 @@ export function generateModel(
     }
     if (members.length > 1) {
       rootVar = 'part_out';
-      lines.push(`let part_out = cad.group({ members: [${members.join(', ')}] });`);
+      lines.push(`let part_out = cad.compound({ members: [${members.join(', ')}] });`);
     } else if (members.length === 1) {
       // single Body: the imported terminal IS the result — alias keeps a
       // stable root name for executors
@@ -579,7 +565,7 @@ function lower(calls: CadCall[], baseName: string): string {
   const consumed = new Set(calls.flatMap((c) => c.inputs));
   const roots = calls.filter((c) => !consumed.has(c.out)).map((c) => c.out);
   if (roots.length > 1) {
-    lines.push(`let part_out = cad.group({ members: [${roots.join(', ')}] });`);
+    lines.push(`let part_out = cad.compound({ members: [${roots.join(', ')}] });`);
   } else if (roots.length === 0) {
     lines.push(`// no translated geometry (all baked)`);
   }
@@ -617,7 +603,7 @@ function containsJsExpr(v: unknown): boolean {
 
 function renderArgs(call: CadCall): string {
   const positional: string[] = [
-    ...call.inputs.map((i) => i),
+    ...(call.noPositionalArgs ? [] : call.inputs.map((i) => i)),
     ...(call.literals ?? []).map((l) => renderValue(l)),
   ].filter((s) => s.length > 0); // M7.1: drop empty entries so we never emit `(, `
   const named: string[] = [];

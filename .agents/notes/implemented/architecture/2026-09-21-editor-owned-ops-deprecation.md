@@ -73,15 +73,26 @@ records the user's ruling as superseding those records.
 
 ## Consequences
 
-- **Transitional, not finished.** `fcstd/codegen.ts` still emits
-  `cad.rotate_euler` + `cad.translate` for Placement (4 sites) and `cad.group`
-  for product aggregation (2 sites); `fcstd/feature-translate.ts` emits
-  `cad.group` for `Part::Compound` (1 site). Both files now carry a ⚠️ note
-  stating the borrowing is temporary and must not be read as evidence that
-  these ops belong to the platform surface.
-- **The replacement needs no new kernel capability.** `kernel.makeCompound`
+- **Landed: the borrow is zero.** The platform now owns the three ops the port
+  needed — `cad.import_brep` (frozen BREP asset → Shape, non-solid
+  first-class), `cad.compound` (geometry compound over `kernel.makeCompound`,
+  carries the OCCT handle) and `cad.place` (rigid placement from a quaternion,
+  one statement where Placement used to need `rotate_euler` + `translate`). The
+  lowering is rewired onto them: `feature-translate.ts` emits
+  `cad.import_brep` / `cad.compound`, `codegen.ts` emits `cad.place` and
+  `cad.compound` for the two aggregation outlets.
+- The `allowNonSolid` parameter on `cad.load` and the `brepTextHasSolid` asset
+  probe are **gone**: non-solid import is a first-class capability of the
+  platform op, so the restriction moved to the USE site (a boolean needs a
+  solid) instead of the import site.
+- `fcstd/editor-op-boundary.test.ts` pins three things from both directions:
+  the `@deprecated` markers stay, the borrow count stays zero, and every callee
+  the lowering emits exists in the cad namespace — the statically checkable
+  form of the `cad.import_shape` bug, which let 42 of 50 corpus products parse
+  clean and die only at run time.
+- **The replacement needed no new kernel capability.** `kernel.makeCompound`
   (`packages/core/src/brep/engine/primitives.ts:109`) and
-  `kernel.located`/`transform`/`generalTransform` (:96-98) already exist. What
-  is missing is a faijs API expressing a *geometry* compound and a *placement*.
-- `ArchDetail` stays unrunnable until that API lands and the lowering is
-  rewritten onto it.
+  `kernel.located`/`transform`/`generalTransform` (:96-98) already existed.
+- **Still open.** Plan step 3 (the acceptance target): re-run `ArchDetail` to
+  clear s652, then re-run the 56-sample execution census for the corpus-level
+  half of V-C7 (editor-op callee count 914 → 0).

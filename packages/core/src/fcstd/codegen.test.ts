@@ -137,14 +137,14 @@ describe('M5 codegen', () => {
     expect(r2.code).not.toContain('cad.fai_extrude');
   });
 
-  it('groups multiple roots via cad.group', () => {
+  it('groups multiple roots via cad.compound', () => {
     const doc: FcstdDocument = {
       objects: [simpleObj('Part::Box', 'A', {}), simpleObj('Part::Box', 'B', {})],
       typeIndex: new Map(),
       meta: new Map(),
     };
     const r = generateModel(doc, new Map(), NO_CONTOURS, 't');
-    expect(r.code).toContain('cad.group({ members: [part0, part1] })');
+    expect(r.code).toContain('cad.compound({ members: [part0, part1] })');
   });
 
   it('emits Pad + Pocket as real cad.extrude / cad.subtract when sketch contours are wired', () => {
@@ -208,7 +208,7 @@ describe('M5 codegen', () => {
       meta: new Map(),
     };
     const r = generateModel(doc, new Map(), NO_CONTOURS, 't');
-    expect(r.code).toContain('cad.group({ members: [part0, part1] })');
+    expect(r.code).toContain('cad.compound({ members: [part0, part1] })');
   });
 
   // GOTCHA: renderArgs used to emit `cad.sketch(, { ... })` for calls with no
@@ -231,9 +231,9 @@ describe('M5 codegen', () => {
   });
 
   // M9.4 (D-C): features inside one Body fuse cumulatively in Body.Group
-  // order — Pad unions onto the chain, Pocket subtracts from it. cad.group
-  // is assembly semantics and must NOT appear for a single Body's chain.
-  it('chains same-Body features via union/subtract, no cad.group (M9.4)', () => {
+  // order — Pad unions onto the chain, Pocket subtracts from it. Product
+  // aggregation (cad.compound) must NOT appear for a single Body's chain.
+  it('chains same-Body features via union/subtract, no aggregation (M9.4)', () => {
     const body = simpleObj('PartDesign::Body', 'Body');
     body.properties.set('Group', {
       name: 'Group', type: 'App::PropertyLinkList', tagName: 'Property',
@@ -282,11 +282,11 @@ describe('M5 codegen', () => {
     // Pad001's union consumes the Pocket output (chain head), not the raw Pad
     const pocketOut = chainOps[0]!.out;
     expect(chainOps[1]!.inputs).toContain(pocketOut);
-    expect(r.code).not.toContain('cad.group({ members: [part0');
+    expect(r.code).not.toContain('cad.compound({ members: [part0');
   });
 
   // M10.3: two Bodies with geometry → one file per Body + aggregate main
-  // referencing <Body>_out terminals via cad.group.
+  // referencing <Body>_out terminals via cad.compound.
   it('splits multi-Body models into per-Body files + aggregate main (M10.3)', () => {
     const mkBody = (name: string, members: string[]): FcstdObject => {
       const b = simpleObj('PartDesign::Body', name);
@@ -334,7 +334,7 @@ describe('M5 codegen', () => {
     // relative-import contract, then groups them
     expect(r.code).toContain(`import { Body_out } from './Body.fai.js';`);
     expect(r.code).toContain(`import { Body001_out } from './Body001.fai.js';`);
-    expect(r.code).toContain('let part_out = cad.group({ members: [Body_out, Body001_out] });');
+    expect(r.code).toContain('let part_out = cad.compound({ members: [Body_out, Body001_out] });');
     expect(r.rootVar).toBe('part_out');
   });
 
@@ -462,18 +462,22 @@ describe('M5 codegen', () => {
       meta: new Map(),
     };
     const r = generateModel(doc, new Map(), NO_CONTOURS, 't');
-    expect(r.calls.map((c) => c.op)).toEqual(['cad.box', 'cad.box', 'cad.group']);
-    const group = r.calls[2]!;
-    expect(group.source).toBe('Compound');
-    expect(group.inputs).toEqual([r.calls[0]!.out, r.calls[1]!.out]);
+    expect(r.calls.map((c) => c.op)).toEqual(['cad.box', 'cad.box', 'cad.compound']);
+    const compound = r.calls[2]!;
+    expect(compound.source).toBe('Compound');
+    expect(compound.inputs).toEqual([r.calls[0]!.out, r.calls[1]!.out]);
+    // inputs are a dependency registration only — the op is called with named
+    // params, so they must not be rendered positionally (noPositionalArgs).
+    expect(compound.noPositionalArgs).toBe(true);
+    expect(r.code).toContain('cad.compound({ members: [');
     expect(r.objects.find((o) => o.name === 'Compound')!.disposition).toBe('translated');
   });
 
   // ArchDetail's actual member shape: Draft wires (Part::Part2DObjectPython)
   // carrying a real Shape .brp — non-whitelisted, so they lower to a real
-  // `cad.load` of the frozen BREP asset. The compound must consume those
+  // `cad.import_brep` of the frozen BREP asset. The compound must consume those
   // variables, which only works once the Links edge exists.
-  it('ArchDetail shape: compound over shape-asset Draft wires lowers to cad.group', () => {
+  it('ArchDetail shape: compound over shape-asset Draft wires lowers to cad.compound', () => {
     const doc: FcstdDocument = {
       objects: [
         withLinkList('Part::Compound', 'Compound006', 'Links', ['Wire045', 'Wire046']),
@@ -484,26 +488,29 @@ describe('M5 codegen', () => {
       meta: new Map(),
     };
     const r = generateModel(doc, new Map(), NO_CONTOURS, 't', undefined, new Set(['Wire045', 'Wire046']));
-    const loads = r.calls.filter((c) => c.op === 'cad.load');
-    expect(loads.length).toBe(2);
-    // GOTCHA: `cad.load` with the container's directory-mode key rule
-    // (basename without extension) plus an explicit brep format hint —
-    // `.brp` is not in CAD_FORMATS, so the hint is what selects the BREP path.
-    expect(loads[0]!.params).toEqual({ key: 'Wire045.Shape', format: 'brep' });
-    const group = r.calls.find((c) => c.source === 'Compound006')!;
-    expect(group.op).toBe('cad.group');
-    expect(group.inputs.length).toBe(2);
-    expect(group.inputs.every((i) => /^part\d+$/.test(i))).toBe(true);
-    expect(r.calls.indexOf(group)).toBe(r.calls.length - 1);
+    const imports = r.calls.filter((c) => c.op === 'cad.import_brep');
+    expect(imports.length).toBe(2);
+    // GOTCHA: the asset key follows the container's directory-mode rule
+    // (basename without extension). No `format` hint and no `allowNonSolid`
+    // switch — the platform import op goes straight to the OCCT kernel and
+    // treats non-solid topology as first-class (C6).
+    expect(imports[0]!.params).toEqual({ asset: 'Wire045.Shape' });
+    const compound = r.calls.find((c) => c.source === 'Compound006')!;
+    expect(compound.op).toBe('cad.compound');
+    expect(compound.inputs.length).toBe(2);
+    expect(compound.inputs.every((i) => /^part\d+$/.test(i))).toBe(true);
+    expect(r.calls.indexOf(compound)).toBe(r.calls.length - 1);
   });
 
-  // The frozen asset of a Draft wire is a wireframe, not a solid. Emitting a
-  // plain `cad.load` for it makes the product convert cleanly (`ok=true`, a
-  // clean cliCheck) and then die the moment it runs, on
-  // `no solid sub-shapes` — 346 of the corpus's 698 load sites. The verdict is
-  // read from the asset TEXT at conversion time (`brepTextHasSolid`), so the
-  // call carries it explicitly instead of probing at run time.
-  it('flags a non-solid frozen asset so the load relaxes its solid requirement', () => {
+  // C6 (non-solid first-class, 2026-09-21): the frozen asset of a Draft wire is
+  // a wireframe, not a solid. The lowering used to read the asset TEXT at
+  // conversion time (`brepTextHasSolid`) and emit `allowNonSolid: true` for
+  // those 346-of-698 sites — a per-asset switch at the *import* site. The
+  // platform import op needs no such switch: it always imports non-solid
+  // topology, and ops that genuinely require a solid fail at the USE site.
+  // The point of this test is that the wire and the solid lower IDENTICALLY:
+  // a leftover probe or format hint on one of them fails here.
+  it('lowers wire and solid frozen assets identically — no per-asset non-solid switch', () => {
     const doc: FcstdDocument = {
       objects: [
         simpleObj('Part::Part2DObjectPython', 'Wire045', { Shape: { file: 'Wire045.Shape.brp' } }),
@@ -515,16 +522,15 @@ describe('M5 codegen', () => {
     const r = generateModel(
       doc, new Map(), NO_CONTOURS, 't', undefined,
       new Set(['Wire045', 'Structure119']),
-      new Set(['Wire045']), // only the wire's .brp has no So record
     );
-    const loads = r.calls.filter((c) => c.op === 'cad.load');
-    expect(loads.length).toBe(2);
-    const wire = loads.find((c) => c.source === 'Wire045')!;
-    const solid = loads.find((c) => c.source === 'Structure119')!;
-    expect(wire.params).toEqual({ key: 'Wire045.Shape', format: 'brep', allowNonSolid: true });
-    // The solid case must stay byte-identical to the historical call, so
-    // existing products and their golden assertions are untouched.
-    expect(solid.params).toEqual({ key: 'Structure119.Shape', format: 'brep' });
+    const imports = r.calls.filter((c) => c.op === 'cad.import_brep');
+    expect(imports.length).toBe(2);
+    const wire = imports.find((c) => c.source === 'Wire045')!;
+    const solid = imports.find((c) => c.source === 'Structure119')!;
+    expect(wire.params).toEqual({ asset: 'Wire045.Shape' });
+    expect(solid.params).toEqual({ asset: 'Structure119.Shape' });
+    expect(r.code).not.toContain('allowNonSolid');
+    expect(r.code).not.toContain("format: 'brep'");
   });
 
   // GOTCHA (PadTest, 2026-09-21): a Body's `Model` list contains its datum
@@ -532,7 +538,8 @@ describe('M5 codegen', () => {
   // not a solid. The "any object with shape evidence is a shape asset" rule
   // therefore imported the datum and folded it into the Body chain
   // (`cad.union(pad, datumPlane)`), which is both semantically wrong and fatal
-  // at run time: cad.load rejects a shape with no solid sub-shapes. Datum and
+  // at the use site: a bare datum-plane face cannot take part in a boolean.
+  // Datum and
   // container types must be short-circuited to preserved-only BEFORE the
   // translator, and the Body's own Shape asset must not be imported either.
   it('datum planes and Bodies never become shape assets nor enter the Body chain', () => {
@@ -569,7 +576,7 @@ describe('M5 codegen', () => {
       undefined,
       new Set(['Body', 'DatumPlane']), // both carry a .brp in the container
     );
-    expect(r.calls.filter((c) => c.op === 'cad.load'), 'no datum/container import').toEqual([]);
+    expect(r.calls.filter((c) => c.op === 'cad.import_brep'), 'no datum/container import').toEqual([]);
     // the Pad is the chain base; with the datum excluded there is nothing to
     // union it with
     expect(r.calls.filter((c) => c.op === 'cad.union' || c.op === 'cad.subtract')).toEqual([]);

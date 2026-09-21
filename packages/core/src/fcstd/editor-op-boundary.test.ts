@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import symbolTable from '../lang/symbol-table.generated.js';
 
 /**
  * Editor-owned op boundary guard (2026-09-21) — see
@@ -13,15 +14,27 @@ import { dirname, join } from 'node:path';
  * deprecated on the faijs platform surface (their source JSDoc carries
  * `@deprecated`).
  *
- * The lowering still borrows a **declared** subset of them while a platform API
- * for a geometry compound and a placement is designed. This guard pins that
- * boundary from both sides: the borrow may not grow, and the deprecation
- * markers may not be dropped. Either change fails here instead of slipping
- * through review.
+ * 2026-09-21 (H11): the platform now owns the three ops the conversion layer
+ * needed — `cad.import_brep` (frozen BREP asset → Shape), `cad.compound`
+ * (geometry compound on the OCCT kernel) and `cad.place` (rigid placement from
+ * a quaternion). The FCStd lowering therefore borrows **nothing** from the
+ * editor, and this guard pins that from three sides: the deprecation markers
+ * may not be dropped, the borrow count must stay zero, and every callee the
+ * lowering emits must be a real member of the cad namespace.
  */
 
-/** Ops owned by `../3d_editor`'s interaction model, and the file that declares them. */
+/**
+ * Ops owned by `../3d_editor`'s interaction model, and the file that declares
+ * them.
+ *
+ * `load` is the eighth one: its module header says "load Feature — file
+ * import", it is registered via `registerFeature(loadFeature)`, and its
+ * key/path/url split reads the application's own `FileRef`
+ * (`loadArgsFromFileRef` → `getPlatform().caps.realPaths`). The platform side
+ * imports a frozen BREP asset through `cad.import_brep` instead.
+ */
 const EDITOR_OWNED: Record<string, string> = {
+  load: 'api/load.ts',
   translate: 'api/transform.ts',
   rotate_euler: 'api/transform.ts',
   scale: 'api/transform.ts',
@@ -33,25 +46,49 @@ const EDITOR_OWNED: Record<string, string> = {
 
 /**
  * The borrow the FCStd lowering is allowed to keep, with the number of emitted
- * sites per op. Rewiring the lowering onto a platform API lowers these numbers;
- * anything that raises them, or introduces a new name, is a mistake.
+ * sites per op — now EMPTY: platform ops replaced every one of them.
  *
- * GOTCHA: `cad.group` counts THREE sites, not one — besides the
- * `Part::Compound` branch in `feature-translate.ts`, `codegen.ts` uses it twice
- * as the product-aggregation outlet (multi-Body documents and single-file
- * roots). Grepping `feature-translate.ts` alone finds only a third of it.
+ * GOTCHA: before H11 this had to count `cad.group` THREE times, not one —
+ * besides the `Part::Compound` branch in `feature-translate.ts`, `codegen.ts`
+ * used it twice as the product-aggregation outlet (multi-Body documents and
+ * single-file roots). Grepping `feature-translate.ts` alone finds only a third
+ * of it. That is why the scan below walks every non-test file in this
+ * directory instead of just the translator.
  */
-const DECLARED_BORROW: Record<string, number> = {
-  group: 3,
-  rotate_euler: 2,
-  translate: 2,
-};
+const DECLARED_BORROW: Record<string, number> = {};
 
 const here = dirname(fileURLToPath(import.meta.url));
 const srcRoot = join(here, '..');
 
 function read(relative: string): string {
   return readFileSync(join(srcRoot, relative), 'utf-8');
+}
+
+/**
+ * Every cad op name the FCStd lowering can emit, scraped from this directory's
+ * non-test sources. Two emission shapes count: a call-plan `op: 'cad.x'` field,
+ * and a literal `cad.x(` inside a generated template string (the aggregation
+ * outlets in `codegen.ts`).
+ *
+ * Deliberately a text scan, not an import: the point is to see what the
+ * lowering SAYS, including a name that no longer exists anywhere else.
+ */
+function loweringCallees(): string[] {
+  const names: string[] = [];
+  for (const entry of readdirSync(here)) {
+    if (!entry.endsWith('.ts') || entry.includes('.test.')) continue;
+    // Strip comments first: the doc comments illustrate the call shape with a
+    // placeholder (`const partN = await cad.x(...)` in codegen.ts), and a
+    // placeholder is not an emission. Only real code counts.
+    const text = readFileSync(join(here, entry), 'utf-8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\/\/[^\n]*/g, '');
+    names.push(
+      ...[...text.matchAll(/op: 'cad\.(\w+)'/g)].map((m) => m[1]!),
+      ...[...text.matchAll(/cad\.(\w+)\(/g)].map((m) => m[1]!),
+    );
+  }
+  return names;
 }
 
 describe('editor-owned op boundary', () => {
@@ -68,20 +105,23 @@ describe('editor-owned op boundary', () => {
 
   it('the fcstd lowering borrows exactly the declared editor-owned ops', () => {
     const found: Record<string, number> = {};
-    for (const entry of readdirSync(here)) {
-      if (!entry.endsWith('.ts') || entry.includes('.test.')) continue;
-      const text = readFileSync(join(here, entry), 'utf-8');
-      // Two emission shapes: a call-plan `op: 'cad.x'` field, and a literal
-      // `cad.x(` inside a generated template string (codegen's aggregation).
-      const names = [
-        ...[...text.matchAll(/op: 'cad\.(\w+)'/g)].map((m) => m[1]!),
-        ...[...text.matchAll(/cad\.(\w+)\(/g)].map((m) => m[1]!),
-      ];
-      for (const name of names) {
-        if (!(name in EDITOR_OWNED)) continue;
-        found[name] = (found[name] ?? 0) + 1;
-      }
+    for (const name of loweringCallees()) {
+      if (!(name in EDITOR_OWNED)) continue;
+      found[name] = (found[name] ?? 0) + 1;
     }
     expect(found).toEqual(DECLARED_BORROW);
+  });
+
+  // The statically checkable half of the H11 bug. The shape-asset rounds used
+  // to emit a made-up `cad.import_shape`; 42 of 50 corpus products parsed clean
+  // and could not RUN, because `cliCheck` validates syntax and script-local
+  // references but never the callee's existence. The symbol table is generated
+  // from the cad namespace itself, so this catches the same mistake without
+  // running anything: a name the lowering emits must be a name the namespace
+  // has.
+  it('every callee the fcstd lowering emits exists in the cad namespace', () => {
+    const known = new Set(Object.keys(symbolTable));
+    const unknown = [...new Set(loweringCallees())].filter((n) => !known.has(n));
+    expect(unknown).toEqual([]);
   });
 });

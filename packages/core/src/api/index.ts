@@ -41,6 +41,10 @@ export { applyTransform } from './compound'
 export * from './assembly'
 // DEPRECATED: copy 同上（语义含编辑器画布显示——源与副本各显示一份）。
 export { copy } from './copy'
+// ── H11：平台几何 op（方案 §4，替代 FCStd 迁移对编辑器 op 的借用）──
+export { import_brep } from './import-brep'
+export { compound } from './compound-geom'
+export { place } from './place'
 export type {
   AssemblyBehavior, AssemblyConstraint, FaceMateConstraint, FaceMateFace,
   AssemblySolveResult,
@@ -53,7 +57,8 @@ export { faceNormal, bboxCenter, bboxMin, bboxMax } from './geom'
 export { edgeRef } from './edge-ref'
 export { faceRef } from './face-ref'
 export { asset } from './asset'
-export { solid, compound, isShape, isCompound } from '../shape'
+export { solid, isShape, isCompound } from '../shape'
+export { compound as structCompound } from '../shape'
 export type { ShapeSlot, SolidShape, CompoundShape, StdShape, ShapeKind } from '../shape'
 
 // ── P23：brepjs 兼容面接线（§4.2 / B1 三源一致）──

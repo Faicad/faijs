@@ -185,12 +185,12 @@ describe('M13 whitelist extensions', () => {
     return o;
   }
 
-  it('Part::Compound with resolvable Links → cad.group (M13.1)', () => {
+  it('Part::Compound with resolvable Links → cad.compound (M13.1)', () => {
     const c = withLinkList('Part::Compound', 'C', 'Links', ['A', 'B']);
     const v = translateObject(c, (d) => (d === 'A' ? 'part0' : d === 'B' ? 'part1' : undefined));
     expect(v.kind).toBe('translated');
     if (v.kind !== 'translated') return;
-    expect(v.calls[0]!.op).toBe('cad.group');
+    expect(v.calls[0]!.op).toBe('cad.compound');
     expect(v.calls[0]!.inputs).toEqual(['part0', 'part1']);
   });
 

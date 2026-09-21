@@ -41,6 +41,9 @@ import { edgeRef } from './edge-ref'
 import { faceRef } from './face-ref'
 import { jointTrajectory, inverseKinematics, mechanismDOF } from './assembly'
 import { asset } from './asset'
+import { import_brep } from './import-brep'
+import { compound as geometricCompound } from './compound-geom'
+import { place } from './place'
 import { scriptFaceOps } from './generated/script-face'
 import { revolve } from './generated/operations'
 import { CONTRACT_VERSION } from '../runtime-state'
@@ -78,6 +81,11 @@ export function createApiNamespace(): StdlibNamespace {
     faceRef,
     jointTrajectory, inverseKinematics, mechanismDOF,
     asset,
+    // 平台几何 op（H11，方案 §4）：FCStd 迁移自此不再借用编辑器 op
+    // （group/translate/rotate_euler）；这三个与 ../3d_editor 无关系。
+    import_brep,
+    compound: geometricCompound,
+    place,
     ...scriptFaceOps,
   } as unknown as StdlibNamespace
 }

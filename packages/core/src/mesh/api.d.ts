@@ -24,6 +24,7 @@ export interface CadAPI {
   svgExtrude(params: { svg: string; depth: number; targetLongSide: number }): Promise<Shape>
   sdf(params: { code: string; box?: any; resolution?: number; params?: any }): Promise<Shape>
   load(params: { key?: string; path?: string; url?: string; format?: string }): Promise<Shape>
+  import_brep(params: { asset: string }): Promise<Shape>  // usage: cad.import_brep({asset}) — platform BREP asset import (non-solid wire/face/shell allowed, C6)
 
   // ── 变换 ──
   /**
@@ -42,6 +43,7 @@ export interface CadAPI {
    * @deprecated `../3d_editor` 项目特有的 op（编辑器交互模型：画布显示 / 拖拽 / 时间线语句 / 结构分组），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
    */
   scale3d(shape: Shape, factor: [number, number, number], options?: { center?: [number, number, number] }): Shape
+  place(shape: Shape, params: { position?: [number, number, number]; rotation?: [number, number, number, number] }): Shape  // rigid placement: rotate (quaternion, about local origin) then translate; = FreeCAD Placement T∘R
 
   // ── 布尔 ──
   union(shape: Shape, shape1: Shape, params?: never): Promise<Shape>  // variadic: union(a, b, ...rest)
@@ -79,6 +81,7 @@ export interface CadAPI {
    * @deprecated `../3d_editor` 项目特有的 op（编辑器交互模型：画布显示 / 拖拽 / 时间线语句 / 结构分组），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
    */
   group(params: { name?: string; members?: readonly Shape[] }): Shape  // members are kept via function-body exec.keep (visible); group does not consume them
+  compound(params: { members?: Shape[]; name?: string }): Shape  // platform geometric compound (OCCT TopoDS_Compound handle); merges member meshes / makeCompound — NOT the editor group
   /**
    * @deprecated `../3d_editor` 项目特有的 op（编辑器交互模型：画布显示 / 拖拽 / 时间线语句 / 结构分组），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
    */

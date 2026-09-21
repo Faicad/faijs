@@ -775,19 +775,19 @@ describe('H7 Part::Feature pure-Shape carrier', () => {
     return obj('Part::Feature', name, withMaterial ? [shape, prop('ShapeMaterial', { name: 'Mat', attrs: {} })] : [shape]);
   }
 
-  it('GOTCHA: Part::Feature with a Shape property → translated via cad.load (shape delivered via assets/, addressable variable)', () => {
+  it('GOTCHA: Part::Feature with a Shape property → translated via cad.import_brep (shape delivered via assets/, addressable variable)', () => {
     const r = translateObject(shapeCarrier('Face005'), dep, undefined, new Set(['Face005']));
     expect(r).toMatchObject({ kind: 'translated', reason: 'shape-asset' });
     // 2026-09-20 update: the asset became an addressable solid — one real
     // load call (was: zero calls; downstream consumers could not resolve the
     // variable and gapped with cut-missing-dependency).
     // 2026-09-21 GOTCHA: the op was a made-up `cad.import_shape` (absent from
-    // the cad namespace) until the run-level check caught it — see
-    // shapeAssetCall() for the key/format contract.
+    // the cad namespace) until the run-level check caught it; it now emits the
+    // platform `cad.import_brep` op (asset = extension-less .brp name).
     if (r.kind === 'translated') {
       expect(r.calls.length).toBe(1);
-      expect(r.calls[0]!.op).toBe('cad.load');
-      expect(r.calls[0]!.params).toEqual({ key: 'Face005.Shape', format: 'brep' });
+      expect(r.calls[0]!.op).toBe('cad.import_brep');
+      expect(r.calls[0]!.params).toEqual({ asset: 'Face005.Shape' });
     }
   });
 
@@ -822,8 +822,8 @@ describe('H7 Part::Feature pure-Shape carrier', () => {
       // a real load call (was: zero calls; consumers could not resolve
       // the variable and gapped with fillet-missing-base).
       expect(r.calls.length).toBe(1);
-      expect(r.calls[0]!.op).toBe('cad.load');
-      expect(r.calls[0]!.params).toEqual({ key: 'PartShape5', format: 'brep' });
+      expect(r.calls[0]!.op).toBe('cad.import_brep');
+      expect(r.calls[0]!.params).toEqual({ asset: 'PartShape5' });
     }
   });
 
@@ -863,8 +863,8 @@ describe('H7 Part::Feature pure-Shape carrier', () => {
     const r = translateObject(wire, () => undefined, undefined, new Set(['Wire045']));
     expect(r).toMatchObject({ kind: 'translated', reason: 'shape-asset' });
     if (r.kind === 'translated') {
-      expect(r.calls[0]!.op).toBe('cad.load');
-      expect(r.calls[0]!.params).toEqual({ key: 'Wire045.Shape', format: 'brep' });
+      expect(r.calls[0]!.op).toBe('cad.import_brep');
+      expect(r.calls[0]!.params).toEqual({ asset: 'Wire045.Shape' });
     }
     // whitelisted type stays on the normal path (no hijack)
     const box = obj('Part::Box', 'Box', [prop('Shape', { name: 'Part', attrs: { file: 'Box.brp' } })]);
@@ -891,7 +891,7 @@ describe('H7 Part::Feature pure-Shape carrier', () => {
     // placements); a zero-call shape-asset object had NO variable, so a
     // downstream Fillet with Base→Pocket gapped fillet-missing-base even
     // though the dependency exists. The verdict must emit a real
-    // cad.load call so the asset becomes an addressable solid.
+    // cad.import_brep call so the asset becomes an addressable solid.
     const pocket = obj('PartDesign::Pocket', 'Pocket', [
       prop('Profile', { name: 'Link', attrs: { value: 'Sketch001' } }),
       prop('SubShape', { name: 'Part', attrs: { file: 'PartShape5.brp' } }),
@@ -900,11 +900,11 @@ describe('H7 Part::Feature pure-Shape carrier', () => {
     expect(r).toMatchObject({ kind: 'translated', reason: 'shape-asset' });
     if (r.kind === 'translated') {
       expect(r.calls.length).toBe(1);
-      expect(r.calls[0]!.op).toBe('cad.load');
-      // source carries the object identity; key is the .brp member's
+      expect(r.calls[0]!.op).toBe('cad.import_brep');
+      // source carries the object identity; asset is the .brp member's
       // extension-less name (the asset resolver's directory-mode key rule)
       expect(r.calls[0]!.source).toBe('Pocket');
-      expect(r.calls[0]!.params).toEqual({ key: 'PartShape5', format: 'brep' });
+      expect(r.calls[0]!.params).toEqual({ asset: 'PartShape5' });
     }
   });
 });

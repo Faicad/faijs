@@ -108,6 +108,12 @@ const API_ENTRIES: Record<string, ApiEntry> = {
     params: '{ key?: string; path?: string; url?: string; format?: string }',
     returns: 'Promise<Shape>',
   },
+  import_brep: {
+    inputs: 0,
+    params: '{ asset: string }',
+    returns: 'Promise<Shape>',
+    note: 'usage: cad.import_brep({asset}) — platform BREP asset import (non-solid wire/face/shell allowed, C6)',
+  },
 
   // ── 变换类（DEPRECATED: ../3d_editor 编辑器交互 op） ──
   translate: {
@@ -135,6 +141,12 @@ const API_ENTRIES: Record<string, ApiEntry> = {
     params: 'never',
     returns: 'Shape',
     deprecated: EDITOR_OWNED_DEPRECATED,
+  },
+  place: {
+    inputs: 1,
+    params: '{ position?: [number, number, number]; rotation?: [number, number, number, number] }',
+    returns: 'Shape',
+    note: 'rigid placement: rotate (quaternion, about local origin) then translate; = FreeCAD Placement T∘R',
   },
 
   // ── 布尔类 ──
@@ -204,6 +216,12 @@ const API_ENTRIES: Record<string, ApiEntry> = {
     returns: 'Shape',
     note: 'members are kept via function-body exec.keep (visible); group does not consume them',
     deprecated: EDITOR_OWNED_DEPRECATED,
+  },
+  compound: {
+    inputs: 0,
+    params: '{ members?: Shape[]; name?: string }',
+    returns: 'Shape',
+    note: 'platform geometric compound (OCCT TopoDS_Compound handle); merges member meshes / makeCompound — NOT the editor group',
   },
   assembly: {
     inputs: 0,
@@ -292,12 +310,12 @@ const QUERY_METHODS = [
 
 const ORDER = [
   'box', 'sphere', 'cylinder', 'cone', 'wedge',
-  'text', 'screw', 'svgExtrude', 'sdf', 'load',
-  'translate', 'rotate_euler', 'scale', 'scale3d',
+  'text', 'screw', 'svgExtrude', 'sdf', 'load', 'import_brep',
+  'translate', 'rotate_euler', 'scale', 'scale3d', 'place',
   'union', 'subtract', 'intersect',
   'fai_split',
   'fai_drill', 'extrude', 'fai_extrude', 'engrave', 'chamfer', 'knurl',
-  'group', 'assembly', 'copy',
+  'group', 'compound', 'assembly', 'copy',
   'faceNormal', 'bboxCenter', 'bboxMin', 'bboxMax',
   'asset',
 ]
@@ -322,15 +340,15 @@ function generate(): string {
   lines.push(`export interface CadAPI {`)
 
   const sections: Array<[string, string[]]> = [
-    ['创建', ['box', 'sphere', 'cylinder', 'cone', 'wedge', 'text', 'screw', 'svgExtrude', 'sdf', 'load']],
-    ['变换', ['translate', 'rotate_euler', 'scale', 'scale3d']],
+    ['创建', ['box', 'sphere', 'cylinder', 'cone', 'wedge', 'text', 'screw', 'svgExtrude', 'sdf', 'load', 'import_brep']],
+    ['变换', ['translate', 'rotate_euler', 'scale', 'scale3d', 'place']],
     ['布尔', ['union', 'subtract', 'intersect']],
     ['分割', ['fai_split']],
     ['钻孔', ['fai_drill']],
     ['拉伸', ['extrude', 'fai_extrude']],
     ['雕刻', ['engrave', 'knurl']],
     ['倒角', ['chamfer']],
-    ['结构（不消费成员）', ['group', 'assembly', 'copy']],
+    ['结构（不消费成员）', ['group', 'compound', 'assembly', 'copy']],
     ['几何查询', ['faceNormal', 'bboxCenter', 'bboxMin', 'bboxMax']],
     ['资产', ['asset']],
     ['查询方法（mesh/query）', []],

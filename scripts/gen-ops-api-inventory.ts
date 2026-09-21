@@ -216,7 +216,9 @@ function renderDoc(locale: 'en' | 'zh'): string {
   ])
   const sectionSuffix: Record<string, string> = {
     创建: '（无上游输入）',
-    结构: '（结构语句，无几何输出）',
+    // 结构组不再一律「无几何输出」：`cad.compound` 是持 OCCT 句柄的几何复合体，
+    // 而 `group`/`assembly` 仍是结构壳。标题按两者共有的性质写。
+    结构: '（结构 / 聚合）',
     查询: '（几何 / 资产引用查询）',
   }
   for (const group of GROUP_ORDER) {

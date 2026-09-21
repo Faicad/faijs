@@ -151,7 +151,7 @@ function memberNamesOf(params: { memberNames?: unknown }, members: Shape[]): str
  * @async false
  * @qual ok
  * @name group
- * @deprecated `../3d_editor` 项目特有的结构分组 op（无几何输出，服务于编辑器画布与时间线），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
+ * @deprecated `../3d_editor` 项目特有的结构分组 op（无几何输出，服务于编辑器画布与时间线），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。**平台侧需要几何复合体请用 `cad.compound`**（内核 `makeCompound`，持 OCCT 句柄，可变换/可导出）。
  * @returns CompoundShape 复合几何（kind='compound'，children 为成员 Shape 引用）。
  * @param params.name - 组名。type:string
  * @param params.members - 成员（编译产物 ctx.<var> 引用；结构语句里是裸变量引用，非字符串数组）。type:Shape[]

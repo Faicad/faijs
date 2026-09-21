@@ -115,15 +115,34 @@ const c = cad.cylinder(5, 40, { centered: true, at: [0, 0, 20], segments: 64 })
 
 **同步**。Shape 圆柱体几何，可作为后续 op 的输入。
 
-### 3.4 `load` ✅
+### 3.4 `import_brep` ✅
+
+平台 BREP 资产导入：把容器 `assets/` 里的冻结 BREP 载体装成持 OCCT 句柄的 Shape。 `asset` = 资产名（去扩展名，沿用 `FsAssetResolver` 的 `key = basename(file)` 规则）， 由宿主资产解析器按 key 解析（与 `cad.load` 同套解析器）。
+
+```js
+const a = await cad.import_brep({ asset: 'Array001.Shape' })
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `asset` | `string` | ✅ | — | 容器资产名（去扩展名） |
+
+**异步**。Promise<Shape> 持 OCCT 句柄的几何（非实体亦可）。
+
+> 非实体一等（C6）：wire/face/shell 一律可导入，本 op 不设 `allowNonSolid` 一类开关。需要实体的 op（布尔、up-to 目标面）在**使用点**报错，而不是在导入点拒绝。
+>
+> 这是**平台**资产导入 op。编辑器 `cad.load` 是 `../3d_editor` 的「文件导入 Feature」（key/path/url 三键分流 + 画布语句位置语义），平台侧不要复用它（C7）。
+
+### 3.5 `load` ✅ 🚫
 
 加载几何资产。key / path / url 三选一（按此优先级分流），内容经宿主资产解析器解析，**引用而非拷贝**。
+
+> 🚫 **已废弃（deprecated）**：`../3d_editor` 的「文件导入 Feature」：key/path/url 三键分流读的是应用侧 `FileRef`，产物语句位置、命名与 partIndex 都是画布语义。平台侧导入请用 `cad.import_brep`（冻结 BREP 资产）。
 
 ```js
 const p = await cad.load({ key: 'file_abc123' })
 const p = await cad.load({ path: 'D:/models/box.step', format: 'step' })
 const p = await cad.load({ url: 'https://…/box.3mf' })
-const p = await cad.load({ key: 'Array001.Shape', format: 'brep', allowNonSolid: true })
 ```
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
@@ -132,7 +151,6 @@ const p = await cad.load({ key: 'Array001.Shape', format: 'brep', allowNonSolid:
 | `path` | `string` |  | — | 本地绝对路径（非 web 环境） |
 | `url` | `string` |  | — | 网络地址 |
 | `format` | `string` |  | — | 格式提示（如 'step'/'stl'；CAD 源走 BREP 精确路径，STL 等三角化源走 mesh 路径） |
-| `allowNonSolid` | `boolean` |  | — | 允许导入不含实体的 BREP 拓扑（冻结的 Draft 线/面/壳） |
 
 **异步**。Shape 加载的几何，永远是 part 的第一条语句，后面可接特征链。
 
@@ -140,9 +158,9 @@ const p = await cad.load({ key: 'Array001.Shape', format: 'brep', allowNonSolid:
 >
 > key/path/url 是优先级分流（key 优先，其次 path，最后 url），三者只需其一；同时给多个时按优先级取。`format` 是提示而非强约束——CAD 源（step/stp/brep 等）与三角化源（stl 等）由 `isCadFormat` 静态判定路径。
 >
-> `allowNonSolid` 缺省 false，即保持「必须含实体」的历史契约；置 true 后 wire/face/shell 也能导入。这个开关必须由**调用方静态决定**（依据资产本身，如 `brepTextHasSolid`），不允许「先按实体试、失败再放宽」的运行期回退。放宽导入的 Shape 仍可变换与聚合，但**不可参与布尔运算**（OCCT 抛 `boolean operation failed`）。
+> 本 op 要求导入物含实体（历史契约）。非实体（wire/face/shell）的导入是平台 `cad.import_brep` 的一等能力，不由本 op 承担。
 
-### 3.5 `screw` ✅
+### 3.6 `screw` ✅
 
 生成螺丝零件（螺纹 + 头型）。
 
@@ -167,7 +185,7 @@ const s = await cad.screw({ system: 'metric', specIdx: 6, thread: 'coarse', leng
 >
 > pitchCustom 执行层已支持（makeScrew/threadBrep 均读取），codegen 曾不序列化（TODO）；当前已机械输出。
 
-### 3.6 `sdf` ⚠️
+### 3.7 `sdf` ⚠️
 
 用 SDF（符号距离场）函数生成网格体（mesh-only）。
 
@@ -186,7 +204,7 @@ const s = await cad.sdf({ code: 'return sphere(10) - sphere(5, [10,0,0])', box: 
 
 > SDF 无 BREP 实现（mesh-only）；brep 模式下 dispatchPath 调用前抛 BrepUnsupportedError。SDF 天生是网格操作，允许网格参数（resolution）。
 
-### 3.7 `sketch` ✅
+### 3.8 `sketch` ✅
 
 从 2D 轮廓构造平面（creator，无输入）。仅 BREP 可用。
 
@@ -200,7 +218,7 @@ const f = cad.sketch({ contours: [{ segments: [{ kind:'line', x1:0,y1:0,x2:10,y2
 
 **同步**。Shape 平面几何（mesh 三角化 + BREP 句柄）。
 
-### 3.8 `sphere` ✅
+### 3.9 `sphere` ✅
 
 创建球体。
 
@@ -219,7 +237,7 @@ const r = cad.sphere({ radius: 10, segments: 64, center: [0,0,10] })
 
 **同步**。Shape 球体几何，可作为后续 op 的输入。
 
-### 3.9 `svgExtrude` ⚠️
+### 3.10 `svgExtrude` ⚠️
 
 从二维 SVG 轮廓挤出零件（拓扑操作）。
 
@@ -237,7 +255,7 @@ const s = await cad.svgExtrude({ svg: 'logo.svg', depth: 5, targetLongSide: 20 }
 
 > SVG 是外部资产，应优先用资产引用（`cad.asset(key)` 经 CallRefIR）而非整份 XML 内联拷贝。自然尺寸（viewBox）与缩放已显式成参数（mesh/BREP 两条路径都解析 viewBox 并传递 naturalWidth/naturalHeight），尺寸语义不再依赖两套实现各自推导。
 
-### 3.10 `text` ⚠️
+### 3.11 `text` ⚠️
 
 生成文字零件（文字轮廓挤出，X/Z 居中、Y 底部对齐原点）。
 
@@ -256,7 +274,7 @@ const t = await cad.text({ text: 'Hello', size: 20, depth: 5 })
 
 > font 语义未定（当前只有默认字体），⚠️ 暂不要传。兼容 `cad.text(part0, {...})` 带输入形态（输入被忽略），正常写 `cad.text({...})` 即可。
 
-### 3.11 `wedge` ✅
+### 3.12 `wedge` ✅
 
 创建楔形体。唯一契约是 width/height/angle/length（width/height/angle 为正数，length 沿切割方向）， 旧文档的 size 形态已废弃，传 { size } 会抛错。
 
@@ -279,7 +297,22 @@ const w = cad.wedge({ width: 30, height: 20, angle: 45, length: 10 })
 
 ## 4. 变换类操作（inputs ≥ 1）
 
-### 4.1 `rotate_euler` ✅ 🚫
+### 4.1 `place` ✅
+
+刚性放置几何体：旋转（四元数，绕局部原点）后平移。两者皆可缺省 = 恒等。
+
+```js
+const p = cad.place(part0, { rotation: [0, 0, Math.sin(Math.PI/4), Math.cos(Math.PI/4)], position: [10, 0, 0] })
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `rotation` | `[number,number,number,number]` |  | — | 旋转四元数 [x,y,z,w]（Hamilton，绕局部原点） |
+| `position` | `[number,number,number]` |  | — | 平移向量 [x,y,z]（mm） |
+
+**同步**。Shape 放置后的几何（持 OCCT 句柄，可继续变换/导出）。
+
+### 4.2 `rotate_euler` ✅ 🚫
 
 绕轴旋转几何体。anglesDeg 为欧拉角（度，XYZ 顺序）。
 
@@ -297,7 +330,7 @@ const p3 = cad.rotate_euler(part0, { anglesDeg: [0, 0, 45], pivot: [0,0,0] })
 
 **同步**。Shape 旋转后的几何。
 
-### 4.2 `scale` ✅ 🚫
+### 4.3 `scale` ✅ 🚫
 
 等比缩放几何体（brepjs 契约，§4.6 裁决 2）。factor 只收 number；不动点默认 原点（与 vendored `scale(shape, factor, { center? })` 一致），`center` 可选。
 
@@ -315,7 +348,7 @@ const p5 = cad.scale(part0, { factor: 2, center: [10, 0, 0] })
 
 **同步**。Shape 缩放后的几何。
 
-### 4.3 `scale3d` ✅ 🚫
+### 4.4 `scale3d` ✅ 🚫
 
 非等比缩放几何体（faijs 语义，§1.4.4 裁决 2）。factor 定死 vec3 — 等比缩放请用 `scale(p, s)`，`scale3d(p, [x,y,z])` 才可非等比。`center` 为不动点（默认原点）。
 
@@ -333,7 +366,7 @@ const p5 = cad.scale3d(part0, [2, 1, 1], { center: [10, 0, 0] })
 
 **同步**。Shape 缩放后的几何。
 
-### 4.4 `translate` ✅ 🚫
+### 4.5 `translate` ✅ 🚫
 
 平移几何体。
 
@@ -609,7 +642,7 @@ const a = await cad.union(part0, part1)
 
 ---
 
-## 6. 结构类操作（结构语句，无几何输出）
+## 6. 结构类操作（结构 / 聚合）
 
 ### 6.1 `assembly` ⚠️ 🚫
 
@@ -638,11 +671,28 @@ asm1.solve()
 >
 > 早期文档/示例曾用 `fixedPartId`/`movingPartId`/`faceRowIndex`/`faceId`/`invalid`——这些键在代码中不存在。真实契约是 `fixedPartName`/`movingPartName` + `fixedFace`/`movingFace`（遗留 face_mate）。`faceId` 字段随 §6.2 移除，不再写入。
 
-### 6.2 `group` ✅ 🚫
+### 6.2 `compound` ✅
+
+`cad.compound({ members, name? })` → 几何复合体 Shape（持 OCCT 句柄）。
+
+```js
+const c = cad.compound({ members: [part0, part1] })
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `members` | `Shape[]` |  | — | 成员 Shape 数组（编译产物 ctx.<var> 引用） |
+| `name` | `string` |  | — | 可选名称 |
+
+**同步**。Shape 几何复合体（brep 路径持句柄，可变换/可导出）。
+
+> 成员经 `params.members` 传入，不是位置参数。与编辑器 `cad.group` 的区别：本 op 产出**几何**复合体（持 OCCT 句柄，可放置/导出），`group` 是结构壳（无句柄）。平台侧不要用 `group`。
+
+### 6.3 `group` ✅ 🚫
 
 分组：零约束，保持当前布局。结构语句，无几何输出，成员用变量名引用。
 
-> 🚫 **已废弃（deprecated）**：`../3d_editor` 项目特有的结构分组 op（无几何输出，服务于编辑器画布与时间线），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
+> 🚫 **已废弃（deprecated）**：`../3d_editor` 项目特有的结构分组 op（无几何输出，服务于编辑器画布与时间线），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。**平台侧需要几何复合体请用 `cad.compound`**（内核 `makeCompound`，持 OCCT 句柄，可变换/可导出）。
 
 ```js
 const part0 = cad.box(30, 20, 10, { centered: true })
@@ -845,10 +895,10 @@ const cam = cad.viewCamera({ dir: [1, -1, 1] })
 ## 9. 写给 AI 的速查（一句话总结每个可用 op）
 
 ```
-创建: load / box / sphere / cylinder / cone / wedge / screw / sdf / sketch / svgExtrude / text
-变换: 
+创建: import_brep / box / sphere / cylinder / cone / wedge / screw / sdf / sketch / svgExtrude / text
+变换: place
 特征: union / subtract / intersect / chamfer / engrave / extrude / fillet / knurl
-结构: 
+结构: compound
 查询: asset / edgeRef / faceRef / faceNormal / bboxCenter / bboxMin / bboxMax / viewCamera / projectView / projectSheet
-废弃（勿用，`fai_` 前缀 / ../3d_editor 特有，将迁出）: group、assembly、copy、fai_drill、fai_extrude、fai_split、translate、rotate_euler、scale、scale3d
+废弃（勿用，`fai_` 前缀 / ../3d_editor 特有，将迁出）: group、assembly、copy、fai_drill、fai_extrude、fai_split、load、translate、rotate_euler、scale、scale3d
 ```
