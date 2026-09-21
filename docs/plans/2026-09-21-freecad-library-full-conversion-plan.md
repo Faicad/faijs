@@ -120,7 +120,7 @@
 | H9 | XLink 跨文档引用 | ✅ 定论（跨文档 0）；`App::Link*` 文档内链接并入 H7 | 画像 |
 | H10 | Python 特征 → `python-baked` | ✅ 已接线（属性口径判定 + `App::Point`/`App::Annotation` 归结构类型） | `isPythonOpaque()` + `convert.test.ts` |
 | **H11** | **平台 op 面自建（本轮 P0）** | ✅ 已完成（P0 步骤 1–2）：三个平台 op 落地 + 翻译层切换 + §4.6 删除 + 守界归零 | §3.2 / §4 |
-| **H12** | **执行侧缺陷**（导出/显示/命名/资产） | 🟡 非实体导入已按 C6 改造（`allowNonSolid` 已删，非实体在导入点一等）；E1/E3/E4 未做 | §5 |
+| **H12** | **执行侧缺陷**（导出/显示/命名/资产） | 🟡 非实体导入已按 C6 改造（`allowNonSolid` 已删，非实体在导入点一等）；**E1/E4/E5 已做**；E3 部分（`cad.extrude` 建了链根表，`revolve` 等仍无名）；E2 后置 | §5 / §5.1 |
 
 ### 3.5 剩余 6 个转换 gap（56 样本，均为真实几何/求解工作）
 
@@ -130,7 +130,7 @@ BIMExample `sketch-not-solved`；PartDesignExample `external-geometry-unresolved
 
 | 类 | 数量 | 性质 | 归属 |
 |---|---|---|---|
-| `nameless-shape` | 2 | `edgeRef` 无 role table——E3 已在 `import_brep` 链根建表，但这两例的缺口在 **op 间传播**（fillet/chamfer 的输入是布尔/特征 op 的产物，仍无名）。复测：strange_part_with_holes 报 `fillet: input shape has no role table`；ModelFromV021 报 `chamfer: edge ordinal out of range`（同族，演化链断裂） | H12/E3 后续 |
+| `nameless-shape` | 2 | 命名链在产形 op 处断掉。实测定位（2026-09-21）不是「导入资产无名」——`import_brep` 早已建表——而是**中间产形 op 无名**：`strange_part_with_holes` 的链是 `sketch → extrude → fillet(edgeRef(extrude_out,2))`，`cad.extrude` 全程不建表，`edgeRef` 直接抛 `edgeRef: input shape has no role table (nameless shape)`（§5 的命名链全局清查）；`ModelFromV021` 同族但死在 `cad.revolve` 产物上，且先撞序号检查（`edge ordinal out of range`），无名要到后面才暴露 | **extrude 已修**（`registerExtrudeRoles`，绊线测试见下）；revolve 及其余产形 op 未修 |
 | `extrude-zero-vector` | 1 | 退化输入（EngineBlock） | H4/H8 |
 | `dep-module-revolve` | 2 | 跨模块 Revolve 依赖 | H4 |
 | `no-geometry` | 3 | 无几何终端 —— **属正确行为** | — |
@@ -240,10 +240,31 @@ BIMExample `sketch-not-solved`；PartDesignExample `external-geometry-unresolved
 |---|---|---|---|
 | **E1** | `exportStepFromSolids` 在「无可导出子形」时**抛异常而非返回 error** | 2 例 `export-no-exportable-shape` | 改为返回 `Result`/结构化 error；全语料普查必须 catch；全线框链的导出语义需拍板（导出 STEP 时线框怎么办） |
 | **E2** | 无面的纯线框三角化为空 → 可导入、可查询，但**无显示网格** | 已钉进 `load-nonsolid.test.ts` | 走内核 `wireframe()` 边通道，由显示层承载（`Shape` 目前不承载边集）。**不阻塞 STEP 导出，阻塞渲染** |
-| **E3** | `nameless-shape`：装载后无名形状 → `edgeRef` 无 role table | 2 例 | 给导入资产建立 roleTable（沿用 `topology/naming/` 既有机制）；否则下游拓扑引用不可解析 |
+| **E3** | `nameless-shape`：**产形 op 无名** → `edgeRef` 无 role table | 2 例（strange_part_with_holes 死在 `cad.extrude`；ModelFromV021 死在 `cad.revolve`） | 链根建表是逐 op 自愿的，忘了没人吭声——见下方「命名链全局清查」。**extrude 已修**（两条路径经 `registerExtrudeRoles` 建表）；**revolve 及其余未修**，其中 revolve 卡在「生成投影里没有挂命名代码的位置」这道设计岔路上 |
 | **E4** | `asset-resolver`（manifest 缺 key）2 例 + `asset-unreadable` 1 例 | 3 例 | 转换层**前置校验**：资产成员缺失/不可读 → 转换期显式 gap，而不是产物运行期才炸 |
 | **E5** | `compound-transform` 1 例 | ArchDetail | **由 H11 解决** |
 | — | `extrude-zero-vector` 1、`dep-module-revolve` 2、`no-geometry` 3 | — | 前两者按 H4/H8 归因；`no-geometry` 属正确行为 |
+
+### 5.1 命名链全局清查（2026-09-21，E3 的全局口径）
+
+对 `api/` 下每一处 `fromBrep` 逐个核对「是否建表 / 传播表」：
+
+| 产形者 | roleTable | 说明 |
+|---|---|---|
+| `primitives.ts` | ✅ | 链根建表（`assignRoles`，语义优先 / 位置兜底） |
+| `import_brep.ts` | ✅ | 链根建表（E3 已落地） |
+| boolean / fillet / chamfer / copy / place / transform | ✅ | 沿 hash 演化传播 / 合流 |
+| **`extrude.ts`** | ✅ | **本次修复**：两条路径（up-to 与委托长度投影）都经 `registerExtrudeRoles` 建链根表 |
+| **`revolve`** | ❌ | 生成投影（`generated/operations.ts`），**没有可挂命名的代码位置** |
+| `sketch.ts`（其面）、`compound-geom.ts`、`engrave.ts`、`screw.ts`、`svgExtrude.ts`、`text.ts` | ❌ | 同类缺口，未修 |
+| `load.ts`、`fai_*` | ❌ | 编辑器 op，按 C5 在范围外 |
+
+**结论：E3 的真实形态不是「导入资产无名」，而是「有名字是逐 op 自愿的」。** 修复方向有两条岔路，需拍板：
+
+1. **逐个 op 建表**（extrude 已按此修）——精确，但要改 `revolve` 就得把它从生成投影改成手写 `defineOp`（同 `extrude.ts` 的先例），剩下的 `sketch`/`compound-geom`/`engrave`/… 也各要写一遍；
+2. **调度层统一兜底**——在 brep 产物登记处对「无表的产物」统一建表（origin = 语句 LHS）。一处消掉整类，但要评估成本（每个产物多一次 `getSubShapes` + 逐面 hash/hint）与「非实体产物」的空表语义。
+
+> 未拍板前不擅自扩大改造：`revolve` 当前的无名行为已由 `packages/tests/faijs/edge-ref/edge-ref.test.ts` 的**绊线测试**钉住（修好后该断言应翻转，不是删除）。
 
 ---
 
@@ -264,11 +285,11 @@ C4 之下，批量项目的职责是**忠实地暴露失败**，不是吸收失�
 | 项 | 设计 | 状态 |
 |---|---|---|
 | 单文件转换 | 消费发布的 CLI：`faijs-fcstd-convert <in.FCStd> [out.fai.zip]` | ✅ |
-| 批量驱动 | 扫描 3,201（`.FCStd1` 备份跳过）、每文件子进程隔离 WASM 崩溃、**串行为主**（用户铁律；`--concurrency` 上限 4）、每文件硬超时 120 s 可调 | ❌ **B2 待办** |
-| 断点 | `state/progress.json` 记逐文件状态 + faijs 版本；重跑只补上一轮 gap/failed（Q4） | ❌ |
-| 三态 | `ok`（0）/ `gap`（2，翻译缺口，不产包）/ `failed`（内部错误/超时）。**没有「baked-only = ok」这种状态** | ❌ |
-| 终检 | 每个成功产物校验 `mapping.json` disposition ∈ {`translated`, `python-baked`, `preserved-only`} | ❌ |
-| 报表 | 文件级 reason 分桶（**不是对象级**）：决定「补哪一项能让多少个文件从 gap 变 ok」 | ❌ |
+| 批量驱动 | 扫描 3,201（`.FCStd1` 备份跳过）、每文件子进程隔离 WASM 崩溃、**串行为主**（用户铁律；`--concurrency` 上限 4）、每文件硬超时 120 s 可调 | ✅ `fcstd-port/tools/batch-convert.ts` |
+| 断点 | `state/progress.json`（快照）+ `state/progress.jsonl`（逐文件日志，续跑读它）；重跑只补上一轮 gap/failed（Q4）；**引擎换版即拒跑**（状态记 faijs 版本 + cli sha256） | ✅ |
+| 三态 | `ok`（0）/ `gap`（2，翻译缺口，不产包）/ `failed`（内部错误/超时/契约破坏）。**没有「baked-only = ok」这种状态** | ✅ |
+| 终检 | 每个成功产物校验 `mapping.json` disposition ∈ {`translated`, `python-baked`, `preserved-only`}——**独立读产物字节**，与 CLI 内部的 `auditMapping` 是两条代码路径 | ✅ |
+| 报表 | 文件级 reason 分桶（**不是对象级**）：`singleFix` 表答「补哪一项能让多少个文件从 gap 变 ok」，`buckets` 表答「这些文件还同时缺什么」 | 🟡 驱动已产出，B2 数据见 §3 |
 | 抽样验收 | ≥20 个产物 `check` + `run --mode brep` 导出 STEP（入口：`@faicad/faijs/node` 的 `cliCheck`/`cliRun`，**tgz 里没有 `check`/`run` 子命令**） | ❌ |
 
 ### 7.1 阶段进展
@@ -276,8 +297,8 @@ C4 之下，批量项目的职责是**忠实地暴露失败**，不是吸收失�
 | 阶段 | 内容 | 状态 |
 |---|---|---|
 | **B0** | faijs P0 硬骨头（H1–H3）+ CLI | ✅ 基本完成（H2 剩 3 类、H3 曲线/面附着未做） |
-| **B1** | 批量骨架 + 全库画像 | 🟡 画像 ✅、批量骨架 ❌ |
-| **B2** | 全量试跑，暴露文件级 reason 分布 | ❌ **下一个必做**（见 §9） |
+| **B1** | 批量骨架 + 全库画像 | ✅ 画像 ✅、批量骨架 ✅（`fcstd-port/tools/batch-convert.ts` + `test/unit/batch-convert.test.ts`） |
+| **B2** | 全量试跑，暴露文件级 reason 分布 | 🟡 正在跑（3,201 串行）；分布见 §3 |
 | **B3** | 硬骨头迭代（每轮小批量复测） | ❌ |
 | **B4** | 全量 + 抽样验收 | ❌ |
 

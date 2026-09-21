@@ -27,8 +27,10 @@ import { extrude as projectedExtrude } from './generated/operations'
 import * as THREE from 'three'
 import { solidToShape, matrixToArray } from '../brep/brep-ops'
 import { getSolidBoundingBox } from '../brep/brep-utils'
-import { getBackends } from '../runtime-state'
+import { getBackends, getCurrentStmt } from '../runtime-state'
 import { fromBrep, brepOf } from '../shape'
+import { assignRoles } from '../topology/naming/roles'
+import { asPartName } from '../identity'
 import { defineOp } from '../sdk'
 import { assertPositiveNumber } from './assert'
 import type { Shape, Vec3 } from '../mesh/types'
@@ -36,6 +38,35 @@ import type { BrepHandle } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 import type { FaceTopoRef } from '../topology/naming'
 import { TopoRefError } from '../topology/naming'
+
+/**
+ * 链根建 roleTable：extrude 产物必须自带面命名，否则命名链在此断掉
+ * （E3 后续，2026-09-21）。
+ *
+ * 现场（实测，见 `packages/tests/faijs/edge-ref/edge-ref.test.ts` 的 E3 回归）：
+ * `sketch → extrude → cad.edgeRef(extrude_out, N)` 抛
+ * `E_TOPO_NOT_FOUND: edgeRef: input shape has no role table (nameless shape)`
+ * ——extrude 是 Pad/Pocket 链的链根，不带表就等于整条链不可按面/边引用。
+ * 机制与 `primitives.ts` 的链根建表同源：origin 用当前语句 LHS（`§2.2`，
+ * 多个 extrude 不撞 origin），role 由 `assignRoles` 给出（extrude 无语义
+ * 命名器 → 位置兜底 `extrude:face_i`，保证每面必有 role）。
+ *
+ * 刻意**不**发明 `extrude:start/end/side` 这类语义名：当前没有任何消费方
+ * 解释它们（`edgeRef` 只把 (origin, role) 当身份标签，随后按 hash 传播），
+ * 而无方向信息时按 +Z 猜主轴会静默错标。等有真实消费方（例如按名选 Pad
+ * 端面做 up-to 目标）再连同方向一起加。
+ *
+ * 已知边界：输入自带 roleTable 时本次**不传播**输入血统——vendored extrude
+ * 不产出面演化记录，无从按 hash 推进；这里只覆盖 extrude 自身引入的面。
+ * 结果仍严格优于修复前（修复前完全没有表）。
+ */
+function registerExtrudeRoles(kernel: BrepEngineApi, solid: BrepHandle): Shape {
+  const origin = String(getCurrentStmt()?.outputs[0] ?? 'extrude')
+  return fromBrep(solidToShape(kernel, solid), {
+    solid,
+    roleTable: new Map([[asPartName(origin), assignRoles(kernel, solid, 'extrude')]]),
+  })
+}
 
 /** 显式平面目标（up-to 截断面）：点 + 法向（点在平面上即可，无需共面于面边界）。 */
 export interface UpToPlaneSpec {
@@ -335,13 +366,18 @@ export const extrude = defineOp({
       const inputSolid = brepOf(input) as BrepHandle | undefined
       if (!inputSolid) throw new Error('[stdlib/extrude] input is not BREP')
       const clipped = extrudeUpToSolid(kernel, inputSolid, o)
-      return fromBrep(solidToShape(kernel, clipped), { solid: clipped })
+      return registerExtrudeRoles(kernel, clipped)
     }
 
     // 长度形态：委托生成投影（生成投影自带借入 / Result 翻转 / 收养）
     const normal = new THREE.Vector3(...(o.normal ?? [0, 0, 1])).normalize()
     const sign = o.mode === 'backward' ? -1 : 1
     const v: Vec3 = [normal.x * o.length! * sign, normal.y * o.length! * sign, normal.z * o.length! * sign]
-    return (await projectedExtrude(input, v)) as Shape
+    const result = (await projectedExtrude(input, v)) as Shape
+    // E3 后续：委托路径同样要建链根表（投影只给几何，命名是 faijs 语义，
+    // 见 registerExtrudeRoles）。句柄取不到（无 OCCT 后端）时原样返回。
+    const kernel = getBackends().kernel.brep as BrepEngineApi | null
+    const solid = kernel ? (brepOf(result) as BrepHandle | undefined) : undefined
+    return kernel && solid ? registerExtrudeRoles(kernel, solid) : result
   },
 })

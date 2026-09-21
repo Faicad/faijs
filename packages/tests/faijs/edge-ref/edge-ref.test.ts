@@ -138,3 +138,96 @@ describe('cad.edgeRef e2e (BREP/OCCT)', () => {
     expect(errorSpy).not.toHaveBeenCalled()
   })
 })
+
+/**
+ * E3 后续（2026-09-21）——命名链不得在**产形 op** 处断掉。
+ *
+ * 现场：FCStd 移植的 Pad/Fillet 链是 `sketch → extrude → fillet(edgeRef(extrude_out, N))`。
+ * 修复前 `cad.extrude` 产出的 Shape 不带 roleTable（`primitives.ts` 建表、`import_brep`
+ * 建表、boolean/fillet/chamfer/copy/place 都传播，只有 extrude 全程没有），于是
+ * `cad.edgeRef` 直接抛 `… input shape has no role table (nameless shape)`：
+ *
+ *   - `strange_part_with_holes.fcstd`（CAM DemoParts）整链死在 s2 的 edgeRef；
+ *   - `ModelFromV021.FCStd`（PartDesign）死在 revolve 产物的 edgeRef。
+ *
+ * 这不是「加个开关让失败的通过」：面命名是**能力**（产形 op 必须给面命名，否则
+ * 下游任何按面/边的引用都不可解析），extrude 只是从来没人给它建表。
+ *
+ * 仍存的同类缺口（未修，见下）：`cad.revolve` 是**生成投影**（compat op），代码里
+ * 没有可以挂命名的位置——修它要么手写 revolve op（像 extrude 这样包住投影），
+ * 要么在调度层给所有 brep 产物兜底建表，两者都是设计决定，不在本次范围。
+ */
+describe('naming chain across cad.extrude (E3 后续)', () => {
+  let runtime: CadRuntime
+
+  /** 10×10 正方形轮廓（与 FCStd 生成脚本同形）。 */
+  const SQUARE = `{ contours: [{ segments: [
+    { kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0 },
+    { kind: 'line', x1: 10, y1: 0, x2: 10, y2: 10 },
+    { kind: 'line', x1: 10, y1: 10, x2: 0, y2: 10 },
+    { kind: 'line', x1: 0, y1: 10, x2: 0, y2: 0 },
+  ], closed: true }] }`
+
+  beforeEach(() => {
+    runtime = createRuntime(createNodePorts(), 'brep')
+  })
+
+  afterEach(() => {
+    runtime.dispose()
+  })
+
+  it('GOTCHA: an extrude result carries a role table, so edgeRef resolves on it', async () => {
+    const code = `
+      const part0 = cad.sketch(${SQUARE})
+      const part1 = cad.extrude(part0, [0, 0, 10])
+      const e = cad.edgeRef(part1, 2)
+    `
+    const result = await runtime.execute(code, { topology: 'auto' })
+    expect(result.failedAt).toBeUndefined()
+  })
+
+  it('drives the FCStd Pad→Fillet shape: fillet(edgeRef(extrude(sketch)))', async () => {
+    const code = `
+      const part0 = cad.sketch(${SQUARE})
+      const part1 = cad.extrude(part0, [0, 0, 10])
+      const part2 = cad.fillet(part1, { edges: [cad.edgeRef(part1, 2)], radius: 1 })
+    `
+    const result = await runtime.execute(code, { topology: 'auto' })
+    expect(result.failedAt).toBeUndefined()
+    expect(faceCountOf(result, asPartName('part2'))).toBe(7)
+    // a straight edge of length 10 loses the corner square minus a quarter disc
+    expect(1000 - volumeOf(result, asPartName('part2'))).toBeCloseTo((1 - Math.PI / 4) * 1 * 10, 6)
+  })
+
+  it('keeps the table across cad.place (FCStd emits place between features)', async () => {
+    const code = `
+      const part0 = cad.sketch(${SQUARE})
+      const part1 = cad.extrude(part0, [0, 0, 10])
+      const part2 = cad.place(part1, { position: [0, 0, 5] })
+      const e = cad.edgeRef(part2, 2)
+    `
+    const result = await runtime.execute(code, { topology: 'auto' })
+    expect(result.failedAt).toBeUndefined()
+  })
+
+  it('KNOWN GAP: a revolve result is still nameless (compat projection has no table)', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const code = `
+      const part0 = cad.sketch(${SQUARE})
+      const part1 = cad.revolve(part0, { axis: [0, 0, 1], at: [0, 0, 0], angle: 6.283185307179586 })
+      const e = cad.edgeRef(part1, 1)
+    `
+    try {
+      const result = await runtime.execute(code, { topology: 'auto' })
+      // This assertion is the tripwire: when revolve gets a hand-written
+      // wrapper (or the dispatcher starts naming every brep product), it must
+      // FLIP to toBeUndefined() — a silently passing test here would mean the
+      // gap was papered over.
+      expect(result.failedAt!.message).toMatch(/no role table/)
+    } finally {
+      warnSpy.mockRestore()
+      errorSpy.mockRestore()
+    }
+  })
+})
