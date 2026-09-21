@@ -36,6 +36,29 @@ describe('contour extraction (M3.6)', () => {
     expect(extractContours(geoms).length).toBe(0);
   });
 
+  it('GOTCHA (slittingsaw/tap corpus 2026-09-20): once the chain closes at the head, STOP — free segments touching the head must not break the loop', () => {
+    // tap profile: segments 0-5 form a closed loop through (0,0)=head, but
+    // seg8 (0,0→-4,4, free) also touches the head. The linker used to keep
+    // extending after closure, the free segment stole the chain and the
+    // closed 6-segment loop was dropped (contours: 0, solver was fine —
+    // "sketch-not-solved" was a lie).
+    const geoms: SketchGeom[] = [
+      { kind: 'line', index: 0, x1: 0, y1: 0, z1: 0, x2: 4, y2: 4, z2: 0 },
+      { kind: 'line', index: 1, x1: 4, y1: 4, z1: 0, x2: 4, y2: 29, z2: 0 },
+      { kind: 'line', index: 2, x1: 4, y1: 29, z1: 0, x2: 3, y2: 29, z2: 0 },
+      { kind: 'line', index: 3, x1: 3, y1: 29, z1: 0, x2: 3, y2: 60, z2: 0 },
+      { kind: 'line', index: 4, x1: 3, y1: 60, z1: 0, x2: 0, y2: 60, z2: 0 },
+      { kind: 'line', index: 5, x1: 0, y1: 60, z1: 0, x2: 0, y2: 0, z2: 0 },
+      { kind: 'line', index: 6, x1: -3, y1: 60, z1: 0, x2: 3, y2: 60, z2: 0 }, // free
+      { kind: 'line', index: 7, x1: 4, y1: 29, z1: 0, x2: -4, y2: 29, z2: 0 }, // free
+      { kind: 'line', index: 8, x1: 0, y1: 0, z1: 0, x2: -4, y2: 4, z2: 0 }, // touches head
+    ];
+    const contours = extractContours(geoms);
+    expect(contours.length).toBe(1);
+    expect(contours[0]!.closed).toBe(true);
+    expect(contours[0]!.segments.length).toBe(6);
+  });
+
   it('chains a line+arc contour regardless of segment order', () => {
     const geoms: SketchGeom[] = [
       // arc from (10,0) to (0,0), semicircle over the line

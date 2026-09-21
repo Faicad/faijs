@@ -83,11 +83,14 @@ export function extractContours(geoms: SketchGeom[]): Contour[] {
     let extended = true;
     while (extended) {
       extended = false;
-      // GOTCHA (ballend corpus, 2026-09-20): restart the scan from the pool
-      // start after EVERY match. Scanning on with the drifted tail let a
-      // later-indexed segment touching the new tail steal the chain before
-      // the correct earlier-indexed continuation was reached, breaking a
-      // perfectly closed loop (extractContours returned 0).
+      // GOTCHA (slittingsaw/tap corpus, 2026-09-20): once the chain closes at
+      // the head, STOP. Free segments often touch the head too (tap: a
+      // 0,0→-4,4 line at the profile apex); extending past closure let one
+      // steal the chain and the closed loop was dropped. Also GOTCHA
+      // (ballend corpus, 2026-09-20): restart the scan from the pool start
+      // after EVERY match — scanning on with the drifted tail let a
+      // later-indexed segment touching the new tail steal the chain.
+      if (segments.length > 1 && near(tail, head)) break;
       for (const cand of pool) {
         if (cand.used) continue;
         if (near(tail, cand.a)) {
