@@ -20,7 +20,7 @@ test('probe: globalThis kernel registry state on demo page', async ({ page }) =>
     let cdnErr = ''
     let cdnOk = false
     try {
-      const sm = (await import('https://cdn.jsdelivr.net/npm/@faicad/sheetmetal@0.13.1/+esm')) as {
+      const sm = (await import('https://cdn.jsdelivr.net/npm/@faicad/sheetmetal@0.13.2/+esm')) as {
         author: (p: unknown) => unknown
         solidOf: (p: unknown) => unknown
       }
