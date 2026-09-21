@@ -28,6 +28,18 @@ import { effectivePlacement } from './attachment.js';
 import { buildFaiZip } from './build-fai-zip.js';
 import { isOk } from '../api/result.js';
 import { zipSync, unzipSync, strToU8 } from 'fflate';
+import {
+  STRUCTURAL_TYPES,
+  STRUCTURAL_TYPES_EXTENDED,
+  isFemStructural,
+  isNonModelingType,
+} from './structural-types.js';
+
+// Kept on this module's public surface: these sets are part of the
+// `./fcstd-convert` contract that the batch project and its tests consume. The
+// definitions live in `structural-types.ts` so codegen can share them without
+// a circular import.
+export { STRUCTURAL_TYPES, STRUCTURAL_TYPES_EXTENDED, isFemStructural };
 
 /** V2 tolerance: solver must reproduce stored geometry (single source). */
 export const SKETCH_T1 = 1e-6;
@@ -71,86 +83,6 @@ export interface ConvertSummary {
   elapsedMs: number;
 }
 
-/** Non-modeling structural/datum types: never translation gaps. They carry
- * no feature semantics (containers, datum planes/lines/origins, groups) —
- * their semantics are consumed by the translator (Body.Group ordering,
- * datum-plane UpToFace anchors), not emitted as cad calls. */
-const STRUCTURAL_TYPES = new Set([
-  'PartDesign::Body', 'App::Origin', 'App::Plane', 'App::Line',
-  'App::DocumentObjectGroup', 'App::Part', 'PartDesign::Plane', 'PartDesign::Line',
-  'PartDesign::CoordinateSystem',
-  // H10 companion fix (plan §3.5): datum/annotation types, not modeling
-  // features — previously misclassified as translation gaps.
-  'App::Point', 'App::Annotation',
-  // 2026-09-20 sweep regression triage: Part workbench datum plane (same
-  // semantics as App::Plane) and a document text record — non-modeling.
-  'Part::Plane', 'App::TextDocument',
-  // Part workbench datum line (FEMExample) — same semantics as App::Line.
-  'Part::Line',
-]);
-
-/**
- * H7 companion (2026-09-20): FEM workbench objects carry SIMULATION semantics
- * (analysis containers, meshes, solver settings, boundary conditions, result
- * pipelines) — no modeling geometry. Native classes without a Proxy property
- * used to fall into `type-not-whitelisted` and block whole files whose
- * modeling part was a single box. Like structural types they are
- * `preserved-only`; their regenerable field data (FemMesh / result Data
- * properties) is deliberately NOT carried into the container.
- *
- * Remote task on record (user decision, 2026-09-20): faijs will port
- * FreeCAD's FEM analysis capability in the future — separate feature; this
- * classification only stops simulation objects from blocking conversion.
- * Python subclasses (*Python with Proxy) never reach this set — H10's
- * python-opaque handles them.
- */
-export const FEM_STRUCTURAL_TYPES = new Set([
-  'Fem::FemAnalysis',
-  'Fem::FemMeshObject',
-  'Fem::FemResultObject',
-  'Fem::FemPostPipeline',
-  'Fem::FemPostWarpVectorFilter',
-  'Fem::ConstraintFixed',
-  'Fem::ConstraintForce',
-  'Fem::ConstraintPressure',
-  'Fem::ConstraintContact',
-  'Fem::ConstraintBearing',
-  'Fem::ConstraintDisplacement',
-  // 2026-09-20 sweep triage (all_objects corpus): remaining constraint
-  // families — same simulation semantics as the constraints above.
-  'Fem::ConstraintFluidBoundary',
-  'Fem::ConstraintGear',
-  'Fem::ConstraintHeatflux',
-  'Fem::ConstraintInitialTemperature',
-  'Fem::FemAnalysisPython',
-  'Fem::FemMeshObjectPython',
-  'Fem::FemResultObjectPython',
-  'Fem::FemSolverObjectPython',
-  'Fem::FemMeshShapeBaseObjectPython',
-]);
-
-/** True when the type is a FEM simulation object (structured non-modeling). */
-export function isFemStructural(type: string): boolean {
-  return FEM_STRUCTURAL_TYPES.has(type);
-}
-
-/**
- * 2026-09-20 sweep triage: assembly/import container types — links, assembly
- * containers, import placeholders (Inventor/VRML). They reference or embed
- * external/other geometry but produce no modeling semantics of their own;
- * preserved-only. Modeling features (Part::Mirroring,
- * PartDesign::AdditiveSphere, …) are deliberately NOT here — they stay
- * explicit H7 gaps until translated.
- */
-export const STRUCTURAL_TYPES_EXTENDED = new Set([
-  'App::Link',
-  'App::LinkElement',
-  'Assembly::AssemblyObject',
-  'Assembly::JointGroup',
-  'App::InventorObject',
-  'App::VRMLObject',
-]);
-
 /**
  * C4 final check: reclassify `baked` entries. A baked disposition is only
  * legitimate for Python-opaque objects (python-baked), structural/datum
@@ -166,10 +98,10 @@ function auditMapping(
       // python-opaque stays legitimate but is renamed for the ledger
       if (o.reason === 'python-opaque') {
         o.disposition = 'python-baked';
-      } else if (STRUCTURAL_TYPES.has(o.type) || FEM_STRUCTURAL_TYPES.has(o.type) || STRUCTURAL_TYPES_EXTENDED.has(o.type)) {
+      } else if (STRUCTURAL_TYPES.has(o.type) || isFemStructural(o.type) || STRUCTURAL_TYPES_EXTENDED.has(o.type)) {
         o.disposition = 'preserved-only';
         o.reason = o.reason
-          ?? (FEM_STRUCTURAL_TYPES.has(o.type) ? 'fem-simulation'
+          ?? (isFemStructural(o.type) ? 'fem-simulation'
             : STRUCTURAL_TYPES_EXTENDED.has(o.type) ? 'container-link' : 'structural');
       } else {
         gaps.push({ name: o.name, type: o.type, reason: o.reason ?? 'unspecified' });
@@ -274,8 +206,14 @@ export async function convertFcstdFile(input: string, opts?: ConvertOptions): Pr
   // H7 follow-up: SubShape carriers (feature result caches in Body-less
   // PartDesign files) join the same set — the translator only honors SubShape
   // evidence for features whose SubShape .brp member exists.
+  // GOTCHA (PadTest, 2026-09-21): non-modeling types are EXCLUDED. A
+  // `PartDesign::Plane` also has a Shape .brp — the plane face — so the
+  // generic rule imported it as a solid and the Body chain unioned the datum
+  // plane into the part (and `cad.load` rejects it: no solid sub-shapes). A
+  // datum's shape is support geometry for attachment/up-to resolution.
   const shapeCarriers = new Set<string>();
   for (const obj of doc.value.objects) {
+    if (isNonModelingType(obj.type)) continue;
     const shapeFile = obj.properties.get('Shape')?.children[0]?.attributes['file'];
     if (shapeFile && memberText(unpacked.value, shapeFile) !== undefined) shapeCarriers.add(obj.name);
     const subFile = obj.properties.get('SubShape')?.children[0]?.attributes['file'];

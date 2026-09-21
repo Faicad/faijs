@@ -46,6 +46,23 @@ function withLinkSub(obj: FcstdObject, name: string, target: string, subs: strin
   return obj;
 }
 
+/** An App::PropertyLinkList (`<LinkList><Link value=…/>…`) as FreeCAD saves it. */
+function withLinkList(type: string, name: string, prop: string, members: string[]): FcstdObject {
+  const o = simpleObj(type, name, {});
+  o.properties.set(prop, {
+    name: prop, type: 'App::PropertyLinkList', tagName: 'Property',
+    children: [{
+      name: prop, type: '', tagName: 'LinkList',
+      children: members.map((m) => ({
+        name: 'Link', type: '', tagName: 'Link', children: [], valueXml: '', valueText: '', attributes: { value: m },
+      })),
+      valueXml: '', valueText: '', attributes: { count: String(members.length) },
+    }],
+    valueXml: '', valueText: '', attributes: {},
+  });
+  return o;
+}
+
 /** A unit square contour (closed loop of 4 lines) used for sketch wiring. */
 function square(): Contour[] {
   return [{
@@ -405,5 +422,128 @@ describe('M5 codegen', () => {
     // the Tool input resolves to the Body's chain head variable
     expect(cut!.inputs.length).toBe(2);
     expect(cut!.inputs[1]).not.toBe('Body');
+  });
+
+  // GOTCHA (EngineBlock corpus, 2026-09-20): a Part::Extrusion whose Base is
+  // a Draft circle (Part::Part2DObjectPython with a Shape asset) — the
+  // shape-asset import makes the base an addressable variable and the
+  // Extrusion must lower to cad.extrude, not gap.
+  it('lowers Part::Extrusion over a shape-asset Draft base', () => {
+    const doc: FcstdDocument = {
+      objects: [
+        simpleObj('Part::Part2DObjectPython', 'Circle003', { Shape: { file: 'Circle003.Shape.brp' } }),
+        simpleObj('Part::Extrusion', 'Extrude', { Base: { value: 'Circle003' } }),
+      ],
+      typeIndex: new Map(),
+      meta: new Map(),
+    };
+    const r = generateModel(doc, new Map(), NO_CONTOURS, 't', undefined, new Set(['Circle003']));
+    const ext = r.calls.find((c) => c.source === 'Extrude');
+    expect(ext, 'Extrude must translate, not gap').toBeDefined();
+    expect(ext!.op).toBe('cad.extrude');
+    expect(ext!.inputs[0]).not.toBe('Circle003'); // resolved to a partN var
+  });
+
+  // GOTCHA (ArchDetail corpus, 2026-09-21): `Links` is an App::PropertyLinkList
+  // and Part::Compound's member list. It was absent from depsOf(), so a
+  // Compound carried NO ordering edge to its members. ArchDetail declares all
+  // five compounds at doc index 10-14 and every member at 269+ (FreeCAD sorts
+  // the file by object name, not by build order), so every compound ran before
+  // its members, inputVar() found nothing and the whole file gapped with
+  // `compound-missing-members` — a pure ordering bug, no missing capability.
+  it('orders Part::Compound after its Links members even when declared first', () => {
+    const doc: FcstdDocument = {
+      objects: [
+        withLinkList('Part::Compound', 'Compound', 'Links', ['Box1', 'Box2']),
+        simpleObj('Part::Box', 'Box1', {}),
+        simpleObj('Part::Box', 'Box2', {}),
+      ],
+      typeIndex: new Map(),
+      meta: new Map(),
+    };
+    const r = generateModel(doc, new Map(), NO_CONTOURS, 't');
+    expect(r.calls.map((c) => c.op)).toEqual(['cad.box', 'cad.box', 'cad.group']);
+    const group = r.calls[2]!;
+    expect(group.source).toBe('Compound');
+    expect(group.inputs).toEqual([r.calls[0]!.out, r.calls[1]!.out]);
+    expect(r.objects.find((o) => o.name === 'Compound')!.disposition).toBe('translated');
+  });
+
+  // ArchDetail's actual member shape: Draft wires (Part::Part2DObjectPython)
+  // carrying a real Shape .brp — non-whitelisted, so they lower to a real
+  // `cad.load` of the frozen BREP asset. The compound must consume those
+  // variables, which only works once the Links edge exists.
+  it('ArchDetail shape: compound over shape-asset Draft wires lowers to cad.group', () => {
+    const doc: FcstdDocument = {
+      objects: [
+        withLinkList('Part::Compound', 'Compound006', 'Links', ['Wire045', 'Wire046']),
+        simpleObj('Part::Part2DObjectPython', 'Wire045', { Shape: { file: 'Wire045.Shape.brp' } }),
+        simpleObj('Part::Part2DObjectPython', 'Wire046', { Shape: { file: 'Wire046.Shape.brp' } }),
+      ],
+      typeIndex: new Map(),
+      meta: new Map(),
+    };
+    const r = generateModel(doc, new Map(), NO_CONTOURS, 't', undefined, new Set(['Wire045', 'Wire046']));
+    const loads = r.calls.filter((c) => c.op === 'cad.load');
+    expect(loads.length).toBe(2);
+    // GOTCHA: `cad.load` with the container's directory-mode key rule
+    // (basename without extension) plus an explicit brep format hint —
+    // `.brp` is not in CAD_FORMATS, so the hint is what selects the BREP path.
+    expect(loads[0]!.params).toEqual({ key: 'Wire045.Shape', format: 'brep' });
+    const group = r.calls.find((c) => c.source === 'Compound006')!;
+    expect(group.op).toBe('cad.group');
+    expect(group.inputs.length).toBe(2);
+    expect(group.inputs.every((i) => /^part\d+$/.test(i))).toBe(true);
+    expect(r.calls.indexOf(group)).toBe(r.calls.length - 1);
+  });
+
+  // GOTCHA (PadTest, 2026-09-21): a Body's `Model` list contains its datum
+  // planes, and a `PartDesign::Plane` stores a `Shape` .brp — the plane FACE,
+  // not a solid. The "any object with shape evidence is a shape asset" rule
+  // therefore imported the datum and folded it into the Body chain
+  // (`cad.union(pad, datumPlane)`), which is both semantically wrong and fatal
+  // at run time: cad.load rejects a shape with no solid sub-shapes. Datum and
+  // container types must be short-circuited to preserved-only BEFORE the
+  // translator, and the Body's own Shape asset must not be imported either.
+  it('datum planes and Bodies never become shape assets nor enter the Body chain', () => {
+    const mkBody = (name: string, members: string[]): FcstdObject => {
+      const b = simpleObj('PartDesign::Body', name, { Shape: { file: 'PartShape6.brp' } });
+      b.properties.set('Group', {
+        name: 'Group', type: 'App::PropertyLinkList', tagName: 'Property',
+        children: [{
+          name: 'LinkList', type: '', tagName: 'LinkList',
+          children: members.map((m) => ({
+            name: 'Link', type: '', tagName: 'Link', children: [], valueXml: '', valueText: '', attributes: { value: m },
+          })),
+          valueXml: '', valueText: '', attributes: { count: String(members.length) },
+        }],
+        valueXml: '', valueText: '', attributes: {},
+      });
+      return b;
+    };
+    const doc: FcstdDocument = {
+      objects: [
+        mkBody('Body', ['Pad', 'DatumPlane']),
+        simpleObj('Sketcher::SketchObject', 'Sketch', {}),
+        simpleObj('PartDesign::Pad', 'Pad', { Profile: { value: 'Sketch' }, Length: { value: '10' } }),
+        simpleObj('PartDesign::Plane', 'DatumPlane', { Shape: { file: 'PartShape7.brp' } }),
+      ],
+      typeIndex: new Map(),
+      meta: new Map(),
+    };
+    const r = generateModel(
+      doc,
+      new Map([['Sketch', { level: 'L0' as const, loopCount: 1 }]]),
+      new Map([['Sketch', square()]]),
+      't',
+      undefined,
+      new Set(['Body', 'DatumPlane']), // both carry a .brp in the container
+    );
+    expect(r.calls.filter((c) => c.op === 'cad.load'), 'no datum/container import').toEqual([]);
+    // the Pad is the chain base; with the datum excluded there is nothing to
+    // union it with
+    expect(r.calls.filter((c) => c.op === 'cad.union' || c.op === 'cad.subtract')).toEqual([]);
+    expect(r.objects.find((o) => o.name === 'DatumPlane')!.disposition).toBe('preserved-only');
+    expect(r.objects.find((o) => o.name === 'Body')!.disposition).toBe('preserved-only');
   });
 });

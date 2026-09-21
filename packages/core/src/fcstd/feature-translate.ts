@@ -352,6 +352,38 @@ export function placementPos(obj: FcstdObject): [number, number, number] {
 }
 
 /**
+ * A frozen `.brp` shape delivered through the container's `assets/` becomes an
+ * addressable solid via `cad.load` — the stdlib asset-loading op
+ * (`api/load.ts`), which reads through the host asset resolver and returns a
+ * BREP-backed Shape the rest of the chain can consume.
+ *
+ * GOTCHA (2026-09-21, found while verifying ArchDetail): the shape-asset rounds
+ * used to emit a made-up `cad.import_shape`, which is **not** in the cad
+ * namespace. 42 of the 50 corpus products therefore parsed clean but could not
+ * RUN — `cliCheck` validates syntax and script-local references, never the
+ * callee's existence, so only a real `run --mode brep` exposes this.
+ *
+ * Contract details:
+ * - key: the asset file name WITHOUT extension — that is the key rule of the
+ *   documented directory mode of `FsAssetResolver` (`key = basename(file)`),
+ *   which is how a container's `assets/` directory is exposed.
+ * - format: `'brep'` is REQUIRED. `isCadFormat` only recognizes
+ *   step/stp/brep, and the `.brp` extension is not in `CAD_FORMATS`, so
+ *   without the hint the load would take the mesh path and fail in brep mode.
+ *
+ * @param obj - the FCStd object whose frozen shape is being imported.
+ * @param assetFile - the `.brp` member name recorded on the object's Shape/SubShape property.
+ * @returns the `cad.load` call binding `obj.name` to the imported solid.
+ */
+function shapeAssetCall(obj: FcstdObject, assetFile: string): CadCall {
+  const key = assetFile.replace(/^.*[/\\]/, '').replace(/\.brp$/i, '');
+  return {
+    out: obj.name, op: 'cad.load', source: obj.name, inputs: [],
+    params: { key, format: 'brep' },
+  };
+}
+
+/**
  * M4 translate one object. `inputVar` maps a dependency object name to the
  * variable holding its geometry (sketch contours or prior solid).
  *
@@ -382,18 +414,13 @@ export function translateObject(
   if (shapeCarriers?.has(obj.name) && obj.properties.has('SubShape')) {
     // The result cache is a real, addressable solid: downstream features
     // (Fillet Base→Pocket, Cut Base→…) must resolve it as a variable, so the
-    // verdict emits cad.import_shape instead of zero calls (hole_puzzle
+    // verdict emits a real load call instead of zero calls (hole_puzzle
     // GOTCHA: zero-call objects got no codegen variable and consumers gapped
     // with fillet-missing-base / cut-missing-dependency).
-    const assetFile = obj.properties.get('SubShape')?.children[0]?.attributes['file'];
+    const assetFile = obj.properties.get('SubShape')?.children[0]?.attributes['file'] ?? `${obj.name}.SubShape.brp`;
     return {
       kind: 'translated',
-      calls: [{
-        // out is declared later in the function; codegen renames outputs
-        // anyway, so the object name is a safe placeholder here.
-        out: obj.name, op: 'cad.import_shape', source: obj.name, inputs: [],
-        params: { asset: assetFile ?? `${obj.name}.SubShape.brp` },
-      }],
+      calls: [shapeAssetCall(obj, assetFile)],
       reason: 'shape-asset',
     };
   }
@@ -404,13 +431,10 @@ export function translateObject(
     // Part::Extrusion gapped with extrusion-missing-base. Geometry is an
     // existing fact — import it.
     if (shapeCarriers?.has(obj.name)) {
-      const assetFile = shapeBrpFile(obj);
+      const assetFile = shapeBrpFile(obj) ?? `${obj.name}.Shape.brp`;
       return {
         kind: 'translated',
-        calls: [{
-          out: obj.name, op: 'cad.import_shape', source: obj.name, inputs: [],
-          params: { asset: assetFile ?? `${obj.name}.Shape.brp` },
-        }],
+        calls: [shapeAssetCall(obj, assetFile)],
         reason: 'shape-asset',
       };
     }

@@ -85,6 +85,19 @@ packages/core/scripts/scan-fcstd-library.ts这样的文件明显是错误的。
 > **✅ 当日十二连修终态（+外部几何 SubShape 源回退）**：ok 维持 **46**、`cliCheck` 失败 0。`shapeBrpFile()`：外部引用源为 PartDesign 特征（Chamfer/Pocket 等）时其形状在 `SubShape` 属性——查找回退后 hole_puzzle 的**直线**外参考（Sketch003/004/005/006）全部解析成功；剩余 Sketch011 的 Edge110 为**弧线**（630 点采样 polyline），`length===2` 直线过滤按设计丢弃——外部曲线投影为已留档能力缺口（下一阶段候选）。PartDesignExample 的 `ExternalGeo` 迁移版格式（含 shadow 几何）为另一族，留档不动。
 > **✅ 当日十三连修终态（+shape-asset 扩展到任意非白名单类型）**：**ok 9→47、gap 56→9、`cliCheck` 失败 0**。ArchDetail 转出（Compound 成员 Draft 线带真实 Shape 资产 → `cad.import_shape`；白名单类型不劫持，测试锁定）。单例 triage 留档：Drilling_1 Type=15 InternalAlignment（椭圆极点对齐，特性级）、CarbonCopy delta-exceeds-t1（真实求解器工作）。剩余 9 文件：sketch-not-solved 2（策略/拓扑）、external-geometry 2（曲线投影/迁移格式）、单例 5。
 > **✅ 当日十四连修终态（+Shape 资产证据优先于 python-opaque）**：**ok 9→48、gap 56→8、`cliCheck` 失败 0**。EngineBlock 转出：Draft 圆带 Proxy（python 证据）**和**真实 Shape 资产——shape-asset 检查前移到 `isPythonOpaque` 之前（排序即语义：冻结资产是强证据），Extrusion/Fusion/Cut 链全解析。**勘误**：十三连修的「ArchDetail 转出」不准确——增量来自其他文件；ArchDetail 实际仍卡 Part::Compound 容器成员解析（compound-missing-members）。剩余 8 文件：sketch-not-solved 2、external-geometry 2、compound 1、unsupported-constraint 1、type-not-whitelisted 1（all_objects 再+4 FEM 族，集合补充留下一阶段）、delta-exceeds-t1 1。
+> **✅ 2026-09-21 两修终态（+`Part::Compound` 成员拓扑边、+`Fem::` 命名空间规则与非建模类型短路）**：**ok 48→50、gap 8→6、`cliCheck` 失败 0**（口径 `fcstd-port/out/sweep2.log`，56 文件 / 82 模块 / 1,075 语句）。
+> - **修一（compound 拓扑边，ok 48→49）**：`depsOf` 的 linkProps 不含 `Links`——`Part::Compound` 对容器成员**没有拓扑边**，Kahn 排序可能把它排在成员之前，`inputVar` 落空 → `compound-missing-members`。补 `linkLists = ['Shapes','Links']` 后 ArchDetail 转出。
+> - **修二（FEM 命名空间规则 + 结构短路，ok 49→50）**：`isFemStructural` 由枚举集合改为**命名空间规则**（`startsWith('Fem::')`），避免每轮补类型（29 种 `Fem::` 类型一次性覆盖）；非建模类型（structural ∪ extended ∪ `Fem::`）在翻译前短路为 `preserved-only`；shapeCarriers 同步排除。新增 `structural-types.ts` 作单一事实源，切断 convert↔codegen 的循环依赖。
+>
+> **⚠️ 同轮清掉两个累积 bug（都属「convert 干净、一 run 就崩」，`cliCheck` 结构上无法发现）**：
+> ① codegen 对 shape-asset 发的是 **`cad.import_shape`——该 op 在 cad 命名空间根本不存在**（真名 `cad.load`，且是 **SOLID 加载器**，需 `params:{key, format:'brep'}`）；42/50 产物 `cliCheck` 干净却必然 run 失败。
+> ② 「有 Shape 证据即 shape-asset」把 **Body 自身**与 **`PartDesign::Plane` 基准面**也当资产导入，平面 FACE 被 `cad.union` 进 Body 链 → 产物不可运行。PadTest 计数一度误读为 9/4，修复后回到 **6/7**（其 main 与各 Body 模块**零** `cad.load`）。
+>
+> **⚠️ 新增设计级遗留（已钉为回归测试，非本轮可修）**：冻结 `.brp` **不保证含实体**。普查 698 个 `cad.load` 站点：**335 可加载 / 363 不可加载**（346 零实体——Draft 线/面/壳；15 manifest 缺 key；2 occt 读不了），分布在 **21 个发 load 的样本中的 14 个**。
+> **按产物口径（`fcstd-port/out/probe-runnable.log`）：50 个可转换样本 → 32 能真正 run、18 run 失败、0 抛异常。** 18 个失败分 6 类：`asset-empty` 8（即上述零实体，含 **ArchDetail**——它本轮只拿到「可转换」，**产物仍不可执行**）、`asset-resolver` 2、`asset-unreadable` 1、`nameless-shape` 2（装载后无名形状 → `edgeRef` 无 role table）、`dep-module-revolve` 2、`no-geometry` 3（无几何终端，属正确行为）。
+> 修法二选一：**新增非实体导入能力**，或**把 shape-asset 限制为实体、其余转显式 gap**。回归载体：`fcstd-port/test/FreeCAD/fcstd-e2e.test.ts`（`ASSET_RUNNABLE` + `KNOWN_UNRUNNABLE`、跨模块扫描断言）+ 新增 `fcstd-port/test/FreeCAD/run-census.test.ts`（全语料 run 普查，32/18 逐样本钉死）。
+>
+> 剩余 6 个 gap 文件（均为真实几何/求解工作）：BIMExample `sketch-not-solved`、PartDesignExample `external-geometry-unresolved: no links` + `pocket-missing-dependency`×2、Drilling_1 `unsupported-constraint` + `pad-missing-profile` + `pocket-missing-dependency` + `linear-pattern-missing-source`、hole_puzzle `external-geometry-unresolved: no links`、TestTangentMode3-0.21 `sketch-not-solved`、TestSketchCarbonCopyReverseMapping `delta-exceeds-t1` + `sketch-not-solved`×3。
 > （下表为 H10 接线前的原始基线，保留供对照。）
 
 口径：`out/sweep-report.json`（`fcstd-port/out/`，gitignore，重跑即得）。**注意：每文件只记录前 4 条 gap reason**，故下表「次数」是下界。

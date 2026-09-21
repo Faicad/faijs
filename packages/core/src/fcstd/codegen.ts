@@ -12,6 +12,7 @@ import type { CadCall, TranslateVerdict } from './feature-translate.js';
 import { translateObject, isJsExpr, jsExpr, BODY_CHAIN_BASE } from './feature-translate.js';
 import type { Contour } from './contour.js';
 import { type Placement, isIdentityPlacement, quatToEulerXYZDeg } from './placement.js';
+import { isNonModelingType } from './structural-types.js';
 
 /** Per-object codegen outcome: what was emitted for one FCStd object. */
 export interface GenObjectResult {
@@ -59,9 +60,20 @@ function depsOf(obj: FcstdDocument['objects'][number]): string[] {
     const v = el?.attributes['value'];
     if (v) out.push(v);
   }
-  const shapes = obj.properties.get('Shapes')?.children[0];
-  if (shapes) {
-    for (const link of shapes.children) {
+  // GOTCHA (ArchDetail corpus, 2026-09-21): App::PropertyLinkList properties.
+  // `Shapes` is the multi-input geometry list (Part::MultiFuse / MultiCommon);
+  // `Links` is Part::Compound's member list. Neither is a single-value link
+  // property, so missing it here left the Compound with NO dependency on its
+  // members — Kahn then placed it at its document position, and ArchDetail's
+  // compounds sit at doc index 10-14 while every member sits at 269+ (Draft
+  // emits the wire first, the compound last, but the file order is sorted by
+  // name). inputVar() found nothing yet → `compound-missing-members` for all
+  // five compounds, for a pure ordering reason.
+  const linkLists = ['Shapes', 'Links'];
+  for (const p of linkLists) {
+    const el = obj.properties.get(p)?.children[0];
+    if (!el) continue;
+    for (const link of el.children) {
       const v = link.attributes['value'];
       if (v) out.push(v);
     }
@@ -224,8 +236,17 @@ export function generateModel(
       continue;
     }
 
-    if (obj.type === 'App::Origin' || obj.type === 'App::Plane' || obj.type === 'App::Line') {
-      results.push({ name, type: obj.type, calls: [], disposition: 'preserved-only', reason: 'datum' });
+    // Non-modeling objects are preserved-only and MUST be short-circuited
+    // BEFORE translation. GOTCHA (PadTest, 2026-09-21): this used to list only
+    // `App::Origin/Plane/Line`, so a Body's `PartDesign::Plane` went through
+    // the translator, matched the shape-asset rule (datum planes store a
+    // `Shape` .brp — the plane face) and was folded into the Body's chain:
+    // `cad.union(pad, datumPlane)`. That both corrupts the solid and fails at
+    // run time (`cad.load` requires a solid; a plane face has none). The
+    // predicate is shared with the C4 audit (`structural-types.ts`) so codegen
+    // and the disposition ledger can never disagree about what is non-modeling.
+    if (isNonModelingType(obj.type)) {
+      results.push({ name, type: obj.type, calls: [], disposition: 'preserved-only', reason: 'structural' });
       continue;
     }
 
