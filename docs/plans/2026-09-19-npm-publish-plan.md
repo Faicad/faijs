@@ -26,7 +26,10 @@
 |---|---|---|---|---|
 | 根门面（待 §9 决策，倾向废弃） | `@faicad/faijs` | 0.12.1 | **private: true** | **见 §9 D2**：建议 core 升格为 `@faicad/faijs`，本门面包删除 |
 | core（升格为公开引擎包，见 §9） | `@faicad/faijs` → `@faicad/faijs` | 0.13.0 | 否 | **发布**（拟改名为 `@faicad/faijs`，cad 内置） |
-| cq-compat | `@faicad/cq-compat` | 0.1.0 | 否 | **发布** |
+| cq-compat | `@faicad/cq-compat` | 0.13.2 | 否 | **发布**（兼容主体：workplane/2D 绘图/体素/特征/选择器/变换/齿轮内核） |
+| cq-compat-assembly（2026-09-22 拆包新增） | `@faicad/cq-compat-assembly` | 0.1.0 | 否 | **发布**（装配兼容层：buildAssembly/solve()/toCompound()/save()，封装 core 求解器） |
+| cq-compat-compare（2026-09-22 拆包新增） | `@faicad/cq-compat-compare` | 0.1.0 | 否 | **发布**（dev-only 几何等价性比较器；禁止进入任何包运行时依赖链） |
+| cq-compat-sketch（2026-09-22 拆包新增） | `@faicad/cq-compat-sketch` | 0.1.0 | 否 | **发布**（2D 约束草图域，当前骨架，按方案 Phase 2 填充） |
 | gear-lib-demo | `@faicad/gear-lib-demo` | 0.5.13 | 否 | **不发布**（拍板：属于 demo，C1 排除） |
 | mini_lathe | `@faicad/mini-lathe` | 0.1.0 | **private: true** | **移出 monorepo**（拍板：整包移植到 `D:/Faicad/cadquery-port/mini_lathe`，不再是 faijs 子包；其 npm 发布由 cadquery-port 项目自行决定） |
 | fai_cq_gears | `@faicad/fai-cq-gears` | 0.1.0 | 否 | **发布** |
@@ -36,7 +39,7 @@
 | tests | `@faicad/faijs-tests` | 0.5.9 | **private: true** | **不发布**（集成测试包） |
 | demo | `@faicad/faijs-demo` | — | **private: true** | **不发布**（C1 明确排除） |
 
-依赖拓扑（发布顺序必须满足，采 §9 D2-A 后简化为）：`faijs`（原 core，cad 内置）→ 库包（cq-compat / gear-lib-demo / fai_cq_gears / fai_cq_warehouse / sheetmetal / mini_lathe）。
+依赖拓扑（发布顺序必须满足，采 §9 D2-A 后简化为；2026-09-22 拆包后更新）：`faijs`（原 core，cad 内置）→ `cq-compat-compare`（仅 core）→ `cq-compat`（devDeps 依赖 compare）→ `cq-compat-assembly`（依赖 cq-compat）→ `cq-compat-sketch`（独立）→ 库包（fai_cq_gears / fai_cq_warehouse / sheetmetal；mini_lathe 已移出 monorepo）。gear-lib-demo 不发布。
 
 ---
 
