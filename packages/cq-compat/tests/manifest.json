@@ -1847,64 +1847,64 @@
     "blockedBy": null
   },
   "tests.test_shapes:::test_siblings__simple_box": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_shapes:::test_siblings",
-    "blockedBy": "siblings"
+    "blockedBy": null
   },
   "tests.test_shapes:::test_siblings__siblings_1": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_shapes:::test_siblings",
-    "blockedBy": "siblings"
+    "blockedBy": null
   },
   "tests.test_shapes:::test_siblings__siblings_12": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_shapes:::test_siblings",
-    "blockedBy": "siblings"
+    "blockedBy": null
   },
   "tests.test_shapes:::test_siblings__siblings_2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_shapes:::test_siblings",
-    "blockedBy": "siblings"
+    "blockedBy": null
   },
   "tests.test_shapes:::test_siblings__siblings_cmp_12": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_shapes:::test_siblings",
-    "blockedBy": "siblings"
+    "blockedBy": null
   },
   "tests.test_shapes:::test_siblings__siblings_cmp_2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_shapes:::test_siblings",
-    "blockedBy": "siblings"
+    "blockedBy": null
   },
   "tests.test_shapes:::test_siblings__siblings_cmp_edges_12": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_shapes:::test_siblings",
-    "blockedBy": "siblings"
+    "blockedBy": null
   },
   "tests.test_shapes:::test_siblings__stacked_box": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_shapes:::test_siblings",
-    "blockedBy": "siblings"
+    "blockedBy": null
   },
   "tests.test_shapes:::test_siblings__level_1": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_shapes:::test_siblings",
-    "blockedBy": "siblings"
+    "blockedBy": null
   },
   "tests.test_shapes:::test_siblings__level_2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_shapes:::test_siblings",
-    "blockedBy": "siblings"
+    "blockedBy": null
   },
   "tests.test_shapes:::test_siblings__level_3": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_shapes:::test_siblings",
-    "blockedBy": "siblings"
+    "blockedBy": null
   },
   "tests.test_shapes:::test_siblings__level_123": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_shapes:::test_siblings",
-    "blockedBy": "siblings"
+    "blockedBy": null
   },
   "tests.test_shapes:::test_set_ops__simple_box": {
     "status": "blocked",
@@ -2620,14 +2620,14 @@
     "blockedBy": "generated"
   },
   "tests.test_selectors::TestCQSelectors::testAll__c": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_selectors::TestCQSelectors::testAll",
-    "blockedBy": "stub:makeBox"
+    "blockedBy": null
   },
   "tests.test_selectors::TestCQSelectors::testAndSelector__c": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_selectors::TestCQSelectors::testAndSelector",
-    "blockedBy": "stub:makeBox"
+    "blockedBy": null
   },
   "tests.test_selectors::TestCQSelectors::testAreaNthSelector_NonplanarWire__wp": {
     "status": "ported",
@@ -2650,24 +2650,24 @@
     "blockedBy": "eachpoint"
   },
   "tests.test_selectors::TestCQSelectors::testBaseDirSelector__c": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_selectors::TestCQSelectors::testBaseDirSelector",
-    "blockedBy": "stub:makeBox"
+    "blockedBy": null
   },
   "tests.test_selectors::TestCQSelectors::testBaseDirSelector__c_curves": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_selectors::TestCQSelectors::testBaseDirSelector",
-    "blockedBy": "stub:makeBox"
+    "blockedBy": null
   },
   "tests.test_selectors::TestCQSelectors::testBaseDirSelector__comp": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_selectors::TestCQSelectors::testBaseDirSelector",
-    "blockedBy": "stub:makeBox"
+    "blockedBy": null
   },
   "tests.test_selectors::TestCQSelectors::testBox__c": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_selectors::TestCQSelectors::testBox",
-    "blockedBy": "stub:makeBox"
+    "blockedBy": null
   },
   "tests.test_selectors::TestCQSelectors::testCenterNthSelector__nothing": {
     "status": "skipped",
@@ -2676,44 +2676,44 @@
     "reason": "ref-no-step"
   },
   "tests.test_selectors::TestCQSelectors::testCenterNthSelector__c": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_selectors::TestCQSelectors::testCenterNthSelector",
-    "blockedBy": "stub:makeBox"
+    "blockedBy": null
   },
   "tests.test_selectors::TestCQSelectors::testCenterNthSelector__prism": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_selectors::TestCQSelectors::testCenterNthSelector",
-    "blockedBy": "stub:makeBox"
+    "blockedBy": null
   },
   "tests.test_selectors::TestCQSelectors::testCenterNthSelector__part": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_selectors::TestCQSelectors::testCenterNthSelector",
-    "blockedBy": "stub:makeBox"
+    "blockedBy": null
   },
   "tests.test_selectors::TestCQSelectors::testCenterNthSelector__box0": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_selectors::TestCQSelectors::testCenterNthSelector",
-    "blockedBy": "stub:makeBox"
+    "blockedBy": null
   },
   "tests.test_selectors::TestCQSelectors::testCenterNthSelector__box1": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_selectors::TestCQSelectors::testCenterNthSelector",
-    "blockedBy": "stub:makeBox"
+    "blockedBy": null
   },
   "tests.test_selectors::TestCQSelectors::testCenterNthSelector__box0_selected": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_selectors::TestCQSelectors::testCenterNthSelector",
-    "blockedBy": "stub:makeBox"
+    "blockedBy": null
   },
   "tests.test_selectors::TestCQSelectors::testCenterNthSelector__box1_selected": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_selectors::TestCQSelectors::testCenterNthSelector",
-    "blockedBy": "stub:makeBox"
+    "blockedBy": null
   },
   "tests.test_selectors::TestCQSelectors::testComplexStringSelector__c": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_selectors::TestCQSelectors::testComplexStringSelector",
-    "blockedBy": "stub:makeBox"
+    "blockedBy": null
   },
   "tests.test_selectors::TestCQSelectors::testEdgeTypesFilter__c": {
     "status": "blocked",
@@ -2722,29 +2722,29 @@
     "manual": true
   },
   "tests.test_selectors::TestCQSelectors::testFaceCount__c": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_selectors::TestCQSelectors::testFaceCount",
-    "blockedBy": "stub:makeBox"
+    "blockedBy": null
   },
   "tests.test_selectors::TestCQSelectors::testFaceDirFilter__c": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_selectors::TestCQSelectors::testFaceDirFilter",
-    "blockedBy": "stub:makeBox"
+    "blockedBy": null
   },
   "tests.test_selectors::TestCQSelectors::testFaceTypesFilter__c": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_selectors::TestCQSelectors::testFaceTypesFilter",
-    "blockedBy": "stub:makeBox"
+    "blockedBy": null
   },
   "tests.test_selectors::TestCQSelectors::testFirst__c": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_selectors::TestCQSelectors::testFirst",
-    "blockedBy": "stub:makeBox"
+    "blockedBy": null
   },
   "tests.test_selectors::TestCQSelectors::testInverseSelector__c": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_selectors::TestCQSelectors::testInverseSelector",
-    "blockedBy": "stub:makeBox"
+    "blockedBy": null
   },
   "tests.test_selectors::TestCQSelectors::testLengthNthSelector_UnsupportedShapes__w0": {
     "status": "ported",
@@ -2757,19 +2757,19 @@
     "blockedBy": null
   },
   "tests.test_selectors::TestCQSelectors::testMaxDistance__c": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_selectors::TestCQSelectors::testMaxDistance",
-    "blockedBy": "stub:makeBox"
+    "blockedBy": null
   },
   "tests.test_selectors::TestCQSelectors::testMinDistance__c": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_selectors::TestCQSelectors::testMinDistance",
-    "blockedBy": "stub:makeBox"
+    "blockedBy": null
   },
   "tests.test_selectors::TestCQSelectors::testNearestToPoint__c": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_selectors::TestCQSelectors::testNearestToPoint",
-    "blockedBy": "stub:makeBox"
+    "blockedBy": null
   },
   "tests.test_selectors::TestCQSelectors::testNearestToShape__b1": {
     "status": "blocked",
@@ -2802,19 +2802,19 @@
     "blockedBy": null
   },
   "tests.test_selectors::TestCQSelectors::testParallelEdgeFilter__c": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_selectors::TestCQSelectors::testParallelEdgeFilter",
-    "blockedBy": "stub:makeBox"
+    "blockedBy": null
   },
   "tests.test_selectors::TestCQSelectors::testPerpendicularDirFilter__c": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_selectors::TestCQSelectors::testPerpendicularDirFilter",
-    "blockedBy": "stub:makeBox"
+    "blockedBy": null
   },
   "tests.test_selectors::TestCQSelectors::testRadiusNthSelector__solid": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_selectors::TestCQSelectors::testRadiusNthSelector",
-    "blockedBy": "stub:makeBox"
+    "blockedBy": null
   },
   "tests.test_selectors::TestCQSelectors::testShape__w": {
     "status": "ported",
@@ -2837,24 +2837,24 @@
     "blockedBy": null
   },
   "tests.test_selectors::TestCQSelectors::testSolid__c": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_selectors::TestCQSelectors::testSolid",
-    "blockedBy": "stub:makeBox"
+    "blockedBy": null
   },
   "tests.test_selectors::TestCQSelectors::testSubtractSelector__c": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_selectors::TestCQSelectors::testSubtractSelector",
-    "blockedBy": "stub:makeBox"
+    "blockedBy": null
   },
   "tests.test_selectors::TestCQSelectors::testSumSelector__c": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_selectors::TestCQSelectors::testSumSelector",
-    "blockedBy": "stub:makeBox"
+    "blockedBy": null
   },
   "tests.test_selectors::TestCQSelectors::testVertexFilter__c": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_selectors::TestCQSelectors::testVertexFilter",
-    "blockedBy": "stub:makeBox"
+    "blockedBy": null
   },
   "tests.test_selectors::TestCQSelectors::testWorkplaneCenter__s": {
     "status": "skipped",

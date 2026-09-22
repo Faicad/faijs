@@ -131,38 +131,56 @@ export async function compareStepFiles(
   const bboxMatch = bboxDiff <= opts.linearTolerance
   details.push(`bbox diff: ${bboxDiff.toExponential(3)} mm (tol ${opts.linearTolerance})`)
 
-  // 2. Volume
-  const volA = kernel.getVolume(shapeA)
-  const volB = kernel.getVolume(shapeB)
-  const volDiff = Math.abs(volA - volB)
-  const volPct = volA > 0 ? (volDiff / volA) * 100 : 0
-  const volMatch = volPct <= opts.volumeRelativeTolerance * 100
-  details.push(`volume diff: ${volDiff.toExponential(3)} mm³ (${volPct.toFixed(4)}%, tol ${opts.volumeRelativeTolerance * 100}%)`)
-
-  // 3. Center of mass
-  const comA = kernel.getCenterOfMass(shapeA)
-  const comB = kernel.getCenterOfMass(shapeB)
-  const comDiff = comMaxDiff(comA, comB)
-  const comMatch = comDiff <= opts.linearTolerance
-  details.push(`center-of-mass diff: ${comDiff.toExponential(3)} mm (tol ${opts.linearTolerance})`)
-
-  // 4. Topology
+  // 2. Topology (needed to decide whether volume/COM/boolean are meaningful)
   const topoA = getTopologyStats(kernel, shapeA)
   const topoB = getTopologyStats(kernel, shapeB)
   const topoMatch = topologyMatch(topoA, topoB, opts.strictTopology)
   details.push(`topology: A(f=${topoA.faces},e=${topoA.edges},v=${topoA.vertices},s=${topoA.solids}) B(f=${topoB.faces},e=${topoB.edges},v=${topoB.vertices},s=${topoB.solids})`)
 
-  // 5. Boolean difference
-  const aMinusB = kernel.cut(shapeA, shapeB)
-  const bMinusA = kernel.cut(shapeB, shapeA)
-  const volAB = kernel.getVolume(aMinusB)
-  const volBA = kernel.getVolume(bMinusA)
-  const boolMatch = volAB <= opts.booleanVolumeTolerance && volBA <= opts.booleanVolumeTolerance
-  details.push(`boolean diff: A-B=${volAB.toExponential(3)} mm³, B-A=${volBA.toExponential(3)} mm³ (tol ${opts.booleanVolumeTolerance})`)
+  // 3. Volume / COM / boolean difference: only meaningful when BOTH shapes
+  // contain solids or faces (e.g. `siblings(..., "Vertex", ...)` yields a
+  // pure edges compound; BRepGProp volume / BRepAlgoAPI_Cut throw on those).
+  const hasMass =
+    (topoA.solids > 0 || topoA.faces > 0) && (topoB.solids > 0 || topoB.faces > 0)
+  let volA = 0
+  let volB = 0
+  let volDiff = 0
+  let volPct = 0
+  let volMatch = true
+  let comA: BrepVec3 = { x: 0, y: 0, z: 0 }
+  let comB: BrepVec3 = { x: 0, y: 0, z: 0 }
+  let comDiff = 0
+  let comMatch = true
+  let volAB = 0
+  let volBA = 0
+  let boolMatch = true
+  if (hasMass) {
+    volA = kernel.getVolume(shapeA)
+    volB = kernel.getVolume(shapeB)
+    volDiff = Math.abs(volA - volB)
+    volPct = volA > 0 ? (volDiff / volA) * 100 : 0
+    volMatch = volPct <= opts.volumeRelativeTolerance * 100
+    details.push(`volume diff: ${volDiff.toExponential(3)} mm³ (${volPct.toFixed(4)}%, tol ${opts.volumeRelativeTolerance * 100}%)`)
+
+    comA = kernel.getCenterOfMass(shapeA)
+    comB = kernel.getCenterOfMass(shapeB)
+    comDiff = comMaxDiff(comA, comB)
+    comMatch = comDiff <= opts.linearTolerance
+    details.push(`center-of-mass diff: ${comDiff.toExponential(3)} mm (tol ${opts.linearTolerance})`)
+
+    const aMinusB = kernel.cut(shapeA, shapeB)
+    const bMinusA = kernel.cut(shapeB, shapeA)
+    volAB = kernel.getVolume(aMinusB)
+    volBA = kernel.getVolume(bMinusA)
+    boolMatch = volAB <= opts.booleanVolumeTolerance && volBA <= opts.booleanVolumeTolerance
+    details.push(`boolean diff: A-B=${volAB.toExponential(3)} mm³, B-A=${volBA.toExponential(3)} mm³ (tol ${opts.booleanVolumeTolerance})`)
+    kernel.release(aMinusB)
+    kernel.release(bMinusA)
+  } else {
+    details.push('volume/COM/boolean: skipped (no solid or face topology in either shape)')
+  }
 
   // Cleanup
-  kernel.release(aMinusB)
-  kernel.release(bMinusA)
   kernel.release(shapeA)
   kernel.release(shapeB)
 

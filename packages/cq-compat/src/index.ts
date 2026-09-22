@@ -90,6 +90,7 @@ export {
   twistExtrude,
   solidFromFaces,
   planarCap,
+  siblings,
 } from './workplane'
 export type { Workplane as WorkplaneType, RGB, CqLocation } from './workplane'
 

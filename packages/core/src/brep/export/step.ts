@@ -91,9 +91,12 @@ export function exportStepFromSolids(
         subs = kernel.getSubShapes(solid, 'edge')
       }
       if (subs.length === 0) {
-        throw new Error(
-          '[exportStepFromSolids] shape contains no solid, shell, face or edge sub-shapes',
-        )
+        // wasm getSubShapes 不展开 compound 层（TopExp_Explorer 默认跳过），
+        // 纯面/壳/边 compound（如 Shape.siblings / faces('>Z') 结果）在这里
+        // 拿不到子形状。把 compound 整体作为单个 XCAF label 写入（STEP
+        // writer 支持 compound 形状，与 ref 侧 cadquery Shape.exportStep
+        // 对 faces/edges compound 的行为一致）。
+        subs = [solid]
       }
       for (let si = 0; si < subs.length; si++) {
         const sub = subs[si]

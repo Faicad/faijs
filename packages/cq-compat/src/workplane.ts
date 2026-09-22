@@ -2990,6 +2990,228 @@ export async function threadedHole(
  * @param sel - string
  * @returns Workplane
  */
+// ── Phase 3: siblings（CadQuery Shape.siblings 拓扑邻接语义）────────────
+//
+// 语义（对照 cadquery 2.8.0 occ_impl/shapes.py::siblings）：
+//   siblings(ctx, kind, level) = 从起点实体出发，沿「kind 子实体共享」的拓扑
+//   邻接走 level 步。每一步：当前集合的每个实体 → 其 kind 子实体 → 每个子实体
+//   的 ancestors（inverse 类型，TopExp.MapShapesAndAncestors）→ 去重。
+//   kind=Edge → Face 网络（face 的边 → 边所属的面）；kind=Vertex → Edge 网络。
+//   level 可为 int（单层）或 tuple（各层结果并集，每层独立 exclude）。
+// faijs lineage 是语句级构造历史，与 CQ 拓扑图不同——此处按拓扑邻接实现，
+// 不接 lineage（Phase 3 风险注记的既定决策）。
+
+/** CadQuery inverse_shape_LUT：kind 实体的「上级」类型（siblings 返回类型）。 */
+const SIBLING_INVERSE: Record<'Edge' | 'Vertex' | 'Face', 'face' | 'edge' | 'solid'> = {
+  Edge: 'face',
+  Vertex: 'edge',
+  Face: 'solid',
+}
+
+/** 实体 bbox 中心（方向/极值判定）。 */
+function handleCenter(kernel: OcctKernel, h: ShapeHandle): [number, number, number] {
+  const bb = kernel.getBoundingBox(h)
+  return [(bb.xmin + bb.xmax) / 2, (bb.ymin + bb.ymax) / 2, (bb.zmin + bb.zmax) / 2]
+}
+
+/** 实体 bbox 尺寸。 */
+function handleExtents(kernel: OcctKernel, h: ShapeHandle): [number, number, number] {
+  const bb = kernel.getBoundingBox(h)
+  return [bb.xmax - bb.xmin, bb.ymax - bb.ymin, bb.zmax - bb.zmin]
+}
+
+const SIBLING_AXIS: Record<string, { axis: 0 | 1 | 2; sign: 1 | -1 }> = {
+  '>Z': { axis: 2, sign: 1 }, '+Z': { axis: 2, sign: 1 },
+  '<Z': { axis: 2, sign: -1 }, '-Z': { axis: 2, sign: -1 },
+  '>X': { axis: 0, sign: 1 }, '+X': { axis: 0, sign: 1 },
+  '<X': { axis: 0, sign: -1 }, '-X': { axis: 0, sign: -1 },
+  '>Y': { axis: 1, sign: 1 }, '+Y': { axis: 1, sign: 1 },
+  '<Y': { axis: 1, sign: -1 }, '-Y': { axis: 1, sign: -1 },
+}
+
+/** 字符串选择器 → face handles（起点解析用；语义对齐 resolveFaceSelector）。 */
+function selectFaceHandles(kernel: OcctKernel, shapeH: ShapeHandle, sel: string): ShapeHandle[] {
+  const s = NAMED_VIEW_TO_AXIS[sel.trim().toLowerCase()] ?? sel
+  const baseSel = s.replace(/\[-?\d+\]$/, '')
+  const dir = SIBLING_AXIS[baseSel]
+  if (!dir) throw new Error(`[cq-compat] siblings: unsupported face selector "${sel}"`)
+  const faces = kernel.getSubShapes(shapeH, 'face') as unknown as ShapeHandle[]
+  const cands = faces.map((h) => ({ h, c: handleCenter(kernel, h), ext: handleExtents(kernel, h) }))
+  // 仅垂直于方向的面参与（bbox 沿该轴薄）
+  const perp = cands.filter((cd) => cd.ext[dir.axis] <= 0.1)
+  if (perp.length === 0) throw new Error(`[cq-compat] siblings: no face perpendicular to "${sel}"`)
+  const idxMatch = /\[(-?\d+)\]$/.exec(s.trim())
+  if (idxMatch) {
+    const asc = baseSel[0] === '>' || baseSel[0] === '-'
+    const sorted = perp
+      .slice()
+      .sort((a, b) => (asc ? a.c[dir.axis] - b.c[dir.axis] : b.c[dir.axis] - a.c[dir.axis]))
+    let k = parseInt(idxMatch[1], 10)
+    k = k < 0 ? sorted.length + k : k
+    if (k < 0 || k >= sorted.length) {
+      throw new Error(`[cq-compat] siblings: face index ${k} out of range (${sorted.length})`)
+    }
+    return [sorted[k]!.h]
+  }
+  // DirectionMinMax：极值单面（并列取面积大者，与 resolveFaceSelector 同规则）
+  let best = perp[0]!
+  for (const cd of perp) {
+    const val = cd.c[dir.axis]
+    const bv = best.c[dir.axis]
+    if (dir.sign === 1 ? val > bv + 1e-6 : val < bv - 1e-6) best = cd
+    else if (Math.abs(val - bv) <= 1e-6 && kernel.getSurfaceArea(cd.h) > kernel.getSurfaceArea(best.h)) best = cd
+  }
+  return [best.h]
+}
+
+/** 字符串选择器 → edge handles。'>A'/'<A'：方向极值（该方向所有极值边）；
+ *  '|A'：与轴平行的边（bbox 主导维度为 A）。'[k]' 索引支持。 */
+function selectEdgeHandles(kernel: OcctKernel, shapeH: ShapeHandle, sel: string): ShapeHandle[] {
+  const s = NAMED_VIEW_TO_AXIS[sel.trim().toLowerCase()] ?? sel
+  const baseSel = s.replace(/\[-?\d+\]$/, '')
+  const edges = kernel.getSubShapes(shapeH, 'edge') as unknown as ShapeHandle[]
+  const idxMatch = /\[(-?\d+)\]$/.exec(s.trim())
+  const pickIdx = (list: ShapeHandle[]): ShapeHandle[] => {
+    if (!idxMatch) return list
+    let k = parseInt(idxMatch[1], 10)
+    k = k < 0 ? list.length + k : k
+    if (k < 0 || k >= list.length) {
+      throw new Error(`[cq-compat] siblings: edge index ${k} out of range (${list.length})`)
+    }
+    return [list[k]!]
+  }
+  if (baseSel[0] === '|') {
+    const axis = baseSel[1]
+    const ai = axis === 'X' ? 0 : axis === 'Y' ? 1 : 2
+    const par = edges.filter((h) => {
+      const ext = handleExtents(kernel, h)
+      return ext[ai] > 1e-6 && ext[(ai + 1) % 3] < 1e-6 && ext[(ai + 2) % 3] < 1e-6
+    })
+    return pickIdx(par)
+  }
+  const dir = SIBLING_AXIS[baseSel]
+  if (!dir) throw new Error(`[cq-compat] siblings: unsupported edge selector "${sel}"`)
+  const pts = edges.map((h) => ({ h, c: handleCenter(kernel, h) }))
+  const best = dir.sign === 1
+    ? Math.max(...pts.map((p) => p.c[dir.axis]))
+    : Math.min(...pts.map((p) => p.c[dir.axis]))
+  const extreme = pts.filter((p) => Math.abs(p.c[dir.axis] - best) < 1e-6).map((p) => p.h)
+  return pickIdx(extreme)
+}
+
+/** 一步拓扑邻接：h 的 kind 子实体 → 每个子实体的 ancestors（inverse 类型）。
+ *  O(n×m)：ctx 实体数量级小（box 6 面 12 边 8 顶点），不做索引缓存。 */
+function siblingStep(
+  kernel: OcctKernel,
+  ctxH: ShapeHandle,
+  h: number,
+  kindLower: 'edge' | 'vertex' | 'face',
+  invLower: 'face' | 'edge' | 'solid',
+): number[] {
+  const children = kernel.getSubShapes(h as unknown as ShapeHandle, kindLower) as unknown as number[]
+  const invs = kernel.getSubShapes(ctxH, invLower) as unknown as number[]
+  const out = new Set<number>()
+  for (const child of children) {
+    for (const inv of invs) {
+      const invChildren = kernel.getSubShapes(inv as unknown as ShapeHandle, kindLower) as unknown as number[]
+      // GOTCHA（Phase 3 实测，cadquery 2.8.0 拓扑语义）：OCCT 中共享边/顶点
+      // 是「同一 TShape 不同 TopoDS 句柄」——两个 face 各自枚举出的共享边
+      // handle id 不同（location/表层封装差异），=== 匹配恒 false。CQ 的
+      // MapShapesAndAncestors 用 IsSame 判拓扑相等，此处必须用 kernel.isSame。
+      for (const ic of invChildren) {
+        if (kernel.isSame(ic as never, child as never)) {
+          out.add(inv)
+          break
+        }
+      }
+    }
+  }
+  return [...out]
+}
+
+/** 解析 siblings 起点实体：Workplane 的 faceSel/edgeSel 优先，否则 shape 本身。 */
+function resolveSiblingStarts(
+  kernel: OcctKernel,
+  ctxH: ShapeHandle,
+  start: Shape | Workplane,
+): number[] {
+  const wp = start as Workplane
+  if (wp && (wp as { __cq?: boolean }).__cq === true) {
+    if (wp.faceSel) return selectFaceHandles(kernel, ctxH, wp.faceSel).map((h) => h as number)
+    if (wp.edgeSel) return selectEdgeHandles(kernel, ctxH, wp.edgeSel).map((h) => h as number)
+    const sh = wp.shape ? (brepOf(asBrepShape(wp.shape)) as ShapeHandle | undefined) : undefined
+    return sh ? [sh as number] : []
+  }
+  const sh = brepOf(asBrepShape(start as Shape)) as ShapeHandle | undefined
+  return sh ? [sh as number] : []
+}
+
+/**
+ * siblings — CadQuery Shape.siblings：拓扑邻接选择（Phase 3）。
+ * @param start - 起点（Workplane 带 faceSel/edgeSel，或 Shape）。
+ * @param ctxShape - 邻接搜索的容器 shape（CadQuery 的 ctx）。
+ * @param kind - 链接实体类型：'Edge'（返回面网络）| 'Vertex'（返回边网络）| 'Face'。
+ * @param level - 拓扑距离：int 或 int 数组（各层并集，每层独立排除）。
+ * @returns Promise<Workplane> 选中的实体集合（shape = 实体 compound；空集返回空 compound）。
+ */
+export async function siblings(
+  start: Shape | Workplane,
+  ctxShape: Shape | Workplane,
+  kind: 'Edge' | 'Vertex' | 'Face',
+  level: number | number[],
+): Promise<Workplane> {
+  const kernel = getKernel() as unknown as OcctKernel
+  const ctx = asBrepShape(resolveInputShape(ctxShape))
+  const ctxH = brepOf(ctx) as ShapeHandle | undefined
+  if (!ctxH) throw new Error('[cq-compat] siblings: ctx shape has no BREP handle')
+  const kindLower = kind.toLowerCase() as 'edge' | 'vertex' | 'face'
+  const invLower = SIBLING_INVERSE[kind]
+  const startEnts = resolveSiblingStarts(kernel, ctxH, start)
+  if (startEnts.length === 0) {
+    throw new Error('[cq-compat] siblings: no starting entity resolvable')
+  }
+  const levels = (Array.isArray(level) ? level : [level])
+    .map(Number)
+    .filter((l) => Number.isFinite(l) && l >= 1)
+  // GOTCHA（Phase 3 实测）：occt-wasm 的 getSubShapes 每次调用为同一拓扑
+  // 实体分配新的 handle id（f1=[2..7], f2=[8..13]），id 相等性不能表达
+  // 拓扑相等。所有去重/排除判断一律用 kernel.isSame（同 CQ 的
+  // MapShapesAndAncestors IsSame 语义）。
+  const isSameHandle = (a: number, b: number): boolean => kernel.isSame(a as never, b as never)
+  const inList = (list: number[], h: number): boolean => list.some((x) => isSameHandle(x, h))
+  const out: number[] = []
+  for (const lvl of levels) {
+    // CQ 的 exclude 语义（occ_impl/shapes.py::siblings）：闭包累积，每层递归
+    // 开始时把「上一层结果」整体加入 exclude；层内所有实体共享同一 exclude，
+    // 不会因遍历顺序提前放行同层邻居（否则 4 侧面环会把 A2/A3 漏进 level 2）。
+    const visited: number[] = [...startEnts]
+    let frontier = startEnts
+    for (let i = 0; i < lvl; i++) {
+      const next: number[] = []
+      for (const h of frontier) {
+        for (const n of siblingStep(kernel, ctxH, h, kindLower, invLower)) {
+          if (!inList(visited, n)) next.push(n)
+        }
+      }
+      for (const n of next) if (!inList(visited, n)) visited.push(n)
+      if (next.length === 0) break
+      frontier = next
+    }
+    for (const h of frontier) if (!inList(startEnts, h)) out.push(h)
+  }
+  const uniq: number[] = []
+  for (const h of out) if (!uniq.some((x) => isSameHandle(x, h))) uniq.push(h)
+  const compound =
+    uniq.length === 0 ? await cad.compound({ members: [] }) : await cad.compound({ members: uniq.map((h) => fromHandle(h as unknown as ShapeHandle)) })
+  return clone(makeWorkplane('XY'), { shape: compound })
+}
+
+/**
+ * faces
+ * @param wp - Workplane
+ * @param sel - string
+ * @returns Workplane
+ */
 export function faces(wp: Workplane, sel: string): Workplane {
   return clone(wp, { faceSel: sel, edgeSel: null, vertexSel: null })
 }
