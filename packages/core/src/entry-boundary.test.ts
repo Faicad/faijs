@@ -28,6 +28,7 @@ describe('weapp entry export surface (whitelist)', async () => {
     'ensureBrepkitDefaultEngine',
     'registerBrepEngine',
     'hasBrepEngine',
+    'getBrepEngine',
     'getActiveBrepEngineId',
     'freezeEngineRegistries',
     'createRuntime',

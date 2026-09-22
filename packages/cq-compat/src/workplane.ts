@@ -14,6 +14,7 @@ import { brepjsCompat } from '@faicad/faijs/api'
 import { borrowBrepjsShape, adoptBrepjsProduct } from '@faicad/faijs/api/internal/l3-bridge'
 import { fromHandle } from '@faicad/faijs/sdk'
 import { brepOf, isShape } from '@faicad/faijs/shape'
+import { setName, nameOf } from '@faicad/faijs'
 import { getKernel } from '@faicad/faijs/occt-kernel/occtKernel'
 import type { OcctKernel, ShapeHandle } from 'occt-wasm'
 import type { Shape } from '@faicad/faijs/mesh/types'
@@ -63,6 +64,25 @@ export function asBrepShape(v: unknown): Shape {
     return s
   }
   return v as Shape
+}
+
+/**
+ * 解包 Workplane/裸 Shape 几何输入，并把载体对象（Workplane）已登记的语句名
+ * 透传给内部 shape（§1.4 lineage N1：输入 Shape 必须有 PartName 才允许成为
+ * 链上节点）。语句名由引擎在语句结束时登记在载体对象（afterStatement
+ * setName），此处同步到 shape 维——否则 cq.translate / rotate / mirror 这类
+ * 「以 Workplane 为输入的独立语句」会把链上产物误判为库内临时件而抛
+ * E_TOPO_UNTRACKED_INPUT。
+ * @param v - Workplane（{ shape }）或裸 Shape。
+ * @returns 内部 faijs `Shape`（名字已透传）。
+ */
+function resolveInputShape(v: unknown): Shape {
+  const s = (isShape(v) ? v : (v as { shape?: unknown } | null)?.shape) as Shape
+  if (s && !isShape(v) && nameOf(s) === undefined) {
+    const n = v !== null && typeof v === 'object' ? nameOf(v as object) : undefined
+    if (n !== undefined) setName(s, n)
+  }
+  return s
 }
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -3161,7 +3181,7 @@ export async function translate(
   v: [number, number, number],
 ): Promise<Workplane> {
   if (!wp.shape) return clone(wp, { origin: vadd(wp.origin, v) })
-  const shape = await cad.translate(wp.shape, { offset: v })
+  const shape = await cad.translate(resolveInputShape(wp), { offset: v })
   return clone(wp, { shape, origin: vadd(wp.origin, v) })
 }
 
@@ -3183,7 +3203,7 @@ export async function rotate(
     axis[1] * angle,
     axis[2] * angle,
   ]
-  const shape = await cad.rotate_euler(wp.shape, { anglesDeg })
+  const shape = await cad.rotate_euler(resolveInputShape(wp), { anglesDeg })
   return clone(wp, { shape })
 }
 
@@ -3245,7 +3265,7 @@ export async function mirror(
     normal = MIRROR_PLANE_NORMALS[key] ?? [0, 0, 1]
     at = basePointVector ?? [0, 0, 0]
   }
-  const mirrored = await cad.mirror(wp.shape, { normal, at })
+  const mirrored = await cad.mirror(resolveInputShape(wp), { normal, at })
   const shape = union ? await fuseShapes(wp.shape, mirrored) : mirrored
   // Upstream returns a newObject stack holding only the mirrored/unioned
   // objects — pending selectors do not survive a mirror.
@@ -3614,7 +3634,7 @@ export async function moved(wp: Workplane, ...locs: unknown[]): Promise<Workplan
   if (!wp.shape) return wp
   const resolved = toLocations(locs)
   const copies: Shape[] = []
-  for (const l of resolved) copies.push(await applyLocation(wp.shape, l))
+  for (const l of resolved) copies.push(await applyLocation(resolveInputShape(wp), l))
   let shape: Shape
   if (copies.length === 0) {
     shape = wp.shape
@@ -3697,7 +3717,7 @@ export async function cut(
   if (!wp.shape) return wp
   const otherShape = 'shape' in other ? (other as Workplane).shape : (other as Shape)
   if (!otherShape) return wp
-  const shape = await cad.subtract(wp.shape, otherShape)
+  const shape = await cad.subtract(resolveInputShape(wp), resolveInputShape(other))
   return clone(wp, { shape })
 }
 

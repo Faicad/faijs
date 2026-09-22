@@ -14,7 +14,7 @@
  * ⚠️ 依赖方向红线：本文件不得 import 任何 src/ 下的模块（只可 import type）。
  */
 
-import type { PartName } from './identity'
+import type { PartName, StmtId } from './identity'
 
 /**
  * Lightweight execution anchor — carries only the fields consumed by
@@ -172,6 +172,8 @@ export interface FaijsRuntimeState {
   readonly slots: WeakMap<object, ShapeSlot>
   /** Shape → PartName 反查（keep 与 dependentsOf 用） */
   readonly shapeToName: WeakMap<object, PartName>
+  /** 同语句 lineage 去重标记（define-op 写入；语句边界 setCurrentStmt 重置）。 */
+  registeredStmtId: StmtId | undefined
 }
 
 // ── 函数 BREP 域（控制流放松方案 §5.6 / D13） ──
@@ -351,6 +353,7 @@ export function getRuntimeState(): FaijsRuntimeState {
     created: new WeakSet<object>(),
     slots: new WeakMap<object, ShapeSlot>(),
     shapeToName: new WeakMap<object, PartName>(),
+    registeredStmtId: undefined,
   }
   g[KEY] = created
   return created
@@ -390,7 +393,13 @@ export function getBackends(): Backends {
  * @param stmt - the statement currently being executed.
  */
 export function setCurrentStmt(stmt: ExecutionAnchor | undefined): void {
-  getRuntimeState().currentStmt = stmt
+  const s = getRuntimeState()
+  // 语句边界：锚点变化（含语句结束置 undefined）时解除同语句 lineage 去重标记，
+  // 使下一条语句（或同 id 复跑）重新获得注册资格；同一条语句内 TS 库函数
+  // （如 cq-compat Workplane op）连续调用多个 defineOp 时共享锚点，标记保持
+  // 生效，嵌套调用正确跳过注册（见 define-op 的 isOuter 判定）。
+  if (s.currentStmt?.id !== stmt?.id) s.registeredStmtId = undefined
+  s.currentStmt = stmt
 }
 
 /**

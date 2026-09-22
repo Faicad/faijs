@@ -32,6 +32,7 @@ import {
   BrepUnsupportedError,
   MeshUnsupportedError,
   getCurrentStmt,
+  getRuntimeState,
   nameOf,
 } from './runtime-state'
 import { asStmtId, type PartName } from './identity'
@@ -66,13 +67,17 @@ export function isGeometryInput(v: unknown): v is Shape {
 }
 
 /**
- * §1.4 registration guard: the set of StmtIds whose top-level `wrapped` is
- * currently registering a lineage node. Nested op calls (an impl invoking
- * another op / itself) share the same `getCurrentStmt()` anchor and are skipped
- * so they don't trip N3 (E_TOPO_DUPLICATE_STMT) with identical content. C1
- * (single live runtime) means at most one statement registers at a time.
+ * §1.4 registration guard: the StmtId whose top-level `wrapped` is currently
+ * registering a lineage node. Nested op calls (an impl invoking another op /
+ * itself) share the same `getCurrentStmt()` anchor and are skipped so they
+ * don't trip N3 (E_TOPO_DUPLICATE_STMT) with identical content. C1 (single
+ * live runtime) means at most one statement registers at a time.
+ *
+ * The marker lives on the runtime state and is reset at statement boundaries
+ * (runtime-state.setCurrentStmt: anchor change / end-of-statement), NOT at op
+ * granularity — a TS library function (cq-compat Workplane op, etc.) may call
+ * several defineOps within one statement, and only the first one must register.
  */
-const registeringStmts = new Set<string>()
 
 /** Product of a mesh implementation: raw mesh data, a wrapped Shape, or (with `outputs`) a record of named products. */
 export type MeshProduct = MeshData | Shape | Record<string, MeshData | Shape>
@@ -313,8 +318,9 @@ export function defineOp<A extends unknown[]>(
     // statement registers; the flag below stays set for the *entire* statement
     // execution (including the awaited impl), so nested calls see it and skip.
     const anchor = getCurrentStmt()
-    const isOuter = anchor != null && !registeringStmts.has(anchor.id)
-    if (isOuter) registeringStmts.add(anchor.id)
+    const st = getRuntimeState()
+    const isOuter = anchor != null && st.registeredStmtId !== anchor.id
+    if (isOuter) st.registeredStmtId = asStmtId(anchor.id)
     try {
       if (isOuter && anchor) {
         runtimeLineage.register(
@@ -367,7 +373,8 @@ export function defineOp<A extends unknown[]>(
     const m = await runImpl(meta, decl.mesh as unknown as ((...a: unknown[]) => unknown) | undefined, callArgs)
     return meta.outputs ? wrapByKeys(m, meta.outputs, wrapMeshOne) : wrapMeshOne(m)
     } finally {
-      if (isOuter) registeringStmts.delete(anchor.id)
+      // 同语句去重标记不在 op 粒度清理——语句边界由 runtime-state.setCurrentStmt
+      // 在锚点变化时重置；TS 库函数体内连续 op 调用共享锚点，嵌套调用正确跳过。
     }
   }
 

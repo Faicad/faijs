@@ -41,6 +41,20 @@ import type { AssemblyTransform } from '@faicad/faijs/runtime-state'
 import type { RGB } from '@faicad/cq-compat'
 import { resolveFaceSelector, asBrepShape } from '@faicad/cq-compat'
 
+/**
+ * 装配输入归一：Workplane 载体（{ shape }，cq.box 等产物）→ 内部 Shape，
+ * 再经 asBrepShape 处理借用视图。CadQuery 上游装配 API 接受 Workplane 或 Shape
+ * 两种形态（「.face(选择器)」模式），此处对齐——否则传 Workplane 时
+ * asBrepShape 原样透传，faceRef 内 brepOf(shape) 为 undefined 崩溃。
+ */
+function resolveAssemblyShape(v: unknown): Shape {
+  const s =
+    v !== null && typeof v === 'object' && 'shape' in v
+      ? (v as { shape?: unknown }).shape
+      : v
+  return asBrepShape(s) as Shape
+}
+
 const cad = createApiNamespace() as Record<string, (...args: unknown[]) => Promise<unknown>>
 
 /**
@@ -296,14 +310,14 @@ export async function constraintEx(
       if (!aShape || !bShape) throw new Error(`constraintEx Plane: shapes required`)
       // 提升边界归一：实参可能是借用视图（见 asBrepShape 注释）。faceRef 内部
       // 亦归一，入口再归一保证直接调用路径（不经 compatOp 提升）行为一致。
-      const a = await faceRef(aPart, aSelector, asBrepShape(aShape))
-      const b = await faceRef(bPart, bSelector, asBrepShape(bShape))
+      const a = await faceRef(aPart, aSelector, resolveAssemblyShape(aShape))
+      const b = await faceRef(bPart, bSelector, resolveAssemblyShape(bShape))
       return [{ type: 'mate', a, b } as AssemblyConstraint]
     }
     case 'Axis': {
       if (!aShape || !bShape) throw new Error(`constraintEx Axis: shapes required`)
-      const a = await faceRef(aPart, aSelector, asBrepShape(aShape))
-      const b = await faceRef(bPart, bSelector, asBrepShape(bShape))
+      const a = await faceRef(aPart, aSelector, resolveAssemblyShape(aShape))
+      const b = await faceRef(bPart, bSelector, resolveAssemblyShape(bShape))
       // GOTCHA (2026-09-17，对照 CQ 2.8.0 `occ_impl/solver.py` 标定)：CQ 独立 Axis 约束是
       // **纯方向约束**——`ConstraintInvariants["Axis"]` 只收两个 gp_Dir（无点项），
       // `axis_cost` 缺省 `val = pi`（反平行）。此前误映射为 'align'（同向 val=0 + 面心
@@ -420,7 +434,7 @@ export function buildAssembly(
   // （borrowDeep 产物），不是 faijs Shape。compound 的 children 必须持有 mesh
   // （引擎 applyTransform 做顶点烘焙）+ BREP 身份槽（STEP 导出/刚体变换读
   // slot.solid），借用视图两者皆无 → 必须还原为真实 Shape 再进 assembly。
-  const shapes = members.map((m) => asBrepShape(m.shape))
+  const shapes = members.map((m) => resolveAssemblyShape(m.shape))
   const memberNames = members.map((m) => m.name)
   const memberColors: Record<string, [number, number, number]> = {}
   for (const m of members) {
