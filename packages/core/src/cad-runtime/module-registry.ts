@@ -24,6 +24,7 @@
 import { extractMetadata } from '../lang/metadata-extractor'
 import type { UiMetadata } from '../lang/metadata-extractor'
 import { assertSecure, type SecurityPolicy, S6_MAX_DEPTH, S6_MAX_MODULES } from '../lang/security-scanner'
+import { scanDeterminism, type DeterminismPolicy } from '../lang/determinism-scanner'
 import { computeLiveShapes, type KeepRegistration } from './live-shapes'
 import type { ExecKeepRecord } from './direct-executor'
 import type { ProjectLoader } from './ports'
@@ -137,6 +138,7 @@ export class ModuleRegistry {
     private readonly loader: ProjectLoader,
     private readonly run: ModuleRunner,
     private readonly securityPolicy: SecurityPolicy = 'strict',
+    private readonly determinismPolicy: DeterminismPolicy = 'off',
   ) {}
 
   /**
@@ -228,6 +230,19 @@ export class ModuleRegistry {
     }
     this.loadCount++
     const meta = extractMetadata(source, { security: 'strict' })
+    // 确定性扫描（B 档 taint）：违规 → MODULE_SECURITY（error 档）；warn 档静默放行
+    if (this.determinismPolicy !== 'off') {
+      const ns = (meta.imports ?? []).filter((i) => i.kind === 'namespace' && i.localName).map((i) => i.localName!)
+      const cals = (meta.imports ?? []).filter((i) => i.kind === 'named').flatMap((i) => i.bindings)
+      const det = scanDeterminism(source, { defaultNs: 'cad', extraNamespaces: ns, extraCallees: cals })
+      if (det.violations.length > 0 && this.determinismPolicy === 'error') {
+        throw new ModuleRegistryError(
+          'MODULE_SECURITY',
+          `module "${key}" failed determinism check: ${det.violations[0]!.message}`,
+          { lineNo: det.violations[0]!.lineNo, callee: 'determinism' },
+        )
+      }
+    }
     const seed = await this.resolveImports(meta.imports ?? [], key, [...stack, key])
     const result = await this.run(source, seed) // 执行失败 → runner 抛 ModuleRegistryError
     const module = { key, exports: this.buildExports(meta, result) }

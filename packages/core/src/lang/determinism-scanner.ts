@@ -23,6 +23,9 @@ import { parse as acornParse } from 'acorn'
 
 // ── types ──
 
+/** Determinism gate policy for execution-time scanning. */
+export type DeterminismPolicy = 'off' | 'warn' | 'error'
+
 /** Why a value is non-deterministic (a source). */
 export type DeterminismSource =
   | 'Math.random'
@@ -241,7 +244,7 @@ export function scanDeterminism(code: string, opts: DeterminismScanOptions = {})
         // Geometry op: any tainted argument violates.
         const taintedArg = argTaints.findIndex((t) => t)
         if (taintedArg >= 0) {
-          report(callee, inferSourceForArgs(argTaints, taintedArg), `${objName}.${prop ?? '(computed)'} receives a non-deterministic argument`)
+          report(callee, inferSourceForArgs(), `${objName}.${prop ?? '(computed)'} receives a non-deterministic argument`)
         }
         return resultTainted
       }
@@ -250,13 +253,17 @@ export function scanDeterminism(code: string, opts: DeterminismScanOptions = {})
         // Safe container (console/math/json/...): propagate only.
         return resultTainted
       }
+
+      // Object itself tainted (e.g. `d.getSeconds()` where `d = new Date()`)
+      // → result conservatively tainted (method may return a dependent value).
+      if (objName !== null && evalTaint(obj, scope)) resultTainted = true
     }
 
     // 2) Direct named geometry callee: `gear(...)` from `import { gear }`.
     if (callee?.type === 'Identifier' && geometryCallees.has(callee.name)) {
       const taintedArg = argTaints.findIndex((t) => t)
       if (taintedArg >= 0) {
-        report(callee, inferSourceForArgs(argTaints, taintedArg), `${callee.name}(...) receives a non-deterministic argument`)
+        report(callee, inferSourceForArgs(), `${callee.name}(...) receives a non-deterministic argument`)
       }
       return resultTainted
     }

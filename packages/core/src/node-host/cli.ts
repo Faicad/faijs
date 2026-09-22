@@ -18,9 +18,9 @@
  *   --sheet <front,top,right,iso>       — (view) 多视图图纸（projectSheet；与 --view 互斥）
  */
 
-import { readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { resolve, extname } from 'node:path'
+import { resolve, extname, dirname, join } from 'node:path'
 import { createRuntime } from '../cad-runtime/runtime'
 import type { CadRuntime } from '../cad-runtime/runtime'
 import type { StdlibNamespace } from '../runtime-state'
@@ -90,6 +90,21 @@ const cliPortsLibLoader: LibLoader = {
     return (await import(pkg)) as StdlibNamespace
   },
   listLibs: () => [...Object.keys(CLI_SHORT_NAMES), '@faicad/'],
+  loadSource: async (name) => {
+    const pkg = normalizeCliSpecifier(name)
+    if (!pkg.startsWith(CLI_SCOPED_PREFIX)) return undefined
+    try {
+      const req = createRequire(import.meta.url)
+      const pkgJsonPath = req.resolve(`${pkg}/package.json`)
+      const pkgDir = dirname(pkgJsonPath)
+      for (const p of [join(pkgDir, 'src', 'index.ts'), join(pkgDir, 'dist', 'index.js'), join(pkgDir, 'src', 'index.js')]) {
+        if (existsSync(p)) return readFileSync(p, 'utf-8')
+      }
+      return undefined
+    } catch {
+      return undefined
+    }
+  },
   // 默认不提升（与历史 CLI 行为一致）；各库用 package.json "faijs.autoLift" 逐库覆盖。
   options: {
     autoLift: false,

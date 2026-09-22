@@ -56,6 +56,8 @@ import type { PartNaming } from '../topology/naming/types'
 import { buildPartNaming, type PartNamingInput } from '../topology/naming/build-naming'
 import { faceRowToHint } from '../topology/naming/geom-hint'
 import { HASH_UPPER_BOUND } from '../brep/face-evolution'
+import { scanDeterminism, type DeterminismViolation, type DeterminismPolicy } from '../lang/determinism-scanner'
+import { transform as sucraseTransform } from 'sucrase'
 
 
 // ── 装配变换死代码已删除 ──
@@ -277,11 +279,14 @@ function runtimeToData(rt: SelectorRuntime): SelectorRuntimeData {
   return data as SelectorRuntimeData
 }
 
+export type { DeterminismPolicy }
+
 /**
  * CadRuntime 构造选项（第 4 参；缺省全部可选）。
  *
  * direct 是唯一执行路径。security 透传给 DirectExecutor 与 extractMetadata
- * （A1/A2/A3 缺省 'strict'）。
+ * （A1/A2/A3 缺省 'strict'）。determinism 在 execute/append 前 对源码做 B 档
+ * taint 扫描（缺省 'error'，见 docs/reproducibility-contract.md §3）。
  */
 export interface CadRuntimeOptions {
   /** 安全策略档位（缺省 'strict'；透传给 DirectExecutor 与 extractMetadata） */
@@ -292,6 +297,12 @@ export interface CadRuntimeOptions {
    * 使用——见 docs/plans/2026-09-14-no-eval-interpreter-backend-design.md。
    */
   execBackend?: ExecBackendChoice
+  /**
+   * 确定性扫描档位（缺省 'error'）。执行前对 .fai.js 源码及其 import 的项目模块
+   * / @faicad/* 库源码做 B 档 taint 扫描，违规按档位处理。库源码经
+   * `ports.libLoader.loadSource` 获取（宿主未提供则跳过库扫描）。
+   */
+  determinism?: DeterminismPolicy
 }
 
 /**
@@ -366,6 +377,10 @@ export class CadRuntime {
 
   /** 安全策略档位（透传给 extractMetadata 与 DirectExecutor；缺省 'strict'） */
   private readonly securityPolicy: SecurityPolicy
+  /** 确定性扫描档位（缺省 'error'；execute/append 前对源码做 B 档 taint 扫描）。 */
+  private readonly determinismPolicy: DeterminismPolicy
+  /** warn 档位下收集的确定性警告，合并进最终 ExecutionResult.infos。 */
+  private determinismWarnings: string[] = []
 
   /** 宿主注册库（含 cad：由根门面 createRuntime 包装注入；注入编译产物 fn 的第二参 ns） */
   private readonly libs: Record<string, StdlibNamespace>
@@ -449,6 +464,7 @@ export class CadRuntime {
     this.libs = libs
     this.namespaces = { ...libs } as Namespaces
     this.securityPolicy = options.security ?? 'strict'
+    this.determinismPolicy = options.determinism ?? 'error'
     this.directExecutor = new DirectExecutor({
       namespaces: this.namespaces,
       setSolid: (partName, solid) => { this.solidCache.set(partName, solid) },
@@ -599,6 +615,92 @@ export class CadRuntime {
   }
 
   /**
+   * 确定性扫描门（B 档 taint）：执行前对源码做静态扫描，违规按 determinismPolicy 处理。
+   *
+   * 扫描范围：主文件 + @faicad/* 库源码（经 libLoader.loadSource，若宿主提供）。
+   * 项目内相对 import 模块的扫描由 ModuleRegistry.load 内部完成（构造时传入 policy）。
+   *
+   * @returns ExecutionResult（违规 + policy='error' 时），null（通过或 warn/off）。
+   *          warn 档位下警告收集到 this.determinismWarnings，由调用方合并进 infos。
+   */
+  private async runDeterminismGate(code: string, meta: UiMetadata): Promise<ExecutionResult | null> {
+    if (this.determinismPolicy === 'off') return null
+    this.determinismWarnings = []
+    const hints = this.extractDeterminismHints(meta)
+    const violations: DeterminismViolation[] = scanDeterminism(code, {
+      defaultNs: this.defaultNsName,
+      extraNamespaces: hints.namespaces,
+      extraCallees: hints.callees,
+    }).violations
+    // 库源码扫描（@faicad/* 非引擎；经 libLoader.loadSource，宿主未提供则跳过）
+    const loadSource = this.ports.libLoader?.loadSource
+    if (loadSource) {
+      for (const imp of meta.imports ?? []) {
+        const spec = imp.packageName ?? imp.specifier ?? ''
+        if (!spec.startsWith('@faicad/')) continue
+        if (spec === '@faicad/faijs' || spec.startsWith('@faicad/faijs/')) continue
+        try {
+          const src = await loadSource(spec)
+          if (src) {
+            violations.push(...this.scanLibrarySource(src, hints).violations)
+          }
+        } catch {
+          // 库源码不可读 → 跳过（不阻断执行；库违规由库作者负责）
+        }
+      }
+    }
+    if (violations.length === 0) return null
+    const formatted = violations.map((v) => `[determinism] line ${v.lineNo} [${v.source}]: ${v.message}`)
+    if (this.determinismPolicy === 'warn') {
+      this.determinismWarnings = formatted
+      return null
+    }
+    // 'error'
+    const first = violations[0]
+    return {
+      outputs: new Map(),
+      brepChain: this.brepChain!,
+      terminals: [],
+      infos: [],
+      failedAt: {
+        index: -1,
+        callee: 'determinism',
+        message: formatted[0],
+        lineNo: first.lineNo,
+        code: 'E_DETERMINISM',
+      },
+    }
+  }
+
+  /** 从 meta.imports 提取扫描提示：namespace import → extraNamespaces，named import → extraCallees。 */
+  private extractDeterminismHints(meta: UiMetadata): { namespaces: string[]; callees: string[] } {
+    const namespaces: string[] = []
+    const callees: string[] = []
+    for (const imp of meta.imports ?? []) {
+      if (imp.kind === 'namespace' && imp.localName) namespaces.push(imp.localName)
+      if (imp.kind === 'named') callees.push(...imp.bindings)
+    }
+    return { namespaces, callees }
+  }
+
+  /** 扫描库源码（可能含 TS 语法 → sucrase 脱后扫；失败则当 JS 直扫）。 */
+  private scanLibrarySource(src: string, hints: { namespaces: string[]; callees: string[] }): { violations: DeterminismViolation[] } {
+    let js = src
+    try {
+      js = sucraseTransform(src, { transforms: ['typescript'] }).code
+    } catch {
+      // 非 TS 或 sucrase 转换失败 → 当 JS 直扫
+    }
+    return {
+      violations: scanDeterminism(js, {
+        defaultNs: this.defaultNsName,
+        extraNamespaces: hints.namespaces,
+        extraCallees: hints.callees,
+      }).violations,
+    }
+  }
+
+  /**
    * Direct-mode full execution: the code text runs on the DirectExecutor
    * and outputs/terminals are assembled from the persistent ctx +
    * extractMetadata + computeLiveShapes.
@@ -609,6 +711,8 @@ export class CadRuntime {
     this.claimBackends()
     this.accumulatedCode = code
     const meta = extractMetadata(code, { defaultNs: this.defaultNsName, security: this.securityPolicy, namespaces: Object.keys(this.libs) })
+    const determinismFailure = await this.runDeterminismGate(code, meta)
+    if (determinismFailure) return determinismFailure
     const libLoadFailure = await this.autoLoadLibsFromImports(meta.imports)
     if (libLoadFailure) return libLoadFailure
     // 多文件（§4.5）：相对 import 依赖装载 → 绑定 seed；装载错误 → failedAt 短路。
@@ -632,6 +736,7 @@ export class CadRuntime {
       return this.directFailedAtOrThrow(outcome.failedAt, meta)
     }
     const result = this.collectDirectResult(meta, opts)
+    if (this.determinismWarnings.length > 0) result.infos.push(...this.determinismWarnings)
     this.recordFingerprints(opts)
     return result
   }
@@ -699,6 +804,8 @@ export class CadRuntime {
     // A1 安全扫描需把 ctx 已有键 + 已注册命名空间都作为 knownNames（避免 SEC_FREE_IDENT 误杀 append 场景）。
     const appendKnownNames = [...Object.keys(this.libs), ...de.listCtxKeys()]
     const meta = extractMetadata(fullCode, { defaultNs: this.defaultNsName, looseVars: true, security: this.securityPolicy, namespaces: appendKnownNames, nsNames: Object.keys(this.libs) })
+    const determinismFailure = await this.runDeterminismGate(fullCode, meta)
+    if (determinismFailure) return determinismFailure
     const libLoadFailure = await this.autoLoadLibsFromImports(meta.imports)
     if (libLoadFailure) return libLoadFailure
     // 多文件（§4.5）：相对 import 依赖装载 → 绑定 seed（覆盖刷新 ctx 中旧 import 绑定）。
@@ -721,6 +828,7 @@ export class CadRuntime {
       return this.directFailedAtOrThrow(outcome.failedAt, meta)
     }
     const result = this.collectDirectResult(meta, opts)
+    if (this.determinismWarnings.length > 0) result.infos.push(...this.determinismWarnings)
     this.recordFingerprints(opts)
     return result
   }
@@ -748,7 +856,7 @@ export class CadRuntime {
     const loader = this.ports.projectLoader
     if (!loader) return { seed: {} }
     if (!(meta.imports ?? []).some((imp) => isRelativeSpecifier(imp.specifier))) return { seed: {} }
-    const registry = new ModuleRegistry(loader, (code, imports) => this.runDirectModule(code, imports), this.securityPolicy)
+    const registry = new ModuleRegistry(loader, (code, imports) => this.runDirectModule(code, imports), this.securityPolicy, this.determinismPolicy)
     try {
       const seed = await registry.resolveImports(meta.imports ?? [], baseKey)
       return { seed }
