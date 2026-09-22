@@ -3190,12 +3190,6 @@ export async function threadedHole(
 // faijs lineage 是语句级构造历史，与 CQ 拓扑图不同——此处按拓扑邻接实现，
 // 不接 lineage（Phase 3 风险注记的既定决策）。
 
-/** CadQuery inverse_shape_LUT：kind 实体的「上级」类型（siblings 返回类型）。 */
-const SIBLING_INVERSE: Record<'Edge' | 'Vertex' | 'Face', 'face' | 'edge' | 'solid'> = {
-  Edge: 'face',
-  Vertex: 'edge',
-  Face: 'solid',
-}
 
 /** 实体 bbox 中心（方向/极值判定）。 */
 function handleCenter(kernel: OcctKernel, h: ShapeHandle): [number, number, number] {
@@ -3295,7 +3289,7 @@ function siblingStep(
   ctxH: ShapeHandle,
   h: number,
   kindLower: 'edge' | 'vertex' | 'face',
-  invLower: 'face' | 'edge' | 'solid',
+  invLower: 'face' | 'edge' | 'vertex',
 ): number[] {
   const children = kernel.getSubShapes(h as unknown as ShapeHandle, kindLower) as unknown as number[]
   const invs = kernel.getSubShapes(ctxH, invLower) as unknown as number[]
@@ -3354,11 +3348,16 @@ export async function siblings(
   const ctxH = brepOf(ctx) as ShapeHandle | undefined
   if (!ctxH) throw new Error('[cq-compat] siblings: ctx shape has no BREP handle')
   const kindLower = kind.toLowerCase() as 'edge' | 'vertex' | 'face'
-  const invLower = SIBLING_INVERSE[kind]
   const startEnts = resolveSiblingStarts(kernel, ctxH, start)
   if (startEnts.length === 0) {
     throw new Error('[cq-compat] siblings: no starting entity resolvable')
   }
+  // CQ：Ancestor = shapetype(self)，输出类型随起点实体动态变化。起点经
+  // getShapeType 判定；compound/其他类型兜底 'face'（Shape.siblings 的
+  // self 在 test_* 中为 face/edge，compound 起点无合法 Ancestor 语义）。
+  const startType = kernel.getShapeType(startEnts[0] as never)
+  const invLower: 'face' | 'edge' | 'vertex' =
+    startType === 'edge' || startType === 'vertex' ? startType : 'face'
   const levels = (Array.isArray(level) ? level : [level])
     .map(Number)
     .filter((l) => Number.isFinite(l) && l >= 1)

@@ -358,3 +358,9 @@
 - 内核 GOTCHA 留档：①revolve 母线必须指向弧边 last（下游端点），指向 first 会扫入错误象限；②侧平面顶直线必须手工反向（内核 offset 边方向破坏 wire 头尾连续）；③sew 产出的 shell 面方向不定，makeSolid 后体积可为负，`fixFaceOrientations` 是必需步骤；④loft 4→8 / 8→8（含极小弧底）全失败，revolve(三角形面) 产开放壳 vol=0，均为死路。
 - 实现范围：4 直线边矩形轮廓（底 4 边 / 顶 8 边）；圆截面负 taper 由既有 draftPrism 直接覆盖（圆无角部，实测 top>bottom 面积正确）；其他轮廓显式抛错（不静默降级）。非 XY 平面轮廓经 bbox z0 平移通用化，但仅限轴对齐平面。
 - 结果：compare s2 `equivalent=true`（vol 差 1.3e-11%、COM 2.2e-12mm、topo f10/e24/v12/s1 全等、布尔差分 0）；manifest s2 blocked→ported（323 ported / 327 blocked）；全量 compare PASS=275 / FAIL=8 / parity=43.08%（+0.16%）；cq-compat 153 测试全绿（顺带修复 4 个存量 lint 红：sketch.test.ts / solid-from-faces.test.ts / sketch.ts / __probe-moved.test.ts 的未使用 import 与 console 残留）。
+
+**实施记录（2026-09-23 续，选择器族攻坚）：**
+- siblings 输出类型语义修复：CQ `Shape.siblings` 的 Ancestor 类型 = `shapetype(self)`（动态），原实现按 kind 固定反查（SIBLING_INVERSE）只在「Face+Edge」「Edge+Vertex」组合下碰巧正确；「Face+Vertex」应输出面，固定 'edge' 错误输出边网络（test_siblings__level_1/2/3/123 cand f0/e8/v16 根因）。改为 `getShapeType(start)` 动态推导 invLower（face/edge/vertex），新增防回归单测（154 tests 全绿）。
+- 3 个镜像修正（PASS 278，FAIL 8→5）：①part——CQ `add()` 追加 objects、`val()` 返回 objects[0]，ref 导出的 part 即 box0（vol 1），镜像原做 2-box union（vol 2）改回 `val(box0)`；②prism——`extrude(wp, 1, {taper:30})` 把 opts 传进 combine 位导致 taper 静默失效（cand 直棱柱 vol 4 vs ref 截锥 2.135），改 `extrude(wp, 1, true, {taper:30})`；③nearestToPoint__c——上游 `makeUnitCube(centered=False)` 是 [0,1]³ box，镜像原用 [true,true,false] 居中。
+- 剩余 FAIL=5 根因留档：test_siblings__level_1/2/3/123 为**内核 fuse 行为差异**（ref conda OCC 对并排 box 保留接触面边界 18 面，occt-wasm fuse 完全合并为 6 面长条——stacked_box 本身 PASS-NT 拓扑不同跳过为证）；testMultisectionSweep 为 sweep 多截面内核缺口（ref/cand 拓扑相同但体积差 0.0011%，BRepOffsetAPI_MakePipeShell 多截面未暴露）。两者均非 cq-compat 逻辑可修，维持 FAIL/blocked 留档。
+- 门禁：cq-compat lint/typecheck 全绿、154 测试全绿、verify-export-jsdoc 通过。

@@ -115,4 +115,22 @@ describe('siblings probe (Phase 3)', () => {
     ])
     expect(countSub(s, 'edge')).toBe(4)
   })
+
+  it('GOTCHA 2026-09-23: face start + Vertex kind outputs FACES (Ancestor = shapetype(self)), not edges', async () => {
+    // CQ MapShapesAndAncestors(shape, Vertex, Face) — a face start with
+    // kind="Vertex" yields the faces sharing its vertices, i.e. the 4 side
+    // faces of the box (excluding the <Z start face itself). The pre-fix
+    // implementation fixed invLower by kind (Vertex->'edge') and wrongly
+    // returned the 8 edges sharing <Z vertices (test_siblings__level_* FAIL).
+    const s = await runVar([
+      'let wp0 = cq.Workplane("XY")',
+      'let wp1 = await cq.box(wp0, 1, 1, 1)',
+      'let b = await cq.translate(wp1, [0, 0, 0.5])',
+      'let f = cq.faces(b, "<Z")',
+      'let siblings_v1 = await cq.siblings(f, b, "Vertex", 1)',
+      'let wp_out = siblings_v1',
+    ])
+    expect(countSub(s, 'face')).toBe(4)
+    expect(countSub(s, 'edge')).toBe(12)
+  })
 })
