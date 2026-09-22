@@ -14,7 +14,7 @@
  * 我方 "SOLID" 不同，故 `matchNames: false`（按索引配对单零件；leaf 数一致性仍生效）。
  */
 
-import { compareAssemblyFiles, type AssemblyCompareOptions, type AssemblyCompareResult } from '@faicad/cq-compat'
+import { compareAssemblyFiles, type AssemblyCompareOptions, type AssemblyCompareResult } from '@faicad/cq-compat-compare'
 
 /**
  * 标定后的容差（2026-09-08 P0 实测，见

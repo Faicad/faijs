@@ -278,7 +278,12 @@ export interface DrillGeometry {
   readonly direction: THREE.Vector3
 }
 
-/** 从 `DrillBrepParams` 推导钻孔几何（孔中心/高度/轴向）。供 `drillBrep` 与 role-table 路径共用。 */
+/** 从 `DrillBrepParams` 推导钻孔几何（孔中心/高度/轴向）。供 `drillBrep` 与 role-table 路径共用。
+ * @param kernel - BREP 引擎接口
+ * @param solid - 待钻孔实体（用于 bbox 推导通孔高度）
+ * @param params - 钻孔参数（直径/深度/位置/方向/面法向）
+ * @returns 钻孔几何（半径/高度/中心/轴向）
+ */
 export function computeDrillGeometry(
   kernel: BrepEngineApi,
   solid: BrepHandle,
@@ -351,7 +356,11 @@ export function computeDrillGeometry(
   return { radius, holeHeight, holeCenter, direction }
 }
 
-/** 由钻孔几何构造刀具实体（圆柱，旋转 + 平移到孔位）。调用方负责 release。 */
+/** 由钻孔几何构造刀具实体（圆柱，旋转 + 平移到孔位）。调用方负责 release。
+ * @param kernel - BREP 引擎接口
+ * @param geom - 钻孔几何（半径/高度/中心/轴向）
+ * @returns 刀具实体（BrepHandle，调用方负责 release）
+ */
 export function buildDrillToolSolid(kernel: BrepEngineApi, geom: DrillGeometry): BrepHandle {
   const cylinder = kernel.makeCylinder(geom.radius, geom.holeHeight)
 
@@ -377,6 +386,12 @@ export function buildDrillToolSolid(kernel: BrepEngineApi, geom: DrillGeometry):
   return toolSolid
 }
 
+/** 在实体上钻一个孔：由参数推导几何、构造刀具实体并做布尔差。
+ * @param kernel - BREP 引擎接口
+ * @param solid - 待钻孔实体
+ * @param params - 钻孔参数（直径/深度/位置/方向/面法向）
+ * @returns 钻孔后的实体（BrepHandle）
+ */
 export function drillBrep(
   kernel: BrepEngineApi,
   solid: BrepHandle,
