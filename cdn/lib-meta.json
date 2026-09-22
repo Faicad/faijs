@@ -1,0 +1,32 @@
+{
+  "@faicad/cq-compat": {
+    "autoLift": false
+  },
+  "@faicad/cq-compat-assembly": {
+    "autoLift": false
+  },
+  "@faicad/cq-compat-compare": {
+    "autoLift": false
+  },
+  "@faicad/cq-compat-sketch": {
+    "autoLift": false
+  },
+  "@faicad/fai-cq-gears": {
+    "naming": {
+      "kind": "unmodeled",
+      "reason": "gear tooth flanks are bspline surfaces without a stable per-face index vocabulary (face count varies with tooth count)"
+    }
+  },
+  "@faicad/fai-cq-warehouse": {
+    "naming": {
+      "kind": "unmodeled",
+      "reason": "fastener faces are swept/lofted bspline surfaces (threads, serrations) without a stable per-face index vocabulary"
+    }
+  },
+  "@faicad/sheetmetal": {
+    "naming": {
+      "kind": "unmodeled",
+      "reason": "sheetmetal flange/bend faces are swept bspline surfaces without a stable per-face index vocabulary"
+    }
+  }
+}

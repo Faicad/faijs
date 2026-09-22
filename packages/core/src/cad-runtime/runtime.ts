@@ -1147,6 +1147,7 @@ export class CadRuntime {
       const resolved = imp.packageName ?? imp.specifier ?? ''
       this.registerLib(imp.localName, ns, {
         autoLift: this.ports.libLoader.options?.autoLiftFor?.(resolved) ?? this.ports.libLoader.options?.autoLift ?? !hasDualOp(ns as unknown as Record<string, unknown>),
+        naming: this.ports.libLoader.options?.namingFor?.(resolved),
         packageName: imp.packageName,
       })
     }

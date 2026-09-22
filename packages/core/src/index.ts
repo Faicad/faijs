@@ -46,6 +46,8 @@ export type {
   Vec3, JsonValue,
   TerminalShape, ParamDef,
 } from './lang/types'
+// Phase 2.11-②：三库（fai_cq_gears / fai_cq_warehouse / sheetmetal）的 fn.naming 声明需要此类型。
+export type { Provenance, NewFaceRule } from './topology/naming/lineage'
 export {
   derivePartName, getMaxModelNum,
 } from './lang/allocate-id'

@@ -12,6 +12,7 @@
 
 import type { PartName } from '../identity'
 import type { StdlibNamespace } from '../runtime-state'
+import type { Provenance } from '../topology/naming/lineage'
 
 // ── 共享类型 ──
 
@@ -200,6 +201,12 @@ export interface LibLoader {
      * （原 CLI 即按 autoLift=false 运行）。逐库关掉提升恢复 CLI 等价行为。
      */
     autoLiftFor?: (packageName: string) => boolean | undefined
+    /**
+     * Phase 2.11-②：按 packageName 的逐库 `naming` 声明（库 package.json 的
+     * `faijs.naming` 外置字段，与 `faijs.autoLift` 同构）。返回 undefined 时
+     * 回落到 `admitCompatLib` 的 blanket unmodeled 兜底（2.11-③ 处置其去留）。
+     */
+    namingFor?: (packageName: string) => Provenance | undefined
   }
   /**
    * 可选源码扫描钩子（§6.2 ②）：宿主返回库源码时走同一 SecurityScanner（A4，固定 strict）；

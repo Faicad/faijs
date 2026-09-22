@@ -63,6 +63,7 @@ for (const entry of readdirSync(packagesDir, { withFileTypes: true })) {
     name,
     version: String(pj.version ?? ''),
     autoLift: pj.faijs?.autoLift, // undefined 表示回落到 runtime 推断式 !hasDualOp(ns)
+    naming: pj.faijs?.naming, // Phase 2.11-②：库级 provenance 声明；undefined → blanket 兜底
   })
 }
 
@@ -84,10 +85,13 @@ for (const lib of libs) {
   versions[lib.name] = lib.version
 }
 
-// --- lib-meta.json（autoLift 外置） ---
+// --- lib-meta.json（autoLift / naming 外置） ---
 const libMeta = {}
 for (const lib of libs) {
-  if (typeof lib.autoLift === 'boolean') libMeta[lib.name] = { autoLift: lib.autoLift }
+  const entry = {}
+  if (typeof lib.autoLift === 'boolean') entry.autoLift = lib.autoLift
+  if (lib.naming && typeof lib.naming === 'object' && typeof lib.naming.kind === 'string') entry.naming = lib.naming
+  if (Object.keys(entry).length > 0) libMeta[lib.name] = entry
 }
 
 mkdirSync(outDir, { recursive: true })

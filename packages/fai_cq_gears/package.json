@@ -28,6 +28,12 @@
   "files": [
     "dist"
   ],
+  "faijs": {
+    "naming": {
+      "kind": "unmodeled",
+      "reason": "gear tooth flanks are bspline surfaces without a stable per-face index vocabulary (face count varies with tooth count)"
+    }
+  },
   "dependencies": {
     "@faicad/cq-compat": "^0.13.0"
   },

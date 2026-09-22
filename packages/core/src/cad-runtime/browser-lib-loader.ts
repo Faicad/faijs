@@ -36,6 +36,8 @@ export const DEFAULT_CDN_BASE = 'https://cdn.jsdelivr.net/npm/'
 export interface BrowserLibMeta {
   /** `package.json` 的 `faijs.autoLift` 外置字段（D3-autoLift）。 */
   autoLift?: boolean
+  /** Phase 2.11-②：`package.json` 的 `faijs.naming` 外置字段（库级 provenance 声明）。 */
+  naming?: import('../topology/naming/lineage').Provenance
 }
 
 /** `createBrowserLibLoader` 的选项。 */
@@ -137,6 +139,8 @@ export function createBrowserLibLoader(opts: CreateBrowserLibLoaderOptions = {})
       ...(opts.autoLift === undefined ? {} : { autoLift: opts.autoLift }),
       // 逐库 autoLift 优先于全局：未声明 → undefined → 回落全局 / runtime 推断式。
       autoLiftFor: (name: string) => meta[pkgOf(name)]?.autoLift,
+      // Phase 2.11-②：逐库 naming（lib-meta.json 的 faijs.naming），未声明 → undefined → blanket 兜底。
+      namingFor: (name: string) => meta[pkgOf(name)]?.naming,
     },
 
     prefetchMeta: async (): Promise<void> => {
@@ -149,9 +153,13 @@ export function createBrowserLibLoader(opts: CreateBrowserLibLoaderOptions = {})
           try {
             const res = await fetchImpl(`${cdnBase}${pkg}${v ? `@${v}` : ''}/package.json`)
             if (!res.ok) return
-            const pj = (await res.json()) as { faijs?: { autoLift?: boolean } }
+            const pj = (await res.json()) as { faijs?: { autoLift?: boolean; naming?: import('../topology/naming/lineage').Provenance } }
             const lifted = pj.faijs?.autoLift
-            if (typeof lifted === 'boolean') meta[pkg] = { autoLift: lifted }
+            const naming = pj.faijs?.naming
+            const entry: BrowserLibMeta = {}
+            if (typeof lifted === 'boolean') entry.autoLift = lifted
+            if (naming && typeof naming === 'object' && typeof naming.kind === 'string') entry.naming = naming
+            if (entry.autoLift !== undefined || entry.naming !== undefined) meta[pkg] = entry
           } catch {
             // 网络不可达 / 非法 JSON → 保持未声明，交由 runtime 推断式。
           }

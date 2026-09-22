@@ -28,6 +28,12 @@
   "files": [
     "dist"
   ],
+  "faijs": {
+    "naming": {
+      "kind": "unmodeled",
+      "reason": "sheetmetal flange/bend faces are swept bspline surfaces without a stable per-face index vocabulary"
+    }
+  },
   "dependencies": {},
   "peerDependencies": {
     "@faicad/faijs": "^0.13.0"
