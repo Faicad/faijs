@@ -64,8 +64,9 @@ export const cad = {
   intersect: booleanOps.intersect,
 
   // 分割
-  // fai_* 键为 mesh 侧实现入口。DEPRECATED：`fai_` 前缀 op 是 ../3d_editor 项目
-  // 特有的操作，将来迁出并从 faijs 删除（见 api/fai_*.ts 的 @deprecated）。
+  // fai_* 键为 mesh 侧实现入口。`../3d_editor` 消费面（**不是废弃项**，措辞于 2026-09-22 校正）：
+  // `fai_` 前缀 op 为编辑器应用提供，不属 faijs 平台面；
+  // **变更其 API 形态必须同步更新 `../3d_editor`**（见 api/fai_*.ts 的 @deprecated）。
   fai_split: splitOps.split,
   fai_splitWithParams: splitOps.splitWithParams,
   dovetailSplit: splitOps.dovetailSplit,

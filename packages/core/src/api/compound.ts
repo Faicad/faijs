@@ -151,7 +151,7 @@ function memberNamesOf(params: { memberNames?: unknown }, members: Shape[]): str
  * @async false
  * @qual ok
  * @name group
- * @deprecated `../3d_editor` 项目特有的结构分组 op（无几何输出，服务于编辑器画布与时间线），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。**平台侧需要几何复合体请用 `cad.compound`**（内核 `makeCompound`，持 OCCT 句柄，可变换/可导出）。
+ * @deprecated **`../3d_editor` 消费面**（原 `@deprecated` 措辞已于 2026-09-22 校正）：该 op 为编辑器应用提供（无几何输出，服务于编辑器画布与时间线），不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**（见 `docs/plans/2026-09-22-topology-identity-development-plan.md` §2）。**平台侧需要几何复合体请用 `cad.compound`**（内核 `makeCompound`，持 OCCT 句柄，可变换/可导出）。
  * @returns CompoundShape 复合几何（kind='compound'，children 为成员 Shape 引用）。
  * @param params.name - 组名。type:string
  * @param params.members - 成员（编译产物 ctx.<var> 引用；结构语句里是裸变量引用，非字符串数组）。type:Shape[]
@@ -185,7 +185,7 @@ export function group(params: GroupParams): CompoundShape {
  * @async false
  * @qual warn
  * @name assembly
- * @deprecated `../3d_editor` 项目特有的装配 op（成员以编辑器结构语句形态声明，服务于画布与时间线），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
+ * @deprecated **`../3d_editor` 消费面**（原 `@deprecated` 措辞已于 2026-09-22 校正）：该 op 为编辑器应用提供（成员以编辑器结构语句形态声明，服务于画布与时间线），不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**（见 `docs/plans/2026-09-22-topology-identity-development-plan.md` §2）。faijs 平台面不提供等价 op（需要时须按平台需求另行设计，不得直接搬用本 op）。
  * @returns CompoundShape + AssemblyBehavior（含 do_assemble / solve 方法）。
  * @note 约束类型（a=参考、b=从动，移动 b 去贴合 a）：`mate` 面对面贴合（法向反向+面中心重合，遗留 face_mate 的新名，求解降级为 concentric + 轴编码）；`align` 同向对齐（法向同向+面中心重合）；`coincident` 共面/共点/共线（保留面内 2 个平移 DOF）；`concentric` 轴重合（孔轴配合，圆柱/圆锥面需 hint.axis，直边/圆边需 EdgeHint.axis）；`distance` 定距（mm，带 value）；`angle` 夹角（deg，带 value）；`parallel`/`perpendicular` 平行/垂直（angle 0°/90° 语法糖）；`fixed` 锚定部件（地基）；`face_mate` 为遗留别名（规范化为 mate，新代码不再使用）。
  * @note EntityRef 四种形态：`{ part, face: { topoRef } | { surfaceType?, center, normal } }`、`{ part, edge: { topoRef } | { axis: { origin, direction } } }`、`{ part, point: [x,y,z] }`、`{ part, faceIndex }`（1 起，仅调试简写）。

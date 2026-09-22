@@ -148,7 +148,7 @@ function transformBrep(op: string, input: Shape, params: Record<string, unknown>
  * @async false
  * @qual ok
  * @name translate
- * @deprecated `../3d_editor` 项目特有的变换 op（承载编辑器拖拽与时间线语句），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
+ * @deprecated **`../3d_editor` 消费面**（原 `@deprecated` 措辞已于 2026-09-22 校正）：该 op 为编辑器应用提供（承载拖拽与时间线语句），不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**（见 `docs/plans/2026-09-22-topology-identity-development-plan.md` §2）。faijs 平台面不提供等价 op（需要时须按平台需求另行设计，不得直接搬用本 op）。
  * @returns Shape 平移后的几何，装配的相对位置靠成员的变换语句表达。
  * @param input - 目标几何。type:Shape required:true
  * @param params.offset - 平移向量（mm）。type:[x,y,z] required:true
@@ -179,7 +179,7 @@ export const translate = defineOp({
  * @async false
  * @qual ok
  * @name rotate_euler
- * @deprecated `../3d_editor` 项目特有的变换 op（承载编辑器拖拽与时间线语句），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
+ * @deprecated **`../3d_editor` 消费面**（原 `@deprecated` 措辞已于 2026-09-22 校正）：该 op 为编辑器应用提供（承载拖拽与时间线语句），不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**（见 `docs/plans/2026-09-22-topology-identity-development-plan.md` §2）。faijs 平台面不提供等价 op（需要时须按平台需求另行设计，不得直接搬用本 op）。
  * @returns Shape 旋转后的几何。
  * @param input - 目标几何。type:Shape required:true
  * @param params.anglesDeg - 欧拉角（度，XYZ 顺序）。type:[x,y,z] required:true
@@ -212,7 +212,7 @@ export const rotate_euler = defineOp({
  * @async false
  * @qual ok
  * @name scale
- * @deprecated `../3d_editor` 项目特有的变换 op（承载编辑器拖拽与时间线语句），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
+ * @deprecated **`../3d_editor` 消费面**（原 `@deprecated` 措辞已于 2026-09-22 校正）：该 op 为编辑器应用提供（承载拖拽与时间线语句），不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**（见 `docs/plans/2026-09-22-topology-identity-development-plan.md` §2）。faijs 平台面不提供等价 op（需要时须按平台需求另行设计，不得直接搬用本 op）。
  * @returns Shape 缩放后的几何。
  * @param input - 目标几何。type:Shape required:true
  * @param params.factor - 等比缩放系数（> 0）。type:number required:true
@@ -248,7 +248,7 @@ export const scale = defineOp({
  * @async false
  * @qual ok
  * @name scale3d
- * @deprecated `../3d_editor` 项目特有的变换 op（承载编辑器拖拽与时间线语句），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
+ * @deprecated **`../3d_editor` 消费面**（原 `@deprecated` 措辞已于 2026-09-22 校正）：该 op 为编辑器应用提供（承载拖拽与时间线语句），不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**（见 `docs/plans/2026-09-22-topology-identity-development-plan.md` §2）。faijs 平台面不提供等价 op（需要时须按平台需求另行设计，不得直接搬用本 op）。
  * @returns Shape 缩放后的几何。
  * @param input - 目标几何。type:Shape required:true
  * @param params.factor - 三轴缩放系数（均 > 0）。type:[x,y,z] required:true

@@ -13,10 +13,12 @@
  */
 
 import { box, sphere, cylinder, cone, wedge } from './primitives'
-// DEPRECATED: transform 家族（translate/rotate_euler/scale/scale3d）是 ../3d_editor
-// 特有的编辑器交互 op，将来迁出并从 faijs 删除；见各 op 的 @deprecated。
+// `../3d_editor` 消费面（**不是废弃项**，措辞于 2026-09-22 校正）：transform 家族
+// （translate/rotate_euler/scale/scale3d）为编辑器应用提供（拖拽与时间线语句），
+// 不属 faijs 平台面；**变更其 API 形态必须同步更新 `../3d_editor`**。见各 op 的 @deprecated。
 import { translate, rotate_euler, scale, scale3d } from './transform'
-// DEPRECATED（../3d_editor 特有，将来迁出并从 faijs 删除；见各 op 的 @deprecated）。
+// `../3d_editor` 消费面（**不是废弃项**）：`fai_` 前缀 op 为编辑器应用提供；
+// **变更其 API 形态必须同步更新 `../3d_editor`**。见各 op 的 @deprecated。
 import { fai_extrude } from './fai_extrude'
 // cad.extrude 是平台手写 op（承载 upTo；长度形态委托 generated/operations 的投影），
 // 见 api/extrude.ts 的分层说明——up-to 不落在 fai_extrude。
@@ -69,8 +71,9 @@ export function createApiNamespace(): StdlibNamespace {
     box, sphere, cylinder, cone, wedge,
     text, screw, svgExtrude, sketch, sdf, load,
     // translate/rotate_euler/scale/scale3d（本行）与 fai_drill / fai_extrude（下方）、
-    // fai_split / group / assembly / copy（末行）均 DEPRECATED：../3d_editor 项目特有，
-    // 将来迁出并从 faijs 删除。
+    // fai_split / group / assembly / copy（末行）均为 `../3d_editor` 消费面（**不是废弃项**，
+    // 措辞于 2026-09-22 校正）：为编辑器应用提供，不属 faijs 平台面；
+    // **变更其 API 形态必须同步更新 `../3d_editor`**。
     translate, rotate_euler, scale, scale3d,
     fai_drill, fai_extrude, engrave, chamfer, fillet, knurl,
     union, subtract, intersect,

@@ -11,13 +11,14 @@
  */
 
 export { box, sphere, cylinder, cone, wedge } from './primitives'
-// DEPRECATED: transform 家族（translate/rotate_euler/scale/scale3d）是 ../3d_editor
-// 项目特有的编辑器交互 op（拖拽 / 时间线语句），不属于 faijs 平台面。将来会迁往该
-// 项目并从 faijs 删除；各 op 的 JSDoc 已带 @deprecated。新代码请勿使用。
+// `../3d_editor` 消费面（**不是废弃项**，措辞于 2026-09-22 校正）：transform 家族
+// （translate/rotate_euler/scale/scale3d）为编辑器应用提供（拖拽 / 时间线语句），
+// 不属 faijs 平台面，但服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**；
+// 各 op 的 JSDoc 已带校正后的 @deprecated。
 export { translate, rotate_euler, scale, scale3d } from './transform'
-// DEPRECATED: `fai_` 前缀 op（fai_extrude / fai_drill / fai_split）是 ../3d_editor
-// 项目特有的操作，不属于 faijs 平台面。将来会迁往该项目并从 faijs 删除；各 op 的
-// JSDoc 已带 @deprecated。新代码请勿使用。
+// `../3d_editor` 消费面（**不是废弃项**）：`fai_` 前缀 op（fai_extrude / fai_drill /
+// fai_split）为编辑器应用提供，不属 faijs 平台面。**变更其 API 形态必须同步更新
+// `../3d_editor`**；各 op 的 JSDoc 已带校正后的 @deprecated。
 export { fai_extrude } from './fai_extrude'
 export { fai_drill } from './fai_drill'
 export { fai_split } from './fai_split'
@@ -32,8 +33,9 @@ export { sketch } from './sketch'
 export { knurl } from './knurl'
 export { load } from './load'
 export { sdf } from './sdf'
-// DEPRECATED: group/assembly 是 ../3d_editor 项目特有的 op（无几何输出的结构分组 /
-// 以编辑器结构语句声明的装配），不属于 faijs 平台面；将来迁出并从 faijs 删除。
+// `../3d_editor` 消费面（**不是废弃项**，措辞于 2026-09-22 校正）：group/assembly 为
+// 编辑器应用提供（无几何输出的结构分组 / 以编辑器结构语句声明的装配），不属 faijs 平台面；
+// **变更其 API 形态必须同步更新 `../3d_editor`**。
 export { group, assembly } from './compound'
 export { applyTransform } from './compound'
 // P2-f3：装配子层全量导出（solvePreview/entityFromGeometry 等经此到门面；

@@ -685,6 +685,20 @@ occt 的 12 项判定为「真」则由 `evolution-bindings.test.ts` 的**真调
 `cad.extrude` 是 brepjs 投影（`arg-spec.ts:1533`，入参 face/wire），传 solid 报 `EXTRUDE_FAILED`；
 已改写为 `sketch → extrude → fillet`（与 `edge-ref/edge-ref.test.ts` 的 FCStd `Pad→Fillet` 同形），覆盖面不变。
 
+**0.7 的落地结果（`@deprecated` 措辞校正完成）**：§2.4 列的 13 处**已全部改写**，
+但实测该清单**不完整**，另外 3 类落点必须一起改（否则同一句话留在别处）：
+
+| 落点 | 清单里有吗 | 说明 |
+|---|---|---|
+| `api/{compound,copy,fai_*,load,transform}.ts` 共 11 处 `@deprecated` | ✅ | 按 §2.4 模板改写（「消费面 / **不是**废弃项 / 变更 API 必须同步 3d_editor」） |
+| `api/api-namespace.ts`、`api/index.ts` 的块注释 | ✅ | 同上 |
+| **`packages/core/src/mesh/index.ts:68`** 的块注释 | ❌ | 清单漏了；同样写着「将来迁出并从 faijs 删除」 |
+| **`packages/core/scripts/gen-api-dts.ts:44-54` 的两个硬编码常量** | ❌ | **同一句话的第二个家**——`src/mesh/api.d.ts` 的 `@deprecated` 文本来自这两个常量，**不是**读各 op 的 JSDoc。只改 JSDoc 而不改它们 ⇒ 生成产物仍留旧措辞（第一次重跑生成器时 diff 为空，就是这个原因暴露的） |
+
+⇒ 改写总面 = **11 处 `@deprecated` + 4 处块注释 + 2 个生成器常量**，改后重跑
+`packages/core/scripts/gen-api-dts.ts` 使 `src/mesh/api.d.ts` 同步（`api-dts-sync.test.ts` 绿）。
+另：`docs/ops-api-inventory.md` 不含该措辞（grep 确认），无需改动。
+
 **0.6 的落地结果（C1 守卫已落地 + 前置检查已做）**：
 
 - 守卫：`cad-runtime/runtime-concurrent-error.ts`（`E_RUNTIME_CONCURRENT`）+ `CadRuntime.withExecutionLock`

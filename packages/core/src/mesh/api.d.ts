@@ -28,19 +28,19 @@ export interface CadAPI {
 
   // ── 变换 ──
   /**
-   * @deprecated `../3d_editor` 项目特有的 op（编辑器交互模型：画布显示 / 拖拽 / 时间线语句 / 结构分组），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
+   * @deprecated **`../3d_editor` 消费面**：该 op 为编辑器应用提供（编辑器交互模型：画布显示 / 拖拽 / 时间线语句 / 结构分组），不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**。faijs 平台面不提供等价 op（需要时须按平台需求另行设计，不得直接搬用本 op）。
    */
   translate(shape: Shape, params: { offset: [number, number, number] }): Shape
   /**
-   * @deprecated `../3d_editor` 项目特有的 op（编辑器交互模型：画布显示 / 拖拽 / 时间线语句 / 结构分组），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
+   * @deprecated **`../3d_editor` 消费面**：该 op 为编辑器应用提供（编辑器交互模型：画布显示 / 拖拽 / 时间线语句 / 结构分组），不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**。faijs 平台面不提供等价 op（需要时须按平台需求另行设计，不得直接搬用本 op）。
    */
   rotate_euler(shape: Shape, params: { anglesDeg: [number, number, number]; pivot?: [number, number, number] }): Shape
   /**
-   * @deprecated `../3d_editor` 项目特有的 op（编辑器交互模型：画布显示 / 拖拽 / 时间线语句 / 结构分组），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
+   * @deprecated **`../3d_editor` 消费面**：该 op 为编辑器应用提供（编辑器交互模型：画布显示 / 拖拽 / 时间线语句 / 结构分组），不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**。faijs 平台面不提供等价 op（需要时须按平台需求另行设计，不得直接搬用本 op）。
    */
   scale(shape: Shape, factor: number, options?: { center?: [number, number, number] }): Shape
   /**
-   * @deprecated `../3d_editor` 项目特有的 op（编辑器交互模型：画布显示 / 拖拽 / 时间线语句 / 结构分组），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
+   * @deprecated **`../3d_editor` 消费面**：该 op 为编辑器应用提供（编辑器交互模型：画布显示 / 拖拽 / 时间线语句 / 结构分组），不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**。faijs 平台面不提供等价 op（需要时须按平台需求另行设计，不得直接搬用本 op）。
    */
   scale3d(shape: Shape, factor: [number, number, number], options?: { center?: [number, number, number] }): Shape
   place(shape: Shape, params: { position?: [number, number, number]; rotation?: [number, number, number, number] }): Shape  // rigid placement: rotate (quaternion, about local origin) then translate; = FreeCAD Placement T∘R
@@ -52,20 +52,20 @@ export interface CadAPI {
 
   // ── 分割 ──
   /**
-   * @deprecated `fai_` 前缀 op 是 ../3d_editor 项目特有的操作，不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
+   * @deprecated **`../3d_editor` 消费面**：`fai_` 前缀 op 为编辑器应用提供，不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**。faijs 平台面不提供等价 op（需要时须按平台需求另行设计，不得直接搬用本 op）。
    */
   fai_split(shape: Shape, params: { normal?: [number, number, number]; offset?: number; cutMode?: string; inPlaneAngleDeg?: number; side?: string }): Promise<{ front: Shape; back: Shape; wedge?: Shape | null }>
 
   // ── 钻孔 ──
   /**
-   * @deprecated `fai_` 前缀 op 是 ../3d_editor 项目特有的操作，不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
+   * @deprecated **`../3d_editor` 消费面**：`fai_` 前缀 op 为编辑器应用提供，不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**。faijs 平台面不提供等价 op（需要时须按平台需求另行设计，不得直接搬用本 op）。
    */
   fai_drill(shape: Shape, params: { diameter: number; depth?: number; holeType?: string; direction?: string; tolerance?: number; position?: any; faceNormal?: any; screwSystem?: string; screwSpecIdx?: number; screwThread?: string; screwHead?: string }): Promise<Shape>
 
   // ── 拉伸 ──
   extrude(shape: Shape, params: { length?: number; normal?: [number, number, number]; mode?: string; upTo?: any; baseFeature?: Shape; offset?: number }): Promise<Shape>
   /**
-   * @deprecated `fai_` 前缀 op 是 ../3d_editor 项目特有的操作，不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
+   * @deprecated **`../3d_editor` 消费面**：`fai_` 前缀 op 为编辑器应用提供，不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**。faijs 平台面不提供等价 op（需要时须按平台需求另行设计，不得直接搬用本 op）。
    */
   fai_extrude(shape: Shape, params: { length: number; mode?: string; normal?: [number, number, number]; originOffset?: number; space?: string }): Promise<Shape>
 
@@ -78,16 +78,16 @@ export interface CadAPI {
 
   // ── 结构（不消费成员） ──
   /**
-   * @deprecated `../3d_editor` 项目特有的 op（编辑器交互模型：画布显示 / 拖拽 / 时间线语句 / 结构分组），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
+   * @deprecated **`../3d_editor` 消费面**：该 op 为编辑器应用提供（编辑器交互模型：画布显示 / 拖拽 / 时间线语句 / 结构分组），不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**。faijs 平台面不提供等价 op（需要时须按平台需求另行设计，不得直接搬用本 op）。
    */
   group(params: { name?: string; members?: readonly Shape[] }): Shape  // members are kept via function-body exec.keep (visible); group does not consume them
   compound(params: { members?: Shape[]; name?: string }): Shape  // platform geometric compound (OCCT TopoDS_Compound handle); merges member meshes / makeCompound — NOT the editor group
   /**
-   * @deprecated `../3d_editor` 项目特有的 op（编辑器交互模型：画布显示 / 拖拽 / 时间线语句 / 结构分组），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
+   * @deprecated **`../3d_editor` 消费面**：该 op 为编辑器应用提供（编辑器交互模型：画布显示 / 拖拽 / 时间线语句 / 结构分组），不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**。faijs 平台面不提供等价 op（需要时须按平台需求另行设计，不得直接搬用本 op）。
    */
   assembly(params: { name?: string; members?: readonly Shape[]; constraints?: any[] }): Shape  // members are kept via function-body exec.keep (visible); assembly does not consume them
   /**
-   * @deprecated `../3d_editor` 项目特有的 op（编辑器交互模型：画布显示 / 拖拽 / 时间线语句 / 结构分组），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
+   * @deprecated **`../3d_editor` 消费面**：该 op 为编辑器应用提供（编辑器交互模型：画布显示 / 拖拽 / 时间线语句 / 结构分组），不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**。faijs 平台面不提供等价 op（需要时须按平台需求另行设计，不得直接搬用本 op）。
    */
   copy(shape: Shape, params?: never): Shape  // input is kept via function-body exec.keep (visible); copy does not consume it
 

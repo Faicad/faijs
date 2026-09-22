@@ -40,7 +40,7 @@ import type { BrepEngineApi } from '../brep/engine/primitives'
  * @param params.format - 格式提示（如 'step'/'stl'；CAD 源走 BREP 精确路径，STL 等三角化源走 mesh 路径）。type:string
  * @note key/path/url 是优先级分流（key 优先，其次 path，最后 url），三者只需其一；同时给多个时按优先级取。`format` 是提示而非强约束——CAD 源（step/stp/brep 等）与三角化源（stl 等）由 `isCadFormat` 静态判定路径。
  * @note 本 op 要求导入物含实体（历史契约）。非实体（wire/face/shell）的导入是平台 `cad.import_brep` 的一等能力，不由本 op 承担。
- * @deprecated `../3d_editor` 的「文件导入 Feature」：key/path/url 三键分流读的是应用侧 `FileRef`，产物语句位置、命名与 partIndex 都是画布语义。平台侧导入请用 `cad.import_brep`（冻结 BREP 资产）。
+ * @deprecated **`../3d_editor` 消费面**（原 `@deprecated` 措辞已于 2026-09-22 校正）：该 op 为编辑器应用的「文件导入 Feature」提供——key/path/url 三键分流读的是应用侧 `FileRef`，产物语句位置、命名与 partIndex 都是画布语义。不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**（见 `docs/plans/2026-09-22-topology-identity-development-plan.md` §2）。平台侧导入请用 `cad.import_brep`（冻结 BREP 资产）。
  * @example
  * const p = await cad.load({ key: 'file_abc123' })
  * const p = await cad.load({ path: 'D:/models/box.step', format: 'step' })

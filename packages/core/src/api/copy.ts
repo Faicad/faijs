@@ -63,7 +63,7 @@ function copyBrep(input: Shape): Shape {
  * @async false
  * @qual ok
  * @name copy
- * @deprecated `../3d_editor` 项目特有的 op（语义含编辑器画布显示——源与副本各显示一份），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
+ * @deprecated **`../3d_editor` 消费面**（原 `@deprecated` 措辞已于 2026-09-22 校正）：该 op 为编辑器应用提供（语义含编辑器画布显示——源与副本各显示一份），不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**（见 `docs/plans/2026-09-22-topology-identity-development-plan.md` §2）。faijs 平台面不提供等价 op（需要时须按平台需求另行设计，不得直接搬用本 op）。
  * @param input - 源几何。type:Shape required:true
  * @returns Shape 源几何的深拷贝。copy 不消费其源（画布显示 box 和副本两份），改副本不影响源。
  * @example
