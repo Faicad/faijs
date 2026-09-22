@@ -25,7 +25,8 @@ import { propagateAllOrigins } from '../topology/naming/roles'
 import type { RoleTable } from '../topology/naming/types'
 import type { Provenance } from '../topology/naming/lineage'
 import { defineOp } from '../sdk'
-import type { BrepEngineApi, BrepHandle } from '../brep/engine/types'
+import type { BrepEngineApi } from '../brep/engine/primitives'
+import type { BrepHandle } from '../brep/engine/types'
 
 /** 四元数 (x,y,z,w) → row-major 3×3 旋转矩阵（Hamilton，与 THREE/FreeCAD 同约定）。 */
 function quatToMat3(q: [number, number, number, number]): number[] {

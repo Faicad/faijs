@@ -20,7 +20,8 @@ import type { Shape } from '../mesh/types'
 import { isCompoundLike, brepOf, fromBrep } from '../shape'
 import { getBackends, BrepUnsupportedError } from '../runtime-state'
 import { solidToShape } from '../brep/brep-ops'
-import type { BrepEngineApi, BrepHandle } from '../brep/engine/types'
+import type { BrepEngineApi } from '../brep/engine/primitives'
+import type { BrepHandle } from '../brep/engine/types'
 
 /** 把任意 Shape（可能是结构 compound）展平为若干子 mesh。 */
 function collectSubMeshes(s: Shape): Shape[] {

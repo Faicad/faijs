@@ -20,7 +20,7 @@ import { OpError } from './internal/result-unwrap'
 import { loadBrep } from '../brep/brep-ops'
 import { fromBrep } from '../shape'
 
-import type { BrepEngineApi } from '../brep/engine/types'
+import type { BrepEngineApi } from '../brep/engine/primitives'
 
 /**
  * 平台 BREP 资产导入：把容器 `assets/` 里的冻结 BREP 载体装成持 OCCT 句柄的 Shape。
