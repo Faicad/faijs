@@ -46,6 +46,7 @@ import { faceRef } from './face-ref'
 import { jointTrajectory, inverseKinematics, mechanismDOF } from './assembly'
 import { asset } from './asset'
 import { import_brep } from './import-brep'
+import { import_step } from './import-step'
 import { compound as geometricCompound } from './compound-geom'
 import { place } from './place'
 import { scriptFaceOps } from './generated/script-face'
@@ -87,8 +88,9 @@ export function createApiNamespace(): StdlibNamespace {
     jointTrajectory, inverseKinematics, mechanismDOF,
     asset,
     // 平台几何 op（H11，方案 §4）：FCStd 迁移自此不再借用编辑器 op
-    // （group/translate/rotate_euler）；这三个与 ../3d_editor 无关系。
+    // （group/translate/rotate_euler）；这几个与 ../3d_editor 无关系。
     import_brep,
+    import_step,
     compound: geometricCompound,
     place,
     ...scriptFaceOps,

@@ -25,6 +25,7 @@ export interface CadAPI {
   sdf(params: { code: string; box?: any; resolution?: number; params?: any }): Promise<Shape>
   load(params: { key?: string; path?: string; url?: string; format?: string }): Promise<Shape>
   import_brep(params: { asset: string }): Promise<Shape>  // usage: cad.import_brep({asset}) — platform BREP asset import (non-solid wire/face/shell allowed, C6)
+  import_step(params: { path: string }): Promise<Shape>  // usage: cad.import_step({path}) — platform STEP file import via host resolveFile (OCCT reader; non-solid allowed, C6)
 
   // ── 变换 ──
   /**

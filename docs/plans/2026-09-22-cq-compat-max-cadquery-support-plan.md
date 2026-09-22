@@ -336,3 +336,7 @@
 **守卫结果**：typecheck（相关包全绿；core 2 个既有测试文件红：`place-calibration.test.ts:90`、`fcstd/feature-translate.test.ts:266/882`，与本拆包无关）、lint 4 处既有错误（`import-brep.test.ts:13`、`import-brep.ts:59`、`evolution-declaration.test.ts:86`、`fcstd/convert.ts:26`，git diff 取证非本次改动）、madge 无环、packages/tests 1653 + parity 12 全绿、fai_cq_gears stability 8 例红（68184ef 起自红，骨架未动）与 fai_cq_warehouse params 34 表哈希红（数据守卫）均为既有。
 
 **遗留**：§5 Phase 1–5 路线图（manifest ported 264→320+、`cad.import_step` 补 Q2 真缺口、sketch Phase 2 填充、parity 观测指标）；发布前统一升版本号。
+
+**实施记录（2026-09-22 续，Phase 1 + Phase 5）：**
+- Phase 1（装配镜像化）：引擎语句级 lineage 守卫修复（E_TOPO_UNTRACKED_INPUT——registeredStmtId 迁至 runtime-state，define-op 去重标记移除，commit 9031751）；cq-compat-assembly 输入归一支持 Workplane 载体（resolveAssemblyShape，constraintEx/buildAssembly）；test_assembly +12 个 toCompound 镜像（manifest 264→276 ported）；52 个 Assembly/solve 用例登记 manual block 根因（类式 API 依赖 / 缺 constraintEx 类型 FixedPoint/FixedAxis/PointInPlane / Face.makePlane），op:assembly-solve 与 importStep blockedBy 归零。
+- Phase 5（IO/文本/贴图）：新增 `cad.import_step` op——任意路径 STEP → OCCT 读入（宿主 assets.resolveFile，loadBrep 自适应，roleTable imported:<i> 同 import_brep 机制）；gen-symbol-table 修复覆盖语义（手写版覆盖 scriptFaceOps 的 cut/split/linearPattern 去重而非误报）；importStep 8 个装配用例登记 manual block（依赖 Assembly 类式 importers.importStep/save，平台 op 已落地但装配级 roundtrip 不可表达）；text halign/valign 裁决 skipped（2D 定位测量；test_text 不在 ref 10 模块范围）；step-export faces/edges compound 导出已支持（brep/export/step.ts）。

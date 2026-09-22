@@ -123,6 +123,12 @@ const API_ENTRIES: Record<string, ApiEntry> = {
     returns: 'Promise<Shape>',
     note: 'usage: cad.import_brep({asset}) — platform BREP asset import (non-solid wire/face/shell allowed, C6)',
   },
+  import_step: {
+    inputs: 0,
+    params: '{ path: string }',
+    returns: 'Promise<Shape>',
+    note: 'usage: cad.import_step({path}) — platform STEP file import via host resolveFile (OCCT reader; non-solid allowed, C6)',
+  },
 
   // ── 变换类（DEPRECATED: ../3d_editor 编辑器交互 op） ──
   translate: {
@@ -319,7 +325,7 @@ const QUERY_METHODS = [
 
 const ORDER = [
   'box', 'sphere', 'cylinder', 'cone', 'wedge',
-  'text', 'screw', 'svgExtrude', 'sdf', 'load', 'import_brep',
+  'text', 'screw', 'svgExtrude', 'sdf', 'load', 'import_brep', 'import_step',
   'translate', 'rotate_euler', 'scale', 'scale3d', 'place',
   'union', 'subtract', 'intersect',
   'fai_split',
@@ -349,7 +355,7 @@ function generate(): string {
   lines.push(`export interface CadAPI {`)
 
   const sections: Array<[string, string[]]> = [
-    ['创建', ['box', 'sphere', 'cylinder', 'cone', 'wedge', 'text', 'screw', 'svgExtrude', 'sdf', 'load', 'import_brep']],
+    ['创建', ['box', 'sphere', 'cylinder', 'cone', 'wedge', 'text', 'screw', 'svgExtrude', 'sdf', 'load', 'import_brep', 'import_step']],
     ['变换', ['translate', 'rotate_euler', 'scale', 'scale3d', 'place']],
     ['布尔', ['union', 'subtract', 'intersect']],
     ['分割', ['fai_split']],

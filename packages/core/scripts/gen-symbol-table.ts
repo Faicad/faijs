@@ -93,13 +93,17 @@ function main(): void {
   ]
   const seen = new Set<string>()
   for (const name of cadFunctions) {
-    if (seen.has(name)) throw new Error(`[gen-symbol-table] cad 面重名符号: ${name}`)
+    // api-namespace 手写版在 scriptFaceOps 之后展开并覆盖生成版（cut/split/
+    // linearPattern，见 api-namespace 的 "Spread after scriptFaceOps so they
+    // win" 注释）。符号表只承载可调用 callee 名字集合，覆盖语义下同一名字
+    // 只需出现一次——去重保留，而不是把有意覆盖误判为真重名。
+    if (seen.has(name)) continue
     seen.add(name)
   }
 
   // 生成 .generated.ts：import 无 JSON attribute 需求，vite/vitest/node ESM 均可用
   const table: SymbolTable = {}
-  for (const name of cadFunctions) table[name] = {}
+  for (const name of seen) table[name] = {}
 
   const lines: string[] = []
   lines.push(`/**`)

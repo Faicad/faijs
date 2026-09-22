@@ -2905,17 +2905,20 @@
   "tests.test_assembly:::test_step_export__nested_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_step_export",
-    "blockedBy": "importStep"
+    "blockedBy": "Assembly 类式 STEP 导入/导出（importers.importStep / Assembly.save）；平台 cad.import_step 已落地（core api/import-step.ts），装配级 roundtrip 仍依赖类式 API（Phase 5 显式 block）",
+    "manual": true
   },
   "tests.test_assembly:::test_step_export__w": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_step_export",
-    "blockedBy": "importStep"
+    "blockedBy": "Assembly 类式 STEP 导入/导出（importers.importStep / Assembly.save）；平台 cad.import_step 已落地（core api/import-step.ts），装配级 roundtrip 仍依赖类式 API（Phase 5 显式 block）",
+    "manual": true
   },
   "tests.test_assembly:::test_step_export__o": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_step_export",
-    "blockedBy": "importStep"
+    "blockedBy": "Assembly 类式 STEP 导入/导出（importers.importStep / Assembly.save）；平台 cad.import_step 已落地（core api/import-step.ts），装配级 roundtrip 仍依赖类式 API（Phase 5 显式 block）",
+    "manual": true
   },
   "tests.test_assembly:::test_meta_step_export__subsubassy": {
     "status": "blocked",
@@ -3039,17 +3042,20 @@
   "tests.test_assembly:::test_assembly_step_import__subshape_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_assembly_step_import",
-    "blockedBy": "importStep"
+    "blockedBy": "Assembly 类式 STEP 导入/导出（importers.importStep / Assembly.save）；平台 cad.import_step 已落地（core api/import-step.ts），装配级 roundtrip 仍依赖类式 API（Phase 5 显式 block）",
+    "manual": true
   },
   "tests.test_assembly:::test_assembly_step_import__imported_assy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_assembly_step_import",
-    "blockedBy": "importStep"
+    "blockedBy": "Assembly 类式 STEP 导入/导出（importers.importStep / Assembly.save）；平台 cad.import_step 已落地（core api/import-step.ts），装配级 roundtrip 仍依赖类式 API（Phase 5 显式 block）",
+    "manual": true
   },
   "tests.test_assembly:::test_assembly_step_import__res": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_assembly_step_import",
-    "blockedBy": "importStep"
+    "blockedBy": "Assembly 类式 STEP 导入/导出（importers.importStep / Assembly.save）；平台 cad.import_step 已落地（core api/import-step.ts），装配级 roundtrip 仍依赖类式 API（Phase 5 显式 block）",
+    "manual": true
   },
   "tests.test_assembly:::test_assembly_subshape_import__subshape_assy": {
     "status": "blocked",
@@ -3110,12 +3116,14 @@
   "tests.test_assembly:::test_copied_assembly_import__assy_copy": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_copied_assembly_import",
-    "blockedBy": "importStep"
+    "blockedBy": "Assembly 类式 STEP 导入/导出（importers.importStep / Assembly.save）；平台 cad.import_step 已落地（core api/import-step.ts），装配级 roundtrip 仍依赖类式 API（Phase 5 显式 block）",
+    "manual": true
   },
   "tests.test_assembly:::test_copied_assembly_import__assy_normal": {
     "status": "blocked",
     "source": "tests.test_assembly:::test_copied_assembly_import",
-    "blockedBy": "importStep"
+    "blockedBy": "Assembly 类式 STEP 导入/导出（importers.importStep / Assembly.save）；平台 cad.import_step 已落地（core api/import-step.ts），装配级 roundtrip 仍依赖类式 API（Phase 5 显式 block）",
+    "manual": true
   },
   "tests.test_assembly:::test_nested_subassembly_step_import__assy": {
     "status": "blocked",

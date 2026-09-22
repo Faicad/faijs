@@ -45,6 +45,7 @@ export * from './assembly'
 export { copy } from './copy'
 // ── H11：平台几何 op（方案 §4，替代 FCStd 迁移对编辑器 op 的借用）──
 export { import_brep } from './import-brep'
+export { import_step } from './import-step'
 export { compound } from './compound-geom'
 export { place } from './place'
 export type {
