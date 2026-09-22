@@ -9,7 +9,8 @@
  * 布尔合流后来自不同链根来源的面。
  */
 
-import type { PartName } from '../../identity'
+import type { PartName, StmtId } from '../../identity'
+import type { RoleName } from './role-name'
 
 // ── 几何提示（hint）──
 
@@ -61,10 +62,46 @@ export interface DerivedFaceHint {
 /**
  * role 的全局限定：origin = 该面血缘起点的 part 变量名（链根），
  * role = 该起点内的角色名（如 'box:top'）。
+ *
+ * ⚠️ **这是 V1 形态，Phase 1.6/1.7 后退役**（计划 §4.1）：
+ * origin 改 `StmtId`（PartName 会因"同一资产导入两次共用 origin"而算出相同 ref，
+ * `import-brep.ts:77`）、role 改 `RoleName`（现在的字符串把 origin 和局部名混在一个
+ * 命名空间里）。新代码请用 `FaceIdentity`。
  */
 export interface RoleQualifier {
   readonly origin: PartName
   readonly role: string
+}
+
+// ── 身份（权威形态，计划 §4.1）──
+
+/**
+ * 面身份 = `(StmtId, RoleName)` 的因果坐标。
+ *
+ * - `origin` 一律 `StmtId`，**链根也用它自己那条语句**（不再有"资产名"这种 origin）。
+ *   `StmtId` 天然唯一，且与变量重命名解耦——`PartName` 会被改名、也会被复用
+ *   （同一资产导入两次曾共用 origin，导致两个不同实体的第 k 个面算出完全相同的 ref）。
+ * - `role` 是**那条语句内的局部名**（`RoleName`，结构化），全局唯一性由二元组提供。
+ * - `display` 仅用于 UI，**不参与身份判定、不参与解析**（UI 要显示"part3.top"是显示问题，
+ *   不能反向变成身份的组成部分，否则改个变量名就改身份）。
+ *
+ * **为什么"链根也用它自己那条语句"**：曾经链根的 origin 是"资产名 / 变量名"——
+ * 那是**命名**，不是**来源**。同一份 STEP 被 `cad.load` 两次，两次产出的面在语义上
+ * 是不同实体的面，却会拿到同一个 origin；用 StmtId 后它们自然分属两条语句。
+ *
+ * **V1（`RoleQualifier` / `FaceTopoRef` 等）与 V2 的关系**：V2 不是一套并行的新类型族，
+ * 而是把现有 `TopoRef` 族的 `origin`/`role` 字段**就地换成**上面两个字段（Phase 1.6/1.7）。
+ * 刻意不先加一套 `TopoRefV2` 并行存在——那会立刻让同一个类型有了两个家（§4.1 明令禁止）。
+ * 迁移器需要读旧形态时，旧形态由 `migrate.ts` 自带一份**冻结的** legacy 类型（唯一消费方，
+ * 故唯一归属）。
+ */
+export interface FaceIdentity {
+  /** 权威：产生这个面的那条语句（全局唯一）。 */
+  readonly origin: StmtId
+  /** 那条语句把它当作什么。 */
+  readonly role: RoleName
+  /** 显示名，仅 UI 用（不参与身份判定、不参与解析）。 */
+  readonly display?: PartName
 }
 
 // ── TopoRef 四类 ──

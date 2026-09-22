@@ -7,6 +7,7 @@
 
 export * from './types'
 export * from './role-name'
+export * from './lineage'
 export * from './geom-hint'
 export * from './score'
 export * from './roles'
