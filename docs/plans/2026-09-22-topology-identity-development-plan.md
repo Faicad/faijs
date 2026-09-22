@@ -517,28 +517,92 @@ resolve(identity, atPart):
 
 ### Phase 1｜身份与血缘
 
-| 步骤 | 内容 | 落点 |
-|---|---|---|
-| 1.1 | 新建 `RoleName` + `parseRoleName`/`formatRoleName` + round-trip 测试 | `topology/naming/role-name.ts`（新） |
-| 1.2 | 扩展 `FaceIdentity` / `TopoRefV2` 类型（原地，不新建目录） | `topology/naming/types.ts` |
-| 1.3 | 新建登记函数 `registerStep` + 两张表（`lineage: Map<StmtId, LineageNode>`、`partToStmt: Map<PartName, StmtId>`）+ N1/N2/N3 校验 | `topology/naming/lineage.ts`（新） |
-| 1.4 | **调用点 A**：`wrapBrepOne` 登记 | `define-op.ts:274-281` |
-| 1.5 | **调用点 B**：`compatOp` 边界登记 | `api/internal/compat-op.ts` |
-| 1.6 | `FaceNaming.origin: PartName` → `StmtId`（S1） | `topology/naming/types.ts:180` |
-| 1.7 | `role: string` → `RoleName`，删 `box:`/`extrude:` 前缀 | 同上 + `roles.ts:102-105` |
-| 1.8 | 删 mesh 伪拓扑：`assignPrimitiveFaceRoles` + `role:''` 两处兜底（D6/S4） | `build-naming.ts:90-106`、`:127`、`:134` |
-| 1.9 | mesh 路径引用抛 `E_TOPO_MESH_UNSUPPORTED` | `api/edge-ref.ts`、`api/face-ref.ts` |
-| 1.10 | `roleTable` 降级为缓存（删 `shape.ts:68` 的条件写入、`shape.ts:79` 的 `roleTable?: unknown`） | `shape.ts:68/79` |
-| 1.11 | 迁移器 `migrateTopoRef` + 单测（§2.3） | `topology/naming/migrate.ts`（新） |
-| 1.12 | `topology/naming/roles.ts` 的 `ROLE_ASSIGNERS` 改为**输出 `RoleName`** | `roles.ts:68` |
+| 步骤 | 内容 | 落点 | 状态 |
+|---|---|---|---|
+| 1.1 | 新建 `RoleName` + `parseRoleName`/`formatRoleName` + round-trip 测试 | `topology/naming/role-name.ts`（新） | **已完成** |
+| 1.2 | 扩展 `FaceIdentity` / `TopoRefV2` 类型（原地，不新建目录） | `topology/naming/types.ts` | **已完成**（只加 `FaceIdentity`；`TopoRefV2` 不另立并行类型族，见落地记录） |
+| 1.3 | 新建登记函数 `registerStep` + 两张表（`lineage: Map<StmtId, LineageNode>`、`partToStmt: Map<PartName, StmtId>`）+ N1/N2/N3 校验 | `topology/naming/lineage.ts`（新） | **已完成** |
+| 1.4 | **调用点 A**：`wrapBrepOne` 登记 | `define-op.ts:274-281` | **阻塞**（依赖 2.1/2.3 的 `naming` 声明，见落地记录；改为与 2.3/2.4 同批执行） |
+| 1.5 | **调用点 B**：`compatOp` 边界登记 | `api/internal/compat-op.ts` | **阻塞**（同上） |
+| 1.6 | `FaceNaming.origin: PartName` → `StmtId`（S1） | `topology/naming/types.ts:180` | 待做 |
+| 1.7 | `role: string` → `RoleName`，删 `box:`/`extrude:` 前缀 | 同上 + `roles.ts:102-105` | 待做 |
+| 1.8 | 删 mesh 伪拓扑：`assignPrimitiveFaceRoles` + `role:''` 两处兜底（D6/S4） | `build-naming.ts:90-106`、`:127`、`:134` | 待做 |
+| 1.9 | mesh 路径引用抛 `E_TOPO_MESH_UNSUPPORTED` | `api/edge-ref.ts`、`api/face-ref.ts` | 待做 |
+| 1.10 | `roleTable` 降级为缓存（删 `shape.ts:68` 的条件写入、`shape.ts:79` 的 `roleTable?: unknown`） | `shape.ts:68/79` | 待做 |
+| 1.11 | 迁移器 `migrateTopoRef` + 单测（§2.3） | `topology/naming/migrate.ts`（新） | 待做（**依赖 1.6/1.7**：迁移的目标形态就是 V2，V2 未落地时无法写输出类型） |
+| 1.12 | `topology/naming/roles.ts` 的 `ROLE_ASSIGNERS` 改为**输出 `RoleName`** | `roles.ts:68` | 待做（与 1.7 同批——两者改的是同一件事的两半） |
 
 **验收**：G2 达成（`nameless shape` 类报错归零）；G3 的 6 条链**不回退**（不要求变绿）；1.1 的 round-trip 测试全绿；1.11 的迁移器幂等性测试全绿。
+
+**执行顺序修正（实际依赖 vs 表内编号）**：`1.1 → 1.2/1.3 → 1.6/1.7/1.10/1.12 → 1.8/1.9 → 1.11 →（待 2.3）1.4/1.5`。
+编号顺序不是依赖顺序：1.11 的输出类型是 V2，故必须在 1.6/1.7 之后；1.4/1.5 需要 op 声明的 provenance，故必须在 2.3 之后。
 
 **同步 3d_editor（S1/S2/S3/S4）**：
 - 改 `capture-topo-ref.test.ts:69-70`、`assemble-store.test.ts:481` 的断言；
 - 接上 `migrateTopoRef`（载入场景时）；
 - 加一条"mesh part 无 naming 行 → `faceTopoRefFromRow` 返回 `null`"的测试；
 - 迁移器对旧 `face_N` 位置名 ref **报告而非伪造**。
+
+#### Phase 1 落地记录
+
+**1.1（`RoleName`）已落地**（`topology/naming/role-name.ts`，29 测试）。
+七个 kind 封闭：`semantic` / `wall` / `hole` / `replica` / `splinter` / `generated` / `imported`，
+包裹型递归（`replica[2]/hole:1/wall:3` 实测可往返）。两条实现决定值得记下：
+
+1. **`parseRoleName` 必须是单射的**，不只是"能往返"。故**拒绝前导零**（`wall:01` 与 `wall:1`
+   同值不同串 ⇒ 两个不同 RoleName 会序列化成同一个串 ⇒ `.fai.js` 里的引用**静默指到错的面**）、
+   并**拒绝保留字作 semantic 名**（`semantic{'wall'}` 与 `wall:3` 的前缀写法只差一个字符，
+   inner 一旦可省就会互相吃掉）。测试里有独立的**单射测试**（语料内任意两个不同 RoleName 串必不同），
+   只测"串没变"是不够的。
+2. **构造子（`semantic()`/`wall()`/`generated()`… 七个）校验在产生点**，而不是留到 `formatRoleName`。
+   留到 format 时，非法值可能已跨过一次执行，离出错点很远。
+
+**1.2（`FaceIdentity`）已落地，但 `TopoRefV2` 刻意不另立类型族**：
+§4.1 的 `FaceIdentity { origin: StmtId; role: RoleName; display?: PartName }` 已加进 `types.ts`。
+但**不加一套并行存在的 `FaceTopoRefV2`**——1.6/1.7 会把现有 `TopoRef` 族的 `origin`/`role`
+**就地换成**这两个字段，先加一套并行族等于让同一个类型立刻有两个家（§4.1 自己禁止的事）。
+迁移器需要读旧形态时，旧形态由 `migrate.ts` 自带一份**冻结的** legacy 类型
+（唯一消费方 ⇒ 唯一归属，符合「一个事实一个家」）。
+
+**1.3（`lineage.ts` + N1/N2/N3）已落地**（30 测试）。三处实现决定：
+
+1. **`inputs` 收 Shape 句柄、不收 `PartName`**。N1 的判据就是"这个 Shape 有没有名字"；
+   若调用方先自己 map 成名字，正好把"查不到名字"这一步跳过——那正是 N1 要防的。
+2. **N3 的比较范围刻意不含 `evolution`，且重登记必须保留已补挂的 evolution**。
+   两条是一个硬币的两面：`evolution` 在执行期事后补（`attachEvolution`），
+   若纳入比较，第二次登记会因"上次还没补"而**误报冲突**；若重登记时用不带 evolution 的
+   新对象整体覆盖，先前记录的 hash 演化会被**静默丢掉**——而丢掉的正是 `kernel` 类
+   推进 role 所需的全部信息（演化只在执行那一刻可得，重算几何也补不回来）。
+   **实测：这条 bug 在第一次跑测试时就暴露了**，故两条都写了测试。
+3. **所有校验在写入之前完成**（原子性）。每个失败用例都额外断言"两张表没被污染"——
+   半条记录比没有记录更难查。
+
+另加一条计划未列的守卫 **`E_TOPO_PART_REDEFINED`**：一个 `PartName` 被两条语句声明产出时
+反查（名字 → 语句）会变成"取哪一条"的歧义。它与 N1 同属"静默产生错身份"这一类，故一并堵。
+**provenance 载荷的合法性是编译期问题**（§4.6），运行期**不重复校验**；
+测试里显式写明这一点，避免读的人以为存在一道运行期兜底。
+
+**⚠️ 1.4/1.5 的时序倒置（计划缺陷，已确认）**：1.4/1.5 要求在两处调用点**登记**血缘，
+而 `LineageNode` 需要 `provenance`（§4.3 原文：「op 声明的类别」）——**那份声明到 Phase 2
+才存在**（2.1 `ArgSpecEntry.naming` / 2.3 `DualOpOptions` 增**必填** `naming`）。
+
+实测证据：`define-op.ts:83-97` 的 `DualOpOptions` 只有 `name` / `capabilities` / `outputs` /
+`schema` / `slotMap`，**无任何 provenance/类别声明**；op 的真正调用边界是
+`define-op.ts:262-286` 的 async `wrapped`，其 `meta` 同样无该字段。
+
+**为什么不能用 `unmodeled('尚未声明')` 占位**：那正是"让本该失败的东西通过"的旁路——
+把必填项用"全部声明为算不出来"变成可选项。§4.4 的 `unmodeled` 语义是**能力缺口**，
+不是 TODO；且 Phase 4.3 要求每条 `unmodeled` 给理由并进白名单，一个"还没做"的理由是谎。
+⇒ **处置：1.4/1.5 改为与 2.3/2.4 同批执行**（机制与声明一起落地，不做只接不通的线）。
+这不影响 Phase 1 的其余验收项（G2 / G3 不回退 / 1.1 / 1.11），因为它们是类型与迁移层的事。
+
+**⚠️ 顺带记录：`tsc --noEmit` 在 HEAD 已经是红的（10 项）**，与本次工作无关。
+根 `tsconfig.json` 与 `packages/core/tsconfig.json` 报**完全相同**的 10 项：
+`api/compound-geom.ts`+`.test.ts`、`api/import-brep.ts`+`.test.ts`、`api/place.ts`、
+`api/place-calibration.test.ts`、`fcstd/feature-translate.test.ts`。
+其中 3 项是 `BrepEngineApi` 从 `../brep/engine/types` 导入，而它实际定义在
+`brep/engine/primitives.ts:31`（`git log -S BrepEngineApi -- .../types.ts` 为空 ⇒ 从未在那里）。
+**这 10 项已存为基线**，后续每个 Phase 的 tsc 校验对它取差，避免把既有错误当成新引入的。
 
 ---
 
