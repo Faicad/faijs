@@ -1,0 +1,12 @@
+{
+  "imports": {
+    "@faicad/faijs": "https://cdn.jsdelivr.net/npm/@faicad/faijs/+esm",
+    "@faicad/cq-compat": "https://cdn.jsdelivr.net/npm/@faicad/cq-compat/+esm",
+    "@faicad/cq-compat-assembly": "https://cdn.jsdelivr.net/npm/@faicad/cq-compat-assembly/+esm",
+    "@faicad/cq-compat-compare": "https://cdn.jsdelivr.net/npm/@faicad/cq-compat-compare/+esm",
+    "@faicad/cq-compat-sketch": "https://cdn.jsdelivr.net/npm/@faicad/cq-compat-sketch/+esm",
+    "@faicad/fai-cq-gears": "https://cdn.jsdelivr.net/npm/@faicad/fai-cq-gears/+esm",
+    "@faicad/fai-cq-warehouse": "https://cdn.jsdelivr.net/npm/@faicad/fai-cq-warehouse/+esm",
+    "@faicad/sheetmetal": "https://cdn.jsdelivr.net/npm/@faicad/sheetmetal/+esm"
+  }
+}

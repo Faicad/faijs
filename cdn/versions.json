@@ -1,0 +1,10 @@
+{
+  "@faicad/faijs": "0.13.2",
+  "@faicad/cq-compat": "0.13.2",
+  "@faicad/cq-compat-assembly": "0.1.0",
+  "@faicad/cq-compat-compare": "0.1.0",
+  "@faicad/cq-compat-sketch": "0.1.0",
+  "@faicad/fai-cq-gears": "0.13.2",
+  "@faicad/fai-cq-warehouse": "0.13.2",
+  "@faicad/sheetmetal": "0.13.2"
+}
