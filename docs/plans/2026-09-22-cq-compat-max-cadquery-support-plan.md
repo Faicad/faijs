@@ -368,3 +368,10 @@
 **实施记录（2026-09-23 续，multisection sweep 实验留档）：**
 - 尝试以 4 截面 loft 镜像 multisection sweep（`loft(w2, w4, w6, w8)`，circle→rect→rect→circle 沿 X 直线 spine）：导出成功但几何差 11.7%（ref 75.517 vs cand 差 vol），且 4 截面 loft 的 cand STEP 在 compare 全量循环中触发 wasm `importStep: memory access out of bounds`（第一个 ERROR 出现在 defaultSweep，其后 196 个 case 连环 ERROR——移除 3 个新 cand 后 ERROR 归零，证实为新 loft STEP 在累积读取下触发内核内存越界）。已回退镜像至 `loft(w8)`，compare 恢复 PASS=278/FAIL=5/ERROR=0。
 - 结论：multisection sweep（`sweep(path, multisection=True)`）保持 FAIL/blocked 留档，根因 = 内核 `BRepOffsetAPI_MakePipeShell` 多截面未暴露（Phase 4 已登记）；loft 的 circle↔rect 过渡几何与 MakePipeShell 不等价，不能作为替代。
+
+**实施记录（2026-09-23 续，BLOCKED 扫尾三批）：**
+- split 用例 c 镜像（+3 PASS）：testSplitKeepingBoth/Bottom/Half 的 `c` 变量是 makeUnitCube 打孔体（仅 cutThruAll），原被 blockedBy=split 误标。补镜像后 3 个全 PASS（ref f7/e15/v10 精确相等）。
+- NearestToShape 镜像（+4 PASS）：testNearestToShape 的 b1/b2/b3/res——res = (b2+b3).solids(NearestToShape(b1)) 选中 b2，ref harness 导出 val()=具体形状，镜像直写（free `box(1,1,1)` 语义 = XY 居中 Z 0..1，`moved(x=±)` 用 Location 对象）。关键口径：CQ free box ≠ Workplane.box 默认全居中。
+- AreaNth 镜像（+3 PASS）：workplane_shells/workplane_solids/selected_solids——eachpoint 回调式不可表达，ref 导出 val()=objects[0]（首个 box），rarray 原点居中（点序 x=-10/0/10 与 x=-30/0/30）。镜像直写首个 box；selected_solids = AreaNthSelector(1) 选中的 20-box @x=0。
+- 排查记录：内核 `defeature`（BRepAlgoAPI_Defeaturing）对 box 删顶面返回 6 面 solid（拓扑修复），与 CQ `remove`（BRepTools_ReShape 删面成 5 面 open shell）语义不同——test_sewing 的 sh/res3 维持 blocked（内核缺 BRepTools_ReShape 暴露）；内核 `offset` 对 face/shell 返回 open shell（vol 0），与 CQ offset（实体）语义不同——test_offset r1-r4 维持 blocked。
+- 现状：compare PASS=288 / PASS-NT=5 / FAIL=5 / ERROR=0 / BLOCKED=352 / parity 45.08%。FAIL=5 均为内核缺口（siblings fuse 差异 ×4 + multisection sweep）。
