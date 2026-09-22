@@ -8,8 +8,14 @@
 
 import type { Shape, Vec3 } from '../mesh/types'
 import { cad } from '../mesh'
-import { translateBrep, rotateBrep, scaleBrep, solidToShape } from '../brep/brep-ops'
-import { identityEvolution, identityHashEvolution } from '../brep/face-evolution'
+import { rotateBrep, scaleBrep, solidToShape } from '../brep/brep-ops'
+import {
+  identityEvolution,
+  identityHashEvolution,
+  scaleWithHashEvolution,
+  translateWithHashEvolution,
+} from '../brep/face-evolution'
+import type { HashEvolution } from '../brep/face-evolution'
 import { getBackends } from '../runtime-state'
 import { fromBrep, brepOf, getSlot } from '../shape'
 import { propagateAllOrigins } from '../topology/naming/roles'
@@ -74,7 +80,18 @@ export function assertScale3dParams(params: Record<string, unknown>): void {
   assertVec3(params.factor, 'scale3d.factor')
 }
 
-/** BREP 路径：变换 solid + 恒等面演化 + 恒等 roleTable 传播 + 三角化 + fromBrep 登记。 */
+/**
+ * BREP 路径：变换 solid + 面演化 + roleTable 传播 + 三角化 + fromBrep 登记。
+ *
+ * Phase 0.3：优先走内核**权威**面演化（`translateWithHistory` / `scaleWithHistory`）；
+ * 内核无法单次表达的（`rotate_euler` 任意欧拉+pivot、`scale3d` 非等比）退回
+ * `identityHashEvolution`，其"面枚举序号在变换后保持"的假设由
+ * `brep/face-evolution.ordering.test.ts` 实测钉住。
+ * @param op - the transform operation name.
+ * @param input - the input geometry.
+ * @param params - the operation parameters.
+ * @returns the transformed Shape.
+ */
 function transformBrep(op: string, input: Shape, params: Record<string, unknown>): Shape {
   const kernel = getBackends().kernel.brep as BrepEngineApi | null
   if (!kernel) throw new Error('[stdlib/transform] no OCCT kernel')
@@ -82,20 +99,38 @@ function transformBrep(op: string, input: Shape, params: Record<string, unknown>
   if (!inputSolid) throw new Error('[stdlib/transform] input is not BREP')
 
   let resultSolid: BrepHandle
+  let hashEvolution: HashEvolution
+
   if (op === 'translate') {
-    resultSolid = translateBrep(kernel, inputSolid, params.offset as Vec3)
-  } else if (op === 'rotate_euler') {
-    resultSolid = rotateBrep(kernel, inputSolid, params.anglesDeg as Vec3, params.pivot as Vec3 | undefined)
+    // 权威映射：内核 translateWithHistory（1:1 全覆盖，实测见 evolution-bindings.test.ts）
+    const r = translateWithHashEvolution(kernel, inputSolid, params.offset as Vec3)
+    resultSolid = r.result
+    hashEvolution = r.evolution
+  } else if (op === 'scale') {
+    // 权威映射：内核 scaleWithHistory（仅均匀 —— assertScaleParams 已保证 factor 是 number）
+    const r = scaleWithHashEvolution(
+      kernel,
+      inputSolid,
+      (params.center as Vec3 | undefined) ?? [0, 0, 0],
+      params.factor as number,
+    )
+    resultSolid = r.result
+    hashEvolution = r.evolution
   } else {
-    // op is 'scale' | 'scale3d'：统一走 带不动点的 scaleBrep（factor number|Vec3）。
-    resultSolid = scaleBrep(kernel, inputSolid, params.factor as number | Vec3, params.center as Vec3 | undefined)
+    // rotate_euler（任意欧拉角+pivot）/ scale3d（非等比）：内核无单次 WithHistory 可表达
+    if (op === 'rotate_euler') {
+      resultSolid = rotateBrep(kernel, inputSolid, params.anglesDeg as Vec3, params.pivot as Vec3 | undefined)
+    } else {
+      resultSolid = scaleBrep(kernel, inputSolid, params.factor as number | Vec3, params.center as Vec3 | undefined)
+    }
+    hashEvolution = identityHashEvolution(kernel, inputSolid, resultSolid)
   }
 
-  // §2.4/§3.3：刚体变换面 1:1 保留——hash 恒等传播 roleTable（所有 origin）
+  // §2.4/§3.3：刚体变换面 1:1 保留 —— 沿演化传播 roleTable（所有 origin）
   const inputTable = getSlot(input)?.roleTable as RoleTable | undefined
   let roleTable: RoleTable | undefined
   if (inputTable && inputTable.size > 0) {
-    roleTable = propagateAllOrigins(inputTable, identityHashEvolution(kernel, inputSolid, resultSolid))
+    roleTable = propagateAllOrigins(inputTable, hashEvolution)
   }
 
   return fromBrep(solidToShape(kernel, resultSolid), {

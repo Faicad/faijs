@@ -196,10 +196,24 @@ export function splitHashEvolutionByOrigin(
 }
 
 /**
- * 构造 hash 键恒等演化（§2.4：变换类 translate/rotate/scale/copy 用）。
+ * 构造 hash 键恒等演化：输入第 i 面 hash → 输出第 i 面 hash（按枚举序号对齐）。
  *
- * 刚体变换/深拷贝不改变面数量与顺序：输入第 i 面 hash → 输出第 i 面 hash，
- * 用 subShapeHashes 两端对齐合成 hash 恒等（避免调用 *WithHistory 的签名兼容问题）。
+ * ⚠️ **Phase 0.3 后本函数只用于「内核无 `*WithHistory` 可表达」的 4 个 op**：
+ *
+ * | op | 为什么不能走权威映射 |
+ * |---|---|
+ * | `rotate_euler` | 任意欧拉角 + pivot；内核只有**单轴** `rotateWithHistory` |
+ * | `scale3d` | 非等比；`generalTransform` 无历史（`scaleWithHistory` 只收均匀 factor） |
+ * | `copy` | 深拷贝；内核无 `copyWithHistory` |
+ * | `place` | 任意矩阵 `located`；内核无对应历史 API |
+ *
+ * `translate` / `scale`（均匀）已改走权威映射（`translateWithHashEvolution` /
+ * `scaleWithHashEvolution`），不再经过本函数。
+ *
+ * ⚠️ **本函数的正确性依赖一个曾经未被验证的假设**：刚体变换/深拷贝保持 OCCT 的
+ * 面枚举序号。该假设现由 `brep/face-evolution.ordering.test.ts` 实测钉住。
+ * 若该测试变红 ⇒ 本函数在这 4 个 op 上会产出**错误的身份映射**，
+ * 必须为它们找别的权威来源，**不是**调松测试。
  *
  * @param kernel       - the OCCT kernel.
  * @param inputShape   - the input shape.
@@ -219,6 +233,59 @@ export function identityHashEvolution(
     modified.set(inputHashes[i], [resultHashes[i]])
   }
   return { modified, deleted: new Set() }
+}
+
+/**
+ * 平移 + **权威**面演化（Phase 0.3）：走内核 `translateWithHistory`。
+ *
+ * 与 `identityHashEvolution` 的区别：这里的 `inHash → outHash[]` 是 OCCT 自己给的，
+ * **不依赖**"枚举序号在变换后保持"这个此前从未验证的假设（分析文档 §7 第 6 项）。
+ * 实测（`brep/engine/evolution-bindings.test.ts`）：刚体变换的权威映射为
+ * 1:1 全覆盖（`coveredInputs === 面数`、`deleted` 空、`generated` 空）。
+ *
+ * @param kernel - the OCCT kernel.
+ * @param shape  - the input shape.
+ * @param d      - the translation vector as [dx, dy, dz].
+ * @returns the translated handle plus the authority hash evolution.
+ */
+export function translateWithHashEvolution(
+  kernel: BrepEngineApi,
+  shape: BrepHandle,
+  d: readonly [number, number, number],
+): { result: BrepHandle; evolution: HashEvolution } {
+  const inputHashes = getFaceHashes(kernel, shape)
+  const evo = kernel.translateWithHistory(shape, d[0], d[1], d[2], inputHashes, HASH_UPPER_BOUND)
+  return { result: evo.result, evolution: decodeHashEvolution(evo) }
+}
+
+/**
+ * 均匀缩放 + **权威**面演化（Phase 0.3）：走内核 `scaleWithHistory`。
+ *
+ * ⚠️ **仅均匀缩放**。非均匀缩放内核无 `*WithHistory`（`generalTransform` 无历史），
+ * 故 `scale3d` 无法走本函数——它退回 `identityHashEvolution`，其"面序保持"假设
+ * 由 `brep/face-evolution.ordering.test.ts` 钉住。
+ *
+ * @param kernel - the OCCT kernel.
+ * @param shape  - the input shape.
+ * @param center - the fixed point of the scaling (not scaled).
+ * @param factor - the uniform scale factor.
+ * @returns the scaled handle plus the authority hash evolution.
+ */
+export function scaleWithHashEvolution(
+  kernel: BrepEngineApi,
+  shape: BrepHandle,
+  center: readonly [number, number, number],
+  factor: number,
+): { result: BrepHandle; evolution: HashEvolution } {
+  const inputHashes = getFaceHashes(kernel, shape)
+  const evo = kernel.scaleWithHistory(
+    shape,
+    { x: center[0], y: center[1], z: center[2] },
+    factor,
+    inputHashes,
+    HASH_UPPER_BOUND,
+  )
+  return { result: evo.result, evolution: decodeHashEvolution(evo) }
 }
 
 /**

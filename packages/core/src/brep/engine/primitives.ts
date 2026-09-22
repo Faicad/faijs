@@ -184,6 +184,76 @@ export interface BrepEngineApi {
     hashUpperBound: number,
   ): BrepEvolutionData
 
+  // ── 面演化 · Phase 0.1 补齐的 7 个（occt-wasm 运行时本就存在） ──
+  //
+  // ⚠️ 为什么此前只有 5 个：faijs 只绑了 boolean 与 fillet/chamfer，那 7 个在
+  // `occt-wasm@3.8.4` 的运行时**一直都在**（dist/index.d.ts:458-472 共 12 个），
+  // 只是 faijs 类型层未声明、也无人调用。补齐**不动 WASM**。
+  //
+  // ⚠️ 注意：`initOcctWasm()` 的返回类型在本文件之外已被硬断言为 BrepEngineApi
+  // （occtKernel.ts:88/95/106/112 `as unknown as`）⇒ 下方 `_AssertOcctApi`
+  // 恒真、**无校验力**。声明 ≠ 运行时存在：存在性由
+  // `packages/core/src/brep/engine/evolution-bindings.test.ts` 的冒烟测试钉住。
+
+  /** 平移 + 面演化（权威 hash→hash 映射，替代序号对齐近似）。 */
+  translateWithHistory(
+    shape: BrepHandle,
+    dx: number,
+    dy: number,
+    dz: number,
+    inputFaceHashes: number[],
+    hashUpperBound: number,
+  ): BrepEvolutionData
+  /** 绕任意轴旋转 + 面演化。`axis = {point, direction}`，`angleRad` 为**弧度**。 */
+  rotateWithHistory(
+    shape: BrepHandle,
+    axis: { point: BrepVec3; direction: BrepVec3 },
+    angleRad: number,
+    inputFaceHashes: number[],
+    hashUpperBound: number,
+  ): BrepEvolutionData
+  /** 镜像 + 面演化。`point` 为镜像面上一点，`normal` 为镜像面法向。 */
+  mirrorWithHistory(
+    shape: BrepHandle,
+    point: BrepVec3,
+    normal: BrepVec3,
+    inputFaceHashes: number[],
+    hashUpperBound: number,
+  ): BrepEvolutionData
+  /** 缩放 + 面演化。⚠️ 仅**均匀**缩放（`factor: number`）；非均匀走 `generalTransform`（无历史）。 */
+  scaleWithHistory(
+    shape: BrepHandle,
+    center: BrepVec3,
+    factor: number,
+    inputFaceHashes: number[],
+    hashUpperBound: number,
+  ): BrepEvolutionData
+  /** 抽壳 + 面演化。`faces` 为被移除的面（开口），`thickness` 为壁厚。 */
+  shellWithHistory(
+    solid: BrepHandle,
+    faces: BrepHandle[],
+    thickness: number,
+    tolerance: number,
+    inputFaceHashes: number[],
+    hashUpperBound: number,
+  ): BrepEvolutionData
+  /** 偏移 + 面演化。 */
+  offsetWithHistory(
+    solid: BrepHandle,
+    distance: number,
+    tolerance: number,
+    inputFaceHashes: number[],
+    hashUpperBound: number,
+  ): BrepEvolutionData
+  /** 加厚（面/壳 → 实体）+ 面演化。 */
+  thickenWithHistory(
+    shape: BrepHandle,
+    thickness: number,
+    tolerance: number,
+    inputFaceHashes: number[],
+    hashUpperBound: number,
+  ): BrepEvolutionData
+
   // ── XCAF 装配（可选能力槽 §7.5 AssemblyCapability，Phase 1 钉死完整形态） ──
   createXCAFDocument(): BrepXcafDocument
   importXCAFFromSTEP(stepData: string): BrepXcafDocument
