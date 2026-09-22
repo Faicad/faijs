@@ -118,10 +118,9 @@
     "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testClosedShell__s3": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testClosedShell",
-    "blockedBy": "kernel: shell(-t) on a concave prism needs MakeThickSolidByJoin intersection handling; occt-wasm kernel.shell returns a null inner-offset for the concave profile and its negative-thickness result (-0.3002) does not match upstream (0.0991). Revisit when the wasm surface exposes a faithful MakeThickSolidByJoin.",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testClosedShell__s4_shape": {
     "status": "ported",
@@ -1610,10 +1609,9 @@
     "blockedBy": "export"
   },
   "tests.test_cadquery::TestCadQuery::test_extrude_face__c": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::test_extrude_face",
-    "blockedBy": "step-export:faces-compound",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::test_findFromEdge__part2": {
     "status": "ported",
@@ -1820,10 +1818,9 @@
     "blockedBy": null
   },
   "tests.test_shapes:::test_single_ent_selector__fs": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_shapes:::test_single_ent_selector",
-    "blockedBy": "step-export:faces-compound",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_shapes:::test_special__c": {
     "status": "blocked",
@@ -1961,16 +1958,14 @@
     "blockedBy": null
   },
   "tests.test_free_functions:::test_constructors__c1": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_constructors",
-    "blockedBy": "step-export:faces-compound",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_constructors__c2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_free_functions:::test_constructors",
-    "blockedBy": "step-export:faces-compound",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_free_functions:::test_sewing__b": {
     "status": "blocked",
