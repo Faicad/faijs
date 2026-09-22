@@ -33,6 +33,8 @@ import { load } from './load'
 import { fai_drill } from './fai_drill'
 import { fai_split } from './fai_split'
 import { union, subtract, intersect, cut } from './boolean'
+import { split } from './split'
+import { linearPattern } from './pattern'
 import { engrave } from './engrave'
 import { chamfer } from './chamfer'
 import { fillet } from './fillet'
@@ -93,5 +95,10 @@ export function createApiNamespace(): StdlibNamespace {
     // Phase 3: override generated cut (compatOp, no roleTable propagation) with
     // handwritten cut from boolean.ts (does roleTable propagation via booleanBrep).
     cut,
+    // Phase 3: override generated split / linearPattern (compatOp, no roleTable
+    // propagation) with handwritten versions that build replica[k] / splinter(#j)
+    // role tables (L3 / L4 抗重放词汇). Spread after scriptFaceOps so they win.
+    split,
+    linearPattern,
   } as unknown as StdlibNamespace
 }

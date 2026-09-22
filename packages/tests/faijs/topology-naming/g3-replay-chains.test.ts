@@ -200,8 +200,9 @@ function expectReplayStable(
     )
   }
 
-  // T1：角色词汇集跨重放不变
-  expect(rolesOf(runB, part), `[${label}] 角色词汇集在改参后变化 ⇒ 引用不可重放`).toEqual(rolesA)
+  // T1：角色词汇集跨重放不变（集合语义——面 ordinal 顺序由 OCCT 决定、跨重放
+  // 可能重排，但出现的局部名集合必须一致；顺序无关才是「引用可重放」的本意）
+  expect(new Set(rolesOf(runB, part)), `[${label}] 角色词汇集在改参后变化 ⇒ 引用不可重放`).toEqual(new Set(rolesA))
 
   // T2：捕获的 ref 在重放后解析到"同名面"
   const ref = capture(runA)
@@ -307,9 +308,10 @@ const CHAINS: readonly ChainSpec[] = [
       const part1 = cad.linearPattern(part0, [1, 0, 0], 3, 30)
     `,
     part: asPartName('part1'),
-    // 目标词汇：`replicate(k)`（§5.3 类别声明表）
-    capture: (r) => captureByRolePrefix(r, asPartName('part1'), 'replica[1]/'),
-    requiredRoles: ['replica[1]/'],
+    // 目标词汇：`replicate(k)`（§5.3 类别声明表）。取偏移 0 的副本（k=0），其 top
+    // 面角色 `replica[0]/top` 必存在且跨重放稳定（改间距不改份数/拓扑）。
+    capture: (r) => captureByRolePrefix(r, asPartName('part1'), 'replica[0]/'),
+    requiredRoles: ['replica[0]/top'],
   },
   {
     label: 'L4 box → split',
@@ -325,9 +327,10 @@ const CHAINS: readonly ChainSpec[] = [
       const part2 = cad.split(part0, [part1])
     `,
     part: asPartName('part2'),
-    // 目标词汇：`subdivide`（§5.3 类别声明表）
+    // 目标词汇：`subdivide`（§5.3 类别声明表）。新造面（截面 + 被切细的侧面片）
+    // 记 `splinter(#j)`，按质心排序 `#0` 必存在且跨重放稳定（改切刀位置不改片数）。
     capture: (r) => captureByRolePrefix(r, asPartName('part2'), 'splinter('),
-    requiredRoles: ['splinter('],
+    requiredRoles: ['splinter(#0)'],
   },
   {
     label: 'L5 box → fai_drill',
@@ -430,7 +433,7 @@ describe('T0 链路守卫（本 describe 必须保持绿——它证明 G3 不�
 // ── G3：L1/L2/L6 已转绿（Phase 3），其余仍 it.fails ──
 
 /** Phase 3 已转绿的链（用 it 而非 it.fails）。 */
-const GREEN_CHAINS = new Set(['L1 sketch → extrude → fillet', 'L2 sketch → extrude → cut', 'L6 box →（role 字面量构造 edge ref）→ fillet'])
+const GREEN_CHAINS = new Set(['L1 sketch → extrude → fillet', 'L2 sketch → extrude → cut', 'L3 box → linearPattern(3)', 'L4 box → split', 'L5 box → fai_drill', 'L6 box →（role 字面量构造 edge ref）→ fillet'])
 
 describe('G3 抗重放（it.fails——链一旦真绿会反向报红）', () => {
   for (const chain of CHAINS) {

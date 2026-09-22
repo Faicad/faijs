@@ -10,14 +10,17 @@ import type { Shape, Vec3 } from '../mesh/types'
 import { cad } from '../mesh'
 import {
   drillBrep,
+  buildDrillToolSolid,
+  computeDrillGeometry,
   solidToShape,
   matrixToArray,
 } from '../brep/brep-ops'
+import { drillBrepWithRoleTable } from '../brep/face-evolution'
 import { threadBrep } from './brep-mirror/threadFns'
 import { getScrewSpec, threadToPitchMm } from '../primitives/screw/screw-db'
 import * as THREE from 'three'
-import { getBackends } from '../runtime-state'
-import { fromBrep, brepOf } from '../shape'
+import { getBackends, getCurrentStmt } from '../runtime-state'
+import { fromBrep, brepOf, getSlot } from '../shape'
 import { defineOp } from '../sdk'
 import type { Provenance } from '../topology/naming/lineage'
 import type { BrepHandle } from '../brep/engine/types'
@@ -100,7 +103,7 @@ function faceNormalFrom(input: Shape, params: Record<string, unknown>): Vec3 {
   return [0, 0, 1]
 }
 
-/** BREP 螺丝孔：底孔（圆柱 cut）+ 内螺纹（threadBrep + cut）。 */
+/** BREP 螺丝孔：底孔（圆柱 cut）+ 内螺纹（threadBrep + cut）。带 roleTable 传播。 */
 function screwHoleBrep(
   kernel: BrepEngineApi,
   upstreamSolid: BrepHandle,
@@ -108,18 +111,22 @@ function screwHoleBrep(
   direction: Vec3,
   faceNormal: Vec3,
   localPosition: [number, number, number],
-): BrepHandle {
+  inputRoleTable: ReadonlyMap<unknown, unknown>,
+  outStmt: string,
+): { result: BrepHandle; roleTable: ReadonlyMap<unknown, unknown> } {
   const diameter = params.diameter as number
   const depth = params.depth as number
-  // 1. 底孔（圆柱 cut）
-  const result = drillBrep(kernel, upstreamSolid, {
+  // 1. 底孔（圆柱 cut）→ roleTable（hole:0）
+  const baseGeom = computeDrillGeometry(kernel, upstreamSolid, {
     diameter,
     depth,
     position: localPosition,
     direction,
     faceNormal,
-    holeType: 'simple',
   })
+  const baseTool = buildDrillToolSolid(kernel, baseGeom)
+  const baseR = drillBrepWithRoleTable(kernel, upstreamSolid, baseTool, inputRoleTable, outStmt)
+  kernel.release(baseTool)
 
   // 2. 螺纹（内螺纹 ridge，inward=true）
   const screwSystem = (params.screwSystem as 'metric' | 'imperial') ?? 'metric'
@@ -148,16 +155,16 @@ function screwHoleBrep(
     const positionedThread = kernel.transform(threadSolid, matrixToArray(fullMatrix))
     kernel.release(threadSolid)
 
-    const finalResult = kernel.cut(result, positionedThread)
-    kernel.release(result)
+    const finalR = drillBrepWithRoleTable(kernel, baseR.result, positionedThread, baseR.roleTable, outStmt)
     kernel.release(positionedThread)
-    return finalResult
+    kernel.release(baseR.result)
+    return { result: finalR.result, roleTable: finalR.roleTable }
   }
 
-  return result
+  return { result: baseR.result, roleTable: baseR.roleTable }
 }
 
-/** BREP 路径：OCCT cut（简单孔）或 threadBrep + cut（螺丝孔）。 */
+/** BREP 路径：OCCT cut（简单孔）或 threadBrep + cut（螺丝孔）。带 roleTable 传播。 */
 function drillBrepPath(input: Shape, params: Record<string, unknown>): Shape {
   const kernel = getBackends().kernel.brep as BrepEngineApi | null
   if (!kernel) throw new Error('[stdlib/drill] no OCCT kernel')
@@ -172,21 +179,34 @@ function drillBrepPath(input: Shape, params: Record<string, unknown>): Shape {
   const partTransform = getBackends().config.partTransform
   const localPosition = worldToLocalPosition(params.position as [number, number, number], partTransform)
 
+  const inputRoleTable = getSlot(input)?.roleTable as ReadonlyMap<unknown, unknown> | undefined
+  const outStmt = String(getCurrentStmt()?.id ?? '')
+
   let resultSolid: BrepHandle
+  let roleTable: ReadonlyMap<unknown, unknown> | undefined
   if (holeType === 'screw') {
-    resultSolid = screwHoleBrep(kernel, inputSolid, params, direction, faceNormal, localPosition)
+    const r = screwHoleBrep(
+      kernel, inputSolid, params, direction, faceNormal, localPosition,
+      inputRoleTable ?? new Map(), outStmt,
+    )
+    resultSolid = r.result
+    roleTable = r.roleTable
   } else {
-    resultSolid = drillBrep(kernel, inputSolid, {
+    const geom = computeDrillGeometry(kernel, inputSolid, {
       diameter: params.diameter as number,
       depth: params.depth as number,
       position: localPosition,
       direction,
       faceNormal,
-      holeType: 'simple',
     })
+    const toolSolid = buildDrillToolSolid(kernel, geom)
+    const r = drillBrepWithRoleTable(kernel, inputSolid, toolSolid, inputRoleTable ?? new Map(), outStmt)
+    kernel.release(toolSolid)
+    resultSolid = r.result
+    roleTable = r.roleTable
   }
 
-  return fromBrep(solidToShape(kernel, resultSolid), { solid: resultSolid })
+  return fromBrep(solidToShape(kernel, resultSolid), { solid: resultSolid, roleTable })
 }
 
 /** mesh 路径：manifold-3d mesh-CSG。 */

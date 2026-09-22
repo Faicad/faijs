@@ -270,11 +270,20 @@ export interface DrillBrepParams {
  * @param params 钻孔参数
  * @returns 钻孔后的实体
  */
-export function drillBrep(
+/** 钻孔几何参数（由 `DrillBrepParams` 推导；roleTable 路径与 `drillBrep` 共用同一份几何，避免重复计算）。 */
+export interface DrillGeometry {
+  readonly radius: number
+  readonly holeHeight: number
+  readonly holeCenter: THREE.Vector3
+  readonly direction: THREE.Vector3
+}
+
+/** 从 `DrillBrepParams` 推导钻孔几何（孔中心/高度/轴向）。供 `drillBrep` 与 role-table 路径共用。 */
+export function computeDrillGeometry(
   kernel: BrepEngineApi,
   solid: BrepHandle,
   params: DrillBrepParams,
-): BrepHandle {
+): DrillGeometry {
   const radius = params.diameter / 2
   const direction = new THREE.Vector3(...params.direction).normalize()
   // 确保方向指向材料内部
@@ -339,30 +348,42 @@ export function drillBrep(
     holeCenter = pos.clone().add(direction.clone().normalize().multiplyScalar(safeDepth / 2))
   }
 
-  // OCCT makeCylinder 创建 Z 轴方向的圆柱体（从 Z=0 到 Z=height）
-  // 需要将圆柱体旋转到钻孔方向，并平移到孔中心
-  const cylinder = kernel.makeCylinder(radius, holeHeight)
+  return { radius, holeHeight, holeCenter, direction }
+}
+
+/** 由钻孔几何构造刀具实体（圆柱，旋转 + 平移到孔位）。调用方负责 release。 */
+export function buildDrillToolSolid(kernel: BrepEngineApi, geom: DrillGeometry): BrepHandle {
+  const cylinder = kernel.makeCylinder(geom.radius, geom.holeHeight)
 
   // 计算从 Z 轴到 direction 的旋转
   const zAxis = new THREE.Vector3(0, 0, 1)
-  const quat = new THREE.Quaternion().setFromUnitVectors(zAxis, direction)
+  const quat = new THREE.Quaternion().setFromUnitVectors(zAxis, geom.direction)
   const rotMatrix = new THREE.Matrix4().makeRotationFromQuaternion(quat)
 
   // 平移矩阵：到孔中心，并减去 height/2（因为圆柱从 Z=0 开始）
   const transMatrix = new THREE.Matrix4().makeTranslation(
-    holeCenter.x,
-    holeCenter.y,
-    holeCenter.z,
+    geom.holeCenter.x,
+    geom.holeCenter.y,
+    geom.holeCenter.z,
   )
   // 组合：先旋转，再平移
   const finalMatrix = new THREE.Matrix4().multiplyMatrices(transMatrix, rotMatrix)
   // 还需要补偿圆柱的起始位置（从 Z=0 开始 → 需要先下移 height/2）
-  const offsetMatrix = new THREE.Matrix4().makeTranslation(0, 0, -holeHeight / 2)
+  const offsetMatrix = new THREE.Matrix4().makeTranslation(0, 0, -geom.holeHeight / 2)
   const fullMatrix = new THREE.Matrix4().multiplyMatrices(finalMatrix, offsetMatrix)
 
   const toolSolid = kernel.transform(cylinder, matrixToArray(fullMatrix))
   kernel.release(cylinder)
+  return toolSolid
+}
 
+export function drillBrep(
+  kernel: BrepEngineApi,
+  solid: BrepHandle,
+  params: DrillBrepParams,
+): BrepHandle {
+  const geom = computeDrillGeometry(kernel, solid, params)
+  const toolSolid = buildDrillToolSolid(kernel, geom)
   try {
     const result = kernel.cut(solid, toolSolid)
     kernel.release(toolSolid)

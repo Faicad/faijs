@@ -612,6 +612,54 @@ export function chamferWithRoleTable(
   return directEditWithRoleTable(kernel, 'chamfer', solid, edgeHandles, distance, inputRoleTable, outPart)
 }
 
+/**
+ * 钻孔 roleTable 传播：底孔（圆柱 cut）产生的新造面 = 孔壁，挂**消费它的那条语句**
+ * 的 origin（§7.1：drill 的工具体是 op 内部临时件，无其他用户可见坐标可继承）。
+ * 角色形态 `hole:<j>`（j = 新造面枚举序）。沿用 `directEditWithRoleTable` 的
+ * 三类命运判定（原样幸存 / 改型幸存 / 新造），新造面才派生命名。
+ *
+ * @param kernel         - the OCCT kernel.
+ * @param solid          - the input solid (the drilled part).
+ * @param toolSolid      - the drill-bit tool solid (caller-built; released by caller).
+ * @param inputRoleTable - the input's role table.
+ * @param outStmt        - the drilling statement's StmtId (origin for new faces).
+ * @returns the result handle, ordinal evolution and role table with `hole:<j>`.
+ */
+export function drillBrepWithRoleTable(
+  kernel: BrepEngineApi,
+  solid: BrepHandle,
+  toolSolid: BrepHandle,
+  inputRoleTable: ReadonlyMap<unknown, unknown>,
+  outStmt: string,
+): { result: BrepHandle; faceEvolution: FaceEvolution; roleTable: ReadonlyMap<unknown, unknown> } {
+  const inputHashes = getFaceHashes(kernel, solid)
+  const evo = kernel.cutWithHistory(solid, toolSolid, inputHashes, HASH_UPPER_BOUND)
+  const faceEvolution = decodeEvolution(kernel, evo, solid, evo.result)
+  const hashEvo = decodeHashEvolution(evo)
+  const propagated = propagateAllOriginsLocal(inputRoleTable, hashEvo)
+
+  // 三类命运判定：新造面 = 结果 − 输入 − 改型后继（§4.4）。
+  const resultHashes = getFaceHashes(kernel, evo.result)
+  const inputHashSet = new Set(inputHashes)
+  const modifiedOutputHashes = new Set<number>()
+  for (const outs of hashEvo.modified.values()) {
+    for (const h of outs) modifiedOutputHashes.add(h)
+  }
+  const generatedHashes = resultHashes.filter(
+    (h) => !inputHashSet.has(h) && !modifiedOutputHashes.has(h),
+  )
+
+  const roleTable = new Map(propagated)
+  if (generatedHashes.length > 0) {
+    const genRoles = new Map<string, number[]>()
+    for (let i = 0; i < generatedHashes.length; i++) {
+      genRoles.set(`hole:${i}`, [generatedHashes[i]!])
+    }
+    roleTable.set(outStmt, genRoles)
+  }
+  return { result: evo.result, faceEvolution, roleTable }
+}
+
 /** 单输入 roleTable 传播（结构等价于 naming/roles.propagateAllOrigins，避免循环依赖）。 */
 function propagateAllOriginsLocal(
   roles: ReadonlyMap<unknown, unknown>,
