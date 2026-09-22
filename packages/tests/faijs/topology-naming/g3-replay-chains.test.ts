@@ -2,7 +2,7 @@
  * G3 抗重放链（6 条）—— Phase 0.5 建立的「进度尺」
  *
  * 本文件是开发计划的 G3 判据载体（`docs/plans/2026-09-22-topology-identity-development-plan.md` §3.1）。
- * 它**刻意在现在就是红的**：先让「机制干不了它唯一该干的事」变成可复跑的数字，
+ * 它**刻意在机制落地之前不通过**：先让「机制干不了它唯一该干的事」变成可复跑的数字，
  * 之后每一阶段只需回答一句"G3 又绿了几条"。
  *
  * ## G3 的判据（不是"解析成功"）
@@ -16,8 +16,28 @@
  * | **T2** | A 轮捕获的 ref，在 B 轮解析到的面，B 轮给它的名字与 A 轮**相同** | 端到端身份等价 | 只断言"能解析"会放过"解析到错的面"——最难查的一类 |
  * | **T3** | 解析到的面几何语义一致（`surfaceType`） | 防 T2 靠名字对、几何错 | 名字可能对而面已不是同一张 |
  *
- * T0（前置）：两次执行本身必须成功。它今天**应当已经通过**——若 T0 就红，
- * 说明红的不是命名机制而是链路本身，必须先修链路（否则进度尺失去意义）。
+ * T0（前置）：两次执行本身必须成功。
+ *
+ * ## 为什么用 `it.fails`，以及 T0 为什么必须独立成 `it`（2026-09-22 决策）
+ *
+ * 六条链在机制落地前**必然不通过**。若写成普通 `it`，`packages/tests` 会一直红到 Phase 3/4，
+ * 长期红着的测试很容易被当成噪音而遭致"顺手删掉"；因此包成 `it.fails`：
+ *
+ * - **现在**：CI 保持绿（预期失败被吸收）；
+ * - **某条链真绿时**：`it.fails` **反向报红**（"expected test to fail, but it passed"），
+ *   强制把它翻成普通 `it`。这就是"进度尺"的自动提醒机制。
+ *
+ * ⚠️ **`it.fails` 会吞掉一切失败，不区分失败原因。** 它吸收 T1/T2/T3（命名机制未落地，
+ * 本应如此），但**同样会吞掉 T0**——链路本身坏了也会被记成"预期失败"、CI 依旧绿，
+ * 于是"还没实现"与"链已经废了"变得无法区分。
+ * ⇒ 对策：**T0 从 `it.fails` 里提出来，独立成一个必须绿的 `it`**（见下方第一个 describe）。
+ * 那个 describe 一旦红，说明红的不是命名机制而是链路/fixture，必须先修链路。
+ *
+ * ### 某条链开始通过时怎么做
+ *
+ * 1. 把该链的 `it.fails(...)` 改成 `it(...)`（**不要**改成 `it.skip` 或删掉）；
+ * 2. 若它转绿靠的是 Phase 1.7 删前缀，同时改 `LEGACY_BOX_*_ROLE`（见下）；
+ * 3. 在开发计划 §7.1 的进度表里把该链标绿。
  *
  * ## 与阶段的关系（期望的绿灯节奏）
  *
@@ -32,9 +52,9 @@
  *
  * ## Phase 0.5 实测基线（2026-09-22）
  *
- * **6/6 红，全部红在 T0.5（目标词汇未落地），T0 链路本身 6/6 通。**
+ * **6/6 不通过，全部卡在 T0.5（目标词汇未落地），T0 链路本身 6/6 通。**
  *
- * | 链 | T0 链路 | 首次执行实测 role 集合 | 红的性质 |
+ * | 链 | T0 链路 | 首次执行实测 role 集合 | 不通过的性质 |
  * |---|---|---|---|
  * | L1 | ✅ | `extrude:face_0…5` + `''` | 只有**位置兜底名**（`opType:face_N`），且 fillet 过渡面 role 为空 |
  * | L2 | ✅ | `['']` | 产物**完全无名** |
@@ -57,7 +77,7 @@
  * 使用真实 OCCT（`beforeAll registerOcctBrepEngine`）。
  */
 
-import { describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeAll } from 'vitest'
 import { createRuntime } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
 import { registerOcctBrepEngine } from '@faicad/faijs'
@@ -147,8 +167,8 @@ function captureByRolePrefix(result: ExecutionResult, part: PartName, prefix: st
  * @param runA - 首次执行的 ExecutionResult
  * @param runB - 改参重放后的 ExecutionResult
  * @param part - 被追踪的产物名（两次执行同名）
- * @param capture - 从 runA 捕获 ref 的函数（目标词汇表尚未落地时会 throw，属预期红）
- * @param requiredRoles - 目标词汇表里**必须存在**的 role（T0.5：词汇表缺失即红）
+ * @param capture - 从 runA 捕获 ref 的函数（目标词汇表尚未落地时会 throw，属预期失败）
+ * @param requiredRoles - 目标词汇表里**必须存在**的 role（T0.5：词汇表缺失即失败）
  */
 function expectReplayStable(
   label: string,
@@ -158,13 +178,14 @@ function expectReplayStable(
   capture: (result: ExecutionResult) => FaceTopoRef,
   requiredRoles: readonly string[] = [],
 ): void {
-  // T0：链路本身必须能跑（今天应通过；红了说明问题不在命名机制）
+  // T0：链路本身必须能跑（由独立的 T0 describe 保证；此处再断言一次，
+  // 让失败信息直接写清"是链路坏了"而不是"词汇没落地"）
   expect(runA.failedAt, `[${label}] 首次执行失败：${runA.failedAt?.message}`).toBeUndefined()
   expect(runB.failedAt, `[${label}] 改参重放失败：${runB.failedAt?.message}`).toBeUndefined()
 
   // T0.5：目标词汇表必须出现（这就是"声明成本"在链上的体现）。
   // 不用 expect().toContain —— 失败信息里要带上**完整** role 集合，
-  // 本文件是进度尺，红的理由必须是可读的（"缺哪个、当前有哪些"）。
+  // 本文件是进度尺，不通过的理由必须是可读的（"缺哪个、当前有哪些"）。
   const rolesA = rolesOf(runA, part)
   const missing = requiredRoles.filter((role) => !rolesA.includes(role))
   if (missing.length > 0) {
@@ -191,7 +212,7 @@ function expectReplayStable(
   expect(rowAfter.hint.surfaceType, `[${label}] 重放后解析到的面类型变了`).toBe(ref.hint.surfaceType)
 }
 
-// ── 脚本片段 ──
+// ── 六条链的定义（T0 守卫与 G3 断言共用同一份脚本，避免脚本写两遍后漂移） ──
 
 const SQUARE = `{ contours: [{ segments: [
   { kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0 },
@@ -200,25 +221,25 @@ const SQUARE = `{ contours: [{ segments: [
   { kind: 'line', x1: 0, y1: 10, x2: 0, y2: 0 },
 ], closed: true }] }`
 
-describe('G3 抗重放链（当前应为红：这就是后续每阶段的进度尺）', () => {
-  let runtime: CadRuntime
+/** 一条链的完整定义。 */
+interface ChainSpec {
+  /** 链名（两个 describe 共用，失败信息里带上） */
+  label: string
+  /** 首次执行脚本 */
+  codeA: string
+  /** 改参重放脚本（拓扑等价、参数不同） */
+  codeB: string
+  /** 被追踪的产物名（两次执行同名） */
+  part: PartName
+  /** 从 runA 捕获 ref（词汇未落地时 throw） */
+  capture: (result: ExecutionResult) => FaceTopoRef
+  /** 目标词汇表里**必须存在**的 role */
+  requiredRoles: readonly string[]
+}
 
-  beforeEach(() => {
-    runtime = createRuntime(createNodePorts(), 'brep')
-  })
-
-  afterEach(() => {
-    runtime.dispose()
-  })
-
-  /** 同一 runtime 实例跑两遍（增量重放路径——改参数时宿主走的就是它）。 */
-  async function replay(codeA: string, codeB: string): Promise<[ExecutionResult, ExecutionResult]> {
-    const a = await runtime.execute(codeA, { topology: 'auto' })
-    const b = await runtime.execute(codeB, { topology: 'auto' })
-    return [a, b]
-  }
-
-  it('L1 sketch → extrude → fillet：construct 词汇 + kernel/byAdjacency 过渡面', async () => {
+const CHAINS: readonly ChainSpec[] = [
+  {
+    label: 'L1 sketch → extrude → fillet',
     // 改参：只改拉伸高度（10 → 14），拓扑等价 ⇒ 局部名集合必须不变
     //
     // ⚠️ 计划 §3.1 把本链写成 `box → extrude → fillet`。实测**跑不通**：
@@ -228,99 +249,117 @@ describe('G3 抗重放链（当前应为红：这就是后续每阶段的进度�
     // ⇒ 本链改写成与 FCStd `Pad→Fillet` 真实负载同形（`sketch → extrude → fillet`，
     //    见 `edge-ref/edge-ref.test.ts` 的 "drives the FCStd Pad→Fillet shape"）。
     // 覆盖面不变：`construct`（profile→侧面）+ `kernel`+`byAdjacency`（过渡面）。
-    const [a, b] = await replay(
-      `
+    codeA: `
       const part0 = cad.sketch(${SQUARE})
       const part1 = cad.extrude(part0, [0, 0, 10])
       const part2 = cad.fillet(part1, { edges: [cad.edgeRef(part1, 2)], radius: 2 })
     `,
-      `
+    codeB: `
       const part0 = cad.sketch(${SQUARE})
       const part1 = cad.extrude(part0, [0, 0, 14])
       const part2 = cad.fillet(part1, { edges: [cad.edgeRef(part1, 2)], radius: 2 })
     `,
-    )
+    part: asPartName('part2'),
     // 目标词汇：fillet 的过渡面（§4.2 序列化示例 `gen:fillet:0`）
-    expectReplayStable('L1', a, b, asPartName('part2'), (r) => captureByRole(r, asPartName('part2'), 'gen:fillet:0'), [
-      'gen:fillet:0',
-    ])
-  })
-
-  it('L2 sketch → extrude → cut：construct 递归词汇（profile 边序）+ kernel 布尔', async () => {
+    capture: (r) => captureByRole(r, asPartName('part2'), 'gen:fillet:0'),
+    requiredRoles: ['gen:fillet:0'],
+  },
+  {
+    label: 'L2 sketch → extrude → cut',
     // 改参：只改孔直径（3 → 4）；profile 的边序不受影响 ⇒ wall:<i> 必须稳定
-    const [a, b] = await replay(
-      `
+    codeA: `
       const part0 = cad.sketch(${SQUARE})
       const part1 = cad.extrude(part0, [0, 0, 10])
       const part2 = cad.cylinder(3, 30, { centered: true, at: [5, 5, 0] })
       const part3 = cad.cut(part1, part2)
     `,
-      `
+    codeB: `
       const part0 = cad.sketch(${SQUARE})
       const part1 = cad.extrude(part0, [0, 0, 10])
       const part2 = cad.cylinder(4, 30, { centered: true, at: [5, 5, 0] })
       const part3 = cad.cut(part1, part2)
     `,
-    )
-    const part = asPartName('part3')
-    // 目标词汇：profile 扫出的侧面 `wall:<i>`；cut 产生的孔壁 `hole:<j>`
-    expectReplayStable('L2', a, b, part, (r) => captureByRole(r, part, 'wall:0'), ['wall:0', 'hole:0'])
-  })
-
-  it('L3 box → linearPattern(3)：replicate(k) 复合身份', async () => {
+    part: asPartName('part3'),
+    // 目标词汇：profile 扫出的侧面 `wall:<i>`（`construct` 递归词汇，与本条链的改动无关）。
+    //
+    // ⚠️ **不再要求 `hole:<j>`**：Phase 0.4 实测（`brep/engine/phase0-kernel-probes.test.ts`）
+    // 证明 `cut` 的结果面里"新造面"是**空集**——孔壁被内核归账为**工具圆柱侧面 B0 的
+    // 改型后继**（`b.modified: B0 → 孔壁`）。⇒ 它继承**工具面**的因果坐标
+    // （即 `part2 = cad.cylinder(...)` 那条语句的侧面词），而**不是**被伪造成
+    // `cut` 名下的 `hole:0`。计划原文的该条已按实测改正（见计划 §7.1「0.4 的落地结果」）。
+    capture: (r) => captureByRole(r, asPartName('part3'), 'wall:0'),
+    requiredRoles: ['wall:0'],
+  },
+  {
+    label: 'L3 box → linearPattern(3)',
     // 改参：只改间距（20 → 30）；份数不变 ⇒ replica[k] 的 k 语义必须稳定
-    const [a, b] = await replay(
-      `
+    codeA: `
       const part0 = cad.box(10, 10, 10, { centered: true })
       const part1 = cad.linearPattern(part0, [1, 0, 0], 3, 20)
     `,
-      `
+    codeB: `
       const part0 = cad.box(10, 10, 10, { centered: true })
       const part1 = cad.linearPattern(part0, [1, 0, 0], 3, 30)
     `,
-    )
-    const part = asPartName('part1')
-    expectReplayStable('L3', a, b, part, (r) => captureByRolePrefix(r, part, 'replica[1]/'))
-  })
-
-  it('L4 box → split：subdivide 复合身份', async () => {
+    part: asPartName('part1'),
+    // 目标词汇：`replicate(k)`（§5.3 类别声明表）
+    capture: (r) => captureByRolePrefix(r, asPartName('part1'), 'replica[1]/'),
+    requiredRoles: ['replica[1]/'],
+  },
+  {
+    label: 'L4 box → split',
     // 改参：切刀位置（中心 → z=2）；片数不变 ⇒ splinter(#j) 必须稳定
-    const [a, b] = await replay(
-      `
+    codeA: `
       const part0 = cad.box(20, 20, 20, { centered: true })
       const part1 = cad.box(40, 40, 1, { centered: true, at: [0, 0, 0] })
       const part2 = cad.split(part0, [part1])
     `,
-      `
+    codeB: `
       const part0 = cad.box(20, 20, 20, { centered: true })
       const part1 = cad.box(40, 40, 1, { centered: true, at: [0, 0, 2] })
       const part2 = cad.split(part0, [part1])
     `,
-    )
-    const part = asPartName('part2')
-    expectReplayStable('L4', a, b, part, (r) => captureByRolePrefix(r, part, 'splinter('))
-  })
-
-  it('L5 box → fai_drill：kernel（组合布尔）+ 3d_editor 真实负载（38 个文件在用）', async () => {
+    part: asPartName('part2'),
+    // 目标词汇：`subdivide`（§5.3 类别声明表）
+    capture: (r) => captureByRolePrefix(r, asPartName('part2'), 'splinter('),
+    requiredRoles: ['splinter('],
+  },
+  {
+    label: 'L5 box → fai_drill',
     // 改参：只改孔径（4 → 6）；孔的拓扑结构不变 ⇒ hole:<j> 必须稳定
-    const drill = (d: number): string => `
+    codeA: `
       const part0 = cad.box(20, 20, 20, { centered: true, at: [0, 0, 0] })
       const part1 = cad.fai_drill(part0, {
-        diameter: ${d}, depth: 5, holeType: 'simple',
+        diameter: 4, depth: 5, holeType: 'simple',
         position: [0, 0, 10], direction: 'normal',
         face: { kind: 'face', origin: 'part0', role: '${LEGACY_BOX_TOP_ROLE}', hint: { kind: 'face', surfaceType: 'plane' } },
       })
-    `
-    const [a, b] = await replay(drill(4), drill(6))
-    const part = asPartName('part1')
-    // 目标词汇：孔壁挂 **cut 那条语句**的 origin，role = `hole:<j>`（§7 第 7 项准则）
-    expectReplayStable('L5', a, b, part, (r) => captureByRole(r, part, 'hole:0'), ['hole:0'])
-  })
-
-  it('L6 box →（role 字面量构造 edge ref）→ fillet：端到端身份化引用（R2）', async () => {
+    `,
+    codeB: `
+      const part0 = cad.box(20, 20, 20, { centered: true, at: [0, 0, 0] })
+      const part1 = cad.fai_drill(part0, {
+        diameter: 6, depth: 5, holeType: 'simple',
+        position: [0, 0, 10], direction: 'normal',
+        face: { kind: 'face', origin: 'part0', role: '${LEGACY_BOX_TOP_ROLE}', hint: { kind: 'face', surfaceType: 'plane' } },
+      })
+    `,
+    part: asPartName('part1'),
+    // 目标词汇：孔壁是新造面 ⇒ 挂 **`fai_drill` 那条语句**的 origin，role = `hole:<j>`。
+    //
+    // 为什么与 L2 不同（Phase 0.4 实测区分）：
+    // - L2 的工具体是**脚本里的部件**（`part2 = cad.cylinder(...)`）⇒ 孔壁是它的改型后继，
+    //   继承**它**的坐标；
+    // - `fai_drill` 的工具体是 **op 内部临时构造**（`fai_drill.ts:150` 直接调裸
+    //   `kernel.cut`，不走带历史的布尔入口）⇒ 没有任何用户可见坐标可继承，
+    //   孔壁必属新造面，只能挂**消费它的那条语句**。
+    capture: (r) => captureByRole(r, asPartName('part1'), 'hole:0'),
+    requiredRoles: ['hole:0'],
+  },
+  {
+    label: 'L6 box →（role 字面量构造 edge ref）→ fillet',
     // 改参：只改 box 尺寸（20 → 30）；role 字面量写在脚本里，必须仍然解析到同一张面
-    const script = (size: number): string => `
-      const part0 = cad.box(${size}, ${size}, ${size}, { centered: true })
+    codeA: `
+      const part0 = cad.box(20, 20, 20, { centered: true })
       const part1 = cad.fillet(part0, {
         edges: [{
           kind: 'edge',
@@ -332,9 +371,64 @@ describe('G3 抗重放链（当前应为红：这就是后续每阶段的进度�
         }],
         radius: 2,
       })
-    `
-    const [a, b] = await replay(script(20), script(30))
-    const part = asPartName('part1')
-    expectReplayStable('L6', a, b, part, (r) => captureByRole(r, part, 'gen:fillet:0'), ['gen:fillet:0'])
-  })
+    `,
+    codeB: `
+      const part0 = cad.box(30, 30, 30, { centered: true })
+      const part1 = cad.fillet(part0, {
+        edges: [{
+          kind: 'edge',
+          faces: [
+            { kind: 'face', origin: 'part0', role: '${LEGACY_BOX_TOP_ROLE}', hint: { kind: 'face', surfaceType: 'plane' } },
+            { kind: 'face', origin: 'part0', role: '${LEGACY_BOX_FRONT_ROLE}', hint: { kind: 'face', surfaceType: 'plane' } },
+          ],
+          hint: { kind: 'edge' },
+        }],
+        radius: 2,
+      })
+    `,
+    part: asPartName('part1'),
+    // 目标词汇：`gen:fillet:0`（新造面）+ R2（role 字面量端到端可解析）
+    capture: (r) => captureByRole(r, asPartName('part1'), 'gen:fillet:0'),
+    requiredRoles: ['gen:fillet:0'],
+  },
+]
+
+/**
+ * 跑一条链：独立 runtime 上先执行 A、再执行 B（增量重放路径——改参数时宿主走的就是它）。
+ *
+ * 每次自建 runtime 而不是共享：C1 守卫下多 runtime 只能**串行**使用，
+ * 自建+dispose 让每条链完全独立（当前 `for` 循环本身是串行的，不违反 C1）。
+ */
+async function replayChain(chain: ChainSpec): Promise<[ExecutionResult, ExecutionResult]> {
+  const runtime: CadRuntime = createRuntime(createNodePorts(), 'brep')
+  try {
+    const a = await runtime.execute(chain.codeA, { topology: 'auto' })
+    const b = await runtime.execute(chain.codeB, { topology: 'auto' })
+    return [a, b]
+  } finally {
+    runtime.dispose()
+  }
+}
+
+// ── T0：必须绿（`it.fails` 吞掉一切失败，所以链路守卫不能写在里面） ──
+
+describe('T0 链路守卫（本 describe 必须保持绿——它证明 G3 不通过的理由不是链路本身）', () => {
+  for (const chain of CHAINS) {
+    it(`${chain.label}：两次执行都成功`, async () => {
+      const [a, b] = await replayChain(chain)
+      expect(a.failedAt, `[${chain.label}] 首次执行失败：${a.failedAt?.message}`).toBeUndefined()
+      expect(b.failedAt, `[${chain.label}] 改参重放失败：${b.failedAt?.message}`).toBeUndefined()
+    }, 300000)
+  }
+})
+
+// ── G3：当前预期不通过（链一绿就反向报红，逼你翻成 it） ──
+
+describe('G3 抗重放（it.fails——链一旦真绿会反向报红）', () => {
+  for (const chain of CHAINS) {
+    it.fails(`${chain.label}：改参重放后 ref 仍落到同名面`, async () => {
+      const [a, b] = await replayChain(chain)
+      expectReplayStable(chain.label, a, b, chain.part, chain.capture, chain.requiredRoles)
+    }, 300000)
+  }
 })
