@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-22-topology-identity-coordinate.md
+2026-09-22-topology-identity-coordinate.md: 03752679f7e32e3c94c6ee4bb38148c69104cf0d
+2026-09-22-topology-identity-coordinate.zh.md: 184297b4f9f87f7e88739b723505db6d0219fd80

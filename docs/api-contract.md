@@ -553,8 +553,9 @@ export const myOp = defineOp({
 - **`ExecutionResult.naming: Map<PartName, {source, faceNaming, edgeNaming}>`** carries naming rows (ordinal 1-based ↔ index); hosts build `TopoRef` from a picked Reference via `captureTopoRef(row)`.
 - **`RoleTable` is execution-time state only** (Shape identity slot + runtime `roleTableCache`, same lifecycle as `faceEvolutionCache`), never serialized; hashes are session-live handles, the table rebuilds across sessions.
 - **Three-state resolution**: `exact` / `geometric-fallback`; failures throw `TopoRefError` (`E_TOPO_DELETED` / `E_TOPO_AMBIGUOUS` / `E_TOPO_NOT_FOUND`).
-- **Source tiers**: BREP carries semantic+positional roles propagated through evolution; primitive fake topology gets the same semantic namer over its fixed face order; mesh (STL/3MF) is hint-only (`role=''`).
-- **Chain-switch degradation**: a part dropping BREP→mesh mid-chain keeps `{origin, role}` and hints as pure data; resolution falls back to the face-hint snapshot — reference degradation, not a runtime engine-path fallback.
+- **Source tiers**: BREP carries semantic+positional roles propagated through evolution; primitive fake topology gets the same semantic namer over its fixed face order.
+- **Mesh does not participate in topology identity** (D6): mesh (STL/3MF) is a data payload only; referencing a face/edge of a mesh Shape throws `E_TOPO_MESH_UNSUPPORTED`. No `role`/`origin` is ever produced for mesh.
+- **Identity coordinate is `(StmtId, RoleName)`** (Phase 1.6/1.7): `origin` is the producing statement's `StmtId` (not a `PartName`), `role` is a structured `RoleName` serialized to a canonical string (`top` / `wall:3` / `replica[2]/wall:3` / `splinter(top)#1` / `gen:fillet:0` / `imported:5`). The wire form in `.fai.js` is the string pair `{origin, role}`; `display` (a `PartName`) is UI-only and never participates in identity or resolution.
 
 ---
 

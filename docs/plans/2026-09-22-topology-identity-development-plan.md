@@ -980,6 +980,37 @@ occt 的 12 项判定为「真」则由 `evolution-bindings.test.ts` 的**真调
 
 ---
 
+### 7.2 后续 Phase 落地记录（Phase 3 L3/L4 + Phase 4 + Phase 5，2026-09-22）
+
+**Phase 3 L3/L4（linearPattern / split 手写覆盖，G3 推到 6/6）已落地**：
+
+- **L3 `linearPattern`**（`packages/core/src/api/pattern.ts`，新）：BREP 路径用质心聚类把结果面按份数 k 沿 pattern 方向分组、回投影到输入面角色，产出 `replica[k]/<inner>`。`defineOp({ brep })` 无 mesh、`naming: { kind: 'replicate', k: 0 }`。内核原生 `linearPattern` 在 occt-wasm 下返回已 fused 的单个 `BrepHandle`（非数组），已兼容两种返回形态。
+- **L4 `split`**（`packages/core/src/api/split.ts`，新）：BREP 路径用内核原生 split（BRepAlgoAPI_Splitter）切分，存活面（hash 逐字不变）回投原 role，新造面（截面 + 被切细的侧面片）记 `splinter(#j)`，片序按质心 (x,y,z) 排序保证跨重放稳定。`naming: { kind: 'subdivide' }`。
+- 两者都覆盖生成投影（brep-only compatOp，无角色表），做法镜像手写 `cut`（`boolean.ts`）：在 `api-namespace.ts` 的 `...scriptFaceOps` **之后** spread，使其赢得命名空间槽。
+- **G3 现在 6/6 绿**：`g3-replay-chains.test.ts` 12/12（T0 链路守卫 6 + G3 六链 6）。L3 `requiredRoles: ['replica[0]/top']`、L4 `requiredRoles: ['splinter(#0)']`；`GREEN_CHAINS` 现含全部 6 条。
+- **T1 判据修正为集合语义**：OCCT 面 ordinal 顺序跨重放会变，但出现的局部名**集合**稳定，故 T1 改为 `expect(new Set(rolesB)).toEqual(new Set(rolesA))`（顺序无关才是「引用可重放」的本意）。
+
+**Phase 4（不变式）已落地**：
+
+- **4.1 G1 覆盖率 = 0 未命名面**：`phase0-coverage-baseline.test.ts` 9/9，47/47 面 semantic、0 positional、0 empty。该测试即 Phase 0.8 基线，已在 Phase 3 回填为审计（断言 0 empty）。
+- **4.3 `unmodeled` 白名单审计**：`packages/tests/faijs/topology-naming/unmodeled-whitelist.test.ts` 枚举全部 8 个生产态 `unmodeled` op（knurl/sdf mesh-only；sphere/wedge/torus/convexHull/makeBaseBox/ellipsoid 构造类词汇待定义）+ 每条理由，断言非空。⚠️ `pending Phase 3` 类理由在 Phase 3 落地后已陈旧，应改写为真实理由（清理项，未阻塞验收）。
+- **4.4 `E_TOPO_AMBIGUOUS` 覆盖**：`topology/naming/resolve-face.ts:123` 几何 hint 兜底唯一胜出判据已落地，次优差 < `AMBIGUITY_THRESHOLD` 即抛 `E_TOPO_AMBIGUOUS`；`resolve.test.ts:244` 钉住。
+
+**Phase 5（清债 + 收口）部分落地**：
+
+- **5.4 文档同步**：`docs/api-contract.md` §11.1 修正陈旧项——删除 mesh `role=''` hint-only 与 BREP→mesh 链切换降级（与 Phase 1.8/1.9 矛盾：mesh 抛 `E_TOPO_MESH_UNSUPPORTED`、不产拓扑），补 V2 身份坐标 `origin=StmtId, role=RoleName` 串形态说明。`ops-api-inventory.md` 的 role 词汇表（2.10）仍**未做**——该手册由 `gen-ops-api-inventory.ts` 自动生成，需增强生成器从 op 的 `naming` 产出词汇，不可手改。
+- **5.5 Agent Note**：`.agents/notes/implemented/architecture/2026-09-22-topology-identity-coordinate.md`（+ 中/英 + i18n）记录 (StmtId, RoleName) 决策、否决项、后果与已知未决项。
+- **5.1 / 5.2 / 5.3**：待做（删除清单剩余项、roleTable 类型化、C1 全仓确认）。
+
+**§6 总验收现状**：G3 6/6 ✅、G1 0 未命名 ✅、G4 漏声明 2 测试（生成期 + 编译期）✅、C1 并发守卫 ✅、mesh E_TOPO_MESH_UNSUPPORTED ✅、D10 8 条未接线不做 ✅、§7 测定项 6 项回填 ✅。**仍未关闭（多为跨仓库 / 生成器）**：
+
+- **1.4/1.5 `registerStep` 血缘图未接线**：`registerStep` 调用点为 0，身份经角色表 + PartNaming 解析（故 G3/G1 通过），但 N1/N2/N3 守卫运行期不生效——G2/G6 的「无静默错名」未完全满足。建议作为收口项接上（详见 Agent Note）。
+- **2.10 vocab 进生成产物**：需改 `gen-api-dts.ts` + `gen-ops-api-inventory.ts` 从 `naming` 产出词汇表。
+- **2.11 第三方库同步**（breaking）：`fai_cq_gears` / `fai_cq_warehouse` / `sheetmetal` 每处 `defineOp` 加 `naming`——在兄弟仓库，不在本仓库范围。
+- **S1–S6 3d_editor 同步**：`origin`/`role` 线形态变化需 `../3d_editor` 迁移 `migrateTopoRef` + 更新断言——跨仓库，未关闭。
+
+---
+
 ## 8. 本计划否决的分析文档条目
 
 | 分析文档 | 本条 | 否决理由 |
