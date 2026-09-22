@@ -92,7 +92,7 @@ async function booleanMesh(inputs: Shape[], operation: BooleanOperation): Promis
   return result
 }
 
-// ── 三个薄导出（多输入 variadic，defineOp 声明双路径 + evolution 能力） ──
+// ── 三个薄导出（多输入 variadic，defineOp 声明双路径 + 逐核函数 face-evolution 能力） ──
 // 函数体 keep 声明（keep-syntax 设计 §2.5）：union/subtract/intersect 保留其
 // 输入且隐藏（R5：3d_editor 现状）——keepHidden 使源变量保持终端但 canvas
 // 不渲染，只有布尔结果正常显示。混合/断链时刻：BREP 侧输入先归约为合法
@@ -119,7 +119,10 @@ export const union = defineOp({
     if (shapes.length > 0) keepHidden(...shapes)
     return booleanBrep(shapes, 'union')
   },
-  capabilities: ['evolution'],
+  // 逐核函数声明（Phase 0.2）：union 需要内核的 fuseWithHistory。
+  // 不再声明族级 'evolution'——族级名会让 brepkit（无 intersectWithHistory）等
+  // 部分实现的内核静默通过静态判定，再死在运行时（红线违规）。
+  capabilities: ['fuse'],
   schema: { shapes: 'Shape*' },
 })
 
@@ -144,7 +147,8 @@ export const subtract = defineOp({
     if (shapes.length > 0) keepHidden(...shapes)
     return booleanBrep(shapes, 'subtract')
   },
-  capabilities: ['evolution'],
+  // 逐核函数声明（Phase 0.2）：subtract 需要内核的 cutWithHistory。
+  capabilities: ['cut'],
 })
 
 /**
@@ -168,5 +172,9 @@ export const intersect = defineOp({
     if (shapes.length > 0) keepHidden(...shapes)
     return booleanBrep(shapes, 'intersect')
   },
-  capabilities: ['evolution'],
+  // 逐核函数声明（Phase 0.2）：intersect 需要内核的 intersectWithHistory。
+  // ⚠️ 这正是族级布尔 `'evolution'` 会多报能力的活例：brepkit 声明过
+  // `evolution: true` 但**没有** intersectWithHistory → 旧声明下 intersect
+  // 通过静态判定、死在运行时；现在 brepkit 下静态报 lacks capability 'intersect'。
+  capabilities: ['intersect'],
 })

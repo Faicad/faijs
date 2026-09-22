@@ -61,7 +61,7 @@ function cubeMesh(size: number): Shape {
   return { positions, indices }
 }
 
-function makeBackends(mode: 'auto' | 'brep' | 'mesh', caps?: { evolution?: boolean }): Backends {
+function makeBackends(mode: 'auto' | 'brep' | 'mesh', caps?: { evolution?: readonly string[] }): Backends {
   return {
     contractVersion: CONTRACT_VERSION,
     config: { mode, brepCapabilities: caps },
@@ -98,7 +98,7 @@ describe('§ single entry — compat product is a defineOp product', () => {
   it('DUAL_OP_META field set equals defineOp’s; name/capabilities/outputs/schema/slotMap pass through', () => {
     const spec = {
       name: 'mine',
-      capabilities: ['evolution'] as BrepCapabilityName[],
+      capabilities: ['cut'] as BrepCapabilityName[],
       outputs: ['front', 'back'],
       schema: { size: 'number' },
       slotMap: { keys: ['size'] },
@@ -111,7 +111,7 @@ describe('§ single entry — compat product is a defineOp product', () => {
     expect(cm.kind).toBe('dual-op')
     expect(cm.mesh).toBeUndefined()
     expect(cm.name).toBe('mine')
-    expect(cm.capabilities).toEqual(['evolution'])
+    expect(cm.capabilities).toEqual(['cut'])
     expect(cm.outputs).toEqual(['front', 'back'])
     expect(cm.schema).toEqual({ size: 'number' })
     expect(cm.slotMap).toEqual({ keys: ['size'] })
@@ -136,17 +136,18 @@ describe('§ dispatch 矩阵 — 与 brep-only defineOp 一致', () => {
   })
 
   it('capabilities 路由：brep 缺能力→E_BREP；auto 缺能力（brep-only）→E_MESH；具备→brep', () => {
-    const op = compatOp(() => ({ ok: true, value: null }), { name: 'capped', capabilities: ['evolution'] })
+    // Phase 0.2：能力名是具体核函数名（'cut'）；引擎声明是名单（evolution: ['cut']）。
+    const op = compatOp(() => ({ ok: true, value: null }), { name: 'capped', capabilities: ['cut'] })
     const meta = metaOf(op)
 
     configureBackends(makeBackends('brep', {}))
-    expect(() => dispatchPath([onChain], meta, 'evolution')).toThrow(BrepUnsupportedError)
+    expect(() => dispatchPath([onChain], meta, 'cut')).toThrow(BrepUnsupportedError)
 
     configureBackends(makeBackends('auto', {}))
-    expect(() => dispatchPath([onChain], meta, 'evolution')).toThrow(MeshUnsupportedError)
+    expect(() => dispatchPath([onChain], meta, 'cut')).toThrow(MeshUnsupportedError)
 
-    configureBackends(makeBackends('auto', { evolution: true }))
-    expect(dispatchPath([onChain], meta, 'evolution')).toBe('brep')
+    configureBackends(makeBackends('auto', { evolution: ['cut'] }))
+    expect(dispatchPath([onChain], meta, 'cut')).toBe('brep')
   })
 })
 

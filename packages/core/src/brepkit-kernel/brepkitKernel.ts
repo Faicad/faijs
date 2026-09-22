@@ -513,8 +513,10 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
       return unsupported('intersectWithHistory')
     },
     // Phase 0.1 补齐的 7 个：brepkit 适配器 v1 未实现 —— 如实抛错，不伪造。
-    // ⚠️ 这正是 adapters/brepkit.ts 里 `evolution: true` 属"粗布尔虚报"的实例：
-    // 该布尔声称支持整个演化族，实际只覆盖 cut/fuse/fillet（见该文件注释）。
+    // ⚠️ 这些桩**不能**被当作"已实现"来探测：`typeof api.xWithHistory === 'function'`
+    // 恒为真。Phase 0.2 起适配器的 `evolution` 是逐核函数**名单**
+    // （`adapters/brepkit.ts` = ['fuse','cut','fillet']），名单才是唯一真相来源；
+    // 声明多写一项 = 让该 op 静默通过静态判定后死在这些桩上（红线违规）。
     translateWithHistory(_shape: BrepHandle, _dx: number, _dy: number, _dz: number, _inputFaceHashes: number[], _hashUpperBound: number): BrepEvolutionData {
       return unsupported('translateWithHistory')
     },

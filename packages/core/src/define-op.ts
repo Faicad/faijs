@@ -26,9 +26,8 @@
  * static-import guard keeps passing.
  */
 
-import { dispatchPath, type BrepCapabilityName } from './cad-runtime/backend-dispatch'
+import { dispatchPath, firstMissingCapability, type BrepCapabilityName } from './cad-runtime/backend-dispatch'
 import {
-  getBackends,
   CONTRACT_VERSION,
   BrepUnsupportedError,
   MeshUnsupportedError,
@@ -273,8 +272,10 @@ export function defineOp<A extends unknown[]>(
     // geometry inputs too — old form passed [input] so they reached the mesh path.
     const inputs = (callArgs as unknown[]).filter(isGeometryInput) as Shape[]
     // D5 capability routing: feed the first missing capability to dispatchPath
-    // (auto degrades to mesh, brep mode errors).
-    const missing = meta.capabilities?.find((cap) => !getBackends().config.brepCapabilities?.[cap])
+    // (auto degrades to mesh, brep mode errors). Matched as a concrete name
+    // against the engine's declaration set (family booleans + its `evolution`
+    // list of *WithHistory kernel function names) — see firstMissingCapability.
+    const missing = firstMissingCapability(meta.capabilities)
     const path = dispatchPath(inputs, meta, missing)
     if (path === 'brep') {
       const r = await runImpl(meta, decl.brep as unknown as ((...a: unknown[]) => unknown) | undefined, callArgs)

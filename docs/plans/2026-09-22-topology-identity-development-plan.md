@@ -644,6 +644,26 @@ Phase 0.4 的探针只负责"选分支"，**不需要任何新的裁决**。全�
 
 ⇒ `identityHashEvolution` 的假设**不再是假设**，且分支 A 命中，**不需要**补 `box → place → box:top` 链。
 
+**0.2 的落地结果（族级布尔 → 逐核函数名单）**：`BrepCapabilities.evolution` 由 `boolean`
+改为 `readonly BrepEvolutionKind[]`（12 个 `*WithHistory` 核函数名），`BrepCapabilityName`
+里的族级 `'evolution'` 已**移除**；引擎声明"提供哪几个"、op 声明"要哪一个"，两侧按名字求交
+（`backend-dispatch.engineCapabilitySet` / `firstMissingCapability`）。实测发现的**真实缺陷**：
+
+| 引擎 | 旧声明 | 后果 | 新声明 |
+|---|---|---|---|
+| `occt` | `evolution: true` | 恰好成立（12 个全有），但无法表达"少了哪个" | 12 项显式名单 |
+| `brepkit` | `evolution: true` | **静态放行、运行时炸**：`cad.intersect` 撞 `unsupported('intersectWithHistory')`（粗布尔虚报） | `['fuse','cut','fillet']`（= 它真实现的三个） |
+| `brep-mock` | 无 | 无变化 | 无（`[]`） |
+
+op 侧同时改为逐核函数：`union → ['fuse']`、`subtract → ['cut']`、`intersect → ['intersect']`。
+另修掉一处「同一事实两个家」：`cq-compat/src/gear-test-harness.ts` 原先手抄一份能力声明
+（`evolution: true` 等），现改为从注册表取回适配器自己声明的那一份。
+
+**⚠️ 本条暴露的一个不可探测性**（已写进 `evolution-declaration.test.ts` 头注）：所有适配器的
+`*WithHistory` 桩都用 `unsupported(...)` 实现，`typeof api.xWithHistory === 'function'` **恒为真**
+⇒ 无法靠探测区分「真有 vs 桩」。**声明是唯一真相来源**，只能靠期望值钉住（该测试文件即此钉；
+occt 的 12 项判定为「真」则由 `evolution-bindings.test.ts` 的**真调用**背书）。
+
 **0.3 的实际取舍（比计划原文更细，因为实测发现"能替换的面"比预期小）**：
 
 | 类别 | op | 处置 | 原因 |

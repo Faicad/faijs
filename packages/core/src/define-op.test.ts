@@ -39,7 +39,7 @@ function cubeMesh(size: number): Shape {
 
 function makeBackends(
   mode: 'auto' | 'brep' | 'mesh',
-  caps?: { evolution?: boolean },
+  caps?: { evolution?: readonly string[] },
   kernelBrep?: unknown,
 ): Backends {
   return {
@@ -107,13 +107,20 @@ describe('dispatchPath: bidirectional matrix (mode × impls × chain state)', ()
   })
 
   it('capability routing (D5): missing capability degrades in auto, errors in brep, brep-only has no mesh to fall back to', () => {
+    // Phase 0.2：能力名是**具体**核函数名（'cut'），不再是族级 'evolution'。
     configureBackends(makeBackends('auto', {}))
-    expect(dispatchPath([onChain], { mesh: noop, brep: noop }, 'evolution')).toBe('mesh')
-    expect(() => dispatchPath([onChain], { brep: noop }, 'evolution')).toThrow(MeshUnsupportedError)
+    expect(dispatchPath([onChain], { mesh: noop, brep: noop }, 'cut')).toBe('mesh')
+    expect(() => dispatchPath([onChain], { brep: noop }, 'cut')).toThrow(MeshUnsupportedError)
     configureBackends(makeBackends('brep', {}))
-    expect(() => dispatchPath([onChain], { mesh: noop, brep: noop }, 'evolution')).toThrow(BrepUnsupportedError)
-    configureBackends(makeBackends('auto', { evolution: true }))
-    expect(dispatchPath([onChain], { mesh: noop, brep: noop }, 'evolution')).toBe('brep')
+    expect(() => dispatchPath([onChain], { mesh: noop, brep: noop }, 'cut')).toThrow(BrepUnsupportedError)
+    configureBackends(makeBackends('auto', { evolution: ['cut'] }))
+    expect(dispatchPath([onChain], { mesh: noop, brep: noop }, 'cut')).toBe('brep')
+    // 引擎只声明了一部分核函数 → 未声明的那一个照样静态拒绝（族级布尔会漏掉这条）。
+    // 这里必须用 brep 模式：auto 模式下缺能力且**有** mesh 实现 → 静态降级走 mesh（不抛）。
+    configureBackends(makeBackends('brep', { evolution: ['cut'] }))
+    expect(() => dispatchPath([onChain], { mesh: noop, brep: noop }, 'fuse')).toThrow(BrepUnsupportedError)
+    configureBackends(makeBackends('auto', { evolution: ['cut'] }))
+    expect(dispatchPath([onChain], { mesh: noop, brep: noop }, 'fuse')).toBe('mesh')
   })
 })
 

@@ -88,8 +88,9 @@ describe('BREP 槽（槽位 1，异步 provider）', () => {
   })
 
   it('capabilities 随引擎携带（§7.5 可选能力槽）', async () => {
-    registerMock('occt', { evolution: true, assembly: true })
-    expect((await getBrepEngine('occt')).capabilities).toEqual({ evolution: true, assembly: true })
+    // Phase 0.2：evolution 是逐核函数名单（不再是族级布尔）
+    registerMock('occt', { evolution: ['cut'], assembly: true })
+    expect((await getBrepEngine('occt')).capabilities).toEqual({ evolution: ['cut'], assembly: true })
     expect((await getBrepEngine('occt')).capabilities?.heal).toBeUndefined()
   })
 })

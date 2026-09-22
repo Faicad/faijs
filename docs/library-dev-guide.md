@@ -76,7 +76,8 @@ export const intersect = defineOp({
     if (shapes.length > 0) keepHidden(...shapes)
     return booleanBrep(shapes, 'intersect')
   },
-  capabilities: ['evolution'], // BREP features needed (gated vs brepCapabilities)
+  capabilities: ['intersect'], // concrete BREP capability needed — a *WithHistory kernel
+                              // function name, matched against the engine's `evolution` list
   outputs: [...],             // named multi-product fields (§2.6)
   schema: { ... },            // param types for the UI panel (L3)
   slotMap: { ... },           // positional → object boxing, for brepjs-style calls

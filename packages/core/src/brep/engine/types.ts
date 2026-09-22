@@ -127,6 +127,41 @@ export interface BrepXcafDocument {
 export type BrepTessellationModel = 'build-time' | 'extract-time' | 'none'
 
 /**
+ * 面演化（`*WithHistory`）核函数名——与内核方法同名，**逐核函数**声明。
+ *
+ * ⚠️ **为什么不能是一个布尔位**（2026-09-22 Phase 0.2）：`evolution: true` 是**族级**声明。
+ * 而「本内核提供面演化」这句话在建面上不成立——每个 `*WithHistory` 是一个独立核函数，
+ * 内核可以只提供其中一部分。`brepkit` 就是活例：它提供 `fuse`/`cut`/`fillet`，
+ * `chamfer`/`intersect`/`translate`/… 一律 `unsupported(...)`
+ * （`brepkit-kernel/brepkitKernel.ts:220-537`）。
+ *
+ * 族级布尔的后果不是"少报"而是**多报**：`cad.intersect` 声明需要 `evolution`，
+ * 在 `evolution: true` 下通过静态判定 → 落到运行时才撞 `unsupported('intersectWithHistory')`。
+ * 这直接违反 AGENTS.md 红线「BREP 路径能否走由静态规则判定，禁止运行时回退」——
+ * 静态判定之所以能成立，前提是引擎的能力声明**说的是逐核函数的实话**。
+ *
+ * ⇒ 引擎声明"我提供哪几个"（`BrepCapabilities.evolution`），op 声明"我要哪一个"
+ * （`defineOp.capabilities`），两者**按名字求交集**（`cad-runtime/backend-dispatch.ts`）。
+ */
+export type BrepEvolutionKind =
+  // 布尔族
+  | 'fuse'
+  | 'cut'
+  | 'intersect'
+  // 倒圆/倒角族
+  | 'fillet'
+  | 'chamfer'
+  // 刚体变换族
+  | 'translate'
+  | 'rotate'
+  | 'mirror'
+  | 'scale'
+  // 抽壳/偏置/加厚族
+  | 'shell'
+  | 'offset'
+  | 'thicken'
+
+/**
  * 可选能力槽声明（§7.5，Phase 1 钉死成员）。
  *
  * 缺失的能力 → 依赖它的功能静态降级走 mesh（§8.4），绝不伪造。
@@ -141,8 +176,11 @@ export type BrepTessellationModel = 'build-time' | 'extract-time' | 'none'
  * 语义不强制统一，故不作为能力位记录。
  */
 export interface BrepCapabilities {
-  /** *WithHistory 面演化族 */
-  evolution?: boolean
+  /**
+   * 面演化族：本引擎**实际提供**的 `*WithHistory` 核函数名（不是族级布尔，见
+   * `BrepEvolutionKind`）。空数组 / 缺省 = 一个都不提供。
+   */
+  evolution?: readonly BrepEvolutionKind[]
   /** 修复族（healSolid/fixShape/fixFaceOrientations/...） */
   heal?: boolean
   /** 直接编辑族（C1：moveFace/replaceFace/...） */

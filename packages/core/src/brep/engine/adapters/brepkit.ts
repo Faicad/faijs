@@ -33,7 +33,12 @@ export async function registerBrepkitBrepEngine(): Promise<void> {
     primitives,
     capabilities: {
       exact: true,
-      evolution: true,
+      // 面演化：逐核函数如实声明（Phase 0.2，不是族级布尔）。
+      // brepkit 只实现 fillet/cut/fuse 三个 *WithHistory，其余（chamfer/intersect/
+      // translate/rotate/mirror/scale/shell/offset/thicken）在
+      // brepkit-kernel/brepkitKernel.ts:224-537 一律 unsupported(...)。
+      // 声明里少写一项 = 让该 op 静默通过静态判定后死在运行时（红线违规）。
+      evolution: ['fuse', 'cut', 'fillet'],
       heal: true,
       directEdit: true,
       advSurface: false,

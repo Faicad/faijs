@@ -410,7 +410,7 @@ export type BrepEngineProvider = () => Promise<BrepEngine>
 
 **Registration happens only during host startup assembly; the registry is read-only at runtime** and offers no unregister / setDefault / runtime switching. OCCT is installed as the default BREP engine by the adapter's idempotent `ensureOcctDefaultEngine()`.
 
-**Capability declarations** (`BrepCapabilities`, all optional): `evolution` (`*WithHistory` face evolution), `heal`, `directEdit`, `advSurface`, `assembly` (XCAF), `meshLift` (mesh→BREP lifting). A missing capability degrades statically or raises a clear error — **never faked**.
+**Capability declarations** (`BrepCapabilities`, all optional): `evolution` — **a list of the `*WithHistory` kernel function names the engine actually provides** (`BrepEvolutionKind`, e.g. `['fuse','cut','fillet']`), *not* a family-level boolean — plus the booleans `heal`, `directEdit`, `advSurface`, `assembly` (XCAF), `meshLift` (mesh→BREP lifting). An op declares the concrete name(s) it needs (`capabilities: ['cut']`), matched against that list. A missing capability degrades statically or raises a clear error — **never faked**. A family-level boolean would over-report, because a kernel may implement only part of the family.
 
 ### 8.3 `BrepChainState`
 
@@ -525,7 +525,7 @@ export const myOp = defineOp({
 
 - At least one implementation; **mesh is the default path** (mesh-only / brep-only both legal).
 - Geometry inputs are collected automatically (`args.filter(isShape)`); multi-product functions declare `outputs: string[]` (e.g. `split` → `{ front, back }`).
-- The wrapper dispatches by mode (internally `dispatchPath`, §8.1); failures raise `BrepUnsupportedError` / `MeshUnsupportedError`, converted to `ExecutionResult.failedAt`. Capabilities (e.g. boolean `['evolution']`) degrade to mesh in auto when missing; brep mode raises.
+- The wrapper dispatches by mode (internally `dispatchPath`, §8.1); failures raise `BrepUnsupportedError` / `MeshUnsupportedError`, converted to `ExecutionResult.failedAt`. Capabilities (e.g. `union` → `['fuse']`, matched against the engine's `evolution` list of provided `*WithHistory` names) degrade to mesh in auto when missing; brep mode raises.
 
 ### 10.4 Third-party library channel
 

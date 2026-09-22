@@ -411,7 +411,7 @@ export type BrepEngineProvider = () => Promise<BrepEngine>
 
 **注册只发生在宿主启动装配期，注册表运行期只读**；不提供 unregister／setDefault／运行时切换。OCCT 作为默认 BREP 引擎由适配器 `ensureOcctDefaultEngine()` 幂等装配。
 
-**能力声明**（`BrepCapabilities`，全可选）：`evolution`（`*WithHistory` 面演化）、`heal`、`directEdit`、`advSurface`、`assembly`（XCAF）、`meshLift`（mesh→BREP 提升）。缺失的能力按静态规则降级或明确报错，**绝不伪造**。
+**能力声明**（`BrepCapabilities`，全可选）：`evolution`——本引擎**实际提供**的 `*WithHistory` 核函数名**名单**（`BrepEvolutionKind`，如 `['fuse','cut','fillet']`），**不是**族级布尔——以及 `heal`、`directEdit`、`advSurface`、`assembly`（XCAF）、`meshLift`（mesh→BREP 提升）这些布尔位。op 声明自己需要的**具体**名字（`capabilities: ['cut']`），与该名单求交。缺失的能力按静态规则降级或明确报错，**绝不伪造**。族级布尔会多报能力——内核可以只实现该族的一部分。
 
 ### 8.3 `BrepChainState`
 
@@ -526,7 +526,7 @@ export const myOp = defineOp({
 
 - 至少声明一个实现；**mesh 为默认路径**（mesh-only／brep-only 均合法）。
 - 几何输入自动收集（`args.filter(isShape)`）；多产物函数用 `outputs: string[]` 声明（如 `split` 的 `{ front, back }`）。
-- 包装器按 mode 自动分派（内部走 `dispatchPath`，见 §8.1）；失败抛 `BrepUnsupportedError`／`MeshUnsupportedError`，由引擎转 `ExecutionResult.failedAt`。能力声明（如布尔系 `['evolution']`）缺失时 auto 降级 mesh、brep 模式报错。
+- 包装器按 mode 自动分派（内部走 `dispatchPath`，见 §8.1）；失败抛 `BrepUnsupportedError`／`MeshUnsupportedError`，由引擎转 `ExecutionResult.failedAt`。能力声明（如 `union` → `['fuse']`，与引擎 `evolution` 名单里的 `*WithHistory` 名求交）缺失时 auto 降级 mesh、brep 模式报错。
 
 ### 10.4 第三方库通道
 

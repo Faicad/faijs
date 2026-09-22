@@ -13,11 +13,35 @@
 
 import { registerBrepEngine, hasBrepEngine, isBrepEngineRegistered, type BrepEngine } from '../registry'
 import type { AssertSatisfiesBrepEngineApi } from '../primitives'
+import type { BrepEvolutionKind } from '../types'
 import { initOcctWasm } from '../../../occt-kernel/occtKernel'
 import { bindOcctKernel } from '../../../api/occt-kernel-bridge'
 
 /** OCCT 引擎注册 id（默认 BREP 引擎；首个注册自动成为默认）。 */
 export const OCCT_BREP_ENGINE_ID = 'occt'
+
+/**
+ * OCCT 实际提供的 `*WithHistory` 核函数名（Phase 0.2：逐核函数如实声明）。
+ *
+ * 12 个全部由 `occt-wasm@3.8.4` 提供（`dist/index.d.ts` 的 `*WithHistory` 声明），
+ * 且 faijs 侧已全部绑定（`brep/engine/primitives.ts` 的 `BrepEngineApi`）并有运行时
+ * 冒烟测试（`brep/engine/evolution-bindings.test.ts`——因 `initOcctWasm` 的返回类型
+ * 被 `as unknown as` 硬断言，编译期守卫是空转的，只有运行时测试能证明它们真在）。
+ */
+const OCCT_EVOLUTION_KINDS = [
+  'fuse',
+  'cut',
+  'intersect',
+  'fillet',
+  'chamfer',
+  'translate',
+  'rotate',
+  'mirror',
+  'scale',
+  'shell',
+  'offset',
+  'thicken',
+] as const satisfies readonly BrepEvolutionKind[]
 
 /**
  * 装配 OCCT BREP 引擎（宿主启动时调用一次，幂等）。
@@ -33,7 +57,8 @@ export async function registerOcctBrepEngine(): Promise<void> {
     id: OCCT_BREP_ENGINE_ID,
     primitives,
     capabilities: {
-      evolution: true,
+      // 面演化：逐核函数名单（不是族级布尔——见 BrepEvolutionKind）。
+      evolution: OCCT_EVOLUTION_KINDS,
       heal: true,
       directEdit: true,
       advSurface: true,

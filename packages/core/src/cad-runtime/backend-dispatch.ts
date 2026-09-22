@@ -16,19 +16,69 @@
 
 import { getBackends, getCurrentStmt, BrepUnsupportedError, MeshUnsupportedError } from '../runtime-state'
 import { hasBrep } from '../shape'
+import type { BrepEvolutionKind } from '../brep/engine/types'
 import type { Shape } from '../mesh/types'
 
 /** 静态判定的两个可能结果：走 BREP 链或 mesh 链。 */
 export type BrepPath = 'brep' | 'mesh'
 
-/** 能力名（对应 §7.5 BrepCapabilities 的布尔字段；能力路由 §8.4 用）。 */
-export type BrepCapabilityName =
-  | 'evolution'
-  | 'heal'
-  | 'directEdit'
-  | 'advSurface'
-  | 'assembly'
-  | 'meshLift'
+/**
+ * 能力名：族级布尔位（`BrepCapabilities` 里类型为 boolean 的字段）**加上**逐核函数的
+ * 面演化名（`BrepEvolutionKind`，`evolution` 名单里的条目）。
+ *
+ * ⚠️ `'evolution'` 已从本联合中**移除**（2026-09-22 Phase 0.2）：它曾是"面演化族"的
+ * 族级名，但族级声明会多报能力（内核可只提供部分 `*WithHistory`）→ 静态判定失效。
+ * op 现在必须声明**具体**要哪个核函数（如 `['cut']`），引擎声明**具体**提供哪些
+ * （`evolution: ['fuse','cut','fillet']`）。见 `brep/engine/types.ts` 的 `BrepEvolutionKind`。
+ */
+export type BrepCapabilityName = 'heal' | 'directEdit' | 'advSurface' | 'assembly' | 'meshLift' | BrepEvolutionKind
+
+/**
+ * 引擎能力声明的宽松镜像（`runtime-state.Backends.config.brepCapabilities` 同构；
+ * 该模块须零依赖，故不复用 `BrepCapabilities`）。
+ */
+export interface EngineCapabilitiesLike {
+  /** 本引擎实际提供的 `*WithHistory` 核函数名。 */
+  evolution?: readonly string[]
+  heal?: boolean
+  directEdit?: boolean
+  advSurface?: boolean
+  assembly?: boolean
+  meshLift?: boolean
+}
+
+/**
+ * 引擎能力声明 → 受支持能力名集合（族级布尔位 + `evolution` 名单展开成逐个核函数名）。
+ * @param caps - 当前引擎的能力声明（缺省 = 空集，即什么都不支持）。
+ * @returns 该引擎声明支持的 `BrepCapabilityName` 集合。
+ */
+export function engineCapabilitySet(caps: EngineCapabilitiesLike | undefined): ReadonlySet<string> {
+  const set = new Set<string>()
+  if (!caps) return set
+  for (const kind of caps.evolution ?? []) set.add(kind)
+  if (caps.heal) set.add('heal')
+  if (caps.directEdit) set.add('directEdit')
+  if (caps.advSurface) set.add('advSurface')
+  if (caps.assembly) set.add('assembly')
+  if (caps.meshLift) set.add('meshLift')
+  return set
+}
+
+/**
+ * 声明列表中第一个**当前引擎不具备**的能力名（全具备则 `undefined`）。
+ *
+ * 读的是运行时配置里的能力声明（与 `dispatchPath` 同一来源），因此调用点与分派点
+ * 对"缺哪个能力"的判断必然一致——不会出现"defineOp 认为缺 evolution、dispatch 认为具备"。
+ * @param declared - op 声明的能力名列表（来自 `DualOpMeta.capabilities`）。
+ * @returns 第一个缺失的能力名，或 undefined。
+ */
+export function firstMissingCapability(
+  declared: readonly BrepCapabilityName[] | undefined,
+): BrepCapabilityName | undefined {
+  if (!declared?.length) return undefined
+  const supported = engineCapabilitySet(getBackends().config.brepCapabilities)
+  return declared.find((cap) => !supported.has(cap))
+}
 
 /**
  * Decide whether this invocation takes the BREP or the mesh backend path.
@@ -47,7 +97,11 @@ export type BrepCapabilityName =
  * Capability routing (requiredCapability): when the current engine (registry)
  * lacks a declared capability, brep mode throws a BrepUnsupportedError (an
  * explicit error, never a silent fallback) while auto mode statically degrades
- * to mesh (never fabricating a missing capability).
+ * to mesh (never fabricating a missing capability). The capability is matched
+ * against the engine's declaration as a set of concrete names: family booleans
+ * plus the engine's `evolution` list of `*WithHistory` kernel function names
+ * (Phase 0.2 — a family-level `evolution: true` would over-report, since a
+ * kernel may provide only a subset of the evolution family).
  *
  * Red line unchanged: static dispatch, no runtime try-catch fallback. The
  * decision happens before the implementation runs and is never revised after a
@@ -77,6 +131,8 @@ export function dispatchPath(
     return 'mesh'
   }
   const currentStmt = getCurrentStmt()
+  // 引擎能力声明 → 具体能力名集合（族级布尔位 + evolution 名单逐核函数展开）。
+  const supported = engineCapabilitySet(config.brepCapabilities)
 
   if (config.mode === 'brep') {
     if (!impls.brep) {
@@ -86,7 +142,7 @@ export function dispatchPath(
       throw new BrepUnsupportedError('E_BREP_UNSUPPORTED: input is not BREP', currentStmt)
     }
     // 能力路由：brep 模式缺能力 → 明确报错，不静默回退
-    if (requiredCapability && !config.brepCapabilities?.[requiredCapability]) {
+    if (requiredCapability && !supported.has(requiredCapability)) {
       throw new BrepUnsupportedError(
         `E_BREP_UNSUPPORTED: current engine lacks capability '${requiredCapability}' (brepEngineId=${config.brepEngineId ?? '<none>'})`,
         currentStmt,
@@ -96,7 +152,7 @@ export function dispatchPath(
   }
 
   // auto 模式：能力路由（缺能力 → 静态降级走 mesh；brep-only 无 mesh 可降 → 明确报错）
-  if (requiredCapability && !config.brepCapabilities?.[requiredCapability]) {
+  if (requiredCapability && !supported.has(requiredCapability)) {
     if (!impls.mesh) {
       throw new MeshUnsupportedError(
         `E_MESH_UNSUPPORTED: current engine lacks capability '${requiredCapability}' and function has no mesh implementation`,

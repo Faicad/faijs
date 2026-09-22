@@ -12,7 +12,7 @@
  * This file is NOT a test (no `*.test.ts`); it is imported by the E1–E4 specs.
  */
 
-import { registerOcctBrepEngine, configureBackends, CONTRACT_VERSION } from '@faicad/faijs'
+import { registerOcctBrepEngine, configureBackends, getBrepEngine, CONTRACT_VERSION, OCCT_BREP_ENGINE_ID } from '@faicad/faijs'
 import { getKernel } from '@faicad/faijs/occt-kernel/occtKernel'
 import { brepOf } from '@faicad/faijs/shape'
 export { brepOf }
@@ -33,22 +33,19 @@ import type { Workplane } from './workplane'
 export async function setupNativeKernel(): Promise<void> {
   await registerOcctBrepEngine()
   const k = getKernel() as unknown as OcctKernel
+  // Capability declaration is NOT re-typed here: take back the honest declaration
+  // the OCCT adapter itself carries. Before this, the harness hand-mirrored it with
+  // `evolution: true` — a second home for the same fact, which silently desynced the
+  // moment the adapter moved to a per-kernel-function list (`BrepEvolutionKind`).
+  // dual-ops that gate on a capability (e.g. union → 'fuse') still dispatch to brep
+  // instead of throwing E_BREP_UNSUPPORTED in the bare-kernel test path.
+  const occtEngine = await getBrepEngine(OCCT_BREP_ENGINE_ID)
   configureBackends({
     contractVersion: CONTRACT_VERSION,
-    // Mirror the OCCT engine capabilities declared in registerOcctBrepEngine so
-    // dual-ops that gate on a capability (e.g. cut → 'evolution') dispatch to
-    // brep instead of throwing E_BREP_UNSUPPORTED in the bare-kernel test path.
     config: {
       mode: 'brep',
       brepEngineId: 'occt',
-      brepCapabilities: {
-        evolution: true,
-        heal: true,
-        directEdit: true,
-        advSurface: true,
-        assembly: true,
-        meshLift: true,
-      },
+      brepCapabilities: occtEngine.capabilities,
     },
     kernel: { brep: k, csg: undefined, sdf: undefined },
     fonts: undefined,

@@ -33,7 +33,11 @@ export interface ExecutionAnchor {
 
 /**
  * 执行模式（与 src/cad-runtime/ports.ts 的 ExecutionMode 保持一致）。
- * 此处重复定义是为了保持本模块零依赖；由守卫测试保证两者一致。
+ *
+ * 此处重复定义是为了保持本模块零依赖。一致性由 `cad-runtime/runtime.ts:460`
+ * （`mode: this.mode`，`ExecutionMode` → 本类型的赋值）在编译期间接钉住：
+ * 只给 `ExecutionMode` 加成员而不加到这里 → 该行 tsc 报错。
+ * （2026-09-22 核实：无独立守卫测试。）
  */
 export type RuntimeExecutionMode = 'auto' | 'brep' | 'mesh'
 
@@ -46,9 +50,17 @@ export interface Backends {
     mode: RuntimeExecutionMode
     /** 当前 BREP 引擎 id（注册表首个注册者；未注册为 null）。能力路由读（§8.4）。 */
     brepEngineId?: string | null
-    /** 当前引擎能力声明（宽松结构，零依赖）。能力路由读（§8.4）。 */
+    /**
+     * 当前引擎能力声明（宽松结构，零依赖）。能力路由读（§8.4）。
+     *
+     * `evolution` = 本引擎**实际提供**的 `*WithHistory` 核函数名名单
+     * （`brep/engine/types.ts` 的 `BrepEvolutionKind`）。**不是**族级布尔——
+     * 族级布尔会多报能力、使静态判定失效（Phase 0.2）。
+     * 本模块须零依赖，故此处只写 `readonly string[]`；权威类型见
+     * `BrepCapabilities`，消费侧由 `backend-dispatch.engineCapabilitySet` 归一化。
+     */
     brepCapabilities?: {
-      evolution?: boolean
+      evolution?: readonly string[]
       heal?: boolean
       directEdit?: boolean
       advSurface?: boolean
