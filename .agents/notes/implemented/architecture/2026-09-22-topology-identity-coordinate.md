@@ -1,7 +1,9 @@
-# Agent Note — topological face identity is the causal coordinate (StmtId, RoleName)
+# Agent Note: topological face identity is the causal coordinate (StmtId, RoleName)
 
-Date: 2026-09-22
 Status: implemented
+
+English | [中文](2026-09-22-topology-identity-coordinate.zh.md)
+
 Area: architecture / topology naming / cross-history identity
 
 ## Problem
@@ -44,7 +46,7 @@ Face identity is the **causal coordinate `(StmtId, RoleName)`**:
   *new* faces get a derived vocabulary (`replica[k]/…`, `splinter(#j)`,
   `gen:fillet:i`, `cap:…`, `wall:i`).
 
-## Why not the obvious alternatives
+## Alternatives considered
 
 - **`origin: PartName`** (the old form). Rejected: a `PartName` is a variable
   name that can be renamed and is *shared* across imports of one asset; it is

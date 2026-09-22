@@ -133,7 +133,25 @@ const a = await cad.import_brep({ asset: 'Array001.Shape' })
 >
 > 这是**平台**资产导入 op。编辑器 `cad.load` 是 `../3d_editor` 的「文件导入 Feature」（key/path/url 三键分流 + 画布语句位置语义），平台侧不要复用它（C7）。
 
-### 3.5 `load` ✅ 🚫
+### 3.5 `import_step` ✅
+
+stdlib import_step — 任意路径 STEP 文件导入 op（方案 Phase 5 / Q2 真缺口） 与 `import_brep`（容器资产）和 `cad.load`（编辑器 FileRef）的职责切分： - `cad.import_step` 是 faijs **平台**几何 op：单一本地路径（宿主 `resolveFile`）， OCCT STEPControl_Reader 读入，返回持 OCCT 句柄 + roleTable 的 Shape。 - `import_brep` 读的是容器 `assets/` 里的冻结 BREP 资产（key，去扩展名）； `cad.load` 是 `../3d_editor` 的「文件导入 Feature」（key/path/url 三键分流、 画布语句位置语义），平台侧不要复用它（C7）。 非实体（wire/face/shell）一等公民（C6，对齐 import_brep）：始终 allowNonSolid。 STEP 是 BREP 专属格式：mesh / 无内核模式抛 E_BREP_UNSUPPORTED。
+
+```js
+const a = await cad.import_step({ path: 'D:/models/box.step' })
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `path` | `string` | ✅ | — | 本地绝对路径（宿主 resolveFile 解析） |
+
+**异步**。Promise<Shape> 持 OCCT 句柄的几何（非实体亦可）。
+
+> 平台 STEP 导入 op。读文件经宿主资产解析器（`assets.resolveFile`），与 `cad.load` 同一通道；语义为「任意路径 STEP → OCCT 读入的 Shape」。
+>
+> 非实体一等（C6）：wire/face/shell 一律可导入。需要实体的 op（布尔、up-to 目标面）在**使用点**报错。
+
+### 3.6 `load` ✅ 🚫
 
 加载几何资产。key / path / url 三选一（按此优先级分流），内容经宿主资产解析器解析，**引用而非拷贝**。
 
@@ -160,7 +178,7 @@ const p = await cad.load({ url: 'https://…/box.3mf' })
 >
 > 本 op 要求导入物含实体（历史契约）。非实体（wire/face/shell）的导入是平台 `cad.import_brep` 的一等能力，不由本 op 承担。
 
-### 3.6 `screw` ✅
+### 3.7 `screw` ✅
 
 生成螺丝零件（螺纹 + 头型）。
 
@@ -185,7 +203,7 @@ const s = await cad.screw({ system: 'metric', specIdx: 6, thread: 'coarse', leng
 >
 > pitchCustom 执行层已支持（makeScrew/threadBrep 均读取），codegen 曾不序列化（TODO）；当前已机械输出。
 
-### 3.7 `sdf` ⚠️
+### 3.8 `sdf` ⚠️
 
 用 SDF（符号距离场）函数生成网格体（mesh-only）。
 
@@ -204,7 +222,7 @@ const s = await cad.sdf({ code: 'return sphere(10) - sphere(5, [10,0,0])', box: 
 
 > SDF 无 BREP 实现（mesh-only）；brep 模式下 dispatchPath 调用前抛 BrepUnsupportedError。SDF 天生是网格操作，允许网格参数（resolution）。
 
-### 3.8 `sketch` ✅
+### 3.9 `sketch` ✅
 
 从 2D 轮廓构造平面（creator，无输入）。仅 BREP 可用。
 
@@ -218,7 +236,7 @@ const f = cad.sketch({ contours: [{ segments: [{ kind:'line', x1:0,y1:0,x2:10,y2
 
 **同步**。Shape 平面几何（mesh 三角化 + BREP 句柄）。
 
-### 3.9 `sphere` ✅
+### 3.10 `sphere` ✅
 
 创建球体。
 
@@ -237,7 +255,7 @@ const r = cad.sphere({ radius: 10, segments: 64, center: [0,0,10] })
 
 **同步**。Shape 球体几何，可作为后续 op 的输入。
 
-### 3.10 `svgExtrude` ⚠️
+### 3.11 `svgExtrude` ⚠️
 
 从二维 SVG 轮廓挤出零件（拓扑操作）。
 
@@ -255,7 +273,7 @@ const s = await cad.svgExtrude({ svg: 'logo.svg', depth: 5, targetLongSide: 20 }
 
 > SVG 是外部资产，应优先用资产引用（`cad.asset(key)` 经 CallRefIR）而非整份 XML 内联拷贝。自然尺寸（viewBox）与缩放已显式成参数（mesh/BREP 两条路径都解析 viewBox 并传递 naturalWidth/naturalHeight），尺寸语义不再依赖两套实现各自推导。
 
-### 3.11 `text` ⚠️
+### 3.12 `text` ⚠️
 
 生成文字零件（文字轮廓挤出，X/Z 居中、Y 底部对齐原点）。
 
@@ -274,7 +292,7 @@ const t = await cad.text({ text: 'Hello', size: 20, depth: 5 })
 
 > font 语义未定（当前只有默认字体），⚠️ 暂不要传。兼容 `cad.text(part0, {...})` 带输入形态（输入被忽略），正常写 `cad.text({...})` 即可。
 
-### 3.12 `wedge` ✅
+### 3.13 `wedge` ✅
 
 创建楔形体。唯一契约是 width/height/angle/length（width/height/angle 为正数，length 沿切割方向）， 旧文档的 size 形态已废弃，传 { size } 会抛错。
 
@@ -944,7 +962,7 @@ const cam = cad.viewCamera({ dir: [1, -1, 1] })
 ## 9. 写给 AI 的速查（一句话总结每个可用 op）
 
 ```
-创建: import_brep / box / sphere / cylinder / cone / wedge / screw / sdf / sketch / svgExtrude / text
+创建: import_brep / import_step / box / sphere / cylinder / cone / wedge / screw / sdf / sketch / svgExtrude / text
 变换: place
 特征: union / cut / subtract / intersect / chamfer / engrave / extrude / fillet / knurl / linearPattern / split
 结构: compound

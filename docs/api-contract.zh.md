@@ -557,6 +557,7 @@ export const myOp = defineOp({
 - **解析显式三态**：成功 `exact` / `geometric-fallback`；失败抛 `TopoRefError`（`E_TOPO_DELETED` / `E_TOPO_AMBIGUOUS` / `E_TOPO_NOT_FOUND`）——绝不静默拿序号硬取。
 - **来源能力分级**：BREP part 带沿演化传播的语义+位置 role；primitive 假拓扑用与 BREP 同一套命名器按固定面序给语义 role；mesh（STL/3MF）part 只给 hint（`role=''`），恒走几何解析。
 - **链切换降级**：part 在链中途从 BREP 降级 mesh 时，已累积的 `{origin, role}` 与 hint 作为纯数据保留，解析回落到面 hint 快照（几何兜底）——引用层面的降级，不是引擎路径运行时回退。
+- **身份坐标 = `(StmtId, RoleName)`**（Phase 1.6/1.7）：`origin` 是产出语句的 StmtId（不是 PartName）；`role` 是结构化 RoleName，序列化为规范串（`top` / `wall:3` / `replica[2]/wall:3` / `splinter(top)#1` / `gen:fillet:0` / `imported:5`）。`.fai.js` 里的线形态是字符串对 `{origin, role}`；display（PartName）仅用于 UI，不参与身份、不参与解析。
 
 ---
 

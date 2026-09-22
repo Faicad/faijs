@@ -6,7 +6,7 @@
 import { describe, expect, it, beforeAll } from 'vitest'
 import { getKernel } from '@faicad/faijs/occt-kernel/occtKernel'
 import { brepOf } from '@faicad/faijs/shape'
-import { setupNativeKernel } from '@faicad/cq-compat/gear-test-harness'
+import { setupNativeKernel } from '../../cq-compat/src/gear-test-harness'
 import { sketch, rect, circle, slot, faces, wires, offset, reset, area, faceCount, extrude, dispose } from './index'
 
 beforeAll(async () => {

@@ -1,7 +1,9 @@
-# Agent Note — 拓扑面身份 = 因果坐标 (StmtId, RoleName)
+# Agent Note: 拓扑面身份 = 因果坐标 (StmtId, RoleName)
 
-日期：2026-09-22
 状态：已实现
+
+English | [中文](2026-09-22-topology-identity-coordinate.md)
+
 领域：架构 / 拓扑命名 / 跨重放身份
 
 ## 问题
@@ -52,10 +54,10 @@
 
 ## 后果
 
-- **G3（抗重放）6/6 绿**：`g3-replay-chains.test.ts` — T0 链路守卫 + 6 条链
-  （extrude→fillet、extrude→cut、linearPattern、split、fai_drill、
-  box→role 字面量→fillet）全通过。T1 词汇集相等现用 `Set` 语义——OCCT 面
-  序跨重放不稳定，但出现的局部名**集合**稳定。
+- **G3（抗重放）6/6 绿**：`g3-replay-chains.test.ts` — T0 链路守卫
+  + 6 条链（extrude→fillet、extrude→cut、linearPattern、split、fai_drill、
+    box→role 字面量→fillet）全通过。T1 词汇集相等现用 `Set` 语义——OCCT 面
+    序跨重放不稳定，但出现的局部名**集合**稳定。
 - **G1（覆盖率）未命名面数 = 0**：`phase0-coverage-baseline.test.ts` — 47/47
   面都带语义 role，0 位置名、0 空。
 - **mesh 不参与**（D6）：引用 mesh 几何的面/边抛 `E_TOPO_MESH_UNSUPPORTED`；
@@ -84,8 +86,8 @@
   由模块级 `registeringStmts` 守卫跳过；该标记必须**贯穿完整 await 实现期**——
   首版在 `register` 后同步删除 ⇒ 嵌套调用仍撞 N3（9 例红）。
 - N1/N2/N3 现在**运行期生效**。载体：
-  `packages/tests/faijs/topology-naming/lineage-wiring.test.ts`（图被填充 +
-  重放幂等）。
+  `packages/tests/faijs/topology-naming/lineage-wiring.test.ts`（图被填充
+  + 重放幂等）。
 
 **本次接线暴露的一处计划缺陷**：§1.3 的附加守卫 `E_TOPO_PART_REDEFINED` 误杀
 **重赋值**（`part0 = cad.translate(part0, …)`），使
