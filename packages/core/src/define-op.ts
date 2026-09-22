@@ -356,7 +356,7 @@ export function defineOp<A extends unknown[]>(
       // impl 返回后 anchor.outputs 名字已定，而 fromBrep 时刻 shape 还未被
       // executor 命名（nameOf 为 undefined）。op 实现读输入表（inputRoleTable）
       // 与解析读表（tableOfPart）都走这份 part 键权威表。
-      if (outShape && anchor.outputs.length > 0) {
+      if (outShape && anchor && anchor.outputs.length > 0) {
         const stmtId = asStmtId(anchor.id)
         const table = runtimeLineage.outputTableOf(stmtId)
         const solid = runtimeLineage.outputHandleOf(stmtId)
