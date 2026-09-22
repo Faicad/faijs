@@ -32,7 +32,7 @@ import { sketch } from './sketch'
 import { load } from './load'
 import { fai_drill } from './fai_drill'
 import { fai_split } from './fai_split'
-import { union, subtract, intersect } from './boolean'
+import { union, subtract, intersect, cut } from './boolean'
 import { engrave } from './engrave'
 import { chamfer } from './chamfer'
 import { fillet } from './fillet'
@@ -90,5 +90,8 @@ export function createApiNamespace(): StdlibNamespace {
     compound: geometricCompound,
     place,
     ...scriptFaceOps,
+    // Phase 3: override generated cut (compatOp, no roleTable propagation) with
+    // handwritten cut from boolean.ts (does roleTable propagation via booleanBrep).
+    cut,
   } as unknown as StdlibNamespace
 }

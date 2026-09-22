@@ -131,6 +131,35 @@ export const union = defineOp({
 })
 
 /**
+ * Boolean cut (subtract): remove `tool` from `base`. Same semantics as
+ * {@link subtract} but with the brepjs-compatible `(base, tool, options?)` signature.
+ * Overrides the generated projection (compatOp) to do roleTable propagation
+ * (Phase 3: L2 requires wall:<i> to survive cut).
+ * @group 特征
+ * @inputs 2
+ * @async true
+ * @qual ok
+ * @name cut
+ * @param base - the target shape. type:Shape required:true
+ * @param tool - the shape to subtract. type:Shape required:true
+ * @returns Shape base minus tool.
+ * @example
+ * const b = await cad.cut(part0, part1)
+  */
+export const cut = defineOp({
+  mesh: (base: Shape, tool: Shape) => {
+    keepHidden(base, tool)
+    return booleanMesh(reconcileBrepInputs([base, tool]), 'subtract')
+  },
+  brep: (base: Shape, tool: Shape) => {
+    keepHidden(base, tool)
+    return booleanBrep([base, tool], 'subtract')
+  },
+  capabilities: ['cut'],
+  naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
+})
+
+/**
  * 布尔差集：第一个为主体，减去其余输入。
  * @group 特征
  * @inputs 2

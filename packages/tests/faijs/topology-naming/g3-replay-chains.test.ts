@@ -404,15 +404,11 @@ const CHAINS: readonly ChainSpec[] = [
  * 每次自建 runtime 而不是共享：C1 守卫下多 runtime 只能**串行**使用，
  * 自建+dispose 让每条链完全独立（当前 `for` 循环本身是串行的，不违反 C1）。
  */
-async function replayChain(chain: ChainSpec): Promise<[ExecutionResult, ExecutionResult]> {
+async function replayChain(chain: ChainSpec): Promise<[ExecutionResult, ExecutionResult, () => void]> {
   const runtime: CadRuntime = createRuntime(createNodePorts(), 'brep')
-  try {
-    const a = await runtime.execute(chain.codeA, { topology: 'auto' })
-    const b = await runtime.execute(chain.codeB, { topology: 'auto' })
-    return [a, b]
-  } finally {
-    runtime.dispose()
-  }
+  const a = await runtime.execute(chain.codeA, { topology: 'auto' })
+  const b = await runtime.execute(chain.codeB, { topology: 'auto' })
+  return [a, b, () => runtime.dispose()]
 }
 
 // ── T0：必须绿（`it.fails` 吞掉一切失败，所以链路守卫不能写在里面） ──
@@ -420,20 +416,32 @@ async function replayChain(chain: ChainSpec): Promise<[ExecutionResult, Executio
 describe('T0 链路守卫（本 describe 必须保持绿——它证明 G3 不通过的理由不是链路本身）', () => {
   for (const chain of CHAINS) {
     it(`${chain.label}：两次执行都成功`, async () => {
-      const [a, b] = await replayChain(chain)
-      expect(a.failedAt, `[${chain.label}] 首次执行失败：${a.failedAt?.message}`).toBeUndefined()
-      expect(b.failedAt, `[${chain.label}] 改参重放失败：${b.failedAt?.message}`).toBeUndefined()
+      const [a, b, dispose] = await replayChain(chain)
+      try {
+        expect(a.failedAt, `[${chain.label}] 首次执行失败：${a.failedAt?.message}`).toBeUndefined()
+        expect(b.failedAt, `[${chain.label}] 改参重放失败：${b.failedAt?.message}`).toBeUndefined()
+      } finally {
+        dispose()
+      }
     }, 300000)
   }
 })
 
-// ── G3：当前预期不通过（链一绿就反向报红，逼你翻成 it） ──
+// ── G3：L1/L2/L6 已转绿（Phase 3），其余仍 it.fails ──
+
+/** Phase 3 已转绿的链（用 it 而非 it.fails）。 */
+const GREEN_CHAINS = new Set(['L1 sketch → extrude → fillet', 'L2 sketch → extrude → cut', 'L6 box →（role 字面量构造 edge ref）→ fillet'])
 
 describe('G3 抗重放（it.fails——链一旦真绿会反向报红）', () => {
   for (const chain of CHAINS) {
-    it.fails(`${chain.label}：改参重放后 ref 仍落到同名面`, async () => {
-      const [a, b] = await replayChain(chain)
-      expectReplayStable(chain.label, a, b, chain.part, chain.capture, chain.requiredRoles)
+    const testFn = GREEN_CHAINS.has(chain.label) ? it : it.fails
+    testFn(`${chain.label}：改参重放后 ref 仍落到同名面`, async () => {
+      const [a, b, dispose] = await replayChain(chain)
+      try {
+        expectReplayStable(chain.label, a, b, chain.part, chain.capture, chain.requiredRoles)
+      } finally {
+        dispose()
+      }
     }, 300000)
   }
 })

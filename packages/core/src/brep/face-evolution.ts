@@ -344,6 +344,7 @@ function mergeRoleTablesLocal(
   evoA: HashEvolution,
   tableB: ReadonlyMap<unknown, unknown>,
   evoB: HashEvolution,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- retained for future boolean generated-face naming
   outPart: string,
 ): ReadonlyMap<unknown, unknown> {
   const result = new Map<unknown, unknown>()
@@ -365,8 +366,9 @@ function mergeRoleTablesLocal(
       result.set(origin, advanced)
     }
   }
-  // 缝面位置名：调用方决定是否补（generated 不可靠，默认不补）
-  void outPart
+  // 3.6: void outPart removed — boolean seam faces are handled by the "three fates"
+  // analysis (§4.4): cut has 0 new faces (§7 item 7), fuse seam faces are a Phase 4+ concern.
+  // outPart retained for future kernel/byAdjacency on boolean generated faces.
   return result
 }
 
@@ -537,13 +539,33 @@ export function directEditWithRoleTable(
 
   const faceEvolution = decodeEvolution(kernel, evo, solid, evo.result)
   const hashEvo = decodeHashEvolution(evo)
-  const roleTable = propagateAllOriginsLocal(inputRoleTable, hashEvo)
+  const propagated = propagateAllOriginsLocal(inputRoleTable, hashEvo)
 
-  // outPart used for new-origin allocation in M2 (derived faces); M1 does not
-  // generate positional roles for transition faces.
-  void outPart
+  // 3.4: generated face naming — transition faces are neither input faces nor
+  // modified outputs (§4.4 "三类命运": 原样幸存 / 改型幸存 / 新造).
+  // Role format: `gen:<op>:<i>` (i = enumeration order among generated faces).
+  // String formatted directly (no import of role-name.ts — avoids circular dep).
+  const resultHashes = getFaceHashes(kernel, evo.result)
+  const inputHashSet = new Set(inputHashes)
+  const modifiedOutputHashes = new Set<number>()
+  for (const outs of hashEvo.modified.values()) {
+    for (const h of outs) modifiedOutputHashes.add(h)
+  }
+  const generatedHashes = resultHashes.filter(
+    (h) => !inputHashSet.has(h) && !modifiedOutputHashes.has(h),
+  )
 
-  return { result: evo.result, faceEvolution, roleTable }
+  if (generatedHashes.length > 0) {
+    const genRoles = new Map<string, number[]>()
+    for (let i = 0; i < generatedHashes.length; i++) {
+      genRoles.set(`gen:${op}:${i}`, [generatedHashes[i]!])
+    }
+    const roleTable = new Map(propagated)
+    roleTable.set(outPart, genRoles)
+    return { result: evo.result, faceEvolution, roleTable }
+  }
+
+  return { result: evo.result, faceEvolution, roleTable: propagated }
 }
 
 /**

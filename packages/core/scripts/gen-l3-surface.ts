@@ -277,7 +277,7 @@ export const SCRIPT_FACE_MANIFEST_FILE = path.join(OUT_DIR, 'script-face-manifes
 /** P23/P25 script-face 条目（arg-spec 里标记了 scriptFace 的 op：语句级 brep-op +
  *  faijs 自研视图投影 op（返回纯数据的查询类，如 projectView/projectSheet/viewCamera）。 */
 export function scriptFaceEntries(): ArgSpecEntry[] {
-  return ARG_SPEC.filter((e) => e.scriptFace === true)
+  return ARG_SPEC.filter((e) => e.scriptFace === true && e.kind !== 'skip')
 }
 
 /**

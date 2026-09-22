@@ -1,7 +1,7 @@
 /**
  * generated/topology.ts — 生成文件，勿手改。
  * 由 packages/core/scripts/gen-l3-surface.ts 依据 api/surface/arg-spec.ts 生成（E5/P14 分片）。
- * topology 模块：130 个投影符号；另有 172 个 skip 登记。
+ * topology 模块：129 个投影符号；另有 173 个 skip 登记。
  */
 import { compatOp } from '../internal/compat-op'
 import { projectBrepOp } from '../internal/compat-projection'
@@ -18,7 +18,6 @@ import { clone as __vendored_clone } from '../../vendored/brepjs/topology/api.js
 import { applyMatrix as __vendored_applyMatrix } from '../../vendored/brepjs/topology/api.js'
 import { transformCopy as __vendored_transformCopy } from '../../vendored/brepjs/topology/api.js'
 import { locate as __vendored_locate } from '../../vendored/brepjs/topology/api.js'
-import { cut as __vendored_cut } from '../../vendored/brepjs/topology/api.js'
 import { section as __vendored_section } from '../../vendored/brepjs/topology/api.js'
 import { split as __vendored_split } from '../../vendored/brepjs/topology/api.js'
 import { shell as __vendored_shell } from '../../vendored/brepjs/topology/api.js'
@@ -329,16 +328,6 @@ export const locate = compatOp(
 )
 
 export { composeTransforms } from '../../vendored/brepjs/topology/api.js'
-
-/**
- * cut — brepjs 投影（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
- * cut(base: Shape, tool: Shape, options?: BooleanOptions): Shape
- * 桥接：compatOp(projectBrepOp(…))——单内核断言 + D11 归一 + 语句边界六步契约（§4.3.2）。
- */
-export const cut = compatOp(
-  projectBrepOp('cut', ["base","tool","options"], 'A', __vendored_cut),
-  { name: 'cut', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}} },
-)
 
 /**
  * section — brepjs 投影（生成文件，禁手改；来源 api/surface/arg-spec.ts）。

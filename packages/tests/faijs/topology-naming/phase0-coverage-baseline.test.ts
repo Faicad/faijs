@@ -123,7 +123,7 @@ const ROWS: readonly CoverageRow[] = [
     code: `const part0 = cad.box(20, 20, 20, { centered: true })
            const part1 = cad.fillet(part0, { edges: [cad.edgeRef(part0, 2)], radius: 2 })`,
     part: 'part1',
-    expect: { total: 7, semantic: 6, positional: 0, empty: 1 },
+    expect: { total: 7, semantic: 7, positional: 0, empty: 0 },
   },
   {
     label: 'sketch → extrude',
@@ -142,13 +142,13 @@ const ROWS: readonly CoverageRow[] = [
     expect: { total: 7, semantic: 7, positional: 0, empty: 0 },
   },
   {
-    label: 'box → cylinder → cut（brepjs 投影）',
-    // 与上一条同几何、同输入，但走裸内核布尔 ⇒ 命名表被整个丢掉
+    label: 'box → cylinder → cut（Phase 3 handwritten cut）',
+    // Phase 3: cut overridden with handwritten boolean.ts:cut → roleTable propagation
     code: `const part0 = cad.box(20, 20, 20, { centered: true })
            const part1 = cad.cylinder(3, 30, { centered: true })
            const part2 = cad.cut(part0, part1)`,
     part: 'part2',
-    expect: { total: 7, semantic: 0, positional: 0, empty: 7 },
+    expect: { total: 7, semantic: 7, positional: 0, empty: 0 },
   },
   {
     label: 'sketch → extrude → subtract（faijs 双 op）',
@@ -161,14 +161,14 @@ const ROWS: readonly CoverageRow[] = [
     expect: { total: 7, semantic: 7, positional: 0, empty: 0 },
   },
   {
-    label: 'sketch → extrude → cut（brepjs 投影）',
-    // 输入已有 1 semantic + 6 positional，经投影布尔后**全部变空**
+    label: 'sketch → extrude → cut（Phase 3 handwritten cut）',
+    // Phase 3: cut overridden with handwritten boolean.ts:cut → roleTable propagation
     code: `const part0 = cad.sketch(${SQUARE})
            const part1 = cad.extrude(part0, [0, 0, 10])
            const part2 = cad.cylinder(3, 30, { centered: true, at: [5, 5, 0] })
            const part3 = cad.cut(part1, part2)`,
     part: 'part3',
-    expect: { total: 7, semantic: 0, positional: 0, empty: 7 },
+    expect: { total: 7, semantic: 7, positional: 0, empty: 0 },
   },
 ]
 
@@ -251,18 +251,17 @@ describe('Phase 0.8：无名字面基线（progress ruler：semantic 升、posit
     })
   }
 
-  it('投影布尔把输入命名表整个丢掉：cut 的 semantic 恒为 0（即使输入已具名）', async () => {
-    // 第 6 行（subtract）7 semantic；第 7 行（cut，同几何同输入）7 null
+  it('Phase 3: cut 与 subtract 命名能力收敛（cut 不再丢命名表）', async () => {
     const viaSubtract = await measure(ROWS[5])
     const viaCut = await measure(ROWS[6])
 
     expect(viaSubtract.semantic + viaSubtract.positional).toBeGreaterThan(0)
-    expect(viaCut.semantic).toBe(0)
-    expect(viaCut.empty).toBe(viaCut.total)
-    // ⇒ D11 要求 `cut`（scriptFace: true 的 `brep-op`）声明 naming ⇒ 其实现也必须接上 role 表通路
+    // Phase 3: cut 现在走 handwritten boolean.ts:cut，做 roleTable 传播
+    expect(viaCut.semantic).toBe(viaSubtract.semantic)
+    expect(viaCut.empty).toBe(0)
   })
 
-  it('合计基线：47 面中 32 semantic / 0 positional / 15 null（Phase 1 回填）', async () => {
+  it('合计基线：47 面中 47 semantic / 0 positional / 0 null（Phase 3 回填）', async () => {
     let total = 0
     let semantic = 0
     let positional = 0
@@ -277,9 +276,9 @@ describe('Phase 0.8：无名字面基线（progress ruler：semantic 升、posit
 
     expect({ total, semantic, positional, empty }).toEqual({
       total: 47,
-      semantic: 32,
+      semantic: 47,
       positional: 0,
-      empty: 15,
+      empty: 0,
     })
   }, 120000)
 })

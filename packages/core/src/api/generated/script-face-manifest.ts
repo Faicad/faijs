@@ -36,7 +36,6 @@ export const SCRIPT_FACE_OPS: readonly ScriptFaceOp[] = [
   { name: 'applyMatrix', module: 'topology' },
   { name: 'transformCopy', module: 'topology' },
   { name: 'locate', module: 'topology' },
-  { name: 'cut', module: 'topology' },
   { name: 'split', module: 'topology' },
   { name: 'offset', module: 'topology' },
   { name: 'heal', module: 'topology' },

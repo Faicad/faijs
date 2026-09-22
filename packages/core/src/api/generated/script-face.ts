@@ -6,8 +6,8 @@
  * 不允许手写第二份清单。
  */
 
-import { torus, fuse, ellipsoid, rotate, mirror, clone, applyMatrix, transformCopy, locate, cut, split, offset, heal, simplify, autoHeal, fixShape, healSolid } from './topology'
-export { torus, fuse, ellipsoid, rotate, mirror, clone, applyMatrix, transformCopy, locate, cut, split, offset, heal, simplify, autoHeal, fixShape, healSolid } from './topology'
+import { torus, fuse, ellipsoid, rotate, mirror, clone, applyMatrix, transformCopy, locate, split, offset, heal, simplify, autoHeal, fixShape, healSolid } from './topology'
+export { torus, fuse, ellipsoid, rotate, mirror, clone, applyMatrix, transformCopy, locate, split, offset, heal, simplify, autoHeal, fixShape, healSolid } from './topology'
 import { viewCamera, projectView, projectSheet } from './view'
 export { viewCamera, projectView, projectSheet } from './view'
 import { linearPattern, circularPattern, gridPattern, drill, pocket, boss, mirrorJoin, rectangularPattern, convexHull } from './operations'
@@ -39,7 +39,6 @@ export const scriptFaceOps = {
   applyMatrix,
   transformCopy,
   locate,
-  cut,
   split,
   offset,
   heal,

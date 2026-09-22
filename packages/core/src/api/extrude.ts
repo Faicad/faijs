@@ -40,36 +40,7 @@ import type { FaceTopoRef } from '../topology/naming'
 import { TopoRefError } from '../topology/naming'
 
 /**
- * 链根建 roleTable：extrude 产物必须自带面命名，否则命名链在此断掉
- * （E3 后续，2026-09-21）。
- *
- * 现场（实测，见 `packages/tests/faijs/edge-ref/edge-ref.test.ts` 的 E3 回归）：
- * `sketch → extrude → cad.edgeRef(extrude_out, N)` 抛
- * `E_TOPO_NOT_FOUND: edgeRef: input shape has no role table (nameless shape)`
- * ——extrude 是 Pad/Pocket 链的链根，不带表就等于整条链不可按面/边引用。
- *
- * 词汇（construct 枚举器，计划 §4.4/3.1）：端面 `bottom`/`top`（semantic 直名，
- * 与 box 同形；计划写的 `cap:<name>` 前缀与 RoleName 契约的 SEMANTIC_NAME_RE
- * 冲突，落地以契约为准）、侧面 `wall:<i>`（i = 侧面枚举序 = profile 边序——
- * makeWire 按构造顺序收边，prism 不重排侧面）。Phase 1.7 曾删位置兜底使本
- * 函数产出空表（G3-L1 的 T0 回退根因），本枚举器是 1.7 的回退修复：
- * 身份词汇必须存在，且抗重放（边序不随改参漂移）。
- *
- * 已知边界：输入自带 roleTable 时本次**不传播**输入血统——vendored extrude
- * 不产出面演化记录，无从按 hash 推进；这里只覆盖 extrude 自身引入的面。
- * 结果仍严格优于修复前（修复前完全没有表）。
- */
-function registerExtrudeRoles(kernel: BrepEngineApi, solid: BrepHandle): Shape {
-  // Phase 1.6：origin = 本次语句 StmtId（不再是 LHS 变量名，§4.1）。
-  const origin = String(getCurrentStmt()?.id ?? '')
-  const roles = extrudeConstructRoles(kernel, solid)
-  return fromBrep(solidToShape(kernel, solid), {
-    solid,
-    roleTable: new Map([[origin, roles]]),
-  })
-}
 
-/**
  * extrude 的 construct 词汇表（计划 §4.4）：`cap:bottom` / `cap:top` / `wall:<i>`。
  *
  * 判定口径：
@@ -465,7 +436,12 @@ export const extrude = defineOp({
       const inputSolid = brepOf(input) as BrepHandle | undefined
       if (!inputSolid) throw new Error('[stdlib/extrude] input is not BREP')
       const clipped = extrudeUpToSolid(kernel, inputSolid, o)
-      return registerExtrudeRoles(kernel, clipped)
+      // 3.2: inlined registerExtrudeRoles — origin = StmtId, roles from construct enumerator
+      const origin = String(getCurrentStmt()?.id ?? '')
+      return fromBrep(solidToShape(kernel, clipped), {
+        solid: clipped,
+        roleTable: new Map([[origin, extrudeConstructRoles(kernel, clipped)]]),
+      })
     }
 
     // 长度形态：委托生成投影（生成投影自带借入 / Result 翻转 / 收养）
@@ -473,11 +449,18 @@ export const extrude = defineOp({
     const sign = o.mode === 'backward' ? -1 : 1
     const v: Vec3 = [normal.x * o.length! * sign, normal.y * o.length! * sign, normal.z * o.length! * sign]
     const result = (await projectedExtrude(input, v)) as Shape
-    // E3 后续：委托路径同样要建链根表（投影只给几何，命名是 faijs 语义，
-    // 见 registerExtrudeRoles）。句柄取不到（无 OCCT 后端）时原样返回。
+    // E3 后续：委托路径同样要建链根表（投影只给几何，命名是 faijs 语义）。
+    // 3.2: inlined registerExtrudeRoles — origin = StmtId, roles from construct enumerator
     const kernel = getBackends().kernel.brep as BrepEngineApi | null
     const solid = kernel ? (brepOf(result) as BrepHandle | undefined) : undefined
-    return kernel && solid ? registerExtrudeRoles(kernel, solid) : result
+    if (kernel && solid) {
+      const origin = String(getCurrentStmt()?.id ?? '')
+      return fromBrep(solidToShape(kernel, solid), {
+        solid,
+        roleTable: new Map([[origin, extrudeConstructRoles(kernel, solid)]]),
+      })
+    }
+    return result
   },
-  naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [{ kind: 'semantic', name: 'top' }, { kind: 'semantic', name: 'bottom' }] } } as Provenance,
+  naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [{ kind: 'semantic', name: 'top' }, { kind: 'semantic', name: 'bottom' }, { kind: 'wall', index: 0 }] } } as Provenance,
 })

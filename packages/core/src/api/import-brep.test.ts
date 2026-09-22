@@ -100,9 +100,10 @@ describe('import_brep: chain-root roleTable (E3)', () => {
     // Phase 1.6：origin = 导入语句的 StmtId（不再用资产名——同一资产导入两次
     // 是两条语句，天然分属不同 origin）。本单测无语句锚点 ⇒ 空串占位。
     expect(origins).toEqual([''])
-    // Phase 1.7：'import_brep' 无语义命名器且位置兜底已删 ⇒ 子表为空占位
-    // （真实导入的 imported:<i> 词汇待 Phase 3.8；面行显式 role=null）。
+    // Phase 3.8：imported:<i> 命名落地 — 每个面按枚举序命名（imported:0, imported:1, ...）
     const roles = table?.get('' as StmtId)
-    expect(roles?.size).toBe(0)
+    expect(roles?.size).toBe(2)
+    expect(roles?.get('imported:0')).toEqual([101])
+    expect(roles?.get('imported:1')).toEqual([102])
   })
 })

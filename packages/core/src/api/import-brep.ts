@@ -19,7 +19,7 @@ import { getBackends, BrepUnsupportedError, getCurrentStmt } from '../runtime-st
 import { OpError } from './internal/result-unwrap'
 import { loadBrep } from '../brep/brep-ops'
 import { fromBrep } from '../shape'
-import { assignRoles } from '../topology/naming/roles'
+
 import type { BrepEngineApi } from '../brep/engine/types'
 
 /**
@@ -71,8 +71,14 @@ export async function import_brep(params: Record<string, unknown>): Promise<Shap
   // 无名形状，没有这张表下游 edgeRef/faceRef 无法解析（nameless-shape 缺陷）。
   // Phase 1.6：origin 用导入语句的 StmtId——同一资产导入两次是两条语句，
   // 各自产出的面天然分属不同 origin（旧实现用资产名，两次导入撞 origin）。
+  // 3.8: imported:<i> — imported faces have no semantic names (arbitrary geometry),
+  // named by enumeration order in the imported file (stable across re-import of same file).
   const stmtId = String(getCurrentStmt()?.id ?? '')
-  const roles = assignRoles(kernel, solidHandle, 'import_brep')
+  const hashes = kernel.subShapeHashes(solidHandle, 'face', 2147483647)
+  const roles = new Map<string, number[]>()
+  for (let i = 0; i < hashes.length; i++) {
+    roles.set(`imported:${i}`, [hashes[i]!])
+  }
   return fromBrep(shape, {
     solid: solidHandle,
     roleTable: new Map([[stmtId, roles]]),

@@ -1555,7 +1555,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     geometryArgs: [0], reason: 'shapeable 面 → Result(Shape3D)，brep-op',
     args: 'revolve(face: Shape, options?: RevolveOptions): Shape',
     params: ['face', 'options'], formClass: 'A',
-    naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
+    naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [{ kind: 'semantic', name: 'top' }, { kind: 'semantic', name: 'bottom' }, { kind: 'wall', index: 0 }] } },
   },
   {
     name: 'sweep', source: 'operations/extrudeFns.js#sweep', kind: 'brep-op', module: 'operations',
@@ -2807,10 +2807,10 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     reason: '变换函数组合器（纯数据，无 Shape 参数）',
   },
   {
-    name: 'cut', source: 'topology/api.js#cut', kind: 'brep-op',
+    name: 'cut', source: 'topology/api.js#cut', kind: 'skip',
     geometryArgs: [0, 1], returnsResult: true,
     args: 'cut(base: Shape, tool: Shape, options?: BooleanOptions): Shape',
-    reason: 'faijs 用 subtract（不同名），布尔减 → brep-op',
+    reason: 'overridden by handwritten boolean.ts:cut (Phase 3 roleTable propagation)',
     params: ['base', 'tool', 'options'], formClass: 'A',
     scriptFace: true,
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },

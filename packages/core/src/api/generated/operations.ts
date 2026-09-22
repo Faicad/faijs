@@ -161,7 +161,7 @@ export const extrude = compatOp(
  */
 export const revolve = compatOp(
   projectBrepOp('revolve', ["face","options"], 'A', __vendored_revolve),
-  { name: 'revolve', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}} },
+  { name: 'revolve', naming: {"kind":"construct","newFaces":{"via":"explicit","vocab":[{"kind":"semantic","name":"top"},{"kind":"semantic","name":"bottom"},{"kind":"wall","index":0}]}} },
 )
 
 /**
