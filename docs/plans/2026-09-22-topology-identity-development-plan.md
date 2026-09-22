@@ -685,6 +685,24 @@ occt 的 12 项判定为「真」则由 `evolution-bindings.test.ts` 的**真调
 `cad.extrude` 是 brepjs 投影（`arg-spec.ts:1533`，入参 face/wire），传 solid 报 `EXTRUDE_FAILED`；
 已改写为 `sketch → extrude → fillet`（与 `edge-ref/edge-ref.test.ts` 的 FCStd `Pad→Fillet` 同形），覆盖面不变。
 
+**0.6 的落地结果（C1 守卫已落地 + 前置检查已做）**：
+
+- 守卫：`cad-runtime/runtime-concurrent-error.ts`（`E_RUNTIME_CONCURRENT`）+ `CadRuntime.withExecutionLock`
+  套在三个执行入口（`execute` / `append` / `update`）。**同步取锁**（取锁前不 await）⇒
+  `rtA.execute(...)` 后紧接着 `rtB.execute(...)` 必然被拒，行为可确定。同实例重入放行
+  （`update` 内部落到 `executeDirectText`，同调用栈、非并发）。`claimBackends` 里那条
+  "并发交错仍会互踩"的注释改为指向守卫。
+- 测试：`cad-runtime/multi-runtime.test.ts` 新增 3 条（跨实例拒绝 / 入口名与 `entry` 字段 /
+  失败也释放锁）——**6/6 绿**。测试里三个 `rt2.*` 调用必须**同步**发起，
+  否则第一次 `await` 会让 rt1 跑完释放锁、第二次调用合法成功（写成顺序 await 会变成时序依赖测试）。
+- **前置检查（计划 §0.6 的 ⚠️）已做，结论：3d_editor 不在并发跑多 runtime，无需改动**。
+  证据：`ScriptEngine.ts:74-103` —— 执行真源在 **worker**（"主线程不持有 CadRuntime"），
+  且 `_executionClient` 是**每 realm 单例**（`if (!_executionClient)`），全仓 `createRuntime`
+  只出现在**测试**（`faijs-test-harness.ts` / `c4-brepjs-gear.test.ts`），生产路径不调用。
+  ⇒ 无并发、无需"改 3d_editor 为串行"这一步。
+- 回归面：`packages/core/src/cad-runtime` 全目录绿；`packages/tests` 的 multi-mesh / mixed /
+  refactor-acceptance / compat-op / p7-dual-chain / edge-ref 52 项全绿。
+
 **0.3 的实际取舍（比计划原文更细，因为实测发现"能替换的面"比预期小）**：
 
 | 类别 | op | 处置 | 原因 |

@@ -212,6 +212,23 @@ export interface ExecuteOptions {
 // DirectExecutor（direct 路径单元循环内检查）与本文件共用；此处 import + re-export
 // 保持宿主 import 面不变（module 路径 runWithFailureHandling 的 Promise.race 使用）。
 export { ExecutionLimitError } from './execution-limit-error'
+import { RuntimeConcurrentError } from './runtime-concurrent-error'
+export { RuntimeConcurrentError } from './runtime-concurrent-error'
+
+/**
+ * 全局执行态锁（C1）：进程内同一时刻只允许一个 runtime 处于执行态。
+ *
+ * 进程级单例（`setCurrentStmt` / backends / 内核）决定了并发执行多 runtime 不可支持；
+ * 旧行为是"互踩"（见 {@link CadRuntime.claimBackends} 文档），现在改为显式拒绝。
+ *
+ * **同实例的重入放行**：`update` 内部会经 `executeDirectText`/`appendDirectText` 落入
+ * 同一调用栈——那已被"同一栈上串行"保证，不构成并发。跨实例一律拒绝。
+ */
+let executingRuntimeId: number | null = null
+/** 执行态持有者（诊断用：错误信息里给出被谁挡住）。 */
+let executingEntry: string | null = null
+/** runtime id 分配器（仅用于错误信息定位，不参与任何语义判定）。 */
+let nextRuntimeId = 1
 
 /**
  * Thrown by CadRuntime.append when a newly appended statement references a
@@ -344,6 +361,9 @@ export class CadRuntime {
   /** 无 IR 执行器（DirectExecutor，T5 后唯一执行路径） */
   private readonly directExecutor: DirectExecutor
 
+  /** 实例 id（仅用于 C1 并发错误信息里的定位，不参与任何语义判定）。 */
+  private readonly runtimeId = nextRuntimeId++
+
   /** 安全策略档位（透传给 extractMetadata 与 DirectExecutor；缺省 'strict'） */
   private readonly securityPolicy: SecurityPolicy
 
@@ -448,7 +468,11 @@ export class CadRuntime {
    * 先前 runtime 的后续 execute 会被静默劫持（dispatch 走错槽、缓存键漂移、
    * 顶替释放旧 BREP 句柄后拓扑重建撞上悬空句柄）。因此除构造外，每个执行入口
    * （execute，所有执行路径的汇聚点）都必须先重新认领本实例的配置。
-   * 限制：并发交错执行多个 runtime 仍会互踩（与 setCurrentStmt 同级的串行假设）。
+   *
+   * ⚠️ 并发交错执行多个 runtime **仍会互踩**——这条限制现在由全局执行态锁强制
+   * （{@link withExecutionLock}）：第二个 runtime 在他人执行态时抛
+   * {@link RuntimeConcurrentError}（E_RUNTIME_CONCURRENT），不再"尽力而为"。
+   * 用户已裁决不允许并发（开发计划 §4.7 C1）。
    * ⚠️ getter 的 this 指向所在对象字面量，用箭头闭包捕获实例（避免 no-this-alias）。
    */
   private claimBackends(): void {
@@ -517,13 +541,48 @@ export class CadRuntime {
   // ── 公开入口：execute / append / update（输入一律是代码文本，IR 在引擎内部） ──
 
   /**
+   * 取全局执行态锁并运行 `fn`（C1）。跨实例并发 → 抛 {@link RuntimeConcurrentError}；
+   * 本实例重入（update 内部落到 executeDirectText/appendDirectText）放行。
+   *
+   * 刻意**同步**取锁（不在取锁前 await）：这样 `runtimeA.execute(...)` 尚未 await 时
+   * 紧接着调 `runtimeB.execute(...)` 必然被拒绝，行为可确定、可测试。
+   * @param entry - 入口名（execute / append / update），仅用于错误信息。
+   * @param fn - 实际执行体。
+   * @returns fn 的结果；无论成功失败都释放锁（finally）。
+   */
+  private async withExecutionLock<T>(entry: string, fn: () => Promise<T>): Promise<T> {
+    if (executingRuntimeId !== null && executingRuntimeId !== this.runtimeId) {
+      throw new RuntimeConcurrentError(executingRuntimeId, this.runtimeId, entry)
+    }
+    const reentrant = executingRuntimeId === this.runtimeId
+    if (!reentrant) {
+      executingRuntimeId = this.runtimeId
+      executingEntry = entry
+    }
+    try {
+      return await fn()
+    } finally {
+      if (!reentrant) {
+        executingRuntimeId = null
+        executingEntry = null
+      }
+    }
+  }
+
+  /** 当前执行态持有者的入口名（诊断；无持有者时 null）。 */
+  static get executingEntry(): string | null {
+    return executingEntry
+  }
+
+  /**
    * Full execution from code text: parse → execute every statement.
    * @param code - the .fai.js source text.
    * @param opts - optional execution options.
    * @returns promise resolving to the ExecutionResult.
+   * @throws {RuntimeConcurrentError} when another CadRuntime is already executing (C1).
    */
   async execute(code: string, opts?: ExecuteOptions): Promise<ExecutionResult> {
-    return this.executeDirectText(code, opts)
+    return this.withExecutionLock('execute', () => this.executeDirectText(code, opts))
   }
 
   /**
@@ -533,9 +592,10 @@ export class CadRuntime {
    * @param code - the new .fai.js source text to append.
    * @param opts - optional execution options.
    * @returns promise resolving to the ExecutionResult.
+   * @throws {RuntimeConcurrentError} when another CadRuntime is already executing (C1).
    */
   async append(code: string, opts?: ExecuteOptions): Promise<ExecutionResult> {
-    return this.appendDirectText(code, opts)
+    return this.withExecutionLock('append', () => this.appendDirectText(code, opts))
   }
 
   /**
@@ -1064,9 +1124,10 @@ export class CadRuntime {
    * @param newCode - the .fai.js source text after the edit.
    * @param opts - optional execution options.
    * @returns promise resolving to the ExecutionResult.
+   * @throws {RuntimeConcurrentError} when another CadRuntime is already executing (C1).
    */
   async update(oldCode: string, newCode: string, opts?: ExecuteOptions): Promise<ExecutionResult> {
-    return this.updateIncremental(oldCode, newCode, opts)
+    return this.withExecutionLock('update', () => this.updateIncremental(oldCode, newCode, opts))
   }
 
   // ── 公开：缓存访问 ──

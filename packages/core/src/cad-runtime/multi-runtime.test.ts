@@ -13,8 +13,15 @@
  *
  * Fix: every execution entry (execute) re-claims the instance's own global
  * configuration before running. Serial multi-runtime hosts (preview ↔ main)
- * are safe again; concurrent interleaved execution remains out of scope
- * (same serial assumption as setCurrentStmt).
+ * are safe again.
+ *
+ * C1 (2026-09-22): concurrent interleaved execution is no longer merely "out of
+ * scope" — it is **rejected**. The same process-wide singletons (setCurrentStmt,
+ * backends, the kernel) make it unsupportable, and the old behaviour was a silent
+ * hijack whose symptom sits far from its cause. `CADRuntime.withExecutionLock`
+ * now throws `RuntimeConcurrentError` (E_RUNTIME_CONCURRENT) when a second
+ * runtime executes while another one is in flight; same-instance re-entry is
+ * allowed (update lands on the same call stack). See the lock's tests below.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
@@ -22,6 +29,7 @@ import { asPartName } from '../identity'
 import { registerOcctBrepEngine } from '../brep/engine/adapters/occt'
 import { createRuntime } from '@faicad/faijs'
 import { CadRuntime } from './runtime'
+import { RuntimeConcurrentError } from './runtime-concurrent-error'
 import type { EventSink, HostPorts } from './ports'
 
 const BOX = 'const p0 = cad.box(10, 10, 10, { centered: true })'
@@ -95,5 +103,66 @@ describe('P2 — creating another runtime must not hijack an existing one', () =
     // the failure inside rt2 must not leave rt1 broken
     const back = await rt1.execute(BOX)
     expect(back.failedAt).toBeUndefined()
+  }, 120000)
+})
+
+describe('C1 — concurrent multi-runtime execution is rejected, not tolerated', () => {
+  it('a second runtime executing while the first is in flight throws E_RUNTIME_CONCURRENT', async () => {
+    const rt1 = makeRuntime('mesh')
+    const rt2 = makeRuntime('mesh')
+
+    // The lock is taken synchronously, so rt1 holds it as soon as this call returns.
+    const inFlight = rt1.execute(BOX)
+    // Both rejections are *created* synchronously, with no await in between: the
+    // lock is provably still held for each of them. (Awaiting the first rejection
+    // before issuing the second would let rt1 finish and release the lock — the
+    // second call would then legitimately succeed, making the test timing-dependent.)
+    const rejected1 = rt2.execute(BOX)
+    const rejected2 = rt2.execute(BOX)
+    await expect(rejected1).rejects.toThrow(RuntimeConcurrentError)
+    await expect(rejected2).rejects.toThrow(/E_RUNTIME_CONCURRENT/)
+    expect((await inFlight).failedAt).toBeUndefined()
+
+    // rt1 released the lock on completion → rt2 runs serially, as before.
+    const after = await rt2.execute(BOX)
+    expect(after.failedAt).toBeUndefined()
+  }, 120000)
+
+  it('the rejected entry point is named, and append/update are guarded too', async () => {
+    const rt1 = makeRuntime('mesh')
+    const rt2 = makeRuntime('mesh')
+    const inFlight = rt1.execute(BOX)
+    // Issue all three against the held lock synchronously (see the note above).
+    const pAppend = rt2.append(BOX)
+    const pUpdate = rt2.update('', BOX)
+    const pExecute = rt2.execute(BOX)
+
+    await expect(pAppend).rejects.toThrow(/\bappend\b/)
+    await expect(pUpdate).rejects.toThrow(/\bupdate\b/)
+
+    const err = await pExecute.catch((e: unknown) => e as RuntimeConcurrentError)
+    expect(err).toBeInstanceOf(RuntimeConcurrentError)
+    expect(err.code).toBe('E_RUNTIME_CONCURRENT')
+    expect(err.entry).toBe('execute')
+
+    expect((await inFlight).failedAt).toBeUndefined()
+
+    // Same-instance re-entry is NOT concurrency: update lands on rt1's own call
+    // stack through executeDirectText. A serial rt1 update must not self-reject.
+    const upd = await rt1.update(BOX, `${BOX}\nconst p1 = cad.box(5, 5, 5)`)
+    expect(upd.failedAt).toBeUndefined()
+  }, 120000)
+
+  it('the lock is released even when the in-flight execution fails', async () => {
+    const rt1 = makeRuntime('mesh')
+    const rt2 = makeRuntime('mesh')
+
+    const inFlight = rt1.execute('throw new Error("boom")')
+    await expect(rt2.execute(BOX)).rejects.toThrow(RuntimeConcurrentError)
+    const failed = await inFlight
+    expect(failed.failedAt).toBeDefined()
+
+    // No leak: rt2 can execute once rt1's failed attempt unwound.
+    expect((await rt2.execute(BOX)).failedAt).toBeUndefined()
   }, 120000)
 })
