@@ -627,7 +627,41 @@ const p = await cad.knurl(part0, { knurlTextureHeight: 0.5, knurlScaleU: 0.15, k
 
 > knurl 无 BREP 实现（mesh-only），本质是顶点位移（网格操作），网格参数可接受；brep 模式下调用前抛 BrepUnsupportedError。面锚定建议用几何引用。
 
-### 5.12 `subtract` ✅
+### 5.12 `linearPattern` ✅
+
+线性阵列：沿 direction 复制 count 份（含原位置）。
+
+```js
+const p = await cad.linearPattern(part0, [1, 0, 0], 3, 20)
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `direction` | `[x,y,z]` | ✅ | — | 阵列方向 |
+| `count` | `number` | ✅ | — | 副本总数（含原位置） |
+| `spacing` | `number` | ✅ | — | 副本间距 |
+
+**异步**。Shape 所有副本 fused 后的几何。
+
+> BREP-only：非 BREP 输入抛 E_MESH_UNSUPPORTED。结果面按份数 k 回投影到输入面 角色，产出 `replica[k]/<inner>`（Phase 3 L3 抗重放词汇）。
+
+### 5.13 `split` ✅
+
+用工具几何切分目标几何（BRepAlgoAPI_Splitter），返回所有碎片组成的几何。
+
+```js
+const pieces = await cad.split(part0, [part1])
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `tools` | `Shape[]` | ✅ | — | 切刀几何（数组） |
+
+**异步**。Shape 切分后的几何（compound of pieces）。
+
+> BREP-only：非 BREP 输入抛 E_MESH_UNSUPPORTED。切分产生的截面 / 被切细的侧面 片记 `splinter(#j)`（Phase 3 L4 抗重放词汇）。
+
+### 5.14 `subtract` ✅
 
 布尔差集：第一个为主体，减去其余输入。
 
@@ -641,7 +675,7 @@ const b = await cad.subtract(part0, part1)
 
 **异步**。Shape part0 减 part1 的差集（第一个为主体）。
 
-### 5.13 `union` ✅
+### 5.15 `union` ✅
 
 布尔并集：合并所有输入几何（≥2 个输入）。
 
@@ -912,8 +946,74 @@ const cam = cad.viewCamera({ dir: [1, -1, 1] })
 ```
 创建: import_brep / box / sphere / cylinder / cone / wedge / screw / sdf / sketch / svgExtrude / text
 变换: place
-特征: union / cut / subtract / intersect / chamfer / engrave / extrude / fillet / knurl
+特征: union / cut / subtract / intersect / chamfer / engrave / extrude / fillet / knurl / linearPattern / split
 结构: compound
 查询: asset / edgeRef / faceRef / faceNormal / bboxCenter / bboxMin / bboxMax / viewCamera / projectView / projectSheet
 废弃（勿用，`fai_` 前缀 / ../3d_editor 特有，将迁出）: group、assembly、copy、fai_drill、fai_extrude、fai_split、load、translate、rotate_euler、scale、scale3d
 ```
+
+---
+
+## 10. 面 role 词汇表（拓扑身份，自动派生自 op 的 naming 声明）
+
+BREP 链上每个面的身份 = `(StmtId, role)`。下表列出每个 op 对**自己新造的面**声明的 role 词汇（`RoleName` 线格式）；继承来的面沿用其产生 op 的 role。`vocab` 中的 `<i>` / `<j>` / `[k]` 为序号占位。**改一个 op 的词汇 = breaking change**（会破坏存量 `.fai.js` 引用），需版本化。
+
+| op | 类别 | 新造面词汇 | 说明 |
+|---|---|---|---|
+| `applyMatrix` | 1:1 恒等 | —（不造新面） | 1:1，第 i 面 → 第 i 面（零声明） |
+| `autoHeal` | 内核历史 | `gen:autoHeal:<i>` |  |
+| `boss` | 内核历史 | `gen:boss:<i>` |  |
+| `box` | 构造语义 | `top`、`bottom`、`front`、`back`、`left`、`right` |  |
+| `chamfer` | 内核历史 | `gen:chamfer:<i>` |  |
+| `circularPattern` | 复制 k 份 | —（不造新面） | replica[k]/<原 role> 由框架生成（k=0..-1） |
+| `clone` | 1:1 恒等 | —（不造新面） | 1:1，第 i 面 → 第 i 面（零声明） |
+| `cone` | 构造语义 | `top`、`bottom`、`lateral` |  |
+| `convexHull` | 未建模 | —（不造新面） | construct vocabulary pending Phase 3 |
+| `copy` | 1:1 恒等 | —（不造新面） | 1:1，第 i 面 → 第 i 面（零声明） |
+| `cut` | 内核历史 | `gen:cut:<i>` |  |
+| `cylinder` | 构造语义 | `top`、`bottom`、`lateral` |  |
+| `drill` | 内核历史 | `gen:drill:<i>` |  |
+| `ellipsoid` | 未建模 | —（不造新面） | construct vocabulary pending Phase 3 |
+| `engrave` | 内核历史 | `gen:engrave:<i>` |  |
+| `extrude` | 构造语义 | `top`、`bottom`、`wall:0` |  |
+| `fai_drill` | 内核历史 | `gen:fai_drill:<i>` |  |
+| `fai_extrude` | 构造语义 | `top`、`bottom` |  |
+| `fai_split` | 分片 | —（不造新面） | 每输入面 → 若干片：splinter(<原 role>)#j 由框架生成 |
+| `fillet` | 内核历史 | `gen:fillet:<i>` |  |
+| `fixShape` | 内核历史 | `gen:fixShape:<i>` |  |
+| `fuse` | 内核历史 | `gen:fuse:<i>` |  |
+| `gridPattern` | 复制 k 份 | —（不造新面） | replica[k]/<原 role> 由框架生成（k=0..-1） |
+| `heal` | 内核历史 | `gen:heal:<i>` |  |
+| `healSolid` | 内核历史 | `gen:healSolid:<i>` |  |
+| `intersect` | 内核历史 | `gen:intersect:<i>` |  |
+| `knurl` | 未建模 | —（不造新面） | knurl is mesh-only, no BREP face identity |
+| `linearPattern` | 复制 k 份 | —（不造新面） | replica[k]/<原 role> 由框架生成（k=0..-1） |
+| `locate` | 1:1 恒等 | —（不造新面） | 1:1，第 i 面 → 第 i 面（零声明） |
+| `makeBaseBox` | 未建模 | —（不造新面） | construct vocabulary pending Phase 3 |
+| `mirror` | 内核历史 | `gen:mirror:<i>` |  |
+| `mirrorJoin` | 复制 k 份 | —（不造新面） | replica[k]/<原 role> 由框架生成（k=0..1） |
+| `offset` | 内核历史 | `gen:offset:<i>` |  |
+| `place` | 1:1 恒等 | —（不造新面） | 1:1，第 i 面 → 第 i 面（零声明） |
+| `pocket` | 内核历史 | `gen:pocket:<i>` |  |
+| `rectangularPattern` | 复制 k 份 | —（不造新面） | replica[k]/<原 role> 由框架生成（k=0..-1） |
+| `revolve` | 构造语义 | `top`、`bottom`、`wall:0` |  |
+| `rotate` | 内核历史 | `gen:rotate:<i>` |  |
+| `rotate_euler` | 内核历史 | `gen:rotate_euler:<i>` |  |
+| `scale` | 内核历史 | `gen:scale:<i>` |  |
+| `scale3d` | 内核历史 | `gen:scale3d:<i>` |  |
+| `screw` | 构造语义 | —（不造新面） |  |
+| `sdf` | 未建模 | —（不造新面） | sdf is mesh-only, no BREP face identity |
+| `simplify` | 内核历史 | `gen:simplify:<i>` |  |
+| `sketch` | 构造语义 | —（不造新面） |  |
+| `sphere` | 未建模 | —（不造新面） | sphere face vocabulary pending Phase 3 |
+| `split` | 分片 | —（不造新面） | 每输入面 → 若干片：splinter(<原 role>)#j 由框架生成 |
+| `subtract` | 内核历史 | `gen:subtract:<i>` |  |
+| `svgExtrude` | 构造语义 | —（不造新面） |  |
+| `text` | 构造语义 | —（不造新面） |  |
+| `torus` | 未建模 | —（不造新面） | construct vocabulary pending Phase 3 |
+| `transformCopy` | 1:1 恒等 | —（不造新面） | 1:1，第 i 面 → 第 i 面（零声明） |
+| `translate` | 内核历史 | `gen:translate:<i>` |  |
+| `union` | 内核历史 | `gen:union:<i>` |  |
+| `wedge` | 未建模 | —（不造新面） | wedge face vocabulary pending Phase 3 |
+
+> 本表由 `DUAL_OP_META.naming` 声明自动生成（与 `.d.ts` 的 `CAD_ROLE_VOCAB` 同源）。漏声明的 op 会在生成期/编译期失败（G4）。

@@ -110,3 +110,77 @@ export interface CadAPI {
     area: number
   } | null
 }
+
+/**
+ * Topology identity role vocabulary per op (plan §4.2, Phase 2.10).
+ *
+ * Generated from each op's `naming` provenance declaration (`DUAL_OP_META`).
+ * `vocab` lists the serialized `RoleName` forms the op assigns to faces it
+ * **creates**; inherited faces keep their originating op's role. Changing a
+ * vocabulary is a breaking change to `.fai.js` scripts (versioned contract).
+ */
+export interface CadRoleVocab {
+  op: string
+  kind: 'kernel' | 'construct' | 'identity' | 'replicate' | 'subdivide' | 'unmodeled'
+  reason?: string
+  vocab: readonly string[]
+  note?: string
+}
+
+export const CAD_ROLE_VOCAB: readonly CadRoleVocab[] = [
+  { op: 'applyMatrix', kind: 'identity' as CadRoleVocab['kind'], vocab: [], note: "1:1，第 i 面 → 第 i 面（零声明）" },
+  { op: 'autoHeal', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:autoHeal:<i>'] },
+  { op: 'boss', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:boss:<i>'] },
+  { op: 'box', kind: 'construct' as CadRoleVocab['kind'], vocab: ['top', 'bottom', 'front', 'back', 'left', 'right'] },
+  { op: 'chamfer', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:chamfer:<i>'] },
+  { op: 'circularPattern', kind: 'replicate' as CadRoleVocab['kind'], vocab: [], note: "replica[k]/<原 role> 由框架生成（k=0..-1）" },
+  { op: 'clone', kind: 'identity' as CadRoleVocab['kind'], vocab: [], note: "1:1，第 i 面 → 第 i 面（零声明）" },
+  { op: 'cone', kind: 'construct' as CadRoleVocab['kind'], vocab: ['top', 'bottom', 'lateral'] },
+  { op: 'convexHull', kind: 'unmodeled' as CadRoleVocab['kind'], reason: "construct vocabulary pending Phase 3", vocab: [] },
+  { op: 'copy', kind: 'identity' as CadRoleVocab['kind'], vocab: [], note: "1:1，第 i 面 → 第 i 面（零声明）" },
+  { op: 'cut', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:cut:<i>'] },
+  { op: 'cylinder', kind: 'construct' as CadRoleVocab['kind'], vocab: ['top', 'bottom', 'lateral'] },
+  { op: 'drill', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:drill:<i>'] },
+  { op: 'ellipsoid', kind: 'unmodeled' as CadRoleVocab['kind'], reason: "construct vocabulary pending Phase 3", vocab: [] },
+  { op: 'engrave', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:engrave:<i>'] },
+  { op: 'extrude', kind: 'construct' as CadRoleVocab['kind'], vocab: ['top', 'bottom', 'wall:0'] },
+  { op: 'fai_drill', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:fai_drill:<i>'] },
+  { op: 'fai_extrude', kind: 'construct' as CadRoleVocab['kind'], vocab: ['top', 'bottom'] },
+  { op: 'fai_split', kind: 'subdivide' as CadRoleVocab['kind'], vocab: [], note: "每输入面 → 若干片：splinter(<原 role>)#j 由框架生成" },
+  { op: 'fillet', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:fillet:<i>'] },
+  { op: 'fixShape', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:fixShape:<i>'] },
+  { op: 'fuse', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:fuse:<i>'] },
+  { op: 'gridPattern', kind: 'replicate' as CadRoleVocab['kind'], vocab: [], note: "replica[k]/<原 role> 由框架生成（k=0..-1）" },
+  { op: 'heal', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:heal:<i>'] },
+  { op: 'healSolid', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:healSolid:<i>'] },
+  { op: 'intersect', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:intersect:<i>'] },
+  { op: 'knurl', kind: 'unmodeled' as CadRoleVocab['kind'], reason: "knurl is mesh-only, no BREP face identity", vocab: [] },
+  { op: 'linearPattern', kind: 'replicate' as CadRoleVocab['kind'], vocab: [], note: "replica[k]/<原 role> 由框架生成（k=0..-1）" },
+  { op: 'locate', kind: 'identity' as CadRoleVocab['kind'], vocab: [], note: "1:1，第 i 面 → 第 i 面（零声明）" },
+  { op: 'makeBaseBox', kind: 'unmodeled' as CadRoleVocab['kind'], reason: "construct vocabulary pending Phase 3", vocab: [] },
+  { op: 'mirror', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:mirror:<i>'] },
+  { op: 'mirrorJoin', kind: 'replicate' as CadRoleVocab['kind'], vocab: [], note: "replica[k]/<原 role> 由框架生成（k=0..1）" },
+  { op: 'offset', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:offset:<i>'] },
+  { op: 'place', kind: 'identity' as CadRoleVocab['kind'], vocab: [], note: "1:1，第 i 面 → 第 i 面（零声明）" },
+  { op: 'pocket', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:pocket:<i>'] },
+  { op: 'rectangularPattern', kind: 'replicate' as CadRoleVocab['kind'], vocab: [], note: "replica[k]/<原 role> 由框架生成（k=0..-1）" },
+  { op: 'revolve', kind: 'construct' as CadRoleVocab['kind'], vocab: ['top', 'bottom', 'wall:0'] },
+  { op: 'rotate', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:rotate:<i>'] },
+  { op: 'rotate_euler', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:rotate_euler:<i>'] },
+  { op: 'scale', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:scale:<i>'] },
+  { op: 'scale3d', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:scale3d:<i>'] },
+  { op: 'screw', kind: 'construct' as CadRoleVocab['kind'], vocab: [] },
+  { op: 'sdf', kind: 'unmodeled' as CadRoleVocab['kind'], reason: "sdf is mesh-only, no BREP face identity", vocab: [] },
+  { op: 'simplify', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:simplify:<i>'] },
+  { op: 'sketch', kind: 'construct' as CadRoleVocab['kind'], vocab: [] },
+  { op: 'sphere', kind: 'unmodeled' as CadRoleVocab['kind'], reason: "sphere face vocabulary pending Phase 3", vocab: [] },
+  { op: 'split', kind: 'subdivide' as CadRoleVocab['kind'], vocab: [], note: "每输入面 → 若干片：splinter(<原 role>)#j 由框架生成" },
+  { op: 'subtract', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:subtract:<i>'] },
+  { op: 'svgExtrude', kind: 'construct' as CadRoleVocab['kind'], vocab: [] },
+  { op: 'text', kind: 'construct' as CadRoleVocab['kind'], vocab: [] },
+  { op: 'torus', kind: 'unmodeled' as CadRoleVocab['kind'], reason: "construct vocabulary pending Phase 3", vocab: [] },
+  { op: 'transformCopy', kind: 'identity' as CadRoleVocab['kind'], vocab: [], note: "1:1，第 i 面 → 第 i 面（零声明）" },
+  { op: 'translate', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:translate:<i>'] },
+  { op: 'union', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:union:<i>'] },
+  { op: 'wedge', kind: 'unmodeled' as CadRoleVocab['kind'], reason: "wedge face vocabulary pending Phase 3", vocab: [] },
+]

@@ -13,6 +13,7 @@
 import { writeFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { collectRoleVocab } from './role-vocab'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const outputPath = resolve(__dirname, '..', 'src', 'mesh', 'api.d.ts')
@@ -378,7 +379,35 @@ function generate(): string {
   lines.push(`}`)
   lines.push(``)
 
-  // 守卫：目录键与 stdlib cad 命名空间一致（缺一即生成时报错，防漂移）
+  // ── role 词汇表（2.10）：从 DUAL_OP_META.naming 收集，供 AI/用户引用 face role ──
+  lines.push(`/**`)
+  lines.push(` * Topology identity role vocabulary per op (plan §4.2, Phase 2.10).`)
+  lines.push(` *`)
+  lines.push(` * Generated from each op's \`naming\` provenance declaration (\`DUAL_OP_META\`).`)
+  lines.push(` * \`vocab\` lists the serialized \`RoleName\` forms the op assigns to faces it`)
+  lines.push(` * **creates**; inherited faces keep their originating op's role. Changing a`)
+  lines.push(` * vocabulary is a breaking change to \`.fai.js\` scripts (versioned contract).`)
+  lines.push(` */`)
+  lines.push(`export interface CadRoleVocab {`)
+  lines.push(`  op: string`)
+  lines.push(`  kind: 'kernel' | 'construct' | 'identity' | 'replicate' | 'subdivide' | 'unmodeled'`)
+  lines.push(`  reason?: string`)
+  lines.push(`  vocab: readonly string[]`)
+  lines.push(`  note?: string`)
+  lines.push(`}`)
+  lines.push(``)
+  lines.push(`export const CAD_ROLE_VOCAB: readonly CadRoleVocab[] = [`)
+  for (const e of collectRoleVocab()) {
+    const parts = [
+      `op: '${e.op}'`,
+      `kind: '${e.kind}' as CadRoleVocab['kind']`,
+      e.reason !== undefined ? `reason: ${JSON.stringify(e.reason)}` : '',
+      `vocab: [${e.vocab.map((v) => `'${v}'`).join(', ')}]`,
+      e.note !== undefined ? `note: ${JSON.stringify(e.note)}` : '',
+    ].filter(Boolean)
+    lines.push(`  { ${parts.join(', ')} },`)
+  }
+  lines.push(`]`)
   const missing = ORDER.filter((c) => !API_ENTRIES[c])
   if (missing.length > 0) {
     throw new Error(`[gen-api-dts] API_ENTRIES missing: ${missing.join(', ')}`)

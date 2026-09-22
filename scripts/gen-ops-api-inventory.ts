@@ -13,6 +13,7 @@
 
 import { readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs'
 import { resolve, join } from 'node:path'
+import { collectRoleVocab } from '../packages/core/scripts/role-vocab'
 
 const root = resolve(import.meta.dirname, '..')
 const API_SRC = join(root, 'packages/core/src/api')
@@ -294,6 +295,32 @@ function renderDoc(locale: 'en' | 'zh'): string {
   const depNames = allOps.filter((o) => o.deprecated).map((o) => o.name)
   if (depNames.length) lines.push('废弃（勿用，`fai_` 前缀 / ../3d_editor 特有，将迁出）: ' + depNames.join('、'))
   lines.push('```')
+  lines.push('')
+
+  // ── Topology identity role vocabulary (plan §4.2, Phase 2.10) ──
+  const KIND_LABEL: Record<string, string> = {
+    kernel: '内核历史',
+    construct: '构造语义',
+    identity: '1:1 恒等',
+    replicate: '复制 k 份',
+    subdivide: '分片',
+    unmodeled: '未建模',
+  }
+  lines.push('---')
+  lines.push('')
+  lines.push('## 10. 面 role 词汇表（拓扑身份，自动派生自 op 的 naming 声明）')
+  lines.push('')
+  lines.push('BREP 链上每个面的身份 = `(StmtId, role)`。下表列出每个 op 对**自己新造的面**声明的 role 词汇（`RoleName` 线格式）；继承来的面沿用其产生 op 的 role。`vocab` 中的 `<i>` / `<j>` / `[k]` 为序号占位。**改一个 op 的词汇 = breaking change**（会破坏存量 `.fai.js` 引用），需版本化。')
+  lines.push('')
+  lines.push('| op | 类别 | 新造面词汇 | 说明 |')
+  lines.push('|---|---|---|---|')
+  for (const e of collectRoleVocab()) {
+    const vocab = e.vocab.length > 0 ? e.vocab.map((v) => `\`${v}\``).join('、') : '—（不造新面）'
+    const note = e.kind === 'unmodeled' ? e.reason ?? '' : e.note ?? ''
+    lines.push(`| \`${e.op}\` | ${KIND_LABEL[e.kind] ?? e.kind} | ${vocab} | ${note} |`)
+  }
+  lines.push('')
+  lines.push('> 本表由 `DUAL_OP_META.naming` 声明自动生成（与 `.d.ts` 的 `CAD_ROLE_VOCAB` 同源）。漏声明的 op 会在生成期/编译期失败（G4）。')
   lines.push('')
   return lines.join('\n').trimEnd() + '\n'
 }
