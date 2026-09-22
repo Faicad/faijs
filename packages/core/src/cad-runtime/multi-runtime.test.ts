@@ -140,7 +140,9 @@ describe('C1 — concurrent multi-runtime execution is rejected, not tolerated',
     await expect(pAppend).rejects.toThrow(/\bappend\b/)
     await expect(pUpdate).rejects.toThrow(/\bupdate\b/)
 
-    const err = await pExecute.catch((e: unknown) => e as RuntimeConcurrentError)
+    // `.catch(cb)` 的返回类型是 `ExecutionResult | cb 的返回值`（Promise.catch 的签名），
+    // 所以这里必须整体收窄到 RuntimeConcurrentError 才能读 code/entry。
+    const err = (await pExecute.catch((e: unknown) => e)) as RuntimeConcurrentError
     expect(err).toBeInstanceOf(RuntimeConcurrentError)
     expect(err.code).toBe('E_RUNTIME_CONCURRENT')
     expect(err.entry).toBe('execute')

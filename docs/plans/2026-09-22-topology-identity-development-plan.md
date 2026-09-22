@@ -399,7 +399,28 @@ interface LineageNode {
 
 **载荷**（分析文档 §5.3.1）：继承面的处置**完全由 kind 决定**，op 不写；只有 `construct` 和 `kernel` 会造新面，才有词汇这一项。⇒ `identity` / `subdivide` / `replicate(k)` **零声明**。
 
-**`kernel` 类不能依赖内核的 `generated`**：实测恒空（`face-evolution.ts:140`）。所以 `byAdjacency` / `explicit` 是**必填**。
+**`kernel` 类不能依赖内核的 `generated`**（Phase 0.4 实测，见 §7.1）：该桶与 `modified` **同构分段**、
+键集相同，值是各输入面派生的**中间形**——`cut` 里 12 个 hash 结果里 **0 存活**，
+`fillet`/`fuse` 里**整桶为空**（`face-evolution.ts:140`）。所以 `byAdjacency` / `explicit` 是**必填**。
+
+**新造面的判定口径（Phase 0.4 实测，取代"新造 vs 继承"的二分）**：结果面有**三种命运**，
+`kernel` 类只需管第 3 种：
+
+| 命运 | 判据 | 处置 |
+|---|---|---|
+| 原样幸存 | hash ∈ 输入 hash 集合（**hash 逐字不变**） | 继承坐标，零声明 |
+| 改型幸存 | hash ∈ 某输入的 `modified` 输出（可 1→N） | 继承坐标（1→N 时用**段内后缀**区分，顺序实测跨重放稳定） |
+| **新造** | 两者皆非 | **才需要词汇**（如下方 `cap:` / `wall:` / `gen:`；布尔缝面见 §4.4 末） |
+
+⚠️ 判据必须是"补集 **再减掉 hash 未变者**"：未受影响的面**可能整个不上报**（`fillet` 的两个平面、
+`cut` 的四个侧面），只按补集会把它们误判成新造面。且"未变"在同一 op 内会**两种形态并存**
+（自映射 `0->[0]` 与不上报）⇒ 读法用 `modified.get(h) ?? [h]`。
+
+**布尔的新造面通常为空**：`cut` 的孔壁实测是**工具侧面的改型幸存者**（继承工具面的坐标），
+不是新造面 ⇒ `hole:<j>` **不是布尔词汇**（它只属 `construct`：profile 自带内环时扫出的壁，见上方词表）。
+布尔唯一的真新造面出现在**工具是 op 内部临时件**时（`fai_drill` / `engrave` 走裸 `kernel.cut`，
+无用户可见坐标可继承）⇒ 此时新造面挂**消费它的那条语句**，正是 `booleanWithRoleTable` 里
+`outPart` 形参留而未用的位置（`face-evolution.ts:318/365`）。
 
 统一的新造面词汇口径（封闭）：
 
@@ -469,18 +490,21 @@ resolve(identity, atPart):
 
 ### Phase 0｜定基线（不改身份行为）
 
-| 步骤 | 内容 | 落点 |
-|---|---|---|
-| 0.1 | 补齐 **7 个已存在的** `*WithHistory` 绑定：`translate` `rotate` `mirror` `scale` `shell` `offset` `thicken` | `brep/engine/primitives.ts:167-185`（`BrepEngineApi` 加声明）、`brep/engine/adapters/occt.ts:29-34`（能力槽） |
-| 0.2 | 把 `capabilities.evolution` 从**引擎级布尔**改为**per-op 声明** | `brep/engine/adapters/occt.ts:34` |
-| 0.3 | **删除 `identityHashEvolution`**（`face-evolution.ts:209-222`），改用 0.1 的真 `WithHistory`；若因故保留，必须补一条「OCCT 变换保持面序」的测试 | 同上 |
-| 0.4 | **§7 的测定项**（7 项中第 3 项因 D10 已作废 ⇒ 实做 6 项）测出并回填（处置分支已在 §7 预置，回填只选分支、不开新问题） | 探针脚本 → **落成 `.test.ts`**（AGENTS.md 铁律） |
-| 0.5 | 写 **G3 的 6 条链测试**（§3.1），**让它们现在红着** | `packages/tests/faijs/topology-naming/` |
-| 0.6 | **C1 守卫落地**：`CadRuntime` 加执行态锁，第二个 runtime 在执行态时 `throw E_RUNTIME_CONCURRENT`（替换 `runtime.ts:451` 那条"承认互踩"的注释）；补一条测试（两 runtime 交错 → 第二个抛错） | `cad-runtime/runtime.ts:451` |
-| 0.7 | `@deprecated` 措辞校正（S7，§2.4） | 13 处 JSDoc |
-| 0.8 | 覆盖率探针：跑 N 条真实链，输出「未命名面数」基线 | 落成 `.test.ts` |
+| 步骤 | 内容 | 落点 | 状态 |
+|---|---|---|---|
+| 0.1 | 补齐 **7 个已存在的** `*WithHistory` 绑定：`translate` `rotate` `mirror` `scale` `shell` `offset` `thicken` | `brep/engine/primitives.ts:167-185`（`BrepEngineApi` 加声明）、`brep/engine/adapters/occt.ts:29-34`（能力槽） | **已完成** |
+| 0.2 | 把 `capabilities.evolution` 从**引擎级布尔**改为**per-op 声明** | `brep/engine/adapters/occt.ts:34` | **已完成**（改为逐核函数名单，实测抓到 `brepkit` 虚报） |
+| 0.3 | **删除 `identityHashEvolution`**（`face-evolution.ts:209-222`），改用 0.1 的真 `WithHistory`；若因故保留，必须补一条「OCCT 变换保持面序」的测试 | 同上 | **已完成**（`translate`/均匀 `scale` 改走权威映射；其余 4 个 op 保留并已补面序测试） |
+| 0.4 | **§7 的测定项**（7 项中第 3 项因 D10 已作废 ⇒ 实做 6 项）测出并回填（处置分支已在 §7 预置，回填只选分支、不开新问题） | 探针脚本 → **落成 `.test.ts`**（AGENTS.md 铁律） | **已完成**（1/2/4/5/6/7 全部测出，见 §7.1） |
+| 0.5 | 写 **G3 的 6 条链测试**（§3.1），**让它们现在红着** | `packages/tests/faijs/topology-naming/` | **已完成**（形态定为 `it.fails` + 独立的 T0 绿守卫） |
+| 0.6 | **C1 守卫落地**：`CadRuntime` 加执行态锁，第二个 runtime 在执行态时 `throw E_RUNTIME_CONCURRENT`（替换 `runtime.ts:451` 那条"承认互踩"的注释）；补一条测试（两 runtime 交错 → 第二个抛错） | `cad-runtime/runtime.ts:451` | **已完成**（3d_editor 不并发，无需同步） |
+| 0.7 | `@deprecated` 措辞校正（S7，§2.4） | 13 处 JSDoc | **已完成**（实为 11 JSDoc + 4 块注释 + 2 生成器常量） |
+| 0.8 | 覆盖率探针：跑 N 条真实链，输出「未命名面数」基线 | 落成 `.test.ts` | 未做 |
 
-**验收**：0.1 绑定单测全绿；0.6 的并发守卫测试绿（两 runtime 交错 → 第二个抛 `E_RUNTIME_CONCURRENT`）；6 条链的**当前失败率有实测值**（这就是后续每阶段的进度尺）；**§7 的 6 项实做测定项全部回填为具体分支**——每项分支已预置，回填不产生新的待定项。
+**验收**：0.1 绑定单测全绿；0.6 的并发守卫测试绿（两 runtime 交错 → 第二个抛 `E_RUNTIME_CONCURRENT`）；
+6 条链的**当前失败率有实测值**（这就是后续每阶段的进度尺）；**§7 的 6 项实做测定项全部回填为具体分支**
+（1→B、2→A、4→A、5→A+实现前提、6→成立、7→B 且准则改写）——每项分支已预置，回填未产生新的待定项。
+**仅剩 0.8 未做。**
 
 **同步 3d_editor**：无（0.6 的守卫若 3d_editor 真在并发，会在其 CI 暴露——这正是守卫的作用）。
 
@@ -618,16 +642,29 @@ Phase 0.4 的探针只负责"选分支"，**不需要任何新的裁决**。全�
 
 | # | 待测事实 | 分支 A | 分支 B |
 |---|---|---|---|
-| 1 | `heal` / `simplify` / `autoHeal` / `fixShape` / `healSolid` 是否真有内核历史 | 测出"有" → 走 `kernel`（补 `*WithHistory` 绑定，与 0.1 同法） | 测出"无" → `unmodeled('heal 家族：无内核历史且面无稳定构造词汇')` |
-| 2 | `screw` 的面结构 | 有稳定 index 词汇 → `construct` + 词表 | `unmodeled('螺旋面无稳定 index 词汇')` |
+| 1 | `heal` / `simplify` / `autoHeal` / `fixShape` / `healSolid` 是否真有内核历史 | 测出"有" → 走 `kernel`（补 `*WithHistory` 绑定，与 0.1 同法） | 测出"无" → `unmodeled('heal 家族：无内核历史且面无稳定构造词汇')` | **B（无）**：历史族恰为 12 个，无一属 healing；函数本体在（阳性对照）⇒ 见 §7.1 |
+| 2 | `screw` 的面结构 | 有稳定 index 词汇 → `construct` + 词表 | `unmodeled('螺旋面无稳定 index 词汇')` | 见 §7.1 |
 | 3 | ~~`roof` 的平面/壁面构成~~ | — | **不测**：`roof` 属 D10 的 8 条未接线（§1 D10），接线是实现前提 |
-| 4 | `convexHull` 是否有稳定词汇 | `construct` + 词表 | `unmodeled('凸包面无稳定构造词汇')` |
-| 5 | `engrave` 是否等价 `cut` 组合 | `kernel`（复用 `cut` 的绑定与词汇） | `unmodeled('engrave 无内核历史且不等价 cut 组合')` |
+| 4 | `convexHull` 是否有稳定词汇 | `construct` + 词表 | `unmodeled('凸包面无稳定构造词汇')` | 见 §7.1 |
+| 5 | `engrave` 是否等价 `cut` 组合 | `kernel`（复用 `cut` 的绑定与词汇） | `unmodeled('engrave 无内核历史且不等价 cut 组合')` | 见 §7.1 |
 | 6 | 刚体变换是否保持面序（= `identityHashEvolution` 当年那个假设是否成立） | ✅ **实测成立**（2026-09-22，见 §7.1 回填）⇒ 结论留档；`identity` 类仍由 L3/L6 覆盖 | —（未发生） |
-| 7 | `cut` 产生的孔壁应挂哪个 `origin` | 符合已定准则 → 结论留档 | 不符 → **按实现缺陷修** |
+| 7 | `cut` 产生的孔壁应挂哪个 `origin` | 符合已定准则 → 结论留档 | 不符 → **按实现缺陷修** | **B（不符）**：孔壁是**工具侧面的改型后继**，`hole:<j>` 是伪需求 ⇒ 见 §7.1 |
 
-**第 7 项不是开放题**：准则已在 §4.1 / §4.4 定稿——**面由哪个 op 的几何运算首次产生，就挂哪个 op 的 `StmtId`**。
-孔壁是 `cut` 的新造面 ⇒ 挂 `cut` 的 `StmtId`，`role = hole:<j>`。探针的作用是**验证实现符合准则**，不是重新决定准则。
+**第 7 项的分支判据已由实测改写（2026-09-22）**：原文的靶子（"孔壁是 `cut` 的新造面"）
+**经实测不存在**。计划原文的准则表述「面由哪个 op 的几何运算首次产生」在布尔里没有落点——
+布尔的面对应关系是**三种命运**，不是"新造 vs 继承"：
+
+| 命运 | 判据（可执行） | `cut` 实测 | `fillet` 实测 |
+|---|---|---|---|
+| **原样幸存** | hash ∈ 输入面 hash 集合（**hash 逐字不变**） | 4 个未动侧面 | 2 个未受影响平面 |
+| **改型幸存** | hash ∈ 某输入的 `modified` 输出（可 1→N） | 4 面（含孔壁，走工具侧） | 4 个被裁面 |
+| **新造** | 两者皆非 | **空集** | **1 个（过渡圆柱面）** |
+
+⇒ 准则精化为：**面挂"哪个 op 的输出里它首次成为可见结果的一部分"**，且
+**能继承就继承**（孔壁继承工具侧面）、**只有真新造才派生命名**（圆角过渡面 `gen:fillet:0`）。
+**工具是 op 内部临时件时无可继承的坐标**（`fai_drill` / `engrave` 走裸 `kernel.cut`），
+此时新造面才挂**消费它的那条语句**——这也正是 `booleanWithRoleTable` 里 `outPart`
+形参留而未用的位置（`face-evolution.ts:318/365`）。
 
 **第 6 项与 0.3 的关系**：`translate` / `rotate` / `mirror` / `scale` **无论本项结论如何**，Phase 0.3 后都走 `kernel` 真 `WithHistory`。本项结论只决定"要不要给 `identity` 类补一条链"。
 
@@ -664,10 +701,86 @@ op 侧同时改为逐核函数：`union → ['fuse']`、`subtract → ['cut']`�
 ⇒ 无法靠探测区分「真有 vs 桩」。**声明是唯一真相来源**，只能靠期望值钉住（该测试文件即此钉；
 occt 的 12 项判定为「真」则由 `evolution-bindings.test.ts` 的**真调用**背书）。
 
-**0.5 的落地结果（G3 进度尺已建立）**：载体 = `packages/tests/faijs/topology-naming/g3-replay-chains.test.ts`
+**0.4 的落地结果（§7 实做的 5 项全部测出：1→B、2→A、4→A、5→A+实现前提、7→B 且准则已改写）**：
+
+载体两份，均绿：
+- 内核侧 `packages/core/src/brep/engine/phase0-kernel-probes.test.ts`（11 断言，~2s）
+- op 侧 `packages/tests/faijs/topology-naming/phase0-op-vocab-probes.test.ts`（6 断言，~70–90s；
+  `screw` 单次执行约 20s，同脚本结果按文本缓存）
+
+| # | 结论 | 决定性实测 |
+|---|---|---|
+| 1 | **B**：`unmodeled(...)` | 历史族恰 12 个、无一属 healing；healing 函数本体在（阳性对照） |
+| 2 | **A**：`construct` + 词表 | 定螺距下 M5→M6：**650 面、逐面类型序列逐位相同**（28 cylinder + 6 plane + 616 bspline） |
+| 4 | **A**：`construct` + 词表 | 缩放 1→1.8：面数与类型序列不变；**面数 12**（三角化多面体），非直觉的 6 |
+| 5 | **A（语义）+ 实现前提** | 运行时计数：只调裸 `kernel.cut`/`fuse`，`cutWithHistory`/`fuseWithHistory` **0 次** |
+| 6 | 成立（见上） | 三条内核路径面序保持 |
+| 7 | **B**：准则改写（见上） | 孔壁 = 工具侧面的改型后继；`cut` 的新造面是空集 |
+
+**第 2 项的两个陷阱（都已实测踩过，写进探针头注）**：
+
+1. **不能用 `thread: 'coarse'` + `specIdx` 去测"保拓扑"**——粗牙螺距本身随规格变
+   （M5 0.8 / M6 1.0），改 `specIdx` 会连圈数一起改。那一版实测 420 → 520 面，
+   **是圈数变化的必然结果，不能据此判分支**。必须 `thread: 'custom'` + 固定 `pitchCustom`。
+2. **词表必须按圈结构化，不能扁平下标**：改螺距（0.8→1.0）650→521 面、改长度（20→40）
+   650→1275 面，因为螺纹的离散面数随圈数变。⇒ Phase 2 给 `screw` 声明的词汇形态
+   必须是 `thread:<turn>/<seg>` 这类**结构化**坐标（扁平下标只在同螺距下稳定）。
+
+**第 4 项的顺带发现**：`convexHull` 的面是**三角化**的（8 角点凸包 = 12 个三角面而非 6 个四边形），
+且 `kernel.hullFromPoints(points, 0.1)` 带容差、入参点序由调用方给。点序打乱后**面数与类型多重集不变**，
+面序敏感性只作留档（脚本里的点序是字面量、跨重放固定，不构成分支判据）。
+
+**第 5 项的实现前提（Phase 3 的一项具体工作，非待定项）**：`engrave.ts:145/147/155` 用的是
+裸 `kernel.fuse` / `kernel.cut` / `kernel.fuseAll`。⇒ 几何上确是 cut 组合（分支 A 语义成立），
+但要**复用** `cut` 的绑定与词汇，必须先把该 op 改走带历史的布尔入口。
+`fai_drill.ts:150` 同样只调裸 `kernel.cut`。这正是 §4.4 所述"工具是 op 内部临时件
+⇒ 无用户可见坐标可继承"的两个实例。
+
+**第 1 项 = 无内核历史 ⇒ 分支 B。** 判据只能是"历史族名单里有没有 healing 成员"
+（内核没有"给我上次运算的历史"这种通用查询）。实测：历史族**恰为 12 个**，逐词干匹配后
+**无一属 healing**；同时 `heal`/`simplify` 等函数**本体在**（阳性对照，排除"函数名都不在"的假绿）。
+⇒ 这 5 个 op 的声明走 `unmodeled(...)`。该测试同时是**正向守卫**：内核将来补上
+`healWithHistory` 会让它变红，提醒重评分支。
+
+**第 7 项 = 不符 ⇒ 分支 B，且"修"的方向是改写准则（见上表后的精化）。** 实测明细：
+
+| 结果面 | 归账 | |
+|---|---|---|
+| 孔壁（`cylinder`） | `b.modified`：工具侧面 `B0 → 孔壁` | 是**改型幸存者**，不是新造面 |
+| box 未被穿孔的 4 侧面 | 不在任何 `modified` 里，且 **hash 与输入逐字相同** | 原样幸存 |
+| 穿孔后的 box 顶/底面 | `a.modified`：`A4→…`、`A5→…` | 改型幸存（位移孔径后仍是同一张面带孔） |
+| 工具两端面 | `b.deleted` | 被删除，无后继 |
+
+⇒ `cut` 的**新造面是空集**；G3 L2 的目标词表已据此去掉 `hole:0`（继承工具侧面）。
+
+**0.4 顺带测出的三条事实（对 Phase 3 有约束力）**：
+
+1. **`generated` 桶不可用于定位新造面**，且**occt-wasm 与 faijs 的文档都写错了编码**：
+   实测它与 `modified` **同构分段**（`[inHash, count, outHash…] × N`）、**键集与 `modified` 相同**，
+   值是各输入面派生的**中间形**（`cut` 里 12 个 hash、结果 **0 存活**；`fillet`/`fuse` 里**整桶为空**）。
+   按"扁平 hash 数组"读会把 count 字段（实测真有 `2`）当成 hash，**而且不会自己暴露**。
+   ⇒ 已改正 `brep/engine/types.ts` 与 `face-evolution.ts` 的注释（`dist/types.d.ts:227-231` 属上游文档缺陷，不改）。
+2. **未受影响的面有两种上报形态，两种都表示"未变"**：自映射（`fillet` 里 `0->[0]`、`4->[4]`）
+   与**整个不上报**（`fillet` 的另两个平面、`cut` 的四个侧面）**在同一 op 内并存**。
+   ⇒ `propagateOriginRoles` 的 `modified.get(h) ?? [h]` 恰好同时容纳两者——
+   属**巧合的正确**，已由探针钉住。
+3. **1→N 分裂的段内顺序跨重放逐字稳定**（`fuse(box, box+5x)` 跑两遍：分段键集、各段后继中心点
+   序列、`deleted`、结果面数全部相同；后继顺序还呈空间有序）⇒ 1→N 的后继可用**段内下标**
+   稳定命名，不必另找判据。
+
+**0.5 的落地结果（G3 进度尺已建立，形态为 `it.fails`）**：载体 =
+`packages/tests/faijs/topology-naming/g3-replay-chains.test.ts`
 （含三层判据 T1 角色词汇集跨重放不变 / T2 捕获的 ref 重放后落到同名面 / T3 面类型一致；
 前置 T0 = 两次执行本身必须成功，T0 红则说明红的不是命名机制、必须先修链路）。
-**实测基线：6/6 红，且全部红在 T0.5（目标词汇未落地），T0 链路 6/6 通。**
+
+**形态决策（2026-09-22）**：6 条链包成 **`it.fails`**，而非"保持普通 `it` 红着"。
+- **现在**：CI 绿（预期失败被吸收）；
+- **某条链真绿时**：`it.fails` **反向报红**（"expected to fail, but it passed"），强制把它翻成 `it`。
+
+⚠️ **`it.fails` 会吞掉一切失败、不区分理由**——它吸收 T1/T2/T3（本应如此），但**同样会吞掉 T0**，
+届时"还没实现"与"链已经废了"无法区分。⇒ **T0 被提出来独立成一个必须绿的 `describe`**
+（同文件上半部分，6 项全绿）。那个 describe 变红 = 链路/fixture 坏了，先修链路。
+**实测基线：6/6 预期失败，且全部卡在 T0.5（目标词汇未落地），T0 链路 6/6 通。**
 
 | 链 | 首次执行实测 role 集合 | 红的性质 |
 |---|---|---|

@@ -133,8 +133,11 @@ export interface HashEvolution {
  * hash→hash[] 的 1→多映射，直接按同一格式解出 hash 键版本，不需要
  * getSubShapes 逐句柄 hashCode，也不分配任何句柄。
  *
- * generated 刻意不进 role 传播（§1.3 事实：occt 系 generated hash 指向中间形、
- * 对布尔实测 0 个存活），生成面改由 DerivedFaceTopoRef 以 lineage 命名。
+ * generated 刻意不进 role 传播。**实测依据（2026-09-22，`brep/engine/phase0-kernel-probes.test.ts`）**：
+ * `generated` 与 `modified` **同构分段、键集相同**，其值是各输入面派生出的**中间形**——
+ * `cut` 实测 12 个 hash、结果里 **0 个存活**（`fillet`/`fuse` 里整个桶为空）。
+ * ⇒ 新造面**不能**由 `generated` 定位，只能由"三类命运"的补集判定
+ * （既不在输入 hash 集合、也不在任何 `modified` 输出里），再交 `construct`/派生词汇命名。
  *
  * @param evo - the BrepEvolutionData (from a *WithHistory API).
  * @returns the hash-keyed evolution.

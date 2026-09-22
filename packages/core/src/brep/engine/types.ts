@@ -75,15 +75,37 @@ export interface BrepEdgeData {
   edgeCount: number
 }
 
-/** *WithHistory 面演化数据（modified/generated/deleted 用面 hash 编码）。 */
+/**
+ * *WithHistory 面演化数据（modified/generated/deleted 用面 hash 编码）。
+ *
+ * ⚠️ **三个字段的编码不同，实测于 2026-09-22（`brep/engine/phase0-kernel-probes.test.ts`），
+ * 与 occt-wasm 自己的文档（`dist/types.d.ts:227-231`）不符**：
+ *
+ * | 字段 | 实际编码 | 键/值语义 |
+ * |---|---|---|
+ * | `modified` | **分段** `[inHash, count, outHash…] × N` | 键 = 输入面 hash；值 = 该输入面在结果里的**后继**（可 1→N） |
+ * | `generated` | **同构分段**，**键集与 `modified` 相同** | 值 = 该输入面派生出的**中间形**（实测结果里 0 存活） |
+ * | `deleted` | **扁平** hash 数组 | 输入面中已不存在的面 |
+ *
+ * 「扁平数组」的读法会把 `generated` 的 count 字段当成 hash——
+ * 实测 `cut` 的 `generated` 里真的含 `2`（一个 count），故该误读不会自己暴露。
+ *
+ * ⚠️ **未受影响的面有两种上报形态，两种都表示"未变"**：自映射（`i -> [i]`）。
+ * 或者**整个不上报**（`fillet` 实测两者并存）。⇒ 读法必须是
+ * `modified.get(h) ?? [h]`，不能只看"是否出现在 `modified` 里"。
+ *
+ * ⇒ 结果面的三种命运（判据见 `phase0-kernel-probes.test.ts`）：
+ * **原样幸存**（hash ∈ 输入 hash 集合，hash 逐字不变）/ **改型幸存**（在 `modified` 输出里）/
+ * **新造**（两者皆非——这才是真正需要派生词汇命名的面，如 `fillet` 的过渡面）。
+ */
 export interface BrepEvolutionData {
   /** 结果句柄 */
   result: BrepHandle
-  /** 输入面中被修改的面 hash */
+  /** 分段：`[inHash, count, outHash…] × N`；值 = 该输入面的结果后继 */
   modified: number[]
-  /** 操作新生成的面 hash */
+  /** 分段（键集同 `modified`）：该输入面派生的中间形 hash，实测结果里 0 存活 */
   generated: number[]
-  /** 输入面中已不存在的面 hash */
+  /** 扁平：输入面中已不存在的面 hash */
   deleted: number[]
 }
 
