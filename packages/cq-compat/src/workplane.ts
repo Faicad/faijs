@@ -212,6 +212,20 @@ export interface Workplane {
   firstPoint?: [number, number]
   /** Optional color (sRGB 0..1) for this part. */
   color?: RGB
+  /**
+   * Tagged workplane snapshots (CadQuery .tag()), keyed by tag name.
+   * Each snapshot records the plane frame and carried shape so
+   * workplaneFromTagged can jump back to the marked plane.
+   */
+  tags?: Record<string, TaggedWorkplane>
+}
+
+/** Snapshot captured by 	ag(): plane frame + carried shape. */
+export interface TaggedWorkplane {
+  origin: [number, number, number]
+  xDir: [number, number, number]
+  normal: [number, number, number]
+  shape: Shape | null
 }
 
 /** Custom prototype — borrowDeep skips objects with non-Object prototype. */
@@ -3214,6 +3228,56 @@ export async function siblings(
  */
 export function faces(wp: Workplane, sel: string): Workplane {
   return clone(wp, { faceSel: sel, edgeSel: null, vertexSel: null })
+}
+
+/**
+ * tag — CadQuery Workplane.tag(name) parity (dataflow carrier).
+ *
+ * Upstream records the current workplane state (origin/xDir/normal + current
+ * objects) under a name so a later workplaneFromTagged can jump back to it.
+ * The faijs carrier keeps a snapshot of the plane frame and the carried
+ * shape; the tagged objects stay the current shape's sub-shapes.
+ *
+ * @param wp - Workplane to mark
+ * @param name - Tag name
+ * @returns Workplane carrying the tag snapshot
+ */
+export function tag(wp: Workplane, name: string): Workplane {
+  return clone(wp, {
+    tags: {
+      ...(wp.tags ?? {}),
+      [name]: { origin: wp.origin, xDir: wp.xDir, normal: wp.normal, shape: wp.shape },
+    },
+  })
+}
+
+/**
+ * workplaneFromTagged — CadQuery Workplane.workplaneFromTagged(name) parity.
+ *
+ * Restores the workplane frame (origin/xDir/normal) and carried shape captured
+ * by an earlier 	ag(name). Points/selectors are reset (upstream jumps back
+ * to the tagged plane with an empty stack).
+ *
+ * @param wp - Workplane carrying the tags
+ * @param name - Tag name to restore
+ * @returns Workplane restored to the tagged plane
+ */
+export function workplaneFromTagged(wp: Workplane, name: string): Workplane {
+  const saved = wp.tags?.[name]
+  if (!saved) throw new Error('workplaneFromTagged: tag ' + name + ' not found')
+  // Upstream Workplane.workplaneFromTagged calls _fromPlane, which keeps
+  // the CURRENT objects (carried shape) and only swaps the plane frame
+  // (origin/xDir/normal). Restoring the saved shape would drop any solids
+  // built since the tag (verified vs cadquery 2.8.0 testWorkplaneFromTagged).
+  return clone(wp, {
+    origin: saved.origin,
+    xDir: saved.xDir,
+    normal: saved.normal,
+    pts: [],
+    faceSel: null,
+    edgeSel: null,
+    vertexSel: null,
+  })
 }
 
 /**

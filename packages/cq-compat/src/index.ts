@@ -91,8 +91,10 @@ export {
   solidFromFaces,
   planarCap,
   siblings,
+  tag,
+  workplaneFromTagged,
 } from './workplane'
-export type { Workplane as WorkplaneType, RGB, CqLocation } from './workplane'
+export type { Workplane as WorkplaneType, RGB, CqLocation, TaggedWorkplane } from './workplane'
 
 // Internal helpers consumed by @faicad/cq-compat-assembly (the assembly layer
 // split into its own package; these workplane-internal symbols are re-exported
