@@ -7,7 +7,7 @@
  *  3. 容差标定四步走完（§7.3.1）：实测最坏值 → 分析文档 → 逐类 override
  *     （`src/testing/compare.ts`）→ **反向守卫**（本文件）。
  *
- * 判定入口只有一个：`@faicad/cq-compat` 的 `compareAssemblyFiles`
+ * 判定入口只有一个：`@faicad/cq-compat-compare` 的 `compareAssemblyFiles`
  * （经 `src/testing/compare.ts` 封装）。容差只在 compare.ts 定义，本文件不写死数字。
  *
  * ⚠️ **已知缺口（显式抛错，不静默跳过）**：`HeatSetNut` 的 `make_nut` 需要

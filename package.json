@@ -52,7 +52,10 @@
   },
   "workspaces": [
     "packages/core",
+    "packages/cq-compat-compare",
     "packages/cq-compat",
+    "packages/cq-compat-assembly",
+    "packages/cq-compat-sketch",
     "packages/fai_cq_gears",
     "packages/fai_cq_warehouse",
     "packages/sheetmetal",

@@ -1,11 +1,11 @@
 /**
- * cq-compat 端到端：buildAssembly 默认 global 求解器（P2，对齐
+ * @faicad/cq-compat-assembly 端到端：buildAssembly 默认 global 求解器（P2，对齐
  * assembly-global-solver-plan.md §4.4 / P2）。
  *
- * 不依赖 CQ 参考基线：用两个 faijs 盒子构造 mate
- * 约束，走完整管线 buildAssembly → cad.assembly({solver:'global'}) →
- * solveAssemblyAndKinematics → solveGlobal，断言：
- *   1) solveDetailed 返回 residuals（证明 global 路径被选中）；
+ * 不依赖 CQ 参考基线：用两个 faijs 盒子构造 mate 约束，走完整 CadQuery 语法面
+ *   buildAssembly → solve()（封装底层求解器，消费方不直调 core 内部）→ toCompound()，
+ * 断言：
+ *   1) solve() 返回的装配对象带 residuals（证明 global 路径被选中）；
  *   2) 从动件 B 的变换把其底面对齐到 A 的顶面（translation = cA - cB）；
  *   3) 残差 ~0（mate 被满足）。
  * 另对照 opts.solver='chain' 路径：residuals 不填（chain 路径语义，证明
@@ -15,12 +15,12 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { createRuntime, registerOcctBrepEngine } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
-import { getSlot } from '@faicad/faijs/shape'
 import { asPartName } from '@faicad/faijs/identity'
 import type { Shape } from '@faicad/faijs/mesh/types'
 import type { AssemblyConstraint, MateConstraint } from '@faicad/faijs/api/assembly/types'
 import type { AssemblyTransform } from '@faicad/faijs/runtime-state'
-import * as cq from './index'
+import * as cq from '@faicad/cq-compat'
+import { buildAssembly, constraintEx } from './index'
 
 let runtime: ReturnType<typeof createRuntime>
 let boxA: Shape
@@ -64,9 +64,9 @@ function rotAt(t: AssemblyTransform, v: [number, number, number]): [number, numb
   ]
 }
 
-describe('cq-compat: buildAssembly 默认 global 端到端', () => {
-  it('mate：B 底面贴合到 A 顶面（global 求解）', async () => {
-    const cons = await cq.constraintEx('A', '>Z', boxA, 'B', '<Z', boxB, 'Plane')
+describe('cq-compat-assembly: buildAssembly 默认 global 端到端', () => {
+  it('mate：B 底面贴合到 A 顶面（global 求解，经 solve()/toCompound()）', async () => {
+    const cons = await constraintEx('A', '>Z', boxA, 'B', '<Z', boxB, 'Plane')
     expect(cons).toHaveLength(1)
     const mate = cons[0] as MateConstraint
     expect(mate.type).toBe('mate')
@@ -76,13 +76,19 @@ describe('cq-compat: buildAssembly 默认 global 端到端', () => {
     const cB = (mate.b as { face: { center: [number, number, number]; normal: [number, number, number] } }).face.center
     const nB = (mate.b as { face: { normal: [number, number, number] } }).face.normal
 
-    const compound = cq.buildAssembly('asm', [
+    const asm = buildAssembly('asm', [
       { name: 'A', shape: boxA },
       { name: 'B', shape: boxB },
     ], [mate] as AssemblyConstraint[])
-
-    const behavior = getSlot(compound)?.behavior as { solveDetailed: () => { transforms: AssemblyTransform[]; residuals?: number[] } }
-    const res = behavior.solveDetailed()
+    expect(asm.solved).toBe(false)
+    const solved = asm.solve()
+    // solve() 返回自身（CQ Assembly.solve() 语义）
+    expect(solved).toBe(asm)
+    expect(asm.solved).toBe(true)
+    // toCompound() 返回已求解装配体（compound）
+    const compound = asm.toCompound()
+    expect(compound.kind).toBe('compound')
+    const res = asm
 
     // 1) global 路径标志：residuals 被填（chain 路径不填）
     expect(res.residuals).toBeDefined()
@@ -109,17 +115,15 @@ describe('cq-compat: buildAssembly 默认 global 端到端', () => {
   })
 
   it('显式 opts.solver="chain" 走 chain 路径（residuals 不填，行为可区分）', async () => {
-    const cons = await cq.constraintEx('A', '>Z', boxA, 'B', '<Z', boxB, 'Plane')
+    const cons = await constraintEx('A', '>Z', boxA, 'B', '<Z', boxB, 'Plane')
     const mate = cons[0] as MateConstraint
-    const compound = cq.buildAssembly('asm2', [
+    const asm = buildAssembly('asm2', [
       { name: 'A', shape: boxA },
       { name: 'B', shape: boxB },
     ], [mate] as AssemblyConstraint[], { solver: 'chain' })
-
-    const behavior = getSlot(compound)?.behavior as { solveDetailed: () => { transforms: AssemblyTransform[]; residuals?: number[] } }
-    const res = behavior.solveDetailed()
-    expect(res.residuals).toBeUndefined()
-    const tB = res.transforms.find((t) => t.index === 1)
+    asm.solve()
+    expect(asm.residuals).toBeUndefined()
+    const tB = asm.transforms.find((t) => t.index === 1)
     expect(tB).toBeDefined()
   })
 
@@ -129,7 +133,7 @@ describe('cq-compat: buildAssembly 默认 global 端到端', () => {
     // 重合）已推翻——本用例即防回归：断言 type==='angle'、无面心重合要求、法向反平行。
     // A 的 +X 面（法向 +X）与 B 的 -X 面（法向 -X）：反平行解下 B 恒等位姿即满足方向
     // 约束；位置无任何约束（初始 0 保持 0），**不得**断言面心重合。
-    const cons = await cq.constraintEx('A', '>X', boxA, 'B', '<X', boxB, 'Axis')
+    const cons = await constraintEx('A', '>X', boxA, 'B', '<X', boxB, 'Axis')
     expect(cons).toHaveLength(1)
     const ang = cons[0] as Extract<AssemblyConstraint, { type: 'angle' }>
     expect(ang.type).toBe('angle')
@@ -140,17 +144,15 @@ describe('cq-compat: buildAssembly 默认 global 端到端', () => {
     const nA = aFace.normal
     const nB = bFace.normal
 
-    const compound = cq.buildAssembly('asm3', [
+    const asm = buildAssembly('asm3', [
       { name: 'A', shape: boxA },
       { name: 'B', shape: boxB },
     ], [ang] as AssemblyConstraint[])
+    asm.solve()
+    expect(asm.residuals).toBeDefined()
+    expect(asm.residuals?.length).toBe(1)
 
-    const behavior = getSlot(compound)?.behavior as { solveDetailed: () => { transforms: AssemblyTransform[]; residuals?: number[] } }
-    const res = behavior.solveDetailed()
-    expect(res.residuals).toBeDefined()
-    expect(res.residuals?.length).toBe(1)
-
-    const tB = res.transforms.find((t) => t.index === 1)
+    const tB = asm.transforms.find((t) => t.index === 1)
     expect(tB).toBeDefined()
 
     // 方向约束：nB 经旋转后 == -nA（反平行）
@@ -159,6 +161,6 @@ describe('cq-compat: buildAssembly 默认 global 端到端', () => {
     // 无点项：位置无约束，B 停在初值（平移 ≈ 0）
     for (let i = 0; i < 3; i++) expect(tB!.translation[i]).toBeCloseTo(0, 3)
     // 残差 ~0（方向约束被满足）
-    expect(res.residuals![0]).toBeLessThan(1e-6)
+    expect(asm.residuals![0]).toBeLessThan(1e-6)
   })
 })

@@ -4,7 +4,7 @@ import { buildCrossedHelicalSolid } from '../src/crossed_helical_gear'
 import { placeSecondGear } from '../src/crossed_pair'
 import { crossedHelicalGearGeometry } from '../src/profile'
 import { exportStepFromSolids } from '@faicad/faijs'
-import { compareAssemblyFiles } from '@faicad/cq-compat'
+import { compareAssemblyFiles } from '@faicad/cq-compat-compare'
 import { loadManifest } from '../src/fixtures'
 
 async function main() {

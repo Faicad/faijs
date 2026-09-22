@@ -1,5 +1,5 @@
 /**
- * cq-compat 约束翻译层单测（P1.5，对齐 assembly-global-solver-plan §4.4）
+ * @faicad/cq-compat-assembly 约束翻译层单测（P1.5，对齐 assembly-global-solver-plan §4.4）
  *
  * 覆盖 constraintEx 的 7 类映射：Plane→mate / Axis→angle:180（纯方向反平行，
  * 2026-09-17 对照 CQ 2.8.0 solver.py 标定修正，原误映射 align）/ Point→coincident /
@@ -14,7 +14,8 @@ import { hasBrep, brepOf } from '@faicad/faijs/shape'
 import { asPartName } from '@faicad/faijs/identity'
 import type { Shape } from '@faicad/faijs/mesh/types'
 import type { AssemblyConstraint } from '@faicad/faijs/api/assembly/types'
-import * as cq from './index'
+import * as cq from '@faicad/cq-compat'
+import { pointRef, axisRef, constraintEx, constraint } from './index'
 
 let runtime: ReturnType<typeof createRuntime>
 let boxShape: Shape
@@ -47,20 +48,20 @@ beforeAll(async () => {
   expect(hasBrep(cylShape)).toBe(true)
 }, 120000)
 
-describe('cq-compat: 字面引用构造（无内核）', () => {
+describe('cq-compat-assembly: 字面引用构造（无内核）', () => {
   it('pointRef 产出 point EntityRef', () => {
-    const r = cq.pointRef('A', [1, 2, 3])
+    const r = pointRef('A', [1, 2, 3])
     expect(r).toEqual({ part: 'A', point: [1, 2, 3] })
   })
   it('axisRef 产出 edge.axis EntityRef', () => {
-    const r = cq.axisRef('B', [0, 0, 5], [0, 0, 1])
+    const r = axisRef('B', [0, 0, 5], [0, 0, 1])
     expect(r).toEqual({ part: 'B', edge: { axis: { origin: [0, 0, 5], direction: [0, 0, 1] } } })
   })
 })
 
-describe('cq-compat: constraintEx 映射', () => {
+describe('cq-compat-assembly: constraintEx 映射', () => {
   it('Plane → [mate]，两侧为 face 引用', async () => {
-    const out = await cq.constraintEx('A', '>Z', boxShape, 'B', '>Z', boxShape, 'Plane')
+    const out = await constraintEx('A', '>Z', boxShape, 'B', '>Z', boxShape, 'Plane')
     expect(out).toHaveLength(1)
     expect(out[0].type).toBe('mate')
     const m = out[0] as Extract<AssemblyConstraint, { type: 'mate' }>
@@ -69,7 +70,7 @@ describe('cq-compat: constraintEx 映射', () => {
   })
 
   it('Axis → [angle:180]，两侧为 face 引用', async () => {
-    const out = await cq.constraintEx('A', '>Z', boxShape, 'B', '>Z', boxShape, 'Axis')
+    const out = await constraintEx('A', '>Z', boxShape, 'B', '>Z', boxShape, 'Axis')
     expect(out).toHaveLength(1)
     // GOTCHA (2026-09-17)：错误映射是 'align'（同向 val=0 + 面心重合）——CQ 2.8.0 的独立
     // Axis 约束是**纯方向反平行**（axis_cost 缺省 val=pi，无点项），对齐后为 angle:180。
@@ -82,7 +83,7 @@ describe('cq-compat: constraintEx 映射', () => {
   })
 
   it('Point → [coincident]，两侧为 point 引用', async () => {
-    const out = await cq.constraintEx('A', '1,2,3', null, 'B', '4,5,6', null, 'Point')
+    const out = await constraintEx('A', '1,2,3', null, 'B', '4,5,6', null, 'Point')
     expect(out).toHaveLength(1)
     expect(out[0].type).toBe('coincident')
     const c = out[0] as Extract<AssemblyConstraint, { type: 'coincident' }>
@@ -91,7 +92,7 @@ describe('cq-compat: constraintEx 映射', () => {
   })
 
   it('Distance（point-point）→ [distance(value)]', async () => {
-    const out = await cq.constraintEx('A', '0,0,0', null, 'B', '3,4,0', null, 'Distance', 5)
+    const out = await constraintEx('A', '0,0,0', null, 'B', '3,4,0', null, 'Distance', 5)
     expect(out).toHaveLength(1)
     expect(out[0].type).toBe('distance')
     const d = out[0] as Extract<AssemblyConstraint, { type: 'distance' }>
@@ -101,19 +102,19 @@ describe('cq-compat: constraintEx 映射', () => {
   })
 
   it('Fixed → [fixed(part)]', async () => {
-    const out = await cq.constraintEx('BASE', '', null, '', '', null, 'Fixed')
+    const out = await constraintEx('BASE', '', null, '', '', null, 'Fixed')
     expect(out).toHaveLength(1)
     expect(out[0]).toEqual({ type: 'fixed', part: 'BASE' })
   })
 
   it('Revolute → 降级 [fixed(part)] 占位', async () => {
-    const out = await cq.constraintEx('HINGE', '', null, '', '', null, 'Revolute')
+    const out = await constraintEx('HINGE', '', null, '', '', null, 'Revolute')
     expect(out).toHaveLength(1)
     expect(out[0]).toEqual({ type: 'fixed', part: 'HINGE' })
   })
 
   it('Cylinder → [concentric, coincident]，圆边解析出轴', async () => {
-    const out = await cq.constraintEx('A', '', cylShape, 'B', '', cylShape, 'Cylinder')
+    const out = await constraintEx('A', '', cylShape, 'B', '', cylShape, 'Cylinder')
     expect(out).toHaveLength(2)
     expect(out[0].type).toBe('concentric')
     expect(out[1].type).toBe('coincident')
@@ -126,13 +127,13 @@ describe('cq-compat: constraintEx 映射', () => {
   })
 })
 
-describe('cq-compat: constraint() 向后兼容', () => {
+describe('cq-compat-assembly: constraint() 向后兼容', () => {
   it('Plane 走 constraint() 等价于 constraintEx', async () => {
-    const single = await cq.constraint('A', '>Z', boxShape, 'B', '>Z', boxShape, 'Plane')
+    const single = await constraint('A', '>Z', boxShape, 'B', '>Z', boxShape, 'Plane')
     expect(single.type).toBe('mate')
   })
   it('Axis 走 constraint() 等价于 constraintEx（angle:180，非 align）', async () => {
-    const single = await cq.constraint('A', '>Z', boxShape, 'B', '>Z', boxShape, 'Axis')
+    const single = await constraint('A', '>Z', boxShape, 'B', '>Z', boxShape, 'Axis')
     expect(single.type).toBe('angle')
     expect((single as { value?: number }).value).toBe(180)
   })

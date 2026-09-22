@@ -93,17 +93,15 @@ export {
 } from './workplane'
 export type { Workplane as WorkplaneType, RGB, CqLocation } from './workplane'
 
-export { faceRef, pointRef, axisRef, constraint, constraintEx, buildAssembly, Color } from './assembly'
+// Internal helpers consumed by @faicad/cq-compat-assembly (the assembly layer
+// split into its own package; these workplane-internal symbols are re-exported
+// so the assembly package does not duplicate them).
+export { asBrepShape, resolveFaceSelector } from './workplane'
 
-export { compareStepFiles, printCompareReport } from './step-compare'
-export type {
-  CompareOptions, StepCompareResult, MetricResult, TopologyStats,
-} from './step-compare'
-
-export { compareAssemblyFiles, printAssemblyReport } from './assembly-compare'
-export type {
-  AssemblyCompareOptions, AssemblyCompareResult, PartCompareResult,
-} from './assembly-compare'
+// Assembly layer (buildAssembly/constraint/constraintEx/faceRef/pointRef/axisRef/
+// Color + CadQuery solve()/toCompound()/save()) lives in
+// @faicad/cq-compat-assembly. STEP / assembly equivalence comparers (dev-only)
+// live in @faicad/cq-compat-compare.
 
 // Gear primitive layer (raw-handle kernel access for the cq_gears port;
 // see gears.ts header). fai_cq_gears consumes these instead of occt-wasm.

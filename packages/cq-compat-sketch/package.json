@@ -1,20 +1,19 @@
 {
-  "name": "@faicad/cq-compat",
-  "version": "0.13.2",
+  "name": "@faicad/cq-compat-sketch",
+  "version": "0.1.0",
   "type": "module",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://gitcode.com/Faicad/faijs.git"
   },
-  "description": "CadQuery 2.8.0 geometry parity and assembly solver port for faijs",
+  "description": "CadQuery Sketch layer for faijs (constraint-driven parameterized 2D sketches) — Phase 2 landing package, split from @faicad/cq-compat",
   "keywords": [
     "cad",
     "faijs",
     "cadquery",
-    "geometry",
-    "brep",
-    "assembly"
+    "sketch",
+    "2d"
   ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -22,10 +21,6 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    },
-    "./browser": {
-      "types": "./dist/browser.d.ts",
-      "default": "./dist/browser.js"
     }
   },
   "files": [
@@ -36,11 +31,9 @@
   },
   "dependencies": {},
   "peerDependencies": {
-    "@faicad/faijs": "^0.13.0",
-    "occt-wasm": "^3.8.0"
+    "@faicad/faijs": "^0.13.0"
   },
   "devDependencies": {
-    "@faicad/cq-compat-compare": "file:../cq-compat-compare",
     "@faicad/faijs": "file:../core",
     "typescript": "*",
     "vitest": "*"

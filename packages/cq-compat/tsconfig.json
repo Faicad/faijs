@@ -18,7 +18,9 @@
     "baseUrl": ".",
     "paths": {
       "@faicad/faijs": ["../core/src/index.ts"],
-      "@faicad/faijs/*": ["../core/src/*"]
+      "@faicad/faijs/*": ["../core/src/*"],
+      "@faicad/cq-compat-compare": ["../cq-compat-compare/src/index.ts"],
+      "@faicad/cq-compat-compare/*": ["../cq-compat-compare/src/*"]
     }
   },
   "include": ["src/**/*.ts"],

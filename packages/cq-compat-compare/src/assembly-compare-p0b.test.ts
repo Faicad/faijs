@@ -19,8 +19,8 @@ import { asPartName } from '@faicad/faijs/identity'
 import { writeFileSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import * as cq from './index'
-import { compareAssemblyFiles } from './assembly-compare'
+import * as cq from '@faicad/cq-compat'
+import { compareAssemblyFiles } from './index'
 
 let fa: string
 let fb: string

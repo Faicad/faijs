@@ -1,9 +1,8 @@
 /**
- * cq-compat 端到端多成员回归（P3，对齐 assembly-global-solver-plan.md §5/P3）。
+ * @faicad/cq-compat-assembly 端到端多成员回归（P3，对齐 assembly-global-solver-plan.md §5/P3）。
  *
- * 不依赖 CQ 参考基线：纯 faijs 多部件装配，走完整管线
- *   buildAssembly(默认 global) → cad.assembly({solver:'global'}) →
- *   solveAssemblyAndKinematics → solveGlobal
+ * 不依赖 CQ 参考基线：纯 faijs 多部件装配，走完整 CadQuery 语法面
+ *   buildAssembly(默认 global) → solve()（封装底层求解器）→ toCompound()
  * 覆盖三场景：
  *   1) 三部件混合约束：fixed(A) + mate(A>B) + align(A>C)；
  *   2) 圆柱 concentric 全链路：A=fixed 圆柱，B=圆柱 Cylinder 配合（验证
@@ -17,12 +16,12 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { createRuntime, registerOcctBrepEngine } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
-import { getSlot } from '@faicad/faijs/shape'
 import { asPartName } from '@faicad/faijs/identity'
 import type { Shape } from '@faicad/faijs/mesh/types'
 import type { AssemblyConstraint } from '@faicad/faijs/api/assembly/types'
 import type { AssemblyTransform } from '@faicad/faijs/runtime-state'
-import * as cq from './index'
+import * as cq from '@faicad/cq-compat'
+import { buildAssembly, constraintEx } from './index'
 
 let runtime: ReturnType<typeof createRuntime>
 let boxA: Shape
@@ -100,11 +99,11 @@ function closeToV3(a: V3, b: V3, eps = 1e-3): void {
   for (let i = 0; i < 3; i++) expect(a[i], `axis ${i}: ${a[i]} ≈ ${b[i]}`).toBeCloseTo(b[i], 3)
 }
 
-describe('cq-compat: 多成员 global 端到端回归（P3）', () => {
+describe('cq-compat-assembly: 多成员 global 端到端回归（P3）', () => {
   it('三部件混合：fixed(A) + mate(A>B) + Axis(A>C)→angle:180', async () => {
-    const fixedA = await cq.constraintEx('A', '>Z', boxA, 'B', '<Z', boxB, 'Fixed')
-    const mateAB = await cq.constraintEx('A', '>Z', boxA, 'B', '<Z', boxB, 'Plane')
-    const axisAC = await cq.constraintEx('A', '>X', boxA, 'C', '<X', boxC, 'Axis')
+    const fixedA = await constraintEx('A', '>Z', boxA, 'B', '<Z', boxB, 'Fixed')
+    const mateAB = await constraintEx('A', '>Z', boxA, 'B', '<Z', boxB, 'Plane')
+    const axisAC = await constraintEx('A', '>X', boxA, 'C', '<X', boxC, 'Axis')
     expect(fixedA[0].type).toBe('fixed')
     expect(mateAB[0].type).toBe('mate')
     // GOTCHA (2026-09-17)：CQ 独立 Axis 约束 = 纯方向反平行（无点项），映射为 angle:180，
@@ -113,16 +112,12 @@ describe('cq-compat: 多成员 global 端到端回归（P3）', () => {
     expect((axisAC[0] as { value?: number }).value).toBe(180)
 
     const constraints: AssemblyConstraint[] = [...fixedA, ...mateAB, ...axisAC] as AssemblyConstraint[]
-    const compound = cq.buildAssembly('asm3', [
+    const res = buildAssembly('asm3', [
       { name: 'A', shape: boxA },
       { name: 'B', shape: boxB },
       { name: 'C', shape: boxC },
     ], constraints)
-
-    const behavior = getSlot(compound)?.behavior as {
-      solveDetailed: () => { transforms: AssemblyTransform[]; residuals?: number[] }
-    }
-    const res = behavior.solveDetailed()
+    res.solve()
 
     // global 路径：逐约束残差被填（3 约束）
     expect(res.residuals).toBeDefined()
@@ -151,22 +146,18 @@ describe('cq-compat: 多成员 global 端到端回归（P3）', () => {
   })
 
   it('圆柱 concentric 全链路：A=fixed 圆柱，B=圆柱 Cylinder 配合', async () => {
-    const fixedA = await cq.constraintEx('A', '>Z', cylA, 'B', '>Z', cylB, 'Fixed')
-    const cyl = await cq.constraintEx('A', '>Z', cylA, 'B', '>Z', cylB, 'Cylinder')
+    const fixedA = await constraintEx('A', '>Z', cylA, 'B', '>Z', cylB, 'Fixed')
+    const cyl = await constraintEx('A', '>Z', cylA, 'B', '>Z', cylB, 'Cylinder')
     expect(cyl).toHaveLength(2)
     expect(cyl[0].type).toBe('concentric')
     expect(cyl[1].type).toBe('coincident')
 
     const constraints: AssemblyConstraint[] = [...fixedA, ...cyl] as AssemblyConstraint[]
-    const compound = cq.buildAssembly('asmCyl', [
+    const res = buildAssembly('asmCyl', [
       { name: 'A', shape: cylA },
       { name: 'B', shape: cylB },
     ], constraints)
-
-    const behavior = getSlot(compound)?.behavior as {
-      solveDetailed: () => { transforms: AssemblyTransform[]; residuals?: number[] }
-    }
-    const res = behavior.solveDetailed()
+    res.solve()
 
     // 3 约束（fixed + concentric + coincident）各一条残差；fixed 恒为 0
     expect(res.residuals).toBeDefined()
@@ -195,22 +186,18 @@ describe('cq-compat: 多成员 global 端到端回归（P3）', () => {
   })
 
   it('链式三盒 mate：A>B>C 级联（多成员全局求解）', async () => {
-    const mateAB = await cq.constraintEx('A', '>Z', boxA, 'B', '<Z', boxB, 'Plane')
-    const mateBC = await cq.constraintEx('B', '>Z', boxB, 'C', '<Z', boxC, 'Plane')
+    const mateAB = await constraintEx('A', '>Z', boxA, 'B', '<Z', boxB, 'Plane')
+    const mateBC = await constraintEx('B', '>Z', boxB, 'C', '<Z', boxC, 'Plane')
     expect(mateAB[0].type).toBe('mate')
     expect(mateBC[0].type).toBe('mate')
 
     const constraints: AssemblyConstraint[] = [...mateAB, ...mateBC] as AssemblyConstraint[]
-    const compound = cq.buildAssembly('asmChain', [
+    const res = buildAssembly('asmChain', [
       { name: 'A', shape: boxA },
       { name: 'B', shape: boxB },
       { name: 'C', shape: boxC },
     ], constraints)
-
-    const behavior = getSlot(compound)?.behavior as {
-      solveDetailed: () => { transforms: AssemblyTransform[]; residuals?: number[] }
-    }
-    const res = behavior.solveDetailed()
+    res.solve()
 
     expect(res.residuals).toBeDefined()
     expect(res.residuals?.length).toBe(2)

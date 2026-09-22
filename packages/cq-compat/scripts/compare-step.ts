@@ -24,7 +24,7 @@
  *   --json                 Output JSON instead of human-readable report
  */
 
-import { compareStepFiles, printCompareReport } from '../src/step-compare'
+import { compareStepFiles, printCompareReport } from '@faicad/cq-compat-compare'
 
 function parseArgs(argv: string[]): { fileA: string; fileB: string; options: Record<string, unknown> } {
   const args = argv.slice(2)

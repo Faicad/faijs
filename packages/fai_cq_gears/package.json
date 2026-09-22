@@ -36,6 +36,7 @@
     "occt-wasm": "^3.8.0"
   },
   "devDependencies": {
+    "@faicad/cq-compat-compare": "file:../cq-compat-compare",
     "@faicad/faijs": "file:../core",
     "typescript": "*",
     "vitest": "*"

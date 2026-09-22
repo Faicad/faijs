@@ -6,7 +6,7 @@ export default defineConfig({
     alias: [
       // 与 packages/fai_cq_gears 同款：包名解析到活源码，不经 dist
       { find: '@faicad/faijs', replacement: resolve(__dirname, '../core/src') },
-      { find: '@faicad/cq-compat', replacement: resolve(__dirname, '../cq-compat/src') },
+      { find: '@faicad/cq-compat-compare', replacement: resolve(__dirname, '../cq-compat-compare/src') },
       { find: '@faicad/faijs', replacement: resolve(__dirname, '../../src') },
     ],
   },

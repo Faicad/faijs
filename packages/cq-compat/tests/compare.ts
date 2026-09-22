@@ -20,7 +20,7 @@
 import { readdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { join, dirname, basename } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { compareStepFiles, type StepCompareResult } from '../src/step-compare'
+import { compareStepFiles, type StepCompareResult } from '@faicad/cq-compat-compare'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const PKG = join(HERE, '..')

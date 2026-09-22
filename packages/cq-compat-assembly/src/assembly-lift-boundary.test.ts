@@ -1,5 +1,5 @@
 /**
- * cq-compat 装配函数 op 提升边界 —— 回归守卫（缺陷已修复 2026-09-17）
+ * @faicad/cq-compat-assembly 装配函数 op 提升边界 —— 回归守卫（缺陷已修复 2026-09-17）
  *
  * 历史缺陷（实测确证）：`runtime.registerLib('cq', cq, …)` 时 cq-compat 命名空间
  * 无 dual-op → lift=true → compatOp 适配器先 `borrowDeep` 实参，把 faijs Shape
@@ -7,7 +7,7 @@
  * 落到整形状 bbox 兜底 → `cad.bboxMax` 读 `shape.vertices` undefined
  * → `TypeError: reading 'length'`。真实 e2e 在第一条约束（c1）即因此失败。
  *
- * 修复：`asBrepShape`（workplane.ts）入口归一——借用视图经 `fromHandle` 还原为
+ * 修复：`asBrepShape`（主包 workplane）入口归一——借用视图经 `fromHandle` 还原为
  * 真实 Shape（三角化 + BREP 身份槽），按视图对象 WeakMap 缓存；调用点：
  * `resolveFaceSelector` / `constraintEx`(Plane/Axis) / `resolveAxisRef` /
  * `buildAssembly` members。
@@ -17,20 +17,22 @@
  * 路径——因此本文件用 `borrowBrepjsShape` 手工构造借用视图（borrowDeep 对
  * Shape 的产物形态完全一致），直接喂给装配函数，确定性模拟提升路径，无需
  * .fai.js 脚本。真实端到端（runtime.execute → 提升 → 求解 → 与 CQ 2.8.0
- * 参考位姿比对）已随外部案例项目迁出本仓库。
+ * 参考位姿比对）在外部案例项目（mini_lathe）经 CadQuery 语法面
+ * （buildAssembly → solve() → toCompound()）覆盖。
  */
 
 import { describe, it, expect, beforeAll } from 'vitest'
 import { createRuntime, registerOcctBrepEngine } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
-import { isShape, hasBrep, getSlot } from '@faicad/faijs/shape'
+import { isShape, hasBrep } from '@faicad/faijs/shape'
 import { asPartName } from '@faicad/faijs/identity'
 import type { Shape } from '@faicad/faijs/mesh/types'
 import type { CompoundShape } from '@faicad/faijs/shape'
 import type { AssemblyConstraint } from '@faicad/faijs/api/assembly/types'
 import { borrowBrepjsShape } from '@faicad/faijs/api/internal/l3-bridge'
-import { asBrepShape, resolveFaceSelector } from './workplane'
-import * as cq from './index'
+import * as cq from '@faicad/cq-compat'
+import { asBrepShape, resolveFaceSelector } from '@faicad/cq-compat'
+import { buildAssembly, constraint, constraintEx } from './index'
 
 type V3 = [number, number, number]
 
@@ -75,7 +77,7 @@ function faceBOf(c: AssemblyConstraint): { center: V3; normal: V3 } {
   return { center: f.center, normal: f.normal }
 }
 
-describe('cq-compat: 提升边界借用视图归一（回归守卫）', () => {
+describe('cq-compat-assembly: 提升边界借用视图归一（回归守卫）', () => {
   it('asBrepShape：真实 Shape 原样透传；借用视图 → 真实 Shape（WeakMap 缓存）', () => {
     expect(asBrepShape(boxA)).toBe(boxA)
 
@@ -105,7 +107,7 @@ describe('cq-compat: 提升边界借用视图归一（回归守卫）', () => {
     const viewB = borrowBrepjsShape(boxB)
 
     // 历史崩溃路径：cq.constraint("bp",">Z",bp,"mb","<Z",mb,"Plane")
-    const lifted = await cq.constraint('bp', '>Z', viewA as never, 'mb', '<Z', viewB as never, 'Plane')
+    const lifted = await constraint('bp', '>Z', viewA as never, 'mb', '<Z', viewB as never, 'Plane')
     expect(lifted.type).toBe('mate')
     const la = faceOf(lifted)
     const lb = faceBOf(lifted)
@@ -116,7 +118,7 @@ describe('cq-compat: 提升边界借用视图归一（回归守卫）', () => {
     expect(lb.normal).toEqual([0, 0, -1])
 
     // 直接路径（真实 Shape）与提升路径（借用视图）产出等价 face 几何
-    const direct = await cq.constraint('bp', '>Z', boxA, 'mb', '<Z', boxB, 'Plane')
+    const direct = await constraint('bp', '>Z', boxA, 'mb', '<Z', boxB, 'Plane')
     expect(faceOf(direct)).toEqual(la)
     expect(faceBOf(direct)).toEqual(lb)
   })
@@ -124,11 +126,11 @@ describe('cq-compat: 提升边界借用视图归一（回归守卫）', () => {
   it('cq.buildAssembly（视图成员）：children 为真实 Shape 且 global 求解收敛', async () => {
     const viewB = borrowBrepjsShape(boxB)
     // fixed(bp) + mate(bp>mb)：与 p3 测试同型，验证归一成员可被求解器消费
-    const fixed = await cq.constraintEx('bp', '>Z', boxA, 'mb', '<Z', viewB as never, 'Fixed')
-    const mate = await cq.constraintEx('bp', '>Z', boxA, 'mb', '<Z', viewB as never, 'Plane')
+    const fixed = await constraintEx('bp', '>Z', boxA, 'mb', '<Z', viewB as never, 'Fixed')
+    const mate = await constraintEx('bp', '>Z', boxA, 'mb', '<Z', viewB as never, 'Plane')
     const constraints: AssemblyConstraint[] = [...fixed, ...mate] as AssemblyConstraint[]
 
-    const compound = cq.buildAssembly(
+    const asm = buildAssembly(
       'asm',
       [
         { name: 'bp', shape: boxA },
@@ -136,29 +138,24 @@ describe('cq-compat: 提升边界借用视图归一（回归守卫）', () => {
       ],
       constraints,
     )
+    const compound = asm.compound as CompoundShape
     expect(compound.kind).toBe('compound')
     // 提升路径成员归一后 children 必须是真实 Shape（持 mesh + BREP 槽），
     // 否则引擎 applyTransform 顶点烘焙 / STEP 导出断裂
-    const children = (compound as CompoundShape).children
+    const children = compound.children
     expect(children).toHaveLength(2)
     for (const ch of children) {
       expect(isShape(ch)).toBe(true)
       expect(hasBrep(ch)).toBe(true)
     }
 
-    // 归一后的 compound 仍可求解：global 残差收敛，mb 底面贴合 bp 顶面
-    const behavior = getSlot(compound)?.behavior as {
-      solveDetailed: () => {
-        transforms: Array<{ index: number; translation: V3; rotationMatrix: number[]; pivot: V3 }>
-        residuals?: number[]
-      }
-    }
-    const solved = behavior!.solveDetailed()
-    expect(solved.residuals?.length).toBe(2)
-    for (const r of solved.residuals!) expect(r).toBeLessThan(1e-6)
+    // 归一后的装配经 CadQuery 语法面求解：global 残差收敛，mb 底面贴合 bp 顶面
+    asm.solve()
+    expect(asm.residuals?.length).toBe(2)
+    for (const r of asm.residuals!) expect(r).toBeLessThan(1e-6)
     // bp（fixed，index 0）不输出变换；mb（index 1）有变换
-    expect(solved.transforms).toHaveLength(1)
-    const t = solved.transforms.find((x) => x.index === 1)!
+    expect(asm.transforms).toHaveLength(1)
+    const t = asm.transforms.find((x) => x.index === 1)!
     const m = t.rotationMatrix
     const d: V3 = [0 - t.pivot[0], 0 - t.pivot[1], -25 - t.pivot[2]]
     const rx = m[0] * d[0] + m[1] * d[1] + m[2] * d[2]

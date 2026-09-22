@@ -7,7 +7,7 @@
  *  3. 容差标定四步走完（§7.3.1）：实测最坏值 → 分析 → 逐类 override
  *     （`src/testing/compare.ts`）→ 反向守卫（本文件）。
  *
- * 判定入口只有一个：`@faicad/cq-compat` 的 `compareAssemblyFiles`
+ * 判定入口只有一个：`@faicad/cq-compat-compare` 的 `compareAssemblyFiles`
  * （经 `src/testing/compare.ts` 封装）。容差只在 compare.ts 定义，本文件不写死数字。
  *
  * 已知几何事实（A/B 探针实测，2026-09-15）：

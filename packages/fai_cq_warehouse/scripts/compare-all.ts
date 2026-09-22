@@ -17,7 +17,7 @@ import {
   formatCompareLine,
   type CaseCompareInput,
 } from '../src/testing/compare'
-import type { AssemblyCompareResult } from '@faicad/cq-compat'
+import type { AssemblyCompareResult } from '@faicad/cq-compat-compare'
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`)

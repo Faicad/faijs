@@ -1,8 +1,8 @@
 /**
- * testing/compare — 封装 `@faicad/cq-compat` 的 STEP 等价性比对（W3 起用）。
+ * testing/compare — 封装 `@faicad/cq-compat-compare` 的 STEP 等价性比对（W3 起用）。
  *
  * 放在 `src/testing/` 而不是库源码里：比对属**测试期依赖**
- * （`@faicad/cq-compat` 是 devDependency），库运行时不依赖它，
+ * （`@faicad/cq-compat-compare` 是 devDependency），库运行时不依赖它，
  * `tsconfig.build.json` 已排除本目录。
  *
  * 一个事实一个家：**容差只在这里定义**，`src/thread.test.ts` 与
@@ -18,7 +18,7 @@ import {
   compareAssemblyFiles,
   type AssemblyCompareOptions,
   type AssemblyCompareResult,
-} from '@faicad/cq-compat'
+} from '@faicad/cq-compat-compare'
 
 /**
  * 标定后的基线容差（沿用 cq_gears 的标定值，方案 §7.3）。

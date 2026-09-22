@@ -1,15 +1,27 @@
 /**
- * cq-compat assembly helpers — CadQuery Assembly.constrain → faijs cad.assembly.
+ * @faicad/cq-compat-assembly — CadQuery-compatible assembly layer for faijs.
  *
- * Maps CadQuery constraint DSL ("part@faces@>Z[-2]", "Plane"/"Axis") to faijs
- * AssemblyConstraint objects with EntityRef geometry snapshots.
+ * Maps CadQuery Assembly.constrain DSL ("part@faces@>Z[-2]", "Plane"/"Axis") to
+ * faijs AssemblyConstraint objects with EntityRef geometry snapshots, and wraps
+ * the faijs core solver behind the CadQuery grammar:
+ *
+ *   let asm = cq.buildAssembly('name', members, constraints)
+ *   let solved = asm.solve()          // CQ Assembly.solve()：封装底层求解器
+ *   let result = solved.toCompound()  // CQ Assembly.toCompound()
+ *   cq.save(asm, 'out.step')          // CQ Assembly.save()（Node 侧，见 save.ts）
+ *
+ * Consumers MUST use the CadQuery solve-related API (solve()/toCompound()/save())
+ * and MUST NOT probe core internals (e.g. getSlot(compound).behavior.solveDetailed)
+ * — the point of this package is to encapsulate the solver behind the CQ grammar.
  *
  * Constraint mapping (verified against faijs api/assembly/lower.ts):
  * - "Plane" → mate (face-to-face: normal reversed + center coincident)
- * - "Axis"  → align (normal same direction + center coincident; plane face refs
- *             are encoded as axis via axisFromFace — concentric would reject
- *             plane faces because faceGeometryToSolverEntity maps plane→plane
- *             entity, not axis)
+ * - "Axis"  → angle:180 (pure-direction anti-parallel, CQ 2.8.0 solver.py semantics)
+ * - "Point" → coincident (selector is literal "x,y,z")
+ * - "Cylinder" → [concentric, coincident] (circular-edge axis resolution)
+ * - "Distance" → distance(value) (point-point or plane-plane)
+ * - "Fixed" → fixed
+ * - "Revolute" → fixed (placeholder until joints mechanism lands)
  */
 
 import { createApiNamespace } from '@faicad/faijs/api/api-namespace'
@@ -25,8 +37,9 @@ import { applyTransform } from '@faicad/faijs/mesh/rigid-transform'
 import { applyTransformBrep } from '@faicad/faijs/brep/brep-ops'
 import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
 import type { BrepHandle } from '@faicad/faijs/brep/engine/types'
-import type { RGB } from './workplane'
-import { resolveFaceSelector, asBrepShape } from './workplane'
+import type { AssemblyTransform } from '@faicad/faijs/runtime-state'
+import type { RGB } from '@faicad/cq-compat'
+import { resolveFaceSelector, asBrepShape } from '@faicad/cq-compat'
 
 const cad = createApiNamespace() as Record<string, (...args: unknown[]) => Promise<unknown>>
 
@@ -135,13 +148,13 @@ async function resolveAxisRef(part: string, shape: Shape): Promise<EntityRef> {
   shape = asBrepShape(shape) // 提升边界：实参可能是借用视图
   const handle = brepOf(shape)
   const kernel = getBackends().kernel.brep as BrepEngineApi | null
-  if (!handle || !kernel) throw new Error(`[cq-compat] axisRef: BREP unavailable for part "${part}"`)
+  if (!handle || !kernel) throw new Error(`[cq-compat-assembly] axisRef: BREP unavailable for part "${part}"`)
   // 整形状一次 wireframe，按 edgeGroups 逐边取折线区间。
   // 依据 topologyExt.ts：wireframe() 与 getSubShapes 同用 TopExp::MapShapes +
   // IndexedMap，故 edge 枚举顺序一致——第 i 条 edge 对应 edgeGroups[i*3..]。
   const wf = kernel.wireframe(handle as never, 0.01)
   const groups = wf.edgeGroups
-  if (!groups || groups.length < 3) throw new Error(`[cq-compat] axisRef: wireframe returned no edge groups for part "${part}"`)
+  if (!groups || groups.length < 3) throw new Error(`[cq-compat-assembly] axisRef: wireframe returned no edge groups for part "${part}"`)
   const edgeCount = groups.length / 3
   for (let ei = 0; ei < edgeCount; ei++) {
     const start = groups[ei * 3]
@@ -155,7 +168,7 @@ async function resolveAxisRef(part: string, shape: Shape): Promise<EntityRef> {
     const axis = fitCircleAxis(pts)
     if (axis) return axisRef(part, axis.origin, axis.direction)
   }
-  throw new Error(`[cq-compat] axisRef: no circular edge found in part "${part}"`)
+  throw new Error(`[cq-compat-assembly] axisRef: no circular edge found in part "${part}"`)
 }
 
 /** 对一组（应共面、闭合）的 XYZ 点拟合圆轴，返回原点(圆心投影)与方向(法向)，非圆/退化返回 null。 */
@@ -334,20 +347,75 @@ export async function constraintEx(
   }
 }
 
+/** 装配成员（CQ Assembly.objects 语义）。 */
+export interface CqAssemblyMember {
+  name: string
+  shape: Shape
+  color?: RGB
+}
+
 /**
- * buildAssembly
+ * CQ 风格装配对象（CQ Assembly 兼容面）。
+ *
+ * buildAssembly 返回本对象；求解封装底层 faijs 求解器，消费方只允许经
+ * solve()/toCompound()/save() 访问——禁止直调 core 内部
+ * （getSlot(compound).behavior.solveDetailed 等）。
+ */
+export interface CqAssembly {
+  /** 装配名。 */
+  name: string
+  /** 成员表（name + shape；solve() 后 shape 为已烘焙位姿）。 */
+  members: CqAssemblyMember[]
+  /** 求解器选择：'global'（默认，CQ 语义）| 'chain'（legacy 链式）。 */
+  solver: 'chain' | 'global'
+  /** solve() 后填充：逐约束终态残差（global 路径；chain 路径不填）。 */
+  residuals?: number[]
+  /** 未支持约束的自由度合计（诊断量；收敛时为 0）。 */
+  dof: number
+  /** 是否全部约束可解。 */
+  converged: boolean
+  /** 无法求解的约束明细（entity 类型不匹配 / 参考不可达）。 */
+  unsupported: string[]
+  /** solve() 后填充：per-member 终态变换（index = 成员下标；恒等位姿不输出）。 */
+  transforms: AssemblyTransform[]
+  /** 装配体（compound；solve() 后成员位姿已烘焙进 children）。 */
+  compound: CompoundShape
+  /** 是否已调用 solve()。 */
+  solved: boolean
+  /**
+   * 求解装配（CQ Assembly.solve()）。封装底层求解器：
+   * 求解 → 位姿烘焙进成员（mesh 顶点原地变换 + BREP slot.solid 刚体变换）→
+   * 记录 residuals/dof/converged/unsupported/transforms → 返回自身。
+   * 幂等：重复调用直接返回（成员已烘焙，避免双重变换）。
+   */
+  solve(): CqAssembly
+  /** 取已求解装配体（CQ Assembly.toCompound()）。 */
+  toCompound(): CompoundShape
+}
+
+/** solveDetailed 返回面（core AssemblySolveResult 的运行时形态；residuals 仅 global 路径填）。 */
+type AssemblySolveResultLike = {
+  transforms: AssemblyTransform[]
+  dof: number
+  converged: boolean
+  unsupported: string[]
+  residuals?: number[]
+}
+
+/**
+ * buildAssembly — 构造 CQ 风格装配对象（不求解；位姿求解在 solve()）。
  * @param name - string
  * @param members - Array<{ name: string; shape: Shape; color?: RGB }>
  * @param constraints - AssemblyConstraint[]
- * @param opts - optional: { solver?: 'chain' | 'global' }；cq-compat = CadQuery 兼容，默认 'global'
- * @returns CompoundShape
+ * @param opts - optional: { solver?: 'chain' | 'global' }；默认 'global'（CQ 语义）
+ * @returns CqAssembly
  */
 export function buildAssembly(
   name: string,
   members: Array<{ name: string; shape: Shape; color?: RGB }>,
   constraints: AssemblyConstraint[],
   opts?: { solver?: 'chain' | 'global' },
-): CompoundShape {
+): CqAssembly {
   // 提升边界归一：经 runtime.execute 时 members[].shape 是借用 brepjs 视图
   // （borrowDeep 产物），不是 faijs Shape。compound 的 children 必须持有 mesh
   // （引擎 applyTransform 做顶点烘焙）+ BREP 身份槽（STEP 导出/刚体变换读
@@ -359,8 +427,8 @@ export function buildAssembly(
     if (m.color) memberColors[m.name] = m.color
   }
 
-  // cq-compat 是 CadQuery 兼容层：默认走 global 求解器（语义对齐 CQ solver.py）。
-  // 需要旧 chain 行为时可显式 opts.solver='chain'。
+  // cq-compat-assembly 是 CadQuery 兼容层：默认走 global 求解器（语义对齐 CQ
+  // solver.py）。需要旧 chain 行为时可显式 opts.solver='chain'。
   const solver = opts?.solver ?? 'global'
 
   const compound = cad.assembly({
@@ -372,55 +440,89 @@ export function buildAssembly(
     solver,
   }) as unknown as CompoundShape
 
-  // CadQuery's Assembly.save() solves constraints implicitly before export —
-  // mirror that here so CLI STEP export sees the solved part poses.
-  // GOTCHA (2026-09-18)：引擎只有 direct-executor 路径消费 pending transforms
-  // （applyPendingAssemblyTransforms）；CLI brep 模块路径无人消费 → 登记 pending
-  // 也没用，成员停在恒等位姿。因此这里直接 solveDetailed() 拿到 transforms，
-  // 在库侧把位姿烘焙进成员：mesh 顶点原地变换 + BREP slot.solid 刚体变换
-  // （与 direct-executor 同语义）。behavior.solve/compound.solve 的 pending 登记
-  // 保留（direct 路径仍走引擎烘焙），但本函数不再依赖它。
-  const behavior = getSlot(compound)?.behavior as
-    | { memberNames?: string[]; solveDetailed?: () => { transforms: Array<{ index: number; quaternion: [number, number, number, number]; pivot: [number, number, number]; translation: [number, number, number]; rotationMatrix: number[] }> } }
-    | undefined
-  const transforms = behavior?.solveDetailed?.().transforms ?? []
-  // CQ 语义对齐：无约束成员（如 assemb.py 里仅 .add 的 slide_top）在 CQ 求解器
-  // 中固定在初始位姿（不被拉入最小化）；我方 global 求解器会给自由成员漂移解，
-  // 烘焙前按「是否被约束引用」过滤，未引用成员保持恒等。
-  const referenced = new Set<string>()
-  for (const c of constraints) {
-    // StructuralConstraint 形态是 { a: EntityRef, b: EntityRef }（EntityRef.part
-    // = 成员名）；cq-compat 的 constraint() 只产出该形态。FaceMateConstraint 无
-    // a/b，用 in 收窄跳过。
-    if ('a' in c && 'b' in c) {
-      for (const ref of [c.a, c.b] as Array<{ part?: string }>) {
-        if (ref && typeof ref.part === 'string') referenced.add(ref.part)
+  const asm: CqAssembly = {
+    name,
+    members: members.map((m, i) => ({ name: m.name, shape: shapes[i], color: m.color })),
+    solver,
+    residuals: undefined,
+    dof: 0,
+    converged: true,
+    unsupported: [],
+    transforms: [],
+    compound,
+    solved: false,
+    solve() {
+      // 幂等守卫：成员位姿已在首次 solve() 烘焙，重复求解会二次变换。
+      if (this.solved) return this
+
+      // CadQuery's Assembly.solve() solves constraints before export — the faijs
+      // solver itself is wrapped here so consumers never touch core internals.
+      // GOTCHA (2026-09-18)：引擎只有 direct-executor 路径消费 pending transforms
+      // （applyPendingAssemblyTransforms）；CLI brep 模块路径无人消费 → 登记 pending
+      // 也没用，成员停在恒等位姿。因此这里直接 solveDetailed() 拿到 transforms，
+      // 在库侧把位姿烘焙进成员：mesh 顶点原地变换 + BREP slot.solid 刚体变换
+      // （与 direct-executor 同语义）。behavior.solve/compound.solve 的 pending 登记
+      // 保留（direct 路径仍走引擎烘焙），但本封装不再依赖它。
+      const behavior = getSlot(this.compound)?.behavior as
+        | { memberNames?: string[]; solveDetailed?: () => AssemblySolveResultLike }
+        | undefined
+      const result: AssemblySolveResultLike = behavior?.solveDetailed?.() ?? { transforms: [], dof: 0, converged: true, unsupported: [] }
+      this.transforms = result.transforms
+      this.residuals = result.residuals
+      this.dof = result.dof
+      this.converged = result.converged
+      this.unsupported = result.unsupported
+      if (!result.converged) {
+        throw new Error(
+          `[cq-compat-assembly] solve() did not converge (dof=${result.dof}); unsupported: ` +
+            (result.unsupported.length > 0 ? result.unsupported.join(', ') : '(no detail)'),
+        )
       }
-    }
-  }
-  const baked = transforms.filter((t) => referenced.has(behavior?.memberNames?.[t.index] ?? ''))
-  if (baked.length > 0) {
-    const kernel = getBackends().kernel.brep as BrepEngineApi | null
-    const children = (compound as unknown as { children?: Shape[] }).children ?? []
-    for (const t of baked) {
-      const member = children[t.index]
-      if (!member || typeof member !== 'object') continue
-      // mesh 顶点原地变换（保留对象引用，ctx 与 compound.children 同步看到变更）
-      Object.assign(member, applyTransform(member, t.quaternion, t.pivot, t.translation, t.rotationMatrix))
-      // BREP 刚体变换：新 solid 写回身份槽（STEP 导出读 slot.solid）。
-      // GOTCHA：旧 solid 句柄**不能 release**——solidCache（partName 键）仍指向
-      // 它，库侧无法同步该缓存（setSolidHook 是宿主注入），release 后拓扑构建
-      // 读到悬空句柄报 INVALID_SHAPE_ID；保留旧句柄仅浪费少量内存。
-      if (kernel) {
-        const solid = brepOf(member) as BrepHandle | undefined
-        if (solid) {
-          const transformed = applyTransformBrep(kernel, solid, t.quaternion, t.pivot, t.translation)
-          ensureSlot(member).solid = transformed
+
+      // CQ 语义对齐：无约束成员（如 assemb.py 里仅 .add 的 slide_top）在 CQ 求解器
+      // 中固定在初始位姿（不被拉入最小化）；我方 global 求解器会给自由成员漂移解，
+      // 烘焙前按「是否被约束引用」过滤，未引用成员保持恒等。
+      const referenced = new Set<string>()
+      for (const c of constraints) {
+        // StructuralConstraint 形态是 { a: EntityRef, b: EntityRef }（EntityRef.part
+        // = 成员名）；cq-compat 的 constraint() 只产出该形态。FaceMateConstraint 无
+        // a/b，用 in 收窄跳过。
+        if ('a' in c && 'b' in c) {
+          for (const ref of [c.a, c.b] as Array<{ part?: string }>) {
+            if (ref && typeof ref.part === 'string') referenced.add(ref.part)
+          }
         }
       }
-    }
+      const baked = result.transforms.filter((t) => referenced.has(behavior?.memberNames?.[t.index] ?? ''))
+      if (baked.length > 0) {
+        const kernel = getBackends().kernel.brep as BrepEngineApi | null
+        const children = (this.compound as unknown as { children?: Shape[] }).children ?? []
+        for (const t of baked) {
+          const member = children[t.index]
+          if (!member || typeof member !== 'object') continue
+          // mesh 顶点原地变换（保留对象引用，ctx 与 compound.children 同步看到变更）
+          Object.assign(member, applyTransform(member, t.quaternion, t.pivot, t.translation, t.rotationMatrix))
+          // BREP 刚体变换：新 solid 写回身份槽（STEP 导出读 slot.solid）。
+          // GOTCHA：旧 solid 句柄**不能 release**——solidCache（partName 键）仍指向
+          // 它，库侧无法同步该缓存（setSolidHook 是宿主注入），release 后拓扑构建
+          // 读到悬空句柄报 INVALID_SHAPE_ID；保留旧句柄仅浪费少量内存。
+          if (kernel) {
+            const solid = brepOf(member) as BrepHandle | undefined
+            if (solid) {
+              const transformed = applyTransformBrep(kernel, solid, t.quaternion, t.pivot, t.translation)
+              ensureSlot(member).solid = transformed
+            }
+          }
+        }
+      }
+      this.solved = true
+      return this
+    },
+    toCompound() {
+      return this.compound
+    },
   }
-  return compound
+  return asm
 }
 
 /**

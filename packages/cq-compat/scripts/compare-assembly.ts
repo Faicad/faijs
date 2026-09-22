@@ -13,7 +13,7 @@
  *   --json                Output JSON
  */
 
-import { compareAssemblyFiles, printAssemblyReport } from '../src/assembly-compare'
+import { compareAssemblyFiles, printAssemblyReport } from '@faicad/cq-compat-compare'
 
 function parseArgs(argv: string[]) {
   const args = argv.slice(2)
