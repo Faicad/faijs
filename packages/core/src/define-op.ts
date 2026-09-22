@@ -31,7 +31,10 @@ import {
   CONTRACT_VERSION,
   BrepUnsupportedError,
   MeshUnsupportedError,
+  getCurrentStmt,
+  nameOf,
 } from './runtime-state'
+import { asStmtId, type PartName } from './identity'
 import { isShape, solid, fromBrep } from './shape'
 import { isMeshShape } from './mesh/types'
 import { fromHandle, meshHandle, isOcctHandle } from './brep/handle-bridge'
@@ -39,7 +42,7 @@ import { positionalToObject, type SlotMap } from './api/internal/dual-form-args'
 import { toOpFailure, unwrapResult, OpError } from './api/internal/result-unwrap'
 import type { Shape } from './mesh/types'
 import type { BrepHandle } from './brep/engine/types'
-import type { Provenance } from './topology/naming/lineage'
+import { type Provenance, runtimeLineage } from './topology/naming/lineage'
 
 /** Raw mesh data (structurally identical to Shape; mesh impls return it). */
 export type MeshData = { positions: Float32Array; indices: Uint32Array }
@@ -61,6 +64,15 @@ export type MeshData = { positions: Float32Array; indices: Uint32Array }
 export function isGeometryInput(v: unknown): v is Shape {
   return isShape(v) || isMeshShape(v)
 }
+
+/**
+ * §1.4 registration guard: the set of StmtIds whose top-level `wrapped` is
+ * currently registering a lineage node. Nested op calls (an impl invoking
+ * another op / itself) share the same `getCurrentStmt()` anchor and are skipped
+ * so they don't trip N3 (E_TOPO_DUPLICATE_STMT) with identical content. C1
+ * (single live runtime) means at most one statement registers at a time.
+ */
+const registeringStmts = new Set<string>()
 
 /** Product of a mesh implementation: raw mesh data, a wrapped Shape, or (with `outputs`) a record of named products. */
 export type MeshProduct = MeshData | Shape | Record<string, MeshData | Shape>
@@ -282,6 +294,46 @@ export function defineOp<A extends unknown[]>(
     // Compat: bare ManifoldMeshData args (host geoToManifoldMesh output) are
     // geometry inputs too — old form passed [input] so they reached the mesh path.
     const inputs = (callArgs as unknown[]).filter(isGeometryInput) as Shape[]
+    // §1.4 lineage registration (plan §4.3): every top-level dual-op execution
+    // records a blood-line node via `runtimeLineage.register`, which enforces
+    // N1 (untracked input → throw, never default to chain-root) / N2
+    // (stmt↔anchor mismatch) / N3 (conflicting re-register). The graph is
+    // cleared per program execution (direct-executor runCode) and C1 guarantees
+    // a single live runtime, so the anchor is authoritative inside a statement.
+    // Skip when no anchor is set (the op was invoked outside a statement
+    // context — there is no lineage to record, and N2 must not fire on a context
+    // that legitimately has none).
+    //
+    // Guard: a statement executes exactly one *top-level* op; an op's
+    // implementation may invoke other ops (or itself) internally, and those
+    // nested calls share the same `getCurrentStmt()` anchor. They are
+    // implementation details, not statements, so they must NOT register a second
+    // node under the same StmtId — that would trip N3 (E_TOPO_DUPLICATE_STMT)
+    // on identical content. Only the outermost `wrapped` for the current
+    // statement registers; the flag below stays set for the *entire* statement
+    // execution (including the awaited impl), so nested calls see it and skip.
+    const anchor = getCurrentStmt()
+    const isOuter = anchor != null && !registeringStmts.has(anchor.id)
+    if (isOuter) registeringStmts.add(anchor.id)
+    try {
+      if (isOuter && anchor) {
+        runtimeLineage.register(
+          {
+            stmt: asStmtId(anchor.id),
+            op: opLabel(meta),
+            inputs,
+            outputs: anchor.outputs as [PartName, ...PartName[]],
+            provenance: meta.naming,
+          },
+          {
+            nameOf,
+            currentStmt: () => {
+              const a = getCurrentStmt()
+              return a ? { id: a.id } : undefined
+            },
+          },
+        )
+      }
     // D5 capability routing: feed the first missing capability to dispatchPath
     // (auto degrades to mesh, brep mode errors). Matched as a concrete name
     // against the engine's declaration set (family booleans + its `evolution`
@@ -294,6 +346,9 @@ export function defineOp<A extends unknown[]>(
     }
     const m = await runImpl(meta, decl.mesh as unknown as ((...a: unknown[]) => unknown) | undefined, callArgs)
     return meta.outputs ? wrapByKeys(m, meta.outputs, wrapMeshOne) : wrapMeshOne(m)
+    } finally {
+      if (isOuter) registeringStmts.delete(anchor.id)
+    }
   }
 
   Object.defineProperty(wrapped, DUAL_OP_META, { value: meta, enumerable: false })

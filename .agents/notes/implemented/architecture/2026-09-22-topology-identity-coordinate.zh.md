@@ -67,12 +67,26 @@
   线形态，故 `../3d_editor` 必须迁移（`migrateTopoRef`）并更新其两处断言。
   这是跨仓库项，仍未关闭。
 
-## 已知未决项（如实记录，不掩盖）
+## 血缘接线——已解决（§1.4/1.5）
 
 计划里的 `registerStep` 血缘图（一个登记函数 + `wrapBrepOne` 与 `compatOp`
-边界两个调用点，§4.3）**被推迟到 Phase 2.3 批次、至今未接线**——
-`registerStep` 调用点为 0。身份当前经角色表 + `PartNaming` 行解析，这正是
-G3/G1 通过的原因；但 N1/N2/N3 守卫（输入 `nameOf` 查不到 → 抛错、无锚点 →
-抛错、重复 `StmtId` → 抛错）因此**在运行期不生效**。要完全满足 G2/G6（无
-静默错名）必须把它们接上；在此之前，静默错名无法被计划为它设计的机制捕获。
-解析可用，但安全网没挂上。
+边界两个调用点，§4.3）**曾被推迟到 Phase 2.3 批次**，现在**已接线**：
+`registerStep` 即 `LineageGraph.register`，运行期单例即 `runtimeLineage`。
+
+- **接线点唯一**：落在 `define-op.wrapped`（`runtimeLineage.register`）。因
+  `compatOp` 建在 `defineOp` **之上**（非并行第二路径），生成投影与手写 op
+  共用这一处——`compatOp` 边界无需第二个调用点。
+- **按执行清图**：`direct-executor.runCode` 起始清零，故每次全量重放
+  （`execute` / `append` / `update`）自洽，N3 不会因"上轮的同名语句"误报。
+- **嵌套调用**（实现内部再调 op 或自身，共享同一 `getCurrentStmt()` 锚点）
+  由模块级 `registeringStmts` 守卫跳过；该标记必须**贯穿完整 await 实现期**——
+  首版在 `register` 后同步删除 ⇒ 嵌套调用仍撞 N3（9 例红）。
+- N1/N2/N3 现在**运行期生效**。载体：
+  `packages/tests/faijs/topology-naming/lineage-wiring.test.ts`（图被填充 +
+  重放幂等）。
+
+**本次接线暴露的一处计划缺陷**：§1.3 的附加守卫 `E_TOPO_PART_REDEFINED` 误杀
+**重赋值**（`part0 = cad.translate(part0, …)`），使
+`api/dual-form-contract.test.ts` 回退 8 例。已**废除**：身份是
+`(StmtId, RoleName)`，`PartName` 只是反查索引，故重绑同名**最后写者胜**
+（且 `stmtOf` / `nodeOfPart` 本就无生产消费方）。

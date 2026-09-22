@@ -154,12 +154,8 @@ export interface LineageDeps {
 
 // ── 错误 ──
 
-/** 血缘登记错误码（三条规则 + 一条 PartName 复用守卫）。 */
-export type LineageErrorCode =
-  | 'E_TOPO_UNTRACKED_INPUT'
-  | 'E_TOPO_NO_ANCHOR'
-  | 'E_TOPO_DUPLICATE_STMT'
-  | 'E_TOPO_PART_REDEFINED'
+/** 血缘登记错误码（三条规则 N1/N2/N3）。 */
+export type LineageErrorCode = 'E_TOPO_UNTRACKED_INPUT' | 'E_TOPO_NO_ANCHOR' | 'E_TOPO_DUPLICATE_STMT'
 
 /** 血缘登记失败。带稳定错误码，禁止静默兜底。 */
 export class LineageError extends Error {
@@ -278,8 +274,7 @@ export class LineageGraph {
    * @param draft - the statement's lineage facts (inputs still as Shape handles).
    * @param deps - the injected readers (`nameOf` / `currentStmt`).
    * @returns the stored node.
-   * @throws LineageError on N1 (untracked input), N2 (anchor mismatch), N3 (conflicting re-register),
-   *   or on a PartName being redefined by another statement.
+   * @throws LineageError on N1 (untracked input), N2 (anchor mismatch), or N3 (conflicting re-register).
    */
   register(draft: LineageDraft, deps: LineageDeps): LineageNode {
     const stmt = draft.stmt
@@ -338,18 +333,16 @@ export class LineageGraph {
       )
     }
 
-    // PartName → StmtId：一个名字只能属于一条语句，否则反查（从名字找语句）有歧义。
-    for (const out of node.outputs) {
-      const owner = this.partOwner.get(out)
-      if (owner !== undefined && owner !== stmt) {
-        throw new LineageError(
-          'E_TOPO_PART_REDEFINED',
-          `${out} 已由 ${owner} 产出，${stmt} 又声明产出它——` +
-            `PartName 反查会变成"取哪一条"的歧义，必须显式改名`,
-          stmt,
-        )
-      }
-    }
+    // PartName → StmtId：反查索引（名字 → 语句）。**最后写者胜**。
+    //
+    // 重赋值（`part0 = cad.translate(part0, …)`）是 faijs 的合法惯用法：后一条语句
+    // 重新绑定同名 PartName，旧绑定随之失效。身份载体是 `(StmtId, RoleName)`，
+    // PartName 只是反查索引，故覆盖更新即可——不报错。
+    //
+    // ⚠️ 曾经这里有一条 `E_TOPO_PART_REDEFINED` 守卫（把"两名同出"一律判为
+    // "反查歧义"）。§1.4/1.5 接线后它当场误杀了重赋值（8 例回退，见
+    // `api/dual-form-contract.test.ts`），已废除：线性程序里"两名同出"就是重赋值，
+    // 是合法的；而当两条语句真的同时存活并引用时，"当前绑定"语义本就该取最新。
 
     // ⚠️ 幂等重登记必须**保留已补挂的 evolution**：既然 N3 刻意不比较它，
     // 那它就不是"本次登记的输入"，重登记时用不带 evolution 的新对象覆盖

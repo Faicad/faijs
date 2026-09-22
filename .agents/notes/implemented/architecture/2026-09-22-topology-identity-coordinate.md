@@ -80,14 +80,31 @@ Face identity is the **causal coordinate `(StmtId, RoleName)`**:
   every stored `TopoRef`, so `../3d_editor` must migrate (`migrateTopoRef`) and
   update its two assertions. This is cross-repo and still open.
 
-## Known open item (recorded honestly, not hidden)
+## Lineage wiring — resolved (§1.4/1.5)
 
 The plan's `registerStep` lineage graph (one register function + two call
 sites in `wrapBrepOne` and the `compatOp` boundary, §4.3) was **deferred to the
-Phase 2.3 batch and is not yet wired** — `registerStep` has zero call sites.
-Identity currently resolves through the role table + `PartNaming` rows, which
-is why G3/G1 pass, but the N1/N2/N3 guards (input `nameOf` miss → throw, no
-anchor → throw, duplicate `StmtId` → throw) are therefore **inactive at
-runtime**. They should be wired to fully satisfy G2/G6 (no silent mis-naming);
-until then a silent mis-name cannot be caught by the mechanism the plan
-designed for it. Resolution works, but the safety net is not attached.
+Phase 2.3 batch**; it is now **wired**. `registerStep` is `LineageGraph.register`
+and the runtime singleton is `runtimeLineage`:
+
+- The single register site lives in `define-op.wrapped`
+  (`runtimeLineage.register`). Because `compatOp` is built **on top of**
+  `defineOp` (not a parallel second path), generated projections and hand-written
+  ops share that one site — no second call site is needed at the compat boundary.
+- The graph is cleared at the start of `direct-executor.runCode`, so every full
+  replay (`execute` / `append` / `update`) is self-contained and N3 never misfires
+  on an edited statement from a prior run.
+- Nested op calls (an impl invoking another op, or itself, under the same
+  `getCurrentStmt()` anchor) are skipped via a module-level `registeringStmts`
+  guard that must stay set for the **entire awaited impl** — an earlier version
+  that cleared the flag synchronously after `register` still tripped N3 (9 red).
+- N1/N2/N3 are now **active at runtime**. Carrier:
+  `packages/tests/faijs/topology-naming/lineage-wiring.test.ts` (graph populated
+  + replay idempotent).
+
+**A plan defect this wiring exposed**: the extra `E_TOPO_PART_REDEFINED` guard
+(§1.3) rejected legitimate **reassignment** (`part0 = cad.translate(part0, …)`),
+regressing `api/dual-form-contract.test.ts` by 8. It was **removed**: identity is
+`(StmtId, RoleName)`, a `PartName` is only a reverse-lookup index, so rebinding a
+name is last-writer-wins (`stmtOf` / `nodeOfPart` have no production consumers
+anyway).

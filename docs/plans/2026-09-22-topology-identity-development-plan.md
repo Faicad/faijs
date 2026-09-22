@@ -522,8 +522,8 @@ resolve(identity, atPart):
 | 1.1 | 新建 `RoleName` + `parseRoleName`/`formatRoleName` + round-trip 测试 | `topology/naming/role-name.ts`（新） | **已完成** |
 | 1.2 | 扩展 `FaceIdentity` / `TopoRefV2` 类型（原地，不新建目录） | `topology/naming/types.ts` | **已完成**（只加 `FaceIdentity`；`TopoRefV2` 不另立并行类型族，见落地记录） |
 | 1.3 | 新建登记函数 `registerStep` + 两张表（`lineage: Map<StmtId, LineageNode>`、`partToStmt: Map<PartName, StmtId>`）+ N1/N2/N3 校验 | `topology/naming/lineage.ts`（新） | **已完成** |
-| 1.4 | **调用点 A**：`wrapBrepOne` 登记 | `define-op.ts:274-281` | **阻塞**（依赖 2.1/2.3 的 `naming` 声明，见落地记录；改为与 2.3/2.4 同批执行） |
-| 1.5 | **调用点 B**：`compatOp` 边界登记 | `api/internal/compat-op.ts` | **阻塞**（同上） |
+| 1.4 | **调用点 A**：`define-op.wrapped` 登记 | `define-op.ts` | **已完成**（绑定 `runtimeLineage.register`；`runCode` 起始 `clear()`；嵌套调用用 `registeringStmts` 守卫。见 §7.2 第三批记录） |
+| 1.5 | **调用点 B**：`compatOp` 边界登记 | `api/internal/compat-op.ts` | **已完成（经委托）**：`compatOp` 建在 `defineOp` 之上（`compat-op.ts` 头注「built on top of defineOp，非并行第二实现路径」）⇒ 调用点 A 已覆盖生成投影，无需第二处 register |
 | 1.6 | `FaceNaming.origin: PartName` → `StmtId`（S1） | `topology/naming/types.ts:180` | 待做 |
 | 1.7 | `role: string` → `RoleName`，删 `box:`/`extrude:` 前缀 | 同上 + `roles.ts:102-105` | 待做 |
 | 1.8 | 删 mesh 伪拓扑：`assignPrimitiveFaceRoles` + `role:''` 两处兜底（D6/S4） | `build-naming.ts:90-106`、`:127`、`:134` | 待做 |
@@ -577,8 +577,13 @@ resolve(identity, atPart):
 3. **所有校验在写入之前完成**（原子性）。每个失败用例都额外断言"两张表没被污染"——
    半条记录比没有记录更难查。
 
-另加一条计划未列的守卫 **`E_TOPO_PART_REDEFINED`**：一个 `PartName` 被两条语句声明产出时
-反查（名字 → 语句）会变成"取哪一条"的歧义。它与 N1 同属"静默产生错身份"这一类，故一并堵。
+**~~另加一条计划未列的守卫 `E_TOPO_PART_REDEFINED`~~（已废除，见 §7.2）**：一个 `PartName`
+被两条语句声明产出时，曾判为"反查歧义"并抛错。**§1.4/1.5 接线后它当场误杀重赋值**
+（`part0 = cad.translate(part0, …)`，8 例回退）——线性程序里"两名同出"正是重赋值，是官方
+支持、既有测试（`api/dual-form-contract.test.ts`）在用的合法惯用法。已改为**最后写者胜**：
+`partOwner` 覆盖为最新语句；身份仍由 `(StmtId, RoleName)` 承载，PartName 只是反查索引
+（且 `stmtOf`/`nodeOfPart` 当前零生产消费方）。错误码 `E_TOPO_PART_REDEFINED` 一并从
+`LineageErrorCode` 联合中删除。
 **provenance 载荷的合法性是编译期问题**（§4.6），运行期**不重复校验**；
 测试里显式写明这一点，避免读的人以为存在一道运行期兜底。
 
@@ -1002,9 +1007,17 @@ occt 的 12 项判定为「真」则由 `evolution-bindings.test.ts` 的**真调
 - **5.5 Agent Note**：`.agents/notes/implemented/architecture/2026-09-22-topology-identity-coordinate.md`（+ 中/英 + i18n）记录 (StmtId, RoleName) 决策、否决项、后果与已知未决项。
 - **5.1 / 5.2 / 5.3**：待做（删除清单剩余项、roleTable 类型化、C1 全仓确认）。
 
-**§6 总验收现状**：G3 6/6 ✅、G1 0 未命名 ✅、G4 漏声明 2 测试（生成期 + 编译期）✅、C1 并发守卫 ✅、mesh E_TOPO_MESH_UNSUPPORTED ✅、D10 8 条未接线不做 ✅、§7 测定项 6 项回填 ✅。**仍未关闭（多为跨仓库 / 生成器）**：
+**Phase 1 §1.4/1.5 血缘接线（第三批，补齐 Phase 1 缺口）已落地**：
 
-- **1.4/1.5 `registerStep` 血缘图未接线**：`registerStep` 调用点为 0，身份经角色表 + PartNaming 解析（故 G3/G1 通过），但 N1/N2/N3 守卫运行期不生效——G2/G6 的「无静默错名」未完全满足。建议作为收口项接上（详见 Agent Note）。
+- **接线点唯一**：登记落在 `define-op.wrapped`（`runtimeLineage.register`）。因 `compatOp` 建在 `defineOp` 之上（`compat-op.ts` 头注：非并行第二实现路径），生成投影与手写 op **共用这一处**，`compat-op.ts` 无需第二处 register。
+- **按执行清图**：`direct-executor.runCode` 起始 `runtimeLineage.clear()`——`execute`/`append`/`update` 都从 `runCode` 进，故每次全量重放自洽，N3 不会因"上轮的同名语句"误报。
+- **嵌套调用守卫**：op 实现内部可能再次调用 op（或自身），共享同一 `getCurrentStmt()` 锚点；用模块级 `registeringStmts: Set<string>` 保证**每条语句只有最外层 `wrapped` 登记**，且标记**贯穿完整 await 实现期**（首版在 register 后同步删除 ⇒ 嵌套调用仍撞 N3，实测 9 例红；改为 try 包裹整段 dispatch+impl 后复绿）。
+- **实测**：新增 `packages/tests/faijs/topology-naming/lineage-wiring.test.ts`（2/2）——断言图被填充（`size>=2`、`s1`=box、`s2` 的 `provenance.kind='kernel'`）且重放幂等；`topology-naming/` 41/41、`core/src/api/` 全集 305/305 全绿。（GOTCHA：`StmtId = s{lineNo}`，故测试代码必须**逐语句换行**，否则两条语句塌成同一锚点。）
+- **⚠️ 接线暴露并处置了一处计划缺陷**：§1.3 的附加守卫 `E_TOPO_PART_REDEFINED` 误杀**重赋值**（`part0 = cad.translate(part0, …)`），`api/dual-form-contract.test.ts` 8 例回退。已按用户裁决**改为最后写者胜**（见 §1.3 注记）——重赋值是官方支持的既有惯用法，PartName 不是身份载体。
+
+**§6 总验收现状**：G3 6/6 ✅、G1 0 未命名 ✅、G4 漏声明 2 测试（生成期 + 编译期）✅、C1 并发守卫 ✅、mesh E_TOPO_MESH_UNSUPPORTED ✅、D10 8 条未接线不做 ✅、§7 测定项 6 项回填 ✅、**§1.4/1.5 血缘接线 ✅**。**仍未关闭（多为跨仓库 / 生成器）**：
+
+- **~~1.4/1.5 `registerStep` 血缘图未接线~~ 已接线**（见上「第三批」）：N1/N2/N3 运行期生效，G2/G6 的「无静默错名」缺口已收口。
 - **2.10 vocab 进生成产物**：需改 `gen-api-dts.ts` + `gen-ops-api-inventory.ts` 从 `naming` 产出词汇表。
 - **2.11 第三方库同步**（breaking）：`fai_cq_gears` / `fai_cq_warehouse` / `sheetmetal` 每处 `defineOp` 加 `naming`——在兄弟仓库，不在本仓库范围。
 - **S1–S6 3d_editor 同步**：`origin`/`role` 线形态变化需 `../3d_editor` 迁移 `migrateTopoRef` + 更新断言——跨仓库，未关闭。

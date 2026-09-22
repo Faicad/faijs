@@ -280,21 +280,19 @@ describe('N3：同一语句重复登记内容不同必须报错；内容相同�
   })
 })
 
-describe('PartName 复用守卫：一个名字只能属于一条语句', () => {
-  it('两条语句声明同一 output → E_TOPO_PART_REDEFINED', () => {
+describe('PartName 重赋值：最后写者胜（不报错）', () => {
+  it('两条语句声明同一 output → 合法，反查指向最新语句', () => {
     const graph = new LineageGraph()
     graph.register(draft({ stmt: S('s1') }), deps({ anchorId: 's1' }))
-    try {
-      graph.register(draft({ stmt: S('s7') }), deps({ anchorId: 's7' }))
-      expect.unreachable('复用 PartName 应当抛错')
-    } catch (e) {
-      const err = e as LineageError
-      expect(err.code).toBe('E_TOPO_PART_REDEFINED')
-      expect(err.message).toContain('s1')
-      expect(err.message).toContain('s7')
-    }
-    // 反查仍指向原主，没被改写
-    expect(graph.stmtOf(P('part1'))).toBe('s1')
+    // 重赋值（`part0 = cad.translate(part0, …)`）是 faijs 的合法惯用法：s7 重新绑定
+    // 同一 PartName。身份载体是 `(StmtId, RoleName)`，PartName 只是反查索引 ⇒
+    // 覆盖更新、不报错；反查取"当前绑定"（最后写者）。
+    // （原 `E_TOPO_PART_REDEFINED` 守卫已废除——它把这种合法重赋值误判为歧义。）
+    graph.register(draft({ stmt: S('s7') }), deps({ anchorId: 's7' }))
+    // 两条语句各自成节点，互不覆盖
+    expect(graph.size).toBe(2)
+    // 反查指向最后写者（当前绑定）
+    expect(graph.stmtOf(P('part1'))).toBe('s7')
   })
 })
 

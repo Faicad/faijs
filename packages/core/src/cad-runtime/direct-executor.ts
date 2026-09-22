@@ -28,6 +28,7 @@ import type { PartName } from '../identity'
 import { asPartName } from '../identity'
 import { ParseError } from '../lang/parse-error'
 import { setCurrentStmt, setKeepSink, setName, nameOf, getBackends, takePendingAssemblyTransforms, takePendingAssemblyKinematics, type AssemblyKinematicsPose, type ExecutionAnchor } from '../runtime-state'
+import { runtimeLineage } from '../topology/naming/lineage'
 import { ExecutionLimitError } from './execution-limit-error'
 import { assertSecure, type SecurityPolicy } from '../lang/security-scanner'
 import { getSlot, ensureSlot, brepOf, isShape } from '../shape'
@@ -444,6 +445,11 @@ export class DirectExecutor {
   // ── 主流程 ──
 
   private async runCode(code: string, opts?: DirectExecOpts, preParsedUnits?: TransformedUnit[]): Promise<DirectExecOutcome> {
+    // §1.4/1.5 lineage: a fresh program execution owns a fresh blood-line graph.
+    // Clearing here (not in execute/append/update individually) keeps every
+    // runCode — including append/update replays of the full code — self-contained,
+    // so N3 never misfires on an edited statement from a prior run.
+    runtimeLineage.clear()
     // import 预置（§4.5：顶层 import 行不执行，绑定值先入 ctx），随后参数预置可覆盖
     for (const [k, v] of Object.entries(opts?.imports ?? {})) this.ctx[k] = v
     // 参数预置（ExecuteOptions.params → ctx；参数行不执行，与现状语义一致）
