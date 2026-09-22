@@ -24,12 +24,12 @@ beforeAll(async () => {
   await registerOcctBrepEngine()
 }, 120000)
 
-/** box 20³ 的一条棱（box:top ∩ box:front）的完整 EdgeTopoRef JSON。 */
+/** box 20³ 的一条棱（top ∩ front）的完整 EdgeTopoRef JSON（Phase 1 换型：origin=StmtId、role 无 op 前缀）。 */
 const BOX_EDGE = JSON.stringify({
   kind: 'edge',
   faces: [
-    { origin: 'part0', role: 'box:top' },
-    { origin: 'part0', role: 'box:front' },
+    { origin: 's2', role: 'top' },
+    { origin: 's2', role: 'front' },
   ],
   hint: { kind: 'edge', length: 20, midpoint: [0, -10, 10] },
 })

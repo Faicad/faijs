@@ -36,5 +36,14 @@ export function captureTopoRef(row: FaceNaming | EdgeNaming): TopoRef {
     }
     return { kind: 'edge', faces: row.faces, hint: row.hint }
   }
+  // Phase 1.6/1.8：无身份行（origin/role=null，mesh 或未追踪面）不能构造 FaceTopoRef
+  // ——身份字段是引用的主键，伪造空值正是被删除的静默降级（G6）。
+  if (row.origin === null || row.role === null) {
+    throw new TopoRefError(
+      'E_TOPO_NOT_FOUND',
+      'face',
+      'face naming row has no identity (mesh path or untracked face on the BREP chain)',
+    )
+  }
   return { kind: 'face', origin: row.origin, role: row.role, hint: row.hint }
 }

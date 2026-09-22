@@ -2,10 +2,14 @@
  * topology-naming .fai.js fixture 集成测试（M5 引擎侧，§8）
  *
  * 验证真实 BREP 链路上的 TopoRef 命名/解析：
- * - 面引用改参重放：box → translate 链上 box:top 语义面在改参重放后仍命中
- * - 布尔跨来源：两个 box union 后能解析「来自 tool 侧（part1）」的面
+ * - 面引用改参重放：box → translate 链上 top 语义面在改参重放后仍命中
+ * - 布尔跨来源：两个 box union 后能解析「来自 tool 侧（s3）」的面
  * - 三态错误码：E_TOPO_DELETED / E_TOPO_AMBIGUOUS / E_TOPO_NOT_FOUND
  * - stderr 零容忍：故意触发的失败解析必须 spy console.warn/error 并断言
+ *
+ * 字面量形态（Phase 1.6/1.7 换型，与 g3-replay-chains.test.ts 同批）：
+ * origin = 产生该面的语句 StmtId（= `s${源码行号}`；模板串首行是换行，
+ * 链根在第 2 行 ⇒ origin='s2'）；role = 无 op 前缀的语义名（'box:top' → 'top'）。
  *
  * 使用真实 OCCT（beforeAll registerOcctBrepEngine）。
  */
@@ -43,7 +47,7 @@ function buildCtx(result: ExecutionResult, partName: PartName): ResolutionContex
   return { kernel: kernel as BrepEngineApi, faces, roleTable }
 }
 
-/** 从命名行构造 FaceTopoRef（§3.7 captureTopoRef 语义；此处按 origin/role 反查行）。 */
+/** 从命名行构造 FaceTopoRef（§3.7 captureTopoRef 语义；按 origin(StmtId)/role 反查行）。 */
 function refForRole(naming: PartNaming, origin: string, role: string): FaceTopoRef {
   const row = naming.faceNaming.find((f) => f.role === role && f.origin === asPartName(origin))
   if (!row) throw new Error(`naming row not found: ${origin}:${role}`)
@@ -61,7 +65,7 @@ describe('topology naming .fai.js integration', () => {
     runtime.dispose()
   })
 
-  it('box→translate 链：改参重放后 box:top 仍解析到同一语义面', async () => {
+  it('box→translate 链：改参重放后 top 仍解析到同一语义面', async () => {
     const code1 = `
       const part0 = cad.box(20, 20, 20, { centered: true })
       const part1 = cad.translate(part0, { offset: [10, 0, 0] })
@@ -74,10 +78,10 @@ describe('topology naming .fai.js integration', () => {
     const r1 = await runtime.execute(code1, { topology: 'auto' })
     expect(r1.failedAt).toBeUndefined()
     const naming1 = r1.naming!.get(asPartName('part1'))!
-    expect(naming1.faceNaming.some((f) => f.role === 'box:top')).toBe(true)
+    expect(naming1.faceNaming.some((f) => f.role === 'top')).toBe(true)
 
-    // 从第一次执行捕获 box:top 的 TopoRef（改参前的稳定引用）
-    const ref = refForRole(naming1, 'part0', 'box:top')
+    // 从第一次执行捕获 top 的 TopoRef（改参前的稳定引用）
+    const ref = refForRole(naming1, 's2', 'top')
 
     // 改参重放（同一 runtime 实例，增量路径）
     const r2 = await runtime.execute(code2, { topology: 'auto' })
@@ -87,7 +91,7 @@ describe('topology naming .fai.js integration', () => {
     // 语义面未受影响 → exact 命中（且 hint 法向仍为 +Z）
     expect(resolved.ordinal).toBeGreaterThan(0)
     const naming2 = r2.naming!.get(asPartName('part1'))!
-    const topRow2 = naming2.faceNaming.find((f) => f.role === 'box:top')!
+    const topRow2 = naming2.faceNaming.find((f) => f.role === 'top')!
     expect(topRow2.hint.normal).toEqual([0, 0, 1])
   })
 
@@ -103,13 +107,13 @@ describe('topology naming .fai.js integration', () => {
     const naming2 = result.naming!.get(asPartName('part2'))!
     const ctx2 = buildCtx(result, asPartName('part2'))
 
-    // 两个 origin 都在（target part0 + tool part1 合流）
+    // 两个 origin 都在（target s2 + tool s3 合流，血统保留来源语句的 StmtId）
     const origins = new Set(naming2.faceNaming.map((f) => f.origin))
-    expect(origins.has(asPartName('part0'))).toBe(true)
-    expect(origins.has(asPartName('part1'))).toBe(true)
+    expect(origins.has('s2')).toBe(true)
+    expect(origins.has('s3')).toBe(true)
 
-    // part0 的 box:top 在 union 后未受影响 → exact 解析成功
-    const ref0 = refForRole(naming2, 'part0', 'box:top')
+    // s2 的 top 在 union 后未受影响 → exact 解析成功
+    const ref0 = refForRole(naming2, 's2', 'top')
     const res0 = resolveTopoRef(ref0, ctx2)
     expect(res0.ordinal).toBeGreaterThan(0)
   })
@@ -126,8 +130,8 @@ describe('topology naming .fai.js integration', () => {
     const naming2 = result.naming!.get(asPartName('part2'))!
     const ctx2 = buildCtx(result, asPartName('part2'))
 
-    // part1（tool）的 box:top：tool 的 +Z 端盖在 union 后成为 part2 顶面一部分 → 应可解析
-    const ref1 = refForRole(naming2, 'part1', 'box:top')
+    // s3（tool）的 top：tool 的 +Z 端盖在 union 后成为 part2 顶面一部分 → 应可解析
+    const ref1 = refForRole(naming2, 's3', 'top')
     const res1 = resolveTopoRef(ref1, ctx2)
     expect(res1.ordinal).toBeGreaterThan(0)
   })
@@ -224,8 +228,8 @@ describe('topology naming .fai.js integration', () => {
         type: 'face_mate',
         fixedPartName: 'part0',
         movingPartName: 'part1',
-        fixedFace: { topoRef: { kind: 'face', origin: 'part0', role: 'cylinder:top', hint: { kind: 'face', surfaceType: 'plane' } } },
-        movingFace: { topoRef: { kind: 'face', origin: 'part1', role: 'box:top', hint: { kind: 'face', surfaceType: 'plane' } } },
+        fixedFace: { topoRef: { kind: 'face', origin: 's2', role: 'top', hint: { kind: 'face', surfaceType: 'plane' } } },
+        movingFace: { topoRef: { kind: 'face', origin: 's3', role: 'top', hint: { kind: 'face', surfaceType: 'plane' } } },
       }] })
       asm0.do_assemble()
     `
@@ -266,7 +270,7 @@ describe('topology naming .fai.js integration', () => {
         fixedPartName: 'part0',
         movingPartName: 'part0',
         fixedFace: { topoRef: { kind: 'face', origin: 'part0', role: 'ghost:role', hint: { kind: 'face', surfaceType: 'torus' } } },
-        movingFace: { topoRef: { kind: 'face', origin: 'part0', role: 'box:top', hint: { kind: 'face', surfaceType: 'plane' } } },
+        movingFace: { topoRef: { kind: 'face', origin: 's2', role: 'top', hint: { kind: 'face', surfaceType: 'plane' } } },
       }] })
       asm0.do_assemble()
     `
@@ -292,7 +296,7 @@ describe('topology naming .fai.js integration', () => {
       const part1 = cad.fai_drill(part0, {
         diameter: 4, depth: 5, holeType: 'simple',
         position: [0, 0, 10], direction: 'normal',
-        face: { kind: 'face', origin: 'part0', role: 'box:top', hint: { kind: 'face', surfaceType: 'plane' } },
+        face: { kind: 'face', origin: 's2', role: 'top', hint: { kind: 'face', surfaceType: 'plane' } },
       })
     `
     const result = await runtime.execute(code, { topology: 'auto' })
@@ -312,7 +316,7 @@ describe('topology naming .fai.js integration', () => {
       const part1 = cad.fai_drill(part0, {
         diameter: 5, depth: 0, holeType: 'simple',
         position: [0, -10, 10], direction: 'normal',
-        face: { kind: 'face', origin: 'part0', role: 'cylinder:lateral', hint: { kind: 'face', surfaceType: 'cylinder', normal: [0, 0, 1], center: [0, 0, 0] } },
+        face: { kind: 'face', origin: 's2', role: 'lateral', hint: { kind: 'face', surfaceType: 'cylinder', normal: [0, 0, 1], center: [0, 0, 0] } },
         faceNormal: [-0.049068, -0.998795, 0],
       })
     `

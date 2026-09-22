@@ -10,10 +10,12 @@
  *   报错（V-C8）。该行为由源码保证，端到端放行由 fcstd 普查 e2e 验证。
  */
 
-import { beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { configureBackends, CONTRACT_VERSION, BrepUnsupportedError, type Backends } from '../runtime-state'
 import { OpError } from '../api/internal/result-unwrap'
 import { import_brep } from './import-brep'
+import type { RoleTable } from '../topology/naming/types'
+import type { StmtId } from '../identity'
 
 // ── helpers ──
 
@@ -92,12 +94,15 @@ describe('import_brep: chain-root roleTable (E3)', () => {
     const out = await import_brep({ asset: 'Sketch001.Shape' })
     const { getSlot } = await import('../shape')
     const slot = getSlot(out)
-    const table = slot?.roleTable as ReadonlyMap<string, readonly number[]> | undefined
+    const table = slot?.roleTable as RoleTable | undefined
     expect(table, 'roleTable registered on the imported shape').toBeDefined()
     const origins = [...(table?.keys() ?? [])]
-    expect(origins).toEqual(['Sketch001.Shape'])
-    // position-named fallback roles keyed to face hashes
-    const roles = table?.get('Sketch001.Shape')
-    expect(roles?.size).toBeGreaterThan(0)
+    // Phase 1.6：origin = 导入语句的 StmtId（不再用资产名——同一资产导入两次
+    // 是两条语句，天然分属不同 origin）。本单测无语句锚点 ⇒ 空串占位。
+    expect(origins).toEqual([''])
+    // Phase 1.7：'import_brep' 无语义命名器且位置兜底已删 ⇒ 子表为空占位
+    // （真实导入的 imported:<i> 词汇待 Phase 3.8；面行显式 role=null）。
+    const roles = table?.get('' as StmtId)
+    expect(roles?.size).toBe(0)
   })
 })

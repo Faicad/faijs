@@ -123,16 +123,16 @@ function boxCandidates(): FaceCandidateEntry[] {
 }
 
 const boxTable: RoleTable = new Map([
-  [asPartName('box'), new Map([
-    ['box:top', [15]],
-    ['box:bottom', [16]],
-    ['box:front', [14]],
+  ['s_box' as never, new Map([
+    ['top', [15]],
+    ['bottom', [16]],
+    ['front', [14]],
   ])],
 ])
 
 const boxRef = (role: string, hint?: Partial<FaceHint>): FaceTopoRef => ({
   kind: 'face',
-  origin: asPartName('box'),
+  origin: 's_box' as never,
   role,
   hint: { kind: 'face', surfaceType: 'plane', normal: [0, 0, 1], center: [5, 5, 10], ...hint },
 })
@@ -146,7 +146,7 @@ function ctxFor(kernel: BrepEngineApi, faces: FaceCandidateEntry[], roleTable?: 
 describe('resolveFaceTopo', () => {
   it('resolves an untouched role exactly (box:bottom 未受影响面 exact 命中)', () => {
     const kernel = planeKernel([0, 0, -1], [5, 5, 0])
-    const res = resolveFaceTopo(boxRef('box:bottom'), ctxFor(kernel, boxCandidates(), boxTable))
+    const res = resolveFaceTopo(boxRef('bottom'), ctxFor(kernel, boxCandidates(), boxTable))
     expect(res.ok).toBe(true)
     if (res.ok) {
       expect(res.ordinal).toBe(6)
@@ -158,7 +158,7 @@ describe('resolveFaceTopo', () => {
     const kernel = planeKernel([0, 0, 1], [5, 5, 10])
     // front 的 hash 14 在完整候选中存在；构造候选只有 1..3，front(14) 被删
     const shrunk = boxCandidates().filter((c) => c.ordinal <= 3)
-    const res2 = resolveFaceTopo(boxRef('box:front'), ctxFor(kernel, shrunk, boxTable))
+    const res2 = resolveFaceTopo(boxRef('front'), ctxFor(kernel, shrunk, boxTable))
     expect(res2.ok).toBe(false)
     if (!res2.ok) expect(res2.reason).toBe('deleted')
   })
@@ -176,7 +176,7 @@ describe('resolveFaceTopo', () => {
       getSurfaceCenterOfMass: (h: BrepHandle) =>
         (h as unknown as number) === 3 ? { x: 5, y: 5, z: 10 } : { x: 5, y: 5, z: 20 },
     } as BrepEngineApi
-    const res = resolveFaceTopo(boxRef('box:top'), ctxFor(kernelMatch, faces, boxTable))
+    const res = resolveFaceTopo(boxRef('top'), ctxFor(kernelMatch, faces, boxTable))
     expect(res.ok).toBe(true)
     if (res.ok) {
       expect(res.ordinal).toBe(3)
@@ -189,7 +189,7 @@ describe('resolveFaceTopo', () => {
     const kernel = planeKernel([0, 0, 1], [5, 5, 10])
     const faces: FaceCandidateEntry[] = [{ ordinal: 1, hash: 11, handle: 1 as BrepHandle }]
     const noTable = ctxFor(kernel, faces)
-    const res = resolveFaceTopo(boxRef('box:top'), noTable)
+    const res = resolveFaceTopo(boxRef('top'), noTable)
     expect(res.ok).toBe(true)
     if (res.ok) expect(res.confidence).toBe('geometric-fallback')
   })
@@ -201,7 +201,7 @@ describe('resolveFaceTopo', () => {
       { ordinal: 1, hash: 11, handle: 1 as BrepHandle },
       { ordinal: 2, hash: 12, handle: 2 as BrepHandle },
     ]
-    const res = resolveFaceTopo(boxRef('box:top'), ctxFor(kernel, faces))
+    const res = resolveFaceTopo(boxRef('top'), ctxFor(kernel, faces))
     expect(res.ok).toBe(false)
     if (!res.ok) expect(res.reason).toBe('ambiguous')
   })
@@ -210,7 +210,7 @@ describe('resolveFaceTopo', () => {
     // 候选是 cylinder 面而 hint 是 plane → 类型硬门全拒 → not-found
     const kernel = { ...planeKernel([0, 0, 1], [5, 5, 10]), surfaceType: () => 'cylinder' } as BrepEngineApi
     const faces: FaceCandidateEntry[] = [{ ordinal: 1, hash: 11, handle: 1 as BrepHandle }]
-    const res = resolveFaceTopo(boxRef('box:top'), ctxFor(kernel, faces))
+    const res = resolveFaceTopo(boxRef('top'), ctxFor(kernel, faces))
     expect(res.ok).toBe(false)
     if (!res.ok) expect(res.reason).toBe('not-found')
   })
@@ -221,7 +221,7 @@ describe('resolveFaceTopo', () => {
 describe('resolveTopoRef / buildTopoError', () => {
   it('returns { ordinal, handle } on success', () => {
     const kernel = planeKernel([0, 0, -1], [5, 5, 0])
-    const entity = resolveTopoRef(boxRef('box:bottom'), ctxFor(kernel, boxCandidates(), boxTable))
+    const entity = resolveTopoRef(boxRef('bottom'), ctxFor(kernel, boxCandidates(), boxTable))
     expect(entity.ordinal).toBe(6)
     expect(entity.handle).toBe(6)
   })
@@ -230,7 +230,7 @@ describe('resolveTopoRef / buildTopoError', () => {
     const kernel = planeKernel([0, 0, 1], [5, 5, 10])
     const shrunk = boxCandidates().filter((c) => c.ordinal <= 3)
     try {
-      resolveTopoRef(boxRef('box:front'), ctxFor(kernel, shrunk, boxTable))
+      resolveTopoRef(boxRef('front'), ctxFor(kernel, shrunk, boxTable))
       expect.unreachable('should have thrown')
     } catch (e) {
       const err = e as { code?: string; refKind?: string }
@@ -249,7 +249,7 @@ describe('resolveTopoRef / buildTopoError', () => {
     const kernel = planeKernel([0, 0, 1], [5, 5, 10])
     const edgeRef = {
       kind: 'edge' as const,
-      faces: [{ origin: asPartName('box'), role: 'box:top' }, { origin: asPartName('box'), role: 'box:front' }] as const,
+      faces: [{ origin: 's_box' as never, role: 'top' }, { origin: 's_box' as never, role: 'front' }] as const,
       hint: { kind: 'edge' as const, length: 10 },
     }
     // 无邻接 → hint-only 兜底；无 edges 表 → not-found（E_TOPO_NOT_FOUND）
@@ -270,10 +270,10 @@ describe('resolveTopoArgs / originOf', () => {
   it('recursively replaces TopoRefs in params (arrays + nested objects)', () => {
     const kernel = planeKernel([0, 0, -1], [5, 5, 0])
     const ctx = ctxFor(kernel, boxCandidates(), boxTable)
-    const lookup = (origin: string) => (origin === 'box' ? ctx : undefined)
+    const lookup = (origin: string) => (origin === 's_box' ? ctx : undefined)
     const resolved = resolveTopoArgs({
-      face: boxRef('box:bottom'),
-      edges: [boxRef('box:top'), { nested: { f: boxRef('box:front') } }],
+      face: boxRef('bottom'),
+      edges: [boxRef('top'), { nested: { f: boxRef('front') } }],
       plain: 42,
     }, lookup)
     expect(resolved.face).toEqual({ ordinal: 6, handle: 6 })
@@ -283,17 +283,17 @@ describe('resolveTopoArgs / originOf', () => {
   })
 
   it('throws when a ref origin has no input shape', () => {
-    expect(() => resolveTopoArgs({ face: boxRef('box:top') }, () => undefined))
+    expect(() => resolveTopoArgs({ face: boxRef('top') }, () => undefined))
       .toThrowError(/no input shape/)
   })
 
   it('derives origin for edge refs from faces[0]', () => {
     const edgeRef = {
       kind: 'edge' as const,
-      faces: [{ origin: asPartName('box'), role: 'box:top' }, { origin: asPartName('box'), role: 'box:front' }] as const,
+      faces: [{ origin: 's_box' as never, role: 'top' }, { origin: 's_box' as never, role: 'front' }] as const,
       hint: { kind: 'edge' as const },
     }
-    expect(originOf(edgeRef)).toBe('box')
+    expect(originOf(edgeRef as never)).toBe('s_box')
   })
 })
 
@@ -302,20 +302,20 @@ describe('resolveTopoArgs / originOf', () => {
 describe('captureTopoRef', () => {
   it('converts a face naming row to a FaceTopoRef', () => {
     const ref = captureTopoRef({
-      origin: asPartName('box'),
-      role: 'box:top',
+      origin: 's_box' as never,
+      role: 'top',
       hint: { kind: 'face', surfaceType: 'plane' },
     })
-    expect(ref).toEqual({ kind: 'face', origin: asPartName('box'), role: 'box:top', hint: { kind: 'face', surfaceType: 'plane' } })
+    expect(ref).toEqual({ kind: 'face', origin: 's_box' as never, role: 'top', hint: { kind: 'face', surfaceType: 'plane' } })
   })
 
   it('converts an edge naming row with lineage to an EdgeTopoRef', () => {
     const ref = captureTopoRef({
-      faces: [{ origin: asPartName('box'), role: 'box:top' }, { origin: asPartName('box'), role: 'box:front' }],
+      faces: [{ origin: 's_box' as never, role: 'top' }, { origin: 's_box' as never, role: 'front' }],
       hint: { kind: 'edge', length: 10 },
     })
     expect(ref.kind).toBe('edge')
-    if (ref.kind === 'edge') expect(ref.faces[0].role).toBe('box:top')
+    if (ref.kind === 'edge') expect(ref.faces[0].role).toBe('top')
   })
 
   it('throws for an edge naming row without lineage (mesh limitation)', () => {
@@ -330,13 +330,13 @@ describe('buildPartNaming / findOriginRole', () => {
   const ordinalToHash = [11, 12, 13, 14, 15, 16]
 
   it('finds the origin+role of an ordinal across multiple origins (boolean merge)', () => {
-    const merged: RoleTable = new Map([
-      [asPartName('box'), new Map([['box:top', [15]]])],
-      [asPartName('tool'), new Map([['tool:lateral', [11]]])],
+    const merged = new Map([
+      ['s_box', new Map([['top', [15]]])],
+      ['s_tool', new Map([['lateral', [11]]])],
     ])
-    expect(findOriginRole(merged, ordinalToHash, 5)).toEqual({ origin: asPartName('box'), role: 'box:top' })
-    expect(findOriginRole(merged, ordinalToHash, 1)).toEqual({ origin: asPartName('tool'), role: 'tool:lateral' })
-    expect(findOriginRole(merged, ordinalToHash, 3)).toBeUndefined()
+    expect(findOriginRole(merged as unknown as RoleTable, ordinalToHash, 5)).toEqual({ origin: 's_box' as never, role: 'top' })
+    expect(findOriginRole(merged as unknown as RoleTable, ordinalToHash, 1)).toEqual({ origin: 's_tool' as never, role: 'lateral' })
+    expect(findOriginRole(merged as unknown as RoleTable, ordinalToHash, 3)).toBeUndefined()
   })
 
   it('builds BREP naming rows with origin+role', () => {
@@ -355,36 +355,28 @@ describe('buildPartNaming / findOriginRole', () => {
       ordinalToHash,
       edgeFaceOrdinals: [[2, 3]],
     })
-    expect(naming.faceNaming[0].role).toBe('') // hash 11 不在表里 → 空 role
-    expect(naming.faceNaming[1].role).toBe('box:top')
-    expect(naming.faceNaming[1].origin).toBe(asPartName('box'))
-    expect(naming.faceNaming[2].role).toBe('box:bottom')
+    // hash 11 不在表里 → 显式无身份（Phase 1.8：role='' 兜底已删，G6）
+    expect(naming.faceNaming[0].role).toBeNull()
+    expect(naming.faceNaming[0].origin).toBeNull()
+    expect(naming.faceNaming[1].role).toBe('top')
+    expect(naming.faceNaming[1].origin).toBe('s_box' as never)
+    expect(naming.faceNaming[2].role).toBe('bottom')
     expect(naming.edgeNaming[0].faces).toEqual([
-      { origin: asPartName('box'), role: 'box:top' },
-      { origin: asPartName('box'), role: 'box:bottom' },
+      { origin: 's_box' as never, role: 'top' },
+      { origin: 's_box' as never, role: 'bottom' },
     ])
   })
 
-  it('builds mesh naming rows hint-only (role="")', () => {
+  it('builds mesh naming rows hint-only (origin/role explicit null, Phase 1.8)', () => {
     const naming = buildPartNaming({
       source: 'mesh',
       partName: asPartName('stl1'),
       faces: [{ surfaceType: 'plane', normal: [0, 0, 1], center: [5, 5, 10], area: 42 }],
       edges: [],
     })
-    expect(naming.faceNaming[0].role).toBe('')
-    expect(naming.faceNaming[0].origin).toBe(asPartName('stl1'))
+    // Phase 1.8：role='' 兜底已删——无身份显式 null（G6）
+    expect(naming.faceNaming[0].role).toBeNull()
+    expect(naming.faceNaming[0].origin).toBeNull()
     expect(naming.faceNaming[0].hint.surfaceType).toBe('plane')
-  })
-
-  it('uses primitiveRoles for primitive parts', () => {
-    const naming = buildPartNaming({
-      source: 'primitive',
-      partName: asPartName('cube1'),
-      faces: [{ surfaceType: 'plane', normal: [1, 0, 0], center: [5, 5, 5], area: 100 }],
-      edges: [],
-      primitiveRoles: ['box:right'],
-    })
-    expect(naming.faceNaming[0].role).toBe('box:right')
   })
 })

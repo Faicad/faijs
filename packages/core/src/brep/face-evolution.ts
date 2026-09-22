@@ -300,7 +300,8 @@ export function scaleWithHashEvolution(
  * - roleTable：A/B 两侧 role 表各自传播后合并（进 roleTableCache，服务命名）
  *
  * 缝面（generated）刻意不进 role 传播（§1.3/R2：generated hash 指向中间形、
- * 实测 0 存活），以本次语句 LHS 为 outPart 新 origin 的位置名由调用方决定。
+ * 实测 0 存活）。新 origin 一律是**本次语句的 StmtId**（Phase 1.6：不再用 LHS
+ * 变量名——PartName 会被改名/复用，StmtId 全局唯一）。
  *
  * @param kernel  - the OCCT kernel.
  * @param op      - the boolean operation ('fuse' | 'cut' | 'intersect').
@@ -308,7 +309,7 @@ export function scaleWithHashEvolution(
  * @param b       - the tool shape.
  * @param tableA  - the target's role table.
  * @param tableB  - the tool's role table.
- * @param outPart - the boolean statement's LHS variable name (new origin for seam faces).
+ * @param outStmt - the boolean statement's StmtId (串形；新 origin for seam faces).
  * @returns the result handle, ordinal evolution and merged role table.
  */
 export function booleanWithRoleTable(
@@ -318,7 +319,7 @@ export function booleanWithRoleTable(
   b: BrepHandle,
   tableA: ReadonlyMap<unknown, unknown>,
   tableB: ReadonlyMap<unknown, unknown>,
-  outPart: string,
+  outStmt: string,
 ): { result: BrepHandle; faceEvolution: FaceEvolution; roleTable: ReadonlyMap<unknown, unknown> } {
   const inputHashes = getUnionFaceHashes(kernel, a, b)
   let evo: BrepEvolutionData
@@ -332,7 +333,7 @@ export function booleanWithRoleTable(
   const hashesA = getFaceHashes(kernel, a)
   const hashesB = getFaceHashes(kernel, b)
   const { a: evoA, b: evoB } = splitHashEvolutionByOrigin(evo, hashesA, hashesB)
-  const merged = mergeRoleTablesLocal(tableA, evoA, tableB, evoB, outPart)
+  const merged = mergeRoleTablesLocal(tableA, evoA, tableB, evoB, outStmt)
 
   return { result: evo.result, faceEvolution, roleTable: merged }
 }

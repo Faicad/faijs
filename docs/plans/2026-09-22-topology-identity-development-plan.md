@@ -604,6 +604,38 @@ resolve(identity, atPart):
 `brep/engine/primitives.ts:31`（`git log -S BrepEngineApi -- .../types.ts` 为空 ⇒ 从未在那里）。
 **这 10 项已存为基线**，后续每个 Phase 的 tsc 校验对它取差，避免把既有错误当成新引入的。
 
+#### Phase 1 落地记录（第二批：1.6/1.7/1.8/1.9/1.12，2026-09-22）
+
+**1.6 + 1.7 + 1.12（origin→StmtId、role→RoleName 线格式、ROLE_ASSIGNERS 结构化）已落地。** 三处裁决：
+
+1. **对外线格式仍为串**：`RoleQualifier.role` / `FaceTopoRef.role` / `FaceNaming.role`
+   装 `formatRoleName` 的**线格式串**（`'top'` / `'wall:3'`），不装 RoleName 对象——
+   TopoRef 是 JSON 安全数据（§4.2），消费点用 `parseRoleName` 解回结构。
+   RoleTable 的 role 键同理用线格式串；外层键用 StmtId 串形（branded string 的运行期形态）。
+2. **位置兜底与空串兜底全删（G6）**：`assignRoles` 只收语义命中的面；
+   `mergeRoleTables` 缝面登记空子表占位（origin=本次语句 StmtId，身份待 Phase 3）；
+   `FaceNaming` 的无身份行显式 `origin: null / role: null`（曾是 `role:''` + origin=part 名）。
+   `assignGeneratedPositionalRoles` 整体删除（死代码）。
+3. **产生点换 StmtId**：primitives / import-brep / extrude / boolean / fillet / chamfer
+   的 origin 全部改 `String(getCurrentStmt()?.id ?? '')`；`import_brep` 修掉
+   "同一资产导入两次共用 origin"（两次导入=两条语句，天然分属不同 origin）。
+
+**1.8（删 mesh 伪拓扑）已落地**：`assignPrimitiveFaceRoles` 整体删除；
+`buildPartNaming` 的 primitive 分支与 mesh 一致只填 hint（origin/role=null）；
+`PartNamingInput.primitiveRoles` 字段删除；runtime 的 primitive 分支不再派生 role。
+
+**1.9（mesh 路径引用抛错）已落地**：`edgeRef` / `faceRef` 的非 BREP 路径从裸 Error
+改为 `TopoRefError('E_TOPO_MESH_UNSUPPORTED', …)`；`TopoErrorCode` 增该码；
+防回归测试钉住（mesh Shape → 两函数都抛带码错误）。
+
+**⚠️ 1.10 的时序问题（与 1.4/1.5 同构，已确认，推迟）**：1.10 要求删 `shape.ts` 的
+`slot.roleTable` 条件写入与 `BrepHolder.roleTable` 字段。但**血缘登记（1.4/1.5）已确认
+推迟到 2.3**——`slot.roleTable` 当前是 role 传播/解析的**唯一在用通路**
+（boolean/fillet/chamfer/copy/transform/place 全部经它读写）。现在删字段 = 砍断唯一通路，
+而替代通路（血缘回走）还不存在。⇒ **1.10 改为与 1.4/1.5 同批执行**（2.3 之后：
+登记点落地、回走可用，缓存才能降级为可 miss 的缓存）。
+这不影响 Phase 1 其余验收项——G2/G3 判据不依赖字段删除本身。
+
 ---
 
 ### Phase 2｜声明强制

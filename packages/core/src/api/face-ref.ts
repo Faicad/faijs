@@ -45,8 +45,13 @@ export function faceRef(of: Shape, faceOrdinal: number): FaceTopoRef {
     throw new TopoRefError('E_TOPO_NOT_FOUND', 'face', `faceRef: faceOrdinal must be an integer >= 1 (got ${faceOrdinal})`)
   }
   const kernel = getBackends().kernel.brep as BrepEngineApi | null
-  if (!kernel) throw new Error('[faceRef] no BREP kernel (face references are BREP-only)')
-  if (!brepOf(of)) throw new Error('[faceRef] E_FACE_REF_NO_BREP: input shape has no BREP solid')
+  // Phase 1.9（D6/§3）：mesh 路径不支持拓扑引用——静态判定、显式抛错，不静默降级
+  if (!kernel) {
+    throw new TopoRefError('E_TOPO_MESH_UNSUPPORTED', 'face', 'faceRef: topology references are BREP-only (mesh path unsupported)')
+  }
+  if (!brepOf(of)) {
+    throw new TopoRefError('E_TOPO_MESH_UNSUPPORTED', 'face', 'faceRef: input shape has no BREP solid (mesh shapes do not carry topology identity)')
+  }
 
   const ctx = buildEdgeResolutionContext(kernel, of as object)
   if (!ctx) throw new TopoRefError('E_TOPO_NOT_FOUND', 'face', 'faceRef: input has no BREP naming context')

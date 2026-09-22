@@ -29,8 +29,7 @@ import { solidToShape, matrixToArray } from '../brep/brep-ops'
 import { getSolidBoundingBox } from '../brep/brep-utils'
 import { getBackends, getCurrentStmt } from '../runtime-state'
 import { fromBrep, brepOf } from '../shape'
-import { assignRoles } from '../topology/naming/roles'
-import { asPartName } from '../identity'
+import { formatRoleName, semantic, wall } from '../topology/naming/role-name'
 import { defineOp } from '../sdk'
 import { assertPositiveNumber } from './assert'
 import type { Shape, Vec3 } from '../mesh/types'
@@ -47,25 +46,124 @@ import { TopoRefError } from '../topology/naming'
  * `sketch → extrude → cad.edgeRef(extrude_out, N)` 抛
  * `E_TOPO_NOT_FOUND: edgeRef: input shape has no role table (nameless shape)`
  * ——extrude 是 Pad/Pocket 链的链根，不带表就等于整条链不可按面/边引用。
- * 机制与 `primitives.ts` 的链根建表同源：origin 用当前语句 LHS（`§2.2`，
- * 多个 extrude 不撞 origin），role 由 `assignRoles` 给出（extrude 无语义
- * 命名器 → 位置兜底 `extrude:face_i`，保证每面必有 role）。
  *
- * 刻意**不**发明 `extrude:start/end/side` 这类语义名：当前没有任何消费方
- * 解释它们（`edgeRef` 只把 (origin, role) 当身份标签，随后按 hash 传播），
- * 而无方向信息时按 +Z 猜主轴会静默错标。等有真实消费方（例如按名选 Pad
- * 端面做 up-to 目标）再连同方向一起加。
+ * 词汇（construct 枚举器，计划 §4.4/3.1）：端面 `bottom`/`top`（semantic 直名，
+ * 与 box 同形；计划写的 `cap:<name>` 前缀与 RoleName 契约的 SEMANTIC_NAME_RE
+ * 冲突，落地以契约为准）、侧面 `wall:<i>`（i = 侧面枚举序 = profile 边序——
+ * makeWire 按构造顺序收边，prism 不重排侧面）。Phase 1.7 曾删位置兜底使本
+ * 函数产出空表（G3-L1 的 T0 回退根因），本枚举器是 1.7 的回退修复：
+ * 身份词汇必须存在，且抗重放（边序不随改参漂移）。
  *
  * 已知边界：输入自带 roleTable 时本次**不传播**输入血统——vendored extrude
  * 不产出面演化记录，无从按 hash 推进；这里只覆盖 extrude 自身引入的面。
  * 结果仍严格优于修复前（修复前完全没有表）。
  */
 function registerExtrudeRoles(kernel: BrepEngineApi, solid: BrepHandle): Shape {
-  const origin = String(getCurrentStmt()?.outputs[0] ?? 'extrude')
+  // Phase 1.6：origin = 本次语句 StmtId（不再是 LHS 变量名，§4.1）。
+  const origin = String(getCurrentStmt()?.id ?? '')
+  const roles = extrudeConstructRoles(kernel, solid)
   return fromBrep(solidToShape(kernel, solid), {
     solid,
-    roleTable: new Map([[asPartName(origin), assignRoles(kernel, solid, 'extrude')]]),
+    roleTable: new Map([[origin, roles]]),
   })
+}
+
+/**
+ * extrude 的 construct 词汇表（计划 §4.4）：`cap:bottom` / `cap:top` / `wall:<i>`。
+ *
+ * 判定口径：
+ * - 拉伸方向取自一对平面端面法向的**带符号差**（两法向指向相反）——不依赖脚本
+ *   怎么写方向，现场几何是唯一真值；
+ * - 面法向与拉伸轴 |cos| ≈ 1 → 端面：中心沿轴分量小者 `cap:bottom`、大者 `cap:top`；
+ * - 面法向与拉伸轴 |cos| ≈ 0 → 侧面 `wall:<i>`，i = 该面在侧面枚举中的相对序
+ *   （OCCT prism 的侧面顺序 = profile wire 的边序——makeWire 按构造顺序收边，
+ *   prism 不重排；G3-L1 改参重放依赖该稳定性）；
+ * - 非平面/无法向的面不进表：缺身份是显式状态（naming 行 role=null），不伪造。
+ *
+ * @param kernel - the OCCT kernel.
+ * @param solid - the extruded solid.
+ * @returns role（线格式串）→ hash 子表。
+ */
+function extrudeConstructRoles(kernel: BrepEngineApi, solid: BrepHandle): Map<string, number[]> {
+  const roles = new Map<string, number[]>()
+  const faceHandles = kernel.getSubShapes(solid, 'face')
+  try {
+    const hashes = kernel.subShapeHashes(solid, 'face', 2147483647)
+    // 每面的法向（仅平面；侧面可能是圆柱/其它——wall 只挂平面侧面的前提是
+    // 直拉伸，斜面/圆柱侧面留待 3.1 的完整枚举器）
+    const normals: (readonly [number, number, number] | undefined)[] = faceHandles.map((f) => {
+      if (kernel.surfaceType(f) !== 'plane') return undefined
+      const uv = kernel.uvBounds(f)
+      const n = kernel.surfaceNormal(f, (uv.uMin + uv.uMax) / 2, (uv.vMin + uv.vMax) / 2)
+      return [n.x, n.y, n.z] as const
+    })
+    const centers = faceHandles.map((f) => {
+      const c = kernel.getSurfaceCenterOfMass(f)
+      return [c.x, c.y, c.z] as const
+    })
+
+    // 拉伸轴：找一对 |cos| ≈ 1 的反平行平面法向 → 带符号单位方向
+    let axis: readonly [number, number, number] | undefined
+    for (let i = 0; i < normals.length && !axis; i++) {
+      const a = normals[i]
+      if (!a) continue
+      for (let j = i + 1; j < normals.length; j++) {
+        const b = normals[j]
+        if (!b) continue
+        const lenA = Math.hypot(a[0], a[1], a[2])
+        const lenB = Math.hypot(b[0], b[1], b[2])
+        if (lenA < 1e-9 || lenB < 1e-9) continue
+        const cos = (a[0] * b[0] + a[1] * b[1] + a[2] * b[2]) / (lenA * lenB)
+        if (Math.abs(cos) > 0.999) {
+          // b 反向即「从 i 面指向 j 面」的方向
+          axis = [b[0] - a[0], b[1] - a[1], b[2] - a[2]] as const
+          break
+        }
+      }
+    }
+    const axisLen = axis ? Math.hypot(axis[0], axis[1], axis[2]) : 0
+    if (axis && axisLen > 1e-9) {
+      const ax: readonly [number, number, number] = [axis[0] / axisLen, axis[1] / axisLen, axis[2] / axisLen]
+      // 端面：沿轴投影最小者 = cap:bottom，最大者 = cap:top
+      const capCandidates: { idx: number; t: number }[] = []
+      for (let i = 0; i < normals.length; i++) {
+        const n = normals[i]
+        if (!n) continue
+        const len = Math.hypot(n[0], n[1], n[2]) || 1
+        const cos = Math.abs(n[0] * ax[0] + n[1] * ax[1] + n[2] * ax[2]) / len
+        if (cos > 0.999) {
+          capCandidates.push({ idx: i, t: centers[i]![0] * ax[0] + centers[i]![1] * ax[1] + centers[i]![2] * ax[2] })
+        }
+      }
+      if (capCandidates.length >= 2) {
+        capCandidates.sort((p, q) => p.t - q.t)
+        const bottom = capCandidates[0]!
+        const top = capCandidates[capCandidates.length - 1]!
+        // 端面词汇用 semantic（'bottom'/'top'——与 box 同形）。计划 §4.4 写的
+        // `cap:<name>` 前缀形态与 RoleName 契约冲突（semantic 名不允许 ':'，
+        // role-name.ts SEMANTIC_NAME_RE），落地以契约为准：semantic 直名。
+        if (hashes[bottom.idx] !== undefined) roles.set(formatRoleName(semantic('bottom')), [hashes[bottom.idx]!])
+        if (hashes[top.idx] !== undefined) roles.set(formatRoleName(semantic('top')), [hashes[top.idx]!])
+      }
+      // 侧面：|cos| ≈ 0，按枚举序编号（= profile 边序）
+      let wallIdx = 0
+      for (let i = 0; i < normals.length; i++) {
+        const n = normals[i]
+        if (!n || hashes[i] === undefined) continue
+        const len = Math.hypot(n[0], n[1], n[2]) || 1
+        const cos = Math.abs(n[0] * ax[0] + n[1] * ax[1] + n[2] * ax[2]) / len
+        if (cos < 0.001) {
+          roles.set(formatRoleName(wall(wallIdx)), [hashes[i]!])
+          wallIdx++
+        }
+      }
+    }
+    return roles
+  } finally {
+    for (const h of faceHandles) {
+      try { kernel.release(h) } catch { /* 已释放 */ }
+    }
+  }
 }
 
 /** 显式平面目标（up-to 截断面）：点 + 法向（点在平面上即可，无需共面于面边界）。 */

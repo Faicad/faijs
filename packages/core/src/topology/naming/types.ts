@@ -60,16 +60,17 @@ export interface DerivedFaceHint {
 // ── role 限定 ──
 
 /**
- * role 的全局限定：origin = 该面血缘起点的 part 变量名（链根），
- * role = 该起点内的角色名（如 'box:top'）。
+ * role 的全局限定：origin = 产生该面的那条语句（StmtId，全局唯一），
+ * role = 那条语句内的局部名（RoleName 的**线格式串**，`formatRoleName` 输出——
+ * 如 'top' / 'wall:3' / 'replica[2]/wall:3'；消费点用 `parseRoleName` 解回结构）。
  *
- * ⚠️ **这是 V1 形态，Phase 1.6/1.7 后退役**（计划 §4.1）：
- * origin 改 `StmtId`（PartName 会因"同一资产导入两次共用 origin"而算出相同 ref，
- * `import-brep.ts:77`）、role 改 `RoleName`（现在的字符串把 origin 和局部名混在一个
- * 命名空间里）。新代码请用 `FaceIdentity`。
+ * Phase 1.6/1.7 就地换型后的形态（计划 §4.1/§4.2）：origin 从 PartName 改 StmtId
+ * （PartName 会因"同一资产导入两次共用 origin"而算出相同 ref，`import-brep.ts:77`）；
+ * role 删掉 'box:'/'extrude:' 这类 op 前缀——origin 已由 StmtId 权威表达，
+ * 前缀是把 origin 信息塞进 role 的历史残留（违反 R1 的精神）。
  */
 export interface RoleQualifier {
-  readonly origin: PartName
+  readonly origin: StmtId
   readonly role: string
 }
 
@@ -106,10 +107,10 @@ export interface FaceIdentity {
 
 // ── TopoRef 四类 ──
 
-/** 面引用：origin+role 为主键，hint 为兜底（对应 brepjs ShapeRef）。 */
+/** 面引用：origin+role 为主键（origin=StmtId、role=RoleName 线格式串），hint 为兜底（对应 brepjs ShapeRef）。 */
 export interface FaceTopoRef {
   readonly kind: 'face'
-  readonly origin: PartName
+  readonly origin: StmtId
   readonly role: string
   readonly hint: FaceHint
 }
@@ -145,10 +146,15 @@ export type TopoRef = FaceTopoRef | EdgeTopoRef | VertexTopoRef | DerivedFaceTop
 // ── 运行期 role 表（不序列化、不进 .fai.js）──
 
 /**
- * origin（链根 PartName）→ role → 当前面 hash 列表。
- * 1→多分裂时一个 role 对应多个 hash；resolve 只在后继内裁决。
+ * 产生语句（StmtId）→ role → 当前面 hash 列表。1→多分裂时一个 role 对应
+ * 多个 hash；resolve 只在后继内裁决。
+ *
+ * Phase 1.6 换型：外层键从 PartName 改 **StmtId**（§4.1：PartName 会被改名、
+ * 会被复用——同一资产导入两次曾共用 origin）。Map 键用 StmtId 的**串形**
+ * （`String(stmtId)`）；StmtId 是 branded string，串形即其运行期形态。
+ * role 键是 RoleName 的线格式串（`formatRoleName` 输出）。
  */
-export type RoleTable = ReadonlyMap<PartName, ReadonlyMap<string, readonly number[]>>
+export type RoleTable = ReadonlyMap<StmtId, ReadonlyMap<string, readonly number[]>>
 
 // ── 解析结果：显式三态，禁止静默取错 ──
 
@@ -168,11 +174,12 @@ export type TopoResolution<T> =
 
 // ── 错误码（§3.6：解析失败按码抛错，纳入 args 校验）──
 
-/** 解析失败错误码：面/边/顶点/生成面统一用 deleted/ambiguous/not-found 三码。 */
+/** 解析失败错误码：面/边/顶点/生成面统一用 deleted/ambiguous/not-found 三码；mesh 路径引用拓扑用 mesh-unsupported。 */
 export type TopoErrorCode =
   | 'E_TOPO_DELETED'
   | 'E_TOPO_AMBIGUOUS'
   | 'E_TOPO_NOT_FOUND'
+  | 'E_TOPO_MESH_UNSUPPORTED'
 
 /** 解析失败异常：带错误码与 ref 的 kind，禁止静默拿序号硬取。 */
 export class TopoRefError extends Error {
@@ -196,17 +203,24 @@ export class TopoRefError extends Error {
 
 /**
  * 面命名行：序号(1起) ↔ 数组下标。宿主 O(1) 反查：拾取到的 FaceId ordinal
- * → 本行 → captureTopoRef 造 TopoRef。mesh 来源只填 hint、role 为空串。
+ * → 本行 → captureTopoRef 造 TopoRef。
+ *
+ * Phase 1.6/1.7 换型（§4.1/§4.2）：
+ * - `origin` 是产生该面的那条语句（StmtId）。
+ * - `role` 是 RoleName 的**线格式串**（'top' / 'wall:3'，无 'box:' 这类 op 前缀）。
+ * - **无身份面 → `role: null`**（G6：`''` 静默兜底已删）。mesh 来源只填 hint
+ *   （`origin: null` / `role: null`）；BREP 链上解析不出血统也显式为 null，
+ *   不再伪造空串。
  */
 export interface FaceNaming {
-  readonly origin: PartName
-  readonly role: string
+  readonly origin: StmtId | null
+  readonly role: string | null
   readonly hint: FaceHint
 }
 
 /**
- * 边命名行：两邻面的 RoleQualifier（mesh 无邻接时为 null）+ 边 hint。
- * 宿主用它组 EdgeTopoRef（§6.1）。
+ * 边命名行：两邻面的 RoleQualifier + 边 hint；任一邻面无血统（mesh 无邻接、
+ * 或 BREP 链上未追踪）→ `faces: null`，只给 hint。宿主用它组 EdgeTopoRef（§6.1）。
  */
 export interface EdgeNaming {
   readonly faces: readonly [RoleQualifier, RoleQualifier] | null
@@ -216,8 +230,8 @@ export interface EdgeNaming {
 /** 每个 part 的命名数据（ExecutionResult.naming 的 value）。 */
 export interface PartNaming {
   readonly source: 'brep' | 'primitive' | 'mesh'
-  /** 面命名行；序号(1起) ↔ 数组下标。BREP/primitive 完整，mesh 只给 hint（role=''）。 */
+  /** 面命名行；序号(1起) ↔ 数组下标。无身份的面 role=null（G6：无静默兜底）。 */
   readonly faceNaming: ReadonlyArray<FaceNaming>
-  /** 边命名行。mesh 无邻接 → faces=null，只给 hint。 */
+  /** 边命名行。无邻接或邻面无血统 → faces=null，只给 hint。 */
   readonly edgeNaming: ReadonlyArray<EdgeNaming>
 }

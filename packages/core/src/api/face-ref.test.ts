@@ -66,4 +66,24 @@ describe('faceRef', () => {
     const { faceRef } = await import('./face-ref')
     expect(() => faceRef(shape, 0)).toThrow(/must be an integer >= 1/)
   })
+
+  it('mesh path → E_TOPO_MESH_UNSUPPORTED（Phase 1.9 GOTCHA：曾是裸 Error）', async () => {
+    // Phase 1.9（D6/§3）：mesh 路径不支持拓扑引用——静态判定、显式抛带码错误，
+    // 不静默降级。GOTCHA：此前这里抛的是不带 code 的裸 Error，消费方无法按码分支。
+    // 用无 BREP 句柄的纯 mesh Shape（solid() 直造、不经 fromBrep）触发 mesh 分支。
+    const { solid } = await import('../shape')
+    const meshShape = solid({} as never)
+    const { faceRef } = await import('./face-ref')
+    const { edgeRef } = await import('./edge-ref')
+    const { TopoRefError } = await import('../topology/naming')
+    for (const fn of [faceRef, edgeRef]) {
+      try {
+        fn(meshShape, 1)
+        expect.unreachable('should throw')
+      } catch (e) {
+        expect(e).toBeInstanceOf(TopoRefError)
+        expect((e as { code: string }).code).toBe('E_TOPO_MESH_UNSUPPORTED')
+      }
+    }
+  })
 })

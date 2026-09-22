@@ -14,7 +14,7 @@
  * **Phase 1.7 之后 positional 必须归零**（删 `box:`/`extrude:` 前缀的同时淘汰位置兜底名）。
  *
  * ## Phase 0.8 实测基线（2026-09-22）
- *
+
  * | 链 | 被查 part | 面数 | naming 行 | semantic | positional | empty |
  * |---|---|---|---|---|---|---|
  * | `box` | part0 | 6 | 6 | **6** | 0 | 0 |
@@ -25,6 +25,28 @@
  * | `sketch → extrude → subtract` | part3 | 7 | 7 | 1 | 6 | 0 |
  * | `sketch → extrude → cut`（投影） | part3 | 7 | 7 | 0 | 0 | **7** |
  * | **合计** | | **47** | **47** | **20** | **12** | **15** |
+ *
+ * ## Phase 1 基线回填（2026-09-22，1.6/1.7/1.8/1.12 落地后重测）
+ *
+ * 位置兜底名已删（positional 归零）、词汇换型为无 op 前缀语义名、无身份行从
+ * `role: ''` 改为显式 `role: null`（G6/D6/S4）。三档判据相应更新：null 档判
+ * `role == null`（`''` 兜底已不存在，`POSITIONAL_RE` 保留作防回归哨兵）。
+ *
+ * | 链 | 被查 part | 面数 | naming 行 | semantic | positional | null |
+ * |---|---|---|---|---|---|---|
+ * | `box` | part0 | 6 | 6 | **6** | 0 | 0 |
+ * | `box → fillet` | part1 | 7 | 7 | 6 | 0 | **1**（过渡面，身份待 Phase 3） |
+ * | `sketch → extrude` | part1 | 6 | 6 | **6**（bottom/top/wall:0-3） | 0 | 0 |
+ * | `box → cylinder → subtract` | part2 | 7 | 7 | **7** | 0 | 0 |
+ * | `box → cylinder → cut`（投影） | part2 | 7 | 7 | 0 | 0 | **7** |
+ * | `sketch → extrude → subtract` | part3 | 7 | 7 | **7**（wall:i + lateral） | 0 | 0 |
+ * | `sketch → extrude → cut`（投影） | part3 | 7 | 7 | 0 | 0 | **7** |
+ * | **合计** | | **47** | **47** | **32** | **0** | **15** |
+ *
+ * 进度读数：semantic 20→32、positional 12→0、null 15 不变——
+ * `extrude` 的 construct 枚举器把 6 个位置名换成语义名（+6），其 subtract
+ * 链上原 6 个位置名同批转正（+6）；`cut`（投影）7+7 全 null 是 Phase 2/3
+ * 接线（D11 naming 声明）的存量，不是本轮回退。
  *
  * ## ⚠️ 基线里最刺眼的一条：`cut`（投影）与 `subtract`（faijs 自有）命名能力不同
  *
@@ -97,7 +119,7 @@ const ROWS: readonly CoverageRow[] = [
   },
   {
     label: 'box → fillet',
-    // 圆角过渡面在权威映射里没有任何来源（Phase 0.4 实测）⇒ 它是唯一 empty
+    // 圆角过渡面在权威映射里没有任何来源（Phase 0.4 实测）⇒ 唯一 null（身份待 Phase 3）
     code: `const part0 = cad.box(20, 20, 20, { centered: true })
            const part1 = cad.fillet(part0, { edges: [cad.edgeRef(part0, 2)], radius: 2 })`,
     part: 'part1',
@@ -105,11 +127,11 @@ const ROWS: readonly CoverageRow[] = [
   },
   {
     label: 'sketch → extrude',
-    // 关键反例档：6 张面全有"名字"，却全是位置兜底名 ⇒ semantic = 0
+    // Phase 1 后：construct 枚举器落地（bottom/top/wall:0-3），位置兜底名已删
     code: `const part0 = cad.sketch(${SQUARE})
            const part1 = cad.extrude(part0, [0, 0, 10])`,
     part: 'part1',
-    expect: { total: 6, semantic: 0, positional: 6, empty: 0 },
+    expect: { total: 6, semantic: 6, positional: 0, empty: 0 },
   },
   {
     label: 'box → cylinder → subtract（faijs 双 op）',
@@ -130,12 +152,13 @@ const ROWS: readonly CoverageRow[] = [
   },
   {
     label: 'sketch → extrude → subtract（faijs 双 op）',
+    // Phase 1 后：extrude 的 wall:i + cylinder 的 lateral 全语义
     code: `const part0 = cad.sketch(${SQUARE})
            const part1 = cad.extrude(part0, [0, 0, 10])
            const part2 = cad.cylinder(3, 30, { centered: true, at: [5, 5, 0] })
            const part3 = cad.subtract(part1, part2)`,
     part: 'part3',
-    expect: { total: 7, semantic: 1, positional: 6, empty: 0 },
+    expect: { total: 7, semantic: 7, positional: 0, empty: 0 },
   },
   {
     label: 'sketch → extrude → cut（brepjs 投影）',
@@ -183,7 +206,8 @@ async function measureUncached(row: CoverageRow): Promise<Coverage> {
     let positional = 0
     let empty = 0
     for (const f of rows) {
-      if (f.role === '') empty++
+      // Phase 1.7 后无身份行显式 `role: null`（`''` 兜底已删，D6/G6）
+      if (f.role == null) empty++
       else if (POSITIONAL_RE.test(f.role)) positional++
       else semantic++
     }
@@ -228,7 +252,7 @@ describe('Phase 0.8：无名字面基线（progress ruler：semantic 升、posit
   }
 
   it('投影布尔把输入命名表整个丢掉：cut 的 semantic 恒为 0（即使输入已具名）', async () => {
-    // 第 6 行（subtract）有 1 semantic + 6 positional；第 7 行（cut，同几何同输入）全空
+    // 第 6 行（subtract）7 semantic；第 7 行（cut，同几何同输入）7 null
     const viaSubtract = await measure(ROWS[5])
     const viaCut = await measure(ROWS[6])
 
@@ -238,7 +262,7 @@ describe('Phase 0.8：无名字面基线（progress ruler：semantic 升、posit
     // ⇒ D11 要求 `cut`（scriptFace: true 的 `brep-op`）声明 naming ⇒ 其实现也必须接上 role 表通路
   })
 
-  it('合计基线：47 面中 20 semantic / 12 positional / 15 empty', async () => {
+  it('合计基线：47 面中 32 semantic / 0 positional / 15 null（Phase 1 回填）', async () => {
     let total = 0
     let semantic = 0
     let positional = 0
@@ -253,8 +277,8 @@ describe('Phase 0.8：无名字面基线（progress ruler：semantic 升、posit
 
     expect({ total, semantic, positional, empty }).toEqual({
       total: 47,
-      semantic: 20,
-      positional: 12,
+      semantic: 32,
+      positional: 0,
       empty: 15,
     })
   }, 120000)

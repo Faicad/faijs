@@ -103,9 +103,11 @@ function primitiveBrep(op: string, params: Record<string, unknown>): Shape {
   if (!kernel) throw new Error('[stdlib/box] no OCCT kernel')
   const type = op === 'box' ? 'cube' : op
   const result = primitiveToBrepSolid(kernel, type as 'cube' | 'sphere' | 'cylinder' | 'cone' | 'wedge', params as never)
-  // §3.2：链根建表——语义命名器按 op 类型给面命名（'box'→box:top 等，其余位置名兜底）。
-  // origin 用链根 part 变量名（当前语句 LHS，§2.2），保证多个同类型 primitive 不撞 origin。
-  const origin = String(getCurrentStmt()?.outputs[0] ?? op)
+  // §3.2：链根建表——语义命名器按 op 类型给面命名（semantic 'top'/'lateral' 等，
+  // Phase 1.7 已删 'box:' 前缀与位置兜底）。
+  // Phase 1.6：origin 用链根语句的 StmtId（当前语句 id，§2.2/§4.1）——变量名会被
+  // 改名/复用，StmtId 全局唯一，保证多个同类型 primitive 不撞 origin。
+  const origin = String(getCurrentStmt()?.id ?? op)
   const roles = assignRoles(kernel, result.solid, op)
   return fromBrep(
     solidToShape(kernel, result.solid, clampNRad((params.nRad ?? params.segments) as number)),

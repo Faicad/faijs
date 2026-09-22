@@ -51,9 +51,11 @@ function booleanBrep(inputs: Shape[], operation: BooleanOperation): Shape {
     const prev = resultSolid
     const prevTable = roleTable
     const toolTable = getSlot(inputs[i])?.roleTable as ReadonlyMap<unknown, unknown> | undefined
-    const outPart = String(getCurrentStmt()?.outputs[0] ?? '')
+    // Phase 1.6：新 origin = 本次语句的 StmtId（不再是 LHS 变量名——PartName 会被
+    // 改名/复用，StmtId 全局唯一）。
+    const outStmt = String(getCurrentStmt()?.id ?? '')
 
-    // §3.4：一次内核调用，A/B 拆流各自传播后合表（缝面以本次语句 LHS 为新 origin）
+    // §3.4：一次内核调用，A/B 拆流各自传播后合表（缝面 origin=本次语句 StmtId）
     const r = booleanWithRoleTable(
       kernel,
       op,
@@ -61,7 +63,7 @@ function booleanBrep(inputs: Shape[], operation: BooleanOperation): Shape {
       inputSolids[i]!,
       prevTable ?? new Map(),
       toolTable ?? new Map(),
-      outPart,
+      outStmt,
     )
     resultSolid = r.result
     lastEvolution = r.faceEvolution

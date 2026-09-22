@@ -36,7 +36,7 @@
  * ### 某条链开始通过时怎么做
  *
  * 1. 把该链的 `it.fails(...)` 改成 `it(...)`（**不要**改成 `it.skip` 或删掉）；
- * 2. 若它转绿靠的是 Phase 1.7 删前缀，同时改 `LEGACY_BOX_*_ROLE`（见下）；
+ * 2. Phase 1.6/1.7 已换型（origin=StmtId、role 无前缀），字面量常量已同步更新；
  * 3. 在开发计划 §7.1 的进度表里把该链标绿。
  *
  * ## 与阶段的关系（期望的绿灯节奏）
@@ -71,7 +71,7 @@
  * L5/L6 的脚本里要写 **role 字面量**（R2：role 必须能写进 `.fai.js`）。Phase 1.7 会删掉
  * `box:` / `extrude:` 前缀（`box:top` → `top`），届时**脚本里的字面量会失效**——
  * 迁移器 `migrateTopoRef` 只处理**数据**（3d_editor 场景），不管脚本源码。
- * ⇒ 为把改动收敛到一处，本文件把这类字面量提为文件顶部常量（`LEGACY_BOX_*_ROLE`），
+ * ⇒ 为把改动收敛到一处，本文件把这类字面量提为文件顶部常量（`BOX_*_ROLE`），
  * Phase 1.7 只需改常量与这里的注释，不必翻遍每个 `it`。
  *
  * 使用真实 OCCT（`beforeAll registerOcctBrepEngine`）。
@@ -92,10 +92,15 @@ beforeAll(async () => {
   await registerOcctBrepEngine()
 }, 120000)
 
-// ── Phase 1.7 待改的字面量（集中一处，见文件头注） ──
-/** 脚本里消费侧引用的 role 字面量（今天是带前缀的形态）。 */
-const LEGACY_BOX_TOP_ROLE = 'box:top'
-const LEGACY_BOX_FRONT_ROLE = 'box:front'
+// ── 脚本里消费侧引用的 role/origin 字面量 ──
+// Phase 1.6/1.7 已换型：origin = 产生该面的那条语句的 StmtId（= `s${源码行号}`，
+// 见下方 BOX_ORIGIN 的 GOTCHA）；role = 无前缀语义名（'box:top' → 'top'）。
+// G3 链的脚本每次从空 runtime 执行，语句 id 确定 ⇒ 字面量可写死。
+// anchor id = `s${源码行号}`（DirectExecutor.runUnit 的 ExecutionAnchor）——
+// 模板串首行是换行，box 在第 2 行 ⇒ origin='s2'（GOTCHA：不是语句序号）。
+const BOX_ORIGIN = 's2'
+const BOX_TOP_ROLE = 'top'
+const BOX_FRONT_ROLE = 'front'
 
 // ── 助手 ──
 
@@ -332,7 +337,7 @@ const CHAINS: readonly ChainSpec[] = [
       const part1 = cad.fai_drill(part0, {
         diameter: 4, depth: 5, holeType: 'simple',
         position: [0, 0, 10], direction: 'normal',
-        face: { kind: 'face', origin: 'part0', role: '${LEGACY_BOX_TOP_ROLE}', hint: { kind: 'face', surfaceType: 'plane' } },
+        face: { kind: 'face', origin: '${BOX_ORIGIN}', role: '${BOX_TOP_ROLE}', hint: { kind: 'face', surfaceType: 'plane' } },
       })
     `,
     codeB: `
@@ -340,7 +345,7 @@ const CHAINS: readonly ChainSpec[] = [
       const part1 = cad.fai_drill(part0, {
         diameter: 6, depth: 5, holeType: 'simple',
         position: [0, 0, 10], direction: 'normal',
-        face: { kind: 'face', origin: 'part0', role: '${LEGACY_BOX_TOP_ROLE}', hint: { kind: 'face', surfaceType: 'plane' } },
+        face: { kind: 'face', origin: '${BOX_ORIGIN}', role: '${BOX_TOP_ROLE}', hint: { kind: 'face', surfaceType: 'plane' } },
       })
     `,
     part: asPartName('part1'),
@@ -364,8 +369,8 @@ const CHAINS: readonly ChainSpec[] = [
         edges: [{
           kind: 'edge',
           faces: [
-            { kind: 'face', origin: 'part0', role: '${LEGACY_BOX_TOP_ROLE}', hint: { kind: 'face', surfaceType: 'plane' } },
-            { kind: 'face', origin: 'part0', role: '${LEGACY_BOX_FRONT_ROLE}', hint: { kind: 'face', surfaceType: 'plane' } },
+            { kind: 'face', origin: '${BOX_ORIGIN}', role: '${BOX_TOP_ROLE}', hint: { kind: 'face', surfaceType: 'plane' } },
+            { kind: 'face', origin: '${BOX_ORIGIN}', role: '${BOX_FRONT_ROLE}', hint: { kind: 'face', surfaceType: 'plane' } },
           ],
           hint: { kind: 'edge' },
         }],
@@ -378,8 +383,8 @@ const CHAINS: readonly ChainSpec[] = [
         edges: [{
           kind: 'edge',
           faces: [
-            { kind: 'face', origin: 'part0', role: '${LEGACY_BOX_TOP_ROLE}', hint: { kind: 'face', surfaceType: 'plane' } },
-            { kind: 'face', origin: 'part0', role: '${LEGACY_BOX_FRONT_ROLE}', hint: { kind: 'face', surfaceType: 'plane' } },
+            { kind: 'face', origin: '${BOX_ORIGIN}', role: '${BOX_TOP_ROLE}', hint: { kind: 'face', surfaceType: 'plane' } },
+            { kind: 'face', origin: '${BOX_ORIGIN}', role: '${BOX_FRONT_ROLE}', hint: { kind: 'face', surfaceType: 'plane' } },
           ],
           hint: { kind: 'edge' },
         }],

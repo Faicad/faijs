@@ -53,7 +53,7 @@ export { computeContentKey } from './content-key'
 export { stableFingerprint } from './content-key'
 import { isCompoundLike, getSlot, ensureSlot, type CompoundShape } from '../shape'
 import type { PartNaming } from '../topology/naming/types'
-import { buildPartNaming, assignPrimitiveFaceRoles, type PartNamingInput } from '../topology/naming/build-naming'
+import { buildPartNaming, type PartNamingInput } from '../topology/naming/build-naming'
 import { faceRowToHint } from '../topology/naming/geom-hint'
 import { HASH_UPPER_BOUND } from '../brep/face-evolution'
 
@@ -1077,8 +1077,9 @@ export class CadRuntime {
       }
     }
     if (partTopo.source === 'primitive') {
-      const primitiveRoles = assignPrimitiveFaceRoles(faces, partName)
-      return { source: 'primitive', partName, faces, edges, primitiveRoles, edgeFaceOrdinals }
+      // Phase 1.8（D6）：primitive 不再派生伪拓扑 role——拓扑身份是 BREP 专有能力，
+      // primitive/mesh 一致只填 hint（naming 行 origin/role 显式 null）。
+      return { source: partTopo.source, partName, faces, edges, edgeFaceOrdinals }
     }
     return { source: partTopo.source, partName, faces, edges, edgeFaceOrdinals }
   }

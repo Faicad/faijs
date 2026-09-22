@@ -8,7 +8,6 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { asPartName } from '../../identity'
 import type { ResolutionContext, FaceCandidateEntry, EdgeCandidateEntry, VertexCandidateEntry } from './resolve-face'
 import { resolveEdgeTopo } from './resolve-edge'
 import { resolveVertexTopo } from './resolve-vertex'
@@ -41,13 +40,13 @@ const boxFaceEdge: number[][] = [
 const boxEdges: EdgeCandidateEntry[] = Array.from({ length: 12 }, (_, i) => ({ ordinal: i + 1, hint: { length: 10, midpoint: [5, 5, 5] } }))
 
 const boxTable: RoleTable = new Map([
-  [asPartName('box'), new Map([
-    ['box:top', [15]],
-    ['box:bottom', [16]],
-    ['box:front', [14]],
-    ['box:back', [13]],
-    ['box:right', [11]],
-    ['box:left', [12]],
+  ['s_box' as never, new Map([
+    ['top', [15]],
+    ['bottom', [16]],
+    ['front', [14]],
+    ['back', [13]],
+    ['right', [11]],
+    ['left', [12]],
   ])],
 ])
 
@@ -66,7 +65,7 @@ describe('resolveEdgeTopo', () => {
     // box:top(5) 与 box:front(4) 的公共边：面5 ∩ 面4 = 边 11
     const res = resolveEdgeTopo({
       kind: 'edge',
-      faces: [{ origin: asPartName('box'), role: 'box:top' }, { origin: asPartName('box'), role: 'box:front' }],
+      faces: [{ origin: 's_box' as never, role: 'top' }, { origin: 's_box' as never, role: 'front' }],
       hint: { kind: 'edge', length: 10 },
     }, ctx)
     expect(res.ok).toBe(true)
@@ -79,12 +78,12 @@ describe('resolveEdgeTopo', () => {
   it('resolves a cross-origin edge after a boolean merge (from different origins)', () => {
     // 布尔合流：target 的 box:top(5) 与 tool 的 tool:lateral(1) 共享边 3
     const mergedTable: RoleTable = new Map([
-      [asPartName('box'), new Map([['box:top', [15]]])],
-      [asPartName('tool'), new Map([['tool:lateral', [11]]])],
+      ['s_box' as never, new Map([['top', [15]]])],
+      ['s_tool' as never, new Map([['lateral', [11]]])],
     ])
     const res = resolveEdgeTopo({
       kind: 'edge',
-      faces: [{ origin: asPartName('box'), role: 'box:top' }, { origin: asPartName('tool'), role: 'tool:lateral' }],
+      faces: [{ origin: 's_box' as never, role: 'top' }, { origin: 's_tool' as never, role: 'lateral' }],
       hint: { kind: 'edge', length: 10 },
     }, { ...ctx, roleTable: mergedTable })
     expect(res.ok).toBe(true)
@@ -111,7 +110,7 @@ describe('resolveEdgeTopo', () => {
     }))
     const res = resolveEdgeTopo({
       kind: 'edge',
-      faces: [{ origin: asPartName('box'), role: 'box:top' }, { origin: asPartName('box'), role: 'box:back' }],
+      faces: [{ origin: 's_box' as never, role: 'top' }, { origin: 's_box' as never, role: 'back' }],
       hint: { kind: 'edge', length: 10, midpoint: [5, 5, 10] },
     }, { ...multiEdgeCtx, edges: hintEdges })
     expect(res.ok).toBe(true)
@@ -129,7 +128,7 @@ describe('resolveEdgeTopo', () => {
     }))
     const res = resolveEdgeTopo({
       kind: 'edge',
-      faces: [{ origin: asPartName('box'), role: 'box:top' }, { origin: asPartName('box'), role: 'box:front' }],
+      faces: [{ origin: 's_box' as never, role: 'top' }, { origin: 's_box' as never, role: 'front' }],
       hint: { kind: 'edge', length: 10, midpoint: [5, 5, 10] },
     }, { ...ctx, edges: meshEdges, faceEdgeAdjacency: undefined })
     expect(res.ok).toBe(true)
@@ -139,7 +138,7 @@ describe('resolveEdgeTopo', () => {
   it('reports not-found when a role has no current face', () => {
     const res = resolveEdgeTopo({
       kind: 'edge',
-      faces: [{ origin: asPartName('box'), role: 'box:top' }, { origin: asPartName('box'), role: 'ghost' }],
+      faces: [{ origin: 's_box' as never, role: 'top' }, { origin: 's_box' as never, role: 'ghost' }],
       hint: { kind: 'edge', length: 10 },
     }, ctx)
     expect(res.ok).toBe(false)
@@ -168,9 +167,9 @@ describe('resolveVertexTopo', () => {
     const res = resolveVertexTopo({
       kind: 'vertex',
       faces: [
-        { origin: asPartName('box'), role: 'box:top' },
-        { origin: asPartName('box'), role: 'box:right' },
-        { origin: asPartName('box'), role: 'box:front' },
+        { origin: 's_box' as never, role: 'top' },
+        { origin: 's_box' as never, role: 'right' },
+        { origin: 's_box' as never, role: 'front' },
       ],
       hint: { kind: 'vertex', position: [10, 0, 10] },
     }, { ...ctx, vertices: boxVertices, faceVertexAdjacency: boxFaceVertex })
@@ -184,7 +183,7 @@ describe('resolveVertexTopo', () => {
   it('reports not-found with fewer than 3 faces', () => {
     const res = resolveVertexTopo({
       kind: 'vertex',
-      faces: [{ origin: asPartName('box'), role: 'box:top' }, { origin: asPartName('box'), role: 'box:front' }],
+      faces: [{ origin: 's_box' as never, role: 'top' }, { origin: 's_box' as never, role: 'front' }],
       hint: { kind: 'vertex' },
     }, ctx)
     expect(res.ok).toBe(false)
@@ -215,7 +214,7 @@ describe('resolveDerivedFaceTopo', () => {
     const res = resolveDerivedFaceTopo({
       kind: 'derived-face',
       op: 'chamfer',
-      between: [{ origin: asPartName('box'), role: 'box:top' }, { origin: asPartName('box'), role: 'box:front' }],
+      between: [{ origin: 's_box' as never, role: 'top' }, { origin: 's_box' as never, role: 'front' }],
       hint: { kind: 'derived-face', normalA: [0, 0, 1], normalB: [0, -1, 0], edgeMidpoint: [5, 0, 10] },
     }, { ...ctx, faces: derivedFaces, faceAdjacency })
     expect(res.ok).toBe(true)
@@ -230,7 +229,7 @@ describe('resolveDerivedFaceTopo', () => {
     const res = resolveDerivedFaceTopo({
       kind: 'derived-face',
       op: 'fillet',
-      between: [{ origin: asPartName('box'), role: 'box:top' }, { origin: asPartName('box'), role: 'box:front' }],
+      between: [{ origin: 's_box' as never, role: 'top' }, { origin: 's_box' as never, role: 'front' }],
       hint: { kind: 'derived-face', normalA: [0, 0, 1], normalB: [0, -1, 0], edgeMidpoint: [5, 0, 10] },
     }, { ...ctx, faces: derivedFaces, faceAdjacency })
     expect(res.ok).toBe(true)

@@ -200,9 +200,9 @@ function chamferBrep(input: Shape, params: Record<string, unknown>): Shape {
   const ctx = buildEdgeResolutionContext(kernel, input as object)
   if (!ctx) throw new TopoRefError('E_TOPO_NOT_FOUND', 'edge', 'input has no edge naming context')
 
-  // 输入 roleTable + outPart（与 boolean.ts / fillet.ts 同构）
+  // 输入 roleTable + outStmt（与 boolean.ts / fillet.ts 同构）。Phase 1.6：origin=StmtId。
   const inputRoleTable = getSlot(input)?.roleTable as ReadonlyMap<unknown, unknown> | undefined
-  const outPart = String(getCurrentStmt()?.outputs[0] ?? '')
+  const outStmt = String(getCurrentStmt()?.id ?? '')
 
   let resultSolid: BrepHandle
   let faceEvolution: Map<number, number[]> | undefined
@@ -218,7 +218,7 @@ function chamferBrep(input: Shape, params: Record<string, unknown>): Shape {
         edgeHandles,
         params.width as number,
         inputRoleTable ?? new Map(),
-        outPart,
+        outStmt,
       )
       resultSolid = r.result
       faceEvolution = r.faceEvolution

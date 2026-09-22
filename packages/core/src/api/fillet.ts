@@ -93,9 +93,9 @@ function filletBrep(input: Shape, params: Record<string, unknown>): Shape {
   // 解析所有 EdgeTopoRef → Edge 句柄
   const edgeHandles = edges.map((e) => resolveEdge(ctx, e))
 
-  // 输入 roleTable + outPart（与 boolean.ts 同构）
+  // 输入 roleTable + outStmt（与 boolean.ts 同构）。Phase 1.6：origin=本次语句 StmtId。
   const inputRoleTable = getSlot(input)?.roleTable as ReadonlyMap<unknown, unknown> | undefined
-  const outPart = String(getCurrentStmt()?.outputs[0] ?? '')
+  const outStmt = String(getCurrentStmt()?.id ?? '')
 
   let resultSolid: BrepHandle
   let faceEvolution: Map<number, number[]> | undefined
@@ -108,7 +108,7 @@ function filletBrep(input: Shape, params: Record<string, unknown>): Shape {
       edgeHandles,
       radius,
       inputRoleTable ?? new Map(),
-      outPart,
+      outStmt,
     )
     resultSolid = r.result
     faceEvolution = r.faceEvolution

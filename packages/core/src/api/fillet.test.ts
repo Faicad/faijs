@@ -13,8 +13,8 @@ describe('assertFilletParams', () => {
     const validEdge = {
       kind: 'edge' as const,
       faces: [
-        { origin: 'part0', role: 'box:top' },
-        { origin: 'part0', role: 'box:front' },
+        { origin: 's2', role: 'top' },
+        { origin: 's2', role: 'front' },
       ],
       hint: { kind: 'edge' },
     }
@@ -61,8 +61,8 @@ describe('assertFilletParams', () => {
     const validEdge = {
       kind: 'edge' as const,
       faces: [
-        { origin: 'part0', role: 'box:top' },
-        { origin: 'part0', role: 'box:front' },
+        { origin: 's2', role: 'top' },
+        { origin: 's2', role: 'front' },
       ],
       hint: { kind: 'edge' },
     }
@@ -74,8 +74,8 @@ describe('assertFilletParams', () => {
     const validEdge = {
       kind: 'edge' as const,
       faces: [
-        { origin: 'part0', role: 'box:top' },
-        { origin: 'part0', role: 'box:front' },
+        { origin: 's2', role: 'top' },
+        { origin: 's2', role: 'front' },
       ],
       hint: { kind: 'edge' },
     }
@@ -87,8 +87,8 @@ describe('assertFilletParams', () => {
     const validEdge = {
       kind: 'edge' as const,
       faces: [
-        { origin: 'part0', role: 'box:top' },
-        { origin: 'part0', role: 'box:front' },
+        { origin: 's2', role: 'top' },
+        { origin: 's2', role: 'front' },
       ],
       hint: { kind: 'edge' },
     }

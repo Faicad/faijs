@@ -61,7 +61,7 @@ describe('P0 验收：hint 轴采集（真内核）', () => {
     const kernel = result.brepChain.kernel as BrepEngineApi
     const shape = result.outputs.get(asPartName('part0')) as Shape
     expect(shape).toBeDefined()
-    const ref = refForRole(result.naming!.get(asPartName('part0'))!, 'part0', 'cylinder:lateral')
+    const ref = refForRole(result.naming!.get(asPartName('part0'))!, 's1', 'lateral')
     const geom = resolveFaceGeometry(kernel, shape, ref)
     expect(geom.surfaceType).toBe('cylinder')
     expect(geom.axis).toBeDefined()
@@ -131,8 +131,8 @@ describe('P1 新约束类型 e2e（真内核全链路）', () => {
       let asm0 = cad.assembly({ name: 'A', members: [part0, part1], constraints: [
         { type: 'fixed', part: 'part0' },
         { type: 'concentric',
-          a: { part: 'part0', face: { topoRef: { kind: 'face', origin: 'part0', role: 'cylinder:lateral', hint: { kind: 'face', surfaceType: 'cylinder' } } } },
-          b: { part: 'part1', face: { topoRef: { kind: 'face', origin: 'part1', role: 'cylinder:lateral', hint: { kind: 'face', surfaceType: 'cylinder' } } } } },
+          a: { part: 'part0', face: { topoRef: { kind: 'face', origin: 's2', role: 'lateral', hint: { kind: 'face', surfaceType: 'cylinder' } } } },
+          b: { part: 'part1', face: { topoRef: { kind: 'face', origin: 's3', role: 'lateral', hint: { kind: 'face', surfaceType: 'cylinder' } } } } },
       ] })
       asm0.do_assemble()
     `
@@ -155,8 +155,8 @@ describe('P1 新约束类型 e2e（真内核全链路）', () => {
       let asm0 = cad.assembly({ name: 'B', members: [part0, part1], constraints: [
         { type: 'fixed', part: 'part0' },
         { type: 'mate',
-          a: { part: 'part0', face: { topoRef: { kind: 'face', origin: 'part0', role: 'box:top', hint: { kind: 'face', surfaceType: 'plane' } } } },
-          b: { part: 'part1', face: { topoRef: { kind: 'face', origin: 'part1', role: 'box:bottom', hint: { kind: 'face', surfaceType: 'plane' } } } } },
+          a: { part: 'part0', face: { topoRef: { kind: 'face', origin: 's2', role: 'top', hint: { kind: 'face', surfaceType: 'plane' } } } },
+          b: { part: 'part1', face: { topoRef: { kind: 'face', origin: 's3', role: 'bottom', hint: { kind: 'face', surfaceType: 'plane' } } } } },
       ] })
       asm0.do_assemble()
     `

@@ -15,11 +15,10 @@
  */
 
 import type { Shape } from '../mesh/types'
-import { getBackends, BrepUnsupportedError } from '../runtime-state'
+import { getBackends, BrepUnsupportedError, getCurrentStmt } from '../runtime-state'
 import { OpError } from './internal/result-unwrap'
 import { loadBrep } from '../brep/brep-ops'
 import { fromBrep } from '../shape'
-import { asPartName } from '../identity'
 import { assignRoles } from '../topology/naming/roles'
 import type { BrepEngineApi } from '../brep/engine/types'
 
@@ -56,7 +55,7 @@ export async function import_brep(params: Record<string, unknown>): Promise<Shap
 
   const buffer = (await assets.resolveByKey(asset)).bytes
 
-  const { config, kernel: kernels } = getBackends()
+  const { kernel: kernels } = getBackends()
   const kernel = kernels.brep as BrepEngineApi | null
   if (!kernel) {
     throw new BrepUnsupportedError(
@@ -70,10 +69,12 @@ export async function import_brep(params: Record<string, unknown>): Promise<Shap
   )
   // E3（H12）：链根建 roleTable（与 primitives.ts 同源机制）——冻结资产是
   // 无名形状，没有这张表下游 edgeRef/faceRef 无法解析（nameless-shape 缺陷）。
-  // origin 用资产名，保证同名资产链与其它链根不撞 origin。
+  // Phase 1.6：origin 用导入语句的 StmtId——同一资产导入两次是两条语句，
+  // 各自产出的面天然分属不同 origin（旧实现用资产名，两次导入撞 origin）。
+  const stmtId = String(getCurrentStmt()?.id ?? '')
   const roles = assignRoles(kernel, solidHandle, 'import_brep')
   return fromBrep(shape, {
     solid: solidHandle,
-    roleTable: new Map([[asPartName(asset), roles]]),
+    roleTable: new Map([[stmtId, roles]]),
   })
 }

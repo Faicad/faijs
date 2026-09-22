@@ -1,17 +1,18 @@
 /**
  * naming/mesh-primitive.test.ts — M4 mesh/primitive 兼容测试（§5）
  *
- * - assignPrimitiveFaceRoles：primitive 假拓扑「固定面序 → 语义 role」，
- *   与 BREP assignRoles 同一套命名器对照一致（cube 六面）
- * - buildPartNaming primitive 分支：role 来自 primitiveRoles
- * - mesh hint-only：role=''，只能几何兜底
+ * Phase 1.8（D6）后的形态：
+ * - **assignPrimitiveFaceRoles 已删除**——primitive 假拓扑不再派生 role
+ *   （拓扑身份是 BREP 专有能力）。本文件改为钉住「primitive/mesh 行只填 hint、
+ *   origin/role 显式 null」这一新契约。
+ * - mesh hint-only：origin=null、role=null（GOTCHA：曾是 `role=''` + origin=part 名，
+ *   1.8 后空串兜底已删，消费方不得再期待非空 role）。
  * - 链切换降级（§5.4）：BREP 面 hint 快照在解析时走 geometric-fallback
  */
 
 import { describe, it, expect } from 'vitest'
 import { asPartName } from '../../identity'
-import { assignPrimitiveFaceRoles, buildPartNaming } from './build-naming'
-import { assignRoles } from './roles'
+import { buildPartNaming } from './build-naming'
 import type { BrepEngineApi } from '../../brep/engine/primitives'
 import type { BrepHandle } from '../../brep/engine/types'
 import { resolveFaceTopo, type ResolutionContext } from './resolve-face'
@@ -31,6 +32,7 @@ const cubeFaceRows = [
 
 // ── fake kernel（BREP assignRoles 对照用，可枚举面描述）──
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- fixture kernel retained for future BREP 对照测试
 function fakeKernel(faces: Array<{ surfaceType: string; normal: [number, number, number]; center: [number, number, number] }>): BrepEngineApi {
   const handles = faces.map((_, i) => (i + 1) as BrepHandle)
   const byHandle = new Map<number, (typeof faces)[number]>()
@@ -132,87 +134,49 @@ function fakeKernel(faces: Array<{ surfaceType: string; normal: [number, number,
 } as BrepEngineApi
 }
 
-// ── assignPrimitiveFaceRoles ──
+// ── primitive 假拓扑已删（Phase 1.8 / D6）──
+// GOTCHA：assignPrimitiveFaceRoles 曾按「固定面序 + 面行几何」给 primitive 面
+// 派生语义 role（'box:top' 等）——那是 mesh 侧的伪拓扑：不跨 op 传播、不抗参数
+// 变化，且与 roles.ts 的 ROLE_ASSIGNERS 是同一词汇表的第二次手抄。Phase 1.8
+// 整体删除：primitive/mesh 的 naming 行只填 hint，origin/role 显式 null。
+// 与预期不一致的消费方式（期待非空 role）必须改为按 null 显式分支。
 
-describe('assignPrimitiveFaceRoles（§5.2 primitive 语义命名）', () => {
-  it('names the cube fixed face order with box semantics (matches BREP assignRoles)', () => {
-    const roles = assignPrimitiveFaceRoles(cubeFaceRows, asPartName('cube1'))
-    expect(roles).toEqual([
-      'box:right',   // f0 +X
-      'box:left',    // f1 -X
-      'box:back',    // f2 +Y
-      'box:front',   // f3 -Y
-      'box:top',     // f4 +Z
-      'box:bottom',  // f5 -Z
-    ])
-  })
-
-  it('produces the same roles as BREP assignRoles on the same cube', () => {
-    // BREP 真拓扑：同一 cube 六面 → 语义名对照一致（§3.2 对照表）
-    const kernel = fakeKernel(cubeFaceRows.map((r) => ({
-      surfaceType: r.surfaceType!,
-      normal: r.normal as [number, number, number],
-      center: r.center as [number, number, number],
-    })))
-    const brepRoles = assignRoles(kernel, 1 as BrepHandle, 'box')
-    const primitiveRoles = assignPrimitiveFaceRoles(cubeFaceRows, asPartName('cube1'))
-    // 语义名集合一致（顺序可能不同——BREP 按 TopExp 枚举序，primitive 按固定面序）
-    expect(new Set([...brepRoles.keys()])).toEqual(new Set(primitiveRoles))
-  })
-
-  it('names cylinder lateral + planar caps, and falls back to positional', () => {
-    // primitive 无 opType 信息：平面端盖按几何命名（+Z plane → box:top，与 cube 同命名器）；
-    // BREP 的 cylinderRole 会给 cylinder:top/bottom（语义名集合在 cube 上完全一致，见上一测试）
-    const roles = assignPrimitiveFaceRoles([
-      { surfaceType: 'cylinder', normal: [0, 0, 0], center: [0, 0, 5], area: 100 },
-      { surfaceType: 'plane', normal: [0, 0, 1], center: [0, 0, 10], area: 100 },
-      { surfaceType: 'plane', normal: [0.3, 0.3, 0.3], center: [0, 0, 0], area: 100 },
-    ], asPartName('cyl1'))
-    expect(roles).toEqual(['cylinder:lateral', 'box:top', 'cyl1:face_2'])
-  })
-
-  it('guarantees every face gets a role', () => {
-    const roles = assignPrimitiveFaceRoles([
-      { surfaceType: 'torus', center: [0, 0, 0], area: 100 },
-    ], asPartName('weird1'))
-    expect(roles).toEqual(['weird1:face_0'])
-  })
-})
-
-// ── buildPartNaming primitive 分支 ──
-
-describe('buildPartNaming primitive（§5.2）', () => {
-  it('uses semantic roles for primitive parts', () => {
+describe('buildPartNaming primitive（Phase 1.8 后：无身份，只填 hint）', () => {
+  it('emits origin=null / role=null rows for primitive parts (D6)', () => {
     const naming = buildPartNaming({
       source: 'primitive',
       partName: asPartName('cube1'),
       faces: cubeFaceRows,
       edges: [],
-      primitiveRoles: assignPrimitiveFaceRoles(cubeFaceRows, asPartName('cube1')),
     })
-    expect(naming.faceNaming[4].role).toBe('box:top')
-    expect(naming.faceNaming[4].origin).toBe(asPartName('cube1'))
-    expect(naming.faceNaming[0].hint.surfaceType).toBe('plane')
+    expect(naming.faceNaming).toHaveLength(cubeFaceRows.length)
+    for (const row of naming.faceNaming) {
+      expect(row.origin).toBeNull()
+      expect(row.role).toBeNull()
+      expect(row.hint.surfaceType).toBe('plane')
+    }
   })
 })
 
 // ── mesh hint-only（§5.3）──
 
-describe('mesh hint-only naming（§5.3）', () => {
-  it('fills only hints with role="" for mesh parts', () => {
+describe('mesh hint-only naming（§5.3 + Phase 1.8）', () => {
+  it('fills only hints with origin=null / role=null for mesh parts (GOTCHA: was role="")', () => {
     const naming = buildPartNaming({
       source: 'mesh',
       partName: asPartName('stl1'),
       faces: [{ surfaceType: 'plane', normal: [0, 0, 1], center: [5, 5, 10], area: 42 }],
       edges: [{ length: 10, center: [0, 0, 10] }],
     })
-    expect(naming.faceNaming[0].role).toBe('')
-    expect(naming.faceNaming[0].origin).toBe(asPartName('stl1'))
+    // Phase 1.8：role='' 静默兜底已删——无身份是显式 null，消费方按 null 分支
+    expect(naming.faceNaming[0].role).toBeNull()
+    expect(naming.faceNaming[0].origin).toBeNull()
     expect(naming.edgeNaming[0].faces).toBeNull() // 无邻接
   })
 
   it('captures a hint-only FaceTopoRef from a mesh naming row and resolves by geometry', () => {
-    // STL 选面 → FaceTopoRef{ role:'', hint }（§5.3）
+    // STL 选面 → 几何兜底解析（§5.3）。身份字段为 null 的行不能构造 TopoRef——
+    // 这里直接以 hint 构造 ref 验证「mesh 只能几何兜底」的解析路径仍可用。
     const naming = buildPartNaming({
       source: 'mesh',
       partName: asPartName('stl1'),
@@ -221,7 +185,7 @@ describe('mesh hint-only naming（§5.3）', () => {
     })
     const ref: FaceTopoRef = {
       kind: 'face',
-      origin: asPartName('stl1'),
+      origin: 's0' as never, // 无真实 StmtId 语境：只走几何兜底，origin 不参与匹配
       role: '',
       hint: { kind: 'face', surfaceType: 'plane', normal: [0, 0, 1], center: [5, 5, 10], area: 42 },
     }
@@ -247,8 +211,8 @@ describe('链切换降级（§5.4 reference-resolution degradation）', () => {
     // 该 part 的 roleTable 不再更新/不再适用（mesh 快照无 hash）→ 解析走面 hint 快照几何兜底。
     const ref: FaceTopoRef = {
       kind: 'face',
-      origin: asPartName('box'),
-      role: 'box:top',
+      origin: 's_box' as never,
+      role: 'top',
       hint: { kind: 'face', surfaceType: 'plane', normal: [0, 0, 1], center: [5, 5, 10], area: 100 },
     }
     const hintSnapshot = { surfaceType: 'plane', normal: [0, 0, 1], center: [5, 5, 10], area: 100 }
@@ -268,8 +232,8 @@ describe('链切换降级（§5.4 reference-resolution degradation）', () => {
   it('reports not-found when the degraded hint matches nothing (explicit, no silent ordinal)', () => {
     const ref: FaceTopoRef = {
       kind: 'face',
-      origin: asPartName('box'),
-      role: 'box:top',
+      origin: 's_box' as never,
+      role: 'top',
       hint: { kind: 'face', surfaceType: 'plane', normal: [0, 0, 1], center: [5, 5, 10], area: 100 },
     }
     const ctx: ResolutionContext = {
