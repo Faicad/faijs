@@ -25,6 +25,10 @@ Phase 4 计划列出四项可疑内核缺口（shell 外扩、负 taper、sweep 
   探针：`draftPrism(wire, 0,0,10,-10)` 返回负体积；`draftPrism(face)` 对
   10×10×10 棱柱返回 1394（含 taper 期望 ≈1000），dx/dy/dz↔angle 约定与
   CadQuery 的 `LocOpe_DPrism` 角部锥面语义不对应，需标定工作。中优先级。
+  **2026-09-23 已解锁（无需内核变更）**：cq-compat `extrude(taper<0)` 改为缝合
+  精确 10-face arc-join 体（底 + 偏移 arc-join 顶 + 4 平面侧壁 + 4 圆锥角面，
+  `sew`+`makeSolid`+`fixFaceOrientations`），`testTaperedExtrudeHeight__s2`
+  `equivalent=true`；draftPrism 仍用于尖角截锥与圆截面（无角部）。
 - **sweep 多截面** — 真缺口。`sweepPipeShell(profile, spine, freenet, smooth)`
   与 `sweepOriented(... auxSpine ...)` 存在且单 profile + 可选 guide 可用；
   两者均不接收多个截面 wire，`BRepOffsetAPI_MakePipeShell` 的多截面能力未暴露。

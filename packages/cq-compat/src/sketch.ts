@@ -153,10 +153,9 @@ function applyMode(
   const tagOut = new Map<string, ShapeHandle[]>()
   switch (mode) {
     case 'a': {
-      let acc: ShapeHandle | null = null
       const all = [...faces, ...fresh]
       if (all.length === 0) return { faces: [], tags: tagOut, tagOut }
-      acc = all[0]
+      let acc: ShapeHandle = all[0]
       for (let i = 1; i < all.length; i++) {
         const merged = k.fuse(acc, all[i])
         k.release(acc)

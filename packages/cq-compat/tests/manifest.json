@@ -1293,10 +1293,9 @@
     "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testTaperedExtrudeHeight__s2": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testTaperedExtrudeHeight",
-    "blockedBy": "kernel: negative (outward) taper needs LocOpe_DPrism corner behaviour - upstream ref is a 10-face body where each corner is a 1/4 right circular cone (apex at the bottom corner, vertical axis, half-angle = |taper|), i.e. the top face is the base profile offset by h*tan|taper| with ARC join. The occt-wasm surface has no equivalent: offsetWire2D fails for every JoinType, loft rejects a 4-edge bottom vs 8-edge top wire, and draft(shape,face,angle,dir) fails outright. draftPrism alone only yields the sharp-corner 6-face frustum (vol 1904572.91 vs ref 1866667.26). Revisit when the wasm surface exposes LocOpe_DPrism / a working 2D arc-join offset.",
-    "manual": true
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testText__box": {
     "status": "blocked",

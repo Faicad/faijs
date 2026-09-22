@@ -31,6 +31,12 @@ probe so the request list is grounded in fact, not assumption.
   1394 for a 10×10×10 prism (expected ≈1000 with taper), so the dx/dy/dz↔angle
   convention does not map to CadQuery's `LocOpe_DPrism` corner-taper semantics
   without calibration work. Medium priority; the calib is a follow-up probe.
+  **RESOLVED 2026-09-23 (without kernel change):** cq-compat `extrude(taper<0)`
+  now sews the exact 10-face arc-joined body (bottom + offset arc-join top +
+  4 planar side faces + 4 conical corner faces via `sew`+`makeSolid`+
+  `fixFaceOrientations`), passing `testTaperedExtrudeHeight__s2` with
+  `equivalent=true`; `draftPrism` remains correct for the sharp-corner frustum
+  and for circular profiles (no corners).
 - **Sweep multisection** — real gap. `sweepPipeShell(profile, spine, freenet,
   smooth)` and `sweepOriented(... auxSpine ...)` exist and work for single
   profile + optional guide; neither takes multiple section wires, so

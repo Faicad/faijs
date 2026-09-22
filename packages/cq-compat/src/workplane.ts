@@ -16,7 +16,7 @@ import { fromHandle } from '@faicad/faijs/sdk'
 import { brepOf, isShape } from '@faicad/faijs/shape'
 import { setName, nameOf } from '@faicad/faijs'
 import { getKernel } from '@faicad/faijs/occt-kernel/occtKernel'
-import type { OcctKernel, ShapeHandle } from 'occt-wasm'
+import type { OcctKernel, ShapeHandle, Vec3 } from 'occt-wasm'
 import type { Shape } from '@faicad/faijs/mesh/types'
 
 // ── cad namespace singleton (created once at module load) ──────────────────
@@ -2352,6 +2352,15 @@ export async function extrude(
     const base = wp.shape
     wp = await applyPendingFacePlane(wp)
     const profile = await buildProfileWire(wp, solidWires[0])
+    if (taper < 0) {
+      // Outward taper: the section GROWS by |h·tan(taper)| per side with ARC
+      // joins at convex corners (upstream `extrude(h, taper=-20)` yields a
+      // 10-face body: bottom + arc-joined top + 4 planar side faces + 4
+      // conical corner faces). The kernel draftPrism produces sharp-corner
+      // frusta only (volume overshoots the arc-joined body by ~2%), so the
+      // exact body is sewn from its faces.
+      return outwardTaperPrism(wp, base, profile, height, taper, combine)
+    }
     const face = unwrapBrepResult(compatFn('makeFace')(profile))
     const kernel = getKernel() as unknown as OcctKernel
     const n = Array.isArray(wp.normal) ? wp.normal : ([0, 0, 1] as [number, number, number])
@@ -2538,6 +2547,172 @@ export async function extrude(
   }
   // No shape and no pending profile — return unchanged
   return wp
+}
+
+/**
+ * outwardTaperPrism — build the exact outward-tapered prism (taper < 0).
+ *
+ * Upstream CadQuery `extrude(h, taper=-t)` grows the section by
+ * `|h·tan(t)|` per side with ARC joins at convex corners: the ref body is
+ * 10 faces (bottom + arc-joined top + 4 planar side faces + 4 conical corner
+ * faces). The kernel `draftPrism` only produces sharp-corner frusta, whose
+ * volume overshoots the arc-joined body (~2% at -20°), so this sews the exact
+ * faces instead. Supported for rectilinear (4 straight-edge) profiles on
+ * XY-oriented workplanes; anything else fails loudly rather than emitting a
+ * wrong-corner body.
+ *
+ * @param wp - Workplane (post `applyPendingFacePlane`)
+ * @param base - carried shape to fuse with (undefined when none)
+ * @param profile - pending profile wire (BREP handle or wrapper)
+ * @param height - extrusion distance along the workplane normal
+ * @param taper - negative draft angle in degrees
+ * @param combine - fuse the result with the carried shape (default true)
+ * @returns Promise<Workplane>
+ */
+async function outwardTaperPrism(
+  wp: Workplane,
+  base: Shape | null | undefined,
+  profile: unknown,
+  height: number,
+  taper: number,
+  combine: boolean,
+): Promise<Workplane> {
+  const kernel = getKernel() as unknown as OcctKernel
+  const k = kernel as unknown as {
+    makeFace: (wire: ShapeHandle) => ShapeHandle
+    offsetWire2D: (wire: ShapeHandle, dist: number, joinType: number) => ShapeHandle
+    translate: (s: ShapeHandle, dx: number, dy: number, dz: number) => ShapeHandle
+    getSubShapes: (s: ShapeHandle, type: string) => ShapeHandle[]
+    makeLineEdge: (a: Vec3, b: Vec3) => ShapeHandle
+    makeWire: (edges: ShapeHandle[]) => ShapeHandle
+    revolve: (s: ShapeHandle, axis: { point: Vec3; direction: Vec3 }, angle: number) => ShapeHandle
+    curveType: (e: ShapeHandle) => string
+    curveParameters: (e: ShapeHandle) => { first: number; last: number }
+    curvePointAtParam: (e: ShapeHandle, t: number) => Vec3
+    sew: (faces: ShapeHandle[], tolerance: number) => ShapeHandle
+    makeSolid: (shell: ShapeHandle) => ShapeHandle
+    fixFaceOrientations: (s: ShapeHandle) => ShapeHandle
+    isSolid: (s: ShapeHandle) => boolean
+    getBoundingBox: (s: ShapeHandle) => { xmin: number; ymin: number; zmin: number; xmax: number; ymax: number; zmax: number }
+  }
+  const raw = rawShapeId(profile) as unknown as ShapeHandle
+  const off = Math.abs(height * Math.tan((Math.abs(taper) * Math.PI) / 180))
+  if (off < 1e-9) {
+    throw new Error('[cq-compat] extrude: outward taper resolves to a zero offset')
+  }
+  // The sewing construction is XY-oriented; the profile plane is recovered via
+  // its own z-extent, so off-plane workplanes still work as long as the profile
+  // is axis-aligned. Non-axis-aligned planes are rejected.
+  const bb0 = k.getBoundingBox(raw)
+  const z0 = bb0.zmin
+  if (Math.abs(bb0.zmax - bb0.zmin) > 1e-9) {
+    throw new Error('[cq-compat] extrude: outward taper requires a planar profile (got z-extent)')
+  }
+  // 1. bottom face
+  const bottomFace = k.makeFace(raw)
+  // 2. top wire: arc-join offset lifted to z0+height
+  const topWireRaw = k.translate(k.offsetWire2D(raw, off, 0), 0, 0, z0 + height)
+  const topFace = k.makeFace(topWireRaw)
+  // 3. classify top edges (straight vs arc) and match to bottom edges
+  const bEdges = k.getSubShapes(raw, 'edge')
+  const tEdges = k.getSubShapes(topWireRaw, 'edge')
+  if (bEdges.length !== 4 || tEdges.length !== 8) {
+    throw new Error(
+      `[cq-compat] extrude: outward taper supports only 4-sided rectilinear profiles (got ${bEdges.length} bottom / ${tEdges.length} top edges)`,
+    )
+  }
+  const ends = (e: ShapeHandle): { a: Vec3; b: Vec3 } => {
+    const { first, last } = k.curveParameters(e)
+    return { a: k.curvePointAtParam(e, first), b: k.curvePointAtParam(e, last) }
+  }
+  const bEnds = bEdges.map(ends)
+  const tTypes = tEdges.map((e) => String(k.curveType(e)).toLowerCase())
+  const straightIdx = tTypes
+    .map((t, i) => (t === 'line' ? i : -1))
+    .filter((i) => i >= 0)
+  const arcIdx = tTypes
+    .map((t, i) => (t === 'line' ? -1 : i))
+    .filter((i) => i >= 0)
+  if (straightIdx.length !== 4 || arcIdx.length !== 4) {
+    throw new Error(
+      `[cq-compat] extrude: outward taper top wire misclassified (${straightIdx.length} straight / ${arcIdx.length} arc)`,
+    )
+  }
+  // Match each bottom edge to the parallel straight top edge (arc-join offset
+  // preserves edge directions); the bottom edge's end vertex is the corner apex.
+  const tEnds = straightIdx.map((i) => ends(tEdges[i]))
+  const matches: number[] = new Array(4).fill(-1)
+  const eps = 1e-6
+  for (let i = 0; i < 4; i++) {
+    const d = { x: bEnds[i].b.x - bEnds[i].a.x, y: bEnds[i].b.y - bEnds[i].a.y }
+    for (let j = 0; j < 4; j++) {
+      if (matches.includes(j)) continue
+      const td = { x: tEnds[j].b.x - tEnds[j].a.x, y: tEnds[j].b.y - tEnds[j].a.y }
+      const cross = d.x * td.y - d.y * td.x
+      const dot = d.x * td.x + d.y * td.y
+      if (Math.abs(cross) < eps * Math.max(1, Math.hypot(d.x, d.y) * Math.hypot(td.x, td.y)) && dot > 0) {
+        matches[i] = j
+        break
+      }
+    }
+  }
+  if (matches.some((m) => m < 0)) {
+    throw new Error('[cq-compat] extrude: outward taper could not match side edges')
+  }
+  // 4. sew the 10 faces
+  const faces: ShapeHandle[] = [bottomFace, topFace]
+  for (let i = 0; i < 4; i++) {
+    const bp = bEnds[i]
+    const tp = tEnds[matches[i]]
+    // side plane: bottom edge + (bottom end -> top end) + REVERSED top edge
+    // (top end -> top start) + (top start -> bottom start). Using the kernel
+    // top edge's own direction would break the wire's head-to-tail continuity
+    // (the previous edge ends at the top END), so the reversed segment is
+    // built explicitly — verified against the probe construction.
+    faces.push(
+      k.makeFace(
+        k.makeWire([
+          bEdges[i],
+          k.makeLineEdge(bp.b, tp.b),
+          k.makeLineEdge(tp.b, tp.a),
+          k.makeLineEdge(tp.a, bp.a),
+        ]),
+      ),
+    )
+    // conical corner face: generatrix (apex = bottom edge end) -> arc edge end, revolved 90°
+    const arcE = tEdges[arcIdx[i]]
+    const arcEnds = ends(arcE)
+    const apex = { x: bp.b.x, y: bp.b.y, z: z0 } as Vec3
+    // Generatrix to the arc's DOWNSTREAM end (last param): sweeping +90° about
+    // +Z from the downstream direction covers the corner's arc quadrant exactly
+    // (verified: `arcStart` here is (100,-off) for corner (100,0), i.e. the -Y
+    // side, sweeping -Y -> +X). Using the upstream end would sweep into the
+    // wrong quadrant.
+    faces.push(
+      k.revolve(
+        k.makeLineEdge(apex, arcEnds.b),
+        { point: apex, direction: { x: 0, y: 0, z: 1 } },
+        Math.PI / 2,
+      ),
+    )
+  }
+  const shell = k.sew(faces, 1e-2)
+  let solid = k.makeSolid(shell)
+  const fixed = k.fixFaceOrientations(solid)
+  if (k.isSolid(fixed)) solid = fixed
+  const prism = fromHandle(solid)
+  const shape = combine === false || !base ? prism : await fuseShapes(base, prism)
+  return clone(wp, {
+    shape,
+    pendingWires: [],
+    pendingPolygon: undefined,
+    pendingRect: undefined,
+    pendingCircle: undefined,
+    faceSel: null,
+    edgeSel: null,
+    vertexSel: null,
+    pts: [],
+  })
 }
 
 /**

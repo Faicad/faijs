@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-22-occt-wasm-kernel-gap-assessment.md
-2026-09-22-occt-wasm-kernel-gap-assessment.md: 4769a13b276b89d2b7d51784835bdb4ba9ee869a
-2026-09-22-occt-wasm-kernel-gap-assessment.zh.md: 416ff9a7718242978d9bc96fc7812dbf4783ceca
+2026-09-22-occt-wasm-kernel-gap-assessment.md: d9a17232b0d94232ca711f6879e6210d3ff6319c
+2026-09-22-occt-wasm-kernel-gap-assessment.zh.md: 731924d798b70360d8d1b9b436b6785b69c5faca

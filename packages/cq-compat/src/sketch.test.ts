@@ -7,7 +7,7 @@
  * (upstream Sketch is a 2D face container; STEP export yields zero volume so
  * these are asserted as area/face-count parity rather than STEP comparison).
  */
-import { describe, expect, it, beforeAll, afterAll } from 'vitest'
+import { describe, expect, it, beforeAll } from 'vitest'
 import { getKernel } from '@faicad/faijs/occt-kernel/occtKernel'
 import { setupNativeKernel } from './gear-test-harness'
 import { brepOf } from '@faicad/faijs/shape'
@@ -26,15 +26,12 @@ import {
   sketchEdges,
   sketchVertices,
   sketchReset,
-  sketchVal,
   sketchVals,
-  sketchTag,
   sketchSelect,
   sketchArea,
   sketchFaceCount,
   sketchExtrude,
   sketchDispose,
-  type Sketch,
 } from './index'
 
 beforeAll(async () => {

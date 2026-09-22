@@ -7,7 +7,7 @@
  */
 
 import { beforeAll, describe, expect, it } from 'vitest'
-import { solidFromFaces, val } from './index'
+import { solidFromFaces } from './index'
 import { setupNativeKernel, mkWP, kernel } from './gear-test-harness'
 import { fromHandle } from '@faicad/faijs/sdk'
 import { brepOf } from '@faicad/faijs/shape'

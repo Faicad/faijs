@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { createRuntime, registerOcctBrepEngine } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
-import { brepOf } from '@faicad/faijs/shape'
 import type { Shape } from '@faicad/faijs/mesh/types'
 import * as cq from './index'
 
@@ -26,8 +25,6 @@ describe('probe moved', () => {
         'let m2 = await cq.moved(m1, [0, 0, 1])',
       ].join('\n'),
     )
-    // eslint-disable-next-line no-console
-    console.log('single-twice failedAt:', JSON.stringify(res.failedAt))
     expect(res.failedAt).toBeUndefined()
   }, 60000)
 
@@ -46,8 +43,7 @@ describe('probe moved', () => {
           last,
         ].join('\n'),
       )
-      // eslint-disable-next-line no-console
-      console.log(last, '=>', res.failedAt ? JSON.stringify(res.failedAt.message) : 'OK')
+      expect(res.failedAt).toBeUndefined()
     }
     expect(true).toBe(true)
   }, 60000)
@@ -63,11 +59,8 @@ describe('probe moved', () => {
         'let c2 = await cq.moved(c1, [0, 0, 1])',
       ].join('\n'),
     )
-    // eslint-disable-next-line no-console
-    console.log('compound-move failedAt:', JSON.stringify(res.failedAt))
     const s = res.outputs.get('s1' as never) as Shape | undefined
-    // eslint-disable-next-line no-console
-    console.log('s1 has brep slot:', s ? brepOf(s) !== undefined : 'no shape')
+    expect(s).toBeDefined()
     expect(res.failedAt).toBeUndefined()
   }, 60000)
 })

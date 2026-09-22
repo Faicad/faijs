@@ -351,3 +351,10 @@
 - 3d_editor 消费面验证：`npm run test:unit` 2360 passed / 1 skipped（消费 0.13.2 tgz，本阶段 faijs 主包版本未变、新增能力不破坏现有消费面）。
 - parity 观测（final）：PASS=274 / PASS-NT=5 / FAIL=9 / ERROR=0 / BLOCKED=362，parity=42.92%；manifest 322 ported / 328 blocked / 47 skipped（gen-manifest 重跑，新增 test_sketch 演示镜像为自造命名、不进入上游用例清单）。
 - 全仓守卫：typecheck 全绿、lint 全绿（cq-compat/cq-compat-sketch 相关文件）、check-ghost-deps 842 files OK、check-workspaces-order 11 workspaces OK、全仓 build 通过。
+
+**实施记录（2026-09-23 攻坚，负 taper 解锁）：**
+- Phase 4 遗留项「负 taper」（testTaperedExtrudeHeight__s2，中优先级）攻坚成功：`extrude()` 新增 `taper < 0` 分支 `outwardTaperPrism`——上游负 taper 的 10-face 体（底 + arc-join 顶 + 4 平面侧壁 + 4 圆锥角面）由内核精确缝合构造，不再依赖 draftPrism 尖角截锥（其体积较 ref 偏高 ~2%，无法过 0.01% 容差）。
+- 几何解明（探针链实证，`.env/probe/`）：ref 1866667.26 = draftPrism(-20°) 尖角截锥 − 4 方锥 + 4 个 1/4 圆锥；1/4 圆锥实体 = `makeCone(0, off, h)` + 两个 `halfSpace` 切割（vol 精确 πr²h/12）；缝合面构造 = 底 face + offsetWire2D(arc join) 平移顶 face + 4 侧平面（底边 + 顶直线反向 + 2 连接线，头尾连续）+ 4 锥面（母线 apex→弧下游端点 revolve 90°），`sew(1e-2)` + `makeSolid` + `fixFaceOrientations`（pre-fix 体积为负，必须 fix 方向）。
+- 内核 GOTCHA 留档：①revolve 母线必须指向弧边 last（下游端点），指向 first 会扫入错误象限；②侧平面顶直线必须手工反向（内核 offset 边方向破坏 wire 头尾连续）；③sew 产出的 shell 面方向不定，makeSolid 后体积可为负，`fixFaceOrientations` 是必需步骤；④loft 4→8 / 8→8（含极小弧底）全失败，revolve(三角形面) 产开放壳 vol=0，均为死路。
+- 实现范围：4 直线边矩形轮廓（底 4 边 / 顶 8 边）；圆截面负 taper 由既有 draftPrism 直接覆盖（圆无角部，实测 top>bottom 面积正确）；其他轮廓显式抛错（不静默降级）。非 XY 平面轮廓经 bbox z0 平移通用化，但仅限轴对齐平面。
+- 结果：compare s2 `equivalent=true`（vol 差 1.3e-11%、COM 2.2e-12mm、topo f10/e24/v12/s1 全等、布尔差分 0）；manifest s2 blocked→ported（323 ported / 327 blocked）；全量 compare PASS=275 / FAIL=8 / parity=43.08%（+0.16%）；cq-compat 153 测试全绿（顺带修复 4 个存量 lint 红：sketch.test.ts / solid-from-faces.test.ts / sketch.ts / __probe-moved.test.ts 的未使用 import 与 console 残留）。
