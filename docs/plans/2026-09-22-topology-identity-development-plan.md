@@ -1043,7 +1043,7 @@ occt 的 12 项判定为「真」则由 `evolution-bindings.test.ts` 的**真调
 **§6 总验收现状**：G3 6/6 ✅、G1 0 未命名 ✅、G4 漏声明 2 测试（生成期 + 编译期）✅、C1 并发守卫 ✅、mesh E_TOPO_MESH_UNSUPPORTED ✅、D10 8 条未接线不做 ✅、§7 测定项 6 项回填 ✅、**§1.4/1.5 血缘接线 ✅**。**仍未关闭（落点见各项）**：
 
 - **~~1.4/1.5 `registerStep` 血缘图未接线~~ 已接线**（见上「第三批」）：N1/N2/N3 运行期生效，G2/G6 的「无静默错名」缺口已收口。
-- **1.10 `roleTable` 降级为缓存**（**本仓，开工门槛实测未通过，待拍板**）：2026-09-22 实测——血缘回走引擎不存在（`LineageGraph` 仅登记/查询，无 role 推进；`attachEvolution` 零生产调用点），`slot.roleTable` 是 op 间传递（9 处读）与解析（`resolve-face/edge`）的唯一在用通路。现在删字段 = 砍断 G3 6/6。前置：① 演化 `attachEvolution` 接生产调用点 ② 回走推进器 ③ 缓存降级——另立设计后再开工。
+- **~~1.10 `roleTable` 降级为缓存~~ 已完成**（2026-09-22，`066b225`）：开工门槛实测曾未通过（回走引擎不存在），本轮补齐三项前置后落地——① `attachEvolution` 接生产调用点（`define-op.wrapped` brep 分支，序号键演化挂节点）② 回走推进器 `lineage-resolve.ts`（载体 = 面枚举序号，非 hash；GOTCHA 留档：hash 是实例指针哈希跨节点必变）③ `ShapeSlot.roleTable` 字段删除，权威落点 = 血缘图旁挂（语句键 fromBrep + part 键 define-op.wrapped），op 读输入表统一走 `inputRoleTable`（9 处），解析 miss → 回走重算回填（topo-resolve）。验证：topology 144/144、G3 12/12、tsc 0 错；direct-executor repro 全链 1 例失败经 stash 对拍确认在 HEAD 上本来就红（E_TOPO_UNTRACKED_INPUT 既有缺陷，非本次回归）。
 - **~~2.10 vocab 进生成产物~~ 已完成**（`328da9c`）：`role-vocab.ts`（权威源 = `DUAL_OP_META.naming`）→ `.d.ts` 的 `CAD_ROLE_VOCAB`（55 条）+ API 手册 §10（中英双语）。
 - **~~2.11 三库命名声明~~ 已完成**（`ddaff54` / `3319512` / `434a080`）：① 通道（`fn.naming` 函数级 → `registerLib({naming})` 库级，precedence 链测试钉住）→ ② 三库 `package.json` 的 `faijs.naming` 外置声明（与 `faijs.autoLift` 同构；CLI/browser loader + `gen-importmap.mjs` lib-meta 全链路接通）→ ③ blanket `unmodeled` 默认废除，未声明裸函数提升**硬失败**（D11）。三库测试复跑按用户指示暂缓。
   - 原口径两处错误（实测纠正留档）：~~"在兄弟仓库，不在本仓库范围"~~ → 三库就是本仓 workspace 包；~~"每处 `defineOp` 加 `naming`"~~ → 三包 `src` 内 `defineOp`/`compatOp` 零命中，导出裸 `Result` 函数 ⇒ 声明落点为 `package.json` 外置字段而非源码逐函数。
