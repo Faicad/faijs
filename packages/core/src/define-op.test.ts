@@ -21,6 +21,9 @@ import { dispatchPath } from './cad-runtime/backend-dispatch'
 import { OpError } from './api/internal/result-unwrap'
 import type { Shape } from './mesh/types'
 import type { BrepHandle } from './brep/engine/types'
+import type { Provenance } from './topology/naming/lineage'
+
+const TEST_NAMING = { kind: 'unmodeled', reason: 'test' } as Provenance
 
 // ── helpers ──
 
@@ -62,9 +65,9 @@ const offChain = solid(cubeMesh(5))
 
 describe('defineOp: construction-time validation (②)', () => {
   it('accepts all three legal shapes (mesh-only / brep-only / dual)', () => {
-    expect(() => defineOp({ mesh: () => cubeMesh(10) })).not.toThrow()
-    expect(() => defineOp({ brep: () => 1 as unknown as BrepHandle })).not.toThrow()
-    expect(() => defineOp({ mesh: () => cubeMesh(10), brep: () => 1 as unknown as BrepHandle })).not.toThrow()
+    expect(() => defineOp({ mesh: () => cubeMesh(10), naming: TEST_NAMING })).not.toThrow()
+    expect(() => defineOp({ brep: () => 1 as unknown as BrepHandle, naming: TEST_NAMING })).not.toThrow()
+    expect(() => defineOp({ mesh: () => cubeMesh(10), brep: () => 1 as unknown as BrepHandle, naming: TEST_NAMING })).not.toThrow()
   })
 
   it('rejects empty implementation sets and non-function implementations', () => {
@@ -74,7 +77,7 @@ describe('defineOp: construction-time validation (②)', () => {
   })
 
   it('attaches dual-op metadata to the wrapped function (K5: function info is data)', () => {
-    const op = defineOp({ mesh: () => cubeMesh(10) })
+    const op = defineOp({ mesh: () => cubeMesh(10), naming: TEST_NAMING })
     expect((op as { [DUAL_OP_META]?: { kind: string } })[DUAL_OP_META]?.kind).toBe('dual-op')
   })
 })
@@ -130,7 +133,7 @@ describe('defineOp: mode auto-selects the implementation (④)', () => {
   it('auto + on-chain input → brep; auto + off-chain input → mesh', async () => {
     const meshSpy = vi.fn((_input: Shape, _params: { diameter?: number }) => cubeMesh(10))
     const brepSpy = vi.fn((input: Shape, _params: { diameter?: number }) => fromBrep(input, { solid: 2 as unknown as BrepHandle }))
-    const op = defineOp({ mesh: meshSpy, brep: brepSpy })
+    const op = defineOp({ mesh: meshSpy, brep: brepSpy, naming: TEST_NAMING })
 
     configureBackends(makeBackends('auto'))
     await op(onChain, { diameter: 5 })
@@ -145,8 +148,8 @@ describe('defineOp: mode auto-selects the implementation (④)', () => {
   })
 
   it("mode='mesh' + brep-only → MeshUnsupportedError; mode='brep' + mesh-only → BrepUnsupportedError", async () => {
-    const brepOnly = defineOp({ brep: (input: Shape) => fromBrep(input, { solid: 2 as unknown as BrepHandle }) })
-    const meshOnly = defineOp({ mesh: (_input: Shape) => cubeMesh(10) })
+    const brepOnly = defineOp({ brep: (input: Shape) => fromBrep(input, { solid: 2 as unknown as BrepHandle }), naming: TEST_NAMING })
+    const meshOnly = defineOp({ mesh: (_input: Shape) => cubeMesh(10), naming: TEST_NAMING })
 
     configureBackends(makeBackends('mesh'))
     await expect(brepOnly(onChain)).rejects.toThrow(MeshUnsupportedError)
@@ -160,7 +163,7 @@ describe('defineOp: mode auto-selects the implementation (④)', () => {
   it('raw brep product (bare handle) → fromHandle: tessellated + BREP slot registered', async () => {
     const fakeKernel = { meshShape: () => ({ positions: [0, 0, 0, 1, 0, 0, 0, 1, 0], indices: [0, 1, 2] }) }
     configureBackends(makeBackends('auto', undefined, fakeKernel))
-    const op = defineOp({ mesh: () => cubeMesh(10), brep: () => 42 as unknown as BrepHandle })
+    const op = defineOp({ mesh: () => cubeMesh(10), brep: () => 42 as unknown as BrepHandle, naming: TEST_NAMING })
     const result = await op()
     expect(isShape(result)).toBe(true)
     expect(hasBrep(result as Shape)).toBe(true)
@@ -169,7 +172,7 @@ describe('defineOp: mode auto-selects the implementation (④)', () => {
 
   it('raw mesh product (MeshData) → solid(): shape registered, no BREP slot', async () => {
     configureBackends(makeBackends('auto'))
-    const op = defineOp({ mesh: () => cubeMesh(10) })
+    const op = defineOp({ mesh: () => cubeMesh(10), naming: TEST_NAMING })
     const result = await op()
     expect(isShape(result)).toBe(true)
     expect(hasBrep(result as Shape)).toBe(false)
@@ -178,7 +181,7 @@ describe('defineOp: mode auto-selects the implementation (④)', () => {
   it('already-wrapped products pass through unchanged', async () => {
     configureBackends(makeBackends('auto'))
     const wrapped = fromBrep(cubeMesh(5), { solid: 7 as unknown as BrepHandle })
-    const op = defineOp({ mesh: () => cubeMesh(10), brep: () => wrapped })
+    const op = defineOp({ mesh: () => cubeMesh(10), brep: () => wrapped, naming: TEST_NAMING })
     const result = await op()
     expect(result).toBe(wrapped)
   })
@@ -190,7 +193,7 @@ describe('defineOp: mode auto-selects the implementation (④)', () => {
     const brepSpy = vi.fn(() => {
       throw new Error('[compat] raw mesh input must never reach the BREP path')
     })
-    const op = defineOp({ mesh: meshSpy, brep: brepSpy })
+    const op = defineOp({ mesh: meshSpy, brep: brepSpy, naming: TEST_NAMING })
 
     // 裸 mesh 数据：与 geoToManifoldMesh 输出同构，未经过 solid() 身份登记
     const rawMesh = cubeMesh(5)
@@ -215,6 +218,7 @@ describe('defineOp: multi-product outputs (scheme C)', () => {
       mesh: (_input: Shape) => ({ front: cubeMesh(5), back: cubeMesh(3) }),
       brep: (_input: Shape) => ({ front: 11 as unknown as BrepHandle, back: 12 as unknown as BrepHandle }),
       outputs: ['front', 'back'],
+      naming: TEST_NAMING,
     })
 
     const br = (await op(onChain)) as Record<string, Shape>
@@ -235,7 +239,7 @@ describe('defineOp: multi-product outputs (scheme C)', () => {
 
 describe('assertLibConforms: strict assembly validation (③)', () => {
   it('a library exporting dual-ops must carry a matching contractVersion', () => {
-    const dual = defineOp({ mesh: () => cubeMesh(10) })
+    const dual = defineOp({ mesh: () => cubeMesh(10), naming: TEST_NAMING })
     expect(() => assertLibConforms({ dual })).toThrow(/contractVersion/)
     expect(() => assertLibConforms({ dual, contractVersion: 1 })).toThrow(/contractVersion/)
     expect(() => assertLibConforms({ dual, contractVersion: CONTRACT_VERSION })).not.toThrow()
@@ -253,7 +257,7 @@ describe('assertLibConforms: strict assembly validation (③)', () => {
   })
 
   it('brep-only dual-op is valid (D1b)', () => {
-    const brepOnly = defineOp({ brep: () => 1 as unknown as BrepHandle })
+    const brepOnly = defineOp({ brep: () => 1 as unknown as BrepHandle, naming: TEST_NAMING })
     expect(() => assertLibConforms({ brepOnly, contractVersion: CONTRACT_VERSION })).not.toThrow()
   })
 
@@ -269,7 +273,7 @@ describe('assertLibConforms: strict assembly validation (③)', () => {
   })
 
   it('L3 metadata (D2): schema is carried and type-validated', () => {
-    const cleaned = defineOp({ mesh: () => cubeMesh(10), schema: { size: 'number | [n,n,n]' } })
+    const cleaned = defineOp({ mesh: () => cubeMesh(10), schema: { size: 'number | [n,n,n]' }, naming: TEST_NAMING })
     const m1 = (cleaned as { [DUAL_OP_META]?: { schema?: unknown } })[DUAL_OP_META]
     expect(m1?.schema).toEqual({ size: 'number | [n,n,n]' })
     expect(() => assertLibConforms({ cleaned, contractVersion: CONTRACT_VERSION })).not.toThrow()
@@ -300,7 +304,7 @@ describe('defineOp: brep data-product passthrough (wrapBrepOne)', () => {
     }
     configureBackends(makeBackends('auto', undefined, throwingKernel))
     const record = { partId: 7, bends: [1, 2, 3], name: 'sheet-part' }
-    const op = defineOp({ brep: () => record as unknown as Shape })
+    const op = defineOp({ brep: () => record as unknown as Shape, naming: TEST_NAMING })
     const result = await op()
     expect(result).toBe(record) // 原对象透传
     expect(isShape(result as Shape)).toBe(false)
@@ -311,7 +315,7 @@ describe('defineOp: brep data-product passthrough (wrapBrepOne)', () => {
     const fakeKernel = { meshShape: () => ({ positions: [0, 0, 0, 1, 0, 0, 0, 1, 0], indices: [0, 1, 2] }) }
     configureBackends(makeBackends('auto', undefined, fakeKernel))
     const handleObj = { __occtWasm: true, type: 'solid', id: 42 }
-    const op = defineOp({ brep: () => handleObj as unknown as Shape })
+    const op = defineOp({ brep: () => handleObj as unknown as Shape, naming: TEST_NAMING })
     const result = await op()
     expect(isShape(result as Shape)).toBe(true)
     expect(hasBrep(result as Shape)).toBe(true)
@@ -324,13 +328,13 @@ describe('defineOp: OpError rethrow (runImpl)', () => {
   it('impl-thrown OpError propagates unchanged (same instance), not re-wrapped by toOpError', async () => {
     configureBackends(makeBackends('auto'))
     const opError = new OpError('mech.fuse', 'E_BAD_INPUT', '[faijs/brepjs-compat] mech.fuse: E_BAD_INPUT: nope')
-    const op = defineOp({ brep: () => { throw opError } })
+    const op = defineOp({ brep: () => { throw opError }, naming: TEST_NAMING })
     await expect(op()).rejects.toBe(opError)
   })
 
   it('plain impl exceptions are wrapped as OpError (statement-level failure carrier)', async () => {
     configureBackends(makeBackends('auto'))
-    const op = defineOp({ brep: () => { throw new Error('boom') } })
+    const op = defineOp({ brep: () => { throw new Error('boom') }, naming: TEST_NAMING })
     await expect(op()).rejects.toThrow('[faijs/op]')
     await expect(op()).rejects.toBeInstanceOf(OpError)
   })

@@ -1,7 +1,7 @@
 /**
  * generated/topology.ts — 生成文件，勿手改。
  * 由 packages/core/scripts/gen-l3-surface.ts 依据 api/surface/arg-spec.ts 生成（E5/P14 分片）。
- * topology 模块：135 个投影符号；另有 167 个 skip 登记。
+ * topology 模块：130 个投影符号；另有 172 个 skip 登记。
  */
 import { compatOp } from '../internal/compat-op'
 import { projectBrepOp } from '../internal/compat-projection'
@@ -11,12 +11,8 @@ import { torus as __vendored_torus } from '../../vendored/brepjs/topology/primit
 import { fuse as __vendored_fuse } from '../../vendored/brepjs/topology/booleanFns.js'
 import { getBounds as __vendored_getBounds } from '../../vendored/brepjs/topology/shapeFns.js'
 import type { Bounds3D } from '../../vendored/brepjs/topology/shapeFns.js'
-import { box as __vendored_box } from '../../vendored/brepjs/topology/primitiveFns.js'
-import { cylinder as __vendored_cylinder } from '../../vendored/brepjs/topology/primitiveFns.js'
-import { cone as __vendored_cone } from '../../vendored/brepjs/topology/primitiveFns.js'
 import { ellipsoid as __vendored_ellipsoid } from '../../vendored/brepjs/topology/primitiveFns.js'
 import { rotate as __vendored_rotate } from '../../vendored/brepjs/topology/api.js'
-import { scale as __vendored_scale } from '../../vendored/brepjs/topology/api.js'
 import { mirror as __vendored_mirror } from '../../vendored/brepjs/topology/api.js'
 import { clone as __vendored_clone } from '../../vendored/brepjs/topology/api.js'
 import { applyMatrix as __vendored_applyMatrix } from '../../vendored/brepjs/topology/api.js'
@@ -25,7 +21,6 @@ import { locate as __vendored_locate } from '../../vendored/brepjs/topology/api.
 import { cut as __vendored_cut } from '../../vendored/brepjs/topology/api.js'
 import { section as __vendored_section } from '../../vendored/brepjs/topology/api.js'
 import { split as __vendored_split } from '../../vendored/brepjs/topology/api.js'
-import { fillet as __vendored_fillet } from '../../vendored/brepjs/topology/api.js'
 import { shell as __vendored_shell } from '../../vendored/brepjs/topology/api.js'
 import { offset as __vendored_offset } from '../../vendored/brepjs/topology/api.js'
 import { heal as __vendored_heal } from '../../vendored/brepjs/topology/api.js'
@@ -48,7 +43,7 @@ export type { Bounds3D } from '../../vendored/brepjs/topology/shapeFns.js'
  */
 export const torus = compatOp(
   projectBrepOp('torus', ["majorRadius","minorRadius","options"], 'A', __vendored_torus),
-  { name: 'torus' },
+  { name: 'torus', naming: {"kind":"unmodeled","reason":"construct vocabulary pending Phase 3"} },
 )
 
 /**
@@ -58,7 +53,7 @@ export const torus = compatOp(
  */
 export const fuse = compatOp(
   projectBrepOp('fuse', ["a","b","options"], 'A', __vendored_fuse),
-  { name: 'fuse' },
+  { name: 'fuse', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}} },
 )
 
 /**
@@ -264,43 +259,13 @@ export type { WrappedCurve } from '../../vendored/brepjs/topology/wrapperFns.js'
 export type { WrappedFace } from '../../vendored/brepjs/topology/wrapperFns.js'
 
 /**
- * box — brepjs 投影（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
- * box(width: number, depth: number, height: number, options?: BoxOptions): Shape
- * 桥接：compatOp(projectBrepOp(…))——单内核断言 + D11 归一 + 语句边界六步契约（§4.3.2）。
- */
-export const box = compatOp(
-  projectBrepOp('box', ["width","depth","height","options"], 'A', __vendored_box),
-  { name: 'box' },
-)
-
-/**
- * cylinder — brepjs 投影（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
- * cylinder(radius: number, height: number, options?: CylinderOptions): Shape
- * 桥接：compatOp(projectBrepOp(…))——单内核断言 + D11 归一 + 语句边界六步契约（§4.3.2）。
- */
-export const cylinder = compatOp(
-  projectBrepOp('cylinder', ["radius","height","options"], 'A', __vendored_cylinder),
-  { name: 'cylinder' },
-)
-
-/**
- * cone — brepjs 投影（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
- * cone(radiusBottom: number, radiusTop: number, height: number, options?: ConeOptions): Shape
- * 桥接：compatOp(projectBrepOp(…))——单内核断言 + D11 归一 + 语句边界六步契约（§4.3.2）。
- */
-export const cone = compatOp(
-  projectBrepOp('cone', ["radiusBottom","radiusTop","height","options"], 'A', __vendored_cone),
-  { name: 'cone' },
-)
-
-/**
  * ellipsoid — brepjs 投影（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
  * ellipsoid(rx: number, ry: number, rz: number, options?: EllipsoidOptions): Shape
  * 桥接：compatOp(projectBrepOp(…))——单内核断言 + D11 归一 + 语句边界六步契约（§4.3.2）。
  */
 export const ellipsoid = compatOp(
   projectBrepOp('ellipsoid', ["rx","ry","rz","options"], 'A', __vendored_ellipsoid),
-  { name: 'ellipsoid' },
+  { name: 'ellipsoid', naming: {"kind":"unmodeled","reason":"construct vocabulary pending Phase 3"} },
 )
 
 /**
@@ -310,17 +275,7 @@ export const ellipsoid = compatOp(
  */
 export const rotate = compatOp(
   projectBrepOp('rotate', ["shape","angle","options"], 'A', __vendored_rotate),
-  { name: 'rotate' },
-)
-
-/**
- * scale — brepjs 投影（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
- * scale(shape: Shape, factor: number, options?: { center?: Vec3 }): Shape
- * 桥接：compatOp(projectBrepOp(…))——单内核断言 + D11 归一 + 语句边界六步契约（§4.3.2）。
- */
-export const scale = compatOp(
-  projectBrepOp('scale', ["shape","factor","options"], 'A', __vendored_scale),
-  { name: 'scale' },
+  { name: 'rotate', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}} },
 )
 
 /**
@@ -330,7 +285,7 @@ export const scale = compatOp(
  */
 export const mirror = compatOp(
   projectBrepOp('mirror', ["shape","options"], 'A', __vendored_mirror),
-  { name: 'mirror' },
+  { name: 'mirror', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}} },
 )
 
 /**
@@ -340,7 +295,7 @@ export const mirror = compatOp(
  */
 export const clone = compatOp(
   projectBrepOp('clone', ["shape"], 'A', __vendored_clone),
-  { name: 'clone' },
+  { name: 'clone', naming: {"kind":"identity"} },
 )
 
 /**
@@ -350,7 +305,7 @@ export const clone = compatOp(
  */
 export const applyMatrix = compatOp(
   projectBrepOp('applyMatrix', ["shape","matrix"], 'A', __vendored_applyMatrix),
-  { name: 'applyMatrix' },
+  { name: 'applyMatrix', naming: {"kind":"identity"} },
 )
 
 /**
@@ -360,7 +315,7 @@ export const applyMatrix = compatOp(
  */
 export const transformCopy = compatOp(
   projectBrepOp('transformCopy', ["shape","composed"], 'A', __vendored_transformCopy),
-  { name: 'transformCopy' },
+  { name: 'transformCopy', naming: {"kind":"identity"} },
 )
 
 /**
@@ -370,7 +325,7 @@ export const transformCopy = compatOp(
  */
 export const locate = compatOp(
   projectBrepOp('locate', ["shape","placement"], 'A', __vendored_locate),
-  { name: 'locate' },
+  { name: 'locate', naming: {"kind":"identity"} },
 )
 
 export { composeTransforms } from '../../vendored/brepjs/topology/api.js'
@@ -382,7 +337,7 @@ export { composeTransforms } from '../../vendored/brepjs/topology/api.js'
  */
 export const cut = compatOp(
   projectBrepOp('cut', ["base","tool","options"], 'A', __vendored_cut),
-  { name: 'cut' },
+  { name: 'cut', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}} },
 )
 
 /**
@@ -392,7 +347,7 @@ export const cut = compatOp(
  */
 export const section = compatOp(
   projectBrepOp('section', ["shape","plane"], 'A', __vendored_section),
-  { name: 'section' },
+  { name: 'section', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}} },
 )
 
 /**
@@ -402,17 +357,7 @@ export const section = compatOp(
  */
 export const split = compatOp(
   projectBrepOp('split', ["shape","tools"], 'A', __vendored_split),
-  { name: 'split' },
-)
-
-/**
- * fillet — brepjs 投影（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
- * fillet(shape: Shape, edges?, radius | [r1,r2]): Shape
- * 桥接：compatOp(projectBrepOp(…))——单内核断言 + D11 归一 + 语句边界六步契约（§4.3.2）。
- */
-export const fillet = compatOp(
-  projectBrepOp('fillet', ["shape","edges","radius"], 'A', __vendored_fillet),
-  { name: 'fillet' },
+  { name: 'split', naming: {"kind":"subdivide"} },
 )
 
 /**
@@ -422,7 +367,7 @@ export const fillet = compatOp(
  */
 export const shell = compatOp(
   projectBrepOp('shell', ["shape","faces","thickness"], 'A', __vendored_shell),
-  { name: 'shell' },
+  { name: 'shell', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}} },
 )
 
 /**
@@ -432,7 +377,7 @@ export const shell = compatOp(
  */
 export const offset = compatOp(
   projectBrepOp('offset', ["shape","distance"], 'A', __vendored_offset),
-  { name: 'offset' },
+  { name: 'offset', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}} },
 )
 
 /**
@@ -442,7 +387,7 @@ export const offset = compatOp(
  */
 export const heal = compatOp(
   projectBrepOp('heal', ["shape"], 'A', __vendored_heal),
-  { name: 'heal' },
+  { name: 'heal', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}} },
 )
 
 /**
@@ -452,7 +397,7 @@ export const heal = compatOp(
  */
 export const simplify = compatOp(
   projectBrepOp('simplify', ["shape"], 'A', __vendored_simplify),
-  { name: 'simplify' },
+  { name: 'simplify', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}} },
 )
 
 /**
@@ -510,7 +455,7 @@ export function isSameShape(shape: Shape): boolean {
  */
 export const autoHeal = compatOp(
   projectBrepOp('autoHeal', ["shape","options"], 'A', __vendored_autoHeal),
-  { name: 'autoHeal' },
+  { name: 'autoHeal', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}} },
 )
 
 /**
@@ -520,7 +465,7 @@ export const autoHeal = compatOp(
  */
 export const fixShape = compatOp(
   projectBrepOp('fixShape', ["shape"], 'A', __vendored_fixShape),
-  { name: 'fixShape' },
+  { name: 'fixShape', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}} },
 )
 
 /**
@@ -530,7 +475,7 @@ export const fixShape = compatOp(
  */
 export const healSolid = compatOp(
   projectBrepOp('healSolid', ["solid"], 'A', __vendored_healSolid),
-  { name: 'healSolid' },
+  { name: 'healSolid', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}} },
 )
 
 /**
@@ -540,7 +485,7 @@ export const healSolid = compatOp(
  */
 export const fixSelfIntersection = compatOp(
   projectBrepOp('fixSelfIntersection', ["shape"], 'A', __vendored_fixSelfIntersection),
-  { name: 'fixSelfIntersection' },
+  { name: 'fixSelfIntersection', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}} },
 )
 
 export { isNumber } from '../../vendored/brepjs/topology/index.js'

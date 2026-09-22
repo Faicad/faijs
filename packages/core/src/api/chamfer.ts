@@ -23,6 +23,7 @@ import type { BrepEngineApi } from '../brep/engine/primitives'
 import type { BrepHandle } from '../brep/engine/types'
 import type { EdgeTopoRef, ResolutionContext } from '../topology/naming'
 import { resolveTopoRef, facesForQualifier, TopoRefError } from '../topology/naming'
+import type { Provenance } from '../topology/naming/lineage'
 import { buildEdgeResolutionContext, buildEdgeContextFromSolid } from './topo-resolve'
 import { angleBetweenNormals, materialDihedralFromNormalAngle, chamferAngleFromDistances } from './chamfer-math'
 
@@ -271,4 +272,5 @@ export const chamfer = defineOp({
     assertChamferParams(params)
     return chamferBrep(input, params)
   },
+  naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 })

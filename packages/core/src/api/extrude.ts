@@ -30,6 +30,7 @@ import { getSolidBoundingBox } from '../brep/brep-utils'
 import { getBackends, getCurrentStmt } from '../runtime-state'
 import { fromBrep, brepOf } from '../shape'
 import { formatRoleName, semantic, wall } from '../topology/naming/role-name'
+import type { Provenance } from '../topology/naming/lineage'
 import { defineOp } from '../sdk'
 import { assertPositiveNumber } from './assert'
 import type { Shape, Vec3 } from '../mesh/types'
@@ -478,4 +479,5 @@ export const extrude = defineOp({
     const solid = kernel ? (brepOf(result) as BrepHandle | undefined) : undefined
     return kernel && solid ? registerExtrudeRoles(kernel, solid) : result
   },
+  naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [{ kind: 'semantic', name: 'top' }, { kind: 'semantic', name: 'bottom' }] } } as Provenance,
 })

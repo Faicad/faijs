@@ -23,6 +23,7 @@ import { computeBasisFromNormal } from '../mesh/fai_split'
 import { getBackends } from '../runtime-state'
 import { solid, fromBrep, brepOf } from '../shape'
 import { defineOp } from '../sdk'
+import type { Provenance } from '../topology/naming/lineage'
 import { assertNonZeroVec3 } from './assert'
 import type { BrepHandle } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
@@ -279,4 +280,5 @@ export const fai_split = defineOp({
     return splitBrepPath(input, params)
   },
   outputs: ['front', 'back'],
+  naming: { kind: 'subdivide' } as Provenance,
 })

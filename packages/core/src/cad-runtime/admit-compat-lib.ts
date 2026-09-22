@@ -40,6 +40,7 @@ export function admitCompatLib(ns: Record<string, unknown>): Record<string, unkn
     out[name] = compatOp(v as (...a: unknown[]) => unknown, {
       name,
       outputs: (v as OutputsCarrier).outputs, // only fn.outputs; no other annotation name is recognized (§3.6)
+      naming: { kind: 'unmodeled', reason: 'admitCompatLib: bare function lift, provenance not declared' },
     })
   }
   return out

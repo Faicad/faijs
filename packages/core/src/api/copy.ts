@@ -19,6 +19,7 @@ import { getBackends, keep } from '../runtime-state'
 import { fromBrep, brepOf, getSlot } from '../shape'
 import { propagateAllOrigins } from '../topology/naming/roles'
 import type { RoleTable } from '../topology/naming/types'
+import type { Provenance } from '../topology/naming/lineage'
 import { defineOp } from '../sdk'
 import type { BrepHandle } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
@@ -84,4 +85,5 @@ export const copy = defineOp({
     keep(input)
     return copyBrep(input)
   },
+  naming: { kind: 'identity' } as Provenance,
 })

@@ -10,6 +10,7 @@ import type { Shape, Vec3 } from '../mesh/types'
 import { cad } from '../mesh'
 import { reconcileBrepInputs } from './reconcile'
 import { defineOp } from '../sdk'
+import type { Provenance } from '../topology/naming/lineage'
 import { assertPositiveNumber } from './assert'
 
 /**
@@ -61,4 +62,5 @@ export const knurl = defineOp({
       knurlMappingMode: (params.knurlMappingMode as number | undefined) ?? 5,
     })
   },
+  naming: { kind: 'unmodeled', reason: 'knurl is mesh-only, no BREP face identity' } as Provenance,
 })

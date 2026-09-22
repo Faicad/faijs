@@ -13,6 +13,7 @@ import { getScrewSpec, threadToPitchMm, SCREW_HEAD_DIMS } from '../primitives/sc
 import { getBackends } from '../runtime-state'
 import { fromBrep } from '../shape'
 import { defineOp } from '../sdk'
+import type { Provenance } from '../topology/naming/lineage'
 import type { BrepHandle } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 
@@ -179,4 +180,5 @@ export const screw = defineOp({
     assertScrewParams(params)
     return screwBrep(params)
   },
+  naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [] } } as Provenance,
 })

@@ -151,7 +151,7 @@ export { isInstanced } from '../../vendored/brepjs/operations/instanceFns.js'
  */
 export const extrude = compatOp(
   projectBrepOp('extrude', ["face","height"], 'A', __vendored_extrude),
-  { name: 'extrude' },
+  { name: 'extrude', naming: {"kind":"construct","newFaces":{"via":"explicit","vocab":[{"kind":"semantic","name":"top"},{"kind":"semantic","name":"bottom"}]}} },
 )
 
 /**
@@ -161,7 +161,7 @@ export const extrude = compatOp(
  */
 export const revolve = compatOp(
   projectBrepOp('revolve', ["face","options"], 'A', __vendored_revolve),
-  { name: 'revolve' },
+  { name: 'revolve', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}} },
 )
 
 /**
@@ -171,7 +171,7 @@ export const revolve = compatOp(
  */
 export const sweep = compatOp(
   projectBrepOp('sweep', ["wire","spine","config","shellMode"], 'A', __vendored_sweep),
-  { name: 'sweep' },
+  { name: 'sweep', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}} },
 )
 
 /**
@@ -181,7 +181,7 @@ export const sweep = compatOp(
  */
 export const complexExtrude = compatOp(
   projectBrepOp('complexExtrude', ["wire","center","normal","profile"], 'A', __vendored_complexExtrude),
-  { name: 'complexExtrude' },
+  { name: 'complexExtrude', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}} },
 )
 
 /**
@@ -191,7 +191,7 @@ export const complexExtrude = compatOp(
  */
 export const twistExtrude = compatOp(
   projectBrepOp('twistExtrude', ["wire","angleDegrees","center","normal"], 'A', __vendored_twistExtrude),
-  { name: 'twistExtrude' },
+  { name: 'twistExtrude', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}} },
 )
 
 /**
@@ -201,7 +201,7 @@ export const twistExtrude = compatOp(
  */
 export const linearPattern = compatOp(
   projectBrepOp('linearPattern', ["shape","direction","count","spacing"], 'A', __vendored_linearPattern),
-  { name: 'linearPattern' },
+  { name: 'linearPattern', naming: {"kind":"replicate","k":0} },
 )
 
 /**
@@ -211,7 +211,7 @@ export const linearPattern = compatOp(
  */
 export const circularPattern = compatOp(
   projectBrepOp('circularPattern', ["shape","axis","count","fullAngle","center"], 'A', __vendored_circularPattern),
-  { name: 'circularPattern' },
+  { name: 'circularPattern', naming: {"kind":"replicate","k":0} },
 )
 
 /**
@@ -221,7 +221,7 @@ export const circularPattern = compatOp(
  */
 export const gridPattern = compatOp(
   projectBrepOp('gridPattern', ["shape","directionX","directionY","countX","countY","spacingX","spacingY"], 'A', __vendored_gridPattern),
-  { name: 'gridPattern' },
+  { name: 'gridPattern', naming: {"kind":"replicate","k":0} },
 )
 
 /**
@@ -231,7 +231,7 @@ export const gridPattern = compatOp(
  */
 export const roof = compatOp(
   projectBrepOp('roof', ["wire","options"], 'A', __vendored_roof),
-  { name: 'roof' },
+  { name: 'roof', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}} },
 )
 
 /**
@@ -241,7 +241,7 @@ export const roof = compatOp(
  */
 export const drill = compatOp(
   projectBrepOp('drill', ["shape","options"], 'A', __vendored_drill),
-  { name: 'drill' },
+  { name: 'drill', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}} },
 )
 
 /**
@@ -251,7 +251,7 @@ export const drill = compatOp(
  */
 export const pocket = compatOp(
   projectBrepOp('pocket', ["shape","options"], 'A', __vendored_pocket),
-  { name: 'pocket' },
+  { name: 'pocket', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}} },
 )
 
 /**
@@ -261,7 +261,7 @@ export const pocket = compatOp(
  */
 export const boss = compatOp(
   projectBrepOp('boss', ["shape","options"], 'A', __vendored_boss),
-  { name: 'boss' },
+  { name: 'boss', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}} },
 )
 
 /**
@@ -271,7 +271,7 @@ export const boss = compatOp(
  */
 export const mirrorJoin = compatOp(
   projectBrepOp('mirrorJoin', ["shape","options"], 'A', __vendored_mirrorJoin),
-  { name: 'mirrorJoin' },
+  { name: 'mirrorJoin', naming: {"kind":"replicate","k":2} },
 )
 
 /**
@@ -281,7 +281,7 @@ export const mirrorJoin = compatOp(
  */
 export const rectangularPattern = compatOp(
   projectBrepOp('rectangularPattern', ["shape","options"], 'A', __vendored_rectangularPattern),
-  { name: 'rectangularPattern' },
+  { name: 'rectangularPattern', naming: {"kind":"replicate","k":0} },
 )
 
 /**
@@ -291,7 +291,7 @@ export const rectangularPattern = compatOp(
  */
 export const thread = compatOp(
   projectBrepOp('thread', ["options"], 'B1', __vendored_thread),
-  { name: 'thread' },
+  { name: 'thread', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}} },
 )
 
 /**
@@ -301,5 +301,5 @@ export const thread = compatOp(
  */
 export const convexHull = compatOp(
   projectBrepOp('convexHull', ["points"], 'A', __vendored_convexHull),
-  { name: 'convexHull' },
+  { name: 'convexHull', naming: {"kind":"unmodeled","reason":"construct vocabulary pending Phase 3"} },
 )

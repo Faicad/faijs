@@ -113,6 +113,14 @@ function renderBrepOp(entry: ArgSpecEntry): string {
   const { exportName } = parseSource(entry.source)
   const vendoredName = `__vendored_${exportName}`
   const formClass = entry.formClass ?? 'A'
+  // Phase 2.2 guard: brep-op + scriptFace=true requires naming declaration.
+  if (entry.scriptFace === true && !entry.naming) {
+    throw new Error(
+      `[gen-l3-surface] brep-op '${entry.name}' has scriptFace=true but no naming declaration (Phase 2.2 guard). ` +
+      `Add a 'naming' field with the op's Provenance (plan §4.4).`,
+    )
+  }
+  const namingLit = entry.naming ? `, naming: ${JSON.stringify(entry.naming)}` : ''
   return [
     `/**`,
     ` * ${entry.name} — brepjs 投影（生成文件，禁手改；来源 api/surface/arg-spec.ts）。`,
@@ -121,7 +129,7 @@ function renderBrepOp(entry: ArgSpecEntry): string {
     ` */`,
     `export const ${entry.name} = compatOp(`,
     `  projectBrepOp('${entry.name}', ${JSON.stringify(entry.params ?? [])}, '${formClass}', ${vendoredName}),`,
-    `  { name: '${entry.name}' },`,
+    `  { name: '${entry.name}'${namingLit} },`,
     `)`,
   ].join('\n')
 }

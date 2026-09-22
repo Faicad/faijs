@@ -23,6 +23,7 @@ import { applyTransform } from '../mesh/rigid-transform'
 import { identityEvolution, identityHashEvolution } from '../brep/face-evolution'
 import { propagateAllOrigins } from '../topology/naming/roles'
 import type { RoleTable } from '../topology/naming/types'
+import type { Provenance } from '../topology/naming/lineage'
 import { defineOp } from '../sdk'
 import type { BrepEngineApi, BrepHandle } from '../brep/engine/types'
 
@@ -117,4 +118,5 @@ export const place = defineOp({
     return placeBrep(input, rotation, position)
   },
   schema: { position: 'vec3?', rotation: 'quat?' },
+  naming: { kind: 'identity' } as Provenance,
 })

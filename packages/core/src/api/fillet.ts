@@ -27,6 +27,7 @@ import type { BrepHandle } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 import type { EdgeTopoRef, ResolutionContext } from '../topology/naming'
 import { resolveTopoRef, TopoRefError } from '../topology/naming'
+import type { Provenance } from '../topology/naming/lineage'
 import { buildEdgeResolutionContext } from './topo-resolve'
 
 // ── 参数自校验（stdlib 被直接 import 时的防御层）──
@@ -145,4 +146,5 @@ export const fillet = defineOp({
     assertFilletParams(params)
     return filletBrep(input, params)
   },
+  naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 })

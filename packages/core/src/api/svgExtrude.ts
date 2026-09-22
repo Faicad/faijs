@@ -15,6 +15,7 @@ import { resolveSvgArg } from './internal/svg-asset-resolver'
 import { getBackends } from '../runtime-state'
 import { fromBrep } from '../shape'
 import { defineOp } from '../sdk'
+import type { Provenance } from '../topology/naming/lineage'
 import { assertPositiveNumber } from './assert'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 
@@ -77,4 +78,5 @@ export const svgExtrude = defineOp({
     const svgText = await resolveSvgArg(params.svg, { assets: getBackends().assets as AssetResolver | undefined })
     return svgExtrudeBrep(params, svgText)
   },
+  naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [] } } as Provenance,
 })

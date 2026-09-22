@@ -19,6 +19,7 @@ import * as THREE from 'three'
 import { getBackends } from '../runtime-state'
 import { fromBrep, brepOf } from '../shape'
 import { defineOp } from '../sdk'
+import type { Provenance } from '../topology/naming/lineage'
 import type { BrepHandle } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 import { assertPositiveNumber, assertNumber, assertVec3 } from './assert'
@@ -255,4 +256,5 @@ export const fai_drill = defineOp({
     assertDrillParams(params)
     return drillBrepPath(input, params)
   },
+  naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 })

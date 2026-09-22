@@ -190,7 +190,7 @@ export function compatOp(
   fn: (...args: unknown[]) => unknown,
   spec: CompatSpec,
 ): ((...args: unknown[]) => Promise<Shape>) & MetaCarrier {
-  const { outputs, capabilities, schema, slotMap } = spec
+  const { outputs, capabilities, schema, slotMap, naming } = spec
   // `outputs` flows through defineOp's own wrapping path: the adapter adopts
   // per declared field, then defineOp wraps — isShape passthrough, so no
   // double wrapping (§3.2).
@@ -201,5 +201,6 @@ export function compatOp(
     outputs,
     schema,
     slotMap,
+    naming,
   }) as unknown as ((...args: unknown[]) => Promise<Shape>) & MetaCarrier
 }

@@ -21,6 +21,7 @@ import { getBackends } from '../runtime-state'
 import { solidToShape } from '../brep/brep-ops'
 import { fromBrep } from '../shape'
 import { defineOp } from '../sdk'
+import type { Provenance } from '../topology/naming/lineage'
 
 // ── 参数形状（与 fcstd Contour 结构相同，避免引擎依赖端口层）──
 
@@ -196,4 +197,5 @@ export const sketch = defineOp({
     assertSketchParams(params)
     return sketchBrep(params)
   },
+  naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [] } } as Provenance,
 })

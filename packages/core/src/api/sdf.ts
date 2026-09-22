@@ -8,6 +8,7 @@
 
 import { cad } from '../mesh'
 import { defineOp } from '../sdk'
+import type { Provenance } from '../topology/naming/lineage'
 
 /**
  * Validate sdf parameters: `code` must be a non-empty string.
@@ -45,4 +46,5 @@ export const sdf = defineOp({
       params: params.params as Record<string, number> | undefined,
     })
   },
+  naming: { kind: 'unmodeled', reason: 'sdf is mesh-only, no BREP face identity' } as Provenance,
 })

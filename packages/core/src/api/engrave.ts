@@ -21,6 +21,7 @@ import { resolveSvgArg } from './internal/svg-asset-resolver'
 import { getBackends } from '../runtime-state'
 import { fromBrep, brepOf } from '../shape'
 import { defineOp } from '../sdk'
+import type { Provenance } from '../topology/naming/lineage'
 import { assertPositiveNumber } from './assert'
 
 // ── per-op 参数自校验（Phase 2.2；stdlib 被直接 import 时的防御层） ──
@@ -223,4 +224,5 @@ export const engrave = defineOp({
     const svgText = await resolveEngraveSvg(params)
     return engraveBrepPath(input, params, svgText)
   },
+  naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 })

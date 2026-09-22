@@ -20,6 +20,7 @@ import { getBackends } from '../runtime-state'
 import { fromBrep, brepOf, getSlot } from '../shape'
 import { propagateAllOrigins } from '../topology/naming/roles'
 import type { RoleTable } from '../topology/naming/types'
+import type { Provenance } from '../topology/naming/lineage'
 import { defineOp } from '../sdk'
 import { assertVec3, assertPositiveNumber } from './assert'
 import type { BrepHandle } from '../brep/engine/types'
@@ -170,6 +171,7 @@ export const translate = defineOp({
   // D11: `translate(p, 10, 0, 0)` == `translate(p, { offset: [10, 0, 0] })`;
   // `offset` is a vec3 slot sitting after the single leading Shape argument.
   slotMap: { keys: ['offset'], vec3Keys: ['offset'], shapeArity: 1 },
+  naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 })
 
 /**
@@ -202,6 +204,7 @@ export const rotate_euler = defineOp({
   },
   // D11: `rotate_euler(p, 0, 0, 45)` == `rotate_euler(p, { anglesDeg: [0, 0, 45] })`.
   slotMap: { keys: ['anglesDeg'], vec3Keys: ['anglesDeg'], shapeArity: 1 },
+  naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 })
 
 /**
@@ -238,6 +241,7 @@ export const scale = defineOp({
   // D11（§4.6）：`scale(p, 2)` == `scale(p, { factor: 2 })`（标量槽）；尾参 options
   // （{center}）经 dual-form-args 尾参合并并入。
   slotMap: { keys: ['factor'], shapeArity: 1 },
+  naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 })
 
 /**
@@ -274,4 +278,5 @@ export const scale3d = defineOp({
   // D11（裁决 2）：`scale3d(p, [1,2,3])` == `scale3d(p, { factor: [1,2,3] })`；
   // 标量 factor（如 `scale(p, 2)`）由 assertScale3dParams 拒绝并提示 `scale`。
   slotMap: { keys: ['factor'], vec3Keys: ['factor'], shapeArity: 1 },
+  naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 })

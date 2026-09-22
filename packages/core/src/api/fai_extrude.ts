@@ -11,6 +11,7 @@ import { extrudeBrep, solidToShape } from '../brep/brep-ops'
 import { getBackends } from '../runtime-state'
 import { fromBrep, brepOf } from '../shape'
 import { defineOp } from '../sdk'
+import type { Provenance } from '../topology/naming/lineage'
 import { assertPositiveNumber } from './assert'
 import type { BrepHandle } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
@@ -80,4 +81,5 @@ export const fai_extrude = defineOp({
     assertExtrudeParams(params)
     return extrudeBrepPath(input, params)
   },
+  naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [{ kind: 'semantic', name: 'top' }, { kind: 'semantic', name: 'bottom' }] } } as Provenance,
 })

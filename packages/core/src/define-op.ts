@@ -39,6 +39,7 @@ import { positionalToObject, type SlotMap } from './api/internal/dual-form-args'
 import { toOpFailure, unwrapResult, OpError } from './api/internal/result-unwrap'
 import type { Shape } from './mesh/types'
 import type { BrepHandle } from './brep/engine/types'
+import type { Provenance } from './topology/naming/lineage'
 
 /** Raw mesh data (structurally identical to Shape; mesh impls return it). */
 export type MeshData = { positions: Float32Array; indices: Uint32Array }
@@ -94,6 +95,13 @@ export interface DualOpOptions {
    * natively takes.
    */
   slotMap?: SlotMap
+  /**
+   * Topology identity provenance (plan §4.4 / Phase 2.3, **required**).
+   * Declares the op's face-mapping category + new-face vocabulary.
+   * The lineage registrar (§4.3) reads this to build the blood-line graph;
+   * missing naming = compile-time error (G4: no undeclared ops).
+   */
+  naming: Provenance
 }
 
 /** Implementation set (at least one of mesh/brep is required, D1/D1b); options are siblings of the implementations. */
@@ -113,6 +121,8 @@ export interface DualOpMeta {
   schema?: Record<string, string>
   /** D11 slot-map declaration (positional → object boxing table, §9 naming). */
   slotMap?: SlotMap
+  /** Topology identity provenance (Phase 2.3, mirrors DualOpOptions.naming). */
+  naming: Provenance
 }
 
 /** Property key carrying DualOpMeta on wrapped functions. */
@@ -254,6 +264,7 @@ export function defineOp<A extends unknown[]>(
     outputs: decl.outputs,
     schema: decl.schema,
     slotMap: decl.slotMap,
+    naming: decl.naming,
   }
 
   // Async wrapper: implementations may be sync or async (stdlib mesh paths are

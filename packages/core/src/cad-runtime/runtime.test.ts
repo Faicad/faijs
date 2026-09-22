@@ -31,6 +31,7 @@ import { union } from '../api'
 import { solid } from '../shape'
 import type { StdlibNamespace } from '../runtime-state'
 import type { Shape } from '../mesh/types'
+import type { Provenance } from '../topology/naming/lineage'
 import { defineOp, hasBrep, CONTRACT_VERSION } from '../sdk'
 
 let kernel: BrepEngineApi
@@ -999,6 +1000,7 @@ describe('V5.3: 第三方库声明实现集（defineOp，dispatchPath 静态判�
       importGear: defineOp({
         mesh: (shape: Shape) => shape,
         brep: (shape: Shape) => shape,
+        naming: { kind: 'unmodeled', reason: 'test' } as Provenance,
       }),
     } as unknown as StdlibNamespace
     runtime.registerLib('gearlib', gearLib)
@@ -1018,7 +1020,7 @@ describe('V5.3: 第三方库声明实现集（defineOp，dispatchPath 静态判�
     const runtime = makeRuntime('brep')
     const meshLib = {
       contractVersion: CONTRACT_VERSION,
-      knurl: defineOp({ mesh: (shape: Shape) => shape }),
+      knurl: defineOp({ mesh: (shape: Shape) => shape, naming: { kind: 'unmodeled', reason: 'test' } as Provenance }),
     } as unknown as StdlibNamespace
     runtime.registerLib('gearlib', meshLib)
     const code = [

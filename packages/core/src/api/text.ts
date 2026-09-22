@@ -15,6 +15,7 @@ import { containsCjk, loadSystemCjkFont } from '../primitives/text/cjk'
 import { getBackends } from '../runtime-state'
 import { fromBrep } from '../shape'
 import { defineOp } from '../sdk'
+import type { Provenance } from '../topology/naming/lineage'
 import { assertPositiveNumber } from './assert'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 
@@ -108,4 +109,5 @@ export const text = defineOp({
     assertTextParams(params)
     return textBrep(params)
   },
+  naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [] } } as Provenance,
 })

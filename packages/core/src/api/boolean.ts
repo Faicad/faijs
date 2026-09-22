@@ -18,6 +18,7 @@ import { getBackends, getCurrentStmt, keepHidden } from '../runtime-state'
 import { fromBrep, brepOf, getSlot } from '../shape'
 import { reconcileBrepInputs } from './reconcile'
 import { defineOp } from '../sdk'
+import type { Provenance } from '../topology/naming/lineage'
 import type { BrepHandle } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 
@@ -126,6 +127,7 @@ export const union = defineOp({
   // 部分实现的内核静默通过静态判定，再死在运行时（红线违规）。
   capabilities: ['fuse'],
   schema: { shapes: 'Shape*' },
+  naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 })
 
 /**
@@ -151,6 +153,7 @@ export const subtract = defineOp({
   },
   // 逐核函数声明（Phase 0.2）：subtract 需要内核的 cutWithHistory。
   capabilities: ['cut'],
+  naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 })
 
 /**
@@ -179,4 +182,5 @@ export const intersect = defineOp({
   // `evolution: true` 但**没有** intersectWithHistory → 旧声明下 intersect
   // 通过静态判定、死在运行时；现在 brepkit 下静态报 lacks capability 'intersect'。
   capabilities: ['intersect'],
+  naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 })

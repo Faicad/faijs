@@ -34,6 +34,7 @@ import type { BrepHandle } from '../../brep/engine/types'
 import type { HostPorts } from '../../cad-runtime/ports'
 import type { ExecutionResult } from '../../cad-runtime/runtime'
 import type { StdlibNamespace } from '../../runtime-state'
+import type { Provenance } from '../../topology/naming/lineage'
 import { clone as vendoredClone } from '../generated/topology'
 import { registerOcctBrepEngine } from '../../brep/engine/adapters/occt'
 
@@ -102,9 +103,10 @@ describe('§ single entry — compat product is a defineOp product', () => {
       outputs: ['front', 'back'],
       schema: { size: 'number' },
       slotMap: { keys: ['size'] },
+      naming: { kind: 'unmodeled', reason: 'test' } as Provenance,
     }
     const compatProduct = compatOp((v: unknown) => ({ ok: true, value: v }), spec)
-    const defineProduct = defineOp({ brep: () => null as never })
+    const defineProduct = defineOp({ brep: () => null as never, naming: { kind: 'unmodeled', reason: 'test' } as Provenance })
     const cm = metaOf(compatProduct)
     const dm = metaOf(defineProduct)
     expect(Object.keys(cm).sort()).toEqual(Object.keys(dm).sort())
@@ -120,7 +122,7 @@ describe('§ single entry — compat product is a defineOp product', () => {
 
 describe('§ dispatch 矩阵 — 与 brep-only defineOp 一致', () => {
   it('mode×chain：mesh→E_MESH；brep on→brep/off→E_BREP；auto on→brep/off→E_MESH', () => {
-    const op = compatOp(() => ({ ok: true, value: null }), { name: 'plain' })
+    const op = compatOp(() => ({ ok: true, value: null }), { name: 'plain', naming: { kind: 'unmodeled', reason: 'test' } })
     const meta = metaOf(op)
 
     configureBackends(makeBackends('mesh'))
@@ -137,7 +139,7 @@ describe('§ dispatch 矩阵 — 与 brep-only defineOp 一致', () => {
 
   it('capabilities 路由：brep 缺能力→E_BREP；auto 缺能力（brep-only）→E_MESH；具备→brep', () => {
     // Phase 0.2：能力名是具体核函数名（'cut'）；引擎声明是名单（evolution: ['cut']）。
-    const op = compatOp(() => ({ ok: true, value: null }), { name: 'capped', capabilities: ['cut'] })
+    const op = compatOp(() => ({ ok: true, value: null }), { name: 'capped', capabilities: ['cut'], naming: { kind: 'unmodeled', reason: 'test' } })
     const meta = metaOf(op)
 
     configureBackends(makeBackends('brep', {}))
@@ -156,6 +158,7 @@ describe('§4 outputs — 多产物（含数组字段）收养 + meta 可见', (
     const planetary = compatOp((params: unknown) => planetaryBody(params), {
       name: 'planet',
       outputs: ['sun', 'planets', 'ring'],
+      naming: { kind: 'unmodeled', reason: 'test' },
     })
     const r = createRuntime(ports(), 'auto')
     try {
@@ -190,7 +193,7 @@ describe('§6 slotMap — positional boxing inherited via the spec', () => {
     const slotted = compatOp((params: unknown) => {
       seen.push((params as { size: number }).size)
       return { ok: true, value: vendorBox(5, 5, 5) }
-    }, { name: 'slotted', slotMap: { keys: ['size'] } })
+    }, { name: 'slotted', slotMap: { keys: ['size'] }, naming: { kind: 'unmodeled', reason: 'test' } })
     expect(metaOf(slotted).slotMap).toEqual({ keys: ['size'] })
 
     const r = createRuntime(ports(), 'auto')
