@@ -499,12 +499,13 @@ resolve(identity, atPart):
 | 0.5 | 写 **G3 的 6 条链测试**（§3.1），**让它们现在红着** | `packages/tests/faijs/topology-naming/` | **已完成**（形态定为 `it.fails` + 独立的 T0 绿守卫） |
 | 0.6 | **C1 守卫落地**：`CadRuntime` 加执行态锁，第二个 runtime 在执行态时 `throw E_RUNTIME_CONCURRENT`（替换 `runtime.ts:451` 那条"承认互踩"的注释）；补一条测试（两 runtime 交错 → 第二个抛错） | `cad-runtime/runtime.ts:451` | **已完成**（3d_editor 不并发，无需同步） |
 | 0.7 | `@deprecated` 措辞校正（S7，§2.4） | 13 处 JSDoc | **已完成**（实为 11 JSDoc + 4 块注释 + 2 生成器常量） |
-| 0.8 | 覆盖率探针：跑 N 条真实链，输出「未命名面数」基线 | 落成 `.test.ts` | 未做 |
+| 0.8 | 覆盖率探针：跑 N 条真实链，输出「未命名面数」基线 | 落成 `.test.ts` | **已完成**（7 条链；三档基线 47 面 = 20 semantic / 12 positional / 15 empty，见 §7.1） |
 
 **验收**：0.1 绑定单测全绿；0.6 的并发守卫测试绿（两 runtime 交错 → 第二个抛 `E_RUNTIME_CONCURRENT`）；
 6 条链的**当前失败率有实测值**（这就是后续每阶段的进度尺）；**§7 的 6 项实做测定项全部回填为具体分支**
 （1→B、2→A、4→A、5→A+实现前提、6→成立、7→B 且准则改写）——每项分支已预置，回填未产生新的待定项。
-**仅剩 0.8 未做。**
+**Phase 0 八步（0.1–0.8）全部完成。** 进度尺两条：G3 链（`it.fails`，6/6 预期失败）
+与覆盖率三档基线（`phase0-coverage-baseline.test.ts`，20/12/15）。
 
 **同步 3d_editor**：无（0.6 的守卫若 3d_editor 真在并发，会在其 CI 暴露——这正是守卫的作用）。
 
@@ -829,6 +830,44 @@ occt 的 12 项判定为「真」则由 `evolution-bindings.test.ts` 的**真调
   ⇒ 无并发、无需"改 3d_editor 为串行"这一步。
 - 回归面：`packages/core/src/cad-runtime` 全目录绿；`packages/tests` 的 multi-mesh / mixed /
   refactor-acceptance / compat-op / p7-dual-chain / edge-ref 52 项全绿。
+
+**0.8 的落地结果（覆盖率基线已建立：47 面 → 20 semantic / 12 positional / 15 empty）**：
+载体 = `packages/tests/faijs/topology-naming/phase0-coverage-baseline.test.ts`（9 项、17.8s）。
+
+**为什么必须分三档而不是"有名 vs 无名"**：今天有名字的面里大量是**位置兜底名**
+（`extrude:face_3` = "第 3 张面"）——名字非空、却不承载任何设计意图。
+`sketch → extrude` 的 6 张面**全**是 `extrude:face_N` ⇒ 按"有名/无名"统计会得出"6/6 全覆盖"的**假结论**。
+⇒ 三档：`semantic`（真词汇）/ `positional`（`<op>:face_<N>` 兜底）/ `empty`（`''`）。
+
+| 链 | 被查 part | 面数 | naming 行 | semantic | positional | empty |
+|---|---|---|---|---|---|---|
+| `box` | part0 | 6 | 6 | **6** | 0 | 0 |
+| `box → fillet` | part1 | 7 | 7 | 6 | 0 | **1**（过渡面） |
+| `sketch → extrude` | part1 | 6 | 6 | **0** | **6** | 0 |
+| `box → cylinder → subtract`（双 op） | part2 | 7 | 7 | **7** | 0 | 0 |
+| `box → cylinder → cut`（投影） | part2 | 7 | 7 | 0 | 0 | **7** |
+| `sketch → extrude → subtract`（双 op） | part3 | 7 | 7 | 1 | 6 | 0 |
+| `sketch → extrude → cut`（投影） | part3 | 7 | 7 | 0 | 0 | **7** |
+| **合计** | | **47** | **47** | **20** | **12** | **15** |
+
+1. **最刺眼的一条：`cut`（投影）与 `subtract`（faijs 双 op）命名能力不同**。同几何、同输入：
+   `subtract` ⇒ 孔壁拿到 `cylinder:lateral`（origin = **工具件** `part1`）、基体 6 面保留 `box:*` ⇒ **7/7 semantic**；
+   `cut` ⇒ **7/7 全空**。机理：`subtract` 的 BREP 路径走 `booleanWithRoleTable`
+   （`face-evolution.ts:311`），`cut` 是 brepjs 投影（`arg-spec.ts:2785`）走裸内核布尔、**不传 role 表**。
+   第 6/7 行是更强的证据：输入已有 1 semantic + 6 positional，经 `cut` 后**全部变空**
+   ⇒ 投影布尔不是"没能力命名"，而是**把输入的命名表整个丢掉了**。
+   **⇒ 给 Phase 2/3 增一项必须做的事**：D11 的强制判据是 `kind === 'brep-op' && scriptFace === true`，
+   `cut` 正是这样的条目（`scriptFace: true`）⇒ 它**必须声明 `naming`**，
+   于是它的实现也必须接上 role 表通路（`copy`/`transform`/`place` 之外的第 4 个调用点）。
+   否则任何用 brepjs 兼容名写的 `.fai.js` 永远全无名，用 faijs 名写的却有名字——**同几何、两套命名能力**的分叉必须收敛。
+2. **独立佐证"现有实现早就是对的"**：孔壁挂工具件的 `cylinder:lateral`，与内核把孔壁
+   归账为"工具侧面改型后继"完全一致（§7 第 7 项）。计划原文提的 `hole:<j>`（挂 `cut` 名下）
+   若照做，是**相对现状的退步**。
+3. **已成立的不变式：7 条链行数 == 面数**（`rowsGap` 全 0）⇒ 今天的命名表**没有"漏行"**问题，
+   缺口只在"行的内容"（空/位置名），不在"行数"。钉住后，后续阶段若出现行数 < 面数，
+   就是**新引入的**漏表缺陷，而不是历史包袱。
+4. **对 Phase 1.7 的量化验收**：`positional` 必须归零（删 `box:`/`extrude:` 前缀的同时淘汰位置兜底名），
+   且 `empty` 从 15 降到 0。本文件即该验收的复跑载体。
 
 **0.3 的实际取舍（比计划原文更细，因为实测发现"能替换的面"比预期小）**：
 
