@@ -364,3 +364,7 @@
 - 3 个镜像修正（PASS 278，FAIL 8→5）：①part——CQ `add()` 追加 objects、`val()` 返回 objects[0]，ref 导出的 part 即 box0（vol 1），镜像原做 2-box union（vol 2）改回 `val(box0)`；②prism——`extrude(wp, 1, {taper:30})` 把 opts 传进 combine 位导致 taper 静默失效（cand 直棱柱 vol 4 vs ref 截锥 2.135），改 `extrude(wp, 1, true, {taper:30})`；③nearestToPoint__c——上游 `makeUnitCube(centered=False)` 是 [0,1]³ box，镜像原用 [true,true,false] 居中。
 - 剩余 FAIL=5 根因留档：test_siblings__level_1/2/3/123 为**内核 fuse 行为差异**（ref conda OCC 对并排 box 保留接触面边界 18 面，occt-wasm fuse 完全合并为 6 面长条——stacked_box 本身 PASS-NT 拓扑不同跳过为证）；testMultisectionSweep 为 sweep 多截面内核缺口（ref/cand 拓扑相同但体积差 0.0011%，BRepOffsetAPI_MakePipeShell 多截面未暴露）。两者均非 cq-compat 逻辑可修，维持 FAIL/blocked 留档。
 - 门禁：cq-compat lint/typecheck 全绿、154 测试全绿、verify-export-jsdoc 通过。
+
+**实施记录（2026-09-23 续，multisection sweep 实验留档）：**
+- 尝试以 4 截面 loft 镜像 multisection sweep（`loft(w2, w4, w6, w8)`，circle→rect→rect→circle 沿 X 直线 spine）：导出成功但几何差 11.7%（ref 75.517 vs cand 差 vol），且 4 截面 loft 的 cand STEP 在 compare 全量循环中触发 wasm `importStep: memory access out of bounds`（第一个 ERROR 出现在 defaultSweep，其后 196 个 case 连环 ERROR——移除 3 个新 cand 后 ERROR 归零，证实为新 loft STEP 在累积读取下触发内核内存越界）。已回退镜像至 `loft(w8)`，compare 恢复 PASS=278/FAIL=5/ERROR=0。
+- 结论：multisection sweep（`sweep(path, multisection=True)`）保持 FAIL/blocked 留档，根因 = 内核 `BRepOffsetAPI_MakePipeShell` 多截面未暴露（Phase 4 已登记）；loft 的 circle↔rect 过渡几何与 MakePipeShell 不等价，不能作为替代。
