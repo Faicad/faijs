@@ -4,8 +4,8 @@ import { resolve } from 'node:path'
 export default defineConfig({
   resolve: {
     alias: [
-      // M7：包名解析到活源码（不经 dist）。与 tsconfig paths 一致。
       { find: '@faicad/faijs', replacement: resolve(__dirname, '../core/src') },
+      { find: '@faicad/cq-compat', replacement: resolve(__dirname, '../cq-compat/src') },
     ],
   },
   test: {

@@ -1,15 +1,46 @@
 /**
- * @faicad/cq-compat-sketch — CadQuery Sketch layer for faijs（Phase 2 落点）。
+ * @faicad/cq-compat-sketch — CadQuery Sketch.py-compatible 2D sketch container
+ * for faijs.
  *
- * 本包镜像 CadQuery 的独立模块边界（cadquery 源码 sketch.py:133 `class Sketch`
- * + constrain/solve + occ_impl/sketch_solver.py `SketchConstraintSolver`）：
- * 约束驱动、参数化求解的 2D 草图。与主包 @faicad/cq-compat 的 Workplane
- * 2D 绘图（过程式无约束：rect/circle/line/arc/spline 等）是不同层次——
- * Sketch = 约束求解，Workplane 绘图 = 过程式造型。
+ * CadQuery grammar surface (unprefixed names; the cq-compat main package
+ * exposes the same functions with a `sketch` prefix):
+ *   import { sketch, rect, circle, polygon, faces, wires, extrude } from
+ *     '@faicad/cq-compat-sketch'
  *
- * 当前状态：骨架包（Phase 2 落点）。Sketch 兼容面（Sketch 类、
- * sketch()/placeSketch()/constrain() 求解、与 Workplane 互转）在
- * docs/plans/2026-09-22-cq-compat-max-cadquery-support-plan.md §5 Phase 2 落地。
+ *   let s = sketch()
+ *   s = rect(s, 2, 2)
+ *   s = rect(s, 1, 1, { mode: 's' })
+ *   let solid = extrude(s, 2)
+ *
+ * Phase 2 (max-cadquery plan) non-planegcs surface: geometry declarations +
+ * modes a/s/i/c/r + selectors + the sketch→extrude outlet. The constraint
+ * segment (`constrain`/`solve`) is intentionally out of scope pending the
+ * planegcs LGPL-2.0-or-later legal verdict.
  */
 
-export {}
+export {
+  sketchCreate,
+  sketchCreate as sketch,
+  sketchRect as rect,
+  sketchCircle as circle,
+  sketchEllipse as ellipse,
+  sketchPolygon as polygon,
+  sketchRegularPolygon as regularPolygon,
+  sketchSlot as slot,
+  sketchTrapezoid as trapezoid,
+  sketchOffset as offset,
+  sketchFaces as faces,
+  sketchWires as wires,
+  sketchEdges as edges,
+  sketchVertices as vertices,
+  sketchReset as reset,
+  sketchVal as val,
+  sketchVals as vals,
+  sketchTag as tag,
+  sketchSelect as select,
+  sketchArea as area,
+  sketchFaceCount as faceCount,
+  sketchExtrude as extrude,
+  sketchDispose as dispose,
+} from '@faicad/cq-compat'
+export type { Sketch, SketchMode, SketchOpts } from '@faicad/cq-compat'

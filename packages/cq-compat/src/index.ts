@@ -96,6 +96,36 @@ export {
 } from './workplane'
 export type { Workplane as WorkplaneType, RGB, CqLocation, TaggedWorkplane } from './workplane'
 
+// Sketch geometry container (CadQuery Sketch.py parity, non-planegcs part —
+// Phase 2 of the max-cadquery plan; constraints blocked on LGPL verdict).
+// Names carry a `sketch` prefix to avoid clashing with the Workplane ops
+// (rect/circle/val/tag/... are already taken by the workplane layer).
+export {
+  sketch as sketchCreate,
+  rect as sketchRect,
+  circle as sketchCircle,
+  ellipse as sketchEllipse,
+  polygon as sketchPolygon,
+  regularPolygon as sketchRegularPolygon,
+  slot as sketchSlot,
+  trapezoid as sketchTrapezoid,
+  offset as sketchOffset,
+  faces as sketchFaces,
+  wires as sketchWires,
+  edges as sketchEdges,
+  vertices as sketchVertices,
+  reset as sketchReset,
+  val as sketchVal,
+  vals as sketchVals,
+  tag as sketchTag,
+  select as sketchSelect,
+  area as sketchArea,
+  faceCount as sketchFaceCount,
+  extrude as sketchExtrude,
+  dispose as sketchDispose,
+} from './sketch'
+export type { Sketch, SketchMode, SketchOpts } from './sketch'
+
 // Internal helpers consumed by @faicad/cq-compat-assembly (the assembly layer
 // split into its own package; these workplane-internal symbols are re-exported
 // so the assembly package does not duplicate them).

@@ -7,20 +7,41 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true,
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "resolveJsonModule": true,
     "isolatedModules": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
-      "@faicad/faijs": ["../core/src/index.ts"],
-      "@faicad/faijs/*": ["../core/src/*"]
+      "@faicad/faijs": [
+        "../core/src/index.ts"
+      ],
+      "@faicad/faijs/*": [
+        "../core/src/*"
+      ],
+      "@faicad/cq-compat": [
+        "../cq-compat/src/index.ts"
+      ],
+      "@faicad/cq-compat/*": [
+        "../cq-compat/src/*"
+      ]
     }
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist"]
+  "include": [
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }
