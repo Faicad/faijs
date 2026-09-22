@@ -13,7 +13,7 @@ import type { Shape, Vec3 } from '../mesh/types'
 import { solidToShape } from '../brep/brep-ops'
 import { getFaceHashes } from '../brep/face-evolution'
 import { getBackends, getCurrentStmt } from '../runtime-state'
-import { fromBrep, brepOf, getSlot } from '../shape'
+import { fromBrep, brepOf, inputRoleTable } from '../shape'
 import { defineOp } from '../sdk'
 import type { Provenance } from '../topology/naming/lineage'
 import type { RoleTable } from '../topology/naming/types'
@@ -36,13 +36,13 @@ function linearPatternBrep(input: Shape, direction: Vec3, count: number, spacing
 
   // Phase 1.6：origin = 本次语句 StmtId。
   const outStmt = String(getCurrentStmt()?.id ?? '')
-  const inputRoleTable = getSlot(input)?.roleTable as RoleTable | undefined
+  const inputTable = inputRoleTable(input) as RoleTable | undefined
 
   // 输入面角色（hash → role）用于回投 inner
   const inputHashes = getFaceHashes(kernel, inputSolid)
   const inputHashToRole = new Map<number, string>()
-  if (inputRoleTable) {
-    for (const roles of inputRoleTable.values()) {
+  if (inputTable) {
+    for (const roles of inputTable.values()) {
       for (const [role, hashes] of roles) for (const h of hashes) inputHashToRole.set(h, role)
     }
   }

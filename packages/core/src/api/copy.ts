@@ -16,7 +16,7 @@ import type { Shape } from '../mesh/types'
 import { solidToShape } from '../brep/brep-ops'
 import { identityEvolution, identityHashEvolution } from '../brep/face-evolution'
 import { getBackends, keep } from '../runtime-state'
-import { fromBrep, brepOf, getSlot } from '../shape'
+import { fromBrep, brepOf, inputRoleTable } from '../shape'
 import { propagateAllOrigins } from '../topology/naming/roles'
 import type { RoleTable } from '../topology/naming/types'
 import type { Provenance } from '../topology/naming/lineage'
@@ -34,7 +34,7 @@ function copyBrep(input: Shape): Shape {
   const copiedSolid = kernel.copy(inputSolid)
 
   // §2.4/§3.3：copy 面 1:1 保留——hash 恒等传播 roleTable（所有 origin）
-  const inputTable = getSlot(input)?.roleTable as RoleTable | undefined
+  const inputTable = inputRoleTable(input) as RoleTable | undefined
   let roleTable: RoleTable | undefined
   if (inputTable && inputTable.size > 0) {
     roleTable = propagateAllOrigins(inputTable, identityHashEvolution(kernel, inputSolid, copiedSolid))

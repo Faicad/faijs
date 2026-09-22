@@ -17,7 +17,7 @@ import {
 } from '../brep/face-evolution'
 import type { HashEvolution } from '../brep/face-evolution'
 import { getBackends } from '../runtime-state'
-import { fromBrep, brepOf, getSlot } from '../shape'
+import { fromBrep, brepOf, inputRoleTable } from '../shape'
 import { propagateAllOrigins } from '../topology/naming/roles'
 import type { RoleTable } from '../topology/naming/types'
 import type { Provenance } from '../topology/naming/lineage'
@@ -128,7 +128,7 @@ function transformBrep(op: string, input: Shape, params: Record<string, unknown>
   }
 
   // §2.4/§3.3：刚体变换面 1:1 保留 —— 沿演化传播 roleTable（所有 origin）
-  const inputTable = getSlot(input)?.roleTable as RoleTable | undefined
+  const inputTable = inputRoleTable(input) as RoleTable | undefined
   let roleTable: RoleTable | undefined
   if (inputTable && inputTable.size > 0) {
     roleTable = propagateAllOrigins(inputTable, hashEvolution)

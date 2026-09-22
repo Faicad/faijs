@@ -17,7 +17,7 @@ import type { Shape } from '../mesh/types'
 import { solidToShape } from '../brep/brep-ops'
 import { chamferWithRoleTable, identityEvolution } from '../brep/face-evolution'
 import { getBackends, getCurrentStmt } from '../runtime-state'
-import { fromBrep, brepOf, getSlot } from '../shape'
+import { fromBrep, brepOf, inputRoleTable } from '../shape'
 import { defineOp } from '../sdk'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 import type { BrepHandle } from '../brep/engine/types'
@@ -202,7 +202,7 @@ function chamferBrep(input: Shape, params: Record<string, unknown>): Shape {
   if (!ctx) throw new TopoRefError('E_TOPO_NOT_FOUND', 'edge', 'input has no edge naming context')
 
   // 输入 roleTable + outStmt（与 boolean.ts / fillet.ts 同构）。Phase 1.6：origin=StmtId。
-  const inputRoleTable = getSlot(input)?.roleTable as ReadonlyMap<unknown, unknown> | undefined
+  const inputTable = inputRoleTable(input) as ReadonlyMap<unknown, unknown> | undefined
   const outStmt = String(getCurrentStmt()?.id ?? '')
 
   let resultSolid: BrepHandle
@@ -218,7 +218,7 @@ function chamferBrep(input: Shape, params: Record<string, unknown>): Shape {
         solid,
         edgeHandles,
         params.width as number,
-        inputRoleTable ?? new Map(),
+        inputTable ?? new Map(),
         outStmt,
       )
       resultSolid = r.result
@@ -230,12 +230,12 @@ function chamferBrep(input: Shape, params: Record<string, unknown>): Shape {
       resultSolid = kernel.chamferDistAngle(solid, edges.map((e) => resolveEdge(ctx, e).handle), params.width as number, params.angle as number)
       // chamferDistAngle 无 WithHistory 版本——用恒等面演化 + 原表
       faceEvolution = identityEvolution(kernel, resultSolid)
-      roleTable = inputRoleTable
+      roleTable = inputTable
       break
     case 'twoDistances':
       resultSolid = chamferTwoDistances(kernel, edges, ctx, solid, params.width1 as number, params.width2 as number)
       faceEvolution = identityEvolution(kernel, resultSolid)
-      roleTable = inputRoleTable
+      roleTable = inputTable
       break
     default:
       throw new Error('E_CHAMFER_BAD_TYPE')

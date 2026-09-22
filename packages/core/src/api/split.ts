@@ -14,7 +14,7 @@ import type { Shape } from '../mesh/types'
 import { solidToShape } from '../brep/brep-ops'
 import { getFaceHashes } from '../brep/face-evolution'
 import { getBackends, getCurrentStmt } from '../runtime-state'
-import { fromBrep, brepOf, getSlot } from '../shape'
+import { fromBrep, brepOf, inputRoleTable } from '../shape'
 import { defineOp } from '../sdk'
 import type { Provenance } from '../topology/naming/lineage'
 import type { RoleTable } from '../topology/naming/types'
@@ -34,13 +34,13 @@ function splitBrep(input: Shape, tools: Shape[]): Shape {
 
   // Phase 1.6：origin = 本次语句 StmtId。
   const outStmt = String(getCurrentStmt()?.id ?? '')
-  const inputRoleTable = getSlot(input)?.roleTable as RoleTable | undefined
+  const inputTable = inputRoleTable(input) as RoleTable | undefined
 
   const inputHashes = getFaceHashes(kernel, inputSolid)
   const inputHashSet = new Set(inputHashes)
   const inputHashToRole = new Map<number, string>()
-  if (inputRoleTable) {
-    for (const roles of inputRoleTable.values()) {
+  if (inputTable) {
+    for (const roles of inputTable.values()) {
       for (const [role, hashes] of roles) for (const h of hashes) inputHashToRole.set(h, role)
     }
   }

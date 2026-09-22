@@ -15,7 +15,7 @@ import {
   booleanWithRoleTable,
 } from '../brep/face-evolution'
 import { getBackends, getCurrentStmt, keepHidden } from '../runtime-state'
-import { fromBrep, brepOf, getSlot } from '../shape'
+import { fromBrep, brepOf, inputRoleTable } from '../shape'
 import { reconcileBrepInputs } from './reconcile'
 import { defineOp } from '../sdk'
 import type { Provenance } from '../topology/naming/lineage'
@@ -46,12 +46,12 @@ function booleanBrep(inputs: Shape[], operation: BooleanOperation): Shape {
 
   // 首个输入作为 target 起点
   resultSolid = inputSolids[0]!
-  roleTable = getSlot(inputs[0])?.roleTable as ReadonlyMap<unknown, unknown> | undefined
+  roleTable = inputRoleTable(inputs[0]) as ReadonlyMap<unknown, unknown> | undefined
 
   for (let i = 1; i < inputSolids.length; i++) {
     const prev = resultSolid
     const prevTable = roleTable
-    const toolTable = getSlot(inputs[i])?.roleTable as ReadonlyMap<unknown, unknown> | undefined
+    const toolTable = inputRoleTable(inputs[i]) as ReadonlyMap<unknown, unknown> | undefined
     // Phase 1.6：新 origin = 本次语句的 StmtId（不再是 LHS 变量名——PartName 会被
     // 改名/复用，StmtId 全局唯一）。
     const outStmt = String(getCurrentStmt()?.id ?? '')

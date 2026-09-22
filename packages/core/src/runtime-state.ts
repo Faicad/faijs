@@ -217,8 +217,9 @@ export function takeFunctionBrepDomain(): unknown[] {
 export interface ShapeSlot {
   solid?: unknown
   faceEvolution?: Map<number, number[]>
-  /** 拓扑命名 RoleTable（§2.3 naming 槽：随 Shape 身份槽传播，不序列化）。 */
-  roleTable?: unknown
+  // 1.10 前置③：roleTable 槽字段已删除——权威落点在血缘图旁挂
+  // （topology/naming/lineage.ts 的 recordOutput / tableOfPart），
+  // 解析缓存 miss 由回走重算恢复（api/topo-resolve.ts）。
   /** mesh/primitive 面 hint 快照（§3.6 setTopology 注入时由 runtime 提炼写入，解析兜底用）。 */
   faceHints?: unknown
   behavior?: unknown

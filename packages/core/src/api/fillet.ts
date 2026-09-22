@@ -21,7 +21,7 @@ import type { Shape } from '../mesh/types'
 import { solidToShape } from '../brep/brep-ops'
 import { filletWithRoleTable } from '../brep/face-evolution'
 import { getBackends, getCurrentStmt } from '../runtime-state'
-import { fromBrep, brepOf, getSlot } from '../shape'
+import { fromBrep, brepOf, inputRoleTable } from '../shape'
 import { defineOp } from '../sdk'
 import type { BrepHandle } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
@@ -95,7 +95,7 @@ function filletBrep(input: Shape, params: Record<string, unknown>): Shape {
   const edgeHandles = edges.map((e) => resolveEdge(ctx, e))
 
   // 输入 roleTable + outStmt（与 boolean.ts 同构）。Phase 1.6：origin=本次语句 StmtId。
-  const inputRoleTable = getSlot(input)?.roleTable as ReadonlyMap<unknown, unknown> | undefined
+  const inputTable = inputRoleTable(input) as ReadonlyMap<unknown, unknown> | undefined
   const outStmt = String(getCurrentStmt()?.id ?? '')
 
   let resultSolid: BrepHandle
@@ -108,7 +108,7 @@ function filletBrep(input: Shape, params: Record<string, unknown>): Shape {
       solid,
       edgeHandles,
       radius,
-      inputRoleTable ?? new Map(),
+      inputTable ?? new Map(),
       outStmt,
     )
     resultSolid = r.result

@@ -35,7 +35,7 @@ import {
   nameOf,
 } from './runtime-state'
 import { asStmtId, type PartName } from './identity'
-import { isShape, solid, fromBrep } from './shape'
+import { isShape, solid, fromBrep, getSlot } from './shape'
 import { isMeshShape } from './mesh/types'
 import { fromHandle, meshHandle, isOcctHandle } from './brep/handle-bridge'
 import { positionalToObject, type SlotMap } from './api/internal/dual-form-args'
@@ -342,7 +342,27 @@ export function defineOp<A extends unknown[]>(
     const path = dispatchPath(inputs, meta, missing)
     if (path === 'brep') {
       const r = await runImpl(meta, decl.brep as unknown as ((...a: unknown[]) => unknown) | undefined, callArgs)
-      return meta.outputs ? wrapByKeys(r, meta.outputs, wrapBrepOne) : wrapBrepOne(r)
+      const out = meta.outputs ? wrapByKeys(r, meta.outputs, wrapBrepOne) : wrapBrepOne(r)
+      // 1.10 前置①：执行期把 hash 演化挂到血缘节点（kernel 类回走推进的数据源）。
+      // 演化在几何算完那一刻可得（fromBrep → slot.faceEvolution），事后补挂不参与
+      // N3 的内容比较（lineage.ts 设计如此）。无演化（identity/construct 等无历史
+      // 输出）时跳过——identity 类推进不依赖演化，construct 词汇在节点 provenance 里。
+      const outShape = (typeof out === 'object' && out !== null ? Object.values(out)[0] : out) as Shape | undefined
+      const evolution = outShape ? getSlot(outShape)?.faceEvolution : undefined
+      if (outShape && evolution) {
+        runtimeLineage.attachEvolution(asStmtId(anchor!.id), evolution)
+      }
+      // 1.10 前置③：part 键的 roleTable 旁挂在这里记录（不是 fromBrep）——
+      // impl 返回后 anchor.outputs 名字已定，而 fromBrep 时刻 shape 还未被
+      // executor 命名（nameOf 为 undefined）。op 实现读输入表（inputRoleTable）
+      // 与解析读表（tableOfPart）都走这份 part 键权威表。
+      if (outShape && anchor.outputs.length > 0) {
+        const stmtId = asStmtId(anchor.id)
+        const table = runtimeLineage.outputTableOf(stmtId)
+        const solid = runtimeLineage.outputHandleOf(stmtId)
+        if (table) runtimeLineage.recordOutput(stmtId, table, solid, anchor.outputs[0] as PartName)
+      }
+      return out
     }
     const m = await runImpl(meta, decl.mesh as unknown as ((...a: unknown[]) => unknown) | undefined, callArgs)
     return meta.outputs ? wrapByKeys(m, meta.outputs, wrapMeshOne) : wrapMeshOne(m)

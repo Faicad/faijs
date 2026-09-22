@@ -11,7 +11,9 @@
  */
 
 import type { Shape } from './mesh/types'
-import { getRuntimeState, registerFunctionBrep, nameOf, type ShapeSlot } from './runtime-state'
+import { getRuntimeState, registerFunctionBrep, nameOf, getCurrentStmt, type ShapeSlot } from './runtime-state'
+import { asStmtId } from './identity'
+import { runtimeLineage } from './topology/naming/lineage'
 
 // ── Shape 构造器 ──
 
@@ -65,8 +67,20 @@ export function fromBrep(mesh: Shape, holder: BrepHolder): SolidShape {
   const slot = state.slots.get(s) ?? {}
   slot.solid = holder.solid
   if (holder.faceEvolution) slot.faceEvolution = holder.faceEvolution
-  if (holder.roleTable) slot.roleTable = holder.roleTable
+  // 1.10 前置③：roleTable **不再写 slot**（字段已删）——权威落点是下方血缘图
+  // 旁挂（语句键 + part 键），解析缓存 miss 由回走重算恢复。
   state.slots.set(s, slot)
+  // 1.10 前置③：roleTable 权威旁挂（**语句键**）在血缘图。part 键的记录在
+  // define-op.wrapped（impl 返回后 anchor.outputs 名字已定）——此处 shape 还未
+  // 被 executor 命名，nameOf(s) 为 undefined，不能在这里记 part 键。
+  const stmt = getCurrentStmt()
+  if (stmt && (holder.roleTable || holder.solid !== undefined)) {
+    runtimeLineage.recordOutput(
+      asStmtId(stmt.id),
+      holder.roleTable as ReadonlyMap<string, ReadonlyMap<string, readonly number[]>> | undefined,
+      holder.solid,
+    )
+  }
   // 函数 BREP 域（§5.6）：函数体内 op 产生的新句柄登记到当前域，函数返回后统一释放
   registerFunctionBrep(holder.solid)
   return s
@@ -76,6 +90,10 @@ export function fromBrep(mesh: Shape, holder: BrepHolder): SolidShape {
 export interface BrepHolder {
   solid: unknown
   faceEvolution?: Map<number, number[]>
+  /**
+   * 1.10 前置③：产形 op 交付 role 表的唯一入口。fromBrep 把它**旁挂到血缘图**
+   * （语句键 + part 键）；slot 侧的缓存存储已删（ShapeSlot 不再有该字段）。
+   */
   roleTable?: unknown
 }
 
@@ -152,6 +170,21 @@ export function ensureSlot(shape: object): ShapeSlot {
     state.slots.set(shape, slot)
   }
   return slot
+}
+
+/**
+ * 读输入 Shape 的 roleTable（op 实现读**输入**表的唯一读口，1.10 前置③）。
+ *
+ * 语义 = 旧 `getSlot(shape)?.roleTable`：权威落点在血缘图的 part 键旁挂
+ * （上一条语句 fromBrep 时记录），slot 缓存字段已删除。未记录 → undefined
+ * （mesh 产物 / 无命名）。
+ *
+ * @param shape - the input shape whose role table to read.
+ * @returns the role table (unknown — callers assert their table type), or undefined.
+ */
+export function inputRoleTable(shape: object): unknown | undefined {
+  const name = nameOf(shape)
+  return name ? runtimeLineage.tableOfPart(name) : undefined
 }
 
 /**

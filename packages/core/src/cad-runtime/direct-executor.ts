@@ -510,7 +510,9 @@ export class DirectExecutor {
                   const bslot = getSlot(bv)
                   if (bslot?.solid) this.setSolidHook?.(asPartName(key), bslot.solid as BrepHandle)
                   if (bslot?.faceEvolution) this.setFaceEvolutionHook?.(asPartName(key), bslot.faceEvolution)
-                  if (bslot?.roleTable) this.setRoleTableHook?.(asPartName(key), bslot.roleTable)
+                  // 1.10 前置③：roleTable 权威落点在血缘图旁挂（part 键）。
+                  const btable = runtimeLineage.tableOfPart(asPartName(key))
+                  if (btable) this.setRoleTableHook?.(asPartName(key), btable)
                 }
               }
             }
@@ -526,7 +528,9 @@ export class DirectExecutor {
               const slot = getSlot(v)
               if (slot?.solid) this.setSolidHook?.(asPartName(w), slot.solid as BrepHandle)
               if (slot?.faceEvolution) this.setFaceEvolutionHook?.(asPartName(w), slot.faceEvolution)
-              if (slot?.roleTable) this.setRoleTableHook?.(asPartName(w), slot.roleTable)
+              // 1.10 前置③：roleTable 权威落点在血缘图旁挂（part 键），slot 字段已删。
+              const rtable = runtimeLineage.tableOfPart(asPartName(w))
+              if (rtable) this.setRoleTableHook?.(asPartName(w), rtable)
             }
           }
           // T3/T4: Assembly transform propagation — same semantics as

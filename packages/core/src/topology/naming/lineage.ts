@@ -101,7 +101,24 @@ export const PROVENANCE_KINDS = [
   'unmodeled',
 ] as const
 
-// ── 节点 ──
+/**
+ * 演化记录（`kind='kernel'` 时执行期补挂）。
+ *
+ * 两种形态并存（1.10 前置①实测）：
+ * - **序号键**（`slot.faceEvolution` 的实际存储形态，`Map<ordinal, ordinal[]>`）：
+ *   boolean/fillet/chamfer 走 `decodeEvolution`（逐句柄 hashCode），copy/transform/place
+ *   走 `identityEvolution`（恒等）。回走推进 identity 类与"序号不变"的 kernel 路径用它。
+ * - **哈希键**（`HashEvolution`，`decodeHashEvolution` 的输出）：只在 booleanWithRoleTable
+ *   等组合函数内部瞬时存在，不落 slot。回走按哈希集合推进时用它。
+ */
+export type EvolutionRecord = Map<number, number[]> | HashEvolution
+
+/**
+ * 判断演化记录是否为哈希键形态（`HashEvolution` 有 `modified`/`deleted` 字段）。
+ */
+export function isHashEvolution(e: EvolutionRecord): e is HashEvolution {
+  return 'modified' in e && 'deleted' in e
+}
 
 /**
  * 血缘图的一个节点 = 一条语句的登记记录。
@@ -121,7 +138,7 @@ export interface LineageNode {
   /** provenance 类别 + 该类别的载荷。 */
   readonly provenance: Provenance
   /** `kind='kernel'` 时执行期记录的 hash 演化（`attachEvolution` 事后补上）。 */
-  readonly evolution?: HashEvolution
+  readonly evolution?: EvolutionRecord
 }
 
 /**
@@ -267,6 +284,29 @@ function sameNames(a: readonly PartName[], b: readonly PartName[]): boolean {
 export class LineageGraph {
   private readonly nodes = new Map<StmtId, LineageNode>()
   private readonly partOwner = new Map<PartName, StmtId>()
+  /**
+   * 执行期旁挂：语句输出 part 的 roleTable（1.10 前置③）。
+   *
+   * 回走锚定需要 root 语句的「origin→role→hash[]」表；它本来只存在
+   * `slot.roleTable`（解析缓存）里，删字段后唯一落点就是这里。
+   * 不进 `LineageNode`（节点是身份数据，N3 比较不含它）。
+   */
+  private readonly outputTables = new Map<StmtId, ReadonlyMap<string, ReadonlyMap<string, readonly number[]>>>()
+  /**
+   * 执行期旁挂：语句输出 part 的 BREP 句柄（回走锚定/落地做 ordinal↔hash 换算用）。
+   * 句柄是活对象不进节点；随 `clear()` 一起清（句柄生命周期由 solidCache 管）。
+   */
+  private readonly outputHandles = new Map<StmtId, unknown>()
+  /**
+   * 执行期旁挂：**part 名键**的 roleTable（1.10 前置③，op 读输入表用）。
+   *
+   * 为什么有语句键还要 part 键：op 实现读的是「输入 part 的表」。按语句反查
+   * （stmtOf(part)）在重赋值下会指到**本语句**——register 先于 impl 执行，
+   * `part0 = translate(part0)` 的 partOwner 已被 s2 覆盖，impl 读输入表时
+   * 拿到的是自己的输出。part 键表只在 `recordOutput`（impl 内 fromBrep 时）
+   * 才覆盖 ⇒ impl 读表时看到的仍是上一条语句记录的旧表——时序天然正确。
+   */
+  private readonly outputTablesByPart = new Map<PartName, ReadonlyMap<string, ReadonlyMap<string, readonly number[]>>>()
 
   /**
    * 登记一条语句（N1/N2/N3 全在这里校验）。
@@ -363,7 +403,7 @@ export class LineageGraph {
    * @param evolution - the hash evolution produced by this statement.
    * @throws LineageError when the statement was never registered.
    */
-  attachEvolution(stmt: StmtId, evolution: HashEvolution): void {
+  attachEvolution(stmt: StmtId, evolution: EvolutionRecord): void {
     const node = this.nodes.get(stmt)
     if (!node) {
       throw new LineageError(
@@ -406,6 +446,22 @@ export class LineageGraph {
     return stmt === undefined ? undefined : this.nodes.get(stmt)
   }
 
+  /**
+   * 找把 `part` 作为输入的下游节点（回走推进用，1.10 前置②）。
+   *
+   * 链行走的方向是「origin → 消费者 → 消费者的消费者」：中间 part 的产出方
+   * 是 origin 自己（`stmtOf` 指回原点），不能用产出方找下一步。
+   *
+   * @param part - the part name consumed by the wanted node.
+   * @returns the first (registration-order) node whose inputs contain the part.
+   */
+  nodeConsuming(part: PartName): LineageNode | undefined {
+    for (const node of this.nodes.values()) {
+      if (node.inputs.includes(part)) return node
+    }
+    return undefined
+  }
+
   /** 已登记的语句数。 */
   get size(): number {
     return this.nodes.size
@@ -415,6 +471,46 @@ export class LineageGraph {
   clear(): void {
     this.nodes.clear()
     this.partOwner.clear()
+    this.outputTables.clear()
+    this.outputHandles.clear()
+    this.outputTablesByPart.clear()
+  }
+
+  /**
+   * 记录语句输出 part 的 roleTable 与句柄（1.10 前置③，执行期旁挂）。
+   *
+   * 调用点：`define-op.wrapped` 的 brep 分支——登记血缘时（或补挂演化时）
+   * 顺手记录，读口是 `getSlot(outShape)`。表/句柄都可选（构造类 op 可能两者皆无）。
+   *
+   * @param stmt - the statement whose output is recorded.
+   * @param roleTable - the output part's role table (origin→role→hash[]), if any.
+   * @param solid - the output part's BREP handle, if any.
+   */
+  recordOutput(stmt: StmtId, roleTable?: ReadonlyMap<string, ReadonlyMap<string, readonly number[]>>, solid?: unknown, part?: PartName): void {
+    if (roleTable) this.outputTables.set(stmt, roleTable)
+    if (solid !== undefined) this.outputHandles.set(stmt, solid)
+    if (roleTable && part !== undefined) this.outputTablesByPart.set(part, roleTable)
+  }
+
+  /** 读语句输出 part 的 roleTable（回走锚定用）。 */
+  outputTableOf(stmt: StmtId): ReadonlyMap<string, ReadonlyMap<string, readonly number[]>> | undefined {
+    return this.outputTables.get(stmt)
+  }
+
+  /** 读语句输出 part 的 BREP 句柄（回走 ordinal↔hash 换算用）。 */
+  outputHandleOf(stmt: StmtId): unknown | undefined {
+    return this.outputHandles.get(stmt)
+  }
+
+  /**
+   * 读 part 名键的 roleTable（op 实现读**输入**表用，1.10 前置③）。
+   *
+   * 语义 = 旧 `getSlot(input)?.roleTable`：impl 执行时刻，该 part 的表是
+   * 上一条语句 `recordOutput` 记录的那份（本语句的覆盖发生在 impl 内
+   * fromBrep 时，晚于任何输入读）。未记录（mesh 产物 / 未接血缘）→ undefined。
+   */
+  tableOfPart(part: PartName): ReadonlyMap<string, ReadonlyMap<string, readonly number[]>> | undefined {
+    return this.outputTablesByPart.get(part)
   }
 }
 

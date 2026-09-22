@@ -17,7 +17,7 @@
 
 import type { Shape } from '../mesh/types'
 import { getBackends } from '../runtime-state'
-import { fromBrep, brepOf, getSlot, isCompoundLike } from '../shape'
+import { fromBrep, brepOf, inputRoleTable, isCompoundLike } from '../shape'
 import { solidToShape, applyTransformBrep } from '../brep/brep-ops'
 import { applyTransform } from '../mesh/rigid-transform'
 import { identityEvolution, identityHashEvolution } from '../brep/face-evolution'
@@ -77,7 +77,7 @@ function placeBrep(input: Shape, rotation: [number, number, number, number], pos
 
   const resultSolid = applyTransformBrep(kernel, inputSolid, rotation, [0, 0, 0], position)
 
-  const inputTable = getSlot(input)?.roleTable as RoleTable | undefined
+  const inputTable = inputRoleTable(input) as RoleTable | undefined
   let roleTable: RoleTable | undefined
   if (inputTable && inputTable.size > 0) {
     roleTable = propagateAllOrigins(inputTable, identityHashEvolution(kernel, inputSolid, resultSolid))

@@ -92,9 +92,18 @@ describe('import_brep: chain-root roleTable (E3)', () => {
     configureBackends(makeBackends('brep', { ...fakeKernel }, fakeAssets))
 
     const out = await import_brep({ asset: 'Sketch001.Shape' })
-    const { getSlot } = await import('../shape')
-    const slot = getSlot(out)
-    const table = slot?.roleTable as RoleTable | undefined
+    // 1.10 前置③：roleTable 权威落点 = 血缘图旁挂（语句键 + part 键），slot 缓存字段已删。
+    // 本单测无语句锚点 ⇒ 注入空串锚点（与表的 origin='' 占位一致），读语句键表。
+    const { setCurrentStmt } = await import('../runtime-state')
+    const { runtimeLineage } = await import('../topology/naming/lineage')
+    setCurrentStmt({ id: '' as never, outputs: [] as never })
+    try {
+      // 重跑一次让 fromBrep 在锚点内记录（首次调用发生在注入前）
+      await import_brep({ asset: 'Sketch001.Shape' })
+    } finally {
+      setCurrentStmt(undefined)
+    }
+    const table = runtimeLineage.outputTableOf('' as never) as RoleTable | undefined
     expect(table, 'roleTable registered on the imported shape').toBeDefined()
     const origins = [...(table?.keys() ?? [])]
     // Phase 1.6：origin = 导入语句的 StmtId（不再用资产名——同一资产导入两次

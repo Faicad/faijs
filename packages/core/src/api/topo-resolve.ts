@@ -15,9 +15,13 @@
 
 import type { Shape } from '../mesh/types'
 import { getSlot } from '../shape'
+import { nameOf } from '../runtime-state'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 import type { BrepHandle } from '../brep/engine/types'
 import { HASH_UPPER_BOUND } from '../brep/face-evolution'
+import { runtimeLineage } from '../topology/naming/lineage'
+import { resolveViaLineage } from '../topology/naming/lineage-resolve'
+import { asStmtId } from '../identity'
 import {
   resolveTopoRef,
   captureFaceHint,
@@ -42,6 +46,47 @@ export interface ResolvedFaceGeometry {
 }
 
 /**
+ * roleTable miss 时沿血缘回走重算（1.10 前置③：缓存降级）。
+ *
+ * 「产物上的 roleTable 不再是身份的唯一来源」的落点：精确解析读不到
+ * `roleTable[origin][role]` 时，按血缘 DAG 从 origin 语句回走推进到当前 part，
+ * 产出该 role 的 hash 集合并**回填缓存**——miss 可恢复，不再是无名错误。
+ * 回走失败（链断 / 无演化）返回 undefined，调用方落到几何兜底（既有三态语义不变）。
+ *
+ * @param ref - the face TopoRef being resolved.
+ * @param shape - the live part shape being resolved against.
+ * @param kernel - the OCCT kernel (hash 换算需要；null 时回走不可用).
+ * @returns the recomputed hash list, or undefined when lineage re-walk cannot produce one.
+ */
+function recomputeViaLineage(
+  ref: FaceTopoRef,
+  shape: object,
+  kernel: BrepEngineApi | null,
+): readonly number[] | undefined {
+  if (!kernel) return undefined
+  const part = nameOf(shape)
+  if (!part) return undefined
+  const result = resolveViaLineage(runtimeLineage, asStmtId(ref.origin), ref.role, part, {
+    // 回走链上的中间产物句柄：优先血缘图旁挂（本仓 op 执行时记录），
+    // 兜底读 runtime 全局 nameOf 反查（slot.solid）。
+    brepOf: (p) => {
+      const stmt = runtimeLineage.stmtOf(p)
+      const h = stmt ? runtimeLineage.outputHandleOf(stmt) : undefined
+      if (h !== undefined) return h
+      return undefined
+    },
+    faceHashes: (handle) =>
+      Array.from(kernel.subShapeHashes(handle as BrepHandle, 'face', HASH_UPPER_BOUND)),
+    roleTableOf: (p) => {
+      const stmt = runtimeLineage.stmtOf(p)
+      return stmt ? runtimeLineage.outputTableOf(stmt) : undefined
+    },
+  })
+  if (!('hashes' in result)) return undefined
+  return result.hashes
+}
+
+/**
  * 从活 Shape 的组装槽构建 ResolutionContext（BREAK 或 mesh/primitive 两条路）。
  *
  * - BREAK：`slot.solid` + `slot.roleTable` → 内核现场句柄 + hash（exact 路径）；
@@ -60,7 +105,9 @@ export function buildShapeResolutionContext(
   if (!shape) return undefined
   const slot = getSlot(shape)
   if (!slot) return undefined
-  const roleTable = slot.roleTable as RoleTable | undefined
+  // 1.10 前置③：roleTable 权威落点在血缘图旁挂（part 键），slot 缓存字段已删。
+  const part = nameOf(shape)
+  const roleTable = (part ? runtimeLineage.tableOfPart(part) : undefined) as RoleTable | undefined
 
   const solid = slot.solid as BrepHandle | undefined
   if (kernel && solid) {
@@ -101,7 +148,9 @@ export function buildEdgeResolutionContext(
   if (!shape) return undefined
   const slot = getSlot(shape)
   if (!slot) return undefined
-  const roleTable = slot.roleTable as RoleTable | undefined
+  // 1.10 前置③：roleTable 权威落点在血缘图旁挂（part 键），slot 缓存字段已删。
+  const edgePart = nameOf(shape)
+  const roleTable = (edgePart ? runtimeLineage.tableOfPart(edgePart) : undefined) as RoleTable | undefined
   const solid = slot.solid as BrepHandle | undefined
   if (!solid) return undefined
 
@@ -198,13 +247,28 @@ export function resolveFaceGeometry(
   shape: Shape,
   ref: FaceTopoRef,
 ): ResolvedFaceGeometry {
-  const ctx = buildShapeResolutionContext(kernel, shape)
+  // 1.10 前置③：roleTable 是解析缓存。origin/role 条目 miss 时先沿血缘回走
+  // 重算并回填（miss 可恢复），再进解析——不再是"缓存 miss = 无名"。
+  let ctx = buildShapeResolutionContext(kernel, shape)
   if (!ctx) {
     throw new TopoRefError(
       'E_TOPO_NOT_FOUND',
       'face',
       `no naming context on input shape (origin=${ref.origin}, role=${ref.role})`,
     )
+  }
+  // 1.10 前置③：roleTable 是解析缓存。origin/role 条目 miss 时先沿血缘回走
+  // 重算并回填（miss 可恢复），再进解析——不再是"缓存 miss = 无名"。
+  if (ctx.roleTable && kernel) {
+    const entry0 = ctx.roleTable.get(ref.origin)?.get(ref.role)
+    if (entry0 === undefined) {
+      const recomputed = recomputeViaLineage(ref, shape, kernel)
+      if (recomputed) {
+        const merged = new Map(ctx.roleTable as ReadonlyMap<string, ReadonlyMap<string, readonly number[]>>)
+        merged.set(ref.origin, new Map([...(ctx.roleTable.get(ref.origin) ?? new Map()), [ref.role, recomputed]]))
+        ctx = { ...ctx, roleTable: merged as unknown as typeof ctx.roleTable }
+      }
+    }
   }
   const entity = resolveTopoRef(ref, ctx)
   const entry = ctx.faces[entity.ordinal - 1]

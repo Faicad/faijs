@@ -20,7 +20,7 @@ import { threadBrep } from './brep-mirror/threadFns'
 import { getScrewSpec, threadToPitchMm } from '../primitives/screw/screw-db'
 import * as THREE from 'three'
 import { getBackends, getCurrentStmt } from '../runtime-state'
-import { fromBrep, brepOf, getSlot } from '../shape'
+import { fromBrep, brepOf, inputRoleTable } from '../shape'
 import { defineOp } from '../sdk'
 import type { Provenance } from '../topology/naming/lineage'
 import type { BrepHandle } from '../brep/engine/types'
@@ -179,7 +179,7 @@ function drillBrepPath(input: Shape, params: Record<string, unknown>): Shape {
   const partTransform = getBackends().config.partTransform
   const localPosition = worldToLocalPosition(params.position as [number, number, number], partTransform)
 
-  const inputRoleTable = getSlot(input)?.roleTable as ReadonlyMap<unknown, unknown> | undefined
+  const inputTable = inputRoleTable(input) as ReadonlyMap<unknown, unknown> | undefined
   const outStmt = String(getCurrentStmt()?.id ?? '')
 
   let resultSolid: BrepHandle
@@ -187,7 +187,7 @@ function drillBrepPath(input: Shape, params: Record<string, unknown>): Shape {
   if (holeType === 'screw') {
     const r = screwHoleBrep(
       kernel, inputSolid, params, direction, faceNormal, localPosition,
-      inputRoleTable ?? new Map(), outStmt,
+      inputTable ?? new Map(), outStmt,
     )
     resultSolid = r.result
     roleTable = r.roleTable
@@ -200,7 +200,7 @@ function drillBrepPath(input: Shape, params: Record<string, unknown>): Shape {
       faceNormal,
     })
     const toolSolid = buildDrillToolSolid(kernel, geom)
-    const r = drillBrepWithRoleTable(kernel, inputSolid, toolSolid, inputRoleTable ?? new Map(), outStmt)
+    const r = drillBrepWithRoleTable(kernel, inputSolid, toolSolid, inputTable ?? new Map(), outStmt)
     kernel.release(toolSolid)
     resultSolid = r.result
     roleTable = r.roleTable
