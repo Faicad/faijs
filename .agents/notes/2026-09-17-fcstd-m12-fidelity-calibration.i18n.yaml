@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/2026-09-17-fcstd-m12-fidelity-calibration.md
+2026-09-17-fcstd-m12-fidelity-calibration.md: 6a3451e51fdaf293cae819e4eb39bef8f407fc99
+2026-09-17-fcstd-m12-fidelity-calibration.zh.md: 3a4175b5ac88d78822977b621deb87846302363a

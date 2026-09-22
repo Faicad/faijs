@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-20-pocket-body-chain-base.zh.md)
+
 ## Problem
 
 FreeCAD 0.20+ PartDesign files routinely OMIT the `BaseFeature` property on

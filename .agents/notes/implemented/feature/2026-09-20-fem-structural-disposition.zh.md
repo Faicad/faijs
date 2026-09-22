@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-20-fem-structural-disposition.md)
+
 ## Problem
 
 无 Proxy 属性的 FEM 原生类落进 `type-not-whitelisted` 缺口，拖垮了建模内容

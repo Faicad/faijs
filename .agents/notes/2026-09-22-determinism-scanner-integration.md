@@ -1,5 +1,7 @@
 # Determinism scanner integration into execution flow
 
+English | [中文](2026-09-22-determinism-scanner-integration.zh.md)
+
 **Date**: 2026-09-22
 **Status**: implemented
 

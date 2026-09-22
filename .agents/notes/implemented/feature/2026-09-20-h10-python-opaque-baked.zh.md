@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-20-h10-python-opaque-baked.md)
+
 ## Problem
 
 C4（批量转换终检）只允许三种 disposition：`translated` / `python-baked` /

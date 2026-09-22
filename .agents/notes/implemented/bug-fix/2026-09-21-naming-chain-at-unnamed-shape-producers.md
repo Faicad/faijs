@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-21-naming-chain-at-unnamed-shape-producers.zh.md)
+
 ## Problem
 
 The FCStd port's face/edge references (`cad.edgeRef`) rest on a per-shape role

@@ -121,6 +121,7 @@ function bodyFeatureNames(obj: FcstdDocument['objects'][number]): string[] {
  * @param baseName source base name used in generated file headers/labels
  * @param placements per-object Placement used to re-orient placed geometry; missing → identity
  * @param shapeCarriers objects whose Shape is a ZIP .brp member (pure-Shape carriers → shape-asset)
+ * @param brokenShapeAssets objects whose Shape `file` attribute points at a missing/empty member (explicit gap)
  * @returns the lowered call plan, per-object dispositions and generated code
  */
 export function generateModel(

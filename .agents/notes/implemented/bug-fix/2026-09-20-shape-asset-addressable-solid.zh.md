@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-20-shape-asset-addressable-solid.md)
+
 ## Problem
 
 SubShape→shape-asset 落地后，hole_puzzle 仍卡 `fillet-missing-base`、

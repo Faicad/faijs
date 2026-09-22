@@ -1,41 +1,31 @@
-# Agent Note: FCStd 移植 M11 — 表达式接入与资产收口（2026-09-17）
+# Agent Note: FCStd port M11 — expression integration and asset closure (2026-09-17)
 
-## 决策 1：ExpressionEngine 常量绑定覆盖 <Float>（M11.1）
+Status: implemented
 
-`propNum()` 读取链改为：ExpressionEngine 绑定值优先，取不到（无绑定/绑定
-非本属性）回落 `<Float>` 存储值。依据：FreeCAD 加载时按表达式重算被绑定
-属性，存储值可能过期（测试断言 stored=999、expr=10mm → 取 10）。
+English | [中文](2026-09-17-fcstd-m11-expressions-assets.zh.md)
 
-**口径**：只有裸常量（数字 + 可选单位 mm/cm/m/in/deg…）可求值
-（`evalConstantExpression`，M6.2 实现）；含标识符的算术（`2 * 5`）不算
-常量——宁烘焙不估值。
+## Decision 1: ExpressionEngine constant bindings override `<Float>` (M11.1)
 
-## 决策 2：非常量表达式显式烘焙（M11.2）
+`propNum()`'s read chain becomes: ExpressionEngine bound value first, falling back to the `<Float>` stored value when unavailable (no binding / binding for a different property). Rationale: FreeCAD recomputes bound properties from expressions at load time, so the stored value may be stale (test asserts stored=999, expr=10mm → takes 10).
 
-`hasNonConstantBinding()` 检查 Pad/Pocket 的 Length 绑定；非常量 → 烘焙
-reason `pad|pocket-length-expression-non-constant`。不做启发式估值（§12）。
+**Caliber**: only bare constants (number + optional unit mm/cm/m/in/deg…) are evaluable (`evalConstantExpression`, implemented in M6.2); arithmetic containing identifiers (`2 * 5`) does not count as a constant — bake rather than evaluate.
 
-## 决策 3：资产口径（M11.3/M11.4，D-B 落地）
+## Decision 2: non-constant expressions explicitly baked (M11.2)
 
-- G7 测试：`assets/` 成员与 `mapping.json.artifacts` 中 assets 条目 **1:1**
-  （双向集合相等），且逐字节等于 `freecad/` 影子成员（.brp 原样直存）。
-- G9：L1/L2 草图落盘 `assets/<Sketch>.contour.json`（原始未解几何 +
-  约束表 + 降级 reason），登记进 mapping artifacts。**实测语料三样本
-  （PadTest/Crank/ProjectTest）均无 L1/L2 Sketcher 草图**（Crank 全是
-  Part2DObjectPython/Part::Feature），落盘路径由转换脚本实现、
-  mapping 登记接线完成，但真实语料触发 0 个 contour 资产（正确行为）——
-  该路径目前只有代码路径保障，无真实样本断言，待语料扩充后补 e2e。
+`hasNonConstantBinding()` checks Pad/Pocket's Length bindings; non-constant → bake with reason `pad|pocket-length-expression-non-constant`. No heuristic evaluation (§12).
+
+## Decision 3: asset caliber (M11.3/M11.4, D-B landed)
+
+- G7 test: `assets/` members and the assets entries in `mapping.json.artifacts` are **1:1** (bidirectional set equality), and byte-equal to the `freecad/` shadow members (.brp stored verbatim).
+- G9: L1/L2 sketches land as `assets/<Sketch>.contour.json` (raw unsolved geometry + constraint table + fallback reason), registered in the mapping artifacts. **Measured: none of the three real samples (PadTest/Crank/ProjectTest) has L1/L2 Sketcher sketches** (Crank is all Part2DObjectPython/Part::Feature); the landing path is implemented by the conversion script and the mapping registration is wired, but real corpus triggers 0 contour assets (correct behavior) — this path is currently guarded by code path only, no real-sample assertion; add e2e when the corpus grows.
 
 ## GOTCHA
 
-- `<ExpressionEngine>` 解析按 `Expression path="Length"` 的 path 匹配属性名，
-  path 可能带前导点（`.Length`），匹配前需归一化。
-- Crank.fcstd 的 16 个 baked 对象全是 `Part::Part2DObjectPython` /
-  `Part::Feature`（Python 系），不是 Sketcher 草图——扫描/统计时勿混。
+- `<ExpressionEngine>` parsing matches the property name by `Expression path="Length"`; the path may carry a leading dot (`.Length`), normalize before matching.
+- Crank.fcstd's 16 baked objects are all `Part::Part2DObjectPython` / `Part::Feature` (Python lineage), not Sketcher sketches — do not mix them up when scanning/counting.
 
-## 测试
+## Tests
 
-- `feature-type.test.ts` +4 例：常量覆盖 stored 值、跨对象引用烘焙、
-  Pocket 标识符算术烘焙、`2 * 5` 不算常量
-- `build-fai-zip.test.ts` +1 例：G7 资产 1:1 + 字节等值
-- fcstd 13 文件 / 97 用例 + e2e 三样本全绿（基线不变）
+- `feature-type.test.ts` +4 cases: constant overrides stored value, cross-object reference baked, Pocket identifier-arithmetic baked, `2 * 5` is not a constant
+- `build-fai-zip.test.ts` +1 case: G7 assets 1:1 + byte equality
+- fcstd 13 files / 97 cases + three e2e samples all green (baselines unchanged)

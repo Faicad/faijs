@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-20-h3-plane-support-attachment.zh.md)
+
 ## Problem
 
 Sketches attached to datum/origin planes (`MapMode`/`Support`/

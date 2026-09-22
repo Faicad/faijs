@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-20-pocket-body-chain-base.md)
+
 ## Problem
 
 FreeCAD 0.20+ 的 PartDesign 文件常在内部特征上**省略** `BaseFeature` 属性——

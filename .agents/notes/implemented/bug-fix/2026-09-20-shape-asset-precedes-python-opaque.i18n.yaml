@@ -1,6 +1,6 @@
-locale: en
-source: 2026-09-20-shape-asset-precedes-python-opaque.md
-translation: 2026-09-20-shape-asset-precedes-python-opaque.zh.md
-version: 1
-last_synced: 2026-09-20
-status: in-sync
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-20-shape-asset-precedes-python-opaque.md
+2026-09-20-shape-asset-precedes-python-opaque.md: e8b948a47bb76ded9b2c45e03625fd4015335b53
+2026-09-20-shape-asset-precedes-python-opaque.zh.md: 7a9165d3fa46c94dd1c490b4b8a99bcbcd7680ba

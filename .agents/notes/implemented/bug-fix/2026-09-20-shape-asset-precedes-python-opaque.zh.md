@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-20-shape-asset-precedes-python-opaque.md)
+
 ## Problem
 
 EngineBlock 卡 `extrusion-missing-base`：其 Part::Extrusion 引用的 Draft 圆

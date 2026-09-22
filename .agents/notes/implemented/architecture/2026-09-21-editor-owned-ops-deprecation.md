@@ -1,10 +1,10 @@
-# Agent Note — editor-owned ops leave the faijs platform surface
+# Agent Note: editor-owned ops leave the faijs platform surface
 
-Date: 2026-09-21
 Status: implemented
-Area: architecture / op ownership / sibling-project boundary
 
-## Context
+English | [中文](2026-09-21-editor-owned-ops-deprecation.zh.md)
+
+## Problem
 
 The FCStd port borrowed three ops out of the sibling `../3d_editor` project's
 interaction model to lower FreeCAD objects, and that borrowing is what killed

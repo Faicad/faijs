@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-21-naming-chain-at-unnamed-shape-producers.md)
+
 ## Problem
 
 FCStd 移植的面/边引用（`cad.edgeRef`）建立在「每个 shape 自带 roleTable」之上。

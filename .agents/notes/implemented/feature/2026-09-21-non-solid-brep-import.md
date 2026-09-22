@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-21-non-solid-brep-import.zh.md)
+
 ## Problem
 
 A FreeCAD `.brp` asset is a frozen BREP, and a frozen BREP is NOT guaranteed to

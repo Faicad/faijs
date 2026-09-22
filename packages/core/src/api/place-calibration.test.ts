@@ -81,13 +81,13 @@ describe('place: brep/mesh quaternion calibration (R-CK)', () => {
   it('mesh and brep backends produce identical placed-box corners', async () => {
     // mesh 后端：构造 box 并放置
     setBackend('mesh')
-    const bMesh = (await box(2, 2, 2)) as Shape
+    const bMesh = (await box({ width: 2, depth: 2, height: 2 })) as Shape
     const meshPlaced = (await place(bMesh, { rotation: Q_Z90, position: T })) as Shape
     const meshCorners = bboxCorners(meshPlaced)
 
     // brep 后端：同一几何，仅后端不同
     setBackend('brep')
-    const bBrep = (await box(2, 2, 2)) as Shape
+    const bBrep = (await box({ width: 2, depth: 2, height: 2 })) as Shape
     const brepPlaced = (await place(bBrep, { rotation: Q_Z90, position: T })) as Shape
     const brepCorners = bboxCorners(brepPlaced)
 

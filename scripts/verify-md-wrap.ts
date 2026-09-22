@@ -4,21 +4,23 @@
  * multiline structural nodes. The checker never rewrites; symlinked instruction
  * files are deduped. VitePress frontmatter and custom-container delimiters are
  * masked before parsing. The owning convention is in `docs/AGENTS.md`.
+ *
+ * `.agents/notes/**` (decision records) is deliberately outside scope: those
+ * records keep their hard-wrapped prose.
  */
 
 import { readFileSync } from 'node:fs'
 import { relative, resolve } from 'node:path'
 import type { Nodes } from 'mdast'
 import { parseMarkdown, visitMarkdown } from './markdown.ts'
-import { isArchivedAgentNotePath, uniqueRepoFiles } from './repo-files.ts'
+import { uniqueRepoFiles } from './repo-files.ts'
 
 const root = resolve(import.meta.dirname, '..')
 
-/** Files to check: doc-typecheck's scope, system-prompt expected outputs, and the AGENTS.md pair. */
+/** Files to check: docs/, package READMEs and the AGENTS.md pairs (NOT `.agents/notes/`). */
 const PATTERNS = [
   'README.md',
   'README.zh.md',
-  '.agents/notes/**/*.md',
   'docs/**/*.md',
   'packages/*/*.md',
   'packages/*/*/*.md',
@@ -28,9 +30,7 @@ const PATTERNS = [
 
 /** Exclude plans/ and analysis/ (not subject to wrap checking). */
 function isExcluded(relativePath: string): boolean {
-  return isArchivedAgentNotePath(relativePath)
-    || relativePath.startsWith('docs/plans/')
-    || relativePath.startsWith('docs/analysis/')
+  return relativePath.startsWith('docs/plans/') || relativePath.startsWith('docs/analysis/')
 }
 
 /** A located hard-wrap: a prose paragraph spanning more than one source line. */

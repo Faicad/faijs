@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-20-contour-stop-at-closure.md)
+
 ## Problem
 
 贪心重扫修复之后，tap 和 slittingsaw 仍报 `sketch-not-solved`（contours=0），

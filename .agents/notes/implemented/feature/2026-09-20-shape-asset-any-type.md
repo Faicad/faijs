@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-20-shape-asset-any-type.zh.md)
+
 ## Problem
 
 ArchDetail gapped with `compound-missing-members`: its compounds reference

@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-20-fem-structural-disposition.zh.md)
+
 ## Problem
 
 Native FEM classes WITHOUT a Proxy property fell into `type-not-whitelisted`

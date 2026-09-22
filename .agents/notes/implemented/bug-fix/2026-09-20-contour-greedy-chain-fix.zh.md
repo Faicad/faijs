@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-20-contour-greedy-chain-fix.md)
+
 ## Problem
 
 `Part::Feature` 修完后，56 样本仍有 13 个文件以 `sketch-not-solved` 为首因：

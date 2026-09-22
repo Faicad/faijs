@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-20-shape-asset-addressable-solid.zh.md)
+
 ## Problem
 
 After SubShape→shape-asset landed, hole_puzzle still gapped with

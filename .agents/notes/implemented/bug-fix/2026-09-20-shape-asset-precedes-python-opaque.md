@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-20-shape-asset-precedes-python-opaque.zh.md)
+
 ## Problem
 
 EngineBlock gapped with `extrusion-missing-base`: its Part::Extrusion

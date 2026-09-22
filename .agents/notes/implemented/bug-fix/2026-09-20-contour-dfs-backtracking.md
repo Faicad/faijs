@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-20-contour-dfs-backtracking.zh.md)
+
 ## Problem
 
 slittingsaw (11-line tool-bit profile) still gapped after both earlier

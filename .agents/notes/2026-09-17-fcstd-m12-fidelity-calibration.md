@@ -1,58 +1,47 @@
-# Agent Note: FCStd 移植 M12 — 保真度标定与验收报表（2026-09-17）
+# Agent Note: FCStd port M12 — fidelity calibration and acceptance report (2026-09-17)
 
-## M12.2：4 个 L1 全部定位（三元组）
+Status: implemented
 
-| 文件 | 草图 | 成因 | 约束构成 |
+English | [中文](2026-09-17-fcstd-m12-fidelity-calibration.zh.md)
+
+## M12.2: all 4 L1 located (triples)
+
+| File | Sketch | Cause | Constraint composition |
 |---|---|---|---|
-| `src/Mod/CAM/CAMTests/Drilling_1.FCStd` | Sketch | unsupported-constraint | InternalAlignment×8（B-spline/椭圆对齐） |
-| `src/Mod/CAM/DemoParts/hole_puzzle.fcstd` | Sketch005 | delta=1.0e+2（错解） | Coincident×5+H/V+Angle |
-| `src/Mod/CAM/Tools/Shape/taperedballnose.fcstd` | Sketch | delta=1.7e-1 | 21 条混合约束含 Symmetric |
-| `src/Mod/Sketcher/SketcherTests/TestSketchCarbonCopyReverseMapping.FCStd` | Sketch001 | delta=1.0e+1 | 含 Symmetric/Angle×5 |
+| `src/Mod/CAM/CAMTests/Drilling_1.FCStd` | Sketch | unsupported-constraint | InternalAlignment×8 (B-spline/ellipse alignment) |
+| `src/Mod/CAM/DemoParts/hole_puzzle.fcstd` | Sketch005 | delta=1.0e+2 (wrong solution) | Coincident×5+H/V+Angle |
+| `src/Mod/CAM/Tools/Shape/taperedballnose.fcstd` | Sketch | delta=1.7e-1 | 21 mixed constraints incl. Symmetric |
+| `src/Mod/Sketcher/SketcherTests/TestSketchCarbonCopyReverseMapping.FCStd` | Sketch001 | delta=1.0e+1 | incl. Symmetric/Angle×5 |
 
-**InternalAlignment(15) 不升级 P0**：仅 Drilling_1 一个文件命中（8 处集中在
-单一草图，服务于 B-spline 内部对齐），升级收益 1/126 草图、需实现
-B-spline/ellipse 几何对齐求解，性价比不支持。维持显式降级 + reason。
+**InternalAlignment(15) not upgraded to P0**: only Drilling_1 hits it (8 occurrences concentrated in a single sketch serving B-spline internal alignment); the upgrade gain is 1/126 sketches and requires implementing B-spline/ellipse geometric-alignment solving — cost/benefit does not support it. Keep explicit fallback + reason.
 
-**注意**：同一 Drilling_1 草图在定位脚本（解析外部几何→L1）与转换器
-（外部几何未解锁预判 L2）之间级别不同——G9 资产测试按转换器真实行为
-钉住，M13.3 解锁外部几何后两者自然一致。
+**Note**: the same Drilling_1 sketch is graded differently between the locator script (parses external geometry → L1) and the converter (pre-judges L2 while external geometry is locked) — the G9 asset test pins the converter's real behavior; the two naturally agree after M13.3 unlocks external geometry.
 
-## M12.1：T1 标定（125 收敛草图）
+## M12.1: T1 calibration (125 converged sketches)
 
-非零 delta 双峰分布：12 个在 1e-16~3.6e-15（浮点噪声，真收敛），3 个在
-1.7e-1~1e2（错解，即上表 delta-exceeds 三项），**1e-9~1e-6 中间地带空缺**。
-结论：`T1 = 1e-6` 保留——阈值降到 1e-8 不改变任何分类，但现在有分布依据
-（`scripts/calibrate-t1.ts` 可重跑），不再是拍脑袋写死。
+Non-zero delta is bimodal: 12 in 1e-16~3.6e-15 (float noise, truly converged), 3 in 1.7e-1~1e2 (wrong solutions, the delta-exceeds trio above), and **the 1e-9~1e-6 middle band is empty**. Conclusion: `T1 = 1e-6` stays — lowering the threshold to 1e-8 changes no classification, but there is now a distribution basis (`scripts/calibrate-t1.ts` is re-runnable) instead of a hard-coded guess.
 
-## M12.3：V6 可重跑（当前 FAIL，如实记录）
+## M12.3: V6 re-runnable (currently FAIL, recorded honestly)
 
-`scripts/verify-geometry.ts`（体积/质心/bbox，全部三角网格散度定理计算，
-禁用 `getVolume`——BRepGProp 精确积分与网格口径混叠）。实测 PadTest：
+`scripts/verify-geometry.ts` (volume/centroid/bbox, all computed by divergence theorem over triangle meshes, `getVolume` disabled — BRepGProp exact integration would alias with the mesh caliber). Measured PadTest:
 
-- truth（Tip=Pad002 的 .brp）= 48199 mm³ vs rebuilt = 230000 mm³，relErr 377%
-- **FAIL 是正确诊断而非脚本缺陷**：rebuilt 只含 Pad（基特征），Pad001
-  （UpToFace）/Pad002（UpToLast）已按 M9 显式烘焙——产物本就少于原模型。
-  覆盖率提升（M13）后该门槛才可能达标；当前门槛值 V6 PASS 需 relVol<1%
-  且 bboxDiag delta<0.5。
+- truth (Tip=Pad002's .brp) = 48199 mm³ vs rebuilt = 230000 mm³, relErr 377%
+- **FAIL is a correct diagnosis, not a script defect**: rebuilt contains only Pad (the base feature); Pad001 (UpToFace)/Pad002 (UpToLast) are explicitly baked per M9 — the product is inherently smaller than the original model. The gate can only pass after coverage improves (M13); the current gate for V6 PASS is relVol<1% and bboxDiag delta<0.5.
 
-**踩坑留档**：FreeCAD 写出的 .brp 首行是 `DBRep_DrawableShape`，
-`CASCADE Topology V1` 在第二行——用 `includes` 判定，不能用 `startsWith`。
+**Gotcha archived**: FreeCAD-written .brp's first line is `DBRep_DrawableShape`; `CASCADE Topology V1` is on the second line — judge with `includes`, not `startsWith`.
 
-## M12.4：V5 双口径（可重跑 `scripts/coverage-report.ts`）
+## M12.4: V5 dual caliber (re-runnable via `scripts/coverage-report.ts`)
 
-- 口径①全量对象：1838（Python 系 990，占 53.9%）
-- 口径②非 Python：848，其中白名单+基准面+草图可覆盖 556 = **65.6%**
-- 不可覆盖主力：Fem::Constraint* 系列、TechDraw、Part2DObjectPython
+- Caliber ① all objects: 1838 (Python lineage 990, 53.9%)
+- Caliber ② non-Python: 848, of which whitelist+datum+sketch covers 556 = **65.6%**
+- Uncoverable mainstays: Fem::Constraint* family, TechDraw, Part2DObjectPython
 
-## M12.5（V4 人工抽样）：留给用户
+## M12.5 (V4 manual sampling): left to the user
 
-`freecad/` 影子已保证字节级保真（V1），人工验证需 FreeCAD 实机打开 ≥3 个
-样本核对，无法自动化——未执行，如实留空。
+The `freecad/` shadow already guarantees byte-level fidelity (V1); manual verification requires opening ≥3 samples in a real FreeCAD — cannot be automated, not executed, honestly left blank.
 
-## 测试
+## Tests
 
-- 新增 `packages/tests/faijs/fcstd/fcstd-g9-contour.test.ts`（真实 L1 语料
-  的 contour.json 落盘 + G7 一致性不变）
-- 新增 `scripts/locate-l1-sketches.ts` / `calibrate-t1.ts` /
-  `verify-geometry.ts` / `coverage-report.ts` 四个可重跑脚本
-- fcstd 13 文件 / 97 用例全绿；e2e 不受影响（本阶段无源码行为变更）
+- New `packages/tests/faijs/fcstd/fcstd-g9-contour.test.ts` (real L1-corpus contour.json landing + G7 consistency unchanged)
+- New re-runnable scripts: `scripts/locate-l1-sketches.ts` / `calibrate-t1.ts` / `verify-geometry.ts` / `coverage-report.ts`
+- fcstd 13 files / 97 cases all green; e2e unaffected (no source behavior change in this phase)

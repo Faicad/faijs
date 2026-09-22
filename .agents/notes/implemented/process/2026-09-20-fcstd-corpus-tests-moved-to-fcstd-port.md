@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-20-fcstd-corpus-tests-moved-to-fcstd-port.zh.md)
+
 ## Problem
 
 The faijs repo carried two kinds of FCStd tests: (a) synthetic-fixture unit

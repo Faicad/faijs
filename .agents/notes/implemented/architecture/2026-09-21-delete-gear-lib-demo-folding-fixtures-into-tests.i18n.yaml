@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-21-delete-gear-lib-demo-folding-fixtures-into-tests.md
-2026-09-21-delete-gear-lib-demo-folding-fixtures-into-tests.md: 89af1184355e4cc2dc2cce9836e60c31f7173788
-2026-09-21-delete-gear-lib-demo-folding-fixtures-into-tests.zh.md: b6b731020733841ec2b1596bbdd5273bc5c9cfd1
+2026-09-21-delete-gear-lib-demo-folding-fixtures-into-tests.md: c037f82206e81ab0f791bfe7a7a078985acf2854
+2026-09-21-delete-gear-lib-demo-folding-fixtures-into-tests.zh.md: 95527f0c3915f8f1ab9613919ed0c4aafcc40ea6

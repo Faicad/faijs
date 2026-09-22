@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-20-assembly-container-disposition.zh.md)
+
 ## Problem
 
 After the SubShape/datum triage, the top remaining first-cause was

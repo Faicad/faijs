@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-21-compound-links-and-phantom-import-op.zh.md)
+
 ## Problem
 
 ArchDetail gapped with `compound-missing-members`: its five `Part::Compound`

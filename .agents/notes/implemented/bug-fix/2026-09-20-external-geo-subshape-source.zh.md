@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-20-external-geo-subshape-source.md)
+
 ## Problem
 
 hole_puzzle 的外部几何草图全部报 `external-geometry-unresolved: no links`

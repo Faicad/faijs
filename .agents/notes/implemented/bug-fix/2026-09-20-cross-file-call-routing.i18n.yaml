@@ -1,6 +1,6 @@
-locale: en
-source: 2026-09-20-cross-file-call-routing.md
-translation: 2026-09-20-cross-file-call-routing.zh.md
-version: 1
-last_synced: 2026-09-20
-status: in-sync
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-20-cross-file-call-routing.md
+2026-09-20-cross-file-call-routing.md: 90094c695c890407bf5f979b316862e687ae0804
+2026-09-20-cross-file-call-routing.zh.md: 6d90a2fb3020c4be4a7b939e01730c8bf150a3a2

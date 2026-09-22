@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-20-pocket-throughall-and-marker-guard.zh.md)
+
 ## Problem
 
 The 3 CAM demo files (hole_puzzle, motor_mount_inch, strange_part_with_holes)

@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-20-contour-stop-at-closure.zh.md)
+
 ## Problem
 
 After the greedy-restart fix, tap and slittingsaw still reported

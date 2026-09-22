@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-20-vitest-birpc-60s-timeout-on-task-update.md
+2026-09-20-vitest-birpc-60s-timeout-on-task-update.md: 1ca3f68c1c84eafaf0ee0379346dfa1150e92e29
+2026-09-20-vitest-birpc-60s-timeout-on-task-update.zh.md: 596b4cd8e1a41827ce32c13f1cb11f961743305d

@@ -1,7 +1,7 @@
 /**
  * brepkit-kernel/brepkitKernel — brepkit 内核 → faijs BrepEngineApi 适配器（v1 白名单）
  *
- * 设计要点（对应 3d_editor/docs/plans/2026-09-18-weapp-voice-ai-modeling-design.md §5）：
+ * 设计要点（对应 3d_editor 项目的 weapp-voice-ai-modeling 设计计划 §5）：
  * - 句柄：brepkit u32 句柄与 faijs BrepHandle(number) 同构，直通零转换；
  * - 拓扑红线：meshShape 用 tessellateSolidGrouped 输出 faceGroups，与三角化几何同源；
  * - 面溯源：布尔/倒角走 *WithEvolution，映射为 BrepEvolutionData（hash 编码）；

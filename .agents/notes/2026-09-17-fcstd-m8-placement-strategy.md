@@ -1,41 +1,33 @@
-# Agent Note: FCStd 移植 M8 — Placement 变换策略（2026-09-17）
+# Agent Note: FCStd port M8 — Placement transform strategy (2026-09-17)
 
-## 决策：特征在草图局部系构建，输出后整体重定位（M8.3）
+Status: implemented
 
-`cad.sketch` 只在局部 XY 平面建面（法向 +Z，`api/sketch.ts` 契约），`cad.extrude`
-沿局部 +Z 拉伸。因此非 XY 平面草图**不能**把 3D 坐标烘进轮廓——选择：
+English | [中文](2026-09-17-fcstd-m8-placement-strategy.zh.md)
 
-1. 特征（Pad/Pocket/Revolution…）全部在草图局部系构建（现状不变）；
-2. codegen 在特征最后一条调用后追加 `cad.rotate_euler` + `cad.translate`
-   （顺序：先转后移），旋转角来自该对象 Placement 四元数。
+## Decision: features build in sketch-local frame, re-placed as a whole after output (M8.3)
 
-**选整体重定位而非轮廓烘坐标的理由**：烘坐标要求把 extrude 方向也换算成
-任意 3D 向量（cad.extrude 的 height 是标量槽 `literals: [vec]` 只在局部系有意义），
-而 rotate/translate 是现成 brep op，语义清晰、语句可独立调试（配合 mapping.json）。
+`cad.sketch` only builds faces in the local XY plane (normal +Z, `api/sketch.ts` contract), and `cad.extrude` extrudes along local +Z. Therefore a non-XY sketch **cannot** bake 3D coordinates into the contour — the choice:
 
-## 实测标定（勿凭记忆改）
+1. Features (Pad/Pocket/Revolution…) all build in the sketch-local frame (unchanged);
+2. codegen appends `cad.rotate_euler` + `cad.translate` after the feature's last call (order: rotate first, then translate), with rotation angles from that object's Placement quaternion.
 
-- **四元数分量序 = (x, y, z, w)**：FCStd `Q0..Q3`，Q3 是标量。identity = (0,0,0,1)。
-- `quatToEulerXYZDeg` 与 `THREE.Euler('XYZ')` 逐例对齐（`quat-euler.test.ts`
-  用 THREE 本身做 oracle，8 个用例含 PadTest 全部三种 placement）。
-  矩阵约定：`M = RX·RY·RZ`（行主序），`m[2] = +sinY`——首次实现写反成
-  `-sinY`，差 180°，靠 THREE oracle 测试当场抓住。
-- 样本集草图局部 Z 恒为 0（探针实测 PadTest 三个草图）；非零 Z 不存在
-  「投影到 (u,v)」的需求，直接显式降级 L2（reason: `sketch-geometry-off-plane`），
-  不静默丢 Z。
+**Why re-place as a whole instead of baking coordinates into the contour**: baking requires converting the extrude direction into an arbitrary 3D vector too (`cad.extrude`'s height is a scalar slot — `literals: [vec]` only makes sense in the local frame), while rotate/translate are existing brep ops with clear semantics and individually debuggable statements (alongside mapping.json).
 
-## GOTCHA（防踩坑）
+## Measured calibration (do not change from memory)
 
-- `quatToMatrix` 归一化时 `s = 2`（分量已除以模长），不要再乘 `2/n`——双重
-  缩放曾让非单位四元数测试失败。
-- `rotate_euler` 的 pivot 默认原点；FreeCAD Placement 的旋转本来就是绕原点
-  （平移在 p 里），所以 rotate 在 translate 之前、都不带 pivot，顺序不可换。
-- 语料四元数截断到 12 位（0.707106781187），标定容差 ≤1e-5°，别设更紧。
+- **Quaternion component order = (x, y, z, w)**: FCStd `Q0..Q3`, Q3 is the scalar. identity = (0,0,0,1).
+- `quatToEulerXYZDeg` aligns case-by-case with `THREE.Euler('XYZ')` (`quat-euler.test.ts` uses THREE itself as the oracle, 8 cases covering all three PadTest placements). Matrix convention: `M = RX·RY·RZ` (row-major), `m[2] = +sinY` — the first implementation wrote `-sinY`, off by 180°, caught on the spot by the THREE-oracle test.
+- Sketch-local Z in the sample set is always 0 (measured on PadTest's three sketches); non-zero Z has no "project to (u,v)" need — explicitly downgrade to L2 (`reason: sketch-geometry-off-plane`), never silently drop Z.
 
-## 测试
+## GOTCHA (pitfall guard)
 
-- `placement.test.ts`：解析 + 矩阵解析解（90°/180° 各轴）+ 往返。
-- `quat-euler.test.ts`：THREE oracle（GOTCHA 留档）。
-- `placement-corpus.test.ts`：PadTest Sketch002 逐点落面 + 刚体距离保持
-  （skipIf 无语料）。
-- e2e 三样本 golden 仍全绿（`packages/tests/faijs/fcstd/fcstd-e2e.test.ts`）。
+- `quatToMatrix` normalizes with `s = 2` (components already divided by the norm); do not multiply by `2/n` again — double scaling once made non-unit-quaternion tests fail.
+- `rotate_euler`'s pivot defaults to the origin; FreeCAD Placement rotation is inherently about the origin (translation lives in p), so rotate precedes translate and neither takes a pivot — the order is not swappable.
+- Corpus quaternions truncate to 12 digits (0.707106781187); calibration tolerance is ≤1e-5°, don't tighten it.
+
+## Tests
+
+- `placement.test.ts`: parsing + closed-form matrix solution (90°/180° per axis) + round-trip.
+- `quat-euler.test.ts`: THREE oracle (GOTCHA archived).
+- `placement-corpus.test.ts`: PadTest Sketch002 point-by-point on-plane + rigid distance preservation (skipIf without corpus).
+- e2e three samples still fully green (`packages/tests/faijs/fcstd/fcstd-e2e.test.ts`).

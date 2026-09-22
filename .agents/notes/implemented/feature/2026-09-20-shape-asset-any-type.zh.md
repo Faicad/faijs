@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-20-shape-asset-any-type.md)
+
 ## Problem
 
 ArchDetail 卡 `compound-missing-members`：其 compound 引用的 Draft 线

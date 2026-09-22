@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-20-cross-file-call-routing.md)
+
 ## Problem
 
 接线 Body 容器依赖（test_geomop：Part::Cut 的 Tool→Body、Base→游离

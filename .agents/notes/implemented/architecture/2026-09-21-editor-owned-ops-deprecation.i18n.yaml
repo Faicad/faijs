@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-21-editor-owned-ops-deprecation.md
-2026-09-21-editor-owned-ops-deprecation.md: be06d4139d739a0a14ab56f62c1e41db8db223ae
-2026-09-21-editor-owned-ops-deprecation.zh.md: e18ed4dde8153a9743d0e9d3033e7ae59391c2a6
+2026-09-21-editor-owned-ops-deprecation.md: 98c3507b4850ee8fa3a92938e7692eb292a1cbfd
+2026-09-21-editor-owned-ops-deprecation.zh.md: 82bddd4877388d75f50c760a5265a3156757b950

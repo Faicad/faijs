@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-20-assembly-container-disposition.md)
+
 ## Problem
 
 SubShape/基准类型 triage 之后，剩余首因第一是 `type-not-whitelisted`

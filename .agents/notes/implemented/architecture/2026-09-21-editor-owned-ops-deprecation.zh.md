@@ -1,10 +1,10 @@
-# Agent Note — 编辑器专有 op 退出 faijs 平台面
+# Agent Note: 编辑器专有 op 退出 faijs 平台面
 
-Date: 2026-09-21
 Status: implemented
-Area: architecture / op 归属 / 兄弟项目边界
 
-## Context
+English | [中文](2026-09-21-editor-owned-ops-deprecation.md)
+
+## Problem
 
 FCStd 移植借用了兄弟项目 `../3d_editor` 交互模型里的三个 op 来 lower FreeCAD
 对象，而这次借用正是 `ArchDetail` 死掉的直接原因：

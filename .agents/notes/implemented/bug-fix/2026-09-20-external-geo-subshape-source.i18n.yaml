@@ -1,6 +1,6 @@
-locale: en
-source: 2026-09-20-external-geo-subshape-source.md
-translation: 2026-09-20-external-geo-subshape-source.zh.md
-version: 1
-last_synced: 2026-09-20
-status: in-sync
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-20-external-geo-subshape-source.md
+2026-09-20-external-geo-subshape-source.md: 3ba55fb7766da7b0f5286d83afd3fd6cebe635ce
+2026-09-20-external-geo-subshape-source.zh.md: e472faf3dc29c65e6f24f7a309c517ce5592602f

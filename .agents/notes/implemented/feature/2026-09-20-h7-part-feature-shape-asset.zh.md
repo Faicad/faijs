@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-20-h7-part-feature-shape-asset.md)
+
 ## Problem
 
 `Part::Feature` 是翻译缺口清单里最大的单一类型（全库 1,359 个对象；H10 接线

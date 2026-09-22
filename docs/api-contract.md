@@ -518,6 +518,7 @@ declare function myOpBrep(input: Shape, params: MyParams): BrepHandle
 export const myOp = defineOp({
   mesh: (input: Shape, params: MyParams) => myOpMesh(input, params),
   brep: (input: Shape, params: MyParams) => myOpBrep(input, params),
+  naming: { kind: 'identity' },
 })
 ```
 

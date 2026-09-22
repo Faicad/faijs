@@ -70,6 +70,9 @@ function placementOf(obj: FcstdObject): { q: [number, number, number, number]; p
  * features like Chamfer002/Pocket002 store their result cache in SubShape and
  * have NO Shape property — external links pointing at them failed with
  * "source shape not loadable" before the fallback existed).
+ *
+ * @param obj - the FCStd object to inspect.
+ * @returns the .brp member file name, or undefined when neither Shape nor SubShape carries one.
  */
 export function shapeBrpFile(obj: FcstdObject): string | undefined {
   return obj.properties.get('Shape')?.children[0]?.attributes['file']

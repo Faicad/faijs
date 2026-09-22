@@ -1,6 +1,6 @@
-locale: en
-source: 2026-09-20-contour-stop-at-closure.md
-translation: 2026-09-20-contour-stop-at-closure.zh.md
-version: 1
-last_synced: 2026-09-20
-status: in-sync
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-20-contour-stop-at-closure.md
+2026-09-20-contour-stop-at-closure.md: 55174d01723b737874f7db004808bdb76166f8ce
+2026-09-20-contour-stop-at-closure.zh.md: b48ee1f095b05f316b261c418d7a91586a8cb0e0

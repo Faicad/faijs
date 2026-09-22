@@ -2,6 +2,8 @@
 
 状态：已实施
 
+English | [中文](2026-09-22-cq-compat-package-split.md)
+
 ## 问题
 
 `@faicad/cq-compat` 把 CadQuery 兼容面（Workplane API、2D 绘图、体素、特征、选择器、变换、齿轮内核）与装配层、STEP/装配 compare 工具（以及规划中的 2D 草图域）捆在一个包里。`fai_cq_gears`、`fai_cq_warehouse` 等消费方即使只需要其中一个域，也要背负整个兼容面；而 compare 工具（仅开发用）却随运行时包一起发布。

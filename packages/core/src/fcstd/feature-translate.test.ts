@@ -263,7 +263,7 @@ describe('M4.6 Pad/Pocket', () => {
       expect(v.calls[0]!.op).toBe('cad.extrude');
       // the through prism must be deep in the cut direction (Reversed → +Z)
       const lit = v.calls[0]!.literals?.[0];
-      expect(lit?.[2]).toBeGreaterThan(0);
+      expect((lit as number[])?.[2]).toBeGreaterThan(0);
       expect(v.calls[1]!.op).toBe('cad.subtract');
       expect(v.calls[1]!.inputs).toEqual(['part2', 'Pocket_cut']);
     }
@@ -879,7 +879,7 @@ describe('H7 Part::Feature pure-Shape carrier', () => {
     // Part::Extrusion got no variable → extrusion-missing-base. The asset
     // check must run first: geometry is an existing fact.
     const circle = obj('Part::Part2DObjectPython', 'Circle003', [
-      prop('Proxy', { name: 'PythonObject' }),
+      prop('Proxy', { name: 'PythonObject', attrs: {} }),
       prop('Shape', { name: 'Part', attrs: { file: 'Circle003.Shape.brp' } }),
     ]);
     const r = translateObject(circle, () => undefined, undefined, new Set(['Circle003']));

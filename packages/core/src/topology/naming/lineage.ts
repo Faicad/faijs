@@ -375,17 +375,32 @@ export class LineageGraph {
     this.nodes.set(stmt, { ...node, evolution })
   }
 
-  /** 按语句 id 取节点。 */
+  /**
+   * 按语句 id 取节点。
+   *
+   * @param stmt - the statement id to look up.
+   * @returns the statement's LineageNode, or undefined when not registered.
+   */
   node(stmt: StmtId): LineageNode | undefined {
     return this.nodes.get(stmt)
   }
 
-  /** 按 part 名反查产出它的语句 id。 */
+  /**
+   * 按 part 名反查产出它的语句 id。
+   *
+   * @param part - the part name to look up.
+   * @returns the producing statement id, or undefined when unowned.
+   */
   stmtOf(part: PartName): StmtId | undefined {
     return this.partOwner.get(part)
   }
 
-  /** 按 part 名反查产出它的节点。 */
+  /**
+   * 按 part 名反查产出它的节点。
+   *
+   * @param part - the part name to look up.
+   * @returns the producing node, or undefined when unowned.
+   */
   nodeOfPart(part: PartName): LineageNode | undefined {
     const stmt = this.partOwner.get(part)
     return stmt === undefined ? undefined : this.nodes.get(stmt)

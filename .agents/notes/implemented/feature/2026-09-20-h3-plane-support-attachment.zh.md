@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-20-h3-plane-support-attachment.md)
+
 ## Problem
 
 faijs 的 FCStd 管线此前只读落盘的 `Placement` 属性。FreeCAD 在保存时会从

@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-21-non-solid-brep-import.md)
+
 ## 问题
 
 FreeCAD 的 `.brp` 资产是冻结的 BREP，而**冻结的 BREP 不保证含实体**——Draft 的线、面、壳都以同样方式冻结。FCStd 端口里的 shape-asset 规则把它们统统交给 `cad.load` 导入，而 `cad.load` 是 **SOLID 加载器**，凡是没有实体子形的都拒绝。

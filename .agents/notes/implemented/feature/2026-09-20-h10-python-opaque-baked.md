@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-20-h10-python-opaque-baked.zh.md)
+
 ## Problem
 
 C4 (the batch-convert final check) allows exactly three dispositions:

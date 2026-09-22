@@ -408,6 +408,7 @@ function shapeAssetCall(obj: FcstdObject, assetFile: string): CadCall {
  * @param docObjects - the full document object list, needed by the UpToFace
  *   datum-plane path; optional.
  * @param shapeCarriers - objects whose Shape is stored as a .brp member; optional.
+ * @param brokenShapeAssets - objects whose Shape `file` attribute points at a missing/empty member (explicit gap); optional.
  * @returns the cad-op call plan, or an explicit bake/preserve verdict with reason.
  */
 export function translateObject(

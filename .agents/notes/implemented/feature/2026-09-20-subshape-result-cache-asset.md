@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-20-subshape-result-cache-asset.zh.md)
+
 ## Problem
 
 After the Body-chain fix and ThroughAll support, the 3 Body-less CAM demo

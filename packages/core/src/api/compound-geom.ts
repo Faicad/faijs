@@ -17,25 +17,30 @@
  */
 
 import type { Shape } from '../mesh/types'
-import { isCompoundLike, brepOf, fromBrep } from '../shape'
+import { isCompoundLike, brepOf, fromBrep, type CompoundShape } from '../shape'
 import { getBackends, BrepUnsupportedError } from '../runtime-state'
 import { solidToShape } from '../brep/brep-ops'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 import type { BrepHandle } from '../brep/engine/types'
 
-/** 把任意 Shape（可能是结构 compound）展平为若干子 mesh。 */
-function collectSubMeshes(s: Shape): Shape[] {
-  if (isCompoundLike(s) && (s as { children?: Shape[] }).children) {
+/** 把任意成员（Shape 或结构 compound）展平为若干子 mesh。 */
+function collectSubMeshes(s: Shape | CompoundShape): Shape[] {
+  if (isCompoundLike(s)) {
     const out: Shape[] = []
-    for (const c of (s as { children: Shape[] }).children) out.push(...collectSubMeshes(c))
+    for (const c of s.children) out.push(...collectSubMeshes(c))
     return out
   }
   if (s.positions && s.indices) return [s]
   return []
 }
 
-/** mesh 路径：合并成员 mesh（展平结构 compound 子节点）。 */
-export function mergeMeshes(members: Shape[]): Shape {
+/**
+ * mesh 路径：合并成员 mesh（展平结构 compound 子节点）。
+ *
+ * @param members - 待合并的成员（结构 compound 递归展平）。
+ * @returns 合并后的单一 mesh Shape。
+ */
+export function mergeMeshes(members: Array<Shape | CompoundShape>): Shape {
   const positions: number[] = []
   const indices: number[] = []
   for (const m of members) {
@@ -55,19 +60,20 @@ export function mergeMeshes(members: Shape[]): Shape {
  * @inputs 1
  * @qual ok
  * @name compound
- * @param params.members - 成员 Shape 数组（编译产物 ctx.<var> 引用）。type:Shape[]
+ * @param params.members - 成员数组（Shape 或结构 compound；编译产物 ctx.<var> 引用）。type:Shape[]
  * @param params.name - 可选名称。type:string
  * @note 成员经 `params.members` 传入，不是位置参数。与编辑器 `cad.group` 的区别：本 op 产出**几何**复合体（持 OCCT 句柄，可放置/导出），`group` 是结构壳（无句柄）。平台侧不要用 `group`。
  * @returns Shape 几何复合体（brep 路径持句柄，可变换/可导出）。
  * @example
  * const c = cad.compound({ members: [part0, part1] })
  */
-export function compound(params: { members?: Shape[]; name?: string }): Shape {
+export function compound(params: { members?: Array<Shape | CompoundShape>; name?: string }): Shape {
   const members = params.members ?? []
   const { config, kernel: kernels } = getBackends()
   const kernel = kernels.brep as BrepEngineApi | null
 
-  const handles = members.map((m) => brepOf(m) as BrepHandle | undefined)
+  // 结构 compound 是结构壳（无 OCCT 句柄）：不在 BREP 链上 → 视为无句柄成员。
+  const handles = members.map((m) => (isCompoundLike(m) ? undefined : brepOf(m)))
   const allBrep = !!kernel && handles.every((h) => h !== undefined)
 
   if (config.mode === 'brep' && !allBrep) {

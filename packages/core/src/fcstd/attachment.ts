@@ -84,6 +84,7 @@ function compose(outer: Placement, inner: Placement): Placement {
   return { p, q };
 }
 
+/** 附件链解析结果：合成后的 placement + 原始 MapMode + support 引用。 */
 export interface AttachmentResolution {
   /** the composed placement (support ∘ mode-adjustment ∘ AttachmentOffset) */
   placement: Placement;
@@ -124,7 +125,13 @@ export function resolveAttachment(
   return { placement, mapMode: mode, support };
 }
 
-/** Convenience: an object's effective placement — attachment-resolved when attached, stored otherwise. */
+/**
+ * Convenience: an object's effective placement — attachment-resolved when attached, stored otherwise.
+ *
+ * @param obj - the FCStd object to resolve.
+ * @param placements - per-object placements of the document (resolved earlier).
+ * @returns the object's effective placement.
+ */
 export function effectivePlacement(obj: FcstdObject, placements: Map<string, Placement>): Placement {
   return resolveAttachment(obj, placements)?.placement ?? placementOf(obj);
 }

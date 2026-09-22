@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-20-subshape-result-cache-asset.md)
+
 ## Problem
 
 Body 链回退与 ThroughAll 支持落地后，3 个无 Body 的 CAM demo 文件

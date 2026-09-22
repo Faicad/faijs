@@ -1,6 +1,6 @@
-locale: en
-source: 2026-09-20-shape-asset-addressable-solid.md
-translation: 2026-09-20-shape-asset-addressable-solid.zh.md
-version: 1
-last_synced: 2026-09-20
-status: in-sync
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-20-shape-asset-addressable-solid.md
+2026-09-20-shape-asset-addressable-solid.md: 2531c5df450cfbc05c5b395d7d344252be3057c9
+2026-09-20-shape-asset-addressable-solid.zh.md: 3e7ccfa155eafe26d2d1a84e87d8a67ef45dd641

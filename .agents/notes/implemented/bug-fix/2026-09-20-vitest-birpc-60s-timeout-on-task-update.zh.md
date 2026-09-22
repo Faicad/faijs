@@ -1,6 +1,6 @@
 # Agent Note: vitest 3.x 的 birpc 硬性 60s worker RPC 超时导致 "onTaskUpdate" 误报失败
 
-状态：已实施（node_modules 补丁式 workaround）
+Status: implemented
 
 English | [中文](2026-09-20-vitest-birpc-60s-timeout-on-task-update.md)
 
@@ -35,7 +35,7 @@ vitest 3.x 在 birpc 内部硬编码 `const DEFAULT_TIMEOUT = 6e4`（60s）
 faijs 的 `execute` 是同步的原生几何计算，无法让出事件循环，因此插入 `await` 让出并不能缩小
 那次原子 34.5s 的 brep 块。
 
-## 修复
+## Decision
 
 两部分都已实施：
 
@@ -66,3 +66,15 @@ faijs 的 `execute` 是同步的原生几何计算，无法让出事件循环，
 ## 参考
 
 - vitest-dev/vitest#8164（报告），#8297（v4 修复）。
+
+## Alternatives considered
+
+- **现在就升级 vitest 到 4.x**：本次未采用。v4 的修复（向 `createBirpc` 传 `timeout: -1`，#8297）当时尚不可用；它仍是推荐的长期修复，升级后必须移除 node_modules 补丁。
+- **只拆分重型套件、保留 60s 上限**：否决。原子化的 34.5s brep `execute` 块无法再拆，CPU 争用下单套件曾达 66.9s——上限本身必须提高。
+- **node_modules 补丁提高 worker RPC 超时 + 拆分重型套件**（采纳）：`createThreadsRpcOptions`/`createForksRpcOptions` 中的 `timeout: 300000` 覆盖 `DEFAULT_TIMEOUT`，拆分让单个 worker 不越过阈值。
+
+## Consequences
+
+- `publish-all.ps1` 不再中止：`faijs-tests` 包全绿且 exit 0，无未处理的 `onTaskUpdate` 超时。
+- `timeout: 300000` 补丁只存在于 `node_modules`——不进 git，任何 `npm install`/`npm ci` 都会清除；升级 vitest 前重装后必须重新应用。
+- 300s 与 `scripts/ci.ps1` 的 per-package CI 看门狗（`FAIJS_TEST_BUDGET_MS`，默认 300000ms）对齐；看门狗仍是真正的死锁兜底。

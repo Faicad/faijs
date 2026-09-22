@@ -1,6 +1,6 @@
-locale: en
-source: 2026-09-21-non-solid-brep-import.md
-translation: 2026-09-21-non-solid-brep-import.zh.md
-version: 1
-last_synced: 2026-09-21
-status: in-sync
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-21-non-solid-brep-import.md
+2026-09-21-non-solid-brep-import.md: 08e89a5a991646989ee211dc2b14533ffdb6a59f
+2026-09-21-non-solid-brep-import.zh.md: 40884c7e07aa7a6ef8e7230c15bfae4bec5ac78d

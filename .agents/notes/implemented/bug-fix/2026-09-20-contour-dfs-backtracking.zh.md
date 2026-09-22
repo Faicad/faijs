@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-20-contour-dfs-backtracking.md)
+
 ## Problem
 
 前两轮轮廓修复之后 slittingsaw（11 线刀具坯轮廓）仍缺口：多条线段共享

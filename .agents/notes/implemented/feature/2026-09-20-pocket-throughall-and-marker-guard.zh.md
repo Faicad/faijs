@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-20-pocket-throughall-and-marker-guard.md)
+
 ## Problem
 
 ThroughAll（通孔）此前被显式烘焙为 `pocket-type-ThroughAll-unsupported`——

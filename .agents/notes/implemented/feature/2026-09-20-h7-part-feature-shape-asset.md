@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-20-h7-part-feature-shape-asset.zh.md)
+
 ## Problem
 
 `Part::Feature` was the largest single type in the translation gap list

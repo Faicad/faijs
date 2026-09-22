@@ -1,6 +1,6 @@
-locale: en
-source: 2026-09-21-naming-chain-at-unnamed-shape-producers.md
-translation: 2026-09-21-naming-chain-at-unnamed-shape-producers.zh.md
-version: 1
-last_synced: 2026-09-21
-status: in-sync
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-21-naming-chain-at-unnamed-shape-producers.md
+2026-09-21-naming-chain-at-unnamed-shape-producers.md: 4dfee5a327180690c7e927de65e04c3873308a6e
+2026-09-21-naming-chain-at-unnamed-shape-producers.zh.md: 0a3a429c62a4d786f0f463d1a193a76a45bb9b1b

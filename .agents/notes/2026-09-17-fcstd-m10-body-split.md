@@ -1,48 +1,36 @@
-# Agent Note: FCStd 移植 M10 — Body 顺序与多 Body 拆分（2026-09-17）
+# Agent Note: FCStd port M10 — Body ordering and multi-Body splitting (2026-09-17)
 
-## 决策 1：Body.Group 作拓扑排序主序（M10.1）
+Status: implemented
 
-Kahn 迭代顺序改为 `Body.Group` 序优先、文档序兜底（`depsOf` 的
-Base/Tool/Profile/BaseFeature 链仍作依赖判定回退）。这保证 D-C 链式 fuse
-严格按 PartDesign 特征顺序展开。
+English | [中文](2026-09-17-fcstd-m10-body-split.zh.md)
 
-## 决策 2：Pocket base 规则定死（M10.2，探针实测）
+## Decision 1: Body.Group as the topological-sort primary order (M10.1)
 
-PocketTest 探针：`Pocket.BaseFeature=Pad`、`Pocket001.BaseFeature=Pocket`
-——BaseFeature **恒指向链上前一特征**。规则即：BaseFeature 有值时以其为准
-（现有实现已是此行为），M9.4 的链式回退仅覆盖 BaseFeature 缺失/未解析形态。
+The Kahn iteration order becomes `Body.Group` order first, document order as fallback (the Base/Tool/Profile/BaseFeature chain in `depsOf` remains the dependency-deciding fallback). This guarantees the D-C chained fuse expands strictly in PartDesign feature order.
 
-## 决策 3：多 Body 拆分（M10.3/M10.5）
+## Decision 2: Pocket base rule fixed (M10.2, measured)
 
-- 有几何的 Body 各产 `model/<BodyName>.fai.js`，末尾 `let <Body>_out = <链头>;`
-  终端别名（faijs 无 identity op，纯 JS 赋值）
-- `main.fai.js` 为聚合入口：`cad.group({ members: [<Body>_out, ...] })`
-- 无 Body 几何 → 整体回落单文件 main（现有 e2e 形态不变）
-- 散落 Part 特征（不归属任何 Body）留在 main.fai.js
+PocketTest probe: `Pocket.BaseFeature=Pad`, `Pocket001.BaseFeature=Pocket` — BaseFeature **always points at the previous feature in the chain**. The rule: when BaseFeature has a value it wins (the existing implementation already behaves this way); M9.4's chained fallback only covers BaseFeature missing/unresolved forms.
 
-## ⚠️ M10.4 实测结论（重要，两个待定项落定）
+## Decision 3: multi-Body splitting (M10.3/M10.5)
 
-1. **仓库内不存在 `.fai.zip` 加载器**：grep 全仓无 zip-loader 消费代码，
-   e2e 是解包后直接取 `model/main.fai.js` 执行。`manifest.entry` 已显式写死
-   `model/main.fai.js`（container.ts），无需改动。
-2. **真实语料的 Body 不带 `Group` 属性**：PadTest 的 Body 只有
-   `Tip: Pad002`，特征链完全靠各特征的 `BaseFeature` 依赖表达。因此
-   PadTest 走单文件回退路径（行为正确）；多文件拆分仅对带 Group 的
-   Body 生效（合成 fixture 单测覆盖）。
+- Each Body with geometry produces `model/<BodyName>.fai.js`, ending with `let <Body>_out = <chain head>;` as a terminal alias (faijs has no identity op; a plain JS assignment)
+- `main.fai.js` is the aggregation entry: `cad.group({ members: [<Body>_out, ...] })`
+- No Body geometry → whole fallback to the single-file main (existing e2e shape unchanged)
+- Stray Part features (belonging to no Body) stay in main.fai.js
 
-**已知限制（如实记录）**：多 Body 产物的 `<Body>_out` 聚合引用
-（`cad.group({ members: [Body_out, ...] })`）在 main 里引用的是其它文件的
-变量——**没有加载器时跨文件变量不可解析**，多文件产物目前只能生成、
-不能端到端 run。e2e 三样本均为单文件路径不受影响。待 M11+ 引入容器
-加载器（消费 manifest.entry + model/ 多文件）后才能闭环，届时聚合入口
-需要改为跨文件 import 或加载器拼装语义。
+## ⚠️ M10.4 measured conclusions (important; two open items settled)
 
-## 基线
+1. **No `.fai.zip` loader exists in the repo**: grepping the whole repo finds no zip-loader consuming code; e2e unpacks and directly executes `model/main.fai.js`. `manifest.entry` is already hard-coded to `model/main.fai.js` (container.ts); no change needed.
+2. **Real-corpus Bodies carry no `Group` attribute**: PadTest's Body only has `Tip: Pad002`; the feature chain is expressed entirely through each feature's `BaseFeature` dependency. PadTest therefore takes the single-file fallback path (correct behavior); multi-file splitting only applies to Bodies with `Group` (covered by a synthetic-fixture unit test).
 
-e2e 三样本基线无变化（PadTest 4/6/3、Crank 0/16/0、ProjectTest 0/1/0）——
-真实语料全部走单文件回退，无需更新。
+**Known limitation (recorded honestly)**: a multi-Body product's `<Body>_out` aggregation references (`cad.group({ members: [Body_out, ...] })`) reference variables from other files — **without a loader, cross-file variables are unresolvable**, so multi-file products can be generated but not run end-to-end. The three e2e samples all take the single-file path and are unaffected. Closure waits for a container loader (consuming manifest.entry + model/ multi-file) in M11+; the aggregation entry will then need cross-file import or loader assembly semantics.
 
-## 测试
+## Baseline
 
-- `codegen.test.ts` 新增 2 例：双 Body 拆分 + 聚合引用、散落特征留 main
-- 全量 fcstd 13 文件 / 92 用例 + e2e 三样本全绿
+The three e2e-sample baselines are unchanged (PadTest 4/6/3, Crank 0/16/0, ProjectTest 0/1/0) — all real corpus takes the single-file fallback, nothing to update.
+
+## Tests
+
+- `codegen.test.ts` +2 cases: dual-Body split + aggregation reference, stray features stay in main
+- Full fcstd 13 files / 92 cases + three e2e samples all green

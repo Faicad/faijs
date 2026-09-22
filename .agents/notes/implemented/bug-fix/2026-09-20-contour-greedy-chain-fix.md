@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-20-contour-greedy-chain-fix.zh.md)
+
 ## Problem
 
 After H10 and the H7 first cut, `sketch-not-solved` was the top first-cause

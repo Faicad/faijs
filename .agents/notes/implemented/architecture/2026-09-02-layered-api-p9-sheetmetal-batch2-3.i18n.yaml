@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-02-layered-api-p9-sheetmetal-batch2-3.md
-2026-09-02-layered-api-p9-sheetmetal-batch2-3.md: 5b799684151ba420be7064042d73996fa881e8f9
-2026-09-02-layered-api-p9-sheetmetal-batch2-3.zh.md: 82e87925600b517c00c1d2927a27d2e4fd364cf2
+2026-09-02-layered-api-p9-sheetmetal-batch2-3.md: f22302ddb26a28777f7d6fe88337e2e20f882261
+2026-09-02-layered-api-p9-sheetmetal-batch2-3.zh.md: 689ee4b03349e7b9898a0be24e2e8fabde2f6be0

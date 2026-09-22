@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-20-fcstd-corpus-tests-moved-to-fcstd-port.md)
+
 ## Problem
 
 faijs 仓库携带两类 FCStd 测试：(a) 合成 fixture 单元测试（parser 坑、

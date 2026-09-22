@@ -3,4 +3,4 @@
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-01-layered-api-p0-baseline.md
 2026-09-01-layered-api-p0-baseline.md: 92bfd6343ca5b74c76ca531850ad93ac749ba88f
-2026-09-01-layered-api-p0-baseline.zh.md: 1b9cd8d050491d19a22d4dfed1c4f0d73d3bdb83
+2026-09-01-layered-api-p0-baseline.zh.md: 6f95686f893eab7b3c4b5e8ace108bbef5291448

@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-22-cq-compat-package-split.zh.md)
+
 ## Problem
 
 `@faicad/cq-compat` bundled the CadQuery-compatibility surface (Workplane API,

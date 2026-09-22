@@ -1,6 +1,6 @@
-locale: en
-source: 2026-09-20-subshape-result-cache-asset.md
-translation: 2026-09-20-subshape-result-cache-asset.zh.md
-version: 1
-last_synced: 2026-09-20
-status: in-sync
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-20-subshape-result-cache-asset.md
+2026-09-20-subshape-result-cache-asset.md: 29684c22b4b1af0d7c160ac44c915b1108a7daf7
+2026-09-20-subshape-result-cache-asset.zh.md: e75b716a4d32e8d2c7accc694f1eaf2421199697

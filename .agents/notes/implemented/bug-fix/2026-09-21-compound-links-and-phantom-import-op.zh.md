@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-21-compound-links-and-phantom-import-op.md)
+
 ## Problem
 
 ArchDetail 报 `compound-missing-members`：它的 5 个 `Part::Compound` 容器翻译成

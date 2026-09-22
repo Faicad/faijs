@@ -137,7 +137,7 @@ const a = await cad.import_brep({ asset: 'Array001.Shape' })
 
 加载几何资产。key / path / url 三选一（按此优先级分流），内容经宿主资产解析器解析，**引用而非拷贝**。
 
-> 🚫 **已废弃（deprecated）**：`../3d_editor` 的「文件导入 Feature」：key/path/url 三键分流读的是应用侧 `FileRef`，产物语句位置、命名与 partIndex 都是画布语义。平台侧导入请用 `cad.import_brep`（冻结 BREP 资产）。
+> 🚫 **已废弃（deprecated）**：**`../3d_editor` 消费面**（原 `@deprecated` 措辞已于 2026-09-22 校正）：该 op 为编辑器应用的「文件导入 Feature」提供——key/path/url 三键分流读的是应用侧 `FileRef`，产物语句位置、命名与 partIndex 都是画布语义。不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**（见 `docs/plans/2026-09-22-topology-identity-development-plan.md` §2）。平台侧导入请用 `cad.import_brep`（冻结 BREP 资产）。
 
 ```js
 const p = await cad.load({ key: 'file_abc123' })
@@ -316,7 +316,7 @@ const p = cad.place(part0, { rotation: [0, 0, Math.sin(Math.PI/4), Math.cos(Math
 
 绕轴旋转几何体。anglesDeg 为欧拉角（度，XYZ 顺序）。
 
-> 🚫 **已废弃（deprecated）**：`../3d_editor` 项目特有的变换 op（承载编辑器拖拽与时间线语句），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
+> 🚫 **已废弃（deprecated）**：**`../3d_editor` 消费面**（原 `@deprecated` 措辞已于 2026-09-22 校正）：该 op 为编辑器应用提供（承载拖拽与时间线语句），不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**（见 `docs/plans/2026-09-22-topology-identity-development-plan.md` §2）。faijs 平台面不提供等价 op（需要时须按平台需求另行设计，不得直接搬用本 op）。
 
 ```js
 const p2 = cad.rotate_euler(part0, { anglesDeg: [0, 0, 45] })
@@ -334,7 +334,7 @@ const p3 = cad.rotate_euler(part0, { anglesDeg: [0, 0, 45], pivot: [0,0,0] })
 
 等比缩放几何体（brepjs 契约，§4.6 裁决 2）。factor 只收 number；不动点默认 原点（与 vendored `scale(shape, factor, { center? })` 一致），`center` 可选。
 
-> 🚫 **已废弃（deprecated）**：`../3d_editor` 项目特有的变换 op（承载编辑器拖拽与时间线语句），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
+> 🚫 **已废弃（deprecated）**：**`../3d_editor` 消费面**（原 `@deprecated` 措辞已于 2026-09-22 校正）：该 op 为编辑器应用提供（承载拖拽与时间线语句），不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**（见 `docs/plans/2026-09-22-topology-identity-development-plan.md` §2）。faijs 平台面不提供等价 op（需要时须按平台需求另行设计，不得直接搬用本 op）。
 
 ```js
 const p4 = cad.scale(part0, 2)
@@ -352,7 +352,7 @@ const p5 = cad.scale(part0, { factor: 2, center: [10, 0, 0] })
 
 非等比缩放几何体（faijs 语义，§1.4.4 裁决 2）。factor 定死 vec3 — 等比缩放请用 `scale(p, s)`，`scale3d(p, [x,y,z])` 才可非等比。`center` 为不动点（默认原点）。
 
-> 🚫 **已废弃（deprecated）**：`../3d_editor` 项目特有的变换 op（承载编辑器拖拽与时间线语句），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
+> 🚫 **已废弃（deprecated）**：**`../3d_editor` 消费面**（原 `@deprecated` 措辞已于 2026-09-22 校正）：该 op 为编辑器应用提供（承载拖拽与时间线语句），不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**（见 `docs/plans/2026-09-22-topology-identity-development-plan.md` §2）。faijs 平台面不提供等价 op（需要时须按平台需求另行设计，不得直接搬用本 op）。
 
 ```js
 const p4 = cad.scale3d(part0, { factor: [2, 1, 1] })
@@ -370,7 +370,7 @@ const p5 = cad.scale3d(part0, [2, 1, 1], { center: [10, 0, 0] })
 
 平移几何体。
 
-> 🚫 **已废弃（deprecated）**：`../3d_editor` 项目特有的变换 op（承载编辑器拖拽与时间线语句），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
+> 🚫 **已废弃（deprecated）**：**`../3d_editor` 消费面**（原 `@deprecated` 措辞已于 2026-09-22 校正）：该 op 为编辑器应用提供（承载拖拽与时间线语句），不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**（见 `docs/plans/2026-09-22-topology-identity-development-plan.md` §2）。faijs 平台面不提供等价 op（需要时须按平台需求另行设计，不得直接搬用本 op）。
 
 ```js
 const p1 = cad.translate(part0, { offset: [10, 0, 0] })
@@ -411,7 +411,7 @@ const p = await cad.chamfer(part0, { edges: [{ kind:'edge', faces:[{ origin:'box
 
 深拷贝几何为独立新对象（源不变，源与副本都显示）。
 
-> 🚫 **已废弃（deprecated）**：`../3d_editor` 项目特有的 op（语义含编辑器画布显示——源与副本各显示一份），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
+> 🚫 **已废弃（deprecated）**：**`../3d_editor` 消费面**（原 `@deprecated` 措辞已于 2026-09-22 校正）：该 op 为编辑器应用提供（语义含编辑器画布显示——源与副本各显示一份），不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**（见 `docs/plans/2026-09-22-topology-identity-development-plan.md` §2）。faijs 平台面不提供等价 op（需要时须按平台需求另行设计，不得直接搬用本 op）。
 
 ```js
 const part1 = cad.copy(part0)
@@ -422,7 +422,22 @@ const part1 = cad.copy(part0)
 
 **同步**。Shape 源几何的深拷贝。copy 不消费其源（画布显示 box 和副本两份），改副本不影响源。
 
-### 5.3 `engrave` ✅
+### 5.3 `cut` ✅
+
+Boolean cut (subtract): remove `tool` from `base`. Same semantics as {@link subtract} but with the brepjs-compatible `(base, tool, options?)` signature. Overrides the generated projection (compatOp) to do roleTable propagation (Phase 3: L2 requires wall:<i> to survive cut).
+
+```js
+const b = await cad.cut(part0, part1)
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `base` | `Shape` | ✅ | — | the target shape. |
+| `tool` | `Shape` | ✅ | — | the shape to subtract. |
+
+**异步**。Shape base minus tool.
+
+### 5.4 `engrave` ✅
 
 在几何表面雕刻文字或 SVG（文字分支与 logo 分支都可用）。
 
@@ -445,7 +460,7 @@ const p = await cad.engrave(part0, { mode: 'concave', depth: 2, text: 'Hello', t
 
 > 早期 logo 分支用 `svgText`（整份 XML 拷贝 + `svgSize` 文本导出丢失，往返失真）；现已改为 `svg` 资产引用，`engravingType` 冗余键已移除。faceCenter/faceNormal 目前是绝对坐标快照。
 
-### 5.4 `extrude` ✅
+### 5.5 `extrude` ✅
 
 沿 normal 拉伸几何（面 → 棱柱）。 up-to 模式（`upTo`）与长度模式（`length`）二选一；长度模式委托生成投影 （vendored extrude 为唯一引擎），up-to 模式走半空间组合。
 
@@ -467,11 +482,11 @@ const p = await cad.extrude(sk, { upTo: 'last', baseFeature: part0 })
 
 **异步**。Shape 拉伸后的几何。
 
-### 5.5 `fai_drill` ✅ 🚫
+### 5.6 `fai_drill` ✅ 🚫
 
 在几何体上钻孔（CSG 减除）。depth=0 为通孔，>0 为盲孔。
 
-> 🚫 **已废弃（deprecated）**：`fai_` 前缀 op 是 ../3d_editor 项目特有的操作，不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
+> 🚫 **已废弃（deprecated）**：**`../3d_editor` 消费面**（原 `@deprecated` 措辞已于 2026-09-22 校正）：`fai_` 前缀 op 为编辑器应用提供，不属 faijs 平台面，但**不是废弃项**——它服务真实负载（3d_editor 38 个文件在用）。**变更其 API 形态必须同步更新 `../3d_editor`**（见 `docs/plans/2026-09-22-topology-identity-development-plan.md` §2）。faijs 平台面不提供等价 op（需要时须按平台需求另行设计，不得直接搬用本 op）。
 
 ```js
 const p = await cad.fai_drill(part0, { diameter: 5 })
@@ -498,11 +513,11 @@ const p = await cad.fai_drill(part0, { diameter: 5.2, depth: 8, holeType: 'screw
 
 > 键名以本表为准：`type: 'through'|'blind'` 与 `direction` 为向量的旧素材是无效写法——孔型由 `depth`（0=通孔）推导，`direction` 是 'normal'|'x'|'y'|'z' 枚举。
 
-### 5.6 `fai_extrude` ✅ 🚫
+### 5.7 `fai_extrude` ✅ 🚫
 
 沿法向拉伸几何。
 
-> 🚫 **已废弃（deprecated）**：`fai_` 前缀 op 是 ../3d_editor 项目特有的操作，不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
+> 🚫 **已废弃（deprecated）**：**`../3d_editor` 消费面**（原 `@deprecated` 措辞已于 2026-09-22 校正）：`fai_` 前缀 op 为编辑器应用提供，不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**（见 `docs/plans/2026-09-22-topology-identity-development-plan.md` §2）。faijs 平台面不提供等价 op（需要时须按平台需求另行设计，不得直接搬用本 op）。
 
 ```js
 const p = await cad.fai_extrude(part0, { length: 10 })
@@ -520,11 +535,11 @@ const p = await cad.fai_extrude(part0, { length: 10, normal: [0,0,1], originOffs
 
 **异步**。Shape 拉伸后的几何。
 
-### 5.7 `fai_split` ⚠️ 🚫
+### 5.8 `fai_split` ⚠️ 🚫
 
 分割几何，返回具名对象 { front, back } 两个独立零件。
 
-> 🚫 **已废弃（deprecated）**：`fai_` 前缀 op 是 ../3d_editor 项目特有的操作，不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
+> 🚫 **已废弃（deprecated）**：**`../3d_editor` 消费面**（原 `@deprecated` 措辞已于 2026-09-22 校正）：`fai_` 前缀 op 为编辑器应用提供，不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**（见 `docs/plans/2026-09-22-topology-identity-development-plan.md` §2）。faijs 平台面不提供等价 op（需要时须按平台需求另行设计，不得直接搬用本 op）。
 
 ```js
 const { front: part1, back: part2 } = await cad.fai_split(part0, { normal: [0, 0, 1], offset: 5, cutMode: 'dovetail', grooveDepth: 3, grooveWidth: 5 })
@@ -558,7 +573,7 @@ const { front: part1, back: part2 } = await cad.fai_split(part0, { normal: [0, 0
 
 > 切割面统一用 `normal`/`offset`/`inPlaneAngleDeg` 描述；早期文本层曾与执行层键名断裂（planeRotation/planePosition），已修并统一为上述键名。
 
-### 5.8 `fillet` ✅
+### 5.9 `fillet` ✅
 
 在几何体上做圆角（等半径）。仅 BREP 可用。
 
@@ -575,7 +590,7 @@ const p = await cad.fillet(part0, { edges: [{ kind:'edge', faces:[{ origin:'box'
 
 > 圆角是 BREP-only：非 BREP 输入抛 E_MESH_UNSUPPORTED。`radius` 为正数（mm）。 圆角后 roleTable 经 filletWithHistory 传播，保证后续特征仍可按 role 选面/选边。
 
-### 5.9 `intersect` ✅
+### 5.10 `intersect` ✅
 
 布尔交集：所有输入的重叠部分。
 
@@ -589,7 +604,7 @@ const c = await cad.intersect(part0, part1)
 
 **异步**。Shape 所有输入的交集。
 
-### 5.10 `knurl` ⚠️
+### 5.11 `knurl` ⚠️
 
 施加滚花（顶点位移，非布尔）。mesh-only。
 
@@ -612,7 +627,7 @@ const p = await cad.knurl(part0, { knurlTextureHeight: 0.5, knurlScaleU: 0.15, k
 
 > knurl 无 BREP 实现（mesh-only），本质是顶点位移（网格操作），网格参数可接受；brep 模式下调用前抛 BrepUnsupportedError。面锚定建议用几何引用。
 
-### 5.11 `subtract` ✅
+### 5.12 `subtract` ✅
 
 布尔差集：第一个为主体，减去其余输入。
 
@@ -626,7 +641,7 @@ const b = await cad.subtract(part0, part1)
 
 **异步**。Shape part0 减 part1 的差集（第一个为主体）。
 
-### 5.12 `union` ✅
+### 5.13 `union` ✅
 
 布尔并集：合并所有输入几何（≥2 个输入）。
 
@@ -648,7 +663,7 @@ const a = await cad.union(part0, part1)
 
 装配：成员 + 约束。结构语句，无几何输出，成员用变量名引用、实体用 EntityRef / 拓扑引用。 求解内核复用 vendored brepjs solverAdapter.solveConstraints（链式拓扑调度 / DOF / converged / unsupported 诊断）；输出为 per-member 终态变换（每成员一条，恒等位姿不输出）。
 
-> 🚫 **已废弃（deprecated）**：`../3d_editor` 项目特有的装配 op（成员以编辑器结构语句形态声明，服务于画布与时间线），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。
+> 🚫 **已废弃（deprecated）**：**`../3d_editor` 消费面**（原 `@deprecated` 措辞已于 2026-09-22 校正）：该 op 为编辑器应用提供（成员以编辑器结构语句形态声明，服务于画布与时间线），不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**（见 `docs/plans/2026-09-22-topology-identity-development-plan.md` §2）。faijs 平台面不提供等价 op（需要时须按平台需求另行设计，不得直接搬用本 op）。
 
 ```js
 let asm1 = cad.assembly({ name: '主轴组件', members: [part0, part1, part2], constraints: [ { type: 'fixed', part: 'part0' }, { type: 'mate', a: { part: 'part0', face: { topoRef: { kind: 'face', origin: 'part0', role: 'box:top', hint: { kind: 'face', surfaceType: 'plane' } } } }, b: { part: 'part1', face: { topoRef: { kind: 'face', origin: 'part1', role: 'box:bottom', hint: { kind: 'face', surfaceType: 'plane' } } } } }, { type: 'concentric', a: { part: 'part1', face: { topoRef: { kind: 'face', origin: 'part1', role: '', hint: { kind: 'face', surfaceType: 'cylinder' } } } }, b: { part: 'part2', face: { topoRef: { kind: 'face', origin: 'part2', role: 'cylinder:lateral', hint: { kind: 'face', surfaceType: 'cylinder' } } } } } ] })
@@ -681,7 +696,7 @@ const c = cad.compound({ members: [part0, part1] })
 
 | 参数 | 类型 | 必填 | 默认 | 说明 |
 |---|---|---|---|---|
-| `members` | `Shape[]` |  | — | 成员 Shape 数组（编译产物 ctx.<var> 引用） |
+| `members` | `Shape[]` |  | — | 成员数组（Shape 或结构 compound；编译产物 ctx.<var> 引用） |
 | `name` | `string` |  | — | 可选名称 |
 
 **同步**。Shape 几何复合体（brep 路径持句柄，可变换/可导出）。
@@ -692,7 +707,7 @@ const c = cad.compound({ members: [part0, part1] })
 
 分组：零约束，保持当前布局。结构语句，无几何输出，成员用变量名引用。
 
-> 🚫 **已废弃（deprecated）**：`../3d_editor` 项目特有的结构分组 op（无几何输出，服务于编辑器画布与时间线），不属于 faijs 平台面；将来会迁往该项目并从 faijs 删除。新代码请勿使用。**平台侧需要几何复合体请用 `cad.compound`**（内核 `makeCompound`，持 OCCT 句柄，可变换/可导出）。
+> 🚫 **已废弃（deprecated）**：**`../3d_editor` 消费面**（原 `@deprecated` 措辞已于 2026-09-22 校正）：该 op 为编辑器应用提供（无几何输出，服务于编辑器画布与时间线），不属 faijs 平台面，但**不是废弃项**——它服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**（见 `docs/plans/2026-09-22-topology-identity-development-plan.md` §2）。**平台侧需要几何复合体请用 `cad.compound`**（内核 `makeCompound`，持 OCCT 句柄，可变换/可导出）。
 
 ```js
 const part0 = cad.box(30, 20, 10, { centered: true })
@@ -897,7 +912,7 @@ const cam = cad.viewCamera({ dir: [1, -1, 1] })
 ```
 创建: import_brep / box / sphere / cylinder / cone / wedge / screw / sdf / sketch / svgExtrude / text
 变换: place
-特征: union / subtract / intersect / chamfer / engrave / extrude / fillet / knurl
+特征: union / cut / subtract / intersect / chamfer / engrave / extrude / fillet / knurl
 结构: compound
 查询: asset / edgeRef / faceRef / faceNormal / bboxCenter / bboxMin / bboxMax / viewCamera / projectView / projectSheet
 废弃（勿用，`fai_` 前缀 / ../3d_editor 特有，将迁出）: group、assembly、copy、fai_drill、fai_extrude、fai_split、load、translate、rotate_euler、scale、scale3d

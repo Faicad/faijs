@@ -1,6 +1,6 @@
 # Agent Note: vitest 3.x birpc hard 60s worker RPC timeout → false "onTaskUpdate" failure
 
-Status: implemented (node_modules patch workaround)
+Status: implemented
 
 English | [中文](2026-09-20-vitest-birpc-60s-timeout-on-task-update.zh.md)
 
@@ -37,7 +37,7 @@ Triggering suites in this repo:
 faijs `execute` is a synchronous native geometry computation and cannot yield the event
 loop, so injecting `await` yields does not shrink the atomic 34.5s brep block.
 
-## Fix
+## Decision
 
 Two parts, both applied:
 
@@ -71,3 +71,15 @@ Two parts, both applied:
 ## References
 
 - vitest-dev/vitest#8164 (report), #8297 (fix shipped in v4).
+
+## Alternatives considered
+
+- **Upgrade vitest to 4.x now.** Rejected for this change: v4's fix (`timeout: -1` to `createBirpc`, #8297) was not available at the time; it remains the preferred long-term fix, after which the node_modules patch must be removed.
+- **Only split the heavy suites, leave the 60s cap in place.** Rejected: the atomic 34.5s brep `execute` block cannot be split further, and under CPU contention a single suite crossed 66.9s — the cap itself must be raised.
+- **Raise the worker RPC timeout via a node_modules patch + split the heavy suites** (adopted): `timeout: 300000` in `createThreadsRpcOptions`/`createForksRpcOptions` overrides `DEFAULT_TIMEOUT`, and the split keeps any single worker below the threshold.
+
+## Consequences
+
+- `publish-all.ps1` no longer aborts: the `faijs-tests` package finishes all-green with exit 0 and no unhandled `onTaskUpdate` timeout.
+- The `timeout: 300000` patch lives only in `node_modules` — it is not tracked by git and is wiped by any `npm install`/`npm ci`; it must be re-applied until vitest is upgraded.
+- 300s aligns with the per-package CI watchdog (`FAIJS_TEST_BUDGET_MS`, default 300000ms in `scripts/ci.ps1`); the watchdog remains the real deadlock guard.

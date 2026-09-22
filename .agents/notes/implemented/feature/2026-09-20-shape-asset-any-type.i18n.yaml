@@ -1,6 +1,6 @@
-locale: en
-source: 2026-09-20-shape-asset-any-type.md
-translation: 2026-09-20-shape-asset-any-type.zh.md
-version: 1
-last_synced: 2026-09-20
-status: in-sync
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-20-shape-asset-any-type.md
+2026-09-20-shape-asset-any-type.md: 79171e101dba43fa247f4475cd6279624cbe026d
+2026-09-20-shape-asset-any-type.zh.md: ea01f50035874332d1a681e546608db528d4c376

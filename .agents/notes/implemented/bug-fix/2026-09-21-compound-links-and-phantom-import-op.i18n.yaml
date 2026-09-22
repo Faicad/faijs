@@ -1,6 +1,6 @@
-locale: en
-source: 2026-09-21-compound-links-and-phantom-import-op.md
-translation: 2026-09-21-compound-links-and-phantom-import-op.zh.md
-version: 1
-last_synced: 2026-09-21
-status: in-sync
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-21-compound-links-and-phantom-import-op.md
+2026-09-21-compound-links-and-phantom-import-op.md: c28356276a693aa8e08e6346e1cd9fc1f7fcde12
+2026-09-21-compound-links-and-phantom-import-op.zh.md: 3a7c332fbda45a0ceb2b42cef3d8226efc26f60f

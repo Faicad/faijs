@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-22-cq-compat-package-split.md
-2026-09-22-cq-compat-package-split.md: 9ba0afbbdd1cc3525868191c696ca8302ca53755
-2026-09-22-cq-compat-package-split.zh.md: 36136e808f5851d32c920b60159407c3f6c0a711
+2026-09-22-cq-compat-package-split.md: 6a703a9048a07ba83faf6ed030582e069a99f26d
+2026-09-22-cq-compat-package-split.zh.md: 8731acc1c39fc63c91d5a0ee84fffa7507f293e2

@@ -1,6 +1,6 @@
-locale: en
-source: 2026-09-20-fem-structural-disposition.md
-translation: 2026-09-20-fem-structural-disposition.zh.md
-version: 1
-last_synced: 2026-09-20
-status: in-sync
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-20-fem-structural-disposition.md
+2026-09-20-fem-structural-disposition.md: 94013453f8fba094d8492742d19fc4fc900bd798
+2026-09-20-fem-structural-disposition.zh.md: fe7bb9157fa615fdd4f2c2ebf0050e92ac6e3273

@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-20-external-geo-subshape-source.zh.md)
+
 ## Problem
 
 hole_puzzle's external-geometry sketches all failed with
