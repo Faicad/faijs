@@ -284,7 +284,7 @@ packages/core/src/api/index.ts:16,20         (块注释)
 
 | # | 链 | 覆盖 | 依据 |
 |---|---|---|---|
-| **L1** | `box → extrude → fillet` | `construct`（新造面词汇）+ `kernel`+`byAdjacency`（过渡面） | 最难的两类叠在一起 |
+| **L1** | `sketch → extrude → fillet` | `construct`（新造面词汇）+ `kernel`+`byAdjacency`（过渡面） | 最难的两类叠在一起。**原文写的是 `box → extrude → fillet`，实测跑不通**（`cad.extrude` 是 brepjs 投影、入参必须 face/wire，传 solid 直接 `EXTRUDE_FAILED`）⇒ 改用与 FCStd `Pad→Fillet` 同形的等价链，覆盖面不变（见 §7.1「0.5 的落地结果」） |
 | **L2** | `sketch → extrude → cut` | `construct` 的**递归词汇**（profile 本身是构造产物）+ `kernel`（布尔） | `wall:<i>` 稳定性 ⇔ profile 边序稳定性 |
 | **L3** | `box → linearPattern(3)` | `replicate(k)` | 复合身份 `replica[k]/…` |
 | **L4** | `box → split` | `subdivide` | 复合身份 `splinter(…)#j` |
@@ -663,6 +663,27 @@ op 侧同时改为逐核函数：`union → ['fuse']`、`subtract → ['cut']`�
 `*WithHistory` 桩都用 `unsupported(...)` 实现，`typeof api.xWithHistory === 'function'` **恒为真**
 ⇒ 无法靠探测区分「真有 vs 桩」。**声明是唯一真相来源**，只能靠期望值钉住（该测试文件即此钉；
 occt 的 12 项判定为「真」则由 `evolution-bindings.test.ts` 的**真调用**背书）。
+
+**0.5 的落地结果（G3 进度尺已建立）**：载体 = `packages/tests/faijs/topology-naming/g3-replay-chains.test.ts`
+（含三层判据 T1 角色词汇集跨重放不变 / T2 捕获的 ref 重放后落到同名面 / T3 面类型一致；
+前置 T0 = 两次执行本身必须成功，T0 红则说明红的不是命名机制、必须先修链路）。
+**实测基线：6/6 红，且全部红在 T0.5（目标词汇未落地），T0 链路 6/6 通。**
+
+| 链 | 首次执行实测 role 集合 | 红的性质 |
+|---|---|---|
+| L1 | `extrude:face_0…5` + `''` | 只有**位置兜底名**（`opType:face_N`），fillet 过渡面 role 为空 |
+| L2 | `['']` | 产物**完全无名** |
+| L3 | `['']` | 产物**完全无名** |
+| L4 | `['']` | 产物**完全无名** |
+| L5 | `['']` | 产物**完全无名**（连 box 的 6 个语义 role 都丢了） |
+| L6 | `box:left/front/back/right/top/bottom` + `''` | 继承面有名字，**唯一缺的**是新造面（倒角过渡面 role=`''`） |
+
+读数：**4/6 条链今天产出的是完全无名（或仅位置名）的形状**；L6 只差"新造面词汇"一步。
+⇒ 后续每阶段的进度尺 = 这张表里"完全无名"从 4 减到 0，且 L6 那一个 `''` 消失。
+
+**0.5 顺带修正了计划原文的一处不准确**：§3.1 的 L1 原写 `box → extrude → fillet`，但
+`cad.extrude` 是 brepjs 投影（`arg-spec.ts:1533`，入参 face/wire），传 solid 报 `EXTRUDE_FAILED`；
+已改写为 `sketch → extrude → fillet`（与 `edge-ref/edge-ref.test.ts` 的 FCStd `Pad→Fillet` 同形），覆盖面不变。
 
 **0.3 的实际取舍（比计划原文更细，因为实测发现"能替换的面"比预期小）**：
 
