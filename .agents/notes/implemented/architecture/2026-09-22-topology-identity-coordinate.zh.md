@@ -62,7 +62,9 @@
   `assignPrimitiveFaceRoles` 与 `role:''` 兜底已删除。
 - **`unmodeled` 是显式记账**，不是 TODO：凡无法给面命名的 op 必须声明
   `naming: { kind: 'unmodeled', reason }`（经 D11 对第三方库是 breaking）。
-  审计：`unmodeled-whitelist.test.ts`。
+  审计：`unmodeled-whitelist.test.ts`。**⚠️ 对"裸函数库"尚不成立**——见下
+  「第三方零件库」：它们经一条硬编码的 blanket `unmodeled` 默认被提升，而该默认
+  被白名单排除在审计之外。
 - **3d_editor 同步（H2/H3）**：改 `origin`/`role` 改变了每个已存 `TopoRef` 的
   线形态，故 `../3d_editor` 必须迁移（`migrateTopoRef`）并更新其两处断言。
   这是跨仓库项，仍未关闭。
@@ -90,3 +92,53 @@
 `api/dual-form-contract.test.ts` 回退 8 例。已**废除**：身份是
 `(StmtId, RoleName)`，`PartName` 只是反查索引，故重绑同名**最后写者胜**
 （且 `stmtOf` / `nodeOfPart` 本就无生产消费方）。
+
+## 下游消费方：装配约束
+
+计划 §1 开头那条链的终点写着「`fillet` / `cut` / `drill` / **`assembly`** 的
+参数」。这条链在本仓的落点是 `core/src/api/assembly/types.ts:47`：
+
+```
+EntityRef = { part: PartName; face: FaceRef }
+FaceRef   = { topoRef: FaceTopoRef } | { surfaceType, center, normal }
+```
+
+两层正交身份在此相遇，只有一层归本设计：
+
+- `part: PartName` 是**实例身份**（选了哪个零件）——是名字不是坐标，本设计不涉及；
+- `face` 是**面身份**（贴在哪个面上）——本设计产出 `topoRef`，几何快照只是兜底。
+
+装配**解算**（约束 → 变换，`api/assembly/solve.ts`，P1 起走 brepjs solverAdapter）
+与本设计正交且先于它存在；装配**引用**才是它的需求侧。⇒ 本设计最大的下游在
+**本仓**，不是 `../3d_editor`。
+
+## 第三方零件库——D11 按原文没有落脚点（§2.11）
+
+实测；计划的两条前提均不成立：
+
+1. `fai_cq_gears` / `fai_cq_warehouse` / `sheetmetal` 是**本仓 workspace 包**
+   （根 `package.json` 的 `workspaces`），不是兄弟仓库——故 §2.11 是本仓工作；
+2. 它们**零** `defineOp` / `compatOp` 调用。它们导出裸 `Result` 函数
+   （如 `spur_gear()`：无几何输入、一次内核构建成 solid），经 `registerLib` 的
+   `autoLift` 提升。故「每处 `defineOp` 加 `naming`」没有落脚点。
+
+真实状态：`cad-runtime/admit-compat-lib.ts` 对**每个**裸函数硬编码
+
+```
+naming: { kind: 'unmodeled', reason: 'admitCompatLib: bare function lift, provenance not declared' }
+```
+
+——一条 blanket 默认，正是 D11 否决的那个旁路，且被
+`unmodeled-whitelist.test.ts` 排除在审计外。当前**无库级/函数级 `naming` 声明
+通道**（`registerLib` 只收 `autoLift?: boolean`；`admitCompatLib` 只认可裸函数的
+`fn.outputs` 注解，不读 `fn.naming`）。
+
+**声明 `unmodeled` 的后果——真实代价**：`roles.ts` 的 `ROLE_ASSIGNERS` 只覆盖
+`box` / `cylinder` / `cone` / `sphere`，且位置兜底已删（Phase 1.7）⇒ 这四种之外的
+op **贡献不了 role** → `role: null` → **产不出 `topoRef`**。故零件库声明
+`unmodeled` 会把它的面逼到装配里的几何快照上，参数一变就数值漂移。轴类装配
+（`EdgeRef.axis` / 圆柱面 axis）走纯几何量，**不受影响**——这正是「零件库不需要
+拓扑」成立的确切边界。
+
+⇒ §2.11 的次序：**① 新增声明通道 → ② 库显式声明 → ③ 才可把 blanket 默认改硬
+失败。** 跳过 ① 直接做 ③ 会即刻打断三库装载。

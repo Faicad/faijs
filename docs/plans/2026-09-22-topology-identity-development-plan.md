@@ -175,7 +175,10 @@ faijs  FaceTopoRef { kind:'face', origin, role, hint }
 - **选**：`defineOp` 的 `naming` 必填（缺 → TS 编译错误）；`ArgSpecEntry` 的 `naming` 对 **`kind === 'brep-op' && scriptFace === true`** 必填（缺 → 生成器 `throw`）——这个复合判据同时是 D10 可安全推迟的根据（那 8 条 `scriptFace !== true`，不被要求）。第三方库用显式的 `naming: unmodeled('reason')`，**不给默认值**。
 - **否决**：给第三方库默认 `opaque` 以避免 breaking。
 - **理由**：项目红线「能力缺口的正解是补能力或报错，不是加旁路开关」。默认值就是旁路开关。
-- **代价（明确接受）**：这是对 `fai_cq_gears` / `fai_cq_warehouse` / `sheetmetal` 的 **breaking change**——每处 `defineOp` 都要加一行声明。Phase 2 含同步步骤。
+- **代价（明确接受）**：这是对 `fai_cq_gears` / `fai_cq_warehouse` / `sheetmetal` 的 **breaking change**。**⚠️ 落点已实测纠正**：三包 `src` 内 `defineOp` / `compatOp` **零命中**——它们导出的是裸 `Result` 函数，经 `registerLib` 的 `autoLift` 装载（三包 `package.json` 均无 `faijs.autoLift` ⇒ 走 runtime 推断式 `!hasDualOp(ns)` = `true` 被提升）。故"每处 `defineOp` 加一行"**没有落脚点**；真实 breaking 面是**裸函数提升路径**。Phase 2 含同步步骤。
+- **⚠️ 与实现的既存矛盾（实测，须在 2.11 一并裁决）**：D11 说"不给默认值"，但 `cad-runtime/admit-compat-lib.ts` 对**每个**裸函数**硬编码**一条
+  `naming: { kind: 'unmodeled', reason: 'admitCompatLib: bare function lift, provenance not declared' }`
+  ——这条 blanket 默认**正是 D11 否决的那个旁路开关**，且被 `unmodeled-whitelist.test.ts` 排除在审计表外（注为"裸函数提升的元理由（非 op）"）。当前**无任何库级/函数级 `naming` 声明入口**（`registerLib` 只有 `autoLift?: boolean`；`admitCompatLib` 只认可裸函数的 `fn.outputs` 注解，不读 `fn.naming`）。
 
 ---
 
@@ -191,6 +194,18 @@ faijs  FaceTopoRef { kind:'face', origin, role, hint }
 | `FaceTopoRef` / `EdgeTopoRef` | 同上 | 装配约束 / op 参数 |
 | `FaceRef` | `model-store.ts:12` | 装配约束参数形态（`{ topoRef }` / 几何快照） |
 | `SelectionMode` / `SelectorRuntimeData` 等 | 219 处 `@faicad/faijs/browser` | 广面 |
+
+> **仓库内消费面（实测补充）**：装配约束是本方案**在本仓**的最大下游，接点是
+> `core/src/api/assembly/types.ts:47` 的 `EntityRef = { part: PartName; face: FaceRef }`，
+> 其中 `FaceRef = { topoRef: FaceTopoRef } | { surfaceType, center, normal }`（`:26-30`）。
+> 两层身份正交，只一层归本方案：
+>
+> - `part: PartName` = **实例身份**（选了哪个零件）——只是个名字，本方案不涉及；
+> - `face` = **面身份**（贴在哪个面上）——本方案产出 `topoRef`，几何快照只是兜底。
+>
+> 装配**解算**（约束 → 变换，`api/assembly/solve.ts`，P1 起走 brepjs solverAdapter）
+> 与本方案**正交**（已存在、与身份无关）；装配**引用**才是本方案的需求侧。
+> ⇒ 本计划 §1 开头那条链的"终端"在本仓即可指认，不必等到 3d_editor。
 
 **3d_editor 对 `origin`/`role` 的生产代码使用 = 纯透传。** 全仓只有 **2 处测试**对它们做断言：
 
@@ -524,18 +539,20 @@ resolve(identity, atPart):
 | 1.3 | 新建登记函数 `registerStep` + 两张表（`lineage: Map<StmtId, LineageNode>`、`partToStmt: Map<PartName, StmtId>`）+ N1/N2/N3 校验 | `topology/naming/lineage.ts`（新） | **已完成** |
 | 1.4 | **调用点 A**：`define-op.wrapped` 登记 | `define-op.ts` | **已完成**（绑定 `runtimeLineage.register`；`runCode` 起始 `clear()`；嵌套调用用 `registeringStmts` 守卫。见 §7.2 第三批记录） |
 | 1.5 | **调用点 B**：`compatOp` 边界登记 | `api/internal/compat-op.ts` | **已完成（经委托）**：`compatOp` 建在 `defineOp` 之上（`compat-op.ts` 头注「built on top of defineOp，非并行第二实现路径」）⇒ 调用点 A 已覆盖生成投影，无需第二处 register |
-| 1.6 | `FaceNaming.origin: PartName` → `StmtId`（S1） | `topology/naming/types.ts:180` | 待做 |
-| 1.7 | `role: string` → `RoleName`，删 `box:`/`extrude:` 前缀 | 同上 + `roles.ts:102-105` | 待做 |
-| 1.8 | 删 mesh 伪拓扑：`assignPrimitiveFaceRoles` + `role:''` 两处兜底（D6/S4） | `build-naming.ts:90-106`、`:127`、`:134` | 待做 |
-| 1.9 | mesh 路径引用抛 `E_TOPO_MESH_UNSUPPORTED` | `api/edge-ref.ts`、`api/face-ref.ts` | 待做 |
-| 1.10 | `roleTable` 降级为缓存（删 `shape.ts:68` 的条件写入、`shape.ts:79` 的 `roleTable?: unknown`） | `shape.ts:68/79` | 待做 |
-| 1.11 | 迁移器 `migrateTopoRef` + 单测（§2.3） | `topology/naming/migrate.ts`（新） | 待做（**依赖 1.6/1.7**：迁移的目标形态就是 V2，V2 未落地时无法写输出类型） |
-| 1.12 | `topology/naming/roles.ts` 的 `ROLE_ASSIGNERS` 改为**输出 `RoleName`** | `roles.ts:68` | 待做（与 1.7 同批——两者改的是同一件事的两半） |
+| 1.6 | `FaceNaming.origin: PartName` → `StmtId`（S1） | `topology/naming/types.ts:215` | **已完成**（`origin: StmtId \| null`，见 §7.2 第二批） |
+| 1.7 | `role: string` → `RoleName`，删 `box:`/`extrude:` 前缀 | 同上 + `role-name.ts` | **已完成**（前缀与位置兜底全删；**对外线格式仍为串**——`formatRoleName` 线格式，消费点用 `parseRoleName` 解回结构，见第二批裁决 1） |
+| 1.8 | 删 mesh 伪拓扑：`assignPrimitiveFaceRoles` + `role:''` 两处兜底（D6/S4） | `build-naming.ts` | **已完成**（函数整体删除；primitive 分支与 mesh 一致只填 hint） |
+| 1.9 | mesh 路径引用抛 `E_TOPO_MESH_UNSUPPORTED` | `api/edge-ref.ts`、`api/face-ref.ts` | **已完成**（`TopoRefError('E_TOPO_MESH_UNSUPPORTED', …)`；防回归测试钉住） |
+| 1.10 | `roleTable` 降级为缓存（删 `shape.ts:68` 的条件写入、`shape.ts:79` 的 `roleTable?: unknown`） | `shape.ts:68/79` | **待做（阻塞已解除）**：原阻塞条件「血缘登记未接线」已消失——1.4/1.5 已落地（§7.2 第三批）⇒ 具备开工前提，只剩 1.10 自身未做 |
+| 1.11 | 迁移器 `migrateTopoRef` + 单测（§2.3） | `topology/naming/migrate.ts` | **已完成**（`dfc51dc`；`migrateTopoRef` + `migrateRole`，14 测试含幂等 `migrate(migrate(x)) === migrate(x)`） |
+| 1.12 | `topology/naming/roles.ts` 的 `ROLE_ASSIGNERS` 改为**输出 `RoleName`** | `roles.ts:82` | **已完成**（签名 `(…) => RoleName \| undefined`） |
 
 **验收**：G2 达成（`nameless shape` 类报错归零）；G3 的 6 条链**不回退**（不要求变绿）；1.1 的 round-trip 测试全绿；1.11 的迁移器幂等性测试全绿。
 
 **执行顺序修正（实际依赖 vs 表内编号）**：`1.1 → 1.2/1.3 → 1.6/1.7/1.10/1.12 → 1.8/1.9 → 1.11 →（待 2.3）1.4/1.5`。
 编号顺序不是依赖顺序：1.11 的输出类型是 V2，故必须在 1.6/1.7 之后；1.4/1.5 需要 op 声明的 provenance，故必须在 2.3 之后。
+
+> **进度（2026-09-22 回填）**：Phase 1 除 **1.10** 外全部已完成。1.4/1.5 的 2.3 前置条件已满足并已接线（§7.2 第三批）；1.10 的阻塞条件随之解除但自身仍未做。
 
 **同步 3d_editor（S1/S2/S3/S4）**：
 - 改 `capture-topo-ref.test.ts:69-70`、`assemble-store.test.ts:481` 的断言；
@@ -639,6 +656,11 @@ resolve(identity, atPart):
 （boolean/fillet/chamfer/copy/transform/place 全部经它读写）。现在删字段 = 砍断唯一通路，
 而替代通路（血缘回走）还不存在。⇒ **1.10 改为与 1.4/1.5 同批执行**（2.3 之后：
 登记点落地、回走可用，缓存才能降级为可 miss 的缓存）。
+
+> **状态更新（2026-09-22）**：1.4/1.5 已落地并接线（§7.2 第三批）⇒ 上述前置条件已成立，**1.10 可开工**。
+> 但判据随之改变：现在要证明的是「血缘回走**真的**能替代 `slot.roleTable` 的读写通路」，
+> 且 `slot.roleTable` 的消费方（boolean / fillet / chamfer / copy / transform / place）
+> 需**逐条实测**确认可由回走覆盖，**不能凭计划推断**——这是 1.10 的实际开工门槛。
 这不影响 Phase 1 其余验收项——G2/G3 判据不依赖字段删除本身。
 
 ---
@@ -657,9 +679,12 @@ resolve(identity, atPart):
 | 2.8 | **防回归测试**：刻意漏声明 → 生成器必须抛；刻意漏 `defineOp.naming` → `tsc --noEmit` 必须失败 | `packages/core/scripts/*.test.ts` + `packages/tests/` |
 | 2.9 | G5 审计测试：compat 面 vs cad 面逐 name 比对 | `packages/tests/faijs/topology-naming/` |
 | 2.10 | 词汇表进生成产物（`.d.ts` + API 手册） | `core/scripts/gen-api-dts.ts`、`scripts/gen-ops-api-inventory.ts` |
-| 2.11 | **第三方库同步**：`fai_cq_gears` / `fai_cq_warehouse` / `sheetmetal` 每处 `defineOp` 加 `naming`（真实类别或 `unmodeled('reason')`） | 三个库仓库 |
+| 2.11 | **三库命名声明（实为设计裁决，非补字段）**：`fai_cq_gears` / `fai_cq_warehouse` / `sheetmetal` 导出**裸函数**（零 `defineOp`），经 `autoLift` → `admitCompatLib` 提升。须先**新增函数级/库级 `naming` 声明通道**，再让三库显式声明（真实类别或 `unmodeled('具体理由')`），最后裁决 `admitCompatLib` 那条 blanket 默认的去留 | **本仓** `packages/{fai_cq_gears,fai_cq_warehouse,sheetmetal}/src/**` |
 
 **验收**：G4 达成（漏声明 → 生成期/编译期失败，两条防回归测试在仓库）；G5 达成；2.11 三库测试全绿（**这是 breaking，必须同步做完**）。
+
+> **2.11 不是机械补字段**（实测，详见 §7.2）：三库零 `defineOp`，走 `autoLift` → `admitCompatLib` 的**硬编码 `unmodeled` 默认**；而当前**无任何库级/函数级 `naming` 声明入口**。
+> ⇒ 次序必须是 **① 新增声明通道 → ② 三库显式声明 → ③ 才可把 blanket 默认改硬失败**。跳过 ① 直接做 ③ 会即刻打断三库装载。
 
 **同步 3d_editor（S5）**：无需改动（纯内部声明）。
 
@@ -1015,11 +1040,16 @@ occt 的 12 项判定为「真」则由 `evolution-bindings.test.ts` 的**真调
 - **实测**：新增 `packages/tests/faijs/topology-naming/lineage-wiring.test.ts`（2/2）——断言图被填充（`size>=2`、`s1`=box、`s2` 的 `provenance.kind='kernel'`）且重放幂等；`topology-naming/` 41/41、`core/src/api/` 全集 305/305 全绿。（GOTCHA：`StmtId = s{lineNo}`，故测试代码必须**逐语句换行**，否则两条语句塌成同一锚点。）
 - **⚠️ 接线暴露并处置了一处计划缺陷**：§1.3 的附加守卫 `E_TOPO_PART_REDEFINED` 误杀**重赋值**（`part0 = cad.translate(part0, …)`），`api/dual-form-contract.test.ts` 8 例回退。已按用户裁决**改为最后写者胜**（见 §1.3 注记）——重赋值是官方支持的既有惯用法，PartName 不是身份载体。
 
-**§6 总验收现状**：G3 6/6 ✅、G1 0 未命名 ✅、G4 漏声明 2 测试（生成期 + 编译期）✅、C1 并发守卫 ✅、mesh E_TOPO_MESH_UNSUPPORTED ✅、D10 8 条未接线不做 ✅、§7 测定项 6 项回填 ✅、**§1.4/1.5 血缘接线 ✅**。**仍未关闭（多为跨仓库 / 生成器）**：
+**§6 总验收现状**：G3 6/6 ✅、G1 0 未命名 ✅、G4 漏声明 2 测试（生成期 + 编译期）✅、C1 并发守卫 ✅、mesh E_TOPO_MESH_UNSUPPORTED ✅、D10 8 条未接线不做 ✅、§7 测定项 6 项回填 ✅、**§1.4/1.5 血缘接线 ✅**。**仍未关闭（落点见各项）**：
 
 - **~~1.4/1.5 `registerStep` 血缘图未接线~~ 已接线**（见上「第三批」）：N1/N2/N3 运行期生效，G2/G6 的「无静默错名」缺口已收口。
+- **1.10 `roleTable` 降级为缓存**（**本仓，阻塞已解除**）：`shape.ts:68` 的条件写入与 `shape.ts:79` 的 `roleTable?: unknown` 仍在。原阻塞条件「血缘登记未接线」已随 1.4/1.5 落地消失 ⇒ 具备开工前提。**这是本主线唯一剩余的在仓清债项。**
 - **2.10 vocab 进生成产物**：需改 `gen-api-dts.ts` + `gen-ops-api-inventory.ts` 从 `naming` 产出词汇表。
-- **2.11 第三方库同步**（breaking）：`fai_cq_gears` / `fai_cq_warehouse` / `sheetmetal` 每处 `defineOp` 加 `naming`——在兄弟仓库，不在本仓库范围。
+- **2.11 三库命名声明**（breaking）：`fai_cq_gears` / `fai_cq_warehouse` / `sheetmetal`。**⚠️ 本条原口径两处错误，已实测纠正**：
+  1. ~~"在兄弟仓库，不在本仓库范围"~~ → 三库**就是本仓 workspace 包**（根 `package.json` 的 `workspaces` 列了 `packages/fai_cq_gears` / `packages/fai_cq_warehouse` / `packages/sheetmetal`），**本仓可做**；
+  2. ~~"每处 `defineOp` 加 `naming`"~~ → 三包 `src` 内 `defineOp` / `compatOp` **零命中**；三库导出裸 `Result` 函数（`spur_gear()` 等：无几何输入、一次内核构建成 solid）。
+  ⇒ 真实工作是**一次设计裁决**：新增声明通道 + 三库显式声明 + 处置 `admitCompatLib` 的硬编码 `unmodeled` 默认。
+  **代价的实质（须记）**：`roles.ts` 的 `ROLE_ASSIGNERS` **只覆盖 `box`/`cylinder`/`cone`/`sphere` 四种**，且位置兜底已删（Phase 1.7）⇒ 非四原语的 op 产出的面**不进 role 表 → `role: null` → 产不出 `topoRef`**。故三库声明 `unmodeled` 的后果是：其面在装配里**只能走几何快照**（`{surfaceType, center, normal}`），改参重算后数值漂移 → 失配或贴错面。孔轴类装配（`EdgeRef.axis` / 圆柱面 axis）走纯几何量，**不受此影响**。
 - **S1–S6 3d_editor 同步**：`origin`/`role` 线形态变化需 `../3d_editor` 迁移 `migrateTopoRef` + 更新断言——跨仓库，未关闭。
 
 ---

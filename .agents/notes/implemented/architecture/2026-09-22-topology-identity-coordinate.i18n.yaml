@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-22-topology-identity-coordinate.md
-2026-09-22-topology-identity-coordinate.md: 61e7e322cc15419d7017a60a70953c065b607947
-2026-09-22-topology-identity-coordinate.zh.md: 1f790ac998f005b50cb9c16250fc547051096211
+2026-09-22-topology-identity-coordinate.md: db8e98fadd57b604d2f3182788ad43c3883d5ac4
+2026-09-22-topology-identity-coordinate.zh.md: 775cc14c9a137bb961b0fe72c351b7079c025437
