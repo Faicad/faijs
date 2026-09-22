@@ -678,8 +678,8 @@ resolve(identity, atPart):
 | 2.7 | 6 条「手写覆盖」的生成版标 `skip` + `reason: overridden by handwritten <file>` | `arg-spec.ts` |
 | 2.8 | **防回归测试**：刻意漏声明 → 生成器必须抛；刻意漏 `defineOp.naming` → `tsc --noEmit` 必须失败 | `packages/core/scripts/*.test.ts` + `packages/tests/` |
 | 2.9 | G5 审计测试：compat 面 vs cad 面逐 name 比对 | `packages/tests/faijs/topology-naming/` |
-| 2.10 | 词汇表进生成产物（`.d.ts` + API 手册） | `core/scripts/gen-api-dts.ts`、`scripts/gen-ops-api-inventory.ts` |
-| 2.11 | **三库命名声明（实为设计裁决，非补字段）**：`fai_cq_gears` / `fai_cq_warehouse` / `sheetmetal` 导出**裸函数**（零 `defineOp`），经 `autoLift` → `admitCompatLib` 提升。须先**新增函数级/库级 `naming` 声明通道**，再让三库显式声明（真实类别或 `unmodeled('具体理由')`），最后裁决 `admitCompatLib` 那条 blanket 默认的去留 | **本仓** `packages/{fai_cq_gears,fai_cq_warehouse,sheetmetal}/src/**` |
+| 2.10 | 词汇表进生成产物（`.d.ts` + API 手册） | `core/scripts/gen-api-dts.ts`、`scripts/gen-ops-api-inventory.ts` — **已完成**（2026-09-22，`328da9c`：`role-vocab.ts` 从 `DUAL_OP_META.naming` 收集 → `.d.ts` 的 `CAD_ROLE_VOCAB` + 手册 §10 中英双语；inventory `--check` 与 api-dts-sync 测试绿） |
+| 2.11 | **三库命名声明（实为设计裁决，非补字段）**：`fai_cq_gears` / `fai_cq_warehouse` / `sheetmetal` 导出**裸函数**（零 `defineOp`），经 `autoLift` → `admitCompatLib` 提升。须先**新增函数级/库级 `naming` 声明通道**，再让三库显式声明（真实类别或 `unmodeled('具体理由')`），最后裁决 `admitCompatLib` 那条 blanket 默认的去留 | **本仓** `packages/{fai_cq_gears,fai_cq_warehouse,sheetmetal}/src/**` — **已完成**（2026-09-22，三步分别 `ddaff54` / `3319512` / `434a080`；三库测试复跑按用户指示暂缓） |
 
 **验收**：G4 达成（漏声明 → 生成期/编译期失败，两条防回归测试在仓库）；G5 达成；2.11 三库测试全绿（**这是 breaking，必须同步做完**）。
 
@@ -1043,13 +1043,11 @@ occt 的 12 项判定为「真」则由 `evolution-bindings.test.ts` 的**真调
 **§6 总验收现状**：G3 6/6 ✅、G1 0 未命名 ✅、G4 漏声明 2 测试（生成期 + 编译期）✅、C1 并发守卫 ✅、mesh E_TOPO_MESH_UNSUPPORTED ✅、D10 8 条未接线不做 ✅、§7 测定项 6 项回填 ✅、**§1.4/1.5 血缘接线 ✅**。**仍未关闭（落点见各项）**：
 
 - **~~1.4/1.5 `registerStep` 血缘图未接线~~ 已接线**（见上「第三批」）：N1/N2/N3 运行期生效，G2/G6 的「无静默错名」缺口已收口。
-- **1.10 `roleTable` 降级为缓存**（**本仓，阻塞已解除**）：`shape.ts:68` 的条件写入与 `shape.ts:79` 的 `roleTable?: unknown` 仍在。原阻塞条件「血缘登记未接线」已随 1.4/1.5 落地消失 ⇒ 具备开工前提。**这是本主线唯一剩余的在仓清债项。**
-- **2.10 vocab 进生成产物**：需改 `gen-api-dts.ts` + `gen-ops-api-inventory.ts` 从 `naming` 产出词汇表。
-- **2.11 三库命名声明**（breaking）：`fai_cq_gears` / `fai_cq_warehouse` / `sheetmetal`。**⚠️ 本条原口径两处错误，已实测纠正**：
-  1. ~~"在兄弟仓库，不在本仓库范围"~~ → 三库**就是本仓 workspace 包**（根 `package.json` 的 `workspaces` 列了 `packages/fai_cq_gears` / `packages/fai_cq_warehouse` / `packages/sheetmetal`），**本仓可做**；
-  2. ~~"每处 `defineOp` 加 `naming`"~~ → 三包 `src` 内 `defineOp` / `compatOp` **零命中**；三库导出裸 `Result` 函数（`spur_gear()` 等：无几何输入、一次内核构建成 solid）。
-  ⇒ 真实工作是**一次设计裁决**：新增声明通道 + 三库显式声明 + 处置 `admitCompatLib` 的硬编码 `unmodeled` 默认。
-  **代价的实质（须记）**：`roles.ts` 的 `ROLE_ASSIGNERS` **只覆盖 `box`/`cylinder`/`cone`/`sphere` 四种**，且位置兜底已删（Phase 1.7）⇒ 非四原语的 op 产出的面**不进 role 表 → `role: null` → 产不出 `topoRef`**。故三库声明 `unmodeled` 的后果是：其面在装配里**只能走几何快照**（`{surfaceType, center, normal}`），改参重算后数值漂移 → 失配或贴错面。孔轴类装配（`EdgeRef.axis` / 圆柱面 axis）走纯几何量，**不受此影响**。
+- **1.10 `roleTable` 降级为缓存**（**本仓，开工门槛实测未通过，待拍板**）：2026-09-22 实测——血缘回走引擎不存在（`LineageGraph` 仅登记/查询，无 role 推进；`attachEvolution` 零生产调用点），`slot.roleTable` 是 op 间传递（9 处读）与解析（`resolve-face/edge`）的唯一在用通路。现在删字段 = 砍断 G3 6/6。前置：① 演化 `attachEvolution` 接生产调用点 ② 回走推进器 ③ 缓存降级——另立设计后再开工。
+- **~~2.10 vocab 进生成产物~~ 已完成**（`328da9c`）：`role-vocab.ts`（权威源 = `DUAL_OP_META.naming`）→ `.d.ts` 的 `CAD_ROLE_VOCAB`（55 条）+ API 手册 §10（中英双语）。
+- **~~2.11 三库命名声明~~ 已完成**（`ddaff54` / `3319512` / `434a080`）：① 通道（`fn.naming` 函数级 → `registerLib({naming})` 库级，precedence 链测试钉住）→ ② 三库 `package.json` 的 `faijs.naming` 外置声明（与 `faijs.autoLift` 同构；CLI/browser loader + `gen-importmap.mjs` lib-meta 全链路接通）→ ③ blanket `unmodeled` 默认废除，未声明裸函数提升**硬失败**（D11）。三库测试复跑按用户指示暂缓。
+  - 原口径两处错误（实测纠正留档）：~~"在兄弟仓库，不在本仓库范围"~~ → 三库就是本仓 workspace 包；~~"每处 `defineOp` 加 `naming`"~~ → 三包 `src` 内 `defineOp`/`compatOp` 零命中，导出裸 `Result` 函数 ⇒ 声明落点为 `package.json` 外置字段而非源码逐函数。
+  - **代价的实质（须记）**：`ROLE_ASSIGNERS` 只覆盖 `box`/`cylinder`/`cone`/`sphere` 四种原语，且位置兜底已删（1.7）⇒ 三库声明 `unmodeled` 的后果是其面在装配里**只能走几何快照**，改参重算后数值漂移 → 失配或贴错面。孔轴类装配（圆柱面 axis）走纯几何量，**不受此影响**。
 - **S1–S6 3d_editor 同步**：`origin`/`role` 线形态变化需 `../3d_editor` 迁移 `migrateTopoRef` + 更新断言——跨仓库，未关闭。
 
 ---
