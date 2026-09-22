@@ -731,7 +731,12 @@ export function toothFaceGrids(
   width: number = g.width,
 ): ToothGrid[] {
   const twistSpan = Math.abs(g.twistAngle)
-  const surfSplines = Math.max(1, Math.ceil(twistSpan / Math.PI)) * g.surfaceSplines
+  // Section density: cq uses 5 rows per π of twist (surface_splines=5). At
+  // large twist angles the 43° row spacing makes B-spline loft overshoot the
+  // tip circle (measured: 5 rows → +2.7mm bbox error on a -42° helix, 20 rows
+  // → 0.0mm). Densify to 12 rows per π so overshoot stays < 0.05mm while
+  // straight teeth (twistSpan=0) keep their 2-row extrusion.
+  const surfSplines = Math.max(g.surfaceSplines, Math.ceil((twistSpan / Math.PI) * 12))
   const angles = linspace(twistA, twistB, surfSplines)
   const zs = linspace(zPos, zPos + width, surfSplines)
 

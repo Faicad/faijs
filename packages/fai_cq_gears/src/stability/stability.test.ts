@@ -12,12 +12,20 @@
 
 import { describe, expect, it } from 'vitest'
 import { spawnSync } from 'node:child_process'
+import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { STABILITY_SUITES, stabilitySuite } from './cases'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const RUNNER = join(HERE, 'runner-entry.ts')
+// The runner is .ts source with extensionless imports and TS parameter
+// properties — it can only be executed by tsx (see the runner-entry.ts
+// header: "Usage: tsx runner-entry.ts <suiteId> <jsonParams>"). Node's
+// native strip-only TS mode does not resolve extensionless imports and
+// crashes every case, so spawn through the tsx CLI.
+const require = createRequire(import.meta.url)
+const TSX_CLI = require.resolve('tsx/cli')
 
 const CASES_PER_CLASS = 20
 const SEED = 42 // cq conftest default --rng_seed
@@ -33,7 +41,7 @@ function runOneCase(suiteId: string, params: Record<string, number>): {
   ok: boolean; tag?: string; message?: string
 } {
   const res = spawnSync(
-    process.execPath, [RUNNER, suiteId, JSON.stringify(params)],
+    process.execPath, [TSX_CLI, RUNNER, suiteId, JSON.stringify(params)],
     { timeout: CASE_TIMEOUT_MS, encoding: 'utf8', cwd: HERE },
   )
   if (res.status === 0) return { ok: true }

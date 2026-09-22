@@ -43,6 +43,7 @@
   },
   "devDependencies": {
     "@faicad/cq-compat-compare": "file:../cq-compat-compare",
+    "tsx": "^4.23.12",
     "@faicad/faijs": "file:../core",
     "typescript": "*",
     "vitest": "*"

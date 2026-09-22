@@ -19,7 +19,7 @@ export { setBrepkitWasmInitFn, initBrepkitWasm, isBrepkitInitialized } from './b
 export { registerBrepkitBrepEngine, BREPKIT_BREP_ENGINE_ID, ensureBrepkitDefaultEngine } from './brep/engine/adapters/brepkit'
 
 // BREP 引擎注册表（环境无关；ensureBrepChain 见已注册引擎即跳过 OCCT）
-export { registerBrepEngine, hasBrepEngine, getActiveBrepEngineId, freezeEngineRegistries } from './brep/engine/registry'
+export { registerBrepEngine, hasBrepEngine, getBrepEngine, getActiveBrepEngineId, freezeEngineRegistries } from './brep/engine/registry'
 export type { BrepEngine, BrepEngineProvider } from './brep/engine/registry'
 export type { BrepEngineApi } from './brep/engine/primitives'
 
