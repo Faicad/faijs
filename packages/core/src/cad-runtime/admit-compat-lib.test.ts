@@ -11,7 +11,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { admitCompatLib, BARE_LIFT_FALLBACK_NAMING } from './admit-compat-lib'
+import { admitCompatLib } from './admit-compat-lib'
 import { DUAL_OP_META, type DualOpMeta } from '../define-op'
 import { CONTRACT_VERSION } from '../runtime-state'
 import type { Provenance } from '../topology/naming/lineage'
@@ -28,10 +28,9 @@ function metaOf(ns: Record<string, unknown>, name: string): DualOpMeta {
   return meta!
 }
 
-describe('Phase 2.11-①：naming 声明通道', () => {
-  it('无任何声明 → blanket unmodeled 兜底（BARE_LIFT_FALLBACK_NAMING）', () => {
-    const out = admitCompatLib(lib({ foo: () => ({}) }))
-    expect(metaOf(out, 'foo').naming).toEqual(BARE_LIFT_FALLBACK_NAMING)
+describe('Phase 2.11：naming 声明通道', () => {
+  it('2.11-③：无任何声明 → 硬失败（不再有 blanket unmodeled 兜底，D11）', () => {
+    expect(() => admitCompatLib(lib({ foo: () => ({}) }))).toThrow(/no naming declaration/)
   })
 
   it('函数级 fn.naming 优先于库级 options.naming', () => {

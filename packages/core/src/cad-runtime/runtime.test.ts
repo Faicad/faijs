@@ -879,7 +879,10 @@ describe('P 四（4.6）: execute 自动装载（libLoader autoLoadLibs）', () 
   })
 
   const gearNs: StdlibNamespace = {
-    makeHeadstock: () => solid(cubeMesh(8)),
+    // Phase 2.11-③：blanket 兜底已废除 → 提升路径的裸函数必须带显式声明。
+    makeHeadstock: Object.assign(() => solid(cubeMesh(8)), {
+      naming: { kind: 'unmodeled', reason: 'test fixture: cube mesh, no provenance' },
+    }),
   } as unknown as StdlibNamespace
 
   const GEAR_CODE = "import * as gear from 'gear-lib-demo'\nlet p = gear.makeHeadstock({ teeth: 8 })"
