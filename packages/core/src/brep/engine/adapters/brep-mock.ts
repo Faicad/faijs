@@ -338,6 +338,14 @@ export function createBrepMockApi(): BrepEngineApi {
       const evo: BrepEvolutionData = { result, modified: [], generated: [], deleted: [] }
       return evo
     },
+    // Phase 0.1 补齐的 7 个：memory 引擎不实现 —— 明确缺失暴露，不伪造（与 loft/section 同风格）。
+    translateWithHistory: () => unsupported('translateWithHistory'),
+    rotateWithHistory: () => unsupported('rotateWithHistory'),
+    mirrorWithHistory: () => unsupported('mirrorWithHistory'),
+    scaleWithHistory: () => unsupported('scaleWithHistory'),
+    shellWithHistory: () => unsupported('shellWithHistory'),
+    offsetWithHistory: () => unsupported('offsetWithHistory'),
+    thickenWithHistory: () => unsupported('thickenWithHistory'),
 
     // ── XCAF 装配（mock 文档） ──
     createXCAFDocument: () => mockXcafDocument(),

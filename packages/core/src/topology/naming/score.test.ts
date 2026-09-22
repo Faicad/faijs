@@ -154,6 +154,16 @@ function planeKernel(): BrepEngineApi {
     filletVariable: () => 1 as BrepHandle,
     filletWithHistory: () => ({ result: 1 as BrepHandle, modified: [], generated: [], deleted: [] }),
     chamferWithHistory: () => ({ result: 1 as BrepHandle, modified: [], generated: [], deleted: [] }),
+    // Phase 0.1：BrepEngineApi 补了 7 个 *WithHistory。测试 kernel 不提供面演化，
+    // 以抛错桩显式暴露缺失 —— 注意不要改成 `as unknown as BrepEngineApi`：
+    // 那会切断对象字面量的上下文类型，令上面所有箭头函数参数退化成 implicit any。
+    translateWithHistory: (): never => { throw new Error('[test-kernel] translateWithHistory not provided') },
+    rotateWithHistory: (): never => { throw new Error('[test-kernel] rotateWithHistory not provided') },
+    mirrorWithHistory: (): never => { throw new Error('[test-kernel] mirrorWithHistory not provided') },
+    scaleWithHistory: (): never => { throw new Error('[test-kernel] scaleWithHistory not provided') },
+    shellWithHistory: (): never => { throw new Error('[test-kernel] shellWithHistory not provided') },
+    offsetWithHistory: (): never => { throw new Error('[test-kernel] offsetWithHistory not provided') },
+    thickenWithHistory: (): never => { throw new Error('[test-kernel] thickenWithHistory not provided') },
 } as BrepEngineApi
 }
 

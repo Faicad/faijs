@@ -512,6 +512,30 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
     intersectWithHistory(_a: BrepHandle, _b: BrepHandle, _inputFaceHashes: number[], _hashUpperBound: number): BrepEvolutionData {
       return unsupported('intersectWithHistory')
     },
+    // Phase 0.1 补齐的 7 个：brepkit 适配器 v1 未实现 —— 如实抛错，不伪造。
+    // ⚠️ 这正是 adapters/brepkit.ts 里 `evolution: true` 属"粗布尔虚报"的实例：
+    // 该布尔声称支持整个演化族，实际只覆盖 cut/fuse/fillet（见该文件注释）。
+    translateWithHistory(_shape: BrepHandle, _dx: number, _dy: number, _dz: number, _inputFaceHashes: number[], _hashUpperBound: number): BrepEvolutionData {
+      return unsupported('translateWithHistory')
+    },
+    rotateWithHistory(_shape: BrepHandle, _axis: { point: BrepVec3; direction: BrepVec3 }, _angleRad: number, _inputFaceHashes: number[], _hashUpperBound: number): BrepEvolutionData {
+      return unsupported('rotateWithHistory')
+    },
+    mirrorWithHistory(_shape: BrepHandle, _point: BrepVec3, _normal: BrepVec3, _inputFaceHashes: number[], _hashUpperBound: number): BrepEvolutionData {
+      return unsupported('mirrorWithHistory')
+    },
+    scaleWithHistory(_shape: BrepHandle, _center: BrepVec3, _factor: number, _inputFaceHashes: number[], _hashUpperBound: number): BrepEvolutionData {
+      return unsupported('scaleWithHistory')
+    },
+    shellWithHistory(_solid: BrepHandle, _faces: BrepHandle[], _thickness: number, _tolerance: number, _inputFaceHashes: number[], _hashUpperBound: number): BrepEvolutionData {
+      return unsupported('shellWithHistory')
+    },
+    offsetWithHistory(_solid: BrepHandle, _distance: number, _tolerance: number, _inputFaceHashes: number[], _hashUpperBound: number): BrepEvolutionData {
+      return unsupported('offsetWithHistory')
+    },
+    thickenWithHistory(_shape: BrepHandle, _thickness: number, _tolerance: number, _inputFaceHashes: number[], _hashUpperBound: number): BrepEvolutionData {
+      return unsupported('thickenWithHistory')
+    },
 
     // ── XCAF 装配（v1 关闭） ──
     createXCAFDocument(): BrepXcafDocument { return unsupported('createXCAFDocument') },
