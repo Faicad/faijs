@@ -23,7 +23,7 @@ import { resolveExternalGeometry } from './external-geo.js';
 import { extractContours } from './contour.js';
 import type { Contour } from './contour.js';
 import { generateModel } from './codegen.js';
-import { placementOf, type Placement } from './placement.js';
+import type { Placement } from './placement.js';
 import { effectivePlacement } from './attachment.js';
 import { buildFaiZip } from './build-fai-zip.js';
 import { isOk } from '../api/result.js';

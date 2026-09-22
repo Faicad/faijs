@@ -83,7 +83,7 @@ describe('evolution 声明审计：brep-mock（无面演化）', () => {
 // GOTCHA: brepkit-wasm 是可选运行时注入（非声明依赖）——未安装时套件整体 skip 而非 FAIL
 // （与 brepkitKernel.test.ts 同法：条件须在收集期同步求值，不能依赖 beforeAll 的异步结果）。
 const require = createRequire(import.meta.url)
-let brepkitAvailable = false
+let brepkitAvailable: boolean
 try {
   require.resolve('brepkit-wasm')
   brepkitAvailable = true

@@ -9,7 +9,6 @@
 import type { Shape, Vec3 } from '../mesh/types'
 import { cad } from '../mesh'
 import {
-  drillBrep,
   buildDrillToolSolid,
   computeDrillGeometry,
   solidToShape,
