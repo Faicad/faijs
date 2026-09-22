@@ -1197,9 +1197,9 @@
     "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testSplitKeepingBoth__c": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testSplitKeepingBoth",
-    "blockedBy": "split"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testSplitKeepingBoth__result": {
     "status": "ported",
@@ -1207,9 +1207,9 @@
     "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testSplitKeepingBottom__c": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testSplitKeepingBottom",
-    "blockedBy": "split"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testSplitKeepingBottom__result": {
     "status": "ported",
@@ -1217,9 +1217,9 @@
     "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testSplitKeepingHalf__c": {
-    "status": "blocked",
+    "status": "ported",
     "source": "tests.test_cadquery::TestCadQuery::testSplitKeepingHalf",
-    "blockedBy": "split"
+    "blockedBy": null
   },
   "tests.test_cadquery::TestCadQuery::testSplitKeepingHalf__result": {
     "status": "ported",
