@@ -107,6 +107,34 @@ export interface BrepEngineApi {
   generalTransform(shape: BrepHandle, matrix: number[]): BrepHandle
   copy(shape: BrepHandle): BrepHandle
 
+  // ── 阵列（Phase 2：pattern 族；occt-wasm 原生 + brepkit wasm 已导出） ──
+  // 口径（vendored brepjs 内核调用面，docs/plans/2026-09-23-brep-engine-switchability-rework.md §Phase 2）：
+  //   - 两内核的 pattern 内核函数都返回 compound（含全部副本），适配器负责拆成数组；
+  //   - 不声明 rectangularPattern：vendored rectangularPattern 是纯 JS 组合
+  //     （compoundOpsFns.ts，translate + fuseAll），不调内核方法（capability-map 实证）；
+  //   - 不声明裸 mirror/rotate：vendored transformFns 全部走 `*WithHistory` 内核
+  //     （transformFns.ts:29-99 实证），基础方法仅 2D sketcher 面使用（走 KernelAdapter）。
+  /** 线性阵列：沿 direction 复制 count 份（含原位置），返回各份副本句柄数组。 */
+  linearPattern(shape: BrepHandle, direction: BrepVec3, spacing: number, count: number): BrepHandle[]
+  /** 环形阵列：绕 axis 均分 angleStep 每份，返回各份副本句柄数组。 */
+  circularPattern(
+    shape: BrepHandle,
+    center: BrepVec3,
+    axis: BrepVec3,
+    angleStep: number,
+    count: number,
+  ): BrepHandle[]
+  /** 二维栅格阵列：沿两方向复制 countX×countY 份，返回 compound 单句柄。 */
+  gridPattern(
+    shape: BrepHandle,
+    directionX: BrepVec3,
+    directionY: BrepVec3,
+    spacingX: number,
+    spacingY: number,
+    countX: number,
+    countY: number,
+  ): BrepHandle
+
   // ── 曲线构造 ──
   makeLineEdge(start: BrepVec3, end: BrepVec3): BrepHandle
   makeArcEdge(start: BrepVec3, mid: BrepVec3, end: BrepVec3): BrepHandle

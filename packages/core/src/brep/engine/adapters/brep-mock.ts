@@ -233,6 +233,31 @@ export function createBrepMockApi(): BrepEngineApi {
       return alloc({ kind: 'solid', bbox: { ...s.bbox }, tag: `copy(${s.tag})` })
     },
 
+    // ── 阵列（Phase 2 接口新增；mock 只重打标签/复制，不做真几何） ──
+    linearPattern: (shape, direction, spacing, count) => {
+      const s = need(shape, 'linearPattern')
+      const list: BrepHandle[] = []
+      for (let i = 0; i < count; i++) {
+        list.push(alloc({
+          kind: 'solid',
+          bbox: {
+            xmin: s.bbox.xmin + direction.x * spacing * i, ymin: s.bbox.ymin + direction.y * spacing * i, zmin: s.bbox.zmin + direction.z * spacing * i,
+            xmax: s.bbox.xmax + direction.x * spacing * i, ymax: s.bbox.ymax + direction.y * spacing * i, zmax: s.bbox.zmax + direction.z * spacing * i,
+          },
+          tag: `linearPattern(${s.tag},${i})`,
+        }))
+      }
+      return list
+    },
+    circularPattern: (shape, _center, _axis, _angleStep, _count) => {
+      const s = need(shape, 'circularPattern')
+      return [alloc({ kind: 'solid', bbox: { ...s.bbox }, tag: `circularPattern(${s.tag})` })]
+    },
+    gridPattern: (shape, directionX, directionY, spacingX, spacingY, countX, countY) => {
+      const s = need(shape, 'gridPattern')
+      return alloc({ kind: 'solid', bbox: { ...s.bbox }, tag: `gridPattern(${s.tag},${countX}x${countY})` })
+    },
+
     // ── 曲线构造 ──
     makeLineEdge: (start, end) => alloc({ kind: 'edge',
       bbox: {

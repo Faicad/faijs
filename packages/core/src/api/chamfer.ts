@@ -267,7 +267,10 @@ function chamferBrep(input: Shape, params: Record<string, unknown>): Shape {
  * const p = await cad.chamfer(part0, { edges: [{ kind:'edge', faces:[{ origin:'box', role:'box:top' }, { origin:'box', role:'box:front' }], hint:{ kind:'edge' } }], type:'equal', width:1 })
  */
 export const chamfer = defineOp({
-  capabilities: ['directEdit'],
+  // Phase 2：能力声明精确到内核方法（替代族级 directEdit）——brepkit 无
+  // chamfer/chamferDistAngle（chamferWithHistory 亦未导出），静态判定执行前报错，
+  // 不落入"声明过宽 → 静默通过判定后死在运行时"的红线。
+  capabilities: ['chamfer', 'chamferDistAngle'],
   brep(input: Shape, params: Record<string, unknown>) {
     assertChamferParams(params)
     return chamferBrep(input, params)

@@ -259,6 +259,29 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
     },
     copy(shape: BrepHandle): BrepHandle { return asHandle(kernel.copySolid(asNum(shape))) },
 
+    // ── 阵列（Phase 2：brepkit wasm 已导出 linearPattern/circularPattern/gridPattern） ──
+    // brepkit wasm 的 pattern 内核函数都返回 compound（含全部副本，README「Returns a
+    // compound handle containing all copies」实证）→ 经 getCompoundSolids 拆成数组。
+    linearPattern(shape: BrepHandle, direction: BrepVec3, spacing: number, count: number): BrepHandle[] {
+      const compound = kernel.linearPattern(asNum(shape), direction.x, direction.y, direction.z, spacing, count)
+      return arr(kernel.getCompoundSolids(compound)).map(asHandle)
+    },
+    circularPattern(shape: BrepHandle, center: BrepVec3, axis: BrepVec3, angleStep: number, count: number): BrepHandle[] {
+      // ⚠️ brepkit wasm circularPattern(solid, ax, ay, az, count) 无 center/angle 参数：
+      // 固定整圆均分（每份 360°/count）。fullAngle=360 时与 vendored/occt 语义一致；
+      // 其它角度跨度无法表达（语义限制记录于此，parity 测试用整圆）。
+      const compound = kernel.circularPattern(asNum(shape), axis.x, axis.y, axis.z, count)
+      return arr(kernel.getCompoundSolids(compound)).map(asHandle)
+    },
+    gridPattern(shape: BrepHandle, directionX: BrepVec3, directionY: BrepVec3, spacingX: number, spacingY: number, countX: number, countY: number): BrepHandle {
+      return asHandle(kernel.gridPattern(
+        asNum(shape),
+        directionX.x, directionX.y, directionX.z,
+        directionY.x, directionY.y, directionY.z,
+        spacingX, spacingY, countX, countY,
+      ))
+    },
+
     // ── 曲线构造 ──
     makeLineEdge(start: BrepVec3, end: BrepVec3): BrepHandle {
       return asHandle(kernel.makeLineEdge(start.x, start.y, start.z, end.x, end.y, end.z))

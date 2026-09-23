@@ -50,22 +50,16 @@ function linearPatternBrep(input: Shape, direction: Vec3, count: number, spacing
   const inputFaces = kernel.getSubShapes(inputSolid, 'face')
   const inputCentroids = inputFaces.map((f) => kernel.getSurfaceCenterOfMass(f))
 
-  // 取 count 份副本（内核原生 linearPattern：brepkit 返回 BrepHandle[]，occt-wasm
-  // 返回已 fused 的 BrepHandle —— 两种形态都按结果面质心聚类，故兼容）
+  // 取 count 份副本。Phase 2：BrepEngineApi.linearPattern 契约统一返回 BrepHandle[]
+  // （两内核原生都返回 compound，由适配器拆成数组）——不再有「单句柄 fused」形态。
   const dir = norm(direction)
-  const raw = (kernel as unknown as {
-    linearPattern(s: BrepHandle, d: number[], sp: number, n: number): unknown
-  }).linearPattern(inputSolid, [dir[0], dir[1], dir[2]], spacing, count)
+  const raw = kernel.linearPattern(inputSolid, { x: dir[0], y: dir[1], z: dir[2] }, spacing, count)
 
   let resultSolid: BrepHandle
-  if (Array.isArray(raw)) {
-    try {
-      resultSolid = kernel.fuseAll(raw)
-    } finally {
-      for (const c of raw) kernel.release(c)
-    }
-  } else {
-    resultSolid = raw as BrepHandle
+  try {
+    resultSolid = kernel.fuseAll(raw)
+  } finally {
+    for (const c of raw) kernel.release(c)
   }
 
   // 结果面 hash / 质心

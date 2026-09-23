@@ -21,7 +21,7 @@
 
 import { resolveArgs, type FormClass } from './dual-form-args'
 import { callBrepjs } from './l3-bridge'
-import { isOcctKernelBound } from '../occt-kernel-bridge'
+import { isKernelInjected } from '../occt-kernel-bridge'
 import { getBackends } from '../../runtime-state'
 
 /**
@@ -29,7 +29,9 @@ import { getBackends } from '../../runtime-state'
  *
  * Reads the configured backend's kernel slot, guarding against the throw that
  * `getBackends()` performs before host configuration. Falls back to the
- * occt-kernel binding flag when nothing is configured.
+ * vendored kernel-registry injection flag (engine-neutral, Phase 2 P2-5: the
+ * registry is injected with the current BREP engine during assembly, not
+ * hard-bound to occt) when nothing is configured.
  *
  * @param name - op name, used in the guiding error message.
  * @throws when no BREP kernel is bound (the message tells the host what to do,
@@ -42,10 +44,11 @@ export function assertKernelBound(name: string): void {
   } catch {
     // backends not configured yet — that is not an error, just no kernel
   }
-  if (!kernelBound && !isOcctKernelBound()) {
+  if (!kernelBound && !isKernelInjected()) {
     throw new Error(
-      `[compat:${name}] no BREP kernel bound; run host init/bind (e.g. initOcct + bindOcctKernel) ` +
-        `before the first compat.${name} call. Library code must not install kernels itself.`
+      `[compat:${name}] no BREP kernel bound; run host init/inject (e.g. initOcct + ` +
+        `injectCurrentBrepEngineAsKernel) before the first compat.${name} call. ` +
+        `Library code must not install kernels itself.`
     )
   }
 }

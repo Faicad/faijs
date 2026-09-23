@@ -205,6 +205,12 @@ export type BrepMethodKind =
   | 'rotate'
   | 'translate'
   | 'scale'
+  // 倒角/圆角基础方法（directEdit 族下的逐核真名，Phase 2：chamfer op 能力声明
+  // 精确到内核方法——brepkit 无 chamfer/chamferDistAngle，静态判定执行前报错）
+  | 'chamfer'
+  | 'chamferDistAngle'
+  | 'fillet'
+  | 'filletVariable'
   // 构形/拉伸/放样族
   | 'makeRectangle'
   | 'shell'

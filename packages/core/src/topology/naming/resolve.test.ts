@@ -107,6 +107,9 @@ function planeKernel(normal: [number, number, number], center: [number, number, 
     shellWithHistory: (): never => { throw new Error('[test-kernel] shellWithHistory not provided') },
     offsetWithHistory: (): never => { throw new Error('[test-kernel] offsetWithHistory not provided') },
     thickenWithHistory: (): never => { throw new Error('[test-kernel] thickenWithHistory not provided') },
+    linearPattern: () => [],
+    circularPattern: () => [],
+    gridPattern: () => 0 as unknown as never,
 } as BrepEngineApi
 }
 

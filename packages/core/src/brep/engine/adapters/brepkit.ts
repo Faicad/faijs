@@ -54,6 +54,10 @@ export async function registerBrepkitBrepEngine(): Promise<void> {
         'makeCylinder',
         'makeFace',
         'makeLineEdge',
+        // Phase 2：brepkit wasm 已导出 pattern 三方法并已接线（brepkitKernel.ts 阵列族）。
+        'linearPattern',
+        'circularPattern',
+        'gridPattern',
         'scale',
         'sewAndSolidify',
         'surfaceNormal',

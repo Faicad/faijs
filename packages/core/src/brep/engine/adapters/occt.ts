@@ -12,13 +12,19 @@
  */
 
 import { registerBrepEngine, hasBrepEngine, isBrepEngineRegistered, type BrepEngine } from '../registry'
-import type { AssertSatisfiesBrepEngineApi } from '../primitives'
+import type { AssertSatisfiesBrepEngineApi, BrepEngineApi } from '../primitives'
 import type { BrepEvolutionKind, BrepMethodKind } from '../types'
+import type { BrepHandle } from '../types'
 import { initOcctWasm } from '../../../occt-kernel/occtKernel'
-import { bindOcctKernel } from '../../../api/occt-kernel-bridge'
+import { injectCurrentBrepEngineAsKernel } from '../../../api/occt-kernel-bridge'
 
 /** OCCT 引擎注册 id（默认 BREP 引擎；首个注册自动成为默认）。 */
 export const OCCT_BREP_ENGINE_ID = 'occt'
+
+// Phase 2 幂等护栏：occt-wasm 是进程级单例，registerOcctBrepEngine 可能被多次调用
+// （测试重置注册表后重注册）。pattern 三方法只覆写一次——重复覆写会捕获到上一轮
+// 覆写版（返回 BrepHandle[]），把它当 compound 拆 → getSubShapes: Invalid shape ID: 0。
+let occtPatternWired = false
 
 /**
  * OCCT 实际提供的 `*WithHistory` 核函数名（Phase 0.2：逐核函数如实声明）。
@@ -32,12 +38,19 @@ export const OCCT_BREP_ENGINE_ID = 'occt'
  * 非演化内核方法全集（BrepMethodKind）——occt-wasm 是参考内核，vendored
  * occtWasmAdapter 提供全部方法（occt-kernel/initOcctWasm 包装同一实例），
  * 逐核如实声明（Phase 1，P2 缺口补齐）。
+ *
+ * ⚠️ Phase 2 修正（能力声明=可执行语义）：
+ *   - 保留 `gridPattern`：occt-wasm 无原生 gridPattern，但 vendored gridPattern
+ *     有回退路径（嵌套 linearPattern，patternFns.ts）且本适配器新增组合实现
+ *     ——occt 下 gridPattern op 可执行，声明成立；
+ *   - 移除 `rectangularPattern`：occt-wasm 无此内核方法，vendored rectangularPattern
+ *     是纯 JS 组合（compoundOpsFns.ts translate+fuseAll，不调内核）——无 op 依赖
+ *     该能力名，声明即虚假（capability-map 实证 36 op 无一依赖）。
  */
 const OCCT_METHOD_KINDS = [
   'linearPattern',
   'circularPattern',
   'gridPattern',
-  'rectangularPattern',
   'mirror',
   'rotate',
   'translate',
@@ -104,6 +117,12 @@ const OCCT_METHOD_KINDS = [
   'dispose',
   'downcast',
   'hashCode',
+  // Phase 2：chamfer/fillet 基础方法（directEdit 族逐核真名；occt-wasm 原生提供，
+  // brepkit 无——chamfer op 静态判定执行前报错）
+  'chamfer',
+  'chamferDistAngle',
+  'fillet',
+  'filletVariable',
 ] as const satisfies readonly BrepMethodKind[]
 
 const OCCT_EVOLUTION_KINDS = [
@@ -128,12 +147,88 @@ const OCCT_EVOLUTION_KINDS = [
  * getKernel() 立即可用（occt-kernel 单例已就绪），provider 直接返回预初始化实例。
  * 幂等：已注册（含运行时默认装配或宿主先行注册）则跳过注册，仅确保 wasm 预初始化。
  */
+/** occt-wasm 运行时原始 pattern 形态（initOcctWasm 返回类型被硬断言，此处如实还原）。 */
+interface OcctPatternRaw {
+  // occt-wasm 原生签名（dist/index.d.ts:230-231 实证）：方向/中心/轴是 **Vec3 对象**
+  // （{x,y,z}），4/5 参数形态。⚠️ vendored transformOps.ts 的分量式调用（6/9 参数）
+  // 是 brepjs 内部 OcctKernelWasm 的假定面，对真实 occt-wasm 不成立（运行实证崩），
+  // Phase 3 全量收敛时单独处置。
+  linearPattern(shape: number, direction: { x: number; y: number; z: number }, spacing: number, count: number): number
+  circularPattern(shape: number, center: { x: number; y: number; z: number }, axis: { x: number; y: number; z: number }, angleStep: number, count: number): number
+  getSubShapes(shape: number, type: 'solid'): number[]
+  release(shape: number): void
+  fuseAll(shapes: number[]): number
+}
+
+/**
+ * 装配 OCCT BREP 引擎（幂等；pattern 三方法仅首次覆写，见上方长注释）。
+ */
 export async function registerOcctBrepEngine(): Promise<void> {
   const primitives = await initOcctWasm()
   if (isBrepEngineRegistered(OCCT_BREP_ENGINE_ID)) return
+  // Phase 2：occt-wasm 原生 linearPattern/circularPattern 返回 compound（含全部副本），
+  // BrepEngineApi 契约要求 BrepHandle[]（各份副本）→ 在此拆 compound（getSubShapes）。
+  // gridPattern 无原生内核函数 → 组合实现（嵌套 linearPattern + fuseAll，与 vendored
+  // 回退路径同构）；拆出的子句柄由调用方 release，compound 容器拆完即释放。
+  // ⚠️ initOcctWasm 的返回类型在 occtKernel.ts 被硬断言为 BrepEngineApi（linearPattern
+  // 签名 BrepHandle[]），但运行时 occt-wasm 的 linearPattern/circularPattern 返回**单个
+  // compound 句柄**（含全部副本）——类型撒谎。此处以运行时原始形态（OcctPatternRaw）
+  // 调用，再经 getSubShapes 拆成数组（与 vendored transformOps.linearPattern 同构）。
+  // 不能使用对象展开（{ ...primitives }）：OcctKernel 的方法在原型上（class 实例），
+  // 展开只拷自有属性 → makeBoxFromCorners 等全部原型方法丢失（consume-input.test 实证）。
+  // 直接覆盖单例实例的 pattern 三方法（occt-wasm 单例，无共享状态风险）。
+  // ⚠️ 覆盖前必须先捕获原生 linearPattern/circularPattern：覆盖后 raw.linearPattern
+  // 会指向 occtApi.linearPattern 自身 → 无限递归（Maximum call stack size exceeded 实证）。
+  const raw = primitives as unknown as OcctPatternRaw
+  // ⚠️ 幂等护栏：occt-wasm 是进程级单例，宿主可能多次调用本注册（测试重置注册表后
+  // 重注册）。重复覆写会捕获到上一轮覆写版（返回 BrepHandle[]），把它当 compound 拆
+  // → `getSubShapes: Invalid shape ID: 0`（engine-switch-p2 parity 实证）。只覆写一次，
+  // raw 与 occtApi 指向同一单例，后续注册直接复用覆写结果。
+  if (!occtPatternWired) {
+    // ⚠️ 覆盖前必须先捕获原生 linearPattern/circularPattern：覆盖后 raw.linearPattern
+    // 会指向 occtApi.linearPattern 自身 → 无限递归（Maximum call stack size exceeded 实证）。
+    const nativeLinearPattern = raw.linearPattern.bind(raw)
+    const nativeCircularPattern = raw.circularPattern.bind(raw)
+    const occtApi = primitives as BrepEngineApi
+    occtApi.linearPattern = (shape, direction, spacing, count) => {
+      const compound = nativeLinearPattern(shape, direction, spacing, count)
+      const parts = raw.getSubShapes(compound, 'solid')
+      raw.release(compound)
+      return parts.map((h) => h as BrepHandle)
+    }
+    occtApi.circularPattern = (shape, center, axis, angleStep, count) => {
+      const compound = nativeCircularPattern(shape, center, axis, angleStep, count)
+      const parts = raw.getSubShapes(compound, 'solid')
+      raw.release(compound)
+      return parts.map((h) => h as BrepHandle)
+    }
+    occtApi.gridPattern = (shape, directionX, directionY, spacingX, spacingY, countX, countY) => {
+      // ⚠️ 内部必须用捕获的 nativeLinearPattern：此时 raw.linearPattern 已被覆写为
+      // BrepHandle[] 语义，误用会把数组当 compound 拆（同上红线实证）。
+      const colCompound = nativeLinearPattern(shape, directionX, spacingX, countX)
+      const cols = raw.getSubShapes(colCompound, 'solid')
+      raw.release(colCompound)
+      const all: number[] = []
+      try {
+        for (const c of cols) {
+          const rowCompound = nativeLinearPattern(c, directionY, spacingY, countY)
+          try {
+            all.push(...raw.getSubShapes(rowCompound, 'solid'))
+          } finally {
+            raw.release(rowCompound)
+          }
+        }
+      } finally {
+        for (const c of cols) raw.release(c)
+      }
+      return raw.fuseAll(all) as BrepHandle
+    }
+    occtPatternWired = true
+  }
+  const occtApi = primitives as BrepEngineApi
   registerBrepEngine(OCCT_BREP_ENGINE_ID, async (): Promise<BrepEngine> => ({
     id: OCCT_BREP_ENGINE_ID,
-    primitives,
+    primitives: occtApi,
     capabilities: {
       // 面演化：逐核函数名单（不是族级布尔——见 BrepEvolutionKind）。
       evolution: OCCT_EVOLUTION_KINDS,
@@ -150,9 +245,10 @@ export async function registerOcctBrepEngine(): Promise<void> {
       tessellationModel: 'extract-time',
     },
   }))
-  // P7-②：同一装配点把移植内核注册表绑定到同一个 occt-wasm 实例（D10 单实例 + 冻结）。
+  // P7-②：同一装配点把移植内核注册表注入到当前 BREP 引擎（Phase 2 P2-5：取代旧的
+  // bindOcctKernel() 固定绑定，改为引擎中立的 injectCurrentBrepEngineAsKernel）。
   // 使 L3 调移植 L2 的 op 在宿主装配后立即可用；幂等，重复调用安全。
-  bindOcctKernel()
+  await injectCurrentBrepEngineAsKernel()
 }
 
 /**
