@@ -91,7 +91,7 @@ describe('import_brep: chain-root roleTable (E3)', () => {
     }
     configureBackends(makeBackends('brep', { ...fakeKernel }, fakeAssets))
 
-    const out = await import_brep({ asset: 'Sketch001.Shape' })
+    await import_brep({ asset: 'Sketch001.Shape' })
     // 1.10 前置③：roleTable 权威落点 = 血缘图旁挂（语句键 + part 键），slot 缓存字段已删。
     // 本单测无语句锚点 ⇒ 注入空串锚点（与表的 origin='' 占位一致），读语句键表。
     const { setCurrentStmt } = await import('../runtime-state')

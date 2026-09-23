@@ -85,7 +85,7 @@ export function resolveViaLineage(
     const startEvo = start.evolution && !('modified' in start.evolution) ? (start.evolution as Map<number, number[]>) : undefined
     chain.push({ stmt: origin, part: rootPart, evolution: startEvo })
     let currentPart: PartName = rootPart
-    while (!chain[chain.length - 1]!.part || true) {
+    while (true) {
       if (currentPart === targetPart) break
       const consumer = graph.nodeConsuming(currentPart)
       if (!consumer) return { reason: 'no-lineage-node', stmt: String(currentPart) }

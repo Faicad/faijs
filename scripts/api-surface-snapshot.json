@@ -1193,28 +1193,6 @@
     "planegcsWasmPath",
     "resolveExternalGeometry"
   ],
-  "./faqts": [
-    "findImports",
-    "rewriteImports",
-    "runFaqts",
-    "transformFaqts"
-  ],
-  "./faqts/node": [
-    "executeFaqtsModuleInNode",
-    "findImports",
-    "rewriteImports",
-    "runFaqts",
-    "runFaqtsInNode",
-    "transformFaqts"
-  ],
-  "./faqts/browser": [
-    "executeFaqtsModuleInBrowser",
-    "faqtsBrowserExecutor",
-    "findImports",
-    "rewriteImports",
-    "runFaqts",
-    "transformFaqts"
-  ],
   "./module-resolver": [
     "ImportVersionError",
     "ModuleResolverError",

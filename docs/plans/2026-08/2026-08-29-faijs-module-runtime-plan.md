@@ -715,6 +715,12 @@ let part2 = cad.union(part0, part1)
 
 ### 7.5 Phase D —— faits 执行路径（faijs 0.5.5）
 
+> ⚠️ **已废弃（2026-09-23）**：本节描述的 faits/faqts 整段 `.ts` 执行路径已随
+> 「脚本必须纯 JS、库必须 TS」红线删除（`packages/core/src/faqts/` 整目录、
+> `packages/tests/faijs/faqts/`、core exports `./faqts` 入口、sucrase 运行时依赖全部移除）。
+> 建模脚本只允许 `.fai.js`（经 faijs 执行）；库代码为 TS 源、构建期由 tsc 编译为 JS 发布，
+> 运行时不再承担任何类型剥离。详见 docs/plans/2026-09-23-script-js-only-lib-ts-design.md。
+
 `.ts`（faits 脚本） → sucrase 去类型（保留行号）→ acorn 解析 import → 说明符重写 → Blob → `import()` 整段执行 → 显式声明输出。
 
 | | faijs | faits |

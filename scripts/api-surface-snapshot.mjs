@@ -3,7 +3,7 @@
  * subpaths into scripts/api-surface-snapshot.json (P0 baseline).
  *
  * 用途：monorepo 迁移期间与之后，比对「公开导出面」不漂移（P5/P6 验收：
- * npm run build 产物的导出面与 P0 快照逐字一致，11 个子路径全比对）。
+ * npm run build 产物的导出面与 P0 快照逐字一致，9 个子路径全比对）。
  *
  * 只捕获**运行时值导出**（export type 不可见）；类型面由 typecheck 兜底。
  * 先 `npm run build` 生成最新 dist，再运行本脚本：
@@ -15,7 +15,7 @@ import { writeFileSync } from 'node:fs'
 // 折入 core；2026-09-20 新增 ./fcstd 读层）。漏一个 = 迁移后消费方 import 断
 const SUBPATHS = [
   '.', './browser', './csg', './sdf', './node', './fcstd', './fcstd-convert',
-  './faqts', './faqts/node', './faqts/browser', './module-resolver', './sdk',
+  './module-resolver', './sdk',
 ]
 
 const snapshot = {}

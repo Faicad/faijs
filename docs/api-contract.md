@@ -54,7 +54,7 @@ Dependencies are one-directional and acyclic: `fai_cq_gears / fai_cq_warehouse /
 
 ### 1.1 Entry export surface
 
-The root package `@faicad/faijs` has **11 subpath exports** (the `exports` field of `package.json`):
+The root package `@faicad/faijs` has **9 subpath exports** (the `exports` field of `package.json`):
 
 | Entry | Contents | Notes |
 |---|---|---|
@@ -65,12 +65,11 @@ The root package `@faicad/faijs` has **11 subpath exports** (the `exports` field
 | `/csg` | CSG / Manifold data exchange | Browser-safe |
 | `/sdf` | SDF runtime templates and types | Browser-safe |
 | `/node` | Node-only: `createNodePorts` / CLI / FsAssetResolver | Must not enter browser builds |
-| `/faqts`, `/faqts/node`, `/faqts/browser` | Whole-module `.ts` execution channel (second execution path) | See §10.5 |
 | `/module-resolver` | Third-party library version resolution | See §10.4 |
 
 The engine package also exposes fine-grained subpaths (`@faicad/faijs/runtime-state`, `/shape`, `/identity`, `/lang/*`, `/brep/*`, and so on) for library authors to import on demand.
 
-**Rule**: a static import of node-host inside a browser build 404s — Node-only code must be imported from `/node`. The runtime export surface of the 11 entries is guarded by snapshot comparison between `scripts/api-surface-snapshot.mjs` and `scripts/api-surface-snapshot.json`.
+**Rule**: a static import of node-host inside a browser build 404s — Node-only code must be imported from `/node`. The runtime export surface of the 9 entries is guarded by snapshot comparison between `scripts/api-surface-snapshot.mjs` and `scripts/api-surface-snapshot.json`.
 
 ### 1.2 Responsibility boundaries (engine / library split)
 
@@ -534,9 +533,9 @@ export const myOp = defineOp({
 - **Validation**: a library exporting defineOp declarations must carry a matching `contractVersion` (= `CONTRACT_VERSION`); `registerLib` validates strictly via `assertLibConforms` (D-4). Plain functions without defineOp are legal but get no mode routing / wrapping / assembly validation.
 - **Resolution**: `@faicad/faijs/module-resolver` provides `resolveImports` and semver checks (`satisfies`), enabling on-demand loading of large library slices.
 
-### 10.5 Whole-module `.ts` execution channel (faqts)
+### 10.5 Whole-module `.ts` execution channel (faqts) — **removed**
 
-`@faicad/faijs/faqts` is a **second execution path running parallel** to the recording pipeline: `.ts` source is transformed as a whole and executed in one shot, with no per-statement scheduling and no timeline; outputs are declared by the author through explicit `export` (no automatic DAG detection). It shares the same `cad` API and Shape contract as the faijs side, so products of the two are interoperable.
+> ⚠️ **Removed (2026-09-23)**: the faqts/faits whole-module `.ts` execution path has been deleted under the iron rule "scripts must be plain JS, libraries must be TS". Scripts are `.fai.js` only (executed by faijs); library code is TS source compiled to JS by `tsc` at build time — the runtime performs no type stripping. See `docs/plans/2026-09-23-script-js-only-lib-ts-design.md`. This section is kept only as a historical record.
 
 ---
 
@@ -604,7 +603,7 @@ PS: Re-printing text from the IR is debug-only, never part of a contract.
 - Control flow is forbidden at the top level (a language constraint), which keeps static rules such as terminal detection safe from AI-generated code; **control flow is allowed inside function bodies** (v1, §5).
 - Local function calls (bare-identifier callee) and runtime expressions (`ExprIR` in args) are new top-level capabilities; existing scripts without functions parse unchanged (zero regression), and parameter/literal expressions still fold as before.
 - A local function call is a DAG node like any other: `positional` / `args` / `outputs` participate in `consumes()` and terminal detection; only the body is opaque.
-- The function body is user source embedded into the compiled module — a documented exception to "user text never reaches the VM" (R-3), bounded by the acorn gate plus the whitelist (see `docs/syntax-design.md`), isomorphic to the faqts channel (§10.5).
+- The function body is user source embedded into the compiled module — a documented exception to "user text never reaches the VM" (R-3), bounded by the acorn gate plus the whitelist (see `docs/syntax-design.md`).
 - Legacy version-suffixed names are no longer produced and no longer parsed (the version suffix and the `grp_` prefix were both removed; compatibility parsing was removed, decision 2, see `lang/allocate-id.ts`).
 - Both the `export default async (cad) => {}` container and the flat format parse; flat code is automatically wrapped into a legal container.
 

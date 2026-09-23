@@ -30,7 +30,7 @@
   ],
   "dependencies": {},
   "peerDependencies": {
-    "@faicad/faijs": "^0.14.0"
+    "@faicad/faijs": "^0.15.0"
   },
   "devDependencies": {
     "typescript": "*",

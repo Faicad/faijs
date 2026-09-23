@@ -54,7 +54,7 @@ faijs 是 **npm workspaces monorepo**。根包 `@faicad/faijs` 是**门面薄层
 
 ### 1.1 入口导出面
 
-根包 `@faicad/faijs` 有 **11 个 subpath export**（`package.json` 的 `exports` 字段）：
+根包 `@faicad/faijs` 有 **9 个 subpath export**（`package.json` 的 `exports` 字段）：
 
 | 入口 | 内容 | 说明 |
 |---|---|---|
@@ -65,12 +65,11 @@ faijs 是 **npm workspaces monorepo**。根包 `@faicad/faijs` 是**门面薄层
 | `/csg` | CSG／Manifold 数据交换 | 浏览器安全 |
 | `/sdf` | SDF 运行模板与类型 | 浏览器安全 |
 | `/node` | Node 专用：`createNodePorts`／CLI／FsAssetResolver | 不得进浏览器构建 |
-| `/faqts`、`/faqts/node`、`/faqts/browser` | `.ts` 源码整段执行通道（第二条执行路径） | 见 §10.5 |
 | `/module-resolver` | 第三方库版本解析 | 见 §10.4 |
 
 引擎包另有细粒度子路径（`@faicad/faijs/runtime-state`、`/shape`、`/identity`、`/lang/*`、`/brep/*` 等），供库作者按需导入。
 
-**规则**：浏览器构建里静态 import node-host 会 404——Node 专用代码一律从 `/node` 导入。11 个入口的运行时导出面由 `scripts/api-surface-snapshot.mjs` 与 `scripts/api-surface-snapshot.json` 快照比对守卫。
+**规则**：浏览器构建里静态 import node-host 会 404——Node 专用代码一律从 `/node` 导入。9 个入口的运行时导出面由 `scripts/api-surface-snapshot.mjs` 与 `scripts/api-surface-snapshot.json` 快照比对守卫。
 
 ### 1.2 职责边界（引擎／库切分）
 
@@ -535,9 +534,9 @@ export const myOp = defineOp({
 - **校验**：导出 defineOp 声明的库必须带匹配的 `contractVersion`（=`CONTRACT_VERSION`）；`registerLib` 经 `assertLibConforms` 严格校验——不匹配即抛错，不静默降级（D-4）。未用 defineOp 声明的普通函数合法，但不享受 mode 路由／自动包装／装配校验。
 - **解析**：`@faicad/faijs/module-resolver` 提供 `resolveImports` 与 semver 判定（`satisfies`），支持按需加载大库分片。
 
-### 10.5 `.ts` 整段执行通道（faqts）
+### 10.5 `.ts` 整段执行通道（faqts）——**已删除**
 
-`@faicad/faijs/faqts` 是与录制管道**平行的第二条执行路径**：`.ts` 源码整段 transform 后一次执行，不逐语句调度、不接入 timeline；输出由作者显式 `export` 声明（无 DAG 自动推导）。它与 faijs 侧共享同一套 `cad` API 与 Shape 契约，因此两者产物互通。
+> ⚠️ **已删除（2026-09-23）**：faqts/faits 的 `.ts` 整段执行路径已随「脚本必须纯 JS、库必须 TS」红线移除。脚本只允许 `.fai.js`（经 faijs 执行）；库代码为 TS 源、构建期由 tsc 编译为 JS——运行时不做任何类型剥离。详见 docs/plans/2026-09-23-script-js-only-lib-ts-design.md。本节仅作为历史记录保留。
 
 ---
 
@@ -605,7 +604,7 @@ PS：从 IR 重打文本只用于调试，不属于任何契约。
 - 顶层禁止控制流（语言约束），保证终端判定等静态规则不被 AI 代码破坏；**控制流允许出现在函数体内**（v1，§5）。
 - 本机函数调用（裸标识符 callee）与运行时表达式（参数里的 `ExprIR`）是新的顶层能力；不含函数的既有脚本解析不变（零回归），参数/字面量表达式依旧按原样折叠。
 - 本机函数调用与其它语句一样是 DAG 节点：`positional` / `args` / `outputs` 参与 `consumes()` 与终端判定，只有函数体不透明。
-- 函数体是嵌入编译产物的用户源码——对「用户文本不进 VM」（R-3）的已记录例外，边界是 acorn 闸门 + 白名单（见 `docs/syntax-design.md`），与 faqts 通道同构（§10.5）。
+- 函数体是嵌入编译产物的用户源码——对「用户文本不进 VM」（R-3）的已记录例外，边界是 acorn 闸门 + 白名单（见 `docs/syntax-design.md`）。
 - 旧版带版本后缀的命名不再产生、也不再解析（版本号语义与 `grp_` 前缀均已取消；旧名兼容解析已删除，决策 2，见 `lang/allocate-id.ts`）。
 - `export default async (cad) => {}` 容器与扁平格式均可解析；扁平代码自动封装为合法容器。
 
