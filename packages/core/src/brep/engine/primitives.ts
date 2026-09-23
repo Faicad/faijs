@@ -91,10 +91,19 @@ export interface BrepEngineApi {
   ): BrepEvolutionData
 
   // ── 变换 ──
+  // 矩阵口径（唯一权威）：matrix 参数是 **3×4 行主序、12 个 double**——
+  // [r00,r01,r02,tx, r10,r11,r12,ty, r20,r21,r22,tz]，与 brep/brep-ops.ts 的
+  // matrixToArray()（THREE.Matrix4 column-major → 行主序 3×4）产出同构。
+  // 各引擎方言不同（如 brepkit transformSolid 吃 4×4 行主序 16 元素）时，
+  // 由该引擎适配层内部转换（见 brepkit-kernel/brepkitKernel.ts 的 toKernelMatrix
+  // 唯一转换点），禁止要求调用方适配引擎方言。
   translate(shape: BrepHandle, dx: number, dy: number, dz: number): BrepHandle
   scale(shape: BrepHandle, center: BrepVec3, factor: number): BrepHandle
+  /** 3×4 行主序 12 元素矩阵（口径见上方"变换"节注释）。 */
   transform(shape: BrepHandle, matrix: number[]): BrepHandle
+  /** 3×4 行主序 12 元素矩阵（口径见上方"变换"节注释）。 */
   located(shape: BrepHandle, matrix: number[]): BrepHandle
+  /** 3×4 行主序 12 元素矩阵（口径见上方"变换"节注释）。 */
   generalTransform(shape: BrepHandle, matrix: number[]): BrepHandle
   copy(shape: BrepHandle): BrepHandle
 

@@ -17,70 +17,9 @@
  * 主线程 CSG/SDF 预览走 previewMeshIntersect / runSdfMain。
  */
 
-export {
-  configureBackends, getBackends, setCurrentStmt, getCurrentStmt,
-  keep, keepHidden, getRuntimeState, nameOf, setName, setKeepSink,
-  setPendingAssemblyTransforms, takePendingAssemblyTransforms, assertContractVersion,
-  CONTRACT_VERSION,
-} from './runtime-state'
-export type {
-  Backends, FaijsRuntimeState, ShapeSlot, KeepSink, RuntimeExecutionMode,
-  AssemblyTransform, StdlibFn, StdlibNamespace,
-} from './runtime-state'
-
-// ═══════════════════════════════════════════════════════════
-// identity：品牌类型 + 信任点（f0，零依赖）
-// ═══════════════════════════════════════════════════════════
-
-export type {
-  FileId, InnerId, ScopedId, StmtId, PartName, GroupName,
-  RefId, ReferenceId, SelectorKey, OccurrenceId, ShapeId,
-  FaceId, EdgeId, NodeId, StatementId, FaceSelector,
-} from './identity'
-export {
-  asFileId, asInnerId, asScopedId, asStmtId, asPartName, asGroupName,
-  asRefId, asReferenceId, asSelectorKey, asOccurrenceId, asShapeId,
-  asFaceId, asEdgeId, asNodeId,
-  toScopedId, splitScopedId, isScopedId, toInnerId,
-} from './identity'
-
-// ═══════════════════════════════════════════════════════════
-// A 类：lang/ 文本面导出（IR 是引擎内部实现细节，不导出；公开面只有代码文本工具与结果类型）
-// ═══════════════════════════════════════════════════════════
-
-export type {
-  Vec3, JsonValue,
-  TerminalShape, ParamDef,
-} from './lang/types'
-export {
-  derivePartName, getMaxModelNum,
-} from './lang/allocate-id'
-export type { DerivePartNameInput, DerivePartNameResult } from './lang/allocate-id'
-export { fmtNum, formatCodeLine } from './lang/codegen'
-export type { FormatCodeLineInput } from './lang/codegen'
-export { analyzeCode } from './lang/statement-summary'
-export type { StatementSummary } from './lang/statement-summary'
-export { codeToArgs } from './lang/code-to-args'
-export type { CodeToArgsResult } from './lang/code-to-args'
-// MetadataExtractor — 无 IR 元数据提取器（UI 通道语义源；UiMetadata 全量）
-export { extractMetadata } from './lang/metadata-extractor'
-export type {
-  UiMetadata, ArgSource, ParamEntry, ImportEntry, FunctionEntry, BlockEntry, KeepEntry,
-  ExtractMetadataOptions,
-} from './lang/metadata-extractor'
-// 参数表达式编辑（P0-C/P0-D）：实时校验层 + 编辑面板纯函数
-export { validateExpression } from './lang/expr-validate'
-export type { ExprValidateInput, ExprValidateResult } from './lang/expr-validate'
-export { editArgSource } from './lang/source-edit'
-export type { EditSourceError } from './lang/source-edit'
-// HostArg — 宿主友好位置参数类型（IR 屏蔽层）
-export type {
-  HostArg, HostRef, HostVarRef, HostParamRef, HostCallRef, HostExprRef, HostRefKind,
-} from './lang/host-arg'
-export {
-  isHostVarRef, isHostParamRef, isHostCallRef, isHostExprRef, isHostRef,
-  hostArgToDisplay, hostArgToLiteral, HOST_REF_KINDS,
-} from './lang/host-arg'
+// 共享面（env-agnostic：identity + runtime-state + lang/*）——手写清单已收敛，
+// 三处 umbrella（index/browser/weapp）统一 re-export，防漂移。
+export * from './env-agnostic'
 
 // ═══════════════════════════════════════════════════════════
 // B 类：cad-runtime/ + createBrowserPorts + 外部资源注入点
@@ -279,3 +218,6 @@ export { reconstructSolidFromMesh, meshToAsciiStl, cadShapeIsValid, meshToStepBr
 
 // ── L3 API 面（P6/D1：原 packages/stdlib 迁入 core）──
 export * from './api'
+// Vec3 双源消歧：env-agnostic（lang/types）与 api（mesh/types）均有 Vec3，
+// 显式 re-export 定为 lang 版（与收敛前 browser.ts 的具名导出一致）。
+export type { Vec3 } from './lang/types'

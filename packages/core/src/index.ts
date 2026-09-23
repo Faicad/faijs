@@ -16,68 +16,9 @@
  * - CSG Backend：setCsgBackend / geoToManifoldMesh / ...
  */
 
-// ── identity：品牌类型 + 信任点（f0，零依赖）
-export type {
-  FileId, InnerId, ScopedId, StmtId, PartName, GroupName,
-  RefId, ReferenceId, SelectorKey, OccurrenceId, ShapeId,
-  FaceId, EdgeId, NodeId, StatementId, FaceSelector,
-} from './identity'
-export {
-  asFileId, asInnerId, asScopedId, asStmtId, asPartName, asGroupName,
-  asRefId, asReferenceId, asSelectorKey, asOccurrenceId, asShapeId,
-  asFaceId, asEdgeId, asNodeId,
-  toScopedId, splitScopedId, isScopedId, toInnerId,
-} from './identity'
-
-// ── 运行时状态锚点（零依赖层；引擎与库共享）
-export {
-  configureBackends, getBackends, setCurrentStmt, getCurrentStmt,
-  keep, keepHidden, getRuntimeState, nameOf, setName, setKeepSink,
-  setPendingAssemblyTransforms, takePendingAssemblyTransforms, assertContractVersion,
-  CONTRACT_VERSION,
-} from './runtime-state'
-export type {
-  Backends, FaijsRuntimeState, ShapeSlot, KeepSink, RuntimeExecutionMode,
-  AssemblyTransform, StdlibFn, StdlibNamespace, ExecutionAnchor,
-} from './runtime-state'
-
-// ── L0 文本层（IR 是引擎内部实现细节，不导出；公开面只有代码文本工具与结果类型）
-export type {
-  Vec3, JsonValue,
-  TerminalShape, ParamDef,
-} from './lang/types'
-// 拓扑身份 provenance 类型（op 级命名 / 拓扑身份系统公开面）。
-export type { Provenance, NewFaceRule } from './topology/naming/lineage'
-export {
-  derivePartName, getMaxModelNum,
-} from './lang/allocate-id'
-export type { DerivePartNameInput, DerivePartNameResult } from './lang/allocate-id'
-export { fmtNum, formatCodeLine } from './lang/codegen'
-export type { FormatCodeLineInput } from './lang/codegen'
-export { analyzeCode } from './lang/statement-summary'
-export type { StatementSummary } from './lang/statement-summary'
-export { codeToArgs } from './lang/code-to-args'
-export type { CodeToArgsResult } from './lang/code-to-args'
-// MetadataExtractor — 无 IR 元数据提取器（UI 通道语义源；UiMetadata 全量）
-export { extractMetadata } from './lang/metadata-extractor'
-export type {
-  UiMetadata, ParamEntry, ImportEntry, FunctionEntry, BlockEntry, KeepEntry,
-  ExtractMetadataOptions,
-} from './lang/metadata-extractor'
-// SecurityScanner — 静态安全门禁（纵深防御第一层）
-export { scanSource, scanAst, assertSecure } from './lang/security-scanner'
-export type {
-  SecurityPolicy, SecurityRuleId, SecurityViolation,
-  SecurityScanOptions, SecurityScanResult,
-} from './lang/security-scanner'
-// HostArg — 宿主友好位置参数类型（IR 屏蔽层）
-export type {
-  HostArg, HostRef, HostVarRef, HostParamRef, HostCallRef, HostExprRef, HostRefKind,
-} from './lang/host-arg'
-export {
-  isHostVarRef, isHostParamRef, isHostCallRef, isHostExprRef, isHostRef,
-  hostArgToDisplay, hostArgToLiteral, HOST_REF_KINDS,
-} from './lang/host-arg'
+// ── 共享面（env-agnostic：identity + runtime-state + lang/*）──
+// 手写清单已收敛：三处 umbrella（index/browser/weapp）统一 re-export，防漂移。
+export * from './env-agnostic'
 
 // ── L1 几何执行 ──
 export type { Shape } from './mesh/types'
@@ -281,3 +222,6 @@ export type { FetchAssetResolverOptions } from './browser-host/fetch-asset-resol
 // 是同一 vendored 实现的两个投影，按「一个名字一份实现」红线（§6.3）只保留脚本面那份。
 export * from './api'
 export { createApiNamespace } from './api/api-namespace'
+// Vec3 双源消歧：env-agnostic（lang/types）与 api（mesh/types）均有 Vec3，
+// 显式 re-export 定为 lang 版（与收敛前 index.ts 的具名导出一致）。
+export type { Vec3 } from './lang/types'

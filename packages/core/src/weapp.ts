@@ -12,6 +12,10 @@
  * web/desktop 宿主禁止 import 本入口（brepkit 是 weapp 专属 BREP 引擎）。
  */
 
+// 共享面（env-agnostic：identity + runtime-state + lang/*）——三处 umbrella 统一
+// re-export（§9.1），weapp worker 由此获得 analyzeCode 等语言层符号。
+export * from './env-agnostic'
+
 // brepkit wasm 装载（weapp 专属注入点；宿主装配期调用一次 setBrepkitWasmInitFn）
 export { setBrepkitWasmInitFn, initBrepkitWasm, isBrepkitInitialized } from './brepkit-kernel/brepkitWasm'
 
@@ -23,8 +27,7 @@ export { registerBrepEngine, hasBrepEngine, getBrepEngine, getActiveBrepEngineId
 export type { BrepEngine, BrepEngineProvider } from './brep/engine/registry'
 export type { BrepEngineApi } from './brep/engine/primitives'
 
-// cad-runtime（环境无关执行栈，与 weapp worker 装配顺序 §6.1 一致）
-export { createRuntime } from './cad-runtime/runtime'
-export type { CadRuntime } from './cad-runtime/runtime'
-
-export { createApiNamespace } from './api/api-namespace'
+// cad-runtime（环境无关执行栈）：createRuntime 为 with-cad 变体（§9.2），与
+// browser/node 入口同口径——自带 cad 命名空间注册，宿主无需手工补注册。
+export { createRuntime } from './cad-runtime/createRuntimeWithCad'
+export type { CadRuntime } from './cad-runtime/createRuntimeWithCad'

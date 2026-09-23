@@ -13,13 +13,20 @@ import path from 'node:path'
 
 const srcDir = path.dirname(fileURLToPath(import.meta.url))
 
-describe('weapp entry export surface (whitelist)', async () => {
+describe('weapp entry export surface (shared face computed + weapp-specific literals)', async () => {
   const weappModule = await import('./weapp')
+  const envAgnosticModule = await import('./env-agnostic')
   const actual = new Set(Object.keys(weappModule))
 
-  // Only what the weapp worker host actually imports. Adding a symbol here
-  // requires updating the whitelist — deliberate friction against re-leak.
-  const WHITELIST = [
+  // Shared face = whatever env-agnostic exports, computed (not hand-listed) so
+  // the two surfaces can never drift apart (weapp plan §9.1 step 3).
+  const shared = new Set(Object.keys(envAgnosticModule))
+
+  // weapp-specific face: only what the weapp worker host actually imports.
+  // Adding a symbol here requires updating this literal — deliberate friction
+  // against re-leak. (createApiNamespace was dropped in §9.2: createRuntime is
+  // now the with-cad variant, hosts no longer need to hand-register cad.)
+  const WEAPP_SPECIFIC = [
     'setBrepkitWasmInitFn',
     'initBrepkitWasm',
     'isBrepkitInitialized',
@@ -32,14 +39,25 @@ describe('weapp entry export surface (whitelist)', async () => {
     'getActiveBrepEngineId',
     'freezeEngineRegistries',
     'createRuntime',
-    'createApiNamespace',
   ]
+  const expected = new Set([...shared, ...WEAPP_SPECIFIC])
 
-  it('exports exactly the whitelisted symbols', () => {
-    const extra = [...actual].filter((k) => !WHITELIST.includes(k))
-    const missing = WHITELIST.filter((k) => !actual.has(k))
+  it('exports exactly the shared surface plus the weapp-specific whitelist', () => {
+    const extra = [...actual].filter((k) => !expected.has(k))
+    const missing = [...expected].filter((k) => !actual.has(k))
     expect(extra, `weapp entry leaked extra symbols: ${extra.join(', ')}`).toEqual([])
     expect(missing, `weapp entry is missing symbols: ${missing.join(', ')}`).toEqual([])
+  })
+
+  it('env-agnostic dependency graph is free of three / node / brepkit / wasm loaders', () => {
+    const src = readFileSync(path.join(srcDir, 'env-agnostic.ts'), 'utf-8')
+    // The shared surface must stay environment-agnostic: no three (weapp main
+    // thread holds its own copy — a second one via this entry is a hard
+    // failure), no node builtins, no brepkit, no wasm/platform loaders.
+    expect(src).not.toMatch(/from\s+['"]three/)
+    expect(src).not.toMatch(/from\s+['"]node:/)
+    expect(src).not.toMatch(/from\s+['"][^'"]*brepkit/i)
+    expect(src).not.toMatch(/from\s+['"]\.\/(mesh|brepkit-kernel|occt-kernel|browser-host|node-host)\//)
   })
 })
 

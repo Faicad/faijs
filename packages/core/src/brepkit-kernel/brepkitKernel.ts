@@ -181,9 +181,9 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
     makeBoxFromCorners(corner1: BrepVec3, corner2: BrepVec3): BrepHandle {
       const dx = Math.abs(corner2.x - corner1.x), dy = Math.abs(corner2.y - corner1.y), dz = Math.abs(corner2.z - corner1.z)
       const h = kernel.makeBox(dx, dy, dz)
-      return asHandle(kernel.transformSolid(h, translationMatrix(
+      return asHandle(kernel.transformSolid(h, toKernelMatrix(translationMatrix(
         Math.min(corner1.x, corner2.x), Math.min(corner1.y, corner2.y), Math.min(corner1.z, corner2.z),
-      )))
+      ))))
     },
     makeCylinder(radius: number, height: number): BrepHandle { return asHandle(kernel.makeCylinder(radius, height)) },
     makeSphere(radius: number): BrepHandle { return asHandle(kernel.makeSphere(radius, 32)) },
@@ -229,29 +229,32 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
     // ── 变换 ──
     // ⚠️ brepkit 的 transformSolid 是「原地修改、返回 undefined」——必须先 copySolid
     // 复制出新句柄再变换，否则会篡改调用方手里的原实体（单测 2026-09-19 实证）。
+    // ⚠️ 矩阵方言：faijs 接口口径是 3×4 行主序 12 元素（见 brep/engine/primitives.ts）；
+    // brepkit transformSolid 吃 4×4 行主序 16 元素。所有 transformSolid 调用一律经
+    // toKernelMatrix 归一（下方唯一转换点），禁止直出 16 元素旁路。
     translate(shape: BrepHandle, dx: number, dy: number, dz: number): BrepHandle {
       const c = kernel.copySolid(asNum(shape))
-      kernel.transformSolid(c, translationMatrix(dx, dy, dz))
+      kernel.transformSolid(c, toKernelMatrix(translationMatrix(dx, dy, dz)))
       return asHandle(c)
     },
     scale(shape: BrepHandle, center: BrepVec3, factor: number): BrepHandle {
       const c = kernel.copySolid(asNum(shape))
-      kernel.transformSolid(c, scaleMatrix(center, factor))
+      kernel.transformSolid(c, toKernelMatrix(scaleMatrix(center, factor)))
       return asHandle(c)
     },
     transform(shape: BrepHandle, matrix: number[]): BrepHandle {
       const c = kernel.copySolid(asNum(shape))
-      kernel.transformSolid(c, matrix)
+      kernel.transformSolid(c, toKernelMatrix(matrix))
       return asHandle(c)
     },
     located(shape: BrepHandle, matrix: number[]): BrepHandle {
       const c = kernel.copySolid(asNum(shape))
-      kernel.transformSolid(c, matrix)
+      kernel.transformSolid(c, toKernelMatrix(matrix))
       return asHandle(c)
     },
     generalTransform(shape: BrepHandle, matrix: number[]): BrepHandle {
       const c = kernel.copySolid(asNum(shape))
-      kernel.transformSolid(c, matrix)
+      kernel.transformSolid(c, toKernelMatrix(matrix))
       return asHandle(c)
     },
     copy(shape: BrepHandle): BrepHandle { return asHandle(kernel.copySolid(asNum(shape))) },
@@ -548,22 +551,40 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
 
 // ── 工具 ──
 
-/** 4×4 行主序平移矩阵（brepkit transformSolid 格式：平移在最后一列，index 3/7/11；2026-09-19 实测）。 */
+/** 3×4 行主序平移矩阵（faijs 接口方言：平移在 index 3/7/11，与 matrixToArray 同构）。 */
 function translationMatrix(dx: number, dy: number, dz: number): number[] {
   return [
     1, 0, 0, dx,
     0, 1, 0, dy,
     0, 0, 1, dz,
-    0, 0, 0, 1,
   ]
 }
 
-/** 4×4 行主序缩放矩阵（绕 center 缩放）。 */
+/** 3×4 行主序缩放矩阵（绕 center 缩放；faijs 接口方言，12 元素）。 */
 function scaleMatrix(center: BrepVec3, factor: number): number[] {
   return [
     factor, 0, 0, center.x * (1 - factor),
     0, factor, 0, center.y * (1 - factor),
     0, 0, factor, center.z * (1 - factor),
+  ]
+}
+
+/**
+ * 唯一的矩阵方言转换点：faijs 3×4 行主序（12 元素，matrixToArray 口径）→
+ * brepkit transformSolid 的 4×4 行主序（16 元素，补底行 0,0,0,1）。
+ * translate/scale 内部矩阵与 transform/located/generalTransform 的宿主入参
+ * 全部经此归一；非 12 元素直接抛错（方言不清 = 缺陷，静默通过即红线违规）。
+ */
+function toKernelMatrix(matrix: number[]): number[] {
+  if (matrix.length !== 12) {
+    throw new Error(
+      `[brepkit] matrix dialect violation: expected 12 elements (3x4 row-major, faijs interface contract), got ${matrix.length}`,
+    )
+  }
+  return [
+    matrix[0], matrix[1], matrix[2], matrix[3],
+    matrix[4], matrix[5], matrix[6], matrix[7],
+    matrix[8], matrix[9], matrix[10], matrix[11],
     0, 0, 0, 1,
   ]
 }
