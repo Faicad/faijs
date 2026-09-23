@@ -76,14 +76,30 @@ export class PlanegcsSolver implements SketchSolver {
     }
     const usableConstraints = constraints.filter((c) => !unresolvableExternal.has(c.index));
 
-    const unsupported = usableConstraints.find((c) => !SUPPORTED_CONSTRAINT_TYPES.has(c.type));
+    // P3-2 (2026-09-24): constraint types that do NOT affect the solved
+    // geometry are dropped-and-recorded instead of failing the whole sketch
+    // (previously any of these baked the sketch as unsupported-constraint):
+    // - 15 InternalAlignment: alignment bookkeeping between element pairs;
+    //   the aligned geometry itself is already in <Geometry> — the alignment
+    //   constraint adds no independent DoF removal for our solving purpose.
+    // - 17 Block: freezes a geometry's current position — the stored
+    //   geometry IS that position, so dropping it changes nothing.
+    // - 19 Weight: B-Spline control-point weight — we do not solve splines.
+    const ignorable = constraints.filter(
+      (c) => c.type === 15 || c.type === 17 || c.type === 19,
+    ).map((c) => c.index);
+    const ignorableSet = new Set(ignorable);
+
+    const unsupported = usableConstraints.find(
+      (c) => !SUPPORTED_CONSTRAINT_TYPES.has(c.type) && !ignorableSet.has(c.index),
+    );
     if (unsupported) {
       return ok({
         geoms,
         converged: false,
         reason: 'unsupported-constraint',
         problemConstraints: [unsupported.index],
-        droppedConstraints: [...unresolvableExternal],
+        droppedConstraints: [...unresolvableExternal, ...ignorable],
       });
     }
 
@@ -221,8 +237,10 @@ export class PlanegcsSolver implements SketchSolver {
     // --- M3.4: constraints → primitives ---
     // A constraint whose GCS shape cannot be pushed is dropped and recorded
     // (D3: no silent loss — surfaced via droppedConstraints).
-    const droppedConstraints: number[] = [...unresolvableExternal];
+    const droppedConstraints: number[] = [...unresolvableExternal, ...ignorable];
     for (const c of usableConstraints) {
+      // P3-2: ignorable types (15/17/19) were recorded above; never pushed.
+      if (ignorableSet.has(c.index)) continue;
       let prims: Record<string, unknown>[];
       try {
         prims = this.constraintToPrimitives(c, { lines, arcs, circles, ellipses, standalone, externalLines });

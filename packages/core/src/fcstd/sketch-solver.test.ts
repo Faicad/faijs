@@ -96,4 +96,40 @@ describe('sketch solver channel (M3)', () => {
     const verdict = classifySketch(undefined, [], 1e-6, 'external-geometry');
     expect(verdict).toMatchObject({ level: 'L2', reason: 'external-geometry' });
   });
+
+  // GOTCHA (P3-2, Mannequin_mp corpus 2026-09-24): constraint types 15
+  // (InternalAlignment), 17 (Block) and 19 (Weight) do NOT affect the solved
+  // geometry — they used to fail the WHOLE sketch with
+  // `unsupported-constraint`. They must be dropped-and-recorded
+  // (droppedConstraints) instead, letting the sketch still solve to L0.
+  it('solves a sketch containing ignorable constraint types 15/17/19 (dropped, not fatal)', async () => {
+    const geoms = parseSketchObject(
+      geomProp(
+        `<Geometry type="Part::GeomLineSegment"><LineSegment StartX="10" StartY="20" StartZ="0" EndX="50" EndY="20" EndZ="0"/></Geometry>` +
+          `<Geometry type="Part::GeomLineSegment"><LineSegment StartX="50" StartY="20" StartZ="0" EndX="50" EndY="50" EndZ="0"/></Geometry>` +
+          `<Geometry type="Part::GeomLineSegment"><LineSegment StartX="50" StartY="50" StartZ="0" EndX="10" EndY="50" EndZ="0"/></Geometry>` +
+          `<Geometry type="Part::GeomLineSegment"><LineSegment StartX="10" StartY="50" StartZ="0" EndX="10" EndY="20" EndZ="0"/></Geometry>`,
+      ),
+      undefined,
+      true,
+    ).geoms;
+    const result = await solver.solve(geoms, [
+      { index: 0, type: 2, refs: [{ geoId: 0, pos: 0 }], value: 0, isDriving: true, name: '' },
+      { index: 1, type: 3, refs: [{ geoId: 1, pos: 0 }], value: 0, isDriving: true, name: '' },
+      { index: 2, type: 15, refs: [{ geoId: 0, pos: 1 }, { geoId: 1, pos: 1 }], value: 0, isDriving: true, name: '' }, // InternalAlignment
+      { index: 3, type: 17, refs: [{ geoId: 2, pos: 0 }], value: 0, isDriving: true, name: '' }, // Block
+      { index: 4, type: 19, refs: [{ geoId: 0, pos: 0 }], value: 1, isDriving: true, name: '' }, // Weight
+      { index: 5, type: 7, refs: [{ geoId: 0, pos: 1 }, { geoId: 0, pos: 2 }], value: 40, isDriving: true, name: '' },
+      { index: 6, type: 8, refs: [{ geoId: 3, pos: 1 }, { geoId: 3, pos: 2 }], value: -30, isDriving: true, name: '' },
+    ]);
+    expect(isOk(result)).toBe(true);
+    const outcome = (result as { value: { geoms: typeof geoms; converged: boolean; reason?: string; droppedConstraints: number[] } }).value;
+    expect(outcome.converged, `reason: ${outcome.reason}`).toBe(true);
+    // ignorable types recorded explicitly (no silent loss)
+    expect(outcome.droppedConstraints).toEqual(expect.arrayContaining([2, 3, 4]));
+    const delta = maxPointDistance(outcome.geoms, geoms);
+    expect(delta).toBeLessThan(1e-6);
+    const verdict = classifySketch(outcome as never, geoms, 1e-6);
+    expect(verdict.level).toBe('L0');
+  });
 });
