@@ -1,6 +1,6 @@
 {
   "name": "@faicad/fai-cq-warehouse",
-  "version": "0.13.2",
+  "version": "0.14.1",
   "type": "module",
   "license": "MIT",
   "repository": {
@@ -29,15 +29,9 @@
   "files": [
     "dist"
   ],
-  "faijs": {
-    "naming": {
-      "kind": "unmodeled",
-      "reason": "fastener faces are swept/lofted bspline surfaces (threads, serrations) without a stable per-face index vocabulary"
-    }
-  },
   "dependencies": {},
   "peerDependencies": {
-    "@faicad/faijs": "^0.13.0",
+    "@faicad/faijs": "^0.14.0",
     "occt-wasm": "^3.8.0"
   },
   "devDependencies": {

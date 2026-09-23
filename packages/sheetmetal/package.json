@@ -1,6 +1,6 @@
 {
   "name": "@faicad/sheetmetal",
-  "version": "0.13.2",
+  "version": "0.14.1",
   "description": "Sheet-metal CAD domain for faijs — flange authoring, fold/unfold flat patterns (ported from brepjs-sheetmetal)",
   "keywords": [
     "sheet-metal",
@@ -28,15 +28,9 @@
   "files": [
     "dist"
   ],
-  "faijs": {
-    "naming": {
-      "kind": "unmodeled",
-      "reason": "sheetmetal flange/bend faces are swept bspline surfaces without a stable per-face index vocabulary"
-    }
-  },
   "dependencies": {},
   "peerDependencies": {
-    "@faicad/faijs": "^0.13.0"
+    "@faicad/faijs": "^0.14.0"
   },
   "devDependencies": {
     "typescript": "*",

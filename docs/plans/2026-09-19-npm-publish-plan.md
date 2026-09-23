@@ -68,12 +68,14 @@
 
 ---
 
-## 4. 版本策略（建议：fixed 统一版本）
+## 4. 版本策略（fixed 统一版本）
 
-monorepo 包间强耦合（根门面 re-export core 全量 API），独立版本号管理成本高。建议：
+monorepo 包间强耦合（根门面 re-export core 全量 API），独立版本号管理成本高。规则（2026-09-23 用户拍板）：
 
-- **全部可发布包统一同号**（fixed/lockstep）：当前一起升到 `0.13.0`（minor 升级，因 fcstd-convert CLI 是新增能力）；
-- peerDependencies 对 `@faicad/faijs`/`@faicad/faijs` 锁同号 minor 范围（`^0.13.0`）；
+- **semver 幅度**：破坏性变更（breaking change，如拓扑身份/API 契约变更）必须升 **minor**（0.x 阶段第二位 +1，如 0.13.x → 0.14.x），禁止只升 patch；新增能力升 minor；bug 修复升 patch；
+- **最后一位（patch）从 1 开始、不用 0**：版本号尾部（patch 位）不使用 `x.y.0`，从 1 起（如 `0.14.1`）；
+- **全部可发布包统一同号**（fixed/lockstep）：当前 6 项拓扑身份 breaking change 一起升到 `0.14.1`；
+- peerDependencies 对 `@faicad/faijs`/`@faicad/cq-compat` 锁同号 minor 范围（`^0.14.0`）；
 - 发布脚本一次校验全部包版本一致，不一致即拒绝发布；
 - 后续可用 changesets 管理升级日志（可选，非必需，见 Q5）。
 
