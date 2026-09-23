@@ -121,6 +121,9 @@ function renderBrepOp(entry: ArgSpecEntry): string {
     )
   }
   const namingLit = entry.naming ? `, naming: ${JSON.stringify(entry.naming)}` : ''
+  // Phase 1（Brep 引擎可切换重构）：capabilities 透传——compat-op.ts 早已把
+  // spec.capabilities 透传给 defineOp，这里只是打开既有通道（R2 能力前置判定）。
+  const capsLit = entry.capabilities?.length ? `, capabilities: ${JSON.stringify(entry.capabilities)}` : ''
   return [
     `/**`,
     ` * ${entry.name} — brepjs 投影（生成文件，禁手改；来源 api/surface/arg-spec.ts）。`,
@@ -129,7 +132,7 @@ function renderBrepOp(entry: ArgSpecEntry): string {
     ` */`,
     `export const ${entry.name} = compatOp(`,
     `  projectBrepOp('${entry.name}', ${JSON.stringify(entry.params ?? [])}, '${formClass}', ${vendoredName}),`,
-    `  { name: '${entry.name}'${namingLit} },`,
+    `  { name: '${entry.name}'${namingLit}${capsLit} },`,
     `)`,
   ].join('\n')
 }

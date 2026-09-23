@@ -126,5 +126,8 @@ export const linearPattern = defineOp({
   brep(input: Shape, direction: Vec3, count: number, spacing: number) {
     return linearPatternBrep(input, direction, count, spacing)
   },
+  // Phase 1（Brep 引擎可切换重构）：能力前置判定——linearPattern 需要内核的
+  // 线性阵列方法（BrepMethodKind），brepkit 装配下缺失时执行前静态报错。
+  capabilities: ['linearPattern'],
   naming: { kind: 'replicate', k: 0 } as Provenance,
 })

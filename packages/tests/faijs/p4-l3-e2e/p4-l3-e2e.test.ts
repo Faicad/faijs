@@ -145,7 +145,7 @@ describe('P4·D2 元数据装配（codegen / UI 面板取用面）', () => {
     expect(cylMeta.schema).toHaveProperty('radius')
 
     const unionMeta = (stdlibUnion as { [DUAL_OP_META]?: { capabilities?: string[] } })[DUAL_OP_META]
-    // Phase 0.2：逐核函数名（union → 'fuse'），不再是族级 'evolution'
-    expect(unionMeta?.capabilities).toContain('fuse')
+    // Phase 1 真名化：union → 'fuseWithHistory'（BrepEvolutionKind 真名），不再是族级 'evolution'
+    expect(unionMeta?.capabilities).toContain('fuseWithHistory')
   })
 })

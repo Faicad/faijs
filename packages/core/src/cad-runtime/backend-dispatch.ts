@@ -16,7 +16,7 @@
 
 import { getBackends, getCurrentStmt, BrepUnsupportedError, MeshUnsupportedError } from '../runtime-state'
 import { hasBrep } from '../shape'
-import type { BrepEvolutionKind } from '../brep/engine/types'
+import type { BrepEvolutionKind, BrepMethodKind } from '../brep/engine/types'
 import type { Shape } from '../mesh/types'
 
 /** 静态判定的两个可能结果：走 BREP 链或 mesh 链。 */
@@ -31,7 +31,14 @@ export type BrepPath = 'brep' | 'mesh'
  * op 现在必须声明**具体**要哪个核函数（如 `['cut']`），引擎声明**具体**提供哪些
  * （`evolution: ['fuse','cut','fillet']`）。见 `brep/engine/types.ts` 的 `BrepEvolutionKind`。
  */
-export type BrepCapabilityName = 'heal' | 'directEdit' | 'advSurface' | 'assembly' | 'meshLift' | BrepEvolutionKind
+export type BrepCapabilityName =
+  | 'heal'
+  | 'directEdit'
+  | 'advSurface'
+  | 'assembly'
+  | 'meshLift'
+  | BrepEvolutionKind
+  | BrepMethodKind
 
 /**
  * 引擎能力声明的宽松镜像（`runtime-state.Backends.config.brepCapabilities` 同构；
@@ -40,6 +47,8 @@ export type BrepCapabilityName = 'heal' | 'directEdit' | 'advSurface' | 'assembl
 export interface EngineCapabilitiesLike {
   /** 本引擎实际提供的 `*WithHistory` 核函数名。 */
   evolution?: readonly string[]
+  /** 本引擎实际提供的非演化内核方法名（`BrepMethodKind`）。 */
+  methods?: readonly string[]
   heal?: boolean
   directEdit?: boolean
   advSurface?: boolean
@@ -56,6 +65,7 @@ export function engineCapabilitySet(caps: EngineCapabilitiesLike | undefined): R
   const set = new Set<string>()
   if (!caps) return set
   for (const kind of caps.evolution ?? []) set.add(kind)
+  for (const method of caps.methods ?? []) set.add(method)
   if (caps.heal) set.add('heal')
   if (caps.directEdit) set.add('directEdit')
   if (caps.advSurface) set.add('advSurface')

@@ -1,0 +1,6758 @@
+{
+  "generatedBy": "packages/core/scripts/gen-capability-map.ts",
+  "design": "docs/plans/2026-09-23-brep-engine-switchability-rework.md §4 Phase 0",
+  "count": 36,
+  "entries": [
+    {
+      "op": "torus",
+      "source": "topology/primitiveFns.js#torus",
+      "vendoredFile": "topology/primitiveFns.ts",
+      "vendoredFn": "torus",
+      "kernelMethods": [
+        "dispose",
+        "makeTorus"
+      ],
+      "trace": [
+        {
+          "fn": "torus",
+          "file": "topology/primitiveFns.ts",
+          "methods": [],
+          "calls": [
+            "topology/shapeHelpers.ts#makeTorus"
+          ]
+        },
+        {
+          "fn": "makeTorus",
+          "file": "topology/solidBuilders.ts",
+          "methods": [
+            "makeTorus"
+          ],
+          "calls": [
+            "core/shapeTypes.ts#createSolid"
+          ]
+        },
+        {
+          "fn": "createSolid",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#brandHandle",
+            "core/disposal.ts#createHandle"
+          ]
+        },
+        {
+          "fn": "createHandle",
+          "file": "core/disposal.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": [
+            "disposal.ts#trackHandleDisposed",
+            "disposal.ts#trackHandleCreated"
+          ]
+        }
+      ]
+    },
+    {
+      "op": "fuse",
+      "source": "topology/booleanFns.js#fuse",
+      "vendoredFile": "topology/booleanFns.ts",
+      "vendoredFn": "fuse",
+      "kernelMethods": [
+        "dispose",
+        "fuse",
+        "fuseWithHistory",
+        "isNull"
+      ],
+      "trace": [
+        {
+          "fn": "fuse",
+          "file": "topology/booleanFns.ts",
+          "methods": [
+            "dispose",
+            "fuse",
+            "fuseWithHistory",
+            "isNull"
+          ],
+          "calls": [
+            "booleanFns.ts#validateShape3D",
+            "core/result.ts#isErr",
+            "booleanFns.ts#castToShape3D",
+            "topology/metadata/metadataPropagation.ts#collectInputFaceHashes",
+            "topology/metadata/metadataPropagation.ts#propagateAllMetadata"
+          ]
+        },
+        {
+          "fn": "isErr",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "collectInputFaceHashes",
+          "file": "topology/metadata/metadataPropagation.ts",
+          "methods": [],
+          "calls": [
+            "topology/metadata/originTrackingFns.ts#propagateOriginsFromEvolution",
+            "topology/metadata/faceTagFns.ts#propagateFaceTagsFromEvolution",
+            "topology/metadata/colorFns.ts#propagateColorsFromEvolution"
+          ]
+        },
+        {
+          "fn": "propagateAllMetadata",
+          "file": "topology/metadata/metadataPropagation.ts",
+          "methods": [],
+          "calls": [
+            "topology/metadata/originTrackingFns.ts#propagateOriginsFromEvolution",
+            "topology/metadata/faceTagFns.ts#propagateFaceTagsFromEvolution",
+            "topology/metadata/colorFns.ts#propagateColorsFromEvolution"
+          ]
+        },
+        {
+          "fn": "propagateOriginsFromEvolution",
+          "file": "topology/metadata/originTrackingFns.ts",
+          "methods": [],
+          "calls": [
+            "originTrackingFns.ts#getFaceOrigins",
+            "topology/topologyQueryFns.ts#getOrCreateCache"
+          ]
+        },
+        {
+          "fn": "propagateFaceTagsFromEvolution",
+          "file": "topology/metadata/faceTagFns.ts",
+          "methods": [],
+          "calls": [
+            "faceTagFns.ts#getTagMap",
+            "faceTagFns.ts#addTagToResult",
+            "faceTagFns.ts#getMetaMap"
+          ]
+        },
+        {
+          "fn": "propagateColorsFromEvolution",
+          "file": "topology/metadata/colorFns.ts",
+          "methods": [],
+          "calls": [
+            "colorFns.ts#getFaceColorMap"
+          ]
+        },
+        {
+          "fn": "getFaceOrigins",
+          "file": "topology/metadata/originTrackingFns.ts",
+          "methods": [],
+          "calls": [
+            "topology/topologyQueryFns.ts#getCacheEntry"
+          ]
+        },
+        {
+          "fn": "getOrCreateCache",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [],
+          "calls": [
+            "topologyQueryFns.ts#disposeCacheEntry"
+          ]
+        },
+        {
+          "fn": "getCacheEntry",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [],
+          "calls": []
+        }
+      ]
+    },
+    {
+      "op": "extrude",
+      "source": "operations/api.js#extrude",
+      "vendoredFile": "operations/api.ts",
+      "vendoredFn": "extrude",
+      "kernelMethods": [
+        "dispose",
+        "downcast",
+        "extrude",
+        "isNull"
+      ],
+      "trace": [
+        {
+          "fn": "extrude",
+          "file": "operations/api.ts",
+          "methods": [],
+          "calls": [
+            "topology/apiTypes.ts#resolve",
+            "operations/extrudeFns.ts#extrude"
+          ]
+        },
+        {
+          "fn": "resolve",
+          "file": "topology/apiTypes.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "extrude",
+          "file": "operations/extrudeFns.ts",
+          "methods": [
+            "downcast",
+            "extrude",
+            "isNull"
+          ],
+          "calls": [
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/vecOps.ts#vecLength",
+            "core/vecOps.ts#vecNormalize",
+            "core/shapeTypes.ts#createSolid",
+            "core/shapeTypes.ts#disposeDowncastSource",
+            "core/result.ts#ok",
+            "core/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "err",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "vecLength",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "vecNormalize",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": [
+            "vecOps.ts#vecLength"
+          ]
+        },
+        {
+          "fn": "createSolid",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#brandHandle",
+            "core/disposal.ts#createHandle"
+          ]
+        },
+        {
+          "fn": "disposeDowncastSource",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "ok",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "kernelError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "createHandle",
+          "file": "core/disposal.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": [
+            "disposal.ts#trackHandleDisposed",
+            "disposal.ts#trackHandleCreated"
+          ]
+        }
+      ]
+    },
+    {
+      "op": "revolve",
+      "source": "operations/api.js#revolve",
+      "vendoredFile": "operations/api.ts",
+      "vendoredFn": "revolve",
+      "kernelMethods": [
+        "dispose",
+        "isNull",
+        "revolveVec",
+        "shapeType"
+      ],
+      "trace": [
+        {
+          "fn": "revolve",
+          "file": "operations/api.ts",
+          "methods": [],
+          "calls": [
+            "topology/apiTypes.ts#resolve",
+            "operations/extrudeFns.ts#revolve"
+          ]
+        },
+        {
+          "fn": "resolve",
+          "file": "topology/apiTypes.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "revolve",
+          "file": "operations/extrudeFns.ts",
+          "methods": [
+            "isNull",
+            "revolveVec"
+          ],
+          "calls": [
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/shapeTypes.ts#castResultShape",
+            "core/shapeTypes.ts#isShape3D",
+            "core/shapeTypes.ts#disposeResultShape",
+            "core/errors.ts#typeCastError",
+            "core/result.ts#ok",
+            "core/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "err",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "castResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#disposeDowncastSource"
+          ]
+        },
+        {
+          "fn": "isShape3D",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "core/typeDiscriminants.ts#getShapeKind",
+            "core/dimensionTypes.ts#is3D"
+          ]
+        },
+        {
+          "fn": "disposeResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "typeCastError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "kernelError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "disposeDowncastSource",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "getShapeKind",
+          "file": "core/typeDiscriminants.ts",
+          "methods": [],
+          "calls": [
+            "core/shapeTypeCache.ts#getOrQueryType"
+          ]
+        },
+        {
+          "fn": "is3D",
+          "file": "core/dimensionTypes.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "getOrQueryType",
+          "file": "core/shapeTypeCache.ts",
+          "methods": [
+            "shapeType"
+          ],
+          "calls": []
+        }
+      ]
+    },
+    {
+      "op": "sweep",
+      "source": "operations/extrudeFns.js#sweep",
+      "vendoredFile": "operations/extrudeFns.ts",
+      "vendoredFn": "sweep",
+      "kernelMethods": [
+        "dispose",
+        "shapeType",
+        "simplePipe",
+        "sweepPipeShell"
+      ],
+      "trace": [
+        {
+          "fn": "sweep",
+          "file": "operations/sweepFns.ts",
+          "methods": [
+            "simplePipe",
+            "sweepPipeShell"
+          ],
+          "calls": [
+            "core/shapeTypes.ts#castResultShape",
+            "core/shapeTypes.ts#isShape3D",
+            "core/shapeTypes.ts#disposeResultShape",
+            "core/result.ts#err",
+            "core/errors.ts#typeCastError",
+            "core/result.ts#ok",
+            "sweepFns.ts#castSweepShellTuple"
+          ]
+        },
+        {
+          "fn": "castResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#disposeDowncastSource"
+          ]
+        },
+        {
+          "fn": "isShape3D",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "core/typeDiscriminants.ts#getShapeKind",
+            "core/dimensionTypes.ts#is3D"
+          ]
+        },
+        {
+          "fn": "disposeResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "err",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "typeCastError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "disposeDowncastSource",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "getShapeKind",
+          "file": "core/typeDiscriminants.ts",
+          "methods": [],
+          "calls": [
+            "core/shapeTypeCache.ts#getOrQueryType"
+          ]
+        },
+        {
+          "fn": "is3D",
+          "file": "core/dimensionTypes.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "getOrQueryType",
+          "file": "core/shapeTypeCache.ts",
+          "methods": [
+            "shapeType"
+          ],
+          "calls": []
+        }
+      ]
+    },
+    {
+      "op": "complexExtrude",
+      "source": "operations/extrudeFns.js#complexExtrude",
+      "vendoredFile": "operations/extrudeFns.ts",
+      "vendoredFn": "complexExtrude",
+      "kernelMethods": [
+        "buildExtrusionLaw",
+        "dispose",
+        "shapeType",
+        "simplePipe",
+        "sweepPipeShell"
+      ],
+      "trace": [
+        {
+          "fn": "complexExtrude",
+          "file": "operations/sweepFns.ts",
+          "methods": [],
+          "calls": [
+            "core/vecOps.ts#vecLength",
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/vecOps.ts#vecAdd",
+            "sweepFns.ts#makeSpineWire",
+            "operations/extrudeUtils.ts#buildLawFromProfile",
+            "core/result.ts#isErr",
+            "sweepFns.ts#sweep"
+          ]
+        },
+        {
+          "fn": "vecLength",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "err",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "vecAdd",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "buildLawFromProfile",
+          "file": "operations/extrudeUtils.ts",
+          "methods": [
+            "buildExtrusionLaw"
+          ],
+          "calls": [
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/result.ts#ok"
+          ]
+        },
+        {
+          "fn": "isErr",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "sweep",
+          "file": "operations/sweepFns.ts",
+          "methods": [
+            "simplePipe",
+            "sweepPipeShell"
+          ],
+          "calls": [
+            "core/shapeTypes.ts#castResultShape",
+            "core/shapeTypes.ts#isShape3D",
+            "core/shapeTypes.ts#disposeResultShape",
+            "core/result.ts#err",
+            "core/errors.ts#typeCastError",
+            "core/result.ts#ok",
+            "sweepFns.ts#castSweepShellTuple"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "castResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#disposeDowncastSource"
+          ]
+        },
+        {
+          "fn": "isShape3D",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "core/typeDiscriminants.ts#getShapeKind",
+            "core/dimensionTypes.ts#is3D"
+          ]
+        },
+        {
+          "fn": "disposeResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "typeCastError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "disposeDowncastSource",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "getShapeKind",
+          "file": "core/typeDiscriminants.ts",
+          "methods": [],
+          "calls": [
+            "core/shapeTypeCache.ts#getOrQueryType"
+          ]
+        },
+        {
+          "fn": "is3D",
+          "file": "core/dimensionTypes.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "getOrQueryType",
+          "file": "core/shapeTypeCache.ts",
+          "methods": [
+            "shapeType"
+          ],
+          "calls": []
+        }
+      ]
+    },
+    {
+      "op": "twistExtrude",
+      "source": "operations/extrudeFns.js#twistExtrude",
+      "vendoredFile": "operations/extrudeFns.ts",
+      "vendoredFn": "twistExtrude",
+      "kernelMethods": [
+        "buildExtrusionLaw",
+        "dispose",
+        "shapeType",
+        "simplePipe",
+        "sweepPipeShell"
+      ],
+      "trace": [
+        {
+          "fn": "twistExtrude",
+          "file": "operations/sweepFns.ts",
+          "methods": [],
+          "calls": [
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/vecOps.ts#vecLength",
+            "core/vecOps.ts#vecAdd",
+            "sweepFns.ts#makeSpineWire",
+            "sweepFns.ts#makeHelixWire",
+            "operations/extrudeUtils.ts#buildLawFromProfile",
+            "core/result.ts#isErr",
+            "sweepFns.ts#sweep"
+          ]
+        },
+        {
+          "fn": "err",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "vecLength",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "vecAdd",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "buildLawFromProfile",
+          "file": "operations/extrudeUtils.ts",
+          "methods": [
+            "buildExtrusionLaw"
+          ],
+          "calls": [
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/result.ts#ok"
+          ]
+        },
+        {
+          "fn": "isErr",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "sweep",
+          "file": "operations/sweepFns.ts",
+          "methods": [
+            "simplePipe",
+            "sweepPipeShell"
+          ],
+          "calls": [
+            "core/shapeTypes.ts#castResultShape",
+            "core/shapeTypes.ts#isShape3D",
+            "core/shapeTypes.ts#disposeResultShape",
+            "core/result.ts#err",
+            "core/errors.ts#typeCastError",
+            "core/result.ts#ok",
+            "sweepFns.ts#castSweepShellTuple"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "castResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#disposeDowncastSource"
+          ]
+        },
+        {
+          "fn": "isShape3D",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "core/typeDiscriminants.ts#getShapeKind",
+            "core/dimensionTypes.ts#is3D"
+          ]
+        },
+        {
+          "fn": "disposeResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "typeCastError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "disposeDowncastSource",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "getShapeKind",
+          "file": "core/typeDiscriminants.ts",
+          "methods": [],
+          "calls": [
+            "core/shapeTypeCache.ts#getOrQueryType"
+          ]
+        },
+        {
+          "fn": "is3D",
+          "file": "core/dimensionTypes.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "getOrQueryType",
+          "file": "core/shapeTypeCache.ts",
+          "methods": [
+            "shapeType"
+          ],
+          "calls": []
+        }
+      ]
+    },
+    {
+      "op": "linearPattern",
+      "source": "operations/patternFns.js#linearPattern",
+      "vendoredFile": "operations/patternFns.ts",
+      "vendoredFn": "linearPattern",
+      "kernelMethods": [
+        "dispose",
+        "fuseAll",
+        "hashCode",
+        "isNull",
+        "iterShapes",
+        "linearPattern",
+        "section",
+        "surfaceCenterOfMass",
+        "surfaceNormal",
+        "surfaceType",
+        "uvBounds"
+      ],
+      "trace": [
+        {
+          "fn": "linearPattern",
+          "file": "operations/patternFns.ts",
+          "methods": [
+            "linearPattern"
+          ],
+          "calls": [
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/result.ts#ok",
+            "core/vecOps.ts#vecIsZero",
+            "core/vecOps.ts#vecNormalize",
+            "core/shapeTypes.ts#castResultShape",
+            "topology/booleanFns.ts#fuseAll"
+          ]
+        },
+        {
+          "fn": "err",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "vecIsZero",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": [
+            "vecOps.ts#vecLengthSq"
+          ]
+        },
+        {
+          "fn": "vecNormalize",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": [
+            "vecOps.ts#vecLength"
+          ]
+        },
+        {
+          "fn": "castResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#disposeDowncastSource"
+          ]
+        },
+        {
+          "fn": "fuseAll",
+          "file": "topology/booleanFns.ts",
+          "methods": [
+            "fuseAll"
+          ],
+          "calls": [
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/result.ts#ok",
+            "utils/arrayAccess.ts#firstOrThrow",
+            "booleanFns.ts#validateShape3D",
+            "utils/arrayAccess.ts#getAtOrThrow",
+            "core/result.ts#isErr",
+            "booleanFns.ts#castToShape3D",
+            "topology/metadata/metadataPropagation.ts#propagateMetadataByHash",
+            "booleanFns.ts#slice",
+            "booleanFns.ts#fuseAllPairwise"
+          ]
+        },
+        {
+          "fn": "vecLengthSq",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "vecLength",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "disposeDowncastSource",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "firstOrThrow",
+          "file": "utils/arrayAccess.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "getAtOrThrow",
+          "file": "utils/arrayAccess.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "isErr",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "propagateMetadataByHash",
+          "file": "topology/metadata/metadataPropagation.ts",
+          "methods": [],
+          "calls": [
+            "topology/metadata/originTrackingFns.ts#propagateOriginsByHash"
+          ]
+        },
+        {
+          "fn": "slice",
+          "file": "topology/booleanFns.ts",
+          "methods": [],
+          "calls": [
+            "booleanFns.ts#section",
+            "core/result.ts#isErr",
+            "core/result.ts#ok"
+          ]
+        },
+        {
+          "fn": "propagateOriginsByHash",
+          "file": "topology/metadata/originTrackingFns.ts",
+          "methods": [
+            "hashCode",
+            "surfaceCenterOfMass",
+            "surfaceNormal",
+            "surfaceType",
+            "uvBounds"
+          ],
+          "calls": [
+            "originTrackingFns.ts#getFaceOrigins",
+            "topology/topologyQueryFns.ts#getFaces",
+            "originTrackingFns.ts#findBestOriginMatch",
+            "topology/topologyQueryFns.ts#getOrCreateCache"
+          ]
+        },
+        {
+          "fn": "section",
+          "file": "topology/booleanFns.ts",
+          "methods": [
+            "dispose",
+            "isNull",
+            "section"
+          ],
+          "calls": [
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/result.ts#unwrap",
+            "core/planeOps.ts#resolvePlane",
+            "booleanFns.ts#resolveSectionPlacement",
+            "booleanFns.ts#makeSectionFace",
+            "core/shapeTypes.ts#castResultShape",
+            "core/result.ts#ok",
+            "core/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "getFaceOrigins",
+          "file": "topology/metadata/originTrackingFns.ts",
+          "methods": [],
+          "calls": [
+            "topology/topologyQueryFns.ts#getCacheEntry"
+          ]
+        },
+        {
+          "fn": "getFaces",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [
+            "iterShapes"
+          ],
+          "calls": [
+            "core/shapeTypes.ts#castResultShapeWithKnownType"
+          ]
+        },
+        {
+          "fn": "getOrCreateCache",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [],
+          "calls": [
+            "topologyQueryFns.ts#disposeCacheEntry"
+          ]
+        },
+        {
+          "fn": "unwrap",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": [
+            "result.ts#unwrap",
+            "result.ts#formatError"
+          ]
+        },
+        {
+          "fn": "resolvePlane",
+          "file": "core/planeOps.ts",
+          "methods": [],
+          "calls": [
+            "planeOps.ts#createNamedPlane",
+            "core/result.ts#ok"
+          ]
+        },
+        {
+          "fn": "kernelError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "getCacheEntry",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "castResultShapeWithKnownType",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#disposeDowncastSource"
+          ]
+        },
+        {
+          "fn": "createNamedPlane",
+          "file": "core/planeOps.ts",
+          "methods": [],
+          "calls": [
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/vecOps.ts#vecScale",
+            "core/types.ts#toVec3",
+            "core/result.ts#ok",
+            "planeOps.ts#createPlane"
+          ]
+        },
+        {
+          "fn": "vecScale",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "toVec3",
+          "file": "core/types.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "createPlane",
+          "file": "core/planeOps.ts",
+          "methods": [],
+          "calls": [
+            "core/vecOps.ts#vecNormalize",
+            "core/vecOps.ts#vecIsZero",
+            "core/vecOps.ts#vecCross"
+          ]
+        },
+        {
+          "fn": "vecCross",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": []
+        }
+      ]
+    },
+    {
+      "op": "circularPattern",
+      "source": "operations/patternFns.js#circularPattern",
+      "vendoredFile": "operations/patternFns.ts",
+      "vendoredFn": "circularPattern",
+      "kernelMethods": [
+        "circularPattern",
+        "dispose",
+        "fuseAll",
+        "hashCode",
+        "isNull",
+        "iterShapes",
+        "section",
+        "surfaceCenterOfMass",
+        "surfaceNormal",
+        "surfaceType",
+        "uvBounds"
+      ],
+      "trace": [
+        {
+          "fn": "circularPattern",
+          "file": "operations/patternFns.ts",
+          "methods": [
+            "circularPattern"
+          ],
+          "calls": [
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/result.ts#ok",
+            "core/vecOps.ts#vecIsZero",
+            "core/shapeTypes.ts#castResultShape",
+            "topology/booleanFns.ts#fuseAll"
+          ]
+        },
+        {
+          "fn": "err",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "vecIsZero",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": [
+            "vecOps.ts#vecLengthSq"
+          ]
+        },
+        {
+          "fn": "castResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#disposeDowncastSource"
+          ]
+        },
+        {
+          "fn": "fuseAll",
+          "file": "topology/booleanFns.ts",
+          "methods": [
+            "fuseAll"
+          ],
+          "calls": [
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/result.ts#ok",
+            "utils/arrayAccess.ts#firstOrThrow",
+            "booleanFns.ts#validateShape3D",
+            "utils/arrayAccess.ts#getAtOrThrow",
+            "core/result.ts#isErr",
+            "booleanFns.ts#castToShape3D",
+            "topology/metadata/metadataPropagation.ts#propagateMetadataByHash",
+            "booleanFns.ts#slice",
+            "booleanFns.ts#fuseAllPairwise"
+          ]
+        },
+        {
+          "fn": "vecLengthSq",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "disposeDowncastSource",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "firstOrThrow",
+          "file": "utils/arrayAccess.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "getAtOrThrow",
+          "file": "utils/arrayAccess.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "isErr",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "propagateMetadataByHash",
+          "file": "topology/metadata/metadataPropagation.ts",
+          "methods": [],
+          "calls": [
+            "topology/metadata/originTrackingFns.ts#propagateOriginsByHash"
+          ]
+        },
+        {
+          "fn": "slice",
+          "file": "topology/booleanFns.ts",
+          "methods": [],
+          "calls": [
+            "booleanFns.ts#section",
+            "core/result.ts#isErr",
+            "core/result.ts#ok"
+          ]
+        },
+        {
+          "fn": "propagateOriginsByHash",
+          "file": "topology/metadata/originTrackingFns.ts",
+          "methods": [
+            "hashCode",
+            "surfaceCenterOfMass",
+            "surfaceNormal",
+            "surfaceType",
+            "uvBounds"
+          ],
+          "calls": [
+            "originTrackingFns.ts#getFaceOrigins",
+            "topology/topologyQueryFns.ts#getFaces",
+            "originTrackingFns.ts#findBestOriginMatch",
+            "topology/topologyQueryFns.ts#getOrCreateCache"
+          ]
+        },
+        {
+          "fn": "section",
+          "file": "topology/booleanFns.ts",
+          "methods": [
+            "dispose",
+            "isNull",
+            "section"
+          ],
+          "calls": [
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/result.ts#unwrap",
+            "core/planeOps.ts#resolvePlane",
+            "booleanFns.ts#resolveSectionPlacement",
+            "booleanFns.ts#makeSectionFace",
+            "core/shapeTypes.ts#castResultShape",
+            "core/result.ts#ok",
+            "core/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "getFaceOrigins",
+          "file": "topology/metadata/originTrackingFns.ts",
+          "methods": [],
+          "calls": [
+            "topology/topologyQueryFns.ts#getCacheEntry"
+          ]
+        },
+        {
+          "fn": "getFaces",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [
+            "iterShapes"
+          ],
+          "calls": [
+            "core/shapeTypes.ts#castResultShapeWithKnownType"
+          ]
+        },
+        {
+          "fn": "getOrCreateCache",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [],
+          "calls": [
+            "topologyQueryFns.ts#disposeCacheEntry"
+          ]
+        },
+        {
+          "fn": "unwrap",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": [
+            "result.ts#unwrap",
+            "result.ts#formatError"
+          ]
+        },
+        {
+          "fn": "resolvePlane",
+          "file": "core/planeOps.ts",
+          "methods": [],
+          "calls": [
+            "planeOps.ts#createNamedPlane",
+            "core/result.ts#ok"
+          ]
+        },
+        {
+          "fn": "kernelError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "getCacheEntry",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "castResultShapeWithKnownType",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#disposeDowncastSource"
+          ]
+        },
+        {
+          "fn": "createNamedPlane",
+          "file": "core/planeOps.ts",
+          "methods": [],
+          "calls": [
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/vecOps.ts#vecScale",
+            "core/types.ts#toVec3",
+            "core/result.ts#ok",
+            "planeOps.ts#createPlane"
+          ]
+        },
+        {
+          "fn": "vecScale",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "toVec3",
+          "file": "core/types.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "createPlane",
+          "file": "core/planeOps.ts",
+          "methods": [],
+          "calls": [
+            "core/vecOps.ts#vecNormalize",
+            "core/vecOps.ts#vecIsZero",
+            "core/vecOps.ts#vecCross"
+          ]
+        },
+        {
+          "fn": "vecNormalize",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": [
+            "vecOps.ts#vecLength"
+          ]
+        },
+        {
+          "fn": "vecCross",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "vecLength",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": []
+        }
+      ]
+    },
+    {
+      "op": "gridPattern",
+      "source": "operations/patternFns.js#gridPattern",
+      "vendoredFile": "operations/patternFns.ts",
+      "vendoredFn": "gridPattern",
+      "kernelMethods": [
+        "dispose",
+        "fuseAll",
+        "gridPattern",
+        "hashCode",
+        "isNull",
+        "iterShapes",
+        "linearPattern",
+        "section",
+        "surfaceCenterOfMass",
+        "surfaceNormal",
+        "surfaceType",
+        "uvBounds"
+      ],
+      "trace": [
+        {
+          "fn": "gridPattern",
+          "file": "operations/patternFns.ts",
+          "methods": [
+            "gridPattern"
+          ],
+          "calls": [
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/result.ts#ok",
+            "core/vecOps.ts#vecIsZero",
+            "core/vecOps.ts#vecNormalize",
+            "core/shapeTypes.ts#castResultShape",
+            "patternFns.ts#linearPattern"
+          ]
+        },
+        {
+          "fn": "err",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "vecIsZero",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": [
+            "vecOps.ts#vecLengthSq"
+          ]
+        },
+        {
+          "fn": "vecNormalize",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": [
+            "vecOps.ts#vecLength"
+          ]
+        },
+        {
+          "fn": "castResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#disposeDowncastSource"
+          ]
+        },
+        {
+          "fn": "linearPattern",
+          "file": "operations/patternFns.ts",
+          "methods": [
+            "linearPattern"
+          ],
+          "calls": [
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/result.ts#ok",
+            "core/vecOps.ts#vecIsZero",
+            "core/vecOps.ts#vecNormalize",
+            "core/shapeTypes.ts#castResultShape",
+            "topology/booleanFns.ts#fuseAll"
+          ]
+        },
+        {
+          "fn": "vecLengthSq",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "vecLength",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "disposeDowncastSource",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "fuseAll",
+          "file": "topology/booleanFns.ts",
+          "methods": [
+            "fuseAll"
+          ],
+          "calls": [
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/result.ts#ok",
+            "utils/arrayAccess.ts#firstOrThrow",
+            "booleanFns.ts#validateShape3D",
+            "utils/arrayAccess.ts#getAtOrThrow",
+            "core/result.ts#isErr",
+            "booleanFns.ts#castToShape3D",
+            "topology/metadata/metadataPropagation.ts#propagateMetadataByHash",
+            "booleanFns.ts#slice",
+            "booleanFns.ts#fuseAllPairwise"
+          ]
+        },
+        {
+          "fn": "firstOrThrow",
+          "file": "utils/arrayAccess.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "getAtOrThrow",
+          "file": "utils/arrayAccess.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "isErr",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "propagateMetadataByHash",
+          "file": "topology/metadata/metadataPropagation.ts",
+          "methods": [],
+          "calls": [
+            "topology/metadata/originTrackingFns.ts#propagateOriginsByHash"
+          ]
+        },
+        {
+          "fn": "slice",
+          "file": "topology/booleanFns.ts",
+          "methods": [],
+          "calls": [
+            "booleanFns.ts#section",
+            "core/result.ts#isErr",
+            "core/result.ts#ok"
+          ]
+        },
+        {
+          "fn": "propagateOriginsByHash",
+          "file": "topology/metadata/originTrackingFns.ts",
+          "methods": [
+            "hashCode",
+            "surfaceCenterOfMass",
+            "surfaceNormal",
+            "surfaceType",
+            "uvBounds"
+          ],
+          "calls": [
+            "originTrackingFns.ts#getFaceOrigins",
+            "topology/topologyQueryFns.ts#getFaces",
+            "originTrackingFns.ts#findBestOriginMatch",
+            "topology/topologyQueryFns.ts#getOrCreateCache"
+          ]
+        },
+        {
+          "fn": "section",
+          "file": "topology/booleanFns.ts",
+          "methods": [
+            "dispose",
+            "isNull",
+            "section"
+          ],
+          "calls": [
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/result.ts#unwrap",
+            "core/planeOps.ts#resolvePlane",
+            "booleanFns.ts#resolveSectionPlacement",
+            "booleanFns.ts#makeSectionFace",
+            "core/shapeTypes.ts#castResultShape",
+            "core/result.ts#ok",
+            "core/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "getFaceOrigins",
+          "file": "topology/metadata/originTrackingFns.ts",
+          "methods": [],
+          "calls": [
+            "topology/topologyQueryFns.ts#getCacheEntry"
+          ]
+        },
+        {
+          "fn": "getFaces",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [
+            "iterShapes"
+          ],
+          "calls": [
+            "core/shapeTypes.ts#castResultShapeWithKnownType"
+          ]
+        },
+        {
+          "fn": "getOrCreateCache",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [],
+          "calls": [
+            "topologyQueryFns.ts#disposeCacheEntry"
+          ]
+        },
+        {
+          "fn": "unwrap",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": [
+            "result.ts#unwrap",
+            "result.ts#formatError"
+          ]
+        },
+        {
+          "fn": "resolvePlane",
+          "file": "core/planeOps.ts",
+          "methods": [],
+          "calls": [
+            "planeOps.ts#createNamedPlane",
+            "core/result.ts#ok"
+          ]
+        },
+        {
+          "fn": "kernelError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "getCacheEntry",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "castResultShapeWithKnownType",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#disposeDowncastSource"
+          ]
+        },
+        {
+          "fn": "createNamedPlane",
+          "file": "core/planeOps.ts",
+          "methods": [],
+          "calls": [
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/vecOps.ts#vecScale",
+            "core/types.ts#toVec3",
+            "core/result.ts#ok",
+            "planeOps.ts#createPlane"
+          ]
+        },
+        {
+          "fn": "vecScale",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "toVec3",
+          "file": "core/types.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "createPlane",
+          "file": "core/planeOps.ts",
+          "methods": [],
+          "calls": [
+            "core/vecOps.ts#vecNormalize",
+            "core/vecOps.ts#vecIsZero",
+            "core/vecOps.ts#vecCross"
+          ]
+        },
+        {
+          "fn": "vecCross",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": []
+        }
+      ]
+    },
+    {
+      "op": "roof",
+      "source": "operations/roofFns.js#roof",
+      "vendoredFile": "operations/roofFns.ts",
+      "vendoredFn": "roof",
+      "kernelMethods": [
+        "buildTriFace",
+        "dispose",
+        "fixShape",
+        "isValid",
+        "sew",
+        "sewAndSolidify"
+      ],
+      "trace": [
+        {
+          "fn": "roof",
+          "file": "operations/roofFns.ts",
+          "methods": [
+            "buildTriFace",
+            "dispose",
+            "fixShape",
+            "sew",
+            "sewAndSolidify"
+          ],
+          "calls": [
+            "roofFns.ts#extractPolygon",
+            "core/result.ts#err",
+            "core/errors.ts#kernelError",
+            "operations/straightSkeleton.ts#computeStraightSkeleton",
+            "roofFns.ts#buildSkeletonTriFaces",
+            "roofFns.ts#earClipTriangulate",
+            "core/result.ts#ok",
+            "core/shapeTypes.ts#createSolid",
+            "core/validityTypes.ts#isValidSolid"
+          ]
+        },
+        {
+          "fn": "err",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "kernelError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "computeStraightSkeleton",
+          "file": "operations/straightSkeleton.ts",
+          "methods": [],
+          "calls": [
+            "core/result.ts#ok",
+            "straightSkeleton.ts#computeStraightSkeletonImpl",
+            "core/result.ts#err",
+            "core/errors.ts#computationError"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "createSolid",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#brandHandle",
+            "core/disposal.ts#createHandle"
+          ]
+        },
+        {
+          "fn": "isValidSolid",
+          "file": "core/validityTypes.ts",
+          "methods": [
+            "isValid"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "computationError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "createHandle",
+          "file": "core/disposal.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": [
+            "disposal.ts#trackHandleDisposed",
+            "disposal.ts#trackHandleCreated"
+          ]
+        }
+      ]
+    },
+    {
+      "op": "drill",
+      "source": "operations/compoundOpsFns.js#drill",
+      "vendoredFile": "operations/compoundOpsFns.ts",
+      "vendoredFn": "drill",
+      "kernelMethods": [
+        "boundingBox",
+        "cut",
+        "cutWithHistory",
+        "dispose",
+        "isNull",
+        "makeCylinder"
+      ],
+      "trace": [
+        {
+          "fn": "drill",
+          "file": "operations/compoundOpsFns.ts",
+          "methods": [],
+          "calls": [
+            "topology/apiTypes.ts#resolve",
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/vecOps.ts#vecIsZero",
+            "core/vecOps.ts#vecNormalize",
+            "topology/shapeHelpers.ts#makeCylinder",
+            "topology/shapeFns.ts#getBounds",
+            "topology/booleanFns.ts#cut"
+          ]
+        },
+        {
+          "fn": "resolve",
+          "file": "topology/apiTypes.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "err",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "vecIsZero",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": [
+            "vecOps.ts#vecLengthSq"
+          ]
+        },
+        {
+          "fn": "vecNormalize",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": [
+            "vecOps.ts#vecLength"
+          ]
+        },
+        {
+          "fn": "cut",
+          "file": "topology/booleanFns.ts",
+          "methods": [
+            "cut",
+            "cutWithHistory",
+            "dispose",
+            "isNull"
+          ],
+          "calls": [
+            "booleanFns.ts#validateShape3D",
+            "core/result.ts#isErr",
+            "booleanFns.ts#castToShape3D",
+            "topology/metadata/metadataPropagation.ts#collectInputFaceHashes",
+            "topology/metadata/metadataPropagation.ts#propagateAllMetadata"
+          ]
+        },
+        {
+          "fn": "vecLengthSq",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "vecLength",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "makeCylinder",
+          "file": "topology/solidBuilders.ts",
+          "methods": [
+            "makeCylinder"
+          ],
+          "calls": [
+            "core/shapeTypes.ts#createSolid"
+          ]
+        },
+        {
+          "fn": "getBounds",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [
+            "boundingBox"
+          ],
+          "calls": [
+            "topologyQueryFns.ts#getOrCreateCache"
+          ]
+        },
+        {
+          "fn": "isErr",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "collectInputFaceHashes",
+          "file": "topology/metadata/metadataPropagation.ts",
+          "methods": [],
+          "calls": [
+            "topology/metadata/originTrackingFns.ts#propagateOriginsFromEvolution",
+            "topology/metadata/faceTagFns.ts#propagateFaceTagsFromEvolution",
+            "topology/metadata/colorFns.ts#propagateColorsFromEvolution"
+          ]
+        },
+        {
+          "fn": "propagateAllMetadata",
+          "file": "topology/metadata/metadataPropagation.ts",
+          "methods": [],
+          "calls": [
+            "topology/metadata/originTrackingFns.ts#propagateOriginsFromEvolution",
+            "topology/metadata/faceTagFns.ts#propagateFaceTagsFromEvolution",
+            "topology/metadata/colorFns.ts#propagateColorsFromEvolution"
+          ]
+        },
+        {
+          "fn": "createSolid",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#brandHandle",
+            "core/disposal.ts#createHandle"
+          ]
+        },
+        {
+          "fn": "getOrCreateCache",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [],
+          "calls": [
+            "topologyQueryFns.ts#disposeCacheEntry"
+          ]
+        },
+        {
+          "fn": "propagateOriginsFromEvolution",
+          "file": "topology/metadata/originTrackingFns.ts",
+          "methods": [],
+          "calls": [
+            "originTrackingFns.ts#getFaceOrigins",
+            "topology/topologyQueryFns.ts#getOrCreateCache"
+          ]
+        },
+        {
+          "fn": "propagateFaceTagsFromEvolution",
+          "file": "topology/metadata/faceTagFns.ts",
+          "methods": [],
+          "calls": [
+            "faceTagFns.ts#getTagMap",
+            "faceTagFns.ts#addTagToResult",
+            "faceTagFns.ts#getMetaMap"
+          ]
+        },
+        {
+          "fn": "propagateColorsFromEvolution",
+          "file": "topology/metadata/colorFns.ts",
+          "methods": [],
+          "calls": [
+            "colorFns.ts#getFaceColorMap"
+          ]
+        },
+        {
+          "fn": "createHandle",
+          "file": "core/disposal.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": [
+            "disposal.ts#trackHandleDisposed",
+            "disposal.ts#trackHandleCreated"
+          ]
+        },
+        {
+          "fn": "getFaceOrigins",
+          "file": "topology/metadata/originTrackingFns.ts",
+          "methods": [],
+          "calls": [
+            "topology/topologyQueryFns.ts#getCacheEntry"
+          ]
+        },
+        {
+          "fn": "getCacheEntry",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [],
+          "calls": []
+        }
+      ]
+    },
+    {
+      "op": "pocket",
+      "source": "operations/compoundOpsFns.js#pocket",
+      "vendoredFile": "operations/compoundOpsFns.ts",
+      "vendoredFn": "pocket",
+      "kernelMethods": [
+        "addHolesInFace",
+        "cut",
+        "cutWithHistory",
+        "dispose",
+        "downcast",
+        "extrude",
+        "isNull",
+        "makeFace",
+        "surfaceCenterOfMass",
+        "surfaceNormal",
+        "surfaceType",
+        "translateWithHistory",
+        "uvBounds"
+      ],
+      "trace": [
+        {
+          "fn": "pocket",
+          "file": "operations/compoundOpsFns.ts",
+          "methods": [],
+          "calls": [
+            "topology/apiTypes.ts#resolve",
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "compoundOpsFns.ts#resolveTargetFace",
+            "core/result.ts#isErr",
+            "topology/faceFns.ts#normalAt",
+            "topology/faceFns.ts#faceCenter",
+            "core/disposal.ts#DisposalScope",
+            "compoundOpsFns.ts#toWire",
+            "topology/shapeHelpers.ts#makeFace",
+            "topology/shapeFns.ts#translate",
+            "core/vecOps.ts#vecScale",
+            "core/vecOps.ts#vecNormalize",
+            "operations/extrudeFns.ts#extrude",
+            "topology/booleanFns.ts#cut"
+          ]
+        },
+        {
+          "fn": "resolve",
+          "file": "topology/apiTypes.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "err",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "isErr",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "normalAt",
+          "file": "topology/faceFns.ts",
+          "methods": [
+            "surfaceNormal"
+          ],
+          "calls": [
+            "faceFns.ts#uvBounds",
+            "faceFns.ts#uvCoordinates"
+          ]
+        },
+        {
+          "fn": "faceCenter",
+          "file": "topology/faceFns.ts",
+          "methods": [
+            "surfaceCenterOfMass"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "vecScale",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "vecNormalize",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": [
+            "vecOps.ts#vecLength"
+          ]
+        },
+        {
+          "fn": "extrude",
+          "file": "operations/extrudeFns.ts",
+          "methods": [
+            "downcast",
+            "extrude",
+            "isNull"
+          ],
+          "calls": [
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/vecOps.ts#vecLength",
+            "core/vecOps.ts#vecNormalize",
+            "core/shapeTypes.ts#createSolid",
+            "core/shapeTypes.ts#disposeDowncastSource",
+            "core/result.ts#ok",
+            "core/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "cut",
+          "file": "topology/booleanFns.ts",
+          "methods": [
+            "cut",
+            "cutWithHistory",
+            "dispose",
+            "isNull"
+          ],
+          "calls": [
+            "booleanFns.ts#validateShape3D",
+            "core/result.ts#isErr",
+            "booleanFns.ts#castToShape3D",
+            "topology/metadata/metadataPropagation.ts#collectInputFaceHashes",
+            "topology/metadata/metadataPropagation.ts#propagateAllMetadata"
+          ]
+        },
+        {
+          "fn": "uvBounds",
+          "file": "topology/faceFns.ts",
+          "methods": [
+            "uvBounds"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "uvCoordinates",
+          "file": "topology/faceFns.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "makeFace",
+          "file": "topology/surfaceBuilders.ts",
+          "methods": [
+            "makeFace"
+          ],
+          "calls": [
+            "surfaceBuilders.ts#addHolesInFace",
+            "core/validityTypes.ts#isPlanarFace",
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/result.ts#ok",
+            "core/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "translate",
+          "file": "topology/transformFns.ts",
+          "methods": [
+            "translateWithHistory"
+          ],
+          "calls": [
+            "topology/metadata/metadataPropagation.ts#collectInputFaceHashes",
+            "core/shapeTypes.ts#castResultShape",
+            "topology/metadata/metadataPropagation.ts#propagateAllMetadata"
+          ]
+        },
+        {
+          "fn": "vecLength",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "createSolid",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#brandHandle",
+            "core/disposal.ts#createHandle"
+          ]
+        },
+        {
+          "fn": "disposeDowncastSource",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "ok",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "kernelError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "collectInputFaceHashes",
+          "file": "topology/metadata/metadataPropagation.ts",
+          "methods": [],
+          "calls": [
+            "topology/metadata/originTrackingFns.ts#propagateOriginsFromEvolution",
+            "topology/metadata/faceTagFns.ts#propagateFaceTagsFromEvolution",
+            "topology/metadata/colorFns.ts#propagateColorsFromEvolution"
+          ]
+        },
+        {
+          "fn": "propagateAllMetadata",
+          "file": "topology/metadata/metadataPropagation.ts",
+          "methods": [],
+          "calls": [
+            "topology/metadata/originTrackingFns.ts#propagateOriginsFromEvolution",
+            "topology/metadata/faceTagFns.ts#propagateFaceTagsFromEvolution",
+            "topology/metadata/colorFns.ts#propagateColorsFromEvolution"
+          ]
+        },
+        {
+          "fn": "addHolesInFace",
+          "file": "topology/surfaceBuilders.ts",
+          "methods": [
+            "addHolesInFace"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "isPlanarFace",
+          "file": "core/validityTypes.ts",
+          "methods": [
+            "surfaceType"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "castResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#disposeDowncastSource"
+          ]
+        },
+        {
+          "fn": "createHandle",
+          "file": "core/disposal.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": [
+            "disposal.ts#trackHandleDisposed",
+            "disposal.ts#trackHandleCreated"
+          ]
+        },
+        {
+          "fn": "propagateOriginsFromEvolution",
+          "file": "topology/metadata/originTrackingFns.ts",
+          "methods": [],
+          "calls": [
+            "originTrackingFns.ts#getFaceOrigins",
+            "topology/topologyQueryFns.ts#getOrCreateCache"
+          ]
+        },
+        {
+          "fn": "propagateFaceTagsFromEvolution",
+          "file": "topology/metadata/faceTagFns.ts",
+          "methods": [],
+          "calls": [
+            "faceTagFns.ts#getTagMap",
+            "faceTagFns.ts#addTagToResult",
+            "faceTagFns.ts#getMetaMap"
+          ]
+        },
+        {
+          "fn": "propagateColorsFromEvolution",
+          "file": "topology/metadata/colorFns.ts",
+          "methods": [],
+          "calls": [
+            "colorFns.ts#getFaceColorMap"
+          ]
+        },
+        {
+          "fn": "getFaceOrigins",
+          "file": "topology/metadata/originTrackingFns.ts",
+          "methods": [],
+          "calls": [
+            "topology/topologyQueryFns.ts#getCacheEntry"
+          ]
+        },
+        {
+          "fn": "getOrCreateCache",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [],
+          "calls": [
+            "topologyQueryFns.ts#disposeCacheEntry"
+          ]
+        },
+        {
+          "fn": "getCacheEntry",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [],
+          "calls": []
+        }
+      ]
+    },
+    {
+      "op": "boss",
+      "source": "operations/compoundOpsFns.js#boss",
+      "vendoredFile": "operations/compoundOpsFns.ts",
+      "vendoredFn": "boss",
+      "kernelMethods": [
+        "addHolesInFace",
+        "dispose",
+        "downcast",
+        "extrude",
+        "fuse",
+        "fuseWithHistory",
+        "isNull",
+        "makeFace",
+        "surfaceCenterOfMass",
+        "surfaceNormal",
+        "surfaceType",
+        "translateWithHistory",
+        "uvBounds"
+      ],
+      "trace": [
+        {
+          "fn": "boss",
+          "file": "operations/compoundOpsFns.ts",
+          "methods": [],
+          "calls": [
+            "topology/apiTypes.ts#resolve",
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "compoundOpsFns.ts#resolveTargetFace",
+            "core/result.ts#isErr",
+            "topology/faceFns.ts#normalAt",
+            "topology/faceFns.ts#faceCenter",
+            "core/disposal.ts#DisposalScope",
+            "compoundOpsFns.ts#toWire",
+            "topology/shapeHelpers.ts#makeFace",
+            "topology/shapeFns.ts#translate",
+            "core/vecOps.ts#vecScale",
+            "core/vecOps.ts#vecNormalize",
+            "operations/extrudeFns.ts#extrude",
+            "topology/booleanFns.ts#fuse"
+          ]
+        },
+        {
+          "fn": "resolve",
+          "file": "topology/apiTypes.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "err",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "isErr",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "normalAt",
+          "file": "topology/faceFns.ts",
+          "methods": [
+            "surfaceNormal"
+          ],
+          "calls": [
+            "faceFns.ts#uvBounds",
+            "faceFns.ts#uvCoordinates"
+          ]
+        },
+        {
+          "fn": "faceCenter",
+          "file": "topology/faceFns.ts",
+          "methods": [
+            "surfaceCenterOfMass"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "vecScale",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "vecNormalize",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": [
+            "vecOps.ts#vecLength"
+          ]
+        },
+        {
+          "fn": "extrude",
+          "file": "operations/extrudeFns.ts",
+          "methods": [
+            "downcast",
+            "extrude",
+            "isNull"
+          ],
+          "calls": [
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/vecOps.ts#vecLength",
+            "core/vecOps.ts#vecNormalize",
+            "core/shapeTypes.ts#createSolid",
+            "core/shapeTypes.ts#disposeDowncastSource",
+            "core/result.ts#ok",
+            "core/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "fuse",
+          "file": "topology/booleanFns.ts",
+          "methods": [
+            "dispose",
+            "fuse",
+            "fuseWithHistory",
+            "isNull"
+          ],
+          "calls": [
+            "booleanFns.ts#validateShape3D",
+            "core/result.ts#isErr",
+            "booleanFns.ts#castToShape3D",
+            "topology/metadata/metadataPropagation.ts#collectInputFaceHashes",
+            "topology/metadata/metadataPropagation.ts#propagateAllMetadata"
+          ]
+        },
+        {
+          "fn": "uvBounds",
+          "file": "topology/faceFns.ts",
+          "methods": [
+            "uvBounds"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "uvCoordinates",
+          "file": "topology/faceFns.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "makeFace",
+          "file": "topology/surfaceBuilders.ts",
+          "methods": [
+            "makeFace"
+          ],
+          "calls": [
+            "surfaceBuilders.ts#addHolesInFace",
+            "core/validityTypes.ts#isPlanarFace",
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/result.ts#ok",
+            "core/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "translate",
+          "file": "topology/transformFns.ts",
+          "methods": [
+            "translateWithHistory"
+          ],
+          "calls": [
+            "topology/metadata/metadataPropagation.ts#collectInputFaceHashes",
+            "core/shapeTypes.ts#castResultShape",
+            "topology/metadata/metadataPropagation.ts#propagateAllMetadata"
+          ]
+        },
+        {
+          "fn": "vecLength",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "createSolid",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#brandHandle",
+            "core/disposal.ts#createHandle"
+          ]
+        },
+        {
+          "fn": "disposeDowncastSource",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "ok",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "kernelError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "collectInputFaceHashes",
+          "file": "topology/metadata/metadataPropagation.ts",
+          "methods": [],
+          "calls": [
+            "topology/metadata/originTrackingFns.ts#propagateOriginsFromEvolution",
+            "topology/metadata/faceTagFns.ts#propagateFaceTagsFromEvolution",
+            "topology/metadata/colorFns.ts#propagateColorsFromEvolution"
+          ]
+        },
+        {
+          "fn": "propagateAllMetadata",
+          "file": "topology/metadata/metadataPropagation.ts",
+          "methods": [],
+          "calls": [
+            "topology/metadata/originTrackingFns.ts#propagateOriginsFromEvolution",
+            "topology/metadata/faceTagFns.ts#propagateFaceTagsFromEvolution",
+            "topology/metadata/colorFns.ts#propagateColorsFromEvolution"
+          ]
+        },
+        {
+          "fn": "addHolesInFace",
+          "file": "topology/surfaceBuilders.ts",
+          "methods": [
+            "addHolesInFace"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "isPlanarFace",
+          "file": "core/validityTypes.ts",
+          "methods": [
+            "surfaceType"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "castResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#disposeDowncastSource"
+          ]
+        },
+        {
+          "fn": "createHandle",
+          "file": "core/disposal.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": [
+            "disposal.ts#trackHandleDisposed",
+            "disposal.ts#trackHandleCreated"
+          ]
+        },
+        {
+          "fn": "propagateOriginsFromEvolution",
+          "file": "topology/metadata/originTrackingFns.ts",
+          "methods": [],
+          "calls": [
+            "originTrackingFns.ts#getFaceOrigins",
+            "topology/topologyQueryFns.ts#getOrCreateCache"
+          ]
+        },
+        {
+          "fn": "propagateFaceTagsFromEvolution",
+          "file": "topology/metadata/faceTagFns.ts",
+          "methods": [],
+          "calls": [
+            "faceTagFns.ts#getTagMap",
+            "faceTagFns.ts#addTagToResult",
+            "faceTagFns.ts#getMetaMap"
+          ]
+        },
+        {
+          "fn": "propagateColorsFromEvolution",
+          "file": "topology/metadata/colorFns.ts",
+          "methods": [],
+          "calls": [
+            "colorFns.ts#getFaceColorMap"
+          ]
+        },
+        {
+          "fn": "getFaceOrigins",
+          "file": "topology/metadata/originTrackingFns.ts",
+          "methods": [],
+          "calls": [
+            "topology/topologyQueryFns.ts#getCacheEntry"
+          ]
+        },
+        {
+          "fn": "getOrCreateCache",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [],
+          "calls": [
+            "topologyQueryFns.ts#disposeCacheEntry"
+          ]
+        },
+        {
+          "fn": "getCacheEntry",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [],
+          "calls": []
+        }
+      ]
+    },
+    {
+      "op": "mirrorJoin",
+      "source": "operations/compoundOpsFns.js#mirrorJoin",
+      "vendoredFile": "operations/compoundOpsFns.ts",
+      "vendoredFn": "mirrorJoin",
+      "kernelMethods": [
+        "dispose",
+        "fuse",
+        "fuseWithHistory",
+        "isNull",
+        "mirrorWithHistory"
+      ],
+      "trace": [
+        {
+          "fn": "mirrorJoin",
+          "file": "operations/compoundOpsFns.ts",
+          "methods": [],
+          "calls": [
+            "topology/apiTypes.ts#resolve",
+            "core/vecOps.ts#vecIsZero",
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "topology/shapeFns.ts#mirror",
+            "topology/booleanFns.ts#fuse"
+          ]
+        },
+        {
+          "fn": "resolve",
+          "file": "topology/apiTypes.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "vecIsZero",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": [
+            "vecOps.ts#vecLengthSq"
+          ]
+        },
+        {
+          "fn": "err",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "fuse",
+          "file": "topology/booleanFns.ts",
+          "methods": [
+            "dispose",
+            "fuse",
+            "fuseWithHistory",
+            "isNull"
+          ],
+          "calls": [
+            "booleanFns.ts#validateShape3D",
+            "core/result.ts#isErr",
+            "booleanFns.ts#castToShape3D",
+            "topology/metadata/metadataPropagation.ts#collectInputFaceHashes",
+            "topology/metadata/metadataPropagation.ts#propagateAllMetadata"
+          ]
+        },
+        {
+          "fn": "vecLengthSq",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "mirror",
+          "file": "topology/transformFns.ts",
+          "methods": [
+            "mirrorWithHistory"
+          ],
+          "calls": [
+            "topology/metadata/metadataPropagation.ts#collectInputFaceHashes",
+            "core/shapeTypes.ts#castResultShape",
+            "topology/metadata/metadataPropagation.ts#propagateAllMetadata"
+          ]
+        },
+        {
+          "fn": "isErr",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "collectInputFaceHashes",
+          "file": "topology/metadata/metadataPropagation.ts",
+          "methods": [],
+          "calls": [
+            "topology/metadata/originTrackingFns.ts#propagateOriginsFromEvolution",
+            "topology/metadata/faceTagFns.ts#propagateFaceTagsFromEvolution",
+            "topology/metadata/colorFns.ts#propagateColorsFromEvolution"
+          ]
+        },
+        {
+          "fn": "propagateAllMetadata",
+          "file": "topology/metadata/metadataPropagation.ts",
+          "methods": [],
+          "calls": [
+            "topology/metadata/originTrackingFns.ts#propagateOriginsFromEvolution",
+            "topology/metadata/faceTagFns.ts#propagateFaceTagsFromEvolution",
+            "topology/metadata/colorFns.ts#propagateColorsFromEvolution"
+          ]
+        },
+        {
+          "fn": "castResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#disposeDowncastSource"
+          ]
+        },
+        {
+          "fn": "propagateOriginsFromEvolution",
+          "file": "topology/metadata/originTrackingFns.ts",
+          "methods": [],
+          "calls": [
+            "originTrackingFns.ts#getFaceOrigins",
+            "topology/topologyQueryFns.ts#getOrCreateCache"
+          ]
+        },
+        {
+          "fn": "propagateFaceTagsFromEvolution",
+          "file": "topology/metadata/faceTagFns.ts",
+          "methods": [],
+          "calls": [
+            "faceTagFns.ts#getTagMap",
+            "faceTagFns.ts#addTagToResult",
+            "faceTagFns.ts#getMetaMap"
+          ]
+        },
+        {
+          "fn": "propagateColorsFromEvolution",
+          "file": "topology/metadata/colorFns.ts",
+          "methods": [],
+          "calls": [
+            "colorFns.ts#getFaceColorMap"
+          ]
+        },
+        {
+          "fn": "disposeDowncastSource",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "getFaceOrigins",
+          "file": "topology/metadata/originTrackingFns.ts",
+          "methods": [],
+          "calls": [
+            "topology/topologyQueryFns.ts#getCacheEntry"
+          ]
+        },
+        {
+          "fn": "getOrCreateCache",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [],
+          "calls": [
+            "topologyQueryFns.ts#disposeCacheEntry"
+          ]
+        },
+        {
+          "fn": "getCacheEntry",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [],
+          "calls": []
+        }
+      ]
+    },
+    {
+      "op": "rectangularPattern",
+      "source": "operations/compoundOpsFns.js#rectangularPattern",
+      "vendoredFile": "operations/compoundOpsFns.ts",
+      "vendoredFn": "rectangularPattern",
+      "kernelMethods": [
+        "dispose",
+        "fuse",
+        "fuseAll",
+        "fuseWithHistory",
+        "hashCode",
+        "isNull",
+        "iterShapes",
+        "section",
+        "surfaceCenterOfMass",
+        "surfaceNormal",
+        "surfaceType",
+        "translateWithHistory",
+        "uvBounds"
+      ],
+      "trace": [
+        {
+          "fn": "rectangularPattern",
+          "file": "operations/compoundOpsFns.ts",
+          "methods": [],
+          "calls": [
+            "topology/apiTypes.ts#resolve",
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/vecOps.ts#vecIsZero",
+            "core/result.ts#ok",
+            "core/vecOps.ts#vecNormalize",
+            "topology/booleanFns.ts#fuse",
+            "topology/shapeFns.ts#translate",
+            "topology/booleanFns.ts#fuseAll"
+          ]
+        },
+        {
+          "fn": "resolve",
+          "file": "topology/apiTypes.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "err",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "vecIsZero",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": [
+            "vecOps.ts#vecLengthSq"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "vecNormalize",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": [
+            "vecOps.ts#vecLength"
+          ]
+        },
+        {
+          "fn": "fuse",
+          "file": "topology/booleanFns.ts",
+          "methods": [
+            "dispose",
+            "fuse",
+            "fuseWithHistory",
+            "isNull"
+          ],
+          "calls": [
+            "booleanFns.ts#validateShape3D",
+            "core/result.ts#isErr",
+            "booleanFns.ts#castToShape3D",
+            "topology/metadata/metadataPropagation.ts#collectInputFaceHashes",
+            "topology/metadata/metadataPropagation.ts#propagateAllMetadata"
+          ]
+        },
+        {
+          "fn": "fuseAll",
+          "file": "topology/booleanFns.ts",
+          "methods": [
+            "fuseAll"
+          ],
+          "calls": [
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/result.ts#ok",
+            "utils/arrayAccess.ts#firstOrThrow",
+            "booleanFns.ts#validateShape3D",
+            "utils/arrayAccess.ts#getAtOrThrow",
+            "core/result.ts#isErr",
+            "booleanFns.ts#castToShape3D",
+            "topology/metadata/metadataPropagation.ts#propagateMetadataByHash",
+            "booleanFns.ts#slice",
+            "booleanFns.ts#fuseAllPairwise"
+          ]
+        },
+        {
+          "fn": "vecLengthSq",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "vecLength",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "isErr",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "collectInputFaceHashes",
+          "file": "topology/metadata/metadataPropagation.ts",
+          "methods": [],
+          "calls": [
+            "topology/metadata/originTrackingFns.ts#propagateOriginsFromEvolution",
+            "topology/metadata/faceTagFns.ts#propagateFaceTagsFromEvolution",
+            "topology/metadata/colorFns.ts#propagateColorsFromEvolution"
+          ]
+        },
+        {
+          "fn": "propagateAllMetadata",
+          "file": "topology/metadata/metadataPropagation.ts",
+          "methods": [],
+          "calls": [
+            "topology/metadata/originTrackingFns.ts#propagateOriginsFromEvolution",
+            "topology/metadata/faceTagFns.ts#propagateFaceTagsFromEvolution",
+            "topology/metadata/colorFns.ts#propagateColorsFromEvolution"
+          ]
+        },
+        {
+          "fn": "translate",
+          "file": "topology/transformFns.ts",
+          "methods": [
+            "translateWithHistory"
+          ],
+          "calls": [
+            "topology/metadata/metadataPropagation.ts#collectInputFaceHashes",
+            "core/shapeTypes.ts#castResultShape",
+            "topology/metadata/metadataPropagation.ts#propagateAllMetadata"
+          ]
+        },
+        {
+          "fn": "firstOrThrow",
+          "file": "utils/arrayAccess.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "getAtOrThrow",
+          "file": "utils/arrayAccess.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "propagateMetadataByHash",
+          "file": "topology/metadata/metadataPropagation.ts",
+          "methods": [],
+          "calls": [
+            "topology/metadata/originTrackingFns.ts#propagateOriginsByHash"
+          ]
+        },
+        {
+          "fn": "slice",
+          "file": "topology/booleanFns.ts",
+          "methods": [],
+          "calls": [
+            "booleanFns.ts#section",
+            "core/result.ts#isErr",
+            "core/result.ts#ok"
+          ]
+        },
+        {
+          "fn": "propagateOriginsFromEvolution",
+          "file": "topology/metadata/originTrackingFns.ts",
+          "methods": [],
+          "calls": [
+            "originTrackingFns.ts#getFaceOrigins",
+            "topology/topologyQueryFns.ts#getOrCreateCache"
+          ]
+        },
+        {
+          "fn": "propagateFaceTagsFromEvolution",
+          "file": "topology/metadata/faceTagFns.ts",
+          "methods": [],
+          "calls": [
+            "faceTagFns.ts#getTagMap",
+            "faceTagFns.ts#addTagToResult",
+            "faceTagFns.ts#getMetaMap"
+          ]
+        },
+        {
+          "fn": "propagateColorsFromEvolution",
+          "file": "topology/metadata/colorFns.ts",
+          "methods": [],
+          "calls": [
+            "colorFns.ts#getFaceColorMap"
+          ]
+        },
+        {
+          "fn": "castResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#disposeDowncastSource"
+          ]
+        },
+        {
+          "fn": "propagateOriginsByHash",
+          "file": "topology/metadata/originTrackingFns.ts",
+          "methods": [
+            "hashCode",
+            "surfaceCenterOfMass",
+            "surfaceNormal",
+            "surfaceType",
+            "uvBounds"
+          ],
+          "calls": [
+            "originTrackingFns.ts#getFaceOrigins",
+            "topology/topologyQueryFns.ts#getFaces",
+            "originTrackingFns.ts#findBestOriginMatch",
+            "topology/topologyQueryFns.ts#getOrCreateCache"
+          ]
+        },
+        {
+          "fn": "section",
+          "file": "topology/booleanFns.ts",
+          "methods": [
+            "dispose",
+            "isNull",
+            "section"
+          ],
+          "calls": [
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/result.ts#unwrap",
+            "core/planeOps.ts#resolvePlane",
+            "booleanFns.ts#resolveSectionPlacement",
+            "booleanFns.ts#makeSectionFace",
+            "core/shapeTypes.ts#castResultShape",
+            "core/result.ts#ok",
+            "core/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "getFaceOrigins",
+          "file": "topology/metadata/originTrackingFns.ts",
+          "methods": [],
+          "calls": [
+            "topology/topologyQueryFns.ts#getCacheEntry"
+          ]
+        },
+        {
+          "fn": "getOrCreateCache",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [],
+          "calls": [
+            "topologyQueryFns.ts#disposeCacheEntry"
+          ]
+        },
+        {
+          "fn": "disposeDowncastSource",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "getFaces",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [
+            "iterShapes"
+          ],
+          "calls": [
+            "core/shapeTypes.ts#castResultShapeWithKnownType"
+          ]
+        },
+        {
+          "fn": "unwrap",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": [
+            "result.ts#unwrap",
+            "result.ts#formatError"
+          ]
+        },
+        {
+          "fn": "resolvePlane",
+          "file": "core/planeOps.ts",
+          "methods": [],
+          "calls": [
+            "planeOps.ts#createNamedPlane",
+            "core/result.ts#ok"
+          ]
+        },
+        {
+          "fn": "kernelError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "getCacheEntry",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "castResultShapeWithKnownType",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#disposeDowncastSource"
+          ]
+        },
+        {
+          "fn": "createNamedPlane",
+          "file": "core/planeOps.ts",
+          "methods": [],
+          "calls": [
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/vecOps.ts#vecScale",
+            "core/types.ts#toVec3",
+            "core/result.ts#ok",
+            "planeOps.ts#createPlane"
+          ]
+        },
+        {
+          "fn": "vecScale",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "toVec3",
+          "file": "core/types.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "createPlane",
+          "file": "core/planeOps.ts",
+          "methods": [],
+          "calls": [
+            "core/vecOps.ts#vecNormalize",
+            "core/vecOps.ts#vecIsZero",
+            "core/vecOps.ts#vecCross"
+          ]
+        },
+        {
+          "fn": "vecCross",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": []
+        }
+      ]
+    },
+    {
+      "op": "thread",
+      "source": "operations/threadFns.js#thread",
+      "vendoredFile": "operations/threadFns.ts",
+      "vendoredFn": "thread",
+      "kernelMethods": [
+        "dispose",
+        "loftAdvanced",
+        "makeLineEdge",
+        "makeVertex",
+        "makeWireFromMixed",
+        "shapeType"
+      ],
+      "trace": [
+        {
+          "fn": "thread",
+          "file": "operations/threadFns.ts",
+          "methods": [],
+          "calls": [
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/disposal.ts#DisposalScope",
+            "operations/loftFns.ts#loft",
+            "topology/primitiveFns.ts#line",
+            "topology/primitiveFns.ts#wire",
+            "core/result.ts#isOk"
+          ]
+        },
+        {
+          "fn": "err",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "loft",
+          "file": "operations/loftFns.ts",
+          "methods": [
+            "loftAdvanced",
+            "makeVertex"
+          ],
+          "calls": [
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/shapeTypes.ts#castResultShape",
+            "core/shapeTypes.ts#isShape3D",
+            "core/shapeTypes.ts#disposeResultShape",
+            "core/errors.ts#typeCastError",
+            "core/result.ts#ok",
+            "core/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "line",
+          "file": "topology/primitiveFns.ts",
+          "methods": [],
+          "calls": [
+            "topology/shapeHelpers.ts#makeLine"
+          ]
+        },
+        {
+          "fn": "wire",
+          "file": "topology/primitiveFns.ts",
+          "methods": [],
+          "calls": [
+            "topology/shapeHelpers.ts#assembleWire"
+          ]
+        },
+        {
+          "fn": "isOk",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "castResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#disposeDowncastSource"
+          ]
+        },
+        {
+          "fn": "isShape3D",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "core/typeDiscriminants.ts#getShapeKind",
+            "core/dimensionTypes.ts#is3D"
+          ]
+        },
+        {
+          "fn": "disposeResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "typeCastError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "kernelError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "disposeDowncastSource",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "getShapeKind",
+          "file": "core/typeDiscriminants.ts",
+          "methods": [],
+          "calls": [
+            "core/shapeTypeCache.ts#getOrQueryType"
+          ]
+        },
+        {
+          "fn": "is3D",
+          "file": "core/dimensionTypes.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "makeLine",
+          "file": "topology/curveBuilders.ts",
+          "methods": [
+            "makeLineEdge"
+          ],
+          "calls": [
+            "core/shapeTypes.ts#createEdge"
+          ]
+        },
+        {
+          "fn": "assembleWire",
+          "file": "topology/curveBuilders.ts",
+          "methods": [
+            "makeWireFromMixed"
+          ],
+          "calls": [
+            "core/result.ts#ok",
+            "core/shapeTypes.ts#createWire",
+            "core/result.ts#err",
+            "core/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "getOrQueryType",
+          "file": "core/shapeTypeCache.ts",
+          "methods": [
+            "shapeType"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "createEdge",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "core/disposal.ts#createHandle"
+          ]
+        },
+        {
+          "fn": "createWire",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "core/disposal.ts#createHandle"
+          ]
+        },
+        {
+          "fn": "createHandle",
+          "file": "core/disposal.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": [
+            "disposal.ts#trackHandleDisposed",
+            "disposal.ts#trackHandleCreated"
+          ]
+        }
+      ]
+    },
+    {
+      "op": "convexHull",
+      "source": "operations/convexHullFns.js#convexHull",
+      "vendoredFile": "operations/convexHullFns.ts",
+      "vendoredFn": "convexHull",
+      "kernelMethods": [
+        "dispose",
+        "hullFromPoints",
+        "shapeType"
+      ],
+      "trace": [
+        {
+          "fn": "convexHull",
+          "file": "operations/convexHullFns.ts",
+          "methods": [
+            "hullFromPoints"
+          ],
+          "calls": [
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/shapeTypes.ts#castResultShape",
+            "core/shapeTypes.ts#isSolid",
+            "core/shapeTypes.ts#disposeResultShape",
+            "core/errors.ts#kernelError",
+            "core/result.ts#ok"
+          ]
+        },
+        {
+          "fn": "err",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "castResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#disposeDowncastSource"
+          ]
+        },
+        {
+          "fn": "isSolid",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "core/typeDiscriminants.ts#getShapeKind"
+          ]
+        },
+        {
+          "fn": "disposeResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "kernelError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "disposeDowncastSource",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "getShapeKind",
+          "file": "core/typeDiscriminants.ts",
+          "methods": [],
+          "calls": [
+            "core/shapeTypeCache.ts#getOrQueryType"
+          ]
+        },
+        {
+          "fn": "getOrQueryType",
+          "file": "core/shapeTypeCache.ts",
+          "methods": [
+            "shapeType"
+          ],
+          "calls": []
+        }
+      ]
+    },
+    {
+      "op": "makeBaseBox",
+      "source": "sketching/shortcuts.js#makeBaseBox",
+      "vendoredFile": "sketching/shortcuts.ts",
+      "vendoredFn": "makeBaseBox",
+      "kernelMethods": [
+        "addHolesInFace",
+        "buildEdgeOnSurface",
+        "buildExtrusionLaw",
+        "copyShape",
+        "curveParameters",
+        "curvePointAtParam",
+        "curveTangent",
+        "dispose",
+        "downcast",
+        "extrude",
+        "isNull",
+        "loftAdvanced",
+        "makeFace",
+        "makeFaceOnSurface",
+        "makeVertex",
+        "makeWireFromMixed",
+        "mirror",
+        "revolveVec",
+        "shapeType",
+        "simplePipe",
+        "surfaceType",
+        "sweepPipeShell"
+      ],
+      "trace": [
+        {
+          "fn": "makeBaseBox",
+          "file": "sketching/shortcuts.ts",
+          "methods": [],
+          "calls": [
+            "sketching/sketcher.ts#new Sketcher()"
+          ]
+        },
+        {
+          "fn": "new sketcher.ts()",
+          "file": "sketching/sketcher.ts",
+          "methods": [
+            "mirror"
+          ],
+          "calls": [
+            "core/result.ts#unwrap",
+            "core/planeOps.ts#resolvePlane",
+            "core/errors.ts#bug",
+            "core/disposal.ts#DisposalScope",
+            "2d/curves.ts#curvesAsEdgesOnPlane",
+            "topology/shapeHelpers.ts#assembleWire",
+            "2d/lib/index.ts#samePoint",
+            "core/planeOps.ts#planeToWorld",
+            "core/vecOps.ts#vecSub",
+            "core/vecOps.ts#vecNormalize",
+            "core/vecOps.ts#vecCross",
+            "topology/cast.ts#downcast",
+            "core/types.ts#toVec3",
+            "core/shapeTypes.ts#createWire",
+            "sketching/sketch.ts#new Sketch()"
+          ]
+        },
+        {
+          "fn": "unwrap",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": [
+            "result.ts#unwrap",
+            "result.ts#formatError"
+          ]
+        },
+        {
+          "fn": "resolvePlane",
+          "file": "core/planeOps.ts",
+          "methods": [],
+          "calls": [
+            "planeOps.ts#createNamedPlane",
+            "core/result.ts#ok"
+          ]
+        },
+        {
+          "fn": "curvesAsEdgesOnPlane",
+          "file": "2d/curves.ts",
+          "methods": [
+            "buildEdgeOnSurface"
+          ],
+          "calls": [
+            "core/shapeTypes.ts#createEdge"
+          ]
+        },
+        {
+          "fn": "planeToWorld",
+          "file": "core/planeOps.ts",
+          "methods": [],
+          "calls": [
+            "core/vecOps.ts#vecAdd",
+            "core/vecOps.ts#vecScale"
+          ]
+        },
+        {
+          "fn": "vecSub",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "vecNormalize",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": [
+            "vecOps.ts#vecLength"
+          ]
+        },
+        {
+          "fn": "vecCross",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "downcast",
+          "file": "topology/cast.ts",
+          "methods": [
+            "downcast",
+            "isNull"
+          ],
+          "calls": [
+            "core/result.ts#err",
+            "core/errors.ts#typeCastError",
+            "core/result.ts#ok"
+          ]
+        },
+        {
+          "fn": "toVec3",
+          "file": "core/types.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "createWire",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "core/disposal.ts#createHandle"
+          ]
+        },
+        {
+          "fn": "new sketch.ts()",
+          "file": "sketching/sketch.ts",
+          "methods": [],
+          "calls": [
+            "core/types.ts#toVec3",
+            "core/shapeTypes.ts#createFace",
+            "core/result.ts#unwrap",
+            "topology/cast.ts#copyShape",
+            "core/shapeTypes.ts#createWire",
+            "sketching/sketchFns.ts#sketchFace",
+            "sketching/sketchFns.ts#sketchWires",
+            "sketching/sketchFns.ts#sketchRevolve",
+            "sketching/sketchFns.ts#sketchExtrude",
+            "sketching/sketchFns.ts#sketchSweep",
+            "sketching/sketchFns.ts#sketchLoft"
+          ]
+        },
+        {
+          "fn": "createNamedPlane",
+          "file": "core/planeOps.ts",
+          "methods": [],
+          "calls": [
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/vecOps.ts#vecScale",
+            "core/types.ts#toVec3",
+            "core/result.ts#ok",
+            "planeOps.ts#createPlane"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "bug",
+          "file": "utils/bug.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "createEdge",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "core/disposal.ts#createHandle"
+          ]
+        },
+        {
+          "fn": "assembleWire",
+          "file": "topology/curveBuilders.ts",
+          "methods": [
+            "makeWireFromMixed"
+          ],
+          "calls": [
+            "core/result.ts#ok",
+            "core/shapeTypes.ts#createWire",
+            "core/result.ts#err",
+            "core/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "vecAdd",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "vecScale",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "vecLength",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "err",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "typeCastError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "createHandle",
+          "file": "core/disposal.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": [
+            "disposal.ts#trackHandleDisposed",
+            "disposal.ts#trackHandleCreated"
+          ]
+        },
+        {
+          "fn": "createFace",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "core/disposal.ts#createHandle"
+          ]
+        },
+        {
+          "fn": "copyShape",
+          "file": "topology/cast.ts",
+          "methods": [
+            "copyShape",
+            "isNull"
+          ],
+          "calls": [
+            "core/result.ts#err",
+            "core/errors.ts#typeCastError",
+            "core/result.ts#ok"
+          ]
+        },
+        {
+          "fn": "sketchFace",
+          "file": "sketching/sketchFns.ts",
+          "methods": [],
+          "calls": [
+            "core/result.ts#unwrap",
+            "topology/shapeHelpers.ts#makeFace",
+            "topology/shapeHelpers.ts#makeNewFaceWithinFace"
+          ]
+        },
+        {
+          "fn": "sketchWires",
+          "file": "sketching/sketchFns.ts",
+          "methods": [],
+          "calls": [
+            "core/shapeTypes.ts#createWire",
+            "core/result.ts#unwrap",
+            "topology/cast.ts#copyShape"
+          ]
+        },
+        {
+          "fn": "sketchRevolve",
+          "file": "sketching/sketchFns.ts",
+          "methods": [],
+          "calls": [
+            "core/result.ts#unwrap",
+            "topology/shapeHelpers.ts#makeFace",
+            "core/types.ts#toVec3",
+            "operations/extrudeFns.ts#revolve"
+          ]
+        },
+        {
+          "fn": "sketchExtrude",
+          "file": "sketching/sketchFns.ts",
+          "methods": [],
+          "calls": [
+            "core/types.ts#toVec3",
+            "core/vecOps.ts#vecScale",
+            "core/vecOps.ts#vecNormalize",
+            "core/result.ts#unwrap",
+            "operations/sweepFns.ts#complexExtrude",
+            "operations/sweepFns.ts#twistExtrude",
+            "topology/shapeHelpers.ts#makeFace",
+            "operations/extrudeFns.ts#extrude"
+          ]
+        },
+        {
+          "fn": "sketchSweep",
+          "file": "sketching/sketchFns.ts",
+          "methods": [],
+          "calls": [
+            "topology/curveFns.ts#curveStartPoint",
+            "topology/curveFns.ts#curveTangentAt",
+            "core/vecOps.ts#vecNormalize",
+            "core/vecOps.ts#vecScale",
+            "core/vecOps.ts#vecCross",
+            "sketchFns.ts#asSketch",
+            "core/planeOps.ts#createPlane",
+            "core/result.ts#unwrap",
+            "operations/sweepFns.ts#sweep"
+          ]
+        },
+        {
+          "fn": "sketchLoft",
+          "file": "sketching/sketchFns.ts",
+          "methods": [],
+          "calls": [
+            "core/result.ts#unwrap",
+            "operations/loftFns.ts#loft"
+          ]
+        },
+        {
+          "fn": "validationError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "createPlane",
+          "file": "core/planeOps.ts",
+          "methods": [],
+          "calls": [
+            "core/vecOps.ts#vecNormalize",
+            "core/vecOps.ts#vecIsZero",
+            "core/vecOps.ts#vecCross"
+          ]
+        },
+        {
+          "fn": "kernelError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "revolve",
+          "file": "operations/extrudeFns.ts",
+          "methods": [
+            "isNull",
+            "revolveVec"
+          ],
+          "calls": [
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/shapeTypes.ts#castResultShape",
+            "core/shapeTypes.ts#isShape3D",
+            "core/shapeTypes.ts#disposeResultShape",
+            "core/errors.ts#typeCastError",
+            "core/result.ts#ok",
+            "core/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "complexExtrude",
+          "file": "operations/sweepFns.ts",
+          "methods": [],
+          "calls": [
+            "core/vecOps.ts#vecLength",
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/vecOps.ts#vecAdd",
+            "sweepFns.ts#makeSpineWire",
+            "operations/extrudeUtils.ts#buildLawFromProfile",
+            "core/result.ts#isErr",
+            "sweepFns.ts#sweep"
+          ]
+        },
+        {
+          "fn": "twistExtrude",
+          "file": "operations/sweepFns.ts",
+          "methods": [],
+          "calls": [
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/vecOps.ts#vecLength",
+            "core/vecOps.ts#vecAdd",
+            "sweepFns.ts#makeSpineWire",
+            "sweepFns.ts#makeHelixWire",
+            "operations/extrudeUtils.ts#buildLawFromProfile",
+            "core/result.ts#isErr",
+            "sweepFns.ts#sweep"
+          ]
+        },
+        {
+          "fn": "extrude",
+          "file": "operations/extrudeFns.ts",
+          "methods": [
+            "downcast",
+            "extrude",
+            "isNull"
+          ],
+          "calls": [
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/vecOps.ts#vecLength",
+            "core/vecOps.ts#vecNormalize",
+            "core/shapeTypes.ts#createSolid",
+            "core/shapeTypes.ts#disposeDowncastSource",
+            "core/result.ts#ok",
+            "core/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "curveStartPoint",
+          "file": "topology/curveFns.ts",
+          "methods": [
+            "curveParameters",
+            "curvePointAtParam"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "curveTangentAt",
+          "file": "topology/curveFns.ts",
+          "methods": [
+            "curveParameters",
+            "curveTangent"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "asSketch",
+          "file": "sketching/sketchFns.ts",
+          "methods": [],
+          "calls": [
+            "core/errors.ts#bug"
+          ]
+        },
+        {
+          "fn": "sweep",
+          "file": "operations/sweepFns.ts",
+          "methods": [
+            "simplePipe",
+            "sweepPipeShell"
+          ],
+          "calls": [
+            "core/shapeTypes.ts#castResultShape",
+            "core/shapeTypes.ts#isShape3D",
+            "core/shapeTypes.ts#disposeResultShape",
+            "core/result.ts#err",
+            "core/errors.ts#typeCastError",
+            "core/result.ts#ok",
+            "sweepFns.ts#castSweepShellTuple"
+          ]
+        },
+        {
+          "fn": "loft",
+          "file": "operations/loftFns.ts",
+          "methods": [
+            "loftAdvanced",
+            "makeVertex"
+          ],
+          "calls": [
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/shapeTypes.ts#castResultShape",
+            "core/shapeTypes.ts#isShape3D",
+            "core/shapeTypes.ts#disposeResultShape",
+            "core/errors.ts#typeCastError",
+            "core/result.ts#ok",
+            "core/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "vecIsZero",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": [
+            "vecOps.ts#vecLengthSq"
+          ]
+        },
+        {
+          "fn": "makeFace",
+          "file": "topology/surfaceBuilders.ts",
+          "methods": [
+            "makeFace"
+          ],
+          "calls": [
+            "surfaceBuilders.ts#addHolesInFace",
+            "core/validityTypes.ts#isPlanarFace",
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/result.ts#ok",
+            "core/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "makeNewFaceWithinFace",
+          "file": "topology/surfaceBuilders.ts",
+          "methods": [
+            "makeFaceOnSurface"
+          ],
+          "calls": [
+            "core/shapeTypes.ts#createFace"
+          ]
+        },
+        {
+          "fn": "castResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#disposeDowncastSource"
+          ]
+        },
+        {
+          "fn": "isShape3D",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "core/typeDiscriminants.ts#getShapeKind",
+            "core/dimensionTypes.ts#is3D"
+          ]
+        },
+        {
+          "fn": "disposeResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "buildLawFromProfile",
+          "file": "operations/extrudeUtils.ts",
+          "methods": [
+            "buildExtrusionLaw"
+          ],
+          "calls": [
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/result.ts#ok"
+          ]
+        },
+        {
+          "fn": "isErr",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "createSolid",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#brandHandle",
+            "core/disposal.ts#createHandle"
+          ]
+        },
+        {
+          "fn": "disposeDowncastSource",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "vecLengthSq",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "addHolesInFace",
+          "file": "topology/surfaceBuilders.ts",
+          "methods": [
+            "addHolesInFace"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "isPlanarFace",
+          "file": "core/validityTypes.ts",
+          "methods": [
+            "surfaceType"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "getShapeKind",
+          "file": "core/typeDiscriminants.ts",
+          "methods": [],
+          "calls": [
+            "core/shapeTypeCache.ts#getOrQueryType"
+          ]
+        },
+        {
+          "fn": "is3D",
+          "file": "core/dimensionTypes.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "getOrQueryType",
+          "file": "core/shapeTypeCache.ts",
+          "methods": [
+            "shapeType"
+          ],
+          "calls": []
+        }
+      ]
+    },
+    {
+      "op": "ellipsoid",
+      "source": "topology/primitiveFns.js#ellipsoid",
+      "vendoredFile": "topology/primitiveFns.ts",
+      "vendoredFn": "ellipsoid",
+      "kernelMethods": [
+        "dispose",
+        "makeEllipsoid",
+        "translateWithHistory"
+      ],
+      "trace": [
+        {
+          "fn": "ellipsoid",
+          "file": "topology/primitiveFns.ts",
+          "methods": [],
+          "calls": [
+            "topology/shapeHelpers.ts#makeEllipsoid",
+            "topology/shapeFns.ts#translate"
+          ]
+        },
+        {
+          "fn": "makeEllipsoid",
+          "file": "topology/solidBuilders.ts",
+          "methods": [
+            "makeEllipsoid"
+          ],
+          "calls": [
+            "core/shapeTypes.ts#createSolid"
+          ]
+        },
+        {
+          "fn": "translate",
+          "file": "topology/transformFns.ts",
+          "methods": [
+            "translateWithHistory"
+          ],
+          "calls": [
+            "topology/metadata/metadataPropagation.ts#collectInputFaceHashes",
+            "core/shapeTypes.ts#castResultShape",
+            "topology/metadata/metadataPropagation.ts#propagateAllMetadata"
+          ]
+        },
+        {
+          "fn": "createSolid",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#brandHandle",
+            "core/disposal.ts#createHandle"
+          ]
+        },
+        {
+          "fn": "collectInputFaceHashes",
+          "file": "topology/metadata/metadataPropagation.ts",
+          "methods": [],
+          "calls": [
+            "topology/metadata/originTrackingFns.ts#propagateOriginsFromEvolution",
+            "topology/metadata/faceTagFns.ts#propagateFaceTagsFromEvolution",
+            "topology/metadata/colorFns.ts#propagateColorsFromEvolution"
+          ]
+        },
+        {
+          "fn": "castResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#disposeDowncastSource"
+          ]
+        },
+        {
+          "fn": "propagateAllMetadata",
+          "file": "topology/metadata/metadataPropagation.ts",
+          "methods": [],
+          "calls": [
+            "topology/metadata/originTrackingFns.ts#propagateOriginsFromEvolution",
+            "topology/metadata/faceTagFns.ts#propagateFaceTagsFromEvolution",
+            "topology/metadata/colorFns.ts#propagateColorsFromEvolution"
+          ]
+        },
+        {
+          "fn": "createHandle",
+          "file": "core/disposal.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": [
+            "disposal.ts#trackHandleDisposed",
+            "disposal.ts#trackHandleCreated"
+          ]
+        },
+        {
+          "fn": "propagateOriginsFromEvolution",
+          "file": "topology/metadata/originTrackingFns.ts",
+          "methods": [],
+          "calls": [
+            "originTrackingFns.ts#getFaceOrigins",
+            "topology/topologyQueryFns.ts#getOrCreateCache"
+          ]
+        },
+        {
+          "fn": "propagateFaceTagsFromEvolution",
+          "file": "topology/metadata/faceTagFns.ts",
+          "methods": [],
+          "calls": [
+            "faceTagFns.ts#getTagMap",
+            "faceTagFns.ts#addTagToResult",
+            "faceTagFns.ts#getMetaMap"
+          ]
+        },
+        {
+          "fn": "propagateColorsFromEvolution",
+          "file": "topology/metadata/colorFns.ts",
+          "methods": [],
+          "calls": [
+            "colorFns.ts#getFaceColorMap"
+          ]
+        },
+        {
+          "fn": "disposeDowncastSource",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "getFaceOrigins",
+          "file": "topology/metadata/originTrackingFns.ts",
+          "methods": [],
+          "calls": [
+            "topology/topologyQueryFns.ts#getCacheEntry"
+          ]
+        },
+        {
+          "fn": "getOrCreateCache",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [],
+          "calls": [
+            "topologyQueryFns.ts#disposeCacheEntry"
+          ]
+        },
+        {
+          "fn": "getCacheEntry",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [],
+          "calls": []
+        }
+      ]
+    },
+    {
+      "op": "rotate",
+      "source": "topology/api.js#rotate",
+      "vendoredFile": "topology/api.ts",
+      "vendoredFn": "rotate",
+      "kernelMethods": [
+        "dispose",
+        "rotateWithHistory"
+      ],
+      "trace": [
+        {
+          "fn": "rotate",
+          "file": "topology/api.ts",
+          "methods": [],
+          "calls": [
+            "api.ts#assertNotPositionalOptions",
+            "topology/apiTypes.ts#resolve",
+            "topology/shapeFns.ts#rotate"
+          ]
+        },
+        {
+          "fn": "resolve",
+          "file": "topology/apiTypes.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "rotate",
+          "file": "topology/transformFns.ts",
+          "methods": [
+            "rotateWithHistory"
+          ],
+          "calls": [
+            "topology/metadata/metadataPropagation.ts#collectInputFaceHashes",
+            "core/shapeTypes.ts#castResultShape",
+            "topology/metadata/metadataPropagation.ts#propagateAllMetadata"
+          ]
+        },
+        {
+          "fn": "collectInputFaceHashes",
+          "file": "topology/metadata/metadataPropagation.ts",
+          "methods": [],
+          "calls": [
+            "topology/metadata/originTrackingFns.ts#propagateOriginsFromEvolution",
+            "topology/metadata/faceTagFns.ts#propagateFaceTagsFromEvolution",
+            "topology/metadata/colorFns.ts#propagateColorsFromEvolution"
+          ]
+        },
+        {
+          "fn": "castResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#disposeDowncastSource"
+          ]
+        },
+        {
+          "fn": "propagateAllMetadata",
+          "file": "topology/metadata/metadataPropagation.ts",
+          "methods": [],
+          "calls": [
+            "topology/metadata/originTrackingFns.ts#propagateOriginsFromEvolution",
+            "topology/metadata/faceTagFns.ts#propagateFaceTagsFromEvolution",
+            "topology/metadata/colorFns.ts#propagateColorsFromEvolution"
+          ]
+        },
+        {
+          "fn": "propagateOriginsFromEvolution",
+          "file": "topology/metadata/originTrackingFns.ts",
+          "methods": [],
+          "calls": [
+            "originTrackingFns.ts#getFaceOrigins",
+            "topology/topologyQueryFns.ts#getOrCreateCache"
+          ]
+        },
+        {
+          "fn": "propagateFaceTagsFromEvolution",
+          "file": "topology/metadata/faceTagFns.ts",
+          "methods": [],
+          "calls": [
+            "faceTagFns.ts#getTagMap",
+            "faceTagFns.ts#addTagToResult",
+            "faceTagFns.ts#getMetaMap"
+          ]
+        },
+        {
+          "fn": "propagateColorsFromEvolution",
+          "file": "topology/metadata/colorFns.ts",
+          "methods": [],
+          "calls": [
+            "colorFns.ts#getFaceColorMap"
+          ]
+        },
+        {
+          "fn": "disposeDowncastSource",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "getFaceOrigins",
+          "file": "topology/metadata/originTrackingFns.ts",
+          "methods": [],
+          "calls": [
+            "topology/topologyQueryFns.ts#getCacheEntry"
+          ]
+        },
+        {
+          "fn": "getOrCreateCache",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [],
+          "calls": [
+            "topologyQueryFns.ts#disposeCacheEntry"
+          ]
+        },
+        {
+          "fn": "getCacheEntry",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [],
+          "calls": []
+        }
+      ]
+    },
+    {
+      "op": "mirror",
+      "source": "topology/api.js#mirror",
+      "vendoredFile": "topology/api.ts",
+      "vendoredFn": "mirror",
+      "kernelMethods": [
+        "dispose",
+        "mirrorWithHistory"
+      ],
+      "trace": [
+        {
+          "fn": "mirror",
+          "file": "topology/api.ts",
+          "methods": [],
+          "calls": [
+            "api.ts#assertNotPositionalOptions",
+            "topology/apiTypes.ts#resolve",
+            "topology/shapeFns.ts#mirror"
+          ]
+        },
+        {
+          "fn": "resolve",
+          "file": "topology/apiTypes.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "mirror",
+          "file": "topology/transformFns.ts",
+          "methods": [
+            "mirrorWithHistory"
+          ],
+          "calls": [
+            "topology/metadata/metadataPropagation.ts#collectInputFaceHashes",
+            "core/shapeTypes.ts#castResultShape",
+            "topology/metadata/metadataPropagation.ts#propagateAllMetadata"
+          ]
+        },
+        {
+          "fn": "collectInputFaceHashes",
+          "file": "topology/metadata/metadataPropagation.ts",
+          "methods": [],
+          "calls": [
+            "topology/metadata/originTrackingFns.ts#propagateOriginsFromEvolution",
+            "topology/metadata/faceTagFns.ts#propagateFaceTagsFromEvolution",
+            "topology/metadata/colorFns.ts#propagateColorsFromEvolution"
+          ]
+        },
+        {
+          "fn": "castResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#disposeDowncastSource"
+          ]
+        },
+        {
+          "fn": "propagateAllMetadata",
+          "file": "topology/metadata/metadataPropagation.ts",
+          "methods": [],
+          "calls": [
+            "topology/metadata/originTrackingFns.ts#propagateOriginsFromEvolution",
+            "topology/metadata/faceTagFns.ts#propagateFaceTagsFromEvolution",
+            "topology/metadata/colorFns.ts#propagateColorsFromEvolution"
+          ]
+        },
+        {
+          "fn": "propagateOriginsFromEvolution",
+          "file": "topology/metadata/originTrackingFns.ts",
+          "methods": [],
+          "calls": [
+            "originTrackingFns.ts#getFaceOrigins",
+            "topology/topologyQueryFns.ts#getOrCreateCache"
+          ]
+        },
+        {
+          "fn": "propagateFaceTagsFromEvolution",
+          "file": "topology/metadata/faceTagFns.ts",
+          "methods": [],
+          "calls": [
+            "faceTagFns.ts#getTagMap",
+            "faceTagFns.ts#addTagToResult",
+            "faceTagFns.ts#getMetaMap"
+          ]
+        },
+        {
+          "fn": "propagateColorsFromEvolution",
+          "file": "topology/metadata/colorFns.ts",
+          "methods": [],
+          "calls": [
+            "colorFns.ts#getFaceColorMap"
+          ]
+        },
+        {
+          "fn": "disposeDowncastSource",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "getFaceOrigins",
+          "file": "topology/metadata/originTrackingFns.ts",
+          "methods": [],
+          "calls": [
+            "topology/topologyQueryFns.ts#getCacheEntry"
+          ]
+        },
+        {
+          "fn": "getOrCreateCache",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [],
+          "calls": [
+            "topologyQueryFns.ts#disposeCacheEntry"
+          ]
+        },
+        {
+          "fn": "getCacheEntry",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [],
+          "calls": []
+        }
+      ]
+    },
+    {
+      "op": "clone",
+      "source": "topology/api.js#clone",
+      "vendoredFile": "topology/api.ts",
+      "vendoredFn": "clone",
+      "kernelMethods": [
+        "copyShape",
+        "dispose"
+      ],
+      "trace": [
+        {
+          "fn": "clone",
+          "file": "topology/api.ts",
+          "methods": [],
+          "calls": [
+            "topology/apiTypes.ts#resolve",
+            "topology/shapeFns.ts#clone"
+          ]
+        },
+        {
+          "fn": "resolve",
+          "file": "topology/apiTypes.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "clone",
+          "file": "topology/shapeFns.ts",
+          "methods": [
+            "copyShape"
+          ],
+          "calls": [
+            "core/kernelCall.ts#kernelCall"
+          ]
+        },
+        {
+          "fn": "kernelCall",
+          "file": "core/kernelCall.ts",
+          "methods": [],
+          "calls": [
+            "core/shapeTypes.ts#castResultShape",
+            "core/result.ts#ok",
+            "core/errors.ts#translateKernelError",
+            "core/errors.ts#getSuggestionForCode",
+            "core/result.ts#err"
+          ]
+        },
+        {
+          "fn": "castResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#disposeDowncastSource"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "err",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "disposeDowncastSource",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "translateKernelError",
+          "file": "core/kernelErrorTranslation.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "getSuggestionForCode",
+          "file": "core/kernelErrorTranslation.ts",
+          "methods": [],
+          "calls": []
+        }
+      ]
+    },
+    {
+      "op": "applyMatrix",
+      "source": "topology/api.js#applyMatrix",
+      "vendoredFile": "topology/api.ts",
+      "vendoredFn": "applyMatrix",
+      "kernelMethods": [
+        "dispose",
+        "generalTransformNonOrthogonal",
+        "generalTransformWithHistory",
+        "hashCode",
+        "iterShapes",
+        "surfaceCenterOfMass",
+        "surfaceNormal",
+        "surfaceType",
+        "uvBounds"
+      ],
+      "trace": [
+        {
+          "fn": "applyMatrix",
+          "file": "topology/api.ts",
+          "methods": [],
+          "calls": [
+            "topology/apiTypes.ts#resolve",
+            "topology/shapeFns.ts#applyMatrix"
+          ]
+        },
+        {
+          "fn": "resolve",
+          "file": "topology/apiTypes.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "applyMatrix",
+          "file": "topology/transformFns.ts",
+          "methods": [
+            "generalTransformNonOrthogonal",
+            "generalTransformWithHistory"
+          ],
+          "calls": [
+            "transformFns.ts#parseMatrixInput",
+            "transformFns.ts#det3x3",
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "transformFns.ts#isOrthogonalMatrix",
+            "topology/metadata/metadataPropagation.ts#collectInputFaceHashes",
+            "core/shapeTypes.ts#castResultShape",
+            "topology/metadata/metadataPropagation.ts#propagateAllMetadata",
+            "core/result.ts#ok",
+            "topology/metadata/metadataPropagation.ts#propagateMetadataByHash"
+          ]
+        },
+        {
+          "fn": "err",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "collectInputFaceHashes",
+          "file": "topology/metadata/metadataPropagation.ts",
+          "methods": [],
+          "calls": [
+            "topology/metadata/originTrackingFns.ts#propagateOriginsFromEvolution",
+            "topology/metadata/faceTagFns.ts#propagateFaceTagsFromEvolution",
+            "topology/metadata/colorFns.ts#propagateColorsFromEvolution"
+          ]
+        },
+        {
+          "fn": "castResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#disposeDowncastSource"
+          ]
+        },
+        {
+          "fn": "propagateAllMetadata",
+          "file": "topology/metadata/metadataPropagation.ts",
+          "methods": [],
+          "calls": [
+            "topology/metadata/originTrackingFns.ts#propagateOriginsFromEvolution",
+            "topology/metadata/faceTagFns.ts#propagateFaceTagsFromEvolution",
+            "topology/metadata/colorFns.ts#propagateColorsFromEvolution"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "propagateMetadataByHash",
+          "file": "topology/metadata/metadataPropagation.ts",
+          "methods": [],
+          "calls": [
+            "topology/metadata/originTrackingFns.ts#propagateOriginsByHash"
+          ]
+        },
+        {
+          "fn": "propagateOriginsFromEvolution",
+          "file": "topology/metadata/originTrackingFns.ts",
+          "methods": [],
+          "calls": [
+            "originTrackingFns.ts#getFaceOrigins",
+            "topology/topologyQueryFns.ts#getOrCreateCache"
+          ]
+        },
+        {
+          "fn": "propagateFaceTagsFromEvolution",
+          "file": "topology/metadata/faceTagFns.ts",
+          "methods": [],
+          "calls": [
+            "faceTagFns.ts#getTagMap",
+            "faceTagFns.ts#addTagToResult",
+            "faceTagFns.ts#getMetaMap"
+          ]
+        },
+        {
+          "fn": "propagateColorsFromEvolution",
+          "file": "topology/metadata/colorFns.ts",
+          "methods": [],
+          "calls": [
+            "colorFns.ts#getFaceColorMap"
+          ]
+        },
+        {
+          "fn": "disposeDowncastSource",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "propagateOriginsByHash",
+          "file": "topology/metadata/originTrackingFns.ts",
+          "methods": [
+            "hashCode",
+            "surfaceCenterOfMass",
+            "surfaceNormal",
+            "surfaceType",
+            "uvBounds"
+          ],
+          "calls": [
+            "originTrackingFns.ts#getFaceOrigins",
+            "topology/topologyQueryFns.ts#getFaces",
+            "originTrackingFns.ts#findBestOriginMatch",
+            "topology/topologyQueryFns.ts#getOrCreateCache"
+          ]
+        },
+        {
+          "fn": "getFaceOrigins",
+          "file": "topology/metadata/originTrackingFns.ts",
+          "methods": [],
+          "calls": [
+            "topology/topologyQueryFns.ts#getCacheEntry"
+          ]
+        },
+        {
+          "fn": "getOrCreateCache",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [],
+          "calls": [
+            "topologyQueryFns.ts#disposeCacheEntry"
+          ]
+        },
+        {
+          "fn": "getFaces",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [
+            "iterShapes"
+          ],
+          "calls": [
+            "core/shapeTypes.ts#castResultShapeWithKnownType"
+          ]
+        },
+        {
+          "fn": "getCacheEntry",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "castResultShapeWithKnownType",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#disposeDowncastSource"
+          ]
+        }
+      ]
+    },
+    {
+      "op": "transformCopy",
+      "source": "topology/api.js#transformCopy",
+      "vendoredFile": "topology/api.ts",
+      "vendoredFn": "transformCopy",
+      "kernelMethods": [
+        "applyComposedTransformWithHistory",
+        "dispose"
+      ],
+      "trace": [
+        {
+          "fn": "transformCopy",
+          "file": "topology/api.ts",
+          "methods": [],
+          "calls": [
+            "topology/apiTypes.ts#resolve",
+            "topology/shapeFns.ts#transformCopy"
+          ]
+        },
+        {
+          "fn": "resolve",
+          "file": "topology/apiTypes.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "transformCopy",
+          "file": "topology/transformFns.ts",
+          "methods": [
+            "applyComposedTransformWithHistory"
+          ],
+          "calls": [
+            "topology/metadata/metadataPropagation.ts#collectInputFaceHashes",
+            "core/shapeTypes.ts#castResultShape",
+            "topology/metadata/metadataPropagation.ts#propagateAllMetadata"
+          ]
+        },
+        {
+          "fn": "collectInputFaceHashes",
+          "file": "topology/metadata/metadataPropagation.ts",
+          "methods": [],
+          "calls": [
+            "topology/metadata/originTrackingFns.ts#propagateOriginsFromEvolution",
+            "topology/metadata/faceTagFns.ts#propagateFaceTagsFromEvolution",
+            "topology/metadata/colorFns.ts#propagateColorsFromEvolution"
+          ]
+        },
+        {
+          "fn": "castResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#disposeDowncastSource"
+          ]
+        },
+        {
+          "fn": "propagateAllMetadata",
+          "file": "topology/metadata/metadataPropagation.ts",
+          "methods": [],
+          "calls": [
+            "topology/metadata/originTrackingFns.ts#propagateOriginsFromEvolution",
+            "topology/metadata/faceTagFns.ts#propagateFaceTagsFromEvolution",
+            "topology/metadata/colorFns.ts#propagateColorsFromEvolution"
+          ]
+        },
+        {
+          "fn": "propagateOriginsFromEvolution",
+          "file": "topology/metadata/originTrackingFns.ts",
+          "methods": [],
+          "calls": [
+            "originTrackingFns.ts#getFaceOrigins",
+            "topology/topologyQueryFns.ts#getOrCreateCache"
+          ]
+        },
+        {
+          "fn": "propagateFaceTagsFromEvolution",
+          "file": "topology/metadata/faceTagFns.ts",
+          "methods": [],
+          "calls": [
+            "faceTagFns.ts#getTagMap",
+            "faceTagFns.ts#addTagToResult",
+            "faceTagFns.ts#getMetaMap"
+          ]
+        },
+        {
+          "fn": "propagateColorsFromEvolution",
+          "file": "topology/metadata/colorFns.ts",
+          "methods": [],
+          "calls": [
+            "colorFns.ts#getFaceColorMap"
+          ]
+        },
+        {
+          "fn": "disposeDowncastSource",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "getFaceOrigins",
+          "file": "topology/metadata/originTrackingFns.ts",
+          "methods": [],
+          "calls": [
+            "topology/topologyQueryFns.ts#getCacheEntry"
+          ]
+        },
+        {
+          "fn": "getOrCreateCache",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [],
+          "calls": [
+            "topologyQueryFns.ts#disposeCacheEntry"
+          ]
+        },
+        {
+          "fn": "getCacheEntry",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [],
+          "calls": []
+        }
+      ]
+    },
+    {
+      "op": "locate",
+      "source": "topology/api.js#locate",
+      "vendoredFile": "topology/api.ts",
+      "vendoredFn": "locate",
+      "kernelMethods": [
+        "composeTransform",
+        "dispose",
+        "hashCode",
+        "locate"
+      ],
+      "trace": [
+        {
+          "fn": "locate",
+          "file": "topology/api.ts",
+          "methods": [],
+          "calls": [
+            "topology/apiTypes.ts#resolve",
+            "topology/shapeFns.ts#locate"
+          ]
+        },
+        {
+          "fn": "resolve",
+          "file": "topology/apiTypes.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "locate",
+          "file": "topology/transformFns.ts",
+          "methods": [
+            "locate"
+          ],
+          "calls": [
+            "transformFns.ts#composeTransforms",
+            "core/shapeTypes.ts#castResultShape",
+            "topology/metadata/metadataPropagation.ts#hasAnyMetadata",
+            "topology/metadata/metadataPropagation.ts#propagateMetadataThroughRelocation"
+          ]
+        },
+        {
+          "fn": "composeTransforms",
+          "file": "topology/transformFns.ts",
+          "methods": [
+            "composeTransform"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "castResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#disposeDowncastSource"
+          ]
+        },
+        {
+          "fn": "hasAnyMetadata",
+          "file": "topology/metadata/metadataPropagation.ts",
+          "methods": [],
+          "calls": [
+            "topology/metadata/originTrackingFns.ts#getFaceOrigins",
+            "topology/metadata/faceTagFns.ts#hasFaceTags",
+            "topology/metadata/colorFns.ts#hasColorMetadata"
+          ]
+        },
+        {
+          "fn": "propagateMetadataThroughRelocation",
+          "file": "topology/metadata/metadataPropagation.ts",
+          "methods": [
+            "dispose",
+            "hashCode"
+          ],
+          "calls": [
+            "metadataPropagation.ts#propagateAllMetadata"
+          ]
+        },
+        {
+          "fn": "disposeDowncastSource",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "getFaceOrigins",
+          "file": "topology/metadata/originTrackingFns.ts",
+          "methods": [],
+          "calls": [
+            "topology/topologyQueryFns.ts#getCacheEntry"
+          ]
+        },
+        {
+          "fn": "hasFaceTags",
+          "file": "topology/metadata/faceTagFns.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "hasColorMetadata",
+          "file": "topology/metadata/colorFns.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "propagateAllMetadata",
+          "file": "topology/metadata/metadataPropagation.ts",
+          "methods": [],
+          "calls": [
+            "topology/metadata/originTrackingFns.ts#propagateOriginsFromEvolution",
+            "topology/metadata/faceTagFns.ts#propagateFaceTagsFromEvolution",
+            "topology/metadata/colorFns.ts#propagateColorsFromEvolution"
+          ]
+        },
+        {
+          "fn": "getCacheEntry",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "propagateOriginsFromEvolution",
+          "file": "topology/metadata/originTrackingFns.ts",
+          "methods": [],
+          "calls": [
+            "originTrackingFns.ts#getFaceOrigins",
+            "topology/topologyQueryFns.ts#getOrCreateCache"
+          ]
+        },
+        {
+          "fn": "propagateFaceTagsFromEvolution",
+          "file": "topology/metadata/faceTagFns.ts",
+          "methods": [],
+          "calls": [
+            "faceTagFns.ts#getTagMap",
+            "faceTagFns.ts#addTagToResult",
+            "faceTagFns.ts#getMetaMap"
+          ]
+        },
+        {
+          "fn": "propagateColorsFromEvolution",
+          "file": "topology/metadata/colorFns.ts",
+          "methods": [],
+          "calls": [
+            "colorFns.ts#getFaceColorMap"
+          ]
+        },
+        {
+          "fn": "getOrCreateCache",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [],
+          "calls": [
+            "topologyQueryFns.ts#disposeCacheEntry"
+          ]
+        }
+      ]
+    },
+    {
+      "op": "section",
+      "source": "topology/api.js#section",
+      "vendoredFile": "topology/api.ts",
+      "vendoredFn": "section",
+      "kernelMethods": [
+        "dispose",
+        "isNull",
+        "section"
+      ],
+      "trace": [
+        {
+          "fn": "section",
+          "file": "topology/api.ts",
+          "methods": [],
+          "calls": [
+            "topology/apiTypes.ts#resolve",
+            "topology/booleanFns.ts#section"
+          ]
+        },
+        {
+          "fn": "resolve",
+          "file": "topology/apiTypes.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "section",
+          "file": "topology/booleanFns.ts",
+          "methods": [
+            "dispose",
+            "isNull",
+            "section"
+          ],
+          "calls": [
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/result.ts#unwrap",
+            "core/planeOps.ts#resolvePlane",
+            "booleanFns.ts#resolveSectionPlacement",
+            "booleanFns.ts#makeSectionFace",
+            "core/shapeTypes.ts#castResultShape",
+            "core/result.ts#ok",
+            "core/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "err",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "unwrap",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": [
+            "result.ts#unwrap",
+            "result.ts#formatError"
+          ]
+        },
+        {
+          "fn": "resolvePlane",
+          "file": "core/planeOps.ts",
+          "methods": [],
+          "calls": [
+            "planeOps.ts#createNamedPlane",
+            "core/result.ts#ok"
+          ]
+        },
+        {
+          "fn": "castResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#disposeDowncastSource"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "kernelError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "createNamedPlane",
+          "file": "core/planeOps.ts",
+          "methods": [],
+          "calls": [
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/vecOps.ts#vecScale",
+            "core/types.ts#toVec3",
+            "core/result.ts#ok",
+            "planeOps.ts#createPlane"
+          ]
+        },
+        {
+          "fn": "disposeDowncastSource",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "vecScale",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "toVec3",
+          "file": "core/types.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "createPlane",
+          "file": "core/planeOps.ts",
+          "methods": [],
+          "calls": [
+            "core/vecOps.ts#vecNormalize",
+            "core/vecOps.ts#vecIsZero",
+            "core/vecOps.ts#vecCross"
+          ]
+        },
+        {
+          "fn": "vecNormalize",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": [
+            "vecOps.ts#vecLength"
+          ]
+        },
+        {
+          "fn": "vecIsZero",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": [
+            "vecOps.ts#vecLengthSq"
+          ]
+        },
+        {
+          "fn": "vecCross",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "vecLength",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "vecLengthSq",
+          "file": "core/vecOps.ts",
+          "methods": [],
+          "calls": []
+        }
+      ]
+    },
+    {
+      "op": "split",
+      "source": "topology/api.js#split",
+      "vendoredFile": "topology/api.ts",
+      "vendoredFn": "split",
+      "kernelMethods": [
+        "dispose",
+        "isNull",
+        "split"
+      ],
+      "trace": [
+        {
+          "fn": "split",
+          "file": "topology/api.ts",
+          "methods": [],
+          "calls": [
+            "topology/apiTypes.ts#resolve",
+            "topology/booleanFns.ts#split"
+          ]
+        },
+        {
+          "fn": "resolve",
+          "file": "topology/apiTypes.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "split",
+          "file": "topology/booleanFns.ts",
+          "methods": [
+            "isNull",
+            "split"
+          ],
+          "calls": [
+            "core/result.ts#ok",
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "utils/arrayAccess.ts#getAtOrThrow",
+            "core/shapeTypes.ts#castResultShape",
+            "core/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "err",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "getAtOrThrow",
+          "file": "utils/arrayAccess.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "castResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#disposeDowncastSource"
+          ]
+        },
+        {
+          "fn": "kernelError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "disposeDowncastSource",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        }
+      ]
+    },
+    {
+      "op": "shell",
+      "source": "topology/api.js#shell",
+      "vendoredFile": "topology/api.ts",
+      "vendoredFn": "shell",
+      "kernelMethods": [
+        "dispose",
+        "shapeType",
+        "shell",
+        "shellWithHistory"
+      ],
+      "trace": [
+        {
+          "fn": "shell",
+          "file": "topology/api.ts",
+          "methods": [],
+          "calls": [
+            "topology/apiTypes.ts#resolve",
+            "api.ts#resolveFaces",
+            "topology/modifierFns.ts#shell"
+          ]
+        },
+        {
+          "fn": "resolve",
+          "file": "topology/apiTypes.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "shell",
+          "file": "topology/modifierFns.ts",
+          "methods": [
+            "shell",
+            "shellWithHistory"
+          ],
+          "calls": [
+            "modifierFns.ts#validateNotNull",
+            "core/result.ts#isErr",
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/shapeTypes.ts#castResultShape",
+            "core/shapeTypes.ts#isShape3D",
+            "core/shapeTypes.ts#disposeResultShape",
+            "core/errors.ts#kernelError",
+            "core/result.ts#ok",
+            "topology/metadata/metadataPropagation.ts#collectInputFaceHashes",
+            "topology/metadata/metadataPropagation.ts#propagateAllMetadata"
+          ]
+        },
+        {
+          "fn": "isErr",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "err",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "castResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#disposeDowncastSource"
+          ]
+        },
+        {
+          "fn": "isShape3D",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "core/typeDiscriminants.ts#getShapeKind",
+            "core/dimensionTypes.ts#is3D"
+          ]
+        },
+        {
+          "fn": "disposeResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "kernelError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "collectInputFaceHashes",
+          "file": "topology/metadata/metadataPropagation.ts",
+          "methods": [],
+          "calls": [
+            "topology/metadata/originTrackingFns.ts#propagateOriginsFromEvolution",
+            "topology/metadata/faceTagFns.ts#propagateFaceTagsFromEvolution",
+            "topology/metadata/colorFns.ts#propagateColorsFromEvolution"
+          ]
+        },
+        {
+          "fn": "propagateAllMetadata",
+          "file": "topology/metadata/metadataPropagation.ts",
+          "methods": [],
+          "calls": [
+            "topology/metadata/originTrackingFns.ts#propagateOriginsFromEvolution",
+            "topology/metadata/faceTagFns.ts#propagateFaceTagsFromEvolution",
+            "topology/metadata/colorFns.ts#propagateColorsFromEvolution"
+          ]
+        },
+        {
+          "fn": "disposeDowncastSource",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "getShapeKind",
+          "file": "core/typeDiscriminants.ts",
+          "methods": [],
+          "calls": [
+            "core/shapeTypeCache.ts#getOrQueryType"
+          ]
+        },
+        {
+          "fn": "is3D",
+          "file": "core/dimensionTypes.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "propagateOriginsFromEvolution",
+          "file": "topology/metadata/originTrackingFns.ts",
+          "methods": [],
+          "calls": [
+            "originTrackingFns.ts#getFaceOrigins",
+            "topology/topologyQueryFns.ts#getOrCreateCache"
+          ]
+        },
+        {
+          "fn": "propagateFaceTagsFromEvolution",
+          "file": "topology/metadata/faceTagFns.ts",
+          "methods": [],
+          "calls": [
+            "faceTagFns.ts#getTagMap",
+            "faceTagFns.ts#addTagToResult",
+            "faceTagFns.ts#getMetaMap"
+          ]
+        },
+        {
+          "fn": "propagateColorsFromEvolution",
+          "file": "topology/metadata/colorFns.ts",
+          "methods": [],
+          "calls": [
+            "colorFns.ts#getFaceColorMap"
+          ]
+        },
+        {
+          "fn": "getOrQueryType",
+          "file": "core/shapeTypeCache.ts",
+          "methods": [
+            "shapeType"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "getFaceOrigins",
+          "file": "topology/metadata/originTrackingFns.ts",
+          "methods": [],
+          "calls": [
+            "topology/topologyQueryFns.ts#getCacheEntry"
+          ]
+        },
+        {
+          "fn": "getOrCreateCache",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [],
+          "calls": [
+            "topologyQueryFns.ts#disposeCacheEntry"
+          ]
+        },
+        {
+          "fn": "getCacheEntry",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [],
+          "calls": []
+        }
+      ]
+    },
+    {
+      "op": "offset",
+      "source": "topology/api.js#offset",
+      "vendoredFile": "topology/api.ts",
+      "vendoredFn": "offset",
+      "kernelMethods": [
+        "dispose",
+        "offsetWithHistory",
+        "shapeType"
+      ],
+      "trace": [
+        {
+          "fn": "offset",
+          "file": "topology/api.ts",
+          "methods": [],
+          "calls": [
+            "topology/apiTypes.ts#resolve",
+            "topology/modifierFns.ts#offset"
+          ]
+        },
+        {
+          "fn": "resolve",
+          "file": "topology/apiTypes.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "offset",
+          "file": "topology/modifierFns.ts",
+          "methods": [
+            "offsetWithHistory"
+          ],
+          "calls": [
+            "modifierFns.ts#validateNotNull",
+            "core/result.ts#isErr",
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "topology/metadata/metadataPropagation.ts#collectInputFaceHashes",
+            "core/shapeTypes.ts#castResultShape",
+            "core/shapeTypes.ts#isShape3D",
+            "core/shapeTypes.ts#disposeResultShape",
+            "core/errors.ts#kernelError",
+            "topology/metadata/metadataPropagation.ts#propagateAllMetadata",
+            "core/result.ts#ok"
+          ]
+        },
+        {
+          "fn": "isErr",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "err",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "collectInputFaceHashes",
+          "file": "topology/metadata/metadataPropagation.ts",
+          "methods": [],
+          "calls": [
+            "topology/metadata/originTrackingFns.ts#propagateOriginsFromEvolution",
+            "topology/metadata/faceTagFns.ts#propagateFaceTagsFromEvolution",
+            "topology/metadata/colorFns.ts#propagateColorsFromEvolution"
+          ]
+        },
+        {
+          "fn": "castResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#disposeDowncastSource"
+          ]
+        },
+        {
+          "fn": "isShape3D",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "core/typeDiscriminants.ts#getShapeKind",
+            "core/dimensionTypes.ts#is3D"
+          ]
+        },
+        {
+          "fn": "disposeResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "kernelError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "propagateAllMetadata",
+          "file": "topology/metadata/metadataPropagation.ts",
+          "methods": [],
+          "calls": [
+            "topology/metadata/originTrackingFns.ts#propagateOriginsFromEvolution",
+            "topology/metadata/faceTagFns.ts#propagateFaceTagsFromEvolution",
+            "topology/metadata/colorFns.ts#propagateColorsFromEvolution"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "propagateOriginsFromEvolution",
+          "file": "topology/metadata/originTrackingFns.ts",
+          "methods": [],
+          "calls": [
+            "originTrackingFns.ts#getFaceOrigins",
+            "topology/topologyQueryFns.ts#getOrCreateCache"
+          ]
+        },
+        {
+          "fn": "propagateFaceTagsFromEvolution",
+          "file": "topology/metadata/faceTagFns.ts",
+          "methods": [],
+          "calls": [
+            "faceTagFns.ts#getTagMap",
+            "faceTagFns.ts#addTagToResult",
+            "faceTagFns.ts#getMetaMap"
+          ]
+        },
+        {
+          "fn": "propagateColorsFromEvolution",
+          "file": "topology/metadata/colorFns.ts",
+          "methods": [],
+          "calls": [
+            "colorFns.ts#getFaceColorMap"
+          ]
+        },
+        {
+          "fn": "disposeDowncastSource",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "getShapeKind",
+          "file": "core/typeDiscriminants.ts",
+          "methods": [],
+          "calls": [
+            "core/shapeTypeCache.ts#getOrQueryType"
+          ]
+        },
+        {
+          "fn": "is3D",
+          "file": "core/dimensionTypes.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "getFaceOrigins",
+          "file": "topology/metadata/originTrackingFns.ts",
+          "methods": [],
+          "calls": [
+            "topology/topologyQueryFns.ts#getCacheEntry"
+          ]
+        },
+        {
+          "fn": "getOrCreateCache",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [],
+          "calls": [
+            "topologyQueryFns.ts#disposeCacheEntry"
+          ]
+        },
+        {
+          "fn": "getOrQueryType",
+          "file": "core/shapeTypeCache.ts",
+          "methods": [
+            "shapeType"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "getCacheEntry",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [],
+          "calls": []
+        }
+      ]
+    },
+    {
+      "op": "heal",
+      "source": "topology/api.js#heal",
+      "vendoredFile": "topology/api.ts",
+      "vendoredFn": "heal",
+      "kernelMethods": [
+        "dispose",
+        "healFace",
+        "healSolid",
+        "healWire",
+        "isValid",
+        "shapeType"
+      ],
+      "trace": [
+        {
+          "fn": "heal",
+          "file": "topology/api.ts",
+          "methods": [],
+          "calls": [
+            "topology/apiTypes.ts#resolve",
+            "topology/healingFns.ts#heal"
+          ]
+        },
+        {
+          "fn": "resolve",
+          "file": "topology/apiTypes.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "heal",
+          "file": "topology/healingFns.ts",
+          "methods": [],
+          "calls": [
+            "core/shapeTypes.ts#isSolid",
+            "healingFns.ts#healSolid",
+            "core/shapeTypes.ts#isFace",
+            "healingFns.ts#healFace",
+            "core/shapeTypes.ts#isWire",
+            "healingFns.ts#healWire",
+            "core/result.ts#ok"
+          ]
+        },
+        {
+          "fn": "isSolid",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "core/typeDiscriminants.ts#getShapeKind"
+          ]
+        },
+        {
+          "fn": "healSolid",
+          "file": "topology/healingFns.ts",
+          "methods": [
+            "healSolid"
+          ],
+          "calls": [
+            "core/shapeTypes.ts#isSolid",
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "healingFns.ts#isValid",
+            "core/result.ts#ok",
+            "core/errors.ts#kernelError",
+            "core/shapeTypes.ts#castResultShape",
+            "core/shapeTypes.ts#disposeResultShape",
+            "topology/topologyQueryFns.ts#invalidateShapeCache"
+          ]
+        },
+        {
+          "fn": "isFace",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "core/typeDiscriminants.ts#getShapeKind"
+          ]
+        },
+        {
+          "fn": "healFace",
+          "file": "topology/healingFns.ts",
+          "methods": [
+            "healFace"
+          ],
+          "calls": [
+            "core/shapeTypes.ts#isFace",
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/shapeTypes.ts#disposeResultShape",
+            "core/errors.ts#kernelError",
+            "core/result.ts#ok"
+          ]
+        },
+        {
+          "fn": "isWire",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "core/typeDiscriminants.ts#getShapeKind"
+          ]
+        },
+        {
+          "fn": "healWire",
+          "file": "topology/healingFns.ts",
+          "methods": [
+            "healWire"
+          ],
+          "calls": [
+            "core/shapeTypes.ts#isWire",
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/shapeTypes.ts#disposeResultShape",
+            "core/errors.ts#kernelError",
+            "core/result.ts#ok"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "getShapeKind",
+          "file": "core/typeDiscriminants.ts",
+          "methods": [],
+          "calls": [
+            "core/shapeTypeCache.ts#getOrQueryType"
+          ]
+        },
+        {
+          "fn": "err",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "isValid",
+          "file": "topology/healingFns.ts",
+          "methods": [],
+          "calls": [
+            "topology/topologyQueryFns.ts#getCachedIsValid"
+          ]
+        },
+        {
+          "fn": "kernelError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "castResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#disposeDowncastSource"
+          ]
+        },
+        {
+          "fn": "disposeResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "invalidateShapeCache",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [],
+          "calls": [
+            "topologyQueryFns.ts#disposeCacheEntry"
+          ]
+        },
+        {
+          "fn": "getOrQueryType",
+          "file": "core/shapeTypeCache.ts",
+          "methods": [
+            "shapeType"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "getCachedIsValid",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [
+            "isValid"
+          ],
+          "calls": [
+            "topologyQueryFns.ts#getOrCreateCache"
+          ]
+        },
+        {
+          "fn": "disposeDowncastSource",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "getOrCreateCache",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [],
+          "calls": [
+            "topologyQueryFns.ts#disposeCacheEntry"
+          ]
+        }
+      ]
+    },
+    {
+      "op": "simplify",
+      "source": "topology/api.js#simplify",
+      "vendoredFile": "topology/api.ts",
+      "vendoredFn": "simplify",
+      "kernelMethods": [
+        "dispose",
+        "simplify"
+      ],
+      "trace": [
+        {
+          "fn": "simplify",
+          "file": "topology/api.ts",
+          "methods": [],
+          "calls": [
+            "topology/apiTypes.ts#resolve",
+            "topology/shapeFns.ts#simplify"
+          ]
+        },
+        {
+          "fn": "resolve",
+          "file": "topology/apiTypes.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "simplify",
+          "file": "topology/shapeFns.ts",
+          "methods": [
+            "simplify"
+          ],
+          "calls": [
+            "core/kernelCall.ts#kernelCall"
+          ]
+        },
+        {
+          "fn": "kernelCall",
+          "file": "core/kernelCall.ts",
+          "methods": [],
+          "calls": [
+            "core/shapeTypes.ts#castResultShape",
+            "core/result.ts#ok",
+            "core/errors.ts#translateKernelError",
+            "core/errors.ts#getSuggestionForCode",
+            "core/result.ts#err"
+          ]
+        },
+        {
+          "fn": "castResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#disposeDowncastSource"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "err",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "disposeDowncastSource",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "translateKernelError",
+          "file": "core/kernelErrorTranslation.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "getSuggestionForCode",
+          "file": "core/kernelErrorTranslation.ts",
+          "methods": [],
+          "calls": []
+        }
+      ]
+    },
+    {
+      "op": "autoHeal",
+      "source": "topology/healingFns.js#autoHeal",
+      "vendoredFile": "topology/healingFns.ts",
+      "vendoredFn": "autoHeal",
+      "kernelMethods": [
+        "dispose",
+        "fixSelfIntersection",
+        "healFace",
+        "healSolid",
+        "healWire",
+        "isValid",
+        "iterShapes",
+        "sew",
+        "shapeType"
+      ],
+      "trace": [
+        {
+          "fn": "autoHeal",
+          "file": "topology/healingFns.ts",
+          "methods": [
+            "fixSelfIntersection",
+            "sew"
+          ],
+          "calls": [
+            "healingFns.ts#isValid",
+            "core/result.ts#ok",
+            "topology/shapeFns.ts#getWires",
+            "topology/shapeFns.ts#getFaces",
+            "core/shapeTypes.ts#disposeResultShape",
+            "core/shapeTypes.ts#castResultShape",
+            "core/shapeTypes.ts#isSolid",
+            "core/shapeTypes.ts#isFace",
+            "core/shapeTypes.ts#isWire",
+            "healingFns.ts#heal",
+            "core/result.ts#isOk"
+          ]
+        },
+        {
+          "fn": "isValid",
+          "file": "topology/healingFns.ts",
+          "methods": [],
+          "calls": [
+            "topology/topologyQueryFns.ts#getCachedIsValid"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "disposeResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "castResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#disposeDowncastSource"
+          ]
+        },
+        {
+          "fn": "isSolid",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "core/typeDiscriminants.ts#getShapeKind"
+          ]
+        },
+        {
+          "fn": "isFace",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "core/typeDiscriminants.ts#getShapeKind"
+          ]
+        },
+        {
+          "fn": "isWire",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "core/typeDiscriminants.ts#getShapeKind"
+          ]
+        },
+        {
+          "fn": "heal",
+          "file": "topology/healingFns.ts",
+          "methods": [],
+          "calls": [
+            "core/shapeTypes.ts#isSolid",
+            "healingFns.ts#healSolid",
+            "core/shapeTypes.ts#isFace",
+            "healingFns.ts#healFace",
+            "core/shapeTypes.ts#isWire",
+            "healingFns.ts#healWire",
+            "core/result.ts#ok"
+          ]
+        },
+        {
+          "fn": "isOk",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "getCachedIsValid",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [
+            "isValid"
+          ],
+          "calls": [
+            "topologyQueryFns.ts#getOrCreateCache"
+          ]
+        },
+        {
+          "fn": "getWires",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [
+            "iterShapes"
+          ],
+          "calls": [
+            "core/shapeTypes.ts#castResultShapeWithKnownType"
+          ]
+        },
+        {
+          "fn": "getFaces",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [
+            "iterShapes"
+          ],
+          "calls": [
+            "core/shapeTypes.ts#castResultShapeWithKnownType"
+          ]
+        },
+        {
+          "fn": "disposeDowncastSource",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "getShapeKind",
+          "file": "core/typeDiscriminants.ts",
+          "methods": [],
+          "calls": [
+            "core/shapeTypeCache.ts#getOrQueryType"
+          ]
+        },
+        {
+          "fn": "healSolid",
+          "file": "topology/healingFns.ts",
+          "methods": [
+            "healSolid"
+          ],
+          "calls": [
+            "core/shapeTypes.ts#isSolid",
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "healingFns.ts#isValid",
+            "core/result.ts#ok",
+            "core/errors.ts#kernelError",
+            "core/shapeTypes.ts#castResultShape",
+            "core/shapeTypes.ts#disposeResultShape",
+            "topology/topologyQueryFns.ts#invalidateShapeCache"
+          ]
+        },
+        {
+          "fn": "healFace",
+          "file": "topology/healingFns.ts",
+          "methods": [
+            "healFace"
+          ],
+          "calls": [
+            "core/shapeTypes.ts#isFace",
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/shapeTypes.ts#disposeResultShape",
+            "core/errors.ts#kernelError",
+            "core/result.ts#ok"
+          ]
+        },
+        {
+          "fn": "healWire",
+          "file": "topology/healingFns.ts",
+          "methods": [
+            "healWire"
+          ],
+          "calls": [
+            "core/shapeTypes.ts#isWire",
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "core/shapeTypes.ts#disposeResultShape",
+            "core/errors.ts#kernelError",
+            "core/result.ts#ok"
+          ]
+        },
+        {
+          "fn": "getOrCreateCache",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [],
+          "calls": [
+            "topologyQueryFns.ts#disposeCacheEntry"
+          ]
+        },
+        {
+          "fn": "castResultShapeWithKnownType",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#disposeDowncastSource"
+          ]
+        },
+        {
+          "fn": "getOrQueryType",
+          "file": "core/shapeTypeCache.ts",
+          "methods": [
+            "shapeType"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "err",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "kernelError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "invalidateShapeCache",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [],
+          "calls": [
+            "topologyQueryFns.ts#disposeCacheEntry"
+          ]
+        }
+      ]
+    },
+    {
+      "op": "fixShape",
+      "source": "topology/healingFns.js#fixShape",
+      "vendoredFile": "topology/healingFns.ts",
+      "vendoredFn": "fixShape",
+      "kernelMethods": [
+        "fixShape"
+      ],
+      "trace": [
+        {
+          "fn": "fixShape",
+          "file": "topology/healingFns.ts",
+          "methods": [
+            "fixShape"
+          ],
+          "calls": [
+            "core/result.ts#ok",
+            "core/result.ts#err",
+            "core/errors.ts#kernelError"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "err",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "kernelError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        }
+      ]
+    },
+    {
+      "op": "healSolid",
+      "source": "topology/healingFns.js#healSolid",
+      "vendoredFile": "topology/healingFns.ts",
+      "vendoredFn": "healSolid",
+      "kernelMethods": [
+        "dispose",
+        "healSolid",
+        "isValid",
+        "shapeType"
+      ],
+      "trace": [
+        {
+          "fn": "healSolid",
+          "file": "topology/healingFns.ts",
+          "methods": [
+            "healSolid"
+          ],
+          "calls": [
+            "core/shapeTypes.ts#isSolid",
+            "core/result.ts#err",
+            "core/errors.ts#validationError",
+            "healingFns.ts#isValid",
+            "core/result.ts#ok",
+            "core/errors.ts#kernelError",
+            "core/shapeTypes.ts#castResultShape",
+            "core/shapeTypes.ts#disposeResultShape",
+            "topology/topologyQueryFns.ts#invalidateShapeCache"
+          ]
+        },
+        {
+          "fn": "isSolid",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "core/typeDiscriminants.ts#getShapeKind"
+          ]
+        },
+        {
+          "fn": "err",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "validationError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "isValid",
+          "file": "topology/healingFns.ts",
+          "methods": [],
+          "calls": [
+            "topology/topologyQueryFns.ts#getCachedIsValid"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "kernelError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "castResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#disposeDowncastSource"
+          ]
+        },
+        {
+          "fn": "disposeResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "invalidateShapeCache",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [],
+          "calls": [
+            "topologyQueryFns.ts#disposeCacheEntry"
+          ]
+        },
+        {
+          "fn": "getShapeKind",
+          "file": "core/typeDiscriminants.ts",
+          "methods": [],
+          "calls": [
+            "core/shapeTypeCache.ts#getOrQueryType"
+          ]
+        },
+        {
+          "fn": "getCachedIsValid",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [
+            "isValid"
+          ],
+          "calls": [
+            "topologyQueryFns.ts#getOrCreateCache"
+          ]
+        },
+        {
+          "fn": "disposeDowncastSource",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "getOrQueryType",
+          "file": "core/shapeTypeCache.ts",
+          "methods": [
+            "shapeType"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "getOrCreateCache",
+          "file": "topology/topologyQueryFns.ts",
+          "methods": [],
+          "calls": [
+            "topologyQueryFns.ts#disposeCacheEntry"
+          ]
+        }
+      ]
+    },
+    {
+      "op": "fixSelfIntersection",
+      "source": "topology/healingFns.js#fixSelfIntersection",
+      "vendoredFile": "topology/healingFns.ts",
+      "vendoredFn": "fixSelfIntersection",
+      "kernelMethods": [
+        "dispose",
+        "fixSelfIntersection",
+        "shapeType"
+      ],
+      "trace": [
+        {
+          "fn": "fixSelfIntersection",
+          "file": "topology/healingFns.ts",
+          "methods": [
+            "fixSelfIntersection"
+          ],
+          "calls": [
+            "core/shapeTypes.ts#castResultShape",
+            "core/shapeTypes.ts#isWire",
+            "core/shapeTypes.ts#disposeResultShape",
+            "core/result.ts#err",
+            "core/errors.ts#kernelError",
+            "core/result.ts#ok"
+          ]
+        },
+        {
+          "fn": "castResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "shapeTypes.ts#disposeDowncastSource"
+          ]
+        },
+        {
+          "fn": "isWire",
+          "file": "core/shapeTypes.ts",
+          "methods": [],
+          "calls": [
+            "core/typeDiscriminants.ts#getShapeKind"
+          ]
+        },
+        {
+          "fn": "disposeResultShape",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "err",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "kernelError",
+          "file": "core/errors.ts",
+          "methods": [],
+          "calls": [
+            "errors.ts#makeError"
+          ]
+        },
+        {
+          "fn": "ok",
+          "file": "core/result.ts",
+          "methods": [],
+          "calls": []
+        },
+        {
+          "fn": "disposeDowncastSource",
+          "file": "core/shapeTypes.ts",
+          "methods": [
+            "dispose"
+          ],
+          "calls": []
+        },
+        {
+          "fn": "getShapeKind",
+          "file": "core/typeDiscriminants.ts",
+          "methods": [],
+          "calls": [
+            "core/shapeTypeCache.ts#getOrQueryType"
+          ]
+        },
+        {
+          "fn": "getOrQueryType",
+          "file": "core/shapeTypeCache.ts",
+          "methods": [
+            "shapeType"
+          ],
+          "calls": []
+        }
+      ]
+    }
+  ]
+}

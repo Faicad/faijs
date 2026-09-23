@@ -151,7 +151,7 @@ export const union = defineOp({
   // 逐核函数声明（Phase 0.2）：union 需要内核的 fuseWithHistory。
   // 不再声明族级 'evolution'——族级名会让 brepkit（无 intersectWithHistory）等
   // 部分实现的内核静默通过静态判定，再死在运行时（红线违规）。
-  capabilities: ['fuse'],
+  capabilities: ['fuseWithHistory'],
   schema: { shapes: 'Shape*' },
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 })
@@ -181,7 +181,7 @@ export const cut = defineOp({
     keepHidden(base, tool)
     return booleanBrep([base, tool], 'subtract')
   },
-  capabilities: ['cut'],
+  capabilities: ['cutWithHistory'],
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 })
 
@@ -207,7 +207,7 @@ export const subtract = defineOp({
     return booleanBrep(shapes, 'subtract')
   },
   // 逐核函数声明（Phase 0.2）：subtract 需要内核的 cutWithHistory。
-  capabilities: ['cut'],
+  capabilities: ['cutWithHistory'],
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 })
 
@@ -235,7 +235,7 @@ export const intersect = defineOp({
   // 逐核函数声明（Phase 0.2）：intersect 需要内核的 intersectWithHistory。
   // ⚠️ 这正是族级布尔 `'evolution'` 会多报能力的活例：brepkit 声明过
   // `evolution: true` 但**没有** intersectWithHistory → 旧声明下 intersect
-  // 通过静态判定、死在运行时；现在 brepkit 下静态报 lacks capability 'intersect'。
-  capabilities: ['intersect'],
+  // 通过静态判定、死在运行时；现在 brepkit 下静态报 lacks capability 'intersectWithHistory'。
+  capabilities: ['intersectWithHistory'],
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 })

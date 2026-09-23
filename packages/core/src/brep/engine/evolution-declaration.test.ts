@@ -30,22 +30,22 @@ import type { BrepEngineApi } from './primitives'
 
 /** OCCT（occt-wasm@3.8.4）实际提供的 12 个 `*WithHistory`，与 BrepEngineApi 声明一一对应。 */
 const OCCT_EXPECTED: readonly BrepEvolutionKind[] = [
-  'fuse',
-  'cut',
-  'intersect',
-  'fillet',
-  'chamfer',
-  'translate',
-  'rotate',
-  'mirror',
-  'scale',
-  'shell',
-  'offset',
-  'thicken',
+  'fuseWithHistory',
+  'cutWithHistory',
+  'intersectWithHistory',
+  'filletWithHistory',
+  'chamferWithHistory',
+  'translateWithHistory',
+  'rotateWithHistory',
+  'mirrorWithHistory',
+  'scaleWithHistory',
+  'shellWithHistory',
+  'offsetWithHistory',
+  'thickenWithHistory',
 ]
 
-/** 能力名 → 核函数名（命名一律 `<kind>WithHistory`，见 BrepEngineApi 声明）。 */
-const methodOf = (kind: BrepEvolutionKind): string => `${kind}WithHistory`
+/** 能力名 = 内核方法真名（Phase 1 真名化后恒等，见 BrepEngineApi 声明）。 */
+const methodOf = (kind: BrepEvolutionKind): string => kind
 
 describe('evolution 声明审计：occt', () => {
   beforeEach(() => {
@@ -96,13 +96,13 @@ describe.skipIf(!brepkitAvailable)('evolution 声明审计：brepkit（部分实
     __resetEngineRegistriesForTests()
   })
 
-  it("声明恰为 ['fuse','cut','fillet']——chamfer/intersect/transform/shell/offset/thicken 全是 unsupported 桩，不得声明", async () => {
+  it("声明恰为 ['fuseWithHistory','cutWithHistory','filletWithHistory']——chamfer/intersect/transform/shell/offset/thicken 全是 unsupported 桩，不得声明", async () => {
     const { registerBrepkitBrepEngine, BREPKIT_BREP_ENGINE_ID } = await import('./adapters/brepkit')
     await registerBrepkitBrepEngine()
     const engine = await getBrepEngine(BREPKIT_BREP_ENGINE_ID)
     // 这里曾是 `evolution: true`（族级多报）。brepkit 只实现这三个：
     // brepkitKernel.ts:220 filletWithHistory、:504 cutWithHistory、:508 fuseWithHistory；
     // :224 chamferWithHistory、:512 intersectWithHistory、:518+ 其余一律 unsupported(...)。
-    expect([...(engine.capabilities?.evolution ?? [])].sort()).toEqual(['cut', 'fillet', 'fuse'])
+    expect([...(engine.capabilities?.evolution ?? [])].sort()).toEqual(['cutWithHistory', 'filletWithHistory', 'fuseWithHistory'])
   })
 })

@@ -167,21 +167,114 @@ export type BrepTessellationModel = 'build-time' | 'extract-time' | 'none'
  */
 export type BrepEvolutionKind =
   // 布尔族
+  | 'fuseWithHistory'
+  | 'cutWithHistory'
+  | 'intersectWithHistory'
+  // 倒圆/倒角族
+  | 'filletWithHistory'
+  | 'chamferWithHistory'
+  // 刚体变换族
+  | 'translateWithHistory'
+  | 'rotateWithHistory'
+  | 'mirrorWithHistory'
+  | 'scaleWithHistory'
+  // 抽壳/偏置/加厚族
+  | 'shellWithHistory'
+  | 'offsetWithHistory'
+  | 'thickenWithHistory'
+
+/**
+ * 非演化内核方法真名（`*WithHistory` 之外的 `BrepEngineApi` 方法）。
+ *
+ * 与 `BrepEvolutionKind` 分名（P3 冲突消除）：`'mirror'` 一个字符串不能同时表示
+ * "提供 `mirrorWithHistory`"与"提供 `mirror`"，两族必须互不共用字符串。
+ * 语义与 evolution 相同——**逐核函数**声明：声明 = 实现（诚实原则），
+ * 缺省/空 = 一个都不提供。
+ *
+ * 初始全集 = Phase 0 能力映射表（`api/surface/capability-map.json`）盘点的
+ * compat op 依赖内核方法 + 方案初始项；Phase 3 全量收敛时按映射表滚动补全。
+ */
+export type BrepMethodKind =
+  // pattern 族
+  | 'linearPattern'
+  | 'circularPattern'
+  | 'gridPattern'
+  | 'rectangularPattern'
+  // 基础方法族（裸方法，无历史）
+  | 'mirror'
+  | 'rotate'
+  | 'translate'
+  | 'scale'
+  // 构形/拉伸/放样族
+  | 'makeRectangle'
+  | 'shell'
+  | 'extrude'
+  | 'loft'
+  | 'loftAdvanced'
+  | 'section'
+  | 'sweepPipeShell'
+  | 'simplePipe'
+  | 'revolveVec'
+  | 'buildExtrusionLaw'
+  // 布尔/装配辅助（裸方法）
   | 'fuse'
   | 'cut'
   | 'intersect'
-  // 倒圆/倒角族
-  | 'fillet'
-  | 'chamfer'
-  // 刚体变换族
-  | 'translate'
-  | 'rotate'
-  | 'mirror'
-  | 'scale'
-  // 抽壳/偏置/加厚族
-  | 'shell'
-  | 'offset'
-  | 'thicken'
+  | 'fuseAll'
+  // 构造方法族
+  | 'makeArcEdge'
+  | 'makeBezierEdge'
+  | 'makeCylinder'
+  | 'makeEllipsoid'
+  | 'makeFace'
+  | 'makeFaceOnSurface'
+  | 'makeLineEdge'
+  | 'makeTorus'
+  | 'makeVertex'
+  | 'makeWireFromMixed'
+  | 'buildEdgeOnSurface'
+  | 'addHolesInFace'
+  | 'buildTriFace'
+  | 'sew'
+  | 'sewAndSolidify'
+  // 修复/校验族
+  | 'healFace'
+  | 'healSolid'
+  | 'healWire'
+  | 'fixShape'
+  | 'fixSelfIntersection'
+  | 'isValid'
+  | 'removeDegenerateEdges'
+  | 'simplify'
+  | 'split'
+  // 查询/测量族
+  | 'boundingBox'
+  | 'curveParameters'
+  | 'curvePointAtParam'
+  | 'curveTangent'
+  | 'hullFromPoints'
+  | 'isNull'
+  | 'iterShapes'
+  | 'locate'
+  | 'shapeType'
+  | 'surfaceCenterOfMass'
+  | 'surfaceNormal'
+  | 'surfaceType'
+  | 'uvBounds'
+  // 变换族（非演化真名）
+  | 'composeTransform'
+  | 'applyComposedTransformWithHistory'
+  | 'generalTransformNonOrthogonal'
+  | 'generalTransformWithHistory'
+  // 交换/导入族
+  | 'importStl'
+  | 'createXCAFDocument'
+  | 'importXCAFFromSTEP'
+  // 生命周期辅助
+  | 'copyShape'
+  | 'dispose'
+  | 'downcast'
+  | 'hashCode'
 
 /**
  * 可选能力槽声明（§7.5，Phase 1 钉死成员）。
@@ -203,6 +296,11 @@ export interface BrepCapabilities {
    * `BrepEvolutionKind`）。空数组 / 缺省 = 一个都不提供。
    */
   evolution?: readonly BrepEvolutionKind[]
+  /**
+   * 非演化内核方法族：本引擎**实际提供**的 `BrepEngineApi` 方法真名
+   * （逐核声明，与 `evolution` 同语义；空数组 / 缺省 = 一个都不提供）。
+   */
+  methods?: readonly BrepMethodKind[]
   /** 修复族（healSolid/fixShape/fixFaceOrientations/...） */
   heal?: boolean
   /** 直接编辑族（C1：moveFace/replaceFace/...） */

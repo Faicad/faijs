@@ -13,7 +13,7 @@
 
 import { registerBrepEngine, hasBrepEngine, isBrepEngineRegistered, type BrepEngine } from '../registry'
 import type { AssertSatisfiesBrepEngineApi } from '../primitives'
-import type { BrepEvolutionKind } from '../types'
+import type { BrepEvolutionKind, BrepMethodKind } from '../types'
 import { initOcctWasm } from '../../../occt-kernel/occtKernel'
 import { bindOcctKernel } from '../../../api/occt-kernel-bridge'
 
@@ -28,19 +28,97 @@ export const OCCT_BREP_ENGINE_ID = 'occt'
  * 冒烟测试（`brep/engine/evolution-bindings.test.ts`——因 `initOcctWasm` 的返回类型
  * 被 `as unknown as` 硬断言，编译期守卫是空转的，只有运行时测试能证明它们真在）。
  */
-const OCCT_EVOLUTION_KINDS = [
+/**
+ * 非演化内核方法全集（BrepMethodKind）——occt-wasm 是参考内核，vendored
+ * occtWasmAdapter 提供全部方法（occt-kernel/initOcctWasm 包装同一实例），
+ * 逐核如实声明（Phase 1，P2 缺口补齐）。
+ */
+const OCCT_METHOD_KINDS = [
+  'linearPattern',
+  'circularPattern',
+  'gridPattern',
+  'rectangularPattern',
+  'mirror',
+  'rotate',
+  'translate',
+  'scale',
+  'makeRectangle',
+  'shell',
+  'extrude',
+  'loft',
+  'loftAdvanced',
+  'section',
+  'sweepPipeShell',
+  'simplePipe',
+  'revolveVec',
+  'buildExtrusionLaw',
   'fuse',
   'cut',
   'intersect',
-  'fillet',
-  'chamfer',
-  'translate',
-  'rotate',
-  'mirror',
-  'scale',
-  'shell',
-  'offset',
-  'thicken',
+  'fuseAll',
+  'makeArcEdge',
+  'makeBezierEdge',
+  'makeCylinder',
+  'makeEllipsoid',
+  'makeFace',
+  'makeFaceOnSurface',
+  'makeLineEdge',
+  'makeTorus',
+  'makeVertex',
+  'makeWireFromMixed',
+  'buildEdgeOnSurface',
+  'addHolesInFace',
+  'buildTriFace',
+  'sew',
+  'sewAndSolidify',
+  'healFace',
+  'healSolid',
+  'healWire',
+  'fixShape',
+  'fixSelfIntersection',
+  'isValid',
+  'removeDegenerateEdges',
+  'simplify',
+  'split',
+  'boundingBox',
+  'curveParameters',
+  'curvePointAtParam',
+  'curveTangent',
+  'hullFromPoints',
+  'isNull',
+  'iterShapes',
+  'locate',
+  'shapeType',
+  'surfaceCenterOfMass',
+  'surfaceNormal',
+  'surfaceType',
+  'uvBounds',
+  'composeTransform',
+  'applyComposedTransformWithHistory',
+  'generalTransformNonOrthogonal',
+  'generalTransformWithHistory',
+  'importStl',
+  'createXCAFDocument',
+  'importXCAFFromSTEP',
+  'copyShape',
+  'dispose',
+  'downcast',
+  'hashCode',
+] as const satisfies readonly BrepMethodKind[]
+
+const OCCT_EVOLUTION_KINDS = [
+  'fuseWithHistory',
+  'cutWithHistory',
+  'intersectWithHistory',
+  'filletWithHistory',
+  'chamferWithHistory',
+  'translateWithHistory',
+  'rotateWithHistory',
+  'mirrorWithHistory',
+  'scaleWithHistory',
+  'shellWithHistory',
+  'offsetWithHistory',
+  'thickenWithHistory',
 ] as const satisfies readonly BrepEvolutionKind[]
 
 /**
@@ -59,6 +137,8 @@ export async function registerOcctBrepEngine(): Promise<void> {
     capabilities: {
       // 面演化：逐核函数名单（不是族级布尔——见 BrepEvolutionKind）。
       evolution: OCCT_EVOLUTION_KINDS,
+      // 非演化内核方法：逐核如实声明（Phase 1，P2 缺口补齐；op 声明按此静态判定）。
+      methods: OCCT_METHOD_KINDS,
       heal: true,
       directEdit: true,
       advSurface: true,

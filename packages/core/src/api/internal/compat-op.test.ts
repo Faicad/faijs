@@ -99,7 +99,7 @@ describe('§ single entry — compat product is a defineOp product', () => {
   it('DUAL_OP_META field set equals defineOp’s; name/capabilities/outputs/schema/slotMap pass through', () => {
     const spec = {
       name: 'mine',
-      capabilities: ['cut'] as BrepCapabilityName[],
+      capabilities: ['cutWithHistory'] as BrepCapabilityName[],
       outputs: ['front', 'back'],
       schema: { size: 'number' },
       slotMap: { keys: ['size'] },
@@ -113,7 +113,7 @@ describe('§ single entry — compat product is a defineOp product', () => {
     expect(cm.kind).toBe('dual-op')
     expect(cm.mesh).toBeUndefined()
     expect(cm.name).toBe('mine')
-    expect(cm.capabilities).toEqual(['cut'])
+    expect(cm.capabilities).toEqual(['cutWithHistory'])
     expect(cm.outputs).toEqual(['front', 'back'])
     expect(cm.schema).toEqual({ size: 'number' })
     expect(cm.slotMap).toEqual({ keys: ['size'] })
@@ -138,18 +138,18 @@ describe('§ dispatch 矩阵 — 与 brep-only defineOp 一致', () => {
   })
 
   it('capabilities 路由：brep 缺能力→E_BREP；auto 缺能力（brep-only）→E_MESH；具备→brep', () => {
-    // Phase 0.2：能力名是具体核函数名（'cut'）；引擎声明是名单（evolution: ['cut']）。
-    const op = compatOp(() => ({ ok: true, value: null }), { name: 'capped', capabilities: ['cut'], naming: { kind: 'unmodeled', reason: 'test' } })
+    // Phase 0.2：能力名是具体核函数名（'cutWithHistory'）；引擎声明是名单（evolution: ['cutWithHistory']）。
+    const op = compatOp(() => ({ ok: true, value: null }), { name: 'capped', capabilities: ['cutWithHistory'], naming: { kind: 'unmodeled', reason: 'test' } })
     const meta = metaOf(op)
 
     configureBackends(makeBackends('brep', {}))
-    expect(() => dispatchPath([onChain], meta, 'cut')).toThrow(BrepUnsupportedError)
+    expect(() => dispatchPath([onChain], meta, 'cutWithHistory')).toThrow(BrepUnsupportedError)
 
     configureBackends(makeBackends('auto', {}))
-    expect(() => dispatchPath([onChain], meta, 'cut')).toThrow(MeshUnsupportedError)
+    expect(() => dispatchPath([onChain], meta, 'cutWithHistory')).toThrow(MeshUnsupportedError)
 
-    configureBackends(makeBackends('auto', { evolution: ['cut'] }))
-    expect(dispatchPath([onChain], meta, 'cut')).toBe('brep')
+    configureBackends(makeBackends('auto', { evolution: ['cutWithHistory'] }))
+    expect(dispatchPath([onChain], meta, 'cutWithHistory')).toBe('brep')
   })
 })
 

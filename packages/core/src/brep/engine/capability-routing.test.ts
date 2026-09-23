@@ -1,12 +1,12 @@
 /**
  * 能力路由测试（§8.4：dispatchPath 按当前引擎 capabilities 静态判定）
  *
- * 同一段 faijs 脚本（box×2 + union），union 声明 `'fuse'` 能力（Phase 0.2：逐核函数名，
+ * 同一段 faijs 脚本（box×2 + union），union 声明 `'fuseWithHistory'` 能力（Phase 0.2：逐核函数名，
  * 不再是族级 `'evolution'`——union 的 brep 实现调 `kernel.fuseWithHistory`）：
  * - memory 引擎（capabilities 空 → 无 evolution）：
  *   - brep 模式 → BrepUnsupportedError（明确报错，不静默回退）→ failedAt
  *   - auto 模式 → 静态降级走 mesh（绝不伪造缺失能力）→ 正常出 mesh 结果
- * - occt 引擎（capabilities.evolution 含 'fuse'）→ brep 模式正常走 brep 链
+ * - occt 引擎（capabilities.evolution 含 'fuseWithHistory'）→ brep 模式正常走 brep 链
  */
 
 import { describe, it, expect, beforeEach } from 'vitest'
@@ -39,11 +39,11 @@ describe('能力路由（§8.4）：brep-mock 引擎无 evolution 能力', () =>
     registerBrepMockEngine()
   })
 
-  it("brep 模式：union（需 'fuse'）→ BrepUnsupportedError → failedAt 明确报错", async () => {
+  it("brep 模式：union（需 'fuseWithHistory'）→ BrepUnsupportedError → failedAt 明确报错", async () => {
     const result = await run('brep')
     expect(result.failedAt).toBeDefined()
     expect(result.failedAt!.callee).toBe('union')
-    expect(result.failedAt!.message).toMatch(/lacks capability 'fuse'/)
+    expect(result.failedAt!.message).toMatch(/lacks capability 'fuseWithHistory'/)
   })
 
   it('auto 模式：union（需 evolution）→ 静态降级走 mesh，正常出结果', async () => {
@@ -59,7 +59,7 @@ describe('能力路由：occt 引擎具备 evolution 能力', () => {
     __resetEngineRegistriesForTests()
   })
 
-  it('brep 模式：union 正常走 brep 链（capabilities.evolution 含 fuse/cut/intersect）', async () => {
+  it('brep 模式：union 正常走 brep 链（capabilities.evolution 含 fuseWithHistory/cutWithHistory/intersectWithHistory）', async () => {
     await registerOcctBrepEngine()
     const result = await run('brep')
     expect(result.failedAt).toBeUndefined()
