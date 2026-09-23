@@ -95,4 +95,20 @@ describe('P1-1: Spreadsheet alias three-hop resolution', () => {
       expect(isNonModelingType('App::VarSet')).toBe(true);
     });
   });
+
+  it('P1-3: non-geometric types are preserved-only, not type-not-whitelisted gaps', () => {
+    return import('./structural-types.js').then(({ isNonModelingType }) => {
+      // batch-report census (2026-09-23): these blocked 40+ convert-buckets.
+      expect(isNonModelingType('App::LinkGroup')).toBe(true);
+      expect(isNonModelingType('App::MeasureDistance')).toBe(true);
+      expect(isNonModelingType('Image::ImagePlane')).toBe(true);
+      expect(isNonModelingType('Mesh::Feature')).toBe(true);
+      // namespace rules: 81 TechDraw::* + 20 Drawing::* objects
+      expect(isNonModelingType('TechDraw::DrawViewSection')).toBe(true);
+      expect(isNonModelingType('Drawing::DrawViewPart')).toBe(true);
+      // modeling types must NOT be swallowed
+      expect(isNonModelingType('Part::Mirroring')).toBe(false);
+      expect(isNonModelingType('PartDesign::Groove')).toBe(false);
+    });
+  });
 });

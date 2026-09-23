@@ -66,6 +66,24 @@ export const STRUCTURAL_TYPES_EXTENDED = new Set([
   'Assembly::JointGroup',
   'App::InventorObject',
   'App::VRMLObject',
+  // P1-3 (2026-09-23, fcstd-gap-dev-plan): non-geometric types found in the
+  // batch-report `type-not-whitelisted` census (801 objects). None carries
+  // modeling geometry: TechDraw::*/Drawing::* are 2D drawing outputs,
+  // Image::ImagePlane is a raster backdrop, Mesh::Feature is an imported
+  // triangle mesh (regenerable data, not BREP), App::MeasureDistance is a
+  // measurement annotation, App::LinkGroup is a link container (same
+  // semantics as App::Link above).
+  'App::LinkGroup',
+  'App::MeasureDistance',
+  'Image::ImagePlane',
+  'Mesh::Feature',
+  'Drawing::DrawPage',
+  'Drawing::DrawSVGTemplate',
+  'Drawing::DrawViewPart',
+  'Drawing::DrawProjGroup',
+  'Drawing::DrawProjGroupItem',
+  'Drawing::DrawViewDimension',
+  'Drawing::DrawViewAnnotation',
 ]);
 
 /**
@@ -105,6 +123,22 @@ export function isFemStructural(type: string): boolean {
 }
 
 /**
+ * P1-3 (2026-09-23, fcstd-gap-dev-plan): TechDraw/Drawing are FreeCAD's 2D
+ * DRAWING workbenches — pages, templates, views, dimensions, projection
+ * groups are documentation OUTPUT rendering a shape onto a sheet and own no
+ * modeling geometry (same evidence as the enumerated TechDraw entries in
+ * STRUCTURAL_TYPES). The batch-report census had 81 `TechDraw::*` + 20
+ * `Drawing::*` objects in `type-not-whitelisted`; a namespace rule (same
+ * decision as FEM above) closes the family instead of whack-a-mole.
+ *
+ * @param type - the FCStd object type, e.g. "TechDraw::DrawViewSection".
+ * @returns true when the type belongs to a 2D drawing workbench.
+ */
+export function isDrawingStructural(type: string): boolean {
+  return type.startsWith('TechDraw::') || type.startsWith('Drawing::');
+}
+
+/**
  * True when the type carries no modeling semantics — structural/datum/
  * container/drawing/documentation or FEM simulation.
  *
@@ -120,5 +154,6 @@ export function isFemStructural(type: string): boolean {
 export function isNonModelingType(type: string): boolean {
   return STRUCTURAL_TYPES.has(type)
     || STRUCTURAL_TYPES_EXTENDED.has(type)
-    || isFemStructural(type);
+    || isFemStructural(type)
+    || isDrawingStructural(type);
 }
