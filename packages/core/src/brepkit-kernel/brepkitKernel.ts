@@ -568,6 +568,42 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
     // ── XCAF 装配（v1 关闭） ──
     createXCAFDocument(): BrepXcafDocument { return unsupported('createXCAFDocument') },
     importXCAFFromSTEP(_stepData: string): BrepXcafDocument { return unsupported('importXCAFFromSTEP') },
+
+    // ── Phase 3 登记方法（capability-map 64 方法收口）：真实现 3 个（wasm 有对应导出，
+    //   命名映射），其余如实 unsupported——能力表不声明，静态判定拦截 ──
+    boundingBox(shape: BrepHandle): BrepBoundingBox { return kernel.getBoundingBox(asNum(shape)) },
+    surfaceCenterOfMass(face: BrepHandle): BrepVec3 { return kernel.getSurfaceCenterOfMass(asNum(face)) },
+    dispose(_shape?: BrepHandle): void { /* GC 型引擎：无显式释放 */ },
+    shapeType(_shape: BrepHandle): BrepSubShapeType { return unsupported('shapeType') },
+    isNull(_shape: BrepHandle): boolean { return unsupported('isNull') },
+    iterShapes(_shape: BrepHandle): BrepHandle[] { return unsupported('iterShapes') },
+    locate(_shape: BrepHandle, _matrix: number[]): BrepHandle { return unsupported('locate') },
+    copyShape(_shape: BrepHandle): BrepHandle { return unsupported('copyShape') },
+    downcast(_shape: BrepHandle, _targetType: BrepSubShapeType): BrepHandle { return unsupported('downcast') },
+    composeTransform(_m1: number[], _m2: number[]): number[] { return unsupported('composeTransform') },
+    buildExtrusionLaw(_profile: string, _length: number, _endFactor: number): BrepHandle { return unsupported('buildExtrusionLaw') },
+    buildEdgeOnSurface(_curve: BrepHandle, _surface: BrepHandle): BrepHandle { return unsupported('buildEdgeOnSurface') },
+    healFace(_shape: BrepHandle, _tolerance?: number): BrepHandle { return unsupported('healFace') },
+    healWire(_shape: BrepHandle, _tolerance?: number): BrepHandle { return unsupported('healWire') },
+    fixSelfIntersection(_wire: BrepHandle): BrepHandle { return unsupported('fixSelfIntersection') },
+    hullFromPoints(_points: BrepVec3[], _tolerance: number): BrepHandle { return unsupported('hullFromPoints') },
+    loftAdvanced(_wires: BrepHandle[], _options?: { solid?: boolean; ruled?: boolean; tolerance?: number }): BrepHandle { return unsupported('loftAdvanced') },
+    makeEllipsoid(_rx: number, _ry: number, _rz: number): BrepHandle { return unsupported('makeEllipsoid') },
+    makeFaceOnSurface(_face: BrepHandle, _wire: BrepHandle): BrepHandle { return unsupported('makeFaceOnSurface') },
+    makeTorus(_majorRadius: number, _minorRadius: number): BrepHandle { return unsupported('makeTorus') },
+    makeVertex(_x: number, _y: number, _z: number): BrepHandle { return unsupported('makeVertex') },
+    makeWireFromMixed(_items: BrepHandle[]): BrepHandle { return unsupported('makeWireFromMixed') },
+    mirror(_shape: BrepHandle, _point: BrepVec3, _normal: BrepVec3): BrepHandle { return unsupported('mirror') },
+    revolveVec(_shape: BrepHandle, _center: BrepVec3, _direction: BrepVec3, _angleDeg: number): BrepHandle { return unsupported('revolveVec') },
+    sew(_shapes: BrepHandle[], _tolerance?: number): BrepHandle { return unsupported('sew') },
+    shell(_solid: BrepHandle, _facesToRemove: BrepHandle[], _thickness: number, _tolerance: number): BrepHandle { return unsupported('shell') },
+    simplePipe(_profile: BrepHandle, _spine: BrepHandle): BrepHandle { return unsupported('simplePipe') },
+    simplify(_shape: BrepHandle): BrepHandle { return unsupported('simplify') },
+    split(_shape: BrepHandle, _tools: BrepHandle[]): BrepHandle { return unsupported('split') },
+    sweepPipeShell(_profile: BrepHandle, _spine: BrepHandle, _freenet?: boolean, _smooth?: boolean): BrepHandle { return unsupported('sweepPipeShell') },
+    generalTransformNonOrthogonal(_shape: BrepHandle, _matrix: number[]): BrepHandle { return unsupported('generalTransformNonOrthogonal') },
+    generalTransformWithHistory(_shape: BrepHandle, _matrix: number[], _inputFaceHashes: number[], _hashUpperBound: number): BrepEvolutionData { return unsupported('generalTransformWithHistory') },
+    applyComposedTransformWithHistory(_shape: BrepHandle, _matrix: number[], _inputFaceHashes: number[], _hashUpperBound: number): BrepEvolutionData { return unsupported('applyComposedTransformWithHistory') },
   }
   return api
 }

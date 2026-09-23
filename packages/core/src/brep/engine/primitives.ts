@@ -135,6 +135,88 @@ export interface BrepEngineApi {
     countY: number,
   ): BrepHandle
 
+  // ── 查询与测量（Phase 3：capability-map 64 方法登记补全——occt-wasm 原生或
+  //   vendored 适配器组合面；brepkit 无实现的能力保持不声明，静态判定拦截） ──
+  /** 轴对齐包围盒。 */
+  boundingBox(shape: BrepHandle): BrepBoundingBox
+  /** 形状类型（vertex/edge/wire/face/shell/solid）。 */
+  shapeType(shape: BrepHandle): BrepSubShapeType
+  /** 句柄是否为空（无效引用）。 */
+  isNull(shape: BrepHandle): boolean
+  /** 遍历子形状句柄（与 getSubShapes 同族，返回句柄数组）。 */
+  iterShapes(shape: BrepHandle): BrepHandle[]
+  /** 曲面质心。 */
+  surfaceCenterOfMass(face: BrepHandle): BrepVec3
+  /** 带位置矩阵放置（3×4 行主序 12 元素，口径见变换族注释）。 */
+  locate(shape: BrepHandle, matrix: number[]): BrepHandle
+  /** 复制句柄（独立引用计数）。 */
+  copyShape(shape: BrepHandle): BrepHandle
+  /** 类型降级（目标子形状类型；不匹配返回空句柄）。 */
+  downcast(shape: BrepHandle, targetType: BrepSubShapeType): BrepHandle
+  /** 释放内核/句柄（引擎级释放语义；brepkit GC 型 no-op）。 */
+  dispose(shape?: BrepHandle): void
+  /** 组合两个 3×4 行主序变换矩阵（12 元素）。 */
+  composeTransform(m1: number[], m2: number[]): number[]
+
+  // ── 构形与修复（Phase 3 登记；brepkit 未实现 → 能力表不声明） ──
+  /** 拉伸律面构造（profile 为曲线描述串）。 */
+  buildExtrusionLaw(profile: string, length: number, endFactor: number): BrepHandle
+  /** 曲面上的边构造（curve 为 2D 曲线句柄，宽化 BrepHandle 口径）。 */
+  buildEdgeOnSurface(curve: BrepHandle, surface: BrepHandle): BrepHandle
+  /** 面修复（ShapeFix，容忍度可选）。 */
+  healFace(shape: BrepHandle, tolerance?: number): BrepHandle
+  /** 线修复（ShapeFix，容忍度可选）。 */
+  healWire(shape: BrepHandle, tolerance?: number): BrepHandle
+  /** 线自相交修复。 */
+  fixSelfIntersection(wire: BrepHandle): BrepHandle
+  /** 点集凸包（tolerance 为容差）。 */
+  hullFromPoints(points: BrepVec3[], tolerance: number): BrepHandle
+  /** 高级放样（options 形态同 vendored loftAdvanced）。 */
+  loftAdvanced(wires: BrepHandle[], options?: { solid?: boolean; ruled?: boolean; tolerance?: number }): BrepHandle
+  /** 椭球（三半轴）。 */
+  makeEllipsoid(rx: number, ry: number, rz: number): BrepHandle
+  /** 曲面上的面构造（face 为承载面、wire 为边界）。 */
+  makeFaceOnSurface(face: BrepHandle, wire: BrepHandle): BrepHandle
+  /** 圆环（主/次半径）。 */
+  makeTorus(majorRadius: number, minorRadius: number): BrepHandle
+  /** 顶点构造。 */
+  makeVertex(x: number, y: number, z: number): BrepHandle
+  /** 混合线构造（items 为边/顶点混合）。 */
+  makeWireFromMixed(items: BrepHandle[]): BrepHandle
+  /** 镜像（过 point、法向 normal 的平面）。 */
+  mirror(shape: BrepHandle, point: BrepVec3, normal: BrepVec3): BrepHandle
+  /** 旋转（绕过 center、方向 direction 的轴，angle 为度）。 */
+  revolveVec(shape: BrepHandle, center: BrepVec3, direction: BrepVec3, angleDeg: number): BrepHandle
+  /** 缝合（tolerance 可选）。 */
+  sew(shapes: BrepHandle[], tolerance?: number): BrepHandle
+  /** 抽壳（facesToRemove 移除面、thickness 壁厚、tolerance 容差）。 */
+  shell(solid: BrepHandle, facesToRemove: BrepHandle[], thickness: number, tolerance: number): BrepHandle
+  /** 简单扫掠（profile 沿 spine 扫出实体）。 */
+  simplePipe(profile: BrepHandle, spine: BrepHandle): BrepHandle
+  /** 简化几何。 */
+  simplify(shape: BrepHandle): BrepHandle
+  /** 分割（tools 切割体；返回单个结果句柄，语义同 vendored boolOps.split）。 */
+  split(shape: BrepHandle, tools: BrepHandle[]): BrepHandle
+  /** 管壳扫掠（freenet/smooth 可选）。 */
+  sweepPipeShell(profile: BrepHandle, spine: BrepHandle, freenet?: boolean, smooth?: boolean): BrepHandle
+  /** 非正交一般变换（3×4 行主序 12 元素）。 */
+  generalTransformNonOrthogonal(shape: BrepHandle, matrix: number[]): BrepHandle
+  /** 一般变换（带面演化；3×4 行主序 12 元素，适配器拆分 linear/translation）。 */
+  generalTransformWithHistory(
+    shape: BrepHandle,
+    matrix: number[],
+    inputFaceHashes: number[],
+    hashUpperBound: number,
+  ): BrepEvolutionData
+  /** 组合变换（带面演化；3×4 行主序 12 元素）。 */
+  applyComposedTransformWithHistory(
+    shape: BrepHandle,
+    matrix: number[],
+    inputFaceHashes: number[],
+    hashUpperBound: number,
+  ): BrepEvolutionData
+
+
   // ── 曲线构造 ──
   makeLineEdge(start: BrepVec3, end: BrepVec3): BrepHandle
   makeArcEdge(start: BrepVec3, mid: BrepVec3, end: BrepVec3): BrepHandle

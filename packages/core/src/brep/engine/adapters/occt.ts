@@ -14,7 +14,8 @@
 import { registerBrepEngine, hasBrepEngine, isBrepEngineRegistered, type BrepEngine } from '../registry'
 import type { AssertSatisfiesBrepEngineApi, BrepEngineApi } from '../primitives'
 import type { BrepEvolutionKind, BrepMethodKind } from '../types'
-import type { BrepHandle } from '../types'
+import type { BrepEvolutionData, BrepHandle, BrepSubShapeType, BrepVec3 } from '../types'
+import { OcctWasmAdapter } from '../../../vendored/brepjs/kernel/occtWasm/occtWasmAdapter'
 import { initOcctWasm } from '../../../occt-kernel/occtKernel'
 import { injectCurrentBrepEngineAsKernel } from '../../../api/occt-kernel-bridge'
 
@@ -223,6 +224,104 @@ export async function registerOcctBrepEngine(): Promise<void> {
       }
       return raw.fuseAll(all) as BrepHandle
     }
+
+    // ═══ Phase 3：能力表 33 个登记方法接线（capability-map 64 方法收口） ═══
+    // 原则：能力表声明了（OCCT_METHOD_KINDS 含全部 33）→ 实例必须可实现，否则静态
+    // 判定放行后运行时崩（红线）。18 个 occt-wasm 原生导出直接绑定（签名与
+    // BrepEngineApi 一致：Vec3=BrepVec3、ShapeHandle=BrepHandle）；15 个组合方法
+    // （occt-wasm 无原生导出）经 vendored OcctWasmAdapter 组合面代理 + 形态转换。
+    // 只接线一次（occtPatternWired 护栏内）；重复注册复用覆写结果，不重复捕获。
+    const k = primitives as unknown as {
+      buildExtrusionLaw(profile: string, length: number, endFactor: number): BrepHandle
+      composeTransform(m1: number[], m2: number[]): number[]
+      downcast(shape: BrepHandle, targetType: BrepSubShapeType): BrepHandle
+      healFace(shape: BrepHandle, tolerance?: number): BrepHandle
+      healWire(shape: BrepHandle, tolerance?: number): BrepHandle
+      isNull(shape: BrepHandle): boolean
+      iterShapes(shape: BrepHandle): BrepHandle[]
+      makeEllipsoid(rx: number, ry: number, rz: number): BrepHandle
+      makeFaceOnSurface(face: BrepHandle, wire: BrepHandle): BrepHandle
+      makeTorus(majorRadius: number, minorRadius: number): BrepHandle
+      makeVertex(x: number, y: number, z: number): BrepHandle
+      mirror(shape: BrepHandle, point: BrepVec3, normal: BrepVec3): BrepHandle
+      sew(shapes: BrepHandle[], tolerance?: number): BrepHandle
+      shell(solid: BrepHandle, facesToRemove: BrepHandle[], thickness: number, tolerance: number): BrepHandle
+      simplePipe(profile: BrepHandle, spine: BrepHandle): BrepHandle
+      simplify(shape: BrepHandle): BrepHandle
+      split(shape: BrepHandle, tools: BrepHandle[]): BrepHandle
+      sweepPipeShell(profile: BrepHandle, spine: BrepHandle, freenet?: boolean, smooth?: boolean): BrepHandle
+    }
+    occtApi.buildExtrusionLaw = k.buildExtrusionLaw.bind(primitives)
+    occtApi.composeTransform = k.composeTransform.bind(primitives)
+    occtApi.downcast = k.downcast.bind(primitives)
+    occtApi.healFace = k.healFace.bind(primitives)
+    occtApi.healWire = k.healWire.bind(primitives)
+    occtApi.isNull = k.isNull.bind(primitives)
+    occtApi.iterShapes = k.iterShapes.bind(primitives)
+    occtApi.makeEllipsoid = k.makeEllipsoid.bind(primitives)
+    occtApi.makeFaceOnSurface = k.makeFaceOnSurface.bind(primitives)
+    occtApi.makeTorus = k.makeTorus.bind(primitives)
+    occtApi.makeVertex = k.makeVertex.bind(primitives)
+    occtApi.mirror = k.mirror.bind(primitives)
+    occtApi.sew = k.sew.bind(primitives)
+    occtApi.shell = k.shell.bind(primitives)
+    occtApi.simplePipe = k.simplePipe.bind(primitives)
+    occtApi.simplify = k.simplify.bind(primitives)
+    occtApi.split = k.split.bind(primitives)
+    occtApi.sweepPipeShell = k.sweepPipeShell.bind(primitives)
+    const vendor = OcctWasmAdapter.fromKernel(primitives as never)
+    occtApi.boundingBox = (shape) => {
+      const b = vendor.boundingBox(shape as never)
+      return { xmin: b.min[0], ymin: b.min[1], zmin: b.min[2], xmax: b.max[0], ymax: b.max[1], zmax: b.max[2] }
+    }
+    occtApi.shapeType = (shape) => vendor.shapeType(shape as never) as BrepSubShapeType
+    occtApi.surfaceCenterOfMass = (face) => {
+      const v = vendor.surfaceCenterOfMass(face as never)
+      return { x: v[0], y: v[1], z: v[2] }
+    }
+    occtApi.locate = (shape, matrix) => vendor.locate(shape as never, matrix as never) as BrepHandle
+    occtApi.copyShape = (shape) => vendor.copyShape(shape as never) as BrepHandle
+    occtApi.fixSelfIntersection = (wire) => vendor.fixSelfIntersection(wire as never) as BrepHandle
+    occtApi.hullFromPoints = (points, tolerance) => vendor.hullFromPoints(points as never, tolerance) as BrepHandle
+    occtApi.loftAdvanced = (wires, options) => vendor.loftAdvanced(wires as never, options as never) as BrepHandle
+    occtApi.makeWireFromMixed = (items) => vendor.makeWireFromMixed(items as never) as BrepHandle
+    occtApi.revolveVec = (shape, center, direction, angleDeg) =>
+      vendor.revolveVec(shape as never, [center.x, center.y, center.z] as never, [direction.x, direction.y, direction.z] as never, angleDeg) as BrepHandle
+    occtApi.buildEdgeOnSurface = (curve, surface) => vendor.buildEdgeOnSurface(curve as never, surface as never) as BrepHandle
+    occtApi.dispose = (shape) => { if (shape !== undefined) raw.release(shape as number) }
+    occtApi.generalTransformNonOrthogonal = (shape, matrix) =>
+      vendor.generalTransformNonOrthogonal(shape as never, matrix.slice(0, 9) as never, matrix.slice(9, 12) as never) as BrepHandle
+    const toEvolution = (op: {
+      shape: number
+      evolution: {
+        modified: ReadonlyMap<number, readonly number[]>
+        generated: ReadonlyMap<number, readonly number[]>
+        deleted: ReadonlySet<number>
+      }
+    }): BrepEvolutionData => {
+      const segments = (m: ReadonlyMap<number, readonly number[]>): number[] => {
+        const out: number[] = []
+        for (const [inHash, outHashes] of m) out.push(inHash, outHashes.length, ...outHashes)
+        return out
+      }
+      return { result: op.shape as BrepHandle, modified: segments(op.evolution.modified), generated: segments(op.evolution.generated), deleted: [...op.evolution.deleted] }
+    }
+    occtApi.generalTransformWithHistory = (shape, matrix, inputFaceHashes, hashUpperBound) =>
+      toEvolution(vendor.generalTransformWithHistory(
+        shape as never,
+        matrix.slice(0, 9) as never,
+        matrix.slice(9, 12) as never,
+        false,
+        inputFaceHashes as never,
+        hashUpperBound,
+      ) as never)
+    occtApi.applyComposedTransformWithHistory = (shape, matrix, inputFaceHashes, hashUpperBound) =>
+      toEvolution(vendor.applyComposedTransformWithHistory(
+        shape as never,
+        matrix as never,
+        inputFaceHashes as never,
+        hashUpperBound,
+      ) as never)
     occtPatternWired = true
   }
   const occtApi = primitives as BrepEngineApi
