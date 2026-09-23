@@ -210,21 +210,29 @@ describe('naming chain across cad.extrude (E3 后续)', () => {
     expect(result.failedAt).toBeUndefined()
   })
 
-  it('KNOWN GAP: a revolve result is still nameless (compat projection has no table)', async () => {
+  it('revolve result carries a role table (E3 fixed via hand-written wrapper)', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    // GOTCHA (2026-09-23): the ORIGINAL tripwire revolved the XY-plane square
+    // around the Z axis — every point traces a circle in its own z=0 plane, so
+    // the product is DEGENERATE (zero height, 1 face) and "edge 1 with two
+    // adjacent faces" doesn't exist. It used to die at "no role table" before
+    // the geometry mattered; with the table in place the geometry must be a
+    // real solid of revolution: revolving the square around the X axis yields
+    // a solid cylinder (lateral + 2 caps = 3 faces).
     const code = `
       const part0 = cad.sketch(${SQUARE})
-      const part1 = cad.revolve(part0, { axis: [0, 0, 1], at: [0, 0, 0], angle: 6.283185307179586 })
+      const part1 = cad.revolve(part0, { axis: [1, 0, 0], at: [0, 0, 0], angle: 6.283185307179586 })
       const e = cad.edgeRef(part1, 1)
     `
     try {
       const result = await runtime.execute(code, { topology: 'auto' })
-      // This assertion is the tripwire: when revolve gets a hand-written
-      // wrapper (or the dispatcher starts naming every brep product), it must
-      // FLIP to toBeUndefined() — a silently passing test here would mean the
-      // gap was papered over.
-      expect(result.failedAt!.message).toMatch(/no role table/)
+      // Tripwire FLIPPED (2026-09-23, Q13 route ①): `cad.revolve` is now a
+      // hand-written wrapper (`api/revolve.ts`) that registers a chain-root
+      // roleTable like extrude/import_brep — edgeRef must resolve, not fail
+      // with "no role table". The old nameless behavior is pinned by
+      // api/revolve.test.ts (contract level).
+      expect(result.failedAt).toBeUndefined()
     } finally {
       warnSpy.mockRestore()
       errorSpy.mockRestore()

@@ -42,8 +42,8 @@ export class OpError extends Error {
   readonly op: string
   /** The `BrepError.code`, or `'E_OP_FAILED'` when the library sent none. */
   readonly code: string
-  constructor(op: string, code: string, message: string) {
-    super(message)
+  constructor(op: string, code: string, message: string, options?: { cause?: unknown }) {
+    super(message, options)
     this.name = 'OpError'
     this.op = op
     this.code = code

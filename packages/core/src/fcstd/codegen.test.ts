@@ -583,4 +583,32 @@ describe('M5 codegen', () => {
     expect(r.objects.find((o) => o.name === 'DatumPlane')!.disposition).toBe('preserved-only');
     expect(r.objects.find((o) => o.name === 'Body')!.disposition).toBe('preserved-only');
   });
+
+  // GOTCHA (H13, TO92, 2026-09-23): a shape-asset object's frozen `.brp`
+  // member is saved by FreeCAD WITH its Placement already applied — the
+  // re-emitted `cad.place` applied the SAME transform twice (volume/solids
+  // unchanged, only bbox/com parity exposed it). The import must NEVER be
+  // placed again, even when the object carries a non-identity Placement.
+  it('shape-asset object with non-identity Placement emits no cad.place (H13 double-placement)', () => {
+    const doc: FcstdDocument = {
+      objects: [
+        // pure-Shape carrier imported via cad.import_brep, carrying a placed
+        // Placement (like TO92's Cut001: z offset + rotation)
+        simpleObj('Part::Feature', 'Cut001', { Shape: { file: 'Cut001.Shape.brp' } }),
+      ],
+      typeIndex: new Map(),
+      meta: new Map(),
+    };
+    const r = generateModel(
+      doc,
+      new Map(),
+      NO_CONTOURS,
+      't',
+      // non-identity placement on the object — the trap that used to double-apply
+      new Map([['Cut001', { p: [0, 0, 2.8] as [number, number, number], q: [0, 0, 0.7071067811865476, 0.7071067811865476] as [number, number, number, number] }]]),
+      new Set(['Cut001']),
+    );
+    expect(r.calls.filter((c) => c.op === 'cad.import_brep').length).toBe(1);
+    expect(r.calls.filter((c) => c.op === 'cad.place'), 'asset already carries its placement').toEqual([]);
+  });
 });

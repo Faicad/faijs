@@ -14,9 +14,10 @@ import { solidToShape } from '../brep/brep-ops'
 import {
   booleanWithRoleTable,
 } from '../brep/face-evolution'
-import { getBackends, getCurrentStmt, keepHidden } from '../runtime-state'
+import { getBackends, getCurrentStmt, keepHidden, nameOf } from '../runtime-state'
 import { fromBrep, brepOf, inputRoleTable } from '../shape'
 import { reconcileBrepInputs } from './reconcile'
+import { OpError } from './internal/result-unwrap'
 import { defineOp } from '../sdk'
 import type { Provenance } from '../topology/naming/lineage'
 import type { BrepHandle } from '../brep/engine/types'
@@ -33,7 +34,18 @@ function booleanBrep(inputs: Shape[], operation: BooleanOperation): Shape {
 
   const inputSolids = inputs.map((s) => brepOf(s) as BrepHandle | undefined)
   if (inputSolids.some((s) => !s)) {
-    throw new Error('[stdlib/boolean] input is not BREP')
+    // V-C8 (C6): a non-solid import (wire/face/shell via cad.import_brep) has
+    // no OCCT handle yet — booleans must fail HERE with an explicit, op-named
+    // error, not with OCCT's raw "boolean operation failed" (or silently).
+    const offenders = inputs
+      .map((s, i) => (inputSolids[i] ? undefined : nameOf(s) ?? `input[${i}]`))
+      .filter((x): x is string => x !== undefined)
+    throw new OpError(
+      `boolean/${operation}`,
+      'E_BREP_UNSUPPORTED',
+      `[stdlib/boolean] ${operation}: input is not on the BREP chain (no OCCT handle) — ` +
+      `non-solid geometry (wire/face/shell) cannot take part in a boolean. offenders: ${offenders.join(', ')}`,
+    )
   }
 
   let resultSolid: BrepHandle
@@ -57,15 +69,29 @@ function booleanBrep(inputs: Shape[], operation: BooleanOperation): Shape {
     const outStmt = String(getCurrentStmt()?.id ?? '')
 
     // §3.4：一次内核调用，A/B 拆流各自传播后合表（缝面 origin=本次语句 StmtId）
-    const r = booleanWithRoleTable(
-      kernel,
-      op,
-      prev,
-      inputSolids[i]!,
-      prevTable ?? new Map(),
-      toolTable ?? new Map(),
-      outStmt,
-    )
+    // V-C8：内核裸错误（如 "boolean operation failed"）在此包一层——带上 op 名、
+    // 两个输入的变量名与 cause，满足「显式暴露、不吞细节」。
+    let r: ReturnType<typeof booleanWithRoleTable>
+    try {
+      r = booleanWithRoleTable(
+        kernel,
+        op,
+        prev,
+        inputSolids[i]!,
+        prevTable ?? new Map(),
+        toolTable ?? new Map(),
+        outStmt,
+      )
+    } catch (cause) {
+      const msg = cause instanceof Error ? cause.message : String(cause)
+      throw new OpError(
+        `boolean/${operation}`,
+        'E_OP_FAILED',
+        `[stdlib/boolean] ${operation}: kernel ${op} failed for inputs ` +
+        `${nameOf(inputs[0]!) ?? 'input[0]'} × ${nameOf(inputs[i]!) ?? `input[${i}]`} — ${msg}`,
+        { cause },
+      )
+    }
     resultSolid = r.result
     lastEvolution = r.faceEvolution
     roleTable = r.roleTable

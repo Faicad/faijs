@@ -306,7 +306,14 @@ export function generateModel(
       const lastVar = verdict.calls.at(-1)?.out;
       const sketchLink = obj.properties.get('Sketch')?.children[0]?.attributes['value'];
       const pl = (sketchLink ? placements?.get(sketchLink) : undefined) ?? placements?.get(name);
-      if (lastVar && pl && !isIdentityPlacement(pl)) {
+      // GOTCHA (H13, TO92, 2026-09-23): a shape-asset object's frozen `.brp`
+      // member is saved by FreeCAD WITH its Placement already applied (the
+      // asset's bbox starts at the placed z). Re-emitting `cad.place` with the
+      // object's stored Placement applies the SAME transform twice — volume
+      // and solids stay correct, only a bbox/com parity check exposes it.
+      // The import already carries the placement; never place it again.
+      const isShapeAsset = verdict.reason === 'shape-asset';
+      if (lastVar && pl && !isIdentityPlacement(pl) && !isShapeAsset) {
         // 单个刚性放置：旋转（四元数，绕局部原点）+ 平移 = FreeCAD Placement(P,Q)。
         // 直接发 cad.place，避免 euler 往返损失精度（方案 §4.7：两语句合一）。
         const cur = lastVar;

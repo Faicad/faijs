@@ -50,7 +50,7 @@ import { import_step } from './import-step'
 import { compound as geometricCompound } from './compound-geom'
 import { place } from './place'
 import { scriptFaceOps } from './generated/script-face'
-import { revolve } from './generated/operations'
+import { revolve } from './revolve'
 import { CONTRACT_VERSION } from '../runtime-state'
 import type { StdlibNamespace } from '../runtime-state'
 

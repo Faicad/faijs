@@ -49,6 +49,114 @@ export function evalConstantExpression(expr: string): ExprValue {
   return value * factor;
 }
 
+// ── P1-1 参数载体（2026-09-23）：Spreadsheet 别名三跳解析 + 引用算术 ──
+//
+// 语料实测（B2 / probe-param-cells，见 2026-09-21 方案 §3.9）：<Expression> 的
+// 绝对头部是 `<<Label>>.Alias`（1,377 条）与引用参与的算术（657 条），而带别名
+// 的参数单元格 84.8% 就是「=5.9mm」形态——现有 evalConstantExpression 已能算值，
+// 缺的只是三跳：<<Data>> → 按 Label 找对象 → 按 alias 找单元格 → 去掉前导 =。
+// 函数族 / cells[...] 区间仍不猜（no heuristic fallback，方案 §12）。
+
+import type { FcstdObject } from './document.js';
+
+/**
+ * 三跳解析：`<<Label>>.Alias` / `Object.Alias` → 数据源对象 → 别名单元格 → 去掉
+ * 前导 `=` 后交给 evalConstantExpression。同表地址（`=B2*2` 里的 `B2`）再跳一次。
+ *
+ * @param docObjects 全文档对象（按 Label 或 name 匹配数据源）
+ * @param label 数据源标识（`<<Label>>` 内的 Label，或裸对象名）
+ * @param alias 单元格别名
+ * @returns 单元格值（mm），不可解析 → undefined
+ */
+export function spreadsheetAliasValue(
+  docObjects: readonly FcstdObject[],
+  label: string,
+  alias: string,
+): ExprValue {
+  const src = docObjects.find(
+    (o) => o.type === 'Spreadsheet::Sheet' &&
+      (objectLabel(o) === label || o.name === label),
+  );
+  if (!src) return undefined;
+  // cells 属性（Spreadsheet::PropertySheet）的 <Cell address alias content/> 子元素
+  const cells = src.properties.get('cells') ?? [...src.properties.values()].find((p) =>
+    p.children.some((c) => c.tagName === 'Cell' || c.children.some((g) => g.tagName === 'Cell')),
+  );
+  if (!cells) return undefined;
+  const cell = [...cells.children].flatMap((c) => (c.tagName === 'Cell' ? [c] : c.children))
+    .find((c) => c.tagName === 'Cell' && c.attributes['alias'] === alias);
+  if (!cell) return undefined;
+  const content = cell.attributes['content'] ?? '';
+  // 去掉前导 =（同表地址/算术再走一次带上下文的求值，一跳深度足够语料头部）
+  return evalWithDoc(content.startsWith('=') ? content.slice(1) : content, docObjects, src);
+}
+
+/** 对象的 Label 属性（FreeCAD 引用 `<<Label>>` 用的是它，不是 name）。 */
+function objectLabel(o: FcstdObject): string | undefined {
+  const el = o.properties.get('Label')?.children[0];
+  return el?.attributes['value'] ?? (el?.valueText || undefined);
+}
+
+/**
+ * 带文档上下文的表达式求值：引用（`<<L>>.A` / `L.A` / 同表地址 `B2`）替换为
+ * 数值后，求值仅含常数与 + - * / ( ) 的算术。任何残留标识符 / 函数 → undefined
+ * （no heuristic fallback）。返回值单位跟随单元格（mm 语境，角度单元格调用方解释）。
+ */
+export function evalWithDoc(
+  expr: string,
+  docObjects: readonly FcstdObject[],
+  self?: FcstdObject,
+): ExprValue {
+  let s = expr.trim();
+  // 引用替换：<<Label>>.Alias | Label.Alias | Object.Alias（标识符.标识符）
+  s = s.replace(/<<([^>]+)>>\.([A-Za-z_][A-Za-z0-9_]*)|([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)/g,
+    (whole, brLabel, brAlias, plLabel, plAlias) => {
+      const label = brLabel ?? plLabel;
+      const alias = brAlias ?? plAlias;
+      const v = spreadsheetAliasValue(docObjects, label!, alias!);
+      return v === undefined ? whole : `(${v})`;
+    });
+  // 同表地址（self 表内 address→alias 值，如 `B2` / `B2*2`）：仅当 self 是表
+  if (self?.type === 'Spreadsheet::Sheet') {
+    s = s.replace(/\b([A-Z]+[0-9]+)\b/g, (whole, addr: string) => {
+      const v = spreadsheetAddressValue(self, addr, docObjects);
+      return v === undefined ? whole : `(${v})`;
+    });
+  }
+  // 单元格值自带单位（=5.9mm）——先按「常数+单位」求值（evalConstantExpression
+  // 的既有口径），再进纯算术；单位记号在算术前剥离（返回值跟随 mm 语境）。
+  const constant = evalConstantExpression(s);
+  if (constant !== undefined) return constant;
+  s = s.replace(/\b(mm|millimeter|cm|centimeter|m|meter|in|inch|"|ft|foot|deg|degree|°|rad|radian)\b/g, '');
+  return evalArithmetic(s);
+}
+
+/** 同表地址取值：address → 该单元格 content（递归经 evalWithDoc，一跳深度）。 */
+function spreadsheetAddressValue(
+  sheet: FcstdObject,
+  address: string,
+  docObjects: readonly FcstdObject[],
+): ExprValue {
+  const cells = sheet.properties.get('cells');
+  if (!cells) return undefined;
+  const cell = [...cells.children].flatMap((c) => (c.tagName === 'Cell' ? [c] : c.children))
+    .find((c) => c.tagName === 'Cell' && c.attributes['address'] === address);
+  if (!cell) return undefined;
+  const content = cell.attributes['content'] ?? '';
+  return evalWithDoc(content.startsWith('=') ? content.slice(1) : content, docObjects, sheet);
+}
+
+/** 仅含数字与 + - * / ( ) 空格的算术求值；任何其它字符 → undefined。 */
+function evalArithmetic(s: string): ExprValue {
+  if (!/^[-+*/(). 0-9eE]*$/.test(s)) return undefined;
+  try {
+    const v = Function(`"use strict"; return (${s});`)() as unknown;
+    return typeof v === 'number' && Number.isFinite(v) ? v : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 
 /** One <Expression path=... expression=...> binding with its optional constant value. */
 export interface ExpressionBinding {

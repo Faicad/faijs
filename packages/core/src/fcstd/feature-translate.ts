@@ -10,7 +10,7 @@
  * (statements sN, variables partN). Geometry values are already mm (D7).
  */
 import type { FcstdObject } from './document.js';
-import { parseExpressionEngine, type ExpressionBinding } from './expressions.js';
+import { parseExpressionEngine, evalWithDoc, type ExpressionBinding } from './expressions.js';
 import { placementOf, quatToMatrix } from './placement.js';
 import { shapeBrpFile } from './external-geo.js';
 
@@ -167,8 +167,18 @@ export function expressionBindingOf(obj: FcstdObject, name: string): ExpressionB
   const bindings = parseExpressionEngine(obj.properties.get('ExpressionEngine') as never);
   if (bindings.length === 0) return undefined;
   const norm = (p: string): string => (p.startsWith('.') ? p.slice(1) : p);
-  return bindings.find((b) => norm(b.path) === name);
+  const b = bindings.find((b) => norm(b.path) === name);
+  // P1-1（参数载体）：非常量绑定尝试三跳解析（<<Label>>.Alias → 单元格值）。
+  // docObjects 由 translateObject 入口注入（模块级上下文，见 docContext）。
+  if (b && b.value === undefined && docContext) {
+    const v = evalWithDoc(b.expression, docContext);
+    if (v !== undefined) return { ...b, value: v };
+  }
+  return b;
 }
+
+/** P1-1: translateObject 入口注入的文档对象上下文（表达式的引用解析需要全文档）。 */
+let docContext: readonly FcstdObject[] | undefined;
 
 /**
  * M11.2: detect a non-constant expression binding on a property.
@@ -420,6 +430,9 @@ export function translateObject(
   /** E4: objects whose Shape `file` attribute points at a missing/empty member. */
   brokenShapeAssets?: ReadonlySet<string>,
 ): TranslateVerdict {
+  // P1-1（参数载体）：注入文档上下文，让 expressionBindingOf 能做
+  // <<Label>>.Alias 三跳解析（引用算术需要全文档找 Spreadsheet 数据源）。
+  if (docObjects) docContext = docObjects;
   // E4 (H12): a Shape/SubShape `file` attribute whose member is missing or
   // zero-bytes in the archive is a BROKEN asset, not a shape-asset — surface
   // it as an explicit convert-time gap instead of letting the object fall

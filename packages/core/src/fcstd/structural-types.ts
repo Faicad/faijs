@@ -44,6 +44,11 @@ export const STRUCTURAL_TYPES = new Set([
   // category as App::TextDocument/App::Annotation above. Their modeling
   // content is translated independently through the objects they reference.
   'TechDraw::DrawPage', 'TechDraw::DrawSVGTemplate', 'TechDraw::DrawViewDraft',
+  // P1-1（2026-09-23, B2 §3.9）：Spreadsheet::Sheet / App::VarSet 是**被引用的
+  // 参数数据源**（<<Label>>.Alias 表达式绑定指向它的别名单元格），不是建模对象
+  // 也因此不是翻译缺口。preserved-only；其数值经 expressions.evalWithDoc 的
+  // 三跳解析进入下游属性（pad-length-expression-non-constant 的真根因）。
+  'Spreadsheet::Sheet', 'App::VarSet',
 ]);
 
 /**
