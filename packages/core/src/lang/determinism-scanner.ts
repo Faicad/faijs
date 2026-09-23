@@ -58,6 +58,15 @@ export interface DeterminismScanOptions {
    * ...` → `'gear'`). Direct calls to these are geometry sinks.
    */
   extraCallees?: string[]
+  /**
+   * Strict parse: when true, a source that cannot be parsed as plain JS
+   * (e.g. TypeScript syntax) throws a SyntaxError instead of silently
+   * returning ok. Used for library-source scanning where the input is
+   * contractually compiled JS — type stripping is not supported and a
+   * parse failure must surface loudly (never fall back, never stay silent).
+   * Default false: the main .fai.js parse path owns syntax diagnostics.
+   */
+  strict?: boolean
 }
 
 /** Scan result. */
@@ -157,7 +166,16 @@ export function scanDeterminism(code: string, opts: DeterminismScanOptions = {})
       sourceType: 'module',
       locations: true,
     })
-  } catch {
+  } catch (e) {
+    if (opts.strict) {
+      const loc = (e as { loc?: { line?: number; column?: number } }).loc
+      const at = loc ? ` at line ${loc.line}:${loc.column}` : ''
+      throw new SyntaxError(
+        `[determinism] library source is not valid plain JavaScript${at} ` +
+          `(type stripping is not supported; libraries must ship compiled JS): ${(e as Error).message}`,
+        { cause: e },
+      )
+    }
     // A syntax error is not a determinism violation; the main parse path owns
     // syntax diagnostics. Return ok (empty).
     return { ok: true, violations: [] }

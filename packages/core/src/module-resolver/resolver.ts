@@ -2,7 +2,7 @@
  * module-resolver — 运行时模块解析（channel ③，V5.2 / V5.4）
  *
  * 提供纯函数 `resolveImports(code, options)`：
- * - acorn 解析每个顶层 import 声明（复用 faqts imports 的 span 定位）
+ * - acorn 解析每个顶层 import 声明（复用 parse-imports 的 span 定位）
  * - 裸说明符 → 查找解析表（slices / imports / scopes）→ 重写为宿主可加载的绝对 URL
  * - V5.4 大库切片（`pkg/sub`）：仅导出清单中的切片可被引用，未声明 → 抛错
  * - 相对说明符 → 按 importer/baseURL 绝对化
@@ -13,7 +13,7 @@
  * 本模块不发起网络、不做递归依赖装配（宿主负责拓扑与 fetch/build）。
  */
 
-import { findImports } from '../faqts/imports'
+import { findImports } from './parse-imports'
 import { assertSatisfies } from './version'
 
 /** Resolution value: a direct URL, or an object with URL plus an optional version for range validation. */

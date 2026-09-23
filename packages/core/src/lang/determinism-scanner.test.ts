@@ -97,3 +97,25 @@ describe('determinism-scanner: library call sites', () => {
     expect(r.ok).toBe(false)
   })
 })
+
+describe('determinism-scanner: strict parse (library source contract)', () => {
+  it('strict: TS-syntax source throws SyntaxError (type stripping is not supported)', () => {
+    expect(() => scan('export function make(n: number): number { return n }', { strict: true }))
+      .toThrow(/library source is not valid plain JavaScript/)
+  })
+
+  it('strict: plain JS parses and scans normally (violations still detected)', () => {
+    const r = scan('const w = Math.random()\nlet part0 = cad.box(w, 10, 10)', { strict: true })
+    expect(r.ok).toBe(false)
+    expect(r.violations[0].source).toBe('Math.random')
+  })
+
+  it('strict: clean plain JS returns ok', () => {
+    const r = scan('export function make(n) { return n }', { strict: true })
+    expect(r.ok).toBe(true)
+  })
+
+  it('non-strict: parse failure stays silent ok (main script path owns syntax diagnostics)', () => {
+    expect(scan('export function make(n: number): number { return n }').ok).toBe(true)
+  })
+})

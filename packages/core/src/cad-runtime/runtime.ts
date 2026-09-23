@@ -57,7 +57,6 @@ import { buildPartNaming, type PartNamingInput } from '../topology/naming/build-
 import { faceRowToHint } from '../topology/naming/geom-hint'
 import { HASH_UPPER_BOUND } from '../brep/face-evolution'
 import { scanDeterminism, type DeterminismViolation, type DeterminismPolicy } from '../lang/determinism-scanner'
-import { transform as sucraseTransform } from 'sucrase'
 
 
 // ── 装配变换死代码已删除 ──
@@ -642,13 +641,15 @@ export class CadRuntime {
         const spec = imp.packageName ?? imp.specifier ?? ''
         if (!spec.startsWith('@faicad/')) continue
         if (spec === '@faicad/faijs' || spec.startsWith('@faicad/faijs/')) continue
+        let src: string | undefined
         try {
-          const src = await loadSource(spec)
-          if (src) {
-            violations.push(...this.scanLibrarySource(src, hints).violations)
-          }
+          src = await loadSource(spec)
         } catch {
           // 库源码不可读 → 跳过（不阻断执行；库违规由库作者负责）
+        }
+        if (src) {
+          // scanLibrarySource strict：库源码含 TS 语法 → 显式抛错（不静默跳过）
+          violations.push(...this.scanLibrarySource(src, hints).violations)
         }
       }
     }
@@ -686,19 +687,14 @@ export class CadRuntime {
     return { namespaces, callees }
   }
 
-  /** 扫描库源码（可能含 TS 语法 → sucrase 脱后扫；失败则当 JS 直扫）。 */
+  /** 扫描库源码（契约：输入必须是编译后的纯 JS；含 TS 语法/解析失败 → 显式报错，无剥离、无回退）。 */
   private scanLibrarySource(src: string, hints: { namespaces: string[]; callees: string[] }): { violations: DeterminismViolation[] } {
-    let js = src
-    try {
-      js = sucraseTransform(src, { transforms: ['typescript'] }).code
-    } catch {
-      // 非 TS 或 sucrase 转换失败 → 当 JS 直扫
-    }
     return {
-      violations: scanDeterminism(js, {
+      violations: scanDeterminism(src, {
         defaultNs: this.defaultNsName,
         extraNamespaces: hints.namespaces,
         extraCallees: hints.callees,
+        strict: true, // 库源码非法（含 TS 语法）→ 抛错，不静默跳过
       }).violations,
     }
   }

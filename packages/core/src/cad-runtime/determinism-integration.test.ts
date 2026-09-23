@@ -12,7 +12,8 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import { registerOcctBrepEngine } from '../brep/engine/adapters/occt'
 import { CadRuntime } from './runtime'
 import { createApiNamespace } from '../api/api-namespace'
-import type { HostPorts, EventSink } from './ports'
+import { CONTRACT_VERSION, type StdlibNamespace } from '../runtime-state'
+import type { HostPorts, EventSink, LibLoader } from './ports'
 
 class TestEventSink implements EventSink {
   readonly events: Array<{ event: string; detail: Record<string, unknown> }> = []
@@ -21,9 +22,19 @@ class TestEventSink implements EventSink {
   }
 }
 
-function makeRuntime(determinism: 'off' | 'warn' | 'error'): CadRuntime {
-  const ports: HostPorts = { events: new TestEventSink() }
+function makeRuntime(determinism: 'off' | 'warn' | 'error', libLoader?: LibLoader): CadRuntime {
+  const ports: HostPorts = { events: new TestEventSink(), ...(libLoader ? { libLoader } : {}) }
   return new CadRuntime(ports, 'auto', { cad: createApiNamespace() }, { determinism })
+}
+
+/** 最小库装载器：loadSource 返回给定库源码，loadLib 返回最小可用命名空间。autoLift 关（裸函数不作 compatOp 提升，避免测试把 null 当几何）。 */
+function libLoaderWithSource(src: string): LibLoader {
+  return {
+    loadLib: async () => (({ contractVersion: CONTRACT_VERSION, make: () => 42 }) as unknown as StdlibNamespace),
+    listLibs: () => ['@faicad/gear-demo'],
+    loadSource: async () => src,
+    options: { autoLift: false },
+  }
 }
 
 beforeAll(async () => {
@@ -94,5 +105,26 @@ describe('determinism gate integration', () => {
       'const s1 = cad.box(r, 10, 10)',
     ].join('\n'))
     expect(result.failedAt?.code).toBe('E_DETERMINISM')
+  })
+
+  it('error: TS-syntax library source → explicit SyntaxError (no stripping, no silent skip)', async () => {
+    // 契约：库源码必须是编译后的纯 JS；TS 语法显式报错，不做 sucrase 剥离、不静默跳过。
+    const rt = makeRuntime('error', libLoaderWithSource('export function make(n: number): number { return n }'))
+    await expect(
+      rt.execute("import * as gear from '@faicad/gear-demo'\nlet p = gear.make(1)"),
+    ).rejects.toThrow(/library source is not valid plain JavaScript/)
+  })
+
+  it('error: plain-JS library source is scanned normally (violations still detected)', async () => {
+    // strict 只对"非法 JS"显式报错；合法 JS 库源码照常扫描，违规照常检出。
+    const rt = makeRuntime('error', libLoaderWithSource('export function make() { return cad.box(Math.random(), 10, 10) }'))
+    const result = await rt.execute("import * as gear from '@faicad/gear-demo'\nlet p = gear.make(1)")
+    expect(result.failedAt?.code).toBe('E_DETERMINISM')
+  })
+
+  it('error: clean plain-JS library source passes the gate', async () => {
+    const rt = makeRuntime('error', libLoaderWithSource('export function make(n) { return n }'))
+    const result = await rt.execute("import * as gear from '@faicad/gear-demo'\nlet p = gear.make(1)")
+    expect(result.failedAt).toBeUndefined()
   })
 })
