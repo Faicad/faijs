@@ -28,7 +28,8 @@ import * as THREE from 'three'
 import { solidToShape, matrixToArray } from '../brep/brep-ops'
 import { getSolidBoundingBox } from '../brep/brep-utils'
 import { getBackends, getCurrentStmt } from '../runtime-state'
-import { fromBrep, brepOf } from '../shape'
+import { brepOf } from '../shape'
+import { runtimeLineage } from '../topology/naming/lineage'
 import { formatRoleName, semantic, wall } from '../topology/naming/role-name'
 import type { Provenance } from '../topology/naming/lineage'
 import { defineOp } from '../sdk'
@@ -436,12 +437,16 @@ export const extrude = defineOp({
       const inputSolid = brepOf(input) as BrepHandle | undefined
       if (!inputSolid) throw new Error('[stdlib/extrude] input is not BREP')
       const clipped = extrudeUpToSolid(kernel, inputSolid, o)
-      // 3.2: inlined registerExtrudeRoles — origin = StmtId, roles from construct enumerator
+      // E3-b（2026-09-23，同 revolve 修法）：不能对产物再走一次 fromBrep 登记
+      // roleTable——同语句 registeredStmtId 去重会吞掉第二次登记（part 键保持
+      // adoptEntity 的空表，下游 fillet/chamfer 的 edgeRef 报 nameless shape）。
+      // 改经 runtimeLineage.recordOutput 直接落语句键表 + part 键权威位。
       const origin = String(getCurrentStmt()?.id ?? '')
-      return fromBrep(solidToShape(kernel, clipped), {
-        solid: clipped,
-        roleTable: new Map([[origin, extrudeConstructRoles(kernel, clipped)]]),
-      })
+      const shape = solidToShape(kernel, clipped)
+      const table = new Map([[origin, extrudeConstructRoles(kernel, clipped)]])
+      const part = getCurrentStmt()?.outputs?.[0]
+      runtimeLineage.recordOutput(origin as never, table, brepOf(shape) as never, part as never)
+      return shape
     }
 
     // 长度形态：委托生成投影（生成投影自带借入 / Result 翻转 / 收养）
@@ -450,15 +455,17 @@ export const extrude = defineOp({
     const v: Vec3 = [normal.x * o.length! * sign, normal.y * o.length! * sign, normal.z * o.length! * sign]
     const result = (await projectedExtrude(input, v)) as Shape
     // E3 后续：委托路径同样要建链根表（投影只给几何，命名是 faijs 语义）。
-    // 3.2: inlined registerExtrudeRoles — origin = StmtId, roles from construct enumerator
+    // E3-b（2026-09-23，同 revolve 修法）：不能对投影产物再走一次 fromBrep——
+    // 同语句 registeredStmtId 去重会吞掉第二次登记（part 键保持空表，下游
+    // fillet/chamfer 的 edgeRef 报 `input shape has no role table`）。改经
+    // runtimeLineage.recordOutput 落语句键表 + part 键权威位。
     const kernel = getBackends().kernel.brep as BrepEngineApi | null
     const solid = kernel ? (brepOf(result) as BrepHandle | undefined) : undefined
     if (kernel && solid) {
       const origin = String(getCurrentStmt()?.id ?? '')
-      return fromBrep(solidToShape(kernel, solid), {
-        solid,
-        roleTable: new Map([[origin, extrudeConstructRoles(kernel, solid)]]),
-      })
+      const table = new Map([[origin, extrudeConstructRoles(kernel, solid)]])
+      const part = getCurrentStmt()?.outputs?.[0]
+      runtimeLineage.recordOutput(origin as never, table, solid as never, part as never)
     }
     return result
   },
