@@ -56,6 +56,14 @@ export async function registerBrepkitBrepEngine(): Promise<void> {
         'healSolid',
         'intersect',
         'makeCylinder',
+        // Phase 3：brepkitKernel 真实现接线 5 个（wasm 导出同/可映射语义）——
+        // makeEllipsoid/makeTorus/makeVertex/mirror/shell；extrude/section/split 语义
+        // 不匹配（wasm 平面式）→ 保持 unsupported 不声明（engine-switch-p3 断言）。
+        'makeEllipsoid',
+        'makeTorus',
+        'makeVertex',
+        'mirror',
+        'shell',
         'makeFace',
         'makeLineEdge',
         // Phase 2：brepkit wasm 已导出 pattern 三方法并已接线（brepkitKernel.ts 阵列族）。

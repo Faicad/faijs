@@ -191,7 +191,7 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
     makeRectangle(_width: number, _height: number): BrepHandle { return unsupported('makeRectangle') },
 
     // ── 造型运算 ──
-    extrude(_shape: BrepHandle, _dx: number, _dy: number, _dz: number): BrepHandle { return unsupported('extrude') },
+    extrude(_shape: BrepHandle, _dx: number, _dy: number, _dz: number): BrepHandle { return unsupported('extrude') }, // ⚠️ wasm extrude(face, dir, distance) 语义不同 → 保持 unsupported
     loft(_wires: BrepHandle[], _isSolid: boolean, _ruled: boolean): BrepHandle { return unsupported('loft') },
 
     // ── 布尔与分割 ──
@@ -199,7 +199,7 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
     cut(a: BrepHandle, b: BrepHandle): BrepHandle { return asHandle(trackFallback(kernel.cut(asNum(a), asNum(b)))) },
     common(a: BrepHandle, b: BrepHandle): BrepHandle { return asHandle(trackFallback(kernel.common(asNum(a), asNum(b)))) },
     intersect(a: BrepHandle, b: BrepHandle): BrepHandle { return asHandle(trackFallback(kernel.common(asNum(a), asNum(b)))) },
-    section(_a: BrepHandle, _b: BrepHandle): BrepHandle { return unsupported('section') },
+    section(_a: BrepHandle, _b: BrepHandle): BrepHandle { return unsupported('section') }, // ⚠️ wasm section(solid+平面) 语义不同 → 保持 unsupported
     fuseAll(shapes: BrepHandle[]): BrepHandle {
       return asHandle(trackFallback(kernel.fuseAll(Int32Array.from(shapes.map(asNum)))))
     },
@@ -588,18 +588,18 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
     fixSelfIntersection(_wire: BrepHandle): BrepHandle { return unsupported('fixSelfIntersection') },
     hullFromPoints(_points: BrepVec3[], _tolerance: number): BrepHandle { return unsupported('hullFromPoints') },
     loftAdvanced(_wires: BrepHandle[], _options?: { solid?: boolean; ruled?: boolean; tolerance?: number }): BrepHandle { return unsupported('loftAdvanced') },
-    makeEllipsoid(_rx: number, _ry: number, _rz: number): BrepHandle { return unsupported('makeEllipsoid') },
+    makeEllipsoid(rx: number, ry: number, rz: number): BrepHandle { return asHandle(kernel.makeEllipsoid(rx, ry, rz)) }, // Phase 3: wasm 同签名真实现（brepkit-wasm.d.ts:1354）
     makeFaceOnSurface(_face: BrepHandle, _wire: BrepHandle): BrepHandle { return unsupported('makeFaceOnSurface') },
-    makeTorus(_majorRadius: number, _minorRadius: number): BrepHandle { return unsupported('makeTorus') },
-    makeVertex(_x: number, _y: number, _z: number): BrepHandle { return unsupported('makeVertex') },
+    makeTorus(majorRadius: number, minorRadius: number): BrepHandle { return asHandle(kernel.makeTorus(majorRadius, minorRadius, 64)) }, // Phase 3: wasm 真实现（segments 固定 64，BrepEngineApi 不暴露）
+    makeVertex(x: number, y: number, z: number): BrepHandle { return asHandle(kernel.makeVertex(x, y, z)) }, // Phase 3: wasm 同签名真实现
     makeWireFromMixed(_items: BrepHandle[]): BrepHandle { return unsupported('makeWireFromMixed') },
-    mirror(_shape: BrepHandle, _point: BrepVec3, _normal: BrepVec3): BrepHandle { return unsupported('mirror') },
+    mirror(shape: BrepHandle, point: BrepVec3, normal: BrepVec3): BrepHandle { return asHandle(kernel.mirror(asNum(shape), point.x, point.y, point.z, normal.x, normal.y, normal.z)) }, // Phase 3: wasm 真实现
     revolveVec(_shape: BrepHandle, _center: BrepVec3, _direction: BrepVec3, _angleDeg: number): BrepHandle { return unsupported('revolveVec') },
     sew(_shapes: BrepHandle[], _tolerance?: number): BrepHandle { return unsupported('sew') },
-    shell(_solid: BrepHandle, _facesToRemove: BrepHandle[], _thickness: number, _tolerance: number): BrepHandle { return unsupported('shell') },
+    shell(solid: BrepHandle, facesToRemove: BrepHandle[], thickness: number, _tolerance: number): BrepHandle { return asHandle(kernel.shell(asNum(solid), thickness, Uint32Array.from(facesToRemove.map(asNum)))) }, // Phase 3: wasm 真实现（tolerance 忽略）
     simplePipe(_profile: BrepHandle, _spine: BrepHandle): BrepHandle { return unsupported('simplePipe') },
     simplify(_shape: BrepHandle): BrepHandle { return unsupported('simplify') },
-    split(_shape: BrepHandle, _tools: BrepHandle[]): BrepHandle { return unsupported('split') },
+    split(_shape: BrepHandle, _tools: BrepHandle[]): BrepHandle { return unsupported('split') }, // ⚠️ wasm split 是平面分割（solid+平面参数），与 BrepEngineApi 工具实体分割语义不匹配 → 保持 unsupported
     sweepPipeShell(_profile: BrepHandle, _spine: BrepHandle, _freenet?: boolean, _smooth?: boolean): BrepHandle { return unsupported('sweepPipeShell') },
     generalTransformNonOrthogonal(_shape: BrepHandle, _matrix: number[]): BrepHandle { return unsupported('generalTransformNonOrthogonal') },
     generalTransformWithHistory(_shape: BrepHandle, _matrix: number[], _inputFaceHashes: number[], _hashUpperBound: number): BrepEvolutionData { return unsupported('generalTransformWithHistory') },

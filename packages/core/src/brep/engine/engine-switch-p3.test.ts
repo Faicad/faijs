@@ -217,6 +217,35 @@ describe('Phase 3 occt 适配器：33 登记方法实例完整 + 组合代理冒
 })
 
 describe('Phase 3 brepkit 适配器：声明 ⊆ 实例（能力表外方法不声明）', () => {
+  it('brepkit 真实现接线冒烟：5 个新声明方法真可用（不崩、返回有效句柄）', async () => {
+    __resetEngineRegistriesForTests()
+    await registerBrepkitBrepEngine()
+    const engine = await getBrepEngine()
+    try {
+      const api = engine.primitives
+      const box = api.makeBox(10, 10, 10)
+      const ell = api.makeEllipsoid(2, 3, 4)
+      const v = api.makeVertex(1, 2, 3)
+      const torus = api.makeTorus(5, 2)
+      const mirrored = api.mirror(box, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 })
+      expect(typeof ell).toBe('number')
+      expect(typeof v).toBe('number')
+      expect(typeof torus).toBe('number')
+      expect(typeof mirrored).toBe('number')
+      // shell：抽壳（移除一个面，brepkit wasm(solid, thickness, open_faces)）
+      const faces = api.getSubShapes(box, 'face')
+      expect(faces.length).toBeGreaterThan(0)
+      const hollow = api.shell(box, [faces[0]], 1, 0.01)
+      expect(typeof hollow).toBe('number')
+      // 真几何校验：抽壳后仍为有效 solid
+      expect(api.getVolume(hollow as never)).toBeGreaterThan(0)
+    } finally {
+      __resetEngineRegistriesForTests()
+      await registerOcctBrepEngine()
+      occtApi = (await getBrepEngine()).primitives
+    }
+  })
+
   it('capabilities.methods 每个声明方法在实例上存在（typeof function）', async () => {
     __resetEngineRegistriesForTests()
     await registerBrepkitBrepEngine()
@@ -241,11 +270,15 @@ describe('Phase 3 brepkit 适配器：声明 ⊆ 实例（能力表外方法不�
     const engine = await getBrepEngine()
     try {
       const declared = new Set(engine.capabilities!.methods)
-      // boundingBox/surfaceCenterOfMass 是真实现映射（wasm 导出存在）——允许声明；
-      // 其余 Phase 3 方法 brepkitKernel 为 unsupported 桩 → 不得声明（否则静态判定
+      // brepkit 真实现映射 7 个（wasm 导出存在且已接线）——允许声明；其余 Phase 3
+      // 方法 brepkitKernel 为 unsupported 桩或语义不匹配 → 不得声明（否则静态判定
       // 放行后死在桩上 = 红线）。
+      const brepkitReal = new Set([
+        'boundingBox', 'surfaceCenterOfMass',
+        'makeEllipsoid', 'makeTorus', 'makeVertex', 'mirror', 'shell',
+      ])
       for (const m of PHASE3_METHODS) {
-        if (m === 'boundingBox' || m === 'surfaceCenterOfMass') continue
+        if (brepkitReal.has(m as string)) continue
         expect(declared.has(m as BrepMethodKind), `brepkit 不应声明桩方法: ${m}`).toBe(false)
       }
     } finally {
