@@ -35,6 +35,7 @@ import { fai_split } from './fai_split'
 import { union, subtract, intersect, cut } from './boolean'
 import { split } from './split'
 import { linearPattern } from './pattern'
+import { circularPattern, gridPattern, rectangularPattern, mirrorJoin, mirror, clone, transformCopy } from './replicate'
 import { engrave } from './engrave'
 import { chamfer } from './chamfer'
 import { fillet } from './fillet'
@@ -102,5 +103,15 @@ export function createApiNamespace(): StdlibNamespace {
     // role tables (L3 / L4 抗重放词汇). Spread after scriptFaceOps so they win.
     split,
     linearPattern,
+    // 覆盖生成版：4 个多副本 pattern 提拔手写（keep + replica[*] 角色表）；
+    // 3 个单副本（mirror/clone/transformCopy）加 keep 薄 override。
+    // Spread after scriptFaceOps so they win.
+    circularPattern,
+    gridPattern,
+    rectangularPattern,
+    mirrorJoin,
+    mirror,
+    clone,
+    transformCopy,
   } as unknown as StdlibNamespace
 }

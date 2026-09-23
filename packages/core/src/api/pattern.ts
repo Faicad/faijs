@@ -11,14 +11,13 @@
 
 import type { Shape, Vec3 } from '../mesh/types'
 import { solidToShape } from '../brep/brep-ops'
-import { getFaceHashes } from '../brep/face-evolution'
-import { getBackends, getCurrentStmt } from '../runtime-state'
-import { fromBrep, brepOf, inputRoleTable } from '../shape'
+import { getBackends, getCurrentStmt, keep } from '../runtime-state'
+import { fromBrep, brepOf } from '../shape'
 import { defineOp } from '../sdk'
 import type { Provenance } from '../topology/naming/lineage'
-import type { RoleTable } from '../topology/naming/types'
 import type { BrepHandle } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
+import { buildReplicaRoleTable, type ReplicaTransform } from './internal/replica-role-table'
 
 /** 归一化向量（零向量 → [0,0,1] 兜底）。 */
 function norm(v: Vec3): [number, number, number] {
@@ -36,19 +35,6 @@ function linearPatternBrep(input: Shape, direction: Vec3, count: number, spacing
 
   // Phase 1.6：origin = 本次语句 StmtId。
   const outStmt = String(getCurrentStmt()?.id ?? '')
-  const inputTable = inputRoleTable(input) as RoleTable | undefined
-
-  // 输入面角色（hash → role）用于回投 inner
-  const inputHashes = getFaceHashes(kernel, inputSolid)
-  const inputHashToRole = new Map<number, string>()
-  if (inputTable) {
-    for (const roles of inputTable.values()) {
-      for (const [role, hashes] of roles) for (const h of hashes) inputHashToRole.set(h, role)
-    }
-  }
-  // 输入面质心（用于按面内坐标回投 inner role）
-  const inputFaces = kernel.getSubShapes(inputSolid, 'face')
-  const inputCentroids = inputFaces.map((f) => kernel.getSurfaceCenterOfMass(f))
 
   // 取 count 份副本。Phase 2：BrepEngineApi.linearPattern 契约统一返回 BrepHandle[]
   // （两内核原生都返回 compound，由适配器拆成数组）——不再有「单句柄 fused」形态。
@@ -62,39 +48,16 @@ function linearPatternBrep(input: Shape, direction: Vec3, count: number, spacing
     for (const c of raw) kernel.release(c)
   }
 
-  // 结果面 hash / 质心
-  const resultHashes = getFaceHashes(kernel, resultSolid)
-  const resultFaces = kernel.getSubShapes(resultSolid, 'face')
-  const resultCentroids = resultFaces.map((f) => kernel.getSurfaceCenterOfMass(f))
-
-  const roleTable = new Map<string, Map<string, number[]>>()
-  const inner = new Map<string, number[]>()
-
-  for (let i = 0; i < resultHashes.length; i++) {
-    const c = resultCentroids[i]!
-    // 沿 dir 投影得到份数坐标 t，四舍五入到 spacing 倍数 → k
-    const t = c.x * dir[0] + c.y * dir[1] + c.z * dir[2]
-    const k = Math.round(t / spacing)
-    // 面内坐标 = centroid − t·dir
-    const inPlane: [number, number, number] = [c.x - t * dir[0], c.y - t * dir[1], c.z - t * dir[2]]
-    // 匹配输入面（最近面内坐标）→ inner role
-    let bestRole: string | undefined
-    let bestDist = Infinity
-    for (let j = 0; j < inputCentroids.length; j++) {
-      const ic = inputCentroids[j]!
-      const it = ic.x * dir[0] + ic.y * dir[1] + ic.z * dir[2]
-      const ii: [number, number, number] = [ic.x - it * dir[0], ic.y - it * dir[1], ic.z - it * dir[2]]
-      const d = (inPlane[0] - ii[0]) ** 2 + (inPlane[1] - ii[1]) ** 2 + (inPlane[2] - ii[2]) ** 2
-      if (d < bestDist) {
-        bestDist = d
-        bestRole = inputHashToRole.get(inputHashes[j]!)
-      }
-    }
-    const role = `replica[${k}]/${bestRole ?? 'face'}`
-    if (!inner.has(role)) inner.set(role, [])
-    inner.get(role)!.push(resultHashes[i]!)
+  // 第 k 份副本是输入沿 dir 平移 k*spacing：质心反投回输入坐标系（T_k⁻¹）。
+  const replicas: ReplicaTransform[] = []
+  for (let k = 0; k < count; k++) {
+    const off = k * spacing
+    replicas.push({
+      label: `replica[${k}]`,
+      inverse: (c) => ({ x: c.x - off * dir[0], y: c.y - off * dir[1], z: c.z - off * dir[2] }),
+    })
   }
-  roleTable.set(outStmt, inner)
+  const roleTable = buildReplicaRoleTable(kernel, input, resultSolid, replicas, outStmt)
 
   return fromBrep(solidToShape(kernel, resultSolid), { solid: resultSolid, roleTable })
 }
@@ -118,6 +81,8 @@ function linearPatternBrep(input: Shape, direction: Vec3, count: number, spacing
  */
 export const linearPattern = defineOp({
   brep(input: Shape, direction: Vec3, count: number, spacing: number) {
+    // copy-like keep semantics: replicate ops preserve their source shape.
+    keep(input)
     return linearPatternBrep(input, direction, count, spacing)
   },
   // Phase 1（Brep 引擎可切换重构）：能力前置判定——linearPattern 需要内核的
