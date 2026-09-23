@@ -374,6 +374,22 @@ unwrap<T>(r: Result<T>): T   // throws if Err
 
 以 `runtime.registerLib(binding, ns, { compat: true })` 注册的库命名空间被接纳进语句面：已经 `defineOp` 声明的函数按其 spec 原样透传；裸库函数被提升为 faijs op，`fn.outputs` 是裸函数上唯一被识别的多产物标注（映射到 op 的 `outputs` spec）。提升机制是引擎内部实现（`api/internal/compat-op.ts`）；库作者只需要 `docs/library-dev-guide.md` 里的行为契约。
 
+### 7.9 BREP 引擎可切换性与能力声明
+
+BREP 引擎在**装配期**切换（非运行时）：宿主经 `registerBrepEngine` 注册唯一默认引擎（§8.2），此后注册表只读。每个引擎暴露 `BrepEngineApi` 原语与 `capabilities` 声明；**静态判定，禁止运行时回退**——op 在当前引擎上能否执行，由能力表在执行前静态决定，绝不 try-catch 探测。
+
+**能力名三层结构**（别名如 `'mirror'` 无法同时表达"提供 `mirrorWithHistory`"与"提供 `mirror`"，两族必须分名）：
+
+- **族级布尔**（`heal`、`directEdit`、`advSurface`、`assembly`、`meshLift`）——遗留槽位，会多报能力（内核可能只实现该族一部分）；以下具体名层才是权威；
+- **`BrepEvolutionKind`**——引擎实际提供的 `*WithHistory` 核函数真名（如 `['fuse','cut','fillet']`）；
+- **`BrepMethodKind`**——引擎实际提供的非演化内核方法真名（如 `['fuse','cut','linearPattern','chamfer']`）。
+
+每个库 op 声明自己需要的具体名（`capabilities: ['cut']`）；分派层在执行前与引擎的 `methods` / `evolution` 名单求交（§8.1 判定顺序）。缺失能力**静态降级**（auto 模式且有 mesh 实现）或**执行前报错**（brep 模式抛 `BrepUnsupportedError`；无 mesh 实现抛 `MeshUnsupportedError`）。能力**绝不伪造**：引擎只声明自己能实际执行的能力（brepkit 不声明 `chamfer`，因其 wasm 无 chamfer 内核；以 capability-map 派生的登记为准，见 §7.10）。
+
+### 7.10 compat op 内核获取（装配期适配器注入）
+
+compat op（vendored brepjs 函数）经**装配期适配器注入**取内核：`injectCurrentBrepEngineAsKernel()` 把当前引擎的 `BrepEngineApi` 包装为 vendored `KernelAdapter` 注册进 vendored 内核注册表——occt 走 `OcctWasmAdapter.fromKernel`（同一 occt-wasm 单例上的完整 211 方法适配器），其它引擎走透传的 `wrapBrepEngineApi()`。这让 vendored 函数逻辑（replica 角色回投、Result 语义、keep 处理）零改动且引擎中立。旧的 occt-only `bindOcctKernel()` 固定绑定已废弃（调用即抛）；`isKernelInjected()` 取代 `isOcctKernelBound()`。
+
 ---
 
 ## 8. 几何契约（BREP／Mesh 双链路）
@@ -410,7 +426,7 @@ export type BrepEngineProvider = () => Promise<BrepEngine>
 
 **注册只发生在宿主启动装配期，注册表运行期只读**；不提供 unregister／setDefault／运行时切换。OCCT 作为默认 BREP 引擎由适配器 `ensureOcctDefaultEngine()` 幂等装配。
 
-**能力声明**（`BrepCapabilities`，全可选）：`evolution`——本引擎**实际提供**的 `*WithHistory` 核函数名**名单**（`BrepEvolutionKind`，如 `['fuse','cut','fillet']`），**不是**族级布尔——以及 `heal`、`directEdit`、`advSurface`、`assembly`（XCAF）、`meshLift`（mesh→BREP 提升）这些布尔位。op 声明自己需要的**具体**名字（`capabilities: ['cut']`），与该名单求交。缺失的能力按静态规则降级或明确报错，**绝不伪造**。族级布尔会多报能力——内核可以只实现该族的一部分。
+**能力声明**（`BrepCapabilities`，全可选）：`evolution`——本引擎**实际提供**的 `*WithHistory` 核函数名**名单**（`BrepEvolutionKind`，如 `['fuse','cut','fillet']`），**不是**族级布尔——以及 `methods`——本引擎**实际提供**的非演化内核方法名**名单**（`BrepMethodKind`，如 `['fuse','cut','linearPattern','chamfer']`）。`heal`、`directEdit`、`advSurface`、`assembly`（XCAF）、`meshLift`（mesh→BREP 提升）布尔位是遗留族级槽位，会多报能力；具体名名单才是权威（§7.9）。op 声明自己需要的**具体**名字（`capabilities: ['cut']`），与该名单求交。缺失的能力按静态规则在执行前降级或明确报错，**绝不伪造**。
 
 ### 8.3 `BrepChainState`
 

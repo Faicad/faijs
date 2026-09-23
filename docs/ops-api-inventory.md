@@ -425,7 +425,41 @@ const p = await cad.chamfer(part0, { edges: [{ kind:'edge', faces:[{ origin:'box
 
 > 倒角是 BREP-only：非 BREP 输入抛 E_MESH_UNSUPPORTED。参考面由内核自选，`width1` 沿 faces[0] 侧、`width2` 沿 faces[1] 侧。
 
-### 5.2 `copy` ✅ 🚫
+### 5.2 `circularPattern` ✅
+
+环形阵列：绕 axis 均分 fullAngle（度，缺省 360）复制 count 份（含原位置）。
+
+```js
+const p = await cad.circularPattern(part0, [0, 0, 1], 6)
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `axis` | `[x,y,z]` | ✅ | — | 旋转轴方向 |
+| `count` | `number` | ✅ | — | 副本总数（含原位置） |
+| `fullAngle` | `number` |  | — | 总角度（度，缺省 360） |
+| `center` | `[x,y,z]` |  | — | 旋转轴上一点（缺省原点） |
+
+**异步**。Shape 所有副本 fused 后的几何。
+
+> BREP-only。keep 语义：不消费输入。结果面回投输入面角色，产出 `replica[k]/<inner>`。
+
+### 5.3 `clone` ✅
+
+深拷贝句柄：返回独立副本（源保留）。
+
+```js
+const p = await cad.clone(part0)
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+
+**异步**。Shape 克隆的新几何。
+
+> BREP-only。keep 语义：不消费输入（薄 override 委托生成 op，行为不变）。
+
+### 5.4 `copy` ✅ 🚫
 
 深拷贝几何为独立新对象（源不变，源与副本都显示）。
 
@@ -440,7 +474,7 @@ const part1 = cad.copy(part0)
 
 **同步**。Shape 源几何的深拷贝。copy 不消费其源（画布显示 box 和副本两份），改副本不影响源。
 
-### 5.3 `cut` ✅
+### 5.5 `cut` ✅
 
 Boolean cut (subtract): remove `tool` from `base`. Same semantics as {@link subtract} but with the brepjs-compatible `(base, tool, options?)` signature. Overrides the generated projection (compatOp) to do roleTable propagation (Phase 3: L2 requires wall:<i> to survive cut).
 
@@ -455,7 +489,7 @@ const b = await cad.cut(part0, part1)
 
 **异步**。Shape base minus tool.
 
-### 5.4 `engrave` ✅
+### 5.6 `engrave` ✅
 
 在几何表面雕刻文字或 SVG（文字分支与 logo 分支都可用）。
 
@@ -478,7 +512,7 @@ const p = await cad.engrave(part0, { mode: 'concave', depth: 2, text: 'Hello', t
 
 > 早期 logo 分支用 `svgText`（整份 XML 拷贝 + `svgSize` 文本导出丢失，往返失真）；现已改为 `svg` 资产引用，`engravingType` 冗余键已移除。faceCenter/faceNormal 目前是绝对坐标快照。
 
-### 5.5 `extrude` ✅
+### 5.7 `extrude` ✅
 
 沿 normal 拉伸几何（面 → 棱柱）。 up-to 模式（`upTo`）与长度模式（`length`）二选一；长度模式委托生成投影 （vendored extrude 为唯一引擎），up-to 模式走半空间组合。
 
@@ -500,7 +534,7 @@ const p = await cad.extrude(sk, { upTo: 'last', baseFeature: part0 })
 
 **异步**。Shape 拉伸后的几何。
 
-### 5.6 `fai_drill` ✅ 🚫
+### 5.8 `fai_drill` ✅ 🚫
 
 在几何体上钻孔（CSG 减除）。depth=0 为通孔，>0 为盲孔。
 
@@ -531,7 +565,7 @@ const p = await cad.fai_drill(part0, { diameter: 5.2, depth: 8, holeType: 'screw
 
 > 键名以本表为准：`type: 'through'|'blind'` 与 `direction` 为向量的旧素材是无效写法——孔型由 `depth`（0=通孔）推导，`direction` 是 'normal'|'x'|'y'|'z' 枚举。
 
-### 5.7 `fai_extrude` ✅ 🚫
+### 5.9 `fai_extrude` ✅ 🚫
 
 沿法向拉伸几何。
 
@@ -553,7 +587,7 @@ const p = await cad.fai_extrude(part0, { length: 10, normal: [0,0,1], originOffs
 
 **异步**。Shape 拉伸后的几何。
 
-### 5.8 `fai_split` ⚠️ 🚫
+### 5.10 `fai_split` ⚠️ 🚫
 
 分割几何，返回具名对象 { front, back } 两个独立零件。
 
@@ -591,7 +625,7 @@ const { front: part1, back: part2 } = await cad.fai_split(part0, { normal: [0, 0
 
 > 切割面统一用 `normal`/`offset`/`inPlaneAngleDeg` 描述；早期文本层曾与执行层键名断裂（planeRotation/planePosition），已修并统一为上述键名。
 
-### 5.9 `fillet` ✅
+### 5.11 `fillet` ✅
 
 在几何体上做圆角（等半径）。仅 BREP 可用。
 
@@ -608,7 +642,28 @@ const p = await cad.fillet(part0, { edges: [{ kind:'edge', faces:[{ origin:'box'
 
 > 圆角是 BREP-only：非 BREP 输入抛 E_MESH_UNSUPPORTED。`radius` 为正数（mm）。 圆角后 roleTable 经 filletWithHistory 传播，保证后续特征仍可按 role 选面/选边。
 
-### 5.10 `intersect` ✅
+### 5.12 `gridPattern` ✅
+
+二维栅格阵列：沿 directionX × directionY 复制 countX×countY 份（含原位置）。
+
+```js
+const p = await cad.gridPattern(part0, [1, 0, 0], [0, 1, 0], 3, 2, 20, 20)
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `directionX` | `[x,y,z]` | ✅ | — | 第一方向 |
+| `directionY` | `[x,y,z]` | ✅ | — | 第二方向 |
+| `countX` | `number` | ✅ | — | X 向副本数 |
+| `countY` | `number` | ✅ | — | Y 向副本数 |
+| `spacingX` | `number` | ✅ | — | X 向间距 |
+| `spacingY` | `number` | ✅ | — | Y 向间距 |
+
+**异步**。Shape 全部副本的 compound。
+
+> BREP-only。keep 语义：不消费输入。结果面回投输入面角色，产出 `replica[ix_iy]/<inner>`。
+
+### 5.13 `intersect` ✅
 
 布尔交集：所有输入的重叠部分。
 
@@ -622,7 +677,7 @@ const c = await cad.intersect(part0, part1)
 
 **异步**。Shape 所有输入的交集。
 
-### 5.11 `knurl` ⚠️
+### 5.14 `knurl` ⚠️
 
 施加滚花（顶点位移，非布尔）。mesh-only。
 
@@ -645,7 +700,7 @@ const p = await cad.knurl(part0, { knurlTextureHeight: 0.5, knurlScaleU: 0.15, k
 
 > knurl 无 BREP 实现（mesh-only），本质是顶点位移（网格操作），网格参数可接受；brep 模式下调用前抛 BrepUnsupportedError。面锚定建议用几何引用。
 
-### 5.12 `linearPattern` ✅
+### 5.15 `linearPattern` ✅
 
 线性阵列：沿 direction 复制 count 份（含原位置）。
 
@@ -663,7 +718,55 @@ const p = await cad.linearPattern(part0, [1, 0, 0], 3, 20)
 
 > BREP-only：非 BREP 输入抛 E_MESH_UNSUPPORTED。结果面按份数 k 回投影到输入面 角色，产出 `replica[k]/<inner>`（Phase 3 L3 抗重放词汇）。
 
-### 5.13 `split` ✅
+### 5.16 `mirror` ✅
+
+镜像：返回镜像后的新 Shape（源保留）。
+
+```js
+const p = await cad.mirror(part0, { normal: [1, 0, 0] })
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `options` | `MirrorOptions` |  | — | { normal?, at? } 镜像面 |
+
+**异步**。Shape 镜像后的新几何。
+
+> BREP-only。keep 语义：不消费输入（薄 override 委托生成 op，行为不变）。
+
+### 5.17 `mirrorJoin` ✅
+
+镜像并融合：原物（replica[0]）+ 沿平面镜像（replica[1]）fuse 成一体。
+
+```js
+const p = await cad.mirrorJoin(part0, { normal: [1, 0, 0] })
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `options` | `MirrorJoinOptions` |  | — | { normal?, at? } 镜像面法向与面上一点 |
+
+**异步**。Shape fuse 后的几何。
+
+> BREP-only。keep 语义：不消费输入。结果面回投输入面角色，产出 `replica[0|1]/<inner>`。
+
+### 5.18 `rectangularPattern` ✅
+
+矩形阵列：按 options（xDir/xCount/xSpacing/yDir/yCount/ySpacing）复制并 fuse。
+
+```js
+const p = await cad.rectangularPattern(part0, { xDir: [1,0,0], xCount: 3, xSpacing: 20, yDir: [0,1,0], yCount: 2, ySpacing: 15 })
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `options` | `RectangularPatternOptions` | ✅ | — | 阵列参数 |
+
+**异步**。Shape 所有副本 fused 后的几何。
+
+> BREP-only。keep 语义：不消费输入。结果面回投输入面角色，产出 `replica[ix_iy]/<inner>`。
+
+### 5.19 `split` ✅
 
 用工具几何切分目标几何（BRepAlgoAPI_Splitter），返回所有碎片组成的几何。
 
@@ -679,7 +782,7 @@ const pieces = await cad.split(part0, [part1])
 
 > BREP-only：非 BREP 输入抛 E_MESH_UNSUPPORTED。切分产生的截面 / 被切细的侧面 片记 `splinter(#j)`（Phase 3 L4 抗重放词汇）。
 
-### 5.14 `subtract` ✅
+### 5.20 `subtract` ✅
 
 布尔差集：第一个为主体，减去其余输入。
 
@@ -693,7 +796,23 @@ const b = await cad.subtract(part0, part1)
 
 **异步**。Shape part0 减 part1 的差集（第一个为主体）。
 
-### 5.15 `union` ✅
+### 5.21 `transformCopy` ✅
+
+组合变换拷贝：clone + 一次组合变换（源保留）。
+
+```js
+const p = await cad.transformCopy(part0, composed)
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `composed` | `ComposedTransform` | ✅ | — | 组合变换 |
+
+**异步**。Shape 变换后的新几何。
+
+> BREP-only。keep 语义：不消费输入（薄 override 委托生成 op，行为不变）。
+
+### 5.22 `union` ✅
 
 布尔并集：合并所有输入几何（≥2 个输入）。
 
@@ -945,7 +1064,52 @@ const cam = cad.viewCamera({ dir: [1, -1, 1] })
 
 ---
 
-## 8. 接口品质状态（自动派生自 @qual）
+## 8. BREP 能力声明（compat op → 内核方法真名）
+
+来自 `packages/core/src/api/surface/capability-map.json`（Phase 0 生成，36 compat op、64 个唯一内核方法）；能力名三层结构、静态前置判定与报错形态见 `docs/api-contract.md` §7.9 / §8.1；引擎侧可执行性由各适配器的 `capabilities.methods` / `evolution` 声明决定（缺能力执行前静态报错，不伪造）。
+
+| compat op | 内核方法真名（kernelMethods） |
+|---|---|
+| torus | dispose、makeTorus |
+| fuse | dispose、fuse、fuseWithHistory、isNull |
+| extrude | dispose、downcast、extrude、isNull |
+| revolve | dispose、isNull、revolveVec、shapeType |
+| sweep | dispose、shapeType、simplePipe、sweepPipeShell |
+| complexExtrude | buildExtrusionLaw、dispose、shapeType、simplePipe、sweepPipeShell |
+| twistExtrude | buildExtrusionLaw、dispose、shapeType、simplePipe、sweepPipeShell |
+| linearPattern | dispose、fuseAll、hashCode、isNull、iterShapes、linearPattern、section、surfaceCenterOfMass、surfaceNormal、surfaceType、uvBounds |
+| circularPattern | circularPattern、dispose、fuseAll、hashCode、isNull、iterShapes、section、surfaceCenterOfMass、surfaceNormal、surfaceType、uvBounds |
+| gridPattern | dispose、fuseAll、gridPattern、hashCode、isNull、iterShapes、linearPattern、section、surfaceCenterOfMass、surfaceNormal、surfaceType、uvBounds |
+| roof | buildTriFace、dispose、fixShape、isValid、sew、sewAndSolidify |
+| drill | boundingBox、cut、cutWithHistory、dispose、isNull、makeCylinder |
+| pocket | addHolesInFace、cut、cutWithHistory、dispose、downcast、extrude、isNull、makeFace、surfaceCenterOfMass、surfaceNormal、surfaceType、translateWithHistory、uvBounds |
+| boss | addHolesInFace、dispose、downcast、extrude、fuse、fuseWithHistory、isNull、makeFace、surfaceCenterOfMass、surfaceNormal、surfaceType、translateWithHistory、uvBounds |
+| mirrorJoin | dispose、fuse、fuseWithHistory、isNull、mirrorWithHistory |
+| rectangularPattern | dispose、fuse、fuseAll、fuseWithHistory、hashCode、isNull、iterShapes、section、surfaceCenterOfMass、surfaceNormal、surfaceType、translateWithHistory、uvBounds |
+| thread | dispose、loftAdvanced、makeLineEdge、makeVertex、makeWireFromMixed、shapeType |
+| convexHull | dispose、hullFromPoints、shapeType |
+| makeBaseBox | addHolesInFace、buildEdgeOnSurface、buildExtrusionLaw、copyShape、curveParameters、curvePointAtParam、curveTangent、dispose、downcast、extrude、isNull、loftAdvanced、makeFace、makeFaceOnSurface、makeVertex、makeWireFromMixed、mirror、revolveVec、shapeType、simplePipe、surfaceType、sweepPipeShell |
+| ellipsoid | dispose、makeEllipsoid、translateWithHistory |
+| rotate | dispose、rotateWithHistory |
+| mirror | dispose、mirrorWithHistory |
+| clone | copyShape、dispose |
+| applyMatrix | dispose、generalTransformNonOrthogonal、generalTransformWithHistory、hashCode、iterShapes、surfaceCenterOfMass、surfaceNormal、surfaceType、uvBounds |
+| transformCopy | applyComposedTransformWithHistory、dispose |
+| locate | composeTransform、dispose、hashCode、locate |
+| section | dispose、isNull、section |
+| split | dispose、isNull、split |
+| shell | dispose、shapeType、shell、shellWithHistory |
+| offset | dispose、offsetWithHistory、shapeType |
+| heal | dispose、healFace、healSolid、healWire、isValid、shapeType |
+| simplify | dispose、simplify |
+| autoHeal | dispose、fixSelfIntersection、healFace、healSolid、healWire、isValid、iterShapes、sew、shapeType |
+| fixShape | fixShape |
+| healSolid | dispose、healSolid、isValid、shapeType |
+| fixSelfIntersection | dispose、fixSelfIntersection、shapeType |
+
+---
+
+## 9. 接口品质状态（自动派生自 @qual）
 
 | op | 品质 | 说明 |
 |---|---|---|
@@ -959,12 +1123,12 @@ const cam = cad.viewCamera({ dir: [1, -1, 1] })
 
 ---
 
-## 9. 写给 AI 的速查（一句话总结每个可用 op）
+## 10. 写给 AI 的速查（一句话总结每个可用 op）
 
 ```
 创建: import_brep / import_step / box / sphere / cylinder / cone / wedge / screw / sdf / sketch / svgExtrude / text
 变换: place
-特征: union / cut / subtract / intersect / chamfer / engrave / extrude / fillet / knurl / linearPattern / split
+特征: union / cut / subtract / intersect / chamfer / engrave / extrude / fillet / knurl / linearPattern / circularPattern / gridPattern / rectangularPattern / mirrorJoin / mirror / clone / transformCopy / split
 结构: compound
 查询: asset / edgeRef / faceRef / faceNormal / bboxCenter / bboxMin / bboxMax / viewCamera / projectView / projectSheet
 废弃（勿用，`fai_` 前缀 / ../3d_editor 特有，将迁出）: group、assembly、copy、fai_drill、fai_extrude、fai_split、load、translate、rotate_euler、scale、scale3d
@@ -972,7 +1136,7 @@ const cam = cad.viewCamera({ dir: [1, -1, 1] })
 
 ---
 
-## 10. 面 role 词汇表（拓扑身份，自动派生自 op 的 naming 声明）
+## 11. 面 role 词汇表（拓扑身份，自动派生自 op 的 naming 声明）
 
 BREP 链上每个面的身份 = `(StmtId, role)`。下表列出每个 op 对**自己新造的面**声明的 role 词汇（`RoleName` 线格式）；继承来的面沿用其产生 op 的 role。`vocab` 中的 `<i>` / `<j>` / `[k]` 为序号占位。**改一个 op 的词汇 = breaking change**（会破坏存量 `.fai.js` 引用），需版本化。
 

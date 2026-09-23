@@ -373,6 +373,22 @@ unwrap<T>(r: Result<T>): T   // throws if Err
 
 A library namespace registered with `runtime.registerLib(binding, ns, { compat: true })` is admitted into the statement face: functions already declared via `defineOp` pass through with their spec intact; bare library functions are lifted into faijs ops, with `fn.outputs` as the one recognized multi-output annotation on bare functions (it maps to the op's `outputs` spec). The lifting mechanics are engine-internal (`api/internal/compat-op.ts`); library authors only need the behavior contract in `docs/library-dev-guide.md`.
 
+### 7.9 BREP engine switchability and capability declaration
+
+The BREP engine is **switchable at assembly time** (not at runtime): the host registers exactly one default engine via `registerBrepEngine` (§8.2), and the registry is read-only afterwards. Every engine exposes `BrepEngineApi` primitives plus a `capabilities` declaration; **static determination, no runtime fallback** — whether an op can run on the current engine is decided before execution from the capability table, never by try-catch probing.
+
+**Capability names are three-layered** (an alias like `'mirror'` cannot express both "provides `mirrorWithHistory`" and "provides `mirror`", so the two families are named separately):
+
+- **family-level booleans** (`heal`, `directEdit`, `advSurface`, `assembly`, `meshLift`) — legacy slots that over-report (a kernel may implement only part of a family); the concrete-name layers below are authoritative;
+- **`BrepEvolutionKind`** — the concrete `*WithHistory` kernel names the engine provides (e.g. `['fuse','cut','fillet']`);
+- **`BrepMethodKind`** — the concrete non-evolution kernel method names the engine provides (e.g. `['fuse','cut','linearPattern','chamfer']`).
+
+Every library op declares the concrete names it needs (`capabilities: ['cut']`); the dispatch layer matches them against the engine's `methods` / `evolution` lists **before execution** (§8.1 decision order). A missing capability **degrades statically** (auto mode, mesh implementation present) or **raises before execution** (`BrepUnsupportedError` in brep mode; `MeshUnsupportedError` when no mesh implementation exists). A capability is **never faked**: an engine declares only what it can actually execute (brepkit does not declare `chamfer` because its wasm exports no chamfer kernel; capability-map-derived registration is the baseline, see §7.10).
+
+### 7.10 Compat op kernel acquisition (assembly-time adapter injection)
+
+Compat ops (vendored brepjs functions) get their kernel via **assembly-time adapter injection**: `injectCurrentBrepEngineAsKernel()` wraps the current engine's `BrepEngineApi` into a vendored `KernelAdapter` and registers it in the vendored kernel registry — occt uses `OcctWasmAdapter.fromKernel` (full 211-method adapter on the same occt-wasm singleton), other engines use a transparent `wrapBrepEngineApi()` pass-through. This keeps the vendored function logic (replica role mapping, Result semantics, keep handling) intact while making it engine-neutral. The old occt-only `bindOcctKernel()` fixed binding is deprecated (throws when called); `isKernelInjected()` supersedes `isOcctKernelBound()`.
+
 ---
 
 ## 8. Geometry Contract (BREP / Mesh dual path)
@@ -409,7 +425,7 @@ export type BrepEngineProvider = () => Promise<BrepEngine>
 
 **Registration happens only during host startup assembly; the registry is read-only at runtime** and offers no unregister / setDefault / runtime switching. OCCT is installed as the default BREP engine by the adapter's idempotent `ensureOcctDefaultEngine()`.
 
-**Capability declarations** (`BrepCapabilities`, all optional): `evolution` — **a list of the `*WithHistory` kernel function names the engine actually provides** (`BrepEvolutionKind`, e.g. `['fuse','cut','fillet']`), *not* a family-level boolean — plus the booleans `heal`, `directEdit`, `advSurface`, `assembly` (XCAF), `meshLift` (mesh→BREP lifting). An op declares the concrete name(s) it needs (`capabilities: ['cut']`), matched against that list. A missing capability degrades statically or raises a clear error — **never faked**. A family-level boolean would over-report, because a kernel may implement only part of the family.
+**Capability declarations** (`BrepCapabilities`, all optional): `evolution` — **a list of the `*WithHistory` kernel function names the engine actually provides** (`BrepEvolutionKind`, e.g. `['fuse','cut','fillet']`), *not* a family-level boolean — and `methods` — **a list of the concrete non-evolution kernel method names the engine provides** (`BrepMethodKind`, e.g. `['fuse','cut','linearPattern','chamfer']`). The booleans `heal`, `directEdit`, `advSurface`, `assembly` (XCAF), `meshLift` (mesh→BREP lifting) are legacy family slots that over-report; the concrete-name lists are authoritative (§7.9). An op declares the concrete name(s) it needs (`capabilities: ['cut']`), matched against those lists. A missing capability degrades statically or raises a clear error before execution — **never faked**. A family-level boolean would over-report, because a kernel may implement only part of the family.
 
 ### 8.3 `BrepChainState`
 

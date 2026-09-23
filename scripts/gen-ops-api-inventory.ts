@@ -20,6 +20,17 @@ const API_SRC = join(root, 'packages/core/src/api')
 const EN_TARGET = join(root, 'docs/ops-api-inventory.md')
 const ZH_TARGET = join(root, 'docs/ops-api-inventory.zh.md')
 
+/** Phase 0 能力映射表（36 compat op → 内核方法真名清单；能力声明列数据源）。 */
+interface CapabilityEntry {
+  op: string
+  kernelMethods: string[]
+}
+const CAPABILITY_MAP: CapabilityEntry[] = JSON.parse(
+  readFileSync(join(root, 'packages/core/src/api/surface/capability-map.json'), 'utf8'),
+).entries
+/** op 名 → 内核方法清单（能力声明列查找表）。 */
+const CAPABILITY_BY_OP = new Map(CAPABILITY_MAP.map((e) => [e.op, e.kernelMethods]))
+
 interface Param {
   name: string
   type: string
@@ -263,10 +274,24 @@ function renderDoc(locale: 'en' | 'zh'): string {
     lines.push('')
   }
 
-  // 接口品质状态（从各 op 的 @qual 派生，替换手写状态表）
+    // ── BREP 能力声明节（Phase 4：来自 Phase 0 能力映射表 capability-map.json） ──
+  lines.push('## 8. BREP 能力声明（compat op → 内核方法真名）')
+  lines.push('')
+  lines.push('来自 `packages/core/src/api/surface/capability-map.json`（Phase 0 生成，36 compat op、64 个唯一内核方法）；能力名三层结构、静态前置判定与报错形态见 `docs/api-contract.md` §7.9 / §8.1；引擎侧可执行性由各适配器的 `capabilities.methods` / `evolution` 声明决定（缺能力执行前静态报错，不伪造）。')
+  lines.push('')
+  lines.push('| compat op | 内核方法真名（kernelMethods） |')
+  lines.push('|---|---|')
+  for (const e of CAPABILITY_MAP) {
+    lines.push(`| ${e.op} | ${e.kernelMethods.join('、')} |`)
+  }
+  lines.push('')
+  lines.push('---')
+  lines.push('')
+
+// 接口品质状态（从各 op 的 @qual 派生，替换手写状态表）
   const bad = allOps.filter((op) => op.qual === 'error' || op.qual === 'warn')
   if (bad.length > 0) {
-    lines.push('## 8. 接口品质状态（自动派生自 @qual）')
+    lines.push('## 9. 接口品质状态（自动派生自 @qual）')
     lines.push('')
     lines.push('| op | 品质 | 说明 |')
     lines.push('|---|---|---|')
@@ -282,7 +307,7 @@ function renderDoc(locale: 'en' | 'zh'): string {
   }
 
   // 写给 AI 的速查（自动派生自分组 / 同步性 / 品质）
-  lines.push('## 9. 写给 AI 的速查（一句话总结每个可用 op）')
+  lines.push('## 10. 写给 AI 的速查（一句话总结每个可用 op）')
   lines.push('')
   lines.push('```')
   lines.push('创建: ' + allOps.filter((o) => o.group === '创建' && o.qual !== 'error' && !o.deprecated).map((o) => o.name).join(' / '))
@@ -308,7 +333,7 @@ function renderDoc(locale: 'en' | 'zh'): string {
   }
   lines.push('---')
   lines.push('')
-  lines.push('## 10. 面 role 词汇表（拓扑身份，自动派生自 op 的 naming 声明）')
+  lines.push('## 11. 面 role 词汇表（拓扑身份，自动派生自 op 的 naming 声明）')
   lines.push('')
   lines.push('BREP 链上每个面的身份 = `(StmtId, role)`。下表列出每个 op 对**自己新造的面**声明的 role 词汇（`RoleName` 线格式）；继承来的面沿用其产生 op 的 role。`vocab` 中的 `<i>` / `<j>` / `[k]` 为序号占位。**改一个 op 的词汇 = breaking change**（会破坏存量 `.fai.js` 引用），需版本化。')
   lines.push('')
