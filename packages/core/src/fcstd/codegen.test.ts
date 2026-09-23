@@ -137,6 +137,31 @@ describe('M5 codegen', () => {
     expect(r2.code).not.toContain('cad.fai_extrude');
   });
 
+  // GOTCHA (P3-4, Slab adjustable scaffolder 2026-09-24): an L0 verdict with
+  // ZERO extracted contours (solve succeeded, dangling segments → no closed
+  // loop) used to fall into the `sketch-not-solved` fallback — a lie about
+  // the cause (the solver was fine). It must bake with the explicit
+  // `sketch-solved-no-closed-loop` reason instead.
+  it('bakes an L0 sketch with no closed loop as sketch-solved-no-closed-loop (not sketch-not-solved)', () => {
+    const doc: FcstdDocument = {
+      objects: [
+        simpleObj('Sketcher::SketchObject', 'Sketch', {}),
+        simpleObj('PartDesign::Pad', 'Pad', { Profile: { value: 'Sketch' }, Length: { value: '10' } }),
+      ],
+      typeIndex: new Map(),
+      meta: new Map(),
+    };
+    // L0 verdict but empty contours map entry (extractContours returned 0 loops)
+    const r = generateModel(
+      doc,
+      new Map([['Sketch', { level: 'L0' as const, loopCount: 0 }]]),
+      new Map([['Sketch', []]]),
+      't',
+    );
+    const sketch = r.objects.find((o) => o.name === 'Sketch');
+    expect(sketch).toMatchObject({ disposition: 'baked', reason: 'sketch-solved-no-closed-loop' });
+  });
+
   it('groups multiple roots via cad.compound', () => {
     const doc: FcstdDocument = {
       objects: [simpleObj('Part::Box', 'A', {}), simpleObj('Part::Box', 'B', {})],

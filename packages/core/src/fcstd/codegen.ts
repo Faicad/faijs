@@ -237,9 +237,19 @@ export function generateModel(
           sketch: verdict,
         });
       } else {
+        // P3-4 (2026-09-24, Slab adjustable scaffolder): a sketch may solve to
+        // L0 yet produce zero closed loops (dangling segments) — `loopCount`
+        // 0 then failed `usable` and the fallback labeled it `sketch-not-
+        // solved`, which lies about the cause. Give the L0-but-no-loop case
+        // its own explicit reason; keep the old fallbacks for genuinely
+        // missing verdicts/contours.
+        const reason = verdict?.reason
+          ?? (verdict?.level === 'L0' && contours && contours.length === 0
+            ? 'sketch-solved-no-closed-loop'
+            : contours ? 'sketch-not-solved' : 'sketch-no-contours');
         results.push({
           name, type: obj.type, calls: [], disposition: 'baked',
-          reason: verdict?.reason ?? (contours ? 'sketch-not-solved' : 'sketch-no-contours'), sketch: verdict,
+          reason, sketch: verdict,
         });
       }
       continue;
