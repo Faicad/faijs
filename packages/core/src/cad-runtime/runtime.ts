@@ -53,7 +53,6 @@ export { computeContentKey } from './content-key'
 export { stableFingerprint } from './content-key'
 import { isCompoundLike, getSlot, ensureSlot, type CompoundShape } from '../shape'
 import type { PartNaming } from '../topology/naming/types'
-import type { Provenance } from '../topology/naming/lineage'
 import { buildPartNaming, type PartNamingInput } from '../topology/naming/build-naming'
 import { faceRowToHint } from '../topology/naming/geom-hint'
 import { HASH_UPPER_BOUND } from '../brep/face-evolution'
@@ -426,7 +425,7 @@ export class CadRuntime {
    *   backing this binding so `check()` can validate script import specifiers
    *   against registered libraries (specifier mismatch = hard check error).
    */
-  registerLib(binding: string, ns: StdlibNamespace, options?: { default?: boolean; autoLift?: boolean; packageName?: string; naming?: Provenance }): void {
+  registerLib(binding: string, ns: StdlibNamespace, options?: { default?: boolean; autoLift?: boolean; packageName?: string }): void {
     assertContractVersion(ns as unknown as { contractVersion?: number })
     // B4: admit bare (non-dual-op) library functions through compatOp when
     // autoLift is true (or inferred true — the library has no dual-op).
@@ -434,11 +433,12 @@ export class CadRuntime {
     // wrapping — DUAL_OP_META hangs on the function object with
     // enumerable:false, and wrapping first would let bare functions silently
     // skip the strict validation pass (R8).
-    // Phase 2.11-①: `options.naming` is the library-level provenance default;
-    // a bare function's own `fn.naming` wins over it (see admit-compat-lib.ts).
+    // Naming (2026-09-23): library authors no longer declare face naming; every
+    // bare function is admitted with the default unmodeled provenance (see
+    // admit-compat-lib.ts / docs/plans/2026-09-23-relax-lib-naming-design.md).
     const lift = options?.autoLift ?? !hasDualOp(ns as unknown as Record<string, unknown>)
     const admitted = lift
-      ? (admitCompatLib(ns as unknown as Record<string, unknown>, { naming: options?.naming }) as StdlibNamespace)
+      ? (admitCompatLib(ns as unknown as Record<string, unknown>) as StdlibNamespace)
       : ns
     this.libs[binding] = admitted
     this.libIds.set(binding, computeLibId(binding, ns as unknown as Record<string, unknown>))
@@ -1147,7 +1147,6 @@ export class CadRuntime {
       const resolved = imp.packageName ?? imp.specifier ?? ''
       this.registerLib(imp.localName, ns, {
         autoLift: this.ports.libLoader.options?.autoLiftFor?.(resolved) ?? this.ports.libLoader.options?.autoLift ?? !hasDualOp(ns as unknown as Record<string, unknown>),
-        naming: this.ports.libLoader.options?.namingFor?.(resolved),
         packageName: imp.packageName,
       })
     }

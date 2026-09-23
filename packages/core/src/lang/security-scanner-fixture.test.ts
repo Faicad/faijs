@@ -8,11 +8,13 @@
 import { describe, it, expect } from 'vitest'
 import { scanSource } from './security-scanner'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
-import { join, extname, relative, resolve } from 'node:path'
+import { join, extname, relative, resolve, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-// vitest runs with cwd = package dir (e.g. packages/core).
-// From packages/core, the repo root is three levels up.
-const repoRoot = resolve(process.cwd(), '..', '..')
+// vitest 可从任意 cwd 启动（根 workspace / package 目录）。用 import.meta.url
+// 定位仓库根（本文件位于 <faijs>/packages/core/src/lang，上溯 4 级），不依赖 process.cwd()。
+const here = dirname(fileURLToPath(import.meta.url))
+const repoRoot = resolve(here, '..', '..', '..', '..')
 const packagesDir = join(repoRoot, 'packages')
 
 // ── 收集全部 .fai.js 文件 ──

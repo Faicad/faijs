@@ -25,7 +25,6 @@ import { createRuntime } from '../cad-runtime/runtime'
 import type { CadRuntime } from '../cad-runtime/runtime'
 import type { StdlibNamespace } from '../runtime-state'
 import type { ExecutionMode, HostPorts, LibLoader } from '../cad-runtime/ports'
-import type { Provenance } from '../topology/naming/lineage'
 import { createNodePorts } from './index'
 import { createFsProjectLoader, findProjectRoot, projectKeyOf } from './fs-project-loader'
 import { buildStlBufferFromMesh } from '../brep/export/stl'
@@ -77,21 +76,6 @@ function readLibAutoLift(pkg: string): boolean | undefined {
   }
 }
 
-/**
- * Phase 2.11-②：读库 package.json 的 `faijs.naming` 外置字段（与 `faijs.autoLift`
- * 同构）。未声明 → undefined（回落 admitCompatLib 的 blanket unmodeled 兜底）。
- */
-function readLibNaming(pkg: string): Provenance | undefined {
-  try {
-    const pjPath = requireNode.resolve(`${pkg}/package.json`)
-    const pj = JSON.parse(readFileSync(pjPath, 'utf8')) as { faijs?: { naming?: Provenance } }
-    const v = pj.faijs?.naming
-    return v && typeof v === 'object' && typeof v.kind === 'string' ? v : undefined
-  } catch {
-    return undefined
-  }
-}
-
 /** specifier → scoped 全名归一：scoped 名原样，已登记短名映射，其余原样交 import 解析。 */
 function normalizeCliSpecifier(name: string): string {
   return CLI_SHORT_NAMES[name] ?? name
@@ -127,11 +111,6 @@ const cliPortsLibLoader: LibLoader = {
     autoLiftFor: (name) => {
       const pkg = normalizeCliSpecifier(name)
       return pkg.startsWith(CLI_SCOPED_PREFIX) ? readLibAutoLift(pkg) : undefined
-    },
-    // Phase 2.11-②：逐库 naming（package.json "faijs.naming"），未声明 → undefined → blanket 兜底。
-    namingFor: (name) => {
-      const pkg = normalizeCliSpecifier(name)
-      return pkg.startsWith(CLI_SCOPED_PREFIX) ? readLibNaming(pkg) : undefined
     },
   },
 }
