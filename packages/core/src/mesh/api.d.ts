@@ -128,6 +128,12 @@ export interface CadRoleVocab {
   note?: string
 }
 
+/**
+ * Per-op face-role vocabulary, in op order (read-only contract; see `CadRoleVocab`).
+ *
+ * Generated from `collectRoleVocab()` — mirrors each op's `DUAL_OP_META.naming`
+ * declaration. Consumers (AI/UI) use it to interpret `RoleName` faces.
+ */
 export const CAD_ROLE_VOCAB: readonly CadRoleVocab[] = [
   { op: 'applyMatrix', kind: 'identity' as CadRoleVocab['kind'], vocab: [], note: "1:1，第 i 面 → 第 i 面（零声明）" },
   { op: 'autoHeal', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:autoHeal:<i>'] },

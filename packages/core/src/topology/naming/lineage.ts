@@ -115,6 +115,9 @@ export type EvolutionRecord = Map<number, number[]> | HashEvolution
 
 /**
  * 判断演化记录是否为哈希键形态（`HashEvolution` 有 `modified`/`deleted` 字段）。
+ *
+ * @param e - the evolution record to test.
+ * @returns true when the record is the hash-key form (`HashEvolution`).
  */
 export function isHashEvolution(e: EvolutionRecord): e is HashEvolution {
   return 'modified' in e && 'deleted' in e
@@ -485,6 +488,7 @@ export class LineageGraph {
    * @param stmt - the statement whose output is recorded.
    * @param roleTable - the output part's role table (origin→role→hash[]), if any.
    * @param solid - the output part's BREP handle, if any.
+   * @param part - the output part name to also key the table under (part-key authority), if any.
    */
   recordOutput(stmt: StmtId, roleTable?: ReadonlyMap<string, ReadonlyMap<string, readonly number[]>>, solid?: unknown, part?: PartName): void {
     if (roleTable) this.outputTables.set(stmt, roleTable)
@@ -492,12 +496,20 @@ export class LineageGraph {
     if (roleTable && part !== undefined) this.outputTablesByPart.set(part, roleTable)
   }
 
-  /** 读语句输出 part 的 roleTable（回走锚定用）。 */
+  /** 读语句输出 part 的 roleTable（回走锚定用）。
+   *
+   * @param stmt - the statement whose output table to read.
+   * @returns the statement-keyed role table, or undefined when none was recorded.
+   */
   outputTableOf(stmt: StmtId): ReadonlyMap<string, ReadonlyMap<string, readonly number[]>> | undefined {
     return this.outputTables.get(stmt)
   }
 
-  /** 读语句输出 part 的 BREP 句柄（回走 ordinal↔hash 换算用）。 */
+  /** 读语句输出 part 的 BREP 句柄（回走 ordinal↔hash 换算用）。
+   *
+   * @param stmt - the statement whose output handle to read.
+   * @returns the statement-keyed BREP handle, or undefined when none was recorded.
+   */
   outputHandleOf(stmt: StmtId): unknown | undefined {
     return this.outputHandles.get(stmt)
   }
@@ -508,6 +520,9 @@ export class LineageGraph {
    * 语义 = 旧 `getSlot(input)?.roleTable`：impl 执行时刻，该 part 的表是
    * 上一条语句 `recordOutput` 记录的那份（本语句的覆盖发生在 impl 内
    * fromBrep 时，晚于任何输入读）。未记录（mesh 产物 / 未接血缘）→ undefined。
+   *
+   * @param part - the output part name whose role table to read.
+   * @returns the part-keyed role table, or undefined when not recorded.
    */
   tableOfPart(part: PartName): ReadonlyMap<string, ReadonlyMap<string, readonly number[]>> | undefined {
     return this.outputTablesByPart.get(part)

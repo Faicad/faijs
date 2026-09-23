@@ -402,6 +402,12 @@ function generate(): string {
   lines.push(`  note?: string`)
   lines.push(`}`)
   lines.push(``)
+  lines.push(`/**`)
+  lines.push(` * Per-op face-role vocabulary, in op order (read-only contract; see \`CadRoleVocab\`).`)
+  lines.push(` *`)
+  lines.push(` * Generated from \`collectRoleVocab()\` — mirrors each op's \`DUAL_OP_META.naming\``)
+  lines.push(` * declaration. Consumers (AI/UI) use it to interpret \`RoleName\` faces.`)
+  lines.push(` */`)
   lines.push(`export const CAD_ROLE_VOCAB: readonly CadRoleVocab[] = [`)
   for (const e of collectRoleVocab()) {
     const parts = [
