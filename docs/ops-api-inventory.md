@@ -766,7 +766,22 @@ const p = await cad.rectangularPattern(part0, { xDir: [1,0,0], xCount: 3, xSpaci
 
 > BREP-only。keep 语义：不消费输入。结果面回投输入面角色，产出 `replica[ix_iy]/<inner>`。
 
-### 5.19 `split` ✅
+### 5.19 `revolve` ✅
+
+旋转成形：把平面轮廓绕轴旋转（兼容生成投影签名）。
+
+```js
+const p1 = await cad.revolve(part0, { axis: [0, 0, 1], at: [0, 0, 0], angle: 6.283185307179586 })
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `face` | `Shape` | ✅ | — | 平面轮廓 |
+| `options` | `RevolveOptions` |  | — | 旋转轴/点/角度（透传 vendored 语义） |
+
+**异步**。Shape 旋转体（带链根 roleTable：bottom/top/wall:i）。
+
+### 5.20 `split` ✅
 
 用工具几何切分目标几何（BRepAlgoAPI_Splitter），返回所有碎片组成的几何。
 
@@ -782,7 +797,7 @@ const pieces = await cad.split(part0, [part1])
 
 > BREP-only：非 BREP 输入抛 E_MESH_UNSUPPORTED。切分产生的截面 / 被切细的侧面 片记 `splinter(#j)`（Phase 3 L4 抗重放词汇）。
 
-### 5.20 `subtract` ✅
+### 5.21 `subtract` ✅
 
 布尔差集：第一个为主体，减去其余输入。
 
@@ -795,22 +810,6 @@ const b = await cad.subtract(part0, part1)
 | `shapes` | `Shape[]` | ✅ | — | 参与运算的几何（变量引用，第一个为主体） |
 
 **异步**。Shape part0 减 part1 的差集（第一个为主体）。
-
-### 5.21 `transformCopy` ✅
-
-组合变换拷贝：clone + 一次组合变换（源保留）。
-
-```js
-const p = await cad.transformCopy(part0, composed)
-```
-
-| 参数 | 类型 | 必填 | 默认 | 说明 |
-|---|---|---|---|---|
-| `composed` | `ComposedTransform` | ✅ | — | 组合变换 |
-
-**异步**。Shape 变换后的新几何。
-
-> BREP-only。keep 语义：不消费输入（薄 override 委托生成 op，行为不变）。
 
 ### 5.22 `union` ✅
 
@@ -1128,7 +1127,7 @@ const cam = cad.viewCamera({ dir: [1, -1, 1] })
 ```
 创建: import_brep / import_step / box / sphere / cylinder / cone / wedge / screw / sdf / sketch / svgExtrude / text
 变换: place
-特征: union / cut / subtract / intersect / chamfer / engrave / extrude / fillet / knurl / linearPattern / circularPattern / gridPattern / rectangularPattern / mirrorJoin / mirror / clone / transformCopy / split
+特征: union / cut / subtract / intersect / chamfer / engrave / extrude / fillet / knurl / linearPattern / circularPattern / gridPattern / rectangularPattern / mirrorJoin / mirror / clone / revolve / split
 结构: compound
 查询: asset / edgeRef / faceRef / faceNormal / bboxCenter / bboxMin / bboxMax / viewCamera / projectView / projectSheet
 废弃（勿用，`fai_` 前缀 / ../3d_editor 特有，将迁出）: group、assembly、copy、fai_drill、fai_extrude、fai_split、load、translate、rotate_euler、scale、scale3d
@@ -1193,7 +1192,6 @@ BREP 链上每个面的身份 = `(StmtId, role)`。下表列出每个 op 对**�
 | `svgExtrude` | 构造语义 | —（不造新面） |  |
 | `text` | 构造语义 | —（不造新面） |  |
 | `torus` | 未建模 | —（不造新面） | construct vocabulary pending Phase 3 |
-| `transformCopy` | 1:1 恒等 | —（不造新面） | 1:1，第 i 面 → 第 i 面（零声明） |
 | `translate` | 内核历史 | `gen:translate:<i>` |  |
 | `union` | 内核历史 | `gen:union:<i>` |  |
 | `wedge` | 未建模 | —（不造新面） | wedge face vocabulary pending Phase 3 |

@@ -207,3 +207,15 @@ export function syncRegistryToGlobal(): void {
 export function currentQualityTier(): string {
   return currentQuality();
 }
+
+/**
+ * Test-only: reset the kernel registry (clear kernels, unfreeze) so a host
+ * re-assembly in tests can register a different engine. Never called in prod.
+ */
+export function __resetKernelRegistryForTests(): void {
+  _kernels.clear();
+  _defaultKernelId = null;
+  _cachedDefault = null;
+  _frozen = false;
+  syncToGlobal();
+}

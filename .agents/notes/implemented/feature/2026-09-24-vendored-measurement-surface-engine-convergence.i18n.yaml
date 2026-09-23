@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-24-vendored-measurement-surface-engine-convergence.md
+2026-09-24-vendored-measurement-surface-engine-convergence.md: f928896340f23bf16ebf66512c632164fd8def34
+2026-09-24-vendored-measurement-surface-engine-convergence.zh.md: 3a1c5abfdf90d372f1a9370d7449ab283d19a61b

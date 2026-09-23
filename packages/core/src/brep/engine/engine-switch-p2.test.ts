@@ -17,7 +17,6 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import {
   __resetEngineRegistriesForTests,
   getBrepEngine,
-  type BrepEngine,
 } from './registry'
 import { registerOcctBrepEngine } from './adapters/occt'
 import { registerBrepkitBrepEngine } from './adapters/brepkit'
@@ -179,23 +178,32 @@ describe('Phase 2 装配期完整性：KernelAdapter 缺胶水方法 → 装配�
     expect(() => assertGlueMethodsComplete(engine.id, adapter)).not.toThrow()
   })
 
-  it('brepkit 适配器：缺 createVector3d 等胶水方法 → 装配期报错（明确，非执行期崩）', async () => {
+  it('brepkit 适配器：胶水方法由 wrapBrepEngineApi 合成 → 完整性通过（2026-09-23 收敛方案后）', async () => {
+    // 旧行为（brepkit 缺胶水方法 → 装配期拒绝注入）已被修复：胶水方法是 vendored
+    // 调用约定（纯数据构造，零内核调用），由包装层 wrapBrepEngineApi 为任何引擎
+    // 合成——见 docs/plans/2026-09-23-vendored-measurement-surface-engine-convergence.md §3.1。
     __resetEngineRegistriesForTests()
     await registerBrepkitBrepEngine()
     const engine = await getBrepEngine()
     const adapter = buildKernelAdapter(engine)
-    expect(() => assertGlueMethodsComplete(engine.id, adapter)).toThrow(
-      /missing glue method.*createVector3d/,
-    )
+    expect(() => assertGlueMethodsComplete(engine.id, adapter)).not.toThrow()
+    // 合成形态抽验：6 个胶水方法齐备且 axis1 字段名符合 vendored 约定。
+    const a = adapter as unknown as Record<string, unknown>
+    const vec = (a.createVector3d as (x: number, y: number, z: number) => { __type: string; delete: () => void })(1, 2, 3)
+    expect(vec.__type).toBe('vector3d')
+    expect(typeof vec.delete).toBe('function')
+    const ax1 = (a.createAxis1 as (...args: number[]) => { origin: unknown; direction: unknown; __type: string })(0, 0, 0, 0, 0, 1)
+    expect(ax1.__type).toBe('axis1')
+    expect(ax1.origin).toEqual({ x: 0, y: 0, z: 0 })
+    expect(ax1.direction).toEqual({ x: 0, y: 0, z: 1 })
   })
 
-  it('自建缺胶水引擎：注入前完整性检查抛错', () => {
-    const bare: BrepEngine = {
-      id: 'bare',
-      primitives: {} as unknown as BrepEngineApi,
-    }
-    const adapter = buildKernelAdapter(bare)
-    expect(() => assertGlueMethodsComplete(bare.id, adapter)).toThrow(
+  it('自建缺胶水引擎：完整性检查直接对裸适配器抛错（防线保留，防未来新引擎漏合成）', () => {
+    // buildKernelAdapter 现在会为任何 BrepEngineApi 合成胶水方法，检查器对合成后
+    // 的适配器自然通过；检查本身保留为防线——对真正缺失的裸适配器（如手工构造
+    // 的 KernelAdapter）仍在装配期报错。
+    const bare = { id: 'bare', volume: () => 0 } as unknown as Parameters<typeof assertGlueMethodsComplete>[1]
+    expect(() => assertGlueMethodsComplete('bare', bare)).toThrow(
       /cannot back the vendored compat surface/,
     )
   })

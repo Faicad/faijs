@@ -388,7 +388,15 @@ BREP 引擎在**装配期**切换（非运行时）：宿主经 `registerBrepEng
 
 ### 7.10 compat op 内核获取（装配期适配器注入）
 
-compat op（vendored brepjs 函数）经**装配期适配器注入**取内核：`injectCurrentBrepEngineAsKernel()` 把当前引擎的 `BrepEngineApi` 包装为 vendored `KernelAdapter` 注册进 vendored 内核注册表——occt 走 `OcctWasmAdapter.fromKernel`（同一 occt-wasm 单例上的完整 211 方法适配器），其它引擎走透传的 `wrapBrepEngineApi()`。这让 vendored 函数逻辑（replica 角色回投、Result 语义、keep 处理）零改动且引擎中立。旧的 occt-only `bindOcctKernel()` 固定绑定已废弃（调用即抛）；`isKernelInjected()` 取代 `isOcctKernelBound()`。
+compat op（vendored brepjs 函数）经**装配期适配器注入**取内核：`injectCurrentBrepEngineAsKernel()` 把当前引擎的 `BrepEngineApi` 包装为 vendored `KernelAdapter` 注册进 vendored 内核注册表——occt 走 `OcctWasmAdapter.fromKernel`（同一 occt-wasm 单例上的完整 211 方法适配器），其它引擎走 `wrapBrepEngineApi()`（在透传之上追加三层引擎中立的包装层）。这让 vendored 函数逻辑（replica 角色回投、Result 语义、keep 处理）零改动且引擎中立。旧的 occt-only `bindOcctKernel()` 固定绑定已废弃（调用即抛）；`isKernelInjected()` 取代 `isOcctKernelBound()`。
+
+`wrapBrepEngineApi()` 的三层包装（2026-09-23 收敛）：
+
+1. **胶水方法在包装层合成**——`createVector3d` / `createPoint3d` / `createDirection3d` / `createAxis1` / `createAxis2` / `createAxis3` 在 vendored 面是纯 JS 数据字面量构造器（零内核调用——属于*调用约定*而非内核能力），因此由 `wrapBrepEngineApi` 为任何引擎合成，而不加进 `BrepEngineApi`（否则每个适配器被迫实现无几何意义的样板）。字段形态逐字复制 vendored occt 适配器；`delete` 必备（vendored `withKernelPnt/Vec/Dir` 在 `finally` 中调用）。`assertGlueMethodsComplete` 保留为防线，防未来手工构造的适配器漏合成。
+2. **测量方法映射**——vendored 测量面调用 `kernel.volume / area / length / centerOfMass / linearCenterOfMass / boundingBox`（自有命名）；包装层映射 `volume→getVolume`、`centerOfMass→getCenterOfMass`（vec 对象 → `[x,y,z]` 元组）、`boundingBox→getBoundingBox(_, true)`（`{xmin..zmax}` → `{min:[..], max:[..]}`）；`shapeType` / `isNull` 同名同义透传。vendored `KernelShape`（句柄视图或裸 number）调用前先 unwrap。
+3. **显式契约缺口登记**——`UNMAPPED_VENDORED_MEASURE_METHODS = ['area', 'length', 'linearCenterOfMass']`：`BrepEngineApi` 无 `getSurfaceArea` / `getLength` / `getLinearCenterOfMass`，这三个 vendored 查询在任何非 occt 引擎下无源可映射。它们在适配器上保持 `undefined`（绝不补桩、绝不伪造 0）；`measureSurfaceProps` / `measureLinearProps` 在引擎契约扩展前维持 occt-only（独立议题）。注意：brepkit v1 适配器还缺 `shapeType` / `isNull` 实现（白名单抛错），因此经 vendored 面的 `measureVolumeProps` 在 brepkit 上也被阻断——这是适配器能力缺口，不是桥接 bug。
+
+注入跟随当前注册引擎：`injectCurrentBrepEngineAsKernel()` 的短路判据与 `isKernelInjected()` 一致（`_injected || getActiveKernelId() !== null`），且桥接侧注入缓存与 vendored 内核注册表都有 test-only 重置钩子（`__resetKernelInjectionForTests()` / `__resetKernelRegistryForTests()`），测试中的重装配会对新引擎重跑 `buildKernelAdapter` + 完整性检查。生产路径永不调用。注册 id（`VENDORED_OCCT_KERNEL_ID = 'occt-wasm'`）是注册表槽位名，非引擎身份标识——实际引擎由注入的 adapter 决定。
 
 ---
 

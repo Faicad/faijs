@@ -30,10 +30,13 @@ import {
   registerKernel,
   syncRegistryFromGlobal,
   syncRegistryToGlobal,
+  __resetKernelRegistryForTests,
 } from '../vendored/brepjs/kernel/index.js'
 import type { KernelAdapter } from '../vendored/brepjs/kernel/types.js'
 
-/** occt-wasm 适配器在 vendored registry 中的注册 id（保持现状，行为不变）。 */
+/** occt-wasm 适配器在 vendored registry 中的注册 id。这是 vendored 注册表的
+ * 槽位名（宿主侧判据 + D10 globalThis 单例兼容），**不是**引擎身份标识——
+ * 实际引擎由注入的 adapter 决定（vendored 面全部无参 `getKernel()` 取默认）。 */
 export const VENDORED_OCCT_KERNEL_ID = 'occt-wasm'
 
 /**
@@ -78,8 +81,10 @@ let _injected = false
  */
 export async function injectCurrentBrepEngineAsKernel(): Promise<KernelAdapter> {
   // CDN 宿主跨实例同步：host bundle 已注入则直接复用（同旧 bindOcctKernel 语义）。
+  // 短路判据与 isKernelInjected() 一致（含 registry 侧激活 id 分支），避免
+  // 「registry 已注入但模块级 _injected=false」时走完整路径撞 frozen 抛错。
   syncRegistryFromGlobal()
-  if (_injected) return getVendoredKernel()
+  if (isKernelInjected()) return getVendoredKernel()
 
   const engine = await getBrepEngine()
   const adapter = buildKernelAdapter(engine)
@@ -123,16 +128,100 @@ export function buildKernelAdapter(engine: BrepEngine): KernelAdapter {
   return wrapBrepEngineApi(engine.primitives)
 }
 
+/** No-op `delete` for synthesized glue objects (mirrors vendored `noop`). */
+const noop = (): void => {}
+
+/**
+ * vendored kernel methods with no source capability in BrepEngineApi.
+ * Registered explicitly (not silently undefined): tests assert this list and
+ * the engine-contract gap is a separate decision, not a wrapping bug. No
+ * stubs, no fake zeros — a silent 0 is worse than a crash.
+ */
+export const UNMAPPED_VENDORED_MEASURE_METHODS = [
+  'area',
+  'length',
+  'linearCenterOfMass',
+] as const
+
+/** Unwrap a vendored KernelShape (handle view or bare number) to a BrepHandle. */
+function unwrapHandle(h: unknown): unknown {
+  if (typeof h === 'number') return h
+  const view = h as { id?: unknown }
+  return typeof view.id === 'number' ? view.id : h
+}
+
+/**
+ * Map vendored measure method names/shapes onto BrepEngineApi capabilities.
+ * The vendored measure face calls `kernel.volume/area/length/centerOfMass/...`
+ * (its own naming); the occt adapter carries an internal mapping layer — this
+ * is the engine-neutral equivalent for any wrapped BrepEngineApi. Only real
+ * BrepEngineApi capabilities are mapped; the rest stay in the gap registry.
+ */
+function mapMeasureMethods(adapter: Record<string, unknown>, api: BrepEngineApi): void {
+  adapter['volume'] = (s: unknown) => api.getVolume(unwrapHandle(s) as never)
+  adapter['centerOfMass'] = (s: unknown): [number, number, number] => {
+    const v = api.getCenterOfMass(unwrapHandle(s) as never)
+    return [v.x, v.y, v.z]
+  }
+  adapter['boundingBox'] = (s: unknown) => {
+    const bb = api.getBoundingBox(unwrapHandle(s) as never, true)
+    return {
+      min: [bb.xmin, bb.ymin, bb.zmin],
+      max: [bb.xmax, bb.ymax, bb.zmax],
+    }
+  }
+  // shapeType / isNull: same name, same semantics — already covered by the
+  // transparent pass-through in wrapBrepEngineApi; listed here for docs only.
+  // Known contract gaps (UNMAPPED_VENDORED_MEASURE_METHODS) are NOT stubbed:
+  // they remain undefined so tests can pin the gap explicitly.
+}
+
+/**
+ * Synthesize the vendored glue/auxiliary construction methods over any engine's
+ * primitives. These 6 methods are pure JS data-literal constructors in the
+ * vendored surface (zero kernel calls — see vendored constructionOps.ts), i.e.
+ * a *calling convention*, not a kernel capability — so they are synthesized at
+ * the faijs wrapper layer (engine-neutral) rather than added to BrepEngineApi.
+ * Field shapes are copied verbatim from the vendored occt adapter; `delete` is
+ * mandatory (kernelBoundary's with* helpers call it in `finally`).
+ */
+function synthesizeGlueMethods(adapter: Record<string, unknown>): void {
+  const pnt = (x: number, y: number, z: number, __type: string) => ({ x, y, z, __type, delete: noop })
+  adapter['createPoint3d'] = (x: number, y: number, z: number) => pnt(x, y, z, 'point3d')
+  adapter['createDirection3d'] = (x: number, y: number, z: number) => pnt(x, y, z, 'direction3d')
+  adapter['createVector3d'] = (x: number, y: number, z: number) => pnt(x, y, z, 'vector3d')
+  adapter['createAxis1'] = (cx: number, cy: number, cz: number, dx: number, dy: number, dz: number) => ({
+    origin: { x: cx, y: cy, z: cz },
+    direction: { x: dx, y: dy, z: dz },
+    __type: 'axis1',
+    delete: noop,
+  })
+  // axis2/axis3: 6- or 9-arg forms (origin + zDir + optional xDir).
+  const makeAxis = (__type: 'axis2' | 'axis3') =>
+    (ox: number, oy: number, oz: number, zx: number, zy: number, zz: number, xx?: number, xy?: number, xz?: number) => ({
+      origin: { x: ox, y: oy, z: oz },
+      zDir: { x: zx, y: zy, z: zz },
+      xDir: xx !== undefined ? { x: xx, y: xy as number, z: xz as number } : undefined,
+      __type,
+      delete: noop,
+    })
+  adapter['createAxis2'] = makeAxis('axis2')
+  adapter['createAxis3'] = makeAxis('axis3')
+}
+
 /** 把 BrepEngineApi 透传包装为 KernelAdapter 形态（非 occt 引擎）。 */
 function wrapBrepEngineApi(api: BrepEngineApi): KernelAdapter {
   const adapter: Record<string, unknown> = {
     // 生命周期：vendored 面统一用 dispose（BrepEngineApi 用 release）。
     dispose: (h: unknown) => api.release(h as never),
   }
+  synthesizeGlueMethods(adapter)
   for (const key of Object.keys(api)) {
     if (key === 'release') continue // 上面已映射为 dispose
     adapter[key] = (api as unknown as Record<string, unknown>)[key]
   }
+  // 测量面映射在透传之后追加，覆盖同名键（vendored 名 → BrepEngineApi 名 + 形态转换）。
+  mapMeasureMethods(adapter, api)
   // pattern 族形态适配（BrepEngineApi 对象 Vec3 ↔ vendored 三元组）。
   adapter['linearPattern'] = (
     shape: unknown,
@@ -201,6 +290,16 @@ export function assertGlueMethodsComplete(id: string, adapter: KernelAdapter): v
         `Fix the adapter (add real implementations) or do not inject this engine into the vendored registry.`
     )
   }
+}
+
+/**
+ * Test-only: clear the injection cache and reset the vendored kernel registry
+ * so a re-assembly (e.g. switching engines in tests) re-runs buildKernelAdapter
+ * + assertGlueMethodsComplete for the new engine. Never called in prod.
+ */
+export function __resetKernelInjectionForTests(): void {
+  _injected = false
+  __resetKernelRegistryForTests()
 }
 
 /**
