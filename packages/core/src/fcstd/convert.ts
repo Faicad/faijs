@@ -166,7 +166,14 @@ export async function convertFcstdFile(input: string, opts?: ConvertOptions): Pr
       const ext = await resolveExternalGeometry(
         obj.properties.get('ExternalGeometry'), doc.value, unpacked.value, obj.properties.get('Placement'),
       );
-      const usable = ext.links.filter((l) => l.polyline.length === 2);
+      // P3-3 (2026-09-24): external EDGES are discretized to polylines — a
+      // straight edge yields 2 points, an ARC yields many. The old
+      // `length === 2` filter silently dropped every arc link with no
+      // failure record (sketch baked `external-geometry-unresolved: no
+      // links` while resolveExternalGeometry had actually succeeded). The
+      // solver pins multi-point polylines as fixed sampled targets
+      // (planegcs-backend M6.3), so any deduped polyline >= 2 is usable.
+      const usable = ext.links.filter((l) => l.polyline.length >= 2);
       if (usable.length === 0) {
         sketchVerdict.set(obj.name, {
           level: 'L2',
