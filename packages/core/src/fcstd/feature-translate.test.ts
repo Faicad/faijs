@@ -167,6 +167,137 @@ describe('M4.6 Pad/Pocket', () => {
     }
   });
 
+  // GOTCHA (E4, corpus 2026-09-23): Part::Extrusion serializes in three
+  // shapes. New format (626 sampled objects): LengthFwd/LengthRev + unit Dir.
+  // Old format (76): only Dir, whose magnitude IS the length. Legacy
+  // (~0): Length + Dir. The legacy-only code produced len=0 →
+  // E_EXTRUDE_ZERO_VECTOR on 918 corpus runs.
+  it('translates new-format Part::Extrusion via LengthFwd/LengthRev with unit Dir', () => {
+    const ext = obj('Part::Extrusion', 'Ext', [
+      prop('Base', { name: 'Link', attrs: { value: 'Sketch' } }),
+      prop('LengthFwd', { name: 'Float', attrs: { value: '50' } }),
+      prop('LengthRev', { name: 'Float', attrs: { value: '0' } }),
+      prop('Dir', { name: 'Vector', attrs: { value: '0 0 1' } }),
+    ]);
+    const v = translateObject(ext, (dep) => (dep === 'Sketch' ? 'sketch0' : undefined));
+    expect(v.kind).toBe('translated');
+    if (v.kind === 'translated') {
+      expect(v.calls[0]!.literals).toEqual([[0, 0, 50]]);
+    }
+  });
+
+  it('GOTCHA: old-format Part::Extrusion has no Length — |Dir| IS the extrusion vector', () => {
+    // Wrong (legacy) reading: Length missing → len 0 → zero vector.
+    // Correct: Dir itself is the extrude vector (Flat Bar truth: vol
+    // 162500 = 130×25×50 with Dir=(0,0,50), no Length).
+    const ext = obj('Part::Extrusion', 'Ext', [
+      prop('Base', { name: 'Link', attrs: { value: 'Sketch' } }),
+      prop('Dir', { name: 'Vector', attrs: { value: '0 0 50' } }),
+    ]);
+    const v = translateObject(ext, (dep) => (dep === 'Sketch' ? 'sketch0' : undefined));
+    expect(v.kind).toBe('translated');
+    if (v.kind === 'translated') {
+      expect(v.calls[0]!.literals).toEqual([[0, 0, 50]]);
+    }
+  });
+
+  it('normalizes Dir and applies Reversed for new-format Part::Extrusion', () => {
+    const ext = obj('Part::Extrusion', 'Ext', [
+      prop('Base', { name: 'Link', attrs: { value: 'Sketch' } }),
+      prop('LengthFwd', { name: 'Float', attrs: { value: '10' } }),
+      prop('Dir', { name: 'Vector', attrs: { value: '0 3 4' } }),
+      prop('Reversed', { name: 'Bool', attrs: { value: 'true' } }),
+    ]);
+    const v = translateObject(ext, (dep) => (dep === 'Sketch' ? 'sketch0' : undefined));
+    expect(v.kind).toBe('translated');
+    if (v.kind === 'translated') {
+      // Reversed with no LengthRev → extrude 10 backwards along unit Dir.
+      expect(v.calls[0]!.literals).toEqual([[0, -6, -8]]);
+    }
+  });
+
+  it('bakes TaperAngle≠0 Part::Extrusion with an explicit reason (no silent ignore)', () => {
+    const ext = obj('Part::Extrusion', 'Ext', [
+      prop('Base', { name: 'Link', attrs: { value: 'Sketch' } }),
+      prop('LengthFwd', { name: 'Float', attrs: { value: '50' } }),
+      prop('Dir', { name: 'Vector', attrs: { value: '0 0 1' } }),
+      prop('TaperAngle', { name: 'Float', attrs: { value: '5' } }),
+    ]);
+    const v = translateObject(ext, (dep) => (dep === 'Sketch' ? 'sketch0' : undefined));
+    expect(v).toMatchObject({ kind: 'baked', reason: 'extrusion-taper-unsupported' });
+  });
+
+  it('GOTCHA: symmetric new-format Extrusion unions fwd+rev prisms of LengthFwd each', () => {
+    const ext = obj('Part::Extrusion', 'Ext', [
+      prop('Base', { name: 'Link', attrs: { value: 'Sketch' } }),
+      prop('LengthFwd', { name: 'Float', attrs: { value: '20' } }),
+      prop('Dir', { name: 'Vector', attrs: { value: '0 0 1' } }),
+      prop('Symmetric', { name: 'Bool', attrs: { value: 'true' } }),
+    ]);
+    const v = translateObject(ext, (dep) => (dep === 'Sketch' ? 'sketch0' : undefined));
+    expect(v.kind).toBe('translated');
+    if (v.kind === 'translated') {
+      expect(v.calls).toHaveLength(3);
+      expect(v.calls[0]!.literals).toEqual([[0, 0, 20]]);
+      expect(v.calls[1]!.literals).toEqual([[0, 0, -20]]);
+      expect(v.calls[2]!.op).toBe('cad.union');
+    }
+  });
+
+  // GOTCHA (P1-1b, corpus 2026-09-23): Pocket Midplane was baked as
+  // `pocket-midplane-unsupported` (30-file bucket + blocked Sprocket z08).
+  // Symmetric cut = two half-prisms fused then subtracted (same construction
+  // as the Pad midplane branch).
+  it('translates Pocket Midplane as symmetric ±len/2 prisms unioned then subtracted', () => {
+    const pocket = obj('PartDesign::Pocket', 'Pocket', [
+      prop('Profile', { name: 'Link', attrs: { value: 'Sketch001' } }),
+      prop('Length', { name: 'Float', attrs: { value: '8' } }),
+      prop('BaseFeature', { name: 'Link', attrs: { value: 'Pad' } }),
+      prop('Midplane', { name: 'Bool', attrs: { value: 'true' } }),
+    ]);
+    const v = translateObject(pocket, (dep) => (dep === 'Sketch001' ? 'sketch1' : dep === 'Pad' ? 'part2' : undefined));
+    expect(v.kind).toBe('translated');
+    if (v.kind === 'translated') {
+      expect(v.calls).toHaveLength(4);
+      expect(v.calls[0]!.literals).toEqual([[0, 0, 4]]);
+      expect(v.calls[1]!.literals).toEqual([[0, 0, -4]]);
+      expect(v.calls[2]!.op).toBe('cad.union');
+      expect(v.calls[3]!.op).toBe('cad.subtract');
+      expect(v.calls[3]!.inputs).toEqual(['part2', 'Pocket_cut']);
+    }
+  });
+
+  // GOTCHA (P3-1, corpus 2026-09-23): FreeCAD serializes Transformed features
+  // with the patterned features in `Originals` (PropertyLinkList) — `Source`
+  // only exists on some versions. Reading Source only baked 113+16+8 files
+  // with polar/linear-pattern-missing-source.
+  it('resolves LinearPattern source from Originals when Source is absent', () => {
+    const pat = obj('PartDesign::LinearPattern', 'Pat', [
+      prop('Occurrences', { name: 'Integer', attrs: { value: '4' } }),
+      prop('Length', { name: 'Float', attrs: { value: '30' } }),
+      prop('Direction', { name: 'LinkSub', attrs: { value: 'N_Axis' } }),
+    ]);
+    pat.properties.set('Originals', {
+      name: 'Originals',
+      type: 'App::PropertyLinkList',
+      tagName: 'Property',
+      children: [{
+        name: 'LinkList', type: '', tagName: 'LinkList', children: [
+          { name: 'Link', type: '', tagName: 'Link', children: [], valueXml: '', valueText: '', attributes: { value: 'Pocket' } },
+        ], valueXml: '', valueText: '', attributes: { count: '1' },
+      }],
+      valueText: '',
+      attributes: {},
+    });
+    const v = translateObject(pat, (dep) => (dep === 'Pocket' ? 'part2' : undefined));
+    expect(v.kind).toBe('translated');
+    if (v.kind === 'translated') {
+      expect(v.calls[0]!.op).toBe('cad.linearPattern');
+      expect(v.calls[0]!.inputs).toEqual(['part2']);
+      expect(v.calls[0]!.literals).toEqual([expect.anything(), 4, 10]);
+    }
+  });
+
   it('translates PartDesign::Revolution around the body Z axis', () => {
     const rev = obj('PartDesign::Revolution', 'Rev', [
       prop('Profile', { name: 'Link', attrs: { value: 'Sketch' } }),

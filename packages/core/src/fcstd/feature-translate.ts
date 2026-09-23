@@ -255,6 +255,13 @@ function propVec(obj: FcstdObject, name: string): [number, number, number] | und
   return [parts[0]!, parts[1]!, parts[2]!];
 }
 
+/** Normalize a Vec3 to unit length (zero-safe: returns input if |v| = 0). */
+function normalize3(v: [number, number, number]): [number, number, number] {
+  const mag = Math.hypot(v[0], v[1], v[2]);
+  if (mag <= 0) return v;
+  return [v[0] / mag, v[1] / mag, v[2] / mag];
+}
+
 /**
  * Read an `App::PropertyLinkSub`: the target object name plus its sub-element
  * names. FreeCAD serializes this as
@@ -846,7 +853,25 @@ export function translateObject(
       if (ftype !== 'Length' && ftype !== 'TwoLengths' && ftype !== 'ThroughAll') {
         return { kind: 'baked', reason: `pocket-type-${ftype}-unsupported` };
       }
-      if (midplane) return { kind: 'baked', reason: 'pocket-midplane-unsupported' };
+      // P1-1b (2026-09-23): Pocket Midplane — symmetric cut prism about the
+      // sketch plane (same construction as the Pad midplane branch: two
+      // half-prisms fused, then subtracted). Direction sign is irrelevant
+      // (symmetric); ThroughAll keeps its far-beyond-extent depth.
+      if (midplane) {
+        const THROUGH_ALL_DEPTH = 1e6;
+        const depth = ftype === 'ThroughAll' ? THROUGH_ALL_DEPTH : len;
+        const half = depth / 2;
+        const pos = `${out}_cut_pos`;
+        const neg = `${out}_cut_neg`;
+        const cutVar = `${out}_cut`;
+        const calls: CadCall[] = [
+          { out: pos, op: 'cad.extrude', source: obj.name, inputs: [profileVar], literals: [[0, 0, half]], params: {} },
+          { out: neg, op: 'cad.extrude', source: obj.name, inputs: [profileVar], literals: [[0, 0, -half]], params: {} },
+          { out: cutVar, op: 'cad.union', source: obj.name, inputs: [pos, neg], params: {} },
+          { out, op: 'cad.subtract', source: obj.name, inputs: [baseVar, cutVar], params: {} },
+        ];
+        return { kind: 'translated', calls };
+      }
       // Pocket cuts INTO the material: extrude the profile opposite the normal
       // (or along it when Reversed), then subtract from base.
       // ThroughAll (hole_puzzle corpus, 2026-09-20): FreeCAD truncates the
@@ -866,16 +891,79 @@ export function translateObject(
       const base = propLink(obj, 'Base');
       const baseVar = base ? inputVar(base) : undefined;
       if (!baseVar) return { kind: 'baked', reason: 'extrusion-missing-base' };
-      const len = propNum(obj, 'Length') ?? 0;
       const dir = propVec(obj, 'Dir') ?? [0, 0, 1];
-      const reversed = propBool(obj, 'Reverse');
-      const vec: [number, number, number] = [dir[0] * len, dir[1] * len, dir[2] * len];
-      const s = reversed ? -1 : 1;
+      // FreeCAD 0.20+ serializes the flag as `Reversed`; older files used
+      // `Reverse`. Accept both.
+      const reversed = propBool(obj, 'Reversed') || propBool(obj, 'Reverse');
+      // E4 (2026-09-23): Part::Extrusion serializes in three shapes. New
+      // format: LengthFwd/LengthRev (unit Dir). Old format: only Dir, whose
+      // magnitude IS the extrusion length. Legacy: Length + Dir. The previous
+      // code only knew the legacy shape → len=0 → E_EXTRUDE_ZERO_VECTOR on
+      // 918 corpus runs.
+      const lengthFwd = propNum(obj, 'LengthFwd');
+      const lengthRev = propNum(obj, 'LengthRev');
+      const taperAngle = propNum(obj, 'TaperAngle') ?? 0;
+      if (taperAngle !== 0) {
+        // No-heuristic-fallback: silently ignoring a taper would produce wrong
+        // geometry. Bake with an explicit reason instead.
+        return { kind: 'baked', reason: 'extrusion-taper-unsupported' };
+      }
+      const unitDir = normalize3(dir);
+      const calls: CadCall[] = [];
+      const emitExtrude = (outName: string, fwdLen: number, revLen: number) => {
+        if (fwdLen > 0) {
+          calls.push({
+            out: revLen > 0 ? `${outName}_fwd` : outName,
+            op: 'cad.extrude', source: obj.name, inputs: [baseVar],
+            literals: [[unitDir[0] * fwdLen, unitDir[1] * fwdLen, unitDir[2] * fwdLen]], params: {},
+          });
+        }
+        if (revLen > 0) {
+          // `|| 0` normalizes -0 to +0 (JSON/对拍 noise otherwise).
+          calls.push({
+            out: fwdLen > 0 ? `${outName}_rev` : outName,
+            op: 'cad.extrude', source: obj.name, inputs: [baseVar],
+            literals: [[(-unitDir[0] * revLen) || 0, (-unitDir[1] * revLen) || 0, (-unitDir[2] * revLen) || 0]], params: {},
+          });
+        }
+      };
+      if (lengthFwd !== undefined || lengthRev !== undefined) {
+        const symmetric = propBool(obj, 'Symmetric');
+        const fwd = lengthFwd ?? 0;
+        const revRaw = lengthRev ?? 0;
+        // FreeCAD semantics: Symmetric extrudes LengthFwd on BOTH sides;
+        // Reversed swaps the fwd/rev sides (same magnitudes).
+        const fwdLen = symmetric ? fwd : (reversed ? revRaw : fwd);
+        const revLen = symmetric ? fwd : (reversed ? fwd : revRaw);
+        if (fwdLen > 0 && revLen > 0) {
+          emitExtrude(out, fwdLen, revLen);
+          calls.push({ out, op: 'cad.union', source: obj.name, inputs: [`${out}_fwd`, `${out}_rev`], params: {} });
+        } else {
+          emitExtrude(out, fwdLen, revLen);
+        }
+        if (calls.length === 0) return { kind: 'baked', reason: 'extrusion-zero-length' };
+        return { kind: 'translated', calls };
+      }
+      const legacyLen = propNum(obj, 'Length');
+      if (legacyLen !== undefined) {
+        // Legacy shape: Length + unit Dir.
+        const s = reversed ? -1 : 1;
+        return {
+          kind: 'translated',
+          calls: [{
+            out, op: 'cad.extrude', source: obj.name, inputs: [baseVar],
+            literals: [[s * dir[0] * legacyLen, s * dir[1] * legacyLen, s * dir[2] * legacyLen]], params: {},
+          }],
+        };
+      }
+      // Old format: |Dir| IS the extrusion length; Dir is the vector.
+      const mag = Math.hypot(dir[0], dir[1], dir[2]);
+      if (mag <= 0) return { kind: 'baked', reason: 'extrusion-zero-length' };
       return {
         kind: 'translated',
         calls: [{
           out, op: 'cad.extrude', source: obj.name, inputs: [baseVar],
-          literals: [[s * vec[0], s * vec[1], s * vec[2]]], params: {},
+          literals: [reversed ? [-dir[0], -dir[1], -dir[2]] : dir], params: {},
         }],
       };
     }
@@ -896,25 +984,49 @@ export function translateObject(
       };
     }
     case 'PartDesign::LinearPattern': {
-      const source = propLink(obj, 'Source');
-      const sourceVar = source ? inputVar(source) : undefined;
+      // P3-1 (2026-09-23): FreeCAD serializes Transformed features with the
+      // patterned features in `Originals` (PropertyLinkList); `Source` only
+      // exists on some versions. Read Source first, then fall back to
+      // Originals[0] (multi-original → fuse the patterned copies below).
+      const source = propLink(obj, 'Source') ?? propLinkList(obj, 'Originals')[0];
+      const originals = source ? [source] : [];
+      const sourceVar = originals.length > 0 ? inputVar(originals[0]!) : undefined;
       if (!sourceVar) return { kind: 'baked', reason: 'linear-pattern-missing-source' };
       const dirInfo = parseReferenceAxis(propStr(obj, 'Direction'));
       if (!dirInfo) return { kind: 'baked', reason: 'linear-pattern-edge-dir-unsupported' };
       const occ = Math.max(2, Math.round(propNum(obj, 'Occurrences') ?? 2));
       const length = propNum(obj, 'Length') ?? 0;
       const spacing = occ > 1 ? length / (occ - 1) : 0;
-      return {
-        kind: 'translated',
-        calls: [{
-          out, op: 'cad.linearPattern', source: obj.name, inputs: [sourceVar],
+      if (originals.length === 1) {
+        return {
+          kind: 'translated',
+          calls: [{
+            out, op: 'cad.linearPattern', source: obj.name, inputs: [sourceVar],
+            literals: [dirInfo.axis, occ, spacing], params: {},
+          }],
+        };
+      }
+      // Multi-original: pattern each, then fuse.
+      const calls: CadCall[] = originals.map((o, i) => {
+        const v = inputVar(o);
+        if (!v) return null;
+        return {
+          out: i === 0 ? `${out}_p0` : `${out}_p${i}`, op: 'cad.linearPattern', source: obj.name, inputs: [v],
           literals: [dirInfo.axis, occ, spacing], params: {},
-        }],
-      };
+        } as CadCall;
+      }).filter((c): c is CadCall => c !== null);
+      for (let i = 1; i < calls.length; i++) {
+        calls.push({
+          out: i === calls.length - 1 ? out : `${out}_u${i}`,
+          op: 'cad.union', source: obj.name,
+          inputs: [i === 1 ? calls[0]!.out : `${out}_u${i - 1}`, calls[i]!.out], params: {},
+        });
+      }
+      return { kind: 'translated', calls };
     }
     case 'PartDesign::PolarPattern': {
-      const source = propLink(obj, 'Source');
-      const sourceVar = source ? inputVar(source) : undefined;
+      const sourcePolar = propLink(obj, 'Source') ?? propLinkList(obj, 'Originals')[0];
+      const sourceVar = sourcePolar ? inputVar(sourcePolar) : undefined;
       if (!sourceVar) return { kind: 'baked', reason: 'polar-pattern-missing-source' };
       const axisInfo = parseReferenceAxis(propStr(obj, 'Axis'));
       if (!axisInfo) return { kind: 'baked', reason: 'polar-pattern-edge-axis-unsupported' };
