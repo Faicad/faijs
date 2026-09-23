@@ -8,7 +8,7 @@
 
 Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadRuntime。
 
-**monorepo（npm workspaces，2026-08-30 P1–P6.6）**：根 `package.json` 为 `@faicad/faijs-monorepo`（private 聚合器，原根门面已废弃、见下）、`packages/core`（`@faicad/faijs` 引擎，2026-09-19 D2-A 升格为公开包名；L3 API 面在 `core/src/api/`，P6 起并入 core，原 `packages/stdlib`/`@faicad/faijs-stdlib` 已取消）、`packages/gear-lib-demo`（`@faicad/gear-lib-demo` 第三方库样例，不发布）、`packages/fixtures`（数据包）、`packages/tests`（集成测试）、`packages/demo`（private）。构建产物各包 `dist/`；**测试/CLI 直接消费 `src/`**（vitest alias + tsconfig paths，M7 免打包）。
+**monorepo（npm workspaces，2026-08-30 P1–P6.6）**：根 `package.json` 为 `@faicad/faijs-monorepo`（private 聚合器，原根门面已废弃、见下）、`packages/core`（`@faicad/faijs` 引擎，2026-09-19 D2-A 升格为公开包名；L3 API 面在 `core/src/api/`，P6 起并入 core，原 `packages/stdlib`/`@faicad/faijs-stdlib` 已取消）、`packages/fixtures`（数据包）、`packages/tests`（集成测试）、`packages/demo`（private）。构建产物各包 `dist/`；**测试/CLI 直接消费 `src/`**（vitest alias + tsconfig paths，M7 免打包）。`packages/gear-lib-demo` 已于 2026-09-21 删除，其测试 fixture 收进 `packages/tests/faijs/compat-e2e/_support/gear-lib-demo/`。
 
 > 包架构再设计（2026-09-19）：原根门面 `@faicad/faijs`（仅注入 cad + `export *`）已删除，其公开名 `@faicad/faijs` 由 core 升格继承（D2-A）；`cad` 默认命名空间内置引擎（D1，`createRuntime` 自带注册，不违反 K5）。详见 `docs/plans/2026-09-19-npm-publish-plan.md`。
 
@@ -35,7 +35,7 @@ Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadR
 | `npm run build` | 按序构建：`core` → 根门面（`tsc` 编译各包 src → dist；根门面 build 前 clean） |
 | `npm run build -w <pkg>` | 单包构建，如 `npm run build -w @faicad/faijs` |
 | `npm run pack` | build + `npm pack` → 根目录 `faicad-faijs-0.5.8.tgz`（3d_editor 消费；`prepack` 自动 build） |
-| `npm run test -w <pkg>` | 单包测试（`-w @faicad/faijs` / `-w @faicad/gear-lib-demo` / `-w @faicad/faijs-tests`；cwd=包目录，fixture 路径已 import.meta.url 化） |
+| `npm run test -w <pkg>` | 单包测试（`-w @faicad/faijs` / `-w @faicad/faijs-tests`；cwd=包目录，fixture 路径已 import.meta.url 化） |
 | `npm run test --workspaces` | 全量测试（stderr 零容忍由 CI 检查） |
 | `npm run typecheck` | 根 `tsc --noEmit`（tsconfig paths 跟随检查 core 源码）+ `--workspaces` 逐包 |
 | `npm run lint` | `eslint src packages/*/src`（`scripts/`、`docs/`、`demo/`、`packages/demo/` 被 ignore） |
@@ -66,7 +66,7 @@ Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadR
 - **`packages/core/src/mesh/api.d.ts` 是生成文件**：由 `packages/core/scripts/gen-api-dts.ts` 生成（内嵌函数目录），禁止手改；改 schema 后必须重跑 `npx tsx packages/core/scripts/gen-api-dts.ts`。
 - **测试 stderr 零容忍**（CI 强制）：任何测试输出 `stderr |` 行即判失败。测试若故意触发错误，必须在测试内 spy `console.warn/error` 并断言；禁止全局静默 stderr。
 - **typecheck/lint 不覆盖测试**：各包 `tsc --noEmit` 的 include 含 `src/**/*.ts`（含同目录测试），但 `packages/tests` 的集成测试由 `npm run typecheck -w @faicad/faijs-tests` 单独覆盖——改动后手动跑 vitest 验证。
-- 测试分布：`packages/core/src/**/*.test.ts`（与源码同目录，含原 `packages/stdlib` 迁入的 `api/*.test.ts`）、`packages/gear-lib-demo/src/**`、`packages/tests/faijs/`（按功能分目录，含 `.fai.js` fixture）、`packages/fixtures/data/`（step/stl/3mf/svg 数据）。parity 测试（BREP vs mesh 一致性）在 `beforeAll` 里 `initOcctWasm()`。fixture 路径已 `import.meta.url` 化（与 cwd 无关）。
+- 测试分布：`packages/core/src/**/*.test.ts`（与源码同目录，含原 `packages/stdlib` 迁入的 `api/*.test.ts`）、`packages/tests/faijs/`（按功能分目录，含 `.fai.js` fixture）、`packages/fixtures/data/`（step/stl/3mf/svg 数据）。第三方库通道测试 fixture 在 `packages/tests/faijs/compat-e2e/_support/`。parity 测试（BREP vs mesh 一致性）在 `beforeAll` 里 `initOcctWasm()`。fixture 路径已 `import.meta.url` 化（与 cwd 无关）。
 - `packages/demo/` 是独立 vite 应用（dev 端口 8899；build 时 three/manifold-3d/occt-wasm 外链 jsdelivr CDN importmap，版本号与 package.json 手写同步）。demo 在 workspace 内通过 `resolve.alias` 直接消费根门面/引擎源码（M7 免打包，`vite.config.ts` 的 alias + `optimizeDeps.exclude` + `server.watch` 反选）；改 faijs 源码 → demo dev server HMR 即生效，**无需 npm pack**。wasm 经 `wasmAssets()` 插件（dev 中间件 `/wasm/*` + build 拷贝）。
 - 仓库文档双语配对（英文 `foo.md` + 中文 `foo.zh.md` + `foo.i18n.yaml`），见 [docs/i18n/README.md](docs/i18n/README.md)。例外：`docs/plans/`、`docs/analysis/`、`AGENTS.md` 不配对。commit message 用 conventional commits（英文）；代码注释用英文。
 
@@ -123,4 +123,4 @@ Brep链可以切换，没有回退。在链上增加一个brep不支持的操作
 1. 通过rm -rf删除目录。删除目录必须是把文件夹移动到回收站。
 2. 严禁通过junction之类的方式建立目录链接。包括npm link之类的行为。
 
-本项目已进入正式发布准备阶段（禁令「不准发布到 npm」已撤销）。发布范围、拓扑序、门禁与 npm 自动加载方案见 `docs/plans/2026-09-19-npm-publish-plan.md`：faijs 及其可发布子包（`@faicad/faijs`(原 core) / cq-compat / fai_cq_gears / fai_cq_warehouse / sheetmetal）正式发布到公开 npm registry；demo 相关子包（gear-lib-demo / demo / fixtures / tests / mini_lathe）除外。
+本项目已进入正式发布准备阶段（禁令「不准发布到 npm」已撤销）。发布范围、拓扑序、门禁与 npm 自动加载方案见 `docs/plans/2026-09-19-npm-publish-plan.md`：faijs 及其可发布子包（`@faicad/faijs`(原 core) / cq-compat / fai_cq_gears / fai_cq_warehouse / sheetmetal）正式发布到公开 npm registry；demo 相关子包（demo / fixtures / tests / mini_lathe）除外。

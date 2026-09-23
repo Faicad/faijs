@@ -18,8 +18,7 @@
     "baseUrl": ".",
     "paths": {
       "@faicad/faijs": ["./packages/core/src/index.ts"],
-      "@faicad/faijs/*": ["./packages/core/src/*"],
-      "@faicad/gear-lib-demo": ["./packages/gear-lib-demo/src/index.ts"]
+      "@faicad/faijs/*": ["./packages/core/src/*"]
     }
   },
   "files": [],

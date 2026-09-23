@@ -13,9 +13,9 @@
  *   `` `${cdnBase}${pkg}@${version}/+esm` `` 直链，版本精确 pin 到已发布版本，保证
  *   可复现与缓存命中；release 产物用。
  *
- * 别名归一：脚本 specifier 常是短名（demo 的 `.fai.js` 写 `gear-lib-demo` /
- * `sheetmetal`），而 CDN 上是 npm 全名（`@faicad/gear-lib-demo`）。`aliases` 把
- * specifier 映到包名后再装载，与 node 侧 `CLI_SHORT_NAMES` 归一同一职责。
+ * 别名归一：脚本 specifier 常是短名（demo 的 `.fai.js` 写 `sheetmetal`），而 CDN 上
+ * 是 npm 全名（`@faicad/sheetmetal`）。`aliases` 把 specifier 映到包名后再装载，
+ * 与 node 侧 `CLI_SHORT_NAMES` 归一同一职责。
  *
  * `autoLiftFor` 是**同步**回调（`runtime.ts` 在装载后立即取值），所以逐库
  * `faijs.autoLift` 必须**预先**可用：主机从构建期产物 `lib-meta.json`
@@ -44,7 +44,7 @@ export interface CreateBrowserLibLoaderOptions {
   cdnBase?: string
   /** 方案 b：精确 pin 的 `packageName → version`（`versions.json`）；提供即走直链。 */
   versions?: Record<string, string>
-  /** 别名表：脚本 import specifier → npm 包名（如 `gear-lib-demo` → `@faicad/gear-lib-demo`）。 */
+  /** 别名表：脚本 import specifier → npm 包名（如 `sheetmetal` → `@faicad/sheetmetal`）。 */
   aliases?: Record<string, string>
   /** 允许装载的 **npm 包名**白名单；缺省不限制（生产建议显式给）。 */
   libs?: string[]

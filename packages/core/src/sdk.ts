@@ -2,11 +2,11 @@
  * sdk — 第三方库开发面（F3 / roadmap V2.2）
  *
  *
- * 第三方库模块（`import * as mech from 'gear-lib-demo'` 的目标）用它开发：
+ * 第三方库模块（`import * as gear from 'my-lib'` 的目标）用它开发：
  * ```ts
  * import { solid, fromBrep, isShape, keep, getBackends, CONTRACT_VERSION } from '@faicad/faijs/sdk'
  * export const contractVersion = CONTRACT_VERSION
- * export function makeHeadstock(params) { ... }
+ * export function makeSpurGear(params) { ... }
  * ```
  *
  * 本入口**零 heavy 运行时依赖**：只 re-export runtime-state（L0+ 零依赖锚点层）

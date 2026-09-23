@@ -22,22 +22,22 @@ Units: millimeters, +Z up, angles in degrees. Contract docs: `docs/api-contract.
 
 ## Developing a third-party library (`@faicad/faijs/sdk`)
 
-A `.fai.js` script can `import * as mech from 'gear-lib-demo'` and call `mech.makeHeadstock(...)`; the host loads your module (`import(url)`) and registers it via `CadRuntime.registerLib(binding, module)` **before** any check/execute.
+A `.fai.js` script can `import * as gear from 'my-lib'` and call `gear.makeSpurGear(...)`; the host loads your module (`import(url)`) and registers it via `CadRuntime.registerLib(binding, module)` **before** any check/execute. Published example: `@faicad/fai-cq-gears` (15 gear factories, verbatim CadQuery ports).
 
 Your module is a plain ESM file exporting functions — write it against the SDK entry:
 
 ```ts ignore-check
-// gear-lib-demo.mjs
+// my-lib.mjs
 import { solid, fromBrep, keep, getBackends, CONTRACT_VERSION } from '@faicad/faijs/sdk'
 
 // Optional but recommended: pin the runtime contract version (registerLib validates it).
 export const contractVersion = CONTRACT_VERSION
 
 // Library functions follow the faijs source signature: (inputShapes…, params) — no hidden args.
-export function makeHeadstock({ teeth = 8 } = {}) {
+export function makeSpurGear({ module = 2, teeth_number = 24, width = 8 } = {}) {
   // Shapes you produce MUST be created through the constructors so the engine
   // recognizes them (identity table) and can union/drill/extrude them downstream.
-  const mesh = buildHeadstockMesh(teeth)
+  const mesh = buildSpurGearMesh(module, teeth_number, width)
   return solid(mesh)
 }
 

@@ -44,13 +44,12 @@ import type { ViewSpec } from '../api/view/view-camera'
 // ── P 四（4.4）：Node CLI 自动装载（D3-Node，§9.4）──
 // 脚本 import 的第三方库按 specifier 动态解析，host 不再写死任何包清单：
 // - scoped 包名（`@faicad/...`）直接动态 import；
-// - 短名（如 `gear-lib-demo`）先归一为 scoped 全名再装载（避免误装同名陌生人包）。
+// - 短名（如 `sheetmetal`）先归一为 scoped 全名再装载（避免误装同名陌生人包）。
 // 包未安装 → 动态 import 抛 ERR_MODULE_NOT_FOUND，由 runtime 报明确装载失败信息。
 /** scoped 包名前缀：CLI 允许动态装载的库范围。 */
 const CLI_SCOPED_PREFIX = '@faicad/'
 /** 已登记短名 → scoped 全名归一表（仅收录 `@faicad/` 范围内的库，防同名陌生人包）。 */
 const CLI_SHORT_NAMES: Record<string, string> = {
-  'gear-lib-demo': '@faicad/gear-lib-demo',
   'sheetmetal': '@faicad/sheetmetal',
   'cq-compat': '@faicad/cq-compat',
   'fai-cq-gears': '@faicad/fai-cq-gears',

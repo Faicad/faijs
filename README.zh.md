@@ -22,22 +22,22 @@ Faicad CAD 执行引擎——`faijs` 语言 parser、BREP/mesh 双链路几何�
 
 ## Developing a third-party library (`@faicad/faijs/sdk`)
 
-`.fai.js` 脚本可以 `import * as mech from 'gear-lib-demo'` 并调用 `mech.makeHeadstock(...)`；宿主加载你的模块（`import(url)`）并在任何 check/execute 之前通过 `CadRuntime.registerLib(binding, module)` 注册。
+`.fai.js` 脚本可以 `import * as gear from 'my-lib'` 并调用 `gear.makeSpurGear(...)`；宿主加载你的模块（`import(url)`）并在任何 check/execute 之前通过 `CadRuntime.registerLib(binding, module)` 注册。已发布示例：`@faicad/fai-cq-gears`（15 个齿轮工厂，CadQuery 逐字移植）。
 
 你的模块是一个导出函数的普通 ESM 文件——通过 SDK 入口编写：
 
 ```ts ignore-check
-// gear-lib-demo.mjs
+// my-lib.mjs
 import { solid, fromBrep, keep, getBackends, CONTRACT_VERSION } from '@faicad/faijs/sdk'
 
 // Optional but recommended: pin the runtime contract version (registerLib validates it).
 export const contractVersion = CONTRACT_VERSION
 
 // Library functions follow the faijs source signature: (inputShapes…, params) — no hidden args.
-export function makeHeadstock({ teeth = 8 } = {}) {
+export function makeSpurGear({ module = 2, teeth_number = 24, width = 8 } = {}) {
   // Shapes you produce MUST be created through the constructors so the engine
   // recognizes them (identity table) and can union/drill/extrude them downstream.
-  const mesh = buildHeadstockMesh(teeth)
+  const mesh = buildSpurGearMesh(module, teeth_number, width)
   return solid(mesh)
 }
 
