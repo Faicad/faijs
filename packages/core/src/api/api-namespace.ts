@@ -35,7 +35,7 @@ import { fai_split } from './fai_split'
 import { union, subtract, intersect, cut } from './boolean'
 import { split } from './split'
 import { linearPattern } from './pattern'
-import { circularPattern, gridPattern, rectangularPattern, mirrorJoin, mirror, clone, transformCopy } from './replicate'
+import { circularPattern, gridPattern, rectangularPattern, mirrorJoin, mirror, clone } from './replicate'
 import { engrave } from './engrave'
 import { chamfer } from './chamfer'
 import { fillet } from './fillet'
@@ -104,7 +104,8 @@ export function createApiNamespace(): StdlibNamespace {
     split,
     linearPattern,
     // 覆盖生成版：4 个多副本 pattern 提拔手写（keep + replica[*] 角色表）；
-    // 3 个单副本（mirror/clone/transformCopy）加 keep 薄 override。
+    // 2 个单副本（mirror/clone）加 keep 薄 override。transformCopy 不再是脚本面
+    // op（arg-spec skip：ComposedTransform 在 .fai.js 不可构造），仅保留 TS 库导出。
     // Spread after scriptFaceOps so they win.
     circularPattern,
     gridPattern,
@@ -112,6 +113,5 @@ export function createApiNamespace(): StdlibNamespace {
     mirrorJoin,
     mirror,
     clone,
-    transformCopy,
   } as unknown as StdlibNamespace
 }

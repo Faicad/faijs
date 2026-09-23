@@ -134,6 +134,12 @@ export const OVERRIDES: Record<string, Override> = {
     semantics: 'ok',
     note: '§5.3: multi-product op but in current 27 — do not exclude by "single Shape" rule',
   },
+  transformCopy: {
+    kind: 'pure',
+    scriptFace: false,
+    semantics: 'ok',
+    note: 'scriptFace: ComposedTransform holds a kernel WASM handle — not constructible in .fai.js, so the script-face op is dead. Covered by clone+translate/rotate chains and locate. TS library surface keeps the plain re-export (non-op). Mirrors arg-spec skip.',
+  },
 
   // ── §1.3 A 类规则漏洞 ──
   io: {

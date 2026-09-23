@@ -6,7 +6,7 @@
  * Only symbols with scriptFace=true are exported here.
  * Full compatOp wrapping logic will be implemented in P4.
  *
- * Symbol count: 133
+ * Symbol count: 132
  */
 
 // TODO(P4): generate actual compatOp wrapping per §5.5.
@@ -142,6 +142,5 @@ export const CAD_SCRIPT_FACE_SYMBOLS = [
   "tangentArc",
   "threePointArc",
   "torus",
-  "transformCopy",
   "vertex"
 ]

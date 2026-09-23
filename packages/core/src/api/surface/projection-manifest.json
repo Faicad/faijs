@@ -1,12 +1,12 @@
 {
   "_meta": {
     "doc": "docs/plans/2026-09-07-compat-surface-unified-projection.md §5.6",
-    "generated": "2026-09-07",
+    "generated": "2026-09-23",
     "totalSymbols": 1339,
     "exported": 1299,
     "excluded": 40,
     "brepjsFace": 1299,
-    "cadFace": 133,
+    "cadFace": 132,
     "unknownSemantics": 0
   },
   "manifest": {
@@ -11553,10 +11553,10 @@
       "kind": "pure",
       "wrap": "raw",
       "faces": [
-        "brepjs-compat",
-        "cad"
+        "brepjs-compat"
       ],
-      "semantics": "ok"
+      "semantics": "ok",
+      "note": "scriptFace: ComposedTransform holds a kernel WASM handle — not constructible in .fai.js, so the script-face op is dead. Covered by clone+translate/rotate chains and locate. TS library surface keeps the plain re-export (non-op). Mirrors arg-spec skip."
     },
     "TransformOp": {
       "status": "exported",

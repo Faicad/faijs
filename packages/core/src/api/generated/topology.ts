@@ -1,7 +1,7 @@
 /**
  * generated/topology.ts — 生成文件，勿手改。
  * 由 packages/core/scripts/gen-l3-surface.ts 依据 api/surface/arg-spec.ts 生成（E5/P14 分片）。
- * topology 模块：129 个投影符号；另有 173 个 skip 登记。
+ * topology 模块：128 个投影符号；另有 174 个 skip 登记。
  */
 import { compatOp } from '../internal/compat-op'
 import { projectBrepOp } from '../internal/compat-projection'
@@ -16,7 +16,6 @@ import { rotate as __vendored_rotate } from '../../vendored/brepjs/topology/api.
 import { mirror as __vendored_mirror } from '../../vendored/brepjs/topology/api.js'
 import { clone as __vendored_clone } from '../../vendored/brepjs/topology/api.js'
 import { applyMatrix as __vendored_applyMatrix } from '../../vendored/brepjs/topology/api.js'
-import { transformCopy as __vendored_transformCopy } from '../../vendored/brepjs/topology/api.js'
 import { locate as __vendored_locate } from '../../vendored/brepjs/topology/api.js'
 import { section as __vendored_section } from '../../vendored/brepjs/topology/api.js'
 import { split as __vendored_split } from '../../vendored/brepjs/topology/api.js'
@@ -305,16 +304,6 @@ export const clone = compatOp(
 export const applyMatrix = compatOp(
   projectBrepOp('applyMatrix', ["shape","matrix"], 'A', __vendored_applyMatrix),
   { name: 'applyMatrix', naming: {"kind":"identity"}, capabilities: ["dispose","generalTransformNonOrthogonal","generalTransformWithHistory","hashCode","iterShapes","surfaceCenterOfMass","surfaceNormal","surfaceType","uvBounds"] },
-)
-
-/**
- * transformCopy — brepjs 投影（生成文件，禁手改；来源 api/surface/arg-spec.ts）。
- * transformCopy(shape: Shape, composed: ComposedTransform): Shape
- * 桥接：compatOp(projectBrepOp(…))——单内核断言 + D11 归一 + 语句边界六步契约（§4.3.2）。
- */
-export const transformCopy = compatOp(
-  projectBrepOp('transformCopy', ["shape","composed"], 'A', __vendored_transformCopy),
-  { name: 'transformCopy', naming: {"kind":"identity"}, capabilities: ["applyComposedTransformWithHistory","dispose"] },
 )
 
 /**

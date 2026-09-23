@@ -186,7 +186,6 @@ export const CAD_ROLE_VOCAB: readonly CadRoleVocab[] = [
   { op: 'svgExtrude', kind: 'construct' as CadRoleVocab['kind'], vocab: [] },
   { op: 'text', kind: 'construct' as CadRoleVocab['kind'], vocab: [] },
   { op: 'torus', kind: 'unmodeled' as CadRoleVocab['kind'], reason: "construct vocabulary pending Phase 3", vocab: [] },
-  { op: 'transformCopy', kind: 'identity' as CadRoleVocab['kind'], vocab: [], note: "1:1，第 i 面 → 第 i 面（零声明）" },
   { op: 'translate', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:translate:<i>'] },
   { op: 'union', kind: 'kernel' as CadRoleVocab['kind'], vocab: ['gen:union:<i>'] },
   { op: 'wedge', kind: 'unmodeled' as CadRoleVocab['kind'], reason: "wedge face vocabulary pending Phase 3", vocab: [] },

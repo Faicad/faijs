@@ -2795,12 +2795,11 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     naming: { kind: 'identity' },
   },
   {
-    name: 'transformCopy', source: 'topology/api.js#transformCopy', kind: 'brep-op', capabilities: ["applyComposedTransformWithHistory","dispose"],
+    name: 'transformCopy', source: 'topology/api.js#transformCopy', kind: 'skip',
     geometryArgs: [0], returnsResult: false,
     args: 'transformCopy(shape: Shape, composed: ComposedTransform): Shape',
-    reason: 'faijs 无同名，克隆+复合变换 → brep-op',
+    reason: 'scriptFace: ComposedTransform holds a kernel WASM handle — not constructible in .fai.js (no literal/params path), so the script-face op is dead. Covered by clone+translate/rotate chains and locate. TS library surface keeps the plain re-export (non-op).',
     params: ['shape', 'composed'], formClass: 'A',
-    scriptFace: true,
     naming: { kind: 'identity' },
   },
   {

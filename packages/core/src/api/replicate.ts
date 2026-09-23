@@ -30,10 +30,11 @@ import type { BrepHandle, BrepVec3 } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 import { buildReplicaRoleTable, type ReplicaTransform } from './internal/replica-role-table'
 // Generated compatOps (delegation targets for the thin single-copy overrides).
+// NOTE: transformCopy is NOT a script-face op (arg-spec skip: ComposedTransform
+// is not constructible in .fai.js); it stays a TS-library-only re-export.
 import {
   mirror as generatedMirror,
   clone as generatedClone,
-  transformCopy as generatedTransformCopy,
 } from './generated/topology'
 import type { MirrorOptions } from '../vendored/brepjs/topology/api'
 
@@ -399,28 +400,5 @@ export const clone = defineOp({
     return (await generatedClone(input)) as Shape
   },
   capabilities: ['copyShape', 'dispose'],
-  naming: { kind: 'identity' } as Provenance,
-})
-
-/**
- * 组合变换拷贝：clone + 一次组合变换（源保留）。
- * @group 特征
- * @inputs 1
- * @async true
- * @qual ok
- * @name transformCopy
- * @note BREP-only。keep 语义：不消费输入（薄 override 委托生成 op，行为不变）。
- * @returns Shape 变换后的新几何。
- * @param input - 目标几何。type:Shape required:true
- * @param composed - 组合变换。type:ComposedTransform required:true
- * @example
- * const p = await cad.transformCopy(part0, composed)
- */
-export const transformCopy = defineOp({
-  async brep(input: Shape, composed: unknown) {
-    keep(input)
-    return (await generatedTransformCopy(input, composed)) as Shape
-  },
-  capabilities: ['applyComposedTransformWithHistory', 'dispose'],
   naming: { kind: 'identity' } as Provenance,
 })

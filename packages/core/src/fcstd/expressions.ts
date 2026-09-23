@@ -102,6 +102,13 @@ function objectLabel(o: FcstdObject): string | undefined {
  * 数值后，求值仅含常数与 + - * / ( ) 的算术。任何残留标识符 / 函数 → undefined
  * （no heuristic fallback）。返回值单位跟随单元格（mm 语境，角度单元格调用方解释）。
  */
+/**
+ * Evaluate a FreeCAD expression against the document objects.
+ * @param expr - the expression text (without the leading `=`).
+ * @param docObjects - the document objects visible to the expression.
+ * @param self - the object the expression is evaluated on, if any.
+ * @returns the evaluated expression value.
+ */
 export function evalWithDoc(
   expr: string,
   docObjects: readonly FcstdObject[],

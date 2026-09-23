@@ -5,9 +5,9 @@
  *
  * 背景：faijs 的"消费"模型由函数体 keep 声明驱动（live-shapes.ts lineConsumes
  * C5 默认消费短路）。copy 通过 `keep(input)` 让输入保留为存活终端；复制类 op
- * （pattern / mirror / clone / transformCopy 等）同样声明 keep(input) ——
- * 本测试保证：全部 9 个复制类 op 执行后输入变量仍出现在 result.terminals，
- * 结果本身也是终端。
+ * （pattern / mirror / clone 等）同样声明 keep(input) ——
+ * 本测试保证：全部 8 个脚本面复制类 op 执行后输入变量仍出现在 result.terminals，
+ * 结果本身也是终端。（transformCopy 已摘出脚本面：arg-spec skip，见方案 §2.1 修订。）
  *
  * 另含角色表断言：4 个多副本 pattern（linearPattern / circularPattern /
  * gridPattern / rectangularPattern / mirrorJoin）执行后结果 roleTable 含
@@ -24,27 +24,18 @@ import { registerOcctBrepEngine } from '../brep/engine/adapters/occt'
 import { CadRuntime } from '../cad-runtime/runtime'
 import { createApiNamespace } from './api-namespace'
 import { runtimeLineage } from '../topology/naming/lineage'
-import { composeTransforms } from '../vendored/brepjs/topology/api'
 import type { ExecutionResult } from '../cad-runtime/runtime'
 import type { RoleTable } from '../topology/naming/types'
 
 let kernelReady = false
-// composeTransforms 需要内核已初始化（bind occt-wasm），只能在 beforeAll 之后构建。
-let composedTransform: unknown
 
 beforeAll(async () => {
   await registerOcctBrepEngine()
-  composedTransform = composeTransforms([{ type: 'translate', v: [10, 0, 0] }])
   kernelReady = true
 }, 120000)
 
 function makeRuntime(): CadRuntime {
-  // 't' 是测试辅助命名空间（knownNames 放行 t.compose；值经内核初始化后惰性求值）
-  return new CadRuntime(
-    { events: { emit() {} } },
-    undefined,
-    { cad: createApiNamespace(), t: { compose: () => composedTransform } },
-  )
+  return new CadRuntime({ events: { emit() {} } }, undefined, { cad: createApiNamespace() })
 }
 
 async function run(code: string, imports?: Record<string, unknown>): Promise<ExecutionResult> {
@@ -97,10 +88,8 @@ const PROGRAMS: Array<{ op: string; code: string; imports?: () => Record<string,
     op: 'clone',
     code: ['const s0 = cad.box(20, 20, 20, { centered: true })', 'const s1 = cad.clone(s0)'].join('\n'),
   },
-  {
-    op: 'transformCopy',
-    code: ['const s0 = cad.box(20, 20, 20, { centered: true })', 'const s1 = cad.transformCopy(s0, t.compose())'].join('\n'),
-  },
+  // transformCopy 不再是脚本面 op（arg-spec skip：ComposedTransform 在 .fai.js
+  // 不可构造，仅保留 TS 库导出）——keep 覆盖为 8 个脚本面复制 op。
 ]
 
 describe('copy-like ops must not consume their input shape', () => {

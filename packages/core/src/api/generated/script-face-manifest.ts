@@ -34,7 +34,6 @@ export const SCRIPT_FACE_OPS: readonly ScriptFaceOp[] = [
   { name: 'mirror', module: 'topology' },
   { name: 'clone', module: 'topology' },
   { name: 'applyMatrix', module: 'topology' },
-  { name: 'transformCopy', module: 'topology' },
   { name: 'locate', module: 'topology' },
   { name: 'split', module: 'topology' },
   { name: 'offset', module: 'topology' },
