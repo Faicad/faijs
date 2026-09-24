@@ -323,6 +323,52 @@ describe('M4.6 Pad/Pocket', () => {
     expect(v).toMatchObject({ kind: 'baked', reason: 'revolution-edge-axis-unsupported' });
   });
 
+  // GOTCHA (P2-1, Mannequin_mp 2026-09-24): a Revolution with a VALID Profile
+  // link whose target sketch was baked upstream (unsupported-geometry) used
+  // to bake as `revolution-missing-profile` — a cascade lie (the link was
+  // there). It must bake with `revolution-profile-baked-upstream:<name>` so
+  // the report points at the upstream sketch, not at a phantom missing link.
+  it('bakes Revolution whose profile was baked upstream with an explicit cascade reason', () => {
+    const rev = obj('PartDesign::Revolution', 'Rev', [
+      prop('Profile', { name: 'LinkSub', attrs: { value: 'Sketch061' } }),
+      prop('Angle', { name: 'Angle', attrs: { value: '360' } }),
+      prop('ReferenceAxis', { name: 'LinkSub', attrs: { value: 'Sketch061' } }),
+    ]);
+    const v = translateObject(rev, () => undefined);
+    expect(v).toMatchObject({ kind: 'baked', reason: 'revolution-profile-baked-upstream:Sketch061' });
+  });
+
+  // GOTCHA (P2-2, Mannequin_mp 2026-09-24): PartDesign::Groove was NOT in the
+  // whitelist, so all 26 Grooves silently fell to preservedOnly — never even
+  // reaching the translate layer. Groove = Revolution + subtract.
+  it('translates PartDesign::Groove as revolve + subtract from base', () => {
+    const groove = obj('PartDesign::Groove', 'Groove', [
+      prop('Profile', { name: 'LinkSub', attrs: { value: 'Sketch' } }),
+      prop('BaseFeature', { name: 'Link', attrs: { value: 'Pad' } }),
+      prop('Angle', { name: 'Angle', attrs: { value: '360' } }),
+      prop('ReferenceAxis', { name: 'LinkSub', attrs: { value: 'V_Axis' } }),
+    ]);
+    const v = translateObject(groove, (dep) => (dep === 'Sketch' ? 'sketch0' : dep === 'Pad' ? 'part2' : undefined));
+    expect(v.kind).toBe('translated');
+    if (v.kind === 'translated') {
+      expect(v.calls).toHaveLength(2);
+      expect(v.calls[0]!.op).toBe('cad.revolve');
+      expect(v.calls[0]!.params).toMatchObject({ axis: [0, 0, 1], at: [0, 0, 0] });
+      expect(v.calls[1]!.op).toBe('cad.subtract');
+      expect(v.calls[1]!.inputs).toEqual(['part2', 'Groove_groove']);
+    }
+  });
+
+  it('bakes Groove missing its base feature with an explicit reason', () => {
+    const groove = obj('PartDesign::Groove', 'Groove', [
+      prop('Profile', { name: 'LinkSub', attrs: { value: 'Sketch' } }),
+      prop('Angle', { name: 'Angle', attrs: { value: '360' } }),
+      prop('ReferenceAxis', { name: 'LinkSub', attrs: { value: 'V_Axis' } }),
+    ]);
+    const v = translateObject(groove, (dep) => (dep === 'Sketch' ? 'sketch0' : undefined));
+    expect(v).toMatchObject({ kind: 'baked', reason: 'groove-missing-base' });
+  });
+
   it('translates Pocket as extrude + subtract from base', () => {
     const pocket = obj('PartDesign::Pocket', 'Pocket', [
       prop('Profile', { name: 'Link', attrs: { value: 'Sketch001' } }),

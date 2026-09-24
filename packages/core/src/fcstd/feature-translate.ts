@@ -101,6 +101,11 @@ const WHITELIST = new Set([
   'PartDesign::Pad',
   'PartDesign::Pocket',
   'PartDesign::Revolution',
+  // P2-2 (2026-09-24): Groove is Revolution + subtractive — same Profile/
+  // ReferenceAxis/Angle shape as Revolution, but cuts from the base feature
+  // instead of fusing. Previously absent from the whitelist it silently fell
+  // to preservedOnly (26 objects in Mannequin_mp alone).
+  'PartDesign::Groove',
   'PartDesign::LinearPattern',
   'PartDesign::PolarPattern',
   'PartDesign::Fillet',
@@ -970,7 +975,14 @@ export function translateObject(
     case 'PartDesign::Revolution': {
       const profile = profileLink(obj);
       const profileVar = profile ? inputVar(profile) : undefined;
-      if (!profileVar) return { kind: 'baked', reason: 'revolution-missing-profile' };
+      if (!profileVar) {
+        // P2-1 (2026-09-24, Mannequin_mp): a `revolution-missing-profile`
+        // cascade lie — 13 Revolutions had a VALID Profile link (e.g.
+        // Revolution033 → Sketch061) whose target sketch was baked upstream
+        // (unsupported-geometry), so inputVar resolved undefined. Distinguish
+        // "no link at all" from "link exists but upstream not translated".
+        return { kind: 'baked', reason: profile ? `revolution-profile-baked-upstream:${profile}` : 'revolution-missing-profile' };
+      }
       const angleDeg = propNum(obj, 'Angle') ?? 360;
       const angle = (angleDeg * Math.PI) / 180;
       const axisInfo = parseReferenceAxis(propStr(obj, 'ReferenceAxis'));
@@ -981,6 +993,36 @@ export function translateObject(
           out, op: 'cad.revolve', source: obj.name, inputs: [profileVar],
           params: { axis: axisInfo.axis, at: axisInfo.at, angle },
         }],
+      };
+    }
+    case 'PartDesign::Groove': {
+      // P2-2 (2026-09-24): Groove = Revolution + subtract — revolve the
+      // profile around the axis, then cut it from the base feature. Same
+      // Profile/ReferenceAxis/Angle serialization as Revolution.
+      const grooveProfile = profileLink(obj);
+      const grooveProfileVar = grooveProfile ? inputVar(grooveProfile) : undefined;
+      if (!grooveProfileVar) {
+        return {
+          kind: 'baked',
+          reason: grooveProfile ? `groove-profile-baked-upstream:${grooveProfile}` : 'groove-missing-profile',
+        };
+      }
+      const baseVar = inputVar(propLink(obj, 'BaseFeature') ?? '');
+      if (!baseVar) return { kind: 'baked', reason: 'groove-missing-base' };
+      const gAngleDeg = propNum(obj, 'Angle') ?? 360;
+      const gAngle = (gAngleDeg * Math.PI) / 180;
+      const gAxis = parseReferenceAxis(propStr(obj, 'ReferenceAxis'));
+      if (!gAxis) return { kind: 'baked', reason: 'groove-edge-axis-unsupported' };
+      const grooveVar = `${out}_groove`;
+      return {
+        kind: 'translated',
+        calls: [
+          {
+            out: grooveVar, op: 'cad.revolve', source: obj.name, inputs: [grooveProfileVar],
+            params: { axis: gAxis.axis, at: gAxis.at, angle: gAngle },
+          },
+          { out, op: 'cad.subtract', source: obj.name, inputs: [baseVar, grooveVar], params: {} },
+        ],
       };
     }
     case 'PartDesign::LinearPattern': {
