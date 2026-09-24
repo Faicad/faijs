@@ -16,6 +16,7 @@
 import * as THREE from 'three'
 import type { BrepHandle, BrepMeshResult } from './engine/types'
 import type { BrepEngineApi } from './engine/primitives'
+import { getOcctKernel } from '../occt-kernel/occtKernel'
 import type { Shape, Vec3 } from '../mesh/types'
 import type { BrepChainState } from './brep-chain'
 import type { PartName } from '../identity'
@@ -588,7 +589,7 @@ export function extrudeBrep(
   kernel.release(centeredRect)
 
   // 获取截面边
-  const sectionEdges = kernel.section(solid, planeFace)
+  const sectionEdges = getOcctKernel().section(solid, planeFace)
   kernel.release(planeFace)
 
   // 4. 构建截面 wire → face → 拉伸

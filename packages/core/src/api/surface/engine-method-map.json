@@ -1,0 +1,1033 @@
+{
+  "_comment": "Engine method map — 唯一真源（D10-3）。生成器：packages/core/scripts/gen-engine-method-map.ts；人工映射表内置于该脚本（禁止字符串归一化自动匹配）。status: aligned|dialect → L1 核心面；occt-only|brepkit-only → L2 平台面；need-probe → 待探针（§3.7 失败降级 brepkit-only）。",
+  "_occtKernelMethodCount": 201,
+  "_brepkitSurfaceMethodCount": 228,
+  "methods": [
+    {
+      "core": "release",
+      "occt": "release",
+      "brepkit": null,
+      "status": "dialect",
+      "note": "brepkit GC 型，适配器 no-op"
+    },
+    {
+      "core": "dispose",
+      "occt": null,
+      "brepkit": null,
+      "status": "dialect",
+      "note": "引擎级释放；两侧皆无原生名——适配器内部语义（brepkit GC no-op）"
+    },
+    {
+      "core": "makeBox",
+      "occt": "makeBox",
+      "brepkit": "makeBox",
+      "status": "aligned"
+    },
+    {
+      "core": "makeBoxFromCorners",
+      "occt": "makeBoxFromCorners",
+      "brepkit": "makeBox",
+      "status": "dialect",
+      "note": "brepkit 适配器按角点算 dims"
+    },
+    {
+      "core": "makeCylinder",
+      "occt": "makeCylinder",
+      "brepkit": "makeCylinder",
+      "status": "aligned"
+    },
+    {
+      "core": "makeSphere",
+      "occt": "makeSphere",
+      "brepkit": "makeSphere",
+      "status": "dialect",
+      "note": "brepkit 多 segments 参数（适配器固定 32）"
+    },
+    {
+      "core": "makeCone",
+      "occt": "makeCone",
+      "brepkit": "makeCone",
+      "status": "dialect",
+      "note": "brepkit 命名 bottom/top_radius，语义同"
+    },
+    {
+      "core": "makeRectangle",
+      "occt": "makeRectangle",
+      "brepkit": "makeRectangle",
+      "status": "aligned",
+      "note": "brepkit wasm 已有，适配器待接线（补齐清单）"
+    },
+    {
+      "core": "makeEllipsoid",
+      "occt": "makeEllipsoid",
+      "brepkit": "makeEllipsoid",
+      "status": "aligned"
+    },
+    {
+      "core": "makeTorus",
+      "occt": "makeTorus",
+      "brepkit": "makeTorus",
+      "status": "dialect",
+      "note": "brepkit 多 segments（适配器固定 64）"
+    },
+    {
+      "core": "makeVertex",
+      "occt": "makeVertex",
+      "brepkit": "makeVertex",
+      "status": "aligned"
+    },
+    {
+      "core": "extrude",
+      "occt": "extrude",
+      "brepkit": "extrude",
+      "status": "dialect",
+      "note": "occt 向量分量 vs brepkit 方向+距离且只吃 face；适配器归一 + face 断言（§3.6-1）"
+    },
+    {
+      "core": "loft",
+      "occt": "loft",
+      "brepkit": null,
+      "status": "occt-only",
+      "platform": "occt",
+      "note": "brepkit loft 吃 faces 非 wires，工具形态不同 → L2"
+    },
+    {
+      "core": "loftAdvanced",
+      "occt": null,
+      "brepkit": null,
+      "status": "occt-only",
+      "platform": "occt",
+      "note": "occt 适配器组合实现（原生 loft + options）"
+    },
+    {
+      "core": "revolveVec",
+      "occt": "revolve",
+      "brepkit": "revolve",
+      "status": "dialect",
+      "note": "occt 原生 revolve 吃对象参数（适配器组合名 revolveVec）；brepkit 只吃 face → 适配器 face 断言"
+    },
+    {
+      "core": "simplePipe",
+      "occt": "simplePipe",
+      "brepkit": "pipe",
+      "status": "occt-only",
+      "platform": "occt",
+      "note": "brepkit pipe 吃 NURBS 路径，输入形态不同 → L2"
+    },
+    {
+      "core": "sweepPipeShell",
+      "occt": "sweepPipeShell",
+      "brepkit": null,
+      "status": "occt-only",
+      "platform": "occt"
+    },
+    {
+      "core": "sew",
+      "occt": "sew",
+      "brepkit": "sewFaces",
+      "status": "dialect",
+      "note": "brepkit wasm 已有，适配器待接线"
+    },
+    {
+      "core": "sewAndSolidify",
+      "occt": "sewAndSolidify",
+      "brepkit": "sewFaces",
+      "status": "dialect",
+      "note": "brepkit 适配器 sewFaces+makeSolid 组合"
+    },
+    {
+      "core": "shell",
+      "occt": "shell",
+      "brepkit": "shell",
+      "status": "dialect",
+      "note": "brepkit 参数序（thickness, open_faces）不同"
+    },
+    {
+      "core": "simplify",
+      "occt": "simplify",
+      "brepkit": null,
+      "status": "occt-only",
+      "platform": "occt"
+    },
+    {
+      "core": "hullFromPoints",
+      "occt": null,
+      "brepkit": "convexHull",
+      "status": "dialect",
+      "note": "occt 适配器组合实现；brepkit wasm 已有，适配器待接线"
+    },
+    {
+      "core": "fuse",
+      "occt": "fuse",
+      "brepkit": "fuse",
+      "status": "aligned"
+    },
+    {
+      "core": "cut",
+      "occt": "cut",
+      "brepkit": "cut",
+      "status": "aligned"
+    },
+    {
+      "core": "common",
+      "occt": "common",
+      "brepkit": null,
+      "status": "dialect",
+      "note": "brepkit 适配器组合实现（经 intersect 面覆盖同语义）"
+    },
+    {
+      "core": "intersect",
+      "occt": "intersect",
+      "brepkit": "intersect",
+      "status": "aligned"
+    },
+    {
+      "core": "fuseAll",
+      "occt": "fuseAll",
+      "brepkit": "fuseAll",
+      "status": "aligned"
+    },
+    {
+      "core": "section",
+      "occt": "section",
+      "brepkit": "section",
+      "status": "occt-only",
+      "platform": "occt",
+      "note": "⚠️ 同名不同义：occt=形状工具求交线，brepkit=平面切实体（§3.6-2）→ 拆名，section 留 occt L2"
+    },
+    {
+      "core": "sectionByPlane",
+      "occt": null,
+      "brepkit": "section",
+      "status": "dialect",
+      "note": "PROBE A（phase1-semantic-probes.test.ts 实测）：occt 侧平面 face 作 tool 经 section 可达 → 进 L1；occt 适配器组合实现"
+    },
+    {
+      "core": "split",
+      "occt": "split",
+      "brepkit": "split",
+      "status": "occt-only",
+      "platform": "occt",
+      "note": "⚠️ 同名不同义：occt=BOPAlgo_Splitter 工具分割，brepkit=平面二分 → 拆名"
+    },
+    {
+      "core": "splitByPlane",
+      "occt": null,
+      "brepkit": "split",
+      "status": "dialect",
+      "note": "PROBE A（phase1-semantic-probes.test.ts 实测，solidCount=2）：occt 侧平面 face 作 tool 经 splitter 可达 → 进 L1；occt 适配器组合实现"
+    },
+    {
+      "core": "chamfer",
+      "occt": "chamfer",
+      "brepkit": "chamfer",
+      "status": "aligned"
+    },
+    {
+      "core": "chamferDistAngle",
+      "occt": "chamferDistAngle",
+      "brepkit": "chamferDistanceAngle",
+      "status": "dialect",
+      "note": "归一化漏网例子；单位/正负口径接线时逐项核对"
+    },
+    {
+      "core": "chamferWithHistory",
+      "occt": "chamferWithHistory",
+      "brepkit": null,
+      "status": "occt-only",
+      "platform": "occt",
+      "note": "brepkit 无 chamfer 演化 API → L2"
+    },
+    {
+      "core": "fillet",
+      "occt": "fillet",
+      "brepkit": "fillet",
+      "status": "aligned"
+    },
+    {
+      "core": "filletVariable",
+      "occt": "filletVariable",
+      "brepkit": "filletVariable",
+      "status": "dialect",
+      "note": "brepkit 吃 json 描述"
+    },
+    {
+      "core": "filletWithHistory",
+      "occt": "filletWithHistory",
+      "brepkit": "filletWithEvolution",
+      "status": "dialect"
+    },
+    {
+      "core": "translate",
+      "occt": "translate",
+      "brepkit": "transformSolid",
+      "status": "dialect"
+    },
+    {
+      "core": "scale",
+      "occt": "scale",
+      "brepkit": "transformSolid",
+      "status": "dialect"
+    },
+    {
+      "core": "transform",
+      "occt": "transform",
+      "brepkit": "transformSolid",
+      "status": "dialect",
+      "note": "brepkit 4×4 行主序 16 元素，toKernelMatrix 唯一转换点"
+    },
+    {
+      "core": "located",
+      "occt": "located",
+      "brepkit": "transformSolid",
+      "status": "dialect",
+      "note": "brepkit 适配器 copy+transform 组合"
+    },
+    {
+      "core": "locate",
+      "occt": "located",
+      "brepkit": "transformSolid",
+      "status": "dialect",
+      "note": "occt 原生 located；brepkit 适配器 copy+transform 组合"
+    },
+    {
+      "core": "generalTransform",
+      "occt": "generalTransform",
+      "brepkit": "transformSolid",
+      "status": "dialect"
+    },
+    {
+      "core": "generalTransformNonOrthogonal",
+      "occt": null,
+      "brepkit": null,
+      "status": "occt-only",
+      "platform": "occt",
+      "note": "occt 适配器组合实现"
+    },
+    {
+      "core": "copy",
+      "occt": "copy",
+      "brepkit": "copySolid",
+      "status": "dialect"
+    },
+    {
+      "core": "copyShape",
+      "occt": "copy",
+      "brepkit": "copySolid",
+      "status": "dialect"
+    },
+    {
+      "core": "composeTransform",
+      "occt": "composeTransform",
+      "brepkit": "composeTransforms",
+      "status": "dialect",
+      "note": "brepkit wasm 已有，适配器待接线"
+    },
+    {
+      "core": "mirror",
+      "occt": "mirror",
+      "brepkit": "mirror",
+      "status": "aligned"
+    },
+    {
+      "core": "downcast",
+      "occt": "downcast",
+      "brepkit": null,
+      "status": "occt-only",
+      "platform": "occt"
+    },
+    {
+      "core": "linearPattern",
+      "occt": "linearPattern",
+      "brepkit": "linearPattern",
+      "status": "dialect",
+      "note": "occt 返回 compound 由适配器拆数组"
+    },
+    {
+      "core": "circularPattern",
+      "occt": "circularPattern",
+      "brepkit": "circularPattern",
+      "status": "dialect",
+      "note": "brepkit 无 angleStep/center 参数（ax 均分）——接线时核对口径"
+    },
+    {
+      "core": "gridPattern",
+      "occt": null,
+      "brepkit": "gridPattern",
+      "status": "dialect",
+      "note": "occt 适配器组合实现（linearPattern 组合）；brepkit wasm 原生"
+    },
+    {
+      "core": "makeLineEdge",
+      "occt": "makeLineEdge",
+      "brepkit": "makeLineEdge",
+      "status": "aligned"
+    },
+    {
+      "core": "makeArcEdge",
+      "occt": "makeArcEdge",
+      "brepkit": "makeCircleArc3d",
+      "status": "dialect",
+      "note": "brepkit 是圆弧(start,end,center,axis)；适配器由 3 点算 center/axis"
+    },
+    {
+      "core": "makeBezierEdge",
+      "occt": "makeBezierEdge",
+      "brepkit": "makeNurbsEdge",
+      "status": "dialect",
+      "note": "brepkit 适配器降为 degree=n-1 NURBS、uniform knots、weights=1"
+    },
+    {
+      "core": "makeWire",
+      "occt": "makeWire",
+      "brepkit": "makeWire",
+      "status": "dialect",
+      "note": "brepkit 多 closed 参数"
+    },
+    {
+      "core": "makeWireFromMixed",
+      "occt": null,
+      "brepkit": null,
+      "status": "occt-only",
+      "platform": "occt",
+      "note": "occt 适配器组合实现"
+    },
+    {
+      "core": "makeFace",
+      "occt": "makeFace",
+      "brepkit": "makeFaceFromWire",
+      "status": "dialect"
+    },
+    {
+      "core": "makeCompound",
+      "occt": "makeCompound",
+      "brepkit": "makeCompound",
+      "status": "aligned"
+    },
+    {
+      "core": "addHolesInFace",
+      "occt": "addHolesInFace",
+      "brepkit": "addHolesToFace",
+      "status": "dialect"
+    },
+    {
+      "core": "buildTriFace",
+      "occt": "buildTriFace",
+      "brepkit": "makePolygon",
+      "status": "dialect",
+      "note": "brepkit 适配器 makePolygon+makePlanarFaceFromWire 组合，待接线"
+    },
+    {
+      "core": "makeCircleEdge",
+      "occt": "makeCircleEdge",
+      "brepkit": "makeCircleEdge",
+      "status": "dialect",
+      "note": "签名形态不同（occt 3 点 vs brepkit 圆心+法向+半径），接线时对齐口径"
+    },
+    {
+      "core": "meshShape",
+      "occt": "meshShape",
+      "brepkit": "tessellateSolid",
+      "status": "dialect"
+    },
+    {
+      "core": "wireframe",
+      "occt": "wireframe",
+      "brepkit": "meshEdges",
+      "status": "dialect",
+      "note": "brepkit 适配器 meshEdges 组合面"
+    },
+    {
+      "core": "getSubShapes",
+      "occt": "getSubShapes",
+      "brepkit": "getSolidFaces",
+      "status": "dialect",
+      "note": "brepkit 按 type 分派 getSolidFaces/getWireEdges/getCompoundSolids 等"
+    },
+    {
+      "core": "subShapeHashes",
+      "occt": "subShapeHashes",
+      "brepkit": null,
+      "status": "dialect",
+      "note": "brepkit 适配器组合实现（现有）"
+    },
+    {
+      "core": "hashCode",
+      "occt": "hashCode",
+      "brepkit": null,
+      "status": "dialect",
+      "note": "brepkit 适配器组合实现（现有）"
+    },
+    {
+      "core": "isSame",
+      "occt": "isSame",
+      "brepkit": null,
+      "status": "dialect",
+      "note": "brepkit 适配器指针相等比较"
+    },
+    {
+      "core": "isSolid",
+      "occt": "isSolid",
+      "brepkit": "getSolidShells",
+      "status": "dialect"
+    },
+    {
+      "core": "shapeOrientation",
+      "occt": "shapeOrientation",
+      "brepkit": "getShapeOrientation",
+      "status": "dialect"
+    },
+    {
+      "core": "shapeType",
+      "occt": "getShapeType",
+      "brepkit": null,
+      "status": "occt-only",
+      "platform": "occt"
+    },
+    {
+      "core": "isNull",
+      "occt": "isNull",
+      "brepkit": null,
+      "status": "occt-only",
+      "platform": "occt"
+    },
+    {
+      "core": "iterShapes",
+      "occt": "iterShapes",
+      "brepkit": null,
+      "status": "occt-only",
+      "platform": "occt"
+    },
+    {
+      "core": "queryBatch",
+      "occt": "queryBatch",
+      "brepkit": null,
+      "status": "occt-only",
+      "platform": "occt",
+      "note": "§2.3：生产路径零调用，仅测试用"
+    },
+    {
+      "core": "edgeToFaceMap",
+      "occt": "edgeToFaceMap",
+      "brepkit": "edgeToFaceMap",
+      "status": "dialect"
+    },
+    {
+      "core": "adjacentFaces",
+      "occt": "adjacentFaces",
+      "brepkit": "adjacentFaces",
+      "status": "dialect"
+    },
+    {
+      "core": "sharedEdges",
+      "occt": "sharedEdges",
+      "brepkit": "sharedEdges",
+      "status": "dialect"
+    },
+    {
+      "core": "curveType",
+      "occt": "curveType",
+      "brepkit": "getEdgeCurveType",
+      "status": "dialect"
+    },
+    {
+      "core": "curvePointAtParam",
+      "occt": "curvePointAtParam",
+      "brepkit": "evaluateEdgeCurve",
+      "status": "dialect"
+    },
+    {
+      "core": "curveTangent",
+      "occt": "curveTangent",
+      "brepkit": "evaluateEdgeCurveD1",
+      "status": "dialect"
+    },
+    {
+      "core": "curveParameters",
+      "occt": "curveParameters",
+      "brepkit": "getEdgeCurveParameters",
+      "status": "dialect"
+    },
+    {
+      "core": "curveIsClosed",
+      "occt": "curveIsClosed",
+      "brepkit": "isWireClosed",
+      "status": "dialect"
+    },
+    {
+      "core": "curveLength",
+      "occt": "curveLength",
+      "brepkit": "edgeLength",
+      "status": "dialect"
+    },
+    {
+      "core": "surfaceType",
+      "occt": "surfaceType",
+      "brepkit": "getSurfaceType",
+      "status": "dialect"
+    },
+    {
+      "core": "surfaceNormal",
+      "occt": "surfaceNormal",
+      "brepkit": "getFaceNormal",
+      "status": "dialect"
+    },
+    {
+      "core": "pointOnSurface",
+      "occt": "pointOnSurface",
+      "brepkit": "evaluateSurface",
+      "status": "dialect"
+    },
+    {
+      "core": "uvBounds",
+      "occt": "uvBounds",
+      "brepkit": "getSurfaceDomain",
+      "status": "dialect"
+    },
+    {
+      "core": "surfaceCenterOfMass",
+      "occt": "getSurfaceCenterOfMass",
+      "brepkit": null,
+      "status": "dialect",
+      "note": "brepkit 适配器组合实现"
+    },
+    {
+      "core": "getFaceCylinderData",
+      "occt": "getFaceCylinderData",
+      "brepkit": "getAnalyticSurfaceParams",
+      "status": "dialect"
+    },
+    {
+      "core": "getNurbsCurveData",
+      "occt": "getNurbsCurveData",
+      "brepkit": "getEdgeNurbsData",
+      "status": "dialect"
+    },
+    {
+      "core": "interpolatePoints",
+      "occt": "interpolatePoints",
+      "brepkit": "interpolatePoints",
+      "status": "dialect"
+    },
+    {
+      "core": "liftCurve2dToPlane",
+      "occt": "liftCurve2dToPlane",
+      "brepkit": null,
+      "status": "occt-only",
+      "platform": "occt",
+      "note": "brepkit 原生吃 curve_type/curve_params（显式 2D 曲线参数），无法从 edge 句柄提取 → 不可对齐，降为 occt L2"
+    },
+    {
+      "core": "defeature",
+      "occt": "defeature",
+      "brepkit": "defeature",
+      "status": "dialect"
+    },
+    {
+      "core": "draft",
+      "occt": "draft",
+      "brepkit": "draft",
+      "status": "dialect"
+    },
+    {
+      "core": "removeHolesFromFace",
+      "occt": "removeHolesFromFace",
+      "brepkit": "removeHolesFromFace",
+      "status": "dialect"
+    },
+    {
+      "core": "reverseShape",
+      "occt": "reverseShape",
+      "brepkit": "reverseShape",
+      "status": "dialect"
+    },
+    {
+      "core": "projectEdges",
+      "occt": "projectEdges",
+      "brepkit": "projectEdges",
+      "status": "dialect"
+    },
+    {
+      "core": "getBoundingBox",
+      "occt": "getBoundingBox",
+      "brepkit": "boundingBox",
+      "status": "dialect"
+    },
+    {
+      "core": "getVolume",
+      "occt": "getVolume",
+      "brepkit": "volume",
+      "status": "dialect"
+    },
+    {
+      "core": "getCenterOfMass",
+      "occt": "getCenterOfMass",
+      "brepkit": "centerOfMass",
+      "status": "dialect"
+    },
+    {
+      "core": "getSurfaceArea",
+      "occt": "getSurfaceArea",
+      "brepkit": "surfaceArea",
+      "status": "dialect",
+      "note": "Phase 4 补齐 brepkit 接线（D6：面积进 L1）"
+    },
+    {
+      "core": "getLength",
+      "occt": "getLength",
+      "brepkit": "wireLength",
+      "status": "dialect",
+      "note": "Phase 4 补齐；wire/edge 入参差异适配器判别（D6）"
+    },
+    {
+      "core": "getLinearCenterOfMass",
+      "occt": "getLinearCenterOfMass",
+      "brepkit": null,
+      "status": "occt-only",
+      "platform": "occt",
+      "note": "D6：单方语义 → L2，不进能力名空间"
+    },
+    {
+      "core": "getInertia",
+      "occt": "getInertia",
+      "brepkit": null,
+      "status": "occt-only",
+      "platform": "occt",
+      "note": "D6 → L2"
+    },
+    {
+      "core": "distanceBetween",
+      "occt": "distanceBetween",
+      "brepkit": "solidToSolidDistance",
+      "status": "occt-only",
+      "platform": "occt",
+      "note": "D6：语义不完全对齐（brepkit 分 pointToFace/solidToSolid 多个），先留双方 L2"
+    },
+    {
+      "core": "surfaceCurvature",
+      "occt": "surfaceCurvature",
+      "brepkit": "measureCurvatureAtSurface",
+      "status": "occt-only",
+      "platform": "occt",
+      "note": "D6：先留 L2（brepkit 有 measureCurvatureAtSurface，将来可拉回）"
+    },
+    {
+      "core": "isValid",
+      "occt": "isValid",
+      "brepkit": "validateSolid",
+      "status": "dialect",
+      "note": "brepkit wasm 已有，适配器待接线"
+    },
+    {
+      "core": "unifySameDomain",
+      "occt": "unifySameDomain",
+      "brepkit": "unifyFaces",
+      "status": "dialect",
+      "note": "brepkit wasm 已有，适配器待接线（现为恒等返回）"
+    },
+    {
+      "core": "healSolid",
+      "occt": "healSolid",
+      "brepkit": "healSolid",
+      "status": "aligned"
+    },
+    {
+      "core": "fixShape",
+      "occt": "fixShape",
+      "brepkit": "healSolid",
+      "status": "dialect",
+      "note": "brepkit 用 healSolid 近似（现有）"
+    },
+    {
+      "core": "fixFaceOrientations",
+      "occt": "fixFaceOrientations",
+      "brepkit": "fixFaceOrientations",
+      "status": "aligned"
+    },
+    {
+      "core": "removeDegenerateEdges",
+      "occt": "removeDegenerateEdges",
+      "brepkit": "removeDegenerateEdges",
+      "status": "dialect",
+      "note": "brepkit wasm 已有，适配器待接线"
+    },
+    {
+      "core": "healFace",
+      "occt": "healFace",
+      "brepkit": null,
+      "status": "occt-only",
+      "platform": "occt"
+    },
+    {
+      "core": "healWire",
+      "occt": "healWire",
+      "brepkit": null,
+      "status": "occt-only",
+      "platform": "occt"
+    },
+    {
+      "core": "fixSelfIntersection",
+      "occt": null,
+      "brepkit": null,
+      "status": "occt-only",
+      "platform": "occt",
+      "note": "occt 适配器组合实现"
+    },
+    {
+      "core": "importStep",
+      "occt": "importStep",
+      "brepkit": "importStep",
+      "status": "dialect",
+      "note": "brepkit 吃 bytes 返回多句柄"
+    },
+    {
+      "core": "exportStep",
+      "occt": "exportStep",
+      "brepkit": "exportStep",
+      "status": "dialect",
+      "note": "brepkit 返回 bytes"
+    },
+    {
+      "core": "importStl",
+      "occt": "importStl",
+      "brepkit": "importStl",
+      "status": "dialect",
+      "note": "brepkit wasm 已有，适配器待接线"
+    },
+    {
+      "core": "fromBREP",
+      "occt": "fromBREP",
+      "brepkit": "fromBREP",
+      "status": "aligned"
+    },
+    {
+      "core": "cutWithHistory",
+      "occt": "cutWithHistory",
+      "brepkit": "cutWithEvolution",
+      "status": "dialect"
+    },
+    {
+      "core": "fuseWithHistory",
+      "occt": "fuseWithHistory",
+      "brepkit": "fuseWithEvolution",
+      "status": "dialect"
+    },
+    {
+      "core": "intersectWithHistory",
+      "occt": "intersectWithHistory",
+      "brepkit": "intersectWithEvolution",
+      "status": "dialect"
+    },
+    {
+      "core": "translateWithHistory",
+      "occt": "translateWithHistory",
+      "brepkit": null,
+      "status": "occt-only",
+      "platform": "occt"
+    },
+    {
+      "core": "rotateWithHistory",
+      "occt": "rotateWithHistory",
+      "brepkit": null,
+      "status": "occt-only",
+      "platform": "occt"
+    },
+    {
+      "core": "mirrorWithHistory",
+      "occt": "mirrorWithHistory",
+      "brepkit": null,
+      "status": "occt-only",
+      "platform": "occt"
+    },
+    {
+      "core": "scaleWithHistory",
+      "occt": "scaleWithHistory",
+      "brepkit": null,
+      "status": "occt-only",
+      "platform": "occt"
+    },
+    {
+      "core": "shellWithHistory",
+      "occt": "shellWithHistory",
+      "brepkit": null,
+      "status": "occt-only",
+      "platform": "occt"
+    },
+    {
+      "core": "offsetWithHistory",
+      "occt": "offsetWithHistory",
+      "brepkit": null,
+      "status": "occt-only",
+      "platform": "occt"
+    },
+    {
+      "core": "thickenWithHistory",
+      "occt": "thickenWithHistory",
+      "brepkit": null,
+      "status": "occt-only",
+      "platform": "occt"
+    },
+    {
+      "core": "generalTransformWithHistory",
+      "occt": null,
+      "brepkit": null,
+      "status": "occt-only",
+      "platform": "occt",
+      "note": "occt 适配器组合实现（linear/translation 拆分）"
+    },
+    {
+      "core": "applyComposedTransformWithHistory",
+      "occt": null,
+      "brepkit": null,
+      "status": "occt-only",
+      "platform": "occt",
+      "note": "occt 适配器组合实现"
+    },
+    {
+      "core": "buildExtrusionLaw",
+      "occt": "buildExtrusionLaw",
+      "brepkit": null,
+      "status": "occt-only",
+      "platform": "occt"
+    },
+    {
+      "core": "buildEdgeOnSurface",
+      "occt": null,
+      "brepkit": null,
+      "status": "occt-only",
+      "platform": "occt",
+      "note": "occt 适配器组合实现"
+    },
+    {
+      "core": "makeFaceOnSurface",
+      "occt": "makeFaceOnSurface",
+      "brepkit": null,
+      "status": "occt-only",
+      "platform": "occt"
+    },
+    {
+      "core": "checkpoint",
+      "occt": "checkpoint",
+      "brepkit": "checkpoint",
+      "status": "kernel-only",
+      "note": "内核检查点：纯内核调试能力，不入 L1（双方原生同名，登记备查）"
+    },
+    {
+      "core": "createXCAFDocument",
+      "occt": "createXCAFDocument",
+      "brepkit": null,
+      "status": "occt-only",
+      "platform": "occt"
+    },
+    {
+      "core": "importXCAFFromSTEP",
+      "occt": "importXCAFFromSTEP",
+      "brepkit": null,
+      "status": "occt-only",
+      "platform": "occt"
+    },
+    {
+      "core": "chamfer2d",
+      "occt": null,
+      "brepkit": "chamfer2d",
+      "status": "brepkit-only",
+      "platform": "brepkit",
+      "note": "Q7：草图级能力，occt 由 sketcher 承担"
+    },
+    {
+      "core": "chamferV2",
+      "occt": null,
+      "brepkit": "chamferV2",
+      "status": "brepkit-only",
+      "platform": "brepkit",
+      "note": "Q7：语义未核实"
+    },
+    {
+      "core": "fillet2d",
+      "occt": null,
+      "brepkit": "fillet2d",
+      "status": "brepkit-only",
+      "platform": "brepkit"
+    },
+    {
+      "core": "filletV2",
+      "occt": null,
+      "brepkit": "filletV2",
+      "status": "brepkit-only",
+      "platform": "brepkit"
+    },
+    {
+      "core": "edgeLength",
+      "occt": null,
+      "brepkit": "edgeLength",
+      "status": "brepkit-only",
+      "platform": "brepkit",
+      "note": "L1 有 curveLength（dialect）覆盖此语义"
+    },
+    {
+      "core": "faceArea",
+      "occt": null,
+      "brepkit": "faceArea",
+      "status": "brepkit-only",
+      "platform": "brepkit",
+      "note": "L1 有 getSurfaceArea 覆盖"
+    },
+    {
+      "core": "pointToFaceDistance",
+      "occt": null,
+      "brepkit": "pointToFaceDistance",
+      "status": "brepkit-only",
+      "platform": "brepkit"
+    },
+    {
+      "core": "pointToSolidDistance",
+      "occt": null,
+      "brepkit": "pointToSolidDistance",
+      "status": "brepkit-only",
+      "platform": "brepkit"
+    },
+    {
+      "core": "solidToSolidDistance",
+      "occt": null,
+      "brepkit": "solidToSolidDistance",
+      "status": "brepkit-only",
+      "platform": "brepkit"
+    },
+    {
+      "core": "measureCurvatureAtEdge",
+      "occt": null,
+      "brepkit": "measureCurvatureAtEdge",
+      "status": "brepkit-only",
+      "platform": "brepkit"
+    },
+    {
+      "core": "meshBoolean",
+      "occt": null,
+      "brepkit": "meshBoolean",
+      "status": "brepkit-only",
+      "platform": "brepkit"
+    },
+    {
+      "core": "minkowskiSum",
+      "occt": null,
+      "brepkit": "minkowskiSum",
+      "status": "brepkit-only",
+      "platform": "brepkit"
+    },
+    {
+      "core": "serializeSolid",
+      "occt": null,
+      "brepkit": "serializeSolid",
+      "status": "brepkit-only",
+      "platform": "brepkit"
+    },
+    {
+      "core": "sketchNew",
+      "occt": null,
+      "brepkit": "sketchNew",
+      "status": "brepkit-only",
+      "platform": "brepkit",
+      "note": "brepkit 约束草图族（sketchAdd*/sketchDof/sketchSolve）整体 brepkit-only"
+    }
+  ]
+}

@@ -70,7 +70,7 @@ function extrudeConstructRoles(kernel: BrepEngineApi, solid: BrepHandle): Map<st
       return [n.x, n.y, n.z] as const
     })
     const centers = faceHandles.map((f) => {
-      const c = kernel.getSurfaceCenterOfMass(f)
+      const c = kernel.surfaceCenterOfMass(f)
       return [c.x, c.y, c.z] as const
     })
 

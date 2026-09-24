@@ -14,18 +14,22 @@
 
 import { beforeAll, describe, expect, it } from 'vitest'
 import { configureBackends, CONTRACT_VERSION, type Backends } from '../runtime-state'
-import { initOcctWasm, getKernel } from '../occt-kernel/occtKernel'
+import { initOcctWasm } from '../occt-kernel/occtKernel'
+import { registerOcctBrepEngine } from '../brep/engine/adapters/occt'
+import { __resetEngineRegistriesForTests, getBrepEngine } from '../brep/engine/registry'
 import { box } from './primitives'
 import { place } from './place'
 import type { Shape } from '../mesh/types'
 
 beforeAll(async () => {
   await initOcctWasm()
+  __resetEngineRegistriesForTests()
+  await registerOcctBrepEngine()
 }, 120000)
 
 /** 用真实的 OCCT 内核装配后端（mode 决定走 brep 还是 mesh 链）。 */
-function setBackend(mode: 'mesh' | 'brep'): void {
-  const kernel = getKernel()
+async function setBackend(mode: 'mesh' | 'brep'): Promise<void> {
+  const kernel = (await getBrepEngine()).primitives
   const backends = {
     contractVersion: CONTRACT_VERSION,
     config: { mode, brepCapabilities: undefined },
@@ -80,13 +84,13 @@ const T: [number, number, number] = [5, 0, 0]
 describe('place: brep/mesh quaternion calibration (R-CK)', () => {
   it('mesh and brep backends produce identical placed-box corners', async () => {
     // mesh 后端：构造 box 并放置
-    setBackend('mesh')
+    await setBackend('mesh')
     const bMesh = (await box({ width: 2, depth: 2, height: 2 })) as Shape
     const meshPlaced = (await place(bMesh, { rotation: Q_Z90, position: T })) as Shape
     const meshCorners = bboxCorners(meshPlaced)
 
     // brep 后端：同一几何，仅后端不同
-    setBackend('brep')
+    await setBackend('brep')
     const bBrep = (await box({ width: 2, depth: 2, height: 2 })) as Shape
     const brepPlaced = (await place(bBrep, { rotation: Q_Z90, position: T })) as Shape
     const brepCorners = bboxCorners(brepPlaced)

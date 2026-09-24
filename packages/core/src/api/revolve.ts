@@ -80,7 +80,7 @@ function revolveConstructRoles(
     for (let i = 0; i < faceHandles.length; i++) {
       if (hashes[i] === undefined) continue
       if (isPlaneCap[i]) {
-        const c = kernel.getSurfaceCenterOfMass(faceHandles[i]!)
+        const c = kernel.surfaceCenterOfMass(faceHandles[i]!)
         caps.push({ idx: i, t: c.x * ax[0]! + c.y * ax[1]! + c.z * ax[2]! })
       }
     }

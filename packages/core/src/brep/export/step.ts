@@ -13,6 +13,7 @@
 import type { BrepHandle } from '../engine/types'
 import type { BrepEngineApi } from '../engine/primitives'
 import { reconstructSolidFromMesh } from '../../occt-kernel/meshReconstruct'
+import { getOcctKernel } from '../../occt-kernel/occtKernel'
 
 /** STEP 导出条目：一个 part（精确 BREP 形状或三角网格，二选一）。 */
 export interface StepExportEntry {
@@ -57,7 +58,7 @@ export function exportStepFromSolids(
     throw new Error('No exportable geometry')
   }
 
-  const doc = kernel.createXCAFDocument()
+  const doc = getOcctKernel().createXCAFDocument()
   // 本函数创建的句柄（展平出的子 solid + mesh 重建的 solid），导出后释放。
   // 缓存里的原 solid（entry.solid）绝不释放，归调用方/缓存所有。
   const ownedHandles: BrepHandle[] = []

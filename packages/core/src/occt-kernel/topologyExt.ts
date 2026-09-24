@@ -359,11 +359,11 @@ function getSurfaceParams(kernel: BrepEngineApi, face: BrepHandle): Record<strin
     }
   } else if (surfaceType === 'sphere') {
     // Python: sphere.Location() = center
-    const center = kernel.getSurfaceCenterOfMass(face)
+    const center = kernel.surfaceCenterOfMass(face)
     params.center = roundPoint(vec3ToArray(center))
   } else if (surfaceType === 'torus') {
     // Python: torus.Location() = center on axis
-    const center = kernel.getSurfaceCenterOfMass(face)
+    const center = kernel.surfaceCenterOfMass(face)
     params.center = roundPoint(vec3ToArray(center))
     const gn = geometricNormal(kernel, face, uMin, vMin)
     if (gn) params.axis = roundPoint(gn)

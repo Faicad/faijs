@@ -116,7 +116,7 @@ export function captureFaceHint(kernel: BrepEngineApi, face: BrepHandle): FaceHi
   const u = (uv.uMin + uv.uMax) / 2
   const v = (uv.vMin + uv.vMax) / 2
   const normal = kernel.surfaceNormal(face, u, v)
-  const center = kernel.getSurfaceCenterOfMass(face)
+  const center = kernel.surfaceCenterOfMass(face)
   // P0 装配前置：圆柱面采集轴 hint（其余面类型缺省——平面用 center+normal 即可）
   const axis = surfaceType === 'cylinder' ? captureCylinderFaceAxis(kernel, face) : undefined
   return {

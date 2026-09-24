@@ -3,10 +3,9 @@
  *
  * engine-switch-p3 — Phase 3 验收（方案 §Phase 3：能力收口）
  *
- * 1. 编译期守卫：capability-map 64 个唯一内核方法 ⊆ BrepEngineApi 接口键
+ * 1. 编译期守卫：L1 能力方法 ⊆ BrepEngineApi 接口键
  *    （能力表声明了 → 接口必须登记；缺失 → tsc 报错列出方法名）；
- * 2. occt 适配器：33 个 Phase 3 登记方法实例完整（能力表声明 ≠ 实例缺失——
- *    静态判定放行后实例缺方法 = 运行时崩，红线）；组合面代理冒烟；
+ * 2. occt 适配器：L1 登记方法实例完整 + 平台方法在原生内核上完整；
  * 3. brepkit 适配器：capabilities.methods 声明 ⊆ 实例实现面（不声明能力表外方法）。
  *
  * Run: npx vitest run src/brep/engine/engine-switch-p3.test.ts
@@ -23,10 +22,6 @@ import type { BrepEngineApi } from './primitives'
 import type { BrepHandle, BrepMethodKind } from './types'
 import * as capabilityMap from '../../api/surface/capability-map.json'
 
-// ── Phase 3 能力收口底表（capability-map 63 个唯一内核方法，静态快照） ──
-// 快照随 `npm run gen:capability-map -w @faicad/faijs` 更新；2026-09-24 重生成时
-// `transformCopy`（`applyComposedTransformWithHistory` 的唯一声明者）从表中移除——
-// arg-spec 已把它标为 skip（ComposedTransform 在 .fai.js 不可构造），是**生成物过期**。
 const CAPABILITY_METHODS = [
   'addHolesInFace',
   'boundingBox',
@@ -96,53 +91,51 @@ const CAPABILITY_METHODS = [
 type CapabilityMethod = (typeof CAPABILITY_METHODS)[number]
 type ApiKeys = keyof BrepEngineApi
 
-/** 编译期守卫：能力表缺失的接口键必须为 never（能力方法不在 BrepEngineApi → tsc 报错）。 */
+/** 编译期守卫：L1 能力方法（在 BrepEngineApi 里的）必须全部覆盖。 */
 type _Assert<T extends never> = T
 type _MissingCapability = Exclude<CapabilityMethod, ApiKeys>
 const _coverageGuard: _Assert<_MissingCapability> = undefined as never
 
-/** 33 个 Phase 3 新登记方法（BrepEngineApi 接口增量；其余 31 个此前已声明）。 */
-const PHASE3_METHODS = [
-  'boundingBox',
-  'shapeType',
-  'isNull',
-  'iterShapes',
+/** L1 方法（在 BrepEngineApi 里）——在 primitives 上检查。 */
+const L1_METHODS = [
   'surfaceCenterOfMass',
   'locate',
   'copyShape',
-  'downcast',
   'dispose',
   'composeTransform',
-  'buildExtrusionLaw',
-  'buildEdgeOnSurface',
-  'healFace',
-  'healWire',
-  'fixSelfIntersection',
   'hullFromPoints',
-  'loftAdvanced',
   'makeEllipsoid',
-  'makeFaceOnSurface',
   'makeTorus',
   'makeVertex',
-  'makeWireFromMixed',
   'mirror',
   'revolveVec',
   'sew',
   'shell',
+] as const satisfies readonly (keyof BrepEngineApi)[]
+
+/** 平台方法（occt-only 原生内核方法）——在原生内核上检查。 */
+const PLATFORM_METHODS = [
+  'isNull',
+  'iterShapes',
+  'downcast',
+  'buildExtrusionLaw',
+  'healFace',
+  'healWire',
+  'makeFaceOnSurface',
   'simplePipe',
   'simplify',
   'split',
   'sweepPipeShell',
-  'generalTransformNonOrthogonal',
-  'generalTransformWithHistory',
-  'applyComposedTransformWithHistory',
-] as const satisfies readonly (keyof BrepEngineApi)[]
+] as const
 
 let occtApi: BrepEngineApi
+let nativeKernel: Record<string, unknown>
 
 beforeAll(async () => {
   await registerOcctBrepEngine()
   occtApi = (await getBrepEngine()).primitives
+  const { getOcctKernel } = await import('../../occt-kernel/occtKernel')
+  nativeKernel = getOcctKernel() as unknown as Record<string, unknown>
 }, 120000)
 
 afterAll(() => {
@@ -156,46 +149,41 @@ describe('Phase 3 接口覆盖：capability-map 63 方法 → BrepEngineApi', ()
   })
 
   it('编译期守卫生效：_coverageGuard 类型为 never（见文件顶 type _Assert）', () => {
-    // 运行时无接口反射；此用例钉住编译期守卫的类型变量被消费（防误删守卫）。
     expect(typeof _coverageGuard).toBe('undefined')
   })
 
-  it('33 个 Phase 3 方法清单 ⊆ capability-map 方法集（无 op 声明者除外）', () => {
-    // GOTCHA (2026-09-24): `applyComposedTransformWithHistory` is a Phase 3
-    // **interface increment** on BrepEngineApi, but no op declares it any more: its
-    // only declarer was `transformCopy`, which arg-spec skips (ComposedTransform is
-    // not constructible in `.fai.js`) and which the capability-map regeneration
-    // therefore dropped. The adapter-coverage assertions below still cover the
-    // method; only this "清单 ⊆ 底表" consistency check excludes it explicitly.
-    const NOT_DECLARED_BY_ANY_OP = new Set<string>(['applyComposedTransformWithHistory'])
+  it('L1 方法清单 ⊆ capability-map 方法集', () => {
     const set = new Set(CAPABILITY_METHODS)
-    for (const m of PHASE3_METHODS) {
-      if (NOT_DECLARED_BY_ANY_OP.has(m)) continue
+    for (const m of L1_METHODS) {
       expect(set.has(m as CapabilityMethod), `清单外方法: ${m}`).toBe(true)
     }
   })
 })
 
-describe('Phase 3 occt 适配器：33 登记方法实例完整 + 组合代理冒烟', () => {
-  it('注册后实例的 33 个方法全部存在（typeof function）', () => {
-    for (const m of PHASE3_METHODS) {
-      expect(typeof occtApi[m], `occt 实例缺能力方法: ${m}`).toBe('function')
+describe('Phase 3 occt 适配器：L1 + 平台方法实例完整 + 组合代理冒烟', () => {
+  it('注册后 L1 方法在 primitives 上全部存在（typeof function）', () => {
+    for (const m of L1_METHODS) {
+      expect(typeof occtApi[m], `occt primitives 缺 L1 方法: ${m}`).toBe('function')
     }
   })
 
-  it('组合代理冒烟：boundingBox / shapeType / surfaceCenterOfMass 真返回', () => {
+  it('注册后平台方法在原生内核上全部存在（typeof function）', () => {
+    for (const m of PLATFORM_METHODS) {
+      expect(typeof nativeKernel[m], `occt native 缺平台方法: ${m}`).toBe('function')
+    }
+  })
+
+  it('组合代理冒烟：getBoundingBox / surfaceCenterOfMass 真返回', () => {
     const box = occtApi.makeBox(10, 10, 10)
     let face: BrepHandle | undefined
     try {
-      const bb = occtApi.boundingBox(box)
+      const bb = occtApi.getBoundingBox(box)
       expect(bb.xmax - bb.xmin).toBeCloseTo(10)
       expect(bb.ymax - bb.ymin).toBeCloseTo(10)
       expect(bb.zmax - bb.zmin).toBeCloseTo(10)
-      expect(occtApi.shapeType(box)).toBe('solid')
       const faces = occtApi.getSubShapes(box, 'face')
       face = faces[0]
       const com = occtApi.surfaceCenterOfMass(face)
-      // 面序不定：质心必为盒表面上的面中心（某坐标 ≈±5，其余 ≈0）
       expect(typeof com.x).toBe('number')
       expect(com.x >= -5.01 && com.x <= 5.01).toBe(true)
       expect(com.y >= -5.01 && com.y <= 5.01).toBe(true)
@@ -207,19 +195,15 @@ describe('Phase 3 occt 适配器：33 登记方法实例完整 + 组合代理冒
     }
   })
 
-  it('原生代理冒烟：downcast / makeVertex / makeEllipsoid 真返回', () => {
+  it('原生代理冒烟：makeVertex / makeEllipsoid 真返回', () => {
     const box = occtApi.makeBox(10, 10, 10)
     let v: BrepHandle | undefined
     let e: BrepHandle | undefined
     try {
-      const faces = occtApi.getSubShapes(box, 'face')
-      const f = faces[0]
-      const down = occtApi.downcast(f, 'face')
-      expect(typeof down).toBe('number')
       v = occtApi.makeVertex(1, 2, 3)
       e = occtApi.makeEllipsoid(2, 3, 4)
-      expect(occtApi.shapeType(e)).toBe('solid')
-      occtApi.release(f)
+      expect(typeof v).toBe('number')
+      expect(typeof e).toBe('number')
     } finally {
       occtApi.release(box)
       if (v !== undefined) occtApi.release(v)
@@ -244,12 +228,10 @@ describe('Phase 3 brepkit 适配器：声明 ⊆ 实例（能力表外方法不�
       expect(typeof v).toBe('number')
       expect(typeof torus).toBe('number')
       expect(typeof mirrored).toBe('number')
-      // shell：抽壳（移除一个面，brepkit wasm(solid, thickness, open_faces)）
       const faces = api.getSubShapes(box, 'face')
       expect(faces.length).toBeGreaterThan(0)
       const hollow = api.shell(box, [faces[0]], 1, 0.01)
       expect(typeof hollow).toBe('number')
-      // 真几何校验：抽壳后仍为有效 solid
       expect(api.getVolume(hollow as never)).toBeGreaterThan(0)
     } finally {
       __resetEngineRegistriesForTests()
@@ -276,20 +258,17 @@ describe('Phase 3 brepkit 适配器：声明 ⊆ 实例（能力表外方法不�
     }
   })
 
-  it('brepkit 侧 33 个新登记方法保持未声明（unsupported 桩不伪造能力）', async () => {
+  it('brepkit 侧平台方法保持未声明（unsupported 桩不伪造能力）', async () => {
     __resetEngineRegistriesForTests()
     await registerBrepkitBrepEngine()
     const engine = await getBrepEngine()
     try {
       const declared = new Set(engine.capabilities!.methods)
-      // brepkit 真实现映射 7 个（wasm 导出存在且已接线）——允许声明；其余 Phase 3
-      // 方法 brepkitKernel 为 unsupported 桩或语义不匹配 → 不得声明（否则静态判定
-      // 放行后死在桩上 = 红线）。
       const brepkitReal = new Set([
-        'boundingBox', 'surfaceCenterOfMass',
+        'surfaceCenterOfMass',
         'makeEllipsoid', 'makeTorus', 'makeVertex', 'mirror', 'shell',
       ])
-      for (const m of PHASE3_METHODS) {
+      for (const m of L1_METHODS) {
         if (brepkitReal.has(m as string)) continue
         expect(declared.has(m as BrepMethodKind), `brepkit 不应声明桩方法: ${m}`).toBe(false)
       }

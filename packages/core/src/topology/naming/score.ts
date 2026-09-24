@@ -47,7 +47,7 @@ function candidateGeometry(
   candidate: FaceCandidate,
 ): { surfaceType?: string; normal?: readonly number[]; center?: readonly number[]; area?: number } {
   if (candidate.handle !== undefined && kernel) {
-    const center = kernel.getSurfaceCenterOfMass(candidate.handle)
+    const center = kernel.surfaceCenterOfMass(candidate.handle)
     const uv = kernel.uvBounds(candidate.handle)
     const u = (uv.uMin + uv.uMax) / 2
     const v = (uv.vMin + uv.vMax) / 2

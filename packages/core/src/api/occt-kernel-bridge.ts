@@ -19,7 +19,6 @@
  */
 
 import { getKernel as getFaijsKernel } from '../occt-kernel/occtKernel'
-import type { OcctKernelOwner } from '../vendored/brepjs/kernel/occtWasm/occtWasmAdapter.js'
 import { getBrepEngine, type BrepEngine } from '../brep/engine/registry'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 import { OcctWasmAdapter } from '../vendored/brepjs/kernel/occtWasm/occtWasmAdapter.js'
@@ -122,7 +121,11 @@ export async function injectCurrentBrepEngineAsKernel(): Promise<KernelAdapter> 
  */
 export function buildKernelAdapter(engine: BrepEngine): KernelAdapter {
   if (engine.id === 'occt') {
-    const faijsKernel = engine.primitives as unknown as OcctKernelOwner
+    // Phase 3 (narrowing plan): engine.primitives is now the L1 adapter object
+    // (createOcctPrimitives), NOT the raw kernel — the old cast lied. The
+    // vendored full adapter needs the raw occt-wasm singleton, which is exactly
+    // what getKernel() returns (process-level singleton, D10 unchanged).
+    const faijsKernel = getFaijsKernel()
     return OcctWasmAdapter.fromKernel(faijsKernel)
   }
   return wrapBrepEngineApi(engine.primitives)

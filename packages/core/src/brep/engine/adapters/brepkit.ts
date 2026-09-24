@@ -43,7 +43,7 @@ export async function registerBrepkitBrepEngine(): Promise<void> {
         'addHolesInFace',
         // Phase 3：brepkitKernel 真实现映射（wasm getBoundingBox/getSurfaceCenterOfMass 导出）——
         // 能力表可声明；其余 31 个 Phase 3 方法为 unsupported 桩 → 不声明（engine-switch-p3 断言）。
-        'boundingBox',
+        'getBoundingBox',
         'surfaceCenterOfMass',
         'curveParameters',
         'curvePointAtParam',

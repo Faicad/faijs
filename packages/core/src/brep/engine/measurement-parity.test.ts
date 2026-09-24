@@ -200,8 +200,9 @@ describe('vendored 测量面：双引擎 parity（BrepEngineApi 已具备的能�
     const box = api.makeBox(20, 10, 5)
     try {
       const h = { wrapped: box }
-      // measureVolumeProps 先调 isNull（measureFns.ts:30），先撞 isNull 白名单拦截。
-      expect(() => measureVolume(h as never)).toThrow(/isNull.*白名单/)
+      // measureVolumeProps 先调 isNull（measureFns.ts:30）；isNull 已从 BrepEngineApi
+      // 移至 occt 平台面，brepkit 侧无此方法 → 运行时抛 "isNull is not a function"。
+      expect(() => measureVolume(h as never)).toThrow(/isNull/)
     } finally {
       api.release(box)
     }

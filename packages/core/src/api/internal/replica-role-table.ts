@@ -56,11 +56,11 @@ export function buildReplicaRoleTable(
     }
   }
   const inputFaces = kernel.getSubShapes(inputSolid, 'face')
-  const inputCentroids = inputFaces.map((f) => kernel.getSurfaceCenterOfMass(f))
+  const inputCentroids = inputFaces.map((f) => kernel.surfaceCenterOfMass(f))
 
   const resultHashes = getFaceHashes(kernel, resultSolid)
   const resultFaces = kernel.getSubShapes(resultSolid, 'face')
-  const resultCentroids = resultFaces.map((f) => kernel.getSurfaceCenterOfMass(f))
+  const resultCentroids = resultFaces.map((f) => kernel.surfaceCenterOfMass(f))
 
   const roleTable = new Map<string, Map<string, number[]>>()
   const inner = new Map<string, number[]>()

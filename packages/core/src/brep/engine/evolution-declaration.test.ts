@@ -26,7 +26,7 @@ import { __resetEngineRegistriesForTests, getBrepEngine } from './registry'
 import { registerBrepMockEngine, BREP_MOCK_ENGINE_ID } from './adapters/brep-mock'
 import { registerOcctBrepEngine, OCCT_BREP_ENGINE_ID } from './adapters/occt'
 import type { BrepEvolutionKind } from './types'
-import type { BrepEngineApi } from './primitives'
+
 
 /** OCCT（occt-wasm@3.8.4）实际提供的 12 个 `*WithHistory`，与 BrepEngineApi 声明一一对应。 */
 const OCCT_EXPECTED: readonly BrepEvolutionKind[] = [
@@ -58,12 +58,15 @@ describe('evolution 声明审计：occt', () => {
     expect([...(engine.capabilities?.evolution ?? [])].sort()).toEqual([...OCCT_EXPECTED].sort())
   })
 
-  it('声明 ⇒ 已绑定：每个声明项在 primitives 上都是函数（欠报防回归）', async () => {
+  it('声明 ⇒ 已绑定：每个声明项在原生内核或 L1 primitives 上都是函数（欠报防回归）', async () => {
     await registerOcctBrepEngine()
     const engine = await getBrepEngine(OCCT_BREP_ENGINE_ID)
-    const api = engine.primitives as unknown as BrepEngineApi
+    const api = engine.primitives as unknown as Record<string, unknown>
+    const { getOcctKernel } = await import('../../occt-kernel/occtKernel')
+    const native = getOcctKernel() as unknown as Record<string, unknown>
     for (const kind of engine.capabilities?.evolution ?? []) {
-      expect(typeof (api as unknown as Record<string, unknown>)[methodOf(kind)]).toBe('function')
+      const holder = typeof api[methodOf(kind)] === 'function' ? api : native
+      expect(typeof holder[methodOf(kind)]).toBe('function')
     }
   })
 })

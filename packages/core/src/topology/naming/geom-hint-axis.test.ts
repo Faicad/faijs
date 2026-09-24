@@ -23,7 +23,7 @@ function cylinderKernel(): BrepEngineApi {
     uvBounds: (): BrepUvBounds => ({ uMin: 0, uMax: Math.PI * 2, vMin: 0, vMax: 20 }),
     pointOnSurface: (_f: unknown, u: number, v: number) => ({ x: 10 * Math.cos(u), y: 10 * Math.sin(u), z: v - 10 }),
     surfaceNormal: (_f: unknown, u: number) => ({ x: Math.cos(u), y: Math.sin(u), z: 0 }),
-    getSurfaceCenterOfMass: () => ({ x: 0, y: 0, z: 0 }),
+    surfaceCenterOfMass: () => ({ x: 0, y: 0, z: 0 }),
     getFaceCylinderData: () => ({ radius: 10 }),
     shapeOrientation: () => 'forward',
   } as unknown as BrepEngineApi
@@ -62,7 +62,7 @@ describe('geom-hint axis capture（P0）', () => {
       uvBounds: (): BrepUvBounds => ({ uMin: 0, uMax: 1, vMin: 0, vMax: 1 }),
       pointOnSurface: () => ({ x: 0, y: 0, z: 0 }),
       surfaceNormal: () => ({ x: 0, y: 0, z: 1 }),
-      getSurfaceCenterOfMass: () => ({ x: 0, y: 0, z: 0 }),
+      surfaceCenterOfMass: () => ({ x: 0, y: 0, z: 0 }),
     } as unknown as BrepEngineApi
     const hint = captureFaceHint(k, H)
     expect(hint.axis).toBeUndefined()

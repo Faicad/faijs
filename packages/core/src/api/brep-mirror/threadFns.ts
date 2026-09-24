@@ -17,6 +17,7 @@
 
 import type { BrepHandle } from '../../brep/engine/types'
 import type { BrepEngineApi } from '../../brep/engine/primitives'
+import { getOcctKernel } from '../../occt-kernel/occtKernel'
 
 /** 螺纹配置参数。单位 mm，角度由螺距推导。 */
 export interface ThreadOptions {
@@ -140,7 +141,7 @@ export function threadBrep(
   }
 
   // Loft
-  const thread = kernel.loft(sections, true, true)
+  const thread = getOcctKernel().loft(sections, true, true)
 
   // 释放中间句柄
   for (const w of sections) kernel.release(w)

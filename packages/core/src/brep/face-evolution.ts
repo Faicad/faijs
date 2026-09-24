@@ -14,6 +14,7 @@
 
 import type { BrepHandle, BrepEvolutionData } from './engine/types'
 import type { BrepEngineApi } from './engine/primitives'
+import { getOcctKernel } from '../occt-kernel/occtKernel'
 
 /** hash 上界（与 occt-wasm kernel.cpp 一致：`% 2147483647`） */
 export const HASH_UPPER_BOUND = 2147483647
@@ -257,7 +258,7 @@ export function translateWithHashEvolution(
   d: readonly [number, number, number],
 ): { result: BrepHandle; evolution: HashEvolution } {
   const inputHashes = getFaceHashes(kernel, shape)
-  const evo = kernel.translateWithHistory(shape, d[0], d[1], d[2], inputHashes, HASH_UPPER_BOUND)
+  const evo = getOcctKernel().translateWithHistory(shape, d[0], d[1], d[2], inputHashes, HASH_UPPER_BOUND)
   return { result: evo.result, evolution: decodeHashEvolution(evo) }
 }
 
@@ -281,7 +282,7 @@ export function scaleWithHashEvolution(
   factor: number,
 ): { result: BrepHandle; evolution: HashEvolution } {
   const inputHashes = getFaceHashes(kernel, shape)
-  const evo = kernel.scaleWithHistory(
+  const evo = getOcctKernel().scaleWithHistory(
     shape,
     { x: center[0], y: center[1], z: center[2] },
     factor,

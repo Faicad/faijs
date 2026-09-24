@@ -21,7 +21,7 @@ import type {
   BrepHandle,
   BrepMeshResult,
   BrepUvBounds,
-  BrepXcafDocument,
+
 } from '../types'
 import type { BrepEngineApi, AssertSatisfiesBrepEngineApi } from '../primitives'
 
@@ -97,16 +97,6 @@ export function createBrepMockApi(): BrepEngineApi {
     zmax: Math.max(a.zmax, b.zmax),
   })
 
-  const mockXcafDocument = (): BrepXcafDocument => ({
-    addShape: () => undefined,
-    exportSTEP: () => mockStepExport(),
-    close: () => undefined,
-  })
-
-  const mockStepExport = (): string =>
-    'brep-mock-engine STEP (mock)\n' +
-    '// Not real STEP — marker of the in-memory mock BREP engine, for engine-switch tests only.\n' +
-    'FILE_DESCRIPTION(("brep-mock-engine"), "2;1");'
 
   const primitive = (
     kind: MemShape['kind'],
@@ -133,7 +123,11 @@ export function createBrepMockApi(): BrepEngineApi {
       const s = need(shape, 'extrude')
       return alloc({ kind: 'solid', bbox: { ...s.bbox, xmax: s.bbox.xmax + dx, ymax: s.bbox.ymax + dy, zmax: s.bbox.zmax + dz }, tag: `extrude(${s.tag})` })
     },
-    loft: () => unsupported('loft'),
+    revolveVec: () => unsupported('revolveVec'),
+    sew: () => unsupported('sew'),
+    sewAndSolidify: () => alloc({ kind: 'solid', bbox: bboxOf('solid', [1, 1, 1]), tag: 'sewAndSolidify' }),
+    shell: () => unsupported('shell'),
+    hullFromPoints: () => unsupported('hullFromPoints'),
 
     // ── 倒角与圆角（mock：只重打标签/复制，不做真几何；引擎切换测试覆盖签名面） ──
     chamfer: (solid, edges, distance) => {
@@ -158,12 +152,6 @@ export function createBrepMockApi(): BrepEngineApi {
       const evo: BrepEvolutionData = { result, modified: [], generated: [], deleted: [] }
       return evo
     },
-    chamferWithHistory: (solid, edges, distance, _hashes, _upper) => {
-      const s = need(solid, 'chamferWithHistory')
-      const result = alloc({ kind: 'solid', bbox: { ...s.bbox }, tag: `chamferWH(${s.tag},d=${distance},e=${edges.length})` })
-      const evo: BrepEvolutionData = { result, modified: [], generated: [], deleted: [] }
-      return evo
-    },
 
     // ── 布尔与分割 ──
     fuse: (a, b) => {
@@ -185,7 +173,8 @@ export function createBrepMockApi(): BrepEngineApi {
       const sb = need(b, 'intersect')
       return alloc({ kind: 'solid', bbox: mergeBbox(sa.bbox, sb.bbox), tag: `intersect(${sa.tag},${sb.tag})` })
     },
-    section: () => unsupported('section'),
+    sectionByPlane: () => unsupported('sectionByPlane'),
+    splitByPlane: () => unsupported('splitByPlane'),
     fuseAll: (shapesIn) => {
       let bbox: BrepBoundingBox | null = null
       let tag = 'fuseAll('
@@ -275,6 +264,7 @@ export function createBrepMockApi(): BrepEngineApi {
       }, tag: `arc` })
     },
     makeBezierEdge: () => alloc({ kind: 'edge', bbox: bboxOf('edge', [1, 1, 1]), tag: 'bezier' }),
+    makeCircleEdge: (center, _normal, radius) => alloc({ kind: 'edge', bbox: bboxOf('edge', [radius * 2, radius * 2, 0]), tag: `circle(${center.x},${center.y},${center.z},r=${radius})` }),
 
     // ── 拓扑构造 ──
     makeWire: (edges) => alloc({ kind: 'wire', bbox: edges.length > 0 ? { ...need(edges[0], 'makeWire').bbox } : bboxOf('wire', [0, 0, 0]), tag: `wire(${edges.length})` }),
@@ -287,7 +277,7 @@ export function createBrepMockApi(): BrepEngineApi {
       }
       return alloc({ kind: 'compound', bbox: bbox ?? bboxOf('compound', [0, 0, 0]), tag: `compound(${parts.length})` })
     },
-    sewAndSolidify: () => alloc({ kind: 'solid', bbox: bboxOf('solid', [1, 1, 1]), tag: 'sewAndSolidify' }),
+
     buildTriFace: () => alloc({ kind: 'face', bbox: bboxOf('face', [1, 1, 0]), tag: 'triFace' }),
     addHolesInFace: (face) => alloc({ kind: 'face', bbox: { ...need(face, 'addHolesInFace').bbox }, tag: `holedFace(#${face})` }),
 
@@ -297,12 +287,14 @@ export function createBrepMockApi(): BrepEngineApi {
 
     // ── 拓扑查询 ──
     getSubShapes: () => [],
-    queryBatch: (shapesIn) => shapesIn.map(() => ({ area: 0 })),
     subShapeHashes: () => [],
     hashCode: (shape) => shape % 2147483647,
     isSame: (a, b) => a === b,
     isSolid: () => true,
     shapeOrientation: () => 'forward',
+    edgeToFaceMap: () => ({}),
+    adjacentFaces: () => [],
+    sharedEdges: () => [],
 
     // ── 几何求值 ──
     curveType: () => 'line',
@@ -315,9 +307,14 @@ export function createBrepMockApi(): BrepEngineApi {
     surfaceNormal: () => ({ x: 0, y: 0, z: 1 }),
     pointOnSurface: () => ({ x: 0, y: 0, z: 0 }),
     uvBounds: (): BrepUvBounds => ({ uMin: 0, uMax: 1, vMin: 0, vMax: 1 }),
-    getSurfaceCenterOfMass: () => ({ x: 0, y: 0, z: 0 }),
     getFaceCylinderData: () => null,
     getNurbsCurveData: () => null,
+    interpolatePoints: () => alloc({ kind: 'edge', bbox: bboxOf('edge', [1, 1, 1]), tag: 'interpolatePoints' }),
+    defeature: (shape) => { need(shape, 'defeature'); return shape },
+    draft: (shape) => { need(shape, 'draft'); return shape },
+    removeHolesFromFace: (face) => { need(face, 'removeHolesFromFace'); return face },
+    reverseShape: (shape) => { need(shape, 'reverseShape'); return shape },
+    projectEdges: () => unsupported('projectEdges'),
 
     // ── 测量 ──
     getBoundingBox: (shape) => ({ ...need(shape, 'getBoundingBox').bbox }),
@@ -329,6 +326,8 @@ export function createBrepMockApi(): BrepEngineApi {
       const b = need(shape, 'getCenterOfMass').bbox
       return { x: (b.xmin + b.xmax) / 2, y: (b.ymin + b.ymax) / 2, z: (b.zmin + b.zmax) / 2 }
     },
+    getSurfaceArea: () => 0,
+    getLength: () => 0,
 
     // ── 校验与修复 ──
     isValid: () => true,
@@ -347,7 +346,7 @@ export function createBrepMockApi(): BrepEngineApi {
     importStl: () => alloc({ kind: 'solid', bbox: bboxOf('solid', [10, 10, 10]), tag: 'importStl(mock)' }),
     fromBREP: () => alloc({ kind: 'solid', bbox: bboxOf('solid', [10, 10, 10]), tag: 'fromBREP(mock)' }),
 
-    // ── 面演化（可选能力槽：memory 不支持 → 明确缺失暴露） ──
+    // ── 面演化（L1 三员：mock 用底层布尔 + 空 evo） ──
     cutWithHistory: (a, b, _hashes, _upper) => {
       const result = primitives.cut(a, b)
       const evo: BrepEvolutionData = { result, modified: [], generated: [], deleted: [] }
@@ -363,53 +362,17 @@ export function createBrepMockApi(): BrepEngineApi {
       const evo: BrepEvolutionData = { result, modified: [], generated: [], deleted: [] }
       return evo
     },
-    // Phase 0.1 补齐的 7 个：memory 引擎不实现 —— 明确缺失暴露，不伪造（与 loft/section 同风格）。
-    translateWithHistory: () => unsupported('translateWithHistory'),
-    rotateWithHistory: () => unsupported('rotateWithHistory'),
-    mirrorWithHistory: () => unsupported('mirrorWithHistory'),
-    scaleWithHistory: () => unsupported('scaleWithHistory'),
-    shellWithHistory: () => unsupported('shellWithHistory'),
-    offsetWithHistory: () => unsupported('offsetWithHistory'),
-    thickenWithHistory: () => unsupported('thickenWithHistory'),
 
-    // ── XCAF 装配（mock 文档） ──
-    createXCAFDocument: () => mockXcafDocument(),
-    importXCAFFromSTEP: () => mockXcafDocument(),
-
-    // ── Phase 3 登记方法：mock 验证载体——查询类给简单实现，其余明确缺失暴露 ──
-    boundingBox: (shape) => ({ ...need(shape, 'boundingBox').bbox }),
-    shapeType: (shape) => need(shape, 'shapeType').kind === 'face' ? 'face' : need(shape, 'shapeType').kind === 'edge' ? 'edge' : need(shape, 'shapeType').kind === 'wire' ? 'wire' : 'solid',
-    isNull: () => false,
-    iterShapes: (shape) => { need(shape, 'iterShapes'); return [] },
+    // ── L1 补齐方法（mock 验证载体——查询类给简单实现，其余明确缺失暴露） ──
+    dispose: () => undefined,
+    composeTransform: () => unsupported('composeTransform'),
+    makeEllipsoid: () => unsupported('makeEllipsoid'),
+    makeTorus: () => unsupported('makeTorus'),
+    makeVertex: (x, y, z) => alloc({ kind: 'edge', bbox: { xmin: x, ymin: y, zmin: z, xmax: x, ymax: y, zmax: z }, tag: `vertex(${x},${y},${z})` }),
+    mirror: (shape) => alloc({ kind: need(shape, 'mirror').kind, bbox: { ...need(shape, 'mirror').bbox }, tag: `mirror(#${shape})` }),
     surfaceCenterOfMass: (shape) => { const b = need(shape, 'surfaceCenterOfMass').bbox; return { x: (b.xmin + b.xmax) / 2, y: (b.ymin + b.ymax) / 2, z: (b.zmin + b.zmax) / 2 } },
     locate: (shape) => alloc({ kind: need(shape, 'locate').kind, bbox: { ...need(shape, 'locate').bbox }, tag: `locate(#${shape})` }),
     copyShape: (shape) => alloc({ kind: need(shape, 'copyShape').kind, bbox: { ...need(shape, 'copyShape').bbox }, tag: `copy(#${shape})` }),
-    downcast: (shape) => alloc({ kind: need(shape, 'downcast').kind, bbox: { ...need(shape, 'downcast').bbox }, tag: `downcast(#${shape})` }),
-    dispose: () => undefined,
-    composeTransform: () => unsupported('composeTransform'),
-    buildExtrusionLaw: () => unsupported('buildExtrusionLaw'),
-    buildEdgeOnSurface: () => unsupported('buildEdgeOnSurface'),
-    healFace: () => unsupported('healFace'),
-    healWire: () => unsupported('healWire'),
-    fixSelfIntersection: () => unsupported('fixSelfIntersection'),
-    hullFromPoints: () => unsupported('hullFromPoints'),
-    loftAdvanced: () => unsupported('loftAdvanced'),
-    makeEllipsoid: () => unsupported('makeEllipsoid'),
-    makeFaceOnSurface: () => unsupported('makeFaceOnSurface'),
-    makeTorus: () => unsupported('makeTorus'),
-    makeVertex: (x, y, z) => alloc({ kind: 'edge', bbox: { xmin: x, ymin: y, zmin: z, xmax: x, ymax: y, zmax: z }, tag: `vertex(${x},${y},${z})` }),
-    makeWireFromMixed: (items) => alloc({ kind: 'wire', bbox: items.length > 0 ? { ...need(items[0], 'makeWireFromMixed').bbox } : bboxOf('wire', [0, 0, 0]), tag: `mixedWire(${items.length})` }),
-    mirror: (shape) => alloc({ kind: need(shape, 'mirror').kind, bbox: { ...need(shape, 'mirror').bbox }, tag: `mirror(#${shape})` }),
-    revolveVec: () => unsupported('revolveVec'),
-    sew: () => unsupported('sew'),
-    shell: () => unsupported('shell'),
-    simplePipe: () => unsupported('simplePipe'),
-    simplify: () => unsupported('simplify'),
-    split: () => unsupported('split'),
-    sweepPipeShell: () => unsupported('sweepPipeShell'),
-    generalTransformNonOrthogonal: () => unsupported('generalTransformNonOrthogonal'),
-    generalTransformWithHistory: () => unsupported('generalTransformWithHistory'),
-    applyComposedTransformWithHistory: () => unsupported('applyComposedTransformWithHistory'),
   }
   return primitives
 }

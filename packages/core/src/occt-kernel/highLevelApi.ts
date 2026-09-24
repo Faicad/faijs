@@ -31,8 +31,8 @@ import type {
   Mesh,
   MeshDeflectionOptions,
 } from './occtKernel'
-import type { BrepHandle } from '../brep/engine/types'
-import type { BrepEngineApi } from '../brep/engine/primitives'
+
+import { createOcctPrimitives } from './occt-primitives'
 
 // ── 导入 API ──
 
@@ -60,7 +60,7 @@ export interface ImportStepPartResult {
 export async function importStepMultiPart(
   bytes: ArrayBuffer | Uint8Array,
 ): Promise<ImportStepPartResult[]> {
-  const kernel = (await initOcctWasm()) as unknown as OcctKernel
+  const kernel = await initOcctWasm()
 
   // XCAF 解析 → 装配树
   const nodes = await importAssemblyFromStep(bytes)
@@ -70,7 +70,7 @@ export async function importStepMultiPart(
   for (const leaf of leaves) {
     if (!leaf.shapeHandle) continue
 
-    const eff = computeEffectiveDeflection(kernel as unknown as BrepEngineApi, leaf.shapeHandle as unknown as BrepHandle)
+    const eff = computeEffectiveDeflection(kernel, leaf.shapeHandle)
     const mesh = kernel.meshShape(leaf.shapeHandle, {
       linearDeflection: eff.linearDeflection,
       angularDeflection: eff.angularDeflection,
@@ -89,7 +89,7 @@ export async function importStepMultiPart(
 
   // 释放装配树中非 leaf 的 shapeHandle（assembly 节点的已由 walkLabel 释放）
   // leaf 的 shapeHandle 由返回结果持有，调用方负责释放
-  releaseAssemblyTree(kernel as unknown as BrepEngineApi, nodes.filter(n => n.isAssembly))
+  releaseAssemblyTree(kernel, nodes.filter(n => n.isAssembly))
 
   return results
 }
@@ -212,8 +212,10 @@ export function releaseSolid(solid: ShapeHandle): void {
 export async function exportStepFromSolidsHighLevel(
   entries: StepExportEntry[],
 ): Promise<ArrayBuffer> {
-  const kernel = await ensureOcctKernel()
-  return exportStepFromSolids(kernel as unknown as BrepEngineApi, entries)
+  // step.ts consumes the L1 contract — pass the adapter, not the raw kernel
+  // (no cross-layer assertion; narrowing plan §Phase 3).
+  const primitives = await createOcctPrimitives()
+  return exportStepFromSolids(primitives, entries)
 }
 
 // ── 管理函数 ──

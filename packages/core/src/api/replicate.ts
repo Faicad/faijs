@@ -28,6 +28,7 @@ import { defineOp } from '../sdk'
 import type { Provenance } from '../topology/naming/lineage'
 import type { BrepHandle, BrepVec3 } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
+import { getOcctKernel } from '../occt-kernel/occtKernel'
 import { buildReplicaRoleTable, type ReplicaTransform } from './internal/replica-role-table'
 // Generated compatOps (delegation targets for the thin single-copy overrides).
 // NOTE: transformCopy is NOT a script-face op (arg-spec skip: ComposedTransform
@@ -338,7 +339,7 @@ export const mirrorJoin = defineOp({
     const n = norm(options?.normal ?? [1, 0, 0])
     const o = toBrepVec(options?.at ?? [0, 0, 0])
     const inputHashes = getFaceHashes(kernel, solid)
-    const mirrored = kernel.mirrorWithHistory(solid, o, toBrepVec(n), inputHashes, HASH_UPPER_BOUND)
+    const mirrored = getOcctKernel().mirrorWithHistory(solid, o, toBrepVec(n), inputHashes, HASH_UPPER_BOUND)
     try {
       const resultSolid = kernel.fuse(solid, mirrored.result)
 
