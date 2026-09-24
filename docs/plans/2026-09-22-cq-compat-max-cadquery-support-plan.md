@@ -241,7 +241,6 @@
   3. 补 `sketch → extrude/revolve` 双链路出口：mesh 侧 2D 三角化 + 挤出（照 `svgExtrude` dual-op 范式），brep 侧走现有 `cad.sketch`；
   4. 求解失败（欠/过约束/奇异）显式抛错，禁止静默烘焙（沿用可行性分析 §10.6 纪律）。
 - **验收**：`cad` 脚本面可写「带约束的草图 → 拉伸/旋转」完整用例；`cq-compat-sketch` 新增 `Sketch` 镜像（对应上游 `test_sketch` 模块，当前该模块 0 镜像）。
-- **前置阻塞**：**planegcs 的 LGPL-2.0-or-later 许可合规结论**（可行性分析 R1）——公开分发前必须拿到法务裁定；不可接受则走自编译（路线 B）或 TS 重写（路线 C，不推荐）。
 
 ### Phase 3｜拓扑命名驱动的选择器（依赖 §1.2 拓扑身份）
 
@@ -314,7 +313,6 @@
 | Q6 | `fai_cq_gears` 删 shim 后全链验证 | **已闭合（2026-09-22 核实）**：shim 已在增量区间随 `01ede80` 删除（grep 证实 `packages/fai_cq_gears/src` 无 occt-wasm / TEMP-SHIM 残留）；fai_cq_gears 保持零改动，无待验证项 |
 | Q7 | `cq_gears` Python 源缺失 → 齿轮类 P2–P5 无法逐字对照 | 独立轨道，不阻塞本路线图 |
 | Q8 | 聚合包 `@faicad/cq-compat-all` 是否提供 | **已拍板（2026-09-22）**：不做（用户：不用） |
-| 许可 | planegcs LGPL-2.0-or-later 合规（可行性分析 R1） | **Phase 2 前置阻塞**，法务裁定前不公开分发 |
 
 ---
 
@@ -343,7 +341,7 @@
 **实施记录（2026-09-22 续，Phase 3 + Phase 6 + Phase 2 + Phase 4）：**
 - Phase 3（选择器语义补齐，commit f2d181a）：实现 `siblings` op（+selectFaceHandles/selectEdgeHandles/siblingStep/resolveSiblingStarts），核心三个 OCCT 拓扑句柄 GOTCHA——共享边/顶点是同一 TShape 不同 TopoDS 句柄（siblingStep 匹配必须 kernel.isSame）；occt-wasm getSubShapes 每次调用分配全新 handle id（probe_ids.ts 实证）→ 一切去重/排除/visited 用 isSame 数组；BFS 层语义 = CQ exclude（每层开始时把上一层结果整体加入闭集，层内共享同一 exclude）。镜像 29 test_selectors + 12 test_siblings；companion 修复：core `brep/export/step.ts` 对 faces/edges compound 导出兜底、step-compare 无 face/solid 拓扑时跳过 volume/COM/cut（双方都须有才比）。compare 267→274。
 - Phase 6（杂项 op，commit 24f0c38）：实现 `tag`/`workplaneFromTagged`（Workplane.tags 快照；workplaneFromTagged 只恢复平面 frame、保留当前 shape——上游 `_fromPlane` 只换平面不动 objects，恢复 shape 会丢掉后续实体）。镜像 5 个（testTag/testTagSelectors×3/testWorkplaneFromTagged）全 PASS；其余显式 block：eachpoint（parser 无函数字面量参数）、interpPlate/offset2D/fuzzy-bool/remove/replace（occt-wasm 内核缺口，见 Phase 4）、finalize/raises（Sketch/assert helper）。manifest 322 ported / 328 blocked。
-- Phase 2（草图公开化非 planegcs 部分，commit b63faad）：新增 `sketch.ts`（CadQuery Sketch.py parity）——sketch/rect/circle/ellipse/polygon/regularPolygon/slot/trapezoid + 模式 a/s/i/c/r + faces/wires/edges/vertices 选择器 + tag/select + offset（offsetWire2D）+ sketch→extrude 出口（brep 侧，fromHandle 包装为 part）。新包 `@faicad/cq-compat-sketch`（0.1.0）以无前缀 CadQuery 语法名 re-export（浏览器入口含）。脚本面样例 `tests/test_sketch/TestSketch__testModes__extrude.fai.js`（sketch→extrude 导出实体，compare 链可消费）。实测内核：2D 面级 fuse/cut/common 可用（重叠共面矩形 fuse 保留 2 拓扑面，匹配上游 test_modes s1）；offsetWire2D 可用（0.64）；polygon 需 1e-12 容差去重（OCCT makeFace 拒绝零长度边）；fromHandle 需 configureBackends。约束段（planegcs）因 LGPL 许可未决保持 block。cq-compat 153 测试 / sketch 包 3 测试全绿。
+- Phase 2（草图公开化非 planegcs 部分，commit b63faad）：新增 `sketch.ts`（CadQuery Sketch.py parity）——sketch/rect/circle/ellipse/polygon/regularPolygon/slot/trapezoid + 模式 a/s/i/c/r + faces/wires/edges/vertices 选择器 + tag/select + offset（offsetWire2D）+ sketch→extrude 出口（brep 侧，fromHandle 包装为 part）。新包 `@faicad/cq-compat-sketch`（0.1.0）以无前缀 CadQuery 语法名 re-export（浏览器入口含）。脚本面样例 `tests/test_sketch/TestSketch__testModes__extrude.fai.js`（sketch→extrude 导出实体，compare 链可消费）。实测内核：2D 面级 fuse/cut/common 可用（重叠共面矩形 fuse 保留 2 拓扑面，匹配上游 test_modes s1）；offsetWire2D 可用（0.64）；polygon 需 1e-12 容差去重（OCCT makeFace 拒绝零长度边）；fromHandle 需 configureBackends。约束段（planegcs，已是仓库在用依赖）尚未公开化，保持 block。cq-compat 153 测试 / sketch 包 3 测试全绿。
 - Phase 4（内核缺口评估与留档，Agent Note `2026-09-22-occt-wasm-kernel-gap-assessment`）：四项探针实测——①shell 外扩+移除面 = 真缺口（kernel.shell 是 MakeThickSolid，缺 MakeThickSolidByJoin 的 intersection join 模式；cq-compat 显式抛错）；②负 taper = API 存在（draftPrism）但语义未标定（wire 负体积 / face 1394 vs 期望 1000），需标定探针；③sweep 多截面 = 真缺口（sweepPipeShell/sweepOriented 均单 profile）；④高椭圆 = 真缺口已硬确认（makeEllipseEdge(2,4) 抛 gp_Elips invalid；主轴恒 X，cq-compat 已用 rotate90 绕过）。附带发现：offsetWire2D、2D 面布尔、removeHolesFromFace 其实可用；remove/replace（BRepBuilderAPI_MakeShape）与 fuzzy 布尔（SetFuzzyValue）仍未暴露。上游需求清单：MakeThickSolidByJoin 外扩+join / MakePipeShell 多截面 / remove-replace / fuzzy 容差。
 **实施记录（2026-09-22 收尾）：**
 - 版本统一（lockstep）：`@faicad/cq-compat-assembly` / `@faicad/cq-compat-compare` / `@faicad/cq-compat-sketch` 从 0.1.0 统一升至 0.13.2（与主发布链同号），package-lock.json 同步。
