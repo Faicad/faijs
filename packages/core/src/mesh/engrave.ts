@@ -14,7 +14,7 @@
 
 import * as THREE from 'three'
 import { computeBoolean, geoToManifoldMesh, manifoldMeshToGeo } from '../boolean/csg-backend'
-import { svgToExtrudedGeometry } from '../primitives/svg-extrude'
+import { getEngraveDecorationProvider } from './decoration-provider'
 import type { Shape, EngraveParams, KnurlParams } from './types'
 
 /**
@@ -22,50 +22,37 @@ import type { Shape, EngraveParams, KnurlParams } from './types'
  * position it onto a face, then run a boolean union (convex) or subtract
  * (concave).
  *
+ * The decoration geometry itself comes from the host-installed provider
+ * (`setEngraveDecorationProvider`) — three's `Shape`/`ExtrudeGeometry`/`SVGLoader`
+ * chain belongs to `@faicad/faijs-extra`, not to the platform surface.
+ *
  * @param shape - the world-space target shape.
  * @param params - engrave parameters (text/svg, depth, face, mode).
  * @returns the engraved shape in world space.
  */
 export async function engrave(shape: Shape, params: EngraveParams): Promise<Shape> {
   // 1. 生成装饰几何（局部空间，+Z = 挤出方向）
-  let decorationGeo: THREE.BufferGeometry
-
-  if (params.text) {
-    if (!params.text) throw new Error('Text is empty')
-    const { getOpentypeFont, createTextGeometry } = await import(
-      '../primitives/text-geometry'
-    )
-    const { containsCjk, loadSystemCjkFont, createMixedTextGeometry } = await import(
-      '../primitives/text/cjk'
-    )
-    const font = await getOpentypeFont()
-    if (containsCjk(params.text)) {
-      const cjkFont = await loadSystemCjkFont()
-      if (cjkFont) {
-        decorationGeo = await createMixedTextGeometry(
-          params.text, params.textSize ?? 10, params.depth, cjkFont.font, font,
-        )
-      } else {
-        decorationGeo = await createTextGeometry(
-          params.text, params.textSize ?? 10, params.depth, font,
-        )
-      }
-    } else {
-      decorationGeo = await createTextGeometry(
-        params.text, params.textSize ?? 10, params.depth, font,
-      )
-    }
-  } else if (params.svg) {
-    // logo / SVG
-    decorationGeo = svgToExtrudedGeometry(params.svg, {
-      depth: params.depth,
-      targetLongSide: params.svgSize,
-      naturalWidth: params.svgNaturalWidth ?? 0,
-      naturalHeight: params.svgNaturalHeight ?? 0,
-    })
-  } else {
+  if (!params.text && !params.svg) {
     throw new Error('engrave requires either text or svg')
   }
+  const provider = getEngraveDecorationProvider()
+  if (!provider) {
+    throw new Error(
+      'engrave: no mesh decoration provider installed — the text/SVG geometry chain ' +
+      'lives in @faicad/faijs-extra; call setEngraveDecorationProvider() (or ' +
+      'installEditorMeshProviders() from @faicad/faijs-extra) before engraving in mesh mode, ' +
+      'or run the op on the BREP path',
+    )
+  }
+  const decorationGeo: THREE.BufferGeometry = await provider({
+    text: params.text,
+    textSize: params.textSize,
+    svg: params.svg,
+    svgSize: params.svgSize,
+    svgNaturalWidth: params.svgNaturalWidth,
+    svgNaturalHeight: params.svgNaturalHeight,
+    depth: params.depth,
+  })
 
   // 2. 定位装饰几何到面
   const faceCenter = new THREE.Vector3(...params.face.center)

@@ -17,17 +17,17 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import { CadRuntime } from './runtime'
 import { DirectExecutor } from './direct-executor'
 import { stableFingerprint } from './content-key'
-import { createApiNamespace } from '../api/api-namespace'
 import type { HostPorts } from './ports'
 import { isMeshShape } from '../mesh/types'
 import { computeContentKey } from './content-key'
+import { createApiNamespaceWithEditorOps } from '../test-support/editor-ops'
 
 function defaultPorts(): HostPorts {
   return { events: { emit: () => {} } } as HostPorts
 }
 
 function makeRuntime(mode: 'mesh' | 'auto' = 'mesh'): CadRuntime {
-  return new CadRuntime(defaultPorts(), mode, { cad: createApiNamespace() })
+  return new CadRuntime(defaultPorts(), mode, { cad: createApiNamespaceWithEditorOps() })
 }
 
 /** 收集 mesh 输出内容 key（名序排序；几何一致性判定）。 */
@@ -54,7 +54,7 @@ async function fullBaseline(newCode: string) {
 
 describe('P0-1: unitRanges + endLine', () => {
   const rt = makeRuntime()
-  const cadNs = createApiNamespace()
+  const cadNs = createApiNamespaceWithEditorOps()
 
   beforeAll(async () => {
     await rt.execute('let warmup = cad.box(1, 1, 1, { centered: true })')
@@ -108,7 +108,7 @@ describe('P0-1: unitRanges + endLine', () => {
 
 describe('P0-2: replayFrom', () => {
   const rt = makeRuntime()
-  const cadNs = createApiNamespace()
+  const cadNs = createApiNamespaceWithEditorOps()
 
   beforeAll(async () => {
     await rt.execute('let warmup = cad.box(1, 1, 1, { centered: true })')

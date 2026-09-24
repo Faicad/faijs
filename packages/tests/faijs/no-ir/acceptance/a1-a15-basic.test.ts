@@ -19,6 +19,7 @@ import { computeContentKey } from '@faicad/faijs/cad-runtime/content-key'
 import { isMeshShape } from '@faicad/faijs/mesh/types'
 import { asPartName, type PartName } from '@faicad/faijs/identity'
 import type { HostPorts } from '@faicad/faijs/cad-runtime/ports'
+import { createApiNamespaceWithEditorOps } from '../../_support/editor-runtime'
 
 function defaultPorts(): HostPorts {
   return { events: { emit: () => {} } } as HostPorts
@@ -34,7 +35,7 @@ function contentFingerprint(ctx: Record<string, unknown>): string[] {
 }
 
 describe('A-1: execute → outputs.part5 为 Shape，terminals=[part5]（中间被消费不在 terminals）', () => {
-  const cadNs = createApiNamespace()
+  const cadNs = createApiNamespaceWithEditorOps()
   const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs })
   beforeAll(async () => {
     await rt.execute('let warmup = cad.box(1, 1, 1, { centered: true })')
@@ -84,7 +85,7 @@ describe('A-1: execute → outputs.part5 为 Shape，terminals=[part5]（中间�
 
 describe('A-2: append 增量 — 共享 ctx 只执行新行', () => {
   it('DirectExecutor append：新行几何正确且旧变量可见（append 语义等价 execute 全量）', async () => {
-    const cadNs = createApiNamespace()
+    const cadNs = createApiNamespaceWithEditorOps()
     const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs })
     await rt.execute('let warmup = cad.box(1, 1, 1, { centered: true })')
 
@@ -109,7 +110,7 @@ describe('A-2: append 增量 — 共享 ctx 只执行新行', () => {
 
 describe('A-3: update 全量重跑 + failedAt.lineNo 指向真实行号', () => {
   it('update：改参数后全量重跑结果正确', async () => {
-    const cadNs = createApiNamespace()
+    const cadNs = createApiNamespaceWithEditorOps()
     const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs })
     await rt.execute('let warmup = cad.box(1, 1, 1, { centered: true })')
 
@@ -127,7 +128,7 @@ describe('A-3: update 全量重跑 + failedAt.lineNo 指向真实行号', () => 
   })
 
   it('失败单元记 failedAt.lineNo 指向真实行号', async () => {
-    const cadNs = createApiNamespace()
+    const cadNs = createApiNamespaceWithEditorOps()
     const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs })
     await rt.execute('let warmup = cad.box(1, 1, 1, { centered: true })')
 
@@ -149,7 +150,7 @@ describe('A-15: 重赋值后 terminals 含 bp（最后写者语义，ctx 键天�
     // 现状扁平语义只允许 `x = cad.op(...)` 重赋值（别名行在 extractor.lines 无投影，
     // 3d_editor timeline 无对应节点）。此处用「保名链式重赋值」表达同一最后写者语义：
     // bp 在第 2 行被自身消费后重写 → lastProducer 指向第 2 行、其后无消费 → bp 是终端。
-    const cadNs = createApiNamespace()
+    const cadNs = createApiNamespaceWithEditorOps()
     const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs })
     await rt.execute('let warmup = cad.box(1, 1, 1, { centered: true })')
 

@@ -16,7 +16,7 @@ import { join, extname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url))
-const libPackages = ['core', 'cq-compat', 'fai_cq_gears', 'fai_cq_warehouse', 'sheetmetal']
+const libPackages = ['core', 'faijs-extra', 'cq-compat', 'fai_cq_gears', 'fai_cq_warehouse', 'sheetmetal']
 const jsExt = new Set(['.js', '.mjs', '.cjs'])
 
 function walk(dir, counts) {

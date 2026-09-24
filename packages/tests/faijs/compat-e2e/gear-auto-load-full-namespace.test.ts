@@ -15,6 +15,7 @@ import { createNodePorts } from '@faicad/faijs/node'
 import * as gearPkg from './_support/gear-lib-demo/index.js'
 import type { StdlibNamespace } from '@faicad/faijs/runtime-state'
 import type { LibLoader } from '@faicad/faijs/cad-runtime/ports'
+import { createEditorRuntime } from '../_support/editor-runtime'
 
 /** 与浏览器 demo 等价的 libLoader：完整命名空间，不走手工投影。 */
 const loader: LibLoader = {
@@ -35,7 +36,7 @@ describe('P四 4.4 autoLoadLibs with the full gear-lib-demo namespace', () => {
 
   beforeAll(async () => {
     await registerOcctBrepEngine()
-    const runtime = createRuntime({ ...createNodePorts(), libLoader: loader }, 'auto')
+    const runtime = createEditorRuntime({ ...createNodePorts(), libLoader: loader }, 'auto')
     result = await runtime.execute(SCRIPT)
   }, 240000)
 

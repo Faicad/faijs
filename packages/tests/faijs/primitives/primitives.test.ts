@@ -18,6 +18,7 @@ import { createRuntime } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
 import { registerOcctBrepEngine } from '@faicad/faijs'
 import type { Shape } from '@faicad/faijs/mesh/types'
+import { createEditorRuntime } from '../_support/editor-runtime'
 
 beforeAll(async () => {
   await registerOcctBrepEngine()
@@ -60,7 +61,7 @@ describe('primitives .fai.js tests', () => {
     })
 
     it(`${file}: executes in mesh mode → non-empty mesh`, async () => {
-      const runtime = createRuntime(createNodePorts(), 'mesh')
+      const runtime = createEditorRuntime(createNodePorts(), 'mesh')
       const result = await runtime.execute(code)
 
       expect(result.failedAt).toBeUndefined()

@@ -1,5 +1,5 @@
 /**
- * CJK (Chinese/Japanese/Korean) text geometry generation.
+ * text-cjk — mixed CJK + Latin text geometry (editor extension library).
  *
  * Uses the Local Font Access API (window.queryLocalFonts) to load system CJK
  * fonts, then parses glyph paths with opentype.js to create THREE.Shape →
@@ -8,101 +8,21 @@
  * When a CJK font is available, it is used for ALL characters (including Latin).
  * When no CJK font is available, the default OpenSans Regular font (from
  * fontRegistry) is used for all characters via opentype.js.
+ *
+ * The character classification / system-font loading half lives in core
+ * (`@faicad/faijs/primitives/text/cjk-font`) and is deliberately three-free.
  */
 import * as THREE from 'three'
-import * as opentype from 'opentype.js'
+// Type-only: glyph parsing itself lives in core's fontRegistry; the extension
+// library never calls opentype at runtime (keeps it out of the A-group closure).
+import type * as opentype from 'opentype.js'
 import type { Font } from 'opentype.js'
-import { mergeBufferGeometries } from '../../primitives/mesh-primitives'
-import { getOpentypeFont } from '../text-geometry'
-
-/**
- * Check if a character is CJK (CJK Unified Ideographs + extensions).
- *
- * @param ch - the single character to test.
- * @returns true when the character falls in a CJK code point range.
- */
-export function isCjkChar(ch: string): boolean {
-  const code = ch.charCodeAt(0)
-  return (
-    (code >= 0x4E00 && code <= 0x9FFF) ||    // CJK Unified Ideographs
-    (code >= 0x3400 && code <= 0x4DBF) ||    // CJK Extension A
-    (code >= 0x2F800 && code <= 0x2FA1F) ||  // CJK Compatibility Ideographs Supplement
-    (code >= 0x3000 && code <= 0x303F) ||    // CJK Symbols and Punctuation
-    (code >= 0xFF00 && code <= 0xFFEF)       // Fullwidth Forms
-  )
-}
-
-/**
- * Check if a text string contains any CJK characters.
- *
- * @param text - the text to scan.
- * @returns true when at least one character is CJK.
- */
-export function containsCjk(text: string): boolean {
-  for (const ch of text) {
-    if (isCjkChar(ch)) return true
-  }
-  return false
-}
-
-/** Result of loading a system CJK font. */
-export interface CjkFontResult {
-  font: opentype.Font
-  family: string
-}
-
-/**
- * Load a CJK font from the system using the Local Font Access API.
- * Returns null if unavailable (no permission, unsupported browser, or no CJK font found).
- *
- * @returns a promise resolving to the parsed CJK font and its family name,
- *   or null when no usable system CJK font is available.
- */
-export async function loadSystemCjkFont(): Promise<CjkFontResult | null> {
-  const w = typeof window !== 'undefined' ? (window as any) : undefined
-  if (!w || typeof w.queryLocalFonts !== 'function') {
-    return null
-  }
-
-  try {
-    const fonts: Array<{ family: string; fullName: string; style: string; postscriptName: string; blob: () => Promise<Blob> }> = await w.queryLocalFonts()
-
-    // Find a font that supports CJK
-    const cjkFont = fonts.find((f) =>
-      f.family.includes('Microsoft YaHei') ||
-      f.family.includes('SimSun') ||
-      f.family.includes('Noto Sans') ||
-      f.family.includes('Noto Serif') ||
-      f.fullName.includes('CJK') ||
-      f.fullName.includes('SC') ||
-      f.fullName.includes('CN') ||
-      f.fullName.includes('JP') ||
-      f.fullName.includes('KR') ||
-      f.family.includes('Source Han') ||
-      f.family.includes('思源') ||
-      f.family.includes('微软雅黑') ||
-      f.family.includes('宋体') ||
-      f.family.includes('黑体') ||
-      f.family.includes('楷体') ||
-      f.family.includes('仿宋')
-    )
-
-    if (!cjkFont) return null
-
-    const fontData = await cjkFont.blob()
-    const buf = await fontData.arrayBuffer()
-    const font = opentype.parse(buf)
-
-    return { font, family: cjkFont.family }
-  } catch {
-    // User denied permission or other error
-    return null
-  }
-}
+import { mergeBufferGeometries } from '@faicad/faijs/primitives/mesh-primitives'
+import { getOpentypeFont } from './text-geometry'
 
 /**
  * Generate geometry for a single character using opentype.js.
- * Uses the shared opentypePathToGeometry() from text-geometry.ts.
+ * Uses the same shape/extrude chain as opentypePathToGeometry().
  */
 function charGeometry(
   char: string,
@@ -117,7 +37,7 @@ function charGeometry(
   const path = glyph.getPath(xOffset, 0, size)
   if (!path || !path.commands || path.commands.length === 0) return null
 
-  // Use the shared opentypePathToGeometry, but without centering (we handle offset manually)
+  // Build shapes without centering (the per-character offset is handled here).
   const commands = path.commands as opentype.PathCommand[]
   if (commands.length === 0) return null
 

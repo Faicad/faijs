@@ -16,6 +16,7 @@ export default defineConfig({
     // projects 分发，让每个包按自己的配置（含 alias）跑。
     projects: [
       'packages/core',
+      'packages/faijs-extra',
       'packages/sheetmetal',
       'packages/demo',
       'packages/tests',

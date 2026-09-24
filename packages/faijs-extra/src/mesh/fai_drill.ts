@@ -19,9 +19,9 @@ import {
 import {
   computeBoolean,
   geoToManifoldMesh,
-} from '../boolean/csg-backend'
-import { getScrewSpec } from '../primitives/screw/screw-db'
-import type { Shape, DrillParams } from './types'
+} from '@faicad/faijs/boolean/csg-backend'
+import { getScrewSpec } from '@faicad/faijs/primitives/screw/screw-db'
+import type { Shape, DrillParams } from '@faicad/faijs/mesh/types'
 
 /**
  * Drill a hole into a world-space shape, cutting the hole geometry out with a

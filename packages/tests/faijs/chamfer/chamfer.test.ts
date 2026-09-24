@@ -19,6 +19,7 @@ import { asPartName, type PartName } from '@faicad/faijs/identity'
 import type { CadRuntime, ExecutionResult } from '@faicad/faijs/cad-runtime/runtime'
 import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
 import type { BrepHandle } from '@faicad/faijs/brep/engine/types'
+import { createEditorRuntime } from '../_support/editor-runtime'
 
 beforeAll(async () => {
   await registerOcctBrepEngine()
@@ -52,7 +53,7 @@ describe('chamfer e2e (BREP/OCCT)', () => {
   let runtime: CadRuntime
 
   beforeEach(() => {
-    runtime = createRuntime(createNodePorts(), 'brep')
+    runtime = createEditorRuntime(createNodePorts(), 'brep')
   })
 
   afterEach(() => {
@@ -115,7 +116,7 @@ describe('chamfer e2e (BREP/OCCT)', () => {
   })
 
   it('T-A6b: 非 BREP 输入（mesh 模式）→ E_MESH_UNSUPPORTED', async () => {
-    const meshRuntime = createRuntime(createNodePorts(), 'mesh')
+    const meshRuntime = createEditorRuntime(createNodePorts(), 'mesh')
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const code = `

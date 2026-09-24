@@ -19,6 +19,15 @@ Faicad CAD 执行引擎——`faijs` 语言 parser、BREP/mesh 双链路几何�
 | `@faicad/faijs/browser` | 浏览器安全子集（无 `node:*`） |
 | `@faicade/faijs/node` | Node host 入口 |
 | `@faicad/faijs/sdk` | **第三方库开发面**（零重依赖） |
+| `@faicad/faijs/symbol-table` | 标准库符号表，以及宿主用来登记库函数名的扩展注册入口 |
+
+编辑器扩展库是独立包：
+
+| Import | 内容 |
+|---|---|
+| `@faicad/faijs-extra` | 编辑器 op（`fai_drill` `fai_extrude` `fai_split` `group` `assembly` `copy` `load`）与创建器（`text` `svgExtrude`），含 svg／3D 文字预览辅助函数 |
+| `@faicad/faijs-extra/browser` | 浏览器／worker 入口——同一份面 |
+| `@faicad/faijs-extra/editor-ops` | 不含创建器的编辑器 op：只用 three 基础 API，不触达 `three/examples`——供不得打包 addons 的宿主使用 |
 
 ## Developing a third-party library (`@faicad/faijs/sdk`)
 

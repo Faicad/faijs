@@ -27,10 +27,10 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { asPartName } from '../identity'
 import { registerOcctBrepEngine } from '../brep/engine/adapters/occt'
-import { createRuntime } from '@faicad/faijs'
 import { CadRuntime } from './runtime'
 import { RuntimeConcurrentError } from './runtime-concurrent-error'
 import type { EventSink, HostPorts } from './ports'
+import { createEditorRuntime } from '../test-support/editor-ops'
 
 const BOX = 'const p0 = cad.box(10, 10, 10, { centered: true })'
 const TORUS = 'const t0 = cad.torus({ majorRadius: 8, minorRadius: 2 })'
@@ -54,7 +54,7 @@ beforeAll(async () => {
 const runtimes: CadRuntime[] = []
 
 function makeRuntime(mode: 'auto' | 'mesh' | 'brep'): CadRuntime {
-  const rt = createRuntime(createNodePorts(), mode)
+  const rt = createEditorRuntime(createNodePorts(), mode)
   runtimes.push(rt)
   return rt
 }

@@ -26,6 +26,7 @@ import type { CadRuntime } from '@faicad/faijs/cad-runtime/runtime'
 import type { Shape } from '@faicad/faijs/mesh/types'
 import * as gears from '@faicad/fai-cq-gears'
 import { yieldWorkerRpc } from '../_support/worker-yield.js'
+import { createEditorRuntime } from '../_support/editor-runtime'
 
 /** The script the demo `gear-demo` example runs (kept in sync by assertion). */
 export const SCRIPT = [
@@ -41,7 +42,7 @@ let result: Awaited<ReturnType<CadRuntime['execute']>>
 
 beforeAll(async () => {
   await registerOcctBrepEngine()
-  runtime = createRuntime(createNodePorts(), 'auto')
+  runtime = createEditorRuntime(createNodePorts(), 'auto')
   runtime.registerLib('gears', gears as never, {
     autoLift: true,
     packageName: '@faicad/fai-cq-gears',
@@ -81,7 +82,7 @@ describe('@faicad/fai-cq-gears through the compat boundary', () => {
   })
 
   it('④ mesh mode rejects loudly: E_MESH_UNSUPPORTED, no fallback', async () => {
-    const meshRuntime = createRuntime(createNodePorts(), 'mesh')
+    const meshRuntime = createEditorRuntime(createNodePorts(), 'mesh')
     meshRuntime.registerLib('gears', gears as never, {
       autoLift: true,
       packageName: '@faicad/fai-cq-gears',

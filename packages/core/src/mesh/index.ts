@@ -17,9 +17,6 @@ import * as primitives from './primitives'
 import * as brepPrimitives from '../brep/primitives-brep'
 import * as brepOps from '../brep'
 import * as booleanOps from './boolean'
-import * as splitOps from './fai_split'
-import * as drillOps from './fai_drill'
-import * as extrudeOps from './fai_extrude'
 import * as engraveOps from './engrave'
 import * as transformOps from './transform'
 import * as queryOps from './query'
@@ -29,8 +26,11 @@ import * as ioOps from './io'
 
 /**
  * Unified `cad` API object aggregating the pure-data mesh operations: mesh and
- * BREP primitives, transforms, booleans, splits, drill/extrude/engrave/knurl,
- * geometry queries, file IO, and BREP feature operations.
+ * BREP primitives, transforms, booleans, engrave/knurl, geometry queries, file
+ * IO, and BREP feature operations.
+ *
+ * D1（2026-09-23 扩展库拆分）：`text` / `svgExtrude` / `fai_*` 键已随
+ * `@faicad/faijs-extra` 迁出——它们的实现在扩展库的 mesh 面（`editorCad`）。
  */
 export const cad = {
   // 创建（mesh 路径）
@@ -39,9 +39,7 @@ export const cad = {
   cylinder: primitives.cylinder,
   cone: primitives.cone,
   wedge: primitives.wedge,
-  text: primitives.text,
   screw: primitives.screw,
-  svgExtrude: primitives.svgExtrude,
   sdf: primitives.sdf,
 
   // 创建（BREP 路径 — OCCT 精确实体三角化）
@@ -64,20 +62,8 @@ export const cad = {
   intersect: booleanOps.intersect,
 
   // 分割
-  // fai_* 键为 mesh 侧实现入口。`../3d_editor` 消费面（**不是废弃项**，措辞于 2026-09-22 校正）：
-  // `fai_` 前缀 op 为编辑器应用提供，不属 faijs 平台面；
-  // **变更其 API 形态必须同步更新 `../3d_editor`**（见 api/fai_*.ts 的 @deprecated）。
-  fai_split: splitOps.split,
-  fai_splitWithParams: splitOps.splitWithParams,
-  dovetailSplit: splitOps.dovetailSplit,
-  dowelSplit: splitOps.dowelSplit,
-  tenonSplit: splitOps.tenonSplit,
-
-  // 钻孔
-  fai_drill: drillOps.drill,
-
-  // 拉伸
-  fai_extrude: extrudeOps.extrude,
+  // `fai_*` 键（编辑器消费面）已随扩展库迁出：@faicad/faijs-extra 的 mesh 面
+  // 经 `mesh/fai_split.ts` / `mesh/fai_drill.ts` / `mesh/fai_extrude.ts` 提供。
 
   // 雕刻
   engrave: engraveOps.engrave,

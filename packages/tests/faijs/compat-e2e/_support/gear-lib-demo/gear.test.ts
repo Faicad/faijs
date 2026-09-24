@@ -21,12 +21,13 @@ import { hasBrep } from '@faicad/faijs/shape'
 import { asPartName } from '@faicad/faijs/identity'
 import type { Shape } from '@faicad/faijs/mesh/types'
 import * as gear from './gear'
+import { createEditorRuntime } from '../../../_support/editor-runtime'
 
 let runtime: ReturnType<typeof createRuntime>
 
 beforeAll(async () => {
   await registerOcctBrepEngine()
-  runtime = createRuntime(createNodePorts(), 'auto')
+  runtime = createEditorRuntime(createNodePorts(), 'auto')
   // warm the shared occt kernel + dispatch state; the produced shape is
   // intentionally discarded (the execute() call itself is the warm-up)
   const warm = await runtime.execute('let a = cad.box(1, 1, 1, { centered: true })')
@@ -80,7 +81,7 @@ describe('gear raw Result contract (§8.1)', () => {
 
 describe('gear through registerLib({ autoLift: true })', () => {
   it('script `gear.external(...)` yields a faijs Shape with a brep slot', async () => {
-    const rt = createRuntime(createNodePorts(), 'auto')
+    const rt = createEditorRuntime(createNodePorts(), 'auto')
     try {
       rt.registerLib('gear', gear as never, { autoLift: true, packageName: 'gear-lib-demo' } as never)
       const res = await rt.execute([
@@ -97,7 +98,7 @@ describe('gear through registerLib({ autoLift: true })', () => {
   })
 
   it('mesh mode → E_MESH_UNSUPPORTED (no silent mesh fallback)', async () => {
-    const meshRt = createRuntime(createNodePorts(), 'mesh')
+    const meshRt = createEditorRuntime(createNodePorts(), 'mesh')
     try {
       meshRt.registerLib('gear', gear as never, { autoLift: true, packageName: 'gear-lib-demo' } as never)
       const res = await meshRt.execute([

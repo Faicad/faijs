@@ -1,4 +1,4 @@
-﻿﻿/**
+﻿/**
  * mesh API 单元测试
  *
  * 验证 mesh 的每个 API 正确包装了底层纯函数。
@@ -11,8 +11,13 @@
 
 import { describe, it, expect } from 'vitest'
 import * as THREE from 'three'
-import { cad } from './index'
+import { cad as platformCad } from './index'
+import { editorCad } from '@faicad/faijs-extra'
 import type { Shape } from './types'
+
+// A/B 组（`fai_*` / `text` / `svgExtrude`）的 mesh 实现已迁到 @faicad/faijs-extra；
+// 本文件覆盖「平台面 ∪ 编辑器面」的整体 mesh 契约，故用扩展库的聚合对象。
+const cad = { ...platformCad, ...editorCad }
 
 // ── 工具函数 ──
 

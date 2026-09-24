@@ -5,28 +5,29 @@
  * dispatchPath 静态判定 brep/mesh，双输出以具名对象返回（替代 outputCache 多输出写入）。
  */
 
-import type { Shape, Vec3 } from '../mesh/types'
-import { cad } from '../mesh'
+import type { Shape, Vec3 } from '@faicad/faijs/mesh/types'
+import { splitWithParams as meshSplitWithParams } from '../mesh/fai_split'
+import { bboxCenter, boundingBox } from '@faicad/faijs/mesh/query'
 import {
   splitBrep,
   solidToShape,
   translateBrep,
-} from '../brep/brep-ops'
+} from '@faicad/faijs/brep/brep-ops'
 import {
   dovetailBooleanSplitBrep,
   dowelOrTenonBooleanSplitBrep,
   type JoineryBasis,
   type GrooveParams,
   type DowelOrTenonParams,
-} from './brep-mirror/joinery-brep'
+} from '@faicad/faijs/api/brep-mirror/joinery-brep'
 import { computeBasisFromNormal } from '../mesh/fai_split'
-import { getBackends } from '../runtime-state'
-import { solid, fromBrep, brepOf } from '../shape'
-import { defineOp } from '../sdk'
-import type { Provenance } from '../topology/naming/lineage'
-import { assertNonZeroVec3 } from './assert'
-import type { BrepHandle } from '../brep/engine/types'
-import type { BrepEngineApi } from '../brep/engine/primitives'
+import { getBackends } from '@faicad/faijs/runtime-state'
+import { solid, fromBrep, brepOf } from '@faicad/faijs/shape'
+import { defineOp } from '@faicad/faijs/sdk'
+import type { Provenance } from '@faicad/faijs/topology/naming/lineage'
+import { assertNonZeroVec3 } from '@faicad/faijs/api/assert'
+import type { BrepHandle } from '@faicad/faijs/brep/engine/types'
+import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
 
 /** 世界坐标 → 局部坐标（含单位缩放）。 */
 function worldToLocalVec3(
@@ -61,9 +62,9 @@ function splitBrepPath(input: Shape, params: Record<string, unknown>): { front: 
   const normal = (params.normal as Vec3) ?? [0, 0, 1]
   const offset = typeof params.offset === 'number' ? params.offset : 0
   const inPlaneAngleDeg = typeof params.inPlaneAngleDeg === 'number' ? params.inPlaneAngleDeg : 0
-  const bbCenter = (params.bbCenter as Vec3) ?? cad.bboxCenter(input)
-  const bboxSize = (params.bboxSize as Vec3) ?? cad.boundingBox(input).max.map(
-    (v, i) => v - cad.boundingBox(input).min[i],
+  const bbCenter = (params.bbCenter as Vec3) ?? bboxCenter(input)
+  const bboxSize = (params.bboxSize as Vec3) ?? boundingBox(input).max.map(
+    (v, i) => v - boundingBox(input).min[i],
   ) as Vec3
 
   const partTransform = getBackends().config.partTransform
@@ -182,9 +183,9 @@ async function splitMeshPath(input: Shape, params: Record<string, unknown>): Pro
   const normal = (params.normal as Vec3) ?? [0, 0, 1]
   const offset = typeof params.offset === 'number' ? params.offset : 0
   const inPlaneAngleDeg = typeof params.inPlaneAngleDeg === 'number' ? params.inPlaneAngleDeg : 0
-  const bbCenter = (params.bbCenter as Vec3) ?? cad.bboxCenter(input)
-  const bboxSize = (params.bboxSize as Vec3) ?? cad.boundingBox(input).max.map(
-    (v, i) => v - cad.boundingBox(input).min[i],
+  const bbCenter = (params.bbCenter as Vec3) ?? bboxCenter(input)
+  const bboxSize = (params.bboxSize as Vec3) ?? boundingBox(input).max.map(
+    (v, i) => v - boundingBox(input).min[i],
   ) as Vec3
 
   const partTransform = getBackends().config.partTransform
@@ -195,7 +196,7 @@ async function splitMeshPath(input: Shape, params: Record<string, unknown>): Pro
     ? [bboxSize[0] / scale![0], bboxSize[1] / scale![1], bboxSize[2] / scale![2]]
     : bboxSize
 
-  const result = await cad.fai_splitWithParams({
+  const result = await meshSplitWithParams({
     shape: input,
     cutMode: cutMode as 'plane' | 'dovetail' | 'dowel' | 'straight-tenon' | 'tenon' | 'straight',
     normal,

@@ -8,7 +8,7 @@
 
 Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadRuntime。
 
-**monorepo（npm workspaces，2026-08-30 P1–P6.6）**：根 `package.json` 为 `@faicad/faijs-monorepo`（private 聚合器，原根门面已废弃、见下）、`packages/core`（`@faicad/faijs` 引擎，2026-09-19 D2-A 升格为公开包名；L3 API 面在 `core/src/api/`，P6 起并入 core，原 `packages/stdlib`/`@faicad/faijs-stdlib` 已取消）、`packages/fixtures`（数据包）、`packages/tests`（集成测试）、`packages/demo`（private）。构建产物各包 `dist/`；**测试/CLI 直接消费 `src/`**（vitest alias + tsconfig paths，M7 免打包）。`packages/gear-lib-demo` 已于 2026-09-21 删除，其测试 fixture 收进 `packages/tests/faijs/compat-e2e/_support/gear-lib-demo/`。
+**monorepo（npm workspaces，2026-08-30 P1–P6.6）**：根 `package.json` 为 `@faicad/faijs-monorepo`（private 聚合器，原根门面已废弃、见下）、`packages/core`（`@faicad/faijs` 引擎，2026-09-19 D2-A 升格为公开包名；L3 API 面在 `core/src/api/`，P6 起并入 core，原 `packages/stdlib`/`@faicad/faijs-stdlib` 已取消）、`packages/faijs-extra`（`@faicad/faijs-extra` 编辑器扩展库，2026-09-24 D1 拆分：`fai_drill`/`fai_extrude`/`fai_split`/`group`/`assembly`/`copy`/`load`/`text`/`svgExtrude` 与 svg／文字预览辅助；`/editor-ops` 子入口只含 A 组、不触达 `three/examples`，供小程序 worker 使用）、`packages/fixtures`（数据包）、`packages/tests`（集成测试）、`packages/demo`（private）。构建产物各包 `dist/`；**测试/CLI 直接消费 `src/`**（vitest alias + tsconfig paths，M7 免打包）。`packages/gear-lib-demo` 已于 2026-09-21 删除，其测试 fixture 收进 `packages/tests/faijs/compat-e2e/_support/gear-lib-demo/`。
 
 > 包架构再设计（2026-09-19）：原根门面 `@faicad/faijs`（仅注入 cad + `export *`）已删除，其公开名 `@faicad/faijs` 由 core 升格继承（D2-A）；`cad` 默认命名空间内置引擎（D1，`createRuntime` 自带注册，不违反 K5）。详见 `docs/plans/2026-09-19-npm-publish-plan.md`。
 
@@ -38,9 +38,10 @@ Faicad CAD 执行引擎：faijs 语言 parser + BREP/mesh 双链路几何 + CadR
 | `npm run test -w <pkg>` | 单包测试（`-w @faicad/faijs` / `-w @faicad/faijs-tests`；cwd=包目录，fixture 路径已 import.meta.url 化） |
 | `npm run test --workspaces` | 全量测试（stderr 零容忍由 CI 检查） |
 | `npm run typecheck` | 根 `tsc --noEmit`（tsconfig paths 跟随检查 core 源码）+ `--workspaces` 逐包 |
-| `npm run lint` | `eslint src packages/*/src`（`scripts/`、`docs/`、`demo/`、`packages/demo/` 被 ignore） |
+| `npm run lint` | `eslint packages/core/src packages/faijs-extra/src`（`scripts/`、`docs/`、`demo/`、`packages/demo/` 被 ignore） |
 | `node scripts/check-ghost-deps.mjs` | 幽灵依赖守卫（每包 import 必须声明在自身 package.json） |
 | `node scripts/check-workspaces-order.mjs` | workspaces 数组顺序 == 依赖拓扑断言 |
+| `node scripts/check-dep-lockstep.mjs` | @faicad/* 依赖 lockstep 守卫（可发布包的 registry 依赖 range 必须指向目标包当前版本线，防 CDN 解析旧版断图） |
 | `npx madge --circular packages/*/src` | 包图无环守卫 |
 | `pwsh -NoProfile scripts/ci.ps1` | Windows 全量 CI：lint → typecheck → build → workspace 测试 + stderr 检查 → 守卫 → demo e2e ×2 → pack |
 | `scripts/ci.sh` | Linux/macOS 版；Windows 下会报错提示改用 ps1 |
@@ -123,4 +124,4 @@ Brep链可以切换，没有回退。在链上增加一个brep不支持的操作
 1. 通过rm -rf删除目录。删除目录必须是把文件夹移动到回收站。
 2. 严禁通过junction之类的方式建立目录链接。包括npm link之类的行为。
 
-本项目已进入正式发布准备阶段（禁令「不准发布到 npm」已撤销）。发布范围、拓扑序、门禁与 npm 自动加载方案见 `docs/plans/2026-09-19-npm-publish-plan.md`：faijs 及其可发布子包（`@faicad/faijs`(原 core) / cq-compat / fai_cq_gears / fai_cq_warehouse / sheetmetal）正式发布到公开 npm registry；demo 相关子包（demo / fixtures / tests / mini_lathe）除外。
+本项目已进入正式发布准备阶段（禁令「不准发布到 npm」已撤销）。发布范围、拓扑序、门禁与 npm 自动加载方案见 `docs/plans/2026-09-19-npm-publish-plan.md`：faijs 及其可发布子包（`@faicad/faijs`(原 core) / `@faicad/faijs-extra` / cq-compat / fai_cq_gears / fai_cq_warehouse / sheetmetal）正式发布到公开 npm registry；demo 相关子包（demo / fixtures / tests / mini_lathe）除外。

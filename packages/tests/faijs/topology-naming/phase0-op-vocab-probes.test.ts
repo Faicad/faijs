@@ -54,6 +54,7 @@ import { asPartName, type PartName } from '@faicad/faijs/identity'
 import type { Shape } from '@faicad/faijs/mesh/types'
 import type { CadRuntime, ExecutionResult } from '@faicad/faijs/cad-runtime/runtime'
 import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
+import { createEditorRuntime } from '../_support/editor-runtime'
 
 beforeAll(async () => {
   await registerOcctBrepEngine()
@@ -71,7 +72,7 @@ beforeAll(async () => {
  * @returns the callback's return value.
  */
 async function withRun<T>(code: string, read: (result: ExecutionResult) => T): Promise<T> {
-  const runtime: CadRuntime = createRuntime(createNodePorts(), 'brep')
+  const runtime: CadRuntime = createEditorRuntime(createNodePorts(), 'brep')
   try {
     const result = await runtime.execute(code, { topology: 'auto' })
     return read(result)

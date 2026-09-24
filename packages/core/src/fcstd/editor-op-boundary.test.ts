@@ -9,10 +9,9 @@ import symbolTable from '../lang/symbol-table.generated.js';
  * .agents/notes/implemented/architecture/2026-09-21-editor-owned-ops-deprecation.md
  *
  * FCStd conversion is a platform capability. The sibling `../3d_editor`
- * project's interaction ops — the transform family, `group`/`assembly` and
- * `copy` — serve that editor's canvas, drag and timeline model, so they are
- * deprecated on the faijs platform surface (their source JSDoc carries
- * `@deprecated`).
+ * project's interaction ops serve that editor's canvas, drag and timeline
+ * model, so they are deprecated on the faijs platform surface (their source
+ * JSDoc carries `@deprecated`).
  *
  * 2026-09-21 (H11): the platform now owns the three ops the conversion layer
  * needed — `cad.import_brep` (frozen BREP asset → Shape), `cad.compound`
@@ -21,27 +20,30 @@ import symbolTable from '../lang/symbol-table.generated.js';
  * editor, and this guard pins that from three sides: the deprecation markers
  * may not be dropped, the borrow count must stay zero, and every callee the
  * lowering emits must be a real member of the cad namespace.
+ *
+ * 2026-09-23 (D1, editor extension library split): `load`, `group`, `assembly`
+ * and `copy` left core entirely into `@faicad/faijs-extra`, so they can no
+ * longer be pinned here — their boundary is guarded by the extension library's
+ * own membership test. Per D1 option C the four transform ops **stay in core**
+ * (`translate` is the only transform op the weapp end side runs), and they are
+ * what remains editor-owned on the platform surface.
  */
 
 /**
- * Ops owned by `../3d_editor`'s interaction model, and the file that declares
- * them.
+ * Ops owned by `../3d_editor`'s interaction model that still live in core, and
+ * the file that declares them.
  *
- * `load` is the eighth one: its module header says "load Feature — file
- * import", it is registered via `registerFeature(loadFeature)`, and its
- * key/path/url split reads the application's own `FileRef`
- * (`loadArgsFromFileRef` → `getPlatform().caps.realPaths`). The platform side
- * imports a frozen BREP asset through `cad.import_brep` instead.
+ * D1 option C: the transform family stays whole. `translate` is a general
+ * geometric transform and the only transform op the weapp end side executes;
+ * splitting the family would leave the end side without it. `load` /
+ * `group` / `assembly` / `copy` moved to `@faicad/faijs-extra` and are no longer
+ * reachable from here.
  */
 const EDITOR_OWNED: Record<string, string> = {
-  load: 'api/load.ts',
   translate: 'api/transform.ts',
   rotate_euler: 'api/transform.ts',
   scale: 'api/transform.ts',
   scale3d: 'api/transform.ts',
-  group: 'api/compound.ts',
-  assembly: 'api/compound.ts',
-  copy: 'api/copy.ts',
 };
 
 /**

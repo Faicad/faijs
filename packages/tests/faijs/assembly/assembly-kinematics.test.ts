@@ -18,6 +18,7 @@ import { createApiNamespace } from '@faicad/faijs/api/api-namespace'
 import { solveKinematics, type JointSpec, type KinematicsPose } from '@faicad/faijs/api/assembly/joints'
 import { asPartName, type PartName } from '@faicad/faijs/identity'
 import type { ExecutionResult } from '@faicad/faijs/cad-runtime/runtime'
+import { createApiNamespaceWithEditorOps } from '../_support/editor-runtime'
 
 /** 单 revolute：part0 固定，part1 绕原点 Z 轴转 90°（与 J5 同一场景）。 */
 const FIXTURE = `let part0 = cad.box(60, 40, 10, { centered: true })
@@ -47,7 +48,7 @@ let asm1 = cad.assembly({
 asm1.solve()
 `
 
-const cadNs = createApiNamespace()
+const cadNs = createApiNamespaceWithEditorOps()
 
 function moduleRuntime(): CadRuntime {
   return new CadRuntime(createNodePorts(), 'mesh', { cad: cadNs })

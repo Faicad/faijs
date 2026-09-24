@@ -8,8 +8,8 @@
   -> npm view verification -> emit a publish record.
 
   Publish scope (see docs/plans/2026-09-19-npm-publish-plan.md section 2):
-    @faicad/faijs (core) -> @faicad/cq-compat -> @faicad/fai-cq-gears
-    -> @faicad/fai-cq-warehouse -> @faicad/sheetmetal
+    @faicad/faijs (core) -> @faicad/faijs-extra -> @faicad/cq-compat
+    -> @faicad/fai-cq-gears -> @faicad/fai-cq-warehouse -> @faicad/sheetmetal
   (@faicad/gear-lib-demo excluded per Q2; the mini lathe sample project moved out of the repo.)
 
 .PARAMETER DryRun
@@ -72,8 +72,12 @@ function Run-Npm {
 }
 
 # Publishable packages in topological order (matches section 2).
+# The editor extension library has core as a peer, so it follows core. The family
+# publishes under ONE lockstep version (step 1 below): a package that needs a
+# different version line cannot live in this list.
 $Packages = @(
   @{ Name = '@faicad/faijs';           Path = 'packages/core' },
+  @{ Name = '@faicad/faijs-extra';     Path = 'packages/faijs-extra' },
   @{ Name = '@faicad/cq-compat';        Path = 'packages/cq-compat' },
   @{ Name = '@faicad/fai-cq-gears';     Path = 'packages/fai_cq_gears' },
   @{ Name = '@faicad/fai-cq-warehouse'; Path = 'packages/fai_cq_warehouse' },
@@ -95,6 +99,15 @@ if ($uniq.Count -ne 1) {
 }
 $Version = $uniq[0]
 Write-Host "OK [1/5] version consistency: all packages = $Version" -ForegroundColor Green
+
+# Step 1b: @faicad/* dependency lockstep guard — a publishable package whose dep
+# range still points at an older line (e.g. "^0.14.0" while lockstep is 0.16.x)
+# makes the CDN build resolve a stale package and break the graph. Fail BEFORE
+# publishing anything.
+Write-Host "-> [1b/5] checking @faicad/* dep lockstep ..." -ForegroundColor Cyan
+node (Join-Path $PSScriptRoot 'check-dep-lockstep.mjs')
+if ($LASTEXITCODE -ne 0) { throw "dep lockstep check failed; aborting publish" }
+Write-Host "   OK [1b/5] dep lockstep passed" -ForegroundColor Green
 
 # Step 2: full CI (optional).
 # The repo CI entry is scripts/ci.ps1 (documented in AGENTS.md); the root

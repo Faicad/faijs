@@ -13,10 +13,10 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { CadRuntime } from './runtime'
 import { DirectExecutor } from './direct-executor'
-import { createApiNamespace } from '../api/api-namespace'
 import type { HostPorts } from './ports'
 import { computeContentKey } from './content-key'
 import { isMeshShape } from '../mesh/types'
+import { createApiNamespaceWithEditorOps } from '../test-support/editor-ops'
 
 function defaultPorts(): HostPorts {
   return { events: { emit: () => {} } } as HostPorts
@@ -34,7 +34,7 @@ function fingerprint(ctx: Record<string, unknown>): string[] {
 let rt: CadRuntime
 
 beforeAll(async () => {
-  rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
+  rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespaceWithEditorOps() })
   await rt.execute('let warmup = cad.box(1, 1, 1, { centered: true })')
 })
 
@@ -49,7 +49,7 @@ async function runBoth(code: string): Promise<{
   }
   for (const backend of ['vm', 'interp'] as const) {
     const ex = new DirectExecutor({
-      namespaces: { cad: createApiNamespace() },
+      namespaces: { cad: createApiNamespaceWithEditorOps() },
       execBackend: backend === 'vm' ? 'vm' : 'interpreter',
     })
     const res = await ex.execute(code)

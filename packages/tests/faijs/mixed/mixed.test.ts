@@ -26,6 +26,7 @@ import { createNodePorts } from '@faicad/faijs/node'
 import { registerOcctBrepEngine } from '@faicad/faijs'
 import { hasBrep } from '@faicad/faijs/shape'
 import type { Shape } from '@faicad/faijs/mesh/types'
+import { createEditorRuntime } from '../_support/editor-runtime'
 
 beforeAll(async () => {
   await registerOcctBrepEngine()
@@ -88,7 +89,7 @@ describe('mixed-modeling regression matrix (M1–M5)', () => {
     })
 
     it(`${file}: executes in auto mode → valid result on expected path`, async () => {
-      const runtime = createRuntime(
+      const runtime = createEditorRuntime(
         createNodePorts({ assetsDir: FIXTURES_DIR }),
         'auto',
       )

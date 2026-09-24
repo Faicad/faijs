@@ -146,9 +146,10 @@ export type {
 export { nextPrimitiveColor } from './primitives/types'
 export type { ScrewParams, ScrewSpec, ScrewSystem } from './primitives/screw/screw-db'
 export { getScrewSpec, getScrewSpecs, threadToPitchMm, SCREW_HEAD_DIMS } from './primitives/screw/screw-db'
-export type { CjkFontResult } from './primitives/text/cjk'
-export { loadSystemCjkFont, containsCjk, isCjkChar } from './primitives/text/cjk'
-export { getOpentypeFont } from './primitives/text-geometry'
+// B 组（svg 挤出 / 3D 文字几何链）已随 @faicad/faijs-extra 迁出；留 core 的是
+// 零 three 的 CJK 字符判定与系统字体装载。
+export type { CjkFontResult } from './primitives/text/cjk-font'
+export { loadSystemCjkFont, containsCjk, isCjkChar } from './primitives/text/cjk-font'
 
 // Boolean/CSG 辅助类型
 export type { ExtrudeParts, ExtrudeOffsetMode } from './boolean/extrude-helpers'
@@ -178,13 +179,12 @@ export { geoToManifoldMesh, manifoldMeshToGeo } from './boolean/geo-convert'
 export { manifoldToMeshData, weldPositionsWorker, dovetailBooleanSplit, dowelOrTenonBooleanSplit, chainBoolean, meshToManifold } from './boolean/csg-core'
 export { previewMeshIntersect } from './boolean/manifold-preview'
 export type { ManifoldMeshData as PreviewManifoldMeshData } from './boolean/manifold-preview'
-export { svgToExtrudedGeometry, parseSvgShapes } from './primitives/svg-extrude'
-export type { SvgExtrudeOptions } from './primitives/svg-extrude'
-export { createTextGeometry, opentypePathToGeometry } from './primitives/text-geometry'
+// 宿主注入的 mesh 装饰几何（cad.engrave 的文字/SVG 几何链在 @faicad/faijs-extra）
+export { setEngraveDecorationProvider, getEngraveDecorationProvider } from './mesh/decoration-provider'
+export type { EngraveDecorationProvider, EngraveDecorationParams } from './mesh/decoration-provider'
 export { runSdfInline } from './sdf/sdf-core'
 export { runSdf as runSdfMain } from './sdf/sdf-runner'
 export type { SdfMeshData as PreviewSdfMesh } from './sdf/sdf-runner'
-export { createMixedTextGeometry } from './primitives/text/cjk'
 
 // Knurl D 类
 export { applyKnurlDisplacement, KNURL_DEFAULTS } from './mesh/knurl/KnurlGenerator'

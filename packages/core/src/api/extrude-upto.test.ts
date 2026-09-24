@@ -13,7 +13,6 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { CadRuntime } from '../cad-runtime/runtime'
 import type { HostPorts } from '../cad-runtime/ports'
-import { createApiNamespace } from './api-namespace'
 import { asPartName } from '../identity'
 import { initOcctWasm } from '../occt-kernel/occtKernel'
 import { getSolidBoundingBox } from '../brep/brep-utils'
@@ -22,6 +21,7 @@ import { brepOf } from '../shape'
 import type { Shape } from '../mesh/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 import type { BrepHandle } from '../brep/engine/types'
+import { createApiNamespaceWithEditorOps } from '../test-support/editor-ops'
 
 beforeAll(async () => {
   await initOcctWasm()
@@ -32,7 +32,7 @@ function defaultPorts(): HostPorts {
 }
 
 async function runCode(code: string): Promise<Map<string, Shape>> {
-  const rt = new CadRuntime(defaultPorts(), 'brep', { cad: createApiNamespace() })
+  const rt = new CadRuntime(defaultPorts(), 'brep', { cad: createApiNamespaceWithEditorOps() })
   const result = await rt.execute(code)
   if (result.failedAt) {
     throw new Error(`execution failed at ${result.failedAt.callee}: ${result.failedAt.message}`)

@@ -12,6 +12,7 @@ import { CadRuntime } from '@faicad/faijs/cad-runtime/runtime'
 import { createApiNamespace } from '@faicad/faijs/api/api-namespace'
 import { asPartName, type PartName } from '@faicad/faijs/identity'
 import type { HostPorts } from '@faicad/faijs/cad-runtime/ports'
+import { createApiNamespaceWithEditorOps } from '../../_support/editor-runtime'
 
 function defaultPorts(): HostPorts {
   return { events: { emit: () => {} } } as HostPorts
@@ -20,7 +21,7 @@ function defaultPorts(): HostPorts {
 const WARMUP = 'let warmup = cad.box(1, 1, 1, { centered: true })'
 
 describe('T2/T5: full-result direct 执行 — 结果键集合验证（mesh 场景）', () => {
-  const cadNs = createApiNamespace()
+  const cadNs = createApiNamespaceWithEditorOps()
   const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs })
 
   beforeAll(async () => {

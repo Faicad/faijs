@@ -5,19 +5,19 @@
  * dispatchPath 静态判定 brep/mesh，产物经 solid()/fromBrep() 构造器创建。
  */
 
-import type { Shape } from '../mesh/types'
-import type { AssetResolver } from '../cad-runtime/ports'
-import { cad } from '../mesh'
-import { parseSvgNaturalSize } from '../primitives/parse-svg-size'
-import { svgToSolid } from '../brep/svg/svg-to-solid'
-import { solidToShape } from '../brep/brep-ops'
-import { resolveSvgArg } from './internal/svg-asset-resolver'
-import { getBackends } from '../runtime-state'
-import { fromBrep } from '../shape'
-import { defineOp } from '../sdk'
-import type { Provenance } from '../topology/naming/lineage'
-import { assertPositiveNumber } from './assert'
-import type { BrepEngineApi } from '../brep/engine/primitives'
+import type { Shape } from '@faicad/faijs/mesh/types'
+import type { AssetResolver } from '@faicad/faijs/cad-runtime/ports'
+import { svgExtrude as meshSvgExtrude } from '../mesh/primitives'
+import { parseSvgNaturalSize } from '@faicad/faijs/primitives/parse-svg-size'
+import { svgToSolid } from '@faicad/faijs/brep/svg/svg-to-solid'
+import { solidToShape } from '@faicad/faijs/brep/brep-ops'
+import { resolveSvgArg } from '@faicad/faijs/api/internal/svg-asset-resolver'
+import { getBackends } from '@faicad/faijs/runtime-state'
+import { fromBrep } from '@faicad/faijs/shape'
+import { defineOp } from '@faicad/faijs/sdk'
+import type { Provenance } from '@faicad/faijs/topology/naming/lineage'
+import { assertPositiveNumber } from '@faicad/faijs/api/assert'
+import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
 
 /**
  * Validate svgExtrude parameters: `svg` is required and `depth` must be a
@@ -65,7 +65,7 @@ export const svgExtrude = defineOp({
     const svgText = await resolveSvgArg(params.svg, { assets: getBackends().assets as AssetResolver | undefined })
     // mesh 路径：与 BREP 路径一致，内部解析 SVG 自然尺寸后缩放
     const { naturalWidth, naturalHeight } = parseSvgNaturalSize(svgText)
-    return cad.svgExtrude({
+    return meshSvgExtrude({
       svg: svgText,
       depth: params.depth as number,
       targetLongSide: (params.targetLongSide as number | undefined) ?? 20,

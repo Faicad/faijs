@@ -18,6 +18,7 @@ import { asPartName, type PartName } from '@faicad/faijs/identity'
 import type { HostPorts } from '@faicad/faijs/cad-runtime/ports'
 import { extractMetadata } from '@faicad/faijs/lang/metadata-extractor'
 import { computeLiveShapes, keepViewFromMetadata } from '@faicad/faijs/cad-runtime/live-shapes'
+import { createApiNamespaceWithEditorOps } from '../../_support/editor-runtime'
 
 const here = fileURLToPath(new URL('.', import.meta.url))
 const fixturesRoot = join(here, '..', '..', '..')
@@ -44,7 +45,7 @@ function normalizeTerminals(terminals: Array<{ id: PartName; hidden?: boolean }>
 }
 
 describe('A-14: fixture — direct terminals 行为基线', () => {
-  const cadNs = createApiNamespace()
+  const cadNs = createApiNamespaceWithEditorOps()
   const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs })
   beforeAll(async () => {
     await rt.execute('let warmup = cad.box(1, 1, 1, { centered: true })')
@@ -77,7 +78,7 @@ describe('A-14: fixture — direct terminals 行为基线', () => {
 })
 
 describe('A-14b: P25 C4 —— 无赋值裸调用不消费（静态/运行时对拍）', () => {
-  const cadNs = createApiNamespace()
+  const cadNs = createApiNamespaceWithEditorOps()
   const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs })
   beforeAll(async () => {
     await rt.execute('let warmup = cad.box(1, 1, 1, { centered: true })')

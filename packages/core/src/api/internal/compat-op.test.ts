@@ -16,7 +16,7 @@
  */
 
 import { beforeAll, describe, expect, it } from 'vitest'
-import { createRuntime, brepjsCompat } from '@faicad/faijs'
+import { brepjsCompat } from '@faicad/faijs'
 import {
   configureBackends,
   CONTRACT_VERSION,
@@ -37,6 +37,7 @@ import type { StdlibNamespace } from '../../runtime-state'
 import type { Provenance } from '../../topology/naming/lineage'
 import { clone as vendoredClone } from '../generated/topology'
 import { registerOcctBrepEngine } from '../../brep/engine/adapters/occt'
+import { createEditorRuntime } from '../../test-support/editor-ops'
 
 type Carried = { [DUAL_OP_META]?: DualOpMeta }
 
@@ -160,7 +161,7 @@ describe('§4 outputs — 多产物（含数组字段）收养 + meta 可见', (
       outputs: ['sun', 'planets', 'ring'],
       naming: { kind: 'unmodeled', reason: 'test' },
     })
-    const r = createRuntime(ports(), 'auto')
+    const r = createEditorRuntime(ports(), 'auto')
     try {
       r.registerLib(
         'out',
@@ -196,7 +197,7 @@ describe('§6 slotMap — positional boxing inherited via the spec', () => {
     }, { name: 'slotted', slotMap: { keys: ['size'] }, naming: { kind: 'unmodeled', reason: 'test' } })
     expect(metaOf(slotted).slotMap).toEqual({ keys: ['size'] })
 
-    const r = createRuntime(ports(), 'auto')
+    const r = createEditorRuntime(ports(), 'auto')
     try {
       r.registerLib(
         'sl',
@@ -221,7 +222,7 @@ describe('§5 keep — 兼容 op 调用点声明（UI 层显示契约不改）',
   } as unknown as StdlibNamespace
 
   async function run(code: string): Promise<ExecutionResult> {
-    const r = createRuntime(ports(), 'auto')
+    const r = createEditorRuntime(ports(), 'auto')
     try {
       r.registerLib('gear', ns, { autoLift: true, packageName: 'gear-lib-demo' })
       return await r.execute(code)
@@ -258,7 +259,7 @@ describe('§3 admitCompatLib — bare fn 只认 fn.outputs（多产物契约名�
     }
     ;(sorting as unknown as { outputs?: string[] }).outputs = ['a', 'b']
     const ns = { contractVersion: CONTRACT_VERSION, sorting } as unknown as StdlibNamespace
-    const r = createRuntime(ports(), 'auto')
+    const r = createEditorRuntime(ports(), 'auto')
     try {
       r.registerLib('srt', ns, { autoLift: true, packageName: 'sort-lib' })
       const result = await r.execute("import * as srt from 'sort-lib'\nconst r1 = srt.sorting({ n: 4 })")
@@ -285,7 +286,7 @@ describe('§7 async library fn — Promise<Result<…>> is awaited before unwrap
       return { ok: true, value: vendorBox(n, n, n) }
     }
     const ns = { contractVersion: CONTRACT_VERSION, asyncBox } as unknown as StdlibNamespace
-    const r = createRuntime(ports(), 'auto')
+    const r = createEditorRuntime(ports(), 'auto')
     try {
       r.registerLib('alib', ns, { autoLift: true, packageName: 'async-lib' })
       const res = await r.execute(
@@ -304,7 +305,7 @@ describe('§7 async library fn — Promise<Result<…>> is awaited before unwrap
   it('async factory returning err → statement failure (not a raw throw)', async () => {
     const failing = async () => ({ ok: false, error: { code: 'E_GEAR', message: 'boom' } })
     const ns = { contractVersion: CONTRACT_VERSION, failing } as unknown as StdlibNamespace
-    const r = createRuntime(ports(), 'auto')
+    const r = createEditorRuntime(ports(), 'auto')
     try {
       r.registerLib('flib', ns, { autoLift: true, packageName: 'fail-lib' })
       const res = await r.execute("import * as flib from 'fail-lib'\nconst p = flib.failing({})")

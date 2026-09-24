@@ -35,6 +35,7 @@ import type { CadRuntime } from '@faicad/faijs/cad-runtime/runtime'
 import type { StdlibNamespace } from '@faicad/faijs/runtime-state'
 import type { Shape } from '@faicad/faijs/mesh/types'
 import * as sheetPkg from '@faicad/sheetmetal'
+import { createEditorRuntime } from '../_support/editor-runtime'
 
 /**
  * The registered library projection: the real @faicad/sheetmetal entry
@@ -77,7 +78,7 @@ let result: Awaited<ReturnType<CadRuntime['execute']>>
 
 beforeAll(async () => {
   await registerOcctBrepEngine()
-  runtime = createRuntime(createNodePorts(), 'auto')
+  runtime = createEditorRuntime(createNodePorts(), 'auto')
   runtime.registerLib('sheet', sheetNs, { autoLift: true })
   result = await runtime.execute(SCRIPT)
 }, 180000)
@@ -144,7 +145,7 @@ describe('P26 sheet §8.4 — seven acceptance assertions', () => {
     {
       // (a) re-registering the same library keeps the statement keys (B2:
       //     no spurious recompute for an unchanged lib content).
-      const r = createRuntime(createNodePorts(), 'auto')
+      const r = createEditorRuntime(createNodePorts(), 'auto')
       try {
         r.registerLib('sheet', sheetNs, { autoLift: true })
         await r.execute(SCRIPT)
@@ -161,7 +162,7 @@ describe('P26 sheet §8.4 — seven acceptance assertions', () => {
     {
       // (b) author-param change: full re-run via update; geometry changes.
       // T5: plan() deleted; use update() to verify recompute happens.
-      const r = createRuntime(createNodePorts(), 'auto')
+      const r = createEditorRuntime(createNodePorts(), 'auto')
       try {
         r.registerLib('sheet', sheetNs, { autoLift: true })
         const r1 = await r.execute(SCRIPT)
@@ -185,7 +186,7 @@ describe('P26 sheet §8.4 — seven acceptance assertions', () => {
     {
       // (c) same binding, changed library implementation → full recompute.
       // T5: plan() deleted; verify recompute via update().
-      const r = createRuntime(createNodePorts(), 'auto')
+      const r = createEditorRuntime(createNodePorts(), 'auto')
       try {
         r.registerLib('sheet', sheetNs, { autoLift: true })
         const r1 = await r.execute(SCRIPT)
@@ -203,7 +204,7 @@ describe('P26 sheet §8.4 — seven acceptance assertions', () => {
   }, 120_000)
 
   it('⑥ mesh mode hits E_MESH_UNSUPPORTED when invoking the sheet library (no silent fallback)', async () => {
-    const r = createRuntime(createNodePorts(), 'mesh')
+    const r = createEditorRuntime(createNodePorts(), 'mesh')
     try {
       r.registerLib('sheet', sheetNs, { autoLift: true })
       const res = await r.execute(SCRIPT)

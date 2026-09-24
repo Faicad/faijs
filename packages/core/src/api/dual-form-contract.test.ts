@@ -14,11 +14,11 @@
 
 import { describe, it, expect, beforeAll } from 'vitest'
 import { CadRuntime } from '../cad-runtime/runtime'
-import { createApiNamespace } from './api-namespace'
 import type { HostPorts } from '../cad-runtime/ports'
 import { asPartName } from '../identity'
 import { initOcctWasm } from '../occt-kernel/occtKernel'
 import type { Shape } from '../mesh/types'
+import { createApiNamespaceWithEditorOps } from '../test-support/editor-ops'
 
 beforeAll(async () => {
   await initOcctWasm()
@@ -30,7 +30,7 @@ function defaultPorts(): HostPorts {
 
 /** 以指定后端模式执行源码，取 part0 的 mesh Shape（执行失败直接抛）。 */
 async function runShape(code: string, mode: 'mesh' | 'brep'): Promise<Shape> {
-  const rt = new CadRuntime(defaultPorts(), mode, { cad: createApiNamespace() })
+  const rt = new CadRuntime(defaultPorts(), mode, { cad: createApiNamespaceWithEditorOps() })
   const result = await rt.execute(code)
   if (result.failedAt) {
     throw new Error(`execution failed at ${result.failedAt.callee}: ${result.failedAt.message}`)

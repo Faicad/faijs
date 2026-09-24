@@ -20,6 +20,7 @@ import { isMeshShape } from '@faicad/faijs/mesh/types'
 import { asPartName, type PartName } from '@faicad/faijs/identity'
 import type { HostPorts } from '@faicad/faijs/cad-runtime/ports'
 import type { TerminalShape } from '@faicad/faijs/lang/types'
+import { createApiNamespaceWithEditorOps } from '../../_support/editor-runtime'
 
 const here = fileURLToPath(new URL('.', import.meta.url))
 const fixturesRoot = join(here, '..', '..', '..')
@@ -60,7 +61,7 @@ function compoundKeys(compounds: Map<PartName, PartName[]> | undefined): string[
 const WARMUP = 'let warmup = cad.box(1, 1, 1, { centered: true })'
 
 describe('T5：CadRuntime direct 执行（fixture 全集，mesh）', () => {
-  const cadNs = createApiNamespace()
+  const cadNs = createApiNamespaceWithEditorOps()
   const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs })
 
   beforeAll(async () => {
@@ -79,7 +80,7 @@ describe('T5：CadRuntime direct 执行（fixture 全集，mesh）', () => {
 })
 
 describe('T5：CadRuntime direct 模式 runtime 面语义', () => {
-  const cadNs = createApiNamespace()
+  const cadNs = createApiNamespaceWithEditorOps()
   const mk = (): CadRuntime =>
     new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs })
 
@@ -136,7 +137,7 @@ describe('T5：CadRuntime direct 模式 runtime 面语义', () => {
 })
 
 describe('T5：CadRuntime direct 模式 E4 执行选项', () => {
-  const cadNs = createApiNamespace()
+  const cadNs = createApiNamespaceWithEditorOps()
   const mk = (): CadRuntime =>
     new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs })
   const CODE = [
@@ -177,7 +178,7 @@ describe('T5：CadRuntime direct 模式 E4 执行选项', () => {
 })
 
 describe('T5/P5：参数引用保真（A-5）— 编辑 height 后 update 全量重跑，代码行保留参数引用形态', () => {
-  const cadNs = createApiNamespace()
+  const cadNs = createApiNamespaceWithEditorOps()
   const mk = (): CadRuntime =>
     new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs })
   it('改参数值：几何内容 key 变化且 terminals 仍为 bp（引用形态未破坏）', async () => {
@@ -201,7 +202,7 @@ describe('T5/P5：参数引用保真（A-5）— 编辑 height 后 update 全量
 })
 
 describe('E6/E7：direct 面 failedAt.index 语句序数与 check() 语法门禁', () => {
-  const cadNs = createApiNamespace()
+  const cadNs = createApiNamespaceWithEditorOps()
   const directMk = (): CadRuntime =>
     new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs })
 

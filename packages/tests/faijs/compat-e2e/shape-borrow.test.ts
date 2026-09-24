@@ -26,6 +26,7 @@ import type { CadRuntime } from '@faicad/faijs/cad-runtime/runtime'
 import type { StdlibNamespace } from '@faicad/faijs/runtime-state'
 import type { Shape } from '@faicad/faijs/mesh/types'
 import * as sheetPkg from '@faicad/sheetmetal'
+import { createEditorRuntime } from '../_support/editor-runtime'
 
 const sheetNs: StdlibNamespace = {
   author: sheetPkg.author,
@@ -48,7 +49,7 @@ beforeAll(async () => {
 
 describe('P1 — faijs Shape round-trips into a vendored-Solid library parameter', () => {
   it('solidOf product is a brep-backed Shape; unfoldSolid(s1) detects the flange bend instead of crashing', async () => {
-    const runtime: CadRuntime = createRuntime(createNodePorts(), 'auto')
+    const runtime: CadRuntime = createEditorRuntime(createNodePorts(), 'auto')
     try {
       runtime.registerLib('sheet', sheetNs, { autoLift: true })
       const res = await runtime.execute(SCRIPT)

@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env pwsh
+#!/usr/bin/env pwsh
 param(
     [Parameter(Position = 0, HelpMessage = '"all" to log full output to ci.log. Default: direct console output.')]
     [string]$Mode
@@ -85,7 +85,7 @@ $tmpVitest = [System.IO.Path]::GetTempFileName()
 # 其计时器同样被冻结, 见 p23-cad-face)。每个测试工作区单跑, 外层套进程级看门狗:
 # 任一处完不成 5 分钟预算即杀进程树并判失败, CI 绝不被一个死循环测试永久挂起。
 $testBudgetMs = if ($env:FAIJS_TEST_BUDGET_MS) { [int]$env:FAIJS_TEST_BUDGET_MS } else { 300000 } # 5 分钟
-$testPackages = @('@faicad/faijs','@faicad/sheetmetal','@faicad/cq-compat','@faicad/faijs-tests','@faicad/faijs-demo')
+$testPackages = @('@faicad/faijs','@faicad/faijs-extra','@faicad/sheetmetal','@faicad/cq-compat','@faicad/faijs-tests','@faicad/faijs-demo')
 $stepFail = $false
 foreach ($pkg in $testPackages) {
     Write-Host "    -- $pkg（budget=${testBudgetMs}ms）"
@@ -137,7 +137,9 @@ Step -Label '5/9  守卫：幽灵依赖 / workspaces 顺序 / 包图无环 / 导
     if ($LASTEXITCODE -ne 0) { return }
     node scripts/check-workspaces-order.mjs
     if ($LASTEXITCODE -ne 0) { return }
-    npx madge --circular packages/core/src
+    node scripts/check-dep-lockstep.mjs
+    if ($LASTEXITCODE -ne 0) { return }
+    npx madge --circular packages/core/src packages/faijs-extra/src
     if ($LASTEXITCODE -ne 0) { return }
     # 导出面：10 个子路径必须全部可导入（快照脚本自身断言；有 error 即失败）
     node scripts/api-surface-snapshot.mjs

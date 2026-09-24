@@ -13,7 +13,6 @@
  */
 import { describe, it, expect, beforeAll } from 'vitest'
 import { CadRuntime } from '../../cad-runtime/runtime'
-import { createApiNamespace } from '../api-namespace'
 import type { HostPorts } from '../../cad-runtime/ports'
 import { initOcctWasm } from '../../occt-kernel/occtKernel'
 import { viewCamera } from './view-camera'
@@ -21,6 +20,7 @@ import { projectView, projectViewSvg } from './view-projection'
 import { projectSheet } from './view-sheet'
 import { solid } from '../../shape'
 import type { Shape } from '../../mesh/types'
+import { createApiNamespaceWithEditorOps } from '../../test-support/editor-ops'
 
 function defaultPorts(): HostPorts {
   return { events: { emit: () => {} } } as HostPorts
@@ -73,7 +73,7 @@ describe('viewCamera：视图规格 → 相机纯数据', () => {
 })
 
 describe('projectView：单视图投影 SVG', () => {
-  const cadNs = createApiNamespace()
+  const cadNs = createApiNamespaceWithEditorOps()
   let rt: CadRuntime
 
   beforeAll(async () => {
@@ -145,7 +145,7 @@ describe('projectView：单视图投影 SVG', () => {
 })
 
 describe('projectSheet：多视图图纸 SVG', () => {
-  const cadNs = createApiNamespace()
+  const cadNs = createApiNamespaceWithEditorOps()
   let rt: CadRuntime
 
   beforeAll(async () => {

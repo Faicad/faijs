@@ -15,14 +15,14 @@
  * 对约束定位的成员施加装配变换（mesh 顶点烘焙 + BREP 刚体变换 + 下游传播）。
  */
 
-import type { Shape } from '../mesh/types'
-import { compound as makeCompound, ensureSlot, type CompoundShape } from '../shape'
-import { keep, nameOf, setPendingAssemblyTransforms, setPendingAssemblyKinematics, type AssemblyTransform } from '../runtime-state'
-import { solveAssemblyAndKinematics, type AssemblySolveResult } from './assembly/solve'
-import { validateConstraints } from './assembly/validate'
-import { buildKinematicTree, type JointSpec } from './assembly/joints'
-import type { AssemblyConstraint } from './assembly/types'
-import type { SolverStyle } from './assembly/solvers/types'
+import type { Shape } from '@faicad/faijs/mesh/types'
+import { compound as makeCompound, ensureSlot, type CompoundShape } from '@faicad/faijs/shape'
+import { keep, nameOf, setPendingAssemblyTransforms, setPendingAssemblyKinematics, type AssemblyTransform } from '@faicad/faijs/runtime-state'
+import { solveAssemblyAndKinematics, type AssemblySolveResult } from '@faicad/faijs/api/assembly/solve'
+import { validateConstraints } from '@faicad/faijs/api/assembly/validate'
+import { buildKinematicTree, type JointSpec } from '@faicad/faijs/api/assembly/joints'
+import type { AssemblyConstraint } from '@faicad/faijs/api/assembly/types'
+import type { SolverStyle } from '@faicad/faijs/api/assembly/solvers/types'
 
 // ── 参数类型（keep-syntax 设计 §2.5：成员保留由函数体 keep() 显式声明，不再靠类型标注） ──
 
@@ -67,8 +67,8 @@ export type {
   FixedConstraint,
   StructuralConstraint,
   AssemblyVec3,
-} from './assembly/types'
-export type { AssemblySolveResult } from './assembly/solve'
+} from '@faicad/faijs/api/assembly/types'
+export type { AssemblySolveResult } from '@faicad/faijs/api/assembly/solve'
 
 // ── 求解器 ──
 // P2-f5：旧装配算法与自有四元数实现已整体删除——旋转计算一律走
@@ -76,7 +76,7 @@ export type { AssemblySolveResult } from './assembly/solve'
 
 // 应用变换（mesh 顶点烘焙）下沉到引擎侧 src/mesh/rigid-transform.ts（E-b：
 // 引擎不得 import stdlib/compound；公共 API 经本 re-export 保持）。
-export { applyTransform } from '../mesh/rigid-transform'
+export { applyTransform } from '@faicad/faijs/mesh/rigid-transform'
 
 // ── AssemblyBehavior ──
 

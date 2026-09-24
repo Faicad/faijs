@@ -101,6 +101,9 @@ export default defineConfig({
     // 前缀匹配（@rollup/plugin-alias）：'@faicad/faijs/browser' → ../core/src/browser.ts
     // （D2-A 后门面已折叠进 core，旧根 src/ 别名已移除）。
     alias: [
+      // 编辑器扩展库（A/B 组 op + svg/文字预览辅助）——M7 活源码联动，同 faijs。
+      // 前缀匹配不吞并 `@faicad/faijs`（Vite 只匹配 find 本身或 find + '/'）。
+      { find: '@faicad/faijs-extra', replacement: resolve(__dirname, '../faijs-extra/src') },
       { find: '@faicad/faijs', replacement: resolve(__dirname, '../core/src') },
       // sheetmetal：经 alias 落位活源码（dev 与 rollup build 一致生效）。
       // 注：gear-lib-demo 已删除，'gear-demo' 示例改为真走 CDN（库不存在 → 显式报错）。

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { createRuntime } from '../index'
 import { createNodePorts } from '../node'
 import { getBackends } from '../runtime-state'
 import { runtimeLineage } from '../topology/naming/lineage'
 import type { BrepEngineApi } from '../brep/engine/primitives'
+import { createEditorRuntime } from '../test-support/editor-ops'
 
 const SQUARE = `{ contours: [{ segments: [
   { kind: 'line', x1: 0, y1: 0, x2: 10, y2: 0 },
@@ -14,7 +14,7 @@ const SQUARE = `{ contours: [{ segments: [
 
 describe('probe revolve roles', () => {
   it('dumps part-key table vs live per-face hashes', async () => {
-    const runtime = createRuntime(createNodePorts(), 'brep')
+    const runtime = createEditorRuntime(createNodePorts(), 'brep')
     const code = `
       const part0 = cad.sketch(${SQUARE})
       const part1 = cad.revolve(part0, { axis: [0, 0, 1], at: [0, 0, 0], angle: 6.283185307179586 })

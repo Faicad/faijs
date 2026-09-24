@@ -20,6 +20,7 @@ import { registerOcctBrepEngine } from '@faicad/faijs'
 import type { Shape } from '@faicad/faijs/mesh/types'
 import { ensureTestFontLoader } from '@faicad/faijs/brep/text/fontTestHelper'
 import { yieldWorkerRpc } from '../_support/worker-yield.js'
+import { createEditorRuntime } from '../_support/editor-runtime'
 
 beforeAll(async () => {
   await registerOcctBrepEngine()
@@ -77,7 +78,7 @@ describe('parity .fai.js tests (BREP vs mesh)', () => {
 
     it(`${file}: BREP and mesh modes produce equivalent bbox (1% tolerance)`, async () => {
       // Execute in BREP mode
-      const brepRuntime = createRuntime(createNodePorts(), 'brep')
+      const brepRuntime = createEditorRuntime(createNodePorts(), 'brep')
       const brepResult = await brepRuntime.execute(code)
       expect(brepResult.failedAt).toBeUndefined()
 
@@ -99,7 +100,7 @@ describe('parity .fai.js tests (BREP vs mesh)', () => {
       await yieldWorkerRpc()
 
       // Execute in mesh mode
-      const meshRuntime = createRuntime(createNodePorts(), 'mesh')
+      const meshRuntime = createEditorRuntime(createNodePorts(), 'mesh')
       const meshResult = await meshRuntime.execute(code)
       expect(meshResult.failedAt).toBeUndefined()
 

@@ -24,6 +24,16 @@ import type { Backends } from '@faicad/faijs/runtime-state'
 import { defineOp, assertLibConforms } from '@faicad/faijs/sdk'
 import { solid, fromBrep, isShape, hasBrep } from '@faicad/faijs/shape'
 import type { Shape } from '@faicad/faijs/mesh/types'
+import type { Provenance } from '@faicad/faijs/topology/naming/lineage'
+
+/**
+ * GOTCHA (2026-09-24): `DualOpOptions.naming` is **required** by the op-metadata
+ * contract, so a library op declaration that omits it fails to typecheck (and the
+ * overload that matches instead returns `Record<string, Shape>`, producing a
+ * confusing "conversion may be a mistake" error at every call site). The
+ * production ops declare the same shape; the mocks here had drifted.
+ */
+const NAMING = { kind: 'construct', newFaces: { via: 'explicit', vocab: [] } } as Provenance
 
 // ── 工具：fake backends（只喂 dispatchPath 需要读的 config.mode） ──
 
@@ -80,7 +90,7 @@ describe('V5.3: SDK 公开面与 defineOp（第三方库声明实现集）', () 
 describe('V5.3 静态矩阵：auto / brep / mesh × 实现集 × 输入在链', () => {
   it('auto：双路径 + 全部输入在链 → brep 路径执行', async () => {
     setMode('auto')
-    const op = defineOp({
+    const op = defineOp({ naming: NAMING,
       mesh: (input: Shape) => cubeMesh(1),
       brep: (input: Shape) => fromBrep(input, { solid: { h: 2 }, faceEvolution: new Map<number, number[]>() }),
     })
@@ -90,40 +100,40 @@ describe('V5.3 静态矩阵：auto / brep / mesh × 实现集 × 输入在链', 
 
   it('auto：双路径但输入不在链 → 降级 mesh（并非回退，静态规则）', async () => {
     setMode('auto')
-    const op = defineOp({ mesh: (input: Shape) => cubeMesh(1), brep: () => 1 as unknown as import('@faicad/faijs/brep/engine/types').BrepHandle })
+    const op = defineOp({ naming: NAMING, mesh: (input: Shape) => cubeMesh(1), brep: () => 1 as unknown as import('@faicad/faijs/brep/engine/types').BrepHandle })
     const r = (await op(offChain)) as Shape
     expect(hasBrep(r)).toBe(false)
   })
 
   it('auto：只声明 mesh（无 brep）→ 恒 mesh', async () => {
     setMode('auto')
-    const op = defineOp({ mesh: (input: Shape) => cubeMesh(1) })
+    const op = defineOp({ naming: NAMING, mesh: (input: Shape) => cubeMesh(1) })
     const r = (await op(inChain)) as Shape
     expect(hasBrep(r)).toBe(false)
   })
 
   it('brep：双路径且全部在链 → brep 路径执行', async () => {
     setMode('brep')
-    const op = defineOp({ mesh: (input: Shape) => cubeMesh(1), brep: () => fromBrep(cubeMesh(1), { solid: { h: 3 }, faceEvolution: new Map<number, number[]>() }) })
+    const op = defineOp({ naming: NAMING, mesh: (input: Shape) => cubeMesh(1), brep: () => fromBrep(cubeMesh(1), { solid: { h: 3 }, faceEvolution: new Map<number, number[]>() }) })
     const r = (await op(inChain)) as Shape
     expect(hasBrep(r)).toBe(true)
   })
 
   it('brep：只声明 mesh（无 brep）→ 抛 BrepUnsupportedError（引擎→failedAt）', async () => {
     setMode('brep')
-    const op = defineOp({ mesh: (input: Shape) => cubeMesh(1) })
+    const op = defineOp({ naming: NAMING, mesh: (input: Shape) => cubeMesh(1) })
     await expect(op(inChain)).rejects.toThrow(BrepUnsupportedError)
   })
 
   it('brep：有 brep 但有输入不在链 → 抛 BrepUnsupportedError（不静默 mesh）', async () => {
     setMode('brep')
-    const op = defineOp({ mesh: (input: Shape) => cubeMesh(1), brep: () => fromBrep(cubeMesh(1), { solid: { h: 3 }, faceEvolution: new Map<number, number[]>() }) })
+    const op = defineOp({ naming: NAMING, mesh: (input: Shape) => cubeMesh(1), brep: () => fromBrep(cubeMesh(1), { solid: { h: 3 }, faceEvolution: new Map<number, number[]>() }) })
     await expect(op(offChain)).rejects.toThrow(BrepUnsupportedError)
   })
 
   it('mesh：显式 mesh 模式优先——恒走 mesh，不读链状态', async () => {
     setMode('mesh')
-    const op = defineOp({ mesh: (input: Shape) => cubeMesh(1), brep: () => fromBrep(cubeMesh(1), { solid: { h: 4 }, faceEvolution: new Map<number, number[]>() }) })
+    const op = defineOp({ naming: NAMING, mesh: (input: Shape) => cubeMesh(1), brep: () => fromBrep(cubeMesh(1), { solid: { h: 4 }, faceEvolution: new Map<number, number[]>() }) })
     const r = (await op(inChain)) as Shape
     expect(hasBrep(r)).toBe(false)
   })
@@ -134,7 +144,7 @@ describe('V5.3 静态矩阵：auto / brep / mesh × 实现集 × 输入在链', 
 describe('V5.3: 第三方库 op 声明实现集（库作者视角）', () => {
   it('库定义双路径 op，auto 在链输入 → 走 brep（产物自动 fromBrep，链身份保留）', async () => {
     setMode('auto')
-    const libOp = defineOp({
+    const libOp = defineOp({ naming: NAMING,
       mesh: (input: Shape) => cubeMesh(1),
       brep: (input: Shape) => input, // 库"透传"原对象：链身份保留
     })
@@ -144,27 +154,27 @@ describe('V5.3: 第三方库 op 声明实现集（库作者视角）', () => {
 
   it('库只声明 mesh + brep 模式 → BrepUnsupportedError（引擎→failedAt，不静默 mesh）', async () => {
     setMode('brep')
-    const libMeshOnly = defineOp({ mesh: (input: Shape) => cubeMesh(1) })
+    const libMeshOnly = defineOp({ naming: NAMING, mesh: (input: Shape) => cubeMesh(1) })
     await expect(libMeshOnly(inChain)).rejects.toThrow(BrepUnsupportedError)
   })
 
   it('库只声明 brep（D1b）+ auto 在链 → 走 brep；off-chain → MeshUnsupportedError（无 mesh 可降级）', async () => {
     setMode('auto')
-    const libBrepOnly = defineOp({ brep: (input: Shape) => fromBrep(cubeMesh(1), { solid: { h: 5 }, faceEvolution: new Map<number, number[]>() }) })
+    const libBrepOnly = defineOp({ naming: NAMING, brep: (input: Shape) => fromBrep(cubeMesh(1), { solid: { h: 5 }, faceEvolution: new Map<number, number[]>() }) })
     const r = (await libBrepOnly(inChain)) as Shape
     expect(hasBrep(r)).toBe(true)
     await expect(libBrepOnly(offChain)).rejects.toThrow(MeshUnsupportedError)
   })
 
   it('assertLibConforms：导出 defineOp 的库必须带匹配 contractVersion（否则 registerLib 拒绝）', () => {
-    const dup = defineOp({ mesh: (input: Shape) => cubeMesh(1) })
+    const dup = defineOp({ naming: NAMING, mesh: (input: Shape) => cubeMesh(1) })
     expect(() => assertLibConforms({ dup })).toThrow(/contractVersion/)
     expect(() => assertLibConforms({ dup, contractVersion: CONTRACT_VERSION })).not.toThrow()
   })
 
   it('纯函数：同一输入两三次调用结果一致（无环境副作用、无网络）', async () => {
     setMode('auto')
-    const op = defineOp({ mesh: (input: Shape) => cubeMesh(1) })
+    const op = defineOp({ naming: NAMING, mesh: (input: Shape) => cubeMesh(1) })
     const a = await op(offChain)
     const b = await op(offChain)
     expect(isShape(a as Shape)).toBe(true)

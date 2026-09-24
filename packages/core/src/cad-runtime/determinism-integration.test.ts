@@ -11,9 +11,9 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { registerOcctBrepEngine } from '../brep/engine/adapters/occt'
 import { CadRuntime } from './runtime'
-import { createApiNamespace } from '../api/api-namespace'
 import { CONTRACT_VERSION, type StdlibNamespace } from '../runtime-state'
 import type { HostPorts, EventSink, LibLoader } from './ports'
+import { createApiNamespaceWithEditorOps } from '../test-support/editor-ops'
 
 class TestEventSink implements EventSink {
   readonly events: Array<{ event: string; detail: Record<string, unknown> }> = []
@@ -24,7 +24,7 @@ class TestEventSink implements EventSink {
 
 function makeRuntime(determinism: 'off' | 'warn' | 'error', libLoader?: LibLoader): CadRuntime {
   const ports: HostPorts = { events: new TestEventSink(), ...(libLoader ? { libLoader } : {}) }
-  return new CadRuntime(ports, 'auto', { cad: createApiNamespace() }, { determinism })
+  return new CadRuntime(ports, 'auto', { cad: createApiNamespaceWithEditorOps() }, { determinism })
 }
 
 /** 最小库装载器：loadSource 返回给定库源码，loadLib 返回最小可用命名空间。autoLift 关（裸函数不作 compatOp 提升，避免测试把 null 当几何）。 */

@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-24-dep-lockstep-guard.md
+2026-09-24-dep-lockstep-guard.md: 0b4231f7c207960d42826e9d8268772914046410
+2026-09-24-dep-lockstep-guard.zh.md: 5e2daf1db5ff8a66e88ceb8d09883fdded82c03d

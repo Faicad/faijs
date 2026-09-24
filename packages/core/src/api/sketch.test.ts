@@ -10,12 +10,12 @@
 
 import { describe, it, expect, beforeAll } from 'vitest'
 import { CadRuntime } from '../cad-runtime/runtime'
-import { createApiNamespace } from './api-namespace'
 import type { HostPorts } from '../cad-runtime/ports'
 import { asPartName } from '../identity'
 import { initOcctWasm } from '../occt-kernel/occtKernel'
 import type { Shape } from '../mesh/types'
 import type { Contour } from '../fcstd/contour.js'
+import { createApiNamespaceWithEditorOps } from '../test-support/editor-ops'
 
 beforeAll(async () => {
   await initOcctWasm()
@@ -32,7 +32,7 @@ async function runSketch(contours: Contour[]): Promise<Shape> {
 
 /** Execute arbitrary .fai.js code in BREP mode and return the named output Shape. */
 async function runCode(code: string, part: string): Promise<Shape> {
-  const rt = new CadRuntime(defaultPorts(), 'brep', { cad: createApiNamespace() })
+  const rt = new CadRuntime(defaultPorts(), 'brep', { cad: createApiNamespaceWithEditorOps() })
   const result = await rt.execute(code)
   if (result.failedAt) {
     throw new Error(`execution failed at ${result.failedAt.callee}: ${result.failedAt.message}`)

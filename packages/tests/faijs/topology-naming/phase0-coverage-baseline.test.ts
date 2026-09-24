@@ -85,6 +85,7 @@ import { createNodePorts } from '@faicad/faijs/node'
 import { asPartName, type PartName } from '@faicad/faijs/identity'
 import type { CadRuntime, ExecutionResult } from '@faicad/faijs/cad-runtime/runtime'
 import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
+import { createEditorRuntime } from '../_support/editor-runtime'
 
 beforeAll(async () => {
   await registerOcctBrepEngine()
@@ -190,7 +191,7 @@ interface Coverage {
  * @returns the coverage counts for its final part.
  */
 async function measureUncached(row: CoverageRow): Promise<Coverage> {
-  const runtime: CadRuntime = createRuntime(createNodePorts(), 'brep')
+  const runtime: CadRuntime = createEditorRuntime(createNodePorts(), 'brep')
   try {
     const result: ExecutionResult = await runtime.execute(row.code, { topology: 'auto' })
     expect(result.failedAt, `[${row.label}] 执行失败：${result.failedAt?.message}`).toBeUndefined()
@@ -211,7 +212,13 @@ async function measureUncached(row: CoverageRow): Promise<Coverage> {
       else if (POSITIONAL_RE.test(f.role)) positional++
       else semantic++
     }
-    return { total, rows: rows.length, semantic, positional, empty, roles: rows.map((f) => f.role) }
+    // GOTCHA (2026-09-24): `role` is nullable (an anonymous face has `role: null`,
+    // Phase 1.7 / D6-G6). The `empty` counter above already accounts for those, so
+    // the `roles` list carries only the real role names.
+    return {
+      total, rows: rows.length, semantic, positional, empty,
+      roles: rows.map((f) => f.role).filter((r): r is string => r !== null),
+    }
   } finally {
     runtime.dispose()
   }

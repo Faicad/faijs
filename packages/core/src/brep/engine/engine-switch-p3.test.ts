@@ -23,10 +23,12 @@ import type { BrepEngineApi } from './primitives'
 import type { BrepHandle, BrepMethodKind } from './types'
 import * as capabilityMap from '../../api/surface/capability-map.json'
 
-// ── Phase 3 能力收口底表（capability-map 64 个唯一内核方法，静态快照） ──
+// ── Phase 3 能力收口底表（capability-map 63 个唯一内核方法，静态快照） ──
+// 快照随 `npm run gen:capability-map -w @faicad/faijs` 更新；2026-09-24 重生成时
+// `transformCopy`（`applyComposedTransformWithHistory` 的唯一声明者）从表中移除——
+// arg-spec 已把它标为 skip（ComposedTransform 在 .fai.js 不可构造），是**生成物过期**。
 const CAPABILITY_METHODS = [
   'addHolesInFace',
-  'applyComposedTransformWithHistory',
   'boundingBox',
   'buildEdgeOnSurface',
   'buildExtrusionLaw',
@@ -147,10 +149,10 @@ afterAll(() => {
   __resetEngineRegistriesForTests()
 })
 
-describe('Phase 3 接口覆盖：capability-map 64 方法 → BrepEngineApi', () => {
-  it('capability-map 唯一内核方法数 = 64（底表快照，与静态清单一致）', () => {
+describe('Phase 3 接口覆盖：capability-map 63 方法 → BrepEngineApi', () => {
+  it('capability-map 唯一内核方法数 = 63（底表快照，与静态清单一致）', () => {
     const fromMap = [...new Set(capabilityMap.entries.flatMap((e) => e.kernelMethods as string[]))]
-    expect(fromMap.length).toBe(64)
+    expect(fromMap.length).toBe(63)
   })
 
   it('编译期守卫生效：_coverageGuard 类型为 never（见文件顶 type _Assert）', () => {
@@ -158,9 +160,19 @@ describe('Phase 3 接口覆盖：capability-map 64 方法 → BrepEngineApi', ()
     expect(typeof _coverageGuard).toBe('undefined')
   })
 
-  it('33 个 Phase 3 方法清单 ⊆ capability-map 方法集（清单与底表一致）', () => {
+  it('33 个 Phase 3 方法清单 ⊆ capability-map 方法集（无 op 声明者除外）', () => {
+    // GOTCHA (2026-09-24): `applyComposedTransformWithHistory` is a Phase 3
+    // **interface increment** on BrepEngineApi, but no op declares it any more: its
+    // only declarer was `transformCopy`, which arg-spec skips (ComposedTransform is
+    // not constructible in `.fai.js`) and which the capability-map regeneration
+    // therefore dropped. The adapter-coverage assertions below still cover the
+    // method; only this "清单 ⊆ 底表" consistency check excludes it explicitly.
+    const NOT_DECLARED_BY_ANY_OP = new Set<string>(['applyComposedTransformWithHistory'])
     const set = new Set(CAPABILITY_METHODS)
-    for (const m of PHASE3_METHODS) expect(set.has(m as CapabilityMethod), `清单外方法: ${m}`).toBe(true)
+    for (const m of PHASE3_METHODS) {
+      if (NOT_DECLARED_BY_ANY_OP.has(m)) continue
+      expect(set.has(m as CapabilityMethod), `清单外方法: ${m}`).toBe(true)
+    }
   })
 })
 

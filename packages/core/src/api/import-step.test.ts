@@ -11,7 +11,6 @@
 
 import { describe, it, expect, beforeEach } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { createRuntime } from '@faicad/faijs'
 import type { HostPorts } from '../cad-runtime/ports'
 import {
   configureBackends,
@@ -26,6 +25,7 @@ import { registerOcctBrepEngine } from '../brep/engine/adapters/occt'
 import { asPartName } from '../identity'
 import type { RoleTable } from '../topology/naming/types'
 import type { StmtId } from '../identity'
+import { createEditorRuntime } from '../test-support/editor-ops'
 
 // ── 素材与 helpers ──
 
@@ -138,7 +138,7 @@ describe('import_step: real STEP file e2e (occt)', () => {
         resolveUrl: async () => STEP_BUFFER,
       },
     }
-    const runtime = createRuntime(ports, 'brep')
+    const runtime = createEditorRuntime(ports, 'brep')
     const result = await runtime.execute(
       `let a = await cad.import_step({ path: 'fixtures/box_boss.step' })\nlet r = a`,
     )

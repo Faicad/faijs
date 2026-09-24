@@ -30,12 +30,12 @@ console.log = (...args: unknown[]) => {
 
 import { describe, it, expect, beforeAll } from 'vitest'
 import { registerOcctBrepEngine } from './brep/engine/adapters/occt'
-import { createRuntime } from '@faicad/faijs'
 import type { ExecutionResult } from './cad-runtime/runtime'
 import { createNodePorts } from './node-host'
 import type { ExecutionMode } from './cad-runtime/ports'
 import type { Shape } from './mesh/types'
 import { ensureTestFontLoader } from './brep/text/fontTestHelper'
+import { createEditorRuntime } from './test-support/editor-ops'
 
 beforeAll(async () => {
   await registerOcctBrepEngine()
@@ -89,7 +89,7 @@ function makePartScript(statements: string[]): string {
 /** 在指定模式下运行脚本，返回最终 Shape */
 async function runMode(code: string, mode: ExecutionMode): Promise<Shape> {
   const ports = createNodePorts()
-  const runtime = createRuntime(ports, mode)
+  const runtime = createEditorRuntime(ports, mode)
   const result: ExecutionResult = await runtime.execute(code)
 
   if (result.failedAt) {
@@ -330,7 +330,7 @@ describe('box 契约: bbox 黄金值（双路径逐点一致）', () => {
 
       it('box({ size: 20 }) 旧形态 → E_ARGS_FORM + 新签名提示（该模式 failedAt）', async () => {
         const ports = createNodePorts()
-        const runtime = createRuntime(ports, mode)
+        const runtime = createEditorRuntime(ports, mode)
         // T5: op errors now land in failedAt (OpError → directFailedAtOrThrow keeps it)
         const r = await runtime.execute('const s1 = cad.box({ size: 20 })')
         expect(r.failedAt).toBeDefined()
@@ -406,7 +406,7 @@ describe('cone 契约: bbox 黄金值（双路径逐点一致）', () => {
 
       it('cone({ center }) 旧形态 → E_ARGS_FORM + 新签名提示（该模式 failedAt）', async () => {
         const ports = createNodePorts()
-        const runtime = createRuntime(ports, mode)
+        const runtime = createEditorRuntime(ports, mode)
         const r = await runtime.execute('const s1 = cad.cone({ radiusBottom: 10, radiusTop: 0, height: 20, center: [0, 0, 0] })')
         expect(r.failedAt).toBeDefined()
         expect(r.failedAt!.message).toMatch(/E_ARGS_FORM/)
@@ -473,7 +473,7 @@ describe('cylinder 契约: bbox 黄金值（双路径逐点一致）', () => {
 
       it('cylinder({ center }) 旧形态 → E_ARGS_FORM + 新签名提示（该模式 failedAt）', async () => {
         const ports = createNodePorts()
-        const runtime = createRuntime(ports, mode)
+        const runtime = createEditorRuntime(ports, mode)
         const code = makePartScript([
           makeStmt('s1', 'cylinder', { radius: 10, height: 20, center: [0, 0, 0] }),
         ])
@@ -605,7 +605,7 @@ describe('P6 scale/scale3d 契约: bbox 黄金值 + 负例（双路径逐点一�
         makeStmt('s1', 'box', { width: 20, depth: 20, height: 20, centered: true }),
         makeStmt('s2', 'scale3d', { factor: 2 }, ['s1']),
       ])
-      const runtime = createRuntime(createNodePorts(), mode)
+      const runtime = createEditorRuntime(createNodePorts(), mode)
       const r = await runtime.execute(script)
       expect(r.failedAt).toBeDefined()
       expect(r.failedAt!.message).toMatch(/E_ARGS_FORM/)
@@ -617,7 +617,7 @@ describe('P6 scale/scale3d 契约: bbox 黄金值 + 负例（双路径逐点一�
       makeStmt('s1', 'box', { width: 20, depth: 20, height: 20, centered: true }),
       makeStmt('s2', 'scale', { factor: [1, 2, 3] }, ['s1']),
     ])
-    const runtime = createRuntime(createNodePorts(), 'mesh')
+    const runtime = createEditorRuntime(createNodePorts(), 'mesh')
     const r = await runtime.execute(script)
     expect(r.failedAt).toBeDefined()
     expect(r.failedAt!.message).toMatch(/E_ARGS_FORM/)

@@ -26,8 +26,8 @@ import {
   buildKernelAdapter,
 } from '../../api/occt-kernel-bridge'
 import { CadRuntime } from '../../cad-runtime/runtime'
-import { createApiNamespace } from '../../api/api-namespace'
 import type { ExecutionResult } from '../../cad-runtime/runtime'
+import { createApiNamespaceWithEditorOps } from '../../test-support/editor-ops'
 
 let occtApi: BrepEngineApi
 let brepkitApi: BrepEngineApi
@@ -44,7 +44,7 @@ function disposeAll(kernel: BrepEngineApi, handles: unknown[]): void {
 }
 
 function makeRuntime(): CadRuntime {
-  return new CadRuntime({ events: { emit() {} } }, 'brep', { cad: createApiNamespace() })
+  return new CadRuntime({ events: { emit() {} } }, 'brep', { cad: createApiNamespaceWithEditorOps() })
 }
 
 async function runBreps(code: string): Promise<ExecutionResult> {

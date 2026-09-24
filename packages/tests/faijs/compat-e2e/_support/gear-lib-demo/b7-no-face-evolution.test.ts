@@ -27,6 +27,7 @@ import { initOcctWasm } from '@faicad/faijs'
 import { hasBrep, getSlot } from '@faicad/faijs/shape'
 import type { Shape } from '@faicad/faijs/mesh/types'
 import * as mockMechBrep from './mock-mech-brep'
+import { createEditorRuntime } from '../../../_support/editor-runtime'
 
 beforeAll(async () => {
   await initOcctWasm()
@@ -36,7 +37,7 @@ async function executeScript(code: string): Promise<{
   runtime: ReturnType<typeof createRuntime>
   result: Awaited<ReturnType<ReturnType<typeof createRuntime>['execute']>>
 }> {
-  const runtime = createRuntime(createNodePorts(), 'auto')
+  const runtime = createEditorRuntime(createNodePorts(), 'auto')
   runtime.registerLib('mech', mockMechBrep as never)
   const result = await runtime.execute(code)
   return { runtime, result }
@@ -101,7 +102,7 @@ describe('B7: 第三方 BREP 产物无 faceEvolution（fromHandle）', () => {
       'let part0 = mech.makeHeadstock({ size: 20 })',
       'let f = cad.faceNormal(part0)',
     ].join('\n')
-    const runtime = createRuntime(createNodePorts(), 'auto')
+    const runtime = createEditorRuntime(createNodePorts(), 'auto')
     runtime.registerLib('mech', mockMechBrep as never)
     const result = await runtime.execute(code)
     expect(result.failedAt).toBeDefined()

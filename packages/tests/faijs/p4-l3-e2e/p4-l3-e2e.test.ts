@@ -25,6 +25,14 @@ import type { StdlibNamespace } from '@faicad/faijs/runtime-state'
 import { box as stdlibBox, cylinder as stdlibCylinder, union as stdlibUnion } from '@faicad/faijs/api'
 import { asPartName } from '@faicad/faijs/identity'
 import type { Shape } from '@faicad/faijs/mesh/types'
+import type { Provenance } from '@faicad/faijs/topology/naming/lineage'
+import { createEditorRuntime } from '../_support/editor-runtime'
+
+/**
+ * GOTCHA (2026-09-24): `DualOpOptions.naming` is required by the op-metadata
+ * contract; a library op that omits it fails to typecheck.
+ */
+const NAMING = { kind: 'construct', newFaces: { via: 'explicit', vocab: [] } } as Provenance
 
 /** 最小 cube mesh（测试专用轻量实现，不启动内核）。 */
 function cubeMesh(size: number): Shape {
@@ -48,7 +56,7 @@ const P1 = asPartName('part1')
 
 describe('P4· 宿主链路 end-to-end（.fai.js → execute → terminals → ExecutionResult）', () => {
   it('box + cylinder + union 执行成功：terminals/naming/brepSolids/topology 齐全', async () => {
-    const rt = createRuntime(createNodePorts(), 'brep')
+    const rt = createEditorRuntime(createNodePorts(), 'brep')
     const code = [
       'let part0 = cad.box(20, 20, 20, { centered: true })',
       'let part1 = cad.cylinder(6, 30, { centered: true })',
@@ -110,8 +118,8 @@ describe('C5 默认消费（无 keep、无声明）', () => {
   }
 
   it('无任何保留声明 → 上游被消费，只剩末位终端', async () => {
-    const absorb = defineOp({ mesh: (_s) => cubeMesh(1) })
-    const box = defineOp({ mesh: (_p: Record<string, unknown>) => cubeMesh(20) })
+    const absorb = defineOp({ naming: NAMING, mesh: (_s) => cubeMesh(1) })
+    const box = defineOp({ naming: NAMING, mesh: (_p: Record<string, unknown>) => cubeMesh(20) })
     const rt = coreCreateRuntime(createNodePorts(), 'auto', { cad: lib({ box, absorb }) })
     const result: ExecutionResult = await rt.execute('let part0 = cad.box(20, 20, 20, { centered: true })\nlet part1 = cad.absorb(part0)')
     try {

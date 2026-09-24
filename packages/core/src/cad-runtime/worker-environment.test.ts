@@ -19,7 +19,6 @@
  */
 
 import { describe, it, expect, beforeAll } from 'vitest'
-import { createRuntime } from '@faicad/faijs'
 import { createBrowserPorts } from '../browser-host'
 import { createNodePorts } from '../node-host'
 import type { HostPorts } from './ports'
@@ -30,6 +29,7 @@ import { registerOcctBrepEngine } from '../brep/engine/adapters/occt'
 import { ensureTestFontLoader } from '../brep/text/fontTestHelper'
 import { computeContentKey } from './content-key'
 import { asPartName } from '../identity'
+import { createEditorRuntime } from '../test-support/editor-ops'
 
 // ── worker-like 环境前提钉死 ──
 // 若未来有人在 vitest 配置里给本文件换上 DOM 环境，这里立刻失败——
@@ -77,14 +77,14 @@ function extractMeshes(result: ExecutionResult): MeshByName {
 
 async function runOnBrowserPath(mode: ExecutionMode): Promise<ExecutionResult> {
   const ports = await createBrowserPorts({ useWorker: false, events: nullEventSink() })
-  const runtime = createRuntime(ports, mode)
+  const runtime = createEditorRuntime(ports, mode)
   return runtime.execute(SCRIPT)
 }
 
 async function runOnNodePath(mode: ExecutionMode): Promise<ExecutionResult> {
   const ports = createNodePorts() as unknown as HostPorts | Promise<HostPorts>
   const resolved = await ports
-  const runtime = createRuntime(resolved, mode)
+  const runtime = createEditorRuntime(resolved, mode)
   return runtime.execute(SCRIPT)
 }
 

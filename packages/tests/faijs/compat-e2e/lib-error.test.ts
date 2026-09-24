@@ -24,6 +24,7 @@ import { asPartName } from '@faicad/faijs/identity'
 import type { CadRuntime } from '@faicad/faijs/cad-runtime/runtime'
 import type { StdlibNamespace } from '@faicad/faijs/runtime-state'
 import * as sheetPkg from '@faicad/sheetmetal'
+import { createEditorRuntime } from '../_support/editor-runtime'
 
 const boomNs: StdlibNamespace = {
   data: () => ({ ok: true, value: { n: 42 } }),
@@ -53,7 +54,7 @@ beforeAll(async () => {
 
 describe('P0 — library err becomes a statement failure, not an uncaught throw', () => {
   it('A: synthetic lib err → failedAt with code + callee; earlier statement survives', async () => {
-    const r = createRuntime(createNodePorts(), 'auto')
+    const r = createEditorRuntime(createNodePorts(), 'auto')
     try {
       // 命名空间键 = 顶层 import 绑定名（parser F2）：绑定名 boom → 注册键必须也是 boom
       r.registerLib('boom', boomNs, { autoLift: true })
@@ -74,7 +75,7 @@ describe('P0 — library err becomes a statement failure, not an uncaught throw'
 
   it('B: real sheetmetal addCutout with an unknown region → failedAt UNKNOWN_REGION; p0 stays in outputs', async () => {
     // T5: direct-mode outputs contains all written values including non-Shape compat data.
-    const r = createRuntime(createNodePorts(), 'auto')
+    const r = createEditorRuntime(createNodePorts(), 'auto')
     try {
       r.registerLib('sheet', sheetNs, { autoLift: true })
       const res = await r.execute(SHEET_SCRIPT)
@@ -88,7 +89,7 @@ describe('P0 — library err becomes a statement failure, not an uncaught throw'
   }, 120000)
 
   it('C: mesh mode still reports E_MESH_UNSUPPORTED through the same failure path', async () => {
-    const r = createRuntime(createNodePorts(), 'mesh')
+    const r = createEditorRuntime(createNodePorts(), 'mesh')
     try {
       r.registerLib('boom', boomNs, { autoLift: true })
       const res = await r.execute(BOOM_SCRIPT)

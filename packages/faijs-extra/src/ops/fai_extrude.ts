@@ -5,16 +5,16 @@
  * dispatchPath 静态判定 brep/mesh，产物经 solid()/fromBrep() 构造器创建。
  */
 
-import type { Shape, Vec3 } from '../mesh/types'
-import { cad } from '../mesh'
-import { extrudeBrep, solidToShape } from '../brep/brep-ops'
-import { getBackends } from '../runtime-state'
-import { fromBrep, brepOf } from '../shape'
-import { defineOp } from '../sdk'
-import type { Provenance } from '../topology/naming/lineage'
-import { assertPositiveNumber } from './assert'
-import type { BrepHandle } from '../brep/engine/types'
-import type { BrepEngineApi } from '../brep/engine/primitives'
+import type { Shape, Vec3 } from '@faicad/faijs/mesh/types'
+import { extrude as meshExtrude } from '../mesh/fai_extrude'
+import { extrudeBrep, solidToShape } from '@faicad/faijs/brep/brep-ops'
+import { getBackends } from '@faicad/faijs/runtime-state'
+import { fromBrep, brepOf } from '@faicad/faijs/shape'
+import { defineOp } from '@faicad/faijs/sdk'
+import type { Provenance } from '@faicad/faijs/topology/naming/lineage'
+import { assertPositiveNumber } from '@faicad/faijs/api/assert'
+import type { BrepHandle } from '@faicad/faijs/brep/engine/types'
+import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
 
 // ── per-op 参数自校验（Phase 2.2；stdlib 被直接 import 时的防御层） ──
 
@@ -69,7 +69,7 @@ export const fai_extrude = defineOp({
   mesh: async (input: Shape, params: Record<string, unknown>) => {
     if (!input) throw new Error('[stdlib/extrude] no input geometry')
     assertExtrudeParams(params)
-    return cad.fai_extrude(input, {
+    return meshExtrude(input, {
       normal: (params.normal as Vec3 | undefined) ?? [0, 0, 1],
       originOffset: (params.originOffset as number | undefined) ?? 0,
       length: params.length as number,

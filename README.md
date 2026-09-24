@@ -19,6 +19,15 @@ Units: millimeters, +Z up, angles in degrees. Contract docs: `docs/api-contract.
 | `@faicad/faijs/browser` | Browser-safe subset (no `node:*`) |
 | `@faicad/faijs/node` | Node host entry |
 | `@faicad/faijs/sdk` | **Third-party library authoring surface** (zero heavy deps) |
+| `@faicad/faijs/symbol-table` | Standard-library symbol table plus the extension registry a host uses to register a library's function names |
+
+The editor extension library is a separate package:
+
+| Import | Contents |
+|---|---|
+| `@faicad/faijs-extra` | Editor ops (`fai_drill` `fai_extrude` `fai_split` `group` `assembly` `copy` `load`) and creators (`text` `svgExtrude`), with the svg / 3D-text preview helpers |
+| `@faicad/faijs-extra/browser` | Browser/worker entry — the same surface |
+| `@faicad/faijs-extra/editor-ops` | The editor ops without the creators: three's basic API only, no `three/examples` — for hosts that must not bundle the addons |
 
 ## Developing a third-party library (`@faicad/faijs/sdk`)
 

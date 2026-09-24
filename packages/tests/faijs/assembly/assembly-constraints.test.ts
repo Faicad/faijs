@@ -11,7 +11,7 @@
 import { describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest'
 import { createRuntime, registerOcctBrepEngine } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
-import { asPartName, type PartName } from '@faicad/faijs/identity'
+import { asPartName, asStmtId, type PartName } from '@faicad/faijs/identity'
 import { HASH_UPPER_BOUND } from '@faicad/faijs/brep/face-evolution'
 import { resolveFaceGeometry } from '@faicad/faijs/api/topo-resolve'
 import { captureEdgeHint } from '@faicad/faijs/topology/naming'
@@ -21,6 +21,7 @@ import type { CadRuntime, ExecutionResult } from '@faicad/faijs/cad-runtime/runt
 import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
 import type { BrepHandle } from '@faicad/faijs/brep/engine/types'
 import type { Shape } from '@faicad/faijs/mesh/types'
+import { createEditorRuntime } from '../_support/editor-runtime'
 
 beforeAll(async () => {
   await registerOcctBrepEngine()
@@ -38,16 +39,26 @@ function buildCtx(result: ExecutionResult, partName: PartName): ResolutionContex
   return { kernel: kernel as BrepEngineApi, faces }
 }
 
+/**
+ * Build a FaceTopoRef from a naming row by role.
+ *
+ * GOTCHA (2026-09-24): the row's `origin` is a **StmtId** (`asStmtId`, not
+ * `asPartName` — the brands do not overlap), and `origin`/`role` are nullable
+ * (a face with no identity row has `role: null`, Phase 1.7 / D6-G6). This helper
+ * only builds refs for owned, named faces: it narrows explicitly and fails loudly.
+ */
 function refForRole(naming: PartNaming, origin: string, role: string) {
-  const row = naming.faceNaming.find((f) => f.role === role && f.origin === asPartName(origin))
+  const stmt = asStmtId(origin)
+  const row = naming.faceNaming.find((f) => f.role === role && f.origin === stmt)
   if (!row) throw new Error(`naming row not found: ${origin}:${role}`)
+  if (row.origin === null || row.role === null) throw new Error(`naming row has no identity: ${origin}:${role}`)
   return { kind: 'face' as const, origin: row.origin, role: row.role, hint: row.hint }
 }
 
 describe('P0 验收：hint 轴采集（真内核）', () => {
   let runtime: CadRuntime
   beforeEach(() => {
-    runtime = createRuntime(createNodePorts(), 'brep')
+    runtime = createEditorRuntime(createNodePorts(), 'brep')
   })
   afterEach(() => {
     runtime.dispose()
@@ -100,7 +111,7 @@ describe('P0 验收：hint 轴采集（真内核）', () => {
 describe('P1 新约束类型 e2e（真内核全链路）', () => {
   let runtime: CadRuntime
   beforeEach(() => {
-    runtime = createRuntime(createNodePorts(), 'brep')
+    runtime = createEditorRuntime(createNodePorts(), 'brep')
   })
   afterEach(() => {
     runtime.dispose()

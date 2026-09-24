@@ -17,6 +17,8 @@
     "paths": {
       "@faicad/faijs": ["../core/src/index.ts"],
       "@faicad/faijs/*": ["../core/src/*"],
+      "@faicad/faijs-extra": ["../faijs-extra/src/index.ts"],
+      "@faicad/faijs-extra/*": ["../faijs-extra/src/*"],
       "@faicad/sheetmetal": ["../sheetmetal/src/index.ts"]
     }
   },

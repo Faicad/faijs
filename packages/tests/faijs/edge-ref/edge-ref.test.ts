@@ -20,6 +20,7 @@ import { asPartName, type PartName } from '@faicad/faijs/identity'
 import type { CadRuntime, ExecutionResult } from '@faicad/faijs/cad-runtime/runtime'
 import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
 import type { BrepHandle } from '@faicad/faijs/brep/engine/types'
+import { createEditorRuntime } from '../_support/editor-runtime'
 
 beforeAll(async () => {
   await registerOcctBrepEngine()
@@ -45,7 +46,7 @@ describe('cad.edgeRef e2e (BREP/OCCT)', () => {
   let runtime: CadRuntime
 
   beforeEach(() => {
-    runtime = createRuntime(createNodePorts(), 'brep')
+    runtime = createEditorRuntime(createNodePorts(), 'brep')
   })
 
   afterEach(() => {
@@ -169,7 +170,7 @@ describe('naming chain across cad.extrude (E3 后续)', () => {
   ], closed: true }] }`
 
   beforeEach(() => {
-    runtime = createRuntime(createNodePorts(), 'brep')
+    runtime = createEditorRuntime(createNodePorts(), 'brep')
   })
 
   afterEach(() => {

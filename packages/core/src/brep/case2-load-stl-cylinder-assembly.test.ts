@@ -1,4 +1,4 @@
-﻿﻿/**
+/**
  * @vitest-environment node
  *
  * Case 2: load STL + cylinder + drill + assembly transforms
@@ -21,7 +21,6 @@ import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { registerOcctBrepEngine } from '../brep/engine/adapters/occt'
-import { createRuntime } from '@faicad/faijs'
 import type { ExecutionResult } from '../cad-runtime/runtime'
 import type { HostPorts, EventSink, AssetResolver } from '../cad-runtime/ports'
 import { fileBlobStore } from '../test/blob-store'
@@ -29,6 +28,7 @@ import { exportStepFromSolid } from '../brep/export/step'
 import { exportStep } from '../occt-kernel/highLevelApi'
 import { asPartName } from '../identity'
 import { analyzeCode } from '../lang/statement-summary'
+import { createEditorRuntime } from '../test-support/editor-ops'
 
 let stlBuffer: ArrayBuffer
 
@@ -113,7 +113,7 @@ function makePartScript(statements: string[]): string {
 }
 
 async function runScript(statements: string[]): Promise<ExecutionResult> {
-  const runtime = createRuntime(createTestPorts(), 'auto')
+  const runtime = createEditorRuntime(createTestPorts(), 'auto')
   const code = makePartScript(statements)
   return runtime.execute(code)
 }
@@ -305,7 +305,7 @@ describe('Pivot parity: rotate_euler(anglesDeg, pivot) — BREP vs mesh path con
     ]
 
     // Run in auto mode (BREP path)
-    const brepRuntime = createRuntime(createTestPorts(), 'auto')
+    const brepRuntime = createEditorRuntime(createTestPorts(), 'auto')
     const brepScript = makePartScript(stmts)
     const brepResult = await brepRuntime.execute(brepScript)
 
@@ -313,7 +313,7 @@ describe('Pivot parity: rotate_euler(anglesDeg, pivot) — BREP vs mesh path con
     expect(brepResult.brepChain.solidCache.has(asPartName('s2'))).toBe(true)
 
     // Run in mesh mode
-    const meshRuntime = createRuntime(createTestPorts(), 'mesh')
+    const meshRuntime = createEditorRuntime(createTestPorts(), 'mesh')
     const meshScript = makePartScript(stmts)
     const meshResult = await meshRuntime.execute(meshScript)
 
@@ -366,12 +366,12 @@ describe('Pivot parity: rotate_euler(anglesDeg, pivot) — BREP vs mesh path con
     ]
 
     // BREP path
-    const brepRuntime = createRuntime(createTestPorts(), 'auto')
+    const brepRuntime = createEditorRuntime(createTestPorts(), 'auto')
     const brepResult = await brepRuntime.execute(makePartScript(stmts))
     expect(brepResult.failedAt).toBeUndefined()
 
     // Mesh path
-    const meshRuntime = createRuntime(createTestPorts(), 'mesh')
+    const meshRuntime = createEditorRuntime(createTestPorts(), 'mesh')
     const meshResult = await meshRuntime.execute(makePartScript(stmts))
     expect(meshResult.failedAt).toBeUndefined()
 

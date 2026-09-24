@@ -11,7 +11,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { validateConstraints } from './validate'
-import { assembly } from '../compound'
+import { assembly } from '../../test-support/editor-ops'
 import type { AssemblyConstraint, EntityRef } from './types'
 import type { Shape } from '../../mesh/types'
 import { asPartName } from '../../identity'

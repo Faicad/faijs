@@ -15,6 +15,9 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { createRuntime, createBrowserPorts, setOcctWasmInitFn, ensureOcctKernel, exportStepFromSolid, exportStep, buildStlBufferFromMesh, deriveNormals, setManifoldWasmUrl, isMeshShape } from '@faicad/faijs/browser'
 import type { ExecutionMode, HostPorts, ShapeHandle, OcctKernel, ExecutionResult, LibLoader, StdlibNamespace } from '@faicad/faijs/browser'
+// D1（2026-09-23）：编辑器扩展库（fai_* / group / assembly / copy / load / text /
+// svgExtrude）已从 @faicad/faijs 迁出，宿主负责把它合并进 `cad` 命名空间。
+import { createEditorCadNamespace, installEditorMeshProviders, registerEditorSymbols } from '@faicad/faijs-extra'
 // 项目加载器（folder 通道）：自 core 迁入 demo 应用层（§1，P1 搬家）
 import { createFolderProjectLoader } from './src/project/folder-loader'
 import { createZipProjectLoader } from './src/project/zip-loader'
@@ -43,8 +46,20 @@ let cdnFaijsBound = false
 async function bindKernelToCdnFaijs(): Promise<void> {
   if (cdnFaijsBound) return
   cdnFaijsBound = true // 单飞：并发装载只绑一次；失败允许重试
-  const faijsUrl = `${CDN_BASE}@faicad/faijs/+esm`
+  // GOTCHA（2026-09-24，实测）：未加版本号的 `@faicad/faijs/+esm` 不能用于绑定——
+  // jsDelivr 对 `latest` 的 +esm 打包**有 CDN 缓存**：0.16.0 发布 6 分钟后该 URL 仍返回
+  // 0.14.1 的构建。而 CDN 上的库包（fai-cq-gears / cq-compat）在其 +esm 里把 peer
+  // `@faicad/faijs` 内联成**精确版本**（实测 0.16.0），于是 demo 会绑到一份、库包用另一份
+  // → 两份 faijs 实例 → 后端内核注册表不共享（正是本函数存在的理由）。
+  // 因此与库装载同口径：先查 npm registry 的 /latest 文档（无 CDN 缓存、带 CORS 头），
+  // 再用**精确版本** URL 装载；probe 失败时回退到无版本 URL（保持旧行为可自愈）。
+  let faijsUrl = `${CDN_BASE}@faicad/faijs/+esm`
   try {
+    const regRes = await fetch('https://registry.npmjs.org/@faicad/faijs/latest')
+    if (regRes.ok) {
+      const { version } = (await regRes.json()) as { version?: string }
+      if (version) faijsUrl = `${CDN_BASE}@faicad/faijs@${version}/+esm`
+    }
     const cdnFaijs = (await import(/* @vite-ignore */ faijsUrl)) as unknown as CdnFaijsBindings
     cdnFaijs.setOcctWasmInitFn(initOcct)
     cdnFaijs.setManifoldWasmUrl(
@@ -410,6 +425,17 @@ function extractShapes(result: ExecutionResult): ShapeSummary[] {
   return shapes
 }
 
+/**
+ * 把宿主 `cad` 命名空间装配为「平台面 ∪ 编辑器扩展面」（D1）。
+ * `createRuntime` 已注册平台面，这里以同一 binding 重新注册合并后的完整面。
+ * @param rt - the demo runtime to extend.
+ */
+function installEditorCad(rt: ReturnType<typeof createRuntime>): void {
+  rt.registerLib('cad', createEditorCadNamespace(), { default: true, packageName: '@faicad/faijs' })
+  registerEditorSymbols()
+  installEditorMeshProviders()
+}
+
 async function runMode(
   view: Viewer3D,
   code: string,
@@ -417,6 +443,7 @@ async function runMode(
   entryKey?: string,
 ): Promise<string> {
   const runtime = createRuntime(ports, view.mode)
+  installEditorCad(runtime)
   const result = await runtime.execute(code, entryKey ? { entryKey } : undefined)
 
   if (result.failedAt) {

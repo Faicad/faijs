@@ -25,6 +25,7 @@ import { createNodePorts } from '@faicad/faijs/node'
 import type { ExecutionResult } from '@faicad/faijs/cad-runtime/runtime'
 import type { PartNaming } from '@faicad/faijs/topology/naming/types'
 import { asPartName } from '@faicad/faijs/identity'
+import { createEditorRuntime } from '../_support/editor-runtime'
 
 const P0 = asPartName('part0')
 const P1 = asPartName('part1')
@@ -75,13 +76,18 @@ describe('上层契约：宿主可读代码文本 API', () => {
     expect(args).toBeTruthy()
   })
 
-  it('D1-⓪ 桥接：fai_drill/engrave 已从根/浏览器门面导出（宿主换来源前提）', async () => {
+  it('D1-⓪ 桥接：编辑器 op 已从核心门面迁到扩展库，engrave 仍是平台 op', async () => {
     const root = await import('@faicad/faijs')
     const browser = await import('@faicad/faijs/browser')
-    expect(typeof root.fai_drill).toBe('function')
+    const extra = await import('@faicad/faijs-extra')
+    const extraBrowser = await import('@faicad/faijs-extra/browser')
+    // 编辑器专属 op 迁出 core（键名不变，宿主合并后 `.fai.js` 零改动）。
+    expect('fai_drill' in root).toBe(false)
+    expect('fai_drill' in browser).toBe(false)
+    expect(typeof extra.fai_drill).toBe('function')
+    expect(typeof extraBrowser.fai_drill).toBe('function')
+    // engrave 仍是平台 op（其 BREP 路径零 three），两个门面都导出。
     expect(typeof root.engrave).toBe('function')
-    // 宿主红线：生产代码走 /browser 入口，这两处必须都有
-    expect(typeof browser.fai_drill).toBe('function')
     expect(typeof browser.engrave).toBe('function')
   })
 })
@@ -92,7 +98,7 @@ describe('上层契约：宿主可读代码文本 API', () => {
  */
 describe('P0：ExecutionResult 十一字段（含 naming）', () => {
   it('单次 BREP 执行产出全部契约字段且失败位为空', async () => {
-    const rt = createRuntime(createNodePorts(), 'brep')
+    const rt = createEditorRuntime(createNodePorts(), 'brep')
     const result: ExecutionResult = await rt.execute(CODE_BREP)
     try {
       expect(result.failedAt).toBeUndefined()
@@ -151,7 +157,7 @@ describe('P0：ExecutionResult 十一字段（含 naming）', () => {
   })
 
   it('U2 增量：append 只重算新增语句，前缀不进循环', async () => {
-    const rt = createRuntime(createNodePorts(), 'auto')
+    const rt = createEditorRuntime(createNodePorts(), 'auto')
     try {
       const first = await rt.execute('let p = cad.box(20, 20, 20, { centered: true })')
       expect(first.brepChain.solidCache.has(asPartName('p'))).toBe(true)
@@ -172,7 +178,7 @@ describe('P0：ExecutionResult 十一字段（含 naming）', () => {
   })
 
   it('失败语义：执行错误进入 failedAt（T5 direct-only：所有语句级错误进 failedAt，不抛出）', async () => {
-    const rt = createRuntime(createNodePorts(), 'auto')
+    const rt = createEditorRuntime(createNodePorts(), 'auto')
     try {
       // T5 direct-only: all execution errors (including parameter validation)
       // land in failedAt — no re-throw. The runtime does not silently swallow

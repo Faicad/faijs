@@ -37,7 +37,7 @@
     "@faicad/cq-compat": "file:../cq-compat"
   },
   "peerDependencies": {
-    "@faicad/faijs": "^0.15.0",
+    "@faicad/faijs": "^0.16.0",
     "occt-wasm": "^3.8.0"
   },
   "devDependencies": {

@@ -14,17 +14,17 @@
 
 import { describe, it, expect, beforeAll } from 'vitest'
 import { CadRuntime, ExecutionLimitError } from './runtime'
-import { createApiNamespace } from '../api/api-namespace'
 import type { HostPorts } from './ports'
 import { asPartName } from '../identity'
 import { initOcctWasm } from '../occt-kernel/occtKernel'
+import { createApiNamespaceWithEditorOps } from '../test-support/editor-ops'
 
 function defaultPorts(): HostPorts {
   return { events: { emit: () => {} } } as HostPorts
 }
 
 function makeRuntime(mode: 'mesh' | 'auto' = 'mesh'): CadRuntime {
-  return new CadRuntime(defaultPorts(), mode, { cad: createApiNamespace() })
+  return new CadRuntime(defaultPorts(), mode, { cad: createApiNamespaceWithEditorOps() })
 }
 
 describe('Phase2 executor: keep 隔离（§5.5 / D5）', () => {

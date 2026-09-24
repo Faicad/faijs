@@ -22,10 +22,10 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { registerOcctBrepEngine } from '../brep/engine/adapters/occt'
 import { CadRuntime } from '../cad-runtime/runtime'
-import { createApiNamespace } from './api-namespace'
 import { runtimeLineage } from '../topology/naming/lineage'
 import type { ExecutionResult } from '../cad-runtime/runtime'
 import type { RoleTable } from '../topology/naming/types'
+import { createApiNamespaceWithEditorOps } from '../test-support/editor-ops'
 
 let kernelReady = false
 
@@ -35,7 +35,7 @@ beforeAll(async () => {
 }, 120000)
 
 function makeRuntime(): CadRuntime {
-  return new CadRuntime({ events: { emit() {} } }, undefined, { cad: createApiNamespace() })
+  return new CadRuntime({ events: { emit() {} } }, undefined, { cad: createApiNamespaceWithEditorOps() })
 }
 
 async function run(code: string, imports?: Record<string, unknown>): Promise<ExecutionResult> {

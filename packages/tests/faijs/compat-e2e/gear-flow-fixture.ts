@@ -24,6 +24,7 @@ import { createNodePorts } from '@faicad/faijs/node'
 import type { CadRuntime } from '@faicad/faijs/cad-runtime/runtime'
 import type { StdlibNamespace } from '@faicad/faijs/runtime-state'
 import * as mechPkg from './_support/gear-lib-demo/index.js'
+import { createEditorRuntime } from '../_support/editor-runtime'
 
 /**
  * §8.4 scenario script (geometry-first flow), verbatim:
@@ -74,7 +75,7 @@ export const LIB_OPTIONS: Parameters<CadRuntime['registerLib']>[2] = {
  */
 export async function bootGearRuntime(mode: 'auto' | 'mesh' = 'auto'): Promise<CadRuntime> {
   await registerOcctBrepEngine()
-  const runtime = createRuntime(createNodePorts(), mode)
+  const runtime = createEditorRuntime(createNodePorts(), mode)
   runtime.registerLib('gear', gearNs, LIB_OPTIONS)
   return runtime
 }

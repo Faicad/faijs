@@ -13,13 +13,13 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest'
-import { createRuntime } from '@faicad/faijs'
 import type { ExecutionResult } from '../../cad-runtime/runtime'
 import type { HostPorts } from '../../cad-runtime/ports'
 import { asPartName } from '../../identity'
 import { __resetEngineRegistriesForTests, getActiveBrepEngineId } from './registry'
 import { registerOcctBrepEngine, OCCT_BREP_ENGINE_ID } from './adapters/occt'
 import { registerBrepMockEngine, BREP_MOCK_ENGINE_ID } from './adapters/brep-mock'
+import { createEditorRuntime } from '../../test-support/editor-ops'
 
 /** 同一段 faijs 脚本：构造（box×2）→ 布尔（union）。
  *  条件分支断言（不统一放宽）：occt 支持 evolution → union 成功（keepHidden 源保留 → 3 个 terminal）；
@@ -42,7 +42,7 @@ async function runWithEngine(
   __resetEngineRegistriesForTests()
   await register()
   expect(getActiveBrepEngineId()).toBe(expectedEngineId)
-  const runtime = createRuntime(createNodePorts(), 'brep')
+  const runtime = createEditorRuntime(createNodePorts(), 'brep')
   return runtime.execute(SCRIPT)
 }
 

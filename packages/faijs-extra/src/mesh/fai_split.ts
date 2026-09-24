@@ -15,9 +15,9 @@ import {
   computeDovetailSplit,
   computeDowelSplit,
   computeStraightTenonSplit,
-} from '../boolean/csg-backend'
+} from '@faicad/faijs/boolean/csg-backend'
 import * as THREE from 'three'
-import type { Shape, SplitResult, SplitPlane, DovetailSplitParams, DowelSplitParams, TenonSplitParams, Vec3 } from './types'
+import type { Shape, SplitResult, SplitPlane, DovetailSplitParams, DowelSplitParams, TenonSplitParams, Vec3 } from '@faicad/faijs/mesh/types'
 
 // ── 派生量计算（从 split-store 下沉，UI 与重放共用同一份公式） ──
 

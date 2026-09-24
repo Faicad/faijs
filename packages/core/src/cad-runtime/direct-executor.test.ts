@@ -11,13 +11,13 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
 import { CadRuntime } from './runtime'
 import { DirectExecutor } from './direct-executor'
-import { createApiNamespace } from '../api/api-namespace'
 import type { HostPorts } from './ports'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { computeContentKey } from './content-key'
 import { isMeshShape } from '../mesh/types'
+import { createApiNamespaceWithEditorOps } from '../test-support/editor-ops'
 
 function defaultPorts(): HostPorts {
   return { events: { emit: () => {} } } as HostPorts
@@ -41,8 +41,8 @@ function fingerprint(ctx: Record<string, unknown>): string[] {
 
 describe('DirectExecutor: execute（共享 ctx / 基本产出）', () => {
   // 全局 backends 认领：用一个 mesh runtime 提供环境（与 execute-code 同构）
-  const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
-  const cadNs = createApiNamespace()
+  const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespaceWithEditorOps() })
+  const cadNs = createApiNamespaceWithEditorOps()
 
   it('execute 三行 op：ctx 含全部 shape 且几何内容合法', async () => {
     const ex = new DirectExecutor({ namespaces: { cad: cadNs } })
@@ -101,8 +101,8 @@ describe('DirectExecutor: execute（共享 ctx / 基本产出）', () => {
 
 describe('DirectExecutor: 顶层函数 / 解构 / 参数', () => {
   it('顶层函数定义提升到 ctx 并可被后续行调用', async () => {
-    const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
-    const cadNs = createApiNamespace()
+    const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespaceWithEditorOps() })
+    const cadNs = createApiNamespaceWithEditorOps()
     await rt.execute('let warmup = cad.box(1, 1, 1, { centered: true })')
     const ex = new DirectExecutor({ namespaces: { cad: cadNs } })
     const code = [
@@ -117,8 +117,8 @@ describe('DirectExecutor: 顶层函数 / 解构 / 参数', () => {
   })
 
   it('解构 op 行：多输出写入 ctx', async () => {
-    const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
-    const cadNs = createApiNamespace()
+    const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespaceWithEditorOps() })
+    const cadNs = createApiNamespaceWithEditorOps()
     await rt.execute('let warmup = cad.box(1, 1, 1, { centered: true })')
     const ex = new DirectExecutor({ namespaces: { cad: cadNs } })
     const code = [
@@ -132,8 +132,8 @@ describe('DirectExecutor: 顶层函数 / 解构 / 参数', () => {
   })
 
   it('参数预置（opts.params）注入 ctx', async () => {
-    const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
-    const cadNs = createApiNamespace()
+    const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespaceWithEditorOps() })
+    const cadNs = createApiNamespaceWithEditorOps()
     await rt.execute('let warmup = cad.box(1, 1, 1, { centered: true })')
     const ex = new DirectExecutor({ namespaces: { cad: cadNs } })
     const out = await ex.execute('let part0 = cad.box(size, size, size, { centered: true })', {
@@ -145,8 +145,8 @@ describe('DirectExecutor: 顶层函数 / 解构 / 参数', () => {
   })
 
   it('单行失败 → failedAt 携带行号（不中断后续 API 使用）', async () => {
-    const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
-    const cadNs = createApiNamespace()
+    const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespaceWithEditorOps() })
+    const cadNs = createApiNamespaceWithEditorOps()
     await rt.execute('let warmup = cad.box(1, 1, 1, { centered: true })')
     const ex = new DirectExecutor({ namespaces: { cad: cadNs } })
     const code = [
@@ -163,8 +163,8 @@ describe('DirectExecutor: 顶层函数 / 解构 / 参数', () => {
 
 describe('DirectExecutor: 本机函数 ABI（§3.4/§3.6 位置 + 按名）', () => {
   // 全局 backends 认领：用一个 mesh runtime 提供环境（与 execute-code 同构）
-  const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
-  const cadNs = createApiNamespace()
+  const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespaceWithEditorOps() })
+  const cadNs = createApiNamespaceWithEditorOps()
 
   beforeEach(async () => {
     await rt.execute('let warmup = cad.box(1, 1, 1, { centered: true })')
@@ -236,7 +236,7 @@ describe('DirectExecutor A-17: fixture 对拍（扁平行式 op 行）', () => {
   collect(fixturesRoot)
 
   let rt: CadRuntime
-  const cadNs = createApiNamespace()
+  const cadNs = createApiNamespaceWithEditorOps()
   beforeAll(async () => {
     rt = new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs })
     await rt.execute('let warmup = cad.box(1, 1, 1, { centered: true })')
@@ -283,8 +283,8 @@ describe('DirectExecutor A-17: fixture 对拍（扁平行式 op 行）', () => {
 
 describe('DirectExecutor: E4 执行选项（beforeStatement / executionTimeoutMs）', () => {
   // 全局 backends 认领：用一个 mesh runtime 提供环境（与 execute-code 同构）
-  const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
-  const cadNs = createApiNamespace()
+  const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespaceWithEditorOps() })
+  const cadNs = createApiNamespaceWithEditorOps()
 
   beforeEach(async () => {
     await rt.execute('let warmup = cad.box(1, 1, 1, { centered: true })')
@@ -332,8 +332,8 @@ describe('DirectExecutor: E4 执行选项（beforeStatement / executionTimeoutMs
 })
 
 describe('DirectExecutor: transformArg 保留嵌套算术括号（回归 2026-09-08）', () => {
-  const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
-  const cadNs = createApiNamespace()
+  const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespaceWithEditorOps() })
+  const cadNs = createApiNamespaceWithEditorOps()
 
   it('op 实参 `-((((15-8)/2)+(10/2))+0.555)` 求值为 -9.055（而非 JS 优先级重解释的 -13.445）', async () => {
     const ex = new DirectExecutor({ namespaces: { cad: cadNs } })
@@ -356,8 +356,8 @@ describe('DirectExecutor: transformArg 保留嵌套算术括号（回归 2026-09
 })
 
 describe('DirectExecutor: P25 裸调用原地写回（§3.7 规则 2）', () => {
-  const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
-  const cadNs = createApiNamespace()
+  const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespaceWithEditorOps() })
+  const cadNs = createApiNamespaceWithEditorOps()
 
   it('修改类裸调用 fai_drill(part0) 无赋值 → 结果落在 part0（几何变化 + inplaceWrites 登记）', async () => {
     const ex = new DirectExecutor({ namespaces: { cad: cadNs } })

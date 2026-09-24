@@ -6,14 +6,14 @@
  * 产物经 solid()/fromBrep() 构造器创建。
  */
 
-import type { Shape } from '../mesh/types'
-import { cad } from '../mesh'
-import { isCadFormat } from '../brep/brep-chain'
-import { loadBrep } from '../brep/brep-ops'
-import { OpError } from './internal/result-unwrap'
-import { getBackends, BrepUnsupportedError } from '../runtime-state'
-import { solid, fromBrep } from '../shape'
-import type { BrepEngineApi } from '../brep/engine/primitives'
+import type { Shape } from '@faicad/faijs/mesh/types'
+import { importFile } from '@faicad/faijs/mesh/io'
+import { isCadFormat } from '@faicad/faijs/brep/brep-chain'
+import { loadBrep } from '@faicad/faijs/brep/brep-ops'
+import { OpError } from '@faicad/faijs/api/internal/result-unwrap'
+import { getBackends, BrepUnsupportedError } from '@faicad/faijs/runtime-state'
+import { solid, fromBrep } from '@faicad/faijs/shape'
+import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
 
 /**
  * 执行加载操作（统一 load 函数）
@@ -80,7 +80,7 @@ export async function load(params: Record<string, unknown>): Promise<Shape> {
 
   // mesh 路径
   if (!useBrep) {
-    return solid(await cad.load(buffer, params.format as string | undefined))
+    return solid(await importFile(buffer, params.format as string | undefined))
   }
 
   // BREP 路径（直接执行，不包 try-catch！异常 = 未预期错误，冒泡上报）

@@ -1,13 +1,13 @@
-﻿import * as THREE from 'three'
-import { makeScrew } from '../../primitives/screw/screw'
-import { getScrewSpec } from '../../primitives/screw/screw-db'
+import * as THREE from 'three'
+import { makeScrew } from '@faicad/faijs/primitives/screw/screw'
+import { getScrewSpec } from '@faicad/faijs/primitives/screw/screw-db'
 import {
   computeBoolean,
   geoToManifoldMesh,
   manifoldMeshToGeo,
-} from '../../boolean/csg-backend'
-import { deriveNormals } from '../../boolean/deriveNormals'
-import type { ManifoldMeshData } from '../../boolean/csg-backend'
+} from '@faicad/faijs/boolean/csg-backend'
+import { deriveNormals } from '@faicad/faijs/boolean/deriveNormals'
+import type { ManifoldMeshData } from '@faicad/faijs/boolean/csg-backend'
 import type { DrillDirection, DrillHoleParams } from './drill-types'
 
 /** Rotation matrix: +90° around X — converts Y-up vertex data to Z-up. */

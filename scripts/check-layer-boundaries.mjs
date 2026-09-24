@@ -16,13 +16,24 @@
  *   R3 src layer ≥3（L3 api/）+ 禁止直接 import kernel/*（`./primitive` 逃生舱白名单）。
  *   R4 移植树内禁止 import faijs 既有模块：相对导入不逃出移植根；`@/*`、`@faicad/*` 一律禁。
  *      仅 L3 api/ 可有限逃出到 faijs 侧（D10 内核注入）。
- *   R5 反向：faijs 既有代码（vendored 之外）import 移植树只允许发生在 L3 api/。
+ *   R5 反向：faijs 既有代码（vendored 之外）import 移植树只允许发生在**登记桥接点**，
+ *      即 `api/`（L3 内核注入桥 occt-kernel-bridge.ts）与 `brep/engine/adapters/`
+ *      （引擎适配器桥：occt 适配器复用 vendored OcctWasmAdapter 的组合面，
+ *      2026-09-23「engine-neutral vendored measurement surface」落地）。测试文件
+ *      （`*.test.ts`）豁免：parity 测试的**目的**就是拿移植树实现与 BrepEngineApi 对拍，
+ *      且测试不进产物依赖图；豁免仅对测试生效，生产文件仍必须落在登记桥接点内。
  */
 import { readdirSync, readFileSync, statSync, existsSync } from 'node:fs'
 import { join, resolve, relative, dirname, normalize, sep } from 'node:path'
 
 const CORE_ROOT = resolve('packages/core/src')
 const VENDORED_ROOT = resolve(process.env.BOUNDARY_SRC_DIR ?? 'packages/core/src/vendored/brepjs')
+
+/** R5：登记桥接点（相对 packages/core/src 的目录前缀） */
+const R5_BRIDGE_PREFIXES = [
+  'api' + sep, // L3 内核注入桥
+  'brep' + sep + 'engine' + sep + 'adapters' + sep, // 引擎适配器桥（occt ⇄ vendored occtWasm）
+]
 
 /** 层 → 顶层目录（相对移植根的目录） */
 const LAYERS = [
@@ -161,7 +172,7 @@ function main() {
     }
   }
 
-  // R5 反向：faijs 既有代码（vendored 之外）import 移植树，仅限 L3 api/
+  // R5 反向：faijs 既有代码（vendored 之外）import 移植树，仅限登记桥接点（测试豁免）
   const outside = walkTs(CORE_ROOT).filter(
     (f) => !f.startsWith(join(CORE_ROOT, 'vendored') + sep),
   )
@@ -171,8 +182,14 @@ function main() {
     const code = readFileSync(file, 'utf-8')
     for (const imp of extractImports(code)) {
       if (!imp.includes('vendored')) continue
-      const inApi = rel.split(sep)[0] === 'api'
-      if (!inApi) errors.push(`core/${rel}: 引用移植树（R5 反向——仅 L3 api/ 允许 import vendored）`)
+      const atBridge = R5_BRIDGE_PREFIXES.some((p) => rel.startsWith(p))
+      // 测试豁免：parity 测试按设计要与移植树实现对拍，且不进产物依赖图。
+      const isTest = rel.endsWith('.test.ts') || rel.endsWith('.test.mts')
+      if (!atBridge && !isTest) {
+        errors.push(
+          `core/${rel}: 引用移植树（R5 反向——仅登记桥接点 ${R5_BRIDGE_PREFIXES.map((p) => p.replace(/\\$/, '')).join(' / ')} 允许，测试豁免）`,
+        )
+      }
     }
   }
 

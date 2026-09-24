@@ -1,7 +1,7 @@
 {
   "generatedBy": "packages/core/scripts/gen-capability-map.ts",
   "design": "docs/plans/2026-09-23-brep-engine-switchability-rework.md §4 Phase 0",
-  "count": 36,
+  "count": 35,
   "entries": [
     {
       "op": "torus",
@@ -4930,130 +4930,6 @@
           "calls": [
             "shapeTypes.ts#disposeDowncastSource"
           ]
-        }
-      ]
-    },
-    {
-      "op": "transformCopy",
-      "source": "topology/api.js#transformCopy",
-      "vendoredFile": "topology/api.ts",
-      "vendoredFn": "transformCopy",
-      "kernelMethods": [
-        "applyComposedTransformWithHistory",
-        "dispose"
-      ],
-      "trace": [
-        {
-          "fn": "transformCopy",
-          "file": "topology/api.ts",
-          "methods": [],
-          "calls": [
-            "topology/apiTypes.ts#resolve",
-            "topology/shapeFns.ts#transformCopy"
-          ]
-        },
-        {
-          "fn": "resolve",
-          "file": "topology/apiTypes.ts",
-          "methods": [],
-          "calls": []
-        },
-        {
-          "fn": "transformCopy",
-          "file": "topology/transformFns.ts",
-          "methods": [
-            "applyComposedTransformWithHistory"
-          ],
-          "calls": [
-            "topology/metadata/metadataPropagation.ts#collectInputFaceHashes",
-            "core/shapeTypes.ts#castResultShape",
-            "topology/metadata/metadataPropagation.ts#propagateAllMetadata"
-          ]
-        },
-        {
-          "fn": "collectInputFaceHashes",
-          "file": "topology/metadata/metadataPropagation.ts",
-          "methods": [],
-          "calls": [
-            "topology/metadata/originTrackingFns.ts#propagateOriginsFromEvolution",
-            "topology/metadata/faceTagFns.ts#propagateFaceTagsFromEvolution",
-            "topology/metadata/colorFns.ts#propagateColorsFromEvolution"
-          ]
-        },
-        {
-          "fn": "castResultShape",
-          "file": "core/shapeTypes.ts",
-          "methods": [],
-          "calls": [
-            "shapeTypes.ts#disposeDowncastSource"
-          ]
-        },
-        {
-          "fn": "propagateAllMetadata",
-          "file": "topology/metadata/metadataPropagation.ts",
-          "methods": [],
-          "calls": [
-            "topology/metadata/originTrackingFns.ts#propagateOriginsFromEvolution",
-            "topology/metadata/faceTagFns.ts#propagateFaceTagsFromEvolution",
-            "topology/metadata/colorFns.ts#propagateColorsFromEvolution"
-          ]
-        },
-        {
-          "fn": "propagateOriginsFromEvolution",
-          "file": "topology/metadata/originTrackingFns.ts",
-          "methods": [],
-          "calls": [
-            "originTrackingFns.ts#getFaceOrigins",
-            "topology/topologyQueryFns.ts#getOrCreateCache"
-          ]
-        },
-        {
-          "fn": "propagateFaceTagsFromEvolution",
-          "file": "topology/metadata/faceTagFns.ts",
-          "methods": [],
-          "calls": [
-            "faceTagFns.ts#getTagMap",
-            "faceTagFns.ts#addTagToResult",
-            "faceTagFns.ts#getMetaMap"
-          ]
-        },
-        {
-          "fn": "propagateColorsFromEvolution",
-          "file": "topology/metadata/colorFns.ts",
-          "methods": [],
-          "calls": [
-            "colorFns.ts#getFaceColorMap"
-          ]
-        },
-        {
-          "fn": "disposeDowncastSource",
-          "file": "core/shapeTypes.ts",
-          "methods": [
-            "dispose"
-          ],
-          "calls": []
-        },
-        {
-          "fn": "getFaceOrigins",
-          "file": "topology/metadata/originTrackingFns.ts",
-          "methods": [],
-          "calls": [
-            "topology/topologyQueryFns.ts#getCacheEntry"
-          ]
-        },
-        {
-          "fn": "getOrCreateCache",
-          "file": "topology/topologyQueryFns.ts",
-          "methods": [],
-          "calls": [
-            "topologyQueryFns.ts#disposeCacheEntry"
-          ]
-        },
-        {
-          "fn": "getCacheEntry",
-          "file": "topology/topologyQueryFns.ts",
-          "methods": [],
-          "calls": []
         }
       ]
     },

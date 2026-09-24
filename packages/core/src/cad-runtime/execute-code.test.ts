@@ -13,17 +13,17 @@
 
 import { describe, it, expect } from 'vitest'
 import { CadRuntime, AppendPrefixError } from './runtime'
-import { createApiNamespace } from '../api/api-namespace'
 import type { HostPorts } from './ports'
 import { asPartName } from '../identity'
 import { computeContentKey } from './content-key'
+import { createApiNamespaceWithEditorOps } from '../test-support/editor-ops'
 
 function defaultPorts(): HostPorts {
   return { events: { emit: () => {} } } as HostPorts
 }
 
 function makeRuntime(): CadRuntime {
-  return new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
+  return new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespaceWithEditorOps() })
 }
 
 const CODE = [

@@ -18,13 +18,14 @@ import { createApiNamespace } from '@faicad/faijs/api/api-namespace'
 import { isMeshShape } from '@faicad/faijs/mesh/types'
 import { asPartName, type PartName } from '@faicad/faijs/identity'
 import type { HostPorts } from '@faicad/faijs/cad-runtime/ports'
+import { createApiNamespaceWithEditorOps } from '../../_support/editor-runtime'
 
 function defaultPorts(): HostPorts {
   return { events: { emit: () => {} } } as HostPorts
 }
 
 describe('A-6: for 块 — 块内 shape 进 terminals，timeline 单只读节点', () => {
-  const cadNs = createApiNamespace()
+  const cadNs = createApiNamespaceWithEditorOps()
   const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs })
   beforeAll(async () => {
     await rt.execute('let warmup = cad.box(1, 1, 1, { centered: true })')
@@ -112,7 +113,7 @@ describe('A-6: for 块 — 块内 shape 进 terminals，timeline 单只读节点
 })
 
 describe('A-11: 自由语法回归 — 条件块 / 嵌套块', () => {
-  const cadNs = createApiNamespace()
+  const cadNs = createApiNamespaceWithEditorOps()
   const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs })
   beforeAll(async () => {
     await rt.execute('let warmup = cad.box(1, 1, 1, { centered: true })')
@@ -192,7 +193,7 @@ describe('A-11: 自由语法回归 — 条件块 / 嵌套块', () => {
 })
 
 describe('A-6: append 后的块行号稳定（整段重放）', () => {
-  const cadNs = createApiNamespace()
+  const cadNs = createApiNamespaceWithEditorOps()
   const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs })
   beforeAll(async () => {
     await rt.execute('let warmup = cad.box(1, 1, 1, { centered: true })')

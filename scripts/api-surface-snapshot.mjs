@@ -15,7 +15,7 @@ import { writeFileSync } from 'node:fs'
 // 折入 core；2026-09-20 新增 ./fcstd 读层）。漏一个 = 迁移后消费方 import 断
 const SUBPATHS = [
   '.', './browser', './csg', './sdf', './node', './fcstd', './fcstd-convert',
-  './module-resolver', './sdk',
+  './module-resolver', './sdk', './symbol-table',
 ]
 
 const snapshot = {}

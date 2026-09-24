@@ -38,13 +38,21 @@ import {
 import { adoptEntity } from '@faicad/faijs/api/internal/l3-bridge'
 import { getKernel } from '@faicad/faijs/occt-kernel/occtKernel'
 import type { CadRuntime } from '@faicad/faijs/cad-runtime/runtime'
+import type { Provenance } from '@faicad/faijs/topology/naming/lineage'
+import { createEditorRuntime } from '../_support/editor-runtime'
+
+/**
+ * GOTCHA (2026-09-24): `CompatSpec` extends `DualOpOptions`, so it requires
+ * `naming` in addition to `name` — a compat op built without it fails to typecheck.
+ */
+const NAMING = { kind: 'construct', newFaces: { via: 'explicit', vocab: [] } } as Provenance
 beforeAll(async () => {
   await registerOcctBrepEngine()
 }, 120000)
 
 /** Create a brep-mode runtime and warm its BREP chain (cad.box needs it). */
 async function makeBrepRuntime(): Promise<{ runtime: CadRuntime; warm: Shape }> {
-  const runtime = createRuntime(createNodePorts(), 'brep')
+  const runtime = createEditorRuntime(createNodePorts(), 'brep')
   const res = await runtime.execute('const g = cad.box(10, 10, 10, { centered: true })')
   expect(res.failedAt).toBeUndefined()
   return { runtime, warm: res.outputs.get(asPartName('g')) as Shape }
@@ -167,7 +175,7 @@ describe('① compat-op units', () => {
 
 describe('② bare-lib integration through .fai', () => {
   async function runBareLib(options?: { autoLift?: boolean; impl?: (p: { size: number }) => unknown }) {
-    const runtime = createRuntime(createNodePorts(), 'auto')
+    const runtime = createEditorRuntime(createNodePorts(), 'auto')
     runtime.registerLib('gearbox', {
       make: options?.impl ?? (({ size }: { size: number }) => {
         return (brepjsCompat as unknown as { box: (a: number, b: number, c: number) => unknown }).box(size, size, size)
@@ -205,7 +213,7 @@ describe('③ incremental lib-content identity', () => {
     "import * as gear from 'gear-lib-demo'\nconst g = gear.box({ size: 5 })\nconst h = cad.translate(g, { offset: [1, 0, 0] })"
 
   it('re-registering the same library keeps statementKey (no recompute)', async () => {
-    const runtime = createRuntime(createNodePorts(), 'auto')
+    const runtime = createEditorRuntime(createNodePorts(), 'auto')
     try {
       const lib = libA()
       runtime.registerLib('gear', lib, { autoLift: true })
@@ -228,7 +236,7 @@ describe('③ incremental lib-content identity', () => {
   })
 
   it('changing the library surface causes downstream recompute', async () => {
-    const runtime = createRuntime(createNodePorts(), 'auto')
+    const runtime = createEditorRuntime(createNodePorts(), 'auto')
     try {
       runtime.registerLib('gear', libA(), { autoLift: true })
       const r1 = await runtime.execute(CODE)
@@ -262,7 +270,7 @@ describe('④ leak: 50 loopthrough executes keep the arena bounded', () => {
     // so their arena deltas must match within a small tolerance.
     const kernel = getKernel() as unknown as { shapeCount: number }
 
-    const nativeRuntime = createRuntime(createNodePorts(), 'auto')
+    const nativeRuntime = createEditorRuntime(createNodePorts(), 'auto')
     const nativeCode = 'const g = cad.box(7, 7, 7, { centered: true })'
     await nativeRuntime.execute(nativeCode)
     const nativeBase = kernel.shapeCount
@@ -270,7 +278,7 @@ describe('④ leak: 50 loopthrough executes keep the arena bounded', () => {
     const nativeGrowth = kernel.shapeCount - nativeBase
     nativeRuntime.dispose()
 
-    const compatRuntime = createRuntime(createNodePorts(), 'auto')
+    const compatRuntime = createEditorRuntime(createNodePorts(), 'auto')
     compatRuntime.registerLib('spin', {
       box: ({ n }: { n: number }) => brepjsCompat.box(n, n, n),
     }, { autoLift: true })
@@ -311,7 +319,7 @@ describe('⑤ dual-form passthrough: positional vs object-form borrow', () => {
           walk(input, 0)
           return { ok: true, value: first }
         },
-        { name: 'probe' },
+        { name: 'probe', naming: NAMING },
       )
       const positional = (await probe(warm)) as Shape
       const objectForm = (await probe({ base: warm })) as Shape

@@ -10,28 +10,24 @@
  * 承载。把 cad 这套库数据内置进引擎，与第三方库走完全相同的 registerLib 路径，
  * 引擎并未对 cad 特判，因此不构成 K5 违反。cad 在 core 的 createRuntime 包装中
  * 被注册为 default 命名空间（见 cad-runtime/createRuntimeWithCad.ts）。
+ *
+ * D1（2026-09-23 扩展库拆分）：本命名空间只装配**平台面**。编辑器专属 op
+ * （`fai_*` / `group` / `assembly` / `copy` / `load`）与两个非基础 three 链的创建 op
+ * （`text` / `svgExtrude`）已迁到 `@faicad/faijs-extra`，由宿主经
+ * `mergeEditorNamespace()` 合并后注册——键名与拆分前完全一致，存量 `.fai.js` 零迁移。
+ * 四个 transform op（translate/rotate_euler/scale/scale3d）按 D1 选项 C 留在此处：
+ * `translate` 是通用几何变换，且是小程序端唯一在用的 transform op。
  */
 
 import { box, sphere, cylinder, cone, wedge } from './primitives'
-// `../3d_editor` 消费面（**不是废弃项**，措辞于 2026-09-22 校正）：transform 家族
-// （translate/rotate_euler/scale/scale3d）为编辑器应用提供（拖拽与时间线语句），
-// 不属 faijs 平台面；**变更其 API 形态必须同步更新 `../3d_editor`**。见各 op 的 @deprecated。
 import { translate, rotate_euler, scale, scale3d } from './transform'
-// `../3d_editor` 消费面（**不是废弃项**）：`fai_` 前缀 op 为编辑器应用提供；
-// **变更其 API 形态必须同步更新 `../3d_editor`**。见各 op 的 @deprecated。
-import { fai_extrude } from './fai_extrude'
 // cad.extrude 是平台手写 op（承载 upTo；长度形态委托 generated/operations 的投影），
-// 见 api/extrude.ts 的分层说明——up-to 不落在 fai_extrude。
+// 见 api/extrude.ts 的分层说明——up-to 不落在 fai_extrude（后者已随扩展库迁出）。
 import { extrude } from './extrude'
 import { knurl } from './knurl'
 import { sdf } from './sdf'
-import { text } from './text'
 import { screw } from './screw'
-import { svgExtrude } from './svgExtrude'
 import { sketch } from './sketch'
-import { load } from './load'
-import { fai_drill } from './fai_drill'
-import { fai_split } from './fai_split'
 import { union, subtract, intersect, cut } from './boolean'
 import { split } from './split'
 import { linearPattern } from './pattern'
@@ -39,8 +35,6 @@ import { circularPattern, gridPattern, rectangularPattern, mirrorJoin, mirror, c
 import { engrave } from './engrave'
 import { chamfer } from './chamfer'
 import { fillet } from './fillet'
-import { group, assembly } from './compound'
-import { copy } from './copy'
 import { faceNormal, bboxCenter, bboxMin, bboxMax } from './geom'
 import { edgeRef } from './edge-ref'
 import { faceRef } from './face-ref'
@@ -73,16 +67,12 @@ export function createApiNamespace(): StdlibNamespace {
   return {
     contractVersion: CONTRACT_VERSION,
     box, sphere, cylinder, cone, wedge,
-    text, screw, svgExtrude, sketch, sdf, load,
-    // translate/rotate_euler/scale/scale3d（本行）与 fai_drill / fai_extrude（下方）、
-    // fai_split / group / assembly / copy（末行）均为 `../3d_editor` 消费面（**不是废弃项**，
-    // 措辞于 2026-09-22 校正）：为编辑器应用提供，不属 faijs 平台面；
-    // **变更其 API 形态必须同步更新 `../3d_editor`**。
+    screw, sketch, sdf,
+    // D1 选项 C：四个 transform op 全留核心（translate 小程序端在用，同族不拆散）。
     translate, rotate_euler, scale, scale3d,
-    fai_drill, fai_extrude, engrave, chamfer, fillet, knurl,
+    engrave, chamfer, fillet, knurl,
     union, subtract, intersect,
     extrude, revolve,
-    fai_split, group, assembly, copy,
     faceNormal, bboxCenter, bboxMin, bboxMax,
     edgeRef,
     faceRef,

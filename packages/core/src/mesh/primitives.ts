@@ -3,9 +3,11 @@
  *
  * 提取来源（§5.7）：
  * - box/sphere/cylinder/cone/wedge ← engine/primitives/mesh-primitives.ts (makePrimitiveGeo)
- * - text ← engine/components/engraving/EngravingCore.ts (createTextGeometry)
  * - screw ← engine/primitives/screw/screw.ts (makeScrew)
- * - svgExtrude ← engine/primitives/svg-extrude/ (svgToExtrudedGeometry)
+ *
+ * `text` / `svgExtrude`（three 的 Shape / ExtrudeGeometry / SVGLoader 链）已随
+ * B 组迁到 `@faicad/faijs-extra` 的 `mesh/primitives.ts`，core 的 mesh 面不再
+ * 承载 three 的非基础几何生成链。
  *
  * 所有函数返回 Shape (ManifoldMeshData)：THREE.BufferGeometry → geoToManifoldMesh 转换。
  * 坐标系：Z-up、毫米。
@@ -14,8 +16,7 @@
 import * as THREE from 'three'
 import { makePrimitiveGeo } from '../primitives/mesh-primitives'
 import { geoToManifoldMesh } from '../boolean/csg-backend'
-import { svgToExtrudedGeometry } from '../primitives/svg-extrude'
-import type { Shape, BoxParams, SphereParams, CylinderParams, ConeParams, WedgeParams, TextParams, SvgExtrudeParams, SdfParams } from './types'
+import type { Shape, BoxParams, SphereParams, CylinderParams, ConeParams, WedgeParams, SdfParams } from './types'
 import { clampNRad } from './types'
 
 // ── 内部工具 ──
@@ -213,39 +214,6 @@ export function wedge(params: WedgeParams): Shape {
 }
 
 /**
- * Create text geometry. Font loading is asynchronous, so this function is
- * async; CJK text is rendered with the system font when one is available.
- *
- * @param params - text parameters (text, size, depth).
- * @returns the text shape.
- */
-export async function text(params: TextParams): Promise<Shape> {
-  const { getOpentypeFont, createTextGeometry } = await import(
-    '../primitives/text-geometry'
-  )
-  const { containsCjk, loadSystemCjkFont, createMixedTextGeometry } = await import(
-    '../primitives/text/cjk'
-  )
-  const font = await getOpentypeFont()
-  let geo: THREE.BufferGeometry
-  if (containsCjk(params.text)) {
-    const cjkFont = await loadSystemCjkFont()
-    if (cjkFont) {
-      geo = await createMixedTextGeometry(params.text, params.size, params.depth, cjkFont.font, font)
-    } else {
-      // No CJK font available: replace CJK chars with '?' so geometry still
-      // can be created (graceful degradation). Without this, createTextGeometry
-      // would throw because CJK glyphs are .notdef in OpenSans Regular.
-      const fallback = params.text.replace(/[\u4E00-\u9FFF\u3400-\u4DBF\u2F800-\u2FA1F\u3000-\u303F\uFF00-\uFFEF]/g, '?')
-      geo = await createTextGeometry(fallback, params.size, params.depth, font)
-    }
-  } else {
-    geo = await createTextGeometry(params.text, params.size, params.depth, font)
-  }
-  return geoToShape(geo)
-}
-
-/**
  * Create a screw (threaded) geometry.
  *
  * @param params - screw parameters (system, specIdx, thread, length, head, optional pitchCustom and nRad).
@@ -269,22 +237,6 @@ export async function screw(params: {
     length: params.length,
     head: params.head,
     nRad: clampNRad(params.nRad),
-  })
-  return geoToShape(geo)
-}
-
-/**
- * Create an extruded geometry from an SVG source.
- *
- * @param params - SVG extrude parameters (svg, depth, target size, optional natural size).
- * @returns the extruded shape.
- */
-export function svgExtrude(params: SvgExtrudeParams): Shape {
-  const geo = svgToExtrudedGeometry(params.svg, {
-    depth: params.depth,
-    targetLongSide: params.targetLongSide ?? 20,
-    naturalWidth: params.naturalWidth ?? 0,
-    naturalHeight: params.naturalHeight ?? 0,
   })
   return geoToShape(geo)
 }

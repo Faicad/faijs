@@ -9,7 +9,7 @@
 
 import * as THREE from 'three'
 import type { Font, Path, PathCommand } from 'opentype.js'
-import { ensureDefaultFont, getFont as getRegisteredFont } from '../brep/text/fontRegistry'
+import { ensureDefaultFont, getFont as getRegisteredFont } from '@faicad/faijs/brep/text/fontRegistry'
 
 // ── Font loading ──
 

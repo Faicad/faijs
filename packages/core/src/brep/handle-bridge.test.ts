@@ -18,6 +18,7 @@ import { hasBrep } from '../shape'
 import { configureBackends } from '../runtime-state'
 import { createNodePorts } from '../node-host'
 import { createRuntime } from '@faicad/faijs'
+import { createEditorRuntime } from '../test-support/editor-ops'
 
 describe('handle-bridge: getKernel', () => {
   it('throws when kernel is not available (mesh mode / not initialized)', () => {
@@ -75,7 +76,7 @@ describe('handle-bridge: meshHandle / fromHandle with real OCCT kernel', () => {
     // 宿主装配：注册 OCCT BREP 引擎（runtime 从注册表取引擎）
     await registerOcctBrepEngine()
     // 用 runtime 装配真实 backends（auto 模式 → kernel 存在），再建一个 box solid
-    runtime = createRuntime(createNodePorts(), 'auto')
+    runtime = createEditorRuntime(createNodePorts(), 'auto')
     await runtime.execute('let part0 = cad.box({ width: 10, depth: 10, height: 10, centered: true })')
     // 经 L3 api/ 层的 box（原 stdlib 已并入 core）
     const { box } = await import('@faicad/faijs/api')

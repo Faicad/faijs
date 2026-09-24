@@ -24,6 +24,7 @@ import type { CadRuntime } from '@faicad/faijs/cad-runtime/runtime'
 import type { StdlibNamespace } from '@faicad/faijs/runtime-state'
 import type { Shape } from '@faicad/faijs/mesh/types'
 import * as sheetPkg from '@faicad/sheetmetal'
+import { createEditorRuntime } from '../_support/editor-runtime'
 
 const sheetNs: StdlibNamespace = {
   author: sheetPkg.author,
@@ -42,7 +43,7 @@ beforeAll(async () => {
 
 describe('aluminum enclosure — whole-package sheetmetal flow over the compat boundary', () => {
   it('executes end-to-end: brep-backed solid, 4 bend lines, 2 holes, developed area ≈26 826 mm²', async () => {
-    const runtime: CadRuntime = createRuntime(createNodePorts(), 'auto')
+    const runtime: CadRuntime = createEditorRuntime(createNodePorts(), 'auto')
     try {
       runtime.registerLib('sheet', sheetNs, { autoLift: true })
       const res = await runtime.execute(SCRIPT)

@@ -497,19 +497,23 @@ Everything except `events` is optional — a Node test environment can supply on
 
 ## 10. stdlib and Third-Party Libraries
 
-### 10.1 Function catalog (`cad` namespace, 31 functions)
+### 10.1 Function catalog (`cad` namespace)
 
-| Category | Functions |
+`cad` is the **platform surface**: what core itself provides. Names, parameters, defaults and required/optional status live in `docs/ops-api-inventory.md` (generated from the op declarations — never edited by hand); the table below fixes only the categories and their handwritten members.
+
+| Category | Handwritten platform ops |
 |---|---|
-| Creation | `box` `sphere` `cylinder` `cone` `wedge` `text` `screw` `svgExtrude` `sdf` `load` |
-| Transform | `translate` `rotate` `scale` |
-| Feature | `drill` `extrude` `engrave` `knurl` `chamfer` `fillet` |
-| Boolean | `union` `subtract` `intersect` |
-| Split | `split` (dual output, destructured as `const { front, back } = …`) |
-| Structural | `group` `assembly` (compound output) |
-| Clone | `copy` |
-| Query | `faceCenter` `faceNormal` `bboxCenter` `bboxMin` `bboxMax` |
+| Creation | `box` `sphere` `cylinder` `cone` `wedge` `screw` `sdf` `sketch` |
+| Transform | `translate` `rotate_euler` `scale` `scale3d` `place` |
+| Feature | `extrude` `revolve` `engrave` `knurl` `chamfer` `fillet` |
+| Boolean | `union` `subtract` `intersect` `cut` |
+| Split / replicate | `split` (dual output, destructured as `const { front, back } = …`) `linearPattern` `circularPattern` `gridPattern` `rectangularPattern` `mirrorJoin` `mirror` `clone` |
+| Import / structure | `import_brep` `import_step` `compound` |
+| Query | `faceNormal` `bboxCenter` `bboxMin` `bboxMax` `edgeRef` `faceRef` |
+| Assembly solving | `jointTrajectory` `inverseKinematics` `mechanismDOF` |
 | Asset | `asset` |
+
+Beyond the handwritten set, `cad` also carries the **generated brepjs-compat projection** (`fuse`, `torus`, `viewCamera`, `projectView`, `shell`, `offset`, …) built by `compatOp(projectBrepOp(…))`; `docs/ops-api-inventory.md` is its home.
 
 > Note: "Feature" above is an internal faijs catalog category (ops modifying existing geometry), unrelated to the host-layer "feature" term — the generic CAD term implemented by one or more ops / function calls (see §2 R-9).
 
@@ -560,6 +564,21 @@ export const myOp = defineOp({
 ### 10.5 Whole-module `.ts` execution channel (faqts) — **removed**
 
 > ⚠️ **Removed (2026-09-23)**: the faqts/faits whole-module `.ts` execution path has been deleted under the iron rule "scripts must be plain JS, libraries must be TS". Scripts are `.fai.js` only (executed by faijs); library code is TS source compiled to JS by `tsc` at build time — the runtime performs no type stripping. See `docs/plans/2026-09-23-script-js-only-lib-ts-design.md`. This section is kept only as a historical record.
+
+### 10.6 The editor extension library (`@faicad/faijs-extra`)
+
+`@faicad/faijs-extra` carries the ops that serve the sibling editor application rather than the platform.
+
+| Group | Ops |
+|---|---|
+| Editor-owned | `fai_drill` `fai_extrude` `fai_split` `group` `assembly` `copy` `load` |
+| Creators | `text` `svgExtrude` |
+
+A host that wants them registers `createEditorCadNamespace()` — the platform surface joined with these ops — as its `cad` library, then calls `registerEditorSymbols()` (static-analysis names) and `installEditorMeshProviders()` (the `cad.engrave` mesh decoration provider). Script text does not change: the op names, parameters and semantics are the ones these ops had inside core.
+
+The library has two entries with different dependency closures. The root and `./browser` entries also carry the svg + 3D-text geometry chain (`three/examples`' `SVGLoader`, `Shape`/`ExtrudeGeometry`); `@faicad/faijs-extra/editor-ops` never reaches that chain, and is the entry for a host that must not bundle it (a mini-program worker).
+
+`three` is a **peer** of both packages, with the range `^0.162.0 || ^0.184.0`. Neither package takes a three version position, because its hosts' versions cannot converge: the mini-program canvas is WebGL1-only and therefore pinned below r163, while the web host follows the current line. Core restricts itself to the three API subset that is stable across the range and imports no `three/examples` addon; a host resolves `three` for its own bundles.
 
 ---
 

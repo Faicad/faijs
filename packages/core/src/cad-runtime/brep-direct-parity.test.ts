@@ -9,9 +9,9 @@
  */
 import { describe, it, expect, beforeAll } from 'vitest'
 import { CadRuntime } from './runtime'
-import { createApiNamespace } from '../api/api-namespace'
 import type { HostPorts } from './ports'
 import { initOcctWasm } from '../occt-kernel/occtKernel'
+import { createApiNamespaceWithEditorOps } from '../test-support/editor-ops'
 
 function defaultPorts(): HostPorts {
   return { events: { emit: () => {} } } as HostPorts
@@ -20,7 +20,7 @@ function defaultPorts(): HostPorts {
 const WARMUP = 'let warmup = cad.box(1, 1, 1, { centered: true })'
 
 describe('T3/T5: BREP/topology/naming direct execution (auto 模式)', () => {
-  const cadNs = createApiNamespace()
+  const cadNs = createApiNamespaceWithEditorOps()
   let rt: CadRuntime
 
   beforeAll(async () => {

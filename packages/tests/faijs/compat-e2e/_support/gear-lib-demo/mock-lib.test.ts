@@ -17,6 +17,7 @@ import { CONTRACT_VERSION } from '@faicad/faijs/sdk'
 import type { Shape } from '@faicad/faijs/mesh/types'
 import * as mockMechMesh from './mock-mech-mesh'
 import * as mockMechBrep from './mock-mech-brep'
+import { createEditorRuntime } from '../../../_support/editor-runtime'
 
 beforeAll(async () => {
   await initOcctWasm()
@@ -28,7 +29,7 @@ async function executeWithLib(
   lib: unknown,
   code: string,
 ): Promise<Shape> {
-  const runtime = createRuntime(createNodePorts(), 'auto')
+  const runtime = createEditorRuntime(createNodePorts(), 'auto')
   runtime.registerLib(binding, lib as never)
   const result = await runtime.execute(code)
   expect(result.failedAt).toBeUndefined()
@@ -49,7 +50,7 @@ function lastShape(
 describe('B4: mock 库 fixture — mesh 版', () => {
   it('带 contractVersion，可被 registerLib 接受', () => {
     expect(mockMechMesh.contractVersion).toBe(CONTRACT_VERSION)
-    const runtime = createRuntime(createNodePorts(), 'auto')
+    const runtime = createEditorRuntime(createNodePorts(), 'auto')
     expect(() => runtime.registerLib('mech', mockMechMesh as never)).not.toThrow()
   })
 
@@ -67,7 +68,7 @@ describe('B4: mock 库 fixture — mesh 版', () => {
 describe('B4: mock 库 fixture — BREP 版', () => {
   it('带 contractVersion，可被 registerLib 接受', () => {
     expect(mockMechBrep.contractVersion).toBe(CONTRACT_VERSION)
-    const runtime = createRuntime(createNodePorts(), 'auto')
+    const runtime = createEditorRuntime(createNodePorts(), 'auto')
     expect(() => runtime.registerLib('mech', mockMechBrep as never)).not.toThrow()
   })
 
@@ -82,7 +83,7 @@ describe('B4: mock 库 fixture — BREP 版', () => {
   })
 
   it('BREP 产物可与内置 op 混合布尔（跨命名空间消费）', async () => {
-    const runtime = createRuntime(createNodePorts(), 'auto')
+    const runtime = createEditorRuntime(createNodePorts(), 'auto')
     runtime.registerLib('mech', mockMechBrep as never)
     const result = await runtime.execute([
       "import * as mech from 'gear-lib-demo'",
@@ -97,7 +98,7 @@ describe('B4: mock 库 fixture — BREP 版', () => {
   })
 
   it('mesh 模式：makeHeadstock 产 mesh box（mesh-first，不再崩溃，hasBrep false）', async () => {
-    const runtime = createRuntime(createNodePorts(), 'mesh')
+    const runtime = createEditorRuntime(createNodePorts(), 'mesh')
     runtime.registerLib('mech', mockMechBrep as never)
     const result = await runtime.execute([
       "import * as mech from 'gear-lib-demo'",

@@ -498,19 +498,23 @@ export interface HostPorts {
 
 ## 10. stdlib 与第三方库
 
-### 10.1 函数目录（`cad` 命名空间，31 个）
+### 10.1 函数目录（`cad` 命名空间）
 
-| 类别 | 函数 |
+`cad` 是**平台面**：core 自己提供的部分。名字、参数、默认值与必填/可选状态以 `docs/ops-api-inventory.md` 为准（由 op 声明生成的产物，禁止手改）；下表只固定类别与其手写成员。
+
+| 类别 | 手写平台 op |
 |---|---|
-| 创建类 | `box` `sphere` `cylinder` `cone` `wedge` `text` `screw` `svgExtrude` `sdf` `load` |
-| 变换类 | `translate` `rotate` `scale` |
-| 特征类 | `drill` `extrude` `engrave` `knurl` `chamfer` `fillet` |
-| 布尔 | `union` `subtract` `intersect` |
-| 分割 | `split`（双输出，解构 `const { front, back } = …`） |
-| 结构型 | `group` `assembly`（compound 输出） |
-| 克隆 | `copy` |
-| 查询 | `faceCenter` `faceNormal` `bboxCenter` `bboxMin` `bboxMax` |
+| 创建类 | `box` `sphere` `cylinder` `cone` `wedge` `screw` `sdf` `sketch` |
+| 变换类 | `translate` `rotate_euler` `scale` `scale3d` `place` |
+| 特征类 | `extrude` `revolve` `engrave` `knurl` `chamfer` `fillet` |
+| 布尔 | `union` `subtract` `intersect` `cut` |
+| 分割／阵列 | `split`（双输出，解构 `const { front, back } = …`） `linearPattern` `circularPattern` `gridPattern` `rectangularPattern` `mirrorJoin` `mirror` `clone` |
+| 导入／结构 | `import_brep` `import_step` `compound` |
+| 查询 | `faceNormal` `bboxCenter` `bboxMin` `bboxMax` `edgeRef` `faceRef` |
+| 装配求解 | `jointTrajectory` `inverseKinematics` `mechanismDOF` |
 | 资产 | `asset` |
+
+除手写集合外，`cad` 还承载**生成的 brepjs 兼容投影**（`fuse`、`torus`、`viewCamera`、`projectView`、`shell`、`offset` 等），由 `compatOp(projectBrepOp(…))` 构造；它们的归属地是 `docs/ops-api-inventory.md`。
 
 > 注：表中"特征类"是 faijs 函数目录的内部类别名（对既有几何做修改的操作），与宿主层"特征（feature）"术语无关——后者是通用 CAD 术语，由 1 到多个 op／函数调用实现（见 §2 R-9）。
 
@@ -561,6 +565,21 @@ export const myOp = defineOp({
 ### 10.5 `.ts` 整段执行通道（faqts）——**已删除**
 
 > ⚠️ **已删除（2026-09-23）**：faqts/faits 的 `.ts` 整段执行路径已随「脚本必须纯 JS、库必须 TS」红线移除。脚本只允许 `.fai.js`（经 faijs 执行）；库代码为 TS 源、构建期由 tsc 编译为 JS——运行时不做任何类型剥离。详见 docs/plans/2026-09-23-script-js-only-lib-ts-design.md。本节仅作为历史记录保留。
+
+### 10.6 编辑器扩展库（`@faicad/faijs-extra`）
+
+`@faicad/faijs-extra` 承载服务于姊妹编辑器应用、而非平台面的 op。
+
+| 分组 | op |
+|---|---|
+| 编辑器专属 | `fai_drill` `fai_extrude` `fai_split` `group` `assembly` `copy` `load` |
+| 创建器 | `text` `svgExtrude` |
+
+需要它们的宿主把 `createEditorCadNamespace()`——平台面与这些 op 的并集——注册为 `cad` 库，再调用 `registerEditorSymbols()`（静态分析名字）与 `installEditorMeshProviders()`（`cad.engrave` 的 mesh 装饰 provider）。脚本文本不变：op 名字、参数与语义就是它们在 core 内时的那些。
+
+该库有两个入口，依赖闭包不同。根入口与 `./browser` 入口还承载 svg 与 3D 文字几何链（`three/examples` 的 `SVGLoader`、`Shape`/`ExtrudeGeometry`）；`@faicad/faijs-extra/editor-ops` 永不触达该链，是「不得打包它」的宿主（小程序 worker）所使用的入口。
+
+`three` 是两个包的 **peer**，范围为 `^0.162.0 || ^0.184.0`。两个包都不对 three 作版本主张，因为其宿主的版本无法收敛：小程序 canvas 只有 WebGL1，因而被锁在 r163 以下；web 宿主跟随当前线。core 把自己限制在该范围上稳定的 three API 子集内，且不 import 任何 `three/examples` addon；three 由宿主为自己的产物解析。
 
 ---
 

@@ -11,10 +11,10 @@
  * 其中 offsetFront - offsetBack === length 恒成立。
  */
 
-import { computeBoolean } from '../boolean/csg-backend'
-import { buildExtrudeParts } from '../boolean/extrude-helpers'
-import type { ManifoldMeshData } from '../boolean/csg-backend'
-import type { Shape, ExtrudeParams } from './types'
+import { computeBoolean } from '@faicad/faijs/boolean/csg-backend'
+import { buildExtrudeParts } from '@faicad/faijs/boolean/extrude-helpers'
+import type { ManifoldMeshData } from '@faicad/faijs/boolean/csg-backend'
+import type { Shape, ExtrudeParams } from '@faicad/faijs/mesh/types'
 
 /**
  * Execute a face extrude: cut the model at the cutting plane and extrude the

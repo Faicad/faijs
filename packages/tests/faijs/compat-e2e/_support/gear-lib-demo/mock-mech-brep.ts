@@ -23,6 +23,15 @@ import {
   getBackends,
 } from '@faicad/faijs/sdk'
 import type { BrepHandle } from '@faicad/faijs/brep/engine/types'
+import type { Provenance } from '@faicad/faijs/topology/naming/lineage'
+
+/**
+ * GOTCHA (2026-09-24): `DualOpOptions.naming` is **required** by the op-metadata
+ * contract, so a library op declaration that omits it fails to typecheck (and the
+ * overload that matches instead returns `Record<string, Shape>`, which then breaks
+ * every call site with a confusing "conversion may be a mistake" error).
+ */
+const NAMING = { kind: 'construct', newFaces: { via: 'explicit', vocab: [] } } as Provenance
 
 /** Adapter contract version, checked against CONTRACT_VERSION by registerLib. */
 export const contractVersion = CONTRACT_VERSION
@@ -92,7 +101,7 @@ function boxSolidHandle(size: number): BrepHandle {
  * @param params - configuration for the cube; `size` is the edge length.
  * @returns the cube as a faijs SolidShape.
  */
-export const makeHeadstock = defineOp({
+export const makeHeadstock = defineOp({ naming: NAMING,
   mesh: (params: { size: number }) => cubeMesh(params.size),
   brep: (params: { size: number }) => boxSolidHandle(params.size),
 })
@@ -102,7 +111,7 @@ export const makeHeadstock = defineOp({
  * auto mode once the OCCT kernel is ready.
  * @returns a fixed-size cube as a faijs SolidShape.
  */
-export const makeBox = defineOp({
+export const makeBox = defineOp({ naming: NAMING,
   mesh: () => cubeMesh(10),
   brep: () => boxSolidHandle(10),
 })
@@ -112,6 +121,6 @@ export const makeBox = defineOp({
  * @param params - configuration for the sphere; `radius` is the sphere radius.
  * @returns the sphere as a mesh-only faijs SolidShape.
  */
-export const makeBall = defineOp({
+export const makeBall = defineOp({ naming: NAMING,
   mesh: (params: { radius: number }) => sphereMesh(params.radius),
 })

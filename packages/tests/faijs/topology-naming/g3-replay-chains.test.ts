@@ -87,6 +87,7 @@ import { resolveTopoRef, type ResolutionContext } from '@faicad/faijs/topology/n
 import type { FaceTopoRef, PartNaming, RoleTable } from '@faicad/faijs/topology/naming/types'
 import type { CadRuntime, ExecutionResult } from '@faicad/faijs/cad-runtime/runtime'
 import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
+import { createEditorRuntime } from '../_support/editor-runtime'
 
 beforeAll(async () => {
   await registerOcctBrepEngine()
@@ -126,14 +127,42 @@ function namingOf(result: ExecutionResult, part: PartName): PartNaming {
 
 /** 该 part 命名表里的 role 保序去重列表（跨重放要相等的东西）。 */
 function rolesOf(result: ExecutionResult, part: PartName): string[] {
-  return [...new Set(namingOf(result, part).faceNaming.map((f) => f.role))]
+  // GOTCHA (2026-09-24): a naming row without an identity carries `role: null`
+  // (Phase 1.7 / D6-G6 — the `''` fallback is gone). A null is not a role, so it is
+  // excluded rather than coerced into the compared role list.
+  return [
+    ...new Set(
+      namingOf(result, part).faceNaming
+        .map((f) => f.role)
+        .filter((r): r is string => r !== null),
+    ),
+  ]
 }
 
 /** ordinal（1 起）→ 该次执行给这张面起的名字。表与序号按下标对齐（types.ts:161）。 */
 function roleAtOrdinal(result: ExecutionResult, part: PartName, ordinal: number): string {
   const row = namingOf(result, part).faceNaming[ordinal - 1]
   if (!row) throw new Error(`[G3] naming table shorter than ordinal ${ordinal} for ${part}`)
+  if (row.role === null) throw new Error(`[G3] ordinal ${ordinal} of ${part} carries no role (anonymous face)`)
   return row.role
+}
+
+/**
+ * Build a FaceTopoRef from a naming row.
+ *
+ * GOTCHA (2026-09-24): the row's `origin` is a **StmtId** and both `origin` and
+ * `role` are nullable (a face with no identity row has `role: null`, Phase 1.7 /
+ * D6-G6). These capture helpers only take owned, named faces, so they narrow
+ * explicitly and fail loudly instead of coercing a null into a ref.
+ */
+function refFromRow(
+  row: ReturnType<typeof namingOf>['faceNaming'][number],
+  label: string,
+): FaceTopoRef {
+  if (row.origin === null || row.role === null) {
+    throw new Error(`[G3] ${label} 的命名行没有身份（origin/role 为空）`)
+  }
+  return { kind: 'face', origin: row.origin, role: row.role, hint: row.hint }
 }
 
 /**
@@ -150,19 +179,21 @@ function captureByRole(result: ExecutionResult, part: PartName, role: string): F
         `现有 role：${JSON.stringify(rolesOf(result, part))}`,
     )
   }
-  return { kind: 'face', origin: row.origin, role: row.role, hint: row.hint }
+  return refFromRow(row, `${part}:${role}`)
 }
 
 /** 同上，但按前缀匹配（`replica[1]/…`、`splinter(…)#…` 这类复合名）。 */
 function captureByRolePrefix(result: ExecutionResult, part: PartName, prefix: string): FaceTopoRef {
-  const row = namingOf(result, part).faceNaming.find((f) => f.role.startsWith(prefix))
+  const row = namingOf(result, part).faceNaming.find(
+    (f) => f.role !== null && f.role.startsWith(prefix),
+  )
   if (!row) {
     throw new Error(
       `[G3] 首次执行里没有以 '${prefix}' 开头的 role（${part}）——该 op 的词汇表尚未落地。` +
         `现有 role：${JSON.stringify(rolesOf(result, part))}`,
     )
   }
-  return { kind: 'face', origin: row.origin, role: row.role, hint: row.hint }
+  return refFromRow(row, `${part}:${prefix}*`)
 }
 
 /**
@@ -408,7 +439,7 @@ const CHAINS: readonly ChainSpec[] = [
  * 自建+dispose 让每条链完全独立（当前 `for` 循环本身是串行的，不违反 C1）。
  */
 async function replayChain(chain: ChainSpec): Promise<[ExecutionResult, ExecutionResult, () => void]> {
-  const runtime: CadRuntime = createRuntime(createNodePorts(), 'brep')
+  const runtime: CadRuntime = createEditorRuntime(createNodePorts(), 'brep')
   const a = await runtime.execute(chain.codeA, { topology: 'auto' })
   const b = await runtime.execute(chain.codeB, { topology: 'auto' })
   return [a, b, () => runtime.dispose()]

@@ -39,8 +39,11 @@ export { buildStlBufferFromMesh } from './brep/export/stl'
 export { exportStepFromSolid, exportStepFromSolids } from './brep/export/step'
 export type { StepExportEntry } from './brep/export/step'
 
-// ── L1 Mesh 执行�?──
+// ── L1 Mesh ──
 export { cad } from './mesh'
+// 宿主注入的 mesh 装饰几何（cad.engrave 的文字/SVG 几何链在 @faicad/faijs-extra）
+export { setEngraveDecorationProvider, getEngraveDecorationProvider } from './mesh/decoration-provider'
+export type { EngraveDecorationProvider, EngraveDecorationParams } from './mesh/decoration-provider'
 export { setManifoldWasmUrl, getManifoldWasmUrl, getManifoldModule } from './mesh/manifold-loader'
 export type {
   BoundingBox, FaceDescriptor,
@@ -76,15 +79,16 @@ export { mergeBufferGeometries, makePrimitiveGeo, DEFAULT_SIZE, applyPrimitiveOf
 export { makeScrew } from './primitives/screw/screw'
 export { getScrewSpec, getScrewSpecs, threadToPitchMm, SCREW_HEAD_DIMS } from './primitives/screw/screw-db'
 export type { ScrewParams, ScrewSpec, ScrewSystem } from './primitives/screw/screw-db'
-export { svgToExtrudedGeometry } from './primitives/svg-extrude'
+export { parseSvgNaturalSize } from './primitives/parse-svg-size'
 export {
   extractMeshData, primitiveToBrepSolid, geometryToBrepSolid,
   brepSolidToStep, primitiveToBrepStep,
 } from './primitives/brep-primitives'
 export type { PrimitiveToBrepResult, PrimitiveParams } from './primitives/brep-primitives'
-export { loadSystemCjkFont, containsCjk, isCjkChar, createMixedTextGeometry } from './primitives/text/cjk'
-export type { CjkFontResult } from './primitives/text/cjk'
-export { createTextGeometry, getOpentypeFont, opentypePathToGeometry } from './primitives/text-geometry'
+// B 组（svg 挤出 / 3D 文字几何链）已随 @faicad/faijs-extra 迁出；
+// 留 core 的是零 three 的 CJK 字符判定与系统字体装载。
+export { loadSystemCjkFont, containsCjk, isCjkChar } from './primitives/text/cjk-font'
+export type { CjkFontResult } from './primitives/text/cjk-font'
 export type {
   PrimitiveType, PrimitiveParamsRecord, PrimitiveArgsRecord, PrimitiveMeta,
 } from './primitives/types'

@@ -28,7 +28,13 @@ import type { Shape } from '../mesh/types'
 function makeBackends(kernelBrep: unknown): Backends {
   return {
     contractVersion: CONTRACT_VERSION,
-    config: { mode: 'brep', brepCapabilities: { evolution: ['fuse'] }, brepCapabilitiesEngineId: 'test' },
+    // GOTCHA (2026-09-24): `union` declares the **per-kernel-function** capability
+    // `fuseWithHistory` (Phase 0.2 — the family-level `'evolution'` name was dropped
+    // precisely so partially-implemented kernels cannot pass static judgement). The
+    // declaration here must therefore name that function, not `'fuse'`, or dispatch
+    // rejects before the op body with a capability BrepUnsupportedError. The engine
+    // id field is `brepEngineId` (not `brepCapabilitiesEngineId`).
+    config: { mode: 'brep', brepCapabilities: { evolution: ['fuseWithHistory'] }, brepEngineId: 'test' },
     kernel: { brep: kernelBrep, csg: undefined, sdf: undefined },
     fonts: undefined,
     texture: undefined,

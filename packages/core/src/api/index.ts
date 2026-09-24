@@ -15,47 +15,31 @@ export { box, sphere, cylinder, cone, wedge } from './primitives'
 // （translate/rotate_euler/scale/scale3d）为编辑器应用提供（拖拽 / 时间线语句），
 // 不属 faijs 平台面，但服务真实负载。**变更其 API 形态必须同步更新 `../3d_editor`**；
 // 各 op 的 JSDoc 已带校正后的 @deprecated。
+//
+// D1（2026-09-23 扩展库拆分，选项 C）：四个 transform op **全部留 core**——
+// `translate` 是通用几何变换且是小程序端唯一在用的 transform op，同族不拆散。
 export { translate, rotate_euler, scale, scale3d } from './transform'
-// `../3d_editor` 消费面（**不是废弃项**）：`fai_` 前缀 op（fai_extrude / fai_drill /
-// fai_split）为编辑器应用提供，不属 faijs 平台面。**变更其 API 形态必须同步更新
-// `../3d_editor`**；各 op 的 JSDoc 已带校正后的 @deprecated。
-export { fai_extrude } from './fai_extrude'
-export { fai_drill } from './fai_drill'
-export { fai_split } from './fai_split'
 export { union, subtract, intersect, cut } from './boolean'
 export { engrave } from './engrave'
 export { chamfer } from './chamfer'
 export { fillet } from './fillet'
-export { text } from './text'
 export { screw } from './screw'
-export { svgExtrude } from './svgExtrude'
 export { sketch } from './sketch'
 export { knurl } from './knurl'
-export { load } from './load'
 export { sdf } from './sdf'
-// `../3d_editor` 消费面（**不是废弃项**，措辞于 2026-09-22 校正）：group/assembly 为
-// 编辑器应用提供（无几何输出的结构分组 / 以编辑器结构语句声明的装配），不属 faijs 平台面；
-// **变更其 API 形态必须同步更新 `../3d_editor`**。
-export { group, assembly } from './compound'
-export { applyTransform } from './compound'
-// P2-f3：装配子层全量导出（solvePreview/entityFromGeometry 等经此到门面；
-// 与 ./compound 显式导出重名（assembly/AssemblyConstraint 等）时显式优先，不报错）
+// 应用变换（mesh 顶点烘焙）下沉到引擎侧 src/mesh/rigid-transform.ts（E-b：
+// 引擎不得 import stdlib/compound；公共 API 经本 re-export 保持）。
+export { applyTransform } from '../mesh/rigid-transform'
+// P2-f3：装配子层全量导出（solvePreview/entityFromGeometry 等经此到门面）。
+// A/B 组 op（fai_* / group / assembly / copy / load / text / svgExtrude）已迁出
+// core，见 @faicad/faijs-extra；装配**求解器**（solve/validate/joints/solvers）
+// 仍是平台能力，留在此处。
 export * from './assembly'
-// DEPRECATED: copy 同上（语义含编辑器画布显示——源与副本各显示一份）。
-export { copy } from './copy'
 // ── H11：平台几何 op（方案 §4，替代 FCStd 迁移对编辑器 op 的借用）──
 export { import_brep } from './import-brep'
 export { import_step } from './import-step'
 export { compound } from './compound-geom'
 export { place } from './place'
-export type {
-  AssemblyBehavior, AssemblyConstraint, FaceMateConstraint, FaceMateFace,
-  AssemblySolveResult,
-  EntityRef, FaceRef, EdgeRef, AssemblyVec3,
-  MateConstraint, AlignConstraint, CoincidentConstraint, ConcentricConstraint,
-  DistanceConstraint, AngleConstraint, ParallelConstraint, PerpendicularConstraint,
-  FixedConstraint, StructuralConstraint,
-} from './compound'
 export { faceNormal, bboxCenter, bboxMin, bboxMax } from './geom'
 export { edgeRef } from './edge-ref'
 export { faceRef } from './face-ref'

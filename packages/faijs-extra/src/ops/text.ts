@@ -5,19 +5,19 @@
  * dispatchPath 静态判定 brep/mesh，产物经 solid()/fromBrep() 构造器创建。
  */
 
-import type { Shape } from '../mesh/types'
-import { cad } from '../mesh'
-import { solidToShape } from '../brep/brep-ops'
-import { textToSolid } from '../brep/text/text-to-solid'
-import { ensureDefaultFont } from '../brep/text/fontRegistry'
-import { getSolidBoundingBox } from '../brep/brep-utils'
-import { containsCjk, loadSystemCjkFont } from '../primitives/text/cjk'
-import { getBackends } from '../runtime-state'
-import { fromBrep } from '../shape'
-import { defineOp } from '../sdk'
-import type { Provenance } from '../topology/naming/lineage'
-import { assertPositiveNumber } from './assert'
-import type { BrepEngineApi } from '../brep/engine/primitives'
+import type { Shape } from '@faicad/faijs/mesh/types'
+import { text as meshText } from '../mesh/primitives'
+import { solidToShape } from '@faicad/faijs/brep/brep-ops'
+import { textToSolid } from '@faicad/faijs/brep/text/text-to-solid'
+import { ensureDefaultFont } from '@faicad/faijs/brep/text/fontRegistry'
+import { getSolidBoundingBox } from '@faicad/faijs/brep/brep-utils'
+import { containsCjk, loadSystemCjkFont } from '@faicad/faijs/primitives/text/cjk-font'
+import { getBackends } from '@faicad/faijs/runtime-state'
+import { fromBrep } from '@faicad/faijs/shape'
+import { defineOp } from '@faicad/faijs/sdk'
+import type { Provenance } from '@faicad/faijs/topology/naming/lineage'
+import { assertPositiveNumber } from '@faicad/faijs/api/assert'
+import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
 
 /**
  * Validate text parameters: `text` must be a non-empty string, and `size` and
@@ -102,7 +102,7 @@ export const text = defineOp({
   mesh: async (inputOrParams: unknown, maybeParams?: Record<string, unknown>) => {
     const params = textParamsOf(inputOrParams, maybeParams)
     assertTextParams(params)
-    return cad.text({ text: params.text as string, size: params.size as number, depth: params.depth as number })
+    return meshText({ text: params.text as string, size: params.size as number, depth: params.depth as number })
   },
   brep: async (inputOrParams: unknown, maybeParams?: Record<string, unknown>) => {
     const params = textParamsOf(inputOrParams, maybeParams)

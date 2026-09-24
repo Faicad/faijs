@@ -25,6 +25,10 @@ interface CapabilityEntry {
   op: string
   kernelMethods: string[]
 }
+// GOTCHA (2026-09-24): this generator **embeds** capability-map.json (the per-op
+// kernel-method column). Regenerating the map therefore makes the inventory stale
+// too — run `npm run gen:capability-map -w @faicad/faijs` and then this script, or
+// `npm run doc-sync` will fail on the inventory check with no hint about the map.
 const CAPABILITY_MAP: CapabilityEntry[] = JSON.parse(
   readFileSync(join(root, 'packages/core/src/api/surface/capability-map.json'), 'utf8'),
 ).entries

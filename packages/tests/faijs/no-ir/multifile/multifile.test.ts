@@ -17,6 +17,7 @@ import { createApiNamespace } from '@faicad/faijs/api/api-namespace'
 import { isMeshShape } from '@faicad/faijs/mesh/types'
 import type { HostPorts } from '@faicad/faijs/cad-runtime/ports'
 import type { ExecutionResult } from '@faicad/faijs/cad-runtime/runtime'
+import { createApiNamespaceWithEditorOps } from '../../_support/editor-runtime'
 
 function memLoader(map: Record<string, string>): ProjectLoader {
   return {
@@ -27,7 +28,7 @@ function memLoader(map: Record<string, string>): ProjectLoader {
 
 function mkRuntime(loader: ProjectLoader): CadRuntime {
   const ports = { events: { emit: () => {} }, projectLoader: loader } as unknown as HostPorts
-  return new CadRuntime(ports, 'mesh', { cad: createApiNamespace() })
+  return new CadRuntime(ports, 'mesh', { cad: createApiNamespaceWithEditorOps() })
 }
 
 const SHAPE = (name: string): string => `let ${name} = cad.box(10, 20, 30, { centered: true })`
@@ -41,7 +42,7 @@ function hasShape(r: ExecutionResult, name: string): boolean {
 }
 
 describe('A-8：多文件 import + 引用通过 / 缺失导出 / 缺失模块 / 循环依赖', () => {
-  const cadNs = createApiNamespace()
+  const cadNs = createApiNamespaceWithEditorOps()
   const ports0 = { events: { emit: () => {} } } as unknown as HostPorts
   const warm = new CadRuntime(ports0, 'mesh', { cad: cadNs })
 
@@ -136,7 +137,7 @@ describe('A-8：多文件 import + 引用通过 / 缺失导出 / 缺失模块 / 
 })
 
 describe('A-9/A-10：引用判定与显示判定一致；跨文件引用不取消显示资格（D6）', () => {
-  const cadNs = createApiNamespace()
+  const cadNs = createApiNamespaceWithEditorOps()
   const ports0 = { events: { emit: () => {} } } as unknown as HostPorts
   const warm = new CadRuntime(ports0, 'mesh', { cad: cadNs })
 

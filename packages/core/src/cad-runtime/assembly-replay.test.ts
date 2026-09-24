@@ -10,18 +10,18 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { CadRuntime } from './runtime'
 import { asPartName } from '../identity'
-import { createApiNamespace } from '../api/api-namespace'
 import type { HostPorts } from './ports'
 import { isMeshShape } from '../mesh/types'
 import { configureBackends } from '../runtime-state'
+import { createApiNamespaceWithEditorOps } from '../test-support/editor-ops'
 
 function defaultPorts(): HostPorts {
   return { events: { emit: () => {} } } as HostPorts
 }
 
-const MODULE = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
+const MODULE = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespaceWithEditorOps() })
 // direct 是唯一执行路径（executorMode 恒为 'direct'）；两个实例仅用于对照一致性。
-const DIRECT = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
+const DIRECT = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespaceWithEditorOps() })
 
 beforeAll(async () => {
   // 全局 backends 认领（mesh 模式；与 direct-executor.test 同构）

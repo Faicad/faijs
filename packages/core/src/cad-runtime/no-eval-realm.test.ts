@@ -18,8 +18,8 @@
  */
 import { describe, it, expect, beforeAll } from 'vitest'
 import { CadRuntime } from './runtime'
-import { createApiNamespace } from '../api/api-namespace'
 import type { HostPorts } from './ports'
+import { createApiNamespaceWithEditorOps } from '../test-support/editor-ops'
 
 function defaultPorts(): HostPorts {
   return { events: { emit: () => {} } } as HostPorts
@@ -42,7 +42,7 @@ beforeAll(async () => {
   // engine's no-eval guarantee (production restricted realms compile the wasm
   // with -sDYNAMIC_EXECUTION=0). Warm up every op the scene uses so binding
   // invokers exist; the patch then proves the ENGINE layer needs no eval.
-  rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() })
+  rt = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespaceWithEditorOps() })
   await rt.execute([
     'let w0 = cad.box(1, 1, 1, { centered: true })',
     'let w1 = cad.sphere({ radius: 1 })',
@@ -73,7 +73,7 @@ describe('no-eval realm (D6): interpreter backend runs without dynamic code gene
   it('interpreter backend executes a full scene with Function/eval disabled', async () => {
     const restore = enterNoEvalRealm()
     try {
-      const rtInterp = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() }, { execBackend: 'interpreter' })
+      const rtInterp = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespaceWithEditorOps() }, { execBackend: 'interpreter' })
       const res = await rtInterp.execute(SCENE)
       expect(res.failedAt).toBeUndefined()
       expect([...res.outputs.keys()].map(String).sort()).toEqual(['part0', 'part1', 'part2'])
@@ -87,7 +87,7 @@ describe('no-eval realm (D6): interpreter backend runs without dynamic code gene
   it('vm backend is blocked in the same realm (harness sanity + differential)', async () => {
     const restore = enterNoEvalRealm()
     try {
-      const rtVm = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespace() }) // default: vm
+      const rtVm = new CadRuntime(defaultPorts(), 'mesh', { cad: createApiNamespaceWithEditorOps() }) // default: vm
       const res = await rtVm.execute(SCENE)
       // DirectExecutor swallows the realm error into failedAt — the vm path
       // cannot run here, which is exactly the problem the interpreter solves

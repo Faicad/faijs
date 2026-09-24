@@ -20,9 +20,7 @@ import { getKernel } from '../occt-kernel/occtKernel'
 import { registerOcctBrepEngine } from '../brep/engine/adapters/occt'
 import type { BrepHandle } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
-import { createRuntime } from '@faicad/faijs'
 import { CadRuntime, computeContentKey } from './runtime'
-import { createApiNamespace } from '../api/api-namespace'
 import type { HostPorts, EventSink, ExecutionMode, LibLoader } from './ports'
 import { ensureTestFontLoader } from '../brep/text/fontTestHelper'
 import { getSolidBoundingBox } from '../brep/brep-utils'
@@ -33,6 +31,7 @@ import type { StdlibNamespace } from '../runtime-state'
 import type { Shape } from '../mesh/types'
 import type { Provenance } from '../topology/naming/lineage'
 import { defineOp, hasBrep, CONTRACT_VERSION } from '../sdk'
+import { createApiNamespaceWithEditorOps, createEditorRuntime } from '../test-support/editor-ops'
 
 let kernel: BrepEngineApi
 
@@ -57,7 +56,7 @@ function createNodePorts(): HostPorts {
 }
 
 function makeRuntime(mode?: ExecutionMode): CadRuntime {
-  return new CadRuntime(createNodePorts(), mode, { cad: createApiNamespace() })
+  return new CadRuntime(createNodePorts(), mode, { cad: createApiNamespaceWithEditorOps() })
 }
 
 async function run(code: string, mode?: ExecutionMode) {
@@ -115,7 +114,7 @@ describe('CadRuntime: auto mode (BREP-first, per-part)', () => {
 
   it('EventSink receives part-brep-lost event on mesh-only op', async () => {
     const ports = createNodePorts()
-    const runtime = createRuntime(ports)
+    const runtime = createEditorRuntime(ports)
     // knurl mesh 路径在 node 无纹理端口——注入假纹理使其可执行（本用例只断言事件，不关心几何）
     setKnurlTextureLoader(() => Promise.resolve({
       data: new Uint8ClampedArray(16 * 16).fill(128),
@@ -206,7 +205,7 @@ describe('CadRuntime: mesh mode (all mesh, no BREP)', () => {
     // T5: op errors land in failedAt (OpError → directFailedAtOrThrow keeps it)
     const ports = createNodePorts()
     const sink = ports.events as TestEventSink
-    const runtime = createRuntime(ports, 'mesh')
+    const runtime = createEditorRuntime(ports, 'mesh')
     const code = [
       'const s1 = cad.box(20, 20, 20, { centered: true })',
       'const s2 = cad.sdf({ code: "0", box: [[-5,-5,-5],[5,5,5]], resolution: 8 })',
@@ -888,7 +887,7 @@ describe('P 四（4.6）: execute 自动装载（libLoader autoLoadLibs）', () 
 
   it('已注册 binding + libLoader 存在 → autoLoadLibs 跳过，不覆盖宿主注入实例（loadLib 不被调用）', async () => {
     // 手动注入 gear（等价于宿主 registerLib 后来者不覆盖——autoLoadLibs 见 this.libs 已注册即跳过）
-    const runtime = createRuntime(libLoaderPorts({
+    const runtime = createEditorRuntime(libLoaderPorts({
       loadLib: async () => { throw new Error('Should not be called: gear already registered') },
       listLibs: () => ['gear-lib-demo'],
     }), 'mesh')
@@ -901,7 +900,7 @@ describe('P 四（4.6）: execute 自动装载（libLoader autoLoadLibs）', () 
   })
 
   it('未注册 + libLoader 可装载 → execute 后 gear.binding、packageName 自动存档，正常产出', async () => {
-    const runtime = createRuntime(libLoaderPorts({
+    const runtime = createEditorRuntime(libLoaderPorts({
       loadLib: async () => gearNs,
       listLibs: () => ['gear-lib-demo'],
     }))
@@ -915,7 +914,7 @@ describe('P 四（4.6）: execute 自动装载（libLoader autoLoadLibs）', () 
   })
 
   it('autoLiftFor 逐库覆盖：返回 false → 该库不被 compat 提升（原函数引用保留，等价 CLI autoLift=false）', async () => {
-    const runtime = createRuntime(libLoaderPorts({
+    const runtime = createEditorRuntime(libLoaderPorts({
       loadLib: async () => gearNs,
       listLibs: () => ['gear-lib-demo'],
       options: {
@@ -933,7 +932,7 @@ describe('P 四（4.6）: execute 自动装载（libLoader autoLoadLibs）', () 
   })
 
   it('autoLiftFor 返回 undefined → 回落到全局 autoLift=true（裸函数被 compatOp 提升，brep-only 契约生效）', async () => {
-    const runtime = createRuntime(libLoaderPorts({
+    const runtime = createEditorRuntime(libLoaderPorts({
       loadLib: async () => gearNs,
       listLibs: () => ['gear-lib-demo'],
       options: {
@@ -952,7 +951,7 @@ describe('P 四（4.6）: execute 自动装载（libLoader autoLoadLibs）', () 
   })
 
   it('未注册 + libLoader 不可装载（loadLib 抛错）→ failedAt 非空且 message 注明 import specifier（不回退不静默）', async () => {
-    const runtime = createRuntime(libLoaderPorts({
+    const runtime = createEditorRuntime(libLoaderPorts({
       loadLib: async () => { throw new Error('package not found') },
       listLibs: () => ['sheet-db'],
     }))
@@ -964,7 +963,7 @@ describe('P 四（4.6）: execute 自动装载（libLoader autoLoadLibs）', () 
   })
 
   it('check() 有 libLoader → 走 listLibs 校验（预检期不实际 loadLib），listLibs 含 specifier 则通过', () => {
-    const runtime = createRuntime(libLoaderPorts({
+    const runtime = createEditorRuntime(libLoaderPorts({
       loadLib: async () => gearNs,
       listLibs: () => ['gear-lib-demo'],
     }))
@@ -977,7 +976,7 @@ describe('P 四（4.6）: execute 自动装载（libLoader autoLoadLibs）', () 
     const withLoader = new CadRuntime(libLoaderPorts({
       loadLib: async () => gearNs,
       listLibs: () => ['sheet-db'],
-    }), 'auto', { cad: createApiNamespace() })
+    }), 'auto', { cad: createApiNamespaceWithEditorOps() })
     const res = withLoader.check(GEAR_CODE)
     // direct 路径 check() 只做语法+引用检查；libLoader 校验在 execute 期
     expect(res.ok).toBe(true)

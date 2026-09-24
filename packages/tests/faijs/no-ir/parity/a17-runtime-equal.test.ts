@@ -20,6 +20,7 @@ import { computeContentKey } from '@faicad/faijs/cad-runtime/content-key'
 import { isMeshShape } from '@faicad/faijs/mesh/types'
 import { asPartName, type PartName } from '@faicad/faijs/identity'
 import type { HostPorts } from '@faicad/faijs/cad-runtime/ports'
+import { createApiNamespaceWithEditorOps } from '../../_support/editor-runtime'
 
 const here = fileURLToPath(new URL('.', import.meta.url))
 const fixturesRoot = join(here, '..', '..', '..')
@@ -51,7 +52,7 @@ function terminalKeys(terminals: Array<{ id: PartName; hidden?: boolean }>): str
 }
 
 describe('A-17: CadRuntime.execute 行为基线（fixture 全集，mesh）', () => {
-  const cadNs = createApiNamespace()
+  const cadNs = createApiNamespaceWithEditorOps()
   const rt = new CadRuntime(defaultPorts(), 'mesh', { cad: cadNs })
   beforeAll(async () => {
     await rt.execute('let warmup = cad.box(1, 1, 1, { centered: true })')

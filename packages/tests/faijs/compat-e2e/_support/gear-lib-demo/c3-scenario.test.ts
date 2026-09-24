@@ -30,13 +30,14 @@ import { dispatchPath } from '@faicad/faijs/cad-runtime/backend-dispatch'
 import * as gear from './gear'
 import type { Shape } from '@faicad/faijs/mesh/types'
 import type { PartName } from '@faicad/faijs/identity'
+import { createEditorRuntime } from '../../../_support/editor-runtime'
 
 let runtime: ReturnType<typeof createRuntime>
 let result: Awaited<ReturnType<ReturnType<typeof createRuntime>['execute']>>
 
 beforeAll(async () => {
   await registerOcctBrepEngine()
-  runtime = createRuntime(createNodePorts(), 'auto')
+  runtime = createEditorRuntime(createNodePorts(), 'auto')
   runtime.registerLib('gear', gear as never, { autoLift: true, packageName: 'gear-lib-demo' })
   result = await runtime.execute([
     "import * as gear from 'gear-lib-demo'",

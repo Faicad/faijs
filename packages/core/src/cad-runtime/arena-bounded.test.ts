@@ -12,10 +12,10 @@
  */
 
 import { describe, it, expect, beforeAll } from 'vitest'
-import { createRuntime } from '@faicad/faijs'
 import { getKernel } from '../occt-kernel/occtKernel'
 import { registerOcctBrepEngine } from '../brep/engine/adapters/occt'
 import type { HostPorts } from './ports'
+import { createEditorRuntime } from '../test-support/editor-ops'
 
 function createNodePorts(): HostPorts {
   return { events: { emit: () => {} } } as HostPorts
@@ -28,7 +28,7 @@ beforeAll(async () => {
 describe('repeated bare cad.box execute keeps the kernel arena bounded', () => {
   it('10 identical box executes grow the live shape count by <= 100 (pre-fix: +540)', async () => {
     const kernel = getKernel() as unknown as { shapeCount: number }
-    const runtime = createRuntime(createNodePorts(), 'auto')
+    const runtime = createEditorRuntime(createNodePorts(), 'auto')
     try {
       const warm = await runtime.execute('const part0 = cad.box(20, 20, 20, { centered: true })')
       expect(warm.failedAt).toBeUndefined()

@@ -18,12 +18,13 @@ import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vite
 import { createRuntime } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
 import { registerOcctBrepEngine } from '@faicad/faijs'
-import { asPartName, type PartName } from '@faicad/faijs/identity'
+import { asPartName, asStmtId, type PartName } from '@faicad/faijs/identity'
 import { HASH_UPPER_BOUND } from '@faicad/faijs/brep/face-evolution'
 import { resolveTopoRef, type ResolutionContext } from '@faicad/faijs/topology/naming'
 import type { FaceTopoRef, PartNaming, RoleTable } from '@faicad/faijs/topology/naming/types'
 import type { CadRuntime, ExecutionResult } from '@faicad/faijs/cad-runtime/runtime'
 import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
+import { createEditorRuntime } from '../_support/editor-runtime'
 
 beforeAll(async () => {
   await registerOcctBrepEngine()
@@ -49,8 +50,15 @@ function buildCtx(result: ExecutionResult, partName: PartName): ResolutionContex
 
 /** 从命名行构造 FaceTopoRef（§3.7 captureTopoRef 语义；按 origin(StmtId)/role 反查行）。 */
 function refForRole(naming: PartNaming, origin: string, role: string): FaceTopoRef {
-  const row = naming.faceNaming.find((f) => f.role === role && f.origin === asPartName(origin))
+  // GOTCHA (2026-09-24): a naming row's `origin` is a **StmtId** (`asStmtId`, not
+  // `asPartName` — the brands do not overlap), and both `origin` and `role` are
+  // nullable (a face with no identity row has `role: null`, Phase 1.7 / D6-G6).
+  // This helper only builds refs for owned, named faces, so it narrows explicitly
+  // and fails loudly instead of coercing.
+  const stmt = asStmtId(origin)
+  const row = naming.faceNaming.find((f) => f.role === role && f.origin === stmt)
   if (!row) throw new Error(`naming row not found: ${origin}:${role}`)
+  if (row.origin === null || row.role === null) throw new Error(`naming row has no identity: ${origin}:${role}`)
   return { kind: 'face', origin: row.origin, role: row.role, hint: row.hint }
 }
 
@@ -58,7 +66,7 @@ describe('topology naming .fai.js integration', () => {
   let runtime: CadRuntime
 
   beforeEach(() => {
-    runtime = createRuntime(createNodePorts(), 'brep')
+    runtime = createEditorRuntime(createNodePorts(), 'brep')
   })
 
   afterEach(() => {
@@ -109,8 +117,8 @@ describe('topology naming .fai.js integration', () => {
 
     // 两个 origin 都在（target s2 + tool s3 合流，血统保留来源语句的 StmtId）
     const origins = new Set(naming2.faceNaming.map((f) => f.origin))
-    expect(origins.has('s2')).toBe(true)
-    expect(origins.has('s3')).toBe(true)
+    expect(origins.has(asStmtId('s2'))).toBe(true)
+    expect(origins.has(asStmtId('s3'))).toBe(true)
 
     // s2 的 top 在 union 后未受影响 → exact 解析成功
     const ref0 = refForRole(naming2, 's2', 'top')
@@ -149,7 +157,7 @@ describe('topology naming .fai.js integration', () => {
     // ghost role（不在 roleTable）→ 走几何兜底；surfaceType 硬门全拒 → not-found
     const ghostRef: FaceTopoRef = {
       kind: 'face',
-      origin: asPartName('part0'),
+      origin: asStmtId('part0'),
       role: 'ghost:role',
       hint: { kind: 'face', surfaceType: 'torus' },
     }
@@ -184,7 +192,7 @@ describe('topology naming .fai.js integration', () => {
     // 立方体 6 面全等：hint 只有 type（无 normal/center 信号）→ 全形状打分并列 → ambiguous
     const ambiguousRef: FaceTopoRef = {
       kind: 'face',
-      origin: asPartName('part0'),
+      origin: asStmtId('part0'),
       role: 'ghost',
       hint: { kind: 'face', surfaceType: 'plane' },
     }

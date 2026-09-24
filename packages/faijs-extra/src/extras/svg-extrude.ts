@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { SVGLoader, type SVGResult } from 'three/examples/jsm/loaders/SVGLoader.js'
-import { mergeBufferGeometries } from '../primitives/mesh-primitives'
+import { mergeBufferGeometries } from '@faicad/faijs/primitives/mesh-primitives'
 
 /**
  * Options controlling an SVG extrusion.

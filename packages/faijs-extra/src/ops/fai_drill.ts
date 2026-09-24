@@ -6,27 +6,27 @@
  * BREP 路径：OCCT cut（简单孔）或 threadBrep + cut（螺丝孔）。
  */
 
-import type { Shape, Vec3 } from '../mesh/types'
-import { cad } from '../mesh'
+import type { Shape, Vec3 } from '@faicad/faijs/mesh/types'
+import { drill as meshDrill } from '../mesh/fai_drill'
 import {
   buildDrillToolSolid,
   computeDrillGeometry,
   solidToShape,
   matrixToArray,
-} from '../brep/brep-ops'
-import { drillBrepWithRoleTable } from '../brep/face-evolution'
-import { threadBrep } from './brep-mirror/threadFns'
-import { getScrewSpec, threadToPitchMm } from '../primitives/screw/screw-db'
+} from '@faicad/faijs/brep/brep-ops'
+import { drillBrepWithRoleTable } from '@faicad/faijs/brep/face-evolution'
+import { threadBrep } from '@faicad/faijs/api/brep-mirror/threadFns'
+import { getScrewSpec, threadToPitchMm } from '@faicad/faijs/primitives/screw/screw-db'
 import * as THREE from 'three'
-import { getBackends, getCurrentStmt } from '../runtime-state'
-import { fromBrep, brepOf, inputRoleTable } from '../shape'
-import { defineOp } from '../sdk'
-import type { Provenance } from '../topology/naming/lineage'
-import type { BrepHandle } from '../brep/engine/types'
-import type { BrepEngineApi } from '../brep/engine/primitives'
-import { assertPositiveNumber, assertNumber, assertVec3 } from './assert'
-import type { FaceTopoRef } from '../topology/naming'
-import { resolveFaceGeometry } from './topo-resolve'
+import { getBackends, getCurrentStmt } from '@faicad/faijs/runtime-state'
+import { fromBrep, brepOf, inputRoleTable } from '@faicad/faijs/shape'
+import { defineOp } from '@faicad/faijs/sdk'
+import type { Provenance } from '@faicad/faijs/topology/naming/lineage'
+import type { BrepHandle } from '@faicad/faijs/brep/engine/types'
+import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
+import { assertPositiveNumber, assertNumber, assertVec3 } from '@faicad/faijs/api/assert'
+import type { FaceTopoRef } from '@faicad/faijs/topology/naming'
+import { resolveFaceGeometry } from '@faicad/faijs/api/topo-resolve'
 
 // ── per-op 参数自校验（Phase 2.2；stdlib 被直接 import 时的防御层） ──
 
@@ -220,7 +220,7 @@ async function drillMeshPath(input: Shape, params: Record<string, unknown>): Pro
     ? scale[0]
     : 1
 
-  return cad.fai_drill(input, {
+  return meshDrill(input, {
     diameter: (params.diameter as number) / unitScale,
     depth: (params.depth as number) / unitScale,
     type: (params.depth as number) > 0 ? 'blind' : 'through',

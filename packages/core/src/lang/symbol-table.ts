@@ -10,6 +10,12 @@
  * 未知第三方函数不在表中时，check() 报"函数不存在"，其它机制不受影响。
  *
  * 生成文件：src/lang/symbol-table.generated.ts（由 scripts/gen-symbol-table.ts 生成，禁手改）。
+ *
+ * P5（2026-09-23 扩展库拆分）：符号表额外接受**宿主注册的扩展条目**
+ * （`registerSymbolTableEntries`）。扩展库（如 `@faicad/faijs-extra`）的 op 不在
+ * 生成表里——生成表的唯一来源是 core 的 `createApiNamespace()` 平台面；扩展库由
+ * 宿主在装配时注入名字清单，使静态分析同样能查到 `cad.fai_drill`。
+ * 扩展条目**不得**覆盖平台函数（真重名即抛错，不静默覆盖）。
  */
 
 import symbolTable from './symbol-table.generated'
@@ -24,6 +30,52 @@ export type SymbolTable = Record<string, FunctionSymbol>
 export const SYMBOL_TABLE: SymbolTable = symbolTable as SymbolTable
 
 /**
+ * Host-registered extension entries (library namespaces outside core's platform
+ * surface). Kept apart from `SYMBOL_TABLE` so "platform surface" stays
+ * machine-derivable from the generated table alone.
+ */
+const extensionEntries = new Map<string, FunctionSymbol>()
+
+/**
+ * Register library function names in the symbol table (P5).
+ *
+ * Idempotent for names already registered as extensions; throws when a name
+ * collides with a platform function, because a silent override would let a
+ * library shadow the platform surface in static analysis.
+ *
+ * @param names - the library's function names (`cad.<name>`).
+ * @throws when a name is already a platform function of the generated table.
+ */
+export function registerSymbolTableEntries(names: readonly string[]): void {
+  for (const name of names) {
+    if (Object.prototype.hasOwnProperty.call(SYMBOL_TABLE, name)) {
+      throw new Error(`[faijs] symbol-table extension redefines platform function "${name}"`)
+    }
+    extensionEntries.set(name, {})
+  }
+}
+
+/**
+ * Remove previously registered extension entries (host unloads a library).
+ * Unknown names are ignored.
+ *
+ * @param names - the function names to unregister.
+ */
+export function unregisterSymbolTableEntries(names: readonly string[]): void {
+  for (const name of names) extensionEntries.delete(name)
+}
+
+/**
+ * All callee names known to the symbol table: the generated platform table plus
+ * the registered extension entries.
+ *
+ * @returns the union of platform and extension names, platform first.
+ */
+export function symbolTableNames(): string[] {
+  return [...new Set([...Object.keys(SYMBOL_TABLE), ...extensionEntries.keys()])]
+}
+
+/**
  * Look up a callee in the standard-library symbol table. Unknown functions
  * (absent from the table) return undefined, which check() reports as
  * "function does not exist".
@@ -31,5 +83,5 @@ export const SYMBOL_TABLE: SymbolTable = symbolTable as SymbolTable
  * @returns the matching symbol-table entry, or undefined when unknown.
  */
 export function getFunctionSymbol(callee: string): FunctionSymbol | undefined {
-  return SYMBOL_TABLE[callee]
+  return SYMBOL_TABLE[callee] ?? extensionEntries.get(callee)
 }

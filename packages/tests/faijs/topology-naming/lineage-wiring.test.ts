@@ -16,6 +16,7 @@ import { createRuntime, registerOcctBrepEngine } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
 import { asStmtId } from '@faicad/faijs/identity'
 import { runtimeLineage } from '@faicad/faijs/topology/naming/lineage'
+import { createEditorRuntime } from '../_support/editor-runtime'
 
 /**
  * GOTCHA: `StmtId` is `s{lineNo}`, NOT the statement ordinal (same rule the G3
@@ -34,7 +35,7 @@ describe('§1.4/1.5 lineage wiring (integration)', () => {
   }, 120000)
 
   it('populates the blood-line graph for a hand-written chain', async () => {
-    const runtime = createRuntime(createNodePorts(), 'brep')
+    const runtime = createEditorRuntime(createNodePorts(), 'brep')
     try {
       const res = await runtime.execute(CODE, { topology: 'auto' })
       expect(res.failedAt, `执行失败：${res.failedAt?.message}`).toBeUndefined()
@@ -53,7 +54,7 @@ describe('§1.4/1.5 lineage wiring (integration)', () => {
   })
 
   it('replay re-registration is idempotent (N3 does not misfire)', async () => {
-      const runtime = createRuntime(createNodePorts(), 'brep')
+      const runtime = createEditorRuntime(createNodePorts(), 'brep')
     try {
       const r1 = await runtime.execute(CODE, { topology: 'auto' })
       expect(r1.failedAt, `第一次执行失败：${r1.failedAt?.message}`).toBeUndefined()

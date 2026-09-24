@@ -5,7 +5,7 @@
  * Simulates a third-party library module (the target of
  * `import * as mech from 'gear-lib-demo'`):
  * - carries `contractVersion` (= CONTRACT_VERSION, registerLib check passes);
- * - declares its implementation set via `defineOp({ mesh })` — the mesh-only
+ * - declares its implementation set via `defineOp({ naming: NAMING, mesh })` — the mesh-only
  *   legal form (D1: mesh mandatory; no brep slot, hasBrep === false).
  *
  * Difference from a real library: a real one ships as a pre-bundled / CDN
@@ -14,6 +14,13 @@
  */
 
 import { defineOp, CONTRACT_VERSION } from '@faicad/faijs/sdk'
+import type { Provenance } from '@faicad/faijs/topology/naming/lineage'
+
+/**
+ * GOTCHA (2026-09-24): `DualOpOptions.naming` is **required** by the op-metadata
+ * contract; a mesh-only library op that omits it fails to typecheck.
+ */
+const NAMING = { kind: 'construct', newFaces: { via: 'explicit', vocab: [] } } as Provenance
 
 /** Adapter contract version, checked against CONTRACT_VERSION by registerLib. */
 export const contractVersion = CONTRACT_VERSION
@@ -64,7 +71,7 @@ function sphereMesh(radius: number): { positions: Float32Array; indices: Uint32A
  * @param params - configuration for the cube; `size` is the edge length.
  * @returns the cube as a mesh-based faijs SolidShape.
  */
-export const makeHeadstock = defineOp({
+export const makeHeadstock = defineOp({ naming: NAMING,
   mesh: (params: { size: number }) => cubeMesh(params.size),
 })
 
@@ -73,6 +80,6 @@ export const makeHeadstock = defineOp({
  * @param params - configuration for the sphere; `radius` is the sphere radius.
  * @returns the sphere as a mesh-based faijs SolidShape.
  */
-export const makeBall = defineOp({
+export const makeBall = defineOp({ naming: NAMING,
   mesh: (params: { radius: number }) => sphereMesh(params.radius),
 })

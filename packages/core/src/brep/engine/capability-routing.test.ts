@@ -10,13 +10,13 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest'
-import { createRuntime } from '@faicad/faijs'
 import type { ExecutionResult } from '../../cad-runtime/runtime'
 import type { HostPorts } from '../../cad-runtime/ports'
 import { asPartName } from '../../identity'
 import { __resetEngineRegistriesForTests } from './registry'
 import { registerBrepMockEngine } from './adapters/brep-mock'
 import { registerOcctBrepEngine } from './adapters/occt'
+import { createEditorRuntime } from '../../test-support/editor-ops'
 
 const SCRIPT = `let part0 = cad.box(10, 10, 10, { centered: true })
 let part1 = cad.box(10, 10, 10, { centered: true, at: [15, 0, 0] })
@@ -29,7 +29,7 @@ function createNodePorts(): HostPorts {
 }
 
 async function run(mode: 'auto' | 'brep'): Promise<ExecutionResult> {
-  const runtime = createRuntime(createNodePorts(), mode)
+  const runtime = createEditorRuntime(createNodePorts(), mode)
   return runtime.execute(SCRIPT)
 }
 

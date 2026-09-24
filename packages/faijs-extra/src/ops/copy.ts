@@ -12,17 +12,17 @@
  * - BREP 路径：kernel.copy(inputSolid) → solidToShape → fromBrep 登记
  */
 
-import type { Shape } from '../mesh/types'
-import { solidToShape } from '../brep/brep-ops'
-import { identityEvolution, identityHashEvolution } from '../brep/face-evolution'
-import { getBackends, keep } from '../runtime-state'
-import { fromBrep, brepOf, inputRoleTable } from '../shape'
-import { propagateAllOrigins } from '../topology/naming/roles'
-import type { RoleTable } from '../topology/naming/types'
-import type { Provenance } from '../topology/naming/lineage'
-import { defineOp } from '../sdk'
-import type { BrepHandle } from '../brep/engine/types'
-import type { BrepEngineApi } from '../brep/engine/primitives'
+import type { Shape } from '@faicad/faijs/mesh/types'
+import { solidToShape } from '@faicad/faijs/brep/brep-ops'
+import { identityEvolution, identityHashEvolution } from '@faicad/faijs/brep/face-evolution'
+import { getBackends, keep } from '@faicad/faijs/runtime-state'
+import { fromBrep, brepOf, inputRoleTable } from '@faicad/faijs/shape'
+import { propagateAllOrigins } from '@faicad/faijs/topology/naming/roles'
+import type { RoleTable } from '@faicad/faijs/topology/naming/types'
+import type { Provenance } from '@faicad/faijs/topology/naming/lineage'
+import { defineOp } from '@faicad/faijs/sdk'
+import type { BrepHandle } from '@faicad/faijs/brep/engine/types'
+import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
 
 /** BREP 路径：kernel.copy 深拷贝实体 + 恒等面演化 + 恒等 roleTable 传播 + fromBrep 一次登记。 */
 function copyBrep(input: Shape): Shape {

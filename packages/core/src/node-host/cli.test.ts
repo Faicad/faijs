@@ -20,10 +20,9 @@ import { fileURLToPath } from 'node:url'
 import { cliCheck, cliRun, cliView, parseArgs } from './cli'
 import { registerOcctBrepEngine } from '../brep/engine/adapters/occt'
 import { ensureTestFontLoader } from '../brep/text/fontTestHelper'
-import { createApiNamespace } from '@faicad/faijs/api/api-namespace'
 
 // P6/D1：CLI 测试注入 cad（L3 api/ 层，原 stdlib 取消）
-const CAD_LIBS = { cad: createApiNamespace() }
+const CAD_LIBS = { cad: createApiNamespaceWithEditorOps() }
 
 beforeAll(async () => {
   await registerOcctBrepEngine()
@@ -50,6 +49,7 @@ afterAll(() => {
 
 // Need to import afterAll
 import { afterAll } from 'vitest'
+import { createApiNamespaceWithEditorOps } from '../test-support/editor-ops'
 
 describe('cliCheck: dryRun validation', () => {
   it('valid .fai.js file → ok=true', () => {

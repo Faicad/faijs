@@ -69,16 +69,24 @@ describe('P7 · getKernel 冻结（D10：无 withKernel / 无 init 回落）', (
   })
 })
 
-describe('P7 · 边界（D8：core 侧 import vendored 只允许在 L3 api/）', () => {
-  it('全部 `vendored/brepjs` import 都位于 api/（occt-kernel-bridge 是唯一桥接点）', () => {
-    const apiRoot = join(CORE_SRC, 'api') + sep
+describe('P7 · 边界（D8：core 侧 import vendored 只允许在登记桥接点）', () => {
+  it('全部 `vendored/brepjs` import 都位于登记桥接点（api/ 或 brep/engine/adapters/）', () => {
+    // 登记桥接点（与 scripts/check-layer-boundaries.mjs 的 R5 同口径）：
+    //   - api/                      —— L3 内核注入桥（occt-kernel-bridge.ts）
+    //   - brep/engine/adapters/     —— 引擎适配器桥：occt 适配器复用 vendored
+    //                                  OcctWasmAdapter 的组合面（occt-wasm 无原生导出）
+    // 测试文件豁免：parity 测试按设计与移植树实现对拍，且不进产物依赖图。
+    const bridgePrefixes = [
+      join(CORE_SRC, 'api') + sep,
+      join(CORE_SRC, 'brep', 'engine', 'adapters') + sep,
+    ]
     const files = walk(CORE_SRC)
     const offenders: string[] = []
     for (const f of files) {
-      if (!f.endsWith('.ts') || f.endsWith('.d.ts')) continue
+      if (!f.endsWith('.ts') || f.endsWith('.d.ts') || f.endsWith('.test.ts')) continue
       const src = readFileSync(f, 'utf8')
       if (!/vendored\/brepjs/.test(src)) continue
-      if (!f.startsWith(apiRoot)) offenders.push(f)
+      if (!bridgePrefixes.some((p) => f.startsWith(p))) offenders.push(f)
     }
     expect(offenders).toEqual([])
   })
