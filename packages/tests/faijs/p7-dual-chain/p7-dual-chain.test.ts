@@ -75,10 +75,14 @@ describe('P7 · 边界（D8：core 侧 import vendored 只允许在登记桥接�
     //   - api/                      —— L3 内核注入桥（occt-kernel-bridge.ts）
     //   - brep/engine/adapters/     —— 引擎适配器桥：occt 适配器复用 vendored
     //                                  OcctWasmAdapter 的组合面（occt-wasm 无原生导出）
+    //   - occt-kernel/              —— occt 引擎 L1 适配器（occt-primitives.ts 复用
+    //                                  vendored OcctWasmAdapter 实现 hullFromPoints，
+    //                                  04d18a7 落地；2026-09-24 补登记）
     // 测试文件豁免：parity 测试按设计与移植树实现对拍，且不进产物依赖图。
     const bridgePrefixes = [
       join(CORE_SRC, 'api') + sep,
       join(CORE_SRC, 'brep', 'engine', 'adapters') + sep,
+      join(CORE_SRC, 'occt-kernel') + sep,
     ]
     const files = walk(CORE_SRC)
     const offenders: string[] = []

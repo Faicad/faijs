@@ -33,6 +33,9 @@ const VENDORED_ROOT = resolve(process.env.BOUNDARY_SRC_DIR ?? 'packages/core/src
 const R5_BRIDGE_PREFIXES = [
   'api' + sep, // L3 内核注入桥
   'brep' + sep + 'engine' + sep + 'adapters' + sep, // 引擎适配器桥（occt ⇄ vendored occtWasm）
+  'occt-kernel' + sep, // occt 引擎 L1 适配器（occt-primitives.ts 复用 vendored
+  // OcctWasmAdapter 组合面实现 hullFromPoints——occt-wasm 无单一原生调用；
+  // 04d18a7 落地，守卫白名单补登记，2026-09-24）
 ]
 
 /** 层 → 顶层目录（相对移植根的目录） */
