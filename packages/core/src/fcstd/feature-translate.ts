@@ -122,6 +122,9 @@ const WHITELIST = new Set([
   // through Base with direction Axis by Angle degrees (425 corpus
   // occurrences — highest-frequency untranslated Part::* type after P5).
   'Part::Revolution',
+  // P7 (2026-09-24): Part::Fuse fuses Base + Tool (two PropertyLinks, same
+  // serialization shape as Part::Cut — 42 corpus occurrences).
+  'Part::Fuse',
 ]);
 
 /**
@@ -633,6 +636,19 @@ export function translateObject(
       return {
         kind: 'translated',
         calls: [{ out, op: 'cad.subtract', source: obj.name, inputs: [b, t], params: {} }],
+      };
+    }
+    case 'Part::Fuse': {
+      // P7: same Base/Tool PropertyLink serialization as Part::Cut, but
+      // fuses instead of cutting.
+      const fuseBase = propLink(obj, 'Base');
+      const fuseTool = propLink(obj, 'Tool');
+      const fb = fuseBase ? inputVar(fuseBase) : undefined;
+      const ft = fuseTool ? inputVar(fuseTool) : undefined;
+      if (!fb || !ft) return { kind: 'baked', reason: 'fuse-missing-dependency' };
+      return {
+        kind: 'translated',
+        calls: [{ out, op: 'cad.union', source: obj.name, inputs: [fb, ft], params: {} }],
       };
     }
     case 'Part::MultiFuse': {

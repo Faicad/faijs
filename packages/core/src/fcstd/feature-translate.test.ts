@@ -179,6 +179,33 @@ describe('P5 Part::Mirroring', () => {
   });
 });
 
+describe('P7 Part::Fuse', () => {
+  it('translates Base + Tool into cad.union (P7)', () => {
+    const fuse = obj('Part::Fuse', 'Fusion', [
+      prop('Base', { name: 'Link', attrs: { value: 'Box' } }),
+      prop('Tool', { name: 'Link', attrs: { value: 'Cyl' } }),
+    ]);
+    const v = translateObject(fuse, (dep) => (dep === 'Box' ? 'part0' : dep === 'Cyl' ? 'part1' : undefined));
+    expect(v.kind).toBe('translated');
+    if (v.kind !== 'translated') return;
+    expect(v.calls[0]!.op).toBe('cad.union');
+    expect(v.calls[0]!.inputs).toEqual(['part0', 'part1']);
+  });
+
+  it('bakes with explicit reason when a dependency is missing', () => {
+    const fuse = obj('Part::Fuse', 'Fusion', [
+      prop('Base', { name: 'Link', attrs: { value: 'Box' } }),
+      prop('Tool', { name: 'Link', attrs: { value: 'Ghost' } }),
+    ]);
+    const v = translateObject(fuse, () => undefined);
+    expect(v).toMatchObject({ kind: 'baked', reason: 'fuse-missing-dependency' });
+  });
+
+  it('is whitelisted (P7)', () => {
+    expect(isWhitelisted('Part::Fuse')).toBe(true);
+  });
+});
+
 describe('P6 Part::Revolution', () => {
   // GOTCHA: Part::Revolution stores the axis as Base/Axis PropertyVector
   // CHILD elements (valueX/Y/Z) — PartDesign::Revolution instead stores a
