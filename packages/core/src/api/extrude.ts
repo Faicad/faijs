@@ -29,7 +29,8 @@ import { solidToShape, matrixToArray } from '../brep/brep-ops'
 import { getSolidBoundingBox } from '../brep/brep-utils'
 import { getCurrentStmt } from '../runtime-state'
 import { getBrepApi } from '../brep/handle-bridge'
-import { brepOf } from '../shape'
+import { fromBrep, brepOf } from '../shape'
+import { runtimeLineage } from '../topology/naming/lineage'
 import { formatRoleName, semantic, wall } from '../topology/naming/role-name'
 import type { Provenance } from '../topology/naming/lineage'
 import { defineOp } from '../sdk'
@@ -436,16 +437,15 @@ export const extrude = defineOp({
       const inputSolid = brepOf(input) as BrepHandle | undefined
       if (!inputSolid) throw new Error('[stdlib/extrude] input is not BREP')
       const clipped = extrudeUpToSolid(kernel, inputSolid, o)
-      // E3-b（2026-09-23，同 revolve 修法）：不能对产物再走一次 fromBrep 登记
-      // roleTable——同语句 registeredStmtId 去重会吞掉第二次登记（part 键保持
-      // adoptEntity 的空表，下游 fillet/chamfer 的 edgeRef 报 nameless shape）。
-      // 改经 runtimeLineage.recordOutput 直接落语句键表 + part 键权威位。
+      // E3-b（2026-09-23，同 revolve 修法）：不能对投影产物再走一次 fromBrep——
+      // 同语句 registeredStmtId 去重会吞掉第二次登记（part 键保持空表，下游
+      // fillet/chamfer 的 edgeRef 报 nameless shape）。upTo 路径不经过投影/
+      // adoptOut，fromBrep 只在此走一次，roleTable 直挂 + solid 句柄登记。
       const origin = String(getCurrentStmt()?.id ?? '')
-      const shape = solidToShape(kernel, clipped)
-      const table = new Map([[origin, extrudeConstructRoles(kernel, clipped)]])
-      const part = getCurrentStmt()?.outputs?.[0]
-      runtimeLineage.recordOutput(origin as never, table, brepOf(shape) as never, part as never)
-      return shape
+      return fromBrep(solidToShape(kernel, clipped), {
+        solid: clipped,
+        roleTable: new Map([[origin, extrudeConstructRoles(kernel, clipped)]]),
+      })
     }
 
     // 长度形态：委托生成投影（生成投影自带借入 / Result 翻转 / 收养）
