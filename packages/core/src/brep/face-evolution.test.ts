@@ -14,38 +14,37 @@
 
 import { describe, it, expect, beforeAll } from 'vitest'
 import { initOcctWasm, getKernel } from '../occt-kernel/occtKernel'
+import type { OcctKernel, ShapeHandle } from 'occt-wasm'
 import type { BrepHandle } from './engine/types'
-import type { BrepEngineApi } from './engine/primitives'
 
 const HASH_UPPER_BOUND = 2147483647
 
-let kernel: BrepEngineApi
+let kernel: OcctKernel
 
 beforeAll(async () => {
   await initOcctWasm()
-  kernel = getKernel() as unknown as BrepEngineApi
+  kernel = getKernel()
 }, 120000)
 
 // ─── 辅助函数 ───
 
 /**
  * 获取形状所有面的面积序列（用于确定性比较）。
- * 面面积通过 queryBatch 获取。
+ * 面面积经 L1 测量面 getSurfaceArea（Phase 4 起 queryBatch 移出 BrepEngineApi）。
  */
-function getFaceAreas(shape: BrepHandle): number[] {
-  const faces = kernel.getSubShapes(shape, 'face')
-  const results = kernel.queryBatch(faces)
-  const areas = results.map(r => r.area)
+function getFaceAreas(shape: BrepHandle | ShapeHandle): number[] {
+  const faces = kernel.getSubShapes(shape as unknown as ShapeHandle, 'face')
+  const areas = faces.map(f => kernel.getSurfaceArea(f))
   for (const f of faces) kernel.release(f)
   return areas
 }
 
 /**
  * 获取形状所有面的中心坐标序列（用于几何位置比较）。
- * 使用 getSurfaceCenterOfMass 获取面积加权重心。
+ * 使用 surfaceCenterOfMass 获取面积加权重心。
  */
-function getFaceCenters(shape: BrepHandle): Array<{ x: number; y: number; z: number }> {
-  const faces = kernel.getSubShapes(shape, 'face')
+function getFaceCenters(shape: BrepHandle | ShapeHandle): Array<{ x: number; y: number; z: number }> {
+  const faces = kernel.getSubShapes(shape as unknown as ShapeHandle, 'face')
   const centers = faces.map(f => kernel.getSurfaceCenterOfMass(f))
   for (const f of faces) kernel.release(f)
   return centers
@@ -65,7 +64,7 @@ function buildBoxCutByCylinder(): BrepHandle {
   const result = kernel.cut(box, cylMoved)
   kernel.release(box)
   kernel.release(cylMoved)
-  return result
+  return result as unknown as BrepHandle
 }
 
 /**
@@ -78,14 +77,14 @@ function buildBoxFuseBox(): BrepHandle {
   const result = kernel.fuse(boxA, boxB)
   kernel.release(boxA)
   kernel.release(boxB)
-  return result
+  return result as unknown as BrepHandle
 }
 
 /**
  * 收集形状所有面的 hash 列表（通过 subShapeHashes）。
  */
-function getFaceHashes(shape: BrepHandle): number[] {
-  return Array.from(kernel.subShapeHashes(shape, 'face', HASH_UPPER_BOUND))
+function getFaceHashes(shape: BrepHandle | ShapeHandle): number[] {
+  return Array.from(kernel.subShapeHashes(shape as unknown as ShapeHandle, 'face', HASH_UPPER_BOUND))
 }
 
 /**
@@ -123,8 +122,8 @@ describe('Experiment 1: deterministic replay — face enumeration order stable',
       expect(areas1[i]).toBeCloseTo(areas2[i], 6)
     }
 
-    kernel.release(result1)
-    kernel.release(result2)
+    kernel.release(result1 as unknown as ShapeHandle)
+    kernel.release(result2 as unknown as ShapeHandle)
   })
 
   it('makeBox + fuse(box): two independent builds produce identical face area sequences', () => {
@@ -139,8 +138,8 @@ describe('Experiment 1: deterministic replay — face enumeration order stable',
       expect(areas1[i]).toBeCloseTo(areas2[i], 6)
     }
 
-    kernel.release(result1)
-    kernel.release(result2)
+    kernel.release(result1 as unknown as ShapeHandle)
+    kernel.release(result2 as unknown as ShapeHandle)
   })
 
   it('face center sequences are identical across independent builds (box + cut)', () => {
@@ -152,8 +151,8 @@ describe('Experiment 1: deterministic replay — face enumeration order stable',
 
     expect(centersAlmostEqual(centers1, centers2)).toBe(true)
 
-    kernel.release(result1)
-    kernel.release(result2)
+    kernel.release(result1 as unknown as ShapeHandle)
+    kernel.release(result2 as unknown as ShapeHandle)
   })
 })
 
@@ -194,7 +193,7 @@ describe('Experiment 2: ordinal ↔ hash alignment', () => {
   it('getSubShapes order corresponds to subShapeHashes order for box + cut result', () => {
     const result = buildBoxCutByCylinder()
 
-    const faces = kernel.getSubShapes(result, 'face')
+    const faces = kernel.getSubShapes(result as unknown as ShapeHandle, 'face')
     const hashes = getFaceHashes(result)
 
     expect(faces.length).toBe(hashes.length)
@@ -207,7 +206,7 @@ describe('Experiment 2: ordinal ↔ hash alignment', () => {
     expect(uniqueHashes.size).toBe(hashes.length)
 
     for (const f of faces) kernel.release(f)
-    kernel.release(result)
+    kernel.release(result as unknown as ShapeHandle)
   })
 })
 
@@ -418,8 +417,8 @@ describe('Experiment 4: faceOrdinal stability across independent builds', () => 
     expect(centers1.length).toBe(centers2.length)
     expect(centersAlmostEqual(centers1, centers2)).toBe(true)
 
-    kernel.release(result1)
-    kernel.release(result2)
+    kernel.release(result1 as unknown as ShapeHandle)
+    kernel.release(result2 as unknown as ShapeHandle)
   })
 
   it('faceOrdinal can be used to retrieve the same face across rebuilds', () => {

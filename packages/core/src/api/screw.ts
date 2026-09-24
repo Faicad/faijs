@@ -1,6 +1,9 @@
 /**
  * stdlib screw — 螺丝创建库函数（creator 函数，无输入）
  *
+ * 平台分层（narrowing plan Phase 5，D11）：**平台 op（occt）**——BREP 路径的
+ * 螺纹经 `threadBrep`（brep-mirror/threadFns.ts）走 occt-only `loft`（D3）→
+ * `engines: ['occt']`。mesh 路径（cad.screw）在 auto 模式下正常降级。
  *
  * dispatchPath 静态判定 brep/mesh，产物经 solid()/fromBrep() 构造器创建。
  */
@@ -10,7 +13,7 @@ import { cad } from '../mesh'
 import { solidToShape } from '../brep/brep-ops'
 import { threadBrep } from './brep-mirror/threadFns'
 import { getScrewSpec, threadToPitchMm, SCREW_HEAD_DIMS } from '../primitives/screw/screw-db'
-import { getBackends } from '../runtime-state'
+import { getBrepApi } from '../brep/handle-bridge'
 import { fromBrep } from '../shape'
 import { defineOp } from '../sdk'
 import type { Provenance } from '../topology/naming/lineage'
@@ -19,8 +22,9 @@ import type { BrepEngineApi } from '../brep/engine/primitives'
 
 /** BREP 路径：threadBrep + fuse 构造精确螺纹螺钉 + 三角化 + fromBrep 登记。 */
 async function screwBrep(params: Record<string, unknown>): Promise<Shape> {
-  const kernel = getBackends().kernel.brep as BrepEngineApi | null
-  if (!kernel) throw new Error('[stdlib/screw] no OCCT kernel')
+  // L1 面（D12）：makeCylinder/translate/fuse/makeCone 等全是 L1；螺纹 loft 在
+  // threadFns 内部走 occt 平台面。
+  const kernel = getBrepApi()
 
   const system = params.system as 'metric' | 'imperial'
   const specIdx = params.specIdx as number
@@ -180,5 +184,7 @@ export const screw = defineOp({
     assertScrewParams(params)
     return screwBrep(params)
   },
+  // 平台 op（D11）：螺纹 loft 是 occt-only（threadFns.ts，D3）→ engines 声明。
+  engines: ['occt'],
   naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [] } } as Provenance,
 })

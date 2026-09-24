@@ -15,7 +15,7 @@
 
 import { readFileSync } from 'node:fs'
 import { initOcctWasm } from '@faicad/faijs'
-import type { BrepEngineApi, BrepHandle, BrepBoundingBox, BrepVec3 } from '@faicad/faijs'
+import type { OcctKernel, ShapeHandle, BrepBoundingBox, BrepVec3 } from '@faicad/faijs'
 
 /** Tolerance options for comparison. */
 export interface CompareOptions {
@@ -80,7 +80,7 @@ function comMaxDiff(a: BrepVec3, b: BrepVec3): number {
   return Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y), Math.abs(a.z - b.z))
 }
 
-function getTopologyStats(kernel: BrepEngineApi, shape: BrepHandle): TopologyStats {
+function getTopologyStats(kernel: OcctKernel, shape: ShapeHandle): TopologyStats {
   return {
     faces: kernel.getSubShapes(shape, 'face').length,
     edges: kernel.getSubShapes(shape, 'edge').length,

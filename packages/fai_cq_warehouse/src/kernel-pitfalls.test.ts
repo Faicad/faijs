@@ -32,7 +32,7 @@ let k: WarehouseKernel
 
 beforeAll(async () => {
   await setupWarehouseKernel()
-  k = requireKernel() as WarehouseKernel
+  k = requireKernel() as unknown as WarehouseKernel
 })
 
 const edgeCount = (w: BrepHandle): number => k.getSubShapes(w, 'edge').length

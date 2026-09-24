@@ -51,6 +51,8 @@ export default {
   "clone": {},
   "torus": {},
   "fuse": {},
+  "area": {},
+  "length": {},
   "viewCamera": {},
   "projectView": {},
   "projectSheet": {},

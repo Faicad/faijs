@@ -103,7 +103,6 @@ const OCCT_METHOD_KINDS = [
   'removeDegenerateEdges',
   'simplify',
   'split',
-  'boundingBox',
   'curveParameters',
   'curvePointAtParam',
   'curveTangent',
@@ -116,6 +115,13 @@ const OCCT_METHOD_KINDS = [
   'surfaceNormal',
   'surfaceType',
   'uvBounds',
+  // Phase 5（D5）：测量族能力名统一为 L1 中立名（getBoundingBox/getVolume/...）——
+  // vendored 面的 boundingBox/volume/area/length 由 occt-kernel-bridge 映射层消化。
+  'getBoundingBox',
+  'getVolume',
+  'getSurfaceArea',
+  'getLength',
+  'getCenterOfMass',
   'composeTransform',
   'applyComposedTransformWithHistory',
   'generalTransformNonOrthogonal',

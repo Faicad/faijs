@@ -24,15 +24,15 @@
 import * as THREE from 'three'
 import { describe, it, expect, beforeAll } from 'vitest'
 import { initOcctWasm, getKernel } from '../occt-kernel/occtKernel'
+import type { OcctKernel, ShapeHandle } from 'occt-wasm'
 import { matrixToArray } from './brep-ops'
 import type { BrepHandle, BrepVec3 } from './engine/types'
-import type { BrepEngineApi } from './engine/primitives'
 
-let kernel: BrepEngineApi
+let kernel: OcctKernel
 
 beforeAll(async () => {
   await initOcctWasm()
-  kernel = getKernel() as unknown as BrepEngineApi
+  kernel = getKernel()
 }, 120000)
 
 interface FaceSignature {
@@ -46,9 +46,10 @@ interface FaceSignature {
  * @returns per-face centers and areas, in enum order.
  */
 function faceSignature(shape: BrepHandle): FaceSignature {
-  const faces = kernel.getSubShapes(shape, 'face')
+  const faces = kernel.getSubShapes(shape as unknown as ShapeHandle, 'face')
   const centers = faces.map((f) => kernel.getSurfaceCenterOfMass(f))
-  const areas = kernel.queryBatch(faces).map((r) => r.area)
+  // queryBatch 已随 Phase 4 收窄移出 BrepEngineApi；面积改走 L1 测量面 getSurfaceArea。
+  const areas = faces.map((f) => kernel.getSurfaceArea(f))
   for (const f of faces) kernel.release(f)
   return { centers, areas }
 }
@@ -66,7 +67,7 @@ function applyMatrix(m: THREE.Matrix4, v: BrepVec3): BrepVec3 {
 
 /** box(10,20,30)：6 个面中心互不相同，面序漂移必然可见。 */
 function makeProbeBox(): BrepHandle {
-  return kernel.makeBox(10, 20, 30)
+  return kernel.makeBox(10, 20, 30) as unknown as BrepHandle
 }
 
 describe('Phase 0.3: identityHashEvolution 的面序假设（内核实测）', () => {
@@ -75,8 +76,8 @@ describe('Phase 0.3: identityHashEvolution 的面序假设（内核实测）', (
     const before = faceSignature(box)
 
     const m = new THREE.Matrix4().makeRotationZ(Math.PI / 2)
-    const out = kernel.transform(box, matrixToArray(m))
-    const after = faceSignature(out)
+    const out = kernel.transform(box as unknown as ShapeHandle, matrixToArray(m))
+    const after = faceSignature(out as unknown as BrepHandle)
 
     expect(before.centers).toHaveLength(6)
     expect(after.centers).toHaveLength(before.centers.length)
@@ -95,8 +96,8 @@ describe('Phase 0.3: identityHashEvolution 的面序假设（内核实测）', (
     const before = faceSignature(box)
 
     const m = new THREE.Matrix4().makeScale(2, 1, 3)
-    const out = kernel.generalTransform(box, matrixToArray(m))
-    const after = faceSignature(out)
+    const out = kernel.generalTransform(box as unknown as ShapeHandle, matrixToArray(m))
+    const after = faceSignature(out as unknown as BrepHandle)
 
     expect(after.centers).toHaveLength(before.centers.length)
     // 非等比缩放改变面积（且各面倍率不同）⇒ 只比中心点
@@ -112,8 +113,8 @@ describe('Phase 0.3: identityHashEvolution 的面序假设（内核实测）', (
     const box = makeProbeBox()
     const before = faceSignature(box)
 
-    const out = kernel.copy(box)
-    const after = faceSignature(out)
+    const out = kernel.copy(box as unknown as ShapeHandle)
+    const after = faceSignature(out as unknown as BrepHandle)
 
     expect(after.centers).toHaveLength(before.centers.length)
     for (let i = 0; i < before.centers.length; i++) {

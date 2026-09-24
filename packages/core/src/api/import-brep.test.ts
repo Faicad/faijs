@@ -84,7 +84,7 @@ describe('import_brep: chain-root roleTable (E3)', () => {
       // captureFaceHint（assignRoles → 语义命名）需要的几何量 stub
       surfaceType: () => 'plane',
       surfaceNormal: () => [0, 0, 1],
-      getSurfaceCenterOfMass: () => ({ x: 0, y: 0, z: 0 }),
+      surfaceCenterOfMass: () => ({ x: 0, y: 0, z: 0 }),
       uvBounds: () => ({ uMin: 0, uMax: 0, vMin: 0, vMax: 0 }),
       area: () => 1,
       centerOfMass: () => ({ x: 0, y: 0, z: 0 }),

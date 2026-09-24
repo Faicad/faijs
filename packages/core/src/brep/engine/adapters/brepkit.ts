@@ -44,6 +44,12 @@ export async function registerBrepkitBrepEngine(): Promise<void> {
         // Phase 3：brepkitKernel 真实现映射（wasm getBoundingBox/getSurfaceCenterOfMass 导出）——
         // 能力表可声明；其余 31 个 Phase 3 方法为 unsupported 桩 → 不声明（engine-switch-p3 断言）。
         'getBoundingBox',
+        // Phase 4（narrowing D9）：测量族全部接线（surfaceArea→getSurfaceArea、
+        // length/wireLength→getLength、volume、centerOfMass）——L1 中立名（D5）如实声明。
+        'getVolume',
+        'getSurfaceArea',
+        'getLength',
+        'getCenterOfMass',
         'surfaceCenterOfMass',
         'curveParameters',
         'curvePointAtParam',

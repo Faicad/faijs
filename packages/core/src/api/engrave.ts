@@ -19,6 +19,7 @@ import { solidToShape } from '../brep/brep-ops'
 import { getSolidBoundingBox } from '../brep/brep-utils'
 import { resolveSvgArg } from './internal/svg-asset-resolver'
 import { getBackends } from '../runtime-state'
+import { getBrepApi } from '../brep/handle-bridge'
 import { fromBrep, brepOf } from '../shape'
 import { defineOp } from '../sdk'
 import type { Provenance } from '../topology/naming/lineage'
@@ -95,8 +96,7 @@ function centerSolidAtOrigin(kernel: BrepEngineApi, solid: BrepHandle): BrepHand
 
 /** BREP 路径：textToSolid/svgToSolid + boolean（cut/fuse）。 */
 async function engraveBrepPath(input: Shape, params: Record<string, unknown>, svgText?: string): Promise<Shape> {
-  const kernel = getBackends().kernel.brep as BrepEngineApi | null
-  if (!kernel) throw new Error('[stdlib/engrave] no OCCT kernel')
+  const kernel = getBrepApi()
   const inputSolid = brepOf(input) as BrepHandle | undefined
   if (!inputSolid) throw new Error('[stdlib/engrave] input is not BREP')
 

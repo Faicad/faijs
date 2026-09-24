@@ -2,6 +2,12 @@
  * replicate — handwritten overrides for the copy-family ops (keep semantics +
  * replica[k] role tables).
  *
+ * @platform occt — 本文件 import occt-kernel（mirrorJoin 走 `mirrorWithHistory`
+ * 平台面，D3）。文件级标注满足守卫①（平台 import 自证身份）；文件内的**中立 op**
+ * （circularPattern/gridPattern/rectangularPattern/clone 只用 L1 核心面）不声明
+ * engines，运行时不拦截——标注只约束平台 import，不改变函数级中立性
+ * （与 face-evolution.ts 同口径）。
+ *
  * All 9 copy-like ops must NOT consume their input (same as `copy`): each brep
  * body declares `keep(input)` (function-body keep → KeepRegistry → live-shapes),
  * so the source stays a live terminal in both runtime and UI.
@@ -17,18 +23,26 @@
  *
  * The generated files stay untouched; overrides win via api-namespace spread
  * (same precedent as cut / split / linearPattern).
+ *
+ * 平台分层（narrowing plan Phase 5，D11）：
+ * - mirrorJoin / mirror：平台 op（依赖 occt-only `mirrorWithHistory`）→
+ *   `engines: ['occt']`，不声明 capabilities（D11-7 互斥）。
+ * - circularPattern / gridPattern / rectangularPattern / clone：中立 op（实现
+ *   只用 L1 核心面）→ capabilities 收窄到真实 L1 名（删除 isNull/iterShapes/
+ *   section/translateWithHistory 等 occt-only 虚名，capability-map 实证实现不依赖）。
  */
 
 import type { Shape, Vec3 } from '../mesh/types'
 import { solidToShape } from '../brep/brep-ops'
 import { getFaceHashes, HASH_UPPER_BOUND } from '../brep/face-evolution'
-import { getBackends, getCurrentStmt, keep } from '../runtime-state'
+import { getBrepApi } from '../brep/handle-bridge'
+import { getCurrentStmt, keep } from '../runtime-state'
 import { fromBrep, brepOf } from '../shape'
 import { defineOp } from '../sdk'
 import type { Provenance } from '../topology/naming/lineage'
 import type { BrepHandle, BrepVec3 } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
-import { getOcctKernel } from '../occt-kernel/occtKernel'
+import { getOcctKernel, type ShapeHandle } from '../occt-kernel/occtKernel'
 import { buildReplicaRoleTable, type ReplicaTransform } from './internal/replica-role-table'
 // Generated compatOps (delegation targets for the thin single-copy overrides).
 // NOTE: transformCopy is NOT a script-face op (arg-spec skip: ComposedTransform
@@ -50,10 +64,9 @@ function toBrepVec(v: Vec3): BrepVec3 {
   return { x: v[0], y: v[1], z: v[2] }
 }
 
-/** Shared prelude: kernel + BREP input handle + output statement id. */
+/** Shared prelude: L1 kernel（getBrepApi，D12）+ BREP input handle + output statement id. */
 function prelude(input: Shape, tag: string): { kernel: BrepEngineApi; solid: BrepHandle; outStmt: string } {
-  const kernel = getBackends().kernel.brep as BrepEngineApi | null
-  if (!kernel) throw new Error(`[stdlib/${tag}] no OCCT kernel`)
+  const kernel = getBrepApi()
   const solid = brepOf(input) as BrepHandle | undefined
   if (!solid) throw new Error(`[stdlib/${tag}] input is not BREP`)
   return { kernel, solid, outStmt: String(getCurrentStmt()?.id ?? '') }
@@ -129,15 +142,13 @@ export const circularPattern = defineOp({
     const roleTable = buildReplicaRoleTable(kernel, input, resultSolid, replicas, outStmt)
     return fromBrep(solidToShape(kernel, resultSolid), { solid: resultSolid, roleTable })
   },
-  // Capabilities copied verbatim from the generated compatOp this overrides.
+  // 中立 op（D11）：capabilities 收窄到实现真实调用的 L1 名（删除 isNull/iterShapes/
+  // section 等 occt-only 虚名——实现只调 kernel.circularPattern/fuseAll）。
   capabilities: [
     'circularPattern',
     'dispose',
     'fuseAll',
     'hashCode',
-    'isNull',
-    'iterShapes',
-    'section',
     'surfaceCenterOfMass',
     'surfaceNormal',
     'surfaceType',
@@ -215,10 +226,7 @@ export const gridPattern = defineOp({
     'fuseAll',
     'gridPattern',
     'hashCode',
-    'isNull',
-    'iterShapes',
     'linearPattern',
-    'section',
     'surfaceCenterOfMass',
     'surfaceNormal',
     'surfaceType',
@@ -299,13 +307,9 @@ export const rectangularPattern = defineOp({
     'fuseAll',
     'fuseWithHistory',
     'hashCode',
-    'isNull',
-    'iterShapes',
-    'section',
     'surfaceCenterOfMass',
     'surfaceNormal',
     'surfaceType',
-    'translateWithHistory',
     'uvBounds',
   ],
   naming: { kind: 'replicate', k: 0 } as Provenance,
@@ -339,9 +343,17 @@ export const mirrorJoin = defineOp({
     const n = norm(options?.normal ?? [1, 0, 0])
     const o = toBrepVec(options?.at ?? [0, 0, 0])
     const inputHashes = getFaceHashes(kernel, solid)
-    const mirrored = getOcctKernel().mirrorWithHistory(solid, o, toBrepVec(n), inputHashes, HASH_UPPER_BOUND)
+    // 平台面（D3）：mirrorWithHistory 是 occt-only。BrepHandle ↔ ShapeHandle 运行时
+    // 同构，品牌转换只发生在平台边界。
+    const mirrored = getOcctKernel().mirrorWithHistory(
+      solid as unknown as ShapeHandle,
+      o,
+      toBrepVec(n),
+      inputHashes,
+      HASH_UPPER_BOUND,
+    )
     try {
-      const resultSolid = kernel.fuse(solid, mirrored.result)
+      const resultSolid = kernel.fuse(solid, mirrored.result as unknown as BrepHandle)
 
       const replicas: ReplicaTransform[] = [
         { label: 'replica[0]', inverse: (c) => ({ x: c.x, y: c.y, z: c.z }) },
@@ -350,10 +362,12 @@ export const mirrorJoin = defineOp({
       const roleTable = buildReplicaRoleTable(kernel, input, resultSolid, replicas, outStmt)
       return fromBrep(solidToShape(kernel, resultSolid), { solid: resultSolid, roleTable })
     } finally {
-      kernel.release(mirrored.result)
+      kernel.release(mirrored.result as unknown as BrepHandle)
     }
   },
-  capabilities: ['dispose', 'fuse', 'fuseWithHistory', 'isNull', 'mirrorWithHistory'],
+  // 平台 op（D11）：实现依赖 occt-only `mirrorWithHistory`（D3 原生面）——
+  // 声明 engines，不声明 capabilities（D11-7 互斥）。
+  engines: ['occt'],
   naming: { kind: 'replicate', k: 2 } as Provenance,
 })
 
@@ -378,7 +392,9 @@ export const mirror = defineOp({
     keep(input)
     return (await generatedMirror(input, options)) as Shape
   },
-  capabilities: ['dispose', 'mirrorWithHistory'],
+  // 平台 op（D11）：委托 generatedMirror（vendored 实现调 occt-only
+  // `mirrorWithHistory`，capability-map 实证）——声明 engines，不声明 capabilities。
+  engines: ['occt'],
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 })
 

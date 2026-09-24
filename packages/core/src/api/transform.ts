@@ -1,6 +1,14 @@
 /**
  * stdlib transform — 变换对象库函数（translate/rotate_euler/scale/scale3d）
  *
+ * 平台分层（narrowing plan Phase 5，D11）：
+ * - `translate` / `scale`：**平台 op（occt）**——权威面演化走
+ *   `translateWithHistory` / `scaleWithHistory`（occt-only，face-evolution.ts 的
+ *   translateWithHashEvolution/scaleWithHashEvolution 经 getOcctKernel() 调用）→
+ *   `engines: ['occt']`。
+ * - `rotate_euler` / `scale3d`：**中立 op**——内核无单次 WithHistory 可表达
+ *   （任意欧拉+pivot / 非等比），退回 `identityHashEvolution` + `rotateBrep`/
+ *   `scaleBrep`（只用 L1：transform/generalTransform/subShapeHashes），不声明 engines。
  *
  * dispatchPath 静态判定 brep/mesh，
  * BREP 路径用 brepOf(input) 取输入实体、fromBrep 登记输出实体。
@@ -16,7 +24,7 @@ import {
   translateWithHashEvolution,
 } from '../brep/face-evolution'
 import type { HashEvolution } from '../brep/face-evolution'
-import { getBackends } from '../runtime-state'
+import { getBrepApi } from '../brep/handle-bridge'
 import { fromBrep, brepOf, inputRoleTable } from '../shape'
 import { propagateAllOrigins } from '../topology/naming/roles'
 import type { RoleTable } from '../topology/naming/types'
@@ -24,7 +32,6 @@ import type { Provenance } from '../topology/naming/lineage'
 import { defineOp } from '../sdk'
 import { assertVec3, assertPositiveNumber } from './assert'
 import type { BrepHandle } from '../brep/engine/types'
-import type { BrepEngineApi } from '../brep/engine/primitives'
 
 /** BREP 路径：变换 solid + 恒等面演化 + 三角化 + fromBrep 登记。 */
 
@@ -94,8 +101,8 @@ export function assertScale3dParams(params: Record<string, unknown>): void {
  * @returns the transformed Shape.
  */
 function transformBrep(op: string, input: Shape, params: Record<string, unknown>): Shape {
-  const kernel = getBackends().kernel.brep as BrepEngineApi | null
-  if (!kernel) throw new Error('[stdlib/transform] no OCCT kernel')
+  // L1 面：rotateBrep/scaleBrep/identityHashEvolution 只用 L1（D12）。
+  const kernel = getBrepApi()
   const inputSolid = brepOf(input) as BrepHandle | undefined
   if (!inputSolid) throw new Error('[stdlib/transform] input is not BREP')
 
@@ -171,6 +178,8 @@ export const translate = defineOp({
   // D11: `translate(p, 10, 0, 0)` == `translate(p, { offset: [10, 0, 0] })`;
   // `offset` is a vec3 slot sitting after the single leading Shape argument.
   slotMap: { keys: ['offset'], vec3Keys: ['offset'], shapeArity: 1 },
+  // 平台 op：权威面演化依赖 occt-only translateWithHistory（face-evolution.ts，D3）。
+  engines: ['occt'],
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 })
 
@@ -241,6 +250,8 @@ export const scale = defineOp({
   // D11（§4.6）：`scale(p, 2)` == `scale(p, { factor: 2 })`（标量槽）；尾参 options
   // （{center}）经 dual-form-args 尾参合并并入。
   slotMap: { keys: ['factor'], shapeArity: 1 },
+  // 平台 op：权威面演化依赖 occt-only scaleWithHistory（face-evolution.ts，D3）。
+  engines: ['occt'],
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 })
 

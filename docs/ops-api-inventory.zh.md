@@ -625,7 +625,7 @@ const pieces = await cad.split(part0, [part1])
 
 **异步**。Shape 切分后的几何（compound of pieces）。
 
-> BREP-only：非 BREP 输入抛 E_MESH_UNSUPPORTED。切分产生的截面 / 被切细的侧面 片记 `splinter(#j)`（Phase 3 L4 抗重放词汇）。
+> BREP-only：非 BREP 输入抛 E_MESH_UNSUPPORTED。切分产生的截面 / 被切细的侧面 片记 `splinter(#j)`（Phase 3 L4 抗重放词汇）。平台 op：仅 occt 引擎（原生 split）。
 
 ### 5.17 `subtract` ✅
 

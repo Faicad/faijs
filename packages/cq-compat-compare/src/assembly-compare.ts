@@ -16,7 +16,7 @@ import {
   importAssemblyFromStep,
   collectLeafParts,
 } from '@faicad/faijs'
-import type { BrepEngineApi, BrepHandle, BrepBoundingBox, BrepVec3 } from '@faicad/faijs'
+import type { OcctKernel, ShapeHandle, BrepBoundingBox, BrepVec3 } from '@faicad/faijs'
 import type { AssemblyPartNode } from '@faicad/faijs'
 
 /** Tolerance options. */
@@ -122,7 +122,7 @@ function bbmax(a: BrepBoundingBox, b: BrepBoundingBox): number {
   )
 }
 
-function topoStats(kernel: BrepEngineApi, shape: BrepHandle) {
+function topoStats(kernel: OcctKernel, shape: ShapeHandle) {
   return {
     faces: kernel.getSubShapes(shape, 'face').length,
     edges: kernel.getSubShapes(shape, 'edge').length,
@@ -130,7 +130,7 @@ function topoStats(kernel: BrepEngineApi, shape: BrepHandle) {
   }
 }
 
-function fuseAll(kernel: BrepEngineApi, shapes: BrepHandle[]): BrepHandle | null {
+function fuseAll(kernel: OcctKernel, shapes: ShapeHandle[]): ShapeHandle | null {
   if (shapes.length === 0) return null
   let acc = shapes[0]
   for (let i = 1; i < shapes.length; i++) {
@@ -192,7 +192,7 @@ export async function compareAssemblyFiles(
   const byName = (a: AssemblyPartNode, b: AssemblyPartNode): number =>
     a.name < b.name ? -1 : a.name > b.name ? 1 : 0
   const centroidOf = (leaf: AssemblyPartNode): BrepVec3 =>
-    kernel.getCenterOfMass(leaf.shapeHandle as unknown as BrepHandle)
+    kernel.getCenterOfMass(leaf.shapeHandle as unknown as ShapeHandle)
 
   const pairs: Array<[AssemblyPartNode, AssemblyPartNode | null]> = []
   if (pairing === 'names') {
@@ -225,8 +225,8 @@ export async function compareAssemblyFiles(
       partResults.push({ name: leafA.name, found: false })
       continue
     }
-    const shapeA = leafA.shapeHandle! as unknown as BrepHandle
-    const shapeB = leafB.shapeHandle! as unknown as BrepHandle
+    const shapeA = leafA.shapeHandle! as unknown as ShapeHandle
+    const shapeB = leafB.shapeHandle! as unknown as ShapeHandle
 
     const volA = kernel.getVolume(shapeA)
     const volB = kernel.getVolume(shapeB)
@@ -270,8 +270,8 @@ export async function compareAssemblyFiles(
   }
 
   // ── Level 4: Overall fused geometry ──
-  const shapesA = leavesA.map(n => n.shapeHandle! as unknown as BrepHandle)
-  const shapesB = leavesB.map(n => n.shapeHandle! as unknown as BrepHandle)
+  const shapesA = leavesA.map(n => n.shapeHandle! as unknown as ShapeHandle)
+  const shapesB = leavesB.map(n => n.shapeHandle! as unknown as ShapeHandle)
   const fusedA = fuseAll(kernel, shapesA)
   const fusedB = fuseAll(kernel, shapesB)
 

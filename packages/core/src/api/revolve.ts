@@ -17,11 +17,9 @@
 
 import type { Shape } from '../mesh/types'
 import { defineOp } from '../sdk'
-import { getBackends, getCurrentStmt } from '../runtime-state'
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- kept for parity with extrude/import-brep; unused after the E3 recordOutput rewrite
-import { fromBrep, brepOf } from '../shape'
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- kept as a record of the pre-E3 shape-conversion path
-import { solidToShape } from '../brep/brep-ops'
+import { getCurrentStmt } from '../runtime-state'
+import { getBrepApi } from '../brep/handle-bridge'
+import { brepOf } from '../shape'
 import { adoptEntity, callBrepjs } from './internal/l3-bridge'
 import { borrowDeep } from './internal/compat-op'
 import { unwrapResult } from './internal/result-unwrap'
@@ -141,7 +139,9 @@ export const revolve = defineOp({
       'revolve',
     )
     const s = adoptEntity(value, 'revolve') as Shape
-    const kernel = getBackends().kernel.brep as BrepEngineApi | null
+    // D12（2026-09-24）：取内核走 getBrepApi；引擎未初始化 → 跳过建表（返回纯 mesh 结果）。
+    let kernel: BrepEngineApi | null = null
+    try { kernel = getBrepApi() } catch { /* no engine -> skip role table */ }
     const handle = kernel ? (brepOf(s) as BrepHandle | undefined) : undefined
     if (!kernel || !handle) return s
     // E3（Q13 路线①）：链根建 roleTable，origin = 语句 StmtId（Phase 1.6 口径）。

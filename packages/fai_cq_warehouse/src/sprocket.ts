@@ -325,7 +325,7 @@ export function buildSprocket(p: SprocketParams): SprocketResult {
   let solid = extrudeFace(planarFace(wireFromEdges(edges)), thickness)
   // 顺时针 wire → 面法向 -Z → 拉伸体体积为负；翻正后再做切割
   // （reverseShape 在 WarehouseKernel 声明，BrepEngineApi 平台契约未含）
-  if (volumeOf(solid) < 0) solid = (requireKernel() as WarehouseKernel).reverseShape(solid)
+  if (volumeOf(solid) < 0) solid = (requireKernel() as unknown as WarehouseKernel).reverseShape(solid)
   // 上游 translate((0, 0, -thickness/2))：居中到 z ∈ [-t/2, t/2]
   solid = translateShape(solid, 0, 0, -thickness / 2)
 

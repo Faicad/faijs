@@ -1,6 +1,11 @@
 /**
  * Functional thread operation — builds a helical screw thread.
  *
+ * @platform occt — 本文件 import occt-kernel：螺纹用 `loft`
+ * （BRepOffsetAPI_ThruSections）构造，loft 是 occt-only（L1 无，engine-method-map
+ * `loft` → occt-only）。守卫①要求平台 import 自证身份；调用方 op（screw）声明
+ * `engines: ['occt']`（D11）。
+ *
  * 适配自 brepjs `src/operations/threadFns.ts`。
  * 保留文件名和核心算法，适配本项目的 occt-wasm API。
  *
@@ -17,7 +22,7 @@
 
 import type { BrepHandle } from '../../brep/engine/types'
 import type { BrepEngineApi } from '../../brep/engine/primitives'
-import { getOcctKernel } from '../../occt-kernel/occtKernel'
+import { getOcctKernel, type ShapeHandle } from '../../occt-kernel/occtKernel'
 
 /** 螺纹配置参数。单位 mm，角度由螺距推导。 */
 export interface ThreadOptions {
@@ -140,12 +145,13 @@ export function threadBrep(
     sections.push(wire)
   }
 
-  // Loft
-  const thread = getOcctKernel().loft(sections, true, true)
+  // Loft（occt-only 平台面，D3）。BrepHandle（branded number）与 occt-wasm
+  // ShapeHandle 运行时同构，品牌转换只发生在平台边界。
+  const thread = getOcctKernel().loft(sections as unknown as ShapeHandle[], true, true)
 
   // 释放中间句柄
   for (const w of sections) kernel.release(w)
   for (const e of intermediateEdges) kernel.release(e)
 
-  return thread
+  return thread as unknown as BrepHandle
 }

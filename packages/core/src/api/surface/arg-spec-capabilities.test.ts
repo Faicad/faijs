@@ -37,9 +37,12 @@ function legalCapabilityNames(): Set<string> {
 }
 
 describe('Phase 1 三方一致：arg-spec ↔ 声明 ↔ 生成物', () => {
-  it('brep-op 条目数 == 已声明 capabilities 条目数 == generated compatOp 数', () => {
+  it('brep-op 条目数 == (capabilities+engines) 条目数 == generated compatOp 数', () => {
     const brepOps = ARG_SPEC.filter((e) => e.kind === 'brep-op')
     const declared = brepOps.filter((e) => e.capabilities?.length)
+    // Phase 5（D11）：平台 op 声明 engines 取代 capabilities（互斥，D11-7）——
+    // 「能力声明全覆盖」= capabilities 条目 ∪ engines 条目 = 全部 brep-op。
+    const engined = brepOps.filter((e) => e.engines?.length)
     const generated = ['operations.ts', 'topology.ts', 'sketching.ts'].map((f) =>
       fs.readFileSync(path.join(CORE_SRC, 'src', 'api', 'generated', f), 'utf-8'),
     )
@@ -48,29 +51,41 @@ describe('Phase 1 三方一致：arg-spec ↔ 声明 ↔ 生成物', () => {
       0,
     )
     expect(brepOps.length).toBeGreaterThan(0)
-    expect(declared.length).toBe(brepOps.length) // 100% 声明
+    // 无 op 同时声明 capabilities 与 engines（D11-7 互斥在 assertLibConforms 也抛错）
+    expect(brepOps.filter((e) => e.capabilities?.length && e.engines?.length)).toHaveLength(0)
+    expect(declared.length + engined.length).toBe(brepOps.length) // 100% 声明
     expect(compatOpCount).toBe(brepOps.length)
   })
 })
 
 describe('Phase 1 能力名合法性：每条 compat op 声明非空且合法', () => {
   const legal = legalCapabilityNames()
+  const legalEngineIds = new Set(['occt', 'brepkit', 'brep_mock'])
 
-  it('每条 brep-op 的 capabilities 非空且全部名字 ∈ BrepCapabilityName', () => {
+  it('每条 brep-op 的 capabilities（或 engines）非空且名字合法', () => {
     const brepOps = ARG_SPEC.filter((e) => e.kind === 'brep-op')
     for (const e of brepOps) {
-      expect(e.capabilities?.length, `op '${e.name}' capabilities 非空`).toBeGreaterThan(0)
-      for (const c of e.capabilities!) {
-        expect(legal, `op '${e.name}' 能力名 '${c}' ∈ BrepCapabilityName`).toContain(c)
+      if (e.capabilities?.length) {
+        for (const c of e.capabilities) {
+          expect(legal, `op '${e.name}' 能力名 '${c}' ∈ BrepCapabilityName`).toContain(c)
+        }
+      } else {
+        // Phase 5（D11）：engines 条目必须非空且 id ∈ BREP_ENGINE_IDS
+        expect(e.engines?.length, `op '${e.name}' engines 非空`).toBeGreaterThan(0)
+        for (const id of e.engines!) {
+          expect(legalEngineIds, `op '${e.name}' 引擎 id '${id}' ∈ BREP_ENGINE_IDS`).toContain(id)
+        }
       }
     }
   })
 
-  it('P3 冲突消除证据：transform 族 compat op 声明 *WithHistory 真名（非裸名）', () => {
+  it('P3 冲突消除证据：transform 族 compat op 声明平台归属 engines（非裸能力名）', () => {
     const byName = new Map(ARG_SPEC.filter((e) => e.kind === 'brep-op').map((e) => [e.name, e]))
-    expect(byName.get('mirror')!.capabilities).toContain('mirrorWithHistory')
-    expect(byName.get('rotate')!.capabilities).toContain('rotateWithHistory')
-    expect(byName.get('ellipsoid')!.capabilities).toContain('translateWithHistory')
+    // Phase 5（D11）起平台 op 不再声明 capabilities（occt-only 方法不属 L1）：
+    // mirror/rotate/ellipsoid 的平台身份改由 engines: ['occt'] 表达。
+    expect(byName.get('mirror')!.engines).toContain('occt')
+    expect(byName.get('rotate')!.engines).toContain('occt')
+    expect(byName.get('ellipsoid')!.engines).toContain('occt')
   })
 })
 

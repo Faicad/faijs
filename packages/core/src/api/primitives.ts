@@ -10,14 +10,14 @@ import { clampNRad } from '../mesh/types'
 import { cad } from '../mesh'
 import { primitiveToBrepSolid } from '../primitives/brep-primitives'
 import { solidToShape } from '../brep/brep-ops'
-import { getBackends, getCurrentStmt } from '../runtime-state'
+import { getCurrentStmt } from '../runtime-state'
+import { getBrepApi } from '../brep/handle-bridge'
 import { fromBrep } from '../shape'
 import { assignRoles } from '../topology/naming/roles'
 import type { Provenance } from '../topology/naming/lineage'
 import { asPartName } from '../identity'
 import { defineOp } from '../sdk'
 import { assertPositiveNumber, assertNonNegativeNumber } from './assert'
-import type { BrepEngineApi } from '../brep/engine/primitives'
 
 // ── per-op 参数自校验（Phase 2.2；stdlib 被直接 import 时的防御层） ──
 
@@ -100,8 +100,7 @@ export function assertWedgeParams(params: Record<string, unknown>): void {
 
 /** BREP 路径：OCCT 精确构造 + 三角化 + fromBrep 登记（基本体无面演化；链根建 roleTable）。 */
 function primitiveBrep(op: string, params: Record<string, unknown>): Shape {
-  const kernel = getBackends().kernel.brep as BrepEngineApi | null
-  if (!kernel) throw new Error('[stdlib/box] no OCCT kernel')
+  const kernel = getBrepApi()
   const type = op === 'box' ? 'cube' : op
   const result = primitiveToBrepSolid(kernel, type as 'cube' | 'sphere' | 'cylinder' | 'cone' | 'wedge', params as never)
   // §3.2：链根建表——语义命名器按 op 类型给面命名（semantic 'top'/'lateral' 等，

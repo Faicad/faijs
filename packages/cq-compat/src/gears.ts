@@ -32,13 +32,16 @@ export interface GearAxis {
  * that renames a binding turns red immediately instead of failing at runtime
  * with `undefined is not a function`.
  */
-export interface GearKernel extends BrepEngineApi {
+export type GearKernel = Omit<BrepEngineApi, 'interpolatePoints'> & {
   // ── surface / curve construction (CadQuery makeSplineApprox family) ──
   /** `GeomAPI_PointsToBSplineSurface`: point grid → B-spline surface → Face. */
   bsplineSurface(points: BrepVec3[], rows: number, cols: number): BrepHandle
   /** `GeomAPI_PointsToBSpline`: point list → approximated B-spline curve (with Tol3D). */
   approximatePoints(points: BrepVec3[], tolerance?: number): BrepHandle
-  /** Cubic B-spline interpolation curve through all points. */
+  /** Cubic B-spline interpolation curve through all points (occt periodic 语义).
+   *  ⚠️ 收窄后（2026-09-24）：type 交叉继承全部 L1 方法，仅 Omit 掉
+   *  `interpolatePoints`（L1 是 brepkit degree 语义）并覆盖为本包 occt 原生
+   *  periodic 语义。运行时 kernel 是 raw occt-wasm 平台面，调用不变。 */
   interpolatePoints(points: BrepVec3[], periodic?: boolean): BrepHandle
 
   // ── topology construction ──
@@ -85,6 +88,8 @@ export interface GearKernel extends BrepEngineApi {
   isWire(shape: BrepHandle): boolean
   isShell(shape: BrepHandle): boolean
   isEdge(shape: BrepHandle): boolean
+  /** `BRepOffsetAPI_ThruSections`: wires → shell（occt 平台方法，收窄后不在 L1）。 */
+  loft(wires: BrepHandle[], isSolid?: boolean, ruled?: boolean): BrepHandle
 }
 
 let gearKernelPromise: Promise<GearKernel> | null = null

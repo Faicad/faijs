@@ -24,7 +24,9 @@ import { loadBrep } from './brep-ops'
 let kernel: BrepEngineApi
 
 beforeAll(async () => {
-  kernel = await initOcctWasm()
+  // Phase 4 收窄：initOcctWasm 返回原生 OcctKernel，L1 契约面由适配器组合提供——
+  // 测试直接驱动 loadBrep（L1 面）需品牌转换（运行时同构）。
+  kernel = (await initOcctWasm()) as unknown as BrepEngineApi
 }, 180000)
 
 function fixture(name: string): ArrayBuffer {

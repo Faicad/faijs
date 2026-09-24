@@ -19,7 +19,7 @@
 
 import { beforeAll, describe, expect, it } from 'vitest'
 import { mkdirSync, writeFileSync } from 'node:fs'
-import { exportStepFromSolids } from '@faicad/faijs'
+import { exportStepFromSolids, type BrepEngineApi } from '@faicad/faijs'
 import { requireKernel, type WarehouseKernel } from './kernel'
 import { setupWarehouseKernel } from './test-setup'
 import { BEARING_TABLES, isolateFastenerType, type BearingClassName } from './params'
@@ -39,7 +39,7 @@ let k: WarehouseKernel
 
 beforeAll(async () => {
   await setupWarehouseKernel()
-  k = requireKernel() as WarehouseKernel
+  k = requireKernel() as unknown as WarehouseKernel
   mkdirSync(OUT_DIR, { recursive: true })
 })
 
@@ -59,7 +59,7 @@ function exportOurStep(c: ManifestCase): boolean {
   if (!r.handle) return false
   writeFileSync(
     ourStepPath(c.id),
-    Buffer.from(exportStepFromSolids(k, [{ solid: r.handle, name: 'SOLID' }])),
+    Buffer.from(exportStepFromSolids(k as unknown as BrepEngineApi, [{ solid: r.handle, name: 'SOLID' }])),
   )
   return true
 }

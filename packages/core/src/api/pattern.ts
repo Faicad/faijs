@@ -11,12 +11,12 @@
 
 import type { Shape, Vec3 } from '../mesh/types'
 import { solidToShape } from '../brep/brep-ops'
-import { getBackends, getCurrentStmt, keep } from '../runtime-state'
+import { getCurrentStmt, keep } from '../runtime-state'
+import { getBrepApi } from '../brep/handle-bridge'
 import { fromBrep, brepOf } from '../shape'
 import { defineOp } from '../sdk'
 import type { Provenance } from '../topology/naming/lineage'
 import type { BrepHandle } from '../brep/engine/types'
-import type { BrepEngineApi } from '../brep/engine/primitives'
 import { buildReplicaRoleTable, type ReplicaTransform } from './internal/replica-role-table'
 
 /** 归一化向量（零向量 → [0,0,1] 兜底）。 */
@@ -28,8 +28,7 @@ function norm(v: Vec3): [number, number, number] {
 
 /** BREP 路径：沿 direction 复制 count 份，质心聚类回投输入面角色。 */
 function linearPatternBrep(input: Shape, direction: Vec3, count: number, spacing: number): Shape {
-  const kernel = getBackends().kernel.brep as BrepEngineApi | null
-  if (!kernel) throw new Error('[stdlib/pattern] no OCCT kernel')
+  const kernel = getBrepApi()
   const inputSolid = brepOf(input) as BrepHandle | undefined
   if (!inputSolid) throw new Error('[stdlib/pattern] input is not BREP')
 

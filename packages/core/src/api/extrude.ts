@@ -27,9 +27,9 @@ import { extrude as projectedExtrude } from './generated/operations'
 import * as THREE from 'three'
 import { solidToShape, matrixToArray } from '../brep/brep-ops'
 import { getSolidBoundingBox } from '../brep/brep-utils'
-import { getBackends, getCurrentStmt } from '../runtime-state'
+import { getCurrentStmt } from '../runtime-state'
+import { getBrepApi } from '../brep/handle-bridge'
 import { brepOf } from '../shape'
-import { runtimeLineage } from '../topology/naming/lineage'
 import { formatRoleName, semantic, wall } from '../topology/naming/role-name'
 import type { Provenance } from '../topology/naming/lineage'
 import { defineOp } from '../sdk'
@@ -432,8 +432,7 @@ export const extrude = defineOp({
     assertExtrudeOptions(o)
 
     if (o.upTo !== undefined) {
-      const kernel = getBackends().kernel.brep as BrepEngineApi | null
-      if (!kernel) throw new Error('[stdlib/extrude] no OCCT kernel')
+      const kernel = getBrepApi()
       const inputSolid = brepOf(input) as BrepHandle | undefined
       if (!inputSolid) throw new Error('[stdlib/extrude] input is not BREP')
       const clipped = extrudeUpToSolid(kernel, inputSolid, o)
@@ -459,7 +458,9 @@ export const extrude = defineOp({
     // 同语句 registeredStmtId 去重会吞掉第二次登记（part 键保持空表，下游
     // fillet/chamfer 的 edgeRef 报 `input shape has no role table`）。改经
     // runtimeLineage.recordOutput 落语句键表 + part 键权威位。
-    const kernel = getBackends().kernel.brep as BrepEngineApi | null
+    // D12（2026-09-24）：取内核走 getBrepApi；引擎未初始化 → 跳过建表（纯 mesh 结果）。
+    let kernel: BrepEngineApi | null = null
+    try { kernel = getBrepApi() } catch { /* no engine -> skip role table */ }
     const solid = kernel ? (brepOf(result) as BrepHandle | undefined) : undefined
     if (kernel && solid) {
       const origin = String(getCurrentStmt()?.id ?? '')

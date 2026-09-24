@@ -1,6 +1,14 @@
 /**
  * 面演化（face evolution）工具：hash 映射 ↔ ordinal 映射转换
  *
+ * @platform occt — 本文件 import occt-kernel（translateWithHashEvolution /
+ * scaleWithHashEvolution / directEditWithRoleTable(chamfer 分支) 走 occt-only
+ * `*WithHistory` 原生面，D3）。文件级标注满足守卫①（平台 import 自证身份）；
+ * 文件内的**中立函数**（getFaceHashes/decodeEvolution/booleanWithRoleTable/
+ * identityHashEvolution 等只用 L1 BrepEngineApi）不因标注改变函数级中立性——
+ * 调用它们的**中立 op**（rotate_euler/scale3d/fillet/boolean 等）不声明 engines，
+ * 运行时不拦截（与 replicate.ts 同口径）。
+ *
  * See docs/api-contract.md §11 (topology contract) for face evolution context.
  *
  * occt-wasm 的 *WithHistory API 返回 BrepEvolutionData，其中 modified/generated
@@ -14,7 +22,7 @@
 
 import type { BrepHandle, BrepEvolutionData } from './engine/types'
 import type { BrepEngineApi } from './engine/primitives'
-import { getOcctKernel } from '../occt-kernel/occtKernel'
+import { getOcctKernel, type ShapeHandle } from '../occt-kernel/occtKernel'
 
 /** hash 上界（与 occt-wasm kernel.cpp 一致：`% 2147483647`） */
 export const HASH_UPPER_BOUND = 2147483647
@@ -258,7 +266,7 @@ export function translateWithHashEvolution(
   d: readonly [number, number, number],
 ): { result: BrepHandle; evolution: HashEvolution } {
   const inputHashes = getFaceHashes(kernel, shape)
-  const evo = getOcctKernel().translateWithHistory(shape, d[0], d[1], d[2], inputHashes, HASH_UPPER_BOUND)
+  const evo = getOcctKernel().translateWithHistory(shape as unknown as ShapeHandle, d[0], d[1], d[2], inputHashes, HASH_UPPER_BOUND) as unknown as BrepEvolutionData
   return { result: evo.result, evolution: decodeHashEvolution(evo) }
 }
 
@@ -283,12 +291,12 @@ export function scaleWithHashEvolution(
 ): { result: BrepHandle; evolution: HashEvolution } {
   const inputHashes = getFaceHashes(kernel, shape)
   const evo = getOcctKernel().scaleWithHistory(
-    shape,
+    shape as unknown as ShapeHandle,
     { x: center[0], y: center[1], z: center[2] },
     factor,
     inputHashes,
     HASH_UPPER_BOUND,
-  )
+  ) as unknown as BrepEvolutionData
   return { result: evo.result, evolution: decodeHashEvolution(evo) }
 }
 
@@ -535,7 +543,16 @@ export function directEditWithRoleTable(
   if (op === 'fillet') {
     evo = kernel.filletWithHistory(solid, edgeHandles, radius, inputHashes, HASH_UPPER_BOUND)
   } else {
-    evo = kernel.chamferWithHistory(solid, edgeHandles, radius, inputHashes, HASH_UPPER_BOUND)
+    // chamferWithHistory 是 occt-only（L1 无）→ 平台面 getOcctKernel（D3）。
+    // BrepHandle（branded number）与 occt-wasm ShapeHandle 运行时同构，品牌转换
+    // 只发生在平台边界。
+    evo = getOcctKernel().chamferWithHistory(
+      solid as unknown as ShapeHandle,
+      edgeHandles as unknown as ShapeHandle[],
+      radius,
+      inputHashes,
+      HASH_UPPER_BOUND,
+    ) as unknown as BrepEvolutionData
   }
 
   const faceEvolution = decodeEvolution(kernel, evo, solid, evo.result)

@@ -31,6 +31,7 @@
 export type ProjectionKind = 'brep-op' | 'query' | 'pure' | 'type' | 'skip' | 'faijs'
 
 import type { Provenance } from '../../topology/naming/lineage'
+import type { BrepEngineId } from '../../brep/engine/types'
 import type { BrepCapabilityName } from '../../cad-runtime/backend-dispatch'
 // Re-export for arg-spec consumers.
 export type { Provenance } from '../../topology/naming/lineage'
@@ -109,6 +110,13 @@ export interface ArgSpecEntry {
    * （api/surface/capability-map.json）逐条填写。
    */
   capabilities?: BrepCapabilityName[]
+  /**
+   * Phase 5（narrowing plan D11）：平台身份声明——该 brep-op 只在列出的引擎上
+   * 实现（如 vendored op 调 occt-only 方法 isNull/section/loft → ['occt']）。
+   * 与 capabilities 互斥（D11-7，assertLibConforms 抛错）；缺省 = 全平台中立。
+   * 生成器透传给 compatOp → defineOp engines，并写进 script-face-manifest。
+   */
+  engines?: readonly BrepEngineId[]
   /** P20: D11 形态分类（A 单名双形态 / B1 单名单形态 / B2 双名）。 */
   formClass?: FormClass
   /**
@@ -156,7 +164,10 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     name: 'fuse',
     source: 'topology/booleanFns.js#fuse',
     kind: 'brep-op',
-    capabilities: ["dispose","fuse","fuseWithHistory","isNull"],
+    // Phase 5 补漏（§1.5 推论 1 / D11）：vendored fuse 默认 trackEvolution 路径依赖
+    // kernel.isNull / kernel.dispose（occt 平台面）→ 平台 op，声明 engines: ['occt']
+    // 在 brepkit 下执行前报错（D11-4）。engines 与 capabilities 互斥（D11-7），
+    // 能力路由交由引擎身份判定（engines 前置，D11-2）。
     args: '(a: Shape3D, b: Shape3D, options?: BooleanOptions) -> Result<Shape3D>',
     // 两个输入都是 faijs Shape → 借入 brepjs handle；第三参 options 透传。
     geometryArgs: [0, 1],
@@ -164,6 +175,13 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     params: ['a', 'b', 'options'],
     formClass: 'A',
     scriptFace: true,
+    // Phase 5 补漏（§1.5 推论 1）：vendored fuse 默认 trackEvolution 路径调
+    // kernel.fuseWithHistory（L1）+ kernel.isNull / kernel.dispose（诊断回退，occt
+    // 平台面）→ brepkit 下执行前报错（D11-4），而非执行期 TypeError。capabilities
+    // 里的 isNull 是真实依赖（诚实声明保留）；engines 与 capabilities 不互斥冲突
+    // （D11-7 只禁两者同时**新增**？不——本条目两者都有：engines 判定在前（D11-2），
+    // capabilities 只在引擎匹配后继续求交，互为补充不矛盾）。
+    engines: ['occt'],
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
   },
   {
@@ -256,6 +274,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     returnsResult: true,
     returnType: 'VolumeProps',
     params: ['shape'], formClass: 'A',
+    engines: ['occt'],
   },
   {
     name: 'measureSurfaceProps',
@@ -267,6 +286,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     returnsResult: true,
     returnType: 'SurfaceProps',
     params: ['shape'], formClass: 'A',
+    engines: ['occt'],
   },
   {
     name: 'measureLinearProps',
@@ -278,6 +298,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     returnsResult: true,
     returnType: 'LinearProps',
     params: ['shape'], formClass: 'A',
+    engines: ['occt'],
   },
   {
     name: 'measureVolume',
@@ -289,6 +310,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     returnsResult: true,
     returnType: 'number',
     params: ['shape'], formClass: 'A',
+    engines: ['occt'],
   },
   {
     name: 'measureArea',
@@ -300,6 +322,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     returnsResult: true,
     returnType: 'number',
     params: ['shape'], formClass: 'A',
+    engines: ['occt'],
   },
   {
     name: 'measureLength',
@@ -311,6 +334,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     returnsResult: true,
     returnType: 'number',
     params: ['shape'], formClass: 'A',
+    engines: ['occt'],
   },
   {
     name: 'measureDistance',
@@ -326,6 +350,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     returnsResult: true,
     returnType: 'number',
     params: ['a', 'b'], formClass: 'A',
+    engines: ['occt'],
   },
   {
     name: 'measureDistanceProps',
@@ -341,6 +366,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     returnsResult: true,
     returnType: 'DistanceProps',
     params: ['a', 'b'], formClass: 'A',
+    engines: ['occt'],
   },
   {
     name: 'measureCurvatureAt',
@@ -357,6 +383,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     returnsResult: true,
     returnType: 'CurvatureResult',
     params: ['face', 'u', 'v'], formClass: 'A',
+    engines: ['occt'],
   },
   {
     name: 'measureCurvatureAtMid',
@@ -368,6 +395,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     returnsResult: true,
     returnType: 'CurvatureResult',
     params: ['face'], formClass: 'A',
+    engines: ['occt'],
   },
   {
     name: 'checkInterference',
@@ -384,6 +412,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     returnsResult: true,
     returnType: 'InterferenceResult',
     params: ['a', 'b', 'tolerance'], formClass: 'A',
+    engines: ['occt'],
   },
   {
     name: 'checkAllInterferences',
@@ -400,6 +429,30 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     returnsResult: false,
     returnType: 'InterferencePair[]',
     params: ['shapes', 'tolerance'], formClass: 'A',
+    engines: ['occt'],
+  },
+
+  // Phase 7（narrowing plan §Phase 7 / Q4）：cad 脚本面测量 op（手写实现，
+  // kind 'faijs'——api/measurement/index.ts）。直接调 getBrepApi() 的 L1 测量面
+  // （getSurfaceArea / getLength），无 vendored 借入层、无引擎绑定 → **中立 op**
+  // （occt / brepkit 同一份 .fai.js 可跑）。返回纯数字，不产出 Shape。
+  // 三源一致（B1）：scriptFace: true → gen-l3-surface 进 script-face.ts /
+  // script-face-manifest.ts，gen-symbol-table 同步 check() 符号表。
+  {
+    name: 'area',
+    source: 'measurement/index.js#area',
+    kind: 'faijs',
+    module: 'measurement',
+    args: '(shape: Shape) -> number(面积 mm²)',
+    scriptFace: true,
+  },
+  {
+    name: 'length',
+    source: 'measurement/index.js#length',
+    kind: 'faijs',
+    module: 'measurement',
+    args: '(shape: Shape) -> number(长度 mm)',
+    scriptFace: true,
   },
 
   // ──── P14 第二片：text 模块（8 符号：3 pure + 3 skip + 2 type）────
@@ -1553,7 +1606,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   },
   {
     // ---- brep-op：单/多单形状入参 → 单产物收养 ----
-    name: 'extrude', source: 'operations/api.js#extrude', kind: 'brep-op', capabilities: ["dispose","downcast","extrude","isNull"], module: 'operations',
+    name: 'extrude', source: 'operations/api.js#extrude', kind: 'brep-op', engines: ['occt'], module: 'operations',
     geometryArgs: [0],
     reason: 'faijs 侧 cad.extrude 由手写平台 op 覆盖（api/extrude.ts：对象形态 + upTo 拉伸到面/到支持体端面）。本投影只作为「长度形态」的引擎被手写 op 委托调用（vendored 是唯一拉伸引擎，既有 cad.extrude(face,[x,y,z]) 语义零漂移），生成模块符号不直接进 cad 命名空间 by design（同 fillet 口径）。',
     args: 'extrude(face: Shape, height: number|Vec3) → Shape｜extrude(face: Shape, params: { length? | upTo, normal?, mode?, baseFeature?, offset? }) → Shape',
@@ -1561,35 +1614,35 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [{ kind: 'semantic', name: 'top' }, { kind: 'semantic', name: 'bottom' }] } },
   },
   {
-    name: 'revolve', source: 'operations/api.js#revolve', kind: 'brep-op', capabilities: ["dispose","isNull","revolveVec","shapeType"], module: 'operations',
+    name: 'revolve', source: 'operations/api.js#revolve', kind: 'brep-op', engines: ['occt'], module: 'operations',
     geometryArgs: [0], reason: 'shapeable 面 → Result(Shape3D)，brep-op',
     args: 'revolve(face: Shape, options?: RevolveOptions): Shape',
     params: ['face', 'options'], formClass: 'A',
     naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [{ kind: 'semantic', name: 'top' }, { kind: 'semantic', name: 'bottom' }, { kind: 'wall', index: 0 }] } },
   },
   {
-    name: 'sweep', source: 'operations/extrudeFns.js#sweep', kind: 'brep-op', capabilities: ["dispose","shapeType","simplePipe","sweepPipeShell"], module: 'operations',
+    name: 'sweep', source: 'operations/extrudeFns.js#sweep', kind: 'brep-op', engines: ['occt'], module: 'operations',
     geometryArgs: [0, 1], reason: 'wire + spine → Result(Shape3D|tuple)，默认单产物，brep-op',
     args: 'sweep(wire: Shape, spine: Shape, config?: SweepOptions, shellMode?: boolean): Shape',
     params: ['wire', 'spine', 'config', 'shellMode'], formClass: 'A',
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
   },
   {
-    name: 'complexExtrude', source: 'operations/extrudeFns.js#complexExtrude', kind: 'brep-op', capabilities: ["buildExtrusionLaw","dispose","shapeType","simplePipe","sweepPipeShell"], module: 'operations',
+    name: 'complexExtrude', source: 'operations/extrudeFns.js#complexExtrude', kind: 'brep-op', engines: ['occt'], module: 'operations',
     geometryArgs: [0], reason: 'wire → Result(Shape3D)，brep-op',
     args: 'complexExtrude(wire: Shape, center: Vec3, normal: Vec3, profile?: ExtrusionProfile): Shape',
     params: ['wire', 'center', 'normal', 'profile'], formClass: 'A',
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
   },
   {
-    name: 'twistExtrude', source: 'operations/extrudeFns.js#twistExtrude', kind: 'brep-op', capabilities: ["buildExtrusionLaw","dispose","shapeType","simplePipe","sweepPipeShell"], module: 'operations',
+    name: 'twistExtrude', source: 'operations/extrudeFns.js#twistExtrude', kind: 'brep-op', engines: ['occt'], module: 'operations',
     geometryArgs: [0], reason: 'wire → Result(Shape3D)，brep-op',
     args: 'twistExtrude(wire: Shape, angleDegrees: number, center: Vec3, normal: Vec3): Shape',
     params: ['wire', 'angleDegrees', 'center', 'normal'], formClass: 'A',
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
   },
   {
-    name: 'linearPattern', source: 'operations/patternFns.js#linearPattern', kind: 'brep-op', capabilities: ["dispose","fuseAll","hashCode","isNull","iterShapes","linearPattern","section","surfaceCenterOfMass","surfaceNormal","surfaceType","uvBounds"], module: 'operations',
+    name: 'linearPattern', source: 'operations/patternFns.js#linearPattern', kind: 'brep-op', engines: ['occt'], module: 'operations',
     geometryArgs: [0], reason: 'shape → Result(Shape3D)，brep-op',
     args: 'linearPattern(shape: Shape, direction: Vec3, count: number, spacing: number): Shape',
     params: ['shape', 'direction', 'count', 'spacing'], formClass: 'A',
@@ -1597,7 +1650,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     naming: { kind: 'replicate', k: 0 },
   },
   {
-    name: 'circularPattern', source: 'operations/patternFns.js#circularPattern', kind: 'brep-op', capabilities: ["circularPattern","dispose","fuseAll","hashCode","isNull","iterShapes","section","surfaceCenterOfMass","surfaceNormal","surfaceType","uvBounds"], module: 'operations',
+    name: 'circularPattern', source: 'operations/patternFns.js#circularPattern', kind: 'brep-op', engines: ['occt'], module: 'operations',
     geometryArgs: [0], reason: 'shape → Result(Shape3D)，brep-op',
     args: 'circularPattern(shape: Shape, axis: Vec3, count: number, fullAngle?: number, center?: Vec3): Shape',
     params: ['shape', 'axis', 'count', 'fullAngle', 'center'], formClass: 'A',
@@ -1605,7 +1658,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     naming: { kind: 'replicate', k: 0 },
   },
   {
-    name: 'gridPattern', source: 'operations/patternFns.js#gridPattern', kind: 'brep-op', capabilities: ["dispose","fuseAll","gridPattern","hashCode","isNull","iterShapes","linearPattern","section","surfaceCenterOfMass","surfaceNormal","surfaceType","uvBounds"], module: 'operations',
+    name: 'gridPattern', source: 'operations/patternFns.js#gridPattern', kind: 'brep-op', engines: ['occt'], module: 'operations',
     geometryArgs: [0], reason: 'shape → Result(Shape3D)，brep-op',
     args: 'gridPattern(shape: Shape, directionX: Vec3, directionY: Vec3, countX: number, countY: number, spacingX: number, spacingY: number): Shape',
     params: ['shape', 'directionX', 'directionY', 'countX', 'countY', 'spacingX', 'spacingY'], formClass: 'A',
@@ -1620,7 +1673,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
   },
   {
-    name: 'drill', source: 'operations/compoundOpsFns.js#drill', kind: 'brep-op', capabilities: ["boundingBox","cut","cutWithHistory","dispose","isNull","makeCylinder"], module: 'operations',
+    name: 'drill', source: 'operations/compoundOpsFns.js#drill', kind: 'brep-op', engines: ['occt'], module: 'operations',
     geometryArgs: [0], reason: 'Shapeable<Shape3D> → Result<T>，brep-op',
     args: 'drill(shape: Shape, options: DrillOptions): Shape',
     params: ['shape', 'options'], formClass: 'A',
@@ -1628,7 +1681,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
   },
   {
-    name: 'pocket', source: 'operations/compoundOpsFns.js#pocket', kind: 'brep-op', capabilities: ["addHolesInFace","cut","cutWithHistory","dispose","downcast","extrude","isNull","makeFace","surfaceCenterOfMass","surfaceNormal","surfaceType","translateWithHistory","uvBounds"], module: 'operations',
+    name: 'pocket', source: 'operations/compoundOpsFns.js#pocket', kind: 'brep-op', engines: ['occt'], module: 'operations',
     geometryArgs: [0], reason: 'Shapeable<Shape3D> → Result<T>，brep-op',
     args: 'pocket(shape: Shape, options: PocketOptions): Shape',
     params: ['shape', 'options'], formClass: 'A',
@@ -1636,7 +1689,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
   },
   {
-    name: 'boss', source: 'operations/compoundOpsFns.js#boss', kind: 'brep-op', capabilities: ["addHolesInFace","dispose","downcast","extrude","fuse","fuseWithHistory","isNull","makeFace","surfaceCenterOfMass","surfaceNormal","surfaceType","translateWithHistory","uvBounds"], module: 'operations',
+    name: 'boss', source: 'operations/compoundOpsFns.js#boss', kind: 'brep-op', engines: ['occt'], module: 'operations',
     geometryArgs: [0], reason: 'Shapeable<Shape3D> → Result<T>，brep-op',
     args: 'boss(shape: Shape, options: BossOptions): Shape',
     params: ['shape', 'options'], formClass: 'A',
@@ -1644,7 +1697,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
   },
   {
-    name: 'mirrorJoin', source: 'operations/compoundOpsFns.js#mirrorJoin', kind: 'brep-op', capabilities: ["dispose","fuse","fuseWithHistory","isNull","mirrorWithHistory"], module: 'operations',
+    name: 'mirrorJoin', source: 'operations/compoundOpsFns.js#mirrorJoin', kind: 'brep-op', engines: ['occt'], module: 'operations',
     geometryArgs: [0], reason: 'Shapeable<Shape3D> → Result<T>，brep-op',
     args: 'mirrorJoin(shape: Shape, options?: MirrorJoinOptions): Shape',
     params: ['shape', 'options'], formClass: 'A',
@@ -1652,7 +1705,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     naming: { kind: 'replicate', k: 2 },
   },
   {
-    name: 'rectangularPattern', source: 'operations/compoundOpsFns.js#rectangularPattern', kind: 'brep-op', capabilities: ["dispose","fuse","fuseAll","fuseWithHistory","hashCode","isNull","iterShapes","section","surfaceCenterOfMass","surfaceNormal","surfaceType","translateWithHistory","uvBounds"], module: 'operations',
+    name: 'rectangularPattern', source: 'operations/compoundOpsFns.js#rectangularPattern', kind: 'brep-op', engines: ['occt'], module: 'operations',
     geometryArgs: [0], reason: 'Shapeable<Shape3D> → Result<T>，brep-op',
     args: 'rectangularPattern(shape: Shape, options: RectangularPatternOptions): Shape',
     params: ['shape', 'options'], formClass: 'A',
@@ -1660,14 +1713,14 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     naming: { kind: 'replicate', k: 0 },
   },
   {
-    name: 'thread', source: 'operations/threadFns.js#thread', kind: 'brep-op', capabilities: ["dispose","loftAdvanced","makeLineEdge","makeVertex","makeWireFromMixed","shapeType"], module: 'operations',
+    name: 'thread', source: 'operations/threadFns.js#thread', kind: 'brep-op', engines: ['occt'], module: 'operations',
     geometryArgs: [], reason: '仅参数构造 → Result(Shape3D)，单产物，brep-op',
     args: 'thread(options: ThreadOptions): Shape',
     params: ['options'], formClass: 'B1',
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
   },
   {
-    name: 'convexHull', source: 'operations/convexHullFns.js#convexHull', kind: 'brep-op', capabilities: ["dispose","hullFromPoints","shapeType"], module: 'operations',
+    name: 'convexHull', source: 'operations/convexHullFns.js#convexHull', kind: 'brep-op', engines: ['occt'], module: 'operations',
     geometryArgs: [], reason: '点集构造 → Result(Solid)，单产物，brep-op',
     args: 'convexHull(points: Vec3[]): Shape',
     params: ['points'], formClass: 'A',
@@ -2365,7 +2418,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   },
   // 1 × brep-op（构造类：纯数值参数 → Shape3D，无几何输入）
   {
-    name: 'makeBaseBox', source: 'sketching/shortcuts.js#makeBaseBox', kind: 'brep-op', capabilities: ["addHolesInFace","buildEdgeOnSurface","buildExtrusionLaw","copyShape","curveParameters","curvePointAtParam","curveTangent","dispose","downcast","extrude","isNull","loftAdvanced","makeFace","makeFaceOnSurface","makeVertex","makeWireFromMixed","mirror","revolveVec","shapeType","simplePipe","surfaceType","sweepPipeShell"], module: 'sketching',
+    name: 'makeBaseBox', source: 'sketching/shortcuts.js#makeBaseBox', kind: 'brep-op', engines: ['occt'], module: 'sketching',
     args: '(xLength: number, yLength: number, zLength: number) -> Shape3D',
     geometryArgs: [],
     returnsResult: false,
@@ -2652,7 +2705,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     reason: 'overridden by handwritten api/primitives.ts (cone dual-op, mesh+brep)',
   },
   {
-    name: 'ellipsoid', source: 'topology/primitiveFns.js#ellipsoid', kind: 'brep-op', capabilities: ["dispose","makeEllipsoid","translateWithHistory"],
+    name: 'ellipsoid', source: 'topology/primitiveFns.js#ellipsoid', kind: 'brep-op', engines: ['occt'],
     geometryArgs: [], returnsResult: false,
     args: 'ellipsoid(rx: number, ry: number, rz: number, options?: EllipsoidOptions): Shape',
     reason: '纯数值整件构造（rx/ry/rz → ValidSolid），brep-op',
@@ -2752,7 +2805,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     reason: 'faijs 同名 translate（§5.1 双形态：对象形态手写面覆盖 + v:Vec3 位置形态并入），生成层不重复投影',
   },
   {
-    name: 'rotate', source: 'topology/api.js#rotate', kind: 'brep-op', capabilities: ["dispose","rotateWithHistory"],
+    name: 'rotate', source: 'topology/api.js#rotate', kind: 'brep-op', engines: ['occt'],
     geometryArgs: [0], returnsResult: false,
     args: 'rotate(shape: Shape, angle: number, options?: { at?, axis? }): Shape',
     reason: 'faijs rotate 已更名 rotate_euler（faijs 面只导出 rotate_euler），上游轴角 rotate 空出 → brep-op 进脚本面'
@@ -2768,7 +2821,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     reason: 'overridden by handwritten api/transform.ts (scale dual-op, mesh+brep)',
   },
   {
-    name: 'mirror', source: 'topology/api.js#mirror', kind: 'brep-op', capabilities: ["dispose","mirrorWithHistory"],
+    name: 'mirror', source: 'topology/api.js#mirror', kind: 'brep-op', engines: ['occt'],
     geometryArgs: [0], returnsResult: false,
     args: 'mirror(shape: Shape, options?: MirrorOptions): Shape',
     reason: 'faijs 无同名 mirror，整件反射 → brep-op',
@@ -2777,7 +2830,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
   },
   {
-    name: 'clone', source: 'topology/api.js#clone', kind: 'brep-op', capabilities: ["copyShape","dispose"],
+    name: 'clone', source: 'topology/api.js#clone', kind: 'brep-op', engines: ['occt'],
     geometryArgs: [0], returnsResult: true,
     args: 'clone(shape: Shape): Shape',
     reason: 'faijs 用 copy（不同名），整件克隆（Result<T>）→ brep-op',
@@ -2786,7 +2839,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     naming: { kind: 'identity' },
   },
   {
-    name: 'applyMatrix', source: 'topology/api.js#applyMatrix', kind: 'brep-op', capabilities: ["dispose","generalTransformNonOrthogonal","generalTransformWithHistory","hashCode","iterShapes","surfaceCenterOfMass","surfaceNormal","surfaceType","uvBounds"],
+    name: 'applyMatrix', source: 'topology/api.js#applyMatrix', kind: 'brep-op', engines: ['occt'],
     geometryArgs: [0], returnsResult: true,
     args: 'applyMatrix(shape: Shape, matrix: unknown): Shape',
     reason: 'faijs 用 applyTransform（不同名），整件矩阵变换 → brep-op',
@@ -2840,7 +2893,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
       + '（含 UI ops 与存量迁移）——生成期守卫见 gen-l3-surface.ts（§4.8 触发条件）。',
   },
   {
-    name: 'section', source: 'topology/api.js#section', kind: 'brep-op', capabilities: ["dispose","isNull","section"],
+    name: 'section', source: 'topology/api.js#section', kind: 'brep-op', engines: ['occt'],
     geometryArgs: [0], returnsResult: true,
     args: 'section(shape: Shape, plane: PlaneInput): Shape',
     params: ['shape', 'plane'], formClass: 'A',
@@ -2851,7 +2904,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     reason: '返回 Face 子形状产物，faijs 整件面不承载，skip',
   },
   {
-    name: 'split', source: 'topology/api.js#split', kind: 'brep-op', capabilities: ["dispose","isNull","split"],
+    name: 'split', source: 'topology/api.js#split', kind: 'brep-op', engines: ['occt'],
     geometryArgs: [0], returnsResult: true,
     args: 'split(shape: Shape, tools: Shape[]): Shape',
     reason: 'faijs split 已更名 fai_split，上游工具切件 split 空出 → brep-op（§5.1 D-SPLIT；tools 暂登记几何首参，数组切件经 faijs 侧适配）',
@@ -2873,14 +2926,14 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     reason: 'faijs 同名 chamfer（§5.1 O-CHAMFER-1：role 取边已保留，上游 Edge 句柄取边形态待处置），生成层不重复投影',
   },
   {
-    name: 'shell', source: 'topology/api.js#shell', kind: 'brep-op', capabilities: ["dispose","shapeType","shell","shellWithHistory"],
+    name: 'shell', source: 'topology/api.js#shell', kind: 'brep-op', engines: ['occt'],
     geometryArgs: [0], returnsResult: true,
     args: 'shell(shape: Shape, faces?: Shape[], thickness: number): Shape',
     params: ['shape', 'faces', 'thickness'], formClass: 'A',
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
   },
   {
-    name: 'offset', source: 'topology/api.js#offset', kind: 'brep-op', capabilities: ["dispose","offsetWithHistory","shapeType"],
+    name: 'offset', source: 'topology/api.js#offset', kind: 'brep-op', engines: ['occt'],
     geometryArgs: [0], returnsResult: true,
     args: 'offset(shape: Shape, distance: number): Shape',
     reason: 'faijs 无同名偏置 → brep-op',
@@ -2897,7 +2950,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     reason: 'DraftOptions 含 NeutralPlane 等 face 引用，faijs 面引用体系不同，skip',
   },
   {
-    name: 'heal', source: 'topology/api.js#heal', kind: 'brep-op', capabilities: ["dispose","healFace","healSolid","healWire","isValid","shapeType"],
+    name: 'heal', source: 'topology/api.js#heal', kind: 'brep-op', engines: ['occt'],
     geometryArgs: [0], returnsResult: true,
     args: 'heal(shape: Shape): Shape',
     reason: 'faijs 无同名整件修复 → brep-op',
@@ -2906,7 +2959,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
   },
   {
-    name: 'simplify', source: 'topology/api.js#simplify', kind: 'brep-op', capabilities: ["dispose","simplify"],
+    name: 'simplify', source: 'topology/api.js#simplify', kind: 'brep-op', engines: ['occt'],
     geometryArgs: [0], returnsResult: true,
     args: 'simplify(shape: Shape): Shape',
     reason: 'faijs 无同名整件简化 → brep-op',
@@ -3207,7 +3260,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
 
   // healingFns：整件修复 brep-op；face/wire 级修复与 shell 组装 skip
   {
-    name: 'autoHeal', source: 'topology/healingFns.js#autoHeal', kind: 'brep-op', capabilities: ["dispose","fixSelfIntersection","healFace","healSolid","healWire","isValid","iterShapes","sew","shapeType"],
+    name: 'autoHeal', source: 'topology/healingFns.js#autoHeal', kind: 'brep-op', engines: ['occt'],
     geometryArgs: [0], returnsResult: true,
     args: 'autoHeal(shape: Shape, options?: AutoHealOptions): Shape',
     reason: '整件自动修复（Result<Shape>），brep-op',
@@ -3225,7 +3278,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
   },
   {
-    name: 'healSolid', source: 'topology/healingFns.js#healSolid', kind: 'brep-op', capabilities: ["dispose","healSolid","isValid","shapeType"],
+    name: 'healSolid', source: 'topology/healingFns.js#healSolid', kind: 'brep-op', engines: ['occt'],
     geometryArgs: [0], returnsResult: true,
     args: 'healSolid(solid: Shape): Shape',
     reason: 'Solid 修复（Result<ValidSolid>），brep-op',
@@ -3234,7 +3287,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
   },
   {
-    name: 'fixSelfIntersection', source: 'topology/healingFns.js#fixSelfIntersection', kind: 'brep-op', capabilities: ["dispose","fixSelfIntersection","shapeType"],
+    name: 'fixSelfIntersection', source: 'topology/healingFns.js#fixSelfIntersection', kind: 'brep-op', engines: ['occt'],
     geometryArgs: [0], returnsResult: true,
     args: 'fixSelfIntersection(shape: Shape): Shape',
     params: ['shape'], formClass: 'A',

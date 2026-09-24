@@ -43,7 +43,7 @@ export interface WarehouseAxis {
  * （第 ③ 层，两级断言：存在性 + 契约 smoke）兜住；新增成员必须先加进
  * 该测试的清单（§10 内核契约门禁）。
  */
-export interface WarehouseKernel extends BrepEngineApi {
+export type WarehouseKernel = Omit<BrepEngineApi, 'interpolatePoints' | 'getNurbsCurveData'> & {
   // ── 构造原语（W3 thread / W4 nut knurl / W6 bearing 依赖）──
   /** cq `Wire.makeHelix` 等价：**右手**圆柱螺旋线。
    *  ⚠️ 实测（occtWasmAdapter:430）：raw wasm 仅 9 参，无 taper/lefthand——
@@ -52,7 +52,10 @@ export interface WarehouseKernel extends BrepEngineApi {
   /** 点列 → 逼近 B 样条曲线（thread 端部 fade 的参数曲线，cq parametricCurve 等价）。 */
   approximatePoints(points: BrepVec3[], tolerance?: number): BrepHandle
   /** 点列 → 插值 B 样条曲线（cq `Workplane.spline` 的内核等价：过点插值，
-   *  非逼近；PanHead 等头型轮廓用）。 */
+   *  非逼近；PanHead 等头型轮廓用）。
+   *  ⚠️ 收窄后（2026-09-24）：type 交叉继承全部 L1 方法，仅 Omit 掉
+   *  `interpolatePoints`（L1 是 brepkit degree 语义）并覆盖为本包 occt 原生
+   *  periodic 语义。运行时 kernel 是 host 注入的 raw occt-wasm 平台面，调用不变。 */
   interpolatePoints(points: BrepVec3[], options?: { periodic?: boolean; tolerance?: number }): BrepHandle
   /** 点列 + 端点切向 → 插值三次 B 样条（`GeomAPI_Interpolate.Load(t0, t1, scale=True)`
    *  等价：切向量按弦长缩放，PanHead 头型样条复刻用）。 */
@@ -97,6 +100,8 @@ export interface WarehouseKernel extends BrepEngineApi {
    *  `useTriangulation=true` 取盒会被污染（A 侧 manifest 已因此错 0.0126 mm）——
    *  先量 bbox 再三角化。 */
   tessellate(shape: BrepHandle, options?: TessellateOptionsLite): TessellateResultLite
+  /** `BRepOffsetAPI_ThruSections`: wires → shell（occt 平台方法，收窄后不在 L1）。 */
+  loft(wires: BrepHandle[], isSolid?: boolean, ruled?: boolean): BrepHandle
   /** NURBS 曲线数据（探针取极点对表用，如 PanHead 样条 vs `GeomAPI_Interpolate`）。
    *  ⚠️ 平台契约 `BrepEngineApi.getNurbsCurveData` 只声明了
    *  `{degree, periodic, rational}`（core 的类型欠账，已记 backlog）；

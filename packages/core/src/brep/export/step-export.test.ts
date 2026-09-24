@@ -17,6 +17,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { initOcctWasm, getKernel, disposeOcctWasm } from '../../occt-kernel/occtKernel'
 import { importAssemblyFromStep, releaseAssemblyTree } from '../../occt-kernel/occtKernel'
 import type { AssemblyPartNode } from '../../occt-kernel/occtKernel'
+import type { OcctKernel } from 'occt-wasm'
 import type { BrepHandle } from '../engine/types'
 import type { BrepEngineApi } from '../engine/primitives'
 import { exportStepFromSolids } from './step'
@@ -106,7 +107,7 @@ describe('exportStepFromSolids', () => {
         const names = leaves.map(l => l.name).sort()
         expect(names).toEqual(['part-a', 'part-b'])
       } finally {
-        releaseAssemblyTree(kernel, nodes)
+        releaseAssemblyTree(kernel as unknown as OcctKernel, nodes)
       }
     } finally {
       kernel.release(boxA)
@@ -128,7 +129,7 @@ describe('exportStepFromSolids', () => {
         expect(leaves).toHaveLength(1)
         expect(leaves[0].name).toBe('solo')
       } finally {
-        releaseAssemblyTree(kernel, nodes)
+        releaseAssemblyTree(kernel as unknown as OcctKernel, nodes)
       }
     } finally {
       kernel.release(box)
@@ -152,7 +153,7 @@ describe('exportStepFromSolids', () => {
         // 与导入侧 walkLabel 拆分命名一致：`name [1]` / `name [2]`
         expect(names).toEqual(['assy [1]', 'assy [2]'])
       } finally {
-        releaseAssemblyTree(kernel, nodes)
+        releaseAssemblyTree(kernel as unknown as OcctKernel, nodes)
       }
     } finally {
       kernel.release(compound)
@@ -174,7 +175,7 @@ describe('exportStepFromSolids', () => {
       expect(leaves).toHaveLength(1)
       expect(leaves[0].name).toBe('faceted-part')
     } finally {
-      releaseAssemblyTree(kernel, nodes)
+      releaseAssemblyTree(kernel as unknown as OcctKernel, nodes)
     }
   })
 
@@ -198,7 +199,7 @@ describe('exportStepFromSolids', () => {
         const names = collectLeaves(nodes).map(l => l.name).sort()
         expect(names).toEqual(['brep-part', 'mesh-part'])
       } finally {
-        releaseAssemblyTree(kernel, nodes)
+        releaseAssemblyTree(kernel as unknown as OcctKernel, nodes)
       }
     } finally {
       kernel.release(box)
@@ -221,7 +222,7 @@ describe('exportStepFromSolids', () => {
         expect(c![1]).toBeCloseTo(0.2, 5)
         expect(c![2]).toBeCloseTo(0.1, 5)
       } finally {
-        releaseAssemblyTree(kernel, nodes)
+        releaseAssemblyTree(kernel as unknown as OcctKernel, nodes)
       }
     } finally {
       kernel.release(box)

@@ -27,7 +27,8 @@ import type { StdlibNamespace } from '../runtime-state'
 import type { PartName } from '../identity'
 import { asPartName } from '../identity'
 import { ParseError } from '../lang/parse-error'
-import { setCurrentStmt, setKeepSink, setName, nameOf, getBackends, takePendingAssemblyTransforms, takePendingAssemblyKinematics, type AssemblyKinematicsPose, type ExecutionAnchor } from '../runtime-state'
+import { setCurrentStmt, setKeepSink, setName, nameOf, takePendingAssemblyTransforms, takePendingAssemblyKinematics, type AssemblyKinematicsPose, type ExecutionAnchor } from '../runtime-state'
+import { getBrepApi } from '../brep/handle-bridge'
 import { runtimeLineage } from '../topology/naming/lineage'
 import { ExecutionLimitError } from './execution-limit-error'
 import { assertSecure, type SecurityPolicy } from '../lang/security-scanner'
@@ -611,7 +612,9 @@ export class DirectExecutor {
     const pending = takePendingAssemblyTransforms()
     const pendingKin = takePendingAssemblyKinematics()
     if (pending.length === 0 && pendingKin.length === 0) return
-    const kernel = getBackends().kernel.brep as BrepEngineApi | null
+    // 引擎未初始化（纯 mesh 装配场景）→ kernel null，仅做 mesh 顶点烘焙。
+    let kernel: BrepEngineApi | null = null
+    try { kernel = getBrepApi() } catch { /* no engine -> mesh-only bake */ }
     for (const { compound, transforms } of pending) {
       const behavior = getSlot(compound)?.behavior as { memberNames?: string[] } | undefined
       if (!behavior?.memberNames) continue

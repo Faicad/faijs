@@ -132,7 +132,7 @@ $elapsed3 = (Get-Date) - $start3
 $total3 = (Get-Date) - $script:globalStart
 Write-Host "    ($($elapsed3.TotalSeconds.ToString('0.0'))s / 累计 $($total3.TotalSeconds.ToString('0.0'))s)" -ForegroundColor DarkGray
 
-Step -Label '5/9  守卫：幽灵依赖 / workspaces 顺序 / 包图无环 / 导出面 / P1 移植树' -Block {
+Step -Label '5/9  守卫：幽灵依赖 / workspaces 顺序 / 包图无环 / 导出面 / P1 移植树 / 平台 import 隔离' -Block {
     node scripts/check-ghost-deps.mjs
     if ($LASTEXITCODE -ne 0) { return }
     node scripts/check-workspaces-order.mjs
@@ -140,6 +140,9 @@ Step -Label '5/9  守卫：幽灵依赖 / workspaces 顺序 / 包图无环 / 导
     node scripts/check-dep-lockstep.mjs
     if ($LASTEXITCODE -ne 0) { return }
     npx madge --circular packages/core/src packages/faijs-extra/src
+    if ($LASTEXITCODE -ne 0) { return }
+    # 平台 import 隔离（narrowing plan Phase 8）：中立模块不得静态 import occt/brepkit 平台模块
+    node scripts/check-platform-imports.mjs
     if ($LASTEXITCODE -ne 0) { return }
     # 导出面：10 个子路径必须全部可导入（快照脚本自身断言；有 error 即失败）
     node scripts/api-surface-snapshot.mjs

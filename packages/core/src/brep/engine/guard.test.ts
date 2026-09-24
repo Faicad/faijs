@@ -11,10 +11,14 @@
 import { describe, it, expect } from 'vitest'
 import type { AssertSatisfiesBrepEngineApi } from './primitives'
 import { initOcctWasm } from '../../occt-kernel/occtKernel'
+import { createOcctPrimitives } from '../../occt-kernel/occt-primitives'
 import { createBrepMockApi } from './adapters/brep-mock'
 
 // ── 正向断言：两引擎的 API 类型都满足接口 ──
-type _OcctSatisfies = AssertSatisfiesBrepEngineApi<Awaited<ReturnType<typeof initOcctWasm>>>
+// Phase 4 收窄后 initOcctWasm 返回的**原生内核类型**（OcctKernel）不再近似满足
+// BrepEngineApi——L1 契约面由适配器组合（createOcctPrimitives：原生 + 组合代理）
+// 提供，正向断言改指组合面（occt-primitives.ts:414 同源守卫）。
+type _OcctSatisfies = AssertSatisfiesBrepEngineApi<Awaited<ReturnType<typeof createOcctPrimitives>>>
 type _BrepMockSatisfies = AssertSatisfiesBrepEngineApi<ReturnType<typeof createBrepMockApi>>
 
 // ── 负向断言：不完整实现必须被拒绝 ──
@@ -25,6 +29,7 @@ describe('编译期守卫 AssertSatisfiesBrepEngineApi（§7.8）', () => {
   it('两引擎 API 满足接口（正向断言由 tsc 编译期保证）', () => {
     // 类型别名已由 tsc 检查；运行时仅确认构造器存在
     expect(typeof createBrepMockApi).toBe('function')
+    expect(typeof createOcctPrimitives).toBe('function')
     expect(typeof initOcctWasm).toBe('function')
   })
 })

@@ -309,7 +309,7 @@ const sections: Record<string, () => void> = {
 
 async function main(): Promise<void> {
   await setupWarehouseKernel()
-  k = requireKernel() as WarehouseKernel
+  k = requireKernel() as unknown as WarehouseKernel
   const arg = process.argv[2]
   const keys = arg ? arg.split(',') : Object.keys(sections)
   for (const key of keys) {

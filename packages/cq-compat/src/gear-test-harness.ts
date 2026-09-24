@@ -4,10 +4,13 @@
  * These ops call the occt-wasm kernel directly via `getKernel()` (the native
  * singleton that `registerOcctBrepEngine()` initializes) and wrap results with
  * `fromHandle`. `fromHandle` needs `getBackends().kernel.brep` to be a MESHABLE
- * kernel — the raw occt-wasm `OcctKernel` exposes `meshShape`, so we wire it
- * straight into `configureBackends`. This is intentionally the SAME native
- * instance the ops use, so handles stay consistent (no second kernel, no
- * `createRuntime`, which only lazily builds its brep chain inside `execute`).
+ * kernel. Since the 2026-09-24 narrowing (D12), `kernel.brep` must be the **L1
+ * adapter** (`BrepEngineApi`) — the L1 normalized method names
+ * (`surfaceCenterOfMass` / `subShapeHashes` / `uvBounds` …) exist only on the
+ * adapter, not on the raw `OcctKernel`. So we wire `occtEngine.primitives`
+ * (the L1 adapter over the SAME kernel singleton) into `configureBackends`;
+ * `createOcctPrimitives()` internally uses the same `initOcctWasm()` singleton,
+ * so handle spaces stay consistent across ops and fixtures.
  *
  * This file is NOT a test (no `*.test.ts`); it is imported by the E1–E4 specs.
  */
@@ -32,7 +35,6 @@ import type { Workplane } from './workplane'
  */
 export async function setupNativeKernel(): Promise<void> {
   await registerOcctBrepEngine()
-  const k = getKernel() as unknown as OcctKernel
   // Capability declaration is NOT re-typed here: take back the honest declaration
   // the OCCT adapter itself carries. Before this, the harness hand-mirrored it with
   // `evolution: true` — a second home for the same fact, which silently desynced the
@@ -40,6 +42,8 @@ export async function setupNativeKernel(): Promise<void> {
   // dual-ops that gate on a capability (e.g. union → 'fuse') still dispatch to brep
   // instead of throwing E_BREP_UNSUPPORTED in the bare-kernel test path.
   const occtEngine = await getBrepEngine(OCCT_BREP_ENGINE_ID)
+  // 收窄后（2026-09-24）注入 L1 适配器而非裸 occt-wasm：L1 归一化方法名只在
+  // 适配器上（occt-primitives.ts）。句柄空间同一（适配器内部 = initOcctWasm 单例）。
   configureBackends({
     contractVersion: CONTRACT_VERSION,
     config: {
@@ -47,7 +51,7 @@ export async function setupNativeKernel(): Promise<void> {
       brepEngineId: 'occt',
       brepCapabilities: occtEngine.capabilities,
     },
-    kernel: { brep: k, csg: undefined, sdf: undefined },
+    kernel: { brep: occtEngine.primitives, csg: undefined, sdf: undefined },
     fonts: undefined,
     texture: undefined,
     assets: undefined,

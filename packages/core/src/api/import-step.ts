@@ -1,5 +1,6 @@
 import type { Shape } from '../mesh/types'
 import { getBackends, BrepUnsupportedError, getCurrentStmt } from '../runtime-state'
+import { getBrepApi } from '../brep/handle-bridge'
 import { OpError } from './internal/result-unwrap'
 import { loadBrep } from '../brep/brep-ops'
 import { fromBrep } from '../shape'
@@ -50,9 +51,8 @@ export async function import_step(params: Record<string, unknown>): Promise<Shap
 
   const buffer = await assets.resolveFile(path)
 
-  const kernel = getBackends().kernel.brep as BrepEngineApi | null
-  if (!kernel) {
-    throw new BrepUnsupportedError(
+  let kernel: BrepEngineApi
+  try { kernel = getBrepApi() } catch { throw new BrepUnsupportedError(
       'E_BREP_UNSUPPORTED: import_step requires an OCCT kernel (STEP has no mesh parser)',
     )
   }

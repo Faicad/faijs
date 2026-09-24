@@ -11,10 +11,9 @@
 
 import type { Shape, Vec3 } from '../mesh/types'
 import { cad } from '../mesh'
-import { getBackends } from '../runtime-state'
+import { getBrepApi } from '../brep/handle-bridge'
 import { brepOf } from '../shape'
 import type { BrepHandle } from '../brep/engine/types'
-import type { BrepEngineApi } from '../brep/engine/primitives'
 
 /** 内部实现：faceNormal 专用——faceOrdinal+BREP 优先 → anchor 反查 → 报错（逻辑迁移自 resolveGeomRef）。 */
 function geomQuery(
@@ -25,7 +24,7 @@ function geomQuery(
   // 优先路径：faceOrdinal 拓扑引用（BREP 路径）
   if (faceOrdinal !== undefined) {
     const solid = brepOf(of) as BrepHandle | undefined
-    const kernel = getBackends().kernel.brep as BrepEngineApi | null
+    const kernel = getBrepApi()
     if (solid && kernel) {
       try {
         const faces = kernel.getSubShapes(solid, 'face')

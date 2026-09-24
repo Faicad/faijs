@@ -11,10 +11,11 @@
  *    vendored 测量方法名映射到 BrepEngineApi（volume→getVolume、centerOfMass→
  *    getCenterOfMass 元组化、boundingBox→getBoundingBox min/max 元组化），brepkit
  *    注入成功且 measureVolume / measureVolumeProps 与 occt 一致。
- *    GOTCHA（引擎契约缺口）：vendored `area` / `length` / `linearCenterOfMass` 在
- *    BrepEngineApi 无对应能力（无 getSurfaceArea/getLength/getLinearCenterOfMass），
- *    适配器上为 undefined（缺口登记表 UNMAPPED_VENDORED_MEASURE_METHODS）——
- *    measureSurfaceProps 只能 occt-only，不补桩、不返回 0。
+ *    GOTCHA（引擎契约缺口）：Phase 6 收口（D7）前 vendored `area` / `length` /
+ *    `linearCenterOfMass` 在 BrepEngineApi 无对应能力，适配器上为 undefined；
+ *    Phase 6 后 `area` / `length` 已映射到 L1 测量面（getSurfaceArea / getLength，
+ *    Phase 4 D9 接线），brepkit 适配器同样真实可用；`linearCenterOfMass` 无 L1
+ *    对应（L2 平台面）仍是真实缺口——不补桩、不返回 0，测试内联钉住 undefined。
  * 3. **注入缓存重置（防回归）**：同进程 occt 注入 → 重置 → brepkit 再注入，必须
  *    返回 brepkit 适配器。旧实现 `_injected` 无重置钩子会短路返回 occt 旧适配器
  *    （把 brepkit 数字句柄当 occt-wasm 指针解引用 → OOM/崩溃）。
@@ -30,14 +31,17 @@ import {
   injectCurrentBrepEngineAsKernel,
   isKernelInjected,
   __resetKernelInjectionForTests,
-  UNMAPPED_VENDORED_MEASURE_METHODS,
 } from '../../api/occt-kernel-bridge'
 import { handle as occtWasmHandleView } from '../../vendored/brepjs/kernel/occtWasm/helpers'
+import { fromHandle } from '../../brep/handle-bridge'
+import type { BrepHandle } from '../../brep/engine/types'
+import { measureArea, measureLength, measureVolume } from '../../api/generated/measurement'
 import {
-  measureVolume,
+  measureVolume as vendoredMeasureVolume,
   measureVolumeProps,
 } from '../../vendored/brepjs/measurement/measureFns'
 import type { BrepEngineApi } from './primitives'
+import { configureBackends } from '../../runtime-state'
 
 let occtApi: BrepEngineApi
 let brepkitApi: BrepEngineApi
@@ -143,7 +147,9 @@ describe('vendored 测量面：双引擎 parity（BrepEngineApi 已具备的能�
     const box = api.makeBox(20, 10, 5)
     try {
       const h = { wrapped: occtWasmHandleView('solid' as never, box as never) }
-      const v = measureVolume(h as never)
+      // vendored 层函数（绕生成 op 的 assertEngineFor 与借入——本测试直接构造
+      // vendored 句柄，验证桥接映射本身）。
+      const v = vendoredMeasureVolume(h as never)
       expect(v.ok).toBe(true)
       expect((v as { ok: true; value: number }).value).toBeCloseTo(BOX_VOLUME, -1)
 
@@ -202,14 +208,18 @@ describe('vendored 测量面：双引擎 parity（BrepEngineApi 已具备的能�
       const h = { wrapped: box }
       // measureVolumeProps 先调 isNull（measureFns.ts:30）；isNull 已从 BrepEngineApi
       // 移至 occt 平台面，brepkit 侧无此方法 → 运行时抛 "isNull is not a function"。
-      expect(() => measureVolume(h as never)).toThrow(/isNull/)
+      // （这是 vendored 函数层行为；生成 op 面在 brepkit 下由 assertEngineFor
+      // 执行前报错，见「Phase 6 平台声明」测试。）
+      expect(() => vendoredMeasureVolume(h as never)).toThrow(/isNull/)
     } finally {
       api.release(box)
     }
   })
 
-  // 引擎契约缺口：measureSurfaceProps 依赖 vendored `area` → BrepEngineApi
-  // getSurfaceArea（不存在）。维持 occt-only；brepkit 面不断言面积。
+  // vendored measureSurfaceProps 依赖 `area`：Phase 6 后 area 已映射（L1 测量面）。
+  // 但 measureSurfaceProps 还调 kernel.isNull（measureFns.ts:30，occt 平台面）——
+  // brepkit 侧抛错（上文 GOTCHA 测试钉住），故 vendored 面仍 occt-only；
+  // brepkit 的面积可用性由下方「Phase 6 收口」测试直接断言适配器方法。
   it('occt：measureVolumeProps 面积分量一致（表面积 700）', async () => {
     __resetEngineRegistriesForTests()
     __resetKernelInjectionForTests()
@@ -228,13 +238,90 @@ describe('vendored 测量面：双引擎 parity（BrepEngineApi 已具备的能�
     }
   })
 
-  it('缺口登记：area / length / linearCenterOfMass 在 brepkit 适配器上为 undefined（不补桩）', async () => {
+  it('Phase 6 收口：area/length 在 brepkit 适配器真实可用；linearCenterOfMass 仍缺口（不补桩）', async () => {
     __resetEngineRegistriesForTests()
     __resetKernelInjectionForTests()
     await registerBrepkitBrepEngine()
     const adapter = await injectCurrentBrepEngineAsKernel()
-    for (const m of UNMAPPED_VENDORED_MEASURE_METHODS) {
-      expect((adapter as unknown as Record<string, unknown>)[m], `gap method '${m}'`).toBeUndefined()
+    const api = (await getBrepEngine()).primitives
+    const box = api.makeBox(20, 10, 5)
+    try {
+      // D7：area→getSurfaceArea / length→getLength（L1 测量面，两引擎同口径）。
+      const h = { wrapped: box }
+      expect(adapter.area(h as never)).toBeCloseTo(BOX_AREA, -1)
+      expect(adapter.length(h as never)).toBeCloseTo(20, -1)
+      // linearCenterOfMass 是 L2 平台面（primitives.ts 注释）：无 L1 对应，
+      // 保持 undefined——静默 0 比崩溃更糟。
+      expect((adapter as unknown as Record<string, unknown>)['linearCenterOfMass']).toBeUndefined()
+    } finally {
+      api.release(box)
+    }
+  })
+
+  it('Phase 6 平台声明：vendored 测量 op 面在 brepkit 下执行前报错（D7→D11）', async () => {
+    // vendored 投影面整体绑定 occt-wasm（l3-bridge 借入层 shapeType + 依赖
+    // occt-only 内核方法），12 个 measurement query op 在 arg-spec 全部声明
+    // engines: ['occt']——生成函数体第一行 assertEngineFor 在触碰内核之前
+    // 报出可定位错误（D11-4 文案同构），而非执行期 TypeError。
+    __resetEngineRegistriesForTests()
+    __resetKernelInjectionForTests()
+    await registerBrepkitBrepEngine()
+    await injectCurrentBrepEngineAsKernel()
+    configureBackends({
+      contractVersion: 1,
+      config: { mode: 'brep', brepCapabilities: {}, brepEngineId: 'brepkit' },
+      kernel: { brep: null, csg: undefined, sdf: undefined },
+      fonts: undefined,
+      texture: undefined,
+      assets: undefined,
+      events: undefined,
+      cad: {} as never,
+    })
+    const api = (await getBrepEngine()).primitives
+    const box = api.makeBox(20, 10, 5)
+    try {
+      // 断言在函数体第一行执行，先于借入/内核调用——shape 只需满足类型（运行时
+      // 不触碰它），构造最小 Shape 即可（无需 fromHandle / 网格化）。
+      const shape = { positions: new Float32Array(0), indices: new Uint32Array(0) } as never
+      expect(() => measureArea(shape)).toThrow(/E_BREP_UNSUPPORTED: op 'measureArea' requires engine occt \(current=brepkit\)/)
+      expect(() => measureLength(shape)).toThrow(/E_BREP_UNSUPPORTED: op 'measureLength' requires engine occt \(current=brepkit\)/)
+      expect(() => measureVolume(shape)).toThrow(/E_BREP_UNSUPPORTED: op 'measureVolume' requires engine occt \(current=brepkit\)/)
+    } finally {
+      api.release(box)
+    }
+  })
+
+  it('Phase 6 平台声明：occt 下生成 op 面全链路可用（借入 → vendored → 数值）', async () => {
+    __resetEngineRegistriesForTests()
+    __resetKernelInjectionForTests()
+    await registerOcctBrepEngine()
+    await injectCurrentBrepEngineAsKernel()
+    configureBackends({
+      contractVersion: 1,
+      config: { mode: 'brep', brepCapabilities: {}, brepEngineId: 'occt' },
+      kernel: {
+        brep: { meshShape: () => ({ positions: [0, 0, 0], indices: [0] }) } as never,
+        csg: undefined,
+        sdf: undefined,
+      },
+      fonts: undefined,
+      texture: undefined,
+      assets: undefined,
+      events: undefined,
+      cad: {} as never,
+    })
+    const api = (await getBrepEngine()).primitives
+    const box = api.makeBox(20, 10, 5)
+    try {
+      const shape = fromHandle(box as BrepHandle)
+      expect(measureArea(shape)).toBeCloseTo(BOX_AREA, -1)
+      expect(measureVolume(shape)).toBeCloseTo(BOX_VOLUME, -1)
+      // occt getLength 对 solid 按「边-面」计数（每条边计入两个相邻面）：
+      // 20×10×5 盒 12 条边总长 140，实测 2×140 = 280。数值钉住（vendored
+      // measureLinearProps 走 kernel.length 直通，无归一化）。
+      expect(measureLength(shape)).toBeCloseTo(280, -1)
+    } finally {
+      api.release(box)
     }
   })
 })

@@ -1,6 +1,10 @@
 /**
  * BREP 拓扑运行时构建 — 从 OCCT solid 句柄生成 SelectorRuntime + mesh 数据
  *
+ * @platform occt — 本文件 import occt-kernel（occtKernel / topologyExt）：拓扑
+ *   提取直接消费平台原生句柄与扩展方法，由调用方（宿主导出缓存 / 平台装配点）
+ *   在 occt 引擎下使用；守卫 R1 豁免、R2 无 defineOp 不适用。
+ *
  * 与 STEP 文件导入的拓扑提取使用**同源算法**：
  *   meshShape + buildAssemblySelectorManifest + buildSelectorRuntime
  *

@@ -22,15 +22,14 @@
  */
 import { describe, it, expect, beforeAll } from 'vitest'
 import { initOcctWasm, getKernel } from '../../occt-kernel/occtKernel'
+import type { OcctKernel, ShapeHandle } from 'occt-wasm'
 import { HASH_UPPER_BOUND } from '../face-evolution'
-import type { BrepHandle } from './types'
-import type { BrepEngineApi } from './primitives'
 
-let kernel: BrepEngineApi
+let kernel: OcctKernel
 
 beforeAll(async () => {
   await initOcctWasm()
-  kernel = getKernel() as unknown as BrepEngineApi
+  kernel = getKernel()
 }, 120000)
 
 /** occt-wasm@3.8.4 暴露的全部 `*WithHistory`（dist/index.d.ts:458-472，共 12 个）。 */
@@ -70,7 +69,7 @@ function decodeModified(m: number[]): { coveredInputs: number; outHashes: number
 }
 
 /** 造 box 并取其全部面 hash。 */
-function makeBoxFaces(dx: number, dy: number, dz: number): { box: BrepHandle; hashes: number[] } {
+function makeBoxFaces(dx: number, dy: number, dz: number): { box: ShapeHandle; hashes: number[] } {
   const box = kernel.makeBox(dx, dy, dz)
   const hashes = Array.from(kernel.subShapeHashes(box, 'face', HASH_UPPER_BOUND))
   return { box, hashes }

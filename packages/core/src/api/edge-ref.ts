@@ -22,10 +22,9 @@
  */
 
 import type { Shape } from '../mesh/types'
-import { getBackends } from '../runtime-state'
+import { getBrepApi } from '../brep/handle-bridge'
 import { brepOf } from '../shape'
 import type { BrepHandle } from '../brep/engine/types'
-import type { BrepEngineApi } from '../brep/engine/primitives'
 import { captureEdgeHint, findOriginRole, TopoRefError } from '../topology/naming'
 import type { EdgeTopoRef, RoleQualifier } from '../topology/naming'
 import { buildEdgeResolutionContext } from './topo-resolve'
@@ -51,7 +50,7 @@ export function edgeRef(of: Shape, edgeOrdinal: number): EdgeTopoRef {
   if (!Number.isInteger(edgeOrdinal) || edgeOrdinal < 1) {
     throw new TopoRefError('E_TOPO_NOT_FOUND', 'edge', `edgeRef: edgeOrdinal must be an integer >= 1 (got ${edgeOrdinal})`)
   }
-  const kernel = getBackends().kernel.brep as BrepEngineApi | null
+  const kernel = getBrepApi()
   // Phase 1.9（D6/§3）：mesh 路径不支持拓扑引用——静态判定、显式抛错，不静默降级
   if (!kernel) {
     throw new TopoRefError('E_TOPO_MESH_UNSUPPORTED', 'edge', 'edgeRef: topology references are BREP-only (mesh path unsupported)')

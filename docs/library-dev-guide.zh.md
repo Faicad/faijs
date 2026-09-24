@@ -222,6 +222,31 @@ let u1 = cad.union(g1, b0)
 | 几何终端 | `unfoldSolid(s1)`——借入零拷贝 arena 视图 |
 
 `solidOf` 作为显式终端保留，供 TS 兼容面与库侧使用；脚本面上它不再是*必需*的——成员访问（`p.solid`）可以直接取到该字段。
+### 4.4 平台 op 与 `engines` 声明
+
+库里的 op 只要**静态 import 了平台模块**（`occt-kernel/*` 或 `brepkit-kernel/*`），就是**平台 op**——import 是唯一判据（narrowing plan §1.1）。平台 op 必须在 `defineOp` 里声明平台身份：
+
+```ts ignore-check
+import { defineOp } from '@faicad/faijs/sdk'
+import { occt } from './my-occt-only-helper' // imports occt-kernel/* → platform op
+
+export const myOp = defineOp({
+  name: 'myOp',
+  engines: ['occt'], // REQUIRED for platform ops
+  brep: async (ctx, ...args) => { /* ... */ },
+})
+```
+
+规则（D11，由 `assertLibConforms` + CI 守卫 `check-platform-imports.mjs` 检查）：
+
+1. **`engines` 只写真实引擎 id**——`'occt'` / `'brepkit'` / `'brep_mock'`（禁止裸 `string`）。
+2. **`engines` 与 `capabilities` 互斥**——平台 op 写 `engines`、*不*写 `capabilities`（D11-7）；中立 op 写 `capabilities`、不写 `engines`。两者皆空只允许 mesh-only op。
+3. **拦截发生在执行期**——非目标引擎下 op 在触碰内核之前失败（`BrepUnsupportedError` → `ExecutionResult.failedAt`）。静态守卫只强制声明本身，不能替代声明。
+4. **`brep_mock` 豁免拦截**（测试替身，D11-3）——但声明的 `engines` 仍参与 parity / engine-switch 测试。
+5. **库的 dual-op 若 import 了平台模块，同样受此约束**——在 `defineOp` 写 `engines`，拦截发生在执行期 `dispatchPath`，不依赖注册期校验。
+
+中立 op（实现只经 `getBrepApi()` L1 方法）*不得*写 `engines`——L1 契约面天然与引擎无关。
+
 
 ---
 

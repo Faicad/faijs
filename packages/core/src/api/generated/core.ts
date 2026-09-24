@@ -245,5 +245,6 @@ export { vecSub } from '../../vendored/brepjs/core/vecOps.js'
  * @returns ShapeKind — 纯数据结果（非 Shape）。
  */
 export function getShapeKind(shape: Shape): ShapeKind {
+
   return callBrepjs(__vendored_getShapeKind, [borrowBrepjsShape(shape as Shape)])
 }

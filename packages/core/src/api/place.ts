@@ -16,7 +16,7 @@
  */
 
 import type { Shape } from '../mesh/types'
-import { getBackends } from '../runtime-state'
+import { getBrepApi } from '../brep/handle-bridge'
 import { fromBrep, brepOf, inputRoleTable, isCompoundLike } from '../shape'
 import { solidToShape, applyTransformBrep } from '../brep/brep-ops'
 import { applyTransform } from '../mesh/rigid-transform'
@@ -25,7 +25,6 @@ import { propagateAllOrigins } from '../topology/naming/roles'
 import type { RoleTable } from '../topology/naming/types'
 import type { Provenance } from '../topology/naming/lineage'
 import { defineOp } from '../sdk'
-import type { BrepEngineApi } from '../brep/engine/primitives'
 import type { BrepHandle } from '../brep/engine/types'
 
 /** 四元数 (x,y,z,w) → row-major 3×3 旋转矩阵（Hamilton，与 THREE/FreeCAD 同约定）。 */
@@ -70,8 +69,7 @@ function placeMesh(
 
 /** brep 路径：刚体变换实体 + 恒等面演化 + 恒等 roleTable 传播 + 三角化 + fromBrep 登记。 */
 function placeBrep(input: Shape, rotation: [number, number, number, number], position: [number, number, number]): Shape {
-  const kernel = getBackends().kernel.brep as BrepEngineApi | null
-  if (!kernel) throw new Error('[api/place] no OCCT kernel')
+  const kernel = getBrepApi()
   const inputSolid = brepOf(input) as BrepHandle | undefined
   if (!inputSolid) throw new Error('[api/place] input is not BREP')
 

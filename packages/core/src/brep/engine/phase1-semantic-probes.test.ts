@@ -18,14 +18,14 @@
  */
 import { describe, it, expect, beforeAll } from 'vitest'
 import { initOcctWasm, getKernel } from '../../occt-kernel/occtKernel'
-import type { BrepHandle } from './types'
+import type { ShapeHandle } from 'occt-wasm'
 
 beforeAll(async () => {
   await initOcctWasm()
 })
 
 /** Build a large planar face (tool) covering the solid from a point + normal. */
-function makePlanarFaceTool(point: { x: number; y: number; z: number }, normal: { x: number; y: number; z: number }): BrepHandle {
+function makePlanarFaceTool(point: { x: number; y: number; z: number }, normal: { x: number; y: number; z: number }): ShapeHandle {
   const k = getKernel()
   // Plane face built in the XY plane at origin, then translated to `point`.
   // Probe constructs only a +Z normal case; orientation generality is the
@@ -37,7 +37,7 @@ function makePlanarFaceTool(point: { x: number; y: number; z: number }, normal: 
     throw new Error('probe helper supports +Z normals only')
   }
   void point
-  return k.translate(face, point.x, point.y, point.z) as unknown as BrepHandle
+  return k.translate(face, point.x, point.y, point.z)
 }
 
 describe('Phase 1 probe: sectionByPlane (planar face as section tool)', () => {

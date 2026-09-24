@@ -31,6 +31,7 @@ import { unregisterFromCleanup } from '../../vendored/brepjs/core/disposal.js'
 import type { ShapeHandle } from '../../vendored/brepjs/core/disposal.js'
 import { handle as occtWasmHandleView, isOcctWasmHandle } from '../../vendored/brepjs/kernel/occtWasm/helpers.js'
 import { getBrepjsKernel } from '../occt-kernel-bridge'
+import { getBackends } from '../../runtime-state'
 import { OpError } from './result-unwrap'
 
 /**
@@ -110,6 +111,29 @@ export function adoptBrepjsProduct(product: unknown, segments?: number): Shape {
  */
 export function callBrepjs<F extends (...a: never[]) => unknown>(fn: F, args: unknown[]): ReturnType<F> {
   return fn(...(args as never[])) as ReturnType<F>
+}
+
+/**
+ * Phase 6（narrowing plan D7）：vendored measure op 的执行前引擎身份断言。
+ *
+ * 库面 query op 是普通函数（不走 dispatchPath），但部分依赖 occt-only 内核方法
+ * （shapeType / linearCenterOfMass / distance / curvature / interference，L2 平台面，
+ * D6 表）——在这些 op 的实现上声明 `engines: ['occt']`，函数体第一行即断言当前
+ * 引擎身份，在触碰内核之前报出可定位错误（文案与 D11-4 同构），不补桩、不回退。
+ *
+ * @param opName - op 名（报错文案）。
+ * @param engines - 允许执行的引擎 id 集合（arg-spec 条目的 `engines` 字段）。
+ * @throws BrepUnsupportedError 当当前引擎不在 `engines` 内。
+ */
+export function assertEngineFor(opName: string, engines: readonly string[]): void {
+  const current = getBackends().config.brepEngineId
+  if (current === null || current === undefined || !engines.some((e) => e === current)) {
+    const e = new Error(
+      `E_BREP_UNSUPPORTED: op '${opName}' requires engine ${engines.join(' or ')} (current=${current ?? '<none>'})`,
+    )
+    e.name = 'BrepUnsupportedError'
+    throw e
+  }
 }
 
 // ─── adoption (compatOp step 5; R1 fix) ──────────────────────────────────────

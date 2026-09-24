@@ -14,14 +14,14 @@ import { solidToShape } from '../brep/brep-ops'
 import {
   booleanWithRoleTable,
 } from '../brep/face-evolution'
-import { getBackends, getCurrentStmt, keepHidden, nameOf } from '../runtime-state'
+import { getCurrentStmt, keepHidden, nameOf } from '../runtime-state'
+import { getBrepApi } from '../brep/handle-bridge'
 import { fromBrep, brepOf, inputRoleTable } from '../shape'
 import { reconcileBrepInputs } from './reconcile'
 import { OpError } from './internal/result-unwrap'
 import { defineOp } from '../sdk'
 import type { Provenance } from '../topology/naming/lineage'
 import type { BrepHandle } from '../brep/engine/types'
-import type { BrepEngineApi } from '../brep/engine/primitives'
 
 type BooleanOperation = 'union' | 'subtract' | 'intersect'
 
@@ -29,8 +29,7 @@ type BooleanOperation = 'union' | 'subtract' | 'intersect'
 
 /** BREP 路径：fuse/cut/common（*WithHistory 封装，收集面演化 + roleTable 合流 §3.4）。 */
 function booleanBrep(inputs: Shape[], operation: BooleanOperation): Shape {
-  const kernel = getBackends().kernel.brep as BrepEngineApi | null
-  if (!kernel) throw new Error('[stdlib/boolean] no OCCT kernel')
+  const kernel = getBrepApi()
 
   const inputSolids = inputs.map((s) => brepOf(s) as BrepHandle | undefined)
   if (inputSolids.some((s) => !s)) {

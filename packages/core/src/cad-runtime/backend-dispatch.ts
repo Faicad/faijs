@@ -16,7 +16,7 @@
 
 import { getBackends, getCurrentStmt, BrepUnsupportedError, MeshUnsupportedError } from '../runtime-state'
 import { hasBrep } from '../shape'
-import type { BrepEvolutionKind, BrepMethodKind } from '../brep/engine/types'
+import type { BrepEngineId, BrepEvolutionKind, BrepMethodKind } from '../brep/engine/types'
 import type { Shape } from '../mesh/types'
 
 /** 静态判定的两个可能结果：走 BREP 链或 mesh 链。 */
@@ -122,25 +122,61 @@ export function firstMissingCapability(
  * @param inputs - the shapes feeding the operation, used to test whether all
  * lie on the BREP chain.
  * @param impls - the operation's implementation set: `mesh`/`brep` presence
- * (function reference or undefined; fixed at defineOp construction).
+ * (function reference or undefined; fixed at defineOp construction), plus the
+ * op `name` (error messages).
  * @param requiredCapability - an optional capability the operation declares;
  * a missing capability routes the dispatch.
+ * @param engines - the operation's platform declaration (D11): `engines` from
+ * the defineOp meta. Undefined/empty = neutral op (all engines). A platform op
+ * whose engines do not include the current engine is rejected before the
+ * capability/mode routing (D11-2: engine mismatch precedes capability checks).
  * @returns the selected backend path: 'brep' or 'mesh'.
  */
 export function dispatchPath(
   inputs: Shape[],
-  impls: { mesh?: unknown; brep?: unknown },
+  impls: { mesh?: unknown; brep?: unknown; name?: string },
   requiredCapability?: BrepCapabilityName,
+  engines?: readonly BrepEngineId[],
 ): BrepPath {
   const { config } = getBackends()
 
   if (config.mode === 'mesh') {
+    // D11-6: mode='mesh' 分支仍在最前——平台 op 与中立 op 一视同仁（有 mesh 实现就走
+    // mesh）。宿主强制 mesh 时不因平台身份报错。
     if (!impls.mesh) {
       throw new MeshUnsupportedError('E_MESH_UNSUPPORTED: function has no mesh implementation', getCurrentStmt())
     }
     return 'mesh'
   }
   const currentStmt = getCurrentStmt()
+
+  // ── D11-2: 平台身份判定，置于最前（先于 mode/capabilities——引擎不匹配时谈能力没有意义）──
+  //
+  // D11-3（mock 豁免，**有意为之**）：brep_mock 是测试替身，不代表任何真实平台——
+  // 它的 capabilities 也是"全给"，职责是让编排链路（naming、Result 边界、多输出）
+  // 能被测到；真实引擎下的身份校验由 parity 测试与 engine-switch 测试覆盖。
+  // 本豁免由 engine-switch-p5 测试钉住（mock 下平台 op 不拦截）。
+  if (engines && engines.length > 0) {
+    const engineId = config.brepEngineId
+    if (engineId !== 'brep_mock' && (engineId === null || engineId === undefined || !engines.some((e) => e === engineId))) {
+      const opLabel = impls.name ? ` '${impls.name}'` : ''
+      const current = engineId ?? '<none>'
+      const message = `E_BREP_UNSUPPORTED: op${opLabel} requires engine ${engines.join('/')} (current=${current})`
+      if (config.mode === 'brep') {
+        // D11-4: brep 模式不匹配 → BrepUnsupportedError（执行前，非运行时回退）。
+        throw new BrepUnsupportedError(message, currentStmt)
+      }
+      // D11-5: auto 模式 → 静态降级 mesh；无 mesh 实现 → MeshUnsupportedError（与能力路由同构）。
+      if (!impls.mesh) {
+        throw new MeshUnsupportedError(
+          `E_MESH_UNSUPPORTED: op${opLabel} requires engine ${engines.join('/')} (current=${current}) and has no mesh implementation`,
+          currentStmt,
+        )
+      }
+      return 'mesh'
+    }
+  }
+
   // 引擎能力声明 → 具体能力名集合（族级布尔位 + evolution 名单逐核函数展开）。
   const supported = engineCapabilitySet(config.brepCapabilities)
 

@@ -46,7 +46,7 @@ let k: WarehouseKernel
 
 beforeAll(async () => {
   await setupWarehouseKernel()
-  k = requireKernel() as WarehouseKernel
+  k = requireKernel() as unknown as WarehouseKernel
 })
 
 /** XY 平面矩形 wire（z 固定）。 */

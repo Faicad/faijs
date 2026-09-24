@@ -21,7 +21,7 @@
 
 import type { Shape } from '../../../mesh/types'
 import type { BrepEngineApi } from '../../../brep/engine/primitives'
-import { getBackends } from '../../../runtime-state'
+import { getBrepApi } from '../../../brep/handle-bridge'
 import type { AssemblyTransform } from '../../../runtime-state'
 import type { AssemblyConstraint, EntityRef } from '../types'
 import { normalizeConstraint } from '../normalize'
@@ -186,7 +186,7 @@ export function solveGlobal(
 
   let kernel: BrepEngineApi | null = null
   try {
-    kernel = getBackends().kernel.brep as BrepEngineApi | null
+    kernel = getBrepApi()
   } catch {
     /* mesh/primitive 行快照路径：快照引用仍可解 */
   }

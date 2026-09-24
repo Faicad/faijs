@@ -11,8 +11,8 @@
 
 import type { Shape } from '../../mesh/types'
 import type { BrepEngineApi } from '../../brep/engine/primitives'
-import { getBackends } from '../../runtime-state'
 import type { AssemblyTransform } from '../../runtime-state'
+import { getBrepApi } from '../../brep/handle-bridge'
 import { solveConstraints } from '../../vendored/brepjs/kernel/solverAdapter'
 import { normalizeConstraint } from './normalize'
 import { lowerStructuralConstraint } from './lower'
@@ -87,7 +87,7 @@ export function solveAssembly(
   // 此时快照引用仍可解，TopoRef 引用按 E_TOPO_NOT_FOUND 显式报错
   let kernel: BrepEngineApi | null = null
   try {
-    kernel = getBackends().kernel.brep as BrepEngineApi | null
+    kernel = getBrepApi()
   } catch {
     // backends not configured — snapshot-form constraints still solvable
   }

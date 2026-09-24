@@ -51,7 +51,7 @@ export const torus = compatOp(
  */
 export const fuse = compatOp(
   projectBrepOp('fuse', ["a","b","options"], 'A', __vendored_fuse),
-  { name: 'fuse', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, capabilities: ["dispose","fuse","fuseWithHistory","isNull"] },
+  { name: 'fuse', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"] },
 )
 
 /**
@@ -63,6 +63,7 @@ export const fuse = compatOp(
  * @returns Bounds3D — 纯数据结果（非 Shape）。
  */
 export function getBounds(shape: Shape): Bounds3D {
+
   return callBrepjs(__vendored_getBounds, [borrowBrepjsShape(shape as Shape)])
 }
 
@@ -263,7 +264,7 @@ export type { WrappedFace } from '../../vendored/brepjs/topology/wrapperFns.js'
  */
 export const ellipsoid = compatOp(
   projectBrepOp('ellipsoid', ["rx","ry","rz","options"], 'A', __vendored_ellipsoid),
-  { name: 'ellipsoid', naming: {"kind":"unmodeled","reason":"construct vocabulary pending Phase 3"}, capabilities: ["dispose","makeEllipsoid","translateWithHistory"] },
+  { name: 'ellipsoid', naming: {"kind":"unmodeled","reason":"construct vocabulary pending Phase 3"}, engines: ["occt"] },
 )
 
 /**
@@ -273,7 +274,7 @@ export const ellipsoid = compatOp(
  */
 export const rotate = compatOp(
   projectBrepOp('rotate', ["shape","angle","options"], 'A', __vendored_rotate),
-  { name: 'rotate', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, capabilities: ["dispose","rotateWithHistory"] },
+  { name: 'rotate', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"] },
 )
 
 /**
@@ -283,7 +284,7 @@ export const rotate = compatOp(
  */
 export const mirror = compatOp(
   projectBrepOp('mirror', ["shape","options"], 'A', __vendored_mirror),
-  { name: 'mirror', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, capabilities: ["dispose","mirrorWithHistory"] },
+  { name: 'mirror', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"] },
 )
 
 /**
@@ -293,7 +294,7 @@ export const mirror = compatOp(
  */
 export const clone = compatOp(
   projectBrepOp('clone', ["shape"], 'A', __vendored_clone),
-  { name: 'clone', naming: {"kind":"identity"}, capabilities: ["copyShape","dispose"] },
+  { name: 'clone', naming: {"kind":"identity"}, engines: ["occt"] },
 )
 
 /**
@@ -303,7 +304,7 @@ export const clone = compatOp(
  */
 export const applyMatrix = compatOp(
   projectBrepOp('applyMatrix', ["shape","matrix"], 'A', __vendored_applyMatrix),
-  { name: 'applyMatrix', naming: {"kind":"identity"}, capabilities: ["dispose","generalTransformNonOrthogonal","generalTransformWithHistory","hashCode","iterShapes","surfaceCenterOfMass","surfaceNormal","surfaceType","uvBounds"] },
+  { name: 'applyMatrix', naming: {"kind":"identity"}, engines: ["occt"] },
 )
 
 /**
@@ -325,7 +326,7 @@ export { composeTransforms } from '../../vendored/brepjs/topology/api.js'
  */
 export const section = compatOp(
   projectBrepOp('section', ["shape","plane"], 'A', __vendored_section),
-  { name: 'section', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, capabilities: ["dispose","isNull","section"] },
+  { name: 'section', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"] },
 )
 
 /**
@@ -335,7 +336,7 @@ export const section = compatOp(
  */
 export const split = compatOp(
   projectBrepOp('split', ["shape","tools"], 'A', __vendored_split),
-  { name: 'split', naming: {"kind":"subdivide"}, capabilities: ["dispose","isNull","split"] },
+  { name: 'split', naming: {"kind":"subdivide"}, engines: ["occt"] },
 )
 
 /**
@@ -345,7 +346,7 @@ export const split = compatOp(
  */
 export const shell = compatOp(
   projectBrepOp('shell', ["shape","faces","thickness"], 'A', __vendored_shell),
-  { name: 'shell', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, capabilities: ["dispose","shapeType","shell","shellWithHistory"] },
+  { name: 'shell', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"] },
 )
 
 /**
@@ -355,7 +356,7 @@ export const shell = compatOp(
  */
 export const offset = compatOp(
   projectBrepOp('offset', ["shape","distance"], 'A', __vendored_offset),
-  { name: 'offset', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, capabilities: ["dispose","offsetWithHistory","shapeType"] },
+  { name: 'offset', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"] },
 )
 
 /**
@@ -365,7 +366,7 @@ export const offset = compatOp(
  */
 export const heal = compatOp(
   projectBrepOp('heal', ["shape"], 'A', __vendored_heal),
-  { name: 'heal', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, capabilities: ["dispose","healFace","healSolid","healWire","isValid","shapeType"] },
+  { name: 'heal', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"] },
 )
 
 /**
@@ -375,7 +376,7 @@ export const heal = compatOp(
  */
 export const simplify = compatOp(
   projectBrepOp('simplify', ["shape"], 'A', __vendored_simplify),
-  { name: 'simplify', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, capabilities: ["dispose","simplify"] },
+  { name: 'simplify', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"] },
 )
 
 /**
@@ -387,6 +388,7 @@ export const simplify = compatOp(
  * @returns boolean — 纯数据结果（非 Shape）。
  */
 export function isValid(shape: Shape): boolean {
+
   return callBrepjs(__vendored_isValid, [borrowBrepjsShape(shape as Shape)])
 }
 
@@ -399,6 +401,7 @@ export function isValid(shape: Shape): boolean {
  * @returns boolean — 纯数据结果（非 Shape）。
  */
 export function isEmpty(shape: Shape): boolean {
+
   return callBrepjs(__vendored_isEmpty, [borrowBrepjsShape(shape as Shape)])
 }
 
@@ -411,6 +414,7 @@ export function isEmpty(shape: Shape): boolean {
  * @returns boolean — 纯数据结果（非 Shape）。
  */
 export function isEqualShape(shape: Shape): boolean {
+
   return callBrepjs(__vendored_isEqualShape, [borrowBrepjsShape(shape as Shape)])
 }
 
@@ -423,6 +427,7 @@ export function isEqualShape(shape: Shape): boolean {
  * @returns boolean — 纯数据结果（非 Shape）。
  */
 export function isSameShape(shape: Shape): boolean {
+
   return callBrepjs(__vendored_isSameShape, [borrowBrepjsShape(shape as Shape)])
 }
 
@@ -433,7 +438,7 @@ export function isSameShape(shape: Shape): boolean {
  */
 export const autoHeal = compatOp(
   projectBrepOp('autoHeal', ["shape","options"], 'A', __vendored_autoHeal),
-  { name: 'autoHeal', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, capabilities: ["dispose","fixSelfIntersection","healFace","healSolid","healWire","isValid","iterShapes","sew","shapeType"] },
+  { name: 'autoHeal', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"] },
 )
 
 /**
@@ -453,7 +458,7 @@ export const fixShape = compatOp(
  */
 export const healSolid = compatOp(
   projectBrepOp('healSolid', ["solid"], 'A', __vendored_healSolid),
-  { name: 'healSolid', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, capabilities: ["dispose","healSolid","isValid","shapeType"] },
+  { name: 'healSolid', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"] },
 )
 
 /**
@@ -463,7 +468,7 @@ export const healSolid = compatOp(
  */
 export const fixSelfIntersection = compatOp(
   projectBrepOp('fixSelfIntersection', ["shape"], 'A', __vendored_fixSelfIntersection),
-  { name: 'fixSelfIntersection', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, capabilities: ["dispose","fixSelfIntersection","shapeType"] },
+  { name: 'fixSelfIntersection', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"] },
 )
 
 export { isNumber } from '../../vendored/brepjs/topology/index.js'

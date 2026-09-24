@@ -1,6 +1,9 @@
 /**
  * exportStepFromSolids — L1 STEP 导出（从 OCCT solid 句柄，多实体、零 fuse）
  *
+ * @platform occt — 本文件 import occt-kernel（createXCAFDocument/XCAF label 写入是
+ * occt-only 平台面，D3）。文件级标注满足守卫①（平台 import 自证身份）。
+ *
  * 每个 entry 作为 STEP 中一个独立实体（独立 XCAF label / PRODUCT）导出，
  * 保留名称与颜色。多实体之间绝不 fuse —— 这是硬性约定：
  * fuse 只允许作为用户脚本里的几何布尔运算，禁止作为导出时的实体合并手段。
@@ -13,7 +16,7 @@
 import type { BrepHandle } from '../engine/types'
 import type { BrepEngineApi } from '../engine/primitives'
 import { reconstructSolidFromMesh } from '../../occt-kernel/meshReconstruct'
-import { getOcctKernel } from '../../occt-kernel/occtKernel'
+import { getOcctKernel, type ShapeHandle } from '../../occt-kernel/occtKernel'
 
 /** STEP 导出条目：一个 part（精确 BREP 形状或三角网格，二选一）。 */
 export interface StepExportEntry {
@@ -111,7 +114,9 @@ export function exportStepFromSolids(
         const color: [number, number, number] | undefined = entry.color
           ? [srgbToLinear(entry.color[0]), srgbToLinear(entry.color[1]), srgbToLinear(entry.color[2])]
           : undefined
-        doc.addShape(sub, { name, color })
+        // 平台面（D3）：XCAF label 写入是 occt-only。BrepHandle ↔ ShapeHandle
+        // 运行时同构，品牌转换只发生在平台边界。
+        doc.addShape(sub as unknown as ShapeHandle, { name, color })
       }
     }
 

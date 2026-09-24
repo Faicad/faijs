@@ -1,6 +1,11 @@
 /**
  * stdlib split — split（手写覆盖生成投影，Phase 3: L4 `splinter(#j)` 角色表）
  *
+ * @platform occt — 平台 op：内核原生 `split`（BRepAlgoAPI_Splitter）是 occt-only
+ * （engine-method-map `split` → occt-only；L1 只有 `splitByPlane`）。本文件
+ * 只取 L1 面做枚举/命名（getBrepApi），切分本身走平台面 getOcctKernel()（D3），
+ * defineOp 声明 `engines: ['occt']`（D11），不声明 capabilities（互斥）。
+ *
  * 生成投影是 brep-only compatOp，不带角色表；本文件手写 defineOp，BREP 路径
  * 用内核原生 split（BRepAlgoAPI_Splitter）切分，存活面（hash 逐字不变）回投原
  * role，新造面（截面 + 被切细的侧面片）记 `splinter(#j)`，片序按质心排序保证跨
@@ -13,18 +18,21 @@
 import type { Shape } from '../mesh/types'
 import { solidToShape } from '../brep/brep-ops'
 import { getFaceHashes } from '../brep/face-evolution'
-import { getBackends, getCurrentStmt } from '../runtime-state'
+import { getBrepApi } from '../brep/handle-bridge'
+import { getCurrentStmt } from '../runtime-state'
 import { fromBrep, brepOf, inputRoleTable } from '../shape'
 import { defineOp } from '../sdk'
 import type { Provenance } from '../topology/naming/lineage'
 import type { RoleTable } from '../topology/naming/types'
 import type { BrepHandle } from '../brep/engine/types'
-import type { BrepEngineApi } from '../brep/engine/primitives'
+import { getOcctKernel, type ShapeHandle } from '../occt-kernel/occtKernel'
 
 /** BREP 路径：用 tools 切分 input，存活面回投、新造面记 `splinter(#j)`。 */
 function splitBrep(input: Shape, tools: Shape[]): Shape {
-  const kernel = getBackends().kernel.brep as BrepEngineApi | null
-  if (!kernel) throw new Error('[stdlib/split] no OCCT kernel')
+  // L1 面：枚举/命名（getBrepApi，D12）。
+  const kernel = getBrepApi()
+  // 平台面：原生 split（occt-only，D3）。
+  const occtKernel = getOcctKernel()
   const inputSolid = brepOf(input) as BrepHandle | undefined
   if (!inputSolid) throw new Error('[stdlib/split] input is not BREP')
   const toolSolids = tools
@@ -45,13 +53,16 @@ function splitBrep(input: Shape, tools: Shape[]): Shape {
     }
   }
 
-  // 内核原生 split（BRepAlgoAPI_Splitter）返回包含所有碎片的 compound
-  const resultSolid = (kernel as unknown as {
-    split(s: BrepHandle, tools: BrepHandle[]): BrepHandle
-  }).split(inputSolid, toolSolids)
+  // 内核原生 split（BRepAlgoAPI_Splitter）返回包含所有碎片的 compound。
+  // BrepHandle（branded number）与 occt-wasm ShapeHandle（branded number）运行时同构，
+  // 品牌转换只发生在平台边界（occt-only 原生面，非跨引擎断言）。
+  const resultSolid = occtKernel.split(
+    inputSolid as unknown as ShapeHandle,
+    toolSolids as unknown as ShapeHandle[],
+  )
 
-  const resultHashes = getFaceHashes(kernel, resultSolid)
-  const resultFaces = kernel.getSubShapes(resultSolid, 'face')
+  const resultHashes = getFaceHashes(kernel, resultSolid as unknown as BrepHandle)
+  const resultFaces = kernel.getSubShapes(resultSolid as unknown as BrepHandle, 'face')
   const resultCentroids = resultFaces.map((f) => kernel.surfaceCenterOfMass(f))
 
   const roleTable = new Map<string, Map<string, number[]>>()
@@ -79,7 +90,10 @@ function splitBrep(input: Shape, tools: Shape[]): Shape {
   }
   roleTable.set(outStmt, inner)
 
-  return fromBrep(solidToShape(kernel, resultSolid), { solid: resultSolid, roleTable })
+  return fromBrep(solidToShape(kernel, resultSolid as unknown as BrepHandle), {
+    solid: resultSolid as unknown as BrepHandle,
+    roleTable,
+  })
 }
 
 /**
@@ -90,7 +104,7 @@ function splitBrep(input: Shape, tools: Shape[]): Shape {
  * @qual ok
  * @name split
  * @note BREP-only：非 BREP 输入抛 E_MESH_UNSUPPORTED。切分产生的截面 / 被切细的侧面
- *       片记 `splinter(#j)`（Phase 3 L4 抗重放词汇）。
+ *       片记 `splinter(#j)`（Phase 3 L4 抗重放词汇）。平台 op：仅 occt 引擎（原生 split）。
  * @returns Shape 切分后的几何（compound of pieces）。
  * @param input - 目标几何。type:Shape required:true
  * @param tools - 切刀几何（数组）。type:Shape[] required:true
@@ -101,5 +115,6 @@ export const split = defineOp({
   brep(input: Shape, tools: Shape[]) {
     return splitBrep(input, tools)
   },
+  engines: ['occt'],
   naming: { kind: 'subdivide' } as Provenance,
 })

@@ -1,6 +1,11 @@
 /**
  * stdlib chamfer — chamfer 倒角库函数（BREP-only，directEdit 能力）
  *
+ * 平台分层（narrowing plan Phase 5，D11）：**平台 op（occt）**——`equal` 类型走
+ * `chamferWithRoleTable`（→ face-evolution.ts 的 `chamferWithHistory`，occt-only，
+ * D3 原生面），故整个 chamfer op 声明 `engines: ['occt']`；distanceAngle /
+ * twoDistances 分支的 `chamferDistAngle` 是 L1 方法（brepkit 可跑），但 op 的
+ * 引擎身份按最弱环节声明（D11：平台 op 非目标引擎下执行前报错）。
  *
  * 与 drill/engrave 的差异：没有 mesh 实现（defineOp({ brep })），输入非 BREP
  * 时由 dispatchPath 抛 E_MESH_UNSUPPORTED；mode='brep' 且引擎缺 directEdit 能力
@@ -16,7 +21,8 @@
 import type { Shape } from '../mesh/types'
 import { solidToShape } from '../brep/brep-ops'
 import { chamferWithRoleTable, identityEvolution } from '../brep/face-evolution'
-import { getBackends, getCurrentStmt } from '../runtime-state'
+import { getBrepApi } from '../brep/handle-bridge'
+import { getCurrentStmt } from '../runtime-state'
 import { fromBrep, brepOf, inputRoleTable } from '../shape'
 import { defineOp } from '../sdk'
 import type { BrepEngineApi } from '../brep/engine/primitives'
@@ -191,8 +197,8 @@ function chamferTwoDistances(
 
 /** BREP-only 主入口（§3.6 flow）。 */
 function chamferBrep(input: Shape, params: Record<string, unknown>): Shape {
-  const kernel = getBackends().kernel.brep as BrepEngineApi | null
-  if (!kernel) throw new Error('[stdlib/chamfer] no BREP kernel')
+  // L1 面：chamferDistAngle/枚举/命名（D12）。equal 分支经 face-evolution 走 occt 平台面。
+  const kernel = getBrepApi()
   const solid = brepOf(input) as BrepHandle | undefined
   if (!solid) throw new Error('[stdlib/chamfer] E_CHAMFER_NO_BREP: input is not BREP')
 
@@ -267,10 +273,10 @@ function chamferBrep(input: Shape, params: Record<string, unknown>): Shape {
  * const p = await cad.chamfer(part0, { edges: [{ kind:'edge', faces:[{ origin:'box', role:'box:top' }, { origin:'box', role:'box:front' }], hint:{ kind:'edge' } }], type:'equal', width:1 })
  */
 export const chamfer = defineOp({
-  // Phase 2：能力声明精确到内核方法（替代族级 directEdit）——brepkit 无
-  // chamfer/chamferDistAngle（chamferWithHistory 亦未导出），静态判定执行前报错，
-  // 不落入"声明过宽 → 静默通过判定后死在运行时"的红线。
-  capabilities: ['chamfer', 'chamferDistAngle'],
+  // 平台 op（D11）：equal 路径依赖 occt-only chamferWithHistory（face-evolution.ts，
+  // D3）→ engines 声明，不声明 capabilities（D11-7 互斥；brepkit 无 chamfer 能力，
+  // 平台身份判定在执行前报错，替代旧的能力名拦截）。
+  engines: ['occt'],
   brep(input: Shape, params: Record<string, unknown>) {
     assertChamferParams(params)
     return chamferBrep(input, params)

@@ -397,6 +397,22 @@ compat op（vendored brepjs 函数）经**装配期适配器注入**取内核：
 3. **显式契约缺口登记**——`UNMAPPED_VENDORED_MEASURE_METHODS = ['area', 'length', 'linearCenterOfMass']`：`BrepEngineApi` 无 `getSurfaceArea` / `getLength` / `getLinearCenterOfMass`，这三个 vendored 查询在任何非 occt 引擎下无源可映射。它们在适配器上保持 `undefined`（绝不补桩、绝不伪造 0）；`measureSurfaceProps` / `measureLinearProps` 在引擎契约扩展前维持 occt-only（独立议题）。注意：brepkit v1 适配器还缺 `shapeType` / `isNull` 实现（白名单抛错），因此经 vendored 面的 `measureVolumeProps` 在 brepkit 上也被阻断——这是适配器能力缺口，不是桥接 bug。
 
 注入跟随当前注册引擎：`injectCurrentBrepEngineAsKernel()` 的短路判据与 `isKernelInjected()` 一致（`_injected || getActiveKernelId() !== null`），且桥接侧注入缓存与 vendored 内核注册表都有 test-only 重置钩子（`__resetKernelInjectionForTests()` / `__resetKernelRegistryForTests()`），测试中的重装配会对新引擎重跑 `buildKernelAdapter` + 完整性检查。生产路径永不调用。注册 id（`VENDORED_OCCT_KERNEL_ID = 'occt-wasm'`）是注册表槽位名，非引擎身份标识——实际引擎由注入的 adapter 决定。
+### 7.11 引擎分层（L1/L2/L3）与 `engines` 声明
+
+引擎面按三层拆分（narrowing plan §1，D11）：
+
+- **L1——中立契约面 `BrepEngineApi`**：双方适配器都真实现的方法；方言差异由适配器消化。可移植代码（引擎无关 op、cad 脚本面、第三方库）只能经 `getBrepApi()` 调 L1。
+- **L2——平台原生面**：`OcctKernel` / `BrepKitKernel` 实例本身，原样类型、零归一。只有平台特定代码触碰它——适配器文件，或标注 `@platform occt` / `@platform brepkit` 的 op 实现文件。
+- **L3——能力声明面**：`BrepCapabilities.methods` / `evolution` 逐名声明（§7.9）+ `defineOp` 上的 `engines` 平台身份字段。
+
+**什么是平台 op？** 实现**静态 import 了** `occt-kernel/*` 或 `brepkit-kernel/*` 的 op——import 是唯一判据。平台 op 必须在 `defineOp` 里声明 `engines: ['occt']`（和/或 `'brepkit'`）（D11）。规则：
+
+1. **`engines` 先于 `capabilities`**——引擎身份判定在 `dispatchPath` 中最先执行（D11-2）；对一个没打算跑的引擎谈能力没有意义。
+2. **`engines` 与 `capabilities` 互斥**（D11-7，由 `assertLibConforms` 强制）：平台 op 写 `engines`、不写 `capabilities`；中立 op 写 `capabilities`、不写 `engines`。
+3. **执行前拦截**——非目标引擎下：brep 模式抛 `BrepUnsupportedError`；auto 模式静态降级 mesh（无 mesh 实现 → `MeshUnsupportedError`）。`mode='mesh'` 豁免（D11-6）：宿主强制 mesh 时不会因平台身份报错。
+4. **`brep_mock` 豁免**（D11-3）：mock 是测试替身，capabilities 故意全给；真实引擎的身份校验由 parity / engine-switch 测试覆盖。
+5. 脚本面可以同样声明地暴露平台 op——不支持的引擎在语句边界失败（`ExecutionResult.failedAt`，Q11）。
+
 
 ---
 
@@ -410,11 +426,13 @@ compat op（vendored brepjs 函数）经**装配期适配器注入**取内核：
 dispatchPath(inputs: Shape[], impls: { mesh?: UnknownFn; brep?: UnknownFn }, requiredCapability?: BrepCapabilityName): 'brep' | 'mesh'
 ```
 
-判定顺序：
+判定顺序（D11-2：引擎身份先于 mode 与能力判定）：
 
-1. `mode='mesh'` → 无 `impls.mesh` → **抛 `MeshUnsupportedError`**（`E_MESH_UNSUPPORTED`）；否则 mesh。
-2. `mode='brep'` → 无 `impls.brep`、输入不全在链（`hasBrep`）、或当前引擎缺 `requiredCapability` → **抛 `BrepUnsupportedError`**。
-3. `mode='auto'` → 缺 `requiredCapability` → mesh（静态降级）；否则有 `impls.brep` 且全部输入在链 → brep，否则 mesh。
+1. `mode='mesh'` → 无 `impls.mesh` → **抛 `MeshUnsupportedError`**（`E_MESH_UNSUPPORTED`）；否则 mesh（D11-6——宿主强制 mesh 时不会因平台身份报错）。
+2. **`engines` 身份判定（D11-2）**——当前引擎非 `brep_mock`（D11-3 豁免）且不在 op 的 `engines` 列表 → brep 模式**抛 `BrepUnsupportedError`**；auto 模式降级 mesh（无 mesh 实现 → `MeshUnsupportedError`）。中立 op（无 `engines`）跳过此步。
+3. `mode='brep'` → 无 `impls.brep`、输入不全在链（`hasBrep`）、或当前引擎缺 `requiredCapability` → **抛 `BrepUnsupportedError`**。
+4. `mode='auto'` → 缺 `requiredCapability` → mesh（静态降级）；否则有 `impls.brep` 且全部输入在链 → brep，否则 mesh。
+
 
 空输入的创建类 op 满足 `[].every(hasBrep) === true`，因此走 brep。两种不支持错误（`BrepUnsupportedError`／`MeshUnsupportedError`）都被引擎捕获为 `ExecutionResult.failedAt`，不冒泡、不静默。
 

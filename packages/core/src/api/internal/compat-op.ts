@@ -190,7 +190,7 @@ export function compatOp(
   fn: (...args: unknown[]) => unknown,
   spec: CompatSpec,
 ): ((...args: unknown[]) => Promise<Shape>) & MetaCarrier {
-  const { outputs, capabilities, schema, slotMap, naming } = spec
+  const { outputs, capabilities, engines, schema, slotMap, naming } = spec
   // `outputs` flows through defineOp's own wrapping path: the adapter adopts
   // per declared field, then defineOp wraps — isShape passthrough, so no
   // double wrapping (§3.2).
@@ -198,6 +198,9 @@ export function compatOp(
     brep: buildAdapter(fn, spec),
     name: spec.name,
     capabilities,
+    // D11 透传：平台 op（vendored 实现调 occt-only 方法）在生成物里声明 engines；
+    // 与 capabilities 互斥（D11-7，assertLibConforms 执行前校验）。
+    engines,
     outputs,
     schema,
     slotMap,

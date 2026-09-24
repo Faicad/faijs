@@ -19,7 +19,7 @@ let k: WarehouseKernel
 
 beforeAll(async () => {
   await setupWarehouseKernel()
-  k = requireKernel() as WarehouseKernel
+  k = requireKernel() as unknown as WarehouseKernel
 })
 
 /** probe 清单：WarehouseKernel 超出 BrepEngineApi 的全部成员 + §6 的 loft 退化路径前提。 */

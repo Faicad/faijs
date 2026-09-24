@@ -396,6 +396,22 @@ The three `wrapBrepEngineApi()` wrapper layers (2026-09-23 convergence):
 3. **Explicit contract-gap registry** — `UNMAPPED_VENDORED_MEASURE_METHODS = ['area', 'length', 'linearCenterOfMass']`: `BrepEngineApi` has no `getSurfaceArea` / `getLength` / `getLinearCenterOfMass`, so these vendored queries have no source on any non-occt engine. They stay `undefined` on the adapter (never stubbed, never fake-zeroed); `measureSurfaceProps` / `measureLinearProps` remain occt-only until the engine contract is extended (a separate decision). NOTE: brepkit's v1 adapter additionally lacks `shapeType` / `isNull` implementations (they throw by whitelist), so even `measureVolumeProps` via the vendored face is brepkit-blocked — an adapter capability gap, not a wrapping bug.
 
 Injection follows the currently-registered engine: the short-circuit inside `injectCurrentBrepEngineAsKernel()` and `isKernelInjected()` share the same criterion (`_injected || getActiveKernelId() !== null`), and both the bridge-side injection cache and the vendored kernel registry can be reset via test-only exports (`__resetKernelInjectionForTests()` / `__resetKernelRegistryForTests()`) so a re-assembly in tests re-runs `buildKernelAdapter` + completeness checking for the new engine. Never called in prod. The registration id (`VENDORED_OCCT_KERNEL_ID = 'occt-wasm'`) is a registry slot name, not an engine identity — the actual engine is determined by the injected adapter.
+### 7.11 Engine layers (L1/L2/L3) and the `engines` declaration
+
+The engine surface is split into three layers (narrowing plan §1, D11):
+
+- **L1 — neutral contract face `BrepEngineApi`**: methods both adapters genuinely implement; dialect differences are absorbed inside adapters. Portable code (engine-agnostic ops, the cad script face, third-party libraries) may call only L1, via `getBrepApi()`.
+- **L2 — platform native face**: the `OcctKernel` / `BrepKitKernel` instance itself, verbatim types, zero normalization. Only platform-specific code touches it — adapter files, or op implementation files annotated `@platform occt` / `@platform brepkit`.
+- **L3 — capability declaration face**: `BrepCapabilities.methods` / `evolution` per-name declarations (§7.9) plus the `engines` platform-identity field on `defineOp`.
+
+**What is a platform op?** An op whose implementation statically imports `occt-kernel/*` or `brepkit-kernel/*` — the import is the sole judge. Platform ops must declare `engines: ['occt']` (and/or `'brepkit'`) in `defineOp` (D11). Rules:
+
+1. **`engines` precedes `capabilities`** — the engine-identity check runs first in `dispatchPath` (D11-2); discussing capabilities is meaningless for an engine the op is not built for.
+2. **`engines` and `capabilities` are mutually exclusive** (D11-7, enforced by `assertLibConforms`): a platform op declares `engines` and no `capabilities`; a neutral op declares `capabilities` and no `engines`.
+3. **Interception before execution** — under a non-listed engine: brep mode throws `BrepUnsupportedError`; auto mode statically degrades to mesh (`MeshUnsupportedError` when no mesh implementation exists). `mode='mesh'` is exempt (D11-6): a host forcing mesh never errors on platform identity.
+4. **`brep_mock` is exempt** (D11-3): mock is a test stand-in whose capabilities are deliberately all-granted; real-engine identity checks are covered by parity / engine-switch tests.
+5. The script face may expose platform ops under the same declaration — unsupported engines fail at the statement boundary (`ExecutionResult.failedAt`, Q11).
+
 
 ---
 
@@ -409,11 +425,13 @@ Located in `packages/core/src/cad-runtime/backend-dispatch.ts` (**not on the SDK
 dispatchPath(inputs: Shape[], impls: { mesh?: UnknownFn; brep?: UnknownFn }, requiredCapability?: BrepCapabilityName): 'brep' | 'mesh'
 ```
 
-Decision order:
+Decision order (D11-2: engine identity precedes mode and capability checks):
 
-1. `mode='mesh'` → no `impls.mesh` → **throw `MeshUnsupportedError`** (`E_MESH_UNSUPPORTED`); else mesh.
-2. `mode='brep'` → no `impls.brep`, inputs off-chain, or `requiredCapability` missing → **throw `BrepUnsupportedError`**.
-3. `mode='auto'` → capability missing → mesh (static degradation); else `impls.brep` present and all inputs on the chain → brep, else mesh.
+1. `mode='mesh'` → no `impls.mesh` → **throw `MeshUnsupportedError`** (`E_MESH_UNSUPPORTED`); else mesh (D11-6 — a host forcing mesh never errors on platform identity).
+2. **`engines` identity check (D11-2)** — current engine is not `brep_mock` (D11-3 exempt) and not listed in the op's `engines` → brep mode **throws `BrepUnsupportedError`**; auto mode degrades to mesh (`MeshUnsupportedError` when no mesh implementation exists). Neutral ops (no `engines`) skip this step.
+3. `mode='brep'` → no `impls.brep`, inputs off-chain, or current engine lacks `requiredCapability` → **throw `BrepUnsupportedError`**.
+4. `mode='auto'` → capability missing → mesh (static degradation); else `impls.brep` present and all inputs on the chain → brep, else mesh.
+
 
 Creation ops (empty inputs) satisfy `[].every(hasBrep) === true`, so they take the brep path. Both unsupported errors are captured by the engine as `ExecutionResult.failedAt`.
 

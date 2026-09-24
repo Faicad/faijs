@@ -61,6 +61,15 @@ export interface Backends {
      */
     brepCapabilities?: {
       evolution?: readonly string[]
+      /**
+       * 非演化内核方法名（D5）：本引擎**实际提供**的 L1 中立方法名
+       * （`getBoundingBox` / `getVolume` / `getSurfaceArea` / `getLength` /
+       * `getCenterOfMass` 等）。2026-09-24 narrowing plan §2.4：与
+       * `backend-dispatch.EngineCapabilitiesLike` 对齐（该类型有 `methods`，
+       * 运行时配置镜像此前缺失——非字面量赋值不做 excess property 检查，
+       * `methods` 判定"能用但没被契约钉住"）。
+       */
+      methods?: readonly string[]
       heal?: boolean
       directEdit?: boolean
       advSurface?: boolean

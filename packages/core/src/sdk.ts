@@ -66,8 +66,10 @@ export type {
 // handle-bridge 只 import runtime-state / stdlib/shape / type-only mesh/types，
 // 零 heavy 依赖——dist/sdk.js 守卫测试继续通过。
 
-export { getKernel, meshHandle, fromHandle } from './brep/handle-bridge'
+export { getKernel, getBrepApi, meshHandle, fromHandle } from './brep/handle-bridge'
 export type { MeshHandleOptions } from './brep/handle-bridge'
+export { BREP_ENGINE_IDS, type BrepEngineId, type BrepHandle } from './brep/engine/types'
+export type { BrepEngineApi } from './brep/engine/primitives'
 
 // ── 双路径实现声明（D 面契约：mesh 必选、BREP 可选；几何函数专用） ──
 // define-op 只依赖 runtime-state / stdlib/shape / handle-bridge / backend-dispatch

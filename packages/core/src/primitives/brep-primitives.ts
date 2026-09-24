@@ -1,6 +1,10 @@
 /**
  * Primitive → CAD 实体转换。
  *
+ * @platform occt — 本文件 import occt-kernel（meshReconstruct）：primitive 直接
+ *   构造路径绑定 occt 构造函数（makeBox/makeSphere/...），平台原生面调用；
+ *   守卫 R1 豁免、R2 无 defineOp 不适用。
+ *
  * 将本项目的各种 primitive（cube, sphere, cylinder, cone, wedge, screw）
  * 转换为 OCCT CAD 实体（Solid），并支持导出为 BREP 格式的 STEP 文件。
  *

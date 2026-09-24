@@ -42,8 +42,11 @@ import { fromHandle, meshHandle, isOcctHandle } from './brep/handle-bridge'
 import { positionalToObject, type SlotMap } from './api/internal/dual-form-args'
 import { toOpFailure, unwrapResult, OpError } from './api/internal/result-unwrap'
 import type { Shape } from './mesh/types'
-import type { BrepHandle } from './brep/engine/types'
+import { BREP_ENGINE_IDS, type BrepEngineId, type BrepHandle } from './brep/engine/types'
 import { type Provenance, runtimeLineage } from './topology/naming/lineage'
+
+/** 合法引擎 id 集合（assertLibConforms 的 engines 校验用，D11-1）。 */
+const BREP_ENGINE_ID_SET = new Set<string>(BREP_ENGINE_IDS)
 
 /** Raw mesh data (structurally identical to Shape; mesh impls return it). */
 export type MeshData = { positions: Float32Array; indices: Uint32Array }
@@ -102,6 +105,15 @@ export interface DualOpOptions {
   /** Op name (error messages); falls back to an anonymous prefix when absent. */
   name?: string
   capabilities?: BrepCapabilityName[]
+  /**
+   * 平台身份声明（D11，narrowing plan 2026-09-24）：本 op 实现可运行在哪些
+   * BREP 引擎上。缺省 = 全平台（中立 op——实现只用 L1 核心面）。
+   *
+   * 平台 op（实现 import 了 `occt-kernel/*` / `brepkit-kernel/*`，调用该平台
+   * 原生方法）**必须**声明 `engines` 自证身份；**不得**同时声明 `capabilities`
+   * （D11-7 互斥：平台能力由平台自己保证，能力名空间只收 L1 中立名）。
+   */
+  engines?: readonly BrepEngineId[]
   outputs?: string[]
   /** L3 schema per named parameter (G1 codegen + UI panel, plain string form). */
   schema?: Record<string, string>
@@ -134,6 +146,8 @@ export interface DualOpMeta {
   /** Op name (error messages). */
   name?: string
   capabilities?: BrepCapabilityName[]
+  /** 平台身份声明（D11，镜像 DualOpOptions.engines）。 */
+  engines?: readonly BrepEngineId[]
   outputs?: string[]
   schema?: Record<string, string>
   /** D11 slot-map declaration (positional → object boxing table, §9 naming). */
@@ -278,6 +292,7 @@ export function defineOp<A extends unknown[]>(
     brep: decl.brep,
     name: decl.name,
     capabilities: decl.capabilities,
+    engines: decl.engines,
     outputs: decl.outputs,
     schema: decl.schema,
     slotMap: decl.slotMap,
@@ -345,7 +360,7 @@ export function defineOp<A extends unknown[]>(
     // against the engine's declaration set (family booleans + its `evolution`
     // list of *WithHistory kernel function names) — see firstMissingCapability.
     const missing = firstMissingCapability(meta.capabilities)
-    const path = dispatchPath(inputs, meta, missing)
+    const path = dispatchPath(inputs, meta, missing, meta.engines)
     if (path === 'brep') {
       const r = await runImpl(meta, decl.brep as unknown as ((...a: unknown[]) => unknown) | undefined, callArgs)
       const out = meta.outputs ? wrapByKeys(r, meta.outputs, wrapBrepOne) : wrapBrepOne(r)
@@ -435,6 +450,26 @@ export function assertLibConforms(lib: Record<string, unknown>): void {
     }
     if (meta.capabilities !== undefined && !Array.isArray(meta.capabilities)) {
       throw new Error(`[faijs] lib function '${name}' declares invalid capabilities (expected string[])`)
+    }
+    // D11-7 互斥（narrowing plan）：平台 op 直连原生面，能力由平台自己保证——
+    // 只写 engines 不写 capabilities。两者同时出现 = 声明了接口里已不存在的虚构名。
+    if (meta.engines !== undefined && meta.capabilities !== undefined) {
+      throw new Error(
+        `[faijs] lib function '${name}' declares BOTH engines and capabilities — ` +
+          `a platform op (engines) must not declare capabilities (D11-7: platform capabilities are ` +
+          `guaranteed by the engine itself; the capability name space only holds L1 neutral names).`,
+      )
+    }
+    if (meta.engines !== undefined) {
+      if (!Array.isArray(meta.engines) || meta.engines.length === 0) {
+        throw new Error(`[faijs] lib function '${name}' declares invalid engines (expected non-empty BrepEngineId[])`)
+      }
+      const bad = meta.engines.find((e) => !BREP_ENGINE_ID_SET.has(e))
+      if (bad !== undefined) {
+        throw new Error(
+          `[faijs] lib function '${name}' declares unknown engine '${String(bad)}' — expected one of ${BREP_ENGINE_IDS.join(', ')}`,
+        )
+      }
     }
     if (
       meta.outputs !== undefined

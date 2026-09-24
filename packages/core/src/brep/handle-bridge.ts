@@ -14,6 +14,7 @@
 import type { Shape } from '../mesh/types'
 import { getBackends } from '../runtime-state'
 import { fromBrep } from '../shape'
+import type { BrepEngineApi } from './engine/primitives'
 
 /** 结构化内核接口（不 import occt-wasm，只做结构匹配，避免 heavy 依赖） */
 interface MeshableKernel {
@@ -34,6 +35,27 @@ export function getKernel(): unknown {
     throw new Error('[faijs/bridge] OCCT kernel not available: BREP operations require an initialized kernel')
   }
   return kernel
+}
+
+/**
+ * Get the current BREP engine as the **L1 core surface** (`BrepEngineApi`).
+ *
+ * 2026-09-24 narrowing plan（D12）：中立 op 的取内核唯一出口——取代
+ * `getBackends().kernel.brep as BrepEngineApi` 的逐点断言。本文件是 L1 契约
+ * 的注册点（`registerBrepEngine` 注入的就是 `BrepEngineApi` 实例），此处断言
+ * 诚实；平台面（L1 之外的 occt 独有能力）仍走 `getOcctKernel()`（D3）。
+ *
+ * @returns the current engine's L1 contract surface (`BrepEngineApi`) — typed, engine-neutral.
+ * @throws when no BREP engine is registered (uninitialized) — never silently returns null.
+ */
+export function getBrepApi(): BrepEngineApi {
+  const kernel = getBackends().kernel.brep
+  if (!kernel) {
+    throw new Error(
+      '[faijs/bridge] BREP engine API not available: BREP operations require an initialized engine',
+    )
+  }
+  return kernel as BrepEngineApi
 }
 
 /**

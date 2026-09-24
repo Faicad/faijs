@@ -8,6 +8,21 @@
  * - OCCT 适配器的句柄运行时就是 number，加 brand 是零成本的类型层转换。
  */
 
+/**
+ * BREP 引擎身份（D11-1，2026-09-24 narrowing plan）。
+ *
+ * 三个值来自三个已存在的引擎 id 常量（`OCCT_BREP_ENGINE_ID` / `BREPKIT_BREP_ENGINE_ID`
+ * / `BREP_MOCK_ENGINE_ID`，各自适配器导出）；本类型由常量数组推导，禁止裸 `string`。
+ * 适配器常量用 `satisfies BrepEngineId` 收窄（typecheck 钉住集合一致）。
+ *
+ * 消费点：`defineOp` 的 `engines` 声明（平台 op 自证身份）、`dispatchPath` 的平台
+ * 身份分支（D11-2）、`script-face-manifest` 的平台 op 标注（§3.8）。
+ */
+export const BREP_ENGINE_IDS = ['occt', 'brepkit', 'brep_mock'] as const
+
+/** BREP 引擎身份（固定三值联合；由 {@link BREP_ENGINE_IDS} 推导）。 */
+export type BrepEngineId = (typeof BREP_ENGINE_IDS)[number]
+
 declare const BrepHandleBrand: unique symbol
 
 /**
@@ -254,7 +269,16 @@ export type BrepMethodKind =
   | 'simplify'
   | 'split'
   // 查询/测量族
-  | 'boundingBox'
+  // ⚠️ 测量族能力名用 L1 中立名（D5，narrowing plan）：`getBoundingBox` / `getVolume`
+  // / `getSurfaceArea` / `getLength` / `getCenterOfMass` ——能力名 == BrepEngineApi 接口名，
+  // 守卫「能力声明诚实」据此逐名断言适配器是 function。vendored 面自己的原生名
+  // （boundingBox/volume/area/length）由 occt-kernel-bridge 的 mapMeasureMethods 映射，
+  // 不是能力名空间成员。
+  | 'getBoundingBox'
+  | 'getVolume'
+  | 'getSurfaceArea'
+  | 'getLength'
+  | 'getCenterOfMass'
   | 'curveParameters'
   | 'curvePointAtParam'
   | 'curveTangent'

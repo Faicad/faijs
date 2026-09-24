@@ -19,6 +19,7 @@
 import type { Shape } from '../mesh/types'
 import { isCompoundLike, brepOf, fromBrep, type CompoundShape } from '../shape'
 import { getBackends, BrepUnsupportedError } from '../runtime-state'
+import { getBrepApi } from '../brep/handle-bridge'
 import { solidToShape } from '../brep/brep-ops'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 import type { BrepHandle } from '../brep/engine/types'
@@ -69,8 +70,10 @@ export function mergeMeshes(members: Array<Shape | CompoundShape>): Shape {
  */
 export function compound(params: { members?: Array<Shape | CompoundShape>; name?: string }): Shape {
   const members = params.members ?? []
-  const { config, kernel: kernels } = getBackends()
-  const kernel = kernels.brep as BrepEngineApi | null
+  const { config } = getBackends()
+  // D12 中立取核；引擎未初始化（纯 mesh 场景）→ null 容忍走 mesh 路径。
+  let kernel: BrepEngineApi | null = null
+  try { kernel = getBrepApi() } catch { /* no engine -> mesh path */ }
 
   // 结构 compound 是结构壳（无 OCCT 句柄）：不在 BREP 链上 → 视为无句柄成员。
   const handles = members.map((m) => (isCompoundLike(m) ? undefined : brepOf(m)))

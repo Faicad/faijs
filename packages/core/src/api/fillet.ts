@@ -1,6 +1,9 @@
 /**
  * stdlib fillet — fillet 圆角库函数（BREP-only，directEdit 能力）
  *
+ * 平台分层（narrowing plan Phase 5，D11）：**中立 op**——`filletWithHistory` 是
+ * L1 核心面（brepkit 亦实现），实现全程走 L1（getBrepApi，D12），不声明 engines；
+ * capabilities 保留族级 `directEdit`（brepkit 声明 directEdit: true）。
  *
  * 与 chamfer 的差异：fillet 用 filletWithHistory 走面演化 + roleTable 传播
  * （chamfer 在 P5 同步改造）。M1 只支持等半径；M2 计划支持变半径与几何限定符。
@@ -20,11 +23,11 @@
 import type { Shape } from '../mesh/types'
 import { solidToShape } from '../brep/brep-ops'
 import { filletWithRoleTable } from '../brep/face-evolution'
-import { getBackends, getCurrentStmt } from '../runtime-state'
+import { getBrepApi } from '../brep/handle-bridge'
+import { getCurrentStmt } from '../runtime-state'
 import { fromBrep, brepOf, inputRoleTable } from '../shape'
 import { defineOp } from '../sdk'
 import type { BrepHandle } from '../brep/engine/types'
-import type { BrepEngineApi } from '../brep/engine/primitives'
 import type { EdgeTopoRef, ResolutionContext } from '../topology/naming'
 import { resolveTopoRef, TopoRefError } from '../topology/naming'
 import type { Provenance } from '../topology/naming/lineage'
@@ -81,8 +84,8 @@ function translateOcctError(err: unknown): Error {
 
 /** BREP-only 主入口（M1 等半径 flow）。 */
 function filletBrep(input: Shape, params: Record<string, unknown>): Shape {
-  const kernel = getBackends().kernel.brep as BrepEngineApi | null
-  if (!kernel) throw new Error('[stdlib/fillet] no BREP kernel')
+  // L1 面（D12）：filletWithHistory 是 L1，全链路中立。
+  const kernel = getBrepApi()
   const solid = brepOf(input) as BrepHandle | undefined
   if (!solid) throw new Error('E_FILLET_NO_BREP: fillet input is not BREP')
 

@@ -89,14 +89,14 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { initOcctWasm, getKernel } from '../../occt-kernel/occtKernel'
 import { HASH_UPPER_BOUND, splitHashEvolutionByOrigin, decodeHashEvolution } from '../face-evolution'
-import type { BrepHandle } from './types'
-import type { BrepEngineApi } from './primitives'
+import type { BrepHandle, BrepEvolutionData } from './types'
+import type { OcctKernel, ShapeHandle } from 'occt-wasm'
 
-let kernel: BrepEngineApi
+let kernel: OcctKernel
 
 beforeAll(async () => {
   await initOcctWasm()
-  kernel = getKernel() as unknown as BrepEngineApi
+  kernel = getKernel()
 }, 120000)
 
 /** occt-wasm@3.8.4 暴露的全部 `*WithHistory`（dist/index.d.ts:458-472）。 */
@@ -138,20 +138,20 @@ function allPropertyNames(obj: unknown): string[] {
 
 /** 面 hash 列表（与 `getSubShapes(…,'face')` 按下标一一对应）。 */
 function faceHashes(shape: BrepHandle): number[] {
-  return Array.from(kernel.subShapeHashes(shape, 'face', HASH_UPPER_BOUND))
+  return Array.from(kernel.subShapeHashes(shape as unknown as ShapeHandle, 'face', HASH_UPPER_BOUND))
 }
 
 /** hash → 该面句柄（靠"下标一一对应"这一契约，见 face-evolution.ts 头注）。 */
 function faceHandleOf(shape: BrepHandle, hash: number): BrepHandle {
-  const handles = kernel.getSubShapes(shape, 'face')
+  const handles = kernel.getSubShapes(shape as unknown as ShapeHandle, 'face')
   const idx = faceHashes(shape).indexOf(hash)
   if (idx < 0) throw new Error(`[probe] hash ${hash} 不属于该形状`)
-  return handles[idx]
+  return handles[idx] as unknown as BrepHandle
 }
 
 /** 面类型（'plane' / 'cylinder' / …）—— 几何语义的最小可观测。 */
 function typeOf(shape: BrepHandle, hash: number): string {
-  return kernel.surfaceType(faceHandleOf(shape, hash))
+  return kernel.surfaceType(faceHandleOf(shape, hash) as unknown as ShapeHandle)
 }
 
 /**
@@ -175,10 +175,10 @@ function decodeSegmented(m: number[]): Array<[number, number[]]> {
 
 /** 某形状若干面的"中心点"序列（保留 3 位小数，用于比较跨重放顺序）。 */
 function centersOf(shape: BrepHandle, hashes: readonly number[]): number[][] {
-  const handles = kernel.getSubShapes(shape, 'face')
+  const handles = kernel.getSubShapes(shape as unknown as ShapeHandle, 'face')
   const all = faceHashes(shape)
   return hashes.map((h) => {
-    const c = kernel.getSurfaceCenterOfMass(handles[all.indexOf(h)])
+    const c = kernel.getSurfaceCenterOfMass(handles[all.indexOf(h)] as unknown as ShapeHandle)
     return [Math.round(c.x * 1000) / 1000, Math.round(c.y * 1000) / 1000, Math.round(c.z * 1000) / 1000]
   })
 }
@@ -189,17 +189,22 @@ function cutThroughHole(): {
   tool: BrepHandle
   hashesA: number[]
   hashesB: number[]
-  evo: ReturnType<BrepEngineApi['cutWithHistory']>
+  evo: BrepEvolutionData
 } {
-  const box = kernel.makeBox(20, 20, 20)
-  const cyl = kernel.makeCylinder(3, 30)
+  const box = kernel.makeBox(20, 20, 20) as unknown as BrepHandle
+  const cyl = kernel.makeCylinder(3, 30) as unknown as BrepHandle
   // box 占 [0..20]³，圆柱轴默认在原点 ⇒ 平移到 (10,10,-5) 即贯穿上下底
-  const tool = kernel.translate(cyl, 10, 10, -5)
-  kernel.release(cyl)
+  const tool = kernel.translate(cyl as unknown as ShapeHandle, 10, 10, -5) as unknown as BrepHandle
+  kernel.release(cyl as unknown as ShapeHandle)
 
   const hashesA = faceHashes(box)
   const hashesB = faceHashes(tool)
-  const evo = kernel.cutWithHistory(box, tool, [...new Set([...hashesA, ...hashesB])], HASH_UPPER_BOUND)
+  const evo = kernel.cutWithHistory(
+    box as unknown as ShapeHandle,
+    tool as unknown as ShapeHandle,
+    [...new Set([...hashesA, ...hashesB])],
+    HASH_UPPER_BOUND,
+  ) as unknown as BrepEvolutionData
   return { box, tool, hashesA, hashesB, evo }
 }
 
@@ -229,7 +234,7 @@ describe('§7 第 1 项：heal 家族是否有内核历史（分支 B：无）',
 describe('§7 第 7 项：cut 的孔壁归账（分支 B：原文不符，hole:<j> 是伪需求）', () => {
   it('孔壁是「工具侧面的改型幸存者」，不是 cut 的新造面', () => {
     const { box, tool, hashesA, hashesB, evo } = cutThroughHole()
-    expect(kernel.isValid(evo.result)).toBe(true)
+    expect(kernel.isValid(evo.result as unknown as ShapeHandle)).toBe(true)
 
     const resultHashes = faceHashes(evo.result)
     expect(resultHashes).toHaveLength(7) // 6 个 box 面（顶/底穿孔后仍是单面）+ 1 孔壁
@@ -247,9 +252,9 @@ describe('§7 第 7 项：cut 的孔壁归账（分支 B：原文不符，hole:<
     expect(b.modified.get(toolSide)).toEqual([holeWall])
     expect(outputsOfModified(a)).not.toContain(holeWall)
 
-    kernel.release(box)
-    kernel.release(tool)
-    kernel.release(evo.result)
+    kernel.release(box as unknown as ShapeHandle)
+    kernel.release(tool as unknown as ShapeHandle)
+    kernel.release(evo.result as unknown as ShapeHandle)
   })
 
   it('cut 的结果面里"新造面"是空集（三种命运判定下）', () => {
@@ -266,9 +271,9 @@ describe('§7 第 7 项：cut 的孔壁归账（分支 B：原文不符，hole:<
     expect(verdicts.filter((v) => v === 'modified')).toHaveLength(3)
     expect(verdicts.filter((v) => v === 'NEW')).toEqual([])
 
-    kernel.release(box)
-    kernel.release(tool)
-    kernel.release(evo.result)
+    kernel.release(box as unknown as ShapeHandle)
+    kernel.release(tool as unknown as ShapeHandle)
+    kernel.release(evo.result as unknown as ShapeHandle)
   })
 
   it('穿孔只改型 box 顶/底面；工具两端面进 deleted（无后继）', () => {
@@ -281,9 +286,9 @@ describe('§7 第 7 项：cut 的孔壁归账（分支 B：原文不符，hole:<
     expect([...a.deleted]).toEqual([])
     expect([...b.deleted].sort()).toEqual(hashesB.filter((h) => h !== toolSide).sort())
 
-    kernel.release(box)
-    kernel.release(tool)
-    kernel.release(evo.result)
+    kernel.release(box as unknown as ShapeHandle)
+    kernel.release(tool as unknown as ShapeHandle)
+    kernel.release(evo.result as unknown as ShapeHandle)
   })
 
   it('未被触碰的面原样幸存：hash 在结果里逐字不变（钉住 propagateOriginRoles 的读法）', () => {
@@ -296,18 +301,18 @@ describe('§7 第 7 项：cut 的孔壁归账（分支 B：原文不符，hole:<
       expect(resultHashes.has(h), `面 ${h} 应原样幸存（hash 不变）`).toBe(true)
     }
 
-    kernel.release(box)
-    kernel.release(tool)
-    kernel.release(evo.result)
+    kernel.release(box as unknown as ShapeHandle)
+    kernel.release(tool as unknown as ShapeHandle)
+    kernel.release(evo.result as unknown as ShapeHandle)
   })
 })
 
 describe('结果面三种命运的判定（cut / fillet 交叉验证）', () => {
   it('fillet 的过渡面是唯一真·新造面：不在输入 hash、也不在任何 modified 输出里', () => {
-    const box = kernel.makeBox(20, 20, 20)
-    const edges = kernel.getSubShapes(box, 'edge')
+    const box = kernel.makeBox(20, 20, 20) as unknown as BrepHandle
+    const edges = kernel.getSubShapes(box as unknown as ShapeHandle, 'edge')
     const hashesA = faceHashes(box)
-    const evo = kernel.filletWithHistory(box, [edges[0]], 3, hashesA, HASH_UPPER_BOUND)
+    const evo = kernel.filletWithHistory(box as unknown as ShapeHandle, [edges[0]], 3, hashesA, HASH_UPPER_BOUND) as unknown as BrepEvolutionData
 
     const resultHashes = faceHashes(evo.result)
     expect(resultHashes).toHaveLength(7) // 6 面去 2 个被裁 + 1 个过渡圆柱 = 7（两个相邻面各留一片）
@@ -328,35 +333,35 @@ describe('结果面三种命运的判定（cut / fillet 交叉验证）', () => 
     // 四个被裁的面：上报为新 hash 的 modified 后继
     expect(verdicts.filter((v) => v === 'modified')).toHaveLength(4)
 
-    kernel.release(box)
-    kernel.release(evo.result)
+    kernel.release(box as unknown as ShapeHandle)
+    kernel.release(evo.result as unknown as ShapeHandle)
   })
 
   it('fillet 的 deleted 与 generated 都是空桶（未受影响的面"不上报"，不是"删除"）', () => {
-    const box = kernel.makeBox(20, 20, 20)
-    const edges = kernel.getSubShapes(box, 'edge')
+    const box = kernel.makeBox(20, 20, 20) as unknown as BrepHandle
+    const edges = kernel.getSubShapes(box as unknown as ShapeHandle, 'edge')
     const hashesA = faceHashes(box)
-    const evo = kernel.filletWithHistory(box, [edges[0]], 3, hashesA, HASH_UPPER_BOUND)
+    const evo = kernel.filletWithHistory(box as unknown as ShapeHandle, [edges[0]], 3, hashesA, HASH_UPPER_BOUND) as unknown as BrepEvolutionData
 
     expect(evo.deleted).toEqual([])
     expect(evo.generated).toEqual([])
     // modified 只有 4 段 1:1（含 2 段自映射 0->[0]、4->[4]）
     expect(decodeSegmented(evo.modified)).toHaveLength(4)
 
-    kernel.release(box)
-    kernel.release(evo.result)
+    kernel.release(box as unknown as ShapeHandle)
+    kernel.release(evo.result as unknown as ShapeHandle)
   })
 
   it('fuse 的 1→N 分裂：段内后继顺序跨重放逐字稳定（子角色命名可用段内下标）', () => {
     /** 跑一遍 fuse(box, box 沿 +x 平移 5)，返回各输入面 → 后继中心点序列。 */
     const run = (): { segs: Array<[number, number[][]]>; deleted: number[]; resultCount: number } => {
-      const a = kernel.makeBox(10, 10, 10)
-      const b0 = kernel.makeBox(10, 10, 10)
-      const b = kernel.translate(b0, 5, 0, 0)
-      kernel.release(b0)
+      const a = kernel.makeBox(10, 10, 10) as unknown as BrepHandle
+      const b0 = kernel.makeBox(10, 10, 10) as unknown as BrepHandle
+      const b = kernel.translate(b0 as unknown as ShapeHandle, 5, 0, 0) as unknown as BrepHandle
+      kernel.release(b0 as unknown as ShapeHandle)
       const hashesA = faceHashes(a)
       const hashesB = faceHashes(b)
-      const evo = kernel.fuseWithHistory(a, b, [...new Set([...hashesA, ...hashesB])], HASH_UPPER_BOUND)
+      const evo = kernel.fuseWithHistory(a as unknown as ShapeHandle, b as unknown as ShapeHandle, [...new Set([...hashesA, ...hashesB])], HASH_UPPER_BOUND) as unknown as BrepEvolutionData
 
       const inputOrder = [...hashesA, ...hashesB]
       const segs: Array<[number, number[][]]> = decodeSegmented(evo.modified).map(([inHash, outs]) => [
@@ -369,9 +374,9 @@ describe('结果面三种命运的判定（cut / fillet 交叉验证）', () => 
         resultCount: faceHashes(evo.result).length,
       }
 
-      kernel.release(a)
-      kernel.release(b)
-      kernel.release(evo.result)
+      kernel.release(a as unknown as ShapeHandle)
+      kernel.release(b as unknown as ShapeHandle)
+      kernel.release(evo.result as unknown as ShapeHandle)
       return out
     }
 
@@ -402,9 +407,9 @@ describe('generated 桶：编码 / 语义 / 文档缺陷（不可用于定位新
     expect(genKeys).toEqual(modKeys)
     expect(evo.generated).toContain(2) // 分段编码里的 count 字段（扁平读法的陷阱所在）
 
-    kernel.release(box)
-    kernel.release(tool)
-    kernel.release(evo.result)
+    kernel.release(box as unknown as ShapeHandle)
+    kernel.release(tool as unknown as ShapeHandle)
+    kernel.release(evo.result as unknown as ShapeHandle)
   })
 
   it('generated 的 hash 在结果里 0 个存活（验证代码头注的既有断言）', () => {
@@ -419,9 +424,9 @@ describe('generated 桶：编码 / 语义 / 文档缺陷（不可用于定位新
     const hashEvo = decodeHashEvolution(evo)
     expect(hashEvo.modified.size).toBeGreaterThan(0)
 
-    kernel.release(box)
-    kernel.release(tool)
-    kernel.release(evo.result)
+    kernel.release(box as unknown as ShapeHandle)
+    kernel.release(tool as unknown as ShapeHandle)
+    kernel.release(evo.result as unknown as ShapeHandle)
   })
 })
 

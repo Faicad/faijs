@@ -47,7 +47,7 @@ function fakeKernel(faces: Array<{ surfaceType: string; normal: [number, number,
       return { x: n[0], y: n[1], z: n[2] }
     },
     uvBounds: () => ({ uMin: 0, uMax: 1, vMin: 0, vMax: 1 }),
-    getSurfaceCenterOfMass: (face: BrepHandle) => {
+    surfaceCenterOfMass: (face: BrepHandle) => {
       const c = byHandle.get(face)?.center ?? [0, 0, 0]
       return { x: c[0], y: c[1], z: c[2] }
     },
@@ -139,7 +139,6 @@ function fakeKernel(faces: Array<{ surfaceType: string; normal: [number, number,
     shapeType: () => { throw new Error('not implemented: shapeType') },
     isNull: () => { throw new Error('not implemented: isNull') },
     iterShapes: () => { throw new Error('not implemented: iterShapes') },
-    surfaceCenterOfMass: () => { throw new Error('not implemented: surfaceCenterOfMass') },
     locate: () => { throw new Error('not implemented: locate') },
     copyShape: () => { throw new Error('not implemented: copyShape') },
     downcast: () => { throw new Error('not implemented: downcast') },
@@ -168,6 +167,21 @@ function fakeKernel(faces: Array<{ surfaceType: string; normal: [number, number,
     generalTransformNonOrthogonal: () => { throw new Error('not implemented: generalTransformNonOrthogonal') },
     generalTransformWithHistory: () => { throw new Error('not implemented: generalTransformWithHistory') },
     applyComposedTransformWithHistory: () => { throw new Error('not implemented: applyComposedTransformWithHistory') },
+    // Phase 4 收窄后新入 L1 的方法（fake kernel 补最小真桩；多余平台键保留不碍 as 断言）。
+    sectionByPlane: () => [],
+    splitByPlane: () => ({ positive: 1 as BrepHandle, negative: 2 as BrepHandle }),
+    makeCircleEdge: () => 1 as BrepHandle,
+    edgeToFaceMap: () => ({}),
+    adjacentFaces: () => [],
+    sharedEdges: () => [],
+    getSurfaceArea: () => 0,
+    getLength: () => 0,
+    interpolatePoints: () => 1 as BrepHandle,
+    defeature: (s) => s,
+    draft: () => 1 as BrepHandle,
+    removeHolesFromFace: () => 1 as BrepHandle,
+    reverseShape: (s) => s,
+    projectEdges: () => ({}),
 } as BrepEngineApi
 }
 

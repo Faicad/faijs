@@ -124,6 +124,10 @@ function renderBrepOp(entry: ArgSpecEntry): string {
   // Phase 1（Brep 引擎可切换重构）：capabilities 透传——compat-op.ts 早已把
   // spec.capabilities 透传给 defineOp，这里只是打开既有通道（R2 能力前置判定）。
   const capsLit = entry.capabilities?.length ? `, capabilities: ${JSON.stringify(entry.capabilities)}` : ''
+  // Phase 5（narrowing plan D11）：平台身份透传——arg-spec 条目标了 engines 的
+  // vendored op（实现调 occt-only 方法，capability-map 实证）在生成物里声明
+  // engines，与 capabilities 互斥（D11-7）。中立 op（无 engines）不输出。
+  const enginesLit = entry.engines?.length ? `, engines: ${JSON.stringify(entry.engines)}` : ''
   return [
     `/**`,
     ` * ${entry.name} — brepjs 投影（生成文件，禁手改；来源 api/surface/arg-spec.ts）。`,
@@ -132,7 +136,7 @@ function renderBrepOp(entry: ArgSpecEntry): string {
     ` */`,
     `export const ${entry.name} = compatOp(`,
     `  projectBrepOp('${entry.name}', ${JSON.stringify(entry.params ?? [])}, '${formClass}', ${vendoredName}),`,
-    `  { name: '${entry.name}'${namingLit}${capsLit} },`,
+    `  { name: '${entry.name}'${namingLit}${capsLit}${enginesLit} },`,
     `)`,
   ].join('\n')
 }
@@ -166,6 +170,12 @@ function renderQuery(entry: ArgSpecEntry): string {
     return p.name
   })
   const callExpr = `callBrepjs(__vendored_${exportName}, [${argItems.join(', ')}])`
+  // Phase 6（narrowing plan D7）：平台 query op（依赖 occt-only 内核方法的 vendored
+  // 测量/干涉面）在 arg-spec 声明 `engines: ['occt']` → 函数体第一行执行前断言，
+  // 触碰内核之前报错（D11-4 文案同构；中立 op 无 engines 不输出）。
+  const engineGuard = entry.engines?.length
+    ? `  assertEngineFor('${entry.name}', ${JSON.stringify(entry.engines)})\n`
+    : ''
   const body =
     entry.returnsResult === false
       ? `  return ${callExpr}`
@@ -186,6 +196,7 @@ function renderQuery(entry: ArgSpecEntry): string {
     ` * @returns ${returnType} — 纯数据结果（非 Shape）。`,
     ` */`,
     `export function ${entry.name}(${faParams.join(', ')}): ${returnType} {`,
+    engineGuard,
     body,
     `}`,
   ].join('\n')
@@ -197,6 +208,7 @@ function renderQuery(entry: ArgSpecEntry): string {
 function renderImports(entries: ArgSpecEntry[]): string[] {
   const hasBrep = entries.some((e) => e.kind === 'brep-op')
   const hasQuery = entries.some((e) => e.kind === 'query')
+  const hasEngineQuery = entries.some((e) => e.kind === 'query' && e.engines?.length)
 
   const lines: string[] = []
   if (hasBrep) {
@@ -204,7 +216,7 @@ function renderImports(entries: ArgSpecEntry[]): string[] {
     lines.push(`import { projectBrepOp } from '../internal/compat-projection'`)
   }
   if (hasQuery) {
-    lines.push(`import { borrowBrepjsShape, callBrepjs } from '../internal/l3-bridge'`)
+    lines.push(`import { borrowBrepjsShape, callBrepjs${hasEngineQuery ? ', assertEngineFor' : ''} } from '../internal/l3-bridge'`)
     lines.push(`import type { Shape } from '../../mesh/types'`)
   }
   const seenValue = new Set<string>()
@@ -338,13 +350,16 @@ export function generateScriptFaceManifest(): string {
     '  name: string',
     '  /** 所属分片模块（生成文件名）。 */',
     '  module: string',
+    '  /** Phase 5（D11）：平台 op 的平台身份（中立 op 缺省）。 */',
+    "  engines?: readonly string[]",
     '}',
     '',
     '/** Cad script-face op manifest (B1: single source for cad namespace, check() symbol table). */',
     'export const SCRIPT_FACE_OPS: readonly ScriptFaceOp[] = [',
   ]
   for (const e of entries) {
-    lines.push(`  { name: '${e.name}', module: '${moduleOf(e)}' },`)
+    const enginesLit = e.engines?.length ? `, engines: ${JSON.stringify(e.engines)}` : ''
+    lines.push(`  { name: '${e.name}', module: '${moduleOf(e)}'${enginesLit} },`)
   }
   lines.push(']')
   lines.push('')

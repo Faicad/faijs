@@ -22,7 +22,7 @@ import {
 
 /** 本包内部统一经 WarehouseKernel 取用（requireKernel 返回基类，这里收窄）。 */
 function k(): WarehouseKernel {
-  return requireKernel() as WarehouseKernel
+  return requireKernel() as unknown as WarehouseKernel
 }
 
 /**

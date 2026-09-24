@@ -222,6 +222,31 @@ Verified against `@faicad/sheetmetal` (whole-package registration, `{ compat: tr
 | geometry terminal | `unfoldSolid(s1)` — borrows a zero-copy arena view |
 
 `solidOf` remains as an explicit terminal for the TS compat face and library-side use; on the script face it is no longer *required* — member access (`p.solid`) reaches the field directly.
+### 4.4 Platform ops and the `engines` declaration
+
+A library op is a **platform op** when its implementation statically imports a platform module (`occt-kernel/*` or `brepkit-kernel/*`) — the import is the sole judge (§1.1 of the narrowing plan). Such an op must declare its platform identity in `defineOp`:
+
+```ts ignore-check
+import { defineOp } from '@faicad/faijs/sdk'
+import { occt } from './my-occt-only-helper' // imports occt-kernel/* → platform op
+
+export const myOp = defineOp({
+  name: 'myOp',
+  engines: ['occt'], // REQUIRED for platform ops
+  brep: async (ctx, ...args) => { /* ... */ },
+})
+```
+
+Rules (D11, checked by `assertLibConforms` + the `check-platform-imports.mjs` CI guard):
+
+1. **`engines` lists real engine ids** — `'occt'` / `'brepkit'` / `'brep_mock'` (never a bare string).
+2. **`engines` and `capabilities` are mutually exclusive** — a platform op declares `engines` and *no* `capabilities` (D11-7); a neutral op declares `capabilities` and no `engines`. Both empty is allowed only for mesh-only ops.
+3. **Interception happens at execution** — under a non-listed engine the op fails before touching the kernel (`BrepUnsupportedError` → `ExecutionResult.failedAt`). The static guard only enforces the declaration, it does not substitute for it.
+4. **`brep_mock` is exempt** from the interception (test stand-in, D11-3) — declared `engines` are still honored for parity/switch tests.
+5. **Library dual-ops that import a platform module are bound by the same rule** — write `engines` in `defineOp`, interception occurs in `dispatchPath` at execution time, no registration-time validation.
+
+A neutral op (implementation uses only `getBrepApi()` L1 methods) must *not* write `engines` — the L1 contract face is engine-agnostic by construction.
+
 
 ---
 

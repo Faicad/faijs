@@ -17,7 +17,7 @@
 
 import type { Shape } from '../mesh/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
-import { getBackends } from '../runtime-state'
+import { getBrepApi } from '../brep/handle-bridge'
 import { solidToShape } from '../brep/brep-ops'
 import { fromBrep } from '../shape'
 import { defineOp } from '../sdk'
@@ -151,8 +151,7 @@ function loopToWire(kernel: BrepEngineApi, loop: SketchLoop): ReturnType<BrepEng
 
 /** BREP 路径：2D 轮廓 → planar face（外环 + 孔）。 */
 function sketchBrep(params: Record<string, unknown>): Shape {
-  const kernel = getBackends().kernel.brep as BrepEngineApi | null
-  if (!kernel) throw new Error('[stdlib/sketch] no BREP kernel')
+  const kernel = getBrepApi()
 
   const loops = (params.contours as SketchLoop[]).map((loop) => ({ loop, area: Math.abs(loopSignedArea(loop)) }))
   // 面积最大者为外环，其余为孔

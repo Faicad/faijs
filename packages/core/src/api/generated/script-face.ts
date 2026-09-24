@@ -8,6 +8,8 @@
 
 import { torus, fuse, ellipsoid, rotate, mirror, clone, applyMatrix, locate, split, offset, heal, simplify, autoHeal, fixShape, healSolid } from './topology'
 export { torus, fuse, ellipsoid, rotate, mirror, clone, applyMatrix, locate, split, offset, heal, simplify, autoHeal, fixShape, healSolid } from './topology'
+import { area, length } from './measurement'
+export { area, length } from './measurement'
 import { viewCamera, projectView, projectSheet } from './view'
 export { viewCamera, projectView, projectSheet } from './view'
 import { linearPattern, circularPattern, gridPattern, drill, pocket, boss, mirrorJoin, rectangularPattern, convexHull } from './operations'
@@ -19,6 +21,8 @@ export { makeBaseBox } from './sketching'
 export const scriptFaceOps = {
   torus,
   fuse,
+  area,
+  length,
   viewCamera,
   projectView,
   projectSheet,

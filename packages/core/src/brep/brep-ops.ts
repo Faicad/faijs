@@ -1,6 +1,12 @@
 /**
  * 核心 BREP 操作 — 使用 OCCT 精确实体运算
  *
+ * @platform occt — 本文件 import occt-kernel：`extrudeBrep` 用原生 `section`
+ * （BRepAlgoAPI_Section，occt-only，L1 只有 sectionByPlane）构造截面 → 守卫①
+ * 要求平台 import 自证身份。本文件是内部工具面（非 op 文件），文件级标注即满足
+ * 守卫；调用方 op 若经本文件触达 occt-only 能力，须在 defineOp 声明 engines
+ * （extrudeBrep 的 section 仅 occt 路径可达，brepkit 下由调用方引擎声明拦截）。
+ *
  * See docs/api-contract.md §8 (dual-path geometry contract: BREP / Mesh).
  *
  * 与 mesh 路径（transform.ts / boolean/ / drill.ts / split.ts / extrude.ts）对照：
@@ -16,7 +22,7 @@
 import * as THREE from 'three'
 import type { BrepHandle, BrepMeshResult } from './engine/types'
 import type { BrepEngineApi } from './engine/primitives'
-import { getOcctKernel } from '../occt-kernel/occtKernel'
+import { getOcctKernel, type ShapeHandle } from '../occt-kernel/occtKernel'
 import type { Shape, Vec3 } from '../mesh/types'
 import type { BrepChainState } from './brep-chain'
 import type { PartName } from '../identity'
@@ -588,8 +594,13 @@ export function extrudeBrep(
   const planeFace = kernel.transform(centeredRect, matrixToArray(planeMatrix))
   kernel.release(centeredRect)
 
-  // 获取截面边
-  const sectionEdges = getOcctKernel().section(solid, planeFace)
+  // 获取截面边（occt-only 平台面，D3）。BrepHandle（branded number）与
+  // occt-wasm ShapeHandle 运行时同构，品牌转换只发生在平台边界；转回 BrepHandle
+  // 后继续用 L1 面（getSubShapes/makeWire/extrude）。
+  const sectionEdges = getOcctKernel().section(
+    solid as unknown as ShapeHandle,
+    planeFace as unknown as ShapeHandle,
+  ) as unknown as BrepHandle
   kernel.release(planeFace)
 
   // 4. 构建截面 wire → face → 拉伸

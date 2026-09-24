@@ -341,7 +341,7 @@ const SECTIONS: Record<string, () => void> = {
 async function main(): Promise<void> {
   const wanted = process.argv.slice(2)
   await setupWarehouseKernel()
-  k = requireKernel() as WarehouseKernel
+  k = requireKernel() as unknown as WarehouseKernel
   const keys = wanted.length ? wanted : Object.keys(SECTIONS)
   for (const key of keys) {
     const fn = SECTIONS[key]

@@ -1,6 +1,10 @@
 /**
  * L3 bridge — vendored kernel registry injection (engine-neutral, Phase 2 P2-5).
  *
+ * @platform occt — 本文件 import occt-kernel（occtKernel）：桥接层把当前引擎的
+ *   BrepEngineApi 适配器包装为 brepjs KernelAdapter 注入 vendored registry，平台
+ *   类型（OcctKernel 句柄）只在桥内出现；守卫 R1 豁免、R2 无 defineOp 不适用。
+ *
  * 原 occt-kernel-bridge 的职责是「把 vendored kernel registry 冻结绑定到 occt-wasm
  * 单实例」（D10）。Phase 2 起改为**跟随当前 BREP 引擎**：装配期把 registry 里当前
  * 引擎（occt / brepkit / mock）的 `BrepEngineApi` 适配器包装为 brepjs `KernelAdapter`
@@ -135,16 +139,11 @@ export function buildKernelAdapter(engine: BrepEngine): KernelAdapter {
 const noop = (): void => {}
 
 /**
- * vendored kernel methods with no source capability in BrepEngineApi.
- * Registered explicitly (not silently undefined): tests assert this list and
- * the engine-contract gap is a separate decision, not a wrapping bug. No
- * stubs, no fake zeros — a silent 0 is worse than a crash.
+ * vendored 测量名 ↔ BrepEngineApi 能力映射（Phase 6 收口，D7）：
+ * area/length 已映射到 L1 测量面（getSurfaceArea/getLength，Phase 4 D9 接线）；
+ * linearCenterOfMass 无 L1 对应（L2 平台面，primitives.ts 注释），保留真实缺口——
+ * 不补桩、不返回 0（静默 0 比崩溃更糟），测试内联钉住 undefined。
  */
-export const UNMAPPED_VENDORED_MEASURE_METHODS = [
-  'area',
-  'length',
-  'linearCenterOfMass',
-] as const
 
 /** Unwrap a vendored KernelShape (handle view or bare number) to a BrepHandle. */
 function unwrapHandle(h: unknown): unknown {
@@ -173,10 +172,11 @@ function mapMeasureMethods(adapter: Record<string, unknown>, api: BrepEngineApi)
       max: [bb.xmax, bb.ymax, bb.zmax],
     }
   }
+  adapter['area'] = (s: unknown) => api.getSurfaceArea(unwrapHandle(s) as never)
+  adapter['length'] = (s: unknown) => api.getLength(unwrapHandle(s) as never)
   // shapeType / isNull: same name, same semantics — already covered by the
   // transparent pass-through in wrapBrepEngineApi; listed here for docs only.
-  // Known contract gaps (UNMAPPED_VENDORED_MEASURE_METHODS) are NOT stubbed:
-  // they remain undefined so tests can pin the gap explicitly.
+  // linearCenterOfMass（L2 平台面）无 L1 对应，保持 undefined（缺口由测试内联钉住）。
 }
 
 /**
