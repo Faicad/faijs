@@ -413,6 +413,8 @@ compat op（vendored brepjs 函数）经**装配期适配器注入**取内核：
 4. **`brep_mock` 豁免**（D11-3）：mock 是测试替身，capabilities 故意全给；真实引擎的身份校验由 parity / engine-switch 测试覆盖。
 5. 脚本面可以同样声明地暴露平台 op——不支持的引擎在语句边界失败（`ExecutionResult.failedAt`，Q11）。
 
+**脚本面新增（2026-09-24 能力扩展）**：1D 曲线族（`wire`、`helix`、`sketch` 的 `as:'wire'`）与扫掠/放样族（`sweep`、`loft`、`complexExtrude`、`twistExtrude`、`roof`）已按上述规则进入 cad 面——`sweep`/`loft`/`helix` 声明 `engines: ['occt']`，`roof` 是中立 op（capability 路由），剖切族 `splitByPlane`（具名 `positive`/`negative` 产物）与 `sectionByPlane`（1D 截面曲线）是中立 L1 op。参数契约见 `docs/ops-api-inventory.md`。
+
 
 ---
 
@@ -522,13 +524,13 @@ export interface HostPorts {
 
 | 类别 | 手写平台 op |
 |---|---|
-| 创建类 | `box` `sphere` `cylinder` `cone` `wedge` `screw` `sdf` `sketch` |
+| 创建类 | `box` `sphere` `cylinder` `cone` `wedge` `screw` `sdf` `sketch`（缺省出面；`as:'wire'` 出 1D 曲线） `wire` `helix`（1D 曲线，`kind:'curve'`） |
 | 变换类 | `translate` `rotate_euler` `scale` `scale3d` `place` |
-| 特征类 | `extrude` `revolve` `engrave` `knurl` `chamfer` `fillet` |
+| 特征类 | `extrude` `revolve` `sweep` `loft`（截面接受 wire 或面；平台 occt） `engrave` `knurl` `chamfer` `fillet` `filletVariable` `shell` `draft` `thicken` `defeature` `removeHolesFromFace` `reverseShape` `unifySameDomain` `sew` `sewAndSolidify` |
 | 布尔 | `union` `subtract` `intersect` `cut` |
-| 分割／阵列 | `split`（双输出，解构 `const { front, back } = …`） `linearPattern` `circularPattern` `gridPattern` `rectangularPattern` `mirrorJoin` `mirror` `clone` |
+| 分割／阵列 | `split`（双输出，解构 `const { front, back } = …`） `splitByPlane`（具名产物 `positive`/`negative`） `sectionByPlane`（1D 截面曲线） `linearPattern` `circularPattern` `gridPattern` `rectangularPattern` `mirrorJoin` `mirror` `clone` |
 | 导入／结构 | `import_brep` `import_step` `compound` |
-| 查询 | `faceNormal` `bboxCenter` `bboxMin` `bboxMax` `edgeRef` `faceRef` |
+| 查询 | `faceNormal` `bboxCenter` `bboxMin` `bboxMax` `edgeRef` `faceRef` `volume` `centerOfMass` `isValid` `isEmpty` `isEqualShape` `isSameShape` `getShapeKind` |
 | 装配求解 | `jointTrajectory` `inverseKinematics` `mechanismDOF` |
 | 资产 | `asset` |
 

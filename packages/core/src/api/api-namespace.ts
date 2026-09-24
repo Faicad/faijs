@@ -44,6 +44,8 @@ import { draft } from './draft'
 import { thicken } from './thicken'
 import { defeature, reverseShape, unifySameDomain, sew, sewAndSolidify, removeHolesFromFace } from './feature-repair'
 import { filletVariable } from './fillet-variable'
+import { splitByPlane } from './split-by-plane'
+import { sectionByPlane } from './section-by-plane'
 import { faceNormal, bboxCenter, bboxMin, bboxMax } from './geom'
 import { splitByPlane } from './split-by-plane'
 import { sectionByPlane } from './section-by-plane'
@@ -83,7 +85,7 @@ export function createApiNamespace(): StdlibNamespace {
     translate, rotate_euler, scale, scale3d,
     engrave, chamfer, fillet, knurl,
     // Phase 5：按面/边选的特征族 + 修复薄包装（shell/draft 中立；thicken 平台 occt）。
-    shell, draft, thicken, filletVariable,
+    shell, draft, thicken, filletVariable, splitByPlane, sectionByPlane,
     defeature, reverseShape, unifySameDomain, sew, sewAndSolidify, removeHolesFromFace,
     union, subtract, intersect,
     extrude, revolve,

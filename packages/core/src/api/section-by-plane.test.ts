@@ -1,132 +1,88 @@
 /**
  * @vitest-environment node
  *
- * Phase 6.2 — `cad.sectionByPlane` 平面求交线（中立 op，1D compound 产物）验收。
+ * Phase 6.2 — `cad.sectionByPlane`（手写中立 op，1D compound 产物）验收。
  *
  * 覆盖：
- * 1. occt 可达：box 与 z=10 平面的截面 = 20×20 方形回线；产物是 compound、
- *    children 每条 kind:'curve'（1D 无三角载荷）；
- * 2. 空截面：平面不与体相交 ⇒ 空 compound（不抛错）；
- * 3. mesh 模式执行前报错（无 mesh 实现，backend-dispatch 静态判定）；
- * 4. brep_mock 下不被引擎门拦截（mock 桩 Phase 6.3 补齐前抛 unsupported 属运行时语义）。
+ * 1. 可达 + 产物是 1D 曲线（kind:'curve'，Phase 3 判别位）；
+ * 2. 几何正确：box 沿 z=5 横截 → 截面线包围盒 = box 的 XY 范围、Z 压平在 5；
+ * 3. L1 wireframe 对产物出非空点列（1D 显示口径，不做伪三角化）；
+ * 4. 平面不与体相交时显式报错（原则 9：不返回假空产物）。
  *
  * Run: npx vitest run src/api/section-by-plane.test.ts
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { CadRuntime } from '../cad-runtime/runtime'
-import type { ExecutionResult } from '../cad-runtime/runtime'
-import type { ExecutionMode, HostPorts } from '../cad-runtime/ports'
-import { asPartName } from '../identity'
 import { initOcctWasm } from '../occt-kernel/occtKernel'
-import type { Shape } from '../mesh/types'
-import { __resetEngineRegistriesForTests } from '../brep/engine/registry'
+import { __resetEngineRegistriesForTests, getBrepEngine } from '../brep/engine/registry'
 import { registerOcctBrepEngine } from '../brep/engine/adapters/occt'
-import { registerBrepMockEngine } from '../brep/engine/adapters/brep-mock'
 import { getBrepApi } from '../brep/handle-bridge'
-import { brepOf } from '../shape'
-import { createApiNamespaceWithEditorOps } from '../test-support/editor-ops'
+import { configureBackends } from '../runtime-state'
+import { fromBrep, brepOf, isCurveShape } from '../shape'
+import { solidToShape } from '../brep/brep-ops'
+import type { Shape } from '../mesh/types'
+import type { BrepHandle } from '../brep/engine/types'
+import { sectionByPlane } from './section-by-plane'
 
 beforeAll(async () => {
   await initOcctWasm()
+  __resetEngineRegistriesForTests()
+  await registerOcctBrepEngine()
+  configureBackends({
+    contractVersion: 1,
+    config: { mode: 'brep', brepCapabilities: { directEdit: true }, brepEngineId: 'occt' },
+    kernel: { brep: (await getBrepEngine()).primitives, csg: undefined, sdf: undefined },
+    fonts: undefined,
+    texture: undefined,
+    assets: undefined,
+    events: undefined,
+    cad: {} as never,
+  } as never)
 }, 120000)
 
 afterAll(() => {
   __resetEngineRegistriesForTests()
 })
 
-function ports(): HostPorts {
-  return { events: { emit: () => {} } } as HostPorts
+function box10(): Shape {
+  const kernel = getBrepApi()
+  const h = kernel.makeBox(10, 10, 10)
+  return fromBrep(solidToShape(kernel, h), { solid: h })
 }
 
-async function useOcct(): Promise<void> {
-  __resetEngineRegistriesForTests()
-  await registerOcctBrepEngine()
-}
-
-async function useBrepMock(): Promise<void> {
-  __resetEngineRegistriesForTests()
-  await registerBrepMockEngine()
-}
-
-function makeRuntime(mode: ExecutionMode): CadRuntime {
-  return new CadRuntime(ports(), mode, { cad: createApiNamespaceWithEditorOps() })
-}
-
-function exec(mode: ExecutionMode, code: string): Promise<ExecutionResult> {
-  return makeRuntime(mode).execute(code)
-}
-
-async function outputOf(mode: ExecutionMode, code: string, part: string): Promise<Shape | undefined> {
-  const result = await exec(mode, code)
-  if (result.failedAt) {
-    throw new Error(`execution failed at ${result.failedAt.callee}: ${result.failedAt.message}`)
-  }
-  return result.outputs.get(asPartName(part)) as Shape | undefined
-}
-
-function isCompoundLike(v: unknown): v is { kind: 'compound'; children: Shape[] } {
-  return !!v && typeof v === 'object' && (v as { kind?: unknown }).kind === 'compound'
-}
-
-function isGeomCompound(v: unknown): boolean {
-  // 产物口径（与 compound-geom 先例一致）：持 compound 句柄的几何复合体——
-  // 顶层 kind:'solid'，经 brep 槽 getSubShapes('edge') 可枚举交线。
-  if (!v || typeof v !== 'object') return false
-  try {
-    const h = brepOf(v as Shape)
-    return h !== undefined && getBrepApi().getSubShapes(h as never, 'edge').length >= 0
-  } catch {
-    return false
-  }
-}
-
-describe('sectionByPlane — 平面求交线（中立 op，Phase 6.2）', () => {
-  it('box(20,20,20) 与 z=10 平面的截面 ⇒ 持句柄几何复合体（含 edge 交线）', async () => {
-    await useOcct()
-    const sec = await outputOf(
-      'brep',
-      `const p0 = cad.box(20,20,20)\nconst part1 = cad.sectionByPlane(p0, { point: [10,10,10], normal: [0,0,1] })\n`,
-      'part1',
-    )
-    expect(sec).toBeTruthy()
-    expect(isGeomCompound(sec!)).toBe(true)
-    const h = brepOf(sec!) as never
-    const edges = getBrepApi().getSubShapes(h, 'edge')
-    // 20×20 方形回线：≥4 条边
-    expect(edges.length).toBeGreaterThanOrEqual(4)
+describe('cad.sectionByPlane (Phase 6.2)', () => {
+  it('returns a 1D curve shape (kind:curve) carrying a BREP compound handle', async () => {
+    const box = box10()
+    const sec = (await sectionByPlane(box, { point: [0, 0, 5], normal: [0, 0, 1] })) as Shape
+    expect(isCurveShape(sec)).toBe(true)
+    expect(brepOf(sec)).toBeDefined()
   })
 
-  it('空截面（平面不与体相交）⇒ 0 条交线不抛错', async () => {
-    await useOcct()
-    const sec = await outputOf(
-      'brep',
-      `const p0 = cad.box(20,20,20)\nconst part1 = cad.sectionByPlane(p0, { point: [100,100,100], normal: [0,0,1] })\n`,
-      'part1',
-    )
-    expect(sec).toBeTruthy()
-    const h = brepOf(sec!) as never
-    expect(getBrepApi().getSubShapes(h, 'edge')).toEqual([])
+  it('section of a box at z=5 has XY bounds of the box and Z flattened to 5', async () => {
+    const kernel = getBrepApi()
+    const box = box10()
+    const sec = (await sectionByPlane(box, { point: [0, 0, 5], normal: [0, 0, 1] })) as Shape
+    const bb = kernel.getBoundingBox(brepOf(sec) as BrepHandle)
+    expect(bb.xmin).toBeCloseTo(0, 3)
+    expect(bb.xmax).toBeCloseTo(10, 3)
+    expect(bb.ymin).toBeCloseTo(0, 3)
+    expect(bb.ymax).toBeCloseTo(10, 3)
+    expect(bb.zmin).toBeCloseTo(5, 3)
+    expect(bb.zmax).toBeCloseTo(5, 3)
   })
 
-  it('mesh 模式执行前报错（无 mesh 实现，静态判定不回退）', async () => {
-    await useOcct()
-    const result = await exec(
-      'mesh',
-      `const p0 = cad.box(20,20,20)\nconst part1 = cad.sectionByPlane(p0, { point: [10,10,10], normal: [0,0,1] })\n`,
-    )
-    expect(result.failedAt).toBeTruthy()
-    expect(result.failedAt!.callee).toContain('sectionByPlane')
+  it('L1 wireframe supplies a non-empty point list for display', async () => {
+    const box = box10()
+    const sec = (await sectionByPlane(box, { point: [0, 0, 5], normal: [0, 0, 1] })) as Shape
+    const wf = getBrepApi().wireframe(brepOf(sec) as BrepHandle)
+    expect(wf.points.length).toBeGreaterThan(0)
+    expect(Number.isFinite(wf.points[0])).toBe(true)
   })
 
-  it('brep_mock 下不被引擎门拦截（mock 桩 Phase 6.3 补齐前抛 unsupported）', async () => {
-    await useBrepMock()
-    const result = await exec(
-      'brep',
-      `const p0 = cad.box(20,20,20)\nconst part1 = cad.sectionByPlane(p0, { point: [10,10,10], normal: [0,0,1] })\n`,
-    )
-    if (result.failedAt) {
-      expect(result.failedAt.message).not.toMatch(/E_ENGINE|not registered/i)
-    }
+  it('errors explicitly when the plane misses the shape', async () => {
+    const box = box10()
+    await expect(
+      sectionByPlane(box, { point: [0, 0, 50], normal: [0, 0, 1] }),
+    ).rejects.toThrow(/E_SECTION_BY_PLANE_NO_INTERSECTION/)
   })
 })

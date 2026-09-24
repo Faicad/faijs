@@ -25,8 +25,13 @@ interface MeshableKernel {
 }
 
 /**
- * Get the OCCT kernel instance faijs is currently using.
- * @returns the current OCCT kernel.
+ * Get the currently injected BREP kernel instance (untyped escape hatch).
+ * @deprecated D12: this exit predates the engine-neutral L1 surface and its name
+ * ("OCCT kernel") no longer matches what it returns — the current engine's raw
+ * kernel, whatever engine that is. Prefer `getBrepApi()` (typed, engine-neutral,
+ * same file) for neutral ops; platform-only code (L2 face) should use
+ * `getOcctKernel()` (D3). Kept for vendored-face bridging and existing tests.
+ * @returns the current BREP engine's kernel instance.
  * @throws when the kernel is not ready (mesh mode or uninitialized) — never silently returns null.
  */
 export function getKernel(): unknown {

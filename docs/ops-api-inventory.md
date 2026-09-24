@@ -716,7 +716,24 @@ const p1 = await cad.revolve(part0, { axis: [0, 0, 1], at: [0, 0, 0], angle: 6.2
 
 **异步**。Shape 旋转体（带链根 roleTable：bottom/top/wall:i）。
 
-### 5.19 `shell` ✅
+### 5.19 `sectionByPlane` ✅
+
+求实体与无限平面的精确截面线（1D 曲线，可继续建模/导出 STEP）。
+
+```js
+const sec = await cad.sectionByPlane(part0, { point: [0,0,5], normal: [0,0,1] })
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `point` | `Vec3` | ✅ | — | 平面上一点 [x,y,z]（mm） |
+| `normal` | `Vec3` | ✅ | — | 平面法向 [x,y,z] |
+
+**异步**。Shape 1D 截面曲线。
+
+> 中立 op：L1 sectionByPlane 两引擎同实现。产物是 1D 曲线（kind:'curve'， 全部交线收拢为一个 compound）；平面不与体相交时显式报错。
+
+### 5.20 `shell` ✅
 
 抽壳：移除指定面并把余下面偏置成等厚薄壁。
 
@@ -734,7 +751,7 @@ const sh = await cad.shell(part0, { openFaces: [cad.faceRef(part0, 1)], thicknes
 
 > 中立 op：L1 shell 两引擎同实现。`openFaces` 为空数组时生成全封闭薄壁。 仅 BREP 可用：mesh 输入执行前报错（backend-dispatch 静态判定）。
 
-### 5.20 `split` ✅
+### 5.21 `split` ✅
 
 用工具几何切分目标几何（BRepAlgoAPI_Splitter），返回所有碎片组成的几何。
 
@@ -750,7 +767,24 @@ const pieces = await cad.split(part0, [part1])
 
 > BREP-only：非 BREP 输入抛 E_MESH_UNSUPPORTED。切分产生的截面 / 被切细的侧面 片记 `splinter(#j)`（Phase 3 L4 抗重放词汇）。平台 op：仅 occt 引擎（原生 split）。
 
-### 5.21 `subtract` ✅
+### 5.22 `splitByPlane` ✅
+
+沿无限平面把实体切成两半，返回法向正/负两半（具名产物）。
+
+```js
+const { positive, negative } = await cad.splitByPlane(part0, { point: [0,0,5], normal: [0,0,1] })
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `point` | `Vec3` | ✅ | — | 平面上一点 [x,y,z]（mm） |
+| `normal` | `Vec3` | ✅ | — | 平面法向 [x,y,z] |
+
+**异步**。具名产物 positive/negative。
+
+> 中立 op：L1 splitByPlane 两引擎同实现。产物是具名两半 `{ positive, negative }`（不是数组）；法向正侧 = positive。
+
+### 5.23 `subtract` ✅
 
 布尔差集：第一个为主体，减去其余输入。
 
@@ -764,7 +798,7 @@ const b = await cad.subtract(part0, part1)
 
 **异步**。Shape part0 减 part1 的差集（第一个为主体）。
 
-### 5.22 `sweep` ✅
+### 5.24 `sweep` ✅
 
 扫掠：截面沿脊柱路径生成扫掠体。
 
@@ -789,7 +823,7 @@ const body = await cad.sweep(section, path)
 
 > 平台 op：仅 occt 引擎（BRepOffsetAPI_MakePipeShell / MakePipe）。截面接受 wire 或面（面取其外环）；脊柱必须为 wire。非 occt 引擎执行前报错； brep_mock 不拦截。`shellMode` 不暴露（元组产物跨不过单产物边界）。
 
-### 5.23 `thicken` ✅
+### 5.25 `thicken` ✅
 
 加厚：把面（或壳）沿法向偏置成等厚实体。
 
@@ -811,7 +845,7 @@ const solid = await cad.thicken(face, 2)
 
 > 平台 op：仅 occt 引擎（BRepOffset）。输入为面/壳 Shape（如 cad.sketch 产物）； 正厚度沿法向、负厚度反向。非 occt 引擎执行前报错；brep_mock 不拦截。
 
-### 5.24 `union` ✅
+### 5.26 `union` ✅
 
 布尔并集：合并所有输入几何（≥2 个输入）。
 
@@ -1075,7 +1109,7 @@ const cam = cad.viewCamera({ dir: [1, -1, 1] })
 ```
 创建: helix / import_brep / import_step / box / sphere / cylinder / cone / wedge / screw / sdf / sketch / wire
 变换: place
-特征: union / cut / subtract / intersect / chamfer / draft / engrave / extrude / filletVariable / fillet / knurl / loft / linearPattern / circularPattern / gridPattern / rectangularPattern / mirrorJoin / mirror / clone / revolve / shell / split / sweep / thicken
+特征: union / cut / subtract / intersect / chamfer / draft / engrave / extrude / filletVariable / fillet / knurl / loft / linearPattern / circularPattern / gridPattern / rectangularPattern / mirrorJoin / mirror / clone / revolve / sectionByPlane / shell / splitByPlane / split / sweep / thicken
 结构: compound
 查询: asset / edgeRef / faceRef / faceNormal / bboxCenter / bboxMin / bboxMax / viewCamera / projectView / projectSheet
 废弃（勿用，`fai_` 前缀 / ../3d_editor 特有，将迁出）: translate、rotate_euler、scale、scale3d
@@ -1138,7 +1172,7 @@ BREP 链上每个面的身份 = `(StmtId, role)`。下表列出每个 op 对**�
 | `scale3d` | 内核历史 | `gen:scale3d:<i>` |  |
 | `screw` | 构造语义 | —（不造新面） |  |
 | `sdf` | 未建模 | —（不造新面） | sdf is mesh-only, no BREP face identity |
-| `sectionByPlane` | 未建模 | —（不造新面） | 1D section curves carry no face roleTable |
+| `sectionByPlane` | 未建模 | —（不造新面） | 1D section curves have no face role vocabulary |
 | `sew` | 内核历史 | `gen:sew:<i>` |  |
 | `sewAndSolidify` | 内核历史 | `gen:sewAndSolidify:<i>` |  |
 | `shell` | 内核历史 | `gen:shell:<i>` |  |
@@ -1146,7 +1180,7 @@ BREP 链上每个面的身份 = `(StmtId, role)`。下表列出每个 op 对**�
 | `sketch` | 构造语义 | —（不造新面） |  |
 | `sphere` | 未建模 | —（不造新面） | sphere face vocabulary pending Phase 3 |
 | `split` | 分片 | —（不造新面） | 每输入面 → 若干片：splinter(<原 role>)#j 由框架生成 |
-| `splitByPlane` | 内核历史 | `gen:splitByPlane:<i>` |  |
+| `splitByPlane` | 分片 | —（不造新面） | 每输入面 → 若干片：splinter(<原 role>)#j 由框架生成 |
 | `subtract` | 内核历史 | `gen:subtract:<i>` |  |
 | `sweep` | 未建模 | —（不造新面） | swept-body face vocabulary not defined |
 | `thicken` | 未建模 | —（不造新面） | thickened-body face vocabulary not defined |

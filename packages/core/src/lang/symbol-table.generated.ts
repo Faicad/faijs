@@ -27,6 +27,8 @@ export default {
   "draft": {},
   "thicken": {},
   "filletVariable": {},
+  "splitByPlane": {},
+  "sectionByPlane": {},
   "defeature": {},
   "reverseShape": {},
   "unifySameDomain": {},

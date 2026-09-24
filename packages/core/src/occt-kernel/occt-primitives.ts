@@ -172,7 +172,13 @@ export async function createOcctPrimitives(): Promise<BrepEngineApi> {
         for (const t of ['edge', 'wire'] as const) {
           for (const part of k.getSubShapes(result, t)) out.push(asHandle(k.downcast(part, t)))
         }
-        if (out.length === 0) return [asHandle(result)]
+        if (out.length === 0) {
+          // No intersection: native section still yields an (empty) compound —
+          // release it and return an empty list so callers can detect the miss
+          // instead of adopting an empty compound as a "curve".
+          k.release(result)
+          return []
+        }
         k.release(result)
         return out
       } finally {

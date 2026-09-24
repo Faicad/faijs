@@ -412,7 +412,7 @@ The engine surface is split into three layers (narrowing plan §1, D11):
 4. **`brep_mock` is exempt** (D11-3): mock is a test stand-in whose capabilities are deliberately all-granted; real-engine identity checks are covered by parity / engine-switch tests.
 5. The script face may expose platform ops under the same declaration — unsupported engines fail at the statement boundary (`ExecutionResult.failedAt`, Q11).
 
-Script-face examples (2026-09-24 capability expansion): `cad.helix` / `cad.sweep` / `cad.loft` / `cad.thicken` are platform ops declared `engines:['occt']`; `cad.wire` / `cad.splitByPlane` / `cad.sectionByPlane` / `cad.shell` / `cad.draft` / `cad.filletVariable` are neutral (no `engines`, L1-only implementations via `getBrepApi()`). 1D products (`cad.wire`, `cad.helix`, section curves) carry `kind:'curve'` and render via `wireframe`.
+**Script-face additions (2026-09-24 capability extension)**: the 1D curve family (`wire`, `helix`, `sketch` `as:'wire'`) and the sweep/loft family (`sweep`, `loft`, `complexExtrude`, `twistExtrude`, `roof`) reached the cad face along these rules — `sweep`/`loft`/`helix`/`thicken` declare `engines: ['occt']`; `wire` / `splitByPlane` (named `positive`/`negative` outputs) / `sectionByPlane` (1D section curve) / `shell` / `draft` / `filletVariable` are neutral (no `engines`, L1-only implementations via `getBrepApi()`); `roof` is neutral (capability-routed). 1D products (`wire`, `helix`, section curves) carry `kind:'curve'` and render via `wireframe`. The parameter contract lives in `docs/ops-api-inventory.md`.
 
 
 ---
@@ -523,10 +523,10 @@ Everything except `events` is optional — a Node test environment can supply on
 
 | Category | Handwritten platform ops |
 |---|---|
-| Creation | `box` `sphere` `cylinder` `cone` `wedge` `screw` `sdf` `sketch` |
-| 1D curves | `wire` (polyline/closed/smooth) `helix` (platform `engines:['occt']`) |
+| Creation | `box` `sphere` `cylinder` `cone` `wedge` `screw` `sdf` `sketch` (face or, with `as:'wire'`, a 1D curve) |
+| 1D curves | `wire` (polyline/closed/smooth) `helix` (platform `engines:['occt']`) — both `kind:'curve'` |
 | Transform | `translate` `rotate_euler` `scale` `scale3d` `place` |
-| Sweep / loft | `sweep` `loft` (platform `engines:['occt']`; profile accepts a face → outer ring) |
+| Sweep / loft | `sweep` `loft` (platform `engines:['occt']`; sections accept wires or faces — a face is reduced to its outer ring) |
 | Feature | `extrude` `revolve` `engrave` `knurl` `chamfer` `fillet` `filletVariable` `shell` `draft` `thicken` (platform `engines:['occt']`) |
 | Boolean | `union` `subtract` `intersect` `cut` |
 | Split / replicate | `split` (dual output, destructured as `const { front, back } = …`) `splitByPlane` (named outputs `{ positive, negative }`, destructured) `sectionByPlane` (1D compound of section curves) `linearPattern` `circularPattern` `gridPattern` `rectangularPattern` `mirrorJoin` `mirror` `clone` |
