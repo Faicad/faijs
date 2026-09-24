@@ -18,7 +18,10 @@
 import type { Shape } from '../mesh/types'
 import { defineOp } from '../sdk'
 import { getBackends, getCurrentStmt } from '../runtime-state'
-import { brepOf } from '../shape'
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- kept for parity with extrude/import-brep; unused after the E3 recordOutput rewrite
+import { fromBrep, brepOf } from '../shape'
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- kept as a record of the pre-E3 shape-conversion path
+import { solidToShape } from '../brep/brep-ops'
 import { adoptEntity, callBrepjs } from './internal/l3-bridge'
 import { borrowDeep } from './internal/compat-op'
 import { unwrapResult } from './internal/result-unwrap'

@@ -101,6 +101,11 @@ function objectLabel(o: FcstdObject): string | undefined {
  * 带文档上下文的表达式求值：引用（`<<L>>.A` / `L.A` / 同表地址 `B2`）替换为
  * 数值后，求值仅含常数与 + - * / ( ) 的算术。任何残留标识符 / 函数 → undefined
  * （no heuristic fallback）。返回值单位跟随单元格（mm 语境，角度单元格调用方解释）。
+ *
+ * @param expr 待求值表达式原文。
+ * @param docObjects 文档对象表，用于解析引用（`<<L>>.A` / `L.A`）。
+ * @param self 调用方对象（Spreadsheet::Sheet 时启用同表地址 `B2` 解析）。可选。
+ * @returns 求值结果数值；含残留标识符 / 无法解析引用时返回 undefined。
  */
 /**
  * Evaluate a FreeCAD expression against the document objects.
