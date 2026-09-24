@@ -39,6 +39,11 @@ import { circularPattern, gridPattern, rectangularPattern, mirrorJoin, mirror, c
 import { engrave } from './engrave'
 import { chamfer } from './chamfer'
 import { fillet } from './fillet'
+import { shell } from './shell'
+import { draft } from './draft'
+import { thicken } from './thicken'
+import { defeature, reverseShape, unifySameDomain, sew, sewAndSolidify, removeHolesFromFace } from './feature-repair'
+import { filletVariable } from './fillet-variable'
 import { faceNormal, bboxCenter, bboxMin, bboxMax } from './geom'
 import { edgeRef } from './edge-ref'
 import { faceRef } from './face-ref'
@@ -75,6 +80,9 @@ export function createApiNamespace(): StdlibNamespace {
     // D1 选项 C：四个 transform op 全留核心（translate 小程序端在用，同族不拆散）。
     translate, rotate_euler, scale, scale3d,
     engrave, chamfer, fillet, knurl,
+    // Phase 5：按面/边选的特征族 + 修复薄包装（shell/draft 中立；thicken 平台 occt）。
+    shell, draft, thicken, filletVariable,
+    defeature, reverseShape, unifySameDomain, sew, sewAndSolidify, removeHolesFromFace,
     union, subtract, intersect,
     extrude, revolve,
     // Phase 4：手写扫掠 / 放样（平台 op engines:['occt']；截面接受 face → 取外环）。

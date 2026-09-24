@@ -350,7 +350,18 @@ export async function createOcctPrimitives(): Promise<BrepEngineApi> {
 
     defeature: (shape, facesList) => asHandle(k.defeature(asShape(shape), shapes(facesList), 0)),
     draft: (shape, facesList, pull, neutral, angleDeg) => {
-      // Native draft is single-face + radians; fold N faces sequentially.
+      // Native draft is single-face + radians, and has NO neutral-plane argument
+      // (occt-wasm index.d.ts:156 `draft(shape, face, angleRad, direction)`).
+      // Silently dropping a caller-supplied neutral plane would draft against the
+      // wrong plane, so reject loudly (same rule as `interpolatePoints` below).
+      // brepkit's L1 draft does consume the neutral point (brepkitKernel.ts:669).
+      if (neutral && (neutral.x !== 0 || neutral.y !== 0 || neutral.z !== 0)) {
+        throw new Error(
+          'occt draft: neutral plane is not supported by the native kernel ' +
+            `(got neutral=(${neutral.x},${neutral.y},${neutral.z})); only the origin neutral is representable`,
+        )
+      }
+      // Native draft is single-face; fold N faces sequentially.
       let current = asShape(shape)
       for (const f of facesList) {
         current = k.draft(current, asShape(f), rad(angleDeg), pull)

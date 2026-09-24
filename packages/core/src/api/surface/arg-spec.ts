@@ -2952,6 +2952,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   {
     name: 'shell', source: 'topology/api.js#shell', kind: 'brep-op', engines: ['occt'],
     geometryArgs: [0], returnsResult: true,
+    reason: 'faijs 侧 cad.shell 由手写中立 op 覆盖（api/shell.ts：选面走 FaceTopoRef，能力经 capabilities:["directEdit"] 路由 ⇒ 相对 vendored 的 occt 平台版是能力升级，brepkit 的 L1 shell 亦可用）。本投影保留为引擎记录（capability-map），生成模块符号不直接进 cad 命名空间 by design（同 extrude / sweep 口径）。',
     args: 'shell(shape: Shape, faces?: Shape[], thickness: number): Shape',
     params: ['shape', 'faces', 'thickness'], formClass: 'A',
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
@@ -2967,11 +2968,11 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   },
   {
     name: 'thicken', source: 'topology/api.js#thicken', kind: 'skip',
-    reason: '入参 Face|Shell 子形状句柄，faijs 整件面无法提供，skip',
+    reason: 'overridden by handwritten api/thicken.ts (平台 op engines:[occt]：入参取面/壳整件 Shape——cad.sketch 产物即天然面来源；内部借入喂 vendored thicken，不再要求子形状句柄)',
   },
   {
     name: 'draft', source: 'topology/api.js#draft', kind: 'skip',
-    reason: 'DraftOptions 含 NeutralPlane 等 face 引用，faijs 面引用体系不同，skip',
+    reason: 'overridden by handwritten api/draft.ts (中立 op capabilities:["directEdit"]；选面走 FaceTopoRef，中性面用点而非 face 引用；注意 neutral 仅 brepkit 侧内核可消费)',
   },
   {
     name: 'heal', source: 'topology/api.js#heal', kind: 'brep-op', engines: ['occt'],
@@ -3267,7 +3268,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   },
   {
     name: 'removeHolesFromFace', source: 'topology/faceFns.js#removeHolesFromFace', kind: 'skip',
-    reason: 'Face 子形状入参，skip',
+    reason: 'overridden by handwritten api/feature-repair.ts (入参取整件面 Shape 的 BREP 槽位句柄；孔索引由 L1 适配器按「除外环外全部 wire」推导，不再要求子形状句柄)',
   },
   {
     name: 'pointOnSurface', source: 'topology/faceFns.js#pointOnSurface', kind: 'skip',

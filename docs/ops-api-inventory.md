@@ -449,7 +449,26 @@ const b = await cad.cut(part0, part1)
 
 **异步**。Shape base minus tool.
 
-### 5.5 `engrave` ✅
+### 5.5 `draft` ✅
+
+拔模：对选定面施加拔模斜度（铸造/注塑出模角）。
+
+```js
+const d = await cad.draft(part0, { faces: [cad.faceRef(part0, 3)], angleDeg: 3 })
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `faces` | `FaceTopoRef[]` | ✅ | — | 拔模面（FaceTopoRef[]，cad.faceRef 产物） |
+| `angleDeg` | `number` | ✅ | — | 拔模角（度，≠0） |
+| `pull` | `Vec3` |  | +Z）。type:Vec3 required:false | 拔模方向（ |
+| `neutral` | `{point:Vec3,normal?:Vec3}` |  | — | 中性面**点**（{point}；normal 无消费者） |
+
+**异步**。Shape 拔模后的几何。
+
+> **不是**无差别中立 op：L1 `draft` 的 `pull` / `neutral` 两引擎都支持， 但 `neutral`（中性点）**仅 brepkit 支持**——occt-wasm 原生 `draft(shape, face, angleRad, direction)` 没有 neutral 形参，occt 适配器 传入非原点中性点会显式报错（不静默产出错几何）。只用 `faces` / `angleDeg` / `pull` 时两引擎等价。仅 BREP 可用（mesh 输入执行前报错）。
+
+### 5.6 `engrave` ✅
 
 在几何表面雕刻文字或 SVG（文字分支与 logo 分支都可用）。
 
@@ -472,7 +491,7 @@ const p = await cad.engrave(part0, { mode: 'concave', depth: 2, text: 'Hello', t
 
 > 早期 logo 分支用 `svgText`（整份 XML 拷贝 + `svgSize` 文本导出丢失，往返失真）；现已改为 `svg` 资产引用，`engravingType` 冗余键已移除。faceCenter/faceNormal 目前是绝对坐标快照。
 
-### 5.6 `extrude` ✅
+### 5.7 `extrude` ✅
 
 沿 normal 拉伸几何（面 → 棱柱）。 up-to 模式（`upTo`）与长度模式（`length`）二选一；长度模式委托生成投影 （vendored extrude 为唯一引擎），up-to 模式走半空间组合。
 
@@ -494,7 +513,7 @@ const p = await cad.extrude(sk, { upTo: 'last', baseFeature: part0 })
 
 **异步**。Shape 拉伸后的几何。
 
-### 5.7 `fillet` ✅
+### 5.8 `fillet` ✅
 
 在几何体上做圆角（等半径）。仅 BREP 可用。
 
@@ -511,7 +530,25 @@ const p = await cad.fillet(part0, { edges: [{ kind:'edge', faces:[{ origin:'box'
 
 > 圆角是 BREP-only：非 BREP 输入抛 E_MESH_UNSUPPORTED。`radius` 为正数（mm）。 圆角后 roleTable 经 filletWithHistory 传播，保证后续特征仍可按 role 选面/选边。
 
-### 5.8 `gridPattern` ✅
+### 5.9 `filletVariable` ✅
+
+变半径圆角：对单条边施加从起点到终点的线性变半径圆角。
+
+```js
+const v = await cad.filletVariable(part0, partEdges[0], 1, 4)
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `edge` | `EdgeTopoRef` | ✅ | — | 目标边（EdgeTopoRef，同 cad.fillet 的 edges 条目） |
+| `r1` | `number` | ✅ | — | 起点半径（mm，>0） |
+| `r2` | `number` | ✅ | — | 终点半径（mm，>0） |
+
+**异步**。Shape 变半径圆角后的几何。
+
+> 中立 op：L1 filletVariable 两引擎同实现。`r1 == r2` 时与 cad.fillet 等半径 结果等价。vendored 的 per-edge 回调变半径（variableFillet）不上脚本面。 仅 BREP 可用。
+
+### 5.10 `gridPattern` ✅
 
 二维栅格阵列：沿 directionX × directionY 复制 countX×countY 份（含原位置）。
 
@@ -532,7 +569,7 @@ const p = await cad.gridPattern(part0, [1, 0, 0], [0, 1, 0], 3, 2, 20, 20)
 
 > BREP-only。keep 语义：不消费输入。结果面回投输入面角色，产出 `replica[ix_iy]/<inner>`。
 
-### 5.9 `intersect` ✅
+### 5.11 `intersect` ✅
 
 布尔交集：所有输入的重叠部分。
 
@@ -546,7 +583,7 @@ const c = await cad.intersect(part0, part1)
 
 **异步**。Shape 所有输入的交集。
 
-### 5.10 `knurl` ⚠️
+### 5.12 `knurl` ⚠️
 
 施加滚花（顶点位移，非布尔）。mesh-only。
 
@@ -569,7 +606,7 @@ const p = await cad.knurl(part0, { knurlTextureHeight: 0.5, knurlScaleU: 0.15, k
 
 > knurl 无 BREP 实现（mesh-only），本质是顶点位移（网格操作），网格参数可接受；brep 模式下调用前抛 BrepUnsupportedError。面锚定建议用几何引用。
 
-### 5.11 `linearPattern` ✅
+### 5.13 `linearPattern` ✅
 
 线性阵列：沿 direction 复制 count 份（含原位置）。
 
@@ -587,7 +624,7 @@ const p = await cad.linearPattern(part0, [1, 0, 0], 3, 20)
 
 > BREP-only：非 BREP 输入抛 E_MESH_UNSUPPORTED。结果面按份数 k 回投影到输入面 角色，产出 `replica[k]/<inner>`（Phase 3 L3 抗重放词汇）。
 
-### 5.12 `loft` ✅
+### 5.14 `loft` ✅
 
 放样：按给定顺序在截面之间蒙皮生成体。
 
@@ -616,7 +653,7 @@ const body = await cad.loft([bottom, top])
 
 > 平台 op：仅 occt 引擎（BRepOffsetAPI_ThruSections）。截面可为 wire 或面 （面取其外环），至少 2 个；`startPoint` / `endPoint` 可做退化到点的蒙皮。 非 occt 引擎执行前报错；brep_mock 不拦截。不做 `loftAll`（数组产物）。
 
-### 5.13 `mirror` ✅
+### 5.15 `mirror` ✅
 
 镜像：返回镜像后的新 Shape（源保留）。
 
@@ -632,7 +669,7 @@ const p = await cad.mirror(part0, { normal: [1, 0, 0] })
 
 > BREP-only。keep 语义：不消费输入（薄 override 委托生成 op，行为不变）。
 
-### 5.14 `mirrorJoin` ✅
+### 5.16 `mirrorJoin` ✅
 
 镜像并融合：原物（replica[0]）+ 沿平面镜像（replica[1]）fuse 成一体。
 
@@ -648,7 +685,7 @@ const p = await cad.mirrorJoin(part0, { normal: [1, 0, 0] })
 
 > BREP-only。keep 语义：不消费输入。结果面回投输入面角色，产出 `replica[0|1]/<inner>`。
 
-### 5.15 `rectangularPattern` ✅
+### 5.17 `rectangularPattern` ✅
 
 矩形阵列：按 options（xDir/xCount/xSpacing/yDir/yCount/ySpacing）复制并 fuse。
 
@@ -664,7 +701,7 @@ const p = await cad.rectangularPattern(part0, { xDir: [1,0,0], xCount: 3, xSpaci
 
 > BREP-only。keep 语义：不消费输入。结果面回投输入面角色，产出 `replica[ix_iy]/<inner>`。
 
-### 5.16 `revolve` ✅
+### 5.18 `revolve` ✅
 
 旋转成形：把平面轮廓绕轴旋转（兼容生成投影签名）。
 
@@ -679,7 +716,25 @@ const p1 = await cad.revolve(part0, { axis: [0, 0, 1], at: [0, 0, 0], angle: 6.2
 
 **异步**。Shape 旋转体（带链根 roleTable：bottom/top/wall:i）。
 
-### 5.17 `split` ✅
+### 5.19 `shell` ✅
+
+抽壳：移除指定面并把余下面偏置成等厚薄壁。
+
+```js
+const sh = await cad.shell(part0, { openFaces: [cad.faceRef(part0, 1)], thickness: 2 })
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `openFaces` | `FaceTopoRef[]` | ✅ | — | 要移除的面（FaceTopoRef[]，cad.faceRef 产物） |
+| `thickness` | `number` | ✅ | — | 壁厚（mm，>0） |
+| `tolerance` | `number` |  | — | 容差（mm） |
+
+**异步**。Shape 抽壳后的薄壁体。
+
+> 中立 op：L1 shell 两引擎同实现。`openFaces` 为空数组时生成全封闭薄壁。 仅 BREP 可用：mesh 输入执行前报错（backend-dispatch 静态判定）。
+
+### 5.20 `split` ✅
 
 用工具几何切分目标几何（BRepAlgoAPI_Splitter），返回所有碎片组成的几何。
 
@@ -695,7 +750,7 @@ const pieces = await cad.split(part0, [part1])
 
 > BREP-only：非 BREP 输入抛 E_MESH_UNSUPPORTED。切分产生的截面 / 被切细的侧面 片记 `splinter(#j)`（Phase 3 L4 抗重放词汇）。平台 op：仅 occt 引擎（原生 split）。
 
-### 5.18 `subtract` ✅
+### 5.21 `subtract` ✅
 
 布尔差集：第一个为主体，减去其余输入。
 
@@ -709,7 +764,7 @@ const b = await cad.subtract(part0, part1)
 
 **异步**。Shape part0 减 part1 的差集（第一个为主体）。
 
-### 5.19 `sweep` ✅
+### 5.22 `sweep` ✅
 
 扫掠：截面沿脊柱路径生成扫掠体。
 
@@ -734,7 +789,29 @@ const body = await cad.sweep(section, path)
 
 > 平台 op：仅 occt 引擎（BRepOffsetAPI_MakePipeShell / MakePipe）。截面接受 wire 或面（面取其外环）；脊柱必须为 wire。非 occt 引擎执行前报错； brep_mock 不拦截。`shellMode` 不暴露（元组产物跨不过单产物边界）。
 
-### 5.20 `union` ✅
+### 5.23 `thicken` ✅
+
+加厚：把面（或壳）沿法向偏置成等厚实体。
+
+```js
+const face = cad.sketch({ contours: [{ segments: [
+{ kind: 'line', x1: -10, y1: -10, x2: 10, y2: -10 },
+{ kind: 'line', x1: 10, y1: -10, x2: 10, y2: 10 },
+{ kind: 'line', x1: 10, y1: 10, x2: -10, y2: 10 },
+{ kind: 'line', x1: -10, y1: 10, x2: -10, y2: -10 },
+] }] })
+const solid = await cad.thicken(face, 2)
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `thickness` | `number` | ✅ | — | 厚度（mm，≠0；正沿法向，负反向） |
+
+**异步**。Shape 加厚后的实体。
+
+> 平台 op：仅 occt 引擎（BRepOffset）。输入为面/壳 Shape（如 cad.sketch 产物）； 正厚度沿法向、负厚度反向。非 occt 引擎执行前报错；brep_mock 不拦截。
+
+### 5.24 `union` ✅
 
 布尔并集：合并所有输入几何（≥2 个输入）。
 
@@ -998,7 +1075,7 @@ const cam = cad.viewCamera({ dir: [1, -1, 1] })
 ```
 创建: helix / import_brep / import_step / box / sphere / cylinder / cone / wedge / screw / sdf / sketch / wire
 变换: place
-特征: union / cut / subtract / intersect / chamfer / engrave / extrude / fillet / knurl / loft / linearPattern / circularPattern / gridPattern / rectangularPattern / mirrorJoin / mirror / clone / revolve / split / sweep
+特征: union / cut / subtract / intersect / chamfer / draft / engrave / extrude / filletVariable / fillet / knurl / loft / linearPattern / circularPattern / gridPattern / rectangularPattern / mirrorJoin / mirror / clone / revolve / shell / split / sweep / thicken
 结构: compound
 查询: asset / edgeRef / faceRef / faceNormal / bboxCenter / bboxMin / bboxMax / viewCamera / projectView / projectSheet
 废弃（勿用，`fai_` 前缀 / ../3d_editor 特有，将迁出）: translate、rotate_euler、scale、scale3d
@@ -1024,11 +1101,14 @@ BREP 链上每个面的身份 = `(StmtId, role)`。下表列出每个 op 对**�
 | `convexHull` | 未建模 | —（不造新面） | construct vocabulary pending Phase 3 |
 | `cut` | 内核历史 | `gen:cut:<i>` |  |
 | `cylinder` | 构造语义 | `top`、`bottom`、`lateral` |  |
+| `defeature` | 内核历史 | `gen:defeature:<i>` |  |
+| `draft` | 内核历史 | `gen:draft:<i>` |  |
 | `drill` | 内核历史 | `gen:drill:<i>` |  |
 | `ellipsoid` | 未建模 | —（不造新面） | construct vocabulary pending Phase 3 |
 | `engrave` | 内核历史 | `gen:engrave:<i>` |  |
 | `extrude` | 构造语义 | `top`、`bottom`、`wall:0` |  |
 | `fillet` | 内核历史 | `gen:fillet:<i>` |  |
+| `filletVariable` | 内核历史 | `gen:filletVariable:<i>` |  |
 | `fixSelfIntersection` | 内核历史 | `gen:fixSelfIntersection:<i>` |  |
 | `fixShape` | 内核历史 | `gen:fixShape:<i>` |  |
 | `fuse` | 内核历史 | `gen:fuse:<i>` |  |
@@ -1048,6 +1128,8 @@ BREP 链上每个面的身份 = `(StmtId, role)`。下表列出每个 op 对**�
 | `place` | 1:1 恒等 | —（不造新面） | 1:1，第 i 面 → 第 i 面（零声明） |
 | `pocket` | 内核历史 | `gen:pocket:<i>` |  |
 | `rectangularPattern` | 复制 k 份 | —（不造新面） | replica[k]/<原 role> 由框架生成（k=0..-1） |
+| `removeHolesFromFace` | 内核历史 | `gen:removeHolesFromFace:<i>` |  |
+| `reverseShape` | 内核历史 | `gen:reverseShape:<i>` |  |
 | `revolve` | 构造语义 | `top`、`bottom`、`wall:0` |  |
 | `roof` | 内核历史 | `gen:roof:<i>` |  |
 | `rotate` | 内核历史 | `gen:rotate:<i>` |  |
@@ -1056,16 +1138,21 @@ BREP 链上每个面的身份 = `(StmtId, role)`。下表列出每个 op 对**�
 | `scale3d` | 内核历史 | `gen:scale3d:<i>` |  |
 | `screw` | 构造语义 | —（不造新面） |  |
 | `sdf` | 未建模 | —（不造新面） | sdf is mesh-only, no BREP face identity |
+| `sew` | 内核历史 | `gen:sew:<i>` |  |
+| `sewAndSolidify` | 内核历史 | `gen:sewAndSolidify:<i>` |  |
+| `shell` | 内核历史 | `gen:shell:<i>` |  |
 | `simplify` | 内核历史 | `gen:simplify:<i>` |  |
 | `sketch` | 构造语义 | —（不造新面） |  |
 | `sphere` | 未建模 | —（不造新面） | sphere face vocabulary pending Phase 3 |
 | `split` | 分片 | —（不造新面） | 每输入面 → 若干片：splinter(<原 role>)#j 由框架生成 |
 | `subtract` | 内核历史 | `gen:subtract:<i>` |  |
 | `sweep` | 未建模 | —（不造新面） | swept-body face vocabulary not defined |
+| `thicken` | 未建模 | —（不造新面） | thickened-body face vocabulary not defined |
 | `thread` | 内核历史 | `gen:thread:<i>` |  |
 | `torus` | 未建模 | —（不造新面） | construct vocabulary pending Phase 3 |
 | `translate` | 内核历史 | `gen:translate:<i>` |  |
 | `twistExtrude` | 内核历史 | `gen:twistExtrude:<i>` |  |
+| `unifySameDomain` | 内核历史 | `gen:unifySameDomain:<i>` |  |
 | `union` | 内核历史 | `gen:union:<i>` |  |
 | `wedge` | 未建模 | —（不造新面） | wedge face vocabulary pending Phase 3 |
 | `wire` | 未建模 | —（不造新面） | construct vocabulary pending Phase 3 |
