@@ -1138,6 +1138,7 @@ BREP 链上每个面的身份 = `(StmtId, role)`。下表列出每个 op 对**�
 | `scale3d` | 内核历史 | `gen:scale3d:<i>` |  |
 | `screw` | 构造语义 | —（不造新面） |  |
 | `sdf` | 未建模 | —（不造新面） | sdf is mesh-only, no BREP face identity |
+| `sectionByPlane` | 未建模 | —（不造新面） | 1D section curves carry no face roleTable |
 | `sew` | 内核历史 | `gen:sew:<i>` |  |
 | `sewAndSolidify` | 内核历史 | `gen:sewAndSolidify:<i>` |  |
 | `shell` | 内核历史 | `gen:shell:<i>` |  |
@@ -1145,6 +1146,7 @@ BREP 链上每个面的身份 = `(StmtId, role)`。下表列出每个 op 对**�
 | `sketch` | 构造语义 | —（不造新面） |  |
 | `sphere` | 未建模 | —（不造新面） | sphere face vocabulary pending Phase 3 |
 | `split` | 分片 | —（不造新面） | 每输入面 → 若干片：splinter(<原 role>)#j 由框架生成 |
+| `splitByPlane` | 内核历史 | `gen:splitByPlane:<i>` |  |
 | `subtract` | 内核历史 | `gen:subtract:<i>` |  |
 | `sweep` | 未建模 | —（不造新面） | swept-body face vocabulary not defined |
 | `thicken` | 未建模 | —（不造新面） | thickened-body face vocabulary not defined |

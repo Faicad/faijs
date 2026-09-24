@@ -412,6 +412,8 @@ The engine surface is split into three layers (narrowing plan §1, D11):
 4. **`brep_mock` is exempt** (D11-3): mock is a test stand-in whose capabilities are deliberately all-granted; real-engine identity checks are covered by parity / engine-switch tests.
 5. The script face may expose platform ops under the same declaration — unsupported engines fail at the statement boundary (`ExecutionResult.failedAt`, Q11).
 
+Script-face examples (2026-09-24 capability expansion): `cad.helix` / `cad.sweep` / `cad.loft` / `cad.thicken` are platform ops declared `engines:['occt']`; `cad.wire` / `cad.splitByPlane` / `cad.sectionByPlane` / `cad.shell` / `cad.draft` / `cad.filletVariable` are neutral (no `engines`, L1-only implementations via `getBrepApi()`). 1D products (`cad.wire`, `cad.helix`, section curves) carry `kind:'curve'` and render via `wireframe`.
+
 
 ---
 
@@ -522,12 +524,15 @@ Everything except `events` is optional — a Node test environment can supply on
 | Category | Handwritten platform ops |
 |---|---|
 | Creation | `box` `sphere` `cylinder` `cone` `wedge` `screw` `sdf` `sketch` |
+| 1D curves | `wire` (polyline/closed/smooth) `helix` (platform `engines:['occt']`) |
 | Transform | `translate` `rotate_euler` `scale` `scale3d` `place` |
-| Feature | `extrude` `revolve` `engrave` `knurl` `chamfer` `fillet` |
+| Sweep / loft | `sweep` `loft` (platform `engines:['occt']`; profile accepts a face → outer ring) |
+| Feature | `extrude` `revolve` `engrave` `knurl` `chamfer` `fillet` `filletVariable` `shell` `draft` `thicken` (platform `engines:['occt']`) |
 | Boolean | `union` `subtract` `intersect` `cut` |
-| Split / replicate | `split` (dual output, destructured as `const { front, back } = …`) `linearPattern` `circularPattern` `gridPattern` `rectangularPattern` `mirrorJoin` `mirror` `clone` |
+| Split / replicate | `split` (dual output, destructured as `const { front, back } = …`) `splitByPlane` (named outputs `{ positive, negative }`, destructured) `sectionByPlane` (1D compound of section curves) `linearPattern` `circularPattern` `gridPattern` `rectangularPattern` `mirrorJoin` `mirror` `clone` |
+| Repair | `defeature` `reverseShape` `unifySameDomain` `sew` `sewAndSolidify` `removeHolesFromFace` |
 | Import / structure | `import_brep` `import_step` `compound` |
-| Query | `faceNormal` `bboxCenter` `bboxMin` `bboxMax` `edgeRef` `faceRef` |
+| Query | `faceNormal` `bboxCenter` `bboxMin` `bboxMax` `edgeRef` `faceRef` `volume` `centerOfMass` `isValid` `isEmpty` `isEqualShape` `isSameShape` `getShapeKind` |
 | Assembly solving | `jointTrajectory` `inverseKinematics` `mechanismDOF` |
 | Asset | `asset` |
 

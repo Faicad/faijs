@@ -45,6 +45,8 @@ import { thicken } from './thicken'
 import { defeature, reverseShape, unifySameDomain, sew, sewAndSolidify, removeHolesFromFace } from './feature-repair'
 import { filletVariable } from './fillet-variable'
 import { faceNormal, bboxCenter, bboxMin, bboxMax } from './geom'
+import { splitByPlane } from './split-by-plane'
+import { sectionByPlane } from './section-by-plane'
 import { edgeRef } from './edge-ref'
 import { faceRef } from './face-ref'
 import { jointTrajectory, inverseKinematics, mechanismDOF } from './assembly'
@@ -89,6 +91,10 @@ export function createApiNamespace(): StdlibNamespace {
     // arg-spec 里 sweep 保留 brep-op（引擎记录）/ loft 为 skip，两者均不投脚本面，
     // 所以这里不是 override 而是唯一实现（同 extrude / revolve 口径）。
     sweep, loft,
+    // Phase 6.1：平面二分（中立，具名双产物 positive/negative）。
+    splitByPlane,
+    // Phase 6.2：平面求交线（中立，1D compound 产物）。
+    sectionByPlane,
     faceNormal, bboxCenter, bboxMin, bboxMax,
     edgeRef,
     faceRef,

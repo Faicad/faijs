@@ -123,11 +123,51 @@ export function createBrepMockApi(): BrepEngineApi {
       const s = need(shape, 'extrude')
       return alloc({ kind: 'solid', bbox: { ...s.bbox, xmax: s.bbox.xmax + dx, ymax: s.bbox.ymax + dy, zmax: s.bbox.zmax + dz }, tag: `extrude(${s.tag})` })
     },
-    revolveVec: () => unsupported('revolveVec'),
-    sew: () => unsupported('sew'),
-    sewAndSolidify: () => alloc({ kind: 'solid', bbox: bboxOf('solid', [1, 1, 1]), tag: 'sewAndSolidify' }),
-    shell: () => unsupported('shell'),
-    hullFromPoints: () => unsupported('hullFromPoints'),
+    revolveVec: (shape, _axis, _angleDeg) => {
+      // 近似桩（Phase 6.3）：mock 无真几何，回转只重打标签、沿用轮廓 bbox。
+      const s = need(shape, 'revolveVec')
+      return alloc({ kind: 'solid', bbox: { ...s.bbox }, tag: `revolveVec(${s.tag})` })
+    },
+    sew: (shapesIn, _tolerance) => {
+      // 近似桩：缝合 = 合并 bbox 的面/壳记录（无真拓扑）。
+      let bbox: BrepBoundingBox | null = null
+      let tag = 'sew('
+      for (const h of shapesIn) {
+        const rec = need(h, 'sew')
+        bbox = bbox ? mergeBbox(bbox, rec.bbox) : { ...rec.bbox }
+        tag += `${rec.tag},`
+      }
+      if (!bbox) throw new Error('[brep-mock-engine] sew: empty input')
+      return alloc({ kind: 'solid', bbox, tag: `${tag})` })
+    },
+    sewAndSolidify: (faces, _tolerance) => {
+      // 近似桩（Phase 6.3 补回）：固化 = 合并 bbox 实体（原桩为固定 1×1×1，现与 sew 同口径）。
+      let bbox: BrepBoundingBox | null = null
+      let tag = 'sewAndSolidify('
+      for (const h of faces) {
+        const rec = need(h, 'sewAndSolidify')
+        bbox = bbox ? mergeBbox(bbox, rec.bbox) : { ...rec.bbox }
+        tag += `${rec.tag},`
+      }
+      if (!bbox) throw new Error('[brep-mock-engine] sewAndSolidify: empty input')
+      return alloc({ kind: 'solid', bbox, tag: `${tag})` })
+    },
+    shell: (solid, _facesToRemove, thickness, _tolerance) => {
+      // 近似桩：抽壳 = 同 bbox 实体 + 壁厚记录（无真薄壁几何）。
+      const s = need(solid, 'shell')
+      return alloc({ kind: 'solid', bbox: { ...s.bbox }, tag: `shell(${s.tag},t=${thickness})` })
+    },
+    hullFromPoints: (points, _tolerance) => {
+      // 近似桩：凸包 = 点集 bbox 实体。
+      if (!points.length) throw new Error('[brep-mock-engine] hullFromPoints: empty points')
+      let xmin = Infinity, ymin = Infinity, zmin = Infinity
+      let xmax = -Infinity, ymax = -Infinity, zmax = -Infinity
+      for (const p of points) {
+        xmin = Math.min(xmin, p.x); ymin = Math.min(ymin, p.y); zmin = Math.min(zmin, p.z)
+        xmax = Math.max(xmax, p.x); ymax = Math.max(ymax, p.y); zmax = Math.max(zmax, p.z)
+      }
+      return alloc({ kind: 'solid', bbox: { xmin, ymin, zmin, xmax, ymax, zmax }, tag: `hullFromPoints(${points.length}pts)` })
+    },
 
     // ── 倒角与圆角（mock：只重打标签/复制，不做真几何；引擎切换测试覆盖签名面） ──
     chamfer: (solid, edges, distance) => {
@@ -173,8 +213,19 @@ export function createBrepMockApi(): BrepEngineApi {
       const sb = need(b, 'intersect')
       return alloc({ kind: 'solid', bbox: mergeBbox(sa.bbox, sb.bbox), tag: `intersect(${sa.tag},${sb.tag})` })
     },
-    sectionByPlane: () => unsupported('sectionByPlane'),
-    splitByPlane: () => unsupported('splitByPlane'),
+    sectionByPlane: (shape, _point, _normal) => {
+      // 近似桩：交线 = 输入 bbox 截面线（单条 wire 记录，无真实交线几何）。
+      const s = need(shape, 'sectionByPlane')
+      return [alloc({ kind: 'wire', bbox: { ...s.bbox }, tag: `sectionByPlane(${s.tag})` })]
+    },
+    splitByPlane: (shape, _point, _normal) => {
+      // 近似桩：二分 = 两个同 bbox 实体（无真实切分几何；positive/negative 仅标签区分）。
+      const s = need(shape, 'splitByPlane')
+      return {
+        positive: alloc({ kind: 'solid', bbox: { ...s.bbox }, tag: `splitByPlane.pos(${s.tag})` }),
+        negative: alloc({ kind: 'solid', bbox: { ...s.bbox }, tag: `splitByPlane.neg(${s.tag})` }),
+      }
+    },
     fuseAll: (shapesIn) => {
       let bbox: BrepBoundingBox | null = null
       let tag = 'fuseAll('

@@ -1427,8 +1427,10 @@ export const ARG_SPEC: ArgSpecEntry[] = [
 
   // ──── P14 第八片：operations 模块（122 符号 = 16 brep-op + 11 pure + 45 skip + 8u/others) ────
   // brep-op：Shapeable<…> 单/双形状入参 → faijs Shape 借入 → vendored Result → adopt 单产物；
-  // 数组形状入参（loft/guidedSweep/multiSectionSweep 的 Wire[]）与多产物结果（extrudeAll/
-  // loftAll = Shape[]/ValidSolid[]）不在单产物收养模板内 → skip（与 P14 派生早先判据一致）；
+  // 数组形状入参（loft/guidedSweep/multiSectionSweep 的 Wire[]）已无障碍——compat-op 的
+  // borrowDeep 递归借入数组/对象内的 Shape（2026-09-24 校正：loft 已由手写平台 op 上脚本面，
+  // guidedSweep/multiSectionSweep 的真障碍是 wire 输入 + 多截面/导轨语义，见各自条目）；
+  // 多产物结果（extrudeAll/loftAll = Shape[]/ValidSolid[]）不在单产物收养模板内 → skip；
   // history/assembly/mate/instance 家族 = 状态化 DSL / kernel 句柄容器 → skip；
   // export*/createAssembly = host IO（同 io 判据）/宿主 API → skip；KernelType raw 句柄入参
 //（supportExtrude）→ skip。joint 构造/数值助手与骨架计算 → pure。
