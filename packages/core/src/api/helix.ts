@@ -1,6 +1,10 @@
 /**
  * stdlib helix — 螺旋线（1D 曲线，平台 op engines:['occt']）
  *
+ * @platform occt — 本文件 import occt-kernel：螺旋线用 `makeHelixWire` 构造
+ * （occt-wasm 原生有，L1 无）。守卫 ① 要求平台 import 自证身份；调用方 op 声明
+ * `engines: ['occt']` 由守卫 ② 校验。
+ *
  * 用途：G-D 门控层的 1D 造线能力（Phase 3）。下游 sweep / loft 等可用螺旋线作 spine。
  *
  * 设计：

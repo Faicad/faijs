@@ -28,6 +28,8 @@ export { sketch } from './sketch'
 export { wire } from './wire'
 export { helix } from './helix'
 export { split } from './split'
+export { sweep } from './sweep'
+export { loft } from './loft'
 export { knurl } from './knurl'
 export { sdf } from './sdf'
 // 应用变换（mesh 顶点烘焙）下沉到引擎侧 src/mesh/rigid-transform.ts（E-b：

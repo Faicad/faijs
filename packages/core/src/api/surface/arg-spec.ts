@@ -1638,7 +1638,8 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   },
   {
     name: 'sweep', source: 'operations/extrudeFns.js#sweep', kind: 'brep-op', engines: ['occt'], module: 'operations',
-    geometryArgs: [0, 1], reason: 'wire + spine → Result(Shape3D|tuple)，默认单产物，brep-op',
+    geometryArgs: [0, 1],
+    reason: 'faijs 侧 cad.sweep 由手写平台 op 覆盖（api/sweep.ts：截面接受 face → 取外环；shellMode 元组产物不暴露，§2.4 ①）。本投影保留为引擎记录（capability-map），生成模块符号不直接进 cad 命名空间 by design（同 revolve / extrude 口径）。',
     args: 'sweep(wire: Shape, spine: Shape, config?: SweepOptions, shellMode?: boolean): Shape',
     params: ['wire', 'spine', 'config', 'shellMode'], formClass: 'A',
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
@@ -1648,6 +1649,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     geometryArgs: [0], reason: 'wire → Result(Shape3D)，brep-op',
     args: 'complexExtrude(wire: Shape, center: Vec3, normal: Vec3, profile?: ExtrusionProfile): Shape',
     params: ['wire', 'center', 'normal', 'profile'], formClass: 'A',
+    scriptFace: true,
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
   },
   {
@@ -1655,6 +1657,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     geometryArgs: [0], reason: 'wire → Result(Shape3D)，brep-op',
     args: 'twistExtrude(wire: Shape, angleDegrees: number, center: Vec3, normal: Vec3): Shape',
     params: ['wire', 'angleDegrees', 'center', 'normal'], formClass: 'A',
+    scriptFace: true,
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
   },
   {
@@ -1686,6 +1689,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     geometryArgs: [0], reason: 'wire → Result(ValidSolid)→solid，brep-op',
     args: 'roof(wire: Shape, options?: RoofOptions): Shape',
     params: ['wire', 'options'], formClass: 'A',
+    scriptFace: true,
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
   },
   {
@@ -1776,16 +1780,18 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     name: 'extrudeAll', source: 'operations/extrudeFns.js#extrudeAll', kind: 'skip', module: 'operations', reason: '返回 ValidSolid[]（多产物），单产物收养缺位，skip',
   },
   {
-    name: 'loft', source: 'operations/api.js#loft', kind: 'skip', module: 'operations', reason: '入参 Shapeable<Wire>[]（形状数组），brep-op 模板单柄借入不适用，skip',
+    name: 'loft', source: 'operations/api.js#loft', kind: 'skip', module: 'operations',
+    args: 'loft(sections: Shape[], opts?: LoftOptions): Shape',
+    reason: 'overridden by handwritten api/loft.ts (faijs 侧平台 op engines:[occt]：截面接受 face → 取外环；数组入参本身已无障碍——compat-op 的 borrowDeep 递归借入数组，不适用的是输入形态适配)',
   },
   {
     name: 'loftAll', source: 'operations/loftFns.js#loftAll', kind: 'skip', module: 'operations', reason: '返回 Shape3D 数组（多产物），skip',
   },
   {
-    name: 'guidedSweep', source: 'operations/guidedSweepFns.js#guidedSweep', kind: 'skip', module: 'operations', reason: 'guides: Wire[]（数组）入参，brefreq 模板无法数组借入，skip',
+    name: 'guidedSweep', source: 'operations/guidedSweepFns.js#guidedSweep', kind: 'skip', module: 'operations', reason: 'guides: Wire[] 数组入参本身已无障碍（compat-op 的 borrowDeep 递归借入）；faijs 侧尚未手写对应 op（长尾，本轮不做），skip',
   },
   {
-    name: 'multiSectionSweep', source: 'operations/multiSweepFns.js#multiSectionSweep', kind: 'skip', module: 'operations', reason: 'sections: SweepSectionConfig[]（每份含 wire）数组入参，skip',
+    name: 'multiSectionSweep', source: 'operations/multiSweepFns.js#multiSectionSweep', kind: 'skip', module: 'operations', reason: 'sections: SweepSectionConfig[] 数组入参本身已无障碍（compat-op 的 borrowDeep 递归借入）；faijs 侧尚未手写对应 op（长尾，本轮不做），skip',
   },
   {
     name: 'addJoint', source: 'operations/jointFns.js#addJoint', kind: 'skip', module: 'operations', reason: '运动副 DSL（AssemblyNode 输入）：P3 起改由 cad.assembly 的 joints[] 约束面暴露（库面 buildJoint 直调，2026-09-07 方案 §3.1），仍不直接暴露',

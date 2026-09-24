@@ -12,8 +12,8 @@ import { area, length, volume, centerOfMass } from './measurement'
 export { area, length, volume, centerOfMass } from './measurement'
 import { viewCamera, projectView, projectSheet } from './view'
 export { viewCamera, projectView, projectSheet } from './view'
-import { linearPattern, circularPattern, gridPattern, drill, pocket, boss, mirrorJoin, rectangularPattern, thread, convexHull } from './operations'
-export { linearPattern, circularPattern, gridPattern, drill, pocket, boss, mirrorJoin, rectangularPattern, thread, convexHull } from './operations'
+import { complexExtrude, twistExtrude, linearPattern, circularPattern, gridPattern, roof, drill, pocket, boss, mirrorJoin, rectangularPattern, thread, convexHull } from './operations'
+export { complexExtrude, twistExtrude, linearPattern, circularPattern, gridPattern, roof, drill, pocket, boss, mirrorJoin, rectangularPattern, thread, convexHull } from './operations'
 import { getShapeKind } from './core'
 export { getShapeKind } from './core'
 import { makeBaseBox } from './sketching'
@@ -30,9 +30,12 @@ export const scriptFaceOps = {
   viewCamera,
   projectView,
   projectSheet,
+  complexExtrude,
+  twistExtrude,
   linearPattern,
   circularPattern,
   gridPattern,
+  roof,
   drill,
   pocket,
   boss,

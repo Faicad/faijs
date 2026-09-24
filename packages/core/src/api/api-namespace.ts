@@ -32,6 +32,8 @@ import { wire } from './wire'
 import { helix } from './helix'
 import { union, subtract, intersect, cut } from './boolean'
 import { split } from './split'
+import { sweep } from './sweep'
+import { loft } from './loft'
 import { linearPattern } from './pattern'
 import { circularPattern, gridPattern, rectangularPattern, mirrorJoin, mirror, clone } from './replicate'
 import { engrave } from './engrave'
@@ -75,6 +77,10 @@ export function createApiNamespace(): StdlibNamespace {
     engrave, chamfer, fillet, knurl,
     union, subtract, intersect,
     extrude, revolve,
+    // Phase 4：手写扫掠 / 放样（平台 op engines:['occt']；截面接受 face → 取外环）。
+    // arg-spec 里 sweep 保留 brep-op（引擎记录）/ loft 为 skip，两者均不投脚本面，
+    // 所以这里不是 override 而是唯一实现（同 extrude / revolve 口径）。
+    sweep, loft,
     faceNormal, bboxCenter, bboxMin, bboxMax,
     edgeRef,
     faceRef,

@@ -70,7 +70,7 @@ describe('生成层机制（E5，P13a 机制 / P14 分片）', () => {
     expect(generateScriptFaceManifest()).toBe(manifest)
   })
 
-  it('P23/P25：script-face 条目是 brep-op 或 faijs 自研视图投影，且不在 faijs 特有 op 集合中（防同名二义）', () => {
+  it('P23/P25：script-face 条目是 brep-op / faijs 自研视图投影 / query 查询 op，且不在 faijs 特有 op 集合中（防同名二义）', () => {
     const index = readFileSync(fileURLToPath(new URL('../index.ts', import.meta.url)), 'utf-8')
     const ns = readFileSync(fileURLToPath(new URL('../api-namespace.ts', import.meta.url)), 'utf-8')
     expect(index).toMatch(/from '\.\/generated\/script-face'/)
@@ -85,8 +85,10 @@ describe('生成层机制（E5，P13a 机制 / P14 分片）', () => {
       'faceNormal', 'bboxCenter', 'bboxMin', 'bboxMax',
       'asset',
     ])
+    // kind 白名单：brep-op（vendored 投影）/ faijs（自研视图投影）/ query（上游查询函数，
+    // 如 getShapeKind / isValid / isEmpty / isEqualShape / isSameShape——b0c4a92 起进脚本面）。
     for (const e of scriptFaceEntries()) {
-      expect(['brep-op', 'faijs'].includes(e.kind), `${e.name}（kind=${e.kind}）`).toBe(true)
+      expect(['brep-op', 'faijs', 'query'].includes(e.kind), `${e.name}（kind=${e.kind}）`).toBe(true)
       expect(faijsOps.has(e.name), `${e.name} 与 faijs 特有 op 同名（§6.3 红线：一个名字一份实现）`).toBe(false)
     }
   })
