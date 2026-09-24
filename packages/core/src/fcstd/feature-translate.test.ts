@@ -132,6 +132,53 @@ describe('M4.3 booleans', () => {
   });
 });
 
+describe('P5 Part::Mirroring', () => {
+  // GOTCHA: Mirroring Base/Normal are <PropertyVector valueX= valueY= valueZ=/>
+  // CHILD elements — the `value="x y z"` attribute form used by Extrusion.Dir
+  // is a DIFFERENT serialization. Reading attributes for these returns NaN.
+  function vecXYZ(name: string, x: number, y: number, z: number): [string, FcstdProperty] {
+    return prop(name, { name: 'PropertyVector', attrs: { valueX: String(x), valueY: String(y), valueZ: String(z) } });
+  }
+
+  it('translates Source + Base/Normal plane into cad.mirror (P5)', () => {
+    const mir = obj('Part::Mirroring', 'Mir', [
+      prop('Source', { name: 'Link', attrs: { value: 'Fillet007' } }),
+      vecXYZ('Base', 0, 0, 0),
+      vecXYZ('Normal', 0, 2, 0), // unnormalized on purpose
+      prop('Placement', { name: 'PropertyPlacement', attrs: { Px: '0', Py: '190', Pz: '0', Q0: '0', Q1: '0', Q2: '0', Q3: '1' } }),
+    ]);
+    const v = translateObject(mir, (dep) => (dep === 'Fillet007' ? 'part7' : undefined));
+    expect(v.kind).toBe('translated');
+    if (v.kind !== 'translated') return;
+    expect(v.calls[0]!.op).toBe('cad.mirror');
+    expect(v.calls[0]!.inputs).toEqual(['part7']);
+    // normal normalized; plane point = Base + Placement translation
+    expect(v.calls[0]!.params).toMatchObject({ normal: [0, 1, 0], at: [0, 190, 0] });
+  });
+
+  it('bakes with explicit reason when Source is missing', () => {
+    const mir = obj('Part::Mirroring', 'Mir', [
+      vecXYZ('Base', 0, 0, 0),
+      vecXYZ('Normal', 0, 1, 0),
+    ]);
+    const v = translateObject(mir, () => undefined);
+    expect(v).toMatchObject({ kind: 'baked', reason: 'mirroring-missing-source' });
+  });
+
+  it('bakes with explicit reason when Normal is zero/missing', () => {
+    const mir = obj('Part::Mirroring', 'Mir', [
+      prop('Source', { name: 'Link', attrs: { value: 'A' } }),
+      vecXYZ('Base', 0, 0, 0),
+    ]);
+    const v = translateObject(mir, (dep) => (dep === 'A' ? 'partA' : undefined));
+    expect(v).toMatchObject({ kind: 'baked', reason: 'mirroring-missing-normal' });
+  });
+
+  it('is whitelisted (P5)', () => {
+    expect(isWhitelisted('Part::Mirroring')).toBe(true);
+  });
+});
+
 describe('M4.6 Pad/Pocket', () => {
   it('translates Pad over a sketch profile', () => {
     const pad = obj('PartDesign::Pad', 'Pad', [

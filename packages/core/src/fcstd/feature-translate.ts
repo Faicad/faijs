@@ -115,6 +115,9 @@ const WHITELIST = new Set([
   // Radius (+ optional Angle like Cylinder).
   'Part::Compound',
   'Part::Sphere',
+  // P5 (2026-09-24): Part::Mirroring mirrors its Source across the plane
+  // through Base with normal Normal (253 corpus occurrences).
+  'Part::Mirroring',
 ]);
 
 /**
@@ -258,6 +261,19 @@ function propVec(obj: FcstdObject, name: string): [number, number, number] | und
   const parts = raw.trim().split(/\s+/).map(Number);
   if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) return undefined;
   return [parts[0]!, parts[1]!, parts[2]!];
+}
+
+/**
+ * Read an App::PropertyVector serialized as a `<PropertyVector valueX= valueY=
+ * valueZ=/>` child element (P5: Part::Mirroring Base/Normal use this form —
+ * GOTCHA: propVec expects `value="x y z"`, a DIFFERENT serialization).
+ */
+function propVecXYZ(obj: FcstdObject, name: string): [number, number, number] | undefined {
+  const a = obj.properties.get(name)?.children[0]?.attributes;
+  if (!a) return undefined;
+  const x = Number(a['valueX']), y = Number(a['valueY']), z = Number(a['valueZ']);
+  if (![x, y, z].every(Number.isFinite)) return undefined;
+  return [x, y, z];
 }
 
 /** Normalize a Vec3 to unit length (zero-safe: returns input if |v| = 0). */
@@ -573,6 +589,34 @@ export function translateObject(
         calls: [{
           out, op: 'cad.sphere', source: obj.name, inputs: [],
           params: { radius: r, at: [x, y, z] },
+        }],
+      };
+    }
+    case 'Part::Mirroring': {
+      // P5: mirror Source across the plane through Base with normal Normal.
+      // The result is the mirrored copy alone (FreeCAD does NOT fuse the
+      // original in Part::Mirroring — the corpus pairs it with explicit
+      // fusion features when needed), so this maps to `cad.mirror`, not
+      // `cad.mirrorJoin`.
+      const src = propLink(obj, 'Source');
+      const s = src ? inputVar(src) : undefined;
+      if (!s) return { kind: 'baked', reason: 'mirroring-missing-source' };
+      const base = propVecXYZ(obj, 'Base') ?? [0, 0, 0];
+      const normalRaw = propVecXYZ(obj, 'Normal');
+      if (!normalRaw || Math.hypot(...normalRaw) <= 0) {
+        return { kind: 'baked', reason: 'mirroring-missing-normal' };
+      }
+      const normal = normalize3(normalRaw);
+      // FreeCAD mirrors across the plane through (Base + Placement translation)
+      // — Placement here is a pure translation in all corpus samples; the
+      // plane point is Base shifted by it.
+      const [px, py, pz] = placementPos(obj);
+      const at = [base[0]! + px, base[1]! + py, base[2]! + pz] as [number, number, number];
+      return {
+        kind: 'translated',
+        calls: [{
+          out, op: 'cad.mirror', source: obj.name, inputs: [s],
+          noPositionalArgs: true, params: { normal, at },
         }],
       };
     }
