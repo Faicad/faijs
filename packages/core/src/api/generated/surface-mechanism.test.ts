@@ -107,8 +107,12 @@ describe('生成层机制（E5，P13a 机制 / P14 分片）', () => {
         } else if (e.kind === 'query') {
           expect(artifact, `${m}:${e.name}`).toMatch(new RegExp(`export function ${esc}\\(`))
         } else if (e.kind === 'faijs') {
-          // P25：faijs 自研符号 re-export 自手写 api/view 模块（非 vendored）
-          expect(artifact, `${m}:${e.name}`).toMatch(new RegExp(`export \\{ ${esc} \\} from '\\.\\./view/index\\.js'`))
+          // P25：faijs 自研符号 re-export 自手写 api/ 模块（非 vendored）。路径从
+          // arg-spec 的 source 推导（与生成器 renderFaijs 的 `'../${file}'` 同规则），
+          // 不写死单一模块目录：Phase 7 起测量 op（area/length）位于 api/measurement/，
+          // 视图投影（viewCamera/projectView/projectSheet）仍在 api/view/。
+          const file = e.source.split('#')[0]!
+          expect(artifact, `${m}:${e.name}`).toMatch(new RegExp(`export \\{ ${esc} \\} from '\\.\\./${desc(file)}'`))
         }
       }
     }

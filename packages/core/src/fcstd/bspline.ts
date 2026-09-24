@@ -27,6 +27,10 @@ export interface BSplineCurveData {
 /**
  * Evaluate the B-spline at parameter t via Cox–de Boor recursion.
  * Outside the valid domain [knots[degree], knots[n]] the value is clamped.
+ *
+ * @param d - the parsed BSplineCurve payload (poles/knots/degree).
+ * @param t - the parameter to evaluate (clamped to the valid domain).
+ * @returns the evaluated pole (2D point) on the spline.
  */
 export function evalBSpline(d: BSplineCurveData, t: number): BSPole {
   const { poles, knots, degree: p } = d;
@@ -63,6 +67,10 @@ export function evalBSpline(d: BSplineCurveData, t: number): BSPole {
  * Sample the spline into a polyline. `min` samples per span, at least the
  * pole count (a degree-3 spline needs ≥ poles points to show its shape).
  * Endpoints are exact (clamped knot vector).
+ *
+ * @param d - the parsed BSplineCurve payload (poles/knots/degree).
+ * @param perSpan - minimum samples per knot span (default 6).
+ * @returns the sampled polyline points (first/last are the exact endpoints).
  */
 export function sampleBSpline(d: BSplineCurveData, perSpan = 6): BSPole[] {
   const { poles, knots, degree: p } = d;
@@ -84,6 +92,10 @@ export function sampleBSpline(d: BSplineCurveData, perSpan = 6): BSPole[] {
  * Flatten the spline into consecutive straight contour segments (P4: the
  * contour chain only understands line/arc; a sampled polyline preserves the
  * profile within chord tolerance).
+ *
+ * @param d - the parsed BSplineCurve payload (poles/knots/degree).
+ * @param perSpan - minimum samples per knot span (passed to sampleBSpline).
+ * @returns the consecutive line segments approximating the spline.
  */
 export function bsplineToSegments(d: BSplineCurveData, perSpan = 6): { x1: number; y1: number; x2: number; y2: number }[] {
   const pts = sampleBSpline(d, perSpan);

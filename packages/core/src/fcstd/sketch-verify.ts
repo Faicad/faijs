@@ -9,7 +9,12 @@
 import type { SketchGeom } from './sketch-parse.js';
 import type { SolveOutcome } from './sketch-solver.js';
 
-/** P4: exported for testability — anchor points used by maxPointDistance. */
+/**
+ * P4: exported for testability — anchor points used by maxPointDistance.
+ *
+ * @param g - the sketch geometry element (point/line/circle/arc/ellipse/bspline).
+ * @returns the element's comparison anchor points (center/endpoints as applicable).
+ */
 export function anchorPoints(g: SketchGeom): { x: number; y: number }[] {
   switch (g.kind) {
     case 'point':

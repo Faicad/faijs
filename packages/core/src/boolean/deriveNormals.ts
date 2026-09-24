@@ -1,5 +1,5 @@
 import { BufferGeometry, BufferAttribute } from 'three'
-import { deriveCreasedNormalsData } from '../mesh/creased-normals'
+import { deriveCreasedNormalsData } from './creased-normals'
 
 /**
  * 统一的法线派生函数（折边法线）。
@@ -8,7 +8,10 @@ import { deriveCreasedNormalsData } from '../mesh/creased-normals'
  * 几何**上会把相邻三角面的法线取平均 → 棱边被"磨圆"。这正是钻孔/布尔/分割操作后
  * model visual anomalies after drilling/boolean/split operations.
  *
- * 算法本体在 `../mesh/creased-normals`（零依赖移植 three 的 toCreasedNormals）：
+ * 算法本体在 `./creased-normals`（零依赖移植 three 的 toCreasedNormals；本文件只是
+ * BufferGeometry ↔ 数据的薄适配）。场景内核（scene-kernel）消费同算法的数据版
+ * `deriveCreasedNormalsData`——经 `@faicad/faijs/env-agnostic` 导出、不 import three，
+ * 避免经依赖包间接引入第二份 three（weapp 方案 §1.1.1）：
  * 锐边处"裂开"法线 → 锐边保持锐利，仅对近共面 / 真实曲面（如钻孔内壁）平滑。
  * 输入若是索引几何会被展开为非索引（单条法线属性无法在共享顶点上表达锐边），
  * 因此返回的几何**可能是非索引的**——这是预期且正确的表示，且与 STL 源零件

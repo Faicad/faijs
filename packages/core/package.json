@@ -128,6 +128,10 @@
     "./boolean/*": {
       "types": "./dist/boolean/*.d.ts",
       "default": "./dist/boolean/*.js"
+    },
+    "./env-agnostic": {
+      "types": "./dist/env-agnostic.d.ts",
+      "default": "./dist/env-agnostic.js"
     }
   },
   "files": [

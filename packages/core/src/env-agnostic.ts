@@ -79,3 +79,17 @@ export {
   isHostVarRef, isHostParamRef, isHostCallRef, isHostExprRef, isHostRef,
   hostArgToDisplay, hostArgToLiteral, HOST_REF_KINDS,
 } from './lang/host-arg'
+
+// ── mesh 工具面（环境无关）：折边法线数据版 ──
+// weapp 方案 §9.1 第 4 项：GeometryBinding 下沉 scene-kernel 后，共享层需要的是
+// 「positions / indices 进、法线 Float32Array 出」的版本，且模块链不得 import three
+// （端侧只能有一份 0.162）。算法在 boolean/creased-normals.ts（零依赖移植 three 的
+// toCreasedNormals）；three 版 deriveNormals（boolean/deriveNormals.ts）只是本数据版
+// 的 BufferGeometry 薄适配，留在 browser/index 面供 web 场景使用。
+export { deriveCreasedNormalsData } from './boolean/creased-normals'
+export type { CreasedNormalsInput, CreasedNormalsResult } from './boolean/creased-normals'
+
+// ── primitives 纯类型（零运行时依赖；primitive-emission 共享层消费）──
+export type {
+  PrimitiveType, PrimitiveParamsRecord, PrimitiveArgsRecord, PrimitiveMeta,
+} from './primitives/types'
