@@ -1,7 +1,7 @@
 /**
  * generated/measurement.ts — 生成文件，勿手改。
  * 由 packages/core/scripts/gen-l3-surface.ts 依据 api/surface/arg-spec.ts 生成（E5/P14 分片）。
- * measurement 模块：24 个投影符号；另有 1 个 skip 登记。
+ * measurement 模块：29 个投影符号；另有 1 个 skip 登记。
  */
 import { borrowBrepjsShape, callBrepjs, assertEngineFor } from '../internal/l3-bridge'
 import type { Shape } from '../../mesh/types'
@@ -236,6 +236,89 @@ export function checkAllInterferences(shapes: Shape[], tolerance?: number): Inte
   assertEngineFor('checkAllInterferences', ["occt"])
 
   return callBrepjs(__vendored_checkAllInterferences, [(shapes as Shape[]).map((s) => borrowBrepjsShape(s)), tolerance])
+}
+
+/**
+ * inspectInterference — 查询（返回纯数据，非 Shape）生成文件，勿手改；来源 api/surface/arg-spec.ts。
+ * (a: Shape, b: Shape, tolerance?: number) -> InterferenceResult
+ * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（查询表达式承载）。
+ *
+ * @param a - 可形状参数（第一个形状）
+ * @param b - 可形状参数（第二个形状）
+ * @param tolerance - 数值/选项参数（干涉距离阈值（缺省 1e-6））
+ * @returns InterferenceResult — 纯数据结果（非 Shape）。
+ */
+export function inspectInterference(a: Shape, b: Shape, tolerance?: number): InterferenceResult {
+  assertEngineFor('inspectInterference', ["occt"])
+
+  const __r = callBrepjs(__vendored_checkInterference, [borrowBrepjsShape(a as Shape), borrowBrepjsShape(b as Shape), tolerance])
+  if (!__r.ok) throw new Error('[faijs/generated] inspectInterference: query failed')
+  return __r.value
+}
+
+/**
+ * inspectAllInterferences — 查询（返回纯数据，非 Shape）生成文件，勿手改；来源 api/surface/arg-spec.ts。
+ * (shapes: Shape[], tolerance?: number) -> InterferencePair[]
+ * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（查询表达式承载）。
+ *
+ * @param shapes - Shape 数组（成对检测的形状数组）
+ * @param tolerance - 数值/选项参数（干涉距离阈值（缺省 1e-6））
+ * @returns InterferencePair[] — 纯数据结果（非 Shape）。
+ */
+export function inspectAllInterferences(shapes: Shape[], tolerance?: number): InterferencePair[] {
+  assertEngineFor('inspectAllInterferences', ["occt"])
+
+  return callBrepjs(__vendored_checkAllInterferences, [(shapes as Shape[]).map((s) => borrowBrepjsShape(s)), tolerance])
+}
+
+/**
+ * inspectCurvature — 查询（返回纯数据，非 Shape）生成文件，勿手改；来源 api/surface/arg-spec.ts。
+ * (face: Shape, u: number, v: number) -> CurvatureResult
+ * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（查询表达式承载）。
+ *
+ * @param face - 可形状参数（被查询的曲面/面）
+ * @param u - 数值/选项参数（参数域 u）
+ * @param v - 数值/选项参数（参数域 v）
+ * @returns CurvatureResult — 纯数据结果（非 Shape）。
+ */
+export function inspectCurvature(face: Shape, u: number, v: number): CurvatureResult {
+  assertEngineFor('inspectCurvature', ["occt"])
+
+  const __r = callBrepjs(__vendored_measureCurvatureAt, [borrowBrepjsShape(face as Shape), u, v])
+  if (!__r.ok) throw new Error('[faijs/generated] inspectCurvature: query failed')
+  return __r.value
+}
+
+/**
+ * inspectCurvatureAtMid — 查询（返回纯数据，非 Shape）生成文件，勿手改；来源 api/surface/arg-spec.ts。
+ * (face: Shape) -> CurvatureResult
+ * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（查询表达式承载）。
+ *
+ * @param face - 可形状参数（被查询的曲面/面（取参数域中点））
+ * @returns CurvatureResult — 纯数据结果（非 Shape）。
+ */
+export function inspectCurvatureAtMid(face: Shape): CurvatureResult {
+  assertEngineFor('inspectCurvatureAtMid', ["occt"])
+
+  const __r = callBrepjs(__vendored_measureCurvatureAtMid, [borrowBrepjsShape(face as Shape)])
+  if (!__r.ok) throw new Error('[faijs/generated] inspectCurvatureAtMid: query failed')
+  return __r.value
+}
+
+/**
+ * inspectMassProps — 查询（返回纯数据，非 Shape）生成文件，勿手改；来源 api/surface/arg-spec.ts。
+ * (shape: Shape) -> VolumeProps
+ * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（查询表达式承载）。
+ *
+ * @param shape - 可形状参数（目标实体（体积/质心/惯量/主轴））
+ * @returns VolumeProps — 纯数据结果（非 Shape）。
+ */
+export function inspectMassProps(shape: Shape): VolumeProps {
+  assertEngineFor('inspectMassProps', ["occt"])
+
+  const __r = callBrepjs(__vendored_measureVolumeProps, [borrowBrepjsShape(shape as Shape)])
+  if (!__r.ok) throw new Error('[faijs/generated] inspectMassProps: query failed')
+  return __r.value
 }
 
 export { area } from '../measurement/index.js'

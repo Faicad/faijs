@@ -259,9 +259,14 @@ export function generateModule(module: string): string {
   const entries = ARG_SPEC.filter((e) => moduleOf(e) === module)
   // U7 反向护栏：非 skip 条目必须存在于 surface 基线。faijs 自研符号（kind 'faijs'，
   // 如 api/view 的视图投影 op）是 faijs 面新增、上游 surface 无此符号——跳过基线检查。
-  const missing = entries.filter(
-    (e) => e.kind !== 'skip' && e.kind !== 'faijs' && !base.has(e.name),
-  )
+  // 改名投影（如 inspect* ← vendored checkInterference/measureCurvatureAt*，2026-09-24
+  // §7 待裁决 4）：上游无 inspect* 名，按 source 的 exportName 回查基线。
+  const missing = entries.filter((e) => {
+    if (e.kind === 'skip' || e.kind === 'faijs') return false
+    if (base.has(e.name)) return false
+    const { exportName } = parseSource(e.source)
+    return !base.has(exportName)
+  })
   if (missing.length > 0) {
     throw new Error(`[gen-l3-surface] ${module} 中条目缺失: ${missing.map((m) => m.name).join(', ')}`)
   }

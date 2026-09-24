@@ -429,6 +429,98 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     engines: ['occt'],
   },
 
+  // Phase 7 待裁决 4（方案 §7.1 建议 4，2026-09-24）：occt 独占诊断族进脚本面，
+  // 统一 `inspect*` 命名（不走 measure*——避免与中立量形成误导性双轨）。三条无
+  // 中立替代的族：干涉 / 曲率 / 质量属性（惯量/主轴）。name 与 vendored 导出
+  // 解耦（renderQuery 按 source 的 exportName 导入、按 name 声明），engines:['occt']
+  // → 函数体第一行执行前断言（D11-4）。
+  {
+    name: 'inspectInterference',
+    source: 'measurement/interferenceFns.js#checkInterference',
+    kind: 'query',
+    module: 'measurement',
+    args: '(a: Shape, b: Shape, tolerance?: number) -> InterferenceResult',
+    geometryArgs: [0, 1],
+    queryParams: [
+      { name: 'a', type: 'Shape', docs: '第一个形状' },
+      { name: 'b', type: 'Shape', docs: '第二个形状' },
+      { name: 'tolerance', type: 'number', optional: true, docs: '干涉距离阈值（缺省 1e-6）' },
+    ],
+    returnsResult: true,
+    returnType: 'InterferenceResult',
+    params: ['a', 'b', 'tolerance'], formClass: 'A',
+    engines: ['occt'],
+    scriptFace: true,
+    reason: 'occt 独占诊断（装配/公差刚需，无中立替代）→ inspect* 命名进脚本面（§7 待裁决 4）',
+  },
+  {
+    name: 'inspectAllInterferences',
+    source: 'measurement/interferenceFns.js#checkAllInterferences',
+    kind: 'query',
+    module: 'measurement',
+    args: '(shapes: Shape[], tolerance?: number) -> InterferencePair[]',
+    geometryCollectionArgs: [0],
+    queryParams: [
+      { name: 'shapes', type: 'Shape[]', docs: '成对检测的形状数组' },
+      { name: 'tolerance', type: 'number', optional: true, docs: '干涉距离阈值（缺省 1e-6）' },
+    ],
+    returnsResult: false,
+    returnType: 'InterferencePair[]',
+    params: ['shapes', 'tolerance'], formClass: 'A',
+    engines: ['occt'],
+    scriptFace: true,
+    reason: 'occt 独占诊断（装配/公差刚需，无中立替代）→ inspect* 命名进脚本面（§7 待裁决 4）',
+  },
+  {
+    name: 'inspectCurvature',
+    source: 'measurement/measureFns.js#measureCurvatureAt',
+    kind: 'query',
+    module: 'measurement',
+    args: '(face: Shape, u: number, v: number) -> CurvatureResult',
+    geometryArgs: [0],
+    queryParams: [
+      { name: 'face', type: 'Shape', docs: '被查询的曲面/面' },
+      { name: 'u', type: 'number', docs: '参数域 u' },
+      { name: 'v', type: 'number', docs: '参数域 v' },
+    ],
+    returnsResult: true,
+    returnType: 'CurvatureResult',
+    params: ['face', 'u', 'v'], formClass: 'A',
+    engines: ['occt'],
+    scriptFace: true,
+    reason: 'occt 独占诊断（曲面质量诊断，无中立替代）→ inspect* 命名进脚本面（§7 待裁决 4）',
+  },
+  {
+    name: 'inspectCurvatureAtMid',
+    source: 'measurement/measureFns.js#measureCurvatureAtMid',
+    kind: 'query',
+    module: 'measurement',
+    args: '(face: Shape) -> CurvatureResult',
+    geometryArgs: [0],
+    queryParams: [{ name: 'face', type: 'Shape', docs: '被查询的曲面/面（取参数域中点）' }],
+    returnsResult: true,
+    returnType: 'CurvatureResult',
+    params: ['face'], formClass: 'A',
+    engines: ['occt'],
+    scriptFace: true,
+    reason: 'occt 独占诊断（曲面质量诊断，无中立替代）→ inspect* 命名进脚本面（§7 待裁决 4）',
+  },
+  {
+    name: 'inspectMassProps',
+    source: 'measurement/measureFns.js#measureVolumeProps',
+    kind: 'query',
+    module: 'measurement',
+    args: '(shape: Shape) -> VolumeProps',
+    geometryArgs: [0],
+    queryParams: [{ name: 'shape', type: 'Shape', docs: '目标实体（体积/质心/惯量/主轴）' }],
+    returnsResult: true,
+    returnType: 'VolumeProps',
+    params: ['shape'], formClass: 'A',
+    engines: ['occt'],
+    scriptFace: true,
+    reason: 'occt 独占诊断（绕轴惯性矩/主轴，中立面没有）→ inspect* 命名进脚本面（§7 待裁决 4）',
+  },
+
   // Phase 7（narrowing plan §Phase 7 / Q4）：cad 脚本面测量 op（手写实现，
   // kind 'faijs'——api/measurement/index.ts）。直接调 getBrepApi() 的 L1 测量面
   // （getSurfaceArea / getLength），无 vendored 借入层、无引擎绑定 → **中立 op**

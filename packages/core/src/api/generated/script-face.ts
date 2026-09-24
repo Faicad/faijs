@@ -8,8 +8,8 @@
 
 import { torus, fuse, ellipsoid, rotate, mirror, clone, applyMatrix, locate, split, offset, heal, simplify, isValid, isEmpty, isEqualShape, isSameShape, autoHeal, fixShape, healSolid, fixSelfIntersection } from './topology'
 export { torus, fuse, ellipsoid, rotate, mirror, clone, applyMatrix, locate, split, offset, heal, simplify, isValid, isEmpty, isEqualShape, isSameShape, autoHeal, fixShape, healSolid, fixSelfIntersection } from './topology'
-import { area, length, volume, centerOfMass } from './measurement'
-export { area, length, volume, centerOfMass } from './measurement'
+import { inspectInterference, inspectAllInterferences, inspectCurvature, inspectCurvatureAtMid, inspectMassProps, area, length, volume, centerOfMass } from './measurement'
+export { inspectInterference, inspectAllInterferences, inspectCurvature, inspectCurvatureAtMid, inspectMassProps, area, length, volume, centerOfMass } from './measurement'
 import { viewCamera, projectView, projectSheet } from './view'
 export { viewCamera, projectView, projectSheet } from './view'
 import { complexExtrude, twistExtrude, linearPattern, circularPattern, gridPattern, roof, drill, pocket, boss, mirrorJoin, rectangularPattern, thread, convexHull } from './operations'
@@ -23,6 +23,11 @@ export { makeBaseBox } from './sketching'
 export const scriptFaceOps = {
   torus,
   fuse,
+  inspectInterference,
+  inspectAllInterferences,
+  inspectCurvature,
+  inspectCurvatureAtMid,
+  inspectMassProps,
   area,
   length,
   volume,

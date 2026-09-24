@@ -66,6 +66,23 @@ curve → L1 `makeCompound` 持句柄打包，顶层经 `fromBrep` 收养（与 
 - 符号表：`gen-symbol-table.ts` 重跑（`splitByPlane` / `sectionByPlane` 进 `check()` 面）；
 - 根门面导出：`api/index.ts` 补两条新导出（p23 三源一致「门面 ⊆ 导出面」门禁要求）。
 
+### Phase 7 待裁决 4（后续轮）— occt 独占诊断族以 `inspect*` 命名进脚本面
+
+arg-spec 新增五条 query 条目（`kind:'query'` + `engines:['occt']` + `scriptFace:true`）：
+`inspectInterference` / `inspectAllInterferences`（干涉）、`inspectCurvature` /
+`inspectCurvatureAtMid`（曲率）、`inspectMassProps`（惯量/主轴/质心）。命名不走 `measure*`
+（避免与中立量 volume/area/length 形成误导性双轨）；生成器按 `source` 的 exportName 导入
+vendored 实现、按 `name` 声明导出（改名投影），U7 反向护栏按 exportName 回查基线
+（`gen-l3-surface.ts` generateModule 相应放宽）。
+
+GOTCHA（vendored 语义，2026-09-24 实测，测试留档 `api/inspect-diagnostics.test.ts`）：
+- `PhysicalProps.centerOfMass` 是 `[x,y,z]` **元组**，不是 `{x,y,z}` 对象——对象式读法得 undefined；
+- `measureCurvatureAtMid` 输入是 **Face**（solid 报 `uvBounds: TopoDS::Face`）——脚本面用
+  `cad.sketch` 平面面（曲率 0）作输入；
+- 直调 cad 命名空间（不经 CadRuntime）须自行 `configureBackends`：`brepCapabilities` 传
+  `{}` ⇒ directEdit 门 op 全拒；`evolution` 必须是**数组**（传 true 抛
+  "boolean true is not iterable"）；Backends 类型要求 texture/assets/events 字段补全。
+
 ## 验证
 
 - `api/split-by-plane.test.ts`（4）/ `api/section-by-plane.test.ts`（4）全绿；
