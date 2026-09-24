@@ -20,6 +20,19 @@
 
 > 注：上一轮汇报里的提交号 `a9c7515` 在 faijs 仓库查不到；实际落地提交是 `162e7cb`（`fix(core): FCStd gap fixes — H13 double placement, V-C8 boolean errors, E3 revolve roles, P1-1 parameter carriers`）。以仓库为准。
 
+### 0.1b 实际开发序列（2026-09-24 补充：已超出原计划 P2-1 分组）
+
+计划原把 `Part::Revolution / Fillet / Chamfer` 捆在 **P2-1**，且未排 P7/P8/P9。实际按 Part 工作台特征链逐条落地；且 **P8 已把 `filletEdgesData` 的提取做成对 `Part::Chamfer` 与 `Part::Fillet` 通用**（`feature-translate.ts` 当前 HEAD 在 `6f75282` 之后，`convert.ts` 条件为 `obj.type !== 'Part::Chamfer' && obj.type !== 'Part::Fillet'` 才跳过解析）。
+
+| 项 | 缺口 | 落地内容 | 状态 |
+|---|---|---|---|
+| P6 | — | `Part::Revolution`（Source + Base/Axis → cad.revolve） | ✅ 历史提交 |
+| P7 | — | `Part::Fuse` → cad.union（Base + Tool 两 PropertyLink） | ✅ `4e3a7e7` |
+| P8 | — | `Part::Chamfer` 经二进制 `FilletEdges` → cad.chamfer（109 对象） | ✅ `6f75282` |
+| P9 | — | `Part::Fillet` 经同一二进制 → cad.fillet（196 对象） | ✅ 本批（待提交） |
+
+→ **P2-1 的 Part 工作台特征系（Revolution / Fillet / Chamfer）已全闭环**。用户口中的「P9 part fillet」即此序列的下一环，已在白名单 + `case 'Part::Fillet'` 分支落地，复用 P8 的 `fillet-edges.ts` 解析。剩余 P2-2 Groove / P2-3 sweep·loft / P2-4 Link 系仍待排。
+
 ### 0.2 本轮新增的判据来源（只读既有报表，未跑批量）
 
 - `fcstd-port/reports/run-sweep.json`（2,323 个 product 的 run 结果，引擎 0.13.2）
@@ -97,7 +110,7 @@
 | **P1-1b（新）** ▶ | H6 残留 | **Pocket Midplane**：对称切除（±len/2 两段棱柱 ∪ 后 subtract，与已实现的 Pad Midplane 同构） | `feature-translate.ts:849` | 同 **z08** | convert ok（无 gap）+ STEP；连带 30 文件桶 + 33 直接解封 |
 | **P1-2** | H6 尾部 | 函数族 / `cells[...]` 区间：**显式 bake**（禁止静默） | `expressions.ts`（`evalArithmetic` 已返回 undefined，需补独立 reason + 单测） | 与 P1-1 同文件（其非 Alias 单元格即此形态） | bake 带显式 reason，不静默 |
 | **P1-3（新）** ▶ | H7 旁支 | 非几何类型归 preserved（不记 gap）：`TechDraw::*`、`Drawing::*`、`Image::ImagePlane`、`Mesh::Feature`、`App::MeasureDistance`、`App::LinkGroup` | `fcstd/feature-translate.ts` 白名单 + preserved 分类（与 P1-1 同构） | **`Architectural Parts/Beams/Profile HEA.FCStd`**（40 文件桶首例） | 该文件 convert ok（或仅剩真实几何原因）+ 报表 `type-not-whitelisted` 对象数下降 |
-| **P2-1** | H7 头部 | Part 工作台特征系：`Part::Revolution` / `Part::Fillet` / `Part::Chamfer` | 白名单 + 翻译分支 | 取点需复核（见 §3 注） | convert ok + STEP |
+| **P2-1** | H7 头部 | Part 工作台特征系：`Part::Revolution` / `Part::Fillet` / `Part::Chamfer` | 白名单 + 翻译分支 | 取点需复核（见 §3 注） | ✅ 已闭环（Revolution P6 / Chamfer P8 / Fillet P9，见 §0.1b） |
 | **P2-2** | H7 | `PartDesign::Groove`（画像 726 对象） | 同上 | 同 §3 取点规则 | convert ok + STEP |
 | **P2-3** | H7 | 扫掠/放样/螺旋系（455；需先补内核 op） | 内核 `api/` + 翻译 | 同上 | 同上 |
 | **P2-4** | H7 | `App::Link*` → 镜像系 → 跨引用系 → 布尔系 | `feature-translate.ts` | 同上 | 同上 |

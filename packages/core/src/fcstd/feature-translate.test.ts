@@ -265,6 +265,64 @@ describe('P8 Part::Chamfer', () => {
   });
 });
 
+describe('P9 Part::Fillet', () => {
+  // GOTCHA: identical binary PropertyFilletEdges member as Part::Chamfer
+  // (int32 count + per-entry {int32 edge, float64 size1, float64 size2}, 20
+  // bytes/entry). For a constant fillet size1 === size2 === radius.
+  function filletObj(): FcstdObject {
+    return obj('Part::Fillet', 'Fillet007', [
+      prop('Base', { name: 'Link', attrs: { value: 'Sweep014' } }),
+      prop('Edges', { name: 'FilletEdges', attrs: { file: 'Edges2' } }),
+    ]);
+  }
+
+  it('translates Base + binary edges into cad.fillet (uniform radius, P9)', () => {
+    const data = new Map<string, FilletEdgeEntry[]>([
+      ['Fillet007', [
+        { edge: 1, size1: 2, size2: 2 },
+        { edge: 3, size1: 2, size2: 2 },
+        { edge: 13, size1: 2, size2: 2 },
+      ]],
+    ]);
+    const v = translateObject(filletObj(), (dep) => (dep === 'Sweep014' ? 'part6' : undefined), undefined, undefined, undefined, data);
+    expect(v.kind).toBe('translated');
+    if (v.kind !== 'translated') return;
+    expect(v.calls[0]!.op).toBe('cad.fillet');
+    expect(v.calls[0]!.inputs).toEqual(['part6']);
+    expect(edgeExprs(v.calls[0]!)).toEqual([
+      'cad.edgeRef(part6, 1)',
+      'cad.edgeRef(part6, 3)',
+      'cad.edgeRef(part6, 13)',
+    ]);
+    expect(v.calls[0]!.params).toMatchObject({ radius: 2 });
+  });
+
+  it('bakes with explicit reason when the binary edges data is absent', () => {
+    const v = translateObject(filletObj(), (dep) => (dep === 'Sweep014' ? 'part6' : undefined));
+    expect(v).toMatchObject({ kind: 'baked', reason: 'fillet-edges-data-missing' });
+  });
+
+  it('bakes on asymmetric size1 != size2 (malformed fillet, P9)', () => {
+    const data = new Map<string, FilletEdgeEntry[]>([
+      ['Fillet007', [{ edge: 1, size1: 2, size2: 3 }]],
+    ]);
+    const v = translateObject(filletObj(), (dep) => (dep === 'Sweep014' ? 'part6' : undefined), undefined, undefined, undefined, data);
+    expect(v).toMatchObject({ kind: 'baked', reason: 'fillet-asymmetric-sizes' });
+  });
+
+  it('bakes on variable radius (differing size1 across edges, M1 unsupported)', () => {
+    const data = new Map<string, FilletEdgeEntry[]>([
+      ['Fillet007', [{ edge: 1, size1: 2, size2: 2 }, { edge: 3, size1: 5, size2: 5 }]],
+    ]);
+    const v = translateObject(filletObj(), (dep) => (dep === 'Sweep014' ? 'part6' : undefined), undefined, undefined, undefined, data);
+    expect(v).toMatchObject({ kind: 'baked', reason: 'fillet-variable-radius' });
+  });
+
+  it('is whitelisted (P9)', () => {
+    expect(isWhitelisted('Part::Fillet')).toBe(true);
+  });
+});
+
 describe('P7 Part::Fuse', () => {
   it('translates Base + Tool into cad.union (P7)', () => {
     const fuse = obj('Part::Fuse', 'Fusion', [

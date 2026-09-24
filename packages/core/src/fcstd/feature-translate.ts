@@ -129,6 +129,10 @@ const WHITELIST = new Set([
   // P8 (2026-09-24): Part::Chamfer — Base link + edge selection AND sizes in
   // the binary PropertyFilletEdges ZIP member (109 corpus occurrences).
   'Part::Chamfer',
+  // P9 (2026-09-24): Part::Fillet — same binary PropertyFilletEdges member as
+  // Part::Chamfer (196 corpus occurrences). cad.fillet (M1) takes ONE uniform
+  // radius for all edges, so per-edge / two-distance differences bake.
+  'Part::Fillet',
 ]);
 
 /**
@@ -1287,7 +1291,39 @@ export function translateObject(
         kind: 'translated',
         calls: [{
           out, op: 'cad.chamfer', source: obj.name, inputs: [chBaseVar],
-          params: { edges: edgeRefArgs(chBaseVar, chEntries.map((e) => e.edge)), type: 'equal', width: chSize },
+        params: { edges: edgeRefArgs(chBaseVar, chEntries.map((e) => e.edge)), type: 'equal', width: chSize },
+      }],
+    };
+  }
+    case 'Part::Fillet': {
+      // P9: Part-workbench fillet. Same binary PropertyFilletEdges member as
+      // Part::Chamfer (parsed by convert, passed in via filletEdgesData). The
+      // radius lives ONLY in that binary member — Document.xml carries no
+      // usable radius.
+      const fBase = propLink(obj, 'Base');
+      const fBaseVar = fBase ? inputVar(fBase) : undefined;
+      if (!fBaseVar) return { kind: 'baked', reason: 'fillet-missing-base' };
+      const fEntries = filletEdgesData?.get(obj.name);
+      if (!fEntries || fEntries.length === 0) {
+        return { kind: 'baked', reason: 'fillet-edges-data-missing' };
+      }
+      // cad.fillet (M1) supports ONE uniform radius for all edges. A constant
+      // fillet stores radius in both size1 and size2; anything else (size1 !=
+      // size2, or differing radius across edges) is a variable-radius fillet
+      // that M1 cannot emit as a single call — and sequential calls would shift
+      // edge ordinals (same hazard as chamfer). Honest bake, no silent loss.
+      if (fEntries.some((e) => e.size1 !== e.size2)) {
+        return { kind: 'baked', reason: 'fillet-asymmetric-sizes' };
+      }
+      const fRadii = new Set(fEntries.map((e) => e.size1));
+      if (fRadii.size > 1) return { kind: 'baked', reason: 'fillet-variable-radius' };
+      const fRadius = fEntries[0]!.size1;
+      if (!(fRadius > 0)) return { kind: 'baked', reason: 'fillet-bad-radius' };
+      return {
+        kind: 'translated',
+        calls: [{
+          out, op: 'cad.fillet', source: obj.name, inputs: [fBaseVar],
+          params: { edges: edgeRefArgs(fBaseVar, fEntries.map((e) => e.edge)), radius: fRadius },
         }],
       };
     }
