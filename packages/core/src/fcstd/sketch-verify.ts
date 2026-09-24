@@ -9,7 +9,8 @@
 import type { SketchGeom } from './sketch-parse.js';
 import type { SolveOutcome } from './sketch-solver.js';
 
-function anchorPoints(g: SketchGeom): { x: number; y: number }[] {
+/** P4: exported for testability — anchor points used by maxPointDistance. */
+export function anchorPoints(g: SketchGeom): { x: number; y: number }[] {
   switch (g.kind) {
     case 'point':
       return [{ x: g.x, y: g.y }];
@@ -21,6 +22,9 @@ function anchorPoints(g: SketchGeom): { x: number; y: number }[] {
       return [{ x: g.cx, y: g.cy }, { x: g.x1, y: g.y1 }, { x: g.x2, y: g.y2 }];
     case 'ellipse':
       return [{ x: g.cx, y: g.cy }];
+    case 'bspline':
+      // P4: spline anchors are its exact endpoints (poles move with them)
+      return [{ x: g.x1, y: g.y1 }, { x: g.x2, y: g.y2 }];
   }
 }
 

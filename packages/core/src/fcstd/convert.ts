@@ -150,6 +150,7 @@ export async function convertFcstdFile(input: string, opts?: ConvertOptions): Pr
     const offPlane = sk.geoms.some((g) => {
       const zs = g.kind === 'point' ? [g.z]
         : g.kind === 'line' ? [g.z1, g.z2]
+        : g.kind === 'bspline' ? [g.z1, g.z2] // P4: spline endpoints carry z
         : [g.cz];
       return zs.some((z) => Math.abs(z) > 1e-9);
     });

@@ -229,6 +229,23 @@ export class PlanegcsSolver implements SketchSolver {
           ellipses.set(g.index, { center: c, focus1: f1 });
           break;
         }
+        case 'bspline': {
+          // P4: the spline itself is not pushed to GCS (planegcs has no b-spline
+          // primitive); its exact endpoints participate as a line proxy so
+          // coincident/dimension constraints on the curve ends still solve.
+          // Interior shape is preserved at contour extraction (de Boor sampling).
+          const p1 = P(g.index, 1);
+          const p2 = P(g.index, 2);
+          for (const [id, x, y] of [
+            [p1, g.x1, g.y1],
+            [p2, g.x2, g.y2],
+          ] as const) {
+            w.push_primitive({ type: 'point', id, x, y, fixed: false });
+          }
+          w.push_primitive({ type: 'line', id: `L${g.index}`, p1_id: p1, p2_id: p2 });
+          lines.set(g.index, { p1, p2 });
+          break;
+        }
         case 'point':
           break; // handled in pass 1
       }
@@ -609,6 +626,14 @@ export class PlanegcsSolver implements SketchSolver {
             const endAngle = Math.atan2(e.y - c.y, e.x - c.x);
             out.push({ ...g, cx: c.x, cy: c.y, radius: r, startAngle, endAngle, x1: s.x, y1: s.y, x2: e.x, y2: e.y });
           } else out.push(g);
+          break;
+        }
+        case 'bspline': {
+          // P4: spline endpoints ride the line proxy; pull their solved coords.
+          const l = ctx.lines.get(g.index)!;
+          const p1 = this.readPoint(l.p1);
+          const p2 = this.readPoint(l.p2);
+          out.push(p1 && p2 ? { ...g, x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y } : g);
           break;
         }
         case 'ellipse': {

@@ -106,6 +106,22 @@ export type SketchGeom =
       fy1: number;
       fx2: number;
       fy2: number;
+    }
+  | {
+      /** P4: Part::GeomBSplineCurve (Poles/Knots/Degree/IsPeriodic) */
+      kind: 'bspline';
+      index: number;
+      poles: { x: number; y: number }[];
+      knots: number[];
+      degree: number;
+      periodic: boolean;
+      /** curve start/end (exact for clamped splines; solver wiring + chaining) */
+      x1: number;
+      y1: number;
+      z1: number;
+      x2: number;
+      y2: number;
+      z2: number;
     };
 
 /**
@@ -235,8 +251,42 @@ export function parseGeometryList(prop: FcstdProperty): SketchGeom[] {
         });
         break;
       }
+      case tag === 'BSplineCurve' || gtype.includes('GeomBSplineCurve'): {
+        // P4: poles are child <Pole X= Y= Z=/> elements, knots child
+        // <Knot Value= Multiplicity=/> (attributes only carry counts).
+        const poles = inner.children
+          .filter((c) => c.tagName === 'Pole')
+          .map((c) => ({ x: num(c.attributes, 'X'), y: num(c.attributes, 'Y') }));
+        const knots: number[] = [];
+        for (const c of inner.children) {
+          if (c.tagName !== 'Knot') continue;
+          const m = num(c.attributes, 'Multiplicity');
+          const v = num(c.attributes, 'Value');
+          const mult = Number.isFinite(m) && m >= 1 ? m : 1;
+          for (let k = 0; k < mult; k++) knots.push(v);
+        }
+        const degree = num(a, 'Degree');
+        const periodic = num(a, 'IsPeriodic') !== 0;
+        const first = poles[0];
+        const last = poles[poles.length - 1];
+        geoms.push({
+          kind: 'bspline',
+          index,
+          poles,
+          knots,
+          degree,
+          periodic,
+          x1: first ? first.x : NaN,
+          y1: first ? first.y : NaN,
+          z1: 0,
+          x2: last ? last.x : NaN,
+          y2: last ? last.y : NaN,
+          z2: 0,
+        });
+        break;
+      }
       default:
-        // ArcOfEllipse / BSpline / hyperbola / parabola: not supported in M3
+        // ArcOfEllipse / hyperbola / parabola: not supported in M3
         // (sample set: 0 occurrences, plan §5.5.3); caller downgrades to L2.
         geoms.push({ kind: 'point', index, x: NaN, y: NaN, z: NaN });
         break;
