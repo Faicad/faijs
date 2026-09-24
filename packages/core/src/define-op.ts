@@ -107,11 +107,15 @@ export interface DualOpOptions {
   capabilities?: BrepCapabilityName[]
   /**
    * 平台身份声明（D11，narrowing plan 2026-09-24）：本 op 实现可运行在哪些
-   * BREP 引擎上。缺省 = 全平台（中立 op——实现只用 L1 核心面）。
+   * BREP 引擎上——一个**引擎白名单**。缺省 = 全平台（中立 op——实现只用 L1 核心面）。
    *
    * 平台 op（实现 import 了 `occt-kernel/*` / `brepkit-kernel/*`，调用该平台
-   * 原生方法）**必须**声明 `engines` 自证身份；**不得**同时声明 `capabilities`
-   * （D11-7 互斥：平台能力由平台自己保证，能力名空间只收 L1 中立名）。
+   * 原生方法）**必须**声明 `engines` 自证身份。
+   *
+   * 与 `capabilities` **可以并存**（2026-09-24 撤销 D11-7 互斥）：两者是正交的两轴——
+   * `engines` 收窄「在哪些引擎上跑」，`capabilities` 声明「需要哪些内核能力」。判定
+   * 次序 `engines` 在先（D11-2），能力门随后对同一引擎继续求交，故同时声明等于
+   * 「只在这些引擎上，且要求这些能力」——不会静默放行"目标引擎缺该能力"的组合。
    */
   engines?: readonly BrepEngineId[]
   outputs?: string[]
@@ -451,15 +455,14 @@ export function assertLibConforms(lib: Record<string, unknown>): void {
     if (meta.capabilities !== undefined && !Array.isArray(meta.capabilities)) {
       throw new Error(`[faijs] lib function '${name}' declares invalid capabilities (expected string[])`)
     }
-    // D11-7 互斥（narrowing plan）：平台 op 直连原生面，能力由平台自己保证——
-    // 只写 engines 不写 capabilities。两者同时出现 = 声明了接口里已不存在的虚构名。
-    if (meta.engines !== undefined && meta.capabilities !== undefined) {
-      throw new Error(
-        `[faijs] lib function '${name}' declares BOTH engines and capabilities — ` +
-          `a platform op (engines) must not declare capabilities (D11-7: platform capabilities are ` +
-          `guaranteed by the engine itself; the capability name space only holds L1 neutral names).`,
-      )
-    }
+    // D11-7 互斥**已撤销**（2026-09-24 用户裁决）：engines 与 capabilities 是两条正交的
+    // 声明轴——前者是引擎身份白名单（在哪些引擎上跑），后者是实现所需内核能力清单
+    // （要用哪些方法）。两者并存是合法且更诚实的写法：engines 收窄候选集，能力门随后
+    // 对同一引擎继续求交（dispatchPath 的求值次序本就是 engines 在先，D11-2）。
+    // 曾经的理由「能力名空间只收 L1 中立名」与事实不符——BrepCapabilityName 含
+    // BrepMethodKind 逐核真名（isNull / dispose / chamfer / shell / ...，见
+    // brep/engine/types.ts），本就是内核名空间；平台 op 声明能力名并不越界。
+    // 故此处不再校验两者是否同时出现。
     if (meta.engines !== undefined) {
       if (!Array.isArray(meta.engines) || meta.engines.length === 0) {
         throw new Error(`[faijs] lib function '${name}' declares invalid engines (expected non-empty BrepEngineId[])`)

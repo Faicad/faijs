@@ -113,7 +113,8 @@ export interface ArgSpecEntry {
   /**
    * Phase 5（narrowing plan D11）：平台身份声明——该 brep-op 只在列出的引擎上
    * 实现（如 vendored op 调 occt-only 方法 isNull/section/loft → ['occt']）。
-   * 与 capabilities 互斥（D11-7，assertLibConforms 抛错）；缺省 = 全平台中立。
+   * 缺省 = 全平台中立。可与 capabilities 并存（2026-09-24 撤销 D11-7 互斥）：
+   * engines 是引擎白名单，capabilities 是能力依赖，判定 engines 在先（D11-2）。
    * 生成器透传给 compatOp → defineOp engines，并写进 script-face-manifest。
    */
   engines?: readonly BrepEngineId[]
@@ -166,8 +167,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     kind: 'brep-op',
     // Phase 5 补漏（§1.5 推论 1 / D11）：vendored fuse 默认 trackEvolution 路径依赖
     // kernel.isNull / kernel.dispose（occt 平台面）→ 平台 op，声明 engines: ['occt']
-    // 在 brepkit 下执行前报错（D11-4）。engines 与 capabilities 互斥（D11-7），
-    // 能力路由交由引擎身份判定（engines 前置，D11-2）。
+    // 在 brepkit 下执行前报错（D11-4）。
     args: '(a: Shape3D, b: Shape3D, options?: BooleanOptions) -> Result<Shape3D>',
     // 两个输入都是 faijs Shape → 借入 brepjs handle；第三参 options 透传。
     geometryArgs: [0, 1],
@@ -175,12 +175,9 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     params: ['a', 'b', 'options'],
     formClass: 'A',
     scriptFace: true,
-    // Phase 5 补漏（§1.5 推论 1）：vendored fuse 默认 trackEvolution 路径调
-    // kernel.fuseWithHistory（L1）+ kernel.isNull / kernel.dispose（诊断回退，occt
-    // 平台面）→ brepkit 下执行前报错（D11-4），而非执行期 TypeError。capabilities
-    // 里的 isNull 是真实依赖（诚实声明保留）；engines 与 capabilities 不互斥冲突
-    // （D11-7 只禁两者同时**新增**？不——本条目两者都有：engines 判定在前（D11-2），
-    // capabilities 只在引擎匹配后继续求交，互为补充不矛盾）。
+    // 依赖声明（诚实原则）：isNull / dispose 是 vendored fuse 的真实内核依赖，二者都在
+    // BrepMethodKind 逐核真名里。本条目早前因 D11-7 互斥被迫只留 engines；互斥已于
+    // 2026-09-24 撤销，两条轴可并存，届时按 capability-map.json 实证补回依赖清单。
     engines: ['occt'],
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
   },
@@ -2972,7 +2969,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   },
   {
     name: 'draft', source: 'topology/api.js#draft', kind: 'skip',
-    reason: 'overridden by handwritten api/draft.ts (中立 op capabilities:["directEdit"]；选面走 FaceTopoRef，中性面用点而非 face 引用；注意 neutral 仅 brepkit 侧内核可消费)',
+    reason: 'overridden by handwritten api/draft.ts (平台 op engines:[occt] —— 实证收窄：brepkit 的 L1 draft 对对称 box 破坏对称性、部分 ordinal 静默无操作；选面走 FaceTopoRef，中性面用点而非 face 引用，且 occt 侧只支持原点中性面)',
   },
   {
     name: 'heal', source: 'topology/api.js#heal', kind: 'brep-op', engines: ['occt'],

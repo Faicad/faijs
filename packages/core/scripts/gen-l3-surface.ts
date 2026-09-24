@@ -126,7 +126,8 @@ function renderBrepOp(entry: ArgSpecEntry): string {
   const capsLit = entry.capabilities?.length ? `, capabilities: ${JSON.stringify(entry.capabilities)}` : ''
   // Phase 5（narrowing plan D11）：平台身份透传——arg-spec 条目标了 engines 的
   // vendored op（实现调 occt-only 方法，capability-map 实证）在生成物里声明
-  // engines，与 capabilities 互斥（D11-7）。中立 op（无 engines）不输出。
+  // engines。与 capabilities 可并存（2026-09-24 撤销 D11-7 互斥），两条各自独立输出。
+  // 中立 op（无 engines）不输出。
   const enginesLit = entry.engines?.length ? `, engines: ${JSON.stringify(entry.engines)}` : ''
   return [
     `/**`,

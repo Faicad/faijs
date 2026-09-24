@@ -3,7 +3,7 @@
  *
  * 中立 op：L1 `filletVariable(solid, edge, startRadius, endRadius)` 在 occt 与
  * brepkit 两侧均有真实现（engine-method-map 实测 `dialect`）⇒ 走 `getBrepApi()`
- * （D12），不声明 engines（D11-7 互斥）。
+ * （D12），不声明 engines（中立 op：实现只经 L1 契约面）。
  *
  * 这是 faijs 简化形态（单边 + 起止半径）；vendored 的 per-edge 回调形态
  * （`variableFillet`）维持 skip（状态化回调不可静态建模）。

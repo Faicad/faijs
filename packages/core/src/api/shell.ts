@@ -3,7 +3,7 @@
  *
  * 中立 op：L1 `shell(solid, facesToRemove, thickness, tolerance)` 在 occt 与
  * brepkit 两侧均有真实现（engine-method-map 实测 `dialect`）⇒ 走 `getBrepApi()`
- * （D12），不声明 engines（D11-7：capabilities 与 engines 互斥）。相对现状是
+ * （D12），不声明 engines（中立 op：实现只经 L1 契约面）。相对现状是
  * 能力升级——vendored 版是 occt 平台 op（arg-spec `engines:['occt']`，skip）。
  *
  * 选面口径（设计原则 4）：`openFaces: FaceTopoRef[]`（`cad.faceRef` 产物），

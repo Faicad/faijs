@@ -1,12 +1,23 @@
 /**
- * stdlib draft — 拔模：对选定面施加拔模斜度（手写中立 op，Phase 5）
+ * stdlib draft — 拔模：对选定面施加拔模斜度（手写**平台** op，Phase 5）
  *
- * 中立 op：L1 `draft(shape, faces, pull, neutral, angleDeg)` 在 occt 与 brepkit
- * 两侧均有真实现（engine-method-map 实测 `dialect`）⇒ 走 `getBrepApi()`（D12），
- * 不声明 engines（D11-7 互斥）。
+ * `engines: ['occt']` —— 但**不是平台依赖**（实现只经 L1 契约面 `getBrepApi()`，
+ * 见下选面口径），而是**实证收窄**：brepkit 的 L1 `draft` 实测产出错误几何，
+ * 必须让静态门在执行前拒绝（红线：BREP 链可用性执行前静态判定，不允许
+ * 「门说能、内核说不能」；也不允许静默产出错几何）。
+ *
+ * 实证（同脚本、box(20,20,10)、angleDeg=3，两引擎同一次运行）：
+ * - occt：4 个侧面（faceRef ordinal 1–4）**都给一致 delta = −52.4078**
+ *   —— 对称输入 ⇒ 对称输出，几何自洽；⊥ pull 的端面由内核报 KERNEL_ERROR。
+ * - brepkit：ordinal 1–5 给 +60.29 / 0 / 0 / +17.47 / 0 —— **对称性被破坏**
+ *   （对称 box 上对单个侧面拔模，四个侧面不可能给出不同结果），其中三个是
+ *   **静默无操作**（体积与 bbox 均不变），而 ⊥ pull 的端面反而把 x/y 凸包各撑大
+ *   0.524（= 10·tan 3°）。序号错配不能解释：破坏对称性与序号无关。
  *
  * 选面口径（设计原则 4）：`faces: FaceTopoRef[]`（`cad.faceRef` 产物）。
  * `neutral` 用 `{point, normal}` 平面参数——不给 face 引用（方案 §7 建议 2）。
+ *
+ * 回归守卫：`api/feature-family.test.ts` 的「brepkit 下 draft 静态拒绝」用例。
  */
 
 import type { Shape } from '../mesh/types'
@@ -99,11 +110,12 @@ function draftBrep(input: Shape, params: DraftParams): Shape {
  * @async true
  * @qual ok
  * @name draft
- * @note **不是**无差别中立 op：L1 `draft` 的 `pull` / `neutral` 两引擎都支持，
- *       但 `neutral`（中性点）**仅 brepkit 支持**——occt-wasm 原生
- *       `draft(shape, face, angleRad, direction)` 没有 neutral 形参，occt 适配器
- *       传入非原点中性点会显式报错（不静默产出错几何）。只用 `faces` / `angleDeg` /
- *       `pull` 时两引擎等价。仅 BREP 可用（mesh 输入执行前报错）。
+ * @note **occt-only**（`engines: ['occt']`；实证收窄，非平台依赖——见文件头实证：
+ *       brepkit 破坏对称性且部分 ordinal 静默无操作）。`neutral`（中性点）**只支持
+ *       原点**：occt-wasm 原生 `draft(shape, face, angleRad, direction)` 没有 neutral
+ *       形参，传非原点中性点会显式报错（不静默产出错几何）；brepkit 已被静态拒绝，
+ *       故非原点 `neutral` 当前**没有任何可用引擎**——需要该语义时请改用
+ *       `pull` + 面上一点建模。仅 BREP 可用（mesh 输入执行前报错）。
  * @returns Shape 拔模后的几何。
  * @param input - 目标几何。type:Shape required:true
  * @param params.faces - 拔模面（FaceTopoRef[]，cad.faceRef 产物）。type:FaceTopoRef[] required:true
@@ -115,6 +127,10 @@ function draftBrep(input: Shape, params: DraftParams): Shape {
  */
 export const draft = defineOp({
   capabilities: ['directEdit'],
+  // 实证收窄（2026-09-24）：brepkit 的 L1 draft 产出错误几何（破坏对称性 / 静默无操作），
+  // 声明 occt 白名单让静态门在执行前拒绝 —— 与 capabilities 并存合法（两条正交轴，
+  // engines 先判、能力门在引擎匹配后再求交）。
+  engines: ['occt'],
   brep(input: Shape, params: DraftParams) {
     return draftBrep(input, params)
   },

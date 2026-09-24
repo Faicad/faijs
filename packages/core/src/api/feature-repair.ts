@@ -1,17 +1,28 @@
 /**
- * stdlib feature-repair — L1 薄包装族（手写中立 op，Phase 5）
+ * stdlib feature-repair — L1 薄包装族（手写 op，Phase 5）
  *
- * 六条 L1 已有（两引擎均为 dialect/aligned）的修复/修饰动作的手写薄包装，
- * 全部走 `getBrepApi()`（D12），不声明 engines（D11-7 互斥）：
+ * 六条 L1 已有动作的手写薄包装，全部走 `getBrepApi()`（D12）：
  * - `defeature(shape, faces)` — 移除特征面（孔/凸台等）
  * - `removeHolesFromFace(face)` — 移除面上的孔
- * - `reverseShape(shape)` — 反转壳体朝向
+ * - `reverseShape(shape)` — 反转壳体朝向 —— **occt-only**（见下）
  * - `unifySameDomain(shape)` — 合并同域面/边
  * - `sew(shapes, tolerance?)` — 缝合壳
  * - `sewAndSolidify(shapes, tolerance?)` — 缝合并固化为实体
  *
  * 每条都极薄：解析入参 → 直调 L1 → 收养。选面口径与 `shell`/`draft` 一致
  * （FaceTopoRef[]，设计原则 4）。
+ *
+ * 引擎声明（**逐条判定，不整族一刀切**）：
+ * - `reverseShape` 声明 `engines: ['occt']` —— 实证收窄：brepkit 实测在 **op 级**
+ *   失败（`invalid solid handle: index N is out of bounds`，callee = reverseShape，
+ *   非输入构造侧），静态门须在执行前拒绝。
+ * - 其余五条保持中立（声明 `capabilities: ['directEdit']`，无 engines）。
+ *   注意 `unifySameDomain` 在 brepkit 上**可用但语义有差**（会把体重新居中），
+ *   未收窄 —— 缺证据表明它不可用，不擅自扩大范围。
+ *
+ * 未覆盖（诚实留档，本轮未验）：`defeature` / `sew` / `sewAndSolidify` /
+ * `removeHolesFromFace` 在 brepkit 上的 op 级行为未取得干净证据（探针的面输入
+ * 先撞到 faceRef/输入构造侧限制），故不做引擎声明。
  */
 
 import type { Shape } from '../mesh/types'
@@ -103,7 +114,10 @@ export const defeature = defineOp({
  * @async true
  * @qual ok
  * @name reverseShape
- * @note 中立 op：L1 reverseShape 两引擎同实现。仅 BREP 可用。
+ * @note **occt-only**（`engines: ['occt']`，实证收窄）：brepkit 实测在 op 级抛
+ *       `invalid solid handle: index N is out of bounds`（非输入侧失败），
+ *       故由静态门在执行前拒绝而非等到运行时。产物 `getVolume` 返回**有向**体积
+ *       （朝向反转 ⇒ 符号翻转）。仅 BREP 可用。
  * @returns Shape 朝向反转后的几何。
  * @param input - 目标几何。type:Shape required:true
  * @example
@@ -111,6 +125,8 @@ export const defeature = defineOp({
  */
 export const reverseShape = defineOp({
   capabilities: ['directEdit'],
+  // 实证收窄（2026-09-24）：brepkit op 级失败 → 静态门提前拒绝。
+  engines: ['occt'],
   brep(input: Shape) {
     const kernel = getBrepApi()
     const solid = requireBrep(input, 'reverseShape')

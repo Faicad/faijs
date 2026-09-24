@@ -240,7 +240,7 @@ export const myOp = defineOp({
 Rules (D11, checked by `assertLibConforms` + the `check-platform-imports.mjs` CI guard):
 
 1. **`engines` lists real engine ids** — `'occt'` / `'brepkit'` / `'brep_mock'` (never a bare string).
-2. **`engines` and `capabilities` are mutually exclusive** — a platform op declares `engines` and *no* `capabilities` (D11-7); a neutral op declares `capabilities` and no `engines`. Both empty is allowed only for mesh-only ops.
+2. **`engines` and `capabilities` may be declared together** — the two are orthogonal: `engines` narrows *which engines* the op runs on, `capabilities` states *which kernel capabilities* it needs. The D11-7 mutual exclusion was withdrawn on 2026-09-24 and `assertLibConforms` no longer rejects the combination. Both empty is allowed only for mesh-only ops.
 3. **Interception happens at execution** — under a non-listed engine the op fails before touching the kernel (`BrepUnsupportedError` → `ExecutionResult.failedAt`). The static guard only enforces the declaration, it does not substitute for it.
 4. **`brep_mock` is exempt** from the interception (test stand-in, D11-3) — declared `engines` are still honored for parity/switch tests.
 5. **Library dual-ops that import a platform module are bound by the same rule** — write `engines` in `defineOp`, interception occurs in `dispatchPath` at execution time, no registration-time validation.

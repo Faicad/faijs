@@ -408,7 +408,7 @@ compat op（vendored brepjs 函数）经**装配期适配器注入**取内核：
 **什么是平台 op？** 实现**静态 import 了** `occt-kernel/*` 或 `brepkit-kernel/*` 的 op——import 是唯一判据。平台 op 必须在 `defineOp` 里声明 `engines: ['occt']`（和/或 `'brepkit'`）（D11）。规则：
 
 1. **`engines` 先于 `capabilities`**——引擎身份判定在 `dispatchPath` 中最先执行（D11-2）；对一个没打算跑的引擎谈能力没有意义。
-2. **`engines` 与 `capabilities` 互斥**（D11-7，由 `assertLibConforms` 强制）：平台 op 写 `engines`、不写 `capabilities`；中立 op 写 `capabilities`、不写 `engines`。
+2. **`engines` 与 `capabilities` 可以并存**——`engines` 是引擎白名单，`capabilities` 是实现所需的内核能力清单。判定次序 `engines` 在先（规则 1），能力门随后对同一引擎继续求交，故声明了目标引擎所缺的能力仍会静态失败。原 D11-7 互斥已于 2026-09-24 撤销。
 3. **执行前拦截**——非目标引擎下：brep 模式抛 `BrepUnsupportedError`；auto 模式静态降级 mesh（无 mesh 实现 → `MeshUnsupportedError`）。`mode='mesh'` 豁免（D11-6）：宿主强制 mesh 时不会因平台身份报错。
 4. **`brep_mock` 豁免**（D11-3）：mock 是测试替身，capabilities 故意全给；真实引擎的身份校验由 parity / engine-switch 测试覆盖。
 5. 脚本面可以同样声明地暴露平台 op——不支持的引擎在语句边界失败（`ExecutionResult.failedAt`，Q11）。

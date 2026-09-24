@@ -3,7 +3,7 @@
  *
  * @platform occt — 实现走 vendored `loft` → `BRepOffsetAPI_ThruSections`
  * （engine-method-map 里 `loft` / `loftAdvanced` 均为 occt-only）⇒ 平台 op：
- * defineOp 声明 `engines: ['occt']`（D11），不声明 capabilities（D11-7 互斥）。
+ * defineOp 声明 `engines: ['occt']`（D11）。
  *
  * 为什么手写而不走生成投影：与 `api/sweep.ts` 同因——截面最常见来源是
  * `cad.sketch(...)`（产出 **face**），vendored `loft(wires, …)` 只吃 wire ⇒

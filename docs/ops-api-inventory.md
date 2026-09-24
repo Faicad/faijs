@@ -466,7 +466,7 @@ const d = await cad.draft(part0, { faces: [cad.faceRef(part0, 3)], angleDeg: 3 }
 
 **异步**。Shape 拔模后的几何。
 
-> **不是**无差别中立 op：L1 `draft` 的 `pull` / `neutral` 两引擎都支持， 但 `neutral`（中性点）**仅 brepkit 支持**——occt-wasm 原生 `draft(shape, face, angleRad, direction)` 没有 neutral 形参，occt 适配器 传入非原点中性点会显式报错（不静默产出错几何）。只用 `faces` / `angleDeg` / `pull` 时两引擎等价。仅 BREP 可用（mesh 输入执行前报错）。
+> **occt-only**（`engines: ['occt']`；实证收窄，非平台依赖——见文件头实证： brepkit 破坏对称性且部分 ordinal 静默无操作）。`neutral`（中性点）**只支持 原点**：occt-wasm 原生 `draft(shape, face, angleRad, direction)` 没有 neutral 形参，传非原点中性点会显式报错（不静默产出错几何）；brepkit 已被静态拒绝， 故非原点 `neutral` 当前**没有任何可用引擎**——需要该语义时请改用 `pull` + 面上一点建模。仅 BREP 可用（mesh 输入执行前报错）。
 
 ### 5.6 `engrave` ✅
 

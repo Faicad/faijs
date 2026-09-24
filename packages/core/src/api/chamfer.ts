@@ -274,8 +274,8 @@ function chamferBrep(input: Shape, params: Record<string, unknown>): Shape {
  */
 export const chamfer = defineOp({
   // 平台 op（D11）：equal 路径依赖 occt-only chamferWithHistory（face-evolution.ts，
-  // D3）→ engines 声明，不声明 capabilities（D11-7 互斥；brepkit 无 chamfer 能力，
-  // 平台身份判定在执行前报错，替代旧的能力名拦截）。
+  // D3）→ engines 声明；brepkit 无 chamfer 能力，
+  // 平台身份判定在执行前报错，替代旧的能力名拦截。
   engines: ['occt'],
   brep(input: Shape, params: Record<string, unknown>) {
     assertChamferParams(params)

@@ -26,7 +26,7 @@
  *
  * 平台分层（narrowing plan Phase 5，D11）：
  * - mirrorJoin / mirror：平台 op（依赖 occt-only `mirrorWithHistory`）→
- *   `engines: ['occt']`，不声明 capabilities（D11-7 互斥）。
+ *   `engines: ['occt']`，不声明 capabilities（能力由平台身份本身界定）。
  * - circularPattern / gridPattern / rectangularPattern / clone：中立 op（实现
  *   只用 L1 核心面）→ capabilities 收窄到真实 L1 名（删除 isNull/iterShapes/
  *   section/translateWithHistory 等 occt-only 虚名，capability-map 实证实现不依赖）。
@@ -366,7 +366,7 @@ export const mirrorJoin = defineOp({
     }
   },
   // 平台 op（D11）：实现依赖 occt-only `mirrorWithHistory`（D3 原生面）——
-  // 声明 engines，不声明 capabilities（D11-7 互斥）。
+  // 声明 engines；不声明 capabilities（能力由平台身份本身界定）。
   engines: ['occt'],
   naming: { kind: 'replicate', k: 2 } as Provenance,
 })

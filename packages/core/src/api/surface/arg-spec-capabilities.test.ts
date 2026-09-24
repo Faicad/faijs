@@ -37,12 +37,12 @@ function legalCapabilityNames(): Set<string> {
 }
 
 describe('Phase 1 三方一致：arg-spec ↔ 声明 ↔ 生成物', () => {
-  it('brep-op 条目数 == (capabilities+engines) 条目数 == generated compatOp 数', () => {
+  it('brep-op 条目数 == (capabilities ∪ engines) 条目数 == generated compatOp 数', () => {
     const brepOps = ARG_SPEC.filter((e) => e.kind === 'brep-op')
-    const declared = brepOps.filter((e) => e.capabilities?.length)
-    // Phase 5（D11）：平台 op 声明 engines 取代 capabilities（互斥，D11-7）——
-    // 「能力声明全覆盖」= capabilities 条目 ∪ engines 条目 = 全部 brep-op。
-    const engined = brepOps.filter((e) => e.engines?.length)
+    // 声明面：capabilities（能力依赖）与 engines（引擎白名单）是两条正交轴，可并存
+    // （2026-09-24 撤销 D11-7 互斥）。故「100% 声明」= 每条 brep-op 至少命中一条轴，
+    // 用 union 计数——不是两个集合各数一遍再相加（并存条目会被计两次）。
+    const declared = brepOps.filter((e) => e.capabilities?.length || e.engines?.length)
     const generated = ['operations.ts', 'topology.ts', 'sketching.ts'].map((f) =>
       fs.readFileSync(path.join(CORE_SRC, 'src', 'api', 'generated', f), 'utf-8'),
     )
@@ -51,9 +51,9 @@ describe('Phase 1 三方一致：arg-spec ↔ 声明 ↔ 生成物', () => {
       0,
     )
     expect(brepOps.length).toBeGreaterThan(0)
-    // 无 op 同时声明 capabilities 与 engines（D11-7 互斥在 assertLibConforms 也抛错）
-    expect(brepOps.filter((e) => e.capabilities?.length && e.engines?.length)).toHaveLength(0)
-    expect(declared.length + engined.length).toBe(brepOps.length) // 100% 声明
+    // 并存合法（2026-09-24 撤销 D11-7 互斥）：同时声明两条轴的条目允许存在，
+    // 故此处不再断言"两者不同现"；下面用 union 计数（并存条目只计一次）。
+    expect(declared.length).toBe(brepOps.length) // 100% 声明
     expect(compatOpCount).toBe(brepOps.length)
   })
 })
@@ -81,8 +81,9 @@ describe('Phase 1 能力名合法性：每条 compat op 声明非空且合法', 
 
   it('P3 冲突消除证据：transform 族 compat op 声明平台归属 engines（非裸能力名）', () => {
     const byName = new Map(ARG_SPEC.filter((e) => e.kind === 'brep-op').map((e) => [e.name, e]))
-    // Phase 5（D11）起平台 op 不再声明 capabilities（occt-only 方法不属 L1）：
-    // mirror/rotate/ellipsoid 的平台身份改由 engines: ['occt'] 表达。
+    // Phase 5（D11）：mirror/rotate/ellipsoid 的平台身份由 engines: ['occt'] 表达。
+    // （2026-09-24 撤销 D11-7 互斥后 engines 与 capabilities 可并存；本断言只看
+    //  engines 这一轴的实测值是否漂移。）
     expect(byName.get('mirror')!.engines).toContain('occt')
     expect(byName.get('rotate')!.engines).toContain('occt')
     expect(byName.get('ellipsoid')!.engines).toContain('occt')

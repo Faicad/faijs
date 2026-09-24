@@ -407,7 +407,7 @@ The engine surface is split into three layers (narrowing plan §1, D11):
 **What is a platform op?** An op whose implementation statically imports `occt-kernel/*` or `brepkit-kernel/*` — the import is the sole judge. Platform ops must declare `engines: ['occt']` (and/or `'brepkit'`) in `defineOp` (D11). Rules:
 
 1. **`engines` precedes `capabilities`** — the engine-identity check runs first in `dispatchPath` (D11-2); discussing capabilities is meaningless for an engine the op is not built for.
-2. **`engines` and `capabilities` are mutually exclusive** (D11-7, enforced by `assertLibConforms`): a platform op declares `engines` and no `capabilities`; a neutral op declares `capabilities` and no `engines`.
+2. **`engines` and `capabilities` may be declared together** — `engines` is the engine whitelist, `capabilities` is the set of kernel capabilities the implementation needs. The engine gate runs first (rule 1); the capability gate then intersects against the matched engine, so a declared capability the matched engine lacks still fails statically. The D11-7 mutual exclusion was withdrawn on 2026-09-24.
 3. **Interception before execution** — under a non-listed engine: brep mode throws `BrepUnsupportedError`; auto mode statically degrades to mesh (`MeshUnsupportedError` when no mesh implementation exists). `mode='mesh'` is exempt (D11-6): a host forcing mesh never errors on platform identity.
 4. **`brep_mock` is exempt** (D11-3): mock is a test stand-in whose capabilities are deliberately all-granted; real-engine identity checks are covered by parity / engine-switch tests.
 5. The script face may expose platform ops under the same declaration — unsupported engines fail at the statement boundary (`ExecutionResult.failedAt`, Q11).

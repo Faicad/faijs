@@ -8,8 +8,8 @@
  * 用途：G-D 门控层的 1D 造线能力（Phase 3）。下游 sweep / loft 等可用螺旋线作 spine。
  *
  * 设计：
- * - 平台 op：occt 原生 makeHelixWire（occt-wasm 有，L1 无）→ 声明 engines:['occt']（D11），
- *   不声明 capabilities（D11-7 互斥）。
+ * - 平台 op：occt 原生 makeHelixWire（occt-wasm 有，L1 无）→ 声明 engines:['occt']（D11）。
+ *   不声明 capabilities：实现直连平台原生方法，能力由引擎身份本身界定。
  * - 1D 产物：经 fromBrepCurve 登记，kind='curve'。
  * - 非 occt 引擎（brepkit）→ 执行前 BrepUnsupportedError（D11-4）；brep_mock 受 D11-3
  *   豁免不拦截（且 getOcctKernel 为全局 occt 实例，brep_mock 下仍可真实出线）。

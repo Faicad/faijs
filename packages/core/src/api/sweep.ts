@@ -3,8 +3,7 @@
  *
  * @platform occt — 实现走 vendored `sweep`（`BRepOffsetAPI_MakePipeShell` /
  * `BRepOffsetAPI_MakePipe`；engine-method-map 里 `sweepPipeShell` / `simplePipe`
- * 均为 occt-only）⇒ 平台 op：defineOp 声明 `engines: ['occt']`（D11），
- * 不声明 capabilities（D11-7 互斥）。
+ * 均为 occt-only）⇒ 平台 op：defineOp 声明 `engines: ['occt']`（D11）。
  *
  * 为什么手写而不走生成投影：脚本面最常见的截面来源是 `cad.sketch(...)`（产出
  * **face**），而 vendored `sweep(wire, spine, …)` 只吃 **wire** ⇒ 需要「面 → 外环」

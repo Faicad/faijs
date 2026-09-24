@@ -240,7 +240,7 @@ export const myOp = defineOp({
 规则（D11，由 `assertLibConforms` + CI 守卫 `check-platform-imports.mjs` 检查）：
 
 1. **`engines` 只写真实引擎 id**——`'occt'` / `'brepkit'` / `'brep_mock'`（禁止裸 `string`）。
-2. **`engines` 与 `capabilities` 互斥**——平台 op 写 `engines`、*不*写 `capabilities`（D11-7）；中立 op 写 `capabilities`、不写 `engines`。两者皆空只允许 mesh-only op。
+2. **`engines` 与 `capabilities` 可以并存**——两者正交：`engines` 收窄「在哪些引擎上跑」，`capabilities` 声明「需要哪些内核能力」。原 D11-7 互斥已于 2026-09-24 撤销，`assertLibConforms` 不再拒绝两者同时出现。两者皆空只允许 mesh-only op。
 3. **拦截发生在执行期**——非目标引擎下 op 在触碰内核之前失败（`BrepUnsupportedError` → `ExecutionResult.failedAt`）。静态守卫只强制声明本身，不能替代声明。
 4. **`brep_mock` 豁免拦截**（测试替身，D11-3）——但声明的 `engines` 仍参与 parity / engine-switch 测试。
 5. **库的 dual-op 若 import 了平台模块，同样受此约束**——在 `defineOp` 写 `engines`，拦截发生在执行期 `dispatchPath`，不依赖注册期校验。

@@ -3,7 +3,7 @@
  *
  * @platform occt — 实现走 vendored `thicken`（`BRepOffset_MakeOffset` /
  * `thickenWithHistory`；brepkit 无对应 API，engine-method-map `occt-only`）⇒
- * 平台 op：defineOp 声明 `engines: ['occt']`（D11），不声明 capabilities（D11-7 互斥）。
+ * 平台 op：defineOp 声明 `engines: ['occt']`（D11）。
  *
  * 输入口径（方案 §7 待裁决 2 → (b)）：薄壳化的起点是**面**——脚手架语言里最自然的
  * 面来源是 `cad.sketch(...)`（产出 face Shape）；faceRef 产物是纯数据 TopoRef（不是

@@ -7,7 +7,7 @@
  * 覆盖：
  * 1. shell 可达 + 成薄壁（bbox 不变、体积严格小于原体）+ 两引擎 bbox parity；
  * 2. draft 可达且**确实改变几何**（回归守卫：修复前 pull/neutral 以元组传入 L1，
- *    两引擎全挂；brepkit 另有静默无操作，见 SKIP 用例与文件头 GOTCHA-3）；
+ *    两引擎全挂；brepkit 现由静态门在执行前拒绝，见文件头 GOTCHA-3）；
  * 3. filletVariable 在 `r1 == r2` 时与 fillet 等半径**结果等价**（方案 §5.6 验收：
  *    实测二者体积逐位相同 ⇒ 以 1e-6 容差断言，不是空洞的 toBeTruthy）；
  * 4. thicken 平台 op 可达 + 引擎门（D11-4 非目标引擎执行前报错 / D11-3 mock 不拦截）；
@@ -26,17 +26,22 @@
  * occt —— 失败点会落在输入构造（callee=sketch / edgeRef）而不是被测 op，那样断言毫无意义。
  * 引擎门用例改用 `cad.cylinder`（中立 dual op，brepkit 声明了 makeCylinder）。
  *
- * GOTCHA-3（Phase 5 实测，待裁定）：brepkit 侧有两条「静态门放行、运行时出问题」的路径，
- * 根因同一个 —— 这些 op 只声明族级 `capabilities:['directEdit']`（brepkit 声明了
- * `directEdit: true`），没有声明**逐核**能力名，于是静态判定无从拦：
- *   (a) brepkit 的 L1 `draft` 对 `box + 3°` 返回**体积不变**（vol=4000.0000 == 原体）——
- *       静默无操作，正是「不静默产出错几何」红线针对的形态（occt 侧同一输入 3947.5922）；
- *   (b) brepkit 的 `reverseShape` 直接抛 `invalid solid handle: index 24 is out of bounds`。
- * 修法是让这些 op 声明逐核能力名（如 `['draft']` / `['reverseShape']`）由静态门在 brepkit 上
- * 拒绝，但 `BrepMethodKind` 目前不含 `draft` / `defeature` / `reverseShape` /
- * `unifySameDomain` / `removeHolesFromFace`（`brep/engine/types.ts:212` 注释：Phase 3 全量
- * 收敛时滚动补全）⇒ 需同时扩类型联合与 occt 的 methods 名单。故此处以 `it.skip` 留档**正确**
- * 行为，跑通后去掉 skip。
+ * GOTCHA-3（Phase 5 实测 → **已定案**）：brepkit 侧 `draft` / `reverseShape` 曾是
+ * 「静态门放行、运行时出问题」形态。根因：两条只声明族级 `capabilities:['directEdit']`
+ * （brepkit 声明了 `directEdit: true`），静态判定无从拦。**定案 = 按实证收窄为
+ * `engines: ['occt']`**（非平台依赖；engines 与 capabilities 并存合法，engines 先判），
+ * brepkit 直接静态拒绝。证据（同一脚本 box(20,20,10) / angleDeg=3，两引擎同一次运行）：
+ *   - occt：4 个侧面（ordinal 1–4）**一致** delta = −52.4078 —— 对称输入 ⇒ 对称输出；
+ *     ⊥ pull 的端面由内核报 KERNEL_ERROR；
+ *   - brepkit：ordinal 1–5 给 +60.29 / 0 / 0 / +17.47 / 0 —— **对称性被破坏**（序号跨
+ *     引擎错配不能解释：对称 box 上拔单个侧面，四个侧面不可能给出不同结果），其中三个
+ *     是**静默无操作**（体积与 bbox 均不变），而 ⊥ pull 的端面反而把 x/y 凸包各撑大
+ *     0.524（= 10·tan 3°）；
+ *   - brepkit `reverseShape` op 级抛 `invalid solid handle: index N is out of bounds`。
+ * 本文件两条「brepkit 静态拒绝」用例即该收窄的回归守卫。
+ * **未收窄**（证据不足，留档不擅动）：`unifySameDomain`（brepkit 可用但会把体重新居中，
+ * 见 GOTCHA-6）、`defeature` / `sew` / `sewAndSolidify` / `removeHolesFromFace`
+ * （面输入先撞到 faceRef / 输入构造侧限制，op 级行为未取到干净证据）。
  *
  * GOTCHA-4（Phase 5 实测，parity 边界）：`shell` 两引擎 bbox 完全一致（均为原体 bbox），
  * 但**壁厚语义不同** —— occt vol=2272、brepkit vol=1952（同输入 box20×20×10 / 开面 1 / t=2）。
@@ -218,6 +223,25 @@ describe('draft — 拔模（中立 op；GOTCHA-1 回归守卫）', () => {
     expect(vol).toBeGreaterThan(BOX_20_20_10_VOL * 0.97)
   })
 
+  it('occt：4 个侧面拔模给**一致**的 delta（对称性不变量 —— brepkit 违反的正是这条，见 GOTCHA-3）', async () => {
+    await useOcct()
+    const vols: number[] = []
+    for (const ord of [1, 2, 3, 4]) {
+      const s = await shapeOf(
+        'brep',
+        `const p0 = cad.box(20,20,10)\nlet part1 = cad.draft(p0, { faces: [cad.faceRef(p0, ${ord})], angleDeg: 3 })\n`,
+        'part1',
+      )
+      vols.push(volOf(s))
+    }
+    // 对称体上对单个侧面拔模，四个侧面必然等价 ⇒ 体积两两相等（实测均 3947.5922，
+    // delta = −52.4078）。这条不变量是「按实证把 draft 收窄为 occt-only」的依据：
+    // brepkit 同一 sweep（面序按几何枚举对齐后仍成立）给 +60.29 / 0 / 0 / +17.47 ——
+    // 四值互不相等，对称性被破坏 ⇒ 静态拒绝（见文件头 GOTCHA-3）。
+    for (const v of vols) expect(Math.abs(v - vols[0]!)).toBeLessThanOrEqual(1e-6)
+    expect(vols[0]!).toBeLessThan(BOX_20_20_10_VOL)
+  })
+
   it('参数校验：角度为 0 → E_DRAFT_BAD_ANGLE（执行前）', async () => {
     await useOcct()
     const bad = await exec(
@@ -248,14 +272,27 @@ describe('draft — 拔模（中立 op；GOTCHA-1 回归守卫）', () => {
     expect(bad.failedAt!.message).toMatch(/neutral plane is not supported/)
   })
 
-  it.skip('brepkit：draft 应改变几何（当前静默无操作 —— 待裁定修法，见 GOTCHA-3）', async () => {
+  it('brepkit：draft 被静态门**执行前**拒绝（实证收窄 engines:["occt"]，见 GOTCHA-3）', async () => {
     await useBrepkit()
-    const d = await shapeOf(
+    const r = await exec(
       'brep',
       `const p0 = cad.box(20,20,10)\nlet part1 = cad.draft(p0, { faces: [cad.faceRef(p0, 1)], angleDeg: 3 })\n`,
-      'part1',
     )
-    expect(volOf(d)).toBeLessThan(BOX_20_20_10_VOL)
+    expect(r.failedAt).toBeDefined()
+    expect(r.failedAt!.callee).toBe('draft')
+    const msg = JSON.stringify(r.failedAt)
+    expect(msg).toMatch(/E_BREP_UNSUPPORTED/)
+    expect(msg).toMatch(/requires engine occt/)
+  })
+
+  it('brep_mock：draft 不被平台身份判定拦截（D11-3 豁免）', async () => {
+    await useBrepMock()
+    const r = await exec(
+      'brep',
+      `const p0 = cad.box(20,20,10)\nlet part1 = cad.draft(p0, { faces: [cad.faceRef(p0, 1)], angleDeg: 3 })\n`,
+    )
+    // 只断言「不是被引擎门拦下的」；mock 内核能不能真拔模不在本用例范围。
+    expect(JSON.stringify(r.failedAt ?? {})).not.toMatch(/requires engine occt/)
   })
 })
 
@@ -361,9 +398,13 @@ describe('修复薄包装 — reverseShape / unifySameDomain / sew / removeHoles
     expect(bad.failedAt!.message).toMatch(/E_DEFEATURE_NO_FACES/)
   })
 
-  it.skip('brepkit：reverseShape 应可用（当前抛 invalid solid handle —— 待裁定修法，见 GOTCHA-3(b)）', async () => {
+  it('brepkit：reverseShape 被静态门**执行前**拒绝（实证收窄 engines:["occt"]，见 GOTCHA-3）', async () => {
     await useBrepkit()
-    const s = await shapeOf('brep', `let part1 = cad.reverseShape(cad.box(10,10,10))\n`, 'part1')
-    expect(Math.abs(Math.abs(volOf(s)) - 1000)).toBeLessThanOrEqual(1e-6)
+    const r = await exec('brep', `let part1 = cad.reverseShape(cad.box(10,10,10))\n`)
+    expect(r.failedAt).toBeDefined()
+    expect(r.failedAt!.callee).toBe('reverseShape')
+    const msg = JSON.stringify(r.failedAt)
+    expect(msg).toMatch(/E_BREP_UNSUPPORTED/)
+    expect(msg).toMatch(/requires engine occt/)
   })
 })
