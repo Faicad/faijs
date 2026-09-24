@@ -15,6 +15,7 @@
 import type { FcstdDocument } from './document.js';
 import type { CadCall, TranslateVerdict } from './feature-translate.js';
 import { translateObject, isJsExpr, jsExpr, BODY_CHAIN_BASE } from './feature-translate.js';
+import type { FilletEdgeEntry } from './fillet-edges.js';
 import type { Contour } from './contour.js';
 import { type Placement, isIdentityPlacement, invertApplyPlacement } from './placement.js';
 import { isNonModelingType } from './structural-types.js';
@@ -135,6 +136,8 @@ export function generateModel(
   shapeCarriers?: ReadonlySet<string>,
   /** E4: objects whose Shape `file` attribute points at a missing/empty member (explicit gap). */
   brokenShapeAssets?: ReadonlySet<string>,
+  /** P8: parsed PropertyFilletEdges binaries keyed by object name (Part::Chamfer/Fillet). */
+  filletEdgesData?: ReadonlyMap<string, FilletEdgeEntry[]>,
 ): GenResult {
   const byName = new Map(doc.objects.map((o) => [o.name, o]));
   // GOTCHA (test_geomop corpus, 2026-09-20): a dependency on a Body
@@ -277,7 +280,7 @@ export function generateModel(
       // accumulated chain head, not `variables` — the container name is
       // never registered there (its result lives in chainVar).
       return variables.get(dep) ?? chainVar.get(dep);
-    }, doc.objects, shapeCarriers, brokenShapeAssets);
+    }, doc.objects, shapeCarriers, brokenShapeAssets, filletEdgesData);
     node.verdict = verdict;
     if (verdict.kind === 'translated') {
       // rename output vars to partN sequence

@@ -13,6 +13,7 @@ import type { FcstdObject } from './document.js';
 import { parseExpressionEngine, evalWithDoc, type ExpressionBinding } from './expressions.js';
 import { placementOf, quatToMatrix } from './placement.js';
 import { shapeBrpFile } from './external-geo.js';
+import type { FilletEdgeEntry } from './fillet-edges.js';
 
 /**
  * One cad-op call in the M4 call plan (lowered to .fai.js by M5).
@@ -125,6 +126,9 @@ const WHITELIST = new Set([
   // P7 (2026-09-24): Part::Fuse fuses Base + Tool (two PropertyLinks, same
   // serialization shape as Part::Cut — 42 corpus occurrences).
   'Part::Fuse',
+  // P8 (2026-09-24): Part::Chamfer — Base link + edge selection AND sizes in
+  // the binary PropertyFilletEdges ZIP member (109 corpus occurrences).
+  'Part::Chamfer',
 ]);
 
 /**
@@ -464,6 +468,8 @@ export function translateObject(
   shapeCarriers?: ReadonlySet<string>,
   /** E4: objects whose Shape `file` attribute points at a missing/empty member. */
   brokenShapeAssets?: ReadonlySet<string>,
+  /** P8: parsed PropertyFilletEdges binaries keyed by object name (Part::Chamfer/Fillet). */
+  filletEdgesData?: ReadonlyMap<string, FilletEdgeEntry[]>,
 ): TranslateVerdict {
   // P1-1（参数载体）：注入文档上下文，让 expressionBindingOf 能做
   // <<Label>>.Alias 三跳解析（引用算术需要全文档找 Spreadsheet 数据源）。
@@ -1248,6 +1254,40 @@ export function translateObject(
         calls: [{
           out, op: 'cad.chamfer', source: obj.name, inputs: [baseVar],
           params: { edges, type: 'equal', width: size },
+        }],
+      };
+    }
+    case 'Part::Chamfer': {
+      // P8: Part-workbench chamfer. GOTCHA: edge selection AND sizes do NOT
+      // live in Document.xml — the `Edges` property points at a binary
+      // PropertyFilletEdges ZIP member (parsed by convert, passed in via
+      // filletEdgesData). XML-only reading yields no size at all.
+      const chBase = propLink(obj, 'Base');
+      const chBaseVar = chBase ? inputVar(chBase) : undefined;
+      if (!chBaseVar) return { kind: 'baked', reason: 'chamfer-missing-base' };
+      const chEntries = filletEdgesData?.get(obj.name);
+      if (!chEntries || chEntries.length === 0) {
+        return { kind: 'baked', reason: 'chamfer-edges-data-missing' };
+      }
+      // cad.chamfer 'equal' takes ONE width for ALL edges. Mixed sizes across
+      // edges cannot be emitted as sequential calls either: after the first
+      // chamfer the shape's edge ordinals shift, so the second call's
+      // EdgeN refs would point at the wrong edges (corpus: 1/109 objects).
+      const chSizes = new Set(chEntries.map((e) => e.size1));
+      if (chSizes.size > 1) return { kind: 'baked', reason: 'chamfer-mixed-sizes' };
+      // Asymmetric size1 != size2 (two-distance chamfer): 0 corpus
+      // occurrences; the Size1/Size2 face-side correspondence to
+      // cad.chamfer twoDistances width1/width2 is unverified — honest bake.
+      if (chEntries.some((e) => e.size1 !== e.size2)) {
+        return { kind: 'baked', reason: 'chamfer-asymmetric-sizes' };
+      }
+      const chSize = chEntries[0]!.size1;
+      if (!(chSize > 0)) return { kind: 'baked', reason: 'chamfer-bad-size' };
+      return {
+        kind: 'translated',
+        calls: [{
+          out, op: 'cad.chamfer', source: obj.name, inputs: [chBaseVar],
+          params: { edges: edgeRefArgs(chBaseVar, chEntries.map((e) => e.edge)), type: 'equal', width: chSize },
         }],
       };
     }

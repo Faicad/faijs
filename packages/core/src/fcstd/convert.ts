@@ -15,6 +15,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { unpackFcstd, memberText } from './unpack.js';
+import { parseFilletEdges, type FilletEdgeEntry } from './fillet-edges.js';
 import { parseDocumentXml } from './document.js';
 import { parseSketchObject } from './sketch-parse.js';
 import { createPlanegcsSolver } from './planegcs-backend.js';
@@ -237,11 +238,23 @@ export async function convertFcstdFile(input: string, opts?: ConvertOptions): Pr
     else if (shapeFile !== undefined || subShapeFile !== undefined) brokenShapeAssets.add(obj.name);
   }
 
+  // P8: parse the binary PropertyFilletEdges members for Part::Chamfer /
+  // Part::Fillet objects (edge selection + sizes do NOT live in Document.xml).
+  const filletEdgesData = new Map<string, FilletEdgeEntry[]>();
+  for (const obj of doc.value.objects) {
+    if (obj.type !== 'Part::Chamfer' && obj.type !== 'Part::Fillet') continue;
+    const file = obj.properties.get('Edges')?.children[0]?.children[0]?.attributes['file']
+      ?? obj.properties.get('Edges')?.children[0]?.attributes['file'];
+    if (!file) continue;
+    const parsed = parseFilletEdges(unpacked.value.members.get(file));
+    if (parsed) filletEdgesData.set(obj.name, parsed);
+  }
+
   let gen;
   try {
     gen = generateModel(
       doc.value, sketchVerdict, sketchContours, baseName, placements, shapeCarriers,
-      brokenShapeAssets,
+      brokenShapeAssets, filletEdgesData,
     );
   } catch (e) {
     return fail(`codegen failed: ${(e as Error).message}`);

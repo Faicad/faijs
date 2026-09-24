@@ -5,6 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import { translateObject, isWhitelisted, placementPos, isJsExpr } from './feature-translate.js';
 import type { FcstdObject, FcstdProperty } from './document.js';
+import { parseFilletEdges, type FilletEdgeEntry } from './fillet-edges.js';
 
 function prop(name: string, child: { name: string; attrs: Record<string, string> } | null = null): [string, FcstdProperty] {
   return [
@@ -176,6 +177,91 @@ describe('P5 Part::Mirroring', () => {
 
   it('is whitelisted (P5)', () => {
     expect(isWhitelisted('Part::Mirroring')).toBe(true);
+  });
+});
+
+describe('P8 Part::Chamfer', () => {
+  // GOTCHA: edge selection AND sizes live in the binary PropertyFilletEdges
+  // ZIP member (int32 count + per-entry {int32 edge, float64 size1,
+  // float64 size2}, 20 bytes/entry), NOT in Document.xml — the `Edges`
+  // property only carries <FilletEdges file="EdgesN"/>. There is no Size
+  // property to read; XML-only parsing yields no chamfer size at all.
+  function filletEdgesBin(entries: Array<[number, number, number]>): Uint8Array {
+    const buf = new ArrayBuffer(4 + entries.length * 20);
+    const view = new DataView(buf);
+    view.setInt32(0, entries.length, true);
+    entries.forEach(([e, s1, s2], k) => {
+      const off = 4 + k * 20;
+      view.setInt32(off, e, true);
+      view.setFloat64(off + 4, s1, true);
+      view.setFloat64(off + 12, s2, true);
+    });
+    return new Uint8Array(buf);
+  }
+
+  function chamferObj(): FcstdObject {
+    return obj('Part::Chamfer', 'Chamfer007', [
+      prop('Base', { name: 'Link', attrs: { value: 'Cut048' } }),
+      prop('Edges', { name: 'FilletEdges', attrs: { file: 'Edges' } }),
+    ]);
+  }
+
+  it('GOTCHA: parseFilletEdges reads the binary member format', () => {
+    expect(parseFilletEdges(filletEdgesBin([[38, 7, 7], [12, 2, 2]]))).toEqual([
+      { edge: 38, size1: 7, size2: 7 },
+      { edge: 12, size1: 2, size2: 2 },
+    ]);
+  });
+
+  it('parseFilletEdges returns undefined for missing/truncated data (no silent loss)', () => {
+    expect(parseFilletEdges(undefined)).toBeUndefined();
+    expect(parseFilletEdges(new Uint8Array(2))).toBeUndefined();
+    // count claims 3 entries but only 1 is present
+    const buf = new ArrayBuffer(24);
+    const view = new DataView(buf);
+    view.setInt32(0, 3, true);
+    view.setInt32(4, 1, true);
+    view.setFloat64(8, 1, true);
+    view.setFloat64(16, 1, true);
+    expect(parseFilletEdges(new Uint8Array(buf))).toBeUndefined();
+  });
+
+  it('translates Base + binary edges into cad.chamfer equal (P8)', () => {
+    const data = new Map<string, FilletEdgeEntry[]>([
+      ['Chamfer007', [{ edge: 38, size1: 7, size2: 7 }, { edge: 12, size1: 7, size2: 7 }]],
+    ]);
+    const v = translateObject(chamferObj(), (dep) => (dep === 'Cut048' ? 'part6' : undefined), undefined, undefined, undefined, data);
+    expect(v.kind).toBe('translated');
+    if (v.kind !== 'translated') return;
+    expect(v.calls[0]!.op).toBe('cad.chamfer');
+    expect(v.calls[0]!.inputs).toEqual(['part6']);
+    expect(edgeExprs(v.calls[0]!)).toEqual(['cad.edgeRef(part6, 38)', 'cad.edgeRef(part6, 12)']);
+    expect(v.calls[0]!.params).toMatchObject({ type: 'equal', width: 7 });
+  });
+
+  it('bakes with explicit reason when the binary edges data is absent', () => {
+    const v = translateObject(chamferObj(), (dep) => (dep === 'Cut048' ? 'part6' : undefined));
+    expect(v).toMatchObject({ kind: 'baked', reason: 'chamfer-edges-data-missing' });
+  });
+
+  it('bakes on mixed per-edge sizes (edge ordinals shift after each chamfer)', () => {
+    const data = new Map<string, FilletEdgeEntry[]>([
+      ['Chamfer007', [{ edge: 38, size1: 7, size2: 7 }, { edge: 12, size1: 2, size2: 2 }]],
+    ]);
+    const v = translateObject(chamferObj(), (dep) => (dep === 'Cut048' ? 'part6' : undefined), undefined, undefined, undefined, data);
+    expect(v).toMatchObject({ kind: 'baked', reason: 'chamfer-mixed-sizes' });
+  });
+
+  it('bakes on asymmetric size1 != size2 (two-distance, unverified mapping)', () => {
+    const data = new Map<string, FilletEdgeEntry[]>([
+      ['Chamfer007', [{ edge: 38, size1: 7, size2: 3 }]],
+    ]);
+    const v = translateObject(chamferObj(), (dep) => (dep === 'Cut048' ? 'part6' : undefined), undefined, undefined, undefined, data);
+    expect(v).toMatchObject({ kind: 'baked', reason: 'chamfer-asymmetric-sizes' });
+  });
+
+  it('is whitelisted (P8)', () => {
+    expect(isWhitelisted('Part::Chamfer')).toBe(true);
   });
 });
 
