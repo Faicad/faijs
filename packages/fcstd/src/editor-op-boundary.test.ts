@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import symbolTable from '../lang/symbol-table.generated.js';
+import { SYMBOL_TABLE } from '@faicad/faijs/symbol-table';
 
 /**
  * Editor-owned op boundary guard (2026-09-21) — see
@@ -60,10 +60,12 @@ const EDITOR_OWNED: Record<string, string> = {
 const DECLARED_BORROW: Record<string, number> = {};
 
 const here = dirname(fileURLToPath(import.meta.url));
-const srcRoot = join(here, '..');
+// This test moved to `packages/fcstd/src` with the fcstd package extraction;
+// the editor-owned op sources it pins still live in the core engine package.
+const coreSrcRoot = join(here, '..', '..', 'core', 'src');
 
 function read(relative: string): string {
-  return readFileSync(join(srcRoot, relative), 'utf-8');
+  return readFileSync(join(coreSrcRoot, relative), 'utf-8');
 }
 
 /**
@@ -122,7 +124,7 @@ describe('editor-owned op boundary', () => {
   // running anything: a name the lowering emits must be a name the namespace
   // has.
   it('every callee the fcstd lowering emits exists in the cad namespace', () => {
-    const known = new Set(Object.keys(symbolTable));
+    const known = new Set(Object.keys(SYMBOL_TABLE));
     const unknown = [...new Set(loweringCallees())].filter((n) => !known.has(n));
     expect(unknown).toEqual([]);
   });

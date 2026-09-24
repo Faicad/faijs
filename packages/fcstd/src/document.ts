@@ -6,7 +6,7 @@
  * `_Property` elements are skipped.
  */
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
-import { err, ok, type Result } from '../api/result.js';
+import { err, ok, type Result } from '@faicad/faijs/api/result';
 
 /** One parsed XML node from Document.xml: a property element (or nested value element) with its children. */
 export interface FcstdProperty {

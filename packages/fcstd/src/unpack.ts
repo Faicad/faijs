@@ -8,7 +8,7 @@
  * faijs contract: unit mm, errors via Result (ok/err).
  */
 import { unzipSync } from 'fflate';
-import { err, ok, type Result } from '../api/result.js';
+import { err, ok, type Result } from '@faicad/faijs/api/result';
 
 /**
  * One raw file inside the FCStd ZIP container.

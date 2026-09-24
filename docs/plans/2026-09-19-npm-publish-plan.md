@@ -26,6 +26,7 @@
 |---|---|---|---|---|
 | 根门面（待 §9 决策，倾向废弃） | `@faicad/faijs` | 0.12.1 | **private: true** | **见 §9 D2**：建议 core 升格为 `@faicad/faijs`，本门面包删除 |
 | core（升格为公开引擎包，见 §9） | `@faicad/faijs` → `@faicad/faijs` | 0.13.0 | 否 | **发布**（拟改名为 `@faicad/faijs`，cad 内置） |
+| fcstd（2026-09-24 抽包新增） | `@faicad/faijs-fcstd` | 0.16.1 | 否 | **发布**（FCStd 读层 + `.fai.js` 转换流水线 + 批量 CLI；peer 依赖 `@faicad/faijs`。core 自此不再携带 `./fcstd` / `./fcstd-convert` 子路径与 `faijs-fcstd-convert` bin，见 `docs/plans/2026-09-24-fcstd-extract-package-plan.md`） |
 | cq-compat | `@faicad/cq-compat` | 0.13.2 | 否 | **发布**（兼容主体：workplane/2D 绘图/体素/特征/选择器/变换/齿轮内核） |
 | cq-compat-assembly（2026-09-22 拆包新增） | `@faicad/cq-compat-assembly` | 0.1.0 | 否 | **发布**（装配兼容层：buildAssembly/solve()/toCompound()/save()，封装 core 求解器） |
 | cq-compat-compare（2026-09-22 拆包新增） | `@faicad/cq-compat-compare` | 0.1.0 | 否 | **发布**（dev-only 几何等价性比较器；禁止进入任何包运行时依赖链） |

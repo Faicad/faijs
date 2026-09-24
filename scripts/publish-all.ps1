@@ -78,6 +78,7 @@ function Run-Npm {
 $Packages = @(
   @{ Name = '@faicad/faijs';           Path = 'packages/core' },
   @{ Name = '@faicad/faijs-extra';     Path = 'packages/faijs-extra' },
+  @{ Name = '@faicad/faijs-fcstd';     Path = 'packages/fcstd' },
   @{ Name = '@faicad/cq-compat';        Path = 'packages/cq-compat' },
   @{ Name = '@faicad/fai-cq-gears';     Path = 'packages/fai_cq_gears' },
   @{ Name = '@faicad/fai-cq-warehouse'; Path = 'packages/fai_cq_warehouse' },

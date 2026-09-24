@@ -6,7 +6,7 @@
  * Output: solved geometry or a structured failure — the caller (M3.5) decides
  * between solution and initial-value fallback (D2).
  */
-import type { Result } from '../api/result.js';
+import type { Result } from '@faicad/faijs/api/result';
 import type { SketchGeom, SketchCon } from './sketch-parse.js';
 
 /**

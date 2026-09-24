@@ -9,13 +9,13 @@
  */
 
 import { describe, it, expect, beforeAll } from 'vitest'
-import { CadRuntime } from '../cad-runtime/runtime'
-import type { HostPorts } from '../cad-runtime/ports'
-import { asPartName } from '../identity'
-import { initOcctWasm } from '../occt-kernel/occtKernel'
-import type { Shape } from '../mesh/types'
-import type { Contour } from '../fcstd/contour.js'
-import { createApiNamespaceWithEditorOps } from '../test-support/editor-ops'
+import { CadRuntime } from '@faicad/faijs/cad-runtime/runtime'
+import type { HostPorts } from '@faicad/faijs/cad-runtime/ports'
+import { asPartName } from '@faicad/faijs/identity'
+import { initOcctWasm } from '@faicad/faijs/occt-kernel/occtKernel'
+import type { Shape } from '@faicad/faijs/mesh/types'
+import type { Contour } from './contour.js'
+import { createApiNamespace } from '@faicad/faijs/api/api-namespace'
 
 beforeAll(async () => {
   await initOcctWasm()
@@ -32,7 +32,7 @@ async function runSketch(contours: Contour[]): Promise<Shape> {
 
 /** Execute arbitrary .fai.js code in BREP mode and return the named output Shape. */
 async function runCode(code: string, part: string): Promise<Shape> {
-  const rt = new CadRuntime(defaultPorts(), 'brep', { cad: createApiNamespaceWithEditorOps() })
+  const rt = new CadRuntime(defaultPorts(), 'brep', { cad: createApiNamespace() })
   const result = await rt.execute(code)
   if (result.failedAt) {
     throw new Error(`execution failed at ${result.failedAt.callee}: ${result.failedAt.message}`)

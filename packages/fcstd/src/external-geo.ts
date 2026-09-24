@@ -8,7 +8,7 @@
  * Result: fixed 2D segments/points that the solver treats as immutable
  * constraints targets (geoId -3, -4, ... in link order).
  */
-import { initOcctWasm } from '../occt-kernel/occtKernel.js';
+import { initOcctWasm } from '@faicad/faijs/occt-kernel/occtKernel';
 import { memberText, type FcstdArchive } from './unpack.js';
 import type { FcstdDocument, FcstdObject, FcstdProperty } from './document.js';
 

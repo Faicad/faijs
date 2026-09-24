@@ -9,7 +9,7 @@
  */
 import { zipSync, strToU8 } from 'fflate';
 import { createHash } from 'node:crypto';
-import { isOk } from '../api/result.js';
+import { isOk } from '@faicad/faijs/api/result';
 import type { FcstdArchive } from './unpack.js';
 import { memberText } from './unpack.js';
 import { parseDocumentXml, type FcstdDocument } from './document.js';

@@ -481,6 +481,25 @@ describe('M4.6 Pad/Pocket', () => {
     }
   });
 
+  // GOTCHA (E4 corpus 2026-09-24): FCStd serializes App::PropertyVector as
+  // <PropertyVector valueX=… valueY=… valueZ=…/> child element, NOT the
+  // value="x y z" attribute form. propVec reads value="…"; propVecXYZ reads
+  // valueX/Y/Z. The old-format Dir (no LengthFwd/LengthRev/Length) must use
+  // propVecXYZ first, else Dir falls back to [0,0,1] default → extrude len 1
+  // instead of |Dir|. This caused 918 E4 zero-vector runs to remain unfixed
+  // after P0-4 because the single-test used value="0 0 50" (wrong form).
+  it('GOTCHA: Part::Extrusion Dir uses valueX/valueY/valueZ child-element form', () => {
+    const ext = obj('Part::Extrusion', 'Ext', [
+      prop('Base', { name: 'Link', attrs: { value: 'Sketch' } }),
+      prop('Dir', { name: 'PropertyVector', attrs: { valueX: '0', valueY: '0', valueZ: '50' } }),
+    ]);
+    const v = translateObject(ext, (dep) => (dep === 'Sketch' ? 'sketch0' : undefined));
+    expect(v.kind).toBe('translated');
+    if (v.kind === 'translated') {
+      expect(v.calls[0]!.literals).toEqual([[0, 0, 50]]);
+    }
+  });
+
   it('normalizes Dir and applies Reversed for new-format Part::Extrusion', () => {
     const ext = obj('Part::Extrusion', 'Ext', [
       prop('Base', { name: 'Link', attrs: { value: 'Sketch' } }),

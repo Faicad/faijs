@@ -971,7 +971,7 @@ export function translateObject(
       const base = propLink(obj, 'Base');
       const baseVar = base ? inputVar(base) : undefined;
       if (!baseVar) return { kind: 'baked', reason: 'extrusion-missing-base' };
-      const dir = propVec(obj, 'Dir') ?? [0, 0, 1];
+      const dir = propVecXYZ(obj, 'Dir') ?? propVec(obj, 'Dir') ?? [0, 0, 1];
       // FreeCAD 0.20+ serializes the flag as `Reversed`; older files used
       // `Reverse`. Accept both.
       const reversed = propBool(obj, 'Reversed') || propBool(obj, 'Reverse');

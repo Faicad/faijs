@@ -27,7 +27,7 @@ import { generateModel } from './codegen.js';
 import type { Placement } from './placement.js';
 import { effectivePlacement } from './attachment.js';
 import { buildFaiZip } from './build-fai-zip.js';
-import { isOk } from '../api/result.js';
+import { isOk } from '@faicad/faijs/api/result';
 import { zipSync, unzipSync, strToU8 } from 'fflate';
 import {
   STRUCTURAL_TYPES,
@@ -333,3 +333,12 @@ export async function convertFcstdFile(input: string, opts?: ConvertOptions): Pr
   const zip = zipSync(members, { level: 6 });
   return { file: input, ok: true, gaps, counts, sketches, zip, elapsedMs: Date.now() - t0 };
 }
+
+// Public conversion surface re-exports (former top-level `fcstd-convert` barrel).
+// The batch project's tooling consumes these without reaching into `src/`.
+export { createPlanegcsSolver, planegcsWasmPath } from './planegcs-backend.js';
+export { classifySketch, maxPointDistance } from './sketch-verify.js';
+export type { SketchVerdict } from './sketch-verify.js';
+export { resolveExternalGeometry } from './external-geo.js';
+export type { ExternalGeoResult, ExternalLink } from './external-geo.js';
+export { isWhitelisted } from './feature-translate.js';
