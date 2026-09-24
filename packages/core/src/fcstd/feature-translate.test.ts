@@ -179,6 +179,68 @@ describe('P5 Part::Mirroring', () => {
   });
 });
 
+describe('P6 Part::Revolution', () => {
+  // GOTCHA: Part::Revolution stores the axis as Base/Axis PropertyVector
+  // CHILD elements (valueX/Y/Z) — PartDesign::Revolution instead stores a
+  // ReferenceAxis STRING. Different serializations, different branches.
+  function vecXYZ(name: string, x: number, y: number, z: number): [string, FcstdProperty] {
+    return prop(name, { name: 'PropertyVector', attrs: { valueX: String(x), valueY: String(y), valueZ: String(z) } });
+  }
+
+  it('translates Source + Base/Axis into cad.revolve (P6)', () => {
+    const rev = obj('Part::Revolution', 'Revolve', [
+      prop('Source', { name: 'Link', attrs: { value: 'Sketch1242' } }),
+      vecXYZ('Base', 0, -5, 712.877),
+      vecXYZ('Axis', 0, 0.0000000000000002, 1), // near-axis noise → normalized
+      prop('Angle', { name: 'Float', attrs: { value: '360' } }),
+      prop('Symmetric', { name: 'Bool', attrs: { value: 'false' } }),
+      prop('Placement', { name: 'PropertyPlacement', attrs: { Px: '0', Py: '0', Pz: '0', Q0: '0', Q1: '0', Q2: '0', Q3: '1' } }),
+    ]);
+    const v = translateObject(rev, (dep) => (dep === 'Sketch1242' ? 'sk0' : undefined));
+    expect(v.kind).toBe('translated');
+    if (v.kind !== 'translated') return;
+    expect(v.calls[0]!.op).toBe('cad.revolve');
+    expect(v.calls[0]!.inputs).toEqual(['sk0']);
+    const p = v.calls[0]!.params as { axis: number[]; at: number[]; angle: number };
+    expect(p.axis[2]).toBeCloseTo(1, 10);
+    expect(p.angle).toBeCloseTo(Math.PI * 2, 10);
+    expect(p.at).toEqual([0, -5, 712.877]);
+  });
+
+  it('bakes with explicit reason when Source is missing', () => {
+    const rev = obj('Part::Revolution', 'Revolve', [
+      vecXYZ('Base', 0, 0, 0),
+      vecXYZ('Axis', 0, 0, 1),
+      prop('Angle', { name: 'Float', attrs: { value: '360' } }),
+    ]);
+    const v = translateObject(rev, () => undefined);
+    expect(v).toMatchObject({ kind: 'baked', reason: 'part-revolution-missing-source' });
+  });
+
+  it('bakes with upstream reason when Source link exists but is not translated', () => {
+    const rev = obj('Part::Revolution', 'Revolve', [
+      prop('Source', { name: 'Link', attrs: { value: 'Ghost' } }),
+      vecXYZ('Axis', 0, 0, 1),
+    ]);
+    const v = translateObject(rev, () => undefined);
+    expect(v).toMatchObject({ kind: 'baked', reason: 'part-revolution-source-baked-upstream:Ghost' });
+  });
+
+  it('bakes on Symmetric=true (unsupported)', () => {
+    const rev = obj('Part::Revolution', 'Revolve', [
+      prop('Source', { name: 'Link', attrs: { value: 'S' } }),
+      vecXYZ('Axis', 0, 0, 1),
+      prop('Symmetric', { name: 'Bool', attrs: { value: 'true' } }),
+    ]);
+    const v = translateObject(rev, (dep) => (dep === 'S' ? 'sk0' : undefined));
+    expect(v).toMatchObject({ kind: 'baked', reason: 'part-revolution-symmetric-unsupported' });
+  });
+
+  it('is whitelisted (P6)', () => {
+    expect(isWhitelisted('Part::Revolution')).toBe(true);
+  });
+});
+
 describe('M4.6 Pad/Pocket', () => {
   it('translates Pad over a sketch profile', () => {
     const pad = obj('PartDesign::Pad', 'Pad', [

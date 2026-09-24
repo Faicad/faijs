@@ -118,6 +118,10 @@ const WHITELIST = new Set([
   // P5 (2026-09-24): Part::Mirroring mirrors its Source across the plane
   // through Base with normal Normal (253 corpus occurrences).
   'Part::Mirroring',
+  // P6 (2026-09-24): Part::Revolution revolves Source around the axis
+  // through Base with direction Axis by Angle degrees (425 corpus
+  // occurrences — highest-frequency untranslated Part::* type after P5).
+  'Part::Revolution',
 ]);
 
 /**
@@ -1013,6 +1017,41 @@ export function translateObject(
         calls: [{
           out, op: 'cad.extrude', source: obj.name, inputs: [baseVar],
           literals: [reversed ? [-dir[0], -dir[1], -dir[2]] : dir], params: {},
+        }],
+      };
+    }
+    case 'Part::Revolution': {
+      // P6: Part-workbench revolve — Source profile + axis given DIRECTLY as
+      // Base/Axis PropertyVector (GOTCHA: valueX/Y/Z child-element form, NOT
+      // the value="x y z" attribute form propVec reads; PartDesign::Revolution
+      // instead stores a ReferenceAxis string — different serialization, so
+      // this is a separate branch, not a shared one).
+      const revSrc = propLink(obj, 'Source');
+      const revVar = revSrc ? inputVar(revSrc) : undefined;
+      if (!revVar) {
+        return { kind: 'baked', reason: revSrc ? `part-revolution-source-baked-upstream:${revSrc}` : 'part-revolution-missing-source' };
+      }
+      const axisRaw = propVecXYZ(obj, 'Axis');
+      if (!axisRaw || Math.hypot(...axisRaw) <= 0) {
+        return { kind: 'baked', reason: 'part-revolution-missing-axis' };
+      }
+      const axis = normalize3(axisRaw);
+      const base = propVecXYZ(obj, 'Base') ?? [0, 0, 0];
+      const [rpx, rpy, rpz] = placementPos(obj);
+      const at = [base[0]! + rpx, base[1]! + rpy, base[2]! + rpz] as [number, number, number];
+      const revAngleDeg = propNum(obj, 'Angle') ?? 360;
+      if (revAngleDeg <= 0 || revAngleDeg > 360) {
+        return { kind: 'baked', reason: 'part-revolution-angle-out-of-range' };
+      }
+      const revAngle = (revAngleDeg * Math.PI) / 180;
+      if (propStr(obj, 'Symmetric') === 'true') {
+        return { kind: 'baked', reason: 'part-revolution-symmetric-unsupported' };
+      }
+      return {
+        kind: 'translated',
+        calls: [{
+          out, op: 'cad.revolve', source: obj.name, inputs: [revVar],
+          noPositionalArgs: true, params: { axis, at, angle: revAngle },
         }],
       };
     }
