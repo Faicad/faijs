@@ -1,7 +1,7 @@
 /**
  * generated/measurement.ts — 生成文件，勿手改。
  * 由 packages/core/scripts/gen-l3-surface.ts 依据 api/surface/arg-spec.ts 生成（E5/P14 分片）。
- * measurement 模块：22 个投影符号；另有 1 个 skip 登记。
+ * measurement 模块：24 个投影符号；另有 1 个 skip 登记。
  */
 import { borrowBrepjsShape, callBrepjs, assertEngineFor } from '../internal/l3-bridge'
 import type { Shape } from '../../mesh/types'
@@ -241,3 +241,7 @@ export function checkAllInterferences(shapes: Shape[], tolerance?: number): Inte
 export { area } from '../measurement/index.js'
 
 export { length } from '../measurement/index.js'
+
+export { volume } from '../measurement/index.js'
+
+export { centerOfMass } from '../measurement/index.js'

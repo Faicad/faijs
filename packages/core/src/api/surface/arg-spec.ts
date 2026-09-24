@@ -454,6 +454,22 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     args: '(shape: Shape) -> number(长度 mm)',
     scriptFace: true,
   },
+  {
+    name: 'volume',
+    source: 'measurement/index.js#volume',
+    kind: 'faijs',
+    module: 'measurement',
+    args: '(shape: Shape) -> number(体积 mm³)',
+    scriptFace: true,
+  },
+  {
+    name: 'centerOfMass',
+    source: 'measurement/index.js#centerOfMass',
+    kind: 'faijs',
+    module: 'measurement',
+    args: '(shape: Shape) -> BrepVec3(质心 mm)',
+    scriptFace: true,
+  },
 
   // ──── P14 第二片：text 模块（8 符号：3 pure + 3 skip + 2 type）────
   // 纯字体/度量函数直接 re-export；字体加载（fetch/ArrayBuffer + 全局注册表
@@ -1718,6 +1734,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     args: 'thread(options: ThreadOptions): Shape',
     params: ['options'], formClass: 'B1',
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
+    scriptFace: true,
   },
   {
     name: 'convexHull', source: 'operations/convexHullFns.js#convexHull', kind: 'brep-op', engines: ['occt'], module: 'operations',
@@ -2226,6 +2243,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     returnsResult: false,
     returnType: 'ShapeKind',
     params: ['shape'], formClass: 'A',
+    scriptFace: true,
   },
 
   // 53 × skip（裸 kernel 句柄族；faijs 面 Shape 所有权经 l3-bridge 借入/收养，不暴露裸句柄）
@@ -2993,6 +3011,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     args: 'isValid(shape: Shape): boolean',
     reason: '整件合法性检查（Shape → boolean 纯数据），query',
     params: ['shape'], formClass: 'A',
+    scriptFace: true,
   },
   {
     name: 'isEmpty', source: 'topology/api.js#isEmpty', kind: 'query',
@@ -3000,6 +3019,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     args: 'isEmpty(shape: Shape): boolean',
     reason: '整件空判（Shape → boolean 纯数据），query',
     params: ['shape'], formClass: 'A',
+    scriptFace: true,
   },
 
   // shapeFns：整件 Shape 进出的查询/修饰；返回子形状句柄数组（get*/iter*）skip。
@@ -3081,6 +3101,11 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     args: 'isEqualShape(a: Shape, b: Shape): boolean',
     reason: '两整件几何相等比较（纯数据），query',
     params: ['a', 'b'], formClass: 'A',
+    queryParams: [
+      { name: 'a', type: 'Shape', docs: '第一个被比较形状' },
+      { name: 'b', type: 'Shape', docs: '第二个被比较形状' },
+    ],
+    scriptFace: true,
   },
   {
     name: 'isSameShape', source: 'topology/shapeFns.js#isSameShape', kind: 'query',
@@ -3088,6 +3113,11 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     args: 'isSameShape(a: Shape, b: Shape): boolean',
     reason: '两整件同构比较（纯数据），query',
     params: ['a', 'b'], formClass: 'A',
+    queryParams: [
+      { name: 'a', type: 'Shape', docs: '第一个被比较形状' },
+      { name: 'b', type: 'Shape', docs: '第二个被比较形状' },
+    ],
+    scriptFace: true,
   },
   {
     name: 'getHashCode', source: 'topology/shapeFns.js#getHashCode', kind: 'skip',
@@ -3292,6 +3322,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     args: 'fixSelfIntersection(shape: Shape): Shape',
     params: ['shape'], formClass: 'A',
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
+    scriptFace: true,
   },
   {
     name: 'healFace', source: 'topology/healingFns.js#healFace', kind: 'skip',

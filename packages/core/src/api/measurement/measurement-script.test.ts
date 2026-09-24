@@ -25,8 +25,10 @@ import { __resetEngineRegistriesForTests, getBrepEngine } from '../../brep/engin
 import { registerOcctBrepEngine } from '../../brep/engine/adapters/occt'
 import { registerBrepkitBrepEngine } from '../../brep/engine/adapters/brepkit'
 import type { BrepEngineApi } from '../../brep/engine/primitives'
-import { area, length } from '../measurement'
+import { area, length, volume, centerOfMass } from '../measurement'
 import type { Shape } from '../../mesh/types'
+import { isValid, isEmpty, isEqualShape, isSameShape } from '../../api/generated/topology'
+import { getShapeKind } from '../../api/generated/core'
 
 let occtApi: BrepEngineApi
 
@@ -48,11 +50,11 @@ afterAll(() => {
 })
 
 // occt 版：含 fuse（vendored 投影，occt-only，Phase 5 补漏 engines）——证明脚本内
-// 数字变量与派生 Shape 共存（fuse 消费证明执行完整）。
-const SCRIPT_OCCT = `const b = cad.box(20, 10, 5)\nconst a = cad.area(b)\nconst l = cad.length(b)\nconst c = cad.fuse(b, b)`
-// 中立版（平台无关契约，§1.5 推论 1）：只用 L1 面 op（box / area / length），
+// 数字变量与派生 Shape 共存（fuse 消费证明执行完整）。volume/centerOfMass 同为 L1 中立测量面。
+const SCRIPT_OCCT = `const b = cad.box(20, 10, 5)\nconst a = cad.area(b)\nconst l = cad.length(b)\nconst v = cad.volume(b)\nconst cm = cad.centerOfMass(b)\nconst c = cad.fuse(b, b)`
+// 中立版（平台无关契约，§1.5 推论 1）：只用 L1 面 op（box / area / length / volume / centerOfMass），
 // 同一份脚本在 occt 与 brepkit 都能跑。
-const SCRIPT_NEUTRAL = `const b = cad.box(20, 10, 5)\nconst a = cad.area(b)\nconst l = cad.length(b)`
+const SCRIPT_NEUTRAL = `const b = cad.box(20, 10, 5)\nconst a = cad.area(b)\nconst l = cad.length(b)\nconst v = cad.volume(b)\nconst cm = cad.centerOfMass(b)`
 
 describe('Phase 7: cad.area / cad.length（脚本面测量 op）', () => {
   it('occt：脚本可调用测量 op，数字变量与派生 Shape 共存（fuse 消费证明执行完整）', async () => {
@@ -65,13 +67,17 @@ describe('Phase 7: cad.area / cad.length（脚本面测量 op）', () => {
     expect(r.outputs.get(asPartName('b'))).toBeDefined()
   })
 
-  it('occt：值与引擎一致（20×10×5 盒 → 面积 700、边总长 280 按边-面计数）', async () => {
+  it('occt：值与引擎一致（20×10×5 盒 → 面积 700、体积 1000、边总长 280）', async () => {
     const r = await runBreps('const b = cad.box(20, 10, 5)')
     expect(r.failedAt).toBeUndefined()
     const shape = r.outputs.get(asPartName('b'))! as Shape
     const a = await area(shape)
     const l = await length(shape)
+    const v = await volume(shape)
+    const cm = await centerOfMass(shape)
     expect(a).toBeCloseTo(700, -1) // 2·(20·10 + 20·5 + 10·5)
+    // 体积 = 20·10·5。
+    expect(v).toBeCloseTo(1000, -1)
     // occt getLength 对 solid 按「边-面」计数：12 条边总长 140 × 2 = 280。
     // （「与引擎一致」是验收口径——脚本值 == 引擎值，见下方直接比对。）
     expect(l).toBeCloseTo(280, -1)
@@ -80,6 +86,11 @@ describe('Phase 7: cad.area / cad.length（脚本面测量 op）', () => {
     try {
       expect(occtApi.getSurfaceArea(handle)).toBeCloseTo(a, -1)
       expect(occtApi.getLength(handle)).toBeCloseTo(l, -1)
+      expect(occtApi.getVolume(handle)).toBeCloseTo(v, -1)
+      const ecm = occtApi.getCenterOfMass(handle)
+      expect(cm.x).toBeCloseTo(ecm.x, -1)
+      expect(cm.y).toBeCloseTo(ecm.y, -1)
+      expect(cm.z).toBeCloseTo(ecm.z, -1)
     } finally {
       occtApi.release(handle)
     }
@@ -105,11 +116,51 @@ describe('Phase 7: cad.area / cad.length（脚本面测量 op）', () => {
     const lShape = await length(shape)
     expect(Number.isFinite(lShape)).toBe(true)
     expect(lShape).toBeGreaterThan(0)
+    // volume 是 L1 中立测量面，双引擎同一口径：brepkit 下体积同样 == 1000。
+    expect(await volume(shape)).toBeCloseTo(1000, -1)
     const h = bkApi.makeBox(20, 10, 5)
     try {
       expect(bkApi.getLength(h)).toBeGreaterThan(0)
+      expect(bkApi.getVolume(h)).toBeCloseTo(1000, -1)
     } finally {
       bkApi.release(h)
     }
+  })
+})
+
+describe('Phase 2: 中立 query op（脚本面可调用 + 语义正确）', () => {
+  it('occt：isValid / isEmpty / isEqualShape / isSameShape / getShapeKind 可调用且语义正确', async () => {
+    __resetEngineRegistriesForTests()
+    await registerOcctBrepEngine()
+    const r = await runBreps('const b = cad.box(10, 10, 10)\nconst b2 = cad.box(5, 5, 5)')
+    expect(r.failedAt).toBeUndefined()
+    const b = r.outputs.get(asPartName('b'))! as Shape
+    const b2 = r.outputs.get(asPartName('b2'))! as Shape
+    expect(isValid(b)).toBe(true)
+    expect(isEmpty(b)).toBe(false)
+    // 自比：任何形状与自身必然几何相等且同构。
+    expect(isEqualShape(b, b)).toBe(true)
+    expect(isSameShape(b, b)).toBe(true)
+    // 判别：不同尺寸盒 → 几何不相等（证明 op 真实区分，而非恒真）。
+    expect(isEqualShape(b, b2)).toBe(false)
+    expect(isSameShape(b, b2)).toBe(false)
+    // 实体盒 → 'solid'（ShapeKind 判别）。
+    expect(getShapeKind(b)).toBe('solid')
+  })
+
+  it('occt：query op 在 .fai.js 内可消费（返回值可参与后续语句，无 failedAt）', async () => {
+    __resetEngineRegistriesForTests()
+    await registerOcctBrepEngine()
+    // 把 query 结果喂给一个依赖布尔/字符串的后续动作，证明它们是可用纯数据。
+    const r = await runBreps(
+      'const b = cad.box(10, 10, 10)\n' +
+        'const ok = cad.isValid(b)\n' +
+        'const kind = cad.getShapeKind(b)\n' +
+        'const kept = ok ? b : cad.box(1, 1, 1)\n' +
+        'const k2 = kind === "solid" ? b : cad.box(1, 1, 1)',
+    )
+    expect(r.failedAt).toBeUndefined()
+    expect(r.outputs.get(asPartName('kept'))).toBeDefined()
+    expect(r.outputs.get(asPartName('k2'))).toBeDefined()
   })
 })

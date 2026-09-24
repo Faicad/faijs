@@ -29,7 +29,7 @@ import { solidToShape, matrixToArray } from '../brep/brep-ops'
 import { getSolidBoundingBox } from '../brep/brep-utils'
 import { getCurrentStmt } from '../runtime-state'
 import { getBrepApi } from '../brep/handle-bridge'
-import { fromBrep, brepOf } from '../shape'
+import { fromBrep, brepOf, isCurveShape } from '../shape'
 import { runtimeLineage } from '../topology/naming/lineage'
 import { formatRoleName, semantic, wall } from '../topology/naming/role-name'
 import type { Provenance } from '../topology/naming/lineage'
@@ -429,6 +429,13 @@ export const extrude = defineOp({
   name: 'extrude',
   brep: async (input: Shape, params: unknown): Promise<Shape> => {
     if (!input) throw new Error('[stdlib/extrude] no input geometry')
+    // Phase 3 执行前预检：1D 曲线（wire / helix / sketch as:'wire'）不是面，不得落进
+    // 内核深层才报「操作失败」——维度不符在调用内核前明确拒绝（1D 判别位 kind='curve'）。
+    if (isCurveShape(input)) {
+      throw new Error(
+        'E_EXTRUDE_NEEDS_FACE: extrude requires a 2D face input, got a 1D curve (kind="curve")',
+      )
+    }
     const o = normalizeExtrudeOptions(params)
     assertExtrudeOptions(o)
 

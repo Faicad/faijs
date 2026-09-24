@@ -25,6 +25,9 @@ export { chamfer } from './chamfer'
 export { fillet } from './fillet'
 export { screw } from './screw'
 export { sketch } from './sketch'
+export { wire } from './wire'
+export { helix } from './helix'
+export { split } from './split'
 export { knurl } from './knurl'
 export { sdf } from './sdf'
 // 应用变换（mesh 顶点烘焙）下沉到引擎侧 src/mesh/rigid-transform.ts（E-b：
@@ -46,7 +49,7 @@ export { faceRef } from './face-ref'
 export { asset } from './asset'
 export { solid, isShape, isCompound } from '../shape'
 export { compound as structCompound } from '../shape'
-export type { ShapeSlot, SolidShape, CompoundShape, StdShape, ShapeKind } from '../shape'
+export type { ShapeSlot, SolidShape, CompoundShape, CurveShape, StdShape, ShapeKind } from '../shape'
 
 // ── P23：brepjs 兼容面接线（§4.2 / B1 三源一致）──
 //

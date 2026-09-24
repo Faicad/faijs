@@ -202,4 +202,28 @@ const boxA = brepjsCompat.box(10, 10, 10)
 const fused = brepjsCompat.fuse(boxA, boxA)
     expect((fused as { ok?: boolean }).ok).toBe(true)
   })
+
+  it('Phase 1 提拔：cad.thread 在 .fai.js 中执行（仅参数构造，occt 平台 op）', async () => {
+    const res = await rt.execute('const t = cad.thread({ radius: 6, pitch: 2.5, height: 7.5 })')
+    expect(res.failedAt).toBeUndefined()
+    const s = res.outputs.get(asPartName('t')) as Shape | undefined
+    expect(s, 'thread 产物').toBeDefined()
+    expect(isShape(s!)).toBe(true)
+    expect(hasBrep(s!)).toBe(true)
+  })
+
+  // GOTCHA: fixSelfIntersection 是 wire-only op（底层 repairOps.healWire），入参必须是 wire。
+  // 当前脚本面（Phase 1）尚无 wire 构造入口（Phase 3 才补），故无法在 .fai.js 内造出合法 wire。
+  // 此测试钉住「compat 边界 + 错误传播」：op 已从脚本面可达、经 compatOp 封装、底层 Result err
+  // 被正确收敛为 failedAt（callee/code 准确），而非崩溃或未定义行为。
+  it('Phase 1 提拔：cad.fixSelfIntersection 在 .fai.js 中可达且错误被 compat 边界正确收敛', async () => {
+    const res = await rt.execute(
+      'const p0 = cad.box(10, 10, 10, { centered: true })\nconst p1 = cad.fixSelfIntersection(p0)',
+    )
+    expect(res, 'execute 必须返回（不崩溃）').toBeDefined()
+    expect(res.failedAt, '非 wire 入参必须被 compat 边界收敛为 failedAt').toBeDefined()
+    expect(res.failedAt!.callee).toBe('fixSelfIntersection')
+    expect(res.failedAt!.code).toBe('FIX_SELF_INTERSECTION_FAILED')
+    // Phase 3 补 wire 构造后，应增加「合法 wire 入参 → 成功」的正向用例。
+  })
 })

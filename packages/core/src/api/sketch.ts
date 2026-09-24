@@ -19,7 +19,7 @@ import type { Shape } from '../mesh/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 import { getBrepApi } from '../brep/handle-bridge'
 import { solidToShape } from '../brep/brep-ops'
-import { fromBrep } from '../shape'
+import { fromBrep, fromBrepCurve } from '../shape'
 import { defineOp } from '../sdk'
 import type { Provenance } from '../topology/naming/lineage'
 
@@ -62,6 +62,11 @@ export interface SketchLoop {
 /** `cad.sketch` 参数：轮廓环集合（第一个为外环，其余为孔）。 */
 export interface SketchContoursParams {
   contours: SketchLoop[]
+  /**
+   * 产物形态：'face'（默认）构面；'wire' 只交出不带面的外环 wire（1D 曲线），
+   * 供扫掠族（sweep/loft/…）直接作 spine。'wire' 形态丢弃孔环（扫掠脊柱为单闭合轮廓）。
+   */
+  as?: 'face' | 'wire'
 }
 
 // ── 参数自校验 ──
@@ -149,9 +154,10 @@ function loopToWire(kernel: BrepEngineApi, loop: SketchLoop): ReturnType<BrepEng
   return kernel.makeWire(edges as ReturnType<BrepEngineApi['makeLineEdge']>[])
 }
 
-/** BREP 路径：2D 轮廓 → planar face（外环 + 孔）。 */
+/** BREP 路径：2D 轮廓 → planar face（外环 + 孔），或 'wire' 形态仅交外环 wire。 */
 function sketchBrep(params: Record<string, unknown>): Shape {
   const kernel = getBrepApi()
+  const as = (params.as as 'face' | 'wire' | undefined) ?? 'face'
 
   const loops = (params.contours as SketchLoop[]).map((loop) => ({ loop, area: Math.abs(loopSignedArea(loop)) }))
   // 面积最大者为外环，其余为孔
@@ -161,6 +167,12 @@ function sketchBrep(params: Record<string, unknown>): Shape {
   }
 
   const outerWire = loopToWire(kernel, loops[outerIdx]!.loop)
+
+  // 'wire' 形态：只交外环 wire（1D 曲线），不构面 —— 供扫掠族作 spine。
+  if (as === 'wire') {
+    return fromBrepCurve(solidToShape(kernel, outerWire), { solid: outerWire })
+  }
+
   const face = kernel.makeFace(outerWire)
 
   const holeWires: ReturnType<BrepEngineApi['makeWire']>[] = []
@@ -185,10 +197,12 @@ function sketchBrep(params: Record<string, unknown>): Shape {
  * @async false
  * @qual ok
  * @name sketch
- * @returns Shape 平面几何（mesh 三角化 + BREP 句柄）。
+ * @returns Shape 平面几何（mesh 三角化 + BREP 句柄）；`as:'wire'` 时返回 1D 曲线（kind:'curve'）。
  * @param params.contours - 有序 2D 轮廓（线段/圆弧；外环 + 孔）。type:SketchLoop[] required:true
+ * @param params.as - 产物形态：'face'（默认）构面；'wire' 只交外环 wire（1D 曲线）。type:'face'|'wire' required:false
  * @example
  * const f = cad.sketch({ contours: [{ segments: [{ kind:'line', x1:0,y1:0,x2:10,y2:0 }, ...] }] })
+ * const w = cad.sketch({ contours: [{ segments: [{ kind:'line', x1:0,y1:0,x2:10,y2:0 }, ...] }], as: 'wire' })
  */
 export const sketch = defineOp({
   capabilities: ['directEdit'],

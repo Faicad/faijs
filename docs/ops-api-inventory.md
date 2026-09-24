@@ -935,6 +935,7 @@ BREP 链上每个面的身份 = `(StmtId, role)`。下表列出每个 op 对**�
 | `engrave` | 内核历史 | `gen:engrave:<i>` |  |
 | `extrude` | 构造语义 | `top`、`bottom`、`wall:0` |  |
 | `fillet` | 内核历史 | `gen:fillet:<i>` |  |
+| `fixSelfIntersection` | 内核历史 | `gen:fixSelfIntersection:<i>` |  |
 | `fixShape` | 内核历史 | `gen:fixShape:<i>` |  |
 | `fuse` | 内核历史 | `gen:fuse:<i>` |  |
 | `gridPattern` | 复制 k 份 | —（不造新面） | replica[k]/<原 role> 由框架生成（k=0..-1） |
@@ -963,6 +964,7 @@ BREP 链上每个面的身份 = `(StmtId, role)`。下表列出每个 op 对**�
 | `sphere` | 未建模 | —（不造新面） | sphere face vocabulary pending Phase 3 |
 | `split` | 分片 | —（不造新面） | 每输入面 → 若干片：splinter(<原 role>)#j 由框架生成 |
 | `subtract` | 内核历史 | `gen:subtract:<i>` |  |
+| `thread` | 内核历史 | `gen:thread:<i>` |  |
 | `torus` | 未建模 | —（不造新面） | construct vocabulary pending Phase 3 |
 | `translate` | 内核历史 | `gen:translate:<i>` |  |
 | `union` | 内核历史 | `gen:union:<i>` |  |

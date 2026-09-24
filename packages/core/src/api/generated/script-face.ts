@@ -6,14 +6,16 @@
  * 不允许手写第二份清单。
  */
 
-import { torus, fuse, ellipsoid, rotate, mirror, clone, applyMatrix, locate, split, offset, heal, simplify, autoHeal, fixShape, healSolid } from './topology'
-export { torus, fuse, ellipsoid, rotate, mirror, clone, applyMatrix, locate, split, offset, heal, simplify, autoHeal, fixShape, healSolid } from './topology'
-import { area, length } from './measurement'
-export { area, length } from './measurement'
+import { torus, fuse, ellipsoid, rotate, mirror, clone, applyMatrix, locate, split, offset, heal, simplify, isValid, isEmpty, isEqualShape, isSameShape, autoHeal, fixShape, healSolid, fixSelfIntersection } from './topology'
+export { torus, fuse, ellipsoid, rotate, mirror, clone, applyMatrix, locate, split, offset, heal, simplify, isValid, isEmpty, isEqualShape, isSameShape, autoHeal, fixShape, healSolid, fixSelfIntersection } from './topology'
+import { area, length, volume, centerOfMass } from './measurement'
+export { area, length, volume, centerOfMass } from './measurement'
 import { viewCamera, projectView, projectSheet } from './view'
 export { viewCamera, projectView, projectSheet } from './view'
-import { linearPattern, circularPattern, gridPattern, drill, pocket, boss, mirrorJoin, rectangularPattern, convexHull } from './operations'
-export { linearPattern, circularPattern, gridPattern, drill, pocket, boss, mirrorJoin, rectangularPattern, convexHull } from './operations'
+import { linearPattern, circularPattern, gridPattern, drill, pocket, boss, mirrorJoin, rectangularPattern, thread, convexHull } from './operations'
+export { linearPattern, circularPattern, gridPattern, drill, pocket, boss, mirrorJoin, rectangularPattern, thread, convexHull } from './operations'
+import { getShapeKind } from './core'
+export { getShapeKind } from './core'
 import { makeBaseBox } from './sketching'
 export { makeBaseBox } from './sketching'
 
@@ -23,6 +25,8 @@ export const scriptFaceOps = {
   fuse,
   area,
   length,
+  volume,
+  centerOfMass,
   viewCamera,
   projectView,
   projectSheet,
@@ -34,7 +38,9 @@ export const scriptFaceOps = {
   boss,
   mirrorJoin,
   rectangularPattern,
+  thread,
   convexHull,
+  getShapeKind,
   makeBaseBox,
   ellipsoid,
   rotate,
@@ -46,7 +52,12 @@ export const scriptFaceOps = {
   offset,
   heal,
   simplify,
+  isValid,
+  isEmpty,
+  isEqualShape,
+  isSameShape,
   autoHeal,
   fixShape,
   healSolid,
+  fixSelfIntersection,
 } as const

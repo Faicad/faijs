@@ -410,12 +410,13 @@ export function isEmpty(shape: Shape): boolean {
  * isEqualShape(a: Shape, b: Shape): boolean
  * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（查询表达式承载）。
  *
- * @param shape - 可形状参数（原样透传）
+ * @param a - 可形状参数（第一个被比较形状）
+ * @param b - 可形状参数（第二个被比较形状）
  * @returns boolean — 纯数据结果（非 Shape）。
  */
-export function isEqualShape(shape: Shape): boolean {
+export function isEqualShape(a: Shape, b: Shape): boolean {
 
-  return callBrepjs(__vendored_isEqualShape, [borrowBrepjsShape(shape as Shape)])
+  return callBrepjs(__vendored_isEqualShape, [borrowBrepjsShape(a as Shape), borrowBrepjsShape(b as Shape)])
 }
 
 /**
@@ -423,12 +424,13 @@ export function isEqualShape(shape: Shape): boolean {
  * isSameShape(a: Shape, b: Shape): boolean
  * 输入 faijs Shape 借入 brepjs handle → 调 vendored → 返回纯数据（查询表达式承载）。
  *
- * @param shape - 可形状参数（原样透传）
+ * @param a - 可形状参数（第一个被比较形状）
+ * @param b - 可形状参数（第二个被比较形状）
  * @returns boolean — 纯数据结果（非 Shape）。
  */
-export function isSameShape(shape: Shape): boolean {
+export function isSameShape(a: Shape, b: Shape): boolean {
 
-  return callBrepjs(__vendored_isSameShape, [borrowBrepjsShape(shape as Shape)])
+  return callBrepjs(__vendored_isSameShape, [borrowBrepjsShape(a as Shape), borrowBrepjsShape(b as Shape)])
 }
 
 /**

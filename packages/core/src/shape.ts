@@ -31,8 +31,19 @@ export interface CompoundShape {
   children: Shape[]
 }
 
+/**
+ * 1D 曲线 Shape（wire / helix / edge-loop 等无三角载荷的 1D 几何）。
+ *
+ * `kind: 'curve'` 表达「无三角载荷」，与 `'solid'` 对称（见 `curve()` /
+ * `fromBrepCurve()`）。执行链路照走 `solidToShape`（wire → 空 0/0 载荷，不抛），
+ * 显示经 `wireframe`。
+ */
+export interface CurveShape extends Shape {
+  kind: 'curve'
+}
+
 /** A shape that the stdlib exports as a finished result. */
-export type StdShape = SolidShape | CompoundShape
+export type StdShape = SolidShape | CompoundShape | CurveShape
 
 /**
  * 实体 Shape 构造器：mesh 产物必须经此创建。
@@ -42,6 +53,21 @@ export type StdShape = SolidShape | CompoundShape
  */
 export function solid(mesh: Shape): SolidShape {
   const s: SolidShape = { ...mesh, kind: 'solid' }
+  getRuntimeState().created.add(s)
+  return s
+}
+
+/**
+ * 1D 曲线 Shape 构造器（wire / helix / edge-loop 等 1D 产物）。
+ *
+ * 与 `solid` 对称：登记到 identity 表（供 `isShape` 识别），`kind` 设为 `'curve'`
+ * 以表达「无三角载荷的 1D 几何」（执行链路照走 `solidToShape`，显示经 `wireframe`）。
+ *
+ * @param mesh - the mesh payload (positions/indices) to wrap as a curve.
+ * @returns the created curve shape.
+ */
+export function curve(mesh: Shape): CurveShape {
+  const s: CurveShape = { ...mesh, kind: 'curve' }
   getRuntimeState().created.add(s)
   return s
 }
@@ -63,6 +89,37 @@ export function solid(mesh: Shape): SolidShape {
  */
 export function fromBrep(mesh: Shape, holder: BrepHolder): SolidShape {
   const s = solid(mesh)
+  attachBrep(s, holder)
+  return s
+}
+
+/**
+ * 1D 曲线产物的 BREP 登记构造器：与 `fromBrep` 对称，但 `kind` 取 `'curve'`
+ * （维持既有「有无三角载荷」语义——1D 几何无三角载荷，不得报 `'solid'`）。
+ * 登记逻辑与 `fromBrep` 共用 `attachBrep`，保证两种形态走同一份身份/血缘/释放语义。
+ *
+ * @param mesh - the mesh payload (positions/indices) to wrap as a curve.
+ * @param holder - the BREP holder providing the OCCT handle and optional face evolution.
+ * @returns the created curve shape with the BREP handle attached.
+ */
+export function fromBrepCurve(mesh: Shape, holder: BrepHolder): CurveShape {
+  const s = curve(mesh)
+  attachBrep(s, holder)
+  return s
+}
+
+/**
+ * 把 BREP 句柄登记到已构造的 Shape（由 `solid` / `curve` 产出）。
+ *
+ * 集中 brep 登记的四步（identity 槽登记已由构造器完成；此处只补：① 身份槽挂载
+ * 句柄 / ② 血缘图语句键旁挂 roleTable / ③ 函数 BREP 域登记）。供 `fromBrep` /
+ * `fromBrepCurve` 共用——禁止绕开本函数手写登记（否则等于复制一整套身份、血缘与
+ * 释放语义）。
+ *
+ * @param s - the already-constructed shape (solid or curve).
+ * @param holder - the BREP holder to attach.
+ */
+function attachBrep(s: Shape, holder: BrepHolder): void {
   const state = getRuntimeState()
   const slot = state.slots.get(s) ?? {}
   slot.solid = holder.solid
@@ -83,7 +140,6 @@ export function fromBrep(mesh: Shape, holder: BrepHolder): SolidShape {
   }
   // 函数 BREP 域（§5.6）：函数体内 op 产生的新句柄登记到当前域，函数返回后统一释放
   registerFunctionBrep(holder.solid)
-  return s
 }
 
 /** BREP 句柄 + 面演化 + 拓扑命名 RoleTable（对应 OCCT 的 ShapeHandle）。类型为 unknown 以保持零依赖。 */
@@ -140,6 +196,21 @@ export function isCompoundLike(v: unknown): v is CompoundShape {
   return !!v && typeof v === 'object'
     && (v as { kind?: string }).kind === 'compound'
     && Array.isArray((v as { children?: unknown }).children)
+}
+
+/**
+ * 1D 曲线判定（1D 判别位，Phase 3）：`kind === 'curve'`。
+ *
+ * 面消费 op（extrude / revolve / sweep 等）用它做**执行前**输入维度预检——
+ * 1D 产物（wire / helix / sketch as:'wire'）喂给面 op 时必须是明确的预检失败，
+ * 不得落进内核深层才报「操作失败」。与 SDK 的 WeakSet 严格 `isShape` 不同，
+ * 本判定是结构判定（与 `isCompoundLike` 同族），对跨库产物零要求。
+ *
+ * @param v - the value to test.
+ * @returns true when the value is a 1D curve shape.
+ */
+export function isCurveShape(v: unknown): v is CurveShape {
+  return !!v && typeof v === 'object' && (v as { kind?: string }).kind === 'curve'
 }
 
 // ── 身份槽 ──
