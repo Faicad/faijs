@@ -34,14 +34,17 @@
     "autoLift": false
   },
   "dependencies": {
-    "@faicad/cq-compat": "file:../cq-compat"
+    "@faicad/cq-compat": "file:../cq-compat",
+    "@faicad/faijs-extra": "file:../faijs-extra"
   },
   "peerDependencies": {
     "@faicad/faijs": "^0.16.0",
+    "@faicad/faijs-extra": "^0.16.0",
     "occt-wasm": "^3.8.0"
   },
   "devDependencies": {
     "@faicad/faijs": "file:../core",
+    "@faicad/faijs-extra": "file:../faijs-extra",
     "typescript": "*",
     "vitest": "*"
   },

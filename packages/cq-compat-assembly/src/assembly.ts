@@ -24,8 +24,11 @@
  * - "Revolute" → fixed (placeholder until joints mechanism lands)
  */
 
-import { createApiNamespace } from '@faicad/faijs/api/api-namespace'
 import type { Shape } from '@faicad/faijs/mesh/types'
+// D1 (2026-09-24) moved the `assembly` op out of core's platform namespace into
+// the extension library — import it directly instead of probing `cad.assembly`
+// (which no longer exists on `createApiNamespace()`).
+import { assembly as assemblyOp } from '@faicad/faijs-extra/editor-ops'
 import type {
   AssemblyConstraint,
   EntityRef,
@@ -54,8 +57,6 @@ function resolveAssemblyShape(v: unknown): Shape {
       : v
   return asBrepShape(s) as Shape
 }
-
-const cad = createApiNamespace() as Record<string, (...args: unknown[]) => Promise<unknown>>
 
 /**
  * faceRef
@@ -445,7 +446,7 @@ export function buildAssembly(
   // solver.py）。需要旧 chain 行为时可显式 opts.solver='chain'。
   const solver = opts?.solver ?? 'global'
 
-  const compound = cad.assembly({
+  const compound = assemblyOp({
     name,
     members: shapes,
     memberNames,
