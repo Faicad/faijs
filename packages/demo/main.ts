@@ -13,7 +13,7 @@
 
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import { createRuntime, createBrowserPorts, setOcctWasmInitFn, ensureOcctKernel, exportStepFromSolid, exportStep, buildStlBufferFromMesh, deriveNormals, setManifoldWasmUrl, isMeshShape } from '@faicad/faijs/browser'
+import { createRuntime, createBrowserPorts, setOcctWasmInitFn, ensureOcctKernel, exportStepFromSolid, exportStep, buildStlBufferFromMesh, deriveNormals, setManifoldWasmUrl, isMeshShape, getBackends } from '@faicad/faijs/browser'
 import type { ExecutionMode, HostPorts, ShapeHandle, OcctKernel, ExecutionResult, LibLoader, StdlibNamespace } from '@faicad/faijs/browser'
 // D1（2026-09-23）：编辑器扩展库（fai_* / group / assembly / copy / load / text /
 // svgExtrude）已从 @faicad/faijs 迁出，宿主负责把它合并进 `cad` 命名空间。
@@ -67,11 +67,107 @@ async function bindKernelToCdnFaijs(): Promise<void> {
         ? '/wasm/manifold.wasm'
         : 'https://cdn.jsdelivr.net/npm/manifold-3d@3.5.1/manifold.wasm',
     )
+    // CDN 旧版库包（0.16.1 及更早）的内核桥：Proxy 包装 + vendored registry 写键。
+    // 包裹 try/catch：桥失败不阻断 CDN 装载（过渡期诊断；成功时 h1 追加 [bridge]）。
+    installLegacyKernelBridge()
   } catch (err) {
     cdnFaijsBound = false
     throw new Error(
       `failed to bind OCCT kernel to CDN @faicad/faijs (${faijsUrl}): ${err instanceof Error ? err.message : String(err)}`,
     )
+  }
+}
+
+// ── CDN 旧版库包内核桥（2026-09-25 core-decouple 过渡期） ──
+// 剥离后 core 不再写 0.16.1 及更早发布版的 vendored kernel registry
+// (`__FAICAD_FAIJS_KERNEL_REGISTRY__`)，L1 适配器也只暴露无 `get*` 前缀的
+// 方法名；而 CDN 上仍运行着 0.16.1 发布的第三方库包（sheetmetal / cq-compat /
+// fai-cq-gears），其 op 经 `getBackends().kernel.brep` 或 vendored registry 的
+// `getKernel()` 拿内核后调用 `getSurfaceCenterOfMass` 等 0.16.1 命名。
+// 本桥在 demo 宿主层解决两件事：
+//   1) backends.kernel.brep 在 core 里是**动态 getter**（闭包读 brepChain，且
+//      brep 链惰性初始化——loadLib 阶段读到 null）。因此不能赋值覆盖，必须
+//      `Object.defineProperty` 替换该 getter，返回一个**懒包装器**：每次方法
+//      调用时实时经原始 getter 取当前真实 L1 适配器，再透传/别名映射。
+//   2) 把同一懒包装器写进 vendored kernel registry（`getKernel()` 路径）。
+// 新版库包（faijs 化命名）发布后本桥无副作用。
+const KERNEL_REGISTRY_KEY = '__FAICAD_FAIJS_KERNEL_REGISTRY__'
+let legacyBridgeInstalled = false
+function installLegacyKernelBridge(): void {
+  if (legacyBridgeInstalled) return
+  legacyBridgeInstalled = true
+  const backends = getBackends()
+  const kernelObj = backends.kernel as object
+  // 保存原始 brep getter（箭头闭包，this 无关；brep 链初始化前返回 null）。
+  const desc = Object.getOwnPropertyDescriptor(kernelObj, 'brep')
+  const originalBrep = (): unknown => {
+    const v = desc?.get ? (desc.get.call(kernelObj) as unknown) : (kernelObj as { brep?: unknown }).brep
+    return v ?? null
+  }
+  // 懒包装器：每次方法调用实时取当前真实适配器 → 透传（无 get 前缀）或别名（get 前缀）。
+  const legacy: unknown = new Proxy(Object.create(null) as object, {
+    get(_target, prop, _receiver) {
+      if (typeof prop !== 'string') return undefined
+      const real = originalBrep() as Record<string, unknown> | null
+      if (real && prop in real) {
+        const v = (real as Record<string, unknown>)[prop]
+        return typeof v === 'function' ? (v as (...a: unknown[]) => unknown).bind(real) : v
+      }
+      // 0.16.1 发布版命名（剥离前）：get* 前缀 → 本地 L1 方法。
+      const aliasOf = (name: string): ((...a: unknown[]) => unknown) | undefined => {
+        const r = originalBrep() as Record<string, unknown> | null
+        switch (name) {
+          case 'getSurfaceCenterOfMass':
+            return r?.surfaceCenterOfMass as ((...a: unknown[]) => unknown) | undefined
+          case 'getShapeType':
+            return r?.shapeType as ((...a: unknown[]) => unknown) | undefined
+          case 'getShapeOrientation':
+            return r?.shapeOrientation as ((...a: unknown[]) => unknown) | undefined
+          case 'getSurfaceType':
+            return r?.surfaceType as ((...a: unknown[]) => unknown) | undefined
+          case 'getEdgeCurveParameters':
+            return r?.curveParameters as ((...a: unknown[]) => unknown) | undefined
+          case 'getEdgeCurveType':
+            return r?.curveType as ((...a: unknown[]) => unknown) | undefined
+          case 'getSolidFaces':
+            return (shape: unknown) => r?.getSubShapes?.(shape, 'face') ?? []
+          case 'getSolidEdges':
+            return (shape: unknown) => r?.getSubShapes?.(shape, 'edge') ?? []
+          case 'getSolidVertices':
+            return (shape: unknown) => r?.getSubShapes?.(shape, 'vertex') ?? []
+          case 'getFaceEdges':
+            return (face: unknown) => r?.getSubShapes?.(face, 'edge') ?? []
+          case 'getFaceVertices':
+            return (face: unknown) => r?.getSubShapes?.(face, 'vertex') ?? []
+          default:
+            return undefined
+        }
+      }
+      return aliasOf(prop)
+    },
+  })
+  // 替换 brep getter（configurable 由 configureBackends 的对象字面量保证）。
+  Object.defineProperty(kernelObj, 'brep', {
+    get: () => legacy,
+    configurable: true,
+  })
+  // 写 vendored kernel registry（0.16.1 库包经 getKernel() 读取；剥离前由 core 写）。
+  const g = globalThis as unknown as Record<string, unknown>
+  const st = g[KERNEL_REGISTRY_KEY] as
+    | { stateVersion: number; kernels: Map<string, unknown>; defaultKernelId: string | null; cachedDefault: unknown; frozen: boolean }
+    | undefined
+  if (st && st.stateVersion === 1 && !st.frozen) {
+    st.kernels.set('occt-wasm', legacy)
+    if (!st.defaultKernelId) st.defaultKernelId = 'occt-wasm'
+    st.cachedDefault = legacy
+  } else {
+    g[KERNEL_REGISTRY_KEY] = {
+      stateVersion: 1,
+      kernels: new Map<string, unknown>([['occt-wasm', legacy]]),
+      defaultKernelId: 'occt-wasm',
+      cachedDefault: legacy,
+      frozen: false,
+    }
   }
 }
 

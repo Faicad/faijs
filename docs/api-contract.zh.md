@@ -524,11 +524,14 @@ export interface HostPorts {
 
 | 类别 | 手写平台 op |
 |---|---|
-| 创建类 | `box` `sphere` `cylinder` `cone` `wedge` `screw` `sdf` `sketch`（缺省出面；`as:'wire'` 出 1D 曲线） `wire` `helix`（1D 曲线，`kind:'curve'`） |
+| 创建类 | `box` `sphere` `cylinder` `cone` `wedge` `screw` `sdf` `sketch`（缺省出面；`as:'wire'` 出 1D 曲线） |
+| 1D 曲线 | `wire`（折线/闭合/平滑） `helix`（平台 `engines:['occt']`）——都是 `kind:'curve'` |
 | 变换类 | `translate` `rotate_euler` `scale` `scale3d` `place` |
-| 特征类 | `extrude` `revolve` `sweep` `loft`（截面接受 wire 或面；平台 occt） `engrave` `knurl` `chamfer` `fillet` `filletVariable` `shell` `draft` `thicken` `defeature` `removeHolesFromFace` `reverseShape` `unifySameDomain` `sew` `sewAndSolidify` |
+| 扫掠／放样 | `sweep` `loft`（平台 `engines:['occt']`；截面接受 wire 或面——面会被缩到外环） |
+| 特征类 | `extrude` `revolve` `engrave` `knurl` `chamfer` `fillet` `filletVariable` `shell` `draft` `thicken`（平台 `engines:['occt']`） |
 | 布尔 | `union` `subtract` `intersect` `cut` |
-| 分割／阵列 | `split`（双输出，解构 `const { front, back } = …`） `splitByPlane`（具名产物 `positive`/`negative`） `sectionByPlane`（1D 截面曲线） `linearPattern` `circularPattern` `gridPattern` `rectangularPattern` `mirrorJoin` `mirror` `clone` |
+| 分割／阵列 | `split`（双输出，解构 `const { front, back } = …`） `splitByPlane`（具名产物 `{ positive, negative }`，解构消费） `sectionByPlane`（截面曲线的 1D compound） `linearPattern` `circularPattern` `gridPattern` `rectangularPattern` `mirrorJoin` `mirror` `clone` |
+| 修复 | `defeature` `reverseShape` `unifySameDomain` `sew` `sewAndSolidify` `removeHolesFromFace` |
 | 导入／结构 | `import_brep` `import_step` `compound` |
 | 查询 | `faceNormal` `bboxCenter` `bboxMin` `bboxMax` `edgeRef` `faceRef` `volume` `centerOfMass` `isValid` `isEmpty` `isEqualShape` `isSameShape` `getShapeKind` |
 | 装配求解 | `jointTrajectory` `inverseKinematics` `mechanismDOF` |

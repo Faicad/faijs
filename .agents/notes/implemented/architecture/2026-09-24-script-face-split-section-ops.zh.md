@@ -4,13 +4,15 @@ Status: implemented
 
 [English](2026-09-24-script-face-split-section-ops.md) | 中文
 
-## 背景
+## Problem
 
 《cad 脚本面建模能力扩展》方案（2026-09-24）中，Phase 1–5（零成本提拔 / 中立测量查询 /
 造线能力 / 扫掠放样族 / 按面选特征族）已随 `b0c4a92`…`8727eb2` 落地。本轮完成剩余的
 Phase 6（剖切族 / mock 补桩 / stale skip 理由校正）与 Phase 7（文档 / Agent Note / 版本号）。
 
-## 本轮改动
+## Decision
+
+本轮改动
 
 ### Phase 6.1 — `cad.splitByPlane`（中立，具名双产物）
 
@@ -89,3 +91,15 @@ GOTCHA（vendored 语义，2026-09-24 实测，测试留档 `api/inspect-diagnos
 - brep-mock 相关 4 套（engine-switch / capability-routing / guard / arg-spec-capabilities）全绿；
 - `sweep-loft` / `wire-helix` 回归全绿；
 - `p23-cad-face` 三源一致全绿（15 passed / 1 skipped）。
+
+## Alternatives considered
+
+- 剖切产物不区分正负侧、只返回单实体 —— 拒绝：调用方无法稳定拿到指定一侧，具名双产物（`positive`/`negative`）让脚本面消费更直接。
+- `cad.sectionByPlane` 返回原始 BREP compound 句柄而非登记后的 1D curve 复合体 —— 拒绝：脚本面语句变量只收登记过的 shape-like 句柄，原始句柄在脚本面不可见。
+- occt 空截面直接抛错 —— 拒绝：空截面是合法结果（平面不相交），返回空复合体与方案原则 9（不伪造几何、不无谓抛错）一致。
+
+## Consequences
+
+- 脚本面新增 `cad.splitByPlane` / `cad.sectionByPlane` 两个中立 op；具名产物必须解构消费（GOTCHA 已留档测试）。
+- brep-mock 具备剖切族近似桩，能力声明更完整，但仍非生产内核。
+- occt 独占诊断族 `inspect*` 命名与登记方案已裁决，留待后续轮实施。

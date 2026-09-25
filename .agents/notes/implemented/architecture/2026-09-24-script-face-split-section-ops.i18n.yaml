@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-24-script-face-split-section-ops.md
-2026-09-24-script-face-split-section-ops.md: 95ace721434a464ab1f642f3537268df39639080
-2026-09-24-script-face-split-section-ops.zh.md: 064feb877e835a72f866d3657629585ba9d13ca9
+2026-09-24-script-face-split-section-ops.md: dc74e6690ef0183b5252dd578146d65f2e9335a9
+2026-09-24-script-face-split-section-ops.zh.md: 8a46a72cff83fd8c3cd46a3644227c3138a49270

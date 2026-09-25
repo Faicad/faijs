@@ -817,7 +817,7 @@ const body = await cad.sweep(section, path)
 |---|---|---|---|---|
 | `profile` | `Shape` | ✅ | — | 截面几何（wire 或面；面取其外环） |
 | `spine` | `Shape` | ✅ | — | 脊柱路径（wire） |
-| `opts` | `SweepOptions` |  | — | 扫掠配置（frenet / transitionMode / mode / tolerance 等） |
+| `opts` | `SweepOptions` |  | — | 扫掠配置（frenet / mode / tolerance 等） |
 
 **异步**。Shape 扫掠体。
 
@@ -1056,41 +1056,41 @@ const cam = cad.viewCamera({ dir: [1, -1, 1] })
 
 | compat op | 内核方法真名（kernelMethods） |
 |---|---|
-| torus | dispose、makeTorus |
-| fuse | dispose、fuse、fuseWithHistory、isNull |
-| extrude | dispose、downcast、extrude、isNull |
-| revolve | dispose、isNull、revolveVec、shapeType |
-| sweep | dispose、shapeType、simplePipe、sweepPipeShell |
-| complexExtrude | buildExtrusionLaw、dispose、shapeType、simplePipe、sweepPipeShell |
-| twistExtrude | buildExtrusionLaw、dispose、shapeType、simplePipe、sweepPipeShell |
-| linearPattern | dispose、fuseAll、hashCode、isNull、iterShapes、linearPattern、section、surfaceCenterOfMass、surfaceNormal、surfaceType、uvBounds |
-| circularPattern | circularPattern、dispose、fuseAll、hashCode、isNull、iterShapes、section、surfaceCenterOfMass、surfaceNormal、surfaceType、uvBounds |
-| gridPattern | dispose、fuseAll、gridPattern、hashCode、isNull、iterShapes、linearPattern、section、surfaceCenterOfMass、surfaceNormal、surfaceType、uvBounds |
-| roof | buildTriFace、dispose、fixShape、isValid、sew、sewAndSolidify |
-| drill | boundingBox、cut、cutWithHistory、dispose、isNull、makeCylinder |
-| pocket | addHolesInFace、cut、cutWithHistory、dispose、downcast、extrude、isNull、makeFace、surfaceCenterOfMass、surfaceNormal、surfaceType、translateWithHistory、uvBounds |
-| boss | addHolesInFace、dispose、downcast、extrude、fuse、fuseWithHistory、isNull、makeFace、surfaceCenterOfMass、surfaceNormal、surfaceType、translateWithHistory、uvBounds |
-| mirrorJoin | dispose、fuse、fuseWithHistory、isNull、mirrorWithHistory |
-| rectangularPattern | dispose、fuse、fuseAll、fuseWithHistory、hashCode、isNull、iterShapes、section、surfaceCenterOfMass、surfaceNormal、surfaceType、translateWithHistory、uvBounds |
-| thread | dispose、loftAdvanced、makeLineEdge、makeVertex、makeWireFromMixed、shapeType |
-| convexHull | dispose、hullFromPoints、shapeType |
-| makeBaseBox | addHolesInFace、buildEdgeOnSurface、buildExtrusionLaw、copyShape、curveParameters、curvePointAtParam、curveTangent、dispose、downcast、extrude、isNull、loftAdvanced、makeFace、makeFaceOnSurface、makeVertex、makeWireFromMixed、mirror、revolveVec、shapeType、simplePipe、surfaceType、sweepPipeShell |
-| ellipsoid | dispose、makeEllipsoid、translateWithHistory |
-| rotate | dispose、rotateWithHistory |
-| mirror | dispose、mirrorWithHistory |
-| clone | copyShape、dispose |
-| applyMatrix | dispose、generalTransformNonOrthogonal、generalTransformWithHistory、hashCode、iterShapes、surfaceCenterOfMass、surfaceNormal、surfaceType、uvBounds |
-| locate | composeTransform、dispose、hashCode、locate |
-| section | dispose、isNull、section |
-| split | dispose、isNull、split |
-| shell | dispose、shapeType、shell、shellWithHistory |
-| offset | dispose、offsetWithHistory、shapeType |
-| heal | dispose、healFace、healSolid、healWire、isValid、shapeType |
-| simplify | dispose、simplify |
-| autoHeal | dispose、fixSelfIntersection、healFace、healSolid、healWire、isValid、iterShapes、sew、shapeType |
+| torus | generalTransform、makeTorus、release |
+| fuse | fuse |
+| extrude | extrude |
+| revolve | revolveVec |
+| sweep | simplePipe、sweepPipeShell |
+| complexExtrude | release、sweepPipeShell |
+| twistExtrude | makeHelixWire、release、sweepPipeShell |
+| linearPattern | linearPattern |
+| circularPattern | circularPattern |
+| gridPattern | gridPattern |
+| roof | buildTriFace、fixShape、isSolid、release、sew、sewAndSolidify |
+| drill | cut、getBoundingBox、release |
+| pocket | cut、extrude、release、translate |
+| boss | extrude、fuse、release、translate |
+| mirrorJoin | fuse、mirror、release |
+| rectangularPattern | fuseAll、release、translate |
+| thread | loft、makeLineEdge、makeWire、release |
+| convexHull | hullFromPoints、isSolid、release |
+| makeBaseBox | extrude、makeRectangle、release |
+| ellipsoid | makeEllipsoid |
+| rotate | rotate |
+| mirror | mirror |
+| clone | copyShape |
+| applyMatrix | generalTransform |
+| locate | locate |
+| section | isNull、makeCompound、sectionByPlane |
+| split | split |
+| shell | shell |
+| offset | offset |
+| heal | getShapeType、healSolid、isSolid、isValid |
+| simplify | simplify |
+| autoHeal | getSubShapes、healSolid、healWire、isSolid、isValid、release、sew |
 | fixShape | fixShape |
-| healSolid | dispose、healSolid、isValid、shapeType |
-| fixSelfIntersection | dispose、fixSelfIntersection、shapeType |
+| healSolid | healSolid、isSolid、isValid |
+| fixSelfIntersection | getShapeType、healWire |
 
 ---
 

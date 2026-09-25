@@ -54,7 +54,13 @@ function rotationZTo(axis: readonly [number, number, number]): { linear: number[
   };
 }
 
-/** faijs 风格 rotate：绕过 `at` 的 `axis` 旋转 `angleDeg`°（faijs rotate op 原生签名，直透）。 */
+/**
+ * faijs 风格 rotate：绕过 `at` 的 `axis` 旋转 `angleDeg`°（faijs rotate op 原生签名，直透）。
+ * @param shape 输入实体
+ * @param angleDeg 旋转角度（度）
+ * @param opts 旋转中心 `at` 与旋转轴 `axis`
+ * @returns 旋转后的实体
+ */
 export function rotate(
   shape: Shape,
   angleDeg: number,
@@ -63,12 +69,23 @@ export function rotate(
   return rotateOp(shape as never, angleDeg, opts as never);
 }
 
-/** faijs 风格 translate：平移 `offset`（faijs TS 面收 `{ offset }`，此处平铺 Vec3）。 */
+/**
+ * faijs 风格 translate：平移 `offset`（faijs TS 面收 `{ offset }`，此处平铺 Vec3）。
+ * @param shape 输入实体
+ * @param offset 平移向量
+ * @returns 平移后的实体
+ */
 export function translate(shape: Shape, offset: Vec3): Promise<Shape> {
   return translateOp(shape, { offset: [offset[0], offset[1], offset[2]] });
 }
 
-/** faijs 风格 cylinder：底面圆心 `at`、轴向 `axis` 的圆柱（组合：Z 轴圆柱 → 取向 → 定位）。 */
+/**
+ * faijs 风格 cylinder：底面圆心 `at`、轴向 `axis` 的圆柱（组合：Z 轴圆柱 → 取向 → 定位）。
+ * @param radius 半径
+ * @param height 高度
+ * @param opts 底面圆心 `at` 与轴向 `axis`
+ * @returns 圆柱实体
+ */
 export async function cylinder(
   radius: number,
   height: number,
@@ -82,7 +99,11 @@ export async function cylinder(
   return translateOp(oriented, { offset: [opts.at[0], opts.at[1], opts.at[2]] });
 }
 
-/** faijs 风格 getBounds：brep 引擎包围盒组合成 `Bounds3D`（大写字段形态）。 */
+/**
+ * faijs 风格 getBounds：brep 引擎包围盒组合成 `Bounds3D`（大写字段形态）。
+ * @param shape 输入实体
+ * @returns 包围盒（大写字段形态）
+ */
 export function getBounds(shape: Shape): Bounds3D {
   const b = bounds3D(shape);
   return {
