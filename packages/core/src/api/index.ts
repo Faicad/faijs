@@ -59,6 +59,7 @@ export { asset } from './asset'
 export { solid, isShape, isCompound } from '../shape'
 export { compound as structCompound } from '../shape'
 export type { ShapeSlot, SolidShape, CompoundShape, CurveShape, StdShape, ShapeKind } from '../shape'
+export type { Shape } from '../mesh/types'
 
 // ── P23：brepjs 兼容面接线（§4.2 / B1 三源一致）──
 //
@@ -88,6 +89,7 @@ export {
 } from './brepjs-compat'
 export type {
   Result, Ok, Err,
+  BrepError,
   Plane, PlaneName, PlaneInput,
   Vec3, PointInput,
 } from './brepjs-compat'
@@ -97,3 +99,10 @@ export type {
 //    Result 组合器 map/andThen 为 core 内联（§5.2），保留平铺；
 //    brepjsCompat 命名空间整体删除（§5.5 第 3 条）。
 export { map, andThen } from './brepjs-compat'
+// ── 2026-09-25 core-decouple wrapup §2.2：sheetmetal 拓扑查询 / 构造 / 测量
+//    出口（faijs 风格，裁决 3 补进公开导出）。isValid 不在此面——cad 脚本面
+//    已有同语义出口（见 brep-topology.ts 头部注释）。同步测量（measureVolume
+//    / measureArea / measureLength）为 api/generated/measurement.ts 第一方
+//    同步版，一并平铺（cad 面的 volume/area/length 为 async 脚本面重命名）。
+export * from './brep-topology'
+export { measureVolume, measureArea, measureLength } from './generated/measurement'

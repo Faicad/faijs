@@ -1,4 +1,5 @@
-import { type Result, type Solid, ok, err, validationError } from '@faicad/faijs-brepjs';
+import type { Solid } from './types.js';
+import {type Result, ok, err, validationError} from '@faicad/faijs/api';
 import type {
   BendFeature,
   BendRule,
@@ -32,7 +33,7 @@ import {
  * @param spec - the jog specification.
  * @returns the updated part with the jog feature recorded, or an error.
  */
-export function jog(part: SheetMetalPart, spec: JogSpec): Result<SheetMetalPart> {
+export async function jog(part: SheetMetalPart, spec: JogSpec): Promise<Result<SheetMetalPart>> {
   if (part.solid === undefined) {
     return err(validationError('NO_SOLID', `part has no solid to attach jog '${jogId(spec)}'`));
   }
@@ -116,7 +117,7 @@ export function jog(part: SheetMetalPart, spec: JogSpec): Result<SheetMetalPart>
 
   // 1) Flat position leg out to the first bend.
   {
-    const built = buildLineLeg(solid, frame, span, thickness, spec.position);
+    const built = await buildLineLeg(solid, frame, span, thickness, spec.position);
     if (!built.ok) return built;
     solid = built.value.solid;
     frame = built.value.frame;
@@ -132,7 +133,7 @@ export function jog(part: SheetMetalPart, spec: JogSpec): Result<SheetMetalPart>
   for (let i = 0; i < order.length; i += 1) {
     const o = order[i];
     if (o === undefined) continue;
-    const built = buildArcBend(solid, frame, span, thickness, {
+    const built = await buildArcBend(solid, frame, span, thickness, {
       kind: 'arc',
       radius,
       angleDeg,
@@ -160,7 +161,7 @@ export function jog(part: SheetMetalPart, spec: JogSpec): Result<SheetMetalPart>
     devTotal += dev;
 
     if (o.step !== undefined) {
-      const stepBuilt = buildLineLeg(solid, frame, span, thickness, o.step);
+      const stepBuilt = await buildLineLeg(solid, frame, span, thickness, o.step);
       if (!stepBuilt.ok) return stepBuilt;
       solid = stepBuilt.value.solid;
       frame = stepBuilt.value.frame;
@@ -171,7 +172,7 @@ export function jog(part: SheetMetalPart, spec: JogSpec): Result<SheetMetalPart>
 
   // 5) Flat run-out leg, parallel to the original plane, offset by offsetHeight.
   {
-    const built = buildLineLeg(solid, frame, span, thickness, runOut);
+    const built = await buildLineLeg(solid, frame, span, thickness, runOut);
     if (!built.ok) return built;
     solid = built.value.solid;
     segments.push({ kind: 'line', dev: runOut });

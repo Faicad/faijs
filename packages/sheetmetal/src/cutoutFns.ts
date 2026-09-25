@@ -1,21 +1,5 @@
-import {
-  type Result,
-  type Vec3,
-  type Solid,
-  ok,
-  err,
-  validationError,
-  line,
-  wireLoop,
-  face,
-  extrude,
-  cut,
-  getSolids,
-  isValid,
-  isPlanarWire,
-  vecAdd,
-  vecScale,
-} from '@faicad/faijs-brepjs';
+import type { Solid } from './types.js';
+import {type Result, type Vec3, ok, err, kernelError, validationError, line, wireLoop, face, extrude, cut, getSolids, isValid, isPlanarWire, vecAdd, vecScale} from '@faicad/faijs/api';
 import type { CutoutSpec, CutoutFeature, SheetMetalPart } from './types.js';
 import { normalizeSolid } from './internal.js';
 import { worldFrames, type FlatFrame } from './authorFns.js';
@@ -44,7 +28,7 @@ type Pt2 = [number, number];
  * @param spec - the cutout specification (kind, region, geometry).
  * @returns the updated part with the cutout feature recorded, or an error.
  */
-export function addCutout(part: SheetMetalPart, spec: CutoutSpec): Result<SheetMetalPart> {
+export async function addCutout(part: SheetMetalPart, spec: CutoutSpec): Promise<Result<SheetMetalPart>> {
   if (part.solid === undefined) {
     return err(validationError('NO_SOLID', 'addCutout: part has no folded solid to cut'));
   }
@@ -75,12 +59,14 @@ export function addCutout(part: SheetMetalPart, spec: CutoutSpec): Result<SheetM
   const dev = developedFrame(part, regionId, tree);
   if (!dev.ok) return dev;
 
-  const toolResult = buildTool(local, worldFrame, part.thickness);
-  if (!toolResult.ok) return toolResult;
-
-  const cutResult = cut(part.solid, toolResult.value);
-  if (!cutResult.ok) return cutResult;
-  const solid = normalizeSolid(cutResult.value);
+  let solid: Solid;
+  try {
+    const toolResult = await buildTool(local, worldFrame, part.thickness);
+    if (!toolResult.ok) return toolResult;
+    solid = normalizeSolid((await cut(part.solid, toolResult.value)) as Solid);
+  } catch (e) {
+    return err(kernelError('CUT_FAILED', `cutout: ${e instanceof Error ? e.message : String(e)}`));
+  }
   if (!isValid(solid) || getSolids(solid).length > 1) {
     return err(
       validationError(
@@ -110,13 +96,13 @@ export function addCutout(part: SheetMetalPart, spec: CutoutSpec): Result<SheetM
  * @param diameter - the hole diameter.
  * @returns the updated part with the hole feature recorded, or an error.
  */
-export function addHole(
+export async function addHole(
   part: SheetMetalPart,
   region: string,
   x: number,
   y: number,
   diameter: number
-): Result<SheetMetalPart> {
+): Promise<Result<SheetMetalPart>> {
   return addCutout(part, { kind: 'hole', region, x, y, diameter });
 }
 
@@ -127,11 +113,11 @@ export function addHole(
  * @param opts - slot geometry (x, y, length, width, angleDeg?, round?).
  * @returns the updated part with the slot feature recorded, or an error.
  */
-export function addSlot(
+export async function addSlot(
   part: SheetMetalPart,
   region: string,
   opts: { x: number; y: number; length: number; width: number; angleDeg?: number; round?: boolean }
-): Result<SheetMetalPart> {
+): Promise<Result<SheetMetalPart>> {
   return addCutout(part, { kind: 'slot', region, ...opts });
 }
 
@@ -142,11 +128,11 @@ export function addSlot(
  * @param points - the polygon vertices in region-local coordinates (≥ 3).
  * @returns the updated part with the polygon cutout feature recorded, or an error.
  */
-export function addPolygonCutout(
+export async function addPolygonCutout(
   part: SheetMetalPart,
   region: string,
   points: [number, number][]
-): Result<SheetMetalPart> {
+): Promise<Result<SheetMetalPart>> {
   return addCutout(part, { kind: 'polygon', region, points });
 }
 
@@ -294,7 +280,7 @@ function checkInBounds(local: Pt2[], ext: Extent): string | undefined {
  * sheet by `thickness + 2·HAIR` along +n. Using the world frame's `u`/`v`/`n` is
  * what lands the cut on the correct folded face.
  */
-function buildTool(local: Pt2[], f: FlatFrame, thickness: number): Result<Solid> {
+async function buildTool(local: Pt2[], f: FlatFrame, thickness: number): Promise<Result<Solid>> {
   const base = vecAdd(f.origin, vecScale(f.n, -HAIR));
   const worldPts: Vec3[] = local.map(([x, y]) =>
     vecAdd(vecAdd(base, vecScale(f.u, x)), vecScale(f.v, y))
@@ -316,7 +302,11 @@ function buildTool(local: Pt2[], f: FlatFrame, thickness: number): Result<Solid>
   const profile = face(wire.value);
   if (!profile.ok) return profile;
   const depth = thickness + 2 * HAIR;
-  return extrude(profile.value, [f.n[0] * depth, f.n[1] * depth, f.n[2] * depth]);
+  try {
+    return ok((await extrude(profile.value, [f.n[0] * depth, f.n[1] * depth, f.n[2] * depth])) as Solid);
+  } catch (e) {
+    return err(kernelError('CUTOUT_TOOL_FAILED', `extrude tool: ${e instanceof Error ? e.message : String(e)}`));
+  }
 }
 
 /** Developed-plane {@link Frame2} of a region (base or flange) via the unfold layout. */

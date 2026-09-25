@@ -1,28 +1,6 @@
-import {
-  type Result,
-  type Vec3,
-  type Solid,
-  ok,
-  err,
-  validationError,
-  box,
-  cylinder,
-  line,
-  wireLoop,
-  face,
-  extrude,
-  cut,
-  fuse,
-  rotate,
-  translate,
-  getSolids,
-  isValid,
-  isPlanarWire,
-  vecAdd,
-  vecScale,
-  vecCross,
-  vecNormalize,
-} from '@faicad/faijs-brepjs';
+import type { Solid } from './types.js';
+import { cylinder, translate } from './geometryOps.js';
+import {type Result, type Vec3, ok, err, kernelError, validationError, box, line, wireLoop, face, extrude, cut, fuse, rotate, getSolids, isValid, isPlanarWire, vecAdd, vecScale, vecCross, vecNormalize} from '@faicad/faijs/api';
 import type { FormSpec, FormFeature, SheetMetalPart } from './types.js';
 import { normalizeSolid } from './internal.js';
 import type { FlatFrame } from './authorFns.js';
@@ -60,7 +38,7 @@ type Pt2 = [number, number];
  * @param spec - the form specification.
  * @returns the updated part with the form feature recorded, or an error.
  */
-export function addForm(part: SheetMetalPart, spec: FormSpec): Result<SheetMetalPart> {
+export async function addForm(part: SheetMetalPart, spec: FormSpec): Promise<Result<SheetMetalPart>> {
   const solid = part.solid;
   if (solid === undefined) {
     return err(validationError('NO_SOLID', 'addForm: part has no folded solid to form'));
@@ -71,12 +49,12 @@ export function addForm(part: SheetMetalPart, spec: FormSpec): Result<SheetMetal
   const { regionId, world, dev } = framesResult.value;
   const ext = regionDevExtent(part, regionId, world);
 
-  if (spec.kind === 'louver') return louverForm(part, solid, spec, regionId, world, dev, ext);
-  return embossForm(part, solid, spec, regionId, world, dev, ext);
+  if (spec.kind === 'louver') return await louverForm(part, solid, spec, regionId, world, dev, ext);
+  return await embossForm(part, solid, spec, regionId, world, dev, ext);
 }
 
 /** Louver vent: cut the opening, fuse the tilted flap, emit the U-cut + hinge in 2D. */
-function louverForm(
+async function louverForm(
   part: SheetMetalPart,
   partSolid: Solid,
   spec: Extract<FormSpec, { kind: 'louver' }>,
@@ -84,7 +62,7 @@ function louverForm(
   world: FlatFrame,
   dev: Frame2,
   ext: { uMax: number; vMax: number }
-): Result<SheetMetalPart> {
+): Promise<Result<SheetMetalPart>> {
   if (!Number.isFinite(spec.length) || spec.length <= 0 || !Number.isFinite(spec.width) || spec.width <= 0) {
     return err(validationError('INVALID_FORM', 'louver length/width must be positive'));
   }
@@ -115,20 +93,18 @@ function louverForm(
     [x1, y1],
     [x0, y1],
   ];
-  const opening = buildThroughTool(openingLocal, world, part.thickness);
-  if (!opening.ok) return opening;
-  const cutResult = cut(partSolid, opening.value);
-  if (!cutResult.ok) return cutResult;
-  let solid = normalizeSolid(cutResult.value);
+  let solid: Solid;
+  try {
+    const opening = await buildThroughTool(openingLocal, world, part.thickness);
+    if (!opening.ok) return opening;
+    solid = normalizeSolid((await cut(partSolid, opening.value)) as Solid);
 
   // Fuse the tilted flap, hinged on the −v edge (y0), rising over the opening to
   // `height` on the formed face. Built in region-local space then placed via the
   // world frame; overlaps the hinge edge so it fuses into one body.
-  const flap = buildLouverFlap(world, x0, x1, y0, spec.width, spec.height, part.thickness, sign);
-  if (!flap.ok) return flap;
-  const fused = fuse(solid, flap.value);
-  if (!fused.ok) return fused;
-  solid = normalizeSolid(fused.value);
+    const flap = await buildLouverFlap(world, x0, x1, y0, spec.width, spec.height, part.thickness, sign);
+    if (!flap.ok) return flap;
+    solid = normalizeSolid((await fuse(solid, flap.value)) as Solid);
 
   if (!isValid(solid) || getSolids(solid).length > 1) {
     return err(
@@ -157,11 +133,14 @@ function louverForm(
     markers: [],
     hinge: [hingeA, hingeB],
   };
-  return ok({ ...part, solid, forms: [...(part.forms ?? []), feature] });
+    return ok({ ...part, solid, forms: [...(part.forms ?? []), feature] });
+  } catch (e) {
+    return err(kernelError('FORM_FAILED', `louver: ${e instanceof Error ? e.message : String(e)}`));
+  }
 }
 
 /** Emboss/dimple: fuse a raised cylinder or cut a shallow recess; emit a 2D footprint. */
-function embossForm(
+async function embossForm(
   part: SheetMetalPart,
   partSolid: Solid,
   spec: Extract<FormSpec, { kind: 'emboss' }>,
@@ -169,7 +148,7 @@ function embossForm(
   world: FlatFrame,
   dev: Frame2,
   ext: { uMax: number; vMax: number }
-): Result<SheetMetalPart> {
+): Promise<Result<SheetMetalPart>> {
   if (!Number.isFinite(spec.diameter) || spec.diameter <= 0) {
     return err(validationError('INVALID_FORM', `emboss diameter must be positive, got ${spec.diameter}`));
   }
@@ -199,18 +178,22 @@ function embossForm(
     // Raised cylinder: base sunk a hair into the sheet for a robust fuse, extending
     // +n by `height`.
     const base = vecAdd(faceCentre, vecScale(world.n, -HAIR));
-    const bump = cylinder(r, spec.height + HAIR, { at: base, axis: world.n });
-    const fused = fuse(partSolid, bump);
-    if (!fused.ok) return fused;
-    solid = normalizeSolid(fused.value);
+    try {
+      const bump = await cylinder(r, spec.height + HAIR, { at: base, axis: world.n });
+      solid = normalizeSolid((await fuse(partSolid, bump)) as Solid);
+    } catch (e) {
+      return err(kernelError('FORM_FAILED', `emboss: ${e instanceof Error ? e.message : String(e)}`));
+    }
   } else {
     // Recess: cut a shallow cylinder down from the formed face by `height` (+HAIR so
     // the tool pokes cleanly through the top surface).
     const top = vecAdd(faceCentre, vecScale(world.n, HAIR));
-    const tool = cylinder(r, spec.height + HAIR, { at: top, axis: vecScale(world.n, -1) });
-    const cutResult = cut(partSolid, tool);
-    if (!cutResult.ok) return cutResult;
-    solid = normalizeSolid(cutResult.value);
+    try {
+      const tool = await cylinder(r, spec.height + HAIR, { at: top, axis: vecScale(world.n, -1) });
+      solid = normalizeSolid((await cut(partSolid, tool)) as Solid);
+    } catch (e) {
+      return err(kernelError('FORM_FAILED', `dimple: ${e instanceof Error ? e.message : String(e)}`));
+    }
   }
 
   if (!isValid(solid) || getSolids(solid).length > 1) {
@@ -235,7 +218,7 @@ function embossForm(
  * @param opts - louver geometry (region, x, y, length, width, height, direction?).
  * @returns the updated part with the louver feature recorded, or an error.
  */
-export function louver(
+export async function louver(
   part: SheetMetalPart,
   opts: {
     region: string;
@@ -246,7 +229,7 @@ export function louver(
     height: number;
     direction?: 'up' | 'down';
   }
-): Result<SheetMetalPart> {
+): Promise<Result<SheetMetalPart>> {
   return addForm(part, { kind: 'louver', ...opts });
 }
 
@@ -256,10 +239,10 @@ export function louver(
  * @param opts - emboss geometry (region, x, y, diameter, height, direction?).
  * @returns the updated part with the emboss feature recorded, or an error.
  */
-export function emboss(
+export async function emboss(
   part: SheetMetalPart,
   opts: { region: string; x: number; y: number; diameter: number; height: number; kind: 'dimple' | 'emboss' }
-): Result<SheetMetalPart> {
+): Promise<Result<SheetMetalPart>> {
   return addForm(part, {
     kind: 'emboss',
     region: opts.region,
@@ -272,7 +255,7 @@ export function emboss(
 }
 
 /** Extrude a region-local loop fully through the sheet (a through-cut tool). */
-function buildThroughTool(local: Pt2[], f: FlatFrame, thickness: number): Result<Solid> {
+async function buildThroughTool(local: Pt2[], f: FlatFrame, thickness: number): Promise<Result<Solid>> {
   const base = vecAdd(f.origin, vecScale(f.n, -HAIR));
   const worldPts: Vec3[] = local.map(([x, y]) =>
     vecAdd(vecAdd(base, vecScale(f.u, x)), vecScale(f.v, y))
@@ -294,7 +277,11 @@ function buildThroughTool(local: Pt2[], f: FlatFrame, thickness: number): Result
   const profile = face(wire.value);
   if (!profile.ok) return profile;
   const depth = thickness + 2 * HAIR;
-  return extrude(profile.value, [f.n[0] * depth, f.n[1] * depth, f.n[2] * depth]);
+  try {
+    return ok((await extrude(profile.value, [f.n[0] * depth, f.n[1] * depth, f.n[2] * depth])) as Solid);
+  } catch (e) {
+    return err(kernelError('FORM_TOOL_FAILED', `extrude tool: ${e instanceof Error ? e.message : String(e)}`));
+  }
 }
 
 /**
@@ -304,7 +291,7 @@ function buildThroughTool(local: Pt2[], f: FlatFrame, thickness: number): Result
  * a canonical local frame (hinge along +X at the origin, depth +Y, thickness +Z),
  * tilted about +X, then mapped onto the world frame's u/v/n.
  */
-function buildLouverFlap(
+async function buildLouverFlap(
   f: FlatFrame,
   x0: number,
   x1: number,
@@ -313,7 +300,7 @@ function buildLouverFlap(
   height: number,
   thickness: number,
   sign: number
-): Result<Solid> {
+): Promise<Result<Solid>> {
   const plateThk = Math.max(thickness, EPS);
   const len = x1 - x0;
   // Tilt angle so the far edge (depth `width`) rises by `height`.
@@ -321,9 +308,10 @@ function buildLouverFlap(
 
   // Canonical flap: hinge along +X over [0,len], depth +Y over [0,width], thickness
   // sunk a hair below 0 so it overlaps the sheet at the hinge for a robust fuse.
-  let flap: Solid = box(len, width, plateThk);
-  flap = translate(flap, [0, 0, -plateThk + HAIR]);
-  flap = rotate(flap, -sign * tiltDeg, { at: [0, 0, 0], axis: [1, 0, 0] });
+  try {
+    let flap: Solid = (await box({ width: len, depth: width, height: plateThk })) as Solid;
+    flap = (await translate(flap, [0, 0, -plateThk + HAIR])) as Solid;
+    flap = (await rotate(flap, -sign * tiltDeg, { at: [0, 0, 0], axis: [1, 0, 0] })) as Solid;
 
   // Place: canonical +X→world u, +Y→world v, +Z→world n, origin at the hinge corner
   // on the formed face.
@@ -334,16 +322,19 @@ function buildLouverFlap(
     vecAdd(vecAdd(f.origin, vecScale(f.u, x0)), vecScale(f.v, y0)),
     vecScale(f.n, thickness)
   );
-  const placed = mapLocalToWorld(flap, u, v, n, hingeCorner);
-  return ok(placed);
+    const placed = await mapLocalToWorld(flap, u, v, n, hingeCorner);
+    return ok(placed);
+  } catch (e) {
+    return err(kernelError('FORM_FAILED', `louver flap: ${e instanceof Error ? e.message : String(e)}`));
+  }
 }
 
 /** Map a solid built in a canonical XYZ frame onto world axes (uT, vT, nT) at origin. */
-function mapLocalToWorld(s: Solid, uT: Vec3, vT: Vec3, nT: Vec3, origin: Vec3): Solid {
+async function mapLocalToWorld(s: Solid, uT: Vec3, vT: Vec3, nT: Vec3, origin: Vec3): Promise<Solid> {
   const m: number[] = [uT[0], vT[0], nT[0], uT[1], vT[1], nT[1], uT[2], vT[2], nT[2]];
   const aa = matrixToAxisAngle(m);
-  const rotated = aa.angleDeg === 0 ? s : rotate(s, aa.angleDeg, { at: [0, 0, 0], axis: aa.axis });
-  return translate(rotated, origin);
+  const rotated = aa.angleDeg === 0 ? s : await rotate(s, aa.angleDeg, { at: [0, 0, 0], axis: aa.axis });
+  return (await translate(rotated, origin)) as Solid;
 }
 
 /** Axis-angle of a 3×3 row-major rotation matrix (columns = target basis). */

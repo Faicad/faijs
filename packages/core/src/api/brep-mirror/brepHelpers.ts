@@ -57,7 +57,11 @@ export function composeAffine(a: readonly number[], b: readonly number[]): numbe
   return out
 }
 
-/** 3×4 translation matrix for a vector. */
+/**
+ * 3×4 translation matrix for a vector.
+ * @param v - Translation vector.
+ * @returns The 3×4 translation matrix.
+ */
 export function translationMatrix(v: readonly [number, number, number]): number[] {
   return [1, 0, 0, v[0], 0, 1, 0, v[1], 0, 0, 1, v[2]]
 }
@@ -65,6 +69,11 @@ export function translationMatrix(v: readonly [number, number, number]): number[
 /**
  * 3×4 rotation matrix rotating `angleDeg` degrees around the axis (unit-ized)
  * passing through `center`. Rodrigues formula, column-vector convention.
+ *
+ * @param axis - Rotation axis (unit-ized internally).
+ * @param center - Point the rotation passes through.
+ * @param angleDeg - Rotation angle in degrees.
+ * @returns The 3×4 rotation matrix.
  */
 export function rotationMatrix(
   axis: readonly [number, number, number],
@@ -100,7 +109,11 @@ export function rotationMatrix(
   ]
 }
 
-/** 3×4 matrix rotating the +Z axis onto `axis` (unit-ized), origin-centered. */
+/**
+ * 3×4 matrix rotating the +Z axis onto `axis` (unit-ized), origin-centered.
+ * @param axis - Target axis direction.
+ * @returns The 3×4 rotation matrix.
+ */
 export function rotationZTo(axis: readonly [number, number, number]): number[] {
   const [x, y, z] = axis
   const len = Math.hypot(x, y, z)

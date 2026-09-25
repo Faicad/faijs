@@ -10,8 +10,9 @@
  * directly when explicit error handling is preferred over throwing.
  */
 
-import type { BrepError, Result, Solid } from '@faicad/faijs-brepjs';
-import { isErr } from '@faicad/faijs-brepjs';
+import type { Solid } from './types.js';
+import type {BrepError, Result} from '@faicad/faijs/api';
+import {isErr} from '@faicad/faijs/api';
 import type { AuthorSpec, BaseFlatSpec, FlangeSpec, SeamSpec } from './authorFns.js';
 import type { MiterPlane, DxfOptions, SlotPlacement } from './api.js';
 import {
@@ -92,8 +93,8 @@ class SheetMetalPartHandle {
    * @param plane - the oriented cutting plane; material on the plane's `+normal` side is removed.
    * @returns a new `SheetMetalPartHandle` carrying the mitered part.
    */
-  miter(plane: MiterPlane): SheetMetalPartHandle {
-    return new SheetMetalPartHandle(unwrapOrThrow(miter(this.part, plane)));
+  async miter(plane: MiterPlane): Promise<SheetMetalPartHandle> {
+    return new SheetMetalPartHandle(unwrapOrThrow(await miter(this.part, plane)));
   }
 
   /**
@@ -103,8 +104,8 @@ class SheetMetalPartHandle {
    * @param gap - optional gap (in millimetres) left between the two mitered edges; defaults to 0.
    * @returns a new `SheetMetalPartHandle` carrying the part with the corner mitered.
    */
-  miterCorner(flangeIdA: string, flangeIdB: string, gap = 0): SheetMetalPartHandle {
-    return new SheetMetalPartHandle(unwrapOrThrow(miterCorner(this.part, flangeIdA, flangeIdB, gap)));
+  async miterCorner(flangeIdA: string, flangeIdB: string, gap = 0): Promise<SheetMetalPartHandle> {
+    return new SheetMetalPartHandle(unwrapOrThrow(await miterCorner(this.part, flangeIdA, flangeIdB, gap)));
   }
 
   /**
@@ -113,8 +114,8 @@ class SheetMetalPartHandle {
    * @param spec - optional relief specification overriding the defaults.
    * @returns a new `SheetMetalPartHandle` carrying the part with the relief added.
    */
-  bendRelief(flangeId: string, spec?: ReliefSpec): SheetMetalPartHandle {
-    return new SheetMetalPartHandle(unwrapOrThrow(bendRelief(this.part, flangeId, spec)));
+  async bendRelief(flangeId: string, spec?: ReliefSpec): Promise<SheetMetalPartHandle> {
+    return new SheetMetalPartHandle(unwrapOrThrow(await bendRelief(this.part, flangeId, spec)));
   }
 
   /**
@@ -122,8 +123,8 @@ class SheetMetalPartHandle {
    * @param spec - optional relief specification applied to every partial bend.
    * @returns a new `SheetMetalPartHandle` carrying the part with all reliefs added.
    */
-  autoReliefs(spec?: ReliefSpec): SheetMetalPartHandle {
-    return new SheetMetalPartHandle(unwrapOrThrow(autoReliefs(this.part, spec)));
+  async autoReliefs(spec?: ReliefSpec): Promise<SheetMetalPartHandle> {
+    return new SheetMetalPartHandle(unwrapOrThrow(await autoReliefs(this.part, spec)));
   }
 
   /**
@@ -133,8 +134,8 @@ class SheetMetalPartHandle {
    * @param spec - optional relief specification overriding the defaults.
    * @returns a new `SheetMetalPartHandle` carrying the part with the corner relief added.
    */
-  cornerRelief(flangeIdA: string, flangeIdB: string, spec?: ReliefSpec): SheetMetalPartHandle {
-    return new SheetMetalPartHandle(unwrapOrThrow(relieveCorner(this.part, flangeIdA, flangeIdB, spec)));
+  async cornerRelief(flangeIdA: string, flangeIdB: string, spec?: ReliefSpec): Promise<SheetMetalPartHandle> {
+    return new SheetMetalPartHandle(unwrapOrThrow(await relieveCorner(this.part, flangeIdA, flangeIdB, spec)));
   }
 
   /**
@@ -142,8 +143,8 @@ class SheetMetalPartHandle {
    * @param spec - the cutout definition (kind, geometry, and target region).
    * @returns a new `SheetMetalPartHandle` carrying the part with the cutout punched.
    */
-  cutout(spec: CutoutSpec): SheetMetalPartHandle {
-    return new SheetMetalPartHandle(unwrapOrThrow(addCutout(this.part, spec)));
+  async cutout(spec: CutoutSpec): Promise<SheetMetalPartHandle> {
+    return new SheetMetalPartHandle(unwrapOrThrow(await addCutout(this.part, spec)));
   }
 
   /**
@@ -154,8 +155,8 @@ class SheetMetalPartHandle {
    * @param diameter - hole diameter.
    * @returns a new `SheetMetalPartHandle` carrying the part with the hole punched.
    */
-  hole(region: string, x: number, y: number, diameter: number): SheetMetalPartHandle {
-    return new SheetMetalPartHandle(unwrapOrThrow(addHole(this.part, region, x, y, diameter)));
+  async hole(region: string, x: number, y: number, diameter: number): Promise<SheetMetalPartHandle> {
+    return new SheetMetalPartHandle(unwrapOrThrow(await addHole(this.part, region, x, y, diameter)));
   }
 
   /**
@@ -164,11 +165,11 @@ class SheetMetalPartHandle {
    * @param opts - slot geometry: centre `(x, y)`, `length`, `width`, optional `angleDeg` rotation, and `round` ends flag.
    * @returns a new `SheetMetalPartHandle` carrying the part with the slot punched.
    */
-  slot(
+  async slot(
     region: string,
     opts: { x: number; y: number; length: number; width: number; angleDeg?: number; round?: boolean }
-  ): SheetMetalPartHandle {
-    return new SheetMetalPartHandle(unwrapOrThrow(addSlot(this.part, region, opts)));
+  ): Promise<SheetMetalPartHandle> {
+    return new SheetMetalPartHandle(unwrapOrThrow(await addSlot(this.part, region, opts)));
   }
 
   /**
@@ -177,8 +178,8 @@ class SheetMetalPartHandle {
    * @param points - region-local polygon vertices as `[x, y]` pairs.
    * @returns a new `SheetMetalPartHandle` carrying the part with the polygon cutout.
    */
-  polygonCutout(region: string, points: [number, number][]): SheetMetalPartHandle {
-    return new SheetMetalPartHandle(unwrapOrThrow(addPolygonCutout(this.part, region, points)));
+  async polygonCutout(region: string, points: [number, number][]): Promise<SheetMetalPartHandle> {
+    return new SheetMetalPartHandle(unwrapOrThrow(await addPolygonCutout(this.part, region, points)));
   }
 
   /**
@@ -186,8 +187,8 @@ class SheetMetalPartHandle {
    * @param spec - tab definition: edge, width, and length.
    * @returns a new `SheetMetalPartHandle` carrying the part with the tab added.
    */
-  tab(spec: TabSpec): SheetMetalPartHandle {
-    return new SheetMetalPartHandle(unwrapOrThrow(addTab(this.part, spec)));
+  async tab(spec: TabSpec): Promise<SheetMetalPartHandle> {
+    return new SheetMetalPartHandle(unwrapOrThrow(await addTab(this.part, spec)));
   }
 
   /**
@@ -196,8 +197,8 @@ class SheetMetalPartHandle {
    * @param slot - placement of the matching slot on the second region.
    * @returns a new `SheetMetalPartHandle` carrying the part with the joint added.
    */
-  tabAndSlot(tab: TabSpec, slot: SlotPlacement): SheetMetalPartHandle {
-    return new SheetMetalPartHandle(unwrapOrThrow(tabAndSlot(this.part, tab, slot)));
+  async tabAndSlot(tab: TabSpec, slot: SlotPlacement): Promise<SheetMetalPartHandle> {
+    return new SheetMetalPartHandle(unwrapOrThrow(await tabAndSlot(this.part, tab, slot)));
   }
 
   /**
@@ -205,7 +206,7 @@ class SheetMetalPartHandle {
    * @param opts - louver geometry: target `region`, centre `(x, y)`, `length`, `width`, `height`, and optional `direction`.
    * @returns a new `SheetMetalPartHandle` carrying the part with the louver formed.
    */
-  louver(opts: {
+  async louver(opts: {
     region: string;
     x: number;
     y: number;
@@ -213,8 +214,8 @@ class SheetMetalPartHandle {
     width: number;
     height: number;
     direction?: 'up' | 'down';
-  }): SheetMetalPartHandle {
-    return new SheetMetalPartHandle(unwrapOrThrow(louver(this.part, opts)));
+  }): Promise<SheetMetalPartHandle> {
+    return new SheetMetalPartHandle(unwrapOrThrow(await louver(this.part, opts)));
   }
 
   /**
@@ -222,15 +223,15 @@ class SheetMetalPartHandle {
    * @param opts - emboss geometry: target `region`, centre `(x, y)`, `diameter`, `height`, and `kind` (`dimple` or `emboss`).
    * @returns a new `SheetMetalPartHandle` carrying the part with the form added.
    */
-  emboss(opts: {
+  async emboss(opts: {
     region: string;
     x: number;
     y: number;
     diameter: number;
     height: number;
     kind: 'dimple' | 'emboss';
-  }): SheetMetalPartHandle {
-    return new SheetMetalPartHandle(unwrapOrThrow(emboss(this.part, opts)));
+  }): Promise<SheetMetalPartHandle> {
+    return new SheetMetalPartHandle(unwrapOrThrow(await emboss(this.part, opts)));
   }
 
   /**
@@ -238,8 +239,8 @@ class SheetMetalPartHandle {
    * @param spec - contour flange definition: profile, base edge, and bend parameters.
    * @returns a new `SheetMetalPartHandle` carrying the part with the contour flange added.
    */
-  contourFlange(spec: ContourFlangeSpec): SheetMetalPartHandle {
-    return new SheetMetalPartHandle(unwrapOrThrow(contourFlange(this.part, spec)));
+  async contourFlange(spec: ContourFlangeSpec): Promise<SheetMetalPartHandle> {
+    return new SheetMetalPartHandle(unwrapOrThrow(await contourFlange(this.part, spec)));
   }
 
   /**
@@ -247,8 +248,8 @@ class SheetMetalPartHandle {
    * @param spec - lofted flange definition: the two open profiles and their alignment.
    * @returns a new `SheetMetalPartHandle` carrying the part with the lofted flange added.
    */
-  loftedFlange(spec: LoftedFlangeSpec): SheetMetalPartHandle {
-    return new SheetMetalPartHandle(unwrapOrThrow(loftedFlange(this.part, spec)));
+  async loftedFlange(spec: LoftedFlangeSpec): Promise<SheetMetalPartHandle> {
+    return new SheetMetalPartHandle(unwrapOrThrow(await loftedFlange(this.part, spec)));
   }
 
   /**
@@ -256,8 +257,8 @@ class SheetMetalPartHandle {
    * @param spec - hem definition: edge, curl radius, and return leg length.
    * @returns a new `SheetMetalPartHandle` carrying the part with the hem added.
    */
-  hem(spec: HemSpec): SheetMetalPartHandle {
-    return new SheetMetalPartHandle(unwrapOrThrow(hem(this.part, spec)));
+  async hem(spec: HemSpec): Promise<SheetMetalPartHandle> {
+    return new SheetMetalPartHandle(unwrapOrThrow(await hem(this.part, spec)));
   }
 
   /**
@@ -265,8 +266,8 @@ class SheetMetalPartHandle {
    * @param spec - jog definition: bend line, offset height, and radii.
    * @returns a new `SheetMetalPartHandle` carrying the part with the jog added.
    */
-  jog(spec: JogSpec): SheetMetalPartHandle {
-    return new SheetMetalPartHandle(unwrapOrThrow(jog(this.part, spec)));
+  async jog(spec: JogSpec): Promise<SheetMetalPartHandle> {
+    return new SheetMetalPartHandle(unwrapOrThrow(await jog(this.part, spec)));
   }
 
   /**
@@ -403,8 +404,8 @@ class SheetMetalBuilder {
    * `report()`) authors the solid only once.
    * @returns a `SheetMetalPartHandle` for the folded part, memoized across calls.
    */
-  build(): SheetMetalPartHandle {
-    this.built ??= new SheetMetalPartHandle(unwrapOrThrow(author(this.spec)));
+  async build(): Promise<SheetMetalPartHandle> {
+    this.built ??= new SheetMetalPartHandle(unwrapOrThrow(await author(this.spec)));
     return this.built;
   }
 
@@ -415,8 +416,8 @@ class SheetMetalBuilder {
    * @param plane - the oriented cutting plane; material on the plane's `+normal` side is removed.
    * @returns a `SheetMetalPartHandle` carrying the mitered part.
    */
-  miter(plane: MiterPlane): SheetMetalPartHandle {
-    return this.build().miter(plane);
+  async miter(plane: MiterPlane): Promise<SheetMetalPartHandle> {
+    return (await this.build()).miter(plane);
   }
 
   /**
@@ -426,8 +427,8 @@ class SheetMetalBuilder {
    * @param gap - optional gap (in millimetres) left between the two mitered edges; defaults to 0.
    * @returns a `SheetMetalPartHandle` carrying the part with the corner mitered.
    */
-  miterCorner(flangeIdA: string, flangeIdB: string, gap = 0): SheetMetalPartHandle {
-    return this.build().miterCorner(flangeIdA, flangeIdB, gap);
+  async miterCorner(flangeIdA: string, flangeIdB: string, gap = 0): Promise<SheetMetalPartHandle> {
+    return (await this.build()).miterCorner(flangeIdA, flangeIdB, gap);
   }
 
   /**
@@ -436,8 +437,8 @@ class SheetMetalBuilder {
    * @param spec - optional relief specification overriding the defaults.
    * @returns a `SheetMetalPartHandle` carrying the part with the relief added.
    */
-  bendRelief(flangeId: string, spec?: ReliefSpec): SheetMetalPartHandle {
-    return this.build().bendRelief(flangeId, spec);
+  async bendRelief(flangeId: string, spec?: ReliefSpec): Promise<SheetMetalPartHandle> {
+    return (await this.build()).bendRelief(flangeId, spec);
   }
 
   /**
@@ -445,8 +446,8 @@ class SheetMetalBuilder {
    * @param spec - optional relief specification applied to every partial bend.
    * @returns a `SheetMetalPartHandle` carrying the part with all reliefs added.
    */
-  autoReliefs(spec?: ReliefSpec): SheetMetalPartHandle {
-    return this.build().autoReliefs(spec);
+  async autoReliefs(spec?: ReliefSpec): Promise<SheetMetalPartHandle> {
+    return (await this.build()).autoReliefs(spec);
   }
 
   /**
@@ -456,8 +457,8 @@ class SheetMetalBuilder {
    * @param spec - optional relief specification overriding the defaults.
    * @returns a `SheetMetalPartHandle` carrying the part with the corner relief added.
    */
-  cornerRelief(flangeIdA: string, flangeIdB: string, spec?: ReliefSpec): SheetMetalPartHandle {
-    return this.build().cornerRelief(flangeIdA, flangeIdB, spec);
+  async cornerRelief(flangeIdA: string, flangeIdB: string, spec?: ReliefSpec): Promise<SheetMetalPartHandle> {
+    return (await this.build()).cornerRelief(flangeIdA, flangeIdB, spec);
   }
 
   /**
@@ -465,8 +466,8 @@ class SheetMetalBuilder {
    * @param spec - the cutout definition (kind, geometry, and target region).
    * @returns a `SheetMetalPartHandle` carrying the part with the cutout punched.
    */
-  cutout(spec: CutoutSpec): SheetMetalPartHandle {
-    return this.build().cutout(spec);
+  async cutout(spec: CutoutSpec): Promise<SheetMetalPartHandle> {
+    return (await this.build()).cutout(spec);
   }
 
   /**
@@ -477,8 +478,8 @@ class SheetMetalBuilder {
    * @param diameter - hole diameter.
    * @returns a `SheetMetalPartHandle` carrying the part with the hole punched.
    */
-  hole(region: string, x: number, y: number, diameter: number): SheetMetalPartHandle {
-    return this.build().hole(region, x, y, diameter);
+  async hole(region: string, x: number, y: number, diameter: number): Promise<SheetMetalPartHandle> {
+    return (await this.build()).hole(region, x, y, diameter);
   }
 
   /**
@@ -487,11 +488,11 @@ class SheetMetalBuilder {
    * @param opts - slot geometry: centre `(x, y)`, `length`, `width`, optional `angleDeg` rotation, and `round` ends flag.
    * @returns a `SheetMetalPartHandle` carrying the part with the slot punched.
    */
-  slot(
+  async slot(
     region: string,
     opts: { x: number; y: number; length: number; width: number; angleDeg?: number; round?: boolean }
-  ): SheetMetalPartHandle {
-    return this.build().slot(region, opts);
+  ): Promise<SheetMetalPartHandle> {
+    return (await this.build()).slot(region, opts);
   }
 
   /**
@@ -500,8 +501,8 @@ class SheetMetalBuilder {
    * @param points - region-local polygon vertices as `[x, y]` pairs.
    * @returns a `SheetMetalPartHandle` carrying the part with the polygon cutout.
    */
-  polygonCutout(region: string, points: [number, number][]): SheetMetalPartHandle {
-    return this.build().polygonCutout(region, points);
+  async polygonCutout(region: string, points: [number, number][]): Promise<SheetMetalPartHandle> {
+    return (await this.build()).polygonCutout(region, points);
   }
 
   /**
@@ -509,8 +510,8 @@ class SheetMetalBuilder {
    * @param spec - tab definition: edge, width, and length.
    * @returns a `SheetMetalPartHandle` carrying the part with the tab added.
    */
-  tab(spec: TabSpec): SheetMetalPartHandle {
-    return this.build().tab(spec);
+  async tab(spec: TabSpec): Promise<SheetMetalPartHandle> {
+    return (await this.build()).tab(spec);
   }
 
   /**
@@ -519,8 +520,8 @@ class SheetMetalBuilder {
    * @param slot - placement of the matching slot on the second region.
    * @returns a `SheetMetalPartHandle` carrying the part with the joint added.
    */
-  tabAndSlot(tab: TabSpec, slot: SlotPlacement): SheetMetalPartHandle {
-    return this.build().tabAndSlot(tab, slot);
+  async tabAndSlot(tab: TabSpec, slot: SlotPlacement): Promise<SheetMetalPartHandle> {
+    return (await this.build()).tabAndSlot(tab, slot);
   }
 
   /**
@@ -528,7 +529,7 @@ class SheetMetalBuilder {
    * @param opts - louver geometry: target `region`, centre `(x, y)`, `length`, `width`, `height`, and optional `direction`.
    * @returns a `SheetMetalPartHandle` carrying the part with the louver formed.
    */
-  louver(opts: {
+  async louver(opts: {
     region: string;
     x: number;
     y: number;
@@ -536,8 +537,8 @@ class SheetMetalBuilder {
     width: number;
     height: number;
     direction?: 'up' | 'down';
-  }): SheetMetalPartHandle {
-    return this.build().louver(opts);
+  }): Promise<SheetMetalPartHandle> {
+    return (await this.build()).louver(opts);
   }
 
   /**
@@ -545,15 +546,15 @@ class SheetMetalBuilder {
    * @param opts - emboss geometry: target `region`, centre `(x, y)`, `diameter`, `height`, and `kind` (`dimple` or `emboss`).
    * @returns a `SheetMetalPartHandle` carrying the part with the form added.
    */
-  emboss(opts: {
+  async emboss(opts: {
     region: string;
     x: number;
     y: number;
     diameter: number;
     height: number;
     kind: 'dimple' | 'emboss';
-  }): SheetMetalPartHandle {
-    return this.build().emboss(opts);
+  }): Promise<SheetMetalPartHandle> {
+    return (await this.build()).emboss(opts);
   }
 
   /**
@@ -561,8 +562,8 @@ class SheetMetalBuilder {
    * @param spec - contour flange definition: profile, base edge, and bend parameters.
    * @returns a `SheetMetalPartHandle` carrying the part with the contour flange added.
    */
-  contourFlange(spec: ContourFlangeSpec): SheetMetalPartHandle {
-    return this.build().contourFlange(spec);
+  async contourFlange(spec: ContourFlangeSpec): Promise<SheetMetalPartHandle> {
+    return (await this.build()).contourFlange(spec);
   }
 
   /**
@@ -570,8 +571,8 @@ class SheetMetalBuilder {
    * @param spec - lofted flange definition: the two open profiles and their alignment.
    * @returns a `SheetMetalPartHandle` carrying the part with the lofted flange added.
    */
-  loftedFlange(spec: LoftedFlangeSpec): SheetMetalPartHandle {
-    return this.build().loftedFlange(spec);
+  async loftedFlange(spec: LoftedFlangeSpec): Promise<SheetMetalPartHandle> {
+    return (await this.build()).loftedFlange(spec);
   }
 
   /**
@@ -579,8 +580,8 @@ class SheetMetalBuilder {
    * @param spec - hem definition: edge, curl radius, and return leg length.
    * @returns a `SheetMetalPartHandle` carrying the part with the hem added.
    */
-  hem(spec: HemSpec): SheetMetalPartHandle {
-    return this.build().hem(spec);
+  async hem(spec: HemSpec): Promise<SheetMetalPartHandle> {
+    return (await this.build()).hem(spec);
   }
 
   /**
@@ -588,24 +589,24 @@ class SheetMetalBuilder {
    * @param spec - jog definition: bend line, offset height, and radii.
    * @returns a `SheetMetalPartHandle` carrying the part with the jog added.
    */
-  jog(spec: JogSpec): SheetMetalPartHandle {
-    return this.build().jog(spec);
+  async jog(spec: JogSpec): Promise<SheetMetalPartHandle> {
+    return (await this.build()).jog(spec);
   }
 
   /**
    * Build the part and flatten it into a developed flat pattern + bend report + warnings.
    * @returns the `UnfoldResult` with the flat pattern, bend report, and any warnings.
    */
-  unfold(): UnfoldResult {
-    return this.build().unfold();
+  async unfold(): Promise<UnfoldResult> {
+    return (await this.build()).unfold();
   }
 
   /**
    * Build the part and produce the bend report from its feature tree.
    * @returns the `BendReport` describing every bend in the part.
    */
-  report(): BendReport {
-    return this.build().report();
+  async report(): Promise<BendReport> {
+    return (await this.build()).report();
   }
 
   /**
@@ -613,24 +614,24 @@ class SheetMetalBuilder {
    * @param options - optional DXF output options (layers, precision, units).
    * @returns the DXF text of the developed flat pattern.
    */
-  dxf(options?: DxfOptions): string {
-    return this.build().dxf(options);
+  async dxf(options?: DxfOptions): Promise<string> {
+    return (await this.build()).dxf(options);
   }
 
   /**
    * Build the part and run manufacturability checks (advisory, never throws).
    * @returns the list of `SheetMetalWarning`s (empty when the part is manufacturable).
    */
-  validate(): SheetMetalWarning[] {
-    return this.build().validate();
+  async validate(): Promise<SheetMetalWarning[]> {
+    return (await this.build()).validate();
   }
 
   /**
    * Build the part and return it (escape hatch back to the functional API).
    * @returns the underlying `SheetMetalPart`.
    */
-  get(): SheetMetalPart {
-    return this.build().get();
+  async get(): Promise<SheetMetalPart> {
+    return (await this.build()).get();
   }
 }
 
@@ -658,8 +659,8 @@ export function fromPart(part: SheetMetalPart): SheetMetalPartHandle {
  * @param input - the flat pattern (region tree) to fold up.
  * @returns a `SheetMetalPartHandle` carrying the folded part.
  */
-export function foldFlat(input: FlatInput): SheetMetalPartHandle {
-  return new SheetMetalPartHandle(unwrapOrThrow(fold(input)));
+export async function foldFlat(input: FlatInput): Promise<SheetMetalPartHandle> {
+  return new SheetMetalPartHandle(unwrapOrThrow(await fold(input)));
 }
 
 /**

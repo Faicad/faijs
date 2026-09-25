@@ -39,6 +39,7 @@ export const BrepErrorCode = {
   // kernel operation errors
   BSPLINE_FAILED: 'BSPLINE_FAILED',
   FACE_BUILD_FAILED: 'FACE_BUILD_FAILED',
+  WIRE_BUILD_FAILED: 'WIRE_BUILD_FAILED',
   SWEEP_FAILED: 'SWEEP_FAILED',
   LOFT_FAILED: 'LOFT_FAILED',
   FUSE_FAILED: 'FUSE_FAILED',
@@ -62,6 +63,8 @@ export const BrepErrorCode = {
   CHAMFER_ANGLE_BAD_ANGLE: 'CHAMFER_ANGLE_BAD_ANGLE',
   BEZIER_MIN_POINTS: 'BEZIER_MIN_POINTS',
   POLYGON_MIN_POINTS: 'POLYGON_MIN_POINTS',
+  WIRE_NOT_CLOSED: 'WIRE_NOT_CLOSED',
+  FACE_NOT_PLANAR: 'FACE_NOT_PLANAR',
   ZERO_LENGTH_EXTRUSION: 'ZERO_LENGTH_EXTRUSION',
   ZERO_TWIST_ANGLE: 'ZERO_TWIST_ANGLE',
   LOFT_EMPTY: 'LOFT_EMPTY',
@@ -253,7 +256,15 @@ function makeError(
   return base;
 }
 
-/** Create an error for a failed kernel kernel operation. */
+/** Create an error for a failed kernel kernel operation.
+ *
+ * @param code - Error code identifying the failure.
+ * @param message - Human-readable error message.
+ * @param cause - Optional underlying cause of the error.
+ * @param metadata - Optional structured metadata attached to the error.
+ * @param suggestion - Optional actionable suggestion for resolving the error.
+ * @returns The constructed {@link BrepError}.
+ */
 export function kernelError(
   code: string,
   message: string,
@@ -264,7 +275,15 @@ export function kernelError(
   return makeError('KERNEL_OPERATION', code, message, cause, metadata, suggestion);
 }
 
-/** Create an error for invalid input parameters. */
+/** Create an error for invalid input parameters.
+ *
+ * @param code - Error code identifying the failure.
+ * @param message - Human-readable error message.
+ * @param cause - Optional underlying cause of the error.
+ * @param metadata - Optional structured metadata attached to the error.
+ * @param suggestion - Optional actionable suggestion for resolving the error.
+ * @returns The constructed {@link BrepError}.
+ */
 export function validationError(
   code: string,
   message: string,
@@ -275,7 +294,15 @@ export function validationError(
   return makeError('VALIDATION', code, message, cause, metadata, suggestion);
 }
 
-/** Create an error for a failed shape type cast or conversion. */
+/** Create an error for a failed shape type cast or conversion.
+ *
+ * @param code - Error code identifying the failure.
+ * @param message - Human-readable error message.
+ * @param cause - Optional underlying cause of the error.
+ * @param metadata - Optional structured metadata attached to the error.
+ * @param suggestion - Optional actionable suggestion for resolving the error.
+ * @returns The constructed {@link BrepError}.
+ */
 export function typeCastError(
   code: string,
   message: string,
@@ -286,7 +313,15 @@ export function typeCastError(
   return makeError('TYPE_CAST', code, message, cause, metadata, suggestion);
 }
 
-/** Create an error for an invalid sketcher state transition. */
+/** Create an error for an invalid sketcher state transition.
+ *
+ * @param code - Error code identifying the failure.
+ * @param message - Human-readable error message.
+ * @param cause - Optional underlying cause of the error.
+ * @param metadata - Optional structured metadata attached to the error.
+ * @param suggestion - Optional actionable suggestion for resolving the error.
+ * @returns The constructed {@link BrepError}.
+ */
 export function sketcherStateError(
   code: string,
   message: string,
@@ -297,7 +332,15 @@ export function sketcherStateError(
   return makeError('SKETCHER_STATE', code, message, cause, metadata, suggestion);
 }
 
-/** Create an error for a module initialisation failure. */
+/** Create an error for a module initialisation failure.
+ *
+ * @param code - Error code identifying the failure.
+ * @param message - Human-readable error message.
+ * @param cause - Optional underlying cause of the error.
+ * @param metadata - Optional structured metadata attached to the error.
+ * @param suggestion - Optional actionable suggestion for resolving the error.
+ * @returns The constructed {@link BrepError}.
+ */
 export function moduleInitError(
   code: string,
   message: string,
@@ -308,7 +351,15 @@ export function moduleInitError(
   return makeError('MODULE_INIT', code, message, cause, metadata, suggestion);
 }
 
-/** Create an error for a failed geometric computation. */
+/** Create an error for a failed geometric computation.
+ *
+ * @param code - Error code identifying the failure.
+ * @param message - Human-readable error message.
+ * @param cause - Optional underlying cause of the error.
+ * @param metadata - Optional structured metadata attached to the error.
+ * @param suggestion - Optional actionable suggestion for resolving the error.
+ * @returns The constructed {@link BrepError}.
+ */
 export function computationError(
   code: string,
   message: string,
@@ -319,7 +370,15 @@ export function computationError(
   return makeError('COMPUTATION', code, message, cause, metadata, suggestion);
 }
 
-/** Create an error for a file import/export failure. */
+/** Create an error for a file import/export failure.
+ *
+ * @param code - Error code identifying the failure.
+ * @param message - Human-readable error message.
+ * @param cause - Optional underlying cause of the error.
+ * @param metadata - Optional structured metadata attached to the error.
+ * @param suggestion - Optional actionable suggestion for resolving the error.
+ * @returns The constructed {@link BrepError}.
+ */
 export function ioError(
   code: string,
   message: string,
@@ -330,7 +389,15 @@ export function ioError(
   return makeError('IO', code, message, cause, metadata, suggestion);
 }
 
-/** Create an error for a shape query failure (e.g. finder not unique). */
+/** Create an error for a shape query failure (e.g. finder not unique).
+ *
+ * @param code - Error code identifying the failure.
+ * @param message - Human-readable error message.
+ * @param cause - Optional underlying cause of the error.
+ * @param metadata - Optional structured metadata attached to the error.
+ * @param suggestion - Optional actionable suggestion for resolving the error.
+ * @returns The constructed {@link BrepError}.
+ */
 export function queryError(
   code: string,
   message: string,
@@ -341,7 +408,15 @@ export function queryError(
   return makeError('QUERY', code, message, cause, metadata, suggestion);
 }
 
-/** Create an error for a capability not supported by the current kernel (ADR-0006 Phase 4). */
+/** Create an error for a capability not supported by the current kernel (ADR-0006 Phase 4).
+ *
+ * @param code - Error code identifying the failure.
+ * @param message - Human-readable error message.
+ * @param cause - Optional underlying cause of the error.
+ * @param metadata - Optional structured metadata attached to the error.
+ * @param suggestion - Optional actionable suggestion for resolving the error.
+ * @returns The constructed {@link BrepError}.
+ */
 export function unsupportedError(
   code: string,
   message: string,
@@ -369,6 +444,7 @@ export { translateKernelError, getSuggestionForCode } from './kernelErrorTransla
  * @param arr - The array to index into.
  * @param index - The index to access.
  * @param context - Optional caller context for the error message (e.g. function name).
+ * @returns The array element at `index`.
  */
 export function safeIndex<T>(arr: readonly T[], index: number, context?: string): T {
   if (index < 0 || index >= arr.length) {

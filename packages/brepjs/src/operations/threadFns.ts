@@ -94,7 +94,7 @@ export function thread(options: ThreadOptions): Result<Shape3D> {
 
   // The per-section edges and wires are intermediate WASM handles consumed by
   // loft — register them in a scope so they're freed on every exit path (the
-  // lofted ridge is a fresh shape and survives). See docs/memory-management.md.
+  // lofted ridge is a fresh shape and survives).
   using scope = new DisposalScope();
   const sections: Wire<Dimension>[] = [];
   for (let i = 0; i <= nSec; i++) {

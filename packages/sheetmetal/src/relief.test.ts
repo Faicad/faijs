@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { initOCCT } from './test-setup.js';
-import { isValid, measureVolume, getEdges, isErr, unwrap } from '@faicad/faijs-brepjs';
+import {isValid, measureVolume, getEdges, isErr, unwrap} from '@faicad/faijs/api';
 import { author, unfold, validate } from './api.js';
 import { addBendRelief, autoBendReliefs, cornerRelief } from './reliefFns.js';
 import { fold, partToFlatInput } from './foldFns.js';
@@ -17,8 +17,8 @@ const rule: BendRule = { innerRadius: R, kFactor: K };
 const DEV = (Math.PI / 180) * 90 * (R + K * T);
 
 /** A base part with a single partial flange centred on the ymax edge (both ends mid-edge). */
-function partialPart() {
-  return author({
+async function partialPart() {
+  return await author({
     thickness: T,
     base: { length: 40, width: 30 },
     flanges: [{ id: 'a', length: 10, angleDeg: 90, rule, side: 'ymax', offset: 10, width: 15 }],
@@ -26,18 +26,18 @@ function partialPart() {
 }
 
 describe('bend relief — partial flange', () => {
-  it('cuts a slot at each mid-edge bend-line end: volume and developed area both drop', () => {
-    const authored = partialPart();
+  it('cuts a slot at each mid-edge bend-line end: volume and developed area both drop', async () => {
+    const authored = await partialPart();
     expect(authored.ok).toBe(true);
     if (isErr(authored)) return;
     const base = authored.value;
     if (base.solid === undefined) return;
-    const volBefore = unwrap(measureVolume(base.solid));
+    const volBefore = measureVolume(base.solid);
     const areaBefore = unwrap(unfold(base)).pattern.developedArea;
 
     const width = T;
     const depth = DEV + T;
-    const relieved = addBendRelief(base, 'a', { shape: 'rectangular', width, depth });
+    const relieved = await addBendRelief(base, 'a', { shape: 'rectangular', width, depth });
     expect(relieved.ok).toBe(true);
     if (isErr(relieved)) return;
     const part = relieved.value;
@@ -51,7 +51,7 @@ describe('bend relief — partial flange', () => {
     // Each slot removes width×depth×thickness from the parent; both slots sit fully
     // inside the base, so volume drops by 2·(width·depth·T).
     const removed = 2 * width * depth * T;
-    const volAfter = unwrap(measureVolume(part.solid));
+    const volAfter = measureVolume(part.solid);
     expect(volBefore - volAfter).toBeCloseTo(removed, 3);
 
     // The developed outline drops by the same 2D notch area (×1, it is a 2D area).
@@ -64,10 +64,10 @@ describe('bend relief — partial flange', () => {
     expect(getEdges(unfolded.value.pattern.outline).length).toBeGreaterThan(6);
   });
 
-  it('places the notch at the developed bend-line ends (inside the base, on the bend edge)', () => {
-    const authored = partialPart();
+  it('places the notch at the developed bend-line ends (inside the base, on the bend edge)', async () => {
+    const authored = await partialPart();
     if (isErr(authored)) return;
-    const relieved = addBendRelief(authored.value, 'a', { shape: 'rectangular' });
+    const relieved = await addBendRelief(authored.value, 'a', { shape: 'rectangular' });
     if (isErr(relieved)) return;
     const notches = relieved.value.reliefs?.[0]?.notches ?? [];
     expect(notches).toHaveLength(2);
@@ -82,26 +82,26 @@ describe('bend relief — partial flange', () => {
     }
   });
 
-  it('rejects a relief on a full-span flange (no mid-edge end to relieve)', () => {
-    const full = author({
+  it('rejects a relief on a full-span flange (no mid-edge end to relieve)', async () => {
+    const full = await author({
       thickness: T,
       base: { length: 40, width: 30 },
       flanges: [{ id: 'a', length: 10, angleDeg: 90, rule, side: 'xmax' }],
     });
     if (isErr(full)) return;
-    const r = addBendRelief(full.value, 'a');
+    const r = await addBendRelief(full.value, 'a');
     expect(r.ok).toBe(false);
     if (!isErr(r)) return;
     expect(r.error.code).toBe('BEND_RELIEF_NOT_NEEDED');
   });
 });
 
-describe('bend relief — obround vs rectangular', () => {
-  it('records the requested shape and stays valid for both', () => {
-    const authored = partialPart();
+describe('bend relief — obround vs rectangular', async () => {
+  it('records the requested shape and stays valid for both', async () => {
+    const authored = await partialPart();
     if (isErr(authored)) return;
     for (const shape of ['rectangular', 'obround'] as const) {
-      const r = addBendRelief(authored.value, 'a', { shape });
+      const r = await addBendRelief(authored.value, 'a', { shape });
       expect(r.ok).toBe(true);
       if (isErr(r)) continue;
       expect(r.value.reliefs?.[0]?.shape).toBe(shape);
@@ -112,11 +112,11 @@ describe('bend relief — obround vs rectangular', () => {
   });
 });
 
-describe('bend relief — same-span flanges on different edges', () => {
-  it('places each flange’s notch on its own developed bend line (matched by id, not signature)', () => {
+describe('bend relief — same-span flanges on different edges', async () => {
+  it('places each flange’s notch on its own developed bend line (matched by id, not signature)', async () => {
     // Two partial flanges sharing span/angle/direction but on perpendicular edges:
     // a signature match would put both notches on the first matching bend line.
-    const authored = author({
+    const authored = await author({
       thickness: T,
       base: { length: 40, width: 40 },
       flanges: [
@@ -126,10 +126,10 @@ describe('bend relief — same-span flanges on different edges', () => {
     });
     if (isErr(authored)) return;
 
-    const withNorth = addBendRelief(authored.value, 'north', { shape: 'rectangular' });
+    const withNorth = await addBendRelief(authored.value, 'north', { shape: 'rectangular' });
     expect(withNorth.ok).toBe(true);
     if (isErr(withNorth)) return;
-    const withBoth = addBendRelief(withNorth.value, 'east', { shape: 'rectangular' });
+    const withBoth = await addBendRelief(withNorth.value, 'east', { shape: 'rectangular' });
     expect(withBoth.ok).toBe(true);
     if (isErr(withBoth)) return;
 
@@ -147,12 +147,12 @@ describe('bend relief — same-span flanges on different edges', () => {
   });
 });
 
-describe('bend relief — chained partial flange', () => {
-  it('notches into the parent flange strip (inward read from placement, not base center)', () => {
+describe('bend relief — chained partial flange', async () => {
+  it('notches into the parent flange strip (inward read from placement, not base center)', async () => {
     // A partial flange off a wall flange: its developed bend line sits past the wall
     // strip, far from the base center, so a center-based inward guess would point the
     // notch the wrong way. The notch must cut back toward the wall (decreasing y).
-    const authored = author({
+    const authored = await author({
       thickness: T,
       base: { length: 60, width: 20 },
       flanges: [
@@ -161,7 +161,7 @@ describe('bend relief — chained partial flange', () => {
       ],
     });
     if (isErr(authored)) return;
-    const relieved = addBendRelief(authored.value, 'lip', { shape: 'rectangular' });
+    const relieved = await addBendRelief(authored.value, 'lip', { shape: 'rectangular' });
     expect(relieved.ok).toBe(true);
     if (isErr(relieved)) return;
     const lip = relieved.value.reliefs?.find((r) => r.flangeA === 'lip');
@@ -182,9 +182,9 @@ describe('bend relief — chained partial flange', () => {
   });
 });
 
-describe('auto bend reliefs', () => {
-  it('adds a relief to every partial flange and skips full-span ones', () => {
-    const authored = author({
+describe('auto bend reliefs', async () => {
+  it('adds a relief to every partial flange and skips full-span ones', async () => {
+    const authored = await author({
       thickness: T,
       base: { length: 60, width: 40 },
       flanges: [
@@ -193,7 +193,7 @@ describe('auto bend reliefs', () => {
       ],
     });
     if (isErr(authored)) return;
-    const r = autoBendReliefs(authored.value);
+    const r = await autoBendReliefs(authored.value);
     expect(r.ok).toBe(true);
     if (isErr(r)) return;
     // Only the partial flange gets a relief feature.
@@ -204,9 +204,9 @@ describe('auto bend reliefs', () => {
   });
 });
 
-describe('corner relief — two adjacent flanges', () => {
-  it('notches the shared corner, stays valid, and resolves the collision warning', () => {
-    const authored = author({
+describe('corner relief — two adjacent flanges', async () => {
+  it('notches the shared corner, stays valid, and resolves the collision warning', async () => {
+    const authored = await author({
       thickness: T,
       base: { length: 40, width: 40 },
       flanges: [
@@ -218,7 +218,7 @@ describe('corner relief — two adjacent flanges', () => {
     // Un-relieved: the two upright flanges collide at the corner.
     expect(validate(authored.value).some((w) => w.code === 'COLLISION')).toBe(true);
 
-    const relieved = cornerRelief(authored.value, 'fx', 'fy', { shape: 'rectangular' });
+    const relieved = await cornerRelief(authored.value, 'fx', 'fy', { shape: 'rectangular' });
     expect(relieved.ok).toBe(true);
     if (isErr(relieved)) return;
     const part = relieved.value;
@@ -242,8 +242,8 @@ describe('corner relief — two adjacent flanges', () => {
     expect(areaBefore - unfolded.value.pattern.developedArea).toBeCloseTo(3 * (depth / 2) ** 2, 2);
   });
 
-  it('honours spec.width as the square notch side and records it', () => {
-    const authored = author({
+  it('honours spec.width as the square notch side and records it', async () => {
+    const authored = await author({
       thickness: T,
       base: { length: 40, width: 40 },
       flanges: [
@@ -253,7 +253,7 @@ describe('corner relief — two adjacent flanges', () => {
     });
     if (isErr(authored)) return;
     const w = 6;
-    const relieved = cornerRelief(authored.value, 'fx', 'fy', { shape: 'rectangular', width: w });
+    const relieved = await cornerRelief(authored.value, 'fx', 'fy', { shape: 'rectangular', width: w });
     expect(relieved.ok).toBe(true);
     if (isErr(relieved)) return;
     // The recorded width is the actual square side, and the removed developed area
@@ -265,15 +265,15 @@ describe('corner relief — two adjacent flanges', () => {
   });
 });
 
-describe('round-trip — fold preserves the relief feature and reproduces volume', () => {
-  it('fold(FlatInput with bendRelief) reproduces a relief’d part’s volume', () => {
+describe('round-trip — fold preserves the relief feature and reproduces volume', async () => {
+  it('await fold(FlatInput with bendRelief) reproduces a relief’d part’s volume', async () => {
     // Author + relief the part one way…
-    const authored = partialPart();
+    const authored = await partialPart();
     if (isErr(authored)) return;
-    const relieved = addBendRelief(authored.value, 'a', { shape: 'rectangular' });
+    const relieved = await addBendRelief(authored.value, 'a', { shape: 'rectangular' });
     if (isErr(relieved)) return;
     if (relieved.value.solid === undefined) return;
-    const volA = unwrap(measureVolume(relieved.value.solid));
+    const volA = measureVolume(relieved.value.solid);
 
     // …and fold an equivalent FlatInput carrying the same relief on its region.
     const input: FlatInput = {
@@ -294,13 +294,13 @@ describe('round-trip — fold preserves the relief feature and reproduces volume
         },
       ],
     };
-    const folded = fold(input);
+    const folded = await fold(input);
     expect(folded.ok).toBe(true);
     if (isErr(folded)) return;
     expect(folded.value.reliefs).toHaveLength(1);
     if (folded.value.solid === undefined) return;
     expect(isValid(folded.value.solid)).toBe(true);
-    const volB = unwrap(measureVolume(folded.value.solid));
+    const volB = measureVolume(folded.value.solid);
 
     // Both cut the same relief, so the volumes match.
     expect(volB).toBeCloseTo(volA, 3);
@@ -312,10 +312,10 @@ describe('round-trip — fold preserves the relief feature and reproduces volume
   // recorded feature: a relief'd part's recovered FlatInput drops the notch (the
   // parser reads only the rectangle families), so re-folding it yields the un-relief'd
   // volume — proving the notch is genuinely a recorded feature, not re-parsed geometry.
-  it('partToFlatInput drops the notch (relief is a recorded feature, not re-parsed)', () => {
-    const authored = partialPart();
+  it('partToFlatInput drops the notch (relief is a recorded feature, not re-parsed)', async () => {
+    const authored = await partialPart();
     if (isErr(authored)) return;
-    const relieved = addBendRelief(authored.value, 'a', { shape: 'rectangular' });
+    const relieved = await addBendRelief(authored.value, 'a', { shape: 'rectangular' });
     if (isErr(relieved)) return;
     // patternToFlatInput parses the notched outline; the notch turns the base into a
     // non-rectangle, so recovery either fails or omits the notch — either way it must

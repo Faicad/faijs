@@ -1,6 +1,7 @@
+import { getBounds } from './geometryOps.js';
 import { describe, it, expect, beforeAll } from 'vitest';
 import { initOCCT } from './test-setup.js';
-import { isValid, measureVolume, getEdges, getBounds, isErr } from '@faicad/faijs-brepjs';
+import {isValid, measureVolume, getEdges, isErr} from '@faicad/faijs/api';
 import { author, unfold, report } from './api.js';
 import type { BendRule } from './types.js';
 
@@ -15,10 +16,10 @@ const rule: BendRule = { innerRadius: R, kFactor: K };
 const DEV = (Math.PI / 180) * 90 * (R + K * T);
 
 describe('chained U-channel (base → wall → return)', () => {
-  it('builds a valid solid and unfolds with the area invariant', () => {
+  it('builds a valid solid and unfolds with the area invariant', async () => {
     const baseLen = 40;
     const width = 30;
-    const authored = author({
+    const authored = await author({
       thickness: T,
       base: { length: baseLen, width },
       flanges: [
@@ -47,11 +48,11 @@ describe('chained U-channel (base → wall → return)', () => {
   });
 });
 
-describe('U-channel from two opposite base edges', () => {
-  it('develops into a single rectangle widened on both sides', () => {
+describe('U-channel from two opposite base edges', async () => {
+  it('develops into a single rectangle widened on both sides', async () => {
     const baseLen = 40;
     const width = 30;
-    const authored = author({
+    const authored = await author({
       thickness: T,
       base: { length: baseLen, width },
       flanges: [
@@ -75,12 +76,12 @@ describe('U-channel from two opposite base edges', () => {
   });
 });
 
-describe('4-sided tray (a flange off every base edge)', () => {
-  it('builds a valid solid and unfolds into a plus/cross outline', () => {
+describe('4-sided tray (a flange off every base edge)', async () => {
+  it('builds a valid solid and unfolds into a plus/cross outline', async () => {
     const baseLen = 40;
     const width = 30;
     const fl = 12;
-    const authored = author({
+    const authored = await author({
       thickness: T,
       base: { length: baseLen, width },
       flanges: [
@@ -107,12 +108,12 @@ describe('4-sided tray (a flange off every base edge)', () => {
   });
 });
 
-describe('down-bend', () => {
-  it('records direction "down", stays valid, and matches an up-bend in volume', () => {
+describe('down-bend', async () => {
+  it('records direction "down", stays valid, and matches an up-bend in volume', async () => {
     const baseLen = 40;
     const width = 20;
     const flangeLen = 15;
-    const down = author({
+    const down = await author({
       thickness: T,
       base: { length: baseLen, width },
       flanges: [{ id: 'd', length: flangeLen, angleDeg: 90, rule, side: 'xmax', direction: 'down' }],
@@ -125,12 +126,10 @@ describe('down-bend', () => {
     expect(isValid(down.value.solid)).toBe(true);
 
     const downVol = measureVolume(down.value.solid);
-    expect(downVol.ok).toBe(true);
-    if (isErr(downVol)) return;
 
     // A down-bend folds the same material the other way: volume is unchanged but
     // the flange now sits below the base plane (zMin < 0).
-    const up = author({
+    const up = await author({
       thickness: T,
       base: { length: baseLen, width },
       flanges: [{ id: 'd', length: flangeLen, angleDeg: 90, rule, side: 'xmax', direction: 'up' }],
@@ -138,9 +137,7 @@ describe('down-bend', () => {
     expect(up.ok).toBe(true);
     if (isErr(up)) return;
     const upVol = measureVolume(up.value.solid ?? (() => { throw new Error('no solid'); })());
-    expect(upVol.ok).toBe(true);
-    if (isErr(upVol)) return;
-    expect(downVol.value).toBeCloseTo(upVol.value, 3);
+    expect(downVol).toBeCloseTo(upVol, 3);
 
     // The defining property of a down-bend: the flange physically sits below the
     // base plane. Equal volume + valid solid alone can't distinguish a wrong-sign
@@ -156,11 +153,11 @@ describe('down-bend', () => {
   });
 });
 
-describe('partial / offset flanges (two on one edge)', () => {
-  it('places both without overlap and sums their developed strips', () => {
+describe('partial / offset flanges (two on one edge)', async () => {
+  it('places both without overlap and sums their developed strips', async () => {
     const baseLen = 40;
     const width = 30;
-    const authored = author({
+    const authored = await author({
       thickness: T,
       base: { length: baseLen, width },
       flanges: [
@@ -181,8 +178,8 @@ describe('partial / offset flanges (two on one edge)', () => {
     expect(unfolded.value.pattern.developedArea).toBeCloseTo(expected, 6);
   });
 
-  it('rejects two flanges that overlap on the same edge', () => {
-    const overlapping = author({
+  it('rejects two flanges that overlap on the same edge', async () => {
+    const overlapping = await author({
       thickness: T,
       base: { length: 40, width: 30 },
       flanges: [
@@ -196,11 +193,11 @@ describe('partial / offset flanges (two on one edge)', () => {
   });
 });
 
-describe('closed-box seam', () => {
-  it('produces a SEAM_CUT warning and a valid connected flat pattern', () => {
+describe('closed-box seam', async () => {
+  it('produces a SEAM_CUT warning and a valid connected flat pattern', async () => {
     const baseLen = 40;
     const width = 30;
-    const closed = author({
+    const closed = await author({
       thickness: T,
       base: { length: baseLen, width },
       flanges: [
@@ -236,9 +233,9 @@ describe('closed-box seam', () => {
   });
 });
 
-describe('multi-bend report', () => {
-  it('has one entry per folded bend (N flanges → N entries)', () => {
-    const authored = author({
+describe('multi-bend report', async () => {
+  it('has one entry per folded bend (N flanges → N entries)', async () => {
+    const authored = await author({
       thickness: T,
       base: { length: 50, width: 40 },
       flanges: [
@@ -258,9 +255,9 @@ describe('multi-bend report', () => {
   });
 });
 
-describe('input validation', () => {
-  it("rejects a flange id containing '::' (reserved seam delimiter)", () => {
-    const bad = author({
+describe('input validation', async () => {
+  it("rejects a flange id containing '::' (reserved seam delimiter)", async () => {
+    const bad = await author({
       thickness: T,
       base: { length: 30, width: 30 },
       flanges: [{ id: 'left::wall', length: 10, angleDeg: 90, rule, side: 'xmax' }],
@@ -270,8 +267,8 @@ describe('input validation', () => {
     expect(bad.error.code).toBe('INVALID_FLANGE_ID');
   });
 
-  it.each(['root', 'face-0'])("rejects a flange reusing the reserved id '%s'", (reserved) => {
-    const bad = author({
+  it.each(['root', 'face-0'])("rejects a flange reusing the reserved id '%s'", async (reserved) => {
+    const bad = await author({
       thickness: T,
       base: { length: 30, width: 30 },
       flanges: [{ id: reserved, length: 10, angleDeg: 90, rule, side: 'xmax' }],
@@ -281,8 +278,8 @@ describe('input validation', () => {
     expect(bad.error.code).toBe('INVALID_FLANGE_ID');
   });
 
-  it('rejects a seam with an out-of-range angle', () => {
-    const bad = author({
+  it('rejects a seam with an out-of-range angle', async () => {
+    const bad = await author({
       thickness: T,
       base: { length: 30, width: 30 },
       flanges: [{ id: 'w1', length: 20, angleDeg: 90, rule, side: 'xmax' }],
@@ -293,8 +290,8 @@ describe('input validation', () => {
     expect(bad.error.code).toBe('INVALID_SEAM_ANGLE');
   });
 
-  it('rejects a seam with a negative inner radius', () => {
-    const bad = author({
+  it('rejects a seam with a negative inner radius', async () => {
+    const bad = await author({
       thickness: T,
       base: { length: 30, width: 30 },
       flanges: [{ id: 'w1', length: 20, angleDeg: 90, rule, side: 'xmax' }],

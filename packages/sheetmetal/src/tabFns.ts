@@ -1,21 +1,5 @@
-import {
-  type Result,
-  type Vec3,
-  type Solid,
-  ok,
-  err,
-  validationError,
-  line,
-  wireLoop,
-  face,
-  extrude,
-  fuse,
-  getSolids,
-  isValid,
-  isPlanarWire,
-  vecAdd,
-  vecScale,
-} from '@faicad/faijs-brepjs';
+import type { Solid } from './types.js';
+import {type Result, type Vec3, ok, err, kernelError, validationError, line, wireLoop, face, extrude, fuse, getSolids, isValid, isPlanarWire, vecAdd, vecScale} from '@faicad/faijs/api';
 import type { TabSpec, TabFeature, SheetMetalPart } from './types.js';
 import { normalizeSolid } from './internal.js';
 import type { FlatFrame } from './authorFns.js';
@@ -40,7 +24,7 @@ type Pt2 = [number, number];
  * @param spec - the tab specification.
  * @returns the updated part with the tab feature recorded, or an error.
  */
-export function addTab(part: SheetMetalPart, spec: TabSpec): Result<SheetMetalPart> {
+export async function addTab(part: SheetMetalPart, spec: TabSpec): Promise<Result<SheetMetalPart>> {
   if (part.solid === undefined) {
     return err(validationError('NO_SOLID', 'addTab: part has no folded solid to fuse onto'));
   }
@@ -73,12 +57,14 @@ export function addTab(part: SheetMetalPart, spec: TabSpec): Result<SheetMetalPa
 
   const local = tabLocalRect(spec, ext);
 
-  const tool = buildTabSolid(local, world, part.thickness);
-  if (!tool.ok) return tool;
-
-  const fused = fuse(part.solid, tool.value);
-  if (!fused.ok) return fused;
-  const solid = normalizeSolid(fused.value);
+  let solid: Solid;
+  try {
+    const tool = await buildTabSolid(local, world, part.thickness);
+    if (!tool.ok) return tool;
+    solid = normalizeSolid((await fuse(part.solid, tool.value)) as Solid);
+  } catch (e) {
+    return err(kernelError('FUSE_FAILED', `tab: ${e instanceof Error ? e.message : String(e)}`));
+  }
   if (!isValid(solid) || getSolids(solid).length > 1) {
     return err(
       validationError(
@@ -124,17 +110,17 @@ export interface SlotPlacement {
  * @param slot - the slot placement.
  * @returns the updated part with the tab-and-slot feature recorded, or an error.
  */
-export function tabAndSlot(
+export async function tabAndSlot(
   part: SheetMetalPart,
   tab: TabSpec,
   slot: SlotPlacement
-): Result<SheetMetalPart> {
+): Promise<Result<SheetMetalPart>> {
   const clearance = slot.clearance ?? 0.1;
   if (!Number.isFinite(clearance) || clearance < 0) {
     return err(validationError('INVALID_CLEARANCE', `clearance must be non-negative, got ${clearance}`));
   }
 
-  const withTab = addTab(part, tab);
+  const withTab = await addTab(part, tab);
   if (!withTab.ok) return withTab;
 
   // The tab's inserted cross-section is `width` (along the edge) by `thickness`
@@ -194,7 +180,7 @@ function tabLocalRect(spec: TabSpec, ext: { uMax: number; vMax: number }): Pt2[]
 }
 
 /** Extrude the region-local tab rectangle through the sheet via the region world frame. */
-function buildTabSolid(local: Pt2[], f: FlatFrame, thickness: number): Result<Solid> {
+async function buildTabSolid(local: Pt2[], f: FlatFrame, thickness: number): Promise<Result<Solid>> {
   const worldPts: Vec3[] = local.map(([x, y]) =>
     vecAdd(vecAdd(f.origin, vecScale(f.u, x)), vecScale(f.v, y))
   );
@@ -214,7 +200,11 @@ function buildTabSolid(local: Pt2[], f: FlatFrame, thickness: number): Result<So
   }
   const profile = face(wire.value);
   if (!profile.ok) return profile;
-  return extrude(profile.value, [f.n[0] * thickness, f.n[1] * thickness, f.n[2] * thickness]);
+  try {
+    return ok((await extrude(profile.value, [f.n[0] * thickness, f.n[1] * thickness, f.n[2] * thickness])) as Solid);
+  } catch (e) {
+    return err(kernelError('TAB_TOOL_FAILED', `extrude tab: ${e instanceof Error ? e.message : String(e)}`));
+  }
 }
 
 /** Developed-plane axis-aligned rectangle `[x0,y0,x1,y1]` of the local tab rect. */

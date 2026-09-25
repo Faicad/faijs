@@ -1,26 +1,6 @@
-import {
-  type Result,
-  type Vec3,
-  type Bounds3D,
-  type Solid,
-  type ValidSolid,
-  ok,
-  err,
-  validationError,
-  box,
-  cylinder,
-  fuse,
-  cut,
-  intersect,
-  rotate,
-  translate,
-  vecAdd,
-  vecSub,
-  vecScale,
-  vecDot,
-  vecCross,
-  vecNormalize,
-} from '@faicad/faijs-brepjs';
+import type { Bounds3D, Solid, ValidSolid } from './types.js';
+import { cylinder, translate } from './geometryOps.js';
+import {type Result, type Vec3, ok, err, kernelError, validationError, box, fuse, cut, intersect, rotate, vecAdd, vecSub, vecScale, vecDot, vecCross, vecNormalize} from '@faicad/faijs/api';
 import type {
   BendFeature,
   BendRule,
@@ -140,7 +120,7 @@ export interface FlatFrame {
  *   `err` with a `validationError` for an invalid thickness / base / flange /
  *   seam specification.
  */
-export function authorPart(spec: AuthorSpec): Result<SheetMetalPart> {
+export async function authorPart(spec: AuthorSpec): Promise<Result<SheetMetalPart>> {
   const { thickness } = spec;
   if (!Number.isFinite(thickness) || thickness <= 0) {
     return err(validationError('INVALID_THICKNESS', `thickness must be positive, got ${thickness}`));
@@ -189,7 +169,7 @@ export function authorPart(spec: AuthorSpec): Result<SheetMetalPart> {
     vLen: width,
   });
 
-  let solid: Solid = box(baseLen, width, thickness);
+  let solid: Solid = (await box({ width: baseLen, depth: width, height: thickness })) as Solid;
   const flanges: FlangeFeature[] = [];
   const bends: BendFeature[] = [];
 
@@ -203,7 +183,7 @@ export function authorPart(spec: AuthorSpec): Result<SheetMetalPart> {
         validationError('UNKNOWN_PARENT', `flange '${flange.id}' parent '${flange.parent}' not authored yet`)
       );
     }
-    const built = buildFlange(solid, parentFrame, thickness, flange);
+    const built = await buildFlange(solid, parentFrame, thickness, flange);
     if (!built.ok) return built;
     solid = built.value.solid;
     flanges.push(built.value.flange);
@@ -376,12 +356,12 @@ interface BuiltFlange {
  * (bend axis +Y at the origin, outward run +X, top surface +Z) honouring the
  * up/down fold, then rigidly mapped onto the parent edge's world frame.
  */
-function buildFlange(
+async function buildFlange(
   base: Solid,
   parent: FlatFrame,
   thickness: number,
   flange: FlangeSpec
-): Result<BuiltFlange> {
+): Promise<Result<BuiltFlange>> {
   if (!Number.isFinite(flange.length) || flange.length <= 0) {
     return err(validationError('INVALID_FLANGE_LENGTH', `flange '${flange.id}' length must be positive`));
   }
@@ -416,22 +396,25 @@ function buildFlange(
   // +Y over [0, span]. Up folds toward +Z, down folds below the base plane.
   const canonAxisZ = direction === 'up' ? thickness + r : -r;
   const canonOrigin: Vec3 = [0, 0, canonAxisZ];
-  const patch = buildBendPatch(canonOrigin, flange.angleDeg, r, span, thickness, direction);
+  const patch = await buildBendPatch(canonOrigin, flange.angleDeg, r, span, thickness, direction);
   if (!patch.ok) return patch;
-  const flat = buildFlangeFlat(canonOrigin, flange.angleDeg, span, thickness, flange.length, direction);
+  const flat = await buildFlangeFlat(canonOrigin, flange.angleDeg, span, thickness, flange.length, direction);
 
   // World frame the canonical assembly maps onto: bend axis = edge.dir, outward
   // run = edge.out, top normal = parent.n. The bend axis sits at offset along the
   // edge; the canonical contact (axis straight above the base seam) maps onto the
   // parent edge line.
   const place = frameTransform(edge.dir, edge.out, parent.n, edge.start, offset);
-  const patchPlaced = place.solid(patch.value);
-  const flatPlaced = place.solid(flat);
+  const patchPlaced = await place.solid(patch.value);
+  const flatPlaced = await place.solid(flat);
 
-  const fusedPatch = fuse(base, patchPlaced);
-  if (!fusedPatch.ok) return fusedPatch;
-  const fused = fuse(fusedPatch.value, flatPlaced);
-  if (!fused.ok) return fused;
+  let fused: Solid;
+  try {
+    const fusedPatch = await fuse(base, patchPlaced);
+    fused = (await fuse(fusedPatch, flatPlaced)) as Solid;
+  } catch (e) {
+    return err(kernelError('FUSE_FAILED', `fuse flange: ${e instanceof Error ? e.message : String(e)}`));
+  }
 
   const sign = direction === 'up' ? 1 : -1;
   // Recorded bend axis = the cylinder centre line: parent edge + n·(T+r up | r down).
@@ -477,7 +460,7 @@ function buildFlange(
     ...(flange.miter !== undefined ? { miter: flange.miter } : {}),
   };
 
-  return ok({ solid: fused.value, flange: flangeFeature, bend, childFrame });
+  return ok({ solid: fused, flange: flangeFeature, bend, childFrame });
 }
 
 interface ParentEdge {
@@ -641,7 +624,7 @@ function aabbOf(corners: Vec3[]): Bounds3D {
 }
 
 interface PlacedTransform {
-  solid: (s: Solid) => Solid;
+  solid: (s: Solid) => Promise<Solid>;
   point: (p: Vec3) => Vec3;
   vector: (v: Vec3) => Vec3;
 }
@@ -670,9 +653,9 @@ function frameTransform(
   const applyR = (v: Vec3): Vec3 =>
     vecAdd(vecAdd(vecScale(runT, v[0]), vecScale(axisT, v[1])), vecScale(nT, v[2]));
   return {
-    solid: (s: Solid) => {
-      const rotated = aa.angleDeg === 0 ? s : rotate(s, aa.angleDeg, { at: [0, 0, 0], axis: aa.axis });
-      return translate(rotated, target);
+    solid: async (s: Solid): Promise<Solid> => {
+      const rotated = aa.angleDeg === 0 ? s : await rotate(s, aa.angleDeg, { at: [0, 0, 0], axis: aa.axis });
+      return (await translate(rotated, target)) as Solid;
     },
     point: (p: Vec3) => vecAdd(applyR(p), target),
     vector: applyR,
@@ -727,28 +710,29 @@ function matrixToAxisAngle(m: number[]): { axis: Vec3; angleDeg: number } {
  * bend the axis sits above the base (sweep from −Z toward the flange); for a down
  * bend it sits below (sweep from +Z toward the flange).
  */
-function buildBendPatch(
+async function buildBendPatch(
   axisOrigin: Vec3,
   thetaDeg: number,
   r: number,
   width: number,
   thickness: number,
   direction: 'up' | 'down'
-): Result<ValidSolid> {
+): Promise<Result<ValidSolid>> {
   const outerR = r + thickness;
+  try {
+    const outer = await cylinder(outerR, width, { at: axisOrigin, axis: [0, 1, 0] });
+    let tube: Solid = outer as Solid;
+    if (r > 1e-9) {
+      const inner = await cylinder(r, width, { at: axisOrigin, axis: [0, 1, 0] });
+      tube = (await cut(outer, inner)) as Solid;
+    }
 
-  const outer = cylinder(outerR, width, { at: axisOrigin, axis: [0, 1, 0] });
-  let tube: Solid = outer;
-  if (r > 1e-9) {
-    const inner = cylinder(r, width, { at: axisOrigin, axis: [0, 1, 0] });
-    const carved = cut(outer, inner);
-    if (!carved.ok) return carved;
-    tube = carved.value;
+    const wedge = await buildWedge(axisOrigin, thetaDeg, outerR, width, direction);
+    if (!wedge.ok) return wedge;
+    return ok((await intersect(tube, wedge.value)) as ValidSolid);
+  } catch (e) {
+    return err(kernelError('BEND_PATCH_FAILED', `build bend patch: ${e instanceof Error ? e.message : String(e)}`));
   }
-
-  const wedge = buildWedge(axisOrigin, thetaDeg, outerR, width, direction);
-  if (!wedge.ok) return wedge;
-  return intersect(tube, wedge.value) as Result<ValidSolid>;
 }
 
 /**
@@ -758,49 +742,52 @@ function buildBendPatch(
  * through the bend axis with that half-space rotated by the fold; the tube
  * intersection trims it to the true annular sector.
  */
-function buildWedge(
+async function buildWedge(
   axisOrigin: Vec3,
   thetaDeg: number,
   outerR: number,
   width: number,
   direction: 'up' | 'down'
-): Result<Solid> {
+): Promise<Result<Solid>> {
   const span = outerR * 2 + 2;
   const margin = 1;
+  try {
+    const blockA = (await box({ width: span, depth: width + 2 * margin, height: 2 * span })) as Solid;
+    const halfA: Solid = (await translate(blockA, [
+      axisOrigin[0],
+      axisOrigin[1] - margin,
+      axisOrigin[2] - span,
+    ])) as Solid;
 
-  const blockA = box(span, width + 2 * margin, 2 * span);
-  const halfA: Solid = translate(blockA, [
-    axisOrigin[0],
-    axisOrigin[1] - margin,
-    axisOrigin[2] - span,
-  ]);
+    // Up bends sweep from −Z (rotate +X start plane by +(180−θ)); down bends mirror
+    // about the axis, sweeping from +Z (rotate by −(180−θ)).
+    const sign = direction === 'up' ? 1 : -1;
+    const halfB = await rotate(halfA, sign * (180 - thetaDeg), { at: axisOrigin, axis: [0, 1, 0] });
 
-  // Up bends sweep from −Z (rotate +X start plane by +(180−θ)); down bends mirror
-  // about the axis, sweeping from +Z (rotate by −(180−θ)).
-  const sign = direction === 'up' ? 1 : -1;
-  const halfB = rotate(halfA, sign * (180 - thetaDeg), { at: axisOrigin, axis: [0, 1, 0] });
-
-  return intersect(halfA, halfB);
+    return ok((await intersect(halfA, halfB)) as Solid);
+  } catch (e) {
+    return err(kernelError('WEDGE_FAILED', `build wedge: ${e instanceof Error ? e.message : String(e)}`));
+  }
 }
 
 /** The flange flat, built lying along +X past the bend, then folded to angle θ. */
-function buildFlangeFlat(
+async function buildFlangeFlat(
   axisOrigin: Vec3,
   thetaDeg: number,
   width: number,
   thickness: number,
   length: number,
   direction: 'up' | 'down'
-): Solid {
+): Promise<Solid> {
   // Unfolded the flat is coplanar with the base sheet; for an up bend it lies in
   // Z∈[0,T] folding up (rotate −θ about +Y sends +X toward +Z); for a down bend it
   // lies in Z∈[−T,0] folding down (rotate +θ sends +X toward −Z).
   if (direction === 'up') {
-    const flat = box(length, width, thickness);
-    const positioned: Solid = translate(flat, [axisOrigin[0], axisOrigin[1], 0]);
-    return rotate(positioned, -thetaDeg, { at: axisOrigin, axis: [0, 1, 0] });
+    const flat = (await box({ width: length, depth: width, height: thickness })) as Solid;
+    const positioned: Solid = (await translate(flat, [axisOrigin[0], axisOrigin[1], 0])) as Solid;
+    return (await rotate(positioned, -thetaDeg, { at: axisOrigin, axis: [0, 1, 0] })) as Solid;
   }
-  const flat = box(length, width, thickness);
-  const positioned: Solid = translate(flat, [axisOrigin[0], axisOrigin[1], -thickness]);
-  return rotate(positioned, thetaDeg, { at: axisOrigin, axis: [0, 1, 0] });
+  const flat = (await box({ width: length, depth: width, height: thickness })) as Solid;
+  const positioned: Solid = (await translate(flat, [axisOrigin[0], axisOrigin[1], -thickness])) as Solid;
+  return (await rotate(positioned, thetaDeg, { at: axisOrigin, axis: [0, 1, 0] })) as Solid;
 }

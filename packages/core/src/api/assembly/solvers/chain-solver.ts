@@ -286,6 +286,9 @@ function solveMate(c: SolverConstraint, ref: SolverEntity, dep: SolverEntity): P
  * pose (rotation included), so multi-body chains compose. Returns
  * `converged: false` with details for entity-type mismatches and any constraint
  * whose reference never resolves.
+ * @param nodes - Names of the nodes participating in the assembly.
+ * @param constraints - Constraints to solve.
+ * @returns The solver result with per-node transforms, DOF count, and convergence info.
  */
 export function solveConstraints(nodes: string[], constraints: SolverConstraint[]): SolverResult {
   const transforms = new Map<string, Pose>();

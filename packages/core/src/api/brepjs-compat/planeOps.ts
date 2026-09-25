@@ -35,6 +35,7 @@ import { validationError } from '../../result/errors';
  * @param origin - Origin point of the plane.
  * @param xDirection - Explicit X axis direction, or `null` to auto-derive.
  * @param normal - Plane normal (Z direction).
+ * @returns The created plane.
  * @throws If the normal or derived xDir is zero-length.
  */
 export function createPlane(
@@ -119,6 +120,8 @@ export function createNamedPlane(
 /**
  * Resolve a {@link PlaneInput} to a concrete {@link Plane}.
  *
+ * @param input - Plane input to resolve (a named plane or a `Plane` object).
+ * @param origin - Optional origin point or scalar offset along the plane normal.
  * @returns `Ok<Plane>` on success, or `Err` if the named plane cannot be resolved.
  */
 export function resolvePlane(input: PlaneInput, origin?: PointInput | number): Result<Plane> {
@@ -141,9 +144,23 @@ export function resolvePlane(input: PlaneInput, origin?: PointInput | number): R
  *
  * @param plane - A `Plane` object to copy, or a `PlaneName` string to resolve.
  * @param origin - Origin point or scalar offset along the plane normal.
+ * @returns The copied or resolved plane.
  * @default plane `'XY'`
  */
+/**
+ * Copy a {@link Plane} object.
+ *
+ * @param plane - The `Plane` object to copy.
+ * @returns A shallow copy of the plane.
+ */
 function makePlane(plane: Plane): Plane;
+/**
+ * Resolve a named plane with an optional origin offset.
+ *
+ * @param plane - The {@link PlaneName} to resolve (defaults to `'XY'`).
+ * @param origin - Origin point or scalar offset along the plane normal.
+ * @returns The resolved plane.
+ */
 function makePlane(plane?: PlaneName, origin?: PointInput | number): Plane;
 function makePlane(plane?: PlaneInput, origin?: PointInput | number): Plane {
   if (plane && typeof plane !== 'string') {
@@ -160,7 +177,12 @@ export { makePlane };
 // Coordinate transforms
 // ---------------------------------------------------------------------------
 
-/** Convert 2D local coordinates to 3D world coordinates on the plane. */
+/** Convert 2D local coordinates to 3D world coordinates on the plane.
+ *
+ * @param plane - Plane defining the local coordinate system.
+ * @param local - 2D local coordinates.
+ * @returns The corresponding 3D world point.
+ */
 export function planeToWorld(plane: Plane, local: Vec2): Vec3 {
   const [u, v] = local;
   return vecAdd(vecAdd(plane.origin, vecScale(plane.xDir, u)), vecScale(plane.yDir, v));
@@ -168,6 +190,10 @@ export function planeToWorld(plane: Plane, local: Vec2): Vec3 {
 
 /**
  * Convert 3D world coordinates to 2D local coordinates on the plane.
+ *
+ * @param plane - Plane defining the local coordinate system.
+ * @param world - 3D world point.
+ * @returns The corresponding 2D local coordinates.
  */
 export function planeToLocal(plane: Plane, world: Vec3): Vec2 {
   const relative = vecSub(world, plane.origin);
@@ -178,7 +204,12 @@ export function planeToLocal(plane: Plane, world: Vec3): Vec2 {
 // Plane transformations (all return new Plane)
 // ---------------------------------------------------------------------------
 
-/** Translate a plane by a vector. */
+/** Translate a plane by a vector.
+ *
+ * @param plane - Plane to translate.
+ * @param offset - Translation vector.
+ * @returns The translated plane.
+ */
 export function translatePlane(plane: Plane, offset: Vec3): Plane {
   return { ...plane, origin: vecAdd(plane.origin, offset) };
 }
@@ -188,6 +219,8 @@ export function translatePlane(plane: Plane, offset: Vec3): Plane {
  *
  * @param angleDeg - Rotation angle in **degrees**.
  * @param axis - World-space axis to rotate around.
+ * @param plane - Plane to pivot.
+ * @returns The pivoted plane.
  */
 export function pivotPlane(plane: Plane, angleDeg: number, axis: Vec3 = [1, 0, 0]): Plane {
   const angleRad = angleDeg * DEG2RAD;

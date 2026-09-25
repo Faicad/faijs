@@ -32,6 +32,9 @@ const SECTION_PARAMS = { name: 'section', params: ['shape', 'plane'], formClass:
  * into a compound to match the vendored product shape. `options` (approximation
  * / planeSize) is accepted for signature compatibility; the occt native
  * section uses its default approximation.
+ *
+ * @param args - Resolved arguments (shape, plane).
+ * @returns The section result compound as a `BrepHandle`.
  */
 export function sectionBrep(...args: unknown[]): Result<BrepHandle> {
   const [shape, plane] = resolveArgs(args, SECTION_PARAMS)
@@ -70,6 +73,11 @@ export function sectionBrep(...args: unknown[]): Result<BrepHandle> {
 
 const FUSE_PARAMS = { name: 'fuse', params: ['a', 'b', 'options'], formClass: 'A' as FormClass }
 
+/**
+ * Fuse (union) two shapes into one.
+ * @param args - Resolved arguments (a, b).
+ * @returns The fused shape as a `BrepHandle`.
+ */
 export function fuseBrep(...args: unknown[]): Result<BrepHandle> {
   const [a, b] = resolveArgs(args, FUSE_PARAMS)
   const kernel = getBrepApi()
@@ -89,6 +97,11 @@ export function fuseBrep(...args: unknown[]): Result<BrepHandle> {
 
 const SPLIT_PARAMS = { name: 'split', params: ['shape', 'tools'], formClass: 'A' as FormClass }
 
+/**
+ * Split a shape with one or more tool shapes.
+ * @param args - Resolved arguments (shape, tools).
+ * @returns The split result as a `BrepHandle`.
+ */
 export function splitBrep(...args: unknown[]): Result<BrepHandle> {
   const [shape, toolsRaw] = resolveArgs(args, SPLIT_PARAMS)
   const h = brepHandleOf(shape)

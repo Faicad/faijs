@@ -1,22 +1,7 @@
-import {
-  type Result,
-  type Vec3,
-  type Solid,
-  ok,
-  err,
-  validationError,
-  box,
-  cut,
-  rotate,
-  translate,
-  getBounds,
-  vecSub,
-  vecAdd,
-  vecScale,
-  vecCross,
-  vecDot,
-  vecNormalize,
-} from '@faicad/faijs-brepjs';
+import { getBounds } from './geometryOps.js';
+import type { Solid } from './types.js';
+import { translate } from './geometryOps.js';
+import {type Result, type Vec3, ok, err, kernelError, validationError, box, cut, rotate, vecSub, vecAdd, vecScale, vecCross, vecDot, vecNormalize} from '@faicad/faijs/api';
 import type { SheetMetalPart } from './types.js';
 import { normalizeSolid } from './internal.js';
 
@@ -35,18 +20,21 @@ export interface MiterPlane {
  * @param plane - the miter plane definition.
  * @returns the updated part with the miter cut applied, or an error.
  */
-export function miterCut(part: SheetMetalPart, plane: MiterPlane): Result<SheetMetalPart> {
+export async function miterCut(part: SheetMetalPart, plane: MiterPlane): Promise<Result<SheetMetalPart>> {
   const solid = part.solid;
   if (solid === undefined) {
     return err(validationError('NO_SOLID', 'miterCut: part has no folded solid to cut'));
   }
-  const tool = halfSpaceTool(solid, plane);
-  if (!tool.ok) return tool;
+  let solidOut: Solid;
+  try {
+    const tool = await halfSpaceTool(solid, plane);
+    if (!tool.ok) return tool;
+    solidOut = normalizeSolid((await cut(solid, tool.value)) as Solid);
+  } catch (e) {
+    return err(kernelError('CUT_FAILED', `miter cut: ${e instanceof Error ? e.message : String(e)}`));
+  }
 
-  const result = cut(solid, tool.value);
-  if (!result.ok) return result;
-
-  return ok({ ...part, solid: normalizeSolid(result.value) });
+  return ok({ ...part, solid: solidOut });
 }
 
 /**
@@ -61,12 +49,12 @@ export function miterCut(part: SheetMetalPart, plane: MiterPlane): Result<SheetM
  * @param gap - the gap between flanges (default 0).
  * @returns the updated part with the miter corner applied, or an error.
  */
-export function autoMiterCorner(
+export async function autoMiterCorner(
   part: SheetMetalPart,
   flangeIdA: string,
   flangeIdB: string,
   gap = 0
-): Result<SheetMetalPart> {
+): Promise<Result<SheetMetalPart>> {
   if (part.solid === undefined) {
     return err(validationError('NO_SOLID', 'autoMiterCorner: part has no folded solid'));
   }
@@ -96,7 +84,7 @@ export function autoMiterCorner(
   }
   const origin = vecAdd(corner, vecScale(planeNormal, gap * 0.5));
 
-  const cutResult = miterCut(part, { origin, normal: planeNormal });
+  const cutResult = await miterCut(part, { origin, normal: planeNormal });
   if (!cutResult.ok) return cutResult;
 
   return ok({
@@ -136,7 +124,7 @@ function miterNormal(dirA: Vec3, dirB: Vec3): Vec3 | undefined {
 
 const Z_AXIS: Vec3 = [0, 0, 1];
 
-function halfSpaceTool(solid: Solid, plane: MiterPlane): Result<Solid> {
+async function halfSpaceTool(solid: Solid, plane: MiterPlane): Promise<Result<Solid>> {
   const normal = vecNormalize(plane.normal);
   if (Math.hypot(normal[0], normal[1], normal[2]) < 1e-9) {
     return err(validationError('INVALID_PLANE', 'miter plane normal must be non-zero'));
@@ -150,21 +138,25 @@ function halfSpaceTool(solid: Solid, plane: MiterPlane): Result<Solid> {
   // up in +Z, then rotated so +Z maps onto the plane normal and translated onto the
   // plane origin. After alignment its open boundary is the miter plane and its body
   // fills the +normal half-space.
-  let tool: Solid = box(size, size, size);
-  tool = translate(tool, [-size / 2, -size / 2, 0]);
+  try {
+    let tool: Solid = (await box({ width: size, depth: size, height: size })) as Solid;
+    tool = (await translate(tool, [-size / 2, -size / 2, 0])) as Solid;
 
-  const aligned = alignZTo(tool, normal);
-  return ok(translate(aligned, plane.origin));
+    const aligned = await alignZTo(tool, normal);
+    return ok((await translate(aligned, plane.origin)) as Solid);
+  } catch (e) {
+    return err(kernelError('MITER_TOOL_FAILED', `half-space tool: ${e instanceof Error ? e.message : String(e)}`));
+  }
 }
 
 /** Rotate a shape so its local +Z axis points along `target` (about the origin). */
-function alignZTo(shape: Solid, target: Vec3): Solid {
+async function alignZTo(shape: Solid, target: Vec3): Promise<Solid> {
   const dot = vecDot(Z_AXIS, target);
   if (dot > 1 - 1e-9) return shape;
   if (dot < -1 + 1e-9) {
-    return rotate(shape, 180, { at: [0, 0, 0], axis: [1, 0, 0] });
+    return (await rotate(shape, 180, { at: [0, 0, 0], axis: [1, 0, 0] })) as Solid;
   }
   const axis = vecNormalize(vecCross(Z_AXIS, target));
   const angleDeg = (Math.acos(Math.max(-1, Math.min(1, dot))) * 180) / Math.PI;
-  return rotate(shape, angleDeg, { at: [0, 0, 0], axis });
+  return (await rotate(shape, angleDeg, { at: [0, 0, 0], axis })) as Solid;
 }

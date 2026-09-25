@@ -7,6 +7,7 @@
  */
 
 export type Vec3 = readonly [number, number, number];
+/** A quaternion in scalar-first `[w, x, y, z]` convention. */
 export type Quat = readonly [number, number, number, number];
 
 function dot(a: Vec3, b: Vec3): number {
@@ -31,7 +32,11 @@ function anyPerpendicular(v: Vec3): Vec3 {
 // Returns are mutable tuples (readonly inputs) so callers that store rotations
 // in mutable tuple fields can use them without readonly-assignment friction.
 
-/** Rotate vector `v` by quaternion `q`. */
+/** Rotate vector `v` by quaternion `q`.
+ * @param q - The rotation quaternion `[w, x, y, z]`.
+ * @param v - The vector to rotate.
+ * @returns The rotated vector.
+ */
 export function quatRotate(q: Quat, v: Vec3): [number, number, number] {
   const [w, x, y, z] = q;
   const tx = 2 * (y * v[2] - z * v[1]);
@@ -44,7 +49,11 @@ export function quatRotate(q: Quat, v: Vec3): [number, number, number] {
   ];
 }
 
-/** Quaternion for a rotation of `angle` radians about (unit-normalized) `axis`. */
+/** Quaternion for a rotation of `angle` radians about (unit-normalized) `axis`.
+ * @param axis - Rotation axis (normalized internally).
+ * @param angle - Rotation angle in radians.
+ * @returns The rotation quaternion `[w, x, y, z]`.
+ */
 export function quatFromAxisAngle(axis: Vec3, angle: number): [number, number, number, number] {
   const h = angle / 2;
   const s = Math.sin(h);
@@ -52,7 +61,11 @@ export function quatFromAxisAngle(axis: Vec3, angle: number): [number, number, n
   return [Math.cos(h), u[0] * s, u[1] * s, u[2] * s];
 }
 
-/** Shortest-arc quaternion rotating unit vector `from` onto unit vector `to`. */
+/** Shortest-arc quaternion rotating unit vector `from` onto unit vector `to`.
+ * @param from - Starting direction (normalized internally).
+ * @param to - Target direction (normalized internally).
+ * @returns The shortest-arc rotation quaternion `[w, x, y, z]`.
+ */
 export function quatFromTo(from: Vec3, to: Vec3): [number, number, number, number] {
   const a = normalize(from);
   const b = normalize(to);
@@ -64,7 +77,11 @@ export function quatFromTo(from: Vec3, to: Vec3): [number, number, number, numbe
   return [(1 + d) / len, c[0] / len, c[1] / len, c[2] / len];
 }
 
-/** Hamilton product `a ⊗ b` — the rotation that applies `b` first, then `a`. */
+/** Hamilton product `a ⊗ b` — the rotation that applies `b` first, then `a`.
+ * @param a - Left quaternion of the product.
+ * @param b - Right quaternion of the product.
+ * @returns The product quaternion `[w, x, y, z]`.
+ */
 export function quatMultiply(a: Quat, b: Quat): [number, number, number, number] {
   const [aw, ax, ay, az] = a;
   const [bw, bx, by, bz] = b;

@@ -1,30 +1,6 @@
-import {
-  type Result,
-  type Vec3,
-  type Solid,
-  type Face,
-  ok,
-  err,
-  validationError,
-  getFaces,
-  getSurfaceType,
-  pointOnSurface,
-  normalAt,
-  faceCenter,
-  sharedEdges,
-  measureArea,
-  getBounds,
-  isValid,
-  vecAdd,
-  vecSub,
-  vecScale,
-  vecDot,
-  vecCross,
-  vecLength,
-  vecNormalize,
-  line,
-  wireLoop,
-} from '@faicad/faijs-brepjs';
+import { getBounds } from './geometryOps.js';
+import type { Solid, Face } from './types.js';
+import {type Result, type Vec3, ok, err, validationError, getFaces, getSurfaceType, pointOnSurface, normalAt, faceCenter, sharedEdges, measureArea, isValid, vecAdd, vecSub, vecScale, vecDot, vecCross, vecLength, vecNormalize, line, wireLoop} from '@faicad/faijs/api';
 import type {
   UnfoldResult,
   FlatPattern,
@@ -99,7 +75,10 @@ function sampleFace(face: Face, n: number): Sample[] {
  */
 export function fitCylinder(face: Face): FittedCylinder | null {
   const surf = getSurfaceType(face);
-  if (!surf.ok || surf.value !== 'CYLINDRE') return null;
+  // OCCT keeps exact cylinders as 'cylinder', but applyMatrix (gp_GTrsf) and
+  // boolean ops (intersect/cut) can re-parameterise them to 'bspline' — the
+  // numeric fit below works on either; other types fail the residual check.
+  if (!surf.ok || (surf.value !== 'cylinder' && surf.value !== 'bspline')) return null;
 
   const samples = sampleFace(face, 6);
   if (samples.length < 4) return null;
@@ -337,7 +316,7 @@ export function unfoldForeignSolid(
   }
 
   const warnings: SheetMetalWarning[] = [];
-  const faces = getFaces<'3D'>(solid);
+  const faces = getFaces(solid);
   if (faces.length === 0) {
     return err(validationError('EMPTY_SOLID', 'foreign solid has no faces'));
   }
@@ -350,9 +329,15 @@ export function unfoldForeignSolid(
       warnings.push({ code: 'UNSUPPORTED_FACE', message: 'failed to read a face surface type; skipping' });
       continue;
     }
-    if (t.value === 'PLANE') planarFaces.push(face);
-    else if (t.value === 'CYLINDRE') cylFaces.push(face);
-    else {
+    if (t.value === 'plane') {
+      planarFaces.push(face);
+    } else if (t.value === 'cylinder') {
+      cylFaces.push(face);
+    } else if (fitCylinder(face) !== null) {
+      // A numerically-fittable bspline/other surface IS a cylindrical bend
+      // (OCCT re-parameterises exact cylinders through transforms/booleans).
+      cylFaces.push(face);
+    } else {
       warnings.push({
         code: 'UNSUPPORTED_FACE',
         message: `UNSUPPORTED_FACE: surface type '${t.value}' is not a planar panel or cylindrical bend; the unfold ignores it and may be incomplete`,
@@ -460,9 +445,9 @@ function pairFlats(planar: Face[], thickness: number, warnings: SheetMetalWarnin
     const areaA = measureArea(fa);
     const areaB = measureArea(fb);
     let area: number;
-    if (areaA.ok && areaB.ok) area = (areaA.value + areaB.value) / 2;
-    else if (areaA.ok) area = areaA.value;
-    else if (areaB.ok) area = areaB.value;
+    if (Number.isFinite(areaA) && Number.isFinite(areaB)) area = (areaA + areaB) / 2;
+    else if (Number.isFinite(areaA)) area = areaA;
+    else if (Number.isFinite(areaB)) area = areaB;
     else {
       // Neither face area is measurable: fall back to the panel's bounding-box
       // footprint so developedArea isn't silently zero, and flag the estimate.

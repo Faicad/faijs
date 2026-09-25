@@ -5,8 +5,6 @@
  * plus the {@link Kernel2DCapability} mixin. This decomposition follows the
  * Interface Segregation Principle and mirrors OCCT's modular package
  * structure (BRepAlgoAPI, BRepPrimAPI, BRepFilletAPI, etc.).
- *
- * @see docs/decisions/0007-kernel-interface-segregation.md
  */
 
 import type { Kernel2DCapability } from '../../kernel/kernel2dTypes.js';

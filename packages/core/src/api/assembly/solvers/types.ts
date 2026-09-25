@@ -61,6 +61,7 @@ export interface GlobalSolveResult {
 /** 3D vector（chain 求解器本地别名，与 quat.ts 同构）。 */
 export type SolverVec3 = readonly [number, number, number]
 
+/** A geometric entity (plane, axis, or point) referenced by a chain-solver constraint. */
 export interface SolverEntity {
   type: 'plane' | 'axis' | 'point'
   origin: SolverVec3
@@ -68,6 +69,7 @@ export interface SolverEntity {
   direction?: SolverVec3
 }
 
+/** A chain-solver constraint between two entities, with an optional scalar value. */
 export interface SolverConstraint {
   type: 'coincident' | 'concentric' | 'distance' | 'angle' | 'fixed'
   entityA?: { node: string; entity: SolverEntity }
@@ -75,6 +77,7 @@ export interface SolverConstraint {
   value?: number
 }
 
+/** Result of the chain solver: per-node transforms, DOF count, and convergence. */
 export interface SolverResult {
   transforms: Map<string, { position: SolverVec3; rotation: [number, number, number, number] }>
   dof: number

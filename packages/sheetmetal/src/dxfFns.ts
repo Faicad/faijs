@@ -1,4 +1,5 @@
-import { type Result, type Vec3, type Wire, ok, err, validationError, getEdges, curveStartPoint, curveEndPoint } from '@faicad/faijs-brepjs';
+import type { Wire } from './types.js';
+import {type Result, type Vec3, ok, err, validationError, getEdges, curveStartPoint, curveEndPoint} from '@faicad/faijs/api';
 import type { FlatPattern } from './types.js';
 
 /** Options for the flat-pattern DXF writers. */

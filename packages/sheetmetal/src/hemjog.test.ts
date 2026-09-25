@@ -1,6 +1,7 @@
+import { getBounds } from './geometryOps.js';
 import { describe, it, expect, beforeAll } from 'vitest';
 import { initOCCT } from './test-setup.js';
-import { measureVolume, isValid, isSolid, getSolids, getBounds } from '@faicad/faijs-brepjs';
+import {measureVolume, isValid, isSolid, getSolids} from '@faicad/faijs/api';
 import { authorPart } from './authorFns.js';
 import { hem } from './hemFns.js';
 import { jog } from './jogFns.js';
@@ -23,17 +24,17 @@ function singleSolid(part: SheetMetalPart): boolean {
   return getSolids(s).length === 1;
 }
 
-function basePart(): SheetMetalPart {
-  const base = authorPart({ thickness: T, base: { length: 50, width: 30 }, flanges: [] });
+async function basePart(): Promise<SheetMetalPart> {
+  const base = await authorPart({ thickness: T, base: { length: 50, width: 30 }, flanges: [] });
   if (!base.ok) throw new Error('base author failed');
   return base.value;
 }
 
 describe('hem — fold-back development', () => {
-  it('develops a closed hem as Σ curl allowances + return length', () => {
+  it('develops a closed hem as Σ curl allowances + return length', async () => {
     const radius = 2;
     const returnLength = 6;
-    const h = hem(basePart(), {
+    const h = await hem(await basePart(), {
       region: 'base',
       side: 'xmax',
       type: 'closed',
@@ -62,12 +63,12 @@ describe('hem — fold-back development', () => {
     expect(feature.developedLength).toBeCloseTo(arcDev + returnLength, 9);
   });
 
-  it('develops an open hem as the exact 180° allowance at the gap radius + return', () => {
+  it('develops an open hem as the exact 180° allowance at the gap radius + return', async () => {
     const gap = 3;
     const returnLength = 6;
     // An open hem sizes the curl inner radius directly from the gap (no hair), so
     // its developed curl length is the exact 180° bend allowance at that radius.
-    const h = hem(basePart(), {
+    const h = await hem(await basePart(), {
       region: 'base',
       side: 'xmax',
       type: 'open',
@@ -91,8 +92,8 @@ describe('hem — fold-back development', () => {
     expect(feature.developedLength).toBeCloseTo(fullCurl.value + returnLength, 6);
   });
 
-  it('lays the curl bend lines in the flat pattern', () => {
-    const h = hem(basePart(), { region: 'base', side: 'xmax', type: 'closed', length: 6, radius: 2, rule });
+  it('lays the curl bend lines in the flat pattern', async () => {
+    const h = await hem(await basePart(), { region: 'base', side: 'xmax', type: 'closed', length: 6, radius: 2, rule });
     expect(h.ok).toBe(true);
     if (!h.ok) return;
     const unfolded = unfold(h.value);
@@ -106,10 +107,10 @@ describe('hem — fold-back development', () => {
     expect(unfolded.value.pattern.bendLines.every((b) => b.direction === 'up')).toBe(true);
   });
 
-  it('builds a valid single solid for every hem type', () => {
+  it('builds a valid single solid for every hem type', async () => {
     const types = ['closed', 'open', 'teardrop', 'rolled'] as const;
     for (const type of types) {
-      const h = hem(basePart(), {
+      const h = await hem(await basePart(), {
         region: 'base',
         side: 'xmax',
         type,
@@ -123,12 +124,12 @@ describe('hem — fold-back development', () => {
       if (h.value.solid !== undefined) {
         expect(isValid(h.value.solid), `valid ${type}`).toBe(true);
         const vol = measureVolume(h.value.solid);
-        expect(vol.ok && vol.value > 0, `volume ${type}`).toBe(true);
+        expect(vol > 0, `volume ${type}`).toBe(true);
       }
     }
   });
 
-  it('develops a bendTableRef hem per the table (PR8 ↔ PR9)', () => {
+  it('develops a bendTableRef hem per the table (PR8 ↔ PR9)', async () => {
     const reg = registerBendTable({
       id: 'hem-test-table',
       kind: 'allowance',
@@ -137,7 +138,7 @@ describe('hem — fold-back development', () => {
     expect(reg.ok).toBe(true);
 
     const tableRule: BendRule = { innerRadius: 2, kFactor: 0.44, bendTableRef: 'hem-test-table' };
-    const h = hem(basePart(), { region: 'base', side: 'xmax', type: 'closed', length: 6, radius: 2, rule: tableRule });
+    const h = await hem(await basePart(), { region: 'base', side: 'xmax', type: 'closed', length: 6, radius: 2, rule: tableRule });
     expect(h.ok).toBe(true);
     if (!h.ok) return;
     const feature = h.value.hems?.[0];
@@ -159,7 +160,7 @@ describe('hem — fold-back development', () => {
     expect(arcDev).not.toBeCloseTo(kDev.value, 2);
   });
 
-  it('apportions a sparse table across split sub-arcs without over-counting (270° rolled)', () => {
+  it('apportions a sparse table across split sub-arcs without over-counting (270° rolled)', async () => {
     // A rolled hem curls 270°, split into 3×90° sub-arcs for geometry. A table with
     // only a 270° row would clamp each 90° sub-query up to the 270° value, recording
     // 3× the physical allowance if queried per sub-arc. The development must instead
@@ -172,7 +173,7 @@ describe('hem — fold-back development', () => {
     });
     expect(reg.ok).toBe(true);
     const tableRule: BendRule = { innerRadius: 2, kFactor: 0.44, bendTableRef: 'rolled-test-table' };
-    const h = hem(basePart(), { region: 'base', side: 'xmax', type: 'rolled', radius: 2, rule: tableRule });
+    const h = await hem(await basePart(), { region: 'base', side: 'xmax', type: 'rolled', radius: 2, rule: tableRule });
     expect(h.ok).toBe(true);
     if (!h.ok) return;
     const feature = h.value.hems?.[0];
@@ -183,21 +184,21 @@ describe('hem — fold-back development', () => {
     expect(arcDev).toBeCloseTo(14.2, 6);
   });
 
-  it('rejects a closed hem with a return length shorter than thickness', () => {
-    const h = hem(basePart(), { region: 'base', side: 'xmax', type: 'closed', length: 0.5, radius: 2, rule });
+  it('rejects a closed hem with a return length shorter than thickness', async () => {
+    const h = await hem(await basePart(), { region: 'base', side: 'xmax', type: 'closed', length: 0.5, radius: 2, rule });
     expect(h.ok).toBe(false);
   });
 
-  it('rejects a closed hem with no return length', () => {
-    const h = hem(basePart(), { region: 'base', side: 'xmax', type: 'closed', radius: 2, rule });
+  it('rejects a closed hem with no return length', async () => {
+    const h = await hem(await basePart(), { region: 'base', side: 'xmax', type: 'closed', radius: 2, rule });
     expect(h.ok).toBe(false);
   });
 });
 
-describe('jog — two-bend step', () => {
-  it('produces the requested perpendicular offset', () => {
+describe('jog — two-bend step', async () => {
+  it('produces the requested perpendicular offset', async () => {
     const offsetHeight = 5;
-    const j = jog(basePart(), {
+    const j = await jog(await basePart(), {
       region: 'base',
       side: 'xmax',
       position: 8,
@@ -220,8 +221,8 @@ describe('jog — two-bend step', () => {
     expect(b.zMax - b.zMin).toBeCloseTo(offsetHeight + T, 1);
   });
 
-  it('emits two opposite bend lines (one up, one down) in the flat', () => {
-    const j = jog(basePart(), { region: 'base', side: 'xmax', position: 8, offsetHeight: 5, angle: 45, rule });
+  it('emits two opposite bend lines (one up, one down) in the flat', async () => {
+    const j = await jog(await basePart(), { region: 'base', side: 'xmax', position: 8, offsetHeight: 5, angle: 45, rule });
     expect(j.ok).toBe(true);
     if (!j.ok) return;
     const unfolded = unfold(j.value);
@@ -233,12 +234,12 @@ describe('jog — two-bend step', () => {
     expect(bendLines.filter((b) => b.direction === 'down').length).toBe(1);
   });
 
-  it('develops as 2 bend allowances + the leg runs (position + step + runOut)', () => {
+  it('develops as 2 bend allowances + the leg runs (position + step + runOut)', async () => {
     const angle = 45;
     const position = 8;
     const offsetHeight = 5;
     const runOut = 10;
-    const j = jog(basePart(), {
+    const j = await jog(await basePart(), {
       region: 'base',
       side: 'xmax',
       position,
@@ -266,23 +267,23 @@ describe('jog — two-bend step', () => {
     expect(feature.developedLength).toBeCloseTo(expectedDev, 6);
   });
 
-  it('rejects offsetHeight ≤ 0', () => {
-    const j = jog(basePart(), { region: 'base', side: 'xmax', position: 8, offsetHeight: 0, rule });
+  it('rejects offsetHeight ≤ 0', async () => {
+    const j = await jog(await basePart(), { region: 'base', side: 'xmax', position: 8, offsetHeight: 0, rule });
     expect(j.ok).toBe(false);
   });
 
-  it('rejects an out-of-range angle', () => {
-    const j = jog(basePart(), { region: 'base', side: 'xmax', position: 8, offsetHeight: 5, angle: 90, rule });
+  it('rejects an out-of-range angle', async () => {
+    const j = await jog(await basePart(), { region: 'base', side: 'xmax', position: 8, offsetHeight: 5, angle: 90, rule });
     expect(j.ok).toBe(false);
   });
 });
 
-describe('hem/jog — review-fix behaviors', () => {
-  it('a closed hem with no radius folds tighter than one defaulting to a thickness', () => {
+describe('hem/jog — review-fix behaviors', async () => {
+  it('a closed hem with no radius folds tighter than one defaulting to a thickness', async () => {
     // The closed default is now ≈0 (HAIR), not one thickness — so its curl
     // allowance is smaller than an explicit radius=thickness closed hem.
-    const tight = hem(basePart(), { region: 'base', side: 'xmax', type: 'closed', length: 6, rule });
-    const wide = hem(basePart(), { region: 'base', side: 'xmax', type: 'closed', length: 6, radius: T, rule });
+    const tight = await hem(await basePart(), { region: 'base', side: 'xmax', type: 'closed', length: 6, rule });
+    const wide = await hem(await basePart(), { region: 'base', side: 'xmax', type: 'closed', length: 6, radius: T, rule });
     expect(tight.ok && wide.ok).toBe(true);
     if (!tight.ok || !wide.ok) return;
     const dTight = tight.value.hems?.[0]?.developedLength ?? 0;
@@ -290,11 +291,11 @@ describe('hem/jog — review-fix behaviors', () => {
     expect(dTight).toBeLessThan(dWide);
   });
 
-  it('places two hems on the same edge via explicit ids (no DUPLICATE_HEM)', () => {
-    const one = hem(basePart(), { region: 'base', side: 'xmax', type: 'open', id: 'h1', length: 6, offset: 0, width: 12, gap: 2, rule });
+  it('places two hems on the same edge via explicit ids (no DUPLICATE_HEM)', async () => {
+    const one = await hem(await basePart(), { region: 'base', side: 'xmax', type: 'open', id: 'h1', length: 6, offset: 0, width: 12, gap: 2, rule });
     expect(one.ok).toBe(true);
     if (!one.ok) return;
-    const two = hem(one.value, { region: 'base', side: 'xmax', type: 'open', id: 'h2', length: 6, offset: 18, width: 12, gap: 2, rule });
+    const two = await hem(one.value, { region: 'base', side: 'xmax', type: 'open', id: 'h2', length: 6, offset: 18, width: 12, gap: 2, rule });
     expect(two.ok).toBe(true);
     if (!two.ok) return;
     expect(two.value.hems?.length).toBe(2);

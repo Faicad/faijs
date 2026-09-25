@@ -49,7 +49,7 @@ function makePart(k: number): SheetMetalPart {
 
 describe('buildReport — bend table from authored part', () => {
   for (const k of [0.33, 0.44, 0.5]) {
-    it(`K=${k} reports one bend with developed allowance and straight flat length`, () => {
+    it(`K=${k} reports one bend with developed allowance and straight flat length`, async () => {
       const expectedBA = HALF_PI * (radius + k * thickness);
       const result = buildReport(makePart(k));
       expect(result.ok).toBe(true);
@@ -70,7 +70,7 @@ describe('buildReport — bend table from authored part', () => {
     });
   }
 
-  it('totalFlatSize: east run = baseLength + BA + flange, height = base width', () => {
+  it('totalFlatSize: east run = baseLength + BA + flange, height = base width', async () => {
     const k = 0.44;
     const expectedBA = HALF_PI * (radius + k * thickness);
     const result = buildReport(makePart(k));
@@ -82,7 +82,7 @@ describe('buildReport — bend table from authored part', () => {
     expect(maxY).toBeCloseTo(flangeLen, 9);
   });
 
-  it('honours an explicit allowance override', () => {
+  it('honours an explicit allowance override', async () => {
     const part = makePart(0.44);
     const overridden = part.bends[0];
     expect(overridden).toBeDefined();
@@ -100,7 +100,7 @@ describe('buildReport — bend table from authored part', () => {
     expect(bend.flatLength).toBe(flangeLen);
   });
 
-  it('rejects an out-of-range K-factor', () => {
+  it('rejects an out-of-range K-factor', async () => {
     const part = makePart(0.44);
     const bad = part.bends[0];
     expect(bad).toBeDefined();
@@ -110,14 +110,14 @@ describe('buildReport — bend table from authored part', () => {
     expect(result.ok).toBe(false);
   });
 
-  it('rejects a non-positive thickness', () => {
+  it('rejects a non-positive thickness', async () => {
     const part = makePart(0.44);
     part.thickness = 0;
     const result = buildReport(part);
     expect(result.ok).toBe(false);
   });
 
-  it('reports an empty bend list for a flat plate (no flanges)', () => {
+  it('reports an empty bend list for a flat plate (no flanges)', async () => {
     const flat: SheetMetalPart = { thickness, baseLength: 25, width: 10, flanges: [], bends: [] };
     const result = buildReport(flat);
     expect(result.ok).toBe(true);
@@ -129,8 +129,8 @@ describe('buildReport — bend table from authored part', () => {
   });
 });
 
-describe('reportFromUnfold — agrees with buildReport', () => {
-  it('matches the report buildReport derives for the same part', () => {
+describe('reportFromUnfold — agrees with buildReport', async () => {
+  it('matches the report buildReport derives for the same part', async () => {
     const part = makePart(0.44);
     const direct = buildReport(part);
     const unfolded = unfold(part);
@@ -154,7 +154,7 @@ describe('reportFromUnfold — agrees with buildReport', () => {
     expect(projected.value.totalFlatSize[1]).toBeCloseTo(direct.value.totalFlatSize[1], 9);
   });
 
-  it('rejects a corrupt unfold result (negative flat size)', () => {
+  it('rejects a corrupt unfold result (negative flat size)', async () => {
     const part = makePart(0.44);
     const unfolded = unfold(part);
     expect(unfolded.ok).toBe(true);
@@ -165,8 +165,8 @@ describe('reportFromUnfold — agrees with buildReport', () => {
   });
 });
 
-describe('reportToJSON — serialization', () => {
-  it('round-trips through JSON.parse preserving the bend table', () => {
+describe('reportToJSON — serialization', async () => {
+  it('round-trips through JSON.parse preserving the bend table', async () => {
     const result = buildReport(makePart(0.44));
     expect(result.ok).toBe(true);
     if (!result.ok) return;

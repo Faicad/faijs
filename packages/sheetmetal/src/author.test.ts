@@ -1,6 +1,7 @@
+import { getBounds } from './geometryOps.js';
 import { describe, it, expect, beforeAll } from 'vitest';
 import { initOCCT } from './test-setup.js';
-import { measureVolume, isValid, getBounds } from '@faicad/faijs-brepjs';
+import {measureVolume, isValid} from '@faicad/faijs/api';
 import { authorPart } from './authorFns.js';
 import { autoMiterCorner, miterCut } from './miterFns.js';
 
@@ -22,8 +23,8 @@ describe('authorPart — L-bracket (base + one 90° flange)', () => {
   const width = 10;
   const flangeLen = 20;
 
-  it('builds a valid solid with plausible volume', () => {
-    const result = authorPart({
+  it('builds a valid solid with plausible volume', async () => {
+    const result = await authorPart({
       thickness: T,
       base: { length: baseLen, width },
       flanges: [{ id: 'flange-1', length: flangeLen, angleDeg: 90, rule: { innerRadius: R, kFactor: 0.44 } }],
@@ -38,20 +39,17 @@ describe('authorPart — L-bracket (base + one 90° flange)', () => {
     expect(isValid(part.solid)).toBe(true);
 
     const vol = measureVolume(part.solid);
-    expect(vol.ok).toBe(true);
-    if (!vol.ok) return;
-
     const expected =
       baseLen * width * T + flangeLen * width * T + annularSector(90, width);
-    expect(vol.value).toBeCloseTo(expected, 3);
+    expect(vol).toBeCloseTo(expected, 3);
 
     // The 90° flange rises to z = R + T + flangeLen above the base.
     const b = getBounds(part.solid);
     expect(b.zMax).toBeCloseTo(R + T + flangeLen, 3);
   });
 
-  it('records the bend feature tree the unfold consumes', () => {
-    const result = authorPart({
+  it('records the bend feature tree the unfold consumes', async () => {
+    const result = await authorPart({
       thickness: T,
       base: { length: baseLen, width },
       flanges: [{ id: 'flange-1', length: flangeLen, angleDeg: 90, rule: { innerRadius: R, kFactor: 0.5 } }],
@@ -72,8 +70,8 @@ describe('authorPart — L-bracket (base + one 90° flange)', () => {
     expect(bend.rule.innerRadius).toBe(R);
   });
 
-  it('rejects a non-positive thickness', () => {
-    const result = authorPart({
+  it('rejects a non-positive thickness', async () => {
+    const result = await authorPart({
       thickness: 0,
       base: { length: baseLen, width },
       flanges: [],
@@ -81,8 +79,8 @@ describe('authorPart — L-bracket (base + one 90° flange)', () => {
     expect(result.ok).toBe(false);
   });
 
-  it('rejects a duplicate flange id', () => {
-    const result = authorPart({
+  it('rejects a duplicate flange id', async () => {
+    const result = await authorPart({
       thickness: T,
       base: { length: baseLen, width },
       flanges: [
@@ -94,13 +92,13 @@ describe('authorPart — L-bracket (base + one 90° flange)', () => {
   });
 });
 
-describe('miter — two-flange corner', () => {
+describe('miter — two-flange corner', async () => {
   const baseLen = 30;
   const width = 30;
   const flangeLen = 15;
 
-  function corner() {
-    return authorPart({
+  async function corner() {
+    return await authorPart({
       thickness: T,
       base: { length: baseLen, width },
       flanges: [
@@ -110,8 +108,8 @@ describe('miter — two-flange corner', () => {
     });
   }
 
-  it('builds two perpendicular flanges meeting at a corner', () => {
-    const result = corner();
+  it('builds two perpendicular flanges meeting at a corner', async () => {
+    const result = await corner();
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.solid).toBeDefined();
@@ -127,15 +125,14 @@ describe('miter — two-flange corner', () => {
     expect(by?.axisDir).toEqual([-1, 0, 0]);
   });
 
-  it('auto-miters the corner into a valid solid', () => {
-    const result = corner();
+  it('auto-miters the corner into a valid solid', async () => {
+    const result = await corner();
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
     const before = measureVolume(result.value.solid ?? (() => { throw new Error('no solid'); })());
-    expect(before.ok).toBe(true);
 
-    const mitered = autoMiterCorner(result.value, 'fx', 'fy', 1);
+    const mitered = await autoMiterCorner(result.value, 'fx', 'fy', 1);
     expect(mitered.ok).toBe(true);
     if (!mitered.ok) return;
     expect(mitered.value.solid).toBeDefined();
@@ -144,19 +141,17 @@ describe('miter — two-flange corner', () => {
     expect(isValid(mitered.value.solid)).toBe(true);
 
     const after = measureVolume(mitered.value.solid);
-    expect(after.ok).toBe(true);
-    if (!after.ok || !before.ok) return;
     // The miter removes corner material, so volume strictly decreases.
-    expect(after.value).toBeLessThan(before.value);
-    expect(after.value).toBeGreaterThan(0);
+    expect(after).toBeLessThan(before);
+    expect(after).toBeGreaterThan(0);
   });
 
-  it('general miterCut removes the +normal half-space and stays valid', () => {
-    const result = corner();
+  it('general miterCut removes the +normal half-space and stays valid', async () => {
+    const result = await corner();
     expect(result.ok).toBe(true);
     if (!result.ok) return;
 
-    const cut = miterCut(result.value, { origin: [20, 20, 0], normal: [1, 1, 0] });
+    const cut = await miterCut(result.value, { origin: [20, 20, 0], normal: [1, 1, 0] });
     expect(cut.ok).toBe(true);
     if (!cut.ok) return;
     expect(cut.value.solid).toBeDefined();
@@ -164,13 +159,11 @@ describe('miter — two-flange corner', () => {
 
     expect(isValid(cut.value.solid)).toBe(true);
     const vol = measureVolume(cut.value.solid);
-    expect(vol.ok).toBe(true);
-    if (!vol.ok) return;
-    expect(vol.value).toBeGreaterThan(0);
+    expect(vol).toBeGreaterThan(0);
   });
 
-  it('rejects miterCut when the part has no solid', () => {
-    const cut = miterCut(
+  it('rejects miterCut when the part has no solid', async () => {
+    const cut = await miterCut(
       { thickness: T, baseLength: 30, width: 10, flanges: [], bends: [] },
       { origin: [0, 0, 0], normal: [1, 0, 0] }
     );
@@ -178,11 +171,11 @@ describe('miter — two-flange corner', () => {
   });
 });
 
-describe('authorPart — input validation', () => {
+describe('authorPart — input validation', async () => {
   const rule = { innerRadius: R, kFactor: 0.44 };
 
-  it('rejects two full-span flanges on the same side (they would overlap)', () => {
-    const result = authorPart({
+  it('rejects two full-span flanges on the same side (they would overlap)', async () => {
+    const result = await authorPart({
       thickness: T,
       base: { length: 30, width: 10 },
       flanges: [
@@ -195,8 +188,8 @@ describe('authorPart — input validation', () => {
     expect(result.error.code).toBe('OVERLAPPING_FLANGES');
   });
 
-  it('treats an omitted side as xmax for the overlap check', () => {
-    const result = authorPart({
+  it('treats an omitted side as xmax for the overlap check', async () => {
+    const result = await authorPart({
       thickness: T,
       base: { length: 30, width: 10 },
       flanges: [
@@ -207,8 +200,8 @@ describe('authorPart — input validation', () => {
     expect(result.ok).toBe(false);
   });
 
-  it('accepts one flange per side (xmax + ymax)', () => {
-    const result = authorPart({
+  it('accepts one flange per side (xmax + ymax)', async () => {
+    const result = await authorPart({
       thickness: T,
       base: { length: 30, width: 10 },
       flanges: [
@@ -219,12 +212,12 @@ describe('authorPart — input validation', () => {
     expect(result.ok).toBe(true);
   });
 
-  it('keys the overlap check on the resolved chained-parent edge, not the base', () => {
+  it('keys the overlap check on the resolved chained-parent edge, not the base', async () => {
     // The wall folds off the base xmax edge (length = base width = 10), spans 8 of
     // it, and is 20 long. Its ymax edge therefore has length = the wall span = 8.
     // Two partial flanges chained off wall.ymax sit at [0,3] and [5,8] — valid only
     // when the overlap check resolves the parent edge to 8, not the base width/length.
-    const result = authorPart({
+    const result = await authorPart({
       thickness: T,
       base: { length: 60, width: 10 },
       flanges: [

@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { initOCCT } from './test-setup.js';
-import { isValid } from '@faicad/faijs-brepjs';
+import {isValid} from '@faicad/faijs/api';
 import { author, unfold } from './api.js';
-import { isErr } from '@faicad/faijs-brepjs';
+import {isErr} from '@faicad/faijs/api';
 import type { BendRule, SheetMetalPart } from './types.js';
 
 beforeAll(async () => {
@@ -38,9 +38,9 @@ const HALF_PI = Math.PI / 2;
 
 describe('§8 invariant — developed area = Σ(flat faces) + Σ(bend strips)', () => {
   for (const k of [0.33, 0.44, 0.5]) {
-    it(`single 90° flange, K=${k}`, () => {
+    it(`single 90° flange, K=${k}`, async () => {
       const flangeLen = 20;
-      const authored = author({
+      const authored = await author({
         thickness: T,
         base: { length: 30, width: 10 },
         flanges: [{ id: 'f1', length: flangeLen, angleDeg: 90, rule: rule(k) }],
@@ -63,9 +63,9 @@ describe('§8 invariant — developed area = Σ(flat faces) + Σ(bend strips)', 
     });
   }
 
-  it('two-flange corner — area decomposes into flats + strips', () => {
+  it('two-flange corner — area decomposes into flats + strips', async () => {
     const flangeLen = 15;
-    const authored = author({
+    const authored = await author({
       thickness: T,
       base: { length: 30, width: 30 },
       flanges: [
@@ -89,10 +89,10 @@ describe('§8 invariant — developed area = Σ(flat faces) + Σ(bend strips)', 
     expect(pattern.developedArea).toBeCloseTo(expected, 6);
   });
 
-  it('east run = baseLength + flange flat + developed strip', () => {
+  it('east run = baseLength + flange flat + developed strip', async () => {
     const baseLen = 30;
     const flangeLen = 20;
-    const authored = author({
+    const authored = await author({
       thickness: T,
       base: { length: baseLen, width: 10 },
       flanges: [{ id: 'f1', length: flangeLen, angleDeg: 90, rule: rule(0.44) }],

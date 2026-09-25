@@ -20,13 +20,21 @@ export type Vec2 = readonly [number, number];
 export type PointInput =
   Vec3 | Vec2 | readonly [number, number, number] | readonly [number, number];
 
-/** Normalize any point input to Vec3 */
+/** Normalize any point input to Vec3
+ *
+ * @param p - Point input to normalize.
+ * @returns The point as a `Vec3` (missing z defaults to 0).
+ */
 export function toVec3(p: PointInput): Vec3 {
   if (p.length === 2) return [p[0], p[1], 0];
   return [p[0], p[1], p[2]];
 }
 
-/** Normalize to Vec2 (drops z) */
+/** Normalize to Vec2 (drops z)
+ *
+ * @param p - Point input to normalize.
+ * @returns The point as a `Vec2` (z component dropped).
+ */
 export function toVec2(p: PointInput): Vec2 {
   return [p[0], p[1]];
 }
@@ -43,6 +51,8 @@ const DIRECTIONS: Record<string, Vec3> = {
 /**
  * Resolve a {@link Direction} shorthand to a unit {@link Vec3}.
  *
+ * @param d - Direction shorthand to resolve.
+ * @returns The direction as a unit `Vec3`.
  * @throws If the string is not a recognised axis name.
  */
 export function resolveDirection(d: Direction): Vec3 {

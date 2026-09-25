@@ -1,7 +1,8 @@
+import type { Wire } from './types.js';
 import { describe, it, expect, beforeAll } from 'vitest';
 import { initOCCT } from './test-setup.js';
-import { isOk, isErr, unwrap, measureVolume, isValid, getSolids, getEdges, curveStartPoint } from '@faicad/faijs-brepjs';
-import type { Wire } from '@faicad/faijs-brepjs';
+import {isOk, isErr, unwrap, measureVolume, isValid, getSolids, getEdges, curveStartPoint} from '@faicad/faijs/api';
+
 import { author } from './api.js';
 import { addTab, tabAndSlot } from './tabFns.js';
 import { louver, emboss } from './formFns.js';
@@ -17,13 +18,13 @@ beforeAll(async () => {
 const rule: BendRule = { innerRadius: 2, kFactor: 0.44 };
 const T = 1;
 
-function basePart(length = 40, width = 40): SheetMetalPart {
-  return unwrap(author({ thickness: T, base: { length, width }, flanges: [] }));
+async function basePart(length = 40, width = 40): Promise<SheetMetalPart> {
+  return unwrap(await author({ thickness: T, base: { length, width }, flanges: [] }));
 }
 
-function flangePart(): SheetMetalPart {
+async function flangePart(): Promise<SheetMetalPart> {
   return unwrap(
-    author({
+    await author({
       thickness: T,
       base: { length: 40, width: 40 },
       flanges: [{ id: 'fy', length: 20, angleDeg: 90, rule, side: 'ymax' }],
@@ -34,7 +35,7 @@ function flangePart(): SheetMetalPart {
 function vol(part: SheetMetalPart): number {
   const solid = part.solid;
   if (solid === undefined) throw new Error('no solid');
-  return unwrap(measureVolume(solid));
+  return measureVolume(solid);
 }
 
 function outlineBBox(wire: Wire): { x0: number; y0: number; x1: number; y1: number } {
@@ -77,10 +78,10 @@ function formCutPolylineClosedFlag(dxf: string): string | undefined {
 }
 
 describe('addTab — additive protrusion', () => {
-  it('raises the volume by ~width·length·thickness and stays a single valid body', () => {
-    const base = basePart();
+  it('raises the volume by ~width·length·thickness and stays a single valid body', async () => {
+    const base = await basePart();
     const v0 = vol(base);
-    const tabbed = addTab(base, { region: 'base', side: 'xmax', offset: 10, width: 12, length: 8 });
+    const tabbed = await addTab(base, { region: 'base', side: 'xmax', offset: 10, width: 12, length: 8 });
     expect(isOk(tabbed)).toBe(true);
     if (!isOk(tabbed)) return;
 
@@ -94,9 +95,9 @@ describe('addTab — additive protrusion', () => {
     expect(getSolids(solid).length).toBe(1);
   });
 
-  it('extends the developed outer outline past the base edge by the tab length', () => {
-    const base = basePart(40, 40);
-    const tabbed = unwrap(addTab(base, { region: 'base', side: 'xmax', offset: 10, width: 12, length: 8 }));
+  it('extends the developed outer outline past the base edge by the tab length', async () => {
+    const base = await basePart(40, 40);
+    const tabbed = unwrap(await addTab(base, { region: 'base', side: 'xmax', offset: 10, width: 12, length: 8 }));
     const pattern = unwrap(unfold(tabbed)).pattern;
 
     const bb = outlineBBox(pattern.outline);
@@ -104,26 +105,26 @@ describe('addTab — additive protrusion', () => {
     expect(bb.x1).toBeCloseTo(48, 3);
   });
 
-  it('adds the tab area to the developed area', () => {
-    const base = basePart(40, 40);
+  it('adds the tab area to the developed area', async () => {
+    const base = await basePart(40, 40);
     const area0 = unwrap(unfold(base)).pattern.developedArea;
-    const tabbed = unwrap(addTab(base, { region: 'base', side: 'ymax', offset: 8, width: 10, length: 6 }));
+    const tabbed = unwrap(await addTab(base, { region: 'base', side: 'ymax', offset: 8, width: 10, length: 6 }));
     const area1 = unwrap(unfold(tabbed)).pattern.developedArea;
     expect(area1 - area0).toBeCloseTo(10 * 6, 4);
   });
 
-  it('an xmin tab extends the outline into negative X by the tab length', () => {
-    const base = basePart(40, 40);
-    const tabbed = unwrap(addTab(base, { region: 'base', side: 'xmin', offset: 10, width: 12, length: 8 }));
+  it('an xmin tab extends the outline into negative X by the tab length', async () => {
+    const base = await basePart(40, 40);
+    const tabbed = unwrap(await addTab(base, { region: 'base', side: 'xmin', offset: 10, width: 12, length: 8 }));
     const pattern = unwrap(unfold(tabbed)).pattern;
     const bb = outlineBBox(pattern.outline);
     expect(bb.x0).toBeCloseTo(-8, 3);
   });
 
-  it('fuses a tab onto a folded flange edge (volume rises, solid valid)', () => {
-    const part = flangePart();
+  it('fuses a tab onto a folded flange edge (volume rises, solid valid)', async () => {
+    const part = await flangePart();
     const v0 = vol(part);
-    const tabbed = addTab(part, { region: 'fy', side: 'xmax', offset: 5, width: 10, length: 6 });
+    const tabbed = await addTab(part, { region: 'fy', side: 'xmax', offset: 5, width: 10, length: 6 });
     expect(isOk(tabbed)).toBe(true);
     if (!isOk(tabbed)) return;
     expect(vol(tabbed.value) - v0).toBeCloseTo(10 * 6 * T, 4);
@@ -133,34 +134,34 @@ describe('addTab — additive protrusion', () => {
     expect(getSolids(solid).length).toBe(1);
   });
 
-  it('rejects a tab running past the edge length', () => {
-    const base = basePart(40, 40);
-    const oob = addTab(base, { region: 'base', side: 'xmax', offset: 35, width: 10, length: 6 });
+  it('rejects a tab running past the edge length', async () => {
+    const base = await basePart(40, 40);
+    const oob = await addTab(base, { region: 'base', side: 'xmax', offset: 35, width: 10, length: 6 });
     expect(isErr(oob)).toBe(true);
     if (isErr(oob)) expect(oob.error.code).toBe('TAB_OUT_OF_BOUNDS');
   });
 
-  it('rejects an unknown region', () => {
-    const base = basePart();
-    const bad = addTab(base, { region: 'nope', side: 'xmax', offset: 0, width: 5, length: 5 });
+  it('rejects an unknown region', async () => {
+    const base = await basePart();
+    const bad = await addTab(base, { region: 'nope', side: 'xmax', offset: 0, width: 5, length: 5 });
     expect(isErr(bad)).toBe(true);
     if (isErr(bad)) expect(bad.error.code).toBe('UNKNOWN_REGION');
   });
 
-  it('rejects a non-positive tab length', () => {
-    const base = basePart();
-    const bad = addTab(base, { region: 'base', side: 'xmax', offset: 0, width: 5, length: 0 });
+  it('rejects a non-positive tab length', async () => {
+    const base = await basePart();
+    const bad = await addTab(base, { region: 'base', side: 'xmax', offset: 0, width: 5, length: 0 });
     expect(isErr(bad)).toBe(true);
     if (isErr(bad)) expect(bad.error.code).toBe('INVALID_TAB');
   });
 });
 
-describe('tabAndSlot — self-fixturing joint', () => {
-  it('places a tab on one region and a slot on the mating region; slot clears the tab', () => {
+describe('tabAndSlot — self-fixturing joint', async () => {
+  it('places a tab on one region and a slot on the mating region; slot clears the tab', async () => {
     const tabWidth = 10;
     const clearance = 0.2;
-    const part = basePart(60, 40);
-    const joined = tabAndSlot(
+    const part = await basePart(60, 40);
+    const joined = await tabAndSlot(
       part,
       { region: 'base', side: 'xmax', offset: 15, width: tabWidth, length: 8 },
       { region: 'base', x: 30, y: 20, clearance }
@@ -187,10 +188,10 @@ describe('tabAndSlot — self-fixturing joint', () => {
     expect(getSolids(solid).length).toBe(1);
   });
 
-  it('defaults clearance so the slot is still strictly larger than the tab', () => {
-    const part = basePart(60, 40);
+  it('defaults clearance so the slot is still strictly larger than the tab', async () => {
+    const part = await basePart(60, 40);
     const joined = unwrap(
-      tabAndSlot(
+      await tabAndSlot(
         part,
         { region: 'base', side: 'xmax', offset: 15, width: 10, length: 8 },
         { region: 'base', x: 30, y: 20 }
@@ -202,10 +203,10 @@ describe('tabAndSlot — self-fixturing joint', () => {
     expect(slotSpec.width).toBeGreaterThan(T);
   });
 
-  it('threads the slot angleDeg through so the slot can be oriented to match the tab', () => {
-    const part = basePart(60, 40);
+  it('threads the slot angleDeg through so the slot can be oriented to match the tab', async () => {
+    const part = await basePart(60, 40);
     const joined = unwrap(
-      tabAndSlot(
+      await tabAndSlot(
         part,
         { region: 'base', side: 'xmax', offset: 15, width: 10, length: 8 },
         { region: 'base', x: 30, y: 20, angleDeg: 90 }
@@ -217,10 +218,10 @@ describe('tabAndSlot — self-fixturing joint', () => {
   });
 });
 
-describe('louver — formed vent', () => {
-  it('keeps a single valid solid and emits the U-cut + hinge in the flat pattern', () => {
-    const base = basePart(60, 40);
-    const formed = louver(base, { region: 'base', x: 30, y: 20, length: 16, width: 8, height: 4 });
+describe('louver — formed vent', async () => {
+  it('keeps a single valid solid and emits the U-cut + hinge in the flat pattern', async () => {
+    const base = await basePart(60, 40);
+    const formed = await louver(base, { region: 'base', x: 30, y: 20, length: 16, width: 8, height: 4 });
     expect(isOk(formed)).toBe(true);
     if (!isOk(formed)) return;
 
@@ -242,9 +243,9 @@ describe('louver — formed vent', () => {
     expect(getEdges(cut).length).toBe(3);
   });
 
-  it('emits the louver cut as an OPEN polyline (group 70=0) in the DXF', () => {
-    const base = basePart(60, 40);
-    const formed = unwrap(louver(base, { region: 'base', x: 30, y: 20, length: 16, width: 8, height: 4 }));
+  it('emits the louver cut as an OPEN polyline (group 70=0) in the DXF', async () => {
+    const base = await basePart(60, 40);
+    const formed = unwrap(await louver(base, { region: 'base', x: 30, y: 20, length: 16, width: 8, height: 4 }));
     const pattern = unwrap(unfold(formed)).pattern;
     const dxf = unwrap(flatPatternToDXF(pattern));
     // The FORM-layer cut LWPOLYLINE must carry the open flag (70 / 0), so a CAM
@@ -252,11 +253,11 @@ describe('louver — formed vent', () => {
     expect(formCutPolylineClosedFlag(dxf)).toBe('0');
   });
 
-  it('leaves the developed outline and area unchanged (forming is material-neutral)', () => {
-    const base = basePart(60, 40);
+  it('leaves the developed outline and area unchanged (forming is material-neutral)', async () => {
+    const base = await basePart(60, 40);
     const before = unwrap(unfold(base)).pattern;
     const beforeBB = outlineBBox(before.outline);
-    const formed = unwrap(louver(base, { region: 'base', x: 30, y: 20, length: 16, width: 8, height: 4 }));
+    const formed = unwrap(await louver(base, { region: 'base', x: 30, y: 20, length: 16, width: 8, height: 4 }));
     const after = unwrap(unfold(formed)).pattern;
     const afterBB = outlineBBox(after.outline);
 
@@ -267,17 +268,17 @@ describe('louver — formed vent', () => {
     expect(afterBB.y1).toBeCloseTo(beforeBB.y1, 4);
   });
 
-  it('writes the louver cut + hinge on the FORM layer of the DXF', () => {
-    const base = basePart(60, 40);
-    const formed = unwrap(louver(base, { region: 'base', x: 30, y: 20, length: 16, width: 8, height: 4 }));
+  it('writes the louver cut + hinge on the FORM layer of the DXF', async () => {
+    const base = await basePart(60, 40);
+    const formed = unwrap(await louver(base, { region: 'base', x: 30, y: 20, length: 16, width: 8, height: 4 }));
     const pattern = unwrap(unfold(formed)).pattern;
     const dxf = unwrap(flatPatternToDXF(pattern));
     expect(dxf).toContain('FORM');
   });
 
-  it('forms a down-direction louver into a valid single solid', () => {
-    const base = basePart(60, 40);
-    const formed = louver(base, { region: 'base', x: 30, y: 20, length: 16, width: 8, height: 4, direction: 'down' });
+  it('forms a down-direction louver into a valid single solid', async () => {
+    const base = await basePart(60, 40);
+    const formed = await louver(base, { region: 'base', x: 30, y: 20, length: 16, width: 8, height: 4, direction: 'down' });
     expect(isOk(formed)).toBe(true);
     if (!isOk(formed)) return;
     const solid = formed.value.solid;
@@ -286,19 +287,19 @@ describe('louver — formed vent', () => {
     expect(getSolids(solid).length).toBe(1);
   });
 
-  it('rejects a louver out of region bounds', () => {
-    const base = basePart(60, 40);
-    const oob = louver(base, { region: 'base', x: 58, y: 20, length: 16, width: 8, height: 4 });
+  it('rejects a louver out of region bounds', async () => {
+    const base = await basePart(60, 40);
+    const oob = await louver(base, { region: 'base', x: 58, y: 20, length: 16, width: 8, height: 4 });
     expect(isErr(oob)).toBe(true);
     if (isErr(oob)) expect(oob.error.code).toBe('FORM_OUT_OF_BOUNDS');
   });
 });
 
-describe('emboss / dimple — round formed bump', () => {
-  it('emboss fuses a raised bump: volume rises, solid valid, footprint marker present', () => {
-    const base = basePart();
+describe('emboss / dimple — round formed bump', async () => {
+  it('emboss fuses a raised bump: volume rises, solid valid, footprint marker present', async () => {
+    const base = await basePart();
     const v0 = vol(base);
-    const formed = emboss(base, { region: 'base', x: 20, y: 20, diameter: 8, height: 2, kind: 'emboss' });
+    const formed = await emboss(base, { region: 'base', x: 20, y: 20, diameter: 8, height: 2, kind: 'emboss' });
     expect(isOk(formed)).toBe(true);
     if (!isOk(formed)) return;
 
@@ -315,10 +316,10 @@ describe('emboss / dimple — round formed bump', () => {
     expect(v1area).toBeCloseTo(unwrap(unfold(base)).pattern.developedArea, 4);
   });
 
-  it('dimple cuts a shallow recess: volume drops, solid valid', () => {
-    const base = basePart();
+  it('dimple cuts a shallow recess: volume drops, solid valid', async () => {
+    const base = await basePart();
     const v0 = vol(base);
-    const formed = emboss(base, { region: 'base', x: 20, y: 20, diameter: 8, height: 0.4, kind: 'dimple' });
+    const formed = await emboss(base, { region: 'base', x: 20, y: 20, diameter: 8, height: 0.4, kind: 'dimple' });
     expect(isOk(formed)).toBe(true);
     if (!isOk(formed)) return;
     expect(vol(formed.value)).toBeLessThan(v0);
@@ -328,19 +329,19 @@ describe('emboss / dimple — round formed bump', () => {
     expect(getSolids(solid).length).toBe(1);
   });
 
-  it('rejects a dimple deeper than the sheet thickness', () => {
-    const base = basePart();
-    const bad = emboss(base, { region: 'base', x: 20, y: 20, diameter: 8, height: T + 1, kind: 'dimple' });
+  it('rejects a dimple deeper than the sheet thickness', async () => {
+    const base = await basePart();
+    const bad = await emboss(base, { region: 'base', x: 20, y: 20, diameter: 8, height: T + 1, kind: 'dimple' });
     expect(isErr(bad)).toBe(true);
     if (isErr(bad)) expect(bad.error.code).toBe('INVALID_FORM');
   });
 });
 
-describe('tab round-trip through fold', () => {
-  it('folds a FlatInput with a base tab into the same volume as addTab', () => {
-    const base = basePart(40, 40);
+describe('tab round-trip through fold', async () => {
+  it('folds a FlatInput with a base tab into the same volume as addTab', async () => {
+    const base = await basePart(40, 40);
     const tabSpec = { region: 'base' as const, side: 'xmax' as const, offset: 10, width: 12, length: 8 };
-    const direct = unwrap(addTab(base, tabSpec));
+    const direct = unwrap(await addTab(base, tabSpec));
 
     const input: FlatInput = {
       thickness: T,
@@ -349,14 +350,14 @@ describe('tab round-trip through fold', () => {
       regions: [],
       baseTabs: [tabSpec],
     };
-    const refolded = unwrap(fold(input));
+    const refolded = unwrap(await fold(input));
     expect(refolded.tabs?.length).toBe(1);
     expect(vol(refolded)).toBeCloseTo(vol(direct), 5);
   });
 
-  it('carries a base tab through partToFlatInput so fold round-trips its volume', () => {
-    const base = basePart(40, 40);
-    const direct = unwrap(addTab(base, { region: 'base', side: 'xmax', offset: 10, width: 12, length: 8 }));
+  it('carries a base tab through partToFlatInput so fold round-trips its volume', async () => {
+    const base = await basePart(40, 40);
+    const direct = unwrap(await addTab(base, { region: 'base', side: 'xmax', offset: 10, width: 12, length: 8 }));
 
     // partToFlatInput must recover the tab spec (not silently drop it); the base
     // length recovers as 40 even though the tab protrudes the outline to x=48.
@@ -364,30 +365,30 @@ describe('tab round-trip through fold', () => {
     expect(recovered.baseLength).toBeCloseTo(40, 3);
     expect(recovered.baseTabs?.length).toBe(1);
 
-    const refolded = unwrap(fold(recovered));
+    const refolded = unwrap(await fold(recovered));
     expect(refolded.tabs?.length).toBe(1);
     expect(vol(refolded)).toBeCloseTo(vol(direct), 4);
   });
 
-  it('carries a flange tab through partToFlatInput onto the recovered region', () => {
-    const part = flangePart();
-    const direct = unwrap(addTab(part, { region: 'fy', side: 'xmax', offset: 5, width: 10, length: 6 }));
+  it('carries a flange tab through partToFlatInput onto the recovered region', async () => {
+    const part = await flangePart();
+    const direct = unwrap(await addTab(part, { region: 'fy', side: 'xmax', offset: 5, width: 10, length: 6 }));
 
     const recovered = unwrap(partToFlatInput(direct));
     const regionWithTab = recovered.regions.find((r) => r.tabs !== undefined);
     expect(regionWithTab?.tabs?.length).toBe(1);
 
-    const refolded = unwrap(fold(recovered));
+    const refolded = unwrap(await fold(recovered));
     expect(refolded.tabs?.length).toBe(1);
     expect(vol(refolded)).toBeCloseTo(vol(direct), 4);
   });
 });
 
-describe('form round-trip through fold', () => {
-  it('folds a FlatInput with a base emboss into the same volume as emboss()', () => {
-    const base = basePart();
+describe('form round-trip through fold', async () => {
+  it('folds a FlatInput with a base emboss into the same volume as await emboss()', async () => {
+    const base = await basePart();
     const embossSpec = { region: 'base' as const, x: 20, y: 20, diameter: 8, height: 2, kind: 'emboss' as const };
-    const direct = unwrap(emboss(base, embossSpec));
+    const direct = unwrap(await emboss(base, embossSpec));
 
     const input: FlatInput = {
       thickness: T,
@@ -396,7 +397,7 @@ describe('form round-trip through fold', () => {
       regions: [],
       baseForms: [{ kind: 'emboss', region: 'base', x: 20, y: 20, diameter: 8, height: 2, form: 'emboss' }],
     };
-    const refolded = unwrap(fold(input));
+    const refolded = unwrap(await fold(input));
     expect(refolded.forms?.length).toBe(1);
     expect(vol(refolded)).toBeCloseTo(vol(direct), 5);
   });

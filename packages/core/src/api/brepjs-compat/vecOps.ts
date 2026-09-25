@@ -12,22 +12,41 @@ import type { Vec3 } from './types';
 // Arithmetic
 // ---------------------------------------------------------------------------
 
-/** Add two 3D vectors component-wise. */
+/** Add two 3D vectors component-wise.
+ *
+ * @param a - First vector.
+ * @param b - Second vector.
+ * @returns The component-wise sum `a + b`.
+ */
 export function vecAdd(a: Vec3, b: Vec3): Vec3 {
   return [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
 }
 
-/** Subtract vector `b` from vector `a` component-wise. */
+/** Subtract vector `b` from vector `a` component-wise.
+ *
+ * @param a - Vector to subtract from.
+ * @param b - Vector to subtract.
+ * @returns The component-wise difference `a - b`.
+ */
 export function vecSub(a: Vec3, b: Vec3): Vec3 {
   return [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 }
 
-/** Multiply each component of a 3D vector by a scalar. */
+/** Multiply each component of a 3D vector by a scalar.
+ *
+ * @param v - Vector to scale.
+ * @param s - Scalar multiplier.
+ * @returns The scaled vector.
+ */
 export function vecScale(v: Vec3, s: number): Vec3 {
   return [v[0] * s, v[1] * s, v[2] * s];
 }
 
-/** Negate all components of a 3D vector. */
+/** Negate all components of a 3D vector.
+ *
+ * @param v - Vector to negate.
+ * @returns The negated vector `-v`.
+ */
 export function vecNegate(v: Vec3): Vec3 {
   return [-v[0], -v[1], -v[2]];
 }
@@ -36,12 +55,22 @@ export function vecNegate(v: Vec3): Vec3 {
 // Products
 // ---------------------------------------------------------------------------
 
-/** Compute the dot product of two 3D vectors. */
+/** Compute the dot product of two 3D vectors.
+ *
+ * @param a - First vector.
+ * @param b - Second vector.
+ * @returns The scalar dot product `a · b`.
+ */
 export function vecDot(a: Vec3, b: Vec3): number {
   return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 }
 
-/** Compute the cross product of two 3D vectors. */
+/** Compute the cross product of two 3D vectors.
+ *
+ * @param a - First vector.
+ * @param b - Second vector.
+ * @returns The cross product `a × b`.
+ */
 export function vecCross(a: Vec3, b: Vec3): Vec3 {
   return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 }
@@ -50,17 +79,30 @@ export function vecCross(a: Vec3, b: Vec3): Vec3 {
 // Length / distance
 // ---------------------------------------------------------------------------
 
-/** Compute the Euclidean length of a 3D vector. */
+/** Compute the Euclidean length of a 3D vector.
+ *
+ * @param v - Vector to measure.
+ * @returns The Euclidean length of `v`.
+ */
 export function vecLength(v: Vec3): number {
   return Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
 }
 
-/** Compute the squared length of a 3D vector (avoids a sqrt). */
+/** Compute the squared length of a 3D vector (avoids a sqrt).
+ *
+ * @param v - Vector to measure.
+ * @returns The squared Euclidean length of `v`.
+ */
 export function vecLengthSq(v: Vec3): number {
   return v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
 }
 
-/** Compute the Euclidean distance between two 3D points. */
+/** Compute the Euclidean distance between two 3D points.
+ *
+ * @param a - First point.
+ * @param b - Second point.
+ * @returns The distance `|a - b|`.
+ */
 export function vecDistance(a: Vec3, b: Vec3): number {
   return vecLength(vecSub(a, b));
 }
@@ -69,7 +111,11 @@ export function vecDistance(a: Vec3, b: Vec3): number {
 // Normalization
 // ---------------------------------------------------------------------------
 
-/** Return a unit-length vector in the same direction, or `[0,0,0]` for near-zero input. */
+/** Return a unit-length vector in the same direction, or `[0,0,0]` for near-zero input.
+ *
+ * @param v - Vector to normalize.
+ * @returns A unit-length vector in the same direction, or `[0,0,0]`.
+ */
 export function vecNormalize(v: Vec3): Vec3 {
   const len = vecLength(v);
   if (len < 1e-10) return [0, 0, 0];
@@ -83,7 +129,10 @@ export function vecNormalize(v: Vec3): Vec3 {
 /**
  * Test whether two 3D vectors are approximately equal.
  *
+ * @param a - First vector.
+ * @param b - Second vector.
  * @param tolerance - Per-component absolute tolerance.
+ * @returns True if the vectors are approximately equal.
  * @default tolerance `1e-5`
  */
 export function vecEquals(a: Vec3, b: Vec3, tolerance = 1e-5): boolean {
@@ -97,7 +146,9 @@ export function vecEquals(a: Vec3, b: Vec3, tolerance = 1e-5): boolean {
 /**
  * Test whether a 3D vector is approximately zero-length.
  *
+ * @param v - Vector to test.
  * @param tolerance - Length threshold below which the vector is considered zero.
+ * @returns True if the vector is approximately zero-length.
  * @default tolerance `1e-10`
  */
 export function vecIsZero(v: Vec3, tolerance = 1e-10): boolean {
@@ -111,6 +162,8 @@ export function vecIsZero(v: Vec3, tolerance = 1e-10): boolean {
 /**
  * Compute the unsigned angle between two 3D vectors in **radians**.
  *
+ * @param a - First vector.
+ * @param b - Second vector.
  * @returns Angle in `[0, PI]`, or `0` if either vector is zero-length.
  */
 export function vecAngle(a: Vec3, b: Vec3): number {
@@ -122,7 +175,13 @@ export function vecAngle(a: Vec3, b: Vec3): number {
   return Math.acos(cosAngle);
 }
 
-/** Project vector onto plane defined by its normal */
+/** Project vector onto plane defined by its normal
+ *
+ * @param v - Vector to project.
+ * @param planeOrigin - A point on the plane.
+ * @param planeNormal - Plane normal (need not be unit length).
+ * @returns The projection of `v` onto the plane.
+ */
 export function vecProjectToPlane(v: Vec3, planeOrigin: Vec3, planeNormal: Vec3): Vec3 {
   const relative = vecSub(v, planeOrigin);
   const normalLen = vecLengthSq(planeNormal);
@@ -131,7 +190,13 @@ export function vecProjectToPlane(v: Vec3, planeOrigin: Vec3, planeNormal: Vec3)
   return vecSub(v, projection);
 }
 
-/** Rotate vector around an axis by angle (radians) */
+/** Rotate vector around an axis by angle (radians)
+ *
+ * @param v - Vector to rotate.
+ * @param axis - Rotation axis (need not be unit length).
+ * @param angleRad - Rotation angle in radians.
+ * @returns The rotated vector.
+ */
 export function vecRotate(v: Vec3, axis: Vec3, angleRad: number): Vec3 {
   const n = vecNormalize(axis);
   const cos = Math.cos(angleRad);
@@ -152,7 +217,11 @@ export function vecRotate(v: Vec3, axis: Vec3, angleRad: number): Vec3 {
 
 const round3 = (v: number): number => Math.round(v * 1000) / 1000;
 
-/** Format a Vec3 as a human-readable string rounded to 3 decimal places. */
+/** Format a Vec3 as a human-readable string rounded to 3 decimal places.
+ *
+ * @param v - Vector to format.
+ * @returns A human-readable representation of `v`.
+ */
 export function vecRepr(v: Vec3): string {
   return `x: ${round3(v[0])}, y: ${round3(v[1])}, z: ${round3(v[2])}`;
 }

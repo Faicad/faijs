@@ -19,6 +19,12 @@ import type { Vec3 } from '../brepjs-compat/types'
 
 const CONVEX_HULL_PARAMS = { name: 'convexHull', params: ['points'], formClass: 'A' as FormClass }
 
+/**
+ * Compute the convex hull of a point set.
+ *
+ * @param args - Resolved arguments (point list).
+ * @returns The hull solid as a `BrepHandle`.
+ */
 export function convexHullBrep(...args: unknown[]): Result<BrepHandle> {
   const [pointsRaw] = resolveArgs(args, CONVEX_HULL_PARAMS)
   const kernel = getBrepApi()

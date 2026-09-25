@@ -11,17 +11,9 @@
  * assumption the DXF/SVG writers and the bbox nester make.
  */
 
-import {
-  type Result,
-  ok,
-  err,
-  isOk,
-  validationError,
-  getEdges,
-  curveStartPoint,
-  curveEndPoint,
-} from '@faicad/faijs-brepjs';
-import type { Wire } from '@faicad/faijs-brepjs';
+import type { Wire } from './types.js';
+import {type Result, ok, err, isOk, validationError, getEdges, curveStartPoint, curveEndPoint} from '@faicad/faijs/api';
+
 import type { FlatPattern } from './types.js';
 
 /** A 2D point as a plain `[x, y]` coordinate tuple. */

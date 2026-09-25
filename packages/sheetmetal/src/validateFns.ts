@@ -1,14 +1,6 @@
-import {
-  type Vec3,
-  type Bounds3D,
-  isValid,
-  measureVolume,
-  getBounds,
-  vecNormalize,
-  vecAdd,
-  vecScale,
-  vecCross,
-} from '@faicad/faijs-brepjs';
+import { getBounds } from './geometryOps.js';
+import type { Bounds3D } from './types.js';
+import {type Vec3, isValid, measureVolume, vecNormalize, vecAdd, vecScale, vecCross} from '@faicad/faijs/api';
 import type { BendFeature, SheetMetalPart, SheetMetalWarning } from './types.js';
 import { ROOT_FLAT_ID } from './featureTreeFns.js';
 
@@ -46,14 +38,11 @@ function checkSolid(part: SheetMetalPart): SheetMetalWarning[] {
     return [{ code: 'INVALID_SOLID', message: 'folded solid failed kernel validity check' }];
   }
   const vol = measureVolume(solid);
-  if (!vol.ok) {
-    return [{ code: 'INVALID_SOLID', message: 'folded solid volume could not be measured' }];
-  }
-  if (vol.value <= 0) {
+  if (vol <= 0) {
     return [
       {
         code: 'INVALID_SOLID',
-        message: `folded solid has non-positive volume ${vol.value}`,
+        message: `folded solid has non-positive volume ${vol}`,
       },
     ];
   }

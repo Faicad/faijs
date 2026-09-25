@@ -22,7 +22,7 @@ function ossb90(radius: number, thickness: number): number {
 }
 
 describe('bend table registry + starter tables', () => {
-  it('auto-registers the steel/aluminium starter tables on first access', () => {
+  it('auto-registers the steel/aluminium starter tables on first access', async () => {
     const steel = getBendTable('steel-airbend');
     const aluminum = getBendTable('aluminum-airbend');
     expect(steel?.kind).toBe('allowance');
@@ -30,7 +30,7 @@ describe('bend table registry + starter tables', () => {
     expect((steel?.rows.length ?? 0) > 0).toBe(true);
   });
 
-  it('registers and reads back a custom table', () => {
+  it('registers and reads back a custom table', async () => {
     const table: BendTable = {
       id: 'custom-test',
       kind: 'allowance',
@@ -41,13 +41,13 @@ describe('bend table registry + starter tables', () => {
     expect(getBendTable('custom-test')?.rows[0]?.value).toBe(2.5);
   });
 
-  it('rejects an empty table', () => {
+  it('rejects an empty table', async () => {
     const reg = registerBendTable({ id: 'empty', kind: 'allowance', rows: [] });
     expect(reg.ok).toBe(false);
   });
 });
 
-describe('resolveBendAllowance — exact hits and interpolation', () => {
+describe('resolveBendAllowance — exact hits and interpolation', async () => {
   const table: BendTable = {
     id: 'interp-test',
     kind: 'allowance',
@@ -69,14 +69,14 @@ describe('resolveBendAllowance — exact hits and interpolation', () => {
 
   const rule: BendRule = { innerRadius: 1, kFactor: 0.44, bendTableRef: 'interp-test' };
 
-  it('returns the exact row value on an exact (t, r, angle) hit', () => {
+  it('returns the exact row value on an exact (t, r, angle) hit', async () => {
     const r = resolveBendAllowance(rule, 90, 1);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.value).toBeCloseTo(3.0, 9);
   });
 
-  it('linearly interpolates in angle (75° midpoint between 60° and 90°)', () => {
+  it('linearly interpolates in angle (75° midpoint between 60° and 90°)', async () => {
     // (2.0 + 3.0)/2 = 2.5
     const r = resolveBendAllowance(rule, 75, 1);
     expect(r.ok).toBe(true);
@@ -84,7 +84,7 @@ describe('resolveBendAllowance — exact hits and interpolation', () => {
     expect(r.value).toBeCloseTo(2.5, 9);
   });
 
-  it('linearly interpolates in thickness at a fixed (r, angle)', () => {
+  it('linearly interpolates in thickness at a fixed (r, angle)', async () => {
     // t between 1 (→3.0) and 2 (→6.0) at t=1.5 → 4.5
     const r = resolveBendAllowance(rule, 90, 1.5);
     expect(r.ok).toBe(true);
@@ -92,7 +92,7 @@ describe('resolveBendAllowance — exact hits and interpolation', () => {
     expect(r.value).toBeCloseTo(4.5, 9);
   });
 
-  it('bilinearly interpolates across thickness × radius at fixed angle', () => {
+  it('bilinearly interpolates across thickness × radius at fixed angle', async () => {
     // At angle 90, corners: (t1,r1)=3.0 (t2,r1)=6.0 (t1,r3)=4.5 (t2,r3)=7.5
     // r=2 (fr=0.5): lo edge = 3.0+0.5·(4.5-3.0)=3.75 ; hi edge = 6.0+0.5·(7.5-6.0)=6.75
     // t=1.5 (ft=0.5): 3.75 + 0.5·(6.75-3.75) = 5.25
@@ -103,7 +103,7 @@ describe('resolveBendAllowance — exact hits and interpolation', () => {
   });
 });
 
-describe('resolveBendAllowance — deduction table equals allowance table', () => {
+describe('resolveBendAllowance — deduction table equals allowance table', async () => {
   const radius = 1.5;
   const thickness = 1.52;
   const ba90 = 3.63;
@@ -122,11 +122,11 @@ describe('resolveBendAllowance — deduction table equals allowance table', () =
     });
   });
 
-  it('deduction BD90 hand value ≈ 2.41 mm', () => {
+  it('deduction BD90 hand value ≈ 2.41 mm', async () => {
     expect(bd90).toBeCloseTo(2.41, 2);
   });
 
-  it('converts deduction → allowance equal to the equivalent allowance table', () => {
+  it('converts deduction → allowance equal to the equivalent allowance table', async () => {
     const baseRule: BendRule = { innerRadius: radius, kFactor: 0.44 };
     const fromDed = resolveBendAllowance({ ...baseRule, bendTableRef: 'ded-test' }, 90, thickness);
     const fromAllow = resolveBendAllowance({ ...baseRule, bendTableRef: 'allow-test' }, 90, thickness);
@@ -137,7 +137,7 @@ describe('resolveBendAllowance — deduction table equals allowance table', () =
   });
 });
 
-describe('resolveBendAllowance — precedence', () => {
+describe('resolveBendAllowance — precedence', async () => {
   beforeAll(() => {
     registerBendTable({
       id: 'prec-test',
@@ -146,7 +146,7 @@ describe('resolveBendAllowance — precedence', () => {
     });
   });
 
-  it('table wins over an explicit allowance override', () => {
+  it('table wins over an explicit allowance override', async () => {
     const r = resolveBendAllowance(
       { innerRadius: 1, kFactor: 0.44, allowance: 5, bendTableRef: 'prec-test' },
       90,
@@ -157,27 +157,27 @@ describe('resolveBendAllowance — precedence', () => {
     expect(r.value).toBeCloseTo(9.0, 9);
   });
 
-  it('explicit allowance wins when no table is referenced', () => {
+  it('explicit allowance wins when no table is referenced', async () => {
     const r = resolveBendAllowance({ innerRadius: 1, kFactor: 0.44, allowance: 5 }, 90, 1);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.value).toBe(5);
   });
 
-  it('K-factor formula applies with neither table nor override', () => {
+  it('K-factor formula applies with neither table nor override', async () => {
     const r = resolveBendAllowance({ innerRadius: 1, kFactor: 0.44 }, 90, 1);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.value).toBeCloseTo(HALF_PI * (1 + 0.44 * 1), 9);
   });
 
-  it('errors when the referenced table does not exist', () => {
+  it('errors when the referenced table does not exist', async () => {
     const r = resolveBendAllowance({ innerRadius: 1, kFactor: 0.44, bendTableRef: 'nope' }, 90, 1);
     expect(r.ok).toBe(false);
   });
 });
 
-describe('resolveBendAllowance — out-of-range clamp + warning hook', () => {
+describe('resolveBendAllowance — out-of-range clamp + warning hook', async () => {
   beforeAll(() => {
     registerBendTable({
       id: 'clamp-test',
@@ -189,7 +189,7 @@ describe('resolveBendAllowance — out-of-range clamp + warning hook', () => {
     });
   });
 
-  it('clamps an above-range angle to the nearest entry and warns', () => {
+  it('clamps an above-range angle to the nearest entry and warns', async () => {
     const warnings: SheetMetalWarning[] = [];
     const r = resolveBendAllowance(
       { innerRadius: 1, kFactor: 0.44, bendTableRef: 'clamp-test' },
@@ -205,14 +205,14 @@ describe('resolveBendAllowance — out-of-range clamp + warning hook', () => {
     expect(warnings[0]?.code).toBe('TABLE_CLAMP');
   });
 
-  it('clamps an above-range thickness without extrapolating', () => {
+  it('clamps an above-range thickness without extrapolating', async () => {
     const r = resolveBendAllowance({ innerRadius: 1, kFactor: 0.44, bendTableRef: 'clamp-test' }, 90, 5);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.value).toBeCloseTo(3.0, 9);
   });
 
-  it('does NOT warn for an in-range interior query on a diagonal (one-radius-per-gauge) table', () => {
+  it('does NOT warn for an in-range interior query on a diagonal (one-radius-per-gauge) table', async () => {
     // Diagonal grid: each gauge has a single radius, so the off-diagonal corners
     // of a bracketed query are resolved by nearest-radius substitution. That is an
     // internal sparse-grid resolution, not an out-of-bounds clamp — an in-range
@@ -238,7 +238,7 @@ describe('resolveBendAllowance — out-of-range clamp + warning hook', () => {
   });
 });
 
-describe('unfold — a table-referenced part develops per the table, not K·T', () => {
+describe('unfold — a table-referenced part develops per the table, not K·T', async () => {
   const thickness = 1.52;
   const radius = 1.5;
   const baseLen = 30;
@@ -284,7 +284,7 @@ describe('unfold — a table-referenced part develops per the table, not K·T', 
     };
   }
 
-  it('developed east run uses the table BA, distinct from the K-factor BA', () => {
+  it('developed east run uses the table BA, distinct from the K-factor BA', async () => {
     const tableRule: BendRule = { innerRadius: radius, kFactor: 0.44, bendTableRef: 'unfold-steel' };
     const kRule: BendRule = { innerRadius: radius, kFactor: 0.44 };
 
@@ -305,7 +305,7 @@ describe('unfold — a table-referenced part develops per the table, not K·T', 
     expect(bend?.allowance).toBeCloseTo(tableBA, 5);
   });
 
-  it('a non-table part is unchanged (K-factor result preserved)', () => {
+  it('a non-table part is unchanged (K-factor result preserved)', async () => {
     const kRule: BendRule = { innerRadius: radius, kFactor: 0.44 };
     const direct = developedLength(90, thickness, kRule);
     expect(direct.ok).toBe(true);

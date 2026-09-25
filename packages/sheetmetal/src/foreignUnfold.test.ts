@@ -1,8 +1,10 @@
+import type { Solid, Face } from './types.js';
+import { cylinder, translate } from './geometryOps.js';
 import { describe, it, expect, beforeAll } from 'vitest';
 import { initOCCT } from './test-setup.js';
-import { cylinder, sphere, translate, getFaces, getSurfaceType } from '@faicad/faijs-brepjs';
-import { box, fuse } from '@faicad/faijs/brepjs-compat';
-import type { Solid, Face } from '@faicad/faijs-brepjs';
+import {sphere, getFaces, getSurfaceType} from '@faicad/faijs/api';
+import {box, fuse} from '@faicad/faijs/api';
+
 import { authorPart } from './authorFns.js';
 import { unfold } from './unfoldFns.js';
 import { fitCylinder, unfoldForeignSolid } from './foreignUnfoldFns.js';
@@ -16,17 +18,19 @@ beforeAll(async () => {
 const rule = { innerRadius: 2, kFactor: 0.5 };
 
 function cylindricalFace(solid: Solid): Face | undefined {
-  for (const f of getFaces<'3D'>(solid)) {
+  for (const f of getFaces(solid)) {
     const t = getSurfaceType(f);
-    if (t.ok && t.value === 'CYLINDRE') return f;
+    // OCCT re-parameterises exact cylinders to 'bspline' through applyMatrix /
+    // booleans — both are cylindrical and fitCylinder accepts both.
+    if (t.ok && (t.value === 'cylinder' || t.value === 'bspline')) return f;
   }
   return undefined;
 }
 
 describe('fitCylinder — accuracy vs a known primitive', () => {
-  it('recovers radius and axis of an axis-aligned cylinder to high precision', () => {
-    const cyl = cylinder(5, 20, { at: [1, 2, 3], axis: [0, 0, 1] });
-    const face = cylindricalFace(cyl);
+  it('recovers radius and axis of an axis-aligned cylinder to high precision', async () => {
+    const cyl = await cylinder(5, 20, { at: [1, 2, 3], axis: [0, 0, 1] });
+    const face = cylindricalFace(cyl as Solid);
     expect(face).toBeDefined();
     if (face === undefined) return;
 
@@ -41,10 +45,10 @@ describe('fitCylinder — accuracy vs a known primitive', () => {
     expect(fit.residual).toBeLessThan(1e-6);
   });
 
-  it('recovers a tilted cylinder axis direction', () => {
+  it('recovers a tilted cylinder axis direction', async () => {
     const axis: [number, number, number] = [1, 1, 1];
-    const cyl = cylinder(3, 15, { at: [0, 0, 0], axis });
-    const face = cylindricalFace(cyl);
+    const cyl = await cylinder(3, 15, { at: [0, 0, 0], axis });
+    const face = cylindricalFace(cyl as Solid);
     expect(face).toBeDefined();
     if (face === undefined) return;
 
@@ -59,17 +63,17 @@ describe('fitCylinder — accuracy vs a known primitive', () => {
     expect(aligned).toBeCloseTo(1, 5);
   });
 
-  it('returns null for a non-cylindrical (spherical) face', () => {
-    const sph = sphere(4, { at: [0, 0, 0] });
-    for (const f of getFaces<'3D'>(sph)) {
+  it('returns null for a non-cylindrical (spherical) face', async () => {
+    const sph = await sphere({ radius: 4, at: [0, 0, 0] });
+    for (const f of getFaces(sph)) {
       expect(fitCylinder(f)).toBeNull();
     }
   });
 });
 
 describe('unfoldForeignSolid — author→solid→foreign-unfold oracle (reads only the solid)', () => {
-  function oracle(name: string, spec: AuthorSpec, expectedBends: number, expectedFlats: number): void {
-    const part = authorPart(spec);
+  async function oracle(name: string, spec: AuthorSpec, expectedBends: number, expectedFlats: number): Promise<void> {
+    const part = await authorPart(spec);
     expect(part.ok, `${name}: author`).toBe(true);
     if (!part.ok) return;
     const authored = unfold(part.value);
@@ -80,7 +84,7 @@ describe('unfoldForeignSolid — author→solid→foreign-unfold oracle (reads o
     if (solid === undefined) return;
 
     // The foreign path receives ONLY the solid — never part.bends / part.flanges.
-    const foreign = unfoldForeignSolid(solid, { kFactor: 0.5 });
+    const foreign = await unfoldForeignSolid(solid, { kFactor: 0.5 });
     expect(foreign.ok, `${name}: foreign unfold`).toBe(true);
     if (!foreign.ok) return;
 
@@ -106,8 +110,8 @@ describe('unfoldForeignSolid — author→solid→foreign-unfold oracle (reads o
     }
   }
 
-  it('single 90° bend (one flat + one flange)', () => {
-    oracle(
+  it('single 90° bend (one flat + one flange)', async () => {
+    await oracle(
       'single',
       { thickness: 1, base: { length: 30, width: 10 }, flanges: [{ id: 'f1', length: 20, angleDeg: 90, rule }] },
       1,
@@ -115,8 +119,8 @@ describe('unfoldForeignSolid — author→solid→foreign-unfold oracle (reads o
     );
   });
 
-  it('L-bracket (two perpendicular flanges)', () => {
-    oracle(
+  it('L-bracket (two perpendicular flanges)', async () => {
+    await oracle(
       'L',
       {
         thickness: 1,
@@ -131,8 +135,8 @@ describe('unfoldForeignSolid — author→solid→foreign-unfold oracle (reads o
     );
   });
 
-  it('U-channel (chain of two opposite flanges)', () => {
-    oracle(
+  it('U-channel (chain of two opposite flanges)', async () => {
+    await oracle(
       'U',
       {
         thickness: 1,
@@ -148,9 +152,9 @@ describe('unfoldForeignSolid — author→solid→foreign-unfold oracle (reads o
   });
 });
 
-describe('unfoldForeignSolid — thickness detection', () => {
-  it('detects the sheet thickness and reproduces a thicker part', () => {
-    const part = authorPart({
+describe('unfoldForeignSolid — thickness detection', async () => {
+  it('detects the sheet thickness and reproduces a thicker part', async () => {
+    const part = await authorPart({
       thickness: 2,
       base: { length: 40, width: 20 },
       flanges: [{ id: 'f1', length: 15, angleDeg: 90, rule: { innerRadius: 3, kFactor: 0.5 } }],
@@ -158,48 +162,48 @@ describe('unfoldForeignSolid — thickness detection', () => {
     expect(part.ok).toBe(true);
     if (!part.ok) return;
     const authored = unfold(part.value);
-    const foreign = unfoldForeignSolid(part.value.solid as Solid, { kFactor: 0.5 });
+    const foreign = await unfoldForeignSolid(part.value.solid as Solid, { kFactor: 0.5 });
     expect(foreign.ok).toBe(true);
     if (!foreign.ok || !authored.ok) return;
     expect(foreign.value.pattern.developedArea).toBeCloseTo(authored.value.pattern.developedArea, 2);
   });
 });
 
-describe('unfoldForeignSolid — bend-direction detection', () => {
-  it('detects a down-fold flange as direction "down"', () => {
-    const part = authorPart({
+describe('unfoldForeignSolid — bend-direction detection', async () => {
+  it('detects a down-fold flange as direction "down"', async () => {
+    const part = await authorPart({
       thickness: 1,
       base: { length: 30, width: 12 },
       flanges: [{ id: 'f1', length: 16, angleDeg: 90, rule, direction: 'down' }],
     });
     expect(part.ok).toBe(true);
     if (!part.ok) return;
-    const foreign = unfoldForeignSolid(part.value.solid as Solid, { kFactor: 0.5 });
+    const foreign = await unfoldForeignSolid(part.value.solid as Solid, { kFactor: 0.5 });
     expect(foreign.ok).toBe(true);
     if (!foreign.ok) return;
     expect(foreign.value.report.bends).toHaveLength(1);
     expect(foreign.value.report.bends[0]?.direction).toBe('down');
   });
 
-  it('detects an up-fold flange as direction "up"', () => {
-    const part = authorPart({
+  it('detects an up-fold flange as direction "up"', async () => {
+    const part = await authorPart({
       thickness: 1,
       base: { length: 30, width: 12 },
       flanges: [{ id: 'f1', length: 16, angleDeg: 90, rule, direction: 'up' }],
     });
     expect(part.ok).toBe(true);
     if (!part.ok) return;
-    const foreign = unfoldForeignSolid(part.value.solid as Solid, { kFactor: 0.5 });
+    const foreign = await unfoldForeignSolid(part.value.solid as Solid, { kFactor: 0.5 });
     expect(foreign.ok).toBe(true);
     if (!foreign.ok) return;
     expect(foreign.value.report.bends[0]?.direction).toBe('up');
   });
 });
 
-describe('unfoldForeignSolid — honest scope (no silently-wrong answer)', () => {
-  it('unfolds a plain box to a single bend-free panel (no spurious geometry)', () => {
-    const b = box(20, 20, 2);
-    const result = unfoldForeignSolid(b, { kFactor: 0.5 });
+describe('unfoldForeignSolid — honest scope (no silently-wrong answer)', async () => {
+  it('unfolds a plain box to a single bend-free panel (no spurious geometry)', async () => {
+    const b = await box({ width: 20, depth: 20, height: 2 });
+    const result = await unfoldForeignSolid(b as Solid, { kFactor: 0.5 });
     // A plain box pairs its top/bottom into a single flat and has no bends — a
     // single unfolded panel with no bends and no spurious geometry.
     expect(result.ok).toBe(true);
@@ -208,31 +212,29 @@ describe('unfoldForeignSolid — honest scope (no silently-wrong answer)', () =>
     expect(result.value.pattern.bendLines).toHaveLength(0);
   });
 
-  it('errors clearly on a bare sphere (no planar panels)', () => {
-    const sph = sphere(5, { at: [0, 0, 0] });
-    const result = unfoldForeignSolid(sph, { kFactor: 0.5 });
+  it('errors clearly on a bare sphere (no planar panels)', async () => {
+    const sph = await sphere({ radius: 5, at: [0, 0, 0] });
+    const result = await unfoldForeignSolid(sph as Solid, { kFactor: 0.5 });
     // A sphere has no planar panels: the unfold fails clearly rather than inventing
     // a flat pattern.
     expect(result.ok).toBe(false);
   });
 
-  it('warns UNSUPPORTED_FACE (does not silently mis-unfold) on a non-cylindrical curved face', () => {
+  it('warns UNSUPPORTED_FACE (does not silently mis-unfold) on a non-cylindrical curved face', async () => {
     // A normal bend part with a sphere fused on: SPHERE faces appear alongside the
     // planar panels and cylindrical bend. The unfold succeeds for the recognised
     // structure but flags each unrecognised face rather than mis-developing it.
-    const part = authorPart({
+    const part = await authorPart({
       thickness: 1,
       base: { length: 40, width: 20 },
       flanges: [{ id: 'f1', length: 15, angleDeg: 90, rule }],
     });
     expect(part.ok).toBe(true);
     if (!part.ok) return;
-    const dome = translate(sphere(3, { at: [0, 0, 0] }), [20, 10, 0.5]);
-    const fused = fuse(part.value.solid as Solid, dome);
-    expect(fused.ok).toBe(true);
-    if (!fused.ok) return;
+    const dome = await translate(await sphere({ radius: 3, at: [0, 0, 0] }), [20, 10, 0.5]);
+    const fused = await fuse(part.value.solid as Solid, dome);
 
-    const result = unfoldForeignSolid(fused.value, { kFactor: 0.5 });
+    const result = await unfoldForeignSolid(fused as Solid, { kFactor: 0.5 });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     // The dedicated code lets a caller dispatch programmatically (not parse messages).
@@ -242,9 +244,9 @@ describe('unfoldForeignSolid — honest scope (no silently-wrong answer)', () =>
   });
 });
 
-describe('fromSolid facade', () => {
-  it('detects and unfolds via the fluent facade', () => {
-    const part = authorPart({
+describe('fromSolid facade', async () => {
+  it('detects and unfolds via the fluent facade', async () => {
+    const part = await authorPart({
       thickness: 1,
       base: { length: 30, width: 10 },
       flanges: [{ id: 'f1', length: 20, angleDeg: 90, rule }],

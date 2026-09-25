@@ -20,13 +20,18 @@ import { brepOf, isCurveShape } from '../../shape'
 import { getBrepApi } from '../../brep/handle-bridge'
 import type { BrepHandle } from '../../brep/engine/types'
 
+/** Wire view for sweep/loft sections: the BREP handle plus its ownership flag. */
 export interface WireView {
   wrapped: BrepHandle
   /** true = 借用原 shape 句柄（勿 release）；false = 新建外环 wire（调用方 release）。 */
   borrowed: boolean
 }
 
-/** 截面 Shape → wire 视图（面取其外环）。 */
+/** 截面 Shape → wire 视图（面取其外环）。
+ *
+ * @param section - Section shape (curve or face) to adapt.
+ * @returns The wire view wrapping the handle and its ownership flag.
+ */
 export function toProfileWireView(section: Shape): WireView {
   const handle = brepOf(section) as BrepHandle
   if (isCurveShape(section)) return { wrapped: handle, borrowed: true }

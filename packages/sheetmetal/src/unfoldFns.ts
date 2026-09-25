@@ -1,14 +1,5 @@
-import {
-  type Result,
-  type Wire,
-  type Edge,
-  ok,
-  err,
-  validationError,
-  line,
-  wire,
-  wireLoop,
-} from '@faicad/faijs-brepjs';
+import type { Wire, Edge } from './types.js';
+import {type Result, ok, err, validationError, line, wireLoop, assembleWire} from '@faicad/faijs/api';
 import type {
   SheetMetalPart,
   UnfoldResult,
@@ -661,7 +652,7 @@ function openPathWire(path: Pt2[]): Result<Wire> {
     }
     edges.push(line([a[0], a[1], 0], [b[0], b[1], 0]));
   }
-  return wire(edges);
+  return assembleWire(edges);
 }
 
 function rectOf(f: Frame2): Rect {

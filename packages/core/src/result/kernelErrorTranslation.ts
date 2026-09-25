@@ -103,7 +103,11 @@ const ERROR_CODE_SUGGESTIONS: Readonly<Record<string, string>> = {
     'The draft angle may be too large or the selected faces incompatible. Try a smaller angle or different faces.',
 };
 
-/** Look up an actionable suggestion for a given error code. */
+/** Look up an actionable suggestion for a given error code.
+ *
+ * @param code - The error code to look up.
+ * @returns The suggestion for the code, or undefined if none is registered.
+ */
 export function getSuggestionForCode(code: string): string | undefined {
   return ERROR_CODE_SUGGESTIONS[code];
 }

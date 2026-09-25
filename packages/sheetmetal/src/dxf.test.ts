@@ -47,7 +47,7 @@ function unfoldPattern(direction: 'up' | 'down'): FlatPattern {
 }
 
 describe('flatPatternToDXF — structure', () => {
-  it('emits the required SECTIONs and EOF', () => {
+  it('emits the required SECTIONs and EOF', async () => {
     const r = flatPatternToDXF(unfoldPattern('up'));
     expect(r.ok).toBe(true);
     if (!r.ok) return;
@@ -60,7 +60,7 @@ describe('flatPatternToDXF — structure', () => {
     expect(dxf.trimEnd().endsWith('EOF')).toBe(true);
   });
 
-  it('sets INSUNITS=4 (mm) in the header', () => {
+  it('sets INSUNITS=4 (mm) in the header', async () => {
     const r = flatPatternToDXF(unfoldPattern('up'));
     expect(r.ok).toBe(true);
     if (!r.ok) return;
@@ -71,7 +71,7 @@ describe('flatPatternToDXF — structure', () => {
     expect(lines[idx + 2]).toBe('4');
   });
 
-  it('declares the three layers OUTLINE / BEND_UP / BEND_DOWN', () => {
+  it('declares the three layers OUTLINE / BEND_UP / BEND_DOWN', async () => {
     const r = flatPatternToDXF(unfoldPattern('up'));
     expect(r.ok).toBe(true);
     if (!r.ok) return;
@@ -80,7 +80,7 @@ describe('flatPatternToDXF — structure', () => {
     expect(r.value).toContain('BEND_DOWN');
   });
 
-  it('LAYER table entry count matches the 5 layers written', () => {
+  it('LAYER table entry count matches the 5 layers written', async () => {
     const r = flatPatternToDXF(unfoldPattern('up'));
     expect(r.ok).toBe(true);
     if (!r.ok) return;
@@ -90,7 +90,7 @@ describe('flatPatternToDXF — structure', () => {
     expect(lines[symIdx + 2]).toBe('5');
   });
 
-  it('is R2000-conformant: $HANDSEED + AcDb subclass markers on every entity', () => {
+  it('is R2000-conformant: $HANDSEED + AcDb subclass markers on every entity', async () => {
     const r = flatPatternToDXF(unfoldPattern('up'));
     expect(r.ok).toBe(true);
     if (!r.ok) return;
@@ -106,8 +106,8 @@ describe('flatPatternToDXF — structure', () => {
   });
 });
 
-describe('flatPatternToDXF — entities', () => {
-  it('emits a closed outline polyline with all corner vertices', () => {
+describe('flatPatternToDXF — entities', async () => {
+  it('emits a closed outline polyline with all corner vertices', async () => {
     const r = flatPatternToDXF(unfoldPattern('up'));
     expect(r.ok).toBe(true);
     if (!r.ok) return;
@@ -118,7 +118,7 @@ describe('flatPatternToDXF — entities', () => {
     expect(lines[vertexCountIdx + 1]).toBe('4');
   });
 
-  it('emits a LINE and an MTEXT annotation per bend line', () => {
+  it('emits a LINE and an MTEXT annotation per bend line', async () => {
     const pattern = unfoldPattern('up');
     expect(pattern.bendLines).toHaveLength(1);
     const r = flatPatternToDXF(pattern);
@@ -129,7 +129,7 @@ describe('flatPatternToDXF — entities', () => {
     expect(r.value).toContain('∠90° U');
   });
 
-  it('routes up bends to BEND_UP and annotates with U', () => {
+  it('routes up bends to BEND_UP and annotates with U', async () => {
     const r = flatPatternToDXF(unfoldPattern('up'));
     expect(r.ok).toBe(true);
     if (!r.ok) return;
@@ -140,7 +140,7 @@ describe('flatPatternToDXF — entities', () => {
     expect(r.value).not.toContain('∠90° D');
   });
 
-  it('routes down bends to BEND_DOWN and annotates with D', () => {
+  it('routes down bends to BEND_DOWN and annotates with D', async () => {
     const r = flatPatternToDXF(unfoldPattern('down'));
     expect(r.ok).toBe(true);
     if (!r.ok) return;
@@ -151,13 +151,13 @@ describe('flatPatternToDXF — entities', () => {
   });
 });
 
-describe('flatPatternToDXF — validation', () => {
-  it('rejects a non-positive text height', () => {
+describe('flatPatternToDXF — validation', async () => {
+  it('rejects a non-positive text height', async () => {
     const r = flatPatternToDXF(unfoldPattern('up'), { textHeight: 0 });
     expect(r.ok).toBe(false);
   });
 
-  it('honors a custom text height on MTEXT', () => {
+  it('honors a custom text height on MTEXT', async () => {
     const r = flatPatternToDXF(unfoldPattern('up'), { textHeight: 3.5 });
     expect(r.ok).toBe(true);
     if (!r.ok) return;

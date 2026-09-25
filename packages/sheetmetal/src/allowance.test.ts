@@ -25,7 +25,7 @@ describe('bendAllowance — 90° bend vs hand-computed BA', () => {
   ];
 
   for (const { k, expected } of cases) {
-    it(`K=${k} → BA ≈ (π/2)·(R + K·T)`, () => {
+    it(`K=${k} → BA ≈ (π/2)·(R + K·T)`, async () => {
       const r = bendAllowance(90, thickness, rule(k, radius));
       expect(r.ok).toBe(true);
       if (!r.ok) return;
@@ -33,14 +33,14 @@ describe('bendAllowance — 90° bend vs hand-computed BA', () => {
     });
   }
 
-  it('K=0.44 reference value ≈ 2.26195 mm for R=T=1', () => {
+  it('K=0.44 reference value ≈ 2.26195 mm for R=T=1', async () => {
     const r = bendAllowance(90, thickness, rule(0.44, radius));
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.value).toBeCloseTo(2.261947, 5);
   });
 
-  it('developedLength equals bendAllowance', () => {
+  it('developedLength equals bendAllowance', async () => {
     const a = bendAllowance(90, thickness, rule(0.44, radius));
     const d = developedLength(90, thickness, rule(0.44, radius));
     expect(a.ok && d.ok).toBe(true);
@@ -48,32 +48,32 @@ describe('bendAllowance — 90° bend vs hand-computed BA', () => {
     expect(d.value).toBeCloseTo(a.value, 9);
   });
 
-  it('neutralRadius = R + K·T', () => {
+  it('neutralRadius = R + K·T', async () => {
     const r = neutralRadius(thickness, rule(0.5, radius));
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.value).toBeCloseTo(1.5, 9);
   });
 
-  it('allowance override bypasses the formula', () => {
+  it('allowance override bypasses the formula', async () => {
     const r = bendAllowance(90, thickness, { innerRadius: radius, kFactor: 0.44, allowance: 5 });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.value).toBe(5);
   });
 
-  it('rejects out-of-range K-factor', () => {
+  it('rejects out-of-range K-factor', async () => {
     const r = bendAllowance(90, thickness, rule(1.5, radius));
     expect(r.ok).toBe(false);
   });
 
-  it('rejects non-positive thickness', () => {
+  it('rejects non-positive thickness', async () => {
     const r = bendAllowance(90, 0, rule(0.44, radius));
     expect(r.ok).toBe(false);
   });
 });
 
-describe('unfold — flat lengths across K', () => {
+describe('unfold — flat lengths across K', async () => {
   const thickness = 1.0;
   const radius = 1.0;
   const baseLen = 30;
@@ -99,7 +99,7 @@ describe('unfold — flat lengths across K', () => {
   }
 
   for (const k of [0.33, 0.44, 0.5]) {
-    it(`K=${k} east run = baseLength + BA + flange`, () => {
+    it(`K=${k} east run = baseLength + BA + flange`, async () => {
       const expectedBA = HALF_PI * (radius + k * thickness);
       const result = unfold(makePart(k));
       expect(result.ok).toBe(true);
@@ -121,7 +121,7 @@ describe('unfold — flat lengths across K', () => {
     });
   }
 
-  it('warns when inner radius < thickness', () => {
+  it('warns when inner radius < thickness', async () => {
     const part = makePart(0.44);
     part.thickness = 2.0; // radius 1.0 < thickness 2.0
     const result = unfold(part);

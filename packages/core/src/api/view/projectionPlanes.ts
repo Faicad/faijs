@@ -37,7 +37,11 @@ export const PROJECTION_PLANES: Record<ProjectionPlane, PlaneConfig> = {
   top: { dir: [0, 0, -1], xAxis: [1, 0, 0] },
 };
 
-/** Type guard — check if a value is a valid {@link ProjectionPlane} name. */
+/** Type guard — check if a value is a valid {@link ProjectionPlane} name.
+ *
+ * @param plane - Value to test.
+ * @returns True if `plane` is a valid projection plane name.
+ */
 export function isProjectionPlane(plane: unknown): plane is ProjectionPlane {
   return typeof plane === 'string' && plane in PROJECTION_PLANES;
 }

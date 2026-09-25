@@ -1,7 +1,8 @@
+import type { Wire } from './types.js';
 import { describe, it, expect, beforeAll } from 'vitest';
 import { initOCCT } from './test-setup.js';
-import { isOk, isErr, unwrap, measureVolume, getEdges, curveStartPoint } from '@faicad/faijs-brepjs';
-import type { Wire } from '@faicad/faijs-brepjs';
+import {isOk, isErr, unwrap, measureVolume, getEdges, curveStartPoint} from '@faicad/faijs/api';
+
 import { author } from './api.js';
 import { addCutout, addHole, addSlot, addPolygonCutout } from './cutoutFns.js';
 import { unfold } from './unfoldFns.js';
@@ -15,13 +16,13 @@ beforeAll(async () => {
 
 const rule: BendRule = { innerRadius: 2, kFactor: 0.44 };
 
-function basePart(): SheetMetalPart {
-  return unwrap(author({ thickness: 1, base: { length: 40, width: 40 }, flanges: [] }));
+async function basePart(): Promise<SheetMetalPart> {
+  return unwrap(await author({ thickness: 1, base: { length: 40, width: 40 }, flanges: [] }));
 }
 
-function flangePart(): SheetMetalPart {
+async function flangePart(): Promise<SheetMetalPart> {
   return unwrap(
-    author({
+    await author({
       thickness: 1,
       base: { length: 40, width: 40 },
       flanges: [{ id: 'fy', length: 20, angleDeg: 90, rule, side: 'ymax' }],
@@ -30,7 +31,7 @@ function flangePart(): SheetMetalPart {
 }
 
 function vol(part: SheetMetalPart): number {
-  return unwrap(measureVolume(part.solid ?? (() => { throw new Error('no solid'); })()));
+  return measureVolume(part.solid ?? (() => { throw new Error('no solid'); })());
 }
 
 function centroid(wire: Wire): [number, number] {
@@ -45,10 +46,10 @@ function centroid(wire: Wire): [number, number] {
 }
 
 describe('addHole — circular hole on the base', () => {
-  it('drops the volume by ~π(d/2)²·thickness and emits one interior loop', () => {
-    const base = basePart();
+  it('drops the volume by ~π(d/2)²·thickness and emits one interior loop', async () => {
+    const base = await basePart();
     const v0 = vol(base);
-    const holed = addHole(base, 'base', 20, 20, 6);
+    const holed = await addHole(base, 'base', 20, 20, 6);
     expect(isOk(holed)).toBe(true);
     if (!isOk(holed)) return;
 
@@ -59,10 +60,10 @@ describe('addHole — circular hole on the base', () => {
     expect(pattern.holes.length).toBe(1);
   });
 
-  it('drops the developed area by the hole area and places the loop at the matching spot', () => {
-    const base = basePart();
+  it('drops the developed area by the hole area and places the loop at the matching spot', async () => {
+    const base = await basePart();
     const area0 = unwrap(unfold(base)).pattern.developedArea;
-    const holed = unwrap(addHole(base, 'base', 12, 28, 6));
+    const holed = unwrap(await addHole(base, 'base', 12, 28, 6));
 
     const pattern = unwrap(unfold(holed)).pattern;
     expect(area0 - pattern.developedArea).toBeCloseTo(holed.cutouts?.[0]?.area ?? 0, 6);
@@ -74,19 +75,19 @@ describe('addHole — circular hole on the base', () => {
   });
 });
 
-describe('addHole — hole on a folded flange', () => {
-  it('lands the cut on the flange face (same volume drop as a flat hole)', () => {
-    const part = flangePart();
+describe('addHole — hole on a folded flange', async () => {
+  it('lands the cut on the flange face (same volume drop as a flat hole)', async () => {
+    const part = await flangePart();
     const v0 = vol(part);
-    const holed = addHole(part, 'fy', 10, 10, 6);
+    const holed = await addHole(part, 'fy', 10, 10, 6);
     expect(isOk(holed)).toBe(true);
     if (!isOk(holed)) return;
     expect(v0 - vol(holed.value)).toBeCloseTo(Math.PI * 9 * 1, 0);
   });
 
-  it('positions the developed loop at the flange location, not the base plane', () => {
-    const part = flangePart();
-    const holed = unwrap(addHole(part, 'fy', 10, 10, 6));
+  it('positions the developed loop at the flange location, not the base plane', async () => {
+    const part = await flangePart();
+    const holed = unwrap(await addHole(part, 'fy', 10, 10, 6));
     const pattern = unwrap(unfold(holed)).pattern;
     expect(pattern.holes.length).toBe(1);
 
@@ -97,20 +98,20 @@ describe('addHole — hole on a folded flange', () => {
   });
 });
 
-describe('addSlot', () => {
-  it('rectangular slot drops volume by length·width·thickness', () => {
-    const base = basePart();
+describe('addSlot', async () => {
+  it('rectangular slot drops volume by length·width·thickness', async () => {
+    const base = await basePart();
     const v0 = vol(base);
-    const slotted = addSlot(base, 'base', { x: 20, y: 20, length: 12, width: 4 });
+    const slotted = await addSlot(base, 'base', { x: 20, y: 20, length: 12, width: 4 });
     expect(isOk(slotted)).toBe(true);
     if (!isOk(slotted)) return;
     expect(v0 - vol(slotted.value)).toBeCloseTo(12 * 4 * 1, 6);
   });
 
-  it('obround slot drops volume by the stadium area', () => {
-    const base = basePart();
+  it('obround slot drops volume by the stadium area', async () => {
+    const base = await basePart();
     const v0 = vol(base);
-    const slotted = addSlot(base, 'base', { x: 20, y: 20, length: 12, width: 4, round: true });
+    const slotted = await addSlot(base, 'base', { x: 20, y: 20, length: 12, width: 4, round: true });
     expect(isOk(slotted)).toBe(true);
     if (!isOk(slotted)) return;
     // Stadium = central rectangle (length−width)·width + a full circle of radius width/2.
@@ -118,19 +119,19 @@ describe('addSlot', () => {
     expect(v0 - vol(slotted.value)).toBeCloseTo(expected, 0);
   });
 
-  it('rotating an angled slot keeps the same removed volume', () => {
-    const base = basePart();
+  it('rotating an angled slot keeps the same removed volume', async () => {
+    const base = await basePart();
     const v0 = vol(base);
-    const slotted = unwrap(addSlot(base, 'base', { x: 20, y: 20, length: 12, width: 4, angleDeg: 30 }));
+    const slotted = unwrap(await addSlot(base, 'base', { x: 20, y: 20, length: 12, width: 4, angleDeg: 30 }));
     expect(v0 - vol(slotted)).toBeCloseTo(12 * 4 * 1, 6);
   });
 });
 
-describe('addPolygonCutout', () => {
-  it('drops volume by the polygon area·thickness', () => {
-    const base = basePart();
+describe('addPolygonCutout', async () => {
+  it('drops volume by the polygon area·thickness', async () => {
+    const base = await basePart();
     const v0 = vol(base);
-    const tri = addPolygonCutout(base, 'base', [
+    const tri = await addPolygonCutout(base, 'base', [
       [10, 10],
       [20, 10],
       [15, 18],
@@ -141,25 +142,25 @@ describe('addPolygonCutout', () => {
   });
 });
 
-describe('cutout validation', () => {
-  it('rejects a cutout extending outside the region extent', () => {
-    const base = basePart();
-    const oob = addHole(base, 'base', 39, 39, 6);
+describe('cutout validation', async () => {
+  it('rejects a cutout extending outside the region extent', async () => {
+    const base = await basePart();
+    const oob = await addHole(base, 'base', 39, 39, 6);
     expect(isErr(oob)).toBe(true);
     if (isErr(oob)) expect(oob.error.code).toBe('CUTOUT_OUT_OF_BOUNDS');
   });
 
-  it('rejects an unknown region', () => {
-    const base = basePart();
-    const bad = addHole(base, 'nope', 20, 20, 6);
+  it('rejects an unknown region', async () => {
+    const base = await basePart();
+    const bad = await addHole(base, 'nope', 20, 20, 6);
     expect(isErr(bad)).toBe(true);
     if (isErr(bad)) expect(bad.error.code).toBe('UNKNOWN_REGION');
   });
 
-  it('guards against a slot that severs the part into multiple bodies', () => {
+  it('guards against a slot that severs the part into multiple bodies', async () => {
     // A full-width slot spanning the whole base would split it in two.
-    const base = basePart();
-    const sever = addCutout(base, {
+    const base = await basePart();
+    const sever = await addCutout(base, {
       kind: 'polygon',
       region: 'base',
       points: [
@@ -174,29 +175,29 @@ describe('cutout validation', () => {
   });
 });
 
-describe('cutout round-trip', () => {
-  it('author hole on the base → partToFlatInput → fold preserves the volume', () => {
-    const holed = unwrap(addHole(basePart(), 'base', 20, 12, 6));
+describe('cutout round-trip', async () => {
+  it('author hole on the base → partToFlatInput → fold preserves the volume', async () => {
+    const holed = unwrap(await addHole(await basePart(), 'base', 20, 12, 6));
     const flatInput = unwrap(partToFlatInput(holed));
     expect(flatInput.baseCutouts?.length).toBe(1);
 
-    const refolded = unwrap(fold(flatInput));
+    const refolded = unwrap(await fold(flatInput));
     expect(refolded.cutouts?.length).toBe(1);
     expect(vol(refolded)).toBeCloseTo(vol(holed), 5);
   });
 
-  it('author hole on a flange → partToFlatInput → fold preserves the volume', () => {
-    const holed = unwrap(addHole(flangePart(), 'fy', 20, 10, 6));
+  it('author hole on a flange → partToFlatInput → fold preserves the volume', async () => {
+    const holed = unwrap(await addHole(await flangePart(), 'fy', 20, 10, 6));
     const flatInput = unwrap(partToFlatInput(holed));
     const withCutout = flatInput.regions.filter((r) => (r.cutouts?.length ?? 0) > 0);
     expect(withCutout.length).toBe(1);
 
-    const refolded = unwrap(fold(flatInput));
+    const refolded = unwrap(await fold(flatInput));
     expect(vol(refolded)).toBeCloseTo(vol(holed), 5);
   });
 
-  it('fails loudly rather than dropping a cutout whose region cannot be recovered', () => {
-    const holed = unwrap(addHole(flangePart(), 'fy', 20, 10, 6));
+  it('fails loudly rather than dropping a cutout whose region cannot be recovered', async () => {
+    const holed = unwrap(await addHole(await flangePart(), 'fy', 20, 10, 6));
     const cutouts = holed.cutouts ?? [];
     const orphaned: SheetMetalPart = {
       ...holed,
@@ -208,9 +209,9 @@ describe('cutout round-trip', () => {
   });
 });
 
-describe('cutouts in DXF', () => {
-  it('writes each cutout loop on the CUTOUT layer', () => {
-    const holed = unwrap(addHole(basePart(), 'base', 20, 20, 6));
+describe('cutouts in DXF', async () => {
+  it('writes each cutout loop on the CUTOUT layer', async () => {
+    const holed = unwrap(await addHole(await basePart(), 'base', 20, 20, 6));
     const pattern = unwrap(unfold(holed)).pattern;
     const dxf = unwrap(flatPatternToDXF(pattern));
     expect(dxf).toContain('CUTOUT');

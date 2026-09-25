@@ -131,6 +131,12 @@ function profileToFace(kernel: ReturnType<typeof getBrepApi>, profile: unknown):
 // drill — cut a cylinder through the shape
 // ---------------------------------------------------------------------------
 
+/**
+ * Drill — cut a cylinder through the shape.
+ *
+ * @param args - Resolved arguments (shape, drill options).
+ * @returns The drilled shape as a `BrepHandle`.
+ */
 export function drillBrep(...args: unknown[]): Result<BrepHandle> {
   const [shape, options] = resolveArgs(args, DRILL_PARAMS)
   const kernel = getBrepApi()
@@ -197,6 +203,12 @@ export function drillBrep(...args: unknown[]): Result<BrepHandle> {
 // pocket — extrude a profile inward and cut
 // ---------------------------------------------------------------------------
 
+/**
+ * Pocket — extrude a profile inward and cut it from the shape.
+ *
+ * @param args - Resolved arguments (shape, pocket options).
+ * @returns The pocketed shape as a `BrepHandle`.
+ */
 export function pocketBrep(...args: unknown[]): Result<BrepHandle> {
   const [shape, options] = resolveArgs(args, POCKET_PARAMS)
   const kernel = getBrepApi()
@@ -238,6 +250,12 @@ export function pocketBrep(...args: unknown[]): Result<BrepHandle> {
 // boss — extrude a profile outward and fuse
 // ---------------------------------------------------------------------------
 
+/**
+ * Boss — extrude a profile outward and fuse it onto the shape.
+ *
+ * @param args - Resolved arguments (shape, boss options).
+ * @returns The shape with the boss fused as a `BrepHandle`.
+ */
 export function bossBrep(...args: unknown[]): Result<BrepHandle> {
   const [shape, options] = resolveArgs(args, BOSS_PARAMS)
   const kernel = getBrepApi()
@@ -279,6 +297,12 @@ export function bossBrep(...args: unknown[]): Result<BrepHandle> {
 // mirrorJoin — mirror and fuse in one step
 // ---------------------------------------------------------------------------
 
+/**
+ * Mirror the shape across a plane and fuse the mirrored copy to the original.
+ *
+ * @param args - Resolved arguments (shape, mirror options).
+ * @returns The shape joined with its mirror as a `BrepHandle`.
+ */
 export function mirrorJoinBrep(...args: unknown[]): Result<BrepHandle> {
   const [shape, options] = resolveArgs(args, MIRROR_JOIN_PARAMS)
   const kernel = getBrepApi()

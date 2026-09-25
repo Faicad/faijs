@@ -76,6 +76,9 @@ const APPLY_MATRIX_PARAMS = { name: 'applyMatrix', params: ['shape', 'matrix'], 
  * (`gp_GTrsf`) paths; the core path uses the single L1 `generalTransform`
  * (occt-wasm `gp_GTrsf`, geometrically equivalent for both classes) since
  * `applyMatrix` carries identity naming and needs no face evolution.
+ *
+ * @param args - Resolved arguments (shape, matrix).
+ * @returns The transformed shape as a `BrepHandle`.
  */
 export function applyMatrixBrep(...args: unknown[]): Result<BrepHandle> {
   const [shape, matrix] = resolveArgs(args, APPLY_MATRIX_PARAMS)
@@ -115,7 +118,12 @@ export function applyMatrixBrep(...args: unknown[]): Result<BrepHandle> {
 
 const CLONE_PARAMS = { name: 'clone', params: ['shape'], formClass: 'A' as FormClass }
 
-/** Deep-copy a shape (`kernel.copyShape`). */
+/**
+ * Deep-copy a shape (`kernel.copyShape`).
+ *
+ * @param args - Resolved arguments (shape).
+ * @returns The cloned shape as a `BrepHandle`.
+ */
 export function cloneBrep(...args: unknown[]): Result<BrepHandle> {
   const [shape] = resolveArgs(args, CLONE_PARAMS)
   const kernel = getBrepApi()
@@ -152,6 +160,9 @@ function opToMatrix(op: TransformOp): number[] {
 /**
  * Placement-only rigid move (translate/rotate) via the kernel's cheap location
  * re-tag. Ops apply first-to-last (rotate then translate).
+ *
+ * @param args - Resolved arguments (shape, placement).
+ * @returns The relocated shape as a `BrepHandle`.
  */
 export function locateBrep(...args: unknown[]): Result<BrepHandle> {
   const [shape, placement] = resolveArgs(args, LOCATE_PARAMS)
@@ -181,7 +192,12 @@ export function locateBrep(...args: unknown[]): Result<BrepHandle> {
 
 const MIRROR_PARAMS = { name: 'mirror', params: ['shape', 'options'], formClass: 'A' as FormClass }
 
-/** Mirror across a plane defined by `options.at` (origin) and `options.normal`. */
+/**
+ * Mirror across a plane defined by `options.at` (origin) and `options.normal`.
+ *
+ * @param args - Resolved arguments (shape, mirror options).
+ * @returns The mirrored shape as a `BrepHandle`.
+ */
 export function mirrorBrep(...args: unknown[]): Result<BrepHandle> {
   const [shape, options] = resolveArgs(args, MIRROR_PARAMS)
   const opts = (options ?? {}) as { normal?: Vec3; at?: Vec3 }
@@ -207,6 +223,12 @@ export function mirrorBrep(...args: unknown[]): Result<BrepHandle> {
 
 const ROTATE_PARAMS = { name: 'rotate', params: ['shape', 'angle', 'options'], formClass: 'A' as FormClass }
 
+/**
+ * Rotate the shape around an axis (vendored topology/api.js#rotate + transformFns.ts#rotate).
+ *
+ * @param args - Resolved arguments (shape, angle in degrees, axis options).
+ * @returns The rotated shape as a `BrepHandle`.
+ */
 export function rotateBrep(...args: unknown[]): Result<BrepHandle> {
   const [shape, angle, options] = resolveArgs(args, ROTATE_PARAMS)
   const s = brepHandleOf(shape)
@@ -229,6 +251,12 @@ export function rotateBrep(...args: unknown[]): Result<BrepHandle> {
 
 const SHELL_PARAMS = { name: 'shell', params: ['shape', 'faces', 'thickness', 'options'], formClass: 'A' as FormClass }
 
+/**
+ * Shell — hollow the shape by removing faces (vendored topology/api.js#shell + modifierFns.ts#shell).
+ *
+ * @param args - Resolved arguments (shape, faces, thickness, options).
+ * @returns The shelled (hollowed) shape as a `BrepHandle`.
+ */
 export function shellBrep(...args: unknown[]): Result<BrepHandle> {
   const [shape, faces, thickness, options] = resolveArgs(args, SHELL_PARAMS)
   const kernel = getBrepApi()
@@ -255,6 +283,12 @@ export function shellBrep(...args: unknown[]): Result<BrepHandle> {
 
 const OFFSET_PARAMS = { name: 'offset', params: ['shape', 'distance', 'options'], formClass: 'A' as FormClass }
 
+/**
+ * Offset all faces of the shape (vendored topology/api.js#offset + modifierFns.ts#offset).
+ *
+ * @param args - Resolved arguments (shape, distance, options).
+ * @returns The offset shape as a `BrepHandle`.
+ */
 export function offsetBrep(...args: unknown[]): Result<BrepHandle> {
   const [shape, distance, options] = resolveArgs(args, OFFSET_PARAMS)
   const s = brepHandleOf(shape)

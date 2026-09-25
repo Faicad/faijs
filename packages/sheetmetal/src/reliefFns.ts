@@ -1,26 +1,7 @@
-import {
-  type Result,
-  type Vec3,
-  type Solid,
-  ok,
-  err,
-  validationError,
-  box,
-  cut,
-  rotate,
-  translate,
-  getBounds,
-  getSolids,
-  isValid,
-  curveStartPoint,
-  curveEndPoint,
-  vecAdd,
-  vecSub,
-  vecScale,
-  vecCross,
-  vecDot,
-  vecNormalize,
-} from '@faicad/faijs-brepjs';
+import { getBounds } from './geometryOps.js';
+import type { Solid } from './types.js';
+import { translate } from './geometryOps.js';
+import {type Result, type Vec3, ok, err, kernelError, validationError, box, cut, rotate, getSolids, isValid, curveStartPoint, curveEndPoint, vecAdd, vecSub, vecScale, vecCross, vecDot, vecNormalize} from '@faicad/faijs/api';
 import type {
   BendFeature,
   FlangeFeature,
@@ -54,11 +35,11 @@ type NotchRect = [number, number, number, number];
  * @param spec - the relief specification (default rectangular).
  * @returns the updated part with the bend relief recorded, or an error.
  */
-export function addBendRelief(
+export async function addBendRelief(
   part: SheetMetalPart,
   flangeId: string,
   spec: ReliefSpec = { shape: 'rectangular' }
-): Result<SheetMetalPart> {
+): Promise<Result<SheetMetalPart>> {
   if (part.solid === undefined) {
     return err(validationError('NO_SOLID', 'addBendRelief: part has no folded solid to cut'));
   }
@@ -72,21 +53,23 @@ export function addBendRelief(
   if (!dims.ok) return dims;
   const { width, depth } = dims.value;
 
-  const geo = bendReliefGeometry(part, flange, bend, width, depth);
-  if (geo === undefined) {
-    return err(
-      validationError(
-        'BEND_RELIEF_NOT_NEEDED',
-        `addBendRelief: bend '${flangeId}' spans its full parent edge; no relief end to cut`
-      )
-    );
-  }
-
+  let geo: BendReliefGeometry | undefined;
   let solid = part.solid;
-  for (const tool of geo.tools3d) {
-    const result = cut(solid, tool);
-    if (!result.ok) return result;
-    solid = normalizeSolid(result.value);
+  try {
+    geo = await bendReliefGeometry(part, flange, bend, width, depth);
+    if (geo === undefined) {
+      return err(
+        validationError(
+          'BEND_RELIEF_NOT_NEEDED',
+          `addBendRelief: bend '${flangeId}' spans its full parent edge; no relief end to cut`
+        )
+      );
+    }
+    for (const tool of geo.tools3d) {
+      solid = normalizeSolid((await cut(solid, tool)) as Solid);
+    }
+  } catch (e) {
+    return err(kernelError('CUT_FAILED', `bend relief: ${e instanceof Error ? e.message : String(e)}`));
   }
   if (!isValid(solid) || getSolids(solid).length > 1) {
     return err(
@@ -118,15 +101,15 @@ export function addBendRelief(
  * @param spec - the relief specification (default rectangular).
  * @returns the updated part with all needed bend reliefs, or an error.
  */
-export function autoBendReliefs(
+export async function autoBendReliefs(
   part: SheetMetalPart,
   spec: ReliefSpec = { shape: 'rectangular' }
-): Result<SheetMetalPart> {
+): Promise<Result<SheetMetalPart>> {
   let current = part;
   for (const flange of part.flanges) {
     // Let addBendRelief own the needed/not-needed decision rather than recomputing
     // the relief geometry here just to peek (which also allocated throwaway tools).
-    const next = addBendRelief(current, flange.id, spec);
+    const next = await addBendRelief(current, flange.id, spec);
     if (!next.ok) {
       if (next.error.code === 'BEND_RELIEF_NOT_NEEDED') continue;
       return next;
@@ -149,12 +132,12 @@ export function autoBendReliefs(
  * @param spec - the relief specification (default rectangular).
  * @returns the updated part with the corner relief recorded, or an error.
  */
-export function cornerRelief(
+export async function cornerRelief(
   part: SheetMetalPart,
   flangeIdA: string,
   flangeIdB: string,
   spec: ReliefSpec = { shape: 'rectangular' }
-): Result<SheetMetalPart> {
+): Promise<Result<SheetMetalPart>> {
   if (part.solid === undefined) {
     return err(validationError('NO_SOLID', 'cornerRelief: part has no folded solid'));
   }
@@ -186,11 +169,13 @@ export function cornerRelief(
   const flangeA = part.flanges.find((f) => f.id === flangeIdA);
   const flangeB = part.flanges.find((f) => f.id === flangeIdB);
   const geo = cornerReliefGeometry(part, axisA, axisB, bendA, bendB, side, flangeA, flangeB);
-  const tool = squareTool(part.solid, geo.cornerXY, side);
-  const result = cut(part.solid, tool);
-  if (!result.ok) return result;
-
-  const solid = normalizeSolid(result.value);
+  let solid: Solid;
+  try {
+    const tool = await squareTool(part.solid, geo.cornerXY, side);
+    solid = normalizeSolid((await cut(part.solid, tool)) as Solid);
+  } catch (e) {
+    return err(kernelError('CUT_FAILED', `corner relief: ${e instanceof Error ? e.message : String(e)}`));
+  }
   if (!isValid(solid) || getSolids(solid).length > 1) {
     return err(
       validationError(
@@ -259,13 +244,13 @@ interface BendReliefGeometry {
  * way. Returns `undefined` when the flange spans its full parent edge (no mid-edge
  * end to relieve).
  */
-function bendReliefGeometry(
+async function bendReliefGeometry(
   part: SheetMetalPart,
   flange: FlangeFeature,
   bend: BendFeature,
   width: number,
   depth: number
-): BendReliefGeometry | undefined {
+): Promise<BendReliefGeometry | undefined> {
   if (part.solid === undefined) return undefined;
 
   const axis = vecNormalize(bend.axisDir);
@@ -288,7 +273,7 @@ function bendReliefGeometry(
   if (atEnd) ends.push(span);
   for (const s of ends) {
     const at = vecAdd(edgeBase, vecScale(axis, s));
-    tools3d.push(slotTool3d(at, axis, inward, width, depth, part.thickness));
+    tools3d.push(await slotTool3d(at, axis, inward, width, depth, part.thickness));
   }
 
   const notches2d = bendNotches2d(part, flange, width, depth, atStart, atEnd);
@@ -444,14 +429,14 @@ function parentEdgeLength(part: SheetMetalPart, flange: FlangeFeature): number {
  * whose `width` axis runs along the parent edge and `depth` axis points inward,
  * placed so it straddles the edge point `at` and cuts through the parent surface.
  */
-function slotTool3d(
+async function slotTool3d(
   at: Vec3,
   along: Vec3,
   inward: Vec3,
   width: number,
   depth: number,
   thickness: number
-): Solid {
+): Promise<Solid> {
   const margin = thickness + 2;
   // Canonical: width along +X, depth along +Y, height along +Z (cuts through Z).
   // Rotating by `deg` sends +X→along and +Y→(along rotated +90° = [-along.y, along.x]).
@@ -459,10 +444,10 @@ function slotTool3d(
   // into the parent rather than out into the flange.
   const rotPerp: Vec3 = [-along[1], along[0], 0];
   const y0 = vecDot(rotPerp, inward) >= 0 ? 0 : -depth;
-  let tool: Solid = box(width, depth, thickness + 2 * margin);
-  tool = translate(tool, [-width / 2, y0, -margin]);
-  tool = orientXY(tool, along);
-  return translate(tool, [at[0], at[1], 0]);
+  let tool: Solid = (await box({ width, depth, height: thickness + 2 * margin })) as Solid;
+  tool = (await translate(tool, [-width / 2, y0, -margin])) as Solid;
+  tool = await orientXY(tool, along);
+  return (await translate(tool, [at[0], at[1], 0])) as Solid;
 }
 
 /**
@@ -472,19 +457,19 @@ function slotTool3d(
  * base corners for the supported perpendicular flange shapes, so the tool stays
  * axis-aligned.
  */
-function squareTool(solid: Solid, cornerXY: Pt2, side: number): Solid {
+async function squareTool(solid: Solid, cornerXY: Pt2, side: number): Promise<Solid> {
   const b = getBounds(solid);
   const margin = 2;
   const h = side / 2;
-  const tool = box(side, side, b.zMax - b.zMin + 2 * margin);
-  return translate(tool, [cornerXY[0] - h, cornerXY[1] - h, b.zMin - margin]);
+  const tool = (await box({ width: side, depth: side, height: b.zMax - b.zMin + 2 * margin })) as Solid;
+  return (await translate(tool, [cornerXY[0] - h, cornerXY[1] - h, b.zMin - margin])) as Solid;
 }
 
 /** Rotate a shape about +Z so its local +X axis points along `xT` (in the XY plane). */
-function orientXY(shape: Solid, xT: Vec3): Solid {
+async function orientXY(shape: Solid, xT: Vec3): Promise<Solid> {
   const deg = (Math.atan2(xT[1], xT[0]) * 180) / Math.PI;
   if (Math.abs(deg) < 1e-9) return shape;
-  return rotate(shape, deg, { at: [0, 0, 0], axis: Z_AXIS });
+  return (await rotate(shape, deg, { at: [0, 0, 0], axis: Z_AXIS })) as Solid;
 }
 
 function toPt2(v: Vec3): Pt2 {

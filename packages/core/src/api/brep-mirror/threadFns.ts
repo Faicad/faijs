@@ -171,6 +171,14 @@ import { validationError, kernelError } from '../../result/errors'
 
 const THREAD_PARAMS = { name: 'thread', params: ['options'], formClass: 'B1' as FormClass }
 
+/**
+ * compat-op wrapper: thread(options) → Result<BrepHandle>.
+ * Converges on core threadBrep (§5.4: vendored compat op and core version merged into one).
+ * threadBrep internal validation throws are caught as Result err (codes THREAD_INVALID_ARGS / THREAD_FAILED).
+ *
+ * @param args - Resolved arguments (thread options).
+ * @returns The generated thread solid as a `BrepHandle`.
+ */
 export function threadBrepOp(...args: unknown[]): Result<BrepHandle> {
   const [options] = resolveArgs(args, THREAD_PARAMS)
   const kernel = getBrepApi()

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { initOCCT } from './test-setup.js';
-import { isErr } from '@faicad/faijs-brepjs';
+import {isErr} from '@faicad/faijs/api';
 import { author, unfold } from './api.js';
 import { flatPatternToPolylines } from './polygonFns.js';
 import type { BendRule } from './types.js';
@@ -12,8 +12,8 @@ beforeAll(async () => {
 const rule: BendRule = { innerRadius: 2, kFactor: 0.44 };
 
 describe('flatPatternToPolylines', () => {
-  it('reduces an unfolded L-bracket to outline + bend lines', () => {
-    const part = author({
+  it('reduces an unfolded L-bracket to outline + bend lines', async () => {
+    const part = await author({
       thickness: 1.5,
       base: { length: 60, width: 40 },
       flanges: [

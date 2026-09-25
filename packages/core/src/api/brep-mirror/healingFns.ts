@@ -36,7 +36,11 @@ const SIMPLIFY_PARAMS = { name: 'simplify', params: ['shape'], formClass: 'A' as
 // heal (type-dispatching)
 // ---------------------------------------------------------------------------
 
-/** Heal a solid (`ShapeFix_Solid`); error codes match vendored `healSolid`. */
+/** Heal a solid (`ShapeFix_Solid`); error codes match vendored `healSolid`.
+ *
+ * @param args - Resolved arguments (solid shape).
+ * @returns The healed solid as a `BrepHandle`.
+ */
 export function healSolidBrep(...args: unknown[]): Result<BrepHandle> {
   const [solid] = resolveArgs(args, HEAL_SOLID_PARAMS)
   const kernel = getBrepApi()
@@ -88,6 +92,9 @@ function healWireBrep(handle: BrepHandle): Result<BrepHandle> {
 /**
  * Dispatch healing by shape type (solid/face/wire); other types pass through
  * unchanged (vendored `heal`).
+ *
+ * @param args - Resolved arguments (shape).
+ * @returns The healed shape as a `BrepHandle`.
  */
 export function healBrep(...args: unknown[]): Result<BrepHandle> {
   const [shape] = resolveArgs(args, HEAL_PARAMS)
@@ -103,7 +110,11 @@ export function healBrep(...args: unknown[]): Result<BrepHandle> {
 // fixShape / fixSelfIntersection / simplify
 // ---------------------------------------------------------------------------
 
-/** General-purpose repair (`ShapeFix_Shape`). */
+/** General-purpose repair (`ShapeFix_Shape`).
+ *
+ * @param args - Resolved arguments (shape).
+ * @returns The repaired shape as a `BrepHandle`.
+ */
 export function fixShapeBrep(...args: unknown[]): Result<BrepHandle> {
   const [shape] = resolveArgs(args, FIX_SHAPE_PARAMS)
   const kernel = getBrepApi()
@@ -114,7 +125,11 @@ export function fixShapeBrep(...args: unknown[]): Result<BrepHandle> {
   }
 }
 
-/** Fix wire self-intersection (occt platform method). */
+/** Fix wire self-intersection (occt platform method).
+ *
+ * @param args - Resolved arguments (wire shape).
+ * @returns The fixed wire as a `BrepHandle`.
+ */
 export function fixSelfIntersectionBrep(...args: unknown[]): Result<BrepHandle> {
   const [shape] = resolveArgs(args, FIX_SELF_INTERSECTION_PARAMS)
   try {
@@ -128,7 +143,11 @@ export function fixSelfIntersectionBrep(...args: unknown[]): Result<BrepHandle> 
   }
 }
 
-/** Simplify a shape (occt platform method). */
+/** Simplify a shape (occt platform method).
+ *
+ * @param args - Resolved arguments (shape).
+ * @returns The simplified shape as a `BrepHandle`.
+ */
 export function simplifyBrep(...args: unknown[]): Result<BrepHandle> {
   const [shape] = resolveArgs(args, SIMPLIFY_PARAMS)
   try {
@@ -178,6 +197,9 @@ function kindOf(h: BrepHandle): string {
  *
  * The returned record carries the healed shape as a raw BREP handle; the
  * projection wraps it via `fromHandle` so callers receive a faijs Shape.
+ *
+ * @param args - Resolved arguments (shape, auto-heal options).
+ * @returns The healed shape with a diagnostic healing report.
  */
 export function autoHealBrep(...args: unknown[]): Result<{ shape: BrepHandle; report: HealingReport }> {
   const [shape, options] = resolveArgs(args, AUTO_HEAL_PARAMS)

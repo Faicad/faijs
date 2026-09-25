@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { initOCCT } from './test-setup.js';
-import { measureVolume, isValid, isSolid, getSolids, getEdges } from '@faicad/faijs-brepjs';
+import {measureVolume, isValid, isSolid, getSolids, getEdges} from '@faicad/faijs/api';
 import { authorPart } from './authorFns.js';
 import { authorContourFlange } from './contourFlangeFns.js';
 import { authorLoftedFlange } from './loftedFlangeFns.js';
@@ -23,8 +23,8 @@ function singleSolid(part: SheetMetalPart): boolean {
 }
 
 describe('contour flange — exact development', () => {
-  it('lays the developed strip length as the exact sum of segment developed lengths', () => {
-    const base = authorPart({ thickness: T, base: { length: 50, width: 30 }, flanges: [] });
+  it('lays the developed strip length as the exact sum of segment developed lengths', async () => {
+    const base = await authorPart({ thickness: T, base: { length: 50, width: 30 }, flanges: [] });
     expect(base.ok).toBe(true);
     if (!base.ok) return;
 
@@ -37,7 +37,7 @@ describe('contour flange — exact development', () => {
       { kind: 'line', length: 8 },
     ];
 
-    const cf = authorContourFlange(base.value, { id: 'hat', side: 'xmax', profile, rule });
+    const cf = await authorContourFlange(base.value, { id: 'hat', side: 'xmax', profile, rule });
     expect(cf.ok).toBe(true);
     if (!cf.ok) return;
     const part = cf.value;
@@ -66,11 +66,11 @@ describe('contour flange — exact development', () => {
     expect(unfolded.value.pattern.bendLines.length).toBe(arcCount);
   });
 
-  it('rejects an out-of-bounds contour flange', () => {
-    const base = authorPart({ thickness: T, base: { length: 50, width: 30 }, flanges: [] });
+  it('rejects an out-of-bounds contour flange', async () => {
+    const base = await authorPart({ thickness: T, base: { length: 50, width: 30 }, flanges: [] });
     expect(base.ok).toBe(true);
     if (!base.ok) return;
-    const cf = authorContourFlange(base.value, {
+    const cf = await authorContourFlange(base.value, {
       id: 'over',
       side: 'xmax',
       profile: [{ kind: 'line', length: 5 }],
@@ -80,25 +80,25 @@ describe('contour flange — exact development', () => {
     expect(cf.ok).toBe(false);
   });
 
-  it('rejects an empty profile', () => {
-    const base = authorPart({ thickness: T, base: { length: 50, width: 30 }, flanges: [] });
+  it('rejects an empty profile', async () => {
+    const base = await authorPart({ thickness: T, base: { length: 50, width: 30 }, flanges: [] });
     expect(base.ok).toBe(true);
     if (!base.ok) return;
-    const cf = authorContourFlange(base.value, { id: 'empty', side: 'xmax', profile: [] });
+    const cf = await authorContourFlange(base.value, { id: 'empty', side: 'xmax', profile: [] });
     expect(cf.ok).toBe(false);
   });
 });
 
-describe('lofted flange — triangulated development', () => {
-  it('builds a valid single solid for a developable trapezoidal transition', () => {
-    const base = authorPart({ thickness: T, base: { length: 60, width: 40 }, flanges: [] });
+describe('lofted flange — triangulated development', async () => {
+  it('builds a valid single solid for a developable trapezoidal transition', async () => {
+    const base = await authorPart({ thickness: T, base: { length: 60, width: 40 }, flanges: [] });
     expect(base.ok).toBe(true);
     if (!base.ok) return;
 
     // Symmetric trapezoid: bottom edge wider than top, both centered — a developable
     // truncated-wedge ruled transition (planar quads).
     const height = 20;
-    const lf = authorLoftedFlange(base.value, {
+    const lf = await authorLoftedFlange(base.value, {
       id: 'chute',
       profileA: [
         [0, 0],
@@ -151,8 +151,8 @@ describe('lofted flange — triangulated development', () => {
     expect(getEdges(devWire).length).toBeGreaterThanOrEqual(3);
   });
 
-  it('keeps a large-scale developable transition exact (scale-invariant developability)', () => {
-    const base = authorPart({ thickness: T, base: { length: 4000, width: 2000 }, flanges: [] });
+  it('keeps a large-scale developable transition exact (scale-invariant developability)', async () => {
+    const base = await authorPart({ thickness: T, base: { length: 4000, width: 2000 }, flanges: [] });
     expect(base.ok).toBe(true);
     if (!base.ok) return;
 
@@ -160,7 +160,7 @@ describe('lofted flange — triangulated development', () => {
     // out-of-plane tolerance, numerical noise at these coordinates could false-flag
     // the planar quad as approximate; the relative tolerance must keep it exact.
     const height = 2000;
-    const lf = authorLoftedFlange(base.value, {
+    const lf = await authorLoftedFlange(base.value, {
       id: 'bigchute',
       profileA: [
         [0, 0],
@@ -182,14 +182,14 @@ describe('lofted flange — triangulated development', () => {
     expect(feature?.developedArea).toBeCloseTo(analyticArea, 0);
   });
 
-  it('emits DEVELOPMENT_APPROXIMATE for a non-developable transition', () => {
-    const base = authorPart({ thickness: T, base: { length: 60, width: 40 }, flanges: [] });
+  it('emits DEVELOPMENT_APPROXIMATE for a non-developable transition', async () => {
+    const base = await authorPart({ thickness: T, base: { length: 60, width: 40 }, flanges: [] });
     expect(base.ok).toBe(true);
     if (!base.ok) return;
 
     // A square-to-rotated transition is non-developable: rulings twist between the
     // two profiles (a classic square-to-square 45°-rotated hopper segment).
-    const lf = authorLoftedFlange(base.value, {
+    const lf = await authorLoftedFlange(base.value, {
       id: 'twist',
       profileA: [
         [0, 0],
@@ -217,16 +217,15 @@ describe('lofted flange — triangulated development', () => {
     // Even an approximate transition must still produce a valid measurable solid.
     if (part.solid !== undefined) {
       const vol = measureVolume(part.solid);
-      expect(vol.ok).toBe(true);
-      if (vol.ok) expect(vol.value).toBeGreaterThan(0);
+      expect(vol).toBeGreaterThan(0);
     }
   });
 
-  it('rejects mismatched profile vertex counts', () => {
-    const base = authorPart({ thickness: T, base: { length: 60, width: 40 }, flanges: [] });
+  it('rejects mismatched profile vertex counts', async () => {
+    const base = await authorPart({ thickness: T, base: { length: 60, width: 40 }, flanges: [] });
     expect(base.ok).toBe(true);
     if (!base.ok) return;
-    const lf = authorLoftedFlange(base.value, {
+    const lf = await authorLoftedFlange(base.value, {
       id: 'bad',
       profileA: [
         [0, 0],

@@ -7,6 +7,7 @@
 
 /** Error thrown for invariant violations / programmer bugs (should never be caught). */
 export class BrepBugError extends Error {
+  /** The location (e.g. function name) where the invariant violation occurred. */
   readonly location: string;
 
   constructor(location: string, message: string) {
@@ -19,6 +20,10 @@ export class BrepBugError extends Error {
 /**
  * Throws a BrepBugError for invariant violations / programmer errors.
  * Equivalent to Rust's panic!() — should never be caught in normal code.
+ *
+ * @param location - Where the violation occurred (e.g. function name).
+ * @param message - Description of the violated invariant.
+ * @returns Never returns; always throws.
  */
 export function bug(location: string, message: string): never {
   throw new BrepBugError(location, message);

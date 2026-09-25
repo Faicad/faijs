@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { initOCCT } from './test-setup.js';
-import { isErr } from '@faicad/faijs-brepjs';
+import {isErr} from '@faicad/faijs/api';
 import { bendAllowance } from './allowanceFns.js';
 import type { BendRule } from './types.js';
 
@@ -58,7 +58,7 @@ describe('reference table — bend allowance vs published values', () => {
     });
   }
 
-  it('allowance scales linearly with bend angle (BA(2A) = 2·BA(A))', () => {
+  it('allowance scales linearly with bend angle (BA(2A) = 2·BA(A))', async () => {
     const a = bendAllowance(30, 1.0, rule(0.44, 1.0));
     const b = bendAllowance(60, 1.0, rule(0.44, 1.0));
     expect(a.ok && b.ok).toBe(true);

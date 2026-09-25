@@ -1,20 +1,5 @@
-import {
-  type Result,
-  type Vec3,
-  type Wire,
-  type Solid,
-  ok,
-  err,
-  validationError,
-  line,
-  wireLoop,
-  extrude,
-  face,
-  fuse,
-  isPlanarWire,
-  isSolid,
-  getSolids,
-} from '@faicad/faijs-brepjs';
+import type { Wire, Solid } from './types.js';
+import {type Result, type Vec3, ok, err, kernelError, validationError, line, wireLoop, extrude, face, fuse, isPlanarWire, isSolid, getSolids} from '@faicad/faijs/api';
 import type { LoftedFlangeFeature, LoftedFlangeSpec, SheetMetalPart } from './types.js';
 
 type Pt2 = [number, number];
@@ -49,10 +34,10 @@ const DEVELOPABLE_MIN_SCALE = 1e-9;
  * @param spec - the lofted flange specification.
  * @returns the updated part with the lofted flange feature recorded, or an error.
  */
-export function authorLoftedFlange(
+export async function authorLoftedFlange(
   part: SheetMetalPart,
   spec: LoftedFlangeSpec
-): Result<SheetMetalPart> {
+): Promise<Result<SheetMetalPart>> {
   if (spec.id === '' || spec.id.includes('::')) {
     return err(
       validationError('INVALID_LOFTED_ID', `lofted flange id must be non-empty and must not contain '::', got '${spec.id}'`)
@@ -86,7 +71,7 @@ export function authorLoftedFlange(
   const a3: Vec3[] = spec.profileA.map(([x, y]) => [x, y, 0]);
   const b3: Vec3[] = spec.profileB.map(([x, y]) => [x, y, spec.height]);
 
-  const solidResult = buildLoftedSolid(spec.id, a3, b3, thickness);
+  const solidResult = await buildLoftedSolid(spec.id, a3, b3, thickness);
   if (!solidResult.ok) return solidResult;
 
   const dev = developRuled(a3, b3);
@@ -110,12 +95,16 @@ export function authorLoftedFlange(
       loftedFlanges: [...(part.loftedFlanges ?? []), feature],
     });
   }
-  const fused = fuse(part.solid, solidResult.value);
-  if (!fused.ok) return fused;
+  let solidOut: Solid;
+  try {
+    solidOut = normalize((await fuse(part.solid, solidResult.value)) as Solid);
+  } catch (e) {
+    return err(kernelError('FUSE_FAILED', `lofted flange: ${e instanceof Error ? e.message : String(e)}`));
+  }
 
   return ok({
     ...part,
-    solid: normalize(fused.value),
+    solid: solidOut,
     loftedFlanges: [...(part.loftedFlanges ?? []), feature],
   });
 }
@@ -134,7 +123,7 @@ function normalize(shape: Solid): Solid {
  * (non-developable) transitions, where a single lofted-then-shelled surface can fail
  * to sew.
  */
-function buildLoftedSolid(id: string, a: Vec3[], b: Vec3[], thickness: number): Result<Solid> {
+async function buildLoftedSolid(id: string, a: Vec3[], b: Vec3[], thickness: number): Promise<Result<Solid>> {
   let solid: Solid | undefined;
   for (let i = 0; i + 1 < a.length; i += 1) {
     const a0 = a[i];
@@ -144,14 +133,16 @@ function buildLoftedSolid(id: string, a: Vec3[], b: Vec3[], thickness: number): 
     if (a0 === undefined || a1 === undefined || b0 === undefined || b1 === undefined) {
       return err(validationError('LOFTED_QUAD_FAILED', `lofted flange '${id}' failed to index quad ${i}`));
     }
-    const plate = buildQuadPlate(id, a0, a1, b1, b0, thickness);
+    const plate = await buildQuadPlate(id, a0, a1, b1, b0, thickness);
     if (!plate.ok) return plate;
     if (solid === undefined) {
       solid = plate.value;
     } else {
-      const fused = fuse(solid, plate.value);
-      if (!fused.ok) return fused;
-      solid = normalize(fused.value);
+      try {
+        solid = normalize((await fuse(solid, plate.value)) as Solid);
+      } catch (e) {
+        return err(kernelError('FUSE_FAILED', `lofted quad ${i}: ${e instanceof Error ? e.message : String(e)}`));
+      }
     }
   }
   if (solid === undefined) {
@@ -168,18 +159,20 @@ function buildLoftedSolid(id: string, a: Vec3[], b: Vec3[], thickness: number): 
  * pair; for the common planar quad this is exact, for a twisted quad it is the
  * faceted plate matching the triangulated development.
  */
-function buildQuadPlate(id: string, a0: Vec3, a1: Vec3, b1: Vec3, b0: Vec3, thickness: number): Result<Solid> {
-  const t1 = buildTrianglePlate(id, a0, a1, b1, thickness);
+async function buildQuadPlate(id: string, a0: Vec3, a1: Vec3, b1: Vec3, b0: Vec3, thickness: number): Promise<Result<Solid>> {
+  const t1 = await buildTrianglePlate(id, a0, a1, b1, thickness);
   if (!t1.ok) return t1;
-  const t2 = buildTrianglePlate(id, a0, b1, b0, thickness);
+  const t2 = await buildTrianglePlate(id, a0, b1, b0, thickness);
   if (!t2.ok) return t2;
-  const fused = fuse(t1.value, t2.value);
-  if (!fused.ok) return fused;
-  return ok(normalize(fused.value));
+  try {
+    return ok(normalize((await fuse(t1.value, t2.value)) as Solid));
+  } catch (e) {
+    return err(kernelError('FUSE_FAILED', `lofted quad plate: ${e instanceof Error ? e.message : String(e)}`));
+  }
 }
 
 /** A flat triangle (p0,p1,p2) extruded by `thickness` along its own normal. */
-function buildTrianglePlate(id: string, p0: Vec3, p1: Vec3, p2: Vec3, thickness: number): Result<Solid> {
+async function buildTrianglePlate(id: string, p0: Vec3, p1: Vec3, p2: Vec3, thickness: number): Promise<Result<Solid>> {
   const e0 = line(p0, p1);
   const e1 = line(p1, p2);
   const e2 = line(p2, p0);
@@ -193,9 +186,11 @@ function buildTrianglePlate(id: string, p0: Vec3, p1: Vec3, p2: Vec3, thickness:
   if (!faceResult.ok) return faceResult;
   const n = triangleNormal(p0, p1, p2);
   const dir: Vec3 = [n[0] * thickness, n[1] * thickness, n[2] * thickness];
-  const extruded = extrude(faceResult.value, dir);
-  if (!extruded.ok) return extruded;
-  return ok(normalize(extruded.value));
+  try {
+    return ok(normalize((await extrude(faceResult.value, dir)) as Solid));
+  } catch (e) {
+    return err(kernelError('LOFTED_EXTRUDE_FAILED', `lofted triangle '${id}': ${e instanceof Error ? e.message : String(e)}`));
+  }
 }
 
 function triangleNormal(p0: Vec3, p1: Vec3, p2: Vec3): Vec3 {

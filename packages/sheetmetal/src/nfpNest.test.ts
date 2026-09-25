@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { initOCCT } from './test-setup.js';
-import { polygon, outerWire, unwrap } from '@faicad/faijs-brepjs';
+import {polygon, outerWire, unwrap} from '@faicad/faijs/api';
 import { authorPart as author } from './authorFns.js';
 import { unfold } from './unfoldFns.js';
 import { nest, nestToDXF } from './nestFns.js';
@@ -49,9 +49,9 @@ function lPart(): FlatPattern {
 }
 
 /** A plain rectangular blank (its outline is exactly length×width). */
-function flatBlank(length: number, width: number): FlatPattern {
+async function flatBlank(length: number, width: number): Promise<FlatPattern> {
   const spec: AuthorSpec = { thickness: 1, base: { length, width }, flanges: [] };
-  const authored = author(spec);
+  const authored = await author(spec);
   if (!authored.ok) throw new Error(`author failed: ${authored.error.message}`);
   const unfolded = unfold(authored.value);
   if (!unfolded.ok) throw new Error(`unfold failed: ${unfolded.error.message}`);
@@ -85,7 +85,7 @@ describe('polygon overlap predicate', () => {
     [x, y + s],
   ];
 
-  it('segmentsIntersect: crossing, collinear, shared endpoint, disjoint', () => {
+  it('segmentsIntersect: crossing, collinear, shared endpoint, disjoint', async () => {
     // Proper crossing (an X).
     expect(segmentsIntersect([0, 0], [10, 10], [0, 10], [10, 0])).toBe(true);
     // Collinear overlapping.
@@ -98,21 +98,21 @@ describe('polygon overlap predicate', () => {
     expect(segmentsIntersect([0, 0], [10, 0], [0, 1], [10, 1])).toBe(false);
   });
 
-  it('overlap: crossing edges (interpenetrating squares)', () => {
+  it('overlap: crossing edges (interpenetrating squares)', async () => {
     expect(polygonsOverlap(square(0, 0, 10), square(5, 5, 10))).toBe(true);
   });
 
-  it('overlap: full containment (one inside the other, no edge crossing)', () => {
+  it('overlap: full containment (one inside the other, no edge crossing)', async () => {
     expect(polygonsOverlap(square(0, 0, 20), square(5, 5, 5))).toBe(true);
     // Order-independent.
     expect(polygonsOverlap(square(5, 5, 5), square(0, 0, 20))).toBe(true);
   });
 
-  it('no overlap: disjoint squares', () => {
+  it('no overlap: disjoint squares', async () => {
     expect(polygonsOverlap(square(0, 0, 10), square(20, 20, 10))).toBe(false);
   });
 
-  it('touching-but-not-overlapping shares an edge (reported as overlap by the raw predicate)', () => {
+  it('touching-but-not-overlapping shares an edge (reported as overlap by the raw predicate)', async () => {
     // Edge-flush squares touch; the raw predicate is conservative and reports overlap.
     expect(polygonsOverlap(square(0, 0, 10), square(10, 0, 10))).toBe(true);
     // With a positive clearance, two squares separated by exactly a gap < clearance
@@ -121,14 +121,14 @@ describe('polygon overlap predicate', () => {
     expect(polygonsOverlapWithClearance(square(0, 0, 10), square(10.5, 0, 10), 1)).toBe(true);
   });
 
-  it('clearance: disjoint parts within the gap are reported overlapping', () => {
+  it('clearance: disjoint parts within the gap are reported overlapping', async () => {
     // 2 units apart, clearance 3 → too close.
     expect(polygonsOverlapWithClearance(square(0, 0, 10), square(12, 0, 10), 3)).toBe(true);
     // 5 units apart, clearance 3 → fine.
     expect(polygonsOverlapWithClearance(square(0, 0, 10), square(15, 0, 10), 3)).toBe(false);
   });
 
-  it('concave (L) containment that bbox-only checking would miss', () => {
+  it('concave (L) containment that bbox-only checking would miss', async () => {
     // An L whose bounding box is 10×10 but whose notch (the [6,10]×[6,10] corner) is
     // empty. A small square placed in that notch does NOT overlap the L, even though
     // both bounding boxes overlap — the case true-shape nesting exploits.
@@ -152,8 +152,8 @@ describe('polygon overlap predicate', () => {
 // True-shape nesting integration.
 // ---------------------------------------------------------------------------
 
-describe('nest — true-shape (nfp)', () => {
-  it('INTERLOCKING WIN: nfp utilization strictly beats bbox on L-shaped parts', () => {
+describe('nest — true-shape (nfp)', async () => {
+  it('INTERLOCKING WIN: nfp utilization strictly beats bbox on L-shaped parts', async () => {
     // Sheet 45×65: two Ls interlock onto ONE sheet (true-shape) but the bbox packer
     // fits only one 40×40 box per sheet. So nfp packs twice the material per sheet,
     // and its (true-area) utilization strictly exceeds bbox's (bbox-area) utilization.
@@ -181,8 +181,8 @@ describe('nest — true-shape (nfp)', () => {
     expect(nfpU).toBeGreaterThan(bboxU + 1e-3);
   });
 
-  it('NO OVERLAP at the polygon level over all placed pairs, within usable bounds', () => {
-    const parts = [lPart(), lPart(), lPart(), flatBlank(25, 25), lPart()];
+  it('NO OVERLAP at the polygon level over all placed pairs, within usable bounds', async () => {
+    const parts = [lPart(), lPart(), lPart(), await flatBlank(25, 25), lPart()];
     const margin = 5;
     const spacing = 2;
     const sheet = { width: 120, height: 120 };
@@ -217,7 +217,7 @@ describe('nest — true-shape (nfp)', () => {
     }
   });
 
-  it('rotations: a part that only interlocks rotated is still placed', () => {
+  it('rotations: a part that only interlocks rotated is still placed', async () => {
     // Two L-parts on a 45×65 sheet only both fit if the second is rotated 180° into
     // the first's notch — a 0°-only packer would spill one to a second sheet.
     const parts = [lPart(), lPart()];
@@ -233,8 +233,8 @@ describe('nest — true-shape (nfp)', () => {
     expect(rotations.some((d) => d === 90 || d === 180 || d === 270)).toBe(true);
   });
 
-  it('oversized part -> unplaced + warning, no infinite loop', () => {
-    const parts = [lPart(), flatBlank(500, 500), lPart()];
+  it('oversized part -> unplaced + warning, no infinite loop', async () => {
+    const parts = [lPart(), await flatBlank(500, 500), lPart()];
     const r = nest(parts, { sheet: { width: 80, height: 80 }, strategy: 'nfp' });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
@@ -246,8 +246,8 @@ describe('nest — true-shape (nfp)', () => {
     expect(placed).toBe(2);
   });
 
-  it('opens a new sheet when no feasible placement remains', () => {
-    const parts = Array.from({ length: 4 }, () => flatBlank(40, 40));
+  it('opens a new sheet when no feasible placement remains', async () => {
+    const parts = await Promise.all(Array.from({ length: 4 }, () => flatBlank(40, 40)));
     // 50×50 usable fits exactly one 40×40 per sheet → 4 sheets.
     const r = nest(parts, { sheet: { width: 50, height: 50 }, strategy: 'nfp' });
     expect(r.ok).toBe(true);
@@ -257,8 +257,8 @@ describe('nest — true-shape (nfp)', () => {
   });
 });
 
-describe('nestToDXF — true-shape sheet', () => {
-  it('places each part at its (x, y, rotation); a second part is shifted', () => {
+describe('nestToDXF — true-shape sheet', async () => {
+  it('places each part at its (x, y, rotation); a second part is shifted', async () => {
     const parts = [lPart(), lPart()];
     const r = nest(parts, { sheet: { width: 45, height: 65 }, allowRotation: true, strategy: 'nfp' });
     expect(r.ok).toBe(true);
@@ -291,9 +291,9 @@ describe('nestToDXF — true-shape sheet', () => {
   });
 });
 
-describe('nest — strategy routing', () => {
-  it('default (no strategy) is identical to explicit bbox', () => {
-    const parts = Array.from({ length: 5 }, () => flatBlank(20, 20));
+describe('nest — strategy routing', async () => {
+  it('default (no strategy) is identical to explicit bbox', async () => {
+    const parts = await Promise.all(Array.from({ length: 5 }, () => flatBlank(20, 20)));
     const sheet = { width: 60, height: 40 };
     const def = nest(parts, { sheet });
     const bbox = nest(parts, { sheet, strategy: 'bbox' });

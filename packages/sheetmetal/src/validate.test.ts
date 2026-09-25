@@ -13,8 +13,8 @@ function codes(warnings: SheetMetalWarning[]): string[] {
 }
 
 describe('validatePart — folded-solid validity', () => {
-  it('passes a well-formed L-bracket with no warnings', () => {
-    const result = authorPart({
+  it('passes a well-formed L-bracket with no warnings', async () => {
+    const result = await authorPart({
       thickness: 1,
       base: { length: 30, width: 10 },
       flanges: [{ id: 'f1', length: 20, angleDeg: 90, rule: { innerRadius: 2, kFactor: 0.44 } }],
@@ -25,7 +25,7 @@ describe('validatePart — folded-solid validity', () => {
     expect(validatePart(result.value)).toEqual([]);
   });
 
-  it('flags a part with no folded solid', () => {
+  it('flags a part with no folded solid', async () => {
     const part: SheetMetalPart = { thickness: 1, baseLength: 30, width: 10, flanges: [], bends: [] };
     const warnings = validatePart(part);
     expect(codes(warnings)).toContain('INVALID_SOLID');
@@ -34,9 +34,9 @@ describe('validatePart — folded-solid validity', () => {
   });
 });
 
-describe('validatePart — min bend radius (R < 1×T)', () => {
-  it('warns when the inner radius is below one thickness', () => {
-    const result = authorPart({
+describe('validatePart — min bend radius (R < 1×T)', async () => {
+  it('warns when the inner radius is below one thickness', async () => {
+    const result = await authorPart({
       thickness: 2,
       base: { length: 30, width: 10 },
       flanges: [{ id: 'tight', length: 20, angleDeg: 90, rule: { innerRadius: 0.5, kFactor: 0.44 } }],
@@ -51,8 +51,8 @@ describe('validatePart — min bend radius (R < 1×T)', () => {
     expect(minR?.message).toMatch(/inner radius 0\.5 < thickness 2/);
   });
 
-  it('does not warn when the inner radius equals one thickness', () => {
-    const result = authorPart({
+  it('does not warn when the inner radius equals one thickness', async () => {
+    const result = await authorPart({
       thickness: 2,
       base: { length: 30, width: 10 },
       flanges: [{ id: 'ok', length: 20, angleDeg: 90, rule: { innerRadius: 2, kFactor: 0.44 } }],
@@ -63,8 +63,8 @@ describe('validatePart — min bend radius (R < 1×T)', () => {
     expect(codes(validatePart(result.value))).not.toContain('MIN_RADIUS');
   });
 
-  it('warns per offending bend independently', () => {
-    const result = authorPart({
+  it('warns per offending bend independently', async () => {
+    const result = await authorPart({
       thickness: 2,
       base: { length: 40, width: 40 },
       flanges: [
@@ -81,9 +81,9 @@ describe('validatePart — min bend radius (R < 1×T)', () => {
   });
 });
 
-describe('validatePart — flange collision', () => {
-  it('flags two un-mitered perpendicular flanges that share a corner', () => {
-    const result = authorPart({
+describe('validatePart — flange collision', async () => {
+  it('flags two un-mitered perpendicular flanges that share a corner', async () => {
+    const result = await authorPart({
       thickness: 1,
       base: { length: 30, width: 30 },
       flanges: [
@@ -99,8 +99,8 @@ describe('validatePart — flange collision', () => {
     expect(collision?.message).toMatch(/overlap once folded/);
   });
 
-  it('does not flag a chained U-channel (return folds clear of the base)', () => {
-    const result = authorPart({
+  it('does not flag a chained U-channel (return folds clear of the base)', async () => {
+    const result = await authorPart({
       thickness: 1,
       base: { length: 40, width: 30 },
       flanges: [
@@ -116,8 +116,8 @@ describe('validatePart — flange collision', () => {
     expect(codes(validatePart(result.value))).not.toContain('COLLISION');
   });
 
-  it('does not flag a single-flange part', () => {
-    const result = authorPart({
+  it('does not flag a single-flange part', async () => {
+    const result = await authorPart({
       thickness: 1,
       base: { length: 30, width: 10 },
       flanges: [{ id: 'f1', length: 20, angleDeg: 90, rule: { innerRadius: 2, kFactor: 0.44 } }],
@@ -129,9 +129,9 @@ describe('validatePart — flange collision', () => {
   });
 });
 
-describe('validatePart — combined report', () => {
-  it('returns warnings and never throws', () => {
-    const result = authorPart({
+describe('validatePart — combined report', async () => {
+  it('returns warnings and never throws', async () => {
+    const result = await authorPart({
       thickness: 2,
       base: { length: 30, width: 30 },
       flanges: [

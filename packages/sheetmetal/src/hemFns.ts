@@ -1,4 +1,5 @@
-import { type Result, type Solid, ok, err, validationError } from '@faicad/faijs-brepjs';
+import type { Solid } from './types.js';
+import {type Result, ok, err, validationError} from '@faicad/faijs/api';
 import type {
   BendFeature,
   BendRule,
@@ -53,7 +54,7 @@ interface HemPlan {
  * @param spec - the hem specification.
  * @returns the updated part with the hem feature recorded, or an error.
  */
-export function hem(part: SheetMetalPart, spec: HemSpec): Result<SheetMetalPart> {
+export async function hem(part: SheetMetalPart, spec: HemSpec): Promise<Result<SheetMetalPart>> {
   if (part.solid === undefined) {
     return err(validationError('NO_SOLID', `part has no solid to attach hem '${hemId(spec)}'`));
   }
@@ -117,7 +118,7 @@ export function hem(part: SheetMetalPart, spec: HemSpec): Result<SheetMetalPart>
   for (let i = 0; i < subAngles.length; i += 1) {
     const subDeg = subAngles[i];
     if (subDeg === undefined) continue;
-    const built = buildArcBend(solid, frame, span, thickness, {
+    const built = await buildArcBend(solid, frame, span, thickness, {
       kind: 'arc',
       radius: plan.radius,
       angleDeg: subDeg,
@@ -144,7 +145,7 @@ export function hem(part: SheetMetalPart, spec: HemSpec): Result<SheetMetalPart>
   }
 
   if (plan.returnLength > 0) {
-    const built = buildLineLeg(solid, frame, span, thickness, plan.returnLength);
+    const built = await buildLineLeg(solid, frame, span, thickness, plan.returnLength);
     if (!built.ok) return built;
     solid = built.value.solid;
     segments.push({ kind: 'line', dev: plan.returnLength });

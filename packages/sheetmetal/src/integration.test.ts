@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { initOCCT } from './test-setup.js';
-import { isValid, measureVolume, isErr } from '@faicad/faijs-brepjs';
+import {isValid, measureVolume, isErr} from '@faicad/faijs/api';
 import { author, miterCorner, unfold, toDXF, report, reportFrom, reportJSON } from './api.js';
 import { sheetMetal } from './facade.js';
 import type { BendRule } from './types.js';
@@ -20,9 +20,9 @@ const flangeLen = 15;
 const gap = 1;
 
 describe('full pipeline — author → miter → unfold → DXF → report', () => {
-  it('walks every stage of the headline workflow with Ok results and well-formed artifacts', () => {
+  it('walks every stage of the headline workflow with Ok results and well-formed artifacts', async () => {
     // 1. Author an L-bracket with two perpendicular flanges meeting at a corner.
-    const authored = author({
+    const authored = await author({
       thickness: T,
       base: { length: baseLen, width },
       flanges: [
@@ -40,8 +40,7 @@ describe('full pipeline — author → miter → unfold → DXF → report', () 
 
     // 2. Auto-miter the shared corner with a gap — volume must strictly drop.
     const beforeVol = measureVolume(part.solid);
-    expect(beforeVol.ok).toBe(true);
-    const mitered = miterCorner(part, 'fx', 'fy', gap);
+    const mitered = await miterCorner(part, 'fx', 'fy', gap);
     expect(mitered.ok).toBe(true);
     if (isErr(mitered)) return;
     const miteredPart = mitered.value;
@@ -49,10 +48,8 @@ describe('full pipeline — author → miter → unfold → DXF → report', () 
     if (miteredPart.solid === undefined) return;
     expect(isValid(miteredPart.solid)).toBe(true);
     const afterVol = measureVolume(miteredPart.solid);
-    expect(afterVol.ok && beforeVol.ok).toBe(true);
-    if (isErr(afterVol) || isErr(beforeVol)) return;
-    expect(afterVol.value).toBeGreaterThan(0);
-    expect(afterVol.value).toBeLessThan(beforeVol.value);
+    expect(afterVol).toBeGreaterThan(0);
+    expect(afterVol).toBeLessThan(beforeVol);
 
     // 3. Unfold the mitered part into a developed flat pattern.
     const unfolded = unfold(miteredPart);
@@ -98,12 +95,12 @@ describe('full pipeline — author → miter → unfold → DXF → report', () 
     expect(parsed.totalFlatSize).toHaveLength(2);
   });
 
-  it('drives the same pipeline through the fluent facade', () => {
-    const result = sheetMetal({ length: baseLen, width }, T)
+  it('drives the same pipeline through the fluent facade', async () => {
+    const handle = await sheetMetal({ length: baseLen, width }, T)
       .flange({ id: 'fx', length: flangeLen, angleDeg: 90, rule, side: 'xmax' })
       .flange({ id: 'fy', length: flangeLen, angleDeg: 90, rule, side: 'ymax' })
-      .miterCorner('fx', 'fy', gap)
-      .unfold();
+      .miterCorner('fx', 'fy', gap);
+    const result = handle.unfold();
 
     expect(result.pattern.bendLines).toHaveLength(2);
     expect(result.pattern.developedArea).toBeGreaterThan(0);

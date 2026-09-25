@@ -1,13 +1,4 @@
-import {
-  type Result,
-  type Vec3,
-  ok,
-  err,
-  validationError,
-  getEdges,
-  curveStartPoint,
-  curveEndPoint,
-} from '@faicad/faijs-brepjs';
+import {type Result, type Vec3, ok, err, validationError, getEdges, curveStartPoint, curveEndPoint} from '@faicad/faijs/api';
 import type {
   BendRule,
   CutoutSpec,
@@ -51,8 +42,8 @@ export interface FoldResult {
  * @param input - the flat pattern input to fold.
  * @returns the folded sheet metal part, or an error.
  */
-export function fold(input: FlatInput): Result<SheetMetalPart> {
-  const result = foldWithWarnings(input);
+export async function fold(input: FlatInput): Promise<Result<SheetMetalPart>> {
+  const result = await foldWithWarnings(input);
   if (!result.ok) return result;
   return ok(result.value.part);
 }
@@ -62,7 +53,7 @@ export function fold(input: FlatInput): Result<SheetMetalPart> {
  * @param input - the flat pattern input to fold.
  * @returns the fold result with warnings, or an error.
  */
-export function foldWithWarnings(input: FlatInput): Result<FoldResult> {
+export async function foldWithWarnings(input: FlatInput): Promise<Result<FoldResult>> {
   const spec: AuthorSpec = {
     thickness: input.thickness,
     base: { length: input.baseLength, width: input.width },
@@ -70,7 +61,7 @@ export function foldWithWarnings(input: FlatInput): Result<FoldResult> {
     ...(input.material !== undefined ? { material: input.material } : {}),
   };
 
-  const authored = authorPart(spec);
+  const authored = await authorPart(spec);
   if (!authored.ok) return authored;
   let part = authored.value;
 
@@ -79,7 +70,7 @@ export function foldWithWarnings(input: FlatInput): Result<FoldResult> {
   // built, exactly as the explicit `addBendRelief` API does).
   for (const region of input.regions) {
     if (region.bendRelief === undefined) continue;
-    const relieved = addBendRelief(part, region.id, region.bendRelief);
+    const relieved = await addBendRelief(part, region.id, region.bendRelief);
     if (!relieved.ok) return relieved;
     part = relieved.value;
   }
@@ -87,13 +78,13 @@ export function foldWithWarnings(input: FlatInput): Result<FoldResult> {
   // Re-apply recorded cutouts (in region-local coords) so a cutout'd part folds
   // back into the same solid + recorded feature, exactly as `addCutout` produces.
   for (const spec of input.baseCutouts ?? []) {
-    const cutResult = addCutout(part, { ...spec, region: ROOT_FLAT_ID });
+    const cutResult = await addCutout(part, { ...spec, region: ROOT_FLAT_ID });
     if (!cutResult.ok) return cutResult;
     part = cutResult.value;
   }
   for (const region of input.regions) {
     for (const spec of region.cutouts ?? []) {
-      const cutResult = addCutout(part, { ...spec, region: region.id });
+      const cutResult = await addCutout(part, { ...spec, region: region.id });
       if (!cutResult.ok) return cutResult;
       part = cutResult.value;
     }
@@ -102,25 +93,25 @@ export function foldWithWarnings(input: FlatInput): Result<FoldResult> {
   // Re-apply recorded tabs (additive protrusions) and form features so a tab'd /
   // formed part folds back into the same solid + recorded features.
   for (const spec of input.baseTabs ?? []) {
-    const tabbed = addTab(part, { ...spec, region: ROOT_FLAT_ID });
+    const tabbed = await addTab(part, { ...spec, region: ROOT_FLAT_ID });
     if (!tabbed.ok) return tabbed;
     part = tabbed.value;
   }
   for (const region of input.regions) {
     for (const spec of region.tabs ?? []) {
-      const tabbed = addTab(part, { ...spec, region: region.id });
+      const tabbed = await addTab(part, { ...spec, region: region.id });
       if (!tabbed.ok) return tabbed;
       part = tabbed.value;
     }
   }
   for (const spec of input.baseForms ?? []) {
-    const formed = addForm(part, { ...spec, region: ROOT_FLAT_ID });
+    const formed = await addForm(part, { ...spec, region: ROOT_FLAT_ID });
     if (!formed.ok) return formed;
     part = formed.value;
   }
   for (const region of input.regions) {
     for (const spec of region.forms ?? []) {
-      const formed = addForm(part, { ...spec, region: region.id });
+      const formed = await addForm(part, { ...spec, region: region.id });
       if (!formed.ok) return formed;
       part = formed.value;
     }

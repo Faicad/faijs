@@ -30,7 +30,6 @@
   ],
   "dependencies": {},
   "peerDependencies": {
-    "@faicad/faijs-brepjs": "^0.16.0",
     "@faicad/faijs": "^0.16.0"
   },
   "devDependencies": {

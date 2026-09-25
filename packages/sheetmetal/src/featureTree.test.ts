@@ -31,7 +31,7 @@ function cyclicGraph(): FeatureGraph {
 }
 
 describe('buildFeatureTree — seam cuts on closed profiles', () => {
-  it('turns the non-tree edge into a seam with a SEAM_CUT warning', () => {
+  it('turns the non-tree edge into a seam with a SEAM_CUT warning', async () => {
     const result = buildFeatureTree(cyclicGraph());
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -40,7 +40,7 @@ describe('buildFeatureTree — seam cuts on closed profiles', () => {
     expect(result.value.warnings.some((w) => w.code === 'SEAM_CUT')).toBe(true);
   });
 
-  it('does not mislabel seam cuts as COLLISION (the flange-interference code)', () => {
+  it('does not mislabel seam cuts as COLLISION (the flange-interference code)', async () => {
     const result = buildFeatureTree(cyclicGraph());
     expect(result.ok).toBe(true);
     if (!result.ok) return;

@@ -20,6 +20,9 @@ export type Vec3 = readonly [number, number, number];
 // Assembly types
 // ---------------------------------------------------------------------------
 
+/**
+ * A node in an assembly tree: optional shape, local transform, metadata, and children.
+ */
 export interface AssemblyNode {
   readonly name: string;
   readonly shape?: Shape;
@@ -32,6 +35,7 @@ export interface AssemblyNode {
   readonly joints?: readonly unknown[];
 }
 
+/** Optional properties for creating or updating an assembly node. */
 export interface AssemblyNodeOptions {
   shape?: Shape;
   translate?: Vec3;
@@ -43,7 +47,12 @@ export interface AssemblyNodeOptions {
 // Constructors
 // ---------------------------------------------------------------------------
 
-/** Create a new assembly node. */
+/**
+ * Create a new assembly node.
+ * @param name - Name of the node.
+ * @param options - Optional shape, transform, and metadata.
+ * @returns The newly created assembly node.
+ */
 export function createAssemblyNode(name: string, options: AssemblyNodeOptions = {}): AssemblyNode {
   return {
     name,
@@ -59,12 +68,22 @@ export function createAssemblyNode(name: string, options: AssemblyNodeOptions = 
 // Immutable tree operations
 // ---------------------------------------------------------------------------
 
-/** Add a child node. Returns a new parent node. */
+/**
+ * Add a child node. Returns a new parent node.
+ * @param parent - The parent node to extend.
+ * @param child - The child node to append.
+ * @returns A new parent node with the child added.
+ */
 export function addChild(parent: AssemblyNode, child: AssemblyNode): AssemblyNode {
   return { ...parent, children: [...parent.children, child] };
 }
 
-/** Remove a child by name (first match). Returns a new parent node. */
+/**
+ * Remove a child by name (first match). Returns a new parent node.
+ * @param parent - The parent node to modify.
+ * @param childName - Name of the child to remove.
+ * @returns A new parent node with the child removed.
+ */
 export function removeChild(parent: AssemblyNode, childName: string): AssemblyNode {
   const idx = parent.children.findIndex((c) => c.name === childName);
   if (idx === -1) return parent;
@@ -73,7 +92,12 @@ export function removeChild(parent: AssemblyNode, childName: string): AssemblyNo
   return { ...parent, children };
 }
 
-/** Update a node's properties. Returns a new node. */
+/**
+ * Update a node's properties. Returns a new node.
+ * @param node - The node to update.
+ * @param updates - Partial options to apply.
+ * @returns A new node with the updates applied.
+ */
 export function updateNode(
   node: AssemblyNode,
   updates: Partial<AssemblyNodeOptions>
@@ -91,7 +115,12 @@ export function updateNode(
 // Traversal
 // ---------------------------------------------------------------------------
 
-/** Find a node by name (depth-first). Returns undefined if not found. */
+/**
+ * Find a node by name (depth-first). Returns undefined if not found.
+ * @param root - Root of the subtree to search.
+ * @param name - Name of the node to find.
+ * @returns The first matching node, or undefined.
+ */
 export function findNode(root: AssemblyNode, name: string): AssemblyNode | undefined {
   if (root.name === name) return root;
   for (const child of root.children) {
@@ -101,7 +130,13 @@ export function findNode(root: AssemblyNode, name: string): AssemblyNode | undef
   return undefined;
 }
 
-/** Walk the tree depth-first, calling visitor for each node. */
+/**
+ * Walk the tree depth-first, calling visitor for each node.
+ * @param root - Root node to walk from.
+ * @param visitor - Callback invoked with each node and its depth.
+ * @param depth - Starting depth (used internally for recursion).
+ * @returns Nothing.
+ */
 export function walkAssembly(
   root: AssemblyNode,
   visitor: (node: AssemblyNode, depth: number) => void,
@@ -113,7 +148,11 @@ export function walkAssembly(
   }
 }
 
-/** Count all nodes in the tree. */
+/**
+ * Count all nodes in the tree.
+ * @param root - Root node to count from.
+ * @returns Total number of nodes including the root.
+ */
 export function countNodes(root: AssemblyNode): number {
   let count = 1;
   for (const child of root.children) {
@@ -122,7 +161,11 @@ export function countNodes(root: AssemblyNode): number {
   return count;
 }
 
-/** Collect all shapes in the tree (depth-first). */
+/**
+ * Collect all shapes in the tree (depth-first).
+ * @param root - Root node to collect from.
+ * @returns All shapes found on nodes in the tree.
+ */
 export function collectShapes(root: AssemblyNode): Shape[] {
   const shapes: Shape[] = [];
   walkAssembly(root, (node) => {

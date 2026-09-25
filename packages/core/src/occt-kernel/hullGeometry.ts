@@ -16,6 +16,7 @@ export interface Vec3 {
   readonly z: number;
 }
 
+/** Result of a QuickHull computation: hull triangle indices and deduplicated points. */
 export interface HullResult {
   readonly faces: ReadonlyArray<readonly [number, number, number]>;
   readonly points: readonly Vec3[];
@@ -207,6 +208,9 @@ function findInitialTetrahedron(points: readonly Vec3[]): [number, number, numbe
 /**
  * Compute the 3D convex hull of a point set.
  *
+ * @param inputPoints - Input points to build the hull from.
+ * @param tolerance - Coincidence tolerance for point deduplication.
+ * @returns The hull faces (triangle indices) and deduplicated points.
  * @throws if fewer than 4 non-coincident, non-coplanar points are supplied.
  */
 // brepjs-patterns-disable: max-function-lines -- cohesive QuickHull main loop; splitting hurts readability

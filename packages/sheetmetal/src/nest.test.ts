@@ -13,9 +13,9 @@ beforeAll(async () => {
 const rule: BendRule = { innerRadius: 1, kFactor: 0.44 };
 
 /** A flat rectangular blank (no flanges) — its unfolded outline is exactly length×width. */
-function flatBlank(length: number, width: number): FlatPattern {
+async function flatBlank(length: number, width: number): Promise<FlatPattern> {
   const spec: AuthorSpec = { thickness: 1, base: { length, width }, flanges: [] };
-  const authored = author(spec);
+  const authored = await author(spec);
   if (!authored.ok) throw new Error(`author failed: ${authored.error.message}`);
   const unfolded = unfold(authored.value);
   if (!unfolded.ok) throw new Error(`unfold failed: ${unfolded.error.message}`);
@@ -23,13 +23,13 @@ function flatBlank(length: number, width: number): FlatPattern {
 }
 
 /** A blank with one flange, giving a longer developed outline (for rotation tests). */
-function flangedBlank(length: number, width: number, flangeLen: number): FlatPattern {
+async function flangedBlank(length: number, width: number, flangeLen: number): Promise<FlatPattern> {
   const spec: AuthorSpec = {
     thickness: 1,
     base: { length, width },
     flanges: [{ id: 'f', length: flangeLen, angleDeg: 90, rule, side: 'xmax' }],
   };
-  const authored = author(spec);
+  const authored = await author(spec);
   if (!authored.ok) throw new Error(`author failed: ${authored.error.message}`);
   const unfolded = unfold(authored.value);
   if (!unfolded.ok) throw new Error(`unfold failed: ${unfolded.error.message}`);
@@ -57,11 +57,11 @@ function overlaps(a: Rect, b: Rect, eps: number): boolean {
 }
 
 describe('nest — bbox', () => {
-  it('packs N identical small parts onto the hand-computed sheet count', () => {
+  it('packs N identical small parts onto the hand-computed sheet count', async () => {
     // 20×20 part, 5 of them, sheet 60×40, no margin/spacing.
     // Shelf packer: 3 per shelf (x=0,20,40) at y=0; shelf 2 at y=20 (3 slots).
     // 2 shelves of height 20 fit in 40 → 6 slots → all 5 fit on ONE sheet.
-    const parts = Array.from({ length: 5 }, () => flatBlank(20, 20));
+    const parts = await Promise.all(Array.from({ length: 5 }, () => flatBlank(20, 20)));
     const r = nest(parts, { sheet: { width: 60, height: 40 } });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
@@ -70,9 +70,9 @@ describe('nest — bbox', () => {
     expect(r.value.sheets[0]?.placements).toHaveLength(5);
   });
 
-  it('opens a second sheet when parts overflow the first', () => {
+  it('opens a second sheet when parts overflow the first', async () => {
     // 20×20 part, 7 of them, sheet 60×40 (6 slots per sheet) → 2 sheets (6 + 1).
-    const parts = Array.from({ length: 7 }, () => flatBlank(20, 20));
+    const parts = await Promise.all(Array.from({ length: 7 }, () => flatBlank(20, 20)));
     const r = nest(parts, { sheet: { width: 60, height: 40 } });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
@@ -82,8 +82,8 @@ describe('nest — bbox', () => {
     expect(r.value.sheets[1]?.placements).toHaveLength(1);
   });
 
-  it('NO OVERLAP + WITHIN BOUNDS over all placement pairs (with margin + spacing)', () => {
-    const parts = Array.from({ length: 12 }, (_, i) => flatBlank(15 + (i % 3) * 5, 12 + (i % 4) * 3));
+  it('NO OVERLAP + WITHIN BOUNDS over all placement pairs (with margin + spacing)', async () => {
+    const parts = await Promise.all(Array.from({ length: 12 }, (_, i) => flatBlank(15 + (i % 3) * 5, 12 + (i % 4) * 3)));
     const margin = 3;
     const spacing = 2;
     const sheet = { width: 120, height: 100 };
@@ -113,9 +113,9 @@ describe('nest — bbox', () => {
     }
   });
 
-  it('utilization is in (0,1] and matches packed-area / usable-area', () => {
+  it('utilization is in (0,1] and matches packed-area / usable-area', async () => {
     // 20×20 ×4 on 50×50, margin 0 → packed = 4·400 = 1600; usable = 2500.
-    const parts = Array.from({ length: 4 }, () => flatBlank(20, 20));
+    const parts = await Promise.all(Array.from({ length: 4 }, () => flatBlank(20, 20)));
     const r = nest(parts, { sheet: { width: 50, height: 50 } });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
@@ -125,10 +125,10 @@ describe('nest — bbox', () => {
     expect(u).toBeCloseTo(1600 / 2500, 6);
   });
 
-  it('allowRotation reduces sheet count for a tall part that only fits rotated', () => {
+  it('allowRotation reduces sheet count for a tall part that only fits rotated', async () => {
     // Part developed bbox is ~50 wide × 20 tall (a 20-wide base + flange runs along x).
     // Sheet 60 wide × 25 tall: a 50-tall orientation will not fit without rotation.
-    const tall = flangedBlank(20, 50, 18); // base 20 long (x) × 50 wide (y) + flange off xmax
+    const tall = await flangedBlank(20, 50, 18); // base 20 long (x) × 50 wide (y) + flange off xmax
     const b = patternBbox(tall);
     if (!b.ok) throw new Error('bbox failed');
     // Choose a sheet where the un-rotated height (50) exceeds the sheet height.
@@ -147,8 +147,8 @@ describe('nest — bbox', () => {
     expect(withRot.value.sheets.length).toBeGreaterThan(0);
   });
 
-  it('a part larger than the sheet goes to unplaced with a warning, no infinite loop', () => {
-    const parts = [flatBlank(20, 20), flatBlank(500, 500), flatBlank(20, 20)];
+  it('a part larger than the sheet goes to unplaced with a warning, no infinite loop', async () => {
+    const parts = [await flatBlank(20, 20), await flatBlank(500, 500), await flatBlank(20, 20)];
     const r = nest(parts, { sheet: { width: 50, height: 50 } });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
@@ -160,23 +160,23 @@ describe('nest — bbox', () => {
     expect(totalPlaced).toBe(2);
   });
 
-  it('rejects a sheet whose margin leaves no usable area', () => {
-    const r = nest([flatBlank(10, 10)], { sheet: { width: 10, height: 10 }, margin: 6 });
+  it('rejects a sheet whose margin leaves no usable area', async () => {
+    const r = nest([await flatBlank(10, 10)], { sheet: { width: 10, height: 10 }, margin: 6 });
     expect(r.ok).toBe(false);
   });
 
-  it('rejects a non-finite margin/spacing rather than silently producing empty sheets', () => {
-    const r = nest([flatBlank(10, 10)], { sheet: { width: 100, height: 100 }, margin: Number.NaN });
+  it('rejects a non-finite margin/spacing rather than silently producing empty sheets', async () => {
+    const r = nest([await flatBlank(10, 10)], { sheet: { width: 100, height: 100 }, margin: Number.NaN });
     expect(r.ok).toBe(false);
     if (r.ok) return;
     expect(r.error.code).toBe('INVALID_NEST_OPTS');
   });
 
-  it('keeps utilization strictly above 0 for a thin part (the (0,1] contract floor)', () => {
+  it('keeps utilization strictly above 0 for a thin part (the (0,1] contract floor)', async () => {
     // A thin-but-real 20×0.5 part still has positive bbox area. patternBbox rejects only
     // sub-EPS-extent (degenerate) boxes, so any part it accepts has positive area and can
     // never drive a sheet's utilization to 0 — keeping the documented (0,1] contract true.
-    const thin = flatBlank(20, 0.5);
+    const thin = await flatBlank(20, 0.5);
     const bb = patternBbox(thin);
     expect(bb.ok).toBe(true);
     if (bb.ok) {
@@ -192,10 +192,10 @@ describe('nest — bbox', () => {
   });
 });
 
-describe('nestToDXF', () => {
-  it('places two parts at their sheet offsets', () => {
-    const a = flatBlank(20, 20);
-    const b = flatBlank(20, 20);
+describe('nestToDXF', async () => {
+  it('places two parts at their sheet offsets', async () => {
+    const a = await flatBlank(20, 20);
+    const b = await flatBlank(20, 20);
     const r = nest([a, b], { sheet: { width: 60, height: 30 } });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
@@ -228,8 +228,8 @@ describe('nestToDXF', () => {
     expect(hitsOffset).toBe(true);
   });
 
-  it('errors on an out-of-range sheet index', () => {
-    const a = flatBlank(20, 20);
+  it('errors on an out-of-range sheet index', async () => {
+    const a = await flatBlank(20, 20);
     const r = nest([a], { sheet: { width: 60, height: 30 } });
     expect(r.ok).toBe(true);
     if (!r.ok) return;

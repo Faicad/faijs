@@ -11,22 +11,26 @@ import { computationError, BrepErrorCode } from '../../result/errors'
 // Types
 // ---------------------------------------------------------------------------
 
+/** A 2D polygon point used as skeleton input. */
 export interface SkPoint2D {
   readonly x: number;
   readonly y: number;
 }
 
+/** A skeleton node: 2D position plus elevation height. */
 export interface SkeletonNode {
   readonly x: number;
   readonly y: number;
   readonly height: number;
 }
 
+/** A skeleton face: its vertex loop with the matching per-vertex heights. */
 export interface SkeletonFace {
   readonly vertices: SkPoint2D[];
   readonly heights: number[];
 }
 
+/** A complete straight skeleton: nodes and faces. */
 export interface StraightSkeleton {
   readonly nodes: SkeletonNode[];
   readonly faces: SkeletonFace[];
@@ -307,6 +311,9 @@ function computeEvents(lavNodes: LavNode[]): SkEvent[] {
  * Compute the straight skeleton of a simple polygon.
  * The polygon vertices must define a simple (non-self-intersecting) polygon.
  * They will be reordered to CCW if necessary.
+ *
+ * @param polygon - The input polygon vertices.
+ * @returns The computed straight skeleton.
  */
 export function computeStraightSkeleton(polygon: SkPoint2D[]): Result<StraightSkeleton> {
   if (polygon.length < 3) {

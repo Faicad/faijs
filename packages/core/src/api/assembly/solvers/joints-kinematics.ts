@@ -37,6 +37,7 @@ export interface JointAxis {
   readonly direction: Vec3;
 }
 
+/** The kind of kinematic joint: revolute, prismatic, cylindrical, planar, or spherical. */
 export type JointType = 'revolute' | 'prismatic' | 'cylindrical' | 'planar' | 'spherical';
 
 /**
@@ -52,6 +53,9 @@ export interface JointDOF {
   readonly value: number;
 }
 
+/**
+ * A kinematic joint connecting a parent and child body, with its drivable DOFs.
+ */
 export interface Joint {
   readonly type: JointType;
   /** Reference body (stays put); the child moves relative to it. */
@@ -81,6 +85,7 @@ export interface JointPose {
   readonly rotation: [number, number, number, number];
 }
 
+/** Options for single-DOF joints: range bounds and initial value. */
 export interface JointOptions {
   /** Range lower bound. Default: -180 (revolute) / 0 (prismatic). */
   min?: number;
@@ -191,7 +196,13 @@ function buildJoint(
   };
 }
 
-/** A revolute (hinge) joint — the child rotates about `axis` by `value` degrees. */
+/** A revolute (hinge) joint — the child rotates about `axis` by `value` degrees.
+ * @param parent - Name of the reference (parent) body.
+ * @param child - Name of the body moved by the joint.
+ * @param axis - Joint axis: anchor point and direction.
+ * @param opts - Optional range bounds and initial value.
+ * @returns The newly created revolute joint.
+ */
 export function revoluteJoint(
   parent: string,
   child: string,
@@ -208,6 +219,11 @@ export function revoluteJoint(
  * units. Only `axis.direction` is used; `axis.origin` is ignored (a pure
  * translation has no anchor point), unlike a revolute joint which rotates about
  * the axis line through `origin`.
+ * @param parent - Name of the reference (parent) body.
+ * @param child - Name of the body moved by the joint.
+ * @param axis - Slide axis; only `direction` is used.
+ * @param opts - Optional range bounds and initial value.
+ * @returns The newly created prismatic joint.
  */
 export function prismaticJoint(
   parent: string,
@@ -224,6 +240,11 @@ export function prismaticJoint(
  * A cylindrical joint — the child both rotates about and slides along a single
  * `axis` (2 DOF). DOF order: `[rotation, translation]`. The two motions share
  * the axis, so they commute; rotation pivots about `axis.origin`.
+ * @param parent - Name of the reference (parent) body.
+ * @param child - Name of the body moved by the joint.
+ * @param axis - Joint axis: anchor point and direction.
+ * @param opts - Optional per-DOF ranges and initial values.
+ * @returns The newly created cylindrical joint.
  */
 export function cylindricalJoint(
   parent: string,
@@ -242,6 +263,11 @@ export function cylindricalJoint(
  * normal (3 DOF). `plane.direction` is the normal; `plane.origin` the rotation
  * anchor. DOF order: `[u-translation, v-translation, rotation]`, where the
  * translations are applied in the plane frame (independent of the rotation).
+ * @param parent - Name of the reference (parent) body.
+ * @param child - Name of the body moved by the joint.
+ * @param plane - Plane definition; `direction` is the normal, `origin` the anchor.
+ * @param opts - Optional per-DOF ranges, initial values, and in-plane axes.
+ * @returns The newly created planar joint.
  */
 export function planarJoint(
   parent: string,
@@ -280,6 +306,11 @@ export function planarJoint(
  * A spherical (ball) joint — the child rotates freely about a pivot point
  * (3 DOF). DOF order: `[x, y, z]` rotations about the local axes through
  * `pivot`, composed as `Rx · Ry · Rz`.
+ * @param parent - Name of the reference (parent) body.
+ * @param child - Name of the body moved by the joint.
+ * @param pivot - Pivot point all rotations pass through.
+ * @param opts - Optional per-axis ranges and initial values.
+ * @returns The newly created spherical joint.
  */
 export function sphericalJoint(
   parent: string,
@@ -298,6 +329,9 @@ export function sphericalJoint(
  * Return a copy of `joint` with per-DOF values set (each clamped to its range).
  * Values are positional, matching `joint.dofs`; omitted entries keep their
  * stored value. The primary mirror (`value`) is kept in sync with `dofs[0]`.
+ * @param joint - The joint to update.
+ * @param values - Positional per-DOF values; omitted entries keep their value.
+ * @returns A new joint with the values set.
  */
 export function setJointValues(joint: Joint, values: readonly number[]): Joint {
   const dofs = joint.dofs.map((d, i) => {
@@ -308,7 +342,11 @@ export function setJointValues(joint: Joint, values: readonly number[]): Joint {
   return primary ? { ...joint, dofs, value: primary.value } : { ...joint, dofs };
 }
 
-/** Return a copy of `joint` with its primary DOF set (clamped to range). */
+/** Return a copy of `joint` with its primary DOF set (clamped to range).
+ * @param joint - The joint to update.
+ * @param value - New primary-DOF value.
+ * @returns A new joint with the primary value set.
+ */
 export function setJointValue(joint: Joint, value: number): Joint {
   return setJointValues(joint, [value]);
 }
@@ -342,6 +380,9 @@ function dofPose(origin: Vec3, dof: JointDOF, value: number): JointPose {
  * DOFs are folded in array order via frame composition. For same-anchor
  * rotations (e.g. spherical) this composes to a single rotation about the pivot;
  * for a cylindrical axis the rotation and slide commute.
+ * @param joint - The joint to evaluate.
+ * @param value - Primary-DOF override (number) or positional per-DOF overrides.
+ * @returns The child's local pose relative to the parent.
  */
 export function jointTransform(
   joint: Joint,
@@ -369,7 +410,11 @@ export function jointTransform(
 // Assembly integration
 // ---------------------------------------------------------------------------
 
-/** Attach a joint to an assembly node. Returns a new node (immutable). */
+/** Attach a joint to an assembly node. Returns a new node (immutable).
+ * @param assembly - The assembly node to attach the joint to.
+ * @param joint - The joint to attach.
+ * @returns A new node with the joint added.
+ */
 export function addJoint(assembly: AssemblyNode, joint: Joint): AssemblyNode {
   const existing = (assembly.joints ?? []) as readonly Joint[];
   return { ...assembly, joints: [...existing, joint] };
@@ -408,6 +453,9 @@ function collectJoints(assembly: AssemblyNode): Joint[] {
  * overrides a joint's stored value, keyed by the **child** node name; omitted
  * joints use `joint.value`. Resolution is topological (reuses the Phase-0
  * ordering), so chains of any depth compose. Returns a world pose for every node.
+ * @param assembly - The assembly to solve.
+ * @param jointValues - Optional value overrides keyed by child node name.
+ * @returns A world pose for every node in the assembly.
  */
 export function forwardKinematics(
   assembly: AssemblyNode,
@@ -463,6 +511,8 @@ export function forwardKinematics(
  * each joint's DOF count (revolute/prismatic 1, cylindrical 2, planar/spherical
  * 3). For a serial chain this equals the total DOF. (Closed-loop
  * Grübler/Kutzbach analysis is future work.)
+ * @param assembly - The assembly to analyze.
+ * @returns Total number of independent degrees of freedom.
  */
 export function mechanismDOF(assembly: AssemblyNode): number {
   return collectJoints(assembly).reduce((sum, j) => sum + j.dofs.length, 0);
@@ -498,6 +548,7 @@ export interface IKTarget {
   readonly rotation?: Quat;
 }
 
+/** Options for the inverse-kinematics solver (iterations, tolerance, damping, seed). */
 export interface IKOptions {
   /** Maximum solver iterations. Default 200. */
   maxIterations?: number;
@@ -511,6 +562,7 @@ export interface IKOptions {
   tip?: Vec3;
 }
 
+/** Outcome of an inverse-kinematics solve: values, convergence, and residual. */
 export interface IKResult {
   /** Solved joint values, keyed by child node, one entry per DOF. */
   readonly values: Record<string, number[]>;
@@ -787,6 +839,11 @@ function dlsStep(
  * `forwardKinematics`), whether it converged, the iteration count, and the final
  * residual norm. An end-effector with no driving joints, or an unreachable
  * target, returns `converged: false` with the best configuration found.
+ * @param assembly - The assembly containing the kinematic chain.
+ * @param endEffector - Name of the end-effector node.
+ * @param target - Target world pose for the end-effector.
+ * @param options - Optional solver settings (iterations, tolerance, damping, seed, tip).
+ * @returns The solved joint values and convergence diagnostics.
  */
 export function inverseKinematics(
   assembly: AssemblyNode,
@@ -838,6 +895,7 @@ export function inverseKinematics(
 // Trajectories
 // ---------------------------------------------------------------------------
 
+/** One sample of a joint-space trajectory: parameter, values, and world poses. */
 export interface TrajectorySample {
   /** Normalized path parameter in `[0, 1]`. */
   readonly t: number;
@@ -862,6 +920,11 @@ function valuesOf(joint: Joint, spec: number | readonly number[] | undefined): n
  * sample carries the interpolated per-DOF values (clamped to range) and the
  * forward-kinematics poses of every node. Joints absent from `from`/`to` hold
  * their stored value at both ends.
+ * @param assembly - The assembly to pose at each sample.
+ * @param from - Starting joint values keyed by child node name.
+ * @param to - Ending joint values keyed by child node name.
+ * @param steps - Number of path segments (samples are `steps + 1`).
+ * @returns The trajectory samples with interpolated values and poses.
  */
 export function jointTrajectory(
   assembly: AssemblyNode,

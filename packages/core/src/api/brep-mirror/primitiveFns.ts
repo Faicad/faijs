@@ -42,6 +42,9 @@ function translated(kernel: ReturnType<typeof getBrepApi>, h: BrepHandle, v: Vec
  * The L1 `makeTorus(major, minor)` builds the ring on the +Z axis at the
  * origin; placement is composed afterwards (`axis` → rotation, `at` →
  * translation).
+ *
+ * @param args - Resolved arguments (majorRadius, minorRadius, placement options).
+ * @returns The torus as a `BrepHandle`.
  */
 export function torusBrep(...args: unknown[]): Result<BrepHandle> {
   const [majorRadius, minorRadius, options] = resolveArgs(args, TORUS_PARAMS)
@@ -65,6 +68,9 @@ export function torusBrep(...args: unknown[]): Result<BrepHandle> {
 
 /**
  * Create an ellipsoid (vendored `ellipsoid(rx, ry, rz, {at})`).
+ *
+ * @param args - Resolved arguments (rx, ry, rz, placement options).
+ * @returns The ellipsoid as a `BrepHandle`.
  */
 export function ellipsoidBrep(...args: unknown[]): Result<BrepHandle> {
   const [rx, ry, rz, options] = resolveArgs(args, ELLIPSOID_PARAMS)
@@ -84,6 +90,9 @@ export function ellipsoidBrep(...args: unknown[]): Result<BrepHandle> {
 /**
  * Create a base box: origin-centered XY rectangle extruded by `zLength` along
  * +Z (vendored `makeBaseBox(xLength, yLength, zLength)` via the sketcher).
+ *
+ * @param args - Resolved arguments (xLength, yLength, zLength).
+ * @returns The box as a `BrepHandle`.
  */
 export function makeBaseBoxBrep(...args: unknown[]): Result<BrepHandle> {
   const [xLength, yLength, zLength] = resolveArgs(args, MAKE_BASE_BOX_PARAMS)

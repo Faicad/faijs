@@ -16,6 +16,10 @@ import { quickHull, type Vec3 } from './hullGeometry'
 /**
  * 由点集构造凸包实体（brepjs 原语义：quickHull → 三角面 → 缝合 → 修复朝向 → solid）。
  *
+ * @param k - OCCT kernel used for BREP reconstruction.
+ * @param points - Input points to build the hull from.
+ * @param tolerance - Point coincidence tolerance for QuickHull.
+ * @returns The constructed hull solid handle.
  * @throws 点数不足 4 或退化（面 < 4）——与 brepjs 原实现一致。
  */
 export function hullFromPoints(

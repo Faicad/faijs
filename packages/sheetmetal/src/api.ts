@@ -7,7 +7,8 @@
  * `sheetMetal()` facade in `./facade.js` is built on top of these.
  */
 
-import { ok, err, validationError, type Result, type Solid } from '@faicad/faijs-brepjs';
+import type { Solid } from './types.js';
+import {ok, err, validationError, type Result} from '@faicad/faijs/api';
 import {
   authorPart as authorPartFn,
   type AuthorSpec,
@@ -84,7 +85,7 @@ import type {
  * @param spec - the part definition: base flat, material thickness, and the flange list to fold up.
  * @returns a `Result<SheetMetalPart>` carrying the authored part, or the first error encountered.
  */
-export function author(spec: AuthorSpec): Result<SheetMetalPart> {
+export async function author(spec: AuthorSpec): Promise<Result<SheetMetalPart>> {
   return authorPartFn(spec);
 }
 
@@ -130,7 +131,7 @@ export function unfoldSolid(solid: Solid, opts?: { kFactor?: number }): Result<U
  * @param input - the flat pattern (region tree) to fold up.
  * @returns a `Result<SheetMetalPart>` carrying the folded 3D part, or the first error.
  */
-export function fold(input: FlatInput): Result<SheetMetalPart> {
+export async function fold(input: FlatInput): Promise<Result<SheetMetalPart>> {
   return foldFn(input);
 }
 
@@ -140,7 +141,7 @@ export function fold(input: FlatInput): Result<SheetMetalPart> {
  * @param plane - the oriented cutting plane; material on the plane's `+normal` side is removed.
  * @returns a `Result<SheetMetalPart>` carrying the mitered part, or the first error.
  */
-export function miter(part: SheetMetalPart, plane: MiterPlane): Result<SheetMetalPart> {
+export async function miter(part: SheetMetalPart, plane: MiterPlane): Promise<Result<SheetMetalPart>> {
   return miterCutFn(part, plane);
 }
 
@@ -152,12 +153,12 @@ export function miter(part: SheetMetalPart, plane: MiterPlane): Result<SheetMeta
  * @param gap - optional gap (in millimetres) left between the two mitered edges; defaults to 0.
  * @returns a `Result<SheetMetalPart>` carrying the mitered part, or the first error.
  */
-export function miterCorner(
+export async function miterCorner(
   part: SheetMetalPart,
   flangeIdA: string,
   flangeIdB: string,
   gap = 0
-): Result<SheetMetalPart> {
+): Promise<Result<SheetMetalPart>> {
   return autoMiterCornerFn(part, flangeIdA, flangeIdB, gap);
 }
 
@@ -168,11 +169,11 @@ export function miterCorner(
  * @param spec - optional relief specification overriding the defaults.
  * @returns a `Result<SheetMetalPart>` carrying the part with the relief added, or the first error.
  */
-export function bendRelief(
+export async function bendRelief(
   part: SheetMetalPart,
   flangeId: string,
   spec?: ReliefSpec
-): Result<SheetMetalPart> {
+): Promise<Result<SheetMetalPart>> {
   return addBendReliefFn(part, flangeId, spec);
 }
 
@@ -182,7 +183,7 @@ export function bendRelief(
  * @param spec - optional relief specification applied to every partial bend.
  * @returns a `Result<SheetMetalPart>` carrying the part with all reliefs added, or the first error.
  */
-export function autoReliefs(part: SheetMetalPart, spec?: ReliefSpec): Result<SheetMetalPart> {
+export async function autoReliefs(part: SheetMetalPart, spec?: ReliefSpec): Promise<Result<SheetMetalPart>> {
   return autoBendReliefsFn(part, spec);
 }
 
@@ -194,12 +195,12 @@ export function autoReliefs(part: SheetMetalPart, spec?: ReliefSpec): Result<She
  * @param spec - optional relief specification overriding the defaults.
  * @returns a `Result<SheetMetalPart>` carrying the part with the corner relief added, or the first error.
  */
-export function relieveCorner(
+export async function relieveCorner(
   part: SheetMetalPart,
   flangeIdA: string,
   flangeIdB: string,
   spec?: ReliefSpec
-): Result<SheetMetalPart> {
+): Promise<Result<SheetMetalPart>> {
   return cornerReliefFn(part, flangeIdA, flangeIdB, spec);
 }
 
@@ -209,7 +210,7 @@ export function relieveCorner(
  * @param spec - the cutout definition (kind, geometry, and target region).
  * @returns a `Result<SheetMetalPart>` carrying the part with the cutout punched, or the first error.
  */
-export function addCutout(part: SheetMetalPart, spec: CutoutSpec): Result<SheetMetalPart> {
+export async function addCutout(part: SheetMetalPart, spec: CutoutSpec): Promise<Result<SheetMetalPart>> {
   return addCutoutFn(part, spec);
 }
 
@@ -222,13 +223,13 @@ export function addCutout(part: SheetMetalPart, spec: CutoutSpec): Result<SheetM
  * @param diameter - hole diameter.
  * @returns a `Result<SheetMetalPart>` carrying the part with the hole punched, or the first error.
  */
-export function addHole(
+export async function addHole(
   part: SheetMetalPart,
   region: string,
   x: number,
   y: number,
   diameter: number
-): Result<SheetMetalPart> {
+): Promise<Result<SheetMetalPart>> {
   return addHoleFn(part, region, x, y, diameter);
 }
 
@@ -239,11 +240,11 @@ export function addHole(
  * @param opts - slot geometry: centre `(x, y)`, `length`, `width`, optional `angleDeg` rotation, and `round` ends flag.
  * @returns a `Result<SheetMetalPart>` carrying the part with the slot punched, or the first error.
  */
-export function addSlot(
+export async function addSlot(
   part: SheetMetalPart,
   region: string,
   opts: { x: number; y: number; length: number; width: number; angleDeg?: number; round?: boolean }
-): Result<SheetMetalPart> {
+): Promise<Result<SheetMetalPart>> {
   return addSlotFn(part, region, opts);
 }
 
@@ -254,11 +255,11 @@ export function addSlot(
  * @param points - region-local polygon vertices as `[x, y]` pairs.
  * @returns a `Result<SheetMetalPart>` carrying the part with the polygon cutout, or the first error.
  */
-export function addPolygonCutout(
+export async function addPolygonCutout(
   part: SheetMetalPart,
   region: string,
   points: [number, number][]
-): Result<SheetMetalPart> {
+): Promise<Result<SheetMetalPart>> {
   return addPolygonCutoutFn(part, region, points);
 }
 
@@ -268,7 +269,7 @@ export function addPolygonCutout(
  * @param spec - tab definition: edge, width, and length.
  * @returns a `Result<SheetMetalPart>` carrying the part with the tab added, or the first error.
  */
-export function addTab(part: SheetMetalPart, spec: TabSpec): Result<SheetMetalPart> {
+export async function addTab(part: SheetMetalPart, spec: TabSpec): Promise<Result<SheetMetalPart>> {
   return addTabFn(part, spec);
 }
 
@@ -279,11 +280,11 @@ export function addTab(part: SheetMetalPart, spec: TabSpec): Result<SheetMetalPa
  * @param slot - placement of the matching slot on the second region.
  * @returns a `Result<SheetMetalPart>` carrying the part with the joint added, or the first error.
  */
-export function tabAndSlot(
+export async function tabAndSlot(
   part: SheetMetalPart,
   tab: TabSpec,
   slot: SlotPlacement
-): Result<SheetMetalPart> {
+): Promise<Result<SheetMetalPart>> {
   return tabAndSlotFn(part, tab, slot);
 }
 
@@ -293,7 +294,7 @@ export function tabAndSlot(
  * @param opts - louver geometry: target `region`, centre `(x, y)`, `length`, `width`, `height`, and optional `direction`.
  * @returns a `Result<SheetMetalPart>` carrying the part with the louver formed, or the first error.
  */
-export function louver(
+export async function louver(
   part: SheetMetalPart,
   opts: {
     region: string;
@@ -304,7 +305,7 @@ export function louver(
     height: number;
     direction?: 'up' | 'down';
   }
-): Result<SheetMetalPart> {
+): Promise<Result<SheetMetalPart>> {
   return louverFn(part, opts);
 }
 
@@ -314,10 +315,10 @@ export function louver(
  * @param opts - emboss geometry: target `region`, centre `(x, y)`, `diameter`, `height`, and `kind` (`dimple` or `emboss`).
  * @returns a `Result<SheetMetalPart>` carrying the part with the form added, or the first error.
  */
-export function emboss(
+export async function emboss(
   part: SheetMetalPart,
   opts: { region: string; x: number; y: number; diameter: number; height: number; kind: 'dimple' | 'emboss' }
-): Result<SheetMetalPart> {
+): Promise<Result<SheetMetalPart>> {
   return embossFn(part, opts);
 }
 
@@ -328,7 +329,7 @@ export function emboss(
  * @param spec - contour flange definition: profile, base edge, and bend parameters.
  * @returns a `Result<SheetMetalPart>` carrying the part with the contour flange added, or the first error.
  */
-export function contourFlange(part: SheetMetalPart, spec: ContourFlangeSpec): Result<SheetMetalPart> {
+export async function contourFlange(part: SheetMetalPart, spec: ContourFlangeSpec): Promise<Result<SheetMetalPart>> {
   return authorContourFlangeFn(part, spec);
 }
 
@@ -340,7 +341,7 @@ export function contourFlange(part: SheetMetalPart, spec: ContourFlangeSpec): Re
  * @param spec - lofted flange definition: the two open profiles and their alignment.
  * @returns a `Result<SheetMetalPart>` carrying the part with the lofted flange added, or the first error.
  */
-export function loftedFlange(part: SheetMetalPart, spec: LoftedFlangeSpec): Result<SheetMetalPart> {
+export async function loftedFlange(part: SheetMetalPart, spec: LoftedFlangeSpec): Promise<Result<SheetMetalPart>> {
   return authorLoftedFlangeFn(part, spec);
 }
 
@@ -351,7 +352,7 @@ export function loftedFlange(part: SheetMetalPart, spec: LoftedFlangeSpec): Resu
  * @param spec - hem definition: edge, curl radius, and return leg length.
  * @returns a `Result<SheetMetalPart>` carrying the part with the hem added, or the first error.
  */
-export function hem(part: SheetMetalPart, spec: HemSpec): Result<SheetMetalPart> {
+export async function hem(part: SheetMetalPart, spec: HemSpec): Promise<Result<SheetMetalPart>> {
   return hemFn(part, spec);
 }
 
@@ -362,7 +363,7 @@ export function hem(part: SheetMetalPart, spec: HemSpec): Result<SheetMetalPart>
  * @param spec - jog definition: bend line, offset height, and radii.
  * @returns a `Result<SheetMetalPart>` carrying the part with the jog added, or the first error.
  */
-export function jog(part: SheetMetalPart, spec: JogSpec): Result<SheetMetalPart> {
+export async function jog(part: SheetMetalPart, spec: JogSpec): Promise<Result<SheetMetalPart>> {
   return jogFn(part, spec);
 }
 

@@ -184,6 +184,12 @@ function buildSkeletonTriFaces(
 // roof — 平面 wire → 直骨架屋顶实体（vendored roofFns.ts#roof）
 // ---------------------------------------------------------------------------
 
+/**
+ * Roof — planar wire to straight-skeleton roof solid (vendored roofFns.ts#roof).
+ *
+ * @param args - Resolved arguments (wire, roof options).
+ * @returns The generated roof solid as a `BrepHandle`.
+ */
 export function roofBrep(...args: unknown[]): Result<BrepHandle> {
   const [shape, options] = resolveArgs(args, ROOF_PARAMS)
   const kernel = getBrepApi()

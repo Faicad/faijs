@@ -1,25 +1,6 @@
-import {
-  type Result,
-  type Vec3,
-  type Solid,
-  type ValidSolid,
-  ok,
-  err,
-  validationError,
-  box,
-  cylinder,
-  fuse,
-  cut,
-  intersect,
-  rotate,
-  translate,
-  vecAdd,
-  vecScale,
-  vecSub,
-  vecDot,
-  vecCross,
-  vecNormalize,
-} from '@faicad/faijs-brepjs';
+import type { Solid, ValidSolid } from './types.js';
+import { cylinder, translate } from './geometryOps.js';
+import {type Result, type Vec3, ok, err, kernelError, validationError, box, fuse, cut, intersect, rotate, vecAdd, vecScale, vecSub, vecDot, vecCross, vecNormalize} from '@faicad/faijs/api';
 import type {
   BendFeature,
   BendRule,
@@ -61,10 +42,10 @@ export interface SegmentFrame {
  * @returns a `Result<SheetMetalPart>` — `ok` with the part plus the fused solid and the recorded
  * {@link ContourFlangeFeature}, or `err` with a `validationError` on invalid input
  */
-export function authorContourFlange(
+export async function authorContourFlange(
   part: SheetMetalPart,
   spec: ContourFlangeSpec
-): Result<SheetMetalPart> {
+): Promise<Result<SheetMetalPart>> {
   if (part.solid === undefined) {
     return err(validationError('NO_SOLID', `part has no solid to attach contour flange '${spec.id}'`));
   }
@@ -120,7 +101,7 @@ export function authorContourFlange(
       if (!Number.isFinite(seg.length) || seg.length <= 0) {
         return err(validationError('INVALID_SEGMENT_LENGTH', `contour flange '${spec.id}' line segment ${i} length must be positive`));
       }
-      const built = buildLineLeg(solid, frame, span, thickness, seg.length);
+      const built = await buildLineLeg(solid, frame, span, thickness, seg.length);
       if (!built.ok) return built;
       solid = built.value.solid;
       frame = built.value.frame;
@@ -128,7 +109,7 @@ export function authorContourFlange(
       devTotal += seg.length;
     } else {
       const rule: BendRule = spec.rule ?? { innerRadius: seg.radius, kFactor: 0.44 };
-      const built = buildArcBend(solid, frame, span, thickness, seg);
+      const built = await buildArcBend(solid, frame, span, thickness, seg);
       if (!built.ok) return built;
       solid = built.value.solid;
       frame = built.value.frame;
@@ -198,23 +179,26 @@ export interface BuiltArc extends BuiltSegment {
  * @returns a `Result<BuiltSegment>` — `ok` with the fused solid and the next segment's
  * frame, or `err` when the boolean fuse fails
  */
-export function buildLineLeg(
+export async function buildLineLeg(
   base: Solid,
   frame: SegmentFrame,
   span: number,
   thickness: number,
   legLength: number
-): Result<BuiltSegment> {
+): Promise<Result<BuiltSegment>> {
   // Canonical box (legLength × span × thickness) at the origin, mapped onto the
   // current segment frame: +X→run, +Y→axis, +Z→n.
-  const place = frameTransform(frame.run, frame.axis, frame.n, frame.origin);
-  const canon = box(legLength, span, thickness);
-  const placed = place.solid(canon);
-  const fused = fuse(base, placed);
-  if (!fused.ok) return fused;
+  try {
+    const place = frameTransform(frame.run, frame.axis, frame.n, frame.origin);
+    const canon = (await box({ width: legLength, depth: span, height: thickness })) as Solid;
+    const placed = await place.solid(canon);
+    const fused = (await fuse(base, placed)) as Solid;
 
-  const nextOrigin = vecAdd(frame.origin, vecScale(frame.run, legLength));
-  return ok({ solid: fused.value, frame: { ...frame, origin: nextOrigin } });
+    const nextOrigin = vecAdd(frame.origin, vecScale(frame.run, legLength));
+    return ok({ solid: fused, frame: { ...frame, origin: nextOrigin } });
+  } catch (e) {
+    return err(kernelError('FUSE_FAILED', `contour line leg: ${e instanceof Error ? e.message : String(e)}`));
+  }
 }
 
 /**
@@ -231,13 +215,13 @@ export function buildLineLeg(
  * @returns a `Result<BuiltArc>` — `ok` with the fused solid, the rotated next frame and the
  * world-space bend axis origin, or `err` with a `validationError` on invalid geometry
  */
-export function buildArcBend(
+export async function buildArcBend(
   base: Solid,
   frame: SegmentFrame,
   span: number,
   thickness: number,
   seg: Extract<ProfileSegment, { kind: 'arc' }>
-): Result<BuiltArc> {
+): Promise<Result<BuiltArc>> {
   const r = seg.radius;
   if (!Number.isFinite(r) || r < 0) {
     return err(validationError('INVALID_RADIUS', `contour arc radius must be non-negative, got ${r}`));
@@ -254,11 +238,15 @@ export function buildArcBend(
   const canonOrigin: Vec3 = [0, 0, canonAxisZ];
   const place = frameTransform(frame.run, frame.axis, frame.n, frame.origin);
 
-  const patch = buildBendPatch(canonOrigin, seg.angleDeg, r, span, thickness, seg.direction);
-  if (!patch.ok) return patch;
-  const placed = place.solid(patch.value);
-  const fused = fuse(base, placed);
-  if (!fused.ok) return fused;
+  let fused: Solid;
+  try {
+    const patch = await buildBendPatch(canonOrigin, seg.angleDeg, r, span, thickness, seg.direction);
+    if (!patch.ok) return patch;
+    const placed = await place.solid(patch.value);
+    fused = (await fuse(base, placed)) as Solid;
+  } catch (e) {
+    return err(kernelError('FUSE_FAILED', `contour arc bend: ${e instanceof Error ? e.message : String(e)}`));
+  }
 
   // Fold run/normal by ∓θ about the axis (authorPart: rotate −sign·θ about +Y).
   const theta = (seg.angleDeg * Math.PI) / 180;
@@ -279,14 +267,14 @@ export function buildArcBend(
   const axisOrigin = place.point(canonOrigin);
 
   return ok({
-    solid: fused.value,
+    solid: fused,
     frame: { origin: nextOrigin, run: nextRun, n: nextN, axis: frame.axis },
     axisOrigin,
   });
 }
 
 interface PlacedTransform {
-  solid: (s: Solid) => Solid;
+  solid: (s: Solid) => Promise<Solid>;
   point: (p: Vec3) => Vec3;
   vector: (v: Vec3) => Vec3;
 }
@@ -306,9 +294,9 @@ function frameTransform(runT: Vec3, axisT: Vec3, nT: Vec3, origin: Vec3): Placed
   const applyR = (v: Vec3): Vec3 =>
     vecAdd(vecAdd(vecScale(runT, v[0]), vecScale(axisT, v[1])), vecScale(nT, v[2]));
   return {
-    solid: (s: Solid) => {
-      const rotated = aa.angleDeg === 0 ? s : rotate(s, aa.angleDeg, { at: [0, 0, 0], axis: aa.axis });
-      return translate(rotated, origin);
+    solid: async (s: Solid): Promise<Solid> => {
+      const rotated = aa.angleDeg === 0 ? s : await rotate(s, aa.angleDeg, { at: [0, 0, 0], axis: aa.axis });
+      return (await translate(rotated, origin)) as Solid;
     },
     point: (p: Vec3) => vecAdd(applyR(p), origin),
     vector: applyR,
@@ -454,42 +442,48 @@ export function initialSegmentFrame(edge: BaseEdge, n: Vec3, offset: number): Se
 }
 
 /** Cylindrical bend patch (hollow tube ∩ fold wedge), mirroring authorFns. */
-function buildBendPatch(
+async function buildBendPatch(
   axisOrigin: Vec3,
   thetaDeg: number,
   r: number,
   width: number,
   thickness: number,
   direction: 'up' | 'down'
-): Result<ValidSolid> {
+): Promise<Result<ValidSolid>> {
   const outerR = r + thickness;
-  const outer = cylinder(outerR, width, { at: axisOrigin, axis: [0, 1, 0] });
-  let tube: Solid = outer;
-  if (r > 1e-9) {
-    const inner = cylinder(r, width, { at: axisOrigin, axis: [0, 1, 0] });
-    const carved = cut(outer, inner);
-    if (!carved.ok) return carved;
-    tube = carved.value;
+  try {
+    const outer = await cylinder(outerR, width, { at: axisOrigin, axis: [0, 1, 0] });
+    let tube: Solid = outer as Solid;
+    if (r > 1e-9) {
+      const inner = await cylinder(r, width, { at: axisOrigin, axis: [0, 1, 0] });
+      tube = (await cut(outer, inner)) as Solid;
+    }
+    const wedge = await buildWedge(axisOrigin, thetaDeg, outerR, width, direction);
+    if (!wedge.ok) return wedge;
+    return ok((await intersect(tube, wedge.value)) as ValidSolid);
+  } catch (e) {
+    return err(kernelError('BEND_PATCH_FAILED', `contour bend patch: ${e instanceof Error ? e.message : String(e)}`));
   }
-  const wedge = buildWedge(axisOrigin, thetaDeg, outerR, width, direction);
-  if (!wedge.ok) return wedge;
-  return intersect(tube, wedge.value) as Result<ValidSolid>;
 }
 
-function buildWedge(
+async function buildWedge(
   axisOrigin: Vec3,
   thetaDeg: number,
   outerR: number,
   width: number,
   direction: 'up' | 'down'
-): Result<Solid> {
+): Promise<Result<Solid>> {
   const span = outerR * 2 + 2;
   const margin = 1;
-  const blockA = box(span, width + 2 * margin, 2 * span);
-  const halfA: Solid = translate(blockA, [axisOrigin[0], axisOrigin[1] - margin, axisOrigin[2] - span]);
-  const sign = direction === 'up' ? 1 : -1;
-  const halfB = rotate(halfA, sign * (180 - thetaDeg), { at: axisOrigin, axis: [0, 1, 0] });
-  return intersect(halfA, halfB);
+  try {
+    const blockA = (await box({ width: span, depth: width + 2 * margin, height: 2 * span })) as Solid;
+    const halfA: Solid = (await translate(blockA, [axisOrigin[0], axisOrigin[1] - margin, axisOrigin[2] - span])) as Solid;
+    const sign = direction === 'up' ? 1 : -1;
+    const halfB = await rotate(halfA, sign * (180 - thetaDeg), { at: axisOrigin, axis: [0, 1, 0] });
+    return ok((await intersect(halfA, halfB)) as Solid);
+  } catch (e) {
+    return err(kernelError('WEDGE_FAILED', `contour wedge: ${e instanceof Error ? e.message : String(e)}`));
+  }
 }
 
 /** Axis-angle of a 3×3 rotation matrix (row-major). */

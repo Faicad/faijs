@@ -1,7 +1,8 @@
+import type { Wire } from './types.js';
 import { describe, it, expect, beforeAll } from 'vitest';
 import { initOCCT } from './test-setup.js';
-import type { Wire } from '@faicad/faijs-brepjs';
-import { getEdges, curveStartPoint, curveEndPoint, isErr } from '@faicad/faijs-brepjs';
+
+import {getEdges, curveStartPoint, curveEndPoint, isErr} from '@faicad/faijs/api';
 import { author, miterCorner, unfold } from './api.js';
 import type { BendRule } from './types.js';
 
@@ -28,8 +29,8 @@ const northLen = 10;
  * the perpendicular-development checks below.
  */
 describe('2D perpendicular unfold layout', () => {
-  it('a) L-part develops east on +X and north on +Y independently', () => {
-    const authored = author({
+  it('a) L-part develops east on +X and north on +Y independently', async () => {
+    const authored = await author({
       thickness: T,
       base: { length: baseLen, width },
       flanges: [
@@ -51,8 +52,8 @@ describe('2D perpendicular unfold layout', () => {
     expect(maxY).not.toBeCloseTo(width, 3);
   });
 
-  it('b) single east flange grows only +X; single north only +Y', () => {
-    const eastOnly = author({
+  it('b) single east flange grows only +X; single north only +Y', async () => {
+    const eastOnly = await author({
       thickness: T,
       base: { length: baseLen, width },
       flanges: [{ id: 'east', length: eastLen, angleDeg: 90, rule, side: 'xmax' }],
@@ -65,7 +66,7 @@ describe('2D perpendicular unfold layout', () => {
     expect(ue.value.report.totalFlatSize[0]).toBeCloseTo(baseLen + DEV + eastLen, 6);
     expect(ue.value.report.totalFlatSize[1]).toBeCloseTo(width, 9);
 
-    const northOnly = author({
+    const northOnly = await author({
       thickness: T,
       base: { length: baseLen, width },
       flanges: [{ id: 'north', length: northLen, angleDeg: 90, rule, side: 'ymax' }],
@@ -79,8 +80,8 @@ describe('2D perpendicular unfold layout', () => {
     expect(un.value.report.totalFlatSize[1]).toBeCloseTo(width + DEV + northLen, 6);
   });
 
-  it('c) developedArea = base + each (dev+len)*span', () => {
-    const authored = author({
+  it('c) developedArea = base + each (dev+len)*span', async () => {
+    const authored = await author({
       thickness: T,
       base: { length: baseLen, width },
       flanges: [
@@ -101,8 +102,8 @@ describe('2D perpendicular unfold layout', () => {
     expect(unfolded.value.pattern.developedArea).toBeCloseTo(expected, 6);
   });
 
-  it('d) miter introduces a diagonal edge; un-mitered outline is all axis-aligned', () => {
-    const authored = author({
+  it('d) miter introduces a diagonal edge; un-mitered outline is all axis-aligned', async () => {
+    const authored = await author({
       thickness: T,
       base: { length: baseLen, width },
       flanges: [
@@ -118,7 +119,7 @@ describe('2D perpendicular unfold layout', () => {
     if (isErr(plain)) return;
     expect(hasDiagonalEdge(plain.value.pattern.outline)).toBe(false);
 
-    const mitered = miterCorner(authored.value, 'east', 'north', 2);
+    const mitered = await miterCorner(authored.value, 'east', 'north', 2);
     expect(mitered.ok).toBe(true);
     if (isErr(mitered)) return;
     const um = unfold(mitered.value);
@@ -127,8 +128,8 @@ describe('2D perpendicular unfold layout', () => {
     expect(hasDiagonalEdge(um.value.pattern.outline)).toBe(true);
   });
 
-  it('e) default zero-gap miter unfolds (no degenerate edge) as a plain L-hexagon', () => {
-    const authored = author({
+  it('e) default zero-gap miter unfolds (no degenerate edge) as a plain L-hexagon', async () => {
+    const authored = await author({
       thickness: T,
       base: { length: baseLen, width },
       flanges: [
@@ -140,7 +141,7 @@ describe('2D perpendicular unfold layout', () => {
     if (isErr(authored)) return;
 
     // Default gap = 0 — the most common autoMiterCorner invocation.
-    const mitered = miterCorner(authored.value, 'east', 'north');
+    const mitered = await miterCorner(authored.value, 'east', 'north');
     expect(mitered.ok).toBe(true);
     if (isErr(mitered)) return;
 
