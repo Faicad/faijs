@@ -237,9 +237,13 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
     makeBoxFromCorners(corner1: BrepVec3, corner2: BrepVec3): BrepHandle {
       const dx = Math.abs(corner2.x - corner1.x), dy = Math.abs(corner2.y - corner1.y), dz = Math.abs(corner2.z - corner1.z)
       const h = kernel.makeBox(dx, dy, dz)
-      return asHandle(kernel.transformSolid(h, toKernelMatrix(translationMatrix(
+      // ⚠️ transformSolid 是「原地修改、返回 undefined」——makeBox 的句柄本身即新实体，
+      // 直接原地变换后返回 h；若写 `asHandle(transformSolid(...))` 会拿到 undefined 句柄
+      // （2026-09-25 实证：导致 splitBrep 基于半空间盒的 common/cut 全部失效）。
+      kernel.transformSolid(h, toKernelMatrix(translationMatrix(
         Math.min(corner1.x, corner2.x), Math.min(corner1.y, corner2.y), Math.min(corner1.z, corner2.z),
-      ))))
+      )))
+      return asHandle(h)
     },
     makeCylinder(radius: number, height: number): BrepHandle { return asHandle(kernel.makeCylinder(radius, height)) },
     makeSphere(radius: number): BrepHandle { return asHandle(kernel.makeSphere(radius, 32)) },
@@ -327,17 +331,26 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
 
     // ── 倒角与圆角（Q7：只对齐等距 + 距角两种粒度）──
     chamfer(solid: BrepHandle, edges: BrepHandle[], distance: number): BrepHandle {
-      return asHandle(trackFallback(kernel.chamfer(asNum(solid), Int32Array.from(edges.map(asNum)), distance)))
+      return asHandle(trackFallback(kernel.chamfer(asNum(solid), Uint32Array.from(edges.map(asNum)), distance)))
     },
     chamferDistAngle(solid: BrepHandle, edges: BrepHandle[], distance: number, angleDeg: number): BrepHandle {
       // 方言映射：L1 chamferDistAngle ↔ brepkit chamferDistanceAngle。
-      return asHandle(trackFallback(kernel.chamferDistanceAngle(asNum(solid), Int32Array.from(edges.map(asNum)), distance, angleDeg)))
+      // ⚠️ 单位方言：L1 口径是**度**（`AddDA(distance, angleDeg, E, F)`），brepkit 内核吃**弧度**
+      // （2026-09-25 实证：传 45 抛 "angle must be less than π/2"；传 π/4 正常倒角）。
+      const angleRad = (angleDeg * Math.PI) / 180
+      return asHandle(trackFallback(kernel.chamferDistanceAngle(
+        asNum(solid), Uint32Array.from(edges.map(asNum)), distance, angleRad,
+      )))
     },
     fillet(solid: BrepHandle, edges: BrepHandle[], radius: number): BrepHandle {
-      return asHandle(trackFallback(kernel.fillet(asNum(solid), Int32Array.from(edges.map(asNum)), radius)))
+      return asHandle(trackFallback(kernel.fillet(asNum(solid), Uint32Array.from(edges.map(asNum)), radius)))
     },
     filletVariable(solid: BrepHandle, edge: BrepHandle, startRadius: number, endRadius: number): BrepHandle {
-      return asHandle(trackFallback(kernel.filletVariable(asNum(solid), asNum(edge), startRadius, endRadius)))
+      // 方言映射：L1 filletVariable(solid, edge, startRadius, endRadius)（单边变半径）
+      // ↔ brepkit filletVariable(solid, json) 吃**序列** `[{edge, radius1, radius2}, ...]`。
+      // ⚠️ 直接传 4 个位置参数会触发 wasm memory out of bounds（2026-09-25 实证）。
+      const spec = JSON.stringify([{ edge: asNum(edge), radius1: startRadius, radius2: endRadius }])
+      return asHandle(trackFallback(kernel.filletVariable(asNum(solid), spec)))
     },
     filletWithHistory(solid: BrepHandle, edges: BrepHandle[], radius: number, inputFaceHashes: number[], hashUpperBound: number): BrepEvolutionData {
       const raw = kernel.filletWithEvolution(asNum(solid), Int32Array.from(edges.map(asNum)), radius)
@@ -720,24 +733,52 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
     },
 
     // ── 校验与修复 ──
+    // ⚠️ brepkit 的修复类内核函数全部是「**原地修改入参实体 + 返回修复计数**」，不是返回新句柄：
+    //   healSolid(solid)             → 修复的问题数
+    //   fixFaceOrientations(solid)   → 修复的面数
+    //   unifyFaces(solid)            → 合并删除的面数
+    //   removeDegenerateEdges(s,tol) → 删除的边数
+    //   repairSolid(solid)           → 修复后剩余错误数
+    // 直接 `asHandle(kernel.healSolid(...))` 会把计数（常见为 0）当成句柄，得到无效实体
+    // （2026-09-25 实证）。正确适配：先 copySolid 保护调用方原实体，再原地修复副本，返回副本句柄。
     isValid(shape: BrepHandle): boolean {
       // brepkit validateSolid 返回错误数（0 = 有效）。
       return Number(kernel.validateSolid(asNum(shape))) === 0
     },
     unifySameDomain(shape: BrepHandle): BrepHandle {
-      return asHandle(kernel.unifyFaces(asNum(shape)))
+      const c = kernel.copySolid(asNum(shape))
+      kernel.unifyFaces(c)
+      return asHandle(c)
     },
-    healSolid(shape: BrepHandle, _tolerance?: number): BrepHandle { return asHandle(kernel.healSolid(asNum(shape))) },
-    fixShape(shape: BrepHandle): BrepHandle { return asHandle(kernel.healSolid(asNum(shape))) },
-    fixFaceOrientations(shape: BrepHandle): BrepHandle { return asHandle(kernel.fixFaceOrientations(asNum(shape))) },
+    healSolid(shape: BrepHandle, _tolerance?: number): BrepHandle {
+      const c = kernel.copySolid(asNum(shape))
+      kernel.healSolid(c)
+      return asHandle(c)
+    },
+    fixShape(shape: BrepHandle): BrepHandle {
+      const c = kernel.copySolid(asNum(shape))
+      kernel.healSolid(c)
+      return asHandle(c)
+    },
+    fixFaceOrientations(shape: BrepHandle): BrepHandle {
+      const c = kernel.copySolid(asNum(shape))
+      kernel.fixFaceOrientations(c)
+      return asHandle(c)
+    },
     removeDegenerateEdges(shape: BrepHandle, tolerance?: number): BrepHandle {
-      return asHandle(kernel.removeDegenerateEdges(asNum(shape), tolerance ?? 1e-6))
+      const c = kernel.copySolid(asNum(shape))
+      kernel.removeDegenerateEdges(c, tolerance ?? 1e-6)
+      return asHandle(c)
     },
 
     // ── IO ──
     importStep(data: string | ArrayBuffer): BrepHandle {
-      const text = typeof data === 'string' ? data : new TextDecoder().decode(data)
-      return asHandle(kernel.importStep(text))
+      // ⚠️ brepkit importStep 吃 **Uint8Array**（不是字符串），返回 **Uint32Array**（文件内可含多个 solid）。
+      // L1 契约是单 BrepHandle：0 个 → fail；1 个 → 直通；多个 → 合成 compound（2026-09-25 实证）。
+      const bytes = typeof data === 'string' ? new TextEncoder().encode(data) : new Uint8Array(data)
+      const solids = arr(kernel.importStep(bytes))
+      if (solids.length === 0) fail('importStep: kernel returned no solid')
+      return asHandle(solids.length === 1 ? solids[0] : kernel.makeCompound(Uint32Array.from(solids)))
     },
     exportStep(shape: BrepHandle): string {
       // brepkit exportStep 返回 UTF-8 字节（Uint8Array），需解码为 STEP 文本（2026-09-19 实测）
@@ -749,8 +790,11 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
       return asHandle(kernel.importStl(bytes))
     },
     fromBREP(data: string): BrepHandle {
-      const bytes = Uint8Array.from(atobPolyfill(data))
-      return asHandle(kernel.deserializeSolid(bytes))
+      // ⚠️ brepkit fromBREP 吃字符串（STEP 文本或 toBREP/toBrepJson 输出，内核自动判别），
+      // 与 serializeSolid/deserializeSolid 的**二进制 arena** 是两套机制。
+      // 旧实现误用 `deserializeSolid(atob(data))`：base64 解码破坏了 STEP 文本 → 往返必失败
+      // （2026-09-25 实证：fromBREP(STEP)、fromBREP(toBREP)、fromBREP(toBrepJson) 均成功）。
+      return asHandle(kernel.fromBREP(data))
     },
 
     // ── 面演化（L1 三员 + filletWithHistory，双方都有对齐实现） ──
@@ -816,12 +860,6 @@ function vec3Of(p: number[] | { x: number; y: number; z: number }): BrepVec3 {
   return { x: Number(p.x), y: Number(p.y), z: Number(p.z) }
 }
 
-/** base64 解码（node 与浏览器通用，避免直接依赖 Buffer）。 */
-function atobPolyfill(s: string): string {
-  if (typeof atob === 'function') return atob(s)
-
-  return Buffer.from(s, 'base64').toString('binary')
-}
 
 /** 已初始化的 brepkit 内核单例（createBrepkitPrimitives 时赋值）。 */
 let liveKernel: BrepKitKernel | null = null
