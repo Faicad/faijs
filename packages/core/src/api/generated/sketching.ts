@@ -5,15 +5,15 @@
  */
 import { compatOp } from '../internal/compat-op'
 import { projectBrepOp } from '../internal/compat-projection'
-import { makeBaseBox as __vendored_makeBaseBox } from '../../vendored/brepjs/sketching/shortcuts.js'
+import { makeBaseBox as __vendored_makeBaseBox } from '@faicad/faijs-brepjs/sketching/shortcuts.js'
 
-export type { Drawing } from '../../vendored/brepjs/sketching/drawing.js'
+export type { Drawing } from '@faicad/faijs-brepjs/sketching/drawing.js'
 
-export type { DrawingPen } from '../../vendored/brepjs/sketching/drawingPen.js'
+export type { DrawingPen } from '@faicad/faijs-brepjs/sketching/drawingPen.js'
 
-export type { SketchInterface } from '../../vendored/brepjs/sketching/sketch.js'
+export type { SketchInterface } from '@faicad/faijs-brepjs/sketching/sketch.js'
 
-export { polysideInnerRadius } from '../../vendored/brepjs/sketching/cannedSketches.js'
+export { polysideInnerRadius } from '@faicad/faijs-brepjs/sketching/cannedSketches.js'
 
 /**
  * makeBaseBox — brepjs 投影（生成文件，禁手改；来源 api/surface/arg-spec.ts）。

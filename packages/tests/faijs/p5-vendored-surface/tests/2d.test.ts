@@ -2,8 +2,8 @@
 import { describe, expect, it, beforeAll } from 'vitest';
 import { initKernel } from '../kernel-setup.js';
 import type { Blueprint } from '../p5-surface.js';
-import CompoundBlueprint from '@faicad/faijs/vendored/brepjs/2d/blueprints/compoundBlueprint.js';
-import Blueprints from '@faicad/faijs/vendored/brepjs/2d/blueprints/blueprints.js';
+import CompoundBlueprint from '@faicad/faijs-brepjs/2d/blueprints/compoundBlueprint.js';
+import Blueprints from '@faicad/faijs-brepjs/2d/blueprints/blueprints.js';
 import {
   draw,
   drawRectangle,
@@ -21,14 +21,14 @@ import {
   box,
   getFaces,
 } from '../p5-surface.js';
-import { fillet2D, chamfer2D } from '@faicad/faijs/vendored/brepjs/2d/blueprints/blueprintCustomCorners.js';
-import { offsetBlueprint } from '@faicad/faijs/vendored/brepjs/2d/blueprints/blueprintOffset.js';
-import offset from '@faicad/faijs/vendored/brepjs/2d/blueprints/blueprintOffset.js';
-import { approximateForSVG } from '@faicad/faijs/vendored/brepjs/2d/blueprints/blueprintApproximations.js';
+import { fillet2D, chamfer2D } from '@faicad/faijs-brepjs/2d/blueprints/blueprintCustomCorners.js';
+import { offsetBlueprint } from '@faicad/faijs-brepjs/2d/blueprints/blueprintOffset.js';
+import offset from '@faicad/faijs-brepjs/2d/blueprints/blueprintOffset.js';
+import { approximateForSVG } from '@faicad/faijs-brepjs/2d/blueprints/blueprintApproximations.js';
 import {
   blueprintsIntersectionSegments,
   isCommonSegmentMatch,
-} from '@faicad/faijs/vendored/brepjs/2d/blueprints/intersectionSegments.js';
+} from '@faicad/faijs-brepjs/2d/blueprints/intersectionSegments.js';
 
 beforeAll(async () => {
   await initKernel();

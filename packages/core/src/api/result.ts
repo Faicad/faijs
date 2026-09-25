@@ -11,4 +11,4 @@
  * Projection only — no reimplementation: the vendored module stays the single
  * source of truth for the Result semantics shared with the compat face.
  */
-export * from '../vendored/brepjs/core/result.js'
+export * from '@faicad/faijs-brepjs/core/result.js'

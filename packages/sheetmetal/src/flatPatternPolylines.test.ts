@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { initOCCT } from './test-setup.js';
-import { isErr } from '@faicad/faijs/brepjs-compat';
+import { isErr } from '@faicad/faijs-brepjs';
 import { author, unfold } from './api.js';
 import { flatPatternToPolylines } from './polygonFns.js';
 import type { BendRule } from './types.js';

@@ -32,14 +32,14 @@ import {
   isKernelInjected,
   __resetKernelInjectionForTests,
 } from '../../api/occt-kernel-bridge'
-import { handle as occtWasmHandleView } from '../../vendored/brepjs/kernel/occtWasm/helpers'
+import { handle as occtWasmHandleView } from '@faicad/faijs-brepjs/kernel/occtWasm/helpers'
 import { fromHandle } from '../../brep/handle-bridge'
 import type { BrepHandle } from '../../brep/engine/types'
 import { measureArea, measureLength, measureVolume } from '../../api/generated/measurement'
 import {
   measureVolume as vendoredMeasureVolume,
   measureVolumeProps,
-} from '../../vendored/brepjs/measurement/measureFns'
+} from '@faicad/faijs-brepjs/measurement/measureFns'
 import type { BrepEngineApi } from './primitives'
 import { configureBackends } from '../../runtime-state'
 
@@ -228,7 +228,7 @@ describe('vendored 测量面：双引擎 parity（BrepEngineApi 已具备的能�
     const api = (await getBrepEngine()).primitives
     const box = api.makeBox(20, 10, 5)
     try {
-      const { measureSurfaceProps } = await import('../../vendored/brepjs/measurement/measureFns')
+      const { measureSurfaceProps } = await import('@faicad/faijs-brepjs/measurement/measureFns')
       const h = { wrapped: occtWasmHandleView('solid' as never, box as never) }
       const sp = measureSurfaceProps(h as never)
       expect(sp.ok).toBe(true)

@@ -1,11 +1,11 @@
 {
   "_meta": {
-    "source": "packages/core/src/vendored/brepjs (all .ts files)",
+    "source": "packages/brepjs/src (all .ts files)",
     "doc": "docs/plans/2026-09-07-compat-surface-unified-projection.md §3.1 / §5.1 ①",
-    "generated": "2026-09-07",
+    "generated": "2026-09-24",
     "fileCount": 259,
-    "totalSymbols": 1339,
-    "valueCount": 990,
+    "totalSymbols": 1342,
+    "valueCount": 993,
     "typeCount": 349,
     "moduleDist": {
       "2d": 145,
@@ -14,7 +14,7 @@
       "gear": 42,
       "index.ts": 16,
       "io": 29,
-      "kernel": 345,
+      "kernel": 348,
       "measurement": 24,
       "operations": 116,
       "projection": 10,
@@ -3267,6 +3267,14 @@
       "jsDoc": "3MF export — converts a ShapeMesh into a 3MF archive (ZIP container)."
     },
     {
+      "name": "__resetKernelRegistryForTests",
+      "kind": "value",
+      "module": "kernel",
+      "file": "kernel/index.ts",
+      "signature": "export function __resetKernelRegistryForTests(): void {",
+      "jsDoc": "Cross-instance sync hooks (globalThis registry singleton): exported for the"
+    },
+    {
       "name": "addCurveToBBox",
       "kind": "value",
       "module": "kernel",
@@ -3706,7 +3714,7 @@
       "module": "kernel",
       "file": "kernel/index.ts",
       "signature": "export function currentQualityTier(): string {",
-      "jsDoc": "Capabilities of the active kernel (defaults to the active). */"
+      "jsDoc": "Cross-instance sync hooks (globalThis registry singleton): exported for the"
     },
     {
       "name": "CurvatureResult",
@@ -5528,6 +5536,21 @@
       "file": "kernel/occtWasm/sweepOps.ts",
       "signature": "export function sweepPipeShell(k: OcctKernelWasm, profile: KernelShape, spine: KernelShape, options?: SweepPipeShellOptions): KernelShape | {",
       "jsDoc": "Sweep a profile along a spine."
+    },
+    {
+      "name": "syncRegistryFromGlobal",
+      "kind": "value",
+      "module": "kernel",
+      "file": "kernel/index.ts",
+      "signature": "export function syncRegistryFromGlobal(): void {",
+      "jsDoc": "Capabilities of the active kernel (defaults to the active). */"
+    },
+    {
+      "name": "syncRegistryToGlobal",
+      "kind": "value",
+      "module": "kernel",
+      "file": "kernel/index.ts",
+      "signature": "export function syncRegistryToGlobal(): void {"
     },
     {
       "name": "TessellationModel",

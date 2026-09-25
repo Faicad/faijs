@@ -1,4 +1,4 @@
-import { type Result, type Solid, ok, err, validationError } from '@faicad/faijs/brepjs-compat';
+import { type Result, type Solid, ok, err, validationError } from '@faicad/faijs-brepjs';
 import type {
   BendFeature,
   BendRule,

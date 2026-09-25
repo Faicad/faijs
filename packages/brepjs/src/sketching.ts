@@ -3,7 +3,7 @@
  *
  * @example
  * ```typescript
- * import { Sketcher, sketchExtrude, drawRectangle } from 'brepjs/sketching';
+ * import { Sketcher, sketchExtrude, drawRectangle } from '@faicad/faijs-brepjs/sketching';
  * ```
  */
 

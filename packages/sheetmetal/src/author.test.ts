@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { initOCCT } from './test-setup.js';
-import { measureVolume, isValid, getBounds } from '@faicad/faijs/brepjs-compat';
+import { measureVolume, isValid, getBounds } from '@faicad/faijs-brepjs';
 import { authorPart } from './authorFns.js';
 import { autoMiterCorner, miterCut } from './miterFns.js';
 

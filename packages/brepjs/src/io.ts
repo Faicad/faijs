@@ -3,7 +3,7 @@
  *
  * @example
  * ```typescript
- * import { importSTEP, exportSTEP, exportGltf } from 'brepjs/io';
+ * import { importSTEP, exportSTEP, exportGltf } from '@faicad/faijs-brepjs/io';
  * ```
  */
 

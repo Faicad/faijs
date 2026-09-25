@@ -27,7 +27,7 @@ import { readdirSync, readFileSync, statSync, existsSync } from 'node:fs'
 import { join, resolve, relative, dirname, normalize, sep } from 'node:path'
 
 const CORE_ROOT = resolve('packages/core/src')
-const VENDORED_ROOT = resolve(process.env.BOUNDARY_SRC_DIR ?? 'packages/core/src/vendored/brepjs')
+const VENDORED_ROOT = resolve(process.env.BOUNDARY_SRC_DIR ?? 'packages/brepjs/src')
 
 /** R5：登记桥接点（相对 packages/core/src 的目录前缀） */
 const R5_BRIDGE_PREFIXES = [
@@ -184,7 +184,9 @@ function main() {
     if (rel.startsWith('static') || rel.startsWith('node_modules')) continue
     const code = readFileSync(file, 'utf-8')
     for (const imp of extractImports(code)) {
-      if (!imp.includes('vendored')) continue
+      // 2026-09-25：vendored 树剥至 @faicad/faijs-brepjs 后，core 侧说明符不再含
+      // 'vendored' 段——识别条件须同时匹配新包前缀，否则 R5 断言静默失效。
+      if (!imp.includes('vendored') && !imp.startsWith('@faicad/faijs-brepjs')) continue
       const atBridge = R5_BRIDGE_PREFIXES.some((p) => rel.startsWith(p))
       // 测试豁免：parity 测试按设计要与移植树实现对拍，且不进产物依赖图。
       const isTest = rel.endsWith('.test.ts') || rel.endsWith('.test.mts')

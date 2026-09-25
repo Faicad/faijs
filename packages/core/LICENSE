@@ -22,8 +22,7 @@ SOFTWARE.
 
 ---
 
-Third-party components bundled in this distribution retain their own licenses:
-
-- `src/vendored/brepjs` (compiled into `dist/vendored/**`): ported from the
-  brepjs project, licensed under the Apache License 2.0. See NOTICE for the
-  full attribution. Apache-2.0 text: https://www.apache.org/licenses/LICENSE-2.0
+The brepjs-derived sources (compat facade) in `src/api/` retain their
+Apache-2.0 attribution, which now lives in the standalone
+`@faicad/faijs-brepjs` package (see `@faicad/faijs-brepjs` NOTICE and
+LICENSE). Apache-2.0 text: https://www.apache.org/licenses/LICENSE-2.0

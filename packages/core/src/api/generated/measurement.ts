@@ -5,41 +5,41 @@
  */
 import { borrowBrepjsShape, callBrepjs, assertEngineFor } from '../internal/l3-bridge'
 import type { Shape } from '../../mesh/types'
-import { measureVolumeProps as __vendored_measureVolumeProps } from '../../vendored/brepjs/measurement/measureFns.js'
-import type { VolumeProps } from '../../vendored/brepjs/measurement/measureFns.js'
-import { measureSurfaceProps as __vendored_measureSurfaceProps } from '../../vendored/brepjs/measurement/measureFns.js'
-import type { SurfaceProps } from '../../vendored/brepjs/measurement/measureFns.js'
-import { measureLinearProps as __vendored_measureLinearProps } from '../../vendored/brepjs/measurement/measureFns.js'
-import type { LinearProps } from '../../vendored/brepjs/measurement/measureFns.js'
-import { measureVolume as __vendored_measureVolume } from '../../vendored/brepjs/measurement/measureFns.js'
-import { measureArea as __vendored_measureArea } from '../../vendored/brepjs/measurement/measureFns.js'
-import { measureLength as __vendored_measureLength } from '../../vendored/brepjs/measurement/measureFns.js'
-import { measureDistance as __vendored_measureDistance } from '../../vendored/brepjs/measurement/measureFns.js'
-import { measureDistanceProps as __vendored_measureDistanceProps } from '../../vendored/brepjs/measurement/measureFns.js'
-import type { DistanceProps } from '../../vendored/brepjs/measurement/measureFns.js'
-import { measureCurvatureAt as __vendored_measureCurvatureAt } from '../../vendored/brepjs/measurement/measureFns.js'
-import type { CurvatureResult } from '../../vendored/brepjs/measurement/measureFns.js'
-import { measureCurvatureAtMid as __vendored_measureCurvatureAtMid } from '../../vendored/brepjs/measurement/measureFns.js'
-import { checkInterference as __vendored_checkInterference } from '../../vendored/brepjs/measurement/interferenceFns.js'
-import type { InterferenceResult } from '../../vendored/brepjs/measurement/interferenceFns.js'
-import { checkAllInterferences as __vendored_checkAllInterferences } from '../../vendored/brepjs/measurement/interferenceFns.js'
-import type { InterferencePair } from '../../vendored/brepjs/measurement/interferenceFns.js'
+import { measureVolumeProps as __vendored_measureVolumeProps } from '@faicad/faijs-brepjs/measurement/measureFns.js'
+import type { VolumeProps } from '@faicad/faijs-brepjs/measurement/measureFns.js'
+import { measureSurfaceProps as __vendored_measureSurfaceProps } from '@faicad/faijs-brepjs/measurement/measureFns.js'
+import type { SurfaceProps } from '@faicad/faijs-brepjs/measurement/measureFns.js'
+import { measureLinearProps as __vendored_measureLinearProps } from '@faicad/faijs-brepjs/measurement/measureFns.js'
+import type { LinearProps } from '@faicad/faijs-brepjs/measurement/measureFns.js'
+import { measureVolume as __vendored_measureVolume } from '@faicad/faijs-brepjs/measurement/measureFns.js'
+import { measureArea as __vendored_measureArea } from '@faicad/faijs-brepjs/measurement/measureFns.js'
+import { measureLength as __vendored_measureLength } from '@faicad/faijs-brepjs/measurement/measureFns.js'
+import { measureDistance as __vendored_measureDistance } from '@faicad/faijs-brepjs/measurement/measureFns.js'
+import { measureDistanceProps as __vendored_measureDistanceProps } from '@faicad/faijs-brepjs/measurement/measureFns.js'
+import type { DistanceProps } from '@faicad/faijs-brepjs/measurement/measureFns.js'
+import { measureCurvatureAt as __vendored_measureCurvatureAt } from '@faicad/faijs-brepjs/measurement/measureFns.js'
+import type { CurvatureResult } from '@faicad/faijs-brepjs/measurement/measureFns.js'
+import { measureCurvatureAtMid as __vendored_measureCurvatureAtMid } from '@faicad/faijs-brepjs/measurement/measureFns.js'
+import { checkInterference as __vendored_checkInterference } from '@faicad/faijs-brepjs/measurement/interferenceFns.js'
+import type { InterferenceResult } from '@faicad/faijs-brepjs/measurement/interferenceFns.js'
+import { checkAllInterferences as __vendored_checkAllInterferences } from '@faicad/faijs-brepjs/measurement/interferenceFns.js'
+import type { InterferencePair } from '@faicad/faijs-brepjs/measurement/interferenceFns.js'
 
-export type { CurvatureResult } from '../../vendored/brepjs/measurement/measureFns.js'
+export type { CurvatureResult } from '@faicad/faijs-brepjs/measurement/measureFns.js'
 
-export type { DistanceProps } from '../../vendored/brepjs/measurement/measureFns.js'
+export type { DistanceProps } from '@faicad/faijs-brepjs/measurement/measureFns.js'
 
-export type { InterferencePair } from '../../vendored/brepjs/measurement/interferenceFns.js'
+export type { InterferencePair } from '@faicad/faijs-brepjs/measurement/interferenceFns.js'
 
-export type { InterferenceResult } from '../../vendored/brepjs/measurement/interferenceFns.js'
+export type { InterferenceResult } from '@faicad/faijs-brepjs/measurement/interferenceFns.js'
 
-export type { LinearProps } from '../../vendored/brepjs/measurement/measureFns.js'
+export type { LinearProps } from '@faicad/faijs-brepjs/measurement/measureFns.js'
 
-export type { PhysicalProps } from '../../vendored/brepjs/measurement/measureFns.js'
+export type { PhysicalProps } from '@faicad/faijs-brepjs/measurement/measureFns.js'
 
-export type { SurfaceProps } from '../../vendored/brepjs/measurement/measureFns.js'
+export type { SurfaceProps } from '@faicad/faijs-brepjs/measurement/measureFns.js'
 
-export type { VolumeProps } from '../../vendored/brepjs/measurement/measureFns.js'
+export type { VolumeProps } from '@faicad/faijs-brepjs/measurement/measureFns.js'
 
 /**
  * measureVolumeProps — 查询（返回纯数据，非 Shape）生成文件，勿手改；来源 api/surface/arg-spec.ts。

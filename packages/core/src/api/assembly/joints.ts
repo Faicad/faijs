@@ -32,8 +32,8 @@ import {
   type IKResult as BrepjsIKResult,
   type IKOptions as BrepjsIKOptions,
   type IKTarget as BrepjsIKTarget,
-} from '../../vendored/brepjs/index'
-import { createAssemblyNode, addChild, type AssemblyNode } from '../../vendored/brepjs/index'
+} from '@faicad/faijs-brepjs/index'
+import { createAssemblyNode, addChild, type AssemblyNode } from '@faicad/faijs-brepjs/index'
 import {
   fromBrepjsQuat,
   toBrepjsQuat,

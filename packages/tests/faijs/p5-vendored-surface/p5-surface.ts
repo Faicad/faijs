@@ -3,7 +3,7 @@
  *
  * 来源：docs/plans/2026-09-01-layered-api-architecture.md §P5（L2 全量、用 brepjs 自己的测试跑通）。
  *
- * 本 facade 重导出至 vendored 树（`@faicad/faijs/vendored/brepjs/…`）。
+ * 本 facade 重导出至 vendored 树（`@faicad/faijs-brepjs/…`）。
  * 纯数学批（gearMath、straightSkeleton、2d/lib、convexHull）不出 kernel 也可跑；
  * kernel-bound 批（operations 建模、sketching 草图到实体、gearFns 实体）需 `useKernelBeforeAll`。
  */
@@ -41,7 +41,7 @@ export {
   type GearDiagnosticSeverity,
   type PlanetPlacement,
   type PlanetPlacementParams,
-} from '@faicad/faijs/vendored/brepjs/gear/gearMath.js'
+} from '@faicad/faijs-brepjs/gear/gearMath.js'
 
 // ── gear 实体化（kernel-bound）──
 export {
@@ -53,75 +53,75 @@ export {
   type PlanetaryGearParams,
   type GearResult,
   type PlanetaryGearAssembly,
-} from '@faicad/faijs/vendored/brepjs/gear/gearFns.js'
+} from '@faicad/faijs-brepjs/gear/gearFns.js'
 
 // ── operations ──
 export {
   computeStraightSkeleton,
   type StraightSkeleton,
   type SkPoint2D,
-} from '@faicad/faijs/vendored/brepjs/operations/straightSkeleton.js'
-export { convexHull } from '@faicad/faijs/vendored/brepjs/operations/convexHullFns.js'
-export { loft } from '@faicad/faijs/vendored/brepjs/operations/loftFns.js'
-export { extrude, revolve } from '@faicad/faijs/vendored/brepjs/operations/api.js'
-export { sweep } from '@faicad/faijs/vendored/brepjs/operations/sweepFns.js'
+} from '@faicad/faijs-brepjs/operations/straightSkeleton.js'
+export { convexHull } from '@faicad/faijs-brepjs/operations/convexHullFns.js'
+export { loft } from '@faicad/faijs-brepjs/operations/loftFns.js'
+export { extrude, revolve } from '@faicad/faijs-brepjs/operations/api.js'
+export { sweep } from '@faicad/faijs-brepjs/operations/sweepFns.js'
 export {
   linearPattern,
   circularPattern,
   gridPattern,
-} from '@faicad/faijs/vendored/brepjs/operations/patternFns.js'
+} from '@faicad/faijs-brepjs/operations/patternFns.js'
 
 // ── 2d/lib + 2d/blueprints ──
-export { isPoint2D, isMatrix2X2 } from '@faicad/faijs/vendored/brepjs/2d/lib/definitions.js'
+export { isPoint2D, isMatrix2X2 } from '@faicad/faijs-brepjs/2d/lib/definitions.js'
 export {
   polysidesBlueprint,
   roundedRectangleBlueprint,
-} from '@faicad/faijs/vendored/brepjs/2d/blueprints/cannedBlueprints.js'
-export { make2dOffset } from '@faicad/faijs/vendored/brepjs/2d/lib/offset.js'
+} from '@faicad/faijs-brepjs/2d/blueprints/cannedBlueprints.js'
+export { make2dOffset } from '@faicad/faijs-brepjs/2d/lib/offset.js'
 export {
   fuse2D,
   cut2D,
   intersect2D,
-} from '@faicad/faijs/vendored/brepjs/2d/blueprints/boolean2D.js'
+} from '@faicad/faijs-brepjs/2d/blueprints/boolean2D.js'
 export {
   fuseBlueprints,
   cutBlueprints,
   intersectBlueprints,
-} from '@faicad/faijs/vendored/brepjs/2d/blueprints/booleanOperations.js'
-export { organiseBlueprints } from '@faicad/faijs/vendored/brepjs/2d/blueprints/lib.js'
+} from '@faicad/faijs-brepjs/2d/blueprints/booleanOperations.js'
+export { organiseBlueprints } from '@faicad/faijs-brepjs/2d/blueprints/lib.js'
 export {
   fuseAll,
   fuse,
   cut,
   intersect,
   meshEdges,
-} from '@faicad/faijs/vendored/brepjs/topology/api.js'
+} from '@faicad/faijs-brepjs/topology/api.js'
 
 // ── core Result / shape guards（index 级）──
-export { isOk, isErr, unwrap, unwrapErr } from '@faicad/faijs/vendored/brepjs/core/result.js'
-export { isSolid, isShape3D, isCompound, castShape } from '@faicad/faijs/vendored/brepjs/core/shapeTypes.js'
+export { isOk, isErr, unwrap, unwrapErr } from '@faicad/faijs-brepjs/core/result.js'
+export { isSolid, isShape3D, isCompound, castShape } from '@faicad/faijs-brepjs/core/shapeTypes.js'
 
 // ── topology 原语/变换/查询（kernel-bound 测试共用）──
-export { box, cylinder, sphere, wire, helix, line } from '@faicad/faijs/vendored/brepjs/topology/primitiveFns.js'
-export { translate, isValid, mirror, rotate, scale } from '@faicad/faijs/vendored/brepjs/topology/api.js'
-export { getFaces, getEdges } from '@faicad/faijs/vendored/brepjs/topology/topologyQueryFns.js'
+export { box, cylinder, sphere, wire, helix, line } from '@faicad/faijs-brepjs/topology/primitiveFns.js'
+export { translate, isValid, mirror, rotate, scale } from '@faicad/faijs-brepjs/topology/api.js'
+export { getFaces, getEdges } from '@faicad/faijs-brepjs/topology/topologyQueryFns.js'
 
 // ── measurement ──
-export { measureVolume, measureArea } from '@faicad/faijs/vendored/brepjs/measurement/measureFns.js'
+export { measureVolume, measureArea } from '@faicad/faijs-brepjs/measurement/measureFns.js'
 
 // ── core planeOps / topology mesh + export ──
-export { resolvePlane } from '@faicad/faijs/vendored/brepjs/core/planeOps.js'
-export { mesh } from '@faicad/faijs/vendored/brepjs/topology/api.js'
+export { resolvePlane } from '@faicad/faijs-brepjs/core/planeOps.js'
+export { mesh } from '@faicad/faijs-brepjs/topology/api.js'
 export {
   exportSTEP,
   exportSTL,
   exportIGES,
-} from '@faicad/faijs/vendored/brepjs/topology/meshFns.js'
-export { getBounds } from '@faicad/faijs/vendored/brepjs/topology/topologyQueryFns.js'
+} from '@faicad/faijs-brepjs/topology/meshFns.js'
+export { getBounds } from '@faicad/faijs-brepjs/topology/topologyQueryFns.js'
 
 // ── sketching：canned sketches + draw fns + compound —─
-export { sketchCircle, sketchRectangle } from '@faicad/faijs/vendored/brepjs/sketching/cannedSketches.js'
-export { draw } from '@faicad/faijs/vendored/brepjs/sketching/drawingPen.js'
+export { sketchCircle, sketchRectangle } from '@faicad/faijs-brepjs/sketching/cannedSketches.js'
+export { draw } from '@faicad/faijs-brepjs/sketching/drawingPen.js'
 export {
   drawRoundedRectangle,
   drawRectangle,
@@ -132,27 +132,27 @@ export {
   drawEllipse,
   drawPointsInterpolation,
   drawParametricFunction,
-} from '@faicad/faijs/vendored/brepjs/sketching/drawingFactories.js'
-export { default as CompoundSketch } from '@faicad/faijs/vendored/brepjs/sketching/compoundSketch.js'
-export { deserializeDrawing } from '@faicad/faijs/vendored/brepjs/sketching/drawing.js'
-export { makeBaseBox } from '@faicad/faijs/vendored/brepjs/sketching/shortcuts.js'
-export { drawFaceOutline, drawProjection } from '@faicad/faijs/vendored/brepjs/sketching/draw3d.js'
+} from '@faicad/faijs-brepjs/sketching/drawingFactories.js'
+export { default as CompoundSketch } from '@faicad/faijs-brepjs/sketching/compoundSketch.js'
+export { deserializeDrawing } from '@faicad/faijs-brepjs/sketching/drawing.js'
+export { makeBaseBox } from '@faicad/faijs-brepjs/sketching/shortcuts.js'
+export { drawFaceOutline, drawProjection } from '@faicad/faijs-brepjs/sketching/draw3d.js'
 
 // ── io：SVG import + disposal stats ──
-export { importSVG, importSVGPathD } from '@faicad/faijs/vendored/brepjs/io/svgImportFns.js'
-export { getDisposalStats } from '@faicad/faijs/vendored/brepjs/core/disposal.js'
+export { importSVG, importSVGPathD } from '@faicad/faijs-brepjs/io/svgImportFns.js'
+export { getDisposalStats } from '@faicad/faijs-brepjs/core/disposal.js'
 
 // ── operations：assembly / dh / joint / instance / urdf（kernel-bound）──
 export {
   createAssemblyNode,
   addChild,
-} from '@faicad/faijs/vendored/brepjs/operations/assemblyFns.js'
-export { jointsFromDH } from '@faicad/faijs/vendored/brepjs/operations/dhFns.js'
-export { revoluteJoint, prismaticJoint, cylindricalJoint, sphericalJoint, planarJoint, addJoint, forwardKinematics, mechanismDOF, jointTransform, setJointValue, setJointValues } from '@faicad/faijs/vendored/brepjs/operations/jointFns.js'
-export { instance, instanceGrid, instanceCount, instancedMesh, isInstanced, materialize } from '@faicad/faijs/vendored/brepjs/operations/instanceFns.js'
-export { importURDF, exportURDF } from '@faicad/faijs/vendored/brepjs/operations/urdfFns.js'
+} from '@faicad/faijs-brepjs/operations/assemblyFns.js'
+export { jointsFromDH } from '@faicad/faijs-brepjs/operations/dhFns.js'
+export { revoluteJoint, prismaticJoint, cylindricalJoint, sphericalJoint, planarJoint, addJoint, forwardKinematics, mechanismDOF, jointTransform, setJointValue, setJointValues } from '@faicad/faijs-brepjs/operations/jointFns.js'
+export { instance, instanceGrid, instanceCount, instancedMesh, isInstanced, materialize } from '@faicad/faijs-brepjs/operations/instanceFns.js'
+export { importURDF, exportURDF } from '@faicad/faijs-brepjs/operations/urdfFns.js'
 
 // ── topology 原语（helix/line 等预设）──
 
 // ── kernel registry（getKernel 读面）──
-export { getKernel } from '@faicad/faijs/vendored/brepjs/kernel/index.js'
+export { getKernel } from '@faicad/faijs-brepjs/kernel/index.js'

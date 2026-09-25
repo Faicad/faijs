@@ -3,7 +3,7 @@
  *
  * @example
  * ```typescript
- * import { box, fuse, fillet, mesh } from 'brepjs/topology';
+ * import { box, fuse, fillet, mesh } from '@faicad/faijs-brepjs/topology';
  * ```
  */
 

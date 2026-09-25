@@ -12,21 +12,21 @@
 
 export {
   adaptedCurveToPathElem,
-} from '../../../vendored/brepjs/2d/lib/svgPath.js'
+} from '@faicad/faijs-brepjs/2d/lib/svgPath.js'
 
 export {
   approximateAsBSpline,
   approximateAsSvgCompatibleCurve,
   BSplineToBezier,
-} from '../../../vendored/brepjs/2d/lib/approximations.js'
+} from '@faicad/faijs-brepjs/2d/lib/approximations.js'
 
 export type {
   ApproximationOptions,
-} from '../../../vendored/brepjs/2d/lib/approximations.js'
+} from '@faicad/faijs-brepjs/2d/lib/approximations.js'
 
 export {
   approximateForSVG,
-} from '../../../vendored/brepjs/2d/blueprints/blueprintApproximations.js'
+} from '@faicad/faijs-brepjs/2d/blueprints/blueprintApproximations.js'
 
 export {
   arc2d,
@@ -55,76 +55,76 @@ export {
   translateCurve2d,
   trimCurve2d,
   typeCurve2d,
-} from '../../../vendored/brepjs/2d/curve2dGeometryFns.js'
+} from '@faicad/faijs-brepjs/2d/curve2dGeometryFns.js'
 
 export type {
   BSpline2dOptions,
   Ellipse2dOptions,
-} from '../../../vendored/brepjs/2d/curve2dGeometryFns.js'
+} from '@faicad/faijs-brepjs/2d/curve2dGeometryFns.js'
 
 export {
   asSVG,
   viewbox,
-} from '../../../vendored/brepjs/2d/blueprints/svg.js'
+} from '@faicad/faijs-brepjs/2d/blueprints/svg.js'
 
 export {
   BaseSketcher2d,
-} from '../../../vendored/brepjs/2d/blueprints/baseSketcher2d.js'
+} from '@faicad/faijs-brepjs/2d/blueprints/baseSketcher2d.js'
 
 export {
   default as Blueprint,
-} from '../../../vendored/brepjs/2d/blueprints/blueprint.js'
+} from '@faicad/faijs-brepjs/2d/blueprints/blueprint.js'
 
 export {
   default as Blueprints,
-} from '../../../vendored/brepjs/2d/blueprints/blueprints.js'
+} from '@faicad/faijs-brepjs/2d/blueprints/blueprints.js'
 
 export {
   blueprintsIntersectionSegments,
   isCommonSegmentMatch,
-} from '../../../vendored/brepjs/2d/blueprints/intersectionSegments.js'
+} from '@faicad/faijs-brepjs/2d/blueprints/intersectionSegments.js'
 
 export {
   BlueprintSketcher,
-} from '../../../vendored/brepjs/2d/blueprints/blueprintSketcher.js'
+} from '@faicad/faijs-brepjs/2d/blueprints/blueprintSketcher.js'
 
 export {
   booleanOperation,
   splitPaths,
-} from '../../../vendored/brepjs/2d/blueprints/segmentAssembly.js'
+} from '@faicad/faijs-brepjs/2d/blueprints/segmentAssembly.js'
 
 export type {
   BooleanOperationResult,
-} from '../../../vendored/brepjs/2d/blueprints/segmentAssembly.js'
+} from '@faicad/faijs-brepjs/2d/blueprints/segmentAssembly.js'
 
 export {
   BoundingBox2d,
-} from '../../../vendored/brepjs/2d/lib/boundingBox2d.js'
+} from '@faicad/faijs-brepjs/2d/lib/boundingBox2d.js'
 
 export {
   chamfer2D,
   fillet2D,
-} from '../../../vendored/brepjs/2d/blueprints/blueprintCustomCorners.js'
+} from '@faicad/faijs-brepjs/2d/blueprints/blueprintCustomCorners.js'
 
 export {
   chamferCurves,
   dogboneFilletCurves,
   filletCurves,
-} from '../../../vendored/brepjs/2d/lib/customCorners.js'
+} from '@faicad/faijs-brepjs/2d/lib/customCorners.js'
 
 export {
   default as CompoundBlueprint,
-} from '../../../vendored/brepjs/2d/blueprints/compoundBlueprint.js'
+} from '@faicad/faijs-brepjs/2d/blueprints/compoundBlueprint.js'
 
 export {
   convertSvgEllipseParams,
   makeEllipseArcFromSvgParams,
   normalizeEllipseRadii,
-} from '../../../vendored/brepjs/2d/blueprints/ellipseUtils.js'
+} from '@faicad/faijs-brepjs/2d/blueprints/ellipseUtils.js'
 
 export type {
   NormalizedEllipseParams,
-} from '../../../vendored/brepjs/2d/blueprints/ellipseUtils.js'
+} from '@faicad/faijs-brepjs/2d/blueprints/ellipseUtils.js'
 
 export {
   createBlueprint,
@@ -140,12 +140,12 @@ export {
   stretch2D,
   toSVGPathD,
   translate2D,
-} from '../../../vendored/brepjs/2d/blueprints/blueprintFns.js'
+} from '@faicad/faijs-brepjs/2d/blueprints/blueprintFns.js'
 
 export {
   Curve2D,
   deserializeCurve2D,
-} from '../../../vendored/brepjs/2d/lib/curve2D.js'
+} from '@faicad/faijs-brepjs/2d/lib/curve2D.js'
 
 export {
   curve2dBoundingBox,
@@ -157,7 +157,7 @@ export {
   curve2dSplitAt,
   curve2dTangentAt,
   reverseCurve,
-} from '../../../vendored/brepjs/2d/lib/curve2dFns.js'
+} from '@faicad/faijs-brepjs/2d/lib/curve2dFns.js'
 
 export {
   curveMidPoint,
@@ -170,12 +170,12 @@ export {
   rotateToStartAtSegment,
   samePoint,
   startOfSegment,
-} from '../../../vendored/brepjs/2d/blueprints/booleanHelpers.js'
+} from '@faicad/faijs-brepjs/2d/blueprints/booleanHelpers.js'
 
 export type {
   IntersectionSegment,
   Segment,
-} from '../../../vendored/brepjs/2d/blueprints/booleanHelpers.js'
+} from '@faicad/faijs-brepjs/2d/blueprints/booleanHelpers.js'
 
 export {
   curvesAsEdgesOnFace,
@@ -189,65 +189,65 @@ export {
   stretchTransform2d,
   transformCurves,
   translationTransform2d,
-} from '../../../vendored/brepjs/2d/curves.js'
+} from '@faicad/faijs-brepjs/2d/curves.js'
 
 export type {
   ScaleMode,
   Transformation2D,
-} from '../../../vendored/brepjs/2d/curves.js'
+} from '@faicad/faijs-brepjs/2d/curves.js'
 
 export {
   cut2D,
   fuse2D,
   intersect2D,
-} from '../../../vendored/brepjs/2d/blueprints/boolean2D.js'
+} from '@faicad/faijs-brepjs/2d/blueprints/boolean2D.js'
 
 export type {
   Shape2D,
-} from '../../../vendored/brepjs/2d/blueprints/boolean2D.js'
+} from '@faicad/faijs-brepjs/2d/blueprints/boolean2D.js'
 
 export {
   cutBlueprints,
   fuseBlueprints,
   intersectBlueprints,
-} from '../../../vendored/brepjs/2d/blueprints/booleanOperations.js'
+} from '@faicad/faijs-brepjs/2d/blueprints/booleanOperations.js'
 
 export {
   defaultsSplineOptions,
-} from '../../../vendored/brepjs/2d/blueprints/genericSketcher.js'
+} from '@faicad/faijs-brepjs/2d/blueprints/genericSketcher.js'
 
 export type {
   GenericSketcher,
   SplineOptions,
   SplineTangent,
-} from '../../../vendored/brepjs/2d/blueprints/genericSketcher.js'
+} from '@faicad/faijs-brepjs/2d/blueprints/genericSketcher.js'
 
 export {
   organiseBlueprints,
-} from '../../../vendored/brepjs/2d/blueprints/lib.js'
+} from '@faicad/faijs-brepjs/2d/blueprints/lib.js'
 
 export type {
   DrawingInterface,
   SketchData,
-} from '../../../vendored/brepjs/2d/blueprints/lib.js'
+} from '@faicad/faijs-brepjs/2d/blueprints/lib.js'
 
 export {
   ellipseArcFlags,
-} from '../../../vendored/brepjs/2d/lib/ellipseArcFlags.js'
+} from '@faicad/faijs-brepjs/2d/lib/ellipseArcFlags.js'
 
 export {
   intersectCurves,
   selfIntersections,
-} from '../../../vendored/brepjs/2d/lib/intersections.js'
+} from '@faicad/faijs-brepjs/2d/lib/intersections.js'
 
 export {
   isMatrix2X2,
   isPoint2D,
-} from '../../../vendored/brepjs/2d/lib/definitions.js'
+} from '@faicad/faijs-brepjs/2d/lib/definitions.js'
 
 export type {
   Matrix2X2,
-} from '../../../vendored/brepjs/2d/lib/definitions.js'
+} from '@faicad/faijs-brepjs/2d/lib/definitions.js'
 
 export {
   make2dArcFromCenter,
@@ -259,42 +259,42 @@ export {
   make2dSegmentCurve,
   make2dTangentArc,
   make2dThreePointArc,
-} from '../../../vendored/brepjs/2d/lib/makeCurves.js'
+} from '@faicad/faijs-brepjs/2d/lib/makeCurves.js'
 
 export {
   make2dOffset,
-} from '../../../vendored/brepjs/2d/lib/offset.js'
+} from '@faicad/faijs-brepjs/2d/lib/offset.js'
 
 export {
   normalize2d,
-} from '../../../vendored/brepjs/2d/lib/vectorOperations.js'
+} from '@faicad/faijs-brepjs/2d/lib/vectorOperations.js'
 
 export {
   offsetBlueprint,
   rawOffsets,
-} from '../../../vendored/brepjs/2d/blueprints/blueprintOffset.js'
+} from '@faicad/faijs-brepjs/2d/blueprints/blueprintOffset.js'
 
 export type {
   Offset2DConfig,
-} from '../../../vendored/brepjs/2d/blueprints/blueprintOffset.js'
+} from '@faicad/faijs-brepjs/2d/blueprints/blueprintOffset.js'
 
 export {
   default as offset,
-} from '../../../vendored/brepjs/2d/blueprints/blueprintOffset.js'
+} from '@faicad/faijs-brepjs/2d/blueprints/blueprintOffset.js'
 
 export {
   polysidesBlueprint,
   roundedRectangleBlueprint,
-} from '../../../vendored/brepjs/2d/blueprints/cannedBlueprints.js'
+} from '@faicad/faijs-brepjs/2d/blueprints/cannedBlueprints.js'
 
 export {
   removeDuplicatePoints,
   reprPnt,
-} from '../../../vendored/brepjs/2d/lib/utils.js'
+} from '@faicad/faijs-brepjs/2d/lib/utils.js'
 
 export {
   stitchCurves,
-} from '../../../vendored/brepjs/2d/lib/stitching.js'
+} from '@faicad/faijs-brepjs/2d/lib/stitching.js'
 
 export {
   all,
@@ -324,7 +324,7 @@ export {
   unwrapOr,
   unwrapOrElse,
   zip,
-} from '../../../vendored/brepjs/core/result.js'
+} from '@faicad/faijs-brepjs/core/result.js'
 
 export type {
   Err,
@@ -332,7 +332,7 @@ export type {
   Result,
   ResultPipeline,
   Unit,
-} from '../../../vendored/brepjs/core/result.js'
+} from '@faicad/faijs-brepjs/core/result.js'
 
 export {
   borrowShapeWithKnownType,
@@ -361,7 +361,7 @@ export {
   isSolid,
   isVertex,
   isWire,
-} from '../../../vendored/brepjs/core/shapeTypes.js'
+} from '@faicad/faijs-brepjs/core/shapeTypes.js'
 
 export type {
   AnyShape,
@@ -378,21 +378,21 @@ export type {
   UnknownDimShape,
   Vertex,
   Wire,
-} from '../../../vendored/brepjs/core/shapeTypes.js'
+} from '@faicad/faijs-brepjs/core/shapeTypes.js'
 
 export {
   as2D,
   as3D,
   is2D,
   is3D,
-} from '../../../vendored/brepjs/core/dimensionTypes.js'
+} from '@faicad/faijs-brepjs/core/dimensionTypes.js'
 
 export type {
   Dimension,
   DimensionError,
   RequireDimension,
   SameDimension,
-} from '../../../vendored/brepjs/core/dimensionTypes.js'
+} from '@faicad/faijs-brepjs/core/dimensionTypes.js'
 
 export {
   BrepErrorCode,
@@ -406,12 +406,12 @@ export {
   typeCastError,
   unsupportedError,
   validationError,
-} from '../../../vendored/brepjs/core/errors.js'
+} from '@faicad/faijs-brepjs/core/errors.js'
 
 export type {
   BrepError,
   BrepErrorKind,
-} from '../../../vendored/brepjs/core/errors.js'
+} from '@faicad/faijs-brepjs/core/errors.js'
 
 export {
   closedWire,
@@ -426,7 +426,7 @@ export {
   planarFace,
   planarWire,
   validSolid,
-} from '../../../vendored/brepjs/core/validityTypes.js'
+} from '@faicad/faijs-brepjs/core/validityTypes.js'
 
 export type {
   ClosedWire,
@@ -435,7 +435,7 @@ export type {
   PlanarFace,
   PlanarWire,
   ValidSolid,
-} from '../../../vendored/brepjs/core/validityTypes.js'
+} from '@faicad/faijs-brepjs/core/validityTypes.js'
 
 export {
   createBorrowedHandle,
@@ -451,22 +451,22 @@ export {
   withScope,
   withScopeResult,
   withScopeResultAsync,
-} from '../../../vendored/brepjs/core/disposal.js'
+} from '@faicad/faijs-brepjs/core/disposal.js'
 
 export type {
   Deletable,
   DisposalStats,
   KernelHandle,
   ShapeHandle,
-} from '../../../vendored/brepjs/core/disposal.js'
+} from '@faicad/faijs-brepjs/core/disposal.js'
 
 export {
   createCurve2DHandle,
-} from '../../../vendored/brepjs/core/curve2dHandle.js'
+} from '@faicad/faijs-brepjs/core/curve2dHandle.js'
 
 export type {
   Curve2DHandle,
-} from '../../../vendored/brepjs/core/curve2dHandle.js'
+} from '@faicad/faijs-brepjs/core/curve2dHandle.js'
 
 export {
   createNamedPlane,
@@ -477,28 +477,28 @@ export {
   planeToWorld,
   resolvePlane,
   translatePlane,
-} from '../../../vendored/brepjs/core/planeOps.js'
+} from '@faicad/faijs-brepjs/core/planeOps.js'
 
 export {
   findCurveType,
   getShapeKind,
-} from '../../../vendored/brepjs/core/typeDiscriminants.js'
+} from '@faicad/faijs-brepjs/core/typeDiscriminants.js'
 
 export type {
   CurveType,
-} from '../../../vendored/brepjs/core/typeDiscriminants.js'
+} from '@faicad/faijs-brepjs/core/typeDiscriminants.js'
 
 export {
   DEG2RAD,
   HASH_CODE_MAX,
   RAD2DEG,
-} from '../../../vendored/brepjs/core/constants.js'
+} from '@faicad/faijs-brepjs/core/constants.js'
 
 export {
   resolveDirection,
   toVec2,
   toVec3,
-} from '../../../vendored/brepjs/core/types.js'
+} from '@faicad/faijs-brepjs/core/types.js'
 
 export type {
   Direction,
@@ -508,7 +508,7 @@ export type {
   PointInput,
   Vec2,
   Vec3,
-} from '../../../vendored/brepjs/core/types.js'
+} from '@faicad/faijs-brepjs/core/types.js'
 
 export {
   fromKernelDir,
@@ -523,31 +523,31 @@ export {
   withKernelDir,
   withKernelPnt,
   withKernelVec,
-} from '../../../vendored/brepjs/core/kernelBoundary.js'
+} from '@faicad/faijs-brepjs/core/kernelBoundary.js'
 
 export {
   getCachedType,
   getOrQueryType,
   hasCachedType,
   setCachedType,
-} from '../../../vendored/brepjs/core/shapeTypeCache.js'
+} from '@faicad/faijs-brepjs/core/shapeTypeCache.js'
 
 export {
   getSuggestionForCode,
   translateKernelError,
-} from '../../../vendored/brepjs/core/kernelErrorTranslation.js'
+} from '@faicad/faijs-brepjs/core/kernelErrorTranslation.js'
 
 export {
   kernelCall,
   kernelCallRaw,
   kernelCallScoped,
-} from '../../../vendored/brepjs/core/kernelCall.js'
+} from '@faicad/faijs-brepjs/core/kernelCall.js'
 
 export type {
   Plane,
   PlaneInput,
   PlaneName,
-} from '../../../vendored/brepjs/core/planeTypes.js'
+} from '@faicad/faijs-brepjs/core/planeTypes.js'
 
 export {
   vecAdd,
@@ -566,12 +566,12 @@ export {
   vecRotate,
   vecScale,
   vecSub,
-} from '../../../vendored/brepjs/core/vecOps.js'
+} from '@faicad/faijs-brepjs/core/vecOps.js'
 
 export type {
   FnPlane,
   FnPlaneName,
-} from '../../../vendored/brepjs/core.js'
+} from '@faicad/faijs-brepjs/core.js'
 
 export {
   adaptiveSampleCount,
@@ -599,7 +599,7 @@ export {
   undercutMinimumShift,
   validatePlanetary,
   workingCenterDistance,
-} from '../../../vendored/brepjs/gear/gearMath.js'
+} from '@faicad/faijs-brepjs/gear/gearMath.js'
 
 export type {
   GearDiagnostic,
@@ -608,13 +608,13 @@ export type {
   GearGeometry,
   PlanetPlacement,
   PlanetPlacementParams,
-} from '../../../vendored/brepjs/gear/gearMath.js'
+} from '@faicad/faijs-brepjs/gear/gearMath.js'
 
 export {
   makeExternalGear,
   makeInternalGear,
   makePlanetaryGear,
-} from '../../../vendored/brepjs/gear/gearFns.js'
+} from '@faicad/faijs-brepjs/gear/gearFns.js'
 
 export type {
   ExternalGearParams,
@@ -622,16 +622,16 @@ export type {
   InternalGearParams,
   PlanetaryGearAssembly,
   PlanetaryGearParams,
-} from '../../../vendored/brepjs/gear/gearFns.js'
+} from '@faicad/faijs-brepjs/gear/gearFns.js'
 
 export {
   makeExternalGearProfileWire,
   makeInternalGearProfileWire,
-} from '../../../vendored/brepjs/gear/gearProfile.js'
+} from '@faicad/faijs-brepjs/gear/gearProfile.js'
 
 export type {
   GearWireParams,
-} from '../../../vendored/brepjs/gear/gearProfile.js'
+} from '@faicad/faijs-brepjs/gear/gearProfile.js'
 
 export {
   booleans,
@@ -646,13 +646,13 @@ export {
   query,
   transforms,
   zipResults,
-} from '../../../vendored/brepjs/index.js'
+} from '@faicad/faijs-brepjs/index.js'
 
 export type {
   CleanLoftOptions,
   CleanSweepOptions,
   HistoryOperationRegistry,
-} from '../../../vendored/brepjs/index.js'
+} from '@faicad/faijs-brepjs/index.js'
 
 export {
   addCurveToBBox,
@@ -670,7 +670,7 @@ export {
   mirrorAcrossAxis,
   mirrorAtPoint,
   serializeCurve2d,
-} from '../../../vendored/brepjs/kernel/geometry2d.js'
+} from '@faicad/faijs-brepjs/kernel/geometry2d.js'
 
 export type {
   BBox2d,
@@ -681,7 +681,7 @@ export type {
   Ellipse2d,
   Line2d,
   TrimmedCurve2d,
-} from '../../../vendored/brepjs/kernel/geometry2d.js'
+} from '@faicad/faijs-brepjs/kernel/geometry2d.js'
 
 export {
   addCurveToBBox2d,
@@ -723,7 +723,7 @@ export {
   setGTrsf2dTranslationPart,
   transformCurve2dGeneral,
   wrapCurve2dHandle,
-} from '../../../vendored/brepjs/kernel/occtWasm/kernel2dOps.js'
+} from '@faicad/faijs-brepjs/kernel/occtWasm/kernel2dOps.js'
 
 export {
   addHolesInFace,
@@ -757,7 +757,7 @@ export {
   sewAndSolidify,
   solidFromShell,
   triangulatedSurface,
-} from '../../../vendored/brepjs/kernel/occtWasm/constructionOps.js'
+} from '@faicad/faijs-brepjs/kernel/occtWasm/constructionOps.js'
 
 export {
   adjacentFaces,
@@ -775,7 +775,7 @@ export {
   sharedEdges,
   subShapeCount,
   subShapeHashes,
-} from '../../../vendored/brepjs/kernel/occtWasm/topologyOps.js'
+} from '@faicad/faijs-brepjs/kernel/occtWasm/topologyOps.js'
 
 export {
   applyComposedTransformWithHistory,
@@ -793,7 +793,7 @@ export {
   shellWithHistory,
   thickenWithHistory,
   translateWithHistory,
-} from '../../../vendored/brepjs/kernel/occtWasm/evolutionOps.js'
+} from '@faicad/faijs-brepjs/kernel/occtWasm/evolutionOps.js'
 
 export {
   approximatePoints,
@@ -811,7 +811,7 @@ export {
   getBezierPenultimatePole,
   getNurbsCurveData,
   interpolatePoints,
-} from '../../../vendored/brepjs/kernel/occtWasm/curveOps.js'
+} from '@faicad/faijs-brepjs/kernel/occtWasm/curveOps.js'
 
 export {
   area,
@@ -825,26 +825,26 @@ export {
   surfaceCenterOfMass,
   surfaceCurvature,
   volume,
-} from '../../../vendored/brepjs/kernel/occtWasm/measureOps.js'
+} from '@faicad/faijs-brepjs/kernel/occtWasm/measureOps.js'
 
 export type {
   CurvatureResult,
-} from '../../../vendored/brepjs/kernel/occtWasm/measureOps.js'
+} from '@faicad/faijs-brepjs/kernel/occtWasm/measureOps.js'
 
 export {
   supportsKernel2D,
-} from '../../../vendored/brepjs/kernel/kernel2dTypes.js'
+} from '@faicad/faijs-brepjs/kernel/kernel2dTypes.js'
 
 export type {
   BBox2dHandle,
   Curve2dHandle,
   Kernel2DCapability,
-} from '../../../vendored/brepjs/kernel/kernel2dTypes.js'
+} from '@faicad/faijs-brepjs/kernel/kernel2dTypes.js'
 
 export {
   supportsConstraintSketch,
   supportsProjection,
-} from '../../../vendored/brepjs/kernel/types.js'
+} from '@faicad/faijs-brepjs/kernel/types.js'
 
 export type {
   BooleanDiagnostics,
@@ -870,14 +870,14 @@ export type {
   ShapeType,
   StepAssemblyPart,
   SurfaceType,
-} from '../../../vendored/brepjs/kernel/types.js'
+} from '@faicad/faijs-brepjs/kernel/types.js'
 
 export {
   buildAsciiSTL,
   buildBinarySTL,
   DEFAULT_STL_ANGULAR_TOLERANCE,
   DEFAULT_STL_TOLERANCE,
-} from '../../../vendored/brepjs/kernel/stlBuilder.js'
+} from '@faicad/faijs-brepjs/kernel/stlBuilder.js'
 
 export {
   buildExtrusionLaw,
@@ -890,17 +890,17 @@ export {
   simplePipe,
   sweep,
   sweepPipeShell,
-} from '../../../vendored/brepjs/kernel/occtWasm/sweepOps.js'
+} from '@faicad/faijs-brepjs/kernel/occtWasm/sweepOps.js'
 
 export {
   buildOcShim,
   wrapKernelExceptions,
-} from '../../../vendored/brepjs/kernel/occtWasm/adapterShims.js'
+} from '@faicad/faijs-brepjs/kernel/occtWasm/adapterShims.js'
 
 export type {
   BulkMeasurement,
   KernelMeasureOps,
-} from '../../../vendored/brepjs/kernel/interfaces/measureOps.js'
+} from '@faicad/faijs-brepjs/kernel/interfaces/measureOps.js'
 
 export {
   chamfer,
@@ -914,7 +914,7 @@ export {
   shell,
   simplify,
   thicken,
-} from '../../../vendored/brepjs/kernel/occtWasm/modifierOps.js'
+} from '@faicad/faijs-brepjs/kernel/occtWasm/modifierOps.js'
 
 export {
   checkBoolean,
@@ -927,11 +927,11 @@ export {
   resolveBooleanTool,
   section,
   split,
-} from '../../../vendored/brepjs/kernel/occtWasm/booleanOps.js'
+} from '@faicad/faijs-brepjs/kernel/occtWasm/booleanOps.js'
 
 export type {
   ResolvedTool,
-} from '../../../vendored/brepjs/kernel/occtWasm/booleanOps.js'
+} from '@faicad/faijs-brepjs/kernel/occtWasm/booleanOps.js'
 
 export {
   circularPattern,
@@ -946,7 +946,7 @@ export {
   transform,
   transformBatch,
   translate,
-} from '../../../vendored/brepjs/kernel/occtWasm/transformOps.js'
+} from '@faicad/faijs-brepjs/kernel/occtWasm/transformOps.js'
 
 export {
   classifyPointOnFace,
@@ -962,25 +962,25 @@ export {
   uvBounds,
   uvFromPoint,
   vertexPosition,
-} from '../../../vendored/brepjs/kernel/occtWasm/surfaceOps.js'
+} from '@faicad/faijs-brepjs/kernel/occtWasm/surfaceOps.js'
 
 export {
   createXCAFDocument,
   fromBREP,
   toBREP,
   writeXCAFToSTEP,
-} from '../../../vendored/brepjs/kernel/occtWasm/ioOps.js'
+} from '@faicad/faijs-brepjs/kernel/occtWasm/ioOps.js'
 
 export {
   currentQuality,
   qualityDeflection,
   setQualityState,
-} from '../../../vendored/brepjs/kernel/quality.js'
+} from '@faicad/faijs-brepjs/kernel/quality.js'
 
 export type {
   QualityDeflection,
   QualityLevel,
-} from '../../../vendored/brepjs/kernel/quality.js'
+} from '@faicad/faijs-brepjs/kernel/quality.js'
 
 export {
   currentQualityTier,
@@ -990,17 +990,17 @@ export {
   getKernel2D,
   getKernelCapabilities,
   registerKernel,
-} from '../../../vendored/brepjs/kernel/index.js'
+} from '@faicad/faijs-brepjs/kernel/index.js'
 
 export {
   DEFAULT_CAPABILITIES,
   EXACT_BREP_CAPABILITIES,
-} from '../../../vendored/brepjs/kernel/capabilities.js'
+} from '@faicad/faijs-brepjs/kernel/capabilities.js'
 
 export type {
   KernelCapabilities,
   TessellationModel,
-} from '../../../vendored/brepjs/kernel/capabilities.js'
+} from '@faicad/faijs-brepjs/kernel/capabilities.js'
 
 export type {
   EmBBoxData,
@@ -1015,7 +1015,7 @@ export type {
   EmVectorUint32,
   OcctKernelWasm,
   OcctWasmModule,
-} from '../../../vendored/brepjs/kernel/occtWasm/occtWasmTypes.js'
+} from '@faicad/faijs-brepjs/kernel/occtWasm/occtWasmTypes.js'
 
 export {
   fixFaceOrientations,
@@ -1026,7 +1026,7 @@ export {
   isValid,
   mergeCoincidentVertices,
   removeDegenerateEdges,
-} from '../../../vendored/brepjs/kernel/occtWasm/repairOps.js'
+} from '@faicad/faijs-brepjs/kernel/occtWasm/repairOps.js'
 
 export {
   handle,
@@ -1041,93 +1041,93 @@ export {
   resolveUniformRadius,
   rotateZToDirection,
   wrapResult,
-} from '../../../vendored/brepjs/kernel/occtWasm/helpers.js'
+} from '@faicad/faijs-brepjs/kernel/occtWasm/helpers.js'
 
 export {
   hasTriangulation,
   mesh,
   meshEdges,
   meshShape,
-} from '../../../vendored/brepjs/kernel/occtWasm/meshOps.js'
+} from '@faicad/faijs-brepjs/kernel/occtWasm/meshOps.js'
 
 export {
   hull,
   hullFromPoints,
-} from '../../../vendored/brepjs/kernel/occtWasm/hullOps.js'
+} from '@faicad/faijs-brepjs/kernel/occtWasm/hullOps.js'
 
 export {
   quickHull,
-} from '../../../vendored/brepjs/kernel/hullGeometry.js'
+} from '@faicad/faijs-brepjs/kernel/hullGeometry.js'
 
 export type {
   HullResult,
-} from '../../../vendored/brepjs/kernel/hullGeometry.js'
+} from '@faicad/faijs-brepjs/kernel/hullGeometry.js'
 
 export {
   isUnsupportedKernelOperationError,
   UnsupportedKernelOperationError,
-} from '../../../vendored/brepjs/kernel/unsupported.js'
+} from '@faicad/faijs-brepjs/kernel/unsupported.js'
 
 export type {
   KernelAdapter,
-} from '../../../vendored/brepjs/kernel/interfaces/index.js'
+} from '@faicad/faijs-brepjs/kernel/interfaces/index.js'
 
 export type {
   KernelBooleanOps,
-} from '../../../vendored/brepjs/kernel/interfaces/booleanOps.js'
+} from '@faicad/faijs-brepjs/kernel/interfaces/booleanOps.js'
 
 export type {
   KernelBuilderOps,
-} from '../../../vendored/brepjs/kernel/interfaces/builderOps.js'
+} from '@faicad/faijs-brepjs/kernel/interfaces/builderOps.js'
 
 export type {
   KernelCore,
-} from '../../../vendored/brepjs/kernel/interfaces/core.js'
+} from '@faicad/faijs-brepjs/kernel/interfaces/core.js'
 
 export type {
   KernelCurveOps,
-} from '../../../vendored/brepjs/kernel/interfaces/curveOps.js'
+} from '@faicad/faijs-brepjs/kernel/interfaces/curveOps.js'
 
 export type {
   KernelEvolutionOps,
-} from '../../../vendored/brepjs/kernel/interfaces/evolutionOps.js'
+} from '@faicad/faijs-brepjs/kernel/interfaces/evolutionOps.js'
 
 export type {
   KernelIOOps,
-} from '../../../vendored/brepjs/kernel/interfaces/ioOps.js'
+} from '@faicad/faijs-brepjs/kernel/interfaces/ioOps.js'
 
 export type {
   KernelMeshOps,
-} from '../../../vendored/brepjs/kernel/interfaces/meshOps.js'
+} from '@faicad/faijs-brepjs/kernel/interfaces/meshOps.js'
 
 export type {
   KernelModifierOps,
-} from '../../../vendored/brepjs/kernel/interfaces/modifierOps.js'
+} from '@faicad/faijs-brepjs/kernel/interfaces/modifierOps.js'
 
 export type {
   KernelPrimitiveOps,
-} from '../../../vendored/brepjs/kernel/interfaces/primitiveOps.js'
+} from '@faicad/faijs-brepjs/kernel/interfaces/primitiveOps.js'
 
 export type {
   KernelRepairOps,
-} from '../../../vendored/brepjs/kernel/interfaces/repairOps.js'
+} from '@faicad/faijs-brepjs/kernel/interfaces/repairOps.js'
 
 export type {
   KernelSurfaceOps,
-} from '../../../vendored/brepjs/kernel/interfaces/surfaceOps.js'
+} from '@faicad/faijs-brepjs/kernel/interfaces/surfaceOps.js'
 
 export type {
   KernelSweepOps,
-} from '../../../vendored/brepjs/kernel/interfaces/sweepOps.js'
+} from '@faicad/faijs-brepjs/kernel/interfaces/sweepOps.js'
 
 export type {
   KernelTopologyOps,
-} from '../../../vendored/brepjs/kernel/interfaces/topologyOps.js'
+} from '@faicad/faijs-brepjs/kernel/interfaces/topologyOps.js'
 
 export type {
   KernelTransformOps,
   TransformEntry,
-} from '../../../vendored/brepjs/kernel/interfaces/transformOps.js'
+} from '@faicad/faijs-brepjs/kernel/interfaces/transformOps.js'
 
 export {
   makeBox,
@@ -1138,51 +1138,51 @@ export {
   makeRectangle,
   makeSphere,
   makeTorus,
-} from '../../../vendored/brepjs/kernel/occtWasm/primitiveOps.js'
+} from '@faicad/faijs-brepjs/kernel/occtWasm/primitiveOps.js'
 
 export {
   OcctWasmAdapter,
-} from '../../../vendored/brepjs/kernel/occtWasm/occtWasmAdapter.js'
+} from '@faicad/faijs-brepjs/kernel/occtWasm/occtWasmAdapter.js'
 
 export type {
   OcctKernelOwner,
-} from '../../../vendored/brepjs/kernel/occtWasm/occtWasmAdapter.js'
+} from '@faicad/faijs-brepjs/kernel/occtWasm/occtWasmAdapter.js'
 
 export type {
   OpenTypeFont,
   OpenTypePathCommand,
-} from '../../../vendored/brepjs/kernel/occt/wasmTypes/externals.js'
+} from '@faicad/faijs-brepjs/kernel/occt/wasmTypes/externals.js'
 
 export {
   solveConstraints,
-} from '../../../vendored/brepjs/kernel/solverAdapter.js'
+} from '@faicad/faijs-brepjs/kernel/solverAdapter.js'
 
 export type {
   SolverConstraint,
   SolverEntity,
   SolverResult,
-} from '../../../vendored/brepjs/kernel/solverAdapter.js'
+} from '@faicad/faijs-brepjs/kernel/solverAdapter.js'
 
 export {
   checkAllInterferences,
   checkInterference,
-} from '../../../vendored/brepjs/measurement/interferenceFns.js'
+} from '@faicad/faijs-brepjs/measurement/interferenceFns.js'
 
 export type {
   InterferencePair,
   InterferenceResult,
-} from '../../../vendored/brepjs/measurement/interferenceFns.js'
+} from '@faicad/faijs-brepjs/measurement/interferenceFns.js'
 
 export {
   clearMeasurementCache,
   getCachedMeasurement,
   setCachedMeasurement,
-} from '../../../vendored/brepjs/measurement/measureCache.js'
+} from '@faicad/faijs-brepjs/measurement/measureCache.js'
 
 export type {
   MeasurementKey,
   MeasurementValueMap,
-} from '../../../vendored/brepjs/measurement/measureCache.js'
+} from '@faicad/faijs-brepjs/measurement/measureCache.js'
 
 export type {
   DistanceProps,
@@ -1190,7 +1190,7 @@ export type {
   PhysicalProps,
   SurfaceProps,
   VolumeProps,
-} from '../../../vendored/brepjs/measurement/measureTypes.js'
+} from '@faicad/faijs-brepjs/measurement/measureTypes.js'
 
 export {
   measureArea,
@@ -1203,7 +1203,7 @@ export {
   measureSurfaceProps,
   measureVolume,
   measureVolumeProps,
-} from '../../../vendored/brepjs/measurement/measureFns.js'
+} from '@faicad/faijs-brepjs/measurement/measureFns.js'
 
 export {
   addChild,
@@ -1214,12 +1214,12 @@ export {
   removeChild,
   updateNode,
   walkAssembly,
-} from '../../../vendored/brepjs/operations/assemblyFns.js'
+} from '@faicad/faijs-brepjs/operations/assemblyFns.js'
 
 export type {
   AssemblyNode,
   AssemblyNodeOptions,
-} from '../../../vendored/brepjs/operations/assemblyFns.js'
+} from '@faicad/faijs-brepjs/operations/assemblyFns.js'
 
 export {
   addJoint,
@@ -1233,7 +1233,7 @@ export {
   setJointValue,
   setJointValues,
   sphericalJoint,
-} from '../../../vendored/brepjs/operations/jointFns.js'
+} from '@faicad/faijs-brepjs/operations/jointFns.js'
 
 export type {
   CylindricalOptions,
@@ -1245,18 +1245,18 @@ export type {
   JointType,
   PlanarOptions,
   SphericalOptions,
-} from '../../../vendored/brepjs/operations/jointFns.js'
+} from '@faicad/faijs-brepjs/operations/jointFns.js'
 
 export {
   addMate,
   solveAssembly,
-} from '../../../vendored/brepjs/operations/mateFns.js'
+} from '@faicad/faijs-brepjs/operations/mateFns.js'
 
 export type {
   AssemblySolveResult,
   MateConstraint,
   MateEntity,
-} from '../../../vendored/brepjs/operations/mateFns.js'
+} from '@faicad/faijs-brepjs/operations/mateFns.js'
 
 export {
   addStep,
@@ -1274,7 +1274,7 @@ export {
   stepCount,
   stepsFrom,
   undoLast,
-} from '../../../vendored/brepjs/operations/historyFns.js'
+} from '@faicad/faijs-brepjs/operations/historyFns.js'
 
 export type {
   ModelHistory,
@@ -1282,15 +1282,15 @@ export type {
   OperationRegistry,
   OperationStep,
   SerializedHistory,
-} from '../../../vendored/brepjs/operations/historyFns.js'
+} from '@faicad/faijs-brepjs/operations/historyFns.js'
 
 export {
   createAssembly,
-} from '../../../vendored/brepjs/operations/exporters.js'
+} from '@faicad/faijs-brepjs/operations/exporters.js'
 
 export type {
   AssemblyExporter,
-} from '../../../vendored/brepjs/operations/exporters.js'
+} from '@faicad/faijs-brepjs/operations/exporters.js'
 
 export {
   boss,
@@ -1298,16 +1298,16 @@ export {
   mirrorJoin,
   pocket,
   rectangularPattern,
-} from '../../../vendored/brepjs/operations/compoundOpsFns.js'
+} from '@faicad/faijs-brepjs/operations/compoundOpsFns.js'
 
 export {
   buildLawFromProfile,
-} from '../../../vendored/brepjs/operations/extrudeUtils.js'
+} from '@faicad/faijs-brepjs/operations/extrudeUtils.js'
 
 export type {
   ExtrusionProfile,
   SweepOptions,
-} from '../../../vendored/brepjs/operations/extrudeUtils.js'
+} from '@faicad/faijs-brepjs/operations/extrudeUtils.js'
 
 export {
   complexExtrude,
@@ -1315,61 +1315,61 @@ export {
   multiSectionSweep,
   supportExtrude,
   twistExtrude,
-} from '../../../vendored/brepjs/operations/sweepFns.js'
+} from '@faicad/faijs-brepjs/operations/sweepFns.js'
 
 export type {
   GuidedSweepOptions,
   MultiSweepOptions,
   SweepSectionConfig,
-} from '../../../vendored/brepjs/operations/sweepFns.js'
+} from '@faicad/faijs-brepjs/operations/sweepFns.js'
 
 export {
   computeStraightSkeleton,
-} from '../../../vendored/brepjs/operations/straightSkeleton.js'
+} from '@faicad/faijs-brepjs/operations/straightSkeleton.js'
 
 export type {
   SkeletonFace,
   SkeletonNode,
   SkPoint2D,
   StraightSkeleton,
-} from '../../../vendored/brepjs/operations/straightSkeleton.js'
+} from '@faicad/faijs-brepjs/operations/straightSkeleton.js'
 
 export {
   convexHull,
-} from '../../../vendored/brepjs/operations/convexHullFns.js'
+} from '@faicad/faijs-brepjs/operations/convexHullFns.js'
 
 export {
   jointsFromDH,
-} from '../../../vendored/brepjs/operations/dhFns.js'
+} from '@faicad/faijs-brepjs/operations/dhFns.js'
 
 export type {
   DHOptions,
   DHRow,
-} from '../../../vendored/brepjs/operations/dhFns.js'
+} from '@faicad/faijs-brepjs/operations/dhFns.js'
 
 export {
   extrudeAll,
-} from '../../../vendored/brepjs/operations/extrudeFns.js'
+} from '@faicad/faijs-brepjs/operations/extrudeFns.js'
 
 export type {
   ExtrudeAllEntry,
-} from '../../../vendored/brepjs/operations/extrudeFns.js'
+} from '@faicad/faijs-brepjs/operations/extrudeFns.js'
 
 export {
   gridPattern,
-} from '../../../vendored/brepjs/operations/patternFns.js'
+} from '@faicad/faijs-brepjs/operations/patternFns.js'
 
 export {
   inverseKinematics,
   jointTrajectory,
-} from '../../../vendored/brepjs/operations/ikFns.js'
+} from '@faicad/faijs-brepjs/operations/ikFns.js'
 
 export type {
   IKOptions,
   IKResult,
   IKTarget,
   TrajectorySample,
-} from '../../../vendored/brepjs/operations/ikFns.js'
+} from '@faicad/faijs-brepjs/operations/ikFns.js'
 
 export {
   instance,
@@ -1378,142 +1378,142 @@ export {
   instanceGrid,
   isInstanced,
   materialize,
-} from '../../../vendored/brepjs/operations/instanceFns.js'
+} from '@faicad/faijs-brepjs/operations/instanceFns.js'
 
 export type {
   InstancedMesh,
   InstancedShape,
   InstanceGridOptions,
   MaterializeOptions,
-} from '../../../vendored/brepjs/operations/instanceFns.js'
+} from '@faicad/faijs-brepjs/operations/instanceFns.js'
 
 export {
   loftAll,
-} from '../../../vendored/brepjs/operations/loftFns.js'
+} from '@faicad/faijs-brepjs/operations/loftFns.js'
 
 export type {
   LoftAllEntry,
   LoftOptions,
-} from '../../../vendored/brepjs/operations/loftFns.js'
+} from '@faicad/faijs-brepjs/operations/loftFns.js'
 
 export type {
   RevolveOptions,
-} from '../../../vendored/brepjs/operations/api.js'
+} from '@faicad/faijs-brepjs/operations/api.js'
 
 export {
   roof,
-} from '../../../vendored/brepjs/operations/roofFns.js'
+} from '@faicad/faijs-brepjs/operations/roofFns.js'
 
 export type {
   RoofOptions,
-} from '../../../vendored/brepjs/operations/roofFns.js'
+} from '@faicad/faijs-brepjs/operations/roofFns.js'
 
 export type {
   ShapeOptions,
-} from '../../../vendored/brepjs/operations/exporterFns.js'
+} from '@faicad/faijs-brepjs/operations/exporterFns.js'
 
 export type {
   SupportedUnit,
-} from '../../../vendored/brepjs/operations/exporterUtils.js'
+} from '@faicad/faijs-brepjs/operations/exporterUtils.js'
 
 export {
   thread,
-} from '../../../vendored/brepjs/operations/threadFns.js'
+} from '@faicad/faijs-brepjs/operations/threadFns.js'
 
 export type {
   ThreadOptions,
-} from '../../../vendored/brepjs/operations/threadFns.js'
+} from '@faicad/faijs-brepjs/operations/threadFns.js'
 
 export type {
   UrdfDocument,
   UrdfExportOptions,
-} from '../../../vendored/brepjs/operations/urdfFns.js'
+} from '@faicad/faijs-brepjs/operations/urdfFns.js'
 
 export {
   cameraFromPlane,
   cameraLookAt,
   createCamera,
-} from '../../../vendored/brepjs/projection/cameraFns.js'
+} from '@faicad/faijs-brepjs/projection/cameraFns.js'
 
 export type {
   Camera,
-} from '../../../vendored/brepjs/projection/cameraFns.js'
+} from '@faicad/faijs-brepjs/projection/cameraFns.js'
 
 export {
   isProjectionPlane,
   PROJECTION_PLANES,
-} from '../../../vendored/brepjs/projection/projectionPlanes.js'
+} from '@faicad/faijs-brepjs/projection/projectionPlanes.js'
 
 export type {
   CubeFace,
   PlaneConfig,
   ProjectionPlane,
-} from '../../../vendored/brepjs/projection/projectionPlanes.js'
+} from '@faicad/faijs-brepjs/projection/projectionPlanes.js'
 
 export {
   makeProjectedEdges,
-} from '../../../vendored/brepjs/projection/makeProjectedEdges.js'
+} from '@faicad/faijs-brepjs/projection/makeProjectedEdges.js'
 
 export {
   cornerFinder,
-} from '../../../vendored/brepjs/query/cornerFinder.js'
+} from '@faicad/faijs-brepjs/query/cornerFinder.js'
 
 export type {
   BlueprintLike,
   Corner,
   CornerFilter,
   CornerFinderFn,
-} from '../../../vendored/brepjs/query/cornerFinder.js'
+} from '@faicad/faijs-brepjs/query/cornerFinder.js'
 
 export {
   createTypedFinder,
-} from '../../../vendored/brepjs/query/finderCore.js'
+} from '@faicad/faijs-brepjs/query/finderCore.js'
 
 export type {
   Predicate,
   ShapeFinder,
   TopoKind,
-} from '../../../vendored/brepjs/query/finderCore.js'
+} from '@faicad/faijs-brepjs/query/finderCore.js'
 
 export {
   resolveDir,
-} from '../../../vendored/brepjs/query/directionUtils.js'
+} from '@faicad/faijs-brepjs/query/directionUtils.js'
 
 export type {
   DirectionInput,
-} from '../../../vendored/brepjs/query/directionUtils.js'
+} from '@faicad/faijs-brepjs/query/directionUtils.js'
 
 export {
   distanceFromPointFilter,
-} from '../../../vendored/brepjs/query/shapeDistanceFilter.js'
+} from '@faicad/faijs-brepjs/query/shapeDistanceFilter.js'
 
 export {
   edgeFinder,
   faceFinder,
   wireFinder,
-} from '../../../vendored/brepjs/query/shapeFinders.js'
+} from '@faicad/faijs-brepjs/query/shapeFinders.js'
 
 export type {
   EdgeFinderFn,
   FaceFinderFn,
   WireFinderFn,
-} from '../../../vendored/brepjs/query/shapeFinders.js'
+} from '@faicad/faijs-brepjs/query/shapeFinders.js'
 
 export {
   getSingleFace,
-} from '../../../vendored/brepjs/query/helpers.js'
+} from '@faicad/faijs-brepjs/query/helpers.js'
 
 export type {
   SingleFace,
-} from '../../../vendored/brepjs/query/helpers.js'
+} from '@faicad/faijs-brepjs/query/helpers.js'
 
 export {
   vertexFinder,
-} from '../../../vendored/brepjs/query/vertexFinder.js'
+} from '@faicad/faijs-brepjs/query/vertexFinder.js'
 
 export type {
   VertexFinderFn,
-} from '../../../vendored/brepjs/query/vertexFinder.js'
+} from '@faicad/faijs-brepjs/query/vertexFinder.js'
 
 export {
   asSketch,
@@ -1530,21 +1530,21 @@ export {
   sketchWires,
   wrapSketchData,
   wrapSketchDataArray,
-} from '../../../vendored/brepjs/sketching/sketchFns.js'
+} from '@faicad/faijs-brepjs/sketching/sketchFns.js'
 
 export {
   default as CompoundSketch,
-} from '../../../vendored/brepjs/sketching/compoundSketch.js'
+} from '@faicad/faijs-brepjs/sketching/compoundSketch.js'
 
 export {
   deserializeDrawing,
   Drawing,
-} from '../../../vendored/brepjs/sketching/drawing.js'
+} from '@faicad/faijs-brepjs/sketching/drawing.js'
 
 export {
   draw,
   DrawingPen,
-} from '../../../vendored/brepjs/sketching/drawingPen.js'
+} from '@faicad/faijs-brepjs/sketching/drawingPen.js'
 
 export {
   drawCircle,
@@ -1557,12 +1557,12 @@ export {
   drawSingleCircle,
   drawSingleEllipse,
   drawText,
-} from '../../../vendored/brepjs/sketching/drawingFactories.js'
+} from '@faicad/faijs-brepjs/sketching/drawingFactories.js'
 
 export {
   drawFaceOutline,
   drawProjection,
-} from '../../../vendored/brepjs/sketching/draw3d.js'
+} from '@faicad/faijs-brepjs/sketching/draw3d.js'
 
 export {
   drawingChamfer,
@@ -1575,15 +1575,15 @@ export {
   rotateDrawing,
   scaleDrawing,
   translateDrawing,
-} from '../../../vendored/brepjs/sketching/drawFns.js'
+} from '@faicad/faijs-brepjs/sketching/drawFns.js'
 
 export {
   default as FaceSketcher,
-} from '../../../vendored/brepjs/sketching/faceSketcher.js'
+} from '@faicad/faijs-brepjs/sketching/faceSketcher.js'
 
 export {
   makeBaseBox,
-} from '../../../vendored/brepjs/sketching/shortcuts.js'
+} from '@faicad/faijs-brepjs/sketching/shortcuts.js'
 
 export {
   polysideInnerRadius,
@@ -1595,46 +1595,46 @@ export {
   sketchPolysides,
   sketchRectangle,
   sketchRoundedRectangle,
-} from '../../../vendored/brepjs/sketching/cannedSketches.js'
+} from '@faicad/faijs-brepjs/sketching/cannedSketches.js'
 
 export type {
   SketchInterface,
-} from '../../../vendored/brepjs/sketching/sketch.js'
+} from '@faicad/faijs-brepjs/sketching/sketch.js'
 
 export {
   default as Sketch,
-} from '../../../vendored/brepjs/sketching/sketch.js'
+} from '@faicad/faijs-brepjs/sketching/sketch.js'
 
 export {
   default as Sketcher,
-} from '../../../vendored/brepjs/sketching/sketcher.js'
+} from '@faicad/faijs-brepjs/sketching/sketcher.js'
 
 export {
   default as Sketches,
-} from '../../../vendored/brepjs/sketching/sketches.js'
+} from '@faicad/faijs-brepjs/sketching/sketches.js'
 
 export {
   fontMetrics,
   textMetrics,
-} from '../../../vendored/brepjs/text/textMetrics.js'
+} from '@faicad/faijs-brepjs/text/textMetrics.js'
 
 export type {
   FontMetricsResult,
   TextMetricsResult,
-} from '../../../vendored/brepjs/text/textMetrics.js'
+} from '@faicad/faijs-brepjs/text/textMetrics.js'
 
 export {
   getFont,
   loadFont,
-} from '../../../vendored/brepjs/text/fontRegistry.js'
+} from '@faicad/faijs-brepjs/text/fontRegistry.js'
 
 export {
   sketchText,
-} from '../../../vendored/brepjs/text/sketchText.js'
+} from '@faicad/faijs-brepjs/text/sketchText.js'
 
 export {
   textBlueprints,
-} from '../../../vendored/brepjs/text/textBlueprints.js'
+} from '@faicad/faijs-brepjs/text/textBlueprints.js'
 
 export {
   addHoles,
@@ -1664,7 +1664,7 @@ export {
   vertex,
   wire,
   wireLoop,
-} from '../../../vendored/brepjs/topology/primitiveFns.js'
+} from '@faicad/faijs-brepjs/topology/primitiveFns.js'
 
 export type {
   BoxOptions,
@@ -1677,7 +1677,7 @@ export type {
   HelixOptions,
   SphereOptions,
   TorusOptions,
-} from '../../../vendored/brepjs/topology/primitiveFns.js'
+} from '@faicad/faijs-brepjs/topology/primitiveFns.js'
 
 export {
   adjacentFaceHashes,
@@ -1687,11 +1687,11 @@ export {
   verticesOfEdge,
   verticesOfFace,
   wiresOfFace,
-} from '../../../vendored/brepjs/topology/adjacencyFns.js'
+} from '@faicad/faijs-brepjs/topology/adjacencyFns.js'
 
 export {
   applyGlue,
-} from '../../../vendored/brepjs/topology/shapeBooleans.js'
+} from '@faicad/faijs-brepjs/topology/shapeBooleans.js'
 
 export {
   applyMatrix,
@@ -1702,13 +1702,13 @@ export {
   sectionToFace,
   slice,
   transformCopy,
-} from '../../../vendored/brepjs/topology/api.js'
+} from '@faicad/faijs-brepjs/topology/api.js'
 
 export type {
   MirrorOptions,
   RotateOptions,
   ScaleOptions,
-} from '../../../vendored/brepjs/topology/api.js'
+} from '@faicad/faijs-brepjs/topology/api.js'
 
 export {
   approximateCurve,
@@ -1722,12 +1722,12 @@ export {
   getCurveType,
   getOrientation,
   interpolateCurve,
-} from '../../../vendored/brepjs/topology/curveFns.js'
+} from '@faicad/faijs-brepjs/topology/curveFns.js'
 
 export type {
   ApproximateCurveOptions,
   InterpolateCurveOptions,
-} from '../../../vendored/brepjs/topology/curveFns.js'
+} from '@faicad/faijs-brepjs/topology/curveFns.js'
 
 export {
   assembleWire,
@@ -1739,12 +1739,12 @@ export {
   makeHelix,
   makeLine,
   makeThreePointArc,
-} from '../../../vendored/brepjs/topology/curveBuilders.js'
+} from '@faicad/faijs-brepjs/topology/curveBuilders.js'
 
 export type {
   BSplineApproximationOptions,
   BSplineInterpolationOptions,
-} from '../../../vendored/brepjs/topology/curveBuilders.js'
+} from '@faicad/faijs-brepjs/topology/curveBuilders.js'
 
 export {
   assignRoles,
@@ -1752,57 +1752,57 @@ export {
   createRef,
   resolveRef,
   updateRoles,
-} from '../../../vendored/brepjs/topology/shapeRef/shapeRefFns.js'
+} from '@faicad/faijs-brepjs/topology/shapeRef/shapeRefFns.js'
 
 export {
   asTopo,
   cast,
   isCompSolid,
   iterTopo,
-} from '../../../vendored/brepjs/topology/cast.js'
+} from '@faicad/faijs-brepjs/topology/cast.js'
 
 export type {
   GenericTopo,
   TopoEntity,
-} from '../../../vendored/brepjs/topology/cast.js'
+} from '@faicad/faijs-brepjs/topology/cast.js'
 
 export {
   autoHeal,
   fixSelfIntersection,
-} from '../../../vendored/brepjs/topology/healingFns.js'
+} from '@faicad/faijs-brepjs/topology/healingFns.js'
 
 export type {
   AutoHealOptions,
   HealingReport,
   HealingStepDiagnostic,
-} from '../../../vendored/brepjs/topology/healingFns.js'
+} from '@faicad/faijs-brepjs/topology/healingFns.js'
 
 export {
   cutAllBisect,
   cutAllBisectWith,
   fuseAllBisect,
   fuseAllBisectWith,
-} from '../../../vendored/brepjs/topology/booleanBatchFns.js'
+} from '@faicad/faijs-brepjs/topology/booleanBatchFns.js'
 
 export type {
   BatchBisectResult,
   BatchBisectTelemetry,
   BisectKernelOps,
-} from '../../../vendored/brepjs/topology/booleanBatchFns.js'
+} from '@faicad/faijs-brepjs/topology/booleanBatchFns.js'
 
 export {
   booleanPipeline,
-} from '../../../vendored/brepjs/topology/booleanFns.js'
+} from '@faicad/faijs-brepjs/topology/booleanFns.js'
 
 export type {
   BooleanPipelineStep,
   PipelineOp,
-} from '../../../vendored/brepjs/topology/booleanFns.js'
+} from '@faicad/faijs-brepjs/topology/booleanFns.js'
 
 export {
   resolve,
   resolve3D,
-} from '../../../vendored/brepjs/topology/apiTypes.js'
+} from '@faicad/faijs-brepjs/topology/apiTypes.js'
 
 export type {
   BossOptions,
@@ -1818,7 +1818,7 @@ export type {
   RectangularPatternOptions,
   Shapeable,
   WrappedMarker,
-} from '../../../vendored/brepjs/topology/apiTypes.js'
+} from '@faicad/faijs-brepjs/topology/apiTypes.js'
 
 export {
   getBounds,
@@ -1842,25 +1842,25 @@ export {
   iterSolids,
   iterVertices,
   iterWires,
-} from '../../../vendored/brepjs/topology/topologyQueryFns.js'
+} from '@faicad/faijs-brepjs/topology/topologyQueryFns.js'
 
 export type {
   Bounds3D,
   ShapeDescription,
   TopoCacheEntry,
-} from '../../../vendored/brepjs/topology/topologyQueryFns.js'
+} from '@faicad/faijs-brepjs/topology/topologyQueryFns.js'
 
 export {
   BrepWrapperError,
   shape,
-} from '../../../vendored/brepjs/topology/wrapperFns.js'
+} from '@faicad/faijs-brepjs/topology/wrapperFns.js'
 
 export type {
   Wrapped,
   Wrapped3D,
   WrappedCurve,
   WrappedFace,
-} from '../../../vendored/brepjs/topology/wrapperFns.js'
+} from '@faicad/faijs-brepjs/topology/wrapperFns.js'
 
 export type {
   BrokenDerivedFaceRef,
@@ -1880,7 +1880,7 @@ export type {
   ShapeRef,
   VertexHint,
   VertexRef,
-} from '../../../vendored/brepjs/topology/shapeRef/shapeRefTypes.js'
+} from '@faicad/faijs-brepjs/topology/shapeRef/shapeRefTypes.js'
 
 export {
   isDerivedFaceRef,
@@ -1891,14 +1891,14 @@ export {
   resolveLineageRef,
   resolveRefIn,
   resolveRefParams,
-} from '../../../vendored/brepjs/topology/shapeRef/refResolveFns.js'
+} from '@faicad/faijs-brepjs/topology/shapeRef/refResolveFns.js'
 
 export type {
   BrokenReason,
   LineageRef,
   LineageResolution,
   ResolvedEntity,
-} from '../../../vendored/brepjs/topology/shapeRef/refResolveFns.js'
+} from '@faicad/faijs-brepjs/topology/shapeRef/refResolveFns.js'
 
 export {
   toBufferGeometryData,
@@ -1906,7 +1906,7 @@ export {
   toLineGeometryData,
   toLODGeometryData,
   toLODGeometryLevels,
-} from '../../../vendored/brepjs/topology/threeHelpers.js'
+} from '@faicad/faijs-brepjs/topology/threeHelpers.js'
 
 export type {
   BufferGeometryData,
@@ -1915,7 +1915,7 @@ export type {
   LineGeometryData,
   LODGeometryData,
   LODGeometryLevel,
-} from '../../../vendored/brepjs/topology/threeHelpers.js'
+} from '@faicad/faijs-brepjs/topology/threeHelpers.js'
 
 export {
   buildEdgeMeshCacheKey,
@@ -1926,22 +1926,22 @@ export {
   getMeshForShape,
   setEdgeMeshForShape,
   setMeshForShape,
-} from '../../../vendored/brepjs/topology/meshCache.js'
+} from '@faicad/faijs-brepjs/topology/meshCache.js'
 
 export type {
   MeshCacheContext,
-} from '../../../vendored/brepjs/topology/meshCache.js'
+} from '@faicad/faijs-brepjs/topology/meshCache.js'
 
 export {
   isChamferRadius,
   isFilletRadius,
   isNumber,
-} from '../../../vendored/brepjs/topology/shapeModifiers.js'
+} from '@faicad/faijs-brepjs/topology/shapeModifiers.js'
 
 export type {
   ChamferRadius,
   RadiusOptions,
-} from '../../../vendored/brepjs/topology/shapeModifiers.js'
+} from '@faicad/faijs-brepjs/topology/shapeModifiers.js'
 
 export {
   chamferWithEvolution,
@@ -1950,11 +1950,11 @@ export {
   fuseWithEvolution,
   intersectWithEvolution,
   shellWithEvolution,
-} from '../../../vendored/brepjs/topology/evolutionFns.js'
+} from '@faicad/faijs-brepjs/topology/evolutionFns.js'
 
 export type {
   EvolutionResult,
-} from '../../../vendored/brepjs/topology/evolutionFns.js'
+} from '@faicad/faijs-brepjs/topology/evolutionFns.js'
 
 export {
   collectInputFaceHashes,
@@ -1962,7 +1962,7 @@ export {
   propagateAllMetadata,
   propagateMetadataByHash,
   propagateMetadataThroughRelocation,
-} from '../../../vendored/brepjs/topology/metadata/metadataPropagation.js'
+} from '@faicad/faijs-brepjs/topology/metadata/metadataPropagation.js'
 
 export {
   colorFaces,
@@ -1972,52 +1972,52 @@ export {
   hasColorMetadata,
   parseColor,
   propagateColorsFromEvolution,
-} from '../../../vendored/brepjs/topology/metadata/colorFns.js'
+} from '@faicad/faijs-brepjs/topology/metadata/colorFns.js'
 
 export type {
   Color,
   ColorInput,
-} from '../../../vendored/brepjs/topology/metadata/colorFns.js'
+} from '@faicad/faijs-brepjs/topology/metadata/colorFns.js'
 
 export {
   composeTransforms,
   resize,
-} from '../../../vendored/brepjs/topology/transformFns.js'
+} from '@faicad/faijs-brepjs/topology/transformFns.js'
 
 export type {
   ComposedTransform,
   TransformOp,
-} from '../../../vendored/brepjs/topology/transformFns.js'
+} from '@faicad/faijs-brepjs/topology/transformFns.js'
 
 export {
   createDerivedFaceRef,
   resolveDerivedFaceRef,
-} from '../../../vendored/brepjs/topology/shapeRef/derivedFaceRefFns.js'
+} from '@faicad/faijs-brepjs/topology/shapeRef/derivedFaceRefFns.js'
 
 export {
   createEdgeRef,
   resolveEdgeRef,
-} from '../../../vendored/brepjs/topology/shapeRef/edgeRefFns.js'
+} from '@faicad/faijs-brepjs/topology/shapeRef/edgeRefFns.js'
 
 export {
   createVertexRef,
   resolveVertexRef,
-} from '../../../vendored/brepjs/topology/shapeRef/vertexRefFns.js'
+} from '@faicad/faijs-brepjs/topology/shapeRef/vertexRefFns.js'
 
 export {
   defaultScorer,
-} from '../../../vendored/brepjs/topology/shapeRef/scoring.js'
+} from '@faicad/faijs-brepjs/topology/shapeRef/scoring.js'
 
 export type {
   FaceScorer,
-} from '../../../vendored/brepjs/topology/shapeRef/scoring.js'
+} from '@faicad/faijs-brepjs/topology/shapeRef/scoring.js'
 
 export {
   meshLODs,
   meshLODsProgressive,
   meshMultiLOD,
   scaleDefaultTolerance,
-} from '../../../vendored/brepjs/topology/meshFns.js'
+} from '@faicad/faijs-brepjs/topology/meshFns.js'
 
 export type {
   EdgeMesh,
@@ -2027,7 +2027,7 @@ export type {
   MeshLODsProgressiveOptions,
   MultiLODMesh,
   ShapeMesh,
-} from '../../../vendored/brepjs/topology/meshFns.js'
+} from '@faicad/faijs-brepjs/topology/meshFns.js'
 
 export {
   faceAxis,
@@ -2039,24 +2039,24 @@ export {
   innerWires,
   normalAt,
   uvCoordinates,
-} from '../../../vendored/brepjs/topology/faceFns.js'
+} from '@faicad/faijs-brepjs/topology/faceFns.js'
 
 export type {
   PointProjectionResult,
   UVBounds,
-} from '../../../vendored/brepjs/topology/faceFns.js'
+} from '@faicad/faijs-brepjs/topology/faceFns.js'
 
 export {
   facesForRole,
   roleOfFace,
   vertexCentroid,
-} from '../../../vendored/brepjs/topology/shapeRef/roleLookup.js'
+} from '@faicad/faijs-brepjs/topology/shapeRef/roleLookup.js'
 
 export {
   fill,
   makeNewFaceWithinFace,
   makePolygon,
-} from '../../../vendored/brepjs/topology/surfaceBuilders.js'
+} from '@faicad/faijs-brepjs/topology/surfaceBuilders.js'
 
 export {
   findFacesByTag,
@@ -2066,72 +2066,72 @@ export {
   propagateFaceTagsFromEvolution,
   setTagMetadata,
   tagFaces,
-} from '../../../vendored/brepjs/topology/metadata/faceTagFns.js'
+} from '@faicad/faijs-brepjs/topology/metadata/faceTagFns.js'
 
 export {
   getFaceOrigins,
   propagateOriginsByHash,
   propagateOriginsFromEvolution,
   setShapeOrigin,
-} from '../../../vendored/brepjs/topology/metadata/originTrackingFns.js'
+} from '@faicad/faijs-brepjs/topology/metadata/originTrackingFns.js'
 
 export {
   getHashCode,
   isEqualShape,
   isSameShape,
-} from '../../../vendored/brepjs/topology/shapeFns.js'
+} from '@faicad/faijs-brepjs/topology/shapeFns.js'
 
 export {
   getNurbsSurfaceData,
-} from '../../../vendored/brepjs/topology/nurbsFns.js'
+} from '@faicad/faijs-brepjs/topology/nurbsFns.js'
 
 export type {
   HullOptions,
-} from '../../../vendored/brepjs/topology/hullFns.js'
+} from '@faicad/faijs-brepjs/topology/hullFns.js'
 
 export {
   makeOffset,
   makeSolid,
-} from '../../../vendored/brepjs/topology/solidBuilders.js'
+} from '@faicad/faijs-brepjs/topology/solidBuilders.js'
 
 export {
   minkowski,
-} from '../../../vendored/brepjs/topology/minkowskiFns.js'
+} from '@faicad/faijs-brepjs/topology/minkowskiFns.js'
 
 export type {
   MinkowskiOptions,
-} from '../../../vendored/brepjs/topology/minkowskiFns.js'
+} from '@faicad/faijs-brepjs/topology/minkowskiFns.js'
 
 export {
   polyhedron,
-} from '../../../vendored/brepjs/topology/polyhedronFns.js'
+} from '@faicad/faijs-brepjs/topology/polyhedronFns.js'
 
 export type {
   PolyhedronOptions,
-} from '../../../vendored/brepjs/topology/polyhedronFns.js'
+} from '@faicad/faijs-brepjs/topology/polyhedronFns.js'
 
 export {
   surfaceFromGrid,
   surfaceFromImage,
-} from '../../../vendored/brepjs/topology/surfaceFns.js'
+} from '@faicad/faijs-brepjs/topology/surfaceFns.js'
 
 export type {
   SurfaceFromGridOptions,
   SurfaceFromImageOptions,
-} from '../../../vendored/brepjs/topology/surfaceFns.js'
+} from '@faicad/faijs-brepjs/topology/surfaceFns.js'
 
 export {
   variableFillet,
-} from '../../../vendored/brepjs/topology/modifierFns.js'
+} from '@faicad/faijs-brepjs/topology/modifierFns.js'
 
 export type {
   VariableFilletRadius,
-} from '../../../vendored/brepjs/topology/modifierFns.js'
+} from '@faicad/faijs-brepjs/topology/modifierFns.js'
 
 export {
   weldShapes,
   weldShellsAndFaces,
-} from '../../../vendored/brepjs/topology/shapeUtils.js'
+} from '@faicad/faijs-brepjs/topology/shapeUtils.js'
 
 export {
   add2d,
@@ -2149,56 +2149,56 @@ export {
   scalarMultiply2d,
   squareDistance2d,
   subtract2d,
-} from '../../../vendored/brepjs/utils/vec2d.js'
+} from '@faicad/faijs-brepjs/utils/vec2d.js'
 
 export type {
   Point2D,
-} from '../../../vendored/brepjs/utils/vec2d.js'
+} from '@faicad/faijs-brepjs/utils/vec2d.js'
 
 export {
   BrepBugError,
   bug,
-} from '../../../vendored/brepjs/utils/bug.js'
+} from '@faicad/faijs-brepjs/utils/bug.js'
 
 export {
   firstOrThrow,
   getAtOrThrow,
   lastOrThrow,
-} from '../../../vendored/brepjs/utils/arrayAccess.js'
+} from '@faicad/faijs-brepjs/utils/arrayAccess.js'
 
 export {
   round2,
   round5,
-} from '../../../vendored/brepjs/utils/precisionRound.js'
+} from '@faicad/faijs-brepjs/utils/precisionRound.js'
 
 export {
   default as precisionRound,
-} from '../../../vendored/brepjs/utils/precisionRound.js'
+} from '@faicad/faijs-brepjs/utils/precisionRound.js'
 
 export {
   quatFromAxisAngle,
   quatFromTo,
   quatMultiply,
   quatRotate,
-} from '../../../vendored/brepjs/utils/quaternion.js'
+} from '@faicad/faijs-brepjs/utils/quaternion.js'
 
 export type {
   Quat,
-} from '../../../vendored/brepjs/utils/quaternion.js'
+} from '@faicad/faijs-brepjs/utils/quaternion.js'
 
 export {
   default as range,
-} from '../../../vendored/brepjs/utils/range.js'
+} from '@faicad/faijs-brepjs/utils/range.js'
 
 export {
   uniqueIOFilename,
-} from '../../../vendored/brepjs/utils/ioFilename.js'
+} from '@faicad/faijs-brepjs/utils/ioFilename.js'
 
 export {
   uuidv,
-} from '../../../vendored/brepjs/utils/uuid.js'
+} from '@faicad/faijs-brepjs/utils/uuid.js'
 
 export {
   vec3At,
   wasmIndex,
-} from '../../../vendored/brepjs/utils/vec3.js'
+} from '@faicad/faijs-brepjs/utils/vec3.js'

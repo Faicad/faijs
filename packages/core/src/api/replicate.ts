@@ -51,7 +51,7 @@ import {
   mirror as generatedMirror,
   clone as generatedClone,
 } from './generated/topology'
-import type { MirrorOptions } from '../vendored/brepjs/topology/api'
+import type { MirrorOptions } from '@faicad/faijs-brepjs/topology/api'
 
 /** Normalize a vector (zero vector → [0,0,1] fallback, same as pattern.ts). */
 function norm(v: Vec3): Vec3 {

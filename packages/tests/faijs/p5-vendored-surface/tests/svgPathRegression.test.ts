@@ -7,10 +7,10 @@
 
 import { describe, expect, it, beforeAll } from 'vitest';
 import { initKernel } from '../kernel-setup.js';
-import { roundedRectangleBlueprint } from '@faicad/faijs/vendored/brepjs/2d/blueprints/cannedBlueprints.js';
-import { adaptedCurveToPathElem } from '@faicad/faijs/vendored/brepjs/2d/lib/svgPath.js';
-import { approximateAsSvgCompatibleCurve } from '@faicad/faijs/vendored/brepjs/2d/lib/approximations.js';
-import { make2dCircle, make2dEllipseArc } from '@faicad/faijs/vendored/brepjs/2d/lib/makeCurves.js';
+import { roundedRectangleBlueprint } from '@faicad/faijs-brepjs/2d/blueprints/cannedBlueprints.js';
+import { adaptedCurveToPathElem } from '@faicad/faijs-brepjs/2d/lib/svgPath.js';
+import { approximateAsSvgCompatibleCurve } from '@faicad/faijs-brepjs/2d/lib/approximations.js';
+import { make2dCircle, make2dEllipseArc } from '@faicad/faijs-brepjs/2d/lib/makeCurves.js';
 
 beforeAll(async () => {
   await initKernel();

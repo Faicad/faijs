@@ -3,7 +3,7 @@
  *
  * @example
  * ```typescript
- * import { sweep, linearPattern } from 'brepjs/operations';
+ * import { sweep, linearPattern } from '@faicad/faijs-brepjs/operations';
  * ```
  */
 

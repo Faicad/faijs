@@ -21,8 +21,8 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-/** vendored 移植树根（packages/core/src/vendored/brepjs）。 */
-const VENDORED_ROOT = fileURLToPath(new URL('../../../../packages/core/src/vendored/brepjs', import.meta.url))
+/** vendored 移植树根（packages/brepjs/src，2026-09-25 剥离子包）。 */
+const VENDORED_ROOT = fileURLToPath(new URL('../../../../packages/brepjs/src', import.meta.url))
 /** core 源码根（packages/core/src）。 */
 const CORE_SRC = fileURLToPath(new URL('../../../../packages/core/src', import.meta.url))
 

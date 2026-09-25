@@ -3,7 +3,7 @@
  *
  * @example
  * ```typescript
- * import { createBlueprint, fuse2D, Blueprint } from 'brepjs/2d';
+ * import { createBlueprint, fuse2D, Blueprint } from '@faicad/faijs-brepjs/2d';
  *
  * // Clean 2D API (recommended)
  * const translated = translate2D(bp, 10, 20);

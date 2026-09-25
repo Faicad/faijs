@@ -21,7 +21,7 @@ import type {
   Vec3,
 } from 'occt-wasm'
 import { initOcctWasm } from './occtKernel'
-import { OcctWasmAdapter } from '../vendored/brepjs/kernel/occtWasm/occtWasmAdapter'
+import { OcctWasmAdapter } from '@faicad/faijs-brepjs/kernel/occtWasm/occtWasmAdapter'
 import type { AssertSatisfiesBrepEngineApi, BrepEngineApi } from '../brep/engine/primitives'
 import type {
   BrepBoundingBox,

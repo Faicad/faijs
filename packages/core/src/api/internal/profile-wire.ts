@@ -18,8 +18,8 @@
 
 import type { Shape } from '../../mesh/types'
 import { isCurveShape } from '../../shape'
-import type { ShapeHandle } from '../../vendored/brepjs/core/disposal.js'
-import { outerWire as vendoredOuterWire } from '../../vendored/brepjs/topology/faceFns.js'
+import type { ShapeHandle } from '@faicad/faijs-brepjs/core/disposal.js'
+import { outerWire as vendoredOuterWire } from '@faicad/faijs-brepjs/topology/faceFns.js'
 import { borrowBrepjsShape } from './l3-bridge'
 
 /**

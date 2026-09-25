@@ -42,8 +42,6 @@ export default {
   "revolve": {},
   "sweep": {},
   "loft": {},
-  "splitByPlane": {},
-  "sectionByPlane": {},
   "faceNormal": {},
   "bboxCenter": {},
   "bboxMin": {},

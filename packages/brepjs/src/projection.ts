@@ -3,7 +3,7 @@
  *
  * @example
  * ```typescript
- * import { createCamera, projectEdges } from 'brepjs/projection';
+ * import { createCamera, projectEdges } from '@faicad/faijs-brepjs/projection';
  * ```
  */
 

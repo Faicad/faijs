@@ -28,9 +28,11 @@ const PATTERNS = [
   'packages/AGENTS.md',
 ]
 
-/** Exclude plans/ and analysis/ (not subject to wrap checking). */
+/** Exclude plans/, analysis/ and the vendored transplant root (not subject to wrap checking). */
 function isExcluded(relativePath: string): boolean {
-  return relativePath.startsWith('docs/plans/') || relativePath.startsWith('docs/analysis/')
+  return relativePath.startsWith('docs/plans/')
+    || relativePath.startsWith('docs/analysis/')
+    || relativePath.startsWith('packages/brepjs/src/')
 }
 
 /** A located hard-wrap: a prose paragraph spanning more than one source line. */

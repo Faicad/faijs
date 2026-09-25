@@ -18,9 +18,9 @@
 
 import type { Shape } from '../../mesh/types'
 import { borrowBrepjsShape } from '../internal/l3-bridge'
-import { drawProjection } from '../../vendored/brepjs/sketching/draw3d.js'
-import type { Drawing } from '../../vendored/brepjs/sketching/drawing.js'
-import type { AnyShape } from '../../vendored/brepjs/core/shapeTypes.js'
+import { drawProjection } from '@faicad/faijs-brepjs/sketching/draw3d.js'
+import type { Drawing } from '@faicad/faijs-brepjs/sketching/drawing.js'
+import type { AnyShape } from '@faicad/faijs-brepjs/core/shapeTypes.js'
 import { resolveCamera, type ViewSpec } from './view-camera'
 
 /** projectView 的序列化选项。 */

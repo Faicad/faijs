@@ -10,6 +10,7 @@
     "docs/plans/",
     "docs/analysis/",
     "docs/handover/",
-    "packages/core/src/vendored/"
+    "packages/core/src/vendored/",
+    "packages/brepjs/src/"
   ]
 }

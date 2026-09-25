@@ -20,7 +20,7 @@
     "url": "https://gitcode.com/Faicad/faijs.git"
   },
   "scripts": {
-    "build": "npm run build -w @faicad/faijs",
+    "build": "npm run build -w @faicad/faijs-brepjs && npm run build -w @faicad/faijs && npm run build -w @faicad/sheetmetal",
     "clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
     "prepare": "node scripts/install-lefthook.mjs",
     "test": "vitest run",
@@ -51,6 +51,7 @@
     "compat:report": "tsx packages/cq-compat/tests/gen-manifest.ts && tsx packages/cq-compat/tests/run-cand.ts && tsx packages/cq-compat/tests/compare.ts"
   },
   "workspaces": [
+    "packages/brepjs",
     "packages/core",
     "packages/faijs-extra",
     "packages/fcstd",

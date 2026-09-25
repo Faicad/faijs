@@ -18,7 +18,7 @@ import {
   getFaces,
   getKernel,
 } from '../p5-surface.js';
-import type { Wire } from '@faicad/faijs/vendored/brepjs/core/shapeTypes.js';
+import type { Wire } from '@faicad/faijs-brepjs/core/shapeTypes.js';
 
 describe('sweepFns', () => {
   beforeAll(async () => {

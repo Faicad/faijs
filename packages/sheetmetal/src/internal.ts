@@ -1,4 +1,4 @@
-import { type Solid, type Vec3, isSolid, getSolids } from '@faicad/faijs/brepjs-compat';
+import { type Solid, type Vec3, isSolid, getSolids } from '@faicad/faijs-brepjs';
 import type { FlatSide } from './types.js';
 
 /**

@@ -14,7 +14,7 @@
 import type { Shape } from '../mesh/types'
 import { defineOp } from '../sdk'
 import type { Provenance } from '../topology/naming/lineage'
-import { thicken as vendoredThicken } from '../vendored/brepjs/topology/modifierFns.js'
+import { thicken as vendoredThicken } from '@faicad/faijs-brepjs/topology/modifierFns.js'
 import { adoptEntity, borrowBrepjsShape, callBrepjs } from './internal/l3-bridge'
 import { unwrapOrThrow } from './internal/compat-op'
 

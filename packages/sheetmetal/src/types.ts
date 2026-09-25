@@ -1,4 +1,4 @@
-import type { Solid, Wire, Edge, Bounds3D } from '@faicad/faijs/brepjs-compat';
+import type { Solid, Wire, Edge, Bounds3D } from '@faicad/faijs-brepjs';
 
 /** Which edge of a flat a child flange folds off. */
 export type FlatSide = 'xmin' | 'xmax' | 'ymin' | 'ymax';

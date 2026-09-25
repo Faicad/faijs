@@ -25,7 +25,7 @@
 import { getKernel as getFaijsKernel } from '../occt-kernel/occtKernel'
 import { getBrepEngine, type BrepEngine } from '../brep/engine/registry'
 import type { BrepEngineApi } from '../brep/engine/primitives'
-import { OcctWasmAdapter } from '../vendored/brepjs/kernel/occtWasm/occtWasmAdapter.js'
+import { OcctWasmAdapter } from '@faicad/faijs-brepjs/kernel/occtWasm/occtWasmAdapter.js'
 import {
   freezeKernels,
   getActiveKernelId,
@@ -34,8 +34,8 @@ import {
   syncRegistryFromGlobal,
   syncRegistryToGlobal,
   __resetKernelRegistryForTests,
-} from '../vendored/brepjs/kernel/index.js'
-import type { KernelAdapter } from '../vendored/brepjs/kernel/types.js'
+} from '@faicad/faijs-brepjs/kernel/index.js'
+import type { KernelAdapter } from '@faicad/faijs-brepjs/kernel/types.js'
 
 /** occt-wasm 适配器在 vendored registry 中的注册 id。这是 vendored 注册表的
  * 槽位名（宿主侧判据 + D10 globalThis 单例兼容），**不是**引擎身份标识——

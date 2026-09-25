@@ -32,7 +32,7 @@
 import { assertKernelBound, projectBrepOp } from '../internal/compat-projection'
 import { isObjectForm } from '../internal/dual-form-args'
 
-import type { ValidSolid } from '../../vendored/brepjs/core/shapeTypes.js'
+import type { ValidSolid } from '@faicad/faijs-brepjs/core/shapeTypes.js'
 
 /** Signature of a compat op projection (inputs normalized before the call). */
 type CompatOp = (...args: unknown[]) => unknown
@@ -78,7 +78,7 @@ import {
   cone as primitiveCone,
   torus as primitiveTorus,
   ellipsoid as primitiveEllipsoid,
-} from '../../vendored/brepjs/topology/primitiveFns.js'
+} from '@faicad/faijs-brepjs/topology/primitiveFns.js'
 
 /**
  * Create a solid box.
@@ -196,12 +196,12 @@ import {
   fillet as vendoredFillet,
   chamfer as vendoredChamfer,
   simplify as vendoredSimplify,
-} from '../../vendored/brepjs/topology/api.js'
+} from '@faicad/faijs-brepjs/topology/api.js'
 import {
   makeCompound as vendoredMakeCompound,
   makeVertex as vendoredMakeVertex,
-} from '../../vendored/brepjs/topology/solidBuilders.js'
-import { applyMatrix as vendoredApplyMatrix } from '../../vendored/brepjs/topology/transformFns.js'
+} from '@faicad/faijs-brepjs/topology/solidBuilders.js'
+import { applyMatrix as vendoredApplyMatrix } from '@faicad/faijs-brepjs/topology/transformFns.js'
 import {
   makeCircle as vendoredMakeCircle,
   makeEllipse as vendoredMakeEllipse,
@@ -210,20 +210,20 @@ import {
   makeTangentArc as vendoredMakeTangentArc,
   makeBSplineInterpolation as vendoredMakeBSplineInterpolation,
   assembleWire as vendoredAssembleWire,
-} from '../../vendored/brepjs/topology/curveBuilders.js'
+} from '@faicad/faijs-brepjs/topology/curveBuilders.js'
 import {
   curveTangentAt as vendoredCurveTangentAt,
   curvePointAt as vendoredCurvePointAt,
-} from '../../vendored/brepjs/topology/curveFns.js'
+} from '@faicad/faijs-brepjs/topology/curveFns.js'
 import {
   makeFace as vendoredMakeFace,
   addHolesInFace as vendoredAddHolesInFace,
-} from '../../vendored/brepjs/topology/surfaceBuilders.js'
+} from '@faicad/faijs-brepjs/topology/surfaceBuilders.js'
 import {
   extrude as vendoredExtrude,
   revolve as vendoredRevolve,
   loft as vendoredLoft,
-} from '../../vendored/brepjs/operations/api.js'
+} from '@faicad/faijs-brepjs/operations/api.js'
 
 /** Fuse two shapeables into one 3D result. */
 export const fuse = wrapGuarded('fuse', vendoredFuse)
@@ -318,8 +318,8 @@ import {
   makeExternalGear as vendoredMakeExternalGear,
   makeInternalGear as vendoredMakeInternalGear,
   makePlanetaryGear as vendoredMakePlanetaryGear,
-} from '../../vendored/brepjs/gear/gearFns.js'
-import { thread as vendoredThread } from '../../vendored/brepjs/operations/threadFns.js'
+} from '@faicad/faijs-brepjs/gear/gearFns.js'
+import { thread as vendoredThread } from '@faicad/faijs-brepjs/operations/threadFns.js'
 
 /**
  * Build an external spur gear.
@@ -352,8 +352,8 @@ export type {
   PlanetaryGearParams,
   GearResult,
   PlanetaryGearAssembly,
-} from '../../vendored/brepjs/gear/gearFns.js'
-export type { ThreadOptions } from '../../vendored/brepjs/operations/threadFns.js'
+} from '@faicad/faijs-brepjs/gear/gearFns.js'
+export type { ThreadOptions } from '@faicad/faijs-brepjs/operations/threadFns.js'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ② sub-shape queries + measurements
@@ -369,22 +369,22 @@ export {
   getCompSolids,
   getBounds,
   vertexPosition,
-} from '../../vendored/brepjs/topology/topologyQueryFns.js'
+} from '@faicad/faijs-brepjs/topology/topologyQueryFns.js'
 
-export type { Bounds3D } from '../../vendored/brepjs/topology/topologyQueryFns.js'
+export type { Bounds3D } from '@faicad/faijs-brepjs/topology/topologyQueryFns.js'
 
 export {
   measureVolume,
   measureArea,
   measureLength,
-} from '../../vendored/brepjs/measurement/measureFns.js'
+} from '@faicad/faijs-brepjs/measurement/measureFns.js'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ③ sketching DSL + drawing factories
 // ─────────────────────────────────────────────────────────────────────────────
 
-export { default as Sketcher } from '../../vendored/brepjs/sketching/sketcher.js'
-export { default as FaceSketcher } from '../../vendored/brepjs/sketching/faceSketcher.js'
+export { default as Sketcher } from '@faicad/faijs-brepjs/sketching/sketcher.js'
+export { default as FaceSketcher } from '@faicad/faijs-brepjs/sketching/faceSketcher.js'
 
 export {
   drawCircle,
@@ -395,10 +395,10 @@ export {
   drawSingleEllipse,
   drawPolysides,
   drawText,
-} from '../../vendored/brepjs/sketching/drawingFactories.js'
+} from '@faicad/faijs-brepjs/sketching/drawingFactories.js'
 
-export { draw } from '../../vendored/brepjs/sketching/drawingPen.js'
-export { makeBaseBox } from '../../vendored/brepjs/sketching/shortcuts.js'
+export { draw } from '@faicad/faijs-brepjs/sketching/drawingPen.js'
+export { makeBaseBox } from '@faicad/faijs-brepjs/sketching/shortcuts.js'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ④ combinators / pure helpers / types
@@ -413,8 +413,8 @@ export {
   unwrapOr,
   map,
   andThen,
-} from '../../vendored/brepjs/core/result.js'
-export type { Result, Ok, Err } from '../../vendored/brepjs/core/result.js'
+} from '@faicad/faijs-brepjs/core/result.js'
+export type { Result, Ok, Err } from '@faicad/faijs-brepjs/core/result.js'
 
 export {
   vecAdd,
@@ -424,18 +424,18 @@ export {
   vecCross,
   vecLength,
   vecNormalize,
-} from '../../vendored/brepjs/core/vecOps.js'
+} from '@faicad/faijs-brepjs/core/vecOps.js'
 
 export {
   createPlane,
   createNamedPlane,
   resolvePlane,
-} from '../../vendored/brepjs/core/planeOps.js'
+} from '@faicad/faijs-brepjs/core/planeOps.js'
 
-export { kernelError, validationError } from '../../vendored/brepjs/core/errors.js'
-export type { BrepError } from '../../vendored/brepjs/core/errors.js'
+export { kernelError, validationError } from '@faicad/faijs-brepjs/core/errors.js'
+export type { BrepError } from '@faicad/faijs-brepjs/core/errors.js'
 
-export { DEG2RAD, RAD2DEG } from '../../vendored/brepjs/core/constants.js'
+export { DEG2RAD, RAD2DEG } from '@faicad/faijs-brepjs/core/constants.js'
 
 export type {
   Vertex,
@@ -449,13 +449,13 @@ export type {
   ValidSolid,
   ClosedWire,
   AnyShape,
-} from '../../vendored/brepjs/core/shapeTypes.js'
+} from '@faicad/faijs-brepjs/core/shapeTypes.js'
 
-export type { GearGeometry } from '../../vendored/brepjs/gear/gearMath.js'
+export type { GearGeometry } from '@faicad/faijs-brepjs/gear/gearMath.js'
 
-export type { Plane, PlaneName, PlaneInput } from '../../vendored/brepjs/core/planeTypes.js'
+export type { Plane, PlaneName, PlaneInput } from '@faicad/faijs-brepjs/core/planeTypes.js'
 
-export type { Vec3, PointInput } from '../../vendored/brepjs/core/types.js'
+export type { Vec3, PointInput } from '@faicad/faijs-brepjs/core/types.js'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ⑤ raw 2D-morph + transform + face ports (P25: sheetmetal 单一说明符面)
@@ -473,26 +473,26 @@ import {
   wireLoop as rawWireLoop,
   face as rawFace,
   polygon as rawPolygon,
-} from '../../vendored/brepjs/topology/primitiveFns.js'
+} from '@faicad/faijs-brepjs/topology/primitiveFns.js'
 import {
   outerWire as rawOuterWire,
   getSurfaceType as rawSurfaceType,
   pointOnSurface as rawPointOnSurface,
   normalAt as rawNormalAt,
   faceCenter as rawFaceCenter,
-} from '../../vendored/brepjs/topology/faceFns.js'
-import { sharedEdges as rawSharedEdges } from '../../vendored/brepjs/topology/adjacencyFns.js'
+} from '@faicad/faijs-brepjs/topology/faceFns.js'
+import { sharedEdges as rawSharedEdges } from '@faicad/faijs-brepjs/topology/adjacencyFns.js'
 import {
   curveStartPoint as rawCurveStartPoint,
   curveEndPoint as rawCurveEndPoint,
-} from '../../vendored/brepjs/topology/curveFns.js'
-import { translate as rawTranslate } from '../../vendored/brepjs/topology/transformFns.js'
-import { rotate as rawRotate } from '../../vendored/brepjs/topology/transformFns.js'
-import { isSolid as rawIsSolid } from '../../vendored/brepjs/core/shapeTypes.js'
-import { isPlanarWire as rawIsPlanarWire } from '../../vendored/brepjs/core/validityTypes.js'
-import { isValid as rawIsValid } from '../../vendored/brepjs/topology/healingFns.js'
-import type { AnyShape } from '../../vendored/brepjs/core/shapeTypes.js'
-import type { Vec3 } from '../../vendored/brepjs/core/types.js'
+} from '@faicad/faijs-brepjs/topology/curveFns.js'
+import { translate as rawTranslate } from '@faicad/faijs-brepjs/topology/transformFns.js'
+import { rotate as rawRotate } from '@faicad/faijs-brepjs/topology/transformFns.js'
+import { isSolid as rawIsSolid } from '@faicad/faijs-brepjs/core/shapeTypes.js'
+import { isPlanarWire as rawIsPlanarWire } from '@faicad/faijs-brepjs/core/validityTypes.js'
+import { isValid as rawIsValid } from '@faicad/faijs-brepjs/topology/healingFns.js'
+import type { AnyShape } from '@faicad/faijs-brepjs/core/shapeTypes.js'
+import type { Vec3 } from '@faicad/faijs-brepjs/core/types.js'
 
 export {
   rawLine as line,

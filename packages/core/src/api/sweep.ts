@@ -21,7 +21,7 @@
 import type { Shape } from '../mesh/types'
 import { defineOp } from '../sdk'
 import type { Provenance } from '../topology/naming/lineage'
-import { sweep as vendoredSweep, type SweepOptions } from '../vendored/brepjs/operations/sweepFns.js'
+import { sweep as vendoredSweep, type SweepOptions } from '@faicad/faijs-brepjs/operations/sweepFns.js'
 import { adoptEntity, callBrepjs } from './internal/l3-bridge'
 import { borrowDeep, unwrapOrThrow } from './internal/compat-op'
 import { toProfileWireView } from './internal/profile-wire'

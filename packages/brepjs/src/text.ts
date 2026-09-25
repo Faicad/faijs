@@ -3,7 +3,7 @@
  *
  * @example
  * ```typescript
- * import { loadFont, sketchText } from 'brepjs/text';
+ * import { loadFont, sketchText } from '@faicad/faijs-brepjs/text';
  * ```
  */
 

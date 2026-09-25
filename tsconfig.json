@@ -36,7 +36,6 @@
     "node_modules",
     "dist",
     "**/dist",
-    "packages/core/src/vendored",
     "vitest.config.ts"
   ]
 }

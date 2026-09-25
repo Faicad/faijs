@@ -18,7 +18,7 @@
 import type { Shape } from '../mesh/types'
 import { defineOp } from '../sdk'
 import type { Provenance } from '../topology/naming/lineage'
-import { loft as vendoredLoft, type LoftOptions } from '../vendored/brepjs/operations/loftFns.js'
+import { loft as vendoredLoft, type LoftOptions } from '@faicad/faijs-brepjs/operations/loftFns.js'
 import { adoptEntity, callBrepjs } from './internal/l3-bridge'
 import { borrowDeep, unwrapOrThrow } from './internal/compat-op'
 import { toProfileWireView } from './internal/profile-wire'

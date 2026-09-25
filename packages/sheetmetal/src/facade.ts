@@ -10,8 +10,8 @@
  * directly when explicit error handling is preferred over throwing.
  */
 
-import type { BrepError, Result, Solid } from '@faicad/faijs/brepjs-compat';
-import { isErr } from '@faicad/faijs/brepjs-compat';
+import type { BrepError, Result, Solid } from '@faicad/faijs-brepjs';
+import { isErr } from '@faicad/faijs-brepjs';
 import type { AuthorSpec, BaseFlatSpec, FlangeSpec, SeamSpec } from './authorFns.js';
 import type { MiterPlane, DxfOptions, SlotPlacement } from './api.js';
 import {

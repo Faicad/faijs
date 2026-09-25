@@ -5,236 +5,236 @@
  */
 import { borrowBrepjsShape, callBrepjs } from '../internal/l3-bridge'
 import type { Shape } from '../../mesh/types'
-import { getShapeKind as __vendored_getShapeKind } from '../../vendored/brepjs/core/shapeTypes.js'
-import type { ShapeKind } from '../../vendored/brepjs/core/shapeTypes.js'
+import { getShapeKind as __vendored_getShapeKind } from '@faicad/faijs-brepjs/core/shapeTypes.js'
+import type { ShapeKind } from '@faicad/faijs-brepjs/core/shapeTypes.js'
 
-export type { Curve2DHandle } from '../../vendored/brepjs/core/curve2dHandle.js'
+export type { Curve2DHandle } from '@faicad/faijs-brepjs/core/curve2dHandle.js'
 
-export type { DimensionError } from '../../vendored/brepjs/core/dimensionTypes.js'
+export type { DimensionError } from '@faicad/faijs-brepjs/core/dimensionTypes.js'
 
-export type { RequireDimension } from '../../vendored/brepjs/core/dimensionTypes.js'
+export type { RequireDimension } from '@faicad/faijs-brepjs/core/dimensionTypes.js'
 
-export type { SameDimension } from '../../vendored/brepjs/core/dimensionTypes.js'
+export type { SameDimension } from '@faicad/faijs-brepjs/core/dimensionTypes.js'
 
-export type { Deletable } from '../../vendored/brepjs/core/disposal.js'
+export type { Deletable } from '@faicad/faijs-brepjs/core/disposal.js'
 
-export type { DisposalStats } from '../../vendored/brepjs/core/disposal.js'
+export type { DisposalStats } from '@faicad/faijs-brepjs/core/disposal.js'
 
-export type { KernelHandle } from '../../vendored/brepjs/core/disposal.js'
+export type { KernelHandle } from '@faicad/faijs-brepjs/core/disposal.js'
 
-export type { ShapeHandle } from '../../vendored/brepjs/core/disposal.js'
+export type { ShapeHandle } from '@faicad/faijs-brepjs/core/disposal.js'
 
-export type { BrepError } from '../../vendored/brepjs/core/errors.js'
+export type { BrepError } from '@faicad/faijs-brepjs/core/errors.js'
 
-export type { BrepErrorKind } from '../../vendored/brepjs/core/errors.js'
+export type { BrepErrorKind } from '@faicad/faijs-brepjs/core/errors.js'
 
-export type { Plane } from '../../vendored/brepjs/core/planeTypes.js'
+export type { Plane } from '@faicad/faijs-brepjs/core/planeTypes.js'
 
-export type { PlaneInput } from '../../vendored/brepjs/core/planeTypes.js'
+export type { PlaneInput } from '@faicad/faijs-brepjs/core/planeTypes.js'
 
-export type { PlaneName } from '../../vendored/brepjs/core/planeTypes.js'
+export type { PlaneName } from '@faicad/faijs-brepjs/core/planeTypes.js'
 
-export type { Err } from '../../vendored/brepjs/core/result.js'
+export type { Err } from '@faicad/faijs-brepjs/core/result.js'
 
-export type { Ok } from '../../vendored/brepjs/core/result.js'
+export type { Ok } from '@faicad/faijs-brepjs/core/result.js'
 
-export type { Result } from '../../vendored/brepjs/core/result.js'
+export type { Result } from '@faicad/faijs-brepjs/core/result.js'
 
-export type { ResultPipeline } from '../../vendored/brepjs/core/result.js'
+export type { ResultPipeline } from '@faicad/faijs-brepjs/core/result.js'
 
-export type { Unit } from '../../vendored/brepjs/core/result.js'
+export type { Unit } from '@faicad/faijs-brepjs/core/result.js'
 
-export type { AnyShape } from '../../vendored/brepjs/core/shapeTypes.js'
+export type { AnyShape } from '@faicad/faijs-brepjs/core/shapeTypes.js'
 
-export type { ClosedWire } from '../../vendored/brepjs/core/shapeTypes.js'
+export type { ClosedWire } from '@faicad/faijs-brepjs/core/shapeTypes.js'
 
-export type { Compound } from '../../vendored/brepjs/core/shapeTypes.js'
+export type { Compound } from '@faicad/faijs-brepjs/core/shapeTypes.js'
 
-export type { CompSolid } from '../../vendored/brepjs/core/shapeTypes.js'
+export type { CompSolid } from '@faicad/faijs-brepjs/core/shapeTypes.js'
 
-export type { CurveLike } from '../../vendored/brepjs/core/shapeTypes.js'
+export type { CurveLike } from '@faicad/faijs-brepjs/core/shapeTypes.js'
 
-export type { Dimension } from '../../vendored/brepjs/core/shapeTypes.js'
+export type { Dimension } from '@faicad/faijs-brepjs/core/shapeTypes.js'
 
-export type { Edge } from '../../vendored/brepjs/core/shapeTypes.js'
+export type { Edge } from '@faicad/faijs-brepjs/core/shapeTypes.js'
 
-export type { Face } from '../../vendored/brepjs/core/shapeTypes.js'
+export type { Face } from '@faicad/faijs-brepjs/core/shapeTypes.js'
 
-export type { ManifoldShell } from '../../vendored/brepjs/core/shapeTypes.js'
+export type { ManifoldShell } from '@faicad/faijs-brepjs/core/shapeTypes.js'
 
-export type { OrientedFace } from '../../vendored/brepjs/core/shapeTypes.js'
+export type { OrientedFace } from '@faicad/faijs-brepjs/core/shapeTypes.js'
 
-export type { PlanarFace } from '../../vendored/brepjs/core/shapeTypes.js'
+export type { PlanarFace } from '@faicad/faijs-brepjs/core/shapeTypes.js'
 
-export type { PlanarWire } from '../../vendored/brepjs/core/shapeTypes.js'
+export type { PlanarWire } from '@faicad/faijs-brepjs/core/shapeTypes.js'
 
-export type { Shape1D } from '../../vendored/brepjs/core/shapeTypes.js'
+export type { Shape1D } from '@faicad/faijs-brepjs/core/shapeTypes.js'
 
-export type { Shape3D } from '../../vendored/brepjs/core/shapeTypes.js'
+export type { Shape3D } from '@faicad/faijs-brepjs/core/shapeTypes.js'
 
-export type { ShapeKind } from '../../vendored/brepjs/core/shapeTypes.js'
+export type { ShapeKind } from '@faicad/faijs-brepjs/core/shapeTypes.js'
 
-export type { Shell } from '../../vendored/brepjs/core/shapeTypes.js'
+export type { Shell } from '@faicad/faijs-brepjs/core/shapeTypes.js'
 
-export type { Solid } from '../../vendored/brepjs/core/shapeTypes.js'
+export type { Solid } from '@faicad/faijs-brepjs/core/shapeTypes.js'
 
-export type { UnknownDimShape } from '../../vendored/brepjs/core/shapeTypes.js'
+export type { UnknownDimShape } from '@faicad/faijs-brepjs/core/shapeTypes.js'
 
-export type { ValidSolid } from '../../vendored/brepjs/core/shapeTypes.js'
+export type { ValidSolid } from '@faicad/faijs-brepjs/core/shapeTypes.js'
 
-export type { Vertex } from '../../vendored/brepjs/core/shapeTypes.js'
+export type { Vertex } from '@faicad/faijs-brepjs/core/shapeTypes.js'
 
-export type { Wire } from '../../vendored/brepjs/core/shapeTypes.js'
+export type { Wire } from '@faicad/faijs-brepjs/core/shapeTypes.js'
 
-export type { CurveType } from '../../vendored/brepjs/core/typeDiscriminants.js'
+export type { CurveType } from '@faicad/faijs-brepjs/core/typeDiscriminants.js'
 
-export type { DirectionInput } from '../../vendored/brepjs/index.js'
+export type { DirectionInput } from '@faicad/faijs-brepjs/index.js'
 
-export type { Matrix4x4 } from '../../vendored/brepjs/core/types.js'
+export type { Matrix4x4 } from '@faicad/faijs-brepjs/core/types.js'
 
-export type { MatrixInput } from '../../vendored/brepjs/core/types.js'
+export type { MatrixInput } from '@faicad/faijs-brepjs/core/types.js'
 
-export type { MatrixTransform } from '../../vendored/brepjs/core/types.js'
+export type { MatrixTransform } from '@faicad/faijs-brepjs/core/types.js'
 
-export type { PointInput } from '../../vendored/brepjs/core/types.js'
+export type { PointInput } from '@faicad/faijs-brepjs/core/types.js'
 
-export type { Vec2 } from '../../vendored/brepjs/core/types.js'
+export type { Vec2 } from '@faicad/faijs-brepjs/core/types.js'
 
-export type { Vec3 } from '../../vendored/brepjs/core/types.js'
+export type { Vec3 } from '@faicad/faijs-brepjs/core/types.js'
 
-export { DEG2RAD } from '../../vendored/brepjs/core/constants.js'
+export { DEG2RAD } from '@faicad/faijs-brepjs/core/constants.js'
 
-export { RAD2DEG } from '../../vendored/brepjs/core/constants.js'
+export { RAD2DEG } from '@faicad/faijs-brepjs/core/constants.js'
 
-export { HASH_CODE_MAX } from '../../vendored/brepjs/core/constants.js'
+export { HASH_CODE_MAX } from '@faicad/faijs-brepjs/core/constants.js'
 
-export { BrepBugError } from '../../vendored/brepjs/core/errors.js'
+export { BrepBugError } from '@faicad/faijs-brepjs/core/errors.js'
 
-export { BrepErrorCode } from '../../vendored/brepjs/core/errors.js'
+export { BrepErrorCode } from '@faicad/faijs-brepjs/core/errors.js'
 
-export { bug } from '../../vendored/brepjs/core/errors.js'
+export { bug } from '@faicad/faijs-brepjs/core/errors.js'
 
-export { computationError } from '../../vendored/brepjs/core/errors.js'
+export { computationError } from '@faicad/faijs-brepjs/core/errors.js'
 
-export { ioError } from '../../vendored/brepjs/core/errors.js'
+export { ioError } from '@faicad/faijs-brepjs/core/errors.js'
 
-export { kernelError } from '../../vendored/brepjs/core/errors.js'
+export { kernelError } from '@faicad/faijs-brepjs/core/errors.js'
 
-export { moduleInitError } from '../../vendored/brepjs/core/errors.js'
+export { moduleInitError } from '@faicad/faijs-brepjs/core/errors.js'
 
-export { queryError } from '../../vendored/brepjs/core/errors.js'
+export { queryError } from '@faicad/faijs-brepjs/core/errors.js'
 
-export { sketcherStateError } from '../../vendored/brepjs/core/errors.js'
+export { sketcherStateError } from '@faicad/faijs-brepjs/core/errors.js'
 
-export { typeCastError } from '../../vendored/brepjs/core/errors.js'
+export { typeCastError } from '@faicad/faijs-brepjs/core/errors.js'
 
-export { unsupportedError } from '../../vendored/brepjs/core/errors.js'
+export { unsupportedError } from '@faicad/faijs-brepjs/core/errors.js'
 
-export { validationError } from '../../vendored/brepjs/core/errors.js'
+export { validationError } from '@faicad/faijs-brepjs/core/errors.js'
 
-export { createNamedPlane } from '../../vendored/brepjs/core/planeOps.js'
+export { createNamedPlane } from '@faicad/faijs-brepjs/core/planeOps.js'
 
-export { createPlane } from '../../vendored/brepjs/core/planeOps.js'
+export { createPlane } from '@faicad/faijs-brepjs/core/planeOps.js'
 
-export { makePlane } from '../../vendored/brepjs/core/planeOps.js'
+export { makePlane } from '@faicad/faijs-brepjs/core/planeOps.js'
 
-export { pivotPlane } from '../../vendored/brepjs/core/planeOps.js'
+export { pivotPlane } from '@faicad/faijs-brepjs/core/planeOps.js'
 
-export { resolvePlane } from '../../vendored/brepjs/core/planeOps.js'
+export { resolvePlane } from '@faicad/faijs-brepjs/core/planeOps.js'
 
-export { translatePlane } from '../../vendored/brepjs/core/planeOps.js'
+export { translatePlane } from '@faicad/faijs-brepjs/core/planeOps.js'
 
-export { ok } from '../../vendored/brepjs/core/result.js'
+export { ok } from '@faicad/faijs-brepjs/core/result.js'
 
-export { err } from '../../vendored/brepjs/core/result.js'
+export { err } from '@faicad/faijs-brepjs/core/result.js'
 
-export { OK } from '../../vendored/brepjs/core/result.js'
+export { OK } from '@faicad/faijs-brepjs/core/result.js'
 
-export { isOk } from '../../vendored/brepjs/core/result.js'
+export { isOk } from '@faicad/faijs-brepjs/core/result.js'
 
-export { isErr } from '../../vendored/brepjs/core/result.js'
+export { isErr } from '@faicad/faijs-brepjs/core/result.js'
 
-export { map } from '../../vendored/brepjs/core/result.js'
+export { map } from '@faicad/faijs-brepjs/core/result.js'
 
-export { mapErr } from '../../vendored/brepjs/core/result.js'
+export { mapErr } from '@faicad/faijs-brepjs/core/result.js'
 
-export { mapBoth } from '../../vendored/brepjs/core/result.js'
+export { mapBoth } from '@faicad/faijs-brepjs/core/result.js'
 
-export { andThen } from '../../vendored/brepjs/core/result.js'
+export { andThen } from '@faicad/faijs-brepjs/core/result.js'
 
-export { flatMap } from '../../vendored/brepjs/core/result.js'
+export { flatMap } from '@faicad/faijs-brepjs/core/result.js'
 
-export { or } from '../../vendored/brepjs/core/result.js'
+export { or } from '@faicad/faijs-brepjs/core/result.js'
 
-export { orElse } from '../../vendored/brepjs/core/result.js'
+export { orElse } from '@faicad/faijs-brepjs/core/result.js'
 
-export { all } from '../../vendored/brepjs/core/result.js'
+export { all } from '@faicad/faijs-brepjs/core/result.js'
 
-export { collect } from '../../vendored/brepjs/core/result.js'
+export { collect } from '@faicad/faijs-brepjs/core/result.js'
 
-export { tap } from '../../vendored/brepjs/core/result.js'
+export { tap } from '@faicad/faijs-brepjs/core/result.js'
 
-export { tapErr } from '../../vendored/brepjs/core/result.js'
+export { tapErr } from '@faicad/faijs-brepjs/core/result.js'
 
-export { flatten } from '../../vendored/brepjs/core/result.js'
+export { flatten } from '@faicad/faijs-brepjs/core/result.js'
 
-export { fromNullable } from '../../vendored/brepjs/core/result.js'
+export { fromNullable } from '@faicad/faijs-brepjs/core/result.js'
 
-export { unwrap } from '../../vendored/brepjs/core/result.js'
+export { unwrap } from '@faicad/faijs-brepjs/core/result.js'
 
-export { unwrapOr } from '../../vendored/brepjs/core/result.js'
+export { unwrapOr } from '@faicad/faijs-brepjs/core/result.js'
 
-export { unwrapOrElse } from '../../vendored/brepjs/core/result.js'
+export { unwrapOrElse } from '@faicad/faijs-brepjs/core/result.js'
 
-export { unwrapErr } from '../../vendored/brepjs/core/result.js'
+export { unwrapErr } from '@faicad/faijs-brepjs/core/result.js'
 
-export { match } from '../../vendored/brepjs/core/result.js'
+export { match } from '@faicad/faijs-brepjs/core/result.js'
 
-export { tryCatch } from '../../vendored/brepjs/core/result.js'
+export { tryCatch } from '@faicad/faijs-brepjs/core/result.js'
 
-export { tryCatchAsync } from '../../vendored/brepjs/core/result.js'
+export { tryCatchAsync } from '@faicad/faijs-brepjs/core/result.js'
 
-export { pipeline } from '../../vendored/brepjs/core/result.js'
+export { pipeline } from '@faicad/faijs-brepjs/core/result.js'
 
-export { zipResults } from '../../vendored/brepjs/index.js'
+export { zipResults } from '@faicad/faijs-brepjs/index.js'
 
-export { resolveDirection } from '../../vendored/brepjs/core/types.js'
+export { resolveDirection } from '@faicad/faijs-brepjs/core/types.js'
 
-export { toVec2 } from '../../vendored/brepjs/core/types.js'
+export { toVec2 } from '@faicad/faijs-brepjs/core/types.js'
 
-export { toVec3 } from '../../vendored/brepjs/core/types.js'
+export { toVec3 } from '@faicad/faijs-brepjs/core/types.js'
 
-export { vecAdd } from '../../vendored/brepjs/core/vecOps.js'
+export { vecAdd } from '@faicad/faijs-brepjs/core/vecOps.js'
 
-export { vecAngle } from '../../vendored/brepjs/core/vecOps.js'
+export { vecAngle } from '@faicad/faijs-brepjs/core/vecOps.js'
 
-export { vecCross } from '../../vendored/brepjs/core/vecOps.js'
+export { vecCross } from '@faicad/faijs-brepjs/core/vecOps.js'
 
-export { vecDistance } from '../../vendored/brepjs/core/vecOps.js'
+export { vecDistance } from '@faicad/faijs-brepjs/core/vecOps.js'
 
-export { vecDot } from '../../vendored/brepjs/core/vecOps.js'
+export { vecDot } from '@faicad/faijs-brepjs/core/vecOps.js'
 
-export { vecEquals } from '../../vendored/brepjs/core/vecOps.js'
+export { vecEquals } from '@faicad/faijs-brepjs/core/vecOps.js'
 
-export { vecIsZero } from '../../vendored/brepjs/core/vecOps.js'
+export { vecIsZero } from '@faicad/faijs-brepjs/core/vecOps.js'
 
-export { vecLength } from '../../vendored/brepjs/core/vecOps.js'
+export { vecLength } from '@faicad/faijs-brepjs/core/vecOps.js'
 
-export { vecLengthSq } from '../../vendored/brepjs/core/vecOps.js'
+export { vecLengthSq } from '@faicad/faijs-brepjs/core/vecOps.js'
 
-export { vecNegate } from '../../vendored/brepjs/core/vecOps.js'
+export { vecNegate } from '@faicad/faijs-brepjs/core/vecOps.js'
 
-export { vecNormalize } from '../../vendored/brepjs/core/vecOps.js'
+export { vecNormalize } from '@faicad/faijs-brepjs/core/vecOps.js'
 
-export { vecProjectToPlane } from '../../vendored/brepjs/core/vecOps.js'
+export { vecProjectToPlane } from '@faicad/faijs-brepjs/core/vecOps.js'
 
-export { vecRepr } from '../../vendored/brepjs/core/vecOps.js'
+export { vecRepr } from '@faicad/faijs-brepjs/core/vecOps.js'
 
-export { vecRotate } from '../../vendored/brepjs/core/vecOps.js'
+export { vecRotate } from '@faicad/faijs-brepjs/core/vecOps.js'
 
-export { vecScale } from '../../vendored/brepjs/core/vecOps.js'
+export { vecScale } from '@faicad/faijs-brepjs/core/vecOps.js'
 
-export { vecSub } from '../../vendored/brepjs/core/vecOps.js'
+export { vecSub } from '@faicad/faijs-brepjs/core/vecOps.js'
 
 /**
  * getShapeKind — 查询（返回纯数据，非 Shape）生成文件，勿手改；来源 api/surface/arg-spec.ts。

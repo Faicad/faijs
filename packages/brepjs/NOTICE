@@ -1,0 +1,23 @@
+@faicad/faijs-brepjs NOTICE
+===========================
+
+This package contains code ported from the `brepjs` project
+(https://github.com/OpenCascade/brepjs), which is licensed under the
+Apache License 2.0.
+
+Ported as of brepjs commit 8685273a (locked upstream reference, O10; no
+two-way sync). Ported files retain their original Apache-2.0
+attribution.
+
+Full Apache-2.0 text: see LICENSE or
+https://www.apache.org/licenses/LICENSE-2.0
+
+Runtime dependencies (not distributed inside this package)
+----------------------------------------------------------
+
+- `occt-wasm` — JS glue: MIT OR Apache-2.0; the compiled WASM output is
+  LGPL-2.1-only (inherited from OCCT, https://dev.opencascade.org).
+  Loaded by the host at runtime via kernel injection (DI form; this
+  package has zero direct imports of it). The LGPL replacement
+  obligation is satisfied because the host loads the `.wasm` from a URL
+  that can be overridden.

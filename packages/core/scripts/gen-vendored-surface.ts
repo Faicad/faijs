@@ -21,7 +21,7 @@ import { fileURLToPath } from 'url'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-const VENDORED_ROOT = path.resolve(__dirname, '..', 'src', 'vendored', 'brepjs')
+const VENDORED_ROOT = path.resolve(__dirname, '../../brepjs/src')
 const OUT_DIR = path.resolve(__dirname, '..', 'src', 'api', 'surface')
 
 interface VendoredSymbol {
@@ -227,7 +227,7 @@ function main(): void {
   const dry = process.argv.includes('--dry')
 
   const files = walkTsFiles(VENDORED_ROOT, VENDORED_ROOT).sort()
-  console.log(`[gen-vendored-surface] scanning ${files.length} .ts files under vendored/brepjs/`)
+  console.log(`[gen-vendored-surface] scanning ${files.length} .ts files under packages/brepjs/src`)
 
   const allSymbols: VendoredSymbol[] = []
   for (const relFile of files) {
@@ -275,7 +275,7 @@ function main(): void {
   fs.mkdirSync(OUT_DIR, { recursive: true })
   const out = {
     _meta: {
-      source: 'packages/core/src/vendored/brepjs (all .ts files)',
+      source: 'packages/brepjs/src (all .ts files)',
       doc: 'docs/plans/2026-09-07-compat-surface-unified-projection.md §3.1 / §5.1 ①',
       generated: new Date().toISOString().slice(0, 10),
       fileCount: files.length,

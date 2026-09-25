@@ -27,7 +27,7 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 const SURFACE_JSON = path.resolve(__dirname, '..', 'src', 'api', 'surface', 'upstream-surface.json')
-const VENDORED_ROOT_REL = '../../vendored/brepjs/' // from api/generated/ -> src/vendored/brepjs/
+const VENDORED_ROOT_REL = '@faicad/faijs-brepjs/' // emitted import specifier prefix
 const OUT_DIR = path.resolve(__dirname, '..', 'src', 'api', 'generated')
 
 /** 已登记分片的模块名（写产物 + 机制测试遍历对象）。 */

@@ -76,6 +76,7 @@ function Run-Npm {
 # publishes under ONE lockstep version (step 1 below): a package that needs a
 # different version line cannot live in this list.
 $Packages = @(
+  @{ Name = '@faicad/faijs-brepjs';    Path = 'packages/brepjs' },
   @{ Name = '@faicad/faijs';           Path = 'packages/core' },
   @{ Name = '@faicad/faijs-extra';     Path = 'packages/faijs-extra' },
   @{ Name = '@faicad/faijs-fcstd';     Path = 'packages/fcstd' },

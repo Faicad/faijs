@@ -1,11 +1,11 @@
 import { describe, expect, it, beforeAll } from 'vitest';
 import { initKernel } from '../kernel-setup.js';
-import { loadFont, getFont } from '@faicad/faijs/vendored/brepjs/text/fontRegistry.js';
-import { textBlueprints } from '@faicad/faijs/vendored/brepjs/text/textBlueprints.js';
-import { sketchText } from '@faicad/faijs/vendored/brepjs/text/sketchText.js';
-import { textMetrics, fontMetrics } from '@faicad/faijs/vendored/brepjs/text/textMetrics.js';
-import { drawText } from '@faicad/faijs/vendored/brepjs/sketching/drawingFactories.js';
-import { unwrap, isOk, isErr } from '@faicad/faijs/vendored/brepjs/core/result.js';
+import { loadFont, getFont } from '@faicad/faijs-brepjs/text/fontRegistry.js';
+import { textBlueprints } from '@faicad/faijs-brepjs/text/textBlueprints.js';
+import { sketchText } from '@faicad/faijs-brepjs/text/sketchText.js';
+import { textMetrics, fontMetrics } from '@faicad/faijs-brepjs/text/textMetrics.js';
+import { drawText } from '@faicad/faijs-brepjs/sketching/drawingFactories.js';
+import { unwrap, isOk, isErr } from '@faicad/faijs-brepjs/core/result.js';
 import { readFile, access } from 'node:fs/promises';
 
 /** Try several common system font paths and return the first that exists. */

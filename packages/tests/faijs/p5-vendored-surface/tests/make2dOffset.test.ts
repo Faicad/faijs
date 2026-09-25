@@ -1,14 +1,14 @@
 import { describe, expect, it, beforeAll } from 'vitest';
 import { initKernel } from '../kernel-setup.js';
-import { make2dOffset } from '@faicad/faijs/vendored/brepjs/2d/lib/offset.js';
+import { make2dOffset } from '@faicad/faijs-brepjs/2d/lib/offset.js';
 import {
   make2dSegmentCurve,
   make2dCircle,
   make2dThreePointArc,
   make2dInerpolatedBSplineCurve,
-} from '@faicad/faijs/vendored/brepjs/2d/lib/makeCurves.js';
-import { Curve2D } from '@faicad/faijs/vendored/brepjs/2d/lib/curve2D.js';
-import { unwrap } from '@faicad/faijs/vendored/brepjs/core/result.js';
+} from '@faicad/faijs-brepjs/2d/lib/makeCurves.js';
+import { Curve2D } from '@faicad/faijs-brepjs/2d/lib/curve2D.js';
+import { unwrap } from '@faicad/faijs-brepjs/core/result.js';
 
 beforeAll(async () => {
   await initKernel();

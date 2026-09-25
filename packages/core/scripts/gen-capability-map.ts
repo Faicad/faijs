@@ -29,7 +29,7 @@ import { ARG_SPEC } from '../src/api/surface/arg-spec'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-const VENDORED_ROOT = path.resolve(__dirname, '..', 'src', 'vendored', 'brepjs')
+const VENDORED_ROOT = path.resolve(__dirname, '../../brepjs/src')
 const OUT_FILE = path.resolve(__dirname, '..', 'src', 'api', 'surface', 'capability-map.json')
 
 /** source '<module>.js#<Export>' → 模块文件（.js → .ts）与导出名。 */

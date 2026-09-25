@@ -20,7 +20,7 @@ import {
   vecDot,
   vecCross,
   vecNormalize,
-} from '@faicad/faijs/brepjs-compat';
+} from '@faicad/faijs-brepjs';
 import type {
   BendFeature,
   BendRule,

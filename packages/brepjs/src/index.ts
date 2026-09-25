@@ -1,5 +1,10 @@
 /**
  * brepjs — Public API
+ *
+ * WARNING: this package exports the raw vendored primitive surface and does
+ * NOT perform kernel-bound assertions. Consumers of modeling ops should go
+ * through `@faicad/faijs/brepjs-compat`, which is the only assert-guarded
+ * facade.
  */
 
 // ── Layer 0: kernel / utils ──

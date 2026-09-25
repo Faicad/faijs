@@ -21,7 +21,7 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import { initOcctWasm, getKernel as getHostKernel } from '@faicad/faijs/occt-kernel/occtKernel'
 import { registerOcctBrepEngine } from '@faicad/faijs/brep/engine/adapters/occt'
 import { injectCurrentBrepEngineAsKernel, getBrepjsKernel, isKernelInjected } from '@faicad/faijs/api/occt-kernel-bridge'
-import { getKernel as getBrepjsRegistry, registerKernel, getActiveKernelId } from '@faicad/faijs/vendored/brepjs/kernel/index'
+import { getKernel as getBrepjsRegistry, registerKernel, getActiveKernelId } from '@faicad/faijs-brepjs/kernel/index'
 
 describe('D10 · occt-wasm 单实例绑定 + 冻结', () => {
   beforeAll(async () => {

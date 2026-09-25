@@ -11,7 +11,7 @@ import type { AssemblyConstraint, EntityRef } from '../types'
 import type { SolveOptions } from './types'
 import { solveGlobal } from './global-solver'
 import { rotateByR, quatFromR } from './pose-from-delta'
-import { quatRotate } from '../../../vendored/brepjs/utils/quaternion'
+import { quatRotate } from '@faicad/faijs-brepjs/utils/quaternion'
 import type { AssemblyTransform } from '../../../runtime-state'
 import { asPartName } from '../../../identity'
 

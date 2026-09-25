@@ -14,7 +14,7 @@ import { beforeAll } from 'vitest'
 import { initOcctWasm } from '@faicad/faijs/occt-kernel/occtKernel'
 import { registerOcctBrepEngine } from '@faicad/faijs/brep/engine/adapters/occt'
 import { injectCurrentBrepEngineAsKernel, getBrepjsKernel, isOcctKernelBound } from '@faicad/faijs/api/occt-kernel-bridge'
-import { getKernel } from '@faicad/faijs/vendored/brepjs/kernel/index'
+import { getKernel } from '@faicad/faijs-brepjs/kernel/index'
 
 export { injectCurrentBrepEngineAsKernel, getBrepjsKernel, isOcctKernelBound, getKernel }
 

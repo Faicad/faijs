@@ -25,6 +25,8 @@
     "paths": {
       "@faicad/faijs": ["./src/index.ts"],
       "@faicad/faijs/*": ["./src/*"],
+      "@faicad/faijs-brepjs": ["../brepjs/src/index.ts"],
+      "@faicad/faijs-brepjs/*": ["../brepjs/src/*"],
       "@faicad/faijs-extra": ["../faijs-extra/src/index.ts"],
       "@faicad/faijs-extra/*": ["../faijs-extra/src/*"]
     }
@@ -34,7 +36,6 @@
   ],
   "exclude": [
     "node_modules",
-    "dist",
-    "src/vendored"
+    "dist"
   ]
 }

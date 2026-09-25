@@ -11,8 +11,8 @@ import {
   curve2dTangentAt,
   curve2dIsOnCurve,
   curve2dDistanceFrom,
-} from '@faicad/faijs/vendored/brepjs/2d/lib/curve2dFns.js';
-import { intersectCurves } from '@faicad/faijs/vendored/brepjs/2d/lib/intersections.js';
+} from '@faicad/faijs-brepjs/2d/lib/curve2dFns.js';
+import { intersectCurves } from '@faicad/faijs-brepjs/2d/lib/intersections.js';
 
 beforeAll(async () => {
   await initKernel();

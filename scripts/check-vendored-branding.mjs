@@ -105,9 +105,21 @@ function isBrandWhitelisted(s) {
   )
 }
 
+/**
+ * 2026-09-25 豁免登记（vendored 剥离子包）：`@faicad/faijs-brepjs` 是可发布包名
+ * （docs/plans/2026-09-24-brepjs-extraction-plan.md §0.1 用户裁决）。守卫放宽仅限
+ * 该包名前缀，不扩散到其它 brepjs 字样。
+ */
+const BRAND_PACKAGE_WHITELIST = ['@faicad/faijs-brepjs']
+function isBrandPackageWhitelisted(s) {
+  return BRAND_PACKAGE_WHITELIST.some((w) => s === w || s.startsWith(w + '/'))
+}
+
 // A1：vendored 源码 + core dist 字符串字面量零 brepjs
 {
-  const roots = [resolve('packages/core/src/vendored/brepjs'), resolve('packages/core/src/api/brepjs-compat')]
+  // 2026-09-25：vendored 树已剥至 packages/brepjs（@faicad/faijs-brepjs），roots 随迁。
+  const roots = [resolve('packages/brepjs/src'), resolve('packages/core/src/api/brepjs-compat')]
+  if (existsSync(resolve('packages/brepjs/dist'))) roots.push(resolve('packages/brepjs/dist'))
   if (existsSync(resolve('packages/core/dist'))) roots.push(resolve('packages/core/dist'))
   const files = []
   for (const r of roots) files.push(...walk(r, /\.(ts|js|mjs|mts)$/))
@@ -123,6 +135,7 @@ function isBrandWhitelisted(s) {
       if (!lit.includes('brepjs')) continue
       if (isRelativeSpec(lit.trimStart())) continue
       if (isBrandWhitelisted(lit.trim())) continue
+      if (isBrandPackageWhitelisted(lit.trim())) continue // 2026-09-25 剥离子包 import 字面量豁免
       offenders.add(rel)
     }
   }
@@ -153,7 +166,7 @@ function isBrandWhitelisted(s) {
       ...Object.keys(pkg.dependencies ?? {}),
       ...Object.keys(pkg.peerDependencies ?? {}),
     ]
-    const bad = probe.filter((s) => s.includes('brepjs'))
+    const bad = probe.filter((s) => s.includes('brepjs') && !isBrandPackageWhitelisted(s))
     if (bad.length > 0) fail(`A3 ${relative(ROOT, f)} 含 brepjs 依赖/名称: ${bad.join(', ')}`)
   }
 }
@@ -179,6 +192,7 @@ function isBrandWhitelisted(s) {
         // 相对导入路径段（./ ../）= 物理目录名（§3.3 保留合法，如 api/ 层反向依赖 vendored）——放行
         if (isRelativeSpec(spec)) continue
         if (isBrandWhitelisted(spec)) continue // Q5-A 品牌豁免
+        if (isBrandPackageWhitelisted(spec)) continue // 2026-09-25 剥离子包包名豁免
         if (spec.includes('brepjs')) offenders.add(`${rel}: ${spec}`)
       }
     }

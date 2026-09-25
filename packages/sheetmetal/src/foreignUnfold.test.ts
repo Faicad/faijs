@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { initOCCT } from './test-setup.js';
-import { cylinder, sphere, box, fuse, translate, getFaces, getSurfaceType } from '@faicad/faijs/brepjs-compat';
-import type { Solid, Face } from '@faicad/faijs/brepjs-compat';
+import { cylinder, sphere, translate, getFaces, getSurfaceType } from '@faicad/faijs-brepjs';
+import { box, fuse } from '@faicad/faijs/brepjs-compat';
+import type { Solid, Face } from '@faicad/faijs-brepjs';
 import { authorPart } from './authorFns.js';
 import { unfold } from './unfoldFns.js';
 import { fitCylinder, unfoldForeignSolid } from './foreignUnfoldFns.js';

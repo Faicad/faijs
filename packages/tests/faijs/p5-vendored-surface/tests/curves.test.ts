@@ -32,9 +32,9 @@ import {
   rotateTransform2d,
   scaleTransform2d,
   transformCurves,
-} from '@faicad/faijs/vendored/brepjs/2d/curves.js';
-import { Curve2D } from '@faicad/faijs/vendored/brepjs/2d/lib/index.js';
-import { getKernel } from '@faicad/faijs/vendored/brepjs/kernel/index.js';
+} from '@faicad/faijs-brepjs/2d/curves.js';
+import { Curve2D } from '@faicad/faijs-brepjs/2d/lib/index.js';
+import { getKernel } from '@faicad/faijs-brepjs/kernel/index.js';
 import { skipIfDiverges } from '../../p3-vendored-surface/kernel-divergences.js';
 
 beforeAll(async () => {

@@ -179,12 +179,12 @@ function main(): void {
     byFile.get(file)!.push({ name: e.name, kind: e.kind })
   }
   // Detect default exports and type exports per file using TS API
-  const VENDORED_ROOT = path.resolve(__dirname, '..', 'src', 'vendored', 'brepjs')
+  const VENDORED_ROOT = path.resolve(__dirname, '../../brepjs/src')
   for (const [file, symbols] of byFile) {
     // file is relative to vendored/brepjs/ root, e.g. '2d/lib/svgPath.ts'
     const fullPath = path.resolve(VENDORED_ROOT, file)
     const vendoredPath = file.replace(/\.ts$/, '.js')
-    const relPath = '../../../vendored/brepjs/' + vendoredPath
+    const relPath = '@faicad/faijs-brepjs/' + vendoredPath
     // Detect default export names by parsing the source file
     const defaultNames = new Set<string>()
     try {

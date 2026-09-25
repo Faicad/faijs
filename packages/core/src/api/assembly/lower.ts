@@ -11,7 +11,7 @@
  * 禁止把复合语义拆成多条 SolverConstraint——每节点只被定位一次（方案 §3.7.1）。
  */
 
-import type { SolverConstraint, SolverEntity } from '../../vendored/brepjs/kernel/solverAdapter'
+import type { SolverConstraint, SolverEntity } from '@faicad/faijs-brepjs/kernel/solverAdapter'
 import type { ResolvedFaceGeometry } from '../topo-resolve'
 import type { AssemblyVec3, EntityRef, StructuralConstraint } from './types'
 import { resolveFaceGeometryOfRef, resolveSolverEntity, type EntityResolutionEnv } from './entities'

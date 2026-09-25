@@ -8,7 +8,7 @@ import {
   line,
   wire,
   wireLoop,
-} from '@faicad/faijs/brepjs-compat';
+} from '@faicad/faijs-brepjs';
 import type {
   SheetMetalPart,
   UnfoldResult,
