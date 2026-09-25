@@ -101,8 +101,6 @@ export default defineConfig({
     // 前缀匹配（@rollup/plugin-alias）：'@faicad/faijs/browser' → ../core/src/browser.ts
     // （D2-A 后门面已折叠进 core，旧根 src/ 别名已移除）。
     alias: [
-      // vendored brepjs 子包（2026-09-25 剥离）——同 faijs 活源码联动。
-      { find: '@faicad/faijs-brepjs', replacement: resolve(__dirname, '../brepjs/src') },
       // 编辑器扩展库（A/B 组 op + svg/文字预览辅助）——M7 活源码联动，同 faijs。
       // 前缀匹配不吞并 `@faicad/faijs`（Vite 只匹配 find 本身或 find + '/'）。
       { find: '@faicad/faijs-extra', replacement: resolve(__dirname, '../faijs-extra/src') },

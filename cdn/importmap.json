@@ -1,6 +1,5 @@
 {
   "imports": {
-    "@faicad/faijs-brepjs": "https://cdn.jsdelivr.net/npm/@faicad/faijs-brepjs/+esm",
     "@faicad/faijs": "https://cdn.jsdelivr.net/npm/@faicad/faijs/+esm",
     "@faicad/cq-compat": "https://cdn.jsdelivr.net/npm/@faicad/cq-compat/+esm",
     "@faicad/cq-compat-assembly": "https://cdn.jsdelivr.net/npm/@faicad/cq-compat-assembly/+esm",

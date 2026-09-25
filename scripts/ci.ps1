@@ -147,13 +147,8 @@ Step -Label '5/9  守卫：幽灵依赖 / workspaces 顺序 / 包图无环 / 导
     # 导出面：10 个子路径必须全部可导入（快照脚本自身断言；有 error 即失败）
     node scripts/api-surface-snapshot.mjs
     if ($LASTEXITCODE -ne 0) { return }
-    # P1：vendored/brepjs 移植树——D9 独立严格编译 + D8 层边界
-    npx tsc --noEmit -p packages/core/tsconfig.vendored.json
-    if ($LASTEXITCODE -ne 0) { return }
-    node scripts/check-layer-boundaries.mjs
-    if ($LASTEXITCODE -ne 0) { return }
-    # P10-④：U8 品牌守卫（用户可见面零 brepjs，E6）
-    node scripts/check-vendored-branding.mjs
+    # core-decouple wrapup §4.1：brepjs 归零守卫（包名/路径零依赖）
+    node scripts/check-core-no-brepjs.mjs
     if ($LASTEXITCODE -ne 0) { return }
     # M5：库源码语言审计（可发布库包 src/ 必须 100% TS，禁止手写 JS 发布库）
     node scripts/check-lib-src-language.mjs

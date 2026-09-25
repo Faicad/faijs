@@ -32,7 +32,7 @@ const PATTERNS = [
 function isExcluded(relativePath: string): boolean {
   return relativePath.startsWith('docs/plans/')
     || relativePath.startsWith('docs/analysis/')
-    || relativePath.startsWith('packages/brepjs/src/')
+
 }
 
 /** A located hard-wrap: a prose paragraph spanning more than one source line. */

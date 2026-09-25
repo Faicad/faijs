@@ -55,10 +55,8 @@ node scripts/check-ghost-deps.mjs
 node scripts/check-workspaces-order.mjs
 npx madge --circular packages/core/src
 node scripts/api-surface-snapshot.mjs
-# P1：vendored/brepjs 移植树——D8 层边界（U9 断言：csg/、ns/csg.ts 永不搬入）
-node scripts/check-layer-boundaries.mjs
-# P10-④：U8 品牌守卫（用户可见面零 brepjs，E6）
-node scripts/check-vendored-branding.mjs
+# core-decouple wrapup §4.1：brepjs 归零守卫（包名/路径零依赖）
+node scripts/check-core-no-brepjs.mjs
 
 echo "==> 6/9  demo e2e（dev server 模式，M7 链路）"
 cd "$ROOT"
