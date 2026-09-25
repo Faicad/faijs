@@ -57,9 +57,15 @@ const BARE_LIFT_DEFAULT_NAMING: Provenance = {
  * (unmodeled); no naming declaration is read or required (2026-09-23).
  *
  * @param ns the library namespace object being registered.
+ * @param options - admission options; `borrow: false` marks the library as
+ *  faijs-native (its functions consume core Shapes directly, so compatOp must
+ *  not borrow inputs into brepjs handle form — see compatOp's `borrow` spec).
  * @returns the admitted namespace (bare functions replaced by compatOp facades).
  */
-export function admitCompatLib(ns: Record<string, unknown>): Record<string, unknown> {
+export function admitCompatLib(
+  ns: Record<string, unknown>,
+  options?: { borrow?: boolean },
+): Record<string, unknown> {
   assertLibConforms(ns)
   const out: Record<string, unknown> = {}
   for (const [name, v] of Object.entries(ns)) {
@@ -69,6 +75,7 @@ export function admitCompatLib(ns: Record<string, unknown>): Record<string, unkn
       name,
       outputs: (v as OutputsCarrier).outputs, // only fn.outputs; no other annotation name is recognized (§3.6)
       naming: BARE_LIFT_DEFAULT_NAMING,
+      borrow: options?.borrow,
     })
   }
   return out

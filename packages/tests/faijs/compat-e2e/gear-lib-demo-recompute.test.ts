@@ -50,7 +50,15 @@ describe('P26 gear-lib-demo §8.4 ⑤ — incremental recompute (key stability, 
       const g1Before = r1.outputs.get(asPartName('g1')) as Shape | undefined
       const g1After = r2.outputs.get(asPartName('g1')) as Shape | undefined
       expect(g1After).toBeDefined()
-      expect(g1After!.positions.length).not.toBe(g1Before!.positions.length)
+      // GOTCHA (2026-09-25): after faijs-ification the core `fromHandle` fallback
+      // tessellates cylinders with a fixed 64-segment budget, so the vertex count
+      // (1542) is identical for radius 20 vs 24 — a length comparison is
+      // degenerate. The content key (mesh coordinate hash) still changes with the
+      // radius, which is the actual recompute witness.
+      const { computeContentKey } = await import('@faicad/faijs/cad-runtime/content-key')
+      const keyBefore = computeContentKey(g1Before!.positions, g1Before!.indices)
+      const keyAfter = computeContentKey(g1After!.positions, g1After!.indices)
+      expect(keyAfter).not.toBe(keyBefore)
     } finally {
       r.dispose()
     }

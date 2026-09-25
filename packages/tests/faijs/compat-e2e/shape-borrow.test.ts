@@ -51,7 +51,7 @@ describe('P1 — faijs Shape round-trips into a vendored-Solid library parameter
   it('solidOf product is a brep-backed Shape; unfoldSolid(s1) detects the flange bend instead of crashing', async () => {
     const runtime: CadRuntime = createEditorRuntime(createNodePorts(), 'auto')
     try {
-      runtime.registerLib('sheet', sheetNs, { autoLift: true })
+      runtime.registerLib('sheet', sheetNs, { autoLift: true, borrow: false })
       const res = await runtime.execute(SCRIPT)
       expect(res.failedAt).toBeUndefined()
 

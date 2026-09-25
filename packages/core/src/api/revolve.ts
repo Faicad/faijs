@@ -148,12 +148,12 @@ export const revolve = defineOp({
     // 语句键）。直接经 runtimeLineage.recordOutput 落语句键表；define-op 包装层
     // 会在 impl 返回后把它传播到 part 键权威位（edgeRef 的读口）。
     const origin = String(getCurrentStmt()?.id ?? '')
-    const table = new Map([[origin, revolveConstructRoles(kernel, handle, options?.axis)]])
+    const table = new Map([[origin, revolveConstructRoles(kernel, revolved, options?.axis)]])
     // GOTCHA：recordOutput 必须带第 4 参 part——part 键表（outputTablesByPart）
     // 是 op 实现与 edgeRef 解析的权威读口，只落语句键表时 part 键会保持
     // adoptEntity 时登记的空表（探针实测），下游仍报 no role lineage。
     const part = getCurrentStmt()?.outputs?.[0]
-    runtimeLineage.recordOutput(origin as never, table, handle, part as never)
+    runtimeLineage.recordOutput(origin as never, table, revolved, part as never)
     return s
   },
   naming: {

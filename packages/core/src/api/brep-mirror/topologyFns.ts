@@ -100,7 +100,25 @@ export function applyMatrixBrep(...args: unknown[]): Result<BrepHandle> {
       linear[3], linear[4], linear[5], translation[1],
       linear[6], linear[7], linear[8], translation[2],
     ]
-    return ok(kernel.generalTransform(brepHandleOf(shape), m12))
+    // GOTCHA (2026-09-25): occt-wasm's `located`/`generalTransform` return
+    // TopLoc/GTrsf-referencing handles whose STEP export crashes
+    // ("memory access out of bounds") — only the affine `transform`
+    // (BRepBuilderAPI_Transform, deep-copy) is STEP-safe. A similar
+    // transform (orthogonal rows, equal lengths) is affine and goes
+    // through `transform`; genuinely non-affine matrices keep the
+    // generalTransform path (no current caller, pre-existing behavior).
+    const lin = linear as readonly [number, number, number, number, number, number, number, number, number]
+    const s0 = Math.hypot(lin[0], lin[1], lin[2])
+    const s1 = Math.hypot(lin[3], lin[4], lin[5])
+    const s2 = Math.hypot(lin[6], lin[7], lin[8])
+    const dot01 = Math.abs(lin[0] * lin[3] + lin[1] * lin[4] + lin[2] * lin[5])
+    const dot02 = Math.abs(lin[0] * lin[6] + lin[1] * lin[7] + lin[2] * lin[8])
+    const dot12 = Math.abs(lin[3] * lin[6] + lin[4] * lin[7] + lin[5] * lin[8])
+    const TOL = 1e-9
+    const similar =
+      s0 > TOL && Math.abs(s1 - s0) < TOL && Math.abs(s2 - s0) < TOL &&
+      dot01 < TOL && dot02 < TOL && dot12 < TOL
+    return ok(similar ? kernel.transform(brepHandleOf(shape), m12) : kernel.generalTransform(brepHandleOf(shape), m12))
   } catch (e) {
     return err(
       kernelError(
@@ -234,12 +252,29 @@ export function rotateBrep(...args: unknown[]): Result<BrepHandle> {
   const s = brepHandleOf(shape)
   const { at = [0, 0, 0], axis = [0, 0, 1] } = (options ?? {}) as { at?: Vec3; axis?: Vec3 }
   try {
-    const h = getOcctKernel().rotate(
-      s as never,
-      { point: { x: at[0], y: at[1], z: at[2] }, direction: { x: axis[0], y: axis[1], z: axis[2] } },
-      (Number(angle) * Math.PI) / 180,
-    )
-    return ok(h as unknown as BrepHandle)
+    // GOTCHA (2026-09-25): occt-wasm's native `rotate` returns a handle whose
+    // STEP export crashes ("memory access out of bounds") — same family as
+    // located/generalTransform. Rotation is affine, so build the Rodrigues
+    // matrix and go through the STEP-safe `transform` (BRepBuilderAPI_Transform).
+    const [ax, ay, az] = axis as readonly [number, number, number]
+    const alen = Math.hypot(ax, ay, az)
+    if (alen < 1e-12) {
+      return err(validationError('INVALID_AXIS', `rotate: axis must be non-zero, got [${ax}, ${ay}, ${az}]`))
+    }
+    const nx = ax / alen, ny = ay / alen, nz = az / alen
+    const theta = (Number(angle) * Math.PI) / 180
+    const c = Math.cos(theta), sTheta = Math.sin(theta), t = 1 - c
+    // R = cI + sK + t·(n⊗n) (Rodrigues)
+    const r00 = t * nx * nx + c,     r01 = t * nx * ny - nz * sTheta, r02 = t * nx * nz + ny * sTheta
+    const r10 = t * nx * ny + nz * sTheta, r11 = t * ny * ny + c,     r12 = t * ny * nz - nx * sTheta
+    const r20 = t * nx * nz - ny * sTheta, r21 = t * ny * nz + nx * sTheta, r22 = t * nz * nz + c
+    const [px, py, pz] = at as readonly [number, number, number]
+    // Pivot-preserving translation: p' = R·(p − at) + at  ⇒  tx = at − R·at
+    const tx = px - (r00 * px + r01 * py + r02 * pz)
+    const ty = py - (r10 * px + r11 * py + r12 * pz)
+    const tz = pz - (r20 * px + r21 * py + r22 * pz)
+    const m12 = [r00, r01, r02, tx, r10, r11, r12, ty, r20, r21, r22, tz]
+    return ok(getOcctKernel().transform(s as never, m12) as unknown as BrepHandle)
   } catch (e) {
     const raw = e instanceof Error ? e.message : String(e)
     return err(kernelError('ROTATE_FAILED', `Rotate operation failed: ${raw}`, e))

@@ -45,16 +45,18 @@ describe('aluminum enclosure — whole-package sheetmetal flow over the compat b
   it('executes end-to-end: brep-backed solid, 4 bend lines, 2 holes, developed area ≈26 826 mm²', async () => {
     const runtime: CadRuntime = createEditorRuntime(createNodePorts(), 'auto')
     try {
-      runtime.registerLib('sheet', sheetNs, { autoLift: true })
+      runtime.registerLib('sheet', sheetNs, { autoLift: true, borrow: false })
       const res = await runtime.execute(SCRIPT)
       expect(res.failedAt).toBeUndefined()
 
       // s1 — the geometry terminal produced a brep-backed Shape
       const s1 = res.outputs.get(asPartName('s1')) as Shape
       expect(isShape(s1)).toBe(true)
+      // GOTCHA (2026-09-25): after faijs-ification the geometry terminal may be a
+      // normalizeSolid-extracted brep-only Shape (EMPTY_MESH wrap — mesh payload is
+      // regenerated on demand by downstream booleans). hasBrep pins the BREP chain;
+      // the exactness is verified by the STEP export / developed-area assertions.
       expect(hasBrep(s1)).toBe(true)
-      expect(s1.positions.length).toBeGreaterThan(0)
-      expect(s1.indices.length).toBeGreaterThan(0)
 
       // u1 — flat pattern: 4 bend lines (4 flanges), 2 holes, developed area
       const u1 = res.activeValues?.get(asPartName('u1')) as

@@ -56,6 +56,16 @@ import type { Shape } from '../../mesh/types'
 export interface CompatSpec extends Omit<DualOpOptions, 'mesh' | 'brep'> {
   /** Op name (error messages + metadata; required, unlike defineOp's optional name). */
   name: string
+  /**
+   * 是否按 brepjs 句柄形态借入输入（默认 true）。
+   *
+   * faijs 化库（内部直接消费 core Shape 与 core op，如 sheetmetal）必须传
+   * `borrow: false`：borrowDeep 会把嵌套的 faijs Shape 替换成 brepjs 形态的
+   * `BorrowedShapeHandle`，而 core op 只认带 BREP 槽的 Shape，替换后库内部
+   * 布尔/拓扑调用会报「input is not on the BREP chain」。真 brepjs 形态的库
+   * （消费 ShapeHandle 对象）保持默认 true。
+   */
+  borrow?: boolean
 }
 
 const MAX_WALK_DEPTH = 4
@@ -158,13 +168,16 @@ function readSegmentsFromArgs(args: unknown[]): number | undefined {
  */
 function buildAdapter(fn: (...args: unknown[]) => unknown, spec: CompatSpec): BrepImpl<unknown[]> {
   return async (...args: unknown[]): Promise<BrepProduct> => {
-    const borrowed = args.map((a) => borrowDeep(a, 0))
+    // borrow: false（faijs 化库）时输入原样直传——嵌套的 core Shape 保留其
+    // BREP 槽，库内部调 core op 才能取到 OCCT 句柄（否则报 input not on the
+    // BREP chain）。默认 true 保持 brepjs 形态库的借入语义。
+    const effective = spec.borrow === false ? args : args.map((a) => borrowDeep(a, 0))
     // Async library fns are supported: a library that awaits its kernel (every
     // `@faicad/fai-cq-gears` factory does — `await getGearKernel()`) returns
     // `Promise<Result<…>>`, and the shared unwrap is a sync leaf that only
     // recognizes settled Result records. Awaiting a non-promise product is a
     // no-op, so sync libraries are unaffected.
-    const value = unwrapOrThrow(await callBrepjs(fn as never, borrowed), spec.name)
+    const value = unwrapOrThrow(await callBrepjs(fn as never, effective), spec.name)
     return adoptOut(value, spec, readSegmentsFromArgs(args)) as BrepProduct
   }
 }

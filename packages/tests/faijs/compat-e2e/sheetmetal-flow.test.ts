@@ -79,7 +79,7 @@ let result: Awaited<ReturnType<CadRuntime['execute']>>
 beforeAll(async () => {
   await registerOcctBrepEngine()
   runtime = createEditorRuntime(createNodePorts(), 'auto')
-  runtime.registerLib('sheet', sheetNs, { autoLift: true })
+  runtime.registerLib('sheet', sheetNs, { autoLift: true, borrow: false })
   result = await runtime.execute(SCRIPT)
 }, 180000)
 
@@ -98,15 +98,19 @@ describe('P26 sheet §8.4 — seven acceptance assertions', () => {
     expect(result.failedAt).toBeUndefined()
     const s1 = shapeOf('s1')
     expect(isShape(s1)).toBe(true)
+    // GOTCHA (2026-09-25): after faijs-ification the geometry terminal may be a
+    // normalizeSolid-extracted brep-only Shape (EMPTY_MESH wrap — mesh payload is
+    // regenerated on demand by downstream booleans). hasBrep pins the BREP chain;
+    // re-tessellation is proven by ②'s union product mesh assertion.
     expect(hasBrep(s1)).toBe(true)
-    expect(s1.positions.length).toBeGreaterThan(0)
-    expect(s1.indices.length).toBeGreaterThan(0)
   })
 
   it('② the cad.union boolean runs on the BREP chain ("brep" path, result keeps its slot)', () => {
     const s1 = shapeOf('s1')
     const b1 = shapeOf('b1')
     expect(hasBrep(b1)).toBe(true)
+    // union of a brep-only s1 re-tessellates: the derived solid carries a mesh payload
+    expect(b1.positions.length).toBeGreaterThan(0)
     expect(dispatchPath([s1, b1], { brep: () => undefined })).toBe('brep')
   })
 
@@ -147,11 +151,11 @@ describe('P26 sheet §8.4 — seven acceptance assertions', () => {
       //     no spurious recompute for an unchanged lib content).
       const r = createEditorRuntime(createNodePorts(), 'auto')
       try {
-        r.registerLib('sheet', sheetNs, { autoLift: true })
+        r.registerLib('sheet', sheetNs, { autoLift: true, borrow: false })
         await r.execute(SCRIPT)
         const s1Key0 = r.getStatementCacheEntry(asPartName('s1'))?.statementKey
         expect(s1Key0).toBeDefined()
-        r.registerLib('sheet', sheetNs, { autoLift: true })
+        r.registerLib('sheet', sheetNs, { autoLift: true, borrow: false })
         await r.execute(SCRIPT)
         const s1Key1 = r.getStatementCacheEntry(asPartName('s1'))?.statementKey
         expect(s1Key1).toBe(s1Key0)
@@ -164,7 +168,7 @@ describe('P26 sheet §8.4 — seven acceptance assertions', () => {
       // T5: plan() deleted; use update() to verify recompute happens.
       const r = createEditorRuntime(createNodePorts(), 'auto')
       try {
-        r.registerLib('sheet', sheetNs, { autoLift: true })
+        r.registerLib('sheet', sheetNs, { autoLift: true, borrow: false })
         const r1 = await r.execute(SCRIPT)
         expect(r1.failedAt).toBeUndefined()
         const changed = SCRIPT.replace('{ thickness: 2', '{ thickness: 3')
@@ -173,12 +177,22 @@ describe('P26 sheet §8.4 — seven acceptance assertions', () => {
         const s1Before = r1.outputs.get(asPartName('s1')) as Shape | undefined
         const s1After = r2.outputs.get(asPartName('s1')) as Shape | undefined
         expect(s1After).toBeDefined()
-        // s1 geometry must change (thickness changed).
-        // Use content key (positions length may be equal for different thickness).
-        const { computeContentKey } = await import('@faicad/faijs/cad-runtime/content-key')
-        const keyBefore = computeContentKey(s1Before!.positions, s1Before!.indices)
-        const keyAfter = computeContentKey(s1After!.positions, s1After!.indices)
-        expect(keyAfter).not.toBe(keyBefore)
+        // B2 semantics: the author-param change invalidates the s1 statement cache
+        // (script content changed ⇒ statementKey changed ⇒ downstream recompute runs)
+        // and yields a fresh output Shape object.
+        // B2 recompute witness at the data layer (independent of mesh payloads
+        // and kernel handle ids): thickness 2 → 3 changes the bend allowance, so
+        // the downstream unfold pattern's developedArea must change.
+        const u1Before = r1.activeValues?.get(asPartName('u1')) as
+          | { pattern?: { developedArea?: number } }
+          | undefined
+        const u1After = r2.activeValues?.get(asPartName('u1')) as
+          | { pattern?: { developedArea?: number } }
+          | undefined
+        expect(u1Before?.pattern?.developedArea).toBeDefined()
+        expect(u1After?.pattern?.developedArea).toBeDefined()
+        expect(u1After!.pattern!.developedArea).not.toBe(u1Before!.pattern!.developedArea)
+        expect(s1After).not.toBe(s1Before)
       } finally {
         r.dispose()
       }
@@ -188,10 +202,10 @@ describe('P26 sheet §8.4 — seven acceptance assertions', () => {
       // T5: plan() deleted; verify recompute via update().
       const r = createEditorRuntime(createNodePorts(), 'auto')
       try {
-        r.registerLib('sheet', sheetNs, { autoLift: true })
+        r.registerLib('sheet', sheetNs, { autoLift: true, borrow: false })
         const r1 = await r.execute(SCRIPT)
         expect(r1.failedAt).toBeUndefined()
-        r.registerLib('sheet', sheetV2, { autoLift: true })
+        r.registerLib('sheet', sheetV2, { autoLift: true, borrow: false })
         const r2 = await r.update(SCRIPT, SCRIPT)
         expect(r2.failedAt).toBeUndefined()
         // Re-registering a changed lib and re-running should produce results
@@ -206,7 +220,7 @@ describe('P26 sheet §8.4 — seven acceptance assertions', () => {
   it('⑥ mesh mode hits E_MESH_UNSUPPORTED when invoking the sheet library (no silent fallback)', async () => {
     const r = createEditorRuntime(createNodePorts(), 'mesh')
     try {
-      r.registerLib('sheet', sheetNs, { autoLift: true })
+      r.registerLib('sheet', sheetNs, { autoLift: true, borrow: false })
       const res = await r.execute(SCRIPT)
       expect(res.failedAt).toBeDefined()
       expect(res.failedAt!.message).toMatch(/E_MESH_UNSUPPORTED|not supported|mesh/i)
