@@ -25,9 +25,8 @@
 
 import type { Shape } from '../../mesh/types'
 import { brepOf } from '../../shape'
-import { fromHandle } from '../../brep/handle-bridge'
+import { fromHandle, getBrepApi } from '../../brep/handle-bridge'
 import type { BrepHandle } from '../../brep/engine/types'
-import { getOcctKernel } from '../../occt-kernel/occtKernel'
 import { getBackends } from '../../runtime-state'
 import { OpError } from './result-unwrap'
 
@@ -134,7 +133,7 @@ export function borrowBrepjsShape(s: Shape): BorrowedShapeHandle {
   }
   const kernelShape = isOcctWasmHandle(solid)
     ? solid
-    : occtWasmHandleView(getOcctKernel().getShapeType(solid as never) as string, solid as number)
+    : occtWasmHandleView(getBrepApi().shapeType(solid as never), solid as number)
   return createBorrowedHandle(kernelShape)
 }
 

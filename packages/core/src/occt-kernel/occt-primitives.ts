@@ -317,6 +317,7 @@ export async function createOcctPrimitives(): Promise<BrepEngineApi> {
     hashCode: (shape, upperBound) => k.hashCode(asShape(shape), upperBound),
     isSame: (a, b) => k.isSame(asShape(a), asShape(b)),
     isSolid: (shape) => k.isSolid(asShape(shape)),
+    shapeType: (shape) => k.getShapeType(asShape(shape)),
     shapeOrientation: (shape) => String(k.shapeOrientation(asShape(shape))),
     edgeToFaceMap: (shape) => k.edgeToFaceMap(asShape(shape), HASH_UPPER_BOUND),
     adjacentFaces: (shape, face) =>

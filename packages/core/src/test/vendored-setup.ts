@@ -1,4 +1,5 @@
 /**
+ * @platform occt
  * core vitest 全局装配（2026-09-25 core-decouple Phase 2 §5.1 / wrapup §4.3）。
  *
  * brepjs 子包删除后（裁决 9），core 不再注入任何 vendored kernel registry——

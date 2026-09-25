@@ -88,6 +88,7 @@ function planeKernel(): BrepEngineApi {
     hashCode: (h) => h as unknown as number,
     isSame: (a, b) => a === b,
     isSolid: () => true,
+    shapeType: () => 'SOLID',
     shapeOrientation: () => 'forward',
     curveType: () => 'line',
     curvePointAtParam: () => ({ x: 0, y: 0, z: 0 }),

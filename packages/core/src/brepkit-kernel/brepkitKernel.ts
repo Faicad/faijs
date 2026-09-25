@@ -590,6 +590,13 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
     isSolid(shape: BrepHandle): boolean {
       try { return arr(kernel.getSolidFaces(asNum(shape))).length > 0 } catch { return false }
     },
+    shapeType(shape: BrepHandle): string {
+      try {
+        const s = arr(kernel.getSolidFaces(asNum(shape)))
+        const f = arr(kernel.getFaces(asNum(shape)))
+        return s.length > 0 ? 'SOLID' : f.length > 0 ? 'FACE' : 'COMPOUND'
+      } catch { return 'COMPOUND' }
+    },
     shapeOrientation(shape: BrepHandle): string {
       try { return String(kernel.getShapeOrientation(asNum(shape))) } catch { return 'forward' }
     },

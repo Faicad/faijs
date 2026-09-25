@@ -340,6 +340,7 @@ export function createBrepMockApi(): BrepEngineApi {
     hashCode: (shape) => shape % 2147483647,
     isSame: (a, b) => a === b,
     isSolid: () => true,
+    shapeType: () => 'SOLID',
     shapeOrientation: () => 'forward',
     edgeToFaceMap: () => ({}),
     adjacentFaces: () => [],

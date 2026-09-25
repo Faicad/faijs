@@ -186,6 +186,9 @@ export interface BrepEngineApi {
   hashCode(shape: BrepHandle, upperBound: number): number
   isSame(a: BrepHandle, b: BrepHandle): boolean
   isSolid(shape: BrepHandle): boolean
+  /** 形状类型名（'SOLID' / 'FACE' / 'EDGE' / 'WIRE' / 'COMPOUND' 等；引擎方言归一）。
+   * 库桥（l3-bridge）构造借入视图时读；brepkit/mock 按能力防御返回。 */
+  shapeType(shape: BrepHandle): string
   /** 方向标识（与内核 ShapeOrientation 同构：'forward'|'reversed'|'internal'|'external'）。 */
   shapeOrientation(shape: BrepHandle): string
   /** 边→面关联（brepkit 原生同名）。 */
