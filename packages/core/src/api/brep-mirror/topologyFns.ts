@@ -1,6 +1,6 @@
 /**
- * Self-hosted compat-op implementations 鈥?topology transform family
- * (core-decouple Phase 3, 搂5.4).
+ * Self-hosted compat-op implementations — topology transform family
+ * (core-decouple Phase 3, §5.4).
  *
  * @platform occt
  *
@@ -8,7 +8,7 @@
  * compat-op projection (defineOp + D11 arg normalization). Inputs are the
  * normalized positional arguments of the op's params table; shapes arrive as
  * faijs Shapes (or raw handles) and results are returned as BREP handles
- * (wrapped by `wrapBrepOne` 鈫?`fromHandle`).
+ * (wrapped by `wrapBrepOne` → `fromHandle`).
  *
  * Semantics mirror the vendored brepjs fns (`topology/transformFns.ts`,
  * `topology/shapeFns.ts`) with the brepjs object model (castResultShape,
@@ -28,7 +28,7 @@ import { getOcctKernel } from '../../occt-kernel/occtKernel'
 const VALIDATION_FAILED = 'VALIDATION_FAILED'
 
 // ---------------------------------------------------------------------------
-// Matrix input parsing (vendored `parseMatrixInput` / `det3x3` / `isOrthogonalMatrix`)
+// Matrix input parsing (vendored `parseMatrixInput` / `det3x3`)
 // ---------------------------------------------------------------------------
 
 type Linear3x3 = readonly [number, number, number, number, number, number, number, number, number]
@@ -63,18 +63,6 @@ function det3x3(m: Linear3x3): number {
   )
 }
 
-function isOrthogonalMatrix(m: Linear3x3): boolean {
-  const TOL = 1e-8
-  const d00 = m[0] * m[0] + m[3] * m[3] + m[6] * m[6]
-  const d11 = m[1] * m[1] + m[4] * m[4] + m[7] * m[7]
-  const d22 = m[2] * m[2] + m[5] * m[5] + m[8] * m[8]
-  const d01 = m[0] * m[1] + m[3] * m[4] + m[6] * m[7]
-  const d02 = m[0] * m[2] + m[3] * m[5] + m[6] * m[8]
-  const d12 = m[1] * m[2] + m[4] * m[5] + m[7] * m[8]
-  if (Math.abs(d01) > TOL || Math.abs(d02) > TOL || Math.abs(d12) > TOL) return false
-  return Math.abs(d00 - d11) <= TOL && Math.abs(d00 - d22) <= TOL
-}
-
 // ---------------------------------------------------------------------------
 // applyMatrix
 // ---------------------------------------------------------------------------
@@ -82,7 +70,7 @@ function isOrthogonalMatrix(m: Linear3x3): boolean {
 const APPLY_MATRIX_PARAMS = { name: 'applyMatrix', params: ['shape', 'matrix'], formClass: 'A' as FormClass }
 
 /**
- * Apply a 4脳4 affine matrix (OpenSCAD `multmatrix` equivalent).
+ * Apply a 4×4 affine matrix (OpenSCAD `multmatrix` equivalent).
  *
  * The vendored fn splits orthogonal (evolution-tracked) and non-orthogonal
  * (`gp_GTrsf`) paths; the core path uses the single L1 `generalTransform`
@@ -98,7 +86,7 @@ export function applyMatrixBrep(...args: unknown[]): Result<BrepHandle> {
     return err(
       validationError(
         VALIDATION_FAILED,
-        'applyMatrix: singular matrix (determinant 鈮?0). Cannot apply a non-invertible transform.',
+        'applyMatrix: singular matrix (determinant ≈0). Cannot apply a non-invertible transform.',
       ),
     )
   }
@@ -215,7 +203,7 @@ export function mirrorBrep(...args: unknown[]): Result<BrepHandle> {
 
 
 // ---------------------------------------------------------------------------
-// rotate 鈥?杞磋鏃嬭浆锛坴endored topology/api.js#rotate + transformFns.ts#rotate锛?// ---------------------------------------------------------------------------
+// rotate — 绕轴旋转（vendored topology/api.js#rotate + transformFns.ts#rotate）// ---------------------------------------------------------------------------
 
 const ROTATE_PARAMS = { name: 'rotate', params: ['shape', 'angle', 'options'], formClass: 'A' as FormClass }
 
@@ -237,7 +225,7 @@ export function rotateBrep(...args: unknown[]): Result<BrepHandle> {
 }
 
 // ---------------------------------------------------------------------------
-// shell 鈥?鍘婚潰鎺忕┖锛坴endored topology/api.js#shell + modifierFns.ts#shell锛?// ---------------------------------------------------------------------------
+// shell — 去面掏空（vendored topology/api.js#shell + modifierFns.ts#shell）// ---------------------------------------------------------------------------
 
 const SHELL_PARAMS = { name: 'shell', params: ['shape', 'faces', 'thickness', 'options'], formClass: 'A' as FormClass }
 
@@ -263,7 +251,7 @@ export function shellBrep(...args: unknown[]): Result<BrepHandle> {
 }
 
 // ---------------------------------------------------------------------------
-// offset 鈥?鍏ㄨ〃闈㈠亸缃紙vendored topology/api.js#offset + modifierFns.ts#offset锛?// ---------------------------------------------------------------------------
+// offset — 全表面偏移（vendored topology/api.js#offset + modifierFns.ts#offset）// ---------------------------------------------------------------------------
 
 const OFFSET_PARAMS = { name: 'offset', params: ['shape', 'distance', 'options'], formClass: 'A' as FormClass }
 

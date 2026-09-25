@@ -493,6 +493,11 @@ function assertIntersectStaysSkip(): void {
   }
 }
 
+/** 写出生成文件：去尾随空行（whitespace 门禁：EOF 无多余空行）。 */
+function writeGenFile(out: string, content: string): void {
+  fs.writeFileSync(out, content.trimEnd() + '\n', 'utf-8')
+}
+
 function main(): void {
   const args = process.argv.slice(2)
   const requested = args.length > 0 ? new Set(args) : null
@@ -501,14 +506,14 @@ function main(): void {
   for (const m of PROJECTED_MODULES) {
     if (requested && !requested.has(m)) continue
     const out = generatedOutputPath(m)
-    fs.writeFileSync(out, generateModule(m), 'utf-8')
+    writeGenFile(out, generateModule(m))
     const projected = ARG_SPEC.filter((e) => (e.module ?? 'topology') === m && e.kind !== 'skip').length
     console.log(`[gen-l3-surface] wrote ${m} (${projected} projections) -> ${path.relative(process.cwd(), out)}`)
   }
   // P23：cad 脚本面接线产物（§4.2 ② / B1 三源一致）
-  fs.writeFileSync(SCRIPT_FACE_FILE, generateScriptFace(), 'utf-8')
+  writeGenFile(SCRIPT_FACE_FILE, generateScriptFace())
   console.log(`[gen-l3-surface] wrote script-face -> ${path.relative(process.cwd(), SCRIPT_FACE_FILE)}`)
-  fs.writeFileSync(SCRIPT_FACE_MANIFEST_FILE, generateScriptFaceManifest(), 'utf-8')
+  writeGenFile(SCRIPT_FACE_MANIFEST_FILE, generateScriptFaceManifest())
   console.log(`[gen-l3-surface] wrote script-face-manifest -> ${path.relative(process.cwd(), SCRIPT_FACE_MANIFEST_FILE)}`)
 }
 

@@ -19,7 +19,7 @@ import { kernelError } from '../../result/errors'
 import type { FormClass } from '../internal/dual-form-args'
 import { resolveArgs } from '../internal/dual-form-args'
 import type { Vec3 } from '../brepjs-compat/types'
-import { brepHandleOf, rotationZTo } from './brepHelpers'
+import { rotationZTo } from './brepHelpers'
 
 const TORUS_PARAMS = { name: 'torus', params: ['majorRadius', 'minorRadius', 'options'], formClass: 'A' as FormClass }
 const ELLIPSOID_PARAMS = { name: 'ellipsoid', params: ['rx', 'ry', 'rz', 'options'], formClass: 'A' as FormClass }

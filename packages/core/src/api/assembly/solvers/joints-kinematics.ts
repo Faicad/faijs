@@ -4,7 +4,6 @@
  * 移植来源：packages/brepjs/src/operations/{jointFns,ikFns}.ts（纯算法零 kernel 依赖，
  * 仅用 quat 与 assembly-tree；Phase 5 随 brepjs 包删除前已做 parity 对拍）。
  */
-import type { Shape } from '../../../mesh/types'
 import { quatFromAxisAngle, quatRotate, quatMultiply } from './quat'
 import type { AssemblyNode, Vec3 } from './assembly-tree'
 import { walkAssembly } from './assembly-tree'

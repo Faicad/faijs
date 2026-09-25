@@ -44,7 +44,6 @@ afterAll(() => {
 })
 
 const BOX_VOLUME = 20 * 10 * 5 // 1000
-const BOX_AREA = 2 * (20 * 10 + 20 * 5 + 10 * 5) // 700
 const SPHERE_R = 10
 const SPHERE_VOLUME = (4 / 3) * Math.PI * SPHERE_R ** 3
 
@@ -115,4 +114,3 @@ describe('BrepEngineApi 测量方法：两引擎结果一致', () => {
     }
   })
 })
-

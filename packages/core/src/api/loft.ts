@@ -49,7 +49,7 @@ function loftBrep(sections: Shape[], opts?: LoftOptions): Shape {
   }
   // 每截面：wire 直用；面取外环（孔环不参与放样）。
   const wireViews = sections.map((s) => toProfileWireView(s))
-  const { ruled = true, startPoint, endPoint, tolerance = 1e-6 } = opts ?? {}
+  const { ruled = true, startPoint, endPoint } = opts ?? {}
   const kernel = getBrepApi()
   const k = getOcctKernel()
   const wireHandles = wireViews.map((w) => w.wrapped as never)
@@ -71,7 +71,7 @@ function loftBrep(sections: Shape[], opts?: LoftOptions): Shape {
     return fromBrep(solidToShape(kernel, h as BrepHandle), { solid: h as BrepHandle })
   } catch (e) {
     const raw = e instanceof Error ? e.message : String(e)
-    throw new Error(`E_LOFT_FAILED: loft failed: ${raw}`)
+    throw new Error(`E_LOFT_FAILED: loft failed: ${raw}`, { cause: e })
   } finally {
     // 面→外环产出的 wire 是 arena 新句柄（曲线借用不 release）
     for (const w of wireViews) {

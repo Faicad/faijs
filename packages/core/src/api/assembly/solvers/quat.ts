@@ -75,4 +75,3 @@ export function quatMultiply(a: Quat, b: Quat): [number, number, number, number]
     aw * bz + ax * by - ay * bx + az * bw,
   ];
 }
-

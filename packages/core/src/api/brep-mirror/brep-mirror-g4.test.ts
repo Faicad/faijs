@@ -30,8 +30,6 @@ import { configureBackends, CONTRACT_VERSION, type Backends } from '../../runtim
 import { getBrepApi } from '../../brep/handle-bridge'
 import type { BrepEngineApi } from '../../brep/engine/primitives'
 import type { BrepHandle } from '../../brep/engine/types'
-import { fromBrep } from '../../shape'
-import { solidToShape } from '../../brep/brep-ops'
 import { getSolidBoundingBox } from '../../brep/brep-utils'
 
 import { linearPatternBrep, circularPatternBrep, gridPatternBrep, rectangularPatternBrep } from './patternFns'

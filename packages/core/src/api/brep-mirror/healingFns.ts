@@ -74,7 +74,6 @@ function healFaceBrep(handle: BrepHandle): Result<BrepHandle> {
 
 /** Heal a wire (`ShapeFix_Wire`, occt platform method). */
 function healWireBrep(handle: BrepHandle): Result<BrepHandle> {
-  const kernel = getBrepApi()
   try {
     const result = getOcctKernel().healWire(handle as never, 1e-6)
     if (getOcctKernel().getShapeType(result as never) !== 'wire') {
@@ -92,7 +91,6 @@ function healWireBrep(handle: BrepHandle): Result<BrepHandle> {
  */
 export function healBrep(...args: unknown[]): Result<BrepHandle> {
   const [shape] = resolveArgs(args, HEAL_PARAMS)
-  const kernel = getBrepApi()
   const h = brepHandleOf(shape)
   const type = getOcctKernel().getShapeType(h as never)
   if (type === 'solid') return healSolidBrep(shape)

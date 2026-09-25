@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-25-core-decouple-phase1-2-basics-and-bridge-removal.zh.md)
+
 ## Problem
 
 The `@faicad/faijs-brepjs` subpackage still owns parts of the faijs BREP surface:
@@ -21,7 +23,7 @@ copied from brepjs. The plan's end state deletes the brepjs subpackage; Phases
    `projection/` (projectEdges trimmed); `api/result.ts` re-exports the
    first-party module (keeping the `@faicad/faijs/api/result` deep path).
 2. **Hull goes native.** `occt-kernel/hullGeometry.ts` (QuickHull, verbatim)
-   + `hullOps.ts` drive `hullFromPoints` straight on the occt-wasm kernel
+   and `hullOps.ts` drive `hullFromPoints` straight on the occt-wasm kernel
    (`buildTriFace` → `sewAndSolidify` → `fixFaceOrientations`), dropping the
    `OcctWasmAdapter.fromKernel` dependency in `occt-primitives.ts`.
 3. **The bridge is deleted.** `api/occt-kernel-bridge.ts` is removed;

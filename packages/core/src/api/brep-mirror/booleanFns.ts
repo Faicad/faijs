@@ -91,7 +91,6 @@ const SPLIT_PARAMS = { name: 'split', params: ['shape', 'tools'], formClass: 'A'
 
 export function splitBrep(...args: unknown[]): Result<BrepHandle> {
   const [shape, toolsRaw] = resolveArgs(args, SPLIT_PARAMS)
-  const kernel = getBrepApi()
   const h = brepHandleOf(shape)
   const tools = (toolsRaw ?? []) as unknown[]
   if (tools.length === 0) return ok(h)

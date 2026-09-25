@@ -97,7 +97,6 @@ export function revolveBrep(...args: unknown[]): Result<BrepHandle> {
 
 export function sweepBrep(...args: unknown[]): Result<BrepHandle> {
   const [wire, spine, config, shellMode] = resolveArgs(args, SWEEP_PARAMS)
-  const kernel = getBrepApi()
   const w = brepHandleOf(wire)
   const sp = brepHandleOf(spine)
   const cfg = (config ?? {}) as { mode?: string; frenet?: boolean; transitionMode?: string }
