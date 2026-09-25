@@ -58,7 +58,11 @@ describe('生成层机制（E5，P13a 机制 / P14 分片）', () => {
         (e) => e.kind !== 'skip' && e.kind !== 'faijs' && (e.module ?? 'topology') === m,
       )
       for (const e of projected) {
-        expect(base.has(e.name), `arg-spec 条目 ${m}:${e.name} 不在 surface 基线中`).toBe(true)
+        // 改名投影（如 inspect* ← vendored checkInterference/measureCurvatureAt*，与
+        // generateModule 的 U7 校验同规则）：上游基线无 faijs 面新名，按 source 的
+        // exportName 回查。
+        const exportName = e.source.split('#')[1]
+        expect(base.has(e.name) || (!!exportName && base.has(exportName)), `arg-spec 条目 ${m}:${e.name} 不在 surface 基线中`).toBe(true)
       }
     }
   })
