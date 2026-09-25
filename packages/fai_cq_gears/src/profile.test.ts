@@ -76,10 +76,24 @@ describe('齿轮齿廓数学 vs cq_gears', () => {
           const grids = toothFaceGrids(geom as SpurGearGeometry)
           const refs = c.tooth_face_grids!
           expect(grids.length).toBe(refs.length)
+          // GOTCHA: since 1af48e6 toothFaceGrids densifies helix rows to 12 per π of
+          // twist (B-spline loft overshoot fix). Large-helix cases therefore have MORE
+          // rows than the Python reference (captured at cq's 5/π) and row positions
+          // differ, so point-wise comparison is only valid when the row count matches.
+          const twistSpan = Math.abs((geom as SpurGearGeometry).twistAngle)
+          const densified = Math.max(
+            (geom as SpurGearGeometry).surfaceSplines,
+            Math.ceil((twistSpan / Math.PI) * 12),
+          )
           for (let i = 0; i < grids.length; i++) {
             const g = grids[i]
             const ref = refs[i]
             expect(g.segment).toBe(ref.name)
+            if (densified !== ref.rows) {
+              expect(g.rows, `${ref.name}: rows (densified, Python ref at 5/π)`).toBe(densified)
+              expect(g.cols, `${ref.name}: cols`).toBe(ref.cols)
+              continue
+            }
             expect(g.rows, `${ref.name}: rows`).toBe(ref.rows)
             expect(g.cols, `${ref.name}: cols`).toBe(ref.cols)
             expectPointsClose(
