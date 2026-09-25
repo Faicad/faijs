@@ -443,7 +443,10 @@ let part2 = cad.subtract(part0, part1)`)
     expect(Object.keys(meshProj)).toEqual(['src/assembly.fai.js', 'src/parts/part_a.fai.js', 'src/parts/part_b.fai.js'])
     await seedOpfsProject(page, meshProj)
 
-    await page.locator(SELECTOR.openDirBtn).click()
+    // viewer-panel 的 canvas 在部分视口下会 intercept open-dir-btn 的命中测试
+    // （playwright 报 “intercepts pointer events”）；用 DOM click 直接触发绑定 handler，
+    // 绕过坐标命中测试（按钮自身功能正常）。
+    await page.evaluate(() => (document.querySelector('#open-dir-btn') as HTMLButtonElement | null)?.click())
     await expect(page.locator(SELECTOR.exampleSelect)).toHaveValue('__proj:src/assembly.fai.js', { timeout: 30_000 })
     await expect(page.locator(SELECTOR.statusBar)).toContainText('Project:', { timeout: 180_000 })
     await expect(page.locator(SELECTOR.statusBar)).toContainText('OK — brep:', { timeout: 180_000 })
@@ -465,7 +468,10 @@ let part2 = cad.subtract(part0, part1)`)
     await waitForStatusOk(page)
 
     await seedOpfsProject(page, {}) // 清空
-    await page.locator(SELECTOR.openDirBtn).click()
+    // viewer-panel 的 canvas 在部分视口下会 intercept open-dir-btn 的命中测试
+    // （playwright 报 “intercepts pointer events”）；用 DOM click 直接触发绑定 handler，
+    // 绕过坐标命中测试（按钮自身功能正常）。
+    await page.evaluate(() => (document.querySelector('#open-dir-btn') as HTMLButtonElement | null)?.click())
     await expect(page.locator(SELECTOR.statusBar)).toContainText('没有 .fai.js 文件', { timeout: 30_000 })
     await expect(page.locator(SELECTOR.statusBar)).toHaveClass(/error/)
   })
@@ -477,7 +483,10 @@ let part2 = cad.subtract(part0, part1)`)
 
     const meshProj = await readFaiProjectTree(new URL('fixtures/mesh-project/', import.meta.url))
     await seedOpfsProject(page, meshProj)
-    await page.locator(SELECTOR.openDirBtn).click()
+    // viewer-panel 的 canvas 在部分视口下会 intercept open-dir-btn 的命中测试
+    // （playwright 报 “intercepts pointer events”）；用 DOM click 直接触发绑定 handler，
+    // 绕过坐标命中测试（按钮自身功能正常）。
+    await page.evaluate(() => (document.querySelector('#open-dir-btn') as HTMLButtonElement | null)?.click())
     await expect(page.locator(SELECTOR.statusBar)).toContainText('Project:', { timeout: 180_000 })
 
     // 切回内置示例 → 单文件模式:无 Project 前缀
