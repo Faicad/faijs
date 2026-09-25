@@ -2,7 +2,7 @@
  * view — 视图投影能力测试（P25：faijs 视图投影与截图能力）
  *
  * 环境：initOcctWasm() + auto 模式（BREP 链活跃——projectView/projectSheet
- * 需要带 BREP 槽的 faijs Shape，borrowBrepjsShape 借入 OCCT 句柄）。
+ * 需要带 BREP 槽的 faijs Shape；投影直连 core 引擎 HLR projectEdges）。
  *
  * 覆盖：
  * - viewCamera：标准视图/iso/轴对平面/任意方向/非法视图；

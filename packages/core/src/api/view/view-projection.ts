@@ -4,24 +4,34 @@
  * 设计文档：docs/plans/2026-09-10-faijs-view-projection-and-screenshot.md §3.2
  *
  * projectView(shape, view, opts?) 返回**纯数据 SVG 字符串**（非 Shape）：
- *   - 借入 faijs Shape 的 brep 句柄（borrowBrepjsShape，零拷贝，不转移所有权）；
- *   - 经 vendored brepjs drawProjection（OCCT HLR 隐线消除）得到 visible/hidden
- *     两组 2D Drawing；
+ *   - 直连 core 引擎的 HLR 投影（`BrepEngineApi.projectEdges`，OCCT
+ *     HLRBRep 隐线消除）：可见 / 隐藏两组边（sharp/smooth/outline compound）；
+ *   - 每组边 → 3D 曲线采样折线（`curveParameters` + `curvePointAtParam`）→
+ *     投影到相机平面（正交投影，坐标 = 相对 camera.origin 在 xAxis/yAxis 上的分量）；
  *   - 序列化为一个完整 SVG：可见轮廓实线 + 隐藏线虚线（stroke-dasharray）。
  *
  * 返回字符串绕开 arg-spec 对 projectEdges/makeProjectedEdges 的 skip 障碍
  * （Edge 句柄数组 + compound 生命周期无法静态收养——本 op 只在内部消费，
  *   产物是 2D 纯文本，无收养问题）。
  *
- * projectViewSvg 返回结构化数据（viewBox/paths/尺寸），供 projectSheet 网格组合。
+ * 2026-09-25 core-decouple wrapup（§3.1 A 案）：不再依赖 brepjs 的 HLR+2D
+ * drawing 链——HLR 由 core 引擎原生提供（occt-wasm projectEdges），2D SVG
+ * 序列化为本地实现（曲线边以采样折线近似）。
  */
 
 import type { Shape } from '../../mesh/types'
-import { borrowBrepjsShape } from '../internal/l3-bridge'
-import { drawProjection } from '@faicad/faijs-brepjs/sketching/draw3d.js'
-import type { Drawing } from '@faicad/faijs-brepjs/sketching/drawing.js'
-import type { AnyShape } from '@faicad/faijs-brepjs/core/shapeTypes.js'
+import { brepOf } from '../../shape'
+import { getBrepApi } from '../../brep/handle-bridge'
+import type { BrepHandle } from '../../brep/engine/types'
 import { resolveCamera, type ViewSpec } from './view-camera'
+
+/** 投影相机（与 view-camera 输出同构）。 */
+interface Camera {
+  readonly position: [number, number, number]
+  readonly direction: [number, number, number]
+  readonly xAxis: [number, number, number]
+  readonly yAxis: [number, number, number]
+}
 
 /** projectView 的序列化选项。 */
 export interface ProjectViewOptions {
@@ -45,11 +55,120 @@ export interface ProjectionSvg {
   svg: string
   /** viewBox 属性值（'minX minY w h'；可见 ∪ 隐藏线并集 + margin）。 */
   viewBox: string
-  /** 各路径 d 串：可见实线 / 隐藏虚线。 */
+  /** 各 path d 串：可见实线 / 隐藏虚线。 */
   paths: { visible: string[]; hidden: string[] }
   /** 输出宽度/高度。 */
   width: number
   height: number
+}
+
+/** 每条边的 3D 采样点数（直线 2 点；曲线分段近似）。 */
+const EDGE_SAMPLES = 5
+
+type Vec3 = readonly [number, number, number]
+
+function sub(a: Vec3, b: Vec3): [number, number, number] {
+  return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
+}
+
+function dot(a: Vec3, b: Vec3): number {
+  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+}
+
+/** 3D 点 → 相机平面 2D 坐标（正交投影：相对 origin 在 xAxis/yAxis 上的分量）。 */
+function projectTo2D(p: Vec3, cam: Camera): [number, number] {
+  const rel = sub(p, cam.position)
+  return [dot(rel, cam.xAxis), dot(rel, cam.yAxis)]
+}
+
+/** 引擎 projectEdges 的返回结构（occt-wasm：6 组 compound 的 arena id）。 */
+interface ProjectEdgesResult {
+  visibleSharp: number
+  visibleSmooth: number
+  visibleOutline: number
+  hiddenSharp: number
+  hiddenSmooth: number
+  hiddenOutline: number
+}
+
+const COMPOUND_KEYS = [
+  ['visibleSharp', 'visible'],
+  ['visibleSmooth', 'visible'],
+  ['visibleOutline', 'visible'],
+  ['hiddenSharp', 'hidden'],
+  ['hiddenSmooth', 'hidden'],
+  ['hiddenOutline', 'hidden'],
+] as const
+
+/**
+ * HLR 投影 shape → 可见/隐藏 2D 折线（SVG d 串）。
+ * 全部句柄在本函数内释放（compound + 边；输入 shape 不消费）。
+ */
+function projectPolylines(shape: Shape, view: ViewSpec): { visible: string[]; hidden: string[] } {
+  const solid = brepOf(shape) as BrepHandle | undefined
+  if (solid === undefined) {
+    throw new Error(
+      '[faijs/view-projection] E_BREP_ONLY_INPUT: operation requires a BREP-backed shape ' +
+        '(mesh-only input cannot be projected)',
+    )
+  }
+  const api = getBrepApi()
+  const cam = resolveCamera(view) as unknown as Camera
+  const r = api.projectEdges(
+    solid,
+    { x: cam.position[0], y: cam.position[1], z: cam.position[2] },
+    { x: cam.direction[0], y: cam.direction[1], z: cam.direction[2] },
+    { x: cam.xAxis[0], y: cam.xAxis[1], z: cam.xAxis[2] },
+    true,
+    0.1,
+  ) as ProjectEdgesResult
+
+  const out: { visible: string[]; hidden: string[] } = { visible: [], hidden: [] }
+  const toHandle = (id: number): BrepHandle => id as BrepHandle
+  try {
+    for (const [key, group] of COMPOUND_KEYS) {
+      const compoundId = r[key]
+      if (typeof compoundId !== 'number' || compoundId === 0) continue
+      const edges = api.getSubShapes(toHandle(compoundId), 'edge')
+      for (const edge of edges) {
+        const d = edgeToPath(api, edge, cam)
+        if (d !== null) out[group].push(d)
+      }
+      // 释放 compound slot（幂等）
+      try {
+        api.release(toHandle(compoundId))
+      } catch {
+        // already released
+      }
+    }
+  } finally {
+    void 0
+  }
+  return out
+}
+
+/** 单条边 → SVG path d 串（3D 曲线采样折线投影到相机平面）。 */
+function edgeToPath(api: ReturnType<typeof getBrepApi>, edge: BrepHandle, cam: Camera): string | null {
+  let cp
+  try {
+    cp = api.curveParameters(edge)
+  } catch {
+    return null // 退化边（如孤立顶点线）无曲线参数
+  }
+  const { first, last } = cp
+  const span = last - first
+  const pts: [number, number][] = []
+  for (let i = 0; i < EDGE_SAMPLES; i += 1) {
+    const t = first + (span * i) / (EDGE_SAMPLES - 1)
+    const p = api.curvePointAtParam(edge, t)
+    pts.push(projectTo2D([p.x, p.y, p.z], cam))
+  }
+  if (pts.length < 2) return null
+  let d = `M ${pts[0][0].toFixed(4)} ${pts[0][1].toFixed(4)}`
+  for (let i = 1; i < pts.length; i += 1) {
+    d += ` L ${pts[i][0].toFixed(4)} ${pts[i][1].toFixed(4)}`
+  }
+  return d
 }
 
 /** 解析 'minX minY w h' 为数值数组。 */
@@ -59,37 +178,26 @@ function parseViewBox(vb: string): [number, number, number, number] | undefined 
   return [parts[0], parts[1], parts[2], parts[3]]
 }
 
-/** 空 Drawing 的 viewBox 是空串（innerShape 为 null）；返回 false 表示无内容。 */
-function viewBoxOf(d: Drawing): [number, number, number, number] | undefined {
-  const vb = d.toSVGViewBox(0)
-  if (vb === '') return undefined
-  return parseViewBox(vb)
-}
-
-/**
- * 可见 ∪ 隐藏两组 Drawing 的并集 viewBox（统一坐标系；margin 再外扩）。
- */
-function mergedViewBox(visible: Drawing, hidden: Drawing, margin: number): string {
+/** 折线点集 bbox → viewBox（统一坐标系；margin 再外扩）。 */
+function viewBoxOfPaths(paths: string[], margin: number): string {
   let minX = Infinity
   let minY = Infinity
   let maxX = -Infinity
   let maxY = -Infinity
-  for (const d of [visible, hidden]) {
-    const box = viewBoxOf(d)
-    if (!box) continue
-    const [x, y, w, h] = box
-    minX = Math.min(minX, x)
-    minY = Math.min(minY, y)
-    maxX = Math.max(maxX, x + w)
-    maxY = Math.max(maxY, y + h)
+  for (const d of paths) {
+    const nums = d.match(/[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?/g) ?? []
+    for (let i = 0; i + 1 < nums.length; i += 2) {
+      const x = Number(nums[i])
+      const y = Number(nums[i + 1])
+      if (!Number.isFinite(x) || !Number.isFinite(y)) continue
+      minX = Math.min(minX, x)
+      minY = Math.min(minY, y)
+      maxX = Math.max(maxX, x)
+      maxY = Math.max(maxY, y)
+    }
   }
   if (!Number.isFinite(minX)) return '0 0 0 0' // 空投影（如空 shape）
   return `${minX - margin} ${minY - margin} ${maxX - minX + 2 * margin} ${maxY - minY + 2 * margin}`
-}
-
-function flattenPaths(d: Drawing): string[] {
-  const paths = d.toSVGPaths()
-  return Array.isArray(paths[0]) ? (paths as string[][]).flat() : (paths as string[])
 }
 
 /**
@@ -101,45 +209,32 @@ function flattenPaths(d: Drawing): string[] {
  * @returns 结构化投影结果（svg/viewBox/paths/尺寸）。
  */
 export function projectViewSvg(shape: Shape, view: ViewSpec, opts: ProjectViewOptions = {}): ProjectionSvg {
-  // 借入 faijs Shape 的 brep 句柄为 vendored 对象形态（borrowBrepjsShape 包装是
-  // 必须的——vendored drawProjection 消费对象句柄（WeakMap 键/shape.type 读取），
-  // 裸 brepOf 数字句柄会崩；§5.7 disposal 自有化后再内联此借入）。
-  const borrowed = borrowBrepjsShape(shape)
-  const camera = resolveCamera(view)
-  const { visible, hidden } = drawProjection(borrowed as unknown as AnyShape, camera)
-  try {
-    const visiblePaths = flattenPaths(visible)
-    const hiddenPaths = flattenPaths(hidden)
-    const margin = opts.margin ?? 1
-    const viewBox = mergedViewBox(visible, hidden, margin)
-    const parsed = parseViewBox(viewBox) ?? [0, 0, 0, 0]
-    const width = opts.width ?? parsed[2]
-    const height = opts.height ?? parsed[3]
-    const strokeWidth = opts.strokeWidth ?? 1
-    const dash = opts.dash ?? '4,4'
-    const hiddenOpacity = opts.hiddenOpacity ?? 0.6
-    const visibleMarkup = visiblePaths
-      .map((d) => `<path d="${d}" fill="none" stroke="#000" stroke-width="${strokeWidth}" />`)
-      .join('\n    ')
-    const hiddenMarkup = hiddenPaths
-      .map(
-        (d) =>
-          `<path d="${d}" fill="none" stroke="#000" stroke-width="${strokeWidth}" stroke-dasharray="${dash}" opacity="${hiddenOpacity}" />`,
-      )
-      .join('\n    ')
-    const svg = [
-      `<svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" width="${width}" height="${height}" fill="none" stroke="black" stroke-width="0.6%" vector-effect="non-scaling-stroke">`,
-      `  <g stroke="#000" fill="none">`,
-      `    ${visibleMarkup}${hiddenMarkup === '' ? '' : `\n    ${hiddenMarkup}`}`,
-      `  </g>`,
-      `</svg>`,
-    ].join('\n')
-    return { svg, viewBox, paths: { visible: visiblePaths, hidden: hiddenPaths }, width, height }
-  } finally {
-    // Drawing 持有 2D kernel 句柄（Bnd_Box2d/2D 曲线），序列化后释放
-    visible[Symbol.dispose]?.()
-    hidden[Symbol.dispose]?.()
-  }
+  const { visible: visiblePaths, hidden: hiddenPaths } = projectPolylines(shape, view)
+  const margin = opts.margin ?? 1
+  const viewBox = viewBoxOfPaths([...visiblePaths, ...hiddenPaths], margin)
+  const parsed = parseViewBox(viewBox) ?? [0, 0, 0, 0]
+  const width = opts.width ?? parsed[2]
+  const height = opts.height ?? parsed[3]
+  const strokeWidth = opts.strokeWidth ?? 1
+  const dash = opts.dash ?? '4,4'
+  const hiddenOpacity = opts.hiddenOpacity ?? 0.6
+  const visibleMarkup = visiblePaths
+    .map((d) => `<path d="${d}" fill="none" stroke="#000" stroke-width="${strokeWidth}" />`)
+    .join('\n    ')
+  const hiddenMarkup = hiddenPaths
+    .map(
+      (d) =>
+        `<path d="${d}" fill="none" stroke="#000" stroke-width="${strokeWidth}" stroke-dasharray="${dash}" opacity="${hiddenOpacity}" />`,
+    )
+    .join('\n    ')
+  const svg = [
+    `<svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" width="${width}" height="${height}" fill="none" stroke="black" stroke-width="0.6%" vector-effect="non-scaling-stroke">`,
+    `  <g stroke="#000" fill="none">`,
+    `    ${visibleMarkup}${hiddenMarkup === '' ? '' : `\n    ${hiddenMarkup}`}`,
+    `  </g>`,
+    `</svg>`,
+  ].join('\n')
+  return { svg, viewBox, paths: { visible: visiblePaths, hidden: hiddenPaths }, width, height }
 }
 
 /**
@@ -155,7 +250,7 @@ export function projectViewSvg(shape: Shape, view: ViewSpec, opts: ProjectViewOp
  * @param opts.strokeWidth - 可见线宽（stroke-width）。type:number 默认 1
  * @param opts.dash - 隐藏线虚线样式（stroke-dasharray）。type:string 默认 '4,4'
  * @param opts.hiddenOpacity - 隐藏线透明度。type:number 默认 0.6
- * @param opts.margin - viewBox 外扩边距。type:number 默认 10
+ * @param opts.margin - viewBox 外扩边距。type:number 默认 1
  * @param opts.width - 输出宽度（缺省 = viewBox 宽度）。type:number
  * @param opts.height - 输出高度（缺省 = viewBox 高度）。type:number
  * @example

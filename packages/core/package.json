@@ -130,7 +130,6 @@
     "LICENSE"
   ],
   "dependencies": {
-    "@faicad/faijs-brepjs": "^0.16.0",
     "@xmldom/xmldom": "^0.9.8",
     "acorn": "^8.18.0",
     "manifold-3d": "^3.5.1",
