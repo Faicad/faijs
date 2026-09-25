@@ -23,6 +23,7 @@
 import type { BrepHandle } from '../../brep/engine/types'
 import type { BrepEngineApi } from '../../brep/engine/primitives'
 import { getOcctKernel, type ShapeHandle } from '../../occt-kernel/occtKernel'
+import { getBrepApi } from '../../brep/handle-bridge'
 
 /** 螺纹配置参数。单位 mm，角度由螺距推导。 */
 export interface ThreadOptions {
@@ -154,4 +155,33 @@ export function threadBrep(
   for (const e of intermediateEdges) kernel.release(e)
 
   return thread as unknown as BrepHandle
+}
+
+
+/**
+ * compat-op 包装：thread(options) → Result<BrepHandle>。
+ * 收敛以 core threadBrep 为准（§5.4：vendored compat op 与 core 版两份收敛为一处）。
+ * threadBrep 内部校验抛异常 → 捕获为 Result err（错误码 THREAD_INVALID_ARGS / THREAD_FAILED）。
+ */
+
+import type { FormClass } from '../internal/dual-form-args'
+import { resolveArgs } from '../internal/dual-form-args'
+import { ok, err, type Result } from '../../result/result'
+import { validationError, kernelError } from '../../result/errors'
+
+const THREAD_PARAMS = { name: 'thread', params: ['options'], formClass: 'B1' as FormClass }
+
+export function threadBrepOp(...args: unknown[]): Result<BrepHandle> {
+  const [options] = resolveArgs(args, THREAD_PARAMS)
+  const kernel = getBrepApi()
+  try {
+    const h = threadBrep(kernel, options as ThreadOptions)
+    return ok(h)
+  } catch (e) {
+    const raw = e instanceof Error ? e.message : String(e)
+    if (raw.startsWith('[threadBrep]')) {
+      return err(validationError('THREAD_INVALID_ARGS', raw))
+    }
+    return err(kernelError('THREAD_FAILED', `Thread generation failed: ${raw}`, e))
+  }
 }

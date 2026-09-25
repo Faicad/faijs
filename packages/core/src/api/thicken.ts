@@ -1,22 +1,22 @@
 /**
- * stdlib thicken — 加厚：把面/壳偏置成实体（手写平台 op，Phase 5）
+ * stdlib thicken — 加厚：把面（或壳）沿法向偏置成等厚实体（手写平台 op，Phase 4 → G5 core 直连）
  *
- * @platform occt — 实现走 vendored `thicken`（`BRepOffset_MakeOffset` /
- * `thickenWithHistory`；brepkit 无对应 API，engine-method-map `occt-only`）⇒
- * 平台 op：defineOp 声明 `engines: ['occt']`（D11）。
+ * @platform occt — 实现走 occt-wasm 原生 `thicken`（BRepOffsetAPI_MakeThickSolid；
+ * engine-method-map 里 `thicken` 为 occt-only）⇒ 平台 op：defineOp 声明
+ * `engines: ['occt']`（D11）。
  *
- * 输入口径（方案 §7 待裁决 2 → (b)）：薄壳化的起点是**面**——脚手架语言里最自然的
- * 面来源是 `cad.sketch(...)`（产出 face Shape）；faceRef 产物是纯数据 TopoRef（不是
- * Shape），不适用于「从无到有造体」的 thicken。入参收 Shape（face），内部借入喂
- * vendored thicken。
+ * core-decouple G5：vendored `thicken`（brepjs modifierFns，thickenWithHistory）
+ * 替换为 occt-wasm 原生直连，产物经 `fromBrep` 收养（替代 l3-bridge adoptEntity）。
  */
 
 import type { Shape } from '../mesh/types'
 import { defineOp } from '../sdk'
 import type { Provenance } from '../topology/naming/lineage'
-import { thicken as vendoredThicken } from '@faicad/faijs-brepjs/topology/modifierFns.js'
-import { adoptEntity, borrowBrepjsShape, callBrepjs } from './internal/l3-bridge'
-import { unwrapOrThrow } from './internal/compat-op'
+import { getBrepApi } from '../brep/handle-bridge'
+import { brepOf, fromBrep } from '../shape'
+import { solidToShape } from '../brep/brep-ops'
+import { getOcctKernel } from '../occt-kernel/occtKernel'
+import type { BrepHandle } from '../brep/engine/types'
 
 /**
  * 加厚：把面（或壳）沿法向偏置成等厚实体。
@@ -46,9 +46,11 @@ export const thicken = defineOp({
     if (typeof thickness !== 'number' || !Number.isFinite(thickness) || thickness === 0) {
       throw new Error('E_THICKEN_BAD_THICKNESS: thicken.thickness must be a non-zero number')
     }
-    const view = borrowBrepjsShape(input)
-    const r = callBrepjs(vendoredThicken, [view, thickness])
-    return adoptEntity(unwrapOrThrow(r, 'thicken'), 'thicken') as Shape
+    const kernel = getBrepApi()
+    const handle = brepOf(input) as BrepHandle | undefined
+    if (!handle) throw new Error('[thicken] input is not BREP')
+    const h = getOcctKernel().thicken(handle as never, thickness, 1e-6) as unknown as BrepHandle
+    return fromBrep(solidToShape(kernel, h), { solid: h }) as Shape
   },
   engines: ['occt'],
   naming: { kind: 'unmodeled', reason: 'thickened-body face vocabulary not defined' } as Provenance,

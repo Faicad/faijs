@@ -14,8 +14,9 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { createRuntime, registerOcctBrepEngine } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
-import { brepjsCompat } from '@faicad/faijs/api'
-import { borrowBrepjsShape } from '@faicad/faijs/api/internal/l3-bridge'
+import { getBrepApi } from '@faicad/faijs/brep/handle-bridge'
+import { brepOf } from '@faicad/faijs/shape'
+import type { BrepHandle } from '@faicad/faijs/brep/engine/types'
 import { asPartName } from '@faicad/faijs/identity'
 import type { Shape } from '@faicad/faijs/mesh/types'
 import * as cq from './index'
@@ -32,16 +33,11 @@ async function runShape(lines: string[]): Promise<Shape> {
 }
 
 function faceCount(shape: Shape): number {
-  return (brepjsCompat.getFaces(borrowBrepjsShape(shape) as never) as unknown[]).length
+  return (getBrepApi().getSubShapes(brepOf(shape) as BrepHandle, 'face') as unknown[]).length
 }
 
 function volume(shape: Shape): number {
-  const r = brepjsCompat.measureVolume(borrowBrepjsShape(shape) as never) as unknown as {
-    ok: boolean
-    value?: number
-  }
-  expect(r.ok).toBe(true)
-  return r.value as number
+  return getBrepApi().getVolume(brepOf(shape) as BrepHandle)
 }
 
 beforeAll(async () => {

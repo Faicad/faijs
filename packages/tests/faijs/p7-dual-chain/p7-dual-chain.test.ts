@@ -9,8 +9,8 @@
  *     从别处带回运行时回退的变体。
  *  2. getKernel 冻结（D10）：`withKernel`（运行期切换）与三级 `init()` WASM
  *     回落均已砍，`freezeKernels`/`getKernel` 只读读取器保留。
- *  3. 边界（D8）：core 侧 import vendored 树只允许发生在 L3 `api/`
- *     （occt-kernel-bridge.ts 是唯一桥接点）——反向导入方向被 check-layer-
+ *  3. 边界（D8）：core 侧 import vendored 树只允许发生在 L3 `api/` 的登记消费点
+ *     （compat-projection/l3-bridge 等）——反向导入方向被 check-layer-
  *     boundaries.mjs 守卫，这里再做一次机械比对作为验收锚点。
  *
  * Run: npx vitest run faijs/p7-dual-chain
@@ -72,7 +72,7 @@ describe('P7 · getKernel 冻结（D10：无 withKernel / 无 init 回落）', (
 describe('P7 · 边界（D8：core 侧 import vendored 只允许在登记桥接点）', () => {
   it('全部 `vendored/brepjs` import 都位于登记桥接点（api/ 或 brep/engine/adapters/）', () => {
     // 登记桥接点（与 scripts/check-layer-boundaries.mjs 的 R5 同口径）：
-    //   - api/                      —— L3 内核注入桥（occt-kernel-bridge.ts）
+    //   - api/                      —— L3 compat 消费点（compat-projection/l3-bridge 等）
     //   - brep/engine/adapters/     —— 引擎适配器桥：occt 适配器复用 vendored
     //                                  OcctWasmAdapter 的组合面（occt-wasm 无原生导出）
     //   - occt-kernel/              —— occt 引擎 L1 适配器（occt-primitives.ts 复用

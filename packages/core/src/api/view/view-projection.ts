@@ -101,6 +101,9 @@ function flattenPaths(d: Drawing): string[] {
  * @returns 结构化投影结果（svg/viewBox/paths/尺寸）。
  */
 export function projectViewSvg(shape: Shape, view: ViewSpec, opts: ProjectViewOptions = {}): ProjectionSvg {
+  // 借入 faijs Shape 的 brep 句柄为 vendored 对象形态（borrowBrepjsShape 包装是
+  // 必须的——vendored drawProjection 消费对象句柄（WeakMap 键/shape.type 读取），
+  // 裸 brepOf 数字句柄会崩；§5.7 disposal 自有化后再内联此借入）。
   const borrowed = borrowBrepjsShape(shape)
   const camera = resolveCamera(view)
   const { visible, hidden } = drawProjection(borrowed as unknown as AnyShape, camera)

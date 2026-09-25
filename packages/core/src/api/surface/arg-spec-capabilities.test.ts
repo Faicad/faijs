@@ -37,7 +37,7 @@ function legalCapabilityNames(): Set<string> {
 }
 
 describe('Phase 1 三方一致：arg-spec ↔ 声明 ↔ 生成物', () => {
-  it('brep-op 条目数 == (capabilities ∪ engines) 条目数 == generated compatOp 数', () => {
+  it('brep-op 条目数 == (capabilities ∪ engines) 条目数 == generated compatOp+selfhost defineOp 数', () => {
     const brepOps = ARG_SPEC.filter((e) => e.kind === 'brep-op')
     // 声明面：capabilities（能力依赖）与 engines（引擎白名单）是两条正交轴，可并存
     // （2026-09-24 撤销 D11-7 互斥）。故「100% 声明」= 每条 brep-op 至少命中一条轴，
@@ -46,15 +46,16 @@ describe('Phase 1 三方一致：arg-spec ↔ 声明 ↔ 生成物', () => {
     const generated = ['operations.ts', 'topology.ts', 'sketching.ts'].map((f) =>
       fs.readFileSync(path.join(CORE_SRC, 'src', 'api', 'generated', f), 'utf-8'),
     )
-    const compatOpCount = generated.reduce(
-      (acc, src) => acc + (src.match(/export const \w+ = compatOp\(/g)?.length ?? 0),
+    // Phase 3（core-decouple §5.4）：selfhost 条目走 defineOp 直连，其余走 compatOp；合计 == brep-op 条目数。
+    const opDeclCount = generated.reduce(
+      (acc, src) => acc + (src.match(/export const \w+ = (?:compatOp|defineOp)\(/g)?.length ?? 0),
       0,
     )
     expect(brepOps.length).toBeGreaterThan(0)
     // 并存合法（2026-09-24 撤销 D11-7 互斥）：同时声明两条轴的条目允许存在，
     // 故此处不再断言"两者不同现"；下面用 union 计数（并存条目只计一次）。
     expect(declared.length).toBe(brepOps.length) // 100% 声明
-    expect(compatOpCount).toBe(brepOps.length)
+    expect(opDeclCount).toBe(brepOps.length)
   })
 })
 

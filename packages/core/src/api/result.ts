@@ -1,14 +1,9 @@
 /**
- * Platform Result face (L3 bridge) — the only legal way for non-`api/` core
- * code to reach the vendored `Result` implementation.
+ * Platform Result face — the first-party Result implementation.
  *
- * D8 (docs/plans/2026-09-01-layered-api-architecture.md) forbids importing the
- * vendored tree from anywhere outside `src/api/`, while `src/fcstd/*` needs
- * `ok` / `err` / `isOk` / `Result`. Routing that need through this projection
- * keeps the bridge explicit instead of reaching into
- * `../vendored/brepjs/core/result.js` directly.
- *
- * Projection only — no reimplementation: the vendored module stays the single
- * source of truth for the Result semantics shared with the compat face.
+ * 2026-09-25 core-decouple Phase 1：从「vendored 投影」（旧 `export * from
+ * '@faicad/faijs-brepjs/core/result.js'`）改为 core 第一方模块 `result/result.ts`
+ * （同源复制，签名不变）。`@faicad/faijs/api/result` 深路径保持可用
+ * （fcstd 等下游按此 import）。
  */
-export * from '@faicad/faijs-brepjs/core/result.js'
+export * from '../result/result'

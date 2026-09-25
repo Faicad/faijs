@@ -17,7 +17,7 @@
  *   R4 移植树内禁止 import faijs 既有模块：相对导入不逃出移植根；`@/*`、`@faicad/*` 一律禁。
  *      仅 L3 api/ 可有限逃出到 faijs 侧（D10 内核注入）。
  *   R5 反向：faijs 既有代码（vendored 之外）import 移植树只允许发生在**登记桥接点**，
- *      即 `api/`（L3 内核注入桥 occt-kernel-bridge.ts）与 `brep/engine/adapters/`
+ *      即 `api/`（L3 compat 消费点）与 `brep/engine/adapters/`
  *      （引擎适配器桥：occt 适配器复用 vendored OcctWasmAdapter 的组合面，
  *      2026-09-23「engine-neutral vendored measurement surface」落地）。测试文件
  *      （`*.test.ts`）豁免：parity 测试的**目的**就是拿移植树实现与 BrepEngineApi 对拍，

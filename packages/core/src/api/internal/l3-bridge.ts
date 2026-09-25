@@ -7,7 +7,7 @@
  * - faijs 的 brep slot（`brepOf(shape)` → `slot.solid`）运行时是 occt-wasm 的
  *   shape 句柄（number，见 `brep/engine/types.ts` 的 `BrepHandle` 注释）；
  * - vendored brepjs 的 `ShapeHandle.wrapped`（`core/disposal.ts`）运行时也是
- *   同一 occt-wasm 实例的 shape 句柄 —— D10 单实例（`api/occt-kernel-bridge.ts`）
+ *   同一 occt-wasm 实例的 shape 句柄 —— D10 单实例
  *   保证两者共享同一 wasm，句柄空间一致，**零拷贝互操作**。
  *
  * 因此投影一个 brepjs op 只需三件事：
@@ -18,8 +18,10 @@
  *
  * 依赖约束（同 `brep/handle-bridge.ts`）：只允许 import runtime-state / shape /
  * handle-bridge / vendored disposal 的类型与借入工具 / vendored occtWasm helpers
- * 的句柄视图工厂（`handle`/`isOcctWasmHandle`，纯对象工厂无 wasm 依赖）/ `api/`
- * 层的内核桥读取器（`getBrepjsKernel`），保持 dist/sdk.js 零 heavy 依赖。
+ * 的句柄视图工厂（`handle`/`isOcctWasmHandle`，纯对象工厂无 wasm 依赖）/ vendored
+ * kernel registry 读取器（`getKernel`），保持 dist/sdk.js 零 heavy 依赖。
+ * 2026-09-25 core-decouple Phase 2：不再经 occt-kernel-bridge（已删），直读
+ * vendored kernel registry。
  */
 
 import type { Shape } from '../../mesh/types'
@@ -30,7 +32,7 @@ import { createBorrowedHandle } from '@faicad/faijs-brepjs/core/disposal.js'
 import { unregisterFromCleanup } from '@faicad/faijs-brepjs/core/disposal.js'
 import type { ShapeHandle } from '@faicad/faijs-brepjs/core/disposal.js'
 import { handle as occtWasmHandleView, isOcctWasmHandle } from '@faicad/faijs-brepjs/kernel/occtWasm/helpers.js'
-import { getBrepjsKernel } from '../occt-kernel-bridge'
+import { getKernel as getVendoredKernel } from '@faicad/faijs-brepjs/kernel/index'
 import { getBackends } from '../../runtime-state'
 import { OpError } from './result-unwrap'
 
@@ -65,7 +67,7 @@ export function borrowBrepjsShape(s: Shape): ShapeHandle {
   }
   const kernelShape = isOcctWasmHandle(solid)
     ? solid
-    : occtWasmHandleView(getBrepjsKernel().shapeType(solid as never), solid as never)
+    : occtWasmHandleView(getVendoredKernel().shapeType(solid as never), solid as never)
   return createBorrowedHandle(kernelShape as never)
 }
 

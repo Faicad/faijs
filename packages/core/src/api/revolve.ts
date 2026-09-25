@@ -19,12 +19,9 @@ import type { Shape } from '../mesh/types'
 import { defineOp } from '../sdk'
 import { getCurrentStmt } from '../runtime-state'
 import { getBrepApi } from '../brep/handle-bridge'
-import { brepOf } from '../shape'
-import { adoptEntity, callBrepjs } from './internal/l3-bridge'
-import { borrowDeep } from './internal/compat-op'
-import { unwrapResult } from './internal/result-unwrap'
+import { brepOf, fromBrep } from '../shape'
+import { solidToShape } from '../brep/brep-ops'
 import { runtimeLineage } from '../topology/naming/lineage'
-import { revolve as vendoredRevolve } from '@faicad/faijs-brepjs/operations/api.js'
 import { formatRoleName, semantic, wall } from '../topology/naming/role-name'
 import type { BrepEngineApi } from '../brep/engine/primitives'
 import type { BrepHandle } from '../brep/engine/types'
@@ -134,16 +131,17 @@ export const revolve = defineOp({
     // vendored 语义经 l3-bridge 三步桥接（与 compatOp 的 adapter 相同步骤，
     // 但在这里执行以便在**同一处**收编产物并建链根 roleTable——compatOp 的
     // 自动 adoptOut 会先登记一次，二次 fromBrep 会让 edgeRef 读到残缺表）。
-    const value = unwrapResult(
-      await callBrepjs(vendoredRevolve as never, [borrowDeep(face, 0), borrowDeep(options ?? {}, 0)]),
-      'revolve',
-    )
-    const s = adoptEntity(value, 'revolve') as Shape
-    // D12（2026-09-24）：取内核走 getBrepApi；引擎未初始化 → 跳过建表（返回纯 mesh 结果）。
-    let kernel: BrepEngineApi | null = null
-    try { kernel = getBrepApi() } catch { /* no engine -> skip role table */ }
-    const handle = kernel ? (brepOf(s) as BrepHandle | undefined) : undefined
-    if (!kernel || !handle) return s
+    const kernel = getBrepApi()
+    const handle = brepOf(face) as BrepHandle
+    if (!handle) throw new Error('[revolve] input is not BREP')
+    const { at = [0, 0, 0], axis = [0, 0, 1], angle = 2 * Math.PI } = (options ?? {}) as {
+      at?: [number, number, number]
+      axis?: [number, number, number]
+      angle?: number
+    }
+    const revolved = kernel.revolveVec(handle, { x: at[0], y: at[1], z: at[2] }, { x: axis[0], y: axis[1], z: axis[2] }, (angle * 180) / Math.PI)
+    const s = fromBrep(solidToShape(kernel, revolved), { solid: revolved }) as Shape
+    if (!getBrepApi()) return s
     // E3（Q13 路线①）：链根建 roleTable，origin = 语句 StmtId（Phase 1.6 口径）。
     // GOTCHA（2026-09-23）：不能对 adoptEntity 的产物再走一次 fromBrep——同语句的
     // registeredStmtId 去重会让第二次登记被吞（探针实测：outputTables 里没有本

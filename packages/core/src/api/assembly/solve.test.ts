@@ -17,7 +17,7 @@ import { describe, it, expect } from 'vitest'
 import { solveAssembly } from './solve'
 import { fromBrepjsQuat } from './pose'
 import { goldenMateCase } from './golden-mate'
-import { solveConstraints } from '@faicad/faijs-brepjs/kernel/solverAdapter'
+import { solveConstraints } from './solvers/chain-solver'
 import { TopoRefError } from '../../topology/naming'
 import { asPartName } from '../../identity'
 import type { AssemblyConstraint, AssemblyVec3 } from './types'
@@ -309,5 +309,22 @@ describe('P0 验收③：mesh 快照缺 axis → E_TOPO_NOT_FOUND（不静默）
         b: { part: P('p1'), face: face([0, 0, 3], [0, 0, 1]) },
       }]),
     ).toThrowError(TopoRefError)
+  })
+})
+
+describe('§5.6.5 裁决 10：缺省 solver = chain（钉住，防止默认值漂移）', () => {
+  it('solveAssembly 缺省（不传 opts）与显式 { solver: "chain" } 结果逐位一致', () => {
+    const constraints: AssemblyConstraint[] = [
+      {
+        type: 'mate',
+        a: { part: P('p0'), face: face([0, 0, 0], [0, 0, 1]) },
+        b: { part: P('p1'), face: face([0, 0, 30], [0, 0, -1]) },
+      },
+    ]
+    const def = solveAssembly([dummy(), dummy()], ['p0', 'p1'], constraints)
+    const chain = solveAssembly([dummy(), dummy()], ['p0', 'p1'], constraints, { solver: 'chain' })
+    expect(def.converged).toBe(true)
+    expect(def.transforms).toEqual(chain.transforms)
+    // chain 路径 = core solvers/chain-solver（§5.6 自有化移植，非 vendored）
   })
 })

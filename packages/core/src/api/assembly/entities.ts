@@ -17,7 +17,7 @@
 import type { Shape } from '../../mesh/types'
 import type { BrepEngineApi } from '../../brep/engine/primitives'
 import type { PartName } from '../../identity'
-import type { SolverEntity } from '@faicad/faijs-brepjs/kernel/solverAdapter'
+import type { SolverEntity } from './solvers/types'
 import { TopoRefError, type AxisHint } from '../../topology/naming'
 import { resolveTopoRef, captureEdgeAxis, captureFaceHint } from '../../topology/naming'
 import {

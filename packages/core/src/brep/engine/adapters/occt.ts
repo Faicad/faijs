@@ -18,7 +18,6 @@
 import { registerBrepEngine, hasBrepEngine, isBrepEngineRegistered, type BrepEngine } from '../registry'
 import type { BrepEvolutionKind, BrepMethodKind } from '../types'
 import { createOcctPrimitives } from '../../../occt-kernel/occt-primitives'
-import { injectCurrentBrepEngineAsKernel } from '../../../api/occt-kernel-bridge'
 
 /** OCCT 引擎注册 id（默认 BREP 引擎；首个注册自动成为默认）。 */
 export const OCCT_BREP_ENGINE_ID = 'occt'
@@ -116,7 +115,7 @@ const OCCT_METHOD_KINDS = [
   'surfaceType',
   'uvBounds',
   // Phase 5（D5）：测量族能力名统一为 L1 中立名（getBoundingBox/getVolume/...）——
-  // vendored 面的 boundingBox/volume/area/length 由 occt-kernel-bridge 映射层消化。
+  // vendored 面按 brepjs 自身命名（volume/area/length），core 能力表用 L1 中立名。
   'getBoundingBox',
   'getVolume',
   'getSurfaceArea',
@@ -169,10 +168,10 @@ export async function registerOcctBrepEngine(): Promise<void> {
       tessellationModel: 'extract-time',
     },
   }))
-  // P7-②：同一装配点把移植内核注册表注入到当前 BREP 引擎（Phase 2 P2-5：取代旧的
-  // bindOcctKernel() 固定绑定，改为引擎中立的 injectCurrentBrepEngineAsKernel）。
-  // 使 L3 调移植 L2 的 op 在宿主装配后立即可用；幂等，重复调用安全。
-  await injectCurrentBrepEngineAsKernel()
+  // 2026-09-25 core-decouple Phase 2（§5.1）：删除 occt-kernel-bridge 后，本注册
+  // 流程只管 core 引擎注册表，不再向 vendored kernel registry 注入——vendored
+  // 兼容面（compat op）由 Phase 3 逐批自有化替换；中间态下需要 vendored 面的
+  // 宿主/测试自行装配 vendored registry。
 }
 
 /**

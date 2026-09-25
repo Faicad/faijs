@@ -35,12 +35,12 @@ beforeAll(async () => {
 }, 120000)
 
 describe('gear raw Result contract (§8.1)', () => {
-  it('external returns a Result whose ok value is the raw gear solid', () => {
+  it('external returns a Result whose ok value is a faijs Shape (core payload)', () => {
     const r = gear.external({ teeth: 24, moduleSize: 2, thickness: 8, bore: 8 })
     expect(isOk(r)).toBe(true)
-    const v = (r as { ok: true; value: { wrapped?: unknown } }).value
+    const v = (r as { ok: true; value: Shape }).value
     expect(v).toBeDefined()
-    expect(v.wrapped).toBeDefined() // raw handle, not a faijs Shape yet
+    expect(isShape(v)).toBe(true) // core dual-op Shape (2026-09-25 core-decouple: vendored gears deleted)
   })
 
   it('internal returns an Ok ring solid', () => {

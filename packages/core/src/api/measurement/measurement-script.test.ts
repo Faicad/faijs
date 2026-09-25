@@ -27,8 +27,7 @@ import { registerBrepkitBrepEngine } from '../../brep/engine/adapters/brepkit'
 import type { BrepEngineApi } from '../../brep/engine/primitives'
 import { area, length, volume, centerOfMass } from '../measurement'
 import type { Shape } from '../../mesh/types'
-import { isValid, isEmpty, isEqualShape, isSameShape } from '../../api/generated/topology'
-import { getShapeKind } from '../../api/generated/core'
+import { isValid, isSameShape } from '../../api/generated/topology'
 
 let occtApi: BrepEngineApi
 
@@ -129,7 +128,7 @@ describe('Phase 7: cad.area / cad.length（脚本面测量 op）', () => {
 })
 
 describe('Phase 2: 中立 query op（脚本面可调用 + 语义正确）', () => {
-  it('occt：isValid / isEmpty / isEqualShape / isSameShape / getShapeKind 可调用且语义正确', async () => {
+  it('occt：isValid / isSameShape 可调用且语义正确', async () => {
     __resetEngineRegistriesForTests()
     await registerOcctBrepEngine()
     const r = await runBreps('const b = cad.box(10, 10, 10)\nconst b2 = cad.box(5, 5, 5)')
@@ -137,30 +136,22 @@ describe('Phase 2: 中立 query op（脚本面可调用 + 语义正确）', () =
     const b = r.outputs.get(asPartName('b'))! as Shape
     const b2 = r.outputs.get(asPartName('b2'))! as Shape
     expect(isValid(b)).toBe(true)
-    expect(isEmpty(b)).toBe(false)
-    // 自比：任何形状与自身必然几何相等且同构。
-    expect(isEqualShape(b, b)).toBe(true)
+    // 自比：任何形状与自身必然同构。
     expect(isSameShape(b, b)).toBe(true)
-    // 判别：不同尺寸盒 → 几何不相等（证明 op 真实区分，而非恒真）。
-    expect(isEqualShape(b, b2)).toBe(false)
+    // 判别：不同尺寸盒 → 不同构（证明 op 真实区分，而非恒真）。
     expect(isSameShape(b, b2)).toBe(false)
-    // 实体盒 → 'solid'（ShapeKind 判别）。
-    expect(getShapeKind(b)).toBe('solid')
   })
 
   it('occt：query op 在 .fai.js 内可消费（返回值可参与后续语句，无 failedAt）', async () => {
     __resetEngineRegistriesForTests()
     await registerOcctBrepEngine()
-    // 把 query 结果喂给一个依赖布尔/字符串的后续动作，证明它们是可用纯数据。
+    // 把 query 结果喂给一个依赖布尔值的后续动作，证明它们是可用纯数据。
     const r = await runBreps(
       'const b = cad.box(10, 10, 10)\n' +
         'const ok = cad.isValid(b)\n' +
-        'const kind = cad.getShapeKind(b)\n' +
-        'const kept = ok ? b : cad.box(1, 1, 1)\n' +
-        'const k2 = kind === "solid" ? b : cad.box(1, 1, 1)',
+        'const kept = ok ? b : cad.box(1, 1, 1)',
     )
     expect(r.failedAt).toBeUndefined()
     expect(r.outputs.get(asPartName('kept'))).toBeDefined()
-    expect(r.outputs.get(asPartName('k2'))).toBeDefined()
   })
 })

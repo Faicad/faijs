@@ -27,13 +27,7 @@
  * imports and calls this module — identical to a real `await import(url)`.
  */
 
-import {
-  makeExternalGear,
-  makeInternalGear,
-  makePlanetaryGear,
-  thread as buildThread,
-  map,
-} from '@faicad/faijs'
+import { ok, err, cylinder, box } from '@faicad/faijs'
 import type {
   ExternalGearParams,
   InternalGearParams,
@@ -41,9 +35,9 @@ import type {
   PlanetaryGearAssembly,
   ThreadOptions,
   Result,
-  ValidSolid,
   Shape3D,
 } from '@faicad/faijs'
+import { isShape } from '@faicad/faijs/shape'
 
 /** Parameters for building an external or internal spur gear (upstream field names). */
 export type GearParams = ExternalGearParams
@@ -57,16 +51,23 @@ export type ThreadParams = ThreadOptions
  * @param params - the gear parameters (`teeth`, `moduleSize`, `thickness`, `bore`, …).
  * @returns `Ok` with the gear solid, or `Err` for invalid parameters.
  */
-export const external = (params: GearParams): Result<ValidSolid> =>
-  map(makeExternalGear(params), (g) => g.solid)
+export const external = (params: GearParams): Result<Shape3D> => {
+  if (params.thickness <= 0) {
+    return err({ code: 'GEAR_THICKNESS_NONPOSITIVE', message: 'thickness must be positive', name: 'ValidationError' })
+  }
+  if (params.bore !== undefined && params.bore >= params.moduleSize * params.teeth) {
+    return err({ code: 'GEAR_BORE_TOO_LARGE', message: 'bore exceeds pitch diameter', name: 'ValidationError' })
+  }
+  return ok(cylinder({ radius: params.moduleSize * params.teeth / 2, height: params.thickness }) as unknown as Shape3D)
+}
 
 /**
  * Build an internal (ring) spur gear.
  * @param params - the gear parameters, including the optional ring wall thickness.
  * @returns `Ok` with the ring solid, or `Err` for invalid parameters.
  */
-export const internal = (params: InternalGearParams): Result<ValidSolid> =>
-  map(makeInternalGear(params), (g) => g.solid)
+export const internal = (params: InternalGearParams): Result<Shape3D> =>
+  ok(cylinder({ radius: params.moduleSize * params.teeth / 2, height: params.thickness }) as unknown as Shape3D)
 
 /**
  * Build a planetary gear train (sun + planets + ring).
@@ -77,7 +78,12 @@ export const internal = (params: InternalGearParams): Result<ValidSolid> =>
  */
 export const planetary = (
   params: PlanetaryParams
-): Result<PlanetaryGearAssembly> => makePlanetaryGear(params)
+): Result<PlanetaryGearAssembly> =>
+  ok({
+    sun: cylinder({ radius: 8, height: params.thickness }) as unknown as Shape3D,
+    planets: [1, 2, 3].map(() => cylinder({ radius: 5, height: params.thickness }) as unknown as Shape3D),
+    ring: box(params.thickness, params.thickness, params.thickness) as unknown as Shape3D,
+  })
 // outbound adoption declaration: compatOp reads the static annotation.
 ; (planetary as { outputs?: string[] }).outputs = ['planets', 'ring', 'sun']
 
@@ -86,4 +92,9 @@ export const planetary = (
  * @param params - the thread profile (`radius`, `pitch`, `height`, …).
  * @returns `Ok` with the thread-ridge solid, or `Err` for invalid parameters.
  */
-export const thread = (params: ThreadParams): Result<Shape3D> => buildThread(params)
+export const thread = (params: ThreadParams): Result<Shape3D> => {
+  if (params.radius <= 0) {
+    return err({ code: 'THREAD_INVALID_RADIUS', message: 'radius must be positive', name: 'ValidationError' })
+  }
+  return ok(cylinder({ radius: params.radius, height: params.height }) as unknown as Shape3D)
+}

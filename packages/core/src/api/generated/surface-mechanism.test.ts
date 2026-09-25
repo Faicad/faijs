@@ -106,10 +106,17 @@ describe('生成层机制（E5，P13a 机制 / P14 分片）', () => {
         if (e.kind === 'type') {
           expect(artifact, `${m}:${e.name}`).toMatch(new RegExp(`export type \\{ ${esc} \\} from '`))
         } else if (e.kind === 'brep-op') {
-          expect(artifact, `${m}:${e.name}`).toMatch(new RegExp(`export const ${esc} = compatOp\\(`))
-          expect(artifact, `${m}:${e.name}`).toMatch(new RegExp(`projectBrepOp\\('${esc}'`))
-          // brep-op 产物必须走 P21 的双形态投影包装 + P22 的语句边界桥（§4.3.2）
-          expect(artifact, `${m}:${e.name}`).toMatch(/'A'|'B1'|'B2'/)
+          if (e.selfhost === true) {
+            // Phase 3（core-decouple §5.4）：selfhost 条目 defineOp 直连 core 自有实现
+            // （api/brep-mirror/），不经过 compatOp/projectBrepOp 桥。
+            expect(artifact, `${m}:${e.name}`).toMatch(new RegExp(`export const ${esc} = defineOp\\(`))
+            expect(artifact, `${m}:${e.name}`).toMatch(new RegExp(`brep: __own_${esc}Brep`))
+          } else {
+            expect(artifact, `${m}:${e.name}`).toMatch(new RegExp(`export const ${esc} = compatOp\\(`))
+            expect(artifact, `${m}:${e.name}`).toMatch(new RegExp(`projectBrepOp\\('${esc}'`))
+            // brep-op 产物必须走 P21 的双形态投影包装 + P22 的语句边界桥（§4.3.2）
+            expect(artifact, `${m}:${e.name}`).toMatch(/'A'|'B1'|'B2'/)
+          }
         } else if (e.kind === 'query') {
           expect(artifact, `${m}:${e.name}`).toMatch(new RegExp(`export function ${esc}\\(`))
         } else if (e.kind === 'faijs') {

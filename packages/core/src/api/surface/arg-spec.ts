@@ -134,6 +134,19 @@ export interface ArgSpecEntry {
    * `import type` from lineage.ts — pure type, no runtime circular dep.
    */
   naming?: Provenance
+  /**
+   * Phase 3（core-decouple plan §5.4）：core 自有实现标记——source 指向
+   * pi/brep-mirror/<file>.ts#<fn>（core 第一方实现），生成器走 selfhost 分支
+   * （defineOp({ brep: __own_<fn>, … })，无 vendored import、无 compatOp/
+   * projectBrepOp 桥；D11 归一在自有实现内部完成）。
+   */
+  selfhost?: boolean
+  /** Named multi-product outputs（defineOp 的 outputs 选项，分片 op 用）。 */
+  outputs?: string[]
+  /** L3 schema per named parameter（G1 codegen + UI panel）。 */
+  schema?: Record<string, string>
+  /** D11 slot-map 声明（positional→object 装箱表）。 */
+  slotMap?: import('../../api/internal/dual-form-args').SlotMap
 }
 
 /**
@@ -145,11 +158,11 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   {
     name: 'Bounds3D',
     source: 'topology/shapeFns.js#Bounds3D',
-    kind: 'type',
+    kind: 'skip',
   },
   {
     name: 'torus',
-    source: 'topology/primitiveFns.js#torus',
+    source: 'brep-mirror/primitiveFns.ts#torusBrep', selfhost: true,
     kind: 'brep-op',
     capabilities: ["dispose","makeTorus"],
     args: '(majorRadius: number, minorRadius: number, options?: TorusOptions)',
@@ -163,7 +176,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   },
   {
     name: 'fuse',
-    source: 'topology/booleanFns.js#fuse',
+    source: 'brep-mirror/booleanFns.ts#fuseBrep', selfhost: true,
     kind: 'brep-op',
     // Phase 5 补漏（§1.5 推论 1 / D11）：vendored fuse 默认 trackEvolution 路径依赖
     // kernel.isNull / kernel.dispose（occt 平台面）→ 平台 op，声明 engines: ['occt']
@@ -183,13 +196,14 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   },
   {
     name: 'getBounds',
-    source: 'topology/shapeFns.js#getBounds',
+    source: 'core:brep-mirror#getBounds',
     kind: 'query',
-    args: '(shape: AnyShape) -> Bounds3D',
+    selfhost: true,
+    args: '(shape: Shape) -> BrepBoundingBox（core selfhost）',
     // 查询：输入 Shape（借入），返回纯数据 Bounds3D → 不进 defineOp（直接导出函数）。
     geometryArgs: [0],
     returnsResult: false,
-    returnType: 'Bounds3D',
+    returnType: '{ xmin: number; ymin: number; zmin: number; xmax: number; ymax: number; zmax: number }',
     params: ['shape'],
     formClass: 'A',
   },
@@ -205,49 +219,49 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   {
     name: 'CurvatureResult',
     source: 'measurement/measureFns.js#CurvatureResult',
-    kind: 'type',
+    kind: 'skip',
     module: 'measurement',
   },
   {
     name: 'DistanceProps',
     source: 'measurement/measureFns.js#DistanceProps',
-    kind: 'type',
+    kind: 'skip',
     module: 'measurement',
   },
   {
     name: 'InterferencePair',
     source: 'measurement/interferenceFns.js#InterferencePair',
-    kind: 'type',
+    kind: 'skip',
     module: 'measurement',
   },
   {
     name: 'InterferenceResult',
     source: 'measurement/interferenceFns.js#InterferenceResult',
-    kind: 'type',
+    kind: 'skip',
     module: 'measurement',
   },
   {
     name: 'LinearProps',
     source: 'measurement/measureFns.js#LinearProps',
-    kind: 'type',
+    kind: 'skip',
     module: 'measurement',
   },
   {
     name: 'PhysicalProps',
     source: 'measurement/measureFns.js#PhysicalProps',
-    kind: 'type',
+    kind: 'skip',
     module: 'measurement',
   },
   {
     name: 'SurfaceProps',
     source: 'measurement/measureFns.js#SurfaceProps',
-    kind: 'type',
+    kind: 'skip',
     module: 'measurement',
   },
   {
     name: 'VolumeProps',
     source: 'measurement/measureFns.js#VolumeProps',
-    kind: 'type',
+    kind: 'skip',
     module: 'measurement',
   },
   // 1 × skip（状态化查询工具）
@@ -266,10 +280,11 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     source: 'measurement/measureFns.js#measureVolumeProps',
     kind: 'query',
     module: 'measurement',
-    args: '(shape: Shape3D) -> Result<VolumeProps>',
+selfhost: true,
+    args: '(shape: Shape) -> { volume, centerOfMass }（core selfhost）',
     geometryArgs: [0],
     returnsResult: true,
-    returnType: 'VolumeProps',
+    returnType: '{ volume: number; centerOfMass: { x: number; y: number; z: number } }',
     params: ['shape'], formClass: 'A',
     engines: ['occt'],
   },
@@ -278,10 +293,11 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     source: 'measurement/measureFns.js#measureSurfaceProps',
     kind: 'query',
     module: 'measurement',
-    args: '(shape: Face | Shape3D) -> Result<SurfaceProps>',
+selfhost: true,
+    args: '(shape: Shape) -> { area }（core selfhost）',
     geometryArgs: [0],
     returnsResult: true,
-    returnType: 'SurfaceProps',
+    returnType: '{ area: number }',
     params: ['shape'], formClass: 'A',
     engines: ['occt'],
   },
@@ -290,10 +306,11 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     source: 'measurement/measureFns.js#measureLinearProps',
     kind: 'query',
     module: 'measurement',
-    args: '(shape: AnyShape) -> Result<LinearProps>',
+selfhost: true,
+    args: '(shape: Shape) -> { length }（core selfhost）',
     geometryArgs: [0],
     returnsResult: true,
-    returnType: 'LinearProps',
+    returnType: '{ length: number }',
     params: ['shape'], formClass: 'A',
     engines: ['occt'],
   },
@@ -302,7 +319,8 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     source: 'measurement/measureFns.js#measureVolume',
     kind: 'query',
     module: 'measurement',
-    args: '(shape: Shape3D) -> Result<number>',
+selfhost: true,
+    args: '(shape: Shape) -> number（core selfhost）',
     geometryArgs: [0],
     returnsResult: true,
     returnType: 'number',
@@ -314,7 +332,8 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     source: 'measurement/measureFns.js#measureArea',
     kind: 'query',
     module: 'measurement',
-    args: '(shape: Face | Shape3D) -> Result<number>',
+selfhost: true,
+    args: '(shape: Shape) -> number（core selfhost）',
     geometryArgs: [0],
     returnsResult: true,
     returnType: 'number',
@@ -326,7 +345,8 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     source: 'measurement/measureFns.js#measureLength',
     kind: 'query',
     module: 'measurement',
-    args: '(shape: AnyShape) -> Result<number>',
+selfhost: true,
+    args: '(shape: Shape) -> number（core selfhost）',
     geometryArgs: [0],
     returnsResult: true,
     returnType: 'number',
@@ -336,7 +356,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   {
     name: 'measureDistance',
     source: 'measurement/measureFns.js#measureDistance',
-    kind: 'query',
+    kind: 'skip',
     module: 'measurement',
     args: '(a: AnyShape, b: AnyShape) -> Result<number>',
     geometryArgs: [0, 1],
@@ -352,7 +372,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   {
     name: 'measureDistanceProps',
     source: 'measurement/measureFns.js#measureDistanceProps',
-    kind: 'query',
+    kind: 'skip',
     module: 'measurement',
     args: '(a: AnyShape, b: AnyShape) -> Result<DistanceProps>',
     geometryArgs: [0, 1],
@@ -368,7 +388,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   {
     name: 'measureCurvatureAt',
     source: 'measurement/measureFns.js#measureCurvatureAt',
-    kind: 'query',
+    kind: 'skip',
     module: 'measurement',
     args: '(face: OrientedFace, u: number, v: number) -> Result<CurvatureResult>',
     geometryArgs: [0],
@@ -385,7 +405,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   {
     name: 'measureCurvatureAtMid',
     source: 'measurement/measureFns.js#measureCurvatureAtMid',
-    kind: 'query',
+    kind: 'skip',
     module: 'measurement',
     args: '(face: Face) -> Result<CurvatureResult>',
     geometryArgs: [0],
@@ -397,7 +417,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   {
     name: 'checkInterference',
     source: 'measurement/interferenceFns.js#checkInterference',
-    kind: 'query',
+    kind: 'skip',
     module: 'measurement',
     args: '(a: AnyShape, b: AnyShape, tolerance?: number) -> Result<InterferenceResult>',
     geometryArgs: [0, 1],
@@ -414,7 +434,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   {
     name: 'checkAllInterferences',
     source: 'measurement/interferenceFns.js#checkAllInterferences',
-    kind: 'query',
+    kind: 'skip',
     module: 'measurement',
     args: '(shapes: AnyShape[], tolerance?: number) -> InterferencePair[]',
     // 数组输入：geometryCollectionArgs 索引对应的 Shape 数组逐元素借入 brepjs handle。
@@ -437,7 +457,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   {
     name: 'inspectInterference',
     source: 'measurement/interferenceFns.js#checkInterference',
-    kind: 'query',
+    kind: 'skip',
     module: 'measurement',
     args: '(a: Shape, b: Shape, tolerance?: number) -> InterferenceResult',
     geometryArgs: [0, 1],
@@ -456,7 +476,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   {
     name: 'inspectAllInterferences',
     source: 'measurement/interferenceFns.js#checkAllInterferences',
-    kind: 'query',
+    kind: 'skip',
     module: 'measurement',
     args: '(shapes: Shape[], tolerance?: number) -> InterferencePair[]',
     geometryCollectionArgs: [0],
@@ -474,7 +494,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   {
     name: 'inspectCurvature',
     source: 'measurement/measureFns.js#measureCurvatureAt',
-    kind: 'query',
+    kind: 'skip',
     module: 'measurement',
     args: '(face: Shape, u: number, v: number) -> CurvatureResult',
     geometryArgs: [0],
@@ -493,7 +513,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   {
     name: 'inspectCurvatureAtMid',
     source: 'measurement/measureFns.js#measureCurvatureAtMid',
-    kind: 'query',
+    kind: 'skip',
     module: 'measurement',
     args: '(face: Shape) -> CurvatureResult',
     geometryArgs: [0],
@@ -510,11 +530,12 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     source: 'measurement/measureFns.js#measureVolumeProps',
     kind: 'query',
     module: 'measurement',
-    args: '(shape: Shape) -> VolumeProps',
+selfhost: true,
+    args: '(shape: Shape) -> { volume, area, centerOfMass }（core selfhost）',
     geometryArgs: [0],
     queryParams: [{ name: 'shape', type: 'Shape', docs: '目标实体（体积/质心/惯量/主轴）' }],
     returnsResult: true,
-    returnType: 'VolumeProps',
+    returnType: '{ volume: number; area: number; centerOfMass: { x: number; y: number; z: number } }',
     params: ['shape'], formClass: 'A',
     engines: ['occt'],
     scriptFace: true,
@@ -567,32 +588,42 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   {
     name: 'FontMetricsResult',
     source: 'text/textMetrics.js#FontMetricsResult',
-    kind: 'type',
+    kind: 'skip',
     module: 'text',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/text.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'TextMetricsResult',
     source: 'text/textMetrics.js#TextMetricsResult',
-    kind: 'type',
+    kind: 'skip',
     module: 'text',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/text.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'fontMetrics',
     source: 'text/textMetrics.js#fontMetrics',
-    kind: 'pure',
+    kind: 'skip',
     module: 'text',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/text.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'getFont',
     source: 'text/fontRegistry.js#getFont',
-    kind: 'pure',
+    kind: 'skip',
     module: 'text',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/text.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'textMetrics',
     source: 'text/textMetrics.js#textMetrics',
-    kind: 'pure',
+    kind: 'skip',
     module: 'text',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/text.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'loadFont',
@@ -629,44 +660,58 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   {
     name: 'Camera',
     source: 'projection/cameraFns.js#Camera',
-    kind: 'type',
+    kind: 'skip',
     module: 'projection',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/projection.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'CubeFace',
     source: 'projection/projectionPlanes.js#CubeFace',
-    kind: 'type',
+    kind: 'skip',
     module: 'projection',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/projection.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'ProjectionPlane',
     source: 'projection/projectionPlanes.js#ProjectionPlane',
-    kind: 'type',
+    kind: 'skip',
     module: 'projection',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/projection.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'cameraFromPlane',
     source: 'projection/cameraFns.js#cameraFromPlane',
-    kind: 'pure',
+    kind: 'skip',
     module: 'projection',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/projection.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'cameraLookAt',
     source: 'projection/cameraFns.js#cameraLookAt',
-    kind: 'pure',
+    kind: 'skip',
     module: 'projection',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/projection.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'createCamera',
     source: 'projection/cameraFns.js#createCamera',
-    kind: 'pure',
+    kind: 'skip',
     module: 'projection',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/projection.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'isProjectionPlane',
     source: 'projection/projectionPlanes.js#isProjectionPlane',
-    kind: 'pure',
+    kind: 'skip',
     module: 'projection',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/projection.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'makeProjectedEdges',
@@ -726,50 +771,66 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   {
     name: 'CornerFilter',
     source: 'query/finderFns.js#CornerFilter',
-    kind: 'type',
+    kind: 'skip',
     module: 'query',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/query.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'CornerFinderFn',
     source: 'query/finderFns.js#CornerFinderFn',
-    kind: 'type',
+    kind: 'skip',
     module: 'query',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/query.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'EdgeFinderFn',
     source: 'query/finderFns.js#EdgeFinderFn',
-    kind: 'type',
+    kind: 'skip',
     module: 'query',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/query.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'FaceFinderFn',
     source: 'query/finderFns.js#FaceFinderFn',
-    kind: 'type',
+    kind: 'skip',
     module: 'query',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/query.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'ShapeFinder',
     source: 'query/finderFns.js#ShapeFinder',
-    kind: 'type',
+    kind: 'skip',
     module: 'query',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/query.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'SingleFace',
     source: 'query/helpers.js#SingleFace',
-    kind: 'type',
+    kind: 'skip',
     module: 'query',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/query.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'VertexFinderFn',
     source: 'query/finderFns.js#VertexFinderFn',
-    kind: 'type',
+    kind: 'skip',
     module: 'query',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/query.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'WireFinderFn',
     source: 'query/finderFns.js#WireFinderFn',
-    kind: 'type',
+    kind: 'skip',
     module: 'query',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/query.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'cornerFinder',
@@ -836,56 +897,74 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   {
     name: 'booleans',
     source: 'index.js#booleans',
-    kind: 'pure',
+    kind: 'skip',
     module: 'ns',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/ns.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'construction',
     source: 'index.js#construction',
-    kind: 'pure',
+    kind: 'skip',
     module: 'ns',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/ns.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'io',
     source: 'index.js#io',
-    kind: 'pure',
+    kind: 'skip',
     module: 'ns',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/ns.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'measurement',
     source: 'index.js#measurement',
-    kind: 'pure',
+    kind: 'skip',
     module: 'ns',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/ns.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'modifiers',
     source: 'index.js#modifiers',
-    kind: 'pure',
+    kind: 'skip',
     module: 'ns',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/ns.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'patterns',
     source: 'index.js#patterns',
-    kind: 'pure',
+    kind: 'skip',
     module: 'ns',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/ns.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'primitives',
     source: 'index.js#primitives',
-    kind: 'pure',
+    kind: 'skip',
     module: 'ns',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/ns.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'query',
     source: 'index.js#query',
-    kind: 'pure',
+    kind: 'skip',
     module: 'ns',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/ns.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'transforms',
     source: 'index.js#transforms',
-    kind: 'pure',
+    kind: 'skip',
     module: 'ns',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/ns.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
 
   // ──── P14 第五片：gear 模块（17 符号 = 11 type + 3 pure + 3 skip）────
@@ -899,86 +978,114 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   {
     name: 'ExternalGearParams',
     source: 'gear/index.js#ExternalGearParams',
-    kind: 'type',
+    kind: 'skip',
     module: 'gear',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'GearDiagnostic',
     source: 'gear/index.js#GearDiagnostic',
-    kind: 'type',
+    kind: 'skip',
     module: 'gear',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'GearDiagnosticCode',
     source: 'gear/index.js#GearDiagnosticCode',
-    kind: 'type',
+    kind: 'skip',
     module: 'gear',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'GearDiagnosticSeverity',
     source: 'gear/index.js#GearDiagnosticSeverity',
-    kind: 'type',
+    kind: 'skip',
     module: 'gear',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'GearGeometry',
     source: 'gear/index.js#GearGeometry',
-    kind: 'type',
+    kind: 'skip',
     module: 'gear',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'GearResult',
     source: 'gear/index.js#GearResult',
-    kind: 'type',
+    kind: 'skip',
     module: 'gear',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'InternalGearParams',
     source: 'gear/index.js#InternalGearParams',
-    kind: 'type',
+    kind: 'skip',
     module: 'gear',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'PlanetPlacement',
     source: 'gear/index.js#PlanetPlacement',
-    kind: 'type',
+    kind: 'skip',
     module: 'gear',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'PlanetPlacementParams',
     source: 'gear/index.js#PlanetPlacementParams',
-    kind: 'type',
+    kind: 'skip',
     module: 'gear',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'PlanetaryGearAssembly',
     source: 'gear/index.js#PlanetaryGearAssembly',
-    kind: 'type',
+    kind: 'skip',
     module: 'gear',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'PlanetaryGearParams',
     source: 'gear/index.js#PlanetaryGearParams',
-    kind: 'type',
+    kind: 'skip',
     module: 'gear',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'gearGeometry',
     source: 'gear/index.js#gearGeometry',
-    kind: 'pure',
+    kind: 'skip',
     module: 'gear',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'planetPlacements',
     source: 'gear/index.js#planetPlacements',
-    kind: 'pure',
+    kind: 'skip',
     module: 'gear',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'validatePlanetary',
     source: 'gear/index.js#validatePlanetary',
-    kind: 'pure',
+    kind: 'skip',
     module: 'gear',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/gear.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'makeExternalGear',
@@ -1019,74 +1126,98 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   {
     name: 'Blueprint',
     source: 'index.js#Blueprint',
-    kind: 'type',
+    kind: 'skip',
     module: '2d',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/2d.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'Blueprints',
     source: 'index.js#Blueprints',
-    kind: 'type',
+    kind: 'skip',
     module: '2d',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/2d.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'BoundingBox2d',
     source: 'index.js#BoundingBox2d',
-    kind: 'type',
+    kind: 'skip',
     module: '2d',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/2d.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'CompoundBlueprint',
     source: 'index.js#CompoundBlueprint',
-    kind: 'type',
+    kind: 'skip',
     module: '2d',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/2d.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'Curve2D',
     source: 'index.js#Curve2D',
-    kind: 'type',
+    kind: 'skip',
     module: '2d',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/2d.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'DrawingInterface',
     source: 'index.js#DrawingInterface',
-    kind: 'type',
+    kind: 'skip',
     module: '2d',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/2d.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'GenericSketcher',
     source: 'index.js#GenericSketcher',
-    kind: 'type',
+    kind: 'skip',
     module: '2d',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/2d.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'Point2D',
     source: 'index.js#Point2D',
-    kind: 'type',
+    kind: 'skip',
     module: '2d',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/2d.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'ScaleMode',
     source: 'index.js#ScaleMode',
-    kind: 'type',
+    kind: 'skip',
     module: '2d',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/2d.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'Shape2D',
     source: 'index.js#Shape2D',
-    kind: 'type',
+    kind: 'skip',
     module: '2d',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/2d.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'SketchData',
     source: 'index.js#SketchData',
-    kind: 'type',
+    kind: 'skip',
     module: '2d',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/2d.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'SplineOptions',
     source: 'index.js#SplineOptions',
-    kind: 'type',
+    kind: 'skip',
     module: '2d',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/2d.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'BaseSketcher2d',
@@ -1335,74 +1466,98 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   {
     name: 'DXFEntity',
     source: 'index.js#DXFEntity',
-    kind: 'type',
+    kind: 'skip',
     module: 'io',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/io.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'DXFExportOptions',
     source: 'index.js#DXFExportOptions',
-    kind: 'type',
+    kind: 'skip',
     module: 'io',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/io.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'DXFImportOptions',
     source: 'index.js#DXFImportOptions',
-    kind: 'type',
+    kind: 'skip',
     module: 'io',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/io.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'GltfExportOptions',
     source: 'index.js#GltfExportOptions',
-    kind: 'type',
+    kind: 'skip',
     module: 'io',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/io.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'GltfFace',
     source: 'index.js#GltfFace',
-    kind: 'type',
+    kind: 'skip',
     module: 'io',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/io.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'GltfMaterial',
     source: 'index.js#GltfMaterial',
-    kind: 'type',
+    kind: 'skip',
     module: 'io',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/io.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'MaterialFn',
     source: 'index.js#MaterialFn',
-    kind: 'type',
+    kind: 'skip',
     module: 'io',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/io.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'StepExportOptions',
     source: 'index.js#StepExportOptions',
-    kind: 'type',
+    kind: 'skip',
     module: 'io',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/io.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'StepExportPart',
     source: 'index.js#StepExportPart',
-    kind: 'type',
+    kind: 'skip',
     module: 'io',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/io.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'SVGImportOptions',
     source: 'index.js#SVGImportOptions',
-    kind: 'type',
+    kind: 'skip',
     module: 'io',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/io.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'ThreeMFExportOptions',
     source: 'index.js#ThreeMFExportOptions',
-    kind: 'type',
+    kind: 'skip',
     module: 'io',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/io.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'ThreeMFMaterial',
     source: 'index.js#ThreeMFMaterial',
-    kind: 'type',
+    kind: 'skip',
     module: 'io',
+    reason:
+      '零引用死分片（§5.5 第 1 条）：generated/io.ts 已随 brepjs 删除，无接收方（裁决 9）',
   },
   {
     name: 'blueprintToDXF',
@@ -1528,192 +1683,192 @@ export const ARG_SPEC: ArgSpecEntry[] = [
 //（supportExtrude）→ skip。joint 构造/数值助手与骨架计算 → pure。
   {
     // ---- 类型（全部 re-export；barrel 别名走 index.js）----
-    name: 'AssemblyExporter', source: 'operations/exporters.js#AssemblyExporter', kind: 'type', module: 'operations', reason: '',
+    name: 'AssemblyExporter', source: 'operations/exporters.js#AssemblyExporter', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'AssemblyNode', source: 'operations/assemblyFns.js#AssemblyNode', kind: 'type', module: 'operations', reason: '',
+    name: 'AssemblyNode', source: 'operations/assemblyFns.js#AssemblyNode', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'AssemblyNodeOptions', source: 'operations/assemblyFns.js#AssemblyNodeOptions', kind: 'type', module: 'operations', reason: '',
+    name: 'AssemblyNodeOptions', source: 'operations/assemblyFns.js#AssemblyNodeOptions', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'AssemblySolveResult', source: 'operations/mateFns.js#AssemblySolveResult', kind: 'type', module: 'operations', reason: '',
+    name: 'AssemblySolveResult', source: 'operations/mateFns.js#AssemblySolveResult', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'CleanLoftOptions', source: 'index.js#CleanLoftOptions', kind: 'type', module: 'operations', reason: '',
+    name: 'CleanLoftOptions', source: 'index.js#CleanLoftOptions', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'CleanSweepOptions', source: 'index.js#CleanSweepOptions', kind: 'type', module: 'operations', reason: '',
+    name: 'CleanSweepOptions', source: 'index.js#CleanSweepOptions', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'CylindricalOptions', source: 'operations/jointFns.js#CylindricalOptions', kind: 'type', module: 'operations', reason: '',
+    name: 'CylindricalOptions', source: 'operations/jointFns.js#CylindricalOptions', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'DHOptions', source: 'operations/dhFns.js#DHOptions', kind: 'type', module: 'operations', reason: '',
+    name: 'DHOptions', source: 'operations/dhFns.js#DHOptions', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'DHRow', source: 'operations/dhFns.js#DHRow', kind: 'type', module: 'operations', reason: '',
+    name: 'DHRow', source: 'operations/dhFns.js#DHRow', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'ExtrudeAllEntry', source: 'operations/extrudeFns.js#ExtrudeAllEntry', kind: 'type', module: 'operations', reason: '',
+    name: 'ExtrudeAllEntry', source: 'operations/extrudeFns.js#ExtrudeAllEntry', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'ExtrusionProfile', source: 'operations/extrudeFns.js#ExtrusionProfile', kind: 'type', module: 'operations', reason: '',
+    name: 'ExtrusionProfile', source: 'operations/extrudeFns.js#ExtrusionProfile', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'GuidedSweepOptions', source: 'operations/guidedSweepFns.js#GuidedSweepOptions', kind: 'type', module: 'operations', reason: '',
+    name: 'GuidedSweepOptions', source: 'operations/guidedSweepFns.js#GuidedSweepOptions', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'HistoryOperationRegistry', source: 'index.js#HistoryOperationRegistry', kind: 'type', module: 'operations', reason: '',
+    name: 'HistoryOperationRegistry', source: 'index.js#HistoryOperationRegistry', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'IKOptions', source: 'operations/ikFns.js#IKOptions', kind: 'type', module: 'operations', reason: '',
+    name: 'IKOptions', source: 'operations/ikFns.js#IKOptions', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'IKResult', source: 'operations/ikFns.js#IKResult', kind: 'type', module: 'operations', reason: '',
+    name: 'IKResult', source: 'operations/ikFns.js#IKResult', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'IKTarget', source: 'operations/ikFns.js#IKTarget', kind: 'type', module: 'operations', reason: '',
+    name: 'IKTarget', source: 'operations/ikFns.js#IKTarget', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'InstancedMesh', source: 'operations/instanceFns.js#InstancedMesh', kind: 'type', module: 'operations', reason: '',
+    name: 'InstancedMesh', source: 'operations/instanceFns.js#InstancedMesh', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'InstancedShape', source: 'operations/instanceFns.js#InstancedShape', kind: 'type', module: 'operations', reason: '',
+    name: 'InstancedShape', source: 'operations/instanceFns.js#InstancedShape', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'InstanceGridOptions', source: 'operations/instanceFns.js#InstanceGridOptions', kind: 'type', module: 'operations', reason: '',
+    name: 'InstanceGridOptions', source: 'operations/instanceFns.js#InstanceGridOptions', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'Joint', source: 'operations/jointFns.js#Joint', kind: 'type', module: 'operations', reason: '',
+    name: 'Joint', source: 'operations/jointFns.js#Joint', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'JointAxis', source: 'operations/jointFns.js#JointAxis', kind: 'type', module: 'operations', reason: '',
+    name: 'JointAxis', source: 'operations/jointFns.js#JointAxis', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'JointDOF', source: 'operations/jointFns.js#JointDOF', kind: 'type', module: 'operations', reason: '',
+    name: 'JointDOF', source: 'operations/jointFns.js#JointDOF', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'JointOptions', source: 'operations/jointFns.js#JointOptions', kind: 'type', module: 'operations', reason: '',
+    name: 'JointOptions', source: 'operations/jointFns.js#JointOptions', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'JointPose', source: 'operations/jointFns.js#JointPose', kind: 'type', module: 'operations', reason: '',
+    name: 'JointPose', source: 'operations/jointFns.js#JointPose', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'JointType', source: 'operations/jointFns.js#JointType', kind: 'type', module: 'operations', reason: '',
+    name: 'JointType', source: 'operations/jointFns.js#JointType', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'LoftAllEntry', source: 'operations/loftFns.js#LoftAllEntry', kind: 'type', module: 'operations', reason: '',
+    name: 'LoftAllEntry', source: 'operations/loftFns.js#LoftAllEntry', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'MateConstraint', source: 'operations/mateFns.js#MateConstraint', kind: 'type', module: 'operations', reason: '',
+    name: 'MateConstraint', source: 'operations/mateFns.js#MateConstraint', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'MateEntity', source: 'operations/mateFns.js#MateEntity', kind: 'type', module: 'operations', reason: '',
+    name: 'MateEntity', source: 'operations/mateFns.js#MateEntity', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'MaterializeOptions', source: 'operations/instanceFns.js#MaterializeOptions', kind: 'type', module: 'operations', reason: '',
+    name: 'MaterializeOptions', source: 'operations/instanceFns.js#MaterializeOptions', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'ModelHistory', source: 'operations/historyFns.js#ModelHistory', kind: 'type', module: 'operations', reason: '',
+    name: 'ModelHistory', source: 'operations/historyFns.js#ModelHistory', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'MultiSweepOptions', source: 'operations/multiSweepFns.js#MultiSweepOptions', kind: 'type', module: 'operations', reason: '',
+    name: 'MultiSweepOptions', source: 'operations/multiSweepFns.js#MultiSweepOptions', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'OperationFn', source: 'operations/historyFns.js#OperationFn', kind: 'type', module: 'operations', reason: '',
+    name: 'OperationFn', source: 'operations/historyFns.js#OperationFn', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'OperationStep', source: 'operations/historyFns.js#OperationStep', kind: 'type', module: 'operations', reason: '',
+    name: 'OperationStep', source: 'operations/historyFns.js#OperationStep', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'PlanarOptions', source: 'operations/jointFns.js#PlanarOptions', kind: 'type', module: 'operations', reason: '',
+    name: 'PlanarOptions', source: 'operations/jointFns.js#PlanarOptions', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'RevolveOptions', source: 'operations/api.js#RevolveOptions', kind: 'type', module: 'operations', reason: '',
+    name: 'RevolveOptions', source: 'operations/api.js#RevolveOptions', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'RoofOptions', source: 'operations/roofFns.js#RoofOptions', kind: 'type', module: 'operations', reason: '',
+    name: 'RoofOptions', source: 'operations/roofFns.js#RoofOptions', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'SerializedHistory', source: 'operations/historyFns.js#SerializedHistory', kind: 'type', module: 'operations', reason: '',
+    name: 'SerializedHistory', source: 'operations/historyFns.js#SerializedHistory', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'ShapeOptions', source: 'operations/exporterFns.js#ShapeOptions', kind: 'type', module: 'operations', reason: '',
+    name: 'ShapeOptions', source: 'operations/exporterFns.js#ShapeOptions', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'SkeletonFace', source: 'operations/straightSkeleton.js#SkeletonFace', kind: 'type', module: 'operations', reason: '',
+    name: 'SkeletonFace', source: 'operations/straightSkeleton.js#SkeletonFace', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'SkeletonNode', source: 'operations/straightSkeleton.js#SkeletonNode', kind: 'type', module: 'operations', reason: '',
+    name: 'SkeletonNode', source: 'operations/straightSkeleton.js#SkeletonNode', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'SkPoint2D', source: 'operations/straightSkeleton.js#SkPoint2D', kind: 'type', module: 'operations', reason: '',
+    name: 'SkPoint2D', source: 'operations/straightSkeleton.js#SkPoint2D', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'SphericalOptions', source: 'operations/jointFns.js#SphericalOptions', kind: 'type', module: 'operations', reason: '',
+    name: 'SphericalOptions', source: 'operations/jointFns.js#SphericalOptions', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'StraightSkeleton', source: 'operations/straightSkeleton.js#StraightSkeleton', kind: 'type', module: 'operations', reason: '',
+    name: 'StraightSkeleton', source: 'operations/straightSkeleton.js#StraightSkeleton', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'SupportedUnit', source: 'operations/exporterFns.js#SupportedUnit', kind: 'type', module: 'operations', reason: '',
+    name: 'SupportedUnit', source: 'operations/exporterFns.js#SupportedUnit', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'SweepOptions', source: 'operations/extrudeFns.js#SweepOptions', kind: 'type', module: 'operations', reason: '',
+    name: 'SweepOptions', source: 'operations/extrudeFns.js#SweepOptions', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'SweepSectionConfig', source: 'operations/multiSweepFns.js#SweepSectionConfig', kind: 'type', module: 'operations', reason: '',
+    name: 'SweepSectionConfig', source: 'operations/multiSweepFns.js#SweepSectionConfig', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'ThreadOptions', source: 'operations/threadFns.js#ThreadOptions', kind: 'type', module: 'operations', reason: '',
+    name: 'ThreadOptions', source: 'operations/threadFns.js#ThreadOptions', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'TrajectorySample', source: 'operations/ikFns.js#TrajectorySample', kind: 'type', module: 'operations', reason: '',
+    name: 'TrajectorySample', source: 'operations/ikFns.js#TrajectorySample', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'UrdfDocument', source: 'operations/urdfFns.js#UrdfDocument', kind: 'type', module: 'operations', reason: '',
+    name: 'UrdfDocument', source: 'operations/urdfFns.js#UrdfDocument', kind: 'skip', module: 'operations', reason: '',
   },
   {
-    name: 'UrdfExportOptions', source: 'operations/urdfFns.js#UrdfExportOptions', kind: 'type', module: 'operations', reason: '',
+    name: 'UrdfExportOptions', source: 'operations/urdfFns.js#UrdfExportOptions', kind: 'skip', module: 'operations', reason: '',
   },
   {
     // ---- pure：纯数据/几何构造，直接 re-export ----
-    name: 'revoluteJoint', source: 'operations/jointFns.js#revoluteJoint', kind: 'pure', module: 'operations', reason: '纯数据构造（无 kernel/Shape 参数）',
+    name: 'revoluteJoint', source: 'operations/jointFns.js#revoluteJoint', kind: 'skip', module: 'operations', reason: '§5.6 自有化 core solvers/joints-kinematics（未平铺，generated re-export 冗余）',
   },
   {
-    name: 'prismaticJoint', source: 'operations/jointFns.js#prismaticJoint', kind: 'pure', module: 'operations', reason: '纯数据构造（无 kernel 参数）',
+    name: 'prismaticJoint', source: 'operations/jointFns.js#prismaticJoint', kind: 'skip', module: 'operations', reason: '§5.6 自有化 core solvers/joints-kinematics（未平铺，generated re-export 冗余）',
   },
   {
-    name: 'cylindricalJoint', source: 'operations/jointFns.js#cylindricalJoint', kind: 'pure', module: 'operations', reason: '纯数据构造（无 kernel 参数）',
+    name: 'cylindricalJoint', source: 'operations/jointFns.js#cylindricalJoint', kind: 'skip', module: 'operations', reason: '§5.6 自有化 core solvers/joints-kinematics（未平铺，generated re-export 冗余）',
   },
   {
-    name: 'planarJoint', source: 'operations/jointFns.js#planarJoint', kind: 'pure', module: 'operations', reason: '纯数据构造（无 kernel 参数）',
+    name: 'planarJoint', source: 'operations/jointFns.js#planarJoint', kind: 'skip', module: 'operations', reason: '§5.6 自有化 core solvers/joints-kinematics（未平铺，generated re-export 冗余）',
   },
   {
-    name: 'sphericalJoint', source: 'operations/jointFns.js#sphericalJoint', kind: 'pure', module: 'operations', reason: '纯数据构造（无 kernel 参数）',
+    name: 'sphericalJoint', source: 'operations/jointFns.js#sphericalJoint', kind: 'skip', module: 'operations', reason: '§5.6 自有化 core solvers/joints-kinematics（未平铺，generated re-export 冗余）',
   },
   {
-    name: 'setJointValue', source: 'operations/jointFns.js#setJointValue', kind: 'pure', module: 'operations', reason: 'Joint→Joint 数值更新（纯数据）',
+    name: 'setJointValue', source: 'operations/jointFns.js#setJointValue', kind: 'skip', module: 'operations', reason: '§5.6 自有化 core solvers/joints-kinematics（未平铺，generated re-export 冗余）',
   },
   {
-    name: 'setJointValues', source: 'operations/jointFns.js#setJointValues', kind: 'pure', module: 'operations', reason: 'Joint→Joint 数值批量更新（纯数据）',
+    name: 'setJointValues', source: 'operations/jointFns.js#setJointValues', kind: 'skip', module: 'operations', reason: '§5.6 自有化 core solvers/joints-kinematics（未平铺，generated re-export 冗余）',
   },
   {
-    name: 'jointTransform', source: 'operations/jointFns.js#jointTransform', kind: 'pure', module: 'operations', reason: 'Joint→JointPose（纯数据）',
+    name: 'jointTransform', source: 'operations/jointFns.js#jointTransform', kind: 'skip', module: 'operations', reason: '§5.6 自有化 core solvers/joints-kinematics（未平铺，generated re-export 冗余）',
   },
   {
-    name: 'jointsFromDH', source: 'operations/dhFns.js#jointsFromDH', kind: 'pure', module: 'operations', reason: 'DH 表→Joint[]（纯数据）',
+    name: 'jointsFromDH', source: 'operations/dhFns.js#jointsFromDH', kind: 'skip', module: 'operations', reason: '§5.6 后 dhFns 未自有化、未平铺（唯一消费方 p5 随删）',
   },
   {
-    name: 'computeStraightSkeleton', source: 'operations/straightSkeleton.js#computeStraightSkeleton', kind: 'pure', module: 'operations', reason: '纯 2D 骨架计算（无 kernel/Shape 参数）',
+    name: 'computeStraightSkeleton', source: 'operations/straightSkeleton.js#computeStraightSkeleton', kind: 'skip', module: 'operations', reason: 'core brep-mirror 有自有版；operations vendored 版未平铺（唯一消费方 p5 随删）',
   },
   {
-    name: 'isInstanced', source: 'operations/instanceFns.js#isInstanced', kind: 'pure', module: 'operations', reason: 'type guard（无 kernel 参数）',
+    name: 'isInstanced', source: 'operations/instanceFns.js#isInstanced', kind: 'skip', module: 'operations', reason: '未自有化、未平铺（唯一消费方 p5 随删）',
   },
   {
     // ---- brep-op：单/多单形状入参 → 单产物收养 ----
-    name: 'extrude', source: 'operations/api.js#extrude', kind: 'brep-op', engines: ['occt'], module: 'operations',
+    name: 'extrude', source: 'brep-mirror/sweepFns.ts#extrudeBrep', selfhost: true, kind: 'brep-op', engines: ['occt'], module: 'operations',
     geometryArgs: [0],
     reason: 'faijs 侧 cad.extrude 由手写平台 op 覆盖（api/extrude.ts：对象形态 + upTo 拉伸到面/到支持体端面）。本投影只作为「长度形态」的引擎被手写 op 委托调用（vendored 是唯一拉伸引擎，既有 cad.extrude(face,[x,y,z]) 语义零漂移），生成模块符号不直接进 cad 命名空间 by design（同 fillet 口径）。',
     args: 'extrude(face: Shape, height: number|Vec3) → Shape｜extrude(face: Shape, params: { length? | upTo, normal?, mode?, baseFeature?, offset? }) → Shape',
@@ -1721,14 +1876,14 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [{ kind: 'semantic', name: 'top' }, { kind: 'semantic', name: 'bottom' }] } },
   },
   {
-    name: 'revolve', source: 'operations/api.js#revolve', kind: 'brep-op', engines: ['occt'], module: 'operations',
+    name: 'revolve', source: 'brep-mirror/sweepFns.ts#revolveBrep', selfhost: true, kind: 'brep-op', engines: ['occt'], module: 'operations',
     geometryArgs: [0], reason: 'shapeable 面 → Result(Shape3D)，brep-op',
     args: 'revolve(face: Shape, options?: RevolveOptions): Shape',
     params: ['face', 'options'], formClass: 'A',
     naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [{ kind: 'semantic', name: 'top' }, { kind: 'semantic', name: 'bottom' }, { kind: 'wall', index: 0 }] } },
   },
   {
-    name: 'sweep', source: 'operations/extrudeFns.js#sweep', kind: 'brep-op', engines: ['occt'], module: 'operations',
+    name: 'sweep', source: 'brep-mirror/sweepFns.ts#sweepBrep', selfhost: true, kind: 'brep-op', engines: ['occt'], module: 'operations',
     geometryArgs: [0, 1],
     reason: 'faijs 侧 cad.sweep 由手写平台 op 覆盖（api/sweep.ts：截面接受 face → 取外环；shellMode 元组产物不暴露，§2.4 ①）。本投影保留为引擎记录（capability-map），生成模块符号不直接进 cad 命名空间 by design（同 revolve / extrude 口径）。',
     args: 'sweep(wire: Shape, spine: Shape, config?: SweepOptions, shellMode?: boolean): Shape',
@@ -1736,7 +1891,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
   },
   {
-    name: 'complexExtrude', source: 'operations/extrudeFns.js#complexExtrude', kind: 'brep-op', engines: ['occt'], module: 'operations',
+    name: 'complexExtrude', source: 'brep-mirror/sweepFns.ts#complexExtrudeBrep', selfhost: true, kind: 'brep-op', engines: ['occt'], module: 'operations',
     geometryArgs: [0], reason: 'wire → Result(Shape3D)，brep-op',
     args: 'complexExtrude(wire: Shape, center: Vec3, normal: Vec3, profile?: ExtrusionProfile): Shape',
     params: ['wire', 'center', 'normal', 'profile'], formClass: 'A',
@@ -1744,7 +1899,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
   },
   {
-    name: 'twistExtrude', source: 'operations/extrudeFns.js#twistExtrude', kind: 'brep-op', engines: ['occt'], module: 'operations',
+    name: 'twistExtrude', source: 'brep-mirror/sweepFns.ts#twistExtrudeBrep', selfhost: true, kind: 'brep-op', engines: ['occt'], module: 'operations',
     geometryArgs: [0], reason: 'wire → Result(Shape3D)，brep-op',
     args: 'twistExtrude(wire: Shape, angleDegrees: number, center: Vec3, normal: Vec3): Shape',
     params: ['wire', 'angleDegrees', 'center', 'normal'], formClass: 'A',
@@ -1752,7 +1907,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
   },
   {
-    name: 'linearPattern', source: 'operations/patternFns.js#linearPattern', kind: 'brep-op', engines: ['occt'], module: 'operations',
+    name: 'linearPattern', source: 'brep-mirror/patternFns.ts#linearPatternBrep', selfhost: true, kind: 'brep-op', engines: ['occt'], module: 'operations',
     geometryArgs: [0], reason: 'shape → Result(Shape3D)，brep-op',
     args: 'linearPattern(shape: Shape, direction: Vec3, count: number, spacing: number): Shape',
     params: ['shape', 'direction', 'count', 'spacing'], formClass: 'A',
@@ -1760,7 +1915,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     naming: { kind: 'replicate', k: 0 },
   },
   {
-    name: 'circularPattern', source: 'operations/patternFns.js#circularPattern', kind: 'brep-op', engines: ['occt'], module: 'operations',
+    name: 'circularPattern', source: 'brep-mirror/patternFns.ts#circularPatternBrep', selfhost: true, kind: 'brep-op', engines: ['occt'], module: 'operations',
     geometryArgs: [0], reason: 'shape → Result(Shape3D)，brep-op',
     args: 'circularPattern(shape: Shape, axis: Vec3, count: number, fullAngle?: number, center?: Vec3): Shape',
     params: ['shape', 'axis', 'count', 'fullAngle', 'center'], formClass: 'A',
@@ -1768,7 +1923,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     naming: { kind: 'replicate', k: 0 },
   },
   {
-    name: 'gridPattern', source: 'operations/patternFns.js#gridPattern', kind: 'brep-op', engines: ['occt'], module: 'operations',
+    name: 'gridPattern', source: 'brep-mirror/patternFns.ts#gridPatternBrep', selfhost: true, kind: 'brep-op', engines: ['occt'], module: 'operations',
     geometryArgs: [0], reason: 'shape → Result(Shape3D)，brep-op',
     args: 'gridPattern(shape: Shape, directionX: Vec3, directionY: Vec3, countX: number, countY: number, spacingX: number, spacingY: number): Shape',
     params: ['shape', 'directionX', 'directionY', 'countX', 'countY', 'spacingX', 'spacingY'], formClass: 'A',
@@ -1776,7 +1931,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     naming: { kind: 'replicate', k: 0 },
   },
   {
-    name: 'roof', source: 'operations/roofFns.js#roof', kind: 'brep-op', capabilities: ["buildTriFace","dispose","fixShape","isValid","sew","sewAndSolidify"], module: 'operations',
+    name: 'roof', source: 'brep-mirror/roofFns.ts#roofBrep', selfhost: true, kind: 'brep-op', capabilities: ["buildTriFace","dispose","fixShape","isValid","sew","sewAndSolidify"], module: 'operations',
     geometryArgs: [0], reason: 'wire → Result(ValidSolid)→solid，brep-op',
     args: 'roof(wire: Shape, options?: RoofOptions): Shape',
     params: ['wire', 'options'], formClass: 'A',
@@ -1784,7 +1939,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
   },
   {
-    name: 'drill', source: 'operations/compoundOpsFns.js#drill', kind: 'brep-op', engines: ['occt'], module: 'operations',
+    name: 'drill', source: 'brep-mirror/compoundFns.ts#drillBrep', selfhost: true, kind: 'brep-op', engines: ['occt'], module: 'operations',
     geometryArgs: [0], reason: 'Shapeable<Shape3D> → Result<T>，brep-op',
     args: 'drill(shape: Shape, options: DrillOptions): Shape',
     params: ['shape', 'options'], formClass: 'A',
@@ -1792,7 +1947,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
   },
   {
-    name: 'pocket', source: 'operations/compoundOpsFns.js#pocket', kind: 'brep-op', engines: ['occt'], module: 'operations',
+    name: 'pocket', source: 'brep-mirror/compoundFns.ts#pocketBrep', selfhost: true, kind: 'brep-op', engines: ['occt'], module: 'operations',
     geometryArgs: [0], reason: 'Shapeable<Shape3D> → Result<T>，brep-op',
     args: 'pocket(shape: Shape, options: PocketOptions): Shape',
     params: ['shape', 'options'], formClass: 'A',
@@ -1800,7 +1955,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
   },
   {
-    name: 'boss', source: 'operations/compoundOpsFns.js#boss', kind: 'brep-op', engines: ['occt'], module: 'operations',
+    name: 'boss', source: 'brep-mirror/compoundFns.ts#bossBrep', selfhost: true, kind: 'brep-op', engines: ['occt'], module: 'operations',
     geometryArgs: [0], reason: 'Shapeable<Shape3D> → Result<T>，brep-op',
     args: 'boss(shape: Shape, options: BossOptions): Shape',
     params: ['shape', 'options'], formClass: 'A',
@@ -1808,7 +1963,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
   },
   {
-    name: 'mirrorJoin', source: 'operations/compoundOpsFns.js#mirrorJoin', kind: 'brep-op', engines: ['occt'], module: 'operations',
+    name: 'mirrorJoin', source: 'brep-mirror/compoundFns.ts#mirrorJoinBrep', selfhost: true, kind: 'brep-op', engines: ['occt'], module: 'operations',
     geometryArgs: [0], reason: 'Shapeable<Shape3D> → Result<T>，brep-op',
     args: 'mirrorJoin(shape: Shape, options?: MirrorJoinOptions): Shape',
     params: ['shape', 'options'], formClass: 'A',
@@ -1816,7 +1971,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     naming: { kind: 'replicate', k: 2 },
   },
   {
-    name: 'rectangularPattern', source: 'operations/compoundOpsFns.js#rectangularPattern', kind: 'brep-op', engines: ['occt'], module: 'operations',
+    name: 'rectangularPattern', source: 'brep-mirror/patternFns.ts#rectangularPatternBrep', selfhost: true, kind: 'brep-op', engines: ['occt'], module: 'operations',
     geometryArgs: [0], reason: 'Shapeable<Shape3D> → Result<T>，brep-op',
     args: 'rectangularPattern(shape: Shape, options: RectangularPatternOptions): Shape',
     params: ['shape', 'options'], formClass: 'A',
@@ -1824,7 +1979,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     naming: { kind: 'replicate', k: 0 },
   },
   {
-    name: 'thread', source: 'operations/threadFns.js#thread', kind: 'brep-op', engines: ['occt'], module: 'operations',
+    name: 'thread', source: 'brep-mirror/threadFns.ts#threadBrepOp', selfhost: true, kind: 'brep-op', engines: ['occt'], module: 'operations',
     geometryArgs: [], reason: '仅参数构造 → Result(Shape3D)，单产物，brep-op',
     args: 'thread(options: ThreadOptions): Shape',
     params: ['options'], formClass: 'B1',
@@ -1832,7 +1987,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     scriptFace: true,
   },
   {
-    name: 'convexHull', source: 'operations/convexHullFns.js#convexHull', kind: 'brep-op', engines: ['occt'], module: 'operations',
+    name: 'convexHull', source: 'brep-mirror/hullFns.ts#convexHullBrep', selfhost: true, kind: 'brep-op', engines: ['occt'], module: 'operations',
     geometryArgs: [], reason: '点集构造 → Result(Solid)，单产物，brep-op',
     args: 'convexHull(points: Vec3[]): Shape',
     params: ['points'], formClass: 'A',
@@ -1986,361 +2141,362 @@ export const ARG_SPEC: ArgSpecEntry[] = [
 
   // 47 × type（全量 re-export，无行为）
   {
-    name: 'Curve2DHandle', source: 'core/curve2dHandle.js#Curve2DHandle', kind: 'type', module: 'core',
+    name: 'Curve2DHandle', source: 'core/curve2dHandle.js#Curve2DHandle', kind: 'skip', module: 'core',
   },
   {
-    name: 'DimensionError', source: 'core/dimensionTypes.js#DimensionError', kind: 'type', module: 'core',
+    name: 'DimensionError', source: 'core/dimensionTypes.js#DimensionError', kind: 'skip', module: 'core',
   },
   {
-    name: 'RequireDimension', source: 'core/dimensionTypes.js#RequireDimension', kind: 'type', module: 'core',
+    name: 'RequireDimension', source: 'core/dimensionTypes.js#RequireDimension', kind: 'skip', module: 'core',
   },
   {
-    name: 'SameDimension', source: 'core/dimensionTypes.js#SameDimension', kind: 'type', module: 'core',
+    name: 'SameDimension', source: 'core/dimensionTypes.js#SameDimension', kind: 'skip', module: 'core',
   },
   {
-    name: 'Deletable', source: 'core/disposal.js#Deletable', kind: 'type', module: 'core',
+    name: 'Deletable', source: 'core/disposal.js#Deletable', kind: 'skip', module: 'core',
   },
   {
-    name: 'DisposalStats', source: 'core/disposal.js#DisposalStats', kind: 'type', module: 'core',
+    name: 'DisposalStats', source: 'core/disposal.js#DisposalStats', kind: 'skip', module: 'core',
   },
   {
-    name: 'KernelHandle', source: 'core/disposal.js#KernelHandle', kind: 'type', module: 'core',
+    name: 'KernelHandle', source: 'core/disposal.js#KernelHandle', kind: 'skip', module: 'core',
   },
   {
-    name: 'ShapeHandle', source: 'core/disposal.js#ShapeHandle', kind: 'type', module: 'core',
+    name: 'ShapeHandle', source: 'core/disposal.js#ShapeHandle', kind: 'skip', module: 'core',
   },
   {
-    name: 'BrepError', source: 'core/errors.js#BrepError', kind: 'type', module: 'core',
+    name: 'BrepError', source: 'core/errors.js#BrepError', kind: 'skip', module: 'core',
   },
   {
-    name: 'BrepErrorKind', source: 'core/errors.js#BrepErrorKind', kind: 'type', module: 'core',
+    name: 'BrepErrorKind', source: 'core/errors.js#BrepErrorKind', kind: 'skip', module: 'core',
   },
   {
-    name: 'Plane', source: 'core/planeTypes.js#Plane', kind: 'type', module: 'core',
+    name: 'Plane', source: 'core/planeTypes.js#Plane', kind: 'skip', module: 'core',
   },
   {
-    name: 'PlaneInput', source: 'core/planeTypes.js#PlaneInput', kind: 'type', module: 'core',
+    name: 'PlaneInput', source: 'core/planeTypes.js#PlaneInput', kind: 'skip', module: 'core',
   },
   {
-    name: 'PlaneName', source: 'core/planeTypes.js#PlaneName', kind: 'type', module: 'core',
+    name: 'PlaneName', source: 'core/planeTypes.js#PlaneName', kind: 'skip', module: 'core',
   },
   {
-    name: 'Err', source: 'core/result.js#Err', kind: 'type', module: 'core',
+    name: 'Err', source: 'core/result.js#Err', kind: 'skip', module: 'core',
   },
   {
-    name: 'Ok', source: 'core/result.js#Ok', kind: 'type', module: 'core',
+    name: 'Ok', source: 'core/result.js#Ok', kind: 'skip', module: 'core',
   },
   {
-    name: 'Result', source: 'core/result.js#Result', kind: 'type', module: 'core',
+    name: 'Result', source: 'core/result.js#Result', kind: 'skip', module: 'core',
   },
   {
-    name: 'ResultPipeline', source: 'core/result.js#ResultPipeline', kind: 'type', module: 'core',
+    name: 'ResultPipeline', source: 'core/result.js#ResultPipeline', kind: 'skip', module: 'core',
   },
   {
-    name: 'Unit', source: 'core/result.js#Unit', kind: 'type', module: 'core',
+    name: 'Unit', source: 'core/result.js#Unit', kind: 'skip', module: 'core',
   },
   {
-    name: 'AnyShape', source: 'core/shapeTypes.js#AnyShape', kind: 'type', module: 'core',
+    name: 'AnyShape', source: 'core/shapeTypes.js#AnyShape', kind: 'skip', module: 'core',
   },
   {
-    name: 'ClosedWire', source: 'core/shapeTypes.js#ClosedWire', kind: 'type', module: 'core',
+    name: 'ClosedWire', source: 'core/shapeTypes.js#ClosedWire', kind: 'skip', module: 'core',
   },
   {
-    name: 'Compound', source: 'core/shapeTypes.js#Compound', kind: 'type', module: 'core',
+    name: 'Compound', source: 'core/shapeTypes.js#Compound', kind: 'skip', module: 'core',
   },
   {
-    name: 'CompSolid', source: 'core/shapeTypes.js#CompSolid', kind: 'type', module: 'core',
+    name: 'CompSolid', source: 'core/shapeTypes.js#CompSolid', kind: 'skip', module: 'core',
   },
   {
-    name: 'CurveLike', source: 'core/shapeTypes.js#CurveLike', kind: 'type', module: 'core',
+    name: 'CurveLike', source: 'core/shapeTypes.js#CurveLike', kind: 'skip', module: 'core',
   },
   {
-    name: 'Dimension', source: 'core/shapeTypes.js#Dimension', kind: 'type', module: 'core',
+    name: 'Dimension', source: 'core/shapeTypes.js#Dimension', kind: 'skip', module: 'core',
   },
   {
-    name: 'Edge', source: 'core/shapeTypes.js#Edge', kind: 'type', module: 'core',
+    name: 'Edge', source: 'core/shapeTypes.js#Edge', kind: 'skip', module: 'core',
   },
   {
-    name: 'Face', source: 'core/shapeTypes.js#Face', kind: 'type', module: 'core',
+    name: 'Face', source: 'core/shapeTypes.js#Face', kind: 'skip', module: 'core',
   },
   {
-    name: 'ManifoldShell', source: 'core/shapeTypes.js#ManifoldShell', kind: 'type', module: 'core',
+    name: 'ManifoldShell', source: 'core/shapeTypes.js#ManifoldShell', kind: 'skip', module: 'core',
   },
   {
-    name: 'OrientedFace', source: 'core/shapeTypes.js#OrientedFace', kind: 'type', module: 'core',
+    name: 'OrientedFace', source: 'core/shapeTypes.js#OrientedFace', kind: 'skip', module: 'core',
   },
   {
-    name: 'PlanarFace', source: 'core/shapeTypes.js#PlanarFace', kind: 'type', module: 'core',
+    name: 'PlanarFace', source: 'core/shapeTypes.js#PlanarFace', kind: 'skip', module: 'core',
   },
   {
-    name: 'PlanarWire', source: 'core/shapeTypes.js#PlanarWire', kind: 'type', module: 'core',
+    name: 'PlanarWire', source: 'core/shapeTypes.js#PlanarWire', kind: 'skip', module: 'core',
   },
   {
-    name: 'Shape1D', source: 'core/shapeTypes.js#Shape1D', kind: 'type', module: 'core',
+    name: 'Shape1D', source: 'core/shapeTypes.js#Shape1D', kind: 'skip', module: 'core',
   },
   {
-    name: 'Shape3D', source: 'core/shapeTypes.js#Shape3D', kind: 'type', module: 'core',
+    name: 'Shape3D', source: 'core/shapeTypes.js#Shape3D', kind: 'skip', module: 'core',
   },
   {
-    name: 'ShapeKind', source: 'core/shapeTypes.js#ShapeKind', kind: 'type', module: 'core',
+    name: 'ShapeKind', source: 'core/shapeTypes.js#ShapeKind', kind: 'skip', module: 'core',
   },
   {
-    name: 'Shell', source: 'core/shapeTypes.js#Shell', kind: 'type', module: 'core',
+    name: 'Shell', source: 'core/shapeTypes.js#Shell', kind: 'skip', module: 'core',
   },
   {
-    name: 'Solid', source: 'core/shapeTypes.js#Solid', kind: 'type', module: 'core',
+    name: 'Solid', source: 'core/shapeTypes.js#Solid', kind: 'skip', module: 'core',
   },
   {
-    name: 'UnknownDimShape', source: 'core/shapeTypes.js#UnknownDimShape', kind: 'type', module: 'core',
+    name: 'UnknownDimShape', source: 'core/shapeTypes.js#UnknownDimShape', kind: 'skip', module: 'core',
   },
   {
-    name: 'ValidSolid', source: 'core/shapeTypes.js#ValidSolid', kind: 'type', module: 'core',
+    name: 'ValidSolid', source: 'core/shapeTypes.js#ValidSolid', kind: 'skip', module: 'core',
   },
   {
-    name: 'Vertex', source: 'core/shapeTypes.js#Vertex', kind: 'type', module: 'core',
+    name: 'Vertex', source: 'core/shapeTypes.js#Vertex', kind: 'skip', module: 'core',
   },
   {
-    name: 'Wire', source: 'core/shapeTypes.js#Wire', kind: 'type', module: 'core',
+    name: 'Wire', source: 'core/shapeTypes.js#Wire', kind: 'skip', module: 'core',
   },
   {
-    name: 'CurveType', source: 'core/typeDiscriminants.js#CurveType', kind: 'type', module: 'core',
+    name: 'CurveType', source: 'core/typeDiscriminants.js#CurveType', kind: 'skip', module: 'core',
   },
   {
     // 别名：vendored types.ts 只导出 Direction；根 barrel `Direction as DirectionInput`
-    name: 'DirectionInput', source: 'index.js#DirectionInput', kind: 'type', module: 'core',
+    name: 'DirectionInput', source: 'index.js#DirectionInput', kind: 'skip', module: 'core',
   },
   {
-    name: 'Matrix4x4', source: 'core/types.js#Matrix4x4', kind: 'type', module: 'core',
+    name: 'Matrix4x4', source: 'core/types.js#Matrix4x4', kind: 'skip', module: 'core',
   },
   {
-    name: 'MatrixInput', source: 'core/types.js#MatrixInput', kind: 'type', module: 'core',
+    name: 'MatrixInput', source: 'core/types.js#MatrixInput', kind: 'skip', module: 'core',
   },
   {
-    name: 'MatrixTransform', source: 'core/types.js#MatrixTransform', kind: 'type', module: 'core',
+    name: 'MatrixTransform', source: 'core/types.js#MatrixTransform', kind: 'skip', module: 'core',
   },
   {
-    name: 'PointInput', source: 'core/types.js#PointInput', kind: 'type', module: 'core',
+    name: 'PointInput', source: 'core/types.js#PointInput', kind: 'skip', module: 'core',
   },
   {
-    name: 'Vec2', source: 'core/types.js#Vec2', kind: 'type', module: 'core',
+    name: 'Vec2', source: 'core/types.js#Vec2', kind: 'skip', module: 'core',
   },
   {
-    name: 'Vec3', source: 'core/types.js#Vec3', kind: 'type', module: 'core',
+    name: 'Vec3', source: 'core/types.js#Vec3', kind: 'skip', module: 'core',
   },
 
   // 67 × pure（无 Shape/kernel 参数 → 直接 re-export，不进 defineOp）
   {
-    name: 'DEG2RAD', source: 'core/constants.js#DEG2RAD', kind: 'pure', module: 'core', reason: '角度换算常量（纯数据）',
+    name: 'DEG2RAD', source: 'core/constants.js#DEG2RAD', kind: 'skip', module: 'core', reason: '角度换算常量（纯数据）',
   },
   {
-    name: 'RAD2DEG', source: 'core/constants.js#RAD2DEG', kind: 'pure', module: 'core', reason: '角度换算常量（纯数据）',
+    name: 'RAD2DEG', source: 'core/constants.js#RAD2DEG', kind: 'skip', module: 'core', reason: '角度换算常量（纯数据）',
   },
   {
-    name: 'HASH_CODE_MAX', source: 'core/constants.js#HASH_CODE_MAX', kind: 'pure', module: 'core', reason: '哈希上限常量（纯数据）',
+    name: 'HASH_CODE_MAX', source: 'core/constants.js#HASH_CODE_MAX', kind: 'skip', module: 'core', reason: '哈希上限常量（纯数据）',
   },
   {
-    name: 'BrepBugError', source: 'core/errors.js#BrepBugError', kind: 'pure', module: 'core', reason: '错误类（纯构造，无 kernel 参数）',
+    name: 'BrepBugError', source: 'core/errors.js#BrepBugError', kind: 'skip', module: 'core', reason: '错误类（纯构造，无 kernel 参数）',
   },
   {
-    name: 'BrepErrorCode', source: 'core/errors.js#BrepErrorCode', kind: 'pure', module: 'core', reason: '错误码常量表（纯数据）',
+    name: 'BrepErrorCode', source: 'core/errors.js#BrepErrorCode', kind: 'skip', module: 'core', reason: '错误码常量表（纯数据）',
   },
   {
-    name: 'bug', source: 'core/errors.js#bug', kind: 'pure', module: 'core', reason: 'bug 错误构造器（纯函数）',
+    name: 'bug', source: 'core/errors.js#bug', kind: 'skip', module: 'core', reason: 'bug 错误构造器（纯函数）',
   },
   {
-    name: 'computationError', source: 'core/errors.js#computationError', kind: 'pure', module: 'core', reason: '错误构造器（纯函数）',
+    name: 'computationError', source: 'core/errors.js#computationError', kind: 'skip', module: 'core', reason: '错误构造器（纯函数）',
   },
   {
-    name: 'ioError', source: 'core/errors.js#ioError', kind: 'pure', module: 'core', reason: '错误构造器（纯函数）',
+    name: 'ioError', source: 'core/errors.js#ioError', kind: 'skip', module: 'core', reason: '错误构造器（纯函数）',
   },
   {
-    name: 'kernelError', source: 'core/errors.js#kernelError', kind: 'pure', module: 'core', reason: '错误构造器（纯函数）',
+    name: 'kernelError', source: 'core/errors.js#kernelError', kind: 'skip', module: 'core', reason: '错误构造器（纯函数）',
   },
   {
-    name: 'moduleInitError', source: 'core/errors.js#moduleInitError', kind: 'pure', module: 'core', reason: '错误构造器（纯函数）',
+    name: 'moduleInitError', source: 'core/errors.js#moduleInitError', kind: 'skip', module: 'core', reason: '错误构造器（纯函数）',
   },
   {
-    name: 'queryError', source: 'core/errors.js#queryError', kind: 'pure', module: 'core', reason: '错误构造器（纯函数）',
+    name: 'queryError', source: 'core/errors.js#queryError', kind: 'skip', module: 'core', reason: '错误构造器（纯函数）',
   },
   {
-    name: 'sketcherStateError', source: 'core/errors.js#sketcherStateError', kind: 'pure', module: 'core', reason: '错误构造器（纯函数）',
+    name: 'sketcherStateError', source: 'core/errors.js#sketcherStateError', kind: 'skip', module: 'core', reason: '错误构造器（纯函数）',
   },
   {
-    name: 'typeCastError', source: 'core/errors.js#typeCastError', kind: 'pure', module: 'core', reason: '错误构造器（纯函数）',
+    name: 'typeCastError', source: 'core/errors.js#typeCastError', kind: 'skip', module: 'core', reason: '错误构造器（纯函数）',
   },
   {
-    name: 'unsupportedError', source: 'core/errors.js#unsupportedError', kind: 'pure', module: 'core', reason: '错误构造器（纯函数）',
+    name: 'unsupportedError', source: 'core/errors.js#unsupportedError', kind: 'skip', module: 'core', reason: '错误构造器（纯函数）',
   },
   {
-    name: 'validationError', source: 'core/errors.js#validationError', kind: 'pure', module: 'core', reason: '错误构造器（纯函数）',
+    name: 'validationError', source: 'core/errors.js#validationError', kind: 'skip', module: 'core', reason: '错误构造器（纯函数）',
   },
   {
-    name: 'createNamedPlane', source: 'core/planeOps.js#createNamedPlane', kind: 'pure', module: 'core', reason: '命名平面构造（PlaneName，无 kernel 参数）',
+    name: 'createNamedPlane', source: 'core/planeOps.js#createNamedPlane', kind: 'skip', module: 'core', reason: '命名平面构造（PlaneName，无 kernel 参数）',
   },
   {
-    name: 'createPlane', source: 'core/planeOps.js#createPlane', kind: 'pure', module: 'core', reason: '平面构造（纯数据）',
+    name: 'createPlane', source: 'core/planeOps.js#createPlane', kind: 'skip', module: 'core', reason: '平面构造（纯数据）',
   },
   {
-    name: 'makePlane', source: 'core/planeOps.js#makePlane', kind: 'pure', module: 'core', reason: '平面构造（纯数据，PlaneInput）',
+    name: 'makePlane', source: 'core/planeOps.js#makePlane', kind: 'skip', module: 'core', reason: '平面构造（纯数据，PlaneInput）',
   },
   {
-    name: 'pivotPlane', source: 'core/planeOps.js#pivotPlane', kind: 'pure', module: 'core', reason: '平面旋转变换（纯数据）',
+    name: 'pivotPlane', source: 'core/planeOps.js#pivotPlane', kind: 'skip', module: 'core', reason: '平面旋转变换（纯数据）',
   },
   {
-    name: 'resolvePlane', source: 'core/planeOps.js#resolvePlane', kind: 'pure', module: 'core', reason: 'PlaneInput → Result<Plane>（无 Shape 参数）',
+    name: 'resolvePlane', source: 'core/planeOps.js#resolvePlane', kind: 'skip', module: 'core', reason: 'PlaneInput → Result<Plane>（无 Shape 参数）',
   },
   {
-    name: 'translatePlane', source: 'core/planeOps.js#translatePlane', kind: 'pure', module: 'core', reason: '平面平移（纯数据）',
+    name: 'translatePlane', source: 'core/planeOps.js#translatePlane', kind: 'skip', module: 'core', reason: '平面平移（纯数据）',
   },
   {
-    name: 'ok', source: 'core/result.js#ok', kind: 'pure', module: 'core', reason: 'Result Ok 构造（纯函数）',
+    name: 'ok', source: 'core/result.js#ok', kind: 'skip', module: 'core', reason: 'Result Ok 构造（纯函数）',
   },
   {
-    name: 'err', source: 'core/result.js#err', kind: 'pure', module: 'core', reason: 'Result Err 构造（纯函数）',
+    name: 'err', source: 'core/result.js#err', kind: 'skip', module: 'core', reason: 'Result Err 构造（纯函数）',
   },
   {
-    name: 'OK', source: 'core/result.js#OK', kind: 'pure', module: 'core', reason: 'Ok<Unit> 常量',
+    name: 'OK', source: 'core/result.js#OK', kind: 'skip', module: 'core', reason: 'Ok<Unit> 常量',
   },
   {
-    name: 'isOk', source: 'core/result.js#isOk', kind: 'pure', module: 'core', reason: 'Result 判别（纯函数）',
+    name: 'isOk', source: 'core/result.js#isOk', kind: 'skip', module: 'core', reason: 'Result 判别（纯函数）',
   },
   {
-    name: 'isErr', source: 'core/result.js#isErr', kind: 'pure', module: 'core', reason: 'Result 判别（纯函数）',
+    name: 'isErr', source: 'core/result.js#isErr', kind: 'skip', module: 'core', reason: 'Result 判别（纯函数）',
   },
   {
-    name: 'map', source: 'core/result.js#map', kind: 'pure', module: 'core', reason: 'Result 组合子（纯函数）',
+    name: 'map', source: 'core/result.js#map', kind: 'skip', module: 'core', reason: 'Result 组合子（纯函数）',
   },
   {
-    name: 'mapErr', source: 'core/result.js#mapErr', kind: 'pure', module: 'core', reason: 'Result 组合子（纯函数）',
+    name: 'mapErr', source: 'core/result.js#mapErr', kind: 'skip', module: 'core', reason: 'Result 组合子（纯函数）',
   },
   {
-    name: 'mapBoth', source: 'core/result.js#mapBoth', kind: 'pure', module: 'core', reason: 'Result 组合子（纯函数）',
+    name: 'mapBoth', source: 'core/result.js#mapBoth', kind: 'skip', module: 'core', reason: 'Result 组合子（纯函数）',
   },
   {
-    name: 'andThen', source: 'core/result.js#andThen', kind: 'pure', module: 'core', reason: 'Result 组合子（纯函数）',
+    name: 'andThen', source: 'core/result.js#andThen', kind: 'skip', module: 'core', reason: 'Result 组合子（纯函数）',
   },
   {
-    name: 'flatMap', source: 'core/result.js#flatMap', kind: 'pure', module: 'core', reason: 'andThen 别名（纯函数）',
+    name: 'flatMap', source: 'core/result.js#flatMap', kind: 'skip', module: 'core', reason: 'andThen 别名（纯函数）',
   },
   {
-    name: 'or', source: 'core/result.js#or', kind: 'pure', module: 'core', reason: 'Result 组合子（纯函数）',
+    name: 'or', source: 'core/result.js#or', kind: 'skip', module: 'core', reason: 'Result 组合子（纯函数）',
   },
   {
-    name: 'orElse', source: 'core/result.js#orElse', kind: 'pure', module: 'core', reason: 'Result 组合子（纯函数）',
+    name: 'orElse', source: 'core/result.js#orElse', kind: 'skip', module: 'core', reason: 'Result 组合子（纯函数）',
   },
   {
-    name: 'all', source: 'core/result.js#all', kind: 'pure', module: 'core', reason: 'collect 别名（纯函数）',
+    name: 'all', source: 'core/result.js#all', kind: 'skip', module: 'core', reason: 'collect 别名（纯函数）',
   },
   {
-    name: 'collect', source: 'core/result.js#collect', kind: 'pure', module: 'core', reason: 'Result[] 收集（纯函数）',
+    name: 'collect', source: 'core/result.js#collect', kind: 'skip', module: 'core', reason: 'Result[] 收集（纯函数）',
   },
   {
-    name: 'tap', source: 'core/result.js#tap', kind: 'pure', module: 'core', reason: 'Result 副作用（纯函数）',
+    name: 'tap', source: 'core/result.js#tap', kind: 'skip', module: 'core', reason: 'Result 副作用（纯函数）',
   },
   {
-    name: 'tapErr', source: 'core/result.js#tapErr', kind: 'pure', module: 'core', reason: 'Result 副作用（纯函数）',
+    name: 'tapErr', source: 'core/result.js#tapErr', kind: 'skip', module: 'core', reason: 'Result 副作用（纯函数）',
   },
   {
-    name: 'flatten', source: 'core/result.js#flatten', kind: 'pure', module: 'core', reason: 'Result 嵌套展平（纯函数）',
+    name: 'flatten', source: 'core/result.js#flatten', kind: 'skip', module: 'core', reason: 'Result 嵌套展平（纯函数）',
   },
   {
-    name: 'fromNullable', source: 'core/result.js#fromNullable', kind: 'pure', module: 'core', reason: 'nullable → Result（纯函数）',
+    name: 'fromNullable', source: 'core/result.js#fromNullable', kind: 'skip', module: 'core', reason: 'nullable → Result（纯函数）',
   },
   {
-    name: 'unwrap', source: 'core/result.js#unwrap', kind: 'pure', module: 'core', reason: 'Result 解包（纯函数）',
+    name: 'unwrap', source: 'core/result.js#unwrap', kind: 'skip', module: 'core', reason: 'Result 解包（纯函数）',
   },
   {
-    name: 'unwrapOr', source: 'core/result.js#unwrapOr', kind: 'pure', module: 'core', reason: 'Result 解包（纯函数）',
+    name: 'unwrapOr', source: 'core/result.js#unwrapOr', kind: 'skip', module: 'core', reason: 'Result 解包（纯函数）',
   },
   {
-    name: 'unwrapOrElse', source: 'core/result.js#unwrapOrElse', kind: 'pure', module: 'core', reason: 'Result 解包（纯函数）',
+    name: 'unwrapOrElse', source: 'core/result.js#unwrapOrElse', kind: 'skip', module: 'core', reason: 'Result 解包（纯函数）',
   },
   {
-    name: 'unwrapErr', source: 'core/result.js#unwrapErr', kind: 'pure', module: 'core', reason: 'Result 解包（纯函数）',
+    name: 'unwrapErr', source: 'core/result.js#unwrapErr', kind: 'skip', module: 'core', reason: 'Result 解包（纯函数）',
   },
   {
-    name: 'match', source: 'core/result.js#match', kind: 'pure', module: 'core', reason: 'Result 模式匹配（纯函数）',
+    name: 'match', source: 'core/result.js#match', kind: 'skip', module: 'core', reason: 'Result 模式匹配（纯函数）',
   },
   {
-    name: 'tryCatch', source: 'core/result.js#tryCatch', kind: 'pure', module: 'core', reason: '同步 try→Result（纯函数）',
+    name: 'tryCatch', source: 'core/result.js#tryCatch', kind: 'skip', module: 'core', reason: '同步 try→Result（纯函数）',
   },
   {
-    name: 'tryCatchAsync', source: 'core/result.js#tryCatchAsync', kind: 'pure', module: 'core', reason: '异步 try→Result（纯函数）',
+    name: 'tryCatchAsync', source: 'core/result.js#tryCatchAsync', kind: 'skip', module: 'core', reason: '异步 try→Result（纯函数）',
   },
   {
-    name: 'pipeline', source: 'core/result.js#pipeline', kind: 'pure', module: 'core', reason: 'Result 管道入口（纯函数）',
+    name: 'pipeline', source: 'core/result.js#pipeline', kind: 'skip', module: 'core', reason: 'Result 管道入口（纯函数）',
   },
   {
     // 别名：vendored result.ts 导出名 zip；根 barrel `zip as zipResults`
-    name: 'zipResults', source: 'index.js#zipResults', kind: 'pure', module: 'core', reason: 'zip 的根 barrel 别名导出（纯函数）',
+    name: 'zipResults', source: 'index.js#zipResults', kind: 'skip', module: 'core', reason: 'zip 的根 barrel 别名导出（纯函数）',
   },
   {
-    name: 'resolveDirection', source: 'core/types.js#resolveDirection', kind: 'pure', module: 'core', reason: '方向简写 → Vec3（纯函数）',
+    name: 'resolveDirection', source: 'core/types.js#resolveDirection', kind: 'skip', module: 'core', reason: '方向简写 → Vec3（纯函数）',
   },
   {
-    name: 'toVec2', source: 'core/types.js#toVec2', kind: 'pure', module: 'core', reason: 'PointInput → Vec2（纯函数）',
+    name: 'toVec2', source: 'core/types.js#toVec2', kind: 'skip', module: 'core', reason: 'PointInput → Vec2（纯函数）',
   },
   {
-    name: 'toVec3', source: 'core/types.js#toVec3', kind: 'pure', module: 'core', reason: 'PointInput → Vec3（纯函数）',
+    name: 'toVec3', source: 'core/types.js#toVec3', kind: 'skip', module: 'core', reason: 'PointInput → Vec3（纯函数）',
   },
   {
-    name: 'vecAdd', source: 'core/vecOps.js#vecAdd', kind: 'pure', module: 'core', reason: '向量加法（纯函数）',
+    name: 'vecAdd', source: 'core/vecOps.js#vecAdd', kind: 'skip', module: 'core', reason: '向量加法（纯函数）',
   },
   {
-    name: 'vecAngle', source: 'core/vecOps.js#vecAngle', kind: 'pure', module: 'core', reason: '向量夹角（纯函数）',
+    name: 'vecAngle', source: 'core/vecOps.js#vecAngle', kind: 'skip', module: 'core', reason: '向量夹角（纯函数）',
   },
   {
-    name: 'vecCross', source: 'core/vecOps.js#vecCross', kind: 'pure', module: 'core', reason: '向量叉积（纯函数）',
+    name: 'vecCross', source: 'core/vecOps.js#vecCross', kind: 'skip', module: 'core', reason: '向量叉积（纯函数）',
   },
   {
-    name: 'vecDistance', source: 'core/vecOps.js#vecDistance', kind: 'pure', module: 'core', reason: '向量距离（纯函数）',
+    name: 'vecDistance', source: 'core/vecOps.js#vecDistance', kind: 'skip', module: 'core', reason: '向量距离（纯函数）',
   },
   {
-    name: 'vecDot', source: 'core/vecOps.js#vecDot', kind: 'pure', module: 'core', reason: '向量点积（纯函数）',
+    name: 'vecDot', source: 'core/vecOps.js#vecDot', kind: 'skip', module: 'core', reason: '向量点积（纯函数）',
   },
   {
-    name: 'vecEquals', source: 'core/vecOps.js#vecEquals', kind: 'pure', module: 'core', reason: '向量相等（纯函数）',
+    name: 'vecEquals', source: 'core/vecOps.js#vecEquals', kind: 'skip', module: 'core', reason: '向量相等（纯函数）',
   },
   {
-    name: 'vecIsZero', source: 'core/vecOps.js#vecIsZero', kind: 'pure', module: 'core', reason: '零向量判别（纯函数）',
+    name: 'vecIsZero', source: 'core/vecOps.js#vecIsZero', kind: 'skip', module: 'core', reason: '零向量判别（纯函数）',
   },
   {
-    name: 'vecLength', source: 'core/vecOps.js#vecLength', kind: 'pure', module: 'core', reason: '向量模长（纯函数）',
+    name: 'vecLength', source: 'core/vecOps.js#vecLength', kind: 'skip', module: 'core', reason: '向量模长（纯函数）',
   },
   {
-    name: 'vecLengthSq', source: 'core/vecOps.js#vecLengthSq', kind: 'pure', module: 'core', reason: '向量模长平方（纯函数）',
+    name: 'vecLengthSq', source: 'core/vecOps.js#vecLengthSq', kind: 'skip', module: 'core', reason: '向量模长平方（纯函数）',
   },
   {
-    name: 'vecNegate', source: 'core/vecOps.js#vecNegate', kind: 'pure', module: 'core', reason: '向量取反（纯函数）',
+    name: 'vecNegate', source: 'core/vecOps.js#vecNegate', kind: 'skip', module: 'core', reason: '向量取反（纯函数）',
   },
   {
-    name: 'vecNormalize', source: 'core/vecOps.js#vecNormalize', kind: 'pure', module: 'core', reason: '向量归一化（纯函数）',
+    name: 'vecNormalize', source: 'core/vecOps.js#vecNormalize', kind: 'skip', module: 'core', reason: '向量归一化（纯函数）',
   },
   {
-    name: 'vecProjectToPlane', source: 'core/vecOps.js#vecProjectToPlane', kind: 'pure', module: 'core', reason: '向量平面投影（纯函数）',
+    name: 'vecProjectToPlane', source: 'core/vecOps.js#vecProjectToPlane', kind: 'skip', module: 'core', reason: '向量平面投影（纯函数）',
   },
   {
-    name: 'vecRepr', source: 'core/vecOps.js#vecRepr', kind: 'pure', module: 'core', reason: '向量字符串（纯函数）',
+    name: 'vecRepr', source: 'core/vecOps.js#vecRepr', kind: 'skip', module: 'core', reason: '向量字符串（纯函数）',
   },
   {
-    name: 'vecRotate', source: 'core/vecOps.js#vecRotate', kind: 'pure', module: 'core', reason: '向量绕轴旋转（纯函数）',
+    name: 'vecRotate', source: 'core/vecOps.js#vecRotate', kind: 'skip', module: 'core', reason: '向量绕轴旋转（纯函数）',
   },
   {
-    name: 'vecScale', source: 'core/vecOps.js#vecScale', kind: 'pure', module: 'core', reason: '向量缩放（纯函数）',
+    name: 'vecScale', source: 'core/vecOps.js#vecScale', kind: 'skip', module: 'core', reason: '向量缩放（纯函数）',
   },
   {
-    name: 'vecSub', source: 'core/vecOps.js#vecSub', kind: 'pure', module: 'core', reason: '向量减法（纯函数）',
+    name: 'vecSub', source: 'core/vecOps.js#vecSub', kind: 'skip', module: 'core', reason: '向量减法（纯函数）',
   },
 
   // 1 × query：形状判别串查询（Shape 进 → ShapeKind 字符串出，纯数据）
   {
-    name: 'getShapeKind', source: 'core/shapeTypes.js#getShapeKind', kind: 'query', module: 'core',
+    name: 'getShapeKind', source: 'core/shapeTypes.js#getShapeKind', kind: 'skip', module: 'core',
     args: '(shape: AnyShape) -> ShapeKind',
     geometryArgs: [0],
     returnsResult: false,
     returnType: 'ShapeKind',
     params: ['shape'], formClass: 'A',
     scriptFace: true,
+    reason: 'core 引擎无等价方法（occt-wasm 无 isEmpty；getShapeType/isEqual 未进 L1），未平铺未公开（§5.5 第 2 条裁定删除）',
   },
 
   // 53 × skip（裸 kernel 句柄族；faijs 面 Shape 所有权经 l3-bridge 借入/收养，不暴露裸句柄）
@@ -2519,21 +2675,21 @@ export const ARG_SPEC: ArgSpecEntry[] = [
 
   // 3 × type
   {
-    name: 'Drawing', source: 'sketching/drawing.js#Drawing', kind: 'type', module: 'sketching',
+    name: 'Drawing', source: 'sketching/drawing.js#Drawing', kind: 'skip', module: 'sketching',
   },
   {
-    name: 'DrawingPen', source: 'sketching/drawingPen.js#DrawingPen', kind: 'type', module: 'sketching',
+    name: 'DrawingPen', source: 'sketching/drawingPen.js#DrawingPen', kind: 'skip', module: 'sketching',
   },
   {
-    name: 'SketchInterface', source: 'sketching/sketch.js#SketchInterface', kind: 'type', module: 'sketching',
+    name: 'SketchInterface', source: 'sketching/sketch.js#SketchInterface', kind: 'skip', module: 'sketching',
   },
   // 1 × pure
   {
-    name: 'polysideInnerRadius', source: 'sketching/cannedSketches.js#polysideInnerRadius', kind: 'pure', module: 'sketching', reason: '正多边形内径计算（纯数学，无 kernel/Shape）',
+    name: 'polysideInnerRadius', source: 'sketching/cannedSketches.js#polysideInnerRadius', kind: 'skip', module: 'sketching', reason: '未自有化、未平铺（唯一消费方 p5 随删）',
   },
   // 1 × brep-op（构造类：纯数值参数 → Shape3D，无几何输入）
   {
-    name: 'makeBaseBox', source: 'sketching/shortcuts.js#makeBaseBox', kind: 'brep-op', engines: ['occt'], module: 'sketching',
+    name: 'makeBaseBox', source: 'brep-mirror/primitiveFns.ts#makeBaseBoxBrep', selfhost: true, kind: 'brep-op', engines: ['occt'], module: 'sketching',
     args: '(xLength: number, yLength: number, zLength: number) -> Shape3D',
     geometryArgs: [],
     returnsResult: false,
@@ -2693,101 +2849,101 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   // 条目缺省 module='topology'（与 P13a 样本一致；generator moduleOf 缺省同值）。
   //
   // 95 × type（96 − P13a Bounds3D）
-  { name: 'ComposedTransform', source: 'topology/api.js#ComposedTransform', kind: 'type' },
-  { name: 'MirrorOptions', source: 'topology/api.js#MirrorOptions', kind: 'type' },
-  { name: 'RotateOptions', source: 'topology/api.js#RotateOptions', kind: 'type' },
-  { name: 'ScaleOptions', source: 'topology/api.js#ScaleOptions', kind: 'type' },
-  { name: 'TransformOp', source: 'topology/api.js#TransformOp', kind: 'type' },
-  { name: 'BossOptions', source: 'topology/apiTypes.js#BossOptions', kind: 'type' },
-  { name: 'ChamferDistance', source: 'topology/apiTypes.js#ChamferDistance', kind: 'type' },
-  { name: 'DraftAngle', source: 'topology/apiTypes.js#DraftAngle', kind: 'type' },
-  { name: 'DraftOptions', source: 'topology/apiTypes.js#DraftOptions', kind: 'type' },
-  { name: 'DrawingLike', source: 'topology/apiTypes.js#DrawingLike', kind: 'type' },
-  { name: 'DrillOptions', source: 'topology/apiTypes.js#DrillOptions', kind: 'type' },
-  { name: 'FilletRadius', source: 'topology/apiTypes.js#FilletRadius', kind: 'type' },
-  { name: 'FinderFn', source: 'topology/apiTypes.js#FinderFn', kind: 'type' },
-  { name: 'MirrorJoinOptions', source: 'topology/apiTypes.js#MirrorJoinOptions', kind: 'type' },
-  { name: 'PocketOptions', source: 'topology/apiTypes.js#PocketOptions', kind: 'type' },
-  { name: 'RectangularPatternOptions', source: 'topology/apiTypes.js#RectangularPatternOptions', kind: 'type' },
-  { name: 'Shapeable', source: 'topology/apiTypes.js#Shapeable', kind: 'type' },
-  { name: 'WrappedMarker', source: 'topology/apiTypes.js#WrappedMarker', kind: 'type' },
-  { name: 'BatchBisectResult', source: 'topology/booleanBatchFns.js#BatchBisectResult', kind: 'type' },
-  { name: 'BatchBisectTelemetry', source: 'topology/booleanBatchFns.js#BatchBisectTelemetry', kind: 'type' },
-  { name: 'BooleanOptions', source: 'topology/booleanFns.js#BooleanOptions', kind: 'type' },
-  { name: 'BooleanPipelineStep', source: 'topology/booleanFns.js#BooleanPipelineStep', kind: 'type' },
-  { name: 'PipelineOp', source: 'topology/booleanFns.js#PipelineOp', kind: 'type' },
-  { name: 'ApproximateCurveOptions', source: 'topology/curveFns.js#ApproximateCurveOptions', kind: 'type' },
-  { name: 'InterpolateCurveOptions', source: 'topology/curveFns.js#InterpolateCurveOptions', kind: 'type' },
-  { name: 'EvolutionResult', source: 'topology/evolutionFns.js#EvolutionResult', kind: 'type' },
-  { name: 'PointProjectionResult', source: 'topology/faceFns.js#PointProjectionResult', kind: 'type' },
-  { name: 'UVBounds', source: 'topology/faceFns.js#UVBounds', kind: 'type' },
-  { name: 'AutoHealOptions', source: 'topology/healingFns.js#AutoHealOptions', kind: 'type' },
-  { name: 'HealingReport', source: 'topology/healingFns.js#HealingReport', kind: 'type' },
-  { name: 'HealingStepDiagnostic', source: 'topology/healingFns.js#HealingStepDiagnostic', kind: 'type' },
-  { name: 'HullOptions', source: 'topology/hullFns.js#HullOptions', kind: 'type' },
-  { name: 'ChamferRadius', source: 'topology/index.js#ChamferRadius', kind: 'type' },
-  { name: 'GenericTopo', source: 'topology/index.js#GenericTopo', kind: 'type' },
-  { name: 'RadiusOptions', source: 'topology/index.js#RadiusOptions', kind: 'type' },
-  { name: 'TopoEntity', source: 'topology/index.js#TopoEntity', kind: 'type' },
-  { name: 'MeshCacheContext', source: 'topology/meshCache.js#MeshCacheContext', kind: 'type' },
-  { name: 'EdgeMesh', source: 'topology/meshFns.js#EdgeMesh', kind: 'type' },
-  { name: 'LODMesh', source: 'topology/meshFns.js#LODMesh', kind: 'type' },
-  { name: 'MeshLevelFn', source: 'topology/meshFns.js#MeshLevelFn', kind: 'type' },
-  { name: 'MeshLODsOptions', source: 'topology/meshFns.js#MeshLODsOptions', kind: 'type' },
-  { name: 'MeshLODsProgressiveOptions', source: 'topology/meshFns.js#MeshLODsProgressiveOptions', kind: 'type' },
-  { name: 'MeshOptions', source: 'topology/meshFns.js#MeshOptions', kind: 'type' },
-  { name: 'MultiLODMesh', source: 'topology/meshFns.js#MultiLODMesh', kind: 'type' },
-  { name: 'ShapeMesh', source: 'topology/meshFns.js#ShapeMesh', kind: 'type' },
-  { name: 'Color', source: 'topology/metadata/colorFns.js#Color', kind: 'type' },
-  { name: 'ColorInput', source: 'topology/metadata/colorFns.js#ColorInput', kind: 'type' },
-  { name: 'MinkowskiOptions', source: 'topology/minkowskiFns.js#MinkowskiOptions', kind: 'type' },
-  { name: 'VariableFilletRadius', source: 'topology/modifierFns.js#VariableFilletRadius', kind: 'type' },
-  { name: 'PolyhedronOptions', source: 'topology/polyhedronFns.js#PolyhedronOptions', kind: 'type' },
-  { name: 'BoxOptions', source: 'topology/primitiveFns.js#BoxOptions', kind: 'type' },
-  { name: 'CircleOptions', source: 'topology/primitiveFns.js#CircleOptions', kind: 'type' },
-  { name: 'ConeOptions', source: 'topology/primitiveFns.js#ConeOptions', kind: 'type' },
-  { name: 'CylinderOptions', source: 'topology/primitiveFns.js#CylinderOptions', kind: 'type' },
-  { name: 'EllipseArcOptions', source: 'topology/primitiveFns.js#EllipseArcOptions', kind: 'type' },
-  { name: 'EllipseOptions', source: 'topology/primitiveFns.js#EllipseOptions', kind: 'type' },
-  { name: 'EllipsoidOptions', source: 'topology/primitiveFns.js#EllipsoidOptions', kind: 'type' },
-  { name: 'HelixOptions', source: 'topology/primitiveFns.js#HelixOptions', kind: 'type' },
-  { name: 'SphereOptions', source: 'topology/primitiveFns.js#SphereOptions', kind: 'type' },
-  { name: 'TorusOptions', source: 'topology/primitiveFns.js#TorusOptions', kind: 'type' },
-  { name: 'ShapeDescription', source: 'topology/shapeFns.js#ShapeDescription', kind: 'type' },
-  { name: 'BrokenDerivedFaceRef', source: 'topology/shapeRef/index.js#BrokenDerivedFaceRef', kind: 'type' },
-  { name: 'BrokenEdgeRef', source: 'topology/shapeRef/index.js#BrokenEdgeRef', kind: 'type' },
-  { name: 'BrokenReason', source: 'topology/shapeRef/index.js#BrokenReason', kind: 'type' },
-  { name: 'BrokenRef', source: 'topology/shapeRef/index.js#BrokenRef', kind: 'type' },
-  { name: 'BrokenVertexRef', source: 'topology/shapeRef/index.js#BrokenVertexRef', kind: 'type' },
-  { name: 'DerivedFaceHint', source: 'topology/shapeRef/index.js#DerivedFaceHint', kind: 'type' },
-  { name: 'DerivedFaceRef', source: 'topology/shapeRef/index.js#DerivedFaceRef', kind: 'type' },
-  { name: 'EdgeHint', source: 'topology/shapeRef/index.js#EdgeHint', kind: 'type' },
-  { name: 'EdgeRef', source: 'topology/shapeRef/index.js#EdgeRef', kind: 'type' },
-  { name: 'FaceScorer', source: 'topology/shapeRef/index.js#FaceScorer', kind: 'type' },
-  { name: 'GeometricHint', source: 'topology/shapeRef/index.js#GeometricHint', kind: 'type' },
-  { name: 'LineageRef', source: 'topology/shapeRef/index.js#LineageRef', kind: 'type' },
-  { name: 'LineageResolution', source: 'topology/shapeRef/index.js#LineageResolution', kind: 'type' },
-  { name: 'ResolvedDerivedFaceRef', source: 'topology/shapeRef/index.js#ResolvedDerivedFaceRef', kind: 'type' },
-  { name: 'ResolvedEdgeRef', source: 'topology/shapeRef/index.js#ResolvedEdgeRef', kind: 'type' },
-  { name: 'ResolvedEntity', source: 'topology/shapeRef/index.js#ResolvedEntity', kind: 'type' },
-  { name: 'ResolvedRef', source: 'topology/shapeRef/index.js#ResolvedRef', kind: 'type' },
-  { name: 'ResolvedVertexRef', source: 'topology/shapeRef/index.js#ResolvedVertexRef', kind: 'type' },
-  { name: 'RoleTable', source: 'topology/shapeRef/index.js#RoleTable', kind: 'type' },
-  { name: 'ShapeRef', source: 'topology/shapeRef/index.js#ShapeRef', kind: 'type' },
-  { name: 'VertexHint', source: 'topology/shapeRef/index.js#VertexHint', kind: 'type' },
-  { name: 'VertexRef', source: 'topology/shapeRef/index.js#VertexRef', kind: 'type' },
-  { name: 'SurfaceFromGridOptions', source: 'topology/surfaceFns.js#SurfaceFromGridOptions', kind: 'type' },
-  { name: 'SurfaceFromImageOptions', source: 'topology/surfaceFns.js#SurfaceFromImageOptions', kind: 'type' },
-  { name: 'BufferGeometryData', source: 'topology/threeHelpers.js#BufferGeometryData', kind: 'type' },
-  { name: 'BufferGeometryGroup', source: 'topology/threeHelpers.js#BufferGeometryGroup', kind: 'type' },
-  { name: 'GroupedBufferGeometryData', source: 'topology/threeHelpers.js#GroupedBufferGeometryData', kind: 'type' },
-  { name: 'LineGeometryData', source: 'topology/threeHelpers.js#LineGeometryData', kind: 'type' },
-  { name: 'LODGeometryData', source: 'topology/threeHelpers.js#LODGeometryData', kind: 'type' },
-  { name: 'LODGeometryLevel', source: 'topology/threeHelpers.js#LODGeometryLevel', kind: 'type' },
-  { name: 'Wrapped', source: 'topology/wrapperFns.js#Wrapped', kind: 'type' },
-  { name: 'Wrapped3D', source: 'topology/wrapperFns.js#Wrapped3D', kind: 'type' },
-  { name: 'WrappedCurve', source: 'topology/wrapperFns.js#WrappedCurve', kind: 'type' },
-  { name: 'WrappedFace', source: 'topology/wrapperFns.js#WrappedFace', kind: 'type' },
+  { name: 'ComposedTransform', source: 'topology/api.js#ComposedTransform', kind: 'skip' },
+  { name: 'MirrorOptions', source: 'topology/api.js#MirrorOptions', kind: 'skip' },
+  { name: 'RotateOptions', source: 'topology/api.js#RotateOptions', kind: 'skip' },
+  { name: 'ScaleOptions', source: 'topology/api.js#ScaleOptions', kind: 'skip' },
+  { name: 'TransformOp', source: 'topology/api.js#TransformOp', kind: 'skip' },
+  { name: 'BossOptions', source: 'topology/apiTypes.js#BossOptions', kind: 'skip' },
+  { name: 'ChamferDistance', source: 'topology/apiTypes.js#ChamferDistance', kind: 'skip' },
+  { name: 'DraftAngle', source: 'topology/apiTypes.js#DraftAngle', kind: 'skip' },
+  { name: 'DraftOptions', source: 'topology/apiTypes.js#DraftOptions', kind: 'skip' },
+  { name: 'DrawingLike', source: 'topology/apiTypes.js#DrawingLike', kind: 'skip' },
+  { name: 'DrillOptions', source: 'topology/apiTypes.js#DrillOptions', kind: 'skip' },
+  { name: 'FilletRadius', source: 'topology/apiTypes.js#FilletRadius', kind: 'skip' },
+  { name: 'FinderFn', source: 'topology/apiTypes.js#FinderFn', kind: 'skip' },
+  { name: 'MirrorJoinOptions', source: 'topology/apiTypes.js#MirrorJoinOptions', kind: 'skip' },
+  { name: 'PocketOptions', source: 'topology/apiTypes.js#PocketOptions', kind: 'skip' },
+  { name: 'RectangularPatternOptions', source: 'topology/apiTypes.js#RectangularPatternOptions', kind: 'skip' },
+  { name: 'Shapeable', source: 'topology/apiTypes.js#Shapeable', kind: 'skip' },
+  { name: 'WrappedMarker', source: 'topology/apiTypes.js#WrappedMarker', kind: 'skip' },
+  { name: 'BatchBisectResult', source: 'topology/booleanBatchFns.js#BatchBisectResult', kind: 'skip' },
+  { name: 'BatchBisectTelemetry', source: 'topology/booleanBatchFns.js#BatchBisectTelemetry', kind: 'skip' },
+  { name: 'BooleanOptions', source: 'topology/booleanFns.js#BooleanOptions', kind: 'skip' },
+  { name: 'BooleanPipelineStep', source: 'topology/booleanFns.js#BooleanPipelineStep', kind: 'skip' },
+  { name: 'PipelineOp', source: 'topology/booleanFns.js#PipelineOp', kind: 'skip' },
+  { name: 'ApproximateCurveOptions', source: 'topology/curveFns.js#ApproximateCurveOptions', kind: 'skip' },
+  { name: 'InterpolateCurveOptions', source: 'topology/curveFns.js#InterpolateCurveOptions', kind: 'skip' },
+  { name: 'EvolutionResult', source: 'topology/evolutionFns.js#EvolutionResult', kind: 'skip' },
+  { name: 'PointProjectionResult', source: 'topology/faceFns.js#PointProjectionResult', kind: 'skip' },
+  { name: 'UVBounds', source: 'topology/faceFns.js#UVBounds', kind: 'skip' },
+  { name: 'AutoHealOptions', source: 'topology/healingFns.js#AutoHealOptions', kind: 'skip' },
+  { name: 'HealingReport', source: 'topology/healingFns.js#HealingReport', kind: 'skip' },
+  { name: 'HealingStepDiagnostic', source: 'topology/healingFns.js#HealingStepDiagnostic', kind: 'skip' },
+  { name: 'HullOptions', source: 'topology/hullFns.js#HullOptions', kind: 'skip' },
+  { name: 'ChamferRadius', source: 'topology/index.js#ChamferRadius', kind: 'skip' },
+  { name: 'GenericTopo', source: 'topology/index.js#GenericTopo', kind: 'skip' },
+  { name: 'RadiusOptions', source: 'topology/index.js#RadiusOptions', kind: 'skip' },
+  { name: 'TopoEntity', source: 'topology/index.js#TopoEntity', kind: 'skip' },
+  { name: 'MeshCacheContext', source: 'topology/meshCache.js#MeshCacheContext', kind: 'skip' },
+  { name: 'EdgeMesh', source: 'topology/meshFns.js#EdgeMesh', kind: 'skip' },
+  { name: 'LODMesh', source: 'topology/meshFns.js#LODMesh', kind: 'skip' },
+  { name: 'MeshLevelFn', source: 'topology/meshFns.js#MeshLevelFn', kind: 'skip' },
+  { name: 'MeshLODsOptions', source: 'topology/meshFns.js#MeshLODsOptions', kind: 'skip' },
+  { name: 'MeshLODsProgressiveOptions', source: 'topology/meshFns.js#MeshLODsProgressiveOptions', kind: 'skip' },
+  { name: 'MeshOptions', source: 'topology/meshFns.js#MeshOptions', kind: 'skip' },
+  { name: 'MultiLODMesh', source: 'topology/meshFns.js#MultiLODMesh', kind: 'skip' },
+  { name: 'ShapeMesh', source: 'topology/meshFns.js#ShapeMesh', kind: 'skip' },
+  { name: 'Color', source: 'topology/metadata/colorFns.js#Color', kind: 'skip' },
+  { name: 'ColorInput', source: 'topology/metadata/colorFns.js#ColorInput', kind: 'skip' },
+  { name: 'MinkowskiOptions', source: 'topology/minkowskiFns.js#MinkowskiOptions', kind: 'skip' },
+  { name: 'VariableFilletRadius', source: 'topology/modifierFns.js#VariableFilletRadius', kind: 'skip' },
+  { name: 'PolyhedronOptions', source: 'topology/polyhedronFns.js#PolyhedronOptions', kind: 'skip' },
+  { name: 'BoxOptions', source: 'topology/primitiveFns.js#BoxOptions', kind: 'skip' },
+  { name: 'CircleOptions', source: 'topology/primitiveFns.js#CircleOptions', kind: 'skip' },
+  { name: 'ConeOptions', source: 'topology/primitiveFns.js#ConeOptions', kind: 'skip' },
+  { name: 'CylinderOptions', source: 'topology/primitiveFns.js#CylinderOptions', kind: 'skip' },
+  { name: 'EllipseArcOptions', source: 'topology/primitiveFns.js#EllipseArcOptions', kind: 'skip' },
+  { name: 'EllipseOptions', source: 'topology/primitiveFns.js#EllipseOptions', kind: 'skip' },
+  { name: 'EllipsoidOptions', source: 'topology/primitiveFns.js#EllipsoidOptions', kind: 'skip' },
+  { name: 'HelixOptions', source: 'topology/primitiveFns.js#HelixOptions', kind: 'skip' },
+  { name: 'SphereOptions', source: 'topology/primitiveFns.js#SphereOptions', kind: 'skip' },
+  { name: 'TorusOptions', source: 'topology/primitiveFns.js#TorusOptions', kind: 'skip' },
+  { name: 'ShapeDescription', source: 'topology/shapeFns.js#ShapeDescription', kind: 'skip' },
+  { name: 'BrokenDerivedFaceRef', source: 'topology/shapeRef/index.js#BrokenDerivedFaceRef', kind: 'skip' },
+  { name: 'BrokenEdgeRef', source: 'topology/shapeRef/index.js#BrokenEdgeRef', kind: 'skip' },
+  { name: 'BrokenReason', source: 'topology/shapeRef/index.js#BrokenReason', kind: 'skip' },
+  { name: 'BrokenRef', source: 'topology/shapeRef/index.js#BrokenRef', kind: 'skip' },
+  { name: 'BrokenVertexRef', source: 'topology/shapeRef/index.js#BrokenVertexRef', kind: 'skip' },
+  { name: 'DerivedFaceHint', source: 'topology/shapeRef/index.js#DerivedFaceHint', kind: 'skip' },
+  { name: 'DerivedFaceRef', source: 'topology/shapeRef/index.js#DerivedFaceRef', kind: 'skip' },
+  { name: 'EdgeHint', source: 'topology/shapeRef/index.js#EdgeHint', kind: 'skip' },
+  { name: 'EdgeRef', source: 'topology/shapeRef/index.js#EdgeRef', kind: 'skip' },
+  { name: 'FaceScorer', source: 'topology/shapeRef/index.js#FaceScorer', kind: 'skip' },
+  { name: 'GeometricHint', source: 'topology/shapeRef/index.js#GeometricHint', kind: 'skip' },
+  { name: 'LineageRef', source: 'topology/shapeRef/index.js#LineageRef', kind: 'skip' },
+  { name: 'LineageResolution', source: 'topology/shapeRef/index.js#LineageResolution', kind: 'skip' },
+  { name: 'ResolvedDerivedFaceRef', source: 'topology/shapeRef/index.js#ResolvedDerivedFaceRef', kind: 'skip' },
+  { name: 'ResolvedEdgeRef', source: 'topology/shapeRef/index.js#ResolvedEdgeRef', kind: 'skip' },
+  { name: 'ResolvedEntity', source: 'topology/shapeRef/index.js#ResolvedEntity', kind: 'skip' },
+  { name: 'ResolvedRef', source: 'topology/shapeRef/index.js#ResolvedRef', kind: 'skip' },
+  { name: 'ResolvedVertexRef', source: 'topology/shapeRef/index.js#ResolvedVertexRef', kind: 'skip' },
+  { name: 'RoleTable', source: 'topology/shapeRef/index.js#RoleTable', kind: 'skip' },
+  { name: 'ShapeRef', source: 'topology/shapeRef/index.js#ShapeRef', kind: 'skip' },
+  { name: 'VertexHint', source: 'topology/shapeRef/index.js#VertexHint', kind: 'skip' },
+  { name: 'VertexRef', source: 'topology/shapeRef/index.js#VertexRef', kind: 'skip' },
+  { name: 'SurfaceFromGridOptions', source: 'topology/surfaceFns.js#SurfaceFromGridOptions', kind: 'skip' },
+  { name: 'SurfaceFromImageOptions', source: 'topology/surfaceFns.js#SurfaceFromImageOptions', kind: 'skip' },
+  { name: 'BufferGeometryData', source: 'topology/threeHelpers.js#BufferGeometryData', kind: 'skip' },
+  { name: 'BufferGeometryGroup', source: 'topology/threeHelpers.js#BufferGeometryGroup', kind: 'skip' },
+  { name: 'GroupedBufferGeometryData', source: 'topology/threeHelpers.js#GroupedBufferGeometryData', kind: 'skip' },
+  { name: 'LineGeometryData', source: 'topology/threeHelpers.js#LineGeometryData', kind: 'skip' },
+  { name: 'LODGeometryData', source: 'topology/threeHelpers.js#LODGeometryData', kind: 'skip' },
+  { name: 'LODGeometryLevel', source: 'topology/threeHelpers.js#LODGeometryLevel', kind: 'skip' },
+  { name: 'Wrapped', source: 'topology/wrapperFns.js#Wrapped', kind: 'skip' },
+  { name: 'Wrapped3D', source: 'topology/wrapperFns.js#Wrapped3D', kind: 'skip' },
+  { name: 'WrappedCurve', source: 'topology/wrapperFns.js#WrappedCurve', kind: 'skip' },
+  { name: 'WrappedFace', source: 'topology/wrapperFns.js#WrappedFace', kind: 'skip' },
 
   // ── topology value 登记（203 = 206 − P13a 的 torus/fuse/getBounds）──
   // brep-op：整件 Shape 进出（构造/变换/布尔/修饰，走 defineOp + borrow/adopt）；
@@ -2820,7 +2976,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     reason: 'overridden by handwritten api/primitives.ts (cone dual-op, mesh+brep)',
   },
   {
-    name: 'ellipsoid', source: 'topology/primitiveFns.js#ellipsoid', kind: 'brep-op', engines: ['occt'],
+    name: 'ellipsoid', source: 'brep-mirror/primitiveFns.ts#ellipsoidBrep', selfhost: true, kind: 'brep-op', engines: ['occt'],
     geometryArgs: [], returnsResult: false,
     args: 'ellipsoid(rx: number, ry: number, rz: number, options?: EllipsoidOptions): Shape',
     reason: '纯数值整件构造（rx/ry/rz → ValidSolid），brep-op',
@@ -2920,7 +3076,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     reason: 'faijs 同名 translate（§5.1 双形态：对象形态手写面覆盖 + v:Vec3 位置形态并入），生成层不重复投影',
   },
   {
-    name: 'rotate', source: 'topology/api.js#rotate', kind: 'brep-op', engines: ['occt'],
+    name: 'rotate', source: 'brep-mirror/topologyFns.ts#rotateBrep', selfhost: true, kind: 'brep-op', engines: ['occt'],
     geometryArgs: [0], returnsResult: false,
     args: 'rotate(shape: Shape, angle: number, options?: { at?, axis? }): Shape',
     reason: 'faijs rotate 已更名 rotate_euler（faijs 面只导出 rotate_euler），上游轴角 rotate 空出 → brep-op 进脚本面'
@@ -2936,7 +3092,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     reason: 'overridden by handwritten api/transform.ts (scale dual-op, mesh+brep)',
   },
   {
-    name: 'mirror', source: 'topology/api.js#mirror', kind: 'brep-op', engines: ['occt'],
+    name: 'mirror', source: 'brep-mirror/topologyFns.ts#mirrorBrep', selfhost: true, kind: 'brep-op', engines: ['occt'],
     geometryArgs: [0], returnsResult: false,
     args: 'mirror(shape: Shape, options?: MirrorOptions): Shape',
     reason: 'faijs 无同名 mirror，整件反射 → brep-op',
@@ -2945,7 +3101,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
   },
   {
-    name: 'clone', source: 'topology/api.js#clone', kind: 'brep-op', engines: ['occt'],
+    name: 'clone', source: 'brep-mirror/topologyFns.ts#cloneBrep', selfhost: true, kind: 'brep-op', engines: ['occt'],
     geometryArgs: [0], returnsResult: true,
     args: 'clone(shape: Shape): Shape',
     reason: 'faijs 用 copy（不同名），整件克隆（Result<T>）→ brep-op',
@@ -2954,7 +3110,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     naming: { kind: 'identity' },
   },
   {
-    name: 'applyMatrix', source: 'topology/api.js#applyMatrix', kind: 'brep-op', engines: ['occt'],
+    name: 'applyMatrix', source: 'brep-mirror/topologyFns.ts#applyMatrixBrep', selfhost: true, kind: 'brep-op', engines: ['occt'],
     geometryArgs: [0], returnsResult: true,
     args: 'applyMatrix(shape: Shape, matrix: unknown): Shape',
     reason: 'faijs 用 applyTransform（不同名），整件矩阵变换 → brep-op',
@@ -2971,7 +3127,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     naming: { kind: 'identity' },
   },
   {
-    name: 'locate', source: 'topology/api.js#locate', kind: 'brep-op', capabilities: ["composeTransform","dispose","hashCode","locate"],
+    name: 'locate', source: 'brep-mirror/topologyFns.ts#locateBrep', selfhost: true, kind: 'brep-op', capabilities: ["composeTransform","dispose","hashCode","locate"],
     geometryArgs: [0], returnsResult: false,
     args: 'locate(shape: Shape, placement: unknown): Shape',
     reason: 'faijs 无同名，整件定位变换 → brep-op',
@@ -2980,7 +3136,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     naming: { kind: 'identity' },
   },
   {
-    name: 'composeTransforms', source: 'topology/api.js#composeTransforms', kind: 'pure',
+    name: 'composeTransforms', source: 'topology/api.js#composeTransforms', kind: 'skip',
     reason: '变换函数组合器（纯数据，无 Shape 参数）',
   },
   {
@@ -3008,7 +3164,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
       + '（含 UI ops 与存量迁移）——生成期守卫见 gen-l3-surface.ts（§4.8 触发条件）。',
   },
   {
-    name: 'section', source: 'topology/api.js#section', kind: 'brep-op', engines: ['occt'],
+    name: 'section', source: 'brep-mirror/booleanFns.ts#sectionBrep', selfhost: true, kind: 'brep-op', engines: ['occt'],
     geometryArgs: [0], returnsResult: true,
     args: 'section(shape: Shape, plane: PlaneInput): Shape',
     params: ['shape', 'plane'], formClass: 'A',
@@ -3019,7 +3175,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     reason: '返回 Face 子形状产物，faijs 整件面不承载，skip',
   },
   {
-    name: 'split', source: 'topology/api.js#split', kind: 'brep-op', engines: ['occt'],
+    name: 'split', source: 'brep-mirror/booleanFns.ts#splitBrep', selfhost: true, kind: 'brep-op', engines: ['occt'],
     geometryArgs: [0], returnsResult: true,
     args: 'split(shape: Shape, tools: Shape[]): Shape',
     reason: 'faijs split 已更名 fai_split，上游工具切件 split 空出 → brep-op（§5.1 D-SPLIT；tools 暂登记几何首参，数组切件经 faijs 侧适配）',
@@ -3041,7 +3197,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     reason: 'faijs 同名 chamfer（§5.1 O-CHAMFER-1：role 取边已保留，上游 Edge 句柄取边形态待处置），生成层不重复投影',
   },
   {
-    name: 'shell', source: 'topology/api.js#shell', kind: 'brep-op', engines: ['occt'],
+    name: 'shell', source: 'brep-mirror/topologyFns.ts#shellBrep', selfhost: true, kind: 'brep-op', engines: ['occt'],
     geometryArgs: [0], returnsResult: true,
     reason: 'faijs 侧 cad.shell 由手写中立 op 覆盖（api/shell.ts：选面走 FaceTopoRef，能力经 capabilities:["directEdit"] 路由 ⇒ 相对 vendored 的 occt 平台版是能力升级，brepkit 的 L1 shell 亦可用）。本投影保留为引擎记录（capability-map），生成模块符号不直接进 cad 命名空间 by design（同 extrude / sweep 口径）。',
     args: 'shell(shape: Shape, faces?: Shape[], thickness: number): Shape',
@@ -3049,7 +3205,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
   },
   {
-    name: 'offset', source: 'topology/api.js#offset', kind: 'brep-op', engines: ['occt'],
+    name: 'offset', source: 'brep-mirror/topologyFns.ts#offsetBrep', selfhost: true, kind: 'brep-op', engines: ['occt'],
     geometryArgs: [0], returnsResult: true,
     args: 'offset(shape: Shape, distance: number): Shape',
     reason: 'faijs 无同名偏置 → brep-op',
@@ -3066,7 +3222,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     reason: 'overridden by handwritten api/draft.ts (平台 op engines:[occt] —— 实证收窄：brepkit 的 L1 draft 对对称 box 破坏对称性、部分 ordinal 静默无操作；选面走 FaceTopoRef，中性面用点而非 face 引用，且 occt 侧只支持原点中性面)',
   },
   {
-    name: 'heal', source: 'topology/api.js#heal', kind: 'brep-op', engines: ['occt'],
+    name: 'heal', source: 'brep-mirror/healingFns.ts#healBrep', selfhost: true, kind: 'brep-op', engines: ['occt'],
     geometryArgs: [0], returnsResult: true,
     args: 'heal(shape: Shape): Shape',
     reason: 'faijs 无同名整件修复 → brep-op',
@@ -3075,7 +3231,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
   },
   {
-    name: 'simplify', source: 'topology/api.js#simplify', kind: 'brep-op', engines: ['occt'],
+    name: 'simplify', source: 'brep-mirror/healingFns.ts#simplifyBrep', selfhost: true, kind: 'brep-op', engines: ['occt'],
     geometryArgs: [0], returnsResult: true,
     args: 'simplify(shape: Shape): Shape',
     reason: 'faijs 无同名整件简化 → brep-op',
@@ -3104,20 +3260,20 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     reason: 'BREP 反序列化（string 入参 → AnyShape），faijs 以 load/asset 体系承担，skip',
   },
   {
-    name: 'isValid', source: 'topology/api.js#isValid', kind: 'query',
+    name: 'isValid', source: 'core:brep-mirror#isValid', kind: 'query', selfhost: true,
     geometryArgs: [0], returnsResult: false, returnType: 'boolean',
-    args: 'isValid(shape: Shape): boolean',
+    args: 'isValid(shape: Shape): boolean（core selfhost）',
     reason: '整件合法性检查（Shape → boolean 纯数据），query',
     params: ['shape'], formClass: 'A',
     scriptFace: true,
   },
   {
-    name: 'isEmpty', source: 'topology/api.js#isEmpty', kind: 'query',
+    name: 'isEmpty', source: 'topology/api.js#isEmpty', kind: 'skip',
     geometryArgs: [0], returnsResult: false, returnType: 'boolean',
     args: 'isEmpty(shape: Shape): boolean',
-    reason: '整件空判（Shape → boolean 纯数据），query',
     params: ['shape'], formClass: 'A',
     scriptFace: true,
+    reason: 'core 引擎无等价方法（occt-wasm 无 isEmpty；getShapeType/isEqual 未进 L1），未平铺未公开（§5.5 第 2 条裁定删除）',
   },
 
   // shapeFns：整件 Shape 进出的查询/修饰；返回子形状句柄数组（get*/iter*）skip。
@@ -3194,21 +3350,21 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     reason: '内核形状缓存失效（状态操作），skip',
   },
   {
-    name: 'isEqualShape', source: 'topology/shapeFns.js#isEqualShape', kind: 'query',
+    name: 'isEqualShape', source: 'topology/shapeFns.js#isEqualShape', kind: 'skip',
     geometryArgs: [0, 1], returnsResult: false, returnType: 'boolean',
     args: 'isEqualShape(a: Shape, b: Shape): boolean',
-    reason: '两整件几何相等比较（纯数据），query',
     params: ['a', 'b'], formClass: 'A',
     queryParams: [
       { name: 'a', type: 'Shape', docs: '第一个被比较形状' },
       { name: 'b', type: 'Shape', docs: '第二个被比较形状' },
     ],
     scriptFace: true,
+    reason: 'core 引擎无等价方法（occt-wasm 无 isEmpty；getShapeType/isEqual 未进 L1），未平铺未公开（§5.5 第 2 条裁定删除）',
   },
   {
-    name: 'isSameShape', source: 'topology/shapeFns.js#isSameShape', kind: 'query',
+    name: 'isSameShape', source: 'core:brep-mirror#isSameShape', kind: 'query', selfhost: true,
     geometryArgs: [0, 1], returnsResult: false, returnType: 'boolean',
-    args: 'isSameShape(a: Shape, b: Shape): boolean',
+    args: 'isSameShape(a: Shape, b: Shape): boolean（core selfhost）',
     reason: '两整件同构比较（纯数据），query',
     params: ['a', 'b'], formClass: 'A',
     queryParams: [
@@ -3388,16 +3544,16 @@ export const ARG_SPEC: ArgSpecEntry[] = [
 
   // healingFns：整件修复 brep-op；face/wire 级修复与 shell 组装 skip
   {
-    name: 'autoHeal', source: 'topology/healingFns.js#autoHeal', kind: 'brep-op', engines: ['occt'],
-    geometryArgs: [0], returnsResult: true,
-    args: 'autoHeal(shape: Shape, options?: AutoHealOptions): Shape',
+    name: 'autoHeal', source: 'brep-mirror/healingFns.ts#autoHealBrep', selfhost: true, kind: 'brep-op', engines: ['occt'],
+    geometryArgs: [0], returnsResult: true, outputs: ['shape'],
+    args: 'autoHeal(shape: Shape, options?: AutoHealOptions): { shape: Shape, report }',
     reason: '整件自动修复（Result<Shape>），brep-op',
     params: ['shape', 'options'], formClass: 'A',
     scriptFace: true,
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
   },
   {
-    name: 'fixShape', source: 'topology/healingFns.js#fixShape', kind: 'brep-op', capabilities: ["fixShape"],
+    name: 'fixShape', source: 'brep-mirror/healingFns.ts#fixShapeBrep', selfhost: true, kind: 'brep-op', capabilities: ["fixShape"],
     geometryArgs: [0], returnsResult: true,
     args: 'fixShape(shape: Shape): Shape',
     reason: '整件修复（Result<Shape>），brep-op',
@@ -3406,7 +3562,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
   },
   {
-    name: 'healSolid', source: 'topology/healingFns.js#healSolid', kind: 'brep-op', engines: ['occt'],
+    name: 'healSolid', source: 'brep-mirror/healingFns.ts#healSolidBrep', selfhost: true, kind: 'brep-op', engines: ['occt'],
     geometryArgs: [0], returnsResult: true,
     args: 'healSolid(solid: Shape): Shape',
     reason: 'Solid 修复（Result<ValidSolid>），brep-op',
@@ -3415,7 +3571,7 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } },
   },
   {
-    name: 'fixSelfIntersection', source: 'topology/healingFns.js#fixSelfIntersection', kind: 'brep-op', engines: ['occt'],
+    name: 'fixSelfIntersection', source: 'brep-mirror/healingFns.ts#fixSelfIntersectionBrep', selfhost: true, kind: 'brep-op', engines: ['occt'],
     geometryArgs: [0], returnsResult: true,
     args: 'fixSelfIntersection(shape: Shape): Shape',
     params: ['shape'], formClass: 'A',
@@ -3527,15 +3683,15 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     reason: 'KernelShape 谓词，faijs 以 isCompound/ShapeKind 覆盖，skip',
   },
   {
-    name: 'isNumber', source: 'topology/index.js#isNumber', kind: 'pure',
+    name: 'isNumber', source: 'topology/index.js#isNumber', kind: 'skip',
     reason: '纯类型守卫（无 Shape 参数）',
   },
   {
-    name: 'isChamferRadius', source: 'topology/index.js#isChamferRadius', kind: 'pure',
+    name: 'isChamferRadius', source: 'topology/index.js#isChamferRadius', kind: 'skip',
     reason: '纯类型守卫（radius 联合判别，无 Shape 参数）',
   },
   {
-    name: 'isFilletRadius', source: 'topology/index.js#isFilletRadius', kind: 'pure',
+    name: 'isFilletRadius', source: 'topology/index.js#isFilletRadius', kind: 'skip',
     reason: '纯类型守卫（radius 联合判别，无 Shape 参数）',
   },
 
@@ -3603,23 +3759,23 @@ export const ARG_SPEC: ArgSpecEntry[] = [
     reason: 'lineage 解析（kernel 引用），skip',
   },
   {
-    name: 'isLineageRef', source: 'topology/shapeRef/index.js#isLineageRef', kind: 'pure',
+    name: 'isLineageRef', source: 'topology/shapeRef/index.js#isLineageRef', kind: 'skip',
     reason: '纯类型守卫（引用判别，无 kernel 调用）',
   },
   {
-    name: 'isFaceRef', source: 'topology/shapeRef/index.js#isFaceRef', kind: 'pure',
+    name: 'isFaceRef', source: 'topology/shapeRef/index.js#isFaceRef', kind: 'skip',
     reason: '纯类型守卫（引用判别，无 kernel 调用）',
   },
   {
-    name: 'isEdgeRef', source: 'topology/shapeRef/index.js#isEdgeRef', kind: 'pure',
+    name: 'isEdgeRef', source: 'topology/shapeRef/index.js#isEdgeRef', kind: 'skip',
     reason: '纯类型守卫（引用判别，无 kernel 调用）',
   },
   {
-    name: 'isVertexRef', source: 'topology/shapeRef/index.js#isVertexRef', kind: 'pure',
+    name: 'isVertexRef', source: 'topology/shapeRef/index.js#isVertexRef', kind: 'skip',
     reason: '纯类型守卫（引用判别，无 kernel 调用）',
   },
   {
-    name: 'isDerivedFaceRef', source: 'topology/shapeRef/index.js#isDerivedFaceRef', kind: 'pure',
+    name: 'isDerivedFaceRef', source: 'topology/shapeRef/index.js#isDerivedFaceRef', kind: 'skip',
     reason: '纯类型守卫（引用判别，无 kernel 调用）',
   },
   {
@@ -3770,49 +3926,49 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   },
 
   // ──── P14 补批 12：kernel 模块（57 = 21 value + 36 type；D10 冻结 registry）────
-  // kernel 是 L0 注册表面：D10 单实例 occt-wasm 由 faijs occt-kernel-bridge 装配并冻结，
+  // kernel 是 L0 注册表面：D10 单实例 occt-wasm 由 faijs 侧装配并冻结`n  // （2026-09-25 core-decouple 后 vendored registry 由宿主/测试自装配），
   // 只读/纯数据符号 re-export；registry 生命周期（init/with*/register*/tier/perf）与
   // KernelAdapter 对象谓词登记 skip（理由见各条）；上游已剪除符号（BrepkitHandle、
   // PerformanceStats、BrepkitAdapter、init 系等）同样 skip——vendored 树无对应导出。
   //
   // 36 type：34 个 re-export（真身所在文件）+ 2 个 skip（vendored 无此类型）
-  { name: 'BooleanDiagnostics', source: 'kernel/types.js#BooleanDiagnostics', kind: 'type', module: 'kernel' },
-  { name: 'BooleanIssue', source: 'kernel/types.js#BooleanIssue', kind: 'type', module: 'kernel' },
-  { name: 'BooleanOpType', source: 'kernel/types.js#BooleanOpType', kind: 'type', module: 'kernel' },
-  { name: 'CheckBooleanResult', source: 'kernel/types.js#CheckBooleanResult', kind: 'type', module: 'kernel' },
-  { name: 'NurbsCurveData', source: 'kernel/types.js#NurbsCurveData', kind: 'type', module: 'kernel' },
-  { name: 'NurbsSurfaceData', source: 'kernel/types.js#NurbsSurfaceData', kind: 'type', module: 'kernel' },
-  { name: 'ShapeEvolution', source: 'kernel/types.js#ShapeEvolution', kind: 'type', module: 'kernel' },
-  { name: 'ShapeOrientation', source: 'kernel/types.js#ShapeOrientation', kind: 'type', module: 'kernel' },
-  { name: 'ShapeType', source: 'kernel/types.js#ShapeType', kind: 'type', module: 'kernel' },
-  { name: 'SurfaceType', source: 'kernel/types.js#SurfaceType', kind: 'type', module: 'kernel' },
-  { name: 'ProjectionCapability', source: 'kernel/types.js#ProjectionCapability', kind: 'type', module: 'kernel' },
-  { name: 'ConstraintSketchCapability', source: 'kernel/types.js#ConstraintSketchCapability', kind: 'type', module: 'kernel' },
-  { name: 'KernelAdapter', source: 'kernel/interfaces/index.js#KernelAdapter', kind: 'type', module: 'kernel' },
-  { name: 'KernelCore', source: 'kernel/interfaces/index.js#KernelCore', kind: 'type', module: 'kernel' },
-  { name: 'KernelBooleanOps', source: 'kernel/interfaces/index.js#KernelBooleanOps', kind: 'type', module: 'kernel' },
-  { name: 'KernelBuilderOps', source: 'kernel/interfaces/index.js#KernelBuilderOps', kind: 'type', module: 'kernel' },
-  { name: 'KernelCurveOps', source: 'kernel/interfaces/index.js#KernelCurveOps', kind: 'type', module: 'kernel' },
-  { name: 'KernelEvolutionOps', source: 'kernel/interfaces/index.js#KernelEvolutionOps', kind: 'type', module: 'kernel' },
-  { name: 'KernelIOOps', source: 'kernel/interfaces/index.js#KernelIOOps', kind: 'type', module: 'kernel' },
-  { name: 'KernelMeasureOps', source: 'kernel/interfaces/index.js#KernelMeasureOps', kind: 'type', module: 'kernel' },
-  { name: 'KernelMeshOps', source: 'kernel/interfaces/index.js#KernelMeshOps', kind: 'type', module: 'kernel' },
-  { name: 'KernelModifierOps', source: 'kernel/interfaces/index.js#KernelModifierOps', kind: 'type', module: 'kernel' },
-  { name: 'KernelPrimitiveOps', source: 'kernel/interfaces/index.js#KernelPrimitiveOps', kind: 'type', module: 'kernel' },
-  { name: 'KernelRepairOps', source: 'kernel/interfaces/index.js#KernelRepairOps', kind: 'type', module: 'kernel' },
-  { name: 'KernelSurfaceOps', source: 'kernel/interfaces/index.js#KernelSurfaceOps', kind: 'type', module: 'kernel' },
-  { name: 'KernelSweepOps', source: 'kernel/interfaces/index.js#KernelSweepOps', kind: 'type', module: 'kernel' },
-  { name: 'KernelTopologyOps', source: 'kernel/interfaces/index.js#KernelTopologyOps', kind: 'type', module: 'kernel' },
-  { name: 'KernelTransformOps', source: 'kernel/interfaces/index.js#KernelTransformOps', kind: 'type', module: 'kernel' },
-  { name: 'KernelCapabilities', source: 'kernel/capabilities.js#KernelCapabilities', kind: 'type', module: 'kernel' },
-  { name: 'TessellationModel', source: 'kernel/capabilities.js#TessellationModel', kind: 'type', module: 'kernel' },
-  { name: 'QualityLevel', source: 'kernel/quality.js#QualityLevel', kind: 'type', module: 'kernel' },
-  { name: 'OcctKernelWasm', source: 'kernel/occtWasm/occtWasmTypes.js#OcctKernelWasm', kind: 'type', module: 'kernel' },
-  { name: 'OcctWasmHandle', source: 'kernel/occtWasm/occtWasmTypes.js#OcctWasmHandle', kind: 'type', module: 'kernel' },
-  { name: 'OcctWasmModule', source: 'kernel/occtWasm/occtWasmTypes.js#OcctWasmModule', kind: 'type', module: 'kernel' },
+  { name: 'BooleanDiagnostics', source: 'kernel/types.js#BooleanDiagnostics', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
+  { name: 'BooleanIssue', source: 'kernel/types.js#BooleanIssue', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
+  { name: 'BooleanOpType', source: 'kernel/types.js#BooleanOpType', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
+  { name: 'CheckBooleanResult', source: 'kernel/types.js#CheckBooleanResult', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
+  { name: 'NurbsCurveData', source: 'kernel/types.js#NurbsCurveData', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
+  { name: 'NurbsSurfaceData', source: 'kernel/types.js#NurbsSurfaceData', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
+  { name: 'ShapeEvolution', source: 'kernel/types.js#ShapeEvolution', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
+  { name: 'ShapeOrientation', source: 'kernel/types.js#ShapeOrientation', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
+  { name: 'ShapeType', source: 'kernel/types.js#ShapeType', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
+  { name: 'SurfaceType', source: 'kernel/types.js#SurfaceType', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
+  { name: 'ProjectionCapability', source: 'kernel/types.js#ProjectionCapability', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
+  { name: 'ConstraintSketchCapability', source: 'kernel/types.js#ConstraintSketchCapability', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
+  { name: 'KernelAdapter', source: 'kernel/interfaces/index.js#KernelAdapter', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
+  { name: 'KernelCore', source: 'kernel/interfaces/index.js#KernelCore', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
+  { name: 'KernelBooleanOps', source: 'kernel/interfaces/index.js#KernelBooleanOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
+  { name: 'KernelBuilderOps', source: 'kernel/interfaces/index.js#KernelBuilderOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
+  { name: 'KernelCurveOps', source: 'kernel/interfaces/index.js#KernelCurveOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
+  { name: 'KernelEvolutionOps', source: 'kernel/interfaces/index.js#KernelEvolutionOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
+  { name: 'KernelIOOps', source: 'kernel/interfaces/index.js#KernelIOOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
+  { name: 'KernelMeasureOps', source: 'kernel/interfaces/index.js#KernelMeasureOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
+  { name: 'KernelMeshOps', source: 'kernel/interfaces/index.js#KernelMeshOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
+  { name: 'KernelModifierOps', source: 'kernel/interfaces/index.js#KernelModifierOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
+  { name: 'KernelPrimitiveOps', source: 'kernel/interfaces/index.js#KernelPrimitiveOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
+  { name: 'KernelRepairOps', source: 'kernel/interfaces/index.js#KernelRepairOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
+  { name: 'KernelSurfaceOps', source: 'kernel/interfaces/index.js#KernelSurfaceOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
+  { name: 'KernelSweepOps', source: 'kernel/interfaces/index.js#KernelSweepOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
+  { name: 'KernelTopologyOps', source: 'kernel/interfaces/index.js#KernelTopologyOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
+  { name: 'KernelTransformOps', source: 'kernel/interfaces/index.js#KernelTransformOps', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
+  { name: 'KernelCapabilities', source: 'kernel/capabilities.js#KernelCapabilities', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
+  { name: 'TessellationModel', source: 'kernel/capabilities.js#TessellationModel', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
+  { name: 'QualityLevel', source: 'kernel/quality.js#QualityLevel', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
+  { name: 'OcctKernelWasm', source: 'kernel/occtWasm/occtWasmTypes.js#OcctKernelWasm', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
+  { name: 'OcctWasmHandle', source: 'kernel/occtWasm/occtWasmTypes.js#OcctWasmHandle', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
+  { name: 'OcctWasmModule', source: 'kernel/occtWasm/occtWasmTypes.js#OcctWasmModule', kind: 'skip', module: 'kernel', reason: '零引用死分片（§5.5 第 1 条）：generated/kernel.ts 已随 brepjs 删除，无接收方（裁决 9）' },
   {
     name: 'BrepkitHandle', source: 'kernel/index.js#BrepkitHandle', kind: 'skip', module: 'kernel',
-    reason: '上游 brepkit 句柄类型（faijs 以 occt-kernel-bridge/OcctWasmHandle 承担），vendored 无此导出，skip',
+    reason: '上游 brepkit 句柄类型（faijs 以 OcctWasmHandle 承担），vendored 无此导出，skip',
   },
   {
     name: 'PerformanceStats', source: 'kernel/perfStats.js#PerformanceStats', kind: 'skip', module: 'kernel',
@@ -3820,13 +3976,17 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   },
 
   // 21 value：4 个只读/纯数据 re-export；registry 生命周期与对象谓词 skip
-  { name: 'DEFAULT_CAPABILITIES', source: 'kernel/capabilities.js#DEFAULT_CAPABILITIES', kind: 'pure', module: 'kernel', reason: 'kernel 能力常量表（纯数据）' },
-  { name: 'EXACT_BREP_CAPABILITIES', source: 'kernel/capabilities.js#EXACT_BREP_CAPABILITIES', kind: 'pure', module: 'kernel', reason: 'kernel 能力常量表（纯数据）' },
-  { name: 'currentQuality', source: 'kernel/quality.js#currentQuality', kind: 'pure', module: 'kernel', reason: '当前细分质量档读取（无 Shape 参数，纯读取）' },
-  { name: 'getKernelCapabilities', source: 'kernel/index.js#getKernelCapabilities', kind: 'pure', module: 'kernel', reason: 'kernel 能力查询（返回 KernelCapabilities 纯数据）' },
+  { name: 'DEFAULT_CAPABILITIES', source: 'kernel/capabilities.js#DEFAULT_CAPABILITIES', kind: 'skip', module: 'kernel', reason: 'kernel 能力常量表（纯数据）' },
+
+  { name: 'EXACT_BREP_CAPABILITIES', source: 'kernel/capabilities.js#EXACT_BREP_CAPABILITIES', kind: 'skip', module: 'kernel', reason: 'kernel 能力常量表（纯数据）' },
+
+  { name: 'currentQuality', source: 'kernel/quality.js#currentQuality', kind: 'skip', module: 'kernel', reason: '当前细分质量档读取（无 Shape 参数，纯读取）' },
+
+  { name: 'getKernelCapabilities', source: 'kernel/index.js#getKernelCapabilities', kind: 'skip', module: 'kernel', reason: 'kernel 能力查询（返回 KernelCapabilities 纯数据）' },
+
   {
     name: 'getKernel', source: 'kernel/index.js#getKernel', kind: 'skip', module: 'kernel',
-    reason: 'L0 kernel 读取器（D10：faijs occt-kernel-bridge 单实例装配并冻结），不向 L3 用户面暴露，skip',
+    reason: 'L0 kernel 读取器（D10：faijs 侧装配并冻结 vendored registry），不向 L3 用户面暴露，skip',
   },
   {
     name: 'registerKernel', source: 'kernel/index.js#registerKernel', kind: 'skip', module: 'kernel',
@@ -3842,11 +4002,11 @@ export const ARG_SPEC: ArgSpecEntry[] = [
   },
   {
     name: 'OcctWasmAdapter', source: 'kernel/occtWasm/occtWasmAdapter.js#OcctWasmAdapter', kind: 'skip', module: 'kernel',
-    reason: 'occt-wasm 宿主适配器类（faijs occt-kernel-bridge 装配期构造单实例，D10），skip',
+    reason: 'occt-wasm 宿主适配器类（faijs 侧装配期构造单实例，D10），skip',
   },
   {
     name: 'BrepkitAdapter', source: 'kernel/index.js#BrepkitAdapter', kind: 'skip', module: 'kernel',
-    reason: '上游 brepkit 适配器（faijs 以 occt-kernel-bridge 承担），vendored 无此导出，skip',
+    reason: '上游 brepkit 适配器（faijs 以 occt 面承担），vendored 无此导出，skip',
   },
   {
     name: 'init', source: 'kernel/index.js#init', kind: 'skip', module: 'kernel',

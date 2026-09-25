@@ -21,7 +21,7 @@
 
 import { resolveArgs, type FormClass } from './dual-form-args'
 import { callBrepjs } from './l3-bridge'
-import { isKernelInjected } from '../occt-kernel-bridge'
+import { getActiveKernelId } from '@faicad/faijs-brepjs/kernel/index'
 import { getBackends } from '../../runtime-state'
 
 /**
@@ -29,9 +29,9 @@ import { getBackends } from '../../runtime-state'
  *
  * Reads the configured backend's kernel slot, guarding against the throw that
  * `getBackends()` performs before host configuration. Falls back to the
- * vendored kernel-registry injection flag (engine-neutral, Phase 2 P2-5: the
- * registry is injected with the current BREP engine during assembly, not
- * hard-bound to occt) when nothing is configured.
+ * vendored kernel-registry activation flag（2026-09-25 core-decouple Phase 2：
+ * core 不再注入 vendored registry——删桥后由需要 vendored 面的宿主/测试自行
+ * 装配；此处只问「registry 是否已有激活内核」）when nothing is configured.
  *
  * @param name - op name, used in the guiding error message.
  * @throws when no BREP kernel is bound (the message tells the host what to do,
@@ -44,10 +44,10 @@ export function assertKernelBound(name: string): void {
   } catch {
     // backends not configured yet — that is not an error, just no kernel
   }
-  if (!kernelBound && !isKernelInjected()) {
+  if (!kernelBound && getActiveKernelId() === null) {
     throw new Error(
       `[compat:${name}] no BREP kernel bound; run host init/inject (e.g. initOcct + ` +
-        `injectCurrentBrepEngineAsKernel) before the first compat.${name} call. ` +
+        `register the vendored kernel registry) before the first compat.${name} call. ` +
         `Library code must not install kernels itself.`
     )
   }

@@ -30,6 +30,7 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 const VENDORED_ROOT = path.resolve(__dirname, '../../brepjs/src')
+const SELFHOST_ROOT = path.resolve(__dirname, '..', 'src', 'api')
 const OUT_FILE = path.resolve(__dirname, '..', 'src', 'api', 'surface', 'capability-map.json')
 
 /** source '<module>.js#<Export>' → 模块文件（.js → .ts）与导出名。 */
@@ -316,6 +317,8 @@ function collectCalls(
   for (const m of body.matchAll(/getKernel\(\)\s*\.\s*(\w+)\s*\(/g)) kernelMethods.add(m[1])
   for (const m of body.matchAll(/getKernel2D\(\)\s*\.\s*(\w+)\s*\(/g)) kernelMethods.add(m[1])
   for (const m of body.matchAll(/(?<![.\w])kernel\s*\.\s*(\w+)\s*\(/g)) kernelMethods.add(m[1])
+  for (const m of body.matchAll(/getBrepApi\(\)\s*\.\s*(\w+)\s*\(/g)) kernelMethods.add(m[1])
+  for (const m of body.matchAll(/getOcctKernel\(\)\s*\.\s*(\w+)\s*\(/g)) kernelMethods.add(m[1])
 
   // 命名空间调用：<alias>.<fn>(  —— alias ∈ info.namespaceAliases
   for (const alias of info.namespaceAliases.keys()) {
@@ -342,7 +345,7 @@ function collectCalls(
 }
 
 /** 从入口函数出发 BFS 收集全部内核方法（环保护）。 */
-function collectForOp(entryFile: string, entryFn: string): {
+function collectForOp(entryFile: string, entryFn: string, root = VENDORED_ROOT): {
   methods: string[]
   trace: Array<{ fn: string; file: string; methods: string[]; calls: string[] }>
 } {
@@ -371,7 +374,7 @@ function collectForOp(entryFile: string, entryFn: string): {
         const target = info.namedImports.get(c)
         if (target) {
           queue.push({ file: target.module, fn: target.origName })
-          nextCalls.push(`${path.relative(VENDORED_ROOT, target.module).replace(/\\/g, '/')}#${target.origName}`)
+          nextCalls.push(`${path.relative(root, target.module).replace(/\\/g, '/')}#${target.origName}`)
         } else if (info.localNames.has(c)) {
           queue.push({ file, fn: c })
           nextCalls.push(`${path.basename(file)}#${c}`)
@@ -382,16 +385,16 @@ function collectForOp(entryFile: string, entryFn: string): {
         if (!target) continue
         for (const f of fns) {
           queue.push({ file: target, fn: f })
-          nextCalls.push(`${path.relative(VENDORED_ROOT, target).replace(/\\/g, '/')}#${f}`)
+          nextCalls.push(`${path.relative(root, target).replace(/\\/g, '/')}#${f}`)
         }
       }
       for (const cls of cc) {
         const target = info.defaultImports.get(cls)
         if (!target) continue
         queue.push({ file: target, fn: '__class__' })
-        nextCalls.push(`${path.relative(VENDORED_ROOT, target).replace(/\\/g, '/')}#new ${cls}()`)
+        nextCalls.push(`${path.relative(root, target).replace(/\\/g, '/')}#new ${cls}()`)
       }
-      trace.push({ fn: `new ${path.basename(file)}()`, file: path.relative(VENDORED_ROOT, file).replace(/\\/g, '/'), methods: [...kernelMethods].sort(), calls: nextCalls })
+      trace.push({ fn: `new ${path.basename(file)}()`, file: path.relative(root, file).replace(/\\/g, '/'), methods: [...kernelMethods].sort(), calls: nextCalls })
       continue
     }
     if (!body) {
@@ -415,7 +418,7 @@ function collectForOp(entryFile: string, entryFn: string): {
       const target = info.namedImports.get(c)
       if (target) {
         queue.push({ file: target.module, fn: target.origName })
-        nextCalls.push(`${path.relative(VENDORED_ROOT, target.module).replace(/\\/g, '/')}#${target.origName}`)
+        nextCalls.push(`${path.relative(root, target.module).replace(/\\/g, '/')}#${target.origName}`)
       } else if (info.localNames.has(c)) {
         queue.push({ file, fn: c })
         nextCalls.push(`${path.basename(file)}#${c}`)
@@ -426,16 +429,16 @@ function collectForOp(entryFile: string, entryFn: string): {
       if (!target) continue
       for (const f of fns) {
         queue.push({ file: target, fn: f })
-        nextCalls.push(`${path.relative(VENDORED_ROOT, target).replace(/\\/g, '/')}#${f}`)
+        nextCalls.push(`${path.relative(root, target).replace(/\\/g, '/')}#${f}`)
       }
     }
     for (const cls of classCalls) {
       const target = info.defaultImports.get(cls)
       if (!target) continue
       queue.push({ file: target, fn: '__class__' })
-      nextCalls.push(`${path.relative(VENDORED_ROOT, target).replace(/\\/g, '/')}#new ${cls}()`)
+      nextCalls.push(`${path.relative(root, target).replace(/\\/g, '/')}#new ${cls}()`)
     }
-    trace.push({ fn, file: path.relative(VENDORED_ROOT, file).replace(/\\/g, '/'), methods: [...kernelMethods].sort(), calls: nextCalls })
+    trace.push({ fn, file: path.relative(root, file).replace(/\\/g, '/'), methods: [...kernelMethods].sort(), calls: nextCalls })
   }
   return { methods: [...methods].sort(), trace }
 }
@@ -444,11 +447,13 @@ function main(): void {
   const brepOps = ARG_SPEC.filter((e) => e.kind === 'brep-op')
   const entries = brepOps.map((e) => {
     const { file, exportName } = parseSource(e.source)
-    const fileAbs = path.join(VENDORED_ROOT, file)
+    const isSelfhost = e.selfhost === true
+    const root = isSelfhost ? SELFHOST_ROOT : VENDORED_ROOT
+    const fileAbs = path.join(root, file)
     if (!fs.existsSync(fileAbs)) {
       throw new Error(`[gen-capability-map] vendored file not found: ${file} (source '${e.source}')`)
     }
-    const { methods, trace } = collectForOp(fileAbs, exportName)
+    const { methods, trace } = collectForOp(fileAbs, exportName, root)
     return {
       op: e.name,
       source: e.source,

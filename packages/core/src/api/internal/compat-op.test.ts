@@ -16,7 +16,7 @@
  */
 
 import { beforeAll, describe, expect, it } from 'vitest'
-import { brepjsCompat } from '@faicad/faijs'
+import { box } from '../primitives'
 import {
   configureBackends,
   CONTRACT_VERSION,
@@ -81,8 +81,8 @@ function brepOfChain(shape: Shape): Shape {
 const onChain = brepOfChain(cubeMesh(5))
 const offChain = solid(cubeMesh(5))
 
-/** brepjsCompat namespace returns a vendored box handle. */
-const vendorBox = (brepjsCompat as unknown as { box: (a: number, b: number, c: number) => unknown }).box
+/** Core dual-op box returns a faijs Shape (2026-09-25 core-decouple: vendored handle gone). */
+const vendorBox = box as unknown as (a: number, b: number, c: number) => unknown
 
 function metaOf(op: unknown): DualOpMeta {
   const m = (op as unknown as Carried)[DUAL_OP_META]
@@ -90,10 +90,10 @@ function metaOf(op: unknown): DualOpMeta {
   return m
 }
 
-/** A brepjs-shaped fn body that returns a `{ sun, planets, ring }` handle record. */
-function planetaryBody(_params: unknown): { ok: true; value: Record<string, unknown> } {
-  const s = (v: number) => vendorBox(v, v, v)
-  return { ok: true, value: { sun: s(1), planets: [s(2), s(3)], ring: s(4) } }
+/** A brep-shaped fn body that returns a `{ sun, planets, ring }` shape record. */
+async function planetaryBody(_params: unknown): Promise<{ ok: true; value: Record<string, unknown> }> {
+  const s = async (v: number) => vendorBox(v, v, v)
+  return { ok: true, value: { sun: await s(1), planets: [await s(2), await s(3)], ring: await s(4) } }
 }
 
 describe('§ single entry — compat product is a defineOp product', () => {
@@ -156,7 +156,7 @@ describe('§ dispatch 矩阵 — 与 brep-only defineOp 一致', () => {
 
 describe('§4 outputs — 多产物（含数组字段）收养 + meta 可见', () => {
   it('runtime：{sun, planets, ring} 各自收养为 faijs Shape；meta.outputs 可见', async () => {
-    const planetary = compatOp((params: unknown) => planetaryBody(params), {
+    const planetary = compatOp((params: unknown) => planetaryBody(params) as never, {
       name: 'planet',
       outputs: ['sun', 'planets', 'ring'],
       naming: { kind: 'unmodeled', reason: 'test' },
@@ -191,9 +191,9 @@ describe('§4 outputs — 多产物（含数组字段）收养 + meta 可见', (
 describe('§6 slotMap — positional boxing inherited via the spec', () => {
   it('位置形态调用被装箱为对象形态（D11 反方向）；meta.slotMap 可见', async () => {
     const seen: number[] = []
-    const slotted = compatOp((params: unknown) => {
+    const slotted = compatOp(async (params: unknown) => {
       seen.push((params as { size: number }).size)
-      return { ok: true, value: vendorBox(5, 5, 5) }
+      return { ok: true, value: await vendorBox(5, 5, 5) }
     }, { name: 'slotted', slotMap: { keys: ['size'] }, naming: { kind: 'unmodeled', reason: 'test' } })
     expect(metaOf(slotted).slotMap).toEqual({ keys: ['size'] })
 
@@ -253,9 +253,9 @@ describe('§5 keep — 兼容 op 调用点声明（UI 层显示契约不改）',
 
 describe('§3 admitCompatLib — bare fn 只认 fn.outputs（多产物契约名唯一）', () => {
   it('runtime：裸库 fn.outputs 声明字段各自收养，记录结构保留', async () => {
-    const sorting = (_params: unknown) => {
-      const s = (v: number) => vendorBox(v, v, v)
-      return { ok: true, value: { a: s(1), b: [s(9), s(9)] } }
+    const sorting = async (_params: unknown) => {
+      const s = async (v: number) => vendorBox(v, v, v)
+      return { ok: true, value: { a: await s(1), b: [await s(9), await s(9)] } }
     }
     ;(sorting as unknown as { outputs?: string[] }).outputs = ['a', 'b']
     const ns = { contractVersion: CONTRACT_VERSION, sorting } as unknown as StdlibNamespace
@@ -283,7 +283,7 @@ describe('§7 async library fn — Promise<Result<…>> is awaited before unwrap
     const asyncBox = async (params: unknown) => {
       await Promise.resolve()
       const n = (params as { size: number }).size
-      return { ok: true, value: vendorBox(n, n, n) }
+      return { ok: true, value: await vendorBox(n, n, n) }
     }
     const ns = { contractVersion: CONTRACT_VERSION, asyncBox } as unknown as StdlibNamespace
     const r = createEditorRuntime(ports(), 'auto')

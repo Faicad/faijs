@@ -1,42 +1,85 @@
 /**
- * stdlib loft — 放样：多个截面之间蒙皮生成体（手写平台 op，Phase 4）
+ * stdlib loft — 放样：多个截面之间蒙皮生成体（手写平台 op，Phase 4 → G5 core 直连）
  *
- * @platform occt — 实现走 vendored `loft` → `BRepOffsetAPI_ThruSections`
- * （engine-method-map 里 `loft` / `loftAdvanced` 均为 occt-only）⇒ 平台 op：
+ * @platform occt — 实现走 core 直连 `occt-wasm loft` / `loftWithVertices`
+ * （BRepOffsetAPI_ThruSections；engine-method-map 里 `loft` 为 occt-only）⇒ 平台 op：
  * defineOp 声明 `engines: ['occt']`（D11）。
  *
  * 为什么手写而不走生成投影：与 `api/sweep.ts` 同因——截面最常见来源是
- * `cad.sketch(...)`（产出 **face**），vendored `loft(wires, …)` 只吃 wire ⇒
+ * `cad.sketch(...)`（产出 **face**），内核 `loft(wires, …)` 只吃 wire ⇒
  * 需要「面 → 外环」输入适配（`internal/profile-wire.ts` 的唯一步径）。
- * 数组入参本身已不是障碍（compat-op 的 `borrowDeep` 递归借入数组），
- * 障碍是输入形态适配，故仍按设计原则 6「手写 op 优先」落地。
  *
- * 只做单产物 `loft`；**不做** `loftAll`（返回 `Shape3D[]`，多产物一律用具名
- * `outputs`，设计原则 5 —— 数组产物不上脚本面）。
+ * core-decouple G5：vendored `loft`（brepjs）替换为 occt-wasm 原生直连，
+ * 产物经 `fromBrep` 收养（替代 l3-bridge adoptEntity）。
  */
 
 import type { Shape } from '../mesh/types'
 import { defineOp } from '../sdk'
 import type { Provenance } from '../topology/naming/lineage'
-import { loft as vendoredLoft, type LoftOptions } from '@faicad/faijs-brepjs/operations/loftFns.js'
-import { adoptEntity, callBrepjs } from './internal/l3-bridge'
-import { borrowDeep, unwrapOrThrow } from './internal/compat-op'
+import { getBrepApi } from '../brep/handle-bridge'
+import { fromBrep } from '../shape'
+import { solidToShape } from '../brep/brep-ops'
+import { getOcctKernel } from '../occt-kernel/occtKernel'
 import { toProfileWireView } from './internal/profile-wire'
+import type { BrepHandle } from '../brep/engine/types'
 
-export type { LoftOptions }
+/** 放样配置（与 vendored LoftOptions 同形；本文件自持，去 brepjs 依赖）。 */
+export interface LoftOptions {
+  /** 直线插值（ruled）。默认 true。 */
+  ruled?: boolean
+  /** 起点（退化到点的蒙皮）。 */
+  startPoint?: readonly [number, number, number] | { x: number; y: number; z: number }
+  /** 终点（退化到点的蒙皮）。 */
+  endPoint?: readonly [number, number, number] | { x: number; y: number; z: number }
+  /** ThruSections 缝合公差。默认 1e-6。 */
+  tolerance?: number
+}
 
-/** BREP 路径：按序蒙皮各截面（borrow → vendored 调用 → Result 翻转 → 收养）。 */
+/** PointInput → [x,y,z]（vendored toVec3 同口径）。 */
+function toVec3(p: LoftOptions['startPoint']): [number, number, number] {
+  if (Array.isArray(p) && p.length >= 3) return [p[0]!, p[1]!, p[2]!]
+  const o = p as { x: number; y: number; z: number }
+  return [o.x, o.y, o.z]
+}
+
+/** BREP 路径：按序蒙皮各截面（wire 视图 → occt-wasm 直连 → fromBrep 收养）。 */
 function loftBrep(sections: Shape[], opts?: LoftOptions): Shape {
   if (!Array.isArray(sections) || sections.length === 0) {
     throw new Error('E_LOFT_NO_SECTIONS: loft requires a non-empty array of section shapes')
   }
   // 每截面：wire 直用；面取外环（孔环不参与放样）。
-  const wires = sections.map((s) => toProfileWireView(s))
-  // startPoint / endPoint 是纯数值，borrowDeep 原样透传；保留此步是为对称与防未来
-  // 选项里嵌 Shape（与 compatOp 同款深借入口径）。
-  const config = (borrowDeep(opts ?? {}, 0) ?? {}) as LoftOptions
-  const r = callBrepjs(vendoredLoft, [wires, config])
-  return adoptEntity(unwrapOrThrow(r, 'loft'), 'loft') as Shape
+  const wireViews = sections.map((s) => toProfileWireView(s))
+  const { ruled = true, startPoint, endPoint, tolerance = 1e-6 } = opts ?? {}
+  const kernel = getBrepApi()
+  const k = getOcctKernel()
+  const wireHandles = wireViews.map((w) => w.wrapped as never)
+
+  try {
+    let h: unknown
+    if (startPoint !== undefined || endPoint !== undefined) {
+      const startVertex = startPoint !== undefined ? k.makeVertex(...toVec3(startPoint)) : undefined
+      const endVertex = endPoint !== undefined ? k.makeVertex(...toVec3(endPoint)) : undefined
+      try {
+        h = k.loftWithVertices(wireHandles, true, ruled, startVertex as never, endVertex as never)
+      } finally {
+        if (startVertex !== undefined) k.release(startVertex)
+        if (endVertex !== undefined) k.release(endVertex)
+      }
+    } else {
+      h = k.loft(wireHandles, true, ruled)
+    }
+    return fromBrep(solidToShape(kernel, h as BrepHandle), { solid: h as BrepHandle })
+  } catch (e) {
+    const raw = e instanceof Error ? e.message : String(e)
+    throw new Error(`E_LOFT_FAILED: loft failed: ${raw}`)
+  } finally {
+    // 面→外环产出的 wire 是 arena 新句柄（曲线借用不 release）
+    for (const w of wireViews) {
+      if (!w.borrowed) {
+        try { kernel.release(w.wrapped) } catch { /* 已释放 */ }
+      }
+    }
+  }
 }
 
 /**

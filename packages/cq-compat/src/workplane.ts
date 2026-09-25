@@ -10,12 +10,14 @@
  */
 
 import { createApiNamespace } from '@faicad/faijs/api/api-namespace'
-import { brepjsCompat } from '@faicad/faijs/api'
-import { borrowBrepjsShape, adoptBrepjsProduct } from '@faicad/faijs/api/internal/l3-bridge'
 import { fromHandle } from '@faicad/faijs/sdk'
 import { brepOf, isShape } from '@faicad/faijs/shape'
 import { setName, nameOf } from '@faicad/faijs'
 import { getKernel } from '@faicad/faijs/occt-kernel/occtKernel'
+import { getBrepApi } from '@faicad/faijs/brep/handle-bridge'
+import { applyMatrixBrep } from '@faicad/faijs/api/brep-mirror/topologyFns'
+import type { BrepHandle } from '@faicad/faijs/brep/engine/types'
+import type { BrepEngineApi } from '@faicad/faijs/brep/engine/primitives'
 import type { OcctKernel, ShapeHandle, Vec3 } from 'occt-wasm'
 import type { Shape } from '@faicad/faijs/mesh/types'
 
@@ -38,9 +40,9 @@ const cad = createApiNamespace() as Record<string, (...args: unknown[]) => Promi
 //
 // 所有权：归一出的新 Shape 与原 part Shape 的 slot 指向同一 OCCT 句柄，但 slot
 // 按 Shape 对象各自持有（fromBrep 写的是新 Shape 的 slot），无共享释放路径——
-// 与 vendored 投影的 adoptBrepjsProduct 收编模式同构，不引入双重释放。
+// 与 core fromHandle 收编模式同构，不引入双重释放。
 // 视图 `.wrapped` 是 OcctWasmHandle 对象（{ id, type, __occtWasm }），内核只收
-// 数字 id → 解包方式与 l3-bridge.adoptBrepjsProduct 一致（`'id' in wrapped` 分支）。
+// 数字 id → 解包方式与 core fromHandle 一致。
 const borrowedShapeCache = new WeakMap<object, Shape>()
 
 /**
@@ -381,19 +383,38 @@ function unwrapBrepResult(result: unknown): unknown {
   return result
 }
 
-/** Call a `brepjsCompat` member by name (namespace is typed loosely here). */
-function compatFn(name: string): (...args: unknown[]) => unknown {
-  const fn = (brepjsCompat as Record<string, unknown>)[name] as
-    | ((...args: unknown[]) => unknown)
-    | undefined
-  if (!fn) throw new Error(`[cq-compat] brepjsCompat.${name} is not available`)
-  return fn
+/** core 直连 helpers（cq-compat 改写：vendored 兼容面 → getBrepApi/getKernel，裁决 3）。 */
+function kern(): BrepEngineApi {
+  return getBrepApi()
+}
+function ownHandle(shape: Shape): BrepHandle {
+  return brepOf(shape) as BrepHandle
+}
+function toShape(h: unknown): Shape {
+  return fromHandle(h as never)
+}
+function vec3(
+  p: [number, number, number] | { x: number; y: number; z: number },
+): { x: number; y: number; z: number } {
+  if (Array.isArray(p)) return { x: p[0]!, y: p[1]!, z: p[2]! }
+  return p
+}
+function polygonShape(pts: [number, number, number][]): Shape {
+  const k = getKernel()
+  const edges = pts.map((p, i) => k.makeLineEdge(vec3(p), vec3(pts[(i + 1) % pts.length]!)))
+  const w = k.makeWire(edges)
+  const f = k.makeFace(w)
+  return fromHandle(f as never)
+}
+function faceWithHoles(outer: unknown, holes: unknown[]): Shape {
+  const f = toShape(kern().makeFace(outer as BrepHandle))
+  if (holes.length > 0) kern().addHolesInFace(brepOf(f) as BrepHandle, holes as BrepHandle[])
+  return f
 }
 
 /** Merge same-domain faces/edges after a boolean (CadQuery `clean=True`). */
 async function cleanShapes(shape: Shape): Promise<Shape> {
-  const simplified = unwrapBrepResult(compatFn('simplify')(borrowBrepjsShape(shape)))
-  return adoptBrepjsProduct(simplified)
+  return toShape(getKernel().simplify(ownHandle(shape) as never))
 }
 
 /**
@@ -406,8 +427,7 @@ async function cleanShapes(shape: Shape): Promise<Shape> {
  * stays a single solid. See docs/analysis/2026-09-08-cq-compat-union-compound-bug.md.
  */
 async function fuseShapes(a: Shape, b: Shape, clean: boolean = true): Promise<Shape> {
-  const product = unwrapBrepResult(compatFn('fuse')(borrowBrepjsShape(a), borrowBrepjsShape(b)))
-  const fused = adoptBrepjsProduct(product)
+  const fused = toShape(kern().fuse(ownHandle(a), ownHandle(b)))
   // CadQuery ops take a `clean` flag (default True); clean=False preserves the
   // boolean splitter faces (verified vs 2.8.0: testNoClean wedge vol 10.650718
   // vs testClean 9.079922 — the kernel unify pass is NOT volume-preserving).
@@ -416,14 +436,14 @@ async function fuseShapes(a: Shape, b: Shape, clean: boolean = true): Promise<Sh
 
 /** Cut a tool shape out of a base shape via the vendored brepjs cut. */
 async function cutShapes(base: Shape, tool: Shape): Promise<Shape> {
-  const product = unwrapBrepResult(compatFn('cut')(borrowBrepjsShape(base), borrowBrepjsShape(tool)))
-  return cleanShapes(adoptBrepjsProduct(product))
+  const cutShape = toShape(kern().cut(ownHandle(base), ownHandle(tool)))
+  return cleanShapes(cutShape)
 }
 
 /** Intersect two shapes via the vendored brepjs intersect. */
 async function intersectShapes(a: Shape, b: Shape): Promise<Shape> {
-  const product = unwrapBrepResult(compatFn('intersect')(borrowBrepjsShape(a), borrowBrepjsShape(b)))
-  return cleanShapes(adoptBrepjsProduct(product))
+  const isect = toShape(kern().intersect(ownHandle(a), ownHandle(b)))
+  return cleanShapes(isect)
 }
 
 /** Get bbox max of a shape (via cad.bboxMax — synchronous). */
@@ -738,12 +758,12 @@ export async function resolveFaceSelector(
   // Indexed selector — enumerate real faces and sort by bbox center along axis.
   // CadQuery semantics: '>A[k]' ascending, '<A[k]' descending (see doc above).
   const idx = parseInt(idxStr, 10)
-  const faces = compatFn('getFaces')(borrowBrepjsShape(shape)) as unknown[]
+  const faces = kern().getSubShapes(ownHandle(shape), 'face') as unknown[]
   type Entry = { c: [number, number, number]; bounds: Record<string, number> }
   const entries: Entry[] = faces.map((f) => {
-    const b = compatFn('getBounds')(f) as Record<string, number>
+    const b = kern().getBoundingBox(f as BrepHandle) as unknown as Record<string, number>
     return {
-      c: [(b.xMin + b.xMax) / 2, (b.yMin + b.yMax) / 2, (b.zMin + b.zMax) / 2],
+      c: [(b.xmin + b.xmax) / 2, (b.ymin + b.ymax) / 2, (b.zmin + b.zmax) / 2],
       bounds: b,
     }
   })
@@ -759,9 +779,9 @@ export async function resolveFaceSelector(
   }
   const fb = entries[pick].bounds
   const faceCenter: [number, number, number] = [
-    (fb.xMin + fb.xMax) / 2,
-    (fb.yMin + fb.yMax) / 2,
-    (fb.zMin + fb.zMax) / 2,
+    (fb.xmin + fb.xmax) / 2,
+    (fb.ymin + fb.ymax) / 2,
+    (fb.zmin + fb.zmax) / 2,
   ]
   // Outward normal: away from the shape bbox center along the axis.
   normal[axis] = faceCenter[axis] >= center[axis] ? 1 : -1
@@ -784,10 +804,10 @@ async function makePolygonPrismAt(
     const a = (2 * Math.PI * i) / poly.n
     pts.push(localToWorld(wp, Math.cos(a) * (poly.d / 2), Math.sin(a) * (poly.d / 2)))
   }
-  const face = unwrapBrepResult(compatFn('polygon')(pts))
+  const face = polygonShape(pts)
   const vec: [number, number, number] = [dir[0] * length, dir[1] * length, dir[2] * length]
-  const prism = unwrapBrepResult(compatFn('extrude')(face, vec))
-  return adoptBrepjsProduct(prism)
+  const prism = toShape(kern().extrude(brepOf(face) as BrepHandle, vec[0], vec[1], vec[2]))
+  return prism
 }
 
 /**
@@ -885,10 +905,7 @@ function resolveCentered(c: Centered3): [boolean, boolean, boolean] {
 /** Build a compound Shape from several Shapes (brepjs makeCompound projection). */
 function makeCompoundShape(shapes: Shape[]): Shape {
   if (shapes.length === 1) return shapes[0]
-  const product = unwrapBrepResult(
-    compatFn('makeCompound')(shapes.map((s) => borrowBrepjsShape(s))),
-  )
-  return adoptBrepjsProduct(product)
+  return toShape(kern().makeCompound(shapes.map((s) => ownHandle(s))))
 }
 
 /**
@@ -1069,9 +1086,9 @@ export async function wedge(
   const rectWire = (pts: [number, number, number][]): unknown => {
     const edges: unknown[] = []
     for (let i = 0; i < 4; i++) {
-      edges.push(unwrapBrepResult(compatFn('makeLine')(pts[i], pts[(i + 1) % 4])))
+      edges.push(kern().makeLineEdge(vec3(pts[i]!), v3(pts[(i + 1) % 4]!)))
     }
-    return unwrapBrepResult(compatFn('assembleWire')(edges))
+    return kern().makeWire(edges as BrepHandle[])
   }
   const c = resolveCentered(opts?.centered ?? true)
   const ox = c[0] ? -dx / 2 : 0
@@ -1091,9 +1108,7 @@ export async function wedge(
     p3(ox + xmax, oy + dy, oz + zmax),
     p3(ox + xmin, oy + dy, oz + zmax),
   ])
-  const solid = adoptBrepjsProduct(
-    unwrapBrepResult(compatFn('loft')([bottom, top], { ruled: true })),
-  ) as Shape
+  const solid = toShape(getKernel().loft([bottom as never, top as never], true, true)) as Shape
   const points = eachPoints(wp)
   const shapes: Shape[] = []
   for (const [px, py] of points) {
@@ -1203,8 +1218,7 @@ export async function torus(
   d2: number,
   opts?: { combine?: boolean },
 ): Promise<Workplane> {
-  const product = unwrapBrepResult(compatFn('torus')(d1 / 2, d2 / 2))
-  const shape = adoptBrepjsProduct(product)
+  const shape = toShape(kern().makeTorus(d1 / 2, d2 / 2))
   return combineEachpoint(wp, [shape], opts?.combine ?? true)
 }
 
@@ -1835,9 +1849,7 @@ export function spline(
     return clone(wp, { currentPoint: end })
   }
   const world = all.map(([x, y]) => localToWorld(wp, x, y))
-  const builtEdge = unwrapBrepResult(
-    compatFn('makeBSplineInterpolation')(world, { periodic: false }),
-  )
+  const builtEdge = toShape(getKernel().interpolatePoints(world.map((p) => vec3(p)) as never, false))
   const endTgt = splineEndTangent(builtEdge, wp)
   const edges: PendingEdge[] = [
     ...(wp.pendingEdges ?? []),
@@ -1859,7 +1871,11 @@ function splineEndTangent(edge: unknown, wp: Workplane): [number, number] {
   // curveTangentAt returns a plain [x, y, z] ARRAY (vendored curveFns →
   // curveOps.curveTangent(...).tangent), not an {x,y,z} vector — indexing it
   // with .x yields undefined → NaN → a corrupt tangent-arc edge downstream.
-  const tRaw = compatFn('curveTangentAt')(edge, 1) as number[] | { x: number; y: number; z: number }
+  const edgeH = brepOf(edge as Shape) as BrepHandle
+  const cp = kern().curveParameters(edgeH)
+  const tRaw = kern().curveTangent(edgeH, cp.last) as unknown as
+    | number[]
+    | { x: number; y: number; z: number }
   const t = Array.isArray(tRaw)
     ? { x: tRaw[0], y: tRaw[1], z: tRaw[2] }
     : (tRaw as { x: number; y: number; z: number })
@@ -2130,8 +2146,8 @@ async function buildProfileWire(wp: Workplane, w: PendingWire): Promise<unknown>
   const n = Array.isArray(pl.normal) ? pl.normal : ([0, 0, 1] as [number, number, number])
   if (w.kind === 'circle') {
     const center = localToWorld(pl, w.cx, w.cy)
-    const edge = unwrapBrepResult(compatFn('makeCircle')(w.radius, center, n))
-    return unwrapBrepResult(compatFn('assembleWire')([edge]))
+    const edge = kern().makeCircleEdge(vec3(center), vec3(n), w.radius)
+    return kern().makeWire([edge as unknown as BrepHandle])
   }
   if (w.kind === 'ellipse') {
     const center = localToWorld(pl, w.cx, w.cy)
@@ -2150,8 +2166,8 @@ async function buildProfileWire(wp: Workplane, w: PendingWire): Promise<unknown>
         '[cq-compat] ellipse: y_radius > x_radius is not reproducible (kernel ellipse is always major-on-X and rotations re-approximate it)',
       )
     }
-    const edge = unwrapBrepResult(compatFn('makeEllipseEdge')(w.majorRadius, w.minorRadius, center, n))
-    return unwrapBrepResult(compatFn('assembleWire')([edge]))
+    const edge = getKernel().makeEllipseEdge(vec3(center), vec3(n), w.majorRadius, w.minorRadius)
+    return kern().makeWire([edge as unknown as BrepHandle])
   }
   if (w.kind === 'path') {
     // Drafted ring. When edge descriptors are present (arcs/splines), rebuild
@@ -2172,14 +2188,14 @@ async function buildProfileWire(wp: Workplane, w: PendingWire): Promise<unknown>
       for (const e of descs) {
         if (e.kind === 'line') {
           edges.push(
-            unwrapBrepResult(compatFn('makeLine')(localToWorld(pl, e.from[0], e.from[1]), localToWorld(pl, e.to[0], e.to[1]))),
+            kern().makeLineEdge(v3(localToWorld(pl, e.from[0], e.from[1])), v3(localToWorld(pl, e.to[0], e.to[1]))),
           )
         } else if (e.kind === 'arc3') {
           edges.push(
-            compatFn('makeThreePointArc')(
-              localToWorld(pl, e.from[0], e.from[1]),
-              localToWorld(pl, e.mid[0], e.mid[1]),
-              localToWorld(pl, e.to[0], e.to[1]),
+            getKernel().makeArcEdge(
+              vec3(localToWorld(pl, e.from[0], e.from[1])),
+              vec3(localToWorld(pl, e.mid[0], e.mid[1])),
+              vec3(localToWorld(pl, e.to[0], e.to[1])),
             ),
           )
         } else if (e.kind === 'tangentArc') {
@@ -2190,19 +2206,19 @@ async function buildProfileWire(wp: Workplane, w: PendingWire): Promise<unknown>
             (pl.xDir[2] * e.tgt[0] + pl.yDir[2] * e.tgt[1]) / tLen,
           ]
           edges.push(
-            compatFn('makeTangentArc')(
-              localToWorld(pl, e.from[0], e.from[1]),
-              t,
-              localToWorld(pl, e.to[0], e.to[1]),
+            getKernel().makeTangentArc(
+              vec3(localToWorld(pl, e.from[0], e.from[1])),
+              vec3(t),
+              vec3(localToWorld(pl, e.to[0], e.to[1])),
             ),
           )
         } else if (e.builtEdge) {
           // Reuse the edge built at op time (strongly held — see spline()).
-          edges.push(e.builtEdge)
+          edges.push(brepOf(e.builtEdge as Shape) as BrepHandle)
         } else {
           // spline
           const world = e.pts.map(([x, y]) => localToWorld(pl, x, y))
-          edges.push(unwrapBrepResult(compatFn('makeBSplineInterpolation')(world, { periodic: false })))
+          edges.push(getKernel().interpolatePoints(world.map((p) => vec3(p)) as never, false))
         }
       }
     } else {
@@ -2211,12 +2227,12 @@ async function buildProfileWire(wp: Workplane, w: PendingWire): Promise<unknown>
         const b = w.pts[(i + 1) % w.pts.length]
         if (Math.hypot(a[0] - b[0], a[1] - b[1]) < 1e-9) continue
         edges.push(
-          unwrapBrepResult(compatFn('makeLine')(localToWorld(pl, a[0], a[1]), localToWorld(pl, b[0], b[1]))),
+          kern().makeLineEdge(v3(localToWorld(pl, a[0], a[1])), v3(localToWorld(pl, b[0], b[1]))),
         )
       }
     }
     if (edges.length === 0) throw new Error('[cq-compat] buildProfileWire: degenerate path wire')
-    return unwrapBrepResult(compatFn('assembleWire')(edges))
+    return kern().makeWire(edges as BrepHandle[])
   }
   const ring: [number, number][] =
     w.kind === 'rect'
@@ -2237,9 +2253,9 @@ async function buildProfileWire(wp: Workplane, w: PendingWire): Promise<unknown>
   for (let i = 0; i < ring.length; i++) {
     const a = ring[i]
     const b = ring[(i + 1) % ring.length]
-    edges.push(unwrapBrepResult(compatFn('makeLine')(localToWorld(pl, a[0], a[1]), localToWorld(pl, b[0], b[1]))))
+    edges.push(kern().makeLineEdge(v3(localToWorld(pl, a[0], a[1])), v3(localToWorld(pl, b[0], b[1]))))
   }
-  return unwrapBrepResult(compatFn('assembleWire')(edges))
+  return kern().makeWire(edges as BrepHandle[])
 }
 
 /**
@@ -2281,10 +2297,9 @@ async function pendingPathPrism(
     for (const h of g.holes) {
       holeWires.push(await buildProfileWire(wp, shift ? shiftWire(h, wp, shift) : h))
     }
-    const face = unwrapBrepResult(compatFn('makeFace')(outer, holeWires))
-    const prism = unwrapBrepResult(compatFn('extrude')(face, vec))
-    const solid = adoptBrepjsProduct(prism) as Shape
-    result = result ? await fuseShapes(result, solid) : solid
+    const face = faceWithHoles(outer, holeWires)
+    const prism = toShape(kern().extrude(brepOf(face) as BrepHandle, vec[0], vec[1], vec[2])) as Shape
+    result = result ? await fuseShapes(result, prism) : prism
   }
   if (!result) throw new Error('[cq-compat] extrude: no pending wire to extrude')
   return result
@@ -2361,7 +2376,7 @@ export async function extrude(
       // exact body is sewn from its faces.
       return outwardTaperPrism(wp, base, profile, height, taper, combine)
     }
-    const face = unwrapBrepResult(compatFn('makeFace')(profile))
+    const face = toShape(kern().makeFace(profile as BrepHandle))
     const kernel = getKernel() as unknown as OcctKernel
     const n = Array.isArray(wp.normal) ? wp.normal : ([0, 0, 1] as [number, number, number])
     const raw = (
@@ -2478,8 +2493,8 @@ export async function extrude(
         // (shifted boss \ base) ∩ half-space below the face plane.
         // Profiles fully inside the base's cross-section can never overhang,
         // so the cheap bbox test skips the two extra booleans entirely.
-        const bossB = compatFn('getBounds')(borrowBrepjsShape(boss)) as Record<string, number>
-        const baseB = compatFn('getBounds')(borrowBrepjsShape(base)) as Record<string, number>
+        const bossB = kern().getBoundingBox(ownHandle(boss)) as unknown as Record<string, number>
+        const baseB = kern().getBoundingBox(ownHandle(base)) as unknown as Record<string, number>
         const PAD_EPS = 1e-6
         const axisOf = (v: [number, number, number]): number =>
           Math.abs(v[0]) > 0.5 ? 0 : Math.abs(v[1]) > 0.5 ? 1 : 2
@@ -2500,12 +2515,12 @@ export async function extrude(
           const BIG =
             2 *
               Math.max(
-                baseB.xMax - baseB.xMin,
-                baseB.yMax - baseB.yMin,
-                baseB.zMax - baseB.zMin,
-                bossB.xMax - bossB.xMin,
-                bossB.yMax - bossB.yMin,
-                bossB.zMax - bossB.zMin,
+                baseB.xmax - baseB.xmin,
+                baseB.ymax - baseB.ymin,
+                baseB.zmax - baseB.zmin,
+                bossB.xmax - bossB.xmin,
+                bossB.ymax - bossB.ymin,
+                bossB.zmax - bossB.zmin,
               ) +
             10
           const belowWp: Workplane = {
@@ -2766,10 +2781,9 @@ export async function revolve(
     const outer = await buildProfileWire(wp, g.outer)
     const holeWires: unknown[] = []
     for (const h of g.holes) holeWires.push(await buildProfileWire(wp, h))
-    const face = unwrapBrepResult(compatFn('makeFace')(outer, holeWires))
-    const revolved = unwrapBrepResult(compatFn('revolve')(face, { at: startW, axis: dir, angle: rad }))
-    const solid = adoptBrepjsProduct(revolved) as Shape
-    result = result ? await fuseShapes(result, solid) : solid
+    const face = faceWithHoles(outer, holeWires)
+    const revolved = toShape(kern().revolveVec(brepOf(face) as BrepHandle, v3(startW), v3(dir), (rad * 180) / Math.PI)) as Shape
+    result = result ? await fuseShapes(result, revolved) : revolved
   }
 
   const base = wp.shape
@@ -2804,7 +2818,7 @@ export interface LoftOptions {
 /** True when the carrier holds at least one solid (upstream `findSolid()` gate). */
 function hasSolidBase(shape: Shape): boolean {
   try {
-    return (brepjsCompat.getSolids(borrowBrepjsShape(shape) as never) as unknown[]).length > 0
+    return kern().getSubShapes(ownHandle(shape), 'solid').length > 0
   } catch {
     return false
   }
@@ -2820,9 +2834,9 @@ async function collectLoftSections(wp: Workplane, sections: unknown[]): Promise<
     // Upstream `Workplane().add(face)...loft()` lofts the stacked faces of
     // wp.shape: each face's outer wire becomes a loft section (holes are
     // intentionally dropped — upstream section extraction is outerWire-only).
-    const shapeFaces = compatFn('getFaces')(borrowBrepjsShape(wp.shape)) as unknown[]
+    const shapeFaces = kern().getSubShapes(ownHandle(wp.shape), 'face') as unknown[]
     for (const f of shapeFaces) {
-      sections.push(compatFn('outerWire')(f))
+      sections.push(kern().getSubShapes(f as BrepHandle, 'wire')[0])
     }
   }
 }
@@ -2858,8 +2872,15 @@ export async function loft(wp: Workplane, ...rest: (Workplane | LoftOptions)[]):
   const loftCfg: Record<string, unknown> = { ruled: opts?.ruled ?? false }
   if (opts?.startPoint) loftCfg.startPoint = opts.startPoint
   if (opts?.endPoint) loftCfg.endPoint = opts.endPoint
-  const solid = adoptBrepjsProduct(
-    unwrapBrepResult(compatFn('loft')(sections, loftCfg)),
+  const wireHandles = (sections as unknown[]).map((w) => w as never)
+  const startPt = loftCfg.startPoint !== undefined ? v3(loftCfg.startPoint as never) : null
+  const endPt = loftCfg.endPoint !== undefined ? v3(loftCfg.endPoint as never) : null
+  const ruled = (loftCfg?.ruled as boolean) ?? false
+  const startV = startPt !== null ? getKernel().makeVertex(startPt.x, startPt.y, startPt.z) : 0
+  const endV = endPt !== null ? getKernel().makeVertex(endPt.x, endPt.y, endPt.z) : 0
+  const solid = (startV !== 0 || endV !== 0
+    ? toShape(getKernel().loftWithVertices(wireHandles, true, ruled, startV as never, endV as never))
+    : toShape(getKernel().loft(wireHandles, true, ruled))
   ) as Shape
 
   const base = wp.shape
@@ -2914,7 +2935,7 @@ export async function cutBlind(
       throw new Error('[cq-compat] cutBlind: taper requires exactly one pending profile wire')
     }
     const profile = await buildProfileWire(wp, solidWires[0])
-    const face = unwrapBrepResult(compatFn('makeFace')(profile))
+    const face = toShape(kern().makeFace(profile as BrepHandle))
     const kernel = getKernel() as unknown as OcctKernel
     const raw = (
       kernel as unknown as {
@@ -3750,12 +3771,11 @@ export async function faceCompound(wp: Workplane, sel: string): Promise<Workplan
   if (!wp.shape) return wp
   const s = NAMED_VIEW_TO_AXIS[sel.trim().toLowerCase()] ?? sel
   if (s.trim().toLowerCase() === 'all') {
-    const faces = compatFn('getFaces')(borrowBrepjsShape(wp.shape)) as unknown[]
+    const faces = kern().getSubShapes(ownHandle(wp.shape), 'face') as unknown[]
     if (faces.length === 0) {
       throw new Error('[cq-compat] faceCompound "all": shape has no faces')
     }
-    const product = compatFn('makeCompound')(faces) as unknown
-    const shape = adoptBrepjsProduct(unwrapBrepResult(product))
+    const shape = toShape(kern().makeCompound(faces as BrepHandle[]))
     return clone(wp, { shape, faceSel: null, edgeSel: null, vertexSel: null })
   }
   const m = /^([<>])([XYZ])(?:\[-?\d+\])?$/.exec(s.trim())
@@ -3765,26 +3785,25 @@ export async function faceCompound(wp: Workplane, sel: string): Promise<Workplan
   const axis = m[2] === 'X' ? 0 : m[2] === 'Y' ? 1 : 2
   const sign = m[1] === '>' ? 1 : -1
   const bounds = (h: unknown): Record<string, number> =>
-    compatFn('getBounds')(h) as Record<string, number>
-  const faces = compatFn('getFaces')(borrowBrepjsShape(wp.shape)) as unknown[]
+    kern().getBoundingBox(h as BrepHandle) as unknown as Record<string, number>
+  const faces = kern().getSubShapes(ownHandle(wp.shape), 'face') as unknown[]
   // DirectionMinMaxSelector: among faces perpendicular to the axis, take ALL
   // faces whose center sits at the extremum (ties included — the two-boxes
   // compound exports BOTH top faces).
   const perp = faces.filter((f) => {
     const b = bounds(f)
-    return [b.xMax - b.xMin, b.yMax - b.yMin, b.zMax - b.zMin][axis] <= 0.1
+    return [b.xmax - b.xmin, b.ymax - b.ymin, b.zmax - b.zmin][axis] <= 0.1
   })
   if (perp.length === 0) {
     throw new Error(`[cq-compat] no planar face for selector "${sel}"`)
   }
   const center = (b: Record<string, number>): number =>
-    [(b.xMin + b.xMax) / 2, (b.yMin + b.yMax) / 2, (b.zMin + b.zMax) / 2][axis]
+    [(b.xmin + b.xmax) / 2, (b.ymin + b.ymax) / 2, (b.zmin + b.zmax) / 2][axis]
   const extremum = perp
     .map((f) => center(bounds(f)))
     .reduce((best, c) => (sign * c > sign * best ? c : best))
   const picked = perp.filter((f) => Math.abs(center(bounds(f)) - extremum) <= 1e-6)
-  const product = compatFn('makeCompound')(picked) as unknown
-  const shape = adoptBrepjsProduct(unwrapBrepResult(product))
+  const shape = toShape(kern().makeCompound(picked as BrepHandle[]))
   return clone(wp, { shape, faceSel: null, edgeSel: null, vertexSel: null })
 }
 
@@ -3814,16 +3833,15 @@ export async function edgeCompound(wp: Workplane, sel: string): Promise<Workplan
   const axis = m[2] === 'X' ? 0 : m[2] === 'Y' ? 1 : 2
   const sign = m[1] === '>' ? 1 : -1
   const bounds = (h: unknown): Record<string, number> =>
-    compatFn('getBounds')(h) as Record<string, number>
-  const edges = compatFn('getEdges')(borrowBrepjsShape(wp.shape)) as unknown[]
+    kern().getBoundingBox(h as BrepHandle) as unknown as Record<string, number>
+  const edges = kern().getSubShapes(ownHandle(wp.shape), 'edge') as unknown[]
   const center = (b: Record<string, number>): number =>
-    [(b.xMin + b.xMax) / 2, (b.yMin + b.yMax) / 2, (b.zMin + b.zMax) / 2][axis]
+    [(b.xmin + b.xmax) / 2, (b.ymin + b.ymax) / 2, (b.zmin + b.zmax) / 2][axis]
   const extremum = edges
     .map((e) => center(bounds(e)))
     .reduce((best, c) => (sign * c > sign * best ? c : best))
   const picked = edges.filter((e) => Math.abs(center(bounds(e)) - extremum) <= 1e-6)
-  const product = compatFn('makeCompound')(picked) as unknown
-  const shape = adoptBrepjsProduct(unwrapBrepResult(product))
+  const shape = toShape(kern().makeCompound(picked as BrepHandle[]))
   return clone(wp, { shape, faceSel: null, edgeSel: null, vertexSel: null })
 }
 
@@ -4054,7 +4072,7 @@ async function applyLocation(shape: Shape, loc: CqLocation): Promise<Shape> {
   //    `moved` (they fold the locations with composeLocations instead).
   const solids = ((): number => {
     try {
-      return (brepjsCompat.getSolids(borrowBrepjsShape(shape) as never) as unknown[]).length
+      return kern().getSubShapes(ownHandle(shape), 'solid').length
     } catch {
       return 0
     }
@@ -4069,13 +4087,11 @@ async function applyLocation(shape: Shape, loc: CqLocation): Promise<Shape> {
     }
     return s
   }
-  const product = unwrapBrepResult(
-    compatFn('applyMatrix')(borrowBrepjsShape(shape), {
-      linear: rotationMatrixDeg(loc.rot) as never,
-      translation: [x, y, z] as never,
-    }),
-  )
-  return adoptBrepjsProduct(product)
+  const product = applyMatrixBrep(shape, {
+    linear: rotationMatrixDeg(loc.rot) as never,
+    translation: [x, y, z] as never,
+  })
+  return toShape(unwrapBrepResult(product))
 }
 
 /**
@@ -4104,8 +4120,8 @@ export async function moved(wp: Workplane, ...locs: unknown[]): Promise<Workplan
     // Upstream `_compound_or_shape` groups the copies without any boolean or
     // clean pass — mirroring that keeps the topology (face/solid counts) equal
     // to upstream, which the STEP comparison gates on.
-    const handles = copies.map((c) => borrowBrepjsShape(c))
-    shape = adoptBrepjsProduct(unwrapBrepResult(compatFn('makeCompound')(handles)))
+    const handles = copies.map((c) => ownHandle(c))
+    shape = toShape(kern().makeCompound(handles))
   }
   return clone(wp, {
     shape,
@@ -4201,7 +4217,7 @@ export async function face(wp: Workplane): Promise<Workplane> {
     for (const h of g.holes) {
       holeWires.push(await buildProfileWire(wp, h))
     }
-    faces.push(adoptBrepjsProduct(unwrapBrepResult(compatFn('makeFace')(outer, holeWires))) as Shape)
+    faces.push(faceWithHoles(outer, holeWires))
   }
   const shape = faces.length === 1 ? faces[0] : makeCompoundShape(faces)
   return clone(wp, {
@@ -4228,7 +4244,7 @@ export async function face(wp: Workplane): Promise<Workplane> {
  * @returns Shape holding the vertex
  */
 export function vertex(x: number = 0, y: number = 0, z: number = 0): Shape {
-  return adoptBrepjsProduct(unwrapBrepResult(compatFn('makeVertex')([x, y, z]))) as Shape
+  return toShape(kern().makeVertex(x, y, z)) as Shape
 }
 
 /**
@@ -4284,7 +4300,7 @@ export async function intersect(
  * is out of scope for this layer.
  */
 function resolveEdgeSelection(shape: Shape, sel: string | null | undefined): unknown[] {
-  const edges = compatFn('getEdges')(borrowBrepjsShape(shape)) as unknown[]
+  const edges = kern().getSubShapes(ownHandle(shape), 'edge') as unknown[]
   if (!sel || sel === '') return edges
   const m = /^\|([XYZ])$/.exec(sel.trim())
   if (!m) {
@@ -4297,9 +4313,9 @@ function resolveEdgeSelection(shape: Shape, sel: string | null | undefined): unk
   // must dominate the two perpendicular extents (which stay padding-sized).
   const PAD = 0.5 // mm — max perpendicular extent for an axis-parallel edge
   return edges.filter((e) => {
-    const b = compatFn('getBounds')(e) as Record<string, number>
-    const min = [b.xMin, b.yMin, b.zMin]
-    const max = [b.xMax, b.yMax, b.zMax]
+    const b = kern().getBoundingBox(e as BrepHandle) as unknown as Record<string, number>
+    const min = [b.xmin, b.ymin, b.zmin]
+    const max = [b.xmax, b.ymax, b.zmax]
     const extents = [max[0] - min[0], max[1] - min[1], max[2] - min[2]]
     const axisExtent = extents[axisIdx]
     return (
@@ -4335,9 +4351,8 @@ export async function fillet(wp: Workplane, radius: number): Promise<Workplane> 
   } else {
     edges = resolveEdgeSelection(wp.shape, undefined)
   }
-  const result = compatFn('fillet')(borrowBrepjsShape(wp.shape), edges, radius)
-  const product = unwrapBrepResult(result)
-  const shape = adoptBrepjsProduct(product)
+  const product = kern().fillet(ownHandle(wp.shape), edges as BrepHandle[], radius)
+  const shape = toShape(product)
   return clone(wp, { shape, edgeSel: null, faceSel: null })
 }
 
@@ -4374,9 +4389,8 @@ export async function chamfer(
   } else {
     edges = resolveEdgeSelection(wp.shape, undefined)
   }
-  const result = compatFn('chamfer')(borrowBrepjsShape(wp.shape), edges, length)
-  const product = unwrapBrepResult(result)
-  const shape = adoptBrepjsProduct(product)
+  const product = kern().chamfer(ownHandle(wp.shape), edges as BrepHandle[], length)
+  const shape = toShape(product)
   return clone(wp, { shape, edgeSel: null, faceSel: null })
 }
 
@@ -4398,17 +4412,17 @@ function resolveFaceEdgeSelection(shape: Shape, sel: string): unknown[] {
   const axis = m[2] === 'X' ? 0 : m[2] === 'Y' ? 1 : 2
   const sign = m[1] === '>' || m[1] === '+' ? 1 : -1
   const bounds = (h: unknown): Record<string, number> =>
-    compatFn('getBounds')(h) as Record<string, number>
-  const faces = compatFn('getFaces')(borrowBrepjsShape(shape)) as unknown[]
+    kern().getBoundingBox(h as BrepHandle) as unknown as Record<string, number>
+  const faces = kern().getSubShapes(ownHandle(shape), 'face') as unknown[]
   const perp = faces.filter((f) => {
     const b = bounds(f)
-    return [b.xMax - b.xMin, b.yMax - b.yMin, b.zMax - b.zMin][axis] <= 0.1
+    return [b.xmax - b.xmin, b.ymax - b.ymin, b.zmax - b.zmin][axis] <= 0.1
   })
   if (perp.length === 0) {
     throw new Error(`[cq-compat] no planar face for selector "${sel}"`)
   }
   const faceCenter = (b: Record<string, number>): number =>
-    [(b.xMin + b.xMax) / 2, (b.yMin + b.yMax) / 2, (b.zMin + b.zMax) / 2][axis]
+    [(b.xmin + b.xmax) / 2, (b.ymin + b.ymax) / 2, (b.zmin + b.zmax) / 2][axis]
   const target = perp
     .map((f) => ({ f, b: bounds(f) }))
     .reduce((best, cur) => (sign * (faceCenter(cur.b) - faceCenter(best.b)) > 0 ? cur : best))
@@ -4419,11 +4433,11 @@ function resolveFaceEdgeSelection(shape: Shape, sel: string): unknown[] {
   // padding) and its center coincides with the face center.
   const EDGE_AXIS_MAX = 0.25
   const EDGE_CENTER_TOL = 0.15
-  const edges = compatFn('getEdges')(borrowBrepjsShape(shape)) as unknown[]
+  const edges = kern().getSubShapes(ownHandle(shape), 'edge') as unknown[]
   return edges.filter((e) => {
     const b = bounds(e)
-    const ext = [b.xMax - b.xMin, b.yMax - b.yMin, b.zMax - b.zMin][axis]
-    const c = [(b.xMin + b.xMax) / 2, (b.yMin + b.yMax) / 2, (b.zMin + b.zMax) / 2][axis]
+    const ext = [b.xmax - b.xmin, b.ymax - b.ymin, b.zmax - b.zmin][axis]
+    const c = [(b.xmin + b.xmax) / 2, (b.ymin + b.ymax) / 2, (b.zmin + b.zmax) / 2][axis]
     return ext <= EDGE_AXIS_MAX && Math.abs(c - fc) <= EDGE_CENTER_TOL
   })
 }

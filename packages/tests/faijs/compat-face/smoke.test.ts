@@ -1,49 +1,41 @@
 /**
- * P21 smoke test — BREP-TS compatibility surface (brepjsCompat).
+ * Core-facade smoke test (2026-09-25 core-decouple rewrite of P21 smoke).
  *
- * The brepjsCompat module projects the vendored BREP TS tree onto a stable surface so
- * library authors can write upstream-style calls. This test covers the two
- * behaviours the plan gates on:
+ * The brepjsCompat namespace is deleted with the vendored tree. Its smoke
+ * coverage maps onto the core facade:
  *
- *   1. the facade exports the `brepjsCompat` namespace and its result combinators
- *      (`fuse`/`isErr`/`ok`/`Sketcher` are each exercised once), and fusing two
- *      boxes yields an `ok` result (`isOk == true`);
+ *   1. the flat combinators (`ok`/`isOk`/`isErr`/`err`) still exist and behave;
  *   2. the dual-form `box` sample: positional `box(10, 20, 30)` and object-form
- *      `box(10, 20, 30, { centered: true })` produce identical geometry (equal bbox),
- *      and a malformed call (`box('x')`) throws with the shared `E_ARGS_FORM`.
+ *      `box({ width: 10, depth: 20, height: 30 })` produce identical geometry
+ *      (equal bbox), and a malformed call (`box('x')`) throws with the shared
+ *      `E_ARGS_FORM` (still wired through the compatOp projection layer);
+ *   3. a boolean union of two core shapes runs on the brep path (dispatch).
  */
 
-import { describe, expect, it } from 'vitest'
-import { brepjsCompat } from '@faicad/faijs'
-import { useKernelBeforeAll } from '../p5-vendored-surface/kernel-setup'
+import { beforeAll, describe, expect, it } from 'vitest'
+import { box, ok, isOk, isErr } from '@faicad/faijs'
+import { getBrepApi } from '@faicad/faijs/brep/handle-bridge'
+import { brepOf } from '@faicad/faijs/shape'
+import { registerOcctBrepEngine } from '@faicad/faijs'
+import type { Shape } from '@faicad/faijs/mesh/types'
 
-useKernelBeforeAll()
+beforeAll(() => registerOcctBrepEngine())
 
-describe('brepjsCompat facade smoke', () => {
-  it('exercises fuse / isErr / ok / Sketcher once and reports ok on a fuse', () => {
-    const { fuse, isErr, ok, Sketcher, isOk } = brepjsCompat
-    // one call, one shape per combinator
-    const boxA = brepjsCompat.box(10, 20, 30)
-    const boxB = brepjsCompat.box({ width: 10, depth: 20, height: 30 })
-    expect(boxA).toBeTruthy()
-    const result = fuse(boxA, boxB)
-    expect(isOk(result)).toBe(true)
-    expect(isErr(result)).toBe(false)
-    expect(ok(7)).toMatchObject({ ok: true })
-    // Sketcher is a stateful DSL entry point; constructing one must not throw
-    const s = new (Sketcher as new (plane?: unknown) => unknown)('XY')
-    expect(s).toBeTruthy()
+describe('core facade smoke (post brepjsCompat)', () => {
+  it('combinators ok / isOk / isErr behave', () => {
+    expect(isOk(ok(7))).toBe(true)
+    expect(isErr(ok(7))).toBe(false)
   })
 
   it('dual-form box(w,h,d) vs box({width,depth,height}) yield identical bbox', () => {
-    const positional = brepjsCompat.box(10, 20, 30)
-    const objectForm = brepjsCompat.box({ width: 10, depth: 20, height: 30 })
-    const a = brepjsCompat.getBounds(positional)
-    const b = brepjsCompat.getBounds(objectForm)
+    const positional = box(10, 20, 30)
+    const objectForm = box({ width: 10, depth: 20, height: 30 })
+    const a = getBrepApi().getBoundingBox(brepOf(positional as Shape) as never) as { xmin: number; xmax: number }
+    const b = getBrepApi().getBoundingBox(brepOf(objectForm as Shape) as never) as { xmin: number; xmax: number }
     expect(a).toEqual(b)
   })
 
   it('box("x") throws the shared E_ARGS_FORM', () => {
-    expect(() => (brepjsCompat.box as (plain: unknown) => unknown)('x')).toThrow(/E_ARGS_FORM/)
+    expect(() => (box as (plain: unknown) => unknown)('x')).toThrow(/E_ARGS_FORM/)
   })
 })

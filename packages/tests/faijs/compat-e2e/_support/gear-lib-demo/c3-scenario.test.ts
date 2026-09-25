@@ -23,7 +23,7 @@
  */
 
 import { describe, it, expect, beforeAll } from 'vitest'
-import { createRuntime, registerOcctBrepEngine, makeExternalGear } from '@faicad/faijs'
+import { createRuntime, registerOcctBrepEngine } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
 import { hasBrep } from '@faicad/faijs/shape'
 import { dispatchPath } from '@faicad/faijs/cad-runtime/backend-dispatch'
@@ -82,15 +82,9 @@ describe('C3 external-CAD end-to-end scenario (assertions 1–4)', () => {
     expect(step).not.toContain('POLY_FACE')
   })
 
-  it('assertion 4: geometry cross-check (GearResult fields) pitch=48 / tip=52 and other diameters', () => {
-    const r = makeExternalGear({ teeth: 24, moduleSize: 2, thickness: 8, bore: 8 })
-    if (!r.ok) throw new Error('makeExternalGear failed: ' + String(r.error))
-    const { pitchDiameter, tipDiameter, baseDiameter, rootDiameter } = r.value
-    expect(pitchDiameter).toBeCloseTo(48, 6) // m×z = 2×24
-    expect(tipDiameter).toBeCloseTo(52, 6) // m×(z+2) = 2×26
-    expect(baseDiameter).toBeGreaterThan(0)
-    expect(rootDiameter).toBeGreaterThan(0)
-    // library mesh outer radius ≈ tip/2 (tolerance for tessellation bounds)
+  it('assertion 4: geometry cross-check (core cylinder payload) radius = m×z/2 = 24', () => {
+    // 2026-09-25 core-decouple: the vendored gear factories are deleted; the
+    // library payload is now a core cylinder with radius m×z/2 = 2×24/2 = 24.
     const p0 = shapeOf('part0')
     let xyMax = -Infinity
     for (let i = 0; i < p0.positions.length; i += 3) {
@@ -99,7 +93,7 @@ describe('C3 external-CAD end-to-end scenario (assertions 1–4)', () => {
       const m = Math.max(x, y)
       if (m > xyMax) xyMax = m
     }
-    expect(xyMax).toBeGreaterThan(tipDiameter / 2 - 1)
-    expect(xyMax).toBeLessThanOrEqual(tipDiameter / 2 + 1)
+    expect(xyMax).toBeGreaterThan(24 - 1)
+    expect(xyMax).toBeLessThanOrEqual(24 + 1)
   })
 })

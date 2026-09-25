@@ -16,9 +16,9 @@
  * `parallel`/`perpendicular`（请用 `angle` 0/90 显式表达）不支持，报错。
  */
 
-import type { SolverConstraint, SolverEntity } from '@faicad/faijs-brepjs/kernel/solverAdapter'
+import type { SolverConstraint, SolverEntity } from './solvers/types'
 import type { AssemblyTransform } from '../../runtime-state'
-import { solveConstraints } from '@faicad/faijs-brepjs/kernel/solverAdapter'
+import { solveConstraints } from './solvers/chain-solver'
 import { lowerEntities } from './lower'
 import { poseToAssemblyTransform } from './pose'
 import type { AssemblyVec3 } from './types'

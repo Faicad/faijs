@@ -16,7 +16,7 @@ import { solveAssembly } from './solve'
 import type { AssemblyTransform } from '../../runtime-state'
 import type { AssemblyVec3 } from './types'
 import type { Shape } from '../../mesh/types'
-import type { SolverEntity } from '@faicad/faijs-brepjs/kernel/solverAdapter'
+import type { SolverEntity } from './solvers/types'
 // 门面导出链断言：api/assembly/index → api/index → browser（P2-f3 三跳）
 import * as browserApi from '@faicad/faijs/browser'
 

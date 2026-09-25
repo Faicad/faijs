@@ -15,6 +15,9 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+    // 2026-09-25 core-decouple Phase 2：core 不再注入 vendored registry，
+    // 全局 setup 自装配（见 src/test/vendored-setup.ts）。
+    setupFiles: ['src/test/vendored-setup.ts'],
     testTimeout: 300000,
     hookTimeout: 300000,
   },

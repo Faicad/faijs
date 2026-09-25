@@ -272,7 +272,7 @@ export type BrepMethodKind =
   // ⚠️ 测量族能力名用 L1 中立名（D5，narrowing plan）：`getBoundingBox` / `getVolume`
   // / `getSurfaceArea` / `getLength` / `getCenterOfMass` ——能力名 == BrepEngineApi 接口名，
   // 守卫「能力声明诚实」据此逐名断言适配器是 function。vendored 面自己的原生名
-  // （boundingBox/volume/area/length）由 occt-kernel-bridge 的 mapMeasureMethods 映射，
+  // （boundingBox/volume/area/length）按其自身命名，
   // 不是能力名空间成员。
   | 'getBoundingBox'
   | 'getVolume'

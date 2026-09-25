@@ -9,9 +9,9 @@
  *     translation = position − pivot + R·pivot。
  */
 
-import type { SolverEntity } from '@faicad/faijs-brepjs/kernel/solverAdapter'
-import { quatRotate } from '@faicad/faijs-brepjs/utils/quaternion'
-import type { JointPose } from '@faicad/faijs-brepjs/operations/jointFns'
+import type { SolverEntity } from './solvers/types'
+import { quatRotate } from './solvers/quat'
+import type { JointPose } from './solvers/joints-kinematics'
 import type { AssemblyTransform } from '../../runtime-state'
 import type { AssemblyVec3 } from './types'
 

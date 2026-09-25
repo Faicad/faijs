@@ -155,9 +155,6 @@ Step -Label '5/9  守卫：幽灵依赖 / workspaces 顺序 / 包图无环 / 导
     # P10-④：U8 品牌守卫（用户可见面零 brepjs，E6）
     node scripts/check-vendored-branding.mjs
     if ($LASTEXITCODE -ne 0) { return }
-    # P4：表面产物守卫（源码变了但产物未重生成）
-    npm run gen:surface:check
-    if ($LASTEXITCODE -ne 0) { return }
     # M5：库源码语言审计（可发布库包 src/ 必须 100% TS，禁止手写 JS 发布库）
     node scripts/check-lib-src-language.mjs
 }

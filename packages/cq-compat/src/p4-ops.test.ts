@@ -12,8 +12,9 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { createRuntime, registerOcctBrepEngine } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
-import { brepjsCompat } from '@faicad/faijs/api'
-import { borrowBrepjsShape } from '@faicad/faijs/api/internal/l3-bridge'
+import { getBrepApi } from '@faicad/faijs/brep/handle-bridge'
+import { brepOf } from '@faicad/faijs/shape'
+import type { BrepHandle } from '@faicad/faijs/brep/engine/types'
 import { asPartName } from '@faicad/faijs/identity'
 import type { Shape } from '@faicad/faijs/mesh/types'
 import * as cq from './index'
@@ -30,26 +31,21 @@ async function runShape(lines: string[]): Promise<Shape> {
 }
 
 function solidCount(shape: Shape): number {
-  return (brepjsCompat.getSolids(borrowBrepjsShape(shape) as never) as unknown[]).length
+  return (getBrepApi().getSubShapes(brepOf(shape) as BrepHandle, 'solid') as unknown[]).length
 }
 
 function faceCount(shape: Shape): number {
-  return (brepjsCompat.getFaces(borrowBrepjsShape(shape) as never) as unknown[]).length
+  return (getBrepApi().getSubShapes(brepOf(shape) as BrepHandle, 'face') as unknown[]).length
 }
 
 function volume(shape: Shape): number {
-  const r = brepjsCompat.measureVolume(borrowBrepjsShape(shape) as never) as unknown as {
-    ok: boolean
-    value?: number
-  }
-  expect(r.ok).toBe(true)
-  return r.value as number
+  return getBrepApi().getVolume(brepOf(shape) as BrepHandle)
 }
 
 /** Bounding-box center via brepjs bounds (carries kernel tolerance padding). */
 function center(shape: Shape): [number, number, number] {
-  const b = brepjsCompat.getBounds(borrowBrepjsShape(shape) as never) as unknown as Record<string, number>
-  return [(b.xMin + b.xMax) / 2, (b.yMin + b.yMax) / 2, (b.zMin + b.zMax) / 2]
+  const b = getBrepApi().getBoundingBox(brepOf(shape) as BrepHandle) as unknown as Record<string, number>
+  return [(b.xmin + b.xmax) / 2, (b.ymin + b.ymax) / 2, (b.zmin + b.zmax) / 2]
 }
 
 beforeAll(async () => {
@@ -129,10 +125,10 @@ describe('cq-compat P4 batch-1 ops', () => {
     const c = center(s)
     for (const v of c) expect(Math.abs(v)).toBeLessThan(0.05)
     // bbox: length 40 along X, diameter 20 along Y/Z
-    const b = brepjsCompat.getBounds(borrowBrepjsShape(s) as never) as unknown as Record<string, number>
-    expect(Math.abs(b.xMax - b.xMin - 40)).toBeLessThan(0.05)
-    expect(Math.abs(b.yMax - b.yMin - 20)).toBeLessThan(0.05)
-    expect(Math.abs(b.zMax - b.zMin - 20)).toBeLessThan(0.05)
+    const b = getBrepApi().getBoundingBox(brepOf(s) as BrepHandle) as unknown as Record<string, number>
+    expect(Math.abs(b.xmax - b.xmin - 40)).toBeLessThan(0.05)
+    expect(Math.abs(b.ymax - b.ymin - 20)).toBeLessThan(0.05)
+    expect(Math.abs(b.zmax - b.zmin - 20)).toBeLessThan(0.05)
   }, 60000)
 
   it('rarray pushes a centered grid (upstream rarray)', async () => {

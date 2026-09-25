@@ -32,8 +32,8 @@ import {
   type IKResult as BrepjsIKResult,
   type IKOptions as BrepjsIKOptions,
   type IKTarget as BrepjsIKTarget,
-} from '@faicad/faijs-brepjs/index'
-import { createAssemblyNode, addChild, type AssemblyNode } from '@faicad/faijs-brepjs/index'
+} from './solvers/joints-kinematics'
+import { createAssemblyNode, addChild, type AssemblyNode } from './solvers/assembly-tree'
 import {
   fromBrepjsQuat,
   toBrepjsQuat,

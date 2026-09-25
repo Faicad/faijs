@@ -21,7 +21,7 @@ import type {
   Vec3,
 } from 'occt-wasm'
 import { initOcctWasm } from './occtKernel'
-import { OcctWasmAdapter } from '@faicad/faijs-brepjs/kernel/occtWasm/occtWasmAdapter'
+import { hullFromPoints as hullFromPointsCore } from './hullOps'
 import type { AssertSatisfiesBrepEngineApi, BrepEngineApi } from '../brep/engine/primitives'
 import type {
   BrepBoundingBox,
@@ -105,9 +105,9 @@ export async function createOcctPrimitives(): Promise<BrepEngineApi> {
   // on true native semantics (old adapter GOTCHA: after overwriting, calling
   // the property again recurses into the wrapper).
   const nativeLinearPattern = raw.linearPattern.bind(k)
-  // Combined-implementation surface from the vendored brepjs adapter (used only
-  // where occt-wasm has no single native call: hullFromPoints).
-  const vendor = OcctWasmAdapter.fromKernel(k as never)
+  // 2026-09-25 core-decouple Phase 2（§5.1）：hull 最小闭包已移植进 occt-kernel/
+  // （hullGeometry + hullOps，occt-wasm 原生直调），此处不再经 vendored
+  // OcctWasmAdapter——core 自有引擎对 brepjs 适配器的最后一处依赖已拔除。
 
   const splitCompoundToArray = (compound: ShapeHandle): BrepHandle[] => {
     const parts = k.getSubShapes(compound, 'solid').map(asHandle)
@@ -151,8 +151,7 @@ export async function createOcctPrimitives(): Promise<BrepEngineApi> {
     sewAndSolidify: (faces, tolerance) => asHandle(k.sewAndSolidify(shapes(faces), tolerance)),
     shell: (solid, facesToRemove, thickness, tolerance) =>
       asHandle(k.shell(asShape(solid), shapes(facesToRemove), thickness, tolerance)),
-    hullFromPoints: (points, tolerance) =>
-      asHandle(vendor.hullFromPoints(points as never, tolerance) as never),
+    hullFromPoints: (points, tolerance) => hullFromPointsCore(k, points as never, tolerance),
 
     // ── booleans & splitting ──
     fuse: (a, b) => asHandle(k.fuse(asShape(a), asShape(b))),

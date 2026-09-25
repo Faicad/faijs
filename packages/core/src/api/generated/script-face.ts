@@ -6,16 +6,14 @@
  * 不允许手写第二份清单。
  */
 
-import { torus, fuse, ellipsoid, rotate, mirror, clone, applyMatrix, locate, split, offset, heal, simplify, isValid, isEmpty, isEqualShape, isSameShape, autoHeal, fixShape, healSolid, fixSelfIntersection } from './topology'
-export { torus, fuse, ellipsoid, rotate, mirror, clone, applyMatrix, locate, split, offset, heal, simplify, isValid, isEmpty, isEqualShape, isSameShape, autoHeal, fixShape, healSolid, fixSelfIntersection } from './topology'
-import { inspectInterference, inspectAllInterferences, inspectCurvature, inspectCurvatureAtMid, inspectMassProps, area, length, volume, centerOfMass } from './measurement'
-export { inspectInterference, inspectAllInterferences, inspectCurvature, inspectCurvatureAtMid, inspectMassProps, area, length, volume, centerOfMass } from './measurement'
+import { torus, fuse, ellipsoid, rotate, mirror, clone, applyMatrix, locate, split, offset, heal, simplify, isValid, isSameShape, autoHeal, fixShape, healSolid, fixSelfIntersection } from './topology'
+export { torus, fuse, ellipsoid, rotate, mirror, clone, applyMatrix, locate, split, offset, heal, simplify, isValid, isSameShape, autoHeal, fixShape, healSolid, fixSelfIntersection } from './topology'
+import { inspectMassProps, area, length, volume, centerOfMass } from './measurement'
+export { inspectMassProps, area, length, volume, centerOfMass } from './measurement'
 import { viewCamera, projectView, projectSheet } from './view'
 export { viewCamera, projectView, projectSheet } from './view'
 import { complexExtrude, twistExtrude, linearPattern, circularPattern, gridPattern, roof, drill, pocket, boss, mirrorJoin, rectangularPattern, thread, convexHull } from './operations'
 export { complexExtrude, twistExtrude, linearPattern, circularPattern, gridPattern, roof, drill, pocket, boss, mirrorJoin, rectangularPattern, thread, convexHull } from './operations'
-import { getShapeKind } from './core'
-export { getShapeKind } from './core'
 import { makeBaseBox } from './sketching'
 export { makeBaseBox } from './sketching'
 
@@ -23,10 +21,6 @@ export { makeBaseBox } from './sketching'
 export const scriptFaceOps = {
   torus,
   fuse,
-  inspectInterference,
-  inspectAllInterferences,
-  inspectCurvature,
-  inspectCurvatureAtMid,
   inspectMassProps,
   area,
   length,
@@ -48,7 +42,6 @@ export const scriptFaceOps = {
   rectangularPattern,
   thread,
   convexHull,
-  getShapeKind,
   makeBaseBox,
   ellipsoid,
   rotate,
@@ -61,8 +54,6 @@ export const scriptFaceOps = {
   heal,
   simplify,
   isValid,
-  isEmpty,
-  isEqualShape,
   isSameShape,
   autoHeal,
   fixShape,

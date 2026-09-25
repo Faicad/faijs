@@ -13,8 +13,9 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { createRuntime, registerOcctBrepEngine } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
-import { brepjsCompat } from '@faicad/faijs/api'
-import { borrowBrepjsShape } from '@faicad/faijs/api/internal/l3-bridge'
+import { getBrepApi } from '@faicad/faijs/brep/handle-bridge'
+import { brepOf } from '@faicad/faijs/shape'
+import type { BrepHandle } from '@faicad/faijs/brep/engine/types'
 import { asPartName } from '@faicad/faijs/identity'
 import type { Shape } from '@faicad/faijs/mesh/types'
 import * as cq from './index'
@@ -31,16 +32,11 @@ async function runShape(lines: string[]): Promise<Shape> {
 }
 
 function faceCount(shape: Shape): number {
-  return (brepjsCompat.getFaces(borrowBrepjsShape(shape) as never) as unknown[]).length
+  return (getBrepApi().getSubShapes(brepOf(shape) as BrepHandle, 'face') as unknown[]).length
 }
 
 function volume(shape: Shape): number {
-  const r = brepjsCompat.measureVolume(borrowBrepjsShape(shape) as never) as unknown as {
-    ok: boolean
-    value?: number
-  }
-  expect(r.ok).toBe(true)
-  return r.value as number
+  return getBrepApi().getVolume(brepOf(shape) as BrepHandle)
 }
 
 beforeAll(async () => {
@@ -56,7 +52,7 @@ describe('cq-compat F2 revolve', () => {
     // Upstream cadquery 2.8.0: rect(10,10) centered on the revolve axis crosses
     // the axis; full OCCT 7.x revolves it into a self-intersecting solid (vol
     // 3141.592654, 3 faces). The vendored occt-wasm revolveVec rejects this with
-    // REVOLVE_FAILED (verified deterministic, 3/3 probe rounds). No mirror needs
+    // CONSTRUCTION_FAILED (core selfhost revolve; verified deterministic). No mirror needs
     // this geometry — testRevolveCylinder__result corresponds to the test's LAST
     // assignment (270-degree, non-crossing axis). Documented, not worked around.
     const res = await runtime.execute(
@@ -67,7 +63,7 @@ describe('cq-compat F2 revolve', () => {
       ].join('\n'),
     )
     expect(res.failedAt).toBeDefined()
-    expect(JSON.stringify(res.failedAt)).toContain('REVOLVE_FAILED')
+    expect(JSON.stringify(res.failedAt)).toContain('CONSTRUCTION_FAILED')
   }, 60000)
 
   it('default revolve of a non-crossing profile: cylinder r=10 h=10 (upstream default-axis semantics)', async () => {

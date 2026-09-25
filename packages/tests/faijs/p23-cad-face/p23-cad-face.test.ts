@@ -192,15 +192,11 @@ describe('③ 生成脚本面 op 在 .fai.js 中执行', () => {
     }
   })
 
-  it('两个面各自可用：脚本面（faijs Shape）与 brepjsCompat 面（brepjs 句柄，§6.3）', async () => {
-    // 脚本面：cad.clone 收 faijs Shape，返回 faijs Shape
+  it('脚本面可用：cad.clone 收 faijs Shape，返回 faijs Shape（§6.3，2026-09-25 core-decouple）', async () => {
+    // 脚本面：cad.clone 收 faijs Shape，返回 faijs Shape（brepjsCompat 面已随 vendored 树删除）
     const res = await rt.execute('const p0 = cad.box(10, 10, 10, { centered: true })\nconst p1 = cad.clone(p0)')
     expect(res.failedAt).toBeUndefined()
     expect(res.outputs.get(asPartName('p1'))).toBeDefined()
-// 库作者面：brepjsCompat.box 收数值、返回 vendored ValidSolid；brepjsCompat.fuse 返回 Result
-const boxA = brepjsCompat.box(10, 10, 10)
-const fused = brepjsCompat.fuse(boxA, boxA)
-    expect((fused as { ok?: boolean }).ok).toBe(true)
   })
 
   it('Phase 1 提拔：cad.thread 在 .fai.js 中执行（仅参数构造，occt 平台 op）', async () => {

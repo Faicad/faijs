@@ -11,7 +11,7 @@ import {
   fromBrepjsQuat, toBrepjsQuat, poseToAssemblyTransform, quaternionToMatrix3,
   type SolverPose, type BrepjsQuat,
 } from './pose'
-import { quatRotate } from '@faicad/faijs-brepjs/utils/quaternion'
+import { quatRotate } from './solvers/quat'
 import type { AssemblyVec3 } from './types'
 
 /** mulberry32 seeded PRNG（可复现的"随机"测试数据）。 */

@@ -55,3 +55,30 @@ export interface GlobalSolveResult {
   warnings?: string[]
 }
 
+
+// ── §5.6.1：chain 求解器类型迁入（原 vendored kernel/solverAdapter.ts，Phase 5 随包删除） ──
+
+/** 3D vector（chain 求解器本地别名，与 quat.ts 同构）。 */
+export type SolverVec3 = readonly [number, number, number]
+
+export interface SolverEntity {
+  type: 'plane' | 'axis' | 'point'
+  origin: SolverVec3
+  normal?: SolverVec3
+  direction?: SolverVec3
+}
+
+export interface SolverConstraint {
+  type: 'coincident' | 'concentric' | 'distance' | 'angle' | 'fixed'
+  entityA?: { node: string; entity: SolverEntity }
+  entityB?: { node: string; entity: SolverEntity }
+  value?: number
+}
+
+export interface SolverResult {
+  transforms: Map<string, { position: SolverVec3; rotation: [number, number, number, number] }>
+  dof: number
+  converged: boolean
+  /** Constraint types that were passed in but not solved (not yet implemented). */
+  unsupported: string[]
+}

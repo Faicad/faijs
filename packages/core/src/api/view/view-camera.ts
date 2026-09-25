@@ -16,10 +16,10 @@
  * 返回类型 re-export 自 vendored（api/generated/projection.ts 已登记 Camera type）。
  */
 
-import { createCamera, cameraFromPlane, type Camera } from '@faicad/faijs-brepjs/projection/cameraFns.js'
-import { isProjectionPlane } from '@faicad/faijs-brepjs/projection/projectionPlanes.js'
-import { unwrap } from '@faicad/faijs-brepjs/core/result.js'
-import type { Vec3 } from '@faicad/faijs-brepjs/core/types.js'
+import { createCamera, cameraFromPlane, type Camera } from './cameraFns'
+import { isProjectionPlane } from './projectionPlanes'
+import { unwrap } from '../../result/result'
+import type { Vec3 } from '../brepjs-compat/types'
 
 /** 六个标准正交视图名（vendored CubeFace 同集）。 */
 export type StandardView = 'front' | 'back' | 'top' | 'bottom' | 'left' | 'right'

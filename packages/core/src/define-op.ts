@@ -40,7 +40,7 @@ import { isShape, solid, fromBrep, getSlot } from './shape'
 import { isMeshShape } from './mesh/types'
 import { fromHandle, meshHandle, isOcctHandle } from './brep/handle-bridge'
 import { positionalToObject, type SlotMap } from './api/internal/dual-form-args'
-import { toOpFailure, unwrapResult, OpError } from './api/internal/result-unwrap'
+import { toOpFailure, unwrapResult, OpError, type ResultLike } from './api/internal/result-unwrap'
 import type { Shape } from './mesh/types'
 import { BREP_ENGINE_IDS, type BrepEngineId, type BrepHandle } from './brep/engine/types'
 import { type Provenance, runtimeLineage } from './topology/naming/lineage'
@@ -95,7 +95,12 @@ export interface BrepResult {
 }
 
 /** Product of a BREP implementation: a raw handle, { solid, faceEvolution }, a wrapped Shape, or (with `outputs`) a record of named products. */
-export type BrepProduct = BrepHandle | BrepResult | Shape | Record<string, BrepHandle | BrepResult | Shape>
+export type BrepProduct =
+  | BrepHandle
+  | BrepResult
+  | Shape
+  | Record<string, BrepHandle | BrepResult | Shape>
+  | ResultLike
 
 /** BREP implementation: sync or async; returns a brep product. */
 export type BrepImpl<A extends unknown[]> = (...args: A) => BrepProduct | Promise<BrepProduct>
@@ -198,6 +203,12 @@ function wrapByKeys(r: unknown, keys: string[], wrapOne: (v: unknown) => Shape):
     // An output may be an array (e.g. the compat adapter adopts each element of
     // an array-valued `outputs` field); wrap element-wise so arrays stay arrays.
     out[k] = Array.isArray(v) ? (v.map(wrapOne) as unknown as Shape) : wrapOne(v)
+  }
+  // Pass through non-shape data keys (e.g. autoHeal's `report`): declared
+  // outputs are the geometry that gets Shape-wrapped, but sibling data products
+  // of the same op result must survive the statement boundary (§5.4 selfhost).
+  for (const k of Object.keys(src)) {
+    if (!keys.includes(k)) out[k] = src[k] as unknown as Shape
   }
   return out
 }

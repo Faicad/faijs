@@ -14,7 +14,7 @@
  *
  * 测试策略（直接调用陷阱）：
  * 测试进程内直接调用（不经 compatOp 提升）拿到的是真实 Shape，不会触发提升
- * 路径——因此本文件用 `borrowBrepjsShape` 手工构造借用视图（borrowDeep 对
+ * 路径——§5.7（core-decouple）：l3-bridge 借入面已收口，本文件以真实 Shape 直
  * Shape 的产物形态完全一致），直接喂给装配函数，确定性模拟提升路径，无需
  * .fai.js 脚本。真实端到端（runtime.execute → 提升 → 求解 → 与 CQ 2.8.0
  * 参考位姿比对）在外部案例项目（mini_lathe）经 CadQuery 语法面
@@ -29,7 +29,6 @@ import { asPartName } from '@faicad/faijs/identity'
 import type { Shape } from '@faicad/faijs/mesh/types'
 import type { CompoundShape } from '@faicad/faijs/shape'
 import type { AssemblyConstraint } from '@faicad/faijs/api/assembly/types'
-import { borrowBrepjsShape } from '@faicad/faijs/api/internal/l3-bridge'
 import * as cq from '@faicad/cq-compat'
 import { asBrepShape, resolveFaceSelector } from '@faicad/cq-compat'
 import { buildAssembly, constraint, constraintEx } from './index'
@@ -81,21 +80,11 @@ describe('cq-compat-assembly: 提升边界借用视图归一（回归守卫）',
   it('asBrepShape：真实 Shape 原样透传；借用视图 → 真实 Shape（WeakMap 缓存）', () => {
     expect(asBrepShape(boxA)).toBe(boxA)
 
-    const view = borrowBrepjsShape(boxA)
-    // 视图本身不是 Shape（缺陷的形态特征）
-    expect(isShape(view)).toBe(false)
-
-    const s1 = asBrepShape(view)
-    expect(isShape(s1)).toBe(true)
-    // BREP 身份槽已登记（STEP 导出 / 刚体变换读 slot.solid 的前提）
-    expect(hasBrep(s1)).toBe(true)
-    // 缓存：同视图二次调用返回同一 Shape 实例（不重复三角化）
-    expect(asBrepShape(view)).toBe(s1)
+    // §5.7：借用视图机制已收口——归一化只剩真实 Shape 直通路径（asBrepShape 透传）。
   })
 
   it('resolveFaceSelector 接受借用视图：走 BREP 分支，不崩溃（历史崩溃点）', async () => {
-    const view = borrowBrepjsShape(boxA)
-    const r = await resolveFaceSelector(view as never, '>Z')
+    const r = await resolveFaceSelector(boxA, '>Z')
     expect(r.center[0]).toBeCloseTo(0, 3)
     expect(r.center[1]).toBeCloseTo(0, 3)
     expect(r.center[2]).toBeCloseTo(25, 3)
@@ -103,11 +92,8 @@ describe('cq-compat-assembly: 提升边界借用视图归一（回归守卫）',
   })
 
   it('cq.constraint（视图实参，模拟提升路径）：mate 几何与直接调用一致', async () => {
-    const viewA = borrowBrepjsShape(boxA)
-    const viewB = borrowBrepjsShape(boxB)
-
     // 历史崩溃路径：cq.constraint("bp",">Z",bp,"mb","<Z",mb,"Plane")
-    const lifted = await constraint('bp', '>Z', viewA as never, 'mb', '<Z', viewB as never, 'Plane')
+    const lifted = await constraint('bp', '>Z', boxA, 'mb', '<Z', boxB, 'Plane')
     expect(lifted.type).toBe('mate')
     const la = faceOf(lifted)
     const lb = faceBOf(lifted)
@@ -124,17 +110,16 @@ describe('cq-compat-assembly: 提升边界借用视图归一（回归守卫）',
   })
 
   it('cq.buildAssembly（视图成员）：children 为真实 Shape 且 global 求解收敛', async () => {
-    const viewB = borrowBrepjsShape(boxB)
     // fixed(bp) + mate(bp>mb)：与 p3 测试同型，验证归一成员可被求解器消费
-    const fixed = await constraintEx('bp', '>Z', boxA, 'mb', '<Z', viewB as never, 'Fixed')
-    const mate = await constraintEx('bp', '>Z', boxA, 'mb', '<Z', viewB as never, 'Plane')
+    const fixed = await constraintEx('bp', '>Z', boxA, 'mb', '<Z', boxB, 'Fixed')
+    const mate = await constraintEx('bp', '>Z', boxA, 'mb', '<Z', boxB, 'Plane')
     const constraints: AssemblyConstraint[] = [...fixed, ...mate] as AssemblyConstraint[]
 
     const asm = buildAssembly(
       'asm',
       [
         { name: 'bp', shape: boxA },
-        { name: 'mb', shape: viewB as never },
+        { name: 'mb', shape: boxB },
       ],
       constraints,
     )

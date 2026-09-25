@@ -51,7 +51,13 @@ import {
   mirror as generatedMirror,
   clone as generatedClone,
 } from './generated/topology'
-import type { MirrorOptions } from '@faicad/faijs-brepjs/topology/api'
+/** 镜像面参数（与 vendored MirrorOptions 同形；G5 去 brepjs 依赖后本地自持）。 */
+interface MirrorOptions {
+  /** 镜像面法向。默认 [0,0,1]。 */
+  normal?: readonly [number, number, number] | { x: number; y: number; z: number }
+  /** 镜像面过点。默认 [0,0,0]。 */
+  at?: readonly [number, number, number] | { x: number; y: number; z: number }
+}
 
 /** Normalize a vector (zero vector → [0,0,1] fallback, same as pattern.ts). */
 function norm(v: Vec3): Vec3 {

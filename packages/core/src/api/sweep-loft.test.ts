@@ -27,12 +27,11 @@
  * 未声明 name 的 op（如 helix/wire）文案退化为 `op requires engine occt`。
  * 断言用 `/op '<name>' requires engine occt/`，不要写 `/op requires engine occt/`。
  *
- * GOTCHA-4（Phase 4 实测，上游告警）：occt-wasm 3.x 缺 `sweepAdvanced` ⇒ vendored
- * `sweep`（`sweepFns.ts` 的 `transitionMode` 默认值 'right'）会丢弃该选项并
- * `console.warn` **一次**（`warnedOnce` 去重，故只能文件级断言）。`complexExtrude` /
- * `twistExtrude` 内部也走 vendored `sweep`。CI 对 stderr 零容忍 ⇒ 本文件 spy + 断言
- * （同 `packages/tests/faijs/p5-vendored-surface/tests/sweepFns.test.ts` 口径）；
- * occt-wasm 升到 >= 4.1.0 后可删掉这层。
+ * GOTCHA-4（Phase 4 实测 → G5 已过时，断言同步收紧）：occt-wasm 3.x 缺
+ * `sweepAdvanced` ⇒ vendored `sweep` 会丢弃 transitionMode 并 `console.warn`。
+ * core-decouple G5 后 sweep/complexExtrude/twistExtrude/loft 全部走 core 直连
+ * （brep-mirror + occt-wasm 原生），不再有 vendored 上游 ⇒ 本文件 spy 断言
+ * 改为「warns === 0」（出现告警即失败，防真实噪声静默；出现时逐条核对前缀）。
  *
  * Run: npx vitest run src/api/sweep-loft.test.ts
  */
@@ -63,10 +62,11 @@ beforeAll(async () => {
 }, 120000)
 
 afterAll(() => {
-  // spy 必须有所捕获：sweep / complexExtrude / twistExtrude 确实走 vendored 内核。
-  // 且逐条核对内容 —— 只允许"occt-wasm 版本能力不足"这一族上游告警，
-  // 出现别的告警（真实噪声）即失败，不是无条件静默。
-  expect(upstreamWarns.length).toBeGreaterThan(0)
+  // G5（core-decouple）：sweep/complexExtrude/twistExtrude/loft 全部走 core 直连
+  // （brep-mirror + occt-wasm 原生），不再有 vendored 上游 ⇒ 不应产生任何
+  // console.warn。若未来重新出现上游告警，逐条核对必须带 "occt-wasm: " 前缀
+  // （防真实噪声静默），否则即失败。
+  expect(upstreamWarns.length).toBe(0)
   for (const args of upstreamWarns) {
     expect(String(args[0])).toMatch(/^occt-wasm: /)
   }

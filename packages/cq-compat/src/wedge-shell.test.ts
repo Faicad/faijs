@@ -17,8 +17,9 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { createRuntime, registerOcctBrepEngine } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
-import { brepjsCompat } from '@faicad/faijs/api'
-import { borrowBrepjsShape } from '@faicad/faijs/api/internal/l3-bridge'
+import { getBrepApi } from '@faicad/faijs/brep/handle-bridge'
+import { brepOf } from '@faicad/faijs/shape'
+import type { BrepHandle } from '@faicad/faijs/brep/engine/types'
 import { asPartName } from '@faicad/faijs/identity'
 import type { Shape } from '@faicad/faijs/mesh/types'
 import * as cq from './index'
@@ -34,11 +35,10 @@ async function runVol(lines: string[]): Promise<{ vol: number; faces: number }> 
   expect(res.failedAt).toBeUndefined()
   const shape = res.outputs.get(asPartName('result')) as Shape | undefined
   expect(shape).toBeDefined()
-  const h = borrowBrepjsShape(shape!) as never
-  const m = brepjsCompat.measureVolume(h) as unknown as { ok: boolean; value?: number }
-  expect(m.ok).toBe(true)
-  const faces = (brepjsCompat.getFaces(h) as unknown[]).length
-  return { vol: m.value as number, faces }
+  const h = brepOf(shape!) as BrepHandle
+  const vol = getBrepApi().getVolume(h)
+  const faces = (getBrepApi().getSubShapes(h, 'face') as unknown[]).length
+  return { vol, faces }
 }
 
 beforeAll(async () => {
@@ -108,9 +108,7 @@ describe('solids selector', () => {
     expect(res.failedAt).toBeUndefined()
     const shape = res.outputs.get(asPartName('result')) as Shape | undefined
     expect(shape).toBeDefined()
-    const h = borrowBrepjsShape(shape!) as never
-    const m = brepjsCompat.measureVolume(h) as unknown as { ok: boolean; value?: number }
-    expect(m.ok).toBe(true)
-    expect(m.value).toBeCloseTo(1, 6)
+    const h = brepOf(shape!) as BrepHandle
+    expect(getBrepApi().getVolume(h)).toBeCloseTo(1, 6)
   })
 })
