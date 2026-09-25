@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-25-topology-lineage-a6-a4-resolved.md
+2026-09-25-topology-lineage-a6-a4-resolved.md: 89397d8530b57eb2999aa4f1a5e75ceec163cf13
+2026-09-25-topology-lineage-a6-a4-resolved.zh.md: 0923fd1f7b661bf62c246fba074326c572e6f3c4

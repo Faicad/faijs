@@ -43,9 +43,9 @@
 | id | 失败签名 | 取点文件（立即可跑） | 根因方向 | 改动位置 |
 |---|---|---|---|---|
 | **A1** | `mirror: E_OP_FAILED`（43 个） | `Electrical Parts/Servos/Futaba3003/Futaba3003-4-arms-horn.fcstd` | `Part::Mirroring` 翻译出的 `cad.mirror` 输入（镜像平面/基体解析） | `api/mirror.ts` + `feature-translate.ts` Mirroring 分支 |
-| **A2** | `fillet: edgeRef: adjacent face ordinal N has no role lineage`（63 个） | `Architectural Parts/Bedroom/Beds.FCStd` | 上游（revolve→place→chamfer）链的血统在 fillet 处断裂，取不到相邻面 role | `topology/` lineage 回走 + `api/fillet.ts` |
+| **A2** | `fillet: edgeRef: adjacent face ordinal N has no role lineage`（63 个，血统断裂类根因**已随 lineage 重构消解**） | `Architectural Parts/Bedroom/Beds.FCStd` | 上游血统在 fillet 处断裂（同 A6/A4，已被 lineage 重构消除）；但本样本 convert 仍卡 B1/B2（`Loft002`/`Compound001` 未实现），无产物可跑 | 血统类根因 RESOLVED；本样本需 B1/B2 落地后才能跑通 run 验证 |
 | **A3** | `revolve: REVOLVE_FAILED` / `dependency module failed`（19 个） | `Architectural Parts/Garden/FCBL_tree_entourage.FCStd` | P6 revolve 的 profile/axis 依赖解析（或轴向量序列化形态） | `api/revolve.ts` + `feature-translate.ts` Revolution 分支 |
-| **A4** | `chamfer: edgeRef: edge ordinal N out of ...`（19 个） | `Electrical Parts/Batteries/battery-AAA.fcstd` | chamfer 边序号与 shape 边集不一致（角色/序数映射） | `api/chamfer.ts` + `feature-translate.ts` Chamfer 分支 |
+| **A4** | `chamfer: edgeRef: edge ordinal N out of ...` / `adjacent face ordinal N has no role lineage`（19 个，**已验证消解**） | `Electrical Parts/Batteries/battery-AAA.fcstd` | chamfer 边引用面无角色血统（同 A6 lineage 重构消除） | **RESOLVED** —— 3/3 `cliRun` 通过、无 `no role lineage` / `edgeRef` 报错；fcstd-port 新增 `test/FreeCAD/a4-edge-ref-regression.test.ts` 回归护栏 |
 | **A5** | `run-timeout`（6 个） | `Electronics Parts/Boards/Arduino/Arduino UNO/arduinounopcb.FCStd` | WASM 执行挂起（solver 或布尔死锁） | 在撞上的文件上：给 run 加 per-file 看门狗（挂起即杀、记 fail、继续） |
 | **A6** | `THREW: Maximum call stack size exceeded`（3 个，**已验证消解**） | `Electronics Parts/Boards/Arduino/Arduino UNO/arduinounomissblack.FCStd` | 递归爆栈；根因已随 topology lineage 重构消除（roleTable 降为缓存 + §1.4/1.5 lineage 登记），非单点修复 | **RESOLVED** —— 13/13 `cliRun` 通过、到达 STEP 导出无爆栈；fcstd-port 新增 `test/FreeCAD/a6-stack-overflow-regression.test.ts` 回归护栏 |
 
@@ -109,10 +109,10 @@
 
 ## 7. 立即开始的第一批（建议顺序）
 
-1. **A1 mirror**（43 个，量最大）：取 `Futaba3003-4-arms-horn.fcstd`，定位 `cad.mirror` 的 E_OP_FAILED。
-2. **A2 fillet 血统**（63 个，量最大）：取 `Beds.FCStd`，定位 `adjacent face ordinal ... no role lineage`。
+1. **A1 mirror**（43 个，量最大）：取 `Futaba3003-4-arms-horn.fcstd`，定位 `cad.mirror` 的 E_OP_FAILED。**已修**（`f8fc561`，去掉 translate 里误加的 `noPositionalArgs`，位置源形状不再被丢弃）。
+2. **A2 fillet 血统**（63 个，量最大）：取 `Beds.FCStd`。血统类根因**已随 lineage 重构消解**（同 A4/A6），但本样本 convert 仍卡 B1/B2（`Loft002`/`Compound001` 未实现），run 验证待 B1/B2 落地。
 3. **A3 revolve**（19 个）：取 `FCBL_tree_entourage.FCStd`。
-4. **A4 chamfer**（19 个）：取 `battery-AAA.fcstd`。
+4. **A4 chamfer**（19 个，**RESOLVED**）：取 `battery-AAA.fcstd` —— 实证 3/3 `cliRun` 通过；fcstd-port 已加回归护栏 `test/FreeCAD/a4-edge-ref-regression.test.ts`。
 5. **A6 爆栈**（3 个，**RESOLVED**）：取 `arduinounomissblack.FCStd` —— 实证已消解，无需改码；fcstd-port 已加回归护栏。
 6. **A5 看门狗**：处理到 `arduinounopcb.FCStd` 时顺手加。
 
