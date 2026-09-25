@@ -20,7 +20,7 @@ export async function initOCCT(): Promise<void> {
     config: {
       mode: 'brep',
       brepEngineId: engine.id,
-      brepCapabilities: { evolution: engine.capabilities.evolution },
+      brepCapabilities: engine.capabilities ? { evolution: engine.capabilities.evolution } : undefined,
     },
     kernel: { brep: engine.primitives, csg: undefined, sdf: undefined },
     fonts: undefined,

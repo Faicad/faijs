@@ -67,18 +67,15 @@ const EDGE_SAMPLES = 5
 
 type Vec3 = readonly [number, number, number]
 
-function sub(a: Vec3, b: Vec3): [number, number, number] {
-  return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
-}
-
-function dot(a: Vec3, b: Vec3): number {
-  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
-}
-
-/** 3D 点 → 相机平面 2D 坐标（正交投影：相对 origin 在 xAxis/yAxis 上的分量）。 */
-function projectTo2D(p: Vec3, cam: Camera): [number, number] {
-  const rel = sub(p, cam.position)
-  return [dot(rel, cam.xAxis), dot(rel, cam.yAxis)]
+/** 3D 点 → 相机平面 2D 坐标。
+ *
+ * GOTCHA: occt-wasm 的 HLR projectEdges 已把边投影到相机平面，输出坐标 =
+ * （沿 xAxis 的水平分量, 沿 cross(direction, xAxis) 的垂直分量, 沿 direction
+ * 的深度分量≈0）——不是世界坐标。因此 2D 坐标直接取输出的前两分量，不再做
+ * dot 二次投影（否则会把垂直信息读丢——垂直在 p.y 而非 p.z）。
+ */
+function projectTo2D(p: Vec3, _cam: Camera): [number, number] {
+  return [p[0], p[1]]
 }
 
 /** 引擎 projectEdges 的返回结构（occt-wasm：6 组 compound 的 arena id）。 */

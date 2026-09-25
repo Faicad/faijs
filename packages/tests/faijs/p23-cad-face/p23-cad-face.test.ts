@@ -28,7 +28,7 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createRuntime, registerOcctBrepEngine, brepjsCompat, createApiNamespace } from '@faicad/faijs'
+import { createRuntime, registerOcctBrepEngine, createApiNamespace } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
 import { asPartName } from '@faicad/faijs/identity'
 import { isShape, hasBrep } from '@faicad/faijs/shape'

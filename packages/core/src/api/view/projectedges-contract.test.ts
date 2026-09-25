@@ -67,4 +67,37 @@ describe('projectEdges contract', () => {
     expect(p1).toBeTruthy()
     api.dispose(box)
   })
+
+  it('HLR 输出边坐标 = (水平, 垂直, 深度≈0)：2D 投影直接取前两分量（view-projection GOTCHA）', () => {
+    // front 视图（dir=-Y, xAxis=+X）：box 角点 0..20/0..30/0..40 —— 水平=x 分量
+    // （0..20）、垂直=z 分量（0..40）、深度=y 分量（≈0，occt 已投影归零）。
+    const api = getBrepApi()
+    const box = api.makeBox(20, 30, 40)
+    const r = api.projectEdges(
+      box,
+      { x: 0, y: 0, z: 0 },
+      { x: 0, y: -1, z: 0 },
+      { x: 1, y: 0, z: 0 },
+      true,
+      0.1,
+    ) as { visibleSharp: number; visibleSmooth: number; visibleOutline: number; hiddenSharp: number; hiddenSmooth: number; hiddenOutline: number }
+    const cid = r.visibleSharp as number
+    const edges = api.getSubShapes(cid as unknown as Parameters<typeof api.getSubShapes>[0], 'edge')
+    expect(edges.length).toBeGreaterThan(0)
+    const first = edges[0]
+    if (first === undefined) return
+    const cp = api.curveParameters(first)
+    const samples: [number, number, number][] = []
+    for (let i = 0; i < 3; i += 1) {
+      const t = cp.first + ((cp.last - cp.first) * i) / 2
+      const p = api.curvePointAtParam(first, t)
+      samples.push([p.x, p.y, p.z])
+    }
+    // 深度分量 ≈ 0（投影平面）；垂直分量非零（0..40 域内）
+    const anyZeroDepth = samples.some((s) => Math.abs(s[2]) < 1e-6)
+    const anyVertical = samples.some((s) => Math.abs(s[1]) > 1e-3)
+    expect(anyZeroDepth, `samples=${JSON.stringify(samples)}`).toBe(true)
+    expect(anyVertical, `samples=${JSON.stringify(samples)}`).toBe(true)
+    api.dispose(box)
+  })
 })

@@ -17,7 +17,7 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import { createRuntime, registerOcctBrepEngine, isOk } from '@faicad/faijs'
 import { createNodePorts } from '@faicad/faijs/node'
-import { hasBrep } from '@faicad/faijs/shape'
+import { hasBrep, isShape } from '@faicad/faijs/shape'
 import { asPartName } from '@faicad/faijs/identity'
 import type { Shape } from '@faicad/faijs/mesh/types'
 import * as gear from './gear'
@@ -35,22 +35,22 @@ beforeAll(async () => {
 }, 120000)
 
 describe('gear raw Result contract (§8.1)', () => {
-  it('external returns a Result whose ok value is a faijs Shape (core payload)', () => {
-    const r = gear.external({ teeth: 24, moduleSize: 2, thickness: 8, bore: 8 })
+  it('external returns a Result whose ok value is a faijs Shape (core payload)', async () => {
+    const r = await gear.external({ teeth: 24, moduleSize: 2, thickness: 8, bore: 8 })
     expect(isOk(r)).toBe(true)
     const v = (r as { ok: true; value: Shape }).value
     expect(v).toBeDefined()
     expect(isShape(v)).toBe(true) // core dual-op Shape (2026-09-25 core-decouple: vendored gears deleted)
   })
 
-  it('internal returns an Ok ring solid', () => {
-    const r = gear.internal({ teeth: 48, moduleSize: 2, thickness: 8 })
+  it('internal returns an Ok ring solid', async () => {
+    const r = await gear.internal({ teeth: 48, moduleSize: 2, thickness: 8 })
     expect(isOk(r)).toBe(true)
     expect((r as { ok: true; value: unknown }).value).toBeDefined()
   })
 
-  it('planetary returns the { sun, planets, ring } record with outputs', () => {
-    const r = gear.planetary({ thickness: 8, sunTeeth: 12, planetTeeth: 6, numPlanets: 3 })
+  it('planetary returns the { sun, planets, ring } record with outputs', async () => {
+    const r = await gear.planetary({ thickness: 8, sunTeeth: 12, planetTeeth: 6, numPlanets: 3 })
     expect(isOk(r)).toBe(true)
     const v = (r as { ok: true; value: { sun: unknown; planets: unknown[]; ring: unknown } }).value
     expect(v.sun).toBeDefined()
@@ -61,19 +61,19 @@ describe('gear raw Result contract (§8.1)', () => {
     expect(outputs).toEqual(['planets', 'ring', 'sun'])
   })
 
-  it('thread returns Ok with the thread-ridge solid', () => {
-    const r = gear.thread({ radius: 10, pitch: 2, height: 12 })
+  it('thread returns Ok with the thread-ridge solid', async () => {
+    const r = await gear.thread({ radius: 10, pitch: 2, height: 12 })
     expect(isOk(r)).toBe(true)
     expect((r as { ok: true; value: unknown }).value).toBeDefined()
   })
 
-  it('invalid inputs return Err (never throw): thickness / bore / thread radius', () => {
-    const t = gear.external({ teeth: 24, moduleSize: 2, thickness: 0 })
+  it('invalid inputs return Err (never throw): thickness / bore / thread radius', async () => {
+    const t = await gear.external({ teeth: 24, moduleSize: 2, thickness: 0 })
     expect(isOk(t)).toBe(false)
     expect((t as { error: { code?: string } }).error.code).toBe('GEAR_THICKNESS_NONPOSITIVE')
-    const b = gear.external({ teeth: 24, moduleSize: 2, thickness: 8, bore: 100 })
+    const b = await gear.external({ teeth: 24, moduleSize: 2, thickness: 8, bore: 100 })
     expect((b as { error: { code?: string } }).error.code).toBe('GEAR_BORE_TOO_LARGE')
-    const th = gear.thread({ radius: 0, pitch: 1, height: 12 })
+    const th = await gear.thread({ radius: 0, pitch: 1, height: 12 })
     expect(isOk(th)).toBe(false)
     expect((th as { error: { code?: string } }).error.code).toBe('THREAD_INVALID_RADIUS')
   })
