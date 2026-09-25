@@ -580,10 +580,12 @@ export function collectExportJsdocViolations(scanRoot: string = root): string[] 
     ...globSync('src/**/*.ts', { cwd: scanRoot }),
   ]
     .map(path => path.split(sep).join('/'))
-    // Vendored trees (containing `vendored/`) are D9-isolated: kept byte-identical
-    // to the upstream project, excluded from compile + lint, and therefore from
-    // this repo-level JSDoc completeness gate as well.
-    .filter(rel => !rel.split('/').includes('vendored'))
+    // Vendored trees are D9-isolated: kept byte-identical to the upstream
+    // project, excluded from compile + lint, and therefore from this
+    // repo-level JSDoc completeness gate as well. The historical
+    // `packages/core/src/vendored/` transplant (2026-09-25) moved to its own
+    // `packages/brepjs/src/`; both spellings stay exempt.
+    .filter(rel => !rel.split('/').includes('vendored') && !rel.startsWith('packages/brepjs/src/'))
     .sort()
   const program = ts.createProgram(rels.map(rel => resolve(scanRoot, rel)), loadCompilerOptions(scanRoot))
   const checker = program.getTypeChecker()
