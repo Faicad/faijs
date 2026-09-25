@@ -111,16 +111,30 @@ function arcToHandles(
   kernel: BrepEngineApi,
   seg: SketchArcSeg,
 ): ReturnType<BrepEngineApi['makeArcEdge']>[] {
-  const { cx, cy, radius, startAngle, endAngle } = seg
-  let sweep = endAngle - startAngle
-  // 归一化到 (0, 2π]，处理角度回绕
-  while (sweep <= 0) sweep += 2 * Math.PI
-  while (sweep > 2 * Math.PI) sweep -= 2 * Math.PI
+  const { cx, cy, radius, startAngle, endAngle, ccw = true } = seg
+  // GOTCHA（2026-09-25，A3 FCBL_tree_entourage）：ccw 必须参与弧的几何方向。
+  // makeArcEdge 按「起点-中点-终点」三点定弧，旧实现一律取 CCW 中点
+  // ((start+end)/2 归一化到 (0,2π])，ccw:false 的弧被画成 CCW **长弧**（补角）。
+  // 实测后果：长弧穿过旋转轴 → revolve 产物退化（bbox NaN）→ BRepMesh 挂死
+  // （进程无声死亡）；正确 CW 短弧下内核 revolve 仅 ~19ms。
+  let sweep: number
+  let midAngle: number
+  if (ccw) {
+    sweep = endAngle - startAngle
+    while (sweep <= 0) sweep += 2 * Math.PI
+    while (sweep > 2 * Math.PI) sweep -= 2 * Math.PI
+    midAngle = startAngle + sweep / 2
+  } else {
+    // 顺时针：从 startAngle 递减到 endAngle，扫角取反向归一化
+    sweep = startAngle - endAngle
+    while (sweep <= 0) sweep += 2 * Math.PI
+    while (sweep > 2 * Math.PI) sweep -= 2 * Math.PI
+    midAngle = startAngle - sweep / 2
+  }
 
-  const makeOne = (a0: number, a1: number): ReturnType<BrepEngineApi['makeArcEdge']> => {
-    const mid = (a0 + a1) / 2
+  const makeOne = (a0: number, am: number, a1: number): ReturnType<BrepEngineApi['makeArcEdge']> => {
     const start = { x: cx + radius * Math.cos(a0), y: cy + radius * Math.sin(a0), z: 0 }
-    const m = { x: cx + radius * Math.cos(mid), y: cy + radius * Math.sin(mid), z: 0 }
+    const m = { x: cx + radius * Math.cos(am), y: cy + radius * Math.sin(am), z: 0 }
     const end = { x: cx + radius * Math.cos(a1), y: cy + radius * Math.sin(a1), z: 0 }
     return kernel.makeArcEdge(start, m, end)
   }
@@ -128,9 +142,13 @@ function arcToHandles(
   // 整圆（sweep≈2π）：拆成两段半圆，避免 makeArcEdge 起点≈终点退化
   if (sweep >= 2 * Math.PI - 1e-9) {
     const half = 2 * Math.PI / 2
-    return [makeOne(startAngle, startAngle + half), makeOne(startAngle + half, startAngle + 2 * Math.PI)]
+    const dir = ccw ? 1 : -1
+    return [
+      makeOne(startAngle, startAngle + dir * half / 2, startAngle + dir * half),
+      makeOne(startAngle + dir * half, startAngle + dir * (half + half / 2), startAngle + dir * 2 * Math.PI),
+    ]
   }
-  return [makeOne(startAngle, endAngle)]
+  return [makeOne(startAngle, midAngle, endAngle)]
 }
 
 /** 单环 → wire handle（仅构面，不释放中间句柄，遵循现有惯例）。 */
