@@ -23,6 +23,7 @@ import { CadRuntime } from '../../cad-runtime/runtime'
 import { createApiNamespaceWithEditorOps, registerEditorExtensions } from '../../test-support/editor-ops'
 import { brepOf } from '../../shape'
 import type { Shape } from '../../mesh/types'
+import type { BrepHandle } from './types'
 import { decodeHashEvolution, HASH_UPPER_BOUND } from '../face-evolution'
 import { disposeBrepkit } from '../../brepkit-kernel/brepkitKernel'
 
@@ -118,8 +119,8 @@ describe('brepkit boolean fix（union/cut/subtract 不崩 + occt 不回退）', 
       expect(result.failedAt).toBeUndefined()
       // 直接再走一次适配器级 fuseWithHistory，断言 modified 分段解码正常
       const engine = (await getBrepEngine()).primitives
-      const aHandle = brepOf(result.outputs.get('a' as never) as Shape)!
-      const bHandle = brepOf(result.outputs.get('b' as never) as Shape)!
+      const aHandle = brepOf(result.outputs.get('a' as never) as Shape) as unknown as BrepHandle
+      const bHandle = brepOf(result.outputs.get('b' as never) as Shape) as unknown as BrepHandle
       const aHashes = Array.from(engine.subShapeHashes(aHandle, 'face', HASH_UPPER_BOUND))
       const bHashes = Array.from(engine.subShapeHashes(bHandle, 'face', HASH_UPPER_BOUND))
       const evo = engine.fuseWithHistory(aHandle, bHandle, [...new Set([...aHashes, ...bHashes])], HASH_UPPER_BOUND)
