@@ -449,12 +449,22 @@ M2 阶段从文档属性读取单位设置并归一到 mm，写进 `mapping.json
 | 步骤 | 内容 |
 |---|---|
 | M5.1 | 拓扑排序：`Body.Group` 顺序 + `PropertyLink` 依赖 → 线性特征序列 |
-| M5.2 | 代码生成：参数 → JS 常量；特征 → `cad.*` 调用；语句 id `sN`、变量名 `partN` |
+| M5.2 | 代码生成：参数 → JS 常量；特征 → `cad.*` 调用；语句 id `sN`；**变量名 = FCStd 源对象名**（见下「M5 命名铁律」） |
 | M5.3 | 多 Body 拆分 → `model/*.fai.js` |
 | M5.4 | `.fai.zip` 打包 |
 | M5.5 | **Agent Note + 文档更新**（AGENTS.md 要求非平凡变更同 PR 带 note） |
 
 **出口判据**：产出的 `.fai.js` 能被 `faijs-cli.ts check` 干跑校验通过。
+
+#### M5 命名铁律（重要，反复踩坑）
+
+**faijs 的变量名可以是任何合法的 JS 标识符，绝不是 `partN`。** 翻译器生成 `.fai.js` 时，每个 FCStd 对象的变量名取自它**自己的名字** `obj.name`（经 `emitVar` 收敛为合法标识符：非法字符→`_`、首字符非字母/`$`/`_` 时前置 `_`、保留字加 `_` 后缀、重名加数字后缀去重）。
+
+- `partN` 只是 **UI 层生成用户操作代码** 时的产物（`lang/allocate-id.ts` 的 `derivePartName`）——它是 UI 的细节，**随时可改、绝对不能依赖**。
+- **FCStd→faijs 翻译器自己更不准生成或使用 `partN`**。源文件里已经带着真实名字（`Box`、`Cyl`、FCStd 的 `Body`/`Body001` 等），必须原样用作变量名，绝不允许改写成 `partN`。
+- 任何代码都**不得假定变量名是 `partN` 格式**（如用 `/\^part\d+\$/` 去匹配、或把 `obj.name` 覆盖成计数器）。聚合根别名统一用 `assembly`（单 Body 时直接别名到 `<Body>_out`），也不使用 `part` 前缀。
+- 中间变量（放置/逆向放置/链式累加）用带角色后缀的派生名（`${name}__place`、`${name}__invplace`、`${body}__chain`），依旧以源名作基，可追溯、可读。
+- 跨文件引用通过 `model/<Body>.fai.js` 的终端别名 `<Body>_out` 闭合。`<Body>_out` 用的是真实 Body 名，非 `partN`。
 
 ### M6 — 元素引用锚点与表达式降级（= 前文 A P4）
 
