@@ -46,27 +46,39 @@ import { TopoRefError } from '../topology/naming'
  * extrude 的 construct 词汇表（计划 §4.4）：`cap:bottom` / `cap:top` / `wall:<i>`。
  *
  * 判定口径：
- * - 拉伸方向取自一对平面端面法向的**带符号差**（两法向指向相反）——不依赖脚本
- *   怎么写方向，现场几何是唯一真值；
+ * - 拉伸方向**优先由 op 给出**（`hintAxis`），但必须由现场几何裁定：只有当至少
+ *   两张面的法向与该方向 |cos| ≈ 1 时才采信，否则回退到纯几何判定（A2，见下）；
  * - 面法向与拉伸轴 |cos| ≈ 1 → 端面：中心沿轴分量小者 `cap:bottom`、大者 `cap:top`；
  * - 面法向与拉伸轴 |cos| ≈ 0 → 侧面 `wall:<i>`，i = 该面在侧面枚举中的相对序
  *   （OCCT prism 的侧面顺序 = profile wire 的边序——makeWire 按构造顺序收边，
  *   prism 不重排；G3-L1 改参重放依赖该稳定性）；
- * - 非平面/无法向的面不进表：缺身份是显式状态（naming 行 role=null），不伪造。
+ * - 侧面含**非平面**（profile 里的弧段扫出圆柱面）同样进表：圆柱面 uv 中点法向
+ *   是径向，与拉伸轴垂直，判定与平面侧面同式。
  *
  * @param kernel - the OCCT kernel.
  * @param solid - the extruded solid.
+ * @param hintAxis - 拉伸方向（op 已知；仅作候选，由现场几何确认）。
  * @returns role（线格式串）→ hash 子表。
  */
-function extrudeConstructRoles(kernel: BrepEngineApi, solid: BrepHandle): Map<string, number[]> {
+function extrudeConstructRoles(
+  kernel: BrepEngineApi,
+  solid: BrepHandle,
+  hintAxis?: readonly [number, number, number],
+): Map<string, number[]> {
   const roles = new Map<string, number[]>()
   const faceHandles = kernel.getSubShapes(solid, 'face')
   try {
     const hashes = kernel.subShapeHashes(solid, 'face', 2147483647)
-    // 每面的法向（仅平面；侧面可能是圆柱/其它——wall 只挂平面侧面的前提是
-    // 直拉伸，斜面/圆柱侧面留待 3.1 的完整枚举器）
-    const normals: (readonly [number, number, number] | undefined)[] = faceHandles.map((f) => {
-      if (kernel.surfaceType(f) !== 'plane') return undefined
+    // A2 (2026-09-26, Beds.FCStd): 侧面可能是**圆柱面**——profile 含弧段时，该弧
+    // 沿拉伸方向扫出的就是一个圆柱侧面。旧实现只在 `surfaceType === 'plane'` 时
+    // 取法向，于是圆柱侧面 normals[i] === undefined：既拿不到 `wall:<i>`，还让
+    // `wallIdx` 跳过它们 —— wall 序号因此不再是 profile 边序（违反 role-name.ts
+    // 的契约「wall:3 = 由 profile 第 3 条边扫出」）。实测 Beds part28（轮廓含 4
+    // 段弧）10 面只覆盖 6 个（缺序号 2/4/6/8），下游 fillet 的 `cad.edgeRef`
+    // 遂抛 `edgeRef: adjacent face ordinal 2 has no role lineage`。
+    // 圆柱面 uv 中点的法向是径向、与拉伸轴垂直（|cos| ≈ 0），可直接用于侧面判定。
+    const planar = faceHandles.map((f) => kernel.surfaceType(f) === 'plane')
+    const normals: (readonly [number, number, number])[] = faceHandles.map((f) => {
       const uv = kernel.uvBounds(f)
       const n = kernel.surfaceNormal(f, (uv.uMin + uv.uMax) / 2, (uv.vMin + uv.vMax) / 2)
       return [n.x, n.y, n.z] as const
@@ -76,12 +88,35 @@ function extrudeConstructRoles(kernel: BrepEngineApi, solid: BrepHandle): Map<st
       return [c.x, c.y, c.z] as const
     })
 
-    // 拉伸轴：找一对 |cos| ≈ 1 的反平行平面法向 → 带符号单位方向
+    // 拉伸轴：op 已知的拉伸方向优先（须由现场几何确认），否则找一对
+    // |cos| ≈ 1 的反平行平面法向 → 带符号单位方向。
+    //
+    // A2 (2026-09-26, Beds.FCStd part28): 纯几何判定取「第一对反平行的平面法向」，
+    // 但方形类轮廓的**一对对侧平面侧壁同样反平行**——Beds 的柱子于是把 X 向侧壁
+    // 判成端盖、把真正的 Z 向端盖当成 wall，4 个圆柱侧面彻底无名（10 面只覆盖 6，
+    // 缺序号 2/4/6/8），下游 fillet 的 `cad.edgeRef` 抛
+    // `edgeRef: adjacent face ordinal 2 has no role lineage`。方向由 op 给出、
+    // 由几何裁定（至少两张面法向与该方向 |cos| ≈ 1 才采信），两者缺一不可。
     let axis: readonly [number, number, number] | undefined
+    const hintLen = hintAxis ? Math.hypot(hintAxis[0], hintAxis[1], hintAxis[2]) : 0
+    if (hintAxis && hintLen > 1e-9) {
+      const d: readonly [number, number, number] = [
+        hintAxis[0] / hintLen, hintAxis[1] / hintLen, hintAxis[2] / hintLen,
+      ]
+      const aligned = normals.filter((n) => {
+        const len = Math.hypot(n[0], n[1], n[2])
+        if (len < 1e-9) return false
+        return Math.abs((n[0] * d[0] + n[1] * d[1] + n[2] * d[2]) / len) > 0.999
+      })
+      if (aligned.length >= 2) axis = d
+    }
     for (let i = 0; i < normals.length && !axis; i++) {
+      // 端面必须是一对反平行的**平面**法向（棱柱的端盖恒为平面）。
+      if (!planar[i]) continue
       const a = normals[i]
       if (!a) continue
       for (let j = i + 1; j < normals.length; j++) {
+        if (!planar[j]) continue
         const b = normals[j]
         if (!b) continue
         const lenA = Math.hypot(a[0], a[1], a[2])
@@ -101,6 +136,7 @@ function extrudeConstructRoles(kernel: BrepEngineApi, solid: BrepHandle): Map<st
       // 端面：沿轴投影最小者 = cap:bottom，最大者 = cap:top
       const capCandidates: { idx: number; t: number }[] = []
       for (let i = 0; i < normals.length; i++) {
+        if (!planar[i]) continue
         const n = normals[i]
         if (!n) continue
         const len = Math.hypot(n[0], n[1], n[2]) || 1
@@ -119,7 +155,8 @@ function extrudeConstructRoles(kernel: BrepEngineApi, solid: BrepHandle): Map<st
         if (hashes[bottom.idx] !== undefined) roles.set(formatRoleName(semantic('bottom')), [hashes[bottom.idx]!])
         if (hashes[top.idx] !== undefined) roles.set(formatRoleName(semantic('top')), [hashes[top.idx]!])
       }
-      // 侧面：|cos| ≈ 0，按枚举序编号（= profile 边序）
+      // 侧面：|cos| ≈ 0，按枚举序编号（= profile 边序）。平面/圆柱侧面一律进表
+      // （A2）——跳过圆柱侧面会让 wall 序号脱离 profile 边序。
       let wallIdx = 0
       for (let i = 0; i < normals.length; i++) {
         const n = normals[i]
@@ -438,6 +475,9 @@ export const extrude = defineOp({
     }
     const o = normalizeExtrudeOptions(params)
     assertExtrudeOptions(o)
+    // A2: 拉伸方向同时是链根建表的候选轴（extrudeConstructRoles 的 hintAxis），
+    // 两条路径（定长 / up-to）都要用，故提到分支之前。
+    const normal = new THREE.Vector3(...(o.normal ?? [0, 0, 1])).normalize()
 
     if (o.upTo !== undefined) {
       const kernel = getBrepApi()
@@ -451,12 +491,11 @@ export const extrude = defineOp({
       const origin = String(getCurrentStmt()?.id ?? '')
       return fromBrep(solidToShape(kernel, clipped), {
         solid: clipped,
-        roleTable: new Map([[origin, extrudeConstructRoles(kernel, clipped)]]),
+        roleTable: new Map([[origin, extrudeConstructRoles(kernel, clipped, normal.toArray() as Vec3)]]),
       })
     }
 
     // 长度形态：委托生成投影（生成投影自带借入 / Result 翻转 / 收养）
-    const normal = new THREE.Vector3(...(o.normal ?? [0, 0, 1])).normalize()
     const sign = o.mode === 'backward' ? -1 : 1
     const v: Vec3 = [normal.x * o.length! * sign, normal.y * o.length! * sign, normal.z * o.length! * sign]
     let result: Shape
@@ -484,7 +523,7 @@ export const extrude = defineOp({
     const solid = kernel ? (brepOf(result) as BrepHandle | undefined) : undefined
     if (kernel && solid) {
       const origin = String(getCurrentStmt()?.id ?? '')
-      const table = new Map([[origin, extrudeConstructRoles(kernel, solid)]])
+      const table = new Map([[origin, extrudeConstructRoles(kernel, solid, normal.toArray() as Vec3)]])
       const part = getCurrentStmt()?.outputs?.[0]
       runtimeLineage.recordOutput(origin as never, table, solid as never, part as never)
     }
