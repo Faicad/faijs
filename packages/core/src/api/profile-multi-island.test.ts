@@ -25,6 +25,7 @@ import { brepOf } from '../shape'
 import type { Shape } from '../mesh/types'
 import type { ProfileLoop } from './profile'
 import { createApiNamespaceWithEditorOps } from '../test-support/editor-ops'
+import { asPartName } from '../identity'
 
 beforeAll(async () => {
   await initOcctWasm()
@@ -71,7 +72,7 @@ async function run(parts: ProfileLoop[], extrude: [number, number, number] | nul
 }
 
 function handleOf(result: ExecutionResult, part: string): never {
-  const s = result.outputs.get(part) as Shape | undefined
+  const s = result.outputs.get(asPartName(part)) as Shape | undefined
   if (!s) throw new Error(`no output for ${part}`)
   return brepOf(s) as never
 }
@@ -122,7 +123,7 @@ describe('cad.profile multi-island semantics (H15)', () => {
 
   it("as:'wire' over a multi-island input picks the LARGEST island's outer loop", async () => {
     const result = await run([sq(0, 0, 10), sq(20, 0, 40)], null, 'wire')
-    const s = result.outputs.get('part0') as Shape
+    const s = result.outputs.get(asPartName('part0')) as Shape
     // 1D 曲线形态（getBoundingBox 对 curve 不可用 → 用 getLength 判定取到了哪个岛）
     expect((s as { kind?: string }).kind).toBe('curve')
     // 大岛周长 160；若误取小岛则是 40
