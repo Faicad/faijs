@@ -1,6 +1,6 @@
 {
   "name": "@faicad/fai-cq-gears",
-  "version": "0.17.0",
+  "version": "0.18.0",
   "type": "module",
   "license": "MIT",
   "repository": {
@@ -29,7 +29,7 @@
     "dist"
   ],
   "dependencies": {
-    "@faicad/cq-compat": "^0.17.0"
+    "@faicad/cq-compat": "^0.18.0"
   },
   "peerDependencies": {
     "@faicad/faijs": "^0.18.0",
