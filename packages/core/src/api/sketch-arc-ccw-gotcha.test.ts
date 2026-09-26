@@ -36,7 +36,7 @@ describe('GOTCHA: sketch arc ccw:false must not become a CCW long arc (A3 regres
     const runtime = createRuntime(createNodePorts(), 'brep')
     try {
       const result = await runtime.execute(`
-        const part1 = cad.sketch(${TREE_PROFILE})
+        const part1 = cad.profile(${TREE_PROFILE})
         const part3 = cad.revolve(part1, { axis: [0,0,1], at: [0,0,0], angle: 6.283185307179586 })
       `, { topology: 'auto' })
       expect(result.failedAt, `execution failed: ${result.failedAt?.message ?? ''}`).toBeUndefined()
@@ -52,7 +52,7 @@ describe('GOTCHA: sketch arc ccw:false must not become a CCW long arc (A3 regres
     const runtime = createRuntime(createNodePorts(), 'brep')
     try {
       const result = await runtime.execute(`
-        const p = cad.sketch({ contours: [{ segments: [
+        const p = cad.profile({ contours: [{ segments: [
           { kind: 'arc', cx: 50, cy: 0, radius: 25, startAngle: 0, endAngle: 0, ccw: false }
         ], closed: false }] , as: 'wire' })
       `, { topology: 'auto' })

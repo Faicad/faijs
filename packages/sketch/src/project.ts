@@ -148,11 +148,14 @@ export function toFreeCadGeoms(geoms: SketchGeom[]): FcstdSketchGeom[] {
       case 'circle':
         return { kind: 'circle', index, cx: g.cx, cy: g.cy, cz: 0, radius: g.r }
       case 'arc': {
-        const ccw = g.ccw ?? true
-        // FCStd/or the planegcs backend sweep counter-clockwise; store the
-        // counter-clockwise-normalised span so the endpoints agree.
+        // Pass the canonical signed span (a0, a1) through unchanged. planegcs builds
+        // the arc from the pinned start/end endpoints *and* the signed start/end
+        // angles, so a CW arc (a1 < a0) is drawn as the short clockwise arc.
+        // Normalising a1 into a CCW span would instead produce the long arc through
+        // those same endpoints. Arc orientation is carried back to the caller via
+        // solveSketch (input ccw preserved), not recovered here.
         const a0 = g.a0
-        const a1 = ccw ? g.a1 : g.a1
+        const a1 = g.a1
         return {
           kind: 'arc', index, cx: g.cx, cy: g.cy, cz: 0, radius: g.r,
           startAngle: a0, endAngle: a1,

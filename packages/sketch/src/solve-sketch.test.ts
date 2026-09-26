@@ -93,4 +93,24 @@ describe('solveSketch e2e — five constraint scenarios', () => {
     expect(out.status === 'conflicting' || out.status === 'redundant').toBe(true)
     expect(out.problemConstraints.length).toBeGreaterThan(0)
   })
+
+  it('ccw:false arc keeps its orientation across the solve (A3 regression class)', async () => {
+    // A clockwise arc: start at angle 0, end at angle -90° (a1 < a0). Without the
+    // input-ccw carry-through in solveSketch, fromFreeCadGeoms reports ccw:true and the
+    // arc would be rebuilt as the long CCW arc through arcToHandles — the A3 regression.
+    // The unconstrained solve leaves the arc at its initial geometry, so orientation must round-trip.
+    const geoms = [{
+      kind: 'arc' as const, cx: 0, cy: 0, r: 5,
+      a0: 0, a1: -Math.PI / 2, ccw: false,
+      x1: 5, y1: 0, x2: 0, y2: -5,
+    }]
+    const out = await solveSketch(geoms, [], { solver })
+    expect(out.converged, `reason: ${out.reason}`).toBe(true)
+    const arc = out.geoms[0] as { kind: 'arc'; ccw: boolean }
+    expect(arc.kind).toBe('arc')
+    expect(arc.ccw, 'CW arc must round-trip with ccw:false').toBe(false)
+    // geometry unchanged (unconstrained → solver returns initial guess); endpoints are
+    // recomputed from the signed span, so assert on the canonical arc fields only.
+    expect(out.geoms[0]).toMatchObject({ kind: 'arc', cx: 0, cy: 0, r: 5, a0: 0, a1: -Math.PI / 2 })
+  })
 })

@@ -72,7 +72,17 @@ export async function solveSketch(
 
   const raw = result.value
   const solvedCanonical = fromFreeCadGeoms(raw.geoms).map((g, i) => {
-    const tag = geoms[i]?.tag
+    const input = geoms[i]
+    const tag = input?.tag
+    // Preserve the author's arc orientation (ccw) across the solve. The FCStd
+    // round-trip only reports a CCW-normalised span (see fromFreeCadGeoms), so a
+    // CW arc would otherwise come back as ccw:true and be rebuilt as the long CCW
+    // arc through arcToHandles — the A3 regression class. The solver only relocates
+    // coordinates; it does not change which arc (CW minor vs CCW) the author intended.
+    if (g.kind === 'arc' && input?.kind === 'arc') {
+      const withCcw = { ...g, ccw: input.ccw }
+      return tag === undefined ? withCcw : { ...withCcw, tag }
+    }
     return tag === undefined ? g : { ...g, tag }
   })
 
