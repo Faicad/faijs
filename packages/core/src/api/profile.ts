@@ -7,7 +7,7 @@
  *
  * 设计：
  * - 输入：{ contours: ProfileLoop[] }，每个 loop = 有序 segments（line / arc，z=0）。
- * - 外环 = 面积（shoelace）绝对值最大的 loop；其余 loop 作为孔。
+ * - 环语义：嵌套 = 孔，不相交 = 独立岛（多岛 → face 的 compound），见 buildProfileShape。
  * - 圆弧：用起点/中点/终点三点的 makeArcEdge；整圆（sweep≈2π）拆成两段弧。
  * - 输出：Shape（mesh 三角化 + 句柄登记）。brep-only（下游 extrude/revolve 亦 brep-only）。
  *
@@ -59,11 +59,11 @@ export interface ProfileLoop {
   segments: ProfileSeg[]
 }
 
-/** `cad.profile` 参数：轮廓环集合（第一个为外环，其余为孔）。 */
+/** `cad.profile` 参数：轮廓环集合。语义见 {@link buildProfileShape}（嵌套=孔，不相交=独立岛）。 */
 export interface ProfileParams {
   contours: ProfileLoop[]
   /**
-   * 产物形态：'face'（默认）构面；'wire' 只交出不带面的外环 wire（1D 曲线），
+   * 产物形态：'face'（默认）构面；'wire' 只交出不带面的最大岛外环 wire（1D 曲线），
    * 供扫掠族（sweep/loft/…）直接作 spine。'wire' 形态丢弃孔环（扫掠脊柱为单闭合轮廓）。
    */
   as?: 'face' | 'wire'
@@ -181,47 +181,122 @@ function loopToWire(kernel: BrepEngineApi, loop: ProfileLoop): ReturnType<BrepEn
   return kernel.makeWire(edges as ReturnType<BrepEngineApi['makeLineEdge']>[])
 }
 
+/** 环 → 2D 采样多边形（直线取端点、弧等角采样），用于环间包含性判定。 */
+function loopToPolygon(loop: ProfileLoop): Array<{ x: number; y: number }> {
+  const pts: Array<{ x: number; y: number }> = []
+  for (const seg of loop.segments) {
+    if (seg.kind === 'line') {
+      pts.push({ x: seg.x1, y: seg.y1 })
+      continue
+    }
+    let sweep = seg.endAngle - seg.startAngle
+    while (sweep <= 0) sweep += 2 * Math.PI
+    while (sweep > 2 * Math.PI) sweep -= 2 * Math.PI
+    const n = Math.max(8, Math.ceil((sweep / (2 * Math.PI)) * 32))
+    for (let k = 0; k < n; k++) {
+      const a = seg.startAngle + (sweep * k) / n
+      pts.push({ x: seg.cx + seg.radius * Math.cos(a), y: seg.cy + seg.radius * Math.sin(a) })
+    }
+  }
+  return pts
+}
+
+/** 射线法：点是否在多边形内（采样多边形足够密，顶点/边界角落情形由环间不共边保证不出现）。 */
+function polygonContains(poly: Array<{ x: number; y: number }>, px: number, py: number): boolean {
+  let inside = false
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i]!.x
+    const yi = poly[i]!.y
+    const xj = poly[j]!.x
+    const yj = poly[j]!.y
+    if (yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi) inside = !inside
+  }
+  return inside
+}
+
 /**
- * BREP 路径：2D 轮廓 → planar face（外环 + 孔），或 'wire' 形态仅交外环 wire。
+ * BREP 路径：2D 轮廓集合 → planar face 集合。
  *
- * 导出供 `@faicad/faijs-sketch` 等下游库复用——构面实现单点，草图求解结果经此构面。
+ * GOTCHA（2026-09-26，Beds part16/39）：环语义是「**嵌套 = 孔，不相交 = 独立岛**」
+ * （与 FreeCAD 草图一致），不是「面积最大者当外环、其余全当孔」。旧实现把双岛轮廓的
+ * 第二个岛判成「洞外面」→ `addHolesInFace` 收到与外环不相交的 wire → 构面退化
+ * （7 面、volume 0）。多岛产物 = compound（每岛一面、各带自己的孔），下游
+ * `cad.extrude` 对 compound 输入逐面挤出（kernel MakePrism 收复合形状）。
  *
  * @param params - 轮廓环集合与产物形态。
- * @returns Shape（`as:'wire'` 时为 1D 曲线）。
+ * @returns Shape（单岛为 face；多岛为 face 的 compound；`as:'wire'` 为 1D 曲线）。
  */
 export function buildProfileShape(params: ProfileParams): Shape {
   const kernel = getBrepApi()
   const as = params.as ?? 'face'
 
   const loops = params.contours.map((loop) => ({ loop, area: Math.abs(loopSignedArea(loop)) }))
-  // 面积最大者为外环，其余为孔
-  let outerIdx = 0
-  for (let i = 1; i < loops.length; i++) {
-    if (loops[i]!.area > loops[outerIdx]!.area) outerIdx = i
-  }
 
-  const outerWire = loopToWire(kernel, loops[outerIdx]!.loop)
-
-  // 'wire' 形态：只交外环 wire（1D 曲线），不构面 —— 供扫掠族作 spine。
-  if (as === 'wire') {
-    return fromBrepCurve(solidToShape(kernel, outerWire), { solid: outerWire })
-  }
-
-  const face = kernel.makeFace(outerWire)
-
-  const holeWires: ReturnType<BrepEngineApi['makeWire']>[] = []
+  // 包含分类：每个环的直接父环 = 面积最小的严格包含它的环；深度偶数 = 岛，奇数 = 父环的孔。
+  const polys = loops.map((l) => loopToPolygon(l.loop))
+  const parent = new Array<number>(loops.length).fill(-1)
   for (let i = 0; i < loops.length; i++) {
-    if (i === outerIdx) continue
-    holeWires.push(loopToWire(kernel, loops[i]!.loop))
+    const probe = polys[i]![0]!
+    for (let j = 0; j < loops.length; j++) {
+      if (i === j || loops[j]!.area <= loops[i]!.area) continue
+      if (!polygonContains(polys[j]!, probe.x, probe.y)) continue
+      if (parent[i] === -1 || loops[j]!.area < loops[parent[i]]!.area) parent[i] = j
+    }
   }
-  if (holeWires.length > 0) {
-    const faced = kernel.addHolesInFace(face, holeWires)
-    kernel.release(face)
-    return fromBrep(solidToShape(kernel, faced), { solid: faced })
+  const depthOf = (i: number): number => {
+    let d = 0
+    let cur = i
+    while (parent[cur] !== -1) {
+      d++
+      cur = parent[cur]!
+    }
+    return d
   }
 
-  kernel.release(outerWire)
-  return fromBrep(solidToShape(kernel, face), { solid: face })
+  const islands: number[] = []
+  const holesOf = new Map<number, number[]>()
+  for (let i = 0; i < loops.length; i++) {
+    if (depthOf(i) % 2 === 0) islands.push(i)
+    else {
+      const p = parent[i]!
+      const arr = holesOf.get(p)
+      if (arr) arr.push(i)
+      else holesOf.set(p, [i])
+    }
+  }
+
+  // 'wire' 形态：只交最大岛的外环 wire（1D 曲线），不构面 —— 供扫掠族作 spine。
+  if (as === 'wire') {
+    let outer = islands[0]!
+    for (const isl of islands) {
+      if (loops[isl]!.area > loops[outer]!.area) outer = isl
+    }
+    const wire = loopToWire(kernel, loops[outer]!.loop)
+    return fromBrepCurve(solidToShape(kernel, wire), { solid: wire })
+  }
+
+  // 每岛一面（岛环为外环，直接子环为孔）
+  const faces: ReturnType<BrepEngineApi['makeFace']>[] = []
+  for (const isl of islands) {
+    const wire = loopToWire(kernel, loops[isl]!.loop)
+    const face = kernel.makeFace(wire)
+    const holes = holesOf.get(isl)
+    if (holes && holes.length > 0) {
+      const holeWires = holes.map((h) => loopToWire(kernel, loops[h]!.loop))
+      const faced = kernel.addHolesInFace(face, holeWires)
+      kernel.release(face)
+      faces.push(faced)
+    } else {
+      faces.push(face)
+    }
+  }
+
+  if (faces.length === 1) {
+    const f = faces[0]!
+    return fromBrep(solidToShape(kernel, f), { solid: f })
+  }
+  const compound = kernel.makeCompound(faces as never)
+  return fromBrep(solidToShape(kernel, compound), { solid: compound })
 }
 
 /**
