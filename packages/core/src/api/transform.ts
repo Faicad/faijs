@@ -1,14 +1,19 @@
 /**
  * stdlib transform — 变换对象库函数（translate/rotate_euler/scale/scale3d）
  *
- * 平台分层（narrowing plan Phase 5，D11）：
- * - `translate` / `scale`：**平台 op（occt）**——权威面演化走
- *   `translateWithHistory` / `scaleWithHistory`（occt-only，face-evolution.ts 的
- *   translateWithHashEvolution/scaleWithHashEvolution 经 getOcctKernel() 调用）→
- *   `engines: ['occt']`。
+ * 平台分层（narrowing plan Phase 5，D11 + 2026-09-28 D 批降级）：
+ * - `translate` / `scale`：**中立 op**（不再声明 `engines:['occt']`）。BREP 路径按引擎
+ *   能力**静态定轨**（读与 dispatchPath 同源的能力集，非运行时探测）：
+ *   - occt（声明 `translateWithHistory` / `scaleWithHistory`）→ 走 face-evolution.ts 的
+ *     `translateWithHashEvolution` / `scaleWithHashEvolution` 权威面演化（历史路径），
+ *     产 hash 面映射并传播 roleTable；
+ *   - brepkit（未声明该二核函数，但裸 `kernel.translate` / `kernel.scale` 是真实现）→
+ *     L1 `translateBrep` / `scaleBrep`：几何精确，**另加 identityHashEvolution**。
+ *     变换不改变面数/顺序，恒等映射真实成立（非伪造）——挂恒等面演化并传播 roleTable，
+ *     选面/命名在降级路径不丢（区别于 boolean/chamfer 这种毁面重造、严禁伪造的情形）。
  * - `rotate_euler` / `scale3d`：**中立 op**——内核无单次 WithHistory 可表达
- *   （任意欧拉+pivot / 非等比），退回 `identityHashEvolution` + `rotateBrep`/
- *   `scaleBrep`（只用 L1：transform/generalTransform/subShapeHashes），不声明 engines。
+ *   （任意欧拉+pivot / 非等比），走 `rotateBrep` / `scaleBrep` + identity 面演化
+ *   （只用 L1，跨引擎一致，不声明 engines）。
  *
  * dispatchPath 静态判定 brep/mesh，
  * BREP 路径用 brepOf(input) 取输入实体、fromBrep 登记输出实体。
@@ -16,7 +21,7 @@
 
 import type { Shape, Vec3 } from '../mesh/types'
 import { cad } from '../mesh'
-import { rotateBrep, scaleBrep, solidToShape } from '../brep/brep-ops'
+import { translateBrep, rotateBrep, scaleBrep, solidToShape } from '../brep/brep-ops'
 import {
   identityEvolution,
   identityHashEvolution,
@@ -25,6 +30,8 @@ import {
 } from '../brep/face-evolution'
 import type { HashEvolution } from '../brep/face-evolution'
 import { getBrepApi } from '../brep/handle-bridge'
+import { getBackends } from '../runtime-state'
+import { engineCapabilitySet } from '../cad-runtime/backend-dispatch'
 import { fromBrep, brepOf, inputRoleTable } from '../shape'
 import { propagateAllOrigins } from '../topology/naming/roles'
 import type { RoleTable } from '../topology/naming/types'
@@ -32,8 +39,6 @@ import type { Provenance } from '../topology/naming/lineage'
 import { defineOp } from '../sdk'
 import { assertVec3, assertPositiveNumber } from './assert'
 import type { BrepHandle } from '../brep/engine/types'
-
-/** BREP 路径：变换 solid + 恒等面演化 + 三角化 + fromBrep 登记。 */
 
 /**
  * Validate translate parameters: `offset` must be a vec3.
@@ -91,59 +96,86 @@ export function assertScale3dParams(params: Record<string, unknown>): void {
 /**
  * BREP 路径：变换 solid + 面演化 + roleTable 传播 + 三角化 + fromBrep 登记。
  *
- * Phase 0.3：优先走内核**权威**面演化（`translateWithHistory` / `scaleWithHistory`）；
- * 内核无法单次表达的（`rotate_euler` 任意欧拉+pivot、`scale3d` 非等比）退回
- * `identityHashEvolution`，其"面枚举序号在变换后保持"的假设由
- * `brep/face-evolution.ordering.test.ts` 实测钉住。
+ * 静态双轨：
+ * - 引擎声明 `translateWithHistory` / `scaleWithHistory`（occt）→ 权威历史路径
+ *   （`translateWithHashEvolution` / `scaleWithHashEvolution`），产内核给出的面映射 + roleTable。
+ * - 引擎只声明裸方法（brepkit：裸 `translate`/`scale` 是真实现，但无 `*WithHistory`）→
+ *   L1 裸调用 + identityHashEvolution。变换是刚体变换、面数/顺序保持不变，恒等映射
+ *   **真实成立**（非伪造；由 brep/face-evolution.ordering.test.ts 钉住）——因此 brepkit
+ *   降级路径保留恒等面演化与 roleTable 传播，选面/命名不因降级而丢失。
+ * `rotate_euler` / `scale3d` 走 `rotateBrep` / `scaleBrep` + identity 面演化（既有语义，跨引擎中性）。
  * @param op - the transform operation name.
  * @param input - the input geometry.
  * @param params - the operation parameters.
  * @returns the transformed Shape.
  */
 function transformBrep(op: string, input: Shape, params: Record<string, unknown>): Shape {
-  // L1 面：rotateBrep/scaleBrep/identityHashEvolution 只用 L1（D12）。
+  // L1 面：translateBrep/rotateBrep/scaleBrep/identityHashEvolution 只用 L1（D12）。
   const kernel = getBrepApi()
   const inputSolid = brepOf(input) as BrepHandle | undefined
   if (!inputSolid) throw new Error('[stdlib/transform] input is not BREP')
 
+  // 静态双轨（无运行时 try-catch 回退——按引擎**声明**的能力集在执行前定轨）：
+  // - occt（声明 *WithHistory）→ 权威历史路径（产内核面映射 + roleTable）。
+  // - brepkit（裸 translate/scale 是真实现，无 *WithHistory）→ L1 裸调用 + identityHashEvolution。
+  //   变换不改变面数/顺序，恒等映射真实成立（非伪造），故仍挂恒等面演化与 roleTable 传播。
+  const caps = engineCapabilitySet(getBackends().config.brepCapabilities)
+  const hasTranslateHistory = caps.has('translateWithHistory')
+  const hasScaleHistory = caps.has('scaleWithHistory')
+
   let resultSolid: BrepHandle
-  let hashEvolution: HashEvolution
+  // 面演化（hash 键）：权威路径用内核映射，降级/中立路径用 identity 恒等映射。
+  let historyEvolution: HashEvolution
 
   if (op === 'translate') {
-    // 权威映射：内核 translateWithHistory（1:1 全覆盖，实测见 evolution-bindings.test.ts）
-    const r = translateWithHashEvolution(kernel, inputSolid, params.offset as Vec3)
-    resultSolid = r.result
-    hashEvolution = r.evolution
+    if (hasTranslateHistory) {
+      // 权威映射：内核 translateWithHistory（1:1 全覆盖，实测见 evolution-bindings.test.ts）
+      const r = translateWithHashEvolution(kernel, inputSolid, params.offset as Vec3)
+      resultSolid = r.result
+      historyEvolution = r.evolution
+    } else {
+      // brepkit 降级：L1 裸 translate（几何精确）+ identity（变换保面序，真实正确）。
+      resultSolid = translateBrep(kernel, inputSolid, params.offset as Vec3)
+      historyEvolution = identityHashEvolution(kernel, inputSolid, resultSolid)
+    }
   } else if (op === 'scale') {
-    // 权威映射：内核 scaleWithHistory（仅均匀 —— assertScaleParams 已保证 factor 是 number）
-    const r = scaleWithHashEvolution(
-      kernel,
-      inputSolid,
-      (params.center as Vec3 | undefined) ?? [0, 0, 0],
-      params.factor as number,
-    )
-    resultSolid = r.result
-    hashEvolution = r.evolution
+    if (hasScaleHistory) {
+      // 权威映射：内核 scaleWithHistory（仅均匀 —— assertScaleParams 已保证 factor 是 number）
+      const r = scaleWithHashEvolution(
+        kernel,
+        inputSolid,
+        (params.center as Vec3 | undefined) ?? [0, 0, 0],
+        params.factor as number,
+      )
+      resultSolid = r.result
+      historyEvolution = r.evolution
+    } else {
+      // brepkit 降级：L1 裸 scale（几何精确）+ identity（变换保面序，真实正确）。
+      const center = (params.center as Vec3 | undefined) ?? [0, 0, 0]
+      resultSolid = scaleBrep(kernel, inputSolid, params.factor as number, center)
+      historyEvolution = identityHashEvolution(kernel, inputSolid, resultSolid)
+    }
   } else {
-    // rotate_euler（任意欧拉角+pivot）/ scale3d（非等比）：内核无单次 WithHistory 可表达
+    // rotate_euler（任意欧拉角+pivot）/ scale3d（非等比）：内核无单次 WithHistory 可表达 →
+    // L1 rotate/scale + identity 面演化（既有语义，face-evolution.ordering.test.ts 钉住）。
     if (op === 'rotate_euler') {
       resultSolid = rotateBrep(kernel, inputSolid, params.anglesDeg as Vec3, params.pivot as Vec3 | undefined)
     } else {
       resultSolid = scaleBrep(kernel, inputSolid, params.factor as number | Vec3, params.center as Vec3 | undefined)
     }
-    hashEvolution = identityHashEvolution(kernel, inputSolid, resultSolid)
+    historyEvolution = identityHashEvolution(kernel, inputSolid, resultSolid)
   }
 
-  // §2.4/§3.3：刚体变换面 1:1 保留 —— 沿演化传播 roleTable（所有 origin）
+  // 变换面 1:1 保留——沿演化传播 roleTable（所有 origin），跨引擎一致（含 brepkit 降级路径）。
   const inputTable = inputRoleTable(input) as RoleTable | undefined
   let roleTable: RoleTable | undefined
   if (inputTable && inputTable.size > 0) {
-    roleTable = propagateAllOrigins(inputTable, hashEvolution)
+    roleTable = propagateAllOrigins(inputTable, historyEvolution)
   }
 
   return fromBrep(solidToShape(kernel, resultSolid), {
     solid: resultSolid,
-    // 变换不改变拓扑，面 ordinal 不变（与旧路径一致）
+    // 变换维护拓扑，面 ordinal 不变 → 挂 identity 面演化（供显示/选面，跨引擎一致）。
     faceEvolution: identityEvolution(kernel, resultSolid),
     roleTable,
   })
@@ -178,8 +210,6 @@ export const translate = defineOp({
   // D11: `translate(p, 10, 0, 0)` == `translate(p, { offset: [10, 0, 0] })`;
   // `offset` is a vec3 slot sitting after the single leading Shape argument.
   slotMap: { keys: ['offset'], vec3Keys: ['offset'], shapeArity: 1 },
-  // 平台 op：权威面演化依赖 occt-only translateWithHistory（face-evolution.ts，D3）。
-  engines: ['occt'],
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 })
 
@@ -250,8 +280,6 @@ export const scale = defineOp({
   // D11（§4.6）：`scale(p, 2)` == `scale(p, { factor: 2 })`（标量槽）；尾参 options
   // （{center}）经 dual-form-args 尾参合并并入。
   slotMap: { keys: ['factor'], shapeArity: 1 },
-  // 平台 op：权威面演化依赖 occt-only scaleWithHistory（face-evolution.ts，D3）。
-  engines: ['occt'],
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 })
 
