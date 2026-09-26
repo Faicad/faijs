@@ -29,6 +29,7 @@ import { createNodePorts } from '../node'
 import { initOcctWasm } from '../occt-kernel/occtKernel'
 import { getBrepApi } from '../brep/handle-bridge'
 import { brepOf } from '../shape'
+import type { Shape } from '../mesh/types'
 import { HASH_UPPER_BOUND } from '../brep/face-evolution'
 import { runtimeLineage } from '../topology/naming/lineage'
 
@@ -75,9 +76,9 @@ describe('GOTCHA: extrude must name curved side faces and use the extruded axis'
       `, { topology: 'auto' })
       expect(result.failedAt?.message ?? '(none)').toBe('(none)')
 
-      const shape = (result.outputs as Map<string, unknown>).get('part1') as object
+      const shape = (result.outputs as Map<string, unknown>).get('part1') as Shape
       const kernel = getBrepApi()!
-      const hashes = Array.from(kernel.subShapeHashes(brepOf(shape)!, 'face', HASH_UPPER_BOUND))
+      const hashes = Array.from(kernel.subShapeHashes(brepOf(shape) as never, 'face', HASH_UPPER_BOUND))
       const roles = rolesOf('part1')
       const covered = new Set([...roles.values()].flat())
 
@@ -101,9 +102,9 @@ describe('GOTCHA: extrude must name curved side faces and use the extruded axis'
       `, { topology: 'auto' })
       expect(result.failedAt?.message ?? '(none)').toBe('(none)')
 
-      const shape = (result.outputs as Map<string, unknown>).get('part1') as object
+      const shape = (result.outputs as Map<string, unknown>).get('part1') as Shape
       const kernel = getBrepApi()!
-      const solid = brepOf(shape)!
+      const solid = brepOf(shape) as never
       const faceHandles = kernel.getSubShapes(solid, 'face')
       const hashes = Array.from(kernel.subShapeHashes(solid, 'face', HASH_UPPER_BOUND))
       const roles = rolesOf('part1')
