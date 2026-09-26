@@ -1,18 +1,22 @@
 /**
  * stdlib chamfer — chamfer 倒角库函数（BREP-only，directEdit 能力）
  *
- * 平台分层（narrowing plan Phase 5，D11）：**平台 op（occt）**——`equal` 类型走
- * `chamferWithRoleTable`（→ face-evolution.ts 的 `chamferWithHistory`，occt-only，
- * D3 原生面），故整个 chamfer op 声明 `engines: ['occt']`；distanceAngle /
- * twoDistances 分支的 `chamferDistAngle` 是 L1 方法（brepkit 可跑），但 op 的
- * 引擎身份按最弱环节声明（D11：平台 op 非目标引擎下执行前报错）。
+ * 平台分层（2026-09-26 B 批降级）：**中立 op**（不再声明 `engines:['occt']`）。
+ * equal 分支按引擎能力**静态定轨**（与 intersect 同构，读 `dispatchPath` 同源的能力集）：
+ *   - occt（声明 `chamferWithHistory`）→ `chamferWithRoleTable`（→ face-evolution.ts 的
+ *     occt 原生 `chamferWithHistory`，D3 面演化 + roleTable 传播）——历史路径，不回退；
+ *   - brepkit（无 chamferWithHistory，但裸 `kernel.chamfer` 是真实现）→ L1 裸
+ *     `kernel.chamfer(solid, edges, width)`：几何正确，**无面演化、无 roleTable 传播**
+ *     （如实降级，不伪造恒等映射）。
+ * distanceAngle / twoDistances 分支本就走 L1 `kernel.chamferDistAngle`（brepkit 真实现，
+ * 度→弧度方言在 brepkitKernel 内消化）；occt 上仍挂 identityEvolution + 原 roleTable
+ * （既有行为，零回退），brepkit 上同样不伪造演化。
  *
  * 与 drill/engrave 的差异：没有 mesh 实现（defineOp({ brep })），输入非 BREP
- * 时由 dispatchPath 抛 E_MESH_UNSUPPORTED；mode='brep' 且引擎缺 directEdit 能力
- * → E_BREP_UNSUPPORTED（backend-dispatch.ts 单点判定）。
+ * 时由 dispatchPath 抛 E_MESH_UNSUPPORTED。
  *
  * 类型：
- * - equal（对称）：kernel.chamfer(solid, edges, width)
+ * - equal（对称）：occt→chamferWithHistory；brepkit→kernel.chamfer(solid, edges, width)
  * - distanceAngle：kernel.chamferDistAngle(solid, edges, width, angle)
  * - twoDistances（双距）：逐边按 §3.5 换算（width1,width2 + β → dF, θ），
  *     per-edge 调 kernel.chamferDistAngle；凹棱（β ≥ 180°）→ E_CHAMFER_REFLEX_EDGE。
@@ -22,7 +26,8 @@ import type { Shape } from '../mesh/types'
 import { solidToShape } from '../brep/brep-ops'
 import { chamferWithRoleTable, identityEvolution } from '../brep/face-evolution'
 import { getBrepApi } from '../brep/handle-bridge'
-import { getCurrentStmt } from '../runtime-state'
+import { getBackends, getCurrentStmt } from '../runtime-state'
+import { engineCapabilitySet } from '../cad-runtime/backend-dispatch'
 import { fromBrep, brepOf, inputRoleTable } from '../shape'
 import { defineOp } from '../sdk'
 import type { BrepEngineApi } from '../brep/engine/primitives'
@@ -211,37 +216,61 @@ function chamferBrep(input: Shape, params: Record<string, unknown>): Shape {
   const inputTable = inputRoleTable(input) as ReadonlyMap<unknown, unknown> | undefined
   const outStmt = String(getCurrentStmt()?.id ?? '')
 
+  // 静态定轨：当前引擎是否声明 chamferWithHistory 面演化核函数（读与 dispatchPath
+  // 同源的能力集，非运行时探测）。occt 声明 → equal 走 chamferWithRoleTable 历史路径；
+  // brepkit 未声明（裸 kernel.chamfer 真实现但无 *WithHistory）→ L1 裸调用，
+  // 不伪造面演化/roleTable（与 intersect 降级同构）。
+  const useHistory = engineCapabilitySet(getBackends().config.brepCapabilities).has('chamferWithHistory')
+
   let resultSolid: BrepHandle
   let faceEvolution: Map<number, number[]> | undefined
   let roleTable: ReadonlyMap<unknown, unknown> | undefined
 
   switch (type) {
     case 'equal': {
-      // P5：改走 chamferWithHistory + roleTable 传播（§3.2 末段）
       const edgeHandles = edges.map((e) => resolveEdge(ctx, e).handle)
-      const r = chamferWithRoleTable(
-        kernel,
-        solid,
-        edgeHandles,
-        params.width as number,
-        inputTable ?? new Map(),
-        outStmt,
-      )
-      resultSolid = r.result
-      faceEvolution = r.faceEvolution
-      roleTable = r.roleTable
+      if (useHistory) {
+        // occt 历史路径（P5：chamferWithHistory + roleTable 传播，§3.2 末段）
+        const r = chamferWithRoleTable(
+          kernel,
+          solid,
+          edgeHandles,
+          params.width as number,
+          inputTable ?? new Map(),
+          outStmt,
+        )
+        resultSolid = r.result
+        faceEvolution = r.faceEvolution
+        roleTable = r.roleTable
+      } else {
+        // brepkit 裸降级：kernel.chamfer(solid, edges, width)——几何正确，无面演化。
+        resultSolid = kernel.chamfer(solid, edgeHandles, params.width as number)
+        faceEvolution = undefined
+        roleTable = undefined
+      }
       break
     }
     case 'distanceAngle':
       resultSolid = kernel.chamferDistAngle(solid, edges.map((e) => resolveEdge(ctx, e).handle), params.width as number, params.angle as number)
-      // chamferDistAngle 无 WithHistory 版本——用恒等面演化 + 原表
-      faceEvolution = identityEvolution(kernel, resultSolid)
-      roleTable = inputTable
+      if (useHistory) {
+        // occt：chamferDistAngle 无 WithHistory 版本——用恒等面演化 + 原表（既有行为）。
+        faceEvolution = identityEvolution(kernel, resultSolid)
+        roleTable = inputTable
+      } else {
+        // brepkit：不伪造演化/roleTable。
+        faceEvolution = undefined
+        roleTable = undefined
+      }
       break
     case 'twoDistances':
       resultSolid = chamferTwoDistances(kernel, edges, ctx, solid, params.width1 as number, params.width2 as number)
-      faceEvolution = identityEvolution(kernel, resultSolid)
-      roleTable = inputTable
+      if (useHistory) {
+        faceEvolution = identityEvolution(kernel, resultSolid)
+        roleTable = inputTable
+      } else {
+        faceEvolution = undefined
+        roleTable = undefined
+      }
       break
     default:
       throw new Error('E_CHAMFER_BAD_TYPE')
@@ -273,10 +302,8 @@ function chamferBrep(input: Shape, params: Record<string, unknown>): Shape {
  * const p = await cad.chamfer(part0, { edges: [{ kind:'edge', faces:[{ origin:'box', role:'box:top' }, { origin:'box', role:'box:front' }], hint:{ kind:'edge' } }], type:'equal', width:1 })
  */
 export const chamfer = defineOp({
-  // 平台 op（D11）：equal 路径依赖 occt-only chamferWithHistory（face-evolution.ts，
-  // D3）→ engines 声明；brepkit 无 chamfer 能力，
-  // 平台身份判定在执行前报错，替代旧的能力名拦截。
-  engines: ['occt'],
+  // 中立 op（2026-09-26 B 批）：不再声明 engines——equal 路径按引擎能力静态分派
+  // （occt→chamferWithHistory 历史路径；brepkit→裸 kernel.chamfer 无演化降级）。
   brep(input: Shape, params: Record<string, unknown>) {
     assertChamferParams(params)
     return chamferBrep(input, params)

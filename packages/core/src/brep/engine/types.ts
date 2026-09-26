@@ -296,6 +296,13 @@ export type BrepMethodKind =
   | 'applyComposedTransformWithHistory'
   | 'generalTransformNonOrthogonal'
   | 'generalTransformWithHistory'
+  // 2026-09-26 C batch: section/drill/pocket/boss/mirrorJoin downgrade wiring.
+  | 'sectionByPlane'
+  | 'makeCompound'
+  | 'located'
+  | 'getSubShapes'
+  | 'transform'
+  | 'generalTransform'
   // 交换/导入族
   | 'importStl'
   | 'createXCAFDocument'

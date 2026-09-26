@@ -63,13 +63,18 @@ export async function registerBrepkitBrepEngine(): Promise<void> {
         'intersect',
         'makeCylinder',
         // Phase 3：brepkitKernel 真实现接线 5 个（wasm 导出同/可映射语义）——
-        // makeEllipsoid/makeTorus/makeVertex/mirror/shell；extrude/section/split 语义
+        // makeEllipsoid/makeTorus/makeVertex/mirror/shell；section/split 语义
         // 不匹配（wasm 平面式）→ 保持 unsupported 不声明（engine-switch-p3 断言）。
+        // extrude 已于 B 批接线（makeRectangle 产出 knownFace → extrude 沿向量挤出，:446）。
         'makeEllipsoid',
         'makeTorus',
         'makeVertex',
         'mirror',
         'shell',
+        // 2026-09-26 B 批：brepkitKernel.hullFromPoints 真实现接线
+        // （→ kernel.convexHull，brepkitKernel.ts:477）——convexHull op 由
+        // engines:['occt'] 降级为 capabilities:['hullFromPoints']，故如实声明。
+        'hullFromPoints',
         'makeFace',
         'makeLineEdge',
         // Phase 2：brepkit wasm 已导出 pattern 三方法并已接线（brepkitKernel.ts 阵列族）。
@@ -82,6 +87,28 @@ export async function registerBrepkitBrepEngine(): Promise<void> {
         'surfaceType',
         'translate',
         'uvBounds',
+        // 2026-09-26 A 批：brepkitKernel 已实现 dispose（GC 型 no-op，:226）与
+        // copyShape（调 kernel.copySolid，:397）——此前未声明导致 torus/pattern 族/
+        // clone 在静态判定被拒。声明 ⊆ 实例（engine-switch-p3 守卫）。
+        'dispose',
+        'copyShape',
+        // 2026-09-26 B 批：brepkitKernel 真实现 makeRectangle(:436)/extrude(:446，要求
+        // knownFace 输入——makeRectangle 产出的面已登记进 knownFaces，makeBaseBox 链可用)/
+        // transform(:563)/generalTransform(:572，二者均经 cloneAndTransform 深拷贝+原地仿射，
+        // 与 occt STEP-safe BRepBuilderAPI_Transform 同语义)。声明 ⊆ 实例（engine-switch-p3 守卫）。
+        'makeRectangle',
+        'extrude',
+        'transform',
+        'generalTransform',
+        // 2026-09-26 C batch (section/drill/pocket/boss/mirrorJoin downgrade):
+        // brepkitKernel real wiring - sectionByPlane(:492 returns face group, occt returns
+        // edge/wire group; semantic diff noted), makeCompound(:668 virtual compound for non-solid
+        // children), located(:566 drill cylinder placement), getSubShapes(:775 face selection).
+        // declared <= instance (engine-switch-p3 guard).
+        'sectionByPlane',
+        'makeCompound',
+        'located',
+        'getSubShapes',
       ],
       heal: true,
       directEdit: true,

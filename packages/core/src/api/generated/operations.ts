@@ -128,7 +128,7 @@ export const roof = defineOp({
  */
 export const drill = defineOp({
   brep: __own_drillBrep,
-  name: 'drill', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"],
+  name: 'drill', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, capabilities: ["makeCylinder","located","getBoundingBox","cut"],
 })
 
 /**
@@ -139,7 +139,7 @@ export const drill = defineOp({
  */
 export const pocket = defineOp({
   brep: __own_pocketBrep,
-  name: 'pocket', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"],
+  name: 'pocket', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, capabilities: ["getSubShapes","surfaceCenterOfMass","uvBounds","surfaceNormal","makeFace","translate","extrude","cut"],
 })
 
 /**
@@ -150,7 +150,7 @@ export const pocket = defineOp({
  */
 export const boss = defineOp({
   brep: __own_bossBrep,
-  name: 'boss', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"],
+  name: 'boss', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, capabilities: ["getSubShapes","surfaceCenterOfMass","uvBounds","surfaceNormal","makeFace","translate","extrude","fuse"],
 })
 
 /**
@@ -161,7 +161,7 @@ export const boss = defineOp({
  */
 export const mirrorJoin = defineOp({
   brep: __own_mirrorJoinBrep,
-  name: 'mirrorJoin', naming: {"kind":"replicate","k":2}, engines: ["occt"],
+  name: 'mirrorJoin', naming: {"kind":"replicate","k":2}, capabilities: ["mirror","fuse"],
 })
 
 /**
@@ -194,5 +194,5 @@ export const thread = defineOp({
  */
 export const convexHull = defineOp({
   brep: __own_convexHullBrep,
-  name: 'convexHull', naming: {"kind":"unmodeled","reason":"construct vocabulary pending Phase 3"}, engines: ["occt"],
+  name: 'convexHull', naming: {"kind":"unmodeled","reason":"construct vocabulary pending Phase 3"}, capabilities: ["hullFromPoints"],
 })

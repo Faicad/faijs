@@ -580,7 +580,9 @@ export function collectExportJsdocViolations(scanRoot: string = root): string[] 
     ...globSync('src/**/*.ts', { cwd: scanRoot }),
   ]
     .map(path => path.split(sep).join('/'))
-    .filter(rel => !rel.split('/').includes('vendored'))
+    // vendored code (third-party d.ts/impl) and the gitignored _test-kernels
+    // fixture dir (downloaded brepkit-wasm packages) carry no own JSDoc duty.
+    .filter(rel => !rel.split('/').includes('vendored') && !rel.split('/').includes('_test-kernels'))
     .sort()
   const program = ts.createProgram(rels.map(rel => resolve(scanRoot, rel)), loadCompilerOptions(scanRoot))
   const checker = program.getTypeChecker()

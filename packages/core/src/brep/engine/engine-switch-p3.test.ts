@@ -307,6 +307,12 @@ describe('Phase 3 brepkit 适配器：声明 ⊆ 实例（能力表外方法不�
       const brepkitReal = new Set([
         'surfaceCenterOfMass',
         'makeEllipsoid', 'makeTorus', 'makeVertex', 'mirror', 'shell',
+        // 2026-09-26 A 批：brepkitKernel 真实实现 dispose（GC 型 no-op）与
+        // copyShape（调 kernel.copySolid）——补入白名单使能力声明合法。
+        'dispose', 'copyShape',
+        // 2026-09-26 B 批：brepkitKernel.hullFromPoints 真实现（→ kernel.convexHull，
+        // brepkitKernel.ts:477）——convexHull op 降级后如实声明此方法。
+        'hullFromPoints',
       ])
       for (const m of L1_METHODS) {
         if (brepkitReal.has(m as string)) continue

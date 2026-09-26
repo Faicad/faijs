@@ -256,6 +256,9 @@ export function rotateBrep(...args: unknown[]): Result<BrepHandle> {
     // STEP export crashes ("memory access out of bounds") — same family as
     // located/generalTransform. Rotation is affine, so build the Rodrigues
     // matrix and go through the STEP-safe `transform` (BRepBuilderAPI_Transform).
+    // 2026-09-26: switched from getOcctKernel().transform to the L1 getBrepApi().transform
+    // so the op is engine-neutral (brepkit transform = cloneAndTransform deep-copy,
+    // same STEP-safe semantics) — see brepkit-batchA-fix.
     const [ax, ay, az] = axis as readonly [number, number, number]
     const alen = Math.hypot(ax, ay, az)
     if (alen < 1e-12) {
@@ -274,7 +277,7 @@ export function rotateBrep(...args: unknown[]): Result<BrepHandle> {
     const ty = py - (r10 * px + r11 * py + r12 * pz)
     const tz = pz - (r20 * px + r21 * py + r22 * pz)
     const m12 = [r00, r01, r02, tx, r10, r11, r12, ty, r20, r21, r22, tz]
-    return ok(getOcctKernel().transform(s as never, m12) as unknown as BrepHandle)
+    return ok(getBrepApi().transform(s, m12))
   } catch (e) {
     const raw = e instanceof Error ? e.message : String(e)
     return err(kernelError('ROTATE_FAILED', `Rotate operation failed: ${raw}`, e))

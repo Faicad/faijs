@@ -117,19 +117,26 @@ function mapEvolution(
     evolution: { modified: Record<string, number[]>; generated: Record<string, number[]>; deleted: number[] }
   }
   const evo = parsed.evolution ?? { modified: {}, generated: {}, deleted: [] }
-  const modifiedKeys = new Set(Object.keys(evo.modified ?? {}).map(Number))
   const deletedKeys = new Set((evo.deleted ?? []).map(Number))
-  // 输入面 hash → 是否被改/删：通过该输入面在输入 hash 快照中的位置无法直接回溯句柄，
-  // 诚实映射：modified/deleted 用"发生变化的输入句柄数 == 输入面数"的对齐近似——
-  // v1 精确溯源依赖 per-shape hash 注册表（subShapeHashes 时登记 hash↔handle）。
+  // registry 登记的是 hash→handle（输入面）。下游 decodeEvolution/decodeHashEvolution 期望
+  // modified 为 OCCT 分段格式 [inHash, count, outHash1, outHash2, ...]（见 face-evolution.ts），
+  // 不是扁平 hash 列表——GOTCHA：曾误返回扁平列表，把 modified[1]（一个 hash ~1e9）当成
+  // count，导致 decodeHashEvolution 空转 17 亿次 push 抛 "Invalid array length"（2026-09-26 实证）。
+  // 故这里反向建 handle→hash 表，逐条目拼出 [inHash, outCount, ...outHashes]。
   const registry = hashRegistry.get(kernel)
+  const handleToHash = new Map<number, number>()
+  if (registry) for (const [h, handle] of registry) handleToHash.set(handle, h)
   const modified: number[] = []
   const deleted: number[] = []
-  if (registry) {
-    for (const [hash, handle] of registry) {
-      if (modifiedKeys.has(handle)) modified.push(hash)
-      if (deletedKeys.has(handle)) deleted.push(hash)
-    }
+  for (const oldHandle of deletedKeys) {
+    const h = handleToHash.get(oldHandle)
+    if (h !== undefined) deleted.push(h)
+  }
+  for (const [oldHandleStr, newHandles] of Object.entries(evo.modified ?? {})) {
+    const inHash = handleToHash.get(Number(oldHandleStr))
+    if (inHash === undefined) continue
+    const outHashes = (newHandles as number[]).map((nh) => faceFingerprint(kernel, nh, hashUpperBound))
+    modified.push(inHash, outHashes.length, ...outHashes)
   }
   // generated：结果实体的新面 hash（数量按 generated 表展开）
   const generated: number[] = []
@@ -203,6 +210,37 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
   // 返回的面在此登记；extrude/revolveVec 的 face 输入断言、getSubShapes 的
   // edge/vertex 分发都据此判定（brepkit 无 shape-type 分类 API，见下方注释）。
   const knownFaces = new Set<number>()
+  // GOTCHA（2026-09-26 非实体句柄修复）：brepkit 的 tessellateSolidGrouped / getSolidFaces
+  // 等 *Solid API 只吃 solid 句柄，传 face/wire/edge/compound 即抛
+  // "invalid solid handle: index N out of bounds"。而 brepkit **没有 shape-type 分类 API**
+  // （getFaceEdges(solid) 不抛错、会返回某一面的边，不能 try/catch 探测）。故 meshShape
+  // 必须靠这组「已知句柄集合」在执行前静态分发，而不是运行时探测：
+  //   knownFaces   → tessellateFace（JsMesh）
+  //   knownWires   → getWireEdges + tessellateEdge 逐边采样成线段
+  //   knownEdges   → tessellateEdge 直接采样成线段（wire.ts smooth 路径 interpolatePoints 返回 edge）
+  //   knownCompounds→ 逐子句柄按其类型 tessellate 后合并（sectionByPlane 面组 / importStep 多实体）
+  // 不在任何集合里的句柄一律按 solid 走 tessellateSolidGrouped（实体创建不入集合，天然落此路径）。
+  const knownWires = new Set<number>()
+  const knownEdges = new Set<number>()
+  // GOTCHA: getSolidFaces returns GLOBAL face indices (0..5, 6..11, ...) that collide
+  // with solid handles (per-type namespace). Enumerated sub-faces must NOT pollute
+  // knownFaces, else measuring a later solid whose handle number equals an old
+  // enumerated face gets mis-tessellated as a face. derivedFaces is consulted ONLY by
+  // getSubShapes edge/vertex drilling, never by meshShape/getBoundingBox.
+  const derivedFaces = new Set<number>()
+  // 虚拟 compound 句柄计数器（非实体子句柄不进内核 makeCompound，见 makeCompound GOTCHA）。
+  const knownCompounds = new Map<number, number[]>()
+  let virtualCompoundCounter = 0
+  // GOTCHA（2026-09-26）：brepkit 句柄按**类型分命名空间**——solid/face/wire/edge 各自从 0 计数
+  // （实测 edge=wire=face=solid=0 可共存）。因此「某编号 N 在 knownFaces」与「某编号 N 是 solid」
+  // 并不互斥：新 solid 恰好复用了早先某 face 的编号时，knownFaces.has(N) 会把 solid 误判成 face
+  // （实测 box makeBox 返回 solid 2，撞 profile 早先的 face 2 → cloneShape 走 copyFace 崩溃）。
+  // 建 solid 时必须从 knownFaces/knownWires/knownEdges/derivedFaces 抹掉该编号，让默认 solid 路径生效。
+  // derivedFaces 也必须清：getSubShapes(solid,'edge') 会查 derivedFaces.has(s) 误走 getFaceEdges。
+  const markSolid = (h: number): number => {
+    knownFaces.delete(h); knownWires.delete(h); knownEdges.delete(h); knownCompounds.delete(h); derivedFaces.delete(h)
+    return h
+  }
   const readFallback = (): number => {
     try {
       return typeof kernel.meshFallbackCount === 'function' ? Number(kernel.meshFallbackCount()) : 0
@@ -220,6 +258,153 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
     return vec3Of(toNumArray(kernel.evaluateSurface(asNum(face), u, v)))
   }
 
+  // ── 非实体 tessellation 助手（meshShape 分发用） ──
+  // GOTCHA：tessellateFace 返回 JsMesh（positions/normals 为 Float64Array、indices 为 Uint32Array），
+  // **不是** tessellateSolidGrouped 的 JSON 字符串——两者形态不同，勿混用 JSON.parse。
+  type JsMesh = { positions: ArrayLike<number>; normals: ArrayLike<number>; indices: ArrayLike<number>; vertexCount: number; triangleCount: number }
+
+  /** 单个 face → BrepMeshResult（tessellateFace）。 */
+  const faceMesh = (f: number, deflection: number, angular: number): BrepMeshResult => {
+    const jm = kernel.tessellateFace(f, deflection, angular) as JsMesh
+    const positions = arr(jm.positions)
+    const normals = arr(jm.normals)
+    const indices = arr(jm.indices)
+    const triCount = jm.triangleCount > 0 ? jm.triangleCount : indices.length / 3
+    return {
+      positions: new Float32Array(positions),
+      normals: new Float32Array(normals),
+      indices: new Uint32Array(indices),
+      vertexCount: positions.length / 3,
+      triangleCount: triCount,
+      faceGroups: new Int32Array([0, triCount, faceFingerprint(kernel, f, 1e9)]),
+      faceCount: 1,
+    }
+  }
+
+  /** 一组 edge 句柄 → 线段 mesh（positions 为采样点、indices 为端点对）。 */
+  // GOTCHA：tessellateEdge(edge, N) 返回扁平 [x,y,z,...] 采样点（NURBS 才采样 N 点，
+  // 直线边只回端点），不是三角网格；wire/curve 显示吃「端点对」索引（与 mesh 路径 wireMesh 同构）。
+  const edgesToLineMesh = (edgeHandles: number[], deflection: number): BrepMeshResult => {
+    const positions: number[] = []
+    const indices: number[] = []
+    // 采样密度：按 deflection 粗采样即可（1D 线框显示，非精确几何）。
+    const nPts = Math.max(12, Math.round(4 / Math.max(deflection, 0.01)))
+    for (const e of edgeHandles) {
+      const pts = arr(kernel.tessellateEdge(e, nPts))
+      const base = positions.length / 3
+      for (let i = 0; i < pts.length; i++) positions.push(pts[i]!)
+      const verts = pts.length / 3
+      for (let i = 0; i < verts - 1; i++) indices.push(base + i, base + i + 1)
+    }
+    return {
+      positions: new Float32Array(positions),
+      normals: new Float32Array(positions.length),
+      indices: new Uint32Array(indices),
+      vertexCount: positions.length / 3,
+      triangleCount: 0,
+      faceGroups: new Int32Array(0),
+      faceCount: 0,
+    }
+  }
+
+  /** wire → 线段 mesh（getWireEdges 取边集后逐边采样）。 */
+  const wireMesh = (wire: number, deflection: number): BrepMeshResult => {
+    const edges = arr(kernel.getWireEdges(wire))
+    return edgesToLineMesh(edges, deflection)
+  }
+
+  /** solid → BrepMeshResult（tessellateSolidGrouped，原 meshShape 实体路径抽出）。 */
+  const solidMesh = (solid: number, deflection: number, angular: number): BrepMeshResult => {
+    const raw = kernel.tessellateSolidGrouped(solid, deflection, angular)
+    const m = JSON.parse(raw) as { positions: number[]; normals: number[]; indices: number[]; faceOffsets: number[] }
+    // faceOffsets 形如 [start0, start1, ..., totalEnd]：以「索引数组单位」计的每面偏移（2026-09-19 实测），
+    // 除以 3 换算为 faijs 契约的三角形单位 [triStart, triCount, faceHash]
+    const fo = m.faceOffsets
+    const faceCount = Math.max(0, fo.length - 1)
+    const faceHashes: number[] = []
+    try {
+      const faces = arr(kernel.getSolidFaces(solid))
+      for (let i = 0; i < faceCount && i < faces.length; i++) faceHashes.push(faceFingerprint(kernel, faces[i]!, 1e9))
+    } catch { /* 非实体：faceHash 置 0 */ }
+    const faceGroups = new Int32Array(faceCount * 3)
+    for (let i = 0; i < faceCount; i++) {
+      faceGroups[i * 3] = fo[i]! / 3
+      faceGroups[i * 3 + 1] = (fo[i + 1]! - fo[i]!) / 3
+      faceGroups[i * 3 + 2] = faceHashes[i] ?? 0
+    }
+    return {
+      positions: new Float32Array(m.positions),
+      normals: new Float32Array(m.normals),
+      indices: new Uint32Array(m.indices),
+      vertexCount: m.positions.length / 3,
+      triangleCount: m.indices.length / 3,
+      faceGroups,
+      faceCount,
+    }
+  }
+
+  /** compound → 逐子句柄 tessellate 后合并（sectionByPlane 面组 / importStep 多实体）。 */
+  const compoundMesh = (children: number[], deflection: number, angular: number): BrepMeshResult => {
+    const positions: number[] = []
+    const normals: number[] = []
+    const indices: number[] = []
+    const faceGroups: number[] = []
+    let triOffset = 0
+    for (const c of children) {
+      let sub: BrepMeshResult
+      if (knownFaces.has(c)) {
+        sub = faceMesh(c, deflection, angular)
+      } else if (knownWires.has(c)) {
+        sub = wireMesh(c, deflection)
+      } else if (knownEdges.has(c)) {
+        sub = edgesToLineMesh([c], deflection)
+      } else {
+        // 子句柄按 solid 处理（importStep 多实体 / makeCompound(solids)）。
+        sub = solidMesh(c, deflection, angular)
+      }
+      const vOffset = positions.length / 3
+      for (let i = 0; i < sub.positions.length; i++) positions.push(sub.positions[i]!)
+      for (let i = 0; i < sub.normals.length; i++) normals.push(sub.normals[i] ?? 0)
+      for (let i = 0; i < sub.indices.length; i++) indices.push(sub.indices[i]! + vOffset)
+      if (sub.faceGroups) {
+        for (let i = 0; i < sub.faceGroups.length; i += 3) {
+          faceGroups.push((sub.faceGroups[i] ?? 0) + triOffset, sub.faceGroups[i + 1] ?? 0, sub.faceGroups[i + 2] ?? 0)
+        }
+      }
+      triOffset += sub.triangleCount
+    }
+    return {
+      positions: new Float32Array(positions),
+      normals: new Float32Array(normals),
+      indices: new Uint32Array(indices),
+      vertexCount: positions.length / 3,
+      triangleCount: indices.length / 3,
+      faceGroups: new Int32Array(faceGroups),
+      faceCount: faceGroups.length / 3,
+    }
+  }
+
+  // ── 按句柄类型深拷贝（transform/copy 族分发用） ──
+  // GOTCHA：brepkit copySolid/copyFace/copyWire 三者入参严格对应 solid/face/wire 句柄，
+  // 传错即崩溃；transformSolid/transformFace/transformWire 均为「原地修改」void。
+  // place/translate 等会作用在 profile 产出的 face 上（sew 用例 place 两张 face），
+  // 故必须按 knownFaces/knownWires 分发，不能一律 copySolid。
+  const cloneShape = (shape: number): number => {
+    if (knownFaces.has(shape)) { const c = kernel.copyFace(shape); knownFaces.add(c); return c }
+    if (knownWires.has(shape)) { const c = kernel.copyWire(shape); knownWires.add(c); return c }
+    return markSolid(kernel.copySolid(shape))
+  }
+
+  /** 深拷贝 + 原地仿射变换（matrix 已经 toKernelMatrix 归一为 16 元素 4×4）。 */
+  const cloneAndTransform = (shape: number, matrix16: number[]): number => {
+    const c = cloneShape(shape)
+    const m = Float64Array.from(matrix16)
+    if (knownFaces.has(c)) kernel.transformFace(c, m)
+    else if (knownWires.has(c)) kernel.transformWire(c, m)
+    else kernel.transformSolid(c, m)
+    return c
+  }
+
   const api: BrepkitEngineExtras = {
     // ── 生命周期 ──
     release(_shape: BrepHandle): void { /* GC 型：brepkit 句柄由内核统一管理，无逐句柄 free API */ },
@@ -233,10 +418,10 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
     },
 
     // ── 实体图元 ──
-    makeBox(dx: number, dy: number, dz: number): BrepHandle { return asHandle(kernel.makeBox(dx, dy, dz)) },
+    makeBox(dx: number, dy: number, dz: number): BrepHandle { return asHandle(markSolid(kernel.makeBox(dx, dy, dz))) },
     makeBoxFromCorners(corner1: BrepVec3, corner2: BrepVec3): BrepHandle {
       const dx = Math.abs(corner2.x - corner1.x), dy = Math.abs(corner2.y - corner1.y), dz = Math.abs(corner2.z - corner1.z)
-      const h = kernel.makeBox(dx, dy, dz)
+      const h = markSolid(kernel.makeBox(dx, dy, dz))
       // ⚠️ transformSolid 是「原地修改、返回 undefined」——makeBox 的句柄本身即新实体，
       // 直接原地变换后返回 h；若写 `asHandle(transformSolid(...))` 会拿到 undefined 句柄
       // （2026-09-25 实证：导致 splitBrep 基于半空间盒的 common/cut 全部失效）。
@@ -245,16 +430,16 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
       )))
       return asHandle(h)
     },
-    makeCylinder(radius: number, height: number): BrepHandle { return asHandle(kernel.makeCylinder(radius, height)) },
-    makeSphere(radius: number): BrepHandle { return asHandle(kernel.makeSphere(radius, 32)) },
-    makeCone(r1: number, r2: number, height: number): BrepHandle { return asHandle(kernel.makeCone(r1, r2, height)) },
+    makeCylinder(radius: number, height: number): BrepHandle { return asHandle(markSolid(kernel.makeCylinder(radius, height))) },
+    makeSphere(radius: number): BrepHandle { return asHandle(markSolid(kernel.makeSphere(radius, 32))) },
+    makeCone(r1: number, r2: number, height: number): BrepHandle { return asHandle(markSolid(kernel.makeCone(r1, r2, height))) },
     makeRectangle(width: number, height: number): BrepHandle {
       const f = kernel.makeRectangle(width, height)
       knownFaces.add(f)
       return asHandle(f)
     },
-    makeEllipsoid(rx: number, ry: number, rz: number): BrepHandle { return asHandle(kernel.makeEllipsoid(rx, ry, rz)) },
-    makeTorus(majorRadius: number, minorRadius: number): BrepHandle { return asHandle(kernel.makeTorus(majorRadius, minorRadius, 64)) },
+    makeEllipsoid(rx: number, ry: number, rz: number): BrepHandle { return asHandle(markSolid(kernel.makeEllipsoid(rx, ry, rz))) },
+    makeTorus(majorRadius: number, minorRadius: number): BrepHandle { return asHandle(markSolid(kernel.makeTorus(majorRadius, minorRadius, 64))) },
     makeVertex(x: number, y: number, z: number): BrepHandle { return asHandle(kernel.makeVertex(x, y, z)) },
 
     // ── 造型运算 ──
@@ -266,7 +451,7 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
       }
       const len = Math.hypot(dx, dy, dz)
       if (len === 0) fail('extrude: zero-length extrusion vector')
-      return asHandle(kernel.extrude(s, dx / len, dy / len, dz / len, len))
+      return asHandle(markSolid(kernel.extrude(s, dx / len, dy / len, dz / len, len)))
     },
     revolveVec(shape: BrepHandle, center: BrepVec3, direction: BrepVec3, angleDeg: number): BrepHandle {
       // 方言归一：brepkit revolve 只吃 face（与 extrude 同族断言）。
@@ -274,16 +459,16 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
       if (!knownFaces.has(s)) {
         fail('revolveVec requires a face input; got a handle that is not a known face')
       }
-      return asHandle(kernel.revolve(
+      return asHandle(markSolid(kernel.revolve(
         s, center.x, center.y, center.z, direction.x, direction.y, direction.z, angleDeg,
-      ))
+      )))
     },
     sew(shapesList: BrepHandle[], tolerance?: number): BrepHandle {
       return asHandle(kernel.sewFaces(Uint32Array.from(shapesList.map(asNum)), tolerance ?? 1e-6))
     },
     sewAndSolidify(faces: BrepHandle[], _tolerance?: number): BrepHandle {
       // brepkit 的 makeSolid 即「缝合并固化成实体」（sewFaces + 建 solid）。
-      return asHandle(kernel.makeSolid(Uint32Array.from(faces.map(asNum))))
+      return asHandle(markSolid(kernel.makeSolid(Uint32Array.from(faces.map(asNum)))))
     },
     shell(solid: BrepHandle, facesToRemove: BrepHandle[], thickness: number, _tolerance: number): BrepHandle {
       // brepkit 参数序 (solid, thickness, open_faces)；tolerance 内核固定。
@@ -294,21 +479,26 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
     },
 
     // ── 布尔与分割 ──
-    fuse(a: BrepHandle, b: BrepHandle): BrepHandle { return asHandle(trackFallback(kernel.fuse(asNum(a), asNum(b)))) },
-    cut(a: BrepHandle, b: BrepHandle): BrepHandle { return asHandle(trackFallback(kernel.cut(asNum(a), asNum(b)))) },
+    fuse(a: BrepHandle, b: BrepHandle): BrepHandle { return asHandle(markSolid(trackFallback(kernel.fuse(asNum(a), asNum(b))))) },
+    cut(a: BrepHandle, b: BrepHandle): BrepHandle { return asHandle(markSolid(trackFallback(kernel.cut(asNum(a), asNum(b))))) },
     common(a: BrepHandle, b: BrepHandle): BrepHandle {
       // brepkit 无 `common` 原生名；交集语义由 `intersect` 承担（method-map: dialect）。
-      return asHandle(trackFallback(kernel.intersect(asNum(a), asNum(b))))
+      return asHandle(markSolid(trackFallback(kernel.intersect(asNum(a), asNum(b)))))
     },
     intersect(a: BrepHandle, b: BrepHandle): BrepHandle { return asHandle(trackFallback(kernel.intersect(asNum(a), asNum(b)))) },
     fuseAll(shapesList: BrepHandle[]): BrepHandle {
-      return asHandle(trackFallback(kernel.fuseAll(Int32Array.from(shapesList.map(asNum)))))
+      return asHandle(markSolid(trackFallback(kernel.fuseAll(Int32Array.from(shapesList.map(asNum))))))
     },
     sectionByPlane(shape: BrepHandle, point: BrepVec3, normal: BrepVec3): BrepHandle[] {
       // brepkit 原生 section(solid, plane) 返回剖面 face 句柄组（§3.6-2 新中立名）。
-      return arr(kernel.section(
-        asNum(shape), point.x, point.y, point.z, normal.x, normal.y, normal.z,
-      )).map(asHandle)
+      // GOTCHA：brepkit section 返回的是 **face** 句柄（不是 edge/wire），必须登记进 knownFaces，
+      // 否则 op 层 makeCompound(这些 face) 后送 meshShape 会按 solid 路径崩溃。
+      const s = asNum(shape)
+      const faces = arr(kernel.section(
+        s, point.x, point.y, point.z, normal.x, normal.y, normal.z,
+      ))
+      for (const f of faces) knownFaces.add(f)
+      return faces.map(asHandle)
     },
     splitByPlane(shape: BrepHandle, point: BrepVec3, normal: BrepVec3): { positive: BrepHandle; negative: BrepHandle } {
       const parts = arr(kernel.split(
@@ -324,6 +514,7 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
         return (c[0] ?? 0) * normal.x + (c[1] ?? 0) * normal.y + (c[2] ?? 0) * normal.z - originDot
       }
       const [a, b] = parts
+      markSolid(a); markSolid(b)
       return side(a) >= side(b)
         ? { positive: asHandle(a), negative: asHandle(b) }
         : { positive: asHandle(b), negative: asHandle(a) }
@@ -364,37 +555,25 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
     // brepkit transformSolid 吃 4×4 行主序 16 元素。所有 transformSolid 调用一律经
     // toKernelMatrix 归一（下方唯一转换点），禁止直出 16 元素旁路。
     translate(shape: BrepHandle, dx: number, dy: number, dz: number): BrepHandle {
-      const c = kernel.copySolid(asNum(shape))
-      kernel.transformSolid(c, toKernelMatrix(translationMatrix(dx, dy, dz)))
-      return asHandle(c)
+      return asHandle(cloneAndTransform(asNum(shape), toKernelMatrix(translationMatrix(dx, dy, dz))))
     },
     scale(shape: BrepHandle, center: BrepVec3, factor: number): BrepHandle {
-      const c = kernel.copySolid(asNum(shape))
-      kernel.transformSolid(c, toKernelMatrix(scaleMatrix(center, factor)))
-      return asHandle(c)
+      return asHandle(cloneAndTransform(asNum(shape), toKernelMatrix(scaleMatrix(center, factor))))
     },
     transform(shape: BrepHandle, matrix: number[]): BrepHandle {
-      const c = kernel.copySolid(asNum(shape))
-      kernel.transformSolid(c, toKernelMatrix(matrix))
-      return asHandle(c)
+      return asHandle(cloneAndTransform(asNum(shape), toKernelMatrix(matrix)))
     },
     located(shape: BrepHandle, matrix: number[]): BrepHandle {
-      const c = kernel.copySolid(asNum(shape))
-      kernel.transformSolid(c, toKernelMatrix(matrix))
-      return asHandle(c)
+      return asHandle(cloneAndTransform(asNum(shape), toKernelMatrix(matrix)))
     },
     locate(shape: BrepHandle, matrix: number[]): BrepHandle {
-      const c = kernel.copySolid(asNum(shape))
-      kernel.transformSolid(c, toKernelMatrix(matrix))
-      return asHandle(c)
+      return asHandle(cloneAndTransform(asNum(shape), toKernelMatrix(matrix)))
     },
     generalTransform(shape: BrepHandle, matrix: number[]): BrepHandle {
-      const c = kernel.copySolid(asNum(shape))
-      kernel.transformSolid(c, toKernelMatrix(matrix))
-      return asHandle(c)
+      return asHandle(cloneAndTransform(asNum(shape), toKernelMatrix(matrix)))
     },
-    copy(shape: BrepHandle): BrepHandle { return asHandle(kernel.copySolid(asNum(shape))) },
-    copyShape(shape: BrepHandle): BrepHandle { return asHandle(kernel.copySolid(asNum(shape))) },
+    copy(shape: BrepHandle): BrepHandle { return asHandle(cloneShape(asNum(shape))) },
+    copyShape(shape: BrepHandle): BrepHandle { return asHandle(cloneShape(asNum(shape))) },
     composeTransform(m1: number[], m2: number[]): number[] {
       // 方言：L1 是 3×4 行主序 12 元素；brepkit composeTransforms 吃/回 4×4 16 元素。
       const r = kernel.composeTransforms(
@@ -431,17 +610,21 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
 
     // ── 曲线构造 ──
     makeLineEdge(start: BrepVec3, end: BrepVec3): BrepHandle {
-      return asHandle(kernel.makeLineEdge(start.x, start.y, start.z, end.x, end.y, end.z))
+      const e = kernel.makeLineEdge(start.x, start.y, start.z, end.x, end.y, end.z)
+      knownEdges.add(e)
+      return asHandle(e)
     },
     makeArcEdge(start: BrepVec3, mid: BrepVec3, end: BrepVec3): BrepHandle {
       // 方言消化：occt 吃 3 点；brepkit makeCircleArc3d 吃 (start,end,center,axis)。
       const { center, axis } = circumcircle(start, mid, end)
-      return asHandle(kernel.makeCircleArc3d(
+      const e = kernel.makeCircleArc3d(
         start.x, start.y, start.z,
         end.x, end.y, end.z,
         center.x, center.y, center.z,
         axis.x, axis.y, axis.z,
-      ))
+      )
+      knownEdges.add(e)
+      return asHandle(e)
     },
     makeBezierEdge(controlPoints: BrepVec3[]): BrepHandle {
       // 方言消化：L1 吃控制点（Bezier）；brepkit 原生 makeNurbsEdge 吃
@@ -455,21 +638,27 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
       const weights = new Float64Array(n).fill(1)
       const first = controlPoints[0]
       const last = controlPoints[n - 1]
-      return asHandle(kernel.makeNurbsEdge(
+      const e = kernel.makeNurbsEdge(
         first.x, first.y, first.z,
         last.x, last.y, last.z,
         degree, knots, flattenPoints(controlPoints), weights,
-      ))
+      )
+      knownEdges.add(e)
+      return asHandle(e)
     },
     makeCircleEdge(center: BrepVec3, normal: BrepVec3, radius: number): BrepHandle {
-      return asHandle(kernel.makeCircleEdge(
+      const e = kernel.makeCircleEdge(
         center.x, center.y, center.z, normal.x, normal.y, normal.z, radius,
-      ))
+      )
+      knownEdges.add(e)
+      return asHandle(e)
     },
 
     // ── 拓扑构造 ──
     makeWire(edges: BrepHandle[]): BrepHandle {
-      return asHandle(kernel.makeWire(Int32Array.from(edges.map(asNum)), false))
+      const w = kernel.makeWire(Int32Array.from(edges.map(asNum)), false)
+      knownWires.add(w)
+      return asHandle(w)
     },
     makeFace(wire: BrepHandle): BrepHandle {
       const f = kernel.makeFaceFromWire(asNum(wire))
@@ -477,10 +666,28 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
       return asHandle(f)
     },
     makeCompound(shapesList: BrepHandle[]): BrepHandle {
-      return asHandle(kernel.makeCompound(Int32Array.from(shapesList.map(asNum))))
+      const kids = arr(shapesList.map(asNum))
+      // GOTCHA（2026-09-26）：brepkit makeCompound 只接受 **solid** 句柄——把 face/wire
+      // （sectionByPlane 截面面组）塞进去即抛 "invalid solid handle"。非实体子句柄时
+      // 不调内核，改用高段虚拟句柄（0x80000000+），仅靠 knownCompounds 表分发
+      // meshShape/wireframe/getSubShapes/getBoundingBox，不触达内核。
+      const hasNonSolid = kids.some((k) => knownFaces.has(k) || knownWires.has(k) || knownEdges.has(k) || knownCompounds.has(k))
+      if (hasNonSolid) {
+        virtualCompoundCounter++
+        const v = 0x80000000 + virtualCompoundCounter
+        knownCompounds.set(v, kids)
+        return asHandle(v)
+      }
+      const c = kernel.makeCompound(Int32Array.from(kids))
+      knownCompounds.set(c, kids)
+      return asHandle(c)
     },
     addHolesInFace(face: BrepHandle, holeWires: BrepHandle[]): BrepHandle {
-      return asHandle(kernel.addHolesToFace(asNum(face), Int32Array.from(holeWires.map(asNum))))
+      // addHolesToFace 返回**新 face 句柄**（同曲面 + 内孔 wire），必须登记进 knownFaces，
+      // 否则 profile(op) 带孔面送 meshShape 会落到 solid 路径崩溃。
+      const f = kernel.addHolesToFace(asNum(face), Int32Array.from(holeWires.map(asNum)))
+      knownFaces.add(f)
+      return asHandle(f)
     },
     buildTriFace(a: BrepVec3, b: BrepVec3, c: BrepVec3): BrepHandle {
       const f = kernel.makePolygon(flattenPoints([a, b, c]))
@@ -492,37 +699,56 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
     meshShape(shape: BrepHandle, options?: BrepTessellateOptions): BrepMeshResult {
       const deflection = options?.linearDeflection ?? 0.1
       const angular = options?.angularDeflection ?? 0.5
-      const raw = kernel.tessellateSolidGrouped(asNum(shape), deflection, angular)
-      const m = JSON.parse(raw) as { positions: number[]; normals: number[]; indices: number[]; faceOffsets: number[] }
-      // faceOffsets 形如 [start0, start1, ..., totalEnd]：以「索引数组单位」计的每面偏移（2026-09-19 实测），
-      // 除以 3 换算为 faijs 契约的三角形单位 [triStart, triCount, faceHash]
-      const fo = m.faceOffsets
-      const faceCount = Math.max(0, fo.length - 1)
-      const faceHashes: number[] = []
-      try {
-        const faces = arr(kernel.getSolidFaces(asNum(shape)))
-        for (let i = 0; i < faceCount && i < faces.length; i++) faceHashes.push(faceFingerprint(kernel, faces[i], 1e9))
-      } catch { /* 非实体：faceHash 置 0 */ }
-      const faceGroups = new Int32Array(faceCount * 3)
-      for (let i = 0; i < faceCount; i++) {
-        faceGroups[i * 3] = fo[i] / 3
-        faceGroups[i * 3 + 1] = (fo[i + 1] - fo[i]) / 3
-        faceGroups[i * 3 + 2] = faceHashes[i] ?? 0
-      }
-      return {
-        positions: new Float32Array(m.positions),
-        normals: new Float32Array(m.normals),
-        indices: new Uint32Array(m.indices),
-        vertexCount: m.positions.length / 3,
-        triangleCount: m.indices.length / 3,
-        faceGroups,
-        faceCount,
-      }
+      const s = asNum(shape)
+      // 非实体句柄按已知集合静态分发（见文件头 GOTCHA：brepkit 无 shape-type 分类 API）。
+      // 顺序：face → wire → edge → compound → solid。实体创建不入任何集合，天然落 solid 路径。
+      if (knownFaces.has(s)) return faceMesh(s, deflection, angular)
+      if (knownWires.has(s)) return wireMesh(s, deflection)
+      if (knownEdges.has(s)) return edgesToLineMesh([s], deflection)
+      const compoundChildren = knownCompounds.get(s)
+      if (compoundChildren) return compoundMesh(compoundChildren, deflection, angular)
+      // solid（或未登记句柄）：走原 tessellateSolidGrouped 路径。
+      return solidMesh(s, deflection, angular)
     },
     wireframe(shape: BrepHandle, deflection?: number): BrepEdgeData {
       const d = deflection ?? 0.1
+      const s = asNum(shape)
+      // GOTCHA：meshEdgesAll 是 solid-only API——buildTopologyFromMesh 会对 face/wire/edge
+      // 产物调 wireframe(...)，传入非实体句柄即抛 "invalid solid handle"。按已知集合分发：
+      // face -> getFaceEdges；wire -> getWireEdges；edge -> [self]；否则 solid 走 meshEdgesAll。
+      let edgeHandles: number[] | null = null
+      if (knownFaces.has(s)) edgeHandles = arr(kernel.getFaceEdges(s))
+      else if (knownWires.has(s)) edgeHandles = arr(kernel.getWireEdges(s))
+      else if (knownEdges.has(s)) edgeHandles = [s]
+      else if (knownCompounds.has(s)) {
+        // compound（sectionByPlane 面组）：逐子面收集边。
+        edgeHandles = []
+        for (const k of knownCompounds.get(s)!) {
+          if (knownFaces.has(k)) edgeHandles.push(...arr(kernel.getFaceEdges(k)))
+          else if (knownWires.has(k)) edgeHandles.push(...arr(kernel.getWireEdges(k)))
+          else if (knownEdges.has(k)) edgeHandles.push(k)
+        }
+      }
+      if (edgeHandles) {
+        const nPts = Math.max(12, Math.round(4 / Math.max(d, 0.01)))
+        const positions: number[] = []
+        const offsets: number[] = [0]
+        for (const e of edgeHandles) {
+          const pts = arr(kernel.tessellateEdge(e, nPts))
+          for (const p of pts) positions.push(p)
+          offsets.push(positions.length / 3)
+        }
+        const edgeGroups = new Int32Array(edgeHandles.length * 3)
+        for (let i = 0; i < edgeHandles.length; i++) {
+          edgeGroups[i * 3] = offsets[i] ?? 0
+          edgeGroups[i * 3 + 1] = (offsets[i + 1] ?? positions.length / 3) - (offsets[i] ?? 0)
+          edgeGroups[i * 3 + 2] = i
+        }
+        return { points: new Float32Array(positions), edgeGroups, pointCount: positions.length / 3, edgeCount: edgeHandles.length }
+      }
+      // solid（或未登记句柄）：走原 meshEdgesAll 路径。
       // JsEdgeLines：edgeCount/offsets/positions 均为属性（offsets/positions 为 TypedArray，2026-09-19 实测）
-      const me = kernel.meshEdgesAll(asNum(shape), d, 0.5) as {
+      const me = kernel.meshEdgesAll(s, d, 0.5) as {
         edgeCount: number; offsets: ArrayLike<number>; positions: ArrayLike<number>
       }
       const edgeCount = Number(me.edgeCount)
@@ -548,18 +774,47 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
     // edge/vertex 查询时按句柄是否在 knownFaces 里分发到 face 级或 solid 级 API。
     getSubShapes(shape: BrepHandle, type: BrepSubShapeType): BrepHandle[] {
       const s = asNum(shape)
+      // GOTCHA（2026-09-26 非实体句柄修复）：buildTopologyFromMesh 会对**面产物**
+      // 调 getSubShapes(face,'face')。brepkit 的 getSolidFaces/getShellFaces 是 solid-only，
+      // 对面句柄一个抛 "invalid solid handle"、catch 里再抛 "invalid shell handle"——
+      // 两跳都不被捕获即崩溃。brepkit 无 shape-type 分类 API，必须靠已知集合先分发：
+      // 输入本身就是 knownFaces 里的一张面时，'face' 返回 [s]，edge/vertex 走 face 级 API。
+      if (knownFaces.has(s)) {
+        if (type === 'face') return [asHandle(s)]
+        if (type === 'edge') { const es = arr(kernel.getFaceEdges(s)); es.forEach((e) => knownEdges.add(e)); return es.map(asHandle) }
+        if (type === 'vertex') return arr(kernel.getFaceVertices(s)).map(asHandle)
+        return []
+      }
+      if (knownWires.has(s)) {
+        if (type === 'edge') { const es = arr(kernel.getWireEdges(s)); es.forEach((e) => knownEdges.add(e)); return es.map(asHandle) }
+        return []
+      }
+      if (knownEdges.has(s)) {
+        // input is itself an edge (wire.ts smooth path: interpolatePoints returns edge)
+        if (type === 'edge') return [asHandle(s)]
+        return []
+      }
+      const compKids = knownCompounds.get(s)
+      if (compKids) {
+        // compound（sectionByPlane 面组 / makeCompound 多实体 / importStep 多实体）：
+        // 'face' 返回子面，'solid' 返回子实体，其余空。
+        if (type === 'face') return compKids.filter((k) => knownFaces.has(k)).map(asHandle)
+        if (type === 'solid') return compKids.filter((k) => !knownFaces.has(k) && !knownWires.has(k) && !knownEdges.has(k)).map(asHandle)
+        return []
+      }
       let list: number[]
+      const isFaceLike = knownFaces.has(s) || derivedFaces.has(s)
       if (type === 'face') {
-        // 输入可能是 solid 或 shell
-        try { list = arr(kernel.getSolidFaces(s)) }
-        catch { list = arr(kernel.getShellFaces?.(s) ?? []) }
-        for (const f of list) knownFaces.add(f)
+        // 输入可能是 solid 或 shell。枚举到的子面登记到 derivedFaces（不进 knownFaces，
+        // 避免与 solid 句柄撞号——见 derivedFaces 注释）。
+        try { list = arr(kernel.getSolidFaces(s)) } catch { list = arr(kernel.getShellFaces?.(s) ?? []) }
+        for (const f of list) derivedFaces.add(f)
       } else if (type === 'edge') {
-        list = knownFaces.has(s)
+        list = isFaceLike
           ? arr(kernel.getFaceEdges(s))
           : arr(kernel.getSolidEdges(s))
       } else if (type === 'vertex') {
-        list = knownFaces.has(s)
+        list = isFaceLike
           ? arr(kernel.getFaceVertices(s))
           : arr(kernel.getSolidVertices(s))
       } else if (type === 'shell') {
@@ -575,7 +830,18 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
     },
     subShapeHashes(shape: BrepHandle, type: BrepSubShapeType, hashUpperBound: number): number[] {
       if (type !== 'face') fail(`subShapeHashes(${type}): only 'face' is supported by brepkit`)
-      const faces = arr(kernel.getSolidFaces(asNum(shape)))
+      const s = asNum(shape)
+      // GOTCHA：buildTopologyFromMesh 会对面产物调 subShapeHashes(face,'face')；
+      // getSolidFaces 是 solid-only，对面句柄崩溃。输入本身是已知面时，哈希即其自身指纹。
+      if (knownFaces.has(s)) return [faceFingerprint(kernel, s, hashUpperBound)]
+      // wire/edge 无面；compound（sectionByPlane 面组）的子句柄即面。
+      if (knownWires.has(s) || knownEdges.has(s)) return []
+      const compKids = knownCompounds.get(s)
+      if (compKids) {
+        const faces = compKids.filter((k) => knownFaces.has(k))
+        return faces.map((f) => faceFingerprint(kernel, f, hashUpperBound))
+      }
+      const faces = arr(kernel.getSolidFaces(s))
       const hashes = faces.map(f => faceFingerprint(kernel, f, hashUpperBound))
       // 登记 hash↔handle（fuseWithHistory 溯源对齐依赖此表）
       const reg = hashRegistry.get(kernel) ?? new Map<number, number>()
@@ -681,7 +947,11 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
       return null
     },
     interpolatePoints(points: BrepVec3[], degree: number): BrepHandle {
-      return asHandle(kernel.interpolatePoints(flattenPoints(points), degree))
+      // GOTCHA：interpolatePoints 返回 **edge** 句柄（不是 wire）——wire.ts smooth 路径把它
+      // 直接当 wire 送 solidToShape。登记进 knownEdges，meshShape 才能走 tessellateEdge 路径。
+      const e = kernel.interpolatePoints(flattenPoints(points), degree)
+      knownEdges.add(e)
+      return asHandle(e)
     },
     defeature(shape: BrepHandle, faces: BrepHandle[]): BrepHandle {
       return asHandle(kernel.defeature(asNum(shape), Uint32Array.from(faces.map(asNum))))
@@ -696,7 +966,10 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
       ))
     },
     removeHolesFromFace(face: BrepHandle): BrepHandle {
-      return asHandle(kernel.removeHolesFromFace(asNum(face)))
+      // removeHolesFromFace 返回**新 face 句柄**（去掉内孔的同曲面 face），必须登记进 knownFaces。
+      const f = kernel.removeHolesFromFace(asNum(face))
+      knownFaces.add(f)
+      return asHandle(f)
     },
     reverseShape(shape: BrepHandle): BrepHandle {
       return asHandle(kernel.reverseShape(asNum(shape)))
@@ -714,8 +987,43 @@ export async function createBrepkitPrimitives(): Promise<BrepkitEngineExtras> {
 
     // ── 测量 ──
     getBoundingBox(shape: BrepHandle, _useTriangulation?: boolean): BrepBoundingBox {
-      const b = kernel.boundingBox(asNum(shape)) as ArrayLike<number>
-      return { xmin: b[0], ymin: b[1], zmin: b[2], xmax: b[3], ymax: b[4], zmax: b[5] }
+      const s = asNum(shape)
+      const bboxFromPoints = (pts: ArrayLike<number>): BrepBoundingBox => {
+        let xmin = Infinity, ymin = Infinity, zmin = Infinity, xmax = -Infinity, ymax = -Infinity, zmax = -Infinity
+        for (let i = 0; i + 2 < pts.length; i += 3) {
+          xmin = Math.min(xmin, pts[i]!); ymin = Math.min(ymin, pts[i + 1]!); zmin = Math.min(zmin, pts[i + 2]!)
+          xmax = Math.max(xmax, pts[i]!); ymax = Math.max(ymax, pts[i + 1]!); zmax = Math.max(zmax, pts[i + 2]!)
+        }
+        if (!Number.isFinite(xmin)) { xmin = ymin = zmin = 0; xmax = ymax = zmax = 0 }
+        return { xmin, ymin, zmin, xmax, ymax, zmax }
+      }
+      const solidBbox = (h: number): BrepBoundingBox => {
+        const b = kernel.boundingBox(h) as ArrayLike<number>
+        return { xmin: b[0]!, ymin: b[1]!, zmin: b[2]!, xmax: b[3]!, ymax: b[4]!, zmax: b[5]! }
+      }
+      const kids = knownCompounds.get(s)
+      if (kids) {
+        let xmin = Infinity, ymin = Infinity, zmin = Infinity, xmax = -Infinity, ymax = -Infinity, zmax = -Infinity
+        for (const k of kids) {
+          try {
+            let b: BrepBoundingBox
+            if (knownFaces.has(k)) b = bboxFromPoints(arr(kernel.tessellateFace(k, 0.1, 1).positions))
+            else if (knownWires.has(k)) b = bboxFromPoints(arr(kernel.getWireEdges(k)).flatMap((e) => arr(kernel.tessellateEdge(e, 16))))
+            else if (knownEdges.has(k)) b = bboxFromPoints(arr(kernel.tessellateEdge(k, 16)))
+            else b = solidBbox(k)
+            xmin = Math.min(xmin, b.xmin); ymin = Math.min(ymin, b.ymin); zmin = Math.min(zmin, b.zmin)
+            xmax = Math.max(xmax, b.xmax); ymax = Math.max(ymax, b.ymax); zmax = Math.max(zmax, b.zmax)
+          } catch { /* 子项 bbox 查询失败忽略 */ }
+        }
+        if (!Number.isFinite(xmin)) { xmin = ymin = zmin = 0; xmax = ymax = zmax = 0 }
+        return { xmin, ymin, zmin, xmax, ymax, zmax }
+      }
+      // GOTCHA：kernel.boundingBox 是 solid-only。face/wire/edge 句柄必须走 tessellation 采样，
+      // 否则 measure() 对 wire/profile 调 getBoundingBox 即崩 "invalid solid handle"。
+      if (knownFaces.has(s)) return bboxFromPoints(arr(kernel.tessellateFace(s, 0.1, 1).positions))
+      if (knownWires.has(s)) return bboxFromPoints(arr(kernel.getWireEdges(s)).flatMap((e) => arr(kernel.tessellateEdge(e, 16))))
+      if (knownEdges.has(s)) return bboxFromPoints(arr(kernel.tessellateEdge(s, 16)))
+      return solidBbox(s)
     },
     getVolume(shape: BrepHandle): number { return Number(kernel.volume(asNum(shape), 0.05)) },
     getCenterOfMass(shape: BrepHandle): BrepVec3 {

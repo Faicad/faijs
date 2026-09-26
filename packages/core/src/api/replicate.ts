@@ -34,7 +34,6 @@
 
 import type { Shape, Vec3 } from '../mesh/types'
 import { solidToShape } from '../brep/brep-ops'
-import { getFaceHashes, HASH_UPPER_BOUND } from '../brep/face-evolution'
 import { getBrepApi } from '../brep/handle-bridge'
 import { getCurrentStmt, keep } from '../runtime-state'
 import { fromBrep, brepOf } from '../shape'
@@ -42,7 +41,6 @@ import { defineOp } from '../sdk'
 import type { Provenance } from '../topology/naming/lineage'
 import type { BrepHandle, BrepVec3 } from '../brep/engine/types'
 import type { BrepEngineApi } from '../brep/engine/primitives'
-import { getOcctKernel, type ShapeHandle } from '../occt-kernel/occtKernel'
 import { buildReplicaRoleTable, type ReplicaTransform } from './internal/replica-role-table'
 // Generated compatOps (delegation targets for the thin single-copy overrides).
 // NOTE: transformCopy is NOT a script-face op (arg-spec skip: ComposedTransform
@@ -348,18 +346,14 @@ export const mirrorJoin = defineOp({
     const { kernel, solid, outStmt } = prelude(input, 'mirrorJoin')
     const n = norm(options?.normal ?? [1, 0, 0])
     const o = toBrepVec(options?.at ?? [0, 0, 0])
-    const inputHashes = getFaceHashes(kernel, solid)
-    // 平台面（D3）：mirrorWithHistory 是 occt-only。BrepHandle ↔ ShapeHandle 运行时
-    // 同构，品牌转换只发生在平台边界。
-    const mirrored = getOcctKernel().mirrorWithHistory(
-      solid as unknown as ShapeHandle,
-      o,
-      toBrepVec(n),
-      inputHashes,
-      HASH_UPPER_BOUND,
-    )
+    // 2026-09-26 C 批降级：原实现直调 getOcctKernel().mirrorWithHistory（occt-only history
+    // 镜像，返回 modified/newFaces 供细粒度 roleTable）。按用户指示「有没有历史 withhistory
+    // 并不重要」，降级为 L1 kernel.mirror（brepkit 已声明 mirror 能力）——几何结果一致，
+    // roleTable 仍由 buildReplicaRoleTable 经质心聚类重建（引擎无关），仅丢失 history 级
+    // modified 面映射（不影响几何与产物有效性）。
+    const mirrored = kernel.mirror(solid, o, toBrepVec(n))
     try {
-      const resultSolid = kernel.fuse(solid, mirrored.result as unknown as BrepHandle)
+      const resultSolid = kernel.fuse(solid, mirrored)
 
       const replicas: ReplicaTransform[] = [
         { label: 'replica[0]', inverse: (c) => ({ x: c.x, y: c.y, z: c.z }) },
@@ -368,12 +362,12 @@ export const mirrorJoin = defineOp({
       const roleTable = buildReplicaRoleTable(kernel, input, resultSolid, replicas, outStmt)
       return fromBrep(solidToShape(kernel, resultSolid), { solid: resultSolid, roleTable })
     } finally {
-      kernel.release(mirrored.result as unknown as BrepHandle)
+      kernel.release(mirrored)
     }
   },
-  // 平台 op（D11）：实现依赖 occt-only `mirrorWithHistory`（D3 原生面）——
-  // 声明 engines；不声明 capabilities（能力由平台身份本身界定）。
-  engines: ['occt'],
+  // 2026-09-26 C 批：从 engines:[occt] 降级为 capabilities:['mirror','fuse']（L1 中立面，
+  // brepkit 已声明二者）。history 语义丢失（见上注释），几何不回退。
+  capabilities: ['mirror', 'fuse'],
   naming: { kind: 'replicate', k: 2 } as Provenance,
 })
 
@@ -398,9 +392,10 @@ export const mirror = defineOp({
     keep(input)
     return (await generatedMirror(input, options)) as Shape
   },
-  // 平台 op（D11）：委托 generatedMirror（vendored 实现调 occt-only
-  // `mirrorWithHistory`，capability-map 实证）——声明 engines，不声明 capabilities。
-  engines: ['occt'],
+  // 2026-09-26 B 批：generatedMirror 已降级为 L1 kernel.mirror（brepkit 已声明 mirror
+  // 能力），薄 override 同步从 engines:[occt] 降级为 capabilities:['mirror']——
+  // 与 clone 薄 override 同模式（外层门不拦 brepkit，内层 generatedMirror 已按能力路由）。
+  capabilities: ['mirror'],
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 })
 

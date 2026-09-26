@@ -70,7 +70,7 @@ export function getBounds(shape: Shape): { xmin: number; ymin: number; zmin: num
  */
 export const ellipsoid = defineOp({
   brep: __own_ellipsoidBrep,
-  name: 'ellipsoid', naming: {"kind":"unmodeled","reason":"construct vocabulary pending Phase 3"}, engines: ["occt"],
+  name: 'ellipsoid', naming: {"kind":"unmodeled","reason":"construct vocabulary pending Phase 3"}, capabilities: ["makeEllipsoid","translate"],
 })
 
 /**
@@ -81,7 +81,7 @@ export const ellipsoid = defineOp({
  */
 export const rotate = defineOp({
   brep: __own_rotateBrep,
-  name: 'rotate', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"],
+  name: 'rotate', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, capabilities: ["transform"],
 })
 
 /**
@@ -92,7 +92,7 @@ export const rotate = defineOp({
  */
 export const mirror = defineOp({
   brep: __own_mirrorBrep,
-  name: 'mirror', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"],
+  name: 'mirror', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, capabilities: ["mirror"],
 })
 
 /**
@@ -103,7 +103,7 @@ export const mirror = defineOp({
  */
 export const clone = defineOp({
   brep: __own_cloneBrep,
-  name: 'clone', naming: {"kind":"identity"}, engines: ["occt"],
+  name: 'clone', naming: {"kind":"identity"}, capabilities: ["copyShape"],
 })
 
 /**
@@ -114,7 +114,7 @@ export const clone = defineOp({
  */
 export const applyMatrix = defineOp({
   brep: __own_applyMatrixBrep,
-  name: 'applyMatrix', naming: {"kind":"identity"}, engines: ["occt"],
+  name: 'applyMatrix', naming: {"kind":"identity"}, capabilities: ["transform","generalTransform"],
 })
 
 /**
@@ -136,7 +136,7 @@ export const locate = defineOp({
  */
 export const section = defineOp({
   brep: __own_sectionBrep,
-  name: 'section', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"],
+  name: 'section', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, capabilities: ["sectionByPlane","makeCompound"],
 })
 
 /**
@@ -252,7 +252,7 @@ export const fixShape = defineOp({
  */
 export const healSolid = defineOp({
   brep: __own_healSolidBrep,
-  name: 'healSolid', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, engines: ["occt"],
+  name: 'healSolid', naming: {"kind":"kernel","newFaces":{"via":"byAdjacency"}}, capabilities: ["healSolid"],
 })
 
 /**

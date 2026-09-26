@@ -137,6 +137,18 @@ const OCCT_METHOD_KINDS = [
   'chamferDistAngle',
   'fillet',
   'filletVariable',
+  // 2026-09-26 B 批：rotate/applyMatrix 从 engines:[occt] 降级为能力路由后，occt 侧须
+  // 如实声明 transform(:228，BRepBuilderAPI_Transform 深拷贝，STEP-safe)/
+  // generalTransform(:231，gp_GTrsf)——此前两方法在 primitives 上实现但未登记进能力表。
+  'transform',
+  'generalTransform',
+  // 2026-09-26 C batch: section/drill/pocket/boss/mirrorJoin downgrade - OCCT already implements
+  // sectionByPlane(:162)/makeCompound(:285)/located(:229)/getSubShapes(:314) but previously undeclared
+  // (engines:[occt] bypassed the gate). Now declared honestly for capability routing.
+  'sectionByPlane',
+  'makeCompound',
+  'located',
+  'getSubShapes',
 ] as const satisfies readonly BrepMethodKind[]
 
 /**

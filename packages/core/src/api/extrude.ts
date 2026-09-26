@@ -27,7 +27,7 @@ import { extrude as projectedExtrude } from './generated/operations'
 import * as THREE from 'three'
 import { solidToShape, matrixToArray } from '../brep/brep-ops'
 import { getSolidBoundingBox } from '../brep/brep-utils'
-import { getCurrentStmt } from '../runtime-state'
+import { getCurrentStmt, getBackends } from '../runtime-state'
 import { getBrepApi } from '../brep/handle-bridge'
 import { fromBrep, brepOf, isCurveShape } from '../shape'
 import { runtimeLineage } from '../topology/naming/lineage'
@@ -459,7 +459,20 @@ export const extrude = defineOp({
     const normal = new THREE.Vector3(...(o.normal ?? [0, 0, 1])).normalize()
     const sign = o.mode === 'backward' ? -1 : 1
     const v: Vec3 = [normal.x * o.length! * sign, normal.y * o.length! * sign, normal.z * o.length! * sign]
-    const result = (await projectedExtrude(input, v)) as Shape
+    let result: Shape
+    // GOTCHA：projectedExtrude 是 occt-gated 的 compat op（vendored brepjs 借入），
+    // 在 brepkit 引擎下执行前即抛 E_BREP_UNSUPPORTED。brepkit 有原生 L1 extrude
+    // （face→solid），直接走 kernel.extrude——与 revolve.ts 同路径（不经过 vendored 借入）。
+    // occt 路径保持 projectedExtrude 不变，不回退既有几何/命名行为。
+    if (getBackends().config.brepEngineId === 'brepkit') {
+      const kernel = getBrepApi()
+      const faceHandle = brepOf(input) as BrepHandle | undefined
+      if (!faceHandle) throw new Error('[stdlib/extrude] brepkit path: input is not BREP')
+      const solid = kernel.extrude(faceHandle, v[0]!, v[1]!, v[2]!)
+      result = fromBrep(solidToShape(kernel, solid), { solid })
+    } else {
+      result = (await projectedExtrude(input, v)) as Shape
+    }
     // E3 后续：委托路径同样要建链根表（投影只给几何，命名是 faijs 语义）。
     // E3-b（2026-09-23，同 revolve 修法）：不能对投影产物再走一次 fromBrep——
     // 同语句 registeredStmtId 去重会吞掉第二次登记（part 键保持空表，下游

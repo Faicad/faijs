@@ -1,0 +1,6 @@
+# Unpacked brepkit-wasm versions downloaded at dev/test time via `npm pack`.
+# These are large wasm binaries fetched from npm; not committed to git.
+# Layout: brepkit-<version>/package/ (tgz unpacks into `package/`).
+# The tgz archives themselves are also ignored.
+*
+!.gitignore

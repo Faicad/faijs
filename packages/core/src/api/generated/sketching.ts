@@ -14,5 +14,5 @@ import { makeBaseBoxBrep as __own_makeBaseBoxBrep } from '../brep-mirror/primiti
  */
 export const makeBaseBox = defineOp({
   brep: __own_makeBaseBoxBrep,
-  name: 'makeBaseBox', naming: {"kind":"unmodeled","reason":"construct vocabulary pending Phase 3"}, engines: ["occt"],
+  name: 'makeBaseBox', naming: {"kind":"unmodeled","reason":"construct vocabulary pending Phase 3"}, capabilities: ["makeRectangle","extrude"],
 })

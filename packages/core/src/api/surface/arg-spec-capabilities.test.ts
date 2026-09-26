@@ -80,14 +80,18 @@ describe('Phase 1 能力名合法性：每条 compat op 声明非空且合法', 
     }
   })
 
-  it('P3 冲突消除证据：transform 族 compat op 声明平台归属 engines（非裸能力名）', () => {
+  it('P3 冲突消除证据：transform 族 op 平台身份随 B 批降级漂移（engines → capabilities）', () => {
     const byName = new Map(ARG_SPEC.filter((e) => e.kind === 'brep-op').map((e) => [e.name, e]))
-    // Phase 5（D11）：mirror/rotate/ellipsoid 的平台身份由 engines: ['occt'] 表达。
-    // （2026-09-24 撤销 D11-7 互斥后 engines 与 capabilities 可并存；本断言只看
-    //  engines 这一轴的实测值是否漂移。）
-    expect(byName.get('mirror')!.engines).toContain('occt')
-    expect(byName.get('rotate')!.engines).toContain('occt')
-    expect(byName.get('ellipsoid')!.engines).toContain('occt')
+    // 2026-09-26 B 批：mirror/rotate/ellipsoid 从 engines:['occt'] 白名单降级为能力路由
+    // （clone 模式）——实现只用 L1 中立方法（kernel.mirror / getBrepApi().transform /
+    // makeEllipsoid+translate），brepkit 已声明同名能力。现断言三者已摘除 engines 白名单、
+    // 改挂 capabilities（与 clone 上一批降级同方向）。
+    expect(byName.get('mirror')!.engines ?? []).not.toContain('occt')
+    expect(byName.get('rotate')!.engines ?? []).not.toContain('occt')
+    expect(byName.get('ellipsoid')!.engines ?? []).not.toContain('occt')
+    expect(byName.get('mirror')!.capabilities).toContain('mirror')
+    expect(byName.get('rotate')!.capabilities).toContain('transform')
+    expect(byName.get('ellipsoid')!.capabilities).toContain('makeEllipsoid')
   })
 })
 
@@ -97,10 +101,12 @@ describe('Phase 1 手写 brep-only op 声明', () => {
     expect(src).toMatch(/capabilities: \['linearPattern'\],/)
   })
 
-  it('boolean.ts union/cut/subtract/intersect 声明 *WithHistory 真名', () => {
+  it('boolean.ts union/cut/subtract 声明 *WithHistory 真名；intersect 中立（按引擎静态降级）', () => {
     const src = fs.readFileSync(path.join(CORE_SRC, 'src', 'api', 'boolean.ts'), 'utf-8')
     expect(src).toMatch(/capabilities: \['fuseWithHistory'\],/)
     expect(src.match(/capabilities: \['cutWithHistory'\],/g)?.length).toBe(2) // cut + subtract
-    expect(src).toMatch(/capabilities: \['intersectWithHistory'\],/)
+    // intersect 不再硬声明 intersectWithHistory（brepkit 无此历史方法）——
+    // 由 booleanBrep 按引擎声明的能力集静态分派（occt 历史路径 / brepkit 裸 intersect）。
+    expect(src).not.toMatch(/capabilities: \['intersectWithHistory'\],/)
   })
 })

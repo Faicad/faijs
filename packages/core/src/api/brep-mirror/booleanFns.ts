@@ -14,7 +14,7 @@ import type { BrepHandle } from '../../brep/engine/types'
 import { getBrepApi } from '../../brep/handle-bridge'
 import { getOcctKernel } from '../../occt-kernel/occtKernel'
 import { ok, err, type Result } from '../../result/result'
-import { kernelError, validationError } from '../../result/errors'
+import { kernelError } from '../../result/errors'
 import type { FormClass } from '../internal/dual-form-args'
 import { resolveArgs } from '../internal/dual-form-args'
 import type { PlaneInput } from '../brepjs-compat/planeTypes'
@@ -40,19 +40,24 @@ export function sectionBrep(...args: unknown[]): Result<BrepHandle> {
   const [shape, plane] = resolveArgs(args, SECTION_PARAMS)
   const kernel = getBrepApi()
   const h = brepHandleOf(shape)
-  if (getOcctKernel().isNull(h as never)) {
-    return err(validationError('NULL_SHAPE_INPUT', 'section: shape is a null shape'))
-  }
+  // NOTE: 2026-09-26 brepkit 降级——移除 getOcctKernel().IsNull 平台耦合。
+  // 空/坏句柄由下游 sectionByPlane 内核抛错并被下方 try/catch 捕获为 SECTION_FAILED
+  // （occt 的 sectionByPlane 对空结果本就返回 []，行为等价；brepkit 对坏句柄抛
+  // "invalid solid handle"，诚实报错而非崩溃）。
   const resolved = resolvePlane(plane as PlaneInput)
   if (!resolved.ok) return resolved
   const p = resolved.value
   try {
-    const edges = kernel.sectionByPlane(
+    const parts = kernel.sectionByPlane(
       h,
       { x: p.origin[0], y: p.origin[1], z: p.origin[2] },
       { x: p.zDir[0], y: p.zDir[1], z: p.zDir[2] },
     )
-    return ok(kernel.makeCompound(edges))
+    // 语义差异（如实登记）：occt sectionByPlane 返回 edge/wire 句柄组（1D 剖面线）；
+    // brepkit sectionByPlane 返回 face 句柄组（2D 剖面面）。两侧都包成 compound 产物，
+    // 下游 meshShape/wireframe 已按已知集合分发（brepkit makeCompound 对非 solid 子句柄走
+    // 虚拟 compound 路径）。
+    return ok(kernel.makeCompound(parts))
   } catch (e) {
     return err(
       kernelError(

@@ -14,12 +14,13 @@ import { solidToShape } from '../brep/brep-ops'
 import {
   booleanWithRoleTable,
 } from '../brep/face-evolution'
-import { getCurrentStmt, keepHidden, nameOf } from '../runtime-state'
+import { getCurrentStmt, getBackends, keepHidden, nameOf } from '../runtime-state'
 import { getBrepApi } from '../brep/handle-bridge'
 import { fromBrep, brepOf, inputRoleTable } from '../shape'
 import { reconcileBrepInputs } from './reconcile'
 import { OpError } from './internal/result-unwrap'
 import { defineOp } from '../sdk'
+import { engineCapabilitySet } from '../cad-runtime/backend-dispatch'
 import type { Provenance } from '../topology/naming/lineage'
 import type { BrepHandle } from '../brep/engine/types'
 
@@ -27,7 +28,22 @@ type BooleanOperation = 'union' | 'subtract' | 'intersect'
 
 // ── 共享内部实现 ──
 
-/** BREP 路径：fuse/cut/common（*WithHistory 封装，收集面演化 + roleTable 合流 §3.4）。 */
+/**
+ * BREP 路径：fuse/cut/intersect。
+ *
+ * 静态双轨（无运行时 try-catch 回退——按引擎**声明**的能力集在执行前定轨）：
+ * - 引擎声明了对应 `*WithHistory`（occt 三员全有）→ `booleanWithRoleTable`：
+ *   一次内核调用同时产出结果 + 面演化（faceEvolution）+ roleTable 合流（§3.4）。
+ * - 引擎只声明了裸布尔方法（brepkit：声明了 `intersect` 但**没有** `intersectWithHistory`）
+ *   → 走 L1 裸 `kernel[op](a,b)`：几何正确，但**不产生面演化、不传播 roleTable**。
+ *   这是如实降级——绝不用「恒等映射」伪造一张把输入面 hash 指到结果面 hash 的演化表
+ *   （结果实体的面 hash 与输入根本不同，恒等映射是假身份）。
+ *
+ * `intersect` 因此不再声明 `capabilities: ['intersectWithHistory']`（中立 op）：
+ * brepkit 上由本函数静态落到裸 `intersect`；occt 上仍走 `intersectWithHistory`。
+ * fuse/cut 保留各自 `*WithHistory` 能力声明——dispatchPath 的 gate 保证它们到达本函数时
+ * 引擎必已声明对应历史方法，故下方 `useHistory` 对 fuse/cut 恒为 true。
+ */
 function booleanBrep(inputs: Shape[], operation: BooleanOperation): Shape {
   const kernel = getBrepApi()
 
@@ -55,45 +71,70 @@ function booleanBrep(inputs: Shape[], operation: BooleanOperation): Shape {
   const op: 'fuse' | 'cut' | 'intersect' =
     operation === 'union' ? 'fuse' : operation === 'subtract' ? 'cut' : 'intersect'
 
+  // 静态定轨：当前引擎是否声明了本 op 的面演化核函数（读的是同一声明源 dispatchPath 用的
+  // 能力集，不是运行时探测）。fuse/cut 因 gate 保证此处恒 true；intersect 在 occt true、
+  // brepkit/mock false（后者走 L1 裸 `kernel[op]`，该方法是 BrepEngineApi 必需成员，必存在）。
+  const historyCap = op === 'fuse' ? 'fuseWithHistory' : op === 'cut' ? 'cutWithHistory' : 'intersectWithHistory'
+  const useHistory = engineCapabilitySet(getBackends().config.brepCapabilities).has(historyCap)
+
   // 首个输入作为 target 起点
   resultSolid = inputSolids[0]!
-  roleTable = inputRoleTable(inputs[0]) as ReadonlyMap<unknown, unknown> | undefined
+  roleTable = useHistory
+    ? (inputRoleTable(inputs[0]) as ReadonlyMap<unknown, unknown> | undefined)
+    : undefined
 
   for (let i = 1; i < inputSolids.length; i++) {
     const prev = resultSolid
-    const prevTable = roleTable
-    const toolTable = inputRoleTable(inputs[i]) as ReadonlyMap<unknown, unknown> | undefined
-    // Phase 1.6：新 origin = 本次语句的 StmtId（不再是 LHS 变量名——PartName 会被
-    // 改名/复用，StmtId 全局唯一）。
-    const outStmt = String(getCurrentStmt()?.id ?? '')
+    const tool = inputSolids[i]!
 
-    // §3.4：一次内核调用，A/B 拆流各自传播后合表（缝面 origin=本次语句 StmtId）
-    // V-C8：内核裸错误（如 "boolean operation failed"）在此包一层——带上 op 名、
-    // 两个输入的变量名与 cause，满足「显式暴露、不吞细节」。
-    let r: ReturnType<typeof booleanWithRoleTable>
-    try {
-      r = booleanWithRoleTable(
-        kernel,
-        op,
-        prev,
-        inputSolids[i]!,
-        prevTable ?? new Map(),
-        toolTable ?? new Map(),
-        outStmt,
-      )
-    } catch (cause) {
-      const msg = cause instanceof Error ? cause.message : String(cause)
-      throw new OpError(
-        `boolean/${operation}`,
-        'E_OP_FAILED',
-        `[stdlib/boolean] ${operation}: kernel ${op} failed for inputs ` +
-        `${nameOf(inputs[0]!) ?? 'input[0]'} × ${nameOf(inputs[i]!) ?? `input[${i}]`} — ${msg}`,
-        { cause },
-      )
+    if (useHistory) {
+      // §3.4：一次内核调用，A/B 拆流各自传播后合表（缝面 origin=本次语句 StmtId）
+      // V-C8：内核裸错误在此包一层——带上 op 名、两个输入的变量名与 cause。
+      const prevTable = roleTable
+      const toolTable = inputRoleTable(inputs[i]) as ReadonlyMap<unknown, unknown> | undefined
+      // Phase 1.6：新 origin = 本次语句的 StmtId。
+      const outStmt = String(getCurrentStmt()?.id ?? '')
+      let r: ReturnType<typeof booleanWithRoleTable>
+      try {
+        r = booleanWithRoleTable(
+          kernel,
+          op,
+          prev,
+          tool,
+          prevTable ?? new Map(),
+          toolTable ?? new Map(),
+          outStmt,
+        )
+      } catch (cause) {
+        const msg = cause instanceof Error ? cause.message : String(cause)
+        throw new OpError(
+          `boolean/${operation}`,
+          'E_OP_FAILED',
+          `[stdlib/boolean] ${operation}: kernel ${op} failed for inputs ` +
+          `${nameOf(inputs[0]!) ?? 'input[0]'} × ${nameOf(inputs[i]!) ?? `input[${i}]`} — ${msg}`,
+          { cause },
+        )
+      }
+      resultSolid = r.result
+      lastEvolution = r.faceEvolution
+      roleTable = r.roleTable
+    } else {
+      // 裸布尔降级路径：几何正确，但无面演化、无 roleTable 传播（如实降级，不伪造映射）。
+      try {
+        resultSolid = kernel[op](prev, tool)
+      } catch (cause) {
+        const msg = cause instanceof Error ? cause.message : String(cause)
+        throw new OpError(
+          `boolean/${operation}`,
+          'E_OP_FAILED',
+          `[stdlib/boolean] ${operation}: kernel ${op} failed for inputs ` +
+          `${nameOf(inputs[0]!) ?? 'input[0]'} × ${nameOf(inputs[i]!) ?? `input[${i}]`} — ${msg}`,
+          { cause },
+        )
+      }
+      lastEvolution = undefined
+      roleTable = undefined
     }
-    resultSolid = r.result
-    lastEvolution = r.faceEvolution
-    roleTable = r.roleTable
     if (i > 1) kernel.release(prev)
   }
 
@@ -231,10 +272,11 @@ export const intersect = defineOp({
     if (shapes.length > 0) keepHidden(...shapes)
     return booleanBrep(shapes, 'intersect')
   },
-  // 逐核函数声明（Phase 0.2）：intersect 需要内核的 intersectWithHistory。
-  // ⚠️ 这正是族级布尔 `'evolution'` 会多报能力的活例：brepkit 声明过
-  // `evolution: true` 但**没有** intersectWithHistory → 旧声明下 intersect
-  // 通过静态判定、死在运行时；现在 brepkit 下静态报 lacks capability 'intersectWithHistory'。
-  capabilities: ['intersectWithHistory'],
+  // 不声明 `capabilities: ['intersectWithHistory']`（中立 op）：
+  // brepkit 声明了裸 `intersect` 但没有 `intersectWithHistory`——若硬声明历史能力，
+  // brepkit brep 模式会在执行前静态报 `lacks capability 'intersectWithHistory'`。
+  // 现由 booleanBrep 按引擎声明的能力集静态分派：occt（声明 intersectWithHistory）
+  // 走历史路径保留面演化/naming；brepkit（只声明裸 intersect）走 L1 裸 `kernel.intersect`，
+  // 几何正确但无面演化（如实降级，不伪造恒等映射）。
   naming: { kind: 'kernel', newFaces: { via: 'byAdjacency' } } as Provenance,
 })
