@@ -43,8 +43,8 @@
 | id | 失败签名 | 取点文件（立即可跑） | 根因方向 | 改动位置 |
 |---|---|---|---|---|
 | **A1** | `mirror: E_OP_FAILED`（43 个） | `Electrical Parts/Servos/Futaba3003/Futaba3003-4-arms-horn.fcstd` | `Part::Mirroring` 翻译出的 `cad.mirror` 输入（镜像平面/基体解析） | `api/mirror.ts` + `feature-translate.ts` Mirroring 分支 |
-| **A2** | `fillet: edgeRef: adjacent face ordinal N has no role lineage`（63 个，血统断裂类根因**已随 lineage 重构消解**） | `Architectural Parts/Bedroom/Beds.FCStd` | 上游血统在 fillet 处断裂（同 A6/A4，已被 lineage 重构消除）；但本样本 convert 仍卡 B1/B2（`Loft002`/`Compound001` 未实现），无产物可跑 | 血统类根因 RESOLVED；本样本需 B1/B2 落地后才能跑通 run 验证 |
-| **A3** | `revolve: REVOLVE_FAILED` / `dependency module failed`（19 个） | `Architectural Parts/Garden/FCBL_tree_entourage.FCStd` | P6 revolve 的 profile/axis 依赖解析（或轴向量序列化形态） | `api/revolve.ts` + `feature-translate.ts` Revolution 分支 |
+| **A2** | `fillet: edgeRef: adjacent face ordinal N has no role lineage`（63 个） | `Architectural Parts/Bedroom/Beds.FCStd` | **不是血统断裂**——是 `cad.extrude` 的链根词汇表漏面：①侧面法向只在 `surfaceType==='plane'` 时取，弧段扫出的**圆柱侧面**无 role，且被 `wallIdx` 跳过（wall 序号脱离 profile 边序）；②拉伸轴取「第一对反平行平面法向」，而方柱的**对侧平面侧壁也反平行**，Beds part28 因此把 X 向侧壁判成端盖、真端盖成了 wall | **RESOLVED**（2026-09-26）：`api/extrude.ts` — 侧面判定不再限平面 + 轴由 op 的拉伸方向 hint、几何确认。实证：Beds part28 面覆盖 6/10 → **10/10**（wall:0..7）；全文件 convert ok + `cliRun` ok + STEP 4930 ents。回归护栏 `packages/core/src/api/extrude-wall-role-gotcha.test.ts` |
+| **A3** | `revolve: REVOLVE_FAILED` / `dependency module failed`（19 个） | `Architectural Parts/Garden/FCBL_tree_entourage.FCStd` | 草图弧 `ccw:false` 被当成 CCW 长弧 → 轮廓跨转轴 → 退化回转体 → OCCT BRepMesh 无限挂死 | **RESOLVED**（`d90ac8e8`）：`api/sketch.ts` 弧扫掠方向/中点/整圆拆分均随 `ccw`。护栏 `src/api/sketch-arc-ccw-gotcha.test.ts`；探针 `scripts/probe-a3-crash.ts` / `probe-a3-revolve.ts` 保留 |
 | **A4** | `chamfer: edgeRef: edge ordinal N out of ...` / `adjacent face ordinal N has no role lineage`（19 个，**已验证消解**） | `Electrical Parts/Batteries/battery-AAA.fcstd` | chamfer 边引用面无角色血统（同 A6 lineage 重构消除） | **RESOLVED** —— 3/3 `cliRun` 通过、无 `no role lineage` / `edgeRef` 报错；fcstd-port 新增 `test/FreeCAD/a4-edge-ref-regression.test.ts` 回归护栏 |
 | **A5** | `run-timeout`（6 个） | `Electronics Parts/Boards/Arduino/Arduino UNO/arduinounopcb.FCStd` | WASM 执行挂起（solver 或布尔死锁） | 在撞上的文件上：给 run 加 per-file 看门狗（挂起即杀、记 fail、继续） |
 | **A6** | `THREW: Maximum call stack size exceeded`（3 个，**已验证消解**） | `Electronics Parts/Boards/Arduino/Arduino UNO/arduinounomissblack.FCStd` | 递归爆栈；根因已随 topology lineage 重构消除（roleTable 降为缓存 + §1.4/1.5 lineage 登记），非单点修复 | **RESOLVED** —— 13/13 `cliRun` 通过、到达 STEP 导出无爆栈；fcstd-port 新增 `test/FreeCAD/a6-stack-overflow-regression.test.ts` 回归护栏 |
@@ -58,7 +58,8 @@
 | id | 缺口 | 根因方向 | 改动位置 |
 |---|---|---|---|
 | **B1** | 参数载体（`<<Label>>.Alias` + `Spreadsheet::Sheet`/`App::VarSet` + Pocket 下游清账） | 三跳解析：按 Label 找对象 → 按 alias 找单元格 → 去 `=` 交给现有 `evalConstantExpression`；算术顺带 | `feature-translate.ts` + `expressions.ts`（P1-1 已落地主体，取一个仍 gap 的文件验证剩余） |
-| **B2** | 草图求解 `sketch-not-solved`（含相切模式） | 约束求解器缺类型/模式 | `lang/sketch-solver.ts` + `fcstd/planegcs-backend.ts`（P3-2/P3-4 已部分） |
+| **B2** | `Part::Loft` / `Part::Compound` 翻译缺口（`loft-section-baked-upstream` / `compound-missing-members`） | `depsOf`（codegen）少了 `Sections`／`Spine`／`Source`／`Sketch` 这几条依赖边——与 ArchDetail `Links` 同类缺陷。Kahn 按文档序放置特征，`inputVar()` 取不到尚未构建的上游 | **RESOLVED**（2026-09-26）：`feature-translate.ts` 导出 `LINK_INPUT_PROPS` / `LINK_LIST_INPUT_PROPS` 作为唯一真值，`codegen.ts depsOf` 消费；另加环断裂（不再静默丢弃对象）。实证：Beds `translated` 31→33、`gaps` 2→0 |
+| **B2′** | 草图求解 `sketch-not-solved`（含相切模式） | 约束求解器缺类型/模式 | `lang/sketch-solver.ts` + `fcstd/planegcs-backend.ts`（P3-2/P3-4 已部分） |
 | **B3** | 外部几何 `external-geometry-unresolved` | 外部几何子元素投影（P3-3 已修弧线，取一个仍 gap 的文件验证剩余） | `fcstd/convert.ts` + `external-geo.ts` |
 | **B4** | pattern 源（linear/polar） | 源链接解析（P3-1 已落地，验证剩余） | `feature-translate.ts` |
 | **B5** | `chamfer/fillet-missing-base`、`fillet-non-edge-sub`、`pad-missing-profile` | 各特征上游缺失，多为级联后果 | 随上游消解；个案定位 |
