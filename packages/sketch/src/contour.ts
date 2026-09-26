@@ -80,6 +80,17 @@ function segEnds(g: FcstdSketchGeom): [ContourSeg, { x: number; y: number }, { x
 export function extractContours(geoms: FcstdSketchGeom[]): Contour[] {
   const pool: { seg: ContourSeg; a: { x: number; y: number }; b: { x: number; y: number }; used: boolean; spline?: { x1: number; y1: number; x2: number; y2: number }[] }[] = [];
   for (const g of geoms) {
+    // GOTCHA (2026-09-26): this function's doc comment always promised
+    // "non-construction segments only" but nothing filtered them. FreeCAD
+    // leaves construction geometry unconstrained, so its coordinates are
+    // frequently leftover garbage — a reference line at `StartY = -16508`
+    // sitting next to real geometry at y ≈ 1165 (Double glazed window
+    // … .FCStd, Sketch095). Left in the pool it contributed two dangling
+    // endpoints, and because the DFS marks pool entries `used` as it walks,
+    // a construction branch could consume real segments before the actual
+    // profile was ever tried — the sketch then had zero loops even though it
+    // was solved.
+    if (g.construction) continue;
     const s = segEnds(g);
     if (!s) continue;
     // P4: keep the full sampled polyline for splines — after chaining, the
@@ -141,9 +152,10 @@ export function extractContours(geoms: FcstdSketchGeom[]): Contour[] {
     }
   }
 
-  // circles are self-closed contours
+  // circles are self-closed contours (construction circles excluded: they are
+  // reference geometry, not profile holes/outer rings)
   for (const g of geoms) {
-    if (g.kind === 'circle' && g.radius > 0) {
+    if (g.kind === 'circle' && g.radius > 0 && !g.construction) {
       contours.push({
         segments: [{
           kind: 'arc', cx: g.cx, cy: g.cy, radius: g.radius,

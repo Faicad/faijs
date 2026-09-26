@@ -72,11 +72,19 @@ export const PointPos = {
 /**
  * One parsed sketch geometry element (point, line, circle, arc, ellipse or
  * bspline), in 3D sketch-local coordinates.
+ *
+ * `construction` (2026-09-26): FreeCAD marks reference geometry (axes, symmetry
+ * lines, helper circles) with `<Construction value="1"/>`. It participates in
+ * the constraint solve but is NOT part of the profile: FreeCAD never constrains
+ * it to the real outline, so its stored coordinates are frequently leftover
+ * garbage (measured on `Double glazed window … .FCStd` Sketch095: a
+ * construction line with `StartY = -16508.67` next to real geometry at y≈1165).
+ * Contour extraction must therefore filter on it — see `contour.ts`.
  */
 export type FcstdSketchGeom =
-  | { kind: 'point'; index: number; x: number; y: number; z: number }
-  | { kind: 'line'; index: number; x1: number; y1: number; z1: number; x2: number; y2: number; z2: number }
-  | { kind: 'circle'; index: number; cx: number; cy: number; cz: number; radius: number }
+  | { kind: 'point'; index: number; x: number; y: number; z: number; construction?: boolean }
+  | { kind: 'line'; index: number; x1: number; y1: number; z1: number; x2: number; y2: number; z2: number; construction?: boolean }
+  | { kind: 'circle'; index: number; cx: number; cy: number; cz: number; radius: number; construction?: boolean }
   | {
       kind: 'arc'
       index: number
@@ -93,6 +101,7 @@ export type FcstdSketchGeom =
       x2: number
       y2: number
       z2: number
+      construction?: boolean
     }
   | {
       kind: 'ellipse'
@@ -109,6 +118,7 @@ export type FcstdSketchGeom =
       fy1: number
       fx2: number
       fy2: number
+      construction?: boolean
     }
   | {
       /** Part::GeomBSplineCurve (Poles/Knots/Degree/IsPeriodic) */
@@ -125,6 +135,7 @@ export type FcstdSketchGeom =
       x2: number
       y2: number
       z2: number
+      construction?: boolean
     }
 
 /**
