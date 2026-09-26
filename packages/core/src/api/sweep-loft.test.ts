@@ -131,7 +131,7 @@ function closedWire(half: number, z = 0): string {
 /** 方框 sketch 面（2D 截面，走「面 → 外环」适配路径）。 */
 function squareSketch(half: number): string {
   return (
-    'cad.sketch({ contours: [{ segments: [ ' +
+    'cad.profile({ contours: [{ segments: [ ' +
     `{ kind: "line", x1: ${-half}, y1: ${-half}, x2: ${half}, y2: ${-half} }, ` +
     `{ kind: "line", x1: ${half}, y1: ${-half}, x2: ${half}, y2: ${half} }, ` +
     `{ kind: "line", x1: ${half}, y1: ${half}, x2: ${-half}, y2: ${half} }, ` +

@@ -26,7 +26,7 @@ describe('E3-b extrude → edgeRef end-to-end', () => {
     const runtime = createRuntime(createNodePorts(), 'brep')
     try {
       const result = await runtime.execute(`
-        const part0 = cad.sketch(${SQUARE})
+        const part0 = cad.profile(${SQUARE})
         const part1 = cad.extrude(part0, [0, 0, 5])
         const e1 = cad.edgeRef(part1, 1)
       `, { topology: 'auto' })

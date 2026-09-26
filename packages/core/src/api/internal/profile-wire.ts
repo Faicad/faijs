@@ -1,13 +1,13 @@
 /**
  * profile-wire — 「截面 Shape → 扫掠/放样所需的 wire 视图」的唯一步径（Phase 4→G5）
  *
- * `sweep` / `loft` 共用：脚本面最常见的截面来源是 `cad.sketch(...)`（产出 **face**），
+ * `sweep` / `loft` 共用：脚本面最常见的截面来源是 `cad.profile(...)`（产出 **face**），
  * 而内核的 `sweep` / `loft` 只吃 wire ⇒ 需要「面 → 外环 wire」输入适配。
  * 两处口径必须逐字一致，故收在此叶子模块（一份实现，不允许第二个判定点）。
  *
  * 判定用 faijs 侧判别位（Phase 3 落地的 `kind:'curve'`），不查内核拓扑类型：
- * - 1D 截面（`cad.wire` / `cad.helix` / `cad.sketch({as:'wire'})`）→ 借用原句柄；
- * - 2D 截面（`cad.sketch` 的面）→ 取**外环**（孔环不参与扫掠/放样）。
+ * - 1D 截面（`cad.wire` / `cad.helix` / `cad.profile({as:'wire'})`）→ 借用原句柄；
+ * - 2D 截面（`cad.profile` 的面）→ 取**外环**（孔环不参与扫掠/放样）。
  *
  * core-decouple G5 后：wire 视图为 `{ wrapped: BrepHandle, borrowed: boolean }`
  * （brepjs 形态保留，供 brep-mirror 实现直读）。所有权：面→外环的 wire 是

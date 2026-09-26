@@ -1,0 +1,28 @@
+faijs — @faicad/faijs NOTICE
+============================
+
+This product's brepjs-compat facade contains code ported from the
+`brepjs` project (https://github.com/OpenCascade/brepjs, licensed under
+the Apache License 2.0, locked at upstream commit 8685273a).
+The ported sources now live in the standalone `@faicad/faijs-brepjs`
+package; its NOTICE and LICENSE carry the full attribution.
+
+Full Apache-2.0 text: https://www.apache.org/licenses/LICENSE-2.0
+
+Runtime dependencies (not distributed inside this package)
+----------------------------------------------------------
+
+The following optional/peer dependencies are loaded by the host at
+runtime and are NOT distributed inside this tarball. They carry their
+own licenses:
+
+- `occt-wasm` — JS glue: MIT OR Apache-2.0; the compiled WASM output is
+  LGPL-2.1-only (inherited from OCCT, https://dev.opencascade.org).
+  The LGPL replacement obligation is satisfied because the host loads
+  the `.wasm` from a URL that can be overridden
+  (`OcctKernel.init({ wasm: '...' })`).
+- `manifold-3d` — Apache-2.0.
+
+`@salusoft89/planegcs` (LGPL-2.0-or-later) is used only by the
+non-shipped `src/fcstd` module and is intentionally not a dependency of
+the published package.

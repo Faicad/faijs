@@ -227,7 +227,7 @@ describe('extractMetadata: 语法自由回归（A-6/A-7/A-11）', () => {
 
   it('A-7 链式接收者：let w1 = w0.rect(...) → callee=rect receiver=w0', () => {
     const code = [
-      'let w0 = cad.sketch({ closed: true })',
+      'let w0 = cad.profile({ closed: true })',
       'let w1 = w0.rect(100, 100)',
     ].join('\n')
     const meta = extractMetadata(code)

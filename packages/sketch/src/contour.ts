@@ -6,7 +6,7 @@
  * Extraction: collect endpoints of every non-construction geometry, chain
  * segments sharing endpoints (tolerance-based), keep closed loops.
  */
-import type { SketchGeom } from './sketch-parse.js';
+import type { FcstdSketchGeom } from './fcstd-types.js';
 import { bsplineToSegments } from './bspline.js';
 
 /** One segment of a 2D contour: either a straight line or a circular arc (planar, sketch-local coordinates). */
@@ -36,7 +36,7 @@ export interface Contour {
 
 const JOIN_TOL = 1e-7;
 
-function segEnds(g: SketchGeom): [ContourSeg, { x: number; y: number }, { x: number; y: number }] | undefined {
+function segEnds(g: FcstdSketchGeom): [ContourSeg, { x: number; y: number }, { x: number; y: number }] | undefined {
   switch (g.kind) {
     case 'line':
       return [
@@ -77,7 +77,7 @@ function segEnds(g: SketchGeom): [ContourSeg, { x: number; y: number }, { x: num
  * @param geoms solved sketch geometry to chain (non-construction segments only)
  * @returns closed loops plus self-closed circles (open chains are dropped)
  */
-export function extractContours(geoms: SketchGeom[]): Contour[] {
+export function extractContours(geoms: FcstdSketchGeom[]): Contour[] {
   const pool: { seg: ContourSeg; a: { x: number; y: number }; b: { x: number; y: number }; used: boolean; spline?: { x1: number; y1: number; x2: number; y2: number }[] }[] = [];
   for (const g of geoms) {
     const s = segEnds(g);

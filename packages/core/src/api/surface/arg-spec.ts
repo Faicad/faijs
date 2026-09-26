@@ -3215,7 +3215,7 @@ selfhost: true,
   },
   {
     name: 'thicken', source: 'topology/api.js#thicken', kind: 'skip',
-    reason: 'overridden by handwritten api/thicken.ts (平台 op engines:[occt]：入参取面/壳整件 Shape——cad.sketch 产物即天然面来源；内部借入喂 vendored thicken，不再要求子形状句柄)',
+    reason: 'overridden by handwritten api/thicken.ts (平台 op engines:[occt]：入参取面/壳整件 Shape——cad.profile 产物即天然面来源；内部借入喂 vendored thicken，不再要求子形状句柄)',
   },
   {
     name: 'draft', source: 'topology/api.js#draft', kind: 'skip',

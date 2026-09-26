@@ -16,7 +16,7 @@ describe('probe revolve roles', () => {
   it('dumps part-key table vs live per-face hashes', async () => {
     const runtime = createEditorRuntime(createNodePorts(), 'brep')
     const code = `
-      const part0 = cad.sketch(${SQUARE})
+      const part0 = cad.profile(${SQUARE})
       const part1 = cad.revolve(part0, { axis: [0, 0, 1], at: [0, 0, 0], angle: 6.283185307179586 })
     `
     await runtime.execute(code, { topology: 'auto' })

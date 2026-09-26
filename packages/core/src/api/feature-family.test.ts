@@ -20,7 +20,7 @@
  * 显式转 `{x,y,z}`（同 `pattern.ts:41` / `api/helix.ts`）。本文件「draft 确实改变几何」
  * 用例即该 bug 的回归守卫。
  *
- * GOTCHA-2（Phase 5 实测，brepkit 输入侧不可用）：brepkit 下 `cad.sketch` 与 `cad.edgeRef`
+ * GOTCHA-2（Phase 5 实测，brepkit 输入侧不可用）：brepkit 下 `cad.profile` 与 `cad.edgeRef`
  * 不可用（sketch 报 `invalid solid handle: index N is out of bounds`；edgeRef 报
  * `edge 1 has 0 adjacent face(s)`）。故本文件凡以 sketch 面 / edgeRef 为输入的用例都只跑
  * occt —— 失败点会落在输入构造（callee=sketch / edgeRef）而不是被测 op，那样断言毫无意义。
@@ -148,7 +148,7 @@ function expectSameBBox(a: BBox, b: BBox, tol = 1e-6): void {
 
 /** 方框 sketch 面（10×10 见方，位于 z=0 平面）。 */
 const SQUARE_SKETCH =
-  'cad.sketch({ contours: [{ segments: [ ' +
+  'cad.profile({ contours: [{ segments: [ ' +
   '{ kind: "line", x1: -10, y1: -10, x2: 10, y2: -10 }, ' +
   '{ kind: "line", x1: 10, y1: -10, x2: 10, y2: 10 }, ' +
   '{ kind: "line", x1: 10, y1: 10, x2: -10, y2: 10 }, ' +

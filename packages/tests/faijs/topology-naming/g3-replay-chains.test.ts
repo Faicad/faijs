@@ -287,12 +287,12 @@ const CHAINS: readonly ChainSpec[] = [
     //    见 `edge-ref/edge-ref.test.ts` 的 "drives the FCStd Pad→Fillet shape"）。
     // 覆盖面不变：`construct`（profile→侧面）+ `kernel`+`byAdjacency`（过渡面）。
     codeA: `
-      const part0 = cad.sketch(${SQUARE})
+      const part0 = cad.profile(${SQUARE})
       const part1 = cad.extrude(part0, [0, 0, 10])
       const part2 = cad.fillet(part1, { edges: [cad.edgeRef(part1, 2)], radius: 2 })
     `,
     codeB: `
-      const part0 = cad.sketch(${SQUARE})
+      const part0 = cad.profile(${SQUARE})
       const part1 = cad.extrude(part0, [0, 0, 14])
       const part2 = cad.fillet(part1, { edges: [cad.edgeRef(part1, 2)], radius: 2 })
     `,
@@ -305,13 +305,13 @@ const CHAINS: readonly ChainSpec[] = [
     label: 'L2 sketch → extrude → cut',
     // 改参：只改孔直径（3 → 4）；profile 的边序不受影响 ⇒ wall:<i> 必须稳定
     codeA: `
-      const part0 = cad.sketch(${SQUARE})
+      const part0 = cad.profile(${SQUARE})
       const part1 = cad.extrude(part0, [0, 0, 10])
       const part2 = cad.cylinder(3, 30, { centered: true, at: [5, 5, 0] })
       const part3 = cad.cut(part1, part2)
     `,
     codeB: `
-      const part0 = cad.sketch(${SQUARE})
+      const part0 = cad.profile(${SQUARE})
       const part1 = cad.extrude(part0, [0, 0, 10])
       const part2 = cad.cylinder(4, 30, { centered: true, at: [5, 5, 0] })
       const part3 = cad.cut(part1, part2)

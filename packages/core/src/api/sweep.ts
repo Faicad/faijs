@@ -6,7 +6,7 @@
  * occt-only）⇒ 平台 op：defineOp 声明 `engines: ['occt']`（D11）。
  *
  * 为什么手写而不走生成投影：与 `api/loft.ts` 同因——截面最常见来源是
- * `cad.sketch(...)`（产出 **face**），需「面 → 外环」输入适配
+ * `cad.profile(...)`（产出 **face**），需「面 → 外环」输入适配
  * （`internal/profile-wire.ts` 的唯一步径）。脊柱容忍 face（FCStd 翻译把
  * 脊柱基对象 sketch 整圈外廓当路径）。
  *
@@ -76,7 +76,7 @@ function sweepBrep(profile: Shape, spine: Shape, opts?: SweepOptions): Shape {
  * @param opts - 扫掠配置（frenet / mode / tolerance 等）。type:SweepOptions required:false
  * @example
  * const path = cad.wire([[0, 0, 0], [0, 0, 50]])
- * const section = cad.sketch({ contours: [{ segments: [
+ * const section = cad.profile({ contours: [{ segments: [
  *   { kind: 'line', x1: -4, y1: -4, x2: 4, y2: -4 },
  *   { kind: 'line', x1: 4, y1: -4, x2: 4, y2: 4 },
  *   { kind: 'line', x1: 4, y1: 4, x2: -4, y2: 4 },

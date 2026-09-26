@@ -6,8 +6,8 @@
  * its tolerance T1 is calibrated from the sample-set distribution, not
  * pre-set (plan §8).
  */
-import type { SketchGeom } from './sketch-parse.js';
-import type { SolveOutcome } from './sketch-solver.js';
+import type { FcstdSketchGeom } from './fcstd-types.js';
+import type { FcstdSolveOutcome } from './solver.js';
 
 /**
  * P4: exported for testability — anchor points used by maxPointDistance.
@@ -15,7 +15,7 @@ import type { SolveOutcome } from './sketch-solver.js';
  * @param g - the sketch geometry element (point/line/circle/arc/ellipse/bspline).
  * @returns the element's comparison anchor points (center/endpoints as applicable).
  */
-export function anchorPoints(g: SketchGeom): { x: number; y: number }[] {
+export function anchorPoints(g: FcstdSketchGeom): { x: number; y: number }[] {
   switch (g.kind) {
     case 'point':
       return [{ x: g.x, y: g.y }];
@@ -41,7 +41,7 @@ export function anchorPoints(g: SketchGeom): { x: number; y: number }[] {
  * @returns the maximum Euclidean distance between corresponding anchor points
  *   (0 when the lists have no comparable points).
  */
-export function maxPointDistance(a: SketchGeom[], b: SketchGeom[]): number {
+export function maxPointDistance(a: FcstdSketchGeom[], b: FcstdSketchGeom[]): number {
   let max = 0;
   const n = Math.min(a.length, b.length);
   for (let i = 0; i < n; i++) {
@@ -80,8 +80,8 @@ export interface SketchVerdict {
  * @returns the classification verdict for the sketch.
  */
 export function classifySketch(
-  outcome: SolveOutcome | undefined,
-  stored: SketchGeom[],
+  outcome: FcstdSolveOutcome | undefined,
+  stored: FcstdSketchGeom[],
   t1: number,
   preBlocked?: string,
 ): SketchVerdict {

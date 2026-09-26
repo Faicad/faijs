@@ -179,7 +179,7 @@ describe('naming chain across cad.extrude (E3 后续)', () => {
 
   it('GOTCHA: an extrude result carries a role table, so edgeRef resolves on it', async () => {
     const code = `
-      const part0 = cad.sketch(${SQUARE})
+      const part0 = cad.profile(${SQUARE})
       const part1 = cad.extrude(part0, [0, 0, 10])
       const e = cad.edgeRef(part1, 2)
     `
@@ -189,7 +189,7 @@ describe('naming chain across cad.extrude (E3 后续)', () => {
 
   it('drives the FCStd Pad→Fillet shape: fillet(edgeRef(extrude(sketch)))', async () => {
     const code = `
-      const part0 = cad.sketch(${SQUARE})
+      const part0 = cad.profile(${SQUARE})
       const part1 = cad.extrude(part0, [0, 0, 10])
       const part2 = cad.fillet(part1, { edges: [cad.edgeRef(part1, 2)], radius: 1 })
     `
@@ -202,7 +202,7 @@ describe('naming chain across cad.extrude (E3 后续)', () => {
 
   it('keeps the table across cad.place (FCStd emits place between features)', async () => {
     const code = `
-      const part0 = cad.sketch(${SQUARE})
+      const part0 = cad.profile(${SQUARE})
       const part1 = cad.extrude(part0, [0, 0, 10])
       const part2 = cad.place(part1, { position: [0, 0, 5] })
       const e = cad.edgeRef(part2, 2)
@@ -222,7 +222,7 @@ describe('naming chain across cad.extrude (E3 后续)', () => {
     // real solid of revolution: revolving the square around the X axis yields
     // a solid cylinder (lateral + 2 caps = 3 faces).
     const code = `
-      const part0 = cad.sketch(${SQUARE})
+      const part0 = cad.profile(${SQUARE})
       const part1 = cad.revolve(part0, { axis: [1, 0, 0], at: [0, 0, 0], angle: 6.283185307179586 })
       const e = cad.edgeRef(part1, 1)
     `

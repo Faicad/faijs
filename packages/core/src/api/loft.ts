@@ -6,7 +6,7 @@
  * defineOp 声明 `engines: ['occt']`（D11）。
  *
  * 为什么手写而不走生成投影：与 `api/sweep.ts` 同因——截面最常见来源是
- * `cad.sketch(...)`（产出 **face**），内核 `loft(wires, …)` 只吃 wire ⇒
+ * `cad.profile(...)`（产出 **face**），内核 `loft(wires, …)` 只吃 wire ⇒
  * 需要「面 → 外环」输入适配（`internal/profile-wire.ts` 的唯一步径）。
  *
  * core-decouple G5：vendored `loft`（brepjs）替换为 occt-wasm 原生直连，
@@ -96,13 +96,13 @@ function loftBrep(sections: Shape[], opts?: LoftOptions): Shape {
  * @param sections - 有序截面集合（wire 或面；面取其外环）。type:Shape[] required:true
  * @param opts - 放样配置（ruled / startPoint / endPoint / tolerance）。type:LoftOptions required:false
  * @example
- * const bottom = cad.sketch({ contours: [{ segments: [
+ * const bottom = cad.profile({ contours: [{ segments: [
  *   { kind: 'line', x1: -5, y1: -5, x2: 5, y2: -5 },
  *   { kind: 'line', x1: 5, y1: -5, x2: 5, y2: 5 },
  *   { kind: 'line', x1: 5, y1: 5, x2: -5, y2: 5 },
  *   { kind: 'line', x1: -5, y1: 5, x2: -5, y2: -5 },
  * ] }] })
- * const top = cad.translate(cad.sketch({ contours: [{ segments: [
+ * const top = cad.translate(cad.profile({ contours: [{ segments: [
  *   { kind: 'line', x1: -3, y1: -3, x2: 3, y2: -3 },
  *   { kind: 'line', x1: 3, y1: -3, x2: 3, y2: 3 },
  *   { kind: 'line', x1: 3, y1: 3, x2: -3, y2: 3 },

@@ -189,7 +189,7 @@ describe('sketch as:"wire" — 2D 轮廓直接交出 1D 形态', () => {
   it('sketch({ as:"wire" }) 产出 kind="curve"（供扫掠族作 spine）', async () => {
     await useOcct()
     const code =
-      'let part0 = cad.sketch({ ' +
+      'let part0 = cad.profile({ ' +
       'contours: [{ segments: [ ' +
       '{ kind: "line", x1: 0, y1: 0, x2: 10, y2: 0 }, ' +
       '{ kind: "line", x1: 10, y1: 0, x2: 10, y2: 10 }, ' +

@@ -35,7 +35,7 @@ describe('E3-b extrude role table', () => {
     const runtime = createRuntime(createNodePorts(), 'brep')
     try {
       const code = `
-        const part0 = cad.sketch(${SQUARE})
+        const part0 = cad.profile(${SQUARE})
         const part1 = cad.extrude(part0, [0, 0, 5])
       `
       await runtime.execute(code, { topology: 'auto' })

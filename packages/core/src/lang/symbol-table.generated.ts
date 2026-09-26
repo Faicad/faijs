@@ -11,7 +11,7 @@ export default {
   "cone": {},
   "wedge": {},
   "screw": {},
-  "sketch": {},
+  "profile": {},
   "wire": {},
   "helix": {},
   "sdf": {},

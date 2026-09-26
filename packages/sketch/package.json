@@ -1,13 +1,14 @@
 {
-  "name": "@faicad/faijs-fcstd",
+  "name": "@faicad/faijs-sketch",
   "version": "0.17.0",
-  "description": "FCStd reader and .fai.js conversion pipeline for faijs — unpack, sketch parse/solve, feature translate, batch CLI",
+  "description": "faijs sketch & constraint capability library — canonical model, planegcs solving, contour extraction and face construction",
   "keywords": [
     "faijs",
     "cad",
-    "fcstd",
-    "freecad",
-    "converter"
+    "sketch",
+    "constraint",
+    "solver",
+    "planegcs"
   ],
   "license": "MIT",
   "repository": {
@@ -18,17 +19,18 @@
   "sideEffects": false,
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "bin": {
-    "faijs-fcstd-convert": "./dist/cli.js"
-  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
-    "./convert": {
-      "types": "./dist/convert.d.ts",
-      "default": "./dist/convert.js"
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "default": "./dist/node.js"
+    },
+    "./canonical": {
+      "types": "./dist/canonical.d.ts",
+      "default": "./dist/canonical.js"
     },
     "./*": {
       "types": "./dist/*.d.ts",
@@ -41,25 +43,23 @@
     "LICENSE"
   ],
   "dependencies": {
-    "@faicad/faijs-sketch": "^0.17.0",
-    "@xmldom/xmldom": "^0.9.8",
-    "fflate": "^0.8.2"
+    "@salusoft89/planegcs": "1.2.0"
   },
   "peerDependencies": {
-    "@faicad/faijs": "^0.17.0",
-    "occt-wasm": "^3.8.4"
+    "@faicad/faijs": "^0.17.0"
   },
   "devDependencies": {
-    "typescript": "*",
-    "vitest": "*",
     "occt-wasm": "^3.8.4",
     "three": "^0.184.0",
-    "@types/three": "^0.184.1"
+    "@types/three": "^0.184.1",
+    "typescript": "*",
+    "vitest": "*"
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json && node ../../scripts/fix-import-extensions.mjs dist",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:install": "vitest run -c vitest.install.config.ts",
     "lint": "eslint src"
   }
 }

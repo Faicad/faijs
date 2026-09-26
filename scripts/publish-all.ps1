@@ -77,6 +77,7 @@ function Run-Npm {
 # different version line cannot live in this list.
 $Packages = @(
   @{ Name = '@faicad/faijs';           Path = 'packages/core' },
+  @{ Name = '@faicad/faijs-sketch';    Path = 'packages/sketch' },
   @{ Name = '@faicad/faijs-extra';     Path = 'packages/faijs-extra' },
   @{ Name = '@faicad/faijs-fcstd';     Path = 'packages/fcstd' },
   @{ Name = '@faicad/cq-compat';        Path = 'packages/cq-compat' },

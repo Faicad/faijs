@@ -171,7 +171,23 @@ const a = await cad.import_step({ path: 'D:/models/box.step' })
 >
 > 非实体一等（C6）：wire/face/shell 一律可导入。需要实体的 op（布尔、up-to 目标面）在**使用点**报错。
 
-### 3.7 `screw` ✅
+### 3.7 `profile` ✅
+
+从 2D 轮廓构造平面（creator，无输入）。仅 BREP 可用。
+
+```js
+const f = cad.profile({ contours: [{ segments: [{ kind:'line', x1:0,y1:0,x2:10,y2:0 }, ...] }] })
+const w = cad.profile({ contours: [{ segments: [{ kind:'line', x1:0,y1:0,x2:10,y2:0 }, ...] }], as: 'wire' })
+```
+
+| 参数 | 类型 | 必填 | 默认 | 说明 |
+|---|---|---|---|---|
+| `contours` | `ProfileLoop[]` | ✅ | — | 有序 2D 轮廓（线段/圆弧；外环 + 孔） |
+| `as` | `'face'|'wire'` |  | ）构面；'wire' 只交外环 wire（1D 曲线）。type:'face'|'wire' required:false | 产物形态：'face'（ |
+
+**同步**。Shape 平面几何（mesh 三角化 + BREP 句柄）；`as:'wire'` 时返回 1D 曲线（kind:'curve'）。
+
+### 3.8 `screw` ✅
 
 生成螺丝零件（螺纹 + 头型）。
 
@@ -196,7 +212,7 @@ const s = await cad.screw({ system: 'metric', specIdx: 6, thread: 'coarse', leng
 >
 > pitchCustom 执行层已支持（makeScrew/threadBrep 均读取），codegen 曾不序列化（TODO）；当前已机械输出。
 
-### 3.8 `sdf` ⚠️
+### 3.9 `sdf` ⚠️
 
 用 SDF（符号距离场）函数生成网格体（mesh-only）。
 
@@ -214,22 +230,6 @@ const s = await cad.sdf({ code: 'return sphere(10) - sphere(5, [10,0,0])', box: 
 **异步**。Shape SDF 生成的网格体，生成独立零件。
 
 > SDF 无 BREP 实现（mesh-only）；brep 模式下 dispatchPath 调用前抛 BrepUnsupportedError。SDF 天生是网格操作，允许网格参数（resolution）。
-
-### 3.9 `sketch` ✅
-
-从 2D 轮廓构造平面（creator，无输入）。仅 BREP 可用。
-
-```js
-const f = cad.sketch({ contours: [{ segments: [{ kind:'line', x1:0,y1:0,x2:10,y2:0 }, ...] }] })
-const w = cad.sketch({ contours: [{ segments: [{ kind:'line', x1:0,y1:0,x2:10,y2:0 }, ...] }], as: 'wire' })
-```
-
-| 参数 | 类型 | 必填 | 默认 | 说明 |
-|---|---|---|---|---|
-| `contours` | `SketchLoop[]` | ✅ | — | 有序 2D 轮廓（线段/圆弧；外环 + 孔） |
-| `as` | `'face'|'wire'` |  | ）构面；'wire' 只交外环 wire（1D 曲线）。type:'face'|'wire' required:false | 产物形态：'face'（ |
-
-**同步**。Shape 平面几何（mesh 三角化 + BREP 句柄）；`as:'wire'` 时返回 1D 曲线（kind:'curve'）。
 
 ### 3.10 `sphere` ✅
 
@@ -629,13 +629,13 @@ const p = await cad.linearPattern(part0, [1, 0, 0], 3, 20)
 放样：按给定顺序在截面之间蒙皮生成体。
 
 ```js
-const bottom = cad.sketch({ contours: [{ segments: [
+const bottom = cad.profile({ contours: [{ segments: [
 { kind: 'line', x1: -5, y1: -5, x2: 5, y2: -5 },
 { kind: 'line', x1: 5, y1: -5, x2: 5, y2: 5 },
 { kind: 'line', x1: 5, y1: 5, x2: -5, y2: 5 },
 { kind: 'line', x1: -5, y1: 5, x2: -5, y2: -5 },
 ] }] })
-const top = cad.translate(cad.sketch({ contours: [{ segments: [
+const top = cad.translate(cad.profile({ contours: [{ segments: [
 { kind: 'line', x1: -3, y1: -3, x2: 3, y2: -3 },
 { kind: 'line', x1: 3, y1: -3, x2: 3, y2: 3 },
 { kind: 'line', x1: 3, y1: 3, x2: -3, y2: 3 },
@@ -804,7 +804,7 @@ const b = await cad.subtract(part0, part1)
 
 ```js
 const path = cad.wire([[0, 0, 0], [0, 0, 50]])
-const section = cad.sketch({ contours: [{ segments: [
+const section = cad.profile({ contours: [{ segments: [
 { kind: 'line', x1: -4, y1: -4, x2: 4, y2: -4 },
 { kind: 'line', x1: 4, y1: -4, x2: 4, y2: 4 },
 { kind: 'line', x1: 4, y1: 4, x2: -4, y2: 4 },
@@ -828,7 +828,7 @@ const body = await cad.sweep(section, path)
 加厚：把面（或壳）沿法向偏置成等厚实体。
 
 ```js
-const face = cad.sketch({ contours: [{ segments: [
+const face = cad.profile({ contours: [{ segments: [
 { kind: 'line', x1: -10, y1: -10, x2: 10, y2: -10 },
 { kind: 'line', x1: 10, y1: -10, x2: 10, y2: 10 },
 { kind: 'line', x1: 10, y1: 10, x2: -10, y2: 10 },
@@ -843,7 +843,7 @@ const solid = await cad.thicken(face, 2)
 
 **异步**。Shape 加厚后的实体。
 
-> 平台 op：仅 occt 引擎（BRepOffset）。输入为面/壳 Shape（如 cad.sketch 产物）； 正厚度沿法向、负厚度反向。非 occt 引擎执行前报错；brep_mock 不拦截。
+> 平台 op：仅 occt 引擎（BRepOffset）。输入为面/壳 Shape（如 cad.profile 产物）； 正厚度沿法向、负厚度反向。非 occt 引擎执行前报错；brep_mock 不拦截。
 
 ### 5.26 `union` ✅
 
@@ -1027,7 +1027,7 @@ const svg = cad.projectView(part0, 'iso', { strokeWidth: 1, dash: '4,4', hiddenO
 | `strokeWidth` | `number` |  | 1 | 可见线宽（stroke-width） |
 | `dash` | `string` |  | '4,4' | 隐藏线虚线样式（stroke-dasharray） |
 | `hiddenOpacity` | `number` |  | 0.6 | 隐藏线透明度 |
-| `margin` | `number` |  | 10 | viewBox 外扩边距 |
+| `margin` | `number` |  | 1 | viewBox 外扩边距 |
 | `width` | `number` |  | — | 输出宽度（缺省 = viewBox 宽度） |
 | `height` | `number` |  | — | 输出高度（缺省 = viewBox 高度） |
 
@@ -1107,7 +1107,7 @@ const cam = cad.viewCamera({ dir: [1, -1, 1] })
 ## 10. 写给 AI 的速查（一句话总结每个可用 op）
 
 ```
-创建: helix / import_brep / import_step / box / sphere / cylinder / cone / wedge / screw / sdf / sketch / wire
+创建: helix / import_brep / import_step / box / sphere / cylinder / cone / wedge / profile / screw / sdf / wire
 变换: place
 特征: union / cut / subtract / intersect / chamfer / draft / engrave / extrude / filletVariable / fillet / knurl / loft / linearPattern / circularPattern / gridPattern / rectangularPattern / mirrorJoin / mirror / clone / revolve / sectionByPlane / shell / splitByPlane / split / sweep / thicken
 结构: compound
@@ -1161,6 +1161,7 @@ BREP 链上每个面的身份 = `(StmtId, role)`。下表列出每个 op 对**�
 | `offset` | 内核历史 | `gen:offset:<i>` |  |
 | `place` | 1:1 恒等 | —（不造新面） | 1:1，第 i 面 → 第 i 面（零声明） |
 | `pocket` | 内核历史 | `gen:pocket:<i>` |  |
+| `profile` | 构造语义 | —（不造新面） |  |
 | `rectangularPattern` | 复制 k 份 | —（不造新面） | replica[k]/<原 role> 由框架生成（k=0..-1） |
 | `removeHolesFromFace` | 内核历史 | `gen:removeHolesFromFace:<i>` |  |
 | `reverseShape` | 内核历史 | `gen:reverseShape:<i>` |  |
@@ -1177,7 +1178,6 @@ BREP 链上每个面的身份 = `(StmtId, role)`。下表列出每个 op 对**�
 | `sewAndSolidify` | 内核历史 | `gen:sewAndSolidify:<i>` |  |
 | `shell` | 内核历史 | `gen:shell:<i>` |  |
 | `simplify` | 内核历史 | `gen:simplify:<i>` |  |
-| `sketch` | 构造语义 | —（不造新面） |  |
 | `sphere` | 未建模 | —（不造新面） | sphere face vocabulary pending Phase 3 |
 | `split` | 分片 | —（不造新面） | 每输入面 → 若干片：splinter(<原 role>)#j 由框架生成 |
 | `splitByPlane` | 分片 | —（不造新面） | 每输入面 → 若干片：splinter(<原 role>)#j 由框架生成 |

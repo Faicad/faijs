@@ -59,7 +59,7 @@ describe('cad.extrude upTo mode (plan §5-B DoD)', () => {
     // 从 z=0 拉伸到墙面（part0 的 +Z 面 = face 6）
     const outputs = await runCode(`
       let part0 = cad.box(10, 10, 100, { centered: false })
-      let sk = cad.sketch({ contours: [${SQUARE_2X2}] })
+      let sk = cad.profile({ contours: [${SQUARE_2X2}] })
       let part1 = cad.extrude(sk, { upTo: cad.faceRef(part0, 6) })
     `)
     const p1 = outputs.get(asPartName('part1'))
@@ -76,7 +76,7 @@ describe('cad.extrude upTo mode (plan §5-B DoD)', () => {
   it('UpToLast: extrude to the far end of the base feature', async () => {
     const outputs = await runCode(`
       let base = cad.box(10, 10, 100, { centered: false })
-      let sk = cad.sketch({ contours: [${SQUARE_2X2}] })
+      let sk = cad.profile({ contours: [${SQUARE_2X2}] })
       let part1 = cad.extrude(sk, { upTo: 'last', baseFeature: base })
     `)
     const p1 = outputs.get(asPartName('part1'))
@@ -91,7 +91,7 @@ describe('cad.extrude upTo mode (plan §5-B DoD)', () => {
     // 目标面 z=100（face 6, normal +Z），offset=+5 → 截断在 z=105
     const outputs = await runCode(`
       let part0 = cad.box(10, 10, 100, { centered: false })
-      let sk = cad.sketch({ contours: [${SQUARE_2X2}] })
+      let sk = cad.profile({ contours: [${SQUARE_2X2}] })
       let part1 = cad.extrude(sk, { upTo: cad.faceRef(part0, 6), offset: 5 })
     `)
     const p1 = outputs.get(asPartName('part1'))
@@ -103,7 +103,7 @@ describe('cad.extrude upTo mode (plan §5-B DoD)', () => {
 
   it('upTo without baseFeature for "last" → explicit error (no silent fallback)', async () => {
     await expect(runCode(`
-      let sk = cad.sketch({ contours: [${SQUARE_2X2}] })
+      let sk = cad.profile({ contours: [${SQUARE_2X2}] })
       let part1 = cad.extrude(sk, { upTo: 'last' })
     `)).rejects.toThrow(/E_UP_TO_NO_BASE/)
   })
@@ -112,7 +112,7 @@ describe('cad.extrude upTo mode (plan §5-B DoD)', () => {
 describe('cad.extrude 长度形态向后兼容（生成投影委托不变语义）', () => {
   it('位置形态 cad.extrude(face, [0,0,10]) 仍可用（历史产物形态）', async () => {
     const outputs = await runCode(`
-      let sk = cad.sketch({ contours: [${SQUARE_2X2}] })
+      let sk = cad.profile({ contours: [${SQUARE_2X2}] })
       let part1 = cad.extrude(sk, [0,0,10])
     `)
     const p1 = outputs.get(asPartName('part1'))
@@ -125,9 +125,9 @@ describe('cad.extrude 长度形态向后兼容（生成投影委托不变语义�
 
   it('对象形态 cad.extrude(face, { length }) 与位置形态同几何', async () => {
     const outputs = await runCode(`
-      let sk = cad.sketch({ contours: [${SQUARE_2X2}] })
+      let sk = cad.profile({ contours: [${SQUARE_2X2}] })
       let part1 = cad.extrude(sk, [0,0,10])
-      let sk2 = cad.sketch({ contours: [${SQUARE_2X2}] })
+      let sk2 = cad.profile({ contours: [${SQUARE_2X2}] })
       let part2 = cad.extrude(sk2, { length: 10 })
     `)
     const p1 = outputs.get(asPartName('part1'))
@@ -140,7 +140,7 @@ describe('cad.extrude 长度形态向后兼容（生成投影委托不变语义�
 
   it('backward 方向按 normal 取反', async () => {
     const outputs = await runCode(`
-      let sk = cad.sketch({ contours: [${SQUARE_2X2}] })
+      let sk = cad.profile({ contours: [${SQUARE_2X2}] })
       let part1 = cad.extrude(sk, { length: 10, mode: 'backward' })
     `)
     const p1 = outputs.get(asPartName('part1'))
@@ -164,7 +164,7 @@ describe('cad.extrude upTo { plane } 显式平面目标（PadTest Pad001 斜置�
     // 圆轮廓（PadTest Sketch001，r=7.728，面积 187.6）；斜平面法向
     // n=(−0.705,0.071,0.705)，圆心处交点 z=−26.06 → 真值体积 4860.42。
     const outputs = await runCode(`
-      let sk = cad.sketch({ contours: [{"segments":[{"kind":"arc","cx":-33.057236,"cy":30.001772,"radius":7.728417011119,"startAngle":0,"endAngle":6.283185307179586,"ccw":true,"x1":-25.328818988881004,"y1":30.001772,"x2":-25.328818988881004,"y2":30.001772}],"closed":true}] })
+      let sk = cad.profile({ contours: [{"segments":[{"kind":"arc","cx":-33.057236,"cy":30.001772,"radius":7.728417011119,"startAngle":0,"endAngle":6.283185307179586,"ccw":true,"x1":-25.328818988881004,"y1":30.001772,"x2":-25.328818988881004,"y2":30.001772}],"closed":true}] })
       let part1 = cad.extrude(sk, { upTo: { plane: { point: [-50, 100, -49.99999999999997], normal: [-0.7053456158587508, 0.07053456158639328, 0.7053456158583923] } } })
     `)
     const p1 = outputs.get(asPartName('part1'))
@@ -191,7 +191,7 @@ describe('cad.extrude upTo { plane } 显式平面目标（PadTest Pad001 斜置�
   it('平面目标在拉伸正方向时不翻转方向（正常 UpToFace）', async () => {
     // 平面 z=10（法向 +Z），轮廓 [0,2]² 沿 +Z 拉：体积 = 4×10 = 40
     const outputs = await runCode(`
-      let sk = cad.sketch({ contours: [${SQUARE_2X2}] })
+      let sk = cad.profile({ contours: [${SQUARE_2X2}] })
       let part1 = cad.extrude(sk, { upTo: { plane: { point: [0, 0, 10], normal: [0, 0, 1] } } })
     `)
     const p1 = outputs.get(asPartName('part1'))

@@ -129,7 +129,7 @@ const ROWS: readonly CoverageRow[] = [
   {
     label: 'sketch → extrude',
     // Phase 1 后：construct 枚举器落地（bottom/top/wall:0-3），位置兜底名已删
-    code: `const part0 = cad.sketch(${SQUARE})
+    code: `const part0 = cad.profile(${SQUARE})
            const part1 = cad.extrude(part0, [0, 0, 10])`,
     part: 'part1',
     expect: { total: 6, semantic: 6, positional: 0, empty: 0 },
@@ -154,7 +154,7 @@ const ROWS: readonly CoverageRow[] = [
   {
     label: 'sketch → extrude → subtract（faijs 双 op）',
     // Phase 1 后：extrude 的 wall:i + cylinder 的 lateral 全语义
-    code: `const part0 = cad.sketch(${SQUARE})
+    code: `const part0 = cad.profile(${SQUARE})
            const part1 = cad.extrude(part0, [0, 0, 10])
            const part2 = cad.cylinder(3, 30, { centered: true, at: [5, 5, 0] })
            const part3 = cad.subtract(part1, part2)`,
@@ -164,7 +164,7 @@ const ROWS: readonly CoverageRow[] = [
   {
     label: 'sketch → extrude → cut（Phase 3 handwritten cut）',
     // Phase 3: cut overridden with handwritten boolean.ts:cut → roleTable propagation
-    code: `const part0 = cad.sketch(${SQUARE})
+    code: `const part0 = cad.profile(${SQUARE})
            const part1 = cad.extrude(part0, [0, 0, 10])
            const part2 = cad.cylinder(3, 30, { centered: true, at: [5, 5, 0] })
            const part3 = cad.cut(part1, part2)`,

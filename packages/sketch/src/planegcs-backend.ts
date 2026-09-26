@@ -11,36 +11,34 @@
 import { make_gcs_wrapper, Algorithm } from '@salusoft89/planegcs';
 import type { GcsWrapper } from '@salusoft89/planegcs';
 import { ok, type Result } from '@faicad/faijs/api/result';
-import type { SketchGeom, SketchCon } from './sketch-parse.js';
-import { ConstraintType, PointPos } from './sketch-parse.js';
-import type { SolveOutcome, SketchSolver } from './sketch-solver.js';
-import { SUPPORTED_CONSTRAINT_TYPES } from './sketch-solver.js';
-import { createRequire } from 'node:module';
-import { dirname, join } from 'node:path';
-
-const require = createRequire(import.meta.url);
-
-let wasmPathCache: string | undefined;
-/**
- * Resolve the planegcs WASM binary path from the installed package.
- *
- * @returns the absolute path of `planegcs.wasm` inside `@salusoft89/planegcs`.
- */
-export function planegcsWasmPath(): string {
-  if (!wasmPathCache) {
-    const pkgDir = dirname(require.resolve('@salusoft89/planegcs/package.json'));
-    wasmPathCache = join(pkgDir, 'dist', 'planegcs_dist', 'planegcs.wasm');
-  }
-  return wasmPathCache;
+import type { FcstdSketchGeom, FcstdSketchCon } from './fcstd-types.js';
+import { ConstraintType, PointPos } from './fcstd-types.js';
+import type { FcstdSolveOutcome, SketchSolver } from './solver.js';
+import { SUPPORTED_CONSTRAINT_TYPES } from './solver.js';
+/** Options for instantiating the planegcs WASM solver. */
+export interface PlanegcsSolverOptions {
+  /** Absolute filesystem path to `planegcs.wasm` (Node hosts). */
+  wasmPath?: string
+  /** Raw wasm bytes (browser/worker hosts, injected via HostPorts.assets). */
+  wasmBytes?: Uint8Array | ArrayBuffer
 }
 
 /**
  * Instantiate the planegcs WASM solver.
  *
+ * Environment-agnostic: the host supplies the wasm source. Node hosts use
+ * `createNodePlanegcsSolver()` from `@faicad/faijs-sketch/node`; browser hosts
+ * pass bytes resolved through `HostPorts.assets`.
+ *
+ * @param options - wasm path (Node) or bytes (browser).
  * @returns a `SketchSolver` backed by the planegcs WASM module.
  */
-export async function createPlanegcsSolver(): Promise<SketchSolver> {
-  const wrapper = await make_gcs_wrapper(planegcsWasmPath());
+export async function createPlanegcsSolver(options: PlanegcsSolverOptions): Promise<SketchSolver> {
+  const source = options.wasmBytes ?? options.wasmPath;
+  if (!source) {
+    throw new Error('E_SKETCHC_NO_WASM: createPlanegcsSolver needs wasmPath or wasmBytes');
+  }
+  const wrapper = await make_gcs_wrapper(source as never);
   return new PlanegcsSolver(wrapper);
 }
 
@@ -52,17 +50,17 @@ const P = (geoId: number, pos: number): PtKey => `g${geoId}p${pos}`;
 /**
  * planegcs WASM implementation of the `SketchSolver` interface (M3.2–M3.4):
  * pushes geometry/constraints into the GCS, solves, and pulls the solved
- * parameters back into `SketchGeom` values.
+ * parameters back into `FcstdSketchGeom` values.
  */
 export class PlanegcsSolver implements SketchSolver {
   constructor(private wrapper: GcsWrapper) {}
 
   async solve(
-    geoms: SketchGeom[],
-    constraints: SketchCon[],
-    external?: import('./sketch-solver.js').ExternalFixedSeg[],
-  ): Promise<Result<SolveOutcome, never>> {
-    const externalMap = new Map<number, import('./sketch-solver.js').ExternalFixedSeg>(
+    geoms: FcstdSketchGeom[],
+    constraints: FcstdSketchCon[],
+    external?: import('./solver.js').ExternalFixedSeg[],
+  ): Promise<Result<FcstdSolveOutcome, never>> {
+    const externalMap = new Map<number, import('./solver.js').ExternalFixedSeg>(
       (external ?? []).map((e) => [e.geoId, e]),
     );
     // a constraint referencing an unresolvable external geoId is dropped
@@ -278,16 +276,42 @@ export class PlanegcsSolver implements SketchSolver {
     const conflicting = w.has_gcs_conflicting_constraints();
     const redundant = w.has_gcs_redundant_constraints();
 
-    if (status !== 0 || conflicting) {
-      const problem = conflicting ? w.get_gcs_conflicting_constraints() : w.get_gcs_redundant_constraints();
-      const problemConstraints = problem
+    if (conflicting) {
+      const problemConstraints = w.get_gcs_conflicting_constraints()
         .map((s) => Number(s.replace(/^c/, '')))
         .filter((n) => Number.isFinite(n));
       return ok({
         geoms,
         converged: false,
-        reason: conflicting ? 'conflicting' : redundant ? 'redundant' : 'failed',
+        reason: 'conflicting',
         problemConstraints,
+        droppedConstraints,
+      });
+    }
+
+    if (redundant) {
+      // D3: redundant constraints are dropped internally by planegcs's
+      // redundant-solving mode; the best-effort solution is still valid.
+      w.apply_solution();
+      const solved = this.pullBack(geoms, { lines, arcs, circles, ellipses, standalone });
+      const problemConstraints = w.get_gcs_redundant_constraints()
+        .map((s) => Number(s.replace(/^c/, '')))
+        .filter((n) => Number.isFinite(n));
+      return ok({
+        geoms: solved,
+        converged: true,
+        reason: 'redundant',
+        problemConstraints,
+        droppedConstraints: [...droppedConstraints, ...problemConstraints],
+      });
+    }
+
+    if (status !== 0) {
+      return ok({
+        geoms,
+        converged: false,
+        reason: 'failed',
+        problemConstraints: [],
         droppedConstraints,
       });
     }
@@ -299,8 +323,22 @@ export class PlanegcsSolver implements SketchSolver {
     return ok({ geoms: solved, converged: true, problemConstraints: [], droppedConstraints });
   }
 
+  /**
+   * Remaining degrees of freedom after a successful solve (-1 if unavailable).
+   *
+   * @returns the DoF count, or -1 if the backend does not report it.
+   */
+  getDof(): number {
+    try {
+      const v = this.wrapper.gcs.dof();
+      return typeof v === 'number' && Number.isFinite(v) ? v : -1;
+    } catch {
+      return -1;
+    }
+  }
+
   private constraintToPrimitives(
-    c: SketchCon,
+    c: FcstdSketchCon,
     ctx: {
       lines: Map<number, { p1: PtKey; p2: PtKey }>;
       arcs: Map<number, { center: PtKey; start: PtKey; end: PtKey }>;
@@ -581,7 +619,7 @@ export class PlanegcsSolver implements SketchSolver {
   }
 
   private pullBack(
-    geoms: SketchGeom[],
+    geoms: FcstdSketchGeom[],
     ctx: {
       lines: Map<number, { p1: PtKey; p2: PtKey }>;
       arcs: Map<number, { center: PtKey; start: PtKey; end: PtKey }>;
@@ -589,10 +627,10 @@ export class PlanegcsSolver implements SketchSolver {
       ellipses: Map<number, { center: PtKey; focus1: PtKey }>;
       standalone: Map<number, PtKey>;
     },
-  ): SketchGeom[] {
+  ): FcstdSketchGeom[] {
     // After apply_solution, re-derive geometry from the wrapper's primitive
     // state via pull through the wrapper's sketch index.
-    const out: SketchGeom[] = [];
+    const out: FcstdSketchGeom[] = [];
     for (const g of geoms) {
       switch (g.kind) {
         case 'point': {

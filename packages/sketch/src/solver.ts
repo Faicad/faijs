@@ -7,15 +7,15 @@
  * between solution and initial-value fallback (D2).
  */
 import type { Result } from '@faicad/faijs/api/result';
-import type { SketchGeom, SketchCon } from './sketch-parse.js';
+import type { FcstdSketchGeom, FcstdSketchCon } from './fcstd-types.js';
 
 /**
  * Result of one solver run: the solved geometry plus convergence status and
  * diagnostics for the caller's L0/L1/L2 decision (D2).
  */
-export interface SolveOutcome {
+export interface FcstdSolveOutcome {
   /** geometry after solve, same order/index as input */
-  geoms: SketchGeom[];
+  geoms: FcstdSketchGeom[];
   /** true when the solver reports Success with no conflicts */
   converged: boolean;
   /** diagnostics when not converged */
@@ -53,10 +53,10 @@ export interface SketchSolver {
    * drops that constraint (recorded in droppedConstraints).
    */
   solve(
-    geoms: SketchGeom[],
-    constraints: SketchCon[],
+    geoms: FcstdSketchGeom[],
+    constraints: FcstdSketchCon[],
     external?: ExternalFixedSeg[],
-  ): Promise<Result<SolveOutcome, never>>;
+  ): Promise<Result<FcstdSolveOutcome, never>>;
 }
 
 /** Constraint types the planegcs backend can express (P0 set, plan §7 M3.4). */
@@ -84,6 +84,6 @@ export const SUPPORTED_CONSTRAINT_TYPES = new Set<number>([
  * @param constraints - the parsed sketch constraints.
  * @returns true when every constraint's type is in SUPPORTED_CONSTRAINT_TYPES.
  */
-export function allConstraintsSupported(constraints: SketchCon[]): boolean {
+export function allConstraintsSupported(constraints: FcstdSketchCon[]): boolean {
   return constraints.every((c) => SUPPORTED_CONSTRAINT_TYPES.has(c.type));
 }

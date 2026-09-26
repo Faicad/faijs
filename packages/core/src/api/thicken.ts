@@ -25,13 +25,13 @@ import type { BrepHandle } from '../brep/engine/types'
  * @async true
  * @qual ok
  * @name thicken
- * @note 平台 op：仅 occt 引擎（BRepOffset）。输入为面/壳 Shape（如 cad.sketch 产物）；
+ * @note 平台 op：仅 occt 引擎（BRepOffset）。输入为面/壳 Shape（如 cad.profile 产物）；
  *       正厚度沿法向、负厚度反向。非 occt 引擎执行前报错；brep_mock 不拦截。
  * @returns Shape 加厚后的实体。
- * @param input - 面/壳几何（cad.sketch 产物等）。type:Shape required:true
+ * @param input - 面/壳几何（cad.profile 产物等）。type:Shape required:true
  * @param thickness - 厚度（mm，≠0；正沿法向，负反向）。type:number required:true
  * @example
- * const face = cad.sketch({ contours: [{ segments: [
+ * const face = cad.profile({ contours: [{ segments: [
  *   { kind: 'line', x1: -10, y1: -10, x2: 10, y2: -10 },
  *   { kind: 'line', x1: 10, y1: -10, x2: 10, y2: 10 },
  *   { kind: 'line', x1: 10, y1: 10, x2: -10, y2: 10 },

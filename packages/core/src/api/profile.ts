@@ -1,12 +1,12 @@
 /**
- * stdlib sketch — 从 2D 轮廓构面（creator 函数，无输入，brep-only）。
+ * stdlib profile — 从 2D 轮廓构面（creator 函数，无输入，brep-only）。
  *
  * 用途：faijs 此前没有「从 2D 轮廓构造 planar face」的能力，导致草图轮廓无法喂给
  * extrude/revolve。本 op 接收 2D 轮廓（线段 + 圆弧），在 z=0 平面用 OCCT 构面：
  *   makeLineEdge/makeArcEdge → makeWire → makeFace（+ addHolesInFace）。
  *
  * 设计：
- * - 输入：{ contours: SketchLoop[] }，每个 loop = 有序 segments（line / arc，z=0）。
+ * - 输入：{ contours: ProfileLoop[] }，每个 loop = 有序 segments（line / arc，z=0）。
  * - 外环 = 面积（shoelace）绝对值最大的 loop；其余 loop 作为孔。
  * - 圆弧：用起点/中点/终点三点的 makeArcEdge；整圆（sweep≈2π）拆成两段弧。
  * - 输出：Shape（mesh 三角化 + 句柄登记）。brep-only（下游 extrude/revolve 亦 brep-only）。
@@ -26,7 +26,7 @@ import type { Provenance } from '../topology/naming/lineage'
 // ── 参数形状（与 fcstd Contour 结构相同，避免引擎依赖端口层）──
 
 /** 直线段（2D，z=0；端点为绝对坐标）。 */
-export interface SketchLineSeg {
+export interface ProfileLineSeg {
   kind: 'line'
   x1: number
   y1: number
@@ -35,7 +35,7 @@ export interface SketchLineSeg {
 }
 
 /** 圆弧段（圆心 + 半径 + 起止角，弧度；z=0）。 */
-export interface SketchArcSeg {
+export interface ProfileArcSeg {
   kind: 'arc'
   cx: number
   cy: number
@@ -52,16 +52,16 @@ export interface SketchArcSeg {
 }
 
 /** 一条有序 2D 轮廓段（直线或圆弧）。 */
-export type SketchSeg = SketchLineSeg | SketchArcSeg
+export type ProfileSeg = ProfileLineSeg | ProfileArcSeg
 
 /** 单个轮廓环：有序段序列（首尾相接）。 */
-export interface SketchLoop {
-  segments: SketchSeg[]
+export interface ProfileLoop {
+  segments: ProfileSeg[]
 }
 
-/** `cad.sketch` 参数：轮廓环集合（第一个为外环，其余为孔）。 */
-export interface SketchContoursParams {
-  contours: SketchLoop[]
+/** `cad.profile` 参数：轮廓环集合（第一个为外环，其余为孔）。 */
+export interface ProfileParams {
+  contours: ProfileLoop[]
   /**
    * 产物形态：'face'（默认）构面；'wire' 只交出不带面的外环 wire（1D 曲线），
    * 供扫掠族（sweep/loft/…）直接作 spine。'wire' 形态丢弃孔环（扫掠脊柱为单闭合轮廓）。
@@ -72,44 +72,53 @@ export interface SketchContoursParams {
 // ── 参数自校验 ──
 
 /**
- * Validate sketch parameters: `contours` must be a non-empty array of loops,
+ * Validate profile parameters: `contours` must be a non-empty array of loops,
  * each with at least one segment.
- * @param params the raw sketch operation parameters.
+ * @param params the raw profile operation parameters.
  */
-export function assertSketchParams(params: Record<string, unknown>): void {
+export function assertProfileParams(params: Record<string, unknown>): void {
   const contours = params.contours
   if (!Array.isArray(contours) || contours.length === 0) {
-    throw new Error('E_SKETCH_NO_CONTOURS: sketch requires at least one contour')
+    throw new Error('E_PROFILE_NO_CONTOURS: profile requires at least one contour')
   }
   for (const loop of contours) {
-    if (!loop || typeof loop !== 'object' || !Array.isArray((loop as SketchLoop).segments)) {
-      throw new Error('E_SKETCH_BAD_LOOP: each contour must have a segments array')
+    if (!loop || typeof loop !== 'object' || !Array.isArray((loop as ProfileLoop).segments)) {
+      throw new Error('E_PROFILE_BAD_LOOP: each contour must have a segments array')
     }
-    if ((loop as SketchLoop).segments.length === 0) {
-      throw new Error('E_SKETCH_EMPTY_LOOP: a contour must have at least one segment')
+    if ((loop as ProfileLoop).segments.length === 0) {
+      throw new Error('E_PROFILE_EMPTY_LOOP: a contour must have at least one segment')
     }
   }
 }
 
-/** 单环 shoelace 面积（带符号）。 */
-function loopSignedArea(loop: SketchLoop): number {
-  const pts: Array<[number, number]> = []
-  for (const seg of loop.segments) {
-    pts.push([seg.x1, seg.y1])
-  }
+/**
+ * 单环带符号面积（对每段做有向面积积分，而非只用段起点 shoelace）。
+ *
+ * 直线段：1/2 (x1·y2 − x2·y1)。
+ * 圆弧段：1/2 ∫(x dy − y dx) 的解析解 = 1/2 [r²·sweep + cx·r(sin a1 − sin a0) − cy·r(cos a1 − cos a0)]。
+ * 整圆（单段弧、起终点重合）由此得到 πr²，不再是 0——否则「整圆 + 方孔」会把孔误判成外环。
+ */
+function loopSignedArea(loop: ProfileLoop): number {
   let a = 0
-  for (let i = 0; i < pts.length; i++) {
-    const [x1, y1] = pts[i]!
-    const [x2, y2] = pts[(i + 1) % pts.length]!
-    a += x1 * y2 - x2 * y1
+  for (const seg of loop.segments) {
+    if (seg.kind === 'line') {
+      a += (seg.x1 * seg.y2 - seg.x2 * seg.y1) / 2
+      continue
+    }
+    let sweep = seg.endAngle - seg.startAngle
+    while (sweep <= 0) sweep += 2 * Math.PI
+    while (sweep > 2 * Math.PI) sweep -= 2 * Math.PI
+    const { cx, cy, radius: r, startAngle: a0 } = seg
+    const a1 = a0 + sweep
+    a += 0.5 * (r * r * sweep + cx * r * (Math.sin(a1) - Math.sin(a0)) - cy * r * (Math.cos(a1) - Math.cos(a0)))
   }
-  return a / 2
+  return a
 }
 
 /** 圆弧 → 一条或两条 makeArcEdge（整圆拆分）。 */
 function arcToHandles(
   kernel: BrepEngineApi,
-  seg: SketchArcSeg,
+  seg: ProfileArcSeg,
 ): ReturnType<BrepEngineApi['makeArcEdge']>[] {
   const { cx, cy, radius, startAngle, endAngle, ccw = true } = seg
   // GOTCHA（2026-09-25，A3 FCBL_tree_entourage）：ccw 必须参与弧的几何方向。
@@ -152,7 +161,7 @@ function arcToHandles(
 }
 
 /** 单环 → wire handle（仅构面，不释放中间句柄，遵循现有惯例）。 */
-function loopToWire(kernel: BrepEngineApi, loop: SketchLoop): ReturnType<BrepEngineApi['makeWire']> {
+function loopToWire(kernel: BrepEngineApi, loop: ProfileLoop): ReturnType<BrepEngineApi['makeWire']> {
   const edges: ReturnType<BrepEngineApi['makeLineEdge']>[] = []
   for (const seg of loop.segments) {
     if (seg.kind === 'line') {
@@ -172,12 +181,19 @@ function loopToWire(kernel: BrepEngineApi, loop: SketchLoop): ReturnType<BrepEng
   return kernel.makeWire(edges as ReturnType<BrepEngineApi['makeLineEdge']>[])
 }
 
-/** BREP 路径：2D 轮廓 → planar face（外环 + 孔），或 'wire' 形态仅交外环 wire。 */
-function sketchBrep(params: Record<string, unknown>): Shape {
+/**
+ * BREP 路径：2D 轮廓 → planar face（外环 + 孔），或 'wire' 形态仅交外环 wire。
+ *
+ * 导出供 `@faicad/faijs-sketch` 等下游库复用——构面实现单点，草图求解结果经此构面。
+ *
+ * @param params - 轮廓环集合与产物形态。
+ * @returns Shape（`as:'wire'` 时为 1D 曲线）。
+ */
+export function buildProfileShape(params: ProfileParams): Shape {
   const kernel = getBrepApi()
-  const as = (params.as as 'face' | 'wire' | undefined) ?? 'face'
+  const as = params.as ?? 'face'
 
-  const loops = (params.contours as SketchLoop[]).map((loop) => ({ loop, area: Math.abs(loopSignedArea(loop)) }))
+  const loops = params.contours.map((loop) => ({ loop, area: Math.abs(loopSignedArea(loop)) }))
   // 面积最大者为外环，其余为孔
   let outerIdx = 0
   for (let i = 1; i < loops.length; i++) {
@@ -214,19 +230,19 @@ function sketchBrep(params: Record<string, unknown>): Shape {
  * @inputs 0
  * @async false
  * @qual ok
- * @name sketch
+ * @name profile
  * @returns Shape 平面几何（mesh 三角化 + BREP 句柄）；`as:'wire'` 时返回 1D 曲线（kind:'curve'）。
- * @param params.contours - 有序 2D 轮廓（线段/圆弧；外环 + 孔）。type:SketchLoop[] required:true
+ * @param params.contours - 有序 2D 轮廓（线段/圆弧；外环 + 孔）。type:ProfileLoop[] required:true
  * @param params.as - 产物形态：'face'（默认）构面；'wire' 只交外环 wire（1D 曲线）。type:'face'|'wire' required:false
  * @example
- * const f = cad.sketch({ contours: [{ segments: [{ kind:'line', x1:0,y1:0,x2:10,y2:0 }, ...] }] })
- * const w = cad.sketch({ contours: [{ segments: [{ kind:'line', x1:0,y1:0,x2:10,y2:0 }, ...] }], as: 'wire' })
+ * const f = cad.profile({ contours: [{ segments: [{ kind:'line', x1:0,y1:0,x2:10,y2:0 }, ...] }] })
+ * const w = cad.profile({ contours: [{ segments: [{ kind:'line', x1:0,y1:0,x2:10,y2:0 }, ...] }], as: 'wire' })
  */
-export const sketch = defineOp({
+export const profile = defineOp({
   capabilities: ['directEdit'],
   brep(params: Record<string, unknown>) {
-    assertSketchParams(params)
-    return sketchBrep(params)
+    assertProfileParams(params)
+    return buildProfileShape(params as unknown as ProfileParams)
   },
   naming: { kind: 'construct', newFaces: { via: 'explicit', vocab: [] } } as Provenance,
 })

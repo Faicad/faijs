@@ -27,7 +27,7 @@ import { extrude } from './extrude'
 import { knurl } from './knurl'
 import { sdf } from './sdf'
 import { screw } from './screw'
-import { sketch } from './sketch'
+import { profile } from './profile'
 import { wire } from './wire'
 import { helix } from './helix'
 import { union, subtract, intersect, cut } from './boolean'
@@ -78,7 +78,7 @@ export function createApiNamespace(): StdlibNamespace {
   return {
     contractVersion: CONTRACT_VERSION,
     box, sphere, cylinder, cone, wedge,
-    screw, sketch, wire, helix, sdf,
+    screw, profile, wire, helix, sdf,
     // D1 选项 C：四个 transform op 全留核心（translate 小程序端在用，同族不拆散）。
     translate, rotate_euler, scale, scale3d,
     engrave, chamfer, fillet, knurl,
