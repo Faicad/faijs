@@ -57,7 +57,7 @@
 
 | id | 缺口 | 根因方向 | 改动位置 |
 |---|---|---|---|
-| **B1** | 参数载体（`<<Label>>.Alias` + `Spreadsheet::Sheet`/`App::VarSet` + Pocket 下游清账） | 三跳解析：按 Label 找对象 → 按 alias 找单元格 → 去 `=` 交给现有 `evalConstantExpression`；算术顺带 | `feature-translate.ts` + `expressions.ts`（P1-1 已落地主体，取一个仍 gap 的文件验证剩余） |
+| **B1** | 参数载体（`<<Label>>.Alias` + `Spreadsheet::Sheet`/`App::VarSet` + Pocket 下游清账） | 三跳解析：按 Label 找对象 → 按 alias 找单元格 → 去 `=` 交给现有 `evalConstantExpression`；算术顺带 | `feature-translate.ts` + `expressions.ts`（**2026-09-26 已落地**：新增 `Object.Property` / `Sketch.Constraints.<名称>` / `App::VarSet` 属性三种引用形态 + 环保护。实证 `pad-length-expression-non-constant` **10 → 0**、`pocket-missing-dependency` 7 → 6；护栏 `expressions-object-ref-gotcha.test.ts`） |
 | **B2** | `Part::Loft` / `Part::Compound` 翻译缺口（`loft-section-baked-upstream` / `compound-missing-members`） | `depsOf`（codegen）少了 `Sections`／`Spine`／`Source`／`Sketch` 这几条依赖边——与 ArchDetail `Links` 同类缺陷。Kahn 按文档序放置特征，`inputVar()` 取不到尚未构建的上游 | **RESOLVED**（2026-09-26）：`feature-translate.ts` 导出 `LINK_INPUT_PROPS` / `LINK_LIST_INPUT_PROPS` 作为唯一真值，`codegen.ts depsOf` 消费；另加环断裂（不再静默丢弃对象）。实证：Beds `translated` 31→33、`gaps` 2→0 |
 | **B2′** | 草图求解 `sketch-not-solved`（含相切模式） | 约束求解器缺类型/模式 | `lang/sketch-solver.ts` + `fcstd/planegcs-backend.ts`（P3-2/P3-4 已部分） |
 | **B3** | 外部几何 `external-geometry-unresolved` | 外部几何子元素投影（P3-3 已修弧线，取一个仍 gap 的文件验证剩余） | `fcstd/convert.ts` + `external-geo.ts` |
@@ -68,6 +68,7 @@
 
 | id | 功能 | 依赖 | 改动位置 |
 |---|---|---|---|
+| **C0** | **开放轮廓（wire / path）**（2026-09-26 实测确立，样本上最大的缺口族） | 需先有"开放链"表示 + 曲面输出 | `contour.ts` + `api/` + `feature-translate.ts` |
 | **C1** | 扫掠/放样/螺旋（`Part::Sweep`/`Loft`/`Helix`） | 需先补内核 op `cad.sweep`/`cad.loft`/`cad.helix` | `api/` 新 op + `feature-translate.ts` 翻译分支 |
 | **C2** | `App::Link*` 镜像系 / 跨引用系 / 布尔系 | 依赖上游 feature 已翻译 | `feature-translate.ts` |
 | **C3** | 曲线/Frenet/面附着支撑 | — | `placement.ts` + `attachment.ts` |
@@ -79,6 +80,33 @@
 | **D1** | 真实几何差异：faijs 几何 Z 偏移 2.5、体积差 44% 等 | 几何算子偏差（布尔/挤出方向/placement 合成/单位角度口径） | `boolean/`、`brep/`、`placement.ts` 等 |
 
 > D1 与 A/B 不同：不是执行失败，是**数值不对**。取一个 `parityFails` 含具体项的文件，逐项定位偏差来源。
+
+### C0 · 开放轮廓（2026-09-26 实测确立，当前最大缺口族）
+
+150 文件样本（stride 7）：`ok=117 gapped=33 failed=0`，缺口台账头部两项合计约 105 / 180 条：
+
+```
+72  Part::Extrusion :: extrusion-missing-base
+33  Sketcher::SketchObject :: sketch-solved-no-closed-loop
+```
+
+**`extrusion-missing-base` 是级联**：`Extrude_Sketch094.Base = Sketch095`，而 `Sketch095` 正是
+`sketch-solved-no-closed-loop`（同文件的 `Sketch094` 是 translated 的）。
+
+**`sketch-solved-no-closed-loop` 不是 bug**，两个假设已被实测否证：
+
+- 容差：`JOIN_TOL=1e-7` vs `SKETCH_T1=1e-6` 看似可疑，但实测端点最大簇内距离 = **0.000e+0**（端点精确重合）。
+- 构造几何污染：`<Construction value="1"/>` 确实被丢弃且 `extractContours` 未过滤（已修），但语料计数 **33 → 33**，零效果。
+- 决定性证据：`Extrude_Sketch094` 冻结的 `PartShape3.brp` = `Sh 1 / Wi 2 / Fa 2 / Ed 7 / Ve 6`，**无 `So`** ——
+  FreeCAD 把开放线拉成了**壳**，`Solid=true` 也救不了。没有实体，`cad.extrude`（接面）表达不了。
+
+开放草图的真实身份（已查证消费方）：`PathArray.PathObject`（阵列路径，如 `Sketch037` 单线）、
+`Part::Sweep.Spine`（`Sketch036`/`Sketch229`）、`Draft Clone2D.Objects`；以及本身就是开放 S 形的
+`Sketch095`（两个 r=7 半圆在一点相切）。
+
+**因此 C0 需要两项能力**：① 开放链（wire/path）表示 —— `contour.ts` 目前只保留闭合环；
+② `Part::Extrusion` 对开放线的**曲面**输出。这是新能力，不是缺陷修复，禁止靠"强行闭合轮廓"或
+"判 preserved-only 阻断级联"变绿（见 `.agents/notes/implemented/bug-fix/2026-09-26-fcstd-open-profiles-and-expression-references.md`）。
 
 ---
 
