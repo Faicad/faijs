@@ -200,7 +200,9 @@ foreach ($p in $Packages) {
     Write-Host "   -> publish (tag=$Tag) ..." -ForegroundColor DarkGray
     Push-Location $dir
     try {
-      & $npm @pubArgs 2>&1 | ForEach-Object { Write-Host $_ }
+      # Same $LASTEXITCODE trap as Run-Npm: pipe into Out-String, not a cmdlet.
+      $pubOut = & $npm @pubArgs 2>&1 | Out-String
+      if ($pubOut) { Write-Host $pubOut.TrimEnd() }
     } finally {
       Pop-Location
     }
