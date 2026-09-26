@@ -71,7 +71,7 @@ describe('GOTCHA: extrude must name curved side faces and use the extruded axis'
     const runtime = createRuntime(createNodePorts(), 'brep')
     try {
       const result = await runtime.execute(`
-        const part0 = cad.sketch(${ROUNDED_SQUARE})
+        const part0 = cad.profile(${ROUNDED_SQUARE})
         const part1 = cad.extrude(part0, [0, 0, 5])
       `, { topology: 'auto' })
       expect(result.failedAt?.message ?? '(none)').toBe('(none)')
@@ -97,7 +97,7 @@ describe('GOTCHA: extrude must name curved side faces and use the extruded axis'
     const runtime = createRuntime(createNodePorts(), 'brep')
     try {
       const result = await runtime.execute(`
-        const part0 = cad.sketch(${SQUARE})
+        const part0 = cad.profile(${SQUARE})
         const part1 = cad.extrude(part0, [0, 0, 5])
       `, { topology: 'auto' })
       expect(result.failedAt?.message ?? '(none)').toBe('(none)')
