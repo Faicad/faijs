@@ -14,7 +14,7 @@ brepkit `fuseWithEvolution` 返回映射形态 JSON：`{solid, evolution:{modifi
 
 `fuseAll`/`fuse` 简单版不崩，因为它们完全不经过 `mapEvolution`。
 
-## 修复
+## 决策
 
 在 `brepkitKernel.ts` 的 `mapEvolution` 中：
 1. 反向建 `handle→hash` 表（registry 原存 `hash→handle`）。
@@ -29,6 +29,11 @@ brepkit `fuseWithEvolution` 返回映射形态 JSON：`{solid, evolution:{modifi
 - `brepkit-boolean-fix.test.ts`（5 例）：brepkit 上 union/cut/subtract 返回有效几何，occt 不回退，`evolution.modified` 分段解码不抛。
 - `multi-engine-op-parity.test.ts`：union/cut/subtract 在 occt + brepkit 2.129.15/3.4.18/4.0.32 全部 pass，bbox 一致。
 - `brepkitKernel.test.ts`：75/75 无回退。
+
+## 备选方案
+
+- **改 `decodeEvolution`/`decodeHashEvolution` 接受扁平形态**——否决：face-evolution.ts 的分段格式是 occt 历史路径共享的权威契约；把 occt 解码耦合到 brepkit 适配器格式，会把内核特有怪癖泄漏进共享层。
+- **在 op 层修复**——否决：bug 是 brepkit 内核桥内的数据格式转换；适配器是唯一拥有它的层（修复仅限适配器层）。
 
 ## 后果
 

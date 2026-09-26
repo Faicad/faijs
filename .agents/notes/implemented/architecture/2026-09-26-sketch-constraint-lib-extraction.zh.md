@@ -1,21 +1,18 @@
-# 草图约束库拆分 —— `cad.sketch` 改名与库边界
+# Agent Note：草图约束库拆分 —— `cad.sketch` 改名与库边界
 
-**日期**：2026-09-26
-**状态**：已实施
-**方案**：`docs/plans/2026-09-26-sketch-constraint-lib-plan.md`
+Status: implemented
 
-## 决策：`cad.sketch` 改名为 `cad.profile`，`sketch` 让给约束库
+English | [中文](2026-09-26-sketch-constraint-lib-extraction.md)
 
-原 `cad.sketch` op（从原始段组装闭合轮廓构面）改名为 `cad.profile`。`sketch` 名字释放给新包 `@faicad/faijs-sketch` 约束库，其 op 为 `cad.sketch`（求解约束 → 构面）。
+## 问题
 
-**原因**：`sketch` 是约束驱动 2D 设计的用户面词汇。旧 op 名不副实——它不做求解，只是轮廓到面的转换。`profile` 是截面/轮廓的正确跨域术语，用于挤出/旋转/扫掠。
+原 `cad.sketch` op（从原始段组装闭合轮廓构面）名不副实：它不做约束求解，只是轮廓到面的转换，而 `sketch` 是约束驱动 2D 设计的用户面词汇。`sketch` 名字必须释放给新包 `@faicad/faijs-sketch` 约束库，旧 op 需要一个正确的跨域名字（`profile`）。
+
+## 决策
+
+原 `cad.sketch` op（从原始段组装闭合轮廓构面）改名为 `cad.profile`。`sketch` 名字释放给新包 `@faicad/faijs-sketch` 约束库，其 op 为 `cad.sketch`（求解约束 → 构面）。`profile` 是截面/轮廓的正确跨域术语，用于挤出/旋转/扫掠。
 
 **放弃了什么**：旧 `cad.sketch` 名字。无别名过渡（D6）——所有调用点（3d_editor、.fai.js fixture、测试）在同一变更中同步改。对仍在用 `cad.sketch` 的外部消费者是破坏性改名。
-
-**被否的替代方案**：
-- `cad.contour`——与 fcstd 内部 `Contour`/`ContourSeg` 类型同名易混。
-- `cad.face2d`——太窄；该 op 还产出 wire。
-- 别名过渡（`cad.sketch` → `cad.profile` 带废弃别名）——否决，因为约束库需要立即用 `sketch` 名；过渡期需要两个名字共存。
 
 ## 边界：库无 core 深路径特权
 
@@ -32,3 +29,15 @@
 **原因**：planegcs 不原生区分"零 DoF 求解"与"有剩余 DoF 求解"——两者都返回 `SolveStatus.Success`。DoF 探针是暴露欠约束状态的唯一手段。没有它，欠约束草图会静默报 `solved`，违反"允许 ≠ 静默"契约（D3）。
 
 **GOTCHA**：canonical 模型中的 `fixed` 约束被投影为空操作（FCStd 无显式固定约束；隐式固定框架覆盖原点/轴）。这意味着用户指定点上的 `fixed` 约束不会在求解器中真正固定该点。依赖 `fixed` 做绝对定位的草图会有剩余 DoF。这是首版已知限制。
+
+## 备选方案
+
+- `cad.contour`——与 fcstd 内部 `Contour`/`ContourSeg` 类型同名易混。
+- `cad.face2d`——太窄；该 op 还产出 wire。
+- 别名过渡（`cad.sketch` → `cad.profile` 带废弃别名）——否决，因为约束库需要立即用 `sketch` 名；过渡期需要两个名字共存。
+
+## 后果
+
+- 破坏性改名：任何仍在用 `cad.sketch` 的外部消费者必须迁移到 `cad.profile`。
+- 草图库只通过 core 的公开导出消费 core；深路径 import 会在发布态（已安装包）以 `ERR_MODULE_NOT_FOUND` 失败。
+- 欠约束草图以 `underconstrained` 状态暴露（通过 `gcs.dof()` 探针），而非静默 `solved`；用户指定点上的 `fixed` 约束不会真正固定该点（首版已知限制）。

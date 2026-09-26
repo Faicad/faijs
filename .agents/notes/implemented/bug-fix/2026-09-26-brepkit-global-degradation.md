@@ -1,12 +1,16 @@
 # Agent Note: brepkit global degradation — 13 occt-only ops opened via capability routing / static dispatch
 
+Status: implemented
+
 English | [中文](2026-09-26-brepkit-global-degradation.zh.md)
 
 ## Problem
 
 After clone/intersect were degraded to brepkit (2026-09-26), the user required extending the same pattern to **all** degradable occt-only ops: "只要是能够降级使用的，应该全部都要降级使用至至少要支持他呀，有没有历史 withhistory 并不重要。" An audit of `arg-spec.ts` found 48 `engines:['occt']` declarations; after excluding query/compat ops and mesh-only ops, 14 were candidates for degradation.
 
-## Design decision: two reusable patterns
+## Decision
+
+Two reusable degradation patterns cover the 13 ops below.
 
 ### Pattern 1 — clone mode (capability routing)
 For ops whose implementation calls only L1 kernel methods with no occt-specific API:
@@ -44,6 +48,11 @@ For ops with a `*WithHistory` path where brepkit only has the bare method:
 ## Not degradable (1 op)
 
 - **split**: `splitBrep` directly calls `getOcctKernel().split(h, tools[])` for arbitrary tool shapes. brepkit L1 only has `splitByPlane` (single plane → 2 solids). Kept `engines:['occt']` with reason documented in arg-spec.
+
+## Alternatives considered
+
+- **Keeping the 14 candidates under `engines:['occt']`** — rejected by the user requirement: "只要是能够降级使用的，应该全部都要降级使用至至少要支持他呀，有没有历史 withhistory 并不重要."
+- **Runtime try-catch fallback to the bare kernel method** — rejected: the BREP chain must be determined statically before execution (red line); a runtime fallback would hide a broken chain until execution.
 
 ## Adapter capability declarations added
 

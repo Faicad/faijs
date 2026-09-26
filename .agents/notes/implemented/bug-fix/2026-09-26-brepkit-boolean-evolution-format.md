@@ -1,5 +1,7 @@
 # Agent Note: brepkit boolean evolution format mismatch (union/cut/subtract crash)
 
+Status: implemented
+
 English | [中文](2026-09-26-brepkit-boolean-evolution-format.zh.md)
 
 ## Problem
@@ -14,7 +16,7 @@ The segmented decoder interpreted `modified[1]` (a ~170M FNV face hash) as `coun
 
 `fuseAll`/`fuse` simple paths did not crash because they bypass `mapEvolution` entirely.
 
-## Fix
+## Decision
 
 In `brepkitKernel.ts` `mapEvolution`:
 1. Build a reverse `handle→hash` table (registry originally stores `hash→handle`).
@@ -29,6 +31,11 @@ In `brepkitKernel.ts` `mapEvolution`:
 - `brepkit-boolean-fix.test.ts` (5 cases): union/cut/subtract return valid geometry on brepkit, occt no regression, `evolution.modified` decodes without throwing.
 - `multi-engine-op-parity.test.ts`: union/cut/subtract pass on occt + brepkit 2.129.15/3.4.18/4.0.32, bbox consistent.
 - `brepkitKernel.test.ts`: 75/75 no regression.
+
+## Alternatives considered
+
+- **Adapting `decodeEvolution`/`decodeHashEvolution` to accept the flattened form** — rejected: face-evolution.ts's segmented format is the OCCT-authoritative contract shared by the occt history path; coupling the occt decode to brepkit's adapter format would leak a kernel-specific quirk into the shared layer.
+- **Fixing at the op layer** — rejected: the bug is a data-format translation inside brepkit's kernel bridge; the adapter is the single layer that owns it (the fix is adapter-only).
 
 ## Consequences
 

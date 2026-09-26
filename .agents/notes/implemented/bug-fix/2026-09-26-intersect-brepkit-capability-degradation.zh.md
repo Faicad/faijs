@@ -6,9 +6,9 @@ English | [中文](2026-09-26-intersect-brepkit-capability-degradation.md)
 
 `intersect` 声明 `capabilities: ['intersectWithHistory']`。brepkit 适配器不声明 `intersectWithHistory`（其 evolution 集合恰为 `['fuseWithHistory','cutWithHistory','filletWithHistory']`，被 `evolution-declaration.test.ts` 硬编码钉死），故在 brepkit 上执行前即被拒绝，报 `lacks capability 'intersectWithHistory'`。用户要求必须支持 brepkit，指出内核有普通 `intersect(a,b)`，差异只在命名/演化扩展。
 
-## 设计决策：方向 A（中立 op + booleanBrep 内静态分派）
+## 决策
 
-拒绝方向 B（defineOp 能力析取），因为那会把框架级 `firstMissingCapability`/`dispatchPath` 语义从合取改为析取，爆炸半径大。方向 A 只需在 `booleanBrep` 内读同一份声明能力集做静态分支——不加新机制、不加运行时 try-catch。
+选择方向 A（中立 op + booleanBrep 内静态分派）；被否的方向 B 见备选方案。
 
 ### `api/boolean.ts` 改动
 
@@ -21,6 +21,10 @@ English | [中文](2026-09-26-intersect-brepkit-capability-degradation.md)
 ### 诚实命名降级
 
 brepkit 上 intersect 结果无面身份（lineage 节点注册为 `kind:'kernel'` 但不 attach 演化）。明确**没有**用恒等映射伪造演化表——结果实体的面 hash 与输入根本不同，恒等映射即假身份。
+
+## 备选方案
+
+**方向 B（defineOp 能力析取）**——否决：那会把框架级 `firstMissingCapability`/`dispatchPath` 语义从合取改为析取，爆炸半径大。方向 A 只需在 `booleanBrep` 内读同一份声明能力集做静态分支——不加新机制、不加运行时 try-catch。
 
 ## 后果
 

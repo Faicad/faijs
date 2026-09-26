@@ -2,6 +2,8 @@
 
 Status: implemented
 
+[English](2026-09-25-topology-lineage-a6-a4-resolved.md) | 中文
+
 ## 问题
 
 计划 §A6（`docs/plans/2026-09-25-fcstd-full-conversion-plan.md`）追踪 `Electronics Parts/Boards/Arduino/Arduino UNO/arduinounomissblack.FCStd`（共 3 个样本）上的 `Maximum call stack size exceeded`。该崩溃发生在 `cliRun`（brep 模式）内的 BREP 拓扑构建阶段，最初假设是拓扑/选择器构建里的无界递归（"疑似血统回走或布尔嵌套"）。

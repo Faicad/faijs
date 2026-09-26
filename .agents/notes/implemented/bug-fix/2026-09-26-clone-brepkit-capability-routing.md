@@ -1,5 +1,7 @@
 # Agent Note: clone op opened to brepkit via capability routing
 
+Status: implemented
+
 English | [中文](2026-09-26-clone-brepkit-capability-routing.zh.md)
 
 ## Problem
@@ -15,6 +17,11 @@ English | [中文](2026-09-26-clone-brepkit-capability-routing.zh.md)
 ## Decision
 
 Replace `engines: ['occt']` with `capabilities: ['copyShape']` in `api/surface/arg-spec.ts`. Regenerate `api/generated/topology.ts` via `gen-l3-surface.ts`. This is honest: `cloneBrep` only calls `kernel.copyShape`, and brepkit adapter declares that capability (verified by `engine-switch-p3` guard).
+
+## Alternatives considered
+
+- **Keeping `engines:['occt']`** — rejected: the user required brepkit support, and the underlying kernel capability (`copyShape`) already exists in the brepkit adapter.
+- **Propagating roleTable in `cloneBrep` immediately** — deferred: it depends on the unverified assumption that brepkit `copySolid` preserves face enumeration order; doing it prematurely risks silent wrong-face selection (see Honest limitation).
 
 ## Consequences
 

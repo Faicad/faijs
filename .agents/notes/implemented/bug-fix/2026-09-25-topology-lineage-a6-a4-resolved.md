@@ -2,6 +2,8 @@
 
 Status: implemented
 
+English | [中文](2026-09-25-topology-lineage-a6-a4-resolved.zh.md)
+
 ## Problem
 
 Plan §A6 (`docs/plans/2026-09-25-fcstd-full-conversion-plan.md`) tracked a `Maximum call

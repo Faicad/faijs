@@ -23,22 +23,70 @@ export interface WasmImportResult {
   meshWithGroups: Mesh
 }
 
-let kernelInstance: OcctKernel | null = null
-let initPromise: Promise<OcctKernel> | null = null
-
 // F5 设计意图说明：
-// kernelInstance / initPromise 是环境级单例，不是实例级。
-// 在整个浏览器页面/Node 进程中，OCCT WASM 只应初始化一次。
-// 多个 CadRuntime 实例共享同一个 kernel 是正确的行为。
+// OCCT WASM 内核是环境级单例，不是实例级。在整个浏览器页面/Node 进程中只应
+// 初始化一次；多个 CadRuntime 实例共享同一个 kernel 是正确的行为。
+//
+// 2026-09-26 跨实例共享（随 0.18.2 发布）：
+// kernelInstance / initPromise / customInitFn 从"模块级单例"提升为挂在
+// globalThis 上的共享状态（与 runtime-state.ts 的 `__FAICAD_FAIJS_RUNTIME__`
+// 同款设计）。原因：CDN 装载的第三方库（sheetmetal/cq-compat/fai-cq-gears）
+// 在 jsDelivr +esm 打包时把 peer `@faicad/faijs` 外部化为**独立模块实例**
+// （根入口与 /api/ 子路径是不同 URL → 不同 bundle），模块级单例导致：
+// - 库实例的 occt 内核从未初始化 → `occt-wasm kernel not initialized`；
+// - 各实例持有不同内核 → 句柄不互通 → `meshShape: Invalid shape ID`。
+// 挂在 globalThis 后，任一实例 initOcctWasm() 产出的内核全局可见，句柄互通。
+// 构建期去重（external / dedupe）仍是主手段，这里是兜底（同 runtime-state 注释）。
 
-/** 浏览器 host 注入的 OCCT 初始化函数 */
-let customInitFn: (() => Promise<OcctKernel>) | null = null
+const OCCT_KERNEL_KEY = '__FAICAD_FAIJS_OCCT_KERNEL__'
+const OCCT_KERNEL_STATE_VERSION = 1
+
+/** occt 内核共享状态（跨 faijs 模块实例，浏览器/Node 双环境）。 */
+interface OcctKernelSharedState {
+  stateVersion: number
+  kernelInstance: OcctKernel | null
+  initPromise: Promise<OcctKernel> | null
+  /** 浏览器 host 注入的 OCCT 初始化函数 */
+  customInitFn: (() => Promise<OcctKernel>) | null
+}
+
+/**
+ * 获取 occt 内核共享状态（单例）。
+ *
+ * 挂在 globalThis 上是为了让"两份 faijs 代码"（宿主 bundle 一份、第三方库
+ * 外部化一份）共享同一份内核状态——否则两份 kernelInstance 导致内核各自
+ * 初始化、句柄不互通（几何孤岛）。
+ *
+ * @returns the shared occt kernel state singleton.
+ */
+function getOcctKernelSharedState(): OcctKernelSharedState {
+  const g = globalThis as unknown as Record<string, unknown>
+  const existing = g[OCCT_KERNEL_KEY] as OcctKernelSharedState | undefined
+  if (existing) {
+    if (existing.stateVersion !== OCCT_KERNEL_STATE_VERSION) {
+      throw new Error(
+        `[faijs] occt kernel state version mismatch: loaded=${existing.stateVersion}, expected=${OCCT_KERNEL_STATE_VERSION}`,
+      )
+    }
+    return existing
+  }
+  const created: OcctKernelSharedState = {
+    stateVersion: OCCT_KERNEL_STATE_VERSION,
+    kernelInstance: null,
+    initPromise: null,
+    customInitFn: null,
+  }
+  g[OCCT_KERNEL_KEY] = created
+  return created
+}
 
 /**
  * Let the browser host inject the OCCT initialization function.
  *
  * The browser host calls this to register its own init logic (dev/prod/CDN/e2e
- * branches); faijs's initOcctWasm() prefers the injected function.
+ * branches); faijs's initOcctWasm() prefers the injected function. 注入的挂点
+ * 写入共享状态——任意 faijs 实例（含 CDN 外部化实例）调 initOcctWasm() 时
+ * 都优先使用同一份宿主初始化函数。
  *
  * When nothing is injected, initOcctWasm() reads the WASM from node_modules in
  * a Node environment.
@@ -46,7 +94,10 @@ let customInitFn: (() => Promise<OcctKernel>) | null = null
  * @param fn - the initialization function to use, or null to clear
  */
 export function setOcctWasmInitFn(fn: (() => Promise<OcctKernel>) | null): void {
-  customInitFn = fn
+  const s = getOcctKernelSharedState()
+  s.customInitFn = fn
+  // 挂点变化后丢弃进行中的初始化（下一次 init 用新挂点重来）。
+  s.initPromise = null
 }
 
 /**
@@ -86,14 +137,15 @@ export function resolveOcctWasmPath(): string {
  *          in brep/engine/adapters/occt.ts as an explicit object literal).
  */
 export async function initOcctWasm(): Promise<OcctKernel> {
-  if (kernelInstance) return kernelInstance
-  if (initPromise) return initPromise
+  const s = getOcctKernelSharedState()
+  if (s.kernelInstance) return s.kernelInstance
+  if (s.initPromise) return s.initPromise
 
-  initPromise = (async () => {
-    // 优先使用浏览器 host 注入的初始化函数
-    if (customInitFn) {
-      kernelInstance = await customInitFn()
-      return kernelInstance
+  s.initPromise = (async () => {
+    // 优先使用浏览器 host 注入的初始化函数（共享挂点，跨实例生效）
+    if (s.customInitFn) {
+      s.kernelInstance = await s.customInitFn()
+      return s.kernelInstance
     }
 
     // Node.js 环境：从 node_modules 读取 WASM 文件
@@ -103,14 +155,14 @@ export async function initOcctWasm(): Promise<OcctKernel> {
       const wasmPath = resolveOcctWasmPath()
       const buf = readFileSync(wasmPath)
       const wasmBinary = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer
-      kernelInstance = await Ctor.init({ wasm: wasmBinary })
-      return kernelInstance
+      s.kernelInstance = await Ctor.init({ wasm: wasmBinary })
+      return s.kernelInstance
     }
 
     throw new Error('initOcctWasm: no init function set and not in Node environment. Call setOcctWasmInitFn() first.')
   })()
 
-  return initPromise
+  return s.initPromise
 }
 
 /**
@@ -119,8 +171,9 @@ export async function initOcctWasm(): Promise<OcctKernel> {
  * @returns the initialized OCCT kernel
  */
 export function getKernel(): OcctKernel {
-  if (!kernelInstance) throw new Error('occt-wasm kernel not initialized — call initOcctWasm() first')
-  return kernelInstance
+  const k = getOcctKernelSharedState().kernelInstance
+  if (!k) throw new Error('occt-wasm kernel not initialized — call initOcctWasm() first')
+  return k
 }
 
 /**
@@ -132,10 +185,11 @@ export const getOcctKernel = getKernel
 
 /** Release the kernel instance (call when the app unloads). */
 export function disposeOcctWasm(): void {
-  if (kernelInstance) {
-    kernelInstance[Symbol.dispose]()
-    kernelInstance = null
-    initPromise = null
+  const s = getOcctKernelSharedState()
+  if (s.kernelInstance) {
+    s.kernelInstance[Symbol.dispose]()
+    s.kernelInstance = null
+    s.initPromise = null
   }
 }
 
@@ -511,7 +565,8 @@ export function meshesToStep(
  * @param handle - the shape handle to release
  */
 export function releaseShape(handle: ShapeHandle): void {
-  if (kernelInstance) kernelInstance.release(handle)
+  const k = getOcctKernelSharedState().kernelInstance
+  if (k) k.release(handle)
 }
 
 /** 导出类型供外部使用 */

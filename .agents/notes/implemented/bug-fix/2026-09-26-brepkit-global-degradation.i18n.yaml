@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-26-brepkit-global-degradation.md
-2026-09-26-brepkit-global-degradation.md: e909d19dc13b45d630a1002156478ecb25b9f57c
-2026-09-26-brepkit-global-degradation.zh.md: ab38fa06bb3311d4982ba4a61804fdfc402485da
+2026-09-26-brepkit-global-degradation.md: e3044dc469940524e924255ea52a2da54f7631d6
+2026-09-26-brepkit-global-degradation.zh.md: 57678177672b307c5d13483cc14d957b2741420a

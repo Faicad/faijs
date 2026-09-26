@@ -11,6 +11,7 @@
     "docs/analysis/",
     "docs/handover/",
     "packages/core/src/vendored/",
+    "packages/core/src/brepkit-kernel/_test-kernels/",
     "packages/brepjs/src/"
   ]
 }

@@ -150,19 +150,18 @@ describe('Phase 2 parity：occt 与 brepkit 的 pattern 输出一致', () => {
 })
 
 describe('Phase 2 静态判定：brepkit 下缺能力 op 执行前明确报错', () => {
-  it('chamfer：平台 op（engines occt）在 brepkit 下执行前报 E_BREP_UNSUPPORTED，含引擎 id 与当前引擎（Phase 5 D11-4）', async () => {
+  it('reverseShape：平台 op（engines occt）在 brepkit 下执行前报 E_BREP_UNSUPPORTED，含引擎 id 与当前引擎（Phase 5 D11-4）', async () => {
     // brepkit 为默认引擎（mode 'brep' 强制 BREP 链）
     __resetEngineRegistriesForTests()
     await registerBrepkitBrepEngine()
-    const result = await runBreps(
-      'const s0 = cad.box(20, 20, 20, { centered: true })\n' +
-        'const s1 = cad.chamfer(s0, { edges: [], type: "equal", width: 1 })',
-    )
+    const result = await runBreps('const s0 = cad.box(20, 20, 20)\nconst s1 = cad.reverseShape(s0)')
     expect(result.failedAt).toBeDefined()
     const msg = JSON.stringify(result.failedAt)
     // 平台归属前置判定（D11-4 报错形态）：op 名 + 要求引擎 + 当前引擎必须出现。
-    // Phase 4 起 chamfer 不再有 capabilities（declared eng ines ['occt']），报错不列能力名。
-    expect(msg).toMatch(/chamfer/)
+    // 注意：chamfer 已于 2026-09-26 B 批降级中立化（不再声明 engines:['occt']，
+    // brepkit 走裸 kernel.chamfer 降级），故本用例改用仍为平台 op 的 reverseShape
+    // 验证静态门（feature-family.test.ts 已覆盖 draft/thicken 同形态断言）。
+    expect(msg).toMatch(/reverseShape/)
     expect(msg).toMatch(/op requires engine occt/)
     expect(msg).toMatch(/brepkit/)
   })

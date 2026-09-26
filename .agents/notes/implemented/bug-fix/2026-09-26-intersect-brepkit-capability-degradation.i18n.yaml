@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-26-intersect-brepkit-capability-degradation.md
-2026-09-26-intersect-brepkit-capability-degradation.md: 43c80529b7f6738a490ff4eae8d9c3ddb3e4bb50
-2026-09-26-intersect-brepkit-capability-degradation.zh.md: 2946b4d5049cf3749a0a32c142f7978184d84b75
+2026-09-26-intersect-brepkit-capability-degradation.md: 00992aa21ceca786f33a55dc092a7af9096be5ed
+2026-09-26-intersect-brepkit-capability-degradation.zh.md: ad7582190be8ae2ca464c8905362ec36d04242df

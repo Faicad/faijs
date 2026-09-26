@@ -18,12 +18,16 @@ import { fileURLToPath } from 'node:url'
 const repoRoot = fileURLToPath(new URL('..', import.meta.url))
 const libPackages = ['core', 'faijs-extra', 'cq-compat', 'fai_cq_gears', 'fai_cq_warehouse', 'sheetmetal']
 const jsExt = new Set(['.js', '.mjs', '.cjs'])
+// vendored 测试内核目录（wasm bindgen 产物，非手写库源码；发布 tarball 白名单
+// 已排除 src/，见 publish-all.ps1 的 E2 断言）。
+const SKIP_DIRS = new Set(['_test-kernels'])
 
 function walk(dir, counts) {
   for (const entry of readdirSync(dir)) {
     const p = join(dir, entry)
     const st = statSync(p)
     if (st.isDirectory()) {
+      if (SKIP_DIRS.has(entry)) continue
       walk(p, counts)
       continue
     }

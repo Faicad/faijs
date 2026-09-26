@@ -1,21 +1,30 @@
-# Sketch constraint library extraction — `cad.sketch` rename and library boundary
+# Agent Note: Sketch constraint library extraction — `cad.sketch` rename and library boundary
 
-**Date**: 2026-09-26
-**Status**: implemented
-**Plan**: `docs/plans/2026-09-26-sketch-constraint-lib-plan.md`
+Status: implemented
 
-## Decision: rename `cad.sketch` → `cad.profile`, give `sketch` to the constraint library
+English | [中文](2026-09-26-sketch-constraint-lib-extraction.zh.md)
 
-The existing `cad.sketch` op (closed-contour face construction from raw segments) was renamed `cad.profile`. The `sketch` name was released to the new `@faicad/faijs-sketch` constraint library, whose op is `cad.sketch` (solve constraints → build face).
+## Problem
 
-**Why**: `sketch` is the user-facing word for constraint-driven 2D design. The old op was a misnomer — it did no solving, just contour-to-face. `profile` is the correct cross-domain term for a cross-section / contour used for extrude/revolve/sweep.
+The existing `cad.sketch` op (closed-contour face construction from raw segments) was a misnomer: it did no constraint solving, just contour-to-face, while `sketch` is the user-facing word for constraint-driven 2D design. The `sketch` name had to be released to the new `@faicad/faijs-sketch` constraint library, and the old op needed a correct cross-domain name (`profile`).
+
+## Decision
+
+The existing `cad.sketch` op (closed-contour face construction from raw segments) was renamed `cad.profile`. The `sketch` name was released to the new `@faicad/faijs-sketch` constraint library, whose op is `cad.sketch` (solve constraints → build face). `profile` is the correct cross-domain term for a cross-section / contour used for extrude/revolve/sweep.
 
 **What was given up**: the old `cad.sketch` name. No alias transition (D6) — all call sites (3d_editor, .fai.js fixtures, tests) were updated in the same change. This is a breaking rename for any external consumer still on `cad.sketch`.
 
-**Alternatives rejected**:
+## Alternatives considered
+
 - `cad.contour` — collides with fcstd internal `Contour`/`ContourSeg` types.
 - `cad.face2d` — too narrow; the op also produces wires.
 - Alias transition (`cad.sketch` → `cad.profile` with deprecation alias) — rejected because the constraint library needs the `sketch` name immediately; a transition period would require two names to coexist.
+
+## Consequences
+
+- Breaking rename: any external consumer still on `cad.sketch` must move to `cad.profile`.
+- The sketch library consumes core only through its public exports; a deep-path import would fail at `ERR_MODULE_NOT_FOUND` in the installed (publish-state) package.
+- Underconstrained sketches surface as `underconstrained` (via the `gcs.dof()` probe), not silently `solved`; a `fixed` constraint on a user-specified point does not actually fix that point in the solver (known first-release limitation).
 
 ## Boundary: the library has no core deep-path privilege
 

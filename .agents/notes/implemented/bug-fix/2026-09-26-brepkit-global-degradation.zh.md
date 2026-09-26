@@ -6,7 +6,9 @@ English | [中文](2026-09-26-brepkit-global-degradation.md)
 
 clone/intersect 降级到 brepkit 后（2026-09-26），用户要求将同一模式推广到**所有**可降级的 occt-only op：「只要是能够降级使用的，应该全部都要降级使用至至少要支持他呀，有没有历史 withhistory 并不重要。」审计 `arg-spec.ts` 发现 48 处 `engines:['occt']` 声明；排除查询/兼容 op 和 mesh-only op 后，14 个为降级候选。
 
-## 设计决策：两种可复用模式
+## 决策
+
+两种可复用降级模式覆盖下方 13 个 op。
 
 ### 模式一：clone 模式（能力路由）
 适用于实现仅调用 L1 内核方法、无 occt 特有 API 的 op：
@@ -44,6 +46,11 @@ clone/intersect 降级到 brepkit 后（2026-09-26），用户要求将同一模
 ## 不可降级（1 个 op）
 
 - **split**：`splitBrep` 直调 `getOcctKernel().split(h, tools[])` 处理任意 tool 形状。brepkit L1 只有 `splitByPlane`（单平面→2 实体）。保持 `engines:['occt']`，reason 在 arg-spec 中如实登记。
+
+## 备选方案
+
+- **让 14 个候选保持 `engines:['occt']`**——被用户要求否决：「只要是能够降级使用的，应该全部都要降级使用至至少要支持他呀，有没有历史 withhistory 并不重要。」
+- **运行时 try-catch 回退到裸内核方法**——否决：BREP 链必须在执行前静态判定（红线）；运行时回退会把坏链藏到执行期才暴露。
 
 ## 适配器能力声明补全
 

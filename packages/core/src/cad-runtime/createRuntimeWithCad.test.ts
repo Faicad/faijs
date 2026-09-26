@@ -42,7 +42,7 @@ describe('D1 — built-in cad namespace', () => {
     // A namespace, not an empty stub: the documented head of the op surface.
     expect(typeof cad!.box).toBe('function');
     expect(typeof cad!.union).toBe('function');
-    expect(typeof cad!.sketch).toBe('function');
+    expect(typeof cad!.profile).toBe('function');
     expect(typeof cad!.extrude).toBe('function');
     expect(Object.keys(cad!).length).toBeGreaterThan(50);
   });

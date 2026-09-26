@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-26-brepkit-boolean-evolution-format.md
-2026-09-26-brepkit-boolean-evolution-format.md: fcb6dcad577653bff45a2cb7a54cac9a6baf3096
-2026-09-26-brepkit-boolean-evolution-format.zh.md: ca81fde6bf48e1e2068b3e848e624371c57cf532
+2026-09-26-brepkit-boolean-evolution-format.md: e51a9e0c267372a3dae4ded2116d5b0f8cca218a
+2026-09-26-brepkit-boolean-evolution-format.zh.md: bae0250014474e64cceb9a008ad627ead3c71a25

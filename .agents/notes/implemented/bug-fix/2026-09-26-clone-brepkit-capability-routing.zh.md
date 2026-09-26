@@ -16,6 +16,11 @@ English | [中文](2026-09-26-clone-brepkit-capability-routing.md)
 
 在 `api/surface/arg-spec.ts` 中把 `engines: ['occt']` 替换为 `capabilities: ['copyShape']`。通过 `gen-l3-surface.ts` 重新生成 `api/generated/topology.ts`。声明如实：`cloneBrep` 只调 `kernel.copyShape`，brepkit 适配器已声明该能力（engine-switch-p3 守卫验证通过）。
 
+## 备选方案
+
+- **保持 `engines:['occt']`**——否决：用户要求 brepkit 支持，且底层内核能力（`copyShape`）已在 brepkit 适配器存在。
+- **立即在 `cloneBrep` 中传播 roleTable**——延后：依赖「brepkit `copySolid` 保持面枚举序」这一尚未验证的假设；过早做有静默选错面的风险（见诚实限制）。
+
 ## 后果
 
 - clone 在 occt + brepkit 2.129.15/3.4.18/4.0.32 上全部通过，bbox [20,10,5] 四引擎精确一致。

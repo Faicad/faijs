@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-26-clone-brepkit-capability-routing.md
-2026-09-26-clone-brepkit-capability-routing.md: d7471a9cb5cef7dec963bd9d13ff2ad83bb952c7
-2026-09-26-clone-brepkit-capability-routing.zh.md: 8129e8bad45469a937d3d06df6812af55fb690b5
+2026-09-26-clone-brepkit-capability-routing.md: 68af4e6389238e050b3c93c09dd0dd57f5eb1de4
+2026-09-26-clone-brepkit-capability-routing.zh.md: 3fd513672cd2115dc36ce17c9365f4199ff0a4b0

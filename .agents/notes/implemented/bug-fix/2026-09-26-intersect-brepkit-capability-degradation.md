@@ -1,14 +1,16 @@
 # Agent Note: intersect op degraded to brepkit via static capability dispatch
 
+Status: implemented
+
 English | [中文](2026-09-26-intersect-brepkit-capability-degradation.zh.md)
 
 ## Problem
 
 `intersect` declared `capabilities: ['intersectWithHistory']`. The brepkit adapter does not declare `intersectWithHistory` (its evolution set is exactly `['fuseWithHistory','cutWithHistory','filletWithHistory']`, hard-coded by `evolution-declaration.test.ts`), so on brepkit it was rejected before execution with `lacks capability 'intersectWithHistory'`. The user required brepkit support, noting the kernel has plain `intersect(a,b)` and the difference is only in naming/evolution extension.
 
-## Design decision: Direction A (neutral op + static dispatch in booleanBrep)
+## Decision
 
-Rejected Direction B (disjunctive capabilities in defineOp) because it would change the framework-level `firstMissingCapability`/`dispatchPath` semantics from conjunction to disjunction, with large blast radius. Direction A only reads the same declared capability set inside `booleanBrep` for a static branch — no new mechanism, no runtime try-catch.
+Direction A (neutral op + static dispatch in `booleanBrep`) was chosen; see Alternatives considered for the rejected Direction B.
 
 ### Changes in `api/boolean.ts`
 
@@ -21,6 +23,10 @@ Rejected Direction B (disjunctive capabilities in defineOp) because it would cha
 ### Honest naming degradation
 
 On brepkit, intersect output has no face identity (lineage node registered as `kind:'kernel'` but no evolution attached). We explicitly did NOT fabricate an identity-mapping evolution table — the resulting solid's face hashes are fundamentally different from the inputs, so a恒等 mapping would be fake identity.
+
+## Alternatives considered
+
+**Direction B (disjunctive capabilities in defineOp)** — rejected because it would change the framework-level `firstMissingCapability`/`dispatchPath` semantics from conjunction to disjunction, with large blast radius. Direction A only reads the same declared capability set inside `booleanBrep` for a static branch — no new mechanism, no runtime try-catch.
 
 ## Consequences
 
