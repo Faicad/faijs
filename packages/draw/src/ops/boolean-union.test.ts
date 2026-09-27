@@ -7,7 +7,7 @@
  * insensitive to loop start/rotation.
  */
 import { describe, expect, it } from 'vitest'
-import { booleanUnion2d, booleanIntersect2d } from './boolean-union'
+import { booleanUnion2d, booleanIntersect2d, booleanDifference2d } from './boolean-union'
 import type { Point2d } from './custom-corners'
 
 const area = (pts: Point2d[]): number => {
@@ -60,5 +60,27 @@ describe('booleanIntersect2d', () => {
     const loop = loops[0]!
     expect(loop.length).toBe(4)
     expect(area(loop)).toBeCloseTo(4, 6)
+  })
+})
+
+describe('booleanDifference2d', () => {
+  it('excises the overlap, leaving an L-shaped remainder', () => {
+    const loops = booleanDifference2d(A, B)
+    expect(loops).toHaveLength(1)
+    const loop = loops[0]!
+    expect(loop.length).toBe(6)
+    expect(area(loop)).toBeCloseTo(12, 6)
+  })
+
+  it('returns the full base polygon for a disjoint subtractor', () => {
+    const far: Point2d[] = [
+      [10, 10],
+      [12, 10],
+      [12, 12],
+      [10, 12],
+    ]
+    const loops = booleanDifference2d(A, far)
+    expect(loops).toHaveLength(1)
+    expect(area(loops[0]!)).toBeCloseTo(16, 6)
   })
 })

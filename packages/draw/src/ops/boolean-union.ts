@@ -1,14 +1,16 @@
 /**
  * boolean-union — D1 2D boolean over polygonal boundaries.
  *
- * Computes the union (merge) or intersection of two closed polygonal contours
- * by the classic kept-edge splice. Every edge of A and B is split at each point
- * where it crosses the other polygon; a sub-edge is kept when its midpoint lies
- * on the kept side (union: not interior to the other; intersection: interior to
- * the other), and the kept sub-edges are assembled by walking end-to-start into
- * closed loops. Works for simple (incl. non-convex) polygons whose crossings are
- * transversal; collinear-overlapping runs are not pruned (the full boolean would
- * also splice those).
+ * Computes the union, intersection, or difference of two closed polygonal
+ * contours by the classic kept-edge splice. Every edge of A and B is split at
+ * each point where it crosses the other polygon; a sub-edge is kept when its
+ * midpoint lies on the kept side, then the kept sub-edges are assembled by
+ * walking end-to-start into closed loops. Union keeps boundary not interior to
+ * the other, intersection keeps that interior, and difference keeps A not in B
+ * plus the B-boundary interior to A read in the excising (reversed) direction.
+ * Works for simple (incl. non-convex) polygons whose crossings are transversal;
+ * collinear-overlapping runs are not pruned (the full boolean would splice
+ * those).
  *
  * Pure 2D, no kernel. Uses the D1 classifiers from `./boolean`.
  *
@@ -18,7 +20,7 @@
 import { pointInContour, segmentIntersection } from './boolean'
 import type { Point2d } from './custom-corners'
 
-type Op = 'union' | 'intersection'
+type Op = 'union' | 'intersection' | 'difference'
 interface Edge {
   a: Point2d
   b: Point2d
@@ -40,9 +42,10 @@ function key6(p: Point2d): string {
  * @param poly - the source polygon.
  * @param other - the opposite polygon used for the inside/outside test.
  * @param inside - keep sub-edges inside `other` when `true`, else keep outside.
- * @returns the kept orientered sub-edges.
+ * @param reverse - emit the kept sub-edges in the reversed orientation.
+ * @returns the kept sub-edges.
  */
-function clipEdges(poly: Point2d[], other: Point2d[], inside: boolean): Edge[] {
+function clipEdges(poly: Point2d[], other: Point2d[], inside: boolean, reverse = false): Edge[] {
   const out: Edge[] = []
   const n = poly.length
   for (let i = 0; i < n; i++) {
@@ -58,7 +61,9 @@ function clipEdges(poly: Point2d[], other: Point2d[], inside: boolean): Edge[] {
     const bounds: number[] = [0, ...cuts, 1]
     for (let k = 0; k < bounds.length - 1; k++) {
       const e: Edge = { a: lerp(a, b, bounds[k]!), b: lerp(a, b, bounds[k + 1]!) }
-      if (pointInContour(midOf(e), other) === inside) out.push(e)
+      if (pointInContour(midOf(e), other) === inside) {
+        out.push(reverse ? { a: e.b, b: e.a } : e)
+      }
     }
   }
   return out
@@ -101,12 +106,17 @@ function assemble(edges: Edge[]): Point2d[][] {
  * Produce the kept boundary edges for an operation.
  * @param polyA - the first contour.
  * @param polyB - the second contour.
- * @param op - union keeps boundary not interior; intersection keeps interior.
+ * @param op - union keeps boundary not interior to either; intersection keeps
+ *   the overlap; difference keeps A not in B plus the B-boundary inside A read
+ *   in the reversed (excising) orientation.
  * @returns the directed kept edges.
  */
 function keptEdges(polyA: Point2d[], polyB: Point2d[], op: Op): Edge[] {
   if (op === 'union') {
     return [...clipEdges(polyA, polyB, false), ...clipEdges(polyB, polyA, false)]
+  }
+  if (op === 'difference') {
+    return [...clipEdges(polyA, polyB, false), ...clipEdges(polyB, polyA, true, true)]
   }
   return [...clipEdges(polyA, polyB, true), ...clipEdges(polyB, polyA, true)]
 }
@@ -129,4 +139,14 @@ export function booleanUnion2d(polyA: Point2d[], polyB: Point2d[]): Point2d[][] 
  */
 export function booleanIntersect2d(polyA: Point2d[], polyB: Point2d[]): Point2d[][] {
   return assemble(keptEdges(polyA, polyB, 'intersection'))
+}
+
+/**
+ * Boolean difference of two polygons (`polyA` minus `polyB`).
+ * @param polyA - the base closed contour.
+ * @param polyB - the closed contour to subtract.
+ * @returns the boundary loops of the difference.
+ */
+export function booleanDifference2d(polyA: Point2d[], polyB: Point2d[]): Point2d[][] {
+  return assemble(keptEdges(polyA, polyB, 'difference'))
 }
