@@ -10,6 +10,8 @@
 export { draw } from './draw'
 export type { DrawNamespaceFunction, DrawSession } from './draw'
 export { polygon, roundedRectangle, rectangle, circle } from './drawing-factories'
+export { drawProjection, drawFaceOutline, projectPointToPlane, projectWire } from './projection'
+export type { PlaneOrName } from './projection'
 
 // Re-export the core geometry base this package sits on, for convenience when
 // callers build on `draw` output without importing core directly.
