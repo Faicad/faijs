@@ -10,6 +10,7 @@
 
 import {
   makeCircle2d,
+  makeEllipse2d,
   Blueprint,
   polysidesBlueprint,
   roundedRectangleBlueprint,
@@ -60,4 +61,23 @@ export function rectangle(width: number, height: number): Blueprint {
  */
 export function circle(radius: number, center: Point2 = [0, 0]): Blueprint {
   return new Blueprint([makeCircle2d(center[0], center[1], radius, true)])
+}
+
+/**
+ * Ellipse factory — a full CCW ellipse as a single contour.
+ * @param horizontalRadius - the semi-axis along the frame +X.
+ * @param verticalRadius - the semi-axis along the frame +Y.
+ * @param center - the ellipse center.
+ * @param rotation - the major-axis orientation in radians (default 0).
+ * @returns a Blueprint whose single contour is a full ellipse.
+ */
+export function ellipse(
+  horizontalRadius: number,
+  verticalRadius: number,
+  center: Point2 = [0, 0],
+  rotation = 0,
+): Blueprint {
+  return new Blueprint([
+    makeEllipse2d(center[0], center[1], horizontalRadius, verticalRadius, Math.cos(rotation), Math.sin(rotation), true),
+  ])
 }

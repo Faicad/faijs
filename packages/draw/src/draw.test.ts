@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { draw, rectangle, circle, polygon, roundedRectangle } from './index'
+import { draw, rectangle, circle, ellipse, polygon, roundedRectangle } from './index'
 import { type Curve2dObj } from '@faicad/faijs/geometry2d'
 
 function curveCount(bp: { curves: readonly Curve2dObj[] }): number {
@@ -30,6 +30,21 @@ describe('draw factory namespace', () => {
     const bp = circle(5)
     expect(curveCount(bp)).toBe(1)
     expect(bp.curves[0]!.kind2d).toBe('circle')
+  })
+
+  it('ellipse produces a single full-ellipse contour with the given radii', () => {
+    const bp = ellipse(6, 3, [1, 2], 0)
+    expect(curveCount(bp)).toBe(1)
+    const e = bp.curves[0]!
+    if (e.kind2d !== 'ellipse') throw new Error(`expected ellipse, got ${e.kind2d}`)
+    expect(e.cx).toBe(1)
+    expect(e.cy).toBe(2)
+    expect(e.majorRadius).toBe(6)
+    expect(e.minorRadius).toBe(3)
+  })
+
+  it('ellipse is reachable via the draw namespace', () => {
+    expect(draw.ellipse(4, 2).curves[0]!.kind2d).toBe('ellipse')
   })
 
   it('polygon produces the requested number of sides', () => {

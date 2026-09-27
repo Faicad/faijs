@@ -12,7 +12,7 @@
  */
 
 import { BaseSketcher2d, Blueprint, BlueprintSketcher } from '@faicad/faijs/geometry2d'
-import { rectangle, circle, polygon, roundedRectangle } from './drawing-factories'
+import { rectangle, circle, ellipse, polygon, roundedRectangle } from './drawing-factories'
 
 /**
  * A fluent drawing session body. `pen` is a `BaseSketcher2d` on which the
@@ -40,6 +40,8 @@ export interface DrawNamespaceFunction {
   polygon: typeof polygon
   /** Circle factory. */
   circle: typeof circle
+  /** Ellipse factory. */
+  ellipse: typeof ellipse
 }
 
 /**
@@ -60,4 +62,5 @@ export const draw: DrawNamespaceFunction = Object.assign(drawSession, {
   roundedRectangle,
   polygon,
   circle,
+  ellipse,
 })
