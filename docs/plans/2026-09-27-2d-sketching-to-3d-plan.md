@@ -1,6 +1,6 @@
 # 2D 绘图与草图 → 3D 建模能力建设方案
 
-状态：实施中（A 组/B 组/C1/C2/C3(底座)/C4(纯投影)/D(基元:parameterOfPoint/trimCurve/splitCurveAt)/E1(部分)/E2/F2/F6(部分) 已落地，C3(e 接线)/D(布尔/偏移/圆角/ SVG)/G/F4/F5 待做）；draw 工厂已含 rectangle/roundedRectangle/polygon/circle/ellipse。
+状态：实施中（A 组/B 组/C1/C2/C3(底座)/C4(纯投影)/D(基元:parameterOfPoint/trimCurve/splitCurveAt + 圆角/倒角 primitives)/E1(部分)/E2/F2/F6(部分) 已落地，C3(e 接线)/D1(布尔)/D2(偏移)/D3(全量)/D4(SVG)/G/F4/F5 待做）；draw 工厂已含 rectangle/roundedRectangle/polygon/circle/ellipse，且新增 chamfer2d/fillet2d 角拼接。
 
 本方案是 faijs 2D 能力建设的总纲，覆盖"完整 2D 绘图 + 完整 2D 草图 + 2D→3D 桥接"的最终目标与实施路径。`docs/plans/2026-09-26-profile-classify-holes-alignment.md`（profile 孔洞分类消 H15）的结论被本方案吸收为其子集——该方案的 profile 分类工作对应本方案工作项 F2，内核原语核对对应 E1；本方案在其上把范围从"孔洞分类"扩展到"完整 2D 能力 + 2D→3D 桥接"，并纠正了该方案中一处与用户需求相悖的判断（见 §1.4）。
 
@@ -212,6 +212,7 @@ extrude / revolve / sweep / loft            extrude（沿面法向）/ punchHole
     - **基元已备**：纯基座已新增 `parameterOfPoint(c, px, py, maxRatio=0.1)`（coarse 采样 + Newton 收敛到垂直足）与 `trimCurve(c, tStart, tEnd)` / `splitCurveAt(c, t)`（basis 域切子曲线），供布尔/圆角取参数点与切曲线（依赖 `intersectCurves2dFn` 联合使用）。
 - **D2 2D 偏移**：移植 `offset.ts`（源自 `blueprintOffset.ts` + `lib/offset.ts`，round/bevel/miter，Cavalier Contours 思路，自交剪除 + stitch）。依赖：D1。
 - **D3 2D 圆角/倒角**：移植 `custom-corners.ts`（源自 `blueprintCustomCorners.ts` + `lib/customCorners.ts`，`fillet2D`/`chamfer2D`）。依赖：B1。
+    - **基元已落地**：`packages/draw/src/ops/custom-corners.ts` 已含 `chamfer2d(corner,p,q,inset)` 与 `fillet2d(corner,p,q,radius)`（两直线段共顶点处的直线倒角 / 切圆弧圆角，返回三曲线拼接 `CornerSplice`/`FilletCorner`，圆角弧经 `makeArc2dThreePoints` 保持精确半径，圆心在角平分线上）。纯 2D，仅依赖 core `geometry2d`（§197/§199）。
 - **D4 SVG 往来**：移植 `svg.ts`（源自 `lib/svgPath.ts`/`svg.ts`/`blueprintApproximations.ts`，2D ↔ SVG path）。依赖：B1。
 
 ### E 组：2D→3D 桥接（core）

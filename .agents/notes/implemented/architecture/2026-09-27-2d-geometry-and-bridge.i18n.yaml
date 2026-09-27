@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-09-27-2d-geometry-and-bridge.md
-2026-09-27-2d-geometry-and-bridge.md: 70430476a8d0039fbd7baad7f4745e2575bbdf98
-2026-09-27-2d-geometry-and-bridge.zh.md: 70829f1f88d1d41f5cf09a761041f8202df7a879
+2026-09-27-2d-geometry-and-bridge.md: 5aca82407721c326d2e70d9a83a85a5da4396a17
+2026-09-27-2d-geometry-and-bridge.zh.md: 811e4ea0f2bc3c858a74fcce811f3eecebc78fff
