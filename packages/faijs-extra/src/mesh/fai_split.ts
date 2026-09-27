@@ -38,7 +38,7 @@ export function computePlaneParams(
   rotationZ: number,
   planePosition: number,
   bbCenter: Vec3,
-): { normal: Vec3; originOffset: number; planeCenter: Vec3 } {
+): { normal: Vec3; planeDistance: number; planeCenter: Vec3 } {
   const rx = (rotationX * Math.PI) / 180
   const ry = (rotationY * Math.PI) / 180
   const rz = (rotationZ * Math.PI) / 180
@@ -55,9 +55,9 @@ export function computePlaneParams(
     bbCenter[2] + planePosition * normal[2],
   ]
 
-  const originOffset = normal[0] * planeCenter[0] + normal[1] * planeCenter[1] + normal[2] * planeCenter[2]
+  const planeDistance = normal[0] * planeCenter[0] + normal[1] * planeCenter[1] + normal[2] * planeCenter[2]
 
-  return { normal, originOffset, planeCenter }
+  return { normal, planeDistance, planeCenter }
 }
 
 /**
@@ -203,8 +203,8 @@ export interface SplitWithParamsResult {
   back: Shape
   /** 实际使用的法线（派生量，供调用方记录/调试） */
   normal: Vec3
-  /** 实际使用的 originOffset（派生量） */
-  originOffset: number
+  /** 实际使用的 planeDistance（派生量） */
+  planeDistance: number
   /** 实际使用的 planeCenter（派生量） */
   planeCenter: Vec3
   /** 实际使用的 widthDir（派生量） */
@@ -232,7 +232,7 @@ export async function splitWithParams(input: SplitWithParamsInput): Promise<Spli
     bbCenter[1] + offset * normal[1],
     bbCenter[2] + offset * normal[2],
   ]
-  const originOffset = normal[0] * planeCenter[0] + normal[1] * planeCenter[1] + normal[2] * planeCenter[2]
+  const planeDistance = normal[0] * planeCenter[0] + normal[1] * planeCenter[1] + normal[2] * planeCenter[2]
 
   // 2. 从 normal + inPlaneAngleDeg 派生基向量
   const { widthDir } = computeBasisFromNormal(normal, inPlaneAngleDeg)
@@ -249,32 +249,32 @@ export async function splitWithParams(input: SplitWithParamsInput): Promise<Spli
     const groove = input.groove ?? {
       depth: 0, depthTolerance: 0, width: 0, widthTolerance: 0, flapsAngle: 0,
     }
-    const result = await computeDovetailSplit(shape, normal, originOffset, planeCenter, widthDir, bboxWidthOnWidthDir, groove)
+    const result = await computeDovetailSplit(shape, normal, planeDistance, planeCenter, widthDir, bboxWidthOnWidthDir, groove)
     front = result.front; back = result.back
 
     const result2: SplitWithParamsResult = await finalizeExplode(
-      front, back, normal, originOffset, planeCenter, widthDir, bboxSize, cutMode, input,
+      front, back, normal, planeDistance, planeCenter, widthDir, bboxSize, cutMode, input,
     )
     return result2
   } else if (cutMode === 'dowel') {
     const dowel = input.dowel ?? {
       diameter: 0, diameterTolerance: 0, height: 0, heightTolerance: 0,
     }
-    const result = await computeDowelSplit(shape, normal, originOffset, planeCenter, widthDir, dowel, input.selectedSections ?? null)
+    const result = await computeDowelSplit(shape, normal, planeDistance, planeCenter, widthDir, dowel, input.selectedSections ?? null)
     front = result.front; back = result.back
-    return finalizeExplode(front, back, normal, originOffset, planeCenter, widthDir, bboxSize, cutMode, input)
+    return finalizeExplode(front, back, normal, planeDistance, planeCenter, widthDir, bboxSize, cutMode, input)
   } else if (cutMode === 'straight-tenon' || cutMode === 'tenon') {
     const tenon = input.tenon ?? {
       sideLength: 0, sideLengthTolerance: 0, height: 0, heightTolerance: 0,
     }
-    const result = await computeStraightTenonSplit(shape, normal, originOffset, planeCenter, widthDir, tenon, input.selectedSections ?? null)
+    const result = await computeStraightTenonSplit(shape, normal, planeDistance, planeCenter, widthDir, tenon, input.selectedSections ?? null)
     front = result.front; back = result.back
-    return finalizeExplode(front, back, normal, originOffset, planeCenter, widthDir, bboxSize, cutMode, input)
+    return finalizeExplode(front, back, normal, planeDistance, planeCenter, widthDir, bboxSize, cutMode, input)
   } else {
     // plane / straight / default
-    const result = await computeSplit(shape, normal, originOffset)
+    const result = await computeSplit(shape, normal, planeDistance)
     front = result.front; back = result.back
-    return finalizeExplode(front, back, normal, originOffset, planeCenter, widthDir, bboxSize, cutMode, input)
+    return finalizeExplode(front, back, normal, planeDistance, planeCenter, widthDir, bboxSize, cutMode, input)
   }
 }
 
@@ -283,7 +283,7 @@ async function finalizeExplode(
   front: Shape,
   back: Shape,
   normal: Vec3,
-  originOffset: number,
+  planeDistance: number,
   planeCenter: Vec3,
   widthDir: Vec3,
   bboxSize: Vec3,
@@ -317,7 +317,7 @@ async function finalizeExplode(
     front,
     back,
     normal,
-    originOffset,
+    planeDistance,
     planeCenter,
     widthDir,
     frontExplodeOffset: applyExplode ? frontOffset : 0,

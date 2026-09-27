@@ -9,7 +9,7 @@ Faicad CAD execution engine — a `faijs` language parser, BREP/mesh dual-path g
 - **L2 orchestration** (`src/cad-runtime/`): `CadRuntime` + `HostPorts`.
 - **L3 host** (`src/node-host/` / `src/browser-host/`).
 
-Units: millimeters, +Z up, angles in degrees. Contract docs: `docs/api-contract.md`, `docs/syntax-design.md`.
+Units: millimeters, +Z up, angles in degrees. Contract docs: `docs/api-contract.md`, `docs/syntax-design.md`, `docs/fai-zip-format.md`.
 
 ## Entry points
 

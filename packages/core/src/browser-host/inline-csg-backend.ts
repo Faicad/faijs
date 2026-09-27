@@ -75,7 +75,7 @@ export class InlineCsgBackend implements CsgBackend {
     mesh: MeshData,
     params: {
       planeNormal: [number, number, number]
-      planeOriginOffset: number
+      planeDistance: number
       planeCenter: [number, number, number]
       widthDir: [number, number, number]
       bboxWidthOnWidthDir: number
@@ -89,7 +89,7 @@ export class InlineCsgBackend implements CsgBackend {
       Manifold, Mesh,
       original,
       params.planeNormal,
-      params.planeOriginOffset,
+      params.planeDistance,
       params.planeCenter,
       params.widthDir,
       params.bboxWidthOnWidthDir,
@@ -112,7 +112,7 @@ export class InlineCsgBackend implements CsgBackend {
     mesh: MeshData,
     params: {
       planeNormal: [number, number, number]
-      planeOriginOffset: number
+      planeDistance: number
       planeCenter: [number, number, number]
       widthDir: [number, number, number]
       dowel: import('../cad-runtime/ports').DowelSplitParams
@@ -126,7 +126,7 @@ export class InlineCsgBackend implements CsgBackend {
       Manifold, Mesh,
       original,
       params.planeNormal,
-      params.planeOriginOffset,
+      params.planeDistance,
       params.planeCenter,
       params.widthDir,
       'dowel',
@@ -156,7 +156,7 @@ export class InlineCsgBackend implements CsgBackend {
     mesh: MeshData,
     params: {
       planeNormal: [number, number, number]
-      planeOriginOffset: number
+      planeDistance: number
       planeCenter: [number, number, number]
       widthDir: [number, number, number]
       tenon: import('../cad-runtime/ports').StraightTenonSplitParams
@@ -170,7 +170,7 @@ export class InlineCsgBackend implements CsgBackend {
       Manifold, Mesh,
       original,
       params.planeNormal,
-      params.planeOriginOffset,
+      params.planeDistance,
       params.planeCenter,
       params.widthDir,
       'tenon',

@@ -422,10 +422,16 @@ export function drillBrep(
 export interface SplitBrepParams {
   /** 切割平面法线 */
   normal: Vec3
-  /** 切割平面原点偏移（法线方向上的距离） */
-  originOffset: number
-  /** 切割平面中心点 */
-  planeCenter: Vec3
+  /**
+   * 切割平面位置：世界系平面方程 d 值（n·x = planeDistance）。
+   * 与 planeCenter 二选一必填；都缺省时抛错，不隐式回退。
+   */
+  planeDistance?: number
+  /**
+   * 切割平面位置：世界坐标点（平面中心）。
+   * 与 planeDistance 二选一必填；都缺省时抛错，不隐式回退。
+   */
+  planeCenter?: Vec3
 }
 
 /** splitBrep 的结果 */
@@ -464,11 +470,6 @@ export function splitBrep(
     bbox.max[2] - bbox.min[2],
   )
   const bboxMax = Math.max(bboxSize.x, bboxSize.y, bboxSize.z)
-  const bboxCenter = new THREE.Vector3(
-    (bbox.min[0] + bbox.max[0]) / 2,
-    (bbox.min[1] + bbox.max[1]) / 2,
-    (bbox.min[2] + bbox.max[2]) / 2,
-  )
 
   // 创建一个大的盒子代表法线正方向的半空间
   const normal = new THREE.Vector3(...params.normal).normalize()
@@ -486,10 +487,9 @@ export function splitBrep(
     { x: halfSize, y: halfSize, z: halfSize },
   )
 
-  // 计算切割平面的世界坐标原点
-  const planeOrigin = params.planeCenter
-    ? new THREE.Vector3(...params.planeCenter)
-    : bboxCenter.clone().add(normal.clone().multiplyScalar(params.originOffset))
+  // 计算切割平面的世界坐标原点（planeCenter / planeDistance 二选一必填，
+  // 都缺省直接报错，不隐式回退 bbox 中心）
+  const planeOrigin = resolvePlaneOrigin(normal, params.planeCenter, params.planeDistance)
 
   const transMatrix = new THREE.Matrix4().makeTranslation(
     planeOrigin.x,
@@ -518,12 +518,38 @@ export function splitBrep(
 export interface ExtrudeBrepParams {
   /** 拉伸法线方向 */
   normal: Vec3
-  /** 平面原点偏移 */
-  originOffset: number
+  /**
+   * 切割平面位置：世界系平面方程 d 值（n·x = planeDistance）。
+   * 与 planeCenter 二选一必填；都缺省时抛错，不隐式回退。
+   */
+  planeDistance?: number
+  /**
+   * 切割平面位置：世界坐标点（平面中心）。
+   * 与 planeDistance 二选一必填；都缺省时抛错，不隐式回退。
+   */
+  planeCenter?: Vec3
   /** 拉伸长度 */
   length: number
   /** 拉伸模式 */
   mode?: 'centered' | 'forward' | 'backward'
+}
+
+/** 从 planeCenter / planeDistance 收敛出切割平面上的一个点（planeOrigin）。 */
+function resolvePlaneOrigin(
+  normal: THREE.Vector3,
+  planeCenter?: Vec3,
+  planeDistance?: number,
+): THREE.Vector3 {
+  if (planeCenter !== undefined) {
+    return new THREE.Vector3(...planeCenter)
+  }
+  if (planeDistance !== undefined) {
+    // 平面方程 n·x = d 上的点：取法线上距原点 d 处（n 为单位向量）
+    return normal.clone().multiplyScalar(planeDistance)
+  }
+  throw new Error(
+    '[extrudeBrep] plane location missing: provide planeCenter or planeDistance (implicit bbox-center fallback is forbidden)',
+  )
 }
 
 /**
@@ -551,24 +577,19 @@ export function extrudeBrep(
   const normal = new THREE.Vector3(...params.normal).normalize()
   const length = params.length
 
-  // 1. 创建切割平面盒子
-  const bbox = getSolidBoundingBox(kernel, solid)
-  const bboxCenter = new THREE.Vector3(
-    (bbox.min[0] + bbox.max[0]) / 2,
-    (bbox.min[1] + bbox.max[1]) / 2,
-    (bbox.min[2] + bbox.max[2]) / 2,
-  )
-  const planeOrigin = bboxCenter.clone().add(normal.clone().multiplyScalar(params.originOffset))
+  // 1. 确定切割平面位置（世界系，来源静态：planeCenter 或 planeDistance，
+  //    都缺省直接报错，不隐式回退 bbox 中心）
+  const planeOrigin = resolvePlaneOrigin(normal, params.planeCenter, params.planeDistance)
 
   // 2. 分割实体
   const splitResult = splitBrep(kernel, solid, {
     normal: [normal.x, normal.y, normal.z],
-    originOffset: params.originOffset,
     planeCenter: [planeOrigin.x, planeOrigin.y, planeOrigin.z],
   })
 
   // 3. 获取截面
   // 使用 section 获取切割平面与实体的交线
+  const bbox = getSolidBoundingBox(kernel, solid)
   const zAxis = new THREE.Vector3(0, 0, 1)
   const quat = new THREE.Quaternion().setFromUnitVectors(zAxis, normal)
   const rotMatrix = new THREE.Matrix4().makeRotationFromQuaternion(quat)
@@ -641,7 +662,31 @@ export function extrudeBrep(
     throw new Error('[extrudeBrep] failed to build extrusion from section')
   }
 
-  // 5. 计算各段位置
+  // 5. 中段落位补偿（修复 centered 模式中空 / 开壳）
+  //
+  // 切割平面位于 planeOrigin，splitBrep 产出的 front/back 其切面恰好在 planeOrigin。
+  // - forward：front 偏移 +L、back 偏移 0 → 中段(从 planeOrigin 沿 +normal 拉伸 L，
+  //   底面在 planeOrigin)的顶面(planeOrigin+L)正好接 front 底面，无需位移。
+  // - backward：front 偏移 0、back 偏移 -L → 中段(沿 -normal 拉伸 L，顶在 planeOrigin)
+  //   底面(planeOrigin-L)正好接 back 顶面，无需位移。
+  // - centered：front 偏移 +L/2、back 偏移 -L/2，二者之间让出 L 的缝隙；但中段默认
+  //   从 planeOrigin 沿 +normal 拉伸 L，落在 planeOrigin→planeOrigin+L，与 back 顶面
+  //   (planeOrigin-L/2) 和 front 底面 (planeOrigin+L/2) 各错开 L/2，形成两道 L/2 的缝隙
+  //   → fuse 后实体开壳 / 中空。必须对中段额外沿 -normal 位移 L/2，使其落在
+  //   planeOrigin-L/2 → planeOrigin+L/2，正好填补缝隙。
+  const middleOffset = mode === 'centered' ? -length / 2 : 0
+  if (middleOffset !== 0) {
+    const translatedMiddle = kernel.translate(
+      extrudedSolid,
+      normal.x * middleOffset,
+      normal.y * middleOffset,
+      normal.z * middleOffset,
+    )
+    kernel.release(extrudedSolid)
+    extrudedSolid = translatedMiddle
+  }
+
+  // 6. 计算各段位置
   let frontOffset: number
   let backOffset: number
   if (mode === 'centered') {
@@ -672,7 +717,7 @@ export function extrudeBrep(
   )
   kernel.release(splitResult.back)
 
-  // 6. Fuse 三段
+  // 7. Fuse 三段
   let result: BrepHandle
   try {
     const fused1 = kernel.fuse(frontTranslated, extrudedSolid)

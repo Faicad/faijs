@@ -101,7 +101,7 @@ export class WorkerCsgBackend implements CsgBackend {
     mesh: MeshData,
     params: {
       planeNormal: [number, number, number]
-      planeOriginOffset: number
+      planeDistance: number
       planeCenter: [number, number, number]
       widthDir: [number, number, number]
       bboxWidthOnWidthDir: number
@@ -120,7 +120,7 @@ export class WorkerCsgBackend implements CsgBackend {
     mesh: MeshData,
     params: {
       planeNormal: [number, number, number]
-      planeOriginOffset: number
+      planeDistance: number
       planeCenter: [number, number, number]
       widthDir: [number, number, number]
       dowel: import('../cad-runtime/ports').DowelSplitParams
@@ -139,7 +139,7 @@ export class WorkerCsgBackend implements CsgBackend {
     mesh: MeshData,
     params: {
       planeNormal: [number, number, number]
-      planeOriginOffset: number
+      planeDistance: number
       planeCenter: [number, number, number]
       widthDir: [number, number, number]
       tenon: import('../cad-runtime/ports').StraightTenonSplitParams

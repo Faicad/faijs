@@ -53,7 +53,7 @@ describe('computeExtrudeOffsets', () => {
 })
 
 describe('makeWorldPlane', () => {
-  it('constant = -originOffset，且法线归一化', () => {
+  it('constant = -planeDistance，且法线归一化', () => {
     const { plane, normalVec } = makeWorldPlane([0, 0, 2], 3)
     expect(normalVec.length()).toBeCloseTo(1, 10)
     expect(plane.constant).toBeCloseTo(-3, 10)
@@ -143,7 +143,7 @@ describe('buildExtrudeParts', () => {
     expect(Math.max(...ez)).toBeCloseTo(5, 5)
   })
 
-  it('第二次 split 在 originOffset + SLICE_THICKNESS，薄片被放大到 L', async () => {
+  it('第二次 split 在 planeDistance + SLICE_THICKNESS，薄片被放大到 L', async () => {
     computeSplitMock
       .mockResolvedValueOnce({ front: squareAt(0), back: squareAt(-1) })
       .mockResolvedValueOnce({ front: squareAt(3), back: thinCap() })

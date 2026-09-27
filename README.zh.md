@@ -9,7 +9,7 @@ Faicad CAD 执行引擎——`faijs` 语言 parser、BREP/mesh 双链路几何�
 - **L2 编排**（`src/cad-runtime/`）：`CadRuntime` + `HostPorts`。
 - **L3 宿主**（`src/node-host/` / `src/browser-host/`）。
 
-单位：毫米，+Z 向上，角度用度。契约文档：`docs/api-contract.md`、`docs/syntax-design.md`。
+单位：毫米，+Z 向上，角度用度。契约文档：`docs/api-contract.md`、`docs/syntax-design.md`、`docs/fai-zip-format.md`。
 
 ## Entry points
 

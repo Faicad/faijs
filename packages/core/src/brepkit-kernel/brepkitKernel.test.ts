@@ -394,7 +394,7 @@ suite('brepkit 操作能力：分割（split）', () => {
     const box = api.makeBox(BOX, BOX, BOX)
     const { front, back } = splitBrep(api, box, {
       normal: [1, 0, 0],
-      originOffset: 0,
+      planeDistance: 0,
       planeCenter: [5, 0, 0],
     })
     expect(api.isSolid(front)).toBe(true)

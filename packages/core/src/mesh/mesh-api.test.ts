@@ -365,7 +365,7 @@ describe.skip('mesh-api: extrude (requires Worker)', () => {
     const box = cad.box({ width: 20, depth: 20, height: 20, centered: true })
     const result = await cad.fai_extrude(box, {
       normal: [0, 0, 1],
-      originOffset: 0,
+      planeDistance: 0,
       length: 10,
       mode: 'centered',
     })

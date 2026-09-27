@@ -11,7 +11,7 @@
  * 交互期的快速预览走 engine/components/extrude-preview-nosplit.ts（不 split 原模型）。
  *
  * 放在 engine/boolean/ 下的约束：**不得 import stores**（保持与 csg.ts 同层的纯度）。
- * 平面参数（normal / originOffset）由调用方用 computePlaneParams 算好后传入。
+ * 平面参数（normal / planeDistance）由调用方用 computePlaneParams 算好后传入。
  */
 import * as THREE from 'three'
 import { computeSplit } from '../boolean/csg-backend'
@@ -57,21 +57,21 @@ export function computeExtrudeOffsets(
 }
 
 /**
- * 由 computePlaneParams 的 (normal, originOffset) 构造 THREE 世界平面。
+ * 由 computePlaneParams 的 (normal, planeDistance) 构造 THREE 世界平面。
  *
- * 约定：平面方程为 `N · p = originOffset`；THREE.Plane 用 `N · p + constant = 0`，
- * 故 constant = -originOffset。THREE 裁剪保留 distanceToPoint >= 0 的一侧（法线正侧）。
+ * 约定：平面方程为 `N · p = planeDistance`；THREE.Plane 用 `N · p + constant = 0`，
+ * 故 constant = -planeDistance。THREE 裁剪保留 distanceToPoint >= 0 的一侧（法线正侧）。
  * @param normal - the cutting plane normal as a 3-component array.
- * @param originOffset - the plane equation origin offset along the normal.
+ * @param planeDistance - the plane equation origin offset along the normal.
  * @returns a THREE.Plane and its normalized normal vector.
  */
 export function makeWorldPlane(
   normal: [number, number, number],
-  originOffset: number,
+  planeDistance: number,
 ): { plane: THREE.Plane; normalVec: THREE.Vector3 } {
   const normalVec = new THREE.Vector3(normal[0], normal[1], normal[2]).normalize()
   return {
-    plane: new THREE.Plane(normalVec.clone(), -originOffset),
+    plane: new THREE.Plane(normalVec.clone(), -planeDistance),
     normalVec,
   }
 }
@@ -84,7 +84,7 @@ export function makeWorldPlane(
  *
  * @param worldMesh   世界空间的源网格（局部几何 × matrixWorld）
  * @param normal      切割平面法线（单位向量）
- * @param originOffset 平面方程 N·p = originOffset 的右端
+ * @param planeDistance 平面方程 N·p = planeDistance 的右端
  * @param length      拉伸长度 L
  * @param mode        三段位移模式
  * @returns the split front, back, and extruded middle mesh parts.
@@ -92,7 +92,7 @@ export function makeWorldPlane(
 export async function buildExtrudeParts(
   worldMesh: ManifoldMeshData,
   normal: [number, number, number],
-  originOffset: number,
+  planeDistance: number,
   length: number,
   mode: ExtrudeOffsetMode,
 ): Promise<ExtrudeParts> {
@@ -101,17 +101,17 @@ export async function buildExtrudeParts(
   const D: [number, number, number] = [normal[0], normal[1], normal[2]]
 
   // 1. 平面处切开 → front / back
-  const splitResult = await computeSplit(worldMesh, normal, originOffset)
+  const splitResult = await computeSplit(worldMesh, normal, planeDistance)
   let front: ManifoldMeshData | null = splitResult.front
   let back: ManifoldMeshData | null = splitResult.back
   let extruded: ManifoldMeshData | null = null
 
   // 2. 从 front 再切一片厚 SLICE_THICKNESS 的薄壳
-  const capSplit = await computeSplit(splitResult.front, normal, originOffset + SLICE_THICKNESS)
+  const capSplit = await computeSplit(splitResult.front, normal, planeDistance + SLICE_THICKNESS)
 
-  // 3. 薄壳以平面为锚点沿 N 放大 L/SLICE_THICKNESS → 占据 [originOffset, originOffset+L]
+  // 3. 薄壳以平面为锚点沿 N 放大 L/SLICE_THICKNESS → 占据 [planeDistance, planeDistance+L]
   if (capSplit.back && capSplit.back.indices.length > 0) {
-    extruded = scaleMeshAlongNormal(capSplit.back, D, originOffset, length / SLICE_THICKNESS)
+    extruded = scaleMeshAlongNormal(capSplit.back, D, planeDistance, length / SLICE_THICKNESS)
   }
 
   // 4. 三段各自沿 D 位移；中段起点对齐 back 侧

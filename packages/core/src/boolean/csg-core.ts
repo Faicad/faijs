@@ -258,13 +258,13 @@ export function createWedge(
  * Returns an array of components, each being a Set of vertex indices.
  * @param upper         The upper mesh to scan for cap faces.
  * @param normal        The cutting plane normal.
- * @param originOffset  The cutting plane offset along the normal.
+ * @param planeDistance  The cutting plane offset along the normal.
  * @returns An array of components, each a Set of vertex indices on the cap.
  */
 export function detectCapComponents(
   upper: ManifoldInstance,
   normal: Vec3,
-  originOffset: number,
+  planeDistance: number,
 ): Set<number>[] {
   const mesh = upper.getMesh()
   const eps = 0.001
@@ -284,15 +284,15 @@ export function detectCapComponents(
     const d0 = Math.abs(
       mesh.vertProperties[i0 * numProp] * normal[0] +
       mesh.vertProperties[i0 * numProp + 1] * normal[1] +
-      mesh.vertProperties[i0 * numProp + 2] * normal[2] - originOffset)
+      mesh.vertProperties[i0 * numProp + 2] * normal[2] - planeDistance)
     const d1 = Math.abs(
       mesh.vertProperties[i1 * numProp] * normal[0] +
       mesh.vertProperties[i1 * numProp + 1] * normal[1] +
-      mesh.vertProperties[i1 * numProp + 2] * normal[2] - originOffset)
+      mesh.vertProperties[i1 * numProp + 2] * normal[2] - planeDistance)
     const d2 = Math.abs(
       mesh.vertProperties[i2 * numProp] * normal[0] +
       mesh.vertProperties[i2 * numProp + 1] * normal[1] +
-      mesh.vertProperties[i2 * numProp + 2] * normal[2] - originOffset)
+      mesh.vertProperties[i2 * numProp + 2] * normal[2] - planeDistance)
     if (d0 < eps && d1 < eps && d2 < eps) {
       capTris.push({ v0: i0, v1: i1, v2: i2 })
       capVertSet.add(i0); capVertSet.add(i1); capVertSet.add(i2)
@@ -324,7 +324,7 @@ export function detectCapComponents(
  * along the width direction.
  * @param upper         The upper mesh to measure.
  * @param normal        The cutting plane normal.
- * @param originOffset  The cutting plane offset along the normal.
+ * @param planeDistance  The cutting plane offset along the normal.
  * @param widthDir      The width direction along which to measure.
  * @param comp          Optional connected component to restrict the measurement to.
  * @returns The cross-section extent along the width direction (0 when none found).
@@ -332,7 +332,7 @@ export function detectCapComponents(
 export function computeCrossSectionWidth(
   upper: ManifoldInstance,
   normal: Vec3,
-  originOffset: number,
+  planeDistance: number,
   widthDir: Vec3,
   comp?: Set<number>,
 ): number {
@@ -352,7 +352,7 @@ export function computeCrossSectionWidth(
     const y = mesh.vertProperties[base + 1]
     const z = mesh.vertProperties[base + 2]
 
-    const dist = x * normal[0] + y * normal[1] + z * normal[2] - originOffset
+    const dist = x * normal[0] + y * normal[1] + z * normal[2] - planeDistance
     if (Math.abs(dist) < eps) {
       const proj = x * widthDir[0] + y * widthDir[1] + z * widthDir[2]
       if (proj < minProj) minProj = proj
@@ -371,7 +371,7 @@ export function computeCrossSectionWidth(
  * Compute the centroid of vertices lying on the cutting plane.
  * @param upper         The upper mesh to scan.
  * @param normal        The cutting plane normal.
- * @param originOffset  The cutting plane offset along the normal.
+ * @param planeDistance  The cutting plane offset along the normal.
  * @param fallback      The centroid fallback when no vertex lies on the plane.
  * @param comp          Optional connected component to restrict the measurement to.
  * @returns The computed centroid, or the fallback when none is found.
@@ -379,7 +379,7 @@ export function computeCrossSectionWidth(
 export function computeCrossSectionCentroid(
   upper: ManifoldInstance,
   normal: Vec3,
-  originOffset: number,
+  planeDistance: number,
   fallback: Vec3,
   comp?: Set<number>,
 ): Vec3 {
@@ -398,7 +398,7 @@ export function computeCrossSectionCentroid(
     const y = mesh.vertProperties[base + 1]
     const z = mesh.vertProperties[base + 2]
 
-    const dist = x * normal[0] + y * normal[1] + z * normal[2] - originOffset
+    const dist = x * normal[0] + y * normal[1] + z * normal[2] - planeDistance
     if (Math.abs(dist) < eps) {
       cx += x
       cy += y
@@ -419,7 +419,7 @@ export function computeCrossSectionCentroid(
  * @param Mesh - the Mesh constructor from the manifold module.
  * @param original - the original manifold to split.
  * @param normal - the cutting plane normal (unit vector).
- * @param originOffset - the plane equation origin offset along the normal.
+ * @param planeDistance - the plane equation origin offset along the normal.
  * @param planeCenter - a point on the cutting plane used to center the wedge.
  * @param widthDirInput - the width direction in the cutting plane (will be normalized).
  * @param bboxWidthOnWidthDir - the model's bounding-box width along widthDir, used as a fallback cross-section width.
@@ -432,7 +432,7 @@ export function dovetailBooleanSplit(
   Mesh: MeshCtor,
   original: ManifoldInstance,
   normal: Vec3,
-  originOffset: number,
+  planeDistance: number,
   planeCenter: Vec3,
   widthDirInput: Vec3,
   bboxWidthOnWidthDir: number,
@@ -449,11 +449,11 @@ export function dovetailBooleanSplit(
   const widthDir = vec3Normalize(widthDirInput)
 
   // Step 1: Split by plane → upper + lower
-  const [upper, lower] = original.splitByPlane(normal, originOffset)
+  const [upper, lower] = original.splitByPlane(normal, planeDistance)
   if (!keepOriginal) original.delete()
 
   // Step 2: Compute actual cross-section width at the cutting plane
-  let crossSectionWidth = computeCrossSectionWidth(upper, normal, originOffset, widthDir)
+  let crossSectionWidth = computeCrossSectionWidth(upper, normal, planeDistance, widthDir)
   if (crossSectionWidth <= 0) {
     crossSectionWidth = bboxWidthOnWidthDir
   }
@@ -616,7 +616,7 @@ export function createStraightTenon(
  * @param Mesh - the Mesh constructor from the manifold module.
  * @param original - the original manifold to split.
  * @param normal - the cutting plane normal (unit vector).
- * @param originOffset - the plane equation origin offset along the normal.
+ * @param planeDistance - the plane equation origin offset along the normal.
  * @param planeCenter - a point on the cutting plane used to center the joinery.
  * @param widthDirInput - the width direction in the cutting plane (will be normalized).
  * @param shape - the joinery shape: 'dowel' or 'tenon'.
@@ -630,7 +630,7 @@ export function dowelOrTenonBooleanSplit(
   Mesh: MeshCtor,
   original: ManifoldInstance,
   normal: Vec3,
-  originOffset: number,
+  planeDistance: number,
   planeCenter: Vec3,
   widthDirInput: Vec3,
   shape: 'dowel' | 'tenon',
@@ -648,24 +648,24 @@ export function dowelOrTenonBooleanSplit(
   const depthDir = vec3Normalize(vec3Cross(normal, widthDir))
 
   // Step 1: Split by plane → upper + lower
-  const [upper, lower] = original.splitByPlane(normal, originOffset)
+  const [upper, lower] = original.splitByPlane(normal, planeDistance)
   if (!keepOriginal) original.delete()
 
   // Step 2: Detect cap components (multi-section support)
-  const components = detectCapComponents(upper, normal, originOffset)
+  const components = detectCapComponents(upper, normal, planeDistance)
 
   // Build the list of joinery placements: one per selected section
   interface JoineryPlacement { centroid: Vec3 }
   let placements: JoineryPlacement[]
 
   if (components.length <= 1 || !selectedSections || selectedSections.length === 0) {
-    const centroid = computeCrossSectionCentroid(upper, normal, originOffset, planeCenter)
+    const centroid = computeCrossSectionCentroid(upper, normal, planeDistance, planeCenter)
     placements = [{ centroid }]
   } else {
     const compInfo = components.map((comp, idx) => {
-      const compWidth = computeCrossSectionWidth(upper, normal, originOffset, widthDir, comp)
-      const compCentroid = computeCrossSectionCentroid(upper, normal, originOffset, planeCenter, comp)
-      const compDepth = computeCrossSectionWidth(upper, normal, originOffset, depthDir, comp)
+      const compWidth = computeCrossSectionWidth(upper, normal, planeDistance, widthDir, comp)
+      const compCentroid = computeCrossSectionCentroid(upper, normal, planeDistance, planeCenter, comp)
+      const compDepth = computeCrossSectionWidth(upper, normal, planeDistance, depthDir, comp)
       const area = compWidth * compDepth
       return { idx, comp, area, centroid: compCentroid }
     })
@@ -678,7 +678,7 @@ export function dowelOrTenonBooleanSplit(
       }
     }
     if (placements.length === 0) {
-      const centroid = computeCrossSectionCentroid(upper, normal, originOffset, planeCenter)
+      const centroid = computeCrossSectionCentroid(upper, normal, planeDistance, planeCenter)
       placements = [{ centroid }]
     }
   }

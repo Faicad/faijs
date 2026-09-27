@@ -81,7 +81,7 @@ export async function computeSplit(
  * Split a mesh by a plane and cut a dovetail groove via the current backend.
  * @param mesh                The mesh to split.
  * @param planeNormal         The cutting plane normal (unit vector).
- * @param planeOriginOffset   The cutting plane offset along the normal.
+ * @param planeDistance   The cutting plane offset along the normal.
  * @param planeCenter         A point on the cutting plane.
  * @param widthDir            The width direction within the cutting plane (unit vector).
  * @param bboxWidthOnWidthDir The model bounding-box width along the width direction.
@@ -91,7 +91,7 @@ export async function computeSplit(
 export async function computeDovetailSplit(
   mesh: ManifoldMeshData,
   planeNormal: [number, number, number],
-  planeOriginOffset: number,
+  planeDistance: number,
   planeCenter: [number, number, number],
   widthDir: [number, number, number],
   bboxWidthOnWidthDir: number,
@@ -100,7 +100,7 @@ export async function computeDovetailSplit(
   const backend = await getBackend()
   const result = await backend.splitDovetail(mesh, {
     planeNormal,
-    planeOriginOffset,
+    planeDistance,
     planeCenter,
     widthDir,
     bboxWidthOnWidthDir,
@@ -113,7 +113,7 @@ export async function computeDovetailSplit(
  * Split a mesh by a plane and cut dowel tenons via the current backend.
  * @param mesh                The mesh to split.
  * @param planeNormal         The cutting plane normal (unit vector).
- * @param planeOriginOffset   The cutting plane offset along the normal.
+ * @param planeDistance   The cutting plane offset along the normal.
  * @param planeCenter         A point on the cutting plane.
  * @param widthDir            The width direction within the cutting plane (unit vector).
  * @param dowel               The dowel split parameters.
@@ -123,7 +123,7 @@ export async function computeDovetailSplit(
 export async function computeDowelSplit(
   mesh: ManifoldMeshData,
   planeNormal: [number, number, number],
-  planeOriginOffset: number,
+  planeDistance: number,
   planeCenter: [number, number, number],
   widthDir: [number, number, number],
   dowel: DowelSplitParams,
@@ -132,7 +132,7 @@ export async function computeDowelSplit(
   const backend = await getBackend()
   const result = await backend.splitDowel(mesh, {
     planeNormal,
-    planeOriginOffset,
+    planeDistance,
     planeCenter,
     widthDir,
     dowel,
@@ -145,7 +145,7 @@ export async function computeDowelSplit(
  * Split a mesh by a plane and cut straight tenons via the current backend.
  * @param mesh                The mesh to split.
  * @param planeNormal         The cutting plane normal (unit vector).
- * @param planeOriginOffset   The cutting plane offset along the normal.
+ * @param planeDistance   The cutting plane offset along the normal.
  * @param planeCenter         A point on the cutting plane.
  * @param widthDir            The width direction within the cutting plane (unit vector).
  * @param tenon               The straight-tenon split parameters.
@@ -155,7 +155,7 @@ export async function computeDowelSplit(
 export async function computeStraightTenonSplit(
   mesh: ManifoldMeshData,
   planeNormal: [number, number, number],
-  planeOriginOffset: number,
+  planeDistance: number,
   planeCenter: [number, number, number],
   widthDir: [number, number, number],
   tenon: StraightTenonSplitParams,
@@ -164,7 +164,7 @@ export async function computeStraightTenonSplit(
   const backend = await getBackend()
   const result = await backend.splitStraightTenon(mesh, {
     planeNormal,
-    planeOriginOffset,
+    planeDistance,
     planeCenter,
     widthDir,
     tenon,

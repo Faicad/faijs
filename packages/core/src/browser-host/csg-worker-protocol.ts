@@ -38,7 +38,7 @@ export interface CsgWorkerSplitDovetailRequest {
   mesh: MeshData
   params: {
     planeNormal: [number, number, number]
-    planeOriginOffset: number
+    planeDistance: number
     planeCenter: [number, number, number]
     widthDir: [number, number, number]
     bboxWidthOnWidthDir: number
@@ -53,7 +53,7 @@ export interface CsgWorkerSplitDowelRequest {
   mesh: MeshData
   params: {
     planeNormal: [number, number, number]
-    planeOriginOffset: number
+    planeDistance: number
     planeCenter: [number, number, number]
     widthDir: [number, number, number]
     dowel: import('../cad-runtime/ports').DowelSplitParams
@@ -68,7 +68,7 @@ export interface CsgWorkerSplitTenonRequest {
   mesh: MeshData
   params: {
     planeNormal: [number, number, number]
-    planeOriginOffset: number
+    planeDistance: number
     planeCenter: [number, number, number]
     widthDir: [number, number, number]
     tenon: import('../cad-runtime/ports').StraightTenonSplitParams

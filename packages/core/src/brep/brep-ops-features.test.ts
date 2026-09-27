@@ -308,7 +308,7 @@ describe('BREP split op', () => {
     try {
       const result = splitBrep(kernel, box, {
         normal: [0, 0, 1],
-        originOffset: 0,
+        planeDistance: 0,
         planeCenter: [0, 0, 0],
       })
       try {
@@ -335,7 +335,7 @@ describe('BREP split op', () => {
     try {
       const result = splitBrep(kernel, box, {
         normal: [0, 0, 1],
-        originOffset: 0,
+        planeDistance: 0,
         planeCenter: [0, 0, 0],
       })
       try {

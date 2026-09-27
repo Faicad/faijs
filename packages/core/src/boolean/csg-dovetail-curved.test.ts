@@ -86,7 +86,7 @@ function cylinderMesh(radius: number, height: number, segments = 32) {
 function computeCrossSectionWidth(
   upper: import('manifold-3d/manifold').Manifold,
   normal: Vec3,
-  originOffset: number,
+  planeDistance: number,
   widthDir: Vec3,
 ): number {
   const mesh = upper.getMesh()
@@ -101,7 +101,7 @@ function computeCrossSectionWidth(
     const x = mesh.vertProperties[base]
     const y = mesh.vertProperties[base + 1]
     const z = mesh.vertProperties[base + 2]
-    const dist = x * normal[0] + y * normal[1] + z * normal[2] - originOffset
+    const dist = x * normal[0] + y * normal[1] + z * normal[2] - planeDistance
     if (Math.abs(dist) < eps) {
       const proj = x * widthDir[0] + y * widthDir[1] + z * widthDir[2]
       if (proj < minProj) minProj = proj
@@ -117,12 +117,12 @@ function detectCurvedSurface(
   upper: import('manifold-3d/manifold').Manifold,
   lower: import('manifold-3d/manifold').Manifold,
   normal: Vec3,
-  originOffset: number,
+  planeDistance: number,
   widthDir: Vec3,
 ): boolean {
   if (lower.isEmpty()) return false
-  const width0 = computeCrossSectionWidth(upper, normal, originOffset, widthDir)
-  const sliceOffset = originOffset - 2
+  const width0 = computeCrossSectionWidth(upper, normal, planeDistance, widthDir)
+  const sliceOffset = planeDistance - 2
   const [slice, rest] = lower.splitByPlane(normal, sliceOffset)
   rest.delete()
   if (slice.isEmpty()) {
@@ -190,13 +190,13 @@ describe('D1: detectCurvedSurface — flat box → false', () => {
 
     // Split at Z=0 (horizontal plane)
     const normal: Vec3 = [0, 0, 1]
-    const originOffset = 0
+    const planeDistance = 0
     const widthDir: Vec3 = [1, 0, 0]
 
-    const [upper, lower] = m.splitByPlane(normal, originOffset)
+    const [upper, lower] = m.splitByPlane(normal, planeDistance)
     m.delete()
 
-    const isCurved = detectCurvedSurface(upper, lower, normal, originOffset, widthDir)
+    const isCurved = detectCurvedSurface(upper, lower, normal, planeDistance, widthDir)
 
     expect(isCurved).toBe(false)
 
@@ -220,13 +220,13 @@ describe('D2: detectCurvedSurface — cylinder → true', () => {
 
     // Split at Z=0 (horizontal plane through center)
     const normal: Vec3 = [0, 0, 1]
-    const originOffset = 0
+    const planeDistance = 0
     const widthDir: Vec3 = [1, 0, 0]
 
-    const [upper, lower] = m.splitByPlane(normal, originOffset)
+    const [upper, lower] = m.splitByPlane(normal, planeDistance)
     m.delete()
 
-    const _isCurved = detectCurvedSurface(upper, lower, normal, originOffset, widthDir)
+    const _isCurved = detectCurvedSurface(upper, lower, normal, planeDistance, widthDir)
 
     // Cylinder cross-section is circular, so width at Z=0 and Z=-2 should differ
     // (actually for a right cylinder they're the same... let me think)
@@ -249,10 +249,10 @@ describe('D2: detectCurvedSurface — cylinder → true', () => {
     const coneMesh = new Mesh({ numProp: 3, vertProperties: coneD.positions, triVerts: coneD.indices })
     const cone = Manifold.ofMesh(coneMesh)
 
-    const [coneUpper, coneLower] = cone.splitByPlane(normal, originOffset)
+    const [coneUpper, coneLower] = cone.splitByPlane(normal, planeDistance)
     cone.delete()
 
-    const isCurvedCone = detectCurvedSurface(coneUpper, coneLower, normal, originOffset, widthDir)
+    const isCurvedCone = detectCurvedSurface(coneUpper, coneLower, normal, planeDistance, widthDir)
 
     // Cone cross-section diameter decreases with height (toward tip).
     // At Z=0 (middle), diameter ≈ 5. At Z=-2 (2mm below), diameter ≈ 5.5.
@@ -279,7 +279,7 @@ describe('D3: curved branch dovetail split — cone → valid result', () => {
     const m = Manifold.ofMesh(mesh)
 
     const normal: Vec3 = [0, 0, 1]
-    const originOffset = 0
+    const planeDistance = 0
     const planeCenter: Vec3 = [0, 0, 0]
     const widthDir: Vec3 = [1, 0, 0]
 
@@ -292,16 +292,16 @@ describe('D3: curved branch dovetail split — cone → valid result', () => {
     }
 
     // Step 1: Split
-    const [upper, lower] = m.splitByPlane(normal, originOffset)
+    const [upper, lower] = m.splitByPlane(normal, planeDistance)
     m.delete()
 
     // Step 2: Compute cross-section width
-    const crossSectionWidth = computeCrossSectionWidth(upper, normal, originOffset, widthDir)
+    const crossSectionWidth = computeCrossSectionWidth(upper, normal, planeDistance, widthDir)
     expect(crossSectionWidth).toBeGreaterThan(0)
     const extrudeLength = crossSectionWidth + 0.2
 
     // Step 3: Detect curved
-    const isCurved = detectCurvedSurface(upper, lower, normal, originOffset, widthDir)
+    const isCurved = detectCurvedSurface(upper, lower, normal, planeDistance, widthDir)
     expect(isCurved).toBe(true)
 
     // Step 4: Create wedge W with +20mm overhang (curved branch)
@@ -386,7 +386,7 @@ describe('D4: unconditional dovetail split — box → valid result', () => {
     const m = Manifold.ofMesh(mesh)
 
     const normal: Vec3 = [0, 0, 1]
-    const originOffset = 0
+    const planeDistance = 0
     const planeCenter: Vec3 = [0, 0, 0]
     const widthDir: Vec3 = [1, 0, 0]
     const overhang = 20
@@ -400,11 +400,11 @@ describe('D4: unconditional dovetail split — box → valid result', () => {
     }
 
     // Step 1: Split
-    const [upper, lower] = m.splitByPlane(normal, originOffset)
+    const [upper, lower] = m.splitByPlane(normal, planeDistance)
     m.delete()
 
     // Step 2: Compute cross-section width
-    const crossSectionWidth = computeCrossSectionWidth(upper, normal, originOffset, widthDir)
+    const crossSectionWidth = computeCrossSectionWidth(upper, normal, planeDistance, widthDir)
     expect(crossSectionWidth).toBeGreaterThan(0)
     const extrudeLength = crossSectionWidth + 0.2
 
@@ -488,16 +488,16 @@ describe('D5: unconditional dovetail split — cylinder → wedge is trimmed to 
     const m = Manifold.ofMesh(mesh)
 
     const normal: Vec3 = [0, 0, 1]
-    const originOffset = 0
+    const planeDistance = 0
     const planeCenter: Vec3 = [0, 0, 0]
     const widthDir: Vec3 = [1, 0, 0]
     const overhang = 20
 
     // Split
-    const [upper, lower] = m.splitByPlane(normal, originOffset)
+    const [upper, lower] = m.splitByPlane(normal, planeDistance)
     m.delete()
 
-    const crossSectionWidth = computeCrossSectionWidth(upper, normal, originOffset, widthDir)
+    const crossSectionWidth = computeCrossSectionWidth(upper, normal, planeDistance, widthDir)
     expect(crossSectionWidth).toBeGreaterThan(0)
     const extrudeLength = crossSectionWidth + 0.2
 
@@ -565,10 +565,10 @@ describe('D6: edge case — lower is empty → flat branch (no crash)', () => {
 
     // Split far above the model → upper is empty, lower has everything
     const normal: Vec3 = [0, 0, 1]
-    const originOffset = 100 // far above
+    const planeDistance = 100 // far above
     const widthDir: Vec3 = [1, 0, 0]
 
-    const [upper, lower] = m.splitByPlane(normal, originOffset)
+    const [upper, lower] = m.splitByPlane(normal, planeDistance)
     m.delete()
 
     // upper should be empty (everything is below the plane)
@@ -670,7 +670,7 @@ function measureGapAlongAxis(
 
 describe('D7: groove width tolerance → 槽两侧各加 tolerance/2', () => {
   const normal: Vec3 = [0, 0, 1]
-  const originOffset = 0
+  const planeDistance = 0
   const planeCenter: Vec3 = [0, 0, 0]
   const widthDir: Vec3 = [1, 0, 0]
   const depthDir: Vec3 = vec3Normalize(vec3Cross(normal, widthDir)) // [0, 1, 0]
@@ -697,10 +697,10 @@ describe('D7: groove width tolerance → 槽两侧各加 tolerance/2', () => {
         flapsAngle: 60,
       }
 
-      const [upper, lower] = m.splitByPlane(normal, originOffset)
+      const [upper, lower] = m.splitByPlane(normal, planeDistance)
       m.delete()
 
-      const crossSectionWidth = computeCrossSectionWidth(upper, normal, originOffset, widthDir)
+      const crossSectionWidth = computeCrossSectionWidth(upper, normal, planeDistance, widthDir)
       const extrudeLength = crossSectionWidth + 0.2
 
       // 舌榫实体（wedgeW）：槽宽方向用 groove.width

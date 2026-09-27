@@ -38,7 +38,7 @@ const defaultBasis: JoineryBasis = {
   widthDir: [1, 0, 0],
   depthDir: [0, 1, 0],
   planeCenter: [0, 0, 0],
-  originOffset: 0,
+  planeDistance: 0,
 }
 
 // ─── buildWedgeSolid ───
@@ -139,7 +139,7 @@ describe('detectCrossSectionComponents', () => {
     // upper = Z > 0 的部分
     const split = splitBrep(kernel, box, {
       normal: [0, 0, 1],
-      originOffset: 0,
+      planeDistance: 0,
       planeCenter: [0, 0, 0],
     })
 
@@ -254,7 +254,7 @@ describe('dowelOrTenonBooleanSplitBrep', () => {
     // 平面分割的 upper 体积
     const plainSplit = splitBrep(kernel, box, {
       normal: [0, 0, 1],
-      originOffset: 0,
+      planeDistance: 0,
       planeCenter: [0, 0, 0],
     })
     const plainUpperVol = kernel.getVolume(plainSplit.front)

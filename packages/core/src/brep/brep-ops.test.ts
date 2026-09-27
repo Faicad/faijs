@@ -240,7 +240,6 @@ describe('splitBrep', () => {
     const box = kernel.makeBoxFromCorners({ x: -10, y: -10, z: -10 }, { x: 10, y: 10, z: 10 })
     const result = splitBrep(kernel, box, {
       normal: [0, 0, 1],
-      originOffset: 0,
       planeCenter: [0, 0, 0],
     })
     expect(result.front).toBeDefined()
@@ -259,11 +258,11 @@ describe('splitBrep', () => {
 // ─── extrudeBrep ───
 
 describe('extrudeBrep', () => {
-  it('should extrude a box at its midpoint', () => {
+  it('should extrude a box at its midpoint (planeCenter)', () => {
     const box = kernel.makeBoxFromCorners({ x: -10, y: -10, z: -10 }, { x: 10, y: 10, z: 10 })
     const result = extrudeBrep(kernel, box, {
       normal: [0, 0, 1],
-      originOffset: 0,
+      planeCenter: [0, 0, 0],
       length: 5,
       mode: 'centered',
     })
@@ -272,5 +271,81 @@ describe('extrudeBrep', () => {
     expect(step).toContain('ADVANCED_FACE')
     kernel.release(box)
     kernel.release(result)
+  })
+
+  // 回归：centered 模式三段 fuse 必须是一个封闭实体。判据用 solid 数量 +
+  // isValid + 体积，而不是 mesh 边界边 —— OCCT 逐面三角化，封闭 box 的
+  // mesh 也有"边界边"（面间接缝顶点不共享索引），该指标不可用。
+  it('centered extrude of a box must be one closed solid (no hollow)', () => {
+    const box = kernel.makeBoxFromCorners({ x: -10, y: -10, z: -10 }, { x: 10, y: 10, z: 10 })
+    const result = extrudeBrep(kernel, box, {
+      normal: [0, 0, 1],
+      planeCenter: [0, 0, 0],
+      length: 5,
+      mode: 'centered',
+    })
+    const solids = kernel.getSubShapes(result, 'solid')
+    expect(solids.length, 'fused result must be exactly 1 solid (gap → 2 disconnected solids)').toBe(1)
+    expect(kernel.isValid(result), 'fused result must be a valid solid').toBe(true)
+    // 体积 = 原实体 8000 + 拉伸段 20*20*5 = 10000
+    expect(kernel.getVolume(result)).toBeCloseTo(10000, 0)
+    kernel.release(box)
+    kernel.release(result)
+  })
+
+  it('centered extrude of a cylinder must be one closed solid (no hollow)', () => {
+    const cyl = kernel.makeCylinder(10, 20) // 半径 10、高 20，轴线沿 Z
+    const result = extrudeBrep(kernel, cyl, {
+      normal: [0, 0, 1],
+      planeCenter: [0, 0, 20], // 圆柱包围盒中心在世界系 z=20（Cube5 bug 场景）
+      length: 8,
+      mode: 'centered',
+    })
+    const solids = kernel.getSubShapes(result, 'solid')
+    expect(solids.length, 'fused result must be exactly 1 solid').toBe(1)
+    expect(kernel.isValid(result), 'fused result must be a valid solid').toBe(true)
+    // 体积 = 原圆柱 π*10²*20 + 拉伸段 π*10²*8 = π*100*28
+    expect(kernel.getVolume(result)).toBeCloseTo(Math.PI * 100 * 28, 0)
+    kernel.release(cyl)
+    kernel.release(result)
+  })
+
+  // 回归：planeDistance 与 planeCenter 必须等价 —— planeDistance 是世界系
+  // 平面方程 d 值（n·x = d），planeDistance = normal·planeCenter 时平面相同。
+  it('planeDistance and planeCenter locate the same plane (equivalent results)', () => {
+    // 圆柱中心在世界系 z=20：用 planeDistance=20 与 planeCenter=[0,0,20] 应等价
+    const cyl1 = kernel.makeCylinder(10, 20)
+    const r1 = extrudeBrep(kernel, cyl1, {
+      normal: [0, 0, 1],
+      planeDistance: 20,
+      length: 8,
+      mode: 'centered',
+    })
+    const cyl2 = kernel.makeCylinder(10, 20)
+    const r2 = extrudeBrep(kernel, cyl2, {
+      normal: [0, 0, 1],
+      planeCenter: [0, 0, 20],
+      length: 8,
+      mode: 'centered',
+    })
+    expect(kernel.getSubShapes(r1, 'solid').length).toBe(1)
+    expect(kernel.getSubShapes(r2, 'solid').length).toBe(1)
+    expect(kernel.getVolume(r1)).toBeCloseTo(kernel.getVolume(r2), 3)
+    kernel.release(cyl1); kernel.release(r1)
+    kernel.release(cyl2); kernel.release(r2)
+  })
+
+  // 回归：平面定位参数缺失必须 throw —— 报错好于掩盖，禁止隐式回退
+  // 到 bbox 中心近似（不准回退红线）。
+  it('must throw when neither planeCenter nor planeDistance is provided', () => {
+    const box = kernel.makeBoxFromCorners({ x: -10, y: -10, z: -10 }, { x: 10, y: 10, z: 10 })
+    expect(() =>
+      extrudeBrep(kernel, box, {
+        normal: [0, 0, 1],
+        length: 5,
+        mode: 'centered',
+      } as never),
+    ).toThrow(/planeCenter|planeDistance/)
+    kernel.release(box)
   })
 })

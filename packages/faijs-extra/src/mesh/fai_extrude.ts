@@ -22,7 +22,7 @@ import type { Shape, ExtrudeParams } from '@faicad/faijs/mesh/types'
  * segments back into a single solid.
  *
  * @param shape - the world-space shape to extrude.
- * @param params - extrude parameters (normal, originOffset, length, mode).
+ * @param params - extrude parameters (normal, planeDistance, length, mode).
  * @returns the extruded shape in world space.
  */
 export async function extrude(shape: Shape, params: ExtrudeParams): Promise<Shape> {
@@ -31,7 +31,7 @@ export async function extrude(shape: Shape, params: ExtrudeParams): Promise<Shap
   const { front, back, extruded } = await buildExtrudeParts(
     shape as ManifoldMeshData,
     params.normal,
-    params.originOffset,
+    params.planeDistance,
     params.length,
     mode,
   )

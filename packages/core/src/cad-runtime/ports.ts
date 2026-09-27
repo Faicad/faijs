@@ -62,7 +62,7 @@ export interface CsgBackend {
     mesh: MeshData,
     params: {
       planeNormal: [number, number, number]
-      planeOriginOffset: number
+      planeDistance: number
       planeCenter: [number, number, number]
       widthDir: [number, number, number]
       bboxWidthOnWidthDir: number
@@ -73,7 +73,7 @@ export interface CsgBackend {
     mesh: MeshData,
     params: {
       planeNormal: [number, number, number]
-      planeOriginOffset: number
+      planeDistance: number
       planeCenter: [number, number, number]
       widthDir: [number, number, number]
       dowel: DowelSplitParams
@@ -84,7 +84,7 @@ export interface CsgBackend {
     mesh: MeshData,
     params: {
       planeNormal: [number, number, number]
-      planeOriginOffset: number
+      planeDistance: number
       planeCenter: [number, number, number]
       widthDir: [number, number, number]
       tenon: StraightTenonSplitParams

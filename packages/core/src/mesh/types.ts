@@ -283,7 +283,7 @@ export interface DrillParams {
 /** Parameters for extruding a face bounded by a plane. */
 export interface ExtrudeParams {
   normal: Vec3
-  originOffset: number
+  planeDistance: number
   length: number
   mode?: 'centered' | 'forward' | 'backward'
 }

@@ -36,7 +36,7 @@ export interface JoineryBasis {
   /** 切割平面中心 */
   planeCenter: Vec3
   /** 平面原点偏移 = dot(normal, planeCenter) */
-  originOffset: number
+  planeDistance: number
 }
 
 // ─── Union-Find（与 csg-worker.ts SimpleUnionFind 一致） ───
@@ -90,7 +90,7 @@ interface MeshData {
 function detectCapComponentsFromMesh(
   mesh: MeshData,
   normal: Vec3,
-  originOffset: number,
+  planeDistance: number,
 ): Set<number>[] {
   const eps = 0.001
   const { positions, indices } = mesh
@@ -109,17 +109,17 @@ function detectCapComponentsFromMesh(
     const d0 = Math.abs(
       positions[i0 * 3] * normal[0] +
       positions[i0 * 3 + 1] * normal[1] +
-      positions[i0 * 3 + 2] * normal[2] - originOffset,
+      positions[i0 * 3 + 2] * normal[2] - planeDistance,
     )
     const d1 = Math.abs(
       positions[i1 * 3] * normal[0] +
       positions[i1 * 3 + 1] * normal[1] +
-      positions[i1 * 3 + 2] * normal[2] - originOffset,
+      positions[i1 * 3 + 2] * normal[2] - planeDistance,
     )
     const d2 = Math.abs(
       positions[i2 * 3] * normal[0] +
       positions[i2 * 3 + 1] * normal[1] +
-      positions[i2 * 3 + 2] * normal[2] - originOffset,
+      positions[i2 * 3 + 2] * normal[2] - planeDistance,
     )
     if (d0 < eps && d1 < eps && d2 < eps) {
       capTris.push({ v0: i0, v1: i1, v2: i2 })
@@ -155,7 +155,7 @@ function detectCapComponentsFromMesh(
 function computeCrossSectionCentroidFromMesh(
   mesh: MeshData,
   normal: Vec3,
-  originOffset: number,
+  planeDistance: number,
   fallback: Vec3,
   comp?: Set<number>,
 ): Vec3 {
@@ -172,7 +172,7 @@ function computeCrossSectionCentroidFromMesh(
     const y = positions[i * 3 + 1]
     const z = positions[i * 3 + 2]
 
-    const dist = x * normal[0] + y * normal[1] + z * normal[2] - originOffset
+    const dist = x * normal[0] + y * normal[1] + z * normal[2] - planeDistance
     if (Math.abs(dist) < eps) {
       cx += x
       cy += y
@@ -193,7 +193,7 @@ function computeCrossSectionCentroidFromMesh(
 function computeCrossSectionWidthFromMesh(
   mesh: MeshData,
   normal: Vec3,
-  originOffset: number,
+  planeDistance: number,
   widthDir: Vec3,
   comp?: Set<number>,
 ): number {
@@ -211,7 +211,7 @@ function computeCrossSectionWidthFromMesh(
     const y = positions[i * 3 + 1]
     const z = positions[i * 3 + 2]
 
-    const dist = x * normal[0] + y * normal[1] + z * normal[2] - originOffset
+    const dist = x * normal[0] + y * normal[1] + z * normal[2] - planeDistance
     if (Math.abs(dist) < eps) {
       const proj = x * widthDir[0] + y * widthDir[1] + z * widthDir[2]
       if (proj < minProj) minProj = proj
@@ -430,9 +430,9 @@ export function detectCrossSectionComponents(
   upper: BrepHandle,
   basis: JoineryBasis,
 ): CrossSectionComponent[] {
-  const { normal, originOffset, widthDir, depthDir, planeCenter } = basis
+  const { normal, planeDistance, widthDir, depthDir, planeCenter } = basis
   const mesh = solidToMeshData(kernel, upper)
-  const components = detectCapComponentsFromMesh(mesh, normal, originOffset)
+  const components = detectCapComponentsFromMesh(mesh, normal, planeDistance)
 
   if (components.length === 0) {
     // 无帽面 → 返回单个全局质心（planeCenter）作为回退
@@ -440,9 +440,9 @@ export function detectCrossSectionComponents(
   }
 
   return components.map(comp => {
-    const centroid = computeCrossSectionCentroidFromMesh(mesh, normal, originOffset, planeCenter, comp)
-    const compWidth = computeCrossSectionWidthFromMesh(mesh, normal, originOffset, widthDir, comp)
-    const compDepth = computeCrossSectionWidthFromMesh(mesh, normal, originOffset, depthDir, comp)
+    const centroid = computeCrossSectionCentroidFromMesh(mesh, normal, planeDistance, planeCenter, comp)
+    const compWidth = computeCrossSectionWidthFromMesh(mesh, normal, planeDistance, widthDir, comp)
+    const compDepth = computeCrossSectionWidthFromMesh(mesh, normal, planeDistance, depthDir, comp)
     return { centroid, area: compWidth * compDepth }
   })
 }
@@ -495,10 +495,10 @@ export function dovetailBooleanSplitBrep(
   basis: JoineryBasis,
   groove: GrooveParams,
 ): DovetailSplitBrepResult {
-  const { normal, widthDir, planeCenter, originOffset } = basis
+  const { normal, widthDir, planeCenter, planeDistance } = basis
 
   // Step 1: 平面分割 → upper + lower
-  const splitResult = splitBrep(kernel, original, { normal, originOffset, planeCenter })
+  const splitResult = splitBrep(kernel, original, { normal, planeDistance, planeCenter })
   let upper = splitResult.front
   let lower = splitResult.back
 
@@ -584,10 +584,10 @@ export function dowelOrTenonBooleanSplitBrep(
   params: DowelOrTenonParams,
   selectedSections?: number[] | null,
 ): DowelOrTenonSplitBrepResult {
-  const { normal, planeCenter, originOffset } = basis
+  const { normal, planeCenter, planeDistance } = basis
 
   // Step 1: 平面分割 → upper + lower
-  const splitResult = splitBrep(kernel, original, { normal, originOffset, planeCenter })
+  const splitResult = splitBrep(kernel, original, { normal, planeDistance, planeCenter })
   let upper = splitResult.front
   let lower = splitResult.back
 
@@ -601,7 +601,7 @@ export function dowelOrTenonBooleanSplitBrep(
   if (components.length <= 1 || !selectedSections || selectedSections.length === 0) {
     // 单截面或无选择 → 全局质心（向后兼容）
     const mesh = solidToMeshData(kernel, upper)
-    const centroid = computeCrossSectionCentroidFromMesh(mesh, normal, originOffset, planeCenter)
+    const centroid = computeCrossSectionCentroidFromMesh(mesh, normal, planeDistance, planeCenter)
     placements = [{ centroid }]
   } else {
     // 多截面：按面积降序排，取选择的分量
@@ -614,7 +614,7 @@ export function dowelOrTenonBooleanSplitBrep(
     }
     if (placements.length === 0) {
       const mesh = solidToMeshData(kernel, upper)
-      const centroid = computeCrossSectionCentroidFromMesh(mesh, normal, originOffset, planeCenter)
+      const centroid = computeCrossSectionCentroidFromMesh(mesh, normal, planeDistance, planeCenter)
       placements = [{ centroid }]
     }
   }

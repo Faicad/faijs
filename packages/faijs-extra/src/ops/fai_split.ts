@@ -80,7 +80,7 @@ function splitBrepPath(input: Shape, params: Record<string, unknown>): { front: 
     localBbCenter[1] + offset * normal[1],
     localBbCenter[2] + offset * normal[2],
   ]
-  const originOffset = normal[0] * planeCenter[0] + normal[1] * planeCenter[1] + normal[2] * planeCenter[2]
+  const planeDistance = normal[0] * planeCenter[0] + normal[1] * planeCenter[1] + normal[2] * planeCenter[2]
 
   const { widthDir, depthDir } = computeBasisFromNormal(normal, inPlaneAngleDeg)
   const basis: JoineryBasis = {
@@ -88,7 +88,7 @@ function splitBrepPath(input: Shape, params: Record<string, unknown>): { front: 
     widthDir: widthDir as Vec3,
     depthDir: depthDir as Vec3,
     planeCenter: planeCenter as Vec3,
-    originOffset,
+    planeDistance,
   }
 
   let frontSolid: BrepHandle
@@ -132,7 +132,7 @@ function splitBrepPath(input: Shape, params: Record<string, unknown>): { front: 
   } else {
     const splitResult = splitBrep(kernel, inputSolid, {
       normal: normal as Vec3,
-      originOffset,
+      planeDistance,
       planeCenter: planeCenter as Vec3,
     })
     frontSolid = splitResult.front
