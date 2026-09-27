@@ -123,7 +123,9 @@ export function decomposeSelfIntersections(pts: Point2d[]): Point2d[][] {
  * Cavalier-style self-intersection prune: decompose a self-crossing closed
  * polyline into its elementary lobes and keep only the positive-area (CCW)
  * ones, returning each as its own simple loop. A non-self-crossing input passes
- * through unchanged.
+ * through unchanged. Handles proper transversal self-crossings (e.g. a bowtie);
+ * tangential / vertex-collapse overlaps (seen when an offset is pushed past an
+ * arm, which can flip winding to a single CW loop) are not yet pruned.
  * @param pts - the closed polyline (offsets of non-convex contours self-cross).
  * @returns the kept lobes as closed loops.
  */
