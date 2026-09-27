@@ -29,6 +29,8 @@ import type { Shape } from '../mesh/types'
 import type { ProfileLoop } from './profile'
 import { createApiNamespaceWithEditorOps } from '../test-support/editor-ops'
 import { asPartName } from '../identity'
+import { roundedRectangleBlueprint } from '../geometry2d/canned-blueprints'
+import { buildShapeFromBlueprints, resolvePlane } from './sketch-on-plane'
 
 beforeAll(async () => {
   await initOcctWasm()
@@ -154,5 +156,19 @@ describe('cad.sketchOnPlane placement e2e (E2, occt)', () => {
     const solids = solidsOf(handleOf(result, 'part1'))
     expect(solids).toHaveLength(1)
     expect(getBrepApi().getVolume(solids[0]!)).toBeCloseTo(Math.PI * r * r * 5, 0)
+  })
+
+  // F6 draw→placement seam: a draw-package contour is literally a core
+  // geometry2d `Blueprint` (the draw factory calls `roundedRectangleBlueprint`).
+  // Placing a `Blueprint` through the shared placement core and extruding along
+  // the plane normal must yield a positive-volume solid — proving the draw
+  // entrance funnels into the same pipeline as `cad.sketchOnPlane`.
+  it('draw Blueprint (rounded rectangle) → buildShapeFromBlueprints → extrude → solid', () => {
+    const bp = roundedRectangleBlueprint(20, 10, 3) // same Blueprint shape the draw package produces
+    const plane = resolvePlane({ name: 'XY' })
+    const shape = buildShapeFromBlueprints(getBrepApi(), plane, [bp], 'face')
+    const face = brepOf(shape) as never
+    const solid = getBrepApi().extrude(face, 0, 0, 5)
+    expect(getBrepApi().getVolume(solid)).toBeGreaterThan(0)
   })
 })

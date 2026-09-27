@@ -60,19 +60,25 @@ export function resolvePlane(planeSpec: PlaneSpec, fallbackOrigin: Vec3Input = [
 }
 
 /**
- * Build the 2D→3D placement: convert contour loops to a classified Blueprint
- * set, assemble a wire on the plane, then wrap as a face (or the outer wire).
+ * Build a 3D Shape (planar face, or outer-loop wire when `as:'wire'`) from a set
+ * of classified `Blueprint` contours on a plane. This is the shared placement
+ * core for every 2D profile source (`cad.profile` / `cad.draw` / sketch): it
+ * organises the closed contours (holes vs islands), assembles edge wires on the
+ * plane via the geometry2d bridge, and wraps them as a BREP face — ready to be
+ * extruded along the plane normal.
  * @param kernel - the BREP engine surface.
- * @param params - contour loops + plane + mode.
+ * @param plane - the resolved target plane frame.
+ * @param blueprints - ordered closed contours as `Blueprint`s (draw output).
+ * @param as - `'face'` (default) or `'wire'` (outer loop only).
  * @returns Shape on the target plane (face, or a wire curve when `as:'wire'`).
  */
-export function buildSketchOnPlaneWith(kernel: BrepEngineApi, params: SketchOnPlaneParams): Shape {
-  const plane = resolvePlane(params.plane)
-  const as = params.as ?? 'face'
-
-  const organised = organiseBlueprints(
-    params.contours.map((loop) => new Blueprint(loop.segments.map((s) => profileSegToCurve(s as ProfileSegLike)))),
-  )
+export function buildShapeFromBlueprints(
+  kernel: BrepEngineApi,
+  plane: Plane,
+  blueprints: Blueprint[],
+  as: 'face' | 'wire' = 'face',
+): Shape {
+  const organised = organiseBlueprints(blueprints)
 
   if (as === 'wire') {
     const outerBp =
@@ -103,6 +109,21 @@ export function buildSketchOnPlaneWith(kernel: BrepEngineApi, params: SketchOnPl
   }
   const compound = kernel.makeCompound(faces)
   return fromBrep(solidToShape(kernel, compound), { solid: compound })
+}
+
+/**
+ * Build the 2D→3D placement: convert contour loops to a classified Blueprint
+ * set, assemble a wire on the plane, then wrap as a face (or the outer wire).
+ * @param kernel - the BREP engine surface.
+ * @param params - contour loops + plane + mode.
+ * @returns Shape on the target plane (face, or a wire curve when `as:'wire'`).
+ */
+export function buildSketchOnPlaneWith(kernel: BrepEngineApi, params: SketchOnPlaneParams): Shape {
+  const plane = resolvePlane(params.plane)
+  const blueprints = params.contours.map(
+    (loop) => new Blueprint(loop.segments.map((s) => profileSegToCurve(s as ProfileSegLike))),
+  )
+  return buildShapeFromBlueprints(kernel, plane, blueprints, params.as ?? 'face')
 }
 
 /**
