@@ -776,7 +776,7 @@ function inDomain(c: Curve2dObj, t: number, tol: number): boolean {
 }
 
 /** Find parameter on curve c closest to point (px, py), searching near tGuess. */
-function refineParam(c: Curve2dObj, px: number, py: number): number | null {
+function refineParam(c: Curve2dObj, px: number, py: number, maxRatio = 0.1): number | null {
   const bounds = curveBounds(c)
   if (!isFinite(bounds.first) || !isFinite(bounds.last)) return null
   const N = 80
@@ -802,8 +802,68 @@ function refineParam(c: Curve2dObj, px: number, py: number): number | null {
     Math.sqrt((mx - sx) ** 2 + (my - sy) ** 2),
     1e-6,
   )
-  const maxDist = geomExtent * 0.1
+  const maxDist = geomExtent * maxRatio
   return bestD < maxDist * maxDist ? bestT : null
+}
+
+/**
+ * Parameter on a curve closest to a point.
+ *
+ * This is the general "point → parameter" primitive used by corner/offset work:
+ * it searches the curve's domain for the parameter whose evaluated point is
+ * nearest to `(px, py)` and returns it when that nearest distance is within a
+ * configurable fraction of the curve's geometric extent. Returns `null` when the
+ * point lies too far off the curve (the raw gap-vs-extent guard) so callers can
+ * distinguish "on/very near the curve" from "clearly off".
+ *
+ * @param c - the curve to search (line, arc, ellipse, bezier, bspline, trimmed).
+ * @param px - the query point x.
+ * @param py - the query point y.
+ * @param maxRatio - the maximum acceptable nearest-distance / geometric-extent
+ *   ratio (default 0.1; raise it to accept points that sit further off the curve).
+ * @returns the domain parameter `t`, or `null` when `(px, py)` is off-curve by
+ *   more than `maxRatio` of the curve's geometric extent.
+ */
+export function parameterOfPoint(c: Curve2dObj, px: number, py: number, maxRatio = 0.1): number | null {
+  const bounds = curveBounds(c)
+  if (!isFinite(bounds.first) || !isFinite(bounds.last)) return null
+
+  // Coarse sample to get within one domain step of the nearest point (semantics,
+  // curvature, and per-kernel sensitivity: `refineParam`'s N=80 grid).
+  const seed = refineParam(c, px, py, maxRatio)
+  if (seed === null) return null
+
+  // Refine to the projection foot: for the farthest/nearest parameter the chord
+  // `(curve(t) − P)` is perpendicular to the tangent, i.e. g(t)=dot(·)=0. Solve
+  // g(t)=0 with Newton on a central-difference derivative.
+  const span = bounds.last - bounds.first
+  const hbase = span * 1e-6
+  let t = seed
+  const fixed = new Set<string>()
+  for (let i = 0; i < 24; i++) {
+    const [ex, ey] = evaluateCurve2d(c, t)
+    const [tx, ty] = tangentCurve2d(c, t)
+    const g = (ex - px) * tx + (ey - py) * ty
+    if (Math.abs(g) < 1e-12) break
+    const h = Math.max(hbase, 1e-9)
+    const [hx, hy] = evaluateCurve2d(c, Math.min(bounds.last, t + h))
+    const [hT, hTy] = tangentCurve2d(c, Math.min(bounds.last, t + h))
+    const gp = ((hx - px) * hT + (hy - py) * hTy - g) / h
+    if (Math.abs(gp) < 1e-16) break
+    const tn = t - g / gp
+    t = Math.max(bounds.first, Math.min(bounds.last, tn))
+    const key = t.toFixed(12)
+    if (fixed.has(key)) break
+    fixed.add(key)
+    if (okConverge(c, px, py, t)) break
+  }
+  return t
+}
+
+/** True when `(px, py)` is within `1e-9` of the curve at parameter `t`. */
+function okConverge(c: Curve2dObj, px: number, py: number, t: number): boolean {
+  const [ex, ey] = evaluateCurve2d(c, t)
+  return Math.hypot(ex - px, ey - py) < 1e-9
 }
 
 function intersectLineLine(

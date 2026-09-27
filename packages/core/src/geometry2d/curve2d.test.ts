@@ -31,6 +31,7 @@ import {
   serializeCurve2d,
   tangentCurve2d,
   translateCurve2d,
+  parameterOfPoint,
   type Curve2dObj,
 } from './curve2d'
 
@@ -235,6 +236,39 @@ describe('intersections', () => {
     const b2 = makeBezier2d([[0, 1], [1, -1], [2, 0]])
     const r = intersectCurves2dFn(b1, b2, 1e-3)
     expect(r.points.length).toBeGreaterThanOrEqual(1)
+  })
+})
+
+describe('parameterOfPoint', () => {
+  it('returns the endpoint parameter for a line endpoint', () => {
+    const l = makeLine2d(2, 3, 8, 6) // ox,oy + dir, len
+    // Rather than assume the param of a given point, check the geometric inverse:
+    // the evaluated point at the returned parameter equals the closest curve point.
+    const t = parameterOfPoint(l, 2, 3)!
+    expect(t).not.toBeNull()
+    const [px, py] = evaluateCurve2d(l, t)
+    closePt([px, py], 2, 3, 1e-9)
+  })
+
+  it('locates the nearest point on the mid-domain of a segment-shaped line', () => {
+    // Move the search target to 70% along the line; the returned param maps back to it.
+    const l = makeLine2d(0, 0, 10, 0)
+    const target = evaluateCurve2d(l, 0.7 * l.len)
+    const t = parameterOfPoint(l, target[0], target[1])!
+    const got = evaluateCurve2d(l, t)
+    closePt(got, target[0], target[1], 1e-6)
+  })
+
+  it('returns null for a point far off the curve (extent-ratio guard)', () => {
+    const l = makeLine2d(0, 0, 10, 0)
+    expect(parameterOfPoint(l, 5000, 5000)).toBeNull()
+  })
+
+  it('is a nearest-point map on a circle', () => {
+    const c = makeCircle2d(0, 0, 5, true)
+    const t = parameterOfPoint(c, 3, 4)!
+    const got = evaluateCurve2d(c, t)
+    closePt(got, 3, 4, 1e-6) // the nearest point on the circle to (3,4) is its projection
   })
 })
 
