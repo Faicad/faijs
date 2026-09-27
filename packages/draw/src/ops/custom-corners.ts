@@ -81,8 +81,11 @@ function tangentDistance(radius: number, theta: number): number {
 export function chamfer2d(corner: Point2d, p: Point2d, q: Point2d, inset: number): CornerSplice {
   const v1 = unit(sub(p, corner))
   const v2 = unit(sub(q, corner))
-  const t1 = add(corner, scale(v1, inset))
-  const t2 = add(corner, scale(v2, inset))
+  // The chamfer trims `inset` back from the corner along each segment; clamp to
+  // the adjacent edge lengths so the cut points stay on the boundary.
+  const insetMin = Math.max(0, Math.min(inset, norm(sub(p, corner)), norm(sub(q, corner))))
+  const t1 = add(corner, scale(v1, insetMin))
+  const t2 = add(corner, scale(v2, insetMin))
   return {
     first: makeLine2d(p[0], p[1], t1[0], t1[1]),
     corner: makeLine2d(t1[0], t1[1], t2[0], t2[1]),
@@ -111,15 +114,23 @@ export function fillet2d(corner: Point2d, p: Point2d, q: Point2d, radius: number
   const v2 = unit(sub(q, corner))
   const dot = clip(v1[0] * v2[0] + v1[1] * v2[1], -1, 1)
   const theta = Math.acos(dot)
-  const tang = tangentDistance(radius, theta)
+  const half = theta / 2
+  // The tangent points sit `r·cot(half)` back from the corner along each segment.
+  // On a sharp corner (small θ) that reach can exceed an adjacent edge, pushing a
+  // tangent point off the segment; clamp the radius to the largest value whose
+  // tangent points still fit both edges (CAD "fillet as large as the part allows").
+  const reach = Math.min(norm(sub(p, corner)), norm(sub(q, corner)))
+  let r = radius
+  if (half > 1e-9) r = Math.max(0, Math.min(radius, reach * Math.tan(half)))
+  else r = Math.max(0, radius) // θ≈0: straight-through; keep nominal radius (zero-angle fillet collapses)
+  const tang = tangentDistance(r, theta)
   const r2 = add(corner, scale(v1, tang))
   const t2 = add(corner, scale(v2, tang))
-  const half = theta / 2
   const bisector = unit([v1[0] + v2[0], v1[1] + v2[1]])
-  const center = add(corner, scale(bisector, radius / Math.sin(half)))
+  const center = add(corner, scale(bisector, half > 1e-9 ? r / Math.sin(half) : 0))
   // Arc midpoint on the corner side: from the center, one radius toward the corner.
-  const towardCorner = unit(sub(corner, center))
-  const mid = add(center, scale(towardCorner, radius))
+  const towardCorner: Point2d = r > 1e-12 ? unit(sub(corner, center)) : [0, 0]
+  const mid = add(center, scale(towardCorner, r))
   const arc = makeArc2dThreePoints(r2[0], r2[1], mid[0], mid[1], t2[0], t2[1])
   return {
     first: makeLine2d(p[0], p[1], r2[0], r2[1]),
@@ -128,6 +139,6 @@ export function fillet2d(corner: Point2d, p: Point2d, q: Point2d, radius: number
     tangent: r2,
     tangent2: t2,
     center,
-    radius,
+    radius: r,
   }
 }
