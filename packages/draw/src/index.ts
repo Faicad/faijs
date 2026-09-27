@@ -14,6 +14,7 @@ export { drawProjection, drawFaceOutline, projectPointToPlane, projectWire } fro
 export type { PlaneOrName } from './projection'
 export { chamfer2d, fillet2d } from './ops/custom-corners'
 export type { CornerSplice, FilletCorner, Point2d } from './ops/custom-corners'
+export { offsetOutline2d } from './ops/offset'
 
 // Re-export the core geometry base this package sits on, for convenience when
 // callers build on `draw` output without importing core directly.
