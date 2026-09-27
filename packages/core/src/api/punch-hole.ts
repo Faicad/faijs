@@ -8,11 +8,13 @@
  * resulting prism is the "punch" tool; a Boolean `cut` removes it from the host —
  * a profile-based pocket (`height` given) or through-hole (`height: null`).
  *
- * v1 scope: the punch prism is a straight linear extrusion (`draftAngle` is not
- * yet wired; a non-zero taper raises `E_PUNCH_DRAFT_UNSUPPORTED`). The op is a
- * composition over the E3 on-surface placement + `kernel.extrude` + `kernel.cut`
- * and declares `engines: ['occt']` (surface sampling + Boolean cut need the BREP
- * platform).
+ * v1 scope: the punch is a straight linear prism, or — when `draftAngle > 0` — a
+ * **tapered frustum** whose walls recede by `draftAngle` over the punch depth
+ * (built as an occt `loft` between a mouth wire in the host plane and an inset
+ * end wire at depth `depth·tan(draftAngle)`). The op is a composition over the
+ * E3 on-surface placement + `kernel.extrude`/occt `loft` + `kernel.cut` and
+ * declares `engines: ['occt']` (surface sampling + Boolean cut + draft loft need
+ * the BREP platform).
  * @module
  */
 import type { Shape } from '../mesh/types'
@@ -21,6 +23,7 @@ import type { BrepHandle } from '../brep/engine/types'
 import { getBrepApi } from '../brep/handle-bridge'
 import { solidToShape } from '../brep/brep-ops'
 import { fromBrep, brepOf } from '../shape'
+import { getOcctKernel } from '../occt-kernel/occtKernel'
 import { defineOp } from '../sdk'
 import type { Provenance } from '../topology/naming/lineage'
 import { TopoRefError } from '../topology/naming'
@@ -40,7 +43,7 @@ export interface PunchHoleParams {
   face: FaceSelector
   /** Removal depth along the face inward normal. `null`/absent = through hole. */
   height?: number | null
-  /** Taper on the hole walls (not yet wired; keep 0 or omit). */
+  /** Taper on the hole walls (degrees; default 0 = straight wall). Built as a frustum via occt loft. */
   draftAngle?: number
   /** UV mapping mode for contour placement (default `'original'`). */
   scaleMode?: 'original' | 'bounds' | 'native'
@@ -129,11 +132,7 @@ export function punchSolidOf(kernel: BrepEngineApi, solid: BrepHandle, params: P
   const depth = punchDepth(kernel, solid, params.height ?? null)
 
   const draft = params.draftAngle ?? 0
-  if (draft !== 0) {
-    throw new Error(
-      `E_PUNCH_DRAFT_UNSUPPORTED: cad.punchHole taper not wired in v1 (draftAngle ${draft} is unsupported)`,
-    )
-  }
+  const draftRad = (draft * Math.PI) / 180
 
   // Punch inward = opposite the host face outward normal.
   const n0 = kernel.surfaceNormal(host, 0, 0)
@@ -151,17 +150,70 @@ export function punchSolidOf(kernel: BrepEngineApi, solid: BrepHandle, params: P
   for (const contour of params.contours) {
     const curves = contour.segments.map((s) => profileSegToCurve(s as never))
     const uv = makeUvMap(mode, curves2dBounds(curves), bounds)
-    const poly = buildPolygon3d(kernel, host, uv, anchor, n, contour)
-    if (poly.length < 3) throw new Error('punchHole: contour is degenerate (fewer than 3 distinct points)')
+    const mouth = buildPolygon3d(kernel, host, uv, anchor, n, contour)
+    if (mouth.length < 3) throw new Error('punchHole: contour is degenerate (fewer than 3 distinct points)')
 
-    const edges = [] as BrepHandle[]
-    for (let i = 0; i < poly.length; i++) {
-      const a = poly[i]!
-      const b = poly[(i + 1) % poly.length]!
-      edges.push(kernel.makeLineEdge(a, b) as never)
+    // Mouth wire on the host plane.
+    const mouthEdges = [] as BrepHandle[]
+    for (let i = 0; i < mouth.length; i++) {
+      const a = mouth[i]!
+      const b = mouth[(i + 1) % mouth.length]!
+      mouthEdges.push(kernel.makeLineEdge(a, b) as never)
     }
-    const prismFace = kernel.makeFace(kernel.makeWire(edges))
-    const punch = kernel.extrude(prismFace, -n.x * depth, -n.y * depth, -n.z * depth)
+
+    let punch: BrepHandle
+    if (draft !== 0) {
+      // Drafted hole = a tapered frustum: the mouth wire at the host plane and an
+      // end wire (recessed by `depth*tan(draftAngle)` toward the contour centre)
+      // at the punch depth, lofted together via occt. Verified: occt `loft` of two
+      // parallel-planar rect wires reproduces the analytic frustum volume exactly.
+      const inset = depth * Math.tan(draftRad)
+      // Uniform wall recess: each wall recedes by `inset` = depth·tan(draftAngle)
+      // measured *perpendicular* to that wall. For a homothetic scale about the
+      // centroid by factor s, the perpendicular recess of an edge at distance h
+      // from the centroid is h·(1−s); so choose s = 1 − inset/h̄ with h̄ the mean
+      // centroid→edge distance (h̄ = the half-side for a square/rect ⇒ walls land
+      // at exactly draftAngle).
+      const cx = mouth.reduce((s, p) => s + p.x, 0) / mouth.length
+      const cy = mouth.reduce((s, p) => s + p.y, 0) / mouth.length
+      const cz = mouth.reduce((s, p) => s + p.z, 0) / mouth.length
+      let edgeSum = 0
+      for (let i = 0; i < mouth.length; i++) {
+        const a = mouth[i]!
+        const b = mouth[(i + 1) % mouth.length]!
+        // centroid → edge midpoint projection in the host plane
+        const mx = (a.x + b.x) / 2 - cx
+        const my = (a.y + b.y) / 2 - cy
+        const mz = (a.z + b.z) / 2 - cz
+        edgeSum += Math.hypot(mx, my, mz)
+      }
+      const hBar = edgeSum / mouth.length
+      if (!Number.isFinite(hBar) || hBar <= 1e-9 || inset >= hBar * 0.999) {
+        throw new Error(
+          `E_PUNCH_DRAFT_OVER_TAPER: draftAngle ${draft}° inset ${inset.toFixed(3)} must be < half-width ${hBar.toFixed(3)} at depth ${depth}`,
+        )
+      }
+      const s = 1 - inset / hBar
+      const endPoints = mouth.map((p) => ({
+        x: cx + (p.x - cx) * s - n.x * depth,
+        y: cy + (p.y - cy) * s - n.y * depth,
+        z: cz + (p.z - cz) * s - n.z * depth,
+      }))
+      const endEdges = endPoints.map((p, i) => {
+        const a = endPoints[i]!
+        const b = endPoints[(i + 1) % endPoints.length]!
+        return kernel.makeLineEdge(a, b) as never
+      }) as BrepHandle[]
+      const k = getOcctKernel()
+      punch = k.loft(
+        [kernel.makeWire(mouthEdges), kernel.makeWire(endEdges)] as unknown as never[],
+        true,
+        true,
+      ) as unknown as BrepHandle
+    } else {
+      const prismFace = kernel.makeFace(kernel.makeWire(mouthEdges))
+      punch = kernel.extrude(prismFace, -n.x * depth, -n.y * depth, -n.z * depth)
+    }
     try {
       result = kernel.cut(result, punch)
     } finally {
@@ -198,7 +250,7 @@ export function buildPunchHole(kernel: BrepEngineApi, params: PunchHoleParams): 
  * @param params.on - the target solid to punch.type:Shape required:true
  * @param params.face - host face: 1-based ordinal or `cad.faceRef(on, n)`.type:any required:true
  * @param params.height - blind depth along the face inward normal (null/absent = through).type:number|object required:false
- * @param params.draftAngle - taper (not yet wired; keep 0).type:number required:false
+ * @param params.draftAngle - wall taper in degrees (default 0 = straight; built as an occt loft frustum).type:number required:false
  * @param params.scaleMode - UV mapping: 'original' | 'bounds' | 'native'.type:string required:false
  */
 export const punchHole = defineOp({

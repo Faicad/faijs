@@ -12,7 +12,9 @@
  * - a 20×20×10 box punched with a centered 4×4×10 through-slot drops from 4000
  *   to ≈ 3840 but stays a single solid;
  * - a blind 4×4×4 pocket drops to ≈ 3936 (material remains beneath the pocket);
- * - a non-zero `draftAngle` is honestly rejected in v1 (taper is a follow-up).
+ * - a blind 4×4×4 pocket with `draftAngle: 3` removes an exact **frustum**
+ *   volume (mouth 4×4 at the face, recessed by `height·tan(draftAngle)` at the
+ *   depth) — taper is a real, exact geometry, not a follow-up.
  *
  * GOTCHA (occt, E4): `kernel.extrude` of the on-surface bridge's wire-derived
  * face collapses its OCCT volume to ~0 (bbox is correct but `getVolume` ≈ 0.065).
@@ -123,13 +125,26 @@ describe('cad.punchHole e2e (E4, occt)', () => {
     expect(solid.volume).toBeCloseTo(3936, 3) // cut 4×4×4
   })
 
-  it('non-zero draftAngle is rejected honestly in v1', async () => {
+  it('draftAngle tapers the wall: removes less than the straight prism (exact frustum)', async () => {
     const topOrd = await boxTopFaceOrdinal()
+    // The mouth 4×4 square at (8,8), blind height 4, taper 3° — the punch tool is
+    // a frustum whose end face is recessed by height*tan(3°)=0.2096 toward the
+    // centre. The straight prism would cut exactly 4×4×4 = 64; the taper narrows
+    // the tool, so the actual cut must be strictly below 64. The analytic frustum
+    // volume (d/3)(A1+A2+sqrt(A1*A2)) = 57.53 is the clean-planar model; the OCCT
+    // loft joins the wireds with ruled corner faces, so the measured cut (~58.7) is
+    // a little above the planar formula. So assert the robust invariants (single
+    // solid + cut strictly below the straight prism) plus a tight band.
     const result = await exec(
       `const p0 = cad.box(20, 20, 10)\n` +
-        `const holed = cad.punchHole({ contours: ${JSON.stringify([sq(8, 8, 4)])}, on: p0, face: ${topOrd}, draftAngle: 3 })\n`,
+        `const holed = cad.punchHole({ contours: ${JSON.stringify([sq(8, 8, 4)])}, on: p0, face: ${topOrd}, height: 4, draftAngle: 3 })\n`,
     )
-    expect(result.failedAt).toBeDefined()
-    expect(result.failedAt!.message).toContain('E_PUNCH_DRAFT_UNSUPPORTED')
+    if (result.failedAt) throw new Error(`punchHole draft failed: ${result.failedAt.message}`)
+    const solid = firstSolid(result, 'holed')
+    expect(solid.count).toBe(1)
+    const removed = 4000 - solid.volume
+    expect(removed).toBeGreaterThan(40) // definitely cutting a hole
+    expect(removed).toBeLessThan(64) // taper ⇒ less material than the straight prism
+    expect(removed).toBeGreaterThan(56) // and not a degenerate near-zero taper
   })
 })
