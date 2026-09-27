@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-28-unified-fai-zip-container-v3.md
+2026-09-28-unified-fai-zip-container-v3.md: 628465ad418a3be3272c09836c963785ba76779c
+2026-09-28-unified-fai-zip-container-v3.zh.md: 0ee4b9e8b7356f2123e40e1bc356f3e72b6e3098
