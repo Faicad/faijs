@@ -1,14 +1,19 @@
 /**
  * faces — `sketchFaces`: solve a canonical sketch, chain the solved geometry
- * into closed contours and build the face through core's single face-
- * construction implementation (`buildProfileShape`).
+ * into closed contours and build the face through core's **unified 2D→3D
+ * placement pipeline** (`buildSketchOnPlaneWith`, E2/F4): the contours are
+ * lifted onto a target plane (named plane, e.g. `'XY'` / `'XZ'`) by the same
+ * shared placement core used by `cad.sketchOnPlane`, so a solved sketch can be
+ * placed on an arbitrary plane rather than only the implicit z=0 frame.
  *
- * The solve → contour hand-off is a distinct, failable step (§3.3): a sketch
- * can solve successfully yet yield zero closed loops (dangling segments); that
- * is a real failure mode and is surfaced explicitly rather than treated as a
- * solved sketch.
+ * The solve → contour build hand-off is a distinct, failable step (§3.3): a
+ * sketch can solve successfully yet yield zero closed loops (dangling
+ * segments); that is a real failure mode and is surfaced explicitly rather
+ * than treated as a solved sketch.
  */
-import { buildProfileShape, type ProfileLoop } from '@faicad/faijs/api/profile'
+import { buildSketchOnPlaneWith } from '@faicad/faijs/api'
+import type { ProfileLoop } from '@faicad/faijs/api/profile'
+import { getBrepApi } from '@faicad/faijs/brep/handle-bridge'
 import type { Shape } from '@faicad/faijs/mesh/types'
 import type { SketchConstraint, SketchGeom, SolveOutcome, ConflictDetail } from './canonical.js'
 import { solveSketch, type SolveSketchOptions } from './solve.js'
@@ -43,6 +48,8 @@ function conflictingMessage(outcome: SolveOutcome): string {
 export interface SketchFacesOptions extends SolveSketchOptions {
   /** Product form: `'face'` (default) builds a face; `'wire'` returns the outer wire only. */
   as?: 'face' | 'wire'
+  /** Named target plane to place the solved contours on (`'XY'` default; e.g. `'XZ'` / `'YZ'`). */
+  plane?: string
   /** Diagnostics observer (the script-face op forwards this to the host sink). */
   onDiagnostic?: (outcome: SolveOutcome) => void
 }
@@ -52,9 +59,10 @@ export interface SketchFacesOptions extends SolveSketchOptions {
  *
  * @param outcome - a converged solve outcome.
  * @param as - product form: `'face'` (default) or `'wire'`.
- * @returns the face or outer wire.
+ * @param plane - named target plane for the placement (default `'XY'`).
+ * @returns the placement face or outer wire.
  */
-export function shapeFromSolved(outcome: SolveOutcome, as?: 'face' | 'wire'): Shape {
+export function shapeFromSolved(outcome: SolveOutcome, as?: 'face' | 'wire', plane?: string): Shape {
   // 2026-09-27裁定: a conflicting over-constraint is a HARD error on the
   // script face — the message must point at the clashing constraints (§3.2).
   // Under- and redundant-constraint still solve normally; only a hard solver
@@ -70,7 +78,11 @@ export function shapeFromSolved(outcome: SolveOutcome, as?: 'face' | 'wire'): Sh
     throw new Error('E_SKETCHC_NO_CONTOUR: solved sketch produced no closed loop')
   }
   const loops: ProfileLoop[] = contours.map((c) => ({ segments: c.segments }))
-  return buildProfileShape({ contours: loops, as })
+  return buildSketchOnPlaneWith(getBrepApi(), {
+    contours: loops,
+    plane: { name: plane ?? 'XY' },
+    as,
+  })
 }
 
 /**
@@ -78,8 +90,8 @@ export function shapeFromSolved(outcome: SolveOutcome, as?: 'face' | 'wire'): Sh
  *
  * @param geoms - canonical geometry (stored coordinates are the initial guess).
  * @param constraints - canonical constraints (default: none).
- * @param opts - solver selection, product form and diagnostics observer.
- * @returns the face (`as:'wire'` → the outer wire as a 1D curve).
+ * @param opts - solver selection, product form, target plane and diagnostics observer.
+ * @returns the face (`as:'wire'` → the outer wire as a 1D curve), placed on `opts.plane`.
  */
 export async function sketchFaces(
   geoms: SketchGeom[],
@@ -88,5 +100,5 @@ export async function sketchFaces(
 ): Promise<Shape> {
   const outcome = await solveSketch(geoms, constraints, opts)
   opts?.onDiagnostic?.(outcome)
-  return shapeFromSolved(outcome, opts?.as)
+  return shapeFromSolved(outcome, opts?.as, opts?.plane)
 }

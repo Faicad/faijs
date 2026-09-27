@@ -58,6 +58,8 @@ export interface SketchParams {
   constraints?: SketchConstraint[]
   /** Product form: `'face'` (default) or `'wire'` (outer wire for sweep spines). */
   as?: 'face' | 'wire'
+  /** Named target plane to place the solved contours on (`'XY'` default; e.g. `'XZ'` / `'YZ'`). */
+  plane?: string
 }
 
 /**
@@ -73,6 +75,9 @@ export function assertSketchParams(params: Record<string, unknown>): void {
   }
   if (params.constraints !== undefined && !Array.isArray(params.constraints)) {
     throw new Error('E_SKETCHC_BAD_CONSTRAINTS: constraints must be an array')
+  }
+  if (params.plane !== undefined && typeof params.plane !== 'string') {
+    throw new Error('E_SKETCHC_BAD_PLANE: plane must be a named plane string such as "XY" or "XZ"')
   }
 }
 
@@ -99,10 +104,16 @@ async function resolveSolver(): Promise<SketchSolver> {
  * @param params.geoms - 草图几何（线段/圆/圆弧）。type:SketchGeom[] required:true
  * @param params.constraints - 草图约束（可空）。type:SketchConstraint[] required:false
  * @param params.as - 产物形态：'face'（默认）构面；'wire' 只交外环 wire。type:'face'|'wire' required:false
+ * @param params.plane - 放置目标命名平面（默认 'XY'；如 'XZ' / 'YZ'）。type:string required:false
  * @example
  * const f = cad.sketch({
  *   geoms: [{ tag:'bottom', kind:'line', x1:0, y1:0, x2:80, y2:3 }],
  *   constraints: [{ kind:'horizontal', of: { tag:'bottom' } }, { kind:'length', of: { tag:'bottom' }, value: 80 }],
+ * })
+ * const g = cad.sketch({
+ *   geoms: [{ tag:'bottom', kind:'line', x1:0, y1:0, x2:80, y2:3 }],
+ *   constraints: [{ kind:'horizontal', of: { tag:'bottom' } }, { kind:'length', of: { tag:'bottom' }, value: 80 }],
+ *   plane: 'XZ',
  * })
  */
 export const sketch = defineOp({
@@ -115,6 +126,7 @@ export const sketch = defineOp({
     return sketchFaces(p.geoms, p.constraints ?? [], {
       solver,
       as: p.as,
+      plane: p.plane,
       onDiagnostic: (outcome) => {
         if (outcome.status !== 'solved') diagnosticSink?.(outcome)
       },
