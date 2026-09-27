@@ -12,6 +12,8 @@ export type { DrawNamespaceFunction, DrawSession } from './draw'
 export { polygon, roundedRectangle, rectangle, circle, ellipse } from './drawing-factories'
 export { drawProjection, drawFaceOutline, projectPointToPlane, projectWire } from './projection'
 export type { PlaneOrName } from './projection'
+export { chamfer2d, fillet2d } from './ops/custom-corners'
+export type { CornerSplice, FilletCorner, Point2d } from './ops/custom-corners'
 
 // Re-export the core geometry base this package sits on, for convenience when
 // callers build on `draw` output without importing core directly.
