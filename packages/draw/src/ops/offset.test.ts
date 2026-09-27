@@ -5,7 +5,8 @@
  * square exactly.
  */
 import { describe, expect, it } from 'vitest'
-import { offsetOutline2d } from './offset'
+import { offsetOutline2d, offsetPolygonLoops2d } from './offset'
+import { isSimplePolygon, polygonSignedArea } from './polygon2d'
 import type { Point2d } from './custom-corners'
 
 const closePt = (p: [number, number], x: number, y: number, eps = 1e-9) => {
@@ -51,5 +52,33 @@ describe('offsetOutline2d', () => {
     const one = offsetOutline2d([[2, 2]], 1)
     expect(one).toHaveLength(1)
     closePt(one[0]!, 2, 2)
+  })
+})
+
+describe('offsetPolygonLoops2d', () => {
+  it('grows a convex square into a single simple loop', () => {
+    const loops = offsetPolygonLoops2d(square, 0.5)
+    expect(loops).toHaveLength(1)
+    expect(polygonSignedArea(loops[0]!)).toBeCloseTo(9, 9)
+    expect(isSimplePolygon(loops[0]!)).toBe(true)
+  })
+
+  it('shrinks a non-convex contour into a single simple loop', () => {
+    const lShape: Point2d[] = [
+      [0, 0],
+      [4, 0],
+      [4, 2],
+      [2, 2],
+      [2, 4],
+      [0, 4],
+    ]
+    const loops = offsetPolygonLoops2d(lShape, -0.8)
+    expect(loops).toHaveLength(1)
+    expect(polygonSignedArea(loops[0]!)).toBeGreaterThan(0)
+    expect(isSimplePolygon(loops[0]!)).toBe(true)
+  })
+
+  it('empty input yields no loops', () => {
+    expect(offsetPolygonLoops2d([], 1)).toEqual([])
   })
 })

@@ -6,8 +6,9 @@
  * vertex is the intersection of its two incident edges, each shifted by `dist`
  * along its outward (right) normal — the standard miter join. On a convex CCW
  * contour the result is exact and still simple; on non-convex or self-overlapped
- * contours the miter can self-intersect (that case needs the full Cavalier
- * Contours self-intersection prune, which is out of scope for this primitive).
+ * contours the miter can self-intersect — use `offsetPolygonLoops2d`, which
+ * drives the offset through the Cavalier-caller self-intersection prune
+ * (`pruneSelfIntersections`) and returns the kept loops.
  *
  * Pure 2D, no kernel. Imports core `geometry2d` only.
  *
@@ -15,6 +16,7 @@
  */
 
 import type { Point2d } from './custom-corners'
+import { pruneSelfIntersections } from './polygon2d'
 
 function unit(x: number, y: number): Point2d {
   const n = Math.hypot(x, y)
@@ -63,4 +65,18 @@ export function offsetOutline2d(verts: Point2d[], dist: number): Point2d[] {
     out.push(hit ?? [cur[0], cur[1]])
   }
   return out
+}
+
+/**
+ * Offset a closed polygon and prune any miter self-intersection, returning the
+ * kept loops. For convex inputs this equals `offsetOutline2d` wrapped in a
+ * single loop; for non-convex or self-overlapping contours the Cavalier prune
+ * splits the offset at its self-crossings and keeps the positive-area lobes.
+ * @param verts - the closed CCW contour vertices.
+ * @param dist - the offset distance; positive grows outward, negative shrinks.
+ * @returns the pruned closed loops.
+ */
+export function offsetPolygonLoops2d(verts: Point2d[], dist: number): Point2d[][] {
+  if (verts.length === 0) return []
+  return pruneSelfIntersections(offsetOutline2d(verts, dist))
 }
