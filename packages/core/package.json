@@ -118,6 +118,14 @@
       "types": "./dist/boolean/*.d.ts",
       "default": "./dist/boolean/*.js"
     },
+    "./geometry2d": {
+      "types": "./dist/geometry2d/index.d.ts",
+      "default": "./dist/geometry2d/index.js"
+    },
+    "./geometry2d/*": {
+      "types": "./dist/geometry2d/*.d.ts",
+      "default": "./dist/geometry2d/*.js"
+    },
     "./env-agnostic": {
       "types": "./dist/env-agnostic.d.ts",
       "default": "./dist/env-agnostic.js"

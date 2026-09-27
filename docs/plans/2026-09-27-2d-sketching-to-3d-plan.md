@@ -8,7 +8,7 @@
 
 ### 1.1 本次需求原话
 
-> 我要求的是本项目要有完整的 2D 绘图和 2D 草图功能，甚至不一定是 2D。因为我的目的是要实现 3D 建模。2D 图形存在的唯一目的就是辅助 3D 建模，比如后续的拉伸、打孔。比如在给定模型的某个面上画草图，然后执行拉伸。这个面甚至不一定是平面。当然，第一版可以只支持平面，但是必须要有这个目标指引，不要根据现有的 faijs 的代码写法误判需求。
+> 我要求的是本项目要有完整的 2D 绘图和 2D 草图功能，甚至不一定是 2D。因为我的目的是要实现 3D 建模。2D 图形存在的唯一目的就是辅助 3D 建模，比如后续的拉伸、打孔。比如在给定模型的某个面上画草图，然后执行拉伸（当然也可以是其他的参考面，这是cad软件的标准功能）。这个面甚至不一定是平面。当然，第一版可以只支持平面，但是必须要有这个目标指引，不要根据现有的 faijs 的代码写法误判需求。
 
 ### 1.2 历次需求纠正原话（沿用自 2026-09-26 方案）
 
@@ -42,10 +42,12 @@
 
 决策落定：
 
-- **新增 `cad.draw`**（链式绘图 DSL，brepjs Blueprint/Drawing 方向）：作为人手写脚本/交互式绘图的入口，支持全曲线类型 + 2D 布尔/偏移/圆角，产出轮廓对象，再放置到 3D。
+- **新增 `cad.draw`**（链式绘图 DSL，brepjs Blueprint/Drawing 方向）：作为人手写脚本/交互式绘图的入口，支持全曲线类型 + 2D 布尔/偏移/圆角/SVG 往来，产出轮廓对象，再放置到 3D。
+- **`cad.draw` 归属独立子包 `@faicad/faijs-draw`**（目录 `packages/draw/`，2026-09-27 用户拍板）：自由绘图与约束求解是两种不同范式，不并入 core，也不并入 sketch 包。draw 包 peerDep 到 core，复用 core 的纯 2D 几何基座。
+- **core 保持只支持 `cad.profile`，并补 3D 拉伸能力**：core 的 2D 脚本面入口只有 `cad.profile`；core 另承担纯 2D 几何基座（`Curve2dObj`/`Blueprint`/`organiseBlueprints`）与 2D→3D 桥接 op（`cad.sketchOnPlane`/`sketchOnFace`/`punchHole`）以及 `cad.extrude` 沿草图法向拉伸——这就是「加 3D 拉伸」的落点。
 - **保留 `cad.profile`**（数据式参数入口）：服务和机器/UI 生成代码与序列化，调用形态与 schema 保持向后兼容，底层改为消费统一的 2D 几何与分类管线。
-- **`cad.sketch` 保持为约束草图入口**（planegcs），不与前两者争名；"把草图放到平面/面上"用 `sketchOnPlane`/`sketchOnFace`。
-- **三位一体、统一拉伸**：`profile` / `sketch` / `draw` 三种 2D 轮廓来源最终都必须经同一条放置管线（`sketchOnPlane`/`sketchOnFace`）完成 3D 化，并统一支持 `extrude`（沿草图/面法向）等 3D 特征操作。三者的差异只在"如何描述/生成 2D 轮廓"，不体现在下游 3D 能力上。
+- **`cad.sketch` 保持为约束草图入口**（planegcs，仍在 `@faicad/faijs-sketch`），不与前两者争名；"把草图放到平面/面上"用 core 的 `sketchOnPlane`/`sketchOnFace`。
+- **三位一体、统一拉伸**：`profile`（core）/ `draw`（draw 包）/ `sketch`（sketch 包）三种 2D 轮廓来源最终都必须经同一条放置管线（core 的 `sketchOnPlane`/`sketchOnFace`）完成 3D 化，并统一支持 `extrude`（沿草图/面法向）等 3D 特征操作。三者的差异只在"如何描述/生成 2D 轮廓"，不体现在下游 3D 能力上。
 
 ## 2. 现状实测（2026-09-27）
 
@@ -56,7 +58,7 @@
 | 轮廓面 | `cad.profile`（brep-only） | `packages/core/src/api/profile.ts` | 锁死 z=0，无 plane/origin | 自造 parent 链 + `depthOf` + 面积比较（`profile.ts:237-266`），探针为环首采样点 |
 | 约束草图 | `cad.sketch`（`@faicad/faijs-sketch`，宿主注入） | `packages/sketch/src/`（planegcs） | 局部 XY | 经 `contour.ts` 出环后调 `buildProfileShape`（`faces.ts:57-64`） |
 | CQ 兼容容器 | `@faicad/cq-compat-sketch`（re-export） | `packages/cq-compat/src/sketch.ts` | 全部硬编码 z=0，`extrude` 写死 `(0,0,height)` | 面级内核布尔 |
-| SVG | `svgToSolid` 内部通路 | `packages/core/src/brep/svg/svg-to-solid.ts` | z=0，仅 XY 仿射 | 独立 `classifyHoles`（质心 + bbox 预筛，`svg-to-solid.ts:757-818`） |
+| SVG | `svgToSolid` 内部通路 | `packages/core/src/brep/svg/svg-to-solid.ts` | z=0，仅 XY 仿射 | 独立 `classifyHoles`（质心 + bbox 预筛，`svg-to-solid.ts:757-818`）；已知 bug：质心探针跑丢、≥3 层嵌套静默丢岛 |
 
 **桥接能力（`sketchOnPlane` / `sketchOnFace` / `punchHole`）：零实现。** 全仓仅出现在未实施的 2026-09-26 方案文档与 `api/surface/arg-spec.ts` 的 skip 登记中。
 
@@ -70,7 +72,7 @@
 
 | 层 | 文件（`D:\Faicad\brepjs`） | 内容 |
 |---|---|---|
-| 纯几何内核 | `src/kernel/geometry2d.ts`（1059 行，纯 TS 零依赖） | `Curve2dObj` 判别联合（`__bk2d`: line/circle/ellipse/bezier/bspline/trimmed）、`evaluateCurve2d`/`tangentCurve2d`/`curveBounds`、构造族、变换族、`intersectCurves2dFn`（解析解 + Newton 迭代）、`serializeCurve2d`、bbox |
+| 纯几何内核 | `src/kernel/geometry2d.ts`（1059 行，纯 TS 零依赖） | `Curve2dObj` 判别联合（brepjs 用判别字段 `__bk2d`: line/circle/ellipse/bezier/bspline/trimmed，faijs 移植后改名 `kind2d`）、`evaluateCurve2d`/`tangentCurve2d`/`curveBounds`、构造族、变换族、`intersectCurves2dFn`（解析解 + Newton 迭代）、`serializeCurve2d`、bbox |
 | 曲线函数面 | `src/2d/curve2dGeometryFns.ts`、`src/2d/lib/curve2D.ts`、`curve2dFns.ts`、`intersections.ts`、`makeCurves.ts` | Result 风格函数面 + `Curve2D` 句柄类；构造/变换/求交/投影/切点 |
 | 2D 容器 | `src/2d/blueprints/blueprint.ts`、`compoundBlueprint.ts`、`blueprints.ts`、`lib.ts` | `Blueprint`（curves/bbox/orientation/isInside/isClosed/intersects/变换族/toSVG）、`CompoundBlueprint`（外环+孔）、`Blueprints`（不相交集合）、`organiseBlueprints`（Flatbush + union-find + 首曲线中点探针 + `isInside` 分层，支持 ≥3 层嵌套与多外环拆分） |
 | 画图 DSL | `baseSketcher2d.ts`、`genericSketcher.ts`、`blueprintSketcher.ts`、`cannedBlueprints.ts`；`src/sketching/drawing.ts`、`drawingPen.ts`、`drawingFactories.ts`、`drawFns.ts`、`draw3d.ts`、`sketcher.ts`、`faceSketcher.ts` | `BaseSketcher2d` ~30 个笔方法 → `Blueprint`/`Drawing`；`Sketcher`（平面）/`FaceSketcher`（曲面 UV）→ `Sketch`；预制图形、投影出图 |
@@ -118,29 +120,42 @@ extrude / revolve / sweep / loft            extrude（沿面法向）/ punchHole
 3D 实体（Shape）
 ```
 
-设计要点：**`cad.profile`（数据式）、`cad.draw`（链式绘图）、`cad.sketch`（约束草图）是 2D 输入层的三个并列来源，统一收敛到同一条下游管线**，而非三套并行世界——三者的差异只在"如何描述/生成 2D 轮廓"，下游的放置与 3D 特征能力完全一致。平面草图与曲面草图共用 `Blueprint` 与 `organiseBlueprints`，差异只在"放置"这一步（`sketchOnPlane` vs `sketchOnFace`）。
+设计要点：**`cad.profile`（数据式，core）、`cad.draw`（链式绘图，draw 包）、`cad.sketch`（约束草图，sketch 包）是 2D 输入层的三个并列来源，统一收敛到同一条下游管线**，而非三套并行世界——三者的差异只在"如何描述/生成 2D 轮廓"，下游的放置与 3D 特征能力完全一致。绘制/求解只产出 2D 轮廓数据；放置与 3D 特征（`sketchOnPlane`/`sketchOnFace`/`punchHole`/`extrude`）由 core 统一提供。平面草图与曲面草图共用 `Blueprint` 与 `organiseBlueprints`，差异只在"放置"这一步（`sketchOnPlane` vs `sketchOnFace`）。
 
 ### 3.2 分层与目录落点
 
-| 层 | 落点（`packages/core/src/`） | 职责 | 依赖约束 |
+纯 2D 几何基座与 2D→3D 桥接留在 core（profile 依赖、三包共用）；自由绘图 DSL 与 2D 运算落到独立子包 `@faicad/faijs-draw`。
+
+**core（`packages/core/src/`）：**
+
+| 层 | 落点 | 职责 | 依赖约束 |
 |---|---|---|---|
 | L1 纯 2D 几何 | `geometry2d/curve2d.ts` | `Curve2dObj` 六种曲线、求值/切线/bounds、构造族、变换族、`intersectCurves2dFn`、序列化、bbox（移植 brepjs `kernel/geometry2d.ts`） | 零依赖纯 TS |
-| L1 纯 2D 容器 | `geometry2d/blueprint.ts`、`compound-blueprint.ts`、`blueprints.ts`、`organise.ts` | 三类轮廓容器 + `organiseBlueprints` + `isInsideLoop` | 只 import `curve2d.ts`（可含 Flatbush） |
-| L1 2D 绘图 DSL | `geometry2d/draw/` | `BaseSketcher2d` 笔方法家族、`BlueprintSketcher`、`Drawing`/`DrawingPen`、预制图形、SVG 导入导出 | 只 import 2D 几何与容器 |
-| L1 2D 运算 | `geometry2d/ops/` | 布尔、偏移、圆角/倒角、近似 | 只 import 2D 几何与容器 |
+| L1 纯 2D 容器 | `geometry2d/blueprint.ts`、`compound-blueprint.ts`、`blueprints.ts`、`organise.ts` | 三类轮廓容器 + `organiseBlueprints` + `isInsideLoop` | 只 import `curve2d.ts`（含 Flatbush） |
 | L1 内核边界 | `geometry2d/bridge/` | `sketchOnPlane`/`sketchOnFace`/`punchHole`、`curvesAsEdgesOnPlane`/`OnFace`；经依赖注入拿内核 | 允许 import 内核接口，禁止 import `api/`（防环） |
 | L1 内核补齐 | `occt-kernel/`（组合层）、occt 平台面 | `liftCurve2dToPlane`、`buildEdgeOnSurface`、`draftPrism` | 按 occt-only 平台面 |
-| L3 API 面 | `api/draw.ts`（新增）、`api/profile.ts`（保留）、`api/sketch.ts`（约束草图）等（手写 op） | `defineOp` 包装、注册进 `createApiNamespace`；三入口均产出可放置轮廓 | 见 §3.3 |
-| 统一现有通道 | `api/profile.ts`、`api/draw.ts`（新）、`brep/svg/svg-to-solid.ts`、`packages/sketch/src/faces.ts` | 三入口（profile/sketch/draw）与 SVG 统一消费 `organiseBlueprints` 与放置管线 | — |
+| L3 API 面 | `api/profile.ts`（保留）、`api/sketch-on-plane.ts`/`sketch-on-face.ts`/`punch-hole.ts`（新 op）、`api/extrude.ts`（补法向读取） | `defineOp` 包装、注册进 `createApiNamespace`；core 的 2D 脚本面入口只有 `cad.profile` | 见 §3.3 |
+| 统一现有通道 | `api/profile.ts`、`brep/svg/svg-to-solid.ts` | profile 与 SVG 统一消费 `organiseBlueprints` 与放置管线 | — |
 
-包图无环：`geometry2d/curve2d.ts`、`blueprint.ts`、`organise.ts`、`draw/`、`ops/` 均不得 import `api/`、`brep/`、`mesh/`；只有 `geometry2d/bridge/` 触碰内核，且经接口注入以保持层次（`geometry2d/` 与内核之间加边界适配文件）。
+**draw 包（`packages/draw/src/`，`@faicad/faijs-draw`）：**
+
+| 层 | 落点 | 职责 | 依赖约束 |
+|---|---|---|---|
+| 2D 绘图 DSL | `draw/base-sketcher.ts`、`generic-sketcher.ts`、`blueprint-sketcher.ts`、`canned-blueprints.ts` | `BaseSketcher2d` 笔方法家族、`BlueprintSketcher`、预制图形 | import core `geometry2d/*`（curve2d/blueprint） |
+| 2D 容器加工 | `draw/drawing.ts`、`drawing-pen.ts`、`drawing-factories.ts`、`draw-fns.ts`、`projection.ts` | `Drawing`/`DrawingPen`、绘制工厂、`drawProjection`/`drawFaceOutline` | import core `geometry2d/*` |
+| 2D 运算 | `ops/boolean2d.ts`、`offset.ts`、`custom-corners.ts`、`svg.ts` | 布尔、偏移、圆角/倒角、SVG 往来 | import core `geometry2d/*` |
+| 脚本面入口 | `draw.ts`（`cad.draw`）、`namespace.ts` | `cad.draw` 链式绘图库函数（纯 TS，无内核分派，返回可放置轮廓数据对象）；`createDrawNamespace`/`mergeDrawNamespace`/`registerDrawSymbols` 镜像 sketch 包 | peerDep core；合并进 `createApiNamespace()` |
+
+**sketch 包（`packages/sketch/src/`，`@faicad/faijs-sketch`）：** 约束草图（`cad.sketch`）已存在，F 组把其求解产物接入统一管线（`faces.ts` 改消费 `organiseBlueprints` 与放置管线）。
+
+包图无环：core 的 `geometry2d/curve2d.ts`、`blueprint.ts`、`organise.ts` 均不得 import `api/`、`brep/`、`mesh/`；只有 `geometry2d/bridge/` 触碰内核，且经接口注入以保持层次（`geometry2d/` 与内核之间加边界适配文件）。draw 包与 sketch 包只经 core 的 `geometry2d/*` 子路径（`Curve2dObj`/`Blueprint`/`organiseBlueprints`）与 `sdk`、`runtime-state`、`symbol-table` 触达 core，不 import core 的 `api/`。
 
 ### 3.3 与 faijs 架构约定的融合
 
-- **op 三分类**：2D 纯几何（curve2d/blueprint/draw/ops）不是 op，作为 TS 库函数经 `@faicad/faijs/api` 导出（对应 `arg-spec` 的 `kind:'pure'`/`kind:'faijs'`）；`sketchOnPlane`/`sketchOnFace`/`punchHole` 是需要内核的 op，走 `defineOp`（单 brep 实现）注册。
+- **op 三分类**：2D 纯函数（curve2d/blueprint/draw/ops）不是 op，作为 TS 库函数导出——基座（curve2d/blueprint/organise）经 core 的 `@faicad/faijs/geometry2d/*`，绘图/运算（draw/ops）经 draw 包 `@faicad/faijs-draw`；`sketchOnPlane`/`sketchOnFace`/`punchHole` 是需要内核的 op，在 core 走 `defineOp`（单 brep 实现）注册；`cad.draw` 在 draw 包以纯函数库注入（无内核分派，返回可放置轮廓数据对象而非 Shape）。
 - **引擎静态判定，无运行时回退**：2D→3D 桥接依赖 occt 平台原语（`liftCurve2dToPlane`/`buildEdgeOnSurface`/`draftPrism`），brepkit 不支持，故这些 op 声明 `engines: ['occt']`——在 brepkit 链上按静态规则切换为 mesh 或报错，不做 try-catch 回退。
 - **Result 原生**：2D 纯函数按 faijs 约定返回 `Result`（或内部抛 `BrepError`，在 op 边界归一）；与 brepjs 的 `Result` 风格天然一致。
-- **注册装配点**：新 op 加进 `api/api-namespace.ts` 的 `createApiNamespace()` return 字面量（L80-104 区域，冲突时置于 `...scriptFaceOps` 之后覆盖）与 `api/index.ts` 导出面；重跑 `npx tsx packages/core/scripts/gen-symbol-table.ts` 更新 `lang/symbol-table.generated.ts`，否则 `.fai.js` 静态 `check()` 报函数不存在。若经 `arg-spec` 生成路径，则改 `arg-spec.ts` 的 `kind` 后重跑 `gen-l3-surface.ts`（注意其 vendored 分支指向已删除的 `@faicad/faijs-brepjs`，2D 新符号应走 `selfhost:true`/`kind:'faijs'` 或路径 A 的手写 op）。
+- **注册装配点**：core 的新 op（`sketchOnPlane`/`sketchOnFace`/`punchHole`）加进 `api/api-namespace.ts` 的 `createApiNamespace()` return 字面量（`profile` 旁，冲突时置于 `...scriptFaceOps` 之后覆盖）与 `api/index.ts` 导出面，并新增 `geometry2d/*` 子路径导出供 draw/sketch 包 import；重跑 `npx tsx packages/core/scripts/gen-symbol-table.ts` 更新 `lang/symbol-table.generated.ts`，否则 `.fai.js` 静态 `check()` 报函数不存在。draw 包镜像 sketch 包的 `namespace.ts`（`createDrawCadNamespace`/`mergeDrawNamespace`/`registerDrawSymbols`），经 `registerLib('cad', …)` 合并，不写进 core 的 `createApiNamespace()`。若 core 桥接 op 经 `arg-spec` 生成路径，则改 `arg-spec.ts` 的 `kind` 后重跑 `gen-l3-surface.ts`（注意其 vendored 分支指向已删除的 `@faicad/faijs-brepjs`，2D 新符号应走 `selfhost:true`/`kind:'faijs'` 或路径 A 的手写 op）。
 
 ### 3.4 目标指引：曲面草图（不砍）
 
@@ -168,34 +183,36 @@ extrude / revolve / sweep / loft            extrude（沿面法向）/ punchHole
 
 组织原则：每项可独立开始、发现一个解决一个、立刻写代码；下列"依赖"仅表示技术前置，不是阶段闸门。实施节奏遵循既有开发循环——取一项 → 写代码 + 单测 → 跑通 → rebuild + 提交 → 下一项。每项一个 PR 主题，不夹带。
 
-### A 组：2D 纯几何基座
+### A 组：2D 纯几何基座（core）
 
-- **A1 移植 `geometry2d/curve2d.ts`**：全量移植 brepjs `src/kernel/geometry2d.ts`（1059 行）——`Curve2dObj` 六种曲线、求值/切线/bounds、构造族、变换族、`intersectCurves2dFn`（解析解族 + Newton 兜底）、`createBBox2d`/`addCurveToBBox`、序列化。文件头保留 Apache-2.0 版权与出处注记（延续 `svg-to-solid.ts:4` 的"适配自 brepjs，注明出处"惯例）。判别字段 `__bk2d` 可保留或改名（faijs 命名，实施时定）。依赖：无。
+- **A1 移植 `geometry2d/curve2d.ts`**：全量移植 brepjs `src/kernel/geometry2d.ts`（1059 行）——`Curve2dObj` 六种曲线、求值/切线/bounds、构造族、变换族、`intersectCurves2dFn`（解析解族 + Newton 兜底）、`createBBox2d`/`addCurveToBBox`、序列化。文件头保留 Apache-2.0 版权与出处注记（延续 `svg-to-solid.ts:4` 的"适配自 brepjs，注明出处"惯例）。判别字段改名 `kind2d`（替代 brepjs 的 `__bk2d`，对齐 faijs 命名，2026-09-27 已定）。依赖：无。
 - **A2 迁移保真测试**：在 brepjs 仓库对同一输入跑出真值 → 固化为 faijs 断言，覆盖六种曲线求值、构造族、变换族、序列化往返、求交各类型（line-line/line-circle/circle-circle/同心圆/Newton 路径/自交守卫）。目的：防迁移漂移。依赖：A1。
 
-### B 组：2D 容器与分类
+### B 组：2D 容器与分类（core）
 
 - **B1 移植容器三件套**：`geometry2d/blueprint.ts`（`Blueprint`）、`compound-blueprint.ts`（`CompoundBlueprint`）、`blueprints.ts`（`Blueprints`）——构造、bbox 缓存、`orientation`、`isInside`、`isClosed`、`intersects`、变换族、`toSVG*`。**关键适配**：curves 用 `Curve2dObj[]`（纯对象），去掉 brepjs 的内核句柄与 dispose 语义（faijs 是纯数据）；`isInside` 的射线求交调 `intersectCurves2dFn`。依赖：A1。
 - **B2 移植 `organiseBlueprints`**：`geometry2d/organise.ts`——Flatbush 空间索引分组 + union-find + 首曲线中点探针 + `isInside` 分层 + 多外环拆分 + ≥3 层嵌套。Flatbush 作为 core 正式依赖引入（MIT、零传递、~2KB），`check-ghost-deps` 需通过。依赖：B1。
 - **B3 分类统一验证**：对 brepjs 同输入对照（单环/双岛/岛-孔/三层嵌套/两不相交多环组/bbox 重叠不包含），分层结果一致。依赖：B2。
 
-### C 组：2D 绘图 DSL（完整绘图）→ `cad.draw`
+### C 组：2D 绘图 DSL（完整绘图）→ `cad.draw`（draw 包）
 
-本组交付 `cad.draw` 脚本面 API 的底座：`cad.draw()` 链式绘图，轮廓对象自带 2D 运算，产出可放置轮廓，最终与 `profile`/`sketch` 一样支持 3D 拉伸。
+本组交付 `@faicad/faijs-draw` 包内 `cad.draw` 脚本面 API 的底座：`cad.draw()` 链式绘图，轮廓对象自带 2D 运算，产出可放置轮廓，最终与 `profile`/`sketch` 一样经 core 的放置管线支持 3D 拉伸。落点在 `packages/draw/src/draw/`，只 import core 的 `@faicad/faijs/geometry2d/*`。
 
-- **C1 移植笔方法基座**：`geometry2d/draw/base-sketcher.ts`（`BaseSketcher2d`）与 `generic-sketcher.ts` 接口——line/vLine/hLine/vLineTo/hLineTo/polarLine/polarLineTo/tangentLine/threePointsArc/sagittaArc/vSagittaArc/hSagittaArc/bulgeArc/vBulgeArc/hBulgeArc/tangentArc/ellipse/halfEllipse/bezier/quadratic/cubic/smoothSpline/customCorner + `done`/`close`/`closeWithMirror`/`closeWithCustomCorner`。产物为 `Curve2dObj[]` → `Blueprint`。依赖：B1。
-- **C2 移植 `BlueprintSketcher` 与预制图形**：`blueprintSketcher.ts`、`cannedBlueprints.ts`（`polysidesBlueprint`/`roundedRectangleBlueprint`）。依赖：C1。
-- **C3 移植 `Drawing`/`DrawingPen` 与绘制工厂（`cad.draw` 入口）**：`geometry2d/draw/drawing.ts`（不可变 2D 包装，含 2D 布尔/偏移/圆角委托）、`drawingPen.ts`、`drawingFactories.ts`（矩形/圆/椭圆/多边形/文字/插值/参数曲线）、`drawFns.ts`；`cad.draw()` / `cad.draw.roundedRectangle(...)` 等即在此接入脚本面。依赖：C1、D 组（布尔/偏移）。
-- **C4 移植投影出图**：`draw3d.ts`（`drawProjection`/`drawFaceOutline`，3D 边 → 2D 曲线 → Blueprint）。依赖：B1、A1。
+- **C1 移植笔方法基座**：`packages/draw/src/draw/base-sketcher.ts`（`BaseSketcher2d`）与 `generic-sketcher.ts` 接口——line/vLine/hLine/vLineTo/hLineTo/polarLine/polarLineTo/tangentLine/threePointsArc/sagittaArc/vSagittaArc/hSagittaArc/bulgeArc/vBulgeArc/hBulgeArc/tangentArc/ellipse/halfEllipse/bezier/quadratic/cubic/smoothSpline/customCorner + `done`/`close`/`closeWithMirror`/`closeWithCustomCorner`。产物为 `Curve2dObj[]` → `Blueprint`。依赖：B1。
+- **C2 移植 `BlueprintSketcher` 与预制图形**：`blueprint-sketcher.ts`、`canned-blueprints.ts`（`polysidesBlueprint`/`roundedRectangleBlueprint`）。依赖：C1。
+- **C3 移植 `Drawing`/`DrawingPen` 与绘制工厂（`cad.draw` 入口）**：`packages/draw/src/draw/drawing.ts`（不可变 2D 包装，含 2D 布尔/偏移/圆角委托）、`drawing-pen.ts`、`drawing-factories.ts`（矩形/圆/椭圆/多边形/文字/插值/参数曲线）、`draw-fns.ts`；`cad.draw()` / `cad.draw.roundedRectangle(...)` 等即在此接入脚本面。依赖：C1、D 组（布尔/偏移）。
+- **C4 移植投影出图**：`projection.ts`（`drawProjection`/`drawFaceOutline`，3D 边 → 2D 曲线 → Blueprint）。依赖：B1、A1。
 
-### D 组：2D 运算
+### D 组：2D 运算（draw 包）
 
-- **D1 2D 布尔**：`geometry2d/ops/` 移植 `intersectionSegments.ts`/`booleanHelpers.ts`/`segmentAssembly.ts`/`booleanOperations.ts`/`boolean2D.ts`（fuse/cut/intersect 多态，含 Compound/Blueprints 递归分解）。适配：句柄操作换纯对象函数（`splitCurve2d`/`intersectCurves2dFn`/变换族）。依赖：B1、A1。
-- **D2 2D 偏移**：移植 `blueprintOffset.ts` + `lib/offset.ts`（round/bevel/miter，Cavalier Contours 思路，自交剪除 + stitch）。依赖：D1。
-- **D3 2D 圆角/倒角**：移植 `blueprintCustomCorners.ts` + `lib/customCorners.ts`（`fillet2D`/`chamfer2D`）。依赖：B1。
-- **D4 SVG 往来**：移植 `lib/svgPath.ts`/`svg.ts`/`blueprintApproximations.ts`（2D ↔ SVG path）。依赖：B1。
+本组落点在 `packages/draw/src/ops/`，作为 `Drawing` 的 2D 运算后端，只 import core 的 `@faicad/faijs/geometry2d/*`。
 
-### E 组：2D→3D 桥接
+- **D1 2D 布尔**：`packages/draw/src/ops/boolean2d.ts` 移植 `intersectionSegments.ts`/`booleanHelpers.ts`/`segmentAssembly.ts`/`booleanOperations.ts`/`boolean2D.ts`（fuse/cut/intersect 多态，含 Compound/Blueprints 递归分解）。适配：句柄操作换纯对象函数（`splitCurve2d`/`intersectCurves2dFn`/变换族）。依赖：B1、A1。
+- **D2 2D 偏移**：移植 `offset.ts`（源自 `blueprintOffset.ts` + `lib/offset.ts`，round/bevel/miter，Cavalier Contours 思路，自交剪除 + stitch）。依赖：D1。
+- **D3 2D 圆角/倒角**：移植 `custom-corners.ts`（源自 `blueprintCustomCorners.ts` + `lib/customCorners.ts`，`fillet2D`/`chamfer2D`）。依赖：B1。
+- **D4 SVG 往来**：移植 `svg.ts`（源自 `lib/svgPath.ts`/`svg.ts`/`blueprintApproximations.ts`，2D ↔ SVG path）。依赖：B1。
+
+### E 组：2D→3D 桥接（core）
 
 - **E1 内核原语核对与补齐**：对 `liftCurve2dToPlane`/`buildEdgeOnSurface`/`draftPrism`/`makeWireFromMixed` 逐项核对并在 occt 平台面/core 组合层落地（见 §4）。产出 Agent Note 记录归属决策。依赖：无（可先做）。
 - **E2 `sketchOnPlane`**：`geometry2d/bridge/sketch-on-plane.ts`——`curvesAsEdgesOnPlane`（逐曲线 `liftCurve2dToPlane`）+ `assembleWire` → 3D wire/face，携带 `defaultOrigin`/`defaultDirection`。测试：XY/XZ/自定义平面 → wire 顶点坐标断言。依赖：E1、B1。
@@ -205,11 +222,11 @@ extrude / revolve / sweep / loft            extrude（沿面法向）/ punchHole
 
 ### F 组：API 接线与统一
 
-- **F1 新 op 与命名（已定）**：`api/draw.ts` 新增 `cad.draw`（链式绘图）；`api/sketch.ts` 等用 `defineOp` 包装 `sketchOnPlane`/`sketchOnFace`/`punchHole`；2D 纯函数导出面；`cad.profile` 保留。接入 `createApiNamespace` + `api/index.ts` + 重跑 `gen-symbol-table.ts`。命名见 §6。依赖：E2/E3/E4、C 组。
-- **F2 profile 分类消 H15**：`api/profile.ts` 的 `loopToCurves` 适配 `Curve2dObj`，分类段整体替换为 `organiseBlueprints`，删除自造 parent 链/`depthOf`/面积比较。防回归测试见 §7。依赖：B2。
-- **F3 SVG 统一**：`svg-to-solid.ts` 的 `classifyHoles` 统一到 `organiseBlueprints`（或保留采样版，按测试结果定）。依赖：B2。
+- **F1 新 op 与命名（已定）**：core 新增 `api/sketch-on-plane.ts`/`sketch-on-face.ts`/`punch-hole.ts` 用 `defineOp` 包装 `sketchOnPlane`/`sketchOnFace`/`punchHole`；draw 包 `op.ts` 新增 `cad.draw`（链式绘图，纯函数库）；`cad.profile` 保留。core 新增 `geometry2d/*` 子路径导出，接入 `createApiNamespace` + `api/index.ts` + 重跑 `gen-symbol-table.ts`；draw 包 `namespace.ts` 提供 `registerDrawSymbols`，并新增包（package.json/workspaces/lockstep/check-ghost-deps）。命名见 §6。依赖：E2/E3/E4、C 组。
+- **F2 profile 分类消 H15**：`api/profile.ts` 把 `ProfileSeg`（line/arc）适配为 `Curve2dObj`，分类段整体替换为 `organiseBlueprints`，删除自造 parent 链/`depthOf`/面积比较。防回归测试见 §7。依赖：B2。
+- **F3 SVG 统一（已定：统一，不保留采样版）**：`svg-to-solid.ts` 的 `classifyHoles`（`:757-818`）删除，统一走 `organiseBlueprints`。前置子任务：把 SVG parser 从「出离散采样点」升级为「出 `Curve2dObj`」（line/arc/bezier）。现有 `classifyHoles` 有 bug（质心探针跑丢 + ≥3 层嵌套静默丢岛，见 §7 防回归测试），删掉即消债，不留采样版 tech debt。依赖：B2。
 - **F4 约束草图接入统一管线**：`packages/sketch` 的求解产物 `SketchGeom` → 转 `Curve2dObj[]` → 走统一分类与放置管线（替代当前直接 `buildProfileShape`）；使约束草图也能放到任意平面/面。依赖：B2、E2。
-- **F5 命名空间/符号表/文档**：新能力在 `ops-api-inventory.md`、`api-namespace.ts`、`symbol-table.generated.ts` 的登记；必要时 `arg-spec.ts` 的 skip → faijs/selfhost。
+- **F5 命名空间/符号表/文档**：core 新能力在 `ops-api-inventory.md`、`api-namespace.ts`、`symbol-table.generated.ts` 的登记；draw 包新能力在 draw 包自身登记并新增包（package.json/workspaces 顺序/lockstep/ghost-deps）；必要时 `arg-spec.ts` 的 skip → faijs/selfhost。
 - **F6 三入口统一 3D 化（统一拉伸）**：让 `cad.profile`/`cad.sketch`/`cad.draw` 的产物都能经 `sketchOnPlane`/`sketchOnFace` 放置并 `extrude`；统一"轮廓 → 放置 → 3D 特征"接线，并验证三入口在 3D 能力上等价（差异仅在 2D 描述方式）。依赖：F1、F2、F4、E5。
 
 ### G 组：目标指引落地（可最后，但方向必须在架构里）
@@ -220,17 +237,18 @@ extrude / revolve / sweep / loft            extrude（沿面法向）/ punchHole
 
 ## 6. API 面契约（命名已定：2026-09-27）
 
-命名落定：新增 `cad.draw`（链式绘图）、保留 `cad.profile`（数据式）、`cad.sketch` 保持约束草图（`@faicad/faijs-sketch`，`packages/sketch/src/op.ts:108-124`）。三者最终统一支持 3D 拉伸；`cad.sketch` 被约束求解占用，故"放置"改用 `sketchOnPlane`/`sketchOnFace`：
+命名落定：新增 `cad.draw`（链式绘图，独立子包 `@faicad/faijs-draw`）、保留 `cad.profile`（数据式，core）、`cad.sketch` 保持约束草图（`@faicad/faijs-sketch`，`packages/sketch/src/op.ts:108-124`）。三者最终统一支持 3D 拉伸；`cad.sketch` 被约束求解占用，故"放置"改用 core 的 `sketchOnPlane`/`sketchOnFace`。core 的 2D 脚本面入口只有 `cad.profile`；`sketchOnPlane`/`sketchOnFace`/`punchHole`/`extrude` 是 core 提供的放置与 3D 拉伸能力。
 
-| 能力 | 名称 | 签名/形态 |
-|---|---|---|
-| 自由绘图（脚本面，**新增**） | `cad.draw` | `cad.draw().hLineTo(10).vLineTo(20).close()`；或 `cad.draw.roundedRectangle(w, h, r)`；产物是可继续 2D 运算的轮廓对象 |
-| 自由绘图（TS 面） | `Blueprint` / `CompoundBlueprint` / `Blueprints` / `Drawing` | 类与函数，经 `@faicad/faijs/api` 导入 |
-| 数据式轮廓（脚本面，**保留**） | `cad.profile` | 现状调用形态向后兼容；底层改走统一 2D 几何与分类管线 |
-| 约束草图（**保留**） | `cad.sketch` | 现状不变，产物接入统一管线 |
-| 平面草图放置 | `cad.sketchOnPlane` | `(轮廓, plane: 'XY'\|'XZ'\|{origin,normal,xDir}, origin?) => Shape`（`轮廓` 可来自 profile/sketch/draw） |
-| 曲面草图放置 | `cad.sketchOnFace` | `(轮廓, face: FaceRef, scaleMode?) => Shape` |
-| 打孔 | `cad.punchHole` | `(shape, face: FaceRef, {height?, draftAngle?, origin?}) => Shape` |
+| 能力 | 名称 | 归属 | 签名/形态 |
+|---|---|---|---|
+| 自由绘图（脚本面，**新增**） | `cad.draw` | `@faicad/faijs-draw` | `cad.draw().hLineTo(10).vLineTo(20).close()`；或 `cad.draw.roundedRectangle(w, h, r)`；产物是可继续 2D 运算的轮廓对象 |
+| 轮廓/容器（TS 面，基座） | `Curve2dObj` / `Blueprint` / `CompoundBlueprint` / `Blueprints` | core `@faicad/faijs/geometry2d/*` | 纯数据/类，三包共用 |
+| 自由绘图（TS 面） | `Drawing` / `DrawingPen` / 绘制工厂 | `@faicad/faijs-draw` | 类与函数 |
+| 数据式轮廓（脚本面，**保留**） | `cad.profile` | core | 现状调用形态向后兼容；底层改走统一 2D 几何与分类管线 |
+| 约束草图（**保留**） | `cad.sketch` | `@faicad/faijs-sketch` | 现状不变，产物接入统一管线 |
+| 平面草图放置 | `cad.sketchOnPlane` | core | `(轮廓, plane: 'XY'\|'XZ'\|{origin,normal,xDir}, origin?) => Shape`（`轮廓` 可来自 profile/sketch/draw） |
+| 曲面草图放置 | `cad.sketchOnFace` | core | `(轮廓, face: FaceRef, scaleMode?) => Shape` |
+| 打孔 | `cad.punchHole` | core | `(shape, face: FaceRef, {height?, draftAngle?, origin?}) => Shape` |
 
 `.fai.js` 目标体验（示意）——三个入口最终都走同一条放置 + 拉伸：
 
@@ -262,6 +280,7 @@ const hole = cad.punchHole(part, f, { height: null, draftAngle: 2 })
 - **2D 运算（D）**：布尔三态 × 相交/不相交/包含/共边/相切、偏移 join 三型 + 自交剪除、圆角倒角、退化输入。
 - **桥接（E）**：`sketchOnPlane` 各平面 wire 坐标断言；`sketchOnFace` 平面/圆柱/任意面三 scaleMode；`punchHole` volume 断言（含拔模）；`extrude` 沿法向。
 - **H15 场景（F2）**：首点探针失效、面积相等但包含、强非凸月牙、三层嵌套、多岛各带孔、弧环与父环相切/共边——精确求交 + `isOnCurve` 排除下分类正确。`GOTCHA:` 留档旧首点探针 + `<=` 面积跳过的坑。
+- **SVG classifyHoles 防回归（F3）**：质心探针跑丢（强凹 C 形/月牙）、三同心圆丢中心岛（≥3 层嵌套）——统一到 `organiseBlueprints` 后分类正确。`GOTCHA:` 留档旧 `classifyHoles` 静默丢岛的坑。
 - **三入口等价（F6）**：同一轮廓分别用 `profile`/`draw`（及求解后的 `sketch`）构造 → 放置 → 拉伸，产物几何等价。
 - **回归**：现有 profile/svg/sketch 全部测试通过 → 受影响包全量。
 - **e2e（G）**：平面/曲面草图 → 拉伸/打孔 → 实体（闭环验收）。
@@ -274,21 +293,23 @@ const hole = cad.punchHole(part, f, { height: null, draftAngle: 2 })
 - **Flatbush 依赖**：core 新增正式依赖，`check-ghost-deps` 需通过；若后续想去掉，在测试等价前提下换简实现并记 Agent Note。
 - **内核原语缺口**：`liftCurve2dToPlane`/`draftPrism` 只能在 occt 平台面落地（brepkit 不可对齐）→ 桥接 op 声明 `engines:['occt']`，brepkit 链按静态规则切换。缺口大则如实上报。
 - **Face 类型桥接**：faijs 的 face 引用（`BrepoHandle`/`FaceRef`）→ `geomSurf` 的适配是本迁移最主要的非常规适配点（`extractSurfaceFromFace`）。
-- **包图无环**：`geometry2d/` 纯层不得 import `api/`/`brep/`/`mesh/`；桥接经边界适配文件。
-- **许可**：brepjs 为 Apache-2.0，core 为 MIT；收录适配版须在文件头保留版权与许可声明，记 Agent Note（延续 `svg-to-solid.ts` 先例）。
-- **`cad.sketch` 命名冲突**：约束草图与自由绘图分名，需在 `ops-api-inventory` 明确。
+- **包图无环**：core 的 `geometry2d/` 纯层（curve2d/blueprint/organise）不得 import `api/`/`brep/`/`mesh/`；桥接经边界适配文件。draw/sketch 包只经 core 的 `geometry2d/*` 子路径触达 core，不 import core `api/`，保证 `draw → core`、`sketch → core` 单向无环。
+- **draw 新包运维**：新增 `@faicad/faijs-draw` 须过全链路守卫（`check-workspaces-order` 拓扑顺序、`check-ghost-deps`、`check-dep-lockstep`、madge 包图无环），其发布拓扑纳入发布方案；若为省事临时并进 sketch 包会污染 sketch 包语义，故坚持独立包。
+- **许可**：brepjs 为 Apache-2.0，core 为 MIT；收录适配版须在文件头保留版权与许可声明，记 Agent Note（延续 `svg-to-solid.ts` 先例）。draw 包若含从 brepjs 移植的绘图/运算代码，同样须沿用 Apache-2.0 版权注记。
+- **`cad.sketch` 命名冲突**：约束草图与自由绘图分名且分属不同包，需在 `ops-api-inventory` 明确二者差异。
 
 ## 9. 明确不做 / 待定
 
 - **本方案是目标总纲，不夹带实施**：按工作项逐个 PR，每项一主题；本方案本身不产生代码改动。
-- **已定（2026-09-27，见 §1.5、§6）**：新增 `cad.draw`、保留 `cad.profile`、`cad.sketch` 保持约束草图；三者统一支持 3D 拉伸。
-- **待定（实施时定并记 Agent Note）**：是否引入 Flatbush（或等价自研索引）；SVG `classifyHoles` 统一 vs 保留采样版；`Curve2dObj` 判别字段是否改名。
-- **不做**：不修改 op 注册签名语义；不改 `packages/brepjs`（保持删除状态，仅其 `dist` 残留，不作为依赖）；不引入 2D 内核句柄体系（2D 曲线用纯对象）。
+- **已定（2026-09-27，见 §1.5、§6、F3）**：新增 `cad.draw`（独立子包 `@faicad/faijs-draw`）、保留 `cad.profile`（core，core 的 2D 脚本面入口只有 profile，并补 3D 拉伸）、`cad.sketch` 保持约束草图；三者统一支持 3D 拉伸；SVG `classifyHoles` 统一到 `organiseBlueprints`（现有采样版分类有 bug，删除不留 tech debt）。
+- **已定（2026-09-27）**：`Curve2dObj` 判别字段改名 `kind2d`（替代 brepjs 的 `__bk2d`）。
+- **待定（实施时定并记 Agent Note）**：是否引入 Flatbush（或等价自研索引）。建议用Flatbush。
+- **不做**：`cad.draw` 不并入 core、不并入 sketch 包；不修改 op 注册签名语义；不改 `packages/brepjs`（保持删除状态，仅其 `dist` 残留，不作为依赖）；不引入 2D 内核句柄体系（2D 曲线用纯对象）。
 
 ## 10. 验收标准（"2D 完整"的定义）
 
 1. 能画：任意曲线类型（line/arc/circle/ellipse/bezier/bspline）的完整绘图 DSL + 2D 布尔/偏移/圆角倒角 + SVG 往来。
-2. 能汇入：`cad.profile`（数据式）、`cad.draw`（链式绘图）、`cad.sketch`（约束草图）三个入口共享统一下游管线，3D 能力等价。
+2. 能汇入：`cad.profile`（数据式，core）、`cad.draw`（链式绘图，draw 包）、`cad.sketch`（约束草图，sketch 包）三个入口共享统一下游管线，3D 能力等价。
 3. 能放置：平面上（`sketchOnPlane`）与面上（`sketchOnFace`，含非平面）都能把草图放到模型上。
 4. 能建模：`profile`/`sketch`/`draw` 三入口的放置结果都可拉伸（沿面法向）、旋转、扫掠、放样、打孔，产出 3D 实体；e2e 闭环。
 5. 能回归：现有 profile/svg/sketch 行为不破，H15 类分类问题消失。

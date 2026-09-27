@@ -22,6 +22,11 @@ import { solidToShape } from '../brep/brep-ops'
 import { fromBrep, fromBrepCurve } from '../shape'
 import { defineOp } from '../sdk'
 import type { Provenance } from '../topology/naming/lineage'
+import { Blueprint } from '../geometry2d/blueprint'
+import { CompoundBlueprint } from '../geometry2d/compound-blueprint'
+import { organiseBlueprints } from '../geometry2d/organise'
+import { curveBounds, evaluateCurve2d } from '../geometry2d/curve2d'
+import { profileSegToCurve, type ProfileSegLike } from '../geometry2d/adapt'
 
 // ── 参数形状（与 fcstd Contour 结构相同，避免引擎依赖端口层）──
 
@@ -92,129 +97,6 @@ export function assertProfileParams(params: Record<string, unknown>): void {
 }
 
 /**
- * 单环带符号面积（对每段做有向面积积分，而非只用段起点 shoelace）。
- *
- * 直线段：1/2 (x1·y2 − x2·y1)。
- * 圆弧段：1/2 ∫(x dy − y dx) 的解析解 = 1/2 [r²·sweep + cx·r(sin a1 − sin a0) − cy·r(cos a1 − cos a0)]。
- * 整圆（单段弧、起终点重合）由此得到 πr²，不再是 0——否则「整圆 + 方孔」会把孔误判成外环。
- */
-function loopSignedArea(loop: ProfileLoop): number {
-  let a = 0
-  for (const seg of loop.segments) {
-    if (seg.kind === 'line') {
-      a += (seg.x1 * seg.y2 - seg.x2 * seg.y1) / 2
-      continue
-    }
-    let sweep = seg.endAngle - seg.startAngle
-    while (sweep <= 0) sweep += 2 * Math.PI
-    while (sweep > 2 * Math.PI) sweep -= 2 * Math.PI
-    const { cx, cy, radius: r, startAngle: a0 } = seg
-    const a1 = a0 + sweep
-    a += 0.5 * (r * r * sweep + cx * r * (Math.sin(a1) - Math.sin(a0)) - cy * r * (Math.cos(a1) - Math.cos(a0)))
-  }
-  return a
-}
-
-/** 圆弧 → 一条或两条 makeArcEdge（整圆拆分）。 */
-function arcToHandles(
-  kernel: BrepEngineApi,
-  seg: ProfileArcSeg,
-): ReturnType<BrepEngineApi['makeArcEdge']>[] {
-  const { cx, cy, radius, startAngle, endAngle, ccw = true } = seg
-  // GOTCHA（2026-09-25，A3 FCBL_tree_entourage）：ccw 必须参与弧的几何方向。
-  // makeArcEdge 按「起点-中点-终点」三点定弧，旧实现一律取 CCW 中点
-  // ((start+end)/2 归一化到 (0,2π])，ccw:false 的弧被画成 CCW **长弧**（补角）。
-  // 实测后果：长弧穿过旋转轴 → revolve 产物退化（bbox NaN）→ BRepMesh 挂死
-  // （进程无声死亡）；正确 CW 短弧下内核 revolve 仅 ~19ms。
-  let sweep: number
-  let midAngle: number
-  if (ccw) {
-    sweep = endAngle - startAngle
-    while (sweep <= 0) sweep += 2 * Math.PI
-    while (sweep > 2 * Math.PI) sweep -= 2 * Math.PI
-    midAngle = startAngle + sweep / 2
-  } else {
-    // 顺时针：从 startAngle 递减到 endAngle，扫角取反向归一化
-    sweep = startAngle - endAngle
-    while (sweep <= 0) sweep += 2 * Math.PI
-    while (sweep > 2 * Math.PI) sweep -= 2 * Math.PI
-    midAngle = startAngle - sweep / 2
-  }
-
-  const makeOne = (a0: number, am: number, a1: number): ReturnType<BrepEngineApi['makeArcEdge']> => {
-    const start = { x: cx + radius * Math.cos(a0), y: cy + radius * Math.sin(a0), z: 0 }
-    const m = { x: cx + radius * Math.cos(am), y: cy + radius * Math.sin(am), z: 0 }
-    const end = { x: cx + radius * Math.cos(a1), y: cy + radius * Math.sin(a1), z: 0 }
-    return kernel.makeArcEdge(start, m, end)
-  }
-
-  // 整圆（sweep≈2π）：拆成两段半圆，避免 makeArcEdge 起点≈终点退化
-  if (sweep >= 2 * Math.PI - 1e-9) {
-    const half = 2 * Math.PI / 2
-    const dir = ccw ? 1 : -1
-    return [
-      makeOne(startAngle, startAngle + dir * half / 2, startAngle + dir * half),
-      makeOne(startAngle + dir * half, startAngle + dir * (half + half / 2), startAngle + dir * 2 * Math.PI),
-    ]
-  }
-  return [makeOne(startAngle, midAngle, endAngle)]
-}
-
-/** 单环 → wire handle（仅构面，不释放中间句柄，遵循现有惯例）。 */
-function loopToWire(kernel: BrepEngineApi, loop: ProfileLoop): ReturnType<BrepEngineApi['makeWire']> {
-  const edges: ReturnType<BrepEngineApi['makeLineEdge']>[] = []
-  for (const seg of loop.segments) {
-    if (seg.kind === 'line') {
-      edges.push(kernel.makeLineEdge({ x: seg.x1, y: seg.y1, z: 0 }, { x: seg.x2, y: seg.y2, z: 0 }))
-    } else {
-      // 极小扫角（退化弧）→ 退化为线段，避免构边失败
-      let sweep = seg.endAngle - seg.startAngle
-      while (sweep <= 0) sweep += 2 * Math.PI
-      while (sweep > 2 * Math.PI) sweep -= 2 * Math.PI
-      if (sweep < 1e-9) {
-        edges.push(kernel.makeLineEdge({ x: seg.x1, y: seg.y1, z: 0 }, { x: seg.x2, y: seg.y2, z: 0 }))
-      } else {
-        edges.push(...arcToHandles(kernel, seg))
-      }
-    }
-  }
-  return kernel.makeWire(edges as ReturnType<BrepEngineApi['makeLineEdge']>[])
-}
-
-/** 环 → 2D 采样多边形（直线取端点、弧等角采样），用于环间包含性判定。 */
-function loopToPolygon(loop: ProfileLoop): Array<{ x: number; y: number }> {
-  const pts: Array<{ x: number; y: number }> = []
-  for (const seg of loop.segments) {
-    if (seg.kind === 'line') {
-      pts.push({ x: seg.x1, y: seg.y1 })
-      continue
-    }
-    let sweep = seg.endAngle - seg.startAngle
-    while (sweep <= 0) sweep += 2 * Math.PI
-    while (sweep > 2 * Math.PI) sweep -= 2 * Math.PI
-    const n = Math.max(8, Math.ceil((sweep / (2 * Math.PI)) * 32))
-    for (let k = 0; k < n; k++) {
-      const a = seg.startAngle + (sweep * k) / n
-      pts.push({ x: seg.cx + seg.radius * Math.cos(a), y: seg.cy + seg.radius * Math.sin(a) })
-    }
-  }
-  return pts
-}
-
-/** 射线法：点是否在多边形内（采样多边形足够密，顶点/边界角落情形由环间不共边保证不出现）。 */
-function polygonContains(poly: Array<{ x: number; y: number }>, px: number, py: number): boolean {
-  let inside = false
-  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-    const xi = poly[i]!.x
-    const yi = poly[i]!.y
-    const xj = poly[j]!.x
-    const yj = poly[j]!.y
-    if (yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi) inside = !inside
-  }
-  return inside
-}
-
-/**
  * BREP 路径：2D 轮廓集合 → planar face 集合。
  *
  * GOTCHA（2026-09-26，Beds part16/39）：环语义是「**嵌套 = 孔，不相交 = 独立岛**」
@@ -230,64 +112,44 @@ export function buildProfileShape(params: ProfileParams): Shape {
   const kernel = getBrepApi()
   const as = params.as ?? 'face'
 
-  const loops = params.contours.map((loop) => ({ loop, area: Math.abs(loopSignedArea(loop)) }))
+  const loops = params.contours.map((loop) => ({
+    loop,
+    curves: loop.segments.map((s) => profileSegToCurve(s as ProfileSegLike)),
+  }))
 
-  // 包含分类：每个环的直接父环 = 面积最小的严格包含它的环；深度偶数 = 岛，奇数 = 父环的孔。
-  const polys = loops.map((l) => loopToPolygon(l.loop))
-  const parent = new Array<number>(loops.length).fill(-1)
-  for (let i = 0; i < loops.length; i++) {
-    const probe = polys[i]![0]!
-    for (let j = 0; j < loops.length; j++) {
-      if (i === j || loops[j]!.area <= loops[i]!.area) continue
-      if (!polygonContains(polys[j]!, probe.x, probe.y)) continue
-      if (parent[i] === -1 || loops[j]!.area < loops[parent[i]]!.area) parent[i] = j
-    }
-  }
-  const depthOf = (i: number): number => {
-    let d = 0
-    let cur = i
-    while (parent[cur] !== -1) {
-      d++
-      cur = parent[cur]!
-    }
-    return d
-  }
+  // F2（2026-09-27）：环分类统一到纯 2D 管线 `organiseBlueprints`
+  // （geometry2d/，brepjs 移植）。「嵌套=孔，不相交=独立岛」语义与既有
+  // `profile-multi-island.test.ts` 断言一致；多岛 → 多个顶层，岛+孔 →
+  // CompoundBlueprint（[0]=外环，[1..]=孔）。
+  const organised = organiseBlueprints(loops.map((l) => new Blueprint(l.curves)))
 
-  const islands: number[] = []
-  const holesOf = new Map<number, number[]>()
-  for (let i = 0; i < loops.length; i++) {
-    if (depthOf(i) % 2 === 0) islands.push(i)
-    else {
-      const p = parent[i]!
-      const arr = holesOf.get(p)
-      if (arr) arr.push(i)
-      else holesOf.set(p, [i])
-    }
-  }
-
-  // 'wire' 形态：只交最大岛的外环 wire（1D 曲线），不构面 —— 供扫掠族作 spine。
+  // 'wire' 形态：只挑面积最大的岛的外环 wire（1D 曲线），供扫掠族作 spine。
   if (as === 'wire') {
-    let outer = islands[0]!
-    for (const isl of islands) {
-      if (loops[isl]!.area > loops[outer]!.area) outer = isl
+    let best = organised.blueprints[0]!
+    for (const entry of organised.blueprints) {
+      if (blueprintArea(entry) > blueprintArea(best)) best = entry
     }
-    const wire = loopToWire(kernel, loops[outer]!.loop)
+    const outerBp = best instanceof CompoundBlueprint ? best.blueprints[0]! : best
+    const wire = blueprintToWire(kernel, outerBp)
     return fromBrepCurve(solidToShape(kernel, wire), { solid: wire })
   }
 
-  // 每岛一面（岛环为外环，直接子环为孔）
+  // 每岛一面（岛的外环 + 直接子环为孔）
   const faces: ReturnType<BrepEngineApi['makeFace']>[] = []
-  for (const isl of islands) {
-    const wire = loopToWire(kernel, loops[isl]!.loop)
-    const face = kernel.makeFace(wire)
-    const holes = holesOf.get(isl)
-    if (holes && holes.length > 0) {
-      const holeWires = holes.map((h) => loopToWire(kernel, loops[h]!.loop))
-      const faced = kernel.addHolesInFace(face, holeWires)
-      kernel.release(face)
-      faces.push(faced)
+  for (const entry of organised.blueprints) {
+    if (entry instanceof CompoundBlueprint) {
+      const outerWire = blueprintToWire(kernel, entry.blueprints[0]!)
+      const face = kernel.makeFace(outerWire)
+      const holes = entry.blueprints.slice(1).map((h) => blueprintToWire(kernel, h))
+      if (holes.length > 0) {
+        const faced = kernel.addHolesInFace(face, holes)
+        kernel.release(face)
+        faces.push(faced)
+      } else {
+        faces.push(face)
+      }
     } else {
-      faces.push(face)
+      faces.push(kernel.makeFace(blueprintToWire(kernel, entry)))
     }
   }
 
@@ -297,6 +159,83 @@ export function buildProfileShape(params: ProfileParams): Shape {
   }
   const compound = kernel.makeCompound(faces as never)
   return fromBrep(solidToShape(kernel, compound), { solid: compound })
+}
+
+/**
+ * Convert a pure-2D Blueprint to a 3D wire (z=0) for planar face construction.
+ * @param kernel - the BREP engine handle-bridge.
+ * @param bp - the blueprint whose ordered curves become wire edges.
+ * @returns the wire handle.
+ */
+function blueprintToWire(kernel: BrepEngineApi, bp: Blueprint): ReturnType<BrepEngineApi['makeWire']> {
+  const edges: ReturnType<BrepEngineApi['makeLineEdge']>[] = []
+  const pt3 = ([x, y]: [number, number]): { x: number; y: number; z: number } => ({ x, y, z: 0 })
+  for (const c of bp.curves) {
+    switch (c.kind2d) {
+      case 'line':
+        edges.push(kernel.makeLineEdge({ x: c.ox, y: c.oy, z: 0 }, { x: c.ox + c.dx * c.len, y: c.oy + c.dy * c.len, z: 0 }))
+        break
+      case 'bezier':
+        edges.push(kernel.makeBezierEdge(c.poles.map(pt3)))
+        break
+      case 'circle': {
+        // 完整圆：拆两段半圆 makeArcEdge（避免三点退化）。
+        edges.push(kernel.makeArcEdge(pt3(evaluateCurve2d(c, 0)), pt3(evaluateCurve2d(c, Math.PI / 2)), pt3(evaluateCurve2d(c, Math.PI))))
+        edges.push(kernel.makeArcEdge(pt3(evaluateCurve2d(c, Math.PI)), pt3(evaluateCurve2d(c, (3 * Math.PI) / 2)), pt3(evaluateCurve2d(c, 2 * Math.PI))))
+        break
+      }
+      case 'trimmed': {
+        if (c.basis.kind2d === 'circle') {
+          // 圆弧：以 start/mid/end 三点构真实 makeArcEdge（保留光滑柱面，勿拆成折线段）
+          edges.push(kernel.makeArcEdge(pt3(evaluateCurve2d(c, 0)), pt3(evaluateCurve2d(c, 0.5)), pt3(evaluateCurve2d(c, 1))))
+          break
+        }
+        const b = curveBounds(c)
+        const pts: Array<{ x: number; y: number; z: number }> = []
+        for (let k = 0; k <= 32; k++) {
+          const t = b.first + ((b.last - b.first) * k) / 32
+          pts.push(pt3(evaluateCurve2d(c, t)))
+        }
+        for (let k = 0; k < pts.length - 1; k++) edges.push(kernel.makeLineEdge(pts[k]!, pts[k + 1]!))
+        break
+      }
+      case 'ellipse':
+      case 'bspline': {
+        const b = curveBounds(c)
+        const n = 32
+        const pts: Array<{ x: number; y: number; z: number }> = []
+        for (let k = 0; k <= n; k++) {
+          const t = b.first + ((b.last - b.first) * k) / n
+          pts.push(pt3(evaluateCurve2d(c, t)))
+        }
+        for (let k = 0; k < pts.length - 1; k++) edges.push(kernel.makeLineEdge(pts[k]!, pts[k + 1]!))
+        break
+      }
+    }
+  }
+  return kernel.makeWire(edges)
+}
+
+/** 顶层 Blueprint/CompoundBlueprint 的近似有符号面积（用于 wire 最大岛选择）。 */
+function blueprintArea(entry: Blueprint | CompoundBlueprint): number {
+  const bp = entry instanceof CompoundBlueprint ? entry.blueprints[0]! : entry
+  let a = 0
+  for (const c of bp.curves) {
+    if (c.kind2d === 'line') {
+      a += (c.ox * (c.oy + c.dy * c.len) - (c.ox + c.dx * c.len) * c.oy) / 2
+      continue
+    }
+    const b = curveBounds(c)
+    const nSamples = 32
+    for (let k = 0; k < nSamples; k++) {
+      const t0 = b.first + ((b.last - b.first) * k) / nSamples
+      const t1 = b.first + ((b.last - b.first) * (k + 1)) / nSamples
+      const [x0, y0] = evaluateCurve2d(c, t0)
+      const [x1, y1] = evaluateCurve2d(c, t1)
+      a += (x0 * y1 - x1 * y0) / 2
+    }
+  }
+  return a
 }
 
 /**
