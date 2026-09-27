@@ -40,4 +40,7 @@ core 在 `packages/core/src/geometry2d/` 下获得一套与内核无关的纯 2D
 - 纯 2D 基座是 `geometry2d/bridge/` 放置（`sketchOnPlane`/`sketchOnFace`/`punchHole`）与 `@faicad/faijs-draw` 包的前置。
 - `geometry2d/bridge/`（E2）落地平面抬升组合：`plane.ts`（`makePlane`/`namedPlane`/`lift` 帧）+ `lift-on-plane.ts`（`liftCurve2dToPlane`/`curvesAsEdgesOnPlane`/`assembleWire`）。内核类型取 `Pick<BrepEngineApi, makeLineEdge|makeArcEdge|makeBezierEdge|makeWire>`，调用方直接传 `getBrepApi()` 免强转；模块只 import 内核契约、绝不 import `api/`。
 - `cad.sketchOnPlane`（E2+op）落地：与 `cad.profile` 相同轮廓环输入，置于命名或显式 `{origin, normal, xAxis}` 平面；`as:'face'`/`'wire'`；已注册进 cad 命名空间与符号表。
+- 笔层（`BaseSketcher2d`）现驻 core `geometry2d/pen-sketcher.ts`（brepjs sketcher 的纯对象移植），作为 C 组 DSL 的临时落脚点；它只依赖 `geometry2d/*`，日后迁入 `@facade/faijs-draw` 是机械性的重新放置。
+- SVG-style 椭圆弧以 `geometry2d/svg-ellipse.ts` 落地（`normalizeEllipseRadii`/`convertSvgEllipseParams`/`makeEllipseArcFromSvgParams`），产出以 `Ellipse2d` 为基的 `TrimmedCurve2d`（参数 = 扫掠角），解锁笔的 `ellipseTo`/`ellipse`/`halfEllipseTo`/`halfEllipse`。
+- C2 以 `geometry2d/blueprint-sketcher.ts`（`BlueprintSketcher` → `done(): Blueprint`）与 `canned-blueprints.ts`（`polysidesBlueprint`/`roundedRectangleBlueprint`，圆角/椭圆角）落地。`BlueprintSketcher` 继承基类 `close(): Curve2dObj[]`；闭合轮廓的 `Blueprint` 由 `new Blueprint(pen.close())` 包装得到。
 - GOTCHA（数组坐标帧）：`.fai.js` 平面字面量以**数组**给帧（`{origin:[10,0,0],normal:[0,0,1]}`）；`toVec3` 必须归一化数组形式。只接受 `{x,y,z}` 会得到 `undefined` 坐标 → NaN wire → occt `makeFace` `CONSTRUCTION_FAILED`。

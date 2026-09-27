@@ -1,6 +1,6 @@
 # 2D 绘图与草图 → 3D 建模能力建设方案
 
-状态：实施中（A 组/B 组/E2/F2 已落地，C/D/G/F4/F5/F6 待做）
+状态：实施中（A 组/B 组/C1/C2/E1(部分)/E2/F2 已落地，C3/D/G/F4/F5/F6 待做）
 
 本方案是 faijs 2D 能力建设的总纲，覆盖"完整 2D 绘图 + 完整 2D 草图 + 2D→3D 桥接"的最终目标与实施路径。`docs/plans/2026-09-26-profile-classify-holes-alignment.md`（profile 孔洞分类消 H15）的结论被本方案吸收为其子集——该方案的 profile 分类工作对应本方案工作项 F2，内核原语核对对应 E1；本方案在其上把范围从"孔洞分类"扩展到"完整 2D 能力 + 2D→3D 桥接"，并纠正了该方案中一处与用户需求相悖的判断（见 §1.4）。
 
@@ -198,8 +198,8 @@ extrude / revolve / sweep / loft            extrude（沿面法向）/ punchHole
 
 本组交付 `@faicad/faijs-draw` 包内 `cad.draw` 脚本面 API 的底座：`cad.draw()` 链式绘图，轮廓对象自带 2D 运算，产出可放置轮廓，最终与 `profile`/`sketch` 一样经 core 的放置管线支持 3D 拉伸。落点在 `packages/draw/src/draw/`，只 import core 的 `@faicad/faijs/geometry2d/*`。
 
-- **C1 移植笔方法基座**：`packages/draw/src/draw/base-sketcher.ts`（`BaseSketcher2d`）与 `generic-sketcher.ts` 接口——line/vLine/hLine/vLineTo/hLineTo/polarLine/polarLineTo/tangentLine/threePointsArc/sagittaArc/vSagittaArc/hSagittaArc/bulgeArc/vBulgeArc/hBulgeArc/tangentArc/ellipse/halfEllipse/bezier/quadratic/cubic/smoothSpline/customCorner + `done`/`close`/`closeWithMirror`/`closeWithCustomCorner`。产物为 `Curve2dObj[]` → `Blueprint`。依赖：B1。**已落地（初版）**：`BaseSketcher2d` 先以 core 的 `geometry2d/pen-sketcher.ts` 纯对象基座落地（lines/arcs/beziers 家族与 `close`/`curves`，6 pen 测试通过）；`ellipse*`/`smoothSpline*`/`customCorner`/`closeWithMirror` 依赖 D/comers 与 SVG-ellipse/Spline 助手未实现（如实抛 `not yet ported`），待随 D 组或迁入 draw 包补齐。
-- **C2 移植 `BlueprintSketcher` 与预制图形**：`blueprint-sketcher.ts`、`canned-blueprints.ts`（`polysidesBlueprint`/`roundedRectangleBlueprint`）。依赖：C1。
+- **C1 移植笔方法基座**：`packages/draw/src/draw/base-sketcher.ts`（`BaseSketcher2d`）与 `generic-sketcher.ts` 接口——line/vLine/hLine/vLineTo/hLineTo/polarLine/polarLineTo/tangentLine/threePointsArc/sagittaArc/vSagittaArc/hSagittaArc/bulgeArc/vBulgeArc/hBulgeArc/tangentArc/ellipse/halfEllipse/bezier/quadratic/cubic/smoothSpline/customCorner + `done`/`close`/`closeWithMirror`/`closeWithCustomCorner`。产物为 `Curve2dObj[]` → `Blueprint`。依赖：B1。**已落地（初版）**：`BaseSketcher2d` 先以 core 的 `geometry2d/pen-sketcher.ts` 纯对象基座落地（lines/arcs/beziers/ellipse 家族与 `close`/`curves`，8 pen 测试通过）；SVG-style 椭圆弧经 `svg-ellipse.ts`（`makeEllipseArcFromSvgParams`/`normalizeEllipseRadii`，trimmed form、独立 4 测试）实现，`ellipseTo`/`ellipse`/`halfEllipseTo`/`halfEllipse` 已如实落地；`smoothSpline*`/`customCorner`/`closeWithMirror` 依赖 D/comers 与 Spline 助手未实现（如实抛 `not yet ported`），待随 D 组补齐。
+- **C2 移植 `BlueprintSketcher` 与预制图形**：`blueprint-sketcher.ts`、`canned-blueprints.ts`（`polysidesBlueprint`/`roundedRectangleBlueprint`）。依赖：C1。**已落地**：core `geometry2d/blueprint-sketcher.ts`（`BaseSketcher2d` 子类 + `done(): Blueprint`）与 `canned-blueprints.ts`（多边形 / 圆角矩形，圆形用 `tangentArc`、椭圆角用 `ellipse`），5 测试通过（六边形轮廓/射线弧、直角、圆角 4 弧+4 线、椭圆角皆闭合）。
 - **C3 移植 `Drawing`/`DrawingPen` 与绘制工厂（`cad.draw` 入口）**：`packages/draw/src/draw/drawing.ts`（不可变 2D 包装，含 2D 布尔/偏移/圆角委托）、`drawing-pen.ts`、`drawing-factories.ts`（矩形/圆/椭圆/多边形/文字/插值/参数曲线）、`draw-fns.ts`；`cad.draw()` / `cad.draw.roundedRectangle(...)` 等即在此接入脚本面。依赖：C1、D 组（布尔/偏移）。
 - **C4 移植投影出图**：`projection.ts`（`drawProjection`/`drawFaceOutline`，3D 边 → 2D 曲线 → Blueprint）。依赖：B1、A1。
 
