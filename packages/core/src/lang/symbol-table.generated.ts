@@ -12,6 +12,7 @@ export default {
   "wedge": {},
   "screw": {},
   "profile": {},
+  "sketchOnPlane": {},
   "wire": {},
   "helix": {},
   "sdf": {},

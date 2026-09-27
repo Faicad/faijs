@@ -38,3 +38,6 @@ core 在 `packages/core/src/geometry2d/` 下获得一套与内核无关的纯 2D
 - 分类逻辑只存在于 `organiseBlueprints` 一处，`cad.profile` 与后续 `cad.draw`/sketch 族共用。
 - 整圆、`ccw:false` 弧、多岛/岛中孔轮廓均通过迁移测试（33 geometry2d + 5 profile 多岛 + arc GOTCHA 护栏，另多引擎 parity `mismatches=0`）。
 - 纯 2D 基座是 `geometry2d/bridge/` 放置（`sketchOnPlane`/`sketchOnFace`/`punchHole`）与 `@faicad/faijs-draw` 包的前置。
+- `geometry2d/bridge/`（E2）落地平面抬升组合：`plane.ts`（`makePlane`/`namedPlane`/`lift` 帧）+ `lift-on-plane.ts`（`liftCurve2dToPlane`/`curvesAsEdgesOnPlane`/`assembleWire`）。内核类型取 `Pick<BrepEngineApi, makeLineEdge|makeArcEdge|makeBezierEdge|makeWire>`，调用方直接传 `getBrepApi()` 免强转；模块只 import 内核契约、绝不 import `api/`。
+- `cad.sketchOnPlane`（E2+op）落地：与 `cad.profile` 相同轮廓环输入，置于命名或显式 `{origin, normal, xAxis}` 平面；`as:'face'`/`'wire'`；已注册进 cad 命名空间与符号表。
+- GOTCHA（数组坐标帧）：`.fai.js` 平面字面量以**数组**给帧（`{origin:[10,0,0],normal:[0,0,1]}`）；`toVec3` 必须归一化数组形式。只接受 `{x,y,z}` 会得到 `undefined` 坐标 → NaN wire → occt `makeFace` `CONSTRUCTION_FAILED`。

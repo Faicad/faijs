@@ -37,4 +37,7 @@ Nested-loop semantic is a decision, not an accident: nested loop = hole, disjoin
 - core exposes `@faicad/faijs/geometry2d/*` subpath exports.
 - The profile classification lives once, in `organiseBlueprints`, shared by `cad.profile` and later `cad.draw` / sketch-family inputs.
 - Full circles, `ccw:false` arcs, and multi-island / hole-in-island contours all pass the migrated tests (33 geometry2d + 5 profile multi-island + the arc GOTCHA guards, plus multi-engine parity `mismatches=0`).
-- The pure-2D base is the prerequisite for `geometry2d/bridge/` placement (`sketchOnPlane`/`sketchOnFace`/`punchHole`) and the `@faicad/faijs-draw` package.
+- The pure-2D base is the prerequisite for `geometry2d/bridge/` placement
+- `geometry2d/bridge/` (E2) lands the plane-lift composition: `plane.ts` (frame `makePlane`/`namedPlane`/`lift`) and `lift-on-plane.ts` (`liftCurve2dToPlane`/`curvesAsEdgesOnPlane`/`assembleWire`). It types its kernel as `Pick<BrepEngineApi, makeLineEdge|makeArcEdge|makeBezierEdge|makeWire>` so callers pass `getBrepApi()` with no casts; the module imports the kernel contract but never `api/`.
+- `cad.sketchOnPlane` (E2+op) lands: same contour-loop input as `cad.profile`, placed on a named or explicit `{origin, normal, xAxis}` plane; `as:'face'`/`'wire'`; registered in the cad namespace + symbol table.
+- GOTCHA (array-frame coords): `.fai.js` plane literals hand the frame as **arrays** (`{origin:[10,0,0],normal:[0,0,1]}`); `toVec3` must normalize the array form. Passing `{x,y,z}` only yields `undefined` coords → NaN wire → occt `makeFace` `CONSTRUCTION_FAILED`.

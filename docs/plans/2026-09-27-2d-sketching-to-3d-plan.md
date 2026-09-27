@@ -1,6 +1,6 @@
 # 2D 绘图与草图 → 3D 建模能力建设方案
 
-状态：方案（未实施，目标总纲）
+状态：实施中（A 组/B 组/E2/F2 已落地，C/D/G/F4/F5/F6 待做）
 
 本方案是 faijs 2D 能力建设的总纲，覆盖"完整 2D 绘图 + 完整 2D 草图 + 2D→3D 桥接"的最终目标与实施路径。`docs/plans/2026-09-26-profile-classify-holes-alignment.md`（profile 孔洞分类消 H15）的结论被本方案吸收为其子集——该方案的 profile 分类工作对应本方案工作项 F2，内核原语核对对应 E1；本方案在其上把范围从"孔洞分类"扩展到"完整 2D 能力 + 2D→3D 桥接"，并纠正了该方案中一处与用户需求相悖的判断（见 §1.4）。
 
@@ -214,8 +214,8 @@ extrude / revolve / sweep / loft            extrude（沿面法向）/ punchHole
 
 ### E 组：2D→3D 桥接（core）
 
-- **E1 内核原语核对与补齐**：对 `liftCurve2dToPlane`/`buildEdgeOnSurface`/`draftPrism`/`makeWireFromMixed` 逐项核对并在 occt 平台面/core 组合层落地（见 §4）。产出 Agent Note 记录归属决策。依赖：无（可先做）。
-- **E2 `sketchOnPlane`**：`geometry2d/bridge/sketch-on-plane.ts`——`curvesAsEdgesOnPlane`（逐曲线 `liftCurve2dToPlane`）+ `assembleWire` → 3D wire/face，携带 `defaultOrigin`/`defaultDirection`。测试：XY/XZ/自定义平面 → wire 顶点坐标断言。依赖：E1、B1。
+- **E1 内核原语核对与补齐**：对 `liftCurve2dToPlane`/`buildEdgeOnSurface`/`draftPrism`/`makeWireFromMixed` 逐项核对并在 occt 平台面/core 组合层落地（见 §4）。产出 Agent Note 记录归属决策。依赖：无（可先做）。**已落地（部分）**：`liftCurve2dToPlane` 以 core 组合层 `geometry2d/bridge/lift-on-plane.ts` 形式落地（逐曲线求值 + 既有 `makeLineEdge`/`makeArcEdge`/`makeBezierEdge`/`makeWire` 构边，无需扩 L1）；`buildEdgeOnSurface`/`draftPrism`/`makeWireFromMixed` 待后续。
+- **E2 `sketchOnPlane`**：`geometry2d/bridge/sketch-on-plane.ts`——`curvesAsEdgesOnPlane`（逐曲线 `liftCurve2dToPlane`）+ `assembleWire` → 3D wire/face，携带 `defaultOrigin`/`defaultDirection`。测试：XY/XZ/自定义平面 → wire 顶点坐标断言。依赖：E1、B1。**已落地**：桥接在 `geometry2d/bridge/`（`plane.ts` 帧 + `lift-on-plane.ts`），op 在 `api/sketch-on-plane.ts`（`cad.sketchOnPlane`，`as:'face'|'wire'`，命名平面 `'XY'`/`'XZ'` 或显式 `{origin,normal,xAxis}`），已接 `createApiNamespace`/`api/index.ts`/`gen-symbol-table`；e2e 断言 XY/XZ/显式位移帧/命名带偏移/斜平面/`as:'wire'` 全部通过。
 - **E3 `sketchOnFace`（曲面草图，目标指引）**：`geometry2d/bridge/sketch-on-face.ts`——`extractSurfaceFromFace` + `uvBounds` + `curvesAsEdgesOnFace`（scaleMode original/bounds/native）+ `buildEdgeOnSurface`，闭合后 `fixWireOnFace`。`original` 先支持平面/圆柱，`bounds`/`native` 支持任意面。测试：圆柱面/平面，三种 scaleMode。依赖：E1、B1。
 - **E4 `punchHole`**：`geometry2d/bridge/punch-hole.ts`——`subFace`（草图在目标面上成面）+ `draftPrism`（`height=null` 通孔，含 `draftAngle`）。测试：产物 volume 断言（含拔模）。依赖：E1、E3。
 - **E5 `Sketch`/`CompoundSketch` 包装与 3D 出口**：`Sketch`（wire + defaultOrigin/Direction + baseFace）的 `extrude`/`revolve`/`sweepSketch`/`loftWith`，`CompoundSketch`（孔用独立实体 cut）——接到 faijs 现有 `cad.extrude`/`revolve`/`sweep`/`loft`。依赖：E2、E3。
